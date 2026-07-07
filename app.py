@@ -27,13 +27,26 @@ VERDICT_NORMALIZE = {
 }
 
 
+def _parse_optional_score(text):
+    """빈 문자열이면 None, 숫자면 float로 변환, 숫자로 해석 안 되면 None을 반환한다."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
 def parse_quick_text(text):
     """"간편 저장용 텍스트"([기본]/[오늘의 결론]/[종목] 구역)를 파싱한다.
 
-    구분자는 '/'. 각 종목 줄은 두 형식을 지원한다.
+    구분자는 '/'. 각 종목 줄은 세 형식을 지원한다.
     - 6개 필드(기존 형식): 종목명 / 티커 / market / 판정 / 신호 분류 / 이벤트명
       (trade_mode는 자동으로 '공통')
     - 7개 필드(신규 형식): 종목명 / 티커 / market / 매매유형 / 판정 / 신호 분류 / 이벤트명
+    - 13개 필드(확장 형식, 판단 설명 포함): 위 7개 필드 +
+      score / score_reason / top_candidate_reason / penalty_reason / buy_confirmed / buy_confirm_condition
     선택지에 없는 값은 안전한 기본값으로 대체하고 warnings에 기록한다.
     "시점 구분"은 timing_class가 저장 시각 기준 자동 분류라는 기존 규칙 때문에 파싱만 하고
     적용하지 않는다(경고만 남김).
@@ -99,18 +112,44 @@ def parse_quick_text(text):
 
         stock_name, ticker, market = parts[0], parts[1], parts[2]
 
-        if len(parts) == 7:
-            # 신규 형식: 종목명 / 티커 / market / 매매유형 / 판정 / 신호 분류 / 이벤트명
+        if len(parts) >= 13:
+            # 확장 형식: 7개 기존 필드 + 6개 판단 설명 필드
+            # 종목명 / 티커 / market / 매매유형 / 판정 / 신호 분류 / 이벤트명 /
+            # score / score_reason / top_candidate_reason / penalty_reason / buy_confirmed / buy_confirm_condition
             trade_mode = parts[3]
             verdict = parts[4]
             signal_type = parts[5] if parts[5] else (result["default_signal_type"] or "")
             event_title = parts[6]
+            score = _parse_optional_score(parts[7])
+            score_reason = parts[8] or None
+            top_candidate_reason = parts[9] or None
+            penalty_reason = parts[10] or None
+            buy_confirmed = parts[11] if parts[11] else "미확정"
+            buy_confirm_condition = parts[12] if parts[12] else "확인 필요"
+        elif len(parts) == 7:
+            # 신규 형식(판단 설명 없음): 종목명 / 티커 / market / 매매유형 / 판정 / 신호 분류 / 이벤트명
+            trade_mode = parts[3]
+            verdict = parts[4]
+            signal_type = parts[5] if parts[5] else (result["default_signal_type"] or "")
+            event_title = parts[6]
+            score = None
+            score_reason = None
+            top_candidate_reason = None
+            penalty_reason = None
+            buy_confirmed = "미확정"
+            buy_confirm_condition = "확인 필요"
         else:
             # 기존 형식(6개 이하): 종목명 / 티커 / market / 판정 / 신호 분류 / 이벤트명
             trade_mode = "공통"
             verdict = parts[3]
             signal_type = parts[4] if len(parts) > 4 and parts[4] else (result["default_signal_type"] or "")
             event_title = parts[5] if len(parts) > 5 else ""
+            score = None
+            score_reason = None
+            top_candidate_reason = None
+            penalty_reason = None
+            buy_confirmed = "미확정"
+            buy_confirm_condition = "확인 필요"
 
         if market not in db.ITEM_MARKET_CHOICES:
             warnings.append(f"'{stock_name}' market 값 '{market}'을 인식 못해 'KR'로 대체합니다.")
@@ -135,6 +174,12 @@ def parse_quick_text(text):
                 "verdict": verdict,
                 "signal_type": signal_type,
                 "event_title": event_title,
+                "score": score,
+                "score_reason": score_reason,
+                "top_candidate_reason": top_candidate_reason,
+                "penalty_reason": penalty_reason,
+                "buy_confirmed": buy_confirmed,
+                "buy_confirm_condition": buy_confirm_condition,
             }
         )
 
@@ -401,6 +446,38 @@ def _kr_swing_verdict(swing_score):
     return VERDICT_NORMALIZE["보류"]
 
 
+def _kr_score_reason_text(change_pct, open_pos_pct, turnover_ratio_pct):
+    """국내장 기록 바로 저장 전용 점수 근거 한 줄 요약(계산된 지표 기반, 자동매수 근거 아님)."""
+    parts = []
+    if open_pos_pct is not None:
+        parts.append("시가 위 유지" if open_pos_pct >= 0 else "시가 대비 약세")
+    if change_pct is not None and change_pct >= 3:
+        parts.append("전일 대비 상승폭 큼")
+    if turnover_ratio_pct is not None and turnover_ratio_pct >= 1:
+        parts.append("거래대금 증가")
+    return " + ".join(parts) if parts else "특이 사항 없음"
+
+
+def _kr_penalty_reason_text(high_drop_pct, change_pct):
+    """국내장 기록 바로 저장 전용 감점 이유 한 줄 요약."""
+    parts = []
+    if high_drop_pct is not None and high_drop_pct <= -3:
+        parts.append("장중 고점 대비 밀림")
+    if change_pct is not None and change_pct < 0:
+        parts.append("전일 대비 하락")
+    return ", ".join(parts) if parts else "특별한 감점 요인 없음"
+
+
+def _kr_top_candidate_reason_text(trade_mode, score, verdict_display):
+    """국내장 기록 바로 저장 전용 1순위 후보 근거 한 줄 요약. 실제로 1순위 조건을
+    충족했을 때만 긍정적으로 서술하고, 그렇지 않으면 부족한 상태를 그대로 알린다."""
+    if trade_mode == "단타" and score >= 65:
+        return "관찰 종목 중 단기 생존력(시가 위치·고점 대비 밀림)이 상대적으로 강함"
+    if trade_mode == "스윙" and score >= 75:
+        return "관찰 종목 중 거래대금과 추세가 상대적으로 강함"
+    return f"현재 {verdict_display} 단계로 1순위 조건에는 못 미침"
+
+
 def _us_swing_upside_score(change_pct):
     """상승률 점수(0~20). 전일 대비 등락률 기준."""
     if change_pct is None:
@@ -543,7 +620,7 @@ def compute_us_swing_breakdown(name, change_pct, open_pos_pct, high_drop_pct, tu
 
     자동매수 신호가 아니라, 왜 그 점수/판단이 나왔는지 사람이 읽을 수 있는 근거를 만들기
     위한 것이다. 매수 확정 여부는 진입가/손절가/매수 비중/다음날 확인 조건 4가지가 이 화면에서
-    입력되지 않는 한 항상 "아직 아님"이다.
+    입력되지 않는 한 항상 "미확정"이다.
     """
     upside_score, upside_note = _us_swing_upside_score(change_pct)
     close_score, close_note = _us_swing_close_pos_score(high_drop_pct)
@@ -604,10 +681,10 @@ def compute_us_swing_breakdown(name, change_pct, open_pos_pct, high_drop_pct, tu
         "risk_note": risk_note,
         "priority_reason": priority_reason,
         "deduction_reason": deduction_reason,
-        "buy_confirmed": "아직 아님",
+        "buy_confirmed": "미확정",
         "buy_confirm_condition": (
             "진입가, 손절가, 매수 비중, 다음날 확인 조건이 모두 정해져야 매수 확정으로 전환됩니다. "
-            "이 화면은 아직 이 값을 입력받지 않으므로 항상 '아직 아님'으로 표시됩니다."
+            "이 화면은 아직 이 값을 입력받지 않으므로 항상 '미확정'으로 표시됩니다."
         ),
     }
 
@@ -663,13 +740,13 @@ def _build_item_text_lookup():
 
 
 def _build_item_judgment_lookup():
-    """(report_id, ticker, trade_mode) -> stock_market_judgment 원문. 결과 확인의 '자세히 보기'에서
-    저장 당시 점수 근거(예: 미국장 스윙 바로 저장의 점수 근거 문장)를 다시 보여주기 위한 조회용이다."""
+    """(report_id, ticker, trade_mode) -> report_item 전체 dict. 결과 확인의 '자세히 보기'에서
+    저장 당시 점수/근거/매수 확정 정보를 다시 보여주기 위한 조회용이다."""
     lookup = {}
     for report in db.list_reports():
         for item in db.get_report_items(report["id"]):
             key = (report["id"], item.get("ticker"), item.get("trade_mode"))
-            lookup[key] = item.get("stock_market_judgment") or "-"
+            lookup[key] = item
     return lookup
 
 
@@ -779,6 +856,8 @@ def _render_trade_mode_section(tm, grouped):
             card_title = f"{_trade_mode_badge(trade_mode)} {label}"
             if item.get("event_title"):
                 card_title += f" - {item['event_title']}"
+            if item.get("score") is not None:
+                card_title += f" ({item['score']:.0f}점)"
             with st.expander(card_title):
                 st.write(f"매매유형: {trade_mode}")
                 st.write(f"판단: {_display_verdict_name(item.get('verdict'))}")
@@ -787,6 +866,13 @@ def _render_trade_mode_section(tm, grouped):
                 st.write(f"신호 종류: {_display_signal_type(item.get('signal_type') or '-')}")
                 st.write(f"주식시장 판단: {item.get('stock_market_judgment') or '-'}")
                 st.write(f"베팅시장 판단: {item.get('betting_market_judgment') or '-'}")
+                score_val = item.get("score")
+                st.write(f"점수: {'-' if score_val is None else f'{score_val:.0f}점'}")
+                st.write(f"점수 근거: {item.get('score_reason') or '-'}")
+                st.write(f"1순위 후보 근거: {item.get('top_candidate_reason') or '-'}")
+                st.write(f"감점 이유: {item.get('penalty_reason') or '-'}")
+                st.write(f"매수 확정 여부: {item.get('buy_confirmed') or '-'}")
+                st.write(f"매수 확정 조건: {item.get('buy_confirm_condition') or '-'}")
 
 
 def render_report_detail(report, show_raw_briefing=False):
@@ -1005,9 +1091,11 @@ with tab_paste:
             "시장·판단 시점·오늘 요약·종목별 기록이 한 번에 채워집니다. "
             "입력 형식의 '시장 범위:', '브리핑 단계:', '신호 분류:', '[오늘의 결론]' 표기는 "
             "그대로 입력해야 인식됩니다. "
-            "종목 줄 구분자는 '/' 이며 두 형식을 지원합니다: "
+            "종목 줄 구분자는 '/' 이며 세 형식을 지원합니다: "
             "6개 필드(기존) = 종목명 / 종목코드 / 시장 / 판정 / 신호 종류 / 판단 이유, "
-            "7개 필드(신규, 매매유형 포함) = 종목명 / 종목코드 / 시장 / 매매유형 / 판정 / 신호 종류 / 판단 이유."
+            "7개 필드(신규, 매매유형 포함) = 종목명 / 종목코드 / 시장 / 매매유형 / 판정 / 신호 종류 / 판단 이유, "
+            "13개 필드(확장, 판단 설명 포함) = 위 7개 필드 + 점수 / 점수 근거 / 1순위 후보 근거 / "
+            "감점 이유 / 매수 확정 여부 / 매수 확정 조건."
         )
         quick_text = st.text_area(
             "쉽게 붙여넣는 입력칸",
@@ -1044,6 +1132,12 @@ with tab_paste:
                 st.session_state[prefix + "trade_mode"] = item["trade_mode"]
                 st.session_state[prefix + "verdict"] = item["verdict"]
                 st.session_state[prefix + "signal_type"] = item["signal_type"]
+                st.session_state[prefix + "score"] = item["score"] or 0.0
+                st.session_state[prefix + "score_reason"] = item["score_reason"] or ""
+                st.session_state[prefix + "top_candidate_reason"] = item["top_candidate_reason"] or ""
+                st.session_state[prefix + "penalty_reason"] = item["penalty_reason"] or ""
+                st.session_state[prefix + "buy_confirmed"] = item["buy_confirmed"]
+                st.session_state[prefix + "buy_confirm_condition"] = item["buy_confirm_condition"]
 
             st.session_state[f"quick_fill_count_{fv}"] = len(parsed["items"])
             st.session_state[f"quick_fill_warnings_{fv}"] = parsed["warnings"]
@@ -1161,6 +1255,26 @@ with tab_paste:
                 stock_judgment = j1.text_area("주식시장 판단", key=prefix + "stock_judgment")
                 betting_judgment = j2.text_area("베팅시장 판단", key=prefix + "betting_judgment")
 
+                st.caption("판단 설명 (점수/근거/매수 확정 — 비워두면 기본값으로 저장됩니다)")
+                p1, p2, p3 = st.columns(3)
+                score = p1.number_input("점수", value=0.0, step=1.0, key=prefix + "score")
+                score_reason = p2.text_input(
+                    "점수 근거", key=prefix + "score_reason", placeholder="예: 시가 위 유지 + 거래대금 증가"
+                )
+                top_candidate_reason = p3.text_input(
+                    "1순위 후보 근거", key=prefix + "top_candidate_reason", placeholder="예: 섹터 내 거래대금 우위"
+                )
+                p4, p5, p6 = st.columns(3)
+                penalty_reason = p4.text_input(
+                    "감점 이유", key=prefix + "penalty_reason", placeholder="예: 고점 대비 일부 밀림"
+                )
+                buy_confirmed = p5.selectbox(
+                    "매수 확정 여부", ["미확정", "확정"], key=prefix + "buy_confirmed"
+                )
+                buy_confirm_condition = p6.text_input(
+                    "매수 확정 조건", key=prefix + "buy_confirm_condition", placeholder="예: 종가 강세 유지 필요"
+                )
+
                 v1, v2, v3 = st.columns(3)
                 trade_mode = v1.selectbox(
                     "매매유형", db.TRADE_MODE_CHOICES, key=prefix + "trade_mode"
@@ -1188,6 +1302,12 @@ with tab_paste:
                         "verdict": verdict,
                         "signal_type": signal_type,
                         "trade_mode": trade_mode,
+                        "score": score or None,
+                        "score_reason": score_reason,
+                        "top_candidate_reason": top_candidate_reason,
+                        "penalty_reason": penalty_reason,
+                        "buy_confirmed": buy_confirmed,
+                        "buy_confirm_condition": buy_confirm_condition,
                     }
                 )
 
@@ -1216,9 +1336,17 @@ with tab_paste:
                 briefing_stage=briefing_stage,
             )
             st.success(f"기록 저장 완료: 종목별 기록 {len(items_to_save)}개 저장됨 (report_id={report_id})")
+            st.session_state["tab_paste_last_saved_id"] = report_id
             st.session_state.draft_items = []
             st.session_state.form_version += 1
             st.rerun()
+
+    if st.session_state.get("tab_paste_last_saved_id"):
+        last_saved_report = db.get_report(st.session_state["tab_paste_last_saved_id"])
+        if last_saved_report:
+            st.markdown("---")
+            st.markdown("#### 방금 저장한 기록")
+            render_report_detail(last_saved_report)
 
 with tab_kr:
     st.subheader("한국장")
@@ -1541,42 +1669,70 @@ with tab_kr:
                         f"고점대비 {_fmt_signed_pct(row['high_drop_pct'])}, "
                         f"시총대비 거래대금 {_fmt_signed_pct(row['turnover_ratio_pct'])}"
                     )
-                    items_to_save.append(
-                        {
-                            "event_title": (
-                                f"{row['name']} 단기 관심 점수 {row['danta_score']}점 - "
-                                f"단타 {_display_verdict_name(row['danta_verdict'])}"
-                            ),
-                            "ticker": row["ticker"],
-                            "stock_name": row["name"],
-                            "market": "KR",
-                            "stock_market_basis_a": basis_a,
-                            "stock_market_judgment": (
-                                f"단기 관심 점수 {row['danta_score']}점 -> "
-                                f"단타 {_display_verdict_name(row['danta_verdict'])}"
-                            ),
-                            "verdict": row["danta_verdict"],
-                            "signal_type": "재확인 신호",
-                            "trade_mode": "단타",
-                        }
+                    danta_verdict_display = _display_verdict_name(row["danta_verdict"])
+                    swing_verdict_display = _display_verdict_name(row["swing_verdict"])
+                    danta_score_reason = _kr_score_reason_text(
+                        row["change_pct"], row["open_pos_pct"], row["turnover_ratio_pct"]
+                    )
+                    danta_penalty_reason = _kr_penalty_reason_text(row["high_drop_pct"], row["change_pct"])
+                    buy_confirm_condition_text = (
+                        "진입가, 손절가, 매수 비중, 다음날 확인 조건이 모두 정해져야 매수 확정으로 "
+                        "전환됩니다. 이 화면은 아직 이 값을 입력받지 않으므로 항상 '미확정'으로 표시됩니다."
                     )
                     items_to_save.append(
                         {
                             "event_title": (
-                                f"{row['name']} 며칠 관심 점수 {row['swing_score']}점 - "
-                                f"스윙 {_display_verdict_name(row['swing_verdict'])}"
+                                f"{row['name']} 단기 관심 점수 {row['danta_score']}점 - "
+                                f"단타 {danta_verdict_display}"
                             ),
                             "ticker": row["ticker"],
                             "stock_name": row["name"],
                             "market": "KR",
                             "stock_market_basis_a": basis_a,
                             "stock_market_judgment": (
-                                f"며칠 관심 점수 {row['swing_score']}점 -> "
-                                f"스윙 {_display_verdict_name(row['swing_verdict'])}"
+                                f"단기 관심 점수 {row['danta_score']}점 -> 단타 {danta_verdict_display}"
+                            ),
+                            "verdict": row["danta_verdict"],
+                            "signal_type": "재확인 신호",
+                            "trade_mode": "단타",
+                            "score": row["danta_score"],
+                            "score_reason": danta_score_reason,
+                            "top_candidate_reason": _kr_top_candidate_reason_text(
+                                "단타", row["danta_score"], danta_verdict_display
+                            ),
+                            "penalty_reason": danta_penalty_reason,
+                            "buy_confirmed": "미확정",
+                            "buy_confirm_condition": buy_confirm_condition_text,
+                        }
+                    )
+                    swing_score_reason = _kr_score_reason_text(
+                        row["change_pct"], row["open_pos_pct"], row["turnover_ratio_pct"]
+                    )
+                    swing_penalty_reason = _kr_penalty_reason_text(row["high_drop_pct"], row["change_pct"])
+                    items_to_save.append(
+                        {
+                            "event_title": (
+                                f"{row['name']} 며칠 관심 점수 {row['swing_score']}점 - "
+                                f"스윙 {swing_verdict_display}"
+                            ),
+                            "ticker": row["ticker"],
+                            "stock_name": row["name"],
+                            "market": "KR",
+                            "stock_market_basis_a": basis_a,
+                            "stock_market_judgment": (
+                                f"며칠 관심 점수 {row['swing_score']}점 -> 스윙 {swing_verdict_display}"
                             ),
                             "verdict": row["swing_verdict"],
                             "signal_type": "재확인 신호",
                             "trade_mode": "스윙",
+                            "score": row["swing_score"],
+                            "score_reason": swing_score_reason,
+                            "top_candidate_reason": _kr_top_candidate_reason_text(
+                                "스윙", row["swing_score"], swing_verdict_display
+                            ),
+                            "penalty_reason": swing_penalty_reason,
+                            "buy_confirmed": "미확정",
+                            "buy_confirm_condition": buy_confirm_condition_text,
                         }
                     )
                 kr_report_id = db.save_report(
@@ -1788,6 +1944,12 @@ with tab_us:
                     "verdict": row["verdict"],
                     "signal_type": "재확인 신호",
                     "trade_mode": "스윙",
+                    "score": row["total_score"],
+                    "score_reason": f"{row['upside_note']} + {row['close_pos_note']} + {row['momentum_note']}",
+                    "top_candidate_reason": row["priority_reason"],
+                    "penalty_reason": row["deduction_reason"],
+                    "buy_confirmed": "미확정",
+                    "buy_confirm_condition": row["buy_confirm_condition"],
                 }
                 for row in preview_rows
             ]
@@ -2071,32 +2233,41 @@ with tab_perf:
             # 8. 자세히 보기 (숨긴 컬럼 포함 전체)
             with st.expander("자세히 보기"):
                 item_judgment_lookup = _build_item_judgment_lookup()
-                detail_table_rows = [
-                    {
-                        "종목명": row["stock_name"],
-                        "관심 점수": score,
-                        "구분": row["trade_mode"],
-                        "판단": _display_verdict_name(row["verdict"]),
-                        "결과 상태": row["status"],
-                        "판단 시점": row["briefing_stage"],
-                        "저장 시각": row["saved_at"],
-                        "신호 종류": _display_signal_type(row["signal_type"]),
-                        "종목코드": row["ticker"],
-                        "시장": row["market"],
-                        "비교 기준": row["benchmark"],
-                        "검증 시작가": row["entry_rule"],
-                        "1일 뒤": _fmt_pct(row["returns"][1]),
-                        "3일 뒤": _fmt_pct(row["returns"][3]),
-                        "5일 뒤": _fmt_pct(row["returns"][5]),
-                        "10일 뒤": _fmt_pct(row["returns"][10]),
-                        "20일 뒤": _fmt_pct(row["returns"][20]),
-                        "초과수익률(%, 5일 기준)": _fmt_pct(row["excess_return"]),
-                        "판단 근거": item_judgment_lookup.get(
-                            (row["report_id"], row["ticker"], row["trade_mode"]), "-"
-                        ),
-                    }
-                    for score, row in scored_rows
-                ]
+                detail_table_rows = []
+                for score, row in scored_rows:
+                    saved_item = item_judgment_lookup.get(
+                        (row["report_id"], row["ticker"], row["trade_mode"]), {}
+                    )
+                    saved_score = saved_item.get("score")
+                    detail_table_rows.append(
+                        {
+                            "종목명": row["stock_name"],
+                            "관심 점수": score,
+                            "구분": row["trade_mode"],
+                            "판단": _display_verdict_name(row["verdict"]),
+                            "결과 상태": row["status"],
+                            "판단 시점": row["briefing_stage"],
+                            "저장 시각": row["saved_at"],
+                            "신호 종류": _display_signal_type(row["signal_type"]),
+                            "종목코드": row["ticker"],
+                            "시장": row["market"],
+                            "비교 기준": row["benchmark"],
+                            "검증 시작가": row["entry_rule"],
+                            "1일 뒤": _fmt_pct(row["returns"][1]),
+                            "3일 뒤": _fmt_pct(row["returns"][3]),
+                            "5일 뒤": _fmt_pct(row["returns"][5]),
+                            "10일 뒤": _fmt_pct(row["returns"][10]),
+                            "20일 뒤": _fmt_pct(row["returns"][20]),
+                            "초과수익률(%, 5일 기준)": _fmt_pct(row["excess_return"]),
+                            "판단 근거": saved_item.get("stock_market_judgment") or "-",
+                            "점수": "-" if saved_score is None else f"{saved_score:.0f}",
+                            "점수 근거": saved_item.get("score_reason") or "-",
+                            "1순위 후보 근거": saved_item.get("top_candidate_reason") or "-",
+                            "감점 이유": saved_item.get("penalty_reason") or "-",
+                            "매수 확정 여부": saved_item.get("buy_confirmed") or "-",
+                            "매수 확정 조건": saved_item.get("buy_confirm_condition") or "-",
+                        }
+                    )
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
     st.markdown("---")

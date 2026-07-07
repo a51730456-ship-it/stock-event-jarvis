@@ -99,6 +99,21 @@ def _migrate_add_columns(conn):
         conn.execute("ALTER TABLE report_items ADD COLUMN trade_mode TEXT DEFAULT '공통'")
         conn.execute("UPDATE report_items SET trade_mode = '공통' WHERE trade_mode IS NULL")
 
+    # 판단 설명(점수/근거/매수 확정) 표시 기능용 추가 컬럼. 기존 행은 건드리지 않고
+    # (NULL로 남겨 "정보 없음"으로 표시), 새로 저장되는 행부터 save_report()가 값을 채운다.
+    if "score" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN score REAL")
+    if "score_reason" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN score_reason TEXT")
+    if "top_candidate_reason" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN top_candidate_reason TEXT")
+    if "penalty_reason" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN penalty_reason TEXT")
+    if "buy_confirmed" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN buy_confirmed TEXT")
+    if "buy_confirm_condition" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN buy_confirm_condition TEXT")
+
     conn.commit()
 
 
@@ -173,8 +188,10 @@ def save_report(
                     report_id, event_title, ticker, stock_name, market, item_timing_class,
                     stock_market_basis_a, stock_market_basis_b, stock_market_basis_c,
                     betting_basis_ga, betting_basis_na, betting_basis_da,
-                    stock_market_judgment, betting_market_judgment, verdict, signal_type, trade_mode
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    stock_market_judgment, betting_market_judgment, verdict, signal_type, trade_mode,
+                    score, score_reason, top_candidate_reason, penalty_reason,
+                    buy_confirmed, buy_confirm_condition
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     report_id,
@@ -194,6 +211,12 @@ def save_report(
                     item.get("verdict"),
                     item.get("signal_type") or "미분류",
                     item.get("trade_mode") or "공통",
+                    item.get("score"),
+                    item.get("score_reason") or None,
+                    item.get("top_candidate_reason") or None,
+                    item.get("penalty_reason") or None,
+                    item.get("buy_confirmed") or "미확정",
+                    item.get("buy_confirm_condition") or "확인 필요",
                 ),
             )
         conn.commit()
