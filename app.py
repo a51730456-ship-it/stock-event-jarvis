@@ -779,13 +779,180 @@ def _rank_scores(pairs):
     return labels
 
 
+def _item_combined_text(item):
+    """report_item의 자유 서술 텍스트 필드를 전부 합친 문자열. 자동 점수 계산에서
+    가점/감점 키워드를 찾는 용도로만 쓴다(저장/파싱 로직과는 무관)."""
+    parts = [
+        item.get("event_title"),
+        item.get("stock_market_basis_a"),
+        item.get("stock_market_basis_b"),
+        item.get("stock_market_basis_c"),
+        item.get("betting_basis_ga"),
+        item.get("betting_basis_na"),
+        item.get("betting_basis_da"),
+        item.get("stock_market_judgment"),
+        item.get("betting_market_judgment"),
+    ]
+    return " ".join(p for p in parts if p)
+
+
+# 자동 점수 계산(1차 규칙 기반) 전용 상수. 실시간 시세 조회가 아니라, 이미 저장된
+# 문장/판정/신호 분류/매매유형/시장 구분만으로 만드는 참고용 점수다.
+_AUTO_SCORE_VERDICT_BASE = {
+    "추천 후보": 70,  # 관심 후보
+    "감시": 60,
+    "확인 필요": 50,  # 기타/알 수 없음 취급
+    "보류(선반영)": 45,
+    "제외": 25,
+}
+
+_AUTO_SCORE_GAIN_KEYWORDS = {
+    "시가 위": 3,
+    "종가 강함": 4,
+    "종가 유지": 3,
+    "거래대금 증가": 4,
+    "거래대금 유지": 3,
+    "섹터 강세": 4,
+    "동반 강세": 3,
+    "프로그램 매수": 5,
+    "외국인 선물 매수": 5,
+    "상대강도": 4,
+    "주도주": 5,
+    "대장주": 5,
+}
+
+_AUTO_SCORE_PENALTY_KEYWORDS = {
+    "고점 대비 밀림": 5,
+    "시가 아래": 4,
+    "종가 약함": 4,
+    "긴 윗꼬리": 4,
+    "거래대금 부족": 4,
+    "거래대금 감소": 4,
+    "프로그램 매도": 5,
+    "외국인 선물 매도": 5,
+    "나스닥 선물 약세": 4,
+    "보류": 3,
+    "늦은 신호": 5,
+    "추격 주의": 4,
+    "확인 필요": 3,
+}
+
+# 단타/스윙 보정: 일반 목록과 겹치는 키워드는 가중치만 +-1 더하고, 스윙 전용 개념
+# ("일봉 추세", "재료 지속성", "다음날 확인 필요", "거래대금은 큰데 주가 못 버팀")은
+# 일반 목록에 없으므로 별도 점수를 준다.
+_DANTA_EXTRA_GAIN_KEYWORDS = ["시가 위", "거래대금 증가", "섹터 강세"]
+_DANTA_EXTRA_PENALTY_KEYWORDS = ["고점 대비 밀림", "시가 아래", "추격 주의", "늦은 신호"]
+_SWING_EXTRA_GAIN_KEYWORDS = ["종가 강함", "종가 유지", "거래대금 유지"]
+_SWING_EXTRA_PENALTY_KEYWORDS = ["긴 윗꼬리", "종가 약함"]
+_SWING_ONLY_GAIN_KEYWORDS = {"일봉 추세": 4, "재료 지속성": 4}
+_SWING_ONLY_PENALTY_KEYWORDS = {"다음날 확인 필요": 3, "거래대금은 큰데 주가 못 버팀": 5}
+
+
+def _auto_buy_confirm_condition(trade_mode, market):
+    """매수 확정 조건 자동 문구. 매매유형(단타/스윙)을 먼저 보고, 공통/그 외면 시장(KR/US)
+    기준 문구를 쓴다."""
+    if trade_mode == "단타":
+        return "시가 위 유지 + 고점 대비 밀림 제한 + 거래대금 유지 + 프로그램/외국인 수급 확인 필요"
+    if trade_mode == "스윙":
+        return "종가 강세 유지 + 거래대금 유지 + 다음날 흐름 재확인 필요"
+    if market == "US":
+        return "본장 거래량 + 섹터 동반 강도 + 프리/애프터 변동 확인 필요"
+    return "장중 수급 + 섹터 강도 + 종가 위치 확인 필요"
+
+
+def _auto_fill_item_display(item):
+    """score/score_reason/penalty_reason/buy_confirmed/buy_confirm_condition 중 비어 있는
+    값만 문장·판정·신호 분류·매매유형·시장 구분 기반 1차 규칙으로 자동 채워 화면 표시용으로
+    반환한다. 실시간 가격 조회가 아니며, DB에는 다시 쓰지 않는다(표시 시점 계산).
+    사용자가 이미 입력한 값은 그대로 쓰고 절대 덮어쓰지 않는다.
+
+    반환: {"score", "score_is_auto", "score_reason", "penalty_reason",
+           "buy_confirmed", "buy_confirm_condition"}
+    """
+    verdict = item.get("verdict")
+    trade_mode = item.get("trade_mode") or "공통"
+    market = item.get("market") or "KR"
+    signal_type = item.get("signal_type")
+    buy_confirmed = item.get("buy_confirmed") or "미확정"
+    text = _item_combined_text(item)
+
+    gains = []
+    penalties = []
+    for kw, pts in _AUTO_SCORE_GAIN_KEYWORDS.items():
+        if kw in text:
+            gains.append((kw, pts))
+    for kw, pts in _AUTO_SCORE_PENALTY_KEYWORDS.items():
+        if kw in text:
+            penalties.append((kw, pts))
+    if signal_type == "재확인 신호":
+        gains.append(("재확인 신호", 3))
+    if verdict == "추천 후보":
+        gains.append(("관심 후보", 5))
+    if trade_mode == "스윙":
+        for kw, pts in _SWING_ONLY_GAIN_KEYWORDS.items():
+            if kw in text:
+                gains.append((kw, pts))
+        for kw, pts in _SWING_ONLY_PENALTY_KEYWORDS.items():
+            if kw in text:
+                penalties.append((kw, pts))
+
+    stored_score = item.get("score")
+    score_is_auto = not stored_score  # None 또는 0이면 자동 계산 대상
+    if score_is_auto:
+        score = float(_AUTO_SCORE_VERDICT_BASE.get(verdict, 50))
+        for _, pts in gains:
+            score += pts
+        for _, pts in penalties:
+            score -= pts
+        if trade_mode == "단타":
+            for kw in _DANTA_EXTRA_GAIN_KEYWORDS:
+                if kw in text:
+                    score += 1
+            for kw in _DANTA_EXTRA_PENALTY_KEYWORDS:
+                if kw in text:
+                    score -= 1
+        elif trade_mode == "스윙":
+            for kw in _SWING_EXTRA_GAIN_KEYWORDS:
+                if kw in text:
+                    score += 1
+            for kw in _SWING_EXTRA_PENALTY_KEYWORDS:
+                if kw in text:
+                    score -= 1
+        if buy_confirmed == "확정":
+            score = max(score, 85)
+        if verdict == "보류(선반영)":
+            score = min(score, 60)
+        if verdict == "제외":
+            score = min(score, 35)
+        score = int(round(max(0.0, min(score, 100.0))))
+    else:
+        score = stored_score
+
+    score_reason = item.get("score_reason") or (
+        " + ".join(kw for kw, _ in gains) if gains else "특이 사항 없음 (1차 규칙 기반 자동 계산)"
+    )
+    penalty_reason = item.get("penalty_reason") or (
+        ", ".join(kw for kw, _ in penalties) if penalties else "특별한 감점 요인 없음 (1차 규칙 기반 자동 계산)"
+    )
+    buy_confirm_condition = item.get("buy_confirm_condition") or _auto_buy_confirm_condition(trade_mode, market)
+
+    return {
+        "score": score,
+        "score_is_auto": score_is_auto,
+        "score_reason": score_reason,
+        "penalty_reason": penalty_reason,
+        "buy_confirmed": buy_confirmed,
+        "buy_confirm_condition": buy_confirm_condition,
+    }
+
+
 def _compute_score_rank_labels(items):
     """report_item dict 목록(같은 report일 수도, 여러 report가 섞여 있을 수도 있음)에서
     (report_id, market, trade_mode) 그룹별로 score 기준 순위를 매겨 item id -> 순위 라벨을 반환한다.
 
     한국장/미국장, 단타/스윙을 서로 섞지 않기 위해 report_id·market·trade_mode가 모두 같은
-    항목끼리만 순위를 비교한다. 오래된 report처럼 score가 없는 항목은 "미평가"로 표시되며
-    앱이 오류를 내지 않는다.
+    항목끼리만 순위를 비교한다. score가 비어 있으면 _auto_fill_item_display()의 1차 규칙
+    자동 계산값을 순위 계산에 쓰므로, 오래된 report도 순위가 매겨질 수 있다.
     """
     groups = {}
     for item in items:
@@ -794,7 +961,7 @@ def _compute_score_rank_labels(items):
 
     labels = {}
     for group_items in groups.values():
-        pairs = [(it["id"], it.get("score")) for it in group_items]
+        pairs = [(it["id"], _auto_fill_item_display(it)["score"]) for it in group_items]
         labels.update(_rank_scores(pairs))
     return labels
 
@@ -900,7 +1067,7 @@ def _render_trade_mode_section(tm, grouped, rank_labels=None):
     st.markdown(f"## {TRADE_MODE_EMOJI.get(tm, '')} {_trade_mode_badge(tm)} {TRADE_MODE_HEADING[tm]}")
     for verdict in VERDICT_ORDER:
         bucket = grouped[tm].get(verdict, [])
-        bucket = sorted(bucket, key=lambda it: -(it.get("score") or 0))
+        bucket = sorted(bucket, key=lambda it: -_auto_fill_item_display(it)["score"])
         st.markdown(f"#### {_verdict_badge(verdict)} ({len(bucket)}건)")
         if not bucket:
             st.caption("해당 없음")
@@ -909,17 +1076,17 @@ def _render_trade_mode_section(tm, grouped, rank_labels=None):
             label = item.get("stock_name") or item.get("ticker") or item.get("event_title") or "(제목 없음)"
             trade_mode = item.get("trade_mode") or "공통"
             rank_label = rank_labels.get(item.get("id"), "미평가")
+            auto_info = _auto_fill_item_display(item)
+            auto_tag = " (자동계산)" if auto_info["score_is_auto"] else ""
+            score_text = f"{auto_info['score']:.0f}점{auto_tag}"
             card_title = f"{_trade_mode_badge(trade_mode)} [{rank_label}] {label}"
             if item.get("event_title"):
                 card_title += f" - {item['event_title']}"
-            if item.get("score") is not None:
-                card_title += f" ({item['score']:.0f}점)"
+            card_title += f" ({auto_info['score']:.0f}점){auto_tag}"
             with st.expander(card_title):
-                score_val = item.get("score")
-                score_text = "-점" if score_val is None else f"{score_val:.0f}점"
                 st.markdown(
                     f"**[{trade_mode} {rank_label}] {label} / {score_text} / "
-                    f"{item.get('buy_confirmed') or '미확정'}**"
+                    f"{auto_info['buy_confirmed']}**"
                 )
                 st.write(f"매매유형: {trade_mode}")
                 st.write(f"판단: {_display_verdict_name(item.get('verdict'))}")
@@ -928,13 +1095,13 @@ def _render_trade_mode_section(tm, grouped, rank_labels=None):
                 st.write(f"신호 종류: {_display_signal_type(item.get('signal_type') or '-')}")
                 st.write(f"주식시장 판단: {item.get('stock_market_judgment') or '-'}")
                 st.write(f"베팅시장 판단: {item.get('betting_market_judgment') or '-'}")
-                st.write(f"점수: {'-' if score_val is None else score_text}")
-                st.write(f"점수 근거: {item.get('score_reason') or '-'}")
-                top_reason = item.get("top_candidate_reason") or item.get("score_reason") or "-"
+                st.write(f"점수: {score_text}")
+                st.write(f"점수 근거: {auto_info['score_reason']}")
+                top_reason = item.get("top_candidate_reason") or auto_info["score_reason"]
                 st.write(f"1순위 후보 근거: {top_reason}")
-                st.write(f"감점 이유: {item.get('penalty_reason') or '-'}")
-                st.write(f"매수 확정 여부: {item.get('buy_confirmed') or '-'}")
-                st.write(f"매수 확정 조건: {item.get('buy_confirm_condition') or '-'}")
+                st.write(f"감점 이유: {auto_info['penalty_reason']}")
+                st.write(f"매수 확정 여부: {auto_info['buy_confirmed']}")
+                st.write(f"매수 확정 조건: {auto_info['buy_confirm_condition']}")
 
 
 def render_report_detail(report, show_raw_briefing=False):
@@ -2315,7 +2482,14 @@ with tab_perf:
                     saved_item = item_judgment_lookup.get(
                         (row["report_id"], row["ticker"], row["trade_mode"]), {}
                     )
-                    saved_score = saved_item.get("score")
+                    if saved_item:
+                        auto_info = _auto_fill_item_display(saved_item)
+                        score_text = f"{auto_info['score']:.0f}" + (" (자동계산)" if auto_info["score_is_auto"] else "")
+                        top_reason = saved_item.get("top_candidate_reason") or auto_info["score_reason"]
+                    else:
+                        auto_info = {"score_reason": "-", "penalty_reason": "-", "buy_confirmed": "-", "buy_confirm_condition": "-"}
+                        score_text = "-"
+                        top_reason = "-"
                     detail_table_rows.append(
                         {
                             "종목명": row["stock_name"],
@@ -2338,12 +2512,12 @@ with tab_perf:
                             "20일 뒤": _fmt_pct(row["returns"][20]),
                             "초과수익률(%, 5일 기준)": _fmt_pct(row["excess_return"]),
                             "판단 근거": saved_item.get("stock_market_judgment") or "-",
-                            "점수": "-" if saved_score is None else f"{saved_score:.0f}",
-                            "점수 근거": saved_item.get("score_reason") or "-",
-                            "1순위 후보 근거": saved_item.get("top_candidate_reason") or "-",
-                            "감점 이유": saved_item.get("penalty_reason") or "-",
-                            "매수 확정 여부": saved_item.get("buy_confirmed") or "-",
-                            "매수 확정 조건": saved_item.get("buy_confirm_condition") or "-",
+                            "점수": score_text,
+                            "점수 근거": auto_info["score_reason"],
+                            "1순위 후보 근거": top_reason,
+                            "감점 이유": auto_info["penalty_reason"],
+                            "매수 확정 여부": auto_info["buy_confirmed"],
+                            "매수 확정 조건": auto_info["buy_confirm_condition"],
                         }
                     )
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
