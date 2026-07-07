@@ -807,11 +807,8 @@ _AUTO_SCORE_VERDICT_BASE = {
 }
 
 _AUTO_SCORE_GAIN_KEYWORDS = {
-    "시가 위": 3,
     "종가 강함": 4,
     "종가 유지": 3,
-    "거래대금 증가": 4,
-    "거래대금 유지": 3,
     "섹터 강세": 4,
     "동반 강세": 3,
     "프로그램 매수": 5,
@@ -822,12 +819,8 @@ _AUTO_SCORE_GAIN_KEYWORDS = {
 }
 
 _AUTO_SCORE_PENALTY_KEYWORDS = {
-    "고점 대비 밀림": 5,
-    "시가 아래": 4,
     "종가 약함": 4,
     "긴 윗꼬리": 4,
-    "거래대금 부족": 4,
-    "거래대금 감소": 4,
     "프로그램 매도": 5,
     "외국인 선물 매도": 5,
     "나스닥 선물 약세": 4,
@@ -839,13 +832,64 @@ _AUTO_SCORE_PENALTY_KEYWORDS = {
 
 # 단타/스윙 보정: 일반 목록과 겹치는 키워드는 가중치만 +-1 더하고, 스윙 전용 개념
 # ("일봉 추세", "재료 지속성", "다음날 확인 필요", "거래대금은 큰데 주가 못 버팀")은
-# 일반 목록에 없으므로 별도 점수를 준다.
-_DANTA_EXTRA_GAIN_KEYWORDS = ["시가 위", "거래대금 증가", "섹터 강세"]
-_DANTA_EXTRA_PENALTY_KEYWORDS = ["고점 대비 밀림", "시가 아래", "추격 주의", "늦은 신호"]
-_SWING_EXTRA_GAIN_KEYWORDS = ["종가 강함", "종가 유지", "거래대금 유지"]
+# 일반 목록에 없으므로 별도 점수를 준다. 시가 위치/고점 대비 밀림/거래대금은 아래
+# "신호 카테고리"에서 텍스트·수치 신호를 하나로 합쳐 처리하므로 여기서는 빠진다
+# (중복 가산/감점 방지).
+_DANTA_EXTRA_GAIN_KEYWORDS = ["섹터 강세"]
+_DANTA_EXTRA_PENALTY_KEYWORDS = ["추격 주의", "늦은 신호"]
+_SWING_EXTRA_GAIN_KEYWORDS = ["종가 강함", "종가 유지"]
 _SWING_EXTRA_PENALTY_KEYWORDS = ["긴 윗꼬리", "종가 약함"]
 _SWING_ONLY_GAIN_KEYWORDS = {"일봉 추세": 4, "재료 지속성": 4}
 _SWING_ONLY_PENALTY_KEYWORDS = {"다음날 확인 필요": 3, "거래대금은 큰데 주가 못 버팀": 5}
+
+# 신호 카테고리(시가 위치/고점 대비 밀림/거래대금): 텍스트 키워드와 수치 계산값이 같은
+# 의미를 가리키면 카테고리당 신호를 한 번만 반영한다. 수치 계산값이 있으면 그 값을
+# 우선 쓰고(더 정확한 근거), 없으면 텍스트 키워드로 대체한다.
+_PRICE_POSITION_POSITIVE_KEYWORDS = ["시가 위"]
+_PRICE_POSITION_NEGATIVE_KEYWORDS = ["시가 아래"]
+_HIGH_DROP_POSITIVE_KEYWORDS = ["고점 대비 밀림 적음"]
+_HIGH_DROP_NEGATIVE_KEYWORDS = ["고점 대비 밀림"]
+_LIQUIDITY_POSITIVE_KEYWORDS = ["거래대금 증가", "거래대금 유지", "거래대금 양호"]
+_LIQUIDITY_NEGATIVE_KEYWORDS = ["거래대금 부족", "거래대금 감소"]
+
+# 매매유형별 카테고리 점수(양수 가점, 음수 감점 크기). 카테고리당 이 점수를 한 번만
+# 적용한다 — 0이면 그 매매유형에서는 해당 방향 신호를 점수에 반영하지 않는다(예: 스윙은
+# 시가 부정/거래대금 부정에 대한 감점 규칙이 없음).
+_CATEGORY_POINTS_BY_MODE = {
+    "단타": {"price_position": (5, 6), "high_drop": (4, 6), "liquidity": (4, 4)},
+    "스윙": {"price_position": (3, 0), "high_drop": (3, 5), "liquidity": (3, 0)},
+    "__default__": {"price_position": (3, 4), "high_drop": (3, 5), "liquidity": (4, 4)},
+}
+
+
+def _find_keyword(text, keywords):
+    for kw in keywords:
+        if kw in text:
+            return kw
+    return None
+
+
+def _resolve_signal_category(
+    text, positive_keywords, negative_keywords, numeric_value, positive_fn, negative_fn, positive_phrase, negative_phrase
+):
+    """카테고리 하나(시가 위치/고점 대비 밀림/거래대금)의 텍스트+수치 신호를 하나로 합친다.
+    수치 계산값이 있으면 그 값을 우선 쓰고(더 정확), 없으면 텍스트 키워드로 대체한다
+    (같은 의미의 신호가 중복으로 가산/감점되지 않도록).
+    반환: ("positive"|"negative"|None, 표시용 문구)
+    """
+    if numeric_value is not None:
+        if positive_fn(numeric_value):
+            return "positive", positive_phrase(numeric_value)
+        if negative_fn(numeric_value):
+            return "negative", negative_phrase(numeric_value)
+        return None, None
+    kw = _find_keyword(text, positive_keywords)
+    if kw:
+        return "positive", kw
+    kw = _find_keyword(text, negative_keywords)
+    if kw:
+        return "negative", kw
+    return None, None
 
 
 def _auto_buy_confirm_condition(trade_mode, market):
@@ -904,6 +948,63 @@ def _auto_fill_item_display(item):
     drop_from_high_pct = -basis["high_drop_pct"] if basis.get("high_drop_pct") is not None else None
     trading_value_to_market_cap_pct = basis.get("turnover_ratio_pct")
 
+    # 시가 위치/고점 대비 밀림/거래대금: 텍스트 키워드와 수치 계산값이 같은 의미면
+    # 카테고리당 신호를 한 번만 반영한다(중복 가산/감점 방지). 수치 계산값이 있으면
+    # 그 값을 우선 쓴다(문구도 수치 기반이 우선).
+    category_points = _CATEGORY_POINTS_BY_MODE.get(trade_mode, _CATEGORY_POINTS_BY_MODE["__default__"])
+    high_drop_pos_threshold = 2 if trade_mode == "단타" else 3
+    high_drop_neg_threshold = 5 if trade_mode == "단타" else 7
+    liquidity_pos_threshold = 0.3 if trade_mode == "단타" else 0.2
+
+    price_direction, price_phrase = _resolve_signal_category(
+        text,
+        _PRICE_POSITION_POSITIVE_KEYWORDS,
+        _PRICE_POSITION_NEGATIVE_KEYWORDS,
+        price_vs_open_pct,
+        lambda v: v > 0,
+        lambda v: v < 0,
+        lambda v: f"시가 대비 {v:+.2f}%로 시가 위 유지",
+        lambda v: f"시가 대비 {v:+.2f}%로 시가 아래",
+    )
+    high_drop_direction, high_drop_phrase = _resolve_signal_category(
+        text,
+        _HIGH_DROP_POSITIVE_KEYWORDS,
+        _HIGH_DROP_NEGATIVE_KEYWORDS,
+        drop_from_high_pct,
+        lambda v, t=high_drop_pos_threshold: v <= t,
+        lambda v, t=high_drop_neg_threshold: v >= t,
+        lambda v: f"고점 대비 밀림 {v:.2f}%로 장중 생존력 양호",
+        lambda v: f"고점 대비 {v:.2f}% 밀림",
+    )
+    liquidity_direction, liquidity_phrase = _resolve_signal_category(
+        text,
+        _LIQUIDITY_POSITIVE_KEYWORDS,
+        _LIQUIDITY_NEGATIVE_KEYWORDS,
+        trading_value_to_market_cap_pct,
+        lambda v, t=liquidity_pos_threshold: v >= t,
+        lambda v: v < 0.1,
+        lambda v: f"시총 대비 거래대금 {v:.2f}%로 거래대금 양호",
+        lambda v: f"시총 대비 거래대금 {v:.2f}%로 거래대금 부족",
+    )
+
+    pos_pts, neg_pts = category_points["price_position"]
+    if price_direction == "positive" and pos_pts:
+        gains.append((price_phrase, pos_pts))
+    elif price_direction == "negative" and neg_pts:
+        penalties.append((price_phrase, neg_pts))
+
+    pos_pts, neg_pts = category_points["high_drop"]
+    if high_drop_direction == "positive" and pos_pts:
+        gains.append((high_drop_phrase, pos_pts))
+    elif high_drop_direction == "negative" and neg_pts:
+        penalties.append((high_drop_phrase, neg_pts))
+
+    pos_pts, neg_pts = category_points["liquidity"]
+    if liquidity_direction == "positive" and pos_pts:
+        gains.append((liquidity_phrase, pos_pts))
+    elif liquidity_direction == "negative" and neg_pts:
+        penalties.append((liquidity_phrase, neg_pts))
+
     stored_score = item.get("score")
     score_is_auto = not stored_score  # None 또는 0이면 자동 계산 대상
     if score_is_auto:
@@ -919,27 +1020,6 @@ def _auto_fill_item_display(item):
             for kw in _DANTA_EXTRA_PENALTY_KEYWORDS:
                 if kw in text:
                     score -= 1
-            if price_vs_open_pct is not None:
-                if price_vs_open_pct > 0:
-                    score += 5
-                    gains.append((f"시가 대비 {price_vs_open_pct:+.2f}%로 시가 위 유지", 5))
-                elif price_vs_open_pct < 0:
-                    score -= 6
-                    penalties.append((f"시가 대비 {price_vs_open_pct:+.2f}%로 시가 아래", 6))
-            if drop_from_high_pct is not None:
-                if drop_from_high_pct <= 2:
-                    score += 4
-                    gains.append((f"고점 대비 밀림 {drop_from_high_pct:.2f}%로 장중 생존력 양호", 4))
-                elif drop_from_high_pct >= 5:
-                    score -= 6
-                    penalties.append((f"고점 대비 {drop_from_high_pct:.2f}% 밀림", 6))
-            if trading_value_to_market_cap_pct is not None:
-                if trading_value_to_market_cap_pct >= 0.3:
-                    score += 4
-                    gains.append((f"시총 대비 거래대금 {trading_value_to_market_cap_pct:.2f}%로 거래대금 양호", 4))
-                elif trading_value_to_market_cap_pct < 0.1:
-                    score -= 4
-                    penalties.append((f"시총 대비 거래대금 {trading_value_to_market_cap_pct:.2f}%로 거래대금 부족", 4))
         elif trade_mode == "스윙":
             for kw in _SWING_EXTRA_GAIN_KEYWORDS:
                 if kw in text:
@@ -947,19 +1027,6 @@ def _auto_fill_item_display(item):
             for kw in _SWING_EXTRA_PENALTY_KEYWORDS:
                 if kw in text:
                     score -= 1
-            if price_vs_open_pct is not None and price_vs_open_pct > 0:
-                score += 3
-                gains.append((f"시가 대비 {price_vs_open_pct:+.2f}%로 시가 위 유지", 3))
-            if drop_from_high_pct is not None:
-                if drop_from_high_pct <= 3:
-                    score += 3
-                    gains.append((f"고점 대비 밀림 {drop_from_high_pct:.2f}%로 지속성 양호", 3))
-                elif drop_from_high_pct >= 7:
-                    score -= 5
-                    penalties.append((f"고점 대비 {drop_from_high_pct:.2f}% 밀림", 5))
-            if trading_value_to_market_cap_pct is not None and trading_value_to_market_cap_pct >= 0.2:
-                score += 3
-                gains.append((f"시총 대비 거래대금 {trading_value_to_market_cap_pct:.2f}%로 거래대금 양호", 3))
         if buy_confirmed == "확정":
             score = max(score, 85)
         if verdict == "보류(선반영)":
