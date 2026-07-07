@@ -478,6 +478,73 @@ def _kr_top_candidate_reason_text(trade_mode, score, verdict_display):
     return f"현재 {verdict_display} 단계로 1순위 조건에는 못 미침"
 
 
+def _kr_preview_reasons(change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, trade_mode):
+    """국내장 바로 저장의 "저장 전 자동계산 미리보기" 전용: 시가 위치/고점 대비 밀림/거래대금
+    신호를 수치 기반 문구로 만든다. 자동 점수 계산(_auto_fill_item_display)의 신호 카테고리
+    판단 함수(_resolve_signal_category)를 그대로 재사용해 문구 스타일을 통일하고, 같은 의미의
+    신호가 중복 표시되지 않게 한다. 반환: (score_reason, penalty_reason).
+    """
+    drop_from_high_pct = -high_drop_pct if high_drop_pct is not None else None
+    high_drop_pos_threshold = 2 if trade_mode == "단타" else 3
+    high_drop_neg_threshold = 5 if trade_mode == "단타" else 7
+    liquidity_pos_threshold = 0.3 if trade_mode == "단타" else 0.2
+
+    price_direction, price_phrase = _resolve_signal_category(
+        "",
+        [],
+        [],
+        open_pos_pct,
+        lambda v: v > 0,
+        lambda v: v < 0,
+        lambda v: f"시가 대비 {v:+.2f}%로 시가 위 유지",
+        lambda v: f"시가 대비 {v:+.2f}%로 시가 아래",
+    )
+    high_drop_direction, high_drop_phrase = _resolve_signal_category(
+        "",
+        [],
+        [],
+        drop_from_high_pct,
+        lambda v, t=high_drop_pos_threshold: v <= t,
+        lambda v, t=high_drop_neg_threshold: v >= t,
+        lambda v: f"고점 대비 밀림 {v:.2f}%로 장중 생존력 양호",
+        lambda v: f"고점 대비 {v:.2f}% 밀림",
+    )
+    liquidity_direction, liquidity_phrase = _resolve_signal_category(
+        "",
+        [],
+        [],
+        turnover_ratio_pct,
+        lambda v, t=liquidity_pos_threshold: v >= t,
+        lambda v: v < 0.1,
+        lambda v: f"시총 대비 거래대금 {v:.2f}%로 거래대금 양호",
+        lambda v: f"시총 대비 거래대금 {v:.2f}%로 거래대금 부족",
+    )
+
+    gains = []
+    penalties = []
+    if change_pct is not None:
+        if change_pct > 0:
+            gains.append(f"전일 대비 {change_pct:+.2f}%로 상승")
+        elif change_pct < 0:
+            penalties.append(f"전일 대비 {change_pct:+.2f}%로 하락")
+    if price_direction == "positive":
+        gains.append(price_phrase)
+    elif price_direction == "negative":
+        penalties.append(price_phrase)
+    if high_drop_direction == "positive":
+        gains.append(high_drop_phrase)
+    elif high_drop_direction == "negative":
+        penalties.append(high_drop_phrase)
+    if liquidity_direction == "positive":
+        gains.append(liquidity_phrase)
+    elif liquidity_direction == "negative":
+        penalties.append(liquidity_phrase)
+
+    score_reason = ", ".join(gains) if gains else "특이 사항 없음"
+    penalty_reason = ", ".join(penalties) if penalties else "없음"
+    return score_reason, penalty_reason
+
+
 def _us_swing_upside_score(change_pct):
     """상승률 점수(0~20). 전일 대비 등락률 기준."""
     if change_pct is None:
@@ -2045,21 +2112,43 @@ with tab_kr:
             "버튼을 누르면 바로 저장하지 않고 먼저 저장 전 확인 미리보기를 보여줍니다."
         )
         if st.button("국내장 기록 바로 저장", key="kr_quick_save", disabled=not snapshot_calc_data):
-            kr_preview_rows = [
-                {
-                    "name": calc["name"],
-                    "ticker": calc["ticker"],
-                    "danta_score": calc["danta_score"],
-                    "swing_score": calc["swing_score"],
-                    "danta_verdict": _kr_danta_verdict(calc["danta_score"]),
-                    "swing_verdict": _kr_swing_verdict(calc["swing_score"]),
-                    "change_pct": calc["change_pct"],
-                    "open_pos_pct": calc["open_pos_pct"],
-                    "high_drop_pct": calc["high_drop_pct"],
-                    "turnover_ratio_pct": calc["turnover_ratio_pct"],
-                }
-                for calc in snapshot_calc_data
-            ]
+            kr_preview_rows = []
+            for calc in snapshot_calc_data:
+                danta_verdict = _kr_danta_verdict(calc["danta_score"])
+                swing_verdict = _kr_swing_verdict(calc["swing_score"])
+                danta_score_reason, danta_penalty_reason = _kr_preview_reasons(
+                    calc["change_pct"], calc["open_pos_pct"], calc["high_drop_pct"], calc["turnover_ratio_pct"], "단타"
+                )
+                swing_score_reason, swing_penalty_reason = _kr_preview_reasons(
+                    calc["change_pct"], calc["open_pos_pct"], calc["high_drop_pct"], calc["turnover_ratio_pct"], "스윙"
+                )
+                kr_preview_rows.append(
+                    {
+                        "name": calc["name"],
+                        "ticker": calc["ticker"],
+                        "danta_score": calc["danta_score"],
+                        "swing_score": calc["swing_score"],
+                        "danta_verdict": danta_verdict,
+                        "swing_verdict": swing_verdict,
+                        "change_pct": calc["change_pct"],
+                        "open_pos_pct": calc["open_pos_pct"],
+                        "high_drop_pct": calc["high_drop_pct"],
+                        "turnover_ratio_pct": calc["turnover_ratio_pct"],
+                        "turnover": _get_snapshot_value(calc["ticker"], "turnover"),
+                        "danta_score_reason": danta_score_reason,
+                        "danta_penalty_reason": danta_penalty_reason,
+                        "swing_score_reason": swing_score_reason,
+                        "swing_penalty_reason": swing_penalty_reason,
+                        "danta_top_candidate_reason": _kr_top_candidate_reason_text(
+                            "단타", calc["danta_score"], _display_verdict_name(danta_verdict)
+                        ),
+                        "swing_top_candidate_reason": _kr_top_candidate_reason_text(
+                            "스윙", calc["swing_score"], _display_verdict_name(swing_verdict)
+                        ),
+                        "danta_buy_confirm_condition": _auto_buy_confirm_condition("단타", "KR"),
+                        "swing_buy_confirm_condition": _auto_buy_confirm_condition("스윙", "KR"),
+                    }
+                )
             danta_counts = {"감시": 0, "확인 필요": 0, "보류(선반영)": 0}
             swing_counts = {"추천 후보": 0, "감시": 0, "보류(선반영)": 0}
             for row in kr_preview_rows:
@@ -2095,7 +2184,7 @@ with tab_kr:
             st.write("판단 근거:")
             st.code(st.session_state["kr_quick_basis_text"])
 
-            st.markdown("저장될 종목 목록")
+            st.markdown("저장될 종목 목록 (자동계산 미리보기)")
             kr_danta_rank = _rank_scores([(row["ticker"], row["danta_score"]) for row in kr_preview_rows])
             kr_swing_rank = _rank_scores([(row["ticker"], row["swing_score"]) for row in kr_preview_rows])
             st.dataframe(
@@ -2103,12 +2192,20 @@ with tab_kr:
                     [
                         {
                             "종목명": row["name"],
+                            "티커": row["ticker"],
+                            "시장": "KR",
                             "단기 관심 점수": row["danta_score"],
                             "단타 순위": kr_danta_rank.get(row["ticker"], "미평가"),
                             "며칠 관심 점수": row["swing_score"],
                             "스윙 순위": kr_swing_rank.get(row["ticker"], "미평가"),
                             "단타 판단": _display_verdict_name(row["danta_verdict"]),
                             "스윙 판단": _display_verdict_name(row["swing_verdict"]),
+                            "시가 대비 등락률(%)": _fmt_pct(row["open_pos_pct"]),
+                            "고점 대비 밀림률(%)": _fmt_pct(
+                                -row["high_drop_pct"] if row["high_drop_pct"] is not None else None
+                            ),
+                            "거래대금": f"{row['turnover']:,.0f}원" if row["turnover"] else "-",
+                            "시총 대비 거래대금(%)": _fmt_pct(row["turnover_ratio_pct"]),
                         }
                         for row in kr_preview_rows
                     ]
@@ -2116,6 +2213,37 @@ with tab_kr:
                 width="stretch",
                 hide_index=True,
             )
+
+            st.caption(
+                "점수는 자동매수 신호가 아닙니다. 직접 입력한 score가 없으므로 이 화면의 모든 점수는 "
+                "'자동계산'입니다(직접 score를 입력할 수 있는 화면이 아닙니다)."
+            )
+            st.markdown("종목별 자동계산 근거 (단타/스윙 각각)")
+            for row in kr_preview_rows:
+                danta_label = kr_danta_rank.get(row["ticker"], "미평가")
+                with st.expander(
+                    f"[단타 {danta_label}] {row['name']} / {row['danta_score']:.0f}점 (자동계산)"
+                ):
+                    st.markdown(
+                        f"**[단타 {danta_label}] {row['name']} / {row['danta_score']:.0f}점 (자동계산)**"
+                    )
+                    st.write(f"점수 근거: {row['danta_score_reason']}")
+                    st.write(f"1순위 후보 근거: {row['danta_top_candidate_reason']}")
+                    st.write(f"감점 이유: {row['danta_penalty_reason']}")
+                    st.write("매수 확정 여부: 미확정")
+                    st.write(f"매수 확정 조건: {row['danta_buy_confirm_condition']}")
+                swing_label = kr_swing_rank.get(row["ticker"], "미평가")
+                with st.expander(
+                    f"[스윙 {swing_label}] {row['name']} / {row['swing_score']:.0f}점 (자동계산)"
+                ):
+                    st.markdown(
+                        f"**[스윙 {swing_label}] {row['name']} / {row['swing_score']:.0f}점 (자동계산)**"
+                    )
+                    st.write(f"점수 근거: {row['swing_score_reason']}")
+                    st.write(f"1순위 후보 근거: {row['swing_top_candidate_reason']}")
+                    st.write(f"감점 이유: {row['swing_penalty_reason']}")
+                    st.write("매수 확정 여부: 미확정")
+                    st.write(f"매수 확정 조건: {row['swing_buy_confirm_condition']}")
 
             kcol1, kcol2 = st.columns(2)
             if kcol1.button("이 내용으로 저장", type="primary", key="kr_quick_confirm_save"):
@@ -2129,14 +2257,8 @@ with tab_kr:
                     )
                     danta_verdict_display = _display_verdict_name(row["danta_verdict"])
                     swing_verdict_display = _display_verdict_name(row["swing_verdict"])
-                    danta_score_reason = _kr_score_reason_text(
-                        row["change_pct"], row["open_pos_pct"], row["turnover_ratio_pct"]
-                    )
-                    danta_penalty_reason = _kr_penalty_reason_text(row["high_drop_pct"], row["change_pct"])
-                    buy_confirm_condition_text = (
-                        "진입가, 손절가, 매수 비중, 다음날 확인 조건이 모두 정해져야 매수 확정으로 "
-                        "전환됩니다. 이 화면은 아직 이 값을 입력받지 않으므로 항상 '미확정'으로 표시됩니다."
-                    )
+                    # 미리보기 단계에서 이미 계산한 근거를 그대로 재사용한다(미리보기와 저장 결과가
+                    # 서로 다르게 보이지 않도록).
                     items_to_save.append(
                         {
                             "event_title": (
@@ -2154,19 +2276,13 @@ with tab_kr:
                             "signal_type": "재확인 신호",
                             "trade_mode": "단타",
                             "score": row["danta_score"],
-                            "score_reason": danta_score_reason,
-                            "top_candidate_reason": _kr_top_candidate_reason_text(
-                                "단타", row["danta_score"], danta_verdict_display
-                            ),
-                            "penalty_reason": danta_penalty_reason,
+                            "score_reason": row["danta_score_reason"],
+                            "top_candidate_reason": row["danta_top_candidate_reason"],
+                            "penalty_reason": row["danta_penalty_reason"],
                             "buy_confirmed": "미확정",
-                            "buy_confirm_condition": buy_confirm_condition_text,
+                            "buy_confirm_condition": row["danta_buy_confirm_condition"],
                         }
                     )
-                    swing_score_reason = _kr_score_reason_text(
-                        row["change_pct"], row["open_pos_pct"], row["turnover_ratio_pct"]
-                    )
-                    swing_penalty_reason = _kr_penalty_reason_text(row["high_drop_pct"], row["change_pct"])
                     items_to_save.append(
                         {
                             "event_title": (
@@ -2184,13 +2300,11 @@ with tab_kr:
                             "signal_type": "재확인 신호",
                             "trade_mode": "스윙",
                             "score": row["swing_score"],
-                            "score_reason": swing_score_reason,
-                            "top_candidate_reason": _kr_top_candidate_reason_text(
-                                "스윙", row["swing_score"], swing_verdict_display
-                            ),
-                            "penalty_reason": swing_penalty_reason,
+                            "score_reason": row["swing_score_reason"],
+                            "top_candidate_reason": row["swing_top_candidate_reason"],
+                            "penalty_reason": row["swing_penalty_reason"],
                             "buy_confirmed": "미확정",
-                            "buy_confirm_condition": buy_confirm_condition_text,
+                            "buy_confirm_condition": row["swing_buy_confirm_condition"],
                         }
                     )
                 kr_report_id = db.save_report(
@@ -2307,6 +2421,7 @@ with tab_us:
         breakdown["open_pos_pct"] = open_pos_pct
         breakdown["high_drop_pct"] = high_drop_pct
         breakdown["turnover_ratio_pct"] = turnover_ratio_pct
+        breakdown["turnover"] = turnover
         us_snapshot_calc_data.append(breakdown)
 
     st.markdown("---")
@@ -2349,13 +2464,16 @@ with tab_us:
         st.write("판단 근거:")
         st.code(st.session_state["us_swing_basis_text"])
 
-        st.markdown("저장될 종목 목록 (점수 근거표)")
+        st.markdown("저장될 종목 목록 (자동계산 미리보기)")
         us_swing_rank = _rank_scores([(row["ticker"], row["total_score"]) for row in preview_rows])
         st.dataframe(
             pd.DataFrame(
                 [
                     {
                         "종목명": row["name"],
+                        "티커": row["ticker"],
+                        "시장": "US",
+                        "매매유형": "스윙",
                         "총점": row["total_score"],
                         "스윙 순위": us_swing_rank.get(row["ticker"], "미평가"),
                         "판단": row["tier_label"],
@@ -2369,6 +2487,12 @@ with tab_us:
                         "감점 이유": row["deduction_reason"],
                         "매수 확정 여부": row["buy_confirmed"],
                         "매수 확정 조건": row["buy_confirm_condition"],
+                        "시가 대비 등락률(%)": _fmt_pct(row["open_pos_pct"]),
+                        "고점 대비 밀림률(%)": _fmt_pct(
+                            -row["high_drop_pct"] if row["high_drop_pct"] is not None else None
+                        ),
+                        "거래대금": f"{row['turnover']:,.0f}" if row["turnover"] else "-",
+                        "시총 대비 거래대금(%)": _fmt_pct(row["turnover_ratio_pct"]),
                     }
                     for row in preview_rows
                 ]
@@ -2376,10 +2500,16 @@ with tab_us:
             width="stretch",
             hide_index=True,
         )
+        st.caption(
+            "점수는 자동매수 신호가 아닙니다. 직접 입력한 score가 없으므로 이 화면의 모든 점수는 "
+            "'자동계산'입니다(직접 score를 입력할 수 있는 화면이 아닙니다)."
+        )
 
         st.markdown("종목별 점수 근거 문장")
         for row in preview_rows:
-            with st.expander(f"{row['name']} 총점 {row['total_score']:.0f}점 ({row['tier_label']})"):
+            rank_label = us_swing_rank.get(row["ticker"], "미평가")
+            with st.expander(f"[스윙 {rank_label}] {row['name']} / {row['total_score']:.0f}점 (자동계산)"):
+                st.markdown(f"**[스윙 {rank_label}] {row['name']} / {row['total_score']:.0f}점 (자동계산)**")
                 st.text(_us_swing_narrative_text(row))
 
         pcol1, pcol2 = st.columns(2)
