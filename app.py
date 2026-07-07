@@ -896,6 +896,14 @@ def _auto_fill_item_display(item):
             if kw in text:
                 penalties.append((kw, pts))
 
+    # 저장된 문장에 이미 담긴 전일대비/시가대비/고점대비/시총대비 거래대금 수치를 뽑아
+    # price_vs_open_pct/drop_from_high_pct/trading_value_to_market_cap_pct 보조 신호로 쓴다.
+    # drop_from_high_pct는 "밀린 정도(양수)"이므로 기존 high_drop_pct(음수 관례)의 부호를 뒤집는다.
+    basis = extract_score_basis_from_text(text)
+    price_vs_open_pct = basis.get("open_pos_pct")
+    drop_from_high_pct = -basis["high_drop_pct"] if basis.get("high_drop_pct") is not None else None
+    trading_value_to_market_cap_pct = basis.get("turnover_ratio_pct")
+
     stored_score = item.get("score")
     score_is_auto = not stored_score  # None 또는 0이면 자동 계산 대상
     if score_is_auto:
@@ -911,6 +919,27 @@ def _auto_fill_item_display(item):
             for kw in _DANTA_EXTRA_PENALTY_KEYWORDS:
                 if kw in text:
                     score -= 1
+            if price_vs_open_pct is not None:
+                if price_vs_open_pct > 0:
+                    score += 5
+                    gains.append((f"시가 대비 {price_vs_open_pct:+.2f}%로 시가 위 유지", 5))
+                elif price_vs_open_pct < 0:
+                    score -= 6
+                    penalties.append((f"시가 대비 {price_vs_open_pct:+.2f}%로 시가 아래", 6))
+            if drop_from_high_pct is not None:
+                if drop_from_high_pct <= 2:
+                    score += 4
+                    gains.append((f"고점 대비 밀림 {drop_from_high_pct:.2f}%로 장중 생존력 양호", 4))
+                elif drop_from_high_pct >= 5:
+                    score -= 6
+                    penalties.append((f"고점 대비 {drop_from_high_pct:.2f}% 밀림", 6))
+            if trading_value_to_market_cap_pct is not None:
+                if trading_value_to_market_cap_pct >= 0.3:
+                    score += 4
+                    gains.append((f"시총 대비 거래대금 {trading_value_to_market_cap_pct:.2f}%로 거래대금 양호", 4))
+                elif trading_value_to_market_cap_pct < 0.1:
+                    score -= 4
+                    penalties.append((f"시총 대비 거래대금 {trading_value_to_market_cap_pct:.2f}%로 거래대금 부족", 4))
         elif trade_mode == "스윙":
             for kw in _SWING_EXTRA_GAIN_KEYWORDS:
                 if kw in text:
@@ -918,6 +947,19 @@ def _auto_fill_item_display(item):
             for kw in _SWING_EXTRA_PENALTY_KEYWORDS:
                 if kw in text:
                     score -= 1
+            if price_vs_open_pct is not None and price_vs_open_pct > 0:
+                score += 3
+                gains.append((f"시가 대비 {price_vs_open_pct:+.2f}%로 시가 위 유지", 3))
+            if drop_from_high_pct is not None:
+                if drop_from_high_pct <= 3:
+                    score += 3
+                    gains.append((f"고점 대비 밀림 {drop_from_high_pct:.2f}%로 지속성 양호", 3))
+                elif drop_from_high_pct >= 7:
+                    score -= 5
+                    penalties.append((f"고점 대비 {drop_from_high_pct:.2f}% 밀림", 5))
+            if trading_value_to_market_cap_pct is not None and trading_value_to_market_cap_pct >= 0.2:
+                score += 3
+                gains.append((f"시총 대비 거래대금 {trading_value_to_market_cap_pct:.2f}%로 거래대금 양호", 3))
         if buy_confirmed == "확정":
             score = max(score, 85)
         if verdict == "보류(선반영)":
@@ -1275,6 +1317,96 @@ def _safe_ratio_pct(a, b):
     if not b:
         return None
     return a / b * 100
+
+
+def _parse_price_number(value):
+    """숫자(float/int) 또는 쉼표 포함 숫자 문자열("71,500")을 float로 변환한다.
+    비어 있거나(None/빈 문자열) 0이거나 변환 실패하면 None(계산 생략으로 취급)."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value) if value else None
+    text = str(value).strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        num = float(text)
+    except ValueError:
+        return None
+    return num if num else None
+
+
+def compute_price_vs_open_pct(current_price, open_price):
+    """시가 대비 등락률: (current_price - open_price) / open_price * 100.
+    값이 없거나 open_price가 0이면 None(계산 생략, 0으로 나누기 방지)."""
+    current_price = _parse_price_number(current_price)
+    open_price = _parse_price_number(open_price)
+    if current_price is None or not open_price:
+        return None
+    return (current_price - open_price) / open_price * 100
+
+
+def compute_drop_from_high_pct(current_price, high_price):
+    """고점 대비 밀림률(양수 = 밀린 정도): (high_price - current_price) / high_price * 100.
+    값이 없거나 high_price가 0이면 None(계산 생략, 0으로 나누기 방지)."""
+    current_price = _parse_price_number(current_price)
+    high_price = _parse_price_number(high_price)
+    if current_price is None or not high_price:
+        return None
+    return (high_price - current_price) / high_price * 100
+
+
+def compute_trading_value(trading_value_input, current_price, volume):
+    """거래대금: 직접 입력값이 있으면 그 값을 우선 쓰고, 없으면 current_price * volume으로
+    추정한다. 둘 다 없으면 None(계산 생략)."""
+    trading_value_input = _parse_price_number(trading_value_input)
+    if trading_value_input is not None:
+        return trading_value_input
+    current_price = _parse_price_number(current_price)
+    volume = _parse_price_number(volume)
+    if current_price is None or volume is None:
+        return None
+    return current_price * volume
+
+
+def compute_trading_value_to_market_cap_pct(trading_value, market_cap):
+    """시총 대비 거래대금 비율: trading_value / market_cap * 100.
+    값이 없거나 market_cap이 0이면 None(계산 생략, 0으로 나누기 방지)."""
+    trading_value = _parse_price_number(trading_value)
+    market_cap = _parse_price_number(market_cap)
+    if trading_value is None or not market_cap:
+        return None
+    return trading_value / market_cap * 100
+
+
+def _render_snapshot_calc_summary(ticker):
+    """종목별 상세 입력 카드 안에서, 현재 입력값 기준 계산값(시가 대비/고점 대비 밀림/거래대금/
+    시총 대비 거래대금)을 표시한다. 화면 표시 전용이며 DB에는 저장하지 않는다. 값이 비어 있으면
+    (open_price/high_price/market_cap이 0이거나 없음) 해당 항목은 건너뛴다."""
+    current = _get_snapshot_value(ticker, "current")
+    open_price = _get_snapshot_value(ticker, "open")
+    high = _get_snapshot_value(ticker, "high")
+    turnover_input = _get_snapshot_value(ticker, "turnover")
+    volume = _get_snapshot_value(ticker, "volume")
+    market_cap = _get_snapshot_value(ticker, "market_cap")
+
+    price_vs_open_pct = compute_price_vs_open_pct(current, open_price)
+    drop_from_high_pct = compute_drop_from_high_pct(current, high)
+    trading_value = compute_trading_value(turnover_input, current, volume)
+    trading_value_to_market_cap_pct = compute_trading_value_to_market_cap_pct(trading_value, market_cap)
+
+    lines = []
+    if price_vs_open_pct is not None:
+        lines.append(f"시가 대비: {price_vs_open_pct:+.2f}%")
+    if drop_from_high_pct is not None:
+        lines.append(f"고점 대비 밀림: {drop_from_high_pct:.2f}%")
+    if trading_value is not None:
+        lines.append(f"거래대금: {trading_value:,.0f}원")
+    if trading_value_to_market_cap_pct is not None:
+        lines.append(f"시총 대비 거래대금: {trading_value_to_market_cap_pct:.2f}%")
+
+    if lines:
+        st.caption(" · ".join(lines))
 
 
 def _fmt_pct(value):
@@ -2032,6 +2164,7 @@ with tab_kr:
             c6.number_input("거래대금", value=0.0, step=1000000.0, key=prefix + "turnover")
             c7.number_input("시가총액", value=0.0, step=1000000.0, key=prefix + "market_cap")
             c8.number_input("거래량", value=0.0, step=1000.0, key=prefix + "volume")
+            _render_snapshot_calc_summary(s["ticker"])
 
 with tab_us:
     st.subheader("미국장")
@@ -2252,6 +2385,7 @@ with tab_us:
             c6.number_input("거래대금", value=0.0, step=1000000.0, key=prefix + "turnover")
             c7.number_input("시가총액", value=0.0, step=1000000.0, key=prefix + "market_cap")
             c8.number_input("거래량", value=0.0, step=1000.0, key=prefix + "volume")
+            _render_snapshot_calc_summary(s["ticker"])
             st.text_input(
                 "재료 메모 (선택, 없으면 재료 점수는 낮은 기본값으로 처리됩니다)",
                 key=prefix + "material_memo",
