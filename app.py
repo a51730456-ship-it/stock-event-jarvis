@@ -1167,8 +1167,26 @@ SNAPSHOT_STOCKS = [
     {"name": "한화오션", "ticker": "042660.KS", "sector": "조선"},
     {"name": "한화에어로스페이스", "ticker": "012450.KS", "sector": "방산"},
 ]
-SNAPSHOT_FIELDS = ["current", "prev_close", "open", "high", "low", "turnover", "market_cap"]
+SNAPSHOT_FIELDS = ["current", "prev_close", "open", "high", "low", "turnover", "market_cap", "volume"]
 SNAPSHOT_NAME_TO_TICKER = {s["name"]: s["ticker"] for s in SNAPSHOT_STOCKS}
+
+# 사람이 보기 쉬운 "기준 이름" 정리(별칭/문서화용). 기존 session_state 키(snap_{ticker}_current 등)와
+# 계산 변수 이름(open_pos_pct 등)은 그대로 두고 바꾸지 않는다 — 나중에 DB 저장이나 실제 시세 API를
+# 연결할 때 이 기준 이름을 참고용으로 쓰기 위해 미리 정리만 해 둔다. 지금은 어떤 로직에도 쓰이지 않는다.
+SNAPSHOT_FIELD_CANONICAL_NAMES = {
+    "current": "current_price",
+    "open": "open_price",
+    "high": "high_price",
+    "low": "low_price",
+    "turnover": "trading_value",
+    "market_cap": "market_cap",
+    "volume": "volume",
+}
+SNAPSHOT_CALC_CANONICAL_NAMES = {
+    "open_pos_pct": "price_vs_open_pct",
+    "high_drop_pct": "drop_from_high_pct",
+    "turnover_ratio_pct": "trading_value_to_market_cap_pct",
+}
 
 # 미국장 스윙 기록 바로 저장 전용 기본 종목(8개). 한국 종목(SNAPSHOT_STOCKS)과는
 # ticker가 겹치지 않으므로 같은 session_state 키 규칙(snap_{ticker}_{field})을 그대로 쓴다.
@@ -1210,6 +1228,9 @@ def parse_quick_snapshot_text(text):
 
     등록된 7개 종목명과 일치하는 줄만 반영한다. 모르는 종목명이나 숫자로 해석할 수 없는
     값은 경고 문자열로만 남기고(자동판정/저장과 무관), 해당 줄은 반영하지 않는다.
+
+    기존 8개 필드(종목명 포함) 형식을 그대로 지원하고(거래량 없이도 동작), 맨 뒤에
+    거래량을 추가한 9개 필드 형식도 함께 지원한다(선택 사항, 기존 형식은 깨지지 않는다).
     """
     updates = {}
     warnings = []
@@ -1218,17 +1239,19 @@ def parse_quick_snapshot_text(text):
         if not line:
             continue
         parts = [p.strip() for p in line.split("/")]
-        if len(parts) != 8:
-            warnings.append(f"형식을 인식하지 못했습니다(종목명 포함 8개 필드 필요): {line}")
+        if len(parts) not in (8, 9):
+            warnings.append(f"형식을 인식하지 못했습니다(종목명 포함 8개 또는 9개 필드 필요): {line}")
             continue
         name = parts[0]
         ticker = SNAPSHOT_NAME_TO_TICKER.get(name)
         if not ticker:
             warnings.append(f"'{name}'은(는) 등록된 7개 종목이 아니라 건너뜁니다.")
             continue
+        # 9개 필드면 거래량까지, 8개 필드면 기존 7개 필드까지만 사용한다(하위 호환).
+        fields_to_use = SNAPSHOT_FIELDS if len(parts) == 9 else SNAPSHOT_FIELDS[:-1]
         values = {}
         line_ok = True
-        for field, raw in zip(SNAPSHOT_FIELDS, parts[1:]):
+        for field, raw in zip(fields_to_use, parts[1:]):
             num = _parse_snapshot_number(raw)
             if num is None:
                 warnings.append(f"'{name}'의 값 '{raw}'을(를) 숫자로 인식하지 못했습니다.")
@@ -1612,7 +1635,9 @@ with tab_kr:
     with st.expander("주가 직접 붙여넣기", expanded=False):
         st.caption(
             "형식: 종목명 / 현재가 / 전일종가 / 시가 / 장중고가 / 장중저가 / 거래대금 / 시가총액 "
-            "(등록된 7개 종목만 인식하며, 숫자에 쉼표가 있어도 처리됩니다.)"
+            "(등록된 7개 종목만 인식하며, 숫자에 쉼표가 있어도 처리됩니다. 맨 뒤에 거래량을 "
+            "추가한 종목명 / ... / 시가총액 / 거래량(9개 필드) 형식도 지원하며, 거래량 없이 "
+            "기존 8개 필드로 붙여넣어도 그대로 동작합니다.)"
         )
         quick_snapshot_text = st.text_area(
             "주가 직접 붙여넣기",
@@ -2002,10 +2027,11 @@ with tab_kr:
             c3.number_input("시가", value=0.0, step=100.0, key=prefix + "open")
             c4.number_input("장중고가", value=0.0, step=100.0, key=prefix + "high")
 
-            c5, c6, c7 = st.columns(3)
+            c5, c6, c7, c8 = st.columns(4)
             c5.number_input("장중저가", value=0.0, step=100.0, key=prefix + "low")
             c6.number_input("거래대금", value=0.0, step=1000000.0, key=prefix + "turnover")
             c7.number_input("시가총액", value=0.0, step=1000000.0, key=prefix + "market_cap")
+            c8.number_input("거래량", value=0.0, step=1000.0, key=prefix + "volume")
 
 with tab_us:
     st.subheader("미국장")
@@ -2221,10 +2247,11 @@ with tab_us:
             c3.number_input("시가", value=0.0, step=1.0, key=prefix + "open")
             c4.number_input("장중고가", value=0.0, step=1.0, key=prefix + "high")
 
-            c5, c6, c7 = st.columns(3)
+            c5, c6, c7, c8 = st.columns(4)
             c5.number_input("장중저가", value=0.0, step=1.0, key=prefix + "low")
             c6.number_input("거래대금", value=0.0, step=1000000.0, key=prefix + "turnover")
             c7.number_input("시가총액", value=0.0, step=1000000.0, key=prefix + "market_cap")
+            c8.number_input("거래량", value=0.0, step=1000.0, key=prefix + "volume")
             st.text_input(
                 "재료 메모 (선택, 없으면 재료 점수는 낮은 기본값으로 처리됩니다)",
                 key=prefix + "material_memo",
