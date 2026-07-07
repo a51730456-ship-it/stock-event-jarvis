@@ -750,6 +750,55 @@ def _build_item_judgment_lookup():
     return lookup
 
 
+def _rank_label(rank):
+    """순위 숫자를 표시용 문구로 바꾼다. 1위="1순위 후보", 2위="2순위", 3위="3순위", 그 외="N위"."""
+    if rank == 1:
+        return "1순위 후보"
+    if rank == 2:
+        return "2순위"
+    if rank == 3:
+        return "3순위"
+    return f"{rank}위"
+
+
+def _rank_scores(pairs):
+    """[(key, score), ...] 목록에서 score가 있고(>0) 큰 순으로 순위를 매긴다.
+
+    score가 없거나(None) 0 이하이면 순위 계산에서 제외하고 "미평가"로 표시한다.
+    자동매수 신호가 아니라 화면 표시용 상대 순위이며, DB에는 저장하지 않는다.
+    반환: {key: 순위 라벨}
+    """
+    valid = [(k, s) for k, s in pairs if (s or 0) > 0]
+    valid.sort(key=lambda pair: -pair[1])
+    labels = {}
+    for idx, (k, _) in enumerate(valid, start=1):
+        labels[k] = _rank_label(idx)
+    for k, _ in pairs:
+        if k not in labels:
+            labels[k] = "미평가"
+    return labels
+
+
+def _compute_score_rank_labels(items):
+    """report_item dict 목록(같은 report일 수도, 여러 report가 섞여 있을 수도 있음)에서
+    (report_id, market, trade_mode) 그룹별로 score 기준 순위를 매겨 item id -> 순위 라벨을 반환한다.
+
+    한국장/미국장, 단타/스윙을 서로 섞지 않기 위해 report_id·market·trade_mode가 모두 같은
+    항목끼리만 순위를 비교한다. 오래된 report처럼 score가 없는 항목은 "미평가"로 표시되며
+    앱이 오류를 내지 않는다.
+    """
+    groups = {}
+    for item in items:
+        key = (item.get("report_id"), item.get("market") or "OTHER", item.get("trade_mode") or "공통")
+        groups.setdefault(key, []).append(item)
+
+    labels = {}
+    for group_items in groups.values():
+        pairs = [(it["id"], it.get("score")) for it in group_items]
+        labels.update(_rank_scores(pairs))
+    return labels
+
+
 VERDICT_BADGE_COLOR = {
     "추천 후보": "green",
     "감시": "yellow",
@@ -838,14 +887,20 @@ def extract_priority_basis(raw_briefing):
     return sections.get("우선순위 근거") or None
 
 
-def _render_trade_mode_section(tm, grouped):
+def _render_trade_mode_section(tm, grouped, rank_labels=None):
     """단타/스윙/공통 중 하나(tm)의 판정별 그룹을 "현재 컨테이너 안에" 그려 넣는다.
 
     호출부에서 `with column:` 등으로 컨테이너를 이미 지정한 상태에서 호출한다.
+    rank_labels가 있으면(같은 report·시장·매매유형 안에서 score 기준으로 계산한 순위) 각 항목
+    제목/카드 상단에 순위를 표시하고, 같은 판정 그룹 안에서는 score 높은 순으로 정렬한다.
+    score가 없는 항목("미평가")은 그룹 맨 뒤로 간다. rank_labels가 없으면(예: 계산 실패) 기존
+    순서를 그대로 쓴다 — 오래된 report에도 이 화면이 오류 없이 동작해야 한다.
     """
+    rank_labels = rank_labels or {}
     st.markdown(f"## {TRADE_MODE_EMOJI.get(tm, '')} {_trade_mode_badge(tm)} {TRADE_MODE_HEADING[tm]}")
     for verdict in VERDICT_ORDER:
         bucket = grouped[tm].get(verdict, [])
+        bucket = sorted(bucket, key=lambda it: -(it.get("score") or 0))
         st.markdown(f"#### {_verdict_badge(verdict)} ({len(bucket)}건)")
         if not bucket:
             st.caption("해당 없음")
@@ -853,12 +908,19 @@ def _render_trade_mode_section(tm, grouped):
         for item in bucket:
             label = item.get("stock_name") or item.get("ticker") or item.get("event_title") or "(제목 없음)"
             trade_mode = item.get("trade_mode") or "공통"
-            card_title = f"{_trade_mode_badge(trade_mode)} {label}"
+            rank_label = rank_labels.get(item.get("id"), "미평가")
+            card_title = f"{_trade_mode_badge(trade_mode)} [{rank_label}] {label}"
             if item.get("event_title"):
                 card_title += f" - {item['event_title']}"
             if item.get("score") is not None:
                 card_title += f" ({item['score']:.0f}점)"
             with st.expander(card_title):
+                score_val = item.get("score")
+                score_text = "-점" if score_val is None else f"{score_val:.0f}점"
+                st.markdown(
+                    f"**[{trade_mode} {rank_label}] {label} / {score_text} / "
+                    f"{item.get('buy_confirmed') or '미확정'}**"
+                )
                 st.write(f"매매유형: {trade_mode}")
                 st.write(f"판단: {_display_verdict_name(item.get('verdict'))}")
                 st.write(f"종목코드: {item.get('ticker') or '-'}")
@@ -866,10 +928,10 @@ def _render_trade_mode_section(tm, grouped):
                 st.write(f"신호 종류: {_display_signal_type(item.get('signal_type') or '-')}")
                 st.write(f"주식시장 판단: {item.get('stock_market_judgment') or '-'}")
                 st.write(f"베팅시장 판단: {item.get('betting_market_judgment') or '-'}")
-                score_val = item.get("score")
-                st.write(f"점수: {'-' if score_val is None else f'{score_val:.0f}점'}")
+                st.write(f"점수: {'-' if score_val is None else score_text}")
                 st.write(f"점수 근거: {item.get('score_reason') or '-'}")
-                st.write(f"1순위 후보 근거: {item.get('top_candidate_reason') or '-'}")
+                top_reason = item.get("top_candidate_reason") or item.get("score_reason") or "-"
+                st.write(f"1순위 후보 근거: {top_reason}")
                 st.write(f"감점 이유: {item.get('penalty_reason') or '-'}")
                 st.write(f"매수 확정 여부: {item.get('buy_confirmed') or '-'}")
                 st.write(f"매수 확정 조건: {item.get('buy_confirm_condition') or '-'}")
@@ -909,19 +971,20 @@ def render_report_detail(report, show_raw_briefing=False):
     )
 
     grouped = _group_items_by_trade_mode_and_verdict(report["id"])
+    rank_labels = _compute_score_rank_labels(items)
 
     # 좌우 2단: 왼쪽=스윙 관점, 오른쪽=단타 관점 (넓은 화면 기준. 좁은 화면에서는
     # Streamlit이 자동으로 세로 배치한다). 공통은 두 컬럼 아래에 별도 영역으로 표시.
     col_swing, col_danta = st.columns(2, gap="large")
     with col_swing:
-        _render_trade_mode_section("스윙", grouped)
+        _render_trade_mode_section("스윙", grouped, rank_labels)
     with col_danta:
-        _render_trade_mode_section("단타", grouped)
+        _render_trade_mode_section("단타", grouped, rank_labels)
 
     common_count = sum(len(items) for items in grouped["공통"].values())
     if common_count > 0:
         st.markdown("---")
-        _render_trade_mode_section("공통", grouped)
+        _render_trade_mode_section("공통", grouped, rank_labels)
 
 
 tab_today, tab_perf, tab_kr, tab_us, tab_archive, tab_paste, tab_next = st.tabs(
@@ -1642,13 +1705,17 @@ with tab_kr:
             st.code(st.session_state["kr_quick_basis_text"])
 
             st.markdown("저장될 종목 목록")
+            kr_danta_rank = _rank_scores([(row["ticker"], row["danta_score"]) for row in kr_preview_rows])
+            kr_swing_rank = _rank_scores([(row["ticker"], row["swing_score"]) for row in kr_preview_rows])
             st.dataframe(
                 pd.DataFrame(
                     [
                         {
                             "종목명": row["name"],
                             "단기 관심 점수": row["danta_score"],
+                            "단타 순위": kr_danta_rank.get(row["ticker"], "미평가"),
                             "며칠 관심 점수": row["swing_score"],
+                            "스윙 순위": kr_swing_rank.get(row["ticker"], "미평가"),
                             "단타 판단": _display_verdict_name(row["danta_verdict"]),
                             "스윙 판단": _display_verdict_name(row["swing_verdict"]),
                         }
@@ -1890,12 +1957,14 @@ with tab_us:
         st.code(st.session_state["us_swing_basis_text"])
 
         st.markdown("저장될 종목 목록 (점수 근거표)")
+        us_swing_rank = _rank_scores([(row["ticker"], row["total_score"]) for row in preview_rows])
         st.dataframe(
             pd.DataFrame(
                 [
                     {
                         "종목명": row["name"],
                         "총점": row["total_score"],
+                        "스윙 순위": us_swing_rank.get(row["ticker"], "미평가"),
                         "판단": row["tier_label"],
                         "상승률 점수": row["upside_score"],
                         "종가 위치 점수": row["close_pos_score"],
@@ -2165,6 +2234,10 @@ with tab_perf:
             # 후보 점수 기준 내림차순 정렬 (동점은 입력 순서 유지 — sorted()는 안정 정렬)
             scored_rows = sorted(scored_rows, key=lambda pair: -pair[0])
 
+            # score(저장된 판단 설명 점수) 기준 순위: 같은 report·시장·매매유형 안에서만 비교한다.
+            item_judgment_lookup = _build_item_judgment_lookup()
+            score_rank_labels = _compute_score_rank_labels(item_judgment_lookup.values())
+
             # 4. compact 요약 (큰 숫자 4개만)
             status_counts = {
                 "계산 완료": sum(1 for row in perf_rows if row["status"] == "계산 완료"),
@@ -2202,22 +2275,27 @@ with tab_perf:
             )
 
             # 6. 결과 표 (기본 컬럼만, 관심 점수 높은 순 정렬)
-            table_rows = [
-                {
-                    "종목명": row["stock_name"],
-                    "관심 점수": score,
-                    "구분": row["trade_mode"],
-                    "판단": _display_verdict_name(row["verdict"]),
-                    "결과 상태": row["status"],
-                    "판단 시점": row["briefing_stage"],
-                    "1일 뒤": _fmt_pct(row["returns"][1]),
-                    "3일 뒤": _fmt_pct(row["returns"][3]),
-                    "5일 뒤": _fmt_pct(row["returns"][5]),
-                    "10일 뒤": _fmt_pct(row["returns"][10]),
-                    "20일 뒤": _fmt_pct(row["returns"][20]),
-                }
-                for score, row in scored_rows
-            ]
+            table_rows = []
+            for score, row in scored_rows:
+                saved_item = item_judgment_lookup.get(
+                    (row["report_id"], row["ticker"], row["trade_mode"]), {}
+                )
+                table_rows.append(
+                    {
+                        "종목명": row["stock_name"],
+                        "순위": score_rank_labels.get(saved_item.get("id"), "미평가"),
+                        "관심 점수": score,
+                        "구분": row["trade_mode"],
+                        "판단": _display_verdict_name(row["verdict"]),
+                        "결과 상태": row["status"],
+                        "판단 시점": row["briefing_stage"],
+                        "1일 뒤": _fmt_pct(row["returns"][1]),
+                        "3일 뒤": _fmt_pct(row["returns"][3]),
+                        "5일 뒤": _fmt_pct(row["returns"][5]),
+                        "10일 뒤": _fmt_pct(row["returns"][10]),
+                        "20일 뒤": _fmt_pct(row["returns"][20]),
+                    }
+                )
             perf_df = pd.DataFrame(table_rows)
             st.dataframe(perf_df, width="stretch", hide_index=True)
 
@@ -2232,7 +2310,6 @@ with tab_perf:
 
             # 8. 자세히 보기 (숨긴 컬럼 포함 전체)
             with st.expander("자세히 보기"):
-                item_judgment_lookup = _build_item_judgment_lookup()
                 detail_table_rows = []
                 for score, row in scored_rows:
                     saved_item = item_judgment_lookup.get(
@@ -2242,6 +2319,7 @@ with tab_perf:
                     detail_table_rows.append(
                         {
                             "종목명": row["stock_name"],
+                            "순위": score_rank_labels.get(saved_item.get("id"), "미평가"),
                             "관심 점수": score,
                             "구분": row["trade_mode"],
                             "판단": _display_verdict_name(row["verdict"]),
