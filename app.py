@@ -1779,6 +1779,35 @@ def _compute_verification_status(actual_exit_price, actual_exit_date):
     return "미입력"
 
 
+# ---- v1.2B: 필터 무시 매매 로그 (기존 report_item 업데이트 전용, 새 report 생성 없음) ----
+# 화면에는 한국어로 표시하고, DB(filter_ignore_reason)에는 고정 코드를 콤마로 연결해 저장한다.
+FILTER_IGNORE_TAG_OPTIONS = [
+    ("NO_STOP", "손절없음"),
+    ("STOP_DELAY", "손절지연"),
+    ("UNCONFIRMED_ENTRY", "미확정진입"),
+    ("PENALTY_IGNORED", "감점무시"),
+    ("WARNING_IGNORED", "경고무시"),
+    ("NEWS_IMPULSE", "뉴스충동"),
+    ("RECOMMEND_BUY", "추천매수"),
+    ("REVENGE_TRADE", "복구매매"),
+    ("CHASE_BUY", "추격매수"),
+    ("SIZE_OVER", "비중초과"),
+    ("TAKE_PROFIT_DELAY", "익절지연"),
+    ("EARLY_EXIT", "조기매도"),
+]
+FILTER_IGNORE_TAG_CODE_TO_LABEL = dict(FILTER_IGNORE_TAG_OPTIONS)
+FILTER_IGNORE_TAG_LABEL_TO_CODE = {v: k for k, v in FILTER_IGNORE_TAG_OPTIONS}
+
+EMOTION_TAG_OPTIONS = [
+    ("EMOTION_CALM", "평온"),
+    ("EMOTION_EXCITED", "흥분"),
+    ("EMOTION_REVENGE", "복구욕"),
+    ("EMOTION_ANXIOUS", "불안"),
+]
+EMOTION_TAG_CODE_TO_LABEL = dict(EMOTION_TAG_OPTIONS)
+EMOTION_TAG_LABEL_TO_CODE = {v: k for k, v in EMOTION_TAG_OPTIONS}
+
+
 # ---- v1.1: 리스크 엔진 / 경고형 확정 차단 / 입력 검증 (한국장·미국장 "바로 저장" 전용) ----
 # 점수 가점/감점 로직과는 무관하며, 여기서 계산되는 값은 화면 표시/경고 문구 전용이다.
 # 한국장/미국장 바로 저장은 이미 모든 항목을 "미확정"으로만 저장하므로(기존 동작), 별도의
@@ -3506,6 +3535,80 @@ with tab_perf:
                                 _exit_conn.close()
                                 _cached_verification_rows.clear()
                                 st.success("청산 결과가 저장되었습니다.")
+                                st.rerun()
+
+                    # v1.2B: 필터 무시 매매 로그 입력/수정 (기존 report_item을 id 기준으로 업데이트,
+                    # 새 report/report_item 생성 안 함). 청산 결과 UI와 나란히 별도 expander로 둔다.
+                    if saved_item.get("id"):
+                        with st.expander(f"필터 무시 기록 - {row['stock_name']} ({row['trade_mode']})"):
+                            _fi_key = f"filterignore_{saved_item['id']}"
+                            _fi_options = ["미입력", "아니오", "예"]
+                            _fi_stored = saved_item.get("filter_ignored")
+                            _fi_default = {"YES": "예", "NO": "아니오"}.get(_fi_stored, "미입력")
+                            _filter_ignored_in = st.selectbox(
+                                "필터 무시 여부", _fi_options,
+                                index=_fi_options.index(_fi_default), key=f"{_fi_key}_ignored",
+                            )
+
+                            _fi_stored_reason = saved_item.get("filter_ignore_reason") or ""
+                            _fi_stored_codes = [c.strip() for c in _fi_stored_reason.split(",") if c.strip()]
+                            _fi_stored_tag_codes = [
+                                c for c in _fi_stored_codes if c in FILTER_IGNORE_TAG_CODE_TO_LABEL
+                            ]
+                            _fi_stored_emotion_codes = [
+                                c for c in _fi_stored_codes if c in EMOTION_TAG_CODE_TO_LABEL
+                            ]
+
+                            if _filter_ignored_in == "예":
+                                _ignore_tags_in = st.multiselect(
+                                    "필터 무시 태그",
+                                    [label for _, label in FILTER_IGNORE_TAG_OPTIONS],
+                                    default=[
+                                        FILTER_IGNORE_TAG_CODE_TO_LABEL[c] for c in _fi_stored_tag_codes
+                                    ],
+                                    key=f"{_fi_key}_tags",
+                                )
+                                _emotion_options = ["미입력"] + [label for _, label in EMOTION_TAG_OPTIONS]
+                                _emotion_default = (
+                                    EMOTION_TAG_CODE_TO_LABEL.get(_fi_stored_emotion_codes[0], "미입력")
+                                    if _fi_stored_emotion_codes else "미입력"
+                                )
+                                _emotion_in = st.selectbox(
+                                    "감정 태그", _emotion_options,
+                                    index=_emotion_options.index(_emotion_default), key=f"{_fi_key}_emotion",
+                                )
+                            else:
+                                _ignore_tags_in = []
+                                _emotion_in = "미입력"
+                                st.caption("필터 무시 여부를 '예'로 선택하면 태그를 입력할 수 있습니다.")
+
+                            _memo_in = st.text_input(
+                                "자유 메모", value=saved_item.get("filter_ignore_memo") or "",
+                                key=f"{_fi_key}_memo",
+                            )
+
+                            st.caption(
+                                f"참고 R수익률(기존 값, 새로 계산하지 않음): {_fmt_result_r(saved_item.get('result_r'))}"
+                            )
+
+                            if st.button("필터 무시 기록 저장", key=f"{_fi_key}_save"):
+                                _final_filter_ignored = {"예": "YES", "아니오": "NO"}.get(_filter_ignored_in)
+                                _final_tag_codes = [
+                                    FILTER_IGNORE_TAG_LABEL_TO_CODE[label] for label in _ignore_tags_in
+                                ]
+                                if _emotion_in != "미입력":
+                                    _final_tag_codes.append(EMOTION_TAG_LABEL_TO_CODE[_emotion_in])
+                                _final_reason = ",".join(_final_tag_codes) if _final_tag_codes else None
+                                _final_memo = _memo_in.strip() or None
+                                _fi_conn = db.get_connection()
+                                _fi_conn.execute(
+                                    "UPDATE report_items SET filter_ignored=?, filter_ignore_reason=?, "
+                                    "filter_ignore_memo=? WHERE id=?",
+                                    (_final_filter_ignored, _final_reason, _final_memo, saved_item["id"]),
+                                )
+                                _fi_conn.commit()
+                                _fi_conn.close()
+                                st.success("필터 무시 기록이 저장되었습니다.")
                                 st.rerun()
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
