@@ -136,6 +136,13 @@ def _migrate_add_columns(conn):
         if col not in item_cols:
             conn.execute(f"ALTER TABLE report_items ADD COLUMN {col} TEXT")
 
+    # v1.2B 필터 무시 매매 로그용 추가 컬럼. 기존 행은 NULL로 남기고, UI/저장 로직은
+    # 이번 단계에서 만들지 않는다(컬럼 추가만). violation_reason(청산 계획 위반 사유)과는
+    # 별개 개념이라 재사용하지 않고 새 컬럼으로 분리한다.
+    for col in ("filter_ignored", "filter_ignore_reason", "filter_ignore_memo"):
+        if col not in item_cols:
+            conn.execute(f"ALTER TABLE report_items ADD COLUMN {col} TEXT")
+
     conn.commit()
 
 
