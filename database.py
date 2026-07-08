@@ -114,6 +114,18 @@ def _migrate_add_columns(conn):
     if "buy_confirm_condition" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN buy_confirm_condition TEXT")
 
+    # v1.1 리스크 엔진 / 청산 계획 / 경고형 확정 차단용 추가 컬럼. 기존 행은 NULL로 남기고
+    # ("정보 없음"으로 표시), 새로 저장되는 행부터 save_report()가 값을 채운다.
+    for col in (
+        "entry_price", "stop_loss_price", "planned_stop_price", "target_price",
+        "expected_holding_days", "five_day_change_pct",
+    ):
+        if col not in item_cols:
+            conn.execute(f"ALTER TABLE report_items ADD COLUMN {col} REAL")
+    for col in ("plan_followed", "violation_reason", "disclosure_type", "news_status", "judged_at"):
+        if col not in item_cols:
+            conn.execute(f"ALTER TABLE report_items ADD COLUMN {col} TEXT")
+
     conn.commit()
 
 
@@ -190,8 +202,12 @@ def save_report(
                     betting_basis_ga, betting_basis_na, betting_basis_da,
                     stock_market_judgment, betting_market_judgment, verdict, signal_type, trade_mode,
                     score, score_reason, top_candidate_reason, penalty_reason,
-                    buy_confirmed, buy_confirm_condition
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    buy_confirmed, buy_confirm_condition,
+                    entry_price, stop_loss_price, planned_stop_price, target_price,
+                    expected_holding_days, five_day_change_pct,
+                    plan_followed, violation_reason, disclosure_type, news_status, judged_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     report_id,
@@ -217,6 +233,17 @@ def save_report(
                     item.get("penalty_reason") or None,
                     item.get("buy_confirmed") or "미확정",
                     item.get("buy_confirm_condition") or "확인 필요",
+                    item.get("entry_price"),
+                    item.get("stop_loss_price"),
+                    item.get("planned_stop_price"),
+                    item.get("target_price"),
+                    item.get("expected_holding_days"),
+                    item.get("five_day_change_pct"),
+                    item.get("plan_followed"),
+                    item.get("violation_reason"),
+                    item.get("disclosure_type"),
+                    item.get("news_status"),
+                    item.get("judged_at"),
                 ),
             )
         conn.commit()

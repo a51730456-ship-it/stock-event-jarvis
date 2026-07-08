@@ -1,5 +1,6 @@
 """자비스 주식 기록장 (Streamlit 앱): 오늘 요약 / 새 기록 입력 / 오늘 주가 확인 / 지난 기록 보기 / 결과 확인 / 추가 기능."""
 
+import math
 import re
 from datetime import datetime
 
@@ -1543,6 +1544,103 @@ def _render_snapshot_calc_summary(ticker):
         st.caption(" · ".join(lines))
 
 
+def _render_risk_and_warning_inputs(ticker, market):
+    """v1.1 리스크 엔진 + 청산 계획 + 경고형 확정 차단 입력/표시 (한국장·미국장 종목별 상세 입력 카드 전용).
+
+    화면 표시 계산(risk_amount/recommended_qty 등)은 저장하지 않는다. entry_price/stop_loss_price
+    등 사용자가 입력한 값만 저장 대상이 된다(저장 시점에 items_to_save에 포함).
+    """
+    prefix = f"snap_{ticker}_"
+    current = _get_snapshot_value(ticker, "current")
+    high = _get_snapshot_value(ticker, "high")
+    low = _get_snapshot_value(ticker, "low")
+    prev_close = _get_snapshot_value(ticker, "prev_close")
+
+    # entry_price 기본값은 current_price를 계속 따라가되, 사용자가 진입가를 직접 수정하면
+    # 그 뒤로는 current_price가 바뀌어도 따라가지 않는다(아직 "직접 수정 전"인지는
+    # 마지막 자동입력값과 현재 entry_price가 같은지로 판단한다).
+    entry_key = prefix + "entry_price"
+    auto_track_key = prefix + "entry_price_auto_track"
+    if entry_key not in st.session_state or st.session_state.get(auto_track_key) == st.session_state[entry_key]:
+        st.session_state[entry_key] = current
+        st.session_state[auto_track_key] = current
+
+    st.markdown("**리스크 관리 (v1.1)**")
+    rc1, rc2 = st.columns(2)
+    entry_price = rc1.number_input(
+        "진입가(기본값=현재가)", min_value=0.0, step=100.0, key=prefix + "entry_price"
+    )
+    stop_loss_price = rc2.number_input(
+        "손절가", value=0.0, min_value=0.0, step=100.0, key=prefix + "stop_loss_price"
+    )
+
+    account_size = st.session_state.get("risk_account_size", 0.0)
+    risk_percent = st.session_state.get("risk_percent_setting", 1.0)
+    risk = _compute_risk_engine(account_size, risk_percent, entry_price, stop_loss_price)
+    if risk["recommended_qty"] is not None:
+        cap_note = " (계좌 25% 상한 적용)" if risk["capped"] else ""
+        st.caption(
+            f"권장 수량: {risk['recommended_qty']:,}주 / 권장 매수금액: "
+            f"{risk['recommended_buy_amount']:,.0f}{cap_note}"
+        )
+    if risk["error"]:
+        st.warning(risk["error"])
+    if risk["warning"]:
+        st.warning(risk["warning"])
+
+    st.markdown("**청산 계획 (v1.1, 저장 전용)**")
+    ec1, ec2, ec3 = st.columns(3)
+    ec1.number_input("목표 손절가(planned)", value=0.0, min_value=0.0, step=100.0, key=prefix + "planned_stop_price")
+    ec2.number_input("목표가", value=0.0, min_value=0.0, step=100.0, key=prefix + "target_price")
+    ec3.number_input(
+        "예상 보유일수", value=0, min_value=0, step=1, key=prefix + "expected_holding_days"
+    )
+    ec4, ec5 = st.columns(2)
+    ec4.selectbox("계획 준수 여부", ["미입력", "예", "아니오", "부분"], key=prefix + "plan_followed")
+    ec5.selectbox(
+        "위반 사유", ["미입력", "손절지연", "조기매도", "복구매매", "감정매매", "뉴스변경", "기타"],
+        key=prefix + "violation_reason",
+    )
+
+    st.markdown("**경고형 확정 차단 (v1.1)**")
+    wc1, wc2, wc3 = st.columns(3)
+    disclosure_type = wc1.selectbox("공시 유형", ["없음", "수주", "기타"], key=prefix + "disclosure_type")
+    news_status = wc2.selectbox(
+        "뉴스 확인 상태", ["있음", "없음확인", "확인실패", "루머테마"], key=prefix + "news_status"
+    )
+    five_day_change_pct = wc3.number_input(
+        "5일 등락률(%)", value=0.0, min_value=0.0, step=1.0, key=prefix + "five_day_change_pct"
+    )
+
+    daily_change_pct = _safe_pct_diff(current, prev_close)
+    retracement_ratio = _compute_retracement_ratio(high, low, current)
+    if _check_disclosure_chase_warning(disclosure_type, daily_change_pct, five_day_change_pct, retracement_ratio):
+        suffix = " (미국장은 추후 검증 대상)" if market == "US" else ""
+        st.error(f"수주공시 과열 - 당일 정점 후 하락 위험, 추격 금지{suffix}")
+    if _check_no_news_chase_warning(news_status, daily_change_pct, five_day_change_pct, retracement_ratio):
+        suffix = " (미국장은 추후 검증 대상)" if market == "US" else ""
+        st.error(f"무뉴스 급등 - 반전 위험, 추격 금지{suffix}")
+
+
+def _collect_risk_fields(ticker):
+    """저장 시점에 v1.1 입력 필드 값을 세션 상태에서 모아온다(화면 표시 계산값은 포함하지 않음)."""
+    prefix = f"snap_{ticker}_"
+    plan_followed = st.session_state.get(prefix + "plan_followed", "미입력")
+    violation_reason = st.session_state.get(prefix + "violation_reason", "미입력")
+    return {
+        "entry_price": st.session_state.get(prefix + "entry_price") or None,
+        "stop_loss_price": st.session_state.get(prefix + "stop_loss_price") or None,
+        "planned_stop_price": st.session_state.get(prefix + "planned_stop_price") or None,
+        "target_price": st.session_state.get(prefix + "target_price") or None,
+        "expected_holding_days": st.session_state.get(prefix + "expected_holding_days") or None,
+        "plan_followed": None if plan_followed == "미입력" else plan_followed,
+        "violation_reason": None if violation_reason == "미입력" else violation_reason,
+        "disclosure_type": st.session_state.get(prefix + "disclosure_type", "없음"),
+        "news_status": st.session_state.get(prefix + "news_status", "있음"),
+        "five_day_change_pct": st.session_state.get(prefix + "five_day_change_pct") or None,
+    }
+
+
 def _fmt_pct(value):
     return "-" if value is None else f"{value:.2f}"
 
@@ -1550,6 +1648,115 @@ def _fmt_pct(value):
 def _fmt_signed_pct(value):
     """부호를 명시해서 보여준다 (+3.36% / -4.92%). 브리핑 초안 문장용."""
     return "-" if value is None else f"{value:+.2f}%"
+
+
+# ---- v1.1: 리스크 엔진 / 경고형 확정 차단 / 입력 검증 (한국장·미국장 "바로 저장" 전용) ----
+# 점수 가점/감점 로직과는 무관하며, 여기서 계산되는 값은 화면 표시/경고 문구 전용이다.
+# 한국장/미국장 바로 저장은 이미 모든 항목을 "미확정"으로만 저장하므로(기존 동작), 별도의
+# 확정 상태 차단 로직은 필요 없고 경고 문구를 눈에 띄게 보여주는 것으로 "확정 차단"을 만족한다.
+
+def _compute_risk_engine(account_size, risk_percent, entry_price, stop_loss_price):
+    """계좌금액/리스크% 기준 권장 수량을 계산한다. 화면 표시 전용이며 저장하지 않는다."""
+    result = {
+        "risk_amount": None,
+        "per_share_loss": None,
+        "recommended_qty": None,
+        "recommended_buy_amount": None,
+        "capped": False,
+        "error": None,
+        "warning": None,
+    }
+    if not account_size or not entry_price:
+        return result
+
+    risk_amount = account_size * risk_percent / 100
+    result["risk_amount"] = risk_amount
+
+    if not stop_loss_price:
+        result["error"] = "손절가 없음 - 매수 확정 불가"
+        return result
+
+    per_share_loss = entry_price - stop_loss_price
+    result["per_share_loss"] = per_share_loss
+
+    if stop_loss_price >= entry_price or per_share_loss <= 0:
+        result["error"] = "손절가는 진입가보다 낮아야 합니다"
+        return result
+
+    recommended_qty = math.floor(risk_amount / per_share_loss)
+    recommended_buy_amount = recommended_qty * entry_price
+
+    if recommended_buy_amount > account_size * 0.25:
+        recommended_qty = math.floor((account_size * 0.25) / entry_price)
+        recommended_buy_amount = recommended_qty * entry_price
+        result["capped"] = True
+
+    result["recommended_qty"] = recommended_qty
+    result["recommended_buy_amount"] = recommended_buy_amount
+
+    stop_pct = per_share_loss / entry_price
+    if stop_pct > 0.08:
+        result["warning"] = "손절폭 8% 초과 - 수량 축소 또는 보류 권고"
+
+    return result
+
+
+def _compute_retracement_ratio(high_price, low_price, current_price):
+    """고점 대비 되돌림 비율: (high-current)/(high-low). 변동폭이 현재가의 1% 미만이면
+    계산을 건너뛴다(None)."""
+    if not high_price or not low_price or current_price is None:
+        return None
+    price_range = high_price - low_price
+    if price_range <= 0 or price_range < current_price * 0.01:
+        return None
+    return (high_price - current_price) / price_range
+
+
+def _is_surge_condition(daily_change_pct, five_day_change_pct):
+    """급등 조건: 당일 등락률 10% 이상 또는 5일 등락률 15% 이상."""
+    if daily_change_pct is not None and daily_change_pct >= 10:
+        return True
+    if five_day_change_pct is not None and five_day_change_pct >= 15:
+        return True
+    return False
+
+
+def _check_disclosure_chase_warning(disclosure_type, daily_change_pct, five_day_change_pct, retracement_ratio):
+    """경고1: 수주공시 과열 - 당일 정점 후 하락 위험, 추격 금지."""
+    if disclosure_type != "수주":
+        return False
+    if not _is_surge_condition(daily_change_pct, five_day_change_pct):
+        return False
+    return retracement_ratio is not None and retracement_ratio >= 0.5
+
+
+def _check_no_news_chase_warning(news_status, daily_change_pct, five_day_change_pct, retracement_ratio):
+    """경고2: 무뉴스/루머 급등 - 반전 위험, 추격 금지."""
+    if news_status not in ("없음확인", "루머테마"):
+        return False
+    if not _is_surge_condition(daily_change_pct, five_day_change_pct):
+        return False
+    return retracement_ratio is not None and retracement_ratio >= 0.5
+
+
+def _validate_snapshot_price_inputs(name, current, open_price, high, low, volume, turnover):
+    """가격/거래량/거래대금 입력값 검증(작업5). 위반 사유 문자열 목록을 반환(빈 목록=정상)."""
+    errors = []
+    for label, value in (
+        ("현재가", current), ("시가", open_price), ("고가", high), ("저가", low),
+        ("거래량", volume), ("거래대금", turnover),
+    ):
+        if value is not None and value < 0:
+            errors.append(f"{name}: {label}가 음수입니다")
+    if high and current is not None and not (high >= current):
+        errors.append(f"{name}: 고가가 현재가보다 낮습니다")
+    if low and current is not None and not (current >= low):
+        errors.append(f"{name}: 현재가가 저가보다 낮습니다")
+    if high and open_price and not (high >= open_price):
+        errors.append(f"{name}: 고가가 시가보다 낮습니다")
+    if low and open_price and not (open_price >= low):
+        errors.append(f"{name}: 시가가 저가보다 낮습니다")
+    return errors
 
 
 def classify_snapshot_temp(high_drop_pct, open_pos_pct, turnover_ratio_pct):
@@ -1896,6 +2103,25 @@ with tab_kr:
         "프로그램 수급 방향", ["미입력", "순매수", "순매도", "중립"], key="snap_program_dir"
     )
 
+    # 1-1. 리스크 관리 설정 (v1.1) — 이 값은 미국장 탭에서도 그대로 사용됩니다(시장 분위기와 동일한 방식).
+    st.markdown("### 리스크 관리 설정 (v1.1)")
+    st.caption(
+        "계좌금액/1회 리스크%는 한국장·미국장 종목별 상세 입력 카드의 권장 수량 계산에 공통으로 "
+        "쓰입니다. 자동매매가 아니라 화면 표시용 참고 계산입니다."
+    )
+    r1, r2, r3 = st.columns(3)
+    risk_account_size = r1.number_input(
+        "계좌금액", value=0.0, min_value=0.0, step=1000000.0, key="risk_account_size"
+    )
+    risk_percent = r2.number_input(
+        "1회 리스크(%)", value=1.0, min_value=0.0, max_value=2.0, step=0.1, key="risk_percent_setting"
+    )
+    today_loss_r = r3.number_input(
+        "금일 손실R (수동 입력)", value=0.0, step=0.1, key="risk_today_loss_r"
+    )
+    if today_loss_r <= -2:
+        st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
+
     # 2. 간편 스냅샷 입력 (붙여넣기 자동 채우기)
     st.markdown("---")
     with st.expander("주가 직접 붙여넣기", expanded=False):
@@ -2036,6 +2262,11 @@ with tab_kr:
                 "memos": memos,
                 "danta_score": danta_score,
                 "swing_score": swing_score,
+                "risk_fields": _collect_risk_fields(ticker),
+                "validation_errors": _validate_snapshot_price_inputs(
+                    s["name"], current, open_price, high, low,
+                    _get_snapshot_value(ticker, "volume"), turnover,
+                ),
             }
         )
 
@@ -2112,6 +2343,10 @@ with tab_kr:
             "버튼을 누르면 바로 저장하지 않고 먼저 저장 전 확인 미리보기를 보여줍니다."
         )
         if st.button("국내장 기록 바로 저장", key="kr_quick_save", disabled=not snapshot_calc_data):
+          all_kr_validation_errors = [e for calc in snapshot_calc_data for e in calc["validation_errors"]]
+          if all_kr_validation_errors:
+            st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_kr_validation_errors))
+          else:
             kr_preview_rows = []
             for calc in snapshot_calc_data:
                 danta_verdict = _kr_danta_verdict(calc["danta_score"])
@@ -2147,6 +2382,7 @@ with tab_kr:
                         ),
                         "danta_buy_confirm_condition": _auto_buy_confirm_condition("단타", "KR"),
                         "swing_buy_confirm_condition": _auto_buy_confirm_condition("스윙", "KR"),
+                        "risk_fields": calc["risk_fields"],
                     }
                 )
             danta_counts = {"감시": 0, "확인 필요": 0, "보류(선반영)": 0}
@@ -2248,6 +2484,7 @@ with tab_kr:
             kcol1, kcol2 = st.columns(2)
             if kcol1.button("이 내용으로 저장", type="primary", key="kr_quick_confirm_save"):
                 items_to_save = []
+                judged_at = datetime.now().isoformat(timespec="seconds")
                 for row in kr_preview_rows:
                     basis_a = (
                         f"전일대비 {_fmt_signed_pct(row['change_pct'])}, "
@@ -2281,6 +2518,8 @@ with tab_kr:
                             "penalty_reason": row["danta_penalty_reason"],
                             "buy_confirmed": "미확정",
                             "buy_confirm_condition": row["danta_buy_confirm_condition"],
+                            "judged_at": judged_at,
+                            **row["risk_fields"],
                         }
                     )
                     items_to_save.append(
@@ -2305,6 +2544,8 @@ with tab_kr:
                             "penalty_reason": row["swing_penalty_reason"],
                             "buy_confirmed": "미확정",
                             "buy_confirm_condition": row["swing_buy_confirm_condition"],
+                            "judged_at": judged_at,
+                            **row["risk_fields"],
                         }
                     )
                 kr_report_id = db.save_report(
@@ -2346,6 +2587,8 @@ with tab_kr:
             c7.number_input("시가총액", value=0.0, step=1000000.0, key=prefix + "market_cap")
             c8.number_input("거래량", value=0.0, step=1000.0, key=prefix + "volume")
             _render_snapshot_calc_summary(s["ticker"])
+            st.markdown("---")
+            _render_risk_and_warning_inputs(s["ticker"], "KR")
 
 with tab_us:
     st.subheader("미국장")
@@ -2355,6 +2598,17 @@ with tab_us:
         "값을 그대로 사용합니다."
     )
     st.info("이 탭의 입력값은 저장되지 않습니다(저장은 아래 '미국장 스윙 기록 바로 저장'을 눌렀을 때만 됩니다).")
+
+    # 리스크 관리 설정(v1.1)은 '한국장' 탭에서 입력한 값을 그대로 사용합니다(시장 분위기와 동일한 방식).
+    _us_risk_account_size = st.session_state.get("risk_account_size", 0.0)
+    _us_risk_percent = st.session_state.get("risk_percent_setting", 1.0)
+    _us_today_loss_r = st.session_state.get("risk_today_loss_r", 0.0)
+    st.caption(
+        f"리스크 관리 설정(v1.1, 한국장 탭에서 입력): 계좌금액 {_us_risk_account_size:,.0f} / "
+        f"1회 리스크 {_us_risk_percent:.1f}%"
+    )
+    if _us_today_loss_r <= -2:
+        st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
 
     # 1. 미국장 기본 종목 불러오기 (TSLA/AMD/AVGO/META/GOOGL/AAPL/NVDA/MSFT — 저장 없음)
     st.markdown("---")
@@ -2422,6 +2676,10 @@ with tab_us:
         breakdown["high_drop_pct"] = high_drop_pct
         breakdown["turnover_ratio_pct"] = turnover_ratio_pct
         breakdown["turnover"] = turnover
+        breakdown["risk_fields"] = _collect_risk_fields(ticker)
+        breakdown["validation_errors"] = _validate_snapshot_price_inputs(
+            s["name"], current, open_price, high, low, _get_snapshot_value(ticker, "volume"), turnover,
+        )
         us_snapshot_calc_data.append(breakdown)
 
     st.markdown("---")
@@ -2434,6 +2692,10 @@ with tab_us:
     if not us_snapshot_calc_data:
         st.info("미국장 스윙 기록을 저장하려면 먼저 미국장 종목 데이터를 불러와야 합니다.")
     if st.button("미국장 스윙 기록 바로 저장", key="us_swing_quick_save", disabled=not us_snapshot_calc_data):
+      all_us_validation_errors = [e for calc in us_snapshot_calc_data for e in calc["validation_errors"]]
+      if all_us_validation_errors:
+        st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_us_validation_errors))
+      else:
         preview_rows = us_snapshot_calc_data
         counts = {"추천 후보": 0, "감시": 0, "보류(선반영)": 0}
         for row in preview_rows:
@@ -2514,6 +2776,7 @@ with tab_us:
 
         pcol1, pcol2 = st.columns(2)
         if pcol1.button("이 내용으로 저장", type="primary", key="us_swing_confirm_save"):
+            us_judged_at = datetime.now().isoformat(timespec="seconds")
             items_to_save = [
                 {
                     "event_title": f"{row['name']} 총점 {row['total_score']:.0f}점 - {row['tier_label']}",
@@ -2542,6 +2805,8 @@ with tab_us:
                     "penalty_reason": row["deduction_reason"],
                     "buy_confirmed": "미확정",
                     "buy_confirm_condition": row["buy_confirm_condition"],
+                    "judged_at": us_judged_at,
+                    **row["risk_fields"],
                 }
                 for row in preview_rows
             ]
@@ -2588,6 +2853,8 @@ with tab_us:
                 key=prefix + "material_memo",
                 placeholder="예: 로보택시 기대감, AI 실적 발표, 신제품 발표 등",
             )
+            st.markdown("---")
+            _render_risk_and_warning_inputs(s["ticker"], "US")
 
 with tab_archive:
     st.subheader("지난 기록 보기")
