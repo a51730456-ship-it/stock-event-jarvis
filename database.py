@@ -126,6 +126,16 @@ def _migrate_add_columns(conn):
         if col not in item_cols:
             conn.execute(f"ALTER TABLE report_items ADD COLUMN {col} TEXT")
 
+    # v1.2A 결과 검증층: 청산 결과 기록용 추가 컬럼. 기존 행은 NULL로 남기고, UI/저장 로직은
+    # 이번 단계에서 만들지 않는다(컬럼 추가만).
+    if "actual_exit_price" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN actual_exit_price REAL")
+    if "result_r" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN result_r REAL")
+    for col in ("actual_exit_date", "exit_reason", "verification_status"):
+        if col not in item_cols:
+            conn.execute(f"ALTER TABLE report_items ADD COLUMN {col} TEXT")
+
     conn.commit()
 
 
