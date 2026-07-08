@@ -243,13 +243,33 @@ st.markdown(
         background-color: #ff4b4b !important;
         border-color: #ff4b4b !important;
     }
-    /* v1.1 UX: 한국장/미국장 핵심 실행 버튼 강조 (조회/계산=주황, 저장=파랑) */
+    /* v1.1 UX: 한국장/미국장 핵심 실행 버튼 강조 (조회/계산=주황, 저장=파랑).
+       글자를 크고 굵게, 버튼 높이/클릭 영역도 키운다. */
+    .st-key-snap_auto_fill button,
+    .st-key-us_stock_auto_fill button,
+    .st-key-kr_quick_save button,
+    .st-key-kr_quick_confirm_save button,
+    .st-key-us_swing_quick_save button,
+    .st-key-us_swing_confirm_save button {
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+        padding: 14px 22px !important;
+        min-height: 52px !important;
+    }
+    .st-key-snap_auto_fill button p,
+    .st-key-us_stock_auto_fill button p,
+    .st-key-kr_quick_save button p,
+    .st-key-kr_quick_confirm_save button p,
+    .st-key-us_swing_quick_save button p,
+    .st-key-us_swing_confirm_save button p {
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+    }
     .st-key-snap_auto_fill button,
     .st-key-us_stock_auto_fill button {
         background-color: #F97316 !important;
         border-color: #F97316 !important;
         color: #1a1a1a !important;
-        font-weight: 700 !important;
     }
     .st-key-kr_quick_save button,
     .st-key-kr_quick_confirm_save button,
@@ -258,7 +278,6 @@ st.markdown(
         background-color: #2563EB !important;
         border-color: #2563EB !important;
         color: #ffffff !important;
-        font-weight: 700 !important;
     }
     /* 상단 메뉴(탭) 확대 + 실제 고정(fixed) + 현재 선택 강조.
        주의: 이 구조에서 position:sticky는 조상 컨테이닝 블록 제약 때문에 실제로 고정되지
@@ -305,30 +324,9 @@ st.markdown(
 st.markdown('<div style="height:76px;"></div>', unsafe_allow_html=True)  # 고정 상단 메뉴에 가리지 않도록 여백 확보
 st.title("자비스 주식 기록장")
 st.caption("단타·스윙 판단을 기록하고 나중에 맞았는지 확인하는 도구")
-
-_start_box_col1, _start_box_col2 = st.columns(2)
-with _start_box_col1:
-    st.markdown(
-        """
-        <div style="background-color:rgba(18,51,32,0.85);border:1px solid #2ecc71;border-radius:8px;
-        padding:8px 12px;margin-bottom:6px;">
-        <span style="font-size:0.92rem;font-weight:700;color:#2ecc71;">🇰🇷 한국장:</span>
-        <span style="color:#c9ecd6;font-size:0.85rem;"> 주가 채우기 → 계산 결과 → 저장</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-with _start_box_col2:
-    st.markdown(
-        """
-        <div style="background-color:rgba(16,35,58,0.85);border:1px solid #3498db;border-radius:8px;
-        padding:8px 12px;margin-bottom:6px;">
-        <span style="font-size:0.92rem;font-weight:700;color:#3498db;">🇺🇸 미국장:</span>
-        <span style="color:#c9e2f2;font-size:0.85rem;"> 종목 불러오기 → 계산 결과 → 저장</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+# 한국장/미국장 사용 순서 안내는 각 화면(🇰🇷 한국장 먼저 확인 / 🇺🇸 미국장 스윙 확인) 상단의
+# 짧은 안내문으로만 표시한다(예: "① ... → ② ... → ③ ..."). 여기(상단 공통 영역)에는
+# 별도 카드를 두지 않아 본문보다 커 보이지 않게 한다.
 
 VERDICT_ORDER = [
     "추천 후보",
@@ -2208,7 +2206,7 @@ with tab_kr:
     st.markdown(
         f"""
         <div style="background-color:#171a21;border:1px solid #303642;border-radius:10px;padding:14px;margin-top:8px;">
-        <b>시장 분위기 요약</b><br>
+        <b>시장 분위기 입력값 확인</b><br>
         - 나스닥100 선물: {nq_change:+.2f}%<br>
         - SOXX/SMH 방향: {soxx_dir}<br>
         - 달러/원 방향: {usdkrw_dir}<br>
@@ -2219,6 +2217,16 @@ with tab_kr:
         """,
         unsafe_allow_html=True,
     )
+    st.caption(
+        "아래 값은 자동 분석이 아니라 위에서 직접 입력한 시장 분위기 값입니다. "
+        "선택하지 않은 항목은 미입력으로 표시됩니다."
+    )
+    _kr_mood_unset_count = sum(
+        1 for v in (soxx_dir, usdkrw_dir, kospi200_futures_dir, foreign_futures_dir, program_dir)
+        if v == "미입력"
+    )
+    if _kr_mood_unset_count >= 4:
+        st.caption("시장 분위기 판단값이 거의 입력되지 않았습니다. 필요하면 위 항목을 선택하세요.")
     st.caption("시장 분위기는 매수 신호가 아니라 오늘 판단의 배경 참고값입니다.")
     st.caption("이 탭의 입력값은 저장되지 않습니다. 화면에서 계산만 확인하는 1차 버전입니다.")
 
@@ -3153,11 +3161,14 @@ with tab_perf:
     if not perf_rows_all:
         st.info("종목코드가 있는 종목별 기록이 없습니다.")
     else:
-        # 1. 보기 범위 (기본값 "최신 기록만" — 과거 기록이 기본 화면에 섞이지 않게 한다)
+        # 1. 보기 범위 (기본값 "오늘 저장한 기록 전체" — "방금 저장한 기록만"은 최신 report 1건만
+        # 보여줘서 한국장/미국장을 같은 날 둘 다 저장해도 한쪽만 보이는 것처럼 보일 수 있다.
+        # 기본값을 오늘 저장한 기록 전체로 넓혀 두 시장이 함께 보이게 한다.)
         view_scope = st.radio(
             "볼 기록 범위",
             ["방금 저장한 기록만", "오늘 저장한 기록 전체", "모든 지난 기록"],
             horizontal=True,
+            index=1,
             key="perf_view_scope",
         )
         latest_report = db.get_latest_report()
