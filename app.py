@@ -196,8 +196,8 @@ st.markdown(
     html, body, [class*="css"] {
         font-family: Pretendard, "Noto Sans KR", "Malgun Gothic", sans-serif;
     }
-    .stApp {
-        background-color: #0f1117;
+    .stApp, [data-testid="stAppViewContainer"] {
+        background-color: #0f1117 !important;
     }
     h1 {
         font-size: 1.9rem !important;
@@ -206,7 +206,7 @@ st.markdown(
         color: #9aa0a8 !important;
     }
     [data-testid="stExpander"] {
-        background-color: #171a21;
+        background-color: rgba(23, 26, 33, 0.92);
         border: 1px solid #303642;
         border-radius: 10px;
         margin-bottom: 8px;
@@ -220,20 +220,115 @@ st.markdown(
         border-radius: 6px !important;
         border: 1px solid #303642 !important;
     }
+    /* 표(데이터프레임) 가독성: 배경과 확실히 구분되는 어두운 카드톤 + 또렷한 글자 */
+    [data-testid="stDataFrame"] {
+        background-color: rgba(15, 18, 26, 0.96) !important;
+        border: 1px solid #303642;
+        border-radius: 10px;
+        padding: 2px;
+    }
     [data-testid="stDataFrame"] [role="row"] {
         min-height: 38px;
+    }
+    [data-testid="stDataFrame"] * {
+        color: #e8ebf0 !important;
+    }
+    [data-testid="stMetric"] {
+        background-color: rgba(23, 26, 33, 0.92);
+        border: 1px solid #303642;
+        border-radius: 10px;
+        padding: 10px 14px;
     }
     button[kind="primary"] {
         background-color: #ff4b4b !important;
         border-color: #ff4b4b !important;
+    }
+    /* v1.1 UX: 한국장/미국장 핵심 실행 버튼 강조 (조회/계산=주황, 저장=파랑) */
+    .st-key-snap_auto_fill button,
+    .st-key-us_stock_auto_fill button {
+        background-color: #F97316 !important;
+        border-color: #F97316 !important;
+        color: #1a1a1a !important;
+        font-weight: 700 !important;
+    }
+    .st-key-kr_quick_save button,
+    .st-key-kr_quick_confirm_save button,
+    .st-key-us_swing_quick_save button,
+    .st-key-us_swing_confirm_save button {
+        background-color: #2563EB !important;
+        border-color: #2563EB !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    /* 상단 메뉴(탭) 확대 + 실제 고정(fixed) + 현재 선택 강조.
+       주의: 이 구조에서 position:sticky는 조상 컨테이닝 블록 제약 때문에 실제로 고정되지
+       않는다(브라우저에서 직접 확인, scrollTop 이동 시 sticky는 함께 스크롤되어 사라짐).
+       position:fixed로 뷰포트 기준 고정하고, 바로 아래 탭 내용에 그만큼 padding-top을 더해
+       가려지지 않게 한다. */
+    [data-testid="stTabs"] [data-baseweb="tab-list"] {
+        position: fixed !important;
+        top: 60px;
+        left: 0;
+        right: 0;
+        width: 100%;
+        z-index: 999999;
+        background-color: rgba(2, 6, 23, 0.98);
+        border-bottom: 1px solid #303642;
+        padding: 10px 24px 6px 24px !important;
+        gap: 6px;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab-panel"] {
+        padding-top: 64px !important;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab"] {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+        padding: 14px 20px !important;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab"] p {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+        background-color: rgba(37, 99, 235, 0.28);
+        border-bottom: 4px solid #ff4b4b !important;
+        border-radius: 6px 6px 0 0;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] p {
+        color: #ffffff !important;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+st.markdown('<div style="height:76px;"></div>', unsafe_allow_html=True)  # 고정 상단 메뉴에 가리지 않도록 여백 확보
 st.title("자비스 주식 기록장")
 st.caption("단타·스윙 판단을 기록하고 나중에 맞았는지 확인하는 도구")
+
+_start_box_col1, _start_box_col2 = st.columns(2)
+with _start_box_col1:
+    st.markdown(
+        """
+        <div style="background-color:rgba(18,51,32,0.85);border:1px solid #2ecc71;border-radius:8px;
+        padding:8px 12px;margin-bottom:6px;">
+        <span style="font-size:0.92rem;font-weight:700;color:#2ecc71;">🇰🇷 한국장:</span>
+        <span style="color:#c9ecd6;font-size:0.85rem;"> 주가 채우기 → 계산 결과 → 저장</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+with _start_box_col2:
+    st.markdown(
+        """
+        <div style="background-color:rgba(16,35,58,0.85);border:1px solid #3498db;border-radius:8px;
+        padding:8px 12px;margin-bottom:6px;">
+        <span style="font-size:0.92rem;font-weight:700;color:#3498db;">🇺🇸 미국장:</span>
+        <span style="color:#c9e2f2;font-size:0.85rem;"> 종목 불러오기 → 계산 결과 → 저장</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 VERDICT_ORDER = [
     "추천 후보",
@@ -1331,8 +1426,11 @@ def render_report_detail(report, show_raw_briefing=False):
         _render_trade_mode_section("공통", grouped, rank_labels)
 
 
-tab_today, tab_perf, tab_kr, tab_us, tab_archive, tab_paste, tab_next = st.tabs(
-    ["오늘 요약", "결과 확인", "한국장", "미국장", "지난 기록 보기", "새 기록 입력", "추가 기능"]
+tab_kr, tab_us, tab_perf, tab_today, tab_archive, tab_paste, tab_next = st.tabs(
+    [
+        "🇰🇷 한국장 먼저 확인", "🇺🇸 미국장 스윙 확인", "저장 결과 확인", "오늘 저장 요약",
+        "지난 기록 보기", "수동 기록 입력", "추가 기능",
+    ]
 )
 
 SNAPSHOT_STOCKS = [
@@ -1794,7 +1892,12 @@ def _cached_no_recommendation_rows(signature):
     return performance.build_no_recommendation_rows()
 
 with tab_today:
-    st.subheader("오늘 요약")
+    st.subheader("오늘 저장 요약")
+    st.info(
+        "이 화면은 오늘 저장된 기록을 관점별로 다시 보여주는 화면입니다.\n"
+        "증시 전체 요약 화면이 아닙니다.\n"
+        "먼저 🇰🇷 한국장 먼저 확인 또는 🇺🇸 미국장 스윙 확인에서 계산 후 저장해야 오늘 저장 요약과 지난 기록에 반영됩니다."
+    )
 
     latest = db.get_latest_report()
     if latest is None:
@@ -2076,12 +2179,11 @@ with tab_paste:
 
 with tab_kr:
     st.subheader("한국장")
+    st.success("① 오늘 주가 채우기 → ② 계산 결과 확인 → ③ 국내장 기록 바로 저장 순서로 사용하세요.")
     st.caption(
-        "한국장은 현재가, 시가, 고가, 저가, 거래대금을 보고 관심 종목을 비교하는 화면입니다 "
-        "(단타/스윙 둘 다 확인). 자동매매나 매수 추천이 아닙니다."
+        "현재가·시가·고가·저가·거래대금으로 관심 종목을 비교합니다(단타/스윙). "
+        "자동매매·매수 추천 아님. 이 화면에서 저장해야 오늘 저장 요약/지난 기록에 반영됩니다."
     )
-    st.info("이 탭의 입력값은 저장되지 않습니다. 화면에서 계산만 확인하는 1차 버전입니다.")
-
     # 1. 시장 분위기 (기본값은 전부 "미입력" — 위험해 보이는 강함/상승/순매수 기본값 금지)
     # 이 값은 미국장 탭의 시장 분위기 점수/상한 계산에서도 그대로 사용됩니다.
     st.markdown("### 시장 분위기")
@@ -2103,24 +2205,22 @@ with tab_kr:
         "프로그램 수급 방향", ["미입력", "순매수", "순매도", "중립"], key="snap_program_dir"
     )
 
-    # 1-1. 리스크 관리 설정 (v1.1) — 이 값은 미국장 탭에서도 그대로 사용됩니다(시장 분위기와 동일한 방식).
-    st.markdown("### 리스크 관리 설정 (v1.1)")
-    st.caption(
-        "계좌금액/1회 리스크%는 한국장·미국장 종목별 상세 입력 카드의 권장 수량 계산에 공통으로 "
-        "쓰입니다. 자동매매가 아니라 화면 표시용 참고 계산입니다."
+    st.markdown(
+        f"""
+        <div style="background-color:#171a21;border:1px solid #303642;border-radius:10px;padding:14px;margin-top:8px;">
+        <b>시장 분위기 요약</b><br>
+        - 나스닥100 선물: {nq_change:+.2f}%<br>
+        - SOXX/SMH 방향: {soxx_dir}<br>
+        - 달러/원 방향: {usdkrw_dir}<br>
+        - KOSPI200 선물 방향: {kospi200_futures_dir}<br>
+        - 외국인 선물 방향: {foreign_futures_dir}<br>
+        - 프로그램 수급 방향: {program_dir}
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    r1, r2, r3 = st.columns(3)
-    risk_account_size = r1.number_input(
-        "계좌금액", value=0.0, min_value=0.0, step=1000000.0, key="risk_account_size"
-    )
-    risk_percent = r2.number_input(
-        "1회 리스크(%)", value=1.0, min_value=0.0, max_value=2.0, step=0.1, key="risk_percent_setting"
-    )
-    today_loss_r = r3.number_input(
-        "금일 손실R (수동 입력)", value=0.0, step=0.1, key="risk_today_loss_r"
-    )
-    if today_loss_r <= -2:
-        st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
+    st.caption("시장 분위기는 매수 신호가 아니라 오늘 판단의 배경 참고값입니다.")
+    st.caption("이 탭의 입력값은 저장되지 않습니다. 화면에서 계산만 확인하는 1차 버전입니다.")
 
     # 2. 간편 스냅샷 입력 (붙여넣기 자동 채우기)
     st.markdown("---")
@@ -2161,7 +2261,7 @@ with tab_kr:
         "가장 최근 완료된 거래일 기준 시세를 조회해 채워줍니다. 실시간 시세가 아니며, 거래대금·"
         "시가총액은 근사값입니다. 조회 결과는 저장되지 않고 화면 계산에만 쓰입니다."
     )
-    if st.button("오늘 주가 자동 채우기", key="snap_auto_fill"):
+    if st.button("① 오늘 주가 자동 채우기", key="snap_auto_fill"):
         fetch_results = {}
         for s in SNAPSHOT_STOCKS:
             result = price_data.get_snapshot_defaults(s["ticker"])
@@ -2191,10 +2291,14 @@ with tab_kr:
 
     # 3. 계산 결과 요약표 (입력 카드보다 위에 표시 — session_state를 위젯 생성 전에 미리 읽음)
     st.markdown("---")
-    st.markdown("### 오늘 주가 계산 결과")
+    st.markdown("### ② 오늘 주가 계산 결과")
     st.caption(
         "메모는 자동판정이 아니라 참고용 경고 문구입니다 (예: 고점 대비 밀림률이 -3% 이하이면 "
         "'고점 대비 밀림 큼'). 관심 후보/관찰 후보 같은 판정은 이 화면에서 만들지 않습니다."
+    )
+    st.caption(
+        "정렬 기준: 단기 관심점수 높은 순 → 며칠 관심점수 높은 순 → 시총대비 거래대금 높은 순입니다. "
+        "점수는 매수 신호가 아니라 관심 후보 정렬 기준입니다."
     )
 
     result_rows = []
@@ -2239,16 +2343,20 @@ with tab_kr:
         result_rows.append(
             {
                 "종목명": s["name"],
-                "섹터": s["sector"],
+                "단기 관심 점수": danta_score,
+                "며칠 관심 점수": swing_score,
+                "메모": "; ".join(memos) if memos else "-",
                 "현재가": current,
                 "전일대비(%)": _fmt_pct(change_pct),
                 "시가대비(%)": _fmt_pct(open_pos_pct),
                 "고점대비(%)": _fmt_pct(high_drop_pct),
                 "저점대비(%)": _fmt_pct(low_recover_pct),
                 "시총대비 거래대금(%)": _fmt_pct(turnover_ratio_pct),
-                "단기 관심 점수": danta_score,
-                "며칠 관심 점수": swing_score,
-                "메모": "; ".join(memos) if memos else "-",
+                "섹터": s["sector"],
+                "_sort_key": (
+                    danta_score, swing_score,
+                    turnover_ratio_pct if turnover_ratio_pct is not None else float("-inf"),
+                ),
             }
         )
         snapshot_calc_data.append(
@@ -2270,6 +2378,10 @@ with tab_kr:
             }
         )
 
+    result_rows.sort(key=lambda r: r["_sort_key"], reverse=True)
+    for r in result_rows:
+        r.pop("_sort_key", None)
+
     if not result_rows:
         st.info("아직 입력된 종목이 없습니다. 아래 '종목별 상세 입력' 카드나 '주가 직접 붙여넣기'로 값을 넣어주세요.")
     else:
@@ -2280,10 +2392,25 @@ with tab_kr:
             "종가 품질이 미입력인 경우 최고점은 제한됩니다."
         )
 
-        st.info(
-            "이 문장은 매수 추천이 아니라, 새 기록 입력칸에 붙여넣기 위한 초안입니다. "
-            "필요하면 판단 문구를 수정한 뒤 저장하세요."
-        )
+        with st.expander("리스크 관리 설정(v1.1) — 필요할 때 펼치기", expanded=False):
+            st.caption(
+                "계좌금액/1회 리스크%는 한국장·미국장 종목별 상세 입력 카드의 권장 수량 계산에 공통으로 "
+                "쓰입니다. 자동매매가 아니라 화면 표시용 참고 계산입니다."
+            )
+            r1, r2, r3 = st.columns(3)
+            risk_account_size = r1.number_input(
+                "계좌금액", value=0.0, min_value=0.0, step=1000000.0, key="risk_account_size"
+            )
+            risk_percent = r2.number_input(
+                "1회 리스크(%)", value=1.0, min_value=0.0, max_value=2.0, step=0.1, key="risk_percent_setting"
+            )
+            today_loss_r = r3.number_input(
+                "금일 손실R (수동 입력)", value=0.0, step=0.1, key="risk_today_loss_r"
+            )
+            if today_loss_r <= -2:
+                st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
+
+        st.caption("이 문장은 매수 추천이 아니라, 새 기록 입력칸에 붙여넣기 위한 초안입니다. 필요하면 수정 후 저장하세요.")
         if st.button("기록 문장 만들기", key="snap_make_briefing_text"):
             lines = [
                 "[기본]",
@@ -2342,7 +2469,7 @@ with tab_kr:
             "위 표의 한국 종목 7개만 대상으로 시장 KR / 단타·스윙을 함께 저장합니다. "
             "버튼을 누르면 바로 저장하지 않고 먼저 저장 전 확인 미리보기를 보여줍니다."
         )
-        if st.button("국내장 기록 바로 저장", key="kr_quick_save", disabled=not snapshot_calc_data):
+        if st.button("③ 국내장 기록 바로 저장", key="kr_quick_save", disabled=not snapshot_calc_data):
           all_kr_validation_errors = [e for calc in snapshot_calc_data for e in calc["validation_errors"]]
           if all_kr_validation_errors:
             st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_kr_validation_errors))
@@ -2559,7 +2686,7 @@ with tab_kr:
                 st.session_state.pop("kr_quick_day_conclusion", None)
                 st.session_state.pop("kr_quick_basis_text", None)
                 st.success(
-                    "국내장 기록 저장 완료. 오늘 요약, 지난 기록 보기, 결과 확인에서 확인할 수 있습니다. "
+                    "국내장 기록 저장 완료. 오늘 저장 요약, 지난 기록 보기, 저장 결과 확인에서 확인할 수 있습니다. "
                     f"(report_id={kr_report_id})"
                 )
             if kcol2.button("취소", key="kr_quick_cancel_preview"):
@@ -2592,12 +2719,30 @@ with tab_kr:
 
 with tab_us:
     st.subheader("미국장")
+    st.success("① 미국장 기본 종목 불러오기 → ② 계산 결과 확인 → ③ 스윙 기록 바로 저장 순서로 사용하세요.")
     st.caption(
-        "미국장은 스윙 전용 흐름입니다. 미국 기본 종목(TSLA, AMD, AVGO, META, GOOGL, AAPL, NVDA, MSFT)만 "
-        "대상으로 하며, 한국 종목은 여기서 다루지 않습니다. 시장 분위기 입력은 '한국장' 탭에서 설정한 "
-        "값을 그대로 사용합니다."
+        "스윙 전용 흐름(TSLA, AMD, AVGO, META, GOOGL, AAPL, NVDA, MSFT). 한국 종목은 다루지 않으며, "
+        "시장 분위기는 한국장 탭 입력값을 그대로 사용합니다. 입력값은 저장되지 않으며, "
+        "③ 스윙 기록 바로 저장을 눌렀을 때만 저장되어 오늘 저장 요약/지난 기록에 반영됩니다."
     )
-    st.info("이 탭의 입력값은 저장되지 않습니다(저장은 아래 '미국장 스윙 기록 바로 저장'을 눌렀을 때만 됩니다).")
+
+    # 미국장 시장 분위기 요약 — 한국장 탭에서 입력한 값을 그대로 요약 표시만 한다(새 계산 없음).
+    _us_nq_change = st.session_state.get("snap_nq_change", 0.0)
+    _us_soxx_dir = st.session_state.get("snap_soxx_dir", "미입력")
+    _us_usdkrw_dir = st.session_state.get("snap_usdkrw_dir", "미입력")
+    st.markdown(
+        f"""
+        <div style="background-color:#171a21;border:1px solid #303642;border-radius:10px;padding:14px;margin-top:8px;">
+        <b>미국장 시장 분위기</b><br>
+        - 나스닥100 선물: {_us_nq_change:+.2f}%<br>
+        - SOXX/SMH 방향: {_us_soxx_dir}<br>
+        - 달러/원 방향: {_us_usdkrw_dir}<br>
+        - 미국장 판단 기준: 실시간 단타 아님, 스윙 후보 확인용
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption("미국장은 한국시간 밤에 실시간 단타로 보지 않고, 전일 종가와 스윙 후보를 확인하는 용도입니다.")
 
     # 리스크 관리 설정(v1.1)은 '한국장' 탭에서 입력한 값을 그대로 사용합니다(시장 분위기와 동일한 방식).
     _us_risk_account_size = st.session_state.get("risk_account_size", 0.0)
@@ -2616,7 +2761,7 @@ with tab_us:
         "미국장 스윙 기록 바로 저장에 쓸 미국 종목(TSLA, AMD, AVGO, META, GOOGL, AAPL, NVDA, MSFT) "
         "시세를 yfinance(우선)/FinanceDataReader(보조)로 불러옵니다. 조회 결과는 저장되지 않고 화면 계산에만 쓰입니다."
     )
-    if st.button("미국장 기본 종목 불러오기", key="us_stock_auto_fill"):
+    if st.button("① 미국장 기본 종목 불러오기", key="us_stock_auto_fill"):
         us_fetch_results = {}
         for s in US_SNAPSHOT_STOCKS:
             result = price_data.get_snapshot_defaults(s["ticker"])
@@ -2683,7 +2828,44 @@ with tab_us:
         us_snapshot_calc_data.append(breakdown)
 
     st.markdown("---")
-    st.markdown("### 미국장 스윙 기록 바로 저장")
+    st.markdown("### ② 미국장 스윙 계산 결과")
+    st.caption(
+        "정렬 기준: 총점 높은 순 → 거래/탄력 점수 높은 순 → 위험 감점 작은 순입니다. "
+        "점수는 매수 신호가 아니라 관심 후보 정렬 기준입니다."
+    )
+    if not us_snapshot_calc_data:
+        st.info("아직 불러온 종목 데이터가 없습니다. 위 '① 미국장 기본 종목 불러오기'를 먼저 눌러주세요.")
+    else:
+        _us_calc_rank = _rank_scores([(r["ticker"], r["total_score"]) for r in us_snapshot_calc_data])
+        _us_calc_sorted = sorted(
+            us_snapshot_calc_data,
+            key=lambda r: (r["total_score"], r["momentum_score"], r["risk_score"]),
+            reverse=True,
+        )
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "종목명": r["name"],
+                        "티커": r["ticker"],
+                        "스윙 순위": _us_calc_rank.get(r["ticker"], "미평가"),
+                        "총점": r["total_score"],
+                        "스윙/며칠 관심점수": r["close_pos_score"],
+                        "단기/상승률 점수": r["upside_score"],
+                        "거래/탄력 점수": r["momentum_score"],
+                        "위험 감점": r["risk_score"],
+                        "판단": r["tier_label"],
+                        "1순위 근거": r["priority_reason"],
+                    }
+                    for r in _us_calc_sorted
+                ]
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+
+    st.markdown("---")
+    st.markdown("### ③ 미국장 스윙 기록 바로 저장")
     st.caption(
         "미국장 기본 종목(TSLA, AMD, AVGO, META, GOOGL, AAPL, NVDA, MSFT)만 대상으로 전부 "
         "시장 US / 스윙으로 저장합니다 (단타는 만들지 않습니다). 버튼을 누르면 바로 저장하지 않고 "
@@ -2691,12 +2873,16 @@ with tab_us:
     )
     if not us_snapshot_calc_data:
         st.info("미국장 스윙 기록을 저장하려면 먼저 미국장 종목 데이터를 불러와야 합니다.")
-    if st.button("미국장 스윙 기록 바로 저장", key="us_swing_quick_save", disabled=not us_snapshot_calc_data):
+    if st.button("③ 미국장 스윙 기록 바로 저장", key="us_swing_quick_save", disabled=not us_snapshot_calc_data):
       all_us_validation_errors = [e for calc in us_snapshot_calc_data for e in calc["validation_errors"]]
       if all_us_validation_errors:
         st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_us_validation_errors))
       else:
-        preview_rows = us_snapshot_calc_data
+        preview_rows = sorted(
+            us_snapshot_calc_data,
+            key=lambda r: (r["total_score"], r["momentum_score"]),
+            reverse=True,
+        )
         counts = {"추천 후보": 0, "감시": 0, "보류(선반영)": 0}
         for row in preview_rows:
             counts[row["verdict"]] = counts.get(row["verdict"], 0) + 1
@@ -3066,7 +3252,7 @@ with tab_perf:
                 "일반적인 1순위 후보는 80~90점대가 정상입니다."
             )
 
-            # 6. 결과 표 (기본 컬럼만, 관심 점수 높은 순 정렬)
+            # 6. 결과 표 (기본 컬럼만, 관심 점수 높은 순 정렬) — 화면 표시는 한국장/미국장으로 나눠서 보여준다.
             table_rows = []
             for score, row in scored_rows:
                 saved_item = item_judgment_lookup.get(
@@ -3075,9 +3261,11 @@ with tab_perf:
                 table_rows.append(
                     {
                         "종목명": row["stock_name"],
+                        "티커": row["ticker"],
+                        "시장": row["market"],
+                        "매매유형": row["trade_mode"],
                         "순위": score_rank_labels.get(saved_item.get("id"), "미평가"),
                         "관심 점수": score,
-                        "구분": row["trade_mode"],
                         "판단": _display_verdict_name(row["verdict"]),
                         "결과 상태": row["status"],
                         "판단 시점": row["briefing_stage"],
@@ -3089,7 +3277,21 @@ with tab_perf:
                     }
                 )
             perf_df = pd.DataFrame(table_rows)
-            st.dataframe(perf_df, width="stretch", hide_index=True)
+
+            kr_table_rows = [r for r in table_rows if r["시장"] == "KR"]
+            us_table_rows = [r for r in table_rows if r["시장"] == "US"]
+
+            st.markdown("#### 한국장 저장 결과")
+            if kr_table_rows:
+                st.dataframe(pd.DataFrame(kr_table_rows), width="stretch", hide_index=True)
+            else:
+                st.info("한국장 저장 기록 없음")
+
+            st.markdown("#### 미국장 저장 결과")
+            if us_table_rows:
+                st.dataframe(pd.DataFrame(us_table_rows), width="stretch", hide_index=True)
+            else:
+                st.info("미국장 저장 기록 없음")
 
             # 7. 엑셀용 파일 내보내기 (기본 표와 동일한 컬럼)
             st.download_button(
