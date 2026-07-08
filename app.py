@@ -1746,6 +1746,39 @@ def _fmt_signed_pct(value):
     return "-" if value is None else f"{value:+.2f}%"
 
 
+# ---- v1.2A: 청산 결과 기록 (기존 report_item 업데이트 전용, 새 report 생성 없음) ----
+
+def _compute_result_r(entry_price, stop_loss_price, actual_exit_price):
+    """R수익률 = (actual_exit_price - entry_price) / (entry_price - stop_loss_price).
+
+    entry_price/stop_loss_price/actual_exit_price 중 하나라도 없거나(0/None),
+    stop_loss_price가 entry_price보다 낮지 않으면 계산하지 않는다(None)."""
+    if not entry_price or not stop_loss_price or not actual_exit_price:
+        return None
+    if not (stop_loss_price < entry_price):
+        return None
+    per_share_risk = entry_price - stop_loss_price
+    if per_share_risk <= 0:
+        return None
+    return (actual_exit_price - entry_price) / per_share_risk
+
+
+def _fmt_result_r(value):
+    return "계산 불가" if value is None else f"{value:+.2f}R"
+
+
+def _compute_verification_status(actual_exit_price, actual_exit_date):
+    """실제 청산가/청산일 입력 여부만으로 검증 상태를 정한다(가격/일자 둘 다 있으면 입력완료,
+    하나만 있으면 계산불가, 둘 다 없으면 미입력)."""
+    has_price = bool(actual_exit_price)
+    has_date = bool(actual_exit_date)
+    if has_price and has_date:
+        return "입력완료"
+    if has_price or has_date:
+        return "계산불가"
+    return "미입력"
+
+
 # ---- v1.1: 리스크 엔진 / 경고형 확정 차단 / 입력 검증 (한국장·미국장 "바로 저장" 전용) ----
 # 점수 가점/감점 로직과는 무관하며, 여기서 계산되는 값은 화면 표시/경고 문구 전용이다.
 # 한국장/미국장 바로 저장은 이미 모든 항목을 "미확정"으로만 저장하므로(기존 동작), 별도의
@@ -3179,6 +3212,9 @@ with tab_perf:
     st.caption(
         "저장한 종목 판단이 며칠 뒤 실제 수익률로 어떻게 나왔는지 확인하는 화면입니다."
     )
+    st.caption(
+        "승률보다 R수익률과 기대값이 중요합니다. 손절을 지키면 승률은 낮아져도 계좌는 좋아질 수 있습니다."
+    )
 
     perf_rows_all = _cached_verification_rows(_reports_signature())
 
@@ -3309,6 +3345,15 @@ with tab_perf:
                         "5일 뒤": _fmt_pct(row["returns"][5]),
                         "10일 뒤": _fmt_pct(row["returns"][10]),
                         "20일 뒤": _fmt_pct(row["returns"][20]),
+                        "실제 청산가": (
+                            f"{saved_item['actual_exit_price']:,.0f}"
+                            if saved_item.get("actual_exit_price") else "-"
+                        ),
+                        "청산일": saved_item.get("actual_exit_date") or "-",
+                        "계획 준수": saved_item.get("plan_followed") or "-",
+                        "청산 사유": saved_item.get("exit_reason") or "-",
+                        "R수익률": _fmt_result_r(saved_item.get("result_r")),
+                        "검증 상태": saved_item.get("verification_status") or "미입력",
                     }
                 )
             perf_df = pd.DataFrame(table_rows)
@@ -3382,6 +3427,86 @@ with tab_perf:
                             "매수 확정 조건": auto_info["buy_confirm_condition"],
                         }
                     )
+
+                    # v1.2A: 청산 결과 입력/수정 (기존 report_item을 id 기준으로 업데이트, 새 report 생성 안 함)
+                    if saved_item.get("id"):
+                        with st.expander(f"청산 결과 입력 / 수정 — {row['stock_name']} ({row['trade_mode']})"):
+                            _exit_key = f"exit_{saved_item['id']}"
+                            _exit_price_in = st.number_input(
+                                "실제 청산가", value=float(saved_item.get("actual_exit_price") or 0.0),
+                                min_value=0.0, step=100.0, key=f"{_exit_key}_price",
+                            )
+                            _exit_date_default = None
+                            if saved_item.get("actual_exit_date"):
+                                try:
+                                    _exit_date_default = datetime.strptime(
+                                        saved_item["actual_exit_date"], "%Y-%m-%d"
+                                    ).date()
+                                except ValueError:
+                                    _exit_date_default = None
+                            _exit_date_in = st.date_input(
+                                "실제 청산일", value=_exit_date_default, key=f"{_exit_key}_date",
+                            )
+                            _plan_followed_options = ["미입력", "예", "아니오", "부분"]
+                            _plan_followed_default = saved_item.get("plan_followed") or "미입력"
+                            if _plan_followed_default not in _plan_followed_options:
+                                _plan_followed_default = "미입력"
+                            _plan_followed_in = st.selectbox(
+                                "계획 준수 여부", _plan_followed_options,
+                                index=_plan_followed_options.index(_plan_followed_default),
+                                key=f"{_exit_key}_plan_followed",
+                            )
+                            _exit_reason_options = [
+                                "미입력", "손절", "목표가", "시간청산", "조기매도",
+                                "손절지연", "복구매매", "감정매매", "뉴스변경", "기타",
+                            ]
+                            _exit_reason_default = saved_item.get("exit_reason") or "미입력"
+                            if _exit_reason_default not in _exit_reason_options:
+                                _exit_reason_default = "미입력"
+                            _exit_reason_in = st.selectbox(
+                                "청산 사유", _exit_reason_options,
+                                index=_exit_reason_options.index(_exit_reason_default),
+                                key=f"{_exit_key}_reason",
+                            )
+
+                            _preview_result_r = _compute_result_r(
+                                saved_item.get("entry_price"), saved_item.get("stop_loss_price"),
+                                _exit_price_in or None,
+                            )
+                            st.caption(f"R수익률 미리보기: {_fmt_result_r(_preview_result_r)}")
+
+                            if st.button("청산 결과 저장", key=f"{_exit_key}_save"):
+                                _final_exit_price = _exit_price_in or None
+                                _final_exit_date = _exit_date_in.isoformat() if _exit_date_in else None
+                                _final_plan_followed = (
+                                    None if _plan_followed_in == "미입력" else _plan_followed_in
+                                )
+                                _final_exit_reason = (
+                                    None if _exit_reason_in == "미입력" else _exit_reason_in
+                                )
+                                _final_result_r = _compute_result_r(
+                                    saved_item.get("entry_price"), saved_item.get("stop_loss_price"),
+                                    _final_exit_price,
+                                )
+                                _final_verification_status = _compute_verification_status(
+                                    _final_exit_price, _final_exit_date
+                                )
+                                _exit_conn = db.get_connection()
+                                _exit_conn.execute(
+                                    "UPDATE report_items SET actual_exit_price=?, actual_exit_date=?, "
+                                    "plan_followed=?, exit_reason=?, result_r=?, verification_status=? "
+                                    "WHERE id=?",
+                                    (
+                                        _final_exit_price, _final_exit_date, _final_plan_followed,
+                                        _final_exit_reason, _final_result_r, _final_verification_status,
+                                        saved_item["id"],
+                                    ),
+                                )
+                                _exit_conn.commit()
+                                _exit_conn.close()
+                                _cached_verification_rows.clear()
+                                st.success("청산 결과가 저장되었습니다.")
+                                st.rerun()
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
     st.markdown("---")
