@@ -2184,7 +2184,11 @@ with tab_kr:
     )
     # 1. 시장 분위기 (기본값은 전부 "미입력" — 위험해 보이는 강함/상승/순매수 기본값 금지)
     # 이 값은 미국장 탭의 시장 분위기 점수/상한 계산에서도 그대로 사용됩니다.
-    st.markdown("### 시장 분위기")
+    st.markdown("### 0단계 시장 분위기 입력")
+    st.caption(
+        "오늘 주가 채우기 전에 입력하는 선택 항목입니다. 입력하지 않아도 계산은 가능하지만, "
+        "시장 배경 참고값은 미입력으로 표시됩니다."
+    )
     e1, e2, e3 = st.columns(3)
     nq_change = e1.number_input(
         "나스닥100 선물 등락률(%)", value=0.0, step=0.1, format="%.2f", key="snap_nq_change"
@@ -2221,6 +2225,7 @@ with tab_kr:
         "아래 값은 자동 분석이 아니라 위에서 직접 입력한 시장 분위기 값입니다. "
         "선택하지 않은 항목은 미입력으로 표시됩니다."
     )
+    st.caption("시장 분위기 입력 후 ① 오늘 주가 채우기를 누르면 계산 결과와 함께 참고값으로 확인합니다.")
     _kr_mood_unset_count = sum(
         1 for v in (soxx_dir, usdkrw_dir, kospi200_futures_dir, foreign_futures_dir, program_dir)
         if v == "미입력"
@@ -2558,27 +2563,38 @@ with tab_kr:
             st.markdown("저장될 종목 목록 (자동계산 미리보기)")
             kr_danta_rank = _rank_scores([(row["ticker"], row["danta_score"]) for row in kr_preview_rows])
             kr_swing_rank = _rank_scores([(row["ticker"], row["swing_score"]) for row in kr_preview_rows])
+            # 정렬: 1순위 후보(단타 또는 스윙)가 최우선, 그 다음 단기 관심점수 -> 며칠 관심점수 ->
+            # 시총대비 거래대금 순으로 내림차순. 단타/스윙 둘 다 1순위 후보인 종목이 맨 위로 온다.
+            kr_preview_rows_sorted = sorted(
+                kr_preview_rows,
+                key=lambda row: (
+                    1 if (row["danta_verdict"] == "추천 후보" or row["swing_verdict"] == "추천 후보") else 0,
+                    row["danta_score"],
+                    row["swing_score"],
+                    row["turnover_ratio_pct"] if row["turnover_ratio_pct"] is not None else float("-inf"),
+                ),
+                reverse=True,
+            )
             st.dataframe(
                 pd.DataFrame(
                     [
                         {
                             "종목명": row["name"],
-                            "티커": row["ticker"],
-                            "시장": "KR",
-                            "단기 관심 점수": row["danta_score"],
-                            "단타 순위": kr_danta_rank.get(row["ticker"], "미평가"),
-                            "며칠 관심 점수": row["swing_score"],
-                            "스윙 순위": kr_swing_rank.get(row["ticker"], "미평가"),
                             "단타 판단": _display_verdict_name(row["danta_verdict"]),
                             "스윙 판단": _display_verdict_name(row["swing_verdict"]),
-                            "시가 대비 등락률(%)": _fmt_pct(row["open_pos_pct"]),
+                            "단기 관심 점수": row["danta_score"],
+                            "며칠 관심 점수": row["swing_score"],
+                            "단타 순위": kr_danta_rank.get(row["ticker"], "미평가"),
+                            "스윙 순위": kr_swing_rank.get(row["ticker"], "미평가"),
+                            "현재가": _get_snapshot_value(row["ticker"], "current"),
+                            "시가대비 등락률(%)": _fmt_pct(row["open_pos_pct"]),
                             "고점 대비 밀림률(%)": _fmt_pct(
                                 -row["high_drop_pct"] if row["high_drop_pct"] is not None else None
                             ),
                             "거래대금": f"{row['turnover']:,.0f}원" if row["turnover"] else "-",
                             "시총 대비 거래대금(%)": _fmt_pct(row["turnover_ratio_pct"]),
                         }
-                        for row in kr_preview_rows
+                        for row in kr_preview_rows_sorted
                     ]
                 ),
                 width="stretch",
@@ -2735,13 +2751,14 @@ with tab_us:
     )
 
     # 미국장 시장 분위기 요약 — 한국장 탭에서 입력한 값을 그대로 요약 표시만 한다(새 계산 없음).
+    st.markdown("### 0단계 미국장 시장 분위기 확인")
     _us_nq_change = st.session_state.get("snap_nq_change", 0.0)
     _us_soxx_dir = st.session_state.get("snap_soxx_dir", "미입력")
     _us_usdkrw_dir = st.session_state.get("snap_usdkrw_dir", "미입력")
     st.markdown(
         f"""
         <div style="background-color:#171a21;border:1px solid #303642;border-radius:10px;padding:14px;margin-top:8px;">
-        <b>미국장 시장 분위기</b><br>
+        <b>미국장 시장 분위기 입력값 확인</b><br>
         - 나스닥100 선물: {_us_nq_change:+.2f}%<br>
         - SOXX/SMH 방향: {_us_soxx_dir}<br>
         - 달러/원 방향: {_us_usdkrw_dir}<br>
@@ -2750,16 +2767,10 @@ with tab_us:
         """,
         unsafe_allow_html=True,
     )
+    st.caption("미국장은 스윙 전용 화면입니다. 시장 분위기는 한국장 탭에서 입력한 값을 참고 표시합니다.")
     st.caption("미국장은 한국시간 밤에 실시간 단타로 보지 않고, 전일 종가와 스윙 후보를 확인하는 용도입니다.")
 
-    # 리스크 관리 설정(v1.1)은 '한국장' 탭에서 입력한 값을 그대로 사용합니다(시장 분위기와 동일한 방식).
-    _us_risk_account_size = st.session_state.get("risk_account_size", 0.0)
-    _us_risk_percent = st.session_state.get("risk_percent_setting", 1.0)
     _us_today_loss_r = st.session_state.get("risk_today_loss_r", 0.0)
-    st.caption(
-        f"리스크 관리 설정(v1.1, 한국장 탭에서 입력): 계좌금액 {_us_risk_account_size:,.0f} / "
-        f"1회 리스크 {_us_risk_percent:.1f}%"
-    )
     if _us_today_loss_r <= -2:
         st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
 
@@ -2845,9 +2856,14 @@ with tab_us:
         st.info("아직 불러온 종목 데이터가 없습니다. 위 '① 미국장 기본 종목 불러오기'를 먼저 눌러주세요.")
     else:
         _us_calc_rank = _rank_scores([(r["ticker"], r["total_score"]) for r in us_snapshot_calc_data])
+        # 정렬: 스윙 판단이 1순위 후보인 종목이 최우선, 그 다음 총점 -> 거래/탄력 점수 ->
+        # 위험 감점(작은 순=0에 가까운 순) 내림차순.
         _us_calc_sorted = sorted(
             us_snapshot_calc_data,
-            key=lambda r: (r["total_score"], r["momentum_score"], r["risk_score"]),
+            key=lambda r: (
+                1 if r["verdict"] == "추천 후보" else 0,
+                r["total_score"], r["momentum_score"], r["risk_score"],
+            ),
             reverse=True,
         )
         st.dataframe(
@@ -2870,6 +2886,14 @@ with tab_us:
             ),
             width="stretch",
             hide_index=True,
+        )
+
+    with st.expander("리스크 관리 설정(v1.1) — 필요할 때 펼치기", expanded=False):
+        _us_risk_account_size = st.session_state.get("risk_account_size", 0.0)
+        _us_risk_percent = st.session_state.get("risk_percent_setting", 1.0)
+        st.caption(
+            f"한국장 탭에서 입력한 값입니다: 계좌금액 {_us_risk_account_size:,.0f} / "
+            f"1회 리스크 {_us_risk_percent:.1f}%"
         )
 
     st.markdown("---")
