@@ -397,8 +397,6 @@ st.markdown(
 )
 
 st.markdown('<div style="height:76px;"></div>', unsafe_allow_html=True)  # 고정 상단 메뉴에 가리지 않도록 여백 확보
-st.title("자비스 주식 기록장")
-st.caption("단타·스윙 판단을 기록하고 나중에 맞았는지 확인하는 도구")
 # 한국장/미국장 사용 순서 안내는 각 화면(🇰🇷 한국장 먼저 확인 / 🇺🇸 미국장 스윙 확인) 상단의
 # 짧은 안내문으로만 표시한다(예: "① ... → ② ... → ③ ..."). 여기(상단 공통 영역)에는
 # 별도 카드를 두지 않아 본문보다 커 보이지 않게 한다.
@@ -2678,7 +2676,6 @@ def run_kr_snapshot_auto_fill():
 
 with tab_kr:
     st.subheader("한국장")
-    st.caption("자동매매·매수추천 아님. 오늘 입력한 주가 기준으로 단타/스윙 후보를 정리합니다.")
     # 1. 시장 분위기 (기본값은 전부 "미입력" — 위험해 보이는 강함/상승/순매수 기본값 금지)
     # 이 값은 미국장 탭의 시장 분위기 점수/상한 계산에서도 그대로 사용됩니다.
     st.caption("시장 분위기는 자비스가 먼저 자동 확인합니다. 안 나오거나 부족한 항목만 직접 입력하세요.")
@@ -2702,18 +2699,6 @@ with tab_kr:
             f"2단계 미리보기 생성: {'예' if st.session_state.get('kr_auto_preview_stage2_generated') else '아니오'}"
         )
 
-    st.markdown(
-        """
-        <div style="background-color:#FEF3C7;border:2px solid #FACC15;border-radius:10px;
-        padding:14px 16px;margin:12px 0 8px 0;color:#422006;">
-        <div style="font-size:1.28rem;font-weight:900;">🟡 0→1→2 한 번에 미리보기 생성</div>
-        <div style="font-size:1.04rem;margin-top:4px;">
-        시장 분위기 확인 → 오늘 주가 자동 채우기 → 2단계 판단 미리보기까지 한 번에 실행합니다.
-        </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
     if st.button(
         "0→1→2 한 번에 미리보기 생성",
         key="kr_auto_preview_run",
@@ -2835,7 +2820,19 @@ with tab_kr:
                     """,
                     unsafe_allow_html=True,
                 )
-            with st.expander("🔥 오늘 강세 테마 1차 참고판 (저장 안 됨)", expanded=False):
+            st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+            st.markdown(
+                """
+                <div style="background-color:#74d99f;border:1px solid #22c55e;color:#052e16;
+                font-size:1.05rem;font-weight:800;border-radius:8px;padding:6px 12px;
+                margin-top:14px;margin-bottom:10px;">
+                🔥 오늘 강세 테마 1차 참고판 (저장 안 됨)
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+            with st.expander("펼쳐서 테마 입력하기", expanded=False):
                 st.caption(
                     "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
                     "오늘 강한 섹터와 대장주/후발주/추격주의만 빠르게 정리합니다."
