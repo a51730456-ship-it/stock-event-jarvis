@@ -305,7 +305,8 @@ st.markdown(
     .st-key-kr_quick_save button,
     .st-key-kr_quick_confirm_save button,
     .st-key-us_swing_quick_save button,
-    .st-key-us_swing_confirm_save button {
+    .st-key-us_swing_confirm_save button,
+    .st-key-snap_mood_auto_check button {
         font-size: 1.15rem !important;
         font-weight: 800 !important;
         padding: 14px 22px !important;
@@ -316,7 +317,8 @@ st.markdown(
     .st-key-kr_quick_save button p,
     .st-key-kr_quick_confirm_save button p,
     .st-key-us_swing_quick_save button p,
-    .st-key-us_swing_confirm_save button p {
+    .st-key-us_swing_confirm_save button p,
+    .st-key-snap_mood_auto_check button p {
         font-size: 1.15rem !important;
         font-weight: 800 !important;
     }
@@ -332,6 +334,11 @@ st.markdown(
     .st-key-us_swing_confirm_save button {
         background-color: #2563EB !important;
         border-color: #2563EB !important;
+        color: #ffffff !important;
+    }
+    .st-key-snap_mood_auto_check button {
+        background-color: #0047AB !important;
+        border-color: #0047AB !important;
         color: #ffffff !important;
     }
     /* 상단 메뉴(탭) 확대 + 실제 고정(fixed) + 현재 선택 강조.
@@ -2481,7 +2488,6 @@ def _kr_mood_auto_verdict(name, change_pct):
 
 with tab_kr:
     st.subheader("한국장")
-    st.success("오늘 순서: 0단계 시장 분위기 확인 → ① 오늘 주가 채우기 → ② 계산 결과 확인 → ③ 국내장 기록 저장")
     st.caption("자동매매·매수추천 아님. 오늘 입력한 주가 기준으로 단타/스윙 후보를 정리합니다.")
     # 1. 시장 분위기 (기본값은 전부 "미입력" — 위험해 보이는 강함/상승/순매수 기본값 금지)
     # 이 값은 미국장 탭의 시장 분위기 점수/상한 계산에서도 그대로 사용됩니다.
@@ -2533,6 +2539,7 @@ with tab_kr:
                 width="stretch",
                 hide_index=True,
             )
+            st.caption("SOXX/SMH는 미국 반도체 ETF입니다. 둘 다 강하면 국내 반도체 투자심리에 우호적입니다.")
             _soxx_row = next(
                 (r for r in st.session_state["kr_mood_auto_results"] if r["항목"] == "SOXX"), None
             )
@@ -2545,20 +2552,34 @@ with tab_kr:
                 _smh_strong = _smh_row["판정"].startswith("강함")
                 _smh_weak = _smh_row["판정"].startswith("약함")
                 if _soxx_strong and _smh_strong:
-                    st.success(
-                        "반도체 우호 신호 — SOXX와 SMH가 모두 강세라서 미국 반도체 투자심리가 "
-                        "좋습니다. 삼성전자·SK하이닉스 등 국내 반도체 대형주 분위기에 우호적입니다."
+                    _mood_verdict_bg, _mood_verdict_border, _mood_verdict_text = "#1b4332", "#2d6a4f", "#7ee6a8"
+                    _mood_verdict_msg = (
+                        "반도체 우호 신호 — SOXX와 SMH가 모두 강세입니다. 미국 반도체 투자심리가 "
+                        "우호적이므로 삼성전자·SK하이닉스 등 국내 반도체 대형주 분위기에 긍정적입니다."
                     )
                 elif _soxx_weak and _smh_weak:
-                    st.warning(
-                        "반도체 부담 신호 — SOXX와 SMH가 모두 약세라서 미국 반도체 투자심리가 "
-                        "나쁩니다. 국내 반도체 대형주에는 부담 요인입니다."
+                    _mood_verdict_bg, _mood_verdict_border, _mood_verdict_text = "#4a2e05", "#d97706", "#fbbf6a"
+                    _mood_verdict_msg = (
+                        "반도체 부담 신호 — SOXX와 SMH가 모두 약세입니다. 미국 반도체 투자심리가 "
+                        "약하므로 국내 반도체 대형주에는 부담 요인입니다."
                     )
                 else:
-                    st.info(
-                        "반도체 혼조 신호 — SOXX와 SMH 흐름이 엇갈려 반도체 방향성이 뚜렷하지 "
-                        "않습니다. 국내 반도체주는 추가 확인이 필요합니다."
+                    _mood_verdict_bg, _mood_verdict_border, _mood_verdict_text = "#1e3a5f", "#3b82f6", "#93c5fd"
+                    _mood_verdict_msg = (
+                        "반도체 혼조 신호 — SOXX와 SMH 흐름이 엇갈립니다. "
+                        "국내 반도체주는 추가 확인이 필요합니다."
                     )
+                st.markdown(
+                    f"""
+                    <div style="background-color:{_mood_verdict_bg};border:2px solid {_mood_verdict_border};
+                    border-radius:10px;padding:16px;margin-top:8px;">
+                    <span style="font-size:1.15rem;font-weight:800;color:{_mood_verdict_text};">
+                    {_mood_verdict_msg}
+                    </span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             st.caption("자동 조회 결과는 화면 확인용이며 저장되지 않습니다.")
 
     st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
@@ -2729,14 +2750,14 @@ with tab_kr:
         result_rows.append(
             {
                 "종목명": s["name"],
-                "단기 관심 점수": danta_score,
-                "며칠 관심 점수": swing_score,
+                "단기 관심 점수": int(round(danta_score)),
+                "며칠 관심 점수": int(round(swing_score)),
                 "메모": "; ".join(memos) if memos else "-",
                 "현재가": "-" if current is None else f"{current:,.0f}",
                 "전일대비(%)": _fmt_signed_pct(change_pct),
-                "시가대비(오늘)": _fmt_pct(open_pos_pct),
-                "고점대비(오늘)": _fmt_pct(high_drop_pct),
-                "저점대비(오늘)": _fmt_pct(low_recover_pct),
+                "시가대비(오늘)": _fmt_signed_pct(open_pos_pct),
+                "고점대비(오늘)": _fmt_signed_pct(high_drop_pct),
+                "저점대비(오늘)": _fmt_signed_pct(low_recover_pct),
                 "시총대비 거래대금(%)": _fmt_pct(turnover_ratio_pct),
                 "섹터": s["sector"],
                 "_sort_key": (
@@ -2744,6 +2765,9 @@ with tab_kr:
                     turnover_ratio_pct if turnover_ratio_pct is not None else float("-inf"),
                 ),
                 "_change_pct_raw": change_pct,
+                "_open_pos_raw": open_pos_pct,
+                "_high_drop_raw": high_drop_pct,
+                "_low_recover_raw": low_recover_pct,
             }
         )
         snapshot_calc_data.append(
@@ -2767,26 +2791,47 @@ with tab_kr:
 
     result_rows.sort(key=lambda r: r["_sort_key"], reverse=True)
     change_pct_raw_list = [r.get("_change_pct_raw") for r in result_rows]
+    open_pos_raw_list = [r.get("_open_pos_raw") for r in result_rows]
+    high_drop_raw_list = [r.get("_high_drop_raw") for r in result_rows]
+    low_recover_raw_list = [r.get("_low_recover_raw") for r in result_rows]
     for r in result_rows:
         r.pop("_sort_key", None)
         r.pop("_change_pct_raw", None)
+        r.pop("_open_pos_raw", None)
+        r.pop("_high_drop_raw", None)
+        r.pop("_low_recover_raw", None)
 
     if not result_rows:
         st.info("아직 입력된 종목이 없습니다. 아래 '종목별 상세 입력' 카드나 '주가 직접 붙여넣기'로 값을 넣어주세요.")
     else:
-        def _style_change_pct_col(col):
-            styles = []
-            for raw in change_pct_raw_list:
-                if raw is None or raw == 0:
-                    styles.append("")
-                elif raw > 0:
-                    styles.append("color: #ff4b4b")
-                else:
-                    styles.append("color: #4b9fff")
-            return styles
+        def _signed_pct_color_styler(raw_list):
+            def _apply(col):
+                styles = []
+                for raw in raw_list:
+                    if raw is None or raw == 0:
+                        styles.append("")
+                    elif raw > 0:
+                        styles.append("color: #ff4b4b")
+                    else:
+                        styles.append("color: #4b9fff")
+                return styles
+            return _apply
 
         result_df = pd.DataFrame(result_rows)
-        styled_result_df = result_df.style.apply(_style_change_pct_col, subset=["전일대비(%)"])
+        styled_result_df = (
+            result_df.style
+            .apply(_signed_pct_color_styler(change_pct_raw_list), subset=["전일대비(%)"])
+            .apply(_signed_pct_color_styler(open_pos_raw_list), subset=["시가대비(오늘)"])
+            .apply(_signed_pct_color_styler(high_drop_raw_list), subset=["고점대비(오늘)"])
+            .apply(_signed_pct_color_styler(low_recover_raw_list), subset=["저점대비(오늘)"])
+            .set_properties(
+                subset=[
+                    "단기 관심 점수", "며칠 관심 점수", "현재가", "전일대비(%)",
+                    "시가대비(오늘)", "고점대비(오늘)", "저점대비(오늘)", "시총대비 거래대금(%)",
+                ],
+                **{"text-align": "right"},
+            )
+        )
         st.dataframe(styled_result_df, width="stretch", hide_index=True)
         st.caption("시총 대비 거래대금 '확인 필요' 기준은 5% 이상(1차 버전 임시 기준)입니다.")
         st.caption(
@@ -2964,31 +3009,59 @@ with tab_kr:
                 ),
                 reverse=True,
             )
-            st.dataframe(
-                pd.DataFrame(
-                    [
-                        {
-                            "종목명": row["name"],
-                            "단타 판단": _display_verdict_name(row["danta_verdict"]),
-                            "스윙 판단": _display_verdict_name(row["swing_verdict"]),
-                            "단기 관심 점수": row["danta_score"],
-                            "며칠 관심 점수": row["swing_score"],
-                            "단타 순위": kr_danta_rank.get(row["ticker"], "미평가"),
-                            "스윙 순위": kr_swing_rank.get(row["ticker"], "미평가"),
-                            "현재가": _get_snapshot_value(row["ticker"], "current"),
-                            "시가대비 등락률(%)": _fmt_pct(row["open_pos_pct"]),
-                            "고점 대비 밀림률(%)": _fmt_pct(
-                                -row["high_drop_pct"] if row["high_drop_pct"] is not None else None
-                            ),
-                            "거래대금": f"{row['turnover']:,.0f}원" if row["turnover"] else "-",
-                            "시총 대비 거래대금(%)": _fmt_pct(row["turnover_ratio_pct"]),
-                        }
-                        for row in kr_preview_rows_sorted
-                    ]
-                ),
-                width="stretch",
-                hide_index=True,
+            kr_preview_open_pos_raw_list = [row["open_pos_pct"] for row in kr_preview_rows_sorted]
+            kr_preview_high_drop_disp_raw_list = [
+                (-row["high_drop_pct"] if row["high_drop_pct"] is not None else None)
+                for row in kr_preview_rows_sorted
+            ]
+
+            def _preview_signed_pct_color_styler(raw_list):
+                def _apply(col):
+                    styles = []
+                    for raw in raw_list:
+                        if raw is None or raw == 0:
+                            styles.append("")
+                        elif raw > 0:
+                            styles.append("color: #ff4b4b")
+                        else:
+                            styles.append("color: #4b9fff")
+                    return styles
+                return _apply
+
+            kr_preview_df = pd.DataFrame(
+                [
+                    {
+                        "종목명": row["name"],
+                        "단타 판단": _display_verdict_name(row["danta_verdict"]),
+                        "스윙 판단": _display_verdict_name(row["swing_verdict"]),
+                        "단기 관심 점수": int(round(row["danta_score"])),
+                        "며칠 관심 점수": int(round(row["swing_score"])),
+                        "단타 순위": kr_danta_rank.get(row["ticker"], "미평가"),
+                        "스윙 순위": kr_swing_rank.get(row["ticker"], "미평가"),
+                        "현재가": f"{_get_snapshot_value(row['ticker'], 'current'):,.0f}",
+                        "시가대비 등락률(%)": _fmt_signed_pct(row["open_pos_pct"]),
+                        "고점 대비 밀림률(%)": _fmt_signed_pct(
+                            -row["high_drop_pct"] if row["high_drop_pct"] is not None else None
+                        ),
+                        "거래대금": f"{row['turnover']:,.0f}원" if row["turnover"] else "-",
+                        "시총 대비 거래대금(%)": _fmt_pct(row["turnover_ratio_pct"]),
+                    }
+                    for row in kr_preview_rows_sorted
+                ]
             )
+            kr_preview_styled_df = (
+                kr_preview_df.style
+                .apply(_preview_signed_pct_color_styler(kr_preview_open_pos_raw_list), subset=["시가대비 등락률(%)"])
+                .apply(_preview_signed_pct_color_styler(kr_preview_high_drop_disp_raw_list), subset=["고점 대비 밀림률(%)"])
+                .set_properties(
+                    subset=[
+                        "단기 관심 점수", "며칠 관심 점수", "현재가",
+                        "시가대비 등락률(%)", "고점 대비 밀림률(%)", "거래대금", "시총 대비 거래대금(%)",
+                    ],
+                    **{"text-align": "right"},
+                )
+            )
+            st.dataframe(kr_preview_styled_df, width="stretch", hide_index=True)
 
             st.caption(
                 "점수는 자동매수 신호가 아닙니다. 직접 입력한 score가 없으므로 이 화면의 모든 점수는 "
