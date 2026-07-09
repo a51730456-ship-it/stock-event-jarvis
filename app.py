@@ -2450,56 +2450,151 @@ with tab_paste:
             st.markdown("#### 방금 저장한 기록")
             render_report_detail(last_saved_report)
 
+# ---- 0단계 시장 분위기 자동 확인 (한국장 전용, 읽기 전용, 저장 없음) ----
+# 기존 "오늘 주가 자동 채우기"와 동일한 price_data.get_snapshot_defaults()를 재사용한다.
+# price_data.py 자체는 수정하지 않는다.
+KR_MARKET_MOOD_AUTO_TARGETS = [
+    ("나스닥100 선물", "NQ=F"),
+    ("SOXX", "SOXX"),
+    ("SMH", "SMH"),
+    ("달러/원", "KRW=X"),
+    ("코스피", "^KS11"),
+    ("코스닥", "^KQ11"),
+]
+
+
+def _kr_mood_auto_verdict(name, change_pct):
+    """0단계 시장 분위기 자동 확인 전용 판정(참고용, 매수 신호 아님). 달러/원은 별도 문구."""
+    if change_pct is None:
+        return "확인 불가"
+    if name == "달러/원":
+        if change_pct >= 0.3:
+            return "상승(원화 약세, 한국장 부담)"
+        if change_pct <= -0.3:
+            return "하락(원화 강세, 한국장 우호)"
+        return "보합"
+    if change_pct >= 0.3:
+        return "강함"
+    if change_pct <= -0.3:
+        return "약함"
+    return "보합"
+
 with tab_kr:
     st.subheader("한국장")
     st.success("오늘 순서: 0단계 시장 분위기 확인 → ① 오늘 주가 채우기 → ② 계산 결과 확인 → ③ 국내장 기록 저장")
     st.caption("자동매매·매수추천 아님. 오늘 입력한 주가 기준으로 단타/스윙 후보를 정리합니다.")
     # 1. 시장 분위기 (기본값은 전부 "미입력" — 위험해 보이는 강함/상승/순매수 기본값 금지)
     # 이 값은 미국장 탭의 시장 분위기 점수/상한 계산에서도 그대로 사용됩니다.
+    st.caption("시장 분위기는 자비스가 먼저 자동 확인합니다. 안 나오거나 부족한 항목만 직접 입력하세요.")
     st.markdown("### 0단계 시장 분위기 입력(선택)")
     st.caption("입력하지 않아도 계산은 가능합니다. 입력값은 매수 신호가 아니라 오늘 판단의 참고값입니다.")
-    e1, e2, e3 = st.columns(3)
-    nq_change = e1.number_input(
-        "나스닥100 선물 등락률(%)", value=0.0, step=0.1, format="%.2f", key="snap_nq_change"
-    )
-    soxx_dir = e2.selectbox("SOXX/SMH 방향", ["미입력", "강함", "보통", "약함"], key="snap_soxx_dir")
-    usdkrw_dir = e3.selectbox("달러/원 방향", ["미입력", "상승", "하락", "보합"], key="snap_usdkrw_dir")
 
-    e4, e5, e6 = st.columns(3)
-    kospi200_futures_dir = e4.selectbox(
-        "KOSPI200 선물 방향", ["미입력", "상승", "하락", "보합"], key="snap_kospi200_dir"
-    )
-    foreign_futures_dir = e5.selectbox(
-        "외국인 선물 방향", ["미입력", "순매수", "순매도", "중립"], key="snap_foreign_dir"
-    )
-    program_dir = e6.selectbox(
-        "프로그램 수급 방향", ["미입력", "순매수", "순매도", "중립"], key="snap_program_dir"
-    )
+    if st.button("0단계 시장 분위기 자동 확인", key="snap_mood_auto_check"):
+        _mood_results = []
+        _mood_any_ok = False
+        for _mood_name, _mood_ticker in KR_MARKET_MOOD_AUTO_TARGETS:
+            _mood_result = price_data.get_snapshot_defaults(_mood_ticker)
+            if _mood_result.get("ok"):
+                _mood_any_ok = True
+                _mood_change_pct = _safe_pct_diff(_mood_result["current"], _mood_result["prev_close"])
+                _mood_results.append(
+                    {
+                        "항목": _mood_name,
+                        "티커": _mood_ticker,
+                        "현재값": _mood_result["current"],
+                        "등락률(%)": _fmt_signed_pct(_mood_change_pct),
+                        "판정": _kr_mood_auto_verdict(_mood_name, _mood_change_pct),
+                        "출처": "자동 조회",
+                    }
+                )
+            else:
+                _mood_results.append(
+                    {
+                        "항목": _mood_name,
+                        "티커": _mood_ticker,
+                        "현재값": "-",
+                        "등락률(%)": "-",
+                        "판정": "확인 불가",
+                        "출처": "조회 실패",
+                    }
+                )
+        st.session_state["kr_mood_auto_results"] = _mood_results
+        st.session_state["kr_mood_auto_any_ok"] = _mood_any_ok
+        st.rerun()
 
-    st.markdown(
-        f"""
-        <div style="background-color:#171a21;border:1px solid #303642;border-radius:10px;padding:14px;margin-top:8px;">
-        <b>시장 분위기 입력값 확인</b><br>
-        - 나스닥100 선물: {nq_change:+.2f}%<br>
-        - SOXX/SMH 방향: {soxx_dir}<br>
-        - 달러/원 방향: {usdkrw_dir}<br>
-        - KOSPI200 선물 방향: {kospi200_futures_dir}<br>
-        - 외국인 선물 방향: {foreign_futures_dir}<br>
-        - 프로그램 수급 방향: {program_dir}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.caption(
-        "위에서 입력한 값입니다(자동 분석 아님). 매수 신호가 아니라 참고용이며, "
-        "이 화면 입력값은 저장되지 않습니다."
-    )
-    _kr_mood_unset_count = sum(
-        1 for v in (soxx_dir, usdkrw_dir, kospi200_futures_dir, foreign_futures_dir, program_dir)
-        if v == "미입력"
-    )
-    if _kr_mood_unset_count >= 4:
-        st.caption("시장 분위기 판단값이 거의 입력되지 않았습니다. 필요하면 위 항목을 선택하세요.")
+    if st.session_state.get("kr_mood_auto_results"):
+        if not st.session_state.get("kr_mood_auto_any_ok"):
+            st.warning(
+                "시장 분위기 자동 확인 실패. 네트워크 또는 데이터 제공처 문제일 수 있습니다. "
+                "수동 입력 없이도 ① 오늘 주가 자동 채우기는 사용할 수 있습니다."
+            )
+        else:
+            st.markdown("#### 0단계 시장 분위기 자동 확인 결과")
+            st.dataframe(
+                pd.DataFrame(st.session_state["kr_mood_auto_results"]),
+                width="stretch",
+                hide_index=True,
+            )
+            _soxx_row = next(
+                (r for r in st.session_state["kr_mood_auto_results"] if r["항목"] == "SOXX"), None
+            )
+            _smh_row = next(
+                (r for r in st.session_state["kr_mood_auto_results"] if r["항목"] == "SMH"), None
+            )
+            if _soxx_row and _smh_row and "확인 불가" not in (_soxx_row["판정"], _smh_row["판정"]):
+                if _soxx_row["판정"] == "강함" and _smh_row["판정"] == "강함":
+                    st.caption("SOXX/SMH 결합 판정: 반도체 우호")
+                elif _soxx_row["판정"] == "약함" and _smh_row["판정"] == "약함":
+                    st.caption("SOXX/SMH 결합 판정: 반도체 부담")
+                else:
+                    st.caption("SOXX/SMH 결합 판정: 혼조")
+            st.caption("자동 조회 결과는 화면 확인용이며 저장되지 않습니다.")
+
+    st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
+
+    with st.expander("0단계 시장 분위기 수동 입력(선택) - 자동 확인이 부족할 때만 사용", expanded=False):
+        e1, e2, e3 = st.columns(3)
+        nq_change = e1.number_input(
+            "나스닥100 선물 등락률(%)", value=0.0, step=0.1, format="%.2f", key="snap_nq_change"
+        )
+        soxx_dir = e2.selectbox("SOXX/SMH 방향", ["미입력", "강함", "보통", "약함"], key="snap_soxx_dir")
+        usdkrw_dir = e3.selectbox("달러/원 방향", ["미입력", "상승", "하락", "보합"], key="snap_usdkrw_dir")
+
+        e4, e5, e6 = st.columns(3)
+        kospi200_futures_dir = e4.selectbox(
+            "KOSPI200 선물 방향", ["미입력", "상승", "하락", "보합"], key="snap_kospi200_dir"
+        )
+        foreign_futures_dir = e5.selectbox(
+            "외국인 선물 방향", ["미입력", "순매수", "순매도", "중립"], key="snap_foreign_dir"
+        )
+        program_dir = e6.selectbox(
+            "프로그램 수급 방향", ["미입력", "순매수", "순매도", "중립"], key="snap_program_dir"
+        )
+
+        st.markdown(
+            f"""
+            <div style="background-color:#171a21;border:1px solid #303642;border-radius:10px;padding:14px;margin-top:8px;">
+            <b>시장 분위기 입력값 확인</b><br>
+            - 나스닥100 선물: {nq_change:+.2f}%<br>
+            - SOXX/SMH 방향: {soxx_dir}<br>
+            - 달러/원 방향: {usdkrw_dir}<br>
+            - KOSPI200 선물 방향: {kospi200_futures_dir}<br>
+            - 외국인 선물 방향: {foreign_futures_dir}<br>
+            - 프로그램 수급 방향: {program_dir}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "위에서 입력한 값입니다(자동 분석 아님). 매수 신호가 아니라 참고용이며, "
+            "이 화면 입력값은 저장되지 않습니다."
+        )
+        _kr_mood_unset_count = sum(
+            1 for v in (soxx_dir, usdkrw_dir, kospi200_futures_dir, foreign_futures_dir, program_dir)
+            if v == "미입력"
+        )
+        if _kr_mood_unset_count >= 4:
+            st.caption("시장 분위기 판단값이 거의 입력되지 않았습니다. 필요하면 위 항목을 선택하세요.")
 
     # 2. 간편 스냅샷 입력 (붙여넣기 자동 채우기)
     st.markdown("---")
