@@ -341,6 +341,19 @@ st.markdown(
         border-color: #0047AB !important;
         color: #ffffff !important;
     }
+    .st-key-kr_auto_preview_run button {
+        background-color: #FACC15 !important;
+        border-color: #EAB308 !important;
+        color: #1a1a1a !important;
+        font-size: 1.22rem !important;
+        font-weight: 900 !important;
+        padding: 16px 24px !important;
+        min-height: 58px !important;
+    }
+    .st-key-kr_auto_preview_run button p {
+        font-size: 1.22rem !important;
+        font-weight: 900 !important;
+    }
     /* 상단 메뉴(탭) 확대 + 실제 고정(fixed) + 현재 선택 강조.
        주의: 이 구조에서 position:sticky는 조상 컨테이닝 블록 제약 때문에 실제로 고정되지
        않는다(브라우저에서 직접 확인, scrollTop 이동 시 sticky는 함께 스크롤되어 사라짐).
@@ -2689,9 +2702,22 @@ with tab_kr:
             f"2단계 미리보기 생성: {'예' if st.session_state.get('kr_auto_preview_stage2_generated') else '아니오'}"
         )
 
+    st.markdown(
+        """
+        <div style="background-color:#FEF3C7;border:2px solid #FACC15;border-radius:10px;
+        padding:14px 16px;margin:12px 0 8px 0;color:#422006;">
+        <div style="font-size:1.28rem;font-weight:900;">🟡 0→1→2 한 번에 미리보기 생성</div>
+        <div style="font-size:1.04rem;margin-top:4px;">
+        시장 분위기 확인 → 오늘 주가 자동 채우기 → 2단계 판단 미리보기까지 한 번에 실행합니다.
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     if st.button(
         "0→1→2 한 번에 미리보기 생성",
         key="kr_auto_preview_run",
+        type="primary",
         disabled=bool(st.session_state.get("kr_auto_preview_running")),
     ):
         if st.session_state.get("kr_auto_preview_running"):
@@ -2808,6 +2834,52 @@ with tab_kr:
                     </div>
                     """,
                     unsafe_allow_html=True,
+                )
+            with st.expander("🔥 오늘 강세 테마 1차 참고판 (저장 안 됨)", expanded=False):
+                st.caption(
+                    "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
+                    "오늘 강한 섹터와 대장주/후발주/추격주의만 빠르게 정리합니다."
+                )
+                _kr_theme_watch_rows = [
+                    {
+                        "테마": theme,
+                        "상태": "확인 필요",
+                        "대장주": "",
+                        "후발주": "",
+                        "추격주의": "",
+                        "메모": "",
+                    }
+                    for theme in [
+                        "반도체/HBM",
+                        "전력기기/전력망",
+                        "원전",
+                        "방산",
+                        "조선/해운",
+                        "자동차/부품",
+                        "2차전지",
+                        "바이오",
+                        "AI/로봇",
+                        "정유/화학",
+                    ]
+                ]
+                st.data_editor(
+                    pd.DataFrame(_kr_theme_watch_rows),
+                    key="kr_theme_watch_editor",
+                    width="stretch",
+                    hide_index=True,
+                    num_rows="fixed",
+                    disabled=["테마"],
+                    column_config={
+                        "상태": st.column_config.SelectboxColumn(
+                            "상태",
+                            options=["강함", "감시", "보통", "약함", "확인 필요"],
+                            required=True,
+                        ),
+                        "대장주": st.column_config.TextColumn("대장주"),
+                        "후발주": st.column_config.TextColumn("후발주"),
+                        "추격주의": st.column_config.TextColumn("추격주의"),
+                        "메모": st.column_config.TextColumn("메모"),
+                    },
                 )
             st.caption("자동 조회 결과는 화면 확인용이며 저장되지 않습니다.")
 
@@ -3186,53 +3258,6 @@ with tab_kr:
                     st.write(f"스윙 감점 이유: {r['swing_penalty_reason']}")
                     if r["validation_errors"]:
                         st.warning("확인 필요: " + "; ".join(r["validation_errors"]))
-
-        with st.expander("🔥 오늘 강세 테마 1차 참고판 (저장 안 됨)", expanded=False):
-            st.caption(
-                "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
-                "오늘 강한 섹터와 대장주/후발주/추격주의만 빠르게 정리합니다."
-            )
-            _kr_theme_watch_rows = [
-                {
-                    "테마": theme,
-                    "상태": "확인 필요",
-                    "대장주": "",
-                    "후발주": "",
-                    "추격주의": "",
-                    "메모": "",
-                }
-                for theme in [
-                    "반도체/HBM",
-                    "전력기기/전력망",
-                    "원전",
-                    "방산",
-                    "조선/해운",
-                    "자동차/부품",
-                    "2차전지",
-                    "바이오",
-                    "AI/로봇",
-                    "정유/화학",
-                ]
-            ]
-            st.data_editor(
-                pd.DataFrame(_kr_theme_watch_rows),
-                key="kr_theme_watch_editor",
-                width="stretch",
-                hide_index=True,
-                num_rows="fixed",
-                disabled=["테마"],
-                column_config={
-                    "상태": st.column_config.SelectboxColumn(
-                        "상태",
-                        options=["강함", "감시", "보통", "약함", "확인 필요"],
-                        required=True,
-                    ),
-                    "대장주": st.column_config.TextColumn("대장주"),
-                    "후발주": st.column_config.TextColumn("후발주"),
-                    "추격주의": st.column_config.TextColumn("추격주의"),
-                    "메모": st.column_config.TextColumn("메모"),
-                },
-            )
 
         # 3-2. 국내장 기록 바로 저장 (새 기록 입력 화면을 거치지 않고 이 화면에서 바로 저장)
         # 한국 종목(SNAPSHOT_STOCKS)만 대상으로 한다 — 미국 종목은 여기 나오지 않는다.
