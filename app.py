@@ -1898,6 +1898,61 @@ def _fetch_worst_trades(limit=5):
     return {"total_n": total_n, "worst_rows": worst_rows, "avg_worst": avg_worst, "lowest": lowest}
 
 
+def _fetch_open_risk_positions():
+    """전체 report_items에서 미청산(actual_exit_price IS NULL) + entry_price/stop_loss_price로
+    1건당 위험(entry_price - stop_loss_price)을 계산할 수 있는 행만 모아 총 오픈 리스크를 낸다.
+
+    화면 표시 전용이며 계산/저장 로직에는 영향을 주지 않는다. planned_stop_price와 buy_confirmed는
+    이번 계산 기준에 쓰지 않는다(buy_confirmed는 현재 신뢰 가능한 값이 아님)."""
+    conn = db.get_connection()
+    rows = conn.execute(
+        "SELECT stock_name, ticker, trade_mode, entry_price, stop_loss_price, filter_ignored "
+        "FROM report_items WHERE actual_exit_price IS NULL"
+    ).fetchall()
+    conn.close()
+
+    positions = []
+    excluded_count = 0
+    for row in rows:
+        try:
+            entry = float(row["entry_price"]) if row["entry_price"] is not None else None
+            stop = float(row["stop_loss_price"]) if row["stop_loss_price"] is not None else None
+        except (TypeError, ValueError):
+            entry = None
+            stop = None
+        if entry is None or stop is None or not (stop < entry):
+            excluded_count += 1
+            continue
+        positions.append(
+            {
+                "종목명": row["stock_name"] or "-",
+                "티커": row["ticker"] or "-",
+                "매매유형": row["trade_mode"] or "-",
+                "진입가": entry,
+                "손절가": stop,
+                "1건 위험": entry - stop,
+                "필터무시여부": {"YES": "예", "NO": "아니오"}.get(row["filter_ignored"], "미입력"),
+            }
+        )
+    total_risk = sum(p["1건 위험"] for p in positions)
+    return {
+        "positions": positions,
+        "count": len(positions),
+        "total_risk": total_risk,
+        "excluded_count": excluded_count,
+    }
+
+
+def _open_risk_status_label(count, total_risk):
+    if count == 0:
+        return "데이터 없음"
+    if total_risk < 1:
+        return "낮음"
+    if total_risk < 3:
+        return "주의"
+    return "위험"
+
+
 # ---- v1.1: 리스크 엔진 / 경고형 확정 차단 / 입력 검증 (한국장·미국장 "바로 저장" 전용) ----
 # 점수 가점/감점 로직과는 무관하며, 여기서 계산되는 값은 화면 표시/경고 문구 전용이다.
 # 한국장/미국장 바로 저장은 이미 모든 항목을 "미확정"으로만 저장하므로(기존 동작), 별도의
@@ -3488,6 +3543,40 @@ with tab_perf:
                                 "필터무시여부": d["필터무시여부"],
                             }
                             for d in _worst_stats["worst_rows"]
+                        ]
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
+
+            # 4-3. 총 오픈 리스크 3R 점검 카드 (report_items 전체 기준, 화면 표시 전용)
+            st.markdown("#### 총 오픈 리스크 3R 점검")
+            st.caption("이 카드는 매수 추천이 아니라 여러 포지션의 손실 노출을 점검하는 장치입니다.")
+            _open_risk = _fetch_open_risk_positions()
+            oc1, oc2, oc3, oc4 = st.columns(4)
+            oc1.metric("계산 가능한 오픈 포지션 수", _open_risk["count"])
+            oc2.metric("총 오픈 리스크", f"{_open_risk['total_risk']:.2f}R")
+            oc3.metric("3R 기준 상태", _open_risk_status_label(_open_risk["count"], _open_risk["total_risk"]))
+            oc4.metric("계산 제외 항목 수", _open_risk["excluded_count"])
+            if _open_risk["count"] == 0:
+                st.info(
+                    "아직 진입가와 손절가가 입력된 미청산 항목이 없습니다. "
+                    "새 기록에서 진입가와 손절가가 쌓이면 총 오픈 리스크가 계산됩니다."
+                )
+            else:
+                st.dataframe(
+                    pd.DataFrame(
+                        [
+                            {
+                                "종목명": p["종목명"],
+                                "티커": p["티커"],
+                                "매매유형": p["매매유형"],
+                                "진입가": f"{p['진입가']:,.0f}",
+                                "손절가": f"{p['손절가']:,.0f}",
+                                "1건 위험": f"{p['1건 위험']:.2f}R",
+                                "필터무시여부": p["필터무시여부"],
+                            }
+                            for p in _open_risk["positions"]
                         ]
                     ),
                     width="stretch",
