@@ -143,6 +143,14 @@ def _migrate_add_columns(conn):
         if col not in item_cols:
             conn.execute(f"ALTER TABLE report_items ADD COLUMN {col} TEXT")
 
+    # 플레이북 태그용 추가 컬럼. 이 매매가 어떤 전략/셋업이었는지 기록하는 순수 전략 태그
+    # 전용이며(예: US_EARNINGS_SWING, KR_BUYBACK_SWING, LEADER_LAGGARD_DAYTRADE), 필터 무시
+    # 사유/감정매매/뉴스충동/복구매매/손절지연/수주공시추격금지 같은 경고·실수 개념은 여기
+    # 넣지 않는다(그건 filter_ignore_reason 영역). UI/저장 로직은 이번 단계에서 만들지 않는다
+    # (컬럼 추가만).
+    if "playbook_tags" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN playbook_tags TEXT")
+
     conn.commit()
 
 
