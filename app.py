@@ -4,6 +4,7 @@ import math
 import re
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -1478,10 +1479,10 @@ def render_report_detail(report, show_raw_briefing=False):
         _render_trade_mode_section("공통", grouped, rank_labels)
 
 
-tab_kr, tab_us, tab_perf, tab_today, tab_archive, tab_paste, tab_next = st.tabs(
+tab_kr, tab_us, tab_perf, tab_today, tab_archive, tab_paste, tab_next, tab_guide = st.tabs(
     [
         "🇰🇷 한국장 먼저 확인", "🇺🇸 미국장 스윙 확인", "저장 결과 확인", "오늘 저장 요약",
-        "지난 기록 보기", "수동 기록 입력", "추가 기능",
+        "지난 기록 보기", "수동 기록 입력", "추가 기능", "사용법",
     ]
 )
 
@@ -4091,3 +4092,15 @@ with tab_next:
 - 지난 기록 보기 필터/검색 고도화 (추후 별도 논의)
 """
     )
+
+with tab_guide:
+    st.subheader("자비스 사용법")
+    st.caption("이 화면은 자비스_사용법.md 파일을 앱 안에서 보여주는 화면입니다.")
+    try:
+        _guide_path = Path(__file__).parent / "자비스_사용법.md"
+        _guide_text = _guide_path.read_text(encoding="utf-8")
+        st.markdown(_guide_text)
+    except FileNotFoundError:
+        st.warning("자비스_사용법.md 파일을 찾을 수 없습니다.")
+    except Exception as e:
+        st.warning(f"사용법 파일을 불러오지 못했습니다: {e}")
