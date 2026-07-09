@@ -219,6 +219,28 @@ def create_daily_db_backup_once():
 
 st.set_page_config(page_title="자비스 주식 기록장", layout="wide")
 
+# 비밀번호 게이트: 인증 전에는 DB 초기화/자동 백업/앱 본문이 전혀 실행되지 않는다.
+# 비밀번호는 .streamlit/secrets.toml의 APP_PASSWORD에서만 읽으며 코드에 직접 쓰지 않는다.
+try:
+    _app_password = st.secrets.get("APP_PASSWORD")
+except Exception:
+    _app_password = None
+
+if not _app_password:
+    st.warning("비밀번호 설정이 필요합니다. .streamlit/secrets.toml에 APP_PASSWORD를 설정하세요.")
+    st.stop()
+
+if not st.session_state.get("authenticated"):
+    st.title("자비스 주식 기록장 - 로그인")
+    _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
+    if st.button("로그인", key="login_submit"):
+        if _login_password_input == _app_password:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("비밀번호가 올바르지 않습니다.")
+    st.stop()
+
 db.init_db()
 create_daily_db_backup_once()
 
