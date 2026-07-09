@@ -3187,6 +3187,53 @@ with tab_kr:
                     if r["validation_errors"]:
                         st.warning("확인 필요: " + "; ".join(r["validation_errors"]))
 
+        with st.expander("🔥 오늘 강세 테마 1차 참고판 (저장 안 됨)", expanded=False):
+            st.caption(
+                "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
+                "오늘 강한 섹터와 대장주/후발주/추격주의만 빠르게 정리합니다."
+            )
+            _kr_theme_watch_rows = [
+                {
+                    "테마": theme,
+                    "상태": "확인 필요",
+                    "대장주": "",
+                    "후발주": "",
+                    "추격주의": "",
+                    "메모": "",
+                }
+                for theme in [
+                    "반도체/HBM",
+                    "전력기기/전력망",
+                    "원전",
+                    "방산",
+                    "조선/해운",
+                    "자동차/부품",
+                    "2차전지",
+                    "바이오",
+                    "AI/로봇",
+                    "정유/화학",
+                ]
+            ]
+            st.data_editor(
+                pd.DataFrame(_kr_theme_watch_rows),
+                key="kr_theme_watch_editor",
+                width="stretch",
+                hide_index=True,
+                num_rows="fixed",
+                disabled=["테마"],
+                column_config={
+                    "상태": st.column_config.SelectboxColumn(
+                        "상태",
+                        options=["강함", "감시", "보통", "약함", "확인 필요"],
+                        required=True,
+                    ),
+                    "대장주": st.column_config.TextColumn("대장주"),
+                    "후발주": st.column_config.TextColumn("후발주"),
+                    "추격주의": st.column_config.TextColumn("추격주의"),
+                    "메모": st.column_config.TextColumn("메모"),
+                },
+            )
+
         # 3-2. 국내장 기록 바로 저장 (새 기록 입력 화면을 거치지 않고 이 화면에서 바로 저장)
         # 한국 종목(SNAPSHOT_STOCKS)만 대상으로 한다 — 미국 종목은 여기 나오지 않는다.
         st.markdown("---")
