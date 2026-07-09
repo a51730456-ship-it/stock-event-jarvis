@@ -1807,6 +1807,19 @@ EMOTION_TAG_OPTIONS = [
 EMOTION_TAG_CODE_TO_LABEL = dict(EMOTION_TAG_OPTIONS)
 EMOTION_TAG_LABEL_TO_CODE = {v: k for k, v in EMOTION_TAG_OPTIONS}
 
+# 플레이북 태그: 이 매매가 어떤 전략/셋업이었는지 기록하는 순수 분류 태그다. 수주공시추격금지/
+# 뉴스충동매매/복구매매/손절지연처럼 경고·실수 성격의 개념은 여기 넣지 않고 filter_ignore_reason
+# 쪽(FILTER_IGNORE_TAG_OPTIONS)에 남겨둔다.
+PLAYBOOK_TAG_OPTIONS = [
+    ("US_EARNINGS_SWING", "미국실적스윙"),
+    ("KR_BUYBACK_SWING", "자사주스윙"),
+    ("LEADER_LAGGARD_DAYTRADE", "1등주2등주단타"),
+    ("RECOMMEND_BUY_SETUP", "추천매수셋업"),
+    ("OTHER_SETUP", "기타셋업"),
+]
+PLAYBOOK_TAG_CODE_TO_LABEL = dict(PLAYBOOK_TAG_OPTIONS)
+PLAYBOOK_TAG_LABEL_TO_CODE = {v: k for k, v in PLAYBOOK_TAG_OPTIONS}
+
 
 def _fetch_filter_compliance_stats():
     """전체 report_items에서 필터 준수/무시별 평균 R수익률을 계산한다(화면 표시 전용, 저장 없음).
@@ -3848,6 +3861,37 @@ with tab_perf:
                                 _fi_conn.commit()
                                 _fi_conn.close()
                                 st.success("필터 무시 기록이 저장되었습니다.")
+                                st.rerun()
+
+                    # 플레이북 태그 입력/수정 (기존 report_item을 id 기준으로 업데이트,
+                    # 새 report/report_item 생성 안 함). 청산 결과/필터 무시 기록과 나란히 둔다.
+                    if saved_item.get("id"):
+                        with st.expander(f"플레이북 태그 - {row['stock_name']} ({row['trade_mode']})"):
+                            _pb_key = f"playbook_{saved_item['id']}"
+                            _pb_stored = saved_item.get("playbook_tags") or ""
+                            _pb_stored_codes = [c.strip() for c in _pb_stored.split(",") if c.strip()]
+                            _pb_tags_in = st.multiselect(
+                                "플레이북 태그",
+                                [label for _, label in PLAYBOOK_TAG_OPTIONS],
+                                default=[
+                                    PLAYBOOK_TAG_CODE_TO_LABEL[c] for c in _pb_stored_codes
+                                    if c in PLAYBOOK_TAG_CODE_TO_LABEL
+                                ],
+                                key=f"{_pb_key}_tags",
+                            )
+                            if st.button("플레이북 태그 저장", key=f"{_pb_key}_save"):
+                                _final_pb_codes = [
+                                    PLAYBOOK_TAG_LABEL_TO_CODE[label] for label in _pb_tags_in
+                                ]
+                                _final_pb_tags = ",".join(_final_pb_codes) if _final_pb_codes else None
+                                _pb_conn = db.get_connection()
+                                _pb_conn.execute(
+                                    "UPDATE report_items SET playbook_tags=? WHERE id=?",
+                                    (_final_pb_tags, saved_item["id"]),
+                                )
+                                _pb_conn.commit()
+                                _pb_conn.close()
+                                st.success("플레이북 태그가 저장되었습니다.")
                                 st.rerun()
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
