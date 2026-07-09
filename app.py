@@ -2495,36 +2495,56 @@ with tab_kr:
     st.markdown("### 0단계 시장 분위기 입력(선택)")
     st.caption("입력하지 않아도 계산은 가능합니다. 입력값은 매수 신호가 아니라 오늘 판단의 참고값입니다.")
 
-    if st.button("0단계 시장 분위기 자동 확인", key="snap_mood_auto_check"):
-        _mood_results = []
-        _mood_any_ok = False
-        for _mood_name, _mood_ticker in KR_MARKET_MOOD_AUTO_TARGETS:
-            _mood_result = price_data.get_snapshot_defaults(_mood_ticker)
-            if _mood_result.get("ok"):
-                _mood_any_ok = True
-                _mood_change_pct = _safe_pct_diff(_mood_result["current"], _mood_result["prev_close"])
-                _mood_results.append(
-                    {
-                        "항목": _mood_name,
-                        "등락률(%)": _fmt_signed_pct(_mood_change_pct),
-                        "판정": _kr_mood_auto_verdict(_mood_name, _mood_change_pct),
-                        "현재값": _mood_result["current"],
-                        "출처": "자동 조회",
-                    }
-                )
-            else:
-                _mood_results.append(
-                    {
-                        "항목": _mood_name,
-                        "등락률(%)": "-",
-                        "판정": "확인 불가",
-                        "현재값": "-",
-                        "출처": "조회 실패",
-                    }
-                )
-        st.session_state["kr_mood_auto_results"] = _mood_results
-        st.session_state["kr_mood_auto_any_ok"] = _mood_any_ok
-        st.rerun()
+    if st.session_state.get("kr_mood_auto_running"):
+        st.caption("0단계 최근 실행: 실행 중입니다. 잠시 기다리세요.")
+    elif st.session_state.get("kr_mood_auto_last_error"):
+        st.caption(f"0단계 최근 실행: 실패 - {st.session_state['kr_mood_auto_last_error']}")
+    elif st.session_state.get("kr_mood_auto_done_at"):
+        st.caption(f"0단계 최근 실행: 완료 ({st.session_state['kr_mood_auto_done_at']})")
+
+    if st.button(
+        "0단계 시장 분위기 자동 확인",
+        key="snap_mood_auto_check",
+        disabled=bool(st.session_state.get("kr_mood_auto_running")),
+    ):
+        if st.session_state.get("kr_mood_auto_running"):
+            st.info("이미 실행 중입니다.")
+        else:
+            st.session_state["kr_mood_auto_running"] = True
+            _mood_results = []
+            _mood_any_ok = False
+            for _mood_name, _mood_ticker in KR_MARKET_MOOD_AUTO_TARGETS:
+                _mood_result = price_data.get_snapshot_defaults(_mood_ticker)
+                if _mood_result.get("ok"):
+                    _mood_any_ok = True
+                    _mood_change_pct = _safe_pct_diff(_mood_result["current"], _mood_result["prev_close"])
+                    _mood_results.append(
+                        {
+                            "항목": _mood_name,
+                            "등락률(%)": _fmt_signed_pct(_mood_change_pct),
+                            "판정": _kr_mood_auto_verdict(_mood_name, _mood_change_pct),
+                            "현재값": _mood_result["current"],
+                            "출처": "자동 조회",
+                        }
+                    )
+                else:
+                    _mood_results.append(
+                        {
+                            "항목": _mood_name,
+                            "등락률(%)": "-",
+                            "판정": "확인 불가",
+                            "현재값": "-",
+                            "출처": "조회 실패",
+                        }
+                    )
+            st.session_state["kr_mood_auto_results"] = _mood_results
+            st.session_state["kr_mood_auto_any_ok"] = _mood_any_ok
+            st.session_state["kr_mood_auto_last_error"] = (
+                None if _mood_any_ok else "전체 조회 실패 (네트워크 또는 데이터 제공처 문제)"
+            )
+            st.session_state["kr_mood_auto_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state["kr_mood_auto_running"] = False
+            st.rerun()
 
     if st.session_state.get("kr_mood_auto_results"):
         if not st.session_state.get("kr_mood_auto_any_ok"):
@@ -2667,22 +2687,45 @@ with tab_kr:
         "가장 최근 완료된 거래일 기준 시세를 조회해 채워줍니다. 실시간 시세가 아니며, 거래대금·"
         "시가총액은 근사값입니다. 조회 결과는 저장되지 않고 화면 계산에만 쓰입니다."
     )
-    if st.button("① 오늘 주가 자동 채우기", key="snap_auto_fill"):
-        fetch_results = {}
-        for s in SNAPSHOT_STOCKS:
-            result = price_data.get_snapshot_defaults(s["ticker"])
-            fetch_results[s["ticker"]] = result
-            if result.get("ok"):
-                prefix = f"snap_{s['ticker']}_"
-                st.session_state[prefix + "current"] = result["current"]
-                st.session_state[prefix + "prev_close"] = result["prev_close"]
-                st.session_state[prefix + "open"] = result["open"]
-                st.session_state[prefix + "high"] = result["high"]
-                st.session_state[prefix + "low"] = result["low"]
-                st.session_state[prefix + "turnover"] = result["turnover"]
-                st.session_state[prefix + "market_cap"] = result["market_cap"] or 0.0
-        st.session_state["snap_auto_fill_results"] = fetch_results
-        st.rerun()
+    if st.session_state.get("kr_snapshot_auto_fill_running"):
+        st.caption("1단계 최근 실행: 실행 중입니다. 잠시 기다리세요.")
+    elif st.session_state.get("kr_snapshot_auto_fill_last_error"):
+        st.caption(f"1단계 최근 실행: 실패 - {st.session_state['kr_snapshot_auto_fill_last_error']}")
+    elif st.session_state.get("kr_snapshot_auto_fill_done_at"):
+        st.caption(f"1단계 최근 실행: 완료 ({st.session_state['kr_snapshot_auto_fill_done_at']})")
+
+    if st.button(
+        "① 오늘 주가 자동 채우기",
+        key="snap_auto_fill",
+        disabled=bool(st.session_state.get("kr_snapshot_auto_fill_running")),
+    ):
+        if st.session_state.get("kr_snapshot_auto_fill_running"):
+            st.info("이미 실행 중입니다.")
+        else:
+            st.session_state["kr_snapshot_auto_fill_running"] = True
+            fetch_results = {}
+            _autofill_any_ok = False
+            for s in SNAPSHOT_STOCKS:
+                result = price_data.get_snapshot_defaults(s["ticker"])
+                fetch_results[s["ticker"]] = result
+                if result.get("ok"):
+                    _autofill_any_ok = True
+                    prefix = f"snap_{s['ticker']}_"
+                    st.session_state[prefix + "current"] = result["current"]
+                    st.session_state[prefix + "prev_close"] = result["prev_close"]
+                    st.session_state[prefix + "open"] = result["open"]
+                    st.session_state[prefix + "high"] = result["high"]
+                    st.session_state[prefix + "low"] = result["low"]
+                    st.session_state[prefix + "turnover"] = result["turnover"]
+                    st.session_state[prefix + "market_cap"] = result["market_cap"] or 0.0
+                # 실패 종목은 session_state를 건드리지 않는다 — 기존 입력값이 있으면 그대로 유지된다.
+            st.session_state["snap_auto_fill_results"] = fetch_results
+            st.session_state["kr_snapshot_auto_fill_last_error"] = (
+                None if _autofill_any_ok else "전체 조회 실패 (네트워크 또는 데이터 제공처 문제)"
+            )
+            st.session_state["kr_snapshot_auto_fill_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state["kr_snapshot_auto_fill_running"] = False
+            st.rerun()
 
     if st.session_state.get("snap_auto_fill_results"):
         auto_fill_results = st.session_state["snap_auto_fill_results"]
