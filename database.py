@@ -70,6 +70,21 @@ def init_db():
                 trade_mode TEXT DEFAULT '공통',
                 FOREIGN KEY (report_id) REFERENCES reports(id)
             );
+
+            CREATE TABLE IF NOT EXISTS rejected_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rejected_at TEXT,
+                market TEXT,
+                ticker TEXT,
+                stock_name TEXT,
+                trade_mode TEXT,
+                reject_reason TEXT,
+                assumed_entry_price REAL,
+                note TEXT,
+                source_report_id INTEGER,
+                created_at TEXT,
+                FOREIGN KEY (source_report_id) REFERENCES reports(id)
+            );
             """
         )
         conn.commit()
