@@ -759,6 +759,11 @@ def build_kr_stage2_preview():
                 "swing_score": swing_score,
                 "danta_verdict": danta_verdict,
                 "swing_verdict": swing_verdict,
+                "change_pct": change_pct,
+                "open_pos_pct": open_pos_pct,
+                "high_drop_pct": high_drop_pct,
+                "turnover_ratio_pct": turnover_ratio_pct,
+                "turnover": turnover,
                 "danta_score_reason": danta_score_reason,
                 "danta_penalty_reason": danta_penalty_reason,
                 "swing_score_reason": swing_score_reason,
@@ -769,6 +774,9 @@ def build_kr_stage2_preview():
                 "swing_top_candidate_reason": _kr_top_candidate_reason_text(
                     "스윙", swing_score, _display_verdict_name(swing_verdict)
                 ),
+                "risk_fields": _collect_risk_fields(ticker),
+                "danta_buy_confirm_condition": _auto_buy_confirm_condition("단타", "KR"),
+                "swing_buy_confirm_condition": _auto_buy_confirm_condition("스윙", "KR"),
                 "needs_confirmation": (danta_verdict == "확인 필요") or bool(row_validation_errors),
                 "validation_errors": row_validation_errors,
             }
@@ -3230,6 +3238,19 @@ with tab_kr:
                     swing_top_candidate_reason = _kr_top_candidate_reason_text(
                         "스윙", swing_score, _display_verdict_name(swing_verdict)
                     )
+                _preview_source_row = _s2row or {}
+                change_pct = _preview_source_row.get("change_pct", calc["change_pct"])
+                open_pos_pct = _preview_source_row.get("open_pos_pct", calc["open_pos_pct"])
+                high_drop_pct = _preview_source_row.get("high_drop_pct", calc["high_drop_pct"])
+                turnover_ratio_pct = _preview_source_row.get("turnover_ratio_pct", calc["turnover_ratio_pct"])
+                turnover = _preview_source_row.get("turnover", _get_snapshot_value(calc["ticker"], "turnover"))
+                risk_fields = _preview_source_row.get("risk_fields", calc["risk_fields"])
+                danta_buy_confirm_condition = _preview_source_row.get(
+                    "danta_buy_confirm_condition", _auto_buy_confirm_condition("단타", "KR")
+                )
+                swing_buy_confirm_condition = _preview_source_row.get(
+                    "swing_buy_confirm_condition", _auto_buy_confirm_condition("스윙", "KR")
+                )
                 kr_preview_rows.append(
                     {
                         "name": calc["name"],
@@ -3238,20 +3259,20 @@ with tab_kr:
                         "swing_score": swing_score,
                         "danta_verdict": danta_verdict,
                         "swing_verdict": swing_verdict,
-                        "change_pct": calc["change_pct"],
-                        "open_pos_pct": calc["open_pos_pct"],
-                        "high_drop_pct": calc["high_drop_pct"],
-                        "turnover_ratio_pct": calc["turnover_ratio_pct"],
-                        "turnover": _get_snapshot_value(calc["ticker"], "turnover"),
+                        "change_pct": change_pct,
+                        "open_pos_pct": open_pos_pct,
+                        "high_drop_pct": high_drop_pct,
+                        "turnover_ratio_pct": turnover_ratio_pct,
+                        "turnover": turnover,
                         "danta_score_reason": danta_score_reason,
                         "danta_penalty_reason": danta_penalty_reason,
                         "swing_score_reason": swing_score_reason,
                         "swing_penalty_reason": swing_penalty_reason,
                         "danta_top_candidate_reason": danta_top_candidate_reason,
                         "swing_top_candidate_reason": swing_top_candidate_reason,
-                        "danta_buy_confirm_condition": _auto_buy_confirm_condition("단타", "KR"),
-                        "swing_buy_confirm_condition": _auto_buy_confirm_condition("스윙", "KR"),
-                        "risk_fields": calc["risk_fields"],
+                        "danta_buy_confirm_condition": danta_buy_confirm_condition,
+                        "swing_buy_confirm_condition": swing_buy_confirm_condition,
+                        "risk_fields": risk_fields,
                     }
                 )
             danta_counts = {"감시": 0, "확인 필요": 0, "보류(선반영)": 0}
