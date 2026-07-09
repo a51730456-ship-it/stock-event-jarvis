@@ -2,6 +2,7 @@
 
 import math
 import re
+import sqlite3
 from datetime import datetime
 
 import pandas as pd
@@ -186,9 +187,40 @@ def parse_quick_text(text):
 
     return result
 
+
+def create_daily_db_backup_once():
+    """하루 1회, db/jarvis.sqlite3를 backups/jarvis_YYYYMMDD.sqlite3로 백업한다.
+
+    sqlite3 내장 backup API를 사용한다(단순 파일 복사가 아님 — 연결이 열려 있는 상태에서도
+    안전하게 백업할 수 있다). 같은 날짜 백업이 이미 있으면 건너뛰고 덮어쓰지 않는다.
+    백업 실패는 앱을 죽이지 않고 경고만 표시한다. 원본 DB는 읽기만 하며 절대 수정하지 않는다.
+    """
+    try:
+        db_path = db.DB_PATH
+        if not db_path.exists():
+            return
+        backups_dir = db_path.parent.parent / "backups"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+        backup_path = backups_dir / f"jarvis_{datetime.now().strftime('%Y%m%d')}.sqlite3"
+        if backup_path.exists():
+            return
+        source_conn = sqlite3.connect(db_path)
+        try:
+            dest_conn = sqlite3.connect(backup_path)
+            try:
+                source_conn.backup(dest_conn)
+            finally:
+                dest_conn.close()
+        finally:
+            source_conn.close()
+    except Exception as e:
+        st.warning(f"일일 DB 백업을 만들지 못했습니다(앱은 정상 동작합니다): {e}")
+
+
 st.set_page_config(page_title="자비스 주식 기록장", layout="wide")
 
 db.init_db()
+create_daily_db_backup_once()
 
 st.markdown(
     """
