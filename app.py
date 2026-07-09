@@ -2469,15 +2469,15 @@ def _kr_mood_auto_verdict(name, change_pct):
         return "확인 불가"
     if name == "달러/원":
         if change_pct >= 0.3:
-            return "상승(원화 약세, 한국장 부담)"
+            return "상승 (원화 약세, 한국장 부담)"
         if change_pct <= -0.3:
-            return "하락(원화 강세, 한국장 우호)"
-        return "보합"
+            return "하락 (원화 강세, 한국장 우호)"
+        return "보합 (환율 중립)"
     if change_pct >= 0.3:
-        return "강함"
+        return "강함 (상승 우세)"
     if change_pct <= -0.3:
-        return "약함"
-    return "보합"
+        return "약함 (하락 우세)"
+    return "보합 (중립)"
 
 with tab_kr:
     st.subheader("한국장")
@@ -2500,10 +2500,9 @@ with tab_kr:
                 _mood_results.append(
                     {
                         "항목": _mood_name,
-                        "티커": _mood_ticker,
-                        "현재값": _mood_result["current"],
                         "등락률(%)": _fmt_signed_pct(_mood_change_pct),
                         "판정": _kr_mood_auto_verdict(_mood_name, _mood_change_pct),
+                        "현재값": _mood_result["current"],
                         "출처": "자동 조회",
                     }
                 )
@@ -2511,10 +2510,9 @@ with tab_kr:
                 _mood_results.append(
                     {
                         "항목": _mood_name,
-                        "티커": _mood_ticker,
-                        "현재값": "-",
                         "등락률(%)": "-",
                         "판정": "확인 불가",
+                        "현재값": "-",
                         "출처": "조회 실패",
                     }
                 )
@@ -2542,12 +2540,25 @@ with tab_kr:
                 (r for r in st.session_state["kr_mood_auto_results"] if r["항목"] == "SMH"), None
             )
             if _soxx_row and _smh_row and "확인 불가" not in (_soxx_row["판정"], _smh_row["판정"]):
-                if _soxx_row["판정"] == "강함" and _smh_row["판정"] == "강함":
-                    st.caption("SOXX/SMH 결합 판정: 반도체 우호")
-                elif _soxx_row["판정"] == "약함" and _smh_row["판정"] == "약함":
-                    st.caption("SOXX/SMH 결합 판정: 반도체 부담")
+                _soxx_strong = _soxx_row["판정"].startswith("강함")
+                _soxx_weak = _soxx_row["판정"].startswith("약함")
+                _smh_strong = _smh_row["판정"].startswith("강함")
+                _smh_weak = _smh_row["판정"].startswith("약함")
+                if _soxx_strong and _smh_strong:
+                    st.success(
+                        "반도체 우호 신호 — SOXX와 SMH가 모두 강세라서 미국 반도체 투자심리가 "
+                        "좋습니다. 삼성전자·SK하이닉스 등 국내 반도체 대형주 분위기에 우호적입니다."
+                    )
+                elif _soxx_weak and _smh_weak:
+                    st.warning(
+                        "반도체 부담 신호 — SOXX와 SMH가 모두 약세라서 미국 반도체 투자심리가 "
+                        "나쁩니다. 국내 반도체 대형주에는 부담 요인입니다."
+                    )
                 else:
-                    st.caption("SOXX/SMH 결합 판정: 혼조")
+                    st.info(
+                        "반도체 혼조 신호 — SOXX와 SMH 흐름이 엇갈려 반도체 방향성이 뚜렷하지 "
+                        "않습니다. 국내 반도체주는 추가 확인이 필요합니다."
+                    )
             st.caption("자동 조회 결과는 화면 확인용이며 저장되지 않습니다.")
 
     st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
