@@ -2575,6 +2575,124 @@ with tab_kr:
     st.markdown("### 0단계 시장 분위기 입력(선택)")
     st.caption("입력하지 않아도 계산은 가능합니다. 입력값은 매수 신호가 아니라 오늘 판단의 참고값입니다.")
 
+    # ---- 0→1→2 한 번에 미리보기 생성 (자동 저장 아님, DB 미기록) ----
+    # 0단계/1단계 버튼과 동일한 조회 로직을 그대로 재사용하되, 기존 버튼 코드는 건드리지 않고
+    # 이 블록 안에서 독립적으로 실행한다. 실행 결과는 기존 버튼과 같은 session_state 키
+    # (kr_mood_auto_results, snap_auto_fill_results)에 저장되므로, 아래 0단계 결과 표시와
+    # 2단계 미리보기 섹션이 자동으로 최신 상태를 보여준다.
+    if st.session_state.get("kr_auto_preview_running"):
+        st.caption("0→1→2 한 번에 미리보기: 실행 중입니다. 잠시 기다리세요.")
+    elif st.session_state.get("kr_auto_preview_last_error"):
+        st.caption(f"0→1→2 한 번에 미리보기 최근 실행: 실패 - {st.session_state['kr_auto_preview_last_error']}")
+    elif st.session_state.get("kr_auto_preview_done_at"):
+        st.caption(f"0→1→2 한 번에 미리보기 최근 실행: 완료 ({st.session_state['kr_auto_preview_done_at']})")
+        st.caption(
+            f"0단계 반영: {st.session_state.get('kr_auto_preview_stage0_status', '-')} / "
+            f"1단계 반영: {st.session_state.get('kr_auto_preview_stage1_status', '-')} / "
+            f"2단계 미리보기 생성: {'예' if st.session_state.get('kr_auto_preview_stage2_generated') else '아니오'}"
+        )
+
+    if st.button(
+        "0→1→2 한 번에 미리보기 생성",
+        key="kr_auto_preview_run",
+        disabled=bool(st.session_state.get("kr_auto_preview_running")),
+    ):
+        if st.session_state.get("kr_auto_preview_running"):
+            st.info("이미 실행 중입니다.")
+        else:
+            st.session_state["kr_auto_preview_running"] = True
+
+            # 1) 0단계: 시장 분위기 자동 확인 (기존 0단계 버튼과 동일 로직, 일부 실패해도 중단하지 않음)
+            _auto_mood_results = []
+            _auto_mood_ok_count = 0
+            for _auto_mood_name, _auto_mood_ticker in KR_MARKET_MOOD_AUTO_TARGETS:
+                _auto_mood_result = price_data.get_snapshot_defaults(_auto_mood_ticker)
+                if _auto_mood_result.get("ok"):
+                    _auto_mood_ok_count += 1
+                    _auto_mood_change_pct = _safe_pct_diff(
+                        _auto_mood_result["current"], _auto_mood_result["prev_close"]
+                    )
+                    _auto_mood_results.append(
+                        {
+                            "항목": _auto_mood_name,
+                            "등락률(%)": _fmt_signed_pct(_auto_mood_change_pct),
+                            "판정": _kr_mood_auto_verdict(_auto_mood_name, _auto_mood_change_pct),
+                            "현재값": _auto_mood_result["current"],
+                            "출처": "자동 조회",
+                        }
+                    )
+                else:
+                    _auto_mood_results.append(
+                        {
+                            "항목": _auto_mood_name,
+                            "등락률(%)": "-",
+                            "판정": "확인 불가",
+                            "현재값": "-",
+                            "출처": "조회 실패",
+                        }
+                    )
+            _auto_mood_any_ok = _auto_mood_ok_count > 0
+            _auto_mood_total = len(KR_MARKET_MOOD_AUTO_TARGETS)
+            if _auto_mood_ok_count == 0:
+                _stage0_status = "아니오"
+            elif _auto_mood_ok_count == _auto_mood_total:
+                _stage0_status = "예"
+            else:
+                _stage0_status = "부분"
+            st.session_state["kr_mood_auto_results"] = _auto_mood_results
+            st.session_state["kr_mood_auto_any_ok"] = _auto_mood_any_ok
+
+            # 2) 1단계: 오늘 주가 자동 채우기 (기존 ① 버튼과 동일 로직, 실패 종목은 건너뛰고
+            #    기존 입력값을 그대로 둔다 — 전체 입력값 초기화 없음)
+            _auto_fetch_results = {}
+            _auto_fill_ok_count = 0
+            for _auto_s in SNAPSHOT_STOCKS:
+                _auto_fill_result = price_data.get_snapshot_defaults(_auto_s["ticker"])
+                _auto_fetch_results[_auto_s["ticker"]] = _auto_fill_result
+                if _auto_fill_result.get("ok"):
+                    _auto_fill_ok_count += 1
+                    _auto_prefix = f"snap_{_auto_s['ticker']}_"
+                    st.session_state[_auto_prefix + "current"] = _auto_fill_result["current"]
+                    st.session_state[_auto_prefix + "prev_close"] = _auto_fill_result["prev_close"]
+                    st.session_state[_auto_prefix + "open"] = _auto_fill_result["open"]
+                    st.session_state[_auto_prefix + "high"] = _auto_fill_result["high"]
+                    st.session_state[_auto_prefix + "low"] = _auto_fill_result["low"]
+                    st.session_state[_auto_prefix + "turnover"] = _auto_fill_result["turnover"]
+                    st.session_state[_auto_prefix + "market_cap"] = _auto_fill_result["market_cap"] or 0.0
+                # 실패 종목은 session_state를 건드리지 않는다 — 기존 입력값이 있으면 그대로 유지된다.
+            _auto_fill_total = len(SNAPSHOT_STOCKS)
+            if _auto_fill_ok_count == 0:
+                _stage1_status = "아니오"
+            elif _auto_fill_ok_count == _auto_fill_total:
+                _stage1_status = "예"
+            else:
+                _stage1_status = "부분"
+            st.session_state["snap_auto_fill_results"] = _auto_fetch_results
+
+            # 3) 2단계: 미리보기 생성 (DB 저장 호출 없음 — build_kr_stage2_preview()는 조회 전용)
+            _auto_stage2_preview = build_kr_stage2_preview()
+            _stage2_generated = bool(_auto_stage2_preview["rows"])
+
+            st.session_state["kr_auto_preview_stage0_status"] = _stage0_status
+            st.session_state["kr_auto_preview_stage1_status"] = _stage1_status
+            st.session_state["kr_auto_preview_stage2_generated"] = _stage2_generated
+            if _auto_mood_ok_count == 0 and _auto_fill_ok_count == 0:
+                st.session_state["kr_auto_preview_last_error"] = (
+                    "0단계·1단계 모두 조회 실패 (네트워크 또는 데이터 제공처 문제)"
+                )
+            elif not _stage2_generated:
+                st.session_state["kr_auto_preview_last_error"] = "2단계 미리보기를 만들 종목 데이터가 없습니다."
+            else:
+                st.session_state["kr_auto_preview_last_error"] = None
+            st.session_state["kr_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state["kr_auto_preview_running"] = False
+            st.rerun()
+
+    st.caption(
+        "이 버튼은 0~2단계 미리보기만 만듭니다. DB에 저장하지 않으며, 실제 기록을 남기려면 "
+        "아래 '③ 국내장 기록 바로 저장' 버튼을 따로 눌러야 합니다."
+    )
+
     if st.session_state.get("kr_mood_auto_running"):
         st.caption("0단계 최근 실행: 실행 중입니다. 잠시 기다리세요.")
     elif st.session_state.get("kr_mood_auto_last_error"):
