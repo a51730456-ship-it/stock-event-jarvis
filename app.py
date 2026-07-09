@@ -1863,6 +1863,41 @@ def _n_confidence_label(n):
     return "검토 가능"
 
 
+def _fetch_worst_trades(limit=5):
+    """전체 report_items에서 result_r이 숫자로 변환 가능한 행만 모아 낮은(손실이 큰) 순으로
+    정렬해 상위 N개를 반환한다. 화면 표시 전용이며 계산/저장 로직에는 영향을 주지 않는다."""
+    conn = db.get_connection()
+    rows = conn.execute(
+        "SELECT stock_name, ticker, trade_mode, result_r, actual_exit_date, exit_reason, filter_ignored "
+        "FROM report_items WHERE result_r IS NOT NULL"
+    ).fetchall()
+    conn.close()
+
+    parsed = []
+    for row in rows:
+        try:
+            r_num = float(row["result_r"])
+        except (TypeError, ValueError):
+            continue
+        parsed.append(
+            {
+                "종목명": row["stock_name"] or "-",
+                "티커": row["ticker"] or "-",
+                "매매유형": row["trade_mode"] or "-",
+                "result_r": r_num,
+                "청산일": row["actual_exit_date"] or "-",
+                "청산사유": row["exit_reason"] or "-",
+                "필터무시여부": {"YES": "예", "NO": "아니오"}.get(row["filter_ignored"], "미입력"),
+            }
+        )
+    parsed.sort(key=lambda d: d["result_r"])
+    total_n = len(parsed)
+    worst_rows = parsed[:limit]
+    avg_worst = (sum(d["result_r"] for d in worst_rows) / len(worst_rows)) if worst_rows else None
+    lowest = worst_rows[0]["result_r"] if worst_rows else None
+    return {"total_n": total_n, "worst_rows": worst_rows, "avg_worst": avg_worst, "lowest": lowest}
+
+
 # ---- v1.1: 리스크 엔진 / 경고형 확정 차단 / 입력 검증 (한국장·미국장 "바로 저장" 전용) ----
 # 점수 가점/감점 로직과는 무관하며, 여기서 계산되는 값은 화면 표시/경고 문구 전용이다.
 # 한국장/미국장 바로 저장은 이미 모든 항목을 "미확정"으로만 저장하므로(기존 동작), 별도의
@@ -3424,6 +3459,39 @@ with tab_perf:
             else:
                 st.caption(
                     f"표본 N={_fi_stats['comparable_n']}: {_n_confidence_label(_fi_stats['comparable_n'])} 구간입니다."
+                )
+
+            # 4-2. 최악 5매매 R 점검 카드 (report_items 전체 기준, 화면 표시 전용)
+            st.markdown("#### 최악 5매매 R 점검")
+            st.caption("이 카드는 매수 추천이 아니라 손실 원인 점검용입니다.")
+            _worst_stats = _fetch_worst_trades(limit=5)
+            if _worst_stats["total_n"] == 0:
+                st.info("아직 청산 R 데이터가 없습니다. 청산 결과가 쌓이면 최악 5개 매매가 표시됩니다.")
+            else:
+                wc1, wc2, wc3, wc4 = st.columns(4)
+                wc1.metric("R 데이터 개수", _worst_stats["total_n"])
+                wc2.metric("최악 5개 평균 R", _fmt_avg_r(_worst_stats["avg_worst"]))
+                wc3.metric("최저 R", _fmt_avg_r(_worst_stats["lowest"]))
+                wc4.metric("검증 상태", _n_confidence_label(_worst_stats["total_n"]))
+                if _worst_stats["total_n"] < 30:
+                    st.caption(f"표본 N<30: {_n_confidence_label(_worst_stats['total_n'])} 구간입니다.")
+                st.dataframe(
+                    pd.DataFrame(
+                        [
+                            {
+                                "종목명": d["종목명"],
+                                "티커": d["티커"],
+                                "매매유형": d["매매유형"],
+                                "result_r": _fmt_avg_r(d["result_r"]),
+                                "청산일": d["청산일"],
+                                "청산사유": d["청산사유"],
+                                "필터무시여부": d["필터무시여부"],
+                            }
+                            for d in _worst_stats["worst_rows"]
+                        ]
+                    ),
+                    width="stretch",
+                    hide_index=True,
                 )
 
             # 5. 관심 점수 설명
