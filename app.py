@@ -1808,6 +1808,61 @@ EMOTION_TAG_CODE_TO_LABEL = dict(EMOTION_TAG_OPTIONS)
 EMOTION_TAG_LABEL_TO_CODE = {v: k for k, v in EMOTION_TAG_OPTIONS}
 
 
+def _fetch_filter_compliance_stats():
+    """전체 report_items에서 필터 준수/무시별 평균 R수익률을 계산한다(화면 표시 전용, 저장 없음).
+
+    result_r이 NULL이거나 숫자로 변환할 수 없는 행은 평균 계산에서 제외한다."""
+    conn = db.get_connection()
+    rows = conn.execute("SELECT filter_ignored, result_r FROM report_items").fetchall()
+    conn.close()
+
+    ignored_count = 0
+    followed_count = 0
+    unset_count = 0
+    ignored_r_values = []
+    followed_r_values = []
+    for row in rows:
+        flag = row["filter_ignored"]
+        if flag == "YES":
+            ignored_count += 1
+        elif flag == "NO":
+            followed_count += 1
+        else:
+            unset_count += 1
+
+        try:
+            r_num = float(row["result_r"]) if row["result_r"] is not None else None
+        except (TypeError, ValueError):
+            r_num = None
+        if r_num is None:
+            continue
+        if flag == "YES":
+            ignored_r_values.append(r_num)
+        elif flag == "NO":
+            followed_r_values.append(r_num)
+
+    return {
+        "ignored_count": ignored_count,
+        "followed_count": followed_count,
+        "unset_count": unset_count,
+        "ignored_avg_r": (sum(ignored_r_values) / len(ignored_r_values)) if ignored_r_values else None,
+        "followed_avg_r": (sum(followed_r_values) / len(followed_r_values)) if followed_r_values else None,
+        "comparable_n": len(ignored_r_values) + len(followed_r_values),
+    }
+
+
+def _fmt_avg_r(value):
+    return "데이터 없음" if value is None else f"{value:+.2f}R"
+
+
+def _n_confidence_label(n):
+    if n < 30:
+        return "미검증"
+    if n < 50:
+        return "참고"
+    return "검토 가능"
+
+
 # ---- v1.1: 리스크 엔진 / 경고형 확정 차단 / 입력 검증 (한국장·미국장 "바로 저장" 전용) ----
 # 점수 가점/감점 로직과는 무관하며, 여기서 계산되는 값은 화면 표시/경고 문구 전용이다.
 # 한국장/미국장 바로 저장은 이미 모든 항목을 "미확정"으로만 저장하므로(기존 동작), 별도의
@@ -3343,6 +3398,33 @@ with tab_perf:
                 _cached_no_recommendation_rows.clear()
                 st.rerun()
             st.caption("저장된 종목의 1일·3일·5일·10일·20일 수익률을 다시 확인합니다.")
+
+            # 4-1. 필터 준수 vs 필터 무시 R 비교 카드 (report_items 전체 기준, 화면 표시 전용)
+            st.markdown("#### 필터 준수 vs 필터 무시 R 비교")
+            st.caption("이 통계는 매수 추천이 아니라 행동 검증용입니다.")
+            _fi_stats = _fetch_filter_compliance_stats()
+            fc1, fc2, fc3 = st.columns(3)
+            fc1.metric("필터 무시 기록 수", _fi_stats["ignored_count"])
+            fc2.metric("필터 준수 기록 수", _fi_stats["followed_count"])
+            fc3.metric("필터 미입력 수", _fi_stats["unset_count"])
+            fc4, fc5, fc6 = st.columns(3)
+            fc4.metric("필터 무시 평균 R", _fmt_avg_r(_fi_stats["ignored_avg_r"]))
+            fc5.metric("필터 준수 평균 R", _fmt_avg_r(_fi_stats["followed_avg_r"]))
+            fc6.metric(
+                "비교 가능 R 데이터 수",
+                f"{_fi_stats['comparable_n']}건" if _fi_stats["comparable_n"] else "0건",
+            )
+            if _fi_stats["comparable_n"] == 0:
+                st.info(
+                    "아직 필터 준수/무시와 청산 R 데이터가 부족합니다. "
+                    "필터 무시 기록과 청산 결과가 쌓이면 비교됩니다."
+                )
+            elif _fi_stats["comparable_n"] < 30:
+                st.caption(f"표본 N<30: 미검증 구간입니다. ({_n_confidence_label(_fi_stats['comparable_n'])})")
+            else:
+                st.caption(
+                    f"표본 N={_fi_stats['comparable_n']}: {_n_confidence_label(_fi_stats['comparable_n'])} 구간입니다."
+                )
 
             # 5. 관심 점수 설명
             st.info(
