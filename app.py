@@ -2685,6 +2685,7 @@ with tab_kr:
         "정렬 기준: 단기 관심점수 높은 순 → 며칠 관심점수 높은 순 → 시총대비 거래대금 높은 순입니다. "
         "점수는 매수 신호가 아니라 관심 후보 정렬 기준입니다."
     )
+    st.caption("※ 시가대비·고점대비·저점대비는 모두 오늘 장중 기준입니다. 전일 대비가 아닙니다.")
 
     result_rows = []
     snapshot_calc_data = []
@@ -2731,17 +2732,18 @@ with tab_kr:
                 "단기 관심 점수": danta_score,
                 "며칠 관심 점수": swing_score,
                 "메모": "; ".join(memos) if memos else "-",
-                "현재가": current,
-                "전일대비(%)": _fmt_pct(change_pct),
-                "시가대비(%)": _fmt_pct(open_pos_pct),
-                "고점대비(%)": _fmt_pct(high_drop_pct),
-                "저점대비(%)": _fmt_pct(low_recover_pct),
+                "현재가": "-" if current is None else f"{current:,.0f}",
+                "전일대비(%)": _fmt_signed_pct(change_pct),
+                "시가대비(오늘)": _fmt_pct(open_pos_pct),
+                "고점대비(오늘)": _fmt_pct(high_drop_pct),
+                "저점대비(오늘)": _fmt_pct(low_recover_pct),
                 "시총대비 거래대금(%)": _fmt_pct(turnover_ratio_pct),
                 "섹터": s["sector"],
                 "_sort_key": (
                     danta_score, swing_score,
                     turnover_ratio_pct if turnover_ratio_pct is not None else float("-inf"),
                 ),
+                "_change_pct_raw": change_pct,
             }
         )
         snapshot_calc_data.append(
@@ -2764,13 +2766,28 @@ with tab_kr:
         )
 
     result_rows.sort(key=lambda r: r["_sort_key"], reverse=True)
+    change_pct_raw_list = [r.get("_change_pct_raw") for r in result_rows]
     for r in result_rows:
         r.pop("_sort_key", None)
+        r.pop("_change_pct_raw", None)
 
     if not result_rows:
         st.info("아직 입력된 종목이 없습니다. 아래 '종목별 상세 입력' 카드나 '주가 직접 붙여넣기'로 값을 넣어주세요.")
     else:
-        st.dataframe(pd.DataFrame(result_rows), width="stretch", hide_index=True)
+        def _style_change_pct_col(col):
+            styles = []
+            for raw in change_pct_raw_list:
+                if raw is None or raw == 0:
+                    styles.append("")
+                elif raw > 0:
+                    styles.append("color: #ff4b4b")
+                else:
+                    styles.append("color: #4b9fff")
+            return styles
+
+        result_df = pd.DataFrame(result_rows)
+        styled_result_df = result_df.style.apply(_style_change_pct_col, subset=["전일대비(%)"])
+        st.dataframe(styled_result_df, width="stretch", hide_index=True)
         st.caption("시총 대비 거래대금 '확인 필요' 기준은 5% 이상(1차 버전 임시 기준)입니다.")
         st.caption(
             "점수는 자동매수 신호가 아니라 장중 후보 비교용 참고 점수입니다. 외부 환경과 "
