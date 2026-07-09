@@ -701,6 +701,86 @@ def _kr_preview_reasons(change_pct, open_pos_pct, high_drop_pct, turnover_ratio_
     return score_reason, penalty_reason
 
 
+def build_kr_stage2_preview():
+    """한국장 2단계(관심점수/단타·스윙 판단/1순위 근거/감점 이유) 미리보기 전용 함수.
+
+    session_state에 있는 현재 입력값(0단계 시장 분위기 자동 확인 결과, 1단계 오늘 주가 자동
+    채우기 결과가 반영돼 있으면 그 값)을 그대로 읽어서 계산만 한다. DB에는 아무 것도 저장하지
+    않으며, "③ 국내장 기록 바로 저장" 버튼의 저장 로직은 호출하지도, 그 결과에 영향을 주지도
+    않는다 — 이 함수는 미리보기 전용이고 저장 버튼의 내부 로직과는 완전히 분리되어 있다.
+    """
+    stage0_reflected = bool(st.session_state.get("kr_mood_auto_results"))
+    stage1_reflected = bool(st.session_state.get("snap_auto_fill_results"))
+
+    external_good = _snapshot_external_good()
+    rows = []
+    for s in SNAPSHOT_STOCKS:
+        ticker = s["ticker"]
+        current = _get_snapshot_value(ticker, "current")
+        prev_close = _get_snapshot_value(ticker, "prev_close")
+        open_price = _get_snapshot_value(ticker, "open")
+        high = _get_snapshot_value(ticker, "high")
+        low = _get_snapshot_value(ticker, "low")
+        turnover = _get_snapshot_value(ticker, "turnover")
+        market_cap = _get_snapshot_value(ticker, "market_cap")
+
+        if not any([current, prev_close, open_price, high, low]):
+            continue
+
+        change_pct = _safe_pct_diff(current, prev_close)
+        open_pos_pct = _safe_pct_diff(current, open_price)
+        high_drop_pct = _safe_pct_diff(current, high)
+        turnover_ratio_pct = _safe_ratio_pct(turnover, market_cap)
+
+        danta_score = compute_snapshot_reference_score(
+            "단타", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, external_good
+        )
+        swing_score = compute_snapshot_reference_score(
+            "스윙", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, external_good
+        )
+        danta_verdict = _kr_danta_verdict(danta_score)
+        swing_verdict = _kr_swing_verdict(swing_score)
+        danta_score_reason, danta_penalty_reason = _kr_preview_reasons(
+            change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, "단타"
+        )
+        swing_score_reason, swing_penalty_reason = _kr_preview_reasons(
+            change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, "스윙"
+        )
+        row_validation_errors = _validate_snapshot_price_inputs(
+            s["name"], current, open_price, high, low,
+            _get_snapshot_value(ticker, "volume"), turnover,
+        )
+
+        rows.append(
+            {
+                "name": s["name"],
+                "ticker": ticker,
+                "danta_score": danta_score,
+                "swing_score": swing_score,
+                "danta_verdict": danta_verdict,
+                "swing_verdict": swing_verdict,
+                "danta_score_reason": danta_score_reason,
+                "danta_penalty_reason": danta_penalty_reason,
+                "swing_score_reason": swing_score_reason,
+                "swing_penalty_reason": swing_penalty_reason,
+                "danta_top_candidate_reason": _kr_top_candidate_reason_text(
+                    "단타", danta_score, _display_verdict_name(danta_verdict)
+                ),
+                "swing_top_candidate_reason": _kr_top_candidate_reason_text(
+                    "스윙", swing_score, _display_verdict_name(swing_verdict)
+                ),
+                "needs_confirmation": (danta_verdict == "확인 필요") or bool(row_validation_errors),
+                "validation_errors": row_validation_errors,
+            }
+        )
+
+    return {
+        "rows": rows,
+        "stage0_reflected": stage0_reflected,
+        "stage1_reflected": stage1_reflected,
+    }
+
+
 def _us_swing_upside_score(change_pct):
     """상승률 점수(0~20). 전일 대비 등락률 기준."""
     if change_pct is None:
@@ -2950,6 +3030,51 @@ with tab_kr:
                 height=160,
                 key="snap_briefing_text_display",
             )
+
+        st.markdown("---")
+        st.markdown("#### 2단계 판단 미리보기 (저장 전, 자동 계산)")
+        st.caption(
+            "아직 저장하지 않은 상태의 참고용 미리보기입니다. 매수 신호가 아니며, 실제로 기록을 "
+            "남기려면 아래 '③ 국내장 기록 바로 저장' 버튼을 따로 눌러야 합니다. 이 미리보기 자체는 "
+            "DB에 아무 것도 저장하지 않습니다."
+        )
+        _stage2_preview = build_kr_stage2_preview()
+        st.caption(
+            f"0단계 시장 분위기 반영: {'예' if _stage2_preview['stage0_reflected'] else '아니오 (수동 또는 미실행)'} / "
+            f"1단계 오늘 주가 자동 채우기 반영: {'예' if _stage2_preview['stage1_reflected'] else '아니오 (수동 입력 값 기준)'}"
+        )
+        if not _stage2_preview["rows"]:
+            st.info("아직 입력된 종목이 없어 2단계 판단 미리보기를 만들 수 없습니다.")
+        else:
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "종목명": r["name"],
+                            "단기 관심 점수": int(round(r["danta_score"])),
+                            "며칠 관심 점수": int(round(r["swing_score"])),
+                            "단타 판단": _display_verdict_name(r["danta_verdict"]),
+                            "스윙 판단": _display_verdict_name(r["swing_verdict"]),
+                            "확인 필요": "예" if r["needs_confirmation"] else "-",
+                        }
+                        for r in _stage2_preview["rows"]
+                    ]
+                ),
+                width="stretch",
+                hide_index=True,
+            )
+            st.markdown("종목별 1순위 근거 / 감점 이유 (미리보기)")
+            for r in _stage2_preview["rows"]:
+                with st.expander(
+                    f"{r['name']} — 단타 {_display_verdict_name(r['danta_verdict'])} / "
+                    f"스윙 {_display_verdict_name(r['swing_verdict'])}"
+                ):
+                    st.write(f"단타 1순위 근거: {r['danta_top_candidate_reason']}")
+                    st.write(f"단타 감점 이유: {r['danta_penalty_reason']}")
+                    st.write(f"스윙 1순위 근거: {r['swing_top_candidate_reason']}")
+                    st.write(f"스윙 감점 이유: {r['swing_penalty_reason']}")
+                    if r["validation_errors"]:
+                        st.warning("확인 필요: " + "; ".join(r["validation_errors"]))
 
         # 3-2. 국내장 기록 바로 저장 (새 기록 입력 화면을 거치지 않고 이 화면에서 바로 저장)
         # 한국 종목(SNAPSHOT_STOCKS)만 대상으로 한다 — 미국 종목은 여기 나오지 않는다.
