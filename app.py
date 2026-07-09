@@ -3192,22 +3192,50 @@ with tab_kr:
           if all_kr_validation_errors:
             st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_kr_validation_errors))
           else:
+            # 미리보기(build_kr_stage2_preview())와 같은 판단 계산값을 재사용한다 — 미리보기와
+            # 저장 결과가 서로 다른 값으로 보이는 사고를 막기 위함. 저장 흐름(items_to_save 구성,
+            # db.save_report() 호출)은 그대로 두고, 판단 계산 부분만 대체한다.
+            _stage2_preview_for_save = build_kr_stage2_preview()
+            _stage2_rows_by_ticker = {r["ticker"]: r for r in _stage2_preview_for_save["rows"]}
+
             kr_preview_rows = []
             for calc in snapshot_calc_data:
-                danta_verdict = _kr_danta_verdict(calc["danta_score"])
-                swing_verdict = _kr_swing_verdict(calc["swing_score"])
-                danta_score_reason, danta_penalty_reason = _kr_preview_reasons(
-                    calc["change_pct"], calc["open_pos_pct"], calc["high_drop_pct"], calc["turnover_ratio_pct"], "단타"
-                )
-                swing_score_reason, swing_penalty_reason = _kr_preview_reasons(
-                    calc["change_pct"], calc["open_pos_pct"], calc["high_drop_pct"], calc["turnover_ratio_pct"], "스윙"
-                )
+                _s2row = _stage2_rows_by_ticker.get(calc["ticker"])
+                if _s2row is not None:
+                    danta_score = _s2row["danta_score"]
+                    swing_score = _s2row["swing_score"]
+                    danta_verdict = _s2row["danta_verdict"]
+                    swing_verdict = _s2row["swing_verdict"]
+                    danta_score_reason = _s2row["danta_score_reason"]
+                    danta_penalty_reason = _s2row["danta_penalty_reason"]
+                    swing_score_reason = _s2row["swing_score_reason"]
+                    swing_penalty_reason = _s2row["swing_penalty_reason"]
+                    danta_top_candidate_reason = _s2row["danta_top_candidate_reason"]
+                    swing_top_candidate_reason = _s2row["swing_top_candidate_reason"]
+                else:
+                    # 방어적 대비책: 미리보기에 해당 종목이 없는 예외적인 경우 기존 방식대로 직접 계산한다.
+                    danta_score = calc["danta_score"]
+                    swing_score = calc["swing_score"]
+                    danta_verdict = _kr_danta_verdict(danta_score)
+                    swing_verdict = _kr_swing_verdict(swing_score)
+                    danta_score_reason, danta_penalty_reason = _kr_preview_reasons(
+                        calc["change_pct"], calc["open_pos_pct"], calc["high_drop_pct"], calc["turnover_ratio_pct"], "단타"
+                    )
+                    swing_score_reason, swing_penalty_reason = _kr_preview_reasons(
+                        calc["change_pct"], calc["open_pos_pct"], calc["high_drop_pct"], calc["turnover_ratio_pct"], "스윙"
+                    )
+                    danta_top_candidate_reason = _kr_top_candidate_reason_text(
+                        "단타", danta_score, _display_verdict_name(danta_verdict)
+                    )
+                    swing_top_candidate_reason = _kr_top_candidate_reason_text(
+                        "스윙", swing_score, _display_verdict_name(swing_verdict)
+                    )
                 kr_preview_rows.append(
                     {
                         "name": calc["name"],
                         "ticker": calc["ticker"],
-                        "danta_score": calc["danta_score"],
-                        "swing_score": calc["swing_score"],
+                        "danta_score": danta_score,
+                        "swing_score": swing_score,
                         "danta_verdict": danta_verdict,
                         "swing_verdict": swing_verdict,
                         "change_pct": calc["change_pct"],
@@ -3219,12 +3247,8 @@ with tab_kr:
                         "danta_penalty_reason": danta_penalty_reason,
                         "swing_score_reason": swing_score_reason,
                         "swing_penalty_reason": swing_penalty_reason,
-                        "danta_top_candidate_reason": _kr_top_candidate_reason_text(
-                            "단타", calc["danta_score"], _display_verdict_name(danta_verdict)
-                        ),
-                        "swing_top_candidate_reason": _kr_top_candidate_reason_text(
-                            "스윙", calc["swing_score"], _display_verdict_name(swing_verdict)
-                        ),
+                        "danta_top_candidate_reason": danta_top_candidate_reason,
+                        "swing_top_candidate_reason": swing_top_candidate_reason,
                         "danta_buy_confirm_condition": _auto_buy_confirm_condition("단타", "KR"),
                         "swing_buy_confirm_condition": _auto_buy_confirm_condition("스윙", "KR"),
                         "risk_fields": calc["risk_fields"],
