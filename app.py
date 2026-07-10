@@ -2730,8 +2730,451 @@ def run_kr_snapshot_auto_fill():
     return {"status": status, "results": fetch_results, "message": message, "ok_count": _ok_count, "total": _total}
 
 
+def _render_kr_fable_mockup1_preview():
+    """기존 한국장 입력·저장 흐름 위에 실제 세션 데이터로 그리는 읽기 전용 안전 미리보기."""
+    st.markdown(
+        """
+        <style>
+        .jarvis-m1-shell {
+            border: 1px solid #25334a;
+            border-radius: 18px;
+            padding: 1.1rem;
+            margin: 0.35rem 0 1rem;
+            background: linear-gradient(145deg, #111827 0%, #172033 100%);
+        }
+        .jarvis-m1-kicker {
+            color: #7dd3fc;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .jarvis-m1-title {
+            color: #f8fafc;
+            font-size: 1.35rem;
+            font-weight: 850;
+            margin-top: 0.2rem;
+        }
+        .jarvis-m1-subtitle {
+            color: #a9b8cf;
+            font-size: 0.88rem;
+            margin-top: 0.25rem;
+        }
+        .jarvis-m1-strip {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+            gap: 0.55rem;
+            margin: 0.9rem 0 1.15rem;
+        }
+        .jarvis-m1-strip-item {
+            min-width: 0;
+            border: 1px solid #31415d;
+            border-radius: 12px;
+            padding: 0.7rem 0.75rem;
+            background: #0d1524;
+        }
+        .jarvis-m1-strip-label {
+            display: block;
+            color: #8ea1bc;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .jarvis-m1-strip-value {
+            display: block;
+            color: #f8fafc;
+            font-size: 0.95rem;
+            font-weight: 800;
+            margin-top: 0.18rem;
+            overflow-wrap: anywhere;
+        }
+        .jarvis-m1-stepper {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+            gap: 0.65rem;
+            margin-bottom: 0.3rem;
+        }
+        .jarvis-m1-step {
+            border: 1px solid #31415d;
+            border-radius: 13px;
+            padding: 0.8rem;
+            background: #121b2c;
+            color: #9fb0c8;
+        }
+        .jarvis-m1-step-active {
+            border-color: #38bdf8;
+            background: #102c46;
+            box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.22);
+            color: #f8fafc;
+        }
+        .jarvis-m1-step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.25rem 0.55rem;
+            border-radius: 999px;
+            margin-right: 0.35rem;
+            background: #25334a;
+            color: #bae6fd;
+            font-size: 0.78rem;
+            font-weight: 850;
+        }
+        .jarvis-m1-step-title {
+            font-weight: 800;
+        }
+        .jarvis-m1-step-copy {
+            display: block;
+            margin: 0.45rem 0 0 2.05rem;
+            color: #91a3bd;
+            font-size: 0.78rem;
+        }
+        .jarvis-m1-stock-list {
+            display: grid;
+            gap: 0.5rem;
+            margin-top: 0.7rem;
+        }
+        .jarvis-m1-stock {
+            border: 1px solid #31415d;
+            border-left-width: 5px;
+            border-radius: 11px;
+            padding: 0.72rem;
+            background: #111827;
+        }
+        .jarvis-m1-stock-selected {
+            box-shadow: 0 0 0 1px #7dd3fc;
+            background: #16243a;
+        }
+        .jarvis-m1-stock-green { border-left-color: #22c55e; }
+        .jarvis-m1-stock-yellow { border-left-color: #eab308; }
+        .jarvis-m1-stock-orange { border-left-color: #f97316; }
+        .jarvis-m1-stock-gray { border-left-color: #94a3b8; }
+        .jarvis-m1-stock-red { border-left-color: #ef4444; }
+        .jarvis-m1-stock-name {
+            color: #f8fafc;
+            font-weight: 850;
+        }
+        .jarvis-m1-stock-meta {
+            color: #99abc4;
+            font-size: 0.78rem;
+            margin-top: 0.2rem;
+        }
+        .jarvis-m1-chip-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+            gap: 0.5rem;
+        }
+        .jarvis-m1-chip {
+            border: 1px solid #334155;
+            border-radius: 999px;
+            padding: 0.55rem 0.7rem;
+            background: #111827;
+            color: #e2e8f0;
+            font-size: 0.78rem;
+            text-align: center;
+        }
+        .jarvis-m1-chip-note {
+            display: block;
+            color: #8192aa;
+            font-size: 0.64rem;
+            margin-top: 0.12rem;
+        }
+        .jarvis-m1-panel {
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 1rem;
+            background: #111827;
+            color: #e2e8f0;
+            min-height: 7rem;
+        }
+        .jarvis-m1-muted {
+            color: #91a3bd;
+            font-size: 0.86rem;
+        }
+        @media (max-width: 720px) {
+            .jarvis-m1-strip,
+            .jarvis-m1-stepper,
+            .jarvis-m1-chip-row {
+                grid-template-columns: 1fr;
+            }
+        }
+        </style>
+        <div class="jarvis-m1-shell">
+            <div class="jarvis-m1-kicker">Fable Mockup 01 · Safe Preview</div>
+            <div class="jarvis-m1-title">오늘 기록에서 복기까지, 한 화면 흐름 미리보기</div>
+            <div class="jarvis-m1-subtitle">실제 세션 데이터를 읽어 표시하며 자동조회·판단·저장은 실행하지 않습니다.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    mood_rows = st.session_state.get("kr_mood_auto_results") or []
+    mood_by_name = {
+        row.get("항목"): row
+        for row in mood_rows
+        if isinstance(row, dict) and row.get("항목")
+    }
+    kospi_row = mood_by_name.get("KOSPI") or mood_by_name.get("코스피") or {}
+    kosdaq_row = mood_by_name.get("KOSDAQ") or mood_by_name.get("코스닥") or {}
+    usdkrw_row = mood_by_name.get("달러/원") or {}
+    nasdaq_row = mood_by_name.get("나스닥100 선물") or {}
+    soxx_row = mood_by_name.get("SOXX") or {}
+    smh_row = mood_by_name.get("SMH") or {}
+
+    try:
+        today_prefix = datetime.now().strftime("%Y-%m-%d")
+        today_saved = sum(
+            1
+            for report in db.list_reports()
+            if str(report.get("saved_at") or "").startswith(today_prefix)
+        )
+    except Exception:
+        today_saved = "-"
+
+    if "risk_today_loss_r" in st.session_state and st.session_state["risk_today_loss_r"] is not None:
+        today_loss_r = f"{st.session_state['risk_today_loss_r']}R"
+    else:
+        today_loss_r = "-"
+
+    strip_items = [
+        ("KOSPI", kospi_row.get("등락률(%)", "-")),
+        ("KOSDAQ", kosdaq_row.get("등락률(%)", "-")),
+        ("달러/원", usdkrw_row.get("등락률(%)", "-")),
+        ("나스닥100 선물", nasdaq_row.get("등락률(%)", "-")),
+        (
+            "SOXX / SMH",
+            f"SOXX {soxx_row.get('등락률(%)', '-')} · SMH {smh_row.get('등락률(%)', '-')}",
+        ),
+        ("오늘 저장", today_saved),
+        ("금일 손실 R", today_loss_r),
+    ]
+    strip_html = "".join(
+        '<div class="jarvis-m1-strip-item">'
+        f'<span class="jarvis-m1-strip-label">{label}</span>'
+        f'<span class="jarvis-m1-strip-value">{value}</span>'
+        "</div>"
+        for label, value in strip_items
+    )
+    st.markdown(f'<div class="jarvis-m1-strip">{strip_html}</div>', unsafe_allow_html=True)
+
+    stage2_preview = build_kr_stage2_preview()
+    rows = stage2_preview["rows"]
+    active_step = 2 if rows else 1
+    steps = [
+        (1, "오늘 기록", "시장·주가 자동 채우기"),
+        (2, "종목 판단", "점수 확인·리스크 입력"),
+        (3, "저장 확인", "보고서·실매매 입력"),
+        (4, "복기 / 통계", "태그별·셋업별 성과"),
+    ]
+    step_html = "".join(
+        f'<div class="jarvis-m1-step {"jarvis-m1-step-active" if number == active_step else ""}">'
+        f'<span class="jarvis-m1-step-number">{number}</span>'
+        f'<span class="jarvis-m1-step-title">{title}</span>'
+        f'<span class="jarvis-m1-step-copy">{copy}</span>'
+        "</div>"
+        for number, title, copy in steps
+    )
+    st.markdown(f'<div class="jarvis-m1-stepper">{step_html}</div>', unsafe_allow_html=True)
+
+    st.markdown("### 종목 판단 미리보기")
+    if not rows:
+        st.info("0→1→2 미리보기를 실행하면 종목 판단 화면이 표시됩니다.")
+    else:
+        left_col, right_col = st.columns([0.34, 0.66], gap="large")
+        with left_col:
+            trade_mode = st.selectbox(
+                "매매유형 선택",
+                ["단타", "스윙"],
+                key="mockup1_trade_mode",
+            )
+            score_key = "danta_score" if trade_mode == "단타" else "swing_score"
+            verdict_key = "danta_verdict" if trade_mode == "단타" else "swing_verdict"
+            sorted_rows = sorted(rows, key=lambda row: row[score_key], reverse=True)
+            rows_by_ticker = {row["ticker"]: row for row in sorted_rows}
+            selected_ticker = st.selectbox(
+                "종목 선택",
+                list(rows_by_ticker),
+                format_func=lambda ticker: rows_by_ticker[ticker]["name"],
+                key="mockup1_selected_ticker",
+            )
+
+            sector_by_ticker = {stock["ticker"]: stock["sector"] for stock in SNAPSHOT_STOCKS}
+            verdict_colors = {
+                "추천 후보": "green",
+                "감시": "yellow",
+                "확인 필요": "orange",
+                "보류(선반영)": "gray",
+                "제외": "red",
+            }
+            stock_html = []
+            for row in sorted_rows:
+                verdict = row[verdict_key]
+                color = verdict_colors.get(verdict, "gray")
+                selected_class = "jarvis-m1-stock-selected" if row["ticker"] == selected_ticker else ""
+                confirmation = "예" if row["needs_confirmation"] else "-"
+                stock_html.append(
+                    f'<div class="jarvis-m1-stock jarvis-m1-stock-{color} {selected_class}">'
+                    f'<div class="jarvis-m1-stock-name">{row["name"]}</div>'
+                    f'<div class="jarvis-m1-stock-meta">{sector_by_ticker.get(row["ticker"], "-")} · '
+                    f'{_display_verdict_name(verdict)} · {row[score_key]}점</div>'
+                    f'<div class="jarvis-m1-stock-meta">확인 필요: {confirmation}</div>'
+                    "</div>"
+                )
+            st.markdown(
+                f'<div class="jarvis-m1-stock-list">{"".join(stock_html)}</div>',
+                unsafe_allow_html=True,
+            )
+
+        selected_row = rows_by_ticker[selected_ticker]
+        selected_verdict = selected_row[verdict_key]
+        current_value = _get_snapshot_value(selected_ticker, "current")
+        with right_col:
+            st.markdown(f"## {selected_row['name']}")
+            st.caption(
+                f"{trade_mode} · {_display_verdict_name(selected_verdict)} · "
+                f"{selected_row[score_key]}점"
+            )
+            metric_current, metric_open, metric_high, metric_turnover = st.columns(4)
+            metric_current.metric(
+                "현재가",
+                "-" if current_value is None else f"{current_value:,.0f}",
+                delta=(
+                    None
+                    if selected_row["change_pct"] is None
+                    else _fmt_signed_pct(selected_row["change_pct"])
+                ),
+            )
+            metric_open.metric(
+                "시가 대비",
+                "-"
+                if selected_row["open_pos_pct"] is None
+                else _fmt_signed_pct(selected_row["open_pos_pct"]),
+            )
+            metric_high.metric(
+                "고점 대비",
+                "-"
+                if selected_row["high_drop_pct"] is None
+                else _fmt_signed_pct(selected_row["high_drop_pct"]),
+            )
+            metric_turnover.metric(
+                "시총 대비 거래대금",
+                "-"
+                if selected_row["turnover_ratio_pct"] is None
+                else f"{selected_row['turnover_ratio_pct']:.2f}%",
+            )
+
+            if trade_mode == "단타":
+                selected_score = selected_row["danta_score"]
+                selected_score_reason = selected_row["danta_score_reason"]
+                selected_top_reason = selected_row["danta_top_candidate_reason"]
+                selected_penalty_reason = selected_row["danta_penalty_reason"]
+            else:
+                selected_score = selected_row["swing_score"]
+                selected_score_reason = selected_row["swing_score_reason"]
+                selected_top_reason = selected_row["swing_top_candidate_reason"]
+                selected_penalty_reason = selected_row["swing_penalty_reason"]
+
+            st.markdown("#### 핵심 근거")
+            st.write(f"점수: {selected_score}")
+            st.write(f"점수 근거: {selected_score_reason}")
+            st.write(f"1순위 후보 근거: {selected_top_reason}")
+            st.write(f"감점 이유: {selected_penalty_reason}")
+            st.write("매수 확정 여부: 미확정")
+
+            with st.expander("전체 근거", expanded=False):
+                st.write(f"단타 점수: {selected_row['danta_score']}")
+                st.write(f"단타 판정: {_display_verdict_name(selected_row['danta_verdict'])}")
+                st.write(f"단타 점수 근거: {selected_row['danta_score_reason']}")
+                st.write(f"단타 1순위 후보 근거: {selected_row['danta_top_candidate_reason']}")
+                st.write(f"단타 감점 이유: {selected_row['danta_penalty_reason']}")
+                st.write(f"스윙 점수: {selected_row['swing_score']}")
+                st.write(f"스윙 판정: {_display_verdict_name(selected_row['swing_verdict'])}")
+                st.write(f"스윙 점수 근거: {selected_row['swing_score_reason']}")
+                st.write(f"스윙 1순위 후보 근거: {selected_row['swing_top_candidate_reason']}")
+                st.write(f"스윙 감점 이유: {selected_row['swing_penalty_reason']}")
+                st.write(f"시가 대비: {_fmt_signed_pct(selected_row['open_pos_pct'])}")
+                st.write(f"고점 대비: {_fmt_signed_pct(selected_row['high_drop_pct'])}")
+                st.write(
+                    "시총 대비 거래대금: "
+                    + (
+                        "-"
+                        if selected_row["turnover_ratio_pct"] is None
+                        else f"{selected_row['turnover_ratio_pct']:.2f}%"
+                    )
+                )
+                st.write("validation_errors:", selected_row["validation_errors"] or "-")
+                st.write(f"단타 매수 확정 조건: {selected_row['danta_buy_confirm_condition']}")
+                st.write(f"스윙 매수 확정 조건: {selected_row['swing_buy_confirm_condition']}")
+
+            st.markdown("#### 리스크 관리 · 읽기 전용")
+            entry_price = st.session_state.get(f"snap_{selected_ticker}_entry_price") or None
+            stop_loss_price = st.session_state.get(f"snap_{selected_ticker}_stop_loss_price") or None
+            account_size = st.session_state.get("risk_account_size") or None
+            risk_percent = st.session_state.get("risk_percent_setting")
+            risk = _compute_risk_engine(
+                account_size if risk_percent is not None else None,
+                risk_percent,
+                entry_price,
+                stop_loss_price,
+            )
+            risk_entry, risk_stop, risk_qty = st.columns(3)
+            risk_entry.metric("진입가", "-" if entry_price is None else f"{entry_price:,.0f}")
+            risk_stop.metric("손절가", "-" if stop_loss_price is None else f"{stop_loss_price:,.0f}")
+            if stop_loss_price is None:
+                qty_display = "손절가 입력 후 계산"
+            elif risk["recommended_qty"] is None:
+                qty_display = "-"
+            else:
+                qty_display = f"{risk['recommended_qty']:,}주"
+            risk_qty.metric("권장 수량", qty_display)
+            account_display = "-" if account_size is None else f"{account_size:,.0f}"
+            risk_percent_display = "-" if risk_percent is None else f"{risk_percent}%"
+            st.caption(f"계좌금액 {account_display} · 1회 리스크 {risk_percent_display}")
+            if risk["error"]:
+                st.warning(risk["error"])
+            if risk["warning"]:
+                st.warning(risk["warning"])
+            st.caption("상세 입력은 아래 기존 종목별 상세 입력에서 사용")
+
+    theme_col, event_col = st.columns(2, gap="large")
+    with theme_col:
+        st.markdown("#### 테마 참고판")
+        theme_names = [
+            "반도체/HBM",
+            "전력기기/전력망",
+            "원전",
+            "방산",
+            "조선/해운",
+            "자동차/부품",
+            "2차전지",
+            "바이오",
+            "AI/로봇",
+            "정유/화학",
+        ]
+        theme_html = "".join(
+            '<div class="jarvis-m1-chip">'
+            f"{theme}<span class=\"jarvis-m1-chip-note\">기존 테마 참고판에서 입력</span>"
+            "</div>"
+            for theme in theme_names
+        )
+        st.markdown(f'<div class="jarvis-m1-chip-row">{theme_html}</div>', unsafe_allow_html=True)
+
+    with event_col:
+        st.markdown("#### 이벤트 캘린더")
+        st.markdown(
+            '<div class="jarvis-m1-panel">'
+            '<div class="jarvis-m1-muted">등록된 검증 일정이 없습니다.</div>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.caption("실제 자동조회·입력·저장은 아래 기존 화면을 사용합니다.")
+
+
 with tab_kr:
     st.subheader("한국장")
+    _render_kr_fable_mockup1_preview()
+    st.markdown("---")
+    st.markdown("### 기존 입력·자동조회·저장 화면")
+    st.caption("아래 기존 기능은 변경하지 않았습니다. 목업 승인 전까지 실제 입력과 저장은 기존 화면을 사용합니다.")
     # 1. 시장 분위기 (기본값은 전부 "미입력" — 위험해 보이는 강함/상승/순매수 기본값 금지)
     # 이 값은 미국장 탭의 시장 분위기 점수/상한 계산에서도 그대로 사용됩니다.
     st.caption("시장 분위기는 자비스가 먼저 자동 확인합니다. 안 나오거나 부족한 항목만 직접 입력하세요.")
