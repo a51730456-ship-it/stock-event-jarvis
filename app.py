@@ -3861,7 +3861,7 @@ with tab_kr:
         st.markdown("#### 2단계 판단 미리보기 (저장 전, 자동 계산)")
         st.caption(
             "아직 저장하지 않은 상태의 참고용 미리보기입니다. 매수 신호가 아니며, 실제로 기록을 "
-            "남기려면 아래 '③ 국내장 기록 바로 저장' 버튼을 따로 눌러야 합니다. 이 미리보기 자체는 "
+            "남기려면 아래 '▼ 저장 전 확인으로 이동' 버튼을 따로 눌러야 합니다. 이 미리보기 자체는 "
             "DB에 아무 것도 저장하지 않습니다."
         )
         _stage2_preview = build_kr_stage2_preview()
@@ -3907,10 +3907,14 @@ with tab_kr:
         st.markdown("---")
         st.markdown("### 국내장 기록 바로 저장")
         st.caption(
+            "현재 저장 기능을 유지한 확인 구역입니다. 첫 버튼은 즉시 저장하지 않고 저장 전 확인만 엽니다. "
+            "실제 DB 저장은 확인 내용 아래의 최종 저장 버튼에서만 실행됩니다."
+        )
+        st.caption(
             "위 표의 한국 종목 7개만 대상으로 시장 KR / 단타·스윙을 함께 저장합니다. "
             "버튼을 누르면 바로 저장하지 않고 먼저 저장 전 확인 미리보기를 보여줍니다."
         )
-        if st.button("③ 국내장 기록 바로 저장", key="kr_quick_save", disabled=not snapshot_calc_data):
+        if st.button("▼ 저장 전 확인으로 이동", key="kr_quick_save", disabled=not snapshot_calc_data):
           all_kr_validation_errors = [e for calc in snapshot_calc_data for e in calc["validation_errors"]]
           if all_kr_validation_errors:
             st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_kr_validation_errors))
@@ -4017,7 +4021,8 @@ with tab_kr:
         if st.session_state.get("kr_quick_preview_rows"):
             kr_preview_rows = st.session_state["kr_quick_preview_rows"]
             preview_timing_class = db.classify_timing_class(datetime.now())
-            st.markdown("#### 저장 전 확인 미리보기")
+            st.markdown("#### 저장 전 확인 → 최종 저장")
+            st.caption("이 구역의 최종 버튼 1개에서만 실제 DB 저장이 실행됩니다.")
             st.write("시장: KR")
             st.write(f"장 구분: {preview_timing_class}")
             st.write("판단 시점: 오늘 주가 확인 기반 국내장 판단")
@@ -4126,7 +4131,7 @@ with tab_kr:
                     st.write(f"매수 확정 조건: {row['swing_buy_confirm_condition']}")
 
             kcol1, kcol2 = st.columns(2)
-            if kcol1.button("이 내용으로 저장", type="primary", key="kr_quick_confirm_save"):
+            if kcol1.button("이 내용으로 최종 저장", type="primary", key="kr_quick_confirm_save"):
                 items_to_save = []
                 judged_at = datetime.now().isoformat(timespec="seconds")
                 for row in kr_preview_rows:
@@ -4233,6 +4238,10 @@ with tab_kr:
             _render_snapshot_calc_summary(s["ticker"])
             st.markdown("---")
             st.caption("리스크 입력은 화면 상단의 선택 종목 상세에서 진행합니다.")
+            st.caption(
+                "상세 카드는 입력·수정 전용이며 카드 내부에는 저장 실행 버튼이 없습니다. "
+                "최종 저장은 위쪽 ‘▼ 저장 전 확인으로 이동’ 구역에서 진행합니다."
+            )
 
 with tab_us:
     st.subheader("미국장")
