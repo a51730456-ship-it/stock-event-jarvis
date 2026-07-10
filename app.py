@@ -6566,6 +6566,8 @@ with tab_perf:
                                 st.success("테마 태그가 저장되었습니다.")
                                 st.rerun()
 
+                    if saved_item.get("id"):
+                        with st.expander("실제 행동·매수 입력", expanded=False):
                             # 실제 행동 입력/수정 (기존 report_item을 id 기준으로 사후 UPDATE만
                             # 수행, 새 report/report_item 생성 안 함, save_report()/INSERT
                             # 로직과 무관). buy_confirmed(저장 당시 판단용 legacy 필드)와는
