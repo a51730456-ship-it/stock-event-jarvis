@@ -1514,25 +1514,32 @@ def _render_trade_mode_section(tm, grouped, rank_labels=None):
             if item.get("event_title"):
                 card_title += f" - {item['event_title']}"
             card_title += f" ({auto_info['score']:.0f}점){auto_tag}"
-            with st.expander(card_title):
-                st.markdown(
-                    f"**[{trade_mode} {rank_label}] {label} / {score_text} / "
-                    f"{auto_info['buy_confirmed']}**"
-                )
-                st.write(f"매매유형: {trade_mode}")
-                st.write(f"판단: {_display_verdict_name(item.get('verdict'))}")
-                st.write(f"종목코드: {item.get('ticker') or '-'}")
-                st.write(f"시장: {item.get('market') or '-'}")
-                st.write(f"신호 종류: {_display_signal_type(item.get('signal_type') or '-')}")
-                st.write(f"주식시장 판단: {item.get('stock_market_judgment') or '-'}")
-                st.write(f"베팅시장 판단: {item.get('betting_market_judgment') or '-'}")
+            top_reason = item.get("top_candidate_reason") or auto_info["score_reason"]
+            with st.container(border=True):
+                st.markdown(f"**{card_title}**")
                 st.write(f"점수: {score_text}")
                 st.write(f"점수 근거: {auto_info['score_reason']}")
-                top_reason = item.get("top_candidate_reason") or auto_info["score_reason"]
                 st.write(f"1순위 후보 근거: {top_reason}")
                 st.write(f"감점 이유: {auto_info['penalty_reason']}")
                 st.write(f"매수 확정 여부: {auto_info['buy_confirmed']}")
-                st.write(f"매수 확정 조건: {auto_info['buy_confirm_condition']}")
+                with st.expander("전체 근거", expanded=False):
+                    st.markdown(
+                        f"**[{trade_mode} {rank_label}] {label} / {score_text} / "
+                        f"{auto_info['buy_confirmed']}**"
+                    )
+                    st.write(f"매매유형: {trade_mode}")
+                    st.write(f"판단: {_display_verdict_name(item.get('verdict'))}")
+                    st.write(f"종목코드: {item.get('ticker') or '-'}")
+                    st.write(f"시장: {item.get('market') or '-'}")
+                    st.write(f"신호 종류: {_display_signal_type(item.get('signal_type') or '-')}")
+                    st.write(f"주식시장 판단: {item.get('stock_market_judgment') or '-'}")
+                    st.write(f"베팅시장 판단: {item.get('betting_market_judgment') or '-'}")
+                    st.write(f"점수: {score_text}")
+                    st.write(f"점수 근거: {auto_info['score_reason']}")
+                    st.write(f"1순위 후보 근거: {top_reason}")
+                    st.write(f"감점 이유: {auto_info['penalty_reason']}")
+                    st.write(f"매수 확정 여부: {auto_info['buy_confirmed']}")
+                    st.write(f"매수 확정 조건: {auto_info['buy_confirm_condition']}")
 
 
 def render_report_detail(report, show_raw_briefing=False):
