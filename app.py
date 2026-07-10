@@ -3766,6 +3766,33 @@ with tab_kr:
         r.pop("_high_drop_raw", None)
         r.pop("_low_recover_raw", None)
 
+    # 4. 종목별 상세 입력 카드 (기본 접힘)
+    st.markdown("---")
+    st.markdown("### 종목별 상세 입력")
+    st.caption("카드를 펼치면 직접 숫자를 입력/수정할 수 있습니다. 0은 '입력 안 함'으로 취급합니다.")
+
+    for s in SNAPSHOT_STOCKS:
+        prefix = f"snap_{s['ticker']}_"
+        with st.expander(f"{s['name']} / {s['sector']}", expanded=False):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.number_input("현재가", value=0.0, step=100.0, key=prefix + "current")
+            c2.number_input("전일종가", value=0.0, step=100.0, key=prefix + "prev_close")
+            c3.number_input("시가", value=0.0, step=100.0, key=prefix + "open")
+            c4.number_input("장중고가", value=0.0, step=100.0, key=prefix + "high")
+
+            c5, c6, c7, c8 = st.columns(4)
+            c5.number_input("장중저가", value=0.0, step=100.0, key=prefix + "low")
+            c6.number_input("거래대금", value=0.0, step=1000000.0, key=prefix + "turnover")
+            c7.number_input("시가총액", value=0.0, step=1000000.0, key=prefix + "market_cap")
+            c8.number_input("거래량", value=0.0, step=1000.0, key=prefix + "volume")
+            _render_snapshot_calc_summary(s["ticker"])
+            st.markdown("---")
+            st.caption("리스크 입력은 화면 상단의 선택 종목 상세에서 진행합니다.")
+            st.caption(
+                "상세 카드는 입력·수정 전용이며 카드 내부에는 저장 실행 버튼이 없습니다. "
+                "최종 저장은 위쪽 ‘▼ 저장 전 확인으로 이동’ 구역에서 진행합니다."
+            )
+
     if not result_rows:
         st.info("아직 입력된 종목이 없습니다. 아래 '종목별 상세 입력' 카드나 '주가 직접 붙여넣기'로 값을 넣어주세요.")
     else:
@@ -4215,33 +4242,6 @@ with tab_kr:
                 st.session_state.pop("kr_quick_preview_rows", None)
                 st.session_state.pop("kr_quick_day_conclusion", None)
                 st.session_state.pop("kr_quick_basis_text", None)
-
-    # 4. 종목별 상세 입력 카드 (기본 접힘)
-    st.markdown("---")
-    st.markdown("### 종목별 상세 입력")
-    st.caption("카드를 펼치면 직접 숫자를 입력/수정할 수 있습니다. 0은 '입력 안 함'으로 취급합니다.")
-
-    for s in SNAPSHOT_STOCKS:
-        prefix = f"snap_{s['ticker']}_"
-        with st.expander(f"{s['name']} / {s['sector']}", expanded=False):
-            c1, c2, c3, c4 = st.columns(4)
-            c1.number_input("현재가", value=0.0, step=100.0, key=prefix + "current")
-            c2.number_input("전일종가", value=0.0, step=100.0, key=prefix + "prev_close")
-            c3.number_input("시가", value=0.0, step=100.0, key=prefix + "open")
-            c4.number_input("장중고가", value=0.0, step=100.0, key=prefix + "high")
-
-            c5, c6, c7, c8 = st.columns(4)
-            c5.number_input("장중저가", value=0.0, step=100.0, key=prefix + "low")
-            c6.number_input("거래대금", value=0.0, step=1000000.0, key=prefix + "turnover")
-            c7.number_input("시가총액", value=0.0, step=1000000.0, key=prefix + "market_cap")
-            c8.number_input("거래량", value=0.0, step=1000.0, key=prefix + "volume")
-            _render_snapshot_calc_summary(s["ticker"])
-            st.markdown("---")
-            st.caption("리스크 입력은 화면 상단의 선택 종목 상세에서 진행합니다.")
-            st.caption(
-                "상세 카드는 입력·수정 전용이며 카드 내부에는 저장 실행 버튼이 없습니다. "
-                "최종 저장은 위쪽 ‘▼ 저장 전 확인으로 이동’ 구역에서 진행합니다."
-            )
 
 with tab_us:
     st.subheader("미국장")
