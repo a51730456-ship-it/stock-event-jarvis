@@ -2465,8 +2465,38 @@ def _check_no_news_chase_warning(news_status, daily_change_pct, five_day_change_
 
 
 def _validate_snapshot_price_inputs(name, current, open_price, high, low, volume, turnover):
-    """가격/거래량/거래대금 입력값 검증(작업5). 위반 사유 문자열 목록을 반환(빈 목록=정상)."""
+    """가격/거래량/거래대금 입력값 검증(작업5). 위반 사유 문자열 목록을 반환(빈 목록=정상).
+
+    NaN/Infinity/-Infinity는 먼저 명시적 오류로 걸러낸다. 이렇게 걸러진 값은 이후
+    음수·가격 관계 비교에서 None과 동일하게(검증 대상에서 제외) 취급해 같은 값이
+    "비정상 숫자"와 "음수"/"관계 오류"로 중복 표시되지 않게 한다. 기존 0/None/미입력
+    처리 방식과 기존 가격 관계·음수 거래량 검증 로직 자체는 그대로 유지한다."""
     errors = []
+    fields = (
+        ("현재가", current), ("시가", open_price), ("고가", high), ("저가", low),
+        ("거래량", volume), ("거래대금", turnover),
+    )
+    cleaned = {}
+    for label, value in fields:
+        if value is None:
+            cleaned[label] = None
+            continue
+        try:
+            is_finite = math.isfinite(value)
+        except TypeError:
+            is_finite = False
+        if not is_finite:
+            errors.append(f"{name}: {label}가 비정상 숫자입니다(NaN/Infinity)")
+            cleaned[label] = None
+        else:
+            cleaned[label] = value
+    current = cleaned["현재가"]
+    open_price = cleaned["시가"]
+    high = cleaned["고가"]
+    low = cleaned["저가"]
+    volume = cleaned["거래량"]
+    turnover = cleaned["거래대금"]
+
     for label, value in (
         ("현재가", current), ("시가", open_price), ("고가", high), ("저가", low),
         ("거래량", volume), ("거래대금", turnover),
@@ -4046,6 +4076,9 @@ with tab_kr:
             "버튼을 누르면 바로 저장하지 않고 먼저 저장 전 확인 미리보기를 보여줍니다."
         )
         if st.button("▼ 저장 전 확인으로 이동", key="kr_quick_save", disabled=not snapshot_calc_data):
+          st.session_state.pop("kr_quick_preview_rows", None)
+          st.session_state.pop("kr_quick_day_conclusion", None)
+          st.session_state.pop("kr_quick_basis_text", None)
           all_kr_validation_errors = [e for calc in snapshot_calc_data for e in calc["validation_errors"]]
           if all_kr_validation_errors:
             st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_kr_validation_errors))
@@ -4570,6 +4603,9 @@ with tab_us:
     if not us_snapshot_calc_data:
         st.info("미국장 스윙 기록을 저장하려면 먼저 미국장 종목 데이터를 불러와야 합니다.")
     if st.button("③ 미국장 스윙 기록 바로 저장", key="us_swing_quick_save", disabled=not us_snapshot_calc_data):
+      st.session_state.pop("us_swing_preview_rows", None)
+      st.session_state.pop("us_swing_day_conclusion", None)
+      st.session_state.pop("us_swing_basis_text", None)
       all_us_validation_errors = [e for calc in us_snapshot_calc_data for e in calc["validation_errors"]]
       if all_us_validation_errors:
         st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_us_validation_errors))
