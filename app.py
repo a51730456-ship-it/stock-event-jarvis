@@ -4252,6 +4252,53 @@ with tab_perf:
                             f"저장 상태: judgment {len(_judgment_after_save)}건 / "
                             f"{_horizons_after_save_display}"
                         )
+
+            # 저장된 판단 성과 조회 전용 표시 (evaluate_item() 재호출/가격·벤치마크 네트워크
+            # 조회/DB INSERT·UPDATE 전혀 없음). get_report_outcomes()가 반환하는 DB 스냅샷을
+            # entry_basis='judgment'만 걸러서 그대로 보여준다 — 임의로 행을 만들지 않는다.
+            with st.expander("저장된 판단 성과 보기", expanded=False):
+                st.caption(
+                    "이 표는 계산 화면의 실시간 값이 아니라, 저장 버튼을 눌렀을 때 DB에 "
+                    "기록된 판단 성과입니다."
+                )
+                _saved_outcomes = db.get_report_outcomes(_outcome_save_target_report_id)
+                _saved_judgment_outcomes = [
+                    o for o in _saved_outcomes if o["entry_basis"] == "judgment"
+                ]
+                if not _saved_judgment_outcomes:
+                    st.info("아직 저장된 판단 성과가 없습니다.")
+                else:
+                    _saved_judgment_outcomes = sorted(
+                        _saved_judgment_outcomes,
+                        key=lambda o: (o["report_item_id"], o["horizon_sessions"]),
+                    )
+                    _outcome_status_display = {
+                        "evaluated": "완료",
+                        "pending": "대기",
+                        "unavailable": "데이터 없음",
+                        "error": "오류",
+                    }
+                    _saved_outcome_table_rows = [
+                        {
+                            "종목명": o.get("item_name") or "-",
+                            "티커": o.get("ticker") or "-",
+                            "시장": o.get("market") or "-",
+                            "거래일수": o.get("horizon_sessions"),
+                            "기준가격": _fmt_actual_entry_price_display(o.get("entry_price_used")) or "-",
+                            "목표일": o.get("target_date") or "-",
+                            "종가": _fmt_actual_entry_price_display(o.get("close_price")) or "-",
+                            "수익률(%)": _fmt_pct(o.get("return_pct")),
+                            "벤치마크": o.get("benchmark_symbol") or "-",
+                            "벤치마크 수익률(%)": _fmt_pct(o.get("benchmark_return_pct")),
+                            "초과수익률(%)": _fmt_pct(o.get("excess_return_pct")),
+                            "상태": _outcome_status_display.get(o.get("status"), o.get("status") or "-"),
+                            "평가시각": o.get("evaluated_at") or "-",
+                        }
+                        for o in _saved_judgment_outcomes
+                    ]
+                    st.dataframe(
+                        pd.DataFrame(_saved_outcome_table_rows), width="stretch", hide_index=True
+                    )
             st.markdown("---")
 
         # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
