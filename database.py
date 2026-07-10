@@ -174,6 +174,16 @@ def _migrate_add_columns(conn):
     if "theme_tags" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN theme_tags TEXT")
 
+    # 실제 행동 기록용 추가 컬럼(1차: 스키마만). 저장된 판단(추천 후보/감시 등)과 별개로,
+    # 상하님이 실제로 "매수"/"보류"/"제외" 중 무엇을 했는지 남긴다. 단순 매수 여부 Boolean이
+    # 아니라 3가지로 나누는 이유는, 나중에 판단 잔차 채굴에서 매수했는데 실패한 경우/보류했는데
+    # 상승한 경우/제외했는데 상승한 경우/매수하지 않아 손실을 피한 경우를 구분해서 비교하기
+    # 위함이다. buy_confirmed(매수 확정 여부, "확정"/"미확정")와는 별개 개념이라 재사용하지
+    # 않고 새 컬럼으로 분리한다. 기존 행은 NULL로 남기고, UI/저장 로직은 이번 단계에서 만들지
+    # 않는다(컬럼 추가만).
+    if "actual_action" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN actual_action TEXT")
+
     conn.commit()
 
 
