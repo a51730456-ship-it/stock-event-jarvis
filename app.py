@@ -4379,6 +4379,7 @@ with tab_kr:
                 st.session_state.pop("kr_quick_preview_rows", None)
                 st.session_state.pop("kr_quick_day_conclusion", None)
                 st.session_state.pop("kr_quick_basis_text", None)
+                st.rerun()
 
 with tab_us:
     st.subheader("미국장")
@@ -4745,6 +4746,7 @@ with tab_us:
             st.session_state.pop("us_swing_preview_rows", None)
             st.session_state.pop("us_swing_day_conclusion", None)
             st.session_state.pop("us_swing_basis_text", None)
+            st.rerun()
 
     # 3. 종목별 상세 입력 카드 (기본 접힘)
     st.markdown("---")
