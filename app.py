@@ -4485,6 +4485,56 @@ with tab_perf:
                         width="stretch",
                         hide_index=True,
                     )
+
+            # 판단(judgment) 대 실매매(actual) 비교 조회 전용 표시. evaluate_item()/
+            # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE
+            # 전혀 없음 — db.get_report_outcomes()의 DB 스냅샷을
+            # performance.build_judgment_actual_comparison_rows()에 그대로 넘겨 이미
+            # 완성된 judgment+actual 쌍만 보여준다. 위 두 expander와 완전히 별도로 둔다.
+            with st.expander("판단과 실매매 차이 보기", expanded=False):
+                st.caption(
+                    "양수는 실제 진입 성과가 판단 기준보다 좋았다는 뜻이고, 음수는 실제 "
+                    "진입이 더 불리했다는 뜻입니다."
+                )
+                _comparison_outcome_rows = db.get_report_outcomes(_outcome_save_target_report_id)
+                _comparison_rows = performance.build_judgment_actual_comparison_rows(
+                    _comparison_outcome_rows
+                )
+                if not _comparison_rows:
+                    st.info("비교 가능한 판단 성과와 실매매 성과가 아직 없습니다.")
+                else:
+                    _comparison_rows = sorted(
+                        _comparison_rows,
+                        key=lambda c: (c["report_item_id"], c["horizon_sessions"]),
+                    )
+                    _comparison_table_rows = [
+                        {
+                            "종목명": c.get("종목명") or "-",
+                            "티커": c.get("ticker") or "-",
+                            "시장": c.get("market") or "-",
+                            "거래일수": c.get("horizon_sessions"),
+                            "판단 기준가격": (
+                                _fmt_actual_entry_price_display(c.get("judgment_entry_price"))
+                                or "-"
+                            ),
+                            "실제 기준가격": (
+                                _fmt_actual_entry_price_display(c.get("actual_entry_price"))
+                                or "-"
+                            ),
+                            "판단 수익률(%)": _fmt_pct(c.get("judgment_return_pct")),
+                            "실매매 수익률(%)": _fmt_pct(c.get("actual_return_pct")),
+                            "수익률 차이(%p)": _fmt_pct(c.get("return_gap_pct")),
+                            "판단 초과수익률(%)": _fmt_pct(c.get("judgment_excess_return_pct")),
+                            "실매매 초과수익률(%)": _fmt_pct(c.get("actual_excess_return_pct")),
+                            "초과수익률 차이(%p)": _fmt_pct(c.get("excess_return_gap_pct")),
+                        }
+                        for c in _comparison_rows
+                    ]
+                    st.dataframe(
+                        pd.DataFrame(_comparison_table_rows),
+                        width="stretch",
+                        hide_index=True,
+                    )
             st.markdown("---")
 
         # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
