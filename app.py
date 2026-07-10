@@ -4848,6 +4848,181 @@ with tab_perf:
                                 width="stretch",
                                 hide_index=True,
                             )
+
+            # 판단 맥락별 누적 통계. 위 두 통계(행동별/테마별)와 마찬가지로 현재 선택한
+            # report_id 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의 저장된
+            # 성과를 db.get_all_report_outcomes()로 모아 집계한다. evaluate_item()/
+            # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
+            # 없음. 맥락값/실제 행동/거래일수 필터는 이미 계산된 통계 결과에만 적용하는
+            # 화면 표시용 필터이며 DB나 통계 원본값을 바꾸지 않는다. 분석 기준은 한 번에
+            # 하나만 선택한다(복합 조건 분석 아님). 내부 group_by 코드(trade_mode 등)는
+            # 화면에 노출하지 않고 선택된 한글 분석 기준 이름만 표시한다.
+            with st.expander("판단 맥락별 누적 통계 보기", expanded=False):
+                st.caption(
+                    "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
+                    "여러 보고서의 저장된 성과를 함께 집계합니다."
+                )
+                st.caption(
+                    "각 분석 기준을 한 번에 하나씩 분리해 집계한 원자료 통계입니다. "
+                    "표본수가 적으면 결과가 크게 흔들릴 수 있습니다."
+                )
+
+                _context_filter_cols = st.columns(3)
+                _context_market_in = _context_filter_cols[0].selectbox(
+                    "시장",
+                    ["전체", "KR", "US", "OTHER"],
+                    key="context_summary_market_filter",
+                )
+                _context_date_from_in = _context_filter_cols[1].text_input(
+                    "시작일",
+                    value="",
+                    key="context_summary_date_from_filter",
+                    placeholder="2026-07-01",
+                )
+                _context_date_to_in = _context_filter_cols[2].text_input(
+                    "종료일",
+                    value="",
+                    key="context_summary_date_to_filter",
+                    placeholder="2026-07-31",
+                )
+
+                _context_basis_options = {
+                    "매매유형": "trade_mode",
+                    "당시 판정": "verdict",
+                    "신호 분류": "signal_type",
+                    "이벤트": "event_name",
+                    "브리핑 단계": "briefing_stage",
+                    "시점 구분": "timing_class",
+                }
+                _context_basis_label_in = st.selectbox(
+                    "분석 기준",
+                    list(_context_basis_options.keys()),
+                    key="context_summary_basis_filter",
+                )
+                _context_group_by = _context_basis_options[_context_basis_label_in]
+
+                _context_market_filter = (
+                    None if _context_market_in == "전체" else _context_market_in
+                )
+                _context_date_from_filter = _context_date_from_in.strip() or None
+                _context_date_to_filter = _context_date_to_in.strip() or None
+
+                try:
+                    _context_outcome_rows = db.get_all_report_outcomes(
+                        market=_context_market_filter,
+                        date_from=_context_date_from_filter,
+                        date_to=_context_date_to_filter,
+                    )
+                except ValueError as _context_query_err:
+                    st.error(f"조회 조건 오류: {_context_query_err}")
+                else:
+                    _context_residual_rows = performance.build_decision_residual_rows(
+                        _context_outcome_rows
+                    )
+                    _context_summary_rows = performance.build_context_residual_summary(
+                        _context_residual_rows, _context_group_by
+                    )
+                    if not _context_summary_rows:
+                        st.info(
+                            "아직 판단 맥락별 누적 통계를 계산할 저장 성과가 없습니다."
+                        )
+                    else:
+                        _context_value_options_seen = []
+                        for _c in _context_summary_rows:
+                            if _c["context_value"] not in _context_value_options_seen:
+                                _context_value_options_seen.append(_c["context_value"])
+
+                        _context_display_cols = st.columns(3)
+                        _context_value_in = _context_display_cols[0].selectbox(
+                            "맥락값",
+                            ["전체"] + _context_value_options_seen,
+                            key="context_summary_value_filter",
+                        )
+                        _context_action_in = _context_display_cols[1].selectbox(
+                            "실제 행동",
+                            ["전체", "매수", "보류", "제외", "미기록"],
+                            key="context_summary_action_filter",
+                        )
+                        _context_horizon_in = _context_display_cols[2].selectbox(
+                            "거래일수",
+                            ["전체", 1, 3, 5, 10, 20],
+                            key="context_summary_horizon_filter",
+                        )
+
+                        _context_filtered_rows = _context_summary_rows
+                        if _context_value_in != "전체":
+                            _context_filtered_rows = [
+                                s for s in _context_filtered_rows
+                                if s["context_value"] == _context_value_in
+                            ]
+                        if _context_action_in != "전체":
+                            _context_filtered_rows = [
+                                s for s in _context_filtered_rows
+                                if s["actual_action"] == _context_action_in
+                            ]
+                        if _context_horizon_in != "전체":
+                            _context_filtered_rows = [
+                                s for s in _context_filtered_rows
+                                if s["horizon_sessions"] == _context_horizon_in
+                            ]
+
+                        if not _context_filtered_rows:
+                            st.info(
+                                "아직 판단 맥락별 누적 통계를 계산할 저장 성과가 없습니다."
+                            )
+                        else:
+                            _context_table_rows = [
+                                {
+                                    "분석 기준": _context_basis_label_in,
+                                    "맥락값": s.get("context_value"),
+                                    "거래일수": s.get("horizon_sessions"),
+                                    "실제 행동": s.get("actual_action"),
+                                    "전체 표본수": s.get("sample_count"),
+                                    "판단 수익률 표본수": s.get("judgment_return_count"),
+                                    "판단 평균 수익률(%)": _fmt_pct(
+                                        s.get("judgment_return_avg")
+                                    ),
+                                    "판단 중앙 수익률(%)": _fmt_pct(
+                                        s.get("judgment_return_median")
+                                    ),
+                                    "판단 양수 개수": s.get("judgment_positive_count"),
+                                    "판단 양수 비율(%)": _fmt_pct(
+                                        s.get("judgment_positive_rate")
+                                    ),
+                                    "판단 초과수익률 표본수": s.get("judgment_excess_count"),
+                                    "판단 평균 초과수익률(%)": _fmt_pct(
+                                        s.get("judgment_excess_avg")
+                                    ),
+                                    "진입 효과 표본수": s.get("entry_effect_count"),
+                                    "평균 진입 효과(%p)": _fmt_pct(
+                                        s.get("entry_effect_avg")
+                                    ),
+                                    "중앙 진입 효과(%p)": _fmt_pct(
+                                        s.get("entry_effect_median")
+                                    ),
+                                    "미매수 표본수": s.get("non_buy_return_count"),
+                                    "미매수 평균 수익률(%)": _fmt_pct(
+                                        s.get("non_buy_return_avg")
+                                    ),
+                                    "미매수 중앙 수익률(%)": _fmt_pct(
+                                        s.get("non_buy_return_median")
+                                    ),
+                                    "미매수 양수 개수": s.get("non_buy_positive_count"),
+                                    "미매수 양수 비율(%)": _fmt_pct(
+                                        s.get("non_buy_positive_rate")
+                                    ),
+                                    "미매수 초과수익률 표본수": s.get("non_buy_excess_count"),
+                                    "미매수 평균 초과수익률(%)": _fmt_pct(
+                                        s.get("non_buy_excess_avg")
+                                    ),
+                                }
+                                for s in _context_filtered_rows
+                            ]
+                            st.dataframe(
+                                pd.DataFrame(_context_table_rows),
+                                width="stretch",
+                                hide_index=True,
+                            )
             st.markdown("---")
 
         # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
