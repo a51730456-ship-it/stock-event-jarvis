@@ -186,6 +186,13 @@ def _migrate_add_columns(conn):
     if "actual_action" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN actual_action TEXT")
 
+    # 실제 매수 체결 평균가격용 추가 컬럼(1차: 스키마만). 상하님이 실제로 매수한 평균 체결가를
+    # 남기며, 저장 당시 시스템이 제시한 entry_price(계획/참고용 진입가)와는 다른 사후 실제
+    # 행동 데이터다. actual_action='매수' 여부와 자동 연동하지 않는다. 기존 행은 NULL로 남기고,
+    # UI/저장 로직은 이번 단계에서 만들지 않는다(컬럼 추가만).
+    if "actual_entry_price" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN actual_entry_price REAL")
+
     conn.commit()
 
 
