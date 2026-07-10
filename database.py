@@ -231,6 +231,14 @@ def _migrate_add_columns(conn):
     if "actual_entry_price" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN actual_entry_price REAL")
 
+    # 실제 매수 거래일용 추가 컬럼(1차: 스키마만). 상하님이 실제로 매수한 종목의 거래소
+    # 기준 거래일을 YYYY-MM-DD로 남긴다(한국장은 한국 거래일, 미국장은 미국 현지 거래일 —
+    # 한국시간 기준 날짜가 아니다). actual 성과의 1·3·5거래일은 report.saved_at이 아니라
+    # 이 거래일 다음 거래일부터 계산해야 하므로 별도 컬럼으로 둔다. 기존 행은 NULL로 남기고,
+    # 날짜 형식 검증 함수/UPDATE 함수/UI는 이번 단계에서 만들지 않는다(컬럼 추가만).
+    if "actual_entry_date" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN actual_entry_date TEXT")
+
     conn.commit()
 
 
