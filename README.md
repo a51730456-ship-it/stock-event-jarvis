@@ -22,11 +22,12 @@ stock_event_jarvis/
     └── jarvis.sqlite3    # SQLite DB 파일 (최초 실행 시 자동 생성)
 ```
 
-## 실행 방법 (예정)
+## 실행 방법 (Windows, 로컬 `.venv`)
 
 ```
-pip install streamlit yfinance FinanceDataReader pykrx
-streamlit run app.py
+<사용할 Python> -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
 ## 현재 단계
