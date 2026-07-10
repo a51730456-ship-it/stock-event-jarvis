@@ -1720,17 +1720,24 @@ def _safe_ratio_pct(a, b):
 
 def _parse_price_number(value):
     """숫자(float/int) 또는 쉼표 포함 숫자 문자열("71,500")을 float로 변환한다.
-    비어 있거나(None/빈 문자열) 0이거나 변환 실패하면 None(계산 생략으로 취급)."""
+    비어 있거나(None/빈 문자열) 0이거나 변환 실패하면 None(계산 생략으로 취급).
+    NaN/Infinity/-Infinity도 None으로 취급한다 — bool(float('nan'))이 True라서
+    기존 "0이면 None" 처리만으로는 NaN이 정상 숫자처럼 통과했다."""
     if value is None:
         return None
     if isinstance(value, (int, float)):
-        return float(value) if value else None
+        num = float(value)
+        if not math.isfinite(num):
+            return None
+        return num if num else None
     text = str(value).strip().replace(",", "")
     if not text:
         return None
     try:
         num = float(text)
     except ValueError:
+        return None
+    if not math.isfinite(num):
         return None
     return num if num else None
 

@@ -6,6 +6,8 @@ pykrx는 이번 1차 성과검증에서는 사용하지 않는다.
 "데이터 부족"으로 처리한다.
 """
 
+import math
+
 import pandas as pd
 
 BENCHMARK_YF_SYMBOL = {"KOSPI": "^KS11", "SPY": "SPY", "SOXX": "SOXX"}
@@ -97,13 +99,34 @@ def get_benchmark_history(benchmark_name, start, end):
 _SNAPSHOT_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
 
+def _latest_ohlc_row_is_valid(df):
+    """df.iloc[-1](가장 최근 행)의 Open/High/Low/Close가 전부 유한한 숫자인지 확인한다.
+
+    NaN/Infinity/숫자로 변환 불가한 값이 하나라도 있으면 False를 반환한다 — 데이터
+    제공처가 아직 확정되지 않은 당일 행(거래량만 채워지고 가격은 비어 있는 경우 등)을
+    돌려주는 상황을 걸러내기 위함이다. yfinance/FinanceDataReader 조회 함수가 이
+    검사를 공유해서 "최신 행이 유효하다"는 기준이 서로 갈라지지 않게 한다.
+    """
+    last = df.iloc[-1]
+    for col in ("Open", "High", "Low", "Close"):
+        try:
+            if not math.isfinite(float(last[col])):
+                return False
+        except (TypeError, ValueError):
+            return False
+    return True
+
+
 def _try_yfinance_ohlcv(symbol, start, end):
     import yfinance as yf
 
     df = yf.Ticker(symbol).history(start=start, end=end)
     if df is None or df.empty or not all(c in df.columns for c in _SNAPSHOT_COLUMNS):
         return None
-    return _clean_index(df[_SNAPSHOT_COLUMNS].copy())
+    df = _clean_index(df[_SNAPSHOT_COLUMNS].copy())
+    if not _latest_ohlc_row_is_valid(df):
+        return None
+    return df
 
 
 def _try_fdr_ohlcv(symbol, start, end):
@@ -112,7 +135,10 @@ def _try_fdr_ohlcv(symbol, start, end):
     df = fdr.DataReader(symbol, start, end)
     if df is None or df.empty or not all(c in df.columns for c in _SNAPSHOT_COLUMNS):
         return None
-    return _clean_index(df[_SNAPSHOT_COLUMNS].copy())
+    df = _clean_index(df[_SNAPSHOT_COLUMNS].copy())
+    if not _latest_ohlc_row_is_valid(df):
+        return None
+    return df
 
 
 def get_snapshot_defaults(ticker):
@@ -157,6 +183,29 @@ def get_snapshot_defaults(ticker):
         volume = float(last["Volume"])
     except Exception as e:
         return {"ok": False, "error": f"시세 데이터 해석 실패: {e}"}
+
+    # 최종 반환 직전 재검증. _try_yfinance_ohlcv()/_try_fdr_ohlcv()가 이미 최신 행의
+    # OHLC 유효성을 확인하지만, 여기서도 실제로 반환할 값 자체를 다시 확인해 NaN/
+    # Infinity/0 이하 가격이 ok=True로 새어나가지 않게 한다(이중 방어).
+    required_prices = {
+        "current": current,
+        "prev_close": prev_close,
+        "open": open_price,
+        "high": high,
+        "low": low,
+    }
+    invalid_price_fields = [
+        name
+        for name, value in required_prices.items()
+        if not math.isfinite(value) or value <= 0
+    ]
+    if invalid_price_fields:
+        return {
+            "ok": False,
+            "error": f"시세 데이터 비정상(유한한 양수 아님): {', '.join(invalid_price_fields)}",
+        }
+    if not math.isfinite(volume) or volume < 0:
+        return {"ok": False, "error": "거래량 데이터가 유효하지 않습니다"}
 
     turnover_approx_value = volume * current  # 근사치(실제 체결대금과 다를 수 있음)
 
