@@ -7,6 +7,7 @@ report_items가 0개인 "오늘 추천 없음" report의 기회비용/위험회�
 """
 
 import math
+import statistics
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -884,3 +885,172 @@ def build_decision_residual_rows(outcome_rows):
         )
 
     return residual_rows
+
+
+# ---- 행동별·거래일수별 순수 집계 (DB 접근/네트워크 조회/UI 출력/자동 판정/점수화 없음) ----
+# report_item_outcomes를 수정하지 않으며, 양수 비율을 승률이라 부르지 않고 성공/실패·
+# 실수·기회손실·손실회피 라벨이나 최소 표본 기준·점수·추천을 만들지 않는다.
+
+_ACTION_RESIDUAL_KNOWN_ACTIONS = ("매수", "보류", "제외")
+_ACTION_RESIDUAL_ORDER = {"매수": 0, "보류": 1, "제외": 2, "미기록": 3}
+
+
+def _collect_valid_finite_values(rows, field_name):
+    """rows에서 field_name 값이 유한 숫자(bool 제외)인 것만 뽑아 list로 반환한다.
+    None/NaN/Infinity/bool/비숫자는 제외한다(read-only, rows/row는 수정하지 않음).
+    """
+    return [
+        row.get(field_name)
+        for row in rows
+        if _is_valid_finite_number(row.get(field_name), require_positive=False)
+    ]
+
+
+def _summarize_values(values):
+    """유효 수치 list에서 (count, avg, median)을 계산한다. 표본이 0건이면 avg/median은
+    None이다. 반올림하지 않고 내부 계산 정밀도를 그대로 유지한다."""
+    count = len(values)
+    if count == 0:
+        return count, None, None
+    return count, statistics.mean(values), statistics.median(values)
+
+
+def build_action_residual_summary(residual_rows):
+    """build_decision_residual_rows()의 결과를 여러 보고서에서 합친 행 목록을 받아
+    actual_action(매수/보류/제외/미기록) × horizon_sessions 기준으로 집계하는 순수
+    통계 함수다. DB 연결/INSERT/UPDATE, 네트워크 조회, UI 출력을 전혀 하지 않는다.
+    입력 residual_rows와 그 안의 각 행 dict는 수정하지 않는다(읽기만 함).
+
+    같은 종목이 여러 보고서나 horizon에 걸쳐 여러 번 나와도 입력 행 그대로 각각을
+    독립 표본으로 집계한다 — 임의로 중복 제거하지 않는다. 최소 표본 수 기준을
+    적용하지 않으며, 양수 비율을 승률이라 부르지 않고 성공/실패·실수·기회손실·
+    손실회피 라벨이나 점수·추천은 만들지 않는다.
+
+    entry_effect 통계는 actual_action='매수'인 그룹에서만 entry_effect_pct가 정상인
+    행만 계산한다(actual 성과가 아직 없는 매수 행은 count에서 자연히 제외됨).
+    non_buy 통계는 actual_action이 '보류' 또는 '제외'인 그룹에서만 non_buy_return_pct/
+    non_buy_excess_return_pct를 집계하며, '매수'·'미기록' 그룹에서는 해당 값이 있어도
+    집계하지 않는다.
+
+    actual_action이 None이거나 빈(공백 포함) 문자열이면 '미기록'으로 정규화한다.
+    '매수'/'보류'/'제외'/None·빈 문자열 외의 값이 오면 조용히 미기록으로 합치지 않고
+    ValueError를 던진다. horizon_sessions는 bool이 아닌 양의 정수여야 하며, 아니면
+    ValueError를 던진다. 이런 검증은 결과를 만들기 전에 전체 입력을 먼저 훑어 확인하므로
+    잘못된 행 하나 때문에 일부만 반영된 왜곡된 통계가 반환되지 않는다.
+
+    정렬은 horizon_sessions 오름차순, 같은 horizon 안에서는 매수 -> 보류 -> 제외 ->
+    미기록 순이다.
+    """
+    if not isinstance(residual_rows, (list, tuple)):
+        raise ValueError(
+            f"residual_rows must be a list or tuple, got {type(residual_rows)!r}"
+        )
+
+    groups = {}
+    for idx, row in enumerate(residual_rows):
+        if not isinstance(row, dict):
+            raise ValueError(f"residual_rows[{idx}] must be a dict, got {type(row)!r}")
+
+        raw_action = row.get("actual_action")
+        if raw_action is None or (isinstance(raw_action, str) and raw_action.strip() == ""):
+            action = "미기록"
+        elif raw_action in _ACTION_RESIDUAL_KNOWN_ACTIONS:
+            action = raw_action
+        else:
+            raise ValueError(
+                f"residual_rows[{idx}] has unknown actual_action: {raw_action!r}"
+            )
+
+        horizon_sessions = row.get("horizon_sessions")
+        if (
+            isinstance(horizon_sessions, bool)
+            or not isinstance(horizon_sessions, int)
+            or horizon_sessions <= 0
+        ):
+            raise ValueError(
+                f"residual_rows[{idx}] horizon_sessions must be a positive int (not bool), "
+                f"got {horizon_sessions!r}"
+            )
+
+        groups.setdefault((action, horizon_sessions), []).append(row)
+
+    summary_rows = []
+    for (action, horizon_sessions), rows in groups.items():
+        sample_count = len(rows)
+
+        judgment_return_values = _collect_valid_finite_values(rows, "judgment_return_pct")
+        judgment_return_count, judgment_return_avg, judgment_return_median = (
+            _summarize_values(judgment_return_values)
+        )
+        judgment_positive_count = sum(1 for v in judgment_return_values if v > 0)
+        judgment_positive_rate = (
+            judgment_positive_count / judgment_return_count * 100
+            if judgment_return_count > 0
+            else None
+        )
+
+        judgment_excess_values = _collect_valid_finite_values(
+            rows, "judgment_excess_return_pct"
+        )
+        judgment_excess_count, judgment_excess_avg, _judgment_excess_median = (
+            _summarize_values(judgment_excess_values)
+        )
+
+        entry_effect_values = (
+            _collect_valid_finite_values(rows, "entry_effect_pct") if action == "매수" else []
+        )
+        entry_effect_count, entry_effect_avg, entry_effect_median = _summarize_values(
+            entry_effect_values
+        )
+
+        if action in ("보류", "제외"):
+            non_buy_return_values = _collect_valid_finite_values(rows, "non_buy_return_pct")
+            non_buy_excess_values = _collect_valid_finite_values(
+                rows, "non_buy_excess_return_pct"
+            )
+        else:
+            non_buy_return_values = []
+            non_buy_excess_values = []
+
+        non_buy_return_count, non_buy_return_avg, non_buy_return_median = _summarize_values(
+            non_buy_return_values
+        )
+        non_buy_positive_count = sum(1 for v in non_buy_return_values if v > 0)
+        non_buy_positive_rate = (
+            non_buy_positive_count / non_buy_return_count * 100
+            if non_buy_return_count > 0
+            else None
+        )
+        non_buy_excess_count, non_buy_excess_avg, _non_buy_excess_median = _summarize_values(
+            non_buy_excess_values
+        )
+
+        summary_rows.append(
+            {
+                "actual_action": action,
+                "horizon_sessions": horizon_sessions,
+                "sample_count": sample_count,
+                "judgment_return_count": judgment_return_count,
+                "judgment_return_avg": judgment_return_avg,
+                "judgment_return_median": judgment_return_median,
+                "judgment_positive_count": judgment_positive_count,
+                "judgment_positive_rate": judgment_positive_rate,
+                "judgment_excess_count": judgment_excess_count,
+                "judgment_excess_avg": judgment_excess_avg,
+                "entry_effect_count": entry_effect_count,
+                "entry_effect_avg": entry_effect_avg,
+                "entry_effect_median": entry_effect_median,
+                "non_buy_return_count": non_buy_return_count,
+                "non_buy_return_avg": non_buy_return_avg,
+                "non_buy_return_median": non_buy_return_median,
+                "non_buy_positive_count": non_buy_positive_count,
+                "non_buy_positive_rate": non_buy_positive_rate,
+                "non_buy_excess_count": non_buy_excess_count,
+                "non_buy_excess_avg": non_buy_excess_avg,
+            }
+        )
+
+    summary_rows.sort(
+        key=lambda s: (s["horizon_sessions"], _ACTION_RESIDUAL_ORDER[s["actual_action"]])
+    )
+    return summary_rows
