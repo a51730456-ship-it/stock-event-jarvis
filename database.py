@@ -1074,3 +1074,102 @@ def get_report_outcomes(report_id):
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+GET_ALL_OUTCOMES_MARKET_CHOICES = ("KR", "US", "OTHER")
+
+
+def get_all_report_outcomes(report_id=None, market=None, date_from=None, date_to=None):
+    """report_item_outcomes -> report_items -> reports를 INNER JOIN해서, 여러 보고서를
+    한꺼번에 다루는 판단 잔차 통계용으로 저장된 성과 행을 한 번에 조회한다.
+
+    outcome이 저장된 행만 반환하며(INNER JOIN), 이 함수는 조회만 하고 pending 행을
+    임의로 만들지 않는다. 기존 get_report_outcomes(report_id)는 건드리지 않으며
+    (단일 보고서 조회는 계속 그 함수를 쓴다), DB 값도 변경하지 않는다.
+
+    report_id=None이면 전체 보고서, 지정하면 해당 보고서만 대상이다. market=None이면
+    전체이고, 지정하면 'KR'/'US'/'OTHER' 중 하나만 허용한다(그 외 값은 ValueError).
+    date_from/date_to는 reports.saved_at의 날짜 부분(YYYY-MM-DD) 기준 필터다 —
+    normalize_actual_entry_date()의 동일한 엄격한 형식 검증을 재사용하므로 잘못된
+    형식은 ValueError를 던진다. date_from이 date_to보다 늦으면 ValueError를 던진다.
+    모든 필터 값은 파라미터 바인딩으로만 전달하고 SQL 문자열에 직접 이어붙이지 않는다
+    (SQL 인젝션 방지).
+
+    정렬: report_id, report_item_id, horizon_sessions 오름차순, 같은 horizon 안에서는
+    entry_basis가 judgment 먼저 actual 다음이다.
+    """
+    if market is not None and market not in GET_ALL_OUTCOMES_MARKET_CHOICES:
+        raise ValueError(
+            f"market must be None or one of {GET_ALL_OUTCOMES_MARKET_CHOICES}, got {market!r}"
+        )
+
+    normalized_date_from = normalize_actual_entry_date(date_from)
+    normalized_date_to = normalize_actual_entry_date(date_to)
+    if (
+        normalized_date_from is not None
+        and normalized_date_to is not None
+        and normalized_date_from > normalized_date_to
+    ):
+        raise ValueError(
+            f"date_from ({normalized_date_from!r}) must not be after "
+            f"date_to ({normalized_date_to!r})"
+        )
+
+    where_clauses = []
+    params = []
+
+    if report_id is not None:
+        where_clauses.append("r.id = ?")
+        params.append(report_id)
+    if market is not None:
+        where_clauses.append("ri.market = ?")
+        params.append(market)
+    if normalized_date_from is not None:
+        where_clauses.append("date(r.saved_at) >= ?")
+        params.append(normalized_date_from)
+    if normalized_date_to is not None:
+        where_clauses.append("date(r.saved_at) <= ?")
+        params.append(normalized_date_to)
+
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT
+                r.id AS report_id,
+                r.saved_at AS report_saved_at,
+                ri.id AS report_item_id,
+                ri.stock_name AS item_name,
+                ri.ticker AS ticker,
+                ri.market AS market,
+                ri.theme_tags AS theme_tags,
+                ri.actual_action AS actual_action,
+                ri.actual_entry_price AS actual_entry_price,
+                ri.actual_entry_date AS actual_entry_date,
+                rio.horizon_sessions AS horizon_sessions,
+                rio.entry_basis AS entry_basis,
+                rio.entry_price_used AS entry_price_used,
+                rio.target_date AS target_date,
+                rio.close_price AS close_price,
+                rio.high_price AS high_price,
+                rio.low_price AS low_price,
+                rio.return_pct AS return_pct,
+                rio.benchmark_symbol AS benchmark_symbol,
+                rio.benchmark_return_pct AS benchmark_return_pct,
+                rio.excess_return_pct AS excess_return_pct,
+                rio.status AS status,
+                rio.evaluated_at AS evaluated_at
+            FROM reports r
+            JOIN report_items ri ON ri.report_id = r.id
+            JOIN report_item_outcomes rio ON rio.report_item_id = ri.id
+            {where_sql}
+            ORDER BY r.id ASC, ri.id ASC, rio.horizon_sessions ASC,
+                     CASE rio.entry_basis WHEN 'judgment' THEN 0 WHEN 'actual' THEN 1 ELSE 2 END
+            """,
+            params,
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
