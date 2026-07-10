@@ -550,6 +550,85 @@ def update_report_item_actual_entry_price(report_item_id, price):
         conn.close()
 
 
+def update_report_item_quantity(report_item_id, quantity):
+    """report_items.id 기준 사후 UPDATE 전용(새 report/report_item 생성 없음).
+
+    quantity는 None(미기록, DB에는 NULL) 또는 1 이상의 int만 허용한다. bool은 숫자로
+    인정하지 않고, float은 값이 정수와 같더라도(예: 10.0) 무조건 거부한다 — "INTEGER만
+    허용"이라는 정책을 타입 기준으로 명확히 적용하기 위함이며, 정수값 float을 암묵적으로
+    반올림/캐스팅하지 않는다. 0/음수도 ValueError를 던진다(저장 안 함). 대상 행의
+    actual_action이 '매수'가 아니면 양수 수량 저장은 거부하지만(ValueError), None(NULL)
+    저장은 행동값과 무관하게 항상 허용한다(수량을 비우는 동작은 막지 않음).
+    actual_entry_price/entry_price 등 다른 컬럼은 절대 건드리지 않는다. 존재하지 않는
+    id를 넘기면 아무 행도 갱신되지 않으므로 False를 반환한다.
+    """
+    if quantity is not None:
+        if isinstance(quantity, bool):
+            raise ValueError("quantity must not be a bool")
+        if not isinstance(quantity, int):
+            raise ValueError(f"quantity must be None or an int, got {quantity!r}")
+        if quantity < 1:
+            raise ValueError("quantity must be 1 or greater")
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT actual_action FROM report_items WHERE id = ?", (report_item_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        if quantity is not None and row["actual_action"] != "매수":
+            raise ValueError("실제 행동이 '매수'인 종목만 체결 수량을 저장할 수 있습니다.")
+        cur = conn.execute(
+            "UPDATE report_items SET quantity = ? WHERE id = ?", (quantity, report_item_id)
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def update_report_item_actual_fee(report_item_id, actual_fee):
+    """report_items.id 기준 사후 UPDATE 전용(새 report/report_item 생성 없음).
+
+    actual_fee는 None(미기록, DB에는 NULL) 또는 0 이상의 유한 숫자(int/float)만
+    허용한다. bool은 숫자로 인정하지 않고, NaN/Infinity/음수 값은 ValueError를 던진다
+    (저장 안 함). None(NULL)은 "미입력"을 뜻하고 0은 "명시적으로 0원 입력"을 뜻하며
+    이 함수는 둘을 구분해서 그대로 저장한다(NULL을 0으로 치환하지 않음). 대상 행의
+    actual_action이 '매수'가 아니면 0 이상 금액 저장은 거부하지만(ValueError),
+    None(NULL) 저장은 행동값과 무관하게 항상 허용한다(수수료를 비우는 동작은 막지
+    않음). entry_price/actual_entry_price 등 다른 컬럼은 절대 건드리지 않는다.
+    존재하지 않는 id를 넘기면 아무 행도 갱신되지 않으므로 False를 반환한다.
+    """
+    if actual_fee is not None:
+        if isinstance(actual_fee, bool):
+            raise ValueError("actual_fee must not be a bool")
+        if not isinstance(actual_fee, (int, float)):
+            raise ValueError(f"actual_fee must be None or a number, got {actual_fee!r}")
+        actual_fee = float(actual_fee)
+        if not math.isfinite(actual_fee):
+            raise ValueError("actual_fee must be a finite number (NaN/Infinity not allowed)")
+        if actual_fee < 0:
+            raise ValueError("actual_fee must be 0 or greater")
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT actual_action FROM report_items WHERE id = ?", (report_item_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        if actual_fee is not None and row["actual_action"] != "매수":
+            raise ValueError("실제 행동이 '매수'인 종목만 실제 수수료를 저장할 수 있습니다.")
+        cur = conn.execute(
+            "UPDATE report_items SET actual_fee = ? WHERE id = ?", (actual_fee, report_item_id)
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 _ACTUAL_ENTRY_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
