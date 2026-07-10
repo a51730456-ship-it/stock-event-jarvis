@@ -2,8 +2,9 @@
 
 import json
 import math
+import re
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "db" / "jarvis.sqlite3"
@@ -465,9 +466,10 @@ def update_report_item_actual_action(report_item_id, action):
     절대 건드리지 않는다). 존재하지 않는 id를 넘기면 아무 행도 갱신되지 않으므로 False를
     반환한다(조용한 성공 아님).
 
-    실제 체결가(actual_entry_price)가 이미 채워진 행을 '매수'가 아닌 값으로 바꾸려 하면
-    ValueError를 던지고 저장을 거부한다(모순 방지). actual_entry_price를 자동으로 지우지
-    않으며, 먼저 체결가를 비운 뒤 다시 시도해야 한다는 안내는 호출자(UI) 쪽에서 보여준다.
+    실제 체결가(actual_entry_price) 또는 실제 매수 거래일(actual_entry_date)이 이미 채워진
+    행을 '매수'가 아닌 값으로 바꾸려 하면 ValueError를 던지고 저장을 거부한다(모순 방지,
+    둘 중 하나만 있어도 거부). actual_entry_price/actual_entry_date를 자동으로 지우지
+    않으며, 먼저 둘 다 비운 뒤 다시 시도해야 한다는 안내는 호출자(UI) 쪽에서 보여준다.
     """
     if action is not None and action not in ACTUAL_ACTION_CHOICES:
         raise ValueError(f"action must be None or one of {ACTUAL_ACTION_CHOICES}, got {action!r}")
@@ -476,12 +478,16 @@ def update_report_item_actual_action(report_item_id, action):
     try:
         if action != "매수":
             row = conn.execute(
-                "SELECT actual_entry_price FROM report_items WHERE id = ?", (report_item_id,)
+                "SELECT actual_entry_price, actual_entry_date FROM report_items WHERE id = ?",
+                (report_item_id,),
             ).fetchone()
-            if row is not None and row["actual_entry_price"] is not None:
+            if row is not None and (
+                row["actual_entry_price"] is not None or row["actual_entry_date"] is not None
+            ):
                 raise ValueError(
-                    "실제 체결가가 입력된 상태에서는 '매수'가 아닌 값으로 바꿀 수 없습니다. "
-                    "먼저 실제 체결가를 비운 뒤 다시 시도하세요."
+                    "실제 체결가 또는 실제 매수 거래일이 입력된 상태에서는 '매수'가 아닌 값으로 "
+                    "바꿀 수 없습니다. 먼저 실제 체결가와 실제 매수 거래일을 비운 뒤 다시 "
+                    "시도하세요."
                 )
         cur = conn.execute(
             "UPDATE report_items SET actual_action = ? WHERE id = ?", (action, report_item_id)
@@ -524,6 +530,67 @@ def update_report_item_actual_entry_price(report_item_id, price):
             raise ValueError("실제 행동이 '매수'인 종목만 실제 체결가를 저장할 수 있습니다.")
         cur = conn.execute(
             "UPDATE report_items SET actual_entry_price = ? WHERE id = ?", (price, report_item_id)
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+_ACTUAL_ENTRY_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def normalize_actual_entry_date(value):
+    """report_items.actual_entry_date(TEXT, YYYY-MM-DD) 입력값을 정규화한다.
+
+    None 또는 공백만 있는/빈 문자열은 None(미기록)으로 정규화한다. 문자열이 아니면(bool
+    포함) ValueError. 앞뒤 공백을 제거한 뒤 정확히 "YYYY-MM-DD" 자리수 형식이어야 하고
+    실제 존재하는 달력 날짜여야 한다 — 자리수를 정규식으로 먼저 강제하는 이유는
+    date.fromisoformat()이 Python 3.11+부터 "20260710" 같은 구분자 없는 압축 형식도
+    허용해 버리기 때문이다(이 함수는 그 형식을 거부해야 한다). 2026-02-30처럼 자리수는
+    맞지만 실존하지 않는 날짜는 date.fromisoformat()의 ValueError로 걸러진다. 시간대나
+    거래소 휴장일 여부는 이 단계에서 검증하지 않으며, 값을 임의로 추정·보정하지 않는다.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, str):
+        raise ValueError(f"entry_date must be a string or None, got {value!r}")
+    value = value.strip()
+    if not value:
+        return None
+    if not _ACTUAL_ENTRY_DATE_RE.match(value):
+        raise ValueError(f"entry_date must be in YYYY-MM-DD format, got {value!r}")
+    try:
+        date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"entry_date is not a valid calendar date: {value!r} ({exc})")
+    return value
+
+
+def update_report_item_actual_entry_date(report_item_id, entry_date):
+    """report_items.id 기준 사후 UPDATE 전용(새 report/report_item 생성 없음).
+
+    entry_date는 normalize_actual_entry_date()로 정규화한다(형식/존재하지 않는 날짜는
+    ValueError, 저장하지 않음). None(NULL)으로 비우는 것은 actual_action과 무관하게
+    항상 허용한다. 실제 날짜 문자열을 저장하려면 대상 행의 actual_action이 '매수'여야
+    하며, 아니면 ValueError를 던지고 저장하지 않는다. actual_entry_price/entry_price/
+    buy_confirmed 등 다른 컬럼은 절대 건드리지 않는다. 존재하지 않는 id를 넘기면 아무
+    행도 갱신되지 않으므로 False를 반환한다.
+    """
+    entry_date = normalize_actual_entry_date(entry_date)
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT actual_action FROM report_items WHERE id = ?", (report_item_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        if entry_date is not None and row["actual_action"] != "매수":
+            raise ValueError("실제 행동이 '매수'인 종목만 실제 매수 거래일을 저장할 수 있습니다.")
+        cur = conn.execute(
+            "UPDATE report_items SET actual_entry_date = ? WHERE id = ?",
+            (entry_date, report_item_id),
         )
         conn.commit()
         return cur.rowcount > 0

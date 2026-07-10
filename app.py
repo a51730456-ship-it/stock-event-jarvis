@@ -4859,6 +4859,58 @@ with tab_perf:
                                                 f"{row['stock_name']}: 저장 실패 — 대상 기록을 "
                                                 f"찾지 못했습니다 (id={saved_item['id']})."
                                             )
+
+                            # 실제 매수 거래일 입력/수정 (기존 report_item을 id 기준으로 사후
+                            # UPDATE만 수행, 새 report/report_item 생성 안 함, save_report()/
+                            # INSERT 로직과 무관). 거래소 기준 거래일(YYYY-MM-DD)이며 한국시간
+                            # 기준 날짜가 아니다. 실제 행동이 '매수'일 때만 날짜 저장이
+                            # 가능하다(database.py에서 최종 검증, 빈칸/NULL은 행동값과 무관하게
+                            # 항상 허용). 테마 태그/실제 행동/실제 체결가 저장 버튼과 독립적으로
+                            # 동작한다.
+                            st.markdown("---")
+                            _entry_date_key = f"actualentrydate_{saved_item['id']}"
+                            _entry_date_default_text = saved_item.get("actual_entry_date") or ""
+                            _entry_date_text_in = st.text_input(
+                                "실제 매수 거래일",
+                                value=_entry_date_default_text,
+                                key=f"{_entry_date_key}_input",
+                                placeholder="2026-07-10",
+                                help=(
+                                    "실제 매수한 거래소 기준 거래일입니다. 미국장은 한국시간 "
+                                    "날짜가 아니라 미국 현지 거래일을 입력합니다."
+                                ),
+                            )
+                            if st.button("실제 매수일 저장", key=f"{_entry_date_key}_save"):
+                                try:
+                                    _entry_date_ok = db.update_report_item_actual_entry_date(
+                                        saved_item["id"], _entry_date_text_in
+                                    )
+                                except ValueError as _entry_date_err:
+                                    st.error(f"{row['stock_name']}: {_entry_date_err}")
+                                else:
+                                    if _entry_date_ok:
+                                        st.success("실제 매수 거래일이 저장되었습니다.")
+                                        st.rerun()
+                                    else:
+                                        st.error(
+                                            f"{row['stock_name']}: 저장 실패 — 대상 기록을 "
+                                            f"찾지 못했습니다 (id={saved_item['id']})."
+                                        )
+
+                            # 실매매 성과 준비 상태 표시 전용(계산/저장 없음). actual_action이
+                            # '매수'인 종목만 대상으로, DB에 저장된 actual_entry_price/
+                            # actual_entry_date 값이 둘 다 있는지만 보여준다.
+                            if saved_item.get("actual_action") == "매수":
+                                if (
+                                    saved_item.get("actual_entry_price") is not None
+                                    and saved_item.get("actual_entry_date") is not None
+                                ):
+                                    st.caption("실매매 성과 계산 준비 완료")
+                                else:
+                                    st.caption(
+                                        "실매매 성과 계산에는 실제 평균 체결가와 실제 매수 "
+                                        "거래일이 모두 필요합니다."
+                                    )
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
     st.markdown("---")
