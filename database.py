@@ -662,8 +662,7 @@ def _validate_outcome_pct(value, name):
     return value
 
 
-def upsert_report_item_outcome(
-    report_item_id,
+def _validate_outcome_fields(
     horizon_sessions,
     entry_basis,
     entry_price_used=None,
@@ -678,17 +677,11 @@ def upsert_report_item_outcome(
     status="pending",
     evaluated_at=None,
 ):
-    """report_item_outcomes를 UNIQUE(report_item_id, horizon_sessions, entry_basis)
-    기준으로 UPSERT한다(새 report/report_item은 생성하지 않음).
-
-    같은 키로 다시 호출하면 INSERT가 아니라 UPDATE로 처리되며, 이때 id와 created_at은
-    바뀌지 않고 updated_at만 CURRENT_TIMESTAMP로 갱신된다. 잘못된 입력은 DB에 쓰기 전에
-    ValueError를 던진다(가격류는 0 이하/bool/NaN/Infinity 거부, 수익률류는 bool/NaN/
-    Infinity만 거부하고 음수는 허용). report_item_id가 존재하지 않는 report_items.id면
-    ValueError를 던진다. status='evaluated'면 entry_price_used/target_date/close_price/
-    return_pct가 전부 채워져 있어야 한다(high_price/low_price는 선택). 성공 시 저장된
-    report_item_outcomes.id를 반환한다. 다른 report_item_outcomes 행이나 report_items
-    행은 건드리지 않는다.
+    """report_item_outcomes 저장 후보 하나의 필드를 검증하고 정규화된 값을 dict로
+    반환한다(DB 접근 없음 — report_item_id의 실제 존재 여부는 호출자가 별도로 확인한다,
+    이 헬퍼는 report_item_id 자체를 다루지 않는다). upsert_report_item_outcome()과
+    upsert_report_item_outcomes()가 이 헬퍼 하나만 공유해서 쓴다 — 두 함수의 검증
+    규칙이 서로 갈라지지 않도록 하기 위함이다. 잘못된 값은 ValueError를 던진다.
     """
     if isinstance(horizon_sessions, bool) or not isinstance(horizon_sessions, int):
         raise ValueError(
@@ -733,6 +726,91 @@ def upsert_report_item_outcome(
         if missing:
             raise ValueError(f"status='evaluated' requires non-null: {', '.join(missing)}")
 
+    return {
+        "horizon_sessions": horizon_sessions,
+        "entry_basis": entry_basis,
+        "entry_price_used": entry_price_used,
+        "target_date": target_date,
+        "close_price": close_price,
+        "high_price": high_price,
+        "low_price": low_price,
+        "return_pct": return_pct,
+        "benchmark_symbol": benchmark_symbol,
+        "benchmark_return_pct": benchmark_return_pct,
+        "excess_return_pct": excess_return_pct,
+        "status": status,
+        "evaluated_at": evaluated_at,
+    }
+
+
+_OUTCOME_UPSERT_SQL = """
+    INSERT INTO report_item_outcomes (
+        report_item_id, horizon_sessions, entry_basis, entry_price_used,
+        target_date, close_price, high_price, low_price, return_pct,
+        benchmark_symbol, benchmark_return_pct, excess_return_pct,
+        status, evaluated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(report_item_id, horizon_sessions, entry_basis) DO UPDATE SET
+        entry_price_used = excluded.entry_price_used,
+        target_date = excluded.target_date,
+        close_price = excluded.close_price,
+        high_price = excluded.high_price,
+        low_price = excluded.low_price,
+        return_pct = excluded.return_pct,
+        benchmark_symbol = excluded.benchmark_symbol,
+        benchmark_return_pct = excluded.benchmark_return_pct,
+        excess_return_pct = excluded.excess_return_pct,
+        status = excluded.status,
+        evaluated_at = excluded.evaluated_at,
+        updated_at = CURRENT_TIMESTAMP
+"""
+
+
+def _outcome_upsert_params(report_item_id, normalized):
+    return (
+        report_item_id, normalized["horizon_sessions"], normalized["entry_basis"],
+        normalized["entry_price_used"], normalized["target_date"], normalized["close_price"],
+        normalized["high_price"], normalized["low_price"], normalized["return_pct"],
+        normalized["benchmark_symbol"], normalized["benchmark_return_pct"],
+        normalized["excess_return_pct"], normalized["status"], normalized["evaluated_at"],
+    )
+
+
+def upsert_report_item_outcome(
+    report_item_id,
+    horizon_sessions,
+    entry_basis,
+    entry_price_used=None,
+    target_date=None,
+    close_price=None,
+    high_price=None,
+    low_price=None,
+    return_pct=None,
+    benchmark_symbol=None,
+    benchmark_return_pct=None,
+    excess_return_pct=None,
+    status="pending",
+    evaluated_at=None,
+):
+    """report_item_outcomes를 UNIQUE(report_item_id, horizon_sessions, entry_basis)
+    기준으로 UPSERT한다(새 report/report_item은 생성하지 않음).
+
+    같은 키로 다시 호출하면 INSERT가 아니라 UPDATE로 처리되며, 이때 id와 created_at은
+    바뀌지 않고 updated_at만 CURRENT_TIMESTAMP로 갱신된다. 잘못된 입력은 DB에 쓰기 전에
+    ValueError를 던진다(가격류는 0 이하/bool/NaN/Infinity 거부, 수익률류는 bool/NaN/
+    Infinity만 거부하고 음수는 허용). report_item_id가 존재하지 않는 report_items.id면
+    ValueError를 던진다. status='evaluated'면 entry_price_used/target_date/close_price/
+    return_pct가 전부 채워져 있어야 한다(high_price/low_price는 선택). 성공 시 저장된
+    report_item_outcomes.id를 반환한다. 다른 report_item_outcomes 행이나 report_items
+    행은 건드리지 않는다. (검증은 _validate_outcome_fields()로 위임 — 여러 행을 한
+    트랜잭션으로 저장하는 upsert_report_item_outcomes()와 동일한 검증 경로를 쓴다.)
+    """
+    normalized = _validate_outcome_fields(
+        horizon_sessions, entry_basis, entry_price_used, target_date, close_price,
+        high_price, low_price, return_pct, benchmark_symbol, benchmark_return_pct,
+        excess_return_pct, status, evaluated_at,
+    )
+
     conn = get_connection()
     try:
         exists = conn.execute(
@@ -741,35 +819,7 @@ def upsert_report_item_outcome(
         if exists is None:
             raise ValueError(f"report_item_id {report_item_id!r} does not exist")
 
-        conn.execute(
-            """
-            INSERT INTO report_item_outcomes (
-                report_item_id, horizon_sessions, entry_basis, entry_price_used,
-                target_date, close_price, high_price, low_price, return_pct,
-                benchmark_symbol, benchmark_return_pct, excess_return_pct,
-                status, evaluated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(report_item_id, horizon_sessions, entry_basis) DO UPDATE SET
-                entry_price_used = excluded.entry_price_used,
-                target_date = excluded.target_date,
-                close_price = excluded.close_price,
-                high_price = excluded.high_price,
-                low_price = excluded.low_price,
-                return_pct = excluded.return_pct,
-                benchmark_symbol = excluded.benchmark_symbol,
-                benchmark_return_pct = excluded.benchmark_return_pct,
-                excess_return_pct = excluded.excess_return_pct,
-                status = excluded.status,
-                evaluated_at = excluded.evaluated_at,
-                updated_at = CURRENT_TIMESTAMP
-            """,
-            (
-                report_item_id, horizon_sessions, entry_basis, entry_price_used,
-                target_date, close_price, high_price, low_price, return_pct,
-                benchmark_symbol, benchmark_return_pct, excess_return_pct,
-                status, evaluated_at,
-            ),
-        )
+        conn.execute(_OUTCOME_UPSERT_SQL, _outcome_upsert_params(report_item_id, normalized))
         conn.commit()
         saved = conn.execute(
             "SELECT id FROM report_item_outcomes "
@@ -777,6 +827,104 @@ def upsert_report_item_outcome(
             (report_item_id, horizon_sessions, entry_basis),
         ).fetchone()
         return saved["id"]
+    finally:
+        conn.close()
+
+
+def upsert_report_item_outcomes(rows, evaluated_at=None):
+    """report_item_outcomes 저장 후보 여러 개를 하나의 트랜잭션으로 검증·UPSERT한다.
+
+    rows: dict의 list/tuple. 각 dict는 upsert_report_item_outcome()과 같은 필드를 쓴다
+    (report_item_id/horizon_sessions/entry_basis는 사실상 필수, 나머지는 없으면 None
+    또는 status 기본값 "pending"으로 취급). 입력 rows와 그 안의 dict는 절대 수정하지
+    않는다(내부에서 필요한 값만 읽어 새 dict로 정규화한다).
+
+    처리 순서: 1) 모든 행을 DB에 쓰기 전에 먼저 검증한다 — 필드 형식
+    (_validate_outcome_fields(), upsert_report_item_outcome()과 완전히 동일한 규칙)과
+    배치 내부 중복 (report_item_id, horizon_sessions, entry_basis) 키를 확인한다.
+    2) 형식 검증을 전부 통과하면 connection을 열어 report_item_id가 실제
+    report_items.id로 존재하는지 전부 읽기 전용으로 확인한다(아직 쓰기 없음).
+    3) 여기까지 전부 통과해야만 BEGIN 후 순서대로 UPSERT를 실행한다. 4) 하나라도 SQL
+    실행 중 실패하면 rollback하고 예외를 다시 던진다(일부만 저장되는 상황 없음). 5) 전부
+    성공하면 commit하고 처리한 행 수를 반환한다. rows가 비어 있으면 0을 반환하고 DB에
+    전혀 연결하지 않는다.
+
+    evaluated_at 우선순위: 각 행의 "evaluated_at" 값이 있으면 그 값을 쓰고, 없으면(None)
+    이 함수의 evaluated_at 인자를 쓴다. 둘 다 없으면 배치 전체에 적용할 현재 시각을 딱
+    한 번만 생성해서(datetime.now().isoformat(timespec="seconds"), 이 프로젝트의 기존
+    시간 저장 규칙과 동일한 형식) 모든 행에 동일하게 적용한다 — 행마다 실행 순간이
+    미세하게 달라지지 않도록 한다.
+
+    같은 배치 안에 (report_item_id, horizon_sessions, entry_basis) 키가 두 번 이상
+    나오면 ValueError를 던지고 아무 것도 저장하지 않는다(마지막 값으로 덮어쓰지 않음).
+    """
+    if not rows:
+        return 0
+
+    batch_now = None  # 필요할 때만(행/인자 양쪽 다 evaluated_at이 없을 때) 한 번 생성
+    normalized_rows = []
+    seen_keys = set()
+
+    for idx, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ValueError(f"rows[{idx}] must be a dict, got {type(row)!r}")
+
+        report_item_id = row.get("report_item_id")
+
+        row_evaluated_at = row.get("evaluated_at")
+        if row_evaluated_at is None:
+            if evaluated_at is not None:
+                row_evaluated_at = evaluated_at
+            else:
+                if batch_now is None:
+                    batch_now = datetime.now().isoformat(timespec="seconds")
+                row_evaluated_at = batch_now
+
+        normalized = _validate_outcome_fields(
+            row.get("horizon_sessions"),
+            row.get("entry_basis"),
+            row.get("entry_price_used"),
+            row.get("target_date"),
+            row.get("close_price"),
+            row.get("high_price"),
+            row.get("low_price"),
+            row.get("return_pct"),
+            row.get("benchmark_symbol"),
+            row.get("benchmark_return_pct"),
+            row.get("excess_return_pct"),
+            row.get("status", "pending"),
+            row_evaluated_at,
+        )
+
+        key = (report_item_id, normalized["horizon_sessions"], normalized["entry_basis"])
+        if key in seen_keys:
+            raise ValueError(
+                f"duplicate (report_item_id, horizon_sessions, entry_basis) in batch: {key!r}"
+            )
+        seen_keys.add(key)
+
+        normalized_rows.append((report_item_id, normalized))
+
+    conn = get_connection()
+    try:
+        for report_item_id, _normalized in normalized_rows:
+            exists = conn.execute(
+                "SELECT id FROM report_items WHERE id = ?", (report_item_id,)
+            ).fetchone()
+            if exists is None:
+                raise ValueError(f"report_item_id {report_item_id!r} does not exist")
+
+        conn.execute("BEGIN")
+        try:
+            for report_item_id, normalized in normalized_rows:
+                conn.execute(
+                    _OUTCOME_UPSERT_SQL, _outcome_upsert_params(report_item_id, normalized)
+                )
+        except Exception:
+            conn.rollback()
+            raise
+        conn.commit()
+        return len(normalized_rows)
     finally:
         conn.close()
 
