@@ -800,6 +800,12 @@ def build_decision_residual_rows(outcome_rows):
     같은 (report_item_id, horizon_sessions, entry_basis) 키가 입력에 두 번 이상 나오면
     조용히 임의로 고르지 않고 ValueError를 던진다. 정렬은 report_item_id,
     horizon_sessions 오름차순이다.
+
+    저장 당시 판단 맥락(report_id/report_saved_at/trade_mode/verdict/signal_type/
+    event_name/briefing_stage/timing_class)을 judgment 행에서 그대로 옮겨 담는다 —
+    입력 행에 있는 값을 그대로 전달할 뿐 임의로 보정하지 않으며, 키가 없으면 None이다
+    (빈 문자열을 다른 값으로 바꾸지 않음). 기존 수익률·진입 효과·미매수 성과 계산과
+    반환 필드는 전혀 바뀌지 않는다 — 이 맥락 필드들은 순수 추가다.
     """
     rows_by_key = {}
     for row in outcome_rows:
@@ -866,6 +872,14 @@ def build_decision_residual_rows(outcome_rows):
         residual_rows.append(
             {
                 "report_item_id": report_item_id,
+                "report_id": judgment_row.get("report_id"),
+                "report_saved_at": judgment_row.get("report_saved_at"),
+                "trade_mode": judgment_row.get("trade_mode"),
+                "verdict": judgment_row.get("verdict"),
+                "signal_type": judgment_row.get("signal_type"),
+                "event_name": judgment_row.get("event_name"),
+                "briefing_stage": judgment_row.get("briefing_stage"),
+                "timing_class": judgment_row.get("timing_class"),
                 "종목명": judgment_row.get("item_name"),
                 "ticker": judgment_row.get("ticker"),
                 "market": judgment_row.get("market"),
