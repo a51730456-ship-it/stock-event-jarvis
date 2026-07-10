@@ -3,7 +3,7 @@
 import math
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -4299,6 +4299,135 @@ with tab_perf:
                     st.dataframe(
                         pd.DataFrame(_saved_outcome_table_rows), width="stretch", hide_index=True
                     )
+            st.markdown("---")
+
+            # 실매매 성과 저장 (판단 성과 저장 바로 아래, 같은 선택 report_id 1건만 대상,
+            # 명시적 버튼 클릭 시에만 계산·저장). actual_action='매수'이고
+            # actual_entry_price/actual_entry_date가 모두 채워진 종목만 대상으로 한다.
+            # evaluate_item()/build_verification_rows()는 원시 price_df/benchmark_df를
+            # 보존·노출하지 않으므로(가공된 결과만 반환) 재사용이 불가능하다 — 버튼을 누른
+            # 뒤에만 기존 price_data.py 조회 함수로 새로 가져온다. judgment 성과(위 섹션,
+            # entry_basis='judgment')는 이 섹션에서 전혀 건드리지 않는다.
+            st.markdown("#### 실매매 성과 저장")
+            st.caption(
+                "선택한 보고서에서 실제 행동이 '매수'이고 실제 체결가·실제 매수 거래일이 "
+                "모두 입력된 종목만 대상으로 실매매(actual) 성과를 계산해 저장합니다. "
+                "자동 저장되지 않으며, 아래 버튼을 눌러야 계산·저장됩니다."
+            )
+
+            _actual_save_all_items = db.get_report_items(_outcome_save_target_report_id)
+            _actual_save_target_items = [
+                _ai
+                for _ai in _actual_save_all_items
+                if _ai.get("actual_action") == "매수"
+                and _ai.get("actual_entry_price") is not None
+                and _ai.get("actual_entry_date") is not None
+            ]
+
+            st.caption(f"실매매 기록 완료: {len(_actual_save_target_items)}종목")
+
+            if st.button("실매매 성과 저장", key="actual_outcome_save_button"):
+                if not _actual_save_target_items:
+                    st.info("저장 가능한 완료 실매매 성과가 없습니다.")
+                else:
+                    # 종목당 가격 조회 1회(ticker 기준 캐시), 벤치마크는 심볼별로 묶어
+                    # 필요한 날짜 범위를 합친 뒤 심볼당 1회만 조회한다(horizon별 재조회 없음).
+                    _actual_price_df_cache = {}
+                    for _ai in _actual_save_target_items:
+                        _ticker = (_ai.get("ticker") or "").strip()
+                        if not _ticker or _ticker in _actual_price_df_cache:
+                            continue
+                        _entry_dt = datetime.strptime(_ai["actual_entry_date"], "%Y-%m-%d")
+                        _start = (_entry_dt - timedelta(days=10)).strftime("%Y-%m-%d")
+                        _end = (_entry_dt + timedelta(days=45)).strftime("%Y-%m-%d")
+                        _actual_price_df_cache[_ticker] = price_data.get_price_history(
+                            _ticker, _start, _end
+                        )
+
+                    _actual_bench_ranges = {}
+                    for _ai in _actual_save_target_items:
+                        _bench_symbol = performance.determine_benchmark(
+                            _ai.get("market"), _ai.get("ticker")
+                        )
+                        if _bench_symbol is None:
+                            continue
+                        _entry_dt = datetime.strptime(_ai["actual_entry_date"], "%Y-%m-%d")
+                        _range = _actual_bench_ranges.setdefault(
+                            _bench_symbol, {"min": _entry_dt, "max": _entry_dt}
+                        )
+                        _range["min"] = min(_range["min"], _entry_dt)
+                        _range["max"] = max(_range["max"], _entry_dt)
+
+                    _actual_bench_df_cache = {}
+                    for _bench_symbol, _range in _actual_bench_ranges.items():
+                        _start = (_range["min"] - timedelta(days=10)).strftime("%Y-%m-%d")
+                        _end = (_range["max"] + timedelta(days=45)).strftime("%Y-%m-%d")
+                        _actual_bench_df_cache[_bench_symbol] = price_data.get_benchmark_history(
+                            _bench_symbol, _start, _end
+                        )
+
+                    _actual_save_candidate_rows = []
+                    _actual_save_failed = []
+                    for _ai in _actual_save_target_items:
+                        _ticker = (_ai.get("ticker") or "").strip()
+                        _price_df = _actual_price_df_cache.get(_ticker)
+                        _bench_symbol = performance.determine_benchmark(
+                            _ai.get("market"), _ai.get("ticker")
+                        )
+                        _bench_df = (
+                            _actual_bench_df_cache.get(_bench_symbol)
+                            if _bench_symbol is not None
+                            else None
+                        )
+                        try:
+                            _actual_eval_result = performance.evaluate_actual_item(
+                                _ai, _price_df, _bench_df
+                            )
+                            _rows_for_item = performance.build_actual_outcome_rows(
+                                _ai["id"], _actual_eval_result
+                            )
+                        except ValueError as _actual_calc_err:
+                            _actual_save_failed.append(
+                                (
+                                    _ai.get("stock_name") or _ai.get("ticker") or f"id={_ai['id']}",
+                                    str(_actual_calc_err),
+                                )
+                            )
+                            continue
+                        _actual_save_candidate_rows.extend(_rows_for_item)
+
+                    for _fail_name, _fail_reason in _actual_save_failed:
+                        st.error(f"{_fail_name}: {_fail_reason}")
+
+                    if not _actual_save_candidate_rows:
+                        st.info("저장 가능한 완료 실매매 성과가 없습니다.")
+                    else:
+                        try:
+                            _actual_saved_count = db.upsert_report_item_outcomes(
+                                _actual_save_candidate_rows
+                            )
+                        except Exception as _actual_save_err:
+                            st.error(f"실매매 성과 저장 중 오류가 발생했습니다: {_actual_save_err}")
+                        else:
+                            st.success(f"실매매 성과 {_actual_saved_count}건을 저장·갱신했습니다.")
+                            _actual_after_save = db.get_report_outcomes(
+                                _outcome_save_target_report_id
+                            )
+                            _actual_outcomes_after_save = [
+                                o for o in _actual_after_save if o["entry_basis"] == "actual"
+                            ]
+                            _actual_horizons_after_save = sorted(
+                                {o["horizon_sessions"] for o in _actual_outcomes_after_save}
+                            )
+                            _actual_horizons_display = (
+                                "·".join(f"{h}거래일" for h in _actual_horizons_after_save)
+                                if _actual_horizons_after_save
+                                else "-"
+                            )
+                            st.caption(
+                                f"저장 상태: actual {len(_actual_outcomes_after_save)}건 / "
+                                f"{_actual_horizons_display}"
+                            )
             st.markdown("---")
 
         # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
