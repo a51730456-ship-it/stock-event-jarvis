@@ -2818,6 +2818,163 @@ def run_kr_snapshot_auto_fill():
     return {"status": status, "results": fetch_results, "message": message, "ok_count": _ok_count, "total": _total}
 
 
+KR_THEME_WATCH_INITIAL_ROWS = [
+    {
+        "테마": theme,
+        "상태": "확인 필요",
+        "대장주": "",
+        "후발주": "",
+        "추격주의": "",
+        "메모": "",
+    }
+    for theme in [
+        "반도체/HBM",
+        "전력기기/전력망",
+        "원전",
+        "방산",
+        "조선/해운",
+        "자동차/부품",
+        "2차전지",
+        "바이오",
+        "AI/로봇",
+        "정유/화학",
+    ]
+]
+KR_THEME_WATCH_DATA_KEY = "kr_theme_watch_rows"
+KR_THEME_WATCH_EDITOR_KEY = "kr_theme_watch_editor"
+
+
+def _render_kr_theme_chip_editor():
+    """기존 한국장 테마 list[dict]를 단일 session_state 원본으로 편집한다 (DB 미사용)."""
+    st.markdown(
+        """
+        <style>
+        .jarvis-m1-theme-title {
+            color: #f8fafc;
+            font-size: 0.98rem;
+            font-weight: 850;
+            margin-bottom: 0.35rem;
+        }
+        .jarvis-m1-theme-status {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 0.22rem 0.58rem;
+            margin: 0.15rem 0 0.55rem;
+            font-size: 0.74rem;
+            font-weight: 800;
+        }
+        .jarvis-m1-theme-strong { background: #14532d; color: #bbf7d0; }
+        .jarvis-m1-theme-watch { background: #713f12; color: #fef08a; }
+        .jarvis-m1-theme-normal { background: #1e3a5f; color: #bfdbfe; }
+        .jarvis-m1-theme-weak { background: #334155; color: #cbd5e1; }
+        .jarvis-m1-theme-check { background: #202938; color: #94a3b8; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    source_rows = st.session_state.get(KR_THEME_WATCH_DATA_KEY)
+    if isinstance(source_rows, list):
+        theme_rows = [dict(row) for row in source_rows]
+    else:
+        theme_rows = [dict(row) for row in KR_THEME_WATCH_INITIAL_ROWS]
+        legacy_editor_state = st.session_state.get(KR_THEME_WATCH_EDITOR_KEY)
+        if isinstance(legacy_editor_state, dict):
+            legacy_edits = legacy_editor_state.get("edited_rows") or {}
+            for raw_index, changes in legacy_edits.items():
+                try:
+                    row_index = int(raw_index)
+                except (TypeError, ValueError):
+                    continue
+                if not (0 <= row_index < len(theme_rows)) or not isinstance(changes, dict):
+                    continue
+                for column, value in changes.items():
+                    if column in theme_rows[row_index] and column != "테마":
+                        theme_rows[row_index][column] = value
+
+    status_options = ["강함", "감시", "보통", "약함", "확인 필요"]
+    status_classes = {
+        "강함": "strong",
+        "감시": "watch",
+        "보통": "normal",
+        "약함": "weak",
+        "확인 필요": "check",
+    }
+    field_specs = [
+        ("대장주", "kr_theme_leader_"),
+        ("후발주", "kr_theme_laggard_"),
+        ("추격주의", "kr_theme_chase_warning_"),
+        ("메모", "kr_theme_memo_"),
+    ]
+    theme_columns = st.columns(2, gap="large")
+    split_index = (len(theme_rows) + 1) // 2
+    updated_rows = []
+
+    for index, row in enumerate(theme_rows):
+        updated_row = dict(row)
+        theme_name = str(row.get("테마") or "")
+        if not theme_name:
+            updated_rows.append(updated_row)
+            continue
+
+        slug = "_".join(f"u{ord(char):04x}" for char in theme_name if char.isalnum())
+        status_key = f"kr_theme_status_{slug}"
+        initial_status = row.get("상태")
+        if initial_status not in status_options:
+            initial_status = "확인 필요"
+        if status_key not in st.session_state:
+            st.session_state[status_key] = initial_status
+
+        target_column = theme_columns[0 if index < split_index else 1]
+        with target_column:
+            with st.container(border=True):
+                st.markdown(f'<div class="jarvis-m1-theme-title">{theme_name}</div>', unsafe_allow_html=True)
+                if hasattr(st, "segmented_control"):
+                    selected_status = st.segmented_control(
+                        f"{theme_name} 상태",
+                        status_options,
+                        key=status_key,
+                        label_visibility="collapsed",
+                    )
+                else:
+                    selected_status = st.radio(
+                        f"{theme_name} 상태",
+                        status_options,
+                        horizontal=True,
+                        key=status_key,
+                        label_visibility="collapsed",
+                    )
+                if selected_status not in status_options:
+                    selected_status = "확인 필요"
+                status_class = status_classes[selected_status]
+                st.markdown(
+                    f'<span class="jarvis-m1-theme-status jarvis-m1-theme-{status_class}">'
+                    f"현재 상태 · {selected_status}</span>",
+                    unsafe_allow_html=True,
+                )
+
+                detail_values = {}
+                with st.expander("세부 입력", expanded=False):
+                    for field_name, key_prefix in field_specs:
+                        widget_key = f"{key_prefix}{slug}"
+                        if widget_key not in st.session_state:
+                            st.session_state[widget_key] = str(row.get(field_name) or "")
+                        if field_name == "메모":
+                            detail_values[field_name] = st.text_area(field_name, key=widget_key)
+                        else:
+                            detail_values[field_name] = st.text_input(field_name, key=widget_key)
+
+        if "상태" in updated_row:
+            updated_row["상태"] = selected_status
+        for field_name, value in detail_values.items():
+            if field_name in updated_row:
+                updated_row[field_name] = value
+        updated_rows.append(updated_row)
+
+    st.session_state[KR_THEME_WATCH_DATA_KEY] = updated_rows
+    st.caption("테마 참고판은 session_state에서만 유지되며 DB·점수·판정에는 반영되지 않습니다.")
+
+
 def _render_kr_fable_mockup1_preview():
     """기존 한국장 입력·저장 흐름 위에 실제 세션 데이터로 그리는 읽기 전용 안전 미리보기."""
     st.markdown(
@@ -3197,25 +3354,7 @@ def _render_kr_fable_mockup1_preview():
     theme_col, event_col = st.columns(2, gap="large")
     with theme_col:
         st.markdown("#### 테마 참고판")
-        theme_names = [
-            "반도체/HBM",
-            "전력기기/전력망",
-            "원전",
-            "방산",
-            "조선/해운",
-            "자동차/부품",
-            "2차전지",
-            "바이오",
-            "AI/로봇",
-            "정유/화학",
-        ]
-        theme_html = "".join(
-            '<div class="jarvis-m1-chip">'
-            f"{theme}<span class=\"jarvis-m1-chip-note\">기존 테마 참고판에서 입력</span>"
-            "</div>"
-            for theme in theme_names
-        )
-        st.markdown(f'<div class="jarvis-m1-chip-row">{theme_html}</div>', unsafe_allow_html=True)
+        _render_kr_theme_chip_editor()
 
     with event_col:
         st.markdown("#### 이벤트 캘린더")
@@ -3391,54 +3530,7 @@ with tab_kr:
                 unsafe_allow_html=True,
             )
             st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-            with st.expander("펼쳐서 테마 입력하기", expanded=False):
-                st.caption(
-                    "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
-                    "오늘 강한 섹터와 대장주/후발주/추격주의만 빠르게 정리합니다."
-                )
-                _kr_theme_watch_rows = [
-                    {
-                        "테마": theme,
-                        "상태": "확인 필요",
-                        "대장주": "",
-                        "후발주": "",
-                        "추격주의": "",
-                        "메모": "",
-                    }
-                    for theme in [
-                        "반도체/HBM",
-                        "전력기기/전력망",
-                        "원전",
-                        "방산",
-                        "조선/해운",
-                        "자동차/부품",
-                        "2차전지",
-                        "바이오",
-                        "AI/로봇",
-                        "정유/화학",
-                    ]
-                ]
-                st.data_editor(
-                    pd.DataFrame(_kr_theme_watch_rows),
-                    key="kr_theme_watch_editor",
-                    width="stretch",
-                    height=420,
-                    row_height=38,
-                    hide_index=True,
-                    num_rows="fixed",
-                    disabled=["테마"],
-                    column_config={
-                        "상태": st.column_config.SelectboxColumn(
-                            "상태",
-                            options=["강함", "감시", "보통", "약함", "확인 필요"],
-                            required=True,
-                        ),
-                        "대장주": st.column_config.TextColumn("대장주"),
-                        "후발주": st.column_config.TextColumn("후발주"),
-                        "추격주의": st.column_config.TextColumn("추격주의"),
-                        "메모": st.column_config.TextColumn("메모"),
-                    },
-                )
+            st.caption("테마 입력은 화면 상단의 테마 참고판에서 진행합니다.")
             st.caption("자동 조회 결과는 화면 확인용이며 저장되지 않습니다.")
 
     st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
