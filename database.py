@@ -166,6 +166,13 @@ def _migrate_add_columns(conn):
     if "playbook_tags" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN playbook_tags TEXT")
 
+    # 테마 태그용 추가 컬럼(1차: 스키마만). 종목별로 어떤 시장 테마(예: 반도체/HBM, 전력기기/전력망)와
+    # 연결되는지 콤마구분 코드 문자열로 기록할 예정이며, playbook_tags와 동일하게 저장 시점이
+    # 아니라 저장 결과 확인 화면에서 report_items.id 기준 사후 UPDATE로 채운다. 기존 행은 NULL로
+    # 남기고, UI/저장 로직은 이번 단계에서 만들지 않는다(컬럼 추가만).
+    if "theme_tags" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN theme_tags TEXT")
+
     conn.commit()
 
 
