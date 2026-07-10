@@ -4168,6 +4168,92 @@ with tab_perf:
         # 종목명이 "-"인 행(제목 없이 저장된 항목)은 기본 화면에서 숨긴다.
         scoped_rows = [row for row in scoped_rows if row["stock_name"] and row["stock_name"] != "-"]
 
+        # 판단 성과 저장 (report_id 1건만 대상, 명시적 버튼 클릭 시에만 저장 —
+        # evaluate_item()/build_judgment_outcome_rows()로 이미 계산된 결과를 재사용하고
+        # 저장을 위해 별도로 다시 평가하지 않는다. 매매유형/판정 표시 필터와는 무관하게,
+        # 선택한 report_id에 속한 종목 전체(티커가 있는 항목)를 대상으로 한다 — 아래 표시용
+        # 필터(단기/며칠 구분, 판단 구분)에 저장 대상이 좌우되지 않게 하기 위함이다.
+        # actual 성과·pending/unavailable/error 행은 이 화면에서 만들지 않는다.
+        if scoped_rows:
+            st.markdown("#### 판단 성과 저장")
+            st.caption(
+                "선택한 보고서 1건의 정상 계산된 판단(judgment) 성과만 report_item_outcomes에 "
+                "저장합니다. 자동 저장되지 않으며, 아래 버튼을 눌러야 저장됩니다."
+            )
+
+            _outcome_save_reports = []
+            _outcome_save_seen_report_ids = set()
+            for _osr_row in scoped_rows:
+                if _osr_row["report_id"] not in _outcome_save_seen_report_ids:
+                    _outcome_save_seen_report_ids.add(_osr_row["report_id"])
+                    _outcome_save_reports.append((_osr_row["report_id"], _osr_row["saved_at"]))
+            _outcome_save_reports.sort(key=lambda pair: pair[1], reverse=True)
+
+            _outcome_save_report_options = {
+                f"#{_rid} ({_saved_at})": _rid for _rid, _saved_at in _outcome_save_reports
+            }
+            _outcome_save_report_label = st.selectbox(
+                "저장 대상 보고서 선택",
+                list(_outcome_save_report_options.keys()),
+                key="judgment_outcome_save_report_select",
+            )
+            _outcome_save_target_report_id = _outcome_save_report_options[_outcome_save_report_label]
+
+            # 이미 계산된 evaluate_item() 결과(perf_rows_all)를 report_item_id 기준으로 재사용한다
+            # (여기서 새로 가격·벤치마크를 조회하지 않음). report_item_id는 종목명/티커로
+            # 추정하지 않고 report_items.id(실제 DB id)를 그대로 쓴다.
+            _outcome_save_item_lookup = _build_item_judgment_lookup()
+            _outcome_save_eval_by_item_id = {}
+            for _osr_row in perf_rows_all:
+                if _osr_row["report_id"] != _outcome_save_target_report_id:
+                    continue
+                _osr_saved_item = _outcome_save_item_lookup.get(
+                    (_osr_row["report_id"], _osr_row["ticker"], _osr_row["trade_mode"]), {}
+                )
+                _osr_item_id = _osr_saved_item.get("id")
+                if _osr_item_id:
+                    _outcome_save_eval_by_item_id[_osr_item_id] = _osr_row
+
+            _outcome_save_candidate_rows = []
+            for _osr_item_id, _osr_eval_result in _outcome_save_eval_by_item_id.items():
+                _outcome_save_candidate_rows.extend(
+                    performance.build_judgment_outcome_rows(_osr_item_id, _osr_eval_result)
+                )
+
+            st.caption(
+                f"저장 가능: 종목 {len(_outcome_save_eval_by_item_id)}개 / "
+                f"성과 {len(_outcome_save_candidate_rows)}건"
+            )
+
+            if st.button("판단 성과 저장", key="judgment_outcome_save_button"):
+                if not _outcome_save_candidate_rows:
+                    st.info("저장 가능한 완료 성과가 없습니다.")
+                else:
+                    try:
+                        _outcome_saved_count = db.upsert_report_item_outcomes(
+                            _outcome_save_candidate_rows
+                        )
+                    except Exception as _outcome_save_err:
+                        st.error(f"판단 성과 저장 중 오류가 발생했습니다: {_outcome_save_err}")
+                    else:
+                        st.success(f"판단 성과 {_outcome_saved_count}건을 저장·갱신했습니다.")
+                        _outcome_after_save = db.get_report_outcomes(_outcome_save_target_report_id)
+                        _judgment_after_save = [
+                            o for o in _outcome_after_save if o["entry_basis"] == "judgment"
+                        ]
+                        _horizons_after_save = sorted(
+                            {o["horizon_sessions"] for o in _judgment_after_save}
+                        )
+                        _horizons_after_save_display = (
+                            "·".join(f"{h}거래일" for h in _horizons_after_save)
+                            if _horizons_after_save else "-"
+                        )
+                        st.caption(
+                            f"저장 상태: judgment {len(_judgment_after_save)}건 / "
+                            f"{_horizons_after_save_display}"
+                        )
+            st.markdown("---")
+
         # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
         fcol1, fcol2 = st.columns(2)
         trade_mode_filter = fcol1.radio(
