@@ -3590,7 +3590,6 @@ with tab_kr:
 
 with tab_us:
     st.subheader("미국장")
-    st.success("① 미국장 기본 종목 불러오기 → ② 계산 결과 확인 → ③ 스윙 기록 바로 저장 순서로 사용하세요.")
     st.caption(
         "스윙 전용 흐름(TSLA, AMD, AVGO, META, GOOGL, AAPL, NVDA, MSFT). 한국 종목은 다루지 않으며, "
         "시장 분위기는 한국장 탭 입력값을 그대로 사용합니다. 입력값은 저장되지 않으며, "
@@ -3614,8 +3613,65 @@ with tab_us:
         """,
         unsafe_allow_html=True,
     )
-    st.caption("미국장은 스윙 전용 화면입니다. 시장 분위기는 한국장 탭에서 입력한 값을 참고 표시합니다.")
     st.caption("미국장은 한국시간 밤에 실시간 단타로 보지 않고, 전일 종가와 스윙 후보를 확인하는 용도입니다.")
+
+    # ---- 미국장 테마 레이더 1차 참고판 (수기 참고용, 저장/점수/판단 미반영) ----
+    st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style="background-color:#74d99f;border:1px solid #22c55e;color:#052e16;
+        font-size:1.05rem;font-weight:800;border-radius:8px;padding:6px 12px;
+        margin-top:14px;margin-bottom:10px;">
+        🌐 미국장 테마 레이더 1차 참고판 (저장 안 됨)
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    with st.expander("펼쳐서 테마 레이더 입력하기", expanded=False):
+        st.caption(
+            "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
+            "미국장 테마와 한국장 연결 가능성을 빠르게 정리합니다."
+        )
+        _us_theme_watch_rows = [
+            {
+                "테마": theme,
+                "참고 지표": indicators,
+                "상태": "확인 필요",
+                "대장주": "",
+                "후발주": "",
+                "추격주의": "",
+                "메모": "",
+            }
+            for theme, indicators in [
+                ("AI/반도체", "SOXX, SMH, NVDA, AVGO, AMD"),
+                ("금리/성장주", "QQQ, VIX, 미국 10년물, DXY"),
+                ("전력망/원전", "XLU, GRID, URA"),
+                ("방산/전쟁", "ITA, XAR, LMT, NOC"),
+                ("에너지/유가", "WTI, XLE, XOP"),
+                ("자동차/전기차", "TSLA, LIT"),
+                ("바이오", "XBI, IBB"),
+            ]
+        ]
+        st.data_editor(
+            pd.DataFrame(_us_theme_watch_rows),
+            key="us_theme_watch_editor",
+            width="stretch",
+            hide_index=True,
+            num_rows="fixed",
+            disabled=["테마", "참고 지표"],
+            column_config={
+                "상태": st.column_config.SelectboxColumn(
+                    "상태",
+                    options=["강함", "감시", "보통", "약함", "확인 필요"],
+                    required=True,
+                ),
+                "대장주": st.column_config.TextColumn("대장주"),
+                "후발주": st.column_config.TextColumn("후발주"),
+                "추격주의": st.column_config.TextColumn("추격주의"),
+                "메모": st.column_config.TextColumn("메모"),
+            },
+        )
 
     _us_today_loss_r = st.session_state.get("risk_today_loss_r", 0.0)
     if _us_today_loss_r <= -2:
