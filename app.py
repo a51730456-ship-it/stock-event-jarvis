@@ -4428,6 +4428,63 @@ with tab_perf:
                                 f"저장 상태: actual {len(_actual_outcomes_after_save)}건 / "
                                 f"{_actual_horizons_display}"
                             )
+
+            # 저장된 실매매 성과 조회 전용 표시 (evaluate_actual_item()/evaluate_item() 재호출,
+            # 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE 전혀 없음). get_report_outcomes()가
+            # 반환하는 DB 스냅샷을 entry_basis='actual'만 걸러서 그대로 보여준다 — 임의로 행을
+            # 만들지 않는다. judgment 표("저장된 판단 성과 보기")와는 완전히 별도 expander로
+            # 유지하며 한 표에 섞지 않는다.
+            with st.expander("저장된 실매매 성과 보기", expanded=False):
+                st.caption(
+                    "이 표는 실제 평균 체결가와 실제 매수 거래일을 기준으로 계산해 DB에 "
+                    "저장한 실매매 성과입니다."
+                )
+                st.caption("수수료·세금·매수 수량은 아직 반영되지 않았습니다.")
+                _saved_actual_outcomes_raw = db.get_report_outcomes(_outcome_save_target_report_id)
+                _saved_actual_outcomes = [
+                    o for o in _saved_actual_outcomes_raw if o["entry_basis"] == "actual"
+                ]
+                if not _saved_actual_outcomes:
+                    st.info("아직 저장된 실매매 성과가 없습니다.")
+                else:
+                    _saved_actual_outcomes = sorted(
+                        _saved_actual_outcomes,
+                        key=lambda o: (o["report_item_id"], o["horizon_sessions"]),
+                    )
+                    _actual_outcome_status_display = {
+                        "evaluated": "완료",
+                        "pending": "대기",
+                        "unavailable": "데이터 없음",
+                        "error": "오류",
+                    }
+                    _saved_actual_outcome_table_rows = [
+                        {
+                            "종목명": o.get("item_name") or "-",
+                            "티커": o.get("ticker") or "-",
+                            "시장": o.get("market") or "-",
+                            "실제 매수일": o.get("actual_entry_date") or "-",
+                            "실제 기준가격": (
+                                _fmt_actual_entry_price_display(o.get("entry_price_used")) or "-"
+                            ),
+                            "거래일수": o.get("horizon_sessions"),
+                            "목표일": o.get("target_date") or "-",
+                            "종가": _fmt_actual_entry_price_display(o.get("close_price")) or "-",
+                            "실매매 수익률(%)": _fmt_pct(o.get("return_pct")),
+                            "벤치마크": o.get("benchmark_symbol") or "-",
+                            "벤치마크 수익률(%)": _fmt_pct(o.get("benchmark_return_pct")),
+                            "초과수익률(%)": _fmt_pct(o.get("excess_return_pct")),
+                            "상태": _actual_outcome_status_display.get(
+                                o.get("status"), o.get("status") or "-"
+                            ),
+                            "평가시각": o.get("evaluated_at") or "-",
+                        }
+                        for o in _saved_actual_outcomes
+                    ]
+                    st.dataframe(
+                        pd.DataFrame(_saved_actual_outcome_table_rows),
+                        width="stretch",
+                        hide_index=True,
+                    )
             st.markdown("---")
 
         # 필터 영역 (매매유형/판정 기본값은 항상 "전체")

@@ -1047,6 +1047,7 @@ def get_report_outcomes(report_id):
                 ri.market AS market,
                 ri.actual_action AS actual_action,
                 ri.actual_entry_price AS actual_entry_price,
+                ri.actual_entry_date AS actual_entry_date,
                 ri.theme_tags AS theme_tags,
                 rio.horizon_sessions AS horizon_sessions,
                 rio.entry_basis AS entry_basis,
