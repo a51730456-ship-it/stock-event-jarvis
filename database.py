@@ -240,6 +240,19 @@ def _migrate_add_columns(conn):
     if "actual_entry_date" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN actual_entry_date TEXT")
 
+    # Fable 5 v2 실제 매매 복기용 추가 컬럼(1차: 스키마만). quantity(체결 수량)/actual_fee
+    # (매수+매도 수수료·세금 합계 금액)/review_done(복기 완료 여부, 0/1)/review_memo(복기
+    # 메모)를 남긴다. 넷 다 NULL 허용, DEFAULT 없음, 기존 행은 전부 NULL로 남기고 UPDATE로
+    # 채우지 않는다. UI/계산/저장 흐름은 이번 단계에서 만들지 않는다(컬럼 추가만).
+    if "quantity" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN quantity INTEGER")
+    if "actual_fee" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN actual_fee REAL")
+    if "review_done" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN review_done INTEGER")
+    if "review_memo" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN review_memo TEXT")
+
     conn.commit()
 
 
