@@ -4694,6 +4694,160 @@ with tab_perf:
                             width="stretch",
                             hide_index=True,
                         )
+
+            # 테마별 누적 통계. 위 "전체 행동별 누적 통계 보기"와 마찬가지로 현재 선택한
+            # report_id 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의 저장된
+            # 성과를 db.get_all_report_outcomes()로 모아 집계한다. evaluate_item()/
+            # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
+            # 없음. 테마/실제 행동/거래일수 필터는 이미 계산된 통계 결과에만 적용하는
+            # 화면 표시용 필터이며 DB나 통계 원본값을 바꾸지 않는다.
+            with st.expander("테마별 누적 통계 보기", expanded=False):
+                st.caption(
+                    "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
+                    "여러 보고서의 저장된 성과를 함께 집계합니다."
+                )
+                st.caption(
+                    "한 종목에 여러 테마 태그가 있으면 각 테마에 각각 포함됩니다. 표본수가 "
+                    "적으면 결과가 크게 흔들릴 수 있으며, 현재 표는 자동 판정이 아닌 누적 "
+                    "원자료 통계입니다."
+                )
+
+                _theme_filter_cols = st.columns(3)
+                _theme_market_in = _theme_filter_cols[0].selectbox(
+                    "시장",
+                    ["전체", "KR", "US", "OTHER"],
+                    key="theme_summary_market_filter",
+                )
+                _theme_date_from_in = _theme_filter_cols[1].text_input(
+                    "시작일",
+                    value="",
+                    key="theme_summary_date_from_filter",
+                    placeholder="2026-07-01",
+                )
+                _theme_date_to_in = _theme_filter_cols[2].text_input(
+                    "종료일",
+                    value="",
+                    key="theme_summary_date_to_filter",
+                    placeholder="2026-07-31",
+                )
+
+                _theme_market_filter = (
+                    None if _theme_market_in == "전체" else _theme_market_in
+                )
+                _theme_date_from_filter = _theme_date_from_in.strip() or None
+                _theme_date_to_filter = _theme_date_to_in.strip() or None
+
+                try:
+                    _theme_outcome_rows = db.get_all_report_outcomes(
+                        market=_theme_market_filter,
+                        date_from=_theme_date_from_filter,
+                        date_to=_theme_date_to_filter,
+                    )
+                except ValueError as _theme_query_err:
+                    st.error(f"조회 조건 오류: {_theme_query_err}")
+                else:
+                    _theme_residual_rows = performance.build_decision_residual_rows(
+                        _theme_outcome_rows
+                    )
+                    _theme_summary_rows = performance.build_theme_residual_summary(
+                        _theme_residual_rows
+                    )
+                    if not _theme_summary_rows:
+                        st.info("아직 테마별 누적 통계를 계산할 저장 성과가 없습니다.")
+                    else:
+                        _theme_tag_options_seen = []
+                        for _t in _theme_summary_rows:
+                            if _t["theme_tag"] not in _theme_tag_options_seen:
+                                _theme_tag_options_seen.append(_t["theme_tag"])
+
+                        _theme_display_cols = st.columns(3)
+                        _theme_tag_in = _theme_display_cols[0].selectbox(
+                            "테마",
+                            ["전체"] + _theme_tag_options_seen,
+                            key="theme_summary_theme_filter",
+                        )
+                        _theme_action_in = _theme_display_cols[1].selectbox(
+                            "실제 행동",
+                            ["전체", "매수", "보류", "제외", "미기록"],
+                            key="theme_summary_action_filter",
+                        )
+                        _theme_horizon_in = _theme_display_cols[2].selectbox(
+                            "거래일수",
+                            ["전체", 1, 3, 5, 10, 20],
+                            key="theme_summary_horizon_filter",
+                        )
+
+                        _theme_filtered_rows = _theme_summary_rows
+                        if _theme_tag_in != "전체":
+                            _theme_filtered_rows = [
+                                s for s in _theme_filtered_rows
+                                if s["theme_tag"] == _theme_tag_in
+                            ]
+                        if _theme_action_in != "전체":
+                            _theme_filtered_rows = [
+                                s for s in _theme_filtered_rows
+                                if s["actual_action"] == _theme_action_in
+                            ]
+                        if _theme_horizon_in != "전체":
+                            _theme_filtered_rows = [
+                                s for s in _theme_filtered_rows
+                                if s["horizon_sessions"] == _theme_horizon_in
+                            ]
+
+                        if not _theme_filtered_rows:
+                            st.info("아직 테마별 누적 통계를 계산할 저장 성과가 없습니다.")
+                        else:
+                            _theme_table_rows = [
+                                {
+                                    "테마": s.get("theme_tag"),
+                                    "거래일수": s.get("horizon_sessions"),
+                                    "실제 행동": s.get("actual_action"),
+                                    "전체 표본수": s.get("sample_count"),
+                                    "판단 수익률 표본수": s.get("judgment_return_count"),
+                                    "판단 평균 수익률(%)": _fmt_pct(
+                                        s.get("judgment_return_avg")
+                                    ),
+                                    "판단 중앙 수익률(%)": _fmt_pct(
+                                        s.get("judgment_return_median")
+                                    ),
+                                    "판단 양수 개수": s.get("judgment_positive_count"),
+                                    "판단 양수 비율(%)": _fmt_pct(
+                                        s.get("judgment_positive_rate")
+                                    ),
+                                    "판단 초과수익률 표본수": s.get("judgment_excess_count"),
+                                    "판단 평균 초과수익률(%)": _fmt_pct(
+                                        s.get("judgment_excess_avg")
+                                    ),
+                                    "진입 효과 표본수": s.get("entry_effect_count"),
+                                    "평균 진입 효과(%p)": _fmt_pct(
+                                        s.get("entry_effect_avg")
+                                    ),
+                                    "중앙 진입 효과(%p)": _fmt_pct(
+                                        s.get("entry_effect_median")
+                                    ),
+                                    "미매수 표본수": s.get("non_buy_return_count"),
+                                    "미매수 평균 수익률(%)": _fmt_pct(
+                                        s.get("non_buy_return_avg")
+                                    ),
+                                    "미매수 중앙 수익률(%)": _fmt_pct(
+                                        s.get("non_buy_return_median")
+                                    ),
+                                    "미매수 양수 개수": s.get("non_buy_positive_count"),
+                                    "미매수 양수 비율(%)": _fmt_pct(
+                                        s.get("non_buy_positive_rate")
+                                    ),
+                                    "미매수 초과수익률 표본수": s.get("non_buy_excess_count"),
+                                    "미매수 평균 초과수익률(%)": _fmt_pct(
+                                        s.get("non_buy_excess_avg")
+                                    ),
+                                }
+                                for s in _theme_filtered_rows
+                            ]
+                            st.dataframe(
+                                pd.DataFrame(_theme_table_rows),
+                                width="stretch",
+                                hide_index=True,
+                            )
             st.markdown("---")
 
         # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
