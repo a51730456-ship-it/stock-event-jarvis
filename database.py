@@ -1186,3 +1186,79 @@ def get_all_report_outcomes(report_id=None, market=None, date_from=None, date_to
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def get_report_review_status():
+    """모든 보고서에 대해 테마 태그·실제 행동·판단/실매매 성과 저장이 얼마나 진행됐는지
+    읽기 전용으로 집계한다(복기 진행 현황 화면 전용). reports -> report_items ->
+    report_item_outcomes를 LEFT JOIN해서 report_items/report_item_outcomes가 0개인
+    보고서도 빠짐없이 포함하며, DB 값은 전혀 변경하지 않는다. 기존 get_report_outcomes()/
+    get_all_report_outcomes()는 건드리지 않는다(단일/필터 성과 조회는 계속 그 함수들을
+    쓴다).
+
+    반환 필드마다 report_items.id 또는 report_item_outcomes.id를 COUNT(DISTINCT ...)로
+    세어, reports -> report_items -> report_item_outcomes JOIN으로 인한 행 중복(한
+    종목에 judgment/actual 성과가 여러 horizon만큼 있는 경우 등)이 종목 수 집계에
+    영향을 주지 않게 한다.
+
+    - item_count: 보고서의 전체 종목 수
+    - theme_tagged_count: theme_tags가 NULL/빈 문자열/빈 JSON 배열('[]')이 아닌 종목 수
+    - action_recorded_count: actual_action이 '매수'/'보류'/'제외'인 종목 수
+    - actual_buy_count: actual_action='매수'인 종목 수
+    - actual_ready_count: actual_action='매수'이고 actual_entry_price·actual_entry_date가
+      둘 다 있는 종목 수
+    - judgment_outcome_count: entry_basis='judgment'인 report_item_outcomes 행 수
+      (종목당 여러 horizon이 있으면 각각 별도로 셈)
+    - actual_outcome_count: entry_basis='actual'인 report_item_outcomes 행 수
+    - judgment_item_count: entry_basis='judgment' 성과가 하나 이상 저장된 고유 종목 수
+    - actual_item_count: entry_basis='actual' 성과가 하나 이상 저장된 고유 종목 수
+
+    정렬: saved_at 내림차순(최신 보고서 먼저).
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                r.id AS report_id,
+                r.saved_at AS saved_at,
+                r.market_scope AS market_scope,
+                r.briefing_stage AS briefing_stage,
+                r.timing_class AS timing_class,
+                COUNT(DISTINCT ri.id) AS item_count,
+                COUNT(DISTINCT CASE
+                    WHEN ri.theme_tags IS NOT NULL
+                         AND ri.theme_tags != ''
+                         AND ri.theme_tags != '[]'
+                    THEN ri.id END) AS theme_tagged_count,
+                COUNT(DISTINCT CASE
+                    WHEN ri.actual_action IN ('매수', '보류', '제외')
+                    THEN ri.id END) AS action_recorded_count,
+                COUNT(DISTINCT CASE
+                    WHEN ri.actual_action = '매수'
+                    THEN ri.id END) AS actual_buy_count,
+                COUNT(DISTINCT CASE
+                    WHEN ri.actual_action = '매수'
+                         AND ri.actual_entry_price IS NOT NULL
+                         AND ri.actual_entry_date IS NOT NULL
+                    THEN ri.id END) AS actual_ready_count,
+                COUNT(CASE
+                    WHEN rio.entry_basis = 'judgment' THEN rio.id END) AS judgment_outcome_count,
+                COUNT(CASE
+                    WHEN rio.entry_basis = 'actual' THEN rio.id END) AS actual_outcome_count,
+                COUNT(DISTINCT CASE
+                    WHEN rio.entry_basis = 'judgment'
+                    THEN rio.report_item_id END) AS judgment_item_count,
+                COUNT(DISTINCT CASE
+                    WHEN rio.entry_basis = 'actual'
+                    THEN rio.report_item_id END) AS actual_item_count
+            FROM reports r
+            LEFT JOIN report_items ri ON ri.report_id = r.id
+            LEFT JOIN report_item_outcomes rio ON rio.report_item_id = ri.id
+            GROUP BY r.id
+            ORDER BY r.saved_at DESC
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()

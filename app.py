@@ -4139,6 +4139,85 @@ with tab_perf:
         "승률보다 R수익률과 기대값이 중요합니다. 손절을 지키면 승률은 낮아져도 계좌는 좋아질 수 있습니다."
     )
 
+    # 복기 진행 현황 (여러 보고서의 테마 태그·실제 행동·판단/실매매 성과 저장 진행 상태를
+    # 읽기 전용으로 보여준다. DB 저장·수정, 성과 재계산, 자동 순위·점수화 전혀 없음 —
+    # db.get_report_review_status()가 집계한 값만 화면 표시용으로 상태 라벨을 붙인다.
+    # 이 상태는 DB에 저장하지 않으며, "완료"라는 표현은 쓰지 않는다(20거래일까지 시간이
+    # 아직 지나지 않았을 수 있기 때문).
+    with st.expander("복기 진행 현황 보기", expanded=False):
+        st.caption(
+            "이 표는 어떤 보고서에 테마·실제 행동·성과 기록이 부족한지 확인하는 복기 "
+            "진행 현황입니다."
+        )
+
+        _review_statuses = db.get_report_review_status()
+
+        def _classify_review_status(s):
+            if s["theme_tagged_count"] == 0 and s["action_recorded_count"] == 0:
+                return "기록 전"
+            if s["action_recorded_count"] < s["item_count"]:
+                return "기록 중"
+            if s["judgment_outcome_count"] == 0:
+                return "성과 저장 대기"
+            if s["judgment_item_count"] < s["item_count"]:
+                return "복기 중"
+            return "복기 데이터 있음"
+
+        _review_total_judgment_outcomes = sum(
+            s["judgment_outcome_count"] for s in _review_statuses
+        )
+        _review_total_actual_outcomes = sum(
+            s["actual_outcome_count"] for s in _review_statuses
+        )
+        if _review_total_judgment_outcomes == 0 and _review_total_actual_outcomes == 0:
+            st.caption(
+                "아직 저장된 성과가 없습니다. 날짜가 충분히 지난 과거 보고서를 선택해 "
+                "판단 성과부터 저장해야 합니다."
+            )
+
+        _review_status_filter_in = st.selectbox(
+            "상태 필터",
+            ["전체", "기록 전", "기록 중", "성과 저장 대기", "복기 중", "복기 데이터 있음"],
+            key="review_status_filter",
+        )
+
+        _review_rows_with_status = [
+            {**s, "_status": _classify_review_status(s)} for s in _review_statuses
+        ]
+        if _review_status_filter_in != "전체":
+            _review_rows_with_status = [
+                s for s in _review_rows_with_status
+                if s["_status"] == _review_status_filter_in
+            ]
+
+        if not _review_rows_with_status:
+            st.info("이 조건에 해당하는 보고서가 없습니다.")
+        else:
+            _review_table_rows = [
+                {
+                    "보고서 ID": s.get("report_id"),
+                    "저장일": s.get("saved_at") or "-",
+                    "시장": s.get("market_scope") or "-",
+                    "브리핑 단계": s.get("briefing_stage") or "-",
+                    "시점 구분": s.get("timing_class") or "-",
+                    "종목 수": s.get("item_count"),
+                    "테마 기록": s.get("theme_tagged_count"),
+                    "행동 기록": s.get("action_recorded_count"),
+                    "실제 매수": s.get("actual_buy_count"),
+                    "실매매 준비": s.get("actual_ready_count"),
+                    "판단 성과 행": s.get("judgment_outcome_count"),
+                    "실매매 성과 행": s.get("actual_outcome_count"),
+                    "판단 성과 종목": s.get("judgment_item_count"),
+                    "실매매 성과 종목": s.get("actual_item_count"),
+                    "현재 상태": s.get("_status"),
+                }
+                for s in _review_rows_with_status
+            ]
+            st.dataframe(
+                pd.DataFrame(_review_table_rows), width="stretch", hide_index=True,
+            )
+    st.markdown("---")
+
     perf_rows_all = _cached_verification_rows(_reports_signature())
 
     if not perf_rows_all:
