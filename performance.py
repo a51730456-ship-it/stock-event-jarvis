@@ -96,6 +96,35 @@ def _future_close(price_df, entry_idx, n_trading_days):
     return float(price_df["Close"].iloc[target])
 
 
+def _future_point(price_df, entry_idx, n_trading_days):
+    """entry_idx로부터 n 거래일 뒤 (날짜, 종가). 아직 그만큼 지나지 않았으면 (None, None).
+
+    _future_close()와 동일한 위치 선택 로직이며, 성과 저장용 상세 정보(target_date)를
+    추가로 노출하기 위한 보조 함수다. 기존 returns 계산(_future_close 자체와 그 호출부)은
+    건드리지 않고, 이 함수는 evaluate_item()의 outcome_details 구성에서만 별도로 쓴다.
+    """
+    target = entry_idx + n_trading_days
+    if target >= len(price_df.index):
+        return None, None
+    target_date = price_df.index[target]
+    close_price = float(price_df["Close"].iloc[target])
+    return target_date, close_price
+
+
+def _empty_outcome_detail():
+    return {
+        "target_date": None,
+        "close_price": None,
+        "return_pct": None,
+        "benchmark_return_pct": None,
+        "excess_return_pct": None,
+    }
+
+
+def _empty_outcome_details():
+    return {h: _empty_outcome_detail() for h in HORIZONS}
+
+
 def evaluate_item(report, item):
     """report_items 한 행에 대한 성과검증 결과 dict."""
     ticker = (item.get("ticker") or "").strip()
@@ -118,6 +147,9 @@ def evaluate_item(report, item):
 
     if not ticker:
         result["status"] = "데이터 부족"
+        result["entry_price_used"] = None
+        result["benchmark_symbol"] = None
+        result["outcome_details"] = _empty_outcome_details()
         return result
 
     timing_class = item.get("item_timing_class") or report.get("timing_class")
@@ -127,6 +159,9 @@ def evaluate_item(report, item):
     if benchmark is None:
         result["benchmark"] = "미지원(OTHER)"
         result["status"] = "데이터 부족"
+        result["entry_price_used"] = None
+        result["benchmark_symbol"] = None
+        result["outcome_details"] = _empty_outcome_details()
         return result
     result["benchmark"] = benchmark
 
@@ -134,6 +169,9 @@ def evaluate_item(report, item):
         saved_at_dt = datetime.fromisoformat(report["saved_at"])
     except ValueError:
         result["status"] = "데이터 부족"
+        result["entry_price_used"] = None
+        result["benchmark_symbol"] = benchmark
+        result["outcome_details"] = _empty_outcome_details()
         return result
     ref_date = pd.Timestamp(saved_at_dt.date())
 
@@ -145,6 +183,9 @@ def evaluate_item(report, item):
 
     if price_df is None or bench_df is None:
         result["status"] = "데이터 부족"
+        result["entry_price_used"] = None
+        result["benchmark_symbol"] = benchmark
+        result["outcome_details"] = _empty_outcome_details()
         return result
 
     entry_date, entry_price, entry_idx = _entry_point(price_df, ref_date, result["entry_rule"])
@@ -152,6 +193,9 @@ def evaluate_item(report, item):
 
     if entry_date is None or b_entry_date is None:
         result["status"] = "대기"
+        result["entry_price_used"] = entry_price
+        result["benchmark_symbol"] = benchmark
+        result["outcome_details"] = _empty_outcome_details()
         return result
 
     any_computed = False
@@ -172,6 +216,37 @@ def evaluate_item(report, item):
 
     if stock_rep_return is not None and bench_rep_return is not None:
         result["excess_return"] = stock_rep_return - bench_rep_return
+
+    # 성과 저장용 상세 정보(entry_price_used/benchmark_symbol/outcome_details) 노출.
+    # 기존 returns/excess_return 계산(위 for문)은 전혀 건드리지 않고, 이미 계산된
+    # price_df/bench_df/entry_idx/b_entry_idx/entry_price/b_entry_price를 그대로
+    # 재사용해서 기간별 날짜/종가/벤치마크 수익률만 추가로 뽑아낸다(신규 가격 조회 없음).
+    outcome_details = {}
+    for h in HORIZONS:
+        target_date, close_price = _future_point(price_df, entry_idx, h)
+        _, b_close_price = _future_point(bench_df, b_entry_idx, h)
+
+        horizon_return_pct = result["returns"][h]
+
+        horizon_benchmark_return_pct = None
+        if b_close_price is not None and b_entry_price:
+            horizon_benchmark_return_pct = (b_close_price - b_entry_price) / b_entry_price * 100
+
+        horizon_excess_return_pct = None
+        if horizon_return_pct is not None and horizon_benchmark_return_pct is not None:
+            horizon_excess_return_pct = horizon_return_pct - horizon_benchmark_return_pct
+
+        outcome_details[h] = {
+            "target_date": target_date.strftime("%Y-%m-%d") if target_date is not None else None,
+            "close_price": close_price,
+            "return_pct": horizon_return_pct,
+            "benchmark_return_pct": horizon_benchmark_return_pct,
+            "excess_return_pct": horizon_excess_return_pct,
+        }
+
+    result["entry_price_used"] = entry_price
+    result["benchmark_symbol"] = benchmark
+    result["outcome_details"] = outcome_details
 
     result["status"] = "계산 완료" if any_computed else "대기"
     return result
