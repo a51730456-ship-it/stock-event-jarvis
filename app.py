@@ -2067,6 +2067,103 @@ def _fmt_result_r(value):
     return "계산 불가" if value is None else f"{value:+.2f}R"
 
 
+def _compute_realized_pnl(actual_entry_price, actual_exit_price, quantity, actual_fee):
+    """실현손익 = (actual_exit_price - actual_entry_price) * quantity - actual_fee.
+
+    actual_entry_price/actual_exit_price는 유한한 양수여야 하고, quantity는 bool이
+    아닌 int이며 1 이상이어야 한다. actual_fee는 None이면 "미입력"을 뜻하므로 0으로
+    치환하지 않고 그대로 계산 불가(None) 처리한다 — actual_fee=0은 "명시적으로 0원
+    입력"이므로 정상 계산한다. 조건을 하나라도 만족하지 못하면 None을 반환한다."""
+    if (
+        not isinstance(actual_entry_price, (int, float))
+        or isinstance(actual_entry_price, bool)
+        or not math.isfinite(actual_entry_price)
+        or actual_entry_price <= 0
+    ):
+        return None
+    if (
+        not isinstance(actual_exit_price, (int, float))
+        or isinstance(actual_exit_price, bool)
+        or not math.isfinite(actual_exit_price)
+        or actual_exit_price <= 0
+    ):
+        return None
+    if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 1:
+        return None
+    if actual_fee is None:
+        return None
+    if (
+        not isinstance(actual_fee, (int, float))
+        or isinstance(actual_fee, bool)
+        or not math.isfinite(actual_fee)
+        or actual_fee < 0
+    ):
+        return None
+    return (actual_exit_price - actual_entry_price) * quantity - actual_fee
+
+
+def _compute_realized_return_pct(realized_pnl, actual_entry_price, quantity):
+    """실현수익률(%) = realized_pnl / (actual_entry_price * quantity) * 100.
+
+    realized_pnl은 유한한 숫자여야 하고, actual_entry_price는 유한한 양수, quantity는
+    bool이 아닌 int이며 1 이상이어야 한다. 분모(actual_entry_price * quantity)가 0
+    이하이면 None을 반환한다."""
+    if (
+        not isinstance(realized_pnl, (int, float))
+        or isinstance(realized_pnl, bool)
+        or not math.isfinite(realized_pnl)
+    ):
+        return None
+    if (
+        not isinstance(actual_entry_price, (int, float))
+        or isinstance(actual_entry_price, bool)
+        or not math.isfinite(actual_entry_price)
+        or actual_entry_price <= 0
+    ):
+        return None
+    if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 1:
+        return None
+    denominator = actual_entry_price * quantity
+    if denominator <= 0:
+        return None
+    return realized_pnl / denominator * 100
+
+
+def _normalize_to_date(value):
+    """문자열("YYYY-MM-DD")/date/datetime을 date로 정규화한다. 실패 시 None.
+
+    datetime.datetime은 datetime.date의 하위 클래스이므로 datetime 인스턴스를 먼저
+    검사해 .date()로 시각 정보를 제거한 뒤, 순수 date 인스턴스를 그대로 받아들인다."""
+    from datetime import date as _date_cls
+
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, _date_cls):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    return None
+
+
+def _compute_holding_days(actual_entry_date, actual_exit_date):
+    """보유일(달력일) = actual_exit_date - actual_entry_date.
+
+    둘 다 "YYYY-MM-DD" 문자열/date/datetime 중 하나를 받아 date로 정규화한다. 정규화에
+    실패하거나 None이면 계산 불가(None). 매도일이 매수일보다 빠르면 None(미청산/오류
+    방지, 음수 보유일 차단). 같은 날이면 0을 반환한다(정상). 거래일이 아닌 달력일
+    기준이며, 2차 과제인 거래일 계산은 이 함수의 범위가 아니다."""
+    entry = _normalize_to_date(actual_entry_date)
+    exit_ = _normalize_to_date(actual_exit_date)
+    if entry is None or exit_ is None:
+        return None
+    if exit_ < entry:
+        return None
+    return (exit_ - entry).days
+
+
 def _compute_verification_status(actual_exit_price, actual_exit_date):
     """실제 청산가/청산일 입력 여부만으로 검증 상태를 정한다(가격/일자 둘 다 있으면 입력완료,
     하나만 있으면 계산불가, 둘 다 없으면 미입력)."""
