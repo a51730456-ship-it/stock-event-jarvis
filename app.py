@@ -4876,6 +4876,115 @@ with tab_archive:
         st.markdown("---")
         render_report_detail(selected_report, show_raw_briefing=True)
 
+def _render_actual_trade_entry_inputs(saved_item, key_prefix=""):
+    """실제 행동·매수 입력 및 저장 UI를 렌더링한다."""
+    if not saved_item.get("id"):
+        return
+
+    _item_name = saved_item.get("stock_name") or "-"
+    with st.expander("실제 행동·매수 입력", expanded=False):
+        st.markdown("---")
+        _action_key = f"{key_prefix}actualaction_{saved_item['id']}"
+        _action_options = ["미기록", "매수", "보류", "제외"]
+        _action_stored = db.normalize_actual_action(saved_item.get("actual_action"))
+        _action_in = st.selectbox(
+            "실제 행동",
+            _action_options,
+            index=_action_options.index(_action_stored),
+            key=f"{_action_key}_select",
+        )
+        if st.button("실제 행동 저장", key=f"{_action_key}_save"):
+            _final_action = None if _action_in == "미기록" else _action_in
+            try:
+                _action_ok = db.update_report_item_actual_action(saved_item["id"], _final_action)
+            except ValueError as _action_err:
+                st.error(f"{_item_name}: {_action_err}")
+            else:
+                if _action_ok:
+                    st.success("실제 행동이 저장되었습니다.")
+                    st.rerun()
+                else:
+                    st.error(
+                        f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
+
+        st.markdown("---")
+        _price_key = f"{key_prefix}actualentryprice_{saved_item['id']}"
+        _price_default_text = _fmt_actual_entry_price_display(saved_item.get("actual_entry_price"))
+        _price_text_in = st.text_input(
+            "실제 평균 체결가",
+            value=_price_default_text,
+            key=f"{_price_key}_input",
+            help=(
+                "실제로 매수한 평균 체결가입니다. 실제 행동이 '매수'일 때만 "
+                "저장할 수 있습니다."
+            ),
+        )
+        if st.button("실제 체결가 저장", key=f"{_price_key}_save"):
+            _parsed_price, _parse_error = _parse_actual_entry_price_text(_price_text_in)
+            if _parse_error:
+                st.error(f"{_item_name}: {_parse_error}")
+            else:
+                try:
+                    _price_ok = db.update_report_item_actual_entry_price(
+                        saved_item["id"], _parsed_price
+                    )
+                except ValueError as _price_err:
+                    st.error(f"{_item_name}: {_price_err}")
+                else:
+                    if _price_ok:
+                        st.success("실제 체결가가 저장되었습니다.")
+                        st.rerun()
+                    else:
+                        st.error(
+                            f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                            f"(id={saved_item['id']})."
+                        )
+
+        st.markdown("---")
+        _entry_date_key = f"{key_prefix}actualentrydate_{saved_item['id']}"
+        _entry_date_default_text = saved_item.get("actual_entry_date") or ""
+        _entry_date_text_in = st.text_input(
+            "실제 매수 거래일",
+            value=_entry_date_default_text,
+            key=f"{_entry_date_key}_input",
+            placeholder="2026-07-10",
+            help=(
+                "실제 매수한 거래소 기준 거래일입니다. 미국장은 한국시간 "
+                "날짜가 아니라 미국 현지 거래일을 입력합니다."
+            ),
+        )
+        if st.button("실제 매수일 저장", key=f"{_entry_date_key}_save"):
+            try:
+                _entry_date_ok = db.update_report_item_actual_entry_date(
+                    saved_item["id"], _entry_date_text_in
+                )
+            except ValueError as _entry_date_err:
+                st.error(f"{_item_name}: {_entry_date_err}")
+            else:
+                if _entry_date_ok:
+                    st.success("실제 매수 거래일이 저장되었습니다.")
+                    st.rerun()
+                else:
+                    st.error(
+                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
+
+        if saved_item.get("actual_action") == "매수":
+            if (
+                saved_item.get("actual_entry_price") is not None
+                and saved_item.get("actual_entry_date") is not None
+            ):
+                st.caption("실매매 성과 계산 준비 완료")
+            else:
+                st.caption(
+                    "실매매 성과 계산에는 실제 평균 체결가와 실제 매수 "
+                    "거래일이 모두 필요합니다."
+                )
+
+
 with tab_perf:
     st.subheader("결과 확인")
     st.caption(
@@ -6567,133 +6676,7 @@ with tab_perf:
                                 st.rerun()
 
                     if saved_item.get("id"):
-                        with st.expander("실제 행동·매수 입력", expanded=False):
-                            # 실제 행동 입력/수정 (기존 report_item을 id 기준으로 사후 UPDATE만
-                            # 수행, 새 report/report_item 생성 안 함, save_report()/INSERT
-                            # 로직과 무관). buy_confirmed(저장 당시 판단용 legacy 필드)와는
-                            # 별개이며 동기화하지 않는다. 테마 태그 저장 버튼과 독립적으로 동작한다.
-                            st.markdown("---")
-                            _action_key = f"actualaction_{saved_item['id']}"
-                            _action_options = ["미기록", "매수", "보류", "제외"]
-                            _action_stored = db.normalize_actual_action(saved_item.get("actual_action"))
-                            _action_in = st.selectbox(
-                                "실제 행동",
-                                _action_options,
-                                index=_action_options.index(_action_stored),
-                                key=f"{_action_key}_select",
-                            )
-                            if st.button("실제 행동 저장", key=f"{_action_key}_save"):
-                                _final_action = None if _action_in == "미기록" else _action_in
-                                try:
-                                    _action_ok = db.update_report_item_actual_action(
-                                        saved_item["id"], _final_action
-                                    )
-                                except ValueError as _action_err:
-                                    st.error(f"{row['stock_name']}: {_action_err}")
-                                else:
-                                    if _action_ok:
-                                        st.success("실제 행동이 저장되었습니다.")
-                                        st.rerun()
-                                    else:
-                                        st.error(
-                                            f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                                            f"(id={saved_item['id']})."
-                                        )
-
-                            # 실제 평균 체결가 입력/수정 (기존 report_item을 id 기준으로 사후
-                            # UPDATE만 수행, 새 report/report_item 생성 안 함, save_report()/
-                            # INSERT 로직과 무관). entry_price(저장 당시 계획/참고 진입가)와는
-                            # 다른 사후 실제 데이터이며 서로 동기화하지 않는다. 실제 행동이
-                            # '매수'일 때만 저장 가능하다(database.py에서 최종 검증). 테마 태그/
-                            # 실제 행동 저장 버튼과 독립적으로 동작한다.
-                            st.markdown("---")
-                            _price_key = f"actualentryprice_{saved_item['id']}"
-                            _price_default_text = _fmt_actual_entry_price_display(
-                                saved_item.get("actual_entry_price")
-                            )
-                            _price_text_in = st.text_input(
-                                "실제 평균 체결가",
-                                value=_price_default_text,
-                                key=f"{_price_key}_input",
-                                help=(
-                                    "실제로 매수한 평균 체결가입니다. 실제 행동이 '매수'일 때만 "
-                                    "저장할 수 있습니다."
-                                ),
-                            )
-                            if st.button("실제 체결가 저장", key=f"{_price_key}_save"):
-                                _parsed_price, _parse_error = _parse_actual_entry_price_text(
-                                    _price_text_in
-                                )
-                                if _parse_error:
-                                    st.error(f"{row['stock_name']}: {_parse_error}")
-                                else:
-                                    try:
-                                        _price_ok = db.update_report_item_actual_entry_price(
-                                            saved_item["id"], _parsed_price
-                                        )
-                                    except ValueError as _price_err:
-                                        st.error(f"{row['stock_name']}: {_price_err}")
-                                    else:
-                                        if _price_ok:
-                                            st.success("실제 체결가가 저장되었습니다.")
-                                            st.rerun()
-                                        else:
-                                            st.error(
-                                                f"{row['stock_name']}: 저장 실패 — 대상 기록을 "
-                                                f"찾지 못했습니다 (id={saved_item['id']})."
-                                            )
-
-                            # 실제 매수 거래일 입력/수정 (기존 report_item을 id 기준으로 사후
-                            # UPDATE만 수행, 새 report/report_item 생성 안 함, save_report()/
-                            # INSERT 로직과 무관). 거래소 기준 거래일(YYYY-MM-DD)이며 한국시간
-                            # 기준 날짜가 아니다. 실제 행동이 '매수'일 때만 날짜 저장이
-                            # 가능하다(database.py에서 최종 검증, 빈칸/NULL은 행동값과 무관하게
-                            # 항상 허용). 테마 태그/실제 행동/실제 체결가 저장 버튼과 독립적으로
-                            # 동작한다.
-                            st.markdown("---")
-                            _entry_date_key = f"actualentrydate_{saved_item['id']}"
-                            _entry_date_default_text = saved_item.get("actual_entry_date") or ""
-                            _entry_date_text_in = st.text_input(
-                                "실제 매수 거래일",
-                                value=_entry_date_default_text,
-                                key=f"{_entry_date_key}_input",
-                                placeholder="2026-07-10",
-                                help=(
-                                    "실제 매수한 거래소 기준 거래일입니다. 미국장은 한국시간 "
-                                    "날짜가 아니라 미국 현지 거래일을 입력합니다."
-                                ),
-                            )
-                            if st.button("실제 매수일 저장", key=f"{_entry_date_key}_save"):
-                                try:
-                                    _entry_date_ok = db.update_report_item_actual_entry_date(
-                                        saved_item["id"], _entry_date_text_in
-                                    )
-                                except ValueError as _entry_date_err:
-                                    st.error(f"{row['stock_name']}: {_entry_date_err}")
-                                else:
-                                    if _entry_date_ok:
-                                        st.success("실제 매수 거래일이 저장되었습니다.")
-                                        st.rerun()
-                                    else:
-                                        st.error(
-                                            f"{row['stock_name']}: 저장 실패 — 대상 기록을 "
-                                            f"찾지 못했습니다 (id={saved_item['id']})."
-                                        )
-
-                            # 실매매 성과 준비 상태 표시 전용(계산/저장 없음). actual_action이
-                            # '매수'인 종목만 대상으로, DB에 저장된 actual_entry_price/
-                            # actual_entry_date 값이 둘 다 있는지만 보여준다.
-                            if saved_item.get("actual_action") == "매수":
-                                if (
-                                    saved_item.get("actual_entry_price") is not None
-                                    and saved_item.get("actual_entry_date") is not None
-                                ):
-                                    st.caption("실매매 성과 계산 준비 완료")
-                                else:
-                                    st.caption(
-                                        "실매매 성과 계산에는 실제 평균 체결가와 실제 매수 "
-                                        "거래일이 모두 필요합니다."
-                                    )
+                        _render_actual_trade_entry_inputs(saved_item, key_prefix="")
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
     st.markdown("---")
