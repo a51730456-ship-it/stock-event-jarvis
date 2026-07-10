@@ -670,3 +670,100 @@ def build_actual_outcome_rows(report_item_id, evaluation_result):
         )
 
     return rows
+
+
+# ---- 판단(judgment) 대 실매매(actual) 순수 비교 (DB 접근/네트워크 조회/UI 출력 없음) ----
+# report_item_outcomes를 수정하지 않으며, 좋음/나쁨 판정이나 점수는 만들지 않는다 —
+# 원시 수치 차이(gap)만 계산한다.
+
+def _sanitize_comparison_number(value):
+    """유한 숫자(bool 제외)만 그대로 반환하고, 그 외(None/NaN/Infinity/bool/비숫자)는
+    None으로 정규화한다. build_judgment_actual_comparison_rows() 전용 안전장치다.
+    """
+    if _is_valid_finite_number(value, require_positive=False):
+        return value
+    return None
+
+
+def build_judgment_actual_comparison_rows(outcome_rows):
+    """db.get_report_outcomes(report_id) 형식의 행 목록에서 같은 (report_item_id,
+    horizon_sessions)에 대해 entry_basis='judgment'와 entry_basis='actual'이 모두
+    존재하고 둘 다 status='evaluated'인 경우만 판단 대 실매매 수익률 차이를 비교하는
+    list[dict]를 만드는 순수 함수다. DB 연결/INSERT/UPDATE, 가격·벤치마크 네트워크
+    조회, UI 출력을 전혀 하지 않는다. 입력 outcome_rows와 그 안의 각 행 dict는
+    수정하지 않는다(읽기만 함).
+
+    같은 (report_item_id, horizon_sessions, entry_basis) 키가 입력에 두 번 이상
+    나오면 어느 쪽을 쓸지 조용히 임의로 고르지 않고 ValueError를 던진다.
+    judgment/actual 중 한쪽만 있거나 둘 중 하나라도 status가 'evaluated'가 아니면
+    그 (report_item_id, horizon_sessions)는 비교 행을 만들지 않고 조용히 제외한다
+    (실제 행동이 '매수'가 아닌 종목은 actual 행 자체가 없으므로 자연스럽게 제외됨).
+    return_gap_pct/excess_return_gap_pct는 두 값이 전부 유효한 유한 숫자일 때만
+    계산하고, 하나라도 없거나 NaN/Infinity/bool이면 None이다. 좋음/나쁨 판정이나
+    점수는 만들지 않는다.
+    """
+    rows_by_key = {}
+    for row in outcome_rows:
+        entry_basis = row.get("entry_basis")
+        if entry_basis not in ("judgment", "actual"):
+            continue
+        key = (row.get("report_item_id"), row.get("horizon_sessions"), entry_basis)
+        if key in rows_by_key:
+            raise ValueError(
+                "duplicate (report_item_id, horizon_sessions, entry_basis) in "
+                f"outcome_rows: {key!r}"
+            )
+        rows_by_key[key] = row
+
+    seen_pairs = {
+        (report_item_id, horizon_sessions)
+        for (report_item_id, horizon_sessions, _entry_basis) in rows_by_key
+    }
+
+    comparison_rows = []
+    for report_item_id, horizon_sessions in sorted(seen_pairs):
+        judgment_row = rows_by_key.get((report_item_id, horizon_sessions, "judgment"))
+        actual_row = rows_by_key.get((report_item_id, horizon_sessions, "actual"))
+        if judgment_row is None or actual_row is None:
+            continue
+        if judgment_row.get("status") != "evaluated" or actual_row.get("status") != "evaluated":
+            continue
+
+        judgment_entry_price = _sanitize_comparison_number(judgment_row.get("entry_price_used"))
+        actual_entry_price = _sanitize_comparison_number(actual_row.get("entry_price_used"))
+        judgment_return_pct = _sanitize_comparison_number(judgment_row.get("return_pct"))
+        actual_return_pct = _sanitize_comparison_number(actual_row.get("return_pct"))
+        judgment_excess_return_pct = _sanitize_comparison_number(
+            judgment_row.get("excess_return_pct")
+        )
+        actual_excess_return_pct = _sanitize_comparison_number(
+            actual_row.get("excess_return_pct")
+        )
+
+        return_gap_pct = None
+        if judgment_return_pct is not None and actual_return_pct is not None:
+            return_gap_pct = actual_return_pct - judgment_return_pct
+
+        excess_return_gap_pct = None
+        if judgment_excess_return_pct is not None and actual_excess_return_pct is not None:
+            excess_return_gap_pct = actual_excess_return_pct - judgment_excess_return_pct
+
+        comparison_rows.append(
+            {
+                "report_item_id": report_item_id,
+                "종목명": actual_row.get("item_name") or judgment_row.get("item_name"),
+                "ticker": actual_row.get("ticker") or judgment_row.get("ticker"),
+                "market": actual_row.get("market") or judgment_row.get("market"),
+                "horizon_sessions": horizon_sessions,
+                "judgment_entry_price": judgment_entry_price,
+                "actual_entry_price": actual_entry_price,
+                "judgment_return_pct": judgment_return_pct,
+                "actual_return_pct": actual_return_pct,
+                "return_gap_pct": return_gap_pct,
+                "judgment_excess_return_pct": judgment_excess_return_pct,
+                "actual_excess_return_pct": actual_excess_return_pct,
+                "excess_return_gap_pct": excess_return_gap_pct,
+            }
+        )
+
+    return comparison_rows
