@@ -87,6 +87,43 @@ def init_db():
                 created_at TEXT,
                 FOREIGN KEY (source_report_id) REFERENCES reports(id)
             );
+
+            -- 2단계 성과검증(판단 잔차 채굴) 준비용 자식 테이블. 이번 단계는 스키마만
+            -- 만든다 — 성과 계산/가격 조회/UI/performance.py 연결은 이후 별도 작업이다.
+            -- report_items 한 행에 대해 여러 거래일(horizon_sessions)과 두 가지 성과 기준
+            -- (entry_basis: judgment=저장 당시 판단 적중률용, actual=실제 매수 체결가 기준
+            -- 실매매 성과용)을 각각 별도 행으로 저장할 수 있게 설계했다. entry_price_used는
+            -- 계산 당시 실제로 사용한 기준가격 스냅샷이며, report_items.entry_price/
+            -- actual_entry_price가 나중에 바뀌어도 과거 계산 결과가 흔들리지 않도록 한다.
+            CREATE TABLE IF NOT EXISTS report_item_outcomes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_item_id INTEGER NOT NULL,
+                horizon_sessions INTEGER NOT NULL,
+                entry_basis TEXT NOT NULL,
+                entry_price_used REAL,
+                target_date TEXT,
+                close_price REAL,
+                high_price REAL,
+                low_price REAL,
+                return_pct REAL,
+                benchmark_symbol TEXT,
+                benchmark_return_pct REAL,
+                excess_return_pct REAL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                evaluated_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                UNIQUE(report_item_id, horizon_sessions, entry_basis),
+
+                CHECK(horizon_sessions > 0),
+                CHECK(entry_basis IN ('judgment', 'actual')),
+                CHECK(status IN ('pending', 'evaluated', 'unavailable', 'error')),
+
+                FOREIGN KEY(report_item_id)
+                    REFERENCES report_items(id)
+                    ON DELETE CASCADE
+            );
             """
         )
         conn.commit()
