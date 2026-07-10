@@ -6,6 +6,7 @@ report_items가 0개인 "오늘 추천 없음" report의 기회비용/위험회�
 (market_scope별 기준지수: KR->KOSPI, US->SPY, MIXED->KOSPI/SPY 분리 표시).
 """
 
+import json
 import math
 import statistics
 from datetime import datetime, timedelta
@@ -1053,4 +1054,218 @@ def build_action_residual_summary(residual_rows):
     summary_rows.sort(
         key=lambda s: (s["horizon_sessions"], _ACTION_RESIDUAL_ORDER[s["actual_action"]])
     )
+    return summary_rows
+
+
+# ---- 테마 태그 × 거래일수 × 실제 행동 순수 집계 (DB 접근/네트워크 조회/UI 출력/자동 판정/
+# 점수화/추천 없음) ----
+
+_THEME_RESIDUAL_UNSPECIFIED = "미지정"
+
+
+def _extract_theme_tags(value):
+    """theme_tags 값(JSON 배열 문자열 또는 list/tuple)에서 정리된 태그 list를 만든다.
+
+    각 태그는 앞뒤 공백을 제거하고 빈 문자열은 버리며, 같은 값 안에서 중복된 태그는
+    한 번만 남긴다(최초 등장 순서 유지). 원본에 태그가 전혀 없으면(None/빈·공백
+    문자열/빈 리스트/공백만 있던 태그들) 빈 list를 반환한다 — 호출부에서 '미지정'으로
+    처리한다. JSON 파싱 실패, JSON이 리스트로 디코드되지 않는 경우, list/tuple/문자열이
+    아닌 지원하지 않는 자료형, 문자열이 아닌 리스트 원소가 있으면 ValueError를 던진다
+    (기존 database.py의 parse_theme_tags()는 오류를 조용히 삼키고 빈 리스트를 반환하는
+    화면 렌더링용 헬퍼라 이 함수의 '잘못된 입력은 ValueError' 요구와 맞지 않아 별도로
+    둔다).
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        if value.strip() == "":
+            return []
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"theme_tags is not valid JSON: {value!r} ({exc})")
+        if not isinstance(parsed, list):
+            raise ValueError(
+                f"theme_tags JSON must decode to a list, got {type(parsed)!r}"
+            )
+        raw_tags = parsed
+    elif isinstance(value, (list, tuple)):
+        raw_tags = list(value)
+    else:
+        raise ValueError(
+            f"theme_tags must be a JSON string, list, or tuple, got {type(value)!r}"
+        )
+
+    cleaned = []
+    seen = set()
+    for tag in raw_tags:
+        if not isinstance(tag, str):
+            raise ValueError(f"theme_tags entries must be strings, got {tag!r}")
+        stripped = tag.strip()
+        if not stripped or stripped in seen:
+            continue
+        seen.add(stripped)
+        cleaned.append(stripped)
+    return cleaned
+
+
+def build_theme_residual_summary(residual_rows):
+    """build_decision_residual_rows()의 결과를 여러 보고서에서 합친 목록을 받아
+    theme_tag × horizon_sessions × actual_action(매수/보류/제외/미기록) 기준으로
+    집계하는 순수 통계 함수다. DB 연결/INSERT/UPDATE, 네트워크 조회, UI 출력을 전혀
+    하지 않는다. 입력 residual_rows와 그 안의 각 행 dict는 수정하지 않는다(읽기만 함).
+
+    한 행에 태그가 여러 개면 각 테마 그룹에 한 번씩 표본으로 포함된다 — 따라서
+    sample_count는 고유 종목 수가 아니라 '테마-성과 행 연결 수'다. 태그가 없는 행은
+    theme_tag='미지정' 그룹에 포함된다. 여러 보고서에 같은 종목이 있어도 입력된 각
+    기록을 별도 표본으로 쓰며 임의로 중복 제거하지 않는다.
+
+    judgment 통계(수익률/초과수익률 평균·중앙값·양수 개수·비율)는 모든 행동 그룹에서
+    정상값만으로 계산한다. entry_effect 통계는 actual_action='매수' 그룹에서만
+    entry_effect_pct가 정상인 행으로 계산하고, non_buy 통계는 '보류' 또는 '제외'
+    그룹에서만 non_buy_return_pct/non_buy_excess_return_pct로 계산한다 — '미기록'
+    그룹에서는 둘 다 집계하지 않는다(다른 그룹에 오염된 값이 있어도 무시).
+    None/NaN/Infinity/bool은 유효 숫자에서 제외하고, 평균·중앙값은 유효 표본이 0이면
+    None이다. 반환값은 반올림하지 않고 내부 계산 정밀도를 유지한다. 양수 비율을
+    승률이라 부르지 않으며, 성공/실패·기회손실·손실회피 라벨이나 최소 표본 기준·
+    테마 점수·매수 추천은 만들지 않는다.
+
+    actual_action이 None이거나 빈(공백 포함) 문자열이면 '미기록'으로 정규화한다.
+    '매수'/'보류'/'제외'/None·빈 문자열 외의 값이 오면 ValueError. horizon_sessions는
+    bool이 아닌 양의 정수여야 하며, 아니면 ValueError. theme_tags가 잘못된 JSON이거나
+    지원하지 않는 자료형이면 ValueError. 이 검증들은 결과를 만들기 전에 전체 입력을
+    먼저 훑어 확인하므로, 잘못된 행 하나 때문에 일부만 반영된 왜곡된 통계가 반환되지
+    않는다.
+
+    정렬: theme_tag 오름차순('미지정'은 항상 마지막) -> horizon_sessions 오름차순 ->
+    매수 -> 보류 -> 제외 -> 미기록.
+    """
+    if not isinstance(residual_rows, (list, tuple)):
+        raise ValueError(
+            f"residual_rows must be a list or tuple, got {type(residual_rows)!r}"
+        )
+
+    prepared = []
+    for idx, row in enumerate(residual_rows):
+        if not isinstance(row, dict):
+            raise ValueError(f"residual_rows[{idx}] must be a dict, got {type(row)!r}")
+
+        raw_action = row.get("actual_action")
+        if raw_action is None or (isinstance(raw_action, str) and raw_action.strip() == ""):
+            action = "미기록"
+        elif raw_action in _ACTION_RESIDUAL_KNOWN_ACTIONS:
+            action = raw_action
+        else:
+            raise ValueError(
+                f"residual_rows[{idx}] has unknown actual_action: {raw_action!r}"
+            )
+
+        horizon_sessions = row.get("horizon_sessions")
+        if (
+            isinstance(horizon_sessions, bool)
+            or not isinstance(horizon_sessions, int)
+            or horizon_sessions <= 0
+        ):
+            raise ValueError(
+                f"residual_rows[{idx}] horizon_sessions must be a positive int (not bool), "
+                f"got {horizon_sessions!r}"
+            )
+
+        try:
+            tags = _extract_theme_tags(row.get("theme_tags"))
+        except ValueError as exc:
+            raise ValueError(f"residual_rows[{idx}] theme_tags error: {exc}")
+
+        tag_list = tags if tags else [_THEME_RESIDUAL_UNSPECIFIED]
+
+        prepared.append((action, horizon_sessions, tag_list, row))
+
+    groups = {}
+    for action, horizon_sessions, tag_list, row in prepared:
+        for tag in tag_list:
+            groups.setdefault((tag, horizon_sessions, action), []).append(row)
+
+    summary_rows = []
+    for (tag, horizon_sessions, action), rows in groups.items():
+        sample_count = len(rows)
+
+        judgment_return_values = _collect_valid_finite_values(rows, "judgment_return_pct")
+        judgment_return_count, judgment_return_avg, judgment_return_median = (
+            _summarize_values(judgment_return_values)
+        )
+        judgment_positive_count = sum(1 for v in judgment_return_values if v > 0)
+        judgment_positive_rate = (
+            judgment_positive_count / judgment_return_count * 100
+            if judgment_return_count > 0
+            else None
+        )
+
+        judgment_excess_values = _collect_valid_finite_values(
+            rows, "judgment_excess_return_pct"
+        )
+        judgment_excess_count, judgment_excess_avg, _judgment_excess_median = (
+            _summarize_values(judgment_excess_values)
+        )
+
+        entry_effect_values = (
+            _collect_valid_finite_values(rows, "entry_effect_pct") if action == "매수" else []
+        )
+        entry_effect_count, entry_effect_avg, entry_effect_median = _summarize_values(
+            entry_effect_values
+        )
+
+        if action in ("보류", "제외"):
+            non_buy_return_values = _collect_valid_finite_values(rows, "non_buy_return_pct")
+            non_buy_excess_values = _collect_valid_finite_values(
+                rows, "non_buy_excess_return_pct"
+            )
+        else:
+            non_buy_return_values = []
+            non_buy_excess_values = []
+
+        non_buy_return_count, non_buy_return_avg, non_buy_return_median = _summarize_values(
+            non_buy_return_values
+        )
+        non_buy_positive_count = sum(1 for v in non_buy_return_values if v > 0)
+        non_buy_positive_rate = (
+            non_buy_positive_count / non_buy_return_count * 100
+            if non_buy_return_count > 0
+            else None
+        )
+        non_buy_excess_count, non_buy_excess_avg, _non_buy_excess_median = _summarize_values(
+            non_buy_excess_values
+        )
+
+        summary_rows.append(
+            {
+                "theme_tag": tag,
+                "horizon_sessions": horizon_sessions,
+                "actual_action": action,
+                "sample_count": sample_count,
+                "judgment_return_count": judgment_return_count,
+                "judgment_return_avg": judgment_return_avg,
+                "judgment_return_median": judgment_return_median,
+                "judgment_positive_count": judgment_positive_count,
+                "judgment_positive_rate": judgment_positive_rate,
+                "judgment_excess_count": judgment_excess_count,
+                "judgment_excess_avg": judgment_excess_avg,
+                "entry_effect_count": entry_effect_count,
+                "entry_effect_avg": entry_effect_avg,
+                "entry_effect_median": entry_effect_median,
+                "non_buy_return_count": non_buy_return_count,
+                "non_buy_return_avg": non_buy_return_avg,
+                "non_buy_return_median": non_buy_return_median,
+                "non_buy_positive_count": non_buy_positive_count,
+                "non_buy_positive_rate": non_buy_positive_rate,
+                "non_buy_excess_count": non_buy_excess_count,
+                "non_buy_excess_avg": non_buy_excess_avg,
+            }
+        )
+
+    def _theme_residual_sort_key(s):
+        tag = s["theme_tag"]
+        tag_rank = (1, "") if tag == _THEME_RESIDUAL_UNSPECIFIED else (0, tag)
+        return (tag_rank, s["horizon_sessions"], _ACTION_RESIDUAL_ORDER[s["actual_action"]])
+
+    summary_rows.sort(key=_theme_residual_sort_key)
     return summary_rows
