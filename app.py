@@ -4614,6 +4614,34 @@ with tab_perf:
                                 db.update_report_item_theme_tags(saved_item["id"], _theme_tags_in)
                                 st.success("테마 태그가 저장되었습니다.")
                                 st.rerun()
+
+                            # 실제 행동 입력/수정 (기존 report_item을 id 기준으로 사후 UPDATE만
+                            # 수행, 새 report/report_item 생성 안 함, save_report()/INSERT
+                            # 로직과 무관). buy_confirmed(저장 당시 판단용 legacy 필드)와는
+                            # 별개이며 동기화하지 않는다. 테마 태그 저장 버튼과 독립적으로 동작한다.
+                            st.markdown("---")
+                            _action_key = f"actualaction_{saved_item['id']}"
+                            _action_options = ["미기록", "매수", "보류", "제외"]
+                            _action_stored = db.normalize_actual_action(saved_item.get("actual_action"))
+                            _action_in = st.selectbox(
+                                "실제 행동",
+                                _action_options,
+                                index=_action_options.index(_action_stored),
+                                key=f"{_action_key}_select",
+                            )
+                            if st.button("실제 행동 저장", key=f"{_action_key}_save"):
+                                _final_action = None if _action_in == "미기록" else _action_in
+                                _action_ok = db.update_report_item_actual_action(
+                                    saved_item["id"], _final_action
+                                )
+                                if _action_ok:
+                                    st.success("실제 행동이 저장되었습니다.")
+                                    st.rerun()
+                                else:
+                                    st.error(
+                                        f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                                        f"(id={saved_item['id']})."
+                                    )
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
     st.markdown("---")

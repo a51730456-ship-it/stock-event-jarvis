@@ -125,6 +125,8 @@ def _migrate_add_columns(conn):
         conn.execute("ALTER TABLE report_items ADD COLUMN top_candidate_reason TEXT")
     if "penalty_reason" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN penalty_reason TEXT")
+    # buy_confirmed는 저장 당시 시스템 판단용 legacy 필드다. 사후 실제 행동 기록은
+    # actual_action(아래 별도 컬럼)을 쓰며, 둘은 동기화하지 않는다.
     if "buy_confirmed" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN buy_confirmed TEXT")
     if "buy_confirm_condition" not in item_cols:
@@ -395,6 +397,44 @@ def parse_theme_tags(value):
     if not isinstance(parsed, list):
         return []
     return [str(v).strip() for v in parsed if str(v).strip()]
+
+
+ACTUAL_ACTION_CHOICES = ("매수", "보류", "제외")
+
+
+def update_report_item_actual_action(report_item_id, action):
+    """report_items.id 기준 사후 UPDATE 전용(새 report/report_item 생성 없음).
+
+    action은 None(미기록) 또는 "매수"/"보류"/"제외" 중 하나만 허용한다. 그 외 값은
+    ValueError를 던진다(저장하지 않음). report_items.id 외 다른 컬럼/다른 행은 건드리지
+    않는다. buy_confirmed는 저장 당시 시스템 판단용 legacy 필드이고 actual_action은
+    사용자의 사후 실제 행동 기록이라 서로 동기화하지 않는다. 존재하지 않는 id를 넘기면
+    아무 행도 갱신되지 않으므로 False를 반환한다(조용한 성공 아님).
+    """
+    if action is not None and action not in ACTUAL_ACTION_CHOICES:
+        raise ValueError(f"action must be None or one of {ACTUAL_ACTION_CHOICES}, got {action!r}")
+
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "UPDATE report_items SET actual_action = ? WHERE id = ?", (action, report_item_id)
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def normalize_actual_action(value):
+    """report_items.actual_action(TEXT)을 화면 표시용 값으로 안전하게 변환한다.
+
+    NULL/빈 문자열/허용되지 않은 값 -> "미기록". "매수"/"보류"/"제외"는 그대로 반환한다.
+    비정상 값이 있어도 예외를 던지지 않고 "미기록"으로 표시만 하며, DB에 자동으로
+    덮어쓰지 않는다(읽기 전용 정규화).
+    """
+    if value in ACTUAL_ACTION_CHOICES:
+        return value
+    return "미기록"
 
 
 def get_report_items_grouped_by_verdict(report_id):
