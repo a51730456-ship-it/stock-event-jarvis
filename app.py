@@ -6258,11 +6258,18 @@ with tab_perf:
                                 key=f"{_exit_key}_reason",
                             )
 
+                            _r_basis_price = (
+                                saved_item.get("actual_entry_price") or saved_item.get("entry_price")
+                            )
+                            _r_basis_is_plan = (
+                                not saved_item.get("actual_entry_price") and bool(saved_item.get("entry_price"))
+                            )
                             _preview_result_r = _compute_result_r(
-                                saved_item.get("entry_price"), saved_item.get("stop_loss_price"),
+                                _r_basis_price, saved_item.get("stop_loss_price"),
                                 _exit_price_in or None,
                             )
-                            st.caption(f"R수익률 미리보기: {_fmt_result_r(_preview_result_r)}")
+                            _r_preview_suffix = "(계획가 기준)" if _r_basis_is_plan else ""
+                            st.caption(f"R수익률 미리보기: {_fmt_result_r(_preview_result_r)} {_r_preview_suffix}".rstrip())
 
                             if st.button("청산 결과 저장", key=f"{_exit_key}_save"):
                                 _final_exit_price = _exit_price_in or None
@@ -6274,7 +6281,7 @@ with tab_perf:
                                     None if _exit_reason_in == "미입력" else _exit_reason_in
                                 )
                                 _final_result_r = _compute_result_r(
-                                    saved_item.get("entry_price"), saved_item.get("stop_loss_price"),
+                                    _r_basis_price, saved_item.get("stop_loss_price"),
                                     _final_exit_price,
                                 )
                                 _final_verification_status = _compute_verification_status(
