@@ -4535,6 +4535,68 @@ with tab_perf:
                         width="stretch",
                         hide_index=True,
                     )
+
+            # 판단 잔차 원자료 조회 전용 표시. evaluate_item()/evaluate_actual_item() 재호출,
+            # 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE 전혀 없음 — 위 "판단과 실매매
+            # 차이 보기" expander에서 이미 조회한 _comparison_outcome_rows(동일 report_id의
+            # db.get_report_outcomes() 결과)를 그대로 재사용해 같은 report_id를 중복 조회하지
+            # 않는다. 자동 성공/실패 판정이나 점수는 표시하지 않는다.
+            with st.expander("판단 잔차 원자료 보기", expanded=False):
+                st.caption(
+                    "진입 효과가 양수면 실제 진입 성과가 판단 기준보다 유리했고, 음수면 "
+                    "불리했다는 뜻입니다."
+                )
+                st.caption(
+                    "보류·제외 종목의 미매수 수익률은 당시 판단 이후 종목이 얼마나 "
+                    "움직였는지 보여주는 원자료입니다. 아직 성공·실패나 실수로 자동 "
+                    "판정하지 않습니다."
+                )
+                _residual_rows = performance.build_decision_residual_rows(
+                    _comparison_outcome_rows
+                )
+                if not _residual_rows:
+                    st.info("아직 분석 가능한 판단 잔차 원자료가 없습니다.")
+                else:
+                    _residual_rows = sorted(
+                        _residual_rows,
+                        key=lambda d: (d["report_item_id"], d["horizon_sessions"]),
+                    )
+                    _residual_table_rows = [
+                        {
+                            "종목명": d.get("종목명") or "-",
+                            "티커": d.get("ticker") or "-",
+                            "시장": d.get("market") or "-",
+                            "테마 태그": (
+                                ", ".join(db.parse_theme_tags(d.get("theme_tags"))) or "-"
+                            ),
+                            "실제 행동": d.get("actual_action") or "미기록",
+                            "거래일수": d.get("horizon_sessions"),
+                            "판단 기준가격": (
+                                _fmt_actual_entry_price_display(d.get("judgment_entry_price"))
+                                or "-"
+                            ),
+                            "판단 수익률(%)": _fmt_pct(d.get("judgment_return_pct")),
+                            "판단 초과수익률(%)": _fmt_pct(d.get("judgment_excess_return_pct")),
+                            "실제 기준가격": (
+                                _fmt_actual_entry_price_display(d.get("actual_entry_price"))
+                                or "-"
+                            ),
+                            "실매매 수익률(%)": _fmt_pct(d.get("actual_return_pct")),
+                            "실매매 초과수익률(%)": _fmt_pct(d.get("actual_excess_return_pct")),
+                            "진입 효과(%p)": _fmt_pct(d.get("entry_effect_pct")),
+                            "진입 초과효과(%p)": _fmt_pct(d.get("entry_excess_effect_pct")),
+                            "미매수 종목 수익률(%)": _fmt_pct(d.get("non_buy_return_pct")),
+                            "미매수 종목 초과수익률(%)": _fmt_pct(
+                                d.get("non_buy_excess_return_pct")
+                            ),
+                        }
+                        for d in _residual_rows
+                    ]
+                    st.dataframe(
+                        pd.DataFrame(_residual_table_rows),
+                        width="stretch",
+                        hide_index=True,
+                    )
             st.markdown("---")
 
         # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
