@@ -6,6 +6,7 @@ report_items가 0개인 "오늘 추천 없음" report의 기회비용/위험회�
 (market_scope별 기준지수: KR->KOSPI, US->SPY, MIXED->KOSPI/SPY 분리 표시).
 """
 
+import math
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -341,4 +342,121 @@ def build_no_recommendation_rows():
         elif market_scope == "MIXED":
             rows.append(_evaluate_benchmark_for_no_rec(report, "KOSPI", "KR"))
             rows.append(_evaluate_benchmark_for_no_rec(report, "SPY", "US"))
+    return rows
+
+
+# ---- report_item_outcomes 저장용 순수 매핑 (DB 접근 없음, 3단계: 이후 별도 저장 단계에서
+# database.py의 upsert_report_item_outcome()을 호출할 때 이 함수의 결과를 그대로 넘긴다) ----
+
+def _is_valid_finite_number(value, require_positive):
+    """bool/None/비유한(NaN, Infinity)/비숫자를 전부 걸러내는 순수 검증 헬퍼.
+
+    성과 저장 후보 판정에만 쓰며, DB에는 접근하지 않는다.
+    """
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return False
+    if not isinstance(value, (int, float)):
+        return False
+    if not math.isfinite(value):
+        return False
+    if require_positive and value <= 0:
+        return False
+    return True
+
+
+def build_judgment_outcome_rows(report_item_id, evaluation_result):
+    """evaluate_item()의 반환값(evaluation_result)을 report_item_outcomes 저장 형식의
+    list[dict]로 변환하는 순수 매핑 함수다. DB 연결/INSERT/UPDATE를 전혀 하지 않으며,
+    upsert_report_item_outcome()도 호출하지 않는다 — 이후 별도 저장 단계에서 이 함수의
+    반환값을 그대로 그 함수에 넘기는 용도다.
+
+    entry_basis='judgment', status='evaluated' 후보만 만든다. 정상 계산이 완료된 horizon
+    (1/3/5/10/20)만 포함하고, entry_price_used/target_date/close_price/return_pct 중
+    하나라도 비어 있거나 비정상이면 그 horizon만 조용히 제외한다(pending/unavailable/
+    error로 추정해서 채우지 않는다 — 그 상태들은 이 함수의 책임이 아니다). evaluation_result
+    딕셔너리 자체는 수정하지 않는다(읽기만 함).
+
+    반환 행 하나가 만들어지려면 다음이 전부 충족되어야 한다:
+    - report_item_id가 bool이 아닌 양의 정수
+    - entry_price_used가 0보다 큰 유한 숫자
+    - target_date가 비어 있지 않음
+    - close_price가 0보다 큰 유한 숫자
+    - return_pct가 유한 숫자(부호 무관)
+    benchmark_return_pct/excess_return_pct는 유한 숫자면 싣고, 없거나 비정상이면 None으로만
+    채우고 그 이유로 행 자체를 제외하지 않는다. 새로 벤치마크를 계산하거나 추정하지 않고
+    evaluation_result에 이미 있는 값만 그대로 옮긴다. high_price/low_price는 현재
+    evaluate_item()에 데이터가 없으므로 항상 None이다(임의 계산 금지).
+    """
+    if not isinstance(evaluation_result, dict):
+        raise ValueError(f"evaluation_result must be a dict, got {type(evaluation_result)!r}")
+    if (
+        isinstance(report_item_id, bool)
+        or not isinstance(report_item_id, int)
+        or report_item_id <= 0
+    ):
+        raise ValueError(
+            f"report_item_id must be a positive int (not bool), got {report_item_id!r}"
+        )
+
+    outcome_details = evaluation_result.get("outcome_details")
+    if not isinstance(outcome_details, dict):
+        return []
+
+    entry_price_used = evaluation_result.get("entry_price_used")
+    if not _is_valid_finite_number(entry_price_used, require_positive=True):
+        return []
+
+    benchmark_symbol = evaluation_result.get("benchmark_symbol")
+
+    rows = []
+    for horizon in HORIZONS:
+        detail = outcome_details.get(horizon)
+        if not isinstance(detail, dict):
+            continue
+
+        target_date = detail.get("target_date")
+        if not target_date:
+            continue
+
+        close_price = detail.get("close_price")
+        if not _is_valid_finite_number(close_price, require_positive=True):
+            continue
+
+        return_pct = detail.get("return_pct")
+        if not _is_valid_finite_number(return_pct, require_positive=False):
+            continue
+
+        benchmark_return_pct = detail.get("benchmark_return_pct")
+        if not _is_valid_finite_number(benchmark_return_pct, require_positive=False):
+            benchmark_return_pct = None
+
+        excess_return_pct = detail.get("excess_return_pct")
+        if not _is_valid_finite_number(excess_return_pct, require_positive=False):
+            excess_return_pct = None
+
+        rows.append(
+            {
+                "report_item_id": report_item_id,
+                "horizon_sessions": horizon,
+                "entry_basis": "judgment",
+                "entry_price_used": float(entry_price_used),
+                "target_date": target_date,
+                "close_price": float(close_price),
+                "high_price": None,
+                "low_price": None,
+                "return_pct": float(return_pct),
+                "benchmark_symbol": benchmark_symbol,
+                "benchmark_return_pct": (
+                    float(benchmark_return_pct) if benchmark_return_pct is not None else None
+                ),
+                "excess_return_pct": (
+                    float(excess_return_pct) if excess_return_pct is not None else None
+                ),
+                "status": "evaluated",
+                "evaluated_at": None,
+            }
+        )
+
     return rows
