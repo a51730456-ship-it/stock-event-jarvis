@@ -767,3 +767,120 @@ def build_judgment_actual_comparison_rows(outcome_rows):
         )
 
     return comparison_rows
+
+
+# ---- 판단 잔차 분석용 원자료 (DB 접근/네트워크 조회/UI 출력/통계/자동 판정/점수화 없음) ----
+# report_item_outcomes를 수정하지 않으며, 좋음/나쁨·실수·기회손실·손실회피 같은 라벨이나
+# 임계값·점수는 만들지 않는다 — judgment 성과와 실제 행동/actual 성과를 나란히 놓은
+# 원시 수치 자료만 만든다.
+
+def build_decision_residual_rows(outcome_rows):
+    """db.get_report_outcomes(report_id) 형식의 행 목록에서 report_item_id+horizon_sessions
+    단위로 저장된 judgment 성과와 실제 행동(actual_action)/actual 성과를 결합해 판단 잔차
+    분석용 원자료 list[dict]를 만드는 순수 함수다. DB 연결/INSERT/UPDATE, 가격·벤치마크
+    네트워크 조회, UI 출력을 전혀 하지 않는다. 입력 outcome_rows와 그 안의 각 행 dict는
+    수정하지 않는다(읽기만 함).
+
+    judgment 행이 있고 status='evaluated'인 (report_item_id, horizon_sessions)만 결과를
+    만든다(judgment가 없거나 미완료면 그 키는 제외). actual 행은 있으면 결합하되 status가
+    'evaluated'가 아니면 actual 값을 쓰지 않고(judgment 행 자체는 그대로 유지), actual
+    행이 아예 없어도 judgment 원자료 행은 유지한다 — 매수했지만 아직 actual 성과가
+    계산되지 않은 경우도 포함하기 위함이다. actual_action은 매수/보류/제외/미기록(None)
+    그대로 사용하며 어떤 값이든 행을 제외하지 않는다.
+
+    entry_effect_pct = actual_return_pct - judgment_return_pct (둘 다 유효할 때만),
+    entry_excess_effect_pct = actual_excess_return_pct - judgment_excess_return_pct
+    (둘 다 유효할 때만). non_buy_return_pct/non_buy_excess_return_pct는 actual_action이
+    '보류' 또는 '제외'일 때만 judgment_return_pct/judgment_excess_return_pct를 그대로
+    옮기고, 그 외에는 None이다. 수익률의 양수/음수만으로 성공/실패를 자동 판정하지
+    않으며, 좋음/나쁨·실수·기회손실·손실회피 같은 라벨이나 임계값·점수는 만들지 않는다.
+
+    같은 (report_item_id, horizon_sessions, entry_basis) 키가 입력에 두 번 이상 나오면
+    조용히 임의로 고르지 않고 ValueError를 던진다. 정렬은 report_item_id,
+    horizon_sessions 오름차순이다.
+    """
+    rows_by_key = {}
+    for row in outcome_rows:
+        entry_basis = row.get("entry_basis")
+        if entry_basis not in ("judgment", "actual"):
+            continue
+        key = (row.get("report_item_id"), row.get("horizon_sessions"), entry_basis)
+        if key in rows_by_key:
+            raise ValueError(
+                "duplicate (report_item_id, horizon_sessions, entry_basis) in "
+                f"outcome_rows: {key!r}"
+            )
+        rows_by_key[key] = row
+
+    judgment_pairs = sorted(
+        {
+            (report_item_id, horizon_sessions)
+            for (report_item_id, horizon_sessions, entry_basis) in rows_by_key
+            if entry_basis == "judgment"
+        }
+    )
+
+    residual_rows = []
+    for report_item_id, horizon_sessions in judgment_pairs:
+        judgment_row = rows_by_key[(report_item_id, horizon_sessions, "judgment")]
+        if judgment_row.get("status") != "evaluated":
+            continue
+
+        actual_row = rows_by_key.get((report_item_id, horizon_sessions, "actual"))
+        actual_evaluated = actual_row is not None and actual_row.get("status") == "evaluated"
+
+        judgment_entry_price = _sanitize_comparison_number(judgment_row.get("entry_price_used"))
+        judgment_return_pct = _sanitize_comparison_number(judgment_row.get("return_pct"))
+        judgment_excess_return_pct = _sanitize_comparison_number(
+            judgment_row.get("excess_return_pct")
+        )
+
+        actual_entry_price = None
+        actual_return_pct = None
+        actual_excess_return_pct = None
+        if actual_evaluated:
+            actual_entry_price = _sanitize_comparison_number(actual_row.get("entry_price_used"))
+            actual_return_pct = _sanitize_comparison_number(actual_row.get("return_pct"))
+            actual_excess_return_pct = _sanitize_comparison_number(
+                actual_row.get("excess_return_pct")
+            )
+
+        entry_effect_pct = None
+        if judgment_return_pct is not None and actual_return_pct is not None:
+            entry_effect_pct = actual_return_pct - judgment_return_pct
+
+        entry_excess_effect_pct = None
+        if judgment_excess_return_pct is not None and actual_excess_return_pct is not None:
+            entry_excess_effect_pct = actual_excess_return_pct - judgment_excess_return_pct
+
+        actual_action = judgment_row.get("actual_action")
+
+        non_buy_return_pct = None
+        non_buy_excess_return_pct = None
+        if actual_action in ("보류", "제외"):
+            non_buy_return_pct = judgment_return_pct
+            non_buy_excess_return_pct = judgment_excess_return_pct
+
+        residual_rows.append(
+            {
+                "report_item_id": report_item_id,
+                "종목명": judgment_row.get("item_name"),
+                "ticker": judgment_row.get("ticker"),
+                "market": judgment_row.get("market"),
+                "theme_tags": judgment_row.get("theme_tags"),
+                "actual_action": actual_action,
+                "horizon_sessions": horizon_sessions,
+                "judgment_entry_price": judgment_entry_price,
+                "judgment_return_pct": judgment_return_pct,
+                "judgment_excess_return_pct": judgment_excess_return_pct,
+                "actual_entry_price": actual_entry_price,
+                "actual_return_pct": actual_return_pct,
+                "actual_excess_return_pct": actual_excess_return_pct,
+                "entry_effect_pct": entry_effect_pct,
+                "entry_excess_effect_pct": entry_excess_effect_pct,
+                "non_buy_return_pct": non_buy_return_pct,
+                "non_buy_excess_return_pct": non_buy_excess_return_pct,
+            }
+        )
+
+    return residual_rows
