@@ -1981,6 +1981,18 @@ PLAYBOOK_TAG_OPTIONS = [
 PLAYBOOK_TAG_CODE_TO_LABEL = dict(PLAYBOOK_TAG_OPTIONS)
 PLAYBOOK_TAG_LABEL_TO_CODE = {v: k for k, v in PLAYBOOK_TAG_OPTIONS}
 
+# 종목별 테마 태그 선택지: 한국장 "오늘 강세 테마 1차 참고판"과 미국장 "테마 레이더 1차 참고판"에
+# 이미 있는 테마 이름을 그대로 재사용한 목록이다(중복 문자열은 하나로 합침, 정렬해서 표시).
+# 이 상수는 저장/점수/판단에 반영되지 않는 단순 기록용 선택지이며, 두 테마 참고판 코드 자체는
+# 건드리지 않는다.
+THEME_TAG_OPTIONS = sorted(
+    {
+        "반도체/HBM", "전력기기/전력망", "원전", "방산", "조선/해운", "자동차/부품",
+        "2차전지", "바이오", "AI/로봇", "정유/화학",
+        "AI/반도체", "금리/성장주", "전력망/원전", "방산/전쟁", "에너지/유가", "자동차/전기차",
+    }
+)
+
 
 def _fetch_filter_compliance_stats():
     """전체 report_items에서 필터 준수/무시별 평균 R수익률을 계산한다(화면 표시 전용, 저장 없음).
@@ -4579,6 +4591,28 @@ with tab_perf:
                                 _pb_conn.commit()
                                 _pb_conn.close()
                                 st.success("플레이북 태그가 저장되었습니다.")
+                                st.rerun()
+
+                    # 테마 태그 입력/수정 (기존 report_item을 id 기준으로 사후 UPDATE만 수행,
+                    # 새 report/report_item 생성 안 함, save_report()/INSERT 로직과 무관).
+                    # 플레이북 태그/청산 결과/필터 무시 기록과 나란히 둔다. 저장/점수/판단 로직에는
+                    # 반영되지 않는 단순 기록용 태그다.
+                    if saved_item.get("id"):
+                        with st.expander(f"테마 태그 - {row['stock_name']} ({row['trade_mode']})"):
+                            _theme_key = f"themetag_{saved_item['id']}"
+                            _theme_stored = db.parse_theme_tags(saved_item.get("theme_tags"))
+                            st.caption(
+                                f"현재 테마 태그: {', '.join(_theme_stored) if _theme_stored else '없음'}"
+                            )
+                            _theme_tags_in = st.multiselect(
+                                "테마 태그",
+                                THEME_TAG_OPTIONS,
+                                default=[t for t in _theme_stored if t in THEME_TAG_OPTIONS],
+                                key=f"{_theme_key}_tags",
+                            )
+                            if st.button("테마 태그 저장", key=f"{_theme_key}_save"):
+                                db.update_report_item_theme_tags(saved_item["id"], _theme_tags_in)
+                                st.success("테마 태그가 저장되었습니다.")
                                 st.rerun()
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 

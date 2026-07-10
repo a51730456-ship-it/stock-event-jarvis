@@ -1,5 +1,6 @@
 """SQLite 연결, 스키마, CRUD, timing_class 자동 분류."""
 
+import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -339,6 +340,51 @@ def get_report_items(report_id):
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def update_report_item_theme_tags(report_item_id, theme_tags):
+    """report_items.id 기준 사후 UPDATE 전용(새 report/report_item 생성 없음).
+
+    theme_tags는 문자열 리스트를 받는다. 앞뒤 공백 제거 + 중복 제거 후 JSON 배열 문자열로
+    저장한다(한글이 깨지지 않도록 ensure_ascii=False). 빈 리스트를 넘기면 태그 전부 해제로
+    보고 NULL을 저장한다. report_items.id 외 다른 컬럼/다른 행은 건드리지 않는다.
+    존재하지 않는 id를 넘기면 아무 행도 갱신되지 않으므로 False를 반환한다(조용한 성공 아님).
+    """
+    cleaned = []
+    seen = set()
+    for tag in theme_tags or []:
+        tag = (tag or "").strip()
+        if tag and tag not in seen:
+            seen.add(tag)
+            cleaned.append(tag)
+    value = json.dumps(cleaned, ensure_ascii=False) if cleaned else None
+
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "UPDATE report_items SET theme_tags = ? WHERE id = ?", (value, report_item_id)
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def parse_theme_tags(value):
+    """report_items.theme_tags(TEXT, JSON 배열 문자열)를 리스트로 안전하게 변환한다.
+
+    NULL/빈 문자열 -> 빈 리스트. JSON 파싱에 실패하거나 리스트가 아닌 값이 저장돼 있어도
+    예외를 던지지 않고 빈 리스트로 처리한다(화면 렌더링이 중단되지 않도록).
+    """
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(v).strip() for v in parsed if str(v).strip()]
 
 
 def get_report_items_grouped_by_verdict(report_id):
