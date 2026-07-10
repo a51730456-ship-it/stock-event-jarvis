@@ -1478,3 +1478,235 @@ def build_context_residual_summary(residual_rows, group_by):
 
     summary_rows.sort(key=_context_residual_sort_key)
     return summary_rows
+
+
+# ---- 두 조건 조합 × 거래일수 × 실제 행동 순수 집계 (DB 접근/네트워크 조회/UI 출력/자동
+# 판정/순위/추천/점수화 없음) ----
+
+_COMBINATION_RESIDUAL_ALLOWED_FIELDS = (
+    "theme_tag",
+    "trade_mode",
+    "verdict",
+    "signal_type",
+    "event_name",
+    "briefing_stage",
+    "timing_class",
+)
+
+
+def _get_combination_context_values(row, field):
+    """단일 행(row)에서 field 하나에 대한 맥락값 list를 만든다.
+
+    field='theme_tag'면 _extract_theme_tags()로 태그를 뽑아 여러 개를 그대로
+    돌려준다(복수 태그 fan-out, 같은 행 내 중복은 이미 _extract_theme_tags()가
+    제거함, 태그가 없으면 ['미지정'] 하나). 그 외 field는 _normalize_context_value()
+    규칙으로 정규화한 값 하나만 담은 list를 돌려준다. 두 경우 모두 잘못된 원본 값이면
+    ValueError를 던진다(theme_tags가 잘못된 JSON/자료형이거나, 다른 필드값이 문자열이
+    아닌 경우).
+    """
+    if field == "theme_tag":
+        tags = _extract_theme_tags(row.get("theme_tags"))
+        return tags if tags else [_THEME_RESIDUAL_UNSPECIFIED]
+    return [_normalize_context_value(row.get(field))]
+
+
+def build_combination_residual_summary(residual_rows, group_by_fields):
+    """build_decision_residual_rows()의 결과를 여러 보고서에서 합친 목록을 받아, 서로
+    다른 두 분석 기준(group_by_fields)의 조합 × horizon_sessions × actual_action
+    (매수/보류/제외/미기록) 기준으로 집계하는 순수 통계 함수다. DB 연결/INSERT/UPDATE,
+    네트워크 조회, UI 출력을 전혀 하지 않는다. 입력 residual_rows와 그 안의 각 행
+    dict는 수정하지 않는다(읽기만 함).
+
+    group_by_fields는 정확히 서로 다른 2개의 문자열로 구성된 list/tuple이어야 하며,
+    각각 'theme_tag'/'trade_mode'/'verdict'/'signal_type'/'event_name'/
+    'briefing_stage'/'timing_class' 중 하나여야 한다(개수가 다르거나, 같은 기준이
+    중복되거나, 허용 목록 밖의 값이면 ValueError).
+
+    'theme_tag'는 _extract_theme_tags()로 처리해 복수 태그가 있으면 각 태그가
+    참여하는 조합에 각각 fan-out되고(같은 행의 중복 태그는 이미 그 함수가 제거),
+    태그가 없으면 '미지정' 하나로 취급한다. 예를 들어 theme_tags=["AI/반도체",
+    "대형주 수급"], trade_mode="단타"이고 group_by_fields=["theme_tag",
+    "trade_mode"]이면 (AI/반도체, 단타)와 (대형주 수급, 단타) 두 조합에 각각 한 번씩
+    포함된다. 나머지 기준은 _normalize_context_value()로 정규화한다(None/빈 문자열은
+    '미지정', 앞뒤 공백만 제거, 비문자열은 ValueError).
+
+    수치 집계 규칙은 build_action_residual_summary()와 동일하다 — judgment 통계는
+    모든 행동 그룹에서 정상값만 계산하고, entry_effect는 actual_action='매수'
+    그룹만, non_buy 통계는 '보류'/'제외' 그룹만 계산하며 '미기록' 그룹에서는 둘 다
+    집계하지 않는다. None/NaN/Infinity/bool은 유효 숫자에서 제외하고, 평균·중앙값은
+    유효 표본이 0이면 None이다. 반환값은 반올림하지 않는다. 양수 비율을 승률이라
+    부르지 않으며, 성공/실패·좋은/나쁜 조합 라벨이나 최소 표본 기준·조합 순위·점수·
+    추천·경고는 만들지 않는다.
+
+    actual_action이 None이거나 빈(공백 포함) 문자열이면 '미기록'으로 정규화한다.
+    '매수'/'보류'/'제외'/None·빈 문자열 외의 값은 ValueError. horizon_sessions는
+    bool이 아닌 양의 정수여야 하며, 아니면 ValueError. 이 검증들은 결과를 만들기
+    전에 전체 입력을 먼저 훑어 확인하므로, 잘못된 행 하나 때문에 일부만 반영된
+    왜곡된 통계가 반환되지 않는다.
+
+    정렬: context_value_1 오름차순('미지정'은 마지막) -> context_value_2
+    오름차순('미지정'은 마지막) -> horizon_sessions 오름차순 -> 매수 -> 보류 ->
+    제외 -> 미기록.
+    """
+    if not isinstance(group_by_fields, (list, tuple)):
+        raise ValueError(
+            f"group_by_fields must be a list or tuple, got {type(group_by_fields)!r}"
+        )
+    if len(group_by_fields) != 2:
+        raise ValueError(
+            f"group_by_fields must contain exactly 2 fields, got {len(group_by_fields)}"
+        )
+    group_by_1, group_by_2 = group_by_fields
+    if group_by_1 == group_by_2:
+        raise ValueError(
+            f"group_by_fields must be two different fields, got {group_by_fields!r}"
+        )
+    for _gb in (group_by_1, group_by_2):
+        if _gb not in _COMBINATION_RESIDUAL_ALLOWED_FIELDS:
+            raise ValueError(
+                f"group_by_fields entries must be one of "
+                f"{_COMBINATION_RESIDUAL_ALLOWED_FIELDS}, got {_gb!r}"
+            )
+
+    if not isinstance(residual_rows, (list, tuple)):
+        raise ValueError(
+            f"residual_rows must be a list or tuple, got {type(residual_rows)!r}"
+        )
+
+    prepared = []
+    for idx, row in enumerate(residual_rows):
+        if not isinstance(row, dict):
+            raise ValueError(f"residual_rows[{idx}] must be a dict, got {type(row)!r}")
+
+        raw_action = row.get("actual_action")
+        if raw_action is None or (isinstance(raw_action, str) and raw_action.strip() == ""):
+            action = "미기록"
+        elif raw_action in _ACTION_RESIDUAL_KNOWN_ACTIONS:
+            action = raw_action
+        else:
+            raise ValueError(
+                f"residual_rows[{idx}] has unknown actual_action: {raw_action!r}"
+            )
+
+        horizon_sessions = row.get("horizon_sessions")
+        if (
+            isinstance(horizon_sessions, bool)
+            or not isinstance(horizon_sessions, int)
+            or horizon_sessions <= 0
+        ):
+            raise ValueError(
+                f"residual_rows[{idx}] horizon_sessions must be a positive int (not bool), "
+                f"got {horizon_sessions!r}"
+            )
+
+        try:
+            context_values_1 = _get_combination_context_values(row, group_by_1)
+        except ValueError as exc:
+            raise ValueError(f"residual_rows[{idx}] {group_by_1} error: {exc}")
+        try:
+            context_values_2 = _get_combination_context_values(row, group_by_2)
+        except ValueError as exc:
+            raise ValueError(f"residual_rows[{idx}] {group_by_2} error: {exc}")
+
+        prepared.append((context_values_1, context_values_2, horizon_sessions, action, row))
+
+    groups = {}
+    for context_values_1, context_values_2, horizon_sessions, action, row in prepared:
+        for cv1 in context_values_1:
+            for cv2 in context_values_2:
+                groups.setdefault((cv1, cv2, horizon_sessions, action), []).append(row)
+
+    summary_rows = []
+    for (cv1, cv2, horizon_sessions, action), rows in groups.items():
+        sample_count = len(rows)
+
+        judgment_return_values = _collect_valid_finite_values(rows, "judgment_return_pct")
+        judgment_return_count, judgment_return_avg, judgment_return_median = (
+            _summarize_values(judgment_return_values)
+        )
+        judgment_positive_count = sum(1 for v in judgment_return_values if v > 0)
+        judgment_positive_rate = (
+            judgment_positive_count / judgment_return_count * 100
+            if judgment_return_count > 0
+            else None
+        )
+
+        judgment_excess_values = _collect_valid_finite_values(
+            rows, "judgment_excess_return_pct"
+        )
+        judgment_excess_count, judgment_excess_avg, _judgment_excess_median = (
+            _summarize_values(judgment_excess_values)
+        )
+
+        entry_effect_values = (
+            _collect_valid_finite_values(rows, "entry_effect_pct") if action == "매수" else []
+        )
+        entry_effect_count, entry_effect_avg, entry_effect_median = _summarize_values(
+            entry_effect_values
+        )
+
+        if action in ("보류", "제외"):
+            non_buy_return_values = _collect_valid_finite_values(rows, "non_buy_return_pct")
+            non_buy_excess_values = _collect_valid_finite_values(
+                rows, "non_buy_excess_return_pct"
+            )
+        else:
+            non_buy_return_values = []
+            non_buy_excess_values = []
+
+        non_buy_return_count, non_buy_return_avg, non_buy_return_median = _summarize_values(
+            non_buy_return_values
+        )
+        non_buy_positive_count = sum(1 for v in non_buy_return_values if v > 0)
+        non_buy_positive_rate = (
+            non_buy_positive_count / non_buy_return_count * 100
+            if non_buy_return_count > 0
+            else None
+        )
+        non_buy_excess_count, non_buy_excess_avg, _non_buy_excess_median = _summarize_values(
+            non_buy_excess_values
+        )
+
+        summary_rows.append(
+            {
+                "group_by_1": group_by_1,
+                "context_value_1": cv1,
+                "group_by_2": group_by_2,
+                "context_value_2": cv2,
+                "horizon_sessions": horizon_sessions,
+                "actual_action": action,
+                "sample_count": sample_count,
+                "judgment_return_count": judgment_return_count,
+                "judgment_return_avg": judgment_return_avg,
+                "judgment_return_median": judgment_return_median,
+                "judgment_positive_count": judgment_positive_count,
+                "judgment_positive_rate": judgment_positive_rate,
+                "judgment_excess_count": judgment_excess_count,
+                "judgment_excess_avg": judgment_excess_avg,
+                "entry_effect_count": entry_effect_count,
+                "entry_effect_avg": entry_effect_avg,
+                "entry_effect_median": entry_effect_median,
+                "non_buy_return_count": non_buy_return_count,
+                "non_buy_return_avg": non_buy_return_avg,
+                "non_buy_return_median": non_buy_return_median,
+                "non_buy_positive_count": non_buy_positive_count,
+                "non_buy_positive_rate": non_buy_positive_rate,
+                "non_buy_excess_count": non_buy_excess_count,
+                "non_buy_excess_avg": non_buy_excess_avg,
+            }
+        )
+
+    def _combination_residual_sort_key(s):
+        cv1 = s["context_value_1"]
+        cv2 = s["context_value_2"]
+        cv1_rank = (1, "") if cv1 == _THEME_RESIDUAL_UNSPECIFIED else (0, cv1)
+        cv2_rank = (1, "") if cv2 == _THEME_RESIDUAL_UNSPECIFIED else (0, cv2)
+        return (
+            cv1_rank,
+            cv2_rank,
+            s["horizon_sessions"],
+            _ACTION_RESIDUAL_ORDER[s["actual_action"]],
+        )
+
+    summary_rows.sort(key=_combination_residual_sort_key)
+    return summary_rows
