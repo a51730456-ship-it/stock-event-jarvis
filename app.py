@@ -1808,11 +1808,12 @@ def _render_snapshot_calc_summary(ticker):
         st.caption(" · ".join(lines))
 
 
-def _render_risk_and_warning_inputs(ticker, market):
-    """v1.1 리스크 엔진 + 청산 계획 + 경고형 확정 차단 입력/표시 (한국장·미국장 종목별 상세 입력 카드 전용).
+def _render_risk_and_warning_inputs(ticker, market, compact=False):
+    """v1.1 리스크 엔진 + 청산 계획 + 경고형 확정 차단 입력/표시.
 
     화면 표시 계산(risk_amount/recommended_qty 등)은 저장하지 않는다. entry_price/stop_loss_price
-    등 사용자가 입력한 값만 저장 대상이 된다(저장 시점에 items_to_save에 포함).
+    등 사용자가 입력한 값만 저장 대상이 된다(저장 시점에 items_to_save에 포함). compact=False는
+    기존 한국장·미국장 종목별 상세 입력 카드 표시를 그대로 유지한다.
     """
     prefix = f"snap_{ticker}_"
     current = _get_snapshot_value(ticker, "current")
@@ -1828,6 +1829,93 @@ def _render_risk_and_warning_inputs(ticker, market):
     if entry_key not in st.session_state or st.session_state.get(auto_track_key) == st.session_state[entry_key]:
         st.session_state[entry_key] = current
         st.session_state[auto_track_key] = current
+
+    if compact:
+        st.markdown("#### 리스크 관리")
+        rc1, rc2, rc3 = st.columns(3)
+        entry_price = rc1.number_input(
+            "진입가", min_value=0.0, step=100.0, key=prefix + "entry_price"
+        )
+        stop_loss_price = rc2.number_input(
+            "손절가", value=0.0, min_value=0.0, step=100.0, key=prefix + "stop_loss_price"
+        )
+
+        account_size = st.session_state.get("risk_account_size", 0.0)
+        risk_percent = st.session_state.get("risk_percent_setting", 1.0)
+        risk = _compute_risk_engine(account_size, risk_percent, entry_price, stop_loss_price)
+        if risk["recommended_qty"] is None:
+            qty_display = "손절가 입력 후 계산" if not stop_loss_price else "-"
+        else:
+            qty_display = f"{risk['recommended_qty']:,}주"
+        rc3.metric("권장 수량", qty_display)
+        if risk["recommended_qty"] is not None:
+            cap_note = " (계좌 25% 상한 적용)" if risk["capped"] else ""
+            rc3.caption(f"권장 매수금액: {risk['recommended_buy_amount']:,.0f}{cap_note}")
+        if risk["error"]:
+            st.warning(risk["error"])
+        if risk["warning"]:
+            st.warning(risk["warning"])
+
+        with st.expander("리스크 관리 공통 설정", expanded=False):
+            st.caption(
+                "계좌금액/1회 리스크%는 한국장·미국장 권장 수량 계산에 공통으로 쓰입니다. "
+                "자동매매가 아니라 화면 표시용 참고 계산입니다."
+            )
+            r1, r2, r3 = st.columns(3)
+            r1.number_input(
+                "계좌금액", value=0.0, min_value=0.0, step=1000000.0, key="risk_account_size"
+            )
+            r2.number_input(
+                "1회 리스크(%)", value=1.0, min_value=0.0, max_value=2.0, step=0.1,
+                key="risk_percent_setting",
+            )
+            today_loss_r = r3.number_input(
+                "금일 손실R (수동 입력)", value=0.0, step=0.1, key="risk_today_loss_r"
+            )
+            if today_loss_r <= -2:
+                st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
+
+        with st.expander("청산 계획", expanded=False):
+            ec1, ec2, ec3 = st.columns(3)
+            ec1.number_input(
+                "계획 손절가", value=0.0, min_value=0.0, step=100.0,
+                key=prefix + "planned_stop_price",
+            )
+            ec2.number_input(
+                "목표가", value=0.0, min_value=0.0, step=100.0, key=prefix + "target_price"
+            )
+            ec3.number_input(
+                "예상 보유일수", value=0, min_value=0, step=1,
+                key=prefix + "expected_holding_days",
+            )
+
+        with st.expander("경고·확정 차단", expanded=False):
+            wc1, wc2, wc3 = st.columns(3)
+            disclosure_type = wc1.selectbox(
+                "공시 유형", ["없음", "수주", "기타"], key=prefix + "disclosure_type"
+            )
+            news_status = wc2.selectbox(
+                "뉴스 확인 상태", ["있음", "없음확인", "확인실패", "루머테마"],
+                key=prefix + "news_status",
+            )
+            five_day_change_pct = wc3.number_input(
+                "5일 등락률(%)", value=0.0, min_value=0.0, step=1.0,
+                key=prefix + "five_day_change_pct",
+            )
+
+            daily_change_pct = _safe_pct_diff(current, prev_close)
+            retracement_ratio = _compute_retracement_ratio(high, low, current)
+            if _check_disclosure_chase_warning(
+                disclosure_type, daily_change_pct, five_day_change_pct, retracement_ratio
+            ):
+                suffix = " (미국장은 추후 검증 대상)" if market == "US" else ""
+                st.error(f"수주공시 과열 - 당일 정점 후 하락 위험, 추격 금지{suffix}")
+            if _check_no_news_chase_warning(
+                news_status, daily_change_pct, five_day_change_pct, retracement_ratio
+            ):
+                suffix = " (미국장은 추후 검증 대상)" if market == "US" else ""
+                st.error(f"무뉴스 급등 - 반전 위험, 추격 금지{suffix}")
+        return
 
     st.markdown("**리스크 관리 (v1.1)**")
     rc1, rc2 = st.columns(2)
@@ -3104,35 +3192,7 @@ def _render_kr_fable_mockup1_preview():
                 st.write(f"단타 매수 확정 조건: {selected_row['danta_buy_confirm_condition']}")
                 st.write(f"스윙 매수 확정 조건: {selected_row['swing_buy_confirm_condition']}")
 
-            st.markdown("#### 리스크 관리 · 읽기 전용")
-            entry_price = st.session_state.get(f"snap_{selected_ticker}_entry_price") or None
-            stop_loss_price = st.session_state.get(f"snap_{selected_ticker}_stop_loss_price") or None
-            account_size = st.session_state.get("risk_account_size") or None
-            risk_percent = st.session_state.get("risk_percent_setting")
-            risk = _compute_risk_engine(
-                account_size if risk_percent is not None else None,
-                risk_percent,
-                entry_price,
-                stop_loss_price,
-            )
-            risk_entry, risk_stop, risk_qty = st.columns(3)
-            risk_entry.metric("진입가", "-" if entry_price is None else f"{entry_price:,.0f}")
-            risk_stop.metric("손절가", "-" if stop_loss_price is None else f"{stop_loss_price:,.0f}")
-            if stop_loss_price is None:
-                qty_display = "손절가 입력 후 계산"
-            elif risk["recommended_qty"] is None:
-                qty_display = "-"
-            else:
-                qty_display = f"{risk['recommended_qty']:,}주"
-            risk_qty.metric("권장 수량", qty_display)
-            account_display = "-" if account_size is None else f"{account_size:,.0f}"
-            risk_percent_display = "-" if risk_percent is None else f"{risk_percent}%"
-            st.caption(f"계좌금액 {account_display} · 1회 리스크 {risk_percent_display}")
-            if risk["error"]:
-                st.warning(risk["error"])
-            if risk["warning"]:
-                st.warning(risk["warning"])
-            st.caption("상세 입력은 아래 기존 종목별 상세 입력에서 사용")
+            _render_risk_and_warning_inputs(selected_ticker, "KR", compact=True)
 
     theme_col, event_col = st.columns(2, gap="large")
     with theme_col:
@@ -3643,23 +3703,7 @@ with tab_kr:
             "종가 품질이 미입력인 경우 최고점은 제한됩니다."
         )
 
-        with st.expander("리스크 관리 설정(v1.1) — 필요할 때 펼치기", expanded=False):
-            st.caption(
-                "계좌금액/1회 리스크%는 한국장·미국장 종목별 상세 입력 카드의 권장 수량 계산에 공통으로 "
-                "쓰입니다. 자동매매가 아니라 화면 표시용 참고 계산입니다."
-            )
-            r1, r2, r3 = st.columns(3)
-            risk_account_size = r1.number_input(
-                "계좌금액", value=0.0, min_value=0.0, step=1000000.0, key="risk_account_size"
-            )
-            risk_percent = r2.number_input(
-                "1회 리스크(%)", value=1.0, min_value=0.0, max_value=2.0, step=0.1, key="risk_percent_setting"
-            )
-            today_loss_r = r3.number_input(
-                "금일 손실R (수동 입력)", value=0.0, step=0.1, key="risk_today_loss_r"
-            )
-            if today_loss_r <= -2:
-                st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
+        st.caption("리스크 관리 공통 설정은 화면 상단의 선택 종목 상세에서 진행합니다.")
 
         st.caption("이 문장은 매수 추천이 아니라, 새 기록 입력칸에 붙여넣기 위한 초안입니다. 필요하면 수정 후 저장하세요.")
         if st.button("기록 문장 만들기", key="snap_make_briefing_text"):
@@ -4087,7 +4131,7 @@ with tab_kr:
             c8.number_input("거래량", value=0.0, step=1000.0, key=prefix + "volume")
             _render_snapshot_calc_summary(s["ticker"])
             st.markdown("---")
-            _render_risk_and_warning_inputs(s["ticker"], "KR")
+            st.caption("리스크 입력은 화면 상단의 선택 종목 상세에서 진행합니다.")
 
 with tab_us:
     st.subheader("미국장")
