@@ -460,3 +460,213 @@ def build_judgment_outcome_rows(report_item_id, evaluation_result):
         )
 
     return rows
+
+
+# ---- 실제 매매(actual) 성과 계산 (DB 접근/네트워크 조회 없음, evaluate_item()과 완전히
+# 분리된 독립 경로) — 이후 별도 저장 단계에서 database.py의 upsert_report_item_outcome(s)를
+# 호출할 때 build_actual_outcome_rows()의 결과를 그대로 넘긴다. 이번 단계에서는 계산·매핑
+# 함수만 추가하며 DB 저장/버튼/UI는 만들지 않는다. ----
+
+def _dedup_sorted_price_df(df):
+    """가격 df를 날짜 오름차순으로 정렬하고, 같은 날짜가 중복되면 첫 번째 행만 남긴 새
+    DataFrame을 반환한다(입력 df는 수정하지 않는다). evaluate_actual_item() 전용 안전장치이며,
+    기존 judgment 계산 경로(_entry_point/_future_close/_future_point)는 건드리지 않는다.
+    """
+    sorted_df = df.sort_index()
+    return sorted_df[~sorted_df.index.duplicated(keep="first")]
+
+
+def evaluate_actual_item(item, price_df, benchmark_df=None):
+    """report_items 한 행(item)의 실제 매매(actual) 성과를 계산한다.
+
+    기준가격은 item["actual_entry_price"], 기준일은 item["actual_entry_date"]다(사후에
+    사용자가 입력한 실제 체결 정보 — 저장 당시 판단용 entry_price/evaluate_item()의
+    판단 기준가와는 다른 별개 값이며 서로 섞지 않는다). price_df/benchmark_df는 호출자가
+    이미 조회해 전달한 DataFrame만 쓰고, 이 함수 자체는 네트워크 조회를 하지 않으며
+    evaluate_item()도 호출하지 않는다(완전히 독립된 계산 경로). 입력 item/price_df/
+    benchmark_df는 전혀 수정하지 않는다.
+
+    actual_action이 '매수'가 아니거나 actual_entry_price/actual_entry_date 중 하나라도
+    없으면 outcome_details가 전부 None인 빈 결과를 반환한다(조용히, 예외 없음). 값이
+    존재하는데 형식이 잘못되면(가격이 bool/0 이하/비유한, 날짜가 실제 YYYY-MM-DD가
+    아님) ValueError를 던진다 — database.py의 normalize_actual_entry_date()를 그대로
+    재사용해 UPDATE 경로와 검증 규칙이 갈라지지 않게 한다.
+
+    horizon 1은 actual_entry_date "다음" 첫 거래일이다(매수 당일 종가는 horizon에서
+    제외). price_df/benchmark_df는 날짜 오름차순 정렬 + 중복 날짜 제거 후 사용하며,
+    entry_date보다 엄격히 뒤인 거래일만 대상으로 순서대로 horizon 1/3/5/10/20에 배정한다.
+    아직 그만큼 거래일이 지나지 않은 horizon은 해당 세부값이 전부 None이다.
+    """
+    ticker = (item.get("ticker") or "").strip()
+    market = item.get("market")
+    benchmark_symbol = determine_benchmark(market, ticker)
+
+    empty_result = {
+        "entry_price_used": None,
+        "entry_date_used": None,
+        "benchmark_symbol": benchmark_symbol,
+        "outcome_details": _empty_outcome_details(),
+    }
+
+    if item.get("actual_action") != "매수":
+        return empty_result
+
+    actual_entry_price = item.get("actual_entry_price")
+    actual_entry_date = item.get("actual_entry_date")
+    if actual_entry_price is None or actual_entry_date is None:
+        return empty_result
+
+    if not _is_valid_finite_number(actual_entry_price, require_positive=True):
+        raise ValueError(
+            f"actual_entry_price must be a positive finite number, got {actual_entry_price!r}"
+        )
+    normalized_entry_date = db.normalize_actual_entry_date(actual_entry_date)
+    if normalized_entry_date is None:
+        return empty_result
+
+    entry_price_float = float(actual_entry_price)
+
+    result = {
+        "entry_price_used": entry_price_float,
+        "entry_date_used": normalized_entry_date,
+        "benchmark_symbol": benchmark_symbol,
+        "outcome_details": _empty_outcome_details(),
+    }
+
+    if price_df is None or price_df.empty:
+        return result
+
+    entry_date_ts = pd.Timestamp(normalized_entry_date)
+    price_df_clean = _dedup_sorted_price_df(price_df)
+    future_dates = price_df_clean.index[price_df_clean.index > entry_date_ts]
+
+    bench_df_clean = None
+    # benchmark_symbol이 None(OTHER 시장 등 결정 불가)이면 benchmark_df가 전달됐더라도
+    # 쓰지 않는다 — OTHER 시장은 벤치마크 값이 전부 None이어야 한다.
+    if benchmark_symbol is not None and benchmark_df is not None and not benchmark_df.empty:
+        bench_df_clean = _dedup_sorted_price_df(benchmark_df)
+
+    # 벤치마크 기준가는 실제 체결 시각의 지수값이 아니라 매수 거래일 종가를 쓰는
+    # 근사치다(정확히 같은 날짜의 벤치마크 종가가 없으면 이전/다음 날짜로 대체하지 않음).
+    bench_entry_price = None
+    if bench_df_clean is not None and entry_date_ts in bench_df_clean.index:
+        bench_entry_price = float(bench_df_clean.loc[entry_date_ts, "Close"])
+
+    outcome_details = {}
+    for h in HORIZONS:
+        if len(future_dates) < h:
+            outcome_details[h] = _empty_outcome_detail()
+            continue
+
+        target_date = future_dates[h - 1]
+        close_price = float(price_df_clean.loc[target_date, "Close"])
+        return_pct = (close_price / entry_price_float - 1) * 100
+
+        benchmark_return_pct = None
+        if (
+            bench_entry_price is not None
+            and bench_df_clean is not None
+            and target_date in bench_df_clean.index
+        ):
+            bench_close_price = float(bench_df_clean.loc[target_date, "Close"])
+            benchmark_return_pct = (bench_close_price / bench_entry_price - 1) * 100
+
+        excess_return_pct = None
+        if benchmark_return_pct is not None:
+            excess_return_pct = return_pct - benchmark_return_pct
+
+        outcome_details[h] = {
+            "target_date": target_date.strftime("%Y-%m-%d"),
+            "close_price": close_price,
+            "return_pct": return_pct,
+            "benchmark_return_pct": benchmark_return_pct,
+            "excess_return_pct": excess_return_pct,
+        }
+
+    result["outcome_details"] = outcome_details
+    return result
+
+
+def build_actual_outcome_rows(report_item_id, evaluation_result):
+    """evaluate_actual_item()의 반환값(evaluation_result)을 report_item_outcomes 저장
+    형식의 list[dict]로 변환하는 순수 매핑 함수다. DB 연결/INSERT/UPDATE를 전혀 하지
+    않으며, upsert_report_item_outcome(s)도 호출하지 않는다 —
+    build_judgment_outcome_rows()와 검증 규칙은 동일하되 entry_basis만 'actual'이다.
+
+    entry_basis='actual', status='evaluated' 후보만 만든다. 정상 계산이 완료된 horizon
+    (1/3/5/10/20)만 포함하고, entry_price_used/target_date/close_price/return_pct 중
+    하나라도 비어 있거나 비정상이면 그 horizon만 조용히 제외한다(나머지 정상 horizon은
+    유지). evaluation_result 딕셔너리 자체는 수정하지 않는다(읽기만 함). high_price/
+    low_price는 현재 evaluate_actual_item()에 데이터가 없으므로 항상 None이다.
+    """
+    if not isinstance(evaluation_result, dict):
+        raise ValueError(f"evaluation_result must be a dict, got {type(evaluation_result)!r}")
+    if (
+        isinstance(report_item_id, bool)
+        or not isinstance(report_item_id, int)
+        or report_item_id <= 0
+    ):
+        raise ValueError(
+            f"report_item_id must be a positive int (not bool), got {report_item_id!r}"
+        )
+
+    outcome_details = evaluation_result.get("outcome_details")
+    if not isinstance(outcome_details, dict):
+        return []
+
+    entry_price_used = evaluation_result.get("entry_price_used")
+    if not _is_valid_finite_number(entry_price_used, require_positive=True):
+        return []
+
+    benchmark_symbol = evaluation_result.get("benchmark_symbol")
+
+    rows = []
+    for horizon in HORIZONS:
+        detail = outcome_details.get(horizon)
+        if not isinstance(detail, dict):
+            continue
+
+        target_date = detail.get("target_date")
+        if not target_date:
+            continue
+
+        close_price = detail.get("close_price")
+        if not _is_valid_finite_number(close_price, require_positive=True):
+            continue
+
+        return_pct = detail.get("return_pct")
+        if not _is_valid_finite_number(return_pct, require_positive=False):
+            continue
+
+        benchmark_return_pct = detail.get("benchmark_return_pct")
+        if not _is_valid_finite_number(benchmark_return_pct, require_positive=False):
+            benchmark_return_pct = None
+
+        excess_return_pct = detail.get("excess_return_pct")
+        if not _is_valid_finite_number(excess_return_pct, require_positive=False):
+            excess_return_pct = None
+
+        rows.append(
+            {
+                "report_item_id": report_item_id,
+                "horizon_sessions": horizon,
+                "entry_basis": "actual",
+                "entry_price_used": float(entry_price_used),
+                "target_date": target_date,
+                "close_price": float(close_price),
+                "high_price": None,
+                "low_price": None,
+                "return_pct": float(return_pct),
+                "benchmark_symbol": benchmark_symbol,
+                "benchmark_return_pct": (
+                    float(benchmark_return_pct) if benchmark_return_pct is not None else None
+                ),
+                "excess_return_pct": (
+                    float(excess_return_pct) if excess_return_pct is not None else None
+                ),
+                "status": "evaluated",
+                "evaluated_at": None,
+            }
+        )
+
+    return rows
