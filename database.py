@@ -1,6 +1,7 @@
 """SQLite 연결, 스키마, CRUD, timing_class 자동 분류."""
 
 import json
+import math
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -415,16 +416,69 @@ def update_report_item_actual_action(report_item_id, action):
     action은 None(미기록) 또는 "매수"/"보류"/"제외" 중 하나만 허용한다. 그 외 값은
     ValueError를 던진다(저장하지 않음). report_items.id 외 다른 컬럼/다른 행은 건드리지
     않는다. buy_confirmed는 저장 당시 시스템 판단용 legacy 필드이고 actual_action은
-    사용자의 사후 실제 행동 기록이라 서로 동기화하지 않는다. 존재하지 않는 id를 넘기면
-    아무 행도 갱신되지 않으므로 False를 반환한다(조용한 성공 아님).
+    사용자의 사후 실제 행동 기록이라 서로 동기화하지 않는다(이 함수는 buy_confirmed를
+    절대 건드리지 않는다). 존재하지 않는 id를 넘기면 아무 행도 갱신되지 않으므로 False를
+    반환한다(조용한 성공 아님).
+
+    실제 체결가(actual_entry_price)가 이미 채워진 행을 '매수'가 아닌 값으로 바꾸려 하면
+    ValueError를 던지고 저장을 거부한다(모순 방지). actual_entry_price를 자동으로 지우지
+    않으며, 먼저 체결가를 비운 뒤 다시 시도해야 한다는 안내는 호출자(UI) 쪽에서 보여준다.
     """
     if action is not None and action not in ACTUAL_ACTION_CHOICES:
         raise ValueError(f"action must be None or one of {ACTUAL_ACTION_CHOICES}, got {action!r}")
 
     conn = get_connection()
     try:
+        if action != "매수":
+            row = conn.execute(
+                "SELECT actual_entry_price FROM report_items WHERE id = ?", (report_item_id,)
+            ).fetchone()
+            if row is not None and row["actual_entry_price"] is not None:
+                raise ValueError(
+                    "실제 체결가가 입력된 상태에서는 '매수'가 아닌 값으로 바꿀 수 없습니다. "
+                    "먼저 실제 체결가를 비운 뒤 다시 시도하세요."
+                )
         cur = conn.execute(
             "UPDATE report_items SET actual_action = ? WHERE id = ?", (action, report_item_id)
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def update_report_item_actual_entry_price(report_item_id, price):
+    """report_items.id 기준 사후 UPDATE 전용(새 report/report_item 생성 없음).
+
+    price는 None(미기록, DB에는 NULL) 또는 0보다 큰 유한 숫자(int/float)만 허용한다.
+    bool은 숫자로 인정하지 않고, NaN/Infinity/0 이하 값은 ValueError를 던진다(저장 안 함).
+    대상 행의 actual_action이 '매수'가 아니면 양수 가격 저장은 거부하지만(ValueError),
+    None(NULL) 저장은 행동값과 무관하게 항상 허용한다(체결가를 비우는 동작은 막지 않음).
+    entry_price/buy_confirmed 등 다른 컬럼은 절대 건드리지 않는다. 존재하지 않는 id를
+    넘기면 아무 행도 갱신되지 않으므로 False를 반환한다.
+    """
+    if price is not None:
+        if isinstance(price, bool):
+            raise ValueError("price must not be a bool")
+        if not isinstance(price, (int, float)):
+            raise ValueError(f"price must be None or a number, got {price!r}")
+        price = float(price)
+        if not math.isfinite(price):
+            raise ValueError("price must be a finite number (NaN/Infinity not allowed)")
+        if price <= 0:
+            raise ValueError("price must be greater than 0")
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT actual_action FROM report_items WHERE id = ?", (report_item_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        if price is not None and row["actual_action"] != "매수":
+            raise ValueError("실제 행동이 '매수'인 종목만 실제 체결가를 저장할 수 있습니다.")
+        cur = conn.execute(
+            "UPDATE report_items SET actual_entry_price = ? WHERE id = ?", (price, report_item_id)
         )
         conn.commit()
         return cur.rowcount > 0

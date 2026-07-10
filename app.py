@@ -1907,6 +1907,43 @@ def _fmt_signed_pct(value):
     return "-" if value is None else f"{value:+.2f}%"
 
 
+def _fmt_actual_entry_price_display(value):
+    """실제 평균 체결가(REAL, NULL 허용)를 입력칸 기본값 문자열로 표시한다.
+
+    NULL -> 빈칸. 정수 가격이면 불필요한 소수점(.0) 없이, 소수 가격이면 유효 소수만
+    남기고 표시한다. 통화 기호는 붙이지 않는다.
+    """
+    if value is None:
+        return ""
+    value = float(value)
+    if value == int(value):
+        return f"{int(value):,}"
+    text = f"{value:,.4f}".rstrip("0").rstrip(".")
+    return text
+
+
+def _parse_actual_entry_price_text(text):
+    """실제 체결가 입력칸 문자열을 파싱한다. 반환: (price 또는 None, 에러 메시지 또는 None).
+
+    앞뒤 공백 제거, 쉼표 제거 후 숫자로 변환한다. 빈 문자열은 (None, None)으로 반환해
+    NULL 저장(미기록)을 허용한다. 숫자로 바꿀 수 없거나 0 이하/NaN/Infinity면
+    (None, 에러 메시지)를 반환해 저장을 막는다(실제 DB 쓰기는 하지 않음, 파싱만).
+    """
+    text = (text or "").strip()
+    if not text:
+        return None, None
+    cleaned = text.replace(",", "")
+    try:
+        value = float(cleaned)
+    except ValueError:
+        return None, f"'{text}' 값을 숫자로 변환할 수 없습니다."
+    if not math.isfinite(value):
+        return None, "유효한 숫자가 아닙니다(NaN/Infinity 불가)."
+    if value <= 0:
+        return None, "0보다 큰 값만 입력할 수 있습니다."
+    return value, None
+
+
 # ---- v1.2A: 청산 결과 기록 (기존 report_item 업데이트 전용, 새 report 생성 없음) ----
 
 def _compute_result_r(entry_price, stop_loss_price, actual_exit_price):
@@ -4631,17 +4668,64 @@ with tab_perf:
                             )
                             if st.button("실제 행동 저장", key=f"{_action_key}_save"):
                                 _final_action = None if _action_in == "미기록" else _action_in
-                                _action_ok = db.update_report_item_actual_action(
-                                    saved_item["id"], _final_action
-                                )
-                                if _action_ok:
-                                    st.success("실제 행동이 저장되었습니다.")
-                                    st.rerun()
-                                else:
-                                    st.error(
-                                        f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                                        f"(id={saved_item['id']})."
+                                try:
+                                    _action_ok = db.update_report_item_actual_action(
+                                        saved_item["id"], _final_action
                                     )
+                                except ValueError as _action_err:
+                                    st.error(f"{row['stock_name']}: {_action_err}")
+                                else:
+                                    if _action_ok:
+                                        st.success("실제 행동이 저장되었습니다.")
+                                        st.rerun()
+                                    else:
+                                        st.error(
+                                            f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                                            f"(id={saved_item['id']})."
+                                        )
+
+                            # 실제 평균 체결가 입력/수정 (기존 report_item을 id 기준으로 사후
+                            # UPDATE만 수행, 새 report/report_item 생성 안 함, save_report()/
+                            # INSERT 로직과 무관). entry_price(저장 당시 계획/참고 진입가)와는
+                            # 다른 사후 실제 데이터이며 서로 동기화하지 않는다. 실제 행동이
+                            # '매수'일 때만 저장 가능하다(database.py에서 최종 검증). 테마 태그/
+                            # 실제 행동 저장 버튼과 독립적으로 동작한다.
+                            st.markdown("---")
+                            _price_key = f"actualentryprice_{saved_item['id']}"
+                            _price_default_text = _fmt_actual_entry_price_display(
+                                saved_item.get("actual_entry_price")
+                            )
+                            _price_text_in = st.text_input(
+                                "실제 평균 체결가",
+                                value=_price_default_text,
+                                key=f"{_price_key}_input",
+                                help=(
+                                    "실제로 매수한 평균 체결가입니다. 실제 행동이 '매수'일 때만 "
+                                    "저장할 수 있습니다."
+                                ),
+                            )
+                            if st.button("실제 체결가 저장", key=f"{_price_key}_save"):
+                                _parsed_price, _parse_error = _parse_actual_entry_price_text(
+                                    _price_text_in
+                                )
+                                if _parse_error:
+                                    st.error(f"{row['stock_name']}: {_parse_error}")
+                                else:
+                                    try:
+                                        _price_ok = db.update_report_item_actual_entry_price(
+                                            saved_item["id"], _parsed_price
+                                        )
+                                    except ValueError as _price_err:
+                                        st.error(f"{row['stock_name']}: {_price_err}")
+                                    else:
+                                        if _price_ok:
+                                            st.success("실제 체결가가 저장되었습니다.")
+                                            st.rerun()
+                                        else:
+                                            st.error(
+                                                f"{row['stock_name']}: 저장 실패 — 대상 기록을 "
+                                                f"찾지 못했습니다 (id={saved_item['id']})."
+                                            )
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
     st.markdown("---")
