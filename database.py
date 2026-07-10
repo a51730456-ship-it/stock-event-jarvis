@@ -615,3 +615,238 @@ def search_reports(
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# ---- report_item_outcomes 저장/조회 헬퍼 (2단계 성과검증 스키마 전용) ----
+# 이번 단계는 저장/조회 함수만 추가한다. performance.py 연결, 가격 자동조회, UI,
+# 판단 적중률/실매매 수익률 계산은 전부 이후 별도 작업이다. 이 함수들을 호출해도
+# 운영 DB에 실제 outcome 행이 생기지는 않는다(호출하는 곳이 아직 없음).
+
+OUTCOME_ENTRY_BASIS_CHOICES = ("judgment", "actual")
+OUTCOME_STATUS_CHOICES = ("pending", "evaluated", "unavailable", "error")
+
+
+def _validate_outcome_price(value, name):
+    """가격류 필드(entry_price_used/close_price/high_price/low_price) 검증.
+
+    None 허용. bool/NaN/Infinity 거부. 값이 있으면 0보다 커야 한다.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must not be a bool")
+    if not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a number or None, got {value!r}")
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number (NaN/Infinity not allowed)")
+    if value <= 0:
+        raise ValueError(f"{name} must be greater than 0")
+    return value
+
+
+def _validate_outcome_pct(value, name):
+    """수익률류 필드(return_pct/benchmark_return_pct/excess_return_pct) 검증.
+
+    None 허용. bool/NaN/Infinity 거부. 음수는 허용한다(하락도 정상 값이므로).
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must not be a bool")
+    if not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a number or None, got {value!r}")
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number (NaN/Infinity not allowed)")
+    return value
+
+
+def upsert_report_item_outcome(
+    report_item_id,
+    horizon_sessions,
+    entry_basis,
+    entry_price_used=None,
+    target_date=None,
+    close_price=None,
+    high_price=None,
+    low_price=None,
+    return_pct=None,
+    benchmark_symbol=None,
+    benchmark_return_pct=None,
+    excess_return_pct=None,
+    status="pending",
+    evaluated_at=None,
+):
+    """report_item_outcomes를 UNIQUE(report_item_id, horizon_sessions, entry_basis)
+    기준으로 UPSERT한다(새 report/report_item은 생성하지 않음).
+
+    같은 키로 다시 호출하면 INSERT가 아니라 UPDATE로 처리되며, 이때 id와 created_at은
+    바뀌지 않고 updated_at만 CURRENT_TIMESTAMP로 갱신된다. 잘못된 입력은 DB에 쓰기 전에
+    ValueError를 던진다(가격류는 0 이하/bool/NaN/Infinity 거부, 수익률류는 bool/NaN/
+    Infinity만 거부하고 음수는 허용). report_item_id가 존재하지 않는 report_items.id면
+    ValueError를 던진다. status='evaluated'면 entry_price_used/target_date/close_price/
+    return_pct가 전부 채워져 있어야 한다(high_price/low_price는 선택). 성공 시 저장된
+    report_item_outcomes.id를 반환한다. 다른 report_item_outcomes 행이나 report_items
+    행은 건드리지 않는다.
+    """
+    if isinstance(horizon_sessions, bool) or not isinstance(horizon_sessions, int):
+        raise ValueError(
+            f"horizon_sessions must be a positive int (not bool), got {horizon_sessions!r}"
+        )
+    if horizon_sessions <= 0:
+        raise ValueError("horizon_sessions must be greater than 0")
+
+    if entry_basis not in OUTCOME_ENTRY_BASIS_CHOICES:
+        raise ValueError(
+            f"entry_basis must be one of {OUTCOME_ENTRY_BASIS_CHOICES}, got {entry_basis!r}"
+        )
+
+    if status not in OUTCOME_STATUS_CHOICES:
+        raise ValueError(f"status must be one of {OUTCOME_STATUS_CHOICES}, got {status!r}")
+
+    for _name, _value in (("target_date", target_date), ("evaluated_at", evaluated_at)):
+        if _value is not None and not isinstance(_value, str):
+            raise ValueError(f"{_name} must be a string or None, got {_value!r}")
+    if benchmark_symbol is not None and not isinstance(benchmark_symbol, str):
+        raise ValueError(f"benchmark_symbol must be a string or None, got {benchmark_symbol!r}")
+
+    entry_price_used = _validate_outcome_price(entry_price_used, "entry_price_used")
+    close_price = _validate_outcome_price(close_price, "close_price")
+    high_price = _validate_outcome_price(high_price, "high_price")
+    low_price = _validate_outcome_price(low_price, "low_price")
+    return_pct = _validate_outcome_pct(return_pct, "return_pct")
+    benchmark_return_pct = _validate_outcome_pct(benchmark_return_pct, "benchmark_return_pct")
+    excess_return_pct = _validate_outcome_pct(excess_return_pct, "excess_return_pct")
+
+    if status == "evaluated":
+        missing = [
+            _name
+            for _name, _value in (
+                ("entry_price_used", entry_price_used),
+                ("target_date", target_date),
+                ("close_price", close_price),
+                ("return_pct", return_pct),
+            )
+            if _value is None
+        ]
+        if missing:
+            raise ValueError(f"status='evaluated' requires non-null: {', '.join(missing)}")
+
+    conn = get_connection()
+    try:
+        exists = conn.execute(
+            "SELECT id FROM report_items WHERE id = ?", (report_item_id,)
+        ).fetchone()
+        if exists is None:
+            raise ValueError(f"report_item_id {report_item_id!r} does not exist")
+
+        conn.execute(
+            """
+            INSERT INTO report_item_outcomes (
+                report_item_id, horizon_sessions, entry_basis, entry_price_used,
+                target_date, close_price, high_price, low_price, return_pct,
+                benchmark_symbol, benchmark_return_pct, excess_return_pct,
+                status, evaluated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(report_item_id, horizon_sessions, entry_basis) DO UPDATE SET
+                entry_price_used = excluded.entry_price_used,
+                target_date = excluded.target_date,
+                close_price = excluded.close_price,
+                high_price = excluded.high_price,
+                low_price = excluded.low_price,
+                return_pct = excluded.return_pct,
+                benchmark_symbol = excluded.benchmark_symbol,
+                benchmark_return_pct = excluded.benchmark_return_pct,
+                excess_return_pct = excluded.excess_return_pct,
+                status = excluded.status,
+                evaluated_at = excluded.evaluated_at,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                report_item_id, horizon_sessions, entry_basis, entry_price_used,
+                target_date, close_price, high_price, low_price, return_pct,
+                benchmark_symbol, benchmark_return_pct, excess_return_pct,
+                status, evaluated_at,
+            ),
+        )
+        conn.commit()
+        saved = conn.execute(
+            "SELECT id FROM report_item_outcomes "
+            "WHERE report_item_id = ? AND horizon_sessions = ? AND entry_basis = ?",
+            (report_item_id, horizon_sessions, entry_basis),
+        ).fetchone()
+        return saved["id"]
+    finally:
+        conn.close()
+
+
+def get_report_item_outcomes(report_item_id):
+    """report_item_id 하나의 성과 행 전체를 반환한다.
+
+    정렬: horizon_sessions 오름차순, 같은 horizon 안에서는 entry_basis가 judgment 먼저,
+    actual 다음. 행이 없거나 report_item_id 자체가 존재하지 않아도 예외 없이 빈 리스트를
+    반환한다(get_report_items()와 동일한 조회 전용 패턴). 원본 DB 값은 읽기만 한다.
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM report_item_outcomes
+            WHERE report_item_id = ?
+            ORDER BY horizon_sessions ASC,
+                     CASE entry_basis WHEN 'judgment' THEN 0 WHEN 'actual' THEN 1 ELSE 2 END
+            """,
+            (report_item_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_report_outcomes(report_id):
+    """report_id 하나에 대해 reports -> report_items -> report_item_outcomes를
+    INNER JOIN해서 이미 저장된 성과 행만 반환한다.
+
+    outcome이 없는 report_item은 결과에 포함되지 않으며(INNER JOIN), 이 함수는 조회만
+    하고 새 pending 행을 만들지 않는다. 정렬: report_item_id, horizon_sessions,
+    entry_basis(judgment 먼저) 순.
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                r.id AS report_id,
+                ri.id AS report_item_id,
+                ri.stock_name AS item_name,
+                ri.ticker AS ticker,
+                ri.market AS market,
+                ri.actual_action AS actual_action,
+                ri.actual_entry_price AS actual_entry_price,
+                ri.theme_tags AS theme_tags,
+                rio.horizon_sessions AS horizon_sessions,
+                rio.entry_basis AS entry_basis,
+                rio.entry_price_used AS entry_price_used,
+                rio.target_date AS target_date,
+                rio.close_price AS close_price,
+                rio.high_price AS high_price,
+                rio.low_price AS low_price,
+                rio.return_pct AS return_pct,
+                rio.benchmark_symbol AS benchmark_symbol,
+                rio.benchmark_return_pct AS benchmark_return_pct,
+                rio.excess_return_pct AS excess_return_pct,
+                rio.status AS status,
+                rio.evaluated_at AS evaluated_at
+            FROM reports r
+            JOIN report_items ri ON ri.report_id = r.id
+            JOIN report_item_outcomes rio ON rio.report_item_id = ri.id
+            WHERE r.id = ?
+            ORDER BY ri.id ASC, rio.horizon_sessions ASC,
+                     CASE rio.entry_basis WHEN 'judgment' THEN 0 WHEN 'actual' THEN 1 ELSE 2 END
+            """,
+            (report_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
