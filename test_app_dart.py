@@ -26,8 +26,8 @@ class AppDartContractTests(unittest.TestCase):
         self.assertIn("display=10, sort=\"date\"", source)
         self.assertIn("len(recent) == 5", source)
         self.assertIn("키워드 기반 1차 참고 분류 · 점수 미반영", source)
-        self.assertIn("중요 재료 {important_count}건", source)
-        self.assertIn("[일반 참고]", source)
+        self.assertIn("기업 직접 재료 후보 {direct_count}건", source)
+        self.assertIn("classification['market_reaction']", source)
 
     def test_news_mock_recent_filter_max_five_and_partial_failure(self):
         ns = load_fetch_helper()

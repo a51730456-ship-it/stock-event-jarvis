@@ -1978,7 +1978,7 @@ def _classify_market_news_items(items, company_name, ticker):
             published = datetime.fromisoformat(str(item.get("pub_date", ""))).timestamp()
         except (TypeError, ValueError, OverflowError):
             published = float("-inf")
-        return (classification.get("level") == "중요 재료", published)
+        return (classification.get("level") == "기업 직접 재료 후보", published)
     return sorted(classified, key=sort_key, reverse=True)
 
 
@@ -2007,8 +2007,8 @@ def _render_market_naver_news_panel(market, stocks, title, button_key, results_k
     st.caption(f"조회 시각: {st.session_state.get(checked_at_key) or '-'} · 조회 종목 수: {len(result.get('rows', []))} · 정상 {summary.get('normal', 0)} · 최근 뉴스 없음 {summary.get('empty', 0)} · 실패 {summary.get('failed', 0)}")
     for row in result.get("rows", []):
         display_items = _classify_market_news_items(row.get("data", []), row.get("name", ""), row.get("ticker", ""))
-        important_count = sum(1 for _, classification in display_items if classification.get("level") == "중요 재료")
-        header = f"최근 뉴스 {len(display_items)}건 · 중요 재료 {important_count}건" if display_items else ("최근 뉴스 없음" if row.get("status") == "데이터 없음" else row.get("status", "조회 오류"))
+        direct_count = sum(1 for _, classification in display_items if classification.get("level") == "기업 직접 재료 후보")
+        header = f"최근 뉴스 {len(display_items)}건 · 기업 직접 재료 후보 {direct_count}건" if display_items else ("최근 뉴스 없음" if row.get("status") == "데이터 없음" else row.get("status", "조회 오류"))
         with st.expander(f"{row['name']} · {row['ticker']} · {header}", expanded=False):
             if row.get("status") == "데이터 없음":
                 st.info("최근 3일 뉴스 없음")
@@ -2017,7 +2017,10 @@ def _render_market_naver_news_panel(market, stocks, title, button_key, results_k
             for index, (item, classification) in enumerate(display_items):
                 if index:
                     st.markdown("---")
-                label = f"[{classification['level']} · {classification['category']}]" if classification["level"] == "중요 재료" else "[일반 참고]"
+                if classification["level"] == "기업 직접 재료 후보":
+                    label = f"{classification['level']} · {classification['category']} · {classification['market_reaction']}"
+                else:
+                    label = f"{classification['level']} · {classification['market_reaction']}"
                 st.write(label)
                 if classification.get("reason"):
                     st.caption(f"분류 근거: {classification['reason']}")

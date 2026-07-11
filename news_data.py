@@ -22,6 +22,8 @@ _DIRECT_RULES = (
     ("제품·기술", ("신제품 출시", "품목허가", "규제기관 승인", "특허 취득", "개발 완료", "양산 시작", "임상 주요 결과")),
 )
 _WEAK_KEYWORDS = ("실적", "매출", "전망", "가이던스", "공급", "선정", "투자", "인수", "배당", "지분", "조사", "제재", "소송", "출시", "승인", "개발", "양산")
+_NON_DIRECT_CONTEXT = ("ETF", "ETN", "펀드", "투자상품", "목표주가", "주가 전망", "차트", "급등주", "급락주", "정치인", "헌법소원", "국회", "정당", "정치", "발언", "비교", "관련", "연관", "업계", "시장", "경쟁사", "파트너")
+_MARKET_REACTION_PENDING = "시장 반응 확인 전"
 
 
 def _result(status, status_code, data=None, message=""):
@@ -50,12 +52,17 @@ def classify_news_materiality(news_item, company_name, ticker=""):
     def direct_matches(text):
         if not has_subject(text):
             return []
-        return [
+        matches = [
             (category, phrase, text.find(phrase))
             for category, phrases in _DIRECT_RULES
             for phrase in phrases
             if phrase in text
         ]
+        if any(term in text for term in _NON_DIRECT_CONTEXT):
+            matches = [match for match in matches if match[0] != "투자·M&A"]
+            if any(term in text for term in ("비교", "관련", "연관", "업계", "시장", "경쟁사", "파트너")):
+                return []
+        return matches
 
     title_matches = direct_matches(title)
     description_matches = direct_matches(description)
@@ -68,7 +75,13 @@ def classify_news_materiality(news_item, company_name, ticker=""):
             if phrase not in matched:
                 matched.append(phrase)
         field_name = "제목" if title_matches else "설명"
-        return {"level": "중요 재료", "category": category, "matched_keywords": matched, "reason": f"{field_name}에서 회사 직접 사건 문구 '{matched[0]}'가 일치했습니다."}
+        return {
+            "level": "기업 직접 재료 후보",
+            "category": category,
+            "market_reaction": _MARKET_REACTION_PENDING,
+            "matched_keywords": matched,
+            "reason": f"{field_name}에서 회사 직접 사건 문구 '{matched[0]}'가 일치했습니다.",
+        }
 
     weak_matches = [keyword for keyword in _WEAK_KEYWORDS if keyword in title or keyword in description]
     context_text = f"{title} {description}"
@@ -84,7 +97,13 @@ def classify_news_materiality(news_item, company_name, ticker=""):
         reason = "중요 키워드는 있으나 회사 직접 사건 문구가 없어 일반 참고로 분류했습니다."
     else:
         reason = "회사 직접 사건을 확인할 수 없어 일반 참고로 분류했습니다."
-    return {"level": "일반 참고", "category": "기타", "matched_keywords": weak_matches, "reason": reason}
+    return {
+        "level": "일반 참고",
+        "category": "기타",
+        "market_reaction": _MARKET_REACTION_PENDING,
+        "matched_keywords": weak_matches,
+        "reason": reason,
+    }
 
 
 def _normalize_pub_date(value):

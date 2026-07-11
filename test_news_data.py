@@ -26,8 +26,9 @@ class NewsDataTests(unittest.TestCase):
         ]
         for item, category in cases:
             result = n.classify_news_materiality(item, "테스트기업", "000000")
-            self.assertEqual(result["level"], "중요 재료")
+            self.assertEqual(result["level"], "기업 직접 재료 후보")
             self.assertEqual(result["category"], category)
+            self.assertEqual(result["market_reaction"], "시장 반응 확인 전")
             self.assertTrue(result["matched_keywords"])
         title_first = n.classify_news_materiality({"title": "기업 매출 증가", "description": "기업 대형 수주"}, "기업")
         self.assertEqual(title_first["category"], "실적")
@@ -60,9 +61,9 @@ class NewsDataTests(unittest.TestCase):
 
     def test_direct_company_events_survive_exclusion_words(self):
         result = n.classify_news_materiality({"title": "삼성전자, ETF 운용사 인수 결정", "description": ""}, "삼성전자")
-        self.assertEqual((result["level"], result["category"]), ("중요 재료", "투자·M&A"))
+        self.assertEqual(result["level"], "일반 참고")
         result = n.classify_news_materiality({"title": "삼성전자 소식", "description": "삼성전자 시설투자 결정 발표"}, "삼성전자")
-        self.assertEqual((result["level"], result["category"]), ("중요 재료", "투자·M&A"))
+        self.assertEqual((result["level"], result["category"]), ("기업 직접 재료 후보", "투자·M&A"))
         result = n.classify_news_materiality({"title": "삼성전자 소식", "description": "삼성전자 투자 확대 전망"}, "삼성전자")
         self.assertEqual(result["level"], "일반 참고")
 
@@ -71,6 +72,36 @@ class NewsDataTests(unittest.TestCase):
         before = dict(item)
         n.classify_news_materiality(item, "기업", "000000")
         self.assertEqual(item, before)
+
+    def test_three_stage_labels_and_false_positive_subjects(self):
+        direct = n.classify_news_materiality(
+            {"title": "테스트기업 공급계약 체결", "description": ""}, "테스트기업", "000000"
+        )
+        self.assertEqual(
+            (direct["level"], direct["category"], direct["market_reaction"]),
+            ("기업 직접 재료 후보", "수주·계약", "시장 반응 확인 전"),
+        )
+        for item in (
+            {"title": "정치인 발언과 시장 공급 동향", "description": "테스트기업 언급"},
+            {"title": "다른회사 대형 수주", "description": "테스트기업과 비교되는 업계 기사"},
+            {"title": "테스트기업 관련 시장 수주 동향", "description": ""},
+        ):
+            result = n.classify_news_materiality(item, "테스트기업", "000000")
+            self.assertEqual(result["level"], "일반 참고")
+            self.assertEqual(result["market_reaction"], "시장 반응 확인 전")
+
+    def test_all_event_categories_have_pending_market_reaction(self):
+        for category, phrase in (
+            ("실적", "테스트기업 실적 발표"),
+            ("수주·계약", "테스트기업 공급계약 체결"),
+            ("투자·M&A", "테스트기업 시설투자 결정"),
+            ("주주환원·자본", "테스트기업 배당 결정"),
+            ("규제·법적위험", "테스트기업 당국 조사"),
+            ("제품·기술", "테스트기업 신제품 출시"),
+        ):
+            result = n.classify_news_materiality({"title": phrase}, "테스트기업")
+            self.assertEqual(result["category"], category)
+            self.assertEqual(result["market_reaction"], "시장 반응 확인 전")
 
     def test_normal_two_items_and_order(self):
         payload = {"items": [{"title": "A", "originallink": "https://a", "link": "https://n/a", "description": "D", "pubDate": "Tue, 11 Jul 2026 10:00:00 +0900"}, {"title": "B", "link": "https://b"}]}
