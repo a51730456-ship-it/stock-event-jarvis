@@ -4839,33 +4839,38 @@ with tab_action:
             _render_trade_exit_inputs(_tab3_item, key_prefix="tab3_")
         if _tab3_item_status == "청산 완료":
             _actual_fee = _tab3_item.get("actual_fee")
+            _actual_entry_price = _tab3_item.get("actual_entry_price")
             _actual_pnl = None
-            if _actual_fee is not None:
-                _actual_pnl = _compute_realized_pnl(
-                    _tab3_item.get("actual_entry_price"),
-                    _tab3_item.get("actual_exit_price"),
-                    _tab3_item.get("quantity"),
-                    _actual_fee,
-                )
-            if _actual_fee is None:
-                _pnl_text = "비용 미입력 · 계산 불가"
-            elif _actual_pnl is None:
-                _pnl_text = "입력값 부족 · 계산 불가"
+            if _actual_entry_price is None:
+                _pnl_text = "실제 매수가 미입력 · 계산 불가"
+                _return_text = "실제 매수가 미입력 · 계산 불가"
             else:
-                _pnl_text = f"{_actual_pnl:,.2f}"
+                if _actual_fee is None:
+                    _pnl_text = "비용 미입력 · 계산 불가"
+                else:
+                    _actual_pnl = _compute_realized_pnl(
+                        _actual_entry_price,
+                        _tab3_item.get("actual_exit_price"),
+                        _tab3_item.get("quantity"),
+                        _actual_fee,
+                    )
+                    if _actual_pnl is None:
+                        _pnl_text = "입력값 부족 · 계산 불가"
+                    else:
+                        _pnl_text = f"{_actual_pnl:,.2f}"
 
-            _return_pct = None
-            if _actual_pnl is not None:
-                _return_pct = _compute_realized_return_pct(
-                    _actual_pnl,
-                    _tab3_item.get("actual_entry_price"),
-                    _tab3_item.get("quantity"),
+                _return_pct = None
+                if _actual_pnl is not None:
+                    _return_pct = _compute_realized_return_pct(
+                        _actual_pnl,
+                        _actual_entry_price,
+                        _tab3_item.get("quantity"),
+                    )
+                _return_text = (
+                    "입력값 부족 · 계산 불가"
+                    if _return_pct is None
+                    else f"{_return_pct:+.2f}%"
                 )
-            _return_text = (
-                "입력값 부족 · 계산 불가"
-                if _return_pct is None
-                else f"{_return_pct:+.2f}%"
-            )
 
             _holding_days = _compute_holding_days(
                 _tab3_item.get("actual_entry_date"),
