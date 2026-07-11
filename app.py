@@ -571,6 +571,70 @@ st.markdown(
     [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] p {
         color: #ffffff !important;
     }
+    /* Readability pass: scoped text, controls, tables, and vertical rhythm. */
+    .stMarkdown p,
+    [data-testid="stText"],
+    [data-testid="stAlert"] p,
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stRadio"] label,
+    [data-testid="stSelectbox"] label,
+    [data-testid="stMultiSelect"] label,
+    [data-testid="stTextInput"] label,
+    [data-testid="stTextArea"] label {
+        font-size: 19px !important;
+        line-height: 1.75 !important;
+        margin-bottom: 1.75rem !important;
+    }
+    [data-testid="stCaptionContainer"], .stCaption, small {
+        color: #CBD5E1 !important;
+        font-size: 18px !important;
+        line-height: 1.7 !important;
+        margin-bottom: 1.75rem !important;
+    }
+    button, button p {
+        font-size: 19px !important;
+        line-height: 1.5 !important;
+        font-weight: 700 !important;
+        min-height: 3rem;
+    }
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary p {
+        font-size: 19px !important;
+        line-height: 1.65 !important;
+        margin-bottom: 0 !important;
+    }
+    [data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
+        font-size: 19px !important;
+        line-height: 1.7 !important;
+        margin-bottom: 1.75rem !important;
+    }
+    [data-testid="stDataFrame"] [role="columnheader"],
+    [data-testid="stDataFrame"] [role="gridcell"],
+    [data-testid="stDataEditor"] [role="columnheader"],
+    [data-testid="stDataEditor"] [role="gridcell"] {
+        font-size: 17px !important;
+        line-height: 1.65 !important;
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricLabel"],
+    [data-testid="stMetric"] [data-testid="stMetricLabel"] p {
+        font-size: 18px !important;
+        line-height: 1.5 !important;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab"],
+    [data-testid="stTabs"] [data-baseweb="tab"] p {
+        font-size: 20px !important;
+        line-height: 1.5 !important;
+    }
+    [data-testid="stMarkdownContainer"] h1,
+    [data-testid="stMarkdownContainer"] h2,
+    [data-testid="stMarkdownContainer"] h3,
+    [data-testid="stMarkdownContainer"] h4 {
+        margin-top: 2.5rem !important;
+        margin-bottom: 1rem !important;
+        line-height: 1.4 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -2253,7 +2317,7 @@ def _render_market_overview(market):
     title = "오늘 한국장 한눈에" if market == "KR" else "오늘 미국장 한눈에"
     market_label = "한국장" if market == "KR" else "미국장"
     st.markdown(f"<div style='font-size:26px;font-weight:800;margin:0 0 10px 0'>{title}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:17px;line-height:1.5;color:#CBD5E1;margin-bottom:8px'>먼저 아래 파란 버튼을 눌러 오늘 {market_label} 자료를 확인하세요.</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin:14px 0 22px'>먼저 아래 파란 버튼을 눌러 오늘 {market_label} 자료를 확인하세요.</div>", unsafe_allow_html=True)
     if st.button("오늘 한국장 자료 불러오기" if market == "KR" else "오늘 미국장 자료 불러오기", key=button_key):
         st.session_state[result_key] = _fetch_market_overview(market)
         st.session_state[checked_key] = st.session_state[result_key]["checked_at"]
@@ -2264,8 +2328,8 @@ def _render_market_overview(market):
     state, explanation = result["status"]
     state_colors = {"우호": "#15803D", "혼조": "#1D4ED8", "경계": "#D97706", "자료 부족": "#6B7280"}
     st.markdown(
-        f"<div style='color:{state_colors[state]};font-size:20px;font-weight:800'>상태: {state}</div>"
-        f"<div style='font-size:18px;font-weight:700;margin:4px 0 12px 0'>{explanation}</div>",
+        f"<div style='color:{state_colors[state]};font-size:20px;line-height:1.65;font-weight:800;margin-top:20px'>상태: {state}</div>"
+        f"<div style='font-size:19px;line-height:1.65;font-weight:700;margin:14px 0 24px'>{explanation}</div>",
         unsafe_allow_html=True,
     )
     card_columns = st.columns(4)
@@ -2274,12 +2338,12 @@ def _render_market_overview(market):
             card_parts = [
                 "<div style='background:#171a21;border:1px solid #303642;border-radius:10px;"
                 "padding:14px 14px 12px 14px;min-height:128px'>",
-                f"<div style='font-size:17px;line-height:1.5;font-weight:800;color:#dbeafe;margin-bottom:8px'>{card['label']}</div>",
+                f"<div style='font-size:18px;line-height:1.65;font-weight:800;color:#dbeafe;margin-bottom:10px'>{card['label']}</div>",
             ]
             for item in card["items"]:
                 if item["status"] != "정상":
                     card_parts.append(
-                        f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item['label']}</div>"
+                        f"<div style='font-size:18px;line-height:1.65;color:#CBD5E1'>{item['label']}</div>"
                         "<div style='font-size:20px;line-height:1.5;font-weight:800;color:#f3f4f6'>확인 불가</div>"
                     )
                 else:
@@ -2288,25 +2352,25 @@ def _render_market_overview(market):
                     change_color = "#22c55e" if change is not None and change > 0 else "#f87171" if change is not None and change < 0 else "#d1d5db"
                     change_text = "확인 불가" if change is None else _fmt_signed_pct(change)
                     card_parts.append(
-                        f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item['label']}</div>"
-                        f"<div style='font-size:22px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
-                        f"<div style='font-size:15px;line-height:1.5;color:{change_color};margin-top:4px'>전일 대비 등락률 {change_text}</div>"
+                        f"<div style='font-size:18px;line-height:1.65;color:#CBD5E1'>{item['label']}</div>"
+                        f"<div style='font-size:23px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
+                        f"<div style='font-size:18px;line-height:1.65;color:{change_color};margin-top:6px'>전일 대비 등락률 {change_text}</div>"
                     )
             card_parts.append("</div>")
             st.markdown("".join(card_parts), unsafe_allow_html=True)
-    st.markdown("<div style='font-size:19px;line-height:1.5;font-weight:800;margin-top:14px'>시장 주요 뉴스 후보</div>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:15px;line-height:1.5;color:#CBD5E1'>네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:19px;line-height:1.65;font-weight:800;margin-top:40px;margin-bottom:14px'>시장 주요 뉴스 후보</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-bottom:22px'>네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.</div>", unsafe_allow_html=True)
     if not result["news"] and result.get("news_failed"):
-        st.markdown("<div style='font-size:15px;line-height:1.5;color:#CBD5E1'>시장 주요 뉴스 후보: 확인 불가</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-bottom:18px'>시장 주요 뉴스 후보: 확인 불가</div>", unsafe_allow_html=True)
     for item in result["news"][:3]:
         hostname = urlparse(str(item.get("originallink") or item.get("link") or "")).hostname
         link = item.get("originallink") or item.get("link")
         title = item.get("title") or "-"
         title_html = html.escape(title)
         title_markdown = f"<a href='{html.escape(str(link), quote=True)}' target='_blank'>{title_html}</a>" if link else title_html
-        st.markdown(f"<div style='font-size:18px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:8px'>• {title_markdown}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:19px;line-height:1.65;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:18px 0 6px'>• {title_markdown}</div>", unsafe_allow_html=True)
         source = f" · 원문 도메인: {hostname}" if hostname else ""
-        st.markdown(f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-bottom:18px'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
     if len(result["news"]) > 3:
         with st.expander("시장 주요 뉴스 후보 더 보기", expanded=False):
             for item in result["news"][3:10]:
@@ -2316,15 +2380,15 @@ def _render_market_overview(market):
                 title_markdown = f"<a href='{html.escape(str(link), quote=True)}' target='_blank'>{title_html}</a>" if link else title_html
                 hostname = urlparse(str(link or "")).hostname
                 source = f" · 원문 도메인: {hostname}" if hostname else ""
-                st.markdown(f"<div style='font-size:18px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:8px'>• {title_markdown}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1;margin-top:8px'>최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:19px;line-height:1.65;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:18px 0 6px'>• {title_markdown}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-bottom:18px'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-top:22px'>최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준</div>", unsafe_allow_html=True)
     next_step = (
         "다음에는 아래의 0단계 시장 분위기 자동 확인과 ① 오늘 주가 자동 채우기를 진행하세요."
         if market == "KR"
         else "다음에는 아래에서 미국장 시장 분위기와 테마를 확인한 뒤 ① 미국장 기본 종목 불러오기를 진행하세요."
     )
-    st.markdown(f"<div style='font-size:17px;line-height:1.5;color:#CBD5E1;margin-top:12px'>{next_step}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin:24px 0 40px'>{next_step}</div>", unsafe_allow_html=True)
 
 
 def _get_snapshot_value(ticker, field):
