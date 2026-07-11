@@ -4859,6 +4859,178 @@ def _classify_actual_trade_status(saved_item):
     return "행동 미입력"
 
 
+def _render_judgment_outcome_save_button(selected_report_id, perf_rows_all, key_prefix=""):
+    _item_lookup = _build_item_judgment_lookup()
+    _eval_by_item_id = {}
+    for _row in perf_rows_all:
+        if _row["report_id"] != selected_report_id:
+            continue
+        _item = _item_lookup.get(
+            (_row["report_id"], _row["ticker"], _row["trade_mode"]), {}
+        )
+        if _item.get("id"):
+            _eval_by_item_id[_item["id"]] = _row
+
+    _candidate_rows = []
+    for _item_id, _eval_result in _eval_by_item_id.items():
+        _candidate_rows.extend(
+            performance.build_judgment_outcome_rows(_item_id, _eval_result)
+        )
+
+    st.caption(
+        f"저장 가능: 종목 {len(_eval_by_item_id)}개 / "
+        f"성과 {len(_candidate_rows)}건"
+    )
+
+    if st.button("판단 성과 저장", key=f"{key_prefix}judgment_outcome_save_button"):
+        if not _candidate_rows:
+            st.info("저장 가능한 완료 성과가 없습니다.")
+        else:
+            try:
+                _saved_count = db.upsert_report_item_outcomes(_candidate_rows)
+            except Exception as _save_err:
+                st.error(f"판단 성과 저장 중 오류가 발생했습니다: {_save_err}")
+            else:
+                st.success(f"판단 성과 {_saved_count}건을 저장·갱신했습니다.")
+                _after_save = db.get_report_outcomes(selected_report_id)
+                _judgment_after_save = [
+                    o for o in _after_save if o["entry_basis"] == "judgment"
+                ]
+                _horizons = sorted(
+                    {o["horizon_sessions"] for o in _judgment_after_save}
+                )
+                _horizons_display = (
+                    "·".join(f"{h}거래일" for h in _horizons)
+                    if _horizons else "-"
+                )
+                st.caption(
+                    f"저장 상태: judgment {len(_judgment_after_save)}건 / "
+                    f"{_horizons_display}"
+                )
+
+
+def _render_actual_outcome_save_section(selected_report_id, key_prefix="") -> None:
+    _actual_save_all_items = db.get_report_items(selected_report_id)
+    _actual_save_target_items = [
+        _ai
+        for _ai in _actual_save_all_items
+        if _ai.get("actual_action") == "매수"
+        and _ai.get("actual_entry_price") is not None
+        and _ai.get("actual_entry_date") is not None
+    ]
+
+    st.caption(f"실매매 기록 완료: {len(_actual_save_target_items)}종목")
+
+    if st.button("실매매 성과 저장", key=f"{key_prefix}actual_outcome_save_button"):
+        if not _actual_save_target_items:
+            st.info("저장 가능한 완료 실매매 성과가 없습니다.")
+        else:
+            # 종목당 가격 조회 1회(ticker 기준 캐시), 벤치마크는 심볼별로 묶어
+            # 필요한 날짜 범위를 합친 뒤 심볼당 1회만 조회한다(horizon별 재조회 없음).
+            _actual_price_df_cache = {}
+            for _ai in _actual_save_target_items:
+                _ticker = (_ai.get("ticker") or "").strip()
+                if not _ticker or _ticker in _actual_price_df_cache:
+                    continue
+                _entry_dt = datetime.strptime(_ai["actual_entry_date"], "%Y-%m-%d")
+                _start = (_entry_dt - timedelta(days=10)).strftime("%Y-%m-%d")
+                _end = (_entry_dt + timedelta(days=45)).strftime("%Y-%m-%d")
+                _actual_price_df_cache[_ticker] = price_data.get_price_history(
+                    _ticker, _start, _end
+                )
+
+            _actual_bench_ranges = {}
+            for _ai in _actual_save_target_items:
+                _bench_symbol = performance.determine_benchmark(
+                    _ai.get("market"), _ai.get("ticker")
+                )
+                if _bench_symbol is None:
+                    continue
+                _entry_dt = datetime.strptime(_ai["actual_entry_date"], "%Y-%m-%d")
+                _range = _actual_bench_ranges.setdefault(
+                    _bench_symbol, {"min": _entry_dt, "max": _entry_dt}
+                )
+                _range["min"] = min(_range["min"], _entry_dt)
+                _range["max"] = max(_range["max"], _entry_dt)
+
+            _actual_bench_df_cache = {}
+            for _bench_symbol, _range in _actual_bench_ranges.items():
+                _start = (_range["min"] - timedelta(days=10)).strftime("%Y-%m-%d")
+                _end = (_range["max"] + timedelta(days=45)).strftime("%Y-%m-%d")
+                _actual_bench_df_cache[_bench_symbol] = price_data.get_benchmark_history(
+                    _bench_symbol, _start, _end
+                )
+
+            _actual_save_candidate_rows = []
+            _actual_save_failed = []
+            for _ai in _actual_save_target_items:
+                _ticker = (_ai.get("ticker") or "").strip()
+                _price_df = _actual_price_df_cache.get(_ticker)
+                _bench_symbol = performance.determine_benchmark(
+                    _ai.get("market"), _ai.get("ticker")
+                )
+                _bench_df = (
+                    _actual_bench_df_cache.get(_bench_symbol)
+                    if _bench_symbol is not None
+                    else None
+                )
+                try:
+                    _actual_eval_result = performance.evaluate_actual_item(
+                        _ai, _price_df, _bench_df
+                    )
+                    _rows_for_item = performance.build_actual_outcome_rows(
+                        _ai["id"], _actual_eval_result
+                    )
+                except ValueError as _actual_calc_err:
+                    _actual_save_failed.append(
+                        (
+                            _ai.get("stock_name") or _ai.get("ticker") or f"id={_ai['id']}",
+                            str(_actual_calc_err),
+                        )
+                    )
+                    continue
+                _actual_save_candidate_rows.extend(_rows_for_item)
+
+            for _fail_name, _fail_reason in _actual_save_failed:
+                st.error(f"{_fail_name}: {_fail_reason}")
+
+            if not _actual_save_candidate_rows:
+                st.info("저장 가능한 완료 실매매 성과가 없습니다.")
+            else:
+                try:
+                    _actual_saved_count = db.upsert_report_item_outcomes(
+                        _actual_save_candidate_rows
+                    )
+                except Exception as _actual_save_err:
+                    st.error(f"실매매 성과 저장 중 오류가 발생했습니다: {_actual_save_err}")
+                else:
+                    st.success(f"실매매 성과 {_actual_saved_count}건을 저장·갱신했습니다.")
+                    _actual_after_save = db.get_report_outcomes(
+                        selected_report_id
+                    )
+                    _actual_outcomes_after_save = [
+                        o for o in _actual_after_save if o["entry_basis"] == "actual"
+                    ]
+                    _actual_horizons_after_save = sorted(
+                        {o["horizon_sessions"] for o in _actual_outcomes_after_save}
+                    )
+                    _actual_horizons_display = (
+                        "·".join(f"{h}거래일" for h in _actual_horizons_after_save)
+                        if _actual_horizons_after_save
+                        else "-"
+                    )
+                    st.caption(
+                        f"저장 상태: actual {len(_actual_outcomes_after_save)}건 / "
+                        f"{_actual_horizons_display}"
+                    )
+
+    # 저장된 실매매 성과 조회 전용 표시 (evaluate_actual_item()/evaluate_item() 재호출,
+    # 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE 전혀 없음). get_report_outcomes()가
+    # 반환하는 DB 스냅샷을 entry_basis='actual'만 걸러서 그대로 보여준다 — 임의로 행을
+    # 만들지 않는다. judgment 표("저장된 판단 성과 보기")와는 완전히 별도 expander로
+    # 유지하며 한 표에 섞지 않는다.
+
+
 with tab_review:
     st.subheader("④ 복기·통계")
     st.caption("저장된 판단과 실제 행동·거래 종료 결과를 조회하고 복기 진행 상태를 확인하는 화면입니다.")
@@ -5476,72 +5648,28 @@ def _render_trade_exit_inputs(saved_item, key_prefix=""):
             _final_verification_status = _compute_verification_status(
                 _final_exit_price, _final_exit_date
             )
-            _exit_conn = db.get_connection()
-            _exit_conn.execute(
-                "UPDATE report_items SET actual_exit_price=?, actual_exit_date=?, "
-                "plan_followed=?, exit_reason=?, result_r=?, verification_status=? "
-                "WHERE id=?",
-                (
-                    _final_exit_price, _final_exit_date, _final_plan_followed,
-                    _final_exit_reason, _final_result_r, _final_verification_status,
-                    saved_item["id"],
-                ),
-            )
-            _exit_conn.commit()
-            _exit_conn.close()
-            _cached_verification_rows.clear()
-            st.success("청산 결과가 저장되었습니다.")
-            st.rerun()
-
-
-def _render_judgment_outcome_save_button(selected_report_id, perf_rows_all, key_prefix=""):
-    _item_lookup = _build_item_judgment_lookup()
-    _eval_by_item_id = {}
-    for _row in perf_rows_all:
-        if _row["report_id"] != selected_report_id:
-            continue
-        _item = _item_lookup.get(
-            (_row["report_id"], _row["ticker"], _row["trade_mode"]), {}
-        )
-        if _item.get("id"):
-            _eval_by_item_id[_item["id"]] = _row
-
-    _candidate_rows = []
-    for _item_id, _eval_result in _eval_by_item_id.items():
-        _candidate_rows.extend(
-            performance.build_judgment_outcome_rows(_item_id, _eval_result)
-        )
-
-    st.caption(
-        f"저장 가능: 종목 {len(_eval_by_item_id)}개 / "
-        f"성과 {len(_candidate_rows)}건"
-    )
-
-    if st.button("판단 성과 저장", key=f"{key_prefix}judgment_outcome_save_button"):
-        if not _candidate_rows:
-            st.info("저장 가능한 완료 성과가 없습니다.")
-        else:
             try:
-                _saved_count = db.upsert_report_item_outcomes(_candidate_rows)
-            except Exception as _save_err:
-                st.error(f"판단 성과 저장 중 오류가 발생했습니다: {_save_err}")
+                _exit_ok = db.update_report_item_trade_exit(
+                    saved_item["id"],
+                    _final_exit_price,
+                    _final_exit_date,
+                    _final_plan_followed,
+                    _final_exit_reason,
+                    _final_result_r,
+                    _final_verification_status,
+                )
+            except ValueError as _exit_err:
+                st.error(f"{_item_name}: {_exit_err}")
             else:
-                st.success(f"판단 성과 {_saved_count}건을 저장·갱신했습니다.")
-                _after_save = db.get_report_outcomes(selected_report_id)
-                _judgment_after_save = [
-                    o for o in _after_save if o["entry_basis"] == "judgment"
-                ]
-                _horizons = sorted(
-                    {o["horizon_sessions"] for o in _judgment_after_save}
-                )
-                _horizons_display = (
-                    "·".join(f"{h}거래일" for h in _horizons)
-                    if _horizons else "-"
-                )
-                st.caption(
-                    f"저장 상태: judgment {len(_judgment_after_save)}건 / "
-                    f"{_horizons_display}"
-                )
+                if _exit_ok:
+                    _cached_verification_rows.clear()
+                    st.success("청산 결과가 저장되었습니다.")
+                    st.rerun()
+                else:
+                    st.error(
+                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
 
 
 with tab_action:
@@ -5637,128 +5765,6 @@ with tab_action:
             _summary_cols[2].metric("보유일", _holding_text)
 
 
-
-
-def _render_actual_outcome_save_section(selected_report_id, key_prefix="") -> None:
-    _actual_save_all_items = db.get_report_items(selected_report_id)
-    _actual_save_target_items = [
-        _ai
-        for _ai in _actual_save_all_items
-        if _ai.get("actual_action") == "매수"
-        and _ai.get("actual_entry_price") is not None
-        and _ai.get("actual_entry_date") is not None
-    ]
-
-    st.caption(f"실매매 기록 완료: {len(_actual_save_target_items)}종목")
-
-    if st.button("실매매 성과 저장", key=f"{key_prefix}actual_outcome_save_button"):
-        if not _actual_save_target_items:
-            st.info("저장 가능한 완료 실매매 성과가 없습니다.")
-        else:
-            # 종목당 가격 조회 1회(ticker 기준 캐시), 벤치마크는 심볼별로 묶어
-            # 필요한 날짜 범위를 합친 뒤 심볼당 1회만 조회한다(horizon별 재조회 없음).
-            _actual_price_df_cache = {}
-            for _ai in _actual_save_target_items:
-                _ticker = (_ai.get("ticker") or "").strip()
-                if not _ticker or _ticker in _actual_price_df_cache:
-                    continue
-                _entry_dt = datetime.strptime(_ai["actual_entry_date"], "%Y-%m-%d")
-                _start = (_entry_dt - timedelta(days=10)).strftime("%Y-%m-%d")
-                _end = (_entry_dt + timedelta(days=45)).strftime("%Y-%m-%d")
-                _actual_price_df_cache[_ticker] = price_data.get_price_history(
-                    _ticker, _start, _end
-                )
-
-            _actual_bench_ranges = {}
-            for _ai in _actual_save_target_items:
-                _bench_symbol = performance.determine_benchmark(
-                    _ai.get("market"), _ai.get("ticker")
-                )
-                if _bench_symbol is None:
-                    continue
-                _entry_dt = datetime.strptime(_ai["actual_entry_date"], "%Y-%m-%d")
-                _range = _actual_bench_ranges.setdefault(
-                    _bench_symbol, {"min": _entry_dt, "max": _entry_dt}
-                )
-                _range["min"] = min(_range["min"], _entry_dt)
-                _range["max"] = max(_range["max"], _entry_dt)
-
-            _actual_bench_df_cache = {}
-            for _bench_symbol, _range in _actual_bench_ranges.items():
-                _start = (_range["min"] - timedelta(days=10)).strftime("%Y-%m-%d")
-                _end = (_range["max"] + timedelta(days=45)).strftime("%Y-%m-%d")
-                _actual_bench_df_cache[_bench_symbol] = price_data.get_benchmark_history(
-                    _bench_symbol, _start, _end
-                )
-
-            _actual_save_candidate_rows = []
-            _actual_save_failed = []
-            for _ai in _actual_save_target_items:
-                _ticker = (_ai.get("ticker") or "").strip()
-                _price_df = _actual_price_df_cache.get(_ticker)
-                _bench_symbol = performance.determine_benchmark(
-                    _ai.get("market"), _ai.get("ticker")
-                )
-                _bench_df = (
-                    _actual_bench_df_cache.get(_bench_symbol)
-                    if _bench_symbol is not None
-                    else None
-                )
-                try:
-                    _actual_eval_result = performance.evaluate_actual_item(
-                        _ai, _price_df, _bench_df
-                    )
-                    _rows_for_item = performance.build_actual_outcome_rows(
-                        _ai["id"], _actual_eval_result
-                    )
-                except ValueError as _actual_calc_err:
-                    _actual_save_failed.append(
-                        (
-                            _ai.get("stock_name") or _ai.get("ticker") or f"id={_ai['id']}",
-                            str(_actual_calc_err),
-                        )
-                    )
-                    continue
-                _actual_save_candidate_rows.extend(_rows_for_item)
-
-            for _fail_name, _fail_reason in _actual_save_failed:
-                st.error(f"{_fail_name}: {_fail_reason}")
-
-            if not _actual_save_candidate_rows:
-                st.info("저장 가능한 완료 실매매 성과가 없습니다.")
-            else:
-                try:
-                    _actual_saved_count = db.upsert_report_item_outcomes(
-                        _actual_save_candidate_rows
-                    )
-                except Exception as _actual_save_err:
-                    st.error(f"실매매 성과 저장 중 오류가 발생했습니다: {_actual_save_err}")
-                else:
-                    st.success(f"실매매 성과 {_actual_saved_count}건을 저장·갱신했습니다.")
-                    _actual_after_save = db.get_report_outcomes(
-                        selected_report_id
-                    )
-                    _actual_outcomes_after_save = [
-                        o for o in _actual_after_save if o["entry_basis"] == "actual"
-                    ]
-                    _actual_horizons_after_save = sorted(
-                        {o["horizon_sessions"] for o in _actual_outcomes_after_save}
-                    )
-                    _actual_horizons_display = (
-                        "·".join(f"{h}거래일" for h in _actual_horizons_after_save)
-                        if _actual_horizons_after_save
-                        else "-"
-                    )
-                    st.caption(
-                        f"저장 상태: actual {len(_actual_outcomes_after_save)}건 / "
-                        f"{_actual_horizons_display}"
-                    )
-
-    # 저장된 실매매 성과 조회 전용 표시 (evaluate_actual_item()/evaluate_item() 재호출,
-    # 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE 전혀 없음). get_report_outcomes()가
-    # 반환하는 DB 스냅샷을 entry_basis='actual'만 걸러서 그대로 보여준다 — 임의로 행을
-    # 만들지 않는다. judgment 표("저장된 판단 성과 보기")와는 완전히 별도 expander로
-    # 유지하며 한 표에 섞지 않는다.
 
 
 with tab_perf:

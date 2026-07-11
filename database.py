@@ -780,6 +780,97 @@ def update_report_item_actual_entry_date(report_item_id, entry_date):
         conn.close()
 
 
+def update_report_item_trade_exit(
+    report_item_id,
+    actual_exit_price,
+    actual_exit_date,
+    plan_followed,
+    exit_reason,
+    result_r,
+    verification_status,
+):
+    """report_items.id 기준 청산 결과 사후 UPDATE 전용(새 report/report_item 생성 없음).
+
+    actual_exit_price/actual_exit_date/plan_followed/exit_reason/result_r/
+    verification_status 여섯 컬럼만 갱신한다. 대상 행이 존재하지 않으면 False를
+    반환한다. actual_action이 '매수'가 아닌 행은 저장을 거부한다(청산 결과는 매수
+    포지션에만 의미가 있음 — 다른 update_report_item_* 함수와 달리 NULL 저장도
+    예외 없이 거부한다). actual_exit_price는 None 또는 0보다 큰 유한 숫자만
+    허용하고, actual_exit_date는 normalize_actual_entry_date()와 동일한
+    YYYY-MM-DD 형식 규칙으로 정규화한다(빈 문자열/None은 미기록으로 정규화).
+    actual_exit_date가 있으면 대상 행의 actual_entry_date도 있어야 하며, 매도일이
+    매수일보다 빠르면 거부한다(같은 날은 허용). result_r은 None 또는 유한 숫자만
+    허용한다. plan_followed/exit_reason/verification_status는 빈 문자열을 None으로
+    취급하는 것 외에 별도 검증 없이 그대로 저장한다(기존 UI가 이미 선택지를
+    제한함). 검증에 실패하면 어떤 값도 저장하지 않고 ValueError를 던진다(부분
+    저장 없음 — 검증을 모두 통과한 뒤 단일 UPDATE 문으로 6개 컬럼을 한 번에
+    갱신한다).
+    """
+    if actual_exit_price is not None:
+        if isinstance(actual_exit_price, bool):
+            raise ValueError("actual_exit_price must not be a bool")
+        if not isinstance(actual_exit_price, (int, float)):
+            raise ValueError(
+                f"actual_exit_price must be None or a number, got {actual_exit_price!r}"
+            )
+        actual_exit_price = float(actual_exit_price)
+        if not math.isfinite(actual_exit_price):
+            raise ValueError(
+                "actual_exit_price must be a finite number (NaN/Infinity not allowed)"
+            )
+        if actual_exit_price <= 0:
+            raise ValueError("actual_exit_price must be greater than 0")
+
+    actual_exit_date = normalize_actual_entry_date(actual_exit_date)
+
+    if result_r is not None:
+        if isinstance(result_r, bool):
+            raise ValueError("result_r must not be a bool")
+        if not isinstance(result_r, (int, float)):
+            raise ValueError(f"result_r must be None or a number, got {result_r!r}")
+        result_r = float(result_r)
+        if not math.isfinite(result_r):
+            raise ValueError("result_r must be a finite number (NaN/Infinity not allowed)")
+
+    if isinstance(plan_followed, str) and not plan_followed.strip():
+        plan_followed = None
+    if isinstance(exit_reason, str) and not exit_reason.strip():
+        exit_reason = None
+    if isinstance(verification_status, str) and not verification_status.strip():
+        verification_status = None
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT actual_action, actual_entry_date FROM report_items WHERE id = ?",
+            (report_item_id,),
+        ).fetchone()
+        if row is None:
+            return False
+        if row["actual_action"] != "매수":
+            raise ValueError("실제 행동이 '매수'인 종목만 청산 결과를 저장할 수 있습니다.")
+        if actual_exit_date is not None:
+            if row["actual_entry_date"] is None:
+                raise ValueError(
+                    "실제 매수 거래일이 없으면 실제 청산일을 저장할 수 없습니다."
+                )
+            if date.fromisoformat(actual_exit_date) < date.fromisoformat(row["actual_entry_date"]):
+                raise ValueError("실제 청산일은 실제 매수 거래일보다 빠를 수 없습니다.")
+        cur = conn.execute(
+            "UPDATE report_items SET actual_exit_price=?, actual_exit_date=?, "
+            "plan_followed=?, exit_reason=?, result_r=?, verification_status=? "
+            "WHERE id=?",
+            (
+                actual_exit_price, actual_exit_date, plan_followed, exit_reason,
+                result_r, verification_status, report_item_id,
+            ),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def normalize_actual_action(value):
     """report_items.actual_action(TEXT)을 화면 표시용 값으로 안전하게 변환한다.
 
