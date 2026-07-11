@@ -4695,6 +4695,7 @@ with tab_us:
       st.session_state.pop("us_swing_preview_rows", None)
       st.session_state.pop("us_swing_day_conclusion", None)
       st.session_state.pop("us_swing_basis_text", None)
+      st.session_state.pop("us_swing_raw_briefing", None)
       all_us_validation_errors = [e for calc in us_snapshot_calc_data for e in calc["validation_errors"]]
       if all_us_validation_errors:
         st.error("입력값 오류로 저장할 수 없습니다:\n" + "\n".join(f"- {e}" for e in all_us_validation_errors))
@@ -4722,6 +4723,9 @@ with tab_us:
         st.session_state["us_swing_preview_rows"] = preview_rows
         st.session_state["us_swing_day_conclusion"] = day_conclusion_text
         st.session_state["us_swing_basis_text"] = basis_text
+        st.session_state["us_swing_raw_briefing"] = "\n\n".join(
+            _us_swing_narrative_text(row) for row in preview_rows
+        )
 
     if st.session_state.get("us_show_save_preview") and st.session_state.get("us_swing_preview_rows"):
         preview_rows = st.session_state["us_swing_preview_rows"]
@@ -4732,6 +4736,8 @@ with tab_us:
         st.write(f"오늘 요약: {st.session_state['us_swing_day_conclusion']}")
         st.write("판단 근거:")
         st.code(st.session_state["us_swing_basis_text"])
+        with st.expander("실제 저장될 미국장 상세 브리핑", expanded=False):
+            st.code(st.session_state.get("us_swing_raw_briefing") or "미리보기를 다시 생성하세요.")
 
         st.markdown("저장될 종목 목록 (자동계산 미리보기)")
         us_swing_rank = _rank_scores([(row["ticker"], row["total_score"]) for row in preview_rows])
@@ -4817,7 +4823,10 @@ with tab_us:
                 }
                 for row in preview_rows
             ]
-            us_raw_briefing = "\n\n".join(_us_swing_narrative_text(row) for row in preview_rows)
+            us_raw_briefing = st.session_state.get("us_swing_raw_briefing")
+            if not us_raw_briefing:
+                st.warning("미리보기를 다시 생성하세요.")
+                st.stop()
             us_report_id = db.save_report(
                 market_scope="US",
                 day_conclusion=st.session_state["us_swing_day_conclusion"],
@@ -4829,12 +4838,14 @@ with tab_us:
             st.session_state.pop("us_swing_preview_rows", None)
             st.session_state.pop("us_swing_day_conclusion", None)
             st.session_state.pop("us_swing_basis_text", None)
+            st.session_state.pop("us_swing_raw_briefing", None)
             st.session_state.pop("us_show_save_preview", None)
             st.success(f"미국장 스윙 기록 저장 완료 (report_id={us_report_id})")
         if pcol2.button("취소", key="us_cancel_save_preview"):
             st.session_state.pop("us_swing_preview_rows", None)
             st.session_state.pop("us_swing_day_conclusion", None)
             st.session_state.pop("us_swing_basis_text", None)
+            st.session_state.pop("us_swing_raw_briefing", None)
             st.session_state.pop("us_show_save_preview", None)
             st.rerun()
 
