@@ -5230,6 +5230,37 @@ with tab_review:
                 key="tab4_outcome_report_select",
             )
             _tab4_outcome_report_id = _tab4_outcome_options[_tab4_outcome_label]
+            _tab4_outcome_items = db.get_report_items(_tab4_outcome_report_id)
+            _tab4_saved_outcomes = db.get_report_outcomes(_tab4_outcome_report_id)
+            _tab4_judgment_saved = sum(1 for o in _tab4_saved_outcomes if o.get("entry_basis") == "judgment")
+            _tab4_actual_saved = sum(1 for o in _tab4_saved_outcomes if o.get("entry_basis") == "actual")
+            _tab4_actual_buys = [i for i in _tab4_outcome_items if i.get("actual_action") == "매수"]
+            _tab4_actual_ready = [
+                i for i in _tab4_actual_buys
+                if i.get("actual_entry_price") is not None and i.get("actual_entry_date") is not None
+            ]
+            st.caption(
+                f"선택 보고서: 전체 {len(_tab4_outcome_items)}종목 / "
+                f"저장된 판단 성과 {_tab4_judgment_saved}건 / 저장된 실매매 성과 {_tab4_actual_saved}건 / "
+                f"실제 매수 기록 {len(_tab4_actual_buys)}건 / 계산 준비 {len(_tab4_actual_ready)}건"
+            )
+            if not _tab4_saved_outcomes:
+                st.info("아직 저장된 성과 데이터가 없습니다. 오류가 아닙니다.")
+            if not _tab4_judgment_saved:
+                st.caption("판단 성과 저장을 실행하면 보유기간별 가격 성과를 계산합니다.")
+            if not _tab4_actual_buys:
+                st.caption("③에서 실제 매수 기록을 입력해야 실매매 성과를 계산할 수 있습니다.")
+            elif len(_tab4_actual_ready) < len(_tab4_actual_buys):
+                _tab4_missing = []
+                for _item in _tab4_actual_buys:
+                    _missing = []
+                    if _item.get("actual_entry_price") is None:
+                        _missing.append("실제 매수가")
+                    if _item.get("actual_entry_date") is None:
+                        _missing.append("실제 매수일")
+                    if _missing:
+                        _tab4_missing.append(f"{_item.get('stock_name') or _item.get('ticker')}: {', '.join(_missing)}")
+                st.caption("입력 부족: " + " / ".join(_tab4_missing))
             _tab4_verification_rows = _cached_verification_rows(_reports_signature())
             _render_judgment_outcome_save_button(
                 _tab4_outcome_report_id,
