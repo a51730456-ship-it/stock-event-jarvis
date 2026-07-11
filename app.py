@@ -3713,6 +3713,23 @@ def _render_review_tag_editors(saved_item, display_name, trade_mode, key_prefix=
                 st.rerun()
 
 
+def _render_risk_plan_preview(stock_name, ticker, risk_fields):
+    risk_fields = risk_fields or {}
+    def _value(key, price=False):
+        value = risk_fields.get(key)
+        if value in (None, ""):
+            return "미입력"
+        if price:
+            return _fmt_actual_entry_price_display(value) or "미입력"
+        return f"{value}일" if key == "expected_holding_days" else str(value)
+
+    with st.expander(f"진입 계획 확인 — {stock_name} ({ticker})", expanded=False):
+        st.write(f"계획 매수가: {_value('entry_price', price=True)}")
+        st.write(f"손절가: {_value('stop_loss_price', price=True)}")
+        st.write(f"목표가: {_value('target_price', price=True)}")
+        st.write(f"예상 보유기간: {_value('expected_holding_days')}")
+
+
 with tab_kr:
     st.subheader("한국장")
     _render_kr_fable_mockup1_preview()
@@ -4287,6 +4304,10 @@ with tab_kr:
             st.write(f"오늘 요약: {st.session_state['kr_quick_day_conclusion']}")
             st.write("판단 근거:")
             st.code(st.session_state["kr_quick_basis_text"])
+            for _risk_row in kr_preview_rows:
+                _render_risk_plan_preview(
+                    _risk_row["name"], _risk_row["ticker"], _risk_row.get("risk_fields")
+                )
 
             st.markdown("저장될 종목 목록 (자동계산 미리보기)")
             kr_danta_rank = _rank_scores([(row["ticker"], row["danta_score"]) for row in kr_preview_rows])
@@ -4738,6 +4759,10 @@ with tab_us:
         st.code(st.session_state["us_swing_basis_text"])
         with st.expander("실제 저장될 미국장 상세 브리핑", expanded=False):
             st.code(st.session_state.get("us_swing_raw_briefing") or "미리보기를 다시 생성하세요.")
+        for _risk_row in preview_rows:
+            _render_risk_plan_preview(
+                _risk_row["name"], _risk_row["ticker"], _risk_row.get("risk_fields")
+            )
 
         st.markdown("저장될 종목 목록 (자동계산 미리보기)")
         us_swing_rank = _rank_scores([(row["ticker"], row["total_score"]) for row in preview_rows])
