@@ -13,6 +13,15 @@ TIMEOUT = 10
 ENDPOINT = "https://openapi.naver.com/v1/search/news.json"
 _TAG_RE = re.compile(r"<[^>]*>")
 
+_MATERIALITY_RULES = (
+    ("실적", ("실적", "매출", "영업이익", "순이익", "흑자", "적자", "전망", "가이던스")),
+    ("수주·계약", ("수주", "공급계약", "계약 체결", "납품", "공급", "선정")),
+    ("투자·M&A", ("투자", "인수", "합병", "매각", "분할", "증설")),
+    ("주주환원·자본", ("배당", "자사주", "유상증자", "무상증자", "감자", "최대주주", "지분")),
+    ("규제·법적위험", ("조사", "제재", "소송", "리콜", "사고", "횡령", "배임", "압수수색")),
+    ("제품·기술", ("출시", "승인", "특허", "개발", "양산")),
+)
+
 
 def _result(status, status_code, data=None, message=""):
     return {
@@ -25,6 +34,43 @@ def _result(status, status_code, data=None, message=""):
 
 def _clean_text(value):
     return html.unescape(_TAG_RE.sub("", str(value or ""))).strip()
+
+
+def classify_news_materiality(news_item, company_name, ticker=""):
+    """Classify a news item by explicit keywords without inferring direction."""
+    title = str(news_item.get("title") or "")
+    description = str(news_item.get("description") or "")
+    def matches(text):
+        found = []
+        for category, keywords in _MATERIALITY_RULES:
+            for keyword in keywords:
+                if keyword == "공급" and "공급계약" not in text and not any(
+                    context in text for context in ("계약", "납품", "수주")
+                ):
+                    continue
+                if keyword in text:
+                    found.append((category, keyword, text.find(keyword)))
+        return found
+
+    title_matches = matches(title)
+    description_matches = matches(description)
+    chosen_matches = title_matches or description_matches
+    if not chosen_matches:
+        return {"level": "일반 참고", "category": "기타", "matched_keywords": [], "reason": "제목·설명에 중요 재료 키워드가 없습니다."}
+
+    # 제목에 여러 범주가 있으면 고정된 우선순위를 사용해 배열 순서 의존을 피한다.
+    category = next(category for category, _ in _MATERIALITY_RULES if any(match[0] == category for match in chosen_matches))
+    matches = []
+    for _, keyword, _ in sorted(chosen_matches, key=lambda match: (match[2], match[1])):
+        if keyword not in matches:
+            matches.append(keyword)
+    field_name = "제목" if title_matches else "설명"
+    return {
+        "level": "중요 재료",
+        "category": category,
+        "matched_keywords": matches,
+        "reason": f"{field_name}에서 {', '.join(matches)} 키워드가 일치했습니다.",
+    }
 
 
 def _normalize_pub_date(value):

@@ -1751,9 +1751,25 @@ def _fetch_market_naver_news(client_id, client_secret, stocks, today=None):
     return {"checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "rows": rows, "summary": summary}
 
 
+def _classify_market_news_items(items, company_name, ticker):
+    classified = [
+        (item, news_data.classify_news_materiality(item, company_name, ticker))
+        for item in items or []
+    ]
+    def sort_key(pair):
+        item, classification = pair
+        try:
+            published = datetime.fromisoformat(str(item.get("pub_date", ""))).timestamp()
+        except (TypeError, ValueError, OverflowError):
+            published = float("-inf")
+        return (classification.get("level") == "중요 재료", published)
+    return sorted(classified, key=sort_key, reverse=True)
+
+
 def _render_market_naver_news_panel(market, stocks, title, button_key, results_key, checked_at_key):
     st.markdown(f"### {title}")
     st.caption("네이버 뉴스 참고 조회 · 저장 안 됨 · 점수 미반영")
+    st.caption("키워드 기반 1차 참고 분류 · 점수 미반영")
     client_id = st.secrets.get("NAVER_CLIENT_ID")
     client_secret = st.secrets.get("NAVER_CLIENT_SECRET")
     if not client_id or not client_secret:
@@ -1769,15 +1785,21 @@ def _render_market_naver_news_panel(market, stocks, title, button_key, results_k
     summary = result.get("summary", {})
     st.caption(f"조회 시각: {st.session_state.get(checked_at_key) or '-'} · 조회 종목 수: {len(result.get('rows', []))} · 정상 {summary.get('normal', 0)} · 최근 뉴스 없음 {summary.get('empty', 0)} · 실패 {summary.get('failed', 0)}")
     for row in result.get("rows", []):
-        header = f"최근 뉴스 {len(row.get('data', []))}건" if row.get("data") else ("최근 뉴스 없음" if row.get("status") == "데이터 없음" else row.get("status", "조회 오류"))
+        display_items = _classify_market_news_items(row.get("data", []), row.get("name", ""), row.get("ticker", ""))
+        important_count = sum(1 for _, classification in display_items if classification.get("level") == "중요 재료")
+        header = f"최근 뉴스 {len(display_items)}건 · 중요 재료 {important_count}건" if display_items else ("최근 뉴스 없음" if row.get("status") == "데이터 없음" else row.get("status", "조회 오류"))
         with st.expander(f"{row['name']} · {row['ticker']} · {header}", expanded=False):
             if row.get("status") == "데이터 없음":
                 st.info("최근 3일 뉴스 없음")
             elif row.get("status") != "정상":
                 st.warning(row.get("message") or row.get("status") or "뉴스 조회에 실패했습니다")
-            for index, item in enumerate(row.get("data", [])):
+            for index, (item, classification) in enumerate(display_items):
                 if index:
                     st.markdown("---")
+                label = f"[{classification['level']} · {classification['category']}]" if classification["level"] == "중요 재료" else "[일반 참고]"
+                st.write(label)
+                if classification.get("reason"):
+                    st.caption(f"분류 근거: {classification['reason']}")
                 st.write(f"날짜·시간: {item.get('pub_date') or '-'}")
                 st.write(f"제목: {item.get('title') or '-'}")
                 st.caption(item.get("description") or "-")

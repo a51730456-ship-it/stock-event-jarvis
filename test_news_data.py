@@ -14,6 +14,45 @@ def response(payload, status=200):
 
 
 class NewsDataTests(unittest.TestCase):
+    def test_materiality_categories_and_title_priority(self):
+        cases = [
+            ({"title": "기업 실적 발표", "description": ""}, "실적"),
+            ({"title": "기업 소식", "description": "영업이익 전망 공개"}, "실적"),
+            ({"title": "대형 공급계약 체결", "description": ""}, "수주·계약"),
+            ({"title": "신규 투자 및 인수", "description": ""}, "투자·M&A"),
+            ({"title": "배당·자사주 정책", "description": ""}, "주주환원·자본"),
+            ({"title": "당국 조사 및 소송", "description": ""}, "규제·법적위험"),
+            ({"title": "신제품 출시와 특허", "description": ""}, "제품·기술"),
+        ]
+        for item, category in cases:
+            result = n.classify_news_materiality(item, "테스트기업", "000000")
+            self.assertEqual(result["level"], "중요 재료")
+            self.assertEqual(result["category"], category)
+            self.assertTrue(result["matched_keywords"])
+        title_first = n.classify_news_materiality({"title": "매출 확대", "description": "대형 수주"}, "기업")
+        self.assertEqual(title_first["category"], "실적")
+
+    def test_materiality_general_mentions_and_neutral_reason(self):
+        for item in (
+            {"title": "삼성전자 언급 ETF 동향", "description": "시장 순위와 정치인 방문"},
+            {"title": "테스트기업 관련 시장 공급 동향", "description": "업계 일반 뉴스"},
+            {"title": "종목 000000 오늘 거래량 순위", "description": ""},
+        ):
+            result = n.classify_news_materiality(item, "테스트기업", "000000")
+            self.assertEqual(result["level"], "일반 참고")
+            self.assertEqual(result["category"], "기타")
+        result = n.classify_news_materiality({"title": "기업 실적 발표", "description": "흑자 전환"}, "기업")
+        self.assertIn("실적", result["matched_keywords"])
+        self.assertIn("제목", result["reason"])
+        self.assertNotIn("긍정", result["reason"])
+        self.assertNotIn("부정", result["reason"])
+
+    def test_materiality_does_not_mutate_original_news_item(self):
+        item = {"title": "기업 수주 발표", "description": "원본 설명", "link": "https://example"}
+        before = dict(item)
+        n.classify_news_materiality(item, "기업", "000000")
+        self.assertEqual(item, before)
+
     def test_normal_two_items_and_order(self):
         payload = {"items": [{"title": "A", "originallink": "https://a", "link": "https://n/a", "description": "D", "pubDate": "Tue, 11 Jul 2026 10:00:00 +0900"}, {"title": "B", "link": "https://b"}]}
         result = n.fetch_naver_news("ID", "SECRET", "삼성", http_get=lambda *a, **k: response(json.dumps(payload).encode()))

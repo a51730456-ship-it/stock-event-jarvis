@@ -11,7 +11,7 @@ import disclosure_data
 def load_fetch_helper():
     source = Path("app.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
-    wanted = {"_kr_dart_stock_code", "_format_dart_date", "_fetch_kr_dart_disclosures", "_recent_naver_news_items", "_fetch_market_naver_news"}
+    wanted = {"_kr_dart_stock_code", "_format_dart_date", "_fetch_kr_dart_disclosures", "_recent_naver_news_items", "_fetch_market_naver_news", "_classify_market_news_items"}
     nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in wanted]
     namespace = {"re": re, "datetime": datetime.datetime, "timedelta": datetime.timedelta}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), "app.py", "exec"), namespace)
@@ -25,6 +25,9 @@ class AppDartContractTests(unittest.TestCase):
             self.assertIn(text, source)
         self.assertIn("display=10, sort=\"date\"", source)
         self.assertIn("len(recent) == 5", source)
+        self.assertIn("키워드 기반 1차 참고 분류 · 점수 미반영", source)
+        self.assertIn("중요 재료 {important_count}건", source)
+        self.assertIn("[일반 참고]", source)
 
     def test_news_mock_recent_filter_max_five_and_partial_failure(self):
         ns = load_fetch_helper()
@@ -47,6 +50,20 @@ class AppDartContractTests(unittest.TestCase):
         self.assertLess(panel.index("st.button"), panel.index("_fetch_market_naver_news"))
         ns = load_fetch_helper()
         self.assertEqual(ns["_fetch_market_naver_news"](None, None, [] , today=datetime.date(2026, 7, 11))["rows"], [])
+
+    def test_materiality_priority_and_same_level_latest_sort_without_mutation(self):
+        import news_data
+        ns = load_fetch_helper()
+        ns["news_data"] = news_data
+        items = [
+            {"title": "일반 최신", "description": "", "pub_date": "2026-07-11 10:00:00", "link": "a"},
+            {"title": "기업 실적 발표", "description": "", "pub_date": "2026-07-09 10:00:00", "link": "b"},
+            {"title": "일반 과거", "description": "", "pub_date": "2026-07-10 10:00:00", "link": "c"},
+        ]
+        before = [dict(item) for item in items]
+        result = ns["_classify_market_news_items"](items, "기업", "000000")
+        self.assertEqual([item["title"] for item, _ in result], ["기업 실적 발표", "일반 최신", "일반 과거"])
+        self.assertEqual(items, before)
 
     def test_display_contract_for_empty_dates_links_and_multiple_items(self):
         ns = load_fetch_helper()
