@@ -1702,6 +1702,70 @@ def render_report_detail(report, show_raw_briefing=False):
         _render_trade_mode_section("공통", grouped, rank_labels)
 
 
+def _classify_actual_trade_status(saved_item):
+    """저장된 actual_action/청산 필드만으로 ③ 화면 진행 상태를 분류한다."""
+    action = db.normalize_actual_action(saved_item.get("actual_action"))
+    if action == "미기록":
+        return "행동 미입력"
+    if action == "보류":
+        return "보류"
+    if action == "제외":
+        return "제외"
+    if (
+        action == "매수"
+        and saved_item.get("actual_exit_price") is not None
+        and saved_item.get("actual_exit_date")
+    ):
+        return "청산 완료"
+    if action == "매수":
+        return "보유 중"
+    return "행동 미입력"
+
+
+def _today_progress_snapshot(reports, items_by_report, today=None):
+    """공통 상단 상태 스트립용 읽기 전용 집계. ticker가 아닌 report_items 행을 센다."""
+    today_text = (today or datetime.now()).strftime("%Y-%m-%d")
+    today_reports = [r for r in reports if str(r.get("saved_at") or "").startswith(today_text)]
+    latest_by_market = {}
+    for report in sorted(today_reports, key=lambda r: (r.get("saved_at") or "", r.get("id") or 0), reverse=True):
+        for market in ("KR", "US"):
+            if market not in latest_by_market and market in str(report.get("market_scope") or ""):
+                latest_by_market[market] = report
+    today_items = []
+    for report in latest_by_market.values():
+        today_items.extend(items_by_report.get(report.get("id"), []))
+    all_items = [item for items in items_by_report.values() for item in items]
+    review_pending = sum(
+        1 for item in all_items
+        if _classify_actual_trade_status(item) in ("청산 완료", "보류", "제외")
+        and item.get("review_done") not in (1, True)
+    )
+    return {
+        "kr_saved": "KR" in latest_by_market,
+        "us_saved": "US" in latest_by_market,
+        "today_action_missing": sum(
+            1 for item in today_items if _classify_actual_trade_status(item) == "행동 미입력"
+        ),
+        "holding": sum(1 for item in all_items if _classify_actual_trade_status(item) == "보유 중"),
+        "review_pending": review_pending,
+    }
+
+
+def _render_today_progress_status_strip():
+    reports = db.list_reports()
+    items_by_report = {report["id"]: db.get_report_items(report["id"]) for report in reports}
+    status = _today_progress_snapshot(reports, items_by_report)
+    columns = st.columns(5)
+    columns[0].metric("KR 저장", "완료" if status["kr_saved"] else "미완료")
+    columns[1].metric("US 저장", "완료" if status["us_saved"] else "미완료")
+    columns[2].metric("오늘 행동 미입력", f"{status['today_action_missing']}건")
+    columns[3].metric("보유 중", f"{status['holding']}건")
+    columns[4].metric("복기 대기", f"{status['review_pending']}건")
+    st.markdown("---")
+
+
+_render_today_progress_status_strip()
+
 tab_kr, tab_us, tab_action, tab_review, tab_perf, tab_today, tab_archive, tab_paste, tab_next, tab_guide = st.tabs(
     [
         "🇰🇷 한국장 먼저 확인", "🇺🇸 미국장 스윙 확인", "③ 실제 행동·거래 종료", "④ 복기·통계", "저장 결과 확인", "오늘 저장 요약",
@@ -5283,26 +5347,6 @@ with tab_us:
             )
             st.markdown("---")
             _render_risk_and_warning_inputs(s["ticker"], "US")
-
-def _classify_actual_trade_status(saved_item):
-    """저장된 actual_action/청산 필드만으로 ③ 화면 진행 상태를 분류한다."""
-    action = db.normalize_actual_action(saved_item.get("actual_action"))
-    if action == "미기록":
-        return "행동 미입력"
-    if action == "보류":
-        return "보류"
-    if action == "제외":
-        return "제외"
-    if (
-        action == "매수"
-        and saved_item.get("actual_exit_price") is not None
-        and saved_item.get("actual_exit_date")
-    ):
-        return "청산 완료"
-    if action == "매수":
-        return "보유 중"
-    return "행동 미입력"
-
 
 def _render_judgment_outcome_save_button(selected_report_id, perf_rows_all, key_prefix=""):
     _item_lookup = _build_item_judgment_lookup()
