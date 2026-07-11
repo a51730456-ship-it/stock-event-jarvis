@@ -1592,9 +1592,9 @@ def render_report_detail(report, show_raw_briefing=False):
         _render_trade_mode_section("공통", grouped, rank_labels)
 
 
-tab_kr, tab_us, tab_perf, tab_today, tab_archive, tab_paste, tab_next, tab_guide = st.tabs(
+tab_kr, tab_us, tab_action, tab_perf, tab_today, tab_archive, tab_paste, tab_next, tab_guide = st.tabs(
     [
-        "🇰🇷 한국장 먼저 확인", "🇺🇸 미국장 스윙 확인", "저장 결과 확인", "오늘 저장 요약",
+        "🇰🇷 한국장 먼저 확인", "🇺🇸 미국장 스윙 확인", "③ 실제 행동·거래 종료", "저장 결과 확인", "오늘 저장 요약",
         "지난 기록 보기", "수동 기록 입력", "추가 기능", "사용법",
     ]
 )
@@ -4776,6 +4776,69 @@ with tab_us:
             st.markdown("---")
             _render_risk_and_warning_inputs(s["ticker"], "US")
 
+def _classify_actual_trade_status(saved_item):
+    """저장된 actual_action/청산 필드만으로 ③ 화면 진행 상태를 분류한다."""
+    action = db.normalize_actual_action(saved_item.get("actual_action"))
+    if action == "미기록":
+        return "행동 미입력"
+    if action == "보류":
+        return "보류"
+    if action == "제외":
+        return "제외"
+    if (
+        action == "매수"
+        and saved_item.get("actual_exit_price") is not None
+        and saved_item.get("actual_exit_date")
+    ):
+        return "청산 완료"
+    if action == "매수":
+        return "보유 중"
+    return "행동 미입력"
+
+
+with tab_action:
+    st.subheader("③ 실제 행동·거래 종료")
+    st.caption("저장된 판단 이후 실제 행동과 거래 종료를 기록하는 화면입니다.")
+
+    _tab3_market = st.selectbox(
+        "시장", ["전체", "KR", "US"], key="tab3_market_filter"
+    )
+    _tab3_status = st.selectbox(
+        "진행 상태",
+        ["전체", "행동 미입력", "보유 중", "청산 완료", "보류", "제외"],
+        key="tab3_status_filter",
+    )
+
+    _tab3_items = []
+    _tab3_seen_ids = set()
+    for _tab3_report in db.list_reports():
+        for _tab3_item in db.get_report_items(_tab3_report["id"]):
+            _tab3_item_id = _tab3_item.get("id")
+            if _tab3_item_id in _tab3_seen_ids:
+                continue
+            _tab3_seen_ids.add(_tab3_item_id)
+            _tab3_items.append(_tab3_item)
+
+    _tab3_filtered_items = []
+    for _tab3_item in _tab3_items:
+        if _tab3_market != "전체" and _tab3_item.get("market") != _tab3_market:
+            continue
+        if _tab3_status != "전체" and _classify_actual_trade_status(_tab3_item) != _tab3_status:
+            continue
+        _tab3_filtered_items.append(_tab3_item)
+
+    st.caption(f"필터 결과: {len(_tab3_filtered_items)}건 / 전체 {len(_tab3_items)}건")
+    for _tab3_item in _tab3_filtered_items:
+        _tab3_item_status = _classify_actual_trade_status(_tab3_item)
+        st.caption(
+            f"{_tab3_item.get('market') or '-'} · {_tab3_item_status} · "
+            f"{_tab3_item.get('stock_name') or '-'} ({_tab3_item.get('trade_mode') or '-'})"
+        )
+        _render_actual_trade_entry_inputs(_tab3_item, key_prefix="tab3_")
+        if db.normalize_actual_action(_tab3_item.get("actual_action")) == "매수":
+            _render_trade_exit_inputs(_tab3_item, key_prefix="tab3_")
+
+
 with tab_archive:
     st.subheader("지난 기록 보기")
 
@@ -6546,10 +6609,6 @@ with tab_perf:
                         }
                     )
 
-                    # v1.2A: 청산 결과 입력/수정 (기존 report_item을 id 기준으로 업데이트, 새 report 생성 안 함)
-                    if saved_item.get("id"):
-                        _render_trade_exit_inputs(saved_item, key_prefix="")
-
                     # v1.2B: 필터 무시 매매 로그 입력/수정 (기존 report_item을 id 기준으로 업데이트,
                     # 새 report/report_item 생성 안 함). 청산 결과 UI와 나란히 별도 expander로 둔다.
                     if saved_item.get("id"):
@@ -6677,8 +6736,6 @@ with tab_perf:
                                 st.success("테마 태그가 저장되었습니다.")
                                 st.rerun()
 
-                    if saved_item.get("id"):
-                        _render_actual_trade_entry_inputs(saved_item, key_prefix="")
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
     st.markdown("---")
