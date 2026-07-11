@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 import database as db
+import disclosure_data
 import performance
 import price_data
 
@@ -1610,6 +1611,91 @@ SNAPSHOT_STOCKS = [
 ]
 SNAPSHOT_FIELDS = ["current", "prev_close", "open", "high", "low", "turnover", "market_cap", "volume"]
 SNAPSHOT_NAME_TO_TICKER = {s["name"]: s["ticker"] for s in SNAPSHOT_STOCKS}
+
+
+def _kr_dart_stock_code(ticker):
+    """Return only a valid six-digit Korean stock code."""
+    code = str(ticker or "").strip().upper().removesuffix(".KS").removesuffix(".KQ")
+    return code if re.fullmatch(r"\d{6}", code) else None
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _cached_kr_dart_corp_code_map(api_key):
+    return disclosure_data.fetch_dart_corp_code_map(api_key)
+
+
+def _fetch_kr_dart_disclosures(api_key, stocks, today=None):
+    """Fetch read-only DART references for the Korean snapshot stocks."""
+    if not api_key:
+        return {"checked_at": None, "rows": [], "summary": {"normal": 0, "empty": 0, "failed": 0, "missing": 0}, "message": "OpenDART 인증키 설정이 필요합니다"}
+    today = today or datetime.now().date()
+    start_date = (today - timedelta(days=2)).strftime("%Y%m%d")
+    end_date = today.strftime("%Y%m%d")
+    corp_result = _cached_kr_dart_corp_code_map(api_key)
+    corp_map = corp_result.get("data") if corp_result.get("status") == "정상" else {}
+    rows = []
+    summary = {"normal": 0, "empty": 0, "failed": 0, "missing": 0}
+    for stock in stocks:
+        code = _kr_dart_stock_code(stock.get("ticker"))
+        base = {"name": stock.get("name") or "-", "ticker": stock.get("ticker") or "-", "stock_code": code}
+        if not code:
+            rows.append({**base, "status": "종목코드 없음", "data": []})
+            summary["missing"] += 1
+            continue
+        corp = corp_map.get(code)
+        if not corp:
+            rows.append({**base, "status": "corp_code 없음", "data": []})
+            summary["missing"] += 1
+            continue
+        try:
+            result = disclosure_data.fetch_recent_dart_disclosures(api_key, corp["corp_code"], start_date, end_date)
+        except Exception:
+            result = {"status": "조회 오류", "data": []}
+        status = result.get("status", "조회 오류")
+        if status == "정상":
+            summary["normal"] += 1
+        elif status == "데이터 없음":
+            summary["empty"] += 1
+        else:
+            summary["failed"] += 1
+        rows.append({**base, "status": status, "data": result.get("data") or [], "message": result.get("message", "")})
+    return {"checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "rows": rows, "summary": summary, "start_date": start_date, "end_date": end_date}
+
+
+def _render_kr_dart_disclosure_panel():
+    st.markdown("### 📢 한국장 최근 공시 자동 확인")
+    st.caption("OpenDART 참고 조회 · 저장 안 됨 · 점수 미반영")
+    api_key = st.secrets.get("DART_API_KEY")
+    if not api_key:
+        st.info("OpenDART 인증키 설정이 필요합니다")
+    if st.button("최근 공시 자동 확인", key="kr_dart_check_button"):
+        result = _fetch_kr_dart_disclosures(api_key, SNAPSHOT_STOCKS)
+        st.session_state["kr_dart_disclosure_results"] = result
+        st.session_state["kr_dart_checked_at"] = result.get("checked_at")
+    result = st.session_state.get("kr_dart_disclosure_results")
+    if not result:
+        return
+    summary = result.get("summary", {})
+    st.caption(
+        f"조회 시각: {st.session_state.get('kr_dart_checked_at') or '-'} · "
+        f"조회 종목 수: {len(result.get('rows', []))} · 정상 {summary.get('normal', 0)} · "
+        f"공시 없음 {summary.get('empty', 0)} · 실패 {summary.get('failed', 0)} · 코드 없음 {summary.get('missing', 0)}"
+    )
+    for row in result.get("rows", []):
+        with st.expander(f"{row['name']} ({row['ticker']}) · {row['status']}", expanded=False):
+            if row["status"] in ("종목코드 없음", "corp_code 없음"):
+                st.info(row["status"])
+            elif not row.get("data"):
+                st.info("최근 공시 없음")
+            elif row["status"] != "정상":
+                st.warning(row.get("message") or row["status"])
+            for item in row.get("data", []):
+                st.write(f"접수일자: {item.get('rcept_dt') or '-'}")
+                st.write(f"보고서명: {item.get('report_nm') or '-'}")
+                st.write(f"제출인: {item.get('flr_nm') or '-'}")
+                rcept_no = item.get("rcept_no")
+                if rcept_no:
+                    st.markdown(f"[DART 원문 보기](https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no})")
 
 # 사람이 보기 쉬운 "기준 이름" 정리(별칭/문서화용). 기존 session_state 키(snap_{ticker}_current 등)와
 # 계산 변수 이름(open_pos_pct 등)은 그대로 두고 바꾸지 않는다 — 나중에 DB 저장이나 실제 시세 API를
@@ -3857,6 +3943,8 @@ with tab_kr:
             st.caption("자동 조회 결과는 화면 확인용이며 저장되지 않습니다.")
 
     st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
+
+    _render_kr_dart_disclosure_panel()
 
     with st.expander("0단계 시장 분위기 수동 입력(선택) - 자동 확인이 부족할 때만 사용", expanded=False):
         e1, e2, e3 = st.columns(3)
