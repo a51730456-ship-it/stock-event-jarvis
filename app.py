@@ -4852,99 +4852,6 @@ def _classify_actual_trade_status(saved_item):
     return "행동 미입력"
 
 
-with tab_action:
-    st.subheader("③ 실제 행동·거래 종료")
-    st.caption("저장된 판단 이후 실제 행동과 거래 종료를 기록하는 화면입니다.")
-
-    _tab3_market = st.selectbox(
-        "시장", ["전체", "KR", "US"], key="tab3_market_filter"
-    )
-    _tab3_status = st.selectbox(
-        "진행 상태",
-        ["전체", "행동 미입력", "보유 중", "청산 완료", "보류", "제외"],
-        key="tab3_status_filter",
-    )
-
-    _tab3_items = []
-    _tab3_seen_ids = set()
-    for _tab3_report in db.list_reports():
-        for _tab3_item in db.get_report_items(_tab3_report["id"]):
-            _tab3_item_id = _tab3_item.get("id")
-            if _tab3_item_id in _tab3_seen_ids:
-                continue
-            _tab3_seen_ids.add(_tab3_item_id)
-            _tab3_items.append(_tab3_item)
-
-    _tab3_filtered_items = []
-    for _tab3_item in _tab3_items:
-        if _tab3_market != "전체" and _tab3_item.get("market") != _tab3_market:
-            continue
-        if _tab3_status != "전체" and _classify_actual_trade_status(_tab3_item) != _tab3_status:
-            continue
-        _tab3_filtered_items.append(_tab3_item)
-
-    st.caption(f"필터 결과: {len(_tab3_filtered_items)}건 / 전체 {len(_tab3_items)}건")
-    for _tab3_item in _tab3_filtered_items:
-        _tab3_item_status = _classify_actual_trade_status(_tab3_item)
-        st.caption(
-            f"{_tab3_item.get('market') or '-'} · {_tab3_item_status} · "
-            f"{_tab3_item.get('stock_name') or '-'} ({_tab3_item.get('trade_mode') or '-'})"
-        )
-        _render_actual_trade_entry_inputs(_tab3_item, key_prefix="tab3_")
-        if db.normalize_actual_action(_tab3_item.get("actual_action")) == "매수":
-            _render_trade_exit_inputs(_tab3_item, key_prefix="tab3_")
-        if _tab3_item_status == "청산 완료":
-            _actual_fee = _tab3_item.get("actual_fee")
-            _actual_entry_price = _tab3_item.get("actual_entry_price")
-            _actual_pnl = None
-            if _actual_entry_price is None:
-                _pnl_text = "실제 매수가 미입력 · 계산 불가"
-                _return_text = "실제 매수가 미입력 · 계산 불가"
-            else:
-                if _actual_fee is None:
-                    _pnl_text = "비용 미입력 · 계산 불가"
-                else:
-                    _actual_pnl = _compute_realized_pnl(
-                        _actual_entry_price,
-                        _tab3_item.get("actual_exit_price"),
-                        _tab3_item.get("quantity"),
-                        _actual_fee,
-                    )
-                    if _actual_pnl is None:
-                        _pnl_text = "입력값 부족 · 계산 불가"
-                    else:
-                        _pnl_text = f"{_actual_pnl:,.2f}"
-
-                _return_pct = None
-                if _actual_pnl is not None:
-                    _return_pct = _compute_realized_return_pct(
-                        _actual_pnl,
-                        _actual_entry_price,
-                        _tab3_item.get("quantity"),
-                    )
-                _return_text = (
-                    "입력값 부족 · 계산 불가"
-                    if _return_pct is None
-                    else f"{_return_pct:+.2f}%"
-                )
-
-            _holding_days = _compute_holding_days(
-                _tab3_item.get("actual_entry_date"),
-                _tab3_item.get("actual_exit_date"),
-            )
-            if _holding_days is not None:
-                _holding_text = f"{_holding_days}일"
-            elif _tab3_item.get("actual_entry_date") and _tab3_item.get("actual_exit_date"):
-                _holding_text = "날짜 확인 필요"
-            else:
-                _holding_text = "입력값 부족 · 계산 불가"
-
-            _summary_cols = st.columns(3)
-            _summary_cols[0].metric("실현손익", _pnl_text)
-            _summary_cols[1].metric("실현수익률", _return_text)
-            _summary_cols[2].metric("보유일", _holding_text)
-
-
 with tab_review:
     st.subheader("④ 복기·통계")
     st.caption("저장된 판단과 실제 행동·거래 종료 결과를 조회하고 복기 진행 상태를 확인하는 화면입니다.")
@@ -5526,6 +5433,101 @@ def _render_judgment_outcome_save_button(selected_report_id, perf_rows_all, key_
                     f"저장 상태: judgment {len(_judgment_after_save)}건 / "
                     f"{_horizons_display}"
                 )
+
+
+with tab_action:
+    st.subheader("③ 실제 행동·거래 종료")
+    st.caption("저장된 판단 이후 실제 행동과 거래 종료를 기록하는 화면입니다.")
+
+    _tab3_market = st.selectbox(
+        "시장", ["전체", "KR", "US"], key="tab3_market_filter"
+    )
+    _tab3_status = st.selectbox(
+        "진행 상태",
+        ["전체", "행동 미입력", "보유 중", "청산 완료", "보류", "제외"],
+        key="tab3_status_filter",
+    )
+
+    _tab3_items = []
+    _tab3_seen_ids = set()
+    for _tab3_report in db.list_reports():
+        for _tab3_item in db.get_report_items(_tab3_report["id"]):
+            _tab3_item_id = _tab3_item.get("id")
+            if _tab3_item_id in _tab3_seen_ids:
+                continue
+            _tab3_seen_ids.add(_tab3_item_id)
+            _tab3_items.append(_tab3_item)
+
+    _tab3_filtered_items = []
+    for _tab3_item in _tab3_items:
+        if _tab3_market != "전체" and _tab3_item.get("market") != _tab3_market:
+            continue
+        if _tab3_status != "전체" and _classify_actual_trade_status(_tab3_item) != _tab3_status:
+            continue
+        _tab3_filtered_items.append(_tab3_item)
+
+    st.caption(f"필터 결과: {len(_tab3_filtered_items)}건 / 전체 {len(_tab3_items)}건")
+    for _tab3_item in _tab3_filtered_items:
+        _tab3_item_status = _classify_actual_trade_status(_tab3_item)
+        st.caption(
+            f"{_tab3_item.get('market') or '-'} · {_tab3_item_status} · "
+            f"{_tab3_item.get('stock_name') or '-'} ({_tab3_item.get('trade_mode') or '-'})"
+        )
+        _render_actual_trade_entry_inputs(_tab3_item, key_prefix="tab3_")
+        if db.normalize_actual_action(_tab3_item.get("actual_action")) == "매수":
+            _render_trade_exit_inputs(_tab3_item, key_prefix="tab3_")
+        if _tab3_item_status == "청산 완료":
+            _actual_fee = _tab3_item.get("actual_fee")
+            _actual_entry_price = _tab3_item.get("actual_entry_price")
+            _actual_pnl = None
+            if _actual_entry_price is None:
+                _pnl_text = "실제 매수가 미입력 · 계산 불가"
+                _return_text = "실제 매수가 미입력 · 계산 불가"
+            else:
+                if _actual_fee is None:
+                    _pnl_text = "비용 미입력 · 계산 불가"
+                else:
+                    _actual_pnl = _compute_realized_pnl(
+                        _actual_entry_price,
+                        _tab3_item.get("actual_exit_price"),
+                        _tab3_item.get("quantity"),
+                        _actual_fee,
+                    )
+                    if _actual_pnl is None:
+                        _pnl_text = "입력값 부족 · 계산 불가"
+                    else:
+                        _pnl_text = f"{_actual_pnl:,.2f}"
+
+                _return_pct = None
+                if _actual_pnl is not None:
+                    _return_pct = _compute_realized_return_pct(
+                        _actual_pnl,
+                        _actual_entry_price,
+                        _tab3_item.get("quantity"),
+                    )
+                _return_text = (
+                    "입력값 부족 · 계산 불가"
+                    if _return_pct is None
+                    else f"{_return_pct:+.2f}%"
+                )
+
+            _holding_days = _compute_holding_days(
+                _tab3_item.get("actual_entry_date"),
+                _tab3_item.get("actual_exit_date"),
+            )
+            if _holding_days is not None:
+                _holding_text = f"{_holding_days}일"
+            elif _tab3_item.get("actual_entry_date") and _tab3_item.get("actual_exit_date"):
+                _holding_text = "날짜 확인 필요"
+            else:
+                _holding_text = "입력값 부족 · 계산 불가"
+
+            _summary_cols = st.columns(3)
+            _summary_cols[0].metric("실현손익", _pnl_text)
+            _summary_cols[1].metric("실현수익률", _return_text)
+            _summary_cols[2].metric("보유일", _holding_text)
+
+
 
 
 with tab_perf:
