@@ -1,6 +1,8 @@
 """자비스 주식 기록장 (Streamlit 앱): 오늘 요약 / 새 기록 입력 / 오늘 주가 확인 / 지난 기록 보기 / 결과 확인 / 추가 기능."""
 
 import math
+import functools
+import logging
 import re
 import sqlite3
 from datetime import datetime, timedelta
@@ -14,6 +16,44 @@ import disclosure_data
 import news_data
 import performance
 import price_data
+
+_reference_panel_logger = logging.getLogger("jarvis.reference_panels")
+
+
+def _reference_panel_guard(panel_name, required_callables, failure_message):
+    """Keep optional reference-panel failures from interrupting the rest of the app."""
+    def decorator(func):
+        @functools.wraps(func)
+        def guarded(*args, **kwargs):
+            missing = [
+                f"{module_name}.{function_name}"
+                for module_name, function_name in required_callables
+                if not callable(getattr(globals().get(module_name), function_name, None))
+            ]
+            if missing:
+                _reference_panel_logger.error(
+                    "reference panel unavailable panel=%s missing=%s",
+                    panel_name,
+                    ",".join(missing),
+                )
+                st.warning(
+                    "코드가 변경됐지만 실행 중인 앱에 반영되지 않았습니다. "
+                    "Streamlit을 완전히 종료한 뒤 다시 실행하세요."
+                )
+                return None
+            try:
+                return func(*args, **kwargs)
+            except Exception as exc:
+                _reference_panel_logger.exception(
+                    "reference panel failed panel=%s error_type=%s",
+                    panel_name,
+                    type(exc).__name__,
+                )
+                st.warning(failure_message)
+                return None
+
+        return guarded
+    return decorator
 
 _SECTION_HEADER_RE = re.compile(r"^\[(.+?)\]\s*$")
 
@@ -1840,6 +1880,11 @@ def _fetch_kr_dart_disclosures(api_key, stocks, today=None):
     return {"checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "rows": rows, "summary": summary, "start_date": start_date, "end_date": end_date}
 
 
+@_reference_panel_guard(
+    "KR OpenDART 공시",
+    (("disclosure_data", "fetch_dart_corp_code_map"), ("disclosure_data", "fetch_recent_dart_disclosures")),
+    "현재 공시 조회에 실패했습니다. 잠시 후 다시 시도하세요.",
+)
 def _render_kr_dart_disclosure_panel():
     st.markdown("### 📢 한국장 최근 공시 자동 확인")
     st.caption("OpenDART 참고 조회 · 저장 안 됨 · 점수 미반영")
@@ -1938,6 +1983,11 @@ def _classify_market_news_items(items, company_name, ticker):
     return sorted(classified, key=sort_key, reverse=True)
 
 
+@_reference_panel_guard(
+    "시장 뉴스",
+    (("news_data", "fetch_naver_news"), ("news_data", "classify_news_materiality")),
+    "현재 뉴스 조회에 실패했습니다. 잠시 후 다시 시도하세요.",
+)
 def _render_market_naver_news_panel(market, stocks, title, button_key, results_key, checked_at_key):
     st.markdown(f"### {title}")
     st.caption("네이버 뉴스 참고 조회 · 저장 안 됨 · 점수 미반영")
