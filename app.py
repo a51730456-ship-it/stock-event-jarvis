@@ -4956,6 +4956,47 @@ with tab_review:
     else:
         st.info("조건에 맞는 복기 대상 종목이 없습니다.")
 
+    for _tab4_item in _tab4_filtered_items:
+        _tab4_item_status = _classify_actual_trade_status(_tab4_item)
+        _tab4_item_id = _tab4_item["id"]
+        _tab4_review_done_key = f"tab4_review_done_{_tab4_item_id}"
+        _tab4_review_memo_key = f"tab4_review_memo_{_tab4_item_id}"
+        if _tab4_item_status in ("청산 완료", "보류", "제외"):
+            with st.expander(
+                f"복기 입력 — {_tab4_item.get('stock_name') or '-'} ({_tab4_item.get('market') or '-'})",
+                expanded=False,
+            ):
+                _tab4_review_done_in = st.checkbox(
+                    "복기 완료",
+                    value=_tab4_item.get("review_done") in (1, True),
+                    key=_tab4_review_done_key,
+                )
+                _tab4_review_memo_in = st.text_area(
+                    "복기 메모",
+                    value=_tab4_item.get("review_memo") or "",
+                    key=_tab4_review_memo_key,
+                )
+                if st.button("복기 저장", key=f"tab4_review_save_{_tab4_item_id}"):
+                    try:
+                        _tab4_review_saved = db.update_report_item_review(
+                            _tab4_item_id,
+                            1 if _tab4_review_done_in else 0,
+                            _tab4_review_memo_in,
+                        )
+                    except ValueError as _tab4_review_err:
+                        st.error(f"복기 저장 실패: {_tab4_review_err}")
+                    else:
+                        if _tab4_review_saved:
+                            st.success("복기가 저장되었습니다.")
+                            st.rerun()
+                        else:
+                            st.error("복기 저장 실패: 대상 기록을 찾지 못했습니다.")
+        else:
+            st.caption(
+                f"{_tab4_item.get('stock_name') or '-'}: 거래 상태 확정 후 복기 가능 "
+                f"({_tab4_item_status})"
+            )
+
 
 with tab_archive:
     st.subheader("지난 기록 보기")

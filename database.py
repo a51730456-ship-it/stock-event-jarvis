@@ -629,6 +629,33 @@ def update_report_item_actual_fee(report_item_id, actual_fee):
         conn.close()
 
 
+def update_report_item_review(report_item_id, review_done, review_memo):
+    """복기 완료 여부와 복기 메모를 report_items.id 기준으로 함께 갱신한다."""
+    if isinstance(review_done, bool):
+        review_done = int(review_done)
+    if review_done not in (0, 1):
+        raise ValueError("review_done must be 0 or 1")
+    if review_done == 1 and not (review_memo or "").strip():
+        raise ValueError("review_memo is required when review_done is 1")
+    normalized_memo = (review_memo or "").strip() or None
+
+    conn = get_connection()
+    try:
+        exists = conn.execute(
+            "SELECT id FROM report_items WHERE id = ?", (report_item_id,)
+        ).fetchone()
+        if exists is None:
+            return False
+        cur = conn.execute(
+            "UPDATE report_items SET review_done=?, review_memo=? WHERE id=?",
+            (review_done, normalized_memo, report_item_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 _ACTUAL_ENTRY_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
