@@ -483,6 +483,35 @@ def update_report_item_theme_tags(report_item_id, theme_tags):
         conn.close()
 
 
+def update_report_item_filter_ignore(
+    report_item_id, filter_ignored, filter_ignore_reason, filter_ignore_memo
+):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "UPDATE report_items SET filter_ignored=?, filter_ignore_reason=?, "
+            "filter_ignore_memo=? WHERE id=?",
+            (filter_ignored, filter_ignore_reason, filter_ignore_memo, report_item_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def update_report_item_playbook_tags(report_item_id, playbook_tags):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "UPDATE report_items SET playbook_tags=? WHERE id=?",
+            (playbook_tags, report_item_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def parse_theme_tags(value):
     """report_items.theme_tags(TEXT, JSON 배열 문자열)를 리스트로 안전하게 변환한다.
 

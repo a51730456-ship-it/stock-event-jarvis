@@ -3644,9 +3644,12 @@ def _render_review_tag_editors(saved_item, display_name, trade_mode, key_prefix=
                 final_tag_codes = [FILTER_IGNORE_TAG_LABEL_TO_CODE[label] for label in ignore_tags_in]
                 if emotion_in != "미입력":
                     final_tag_codes.append(EMOTION_TAG_LABEL_TO_CODE[emotion_in])
-                conn = db.get_connection()
-                conn.execute("UPDATE report_items SET filter_ignored=?, filter_ignore_reason=?, filter_ignore_memo=? WHERE id=?", (final_filter_ignored, ",".join(final_tag_codes) if final_tag_codes else None, memo_in.strip() or None, item_id))
-                conn.commit(); conn.close()
+                db.update_report_item_filter_ignore(
+                    item_id,
+                    final_filter_ignored,
+                    ",".join(final_tag_codes) if final_tag_codes else None,
+                    memo_in.strip() or None,
+                )
                 st.success("필터 무시 기록이 저장되었습니다.")
                 st.rerun()
         with st.expander(f"플레이북 태그 - {display_name} ({trade_mode})"):
@@ -3654,9 +3657,10 @@ def _render_review_tag_editors(saved_item, display_name, trade_mode, key_prefix=
             stored_codes = [c.strip() for c in (saved_item.get("playbook_tags") or "").split(",") if c.strip()]
             pb_tags_in = st.multiselect("플레이북 태그", [label for _, label in PLAYBOOK_TAG_OPTIONS], default=[PLAYBOOK_TAG_CODE_TO_LABEL[c] for c in stored_codes if c in PLAYBOOK_TAG_CODE_TO_LABEL], key=f"{pb_key}_tags")
             if st.button("플레이북 태그 저장", key=f"{pb_key}_save"):
-                conn = db.get_connection()
-                conn.execute("UPDATE report_items SET playbook_tags=? WHERE id=?", (",".join(PLAYBOOK_TAG_LABEL_TO_CODE[label] for label in pb_tags_in) or None, item_id))
-                conn.commit(); conn.close()
+                db.update_report_item_playbook_tags(
+                    item_id,
+                    ",".join(PLAYBOOK_TAG_LABEL_TO_CODE[label] for label in pb_tags_in) or None,
+                )
                 st.success("플레이북 태그가 저장되었습니다.")
                 st.rerun()
         with st.expander(f"테마 태그 - {display_name} ({trade_mode})"):
