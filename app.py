@@ -4974,6 +4974,32 @@ with tab_review:
                 pd.DataFrame(_review_table_rows), width="stretch", hide_index=True,
             )
 
+    with st.expander("성과 계산·저장(관리)", expanded=False):
+        _tab4_outcome_reports = sorted(
+            _tab4_reports,
+            key=lambda report: report.get("saved_at") or "",
+            reverse=True,
+        )
+        _tab4_outcome_options = {
+            f"#{report['id']} ({report.get('saved_at') or '-'})": report["id"]
+            for report in _tab4_outcome_reports
+        }
+        if _tab4_outcome_options:
+            _tab4_outcome_label = st.selectbox(
+                "성과 저장 대상 보고서",
+                list(_tab4_outcome_options.keys()),
+                key="tab4_outcome_report_select",
+            )
+            _tab4_outcome_report_id = _tab4_outcome_options[_tab4_outcome_label]
+            _tab4_verification_rows = _cached_verification_rows(_reports_signature())
+            _render_judgment_outcome_save_button(
+                _tab4_outcome_report_id,
+                _tab4_verification_rows,
+                key_prefix="tab4_",
+            )
+        else:
+            st.info("성과 저장 대상 보고서가 없습니다.")
+
     _tab4_table_rows = []
     for _tab4_item in _tab4_filtered_items:
         _tab4_table_rows.append(
@@ -5603,10 +5629,6 @@ with tab_perf:
                 key="judgment_outcome_save_report_select",
             )
             _outcome_save_target_report_id = _outcome_save_report_options[_outcome_save_report_label]
-
-            _render_judgment_outcome_save_button(
-                _outcome_save_target_report_id, perf_rows_all, key_prefix=""
-            )
 
             # 저장된 판단 성과 조회 전용 표시 (evaluate_item() 재호출/가격·벤치마크 네트워크
             # 조회/DB INSERT·UPDATE 전혀 없음). get_report_outcomes()가 반환하는 DB 스냅샷을
