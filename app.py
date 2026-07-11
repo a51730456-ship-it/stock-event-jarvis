@@ -1592,9 +1592,9 @@ def render_report_detail(report, show_raw_briefing=False):
         _render_trade_mode_section("공통", grouped, rank_labels)
 
 
-tab_kr, tab_us, tab_action, tab_perf, tab_today, tab_archive, tab_paste, tab_next, tab_guide = st.tabs(
+tab_kr, tab_us, tab_action, tab_review, tab_perf, tab_today, tab_archive, tab_paste, tab_next, tab_guide = st.tabs(
     [
-        "🇰🇷 한국장 먼저 확인", "🇺🇸 미국장 스윙 확인", "③ 실제 행동·거래 종료", "저장 결과 확인", "오늘 저장 요약",
+        "🇰🇷 한국장 먼저 확인", "🇺🇸 미국장 스윙 확인", "③ 실제 행동·거래 종료", "④ 복기·통계", "저장 결과 확인", "오늘 저장 요약",
         "지난 기록 보기", "수동 기록 입력", "추가 기능", "사용법",
     ]
 )
@@ -4887,6 +4887,74 @@ with tab_action:
             _summary_cols[0].metric("실현손익", _pnl_text)
             _summary_cols[1].metric("실현수익률", _return_text)
             _summary_cols[2].metric("보유일", _holding_text)
+
+
+with tab_review:
+    st.subheader("④ 복기·통계")
+    st.caption("저장된 판단과 실제 행동·거래 종료 결과를 조회하고 복기 진행 상태를 확인하는 화면입니다.")
+
+    _tab4_reports = db.list_reports()
+    _tab4_report_saved_at = {report["id"]: report.get("saved_at") or "-" for report in _tab4_reports}
+    _tab4_items = []
+    _tab4_seen_ids = set()
+    for _tab4_report in _tab4_reports:
+        for _tab4_item in db.get_report_items(_tab4_report["id"]):
+            _tab4_item_id = _tab4_item.get("id")
+            if _tab4_item_id in _tab4_seen_ids:
+                continue
+            _tab4_seen_ids.add(_tab4_item_id)
+            _tab4_items.append(_tab4_item)
+
+    _tab4_pending_count = sum(1 for item in _tab4_items if item.get("review_done") not in (1, True))
+    _tab4_done_count = sum(1 for item in _tab4_items if item.get("review_done") in (1, True))
+    _tab4_closed_count = sum(
+        1 for item in _tab4_items if _classify_actual_trade_status(item) == "청산 완료"
+    )
+    _tab4_summary_cols = st.columns(4)
+    _tab4_summary_cols[0].metric("전체 종목 수", len(_tab4_items))
+    _tab4_summary_cols[1].metric("복기 대기 수", _tab4_pending_count)
+    _tab4_summary_cols[2].metric("복기 완료 수", _tab4_done_count)
+    _tab4_summary_cols[3].metric("청산 완료 수", _tab4_closed_count)
+
+    _tab4_market = st.selectbox(
+        "시장", ["전체", "KR", "US"], key="tab4_market_filter"
+    )
+    _tab4_review_status = st.selectbox(
+        "복기 상태", ["전체", "복기 대기", "복기 완료"], key="tab4_review_status_filter"
+    )
+
+    _tab4_filtered_items = []
+    for _tab4_item in _tab4_items:
+        if _tab4_market != "전체" and _tab4_item.get("market") != _tab4_market:
+            continue
+        _tab4_item_review_status = (
+            "복기 완료" if _tab4_item.get("review_done") in (1, True) else "복기 대기"
+        )
+        if _tab4_review_status != "전체" and _tab4_item_review_status != _tab4_review_status:
+            continue
+        _tab4_filtered_items.append(_tab4_item)
+
+    st.caption(f"필터 결과: {len(_tab4_filtered_items)}건 / 전체 {len(_tab4_items)}건")
+    _tab4_table_rows = []
+    for _tab4_item in _tab4_filtered_items:
+        _tab4_table_rows.append(
+            {
+                "보고서 날짜": _tab4_report_saved_at.get(_tab4_item.get("report_id"), "-"),
+                "보고서 ID": _tab4_item.get("report_id") or "-",
+                "시장": _tab4_item.get("market") or "-",
+                "종목명": _tab4_item.get("stock_name") or "-",
+                "티커": _tab4_item.get("ticker") or "-",
+                "실제 행동": db.normalize_actual_action(_tab4_item.get("actual_action")),
+                "거래 진행 상태": _classify_actual_trade_status(_tab4_item),
+                "result_r": _fmt_result_r(_tab4_item.get("result_r")),
+                "복기 상태": "복기 완료" if _tab4_item.get("review_done") in (1, True) else "복기 대기",
+                "복기 메모": "있음" if (_tab4_item.get("review_memo") or "").strip() else "없음",
+            }
+        )
+    if _tab4_table_rows:
+        st.dataframe(pd.DataFrame(_tab4_table_rows), width="stretch", hide_index=True)
+    else:
+        st.info("조건에 맞는 복기 대상 종목이 없습니다.")
 
 
 with tab_archive:
