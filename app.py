@@ -5555,11 +5555,13 @@ with tab_review:
         "시장", ["전체", "KR", "US"], key="tab4_market_filter"
     )
     _tab4_review_status = st.selectbox(
-        "복기 상태", ["전체", "복기 대기", "복기 완료"], key="tab4_review_status_filter"
+        "복기 상태", ["복기 대기", "복기 완료", "전체"], key="tab4_review_status_filter"
     )
 
     _tab4_filtered_items = []
     for _tab4_item in _tab4_items:
+        if _classify_actual_trade_status(_tab4_item) not in ("청산 완료", "보류", "제외"):
+            continue
         if _tab4_market != "전체" and _tab4_item.get("market") != _tab4_market:
             continue
         _tab4_item_review_status = (
@@ -5802,7 +5804,28 @@ with tab_review:
     else:
         st.info("조건에 맞는 복기 대상 종목이 없습니다.")
 
-    for _tab4_item in _tab4_filtered_items:
+    _tab4_item_options = {
+        item["id"]: (
+            f"#{item['id']} · {_tab4_report_saved_at.get(item.get('report_id'), '-')} · "
+            f"{item.get('market') or '-'} · {item.get('ticker') or '-'} · "
+            f"{_classify_actual_trade_status(item)}"
+        )
+        for item in _tab4_filtered_items
+        if _classify_actual_trade_status(item) in ("청산 완료", "보류", "제외")
+    }
+    if st.session_state.get("tab4_selected_item_id") not in [None, *list(_tab4_item_options.keys())]:
+        st.session_state.pop("tab4_selected_item_id", None)
+    _tab4_selected_id = st.selectbox(
+        "상세 복기할 report_item 선택",
+        options=[None, *list(_tab4_item_options.keys())],
+        format_func=lambda item_id: "선택하지 않음" if item_id is None else _tab4_item_options[item_id],
+        key="tab4_selected_item_id",
+    )
+    _tab4_selected_item = next(
+        (item for item in _tab4_filtered_items if item.get("id") == _tab4_selected_id), None
+    )
+    if _tab4_selected_item is not None:
+        _tab4_item = _tab4_selected_item
         _tab4_item_status = _classify_actual_trade_status(_tab4_item)
         _tab4_item_id = _tab4_item["id"]
         _tab4_review_done_key = f"tab4_review_done_{_tab4_item_id}"
@@ -6210,13 +6233,15 @@ with tab_action:
     )
     _tab3_status = st.selectbox(
         "진행 상태",
-        ["전체", "행동 미입력", "보유 중", "청산 완료", "보류", "제외"],
+        ["행동 미입력", "보유 중", "거래 종료", "전체"],
         key="tab3_status_filter",
     )
 
+    _tab3_reports = db.list_reports()
+    _tab3_report_saved_at = {report["id"]: report.get("saved_at") or "-" for report in _tab3_reports}
     _tab3_items = []
     _tab3_seen_ids = set()
-    for _tab3_report in db.list_reports():
+    for _tab3_report in _tab3_reports:
         for _tab3_item in db.get_report_items(_tab3_report["id"]):
             _tab3_item_id = _tab3_item.get("id")
             if _tab3_item_id in _tab3_seen_ids:
@@ -6228,12 +6253,36 @@ with tab_action:
     for _tab3_item in _tab3_items:
         if _tab3_market != "전체" and _tab3_item.get("market") != _tab3_market:
             continue
-        if _tab3_status != "전체" and _classify_actual_trade_status(_tab3_item) != _tab3_status:
+        _tab3_item_status = _classify_actual_trade_status(_tab3_item)
+        if _tab3_status != "전체" and (
+            _tab3_item_status != _tab3_status
+            and not (_tab3_status == "거래 종료" and _tab3_item_status == "청산 완료")
+        ):
             continue
         _tab3_filtered_items.append(_tab3_item)
 
     st.caption(f"필터 결과: {len(_tab3_filtered_items)}건 / 전체 {len(_tab3_items)}건")
-    for _tab3_item in _tab3_filtered_items:
+    _tab3_item_options = {
+        item["id"]: (
+            f"#{item['id']} · {_tab3_report_saved_at.get(item.get('report_id'), '-')} · "
+            f"{item.get('market') or '-'} · {item.get('ticker') or '-'} · "
+            f"{_classify_actual_trade_status(item)}"
+        )
+        for item in _tab3_filtered_items
+    }
+    if st.session_state.get("tab3_selected_item_id") not in [None, *list(_tab3_item_options.keys())]:
+        st.session_state.pop("tab3_selected_item_id", None)
+    _tab3_selected_id = st.selectbox(
+        "상세 입력할 report_item 선택",
+        options=[None, *list(_tab3_item_options.keys())],
+        format_func=lambda item_id: "선택하지 않음" if item_id is None else _tab3_item_options[item_id],
+        key="tab3_selected_item_id",
+    )
+    _tab3_selected_item = next(
+        (item for item in _tab3_filtered_items if item.get("id") == _tab3_selected_id), None
+    )
+    if _tab3_selected_item is not None:
+        _tab3_item = _tab3_selected_item
         _tab3_item_status = _classify_actual_trade_status(_tab3_item)
         st.caption(
             f"{_tab3_item.get('market') or '-'} · {_tab3_item_status} · "
