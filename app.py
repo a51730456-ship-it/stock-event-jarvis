@@ -5035,6 +5035,57 @@ def _render_actual_trade_entry_inputs(saved_item, key_prefix=""):
                         f"(id={saved_item['id']})."
                     )
 
+        _quantity_key = f"{key_prefix}quantity_{saved_item['id']}"
+        _quantity_in = st.number_input(
+            "매수 수량",
+            value=saved_item.get("quantity"),
+            min_value=1,
+            step=1,
+            format="%d",
+            key=f"{_quantity_key}_input",
+        )
+        if st.button("매수 수량 저장", key=f"{_quantity_key}_save"):
+            try:
+                _quantity_ok = db.update_report_item_quantity(
+                    saved_item["id"], _quantity_in
+                )
+            except ValueError as _quantity_err:
+                st.error(f"{_item_name}: {_quantity_err}")
+            else:
+                if _quantity_ok:
+                    st.success("매수 수량이 저장되었습니다.")
+                    st.rerun()
+                else:
+                    st.error(
+                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
+
+        _fee_key = f"{key_prefix}actualfee_{saved_item['id']}"
+        st.caption("실제 수수료와 세금을 합산한 금액을 직접 입력합니다. 0원과 미입력은 구분됩니다.")
+        _fee_in = st.number_input(
+            "실제 수수료·세금 합계",
+            value=saved_item.get("actual_fee"),
+            min_value=0.0,
+            step=0.01,
+            format="%.2f",
+            key=f"{_fee_key}_input",
+        )
+        if st.button("실제 수수료·세금 합계 저장", key=f"{_fee_key}_save"):
+            try:
+                _fee_ok = db.update_report_item_actual_fee(saved_item["id"], _fee_in)
+            except ValueError as _fee_err:
+                st.error(f"{_item_name}: {_fee_err}")
+            else:
+                if _fee_ok:
+                    st.success("실제 수수료·세금 합계가 저장되었습니다.")
+                    st.rerun()
+                else:
+                    st.error(
+                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
+
         if saved_item.get("actual_action") == "매수":
             if (
                 saved_item.get("actual_entry_price") is not None
