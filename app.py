@@ -305,7 +305,7 @@ st.markdown(
     .st-key-kr_quick_save button,
     .st-key-kr_quick_confirm_save button,
     .st-key-us_swing_quick_save button,
-    .st-key-us_swing_confirm_save button,
+    .st-key-us_final_save button,
     .st-key-snap_mood_auto_check button {
         font-size: 1.15rem !important;
         font-weight: 800 !important;
@@ -317,7 +317,7 @@ st.markdown(
     .st-key-kr_quick_save button p,
     .st-key-kr_quick_confirm_save button p,
     .st-key-us_swing_quick_save button p,
-    .st-key-us_swing_confirm_save button p,
+    .st-key-us_final_save button p,
     .st-key-snap_mood_auto_check button p {
         font-size: 1.15rem !important;
         font-weight: 800 !important;
@@ -331,7 +331,7 @@ st.markdown(
     .st-key-kr_quick_save button,
     .st-key-kr_quick_confirm_save button,
     .st-key-us_swing_quick_save button,
-    .st-key-us_swing_confirm_save button {
+    .st-key-us_final_save button {
         background-color: #2563EB !important;
         border-color: #2563EB !important;
         color: #ffffff !important;
@@ -4667,6 +4667,7 @@ with tab_us:
     if not us_snapshot_calc_data:
         st.info("미국장 스윙 기록을 저장하려면 먼저 미국장 종목 데이터를 불러와야 합니다.")
     if st.button("③ 미국장 스윙 기록 바로 저장", key="us_swing_quick_save", disabled=not us_snapshot_calc_data):
+      st.session_state["us_show_save_preview"] = True
       st.session_state.pop("us_swing_preview_rows", None)
       st.session_state.pop("us_swing_day_conclusion", None)
       st.session_state.pop("us_swing_basis_text", None)
@@ -4698,7 +4699,7 @@ with tab_us:
         st.session_state["us_swing_day_conclusion"] = day_conclusion_text
         st.session_state["us_swing_basis_text"] = basis_text
 
-    if st.session_state.get("us_swing_preview_rows"):
+    if st.session_state.get("us_show_save_preview") and st.session_state.get("us_swing_preview_rows"):
         preview_rows = st.session_state["us_swing_preview_rows"]
         st.markdown("#### 저장 전 확인 미리보기")
         st.write("시장: US")
@@ -4757,7 +4758,7 @@ with tab_us:
                 st.text(_us_swing_narrative_text(row))
 
         pcol1, pcol2 = st.columns(2)
-        if pcol1.button("이 내용으로 저장", type="primary", key="us_swing_confirm_save"):
+        if pcol1.button("이 내용으로 미국장 최종 저장", type="primary", key="us_final_save"):
             us_judged_at = datetime.now().isoformat(timespec="seconds")
             items_to_save = [
                 {
@@ -4804,11 +4805,13 @@ with tab_us:
             st.session_state.pop("us_swing_preview_rows", None)
             st.session_state.pop("us_swing_day_conclusion", None)
             st.session_state.pop("us_swing_basis_text", None)
+            st.session_state.pop("us_show_save_preview", None)
             st.success(f"미국장 스윙 기록 저장 완료 (report_id={us_report_id})")
-        if pcol2.button("취소", key="us_swing_cancel_preview"):
+        if pcol2.button("취소", key="us_cancel_save_preview"):
             st.session_state.pop("us_swing_preview_rows", None)
             st.session_state.pop("us_swing_day_conclusion", None)
             st.session_state.pop("us_swing_basis_text", None)
+            st.session_state.pop("us_show_save_preview", None)
             st.rerun()
 
     # 3. 종목별 상세 입력 카드 (기본 접힘)
