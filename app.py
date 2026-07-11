@@ -3614,6 +3614,62 @@ def _render_kr_fable_mockup1_preview():
     st.caption("실제 자동조회·입력·저장은 아래 기존 화면을 사용합니다.")
 
 
+def _render_review_tag_editors(saved_item, display_name, trade_mode, key_prefix="tab4_"):
+    """Render the existing review tag/filter editors for one report item."""
+    item_id = saved_item.get("id")
+    if not item_id:
+        return
+    with st.expander("복기 태그·필터 기록", expanded=False):
+        with st.expander(f"필터 무시 기록 - {display_name} ({trade_mode})"):
+            fi_key = f"{key_prefix}filterignore_{item_id}"
+            fi_options = ["미입력", "아니오", "예"]
+            fi_default = {"YES": "예", "NO": "아니오"}.get(saved_item.get("filter_ignored"), "미입력")
+            filter_ignored_in = st.selectbox("필터 무시 여부", fi_options, index=fi_options.index(fi_default), key=f"{fi_key}_ignored")
+            stored_codes = [c.strip() for c in (saved_item.get("filter_ignore_reason") or "").split(",") if c.strip()]
+            stored_tag_codes = [c for c in stored_codes if c in FILTER_IGNORE_TAG_CODE_TO_LABEL]
+            stored_emotion_codes = [c for c in stored_codes if c in EMOTION_TAG_CODE_TO_LABEL]
+            if filter_ignored_in == "예":
+                ignore_tags_in = st.multiselect("필터 무시 태그", [label for _, label in FILTER_IGNORE_TAG_OPTIONS], default=[FILTER_IGNORE_TAG_CODE_TO_LABEL[c] for c in stored_tag_codes], key=f"{fi_key}_tags")
+                emotion_options = ["미입력"] + [label for _, label in EMOTION_TAG_OPTIONS]
+                emotion_default = EMOTION_TAG_CODE_TO_LABEL.get(stored_emotion_codes[0], "미입력") if stored_emotion_codes else "미입력"
+                emotion_in = st.selectbox("감정 태그", emotion_options, index=emotion_options.index(emotion_default), key=f"{fi_key}_emotion")
+            else:
+                ignore_tags_in = []
+                emotion_in = "미입력"
+                st.caption("필터 무시 여부를 '예'로 선택하면 태그를 입력할 수 있습니다.")
+            memo_in = st.text_input("자유 메모", value=saved_item.get("filter_ignore_memo") or "", key=f"{fi_key}_memo")
+            st.caption(f"참고 R수익률(기존 값, 새로 계산하지 않음): {_fmt_result_r(saved_item.get('result_r'))}")
+            if st.button("필터 무시 기록 저장", key=f"{fi_key}_save"):
+                final_filter_ignored = {"예": "YES", "아니오": "NO"}.get(filter_ignored_in)
+                final_tag_codes = [FILTER_IGNORE_TAG_LABEL_TO_CODE[label] for label in ignore_tags_in]
+                if emotion_in != "미입력":
+                    final_tag_codes.append(EMOTION_TAG_LABEL_TO_CODE[emotion_in])
+                conn = db.get_connection()
+                conn.execute("UPDATE report_items SET filter_ignored=?, filter_ignore_reason=?, filter_ignore_memo=? WHERE id=?", (final_filter_ignored, ",".join(final_tag_codes) if final_tag_codes else None, memo_in.strip() or None, item_id))
+                conn.commit(); conn.close()
+                st.success("필터 무시 기록이 저장되었습니다.")
+                st.rerun()
+        with st.expander(f"플레이북 태그 - {display_name} ({trade_mode})"):
+            pb_key = f"{key_prefix}playbook_{item_id}"
+            stored_codes = [c.strip() for c in (saved_item.get("playbook_tags") or "").split(",") if c.strip()]
+            pb_tags_in = st.multiselect("플레이북 태그", [label for _, label in PLAYBOOK_TAG_OPTIONS], default=[PLAYBOOK_TAG_CODE_TO_LABEL[c] for c in stored_codes if c in PLAYBOOK_TAG_CODE_TO_LABEL], key=f"{pb_key}_tags")
+            if st.button("플레이북 태그 저장", key=f"{pb_key}_save"):
+                conn = db.get_connection()
+                conn.execute("UPDATE report_items SET playbook_tags=? WHERE id=?", (",".join(PLAYBOOK_TAG_LABEL_TO_CODE[label] for label in pb_tags_in) or None, item_id))
+                conn.commit(); conn.close()
+                st.success("플레이북 태그가 저장되었습니다.")
+                st.rerun()
+        with st.expander(f"테마 태그 - {display_name} ({trade_mode})"):
+            theme_key = f"{key_prefix}themetag_{item_id}"
+            theme_stored = db.parse_theme_tags(saved_item.get("theme_tags"))
+            st.caption(f"현재 테마 태그: {', '.join(theme_stored) if theme_stored else '없음'}")
+            theme_tags_in = st.multiselect("테마 태그", THEME_TAG_OPTIONS, default=[t for t in theme_stored if t in THEME_TAG_OPTIONS], key=f"{theme_key}_tags")
+            if st.button("테마 태그 저장", key=f"{theme_key}_save"):
+                db.update_report_item_theme_tags(item_id, theme_tags_in)
+                st.success("테마 태그가 저장되었습니다.")
+                st.rerun()
+
+
 with tab_kr:
     st.subheader("한국장")
     _render_kr_fable_mockup1_preview()
@@ -5069,6 +5125,12 @@ with tab_review:
                 f"{_tab4_item.get('stock_name') or '-'}: 거래 상태 확정 후 복기 가능 "
                 f"({_tab4_item_status})"
             )
+        _render_review_tag_editors(
+            _tab4_item,
+            _tab4_item.get("stock_name") or "-",
+            _tab4_item.get("trade_mode") or "-",
+            key_prefix="tab4_",
+        )
 
 
 with tab_archive:
@@ -6814,133 +6876,6 @@ with tab_perf:
                             "매수 확정 조건": auto_info["buy_confirm_condition"],
                         }
                     )
-
-                    # v1.2B: 필터 무시 매매 로그 입력/수정 (기존 report_item을 id 기준으로 업데이트,
-                    # 새 report/report_item 생성 안 함). 청산 결과 UI와 나란히 별도 expander로 둔다.
-                    if saved_item.get("id"):
-                        with st.expander(f"필터 무시 기록 - {row['stock_name']} ({row['trade_mode']})"):
-                            _fi_key = f"filterignore_{saved_item['id']}"
-                            _fi_options = ["미입력", "아니오", "예"]
-                            _fi_stored = saved_item.get("filter_ignored")
-                            _fi_default = {"YES": "예", "NO": "아니오"}.get(_fi_stored, "미입력")
-                            _filter_ignored_in = st.selectbox(
-                                "필터 무시 여부", _fi_options,
-                                index=_fi_options.index(_fi_default), key=f"{_fi_key}_ignored",
-                            )
-
-                            _fi_stored_reason = saved_item.get("filter_ignore_reason") or ""
-                            _fi_stored_codes = [c.strip() for c in _fi_stored_reason.split(",") if c.strip()]
-                            _fi_stored_tag_codes = [
-                                c for c in _fi_stored_codes if c in FILTER_IGNORE_TAG_CODE_TO_LABEL
-                            ]
-                            _fi_stored_emotion_codes = [
-                                c for c in _fi_stored_codes if c in EMOTION_TAG_CODE_TO_LABEL
-                            ]
-
-                            if _filter_ignored_in == "예":
-                                _ignore_tags_in = st.multiselect(
-                                    "필터 무시 태그",
-                                    [label for _, label in FILTER_IGNORE_TAG_OPTIONS],
-                                    default=[
-                                        FILTER_IGNORE_TAG_CODE_TO_LABEL[c] for c in _fi_stored_tag_codes
-                                    ],
-                                    key=f"{_fi_key}_tags",
-                                )
-                                _emotion_options = ["미입력"] + [label for _, label in EMOTION_TAG_OPTIONS]
-                                _emotion_default = (
-                                    EMOTION_TAG_CODE_TO_LABEL.get(_fi_stored_emotion_codes[0], "미입력")
-                                    if _fi_stored_emotion_codes else "미입력"
-                                )
-                                _emotion_in = st.selectbox(
-                                    "감정 태그", _emotion_options,
-                                    index=_emotion_options.index(_emotion_default), key=f"{_fi_key}_emotion",
-                                )
-                            else:
-                                _ignore_tags_in = []
-                                _emotion_in = "미입력"
-                                st.caption("필터 무시 여부를 '예'로 선택하면 태그를 입력할 수 있습니다.")
-
-                            _memo_in = st.text_input(
-                                "자유 메모", value=saved_item.get("filter_ignore_memo") or "",
-                                key=f"{_fi_key}_memo",
-                            )
-
-                            st.caption(
-                                f"참고 R수익률(기존 값, 새로 계산하지 않음): {_fmt_result_r(saved_item.get('result_r'))}"
-                            )
-
-                            if st.button("필터 무시 기록 저장", key=f"{_fi_key}_save"):
-                                _final_filter_ignored = {"예": "YES", "아니오": "NO"}.get(_filter_ignored_in)
-                                _final_tag_codes = [
-                                    FILTER_IGNORE_TAG_LABEL_TO_CODE[label] for label in _ignore_tags_in
-                                ]
-                                if _emotion_in != "미입력":
-                                    _final_tag_codes.append(EMOTION_TAG_LABEL_TO_CODE[_emotion_in])
-                                _final_reason = ",".join(_final_tag_codes) if _final_tag_codes else None
-                                _final_memo = _memo_in.strip() or None
-                                _fi_conn = db.get_connection()
-                                _fi_conn.execute(
-                                    "UPDATE report_items SET filter_ignored=?, filter_ignore_reason=?, "
-                                    "filter_ignore_memo=? WHERE id=?",
-                                    (_final_filter_ignored, _final_reason, _final_memo, saved_item["id"]),
-                                )
-                                _fi_conn.commit()
-                                _fi_conn.close()
-                                st.success("필터 무시 기록이 저장되었습니다.")
-                                st.rerun()
-
-                    # 플레이북 태그 입력/수정 (기존 report_item을 id 기준으로 업데이트,
-                    # 새 report/report_item 생성 안 함). 청산 결과/필터 무시 기록과 나란히 둔다.
-                    if saved_item.get("id"):
-                        with st.expander(f"플레이북 태그 - {row['stock_name']} ({row['trade_mode']})"):
-                            _pb_key = f"playbook_{saved_item['id']}"
-                            _pb_stored = saved_item.get("playbook_tags") or ""
-                            _pb_stored_codes = [c.strip() for c in _pb_stored.split(",") if c.strip()]
-                            _pb_tags_in = st.multiselect(
-                                "플레이북 태그",
-                                [label for _, label in PLAYBOOK_TAG_OPTIONS],
-                                default=[
-                                    PLAYBOOK_TAG_CODE_TO_LABEL[c] for c in _pb_stored_codes
-                                    if c in PLAYBOOK_TAG_CODE_TO_LABEL
-                                ],
-                                key=f"{_pb_key}_tags",
-                            )
-                            if st.button("플레이북 태그 저장", key=f"{_pb_key}_save"):
-                                _final_pb_codes = [
-                                    PLAYBOOK_TAG_LABEL_TO_CODE[label] for label in _pb_tags_in
-                                ]
-                                _final_pb_tags = ",".join(_final_pb_codes) if _final_pb_codes else None
-                                _pb_conn = db.get_connection()
-                                _pb_conn.execute(
-                                    "UPDATE report_items SET playbook_tags=? WHERE id=?",
-                                    (_final_pb_tags, saved_item["id"]),
-                                )
-                                _pb_conn.commit()
-                                _pb_conn.close()
-                                st.success("플레이북 태그가 저장되었습니다.")
-                                st.rerun()
-
-                    # 테마 태그 입력/수정 (기존 report_item을 id 기준으로 사후 UPDATE만 수행,
-                    # 새 report/report_item 생성 안 함, save_report()/INSERT 로직과 무관).
-                    # 플레이북 태그/청산 결과/필터 무시 기록과 나란히 둔다. 저장/점수/판단 로직에는
-                    # 반영되지 않는 단순 기록용 태그다.
-                    if saved_item.get("id"):
-                        with st.expander(f"테마 태그 - {row['stock_name']} ({row['trade_mode']})"):
-                            _theme_key = f"themetag_{saved_item['id']}"
-                            _theme_stored = db.parse_theme_tags(saved_item.get("theme_tags"))
-                            st.caption(
-                                f"현재 테마 태그: {', '.join(_theme_stored) if _theme_stored else '없음'}"
-                            )
-                            _theme_tags_in = st.multiselect(
-                                "테마 태그",
-                                THEME_TAG_OPTIONS,
-                                default=[t for t in _theme_stored if t in THEME_TAG_OPTIONS],
-                                key=f"{_theme_key}_tags",
-                            )
-                            if st.button("테마 태그 저장", key=f"{_theme_key}_save"):
-                                db.update_report_item_theme_tags(saved_item["id"], _theme_tags_in)
-                                st.success("테마 태그가 저장되었습니다.")
-                                st.rerun()
 
                 st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
 
