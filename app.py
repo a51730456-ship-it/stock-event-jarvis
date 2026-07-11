@@ -2852,6 +2852,21 @@ def _cached_verification_rows(signature):
 def _cached_no_recommendation_rows(signature):
     return performance.build_no_recommendation_rows()
 
+
+PERFORMANCE_DATA_LOAD_KEY = "performance_data_load_requested"
+
+
+def _render_performance_data_load_gate(button_key):
+    """Keep expensive performance price lookups behind an explicit user action."""
+    if st.session_state.get(PERFORMANCE_DATA_LOAD_KEY):
+        return True
+    st.info("성과 시세 데이터 미조회")
+    st.caption("1·3·5·10·20일 성과 확인이 필요할 때만 불러옵니다. 첫 조회는 시간이 걸릴 수 있습니다.")
+    if st.button("성과 시세 데이터 불러오기", key=button_key):
+        st.session_state[PERFORMANCE_DATA_LOAD_KEY] = True
+        st.rerun()
+    return False
+
 with tab_today:
     st.subheader("오늘 저장 요약")
     st.info(
@@ -5628,7 +5643,12 @@ with tab_review:
                     if _missing:
                         _tab4_missing.append(f"{_item.get('stock_name') or _item.get('ticker')}: {', '.join(_missing)}")
                 st.caption("입력 부족: " + " / ".join(_tab4_missing))
-            _tab4_verification_rows = _cached_verification_rows(_reports_signature())
+            _tab4_performance_ready = _render_performance_data_load_gate("tab4_performance_data_load_button")
+            _tab4_verification_rows = (
+                _cached_verification_rows(_reports_signature())
+                if _tab4_performance_ready
+                else []
+            )
             _render_judgment_outcome_save_button(
                 _tab4_outcome_report_id,
                 _tab4_verification_rows,
@@ -6237,7 +6257,12 @@ with tab_perf:
 
     st.markdown("---")
 
-    perf_rows_all = _cached_verification_rows(_reports_signature())
+    _perf_performance_ready = _render_performance_data_load_gate("perf_performance_data_load_button")
+    perf_rows_all = (
+        _cached_verification_rows(_reports_signature())
+        if _perf_performance_ready
+        else []
+    )
 
     if not perf_rows_all:
         st.info("종목코드가 있는 종목별 기록이 없습니다.")
@@ -7461,7 +7486,11 @@ with tab_perf:
             "기회비용, 내렸으면 위험회피 성공으로 표시합니다. 지수 상승만으로 실패 처리하지 않습니다."
         )
 
-        no_rec_rows = _cached_no_recommendation_rows(_reports_signature())
+        no_rec_rows = (
+            _cached_no_recommendation_rows(_reports_signature())
+            if _perf_performance_ready
+            else []
+        )
 
         if not no_rec_rows:
             st.info("종목 항목이 0개인 기록이 없습니다.")

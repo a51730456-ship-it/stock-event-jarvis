@@ -55,6 +55,18 @@ class AppSmokeContractTests(unittest.TestCase):
         self.assertTrue("db.save_report(" in SOURCE)
         self.assertTrue("st.button" in SOURCE)
 
+    def test_performance_data_load_gate_contract(self):
+        self.assertIn('PERFORMANCE_DATA_LOAD_KEY = "performance_data_load_requested"', SOURCE)
+        self.assertIn('"tab4_performance_data_load_button"', SOURCE)
+        self.assertIn('"perf_performance_data_load_button"', SOURCE)
+        self.assertIn("성과 시세 데이터 불러오기", SOURCE)
+        self.assertIn("성과 시세 데이터 미조회", SOURCE)
+        self.assertIn("1·3·5·10·20일 성과 확인이 필요할 때만 불러옵니다.", SOURCE)
+        self.assertEqual(SOURCE.count("performance.build_verification_rows()"), 1)
+        self.assertIn("if _tab4_performance_ready", SOURCE)
+        self.assertIn("if _perf_performance_ready", SOURCE)
+        self.assertIn("if _perf_performance_ready\n            else []", SOURCE)
+
 
 if __name__ == "__main__":
     unittest.main()
