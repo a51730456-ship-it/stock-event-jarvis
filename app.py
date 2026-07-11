@@ -4241,16 +4241,6 @@ with tab_kr:
 
     st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
 
-    _render_kr_dart_disclosure_panel()
-    _render_market_naver_news_panel(
-        "KR",
-        SNAPSHOT_STOCKS,
-        "📰 한국장 최근 뉴스 자동 확인",
-        "kr_naver_news_check_button",
-        "kr_naver_news_results",
-        "kr_naver_news_checked_at",
-    )
-
     with st.expander("0단계 시장 분위기 수동 입력(선택) - 자동 확인이 부족할 때만 사용", expanded=False):
         e1, e2, e3 = st.columns(3)
         nq_change = e1.number_input(
@@ -4609,6 +4599,18 @@ with tab_kr:
                     st.write(f"스윙 감점 이유: {r['swing_penalty_reason']}")
                     if r["validation_errors"]:
                         st.warning("확인 필요: " + "; ".join(r["validation_errors"]))
+
+        with st.expander("참고자료 · 공시·뉴스", expanded=False):
+            st.caption("종목 판단을 보조하는 참고자료입니다. 펼친 뒤 버튼을 눌렀을 때만 조회합니다.")
+            _render_kr_dart_disclosure_panel()
+            _render_market_naver_news_panel(
+                "KR",
+                SNAPSHOT_STOCKS,
+                "📰 한국장 최근 뉴스 자동 확인",
+                "kr_naver_news_check_button",
+                "kr_naver_news_results",
+                "kr_naver_news_checked_at",
+            )
 
         # 3-2. 국내장 기록 바로 저장 (새 기록 입력 화면을 거치지 않고 이 화면에서 바로 저장)
         # 한국 종목(SNAPSHOT_STOCKS)만 대상으로 한다 — 미국 종목은 여기 나오지 않는다.
@@ -5022,15 +5024,6 @@ with tab_us:
             },
         )
 
-    _render_market_naver_news_panel(
-        "US",
-        US_SNAPSHOT_STOCKS,
-        "📰 미국장 최근 뉴스 자동 확인",
-        "us_naver_news_check_button",
-        "us_naver_news_results",
-        "us_naver_news_checked_at",
-    )
-
     _us_today_loss_r = st.session_state.get("risk_today_loss_r", 0.0)
     if _us_today_loss_r <= -2:
         st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
@@ -5138,6 +5131,17 @@ with tab_us:
             ),
             width="stretch",
             hide_index=True,
+        )
+
+    with st.expander("참고자료 · 뉴스", expanded=False):
+        st.caption("종목 판단을 보조하는 참고자료입니다. 펼친 뒤 버튼을 눌렀을 때만 조회합니다.")
+        _render_market_naver_news_panel(
+            "US",
+            US_SNAPSHOT_STOCKS,
+            "📰 미국장 최근 뉴스 자동 확인",
+            "us_naver_news_check_button",
+            "us_naver_news_results",
+            "us_naver_news_checked_at",
         )
 
     with st.expander("리스크 관리 설정(v1.1) — 필요할 때 펼치기", expanded=False):
