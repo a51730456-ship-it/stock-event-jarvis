@@ -2,6 +2,7 @@
 
 import math
 import functools
+import html
 import logging
 import re
 import sqlite3
@@ -2229,7 +2230,7 @@ def _render_market_overview(market):
     button_key = f"{prefix}_market_overview_load"
     title = "오늘 한국장 한눈에" if market == "KR" else "오늘 미국장 한눈에"
     st.markdown(f"<div style='font-size:26px;font-weight:800;margin:0 0 10px 0'>{title}</div>", unsafe_allow_html=True)
-    st.caption("최근 조회값 또는 최근 완료 거래일 기준 · 가격 지연 가능 · 뉴스 발행시각 기준")
+    st.markdown("<div style='font-size:16px;line-height:1.5;color:#CBD5E1;margin-bottom:8px'>최근 조회값 또는 최근 완료 거래일 기준 · 가격 지연 가능 · 뉴스 발행시각 기준</div>", unsafe_allow_html=True)
     if st.button("오늘 한국장 자료 불러오기" if market == "KR" else "오늘 미국장 자료 불러오기", key=button_key):
         st.session_state[result_key] = _fetch_market_overview(market)
         st.session_state[checked_key] = st.session_state[result_key]["checked_at"]
@@ -2250,45 +2251,51 @@ def _render_market_overview(market):
             card_parts = [
                 "<div style='background:#171a21;border:1px solid #303642;border-radius:10px;"
                 "padding:14px 14px 12px 14px;min-height:128px'>",
-                f"<div style='font-size:15px;font-weight:800;color:#dbeafe;margin-bottom:8px'>{card['label']}</div>",
+                f"<div style='font-size:16px;line-height:1.5;font-weight:800;color:#dbeafe;margin-bottom:8px'>{card['label']}</div>",
             ]
             for item in card["items"]:
                 if item["status"] != "정상":
-                    card_parts.append(f"<div style='font-size:20px;font-weight:800;color:#f3f4f6'>{item['label']}: 확인 불가</div>")
+                    card_parts.append(
+                        f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item['label']}</div>"
+                        "<div style='font-size:20px;line-height:1.5;font-weight:800;color:#f3f4f6'>확인 불가</div>"
+                    )
                 else:
                     unit = "%" if item["label"] == "미국 10년물" else ""
                     change = item["change_pct"]
                     change_color = "#22c55e" if change is not None and change > 0 else "#f87171" if change is not None and change < 0 else "#d1d5db"
                     change_text = "확인 불가" if change is None else _fmt_signed_pct(change)
                     card_parts.append(
-                        f"<div style='font-size:20px;font-weight:800;color:#f9fafb;line-height:1.25'>{item['label']}: {item['current']:,.2f}{unit}</div>"
-                        f"<div style='font-size:13px;color:{change_color};margin-top:4px'>전일 대비 등락률 {change_text}</div>"
+                        f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item['label']}</div>"
+                        f"<div style='font-size:20px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
+                        f"<div style='font-size:15px;line-height:1.5;color:{change_color};margin-top:4px'>전일 대비 등락률 {change_text}</div>"
                     )
             card_parts.append("</div>")
             st.markdown("".join(card_parts), unsafe_allow_html=True)
-    st.markdown("**시장 주요 뉴스 후보**")
-    st.caption("네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.")
+    st.markdown("<div style='font-size:19px;line-height:1.5;font-weight:800;margin-top:14px'>시장 주요 뉴스 후보</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:15px;line-height:1.5;color:#CBD5E1'>네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.</div>", unsafe_allow_html=True)
     if not result["news"] and result.get("news_failed"):
-        st.caption("시장 주요 뉴스 후보: 확인 불가")
+        st.markdown("<div style='font-size:15px;line-height:1.5;color:#CBD5E1'>시장 주요 뉴스 후보: 확인 불가</div>", unsafe_allow_html=True)
     for item in result["news"][:3]:
         hostname = urlparse(str(item.get("originallink") or item.get("link") or "")).hostname
         link = item.get("originallink") or item.get("link")
         title = item.get("title") or "-"
-        title_markdown = f"[{title}]({link})" if link else title
-        st.markdown(f"- {title_markdown}")
+        title_html = html.escape(title)
+        title_markdown = f"<a href='{html.escape(str(link), quote=True)}' target='_blank'>{title_html}</a>" if link else title_html
+        st.markdown(f"<div style='font-size:17px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:8px'>• {title_markdown}</div>", unsafe_allow_html=True)
         source = f" · 원문 도메인: {hostname}" if hostname else ""
-        st.caption(f"{item.get('pub_date') or '-'}{source}")
+        st.markdown(f"<div style='font-size:15px;line-height:1.5;color:#CBD5E1'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
     if len(result["news"]) > 3:
         with st.expander("시장 주요 뉴스 후보 더 보기", expanded=False):
             for item in result["news"][3:10]:
                 link = item.get("originallink") or item.get("link")
                 title = item.get("title") or "-"
-                title_markdown = f"[{title}]({link})" if link else title
+                title_html = html.escape(title)
+                title_markdown = f"<a href='{html.escape(str(link), quote=True)}' target='_blank'>{title_html}</a>" if link else title_html
                 hostname = urlparse(str(link or "")).hostname
                 source = f" · 원문 도메인: {hostname}" if hostname else ""
-                st.markdown(f"- {title_markdown}")
-                st.caption(f"{item.get('pub_date') or '-'}{source}")
-    st.caption(f"최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준")
+                st.markdown(f"<div style='font-size:17px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:8px'>• {title_markdown}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:15px;line-height:1.5;color:#CBD5E1'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:15px;line-height:1.5;color:#CBD5E1;margin-top:8px'>최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준</div>", unsafe_allow_html=True)
 
 
 def _get_snapshot_value(ticker, field):

@@ -90,6 +90,12 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertIn("시장 주요 뉴스 후보", SOURCE)
         self.assertIn("원문 도메인", SOURCE)
         render_source = SOURCE[SOURCE.index("def _render_market_overview"):SOURCE.index("def _get_snapshot_value")]
+        for size in ("font-size:26px", "font-size:20px", "font-size:18px", "font-size:17px", "font-size:16px", "font-size:15px"):
+            self.assertIn(size, render_source)
+        self.assertIn("#CBD5E1", render_source)
+        self.assertIn("-webkit-line-clamp:2", render_source)
+        self.assertNotIn("원문 보기", render_source)
+        render_source = SOURCE[SOURCE.index("def _render_market_overview"):SOURCE.index("def _get_snapshot_value")]
         self.assertNotIn("실시간", render_source)
 
     def test_no_market_fetch_before_button(self):
