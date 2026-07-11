@@ -13,14 +13,15 @@ TIMEOUT = 10
 ENDPOINT = "https://openapi.naver.com/v1/search/news.json"
 _TAG_RE = re.compile(r"<[^>]*>")
 
-_MATERIALITY_RULES = (
-    ("실적", ("실적", "매출", "영업이익", "순이익", "흑자", "적자", "전망", "가이던스")),
-    ("수주·계약", ("수주", "공급계약", "계약 체결", "납품", "공급", "선정")),
-    ("투자·M&A", ("투자", "인수", "합병", "매각", "분할", "증설")),
-    ("주주환원·자본", ("배당", "자사주", "유상증자", "무상증자", "감자", "최대주주", "지분")),
-    ("규제·법적위험", ("조사", "제재", "소송", "리콜", "사고", "횡령", "배임", "압수수색")),
-    ("제품·기술", ("출시", "승인", "특허", "개발", "양산")),
+_DIRECT_RULES = (
+    ("실적", ("실적 발표", "매출 증가", "매출 감소", "매출 발표", "영업이익", "순이익", "흑자전환", "적자전환", "실적 전망 상향", "실적 전망 하향", "가이던스 발표", "가이던스 변경")),
+    ("수주·계약", ("수주", "공급계약", "납품계약", "계약 체결", "공급사 선정", "우선협상대상자 선정")),
+    ("투자·M&A", ("시설투자 결정", "공장 증설", "설비 증설", "타법인 지분 투자", "지분 투자", "인수 결정", "기업 인수", "합병 결정", "사업 매각", "자산 매각", "회사 분할", "투자 결정")),
+    ("주주환원·자본", ("배당 결정", "자사주 취득", "자사주 처분", "자사주 소각", "유상증자", "무상증자", "감자", "최대주주 변경", "지분 취득", "지분 매각")),
+    ("규제·법적위험", ("조사", "제재", "소송", "리콜", "사고", "횡령", "배임", "압수수색", "거래정지", "상장폐지")),
+    ("제품·기술", ("신제품 출시", "품목허가", "규제기관 승인", "특허 취득", "개발 완료", "양산 시작", "임상 주요 결과")),
 )
+_WEAK_KEYWORDS = ("실적", "매출", "전망", "가이던스", "공급", "선정", "투자", "인수", "배당", "지분", "조사", "제재", "소송", "출시", "승인", "개발", "양산")
 
 
 def _result(status, status_code, data=None, message=""):
@@ -37,40 +38,53 @@ def _clean_text(value):
 
 
 def classify_news_materiality(news_item, company_name, ticker=""):
-    """Classify a news item by explicit keywords without inferring direction."""
+    """Classify direct company events without inferring sentiment or price direction."""
     title = str(news_item.get("title") or "")
     description = str(news_item.get("description") or "")
-    def matches(text):
-        found = []
-        for category, keywords in _MATERIALITY_RULES:
-            for keyword in keywords:
-                if keyword == "공급" and "공급계약" not in text and not any(
-                    context in text for context in ("계약", "납품", "수주")
-                ):
-                    continue
-                if keyword in text:
-                    found.append((category, keyword, text.find(keyword)))
-        return found
+    company = str(company_name or "").strip()
+    symbol = str(ticker or "").strip()
 
-    title_matches = matches(title)
-    description_matches = matches(description)
-    chosen_matches = title_matches or description_matches
-    if not chosen_matches:
-        return {"level": "일반 참고", "category": "기타", "matched_keywords": [], "reason": "제목·설명에 중요 재료 키워드가 없습니다."}
+    def has_subject(text):
+        return bool(company and company in text) or bool(symbol and symbol in text)
 
-    # 제목에 여러 범주가 있으면 고정된 우선순위를 사용해 배열 순서 의존을 피한다.
-    category = next(category for category, _ in _MATERIALITY_RULES if any(match[0] == category for match in chosen_matches))
-    matches = []
-    for _, keyword, _ in sorted(chosen_matches, key=lambda match: (match[2], match[1])):
-        if keyword not in matches:
-            matches.append(keyword)
-    field_name = "제목" if title_matches else "설명"
-    return {
-        "level": "중요 재료",
-        "category": category,
-        "matched_keywords": matches,
-        "reason": f"{field_name}에서 {', '.join(matches)} 키워드가 일치했습니다.",
-    }
+    def direct_matches(text):
+        if not has_subject(text):
+            return []
+        return [
+            (category, phrase, text.find(phrase))
+            for category, phrases in _DIRECT_RULES
+            for phrase in phrases
+            if phrase in text
+        ]
+
+    title_matches = direct_matches(title)
+    description_matches = direct_matches(description)
+    chosen = title_matches or description_matches
+    if chosen:
+        # 고정 우선순위로 범주를 결정하고, 실제 일치 문구는 모두 사용자에게 남긴다.
+        category = next(category for category, _ in _DIRECT_RULES if any(match[0] == category for match in chosen))
+        matched = []
+        for _, phrase, position in sorted(chosen, key=lambda match: (match[2], match[1])):
+            if phrase not in matched:
+                matched.append(phrase)
+        field_name = "제목" if title_matches else "설명"
+        return {"level": "중요 재료", "category": category, "matched_keywords": matched, "reason": f"{field_name}에서 회사 직접 사건 문구 '{matched[0]}'가 일치했습니다."}
+
+    weak_matches = [keyword for keyword in _WEAK_KEYWORDS if keyword in title or keyword in description]
+    context_text = f"{title} {description}"
+    if any(word in context_text for word in ("ETF", "ETN", "펀드", "투자상품")):
+        reason = "ETF·펀드·투자상품 문맥으로 직접적인 회사 투자 결정이 아닙니다."
+    elif any(word in context_text for word in ("목표주가", "주가 전망", "차트", "급등주", "급락주")):
+        reason = "주가·차트 전망 문맥으로 회사의 직접 사건이 아닙니다."
+    elif any(word in context_text for word in ("정치인", "헌법소원", "국회", "정당", "정치", "발언")):
+        reason = "정치·정책 문맥의 기업 언급으로 직접 사건이 아닙니다."
+    elif any(word in context_text for word in ("IPO", "비교", "관련", "연관")):
+        reason = "다른 회사가 주인공인 비교·연관 언급 기사입니다."
+    elif weak_matches:
+        reason = "중요 키워드는 있으나 회사 직접 사건 문구가 없어 일반 참고로 분류했습니다."
+    else:
+        reason = "회사 직접 사건을 확인할 수 없어 일반 참고로 분류했습니다."
+    return {"level": "일반 참고", "category": "기타", "matched_keywords": weak_matches, "reason": reason}
 
 
 def _normalize_pub_date(value):

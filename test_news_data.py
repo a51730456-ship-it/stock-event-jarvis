@@ -16,20 +16,20 @@ def response(payload, status=200):
 class NewsDataTests(unittest.TestCase):
     def test_materiality_categories_and_title_priority(self):
         cases = [
-            ({"title": "기업 실적 발표", "description": ""}, "실적"),
-            ({"title": "기업 소식", "description": "영업이익 전망 공개"}, "실적"),
-            ({"title": "대형 공급계약 체결", "description": ""}, "수주·계약"),
-            ({"title": "신규 투자 및 인수", "description": ""}, "투자·M&A"),
-            ({"title": "배당·자사주 정책", "description": ""}, "주주환원·자본"),
-            ({"title": "당국 조사 및 소송", "description": ""}, "규제·법적위험"),
-            ({"title": "신제품 출시와 특허", "description": ""}, "제품·기술"),
+            ({"title": "테스트기업 실적 발표", "description": ""}, "실적"),
+            ({"title": "테스트기업 소식", "description": "테스트기업 영업이익 전망 공개"}, "실적"),
+            ({"title": "테스트기업 대형 공급계약 체결", "description": ""}, "수주·계약"),
+            ({"title": "테스트기업 신규 투자 및 인수 결정", "description": ""}, "투자·M&A"),
+            ({"title": "테스트기업 배당 결정·자사주 소각", "description": ""}, "주주환원·자본"),
+            ({"title": "테스트기업 당국 조사 및 소송", "description": ""}, "규제·법적위험"),
+            ({"title": "테스트기업 신제품 출시와 특허 취득", "description": ""}, "제품·기술"),
         ]
         for item, category in cases:
             result = n.classify_news_materiality(item, "테스트기업", "000000")
             self.assertEqual(result["level"], "중요 재료")
             self.assertEqual(result["category"], category)
             self.assertTrue(result["matched_keywords"])
-        title_first = n.classify_news_materiality({"title": "매출 확대", "description": "대형 수주"}, "기업")
+        title_first = n.classify_news_materiality({"title": "기업 매출 증가", "description": "기업 대형 수주"}, "기업")
         self.assertEqual(title_first["category"], "실적")
 
     def test_materiality_general_mentions_and_neutral_reason(self):
@@ -42,10 +42,29 @@ class NewsDataTests(unittest.TestCase):
             self.assertEqual(result["level"], "일반 참고")
             self.assertEqual(result["category"], "기타")
         result = n.classify_news_materiality({"title": "기업 실적 발표", "description": "흑자 전환"}, "기업")
-        self.assertIn("실적", result["matched_keywords"])
+        self.assertIn("실적 발표", result["matched_keywords"])
         self.assertIn("제목", result["reason"])
         self.assertNotIn("긍정", result["reason"])
         self.assertNotIn("부정", result["reason"])
+
+    def test_real_false_positive_cases_are_general(self):
+        cases = [
+            ("테슬라, 스페이스X 제외한 ETF 뺏다…'반 머스크' 투자상품 등장", "테슬라", "테슬라 투자 단어가 포함된 설명"),
+            ("장동혁 일몰법·성역법 헌법소원 할 것", "삼성전자", "삼성전자와 SK하이닉스 투자 논쟁이 이어졌다"),
+            ("테슬라 주가 전망과 차트 분석", "테슬라", "목표주가와 차트 흐름 전망"),
+            ("스페이스X IPO, 테슬라와 비교되나", "테슬라", "스페이스X가 주인공인 IPO 기사"),
+        ]
+        for title, company, description in cases:
+            result = n.classify_news_materiality({"title": title, "description": description}, company)
+            self.assertEqual(result["level"], "일반 참고", title)
+
+    def test_direct_company_events_survive_exclusion_words(self):
+        result = n.classify_news_materiality({"title": "삼성전자, ETF 운용사 인수 결정", "description": ""}, "삼성전자")
+        self.assertEqual((result["level"], result["category"]), ("중요 재료", "투자·M&A"))
+        result = n.classify_news_materiality({"title": "삼성전자 소식", "description": "삼성전자 시설투자 결정 발표"}, "삼성전자")
+        self.assertEqual((result["level"], result["category"]), ("중요 재료", "투자·M&A"))
+        result = n.classify_news_materiality({"title": "삼성전자 소식", "description": "삼성전자 투자 확대 전망"}, "삼성전자")
+        self.assertEqual(result["level"], "일반 참고")
 
     def test_materiality_does_not_mutate_original_news_item(self):
         item = {"title": "기업 수주 발표", "description": "원본 설명", "link": "https://example"}
