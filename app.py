@@ -5,6 +5,7 @@ import functools
 import logging
 import re
 import sqlite3
+from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -2061,6 +2062,164 @@ US_SNAPSHOT_STOCKS = [
     {"name": "NVDA", "ticker": "NVDA", "sector": "미국-반도체"},
     {"name": "MSFT", "ticker": "MSFT", "sector": "미국-빅테크"},
 ]
+
+
+MARKET_OVERVIEW_MIN_SIGNALS = 3
+MARKET_OVERVIEW_PRICE_SPECS = {
+    "KR": [
+        ("KOSPI·KOSDAQ", ("KOSPI", "^KS11"), ("KOSDAQ", "^KQ11")),
+        ("달러/원", ("달러/원", "KRW=X")),
+        ("반도체", ("SOXX", "SOXX"), ("SMH", "SMH")),
+        ("나스닥100 선물", ("나스닥100 선물", "NQ=F")),
+    ],
+    "US": [
+        ("S&P500·Nasdaq", ("S&P500", "^GSPC"), ("Nasdaq", "^IXIC")),
+        ("미국 10년물", ("미국 10년물", "^TNX")),
+        ("VIX", ("VIX", "^VIX")),
+        ("반도체", ("SOXX", "SOXX"), ("SMH", "SMH")),
+    ],
+}
+MARKET_OVERVIEW_NEWS_QUERIES = {
+    "KR": ("코스피 코스닥 증시", "원달러 환율 외국인 기관"),
+    "US": ("미국 증시 나스닥 S&P500", "연준 미국 국채금리 반도체"),
+}
+
+
+def _market_overview_status(market, signal_changes):
+    """Return a neutral four-state market summary from already fetched changes."""
+    changes = [value for value in signal_changes.values() if isinstance(value, (int, float)) and math.isfinite(value)]
+    if len(changes) < MARKET_OVERVIEW_MIN_SIGNALS:
+        return "자료 부족", "[규칙 해석] 평가 가능한 시장 신호가 부족해 추가 확인이 필요합니다."
+    positive = sum(value > 0 for value in changes)
+    negative = sum(value < 0 for value in changes)
+    if positive > negative:
+        return "우호", "[규칙 해석] 긍정 신호가 상대적으로 우세해 시장 흐름을 확인할 수 있습니다."
+    if negative > positive:
+        return "경계", "[규칙 해석] 부정 신호가 상대적으로 우세해 시장 확인이 우선입니다."
+    return "혼조", "[규칙 해석] 긍정·부정 신호가 엇갈려 시장 확인이 우선입니다."
+
+
+def _dedup_market_overview_news(rows):
+    """Deduplicate market-news candidates by URL identity and normalized title."""
+    seen_urls = set()
+    seen_titles = set()
+    result = []
+    for row in sorted(rows or [], key=lambda item: item.get("pub_date") or "", reverse=True):
+        title = " ".join(str(row.get("title") or "").split()).strip()
+        url = str(row.get("originallink") or row.get("link") or "").strip()
+        identity = url or title
+        if not identity or url in seen_urls or title in seen_titles:
+            continue
+        if url:
+            seen_urls.add(url)
+        if title:
+            seen_titles.add(title)
+        result.append({**row, "title": title})
+    return result
+
+
+def _market_overview_price_item(label, ticker, result):
+    if not result or not result.get("ok"):
+        return {"label": label, "ticker": ticker, "status": "확인 불가", "current": None, "change_pct": None}
+    current = result.get("current")
+    previous = result.get("prev_close")
+    change_pct = _safe_pct_diff(current, previous)
+    if not isinstance(current, (int, float)) or not math.isfinite(current) or current <= 0:
+        return {"label": label, "ticker": ticker, "status": "확인 불가", "current": None, "change_pct": None}
+    return {"label": label, "ticker": ticker, "status": "정상", "current": current, "change_pct": change_pct}
+
+
+def _fetch_market_overview(market):
+    rows = []
+    signal_changes = {}
+    for card in MARKET_OVERVIEW_PRICE_SPECS[market]:
+        card_items = []
+        for label, ticker in card[1:]:
+            try:
+                item = _market_overview_price_item(label, ticker, price_data.get_snapshot_defaults(ticker))
+            except Exception:
+                item = _market_overview_price_item(label, ticker, None)
+            card_items.append(item)
+        valid_changes = [item["change_pct"] for item in card_items if item["change_pct"] is not None]
+        if valid_changes:
+            signal_value = sum(valid_changes) / len(valid_changes)
+            if (market == "KR" and card[0] == "달러/원") or (
+                market == "US" and card[0] in ("미국 10년물", "VIX")
+            ):
+                signal_value = -signal_value
+            signal_changes[card[0]] = signal_value
+        rows.append({"label": card[0], "items": card_items})
+
+    news_rows = []
+    news_failed = 0
+    client_id = st.secrets.get("NAVER_CLIENT_ID")
+    client_secret = st.secrets.get("NAVER_CLIENT_SECRET")
+    for query in MARKET_OVERVIEW_NEWS_QUERIES[market]:
+        try:
+            result = news_data.fetch_naver_news(client_id, client_secret, query, display=10, sort="date")
+            if result.get("status") in ("정상", "데이터 없음"):
+                recent = _recent_naver_news_items(result.get("data", []))
+                news_rows.extend(recent)
+            else:
+                news_failed += 1
+        except Exception:
+            news_failed += 1
+    return {
+        "market": market,
+        "price_cards": rows,
+        "news": _dedup_market_overview_news(news_rows),
+        "news_failed": news_failed,
+        "status": _market_overview_status(market, signal_changes),
+        "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def _render_market_overview(market):
+    prefix = market.lower()
+    result_key = f"{prefix}_market_overview_result"
+    checked_key = f"{prefix}_market_overview_checked_at"
+    button_key = f"{prefix}_market_overview_load"
+    title = "오늘 한국장 한눈에" if market == "KR" else "오늘 미국장 한눈에"
+    st.markdown(f"<div style='font-size:26px;font-weight:800;margin:0 0 10px 0'>{title}</div>", unsafe_allow_html=True)
+    st.caption("최근 조회값 또는 최근 완료 거래일 기준 · 가격 지연 가능 · 뉴스 발행시각 기준")
+    if st.button("오늘 한국장 자료 불러오기" if market == "KR" else "오늘 미국장 자료 불러오기", key=button_key):
+        st.session_state[result_key] = _fetch_market_overview(market)
+        st.session_state[checked_key] = st.session_state[result_key]["checked_at"]
+    result = st.session_state.get(result_key)
+    if not result:
+        st.info("버튼을 눌러 시장 자료를 확인하세요. 앱 실행만으로 외부 조회는 하지 않습니다.")
+        return
+    state, explanation = result["status"]
+    state_colors = {"우호": "#15803D", "혼조": "#1D4ED8", "경계": "#D97706", "자료 부족": "#6B7280"}
+    st.markdown(
+        f"<div style='color:{state_colors[state]};font-size:20px;font-weight:800'>상태: {state}</div>"
+        f"<div style='font-size:18px;font-weight:700;margin:4px 0 12px 0'>{explanation}</div>",
+        unsafe_allow_html=True,
+    )
+    card_columns = st.columns(4)
+    for column, card in zip(card_columns, result["price_cards"]):
+        with column:
+            st.markdown(f"**{card['label']}**")
+            for item in card["items"]:
+                if item["status"] != "정상":
+                    st.caption(f"{item['label']}: 확인 불가")
+                else:
+                    st.caption(f"{item['label']}: {item['current']:,.2f} ({_fmt_signed_pct(item['change_pct'])})")
+    st.markdown("**시장 주요 뉴스 후보**")
+    st.caption("네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.")
+    if not result["news"] and result.get("news_failed"):
+        st.caption("시장 주요 뉴스 후보: 확인 불가")
+    for item in result["news"][:3]:
+        hostname = urlparse(str(item.get("originallink") or item.get("link") or "")).hostname
+        source = f" · 원문 도메인: {hostname}" if hostname else ""
+        st.markdown(f"- {item.get('title') or '-'} · {item.get('pub_date') or '-'}{source}")
+        if item.get("originallink") or item.get("link"):
+            st.markdown(f"  [원문 보기]({item.get('originallink') or item.get('link')})")
+    if len(result["news"]) > 3:
+        with st.expander("시장 주요 뉴스 후보 더 보기", expanded=False):
+            for item in result["news"][3:10]:
+                st.markdown(f"- {item.get('title') or '-'} · {item.get('pub_date') or '-'}")
+    st.caption(f"최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준")
 
 
 def _get_snapshot_value(ticker, field):
@@ -4224,6 +4383,7 @@ def _render_risk_plan_preview(stock_name, ticker, risk_fields):
 
 
 with tab_kr:
+    _render_market_overview("KR")
     st.subheader("한국장")
     _render_kr_fable_mockup1_preview()
     st.markdown("---")
@@ -5004,6 +5164,7 @@ with tab_kr:
                 st.rerun()
 
 with tab_us:
+    _render_market_overview("US")
     st.subheader("미국장")
     st.caption(
         "스윙 전용 흐름(TSLA, AMD, AVGO, META, GOOGL, AAPL, NVDA, MSFT). 한국 종목은 다루지 않으며, "
