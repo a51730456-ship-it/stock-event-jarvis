@@ -1806,10 +1806,9 @@ def _render_today_progress_status_strip():
 
 _render_today_progress_status_strip()
 
-tab_kr, tab_us, tab_action, tab_review, tab_perf, tab_today, tab_archive, tab_paste, tab_next, tab_guide = st.tabs(
+tab_kr, tab_us, tab_action, tab_review, tab_saved, tab_aux = st.tabs(
     [
-        "🇰🇷 한국장 먼저 확인", "🇺🇸 미국장 스윙 확인", "③ 실제 행동·거래 종료", "④ 복기·통계", "저장 결과 확인", "오늘 저장 요약",
-        "지난 기록 보기", "수동 기록 입력", "추가 기능", "사용법",
+        "① 한국장 판단", "② 미국장 판단", "③ 행동·청산", "④ 복기·통계", "⑤ 기록 조회", "⑥ 보조",
     ]
 )
 
@@ -2981,293 +2980,307 @@ def _render_performance_data_load_gate(button_key):
         st.rerun()
     return False
 
-with tab_today:
-    st.subheader("오늘 저장 요약")
-    st.info(
-        "이 화면은 오늘 저장된 기록을 관점별로 다시 보여주는 화면입니다.\n"
-        "증시 전체 요약 화면이 아닙니다.\n"
-        "먼저 🇰🇷 한국장 먼저 확인 또는 🇺🇸 미국장 스윙 확인에서 계산 후 저장해야 오늘 저장 요약과 지난 기록에 반영됩니다."
+with tab_saved:
+    _saved_view = st.radio(
+        "기록 조회 화면",
+        ["저장 결과", "오늘 요약", "지난 기록"],
+        horizontal=True,
+        key="saved_view_selector",
     )
-
-    latest = db.get_latest_report()
-    if latest is None:
-        st.info("저장된 기록이 없습니다.")
-    else:
-        render_report_detail(latest)
-
-with tab_paste:
-    st.subheader("새 기록 입력")
-
-    st.session_state.setdefault("form_version", 0)
-    st.session_state.setdefault("draft_items", [])
-    st.session_state.setdefault("item_seq", 0)
-
-    fv = st.session_state.form_version
-
-    with st.expander("쉽게 붙여넣는 입력칸 (입력 내용 정리)", expanded=False):
-        st.caption(
-            "[기본]/[오늘의 결론]/[종목] 형식으로 통째로 붙여넣고 '입력 내용 정리'를 누르면 "
-            "시장·판단 시점·오늘 요약·종목별 기록이 한 번에 채워집니다. "
-            "입력 형식의 '시장 범위:', '브리핑 단계:', '신호 분류:', '[오늘의 결론]' 표기는 "
-            "그대로 입력해야 인식됩니다. "
-            "종목 줄 구분자는 '/' 이며 세 형식을 지원합니다: "
-            "6개 필드(기존) = 종목명 / 종목코드 / 시장 / 판정 / 신호 종류 / 판단 이유, "
-            "7개 필드(신규, 매매유형 포함) = 종목명 / 종목코드 / 시장 / 매매유형 / 판정 / 신호 종류 / 판단 이유, "
-            "13개 필드(확장, 판단 설명 포함) = 위 7개 필드 + 점수 / 점수 근거 / 1순위 후보 근거 / "
-            "감점 이유 / 매수 확정 여부 / 매수 확정 조건."
+if _saved_view == "오늘 요약":
+        st.subheader("오늘 저장 요약")
+        st.info(
+            "이 화면은 오늘 저장된 기록을 관점별로 다시 보여주는 화면입니다.\n"
+            "증시 전체 요약 화면이 아닙니다.\n"
+            "먼저 🇰🇷 한국장 먼저 확인 또는 🇺🇸 미국장 스윙 확인에서 계산 후 저장해야 오늘 저장 요약과 지난 기록에 반영됩니다."
         )
-        quick_text = st.text_area(
-            "쉽게 붙여넣는 입력칸",
-            key=f"quick_text_{fv}",
-            height=220,
-            placeholder=(
-                "[기본]\n시장 범위: KR\n브리핑 단계: 08:30 개장 전 예측\n신호 분류: 재확인 신호\n\n"
-                "[오늘의 결론]\n...\n\n[종목]\n"
-                "삼성전자 / 005930.KS / KR / 추천 후보 / 재확인 신호 / 실적 기대\n"
-                "삼성전자 / 005930.KS / KR / 단타 / 보류(선반영) / 재확인 신호 / 장중 고점 대비 밀림"
-            ),
-        )
-        if st.button("입력 내용 정리", key=f"quick_fill_{fv}"):
-            parsed = parse_quick_text(quick_text)
 
-            if parsed["market_scope"]:
-                st.session_state[f"market_scope_{fv}"] = parsed["market_scope"]
-            if parsed["briefing_stage"]:
-                st.session_state[f"briefing_stage_{fv}"] = parsed["briefing_stage"]
-            st.session_state[f"day_conclusion_{fv}"] = parsed["day_conclusion"]
-            st.session_state[f"raw_briefing_{fv}"] = quick_text
-
-            st.session_state.draft_items = []
-            for item in parsed["items"]:
-                st.session_state.item_seq += 1
-                item_id = st.session_state.item_seq
-                st.session_state.draft_items.append(item_id)
-                prefix = f"item_{fv}_{item_id}_"
-                st.session_state[prefix + "event_title"] = item["event_title"]
-                st.session_state[prefix + "ticker"] = item["ticker"]
-                st.session_state[prefix + "stock_name"] = item["stock_name"]
-                st.session_state[prefix + "market"] = item["market"]
-                st.session_state[prefix + "item_timing_class"] = "(미지정)"
-                st.session_state[prefix + "trade_mode"] = item["trade_mode"]
-                st.session_state[prefix + "verdict"] = item["verdict"]
-                st.session_state[prefix + "signal_type"] = item["signal_type"]
-                st.session_state[prefix + "score"] = item["score"] or 0.0
-                st.session_state[prefix + "score_reason"] = item["score_reason"] or ""
-                st.session_state[prefix + "top_candidate_reason"] = item["top_candidate_reason"] or ""
-                st.session_state[prefix + "penalty_reason"] = item["penalty_reason"] or ""
-                st.session_state[prefix + "buy_confirmed"] = item["buy_confirmed"]
-                st.session_state[prefix + "buy_confirm_condition"] = item["buy_confirm_condition"]
-
-            st.session_state[f"quick_fill_count_{fv}"] = len(parsed["items"])
-            st.session_state[f"quick_fill_warnings_{fv}"] = parsed["warnings"]
-            st.rerun()
-
-        if st.session_state.get(f"quick_fill_count_{fv}") is not None:
-            st.success(f"입력 내용 정리 완료: 종목별 기록 {st.session_state[f'quick_fill_count_{fv}']}개 생성됨")
-        for w in st.session_state.get(f"quick_fill_warnings_{fv}", []):
-            st.warning(w)
-
-    st.markdown("---")
-
-    market_scope = st.selectbox(
-        "시장", db.MARKET_SCOPE_CHOICES, key=f"market_scope_{fv}"
-    )
-    briefing_stage = st.selectbox(
-        "판단 시점", db.BRIEFING_STAGE_CHOICES, key=f"briefing_stage_{fv}"
-    )
-    day_conclusion = st.text_area(
-        "오늘 요약",
-        key=f"day_conclusion_{fv}",
-        placeholder="예: 오늘은 추천 종목 없음. 관망 권장.",
-    )
-    raw_briefing = st.text_area(
-        "판단 근거", key=f"raw_briefing_{fv}", height=200
-    )
-    st.caption("장 구분은 저장 시각을 기준으로 자동으로 정해집니다. 직접 입력하지 않습니다.")
-
-    st.markdown("---")
-
-    items_data = []
-    remove_id = None
-    with st.expander(
-        f"고급 수동 입력 ({len(st.session_state.draft_items)}개 종목별 기록, 0개도 저장 가능)",
-        expanded=False,
-    ):
-        st.caption("쉽게 붙여넣는 입력칸으로 자동 채운 종목도 여기서 직접 수정/추가/삭제할 수 있습니다.")
-
-        if st.button("+ 종목별 기록 추가", key=f"add_item_{fv}"):
-            st.session_state.item_seq += 1
-            st.session_state.draft_items.append(st.session_state.item_seq)
-            st.rerun()
-
-        for item_id in st.session_state.draft_items:
-            prefix = f"item_{fv}_{item_id}_"
-
-            title_trade_mode = st.session_state.get(prefix + "trade_mode", "공통")
-            title_stock_name = (
-                st.session_state.get(prefix + "stock_name")
-                or st.session_state.get(prefix + "ticker")
-                or f"기록 #{item_id}"
-            )
-            title_verdict_raw = st.session_state.get(prefix + "verdict", db.VERDICT_CHOICES[0])
-            title_event = st.session_state.get(prefix + "event_title", "")
-            card_title = f"{_trade_mode_badge(title_trade_mode)} {_verdict_badge(title_verdict_raw)} {title_stock_name}"
-            if title_event:
-                card_title += f" - {title_event}"
-
-            with st.expander(card_title, expanded=False):
-                header_col, del_col = st.columns([6, 1])
-                header_col.markdown(f"종목별 기록 #{item_id}")
-                if del_col.button("삭제", key=prefix + "delete"):
-                    remove_id = item_id
-
-                c1, c2, c3 = st.columns(3)
-                event_title = c1.text_input("판단 이유", key=prefix + "event_title")
-                ticker = c2.text_input("종목코드", key=prefix + "ticker")
-                stock_name = c3.text_input("종목명", key=prefix + "stock_name")
-
-                c4, c5 = st.columns(2)
-                market = c4.selectbox("시장", db.ITEM_MARKET_CHOICES, key=prefix + "market")
-                item_timing_class_raw = c5.selectbox(
-                    "항목 장 구분 (선택)",
-                    ["(미지정)"] + db.TIMING_CLASS_CHOICES,
-                    key=prefix + "item_timing_class",
-                )
-
-                st.caption("주식시장 근거")
-                b1, b2, b3 = st.columns(3)
-                basis_a = b1.text_input(
-                    "가격·수급 근거",
-                    key=prefix + "basis_a",
-                    placeholder="예: 장중 고점 대비 밀림, 시가 위/아래, 프로그램 매수/매도",
-                )
-                basis_b = b2.text_input(
-                    "거래대금·시총 근거",
-                    key=prefix + "basis_b",
-                    placeholder="예: 거래대금 강함, 시총 대비 거래대금 높음, 수급 탄력성",
-                )
-                basis_c = b3.text_input(
-                    "섹터·지수 근거",
-                    key=prefix + "basis_c",
-                    placeholder="예: 자동차 섹터 동반 강세, KOSPI 대비 강함, 반도체 약세",
-                )
-
-                st.caption("베팅시장(예측시장) 근거")
-                g1, g2, g3 = st.columns(3)
-                basis_ga = g1.text_input(
-                    "직접 예측시장 근거",
-                    key=prefix + "basis_ga",
-                    placeholder="예: Polymarket/Kalshi 확률 변화, 선거·금리·관세 이벤트 확률",
-                )
-                basis_na = g2.text_input(
-                    "간접 시장가격 근거",
-                    key=prefix + "basis_na",
-                    placeholder="예: 나스닥100 선물, SOXX/SMH, 달러원, 금리, 유가, 비트코인",
-                )
-                basis_da = g3.text_input(
-                    "이벤트·정책 근거",
-                    key=prefix + "basis_da",
-                    placeholder="예: 실적 발표, 수주, 정책 발표, 관세, 금리 이벤트",
-                )
-
-                j1, j2 = st.columns(2)
-                stock_judgment = j1.text_area("주식시장 판단", key=prefix + "stock_judgment")
-                betting_judgment = j2.text_area("베팅시장 판단", key=prefix + "betting_judgment")
-
-                st.caption("판단 설명 (점수/근거/매수 확정 — 비워두면 기본값으로 저장됩니다)")
-                p1, p2, p3 = st.columns(3)
-                score = p1.number_input("점수", value=0.0, step=1.0, key=prefix + "score")
-                score_reason = p2.text_input(
-                    "점수 근거", key=prefix + "score_reason", placeholder="예: 시가 위 유지 + 거래대금 증가"
-                )
-                top_candidate_reason = p3.text_input(
-                    "1순위 후보 근거", key=prefix + "top_candidate_reason", placeholder="예: 섹터 내 거래대금 우위"
-                )
-                p4, p5, p6 = st.columns(3)
-                penalty_reason = p4.text_input(
-                    "감점 이유", key=prefix + "penalty_reason", placeholder="예: 고점 대비 일부 밀림"
-                )
-                buy_confirmed = p5.selectbox(
-                    "매수 확정 여부", ["미확정", "확정"], key=prefix + "buy_confirmed"
-                )
-                buy_confirm_condition = p6.text_input(
-                    "매수 확정 조건", key=prefix + "buy_confirm_condition", placeholder="예: 종가 강세 유지 필요"
-                )
-
-                v1, v2, v3 = st.columns(3)
-                trade_mode = v1.selectbox(
-                    "매매유형", db.TRADE_MODE_CHOICES, key=prefix + "trade_mode"
-                )
-                verdict = v2.selectbox("판정", db.VERDICT_CHOICES, key=prefix + "verdict")
-                signal_type = v3.selectbox(
-                    "신호 종류", db.SIGNAL_TYPE_CHOICES, key=prefix + "signal_type"
-                )
-
-                items_data.append(
-                    {
-                        "event_title": event_title,
-                        "ticker": ticker,
-                        "stock_name": stock_name,
-                        "market": market,
-                        "item_timing_class": None if item_timing_class_raw == "(미지정)" else item_timing_class_raw,
-                        "stock_market_basis_a": basis_a,
-                        "stock_market_basis_b": basis_b,
-                        "stock_market_basis_c": basis_c,
-                        "betting_basis_ga": basis_ga,
-                        "betting_basis_na": basis_na,
-                        "betting_basis_da": basis_da,
-                        "stock_market_judgment": stock_judgment,
-                        "betting_market_judgment": betting_judgment,
-                        "verdict": verdict,
-                        "signal_type": signal_type,
-                        "trade_mode": trade_mode,
-                        "score": score or None,
-                        "score_reason": score_reason,
-                        "top_candidate_reason": top_candidate_reason,
-                        "penalty_reason": penalty_reason,
-                        "buy_confirmed": buy_confirmed,
-                        "buy_confirm_condition": buy_confirm_condition,
-                    }
-                )
-
-        if remove_id is not None:
-            st.session_state.draft_items.remove(remove_id)
-            st.rerun()
-
-    st.markdown("---")
-    if st.button("기록 저장", type="primary", key=f"save_{fv}"):
-        if not day_conclusion.strip():
-            st.error("오늘 요약을 입력해주세요.")
+        latest = db.get_latest_report()
+        if latest is None:
+            st.info("저장된 기록이 없습니다.")
         else:
-            final_raw_briefing = raw_briefing if raw_briefing.strip() else day_conclusion
-            items_to_save = [
-                item
-                for item in items_data
-                if (item.get("event_title") or "").strip()
-                or (item.get("ticker") or "").strip()
-                or (item.get("stock_name") or "").strip()
-            ]
-            report_id = db.save_report(
-                market_scope=market_scope,
-                day_conclusion=day_conclusion,
-                raw_briefing=final_raw_briefing,
-                items=items_to_save,
-                briefing_stage=briefing_stage,
+            render_report_detail(latest)
+
+with tab_aux:
+    _aux_view = st.radio(
+        "보조 화면",
+        ["수동 기록 입력", "추가 기능", "사용법"],
+        horizontal=True,
+        key="aux_view_selector",
+    )
+if _aux_view == "수동 기록 입력":
+        st.subheader("새 기록 입력")
+
+        st.session_state.setdefault("form_version", 0)
+        st.session_state.setdefault("draft_items", [])
+        st.session_state.setdefault("item_seq", 0)
+
+        fv = st.session_state.form_version
+
+        with st.expander("쉽게 붙여넣는 입력칸 (입력 내용 정리)", expanded=False):
+            st.caption(
+                "[기본]/[오늘의 결론]/[종목] 형식으로 통째로 붙여넣고 '입력 내용 정리'를 누르면 "
+                "시장·판단 시점·오늘 요약·종목별 기록이 한 번에 채워집니다. "
+                "입력 형식의 '시장 범위:', '브리핑 단계:', '신호 분류:', '[오늘의 결론]' 표기는 "
+                "그대로 입력해야 인식됩니다. "
+                "종목 줄 구분자는 '/' 이며 세 형식을 지원합니다: "
+                "6개 필드(기존) = 종목명 / 종목코드 / 시장 / 판정 / 신호 종류 / 판단 이유, "
+                "7개 필드(신규, 매매유형 포함) = 종목명 / 종목코드 / 시장 / 매매유형 / 판정 / 신호 종류 / 판단 이유, "
+                "13개 필드(확장, 판단 설명 포함) = 위 7개 필드 + 점수 / 점수 근거 / 1순위 후보 근거 / "
+                "감점 이유 / 매수 확정 여부 / 매수 확정 조건."
             )
-            st.success(f"기록 저장 완료: 종목별 기록 {len(items_to_save)}개 저장됨 (report_id={report_id})")
-            st.session_state["tab_paste_last_saved_id"] = report_id
-            st.session_state.draft_items = []
-            st.session_state.form_version += 1
-            st.rerun()
+            quick_text = st.text_area(
+                "쉽게 붙여넣는 입력칸",
+                key=f"quick_text_{fv}",
+                height=220,
+                placeholder=(
+                    "[기본]\n시장 범위: KR\n브리핑 단계: 08:30 개장 전 예측\n신호 분류: 재확인 신호\n\n"
+                    "[오늘의 결론]\n...\n\n[종목]\n"
+                    "삼성전자 / 005930.KS / KR / 추천 후보 / 재확인 신호 / 실적 기대\n"
+                    "삼성전자 / 005930.KS / KR / 단타 / 보류(선반영) / 재확인 신호 / 장중 고점 대비 밀림"
+                ),
+            )
+            if st.button("입력 내용 정리", key=f"quick_fill_{fv}"):
+                parsed = parse_quick_text(quick_text)
 
-    if st.session_state.get("tab_paste_last_saved_id"):
-        last_saved_report = db.get_report(st.session_state["tab_paste_last_saved_id"])
-        if last_saved_report:
-            st.markdown("---")
-            st.markdown("#### 방금 저장한 기록")
-            render_report_detail(last_saved_report)
+                if parsed["market_scope"]:
+                    st.session_state[f"market_scope_{fv}"] = parsed["market_scope"]
+                if parsed["briefing_stage"]:
+                    st.session_state[f"briefing_stage_{fv}"] = parsed["briefing_stage"]
+                st.session_state[f"day_conclusion_{fv}"] = parsed["day_conclusion"]
+                st.session_state[f"raw_briefing_{fv}"] = quick_text
 
-# ---- 0단계 시장 분위기 자동 확인 (한국장 전용, 읽기 전용, 저장 없음) ----
+                st.session_state.draft_items = []
+                for item in parsed["items"]:
+                    st.session_state.item_seq += 1
+                    item_id = st.session_state.item_seq
+                    st.session_state.draft_items.append(item_id)
+                    prefix = f"item_{fv}_{item_id}_"
+                    st.session_state[prefix + "event_title"] = item["event_title"]
+                    st.session_state[prefix + "ticker"] = item["ticker"]
+                    st.session_state[prefix + "stock_name"] = item["stock_name"]
+                    st.session_state[prefix + "market"] = item["market"]
+                    st.session_state[prefix + "item_timing_class"] = "(미지정)"
+                    st.session_state[prefix + "trade_mode"] = item["trade_mode"]
+                    st.session_state[prefix + "verdict"] = item["verdict"]
+                    st.session_state[prefix + "signal_type"] = item["signal_type"]
+                    st.session_state[prefix + "score"] = item["score"] or 0.0
+                    st.session_state[prefix + "score_reason"] = item["score_reason"] or ""
+                    st.session_state[prefix + "top_candidate_reason"] = item["top_candidate_reason"] or ""
+                    st.session_state[prefix + "penalty_reason"] = item["penalty_reason"] or ""
+                    st.session_state[prefix + "buy_confirmed"] = item["buy_confirmed"]
+                    st.session_state[prefix + "buy_confirm_condition"] = item["buy_confirm_condition"]
+
+                st.session_state[f"quick_fill_count_{fv}"] = len(parsed["items"])
+                st.session_state[f"quick_fill_warnings_{fv}"] = parsed["warnings"]
+                st.rerun()
+
+            if st.session_state.get(f"quick_fill_count_{fv}") is not None:
+                st.success(f"입력 내용 정리 완료: 종목별 기록 {st.session_state[f'quick_fill_count_{fv}']}개 생성됨")
+            for w in st.session_state.get(f"quick_fill_warnings_{fv}", []):
+                st.warning(w)
+
+        st.markdown("---")
+
+        market_scope = st.selectbox(
+            "시장", db.MARKET_SCOPE_CHOICES, key=f"market_scope_{fv}"
+        )
+        briefing_stage = st.selectbox(
+            "판단 시점", db.BRIEFING_STAGE_CHOICES, key=f"briefing_stage_{fv}"
+        )
+        day_conclusion = st.text_area(
+            "오늘 요약",
+            key=f"day_conclusion_{fv}",
+            placeholder="예: 오늘은 추천 종목 없음. 관망 권장.",
+        )
+        raw_briefing = st.text_area(
+            "판단 근거", key=f"raw_briefing_{fv}", height=200
+        )
+        st.caption("장 구분은 저장 시각을 기준으로 자동으로 정해집니다. 직접 입력하지 않습니다.")
+
+        st.markdown("---")
+
+        items_data = []
+        remove_id = None
+        with st.expander(
+            f"고급 수동 입력 ({len(st.session_state.draft_items)}개 종목별 기록, 0개도 저장 가능)",
+            expanded=False,
+        ):
+            st.caption("쉽게 붙여넣는 입력칸으로 자동 채운 종목도 여기서 직접 수정/추가/삭제할 수 있습니다.")
+
+            if st.button("+ 종목별 기록 추가", key=f"add_item_{fv}"):
+                st.session_state.item_seq += 1
+                st.session_state.draft_items.append(st.session_state.item_seq)
+                st.rerun()
+
+            for item_id in st.session_state.draft_items:
+                prefix = f"item_{fv}_{item_id}_"
+
+                title_trade_mode = st.session_state.get(prefix + "trade_mode", "공통")
+                title_stock_name = (
+                    st.session_state.get(prefix + "stock_name")
+                    or st.session_state.get(prefix + "ticker")
+                    or f"기록 #{item_id}"
+                )
+                title_verdict_raw = st.session_state.get(prefix + "verdict", db.VERDICT_CHOICES[0])
+                title_event = st.session_state.get(prefix + "event_title", "")
+                card_title = f"{_trade_mode_badge(title_trade_mode)} {_verdict_badge(title_verdict_raw)} {title_stock_name}"
+                if title_event:
+                    card_title += f" - {title_event}"
+
+                with st.expander(card_title, expanded=False):
+                    header_col, del_col = st.columns([6, 1])
+                    header_col.markdown(f"종목별 기록 #{item_id}")
+                    if del_col.button("삭제", key=prefix + "delete"):
+                        remove_id = item_id
+
+                    c1, c2, c3 = st.columns(3)
+                    event_title = c1.text_input("판단 이유", key=prefix + "event_title")
+                    ticker = c2.text_input("종목코드", key=prefix + "ticker")
+                    stock_name = c3.text_input("종목명", key=prefix + "stock_name")
+
+                    c4, c5 = st.columns(2)
+                    market = c4.selectbox("시장", db.ITEM_MARKET_CHOICES, key=prefix + "market")
+                    item_timing_class_raw = c5.selectbox(
+                        "항목 장 구분 (선택)",
+                        ["(미지정)"] + db.TIMING_CLASS_CHOICES,
+                        key=prefix + "item_timing_class",
+                    )
+
+                    st.caption("주식시장 근거")
+                    b1, b2, b3 = st.columns(3)
+                    basis_a = b1.text_input(
+                        "가격·수급 근거",
+                        key=prefix + "basis_a",
+                        placeholder="예: 장중 고점 대비 밀림, 시가 위/아래, 프로그램 매수/매도",
+                    )
+                    basis_b = b2.text_input(
+                        "거래대금·시총 근거",
+                        key=prefix + "basis_b",
+                        placeholder="예: 거래대금 강함, 시총 대비 거래대금 높음, 수급 탄력성",
+                    )
+                    basis_c = b3.text_input(
+                        "섹터·지수 근거",
+                        key=prefix + "basis_c",
+                        placeholder="예: 자동차 섹터 동반 강세, KOSPI 대비 강함, 반도체 약세",
+                    )
+
+                    st.caption("베팅시장(예측시장) 근거")
+                    g1, g2, g3 = st.columns(3)
+                    basis_ga = g1.text_input(
+                        "직접 예측시장 근거",
+                        key=prefix + "basis_ga",
+                        placeholder="예: Polymarket/Kalshi 확률 변화, 선거·금리·관세 이벤트 확률",
+                    )
+                    basis_na = g2.text_input(
+                        "간접 시장가격 근거",
+                        key=prefix + "basis_na",
+                        placeholder="예: 나스닥100 선물, SOXX/SMH, 달러원, 금리, 유가, 비트코인",
+                    )
+                    basis_da = g3.text_input(
+                        "이벤트·정책 근거",
+                        key=prefix + "basis_da",
+                        placeholder="예: 실적 발표, 수주, 정책 발표, 관세, 금리 이벤트",
+                    )
+
+                    j1, j2 = st.columns(2)
+                    stock_judgment = j1.text_area("주식시장 판단", key=prefix + "stock_judgment")
+                    betting_judgment = j2.text_area("베팅시장 판단", key=prefix + "betting_judgment")
+
+                    st.caption("판단 설명 (점수/근거/매수 확정 — 비워두면 기본값으로 저장됩니다)")
+                    p1, p2, p3 = st.columns(3)
+                    score = p1.number_input("점수", value=0.0, step=1.0, key=prefix + "score")
+                    score_reason = p2.text_input(
+                        "점수 근거", key=prefix + "score_reason", placeholder="예: 시가 위 유지 + 거래대금 증가"
+                    )
+                    top_candidate_reason = p3.text_input(
+                        "1순위 후보 근거", key=prefix + "top_candidate_reason", placeholder="예: 섹터 내 거래대금 우위"
+                    )
+                    p4, p5, p6 = st.columns(3)
+                    penalty_reason = p4.text_input(
+                        "감점 이유", key=prefix + "penalty_reason", placeholder="예: 고점 대비 일부 밀림"
+                    )
+                    buy_confirmed = p5.selectbox(
+                        "매수 확정 여부", ["미확정", "확정"], key=prefix + "buy_confirmed"
+                    )
+                    buy_confirm_condition = p6.text_input(
+                        "매수 확정 조건", key=prefix + "buy_confirm_condition", placeholder="예: 종가 강세 유지 필요"
+                    )
+
+                    v1, v2, v3 = st.columns(3)
+                    trade_mode = v1.selectbox(
+                        "매매유형", db.TRADE_MODE_CHOICES, key=prefix + "trade_mode"
+                    )
+                    verdict = v2.selectbox("판정", db.VERDICT_CHOICES, key=prefix + "verdict")
+                    signal_type = v3.selectbox(
+                        "신호 종류", db.SIGNAL_TYPE_CHOICES, key=prefix + "signal_type"
+                    )
+
+                    items_data.append(
+                        {
+                            "event_title": event_title,
+                            "ticker": ticker,
+                            "stock_name": stock_name,
+                            "market": market,
+                            "item_timing_class": None if item_timing_class_raw == "(미지정)" else item_timing_class_raw,
+                            "stock_market_basis_a": basis_a,
+                            "stock_market_basis_b": basis_b,
+                            "stock_market_basis_c": basis_c,
+                            "betting_basis_ga": basis_ga,
+                            "betting_basis_na": basis_na,
+                            "betting_basis_da": basis_da,
+                            "stock_market_judgment": stock_judgment,
+                            "betting_market_judgment": betting_judgment,
+                            "verdict": verdict,
+                            "signal_type": signal_type,
+                            "trade_mode": trade_mode,
+                            "score": score or None,
+                            "score_reason": score_reason,
+                            "top_candidate_reason": top_candidate_reason,
+                            "penalty_reason": penalty_reason,
+                            "buy_confirmed": buy_confirmed,
+                            "buy_confirm_condition": buy_confirm_condition,
+                        }
+                    )
+
+            if remove_id is not None:
+                st.session_state.draft_items.remove(remove_id)
+                st.rerun()
+
+        st.markdown("---")
+        if st.button("기록 저장", type="primary", key=f"save_{fv}"):
+            if not day_conclusion.strip():
+                st.error("오늘 요약을 입력해주세요.")
+            else:
+                final_raw_briefing = raw_briefing if raw_briefing.strip() else day_conclusion
+                items_to_save = [
+                    item
+                    for item in items_data
+                    if (item.get("event_title") or "").strip()
+                    or (item.get("ticker") or "").strip()
+                    or (item.get("stock_name") or "").strip()
+                ]
+                report_id = db.save_report(
+                    market_scope=market_scope,
+                    day_conclusion=day_conclusion,
+                    raw_briefing=final_raw_briefing,
+                    items=items_to_save,
+                    briefing_stage=briefing_stage,
+                )
+                st.success(f"기록 저장 완료: 종목별 기록 {len(items_to_save)}개 저장됨 (report_id={report_id})")
+                st.session_state["tab_paste_last_saved_id"] = report_id
+                st.session_state.draft_items = []
+                st.session_state.form_version += 1
+                st.rerun()
+
+        if st.session_state.get("tab_paste_last_saved_id"):
+            last_saved_report = db.get_report(st.session_state["tab_paste_last_saved_id"])
+            if last_saved_report:
+                st.markdown("---")
+                st.markdown("#### 방금 저장한 기록")
+                render_report_detail(last_saved_report)
+
+    # ---- 0단계 시장 분위기 자동 확인 (한국장 전용, 읽기 전용, 저장 없음) ----
 # 기존 "오늘 주가 자동 채우기"와 동일한 price_data.get_snapshot_defaults()를 재사용한다.
 # price_data.py 자체는 수정하지 않는다.
 KR_MARKET_MOOD_AUTO_TARGETS = [
@@ -5923,165 +5936,196 @@ with tab_review:
         )
 
 
-with tab_archive:
-    st.subheader("지난 기록 보기")
+if _saved_view == "지난 기록":
+    with tab_saved:
+        st.subheader("지난 기록 보기")
 
-    with st.expander("찾아보기", expanded=False):
-        fcol1, fcol2 = st.columns(2)
-        filter_date_from = fcol1.date_input(
-            "시작 날짜", value=None, key="filter_date_from"
+        with st.expander("찾아보기", expanded=False):
+            fcol1, fcol2 = st.columns(2)
+            filter_date_from = fcol1.date_input(
+                "시작 날짜", value=None, key="filter_date_from"
+            )
+            filter_date_to = fcol2.date_input(
+                "끝 날짜", value=None, key="filter_date_to"
+            )
+
+            filter_market_scope = st.multiselect(
+                "시장", db.MARKET_SCOPE_CHOICES, key="filter_market_scope", placeholder="선택하세요"
+            )
+            filter_timing_class = st.multiselect(
+                "장 구분", db.TIMING_CLASS_CHOICES, key="filter_timing_class", placeholder="선택하세요"
+            )
+            filter_verdict = st.multiselect(
+                "판단", VERDICT_ORDER, format_func=_display_verdict_name, key="filter_verdict", placeholder="선택하세요"
+            )
+            filter_briefing_stage = st.multiselect(
+                "판단 시점", db.BRIEFING_STAGE_CHOICES, key="filter_briefing_stage", placeholder="선택하세요"
+            )
+            filter_signal_type = st.multiselect(
+                "신호 종류", db.SIGNAL_TYPE_CHOICES, format_func=_display_signal_type, key="filter_signal_type", placeholder="선택하세요"
+            )
+            filter_day_conclusion_kw = st.text_input(
+                "오늘 요약 검색", key="filter_day_conclusion"
+            )
+            filter_raw_briefing_kw = st.text_input(
+                "판단 근거 검색", key="filter_raw_briefing"
+            )
+
+            if st.button("검색 조건 지우기", key="filter_reset"):
+                for k in (
+                    "filter_date_from",
+                    "filter_date_to",
+                    "filter_market_scope",
+                    "filter_timing_class",
+                    "filter_verdict",
+                    "filter_briefing_stage",
+                    "filter_signal_type",
+                    "filter_day_conclusion",
+                    "filter_raw_briefing",
+                ):
+                    st.session_state.pop(k, None)
+                st.rerun()
+
+        reports = db.search_reports(
+            date_from=filter_date_from.isoformat() if filter_date_from else None,
+            date_to=filter_date_to.isoformat() if filter_date_to else None,
+            market_scopes=filter_market_scope or None,
+            timing_classes=filter_timing_class or None,
+            verdicts=filter_verdict or None,
+            day_conclusion_keyword=filter_day_conclusion_kw or None,
+            raw_briefing_keyword=filter_raw_briefing_kw or None,
+            briefing_stages=filter_briefing_stage or None,
+            signal_types=filter_signal_type or None,
         )
-        filter_date_to = fcol2.date_input(
-            "끝 날짜", value=None, key="filter_date_to"
-        )
 
-        filter_market_scope = st.multiselect(
-            "시장", db.MARKET_SCOPE_CHOICES, key="filter_market_scope", placeholder="선택하세요"
-        )
-        filter_timing_class = st.multiselect(
-            "장 구분", db.TIMING_CLASS_CHOICES, key="filter_timing_class", placeholder="선택하세요"
-        )
-        filter_verdict = st.multiselect(
-            "판단", VERDICT_ORDER, format_func=_display_verdict_name, key="filter_verdict", placeholder="선택하세요"
-        )
-        filter_briefing_stage = st.multiselect(
-            "판단 시점", db.BRIEFING_STAGE_CHOICES, key="filter_briefing_stage", placeholder="선택하세요"
-        )
-        filter_signal_type = st.multiselect(
-            "신호 종류", db.SIGNAL_TYPE_CHOICES, format_func=_display_signal_type, key="filter_signal_type", placeholder="선택하세요"
-        )
-        filter_day_conclusion_kw = st.text_input(
-            "오늘 요약 검색", key="filter_day_conclusion"
-        )
-        filter_raw_briefing_kw = st.text_input(
-            "판단 근거 검색", key="filter_raw_briefing"
-        )
+        total_all = len(db.list_reports())
+        st.caption(f"전체 {total_all}건 중 {len(reports)}건 표시")
 
-        if st.button("검색 조건 지우기", key="filter_reset"):
-            for k in (
-                "filter_date_from",
-                "filter_date_to",
-                "filter_market_scope",
-                "filter_timing_class",
-                "filter_verdict",
-                "filter_briefing_stage",
-                "filter_signal_type",
-                "filter_day_conclusion",
-                "filter_raw_briefing",
-            ):
-                st.session_state.pop(k, None)
-            st.rerun()
+        if not reports:
+            st.info("조건에 맞는 기록이 없습니다.")
+        else:
+            options = {
+                r["id"]: f"{r['saved_at']} | {r['market_scope']} | {r['timing_class']} | "
+                f"{(r['day_conclusion'] or '')[:30]}"
+                for r in reports
+            }
 
-    reports = db.search_reports(
-        date_from=filter_date_from.isoformat() if filter_date_from else None,
-        date_to=filter_date_to.isoformat() if filter_date_to else None,
-        market_scopes=filter_market_scope or None,
-        timing_classes=filter_timing_class or None,
-        verdicts=filter_verdict or None,
-        day_conclusion_keyword=filter_day_conclusion_kw or None,
-        raw_briefing_keyword=filter_raw_briefing_kw or None,
-        briefing_stages=filter_briefing_stage or None,
-        signal_types=filter_signal_type or None,
-    )
+            # reports는 saved_at 기준 최신순으로 정렬되어 있으므로 첫 항목이 (현재 필터 기준) 최신이다.
+            newest_in_view_id = next(iter(options))
 
-    total_all = len(db.list_reports())
-    st.caption(f"전체 {total_all}건 중 {len(reports)}건 표시")
+            # DB 전체 기준 최신 report id. 저장 직후 이 값이 바뀌면 자동으로 그 report를 선택한다.
+            global_latest = db.get_latest_report()
+            global_latest_id = global_latest["id"] if global_latest else None
+            prev_global_latest_id = st.session_state.get("archive_prev_global_latest_id")
 
-    if not reports:
-        st.info("조건에 맞는 기록이 없습니다.")
-    else:
-        options = {
-            r["id"]: f"{r['saved_at']} | {r['market_scope']} | {r['timing_class']} | "
-            f"{(r['day_conclusion'] or '')[:30]}"
-            for r in reports
-        }
+            if "archive_select" not in st.session_state or st.session_state.get("archive_select") not in options:
+                # 최초 진입, 혹은 필터링으로 기존 선택이 더 이상 옵션에 없음 -> 현재 목록의 최신으로
+                st.session_state["archive_select"] = newest_in_view_id
+            elif global_latest_id is not None and global_latest_id != prev_global_latest_id and global_latest_id in options:
+                # 새 report가 저장됨(전역 최신 id가 바뀜) -> 그 report로 자동 전환
+                st.session_state["archive_select"] = global_latest_id
 
-        # reports는 saved_at 기준 최신순으로 정렬되어 있으므로 첫 항목이 (현재 필터 기준) 최신이다.
-        newest_in_view_id = next(iter(options))
+            st.session_state["archive_prev_global_latest_id"] = global_latest_id
 
-        # DB 전체 기준 최신 report id. 저장 직후 이 값이 바뀌면 자동으로 그 report를 선택한다.
-        global_latest = db.get_latest_report()
-        global_latest_id = global_latest["id"] if global_latest else None
-        prev_global_latest_id = st.session_state.get("archive_prev_global_latest_id")
+            selected_id = st.selectbox(
+                "지난 기록 선택",
+                options=list(options.keys()),
+                format_func=lambda rid: options[rid],
+                key="archive_select",
+            )
+            selected_report = db.get_report(selected_id)
+            st.markdown("---")
+            render_report_detail(selected_report, show_raw_briefing=True)
 
-        if "archive_select" not in st.session_state or st.session_state.get("archive_select") not in options:
-            # 최초 진입, 혹은 필터링으로 기존 선택이 더 이상 옵션에 없음 -> 현재 목록의 최신으로
-            st.session_state["archive_select"] = newest_in_view_id
-        elif global_latest_id is not None and global_latest_id != prev_global_latest_id and global_latest_id in options:
-            # 새 report가 저장됨(전역 최신 id가 바뀜) -> 그 report로 자동 전환
-            st.session_state["archive_select"] = global_latest_id
+    def _render_actual_trade_entry_inputs(saved_item, key_prefix=""):
+        """실제 행동·매수 입력 및 저장 UI를 렌더링한다."""
+        if not saved_item.get("id"):
+            return
 
-        st.session_state["archive_prev_global_latest_id"] = global_latest_id
-
-        selected_id = st.selectbox(
-            "지난 기록 선택",
-            options=list(options.keys()),
-            format_func=lambda rid: options[rid],
-            key="archive_select",
-        )
-        selected_report = db.get_report(selected_id)
-        st.markdown("---")
-        render_report_detail(selected_report, show_raw_briefing=True)
-
-def _render_actual_trade_entry_inputs(saved_item, key_prefix=""):
-    """실제 행동·매수 입력 및 저장 UI를 렌더링한다."""
-    if not saved_item.get("id"):
-        return
-
-    _item_name = saved_item.get("stock_name") or "-"
-    with st.expander("실제 행동·매수 입력", expanded=False):
-        st.markdown("---")
-        _action_key = f"{key_prefix}actualaction_{saved_item['id']}"
-        _action_options = ["미기록", "매수", "보류", "제외"]
-        _action_stored = db.normalize_actual_action(saved_item.get("actual_action"))
-        _action_in = st.selectbox(
-            "실제 행동",
-            _action_options,
-            index=_action_options.index(_action_stored),
-            key=f"{_action_key}_select",
-        )
-        if st.button("실제 행동 저장", key=f"{_action_key}_save"):
-            _final_action = None if _action_in == "미기록" else _action_in
-            try:
-                _action_ok = db.update_report_item_actual_action(saved_item["id"], _final_action)
-            except ValueError as _action_err:
-                st.error(f"{_item_name}: {_action_err}")
-            else:
-                if _action_ok:
-                    st.success("실제 행동이 저장되었습니다.")
-                    st.rerun()
-                else:
-                    st.error(
-                        f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                        f"(id={saved_item['id']})."
-                    )
-
-        st.markdown("---")
-        _price_key = f"{key_prefix}actualentryprice_{saved_item['id']}"
-        _price_default_text = _fmt_actual_entry_price_display(saved_item.get("actual_entry_price"))
-        _price_text_in = st.text_input(
-            "실제 평균 체결가",
-            value=_price_default_text,
-            key=f"{_price_key}_input",
-            help=(
-                "실제로 매수한 평균 체결가입니다. 실제 행동이 '매수'일 때만 "
-                "저장할 수 있습니다."
-            ),
-        )
-        if st.button("실제 체결가 저장", key=f"{_price_key}_save"):
-            _parsed_price, _parse_error = _parse_actual_entry_price_text(_price_text_in)
-            if _parse_error:
-                st.error(f"{_item_name}: {_parse_error}")
-            else:
+        _item_name = saved_item.get("stock_name") or "-"
+        with st.expander("실제 행동·매수 입력", expanded=False):
+            st.markdown("---")
+            _action_key = f"{key_prefix}actualaction_{saved_item['id']}"
+            _action_options = ["미기록", "매수", "보류", "제외"]
+            _action_stored = db.normalize_actual_action(saved_item.get("actual_action"))
+            _action_in = st.selectbox(
+                "실제 행동",
+                _action_options,
+                index=_action_options.index(_action_stored),
+                key=f"{_action_key}_select",
+            )
+            if st.button("실제 행동 저장", key=f"{_action_key}_save"):
+                _final_action = None if _action_in == "미기록" else _action_in
                 try:
-                    _price_ok = db.update_report_item_actual_entry_price(
-                        saved_item["id"], _parsed_price
-                    )
-                except ValueError as _price_err:
-                    st.error(f"{_item_name}: {_price_err}")
+                    _action_ok = db.update_report_item_actual_action(saved_item["id"], _final_action)
+                except ValueError as _action_err:
+                    st.error(f"{_item_name}: {_action_err}")
                 else:
-                    if _price_ok:
-                        st.success("실제 체결가가 저장되었습니다.")
+                    if _action_ok:
+                        st.success("실제 행동이 저장되었습니다.")
+                        st.rerun()
+                    else:
+                        st.error(
+                            f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                            f"(id={saved_item['id']})."
+                        )
+
+            st.markdown("---")
+            _price_key = f"{key_prefix}actualentryprice_{saved_item['id']}"
+            _price_default_text = _fmt_actual_entry_price_display(saved_item.get("actual_entry_price"))
+            _price_text_in = st.text_input(
+                "실제 평균 체결가",
+                value=_price_default_text,
+                key=f"{_price_key}_input",
+                help=(
+                    "실제로 매수한 평균 체결가입니다. 실제 행동이 '매수'일 때만 "
+                    "저장할 수 있습니다."
+                ),
+            )
+            if st.button("실제 체결가 저장", key=f"{_price_key}_save"):
+                _parsed_price, _parse_error = _parse_actual_entry_price_text(_price_text_in)
+                if _parse_error:
+                    st.error(f"{_item_name}: {_parse_error}")
+                else:
+                    try:
+                        _price_ok = db.update_report_item_actual_entry_price(
+                            saved_item["id"], _parsed_price
+                        )
+                    except ValueError as _price_err:
+                        st.error(f"{_item_name}: {_price_err}")
+                    else:
+                        if _price_ok:
+                            st.success("실제 체결가가 저장되었습니다.")
+                            st.rerun()
+                        else:
+                            st.error(
+                                f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                                f"(id={saved_item['id']})."
+                            )
+
+            st.markdown("---")
+            _entry_date_key = f"{key_prefix}actualentrydate_{saved_item['id']}"
+            _entry_date_default_text = saved_item.get("actual_entry_date") or ""
+            _entry_date_text_in = st.text_input(
+                "실제 매수 거래일",
+                value=_entry_date_default_text,
+                key=f"{_entry_date_key}_input",
+                placeholder="2026-07-10",
+                help=(
+                    "실제 매수한 거래소 기준 거래일입니다. 미국장은 한국시간 "
+                    "날짜가 아니라 미국 현지 거래일을 입력합니다."
+                ),
+            )
+            if st.button("실제 매수일 저장", key=f"{_entry_date_key}_save"):
+                try:
+                    _entry_date_ok = db.update_report_item_actual_entry_date(
+                        saved_item["id"], _entry_date_text_in
+                    )
+                except ValueError as _entry_date_err:
+                    st.error(f"{_item_name}: {_entry_date_err}")
+                else:
+                    if _entry_date_ok:
+                        st.success("실제 매수 거래일이 저장되었습니다.")
                         st.rerun()
                     else:
                         st.error(
@@ -6089,189 +6133,159 @@ def _render_actual_trade_entry_inputs(saved_item, key_prefix=""):
                             f"(id={saved_item['id']})."
                         )
 
-        st.markdown("---")
-        _entry_date_key = f"{key_prefix}actualentrydate_{saved_item['id']}"
-        _entry_date_default_text = saved_item.get("actual_entry_date") or ""
-        _entry_date_text_in = st.text_input(
-            "실제 매수 거래일",
-            value=_entry_date_default_text,
-            key=f"{_entry_date_key}_input",
-            placeholder="2026-07-10",
-            help=(
-                "실제 매수한 거래소 기준 거래일입니다. 미국장은 한국시간 "
-                "날짜가 아니라 미국 현지 거래일을 입력합니다."
-            ),
-        )
-        if st.button("실제 매수일 저장", key=f"{_entry_date_key}_save"):
-            try:
-                _entry_date_ok = db.update_report_item_actual_entry_date(
-                    saved_item["id"], _entry_date_text_in
-                )
-            except ValueError as _entry_date_err:
-                st.error(f"{_item_name}: {_entry_date_err}")
-            else:
-                if _entry_date_ok:
-                    st.success("실제 매수 거래일이 저장되었습니다.")
-                    st.rerun()
-                else:
-                    st.error(
-                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                        f"(id={saved_item['id']})."
-                    )
-
-        _quantity_key = f"{key_prefix}quantity_{saved_item['id']}"
-        _quantity_in = st.number_input(
-            "매수 수량",
-            value=saved_item.get("quantity"),
-            min_value=1,
-            step=1,
-            format="%d",
-            key=f"{_quantity_key}_input",
-        )
-        if st.button("매수 수량 저장", key=f"{_quantity_key}_save"):
-            try:
-                _quantity_ok = db.update_report_item_quantity(
-                    saved_item["id"], _quantity_in
-                )
-            except ValueError as _quantity_err:
-                st.error(f"{_item_name}: {_quantity_err}")
-            else:
-                if _quantity_ok:
-                    st.success("매수 수량이 저장되었습니다.")
-                    st.rerun()
-                else:
-                    st.error(
-                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                        f"(id={saved_item['id']})."
-                    )
-
-        _fee_key = f"{key_prefix}actualfee_{saved_item['id']}"
-        st.caption("실제 수수료와 세금을 합산한 금액을 직접 입력합니다. 0원과 미입력은 구분됩니다.")
-        _fee_in = st.number_input(
-            "실제 수수료·세금 합계",
-            value=saved_item.get("actual_fee"),
-            min_value=0.0,
-            step=0.01,
-            format="%.2f",
-            key=f"{_fee_key}_input",
-        )
-        if st.button("실제 수수료·세금 합계 저장", key=f"{_fee_key}_save"):
-            try:
-                _fee_ok = db.update_report_item_actual_fee(saved_item["id"], _fee_in)
-            except ValueError as _fee_err:
-                st.error(f"{_item_name}: {_fee_err}")
-            else:
-                if _fee_ok:
-                    st.success("실제 수수료·세금 합계가 저장되었습니다.")
-                    st.rerun()
-                else:
-                    st.error(
-                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                        f"(id={saved_item['id']})."
-                    )
-
-        if saved_item.get("actual_action") == "매수":
-            if (
-                saved_item.get("actual_entry_price") is not None
-                and saved_item.get("actual_entry_date") is not None
-            ):
-                st.caption("실매매 성과 계산 준비 완료")
-            else:
-                st.caption(
-                    "실매매 성과 계산에는 실제 평균 체결가와 실제 매수 "
-                    "거래일이 모두 필요합니다."
-                )
-
-
-def _render_trade_exit_inputs(saved_item, key_prefix=""):
-    """청산 결과 입력·수정 및 저장 UI를 렌더링한다."""
-    if not saved_item.get("id"):
-        return
-
-    _item_name = saved_item.get("stock_name") or "-"
-    _trade_mode = saved_item.get("trade_mode") or "-"
-    with st.expander(f"청산 결과 입력 / 수정 — {_item_name} ({_trade_mode})"):
-        _exit_key = f"{key_prefix}exit_{saved_item['id']}"
-        _exit_price_in = st.number_input(
-            "실제 청산가", value=float(saved_item.get("actual_exit_price") or 0.0),
-            min_value=0.0, step=100.0, key=f"{_exit_key}_price",
-        )
-        _exit_date_default = None
-        if saved_item.get("actual_exit_date"):
-            try:
-                _exit_date_default = datetime.strptime(
-                    saved_item["actual_exit_date"], "%Y-%m-%d"
-                ).date()
-            except ValueError:
-                _exit_date_default = None
-        _exit_date_in = st.date_input(
-            "실제 청산일", value=_exit_date_default, key=f"{_exit_key}_date",
-        )
-        _plan_followed_options = ["미입력", "예", "아니오", "부분"]
-        _plan_followed_default = saved_item.get("plan_followed") or "미입력"
-        if _plan_followed_default not in _plan_followed_options:
-            _plan_followed_default = "미입력"
-        _plan_followed_in = st.selectbox(
-            "계획 준수 여부", _plan_followed_options,
-            index=_plan_followed_options.index(_plan_followed_default),
-            key=f"{_exit_key}_plan_followed",
-        )
-        _exit_reason_options = [
-            "미입력", "손절", "목표가", "시간청산", "조기매도",
-            "손절지연", "복구매매", "감정매매", "뉴스변경", "기타",
-        ]
-        _exit_reason_default = saved_item.get("exit_reason") or "미입력"
-        if _exit_reason_default not in _exit_reason_options:
-            _exit_reason_default = "미입력"
-        _exit_reason_in = st.selectbox(
-            "청산 사유", _exit_reason_options,
-            index=_exit_reason_options.index(_exit_reason_default),
-            key=f"{_exit_key}_reason",
-        )
-
-        _r_basis_price = saved_item.get("actual_entry_price") or saved_item.get("entry_price")
-        _r_basis_is_plan = (
-            not saved_item.get("actual_entry_price") and bool(saved_item.get("entry_price"))
-        )
-        _preview_result_r = _compute_result_r(
-            _r_basis_price, saved_item.get("stop_loss_price"), _exit_price_in or None,
-        )
-        _r_preview_suffix = "(계획가 기준)" if _r_basis_is_plan else ""
-        st.caption(f"R수익률 미리보기: {_fmt_result_r(_preview_result_r)} {_r_preview_suffix}".rstrip())
-
-        if st.button("청산 결과 저장", key=f"{_exit_key}_save"):
-            _final_exit_price = _exit_price_in or None
-            _final_exit_date = _exit_date_in.isoformat() if _exit_date_in else None
-            _final_plan_followed = None if _plan_followed_in == "미입력" else _plan_followed_in
-            _final_exit_reason = None if _exit_reason_in == "미입력" else _exit_reason_in
-            _final_result_r = _compute_result_r(
-                _r_basis_price, saved_item.get("stop_loss_price"), _final_exit_price,
+            _quantity_key = f"{key_prefix}quantity_{saved_item['id']}"
+            _quantity_in = st.number_input(
+                "매수 수량",
+                value=saved_item.get("quantity"),
+                min_value=1,
+                step=1,
+                format="%d",
+                key=f"{_quantity_key}_input",
             )
-            _final_verification_status = _compute_verification_status(
-                _final_exit_price, _final_exit_date
-            )
-            try:
-                _exit_ok = db.update_report_item_trade_exit(
-                    saved_item["id"],
-                    _final_exit_price,
-                    _final_exit_date,
-                    _final_plan_followed,
-                    _final_exit_reason,
-                    _final_result_r,
-                    _final_verification_status,
-                )
-            except ValueError as _exit_err:
-                st.error(f"{_item_name}: {_exit_err}")
-            else:
-                if _exit_ok:
-                    _cached_verification_rows.clear()
-                    st.success("청산 결과가 저장되었습니다.")
-                    st.rerun()
-                else:
-                    st.error(
-                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                        f"(id={saved_item['id']})."
+            if st.button("매수 수량 저장", key=f"{_quantity_key}_save"):
+                try:
+                    _quantity_ok = db.update_report_item_quantity(
+                        saved_item["id"], _quantity_in
                     )
+                except ValueError as _quantity_err:
+                    st.error(f"{_item_name}: {_quantity_err}")
+                else:
+                    if _quantity_ok:
+                        st.success("매수 수량이 저장되었습니다.")
+                        st.rerun()
+                    else:
+                        st.error(
+                            f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                            f"(id={saved_item['id']})."
+                        )
+
+            _fee_key = f"{key_prefix}actualfee_{saved_item['id']}"
+            st.caption("실제 수수료와 세금을 합산한 금액을 직접 입력합니다. 0원과 미입력은 구분됩니다.")
+            _fee_in = st.number_input(
+                "실제 수수료·세금 합계",
+                value=saved_item.get("actual_fee"),
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                key=f"{_fee_key}_input",
+            )
+            if st.button("실제 수수료·세금 합계 저장", key=f"{_fee_key}_save"):
+                try:
+                    _fee_ok = db.update_report_item_actual_fee(saved_item["id"], _fee_in)
+                except ValueError as _fee_err:
+                    st.error(f"{_item_name}: {_fee_err}")
+                else:
+                    if _fee_ok:
+                        st.success("실제 수수료·세금 합계가 저장되었습니다.")
+                        st.rerun()
+                    else:
+                        st.error(
+                            f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                            f"(id={saved_item['id']})."
+                        )
+
+            if saved_item.get("actual_action") == "매수":
+                if (
+                    saved_item.get("actual_entry_price") is not None
+                    and saved_item.get("actual_entry_date") is not None
+                ):
+                    st.caption("실매매 성과 계산 준비 완료")
+                else:
+                    st.caption(
+                        "실매매 성과 계산에는 실제 평균 체결가와 실제 매수 "
+                        "거래일이 모두 필요합니다."
+                    )
+
+
+    def _render_trade_exit_inputs(saved_item, key_prefix=""):
+        """청산 결과 입력·수정 및 저장 UI를 렌더링한다."""
+        if not saved_item.get("id"):
+            return
+
+        _item_name = saved_item.get("stock_name") or "-"
+        _trade_mode = saved_item.get("trade_mode") or "-"
+        with st.expander(f"청산 결과 입력 / 수정 — {_item_name} ({_trade_mode})"):
+            _exit_key = f"{key_prefix}exit_{saved_item['id']}"
+            _exit_price_in = st.number_input(
+                "실제 청산가", value=float(saved_item.get("actual_exit_price") or 0.0),
+                min_value=0.0, step=100.0, key=f"{_exit_key}_price",
+            )
+            _exit_date_default = None
+            if saved_item.get("actual_exit_date"):
+                try:
+                    _exit_date_default = datetime.strptime(
+                        saved_item["actual_exit_date"], "%Y-%m-%d"
+                    ).date()
+                except ValueError:
+                    _exit_date_default = None
+            _exit_date_in = st.date_input(
+                "실제 청산일", value=_exit_date_default, key=f"{_exit_key}_date",
+            )
+            _plan_followed_options = ["미입력", "예", "아니오", "부분"]
+            _plan_followed_default = saved_item.get("plan_followed") or "미입력"
+            if _plan_followed_default not in _plan_followed_options:
+                _plan_followed_default = "미입력"
+            _plan_followed_in = st.selectbox(
+                "계획 준수 여부", _plan_followed_options,
+                index=_plan_followed_options.index(_plan_followed_default),
+                key=f"{_exit_key}_plan_followed",
+            )
+            _exit_reason_options = [
+                "미입력", "손절", "목표가", "시간청산", "조기매도",
+                "손절지연", "복구매매", "감정매매", "뉴스변경", "기타",
+            ]
+            _exit_reason_default = saved_item.get("exit_reason") or "미입력"
+            if _exit_reason_default not in _exit_reason_options:
+                _exit_reason_default = "미입력"
+            _exit_reason_in = st.selectbox(
+                "청산 사유", _exit_reason_options,
+                index=_exit_reason_options.index(_exit_reason_default),
+                key=f"{_exit_key}_reason",
+            )
+
+            _r_basis_price = saved_item.get("actual_entry_price") or saved_item.get("entry_price")
+            _r_basis_is_plan = (
+                not saved_item.get("actual_entry_price") and bool(saved_item.get("entry_price"))
+            )
+            _preview_result_r = _compute_result_r(
+                _r_basis_price, saved_item.get("stop_loss_price"), _exit_price_in or None,
+            )
+            _r_preview_suffix = "(계획가 기준)" if _r_basis_is_plan else ""
+            st.caption(f"R수익률 미리보기: {_fmt_result_r(_preview_result_r)} {_r_preview_suffix}".rstrip())
+
+            if st.button("청산 결과 저장", key=f"{_exit_key}_save"):
+                _final_exit_price = _exit_price_in or None
+                _final_exit_date = _exit_date_in.isoformat() if _exit_date_in else None
+                _final_plan_followed = None if _plan_followed_in == "미입력" else _plan_followed_in
+                _final_exit_reason = None if _exit_reason_in == "미입력" else _exit_reason_in
+                _final_result_r = _compute_result_r(
+                    _r_basis_price, saved_item.get("stop_loss_price"), _final_exit_price,
+                )
+                _final_verification_status = _compute_verification_status(
+                    _final_exit_price, _final_exit_date
+                )
+                try:
+                    _exit_ok = db.update_report_item_trade_exit(
+                        saved_item["id"],
+                        _final_exit_price,
+                        _final_exit_date,
+                        _final_plan_followed,
+                        _final_exit_reason,
+                        _final_result_r,
+                        _final_verification_status,
+                    )
+                except ValueError as _exit_err:
+                    st.error(f"{_item_name}: {_exit_err}")
+                else:
+                    if _exit_ok:
+                        _cached_verification_rows.clear()
+                        st.success("청산 결과가 저장되었습니다.")
+                        st.rerun()
+                    else:
+                        st.error(
+                            f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                            f"(id={saved_item['id']})."
+                        )
 
 
 with tab_action:
@@ -6395,919 +6409,524 @@ with tab_action:
 
 
 
-with tab_perf:
-    st.subheader("결과 확인")
-    st.caption("저장한 종목 판단이 며칠 뒤 실제 수익률로 어떻게 나왔는지 확인하는 화면입니다.")
-    st.caption(
-        "승률보다 R수익률과 기대값이 중요합니다. 손절을 지키면 승률은 낮아져도 계좌는 좋아질 수 있습니다."
-    )
-
-    st.markdown("---")
-
-    _perf_performance_ready = _render_performance_data_load_gate("perf_performance_data_load_button")
-    perf_rows_all = (
-        _cached_verification_rows(_reports_signature())
-        if _perf_performance_ready
-        else []
-    )
-
-    if not perf_rows_all:
-        st.info("종목코드가 있는 종목별 기록이 없습니다.")
-    else:
-        # 1. 보기 범위 (기본값 "오늘 저장한 기록 전체" — "방금 저장한 기록만"은 최신 report 1건만
-        # 보여줘서 한국장/미국장을 같은 날 둘 다 저장해도 한쪽만 보이는 것처럼 보일 수 있다.
-        # 기본값을 오늘 저장한 기록 전체로 넓혀 두 시장이 함께 보이게 한다.)
-        view_scope = st.radio(
-            "볼 기록 범위",
-            ["방금 저장한 기록만", "오늘 저장한 기록 전체", "모든 지난 기록"],
-            horizontal=True,
-            index=1,
-            key="perf_view_scope",
+if _saved_view == "저장 결과":
+    with tab_saved:
+        st.subheader("결과 확인")
+        st.caption("저장한 종목 판단이 며칠 뒤 실제 수익률로 어떻게 나왔는지 확인하는 화면입니다.")
+        st.caption(
+            "승률보다 R수익률과 기대값이 중요합니다. 손절을 지키면 승률은 낮아져도 계좌는 좋아질 수 있습니다."
         )
-        latest_report = db.get_latest_report()
-        latest_report_id = latest_report["id"] if latest_report else None
-        today_str = datetime.now().strftime("%Y-%m-%d")
 
-        if view_scope == "방금 저장한 기록만":
-            scoped_rows = [row for row in perf_rows_all if row["report_id"] == latest_report_id]
-        elif view_scope == "오늘 저장한 기록 전체":
-            scoped_rows = [row for row in perf_rows_all if row["saved_at"].startswith(today_str)]
+        st.markdown("---")
+
+        _perf_performance_ready = _render_performance_data_load_gate("perf_performance_data_load_button")
+        perf_rows_all = (
+            _cached_verification_rows(_reports_signature())
+            if _perf_performance_ready
+            else []
+        )
+
+        if not perf_rows_all:
+            st.info("종목코드가 있는 종목별 기록이 없습니다.")
         else:
-            scoped_rows = perf_rows_all
-
-        # 종목명이 "-"인 행(제목 없이 저장된 항목)은 기본 화면에서 숨긴다.
-        scoped_rows = [row for row in scoped_rows if row["stock_name"] and row["stock_name"] != "-"]
-
-        # 판단 성과 저장 (report_id 1건만 대상, 명시적 버튼 클릭 시에만 저장 —
-        # evaluate_item()/build_judgment_outcome_rows()로 이미 계산된 결과를 재사용하고
-        # 저장을 위해 별도로 다시 평가하지 않는다. 매매유형/판정 표시 필터와는 무관하게,
-        # 선택한 report_id에 속한 종목 전체(티커가 있는 항목)를 대상으로 한다 — 아래 표시용
-        # 필터(단기/며칠 구분, 판단 구분)에 저장 대상이 좌우되지 않게 하기 위함이다.
-        # actual 성과·pending/unavailable/error 행은 이 화면에서 만들지 않는다.
-        if scoped_rows:
-            st.markdown("#### 판단 성과 저장")
-            st.caption(
-                "선택한 보고서 1건의 정상 계산된 판단(judgment) 성과만 report_item_outcomes에 "
-                "저장합니다. 자동 저장되지 않으며, 아래 버튼을 눌러야 저장됩니다."
+            # 1. 보기 범위 (기본값 "오늘 저장한 기록 전체" — "방금 저장한 기록만"은 최신 report 1건만
+            # 보여줘서 한국장/미국장을 같은 날 둘 다 저장해도 한쪽만 보이는 것처럼 보일 수 있다.
+            # 기본값을 오늘 저장한 기록 전체로 넓혀 두 시장이 함께 보이게 한다.)
+            view_scope = st.radio(
+                "볼 기록 범위",
+                ["방금 저장한 기록만", "오늘 저장한 기록 전체", "모든 지난 기록"],
+                horizontal=True,
+                index=1,
+                key="perf_view_scope",
             )
+            latest_report = db.get_latest_report()
+            latest_report_id = latest_report["id"] if latest_report else None
+            today_str = datetime.now().strftime("%Y-%m-%d")
 
-            _outcome_save_reports = []
-            _outcome_save_seen_report_ids = set()
-            for _osr_row in scoped_rows:
-                if _osr_row["report_id"] not in _outcome_save_seen_report_ids:
-                    _outcome_save_seen_report_ids.add(_osr_row["report_id"])
-                    _outcome_save_reports.append((_osr_row["report_id"], _osr_row["saved_at"]))
-            _outcome_save_reports.sort(key=lambda pair: pair[1], reverse=True)
+            if view_scope == "방금 저장한 기록만":
+                scoped_rows = [row for row in perf_rows_all if row["report_id"] == latest_report_id]
+            elif view_scope == "오늘 저장한 기록 전체":
+                scoped_rows = [row for row in perf_rows_all if row["saved_at"].startswith(today_str)]
+            else:
+                scoped_rows = perf_rows_all
 
-            _outcome_save_report_options = {
-                f"#{_rid} ({_saved_at})": _rid for _rid, _saved_at in _outcome_save_reports
-            }
-            _outcome_save_report_label = st.selectbox(
-                "저장 대상 보고서 선택",
-                list(_outcome_save_report_options.keys()),
-                key="judgment_outcome_save_report_select",
-            )
-            _outcome_save_target_report_id = _outcome_save_report_options[_outcome_save_report_label]
+            # 종목명이 "-"인 행(제목 없이 저장된 항목)은 기본 화면에서 숨긴다.
+            scoped_rows = [row for row in scoped_rows if row["stock_name"] and row["stock_name"] != "-"]
 
-            # 저장된 판단 성과 조회 전용 표시 (evaluate_item() 재호출/가격·벤치마크 네트워크
-            # 조회/DB INSERT·UPDATE 전혀 없음). get_report_outcomes()가 반환하는 DB 스냅샷을
-            # entry_basis='judgment'만 걸러서 그대로 보여준다 — 임의로 행을 만들지 않는다.
-            with st.expander("저장된 판단 성과 보기", expanded=False):
+            # 판단 성과 저장 (report_id 1건만 대상, 명시적 버튼 클릭 시에만 저장 —
+            # evaluate_item()/build_judgment_outcome_rows()로 이미 계산된 결과를 재사용하고
+            # 저장을 위해 별도로 다시 평가하지 않는다. 매매유형/판정 표시 필터와는 무관하게,
+            # 선택한 report_id에 속한 종목 전체(티커가 있는 항목)를 대상으로 한다 — 아래 표시용
+            # 필터(단기/며칠 구분, 판단 구분)에 저장 대상이 좌우되지 않게 하기 위함이다.
+            # actual 성과·pending/unavailable/error 행은 이 화면에서 만들지 않는다.
+            if scoped_rows:
+                st.markdown("#### 판단 성과 저장")
                 st.caption(
-                    "이 표는 계산 화면의 실시간 값이 아니라, 저장 버튼을 눌렀을 때 DB에 "
-                    "기록된 판단 성과입니다."
+                    "선택한 보고서 1건의 정상 계산된 판단(judgment) 성과만 report_item_outcomes에 "
+                    "저장합니다. 자동 저장되지 않으며, 아래 버튼을 눌러야 저장됩니다."
                 )
-                _saved_outcomes = db.get_report_outcomes(_outcome_save_target_report_id)
-                _saved_judgment_outcomes = [
-                    o for o in _saved_outcomes if o["entry_basis"] == "judgment"
-                ]
-                if not _saved_judgment_outcomes:
-                    st.info("아직 저장된 판단 성과가 없습니다.")
-                else:
-                    _saved_judgment_outcomes = sorted(
-                        _saved_judgment_outcomes,
-                        key=lambda o: (o["report_item_id"], o["horizon_sessions"]),
+
+                _outcome_save_reports = []
+                _outcome_save_seen_report_ids = set()
+                for _osr_row in scoped_rows:
+                    if _osr_row["report_id"] not in _outcome_save_seen_report_ids:
+                        _outcome_save_seen_report_ids.add(_osr_row["report_id"])
+                        _outcome_save_reports.append((_osr_row["report_id"], _osr_row["saved_at"]))
+                _outcome_save_reports.sort(key=lambda pair: pair[1], reverse=True)
+
+                _outcome_save_report_options = {
+                    f"#{_rid} ({_saved_at})": _rid for _rid, _saved_at in _outcome_save_reports
+                }
+                _outcome_save_report_label = st.selectbox(
+                    "저장 대상 보고서 선택",
+                    list(_outcome_save_report_options.keys()),
+                    key="judgment_outcome_save_report_select",
+                )
+                _outcome_save_target_report_id = _outcome_save_report_options[_outcome_save_report_label]
+
+                # 저장된 판단 성과 조회 전용 표시 (evaluate_item() 재호출/가격·벤치마크 네트워크
+                # 조회/DB INSERT·UPDATE 전혀 없음). get_report_outcomes()가 반환하는 DB 스냅샷을
+                # entry_basis='judgment'만 걸러서 그대로 보여준다 — 임의로 행을 만들지 않는다.
+                with st.expander("저장된 판단 성과 보기", expanded=False):
+                    st.caption(
+                        "이 표는 계산 화면의 실시간 값이 아니라, 저장 버튼을 눌렀을 때 DB에 "
+                        "기록된 판단 성과입니다."
                     )
-                    _outcome_status_display = {
-                        "evaluated": "완료",
-                        "pending": "대기",
-                        "unavailable": "데이터 없음",
-                        "error": "오류",
-                    }
-                    _saved_outcome_table_rows = [
-                        {
-                            "종목명": o.get("item_name") or "-",
-                            "티커": o.get("ticker") or "-",
-                            "시장": o.get("market") or "-",
-                            "거래일수": o.get("horizon_sessions"),
-                            "기준가격": _fmt_actual_entry_price_display(o.get("entry_price_used")) or "-",
-                            "목표일": o.get("target_date") or "-",
-                            "종가": _fmt_actual_entry_price_display(o.get("close_price")) or "-",
-                            "수익률(%)": _fmt_pct(o.get("return_pct")),
-                            "벤치마크": o.get("benchmark_symbol") or "-",
-                            "벤치마크 수익률(%)": _fmt_pct(o.get("benchmark_return_pct")),
-                            "초과수익률(%)": _fmt_pct(o.get("excess_return_pct")),
-                            "상태": _outcome_status_display.get(o.get("status"), o.get("status") or "-"),
-                            "평가시각": o.get("evaluated_at") or "-",
-                        }
-                        for o in _saved_judgment_outcomes
+                    _saved_outcomes = db.get_report_outcomes(_outcome_save_target_report_id)
+                    _saved_judgment_outcomes = [
+                        o for o in _saved_outcomes if o["entry_basis"] == "judgment"
                     ]
-                    st.dataframe(
-                        pd.DataFrame(_saved_outcome_table_rows), width="stretch", hide_index=True
-                    )
-            st.markdown("---")
-
-            # 실매매 성과 저장 (판단 성과 저장 바로 아래, 같은 선택 report_id 1건만 대상,
-            # 명시적 버튼 클릭 시에만 계산·저장). actual_action='매수'이고
-            # actual_entry_price/actual_entry_date가 모두 채워진 종목만 대상으로 한다.
-            # evaluate_item()/build_verification_rows()는 원시 price_df/benchmark_df를
-            # 보존·노출하지 않으므로(가공된 결과만 반환) 재사용이 불가능하다 — 버튼을 누른
-            # 뒤에만 기존 price_data.py 조회 함수로 새로 가져온다. judgment 성과(위 섹션,
-            # entry_basis='judgment')는 이 섹션에서 전혀 건드리지 않는다.
-            st.markdown("#### 실매매 성과 저장")
-            st.caption(
-                "선택한 보고서에서 실제 행동이 '매수'이고 실제 체결가·실제 매수 거래일이 "
-                "모두 입력된 종목만 대상으로 실매매(actual) 성과를 계산해 저장합니다. "
-                "자동 저장되지 않으며, 아래 버튼을 눌러야 계산·저장됩니다."
-            )
-
-            with st.expander("저장된 실매매 성과 보기", expanded=False):
-                st.caption(
-                    "이 표는 실제 평균 체결가와 실제 매수 거래일을 기준으로 계산해 DB에 "
-                    "저장한 실매매 성과입니다."
-                )
-                st.caption("수수료·세금·매수 수량은 아직 반영되지 않았습니다.")
-                _saved_actual_outcomes_raw = db.get_report_outcomes(_outcome_save_target_report_id)
-                _saved_actual_outcomes = [
-                    o for o in _saved_actual_outcomes_raw if o["entry_basis"] == "actual"
-                ]
-                if not _saved_actual_outcomes:
-                    st.info("아직 저장된 실매매 성과가 없습니다.")
-                else:
-                    _saved_actual_outcomes = sorted(
-                        _saved_actual_outcomes,
-                        key=lambda o: (o["report_item_id"], o["horizon_sessions"]),
-                    )
-                    _actual_outcome_status_display = {
-                        "evaluated": "완료",
-                        "pending": "대기",
-                        "unavailable": "데이터 없음",
-                        "error": "오류",
-                    }
-                    _saved_actual_outcome_table_rows = [
-                        {
-                            "종목명": o.get("item_name") or "-",
-                            "티커": o.get("ticker") or "-",
-                            "시장": o.get("market") or "-",
-                            "실제 매수일": o.get("actual_entry_date") or "-",
-                            "실제 기준가격": (
-                                _fmt_actual_entry_price_display(o.get("entry_price_used")) or "-"
-                            ),
-                            "거래일수": o.get("horizon_sessions"),
-                            "목표일": o.get("target_date") or "-",
-                            "종가": _fmt_actual_entry_price_display(o.get("close_price")) or "-",
-                            "실매매 수익률(%)": _fmt_pct(o.get("return_pct")),
-                            "벤치마크": o.get("benchmark_symbol") or "-",
-                            "벤치마크 수익률(%)": _fmt_pct(o.get("benchmark_return_pct")),
-                            "초과수익률(%)": _fmt_pct(o.get("excess_return_pct")),
-                            "상태": _actual_outcome_status_display.get(
-                                o.get("status"), o.get("status") or "-"
-                            ),
-                            "평가시각": o.get("evaluated_at") or "-",
-                        }
-                        for o in _saved_actual_outcomes
-                    ]
-                    st.dataframe(
-                        pd.DataFrame(_saved_actual_outcome_table_rows),
-                        width="stretch",
-                        hide_index=True,
-                    )
-
-            # 판단(judgment) 대 실매매(actual) 비교 조회 전용 표시. evaluate_item()/
-            # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE
-            # 전혀 없음 — db.get_report_outcomes()의 DB 스냅샷을
-            # performance.build_judgment_actual_comparison_rows()에 그대로 넘겨 이미
-            # 완성된 judgment+actual 쌍만 보여준다. 위 두 expander와 완전히 별도로 둔다.
-            with st.expander("판단과 실매매 차이 보기", expanded=False):
-                st.caption(
-                    "양수는 실제 진입 성과가 판단 기준보다 좋았다는 뜻이고, 음수는 실제 "
-                    "진입이 더 불리했다는 뜻입니다."
-                )
-                _comparison_outcome_rows = db.get_report_outcomes(_outcome_save_target_report_id)
-                _comparison_rows = performance.build_judgment_actual_comparison_rows(
-                    _comparison_outcome_rows
-                )
-                if not _comparison_rows:
-                    st.info("비교 가능한 판단 성과와 실매매 성과가 아직 없습니다.")
-                else:
-                    _comparison_rows = sorted(
-                        _comparison_rows,
-                        key=lambda c: (c["report_item_id"], c["horizon_sessions"]),
-                    )
-                    _comparison_table_rows = [
-                        {
-                            "종목명": c.get("종목명") or "-",
-                            "티커": c.get("ticker") or "-",
-                            "시장": c.get("market") or "-",
-                            "거래일수": c.get("horizon_sessions"),
-                            "판단 기준가격": (
-                                _fmt_actual_entry_price_display(c.get("judgment_entry_price"))
-                                or "-"
-                            ),
-                            "실제 기준가격": (
-                                _fmt_actual_entry_price_display(c.get("actual_entry_price"))
-                                or "-"
-                            ),
-                            "판단 수익률(%)": _fmt_pct(c.get("judgment_return_pct")),
-                            "실매매 수익률(%)": _fmt_pct(c.get("actual_return_pct")),
-                            "수익률 차이(%p)": _fmt_pct(c.get("return_gap_pct")),
-                            "판단 초과수익률(%)": _fmt_pct(c.get("judgment_excess_return_pct")),
-                            "실매매 초과수익률(%)": _fmt_pct(c.get("actual_excess_return_pct")),
-                            "초과수익률 차이(%p)": _fmt_pct(c.get("excess_return_gap_pct")),
-                        }
-                        for c in _comparison_rows
-                    ]
-                    st.dataframe(
-                        pd.DataFrame(_comparison_table_rows),
-                        width="stretch",
-                        hide_index=True,
-                    )
-
-            # 판단 잔차 원자료 조회 전용 표시. evaluate_item()/evaluate_actual_item() 재호출,
-            # 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE 전혀 없음 — 위 "판단과 실매매
-            # 차이 보기" expander에서 이미 조회한 _comparison_outcome_rows(동일 report_id의
-            # db.get_report_outcomes() 결과)를 그대로 재사용해 같은 report_id를 중복 조회하지
-            # 않는다. 자동 성공/실패 판정이나 점수는 표시하지 않는다.
-            with st.expander("판단 잔차 원자료 보기", expanded=False):
-                st.caption(
-                    "진입 효과가 양수면 실제 진입 성과가 판단 기준보다 유리했고, 음수면 "
-                    "불리했다는 뜻입니다."
-                )
-                st.caption(
-                    "보류·제외 종목의 미매수 수익률은 당시 판단 이후 종목이 얼마나 "
-                    "움직였는지 보여주는 원자료입니다. 아직 성공·실패나 실수로 자동 "
-                    "판정하지 않습니다."
-                )
-                _residual_rows = performance.build_decision_residual_rows(
-                    _comparison_outcome_rows
-                )
-                if not _residual_rows:
-                    st.info("아직 분석 가능한 판단 잔차 원자료가 없습니다.")
-                else:
-                    _residual_rows = sorted(
-                        _residual_rows,
-                        key=lambda d: (d["report_item_id"], d["horizon_sessions"]),
-                    )
-                    _residual_table_rows = [
-                        {
-                            "종목명": d.get("종목명") or "-",
-                            "티커": d.get("ticker") or "-",
-                            "시장": d.get("market") or "-",
-                            "테마 태그": (
-                                ", ".join(db.parse_theme_tags(d.get("theme_tags"))) or "-"
-                            ),
-                            "실제 행동": d.get("actual_action") or "미기록",
-                            "거래일수": d.get("horizon_sessions"),
-                            "판단 기준가격": (
-                                _fmt_actual_entry_price_display(d.get("judgment_entry_price"))
-                                or "-"
-                            ),
-                            "판단 수익률(%)": _fmt_pct(d.get("judgment_return_pct")),
-                            "판단 초과수익률(%)": _fmt_pct(d.get("judgment_excess_return_pct")),
-                            "실제 기준가격": (
-                                _fmt_actual_entry_price_display(d.get("actual_entry_price"))
-                                or "-"
-                            ),
-                            "실매매 수익률(%)": _fmt_pct(d.get("actual_return_pct")),
-                            "실매매 초과수익률(%)": _fmt_pct(d.get("actual_excess_return_pct")),
-                            "진입 효과(%p)": _fmt_pct(d.get("entry_effect_pct")),
-                            "진입 초과효과(%p)": _fmt_pct(d.get("entry_excess_effect_pct")),
-                            "미매수 종목 수익률(%)": _fmt_pct(d.get("non_buy_return_pct")),
-                            "미매수 종목 초과수익률(%)": _fmt_pct(
-                                d.get("non_buy_excess_return_pct")
-                            ),
-                        }
-                        for d in _residual_rows
-                    ]
-                    st.dataframe(
-                        pd.DataFrame(_residual_table_rows),
-                        width="stretch",
-                        hide_index=True,
-                    )
-
-            # 전체 행동별 누적 통계. 위의 다른 세 expander와 달리 현재 선택한 report_id
-            # 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의 저장된 성과를
-            # db.get_all_report_outcomes()로 한 번에 모아 집계한다. evaluate_item()/
-            # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
-            # 없음 — 필터를 바꿔도 조회만 다시 할 뿐 DB에 아무것도 쓰지 않는다.
-            with st.expander("전체 행동별 누적 통계 보기", expanded=False):
-                st.caption(
-                    "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
-                    "여러 보고서의 저장된 성과를 함께 집계합니다."
-                )
-                st.caption(
-                    "표본수가 적으면 결과가 크게 흔들릴 수 있으며, 현재 표는 자동 판정이 "
-                    "아닌 누적 원자료 통계입니다."
-                )
-
-                _summary_filter_cols = st.columns(3)
-                _summary_market_in = _summary_filter_cols[0].selectbox(
-                    "시장",
-                    ["전체", "KR", "US", "OTHER"],
-                    key="action_summary_market_filter",
-                )
-                _summary_date_from_in = _summary_filter_cols[1].text_input(
-                    "시작일",
-                    value="",
-                    key="action_summary_date_from_filter",
-                    placeholder="2026-07-01",
-                )
-                _summary_date_to_in = _summary_filter_cols[2].text_input(
-                    "종료일",
-                    value="",
-                    key="action_summary_date_to_filter",
-                    placeholder="2026-07-31",
-                )
-
-                _summary_market_filter = (
-                    None if _summary_market_in == "전체" else _summary_market_in
-                )
-                _summary_date_from_filter = _summary_date_from_in.strip() or None
-                _summary_date_to_filter = _summary_date_to_in.strip() or None
-
-                try:
-                    _summary_outcome_rows = db.get_all_report_outcomes(
-                        market=_summary_market_filter,
-                        date_from=_summary_date_from_filter,
-                        date_to=_summary_date_to_filter,
-                    )
-                except ValueError as _summary_query_err:
-                    st.error(f"조회 조건 오류: {_summary_query_err}")
-                else:
-                    _summary_residual_rows = performance.build_decision_residual_rows(
-                        _summary_outcome_rows
-                    )
-                    _summary_action_rows = performance.build_action_residual_summary(
-                        _summary_residual_rows
-                    )
-                    if not _summary_action_rows:
-                        st.info("아직 누적 통계를 계산할 저장 성과가 없습니다.")
+                    if not _saved_judgment_outcomes:
+                        st.info("아직 저장된 판단 성과가 없습니다.")
                     else:
-                        _summary_table_rows = [
+                        _saved_judgment_outcomes = sorted(
+                            _saved_judgment_outcomes,
+                            key=lambda o: (o["report_item_id"], o["horizon_sessions"]),
+                        )
+                        _outcome_status_display = {
+                            "evaluated": "완료",
+                            "pending": "대기",
+                            "unavailable": "데이터 없음",
+                            "error": "오류",
+                        }
+                        _saved_outcome_table_rows = [
                             {
-                                "거래일수": s.get("horizon_sessions"),
-                                "실제 행동": s.get("actual_action"),
-                                "전체 표본수": s.get("sample_count"),
-                                "판단 수익률 표본수": s.get("judgment_return_count"),
-                                "판단 평균 수익률(%)": _fmt_pct(s.get("judgment_return_avg")),
-                                "판단 중앙 수익률(%)": _fmt_pct(
-                                    s.get("judgment_return_median")
-                                ),
-                                "판단 양수 개수": s.get("judgment_positive_count"),
-                                "판단 양수 비율(%)": _fmt_pct(s.get("judgment_positive_rate")),
-                                "판단 초과수익률 표본수": s.get("judgment_excess_count"),
-                                "판단 평균 초과수익률(%)": _fmt_pct(
-                                    s.get("judgment_excess_avg")
-                                ),
-                                "진입 효과 표본수": s.get("entry_effect_count"),
-                                "평균 진입 효과(%p)": _fmt_pct(s.get("entry_effect_avg")),
-                                "중앙 진입 효과(%p)": _fmt_pct(s.get("entry_effect_median")),
-                                "미매수 표본수": s.get("non_buy_return_count"),
-                                "미매수 평균 수익률(%)": _fmt_pct(s.get("non_buy_return_avg")),
-                                "미매수 중앙 수익률(%)": _fmt_pct(
-                                    s.get("non_buy_return_median")
-                                ),
-                                "미매수 양수 개수": s.get("non_buy_positive_count"),
-                                "미매수 양수 비율(%)": _fmt_pct(s.get("non_buy_positive_rate")),
-                                "미매수 초과수익률 표본수": s.get("non_buy_excess_count"),
-                                "미매수 평균 초과수익률(%)": _fmt_pct(
-                                    s.get("non_buy_excess_avg")
-                                ),
+                                "종목명": o.get("item_name") or "-",
+                                "티커": o.get("ticker") or "-",
+                                "시장": o.get("market") or "-",
+                                "거래일수": o.get("horizon_sessions"),
+                                "기준가격": _fmt_actual_entry_price_display(o.get("entry_price_used")) or "-",
+                                "목표일": o.get("target_date") or "-",
+                                "종가": _fmt_actual_entry_price_display(o.get("close_price")) or "-",
+                                "수익률(%)": _fmt_pct(o.get("return_pct")),
+                                "벤치마크": o.get("benchmark_symbol") or "-",
+                                "벤치마크 수익률(%)": _fmt_pct(o.get("benchmark_return_pct")),
+                                "초과수익률(%)": _fmt_pct(o.get("excess_return_pct")),
+                                "상태": _outcome_status_display.get(o.get("status"), o.get("status") or "-"),
+                                "평가시각": o.get("evaluated_at") or "-",
                             }
-                            for s in _summary_action_rows
+                            for o in _saved_judgment_outcomes
                         ]
                         st.dataframe(
-                            pd.DataFrame(_summary_table_rows),
+                            pd.DataFrame(_saved_outcome_table_rows), width="stretch", hide_index=True
+                        )
+                st.markdown("---")
+
+                # 실매매 성과 저장 (판단 성과 저장 바로 아래, 같은 선택 report_id 1건만 대상,
+                # 명시적 버튼 클릭 시에만 계산·저장). actual_action='매수'이고
+                # actual_entry_price/actual_entry_date가 모두 채워진 종목만 대상으로 한다.
+                # evaluate_item()/build_verification_rows()는 원시 price_df/benchmark_df를
+                # 보존·노출하지 않으므로(가공된 결과만 반환) 재사용이 불가능하다 — 버튼을 누른
+                # 뒤에만 기존 price_data.py 조회 함수로 새로 가져온다. judgment 성과(위 섹션,
+                # entry_basis='judgment')는 이 섹션에서 전혀 건드리지 않는다.
+                st.markdown("#### 실매매 성과 저장")
+                st.caption(
+                    "선택한 보고서에서 실제 행동이 '매수'이고 실제 체결가·실제 매수 거래일이 "
+                    "모두 입력된 종목만 대상으로 실매매(actual) 성과를 계산해 저장합니다. "
+                    "자동 저장되지 않으며, 아래 버튼을 눌러야 계산·저장됩니다."
+                )
+
+                with st.expander("저장된 실매매 성과 보기", expanded=False):
+                    st.caption(
+                        "이 표는 실제 평균 체결가와 실제 매수 거래일을 기준으로 계산해 DB에 "
+                        "저장한 실매매 성과입니다."
+                    )
+                    st.caption("수수료·세금·매수 수량은 아직 반영되지 않았습니다.")
+                    _saved_actual_outcomes_raw = db.get_report_outcomes(_outcome_save_target_report_id)
+                    _saved_actual_outcomes = [
+                        o for o in _saved_actual_outcomes_raw if o["entry_basis"] == "actual"
+                    ]
+                    if not _saved_actual_outcomes:
+                        st.info("아직 저장된 실매매 성과가 없습니다.")
+                    else:
+                        _saved_actual_outcomes = sorted(
+                            _saved_actual_outcomes,
+                            key=lambda o: (o["report_item_id"], o["horizon_sessions"]),
+                        )
+                        _actual_outcome_status_display = {
+                            "evaluated": "완료",
+                            "pending": "대기",
+                            "unavailable": "데이터 없음",
+                            "error": "오류",
+                        }
+                        _saved_actual_outcome_table_rows = [
+                            {
+                                "종목명": o.get("item_name") or "-",
+                                "티커": o.get("ticker") or "-",
+                                "시장": o.get("market") or "-",
+                                "실제 매수일": o.get("actual_entry_date") or "-",
+                                "실제 기준가격": (
+                                    _fmt_actual_entry_price_display(o.get("entry_price_used")) or "-"
+                                ),
+                                "거래일수": o.get("horizon_sessions"),
+                                "목표일": o.get("target_date") or "-",
+                                "종가": _fmt_actual_entry_price_display(o.get("close_price")) or "-",
+                                "실매매 수익률(%)": _fmt_pct(o.get("return_pct")),
+                                "벤치마크": o.get("benchmark_symbol") or "-",
+                                "벤치마크 수익률(%)": _fmt_pct(o.get("benchmark_return_pct")),
+                                "초과수익률(%)": _fmt_pct(o.get("excess_return_pct")),
+                                "상태": _actual_outcome_status_display.get(
+                                    o.get("status"), o.get("status") or "-"
+                                ),
+                                "평가시각": o.get("evaluated_at") or "-",
+                            }
+                            for o in _saved_actual_outcomes
+                        ]
+                        st.dataframe(
+                            pd.DataFrame(_saved_actual_outcome_table_rows),
                             width="stretch",
                             hide_index=True,
                         )
 
-            # 테마별 누적 통계. 위 "전체 행동별 누적 통계 보기"와 마찬가지로 현재 선택한
-            # report_id 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의 저장된
-            # 성과를 db.get_all_report_outcomes()로 모아 집계한다. evaluate_item()/
-            # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
-            # 없음. 테마/실제 행동/거래일수 필터는 이미 계산된 통계 결과에만 적용하는
-            # 화면 표시용 필터이며 DB나 통계 원본값을 바꾸지 않는다.
-            with st.expander("테마별 누적 통계 보기", expanded=False):
-                st.caption(
-                    "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
-                    "여러 보고서의 저장된 성과를 함께 집계합니다."
-                )
-                st.caption(
-                    "한 종목에 여러 테마 태그가 있으면 각 테마에 각각 포함됩니다. 표본수가 "
-                    "적으면 결과가 크게 흔들릴 수 있으며, 현재 표는 자동 판정이 아닌 누적 "
-                    "원자료 통계입니다."
-                )
-
-                _theme_filter_cols = st.columns(3)
-                _theme_market_in = _theme_filter_cols[0].selectbox(
-                    "시장",
-                    ["전체", "KR", "US", "OTHER"],
-                    key="theme_summary_market_filter",
-                )
-                _theme_date_from_in = _theme_filter_cols[1].text_input(
-                    "시작일",
-                    value="",
-                    key="theme_summary_date_from_filter",
-                    placeholder="2026-07-01",
-                )
-                _theme_date_to_in = _theme_filter_cols[2].text_input(
-                    "종료일",
-                    value="",
-                    key="theme_summary_date_to_filter",
-                    placeholder="2026-07-31",
-                )
-
-                _theme_market_filter = (
-                    None if _theme_market_in == "전체" else _theme_market_in
-                )
-                _theme_date_from_filter = _theme_date_from_in.strip() or None
-                _theme_date_to_filter = _theme_date_to_in.strip() or None
-
-                try:
-                    _theme_outcome_rows = db.get_all_report_outcomes(
-                        market=_theme_market_filter,
-                        date_from=_theme_date_from_filter,
-                        date_to=_theme_date_to_filter,
+                # 판단(judgment) 대 실매매(actual) 비교 조회 전용 표시. evaluate_item()/
+                # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE
+                # 전혀 없음 — db.get_report_outcomes()의 DB 스냅샷을
+                # performance.build_judgment_actual_comparison_rows()에 그대로 넘겨 이미
+                # 완성된 judgment+actual 쌍만 보여준다. 위 두 expander와 완전히 별도로 둔다.
+                with st.expander("판단과 실매매 차이 보기", expanded=False):
+                    st.caption(
+                        "양수는 실제 진입 성과가 판단 기준보다 좋았다는 뜻이고, 음수는 실제 "
+                        "진입이 더 불리했다는 뜻입니다."
                     )
-                except ValueError as _theme_query_err:
-                    st.error(f"조회 조건 오류: {_theme_query_err}")
-                else:
-                    _theme_residual_rows = performance.build_decision_residual_rows(
-                        _theme_outcome_rows
+                    _comparison_outcome_rows = db.get_report_outcomes(_outcome_save_target_report_id)
+                    _comparison_rows = performance.build_judgment_actual_comparison_rows(
+                        _comparison_outcome_rows
                     )
-                    _theme_summary_rows = performance.build_theme_residual_summary(
-                        _theme_residual_rows
-                    )
-                    if not _theme_summary_rows:
-                        st.info("아직 테마별 누적 통계를 계산할 저장 성과가 없습니다.")
+                    if not _comparison_rows:
+                        st.info("비교 가능한 판단 성과와 실매매 성과가 아직 없습니다.")
                     else:
-                        _theme_tag_options_seen = []
-                        for _t in _theme_summary_rows:
-                            if _t["theme_tag"] not in _theme_tag_options_seen:
-                                _theme_tag_options_seen.append(_t["theme_tag"])
-
-                        _theme_display_cols = st.columns(3)
-                        _theme_tag_in = _theme_display_cols[0].selectbox(
-                            "테마",
-                            ["전체"] + _theme_tag_options_seen,
-                            key="theme_summary_theme_filter",
+                        _comparison_rows = sorted(
+                            _comparison_rows,
+                            key=lambda c: (c["report_item_id"], c["horizon_sessions"]),
                         )
-                        _theme_action_in = _theme_display_cols[1].selectbox(
-                            "실제 행동",
-                            ["전체", "매수", "보류", "제외", "미기록"],
-                            key="theme_summary_action_filter",
-                        )
-                        _theme_horizon_in = _theme_display_cols[2].selectbox(
-                            "거래일수",
-                            ["전체", 1, 3, 5, 10, 20],
-                            key="theme_summary_horizon_filter",
+                        _comparison_table_rows = [
+                            {
+                                "종목명": c.get("종목명") or "-",
+                                "티커": c.get("ticker") or "-",
+                                "시장": c.get("market") or "-",
+                                "거래일수": c.get("horizon_sessions"),
+                                "판단 기준가격": (
+                                    _fmt_actual_entry_price_display(c.get("judgment_entry_price"))
+                                    or "-"
+                                ),
+                                "실제 기준가격": (
+                                    _fmt_actual_entry_price_display(c.get("actual_entry_price"))
+                                    or "-"
+                                ),
+                                "판단 수익률(%)": _fmt_pct(c.get("judgment_return_pct")),
+                                "실매매 수익률(%)": _fmt_pct(c.get("actual_return_pct")),
+                                "수익률 차이(%p)": _fmt_pct(c.get("return_gap_pct")),
+                                "판단 초과수익률(%)": _fmt_pct(c.get("judgment_excess_return_pct")),
+                                "실매매 초과수익률(%)": _fmt_pct(c.get("actual_excess_return_pct")),
+                                "초과수익률 차이(%p)": _fmt_pct(c.get("excess_return_gap_pct")),
+                            }
+                            for c in _comparison_rows
+                        ]
+                        st.dataframe(
+                            pd.DataFrame(_comparison_table_rows),
+                            width="stretch",
+                            hide_index=True,
                         )
 
-                        _theme_filtered_rows = _theme_summary_rows
-                        if _theme_tag_in != "전체":
-                            _theme_filtered_rows = [
-                                s for s in _theme_filtered_rows
-                                if s["theme_tag"] == _theme_tag_in
-                            ]
-                        if _theme_action_in != "전체":
-                            _theme_filtered_rows = [
-                                s for s in _theme_filtered_rows
-                                if s["actual_action"] == _theme_action_in
-                            ]
-                        if _theme_horizon_in != "전체":
-                            _theme_filtered_rows = [
-                                s for s in _theme_filtered_rows
-                                if s["horizon_sessions"] == _theme_horizon_in
-                            ]
+                # 판단 잔차 원자료 조회 전용 표시. evaluate_item()/evaluate_actual_item() 재호출,
+                # 가격·벤치마크 네트워크 조회, DB INSERT·UPDATE 전혀 없음 — 위 "판단과 실매매
+                # 차이 보기" expander에서 이미 조회한 _comparison_outcome_rows(동일 report_id의
+                # db.get_report_outcomes() 결과)를 그대로 재사용해 같은 report_id를 중복 조회하지
+                # 않는다. 자동 성공/실패 판정이나 점수는 표시하지 않는다.
+                with st.expander("판단 잔차 원자료 보기", expanded=False):
+                    st.caption(
+                        "진입 효과가 양수면 실제 진입 성과가 판단 기준보다 유리했고, 음수면 "
+                        "불리했다는 뜻입니다."
+                    )
+                    st.caption(
+                        "보류·제외 종목의 미매수 수익률은 당시 판단 이후 종목이 얼마나 "
+                        "움직였는지 보여주는 원자료입니다. 아직 성공·실패나 실수로 자동 "
+                        "판정하지 않습니다."
+                    )
+                    _residual_rows = performance.build_decision_residual_rows(
+                        _comparison_outcome_rows
+                    )
+                    if not _residual_rows:
+                        st.info("아직 분석 가능한 판단 잔차 원자료가 없습니다.")
+                    else:
+                        _residual_rows = sorted(
+                            _residual_rows,
+                            key=lambda d: (d["report_item_id"], d["horizon_sessions"]),
+                        )
+                        _residual_table_rows = [
+                            {
+                                "종목명": d.get("종목명") or "-",
+                                "티커": d.get("ticker") or "-",
+                                "시장": d.get("market") or "-",
+                                "테마 태그": (
+                                    ", ".join(db.parse_theme_tags(d.get("theme_tags"))) or "-"
+                                ),
+                                "실제 행동": d.get("actual_action") or "미기록",
+                                "거래일수": d.get("horizon_sessions"),
+                                "판단 기준가격": (
+                                    _fmt_actual_entry_price_display(d.get("judgment_entry_price"))
+                                    or "-"
+                                ),
+                                "판단 수익률(%)": _fmt_pct(d.get("judgment_return_pct")),
+                                "판단 초과수익률(%)": _fmt_pct(d.get("judgment_excess_return_pct")),
+                                "실제 기준가격": (
+                                    _fmt_actual_entry_price_display(d.get("actual_entry_price"))
+                                    or "-"
+                                ),
+                                "실매매 수익률(%)": _fmt_pct(d.get("actual_return_pct")),
+                                "실매매 초과수익률(%)": _fmt_pct(d.get("actual_excess_return_pct")),
+                                "진입 효과(%p)": _fmt_pct(d.get("entry_effect_pct")),
+                                "진입 초과효과(%p)": _fmt_pct(d.get("entry_excess_effect_pct")),
+                                "미매수 종목 수익률(%)": _fmt_pct(d.get("non_buy_return_pct")),
+                                "미매수 종목 초과수익률(%)": _fmt_pct(
+                                    d.get("non_buy_excess_return_pct")
+                                ),
+                            }
+                            for d in _residual_rows
+                        ]
+                        st.dataframe(
+                            pd.DataFrame(_residual_table_rows),
+                            width="stretch",
+                            hide_index=True,
+                        )
 
-                        if not _theme_filtered_rows:
+                # 전체 행동별 누적 통계. 위의 다른 세 expander와 달리 현재 선택한 report_id
+                # 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의 저장된 성과를
+                # db.get_all_report_outcomes()로 한 번에 모아 집계한다. evaluate_item()/
+                # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
+                # 없음 — 필터를 바꿔도 조회만 다시 할 뿐 DB에 아무것도 쓰지 않는다.
+                with st.expander("전체 행동별 누적 통계 보기", expanded=False):
+                    st.caption(
+                        "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
+                        "여러 보고서의 저장된 성과를 함께 집계합니다."
+                    )
+                    st.caption(
+                        "표본수가 적으면 결과가 크게 흔들릴 수 있으며, 현재 표는 자동 판정이 "
+                        "아닌 누적 원자료 통계입니다."
+                    )
+
+                    _summary_filter_cols = st.columns(3)
+                    _summary_market_in = _summary_filter_cols[0].selectbox(
+                        "시장",
+                        ["전체", "KR", "US", "OTHER"],
+                        key="action_summary_market_filter",
+                    )
+                    _summary_date_from_in = _summary_filter_cols[1].text_input(
+                        "시작일",
+                        value="",
+                        key="action_summary_date_from_filter",
+                        placeholder="2026-07-01",
+                    )
+                    _summary_date_to_in = _summary_filter_cols[2].text_input(
+                        "종료일",
+                        value="",
+                        key="action_summary_date_to_filter",
+                        placeholder="2026-07-31",
+                    )
+
+                    _summary_market_filter = (
+                        None if _summary_market_in == "전체" else _summary_market_in
+                    )
+                    _summary_date_from_filter = _summary_date_from_in.strip() or None
+                    _summary_date_to_filter = _summary_date_to_in.strip() or None
+
+                    try:
+                        _summary_outcome_rows = db.get_all_report_outcomes(
+                            market=_summary_market_filter,
+                            date_from=_summary_date_from_filter,
+                            date_to=_summary_date_to_filter,
+                        )
+                    except ValueError as _summary_query_err:
+                        st.error(f"조회 조건 오류: {_summary_query_err}")
+                    else:
+                        _summary_residual_rows = performance.build_decision_residual_rows(
+                            _summary_outcome_rows
+                        )
+                        _summary_action_rows = performance.build_action_residual_summary(
+                            _summary_residual_rows
+                        )
+                        if not _summary_action_rows:
+                            st.info("아직 누적 통계를 계산할 저장 성과가 없습니다.")
+                        else:
+                            _summary_table_rows = [
+                                {
+                                    "거래일수": s.get("horizon_sessions"),
+                                    "실제 행동": s.get("actual_action"),
+                                    "전체 표본수": s.get("sample_count"),
+                                    "판단 수익률 표본수": s.get("judgment_return_count"),
+                                    "판단 평균 수익률(%)": _fmt_pct(s.get("judgment_return_avg")),
+                                    "판단 중앙 수익률(%)": _fmt_pct(
+                                        s.get("judgment_return_median")
+                                    ),
+                                    "판단 양수 개수": s.get("judgment_positive_count"),
+                                    "판단 양수 비율(%)": _fmt_pct(s.get("judgment_positive_rate")),
+                                    "판단 초과수익률 표본수": s.get("judgment_excess_count"),
+                                    "판단 평균 초과수익률(%)": _fmt_pct(
+                                        s.get("judgment_excess_avg")
+                                    ),
+                                    "진입 효과 표본수": s.get("entry_effect_count"),
+                                    "평균 진입 효과(%p)": _fmt_pct(s.get("entry_effect_avg")),
+                                    "중앙 진입 효과(%p)": _fmt_pct(s.get("entry_effect_median")),
+                                    "미매수 표본수": s.get("non_buy_return_count"),
+                                    "미매수 평균 수익률(%)": _fmt_pct(s.get("non_buy_return_avg")),
+                                    "미매수 중앙 수익률(%)": _fmt_pct(
+                                        s.get("non_buy_return_median")
+                                    ),
+                                    "미매수 양수 개수": s.get("non_buy_positive_count"),
+                                    "미매수 양수 비율(%)": _fmt_pct(s.get("non_buy_positive_rate")),
+                                    "미매수 초과수익률 표본수": s.get("non_buy_excess_count"),
+                                    "미매수 평균 초과수익률(%)": _fmt_pct(
+                                        s.get("non_buy_excess_avg")
+                                    ),
+                                }
+                                for s in _summary_action_rows
+                            ]
+                            st.dataframe(
+                                pd.DataFrame(_summary_table_rows),
+                                width="stretch",
+                                hide_index=True,
+                            )
+
+                # 테마별 누적 통계. 위 "전체 행동별 누적 통계 보기"와 마찬가지로 현재 선택한
+                # report_id 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의 저장된
+                # 성과를 db.get_all_report_outcomes()로 모아 집계한다. evaluate_item()/
+                # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
+                # 없음. 테마/실제 행동/거래일수 필터는 이미 계산된 통계 결과에만 적용하는
+                # 화면 표시용 필터이며 DB나 통계 원본값을 바꾸지 않는다.
+                with st.expander("테마별 누적 통계 보기", expanded=False):
+                    st.caption(
+                        "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
+                        "여러 보고서의 저장된 성과를 함께 집계합니다."
+                    )
+                    st.caption(
+                        "한 종목에 여러 테마 태그가 있으면 각 테마에 각각 포함됩니다. 표본수가 "
+                        "적으면 결과가 크게 흔들릴 수 있으며, 현재 표는 자동 판정이 아닌 누적 "
+                        "원자료 통계입니다."
+                    )
+
+                    _theme_filter_cols = st.columns(3)
+                    _theme_market_in = _theme_filter_cols[0].selectbox(
+                        "시장",
+                        ["전체", "KR", "US", "OTHER"],
+                        key="theme_summary_market_filter",
+                    )
+                    _theme_date_from_in = _theme_filter_cols[1].text_input(
+                        "시작일",
+                        value="",
+                        key="theme_summary_date_from_filter",
+                        placeholder="2026-07-01",
+                    )
+                    _theme_date_to_in = _theme_filter_cols[2].text_input(
+                        "종료일",
+                        value="",
+                        key="theme_summary_date_to_filter",
+                        placeholder="2026-07-31",
+                    )
+
+                    _theme_market_filter = (
+                        None if _theme_market_in == "전체" else _theme_market_in
+                    )
+                    _theme_date_from_filter = _theme_date_from_in.strip() or None
+                    _theme_date_to_filter = _theme_date_to_in.strip() or None
+
+                    try:
+                        _theme_outcome_rows = db.get_all_report_outcomes(
+                            market=_theme_market_filter,
+                            date_from=_theme_date_from_filter,
+                            date_to=_theme_date_to_filter,
+                        )
+                    except ValueError as _theme_query_err:
+                        st.error(f"조회 조건 오류: {_theme_query_err}")
+                    else:
+                        _theme_residual_rows = performance.build_decision_residual_rows(
+                            _theme_outcome_rows
+                        )
+                        _theme_summary_rows = performance.build_theme_residual_summary(
+                            _theme_residual_rows
+                        )
+                        if not _theme_summary_rows:
                             st.info("아직 테마별 누적 통계를 계산할 저장 성과가 없습니다.")
                         else:
-                            _theme_table_rows = [
-                                {
-                                    "테마": s.get("theme_tag"),
-                                    "거래일수": s.get("horizon_sessions"),
-                                    "실제 행동": s.get("actual_action"),
-                                    "전체 표본수": s.get("sample_count"),
-                                    "판단 수익률 표본수": s.get("judgment_return_count"),
-                                    "판단 평균 수익률(%)": _fmt_pct(
-                                        s.get("judgment_return_avg")
-                                    ),
-                                    "판단 중앙 수익률(%)": _fmt_pct(
-                                        s.get("judgment_return_median")
-                                    ),
-                                    "판단 양수 개수": s.get("judgment_positive_count"),
-                                    "판단 양수 비율(%)": _fmt_pct(
-                                        s.get("judgment_positive_rate")
-                                    ),
-                                    "판단 초과수익률 표본수": s.get("judgment_excess_count"),
-                                    "판단 평균 초과수익률(%)": _fmt_pct(
-                                        s.get("judgment_excess_avg")
-                                    ),
-                                    "진입 효과 표본수": s.get("entry_effect_count"),
-                                    "평균 진입 효과(%p)": _fmt_pct(
-                                        s.get("entry_effect_avg")
-                                    ),
-                                    "중앙 진입 효과(%p)": _fmt_pct(
-                                        s.get("entry_effect_median")
-                                    ),
-                                    "미매수 표본수": s.get("non_buy_return_count"),
-                                    "미매수 평균 수익률(%)": _fmt_pct(
-                                        s.get("non_buy_return_avg")
-                                    ),
-                                    "미매수 중앙 수익률(%)": _fmt_pct(
-                                        s.get("non_buy_return_median")
-                                    ),
-                                    "미매수 양수 개수": s.get("non_buy_positive_count"),
-                                    "미매수 양수 비율(%)": _fmt_pct(
-                                        s.get("non_buy_positive_rate")
-                                    ),
-                                    "미매수 초과수익률 표본수": s.get("non_buy_excess_count"),
-                                    "미매수 평균 초과수익률(%)": _fmt_pct(
-                                        s.get("non_buy_excess_avg")
-                                    ),
-                                }
-                                for s in _theme_filtered_rows
-                            ]
-                            st.dataframe(
-                                pd.DataFrame(_theme_table_rows),
-                                width="stretch",
-                                hide_index=True,
+                            _theme_tag_options_seen = []
+                            for _t in _theme_summary_rows:
+                                if _t["theme_tag"] not in _theme_tag_options_seen:
+                                    _theme_tag_options_seen.append(_t["theme_tag"])
+
+                            _theme_display_cols = st.columns(3)
+                            _theme_tag_in = _theme_display_cols[0].selectbox(
+                                "테마",
+                                ["전체"] + _theme_tag_options_seen,
+                                key="theme_summary_theme_filter",
                             )
-
-            # 판단 맥락별 누적 통계. 위 두 통계(행동별/테마별)와 마찬가지로 현재 선택한
-            # report_id 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의 저장된
-            # 성과를 db.get_all_report_outcomes()로 모아 집계한다. evaluate_item()/
-            # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
-            # 없음. 맥락값/실제 행동/거래일수 필터는 이미 계산된 통계 결과에만 적용하는
-            # 화면 표시용 필터이며 DB나 통계 원본값을 바꾸지 않는다. 분석 기준은 한 번에
-            # 하나만 선택한다(복합 조건 분석 아님). 내부 group_by 코드(trade_mode 등)는
-            # 화면에 노출하지 않고 선택된 한글 분석 기준 이름만 표시한다.
-            with st.expander("판단 맥락별 누적 통계 보기", expanded=False):
-                st.caption(
-                    "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
-                    "여러 보고서의 저장된 성과를 함께 집계합니다."
-                )
-                st.caption(
-                    "각 분석 기준을 한 번에 하나씩 분리해 집계한 원자료 통계입니다. "
-                    "표본수가 적으면 결과가 크게 흔들릴 수 있습니다."
-                )
-
-                _context_filter_cols = st.columns(3)
-                _context_market_in = _context_filter_cols[0].selectbox(
-                    "시장",
-                    ["전체", "KR", "US", "OTHER"],
-                    key="context_summary_market_filter",
-                )
-                _context_date_from_in = _context_filter_cols[1].text_input(
-                    "시작일",
-                    value="",
-                    key="context_summary_date_from_filter",
-                    placeholder="2026-07-01",
-                )
-                _context_date_to_in = _context_filter_cols[2].text_input(
-                    "종료일",
-                    value="",
-                    key="context_summary_date_to_filter",
-                    placeholder="2026-07-31",
-                )
-
-                _context_basis_options = {
-                    "매매유형": "trade_mode",
-                    "당시 판정": "verdict",
-                    "신호 분류": "signal_type",
-                    "이벤트": "event_name",
-                    "브리핑 단계": "briefing_stage",
-                    "시점 구분": "timing_class",
-                }
-                _context_basis_label_in = st.selectbox(
-                    "분석 기준",
-                    list(_context_basis_options.keys()),
-                    key="context_summary_basis_filter",
-                )
-                _context_group_by = _context_basis_options[_context_basis_label_in]
-
-                _context_market_filter = (
-                    None if _context_market_in == "전체" else _context_market_in
-                )
-                _context_date_from_filter = _context_date_from_in.strip() or None
-                _context_date_to_filter = _context_date_to_in.strip() or None
-
-                try:
-                    _context_outcome_rows = db.get_all_report_outcomes(
-                        market=_context_market_filter,
-                        date_from=_context_date_from_filter,
-                        date_to=_context_date_to_filter,
-                    )
-                except ValueError as _context_query_err:
-                    st.error(f"조회 조건 오류: {_context_query_err}")
-                else:
-                    _context_residual_rows = performance.build_decision_residual_rows(
-                        _context_outcome_rows
-                    )
-                    _context_summary_rows = performance.build_context_residual_summary(
-                        _context_residual_rows, _context_group_by
-                    )
-                    if not _context_summary_rows:
-                        st.info(
-                            "아직 판단 맥락별 누적 통계를 계산할 저장 성과가 없습니다."
-                        )
-                    else:
-                        _context_value_options_seen = []
-                        for _c in _context_summary_rows:
-                            if _c["context_value"] not in _context_value_options_seen:
-                                _context_value_options_seen.append(_c["context_value"])
-
-                        _context_display_cols = st.columns(3)
-                        _context_value_in = _context_display_cols[0].selectbox(
-                            "맥락값",
-                            ["전체"] + _context_value_options_seen,
-                            key="context_summary_value_filter",
-                        )
-                        _context_action_in = _context_display_cols[1].selectbox(
-                            "실제 행동",
-                            ["전체", "매수", "보류", "제외", "미기록"],
-                            key="context_summary_action_filter",
-                        )
-                        _context_horizon_in = _context_display_cols[2].selectbox(
-                            "거래일수",
-                            ["전체", 1, 3, 5, 10, 20],
-                            key="context_summary_horizon_filter",
-                        )
-
-                        _context_filtered_rows = _context_summary_rows
-                        if _context_value_in != "전체":
-                            _context_filtered_rows = [
-                                s for s in _context_filtered_rows
-                                if s["context_value"] == _context_value_in
-                            ]
-                        if _context_action_in != "전체":
-                            _context_filtered_rows = [
-                                s for s in _context_filtered_rows
-                                if s["actual_action"] == _context_action_in
-                            ]
-                        if _context_horizon_in != "전체":
-                            _context_filtered_rows = [
-                                s for s in _context_filtered_rows
-                                if s["horizon_sessions"] == _context_horizon_in
-                            ]
-
-                        if not _context_filtered_rows:
-                            st.info(
-                                "아직 판단 맥락별 누적 통계를 계산할 저장 성과가 없습니다."
-                            )
-                        else:
-                            _context_table_rows = [
-                                {
-                                    "분석 기준": _context_basis_label_in,
-                                    "맥락값": s.get("context_value"),
-                                    "거래일수": s.get("horizon_sessions"),
-                                    "실제 행동": s.get("actual_action"),
-                                    "전체 표본수": s.get("sample_count"),
-                                    "판단 수익률 표본수": s.get("judgment_return_count"),
-                                    "판단 평균 수익률(%)": _fmt_pct(
-                                        s.get("judgment_return_avg")
-                                    ),
-                                    "판단 중앙 수익률(%)": _fmt_pct(
-                                        s.get("judgment_return_median")
-                                    ),
-                                    "판단 양수 개수": s.get("judgment_positive_count"),
-                                    "판단 양수 비율(%)": _fmt_pct(
-                                        s.get("judgment_positive_rate")
-                                    ),
-                                    "판단 초과수익률 표본수": s.get("judgment_excess_count"),
-                                    "판단 평균 초과수익률(%)": _fmt_pct(
-                                        s.get("judgment_excess_avg")
-                                    ),
-                                    "진입 효과 표본수": s.get("entry_effect_count"),
-                                    "평균 진입 효과(%p)": _fmt_pct(
-                                        s.get("entry_effect_avg")
-                                    ),
-                                    "중앙 진입 효과(%p)": _fmt_pct(
-                                        s.get("entry_effect_median")
-                                    ),
-                                    "미매수 표본수": s.get("non_buy_return_count"),
-                                    "미매수 평균 수익률(%)": _fmt_pct(
-                                        s.get("non_buy_return_avg")
-                                    ),
-                                    "미매수 중앙 수익률(%)": _fmt_pct(
-                                        s.get("non_buy_return_median")
-                                    ),
-                                    "미매수 양수 개수": s.get("non_buy_positive_count"),
-                                    "미매수 양수 비율(%)": _fmt_pct(
-                                        s.get("non_buy_positive_rate")
-                                    ),
-                                    "미매수 초과수익률 표본수": s.get("non_buy_excess_count"),
-                                    "미매수 평균 초과수익률(%)": _fmt_pct(
-                                        s.get("non_buy_excess_avg")
-                                    ),
-                                }
-                                for s in _context_filtered_rows
-                            ]
-                            st.dataframe(
-                                pd.DataFrame(_context_table_rows),
-                                width="stretch",
-                                hide_index=True,
-                            )
-
-            # 두 조건 조합별 누적 통계. 위 세 통계(행동별/테마별/맥락별)와 마찬가지로 현재
-            # 선택한 report_id 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의
-            # 저장된 성과를 db.get_all_report_outcomes()로 모아 집계한다. evaluate_item()/
-            # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
-            # 없음. 조건값/행동/거래일수 필터는 이미 계산된 통계 결과에만 적용하는 화면
-            # 표시용 필터이며 DB나 통계 원본값을 바꾸지 않는다. 조건은 정확히 2개만 선택
-            # 하며(세 조건 이상 조합 아님), 내부 코드명은 화면에 노출하지 않고 선택된 한글
-            # 분석 기준 이름만 표시한다.
-            with st.expander("두 조건 조합별 누적 통계 보기", expanded=False):
-                st.caption(
-                    "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
-                    "여러 보고서의 저장된 성과를 함께 집계합니다."
-                )
-                st.caption(
-                    "두 조건이 동시에 해당한 기록을 집계한 원자료 통계입니다. 한 종목에 "
-                    "여러 테마가 있으면 각 테마 조합에 각각 포함되며, 표본수가 적으면 "
-                    "결과가 크게 흔들릴 수 있습니다."
-                )
-
-                _combo_basis_options = {
-                    "테마": "theme_tag",
-                    "매매유형": "trade_mode",
-                    "당시 판정": "verdict",
-                    "신호 분류": "signal_type",
-                    "이벤트": "event_name",
-                    "브리핑 단계": "briefing_stage",
-                    "시점 구분": "timing_class",
-                }
-                _combo_basis_label_list = list(_combo_basis_options.keys())
-
-                _combo_basis_cols = st.columns(2)
-                _combo_basis_1_label = _combo_basis_cols[0].selectbox(
-                    "첫 번째 조건",
-                    _combo_basis_label_list,
-                    index=_combo_basis_label_list.index("테마"),
-                    key="combination_summary_basis1_filter",
-                )
-                _combo_basis_2_label = _combo_basis_cols[1].selectbox(
-                    "두 번째 조건",
-                    _combo_basis_label_list,
-                    index=_combo_basis_label_list.index("매매유형"),
-                    key="combination_summary_basis2_filter",
-                )
-                _combo_group_by_1 = _combo_basis_options[_combo_basis_1_label]
-                _combo_group_by_2 = _combo_basis_options[_combo_basis_2_label]
-
-                _combo_filter_cols = st.columns(3)
-                _combo_market_in = _combo_filter_cols[0].selectbox(
-                    "시장",
-                    ["전체", "KR", "US", "OTHER"],
-                    key="combination_summary_market_filter",
-                )
-                _combo_date_from_in = _combo_filter_cols[1].text_input(
-                    "시작일",
-                    value="",
-                    key="combination_summary_date_from_filter",
-                    placeholder="2026-07-01",
-                )
-                _combo_date_to_in = _combo_filter_cols[2].text_input(
-                    "종료일",
-                    value="",
-                    key="combination_summary_date_to_filter",
-                    placeholder="2026-07-31",
-                )
-
-                _combo_market_filter = (
-                    None if _combo_market_in == "전체" else _combo_market_in
-                )
-                _combo_date_from_filter = _combo_date_from_in.strip() or None
-                _combo_date_to_filter = _combo_date_to_in.strip() or None
-
-                if _combo_group_by_1 == _combo_group_by_2:
-                    st.error("첫 번째 조건과 두 번째 조건은 서로 달라야 합니다.")
-                else:
-                    try:
-                        _combo_outcome_rows = db.get_all_report_outcomes(
-                            market=_combo_market_filter,
-                            date_from=_combo_date_from_filter,
-                            date_to=_combo_date_to_filter,
-                        )
-                    except ValueError as _combo_query_err:
-                        st.error(f"조회 조건 오류: {_combo_query_err}")
-                    else:
-                        _combo_residual_rows = performance.build_decision_residual_rows(
-                            _combo_outcome_rows
-                        )
-                        _combo_summary_rows = (
-                            performance.build_combination_residual_summary(
-                                _combo_residual_rows,
-                                [_combo_group_by_1, _combo_group_by_2],
-                            )
-                        )
-                        if not _combo_summary_rows:
-                            st.info(
-                                "아직 두 조건 조합별 누적 통계를 계산할 저장 성과가 "
-                                "없습니다."
-                            )
-                        else:
-                            _combo_value1_options_seen = []
-                            _combo_value2_options_seen = []
-                            for _c in _combo_summary_rows:
-                                if _c["context_value_1"] not in _combo_value1_options_seen:
-                                    _combo_value1_options_seen.append(
-                                        _c["context_value_1"]
-                                    )
-                                if _c["context_value_2"] not in _combo_value2_options_seen:
-                                    _combo_value2_options_seen.append(
-                                        _c["context_value_2"]
-                                    )
-
-                            _combo_display_cols = st.columns(4)
-                            _combo_value1_in = _combo_display_cols[0].selectbox(
-                                f"{_combo_basis_1_label} 조건값",
-                                ["전체"] + _combo_value1_options_seen,
-                                key="combination_summary_value1_filter",
-                            )
-                            _combo_value2_in = _combo_display_cols[1].selectbox(
-                                f"{_combo_basis_2_label} 조건값",
-                                ["전체"] + _combo_value2_options_seen,
-                                key="combination_summary_value2_filter",
-                            )
-                            _combo_action_in = _combo_display_cols[2].selectbox(
+                            _theme_action_in = _theme_display_cols[1].selectbox(
                                 "실제 행동",
                                 ["전체", "매수", "보류", "제외", "미기록"],
-                                key="combination_summary_action_filter",
+                                key="theme_summary_action_filter",
                             )
-                            _combo_horizon_in = _combo_display_cols[3].selectbox(
+                            _theme_horizon_in = _theme_display_cols[2].selectbox(
                                 "거래일수",
                                 ["전체", 1, 3, 5, 10, 20],
-                                key="combination_summary_horizon_filter",
+                                key="theme_summary_horizon_filter",
                             )
 
-                            _combo_filtered_rows = _combo_summary_rows
-                            if _combo_value1_in != "전체":
-                                _combo_filtered_rows = [
-                                    s for s in _combo_filtered_rows
-                                    if s["context_value_1"] == _combo_value1_in
+                            _theme_filtered_rows = _theme_summary_rows
+                            if _theme_tag_in != "전체":
+                                _theme_filtered_rows = [
+                                    s for s in _theme_filtered_rows
+                                    if s["theme_tag"] == _theme_tag_in
                                 ]
-                            if _combo_value2_in != "전체":
-                                _combo_filtered_rows = [
-                                    s for s in _combo_filtered_rows
-                                    if s["context_value_2"] == _combo_value2_in
+                            if _theme_action_in != "전체":
+                                _theme_filtered_rows = [
+                                    s for s in _theme_filtered_rows
+                                    if s["actual_action"] == _theme_action_in
                                 ]
-                            if _combo_action_in != "전체":
-                                _combo_filtered_rows = [
-                                    s for s in _combo_filtered_rows
-                                    if s["actual_action"] == _combo_action_in
-                                ]
-                            if _combo_horizon_in != "전체":
-                                _combo_filtered_rows = [
-                                    s for s in _combo_filtered_rows
-                                    if s["horizon_sessions"] == _combo_horizon_in
+                            if _theme_horizon_in != "전체":
+                                _theme_filtered_rows = [
+                                    s for s in _theme_filtered_rows
+                                    if s["horizon_sessions"] == _theme_horizon_in
                                 ]
 
-                            if not _combo_filtered_rows:
-                                st.info(
-                                    "아직 두 조건 조합별 누적 통계를 계산할 저장 성과가 "
-                                    "없습니다."
-                                )
+                            if not _theme_filtered_rows:
+                                st.info("아직 테마별 누적 통계를 계산할 저장 성과가 없습니다.")
                             else:
-                                _combo_table_rows = [
+                                _theme_table_rows = [
                                     {
-                                        "첫 번째 분석 기준": _combo_basis_1_label,
-                                        "첫 번째 조건값": s.get("context_value_1"),
-                                        "두 번째 분석 기준": _combo_basis_2_label,
-                                        "두 번째 조건값": s.get("context_value_2"),
+                                        "테마": s.get("theme_tag"),
                                         "거래일수": s.get("horizon_sessions"),
                                         "실제 행동": s.get("actual_action"),
                                         "전체 표본수": s.get("sample_count"),
-                                        "판단 수익률 표본수": s.get(
-                                            "judgment_return_count"
-                                        ),
+                                        "판단 수익률 표본수": s.get("judgment_return_count"),
                                         "판단 평균 수익률(%)": _fmt_pct(
                                             s.get("judgment_return_avg")
                                         ),
                                         "판단 중앙 수익률(%)": _fmt_pct(
                                             s.get("judgment_return_median")
                                         ),
-                                        "판단 양수 개수": s.get(
-                                            "judgment_positive_count"
-                                        ),
+                                        "판단 양수 개수": s.get("judgment_positive_count"),
                                         "판단 양수 비율(%)": _fmt_pct(
                                             s.get("judgment_positive_rate")
                                         ),
-                                        "판단 초과수익률 표본수": s.get(
-                                            "judgment_excess_count"
-                                        ),
+                                        "판단 초과수익률 표본수": s.get("judgment_excess_count"),
                                         "판단 평균 초과수익률(%)": _fmt_pct(
                                             s.get("judgment_excess_avg")
                                         ),
@@ -7325,378 +6944,776 @@ with tab_perf:
                                         "미매수 중앙 수익률(%)": _fmt_pct(
                                             s.get("non_buy_return_median")
                                         ),
-                                        "미매수 양수 개수": s.get(
-                                            "non_buy_positive_count"
-                                        ),
+                                        "미매수 양수 개수": s.get("non_buy_positive_count"),
                                         "미매수 양수 비율(%)": _fmt_pct(
                                             s.get("non_buy_positive_rate")
                                         ),
-                                        "미매수 초과수익률 표본수": s.get(
-                                            "non_buy_excess_count"
-                                        ),
+                                        "미매수 초과수익률 표본수": s.get("non_buy_excess_count"),
                                         "미매수 평균 초과수익률(%)": _fmt_pct(
                                             s.get("non_buy_excess_avg")
                                         ),
                                     }
-                                    for s in _combo_filtered_rows
+                                    for s in _theme_filtered_rows
                                 ]
                                 st.dataframe(
-                                    pd.DataFrame(_combo_table_rows),
+                                    pd.DataFrame(_theme_table_rows),
                                     width="stretch",
                                     hide_index=True,
                                 )
-            st.markdown("---")
 
-        # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
-        fcol1, fcol2 = st.columns(2)
-        trade_mode_filter = fcol1.radio(
-            "단기/며칠 구분",
-            ["전체", "단타", "스윙", "공통"],
-            horizontal=True,
-            key="perf_trade_mode_filter",
-        )
-        verdict_filter_display = fcol2.radio(
-            "판단 구분",
-            ["전체", "1순위 후보", "관찰 후보", "재확인", "보류", "제외"],
-            horizontal=True,
-            key="perf_verdict_filter",
-        )
+                # 판단 맥락별 누적 통계. 위 두 통계(행동별/테마별)와 마찬가지로 현재 선택한
+                # report_id 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의 저장된
+                # 성과를 db.get_all_report_outcomes()로 모아 집계한다. evaluate_item()/
+                # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
+                # 없음. 맥락값/실제 행동/거래일수 필터는 이미 계산된 통계 결과에만 적용하는
+                # 화면 표시용 필터이며 DB나 통계 원본값을 바꾸지 않는다. 분석 기준은 한 번에
+                # 하나만 선택한다(복합 조건 분석 아님). 내부 group_by 코드(trade_mode 등)는
+                # 화면에 노출하지 않고 선택된 한글 분석 기준 이름만 표시한다.
+                with st.expander("판단 맥락별 누적 통계 보기", expanded=False):
+                    st.caption(
+                        "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
+                        "여러 보고서의 저장된 성과를 함께 집계합니다."
+                    )
+                    st.caption(
+                        "각 분석 기준을 한 번에 하나씩 분리해 집계한 원자료 통계입니다. "
+                        "표본수가 적으면 결과가 크게 흔들릴 수 있습니다."
+                    )
 
-        perf_rows = scoped_rows
-        if trade_mode_filter != "전체":
-            perf_rows = [row for row in perf_rows if row["trade_mode"] == trade_mode_filter]
-        if verdict_filter_display != "전체":
-            internal_verdict = REVERSE_VERDICT_DISPLAY[verdict_filter_display]
-            perf_rows = [row for row in perf_rows if row["verdict"] == internal_verdict]
+                    _context_filter_cols = st.columns(3)
+                    _context_market_in = _context_filter_cols[0].selectbox(
+                        "시장",
+                        ["전체", "KR", "US", "OTHER"],
+                        key="context_summary_market_filter",
+                    )
+                    _context_date_from_in = _context_filter_cols[1].text_input(
+                        "시작일",
+                        value="",
+                        key="context_summary_date_from_filter",
+                        placeholder="2026-07-01",
+                    )
+                    _context_date_to_in = _context_filter_cols[2].text_input(
+                        "종료일",
+                        value="",
+                        key="context_summary_date_to_filter",
+                        placeholder="2026-07-31",
+                    )
 
-        if not perf_rows:
-            st.info("이 조건에 해당하는 종목별 기록이 없습니다.")
-        else:
-            # 후보 점수 계산: 저장된 문장에서 숫자 근거를 뽑아 판정 기본점수에 가감한다.
-            item_text_lookup = _build_item_text_lookup()
-            scored_rows = []
-            for row in perf_rows:
-                key = (row["report_id"], row["ticker"], row["trade_mode"])
-                basis_text = " ".join(item_text_lookup.get(key, []))
-                basis = extract_score_basis_from_text(basis_text)
-                candidate_score = compute_candidate_score(row["verdict"], row["trade_mode"], basis)
-                scored_rows.append((candidate_score, row))
-
-            # 후보 점수 기준 내림차순 정렬 (동점은 입력 순서 유지 — sorted()는 안정 정렬)
-            scored_rows = sorted(scored_rows, key=lambda pair: -pair[0])
-
-            # score(저장된 판단 설명 점수) 기준 순위: 같은 report·시장·매매유형 안에서만 비교한다.
-            item_judgment_lookup = _build_item_judgment_lookup()
-            score_rank_labels = _compute_score_rank_labels(item_judgment_lookup.values())
-
-            # 4. compact 요약 (큰 숫자 4개만)
-            status_counts = {
-                "계산 완료": sum(1 for row in perf_rows if row["status"] == "계산 완료"),
-                "대기": sum(1 for row in perf_rows if row["status"] == "대기"),
-                "데이터 부족": sum(1 for row in perf_rows if row["status"] == "데이터 부족"),
-            }
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("지금 보이는 종목", len(perf_rows))
-            m2.metric("결과 기다리는 중", status_counts["대기"])
-            m3.metric("결과 확인 완료", status_counts["계산 완료"])
-            m4.metric("가격 데이터 부족", status_counts["데이터 부족"])
-            st.caption("현재 필터 기준으로 표시되는 종목 수입니다.")
-
-            # 판정별 개수는 작은 배지 텍스트로만 표시 (큰 숫자 아님)
-            verdict_counts = {
-                v: sum(1 for row in perf_rows if row["verdict"] == v) for v in VERDICT_ORDER
-            }
-            badge_line = "  ".join(
-                f"{_verdict_badge(v)} {verdict_counts[v]}건" for v in VERDICT_ORDER
-            )
-            st.markdown(badge_line)
-
-            if st.button("수익률 다시 확인", key="perf_refresh"):
-                _cached_verification_rows.clear()
-                _cached_no_recommendation_rows.clear()
-                st.rerun()
-            st.caption("저장된 종목의 1일·3일·5일·10일·20일 수익률을 다시 확인합니다.")
-
-            # 4-1. 필터 준수 vs 필터 무시 R 비교 카드 (report_items 전체 기준, 화면 표시 전용)
-            st.markdown("#### 필터 준수 vs 필터 무시 R 비교")
-            st.caption("이 통계는 매수 추천이 아니라 행동 검증용입니다.")
-            _fi_stats = _fetch_filter_compliance_stats()
-            fc1, fc2, fc3 = st.columns(3)
-            fc1.metric("필터 무시 기록 수", _fi_stats["ignored_count"])
-            fc2.metric("필터 준수 기록 수", _fi_stats["followed_count"])
-            fc3.metric("필터 미입력 수", _fi_stats["unset_count"])
-            fc4, fc5, fc6 = st.columns(3)
-            fc4.metric("필터 무시 평균 R", _fmt_avg_r(_fi_stats["ignored_avg_r"]))
-            fc5.metric("필터 준수 평균 R", _fmt_avg_r(_fi_stats["followed_avg_r"]))
-            fc6.metric(
-                "비교 가능 R 데이터 수",
-                f"{_fi_stats['comparable_n']}건" if _fi_stats["comparable_n"] else "0건",
-            )
-            if _fi_stats["comparable_n"] == 0:
-                st.info(
-                    "아직 필터 준수/무시와 청산 R 데이터가 부족합니다. "
-                    "필터 무시 기록과 청산 결과가 쌓이면 비교됩니다."
-                )
-            elif _fi_stats["comparable_n"] < 30:
-                st.caption(f"표본 N<30: 미검증 구간입니다. ({_n_confidence_label(_fi_stats['comparable_n'])})")
-            else:
-                st.caption(
-                    f"표본 N={_fi_stats['comparable_n']}: {_n_confidence_label(_fi_stats['comparable_n'])} 구간입니다."
-                )
-
-            # 4-2. 최악 5매매 R 점검 카드 (report_items 전체 기준, 화면 표시 전용)
-            st.markdown("#### 최악 5매매 R 점검")
-            st.caption("이 카드는 매수 추천이 아니라 손실 원인 점검용입니다.")
-            _worst_stats = _fetch_worst_trades(limit=5)
-            if _worst_stats["total_n"] == 0:
-                st.info("아직 청산 R 데이터가 없습니다. 청산 결과가 쌓이면 최악 5개 매매가 표시됩니다.")
-            else:
-                wc1, wc2, wc3, wc4 = st.columns(4)
-                wc1.metric("R 데이터 개수", _worst_stats["total_n"])
-                wc2.metric("최악 5개 평균 R", _fmt_avg_r(_worst_stats["avg_worst"]))
-                wc3.metric("최저 R", _fmt_avg_r(_worst_stats["lowest"]))
-                wc4.metric("검증 상태", _n_confidence_label(_worst_stats["total_n"]))
-                if _worst_stats["total_n"] < 30:
-                    st.caption(f"표본 N<30: {_n_confidence_label(_worst_stats['total_n'])} 구간입니다.")
-                st.dataframe(
-                    pd.DataFrame(
-                        [
-                            {
-                                "종목명": d["종목명"],
-                                "티커": d["티커"],
-                                "매매유형": d["매매유형"],
-                                "result_r": _fmt_avg_r(d["result_r"]),
-                                "청산일": d["청산일"],
-                                "청산사유": d["청산사유"],
-                                "필터무시여부": d["필터무시여부"],
-                            }
-                            for d in _worst_stats["worst_rows"]
-                        ]
-                    ),
-                    width="stretch",
-                    hide_index=True,
-                )
-
-            # 4-3. 총 오픈 리스크 3R 점검 카드 (report_items 전체 기준, 화면 표시 전용)
-            st.markdown("#### 총 오픈 리스크 3R 점검")
-            st.caption("이 카드는 매수 추천이 아니라 여러 포지션의 손실 노출을 점검하는 장치입니다.")
-            _open_risk = _fetch_open_risk_positions()
-            oc1, oc2, oc3, oc4 = st.columns(4)
-            oc1.metric("계산 가능한 오픈 포지션 수", _open_risk["count"])
-            oc2.metric("총 오픈 리스크", f"{_open_risk['total_risk']:.2f}R")
-            oc3.metric("3R 기준 상태", _open_risk_status_label(_open_risk["count"], _open_risk["total_risk"]))
-            oc4.metric("계산 제외 항목 수", _open_risk["excluded_count"])
-            if _open_risk["count"] == 0:
-                st.info(
-                    "아직 진입가와 손절가가 입력된 미청산 항목이 없습니다. "
-                    "새 기록에서 진입가와 손절가가 쌓이면 총 오픈 리스크가 계산됩니다."
-                )
-            else:
-                st.dataframe(
-                    pd.DataFrame(
-                        [
-                            {
-                                "종목명": p["종목명"],
-                                "티커": p["티커"],
-                                "매매유형": p["매매유형"],
-                                "진입가": f"{p['진입가']:,.0f}",
-                                "손절가": f"{p['손절가']:,.0f}",
-                                "1건 위험": f"{p['1건 위험']:.2f}R",
-                                "필터무시여부": p["필터무시여부"],
-                            }
-                            for p in _open_risk["positions"]
-                        ]
-                    ),
-                    width="stretch",
-                    hide_index=True,
-                )
-
-            # 5. 관심 점수 설명
-            st.info(
-                "관심 점수는 실제 상승확률이 아닙니다. 오늘 주가 위치, 고점 대비 밀림, 거래대금, "
-                "섹터 흐름을 기준으로 관심 순서를 비교한 점수입니다. 100점은 반드시 오른다는 "
-                "뜻이 아닙니다. 조건표상 거의 완벽한 경우에만 나오는 높은 관심 점수입니다. "
-                "일반적인 1순위 후보는 80~90점대가 정상입니다."
-            )
-
-            # 6. 결과 표 (기본 컬럼만, 관심 점수 높은 순 정렬) — 화면 표시는 한국장/미국장으로 나눠서 보여준다.
-            table_rows = []
-            for score, row in scored_rows:
-                saved_item = item_judgment_lookup.get(
-                    (row["report_id"], row["ticker"], row["trade_mode"]), {}
-                )
-                table_rows.append(
-                    {
-                        "종목명": row["stock_name"],
-                        "티커": row["ticker"],
-                        "시장": row["market"],
-                        "매매유형": row["trade_mode"],
-                        "순위": score_rank_labels.get(saved_item.get("id"), "미평가"),
-                        "관심 점수": score,
-                        "판단": _display_verdict_name(row["verdict"]),
-                        "결과 상태": row["status"],
-                        "판단 시점": row["briefing_stage"],
-                        "1일 뒤": _fmt_pct(row["returns"][1]),
-                        "3일 뒤": _fmt_pct(row["returns"][3]),
-                        "5일 뒤": _fmt_pct(row["returns"][5]),
-                        "10일 뒤": _fmt_pct(row["returns"][10]),
-                        "20일 뒤": _fmt_pct(row["returns"][20]),
-                        "실제 청산가": (
-                            f"{saved_item['actual_exit_price']:,.0f}"
-                            if saved_item.get("actual_exit_price") else "-"
-                        ),
-                        "청산일": saved_item.get("actual_exit_date") or "-",
-                        "계획 준수": saved_item.get("plan_followed") or "-",
-                        "청산 사유": saved_item.get("exit_reason") or "-",
-                        "R수익률": _fmt_result_r(saved_item.get("result_r")),
-                        "검증 상태": saved_item.get("verification_status") or "미입력",
+                    _context_basis_options = {
+                        "매매유형": "trade_mode",
+                        "당시 판정": "verdict",
+                        "신호 분류": "signal_type",
+                        "이벤트": "event_name",
+                        "브리핑 단계": "briefing_stage",
+                        "시점 구분": "timing_class",
                     }
-                )
-            perf_df = pd.DataFrame(table_rows)
+                    _context_basis_label_in = st.selectbox(
+                        "분석 기준",
+                        list(_context_basis_options.keys()),
+                        key="context_summary_basis_filter",
+                    )
+                    _context_group_by = _context_basis_options[_context_basis_label_in]
 
-            kr_table_rows = [r for r in table_rows if r["시장"] == "KR"]
-            us_table_rows = [r for r in table_rows if r["시장"] == "US"]
+                    _context_market_filter = (
+                        None if _context_market_in == "전체" else _context_market_in
+                    )
+                    _context_date_from_filter = _context_date_from_in.strip() or None
+                    _context_date_to_filter = _context_date_to_in.strip() or None
 
-            st.markdown("#### 한국장 저장 결과")
-            if kr_table_rows:
-                st.dataframe(pd.DataFrame(kr_table_rows), width="stretch", hide_index=True)
-            else:
-                st.info("한국장 저장 기록 없음")
+                    try:
+                        _context_outcome_rows = db.get_all_report_outcomes(
+                            market=_context_market_filter,
+                            date_from=_context_date_from_filter,
+                            date_to=_context_date_to_filter,
+                        )
+                    except ValueError as _context_query_err:
+                        st.error(f"조회 조건 오류: {_context_query_err}")
+                    else:
+                        _context_residual_rows = performance.build_decision_residual_rows(
+                            _context_outcome_rows
+                        )
+                        _context_summary_rows = performance.build_context_residual_summary(
+                            _context_residual_rows, _context_group_by
+                        )
+                        if not _context_summary_rows:
+                            st.info(
+                                "아직 판단 맥락별 누적 통계를 계산할 저장 성과가 없습니다."
+                            )
+                        else:
+                            _context_value_options_seen = []
+                            for _c in _context_summary_rows:
+                                if _c["context_value"] not in _context_value_options_seen:
+                                    _context_value_options_seen.append(_c["context_value"])
 
-            st.markdown("#### 미국장 저장 결과")
-            if us_table_rows:
-                st.dataframe(pd.DataFrame(us_table_rows), width="stretch", hide_index=True)
-            else:
-                st.info("미국장 저장 기록 없음")
+                            _context_display_cols = st.columns(3)
+                            _context_value_in = _context_display_cols[0].selectbox(
+                                "맥락값",
+                                ["전체"] + _context_value_options_seen,
+                                key="context_summary_value_filter",
+                            )
+                            _context_action_in = _context_display_cols[1].selectbox(
+                                "실제 행동",
+                                ["전체", "매수", "보류", "제외", "미기록"],
+                                key="context_summary_action_filter",
+                            )
+                            _context_horizon_in = _context_display_cols[2].selectbox(
+                                "거래일수",
+                                ["전체", 1, 3, 5, 10, 20],
+                                key="context_summary_horizon_filter",
+                            )
 
-            # 7. 엑셀용 파일 내보내기 (기본 표와 동일한 컬럼)
-            st.download_button(
-                "결과 표 엑셀로 저장",
-                data=perf_df.to_csv(index=False).encode("utf-8-sig"),
-                file_name="결과확인.csv",
-                mime="text/csv",
-                key="perf_csv_download",
+                            _context_filtered_rows = _context_summary_rows
+                            if _context_value_in != "전체":
+                                _context_filtered_rows = [
+                                    s for s in _context_filtered_rows
+                                    if s["context_value"] == _context_value_in
+                                ]
+                            if _context_action_in != "전체":
+                                _context_filtered_rows = [
+                                    s for s in _context_filtered_rows
+                                    if s["actual_action"] == _context_action_in
+                                ]
+                            if _context_horizon_in != "전체":
+                                _context_filtered_rows = [
+                                    s for s in _context_filtered_rows
+                                    if s["horizon_sessions"] == _context_horizon_in
+                                ]
+
+                            if not _context_filtered_rows:
+                                st.info(
+                                    "아직 판단 맥락별 누적 통계를 계산할 저장 성과가 없습니다."
+                                )
+                            else:
+                                _context_table_rows = [
+                                    {
+                                        "분석 기준": _context_basis_label_in,
+                                        "맥락값": s.get("context_value"),
+                                        "거래일수": s.get("horizon_sessions"),
+                                        "실제 행동": s.get("actual_action"),
+                                        "전체 표본수": s.get("sample_count"),
+                                        "판단 수익률 표본수": s.get("judgment_return_count"),
+                                        "판단 평균 수익률(%)": _fmt_pct(
+                                            s.get("judgment_return_avg")
+                                        ),
+                                        "판단 중앙 수익률(%)": _fmt_pct(
+                                            s.get("judgment_return_median")
+                                        ),
+                                        "판단 양수 개수": s.get("judgment_positive_count"),
+                                        "판단 양수 비율(%)": _fmt_pct(
+                                            s.get("judgment_positive_rate")
+                                        ),
+                                        "판단 초과수익률 표본수": s.get("judgment_excess_count"),
+                                        "판단 평균 초과수익률(%)": _fmt_pct(
+                                            s.get("judgment_excess_avg")
+                                        ),
+                                        "진입 효과 표본수": s.get("entry_effect_count"),
+                                        "평균 진입 효과(%p)": _fmt_pct(
+                                            s.get("entry_effect_avg")
+                                        ),
+                                        "중앙 진입 효과(%p)": _fmt_pct(
+                                            s.get("entry_effect_median")
+                                        ),
+                                        "미매수 표본수": s.get("non_buy_return_count"),
+                                        "미매수 평균 수익률(%)": _fmt_pct(
+                                            s.get("non_buy_return_avg")
+                                        ),
+                                        "미매수 중앙 수익률(%)": _fmt_pct(
+                                            s.get("non_buy_return_median")
+                                        ),
+                                        "미매수 양수 개수": s.get("non_buy_positive_count"),
+                                        "미매수 양수 비율(%)": _fmt_pct(
+                                            s.get("non_buy_positive_rate")
+                                        ),
+                                        "미매수 초과수익률 표본수": s.get("non_buy_excess_count"),
+                                        "미매수 평균 초과수익률(%)": _fmt_pct(
+                                            s.get("non_buy_excess_avg")
+                                        ),
+                                    }
+                                    for s in _context_filtered_rows
+                                ]
+                                st.dataframe(
+                                    pd.DataFrame(_context_table_rows),
+                                    width="stretch",
+                                    hide_index=True,
+                                )
+
+                # 두 조건 조합별 누적 통계. 위 세 통계(행동별/테마별/맥락별)와 마찬가지로 현재
+                # 선택한 report_id 1건이 아니라, 아래 필터 조건(시장/기간)에 맞는 여러 보고서의
+                # 저장된 성과를 db.get_all_report_outcomes()로 모아 집계한다. evaluate_item()/
+                # evaluate_actual_item() 재호출, 가격·벤치마크 네트워크 조회, DB UPSERT 전혀
+                # 없음. 조건값/행동/거래일수 필터는 이미 계산된 통계 결과에만 적용하는 화면
+                # 표시용 필터이며 DB나 통계 원본값을 바꾸지 않는다. 조건은 정확히 2개만 선택
+                # 하며(세 조건 이상 조합 아님), 내부 코드명은 화면에 노출하지 않고 선택된 한글
+                # 분석 기준 이름만 표시한다.
+                with st.expander("두 조건 조합별 누적 통계 보기", expanded=False):
+                    st.caption(
+                        "이 통계는 현재 선택한 보고서 한 건이 아니라, 아래 필터 조건에 맞는 "
+                        "여러 보고서의 저장된 성과를 함께 집계합니다."
+                    )
+                    st.caption(
+                        "두 조건이 동시에 해당한 기록을 집계한 원자료 통계입니다. 한 종목에 "
+                        "여러 테마가 있으면 각 테마 조합에 각각 포함되며, 표본수가 적으면 "
+                        "결과가 크게 흔들릴 수 있습니다."
+                    )
+
+                    _combo_basis_options = {
+                        "테마": "theme_tag",
+                        "매매유형": "trade_mode",
+                        "당시 판정": "verdict",
+                        "신호 분류": "signal_type",
+                        "이벤트": "event_name",
+                        "브리핑 단계": "briefing_stage",
+                        "시점 구분": "timing_class",
+                    }
+                    _combo_basis_label_list = list(_combo_basis_options.keys())
+
+                    _combo_basis_cols = st.columns(2)
+                    _combo_basis_1_label = _combo_basis_cols[0].selectbox(
+                        "첫 번째 조건",
+                        _combo_basis_label_list,
+                        index=_combo_basis_label_list.index("테마"),
+                        key="combination_summary_basis1_filter",
+                    )
+                    _combo_basis_2_label = _combo_basis_cols[1].selectbox(
+                        "두 번째 조건",
+                        _combo_basis_label_list,
+                        index=_combo_basis_label_list.index("매매유형"),
+                        key="combination_summary_basis2_filter",
+                    )
+                    _combo_group_by_1 = _combo_basis_options[_combo_basis_1_label]
+                    _combo_group_by_2 = _combo_basis_options[_combo_basis_2_label]
+
+                    _combo_filter_cols = st.columns(3)
+                    _combo_market_in = _combo_filter_cols[0].selectbox(
+                        "시장",
+                        ["전체", "KR", "US", "OTHER"],
+                        key="combination_summary_market_filter",
+                    )
+                    _combo_date_from_in = _combo_filter_cols[1].text_input(
+                        "시작일",
+                        value="",
+                        key="combination_summary_date_from_filter",
+                        placeholder="2026-07-01",
+                    )
+                    _combo_date_to_in = _combo_filter_cols[2].text_input(
+                        "종료일",
+                        value="",
+                        key="combination_summary_date_to_filter",
+                        placeholder="2026-07-31",
+                    )
+
+                    _combo_market_filter = (
+                        None if _combo_market_in == "전체" else _combo_market_in
+                    )
+                    _combo_date_from_filter = _combo_date_from_in.strip() or None
+                    _combo_date_to_filter = _combo_date_to_in.strip() or None
+
+                    if _combo_group_by_1 == _combo_group_by_2:
+                        st.error("첫 번째 조건과 두 번째 조건은 서로 달라야 합니다.")
+                    else:
+                        try:
+                            _combo_outcome_rows = db.get_all_report_outcomes(
+                                market=_combo_market_filter,
+                                date_from=_combo_date_from_filter,
+                                date_to=_combo_date_to_filter,
+                            )
+                        except ValueError as _combo_query_err:
+                            st.error(f"조회 조건 오류: {_combo_query_err}")
+                        else:
+                            _combo_residual_rows = performance.build_decision_residual_rows(
+                                _combo_outcome_rows
+                            )
+                            _combo_summary_rows = (
+                                performance.build_combination_residual_summary(
+                                    _combo_residual_rows,
+                                    [_combo_group_by_1, _combo_group_by_2],
+                                )
+                            )
+                            if not _combo_summary_rows:
+                                st.info(
+                                    "아직 두 조건 조합별 누적 통계를 계산할 저장 성과가 "
+                                    "없습니다."
+                                )
+                            else:
+                                _combo_value1_options_seen = []
+                                _combo_value2_options_seen = []
+                                for _c in _combo_summary_rows:
+                                    if _c["context_value_1"] not in _combo_value1_options_seen:
+                                        _combo_value1_options_seen.append(
+                                            _c["context_value_1"]
+                                        )
+                                    if _c["context_value_2"] not in _combo_value2_options_seen:
+                                        _combo_value2_options_seen.append(
+                                            _c["context_value_2"]
+                                        )
+
+                                _combo_display_cols = st.columns(4)
+                                _combo_value1_in = _combo_display_cols[0].selectbox(
+                                    f"{_combo_basis_1_label} 조건값",
+                                    ["전체"] + _combo_value1_options_seen,
+                                    key="combination_summary_value1_filter",
+                                )
+                                _combo_value2_in = _combo_display_cols[1].selectbox(
+                                    f"{_combo_basis_2_label} 조건값",
+                                    ["전체"] + _combo_value2_options_seen,
+                                    key="combination_summary_value2_filter",
+                                )
+                                _combo_action_in = _combo_display_cols[2].selectbox(
+                                    "실제 행동",
+                                    ["전체", "매수", "보류", "제외", "미기록"],
+                                    key="combination_summary_action_filter",
+                                )
+                                _combo_horizon_in = _combo_display_cols[3].selectbox(
+                                    "거래일수",
+                                    ["전체", 1, 3, 5, 10, 20],
+                                    key="combination_summary_horizon_filter",
+                                )
+
+                                _combo_filtered_rows = _combo_summary_rows
+                                if _combo_value1_in != "전체":
+                                    _combo_filtered_rows = [
+                                        s for s in _combo_filtered_rows
+                                        if s["context_value_1"] == _combo_value1_in
+                                    ]
+                                if _combo_value2_in != "전체":
+                                    _combo_filtered_rows = [
+                                        s for s in _combo_filtered_rows
+                                        if s["context_value_2"] == _combo_value2_in
+                                    ]
+                                if _combo_action_in != "전체":
+                                    _combo_filtered_rows = [
+                                        s for s in _combo_filtered_rows
+                                        if s["actual_action"] == _combo_action_in
+                                    ]
+                                if _combo_horizon_in != "전체":
+                                    _combo_filtered_rows = [
+                                        s for s in _combo_filtered_rows
+                                        if s["horizon_sessions"] == _combo_horizon_in
+                                    ]
+
+                                if not _combo_filtered_rows:
+                                    st.info(
+                                        "아직 두 조건 조합별 누적 통계를 계산할 저장 성과가 "
+                                        "없습니다."
+                                    )
+                                else:
+                                    _combo_table_rows = [
+                                        {
+                                            "첫 번째 분석 기준": _combo_basis_1_label,
+                                            "첫 번째 조건값": s.get("context_value_1"),
+                                            "두 번째 분석 기준": _combo_basis_2_label,
+                                            "두 번째 조건값": s.get("context_value_2"),
+                                            "거래일수": s.get("horizon_sessions"),
+                                            "실제 행동": s.get("actual_action"),
+                                            "전체 표본수": s.get("sample_count"),
+                                            "판단 수익률 표본수": s.get(
+                                                "judgment_return_count"
+                                            ),
+                                            "판단 평균 수익률(%)": _fmt_pct(
+                                                s.get("judgment_return_avg")
+                                            ),
+                                            "판단 중앙 수익률(%)": _fmt_pct(
+                                                s.get("judgment_return_median")
+                                            ),
+                                            "판단 양수 개수": s.get(
+                                                "judgment_positive_count"
+                                            ),
+                                            "판단 양수 비율(%)": _fmt_pct(
+                                                s.get("judgment_positive_rate")
+                                            ),
+                                            "판단 초과수익률 표본수": s.get(
+                                                "judgment_excess_count"
+                                            ),
+                                            "판단 평균 초과수익률(%)": _fmt_pct(
+                                                s.get("judgment_excess_avg")
+                                            ),
+                                            "진입 효과 표본수": s.get("entry_effect_count"),
+                                            "평균 진입 효과(%p)": _fmt_pct(
+                                                s.get("entry_effect_avg")
+                                            ),
+                                            "중앙 진입 효과(%p)": _fmt_pct(
+                                                s.get("entry_effect_median")
+                                            ),
+                                            "미매수 표본수": s.get("non_buy_return_count"),
+                                            "미매수 평균 수익률(%)": _fmt_pct(
+                                                s.get("non_buy_return_avg")
+                                            ),
+                                            "미매수 중앙 수익률(%)": _fmt_pct(
+                                                s.get("non_buy_return_median")
+                                            ),
+                                            "미매수 양수 개수": s.get(
+                                                "non_buy_positive_count"
+                                            ),
+                                            "미매수 양수 비율(%)": _fmt_pct(
+                                                s.get("non_buy_positive_rate")
+                                            ),
+                                            "미매수 초과수익률 표본수": s.get(
+                                                "non_buy_excess_count"
+                                            ),
+                                            "미매수 평균 초과수익률(%)": _fmt_pct(
+                                                s.get("non_buy_excess_avg")
+                                            ),
+                                        }
+                                        for s in _combo_filtered_rows
+                                    ]
+                                    st.dataframe(
+                                        pd.DataFrame(_combo_table_rows),
+                                        width="stretch",
+                                        hide_index=True,
+                                    )
+                st.markdown("---")
+
+            # 필터 영역 (매매유형/판정 기본값은 항상 "전체")
+            fcol1, fcol2 = st.columns(2)
+            trade_mode_filter = fcol1.radio(
+                "단기/며칠 구분",
+                ["전체", "단타", "스윙", "공통"],
+                horizontal=True,
+                key="perf_trade_mode_filter",
+            )
+            verdict_filter_display = fcol2.radio(
+                "판단 구분",
+                ["전체", "1순위 후보", "관찰 후보", "재확인", "보류", "제외"],
+                horizontal=True,
+                key="perf_verdict_filter",
             )
 
-            # 8. 자세히 보기 (숨긴 컬럼 포함 전체)
-            with st.expander("자세히 보기"):
-                detail_table_rows = []
+            perf_rows = scoped_rows
+            if trade_mode_filter != "전체":
+                perf_rows = [row for row in perf_rows if row["trade_mode"] == trade_mode_filter]
+            if verdict_filter_display != "전체":
+                internal_verdict = REVERSE_VERDICT_DISPLAY[verdict_filter_display]
+                perf_rows = [row for row in perf_rows if row["verdict"] == internal_verdict]
+
+            if not perf_rows:
+                st.info("이 조건에 해당하는 종목별 기록이 없습니다.")
+            else:
+                # 후보 점수 계산: 저장된 문장에서 숫자 근거를 뽑아 판정 기본점수에 가감한다.
+                item_text_lookup = _build_item_text_lookup()
+                scored_rows = []
+                for row in perf_rows:
+                    key = (row["report_id"], row["ticker"], row["trade_mode"])
+                    basis_text = " ".join(item_text_lookup.get(key, []))
+                    basis = extract_score_basis_from_text(basis_text)
+                    candidate_score = compute_candidate_score(row["verdict"], row["trade_mode"], basis)
+                    scored_rows.append((candidate_score, row))
+
+                # 후보 점수 기준 내림차순 정렬 (동점은 입력 순서 유지 — sorted()는 안정 정렬)
+                scored_rows = sorted(scored_rows, key=lambda pair: -pair[0])
+
+                # score(저장된 판단 설명 점수) 기준 순위: 같은 report·시장·매매유형 안에서만 비교한다.
+                item_judgment_lookup = _build_item_judgment_lookup()
+                score_rank_labels = _compute_score_rank_labels(item_judgment_lookup.values())
+
+                # 4. compact 요약 (큰 숫자 4개만)
+                status_counts = {
+                    "계산 완료": sum(1 for row in perf_rows if row["status"] == "계산 완료"),
+                    "대기": sum(1 for row in perf_rows if row["status"] == "대기"),
+                    "데이터 부족": sum(1 for row in perf_rows if row["status"] == "데이터 부족"),
+                }
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("지금 보이는 종목", len(perf_rows))
+                m2.metric("결과 기다리는 중", status_counts["대기"])
+                m3.metric("결과 확인 완료", status_counts["계산 완료"])
+                m4.metric("가격 데이터 부족", status_counts["데이터 부족"])
+                st.caption("현재 필터 기준으로 표시되는 종목 수입니다.")
+
+                # 판정별 개수는 작은 배지 텍스트로만 표시 (큰 숫자 아님)
+                verdict_counts = {
+                    v: sum(1 for row in perf_rows if row["verdict"] == v) for v in VERDICT_ORDER
+                }
+                badge_line = "  ".join(
+                    f"{_verdict_badge(v)} {verdict_counts[v]}건" for v in VERDICT_ORDER
+                )
+                st.markdown(badge_line)
+
+                if st.button("수익률 다시 확인", key="perf_refresh"):
+                    _cached_verification_rows.clear()
+                    _cached_no_recommendation_rows.clear()
+                    st.rerun()
+                st.caption("저장된 종목의 1일·3일·5일·10일·20일 수익률을 다시 확인합니다.")
+
+                # 4-1. 필터 준수 vs 필터 무시 R 비교 카드 (report_items 전체 기준, 화면 표시 전용)
+                st.markdown("#### 필터 준수 vs 필터 무시 R 비교")
+                st.caption("이 통계는 매수 추천이 아니라 행동 검증용입니다.")
+                _fi_stats = _fetch_filter_compliance_stats()
+                fc1, fc2, fc3 = st.columns(3)
+                fc1.metric("필터 무시 기록 수", _fi_stats["ignored_count"])
+                fc2.metric("필터 준수 기록 수", _fi_stats["followed_count"])
+                fc3.metric("필터 미입력 수", _fi_stats["unset_count"])
+                fc4, fc5, fc6 = st.columns(3)
+                fc4.metric("필터 무시 평균 R", _fmt_avg_r(_fi_stats["ignored_avg_r"]))
+                fc5.metric("필터 준수 평균 R", _fmt_avg_r(_fi_stats["followed_avg_r"]))
+                fc6.metric(
+                    "비교 가능 R 데이터 수",
+                    f"{_fi_stats['comparable_n']}건" if _fi_stats["comparable_n"] else "0건",
+                )
+                if _fi_stats["comparable_n"] == 0:
+                    st.info(
+                        "아직 필터 준수/무시와 청산 R 데이터가 부족합니다. "
+                        "필터 무시 기록과 청산 결과가 쌓이면 비교됩니다."
+                    )
+                elif _fi_stats["comparable_n"] < 30:
+                    st.caption(f"표본 N<30: 미검증 구간입니다. ({_n_confidence_label(_fi_stats['comparable_n'])})")
+                else:
+                    st.caption(
+                        f"표본 N={_fi_stats['comparable_n']}: {_n_confidence_label(_fi_stats['comparable_n'])} 구간입니다."
+                    )
+
+                # 4-2. 최악 5매매 R 점검 카드 (report_items 전체 기준, 화면 표시 전용)
+                st.markdown("#### 최악 5매매 R 점검")
+                st.caption("이 카드는 매수 추천이 아니라 손실 원인 점검용입니다.")
+                _worst_stats = _fetch_worst_trades(limit=5)
+                if _worst_stats["total_n"] == 0:
+                    st.info("아직 청산 R 데이터가 없습니다. 청산 결과가 쌓이면 최악 5개 매매가 표시됩니다.")
+                else:
+                    wc1, wc2, wc3, wc4 = st.columns(4)
+                    wc1.metric("R 데이터 개수", _worst_stats["total_n"])
+                    wc2.metric("최악 5개 평균 R", _fmt_avg_r(_worst_stats["avg_worst"]))
+                    wc3.metric("최저 R", _fmt_avg_r(_worst_stats["lowest"]))
+                    wc4.metric("검증 상태", _n_confidence_label(_worst_stats["total_n"]))
+                    if _worst_stats["total_n"] < 30:
+                        st.caption(f"표본 N<30: {_n_confidence_label(_worst_stats['total_n'])} 구간입니다.")
+                    st.dataframe(
+                        pd.DataFrame(
+                            [
+                                {
+                                    "종목명": d["종목명"],
+                                    "티커": d["티커"],
+                                    "매매유형": d["매매유형"],
+                                    "result_r": _fmt_avg_r(d["result_r"]),
+                                    "청산일": d["청산일"],
+                                    "청산사유": d["청산사유"],
+                                    "필터무시여부": d["필터무시여부"],
+                                }
+                                for d in _worst_stats["worst_rows"]
+                            ]
+                        ),
+                        width="stretch",
+                        hide_index=True,
+                    )
+
+                # 4-3. 총 오픈 리스크 3R 점검 카드 (report_items 전체 기준, 화면 표시 전용)
+                st.markdown("#### 총 오픈 리스크 3R 점검")
+                st.caption("이 카드는 매수 추천이 아니라 여러 포지션의 손실 노출을 점검하는 장치입니다.")
+                _open_risk = _fetch_open_risk_positions()
+                oc1, oc2, oc3, oc4 = st.columns(4)
+                oc1.metric("계산 가능한 오픈 포지션 수", _open_risk["count"])
+                oc2.metric("총 오픈 리스크", f"{_open_risk['total_risk']:.2f}R")
+                oc3.metric("3R 기준 상태", _open_risk_status_label(_open_risk["count"], _open_risk["total_risk"]))
+                oc4.metric("계산 제외 항목 수", _open_risk["excluded_count"])
+                if _open_risk["count"] == 0:
+                    st.info(
+                        "아직 진입가와 손절가가 입력된 미청산 항목이 없습니다. "
+                        "새 기록에서 진입가와 손절가가 쌓이면 총 오픈 리스크가 계산됩니다."
+                    )
+                else:
+                    st.dataframe(
+                        pd.DataFrame(
+                            [
+                                {
+                                    "종목명": p["종목명"],
+                                    "티커": p["티커"],
+                                    "매매유형": p["매매유형"],
+                                    "진입가": f"{p['진입가']:,.0f}",
+                                    "손절가": f"{p['손절가']:,.0f}",
+                                    "1건 위험": f"{p['1건 위험']:.2f}R",
+                                    "필터무시여부": p["필터무시여부"],
+                                }
+                                for p in _open_risk["positions"]
+                            ]
+                        ),
+                        width="stretch",
+                        hide_index=True,
+                    )
+
+                # 5. 관심 점수 설명
+                st.info(
+                    "관심 점수는 실제 상승확률이 아닙니다. 오늘 주가 위치, 고점 대비 밀림, 거래대금, "
+                    "섹터 흐름을 기준으로 관심 순서를 비교한 점수입니다. 100점은 반드시 오른다는 "
+                    "뜻이 아닙니다. 조건표상 거의 완벽한 경우에만 나오는 높은 관심 점수입니다. "
+                    "일반적인 1순위 후보는 80~90점대가 정상입니다."
+                )
+
+                # 6. 결과 표 (기본 컬럼만, 관심 점수 높은 순 정렬) — 화면 표시는 한국장/미국장으로 나눠서 보여준다.
+                table_rows = []
                 for score, row in scored_rows:
                     saved_item = item_judgment_lookup.get(
                         (row["report_id"], row["ticker"], row["trade_mode"]), {}
                     )
-                    if saved_item:
-                        auto_info = _auto_fill_item_display(saved_item)
-                        score_text = f"{auto_info['score']:.0f}" + (" (자동계산)" if auto_info["score_is_auto"] else "")
-                        top_reason = saved_item.get("top_candidate_reason") or auto_info["score_reason"]
-                    else:
-                        auto_info = {"score_reason": "-", "penalty_reason": "-", "buy_confirmed": "-", "buy_confirm_condition": "-"}
-                        score_text = "-"
-                        top_reason = "-"
-                    detail_table_rows.append(
+                    table_rows.append(
                         {
                             "종목명": row["stock_name"],
+                            "티커": row["ticker"],
+                            "시장": row["market"],
+                            "매매유형": row["trade_mode"],
                             "순위": score_rank_labels.get(saved_item.get("id"), "미평가"),
                             "관심 점수": score,
-                            "구분": row["trade_mode"],
                             "판단": _display_verdict_name(row["verdict"]),
                             "결과 상태": row["status"],
                             "판단 시점": row["briefing_stage"],
-                            "저장 시각": row["saved_at"],
-                            "신호 종류": _display_signal_type(row["signal_type"]),
-                            "종목코드": row["ticker"],
-                            "시장": row["market"],
-                            "비교 기준": row["benchmark"],
-                            "검증 시작가": row["entry_rule"],
                             "1일 뒤": _fmt_pct(row["returns"][1]),
                             "3일 뒤": _fmt_pct(row["returns"][3]),
                             "5일 뒤": _fmt_pct(row["returns"][5]),
                             "10일 뒤": _fmt_pct(row["returns"][10]),
                             "20일 뒤": _fmt_pct(row["returns"][20]),
-                            "초과수익률(%, 5일 기준)": _fmt_pct(row["excess_return"]),
-                            "판단 근거": saved_item.get("stock_market_judgment") or "-",
-                            "점수": score_text,
-                            "점수 근거": auto_info["score_reason"],
-                            "1순위 후보 근거": top_reason,
-                            "감점 이유": auto_info["penalty_reason"],
-                            "매수 확정 여부": auto_info["buy_confirmed"],
-                            "매수 확정 조건": auto_info["buy_confirm_condition"],
+                            "실제 청산가": (
+                                f"{saved_item['actual_exit_price']:,.0f}"
+                                if saved_item.get("actual_exit_price") else "-"
+                            ),
+                            "청산일": saved_item.get("actual_exit_date") or "-",
+                            "계획 준수": saved_item.get("plan_followed") or "-",
+                            "청산 사유": saved_item.get("exit_reason") or "-",
+                            "R수익률": _fmt_result_r(saved_item.get("result_r")),
+                            "검증 상태": saved_item.get("verification_status") or "미입력",
                         }
                     )
+                perf_df = pd.DataFrame(table_rows)
 
-                st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
+                kr_table_rows = [r for r in table_rows if r["시장"] == "KR"]
+                us_table_rows = [r for r in table_rows if r["시장"] == "US"]
 
-    st.markdown("---")
-    with st.expander("오늘 관심 종목 없음 평가", expanded=False):
-        st.caption(
-            "종목 항목이 0개인 기록(오늘 추천 없음)에 대해, 그날 이후 기준지수가 올랐으면 "
-            "기회비용, 내렸으면 위험회피 성공으로 표시합니다. 지수 상승만으로 실패 처리하지 않습니다."
-        )
+                st.markdown("#### 한국장 저장 결과")
+                if kr_table_rows:
+                    st.dataframe(pd.DataFrame(kr_table_rows), width="stretch", hide_index=True)
+                else:
+                    st.info("한국장 저장 기록 없음")
 
-        no_rec_rows = (
-            _cached_no_recommendation_rows(_reports_signature())
-            if _perf_performance_ready
-            else []
-        )
+                st.markdown("#### 미국장 저장 결과")
+                if us_table_rows:
+                    st.dataframe(pd.DataFrame(us_table_rows), width="stretch", hide_index=True)
+                else:
+                    st.info("미국장 저장 기록 없음")
 
-        if not no_rec_rows:
-            st.info("종목 항목이 0개인 기록이 없습니다.")
-        else:
-            no_rec_status_counts = {
-                "계산 완료": sum(1 for row in no_rec_rows if row["status"] == "계산 완료"),
-                "대기": sum(1 for row in no_rec_rows if row["status"] == "대기"),
-                "데이터 부족": sum(1 for row in no_rec_rows if row["status"] == "데이터 부족"),
-            }
-            n1, n2, n3, n4 = st.columns(4)
-            n1.metric("전체 대상 수", len(no_rec_rows))
-            n2.metric("결과 확인 완료", no_rec_status_counts["계산 완료"])
-            n3.metric("결과 기다리는 중", no_rec_status_counts["대기"])
-            n4.metric("가격 데이터 부족", no_rec_status_counts["데이터 부족"])
+                # 7. 엑셀용 파일 내보내기 (기본 표와 동일한 컬럼)
+                st.download_button(
+                    "결과 표 엑셀로 저장",
+                    data=perf_df.to_csv(index=False).encode("utf-8-sig"),
+                    file_name="결과확인.csv",
+                    mime="text/csv",
+                    key="perf_csv_download",
+                )
 
-            no_rec_table_rows = [
-                {
-                    "결과 상태": row["status"],
-                    "저장 시각": row["saved_at"],
-                    "오늘 요약": row["day_conclusion"],
-                    "시장 구분": row["market_label"],
-                    "비교 기준": row["benchmark"],
-                    "검증 시작가": row["entry_rule"],
-                    "1일 뒤": _fmt_pct(row["returns"][1]),
-                    "3일 뒤": _fmt_pct(row["returns"][3]),
-                    "5일 뒤": _fmt_pct(row["returns"][5]),
-                    "10일 뒤": _fmt_pct(row["returns"][10]),
-                    "20일 뒤": _fmt_pct(row["returns"][20]),
-                    "판단(5일 기준)": row["judgment_5d"],
-                }
-                for row in no_rec_rows
-            ]
-            no_rec_df = pd.DataFrame(no_rec_table_rows)
-            st.dataframe(no_rec_df, width="stretch", hide_index=True)
-            st.download_button(
-                "결과 표 엑셀로 저장 (오늘 관심 종목 없음 평가)",
-                data=no_rec_df.to_csv(index=False).encode("utf-8-sig"),
-                file_name="관심종목없음평가.csv",
-                mime="text/csv",
-                key="no_rec_csv_download",
+                # 8. 자세히 보기 (숨긴 컬럼 포함 전체)
+                with st.expander("자세히 보기"):
+                    detail_table_rows = []
+                    for score, row in scored_rows:
+                        saved_item = item_judgment_lookup.get(
+                            (row["report_id"], row["ticker"], row["trade_mode"]), {}
+                        )
+                        if saved_item:
+                            auto_info = _auto_fill_item_display(saved_item)
+                            score_text = f"{auto_info['score']:.0f}" + (" (자동계산)" if auto_info["score_is_auto"] else "")
+                            top_reason = saved_item.get("top_candidate_reason") or auto_info["score_reason"]
+                        else:
+                            auto_info = {"score_reason": "-", "penalty_reason": "-", "buy_confirmed": "-", "buy_confirm_condition": "-"}
+                            score_text = "-"
+                            top_reason = "-"
+                        detail_table_rows.append(
+                            {
+                                "종목명": row["stock_name"],
+                                "순위": score_rank_labels.get(saved_item.get("id"), "미평가"),
+                                "관심 점수": score,
+                                "구분": row["trade_mode"],
+                                "판단": _display_verdict_name(row["verdict"]),
+                                "결과 상태": row["status"],
+                                "판단 시점": row["briefing_stage"],
+                                "저장 시각": row["saved_at"],
+                                "신호 종류": _display_signal_type(row["signal_type"]),
+                                "종목코드": row["ticker"],
+                                "시장": row["market"],
+                                "비교 기준": row["benchmark"],
+                                "검증 시작가": row["entry_rule"],
+                                "1일 뒤": _fmt_pct(row["returns"][1]),
+                                "3일 뒤": _fmt_pct(row["returns"][3]),
+                                "5일 뒤": _fmt_pct(row["returns"][5]),
+                                "10일 뒤": _fmt_pct(row["returns"][10]),
+                                "20일 뒤": _fmt_pct(row["returns"][20]),
+                                "초과수익률(%, 5일 기준)": _fmt_pct(row["excess_return"]),
+                                "판단 근거": saved_item.get("stock_market_judgment") or "-",
+                                "점수": score_text,
+                                "점수 근거": auto_info["score_reason"],
+                                "1순위 후보 근거": top_reason,
+                                "감점 이유": auto_info["penalty_reason"],
+                                "매수 확정 여부": auto_info["buy_confirmed"],
+                                "매수 확정 조건": auto_info["buy_confirm_condition"],
+                            }
+                        )
+
+                    st.dataframe(pd.DataFrame(detail_table_rows), width="stretch", hide_index=True)
+
+        st.markdown("---")
+        with st.expander("오늘 관심 종목 없음 평가", expanded=False):
+            st.caption(
+                "종목 항목이 0개인 기록(오늘 추천 없음)에 대해, 그날 이후 기준지수가 올랐으면 "
+                "기회비용, 내렸으면 위험회피 성공으로 표시합니다. 지수 상승만으로 실패 처리하지 않습니다."
             )
 
-with tab_next:
-    st.subheader("추가 기능")
-    st.markdown(
-        """
-- 결과 확인 통계/요약 (추후 별도 논의)
-- 지난 기록 보기 필터/검색 고도화 (추후 별도 논의)
-"""
-    )
+            no_rec_rows = (
+                _cached_no_recommendation_rows(_reports_signature())
+                if _perf_performance_ready
+                else []
+            )
 
-with tab_guide:
-    st.subheader("자비스 사용법")
-    st.caption("이 화면은 자비스_사용법.md 파일을 앱 안에서 보여주는 화면입니다.")
-    try:
-        _guide_path = Path(__file__).parent / "자비스_사용법.md"
-        _guide_text = _guide_path.read_text(encoding="utf-8")
-        st.markdown(_guide_text)
-    except FileNotFoundError:
-        st.warning("자비스_사용법.md 파일을 찾을 수 없습니다.")
-    except Exception as e:
-        st.warning(f"사용법 파일을 불러오지 못했습니다: {e}")
+            if not no_rec_rows:
+                st.info("종목 항목이 0개인 기록이 없습니다.")
+            else:
+                no_rec_status_counts = {
+                    "계산 완료": sum(1 for row in no_rec_rows if row["status"] == "계산 완료"),
+                    "대기": sum(1 for row in no_rec_rows if row["status"] == "대기"),
+                    "데이터 부족": sum(1 for row in no_rec_rows if row["status"] == "데이터 부족"),
+                }
+                n1, n2, n3, n4 = st.columns(4)
+                n1.metric("전체 대상 수", len(no_rec_rows))
+                n2.metric("결과 확인 완료", no_rec_status_counts["계산 완료"])
+                n3.metric("결과 기다리는 중", no_rec_status_counts["대기"])
+                n4.metric("가격 데이터 부족", no_rec_status_counts["데이터 부족"])
+
+                no_rec_table_rows = [
+                    {
+                        "결과 상태": row["status"],
+                        "저장 시각": row["saved_at"],
+                        "오늘 요약": row["day_conclusion"],
+                        "시장 구분": row["market_label"],
+                        "비교 기준": row["benchmark"],
+                        "검증 시작가": row["entry_rule"],
+                        "1일 뒤": _fmt_pct(row["returns"][1]),
+                        "3일 뒤": _fmt_pct(row["returns"][3]),
+                        "5일 뒤": _fmt_pct(row["returns"][5]),
+                        "10일 뒤": _fmt_pct(row["returns"][10]),
+                        "20일 뒤": _fmt_pct(row["returns"][20]),
+                        "판단(5일 기준)": row["judgment_5d"],
+                    }
+                    for row in no_rec_rows
+                ]
+                no_rec_df = pd.DataFrame(no_rec_table_rows)
+                st.dataframe(no_rec_df, width="stretch", hide_index=True)
+                st.download_button(
+                    "결과 표 엑셀로 저장 (오늘 관심 종목 없음 평가)",
+                    data=no_rec_df.to_csv(index=False).encode("utf-8-sig"),
+                    file_name="관심종목없음평가.csv",
+                    mime="text/csv",
+                    key="no_rec_csv_download",
+                )
+
+if _aux_view == "추가 기능":
+    with tab_aux:
+        st.subheader("추가 기능")
+        st.markdown(
+            """
+    - 결과 확인 통계/요약 (추후 별도 논의)
+    - 지난 기록 보기 필터/검색 고도화 (추후 별도 논의)
+    """
+        )
+
+if _aux_view == "사용법":
+    with tab_aux:
+        st.subheader("자비스 사용법")
+        st.caption("이 화면은 자비스_사용법.md 파일을 앱 안에서 보여주는 화면입니다.")
+        try:
+            _guide_path = Path(__file__).parent / "자비스_사용법.md"
+            _guide_text = _guide_path.read_text(encoding="utf-8")
+            st.markdown(_guide_text)
+        except FileNotFoundError:
+            st.warning("자비스_사용법.md 파일을 찾을 수 없습니다.")
+        except Exception as e:
+            st.warning(f"사용법 파일을 불러오지 못했습니다: {e}")

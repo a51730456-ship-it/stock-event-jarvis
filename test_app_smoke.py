@@ -9,7 +9,7 @@ TREE = ast.parse(SOURCE)
 
 
 class AppSmokeContractTests(unittest.TestCase):
-    def test_ten_tabs_and_expected_order(self):
+    def test_six_tabs_and_expected_order(self):
         tab_calls = [
             node for node in ast.walk(TREE)
             if isinstance(node, ast.Call)
@@ -19,7 +19,22 @@ class AppSmokeContractTests(unittest.TestCase):
         self.assertEqual(len(tab_calls), 1)
         labels = tab_calls[0].args[0]
         self.assertIsInstance(labels, ast.List)
-        self.assertEqual(len(labels.elts), 10)
+        self.assertEqual(len(labels.elts), 6)
+        self.assertEqual(
+            [element.value for element in labels.elts],
+            [
+                "① 한국장 판단", "② 미국장 판단", "③ 행동·청산",
+                "④ 복기·통계", "⑤ 기록 조회", "⑥ 보조",
+            ],
+        )
+
+    def test_navigation_subviews_and_market_blocks_are_present(self):
+        for label in ("기록 조회 화면", "보조 화면", "저장 결과", "오늘 요약", "지난 기록", "수동 기록 입력", "추가 기능", "사용법"):
+            self.assertIn(label, SOURCE)
+        self.assertIn("with tab_kr:", SOURCE)
+        self.assertIn("with tab_us:", SOURCE)
+        self.assertIn("with tab_action:", SOURCE)
+        self.assertIn("with tab_review:", SOURCE)
 
     def test_literal_widget_keys_have_no_duplicates(self):
         keys = re.findall(r'\bkey\s*=\s*["\']([^"\']+)["\']', SOURCE)
