@@ -33,6 +33,23 @@ class AppSmokeContractTests(unittest.TestCase):
         self.assertIn("_render_kr_dart_disclosure_panel()", SOURCE)
         self.assertIn("_render_market_naver_news_panel(", SOURCE)
 
+    def test_readability_and_core_button_css_contract(self):
+        self.assertIn("font-size: 16px", SOURCE)
+        self.assertIn("font-size: 15px !important", SOURCE)
+        self.assertIn("color: #d1d5db !important", SOURCE)
+        self.assertIn("font-size: 17px !important", SOURCE)
+        self.assertIn("min-height: 44px !important", SOURCE)
+        for key in (
+            "snap_auto_fill", "us_stock_auto_fill", "snap_mood_auto_check",
+            "kr_dart_check_button", "kr_naver_news_check_button", "us_naver_news_check_button",
+            "kr_quick_save", "kr_quick_confirm_save", "us_swing_quick_save", "us_final_save",
+        ):
+            self.assertIn(f"st-key-{key}", SOURCE)
+        self.assertIn('[class*="st-key-tab3_"] button', SOURCE)
+        self.assertIn('[class*="st-key-tab4_"] button', SOURCE)
+        self.assertIn("저장한 종목 판단이 며칠 뒤 실제 수익률로 어떻게 나왔는지 확인하는 화면입니다.", SOURCE)
+        self.assertNotIn('st.caption("? ??? ?? ?????. ?? ??? ?? ??? ? ??????? ???.")', SOURCE)
+
     def test_save_actions_are_not_invoked_by_this_test(self):
         # This contract test inspects only source; no Streamlit interaction is performed.
         self.assertTrue("db.save_report(" in SOURCE)

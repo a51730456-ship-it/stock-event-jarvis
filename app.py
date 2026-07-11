@@ -252,6 +252,7 @@ st.markdown(
     <style>
     html, body, [class*="css"] {
         font-family: Pretendard, "Noto Sans KR", "Malgun Gothic", sans-serif;
+        font-size: 16px;
     }
     .stApp, [data-testid="stAppViewContainer"] {
         background-color: #0f1117 !important;
@@ -260,7 +261,39 @@ st.markdown(
         font-size: 1.9rem !important;
     }
     [data-testid="stCaptionContainer"], .stCaption, small {
-        color: #9aa0a8 !important;
+        color: #d1d5db !important;
+        font-size: 15px !important;
+        line-height: 1.5 !important;
+    }
+    .stMarkdown p,
+    [data-testid="stText"],
+    [data-testid="stAlert"] p,
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stRadio"] label,
+    [data-testid="stSelectbox"] label,
+    [data-testid="stMultiSelect"] label,
+    [data-testid="stTextInput"] label,
+    [data-testid="stTextArea"] label {
+        color: #eef2f7 !important;
+        font-size: 16px !important;
+        line-height: 1.5 !important;
+    }
+    button,
+    button p {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary p {
+        color: #f3f4f6 !important;
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        line-height: 1.45 !important;
+    }
+    [data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
+        color: #e5e7eb !important;
+        font-size: 16px !important;
+        line-height: 1.55 !important;
     }
     [data-testid="stExpander"] {
         background-color: rgba(23, 26, 33, 0.92);
@@ -355,6 +388,81 @@ st.markdown(
     .st-key-kr_auto_preview_run button p {
         font-size: 1.22rem !important;
         font-weight: 900 !important;
+    }
+    /* 핵심 실행·저장 버튼만 강조한다. 일반 버튼/탭/expander/필터는 대상에서 제외한다. */
+    .st-key-snap_auto_fill button,
+    .st-key-us_stock_auto_fill button,
+    .st-key-snap_mood_auto_check button,
+    .st-key-kr_dart_check_button button,
+    .st-key-kr_naver_news_check_button button,
+    .st-key-us_naver_news_check_button button,
+    [class*="st-key-kr_retry_failed_auto_fetch"] button,
+    [class*="st-key-us_retry_failed_auto_fetch"] button,
+    .st-key-kr_quick_save button,
+    .st-key-kr_quick_confirm_save button,
+    .st-key-us_swing_quick_save button,
+    .st-key-us_final_save button,
+    [class*="st-key-tab3_"] button,
+    [class*="st-key-tab4_"] button {
+        background-color: #facc15 !important;
+        border: 1px solid #ca8a04 !important;
+        color: #111827 !important;
+        min-height: 44px !important;
+        font-size: 17px !important;
+        font-weight: 800 !important;
+    }
+    .st-key-snap_auto_fill button p,
+    .st-key-us_stock_auto_fill button p,
+    .st-key-snap_mood_auto_check button p,
+    .st-key-kr_dart_check_button button p,
+    .st-key-kr_naver_news_check_button button p,
+    .st-key-us_naver_news_check_button button p,
+    [class*="st-key-kr_retry_failed_auto_fetch"] button p,
+    [class*="st-key-us_retry_failed_auto_fetch"] button p,
+    .st-key-kr_quick_save button p,
+    .st-key-kr_quick_confirm_save button p,
+    .st-key-us_swing_quick_save button p,
+    .st-key-us_final_save button p,
+    [class*="st-key-tab3_"] button p,
+    [class*="st-key-tab4_"] button p {
+        color: #111827 !important;
+        font-size: 17px !important;
+        font-weight: 800 !important;
+    }
+    .st-key-snap_auto_fill button:hover,
+    .st-key-us_stock_auto_fill button:hover,
+    .st-key-snap_mood_auto_check button:hover,
+    .st-key-kr_dart_check_button button:hover,
+    .st-key-kr_naver_news_check_button button:hover,
+    .st-key-us_naver_news_check_button button:hover,
+    [class*="st-key-kr_retry_failed_auto_fetch"] button:hover,
+    [class*="st-key-us_retry_failed_auto_fetch"] button:hover,
+    .st-key-kr_quick_save button:hover,
+    .st-key-kr_quick_confirm_save button:hover,
+    .st-key-us_swing_quick_save button:hover,
+    .st-key-us_final_save button:hover,
+    [class*="st-key-tab3_"] button:hover,
+    [class*="st-key-tab4_"] button:hover {
+        background-color: #fde047 !important;
+        color: #111827 !important;
+    }
+    .st-key-snap_auto_fill button:disabled,
+    .st-key-us_stock_auto_fill button:disabled,
+    .st-key-snap_mood_auto_check button:disabled,
+    .st-key-kr_dart_check_button button:disabled,
+    .st-key-kr_naver_news_check_button button:disabled,
+    .st-key-us_naver_news_check_button button:disabled,
+    [class*="st-key-kr_retry_failed_auto_fetch"] button:disabled,
+    [class*="st-key-us_retry_failed_auto_fetch"] button:disabled,
+    .st-key-kr_quick_save button:disabled,
+    .st-key-kr_quick_confirm_save button:disabled,
+    .st-key-us_swing_quick_save button:disabled,
+    .st-key-us_final_save button:disabled,
+    [class*="st-key-tab3_"] button:disabled,
+    [class*="st-key-tab4_"] button:disabled {
+        background-color: #4b5563 !important;
+        border-color: #6b7280 !important;
+        color: #d1d5db !important;
     }
     /* 상단 메뉴(탭) 확대 + 실제 고정(fixed) + 현재 선택 강조.
        주의: 이 구조에서 position:sticky는 조상 컨테이닝 블록 제약 때문에 실제로 고정되지
@@ -6122,10 +6230,7 @@ with tab_action:
 
 with tab_perf:
     st.subheader("결과 확인")
-    st.caption("? ??? ?? ?????. ?? ??? ?? ??? ? ??????? ???.")
-    st.caption(
-        "저장한 종목 판단이 며칠 뒤 실제 수익률로 어떻게 나왔는지 확인하는 화면입니다."
-    )
+    st.caption("저장한 종목 판단이 며칠 뒤 실제 수익률로 어떻게 나왔는지 확인하는 화면입니다.")
     st.caption(
         "승률보다 R수익률과 기대값이 중요합니다. 손절을 지키면 승률은 낮아져도 계좌는 좋아질 수 있습니다."
     )
