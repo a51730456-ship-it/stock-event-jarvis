@@ -5478,6 +5478,56 @@ def _render_trade_exit_inputs(saved_item, key_prefix=""):
             st.rerun()
 
 
+def _render_judgment_outcome_save_button(selected_report_id, perf_rows_all, key_prefix=""):
+    _item_lookup = _build_item_judgment_lookup()
+    _eval_by_item_id = {}
+    for _row in perf_rows_all:
+        if _row["report_id"] != selected_report_id:
+            continue
+        _item = _item_lookup.get(
+            (_row["report_id"], _row["ticker"], _row["trade_mode"]), {}
+        )
+        if _item.get("id"):
+            _eval_by_item_id[_item["id"]] = _row
+
+    _candidate_rows = []
+    for _item_id, _eval_result in _eval_by_item_id.items():
+        _candidate_rows.extend(
+            performance.build_judgment_outcome_rows(_item_id, _eval_result)
+        )
+
+    st.caption(
+        f"저장 가능: 종목 {len(_eval_by_item_id)}개 / "
+        f"성과 {len(_candidate_rows)}건"
+    )
+
+    if st.button("판단 성과 저장", key=f"{key_prefix}judgment_outcome_save_button"):
+        if not _candidate_rows:
+            st.info("저장 가능한 완료 성과가 없습니다.")
+        else:
+            try:
+                _saved_count = db.upsert_report_item_outcomes(_candidate_rows)
+            except Exception as _save_err:
+                st.error(f"판단 성과 저장 중 오류가 발생했습니다: {_save_err}")
+            else:
+                st.success(f"판단 성과 {_saved_count}건을 저장·갱신했습니다.")
+                _after_save = db.get_report_outcomes(selected_report_id)
+                _judgment_after_save = [
+                    o for o in _after_save if o["entry_basis"] == "judgment"
+                ]
+                _horizons = sorted(
+                    {o["horizon_sessions"] for o in _judgment_after_save}
+                )
+                _horizons_display = (
+                    "·".join(f"{h}거래일" for h in _horizons)
+                    if _horizons else "-"
+                )
+                st.caption(
+                    f"저장 상태: judgment {len(_judgment_after_save)}건 / "
+                    f"{_horizons_display}"
+                )
+
+
 with tab_perf:
     st.subheader("결과 확인")
     st.caption(
@@ -5549,59 +5599,9 @@ with tab_perf:
             )
             _outcome_save_target_report_id = _outcome_save_report_options[_outcome_save_report_label]
 
-            # 이미 계산된 evaluate_item() 결과(perf_rows_all)를 report_item_id 기준으로 재사용한다
-            # (여기서 새로 가격·벤치마크를 조회하지 않음). report_item_id는 종목명/티커로
-            # 추정하지 않고 report_items.id(실제 DB id)를 그대로 쓴다.
-            _outcome_save_item_lookup = _build_item_judgment_lookup()
-            _outcome_save_eval_by_item_id = {}
-            for _osr_row in perf_rows_all:
-                if _osr_row["report_id"] != _outcome_save_target_report_id:
-                    continue
-                _osr_saved_item = _outcome_save_item_lookup.get(
-                    (_osr_row["report_id"], _osr_row["ticker"], _osr_row["trade_mode"]), {}
-                )
-                _osr_item_id = _osr_saved_item.get("id")
-                if _osr_item_id:
-                    _outcome_save_eval_by_item_id[_osr_item_id] = _osr_row
-
-            _outcome_save_candidate_rows = []
-            for _osr_item_id, _osr_eval_result in _outcome_save_eval_by_item_id.items():
-                _outcome_save_candidate_rows.extend(
-                    performance.build_judgment_outcome_rows(_osr_item_id, _osr_eval_result)
-                )
-
-            st.caption(
-                f"저장 가능: 종목 {len(_outcome_save_eval_by_item_id)}개 / "
-                f"성과 {len(_outcome_save_candidate_rows)}건"
+            _render_judgment_outcome_save_button(
+                _outcome_save_target_report_id, perf_rows_all, key_prefix=""
             )
-
-            if st.button("판단 성과 저장", key="judgment_outcome_save_button"):
-                if not _outcome_save_candidate_rows:
-                    st.info("저장 가능한 완료 성과가 없습니다.")
-                else:
-                    try:
-                        _outcome_saved_count = db.upsert_report_item_outcomes(
-                            _outcome_save_candidate_rows
-                        )
-                    except Exception as _outcome_save_err:
-                        st.error(f"판단 성과 저장 중 오류가 발생했습니다: {_outcome_save_err}")
-                    else:
-                        st.success(f"판단 성과 {_outcome_saved_count}건을 저장·갱신했습니다.")
-                        _outcome_after_save = db.get_report_outcomes(_outcome_save_target_report_id)
-                        _judgment_after_save = [
-                            o for o in _outcome_after_save if o["entry_basis"] == "judgment"
-                        ]
-                        _horizons_after_save = sorted(
-                            {o["horizon_sessions"] for o in _judgment_after_save}
-                        )
-                        _horizons_after_save_display = (
-                            "·".join(f"{h}거래일" for h in _horizons_after_save)
-                            if _horizons_after_save else "-"
-                        )
-                        st.caption(
-                            f"저장 상태: judgment {len(_judgment_after_save)}건 / "
-                            f"{_horizons_after_save_display}"
-                        )
 
             # 저장된 판단 성과 조회 전용 표시 (evaluate_item() 재호출/가격·벤치마크 네트워크
             # 조회/DB INSERT·UPDATE 전혀 없음). get_report_outcomes()가 반환하는 DB 스냅샷을
