@@ -2952,6 +2952,45 @@ def run_kr_snapshot_auto_fill():
     return {"status": status, "results": fetch_results, "message": message, "ok_count": _ok_count, "total": _total}
 
 
+_AUTO_FETCH_FIELD_LABELS = {
+    "current": "현재가", "prev_close": "전일종가", "open": "시가",
+    "high": "고가", "low": "저가", "volume": "거래량",
+    "turnover": "거래대금", "market_cap": "시가총액",
+}
+
+
+def _render_auto_fetch_status_summary(results, stock_defs, prefix):
+    total = len(stock_defs)
+    complete = 0
+    partial = 0
+    failed = []
+    details = []
+    for stock in stock_defs:
+        ticker = stock["ticker"]
+        result = results.get(ticker) or {}
+        if not result.get("ok"):
+            failed.append((stock["name"], ticker, result.get("error") or "데이터 없음"))
+            continue
+        missing = [
+            label for field, label in _AUTO_FETCH_FIELD_LABELS.items()
+            if result.get(field) is None
+        ]
+        if missing:
+            partial += 1
+            details.append((stock["name"], ticker, "누락: " + ", ".join(missing)))
+        else:
+            complete += 1
+    if partial == 0 and not failed:
+        st.success(f"자동조회 완료: {total}개 종목 모두 정상 ({complete}/{total})")
+        return
+    st.warning(f"자동조회 결과: 전체 {total}개 / 완전 성공 {complete}개 / 일부 누락 {partial}개 / 전체 실패 {len(failed)}개")
+    with st.expander("자동조회 누락·실패 상세", expanded=False):
+        for name, ticker, reason in details:
+            st.caption(f"{name} ({ticker}) — {reason}")
+        for name, ticker, reason in failed:
+            st.caption(f"{name} ({ticker}) — 전체 실패: {reason}")
+
+
 KR_THEME_WATCH_INITIAL_ROWS = [
     {
         "테마": theme,
@@ -3845,13 +3884,7 @@ with tab_kr:
 
     if st.session_state.get("snap_auto_fill_results"):
         auto_fill_results = st.session_state["snap_auto_fill_results"]
-        success_names = [s["name"] for s in SNAPSHOT_STOCKS if auto_fill_results.get(s["ticker"], {}).get("ok")]
-        if success_names:
-            st.success(f"오늘 주가 자동 입력 완료: {', '.join(success_names)}")
-        for s in SNAPSHOT_STOCKS:
-            r = auto_fill_results.get(s["ticker"], {})
-            if not r.get("ok"):
-                st.warning(f"{s['name']}: 조회 실패 - {r.get('error', '알 수 없는 오류')}")
+        _render_auto_fetch_status_summary(auto_fill_results, SNAPSHOT_STOCKS, "kr_")
         st.caption("거래대금·시가총액은 근사값입니다 (거래량×현재가, 상장주식수×현재가). 정확한 실제 값이 아닙니다.")
 
     # 3. 계산 결과 요약표 (입력 카드보다 위에 표시 — session_state를 위젯 생성 전에 미리 읽음)
@@ -4560,16 +4593,7 @@ with tab_us:
 
     if st.session_state.get("us_stock_auto_fill_results"):
         us_auto_fill_results = st.session_state["us_stock_auto_fill_results"]
-        us_success_names = [
-            s["name"] for s in US_SNAPSHOT_STOCKS if us_auto_fill_results.get(s["ticker"], {}).get("ok")
-        ]
-        if us_success_names:
-            st.success(f"미국장 기본 종목 불러오기 완료: {', '.join(us_success_names)}")
-        for s in US_SNAPSHOT_STOCKS:
-            r = us_auto_fill_results.get(s["ticker"], {})
-            if not r.get("ok"):
-                st.warning(f"{s['name']}: 조회 실패 - {r.get('error', '알 수 없는 오류')}")
-
+        _render_auto_fetch_status_summary(us_auto_fill_results, US_SNAPSHOT_STOCKS, "us_")
     # 2. 미국장 스윙 기록 바로 저장 (새 기록 입력 화면을 거치지 않고 이 화면에서 바로 저장)
     # 한국 종목(SNAPSHOT_STOCKS)과는 별도로, 미국장 기본 종목(US_SNAPSHOT_STOCKS)만 대상으로 한다.
     us_snapshot_calc_data = []
