@@ -4837,6 +4837,51 @@ with tab_action:
         _render_actual_trade_entry_inputs(_tab3_item, key_prefix="tab3_")
         if db.normalize_actual_action(_tab3_item.get("actual_action")) == "매수":
             _render_trade_exit_inputs(_tab3_item, key_prefix="tab3_")
+        if _tab3_item_status == "청산 완료":
+            _actual_fee = _tab3_item.get("actual_fee")
+            _actual_pnl = None
+            if _actual_fee is not None:
+                _actual_pnl = _compute_realized_pnl(
+                    _tab3_item.get("actual_entry_price"),
+                    _tab3_item.get("actual_exit_price"),
+                    _tab3_item.get("quantity"),
+                    _actual_fee,
+                )
+            if _actual_fee is None:
+                _pnl_text = "비용 미입력 · 계산 불가"
+            elif _actual_pnl is None:
+                _pnl_text = "입력값 부족 · 계산 불가"
+            else:
+                _pnl_text = f"{_actual_pnl:,.2f}"
+
+            _return_pct = None
+            if _actual_pnl is not None:
+                _return_pct = _compute_realized_return_pct(
+                    _actual_pnl,
+                    _tab3_item.get("actual_entry_price"),
+                    _tab3_item.get("quantity"),
+                )
+            _return_text = (
+                "입력값 부족 · 계산 불가"
+                if _return_pct is None
+                else f"{_return_pct:+.2f}%"
+            )
+
+            _holding_days = _compute_holding_days(
+                _tab3_item.get("actual_entry_date"),
+                _tab3_item.get("actual_exit_date"),
+            )
+            if _holding_days is not None:
+                _holding_text = f"{_holding_days}일"
+            elif _tab3_item.get("actual_entry_date") and _tab3_item.get("actual_exit_date"):
+                _holding_text = "날짜 확인 필요"
+            else:
+                _holding_text = "입력값 부족 · 계산 불가"
+
+            _summary_cols = st.columns(3)
+            _summary_cols[0].metric("실현손익", _pnl_text)
+            _summary_cols[1].metric("실현수익률", _return_text)
+            _summary_cols[2].metric("보유일", _holding_text)
 
 
 with tab_archive:
