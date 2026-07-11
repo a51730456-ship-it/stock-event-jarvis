@@ -1619,6 +1619,11 @@ def _kr_dart_stock_code(ticker):
     return code if re.fullmatch(r"\d{6}", code) else None
 
 
+def _format_dart_date(value):
+    text = str(value or "")
+    return f"{text[:4]}-{text[4:6]}-{text[6:8]}" if re.fullmatch(r"\d{8}", text) else (text or "-")
+
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def _cached_kr_dart_corp_code_map(api_key):
     return disclosure_data.fetch_dart_corp_code_map(api_key)
@@ -1682,15 +1687,23 @@ def _render_kr_dart_disclosure_panel():
         f"공시 없음 {summary.get('empty', 0)} · 실패 {summary.get('failed', 0)} · 코드 없음 {summary.get('missing', 0)}"
     )
     for row in result.get("rows", []):
-        with st.expander(f"{row['name']} ({row['ticker']}) · {row['status']}", expanded=False):
+        if row.get("data"):
+            header_status = f"공시 {len(row['data'])}건"
+        elif row.get("status") == "데이터 없음":
+            header_status = "최근 3일 공시 없음"
+        else:
+            header_status = row.get("status") or "조회 오류"
+        with st.expander(f"{row['name']} ({row['ticker']}) · {header_status}", expanded=False):
             if row["status"] in ("종목코드 없음", "corp_code 없음"):
                 st.info(row["status"])
-            elif not row.get("data"):
-                st.info("최근 공시 없음")
+            elif row["status"] == "데이터 없음":
+                st.info("최근 3일 공시 없음")
             elif row["status"] != "정상":
                 st.warning(row.get("message") or row["status"])
-            for item in row.get("data", []):
-                st.write(f"접수일자: {item.get('rcept_dt') or '-'}")
+            for item_index, item in enumerate(row.get("data", [])):
+                if item_index:
+                    st.markdown("---")
+                st.write(f"접수일자: {_format_dart_date(item.get('rcept_dt'))}")
                 st.write(f"보고서명: {item.get('report_nm') or '-'}")
                 st.write(f"제출인: {item.get('flr_nm') or '-'}")
                 rcept_no = item.get("rcept_no")

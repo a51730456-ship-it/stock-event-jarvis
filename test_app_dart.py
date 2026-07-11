@@ -11,7 +11,7 @@ import disclosure_data
 def load_fetch_helper():
     source = Path("app.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
-    wanted = {"_kr_dart_stock_code", "_fetch_kr_dart_disclosures"}
+    wanted = {"_kr_dart_stock_code", "_format_dart_date", "_fetch_kr_dart_disclosures"}
     nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in wanted]
     namespace = {"re": re, "datetime": datetime.datetime, "timedelta": datetime.timedelta}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), "app.py", "exec"), namespace)
@@ -19,6 +19,16 @@ def load_fetch_helper():
 
 
 class AppDartContractTests(unittest.TestCase):
+    def test_display_contract_for_empty_dates_links_and_multiple_items(self):
+        ns = load_fetch_helper()
+        self.assertEqual(ns["_format_dart_date"]("20260711"), "2026-07-11")
+        self.assertEqual(ns["_format_dart_date"](""), "-")
+        source = Path("app.py").read_text(encoding="utf-8")
+        self.assertIn("최근 3일 공시 없음", source)
+        self.assertIn('st.markdown("---")', source)
+        self.assertIn("공시 {len(row['data'])}건", source)
+        self.assertIn("https://dart.fss.or.kr/dsaf001/main.do?rcpNo=", source)
+
     def test_screen_contract_and_no_external_call_before_button(self):
         source = Path("app.py").read_text(encoding="utf-8")
         self.assertIn("📢 한국장 최근 공시 자동 확인", source)
