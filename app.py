@@ -294,7 +294,7 @@ st.markdown(
     <style>
     html, body, [class*="css"] {
         font-family: Pretendard, "Noto Sans KR", "Malgun Gothic", sans-serif;
-        font-size: 16px;
+        font-size: 17px;
     }
     .stApp, [data-testid="stAppViewContainer"] {
         background-color: #0f1117 !important;
@@ -303,8 +303,8 @@ st.markdown(
         font-size: 1.9rem !important;
     }
     [data-testid="stCaptionContainer"], .stCaption, small {
-        color: #d1d5db !important;
-        font-size: 15px !important;
+        color: #CBD5E1 !important;
+        font-size: 16px !important;
         line-height: 1.5 !important;
     }
     .stMarkdown p,
@@ -317,24 +317,24 @@ st.markdown(
     [data-testid="stTextInput"] label,
     [data-testid="stTextArea"] label {
         color: #eef2f7 !important;
-        font-size: 16px !important;
+        font-size: 17px !important;
         line-height: 1.5 !important;
     }
     button,
     button p {
-        font-size: 16px !important;
+        font-size: 17px !important;
         font-weight: 700 !important;
     }
     [data-testid="stExpander"] summary,
     [data-testid="stExpander"] summary p {
         color: #f3f4f6 !important;
-        font-size: 16px !important;
+        font-size: 17px !important;
         font-weight: 700 !important;
-        line-height: 1.45 !important;
+        line-height: 1.5 !important;
     }
     [data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
         color: #e5e7eb !important;
-        font-size: 16px !important;
+        font-size: 17px !important;
         line-height: 1.55 !important;
     }
     [data-testid="stExpander"] {
@@ -362,6 +362,13 @@ st.markdown(
     [data-testid="stDataFrame"] [role="row"] {
         min-height: 38px;
     }
+    [data-testid="stDataFrame"] [role="columnheader"],
+    [data-testid="stDataFrame"] [role="gridcell"],
+    [data-testid="stDataEditor"] [role="columnheader"],
+    [data-testid="stDataEditor"] [role="gridcell"] {
+        font-size: 15px !important;
+        line-height: 1.5 !important;
+    }
     [data-testid="stDataFrame"] * {
         color: #e8ebf0 !important;
     }
@@ -370,6 +377,11 @@ st.markdown(
         border: 1px solid #303642;
         border-radius: 10px;
         padding: 10px 14px;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricLabel"],
+    [data-testid="stMetric"] [data-testid="stMetricLabel"] p {
+        font-size: 16px !important;
+        color: #CBD5E1 !important;
     }
     button[kind="primary"] {
         background-color: #ff4b4b !important;
@@ -1808,6 +1820,16 @@ def _render_today_progress_status_strip():
 
 _render_today_progress_status_strip()
 
+st.markdown(
+    """
+    <div style="background:#1D4ED8;border:1px solid #60A5FA;border-radius:10px;padding:14px 18px;margin:12px 0 16px;color:#EFF6FF;line-height:1.5">
+      <div style="font-size:19px;font-weight:800;margin-bottom:4px">오늘 무엇을 해야 하나</div>
+      <div style="font-size:18px;line-height:1.5">한국주식은 ① 한국장 판단, 미국주식은 ② 미국장 판단에서 시작합니다.<br>저장 후 실제 매수·보류·제외·청산은 ③ 행동·청산, 거래가 끝난 뒤 복기는 ④ 복기·통계에서 기록합니다.</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 tab_kr, tab_us, tab_action, tab_review, tab_saved, tab_aux = st.tabs(
     [
         "① 한국장 판단", "② 미국장 판단", "③ 행동·청산", "④ 복기·통계", "⑤ 기록 조회", "⑥ 보조",
@@ -2221,8 +2243,6 @@ def _fetch_market_overview(market):
         "status": _market_overview_status(market, signal_changes, signal_details),
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-
-
 def _render_market_overview(market):
     prefix = market.lower()
     result_key = f"{prefix}_market_overview_result"
@@ -2251,7 +2271,7 @@ def _render_market_overview(market):
             card_parts = [
                 "<div style='background:#171a21;border:1px solid #303642;border-radius:10px;"
                 "padding:14px 14px 12px 14px;min-height:128px'>",
-                f"<div style='font-size:16px;line-height:1.5;font-weight:800;color:#dbeafe;margin-bottom:8px'>{card['label']}</div>",
+                f"<div style='font-size:17px;line-height:1.5;font-weight:800;color:#dbeafe;margin-bottom:8px'>{card['label']}</div>",
             ]
             for item in card["items"]:
                 if item["status"] != "정상":
@@ -2266,7 +2286,7 @@ def _render_market_overview(market):
                     change_text = "확인 불가" if change is None else _fmt_signed_pct(change)
                     card_parts.append(
                         f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item['label']}</div>"
-                        f"<div style='font-size:20px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
+                        f"<div style='font-size:22px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
                         f"<div style='font-size:15px;line-height:1.5;color:{change_color};margin-top:4px'>전일 대비 등락률 {change_text}</div>"
                     )
             card_parts.append("</div>")
@@ -2281,9 +2301,9 @@ def _render_market_overview(market):
         title = item.get("title") or "-"
         title_html = html.escape(title)
         title_markdown = f"<a href='{html.escape(str(link), quote=True)}' target='_blank'>{title_html}</a>" if link else title_html
-        st.markdown(f"<div style='font-size:17px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:8px'>• {title_markdown}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:18px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:8px'>• {title_markdown}</div>", unsafe_allow_html=True)
         source = f" · 원문 도메인: {hostname}" if hostname else ""
-        st.markdown(f"<div style='font-size:15px;line-height:1.5;color:#CBD5E1'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
     if len(result["news"]) > 3:
         with st.expander("시장 주요 뉴스 후보 더 보기", expanded=False):
             for item in result["news"][3:10]:
@@ -2293,9 +2313,9 @@ def _render_market_overview(market):
                 title_markdown = f"<a href='{html.escape(str(link), quote=True)}' target='_blank'>{title_html}</a>" if link else title_html
                 hostname = urlparse(str(link or "")).hostname
                 source = f" · 원문 도메인: {hostname}" if hostname else ""
-                st.markdown(f"<div style='font-size:17px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:8px'>• {title_markdown}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div style='font-size:15px;line-height:1.5;color:#CBD5E1'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:15px;line-height:1.5;color:#CBD5E1;margin-top:8px'>최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:18px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:8px'>• {title_markdown}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:16px;line-height:1.5;color:#CBD5E1;margin-top:8px'>최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준</div>", unsafe_allow_html=True)
 
 
 def _get_snapshot_value(ticker, field):
@@ -3225,6 +3245,7 @@ with tab_saved:
         horizontal=True,
         key="saved_view_selector",
     )
+    st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>오늘 요약과 저장 결과, 지난 기록을 읽기 전용으로 확인하는 화면입니다.</div>", unsafe_allow_html=True)
 if _saved_view == "오늘 요약":
         st.subheader("오늘 저장 요약")
         st.info(
@@ -3246,6 +3267,7 @@ with tab_aux:
         horizontal=True,
         key="aux_view_selector",
     )
+    st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>수동 기록 입력, 추가 기능, 사용법을 모아둔 보조 화면입니다.</div>", unsafe_allow_html=True)
 if _aux_view == "수동 기록 입력":
         st.subheader("새 기록 입력")
 
@@ -4461,6 +4483,7 @@ def _render_risk_plan_preview(stock_name, ticker, risk_fields):
 with tab_kr:
     _render_market_overview("KR")
     st.subheader("한국장")
+    st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>시장과 가격을 확인하고 한국 단타 후보를 판단·저장하는 화면입니다.</div>", unsafe_allow_html=True)
     _render_kr_fable_mockup1_preview()
     st.markdown("---")
     st.markdown("### 기존 입력·자동조회·저장 화면")
@@ -5242,6 +5265,7 @@ with tab_kr:
 with tab_us:
     _render_market_overview("US")
     st.subheader("미국장")
+    st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>미국 시장 흐름과 가격을 확인하고 스윙 후보를 판단·저장하는 화면입니다.</div>", unsafe_allow_html=True)
     st.caption(
         "스윙 전용 흐름(TSLA, AMD, AVGO, META, GOOGL, AAPL, NVDA, MSFT). 한국 종목은 다루지 않으며, "
         "시장 분위기는 한국장 탭 입력값을 그대로 사용합니다. 입력값은 저장되지 않으며, "
@@ -5829,6 +5853,7 @@ def _render_actual_outcome_save_section(selected_report_id, key_prefix="") -> No
 
 with tab_review:
     st.subheader("④ 복기·통계")
+    st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>거래가 끝난 종목의 결과·실수·태그를 복기하는 화면입니다.</div>", unsafe_allow_html=True)
     st.caption("저장된 판단과 실제 행동·거래 종료 결과를 조회하고 복기 진행 상태를 확인하는 화면입니다.")
 
     _tab4_reports = db.list_reports()
@@ -6530,6 +6555,7 @@ if _saved_view == "지난 기록":
 
 with tab_action:
     st.subheader("③ 실제 행동·거래 종료")
+    st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>저장한 종목의 실제 매수·보류·제외와 보유·청산을 기록하는 화면입니다.</div>", unsafe_allow_html=True)
     st.caption("저장된 판단 이후 실제 행동과 거래 종료를 기록하는 화면입니다.")
 
     _tab3_market = st.selectbox(
