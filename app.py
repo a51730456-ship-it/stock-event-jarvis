@@ -5004,6 +5004,78 @@ with tab_review:
         else:
             st.info("성과 저장 대상 보고서가 없습니다.")
 
+    st.markdown("---")
+    with st.expander("탈락 종목 기록", expanded=False):
+        st.caption("자비스가 걸러낸(또는 사용자가 스스로 제외한) 종목을 report와 별도로 기록합니다.")
+        rc1, rc2, rc3 = st.columns(3)
+        rej_market = rc1.selectbox("시장", ["KR", "US"], key="tab4_rej_market")
+        rej_ticker = rc2.text_input("종목코드", key="tab4_rej_ticker")
+        rej_stock_name = rc3.text_input("종목명", key="tab4_rej_stock_name")
+
+        rc4, rc5 = st.columns(2)
+        rej_trade_mode = rc4.selectbox("매매유형", ["단타", "스윙", "미정"], key="tab4_rej_trade_mode")
+        rej_assumed_entry_price = rc5.number_input(
+            "가정 진입가(선택)", value=0.0, min_value=0.0, step=100.0, key="tab4_rej_assumed_entry_price"
+        )
+
+        rej_reason = st.text_input("탈락 사유", key="tab4_rej_reason")
+        rej_note = st.text_input("메모(선택)", key="tab4_rej_note")
+
+        _rej_report_options = ["연결 안 함"] + [
+            f"#{r['id']} {r['saved_at']} {r['market_scope']}" for r in db.list_reports()
+        ]
+        _rej_report_label_to_id = {
+            f"#{r['id']} {r['saved_at']} {r['market_scope']}": r["id"] for r in db.list_reports()
+        }
+        rej_report_choice = st.selectbox("연결 report(선택)", _rej_report_options, key="tab4_rej_source_report")
+
+        if st.button("탈락 종목 저장", key="tab4_rej_save"):
+            if not rej_ticker.strip() and not rej_stock_name.strip():
+                st.warning("종목코드 또는 종목명 중 하나는 반드시 입력해야 합니다.")
+            else:
+                _now_str = datetime.now().isoformat(timespec="seconds")
+                _source_report_id = _rej_report_label_to_id.get(rej_report_choice)
+                db.insert_rejected_item(
+                    _now_str,
+                    rej_market,
+                    rej_ticker.strip() or None,
+                    rej_stock_name.strip() or None,
+                    rej_trade_mode,
+                    rej_reason.strip() or None,
+                    rej_assumed_entry_price or None,
+                    rej_note.strip() or None,
+                    _source_report_id,
+                    _now_str,
+                )
+                st.success("탈락 종목 기록 저장 완료")
+                st.rerun()
+
+        st.markdown("#### 최근 탈락 기록 (최대 10건)")
+        _recent_rejected = db.list_recent_rejected(limit=10)
+        if not _recent_rejected:
+            st.info("아직 기록된 탈락 종목이 없습니다.")
+        else:
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "rejected_at": r["rejected_at"],
+                            "market": r["market"],
+                            "ticker": r["ticker"],
+                            "stock_name": r["stock_name"],
+                            "trade_mode": r["trade_mode"],
+                            "reject_reason": r["reject_reason"],
+                            "assumed_entry_price": r["assumed_entry_price"],
+                            "source_report_id": r["source_report_id"],
+                        }
+                        for r in _recent_rejected
+                    ]
+                ),
+                width="stretch",
+                hide_index=True,
+            )
+
+
     _tab4_table_rows = []
     for _tab4_item in _tab4_filtered_items:
         _tab4_table_rows.append(
@@ -5687,6 +5759,7 @@ def _render_actual_outcome_save_section(selected_report_id, key_prefix="") -> No
 
 with tab_perf:
     st.subheader("결과 확인")
+    st.caption("? ??? ?? ?????. ?? ??? ?? ??? ? ??????? ???.")
     st.caption(
         "저장한 종목 판단이 며칠 뒤 실제 수익률로 어떻게 나왔는지 확인하는 화면입니다."
     )
@@ -6961,77 +7034,6 @@ with tab_perf:
                 file_name="관심종목없음평가.csv",
                 mime="text/csv",
                 key="no_rec_csv_download",
-            )
-
-    st.markdown("---")
-    with st.expander("탈락 종목 기록", expanded=False):
-        st.caption("자비스가 걸러낸(또는 사용자가 스스로 제외한) 종목을 report와 별도로 기록합니다.")
-        rc1, rc2, rc3 = st.columns(3)
-        rej_market = rc1.selectbox("시장", ["KR", "US"], key="rej_market")
-        rej_ticker = rc2.text_input("종목코드", key="rej_ticker")
-        rej_stock_name = rc3.text_input("종목명", key="rej_stock_name")
-
-        rc4, rc5 = st.columns(2)
-        rej_trade_mode = rc4.selectbox("매매유형", ["단타", "스윙", "미정"], key="rej_trade_mode")
-        rej_assumed_entry_price = rc5.number_input(
-            "가정 진입가(선택)", value=0.0, min_value=0.0, step=100.0, key="rej_assumed_entry_price"
-        )
-
-        rej_reason = st.text_input("탈락 사유", key="rej_reason")
-        rej_note = st.text_input("메모(선택)", key="rej_note")
-
-        _rej_report_options = ["연결 안 함"] + [
-            f"#{r['id']} {r['saved_at']} {r['market_scope']}" for r in db.list_reports()
-        ]
-        _rej_report_label_to_id = {
-            f"#{r['id']} {r['saved_at']} {r['market_scope']}": r["id"] for r in db.list_reports()
-        }
-        rej_report_choice = st.selectbox("연결 report(선택)", _rej_report_options, key="rej_source_report")
-
-        if st.button("탈락 종목 저장", key="rej_save"):
-            if not rej_ticker.strip() and not rej_stock_name.strip():
-                st.warning("종목코드 또는 종목명 중 하나는 반드시 입력해야 합니다.")
-            else:
-                _now_str = datetime.now().isoformat(timespec="seconds")
-                _source_report_id = _rej_report_label_to_id.get(rej_report_choice)
-                db.insert_rejected_item(
-                    _now_str,
-                    rej_market,
-                    rej_ticker.strip() or None,
-                    rej_stock_name.strip() or None,
-                    rej_trade_mode,
-                    rej_reason.strip() or None,
-                    rej_assumed_entry_price or None,
-                    rej_note.strip() or None,
-                    _source_report_id,
-                    _now_str,
-                )
-                st.success("탈락 종목 기록 저장 완료")
-                st.rerun()
-
-        st.markdown("#### 최근 탈락 기록 (최대 10건)")
-        _recent_rejected = db.list_recent_rejected(limit=10)
-        if not _recent_rejected:
-            st.info("아직 기록된 탈락 종목이 없습니다.")
-        else:
-            st.dataframe(
-                pd.DataFrame(
-                    [
-                        {
-                            "rejected_at": r["rejected_at"],
-                            "market": r["market"],
-                            "ticker": r["ticker"],
-                            "stock_name": r["stock_name"],
-                            "trade_mode": r["trade_mode"],
-                            "reject_reason": r["reject_reason"],
-                            "assumed_entry_price": r["assumed_entry_price"],
-                            "source_report_id": r["source_report_id"],
-                        }
-                        for r in _recent_rejected
-                    ]
-                ),
-                width="stretch",
-                hide_index=True,
             )
 
 with tab_next:
