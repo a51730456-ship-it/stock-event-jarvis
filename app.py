@@ -4132,6 +4132,7 @@ with tab_kr:
             "버튼을 누르면 바로 저장하지 않고 먼저 저장 전 확인 미리보기를 보여줍니다."
         )
         if st.button("▼ 저장 전 확인으로 이동", key="kr_quick_save", disabled=not snapshot_calc_data):
+          st.session_state["kr_show_save_preview"] = True
           st.session_state.pop("kr_quick_preview_rows", None)
           st.session_state.pop("kr_quick_day_conclusion", None)
           st.session_state.pop("kr_quick_basis_text", None)
@@ -4238,7 +4239,7 @@ with tab_kr:
             st.session_state["kr_quick_day_conclusion"] = kr_day_conclusion
             st.session_state["kr_quick_basis_text"] = kr_basis_text
 
-        if st.session_state.get("kr_quick_preview_rows"):
+        if st.session_state.get("kr_show_save_preview") and st.session_state.get("kr_quick_preview_rows"):
             kr_preview_rows = st.session_state["kr_quick_preview_rows"]
             preview_timing_class = db.classify_timing_class(datetime.now())
             st.markdown("#### 저장 전 확인 → 최종 저장")
@@ -4427,6 +4428,7 @@ with tab_kr:
                 st.session_state.pop("kr_quick_preview_rows", None)
                 st.session_state.pop("kr_quick_day_conclusion", None)
                 st.session_state.pop("kr_quick_basis_text", None)
+                st.session_state.pop("kr_show_save_preview", None)
                 st.success(
                     "국내장 기록 저장 완료. 오늘 저장 요약, 지난 기록 보기, 저장 결과 확인에서 확인할 수 있습니다. "
                     f"(report_id={kr_report_id})"
@@ -4435,6 +4437,7 @@ with tab_kr:
                 st.session_state.pop("kr_quick_preview_rows", None)
                 st.session_state.pop("kr_quick_day_conclusion", None)
                 st.session_state.pop("kr_quick_basis_text", None)
+                st.session_state.pop("kr_show_save_preview", None)
                 st.rerun()
 
 with tab_us:
