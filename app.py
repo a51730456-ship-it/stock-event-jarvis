@@ -6994,36 +6994,23 @@ with tab_perf:
             else:
                 _now_str = datetime.now().isoformat(timespec="seconds")
                 _source_report_id = _rej_report_label_to_id.get(rej_report_choice)
-                _rej_conn = db.get_connection()
-                _rej_conn.execute(
-                    "INSERT INTO rejected_items (rejected_at, market, ticker, stock_name, trade_mode, "
-                    "reject_reason, assumed_entry_price, note, source_report_id, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        _now_str,
-                        rej_market,
-                        rej_ticker.strip() or None,
-                        rej_stock_name.strip() or None,
-                        rej_trade_mode,
-                        rej_reason.strip() or None,
-                        rej_assumed_entry_price or None,
-                        rej_note.strip() or None,
-                        _source_report_id,
-                        _now_str,
-                    ),
+                db.insert_rejected_item(
+                    _now_str,
+                    rej_market,
+                    rej_ticker.strip() or None,
+                    rej_stock_name.strip() or None,
+                    rej_trade_mode,
+                    rej_reason.strip() or None,
+                    rej_assumed_entry_price or None,
+                    rej_note.strip() or None,
+                    _source_report_id,
+                    _now_str,
                 )
-                _rej_conn.commit()
-                _rej_conn.close()
                 st.success("탈락 종목 기록 저장 완료")
                 st.rerun()
 
         st.markdown("#### 최근 탈락 기록 (최대 10건)")
-        _rej_conn = db.get_connection()
-        _recent_rejected = _rej_conn.execute(
-            "SELECT rejected_at, market, ticker, stock_name, trade_mode, reject_reason, "
-            "assumed_entry_price, source_report_id FROM rejected_items ORDER BY id DESC LIMIT 10"
-        ).fetchall()
-        _rej_conn.close()
+        _recent_rejected = db.list_recent_rejected(limit=10)
         if not _recent_rejected:
             st.info("아직 기록된 탈락 종목이 없습니다.")
         else:

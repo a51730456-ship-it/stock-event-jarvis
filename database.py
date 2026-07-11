@@ -401,6 +401,40 @@ def get_latest_report():
         conn.close()
 
 
+def insert_rejected_item(
+    rejected_at, market, ticker, stock_name, trade_mode,
+    reject_reason, assumed_entry_price, note, source_report_id, created_at,
+):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "INSERT INTO rejected_items (rejected_at, market, ticker, stock_name, trade_mode, "
+            "reject_reason, assumed_entry_price, note, source_report_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (rejected_at, market, ticker, stock_name, trade_mode, reject_reason,
+             assumed_entry_price, note, source_report_id, created_at),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def list_recent_rejected(limit=10):
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+        raise ValueError("limit must be a positive integer")
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT rejected_at, market, ticker, stock_name, trade_mode, reject_reason, "
+            "assumed_entry_price, source_report_id FROM rejected_items "
+            "ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def get_report(report_id):
     conn = get_connection()
     try:
