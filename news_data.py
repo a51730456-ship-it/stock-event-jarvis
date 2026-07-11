@@ -1,0 +1,142 @@
+"""Mockable Naver News Search client used by the read-only news feature later."""
+
+import email.utils
+import html
+import json
+import re
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import timezone
+
+TIMEOUT = 10
+ENDPOINT = "https://openapi.naver.com/v1/search/news.json"
+_TAG_RE = re.compile(r"<[^>]*>")
+
+
+def _result(status, status_code, data=None, message=""):
+    return {
+        "status": status,
+        "status_code": str(status_code),
+        "data": data if data is not None else [],
+        "message": message,
+    }
+
+
+def _clean_text(value):
+    return html.unescape(_TAG_RE.sub("", str(value or ""))).strip()
+
+
+def _normalize_pub_date(value):
+    if not value:
+        return ""
+    try:
+        parsed = email.utils.parsedate_to_datetime(str(value))
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed.isoformat(sep=" ")
+    except (TypeError, ValueError, OverflowError):
+        return str(value).strip()
+
+
+def _read_response(response):
+    status_code = getattr(response, "status", getattr(response, "status_code", 200))
+    body = response.read() if hasattr(response, "read") else response
+    return bytes(body), int(status_code)
+
+
+def _request(url, headers, http_get):
+    if http_get is not None:
+        return http_get(url, headers=headers, timeout=TIMEOUT)
+    request = urllib.request.Request(url, headers=headers)
+    return urllib.request.urlopen(request, timeout=TIMEOUT)
+
+
+def _http_status_result(status_code):
+    if status_code in (401, 403):
+        return "인증 오류"
+    if status_code == 429:
+        return "요청 제한"
+    if 400 <= status_code < 500:
+        return "잘못된 요청"
+    if status_code >= 500:
+        return "서버 오류"
+    return None
+
+
+def _api_error_result(payload, status_code):
+    error_code = str(payload.get("errorCode") or payload.get("error_code") or status_code)
+    message = _clean_text(payload.get("errorMessage") or payload.get("message"))
+    if error_code in {"024", "SE01", "401", "403"}:
+        status = "인증 오류"
+    elif error_code in {"023", "429"}:
+        status = "요청 제한"
+    elif error_code in {"SE02", "400"}:
+        status = "잘못된 요청"
+    else:
+        status = "서버 오류" if int(status_code or 0) >= 500 else "응답 오류"
+    return _result(status, error_code, message=message or "네이버 뉴스 요청에 실패했습니다")
+
+
+def fetch_naver_news(
+    client_id,
+    client_secret,
+    query,
+    display=10,
+    start=1,
+    sort="date",
+    http_get=None,
+):
+    """Fetch and normalize Naver news search results without exposing credentials."""
+    if not client_id or not client_secret:
+        return _result("인증 오류", "INVALID_CREDENTIALS", message="네이버 뉴스 인증정보 설정이 필요합니다")
+    if not str(query or "").strip():
+        return _result("잘못된 요청", "INVALID_QUERY", message="검색어가 필요합니다")
+    if not isinstance(display, int) or isinstance(display, bool) or not 1 <= display <= 100:
+        return _result("잘못된 요청", "INVALID_DISPLAY", message="display는 1~100이어야 합니다")
+    if not isinstance(start, int) or isinstance(start, bool) or not 1 <= start <= 1000:
+        return _result("잘못된 요청", "INVALID_START", message="start는 1~1000이어야 합니다")
+    if sort not in ("date", "sim"):
+        return _result("잘못된 요청", "INVALID_SORT", message="sort는 date 또는 sim이어야 합니다")
+
+    params = urllib.parse.urlencode({"query": str(query).strip(), "display": display, "start": start, "sort": sort})
+    url = f"{ENDPOINT}?{params}"
+    headers = {"X-Naver-Client-Id": str(client_id), "X-Naver-Client-Secret": str(client_secret)}
+    try:
+        raw, http_status = _read_response(_request(url, headers, http_get))
+        http_error = _http_status_result(http_status)
+        if http_error:
+            return _result(http_error, http_status, message="네이버 뉴스 요청에 실패했습니다")
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict):
+            return _result("응답 오류", http_status, message="응답 형식이 올바르지 않습니다")
+        if payload.get("errorCode") or payload.get("error_code"):
+            return _api_error_result(payload, http_status)
+        items = payload.get("items")
+        if not isinstance(items, list):
+            return _result("응답 오류", http_status, message="응답 형식이 올바르지 않습니다")
+        data = []
+        seen = set()
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            originallink = str(item.get("originallink") or "").strip()
+            link = str(item.get("link") or "").strip()
+            identity = originallink or link
+            if identity in seen:
+                continue
+            seen.add(identity)
+            data.append({
+                "title": _clean_text(item.get("title")),
+                "originallink": originallink,
+                "link": link,
+                "description": _clean_text(item.get("description")),
+                "pub_date": _normalize_pub_date(item.get("pubDate")),
+            })
+        return _result("정상" if data else "데이터 없음", http_status, data=data)
+    except (TimeoutError, urllib.error.URLError, OSError):
+        return _result("네트워크 오류", "NETWORK_ERROR", message="네이버 뉴스 네트워크 요청에 실패했습니다")
+    except (json.JSONDecodeError, UnicodeError, ValueError):
+        return _result("응답 오류", "INVALID_JSON", message="응답 형식이 올바르지 않습니다")
+    except Exception:
+        return _result("응답 오류", "UNEXPECTED_ERROR", message="네이버 뉴스 응답을 처리하지 못했습니다")
