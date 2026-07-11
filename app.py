@@ -4997,6 +4997,10 @@ with tab_review:
                 _tab4_verification_rows,
                 key_prefix="tab4_",
             )
+            _render_actual_outcome_save_section(
+                _tab4_outcome_report_id,
+                key_prefix="tab4_",
+            )
         else:
             st.info("성과 저장 대상 보고서가 없습니다.")
 
@@ -5812,11 +5816,6 @@ with tab_perf:
                 "선택한 보고서에서 실제 행동이 '매수'이고 실제 체결가·실제 매수 거래일이 "
                 "모두 입력된 종목만 대상으로 실매매(actual) 성과를 계산해 저장합니다. "
                 "자동 저장되지 않으며, 아래 버튼을 눌러야 계산·저장됩니다."
-            )
-
-            _render_actual_outcome_save_section(
-                _outcome_save_target_report_id,
-                key_prefix="",
             )
 
             with st.expander("저장된 실매매 성과 보기", expanded=False):
