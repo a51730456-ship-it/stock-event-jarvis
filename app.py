@@ -2989,6 +2989,50 @@ def _render_auto_fetch_status_summary(results, stock_defs, prefix):
             st.caption(f"{name} ({ticker}) — {reason}")
         for name, ticker, reason in failed:
             st.caption(f"{name} ({ticker}) — 전체 실패: {reason}")
+    retry_key = f"{prefix}retry_failed_auto_fetch"
+    retry_targets = {
+        stock["ticker"]
+        for stock in stock_defs
+        if not (results.get(stock["ticker"]) or {}).get("ok")
+        or any(
+            (results.get(stock["ticker"]) or {}).get(field) is None
+            for field in _AUTO_FETCH_FIELD_LABELS
+        )
+    }
+    if st.button("실패·누락 종목만 다시 조회", key=retry_key):
+        changed = False
+        for stock in stock_defs:
+            ticker = stock["ticker"]
+            if ticker not in retry_targets:
+                continue
+            result = price_data.get_snapshot_defaults(ticker)
+            previous = results.get(ticker) or {}
+            merged = dict(previous)
+            merged.update(result)
+            if result.get("ok"):
+                state_prefix = f"snap_{ticker}_"
+                for field in _AUTO_FETCH_FIELD_LABELS:
+                    value = result.get(field)
+                    state_key = state_prefix + field
+                    existing = st.session_state.get(state_key)
+                    if value is not None and existing in (None, "", 0):
+                        st.session_state[state_key] = value
+                        changed = True
+                if merged != previous:
+                    changed = True
+            elif result != previous:
+                changed = True
+            results[ticker] = merged
+        results_key = "snap_auto_fill_results" if prefix == "kr_" else "us_stock_auto_fill_results"
+        st.session_state[results_key] = results
+        if changed:
+            for key in (
+                "kr_quick_preview_rows", "kr_quick_day_conclusion", "kr_quick_basis_text",
+                "kr_show_save_preview", "us_swing_preview_rows", "us_swing_day_conclusion",
+                "us_swing_basis_text", "us_swing_raw_briefing", "us_show_save_preview",
+            ):
+                st.session_state.pop(key, None)
+        st.rerun()
 
 
 KR_THEME_WATCH_INITIAL_ROWS = [
