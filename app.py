@@ -2080,18 +2080,53 @@ MARKET_OVERVIEW_PRICE_SPECS = {
     ],
 }
 MARKET_OVERVIEW_NEWS_QUERIES = {
-    "KR": ("코스피 코스닥 증시", "원달러 환율 외국인 기관"),
-    "US": ("미국 증시 나스닥 S&P500", "연준 미국 국채금리 반도체"),
+    "KR": ("코스피 코스닥 마감", "국내 증시 환율 외국인 기관"),
+    "US": ("뉴욕증시 마감 나스닥", "미국 국채금리 연준 증시"),
 }
+MARKET_OVERVIEW_NEWS_CONTEXT = {
+    "KR": ("코스피", "코스닥", "국내증시", "국내 증시", "증시", "환율", "원달러", "외국인", "기관"),
+    "US": ("뉴욕증시", "미국증시", "미국 증시", "나스닥", "S&P500", "연준", "미국 국채금리", "국채금리"),
+}
+MARKET_OVERVIEW_OTHER_MARKET_TERMS = {
+    "KR": ("뉴욕증시", "미국 증시", "나스닥", "일본 증시", "중국 증시", "홍콩 증시", "유럽 증시"),
+    "US": ("한국 증시", "코스피", "코스닥", "일본 증시", "중국 증시", "홍콩 증시", "유럽 증시"),
+}
+MARKET_OVERVIEW_HISTORY_TERMS = ("과거", "역사", "회고", "몇 년 전", "10년 전", "지난해")
 
 
-def _market_overview_status(market, signal_changes):
+def _market_overview_direction(changes, positive_label, negative_label, mixed_label):
+    valid = [value for value in changes if isinstance(value, (int, float)) and math.isfinite(value)]
+    if not valid:
+        return "확인 불가"
+    if all(value > 0 for value in valid):
+        return positive_label
+    if all(value < 0 for value in valid):
+        return negative_label
+    if any(value > 0 for value in valid) and any(value < 0 for value in valid):
+        return mixed_label
+    return "보합"
+
+
+def _market_overview_status(market, signal_changes, signal_details=None):
     """Return a neutral four-state market summary from already fetched changes."""
     changes = [value for value in signal_changes.values() if isinstance(value, (int, float)) and math.isfinite(value)]
     if len(changes) < MARKET_OVERVIEW_MIN_SIGNALS:
         return "자료 부족", "[규칙 해석] 평가 가능한 시장 신호가 부족해 추가 확인이 필요합니다."
     positive = sum(value > 0 for value in changes)
     negative = sum(value < 0 for value in changes)
+    state = "우호" if positive > negative else "경계" if negative > positive else "혼조"
+    if signal_details:
+        if market == "KR":
+            index_text = _market_overview_direction(signal_details.get("KOSPI·KOSDAQ", []), "코스피·코스닥 동반 상승", "코스피·코스닥 동반 하락", "코스피·코스닥 흐름 엇갈림")
+            dollar_text = _market_overview_direction([-value for value in signal_details.get("달러/원", [])], "달러/원 하락", "달러/원 상승", "달러/원 보합")
+            semi_text = _market_overview_direction(signal_details.get("반도체", []), "반도체 ETF 동반 상승", "반도체 ETF 동반 하락", "반도체 ETF 흐름 엇갈림")
+            future_text = _market_overview_direction(signal_details.get("나스닥100 선물", []), "나스닥100 선물 상승", "나스닥100 선물 하락", "나스닥100 선물 보합")
+            return state, f"[규칙 해석] {index_text}, {dollar_text}, {semi_text}, {future_text}으로 실제 조회 결과를 함께 확인합니다."
+        index_text = _market_overview_direction(signal_details.get("S&P500·Nasdaq", []), "S&P500·Nasdaq 동반 상승", "S&P500·Nasdaq 동반 하락", "S&P500·Nasdaq 흐름 엇갈림")
+        rate_text = _market_overview_direction([-value for value in signal_details.get("미국 10년물", [])], "미국 10년물 하락", "미국 10년물 상승", "미국 10년물 보합")
+        vix_text = _market_overview_direction([-value for value in signal_details.get("VIX", [])], "VIX 하락", "VIX 상승", "VIX 보합")
+        semi_text = _market_overview_direction(signal_details.get("반도체", []), "반도체 ETF 동반 상승", "반도체 ETF 동반 하락", "반도체 ETF 흐름 엇갈림")
+        return state, f"[규칙 해석] {index_text}, {rate_text}, {vix_text}, {semi_text}으로 실제 조회 결과를 함께 확인합니다."
     if positive > negative:
         return "우호", "[규칙 해석] 긍정 신호가 상대적으로 우세해 시장 흐름을 확인할 수 있습니다."
     if negative > positive:
@@ -2099,13 +2134,21 @@ def _market_overview_status(market, signal_changes):
     return "혼조", "[규칙 해석] 긍정·부정 신호가 엇갈려 시장 확인이 우선입니다."
 
 
-def _dedup_market_overview_news(rows):
+def _dedup_market_overview_news(rows, market=None):
     """Deduplicate market-news candidates by URL identity and normalized title."""
     seen_urls = set()
     seen_titles = set()
     result = []
+    context_terms = MARKET_OVERVIEW_NEWS_CONTEXT.get(market, ())
+    other_terms = MARKET_OVERVIEW_OTHER_MARKET_TERMS.get(market, ())
     for row in sorted(rows or [], key=lambda item: item.get("pub_date") or "", reverse=True):
         title = " ".join(str(row.get("title") or "").split()).strip()
+        search_text = f"{title} {row.get('description') or ''}"
+        context_hits = sum(term in search_text for term in context_terms)
+        if market and (not context_hits or any(term in search_text for term in MARKET_OVERVIEW_HISTORY_TERMS)):
+            continue
+        if market and any(term in search_text for term in other_terms) and context_hits == 0:
+            continue
         url = str(row.get("originallink") or row.get("link") or "").strip()
         identity = url or title
         if not identity or url in seen_urls or title in seen_titles:
@@ -2114,7 +2157,10 @@ def _dedup_market_overview_news(rows):
             seen_urls.add(url)
         if title:
             seen_titles.add(title)
-        result.append({**row, "title": title})
+        result.append({**row, "title": title, "_context_hits": context_hits})
+    result.sort(key=lambda item: (item.get("_context_hits", 0), item.get("pub_date") or ""), reverse=True)
+    for row in result:
+        row.pop("_context_hits", None)
     return result
 
 
@@ -2132,6 +2178,7 @@ def _market_overview_price_item(label, ticker, result):
 def _fetch_market_overview(market):
     rows = []
     signal_changes = {}
+    signal_details = {}
     for card in MARKET_OVERVIEW_PRICE_SPECS[market]:
         card_items = []
         for label, ticker in card[1:]:
@@ -2141,6 +2188,7 @@ def _fetch_market_overview(market):
                 item = _market_overview_price_item(label, ticker, None)
             card_items.append(item)
         valid_changes = [item["change_pct"] for item in card_items if item["change_pct"] is not None]
+        signal_details[card[0]] = valid_changes
         if valid_changes:
             signal_value = sum(valid_changes) / len(valid_changes)
             if (market == "KR" and card[0] == "달러/원") or (
@@ -2167,9 +2215,9 @@ def _fetch_market_overview(market):
     return {
         "market": market,
         "price_cards": rows,
-        "news": _dedup_market_overview_news(news_rows),
+        "news": _dedup_market_overview_news(news_rows, market),
         "news_failed": news_failed,
-        "status": _market_overview_status(market, signal_changes),
+        "status": _market_overview_status(market, signal_changes, signal_details),
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -2199,26 +2247,47 @@ def _render_market_overview(market):
     card_columns = st.columns(4)
     for column, card in zip(card_columns, result["price_cards"]):
         with column:
-            st.markdown(f"**{card['label']}**")
+            card_parts = [
+                "<div style='background:#171a21;border:1px solid #303642;border-radius:10px;"
+                "padding:14px 14px 12px 14px;min-height:128px'>",
+                f"<div style='font-size:15px;font-weight:800;color:#dbeafe;margin-bottom:8px'>{card['label']}</div>",
+            ]
             for item in card["items"]:
                 if item["status"] != "정상":
-                    st.caption(f"{item['label']}: 확인 불가")
+                    card_parts.append(f"<div style='font-size:20px;font-weight:800;color:#f3f4f6'>{item['label']}: 확인 불가</div>")
                 else:
-                    st.caption(f"{item['label']}: {item['current']:,.2f} ({_fmt_signed_pct(item['change_pct'])})")
+                    unit = "%" if item["label"] == "미국 10년물" else ""
+                    change = item["change_pct"]
+                    change_color = "#22c55e" if change is not None and change > 0 else "#f87171" if change is not None and change < 0 else "#d1d5db"
+                    change_text = "확인 불가" if change is None else _fmt_signed_pct(change)
+                    card_parts.append(
+                        f"<div style='font-size:20px;font-weight:800;color:#f9fafb;line-height:1.25'>{item['label']}: {item['current']:,.2f}{unit}</div>"
+                        f"<div style='font-size:13px;color:{change_color};margin-top:4px'>전일 대비 등락률 {change_text}</div>"
+                    )
+            card_parts.append("</div>")
+            st.markdown("".join(card_parts), unsafe_allow_html=True)
     st.markdown("**시장 주요 뉴스 후보**")
     st.caption("네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.")
     if not result["news"] and result.get("news_failed"):
         st.caption("시장 주요 뉴스 후보: 확인 불가")
     for item in result["news"][:3]:
         hostname = urlparse(str(item.get("originallink") or item.get("link") or "")).hostname
+        link = item.get("originallink") or item.get("link")
+        title = item.get("title") or "-"
+        title_markdown = f"[{title}]({link})" if link else title
+        st.markdown(f"- {title_markdown}")
         source = f" · 원문 도메인: {hostname}" if hostname else ""
-        st.markdown(f"- {item.get('title') or '-'} · {item.get('pub_date') or '-'}{source}")
-        if item.get("originallink") or item.get("link"):
-            st.markdown(f"  [원문 보기]({item.get('originallink') or item.get('link')})")
+        st.caption(f"{item.get('pub_date') or '-'}{source}")
     if len(result["news"]) > 3:
         with st.expander("시장 주요 뉴스 후보 더 보기", expanded=False):
             for item in result["news"][3:10]:
-                st.markdown(f"- {item.get('title') or '-'} · {item.get('pub_date') or '-'}")
+                link = item.get("originallink") or item.get("link")
+                title = item.get("title") or "-"
+                title_markdown = f"[{title}]({link})" if link else title
+                hostname = urlparse(str(link or "")).hostname
+                source = f" · 원문 도메인: {hostname}" if hostname else ""
+                st.markdown(f"- {title_markdown}")
+                st.caption(f"{item.get('pub_date') or '-'}{source}")
     st.caption(f"최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준")
 
 

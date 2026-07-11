@@ -7,7 +7,7 @@ from pathlib import Path
 
 SOURCE = Path("app.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
-WANTED = {"_market_overview_status", "_dedup_market_overview_news", "_market_overview_price_item", "_fetch_market_overview"}
+WANTED = {"_market_overview_status", "_market_overview_direction", "_dedup_market_overview_news", "_market_overview_price_item", "_fetch_market_overview"}
 NODES = [node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name in WANTED]
 NAMESPACE = {
     "math": math,
@@ -18,6 +18,15 @@ NAMESPACE = {
         "US": [("S&P500·Nasdaq", ("S&P500", "^GSPC")), ("미국 10년물", ("미국 10년물", "^TNX")), ("VIX", ("VIX", "^VIX")), ("반도체", ("SOXX", "SOXX"))],
     },
     "MARKET_OVERVIEW_NEWS_QUERIES": {"KR": ("q1", "q2"), "US": ("q1", "q2")},
+    "MARKET_OVERVIEW_NEWS_CONTEXT": {
+        "KR": ("코스피", "코스닥", "국내증시", "국내 증시", "증시", "환율", "원달러", "외국인", "기관"),
+        "US": ("뉴욕증시", "미국증시", "미국 증시", "나스닥", "S&P500", "연준", "미국 국채금리", "국채금리"),
+    },
+    "MARKET_OVERVIEW_OTHER_MARKET_TERMS": {
+        "KR": ("뉴욕증시", "미국 증시", "나스닥", "일본 증시", "중국 증시", "홍콩 증시", "유럽 증시"),
+        "US": ("한국 증시", "코스피", "코스닥", "일본 증시", "중국 증시", "홍콩 증시", "유럽 증시"),
+    },
+    "MARKET_OVERVIEW_HISTORY_TERMS": ("과거", "역사", "회고", "몇 년 전", "10년 전", "지난해"),
     "_safe_pct_diff": lambda a, b: None if not b else (a - b) / b * 100,
     "_recent_naver_news_items": lambda items: items or [],
 }
@@ -32,6 +41,23 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertEqual(status("US", {"a": -1, "b": -0.5, "c": 0.1})[0], "경계")
         self.assertEqual(status("US", {"a": 1, "b": None})[0], "자료 부족")
 
+    def test_dynamic_interpretation_uses_actual_directions(self):
+        status, explanation = NAMESPACE["_market_overview_status"](
+            "KR",
+            {"KOSPI·KOSDAQ": 1.0, "달러/원": 0.5, "반도체": -0.2, "나스닥100 선물": 0.4},
+            {
+                "KOSPI·KOSDAQ": [1.0, 1.0],
+                "달러/원": [-0.5],
+                "반도체": [1.0, -1.0],
+                "나스닥100 선물": [0.4],
+            },
+        )
+        self.assertEqual(status, "우호")
+        self.assertIn("코스피·코스닥 동반 상승", explanation)
+        self.assertIn("달러/원 하락", explanation)
+        self.assertIn("반도체 ETF 흐름 엇갈림", explanation)
+        self.assertNotIn("긍정 신호가 상대적으로 우세", explanation)
+
     def test_news_dedup_by_url_and_normalized_title(self):
         dedup = NAMESPACE["_dedup_market_overview_news"]
         result = dedup(
@@ -43,6 +69,18 @@ class MarketOverviewTests(unittest.TestCase):
             ]
         )
         self.assertEqual([row["title"] for row in result], ["같은 제목", "새 제목"])
+
+    def test_market_news_filter_prefers_direct_market_context(self):
+        dedup = NAMESPACE["_dedup_market_overview_news"]
+        result = dedup(
+            [
+                {"title": "테스트기업 신제품 출시", "link": "https://example/company", "pub_date": "2026-07-12"},
+                {"title": "코스피 마감, 외국인 순매수", "link": "https://example/market", "pub_date": "2026-07-11"},
+                {"title": "지난해 뉴욕증시 회고", "link": "https://example/history", "pub_date": "2026-07-10"},
+            ],
+            "KR",
+        )
+        self.assertEqual([row["title"] for row in result], ["코스피 마감, 외국인 순매수"])
 
     def test_market_overview_contracts(self):
         self.assertIn('"오늘 한국장 한눈에"', SOURCE)
@@ -71,7 +109,7 @@ class MarketOverviewTests(unittest.TestCase):
 
             def fetch_naver_news(self, client_id, client_secret, query, **kwargs):
                 self.calls.append(query)
-                return {"status": "정상", "data": [{"title": query, "link": f"https://example/{query}", "pub_date": "2026-07-12"}]}
+                return {"status": "정상", "data": [{"title": f"미국 증시 {query}", "link": f"https://example/{query}", "pub_date": "2026-07-12"}]}
 
         class Secrets:
             def get(self, key):
