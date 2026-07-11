@@ -11,7 +11,7 @@ import disclosure_data
 def load_fetch_helper():
     source = Path("app.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
-    wanted = {"_kr_dart_stock_code", "_format_dart_date", "_fetch_kr_dart_disclosures"}
+    wanted = {"_kr_dart_stock_code", "_format_dart_date", "_fetch_kr_dart_disclosures", "_recent_naver_news_items", "_fetch_market_naver_news"}
     nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in wanted]
     namespace = {"re": re, "datetime": datetime.datetime, "timedelta": datetime.timedelta}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), "app.py", "exec"), namespace)
@@ -19,6 +19,35 @@ def load_fetch_helper():
 
 
 class AppDartContractTests(unittest.TestCase):
+    def test_news_screen_contract_and_keys(self):
+        source = Path("app.py").read_text(encoding="utf-8")
+        for text in ("📰 한국장 최근 뉴스 자동 확인", "📰 미국장 최근 뉴스 자동 확인", "kr_naver_news_check_button", "us_naver_news_check_button", "kr_naver_news_results", "us_naver_news_results", "kr_naver_news_checked_at", "us_naver_news_checked_at"):
+            self.assertIn(text, source)
+        self.assertIn("display=10, sort=\"date\"", source)
+        self.assertIn("len(recent) == 5", source)
+
+    def test_news_mock_recent_filter_max_five_and_partial_failure(self):
+        ns = load_fetch_helper()
+        ns["news_data"] = __import__("news_data")
+        today = datetime.date(2026, 7, 11)
+        items = [{"title": str(i), "pub_date": f"2026-07-{11 - (i % 3):02d}", "link": f"https://{i}"} for i in range(7)]
+        def fetch(client_id, client_secret, query, **kwargs):
+            if query == "실패":
+                return {"status": "요청 제한", "data": [], "message": "요청 제한"}
+            return {"status": "정상", "data": items}
+        with patch.object(ns["news_data"], "fetch_naver_news", side_effect=fetch) as mocked:
+            result = ns["_fetch_market_naver_news"]("ID", "SECRET", [{"name": "정상", "ticker": "A"}, {"name": "실패", "ticker": "B"}], today=today)
+        self.assertEqual(mocked.call_count, 2)
+        self.assertEqual(len(result["rows"][0]["data"]), 5)
+        self.assertEqual(result["summary"], {"normal": 1, "empty": 0, "failed": 1})
+
+    def test_news_no_key_contract_and_no_external_call_before_button(self):
+        source = Path("app.py").read_text(encoding="utf-8")
+        panel = source[source.index("def _render_market_naver_news_panel"):]
+        self.assertLess(panel.index("st.button"), panel.index("_fetch_market_naver_news"))
+        ns = load_fetch_helper()
+        self.assertEqual(ns["_fetch_market_naver_news"](None, None, [] , today=datetime.date(2026, 7, 11))["rows"], [])
+
     def test_display_contract_for_empty_dates_links_and_multiple_items(self):
         ns = load_fetch_helper()
         self.assertEqual(ns["_format_dart_date"]("20260711"), "2026-07-11")

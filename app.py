@@ -11,6 +11,7 @@ import streamlit as st
 
 import database as db
 import disclosure_data
+import news_data
 import performance
 import price_data
 
@@ -1709,6 +1710,80 @@ def _render_kr_dart_disclosure_panel():
                 rcept_no = item.get("rcept_no")
                 if rcept_no:
                     st.markdown(f"[DART 원문 보기](https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no})")
+
+
+def _recent_naver_news_items(items, today=None):
+    today = today or datetime.now().date()
+    first_day = today - timedelta(days=2)
+    recent = []
+    for item in items or []:
+        try:
+            item_date = datetime.fromisoformat(str(item.get("pub_date", "")).replace("Z", "+00:00")).date()
+        except (TypeError, ValueError):
+            continue
+        if first_day <= item_date <= today:
+            recent.append(item)
+        if len(recent) == 5:
+            break
+    return recent
+
+
+def _fetch_market_naver_news(client_id, client_secret, stocks, today=None):
+    today = today or datetime.now().date()
+    rows = []
+    summary = {"normal": 0, "empty": 0, "failed": 0}
+    for stock in stocks:
+        try:
+            result = news_data.fetch_naver_news(client_id, client_secret, stock.get("name", ""), display=10, sort="date")
+            items = _recent_naver_news_items(result.get("data", []), today=today)
+            status = result.get("status", "응답 오류")
+            if status == "정상" and items:
+                summary["normal"] += 1
+            elif status in ("정상", "데이터 없음"):
+                status = "데이터 없음"
+                summary["empty"] += 1
+            else:
+                summary["failed"] += 1
+            rows.append({"name": stock.get("name") or "-", "ticker": stock.get("ticker") or "-", "status": status, "data": items, "message": result.get("message", "")})
+        except Exception:
+            summary["failed"] += 1
+            rows.append({"name": stock.get("name") or "-", "ticker": stock.get("ticker") or "-", "status": "응답 오류", "data": [], "message": "뉴스 조회에 실패했습니다"})
+    return {"checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "rows": rows, "summary": summary}
+
+
+def _render_market_naver_news_panel(market, stocks, title, button_key, results_key, checked_at_key):
+    st.markdown(f"### {title}")
+    st.caption("네이버 뉴스 참고 조회 · 저장 안 됨 · 점수 미반영")
+    client_id = st.secrets.get("NAVER_CLIENT_ID")
+    client_secret = st.secrets.get("NAVER_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        st.info("네이버 뉴스 API 설정이 필요합니다")
+    if st.button("최근 뉴스 자동 확인", key=button_key):
+        if client_id and client_secret:
+            result = _fetch_market_naver_news(client_id, client_secret, stocks)
+            st.session_state[results_key] = result
+            st.session_state[checked_at_key] = result.get("checked_at")
+    result = st.session_state.get(results_key)
+    if not result:
+        return
+    summary = result.get("summary", {})
+    st.caption(f"조회 시각: {st.session_state.get(checked_at_key) or '-'} · 조회 종목 수: {len(result.get('rows', []))} · 정상 {summary.get('normal', 0)} · 최근 뉴스 없음 {summary.get('empty', 0)} · 실패 {summary.get('failed', 0)}")
+    for row in result.get("rows", []):
+        header = f"최근 뉴스 {len(row.get('data', []))}건" if row.get("data") else ("최근 뉴스 없음" if row.get("status") == "데이터 없음" else row.get("status", "조회 오류"))
+        with st.expander(f"{row['name']} · {row['ticker']} · {header}", expanded=False):
+            if row.get("status") == "데이터 없음":
+                st.info("최근 3일 뉴스 없음")
+            elif row.get("status") != "정상":
+                st.warning(row.get("message") or row.get("status") or "뉴스 조회에 실패했습니다")
+            for index, item in enumerate(row.get("data", [])):
+                if index:
+                    st.markdown("---")
+                st.write(f"날짜·시간: {item.get('pub_date') or '-'}")
+                st.write(f"제목: {item.get('title') or '-'}")
+                st.caption(item.get("description") or "-")
+                link = item.get("originallink") or item.get("link")
+                if link:
+                    st.markdown(f"[원문 보기]({link})")
 
 # 사람이 보기 쉬운 "기준 이름" 정리(별칭/문서화용). 기존 session_state 키(snap_{ticker}_current 등)와
 # 계산 변수 이름(open_pos_pct 등)은 그대로 두고 바꾸지 않는다 — 나중에 DB 저장이나 실제 시세 API를
@@ -3958,6 +4033,14 @@ with tab_kr:
     st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
 
     _render_kr_dart_disclosure_panel()
+    _render_market_naver_news_panel(
+        "KR",
+        SNAPSHOT_STOCKS,
+        "📰 한국장 최근 뉴스 자동 확인",
+        "kr_naver_news_check_button",
+        "kr_naver_news_results",
+        "kr_naver_news_checked_at",
+    )
 
     with st.expander("0단계 시장 분위기 수동 입력(선택) - 자동 확인이 부족할 때만 사용", expanded=False):
         e1, e2, e3 = st.columns(3)
@@ -4729,6 +4812,15 @@ with tab_us:
                 "메모": st.column_config.TextColumn("메모"),
             },
         )
+
+    _render_market_naver_news_panel(
+        "US",
+        US_SNAPSHOT_STOCKS,
+        "📰 미국장 최근 뉴스 자동 확인",
+        "us_naver_news_check_button",
+        "us_naver_news_results",
+        "us_naver_news_checked_at",
+    )
 
     _us_today_loss_r = st.session_state.get("risk_today_loss_r", 0.0)
     if _us_today_loss_r <= -2:
