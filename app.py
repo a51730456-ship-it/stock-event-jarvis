@@ -635,6 +635,40 @@ st.markdown(
         margin-bottom: 1rem !important;
         line-height: 1.4 !important;
     }
+    @media (max-width: 1200px) {
+        [data-testid="stTabs"] [data-baseweb="tab-list"] {
+            overflow-x: auto !important;
+            flex-wrap: nowrap !important;
+        }
+        [data-testid="stTabs"] [data-baseweb="tab"] {
+            flex: 0 0 auto !important;
+            white-space: nowrap !important;
+        }
+        .st-key-market_overview_cards_kr [data-testid="stHorizontalBlock"],
+        .st-key-market_overview_cards_us [data-testid="stHorizontalBlock"] {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 14px !important;
+        }
+        .st-key-market_overview_cards_kr [data-testid="stHorizontalBlock"] > div,
+        .st-key-market_overview_cards_us [data-testid="stHorizontalBlock"] > div {
+            width: auto !important;
+            flex: none !important;
+            min-width: 0 !important;
+        }
+        .st-key-kr_theme_reference [data-testid="stHorizontalBlock"] {
+            grid-template-columns: minmax(0, 1fr) !important;
+        }
+        [data-testid="stDataFrame"], [data-testid="stDataEditor"] {
+            max-width: 100% !important;
+        }
+    }
+    @media (max-width: 680px) {
+        .st-key-market_overview_cards_kr [data-testid="stHorizontalBlock"],
+        .st-key-market_overview_cards_us [data-testid="stHorizontalBlock"] {
+            grid-template-columns: minmax(0, 1fr) !important;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -2332,32 +2366,33 @@ def _render_market_overview(market):
         f"<div style='font-size:19px;line-height:1.65;font-weight:700;margin:14px 0 24px'>{explanation}</div>",
         unsafe_allow_html=True,
     )
-    card_columns = st.columns(4)
-    for column, card in zip(card_columns, result["price_cards"]):
-        with column:
-            card_parts = [
-                "<div style='background:#171a21;border:1px solid #303642;border-radius:10px;"
-                "padding:14px 14px 12px 14px;min-height:128px'>",
-                f"<div style='font-size:18px;line-height:1.65;font-weight:800;color:#dbeafe;margin-bottom:10px'>{card['label']}</div>",
-            ]
-            for item in card["items"]:
-                if item["status"] != "정상":
-                    card_parts.append(
-                        f"<div style='font-size:18px;line-height:1.65;color:#CBD5E1'>{item['label']}</div>"
-                        "<div style='font-size:20px;line-height:1.5;font-weight:800;color:#f3f4f6'>확인 불가</div>"
-                    )
-                else:
-                    unit = "%" if item["label"] == "미국 10년물" else ""
-                    change = item["change_pct"]
-                    change_color = "#22c55e" if change is not None and change > 0 else "#f87171" if change is not None and change < 0 else "#d1d5db"
-                    change_text = "확인 불가" if change is None else _fmt_signed_pct(change)
-                    card_parts.append(
-                        f"<div style='font-size:18px;line-height:1.65;color:#CBD5E1'>{item['label']}</div>"
-                        f"<div style='font-size:23px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
-                        f"<div style='font-size:18px;line-height:1.65;color:{change_color};margin-top:6px'>전일 대비 등락률 {change_text}</div>"
-                    )
-            card_parts.append("</div>")
-            st.markdown("".join(card_parts), unsafe_allow_html=True)
+    with st.container(key=f"market_overview_cards_{prefix}"):
+        card_columns = st.columns(4)
+        for column, card in zip(card_columns, result["price_cards"]):
+            with column:
+                card_parts = [
+                    "<div style='background:#171a21;border:1px solid #303642;border-radius:10px;"
+                    "padding:14px 14px 12px 14px;min-height:128px'>",
+                    f"<div style='font-size:18px;line-height:1.65;font-weight:800;color:#dbeafe;margin-bottom:10px'>{card['label']}</div>",
+                ]
+                for item in card["items"]:
+                    if item["status"] != "정상":
+                        card_parts.append(
+                            f"<div style='font-size:18px;line-height:1.65;color:#CBD5E1'>{item['label']}</div>"
+                            "<div style='font-size:20px;line-height:1.5;font-weight:800;color:#f3f4f6'>확인 불가</div>"
+                        )
+                    else:
+                        unit = "%" if item["label"] == "미국 10년물" else ""
+                        change = item["change_pct"]
+                        change_color = "#22c55e" if change is not None and change > 0 else "#f87171" if change is not None and change < 0 else "#d1d5db"
+                        change_text = "확인 불가" if change is None else _fmt_signed_pct(change)
+                        card_parts.append(
+                            f"<div style='font-size:18px;line-height:1.65;color:#CBD5E1'>{item['label']}</div>"
+                            f"<div style='font-size:23px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
+                            f"<div style='font-size:18px;line-height:1.65;color:{change_color};margin-top:6px'>전일 대비 등락률 {change_text}</div>"
+                        )
+                card_parts.append("</div>")
+                st.markdown("".join(card_parts), unsafe_allow_html=True)
     st.markdown("<div style='font-size:19px;line-height:1.65;font-weight:800;margin-top:40px;margin-bottom:14px'>시장 주요 뉴스 후보</div>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-bottom:22px'>네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.</div>", unsafe_allow_html=True)
     if not result["news"] and result.get("news_failed"):
@@ -3902,7 +3937,8 @@ def _render_kr_theme_chip_editor():
         ("추격주의", "kr_theme_chase_warning_"),
         ("메모", "kr_theme_memo_"),
     ]
-    theme_columns = st.columns(2, gap="large")
+    with st.container(key="kr_theme_reference"):
+        theme_columns = st.columns(2, gap="large")
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = []
 
