@@ -26,6 +26,14 @@ class TabletStructureTests(unittest.TestCase):
         self.assertIn('grid-template-columns: repeat(2, minmax(0, 1fr))', SOURCE)
         self.assertIn('grid-template-columns: minmax(0, 1fr)', SOURCE)
 
+    def test_judgment_prepare_has_one_primary_and_two_recovery_buttons(self):
+        self.assertIn('"오늘 종목 판단 준비하기"', SOURCE)
+        self.assertIn('key="kr_auto_preview_run"', SOURCE)
+        self.assertIn('"문제가 있을 때 단계별 다시 실행"', SOURCE)
+        self.assertIn('key="snap_mood_auto_check"', SOURCE)
+        self.assertIn('key="snap_auto_fill"', SOURCE)
+        self.assertIn('판단 준비 완료: 시장 분위기 확인 / 오늘 주가 입력 / 미리보기 생성', SOURCE)
+
 
 if __name__ == "__main__":
     unittest.main()

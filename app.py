@@ -399,6 +399,12 @@ st.markdown(
         background: #1D4ED8 !important;
         border-color: #93C5FD !important;
     }
+    .st-key-snap_mood_auto_check button,
+    .st-key-snap_auto_fill button {
+        background-color: #475569 !important;
+        border-color: #64748B !important;
+        color: #F8FAFC !important;
+    }
     button[kind="primary"] {
         background-color: #ff4b4b !important;
         border-color: #ff4b4b !important;
@@ -4019,38 +4025,20 @@ def _render_kr_primary_actions():
     # 0단계/1단계 버튼과 동일한 조회 로직을 그대로 재사용한다. 실행 결과는 기존 버튼과 같은
     # session_state 키(kr_mood_auto_results, snap_auto_fill_results)에 저장된다.
     if st.session_state.get("kr_auto_preview_running"):
-        st.caption("0→1→2 한 번에 미리보기: 실행 중입니다. 잠시 기다리세요.")
-    elif st.session_state.get("kr_auto_preview_last_error"):
-        st.caption(f"0→1→2 한 번에 미리보기 최근 실행: 실패 - {st.session_state['kr_auto_preview_last_error']}")
+        st.caption("판단 준비 실행 중입니다.")
     elif st.session_state.get("kr_auto_preview_done_at"):
-        st.caption(f"0→1→2 한 번에 미리보기 최근 실행: 완료 ({st.session_state['kr_auto_preview_done_at']})")
-        st.caption(
-            f"0단계 반영: {st.session_state.get('kr_auto_preview_stage0_status', '-')} / "
-            f"1단계 반영: {st.session_state.get('kr_auto_preview_stage1_status', '-')} / "
-            f"2단계 미리보기 생성: {'예' if st.session_state.get('kr_auto_preview_stage2_generated') else '아니오'}"
-        )
-
-    if st.session_state.get("kr_mood_auto_running"):
-        st.caption("0단계 최근 실행: 실행 중입니다. 잠시 기다리세요.")
-    elif st.session_state.get("kr_mood_auto_last_error"):
-        st.caption(f"0단계 최근 실행: 실패 - {st.session_state['kr_mood_auto_last_error']}")
-    elif st.session_state.get("kr_mood_auto_done_at"):
-        st.caption(f"0단계 최근 실행: 완료 ({st.session_state['kr_mood_auto_done_at']})")
-
-    if st.session_state.get("kr_snapshot_auto_fill_running"):
-        st.caption("1단계 최근 실행: 실행 중입니다. 잠시 기다리세요.")
-    elif st.session_state.get("kr_snapshot_auto_fill_last_error"):
-        st.caption(f"1단계 최근 실행: 실패 - {st.session_state['kr_snapshot_auto_fill_last_error']}")
-    elif st.session_state.get("kr_snapshot_auto_fill_done_at"):
-        st.caption(f"1단계 최근 실행: 완료 ({st.session_state['kr_snapshot_auto_fill_done_at']})")
+        if st.session_state.get("kr_auto_preview_last_error"):
+            st.caption(f"판단 준비 실패: {st.session_state['kr_auto_preview_last_error']} · 문제가 있을 때 단계별 다시 실행을 이용하세요.")
+        else:
+            st.caption("판단 준비 완료: 시장 분위기 확인 / 오늘 주가 입력 / 미리보기 생성")
 
     st.markdown("### 오늘 판단 준비")
-    st.caption("아래 실행은 1→2→3 순서로 사용할 수 있으며, 완료된 단계의 결과는 유지됩니다.")
-    action_cols = st.columns(3)
+    st.caption("이 버튼 하나로 시장 분위기 확인, 오늘 주가 채우기, 종목 판단 미리보기를 진행합니다.")
+    action_cols = st.columns(1)
+    repair_expander = st.expander("문제가 있을 때 단계별 다시 실행", expanded=False)
     with action_cols[0]:
-        st.markdown("**1단계 · 전체 판단 준비 실행**")
         if st.button(
-            "0→1→2 한 번에 미리보기 생성",
+            "오늘 종목 판단 준비하기",
             key="kr_auto_preview_run",
             type="primary",
             disabled=bool(st.session_state.get("kr_auto_preview_running")),
@@ -4088,8 +4076,7 @@ def _render_kr_primary_actions():
                 st.session_state["kr_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 st.session_state["kr_auto_preview_running"] = False
                 st.rerun()
-    with action_cols[1]:
-        st.markdown("**2단계 · 시장 분위기 자동 확인**")
+    with repair_expander:
         if st.button(
             "0단계 시장 분위기 자동 확인",
             key="snap_mood_auto_check",
@@ -4104,8 +4091,7 @@ def _render_kr_primary_actions():
                 st.session_state["kr_mood_auto_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 st.session_state["kr_mood_auto_running"] = False
                 st.rerun()
-    with action_cols[2]:
-        st.markdown("**3단계 · 오늘 주가 자동 채우기**")
+    with repair_expander:
         if st.button(
             "① 오늘 주가 자동 채우기",
             key="snap_auto_fill",
@@ -4138,6 +4124,10 @@ def _render_kr_fable_mockup1_preview():
             padding: 1.1rem;
             margin: 0.35rem 0 1rem;
             background: linear-gradient(145deg, #111827 0%, #172033 100%);
+        }
+        .jarvis-m1-shell,
+        .jarvis-m1-stepper {
+            display: none !important;
         }
         .jarvis-m1-kicker {
             color: #7dd3fc;
