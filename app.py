@@ -3107,30 +3107,56 @@ def _fetch_worst_trades(limit=5):
 
 
 def _fetch_open_risk_positions():
-    """전체 report_items에서 미청산(actual_exit_price IS NULL) + entry_price/stop_loss_price로
-    1건당 위험(entry_price - stop_loss_price)을 계산할 수 있는 행만 모아 총 오픈 리스크를 낸다.
+    """실제 매수해서 아직 청산하지 않은 포지션들의 총 오픈 리스크를 R 단위로 낸다.
 
     화면 표시 전용이며 계산/저장 로직에는 영향을 주지 않는다. planned_stop_price와 buy_confirmed는
-    이번 계산 기준에 쓰지 않는다(buy_confirmed는 현재 신뢰 가능한 값이 아님)."""
+    이번 계산 기준에 쓰지 않는다(buy_confirmed는 현재 신뢰 가능한 값이 아님).
+
+    R 정의는 _compute_result_r과 동일하게 "위험폭 대비 배수"로 맞춘다: 계좌금액×1회 리스크%로
+    1R 금액을 구하고, 각 포지션의 실제 위험액(수량×(진입가-손절가))을 1R 금액으로 나눈 값을
+    그 포지션의 R로 본다. entry_price - stop_loss_price를 그대로 더하던 예전 방식은 화폐 단위가
+    섞이고(원/달러) 수량을 반영하지 못해 실제 R이 아니었다 — 이번에 정정한다.
+
+    실제로 매수하지 않은 행(actual_action != '매수')은 계획 단계일 뿐 실제 오픈 포지션이
+    아니므로 제외한다.
+    """
+    account_size = st.session_state.get("risk_account_size", 0.0) or 0.0
+    risk_percent = st.session_state.get("risk_percent_setting", 1.0) or 0.0
+    one_r_amount = account_size * risk_percent / 100
+
     conn = db.get_connection()
     rows = conn.execute(
-        "SELECT stock_name, ticker, trade_mode, entry_price, stop_loss_price, filter_ignored "
-        "FROM report_items WHERE actual_exit_price IS NULL"
+        "SELECT stock_name, ticker, trade_mode, entry_price, stop_loss_price, quantity, "
+        "filter_ignored, actual_action FROM report_items WHERE actual_exit_price IS NULL"
     ).fetchall()
     conn.close()
+
+    if one_r_amount <= 0:
+        return {
+            "positions": [],
+            "count": 0,
+            "total_risk": None,
+            "excluded_count": 0,
+            "needs_account_setting": True,
+        }
 
     positions = []
     excluded_count = 0
     for row in rows:
+        if db.normalize_actual_action(row["actual_action"]) != "매수":
+            continue
         try:
             entry = float(row["entry_price"]) if row["entry_price"] is not None else None
             stop = float(row["stop_loss_price"]) if row["stop_loss_price"] is not None else None
+            qty = float(row["quantity"]) if row["quantity"] is not None else None
         except (TypeError, ValueError):
             entry = None
             stop = None
-        if entry is None or stop is None or not (stop < entry):
+            qty = None
+        if entry is None or stop is None or qty is None or not (stop < entry) or qty <= 0:
             excluded_count += 1
             continue
+        position_risk_amount = qty * (entry - stop)
         positions.append(
             {
                 "종목명": row["stock_name"] or "-",
@@ -3138,7 +3164,8 @@ def _fetch_open_risk_positions():
                 "매매유형": row["trade_mode"] or "-",
                 "진입가": entry,
                 "손절가": stop,
-                "1건 위험": entry - stop,
+                "수량": qty,
+                "1건 위험": position_risk_amount / one_r_amount,
                 "필터무시여부": {"YES": "예", "NO": "아니오"}.get(row["filter_ignored"], "미입력"),
             }
         )
@@ -3148,11 +3175,12 @@ def _fetch_open_risk_positions():
         "count": len(positions),
         "total_risk": total_risk,
         "excluded_count": excluded_count,
+        "needs_account_setting": False,
     }
 
 
 def _open_risk_status_label(count, total_risk):
-    if count == 0:
+    if count == 0 or total_risk is None:
         return "데이터 없음"
     if total_risk < 1:
         return "낮음"
@@ -7893,35 +7921,42 @@ if _saved_view == "저장 결과":
                 st.markdown("#### 총 오픈 리스크 3R 점검")
                 st.caption("이 카드는 매수 추천이 아니라 여러 포지션의 손실 노출을 점검하는 장치입니다.")
                 _open_risk = _fetch_open_risk_positions()
-                oc1, oc2, oc3, oc4 = st.columns(4)
-                oc1.metric("계산 가능한 오픈 포지션 수", _open_risk["count"])
-                oc2.metric("총 오픈 리스크", f"{_open_risk['total_risk']:.2f}R")
-                oc3.metric("3R 기준 상태", _open_risk_status_label(_open_risk["count"], _open_risk["total_risk"]))
-                oc4.metric("계산 제외 항목 수", _open_risk["excluded_count"])
-                if _open_risk["count"] == 0:
+                if _open_risk["needs_account_setting"]:
                     st.info(
-                        "아직 진입가와 손절가가 입력된 미청산 항목이 없습니다. "
-                        "새 기록에서 진입가와 손절가가 쌓이면 총 오픈 리스크가 계산됩니다."
+                        "총 오픈 리스크를 R 단위로 계산하려면 먼저 한국장 탭의 '계좌금액'과 "
+                        "'1회 리스크(%)'를 설정해야 합니다(한국장·미국장 공통 설정)."
                     )
                 else:
-                    st.dataframe(
-                        pd.DataFrame(
-                            [
-                                {
-                                    "종목명": p["종목명"],
-                                    "티커": p["티커"],
-                                    "매매유형": p["매매유형"],
-                                    "진입가": f"{p['진입가']:,.0f}",
-                                    "손절가": f"{p['손절가']:,.0f}",
-                                    "1건 위험": f"{p['1건 위험']:.2f}R",
-                                    "필터무시여부": p["필터무시여부"],
-                                }
-                                for p in _open_risk["positions"]
-                            ]
-                        ),
-                        width="stretch",
-                        hide_index=True,
-                    )
+                    oc1, oc2, oc3, oc4 = st.columns(4)
+                    oc1.metric("계산 가능한 오픈 포지션 수", _open_risk["count"])
+                    oc2.metric("총 오픈 리스크", f"{_open_risk['total_risk']:.2f}R")
+                    oc3.metric("3R 기준 상태", _open_risk_status_label(_open_risk["count"], _open_risk["total_risk"]))
+                    oc4.metric("계산 제외 항목 수", _open_risk["excluded_count"])
+                    if _open_risk["count"] == 0:
+                        st.info(
+                            "아직 실제 매수해서 진입가·손절가·수량이 모두 입력된 미청산 항목이 없습니다. "
+                            "③ 행동·청산에서 매수를 기록하면 총 오픈 리스크가 계산됩니다."
+                        )
+                    else:
+                        st.dataframe(
+                            pd.DataFrame(
+                                [
+                                    {
+                                        "종목명": p["종목명"],
+                                        "티커": p["티커"],
+                                        "매매유형": p["매매유형"],
+                                        "진입가": f"{p['진입가']:,.0f}",
+                                        "손절가": f"{p['손절가']:,.0f}",
+                                        "수량": f"{p['수량']:,.0f}",
+                                        "1건 위험": f"{p['1건 위험']:.2f}R",
+                                        "필터무시여부": p["필터무시여부"],
+                                    }
+                                    for p in _open_risk["positions"]
+                                ]
+                            ),
+                            width="stretch",
+                            hide_index=True,
+                        )
 
                 # 5. 관심 점수 설명
                 st.info(
