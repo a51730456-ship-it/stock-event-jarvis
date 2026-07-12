@@ -157,3 +157,52 @@ def fetch_us_sector_snapshot():
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S") if any_ok else None,
         "sectors": sectors,
     }
+
+
+# 미국장 테마 레이더 "참고 지표" 컬럼에 이미 적힌 티커들. yfinance에서 그대로 조회 안 되는
+# 것은 확인 후 동작하는 대체 티커로 치환했다(둘 다 실제로 조회해서 확인함, 2026-07-12):
+# "VIX" -> "^VIX", "DXY" -> "DX-Y.NYB"(DXY 자체는 delisted). "미국 10년물"은 "^TNX"로
+# 정상 조회되어 포함했다(사용자가 예외 처리하라고 한 것과 달리 실제로는 조회 가능했음).
+US_THEME_INDICATOR_MAPPING = {
+    "AI/반도체": ["SOXX", "SMH", "XLK"],
+    "에너지/유가": ["XLE"],
+    "금리/성장주": ["QQQ", "^VIX", "DX-Y.NYB", "^TNX"],
+    "전력망/원전": ["XLU", "GRID", "URA"],
+    "방산/전쟁": ["ITA", "XAR", "LMT", "NOC"],
+    "자동차/전기차": ["TSLA", "LIT"],
+    "바이오": ["XBI", "IBB"],
+}
+
+
+def fetch_us_theme_indicators():
+    """미국장 테마 레이더 7개 테마 전부에 필요한 지표 티커를 한 번에 조회한다.
+
+    US_THEME_INDICATOR_MAPPING에 등장하는 모든 티커(중복 제거)를 순회 조회하며,
+    개별 실패는 건너뛰고 나머지로 계속 진행한다(예외를 던지지 않음).
+    반환: {"ok": bool, "checked_at": str|None, "values": {티커: 등락률(%) 또는 None}}
+    """
+    from datetime import datetime
+
+    import price_data
+
+    all_tickers = sorted({t for tickers in US_THEME_INDICATOR_MAPPING.values() for t in tickers})
+    values = {}
+    any_ok = False
+    for ticker in all_tickers:
+        try:
+            result = price_data.get_snapshot_defaults(ticker)
+        except Exception:
+            result = {"ok": False}
+        if result.get("ok") and result.get("current") and result.get("prev_close"):
+            values[ticker] = round(
+                (result["current"] - result["prev_close"]) / result["prev_close"] * 100, 2
+            )
+            any_ok = True
+        else:
+            values[ticker] = None
+
+    return {
+        "ok": any_ok,
+        "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S") if any_ok else None,
+        "values": values,
+    }

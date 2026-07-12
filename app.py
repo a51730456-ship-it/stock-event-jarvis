@@ -5680,6 +5680,7 @@ with tab_us:
         st.caption("섹터 ETF 자동 조회는 참고용 표시일 뿐이며 점수·판정·DB 저장에는 반영되지 않습니다.")
         if st.button("섹터 ETF 자동 조회 (SOXX/SMH/XLK/XLE/XLF)", key="us_sector_auto_fetch"):
             st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
+            st.session_state["us_theme_indicators_result"] = theme_data.fetch_us_theme_indicators()
             st.rerun()
         _us_sector_result = st.session_state.get("us_sector_auto_fetch_result")
         if _us_sector_result:
@@ -5721,26 +5722,24 @@ with tab_us:
                 ("바이오", "XBI, IBB"),
             ]
         ]
-        # 섹터 ETF 자동 조회 결과가 있으면, 조회한 5개 ETF와 직접 대응되는 테마(AI/반도체,
-        # 에너지/유가)의 상태를 등락률 기준으로 자동 채운다. 나머지 테마는 대응되는 ETF가
-        # 없어(금리/성장주·전력망/원전·방산/전쟁·자동차/전기차·바이오) 자동 판정하지 않는다.
-        # 대장주 칸은 개별 종목명이 아니라 티커 참고용이라 채우지 않고, 메모에만 참고 표시하며
-        # 사용자가 이미 입력한 셀(edited_rows)은 절대 덮어쓰지 않는다.
-        _us_theme_etf_mapping = {
-            "AI/반도체": ["SOXX", "SMH", "XLK"],
-            "에너지/유가": ["XLE"],
-        }
-        if _us_sector_result and _us_sector_result["ok"]:
-            _us_sector_by_ticker = {
-                s["ticker"]: s["change_pct"] for s in _us_sector_result["sectors"] if s["ok"]
-            }
+        # 섹터/지표 자동 조회 결과가 있으면 7개 테마 전부 등락률 기준으로 상태를 자동
+        # 채운다(theme_data.US_THEME_INDICATOR_MAPPING, 각 테마의 "참고 지표" 컬럼에 이미
+        # 적힌 티커 그대로 사용). 대장주 칸은 개별 종목명이 아니라 티커 참고용이라 채우지
+        # 않고, 메모에만 참고 표시하며 사용자가 이미 입력한 셀(edited_rows)은 덮어쓰지 않는다.
+        _us_indicators_result = st.session_state.get("us_theme_indicators_result")
+        if _us_indicators_result and _us_indicators_result["ok"]:
+            _us_indicator_values = _us_indicators_result["values"]
             _us_editor_state = st.session_state.get("us_theme_watch_editor") or {}
             _us_edited_rows = _us_editor_state.get("edited_rows") or {}
             for _idx, _row in enumerate(_us_theme_watch_rows):
-                _tickers = _us_theme_etf_mapping.get(_row["테마"])
+                _tickers = theme_data.US_THEME_INDICATOR_MAPPING.get(_row["테마"])
                 if not _tickers:
                     continue
-                _vals = [_us_sector_by_ticker[t] for t in _tickers if t in _us_sector_by_ticker]
+                _vals = [
+                    _us_indicator_values[t]
+                    for t in _tickers
+                    if _us_indicator_values.get(t) is not None
+                ]
                 if not _vals:
                     continue
                 _avg_change = sum(_vals) / len(_vals)
