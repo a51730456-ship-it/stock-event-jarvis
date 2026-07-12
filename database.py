@@ -579,10 +579,15 @@ def update_report_item_actual_action(report_item_id, action):
     절대 건드리지 않는다). 존재하지 않는 id를 넘기면 아무 행도 갱신되지 않으므로 False를
     반환한다(조용한 성공 아님).
 
-    실제 체결가(actual_entry_price) 또는 실제 매수 거래일(actual_entry_date)이 이미 채워진
-    행을 '매수'가 아닌 값으로 바꾸려 하면 ValueError를 던지고 저장을 거부한다(모순 방지,
-    둘 중 하나만 있어도 거부). actual_entry_price/actual_entry_date를 자동으로 지우지
-    않으며, 먼저 둘 다 비운 뒤 다시 시도해야 한다는 안내는 호출자(UI) 쪽에서 보여준다.
+    실제 체결가(actual_entry_price)/실제 매수 거래일(actual_entry_date)/체결 수량(quantity)/
+    실제 수수료(actual_fee) 중 하나라도 이미 채워진 행을 '매수'가 아닌 값으로 바꾸려 하면
+    ValueError를 던지고 저장을 거부한다(모순 방지, 하나만 있어도 거부). 이 네 컬럼을
+    자동으로 지우지 않으며, 먼저 전부 비운 뒤 다시 시도해야 한다는 안내는 호출자(UI) 쪽에서
+    보여준다. 청산 결과 6개 컬럼(update_report_item_trade_exit)은 이 가드에 포함하지
+    않는다 — 그 함수는 actual_action='매수'가 아니면 NULL 저장(비우기)도 거부하는
+    설계라, 여기서 같이 막으면 "청산 데이터가 있어 매수 밖으로 못 바꾸는데, 매수가
+    아니면 청산 데이터를 못 지운다"는 막다른 상태가 생긴다(2026-07-13 전체 코드검사에서
+    확인, 별도 판단 필요).
 
     action이 '매수'로 새로 바뀌는 순간(이전 값이 '매수'가 아니었을 때만, 이미 '매수'인
     행을 다시 저장하는 경우는 재기록하지 않음) entry_time에 현재 시각(YYYY-MM-DD HH:MM)을
@@ -595,17 +600,21 @@ def update_report_item_actual_action(report_item_id, action):
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT actual_action, actual_entry_price, actual_entry_date FROM report_items WHERE id = ?",
+            "SELECT actual_action, actual_entry_price, actual_entry_date, quantity, actual_fee "
+            "FROM report_items WHERE id = ?",
             (report_item_id,),
         ).fetchone()
         if action != "매수":
             if row is not None and (
-                row["actual_entry_price"] is not None or row["actual_entry_date"] is not None
+                row["actual_entry_price"] is not None
+                or row["actual_entry_date"] is not None
+                or row["quantity"] is not None
+                or row["actual_fee"] is not None
             ):
                 raise ValueError(
-                    "실제 체결가 또는 실제 매수 거래일이 입력된 상태에서는 '매수'가 아닌 값으로 "
-                    "바꿀 수 없습니다. 먼저 실제 체결가와 실제 매수 거래일을 비운 뒤 다시 "
-                    "시도하세요."
+                    "실제 체결가·실제 매수 거래일·체결 수량·실제 수수료 중 하나라도 입력된 "
+                    "상태에서는 '매수'가 아닌 값으로 바꿀 수 없습니다. 먼저 해당 값을 모두 "
+                    "비운 뒤 다시 시도하세요."
                 )
             cur = conn.execute(
                 "UPDATE report_items SET actual_action = ? WHERE id = ?", (action, report_item_id)
