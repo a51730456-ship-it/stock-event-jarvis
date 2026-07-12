@@ -3939,6 +3939,12 @@ def _render_kr_theme_chip_editor():
     ]
     with st.container(key="kr_theme_reference"):
         theme_columns = st.columns(2, gap="large")
+    _theme_detail_options = ["선택 안 함"] + [str(row.get("테마") or "") for row in theme_rows if row.get("테마")]
+    _theme_detail_selected = st.selectbox(
+        "세부 입력할 테마 선택",
+        _theme_detail_options,
+        key="kr_theme_detail_selector",
+    )
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = []
 
@@ -3986,15 +3992,16 @@ def _render_kr_theme_chip_editor():
                 )
 
                 detail_values = {}
-                with st.expander("세부 입력", expanded=False):
-                    for field_name, key_prefix in field_specs:
-                        widget_key = f"{key_prefix}{slug}"
-                        if widget_key not in st.session_state:
-                            st.session_state[widget_key] = str(row.get(field_name) or "")
-                        if field_name == "메모":
-                            detail_values[field_name] = st.text_area(field_name, key=widget_key)
-                        else:
-                            detail_values[field_name] = st.text_input(field_name, key=widget_key)
+                if theme_name == _theme_detail_selected:
+                    with st.expander("세부 입력", expanded=True):
+                        for field_name, key_prefix in field_specs:
+                            widget_key = f"{key_prefix}{slug}"
+                            if widget_key not in st.session_state:
+                                st.session_state[widget_key] = str(row.get(field_name) or "")
+                            if field_name == "메모":
+                                detail_values[field_name] = st.text_area(field_name, key=widget_key)
+                            else:
+                                detail_values[field_name] = st.text_input(field_name, key=widget_key)
 
         if "상태" in updated_row:
             updated_row["상태"] = selected_status
@@ -4037,8 +4044,11 @@ def _render_kr_primary_actions():
     elif st.session_state.get("kr_snapshot_auto_fill_done_at"):
         st.caption(f"1단계 최근 실행: 완료 ({st.session_state['kr_snapshot_auto_fill_done_at']})")
 
+    st.markdown("### 오늘 판단 준비")
+    st.caption("아래 실행은 1→2→3 순서로 사용할 수 있으며, 완료된 단계의 결과는 유지됩니다.")
     action_cols = st.columns(3)
     with action_cols[0]:
+        st.markdown("**1단계 · 전체 판단 준비 실행**")
         if st.button(
             "0→1→2 한 번에 미리보기 생성",
             key="kr_auto_preview_run",
@@ -4079,6 +4089,7 @@ def _render_kr_primary_actions():
                 st.session_state["kr_auto_preview_running"] = False
                 st.rerun()
     with action_cols[1]:
+        st.markdown("**2단계 · 시장 분위기 자동 확인**")
         if st.button(
             "0단계 시장 분위기 자동 확인",
             key="snap_mood_auto_check",
@@ -4094,6 +4105,7 @@ def _render_kr_primary_actions():
                 st.session_state["kr_mood_auto_running"] = False
                 st.rerun()
     with action_cols[2]:
+        st.markdown("**3단계 · 오늘 주가 자동 채우기**")
         if st.button(
             "① 오늘 주가 자동 채우기",
             key="snap_auto_fill",
@@ -4875,7 +4887,16 @@ with tab_kr:
     st.markdown("### 종목별 상세 입력")
     st.caption("카드를 펼치면 직접 숫자를 입력/수정할 수 있습니다. 0은 '입력 안 함'으로 취급합니다.")
 
+    _kr_detail_options = ["선택 안 함"] + [s["name"] for s in SNAPSHOT_STOCKS]
+    _kr_detail_selected = st.selectbox(
+        "상세 입력할 종목 선택",
+        _kr_detail_options,
+        key="kr_snapshot_detail_selector",
+    )
+
     for s in SNAPSHOT_STOCKS:
+        if _kr_detail_selected != s["name"]:
+            continue
         prefix = f"snap_{s['ticker']}_"
         with st.expander(f"{s['name']} / {s['sector']}", expanded=False):
             c1, c2, c3, c4 = st.columns(4)
@@ -5763,7 +5784,16 @@ with tab_us:
     st.markdown("### 종목별 상세 입력")
     st.caption("카드를 펼치면 직접 숫자를 입력/수정할 수 있습니다. 0은 '입력 안 함'으로 취급합니다.")
 
+    _us_detail_options = ["선택 안 함"] + [s["name"] for s in US_SNAPSHOT_STOCKS]
+    _us_detail_selected = st.selectbox(
+        "상세 입력할 종목 선택",
+        _us_detail_options,
+        key="us_snapshot_detail_selector",
+    )
+
     for s in US_SNAPSHOT_STOCKS:
+        if _us_detail_selected != s["name"]:
+            continue
         prefix = f"snap_{s['ticker']}_"
         with st.expander(f"{s['name']} / {s['sector']}", expanded=False):
             c1, c2, c3, c4 = st.columns(4)
