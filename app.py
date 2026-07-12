@@ -793,13 +793,13 @@ def compute_candidate_score(verdict, trade_mode, basis):
 
 
 def compute_snapshot_reference_score(
-    mode, change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, external_good=False
+    mode, change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct
 ):
     """장중 스냅샷에서 판정이 정해지기 전, 계산된 지표만으로 만드는 참고용 점수.
 
-    자동매수 추천이 아니라 장중 후보 비교용 참고 점수다. 외부 환경(external_good)이
-    입력되지 않았으면 최고점을 88점으로 제한하고, 외부 환경까지 좋을 때만 100점까지
-    열어준다.
+    자동매수 추천이 아니라 장중 후보 비교용 참고 점수다. 이 점수는 오늘 주가에서 계산된
+    지표(change_pct/open_pos_pct/high_drop_pct/turnover_ratio_pct)로만 산출하며, 시장
+    분위기(시황) 등 다른 참고값은 반영하지 않는다. 최고점은 88점으로 제한한다.
     """
     if mode == "단타":
         score = 45.0
@@ -866,25 +866,7 @@ def compute_snapshot_reference_score(
             elif turnover_ratio_pct >= 0.4:
                 score += 4
 
-    cap = 100.0 if external_good else 88.0
-    return round(max(0.0, min(score, cap)), 1)
-
-
-def _snapshot_external_good():
-    """외부 환경 입력이 되어 있고, 방향성이 우호적인지(부정적 신호 없이 우호 신호가
-    하나라도 있는지) 판정한다. 하나도 입력하지 않았으면(전부 '미입력') False."""
-    favorable = {"강함", "상승", "순매수"}
-    unfavorable = {"약함", "하락", "순매도"}
-    values = [
-        st.session_state.get("snap_soxx_dir", "미입력"),
-        st.session_state.get("snap_usdkrw_dir", "미입력"),
-        st.session_state.get("snap_kospi200_dir", "미입력"),
-        st.session_state.get("snap_foreign_dir", "미입력"),
-        st.session_state.get("snap_program_dir", "미입력"),
-    ]
-    has_favorable = any(v in favorable for v in values)
-    has_unfavorable = any(v in unfavorable for v in values)
-    return has_favorable and not has_unfavorable
+    return round(max(0.0, min(score, 88.0)), 1)
 
 
 def _kr_danta_verdict(danta_score):
@@ -1021,7 +1003,6 @@ def build_kr_stage2_preview():
     stage0_reflected = bool(st.session_state.get("kr_mood_auto_results"))
     stage1_reflected = bool(st.session_state.get("snap_auto_fill_results"))
 
-    external_good = _snapshot_external_good()
     rows = []
     for s in SNAPSHOT_STOCKS:
         ticker = s["ticker"]
@@ -1042,10 +1023,10 @@ def build_kr_stage2_preview():
         turnover_ratio_pct = _safe_ratio_pct(turnover, market_cap)
 
         danta_score = compute_snapshot_reference_score(
-            "단타", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, external_good
+            "단타", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct
         )
         swing_score = compute_snapshot_reference_score(
-            "스윙", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, external_good
+            "스윙", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct
         )
         danta_verdict = _kr_danta_verdict(danta_score)
         swing_verdict = _kr_swing_verdict(swing_score)
@@ -4830,12 +4811,11 @@ with tab_kr:
         if turnover_ratio_pct is not None and turnover_ratio_pct >= 5:
             memos.append("시총 대비 거래대금 확인 필요")
 
-        external_good = _snapshot_external_good()
         danta_score = compute_snapshot_reference_score(
-            "단타", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, external_good
+            "단타", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct
         )
         swing_score = compute_snapshot_reference_score(
-            "스윙", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, external_good
+            "스윙", change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct
         )
 
         result_rows.append(
