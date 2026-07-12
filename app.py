@@ -1799,7 +1799,7 @@ def _render_trade_mode_section(tm, grouped, rank_labels=None):
                 card_title += f" - {item['event_title']}"
             card_title += f" ({auto_info['score']:.0f}점){auto_tag}"
             top_reason = item.get("top_candidate_reason") or auto_info["score_reason"]
-            with st.container(border=True):
+            with st.container():
                 st.markdown(f"**{card_title}**")
                 st.write(f"점수: {score_text}")
                 st.write(f"점수 근거: {auto_info['score_reason']}")
@@ -3951,6 +3951,23 @@ def _render_kr_theme_chip_editor():
         _theme_detail_options,
         key="kr_theme_detail_selector",
     )
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "테마": row.get("테마", ""),
+                    "현재 상태": row.get("상태", "확인 필요"),
+                    "참고 지표 또는 대표 종목": row.get("참고 지표", ""),
+                    "메모": row.get("메모", ""),
+                    "세부 입력": "선택됨" if row.get("테마") == _theme_detail_selected else "선택 가능",
+                }
+                for row in theme_rows
+                if row.get("테마")
+            ]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = []
 
@@ -4370,7 +4387,9 @@ def _render_kr_fable_mockup1_preview():
     if not rows:
         st.info("0→1→2 미리보기를 실행하면 종목 판단 화면이 표시됩니다.")
     else:
-        left_col, right_col = st.columns([0.34, 0.66], gap="large")
+        # 태블릿·PC 모두 결과표 아래 선택기와 상세를 세로로 표시한다.
+        left_col = st.container()
+        right_col = st.container()
         with left_col:
             trade_mode = st.selectbox(
                 "매매유형 선택",
@@ -4410,10 +4429,7 @@ def _render_kr_fable_mockup1_preview():
                     f'<div class="jarvis-m1-stock-meta">확인 필요: {confirmation}</div>'
                     "</div>"
                 )
-            st.markdown(
-                f'<div class="jarvis-m1-stock-list">{"".join(stock_html)}</div>',
-                unsafe_allow_html=True,
-            )
+            # 후보 순위와 비교는 바로 위 결과표에서 확인한다. 중복 후보 카드 목록은 렌더링하지 않는다.
 
         selected_row = rows_by_ticker[selected_ticker]
         selected_verdict = selected_row[verdict_key]
@@ -4498,19 +4514,9 @@ def _render_kr_fable_mockup1_preview():
 
             _render_risk_and_warning_inputs(selected_ticker, "KR", compact=True)
 
-    theme_col, event_col = st.columns(2, gap="large")
-    with theme_col:
-        st.markdown("#### 테마 참고판")
-        _render_kr_theme_chip_editor()
-
-    with event_col:
-        st.markdown("#### 이벤트 캘린더")
-        st.markdown(
-            '<div class="jarvis-m1-panel">'
-            '<div class="jarvis-m1-muted">등록된 검증 일정이 없습니다.</div>'
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown("#### 테마 참고판")
+    _render_kr_theme_chip_editor()
+    st.caption("등록된 검증 일정이 없습니다.")
 
     st.caption("실제 자동조회·입력·저장은 아래 기존 화면을 사용합니다.")
 
