@@ -3037,6 +3037,9 @@ PLAYBOOK_TAG_OPTIONS = [
     ("LEADER_LAGGARD_DAYTRADE", "1등주2등주단타"),
     ("RECOMMEND_BUY_SETUP", "추천매수셋업"),
     ("OTHER_SETUP", "기타셋업"),
+    ("THEME_LEADER", "테마-대장주"),
+    ("THEME_SECOND", "테마-2등주"),
+    ("THEME_THIRD_OR_LOWER", "테마-3등이하"),
 ]
 PLAYBOOK_TAG_CODE_TO_LABEL = dict(PLAYBOOK_TAG_OPTIONS)
 PLAYBOOK_TAG_LABEL_TO_CODE = {v: k for k, v in PLAYBOOK_TAG_OPTIONS}
