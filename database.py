@@ -4,7 +4,7 @@ import json
 import math
 import re
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "db" / "jarvis.sqlite3"
@@ -252,6 +252,27 @@ def _migrate_add_columns(conn):
         conn.execute("ALTER TABLE report_items ADD COLUMN review_done INTEGER")
     if "review_memo" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN review_memo TEXT")
+
+    # Fable5 3단계(행동 데이터) 추가 컬럼. entry_time은 "실제 행동"이 '매수'로 새로 바뀌는
+    # 순간 자동 기록되며(YYYY-MM-DD HH:MM, 오늘 신규 진입 건수 집계에도 재사용), 사용자가
+    # 직접 입력하지 않는다. auto_loss_streak_flag는 직전 손절(exit_reason='손절') 2건이
+    # 모두 오늘/어제 날짜 안에 있으면 같은 시점에 자동으로 'YES'가 채워지는 시스템 감지
+    # 태그로, 사용자가 직접 남기는 EMOTION_TAG_OPTIONS의 "복구욕"(수동, 필터 무시 기록)과는
+    # 별개로 유지한다(둘을 나중에 비교하기 위함, Fable5 확정). earnings_check_done은 미국장
+    # 스윙에서 실적 발표일을 확인했는지 체크박스로만 남기는 표시용 컬럼이며 저장을 막지
+    # 않는다. 기존 행은 전부 NULL/0으로 남기고 UPDATE로 채우지 않는다.
+    if "entry_time" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN entry_time TEXT")
+    if "auto_loss_streak_flag" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN auto_loss_streak_flag TEXT")
+    if "earnings_check_done" not in item_cols:
+        conn.execute("ALTER TABLE report_items ADD COLUMN earnings_check_done INTEGER DEFAULT 0")
+
+    # 앱 공통 설정값 저장용 소형 테이블(reports/report_items와 무관, FK 없음). 현재는
+    # "하루 신규 진입 경고 기준"(기본값 3, [답4] 하드코딩 금지) 하나만 쓴다.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)"
+    )
 
     conn.commit()
 
@@ -532,6 +553,22 @@ def parse_theme_tags(value):
 ACTUAL_ACTION_CHOICES = ("매수", "보류", "제외")
 
 
+def _has_recent_consecutive_losses(conn):
+    """직전 손절(exit_reason='손절') 2건이 모두 오늘 또는 어제 날짜 안에 있는지 근사
+    판정한다. 청산 시각 컬럼이 없어 정확한 24시간 계산은 불가하므로 날짜 기준 근사치를
+    쓴다(Fable5 확정 방식). 종목 구분 없이 전체 report_items를 대상으로 한다(복구매매는
+    특정 종목이 아니라 계좌 전체 심리 상태 문제이므로)."""
+    rows = conn.execute(
+        "SELECT actual_exit_date FROM report_items "
+        "WHERE actual_action='매수' AND exit_reason='손절' AND actual_exit_date IS NOT NULL "
+        "ORDER BY actual_exit_date DESC LIMIT 2"
+    ).fetchall()
+    if len(rows) < 2:
+        return False
+    allowed = {date.today().isoformat(), (date.today() - timedelta(days=1)).isoformat()}
+    return all(r["actual_exit_date"] in allowed for r in rows)
+
+
 def update_report_item_actual_action(report_item_id, action):
     """report_items.id 기준 사후 UPDATE 전용(새 report/report_item 생성 없음).
 
@@ -546,17 +583,22 @@ def update_report_item_actual_action(report_item_id, action):
     행을 '매수'가 아닌 값으로 바꾸려 하면 ValueError를 던지고 저장을 거부한다(모순 방지,
     둘 중 하나만 있어도 거부). actual_entry_price/actual_entry_date를 자동으로 지우지
     않으며, 먼저 둘 다 비운 뒤 다시 시도해야 한다는 안내는 호출자(UI) 쪽에서 보여준다.
+
+    action이 '매수'로 새로 바뀌는 순간(이전 값이 '매수'가 아니었을 때만, 이미 '매수'인
+    행을 다시 저장하는 경우는 재기록하지 않음) entry_time에 현재 시각(YYYY-MM-DD HH:MM)을
+    자동 기록하고, 직전 손절 2건이 오늘/어제 안에 모두 있으면 auto_loss_streak_flag를
+    'YES'로 자동 표시한다(Fable5 3단계 확정 사항).
     """
     if action is not None and action not in ACTUAL_ACTION_CHOICES:
         raise ValueError(f"action must be None or one of {ACTUAL_ACTION_CHOICES}, got {action!r}")
 
     conn = get_connection()
     try:
+        row = conn.execute(
+            "SELECT actual_action, actual_entry_price, actual_entry_date FROM report_items WHERE id = ?",
+            (report_item_id,),
+        ).fetchone()
         if action != "매수":
-            row = conn.execute(
-                "SELECT actual_entry_price, actual_entry_date FROM report_items WHERE id = ?",
-                (report_item_id,),
-            ).fetchone()
             if row is not None and (
                 row["actual_entry_price"] is not None or row["actual_entry_date"] is not None
             ):
@@ -565,8 +607,85 @@ def update_report_item_actual_action(report_item_id, action):
                     "바꿀 수 없습니다. 먼저 실제 체결가와 실제 매수 거래일을 비운 뒤 다시 "
                     "시도하세요."
                 )
+            cur = conn.execute(
+                "UPDATE report_items SET actual_action = ? WHERE id = ?", (action, report_item_id)
+            )
+        elif row is not None and row["actual_action"] != "매수":
+            entry_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+            loss_flag = "YES" if _has_recent_consecutive_losses(conn) else None
+            cur = conn.execute(
+                "UPDATE report_items SET actual_action=?, entry_time=?, auto_loss_streak_flag=? "
+                "WHERE id=?",
+                (action, entry_time, loss_flag, report_item_id),
+            )
+        else:
+            cur = conn.execute(
+                "UPDATE report_items SET actual_action = ? WHERE id = ?", (action, report_item_id)
+            )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def count_todays_actual_buys():
+    """entry_time(자동 기록된 진입 시각)이 오늘 날짜인 '매수' 건수를 센다. 하루 신규 진입
+    경고 표시 전용 집계이며 저장을 막지 않는다."""
+    conn = get_connection()
+    try:
+        today_prefix = date.today().isoformat()
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM report_items WHERE actual_action='매수' AND entry_time LIKE ?",
+            (today_prefix + "%",),
+        ).fetchone()
+        return row["c"] if row else 0
+    finally:
+        conn.close()
+
+
+def get_daily_entry_warning_threshold():
+    """하루 신규 진입 경고 기준값을 app_settings에서 읽는다. 값이 없거나 잘못돼 있으면
+    기본값 3([답4] 확정)을 반환한다."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key='daily_entry_warning_threshold'"
+        ).fetchone()
+        if row is None:
+            return 3
+        try:
+            value = int(row["value"])
+        except (TypeError, ValueError):
+            return 3
+        return value if value > 0 else 3
+    finally:
+        conn.close()
+
+
+def set_daily_entry_warning_threshold(value):
+    """하루 신규 진입 경고 기준값을 app_settings에 저장한다. 1 이상 정수만 허용한다."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"value must be a positive integer, got {value!r}")
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('daily_entry_warning_threshold', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (str(value),),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_report_item_earnings_check(report_item_id, checked):
+    """report_items.earnings_check_done을 0/1로 갱신한다(미국장 스윙 전용 표시 체크박스,
+    저장을 막지 않는 참고용). 존재하지 않는 id는 False를 반환한다."""
+    conn = get_connection()
+    try:
         cur = conn.execute(
-            "UPDATE report_items SET actual_action = ? WHERE id = ?", (action, report_item_id)
+            "UPDATE report_items SET earnings_check_done=? WHERE id=?",
+            (1 if checked else 0, report_item_id),
         )
         conn.commit()
         return cur.rowcount > 0
