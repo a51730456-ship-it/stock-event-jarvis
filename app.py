@@ -4179,34 +4179,8 @@ def _render_kr_fable_mockup1_preview():
     st.markdown(
         """
         <style>
-        .jarvis-m1-shell {
-            border: 1px solid #25334a;
-            border-radius: 18px;
-            padding: 1.1rem;
-            margin: 0.35rem 0 1rem;
-            background: linear-gradient(145deg, #111827 0%, #172033 100%);
-        }
-        .jarvis-m1-shell,
         .jarvis-m1-stepper {
             display: none !important;
-        }
-        .jarvis-m1-kicker {
-            color: #7dd3fc;
-            font-size: 0.78rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-        .jarvis-m1-title {
-            color: #f8fafc;
-            font-size: 1.35rem;
-            font-weight: 850;
-            margin-top: 0.2rem;
-        }
-        .jarvis-m1-subtitle {
-            color: #a9b8cf;
-            font-size: 0.88rem;
-            margin-top: 0.25rem;
         }
         .jarvis-m1-strip {
             display: grid;
@@ -4345,11 +4319,6 @@ def _render_kr_fable_mockup1_preview():
             }
         }
         </style>
-        <div class="jarvis-m1-shell">
-            <div class="jarvis-m1-kicker">Fable Mockup 01 · Safe Preview</div>
-            <div class="jarvis-m1-title">오늘 기록에서 복기까지, 한 화면 흐름 미리보기</div>
-            <div class="jarvis-m1-subtitle">실제 세션 데이터를 읽어 표시하며 자동조회·판단·저장은 실행하지 않습니다.</div>
-        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -4723,20 +4692,6 @@ with tab_kr:
                     """,
                     unsafe_allow_html=True,
                 )
-            st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
-            st.markdown(
-                """
-                <div style="background-color:#74d99f;border:1px solid #22c55e;color:#052e16;
-                font-size:1.05rem;font-weight:800;border-radius:8px;padding:6px 12px;
-                margin-top:14px;margin-bottom:10px;">
-                🔥 오늘 강세 테마 1차 참고판 (저장 안 됨)
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-            st.caption("테마 입력은 화면 상단의 테마 참고판에서 진행합니다.")
-            st.caption("자동 조회 결과는 화면 확인용이며 저장되지 않습니다.")
 
     st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
 
