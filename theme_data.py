@@ -75,20 +75,30 @@ def fetch_kr_theme_snapshot():
     # 전부 찾을 때까지(또는 최대 8페이지까지) 순회한다.
     needed_ids = {tid for ids in KR_THEME_NAVER_MAPPING.values() for tid in ids}
     parsed = {}
-    try:
-        for page in range(1, 9):
-            url = NAVER_THEME_LIST_URL if page == 1 else f"{NAVER_THEME_LIST_URL}?page={page}"
+    last_error = None
+    for page in range(1, 9):
+        url = NAVER_THEME_LIST_URL if page == 1 else f"{NAVER_THEME_LIST_URL}?page={page}"
+        try:
             resp = requests.get(url, timeout=8, headers=NAVER_HEADERS)
             resp.raise_for_status()
             resp.encoding = "euc-kr"
             parsed.update(_parse_naver_theme_list(resp.text))
-            if needed_ids.issubset(parsed.keys()):
-                break
-    except Exception as e:
-        return {"ok": False, "error": str(e), "checked_at": None, "themes": {}}
+        except Exception as e:
+            # 한 페이지 실패로 이미 파싱한 다른 페이지 결과까지 버리지 않는다 —
+            # fetch_us_sector_snapshot/fetch_us_theme_indicators와 동일하게 개별
+            # 실패는 건너뛰고 이어간다(2026-07-13 전체 코드검사에서 발견/수정).
+            last_error = str(e)
+            continue
+        if needed_ids.issubset(parsed.keys()):
+            break
 
     if not parsed:
-        return {"ok": False, "error": "테마 데이터를 찾지 못했습니다(페이지 구조 변경 가능성)", "checked_at": None, "themes": {}}
+        return {
+            "ok": False,
+            "error": last_error or "테마 데이터를 찾지 못했습니다(페이지 구조 변경 가능성)",
+            "checked_at": None,
+            "themes": {},
+        }
 
     themes = {}
     for jarvis_theme, naver_ids in KR_THEME_NAVER_MAPPING.items():

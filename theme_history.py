@@ -24,20 +24,22 @@ def _get_connection():
 def init_theme_history_table():
     """theme_state_log 테이블이 없으면 만든다. reports 테이블과는 완전히 분리된 독립 테이블."""
     conn = _get_connection()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS theme_state_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            log_date TEXT NOT NULL,
-            theme_name TEXT NOT NULL,
-            verdict TEXT NOT NULL,
-            recorded_at TEXT NOT NULL,
-            UNIQUE(log_date, theme_name)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS theme_state_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                log_date TEXT NOT NULL,
+                theme_name TEXT NOT NULL,
+                verdict TEXT NOT NULL,
+                recorded_at TEXT NOT NULL,
+                UNIQUE(log_date, theme_name)
+            )
+            """
         )
-        """
-    )
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def record_theme_states(theme_verdicts, log_date=None):
@@ -50,29 +52,33 @@ def record_theme_states(theme_verdicts, log_date=None):
     log_date = log_date or datetime.now().strftime("%Y-%m-%d")
     recorded_at = datetime.now().isoformat(timespec="seconds")
     conn = _get_connection()
-    for theme_name, verdict in theme_verdicts.items():
-        if not theme_name or not verdict:
-            continue
-        conn.execute(
-            "INSERT INTO theme_state_log (log_date, theme_name, verdict, recorded_at) "
-            "VALUES (?, ?, ?, ?) "
-            "ON CONFLICT(log_date, theme_name) DO UPDATE SET "
-            "verdict=excluded.verdict, recorded_at=excluded.recorded_at",
-            (log_date, theme_name, verdict, recorded_at),
-        )
-    conn.commit()
-    conn.close()
+    try:
+        for theme_name, verdict in theme_verdicts.items():
+            if not theme_name or not verdict:
+                continue
+            conn.execute(
+                "INSERT INTO theme_state_log (log_date, theme_name, verdict, recorded_at) "
+                "VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(log_date, theme_name) DO UPDATE SET "
+                "verdict=excluded.verdict, recorded_at=excluded.recorded_at",
+                (log_date, theme_name, verdict, recorded_at),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def has_theme_log(theme_name):
     """이 테마에 대한 관찰 로그가 하나라도 있는지."""
     init_theme_history_table()
     conn = _get_connection()
-    row = conn.execute(
-        "SELECT 1 FROM theme_state_log WHERE theme_name=? LIMIT 1", (theme_name,)
-    ).fetchone()
-    conn.close()
-    return row is not None
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM theme_state_log WHERE theme_name=? LIMIT 1", (theme_name,)
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
 
 
 def get_theme_elapsed_strong_days(theme_name):
@@ -87,11 +93,13 @@ def get_theme_elapsed_strong_days(theme_name):
     """
     init_theme_history_table()
     conn = _get_connection()
-    rows = conn.execute(
-        "SELECT log_date, verdict FROM theme_state_log WHERE theme_name=? ORDER BY log_date DESC",
-        (theme_name,),
-    ).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(
+            "SELECT log_date, verdict FROM theme_state_log WHERE theme_name=? ORDER BY log_date DESC",
+            (theme_name,),
+        ).fetchall()
+    finally:
+        conn.close()
     if not rows:
         return None
 
