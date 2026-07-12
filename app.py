@@ -4012,6 +4012,7 @@ KR_THEME_WATCH_INITIAL_ROWS = [
         "테마": theme,
         "상태": "확인 필요",
         "대장주": "",
+        "대장주상태": "강세유지",
         "후발주": "",
         "추격주의": "",
         "메모": "",
@@ -4181,6 +4182,26 @@ def _render_kr_theme_chip_editor():
             return ["border: 2px solid #4ade80"] * len(row)
         return [""] * len(row)
 
+    def _kr_theme_leader_auto_status(leader_name):
+        """대장주 꺾임 자동 판정(하이브리드). 대장주 이름이 SNAPSHOT_STOCKS(7종목) 안에
+        있으면 오늘 주가 자동 채우기로 이미 받아온 고점/현재가로 고점대비 밀림률을 계산해
+        -7% 이상 밀렸으면 자동 "꺾임"으로 판정한다. 7종목 밖 대장주면 자동 판정할 수
+        없으므로 available=False를 반환하고, 화면에서는 수동 선택으로 넘어간다.
+        점수·판정·DB와는 무관한 참고용 계산이다.
+        """
+        leader_name = (leader_name or "").strip()
+        ticker = SNAPSHOT_NAME_TO_TICKER.get(leader_name)
+        if not ticker:
+            return {"available": False, "verdict": None, "drop_pct": None}
+        prefix = f"snap_{ticker}_"
+        current = st.session_state.get(prefix + "current")
+        high = st.session_state.get(prefix + "high")
+        drop_pct = compute_drop_from_high_pct(current, high)
+        if drop_pct is None:
+            return {"available": False, "verdict": None, "drop_pct": None}
+        verdict = "꺾임" if drop_pct >= 7 else "강세유지"
+        return {"available": True, "verdict": verdict, "drop_pct": drop_pct}
+
     def _kr_theme_elapsed_text(theme_name):
         # 순수 관찰 로그(theme_history) 기반 자동 계산. 점수·판정과 무관한 참고 표시.
         elapsed = theme_history.get_theme_elapsed_strong_days(theme_name)
@@ -4198,6 +4219,7 @@ def _render_kr_theme_chip_editor():
                 "현재 상태": row.get("상태", "확인 필요"),
                 "참고 지표 또는 대표 종목": row.get("대장주", ""),
                 "경과일수": _kr_theme_elapsed_text(row.get("테마", "")),
+                "경고": "후발주 청산 검토" if row.get("대장주상태") == "꺾임" else "",
                 "세부 입력": "선택됨" if row.get("테마") == _theme_detail_selected else "선택 가능",
             }
             for row in theme_rows
@@ -4211,11 +4233,15 @@ def _render_kr_theme_chip_editor():
             for val in col
         ]
 
+    def _kr_theme_warning_styler(col):
+        return ["color: #ef4444; font-weight: 800" if val else "" for val in col]
+
     _kr_theme_styled_df = (
         _kr_theme_df.style
         .apply(_kr_theme_name_styler, subset=["테마"])
         .apply(_kr_theme_table_styler, subset=["현재 상태"])
         .apply(_kr_theme_elapsed_styler, subset=["경과일수"])
+        .apply(_kr_theme_warning_styler, subset=["경고"])
         .apply(_kr_theme_row_highlight, axis=1)
     )
     st.dataframe(
@@ -4325,12 +4351,36 @@ def _render_kr_theme_chip_editor():
                     else:
                         selected_detail_values[field_name] = st.text_input(field_name, key=widget_key)
 
+                    if field_name == "대장주":
+                        _leader_auto = _kr_theme_leader_auto_status(selected_detail_values[field_name])
+                        _leader_status_key = f"kr_theme_leader_status_{selected_theme_slug}"
+                        if _leader_status_key not in st.session_state:
+                            st.session_state[_leader_status_key] = (
+                                _leader_auto["verdict"] if _leader_auto["available"]
+                                else str(selected_theme_row.get("대장주상태") or "강세유지")
+                            )
+                        selected_leader_status = st.selectbox(
+                            "대장주 상태",
+                            ["강세유지", "꺾임"],
+                            key=_leader_status_key,
+                        )
+                        if _leader_auto["available"]:
+                            st.caption(
+                                f"자동 판정 참고: 고점 대비 {_leader_auto['drop_pct']:.1f}% "
+                                "(SNAPSHOT 7종목 기준, -7% 이상이면 꺾임). 필요하면 위에서 직접 바꿀 수 있습니다."
+                            )
+                        else:
+                            st.caption("SNAPSHOT 7종목 밖 대장주라 자동 판정할 수 없습니다 — 직접 선택하세요.")
+                        if selected_leader_status == "꺾임":
+                            st.warning("대장주 꺾임 — 후발주 청산 검토")
+
             # 위에서 입력한 상태·세부 항목을 요약 표(updated_rows)에도 반영한다 — 이전에는
             # 위젯 값이 각자의 session_state 키에만 저장되고 표로 다시 합쳐지지 않아
             # 테마 참고판 표가 항상 빈 채로 보이는 문제가 있었다.
             for _row in updated_rows:
                 if _row.get("테마") == _theme_detail_selected:
                     _row["상태"] = selected_status
+                    _row["대장주상태"] = selected_leader_status
                     for field_name, value in selected_detail_values.items():
                         _row[field_name] = value
                     break
