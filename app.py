@@ -4340,7 +4340,8 @@ def _render_kr_fable_mockup1_preview():
         "</div>"
         for label, value in strip_items
     )
-    st.markdown(f'<div class="jarvis-m1-strip">{strip_html}</div>', unsafe_allow_html=True)
+    if any(value != "-" for _, value in strip_items[:5]):
+        st.markdown(f'<div class="jarvis-m1-strip">{strip_html}</div>', unsafe_allow_html=True)
 
     stage2_preview = build_kr_stage2_preview()
     rows = stage2_preview["rows"]
