@@ -4442,9 +4442,16 @@ def _render_kr_fable_mockup1_preview():
             verdict_key = "danta_verdict" if trade_mode == "단타" else "swing_verdict"
             sorted_rows = sorted(rows, key=lambda row: row[score_key], reverse=True)
             rows_by_ticker = {row["ticker"]: row for row in sorted_rows}
+            ticker_options = list(rows_by_ticker)
+            pending_ticker = st.session_state.pop("mockup1_pending_ticker", None)
+            selectbox_index = 0
+            if pending_ticker in ticker_options:
+                selectbox_index = ticker_options.index(pending_ticker)
+                st.session_state["mockup1_selected_ticker"] = pending_ticker
             selected_ticker = st.selectbox(
                 "종목 선택",
-                list(rows_by_ticker),
+                ticker_options,
+                index=selectbox_index,
                 format_func=lambda ticker: rows_by_ticker[ticker]["name"],
                 key="mockup1_selected_ticker",
             )
@@ -4478,7 +4485,7 @@ def _render_kr_fable_mockup1_preview():
                     key=candidate_key,
                     help=f"{sector_by_ticker.get(row['ticker'], '-')} · 확인 필요: {'예' if row['needs_confirmation'] else '아니오'}",
                 ):
-                    st.session_state["mockup1_selected_ticker"] = row["ticker"]
+                    st.session_state["mockup1_pending_ticker"] = row["ticker"]
                     st.rerun()
 
         selected_row = rows_by_ticker[selected_ticker]
