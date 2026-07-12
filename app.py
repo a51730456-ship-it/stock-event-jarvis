@@ -7005,95 +7005,65 @@ if _saved_view == "지난 기록":
             st.markdown("---")
             render_report_detail(selected_report, show_raw_briefing=True)
 
-    def _render_actual_trade_entry_inputs(saved_item, key_prefix=""):
-        """실제 행동·매수 입력 및 저장 UI를 렌더링한다."""
-        if not saved_item.get("id"):
-            return
+def _render_actual_trade_entry_inputs(saved_item, key_prefix=""):
+    """실제 행동·매수 입력 및 저장 UI를 렌더링한다."""
+    if not saved_item.get("id"):
+        return
 
-        _item_name = saved_item.get("stock_name") or "-"
-        with st.expander("실제 행동·매수 입력", expanded=False):
-            st.markdown("---")
-            _action_key = f"{key_prefix}actualaction_{saved_item['id']}"
-            _action_options = ["미기록", "매수", "보류", "제외"]
-            _action_stored = db.normalize_actual_action(saved_item.get("actual_action"))
-            _action_in = st.selectbox(
-                "실제 행동",
-                _action_options,
-                index=_action_options.index(_action_stored),
-                key=f"{_action_key}_select",
-            )
-            if st.button("실제 행동 저장", key=f"{_action_key}_save"):
-                _final_action = None if _action_in == "미기록" else _action_in
-                try:
-                    _action_ok = db.update_report_item_actual_action(saved_item["id"], _final_action)
-                except ValueError as _action_err:
-                    st.error(f"{_item_name}: {_action_err}")
+    _item_name = saved_item.get("stock_name") or "-"
+    with st.expander("실제 행동·매수 입력", expanded=False):
+        st.markdown("---")
+        _action_key = f"{key_prefix}actualaction_{saved_item['id']}"
+        _action_options = ["미기록", "매수", "보류", "제외"]
+        _action_stored = db.normalize_actual_action(saved_item.get("actual_action"))
+        _action_in = st.selectbox(
+            "실제 행동",
+            _action_options,
+            index=_action_options.index(_action_stored),
+            key=f"{_action_key}_select",
+        )
+        if st.button("실제 행동 저장", key=f"{_action_key}_save"):
+            _final_action = None if _action_in == "미기록" else _action_in
+            try:
+                _action_ok = db.update_report_item_actual_action(saved_item["id"], _final_action)
+            except ValueError as _action_err:
+                st.error(f"{_item_name}: {_action_err}")
+            else:
+                if _action_ok:
+                    st.success("실제 행동이 저장되었습니다.")
+                    st.rerun()
                 else:
-                    if _action_ok:
-                        st.success("실제 행동이 저장되었습니다.")
-                        st.rerun()
-                    else:
-                        st.error(
-                            f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                            f"(id={saved_item['id']})."
-                        )
-
-            st.markdown("---")
-            _price_key = f"{key_prefix}actualentryprice_{saved_item['id']}"
-            _price_default_text = _fmt_actual_entry_price_display(saved_item.get("actual_entry_price"))
-            _price_text_in = st.text_input(
-                "실제 평균 체결가",
-                value=_price_default_text,
-                key=f"{_price_key}_input",
-                help=(
-                    "실제로 매수한 평균 체결가입니다. 실제 행동이 '매수'일 때만 "
-                    "저장할 수 있습니다."
-                ),
-            )
-            if st.button("실제 체결가 저장", key=f"{_price_key}_save"):
-                _parsed_price, _parse_error = _parse_actual_entry_price_text(_price_text_in)
-                if _parse_error:
-                    st.error(f"{_item_name}: {_parse_error}")
-                else:
-                    try:
-                        _price_ok = db.update_report_item_actual_entry_price(
-                            saved_item["id"], _parsed_price
-                        )
-                    except ValueError as _price_err:
-                        st.error(f"{_item_name}: {_price_err}")
-                    else:
-                        if _price_ok:
-                            st.success("실제 체결가가 저장되었습니다.")
-                            st.rerun()
-                        else:
-                            st.error(
-                                f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                                f"(id={saved_item['id']})."
-                            )
-
-            st.markdown("---")
-            _entry_date_key = f"{key_prefix}actualentrydate_{saved_item['id']}"
-            _entry_date_default_text = saved_item.get("actual_entry_date") or ""
-            _entry_date_text_in = st.text_input(
-                "실제 매수 거래일",
-                value=_entry_date_default_text,
-                key=f"{_entry_date_key}_input",
-                placeholder="2026-07-10",
-                help=(
-                    "실제 매수한 거래소 기준 거래일입니다. 미국장은 한국시간 "
-                    "날짜가 아니라 미국 현지 거래일을 입력합니다."
-                ),
-            )
-            if st.button("실제 매수일 저장", key=f"{_entry_date_key}_save"):
-                try:
-                    _entry_date_ok = db.update_report_item_actual_entry_date(
-                        saved_item["id"], _entry_date_text_in
+                    st.error(
+                        f"실제 행동 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
                     )
-                except ValueError as _entry_date_err:
-                    st.error(f"{_item_name}: {_entry_date_err}")
+
+        st.markdown("---")
+        _price_key = f"{key_prefix}actualentryprice_{saved_item['id']}"
+        _price_default_text = _fmt_actual_entry_price_display(saved_item.get("actual_entry_price"))
+        _price_text_in = st.text_input(
+            "실제 평균 체결가",
+            value=_price_default_text,
+            key=f"{_price_key}_input",
+            help=(
+                "실제로 매수한 평균 체결가입니다. 실제 행동이 '매수'일 때만 "
+                "저장할 수 있습니다."
+            ),
+        )
+        if st.button("실제 체결가 저장", key=f"{_price_key}_save"):
+            _parsed_price, _parse_error = _parse_actual_entry_price_text(_price_text_in)
+            if _parse_error:
+                st.error(f"{_item_name}: {_parse_error}")
+            else:
+                try:
+                    _price_ok = db.update_report_item_actual_entry_price(
+                        saved_item["id"], _parsed_price
+                    )
+                except ValueError as _price_err:
+                    st.error(f"{_item_name}: {_price_err}")
                 else:
-                    if _entry_date_ok:
-                        st.success("실제 매수 거래일이 저장되었습니다.")
+                    if _price_ok:
+                        st.success("실제 체결가가 저장되었습니다.")
                         st.rerun()
                     else:
                         st.error(
@@ -7101,159 +7071,218 @@ if _saved_view == "지난 기록":
                             f"(id={saved_item['id']})."
                         )
 
-            _quantity_key = f"{key_prefix}quantity_{saved_item['id']}"
-            _quantity_in = st.number_input(
-                "매수 수량",
-                value=saved_item.get("quantity"),
-                min_value=1,
-                step=1,
-                format="%d",
-                key=f"{_quantity_key}_input",
-            )
-            if st.button("매수 수량 저장", key=f"{_quantity_key}_save"):
-                try:
-                    _quantity_ok = db.update_report_item_quantity(
-                        saved_item["id"], _quantity_in
-                    )
-                except ValueError as _quantity_err:
-                    st.error(f"{_item_name}: {_quantity_err}")
-                else:
-                    if _quantity_ok:
-                        st.success("매수 수량이 저장되었습니다.")
-                        st.rerun()
-                    else:
-                        st.error(
-                            f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                            f"(id={saved_item['id']})."
-                        )
-
-            _fee_key = f"{key_prefix}actualfee_{saved_item['id']}"
-            st.caption("실제 수수료와 세금을 합산한 금액을 직접 입력합니다. 0원과 미입력은 구분됩니다.")
-            _fee_in = st.number_input(
-                "실제 수수료·세금 합계",
-                value=saved_item.get("actual_fee"),
-                min_value=0.0,
-                step=0.01,
-                format="%.2f",
-                key=f"{_fee_key}_input",
-            )
-            if st.button("실제 수수료·세금 합계 저장", key=f"{_fee_key}_save"):
-                try:
-                    _fee_ok = db.update_report_item_actual_fee(saved_item["id"], _fee_in)
-                except ValueError as _fee_err:
-                    st.error(f"{_item_name}: {_fee_err}")
-                else:
-                    if _fee_ok:
-                        st.success("실제 수수료·세금 합계가 저장되었습니다.")
-                        st.rerun()
-                    else:
-                        st.error(
-                            f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                            f"(id={saved_item['id']})."
-                        )
-
-            if saved_item.get("actual_action") == "매수":
-                if (
-                    saved_item.get("actual_entry_price") is not None
-                    and saved_item.get("actual_entry_date") is not None
-                ):
-                    st.caption("실매매 성과 계산 준비 완료")
-                else:
-                    st.caption(
-                        "실매매 성과 계산에는 실제 평균 체결가와 실제 매수 "
-                        "거래일이 모두 필요합니다."
-                    )
-
-
-    def _render_trade_exit_inputs(saved_item, key_prefix=""):
-        """청산 결과 입력·수정 및 저장 UI를 렌더링한다."""
-        if not saved_item.get("id"):
-            return
-
-        _item_name = saved_item.get("stock_name") or "-"
-        _trade_mode = saved_item.get("trade_mode") or "-"
-        with st.expander(f"청산 결과 입력 / 수정 — {_item_name} ({_trade_mode})"):
-            _exit_key = f"{key_prefix}exit_{saved_item['id']}"
-            _exit_price_in = st.number_input(
-                "실제 청산가", value=float(saved_item.get("actual_exit_price") or 0.0),
-                min_value=0.0, step=100.0, key=f"{_exit_key}_price",
-            )
-            _exit_date_default = None
-            if saved_item.get("actual_exit_date"):
-                try:
-                    _exit_date_default = datetime.strptime(
-                        saved_item["actual_exit_date"], "%Y-%m-%d"
-                    ).date()
-                except ValueError:
-                    _exit_date_default = None
-            _exit_date_in = st.date_input(
-                "실제 청산일", value=_exit_date_default, key=f"{_exit_key}_date",
-            )
-            _plan_followed_options = ["미입력", "예", "아니오", "부분"]
-            _plan_followed_default = saved_item.get("plan_followed") or "미입력"
-            if _plan_followed_default not in _plan_followed_options:
-                _plan_followed_default = "미입력"
-            _plan_followed_in = st.selectbox(
-                "계획 준수 여부", _plan_followed_options,
-                index=_plan_followed_options.index(_plan_followed_default),
-                key=f"{_exit_key}_plan_followed",
-            )
-            _exit_reason_options = [
-                "미입력", "손절", "목표가", "시간청산", "조기매도",
-                "손절지연", "복구매매", "감정매매", "뉴스변경", "기타",
-            ]
-            _exit_reason_default = saved_item.get("exit_reason") or "미입력"
-            if _exit_reason_default not in _exit_reason_options:
-                _exit_reason_default = "미입력"
-            _exit_reason_in = st.selectbox(
-                "청산 사유", _exit_reason_options,
-                index=_exit_reason_options.index(_exit_reason_default),
-                key=f"{_exit_key}_reason",
-            )
-
-            _r_basis_price = saved_item.get("actual_entry_price") or saved_item.get("entry_price")
-            _r_basis_is_plan = (
-                not saved_item.get("actual_entry_price") and bool(saved_item.get("entry_price"))
-            )
-            _preview_result_r = _compute_result_r(
-                _r_basis_price, saved_item.get("stop_loss_price"), _exit_price_in or None,
-            )
-            _r_preview_suffix = "(계획가 기준)" if _r_basis_is_plan else ""
-            st.caption(f"R수익률 미리보기: {_fmt_result_r(_preview_result_r)} {_r_preview_suffix}".rstrip())
-
-            if st.button("청산 결과 저장", key=f"{_exit_key}_save"):
-                _final_exit_price = _exit_price_in or None
-                _final_exit_date = _exit_date_in.isoformat() if _exit_date_in else None
-                _final_plan_followed = None if _plan_followed_in == "미입력" else _plan_followed_in
-                _final_exit_reason = None if _exit_reason_in == "미입력" else _exit_reason_in
-                _final_result_r = _compute_result_r(
-                    _r_basis_price, saved_item.get("stop_loss_price"), _final_exit_price,
+        st.markdown("---")
+        _entry_date_key = f"{key_prefix}actualentrydate_{saved_item['id']}"
+        _entry_date_default_text = saved_item.get("actual_entry_date") or ""
+        _entry_date_text_in = st.text_input(
+            "실제 매수 거래일",
+            value=_entry_date_default_text,
+            key=f"{_entry_date_key}_input",
+            placeholder="2026-07-10",
+            help=(
+                "실제 매수한 거래소 기준 거래일입니다. 미국장은 한국시간 "
+                "날짜가 아니라 미국 현지 거래일을 입력합니다."
+            ),
+        )
+        if st.button("실제 매수일 저장", key=f"{_entry_date_key}_save"):
+            try:
+                _entry_date_ok = db.update_report_item_actual_entry_date(
+                    saved_item["id"], _entry_date_text_in
                 )
-                _final_verification_status = _compute_verification_status(
-                    _final_exit_price, _final_exit_date
-                )
-                try:
-                    _exit_ok = db.update_report_item_trade_exit(
-                        saved_item["id"],
-                        _final_exit_price,
-                        _final_exit_date,
-                        _final_plan_followed,
-                        _final_exit_reason,
-                        _final_result_r,
-                        _final_verification_status,
-                    )
-                except ValueError as _exit_err:
-                    st.error(f"{_item_name}: {_exit_err}")
+            except ValueError as _entry_date_err:
+                st.error(f"{_item_name}: {_entry_date_err}")
+            else:
+                if _entry_date_ok:
+                    st.success("실제 매수 거래일이 저장되었습니다.")
+                    st.rerun()
                 else:
-                    if _exit_ok:
-                        _cached_verification_rows.clear()
-                        st.success("청산 결과가 저장되었습니다.")
-                        st.rerun()
-                    else:
-                        st.error(
-                            f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
-                            f"(id={saved_item['id']})."
-                        )
+                    st.error(
+                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
+
+        _quantity_key = f"{key_prefix}quantity_{saved_item['id']}"
+        _quantity_in = st.number_input(
+            "매수 수량",
+            value=saved_item.get("quantity"),
+            min_value=1,
+            step=1,
+            format="%d",
+            key=f"{_quantity_key}_input",
+        )
+        if st.button("매수 수량 저장", key=f"{_quantity_key}_save"):
+            try:
+                _quantity_ok = db.update_report_item_quantity(
+                    saved_item["id"], _quantity_in
+                )
+            except ValueError as _quantity_err:
+                st.error(f"{_item_name}: {_quantity_err}")
+            else:
+                if _quantity_ok:
+                    st.success("매수 수량이 저장되었습니다.")
+                    st.rerun()
+                else:
+                    st.error(
+                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
+
+        _fee_key = f"{key_prefix}actualfee_{saved_item['id']}"
+        st.caption("실제 수수료와 세금을 합산한 금액을 직접 입력합니다. 0원과 미입력은 구분됩니다.")
+        _fee_in = st.number_input(
+            "실제 수수료·세금 합계",
+            value=saved_item.get("actual_fee"),
+            min_value=0.0,
+            step=0.01,
+            format="%.2f",
+            key=f"{_fee_key}_input",
+        )
+        if st.button("실제 수수료·세금 합계 저장", key=f"{_fee_key}_save"):
+            try:
+                _fee_ok = db.update_report_item_actual_fee(saved_item["id"], _fee_in)
+            except ValueError as _fee_err:
+                st.error(f"{_item_name}: {_fee_err}")
+            else:
+                if _fee_ok:
+                    st.success("실제 수수료·세금 합계가 저장되었습니다.")
+                    st.rerun()
+                else:
+                    st.error(
+                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
+
+        if (saved_item.get("market") == "US") and (saved_item.get("trade_mode") == "스윙"):
+            st.markdown("---")
+            _earnings_key = f"{key_prefix}earningscheck_{saved_item['id']}"
+            _earnings_checked_in = st.checkbox(
+                "실적 발표일 확인함",
+                value=bool(saved_item.get("earnings_check_done")),
+                key=f"{_earnings_key}_checkbox",
+            )
+            if st.button("실적 발표일 확인 저장", key=f"{_earnings_key}_save"):
+                db.update_report_item_earnings_check(saved_item["id"], _earnings_checked_in)
+                st.success("실적 발표일 확인 여부가 저장되었습니다.")
+                st.rerun()
+            if not _earnings_checked_in:
+                st.caption("실적 발표 전 진입은 진입 회피를 권장합니다 (차단하지 않는 참고용 경고).")
+
+        if saved_item.get("actual_action") == "매수":
+            if (
+                saved_item.get("actual_entry_price") is not None
+                and saved_item.get("actual_entry_date") is not None
+            ):
+                st.caption("실매매 성과 계산 준비 완료")
+            else:
+                st.caption(
+                    "실매매 성과 계산에는 실제 평균 체결가와 실제 매수 "
+                    "거래일이 모두 필요합니다."
+                )
+            if saved_item.get("entry_time"):
+                st.caption(f"자동 기록된 진입 시각: {saved_item['entry_time']}")
+            if saved_item.get("auto_loss_streak_flag") == "YES":
+                st.warning(
+                    "손실직후 자동 태그 — 직전 손절 2건이 오늘/어제 안에 있습니다 "
+                    "(복구매매 주의, 차단하지 않는 참고용 경고)"
+                )
+            _todays_buy_count = db.count_todays_actual_buys()
+            _daily_entry_threshold = db.get_daily_entry_warning_threshold()
+            if _todays_buy_count > _daily_entry_threshold:
+                st.warning(
+                    f"오늘 신규 진입 {_todays_buy_count}건 — 경고 기준({_daily_entry_threshold}건) "
+                    "초과 (차단하지 않는 참고용 경고)"
+                )
+
+
+def _render_trade_exit_inputs(saved_item, key_prefix=""):
+    """청산 결과 입력·수정 및 저장 UI를 렌더링한다."""
+    if not saved_item.get("id"):
+        return
+
+    _item_name = saved_item.get("stock_name") or "-"
+    _trade_mode = saved_item.get("trade_mode") or "-"
+    with st.expander(f"청산 결과 입력 / 수정 — {_item_name} ({_trade_mode})"):
+        _exit_key = f"{key_prefix}exit_{saved_item['id']}"
+        _exit_price_in = st.number_input(
+            "실제 청산가", value=float(saved_item.get("actual_exit_price") or 0.0),
+            min_value=0.0, step=100.0, key=f"{_exit_key}_price",
+        )
+        _exit_date_default = None
+        if saved_item.get("actual_exit_date"):
+            try:
+                _exit_date_default = datetime.strptime(
+                    saved_item["actual_exit_date"], "%Y-%m-%d"
+                ).date()
+            except ValueError:
+                _exit_date_default = None
+        _exit_date_in = st.date_input(
+            "실제 청산일", value=_exit_date_default, key=f"{_exit_key}_date",
+        )
+        _plan_followed_options = ["미입력", "예", "아니오", "부분"]
+        _plan_followed_default = saved_item.get("plan_followed") or "미입력"
+        if _plan_followed_default not in _plan_followed_options:
+            _plan_followed_default = "미입력"
+        _plan_followed_in = st.selectbox(
+            "계획 준수 여부", _plan_followed_options,
+            index=_plan_followed_options.index(_plan_followed_default),
+            key=f"{_exit_key}_plan_followed",
+        )
+        _exit_reason_options = [
+            "미입력", "손절", "목표가", "시간청산", "조기매도",
+            "손절지연", "복구매매", "감정매매", "뉴스변경", "기타",
+        ]
+        _exit_reason_default = saved_item.get("exit_reason") or "미입력"
+        if _exit_reason_default not in _exit_reason_options:
+            _exit_reason_default = "미입력"
+        _exit_reason_in = st.selectbox(
+            "청산 사유", _exit_reason_options,
+            index=_exit_reason_options.index(_exit_reason_default),
+            key=f"{_exit_key}_reason",
+        )
+
+        _r_basis_price = saved_item.get("actual_entry_price") or saved_item.get("entry_price")
+        _r_basis_is_plan = (
+            not saved_item.get("actual_entry_price") and bool(saved_item.get("entry_price"))
+        )
+        _preview_result_r = _compute_result_r(
+            _r_basis_price, saved_item.get("stop_loss_price"), _exit_price_in or None,
+        )
+        _r_preview_suffix = "(계획가 기준)" if _r_basis_is_plan else ""
+        st.caption(f"R수익률 미리보기: {_fmt_result_r(_preview_result_r)} {_r_preview_suffix}".rstrip())
+
+        if st.button("청산 결과 저장", key=f"{_exit_key}_save"):
+            _final_exit_price = _exit_price_in or None
+            _final_exit_date = _exit_date_in.isoformat() if _exit_date_in else None
+            _final_plan_followed = None if _plan_followed_in == "미입력" else _plan_followed_in
+            _final_exit_reason = None if _exit_reason_in == "미입력" else _exit_reason_in
+            _final_result_r = _compute_result_r(
+                _r_basis_price, saved_item.get("stop_loss_price"), _final_exit_price,
+            )
+            _final_verification_status = _compute_verification_status(
+                _final_exit_price, _final_exit_date
+            )
+            try:
+                _exit_ok = db.update_report_item_trade_exit(
+                    saved_item["id"],
+                    _final_exit_price,
+                    _final_exit_date,
+                    _final_plan_followed,
+                    _final_exit_reason,
+                    _final_result_r,
+                    _final_verification_status,
+                )
+            except ValueError as _exit_err:
+                st.error(f"{_item_name}: {_exit_err}")
+            else:
+                if _exit_ok:
+                    _cached_verification_rows.clear()
+                    st.success("청산 결과가 저장되었습니다.")
+                    st.rerun()
+                else:
+                    st.error(
+                        f"{_item_name}: 저장 실패 — 대상 기록을 찾지 못했습니다 "
+                        f"(id={saved_item['id']})."
+                    )
 
 
 with tab_action:
@@ -8682,6 +8711,22 @@ if _aux_view == "추가 기능":
     - 지난 기록 보기 필터/검색 고도화 (추후 별도 논의)
     """
         )
+
+        st.markdown("---")
+        st.markdown("#### 리스크 관리 공통 설정")
+        _daily_threshold_current = db.get_daily_entry_warning_threshold()
+        _daily_threshold_in = st.number_input(
+            "하루 신규 진입 경고 기준(건)",
+            min_value=1,
+            step=1,
+            value=_daily_threshold_current,
+            key="daily_entry_warning_threshold_input",
+            help="이 건수를 초과해 오늘 신규 매수하면 참고용 경고만 표시합니다(차단 없음).",
+        )
+        if st.button("경고 기준 저장", key="daily_entry_warning_threshold_save"):
+            db.set_daily_entry_warning_threshold(int(_daily_threshold_in))
+            st.success(f"하루 신규 진입 경고 기준을 {int(_daily_threshold_in)}건으로 저장했습니다.")
+            st.rerun()
 
 if _aux_view == "사용법":
     with tab_aux:
