@@ -480,11 +480,11 @@ st.markdown(
         font-weight: 900 !important;
     }
     /* 핵심 실행·저장 버튼만 강조한다. 일반 버튼/탭/expander/필터는 대상에서 제외한다.
-       snap_auto_fill/snap_mood_auto_check("문제가 있을 때 단계별 다시 실행" expander 안의
-       보조 버튼)는 이 노란색 강조에서 제외한다 — 대표 버튼(kr_auto_preview_run)과 색이
-       같아서 구분이 안 된다는 지적(2026-07-12 스크린샷) 반영, 2026-07-13 수정. 원래
+       snap_auto_fill/snap_mood_auto_check/us_stock_auto_fill("조회/계산" 성격의 버튼)는
+       이 노란색 강조에서 제외한다 — 대표 버튼(kr_auto_preview_run)과 색이 같아서 구분이
+       안 된다는 지적(2026-07-12 스크린샷) 반영. us_stock_auto_fill은 전체 코드검사(2026-07-13
+       울트라 리뷰)에서 같은 문제가 미국장 쪽에도 남아있는 걸 발견해 같이 제외했다. 원래
        지정색(주황/진파랑, 위쪽 규칙)이 다시 적용된다. */
-    .st-key-us_stock_auto_fill button,
     .st-key-kr_dart_check_button button,
     .st-key-kr_naver_news_check_button button,
     .st-key-us_naver_news_check_button button,
@@ -503,7 +503,6 @@ st.markdown(
         font-size: 17px !important;
         font-weight: 800 !important;
     }
-    .st-key-us_stock_auto_fill button p,
     .st-key-kr_dart_check_button button p,
     .st-key-kr_naver_news_check_button button p,
     .st-key-us_naver_news_check_button button p,
@@ -519,7 +518,6 @@ st.markdown(
         font-size: 17px !important;
         font-weight: 800 !important;
     }
-    .st-key-us_stock_auto_fill button:hover,
     .st-key-kr_dart_check_button button:hover,
     .st-key-kr_naver_news_check_button button:hover,
     .st-key-us_naver_news_check_button button:hover,
@@ -534,7 +532,6 @@ st.markdown(
         background-color: #fde047 !important;
         color: #111827 !important;
     }
-    .st-key-us_stock_auto_fill button:disabled,
     .st-key-kr_dart_check_button button:disabled,
     .st-key-kr_naver_news_check_button button:disabled,
     .st-key-us_naver_news_check_button button:disabled,
@@ -1625,7 +1622,7 @@ def _auto_fill_item_display(item):
         penalties.append((liquidity_phrase, neg_pts))
 
     stored_score = item.get("score")
-    score_is_auto = not stored_score  # None 또는 0이면 자동 계산 대상
+    score_is_auto = stored_score is None  # 저장된 점수가 없을 때만 자동 계산(0점도 유효한 저장값)
     if score_is_auto:
         score = float(_AUTO_SCORE_VERDICT_BASE.get(verdict, 50))
         for _, pts in gains:
@@ -2299,7 +2296,7 @@ def _dedup_market_overview_news(rows, market=None):
         context_hits = sum(term in search_text for term in context_terms)
         if market and (not context_hits or any(term in search_text for term in MARKET_OVERVIEW_HISTORY_TERMS)):
             continue
-        if market and any(term in search_text for term in other_terms) and context_hits == 0:
+        if market and any(term in search_text for term in other_terms):
             continue
         url = str(row.get("originallink") or row.get("link") or "").strip()
         identity = url or title
@@ -3360,9 +3357,9 @@ def _validate_snapshot_price_inputs(name, current, open_price, high, low, volume
     ):
         if value is not None and value < 0:
             errors.append(f"{name}: {label}가 음수입니다")
-    if high and current is not None and not (high >= current):
+    if high and current and not (high >= current):
         errors.append(f"{name}: 고가가 현재가보다 낮습니다")
-    if low and current is not None and not (current >= low):
+    if low and current and not (current >= low):
         errors.append(f"{name}: 현재가가 저가보다 낮습니다")
     if high and open_price and not (high >= open_price):
         errors.append(f"{name}: 고가가 시가보다 낮습니다")
@@ -3429,6 +3426,7 @@ with tab_saved:
     )
     st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>아래에서 오늘 요약·저장 결과·지난 기록 중 확인할 화면을 선택하세요.</div>", unsafe_allow_html=True)
 if _saved_view == "오늘 요약":
+    with tab_saved:
         st.subheader("오늘 저장 요약")
         st.info(
             "이 화면은 오늘 저장된 기록을 관점별로 다시 보여주는 화면입니다.\n"
@@ -3540,6 +3538,7 @@ elif _aux_view == "이 앱의 원칙":
             "- 근거 없는 매수 차단 남발"
         )
 elif _aux_view == "수동 기록 입력":
+    with tab_aux:
         st.subheader("새 기록 입력")
 
         st.session_state.setdefault("form_version", 0)
@@ -6452,16 +6451,28 @@ def _render_actual_outcome_save_section(selected_report_id, key_prefix="") -> No
         if not _actual_save_target_items:
             st.info("저장 가능한 완료 실매매 성과가 없습니다.")
         else:
-            # 종목당 가격 조회 1회(ticker 기준 캐시), 벤치마크는 심볼별로 묶어
-            # 필요한 날짜 범위를 합친 뒤 심볼당 1회만 조회한다(horizon별 재조회 없음).
-            _actual_price_df_cache = {}
+            # 종목당 가격 조회 1회(ticker 기준 캐시). 같은 종목이 단타/스윙 등으로 서로
+            # 다른 실제 매수일에 여러 건 있을 수 있으므로, 벤치마크와 동일하게 종목별
+            # 최소~최대 매수일을 먼저 합친 뒤 그 범위로 심볼당 1회만 조회한다(horizon별
+            # 재조회 없음). 매수일 하나만 기준으로 좁게 캐시하면 같은 종목의 다른 매수
+            # 건이 그 범위 밖 날짜를 필요로 할 때 조용히 데이터 없음/오답이 되는 문제가
+            # 있어(2026-07-13 전체 코드검사에서 발견) 벤치마크 캐시 방식과 통일했다.
+            _actual_ticker_ranges = {}
             for _ai in _actual_save_target_items:
                 _ticker = (_ai.get("ticker") or "").strip()
-                if not _ticker or _ticker in _actual_price_df_cache:
+                if not _ticker:
                     continue
                 _entry_dt = datetime.strptime(_ai["actual_entry_date"], "%Y-%m-%d")
-                _start = (_entry_dt - timedelta(days=10)).strftime("%Y-%m-%d")
-                _end = (_entry_dt + timedelta(days=45)).strftime("%Y-%m-%d")
+                _t_range = _actual_ticker_ranges.setdefault(
+                    _ticker, {"min": _entry_dt, "max": _entry_dt}
+                )
+                _t_range["min"] = min(_t_range["min"], _entry_dt)
+                _t_range["max"] = max(_t_range["max"], _entry_dt)
+
+            _actual_price_df_cache = {}
+            for _ticker, _t_range in _actual_ticker_ranges.items():
+                _start = (_t_range["min"] - timedelta(days=10)).strftime("%Y-%m-%d")
+                _end = (_t_range["max"] + timedelta(days=45)).strftime("%Y-%m-%d")
                 _actual_price_df_cache[_ticker] = price_data.get_price_history(
                     _ticker, _start, _end
                 )
