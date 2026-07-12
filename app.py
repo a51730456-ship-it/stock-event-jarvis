@@ -4221,13 +4221,13 @@ def _render_kr_fable_mockup1_preview():
         .jarvis-m1-strip-label {
             display: block;
             color: #8ea1bc;
-            font-size: 0.72rem;
+            font-size: 18px;
             font-weight: 700;
         }
         .jarvis-m1-strip-value {
             display: block;
             color: #f8fafc;
-            font-size: 0.95rem;
+            font-size: 20px;
             font-weight: 800;
             margin-top: 0.18rem;
             overflow-wrap: anywhere;
@@ -5120,6 +5120,17 @@ with tab_kr:
                         styles.append("")
                 return styles
 
+            def _stage2_dim_styler(col):
+                # 이 컬럼들은 "② 오늘 주가 계산 결과" 표에도 이미 나오는 값이라
+                # 여기서는 흐리게 표시해 이 표에서만 새로 보이는 정보와 구분한다.
+                return ["color: #64748b"] * len(col)
+
+            def _stage2_confirm_styler(col):
+                return [
+                    "color: #f97316; font-weight: 800" if val == "예" else ""
+                    for val in col
+                ]
+
             _stage2_df = pd.DataFrame(
                 [
                     {
@@ -5133,7 +5144,12 @@ with tab_kr:
                     for r in _stage2_rows_sorted
                 ]
             )
-            _stage2_styled_df = _stage2_df.style.apply(_stage2_verdict_styler, subset=["단타 판단"])
+            _stage2_styled_df = (
+                _stage2_df.style
+                .apply(_stage2_dim_styler, subset=["종목명", "단기 관심 점수", "며칠 관심 점수"])
+                .apply(_stage2_verdict_styler, subset=["단타 판단"])
+                .apply(_stage2_confirm_styler, subset=["확인 필요"])
+            )
             st.dataframe(_stage2_styled_df, width="stretch", hide_index=True)
             st.markdown("종목별 1순위 근거 / 감점 이유 (미리보기)")
             for r in _stage2_rows_sorted:
@@ -5660,24 +5676,39 @@ with tab_us:
             ),
             reverse=True,
         )
+        def _us_rank_styler(col):
+            styles = []
+            for val in col:
+                if val == "1순위 후보":
+                    styles.append("color: #39ff14; font-weight: 800")
+                elif val == "2순위":
+                    styles.append("color: #facc15")
+                elif val == "3순위":
+                    styles.append("color: #4b9fff")
+                else:
+                    styles.append("")
+            return styles
+
+        _us_calc_df = pd.DataFrame(
+            [
+                {
+                    "종목명": r["name"],
+                    "티커": r["ticker"],
+                    "스윙 순위": _us_calc_rank.get(r["ticker"], "미평가"),
+                    "총점": r["total_score"],
+                    "스윙/며칠 관심점수": r["close_pos_score"],
+                    "단기/상승률 점수": r["upside_score"],
+                    "거래/탄력 점수": r["momentum_score"],
+                    "위험 감점": r["risk_score"],
+                    "판단": r["tier_label"],
+                    "1순위 근거": r["priority_reason"],
+                }
+                for r in _us_calc_sorted
+            ]
+        )
+        _us_calc_styled_df = _us_calc_df.style.apply(_us_rank_styler, subset=["스윙 순위"])
         st.dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "종목명": r["name"],
-                        "티커": r["ticker"],
-                        "스윙 순위": _us_calc_rank.get(r["ticker"], "미평가"),
-                        "총점": r["total_score"],
-                        "스윙/며칠 관심점수": r["close_pos_score"],
-                        "단기/상승률 점수": r["upside_score"],
-                        "거래/탄력 점수": r["momentum_score"],
-                        "위험 감점": r["risk_score"],
-                        "판단": r["tier_label"],
-                        "1순위 근거": r["priority_reason"],
-                    }
-                    for r in _us_calc_sorted
-                ]
-            ),
+            _us_calc_styled_df,
             width="stretch",
             hide_index=True,
         )
