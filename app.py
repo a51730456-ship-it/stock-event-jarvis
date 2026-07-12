@@ -394,6 +394,18 @@ st.markdown(
         font-weight: 800 !important;
         padding: 0.65rem 1.25rem !important;
         min-height: 3rem !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1.2 !important;
+    }
+    /* 라벨-드롭박스/입력창 간격 좁히기 (공통) */
+    [data-testid="stWidgetLabel"] {
+        margin-bottom: 2px !important;
+        padding-bottom: 0 !important;
+    }
+    [data-testid="stWidgetLabel"] p {
+        margin-bottom: 0 !important;
     }
     .st-key-kr_market_overview_load button:hover,
     .st-key-us_market_overview_load button:hover {
@@ -2636,13 +2648,27 @@ def _render_risk_and_warning_inputs(ticker, market, compact=False):
 
     if compact:
         st.markdown("#### 리스크 관리")
+        st.markdown(
+            """
+            <style>
+            .st-key-mockup1_detail_panel [data-testid="stNumberInput"] label,
+            .st-key-mockup1_detail_panel [data-testid="stNumberInput"] label p {
+                font-size: 18px !important;
+                font-weight: 700 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
         rc1, rc2, rc3 = st.columns(3)
         entry_price = rc1.number_input(
             "진입가", min_value=0.0, step=100.0, key=prefix + "entry_price"
         )
+        rc1.caption(f"{entry_price:,.0f}" if entry_price else "-")
         stop_loss_price = rc2.number_input(
             "손절가", value=0.0, min_value=0.0, step=100.0, key=prefix + "stop_loss_price"
         )
+        rc2.caption(f"{stop_loss_price:,.0f}" if stop_loss_price else "-")
 
         account_size = st.session_state.get("risk_account_size", 0.0)
         risk_percent = st.session_state.get("risk_percent_setting", 1.0)
@@ -4009,6 +4035,24 @@ def _render_kr_theme_chip_editor():
         "자동 조회는 네이버 테마별 시세를 참고용으로만 가져옵니다. 점수·판정·DB 저장에는 "
         "반영되지 않으며, 대장주 칸은 이미 입력된 값이 있으면 덮어쓰지 않습니다."
     )
+    st.markdown(
+        """
+        <style>
+        .st-key-kr_theme_auto_fetch button {
+            background: #facc15 !important;
+            color: #1f2937 !important;
+            border-color: #eab308 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        .st-key-kr_theme_auto_fetch button p {
+            color: #1f2937 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     if st.button("테마 참고판 자동 조회", key="kr_theme_auto_fetch"):
         _kr_theme_selected_before_fetch = st.session_state.get("kr_theme_detail_selector")
         _kr_theme_fetch_result = theme_data.fetch_kr_theme_snapshot()
@@ -4045,22 +4089,50 @@ def _render_kr_theme_chip_editor():
         _theme_detail_options,
         key="kr_theme_detail_selector",
     )
+    def _kr_theme_table_styler(col):
+        styles = []
+        for val in col:
+            if val == "강함":
+                styles.append("color: #ff4b4b; font-weight: 800")
+            else:
+                styles.append("")
+        return styles
+
+    def _kr_theme_name_styler(col):
+        return ["color: #60a5fa; font-weight: 700" for _ in col]
+
+    def _kr_theme_row_highlight(row):
+        if row.get("세부 입력") == "선택됨":
+            return ["border: 2px solid #4ade80"] * len(row)
+        return [""] * len(row)
+
+    _kr_theme_df = pd.DataFrame(
+        [
+            {
+                "테마": row.get("테마", ""),
+                "현재 상태": row.get("상태", "확인 필요"),
+                "참고 지표 또는 대표 종목": row.get("대장주", ""),
+                "세부 입력": "선택됨" if row.get("테마") == _theme_detail_selected else "선택 가능",
+            }
+            for row in theme_rows
+            if row.get("테마")
+        ]
+    )
+    _kr_theme_styled_df = (
+        _kr_theme_df.style
+        .apply(_kr_theme_name_styler, subset=["테마"])
+        .apply(_kr_theme_table_styler, subset=["현재 상태"])
+        .apply(_kr_theme_row_highlight, axis=1)
+    )
     st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "테마": row.get("테마", ""),
-                    "현재 상태": row.get("상태", "확인 필요"),
-                    "참고 지표 또는 대표 종목": row.get("대장주", ""),
-                    "메모": row.get("메모", ""),
-                    "세부 입력": "선택됨" if row.get("테마") == _theme_detail_selected else "선택 가능",
-                }
-                for row in theme_rows
-                if row.get("테마")
-            ]
-        ),
+        _kr_theme_styled_df,
         width="stretch",
         hide_index=True,
+        column_config={
+            "참고 지표 또는 대표 종목": st.column_config.TextColumn(
+                "참고 지표 또는 대표 종목", width="large"
+            ),
+        },
     )
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = [dict(row) for row in theme_rows]
@@ -4555,11 +4627,10 @@ def _render_kr_fable_mockup1_preview():
             ]
             for row in sorted_rows:
                 _verdict_display = _display_verdict_name(row[verdict_key])
-                _score_val = row[score_key]
-                if _verdict_display == "관찰 후보":
-                    _candidate_color = "#39ff14"
-                elif _score_val >= 65:
-                    _candidate_color = "#ff4b4b"
+                if _verdict_display == "1순위 후보":
+                    _candidate_color = "#4ade80"
+                elif _verdict_display == "관찰 후보":
+                    _candidate_color = "#15803d"
                 else:
                     _candidate_color = None
                 if _candidate_color:
@@ -4592,21 +4663,56 @@ def _render_kr_fable_mockup1_preview():
                 """
                 <style>
                 .st-key-mockup1_detail_panel [data-testid="stMetricValue"] {
-                    font-size: 20px !important;
+                    font-size: 26px !important;
                 }
                 .st-key-mockup1_detail_panel [data-testid="stMetricLabel"] {
-                    font-size: 14px !important;
+                    font-size: 17px !important;
                 }
                 .st-key-mockup1_detail_panel [data-testid="stMarkdownContainer"] p,
                 .st-key-mockup1_detail_panel [data-testid="stText"] {
-                    font-size: 15px !important;
-                    line-height: 1.5 !important;
+                    font-size: 18px !important;
+                    line-height: 1.6 !important;
+                }
+                .jarvis-m1-pct-card {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+                }
+                .jarvis-m1-pct-label {
+                    font-size: 17px;
+                    color: #9aa5b1;
+                }
+                .jarvis-m1-pct-value {
+                    font-size: 26px;
+                    font-weight: 700;
+                }
+                .jarvis-m1-pct-up { color: #ff4b4b; }
+                .jarvis-m1-pct-down { color: #4b9fff; }
+                .jarvis-m1-score-highlight {
+                    font-size: 20px !important;
+                    font-weight: 800 !important;
+                    color: #facc15 !important;
                 }
                 </style>
                 """,
                 unsafe_allow_html=True,
             )
             _mockup1_detail_container = st.container(key="mockup1_detail_panel")
+
+        def _pct_card_html(label, value):
+            if value is None:
+                return (
+                    f'<div class="jarvis-m1-pct-card">'
+                    f'<span class="jarvis-m1-pct-label">{label}</span>'
+                    f'<span class="jarvis-m1-pct-value">-</span></div>'
+                )
+            css_class = "jarvis-m1-pct-up" if value > 0 else "jarvis-m1-pct-down" if value < 0 else ""
+            return (
+                f'<div class="jarvis-m1-pct-card">'
+                f'<span class="jarvis-m1-pct-label">{label}</span>'
+                f'<span class="jarvis-m1-pct-value {css_class}">{_fmt_signed_pct(value)}</span></div>'
+            )
+
         with _mockup1_detail_container:
             metric_current, metric_open, metric_high, metric_turnover = st.columns(4)
             metric_current.metric(
@@ -4618,18 +4724,10 @@ def _render_kr_fable_mockup1_preview():
                     else _fmt_signed_pct(selected_row["change_pct"])
                 ),
             )
-            metric_open.metric(
-                "시가 대비",
-                "-"
-                if selected_row["open_pos_pct"] is None
-                else _fmt_signed_pct(selected_row["open_pos_pct"]),
-            )
-            metric_high.metric(
-                "고점 대비",
-                "-"
-                if selected_row["high_drop_pct"] is None
-                else _fmt_signed_pct(selected_row["high_drop_pct"]),
-            )
+            with metric_open:
+                st.markdown(_pct_card_html("시가 대비", selected_row["open_pos_pct"]), unsafe_allow_html=True)
+            with metric_high:
+                st.markdown(_pct_card_html("고점 대비", selected_row["high_drop_pct"]), unsafe_allow_html=True)
             metric_turnover.metric(
                 "시총 대비 거래대금",
                 "-"
@@ -4648,37 +4746,46 @@ def _render_kr_fable_mockup1_preview():
                 selected_top_reason = selected_row["swing_top_candidate_reason"]
                 selected_penalty_reason = selected_row["swing_penalty_reason"]
 
+            def _labeled_line(label, value):
+                st.markdown(
+                    f'<div style="font-size:18px;line-height:1.7;margin:4px 0;">'
+                    f'<span style="color:#60a5fa;font-weight:700;">{label}:</span> '
+                    f'<span style="color:#4ade80;font-weight:700;">{value}</span></div>',
+                    unsafe_allow_html=True,
+                )
+
             st.markdown("#### 핵심 근거")
-            st.write(f"점수: {selected_score}")
-            st.write(f"점수 근거: {selected_score_reason}")
-            st.write(f"1순위 후보 근거: {selected_top_reason}")
-            st.write(f"감점 이유: {selected_penalty_reason}")
-            st.write("매수 확정 여부: 미확정")
+            st.markdown(
+                f'<div class="jarvis-m1-score-highlight">점수: {selected_score}</div>',
+                unsafe_allow_html=True,
+            )
+            _labeled_line("점수 근거", selected_score_reason)
+            _labeled_line("1순위 후보 근거", selected_top_reason)
+            _labeled_line("감점 이유", selected_penalty_reason)
+            _labeled_line("매수 확정 여부", "미확정")
 
             with st.expander("전체 근거", expanded=False):
-                st.write(f"단타 점수: {selected_row['danta_score']}")
-                st.write(f"단타 판정: {_display_verdict_name(selected_row['danta_verdict'])}")
-                st.write(f"단타 점수 근거: {selected_row['danta_score_reason']}")
-                st.write(f"단타 1순위 후보 근거: {selected_row['danta_top_candidate_reason']}")
-                st.write(f"단타 감점 이유: {selected_row['danta_penalty_reason']}")
-                st.write(f"스윙 점수: {selected_row['swing_score']}")
-                st.write(f"스윙 판정: {_display_verdict_name(selected_row['swing_verdict'])}")
-                st.write(f"스윙 점수 근거: {selected_row['swing_score_reason']}")
-                st.write(f"스윙 1순위 후보 근거: {selected_row['swing_top_candidate_reason']}")
-                st.write(f"스윙 감점 이유: {selected_row['swing_penalty_reason']}")
-                st.write(f"시가 대비: {_fmt_signed_pct(selected_row['open_pos_pct'])}")
-                st.write(f"고점 대비: {_fmt_signed_pct(selected_row['high_drop_pct'])}")
-                st.write(
-                    "시총 대비 거래대금: "
-                    + (
-                        "-"
-                        if selected_row["turnover_ratio_pct"] is None
-                        else f"{selected_row['turnover_ratio_pct']:.2f}%"
-                    )
+                _labeled_line("단타 점수", selected_row["danta_score"])
+                _labeled_line("단타 판정", _display_verdict_name(selected_row["danta_verdict"]))
+                _labeled_line("단타 점수 근거", selected_row["danta_score_reason"])
+                _labeled_line("단타 1순위 후보 근거", selected_row["danta_top_candidate_reason"])
+                _labeled_line("단타 감점 이유", selected_row["danta_penalty_reason"])
+                _labeled_line("스윙 점수", selected_row["swing_score"])
+                _labeled_line("스윙 판정", _display_verdict_name(selected_row["swing_verdict"]))
+                _labeled_line("스윙 점수 근거", selected_row["swing_score_reason"])
+                _labeled_line("스윙 1순위 후보 근거", selected_row["swing_top_candidate_reason"])
+                _labeled_line("스윙 감점 이유", selected_row["swing_penalty_reason"])
+                _labeled_line("시가 대비", _fmt_signed_pct(selected_row["open_pos_pct"]))
+                _labeled_line("고점 대비", _fmt_signed_pct(selected_row["high_drop_pct"]))
+                _labeled_line(
+                    "시총 대비 거래대금",
+                    "-"
+                    if selected_row["turnover_ratio_pct"] is None
+                    else f"{selected_row['turnover_ratio_pct']:.2f}%",
                 )
-                st.write("validation_errors:", selected_row["validation_errors"] or "-")
-                st.write(f"단타 매수 확정 조건: {selected_row['danta_buy_confirm_condition']}")
-                st.write(f"스윙 매수 확정 조건: {selected_row['swing_buy_confirm_condition']}")
+                _labeled_line("validation_errors", selected_row["validation_errors"] or "-")
+                _labeled_line("단타 매수 확정 조건", selected_row["danta_buy_confirm_condition"])
+                _labeled_line("스윙 매수 확정 조건", selected_row["swing_buy_confirm_condition"])
 
             _render_risk_and_warning_inputs(selected_ticker, "KR", compact=True)
 
