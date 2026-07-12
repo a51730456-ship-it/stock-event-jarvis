@@ -3982,7 +3982,7 @@ def _render_kr_theme_chip_editor():
                 {
                     "테마": row.get("테마", ""),
                     "현재 상태": row.get("상태", "확인 필요"),
-                    "참고 지표 또는 대표 종목": row.get("참고 지표", ""),
+                    "참고 지표 또는 대표 종목": row.get("대장주", ""),
                     "메모": row.get("메모", ""),
                     "세부 입력": "선택됨" if row.get("테마") == _theme_detail_selected else "선택 가능",
                 }
@@ -4079,15 +4079,26 @@ def _render_kr_theme_chip_editor():
                 ),
                 key=selected_status_key,
             )
+            selected_detail_values = {}
             with st.expander("선택 테마 세부 입력", expanded=True):
                 for field_name, key_prefix in field_specs:
                     widget_key = f"{key_prefix}{selected_theme_slug}"
                     if widget_key not in st.session_state:
                         st.session_state[widget_key] = str(selected_theme_row.get(field_name) or "")
                     if field_name == "메모":
-                        st.text_area(field_name, key=widget_key)
+                        selected_detail_values[field_name] = st.text_area(field_name, key=widget_key)
                     else:
-                        st.text_input(field_name, key=widget_key)
+                        selected_detail_values[field_name] = st.text_input(field_name, key=widget_key)
+
+            # 위에서 입력한 상태·세부 항목을 요약 표(updated_rows)에도 반영한다 — 이전에는
+            # 위젯 값이 각자의 session_state 키에만 저장되고 표로 다시 합쳐지지 않아
+            # 테마 참고판 표가 항상 빈 채로 보이는 문제가 있었다.
+            for _row in updated_rows:
+                if _row.get("테마") == _theme_detail_selected:
+                    _row["상태"] = selected_status
+                    for field_name, value in selected_detail_values.items():
+                        _row[field_name] = value
+                    break
 
     st.session_state[KR_THEME_WATCH_DATA_KEY] = updated_rows
     st.caption("테마 참고판은 session_state에서만 유지되며 DB·점수·판정에는 반영되지 않습니다.")
@@ -4658,10 +4669,54 @@ with tab_kr:
             )
         else:
             st.markdown("#### 0단계 시장 분위기 자동 확인 결과")
+            st.markdown(
+                """
+                <style>
+                .st-key-kr_mood_auto_table [role="row"] {
+                    min-height: 24px !important;
+                }
+                .st-key-kr_mood_auto_table [role="columnheader"],
+                .st-key-kr_mood_auto_table [role="gridcell"] {
+                    padding-top: 2px !important;
+                    padding-bottom: 2px !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            def _mood_change_pct_styler(col):
+                styles = []
+                for val in col:
+                    if isinstance(val, str) and val.startswith("+"):
+                        styles.append("color: #ff4b4b")
+                    elif isinstance(val, str) and val.startswith("-") and val != "-":
+                        styles.append("color: #4b9fff")
+                    else:
+                        styles.append("")
+                return styles
+
+            def _mood_verdict_styler(col):
+                styles = []
+                for val in col:
+                    if isinstance(val, str) and val.startswith("강함"):
+                        styles.append("color: #ff4b4b")
+                    elif isinstance(val, str) and val.startswith("보합"):
+                        styles.append("color: #22c55e")
+                    else:
+                        styles.append("")
+                return styles
+
+            _mood_styled_df = (
+                pd.DataFrame(st.session_state["kr_mood_auto_results"])
+                .style.apply(_mood_change_pct_styler, subset=["등락률(%)"])
+                .apply(_mood_verdict_styler, subset=["판정"])
+            )
             st.dataframe(
-                pd.DataFrame(st.session_state["kr_mood_auto_results"]),
+                _mood_styled_df,
                 width="stretch",
                 hide_index=True,
+                key="kr_mood_auto_table",
             )
             st.caption("SOXX/SMH는 미국 반도체 ETF입니다. 둘 다 강하면 국내 반도체 투자심리에 우호적입니다.")
             _soxx_row = next(
@@ -5044,25 +5099,44 @@ with tab_kr:
         if not _stage2_preview["rows"]:
             st.info("아직 입력된 종목이 없어 2단계 판단 미리보기를 만들 수 없습니다.")
         else:
-            st.dataframe(
-                pd.DataFrame(
-                    [
-                        {
-                            "종목명": r["name"],
-                            "단기 관심 점수": int(round(r["danta_score"])),
-                            "며칠 관심 점수": int(round(r["swing_score"])),
-                            "단타 판단": _display_verdict_name(r["danta_verdict"]),
-                            "스윙 판단": _display_verdict_name(r["swing_verdict"]),
-                            "확인 필요": "예" if r["needs_confirmation"] else "-",
-                        }
-                        for r in _stage2_preview["rows"]
-                    ]
-                ),
-                width="stretch",
-                hide_index=True,
+            _stage2_rows_sorted = sorted(
+                _stage2_preview["rows"],
+                key=lambda r: (r["danta_score"] + r["swing_score"]) / 2,
+                reverse=True,
             )
+
+            def _stage2_verdict_styler(col):
+                styles = []
+                for val in col:
+                    if val == "보류":
+                        styles.append("color: #4b9fff")
+                    elif val == "재확인":
+                        styles.append("color: #facc15")
+                    elif val == "관찰 후보":
+                        styles.append("color: #4b9fff")
+                    elif isinstance(val, str) and val.startswith("1순위"):
+                        styles.append("color: #39ff14; font-weight: 800")
+                    else:
+                        styles.append("")
+                return styles
+
+            _stage2_df = pd.DataFrame(
+                [
+                    {
+                        "종목명": r["name"],
+                        "단기 관심 점수": int(round(r["danta_score"])),
+                        "며칠 관심 점수": int(round(r["swing_score"])),
+                        "단타 판단": _display_verdict_name(r["danta_verdict"]),
+                        "스윙 판단": _display_verdict_name(r["swing_verdict"]),
+                        "확인 필요": "예" if r["needs_confirmation"] else "-",
+                    }
+                    for r in _stage2_rows_sorted
+                ]
+            )
+            _stage2_styled_df = _stage2_df.style.apply(_stage2_verdict_styler, subset=["단타 판단"])
+            st.dataframe(_stage2_styled_df, width="stretch", hide_index=True)
             st.markdown("종목별 1순위 근거 / 감점 이유 (미리보기)")
-            for r in _stage2_preview["rows"]:
+            for r in _stage2_rows_sorted:
                 with st.expander(
                     f"{r['name']} — 단타 {_display_verdict_name(r['danta_verdict'])} / "
                     f"스윙 {_display_verdict_name(r['swing_verdict'])}"
