@@ -1225,13 +1225,15 @@ def compute_us_swing_breakdown(name, change_pct, open_pos_pct, high_drop_pct, tu
     """
     upside_score, upside_note = _us_swing_upside_score(change_pct)
     close_score, close_note = _us_swing_close_pos_score(high_drop_pct)
+    # 시장 분위기(mood_score)는 근거표에 참고용으로만 표시하며, 총점·판정 계산에는
+    # 반영하지 않는다 (뉴스·공시·시황·테마는 점수·판정에 반영하지 않는다는 원칙).
     mood_score, mood_note = _us_swing_market_mood_score()
     material_score, material_note = _us_swing_material_score(material_memo)
     momentum_score, momentum_note = _us_swing_momentum_score(turnover_ratio_pct)
     risk_score, risk_note = _us_swing_risk_score(change_pct, high_drop_pct, bool(material_memo))
 
     total_score = round(
-        upside_score + close_score + mood_score + material_score + momentum_score + risk_score, 1
+        upside_score + close_score + material_score + momentum_score + risk_score, 1
     )
     total_score = max(0.0, min(total_score, 100.0))
     tier_label = _us_swing_tier_label(total_score)
