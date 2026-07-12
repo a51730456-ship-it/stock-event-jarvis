@@ -479,10 +479,12 @@ st.markdown(
         font-size: 1.22rem !important;
         font-weight: 900 !important;
     }
-    /* 핵심 실행·저장 버튼만 강조한다. 일반 버튼/탭/expander/필터는 대상에서 제외한다. */
-    .st-key-snap_auto_fill button,
+    /* 핵심 실행·저장 버튼만 강조한다. 일반 버튼/탭/expander/필터는 대상에서 제외한다.
+       snap_auto_fill/snap_mood_auto_check("문제가 있을 때 단계별 다시 실행" expander 안의
+       보조 버튼)는 이 노란색 강조에서 제외한다 — 대표 버튼(kr_auto_preview_run)과 색이
+       같아서 구분이 안 된다는 지적(2026-07-12 스크린샷) 반영, 2026-07-13 수정. 원래
+       지정색(주황/진파랑, 위쪽 규칙)이 다시 적용된다. */
     .st-key-us_stock_auto_fill button,
-    .st-key-snap_mood_auto_check button,
     .st-key-kr_dart_check_button button,
     .st-key-kr_naver_news_check_button button,
     .st-key-us_naver_news_check_button button,
@@ -501,9 +503,7 @@ st.markdown(
         font-size: 17px !important;
         font-weight: 800 !important;
     }
-    .st-key-snap_auto_fill button p,
     .st-key-us_stock_auto_fill button p,
-    .st-key-snap_mood_auto_check button p,
     .st-key-kr_dart_check_button button p,
     .st-key-kr_naver_news_check_button button p,
     .st-key-us_naver_news_check_button button p,
@@ -519,9 +519,7 @@ st.markdown(
         font-size: 17px !important;
         font-weight: 800 !important;
     }
-    .st-key-snap_auto_fill button:hover,
     .st-key-us_stock_auto_fill button:hover,
-    .st-key-snap_mood_auto_check button:hover,
     .st-key-kr_dart_check_button button:hover,
     .st-key-kr_naver_news_check_button button:hover,
     .st-key-us_naver_news_check_button button:hover,
@@ -536,9 +534,7 @@ st.markdown(
         background-color: #fde047 !important;
         color: #111827 !important;
     }
-    .st-key-snap_auto_fill button:disabled,
     .st-key-us_stock_auto_fill button:disabled,
-    .st-key-snap_mood_auto_check button:disabled,
     .st-key-kr_dart_check_button button:disabled,
     .st-key-kr_naver_news_check_button button:disabled,
     .st-key-us_naver_news_check_button button:disabled,
@@ -594,7 +590,14 @@ st.markdown(
     /* Readability pass: scoped text, controls, tables, and vertical rhythm. */
     .stMarkdown p,
     [data-testid="stText"],
-    [data-testid="stAlert"] p,
+    [data-testid="stAlert"] p {
+        font-size: 19px !important;
+        line-height: 1.75 !important;
+        margin-bottom: 1.75rem !important;
+    }
+    /* 라벨류는 폰트 확대만 적용하고 margin-bottom은 적용하지 않는다 — 라벨-드롭박스
+       간격 좁히기 규칙([data-testid="stWidgetLabel"], 위쪽)과 충돌해서 간격이 다시
+       벌어지는 걸 막기 위함(2026-07-13, 7/12 스크린샷 지적 항목 수정). */
     [data-testid="stWidgetLabel"] p,
     [data-testid="stRadio"] label,
     [data-testid="stSelectbox"] label,
@@ -603,7 +606,6 @@ st.markdown(
     [data-testid="stTextArea"] label {
         font-size: 19px !important;
         line-height: 1.75 !important;
-        margin-bottom: 1.75rem !important;
     }
     [data-testid="stCaptionContainer"], .stCaption, small {
         color: #CBD5E1 !important;
