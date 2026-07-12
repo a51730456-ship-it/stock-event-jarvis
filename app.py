@@ -677,6 +677,7 @@ st.markdown(
         }
         [data-testid="stDataFrame"], [data-testid="stDataEditor"] {
             max-width: 100% !important;
+            overflow-x: auto !important;
         }
     }
     @media (max-width: 680px) {
