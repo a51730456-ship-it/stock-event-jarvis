@@ -4789,10 +4789,12 @@ def _render_kr_fable_mockup1_preview():
                     )
             st.markdown(f"<style>{''.join(_candidate_style_rules)}</style>", unsafe_allow_html=True)
 
+            _candidate_label_gap = " " * 4  # 일반 스페이스는 여러 개 써도 브라우저가 하나로 합치므로 줄바꿈 없는 공백 사용
             for row in sorted_rows:
                 candidate_key = f"mockup1_candidate_{row['ticker']}"
                 if st.button(
-                    f"{row['name']} · {_display_verdict_name(row[verdict_key])} · {row[score_key]}점",
+                    f"{row['name']}{_candidate_label_gap}{_display_verdict_name(row[verdict_key])}"
+                    f"{_candidate_label_gap}{row[score_key]}점",
                     key=candidate_key,
                     help=f"{sector_by_ticker.get(row['ticker'], '-')} · 확인 필요: {'예' if row['needs_confirmation'] else '아니오'}",
                 ):
