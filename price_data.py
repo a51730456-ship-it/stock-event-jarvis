@@ -231,3 +231,25 @@ def get_snapshot_defaults(ticker):
         "market_cap": market_cap,
         "market_cap_approx": True,
     }
+
+
+def get_ohlc_history_for_chart(ticker, start, end):
+    """차트 표시 전용 일봉 OHLC 조회 (읽기 전용, 점수 계산과 무관).
+
+    yfinance 우선, 실패 시 FinanceDataReader 보조. 기존 계산 로직
+    (get_snapshot_defaults 등)은 건드리지 않고 내부 헬퍼(_try_yfinance_ohlcv/
+    _try_fdr_ohlcv)를 그대로 재사용한다. 조회 실패 시 예외 대신 None을 반환한다.
+    """
+    try:
+        df = _try_yfinance_ohlcv(ticker, start, end)
+        if df is not None and len(df) > 0:
+            return df
+    except Exception:
+        pass
+    try:
+        df = _try_fdr_ohlcv(_fdr_code(ticker), start, end)
+        if df is not None and len(df) > 0:
+            return df
+    except Exception:
+        pass
+    return None

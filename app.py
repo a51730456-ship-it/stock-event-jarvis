@@ -1969,6 +1969,16 @@ def _cached_kr_dart_corp_code_map(api_key):
     return disclosure_data.fetch_dart_corp_code_map(api_key)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_kr_chart_history(ticker):
+    """종목별 상세 입력 카드에서 쓰는 최근 3개월 일봉 차트 데이터(종가). 참고용, 점수/저장 무관."""
+    end = datetime.now()
+    start = end - timedelta(days=95)
+    return price_data.get_ohlc_history_for_chart(
+        ticker, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+    )
+
+
 def _fetch_kr_dart_disclosures(api_key, stocks, today=None):
     """Fetch read-only DART references for the Korean snapshot stocks."""
     if not api_key:
@@ -4000,6 +4010,7 @@ def _render_kr_theme_chip_editor():
         "반영되지 않으며, 대장주 칸은 이미 입력된 값이 있으면 덮어쓰지 않습니다."
     )
     if st.button("테마 참고판 자동 조회", key="kr_theme_auto_fetch"):
+        _kr_theme_selected_before_fetch = st.session_state.get("kr_theme_detail_selector")
         _kr_theme_fetch_result = theme_data.fetch_kr_theme_snapshot()
         if not _kr_theme_fetch_result["ok"]:
             st.session_state["kr_theme_auto_fetch_error"] = _kr_theme_fetch_result.get("error") or "조회 실패"
@@ -4018,6 +4029,8 @@ def _render_kr_theme_chip_editor():
                     _slug = "_".join(f"u{ord(c):04x}" for c in _theme_name if c.isalnum())
                     st.session_state[f"kr_theme_leader_{_slug}"] = _auto["top_stock"]
             st.session_state[KR_THEME_WATCH_DATA_KEY] = theme_rows
+        if _kr_theme_selected_before_fetch is not None:
+            st.session_state["kr_theme_detail_selector"] = _kr_theme_selected_before_fetch
         st.rerun()
     if st.session_state.get("kr_theme_auto_fetch_error"):
         st.warning(f"테마 자동 조회 실패: {st.session_state['kr_theme_auto_fetch_error']} (네트워크 문제일 수 있습니다)")
@@ -4277,17 +4290,19 @@ def _render_kr_fable_mockup1_preview():
         .jarvis-m1-strip-label {
             display: block;
             color: #8ea1bc;
-            font-size: 18px;
+            font-size: 19px;
             font-weight: 700;
         }
         .jarvis-m1-strip-value {
             display: block;
             color: #f8fafc;
-            font-size: 20px;
+            font-size: 22px;
             font-weight: 800;
             margin-top: 0.18rem;
             overflow-wrap: anywhere;
         }
+        .jarvis-m1-strip-value.jarvis-m1-up { color: #ff4b4b; }
+        .jarvis-m1-strip-value.jarvis-m1-down { color: #4b9fff; }
         .jarvis-m1-stepper {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
@@ -4442,10 +4457,18 @@ def _render_kr_fable_mockup1_preview():
         ("오늘 저장", today_saved),
         ("금일 손실 R", today_loss_r),
     ]
+    def _strip_value_class(value):
+        text = str(value)
+        if "+" in text:
+            return " jarvis-m1-up"
+        if "-" in text and text != "-":
+            return " jarvis-m1-down"
+        return ""
+
     strip_html = "".join(
         '<div class="jarvis-m1-strip-item">'
         f'<span class="jarvis-m1-strip-label">{label}</span>'
-        f'<span class="jarvis-m1-strip-value">{value}</span>'
+        f'<span class="jarvis-m1-strip-value{_strip_value_class(value)}">{value}</span>'
         "</div>"
         for label, value in strip_items
     )
@@ -4526,6 +4549,26 @@ def _render_kr_fable_mockup1_preview():
                     f'<div class="jarvis-m1-stock-meta">확인 필요: {confirmation}</div>'
                     "</div>"
                 )
+            _candidate_style_rules = [
+                '[class*="st-key-mockup1_candidate_"] button, '
+                '[class*="st-key-mockup1_candidate_"] button p { font-size: 21px !important; }'
+            ]
+            for row in sorted_rows:
+                _verdict_display = _display_verdict_name(row[verdict_key])
+                _score_val = row[score_key]
+                if _verdict_display == "관찰 후보":
+                    _candidate_color = "#39ff14"
+                elif _score_val >= 65:
+                    _candidate_color = "#ff4b4b"
+                else:
+                    _candidate_color = None
+                if _candidate_color:
+                    _candidate_style_rules.append(
+                        f'[class*="st-key-mockup1_candidate_{row["ticker"]}"] button p '
+                        f'{{ color: {_candidate_color} !important; font-weight: 800 !important; }}'
+                    )
+            st.markdown(f"<style>{''.join(_candidate_style_rules)}</style>", unsafe_allow_html=True)
+
             for row in sorted_rows:
                 candidate_key = f"mockup1_candidate_{row['ticker']}"
                 if st.button(
@@ -4545,6 +4588,26 @@ def _render_kr_fable_mockup1_preview():
                 f"{trade_mode} · {_display_verdict_name(selected_verdict)} · "
                 f"{selected_row[score_key]}점"
             )
+            st.markdown(
+                """
+                <style>
+                .st-key-mockup1_detail_panel [data-testid="stMetricValue"] {
+                    font-size: 20px !important;
+                }
+                .st-key-mockup1_detail_panel [data-testid="stMetricLabel"] {
+                    font-size: 14px !important;
+                }
+                .st-key-mockup1_detail_panel [data-testid="stMarkdownContainer"] p,
+                .st-key-mockup1_detail_panel [data-testid="stText"] {
+                    font-size: 15px !important;
+                    line-height: 1.5 !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            _mockup1_detail_container = st.container(key="mockup1_detail_panel")
+        with _mockup1_detail_container:
             metric_current, metric_open, metric_high, metric_turnover = st.columns(4)
             metric_current.metric(
                 "현재가",
@@ -5064,6 +5127,17 @@ with tab_kr:
             _kr_detail_options,
             key="kr_snapshot_detail_selector",
         )
+
+        if _kr_detail_selected != "선택 안 함":
+            _chart_ticker = SNAPSHOT_NAME_TO_TICKER.get(_kr_detail_selected)
+            if _chart_ticker:
+                with st.expander(f"{_kr_detail_selected} 일봉 차트 (최근 3개월)", expanded=False):
+                    _chart_df = _fetch_kr_chart_history(_chart_ticker)
+                    if _chart_df is None or _chart_df.empty:
+                        st.info("차트 데이터를 불러오지 못했습니다(네트워크 문제일 수 있습니다).")
+                    else:
+                        st.line_chart(_chart_df["Close"], height=260)
+                        st.caption("종가 기준 최근 3개월 일봉입니다. 참고용이며 점수·판정에는 반영되지 않습니다.")
 
         for s in SNAPSHOT_STOCKS:
             if _kr_detail_selected != s["name"]:
@@ -5647,6 +5721,40 @@ with tab_us:
                 ("바이오", "XBI, IBB"),
             ]
         ]
+        # 섹터 ETF 자동 조회 결과가 있으면, 조회한 5개 ETF와 직접 대응되는 테마(AI/반도체,
+        # 에너지/유가)의 상태를 등락률 기준으로 자동 채운다. 나머지 테마는 대응되는 ETF가
+        # 없어(금리/성장주·전력망/원전·방산/전쟁·자동차/전기차·바이오) 자동 판정하지 않는다.
+        # 대장주 칸은 개별 종목명이 아니라 티커 참고용이라 채우지 않고, 메모에만 참고 표시하며
+        # 사용자가 이미 입력한 셀(edited_rows)은 절대 덮어쓰지 않는다.
+        _us_theme_etf_mapping = {
+            "AI/반도체": ["SOXX", "SMH", "XLK"],
+            "에너지/유가": ["XLE"],
+        }
+        if _us_sector_result and _us_sector_result["ok"]:
+            _us_sector_by_ticker = {
+                s["ticker"]: s["change_pct"] for s in _us_sector_result["sectors"] if s["ok"]
+            }
+            _us_editor_state = st.session_state.get("us_theme_watch_editor") or {}
+            _us_edited_rows = _us_editor_state.get("edited_rows") or {}
+            for _idx, _row in enumerate(_us_theme_watch_rows):
+                _tickers = _us_theme_etf_mapping.get(_row["테마"])
+                if not _tickers:
+                    continue
+                _vals = [_us_sector_by_ticker[t] for t in _tickers if t in _us_sector_by_ticker]
+                if not _vals:
+                    continue
+                _avg_change = sum(_vals) / len(_vals)
+                if _avg_change >= 1.0:
+                    _auto_status = "강함"
+                elif _avg_change <= -1.0:
+                    _auto_status = "약함"
+                else:
+                    _auto_status = "보통"
+                _row_edits = _us_edited_rows.get(_idx, {})
+                if "상태" not in _row_edits:
+                    _row["상태"] = _auto_status
+                if "메모" not in _row_edits and not _row["메모"]:
+                    _row["메모"] = f"자동조회 참고: {'/'.join(_tickers)} 평균 {_avg_change:+.2f}%"
         st.data_editor(
             pd.DataFrame(_us_theme_watch_rows),
             key="us_theme_watch_editor",
