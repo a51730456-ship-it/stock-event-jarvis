@@ -17,6 +17,7 @@ import database as db
 import disclosure_data
 import news_data
 import performance
+import theme_data
 import price_data
 
 _reference_panel_logger = logging.getLogger("jarvis.reference_panels")
@@ -3402,12 +3403,37 @@ if _saved_view == "오늘 요약":
 with tab_aux:
     _aux_view = st.radio(
         "보조 화면",
-        ["수동 기록 입력", "추가 기능", "사용법"],
+        ["수동 기록 입력", "추가 기능", "사용법", "이 앱의 원칙"],
         horizontal=True,
         key="aux_view_selector",
     )
-    st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>필요할 때만 수동 기록 입력·추가 기능·사용법을 선택하세요.</div>", unsafe_allow_html=True)
-if _aux_view == "수동 기록 입력":
+    st.markdown("<div style='font-size:17px;line-height:1.5;color:#CBD5E1'>필요할 때만 수동 기록 입력·추가 기능·사용법·이 앱의 원칙을 선택하세요.</div>", unsafe_allow_html=True)
+if _aux_view == "이 앱의 원칙":
+    with tab_aux:
+        st.subheader("자비스가 돈을 지켜주는 방식")
+        st.markdown(
+            "> **이 앱의 목표는 더 좋은 종목을 찾아주는 게 아니라, "
+            "나쁜 매매를 빼는 장치와 조건의 기대값을 증명하는 기록입니다.**"
+        )
+        st.markdown("#### 핵심 기능 6가지")
+        st.markdown(
+            "1. **손절 없는 매수 차단** — 치명적 손실을 원천 차단 `[적용됨]`\n"
+            "2. **총 오픈 리스크 3R 제한** — 여러 종목에 동시에 물려 한 번에 무너지는 것 방지 `[적용됨]`\n"
+            "3. **필터 무시 로그** — 준수 매매와 무시 매매의 실제 손익 차이를 숫자로 확인 `[적용됨]`\n"
+            "4. **R·청산 기록** — 계획대로 팔았는지 감정적으로 팔았는지 사후 확인 `[적용됨]`\n"
+            "5. **조건별 플레이북 태그** — 어떤 조건이 반복되는지 기록 `[적용됨]`\n"
+            "   (조건별 기대값 통계는 기록 30건 이상 쌓이면 자동 활성화 예정)\n"
+            "6. **탈락 종목 추적** — 필터가 너무 세서 좋은 기회를 놓치고 있진 않은지 확인 `[적용됨]`"
+        )
+        st.markdown("#### 하지 않기로 한 것 (원칙적으로 배제)")
+        st.markdown(
+            "- 예측시장 정보를 점수에 반영하는 것\n"
+            "- 뉴스 키워드로 자동 가점 주는 것\n"
+            "- AI 추천을 매수 신호로 직결하는 것\n"
+            "- 승률만 강조하는 화면\n"
+            "- 근거 없는 매수 차단 남발"
+        )
+elif _aux_view == "수동 기록 입력":
         st.subheader("새 기록 입력")
 
         st.session_state.setdefault("form_version", 0)
@@ -3968,6 +3994,36 @@ def _render_kr_theme_chip_editor():
         ("추격주의", "kr_theme_chase_warning_"),
         ("메모", "kr_theme_memo_"),
     ]
+
+    st.caption(
+        "자동 조회는 네이버 테마별 시세를 참고용으로만 가져옵니다. 점수·판정·DB 저장에는 "
+        "반영되지 않으며, 대장주 칸은 이미 입력된 값이 있으면 덮어쓰지 않습니다."
+    )
+    if st.button("테마 참고판 자동 조회", key="kr_theme_auto_fetch"):
+        _kr_theme_fetch_result = theme_data.fetch_kr_theme_snapshot()
+        if not _kr_theme_fetch_result["ok"]:
+            st.session_state["kr_theme_auto_fetch_error"] = _kr_theme_fetch_result.get("error") or "조회 실패"
+        else:
+            st.session_state.pop("kr_theme_auto_fetch_error", None)
+            st.session_state["kr_theme_auto_fetch_checked_at"] = _kr_theme_fetch_result["checked_at"]
+            for _row in theme_rows:
+                _theme_name = _row.get("테마")
+                _auto = _kr_theme_fetch_result["themes"].get(_theme_name)
+                if not _auto or not _auto.get("ok"):
+                    continue
+                _row["상태"] = _auto["verdict"]
+                _row["_auto_change_pct"] = _auto["change_pct"]
+                if not (_row.get("대장주") or "").strip() and _auto.get("top_stock"):
+                    _row["대장주"] = _auto["top_stock"]
+                    _slug = "_".join(f"u{ord(c):04x}" for c in _theme_name if c.isalnum())
+                    st.session_state[f"kr_theme_leader_{_slug}"] = _auto["top_stock"]
+            st.session_state[KR_THEME_WATCH_DATA_KEY] = theme_rows
+        st.rerun()
+    if st.session_state.get("kr_theme_auto_fetch_error"):
+        st.warning(f"테마 자동 조회 실패: {st.session_state['kr_theme_auto_fetch_error']} (네트워크 문제일 수 있습니다)")
+    if st.session_state.get("kr_theme_auto_fetch_checked_at"):
+        st.caption(f"마지막 자동 조회: {st.session_state['kr_theme_auto_fetch_checked_at']}")
+
     with st.container(key="kr_theme_reference"):
         theme_columns = st.columns(2, gap="large")
     _theme_detail_options = ["선택 안 함"] + [str(row.get("테마") or "") for row in theme_rows if row.get("테마")]
@@ -5547,6 +5603,30 @@ with tab_us:
             "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
             "미국장 테마와 한국장 연결 가능성을 빠르게 정리합니다."
         )
+        st.caption("섹터 ETF 자동 조회는 참고용 표시일 뿐이며 점수·판정·DB 저장에는 반영되지 않습니다.")
+        if st.button("섹터 ETF 자동 조회 (SOXX/SMH/XLK/XLE/XLF)", key="us_sector_auto_fetch"):
+            st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
+            st.rerun()
+        _us_sector_result = st.session_state.get("us_sector_auto_fetch_result")
+        if _us_sector_result:
+            if _us_sector_result["ok"]:
+                st.dataframe(
+                    pd.DataFrame(
+                        [
+                            {
+                                "티커": s["ticker"],
+                                "섹터": s["label"],
+                                "등락률(%)": f"{s['change_pct']:+.2f}%" if s["ok"] else "조회 실패",
+                            }
+                            for s in _us_sector_result["sectors"]
+                        ]
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
+                st.caption(f"마지막 자동 조회: {_us_sector_result['checked_at']}")
+            else:
+                st.warning("섹터 ETF 자동 조회 실패 — 네트워크 문제일 수 있습니다.")
         _us_theme_watch_rows = [
             {
                 "테마": theme,
