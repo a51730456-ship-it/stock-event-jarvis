@@ -18,6 +18,7 @@ import disclosure_data
 import news_data
 import performance
 import theme_data
+import theme_history
 import price_data
 
 _reference_panel_logger = logging.getLogger("jarvis.reference_panels")
@@ -4137,6 +4138,16 @@ def _render_kr_theme_chip_editor():
                     _slug = "_".join(f"u{ord(c):04x}" for c in _theme_name if c.isalnum())
                     st.session_state[f"kr_theme_leader_{_slug}"] = _auto["top_stock"]
             st.session_state[KR_THEME_WATCH_DATA_KEY] = theme_rows
+            # 순수 관찰 로그: 오늘 조회한 테마별 강함/보통/약함을 theme_history에 기록한다.
+            # 점수·판정·report DB와는 완전히 분리된 테이블이며, 이 기록 자체는 저장/판정에
+            # 영향을 주지 않는다.
+            theme_history.record_theme_states(
+                {
+                    theme_name: info["verdict"]
+                    for theme_name, info in _kr_theme_fetch_result["themes"].items()
+                    if info.get("ok")
+                }
+            )
         if _kr_theme_selected_before_fetch is not None:
             st.session_state["kr_theme_detail_selector"] = _kr_theme_selected_before_fetch
         st.rerun()
@@ -4170,22 +4181,41 @@ def _render_kr_theme_chip_editor():
             return ["border: 2px solid #4ade80"] * len(row)
         return [""] * len(row)
 
+    def _kr_theme_elapsed_text(theme_name):
+        # 순수 관찰 로그(theme_history) 기반 자동 계산. 점수·판정과 무관한 참고 표시.
+        elapsed = theme_history.get_theme_elapsed_strong_days(theme_name)
+        if elapsed is None:
+            # 로그가 아예 없는 테마와, 로그는 있지만 최근이 "강함"이 아닌 테마를 구분한다.
+            has_any_log = theme_history.has_theme_log(theme_name)
+            return "관찰 시작 1일차" if not has_any_log else "-"
+        suffix = " ⚠추격주의" if elapsed >= 4 else ""
+        return f"경과 {elapsed}일차{suffix}"
+
     _kr_theme_df = pd.DataFrame(
         [
             {
                 "테마": row.get("테마", ""),
                 "현재 상태": row.get("상태", "확인 필요"),
                 "참고 지표 또는 대표 종목": row.get("대장주", ""),
+                "경과일수": _kr_theme_elapsed_text(row.get("테마", "")),
                 "세부 입력": "선택됨" if row.get("테마") == _theme_detail_selected else "선택 가능",
             }
             for row in theme_rows
             if row.get("테마")
         ]
     )
+
+    def _kr_theme_elapsed_styler(col):
+        return [
+            "color: #f97316; font-weight: 800" if "추격주의" in str(val) else ""
+            for val in col
+        ]
+
     _kr_theme_styled_df = (
         _kr_theme_df.style
         .apply(_kr_theme_name_styler, subset=["테마"])
         .apply(_kr_theme_table_styler, subset=["현재 상태"])
+        .apply(_kr_theme_elapsed_styler, subset=["경과일수"])
         .apply(_kr_theme_row_highlight, axis=1)
     )
     st.dataframe(
