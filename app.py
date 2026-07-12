@@ -662,6 +662,16 @@ st.markdown(
             flex: none !important;
             min-width: 0 !important;
         }
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-mockup1_candidate_"]) {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 12px !important;
+        }
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-mockup1_candidate_"]) > div {
+            width: auto !important;
+            flex: none !important;
+            min-width: 0 !important;
+        }
         .st-key-kr_theme_reference [data-testid="stHorizontalBlock"] {
             grid-template-columns: minmax(0, 1fr) !important;
         }
@@ -672,6 +682,9 @@ st.markdown(
     @media (max-width: 680px) {
         .st-key-market_overview_cards_kr [data-testid="stHorizontalBlock"],
         .st-key-market_overview_cards_us [data-testid="stHorizontalBlock"] {
+            grid-template-columns: minmax(0, 1fr) !important;
+        }
+        [data-testid="stHorizontalBlock"]:has([class*="st-key-mockup1_candidate_"]) {
             grid-template-columns: minmax(0, 1fr) !important;
         }
     }
@@ -3969,9 +3982,10 @@ def _render_kr_theme_chip_editor():
         hide_index=True,
     )
     split_index = (len(theme_rows) + 1) // 2
-    updated_rows = []
+    updated_rows = [dict(row) for row in theme_rows]
 
-    for index, row in enumerate(theme_rows):
+    # 기존 테마별 카드/상태 버튼은 렌더링하지 않고 표만 유지한다.
+    for index, row in enumerate([]):
         updated_row = dict(row)
         theme_name = str(row.get("테마") or "")
         if not theme_name:
@@ -4032,6 +4046,36 @@ def _render_kr_theme_chip_editor():
             if field_name in updated_row:
                 updated_row[field_name] = value
         updated_rows.append(updated_row)
+
+    if _theme_detail_selected != "선택 안 함":
+        selected_theme_row = next(
+            (row for row in theme_rows if row.get("테마") == _theme_detail_selected),
+            None,
+        )
+        if selected_theme_row:
+            selected_theme_slug = "_".join(
+                f"u{ord(char):04x}" for char in _theme_detail_selected if char.isalnum()
+            )
+            selected_status_key = f"kr_theme_status_{selected_theme_slug}"
+            selected_status = st.selectbox(
+                "선택 테마 현재 상태",
+                status_options,
+                index=(
+                    status_options.index(selected_theme_row.get("상태"))
+                    if selected_theme_row.get("상태") in status_options
+                    else len(status_options) - 1
+                ),
+                key=selected_status_key,
+            )
+            with st.expander("선택 테마 세부 입력", expanded=True):
+                for field_name, key_prefix in field_specs:
+                    widget_key = f"{key_prefix}{selected_theme_slug}"
+                    if widget_key not in st.session_state:
+                        st.session_state[widget_key] = str(selected_theme_row.get(field_name) or "")
+                    if field_name == "메모":
+                        st.text_area(field_name, key=widget_key)
+                    else:
+                        st.text_input(field_name, key=widget_key)
 
     st.session_state[KR_THEME_WATCH_DATA_KEY] = updated_rows
     st.caption("테마 참고판은 session_state에서만 유지되며 DB·점수·판정에는 반영되지 않습니다.")
@@ -4387,9 +4431,7 @@ def _render_kr_fable_mockup1_preview():
     if not rows:
         st.info("0→1→2 미리보기를 실행하면 종목 판단 화면이 표시됩니다.")
     else:
-        # 태블릿·PC 모두 결과표 아래 선택기와 상세를 세로로 표시한다.
-        left_col = st.container()
-        right_col = st.container()
+        left_col, right_col = st.columns([0.34, 0.66], gap="large")
         with left_col:
             trade_mode = st.selectbox(
                 "매매유형 선택",
@@ -4429,7 +4471,15 @@ def _render_kr_fable_mockup1_preview():
                     f'<div class="jarvis-m1-stock-meta">확인 필요: {confirmation}</div>'
                     "</div>"
                 )
-            # 후보 순위와 비교는 바로 위 결과표에서 확인한다. 중복 후보 카드 목록은 렌더링하지 않는다.
+            for row in sorted_rows:
+                candidate_key = f"mockup1_candidate_{row['ticker']}"
+                if st.button(
+                    f"{row['name']} · {_display_verdict_name(row[verdict_key])} · {row[score_key]}점",
+                    key=candidate_key,
+                    help=f"{sector_by_ticker.get(row['ticker'], '-')} · 확인 필요: {'예' if row['needs_confirmation'] else '아니오'}",
+                ):
+                    st.session_state["mockup1_selected_ticker"] = row["ticker"]
+                    st.rerun()
 
         selected_row = rows_by_ticker[selected_ticker]
         selected_verdict = selected_row[verdict_key]
