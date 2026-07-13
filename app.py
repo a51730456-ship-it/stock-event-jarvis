@@ -4346,7 +4346,14 @@ def _render_kr_theme_chip_editor():
     # 처음 열었을 때 "선택 안 함"이면 아래 "선택 테마 현재 상태"/"선택 테마 세부 입력"이
     # 통째로 안 보여서 헷갈린다는 지적 — 아직 한 번도 선택한 적 없으면 "강함" 테마 중
     # 첫 번째를 기본으로 선택해둔다(2026-07-13 사용자 요청).
-    if "kr_theme_detail_selector" not in st.session_state:
+    # 표에서 테마 행을 클릭했을 때(아래 st.dataframe on_select 핸들러)는 위젯이 이미
+    # 인스턴스화된 뒤라 session_state["kr_theme_detail_selector"]를 바로 못 바꾼다
+    # (StreamlitAPIException). 그래서 클릭 시엔 이 "대기" 키에만 값을 남기고 rerun하며,
+    # 다음 실행에서 셀렉트박스가 만들어지기 전인 여기서 대신 반영한다(2026-07-13).
+    _kr_theme_pending_select = st.session_state.pop("_kr_theme_pending_select", None)
+    if _kr_theme_pending_select:
+        st.session_state["kr_theme_detail_selector"] = _kr_theme_pending_select
+    elif "kr_theme_detail_selector" not in st.session_state:
         _default_strong_theme = next(
             (row.get("테마") for row in theme_rows if row.get("상태") == "강함" and row.get("테마")),
             None,
@@ -4482,7 +4489,7 @@ def _render_kr_theme_chip_editor():
         if 0 <= _kr_theme_clicked_idx < len(_kr_theme_sorted_rows):
             _kr_theme_clicked_name = _kr_theme_sorted_rows[_kr_theme_clicked_idx].get("테마")
             if _kr_theme_clicked_name and st.session_state.get("kr_theme_detail_selector") != _kr_theme_clicked_name:
-                st.session_state["kr_theme_detail_selector"] = _kr_theme_clicked_name
+                st.session_state["_kr_theme_pending_select"] = _kr_theme_clicked_name
                 st.rerun()
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = [dict(row) for row in theme_rows]
@@ -4621,13 +4628,14 @@ def _render_kr_theme_chip_editor():
                             ["강세유지", "꺾임"],
                             key=_leader_status_key,
                         )
+                        # "SNAPSHOT 종목 밖이라 자동 판정 불가" 안내는 동적 종목 목록 도입
+                        # 이후 거의 항상 떠서 불필요한 잡음이라는 지적으로 제거(2026-07-13).
+                        # 자동 판정이 실제로 가능한 경우에만 참고 문구를 보여준다.
                         if _leader_auto["available"]:
                             st.caption(
                                 f"자동 판정 참고: 고점 대비 {_leader_auto['drop_pct']:.1f}% "
-                                "(SNAPSHOT 7종목 기준, -7% 이상이면 꺾임). 필요하면 위에서 직접 바꿀 수 있습니다."
+                                "(-7% 이상이면 꺾임). 필요하면 위에서 직접 바꿀 수 있습니다."
                             )
-                        else:
-                            st.caption("SNAPSHOT 7종목 밖 대장주라 자동 판정할 수 없습니다 — 직접 선택하세요.")
                         if selected_leader_status == "꺾임":
                             st.warning("대장주 꺾임 — 후발주 청산 검토")
 
