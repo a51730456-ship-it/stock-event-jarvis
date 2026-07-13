@@ -2409,6 +2409,23 @@ def _render_market_overview(market):
     button_key = f"{prefix}_market_overview_load"
     title = "오늘 한국장 한눈에" if market == "KR" else "오늘 미국장 한눈에"
     market_label = "한국장" if market == "KR" else "미국장"
+
+    # 도박사(예측시장) 의견 — ChatGPT 브리핑의 [도박사] 구획을 붙여넣는 참고용 칸.
+    # docs/BRIEFING_LOGIC.md 5~7번 항목에 해당. 순수 참고용이며 점수·판정·DB 저장에는
+    # 절대 반영하지 않는다(2026-07-13 사용자 요청, 한국장/미국장 둘 다, 화면 최상단).
+    with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=False):
+        st.caption(
+            "ChatGPT 브리핑의 [도박사] 구획을 그대로 붙여넣는 참고용 칸입니다. "
+            "점수·판정·DB 저장에는 반영되지 않습니다."
+        )
+        st.text_area(
+            "도박사(예측시장) 의견",
+            key=f"{prefix}_bookmaker_opinion",
+            height=140,
+            placeholder="예: Polymarket/Kalshi 확률 변화, 선거·금리·관세 이벤트 확률 등",
+            label_visibility="collapsed",
+        )
+
     st.markdown(f"<div style='font-size:26px;font-weight:800;margin:0 0 10px 0'>{title}</div>", unsafe_allow_html=True)
     st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin:14px 0 22px'>먼저 아래 파란 버튼을 눌러 오늘 {market_label} 자료를 확인하세요.</div>", unsafe_allow_html=True)
     if st.button("오늘 한국장 자료 불러오기" if market == "KR" else "오늘 미국장 자료 불러오기", key=button_key):
@@ -4401,22 +4418,39 @@ def _render_kr_theme_chip_editor():
                 f"u{ord(char):04x}" for char in _theme_detail_selected if char.isalnum()
             )
             selected_status_key = f"kr_theme_status_{selected_theme_slug}"
+            _leader_status_key = f"kr_theme_leader_status_{selected_theme_slug}"
+
+            # 테마 선택이 바뀔 때마다(드롭다운으로 고르든 표에서 클릭하든) 세부 입력 위젯을
+            # 그 테마의 최신 저장값(자동조회로 이미 채워진 대장주 등 포함)으로 강제
+            # 동기화한다. 예전엔 위젯을 한 번만 초기화해서, 자동조회가 나중에 값을 채워도
+            # 이미 만들어진 위젯엔 반영이 안 돼 "표엔 값이 있는데 세부 입력 칸은 비어있는"
+            # 불일치가 생겼다(2026-07-13 사용자 지적).
+            if st.session_state.get("kr_theme_detail_synced_theme") != _theme_detail_selected:
+                st.session_state[selected_status_key] = (
+                    selected_theme_row.get("상태")
+                    if selected_theme_row.get("상태") in status_options
+                    else status_options[-1]
+                )
+                for field_name, key_prefix in field_specs:
+                    st.session_state[f"{key_prefix}{selected_theme_slug}"] = str(
+                        selected_theme_row.get(field_name) or ""
+                    )
+                _leader_auto_on_switch = _kr_theme_leader_auto_status(selected_theme_row.get("대장주"))
+                st.session_state[_leader_status_key] = (
+                    _leader_auto_on_switch["verdict"] if _leader_auto_on_switch["available"]
+                    else str(selected_theme_row.get("대장주상태") or "강세유지")
+                )
+                st.session_state["kr_theme_detail_synced_theme"] = _theme_detail_selected
+
             selected_status = st.selectbox(
                 "선택 테마 현재 상태",
                 status_options,
-                index=(
-                    status_options.index(selected_theme_row.get("상태"))
-                    if selected_theme_row.get("상태") in status_options
-                    else len(status_options) - 1
-                ),
                 key=selected_status_key,
             )
             selected_detail_values = {}
             with st.expander("선택 테마 세부 입력", expanded=True):
                 for field_name, key_prefix in field_specs:
                     widget_key = f"{key_prefix}{selected_theme_slug}"
-                    if widget_key not in st.session_state:
-                        st.session_state[widget_key] = str(selected_theme_row.get(field_name) or "")
                     if field_name == "메모":
                         selected_detail_values[field_name] = st.text_area(field_name, key=widget_key)
                     else:
@@ -4424,12 +4458,6 @@ def _render_kr_theme_chip_editor():
 
                     if field_name == "대장주":
                         _leader_auto = _kr_theme_leader_auto_status(selected_detail_values[field_name])
-                        _leader_status_key = f"kr_theme_leader_status_{selected_theme_slug}"
-                        if _leader_status_key not in st.session_state:
-                            st.session_state[_leader_status_key] = (
-                                _leader_auto["verdict"] if _leader_auto["available"]
-                                else str(selected_theme_row.get("대장주상태") or "강세유지")
-                            )
                         selected_leader_status = st.selectbox(
                             "대장주 상태",
                             ["강세유지", "꺾임"],
