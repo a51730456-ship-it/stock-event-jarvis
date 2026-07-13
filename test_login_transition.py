@@ -3,12 +3,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from PIL import Image
 from streamlit.testing.v1 import AppTest
 
 
 ROOT = Path(__file__).parent
 SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
-EARTH_SVG = (ROOT / "assets" / "jarvis_earth.svg").read_text(encoding="utf-8")
+EARTH_PATH = ROOT / "assets" / "jarvis_earth.webp"
 TEST_PASSWORD = "jarvis-login-transition-test"
 
 
@@ -23,18 +24,20 @@ def _overlay_count(app):
 
 
 class LoginVisualContractTests(unittest.TestCase):
-    def test_earth_is_small_local_svg_without_external_urls(self):
-        self.assertLess((ROOT / "assets" / "jarvis_earth.svg").stat().st_size, 1_000_000)
-        self.assertNotIn("http://", EARTH_SVG)
-        self.assertNotIn("https://", EARTH_SVG)
+    def test_earth_is_1400px_local_webp_under_500kb(self):
+        self.assertLessEqual(EARTH_PATH.stat().st_size, 500_000)
+        with Image.open(EARTH_PATH) as earth:
+            self.assertEqual(earth.format, "WEBP")
+            self.assertEqual(earth.size, (1400, 1400))
         for marker in (
-            "jarvis-earth-rotation-band",
-            "jarvis-cloud-rotation-band",
-            "jarvis-city-rotation-band",
+            'Path(__file__).parent / "assets" / "jarvis_earth.webp"',
+            "data:image/webp;base64,",
+            "jarvis-earth-image",
             "jarvis-orbit-primary",
-            "jarvis-atmosphere",
+            "jarvis-earth-turn",
         ):
-            self.assertIn(marker, EARTH_SVG)
+            self.assertIn(marker, SOURCE)
+        self.assertNotIn("jarvis_earth.svg", SOURCE)
 
     def test_transition_timing_responsive_and_reduced_motion_contract(self):
         for marker in (
@@ -43,13 +46,16 @@ class LoginVisualContractTests(unittest.TestCase):
             "ACCESS GRANTED",
             "JARVIS ONLINE",
             "인증 완료",
-            "animation: jarvis-transition-overlay 1.2s",
+            "z-index: 2147483647",
+            "opacity: 1",
+            "animation-duration: 2s",
+            "animation-fill-mode: forwards",
             "pointer-events: none",
             "visibility: hidden",
             "@media (max-width: 1100px)",
             "@media (max-width: 640px)",
             "@media (prefers-reduced-motion: reduce)",
-            "jarvis-transition-reduced .2s",
+            "animation-duration: .2s",
         ):
             self.assertIn(marker, SOURCE)
         self.assertNotIn("time.sleep(", SOURCE)

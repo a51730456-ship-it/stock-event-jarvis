@@ -1,5 +1,6 @@
 """자비스 주식 기록장 (Streamlit 앱): 오늘 요약 / 새 기록 입력 / 오늘 주가 확인 / 지난 기록 보기 / 결과 확인 / 추가 기능."""
 
+import base64
 import math
 import functools
 import html
@@ -278,9 +279,18 @@ def create_daily_db_backup_once():
 st.set_page_config(page_title="자비스 주식 기록장", layout="wide")
 
 try:
-    _jarvis_earth_svg = (Path(__file__).parent / "assets" / "jarvis_earth.svg").read_text(encoding="utf-8")
-except (OSError, UnicodeError):
-    _jarvis_earth_svg = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
+    _jarvis_earth_bytes = (Path(__file__).parent / "assets" / "jarvis_earth.webp").read_bytes()
+    _jarvis_earth_src = "data:image/webp;base64," + base64.b64encode(_jarvis_earth_bytes).decode("ascii")
+    _jarvis_earth_markup = (
+        '<div class="jarvis-earth-visual">'
+        '<div class="jarvis-orbit jarvis-orbit-primary"></div>'
+        '<div class="jarvis-orbit jarvis-orbit-secondary"></div>'
+        '<div class="jarvis-earth-disc">'
+        f'<img class="jarvis-earth-image" src="{_jarvis_earth_src}" alt="아프리카와 유럽이 선명한 지구">'
+        "</div></div>"
+    )
+except OSError:
+    _jarvis_earth_markup = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
 
 # 비밀번호 게이트: 인증 전에는 DB 초기화/자동 백업/앱 본문이 전혀 실행되지 않는다.
 # 비밀번호는 .streamlit/secrets.toml의 APP_PASSWORD에서만 읽으며 코드에 직접 쓰지 않는다.
@@ -352,20 +362,56 @@ if not st.session_state.get("authenticated"):
             width: 100%;
             max-width: 720px;
             margin-inline: auto;
-            filter: drop-shadow(0 24px 65px rgba(0, 48, 118, .52));
         }
-        .jarvis-earth-svg { display: block; width: 100%; height: auto; overflow: visible; }
-        .jarvis-earth-rotation-band, .jarvis-city-rotation-band {
-            animation: jarvis-earth-surface 42s linear infinite;
+        .jarvis-earth-visual {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1;
+            isolation: isolate;
+        }
+        .jarvis-earth-disc {
+            position: absolute;
+            inset: 7.5%;
+            z-index: 2;
+            overflow: hidden;
+            border-radius: 50%;
+            background: #01040a;
+            box-shadow: 0 0 0 2px rgba(70, 176, 255, .72), 0 0 22px rgba(34, 139, 255, .28);
+        }
+        .jarvis-earth-image {
+            position: absolute;
+            inset: -5%;
+            display: block;
+            width: 110%;
+            max-width: none;
+            height: 110%;
+            object-fit: cover;
+            opacity: 1;
+            animation: jarvis-earth-turn 28s ease-in-out infinite alternate;
+            animation-fill-mode: both;
             will-change: transform;
         }
-        .jarvis-cloud-rotation-band {
-            animation: jarvis-earth-surface 58s linear infinite;
-            will-change: transform;
+        .jarvis-orbit {
+            position: absolute;
+            z-index: 1;
+            left: -2%;
+            top: 35%;
+            width: 104%;
+            height: 29%;
+            border: 2px solid rgba(53, 145, 255, .72);
+            border-radius: 50%;
+            transform: rotate(-13deg);
+            box-shadow: 0 0 9px rgba(42, 139, 255, .18);
         }
         .jarvis-orbit-primary { animation: jarvis-orbit-pulse 5.5s ease-in-out infinite; }
-        .jarvis-orbit-secondary { animation: jarvis-orbit-pulse 7.5s ease-in-out -2s infinite; }
-        .jarvis-orbit-dash { animation: jarvis-orbit-dash 9s ease-in-out infinite; }
+        .jarvis-orbit-secondary {
+            top: 37%;
+            height: 25%;
+            border-width: 1px;
+            border-color: rgba(103, 201, 255, .4);
+            transform: rotate(58deg);
+            animation: jarvis-orbit-pulse 7.5s ease-in-out -2s infinite;
+        }
         .jarvis-earth-fallback {
             width: min(58vw, 500px);
             aspect-ratio: 1;
@@ -439,10 +485,12 @@ if not st.session_state.get("authenticated"):
             box-shadow: 0 15px 42px rgba(14, 112, 235, .42), inset 0 1px rgba(255, 255, 255, .24) !important;
         }
         [data-testid="stAlert"] { border-radius: 12px !important; background: rgba(65, 17, 24, .58) !important; }
-        @keyframes jarvis-earth-surface { to { transform: translateX(-700px); } }
+        @keyframes jarvis-earth-turn {
+            from { transform: translate3d(-1.2%, 0, 0) scale(1.035) rotate(-.6deg); }
+            to { transform: translate3d(1.2%, 0, 0) scale(1.035) rotate(.6deg); }
+        }
         @keyframes jarvis-star-drift { to { transform: translate3d(90px, 55px, 0); } }
         @keyframes jarvis-orbit-pulse { 0%, 100% { opacity: .28; } 50% { opacity: .86; } }
-        @keyframes jarvis-orbit-dash { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
         @media (max-width: 1100px) {
             [data-testid="stMainBlockContainer"] { padding: 1.25rem 2rem 2rem !important; align-items: flex-start; }
             div[data-testid="stHorizontalBlock"]:has(.jarvis-earth-stage) {
@@ -472,12 +520,9 @@ if not st.session_state.get("authenticated"):
         @media (prefers-reduced-motion: reduce) {
             [data-testid="stAppViewContainer"]::before,
             [data-testid="stAppViewContainer"]::after,
-            .jarvis-earth-rotation-band,
-            .jarvis-city-rotation-band,
-            .jarvis-cloud-rotation-band,
+            .jarvis-earth-image,
             .jarvis-orbit-primary,
-            .jarvis-orbit-secondary,
-            .jarvis-orbit-dash { animation: none !important; }
+            .jarvis-orbit-secondary { animation: none !important; }
         }
         </style>
         """,
@@ -485,7 +530,7 @@ if not st.session_state.get("authenticated"):
     )
     _login_earth_col, _login_panel_col = st.columns([1.25, 1], gap="large", vertical_alignment="center")
     with _login_earth_col:
-        st.markdown('<div class="jarvis-earth-stage">' + _jarvis_earth_svg + "</div>", unsafe_allow_html=True)
+        st.markdown('<div class="jarvis-earth-stage">' + _jarvis_earth_markup + "</div>", unsafe_allow_html=True)
     with _login_panel_col:
         st.markdown(
             """
@@ -9328,75 +9373,159 @@ if _aux_view == "사용법":
             st.warning(f"사용법 파일을 불러오지 못했습니다: {e}")
 
 # 성공 오버레이는 본문이 모두 렌더링된 뒤 pending 값을 한 번만 꺼내 표시한다.
-# CSS만으로 1.2초 뒤 숨기므로 앱 실행을 막는 sleep/JavaScript 타이머가 없다.
+# CSS만으로 2초 뒤 숨기므로 앱 실행을 막는 sleep/JavaScript 타이머가 없다.
 if _login_transition_pending:
     st.session_state.pop("login_transition_pending", None)
     st.markdown(
         """
         <style>
         .jarvis-login-transition {
-            position: fixed;
+            position: fixed !important;
             inset: 0;
-            z-index: 2147483000;
-            display: grid;
-            place-items: center;
+            z-index: 2147483647 !important;
+            display: block;
             overflow: hidden;
             pointer-events: none;
             isolation: isolate;
+            opacity: 1;
+            visibility: visible;
             background: radial-gradient(circle at center, #071b3a 0, #020713 46%, #000207 100%);
-            animation: jarvis-transition-overlay 1.2s linear forwards;
+            animation-name: jarvis-transition-overlay;
+            animation-duration: 2s;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
         }
         .jarvis-transition-earth {
-            position: relative;
+            position: absolute;
             z-index: 2;
-            width: min(68vw, 530px);
-            filter: drop-shadow(0 0 52px rgba(28, 129, 255, .55));
-            animation: jarvis-transition-earth-zoom 1.2s cubic-bezier(.62, 0, .88, .72) forwards;
-            will-change: transform, filter;
+            left: 50%;
+            top: 50%;
+            width: min(58vw, 620px);
+            transform: translate(-92%, -50%) scale(.82);
+            animation-name: jarvis-transition-earth-zoom;
+            animation-duration: 2s;
+            animation-timing-function: cubic-bezier(.58, 0, .88, .72);
+            animation-fill-mode: forwards;
+            will-change: transform;
         }
-        .jarvis-transition-earth .jarvis-earth-svg { display: block; width: 100%; height: auto; }
-        .jarvis-transition-earth .jarvis-earth-rotation-band,
-        .jarvis-transition-earth .jarvis-city-rotation-band { animation: jarvis-earth-surface 42s linear infinite; }
-        .jarvis-transition-earth .jarvis-cloud-rotation-band { animation: jarvis-earth-surface 58s linear infinite; }
-        .jarvis-transition-earth .jarvis-orbit-primary {
-            animation: jarvis-transition-ring-charge 1.2s ease-out forwards;
+        .jarvis-transition-earth .jarvis-earth-visual {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1;
+            isolation: isolate;
         }
-        .jarvis-transition-earth .jarvis-orbit-secondary,
-        .jarvis-transition-earth .jarvis-orbit-dash {
-            animation: jarvis-transition-ring-charge-soft 1.2s ease-out forwards;
+        .jarvis-transition-earth .jarvis-earth-disc {
+            position: absolute;
+            inset: 7.5%;
+            z-index: 2;
+            overflow: hidden;
+            border-radius: 50%;
+            background: #01040a;
+            box-shadow: 0 0 0 2px rgba(75, 181, 255, .84), 0 0 24px rgba(35, 139, 255, .34);
+        }
+        .jarvis-transition-earth .jarvis-earth-image {
+            position: absolute;
+            inset: -5%;
+            display: block;
+            width: 110%;
+            max-width: none;
+            height: 110%;
+            object-fit: cover;
+            opacity: 1;
+            animation-name: jarvis-earth-turn;
+            animation-duration: 28s;
+            animation-timing-function: ease-in-out;
+            animation-iteration-count: infinite;
+            animation-direction: alternate;
+            animation-fill-mode: both;
+        }
+        .jarvis-transition-earth .jarvis-orbit {
+            position: absolute;
+            z-index: 1;
+            left: -2%;
+            top: 35%;
+            width: 104%;
+            height: 29%;
+            border: 2px solid rgba(58, 155, 255, .72);
+            border-radius: 50%;
+            transform: rotate(-13deg);
+            animation-name: jarvis-transition-ring-charge;
+            animation-duration: 2s;
+            animation-timing-function: ease-out;
+            animation-fill-mode: forwards;
+        }
+        .jarvis-transition-earth .jarvis-orbit-secondary {
+            top: 37%;
+            height: 25%;
+            border-width: 1px;
+            transform: rotate(58deg);
+            animation-name: jarvis-transition-ring-charge-soft;
+        }
+        .jarvis-transition-panel-echo {
+            position: absolute;
+            z-index: 4;
+            right: clamp(2rem, 8vw, 9rem);
+            top: 50%;
+            width: min(34vw, 460px);
+            padding: 2rem;
+            transform: translateY(-50%);
+            border: 1px solid rgba(85, 151, 236, .32);
+            border-radius: 22px;
+            color: #dcecff;
+            background: linear-gradient(145deg, rgba(15, 31, 56, .82), rgba(3, 10, 24, .92));
+            box-shadow: 0 24px 70px rgba(0, 0, 0, .45), inset 0 1px rgba(179, 220, 255, .1);
+            animation-name: jarvis-transition-panel-fade;
+            animation-duration: 2s;
+            animation-timing-function: ease-out;
+            animation-fill-mode: forwards;
+        }
+        .jarvis-transition-panel-kicker {
+            color: #64b7ff;
+            font: 700 .7rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+            letter-spacing: .2em;
+        }
+        .jarvis-transition-panel-title { margin-top: .8rem; font-size: 1.8rem; font-weight: 800; }
+        .jarvis-transition-panel-line {
+            height: 46px;
+            margin-top: 1.4rem;
+            border: 1px solid rgba(92, 157, 234, .28);
+            border-radius: 11px;
+            background: rgba(2, 9, 22, .66);
         }
         .jarvis-transition-status {
             position: absolute;
-            z-index: 4;
-            top: calc(50% + min(29vw, 218px));
+            z-index: 6;
+            top: 50%;
             left: 50%;
-            width: min(90vw, 520px);
-            transform: translateX(-50%);
+            width: min(92vw, 680px);
+            transform: translate(-50%, -50%);
             color: #eaf6ff;
             text-align: center;
-            text-shadow: 0 0 18px rgba(74, 174, 255, .85);
+            text-shadow: 0 0 12px #00152f, 0 0 24px rgba(74, 174, 255, .95);
+            opacity: 0;
+            animation-name: jarvis-transition-status-show;
+            animation-duration: 2s;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
         }
         .jarvis-transition-access,
         .jarvis-transition-online,
-        .jarvis-transition-complete { opacity: 0; }
+        .jarvis-transition-complete { opacity: 1; }
         .jarvis-transition-access {
             font: 800 clamp(1.15rem, 3vw, 1.85rem)/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
             letter-spacing: .2em;
-            animation: jarvis-transition-access 1.2s linear forwards;
         }
         .jarvis-transition-online {
             margin-top: .38rem;
             color: #69bfff;
             font: 700 clamp(.78rem, 2vw, 1rem)/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
             letter-spacing: .24em;
-            animation: jarvis-transition-online 1.2s linear forwards;
         }
         .jarvis-transition-complete {
             margin-top: .28rem;
             color: #b9cce0;
             font-size: clamp(.72rem, 1.8vw, .9rem);
             letter-spacing: .12em;
-            animation: jarvis-transition-complete 1.2s linear forwards;
         }
         .jarvis-transition-light {
             position: absolute;
@@ -9410,46 +9539,48 @@ if _login_transition_pending:
             opacity: 0;
             transform: translate(-50%, -50%) scale(.1);
             box-shadow: 0 0 34px rgba(36, 137, 255, .9), inset 0 0 30px rgba(31, 129, 255, .62);
-            animation: jarvis-transition-light-expand 1.2s ease-in forwards;
+            animation-name: jarvis-transition-light-expand;
+            animation-duration: 2s;
+            animation-timing-function: ease-in;
+            animation-fill-mode: forwards;
+        }
+        @keyframes jarvis-earth-turn {
+            from { transform: translate3d(-1.2%, 0, 0) scale(1.035) rotate(-.6deg); }
+            to { transform: translate3d(1.2%, 0, 0) scale(1.035) rotate(.6deg); }
         }
         @keyframes jarvis-transition-ring-charge {
-            0% { opacity: .36; stroke-width: 2; filter: drop-shadow(0 0 0 rgba(63, 164, 255, 0)); }
-            20.83%, 50% { opacity: 1; stroke-width: 4; filter: drop-shadow(0 0 9px rgba(85, 190, 255, 1)); }
-            100% { opacity: .25; stroke-width: 2; filter: drop-shadow(0 0 18px rgba(85, 190, 255, .35)); }
+            0% { opacity: .45; border-color: rgba(58, 155, 255, .72); box-shadow: 0 0 2px rgba(73, 178, 255, .1); }
+            8%, 20% { opacity: 1; border-color: #79ceff; box-shadow: 0 0 15px #2598ff, inset 0 0 12px rgba(37, 152, 255, .5); }
+            50%, 100% { opacity: .34; border-color: rgba(58, 155, 255, .58); box-shadow: 0 0 6px rgba(37, 152, 255, .25); }
         }
         @keyframes jarvis-transition-ring-charge-soft {
-            0% { opacity: .18; }
-            20.83%, 50% { opacity: .82; filter: drop-shadow(0 0 7px #54b8ff); }
-            100% { opacity: .18; }
+            0% { opacity: .2; }
+            8%, 20% { opacity: .9; border-color: #8ad7ff; box-shadow: 0 0 12px #278fff; }
+            50%, 100% { opacity: .18; }
         }
-        @keyframes jarvis-transition-access {
-            0%, 20.82% { opacity: 0; transform: translateY(5px); }
-            24%, 50% { opacity: 1; transform: translateY(0); }
-            61%, 100% { opacity: 0; transform: translateY(-5px); }
+        @keyframes jarvis-transition-panel-fade {
+            0% { opacity: 1; transform: translateY(-50%) scale(1); }
+            20% { opacity: 0; transform: translateY(-50%) scale(.98); }
+            100% { opacity: 0; transform: translateY(-50%) scale(.98); }
         }
-        @keyframes jarvis-transition-online {
-            0%, 30% { opacity: 0; transform: translateY(4px); }
-            34%, 50% { opacity: 1; transform: translateY(0); }
-            61%, 100% { opacity: 0; transform: translateY(-4px); }
-        }
-        @keyframes jarvis-transition-complete {
-            0%, 40% { opacity: 0; }
-            44%, 50% { opacity: .9; }
-            61%, 100% { opacity: 0; }
+        @keyframes jarvis-transition-status-show {
+            0%, 19.99% { opacity: 0; transform: translate(-50%, calc(-50% + 6px)); }
+            20%, 50% { opacity: 1; transform: translate(-50%, -50%); }
+            50.01%, 100% { opacity: 0; transform: translate(-50%, calc(-50% - 5px)); }
         }
         @keyframes jarvis-transition-earth-zoom {
-            0% { transform: scale(.78); }
-            20.83% { transform: scale(.82); }
-            50% { transform: scale(.84); filter: drop-shadow(0 0 66px rgba(40, 147, 255, .76)); }
-            100% { transform: scale(5.2); filter: drop-shadow(0 0 120px rgba(55, 160, 255, .15)); }
+            0% { transform: translate(-92%, -50%) scale(.82); }
+            20% { transform: translate(-50%, -50%) scale(.78); }
+            50% { transform: translate(-50%, -50%) scale(.84); }
+            100% { transform: translate(-50%, -50%) scale(5.8); }
         }
         @keyframes jarvis-transition-light-expand {
             0%, 49.9% { opacity: 0; transform: translate(-50%, -50%) scale(.1); }
-            55% { opacity: .8; }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(18); }
+            56% { opacity: .88; }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(24); }
         }
         @keyframes jarvis-transition-overlay {
-            0%, 70% { opacity: 1; visibility: visible; }
+            0%, 84% { opacity: 1; visibility: visible; }
             99.9% { opacity: 0; visibility: visible; }
             100% { opacity: 0; visibility: hidden; }
         }
@@ -9459,23 +9590,50 @@ if _login_transition_pending:
             100% { opacity: 0; visibility: hidden; }
         }
         @media (max-width: 768px) {
-            .jarvis-transition-earth { width: min(88vw, 440px); }
-            .jarvis-transition-status { top: calc(50% + min(38vw, 190px)); }
+            .jarvis-transition-earth { width: min(92vw, 500px); transform: translate(-50%, -66%) scale(.72); }
+            .jarvis-transition-panel-echo {
+                right: 50%;
+                top: auto;
+                bottom: 7%;
+                width: min(84vw, 520px);
+                padding: 1.2rem;
+                transform: translateX(50%);
+            }
+            .jarvis-transition-panel-line { height: 38px; margin-top: .8rem; }
+            @keyframes jarvis-transition-panel-fade {
+                0% { opacity: 1; transform: translateX(50%) scale(1); }
+                20%, 100% { opacity: 0; transform: translateX(50%) scale(.98); }
+            }
+            @keyframes jarvis-transition-earth-zoom {
+                0% { transform: translate(-50%, -66%) scale(.72); }
+                20% { transform: translate(-50%, -50%) scale(.7); }
+                50% { transform: translate(-50%, -50%) scale(.76); }
+                100% { transform: translate(-50%, -50%) scale(5.8); }
+            }
         }
         @media (prefers-reduced-motion: reduce) {
-            .jarvis-login-transition { animation: jarvis-transition-reduced .2s ease-out forwards !important; }
+            .jarvis-login-transition {
+                animation-name: jarvis-transition-reduced !important;
+                animation-duration: .2s !important;
+                animation-timing-function: ease-out !important;
+                animation-fill-mode: forwards !important;
+            }
             .jarvis-transition-earth,
             .jarvis-transition-earth *,
+            .jarvis-transition-panel-echo,
+            .jarvis-transition-status,
+            .jarvis-transition-status *,
             .jarvis-transition-light { animation: none !important; }
-            .jarvis-transition-earth { transform: scale(.82); }
-            .jarvis-transition-access,
-            .jarvis-transition-online,
-            .jarvis-transition-complete { opacity: 1; transform: none; }
         }
         </style>
         <div class="jarvis-login-transition" aria-hidden="true">
             <div class="jarvis-transition-earth">
-        """ + _jarvis_earth_svg + """
+        """ + _jarvis_earth_markup + """
+            </div>
+            <div class="jarvis-transition-panel-echo">
+                <div class="jarvis-transition-panel-kicker">SECURE MARKET INTELLIGENCE</div>
+                <div class="jarvis-transition-panel-title">Stock Event Jarvis</div>
+                <div class="jarvis-transition-panel-line"></div>
             </div>
             <div class="jarvis-transition-light"></div>
             <div class="jarvis-transition-status">
