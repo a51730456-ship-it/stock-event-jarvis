@@ -1,0 +1,105 @@
+<svg class="jarvis-earth-svg" viewBox="0 0 720 720" role="img" aria-label="구름과 도시 불빛이 보이는 회전 지구">
+  <defs>
+    <radialGradient id="jarvis-space-glow" cx="50%" cy="48%" r="50%">
+      <stop offset="0" stop-color="#1467d9" stop-opacity=".24"/>
+      <stop offset=".48" stop-color="#07306e" stop-opacity=".1"/>
+      <stop offset="1" stop-color="#02050b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="jarvis-ocean" cx="34%" cy="29%" r="72%">
+      <stop offset="0" stop-color="#146bc0"/>
+      <stop offset=".38" stop-color="#07447f"/>
+      <stop offset=".72" stop-color="#03254d"/>
+      <stop offset="1" stop-color="#010814"/>
+    </radialGradient>
+    <linearGradient id="jarvis-land" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6e8d70"/>
+      <stop offset=".34" stop-color="#345f52"/>
+      <stop offset=".72" stop-color="#173f3b"/>
+      <stop offset="1" stop-color="#092d31"/>
+    </linearGradient>
+    <linearGradient id="jarvis-ice" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e9f8ff" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#8cc7df" stop-opacity=".72"/>
+    </linearGradient>
+    <radialGradient id="jarvis-atmosphere" cx="34%" cy="28%" r="72%">
+      <stop offset=".72" stop-color="#2aa9ff" stop-opacity="0"/>
+      <stop offset=".88" stop-color="#45c5ff" stop-opacity=".24"/>
+      <stop offset=".965" stop-color="#77d8ff" stop-opacity=".68"/>
+      <stop offset="1" stop-color="#168bff" stop-opacity=".08"/>
+    </radialGradient>
+    <linearGradient id="jarvis-night" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00030a" stop-opacity="0"/>
+      <stop offset=".55" stop-color="#00030a" stop-opacity=".08"/>
+      <stop offset=".82" stop-color="#00030a" stop-opacity=".62"/>
+      <stop offset="1" stop-color="#00030a" stop-opacity=".94"/>
+    </linearGradient>
+    <filter id="jarvis-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="21"/>
+    </filter>
+    <filter id="jarvis-cloud-blur" x="-20%" y="-30%" width="140%" height="160%">
+      <feGaussianBlur stdDeviation="3.2"/>
+    </filter>
+    <filter id="jarvis-texture" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency=".018 .044" numOctaves="3" seed="19" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0" result="mono"/>
+      <feBlend in="SourceGraphic" in2="mono" mode="soft-light"/>
+    </filter>
+    <filter id="jarvis-city-glow" x="-300%" y="-300%" width="700%" height="700%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="jarvis-globe-clip">
+      <circle cx="360" cy="360" r="244"/>
+    </clipPath>
+    <g id="jarvis-landscape">
+      <path d="M78 210l34-35 45-18 55 7 34 30 29 9 14 28-17 27-7 42-28 18-20 42-29 8-17-28-33-20-19-39-30-24z"/>
+      <path d="M207 371l34 8 25 26 17 42-12 51-23 39-17 50-20 6-8-40-18-35-9-47 9-38z"/>
+      <path d="M326 184l41-18 39 9 29-9 37 20 45 4 42 25 55 17 30 37-13 34-40 7-30 30-55-8-24 22-38-9-22-30-35-10-27-32-38-11-15-35z"/>
+      <path d="M405 335l45 8 28 29 3 48-17 43-27 29-33-17-22-44 8-47z"/>
+      <path d="M552 421l41-7 35 21 7 32-27 24-46-4-25-26z"/>
+      <path d="M24 532l74-19 69 9 48 25-36 28-76 8-62-18z"/>
+      <path d="M281 159l28-22 39 4 10 19-35 17z"/>
+    </g>
+    <g id="jarvis-cities" fill="#ffd77b">
+      <circle cx="171" cy="258" r="2.2"/><circle cx="185" cy="274" r="1.5"/><circle cx="218" cy="244" r="1.8"/>
+      <circle cx="232" cy="410" r="1.8"/><circle cx="242" cy="441" r="1.3"/><circle cx="218" cy="462" r="1.2"/>
+      <circle cx="380" cy="242" r="1.6"/><circle cx="397" cy="249" r="2"/><circle cx="414" cy="252" r="1.3"/>
+      <circle cx="449" cy="276" r="2.2"/><circle cx="471" cy="289" r="1.4"/><circle cx="494" cy="273" r="1.8"/>
+      <circle cx="516" cy="298" r="2.4"/><circle cx="539" cy="316" r="1.4"/><circle cx="565" cy="298" r="1.8"/>
+      <circle cx="429" cy="382" r="1.7"/><circle cx="444" cy="407" r="1.3"/><circle cx="421" cy="426" r="1.2"/>
+      <circle cx="579" cy="451" r="1.6"/><circle cx="602" cy="459" r="1.3"/>
+    </g>
+    <g id="jarvis-cloudscape" fill="none" stroke="#effaff" stroke-linecap="round">
+      <path d="M71 248c55-36 112-34 163-6 27 14 52 13 79 2" stroke-width="14" opacity=".34"/>
+      <path d="M255 198c61-21 125-13 176 19 40 25 81 31 132 12" stroke-width="10" opacity=".3"/>
+      <path d="M349 366c45-27 96-25 139 1 42 26 89 25 137 5" stroke-width="13" opacity=".28"/>
+      <path d="M86 450c49-18 97-12 139 16 34 22 75 26 113 12" stroke-width="11" opacity=".31"/>
+      <path d="M421 506c57-18 115-7 158 28" stroke-width="10" opacity=".26"/>
+    </g>
+  </defs>
+
+  <circle cx="360" cy="360" r="332" fill="url(#jarvis-space-glow)"/>
+  <ellipse class="jarvis-orbit jarvis-orbit-primary" cx="360" cy="360" rx="304" ry="104" fill="none" stroke="#2c8fff" stroke-width="2" opacity=".78" transform="rotate(-13 360 360)"/>
+  <ellipse class="jarvis-orbit jarvis-orbit-secondary" cx="360" cy="360" rx="282" ry="86" fill="none" stroke="#66c8ff" stroke-width="1" opacity=".28" transform="rotate(61 360 360)"/>
+  <path class="jarvis-orbit-dash" d="M73 314a304 104-13 0 1 570 0" fill="none" stroke="#9be1ff" stroke-width="4" stroke-linecap="round" opacity=".8"/>
+
+  <circle cx="376" cy="387" r="248" fill="#00040b" opacity=".84" filter="url(#jarvis-shadow)"/>
+  <g clip-path="url(#jarvis-globe-clip)">
+    <circle cx="360" cy="360" r="244" fill="url(#jarvis-ocean)"/>
+    <g class="jarvis-earth-rotation-band" fill="url(#jarvis-land)" filter="url(#jarvis-texture)">
+      <use href="#jarvis-landscape"/><use href="#jarvis-landscape" x="700"/>
+    </g>
+    <path d="M116 184c63-20 112-21 167-2l-28 20-67 8z" fill="url(#jarvis-ice)" opacity=".68"/>
+    <path d="M144 530c77 26 154 36 223 28-38 32-120 45-181 22z" fill="url(#jarvis-ice)" opacity=".58"/>
+    <g class="jarvis-city-rotation-band" filter="url(#jarvis-city-glow)">
+      <use href="#jarvis-cities"/><use href="#jarvis-cities" x="700"/>
+    </g>
+    <g class="jarvis-cloud-rotation-band" filter="url(#jarvis-cloud-blur)">
+      <use href="#jarvis-cloudscape"/><use href="#jarvis-cloudscape" x="700"/>
+    </g>
+    <circle cx="360" cy="360" r="244" fill="url(#jarvis-night)"/>
+    <ellipse cx="285" cy="278" rx="170" ry="125" fill="#72c8ff" opacity=".08"/>
+  </g>
+  <circle cx="360" cy="360" r="246" fill="url(#jarvis-atmosphere)" stroke="#54c7ff" stroke-width="2.5" opacity=".95"/>
+  <path d="M153 287c40-111 141-181 257-170" fill="none" stroke="#b7eaff" stroke-width="5" stroke-linecap="round" opacity=".32"/>
+</svg>

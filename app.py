@@ -277,6 +277,11 @@ def create_daily_db_backup_once():
 
 st.set_page_config(page_title="자비스 주식 기록장", layout="wide")
 
+try:
+    _jarvis_earth_svg = (Path(__file__).parent / "assets" / "jarvis_earth.svg").read_text(encoding="utf-8")
+except (OSError, UnicodeError):
+    _jarvis_earth_svg = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
+
 # 비밀번호 게이트: 인증 전에는 DB 초기화/자동 백업/앱 본문이 전혀 실행되지 않는다.
 # 비밀번호는 .streamlit/secrets.toml의 APP_PASSWORD에서만 읽으며 코드에 직접 쓰지 않는다.
 try:
@@ -289,32 +294,221 @@ if not _app_password:
     st.stop()
 
 if not st.session_state.get("authenticated"):
-    st.title("자비스 주식 기록장 - 로그인")
     st.markdown(
         """
         <style>
-        .st-key-login_password_input input { max-width: 280px !important; }
+        html, body, [data-testid="stAppViewContainer"], .stApp {
+            background: #01030a !important;
+            overflow-x: hidden !important;
+        }
+        [data-testid="stHeader"] { background: transparent !important; }
+        [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
+        [data-testid="stMainBlockContainer"] {
+            max-width: 1280px !important;
+            min-height: 100vh;
+            padding: 2.5rem 3rem 2rem !important;
+            display: flex;
+            align-items: center;
+        }
+        [data-testid="stAppViewContainer"]::before,
+        [data-testid="stAppViewContainer"]::after {
+            content: "";
+            position: fixed;
+            inset: -12%;
+            pointer-events: none;
+            z-index: 0;
+            background-image:
+                radial-gradient(circle at 12% 18%, rgba(196, 225, 255, .8) 0 1px, transparent 1.5px),
+                radial-gradient(circle at 72% 24%, rgba(120, 180, 255, .62) 0 1px, transparent 1.4px),
+                radial-gradient(circle at 38% 76%, rgba(221, 238, 255, .68) 0 1px, transparent 1.5px),
+                radial-gradient(circle at 89% 68%, rgba(88, 151, 231, .48) 0 1px, transparent 1.3px);
+            background-size: 230px 210px, 310px 280px, 370px 330px, 430px 390px;
+            animation: jarvis-star-drift 120s linear infinite;
+        }
+        [data-testid="stAppViewContainer"]::after {
+            opacity: .38;
+            transform: rotate(21deg) scale(1.12);
+            animation-duration: 180s;
+            animation-direction: reverse;
+        }
+        [data-testid="stMainBlockContainer"] > div { position: relative; z-index: 1; width: 100%; }
+        div[data-testid="stHorizontalBlock"]:has(.jarvis-earth-stage) {
+            align-items: center !important;
+            gap: clamp(2rem, 6vw, 6rem) !important;
+            min-height: min(720px, calc(100vh - 5rem));
+        }
+        div[data-testid="stColumn"]:has(.jarvis-earth-stage) { min-width: 0; }
+        div[data-testid="stColumn"]:has(.jarvis-login-panel-heading) {
+            min-width: 360px;
+            padding: clamp(1.6rem, 3vw, 2.75rem) !important;
+            border: 1px solid rgba(85, 151, 236, .3);
+            border-radius: 24px;
+            background: linear-gradient(145deg, rgba(15, 31, 56, .72), rgba(3, 10, 24, .84));
+            box-shadow: 0 30px 90px rgba(0, 0, 0, .48), inset 0 1px rgba(179, 220, 255, .1);
+            backdrop-filter: blur(22px) saturate(130%);
+            -webkit-backdrop-filter: blur(22px) saturate(130%);
+        }
+        .jarvis-earth-stage {
+            width: 100%;
+            max-width: 720px;
+            margin-inline: auto;
+            filter: drop-shadow(0 24px 65px rgba(0, 48, 118, .52));
+        }
+        .jarvis-earth-svg { display: block; width: 100%; height: auto; overflow: visible; }
+        .jarvis-earth-rotation-band, .jarvis-city-rotation-band {
+            animation: jarvis-earth-surface 42s linear infinite;
+            will-change: transform;
+        }
+        .jarvis-cloud-rotation-band {
+            animation: jarvis-earth-surface 58s linear infinite;
+            will-change: transform;
+        }
+        .jarvis-orbit-primary { animation: jarvis-orbit-pulse 5.5s ease-in-out infinite; }
+        .jarvis-orbit-secondary { animation: jarvis-orbit-pulse 7.5s ease-in-out -2s infinite; }
+        .jarvis-orbit-dash { animation: jarvis-orbit-dash 9s ease-in-out infinite; }
+        .jarvis-earth-fallback {
+            width: min(58vw, 500px);
+            aspect-ratio: 1;
+            margin: auto;
+            border-radius: 50%;
+            background: radial-gradient(circle at 34% 30%, #1474c8, #062856 62%, #010611 78%);
+            box-shadow: 0 0 38px rgba(55, 173, 255, .48);
+        }
+        .jarvis-login-panel-heading { margin: 0 0 1.8rem; }
+        .jarvis-login-kicker {
+            color: #6abaff;
+            font: 700 .72rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+            letter-spacing: .22em;
+            text-transform: uppercase;
+        }
+        .jarvis-login-panel-heading h1 {
+            margin: .65rem 0 .45rem !important;
+            color: #f2f8ff !important;
+            font-size: clamp(2rem, 4vw, 3.25rem) !important;
+            line-height: 1.04 !important;
+            letter-spacing: -.04em;
+            text-shadow: 0 0 32px rgba(61, 148, 255, .28);
+        }
+        .jarvis-login-subtitle { color: #9badc5; font-size: .96rem; line-height: 1.65; }
+        .jarvis-login-status {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            margin-top: 1.25rem;
+            color: #7fa5cf;
+            font: 600 .72rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+            letter-spacing: .08em;
+        }
+        .jarvis-login-status::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #3f9cff;
+            box-shadow: 0 0 14px #3f9cff;
+        }
+        .st-key-login_password_input label p { color: #d9e8fa !important; font-weight: 650 !important; }
+        .st-key-login_password_input input {
+            width: 100% !important;
+            min-height: 50px !important;
+            color: #f5f9ff !important;
+            background: rgba(2, 9, 22, .72) !important;
+            border: 1px solid rgba(92, 157, 234, .34) !important;
+            border-radius: 12px !important;
+            box-shadow: inset 0 1px 8px rgba(0, 0, 0, .35) !important;
+        }
+        .st-key-login_password_input input:focus {
+            border-color: #368ff2 !important;
+            box-shadow: 0 0 0 2px rgba(54, 143, 242, .18), 0 0 26px rgba(27, 107, 208, .16) !important;
+        }
         .st-key-login_submit button {
-            background-color: #facc15 !important;
-            color: #1a1a1a !important;
-            border: 1px solid #ca8a04 !important;
-            font-size: 1.1rem !important;
+            width: 100% !important;
+            min-height: 50px !important;
+            margin-top: .45rem !important;
+            color: #f7fbff !important;
+            background: linear-gradient(100deg, #0f58bd, #167ee6 58%, #37a8ff) !important;
+            border: 1px solid rgba(125, 202, 255, .54) !important;
+            border-radius: 12px !important;
+            font-size: 1rem !important;
             font-weight: 800 !important;
-            padding: 10px 28px !important;
-            min-height: 48px !important;
+            letter-spacing: .08em;
+            box-shadow: 0 12px 34px rgba(11, 94, 201, .3), inset 0 1px rgba(255, 255, 255, .18) !important;
+        }
+        .st-key-login_submit button:hover {
+            border-color: #a8ddff !important;
+            box-shadow: 0 15px 42px rgba(14, 112, 235, .42), inset 0 1px rgba(255, 255, 255, .24) !important;
+        }
+        [data-testid="stAlert"] { border-radius: 12px !important; background: rgba(65, 17, 24, .58) !important; }
+        @keyframes jarvis-earth-surface { to { transform: translateX(-700px); } }
+        @keyframes jarvis-star-drift { to { transform: translate3d(90px, 55px, 0); } }
+        @keyframes jarvis-orbit-pulse { 0%, 100% { opacity: .28; } 50% { opacity: .86; } }
+        @keyframes jarvis-orbit-dash { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+        @media (max-width: 1100px) {
+            [data-testid="stMainBlockContainer"] { padding: 1.25rem 2rem 2rem !important; align-items: flex-start; }
+            div[data-testid="stHorizontalBlock"]:has(.jarvis-earth-stage) {
+                flex-direction: column !important;
+                gap: .35rem !important;
+                min-height: auto;
+            }
+            div[data-testid="stHorizontalBlock"]:has(.jarvis-earth-stage) > div[data-testid="stColumn"] {
+                width: 100% !important;
+                flex: 1 1 auto !important;
+                min-width: 0 !important;
+            }
+            .jarvis-earth-stage { width: min(64vw, 460px); }
+            div[data-testid="stColumn"]:has(.jarvis-login-panel-heading) { max-width: 640px; margin-inline: auto; }
+        }
+        @media (max-width: 640px) {
+            [data-testid="stMainBlockContainer"] { padding: .5rem 1rem 1.25rem !important; }
+            .jarvis-earth-stage { width: min(84vw, 330px); }
+            div[data-testid="stColumn"]:has(.jarvis-login-panel-heading) {
+                min-width: 0;
+                padding: 1.35rem !important;
+                border-radius: 18px;
+            }
+            .jarvis-login-panel-heading { margin-bottom: 1.15rem; }
+            .jarvis-login-panel-heading h1 { font-size: clamp(1.85rem, 10vw, 2.5rem) !important; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            [data-testid="stAppViewContainer"]::before,
+            [data-testid="stAppViewContainer"]::after,
+            .jarvis-earth-rotation-band,
+            .jarvis-city-rotation-band,
+            .jarvis-cloud-rotation-band,
+            .jarvis-orbit-primary,
+            .jarvis-orbit-secondary,
+            .jarvis-orbit-dash { animation: none !important; }
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
-    if st.button("로그인", key="login_submit"):
-        if _login_password_input == _app_password:
-            st.session_state["authenticated"] = True
-            st.rerun()
-        else:
-            st.error("비밀번호가 올바르지 않습니다.")
+    _login_earth_col, _login_panel_col = st.columns([1.25, 1], gap="large", vertical_alignment="center")
+    with _login_earth_col:
+        st.markdown('<div class="jarvis-earth-stage">' + _jarvis_earth_svg + "</div>", unsafe_allow_html=True)
+    with _login_panel_col:
+        st.markdown(
+            """
+            <div class="jarvis-login-panel-heading">
+                <div class="jarvis-login-kicker">SECURE MARKET INTELLIGENCE</div>
+                <h1>Stock Event Jarvis</h1>
+                <div class="jarvis-login-subtitle">자비스 주식 기록장 · 승인된 사용자만 접근할 수 있습니다.</div>
+                <div class="jarvis-login-status">ENCRYPTED SESSION / STANDBY</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
+        if st.button("로그인", key="login_submit", use_container_width=True):
+            if _login_password_input == _app_password:
+                st.session_state["authenticated"] = True
+                st.session_state["login_transition_pending"] = True
+                st.rerun()
+            else:
+                st.error("비밀번호가 올바르지 않습니다.")
     st.stop()
+
+_login_transition_pending = bool(st.session_state.get("login_transition_pending"))
 
 db.init_db()
 create_daily_db_backup_once()
@@ -5385,14 +5579,15 @@ with tab_kr:
     # 실행(rerun)해야 한다 — 실제 대기시간이 필요한 건 아니고, 화면이 자동으로 한 번 더
     # 새로고침되는 것뿐이다. 이 세션에서 한 번만 실행되며(session_state 플래그로 관리),
     # 이후에는 화면 상단 버튼들로 원하는 만큼 다시 실행할 수 있다.
-    if not st.session_state.get("kr_auto_run_stage1_done"):
+    # 로그인 성공 전환 중에는 뒤 화면만 먼저 렌더링하고 외부 자동조회는 다음 rerun으로 미룬다.
+    if not _login_transition_pending and not st.session_state.get("kr_auto_run_stage1_done"):
         _kr_auto_run_stocks = price_data.get_top_kr_stocks_by_amount(12)
         if _kr_auto_run_stocks:
             st.session_state["dynamic_snapshot_stocks"] = _kr_auto_run_stocks
             st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state["kr_auto_run_stage1_done"] = True
         st.rerun()
-    elif not st.session_state.get("kr_auto_run_stage2_done"):
+    elif not _login_transition_pending and not st.session_state.get("kr_auto_run_stage2_done"):
         st.session_state["kr_market_overview_result"] = _fetch_market_overview("KR")
         st.session_state["kr_market_overview_checked_at"] = st.session_state["kr_market_overview_result"]["checked_at"]
 
@@ -9131,3 +9326,164 @@ if _aux_view == "사용법":
             st.warning("자비스_사용법.md 파일을 찾을 수 없습니다.")
         except Exception as e:
             st.warning(f"사용법 파일을 불러오지 못했습니다: {e}")
+
+# 성공 오버레이는 본문이 모두 렌더링된 뒤 pending 값을 한 번만 꺼내 표시한다.
+# CSS만으로 1.2초 뒤 숨기므로 앱 실행을 막는 sleep/JavaScript 타이머가 없다.
+if _login_transition_pending:
+    st.session_state.pop("login_transition_pending", None)
+    st.markdown(
+        """
+        <style>
+        .jarvis-login-transition {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483000;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            pointer-events: none;
+            isolation: isolate;
+            background: radial-gradient(circle at center, #071b3a 0, #020713 46%, #000207 100%);
+            animation: jarvis-transition-overlay 1.2s linear forwards;
+        }
+        .jarvis-transition-earth {
+            position: relative;
+            z-index: 2;
+            width: min(68vw, 530px);
+            filter: drop-shadow(0 0 52px rgba(28, 129, 255, .55));
+            animation: jarvis-transition-earth-zoom 1.2s cubic-bezier(.62, 0, .88, .72) forwards;
+            will-change: transform, filter;
+        }
+        .jarvis-transition-earth .jarvis-earth-svg { display: block; width: 100%; height: auto; }
+        .jarvis-transition-earth .jarvis-earth-rotation-band,
+        .jarvis-transition-earth .jarvis-city-rotation-band { animation: jarvis-earth-surface 42s linear infinite; }
+        .jarvis-transition-earth .jarvis-cloud-rotation-band { animation: jarvis-earth-surface 58s linear infinite; }
+        .jarvis-transition-earth .jarvis-orbit-primary {
+            animation: jarvis-transition-ring-charge 1.2s ease-out forwards;
+        }
+        .jarvis-transition-earth .jarvis-orbit-secondary,
+        .jarvis-transition-earth .jarvis-orbit-dash {
+            animation: jarvis-transition-ring-charge-soft 1.2s ease-out forwards;
+        }
+        .jarvis-transition-status {
+            position: absolute;
+            z-index: 4;
+            top: calc(50% + min(29vw, 218px));
+            left: 50%;
+            width: min(90vw, 520px);
+            transform: translateX(-50%);
+            color: #eaf6ff;
+            text-align: center;
+            text-shadow: 0 0 18px rgba(74, 174, 255, .85);
+        }
+        .jarvis-transition-access,
+        .jarvis-transition-online,
+        .jarvis-transition-complete { opacity: 0; }
+        .jarvis-transition-access {
+            font: 800 clamp(1.15rem, 3vw, 1.85rem)/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+            letter-spacing: .2em;
+            animation: jarvis-transition-access 1.2s linear forwards;
+        }
+        .jarvis-transition-online {
+            margin-top: .38rem;
+            color: #69bfff;
+            font: 700 clamp(.78rem, 2vw, 1rem)/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+            letter-spacing: .24em;
+            animation: jarvis-transition-online 1.2s linear forwards;
+        }
+        .jarvis-transition-complete {
+            margin-top: .28rem;
+            color: #b9cce0;
+            font-size: clamp(.72rem, 1.8vw, .9rem);
+            letter-spacing: .12em;
+            animation: jarvis-transition-complete 1.2s linear forwards;
+        }
+        .jarvis-transition-light {
+            position: absolute;
+            z-index: 3;
+            left: 50%;
+            top: 50%;
+            width: 9vmin;
+            aspect-ratio: 1;
+            border: 2px solid rgba(82, 176, 255, .92);
+            border-radius: 50%;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(.1);
+            box-shadow: 0 0 34px rgba(36, 137, 255, .9), inset 0 0 30px rgba(31, 129, 255, .62);
+            animation: jarvis-transition-light-expand 1.2s ease-in forwards;
+        }
+        @keyframes jarvis-transition-ring-charge {
+            0% { opacity: .36; stroke-width: 2; filter: drop-shadow(0 0 0 rgba(63, 164, 255, 0)); }
+            20.83%, 50% { opacity: 1; stroke-width: 4; filter: drop-shadow(0 0 9px rgba(85, 190, 255, 1)); }
+            100% { opacity: .25; stroke-width: 2; filter: drop-shadow(0 0 18px rgba(85, 190, 255, .35)); }
+        }
+        @keyframes jarvis-transition-ring-charge-soft {
+            0% { opacity: .18; }
+            20.83%, 50% { opacity: .82; filter: drop-shadow(0 0 7px #54b8ff); }
+            100% { opacity: .18; }
+        }
+        @keyframes jarvis-transition-access {
+            0%, 20.82% { opacity: 0; transform: translateY(5px); }
+            24%, 50% { opacity: 1; transform: translateY(0); }
+            61%, 100% { opacity: 0; transform: translateY(-5px); }
+        }
+        @keyframes jarvis-transition-online {
+            0%, 30% { opacity: 0; transform: translateY(4px); }
+            34%, 50% { opacity: 1; transform: translateY(0); }
+            61%, 100% { opacity: 0; transform: translateY(-4px); }
+        }
+        @keyframes jarvis-transition-complete {
+            0%, 40% { opacity: 0; }
+            44%, 50% { opacity: .9; }
+            61%, 100% { opacity: 0; }
+        }
+        @keyframes jarvis-transition-earth-zoom {
+            0% { transform: scale(.78); }
+            20.83% { transform: scale(.82); }
+            50% { transform: scale(.84); filter: drop-shadow(0 0 66px rgba(40, 147, 255, .76)); }
+            100% { transform: scale(5.2); filter: drop-shadow(0 0 120px rgba(55, 160, 255, .15)); }
+        }
+        @keyframes jarvis-transition-light-expand {
+            0%, 49.9% { opacity: 0; transform: translate(-50%, -50%) scale(.1); }
+            55% { opacity: .8; }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(18); }
+        }
+        @keyframes jarvis-transition-overlay {
+            0%, 70% { opacity: 1; visibility: visible; }
+            99.9% { opacity: 0; visibility: visible; }
+            100% { opacity: 0; visibility: hidden; }
+        }
+        @keyframes jarvis-transition-reduced {
+            0% { opacity: 1; visibility: visible; }
+            99.9% { opacity: 0; visibility: visible; }
+            100% { opacity: 0; visibility: hidden; }
+        }
+        @media (max-width: 768px) {
+            .jarvis-transition-earth { width: min(88vw, 440px); }
+            .jarvis-transition-status { top: calc(50% + min(38vw, 190px)); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .jarvis-login-transition { animation: jarvis-transition-reduced .2s ease-out forwards !important; }
+            .jarvis-transition-earth,
+            .jarvis-transition-earth *,
+            .jarvis-transition-light { animation: none !important; }
+            .jarvis-transition-earth { transform: scale(.82); }
+            .jarvis-transition-access,
+            .jarvis-transition-online,
+            .jarvis-transition-complete { opacity: 1; transform: none; }
+        }
+        </style>
+        <div class="jarvis-login-transition" aria-hidden="true">
+            <div class="jarvis-transition-earth">
+        """ + _jarvis_earth_svg + """
+            </div>
+            <div class="jarvis-transition-light"></div>
+            <div class="jarvis-transition-status">
+                <div class="jarvis-transition-access">ACCESS GRANTED</div>
+                <div class="jarvis-transition-online">JARVIS ONLINE</div>
+                <div class="jarvis-transition-complete">인증 완료</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
