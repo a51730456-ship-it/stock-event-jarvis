@@ -107,11 +107,16 @@ def fetch_kr_theme_snapshot():
             themes[jarvis_theme] = {"ok": False}
             continue
         avg_pct = round(sum(m["change_pct"] for m in matched) / len(matched), 2)
-        top_stock = None
+        # 예전엔 첫 번째로 매칭된 네이버 서브테마의 첫 종목 1개만 썼다 — 매칭되는 서브테마가
+        # 여러 개면 나머지 종목 정보가 버려졌다. 매칭된 모든 서브테마의 대표 종목을 중복
+        # 없이 모아 최대 3개까지 콤마로 합친다(2026-07-13, 사용자 요청: 대표 종목이 너무
+        # 적다는 지적 반영).
+        top_stocks_all = []
         for m in matched:
-            if m["top_stocks"]:
-                top_stock = m["top_stocks"][0]
-                break
+            for name in m["top_stocks"]:
+                if name and name not in top_stocks_all:
+                    top_stocks_all.append(name)
+        top_stock = ", ".join(top_stocks_all[:3]) if top_stocks_all else None
         themes[jarvis_theme] = {
             "ok": True,
             "change_pct": avg_pct,
