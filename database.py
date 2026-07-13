@@ -315,6 +315,9 @@ def save_report(
         raise ValueError(f"timing_class must be one of {TIMING_CLASS_CHOICES}, got {timing_class!r}")
     items = items or []
 
+    # 숫자 필드 검증(2026-07-13 전체 코드검사에서 발견: update_report_item_* 계열과 달리
+    # 이 함수는 bool/NaN/Infinity를 그대로 저장하고 있었다). _validate_outcome_price/
+    # _validate_outcome_pct는 이 파일 아래쪽(성과검증용)에 이미 있는 헬퍼를 그대로 재사용한다.
     for item in items:
         if item.get("verdict") not in VERDICT_CHOICES:
             raise ValueError(f"verdict must be one of {VERDICT_CHOICES}, got {item.get('verdict')!r}")
@@ -324,6 +327,30 @@ def save_report(
         trade_mode = item.get("trade_mode") or "공통"
         if trade_mode not in TRADE_MODE_CHOICES:
             raise ValueError(f"trade_mode must be one of {TRADE_MODE_CHOICES}, got {trade_mode!r}")
+        item_market = item.get("market")
+        if item_market is not None and item_market not in ITEM_MARKET_CHOICES:
+            raise ValueError(f"market must be None or one of {ITEM_MARKET_CHOICES}, got {item_market!r}")
+        item_timing_class = item.get("item_timing_class")
+        if item_timing_class is not None and item_timing_class not in TIMING_CLASS_CHOICES:
+            raise ValueError(
+                f"item_timing_class must be None or one of {TIMING_CLASS_CHOICES}, got {item_timing_class!r}"
+            )
+        for _price_field in ("entry_price", "stop_loss_price", "planned_stop_price", "target_price"):
+            _validate_outcome_price(item.get(_price_field), _price_field)
+        _validate_outcome_pct(item.get("score"), "score")
+        _validate_outcome_pct(item.get("five_day_change_pct"), "five_day_change_pct")
+        _expected_holding_days = item.get("expected_holding_days")
+        if _expected_holding_days is not None:
+            if isinstance(_expected_holding_days, bool):
+                raise ValueError("expected_holding_days must not be a bool")
+            if not isinstance(_expected_holding_days, (int, float)):
+                raise ValueError(
+                    f"expected_holding_days must be a number or None, got {_expected_holding_days!r}"
+                )
+            if not math.isfinite(_expected_holding_days):
+                raise ValueError("expected_holding_days must be a finite number (NaN/Infinity not allowed)")
+            if _expected_holding_days < 0:
+                raise ValueError("expected_holding_days must be 0 or greater")
 
     conn = get_connection()
     try:
@@ -557,16 +584,29 @@ def _has_recent_consecutive_losses(conn):
     """직전 손절(exit_reason='손절') 2건이 모두 오늘 또는 어제 날짜 안에 있는지 근사
     판정한다. 청산 시각 컬럼이 없어 정확한 24시간 계산은 불가하므로 날짜 기준 근사치를
     쓴다(Fable5 확정 방식). 종목 구분 없이 전체 report_items를 대상으로 한다(복구매매는
-    특정 종목이 아니라 계좌 전체 심리 상태 문제이므로)."""
+    특정 종목이 아니라 계좌 전체 심리 상태 문제이므로).
+
+    미국 종목(market='US')은 actual_exit_date가 미국 동부시간(ET) 거래일로 기록되는데
+    ET 거래일은 한국시간(KST) 달력으로 최대 하루 앞선 날짜로 보일 수 있어(예: ET 7/13
+    세션은 KST로 7/13 저녁~7/14 새벽에 걸침), 오늘/어제 2일 창을 그대로 쓰면 실제로는
+    최근인 미국 손절이 창 밖으로 밀려 놓칠 수 있다. market='US' 행에는 하루 더 넓은
+    창(오늘/어제/그제)을 적용해 이 시차를 흡수한다(2026-07-13 전체 코드검사에서 발견,
+    performance.py의 동일한 KST/ET 시차 수정과 같은 맥락)."""
     rows = conn.execute(
-        "SELECT actual_exit_date FROM report_items "
+        "SELECT market, actual_exit_date FROM report_items "
         "WHERE actual_action='매수' AND exit_reason='손절' AND actual_exit_date IS NOT NULL "
         "ORDER BY actual_exit_date DESC LIMIT 2"
     ).fetchall()
     if len(rows) < 2:
         return False
-    allowed = {date.today().isoformat(), (date.today() - timedelta(days=1)).isoformat()}
-    return all(r["actual_exit_date"] in allowed for r in rows)
+    today = date.today()
+    base_allowed = {today.isoformat(), (today - timedelta(days=1)).isoformat()}
+    us_allowed = base_allowed | {(today - timedelta(days=2)).isoformat()}
+    for r in rows:
+        allowed = us_allowed if r["market"] == "US" else base_allowed
+        if r["actual_exit_date"] not in allowed:
+            return False
+    return True
 
 
 def update_report_item_actual_action(report_item_id, action):
