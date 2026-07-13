@@ -286,3 +286,47 @@ def get_ohlc_history_for_chart(ticker, start, end):
     except Exception:
         pass
     return None
+
+
+# ── 오늘 거래대금 상위 종목 자동 선정 (읽기 전용, 저장 없음, 사용자 명시 요청으로 추가) ──
+# 2026-07-13: 하드코딩된 7종목 고정 목록 대신, 매일 거래대금 상위 종목을 자동으로 뽑아
+# app.py의 SNAPSHOT_STOCKS를 동적으로 채우기 위한 함수. 기존 get_price_history/
+# get_snapshot_defaults/get_ohlc_history_for_chart와는 완전히 분리된 새 함수라 기존
+# 동작에는 영향이 없다.
+
+_PREFERRED_STOCK_SUFFIX_PATTERN = r"\d*우[A-Z]?$"
+
+
+def get_top_kr_stocks_by_amount(n=20, exclude_dept=("SPAC(소속부없음)", "관리종목(소속부없음)", "투자주의환기종목(소속부없음)")):
+    """오늘(가장 최근 완료된 거래일) 코스피/코스닥 거래대금 상위 n종목을 뽑는다.
+
+    FinanceDataReader의 KRX 전체 종목 스냅샷(fdr.StockListing('KRX'))을 한 번 조회해
+    Amount(거래대금) 기준 내림차순 정렬한다. 우선주(이름이 "우"/"우B" 등으로 끝나는
+    종목)와 스팩·관리종목·투자주의환기종목은 제외한다(정상적인 매매 후보로 보기
+    어려움). 'KOSDAQ GLOBAL'은 'KOSDAQ'과 중복 상장 표기라 KOSPI/KOSDAQ만 남긴다.
+    조회 실패 시 예외를 던지지 않고 빈 리스트를 반환한다.
+
+    반환: [{"name": str, "ticker": str(".KS"/".KQ" 접미사 포함), "sector": "-"}] (최대 n개)
+    """
+    try:
+        import FinanceDataReader as fdr
+
+        df = fdr.StockListing("KRX")
+    except Exception:
+        return []
+    if df is None or df.empty or "Amount" not in df.columns:
+        return []
+
+    df = df[df["Market"].isin(["KOSPI", "KOSDAQ"])]
+    if exclude_dept:
+        df = df[~df["Dept"].isin(exclude_dept)]
+    df = df[~df["Name"].astype(str).str.contains(_PREFERRED_STOCK_SUFFIX_PATTERN, regex=True)]
+    df = df.sort_values("Amount", ascending=False).head(n)
+
+    results = []
+    for _, row in df.iterrows():
+        code = str(row["Code"]).strip()
+        market = row["Market"]
+        suffix = ".KS" if market == "KOSPI" else ".KQ"
+        results.append({"name": str(row["Name"]).strip(), "ticker": f"{code}{suffix}", "sector": "-"})
+    return results
