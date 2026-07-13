@@ -292,6 +292,20 @@ try:
 except OSError:
     _jarvis_earth_markup = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
 
+try:
+    _jarvis_dot_earth_bytes = (Path(__file__).parent / "assets" / "jarvis_dot_earth.webp").read_bytes()
+    _jarvis_dot_earth_src = "data:image/webp;base64," + base64.b64encode(_jarvis_dot_earth_bytes).decode("ascii")
+    _jarvis_login_earth_markup = (
+        '<div class="jarvis-waiting-earth-visual">'
+        '<div class="jarvis-waiting-earth-halo"></div>'
+        '<div class="jarvis-waiting-earth-disc">'
+        f'<div class="jarvis-waiting-earth-surface" role="img" aria-label="점으로 표현된 회전 지구" '
+        f'style="--jarvis-dot-earth-texture:url({_jarvis_dot_earth_src})"></div>'
+        "</div></div>"
+    )
+except OSError:
+    _jarvis_login_earth_markup = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
+
 # 비밀번호 게이트: 인증 전에는 DB 초기화/자동 백업/앱 본문이 전혀 실행되지 않는다.
 # 비밀번호는 .streamlit/secrets.toml의 APP_PASSWORD에서만 읽으며 코드에 직접 쓰지 않는다.
 try:
@@ -363,45 +377,64 @@ if not st.session_state.get("authenticated"):
             max-width: 720px;
             margin-inline: auto;
         }
-        .jarvis-earth-visual {
+        .jarvis-waiting-earth-visual {
             position: relative;
             width: 100%;
             aspect-ratio: 1;
             isolation: isolate;
         }
-        .jarvis-earth-disc {
+        .jarvis-waiting-earth-halo {
+            position: absolute;
+            inset: 5.7%;
+            z-index: 1;
+            border-radius: 50%;
+            background: conic-gradient(from 215deg, rgba(141, 27, 255, .78), rgba(68, 48, 255, .28) 28%, rgba(32, 197, 255, .78) 52%, rgba(0, 91, 255, .2) 72%, rgba(141, 27, 255, .7));
+            filter: blur(16px);
+            opacity: .72;
+            animation: jarvis-waiting-halo-breathe 5.5s ease-in-out infinite;
+        }
+        .jarvis-waiting-earth-disc {
             position: absolute;
             inset: 7.5%;
             z-index: 2;
             overflow: hidden;
             border-radius: 50%;
-            background: #01040a;
-            box-shadow: 0 0 0 2px rgba(91, 190, 255, .78), 0 0 18px rgba(34, 139, 255, .3);
+            background: #000104;
+            box-shadow: inset 14px 0 30px rgba(118, 30, 255, .18), inset -14px 0 30px rgba(22, 191, 255, .2);
         }
-        .jarvis-earth-surface {
+        .jarvis-waiting-earth-disc::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            border: 1px solid rgba(123, 218, 255, .46);
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: inset 10px 0 24px rgba(125, 28, 255, .18), inset -10px 0 24px rgba(28, 194, 255, .24);
+        }
+        .jarvis-waiting-earth-surface {
             position: absolute;
             inset: 0;
             border-radius: 50%;
-            background-color: #02102d;
-            background-image: var(--jarvis-earth-texture);
+            background-color: #000104;
+            background-image: var(--jarvis-dot-earth-texture);
             background-repeat: repeat-x;
             background-size: 200% 100%;
             background-position: 120% 50%;
             opacity: 1;
-            animation: jarvis-earth-surface-turn 80s linear infinite;
+            animation: jarvis-waiting-earth-turn 60s linear infinite;
             animation-fill-mode: both;
             will-change: background-position;
         }
-        .jarvis-earth-surface::after {
+        .jarvis-waiting-earth-surface::after {
             content: "";
             position: absolute;
             inset: 0;
             border-radius: 50%;
             pointer-events: none;
             background:
-                radial-gradient(circle at 32% 27%, rgba(126, 202, 255, .16) 0, transparent 32%),
-                radial-gradient(circle at 48% 44%, transparent 42%, rgba(0, 5, 19, .22) 68%, rgba(0, 2, 10, .78) 100%),
-                linear-gradient(90deg, rgba(0, 4, 16, .46), transparent 24%, transparent 68%, rgba(0, 3, 14, .62));
+                radial-gradient(circle at 43% 38%, transparent 0 43%, rgba(0, 1, 7, .2) 60%, rgba(0, 1, 6, .94) 98%),
+                linear-gradient(90deg, rgba(18, 0, 43, .48), transparent 29%, transparent 66%, rgba(0, 33, 57, .42));
         }
         .jarvis-earth-fallback {
             width: min(58vw, 500px);
@@ -476,9 +509,13 @@ if not st.session_state.get("authenticated"):
             box-shadow: 0 15px 42px rgba(14, 112, 235, .42), inset 0 1px rgba(255, 255, 255, .24) !important;
         }
         [data-testid="stAlert"] { border-radius: 12px !important; background: rgba(65, 17, 24, .58) !important; }
-        @keyframes jarvis-earth-surface-turn {
+        @keyframes jarvis-waiting-earth-turn {
             from { background-position: 120% 50%; }
             to { background-position: -80% 50%; }
+        }
+        @keyframes jarvis-waiting-halo-breathe {
+            0%, 100% { opacity: .58; transform: scale(.985); }
+            50% { opacity: .82; transform: scale(1.015); }
         }
         @keyframes jarvis-star-drift { to { transform: translate3d(90px, 55px, 0); } }
         @media (max-width: 1100px) {
@@ -510,7 +547,8 @@ if not st.session_state.get("authenticated"):
         @media (prefers-reduced-motion: reduce) {
             [data-testid="stAppViewContainer"]::before,
             [data-testid="stAppViewContainer"]::after,
-            .jarvis-earth-surface { animation: none !important; }
+            .jarvis-waiting-earth-surface,
+            .jarvis-waiting-earth-halo { animation: none !important; }
         }
         </style>
         """,
@@ -518,7 +556,7 @@ if not st.session_state.get("authenticated"):
     )
     _login_earth_col, _login_panel_col = st.columns([1.25, 1], gap="large", vertical_alignment="center")
     with _login_earth_col:
-        st.markdown('<div class="jarvis-earth-stage">' + _jarvis_earth_markup + "</div>", unsafe_allow_html=True)
+        st.markdown('<div class="jarvis-earth-stage">' + _jarvis_login_earth_markup + "</div>", unsafe_allow_html=True)
     with _login_panel_col:
         st.markdown(
             """

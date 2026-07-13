@@ -12,6 +12,7 @@ SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
 VISUAL_SOURCE = (ROOT / "login_visual.py").read_text(encoding="utf-8")
 TRANSITION_SOURCE = SOURCE + VISUAL_SOURCE
 EARTH_PATH = ROOT / "assets" / "jarvis_earth.webp"
+DOT_EARTH_PATH = ROOT / "assets" / "jarvis_dot_earth.webp"
 TEST_PASSWORD = "jarvis-login-transition-test"
 
 
@@ -27,15 +28,17 @@ def _overlay_count(app):
 
 class LoginVisualContractTests(unittest.TestCase):
     def test_earth_is_1400px_local_webp_under_500kb(self):
-        self.assertLessEqual(EARTH_PATH.stat().st_size, 500_000)
-        with Image.open(EARTH_PATH) as earth:
-            self.assertEqual(earth.format, "WEBP")
-            self.assertEqual(earth.size, (1400, 1400))
+        for earth_path in (EARTH_PATH, DOT_EARTH_PATH):
+            self.assertLessEqual(earth_path.stat().st_size, 500_000)
+            with Image.open(earth_path) as earth:
+                self.assertEqual(earth.format, "WEBP")
+                self.assertEqual(earth.size, (1400, 1400))
         for marker in (
             'Path(__file__).parent / "assets" / "jarvis_earth.webp"',
+            'Path(__file__).parent / "assets" / "jarvis_dot_earth.webp"',
             "data:image/webp;base64,",
-            "jarvis-earth-surface",
-            "jarvis-earth-surface-turn",
+            "jarvis-waiting-earth-surface",
+            "jarvis-waiting-earth-turn",
         ):
             self.assertIn(marker, SOURCE)
         self.assertNotIn("jarvis_earth.svg", SOURCE)
@@ -63,8 +66,10 @@ class LoginVisualContractTests(unittest.TestCase):
             SOURCE.index("login_visual.render_login_transition"),
             SOURCE.index("db.init_db()"),
         )
-        self.assertIn("animation: jarvis-earth-surface-turn 80s linear infinite", SOURCE)
+        self.assertIn("animation: jarvis-waiting-earth-turn 60s linear infinite", SOURCE)
         self.assertIn("animation: jarvis-early-earth-surface-turn 80s linear infinite", VISUAL_SOURCE)
+        self.assertIn("login_visual.render_login_transition(st, _jarvis_earth_markup)", SOURCE)
+        self.assertIn("_jarvis_login_earth_markup + \"</div>\"", SOURCE)
         self.assertIn("background-position: 120% 50%", TRANSITION_SOURCE)
         self.assertIn("background-position: -80% 50%", TRANSITION_SOURCE)
         markup_source = SOURCE.split("_jarvis_earth_markup = (", 1)[1].split("except OSError", 1)[0]
