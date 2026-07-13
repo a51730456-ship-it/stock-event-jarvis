@@ -2357,6 +2357,29 @@ def _market_overview_price_item(label, ticker, result):
     return {"label": label, "ticker": ticker, "status": "정상", "current": current, "change_pct": change_pct}
 
 
+def _sparkline_svg(values, is_up, width=110, height=32):
+    """최근 며칠치 종가로 아주 작은 추세선(SVG)을 그린다. 실시간이 아니라 "오늘 X장 자료
+    불러오기" 버튼을 누른 시점의 일봉 데이터로만 그린다(CLAUDE.md "실시간 자동조회 금지"
+    규칙 — 버튼 클릭 시에만 조회하는 기존 종목별 일봉 차트와 동일한 방식, 2026-07-13
+    사용자 승인). values가 2개 미만이면 빈 문자열(그릴 게 없음)."""
+    if not values or len(values) < 2:
+        return ""
+    lo, hi = min(values), max(values)
+    rng = (hi - lo) or 1
+    step = width / (len(values) - 1)
+    points = " ".join(
+        f"{i * step:.1f},{height - ((v - lo) / rng) * (height - 4) - 2:.1f}"
+        for i, v in enumerate(values)
+    )
+    color = "#ff4b4b" if is_up else "#4b9fff"
+    return (
+        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" '
+        f'style="display:block;margin-top:6px">'
+        f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="2" '
+        f'stroke-linejoin="round" stroke-linecap="round"/></svg>'
+    )
+
+
 def _fetch_market_overview(market):
     rows = []
     signal_changes = {}
@@ -2368,6 +2391,19 @@ def _fetch_market_overview(market):
                 item = _market_overview_price_item(label, ticker, price_data.get_snapshot_defaults(ticker))
             except Exception:
                 item = _market_overview_price_item(label, ticker, None)
+            item["history"] = []
+            if item["status"] == "정상":
+                # 실시간 아님 — 이 버튼을 누른 시점에만 최근 10일치 종가를 한 번 조회한다.
+                try:
+                    _hist_end = datetime.now()
+                    _hist_start = _hist_end - timedelta(days=14)
+                    _hist_df = price_data.get_ohlc_history_for_chart(
+                        ticker, _hist_start.strftime("%Y-%m-%d"), _hist_end.strftime("%Y-%m-%d")
+                    )
+                    if _hist_df is not None and not _hist_df.empty:
+                        item["history"] = [float(v) for v in _hist_df["Close"].tail(10).tolist()]
+                except Exception:
+                    item["history"] = []
             card_items.append(item)
         valid_changes = [item["change_pct"] for item in card_items if item["change_pct"] is not None]
         signal_details[card[0]] = valid_changes
@@ -2476,22 +2512,6 @@ def _render_market_overview(market):
     title = "오늘 한국장 한눈에" if market == "KR" else "오늘 미국장 한눈에"
     market_label = "한국장" if market == "KR" else "미국장"
 
-    # 도박사(예측시장) 의견 — ChatGPT 브리핑의 [도박사] 구획을 붙여넣는 참고용 칸.
-    # docs/BRIEFING_LOGIC.md 5~7번 항목에 해당. 순수 참고용이며 점수·판정·DB 저장에는
-    # 절대 반영하지 않는다(2026-07-13 사용자 요청, 한국장/미국장 둘 다, 화면 최상단).
-    with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=False):
-        st.caption(
-            "ChatGPT 브리핑의 [도박사] 구획을 그대로 붙여넣는 참고용 칸입니다. "
-            "점수·판정·DB 저장에는 반영되지 않습니다."
-        )
-        st.text_area(
-            "도박사(예측시장) 의견",
-            key=f"{prefix}_bookmaker_opinion",
-            height=140,
-            placeholder="예: Polymarket/Kalshi 확률 변화, 선거·금리·관세 이벤트 확률 등",
-            label_visibility="collapsed",
-        )
-
     st.markdown(f"<div style='font-size:26px;font-weight:800;margin:0 0 10px 0'>{title}</div>", unsafe_allow_html=True)
     st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin:14px 0 22px'>먼저 아래 파란 버튼을 눌러 오늘 {market_label} 자료를 확인하세요.</div>", unsafe_allow_html=True)
     if st.button("오늘 한국장 자료 불러오기" if market == "KR" else "오늘 미국장 자료 불러오기", key=button_key):
@@ -2528,13 +2548,40 @@ def _render_market_overview(market):
                         change = item["change_pct"]
                         change_color = "#22c55e" if change is not None and change > 0 else "#f87171" if change is not None and change < 0 else "#d1d5db"
                         change_text = "확인 불가" if change is None else _fmt_signed_pct(change)
+                        _spark = _sparkline_svg(
+                            item.get("history") or [], is_up=(change is not None and change >= 0)
+                        )
                         card_parts.append(
                             f"<div style='font-size:18px;line-height:1.65;color:#CBD5E1'>{item['label']}</div>"
                             f"<div style='font-size:23px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
                             f"<div style='font-size:18px;line-height:1.65;color:{change_color};margin-top:6px'>전일 대비 등락률 {change_text}</div>"
+                            f"{_spark}"
                         )
                 card_parts.append("</div>")
                 st.markdown("".join(card_parts), unsafe_allow_html=True)
+
+    # 도박사(예측시장) 의견 — ChatGPT 브리핑의 [도박사] 구획을 붙여넣는 참고용 칸.
+    # docs/BRIEFING_LOGIC.md 5~7번 항목에 해당. 순수 참고용이며 점수·판정·DB 저장에는
+    # 절대 반영하지 않는다. 자동으로 채워지지 않는다 — Polymarket/Kalshi 자동연동은
+    # docs/PROJECT_SPEC.md에서 명시적으로 금지되어 있고, 실시간 예측시장 데이터를 가져올
+    # 수단 자체가 없어서 처음부터 빈 칸이다(내용을 몰라서 안 채운 게 아니라 애초에 자동
+    # 조회 대상이 아님). 그날 ChatGPT 브리핑의 [도박사] 문단을 그대로 복사해서 붙여넣는
+    # 용도. 2026-07-13 사용자 요청으로 위치를 위 차트 카드 바로 아래로, 기본 펼침으로 변경.
+    with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=True):
+        st.caption(
+            "자동으로 채워지지 않습니다 — Polymarket/Kalshi 자동연동은 금지되어 있고 "
+            "실시간 예측시장 데이터를 가져올 수단이 없습니다. 그날 ChatGPT 브리핑의 "
+            "[도박사] 문단을 그대로 복사해서 붙여넣는 참고용 칸입니다. "
+            "점수·판정·DB 저장에는 반영되지 않습니다."
+        )
+        st.text_area(
+            "도박사(예측시장) 의견",
+            key=f"{prefix}_bookmaker_opinion",
+            height=140,
+            placeholder="예: Polymarket/Kalshi 확률 변화, 선거·금리·관세 이벤트 확률 등",
+            label_visibility="collapsed",
+        )
+
     if market == "KR":
         _render_kr_market_mood_strip()
     st.markdown("<div style='font-size:19px;line-height:1.65;font-weight:800;margin-top:40px;margin-bottom:14px'>시장 주요 뉴스 후보</div>", unsafe_allow_html=True)
