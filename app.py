@@ -2402,6 +2402,72 @@ def _fetch_market_overview(market):
         "status": _market_overview_status(market, signal_changes, signal_details),
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
+def _render_kr_market_mood_strip():
+    """한국장 요약 스트립(KOSPI/KOSDAQ/달러원/나스닥100선물/SOXX·SMH/오늘저장/금일손실R)을
+    한 줄 카드로 렌더링한다. 2026-07-13 사용자 요청으로 "시장 주요 뉴스 후보" 위로
+    옮겼다(기존엔 그 아래, _render_kr_fable_mockup1_preview 안에 있었음). CSS 클래스
+    (.jarvis-m1-strip 등)는 _render_kr_fable_mockup1_preview가 주입하며, style 태그는
+    DOM 순서와 무관하게 적용되므로 렌더 순서가 바뀌어도 문제없다."""
+    mood_rows = st.session_state.get("kr_mood_auto_results") or []
+    mood_by_name = {
+        row.get("항목"): row
+        for row in mood_rows
+        if isinstance(row, dict) and row.get("항목")
+    }
+    kospi_row = mood_by_name.get("KOSPI") or mood_by_name.get("코스피") or {}
+    kosdaq_row = mood_by_name.get("KOSDAQ") or mood_by_name.get("코스닥") or {}
+    usdkrw_row = mood_by_name.get("달러/원") or {}
+    nasdaq_row = mood_by_name.get("나스닥100 선물") or {}
+    soxx_row = mood_by_name.get("SOXX") or {}
+    smh_row = mood_by_name.get("SMH") or {}
+
+    try:
+        today_prefix = datetime.now().strftime("%Y-%m-%d")
+        today_saved = sum(
+            1
+            for report in db.list_reports()
+            if str(report.get("saved_at") or "").startswith(today_prefix)
+        )
+    except Exception:
+        today_saved = "-"
+
+    if "risk_today_loss_r" in st.session_state and st.session_state["risk_today_loss_r"] is not None:
+        today_loss_r = f"{st.session_state['risk_today_loss_r']}R"
+    else:
+        today_loss_r = "-"
+
+    strip_items = [
+        ("KOSPI", kospi_row.get("등락률(%)", "-")),
+        ("KOSDAQ", kosdaq_row.get("등락률(%)", "-")),
+        ("달러/원", usdkrw_row.get("등락률(%)", "-")),
+        ("나스닥100 선물", nasdaq_row.get("등락률(%)", "-")),
+        (
+            "SOXX / SMH",
+            f"SOXX {soxx_row.get('등락률(%)', '-')} · SMH {smh_row.get('등락률(%)', '-')}",
+        ),
+        ("오늘 저장", today_saved),
+        ("금일 손실 R", today_loss_r),
+    ]
+
+    def _strip_value_class(value):
+        text = str(value)
+        if "+" in text:
+            return " jarvis-m1-up"
+        if "-" in text and text != "-":
+            return " jarvis-m1-down"
+        return ""
+
+    strip_html = "".join(
+        '<div class="jarvis-m1-strip-item">'
+        f'<span class="jarvis-m1-strip-label">{label}</span>'
+        f'<span class="jarvis-m1-strip-value{_strip_value_class(value)}">{value}</span>'
+        "</div>"
+        for label, value in strip_items
+    )
+    if any(value != "-" for _, value in strip_items[:5]):
+        st.markdown(f'<div class="jarvis-m1-strip">{strip_html}</div>', unsafe_allow_html=True)
+
+
 def _render_market_overview(market):
     prefix = market.lower()
     result_key = f"{prefix}_market_overview_result"
@@ -2469,6 +2535,8 @@ def _render_market_overview(market):
                         )
                 card_parts.append("</div>")
                 st.markdown("".join(card_parts), unsafe_allow_html=True)
+    if market == "KR":
+        _render_kr_market_mood_strip()
     st.markdown("<div style='font-size:19px;line-height:1.65;font-weight:800;margin-top:40px;margin-bottom:14px'>시장 주요 뉴스 후보</div>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-bottom:22px'>네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.</div>", unsafe_allow_html=True)
     if not result["news"] and result.get("news_failed"):
@@ -4731,64 +4799,6 @@ def _render_kr_fable_mockup1_preview():
         """,
         unsafe_allow_html=True,
     )
-
-    mood_rows = st.session_state.get("kr_mood_auto_results") or []
-    mood_by_name = {
-        row.get("항목"): row
-        for row in mood_rows
-        if isinstance(row, dict) and row.get("항목")
-    }
-    kospi_row = mood_by_name.get("KOSPI") or mood_by_name.get("코스피") or {}
-    kosdaq_row = mood_by_name.get("KOSDAQ") or mood_by_name.get("코스닥") or {}
-    usdkrw_row = mood_by_name.get("달러/원") or {}
-    nasdaq_row = mood_by_name.get("나스닥100 선물") or {}
-    soxx_row = mood_by_name.get("SOXX") or {}
-    smh_row = mood_by_name.get("SMH") or {}
-
-    try:
-        today_prefix = datetime.now().strftime("%Y-%m-%d")
-        today_saved = sum(
-            1
-            for report in db.list_reports()
-            if str(report.get("saved_at") or "").startswith(today_prefix)
-        )
-    except Exception:
-        today_saved = "-"
-
-    if "risk_today_loss_r" in st.session_state and st.session_state["risk_today_loss_r"] is not None:
-        today_loss_r = f"{st.session_state['risk_today_loss_r']}R"
-    else:
-        today_loss_r = "-"
-
-    strip_items = [
-        ("KOSPI", kospi_row.get("등락률(%)", "-")),
-        ("KOSDAQ", kosdaq_row.get("등락률(%)", "-")),
-        ("달러/원", usdkrw_row.get("등락률(%)", "-")),
-        ("나스닥100 선물", nasdaq_row.get("등락률(%)", "-")),
-        (
-            "SOXX / SMH",
-            f"SOXX {soxx_row.get('등락률(%)', '-')} · SMH {smh_row.get('등락률(%)', '-')}",
-        ),
-        ("오늘 저장", today_saved),
-        ("금일 손실 R", today_loss_r),
-    ]
-    def _strip_value_class(value):
-        text = str(value)
-        if "+" in text:
-            return " jarvis-m1-up"
-        if "-" in text and text != "-":
-            return " jarvis-m1-down"
-        return ""
-
-    strip_html = "".join(
-        '<div class="jarvis-m1-strip-item">'
-        f'<span class="jarvis-m1-strip-label">{label}</span>'
-        f'<span class="jarvis-m1-strip-value{_strip_value_class(value)}">{value}</span>'
-        "</div>"
-        for label, value in strip_items
-    )
-    if any(value != "-" for _, value in strip_items[:5]):
-        st.markdown(f'<div class="jarvis-m1-strip">{strip_html}</div>', unsafe_allow_html=True)
 
     stage2_preview = build_kr_stage2_preview()
     rows = stage2_preview["rows"]
