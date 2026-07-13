@@ -17,6 +17,7 @@ import database as db
 import disclosure_data
 import news_data
 import performance
+import bookmaker_data
 import theme_data
 import theme_history
 import price_data
@@ -2560,20 +2561,39 @@ def _render_market_overview(market):
                 card_parts.append("</div>")
                 st.markdown("".join(card_parts), unsafe_allow_html=True)
 
-    # 도박사(예측시장) 의견 — ChatGPT 브리핑의 [도박사] 구획을 붙여넣는 참고용 칸.
-    # docs/BRIEFING_LOGIC.md 5~7번 항목에 해당. 순수 참고용이며 점수·판정·DB 저장에는
-    # 절대 반영하지 않는다. 자동으로 채워지지 않는다 — Polymarket/Kalshi 자동연동은
-    # docs/PROJECT_SPEC.md에서 명시적으로 금지되어 있고, 실시간 예측시장 데이터를 가져올
-    # 수단 자체가 없어서 처음부터 빈 칸이다(내용을 몰라서 안 채운 게 아니라 애초에 자동
-    # 조회 대상이 아님). 그날 ChatGPT 브리핑의 [도박사] 문단을 그대로 복사해서 붙여넣는
-    # 용도. 2026-07-13 사용자 요청으로 위치를 위 차트 카드 바로 아래로, 기본 펼침으로 변경.
+    # 도박사(예측시장) 의견 — ChatGPT 브리핑의 [도박사] 구획을 붙여넣는 참고용 칸 +
+    # Polymarket/Kalshi 공개 API 참고 조회(2026-07-13 추가). docs/PROJECT_SPEC.md의
+    # "자동연동 금지"는 자동으로 점수·판정·DB에 반영하는 것을 금지한다는 뜻이지, 조회
+    # 자체가 기술적으로 불가능하다는 뜻이 아니다(공개 API는 인증 없이 조회 가능,
+    # theme_data.py의 네이버 스크래핑과 동일하게 이미 한 번 재승인된 전례가 있는 종류의
+    # 제한). 버튼을 눌렀을 때만 조회하고(로그인 시 자동실행 안 됨), session_state에만
+    # 유지하며 DB에 저장하지 않고, 점수·판정 계산에도 절대 반영하지 않는다.
     with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=True):
         st.caption(
-            "자동으로 채워지지 않습니다 — Polymarket/Kalshi 자동연동은 금지되어 있고 "
-            "실시간 예측시장 데이터를 가져올 수단이 없습니다. 그날 ChatGPT 브리핑의 "
-            "[도박사] 문단을 그대로 복사해서 붙여넣는 참고용 칸입니다. "
-            "점수·판정·DB 저장에는 반영되지 않습니다."
+            "아래 버튼을 눌러야만 조회합니다(자동실행 아님). Polymarket/Kalshi 공개 "
+            "시장 데이터 API에서 금리·인플레이션·관세 등 거시경제 관련 활성 시장을 "
+            "거래량 상위로 몇 개 가져와 참고용으로만 보여줍니다 — 관련성 판단은 사람이 "
+            "직접 해야 합니다. 점수·판정·DB 저장에는 반영되지 않습니다. 아래 텍스트 칸은 "
+            "그날 ChatGPT 브리핑의 [도박사] 문단을 그대로 붙여넣는 용도로 계속 씁니다."
         )
+        if st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)", key=f"{prefix}_bookmaker_fetch"):
+            with st.spinner("Polymarket/Kalshi 조회 중..."):
+                st.session_state[f"{prefix}_bookmaker_snapshot"] = bookmaker_data.fetch_bookmaker_snapshot()
+        _bookmaker_snapshot = st.session_state.get(f"{prefix}_bookmaker_snapshot")
+        if _bookmaker_snapshot:
+            if _bookmaker_snapshot.get("checked_at"):
+                st.caption(f"마지막 조회: {_bookmaker_snapshot['checked_at']}")
+            for _err in _bookmaker_snapshot.get("errors") or []:
+                st.caption(f"일부 실패: {_err}")
+            if _bookmaker_snapshot.get("signals"):
+                for _sig in _bookmaker_snapshot["signals"]:
+                    _prob = f"{_sig['probability_pct']}%" if _sig.get("probability_pct") is not None else "-"
+                    st.markdown(
+                        f"- **[{_sig['source']}]** {_sig['question']} — 확률 {_prob} "
+                        f"(마감 {_sig.get('end_date') or '-'})"
+                    )
+            elif not _bookmaker_snapshot.get("errors"):
+                st.caption("현재 거시경제 관련 활성 시장을 찾지 못했습니다.")
         st.text_area(
             "도박사(예측시장) 의견",
             key=f"{prefix}_bookmaker_opinion",
