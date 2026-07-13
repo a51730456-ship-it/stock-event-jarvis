@@ -4589,6 +4589,20 @@ def _render_kr_theme_chip_editor():
             selected_status_key = f"kr_theme_status_{selected_theme_slug}"
             _leader_status_key = f"kr_theme_leader_status_{selected_theme_slug}"
 
+            # "이 테마 후발주·추격주의·메모 자동 채우기" 버튼(아래 expander 안)이 눌리면
+            # 위젯이 이미 인스턴스화된 뒤라 session_state를 바로 못 바꾼다(표 클릭 때와
+            # 같은 문제). 그래서 버튼 클릭 시엔 대기 키에만 결과를 남기고 rerun하며,
+            # 위젯이 만들어지기 전인 여기서 대신 반영한다(2026-07-13).
+            _kr_theme_stock_detail_pending = st.session_state.pop(
+                f"_kr_theme_stock_detail_pending_{selected_theme_slug}", None
+            )
+            if _kr_theme_stock_detail_pending:
+                _field_key_prefix = dict(field_specs)
+                for _field_name, _value in _kr_theme_stock_detail_pending.items():
+                    _key_prefix = _field_key_prefix.get(_field_name)
+                    if _key_prefix and _value:
+                        st.session_state[f"{_key_prefix}{selected_theme_slug}"] = _value
+
             # 테마 선택이 바뀔 때마다(드롭다운으로 고르든 표에서 클릭하든) 세부 입력 위젯을
             # 그 테마의 최신 저장값(자동조회로 이미 채워진 대장주 등 포함)으로 강제
             # 동기화한다. 예전엔 위젯을 한 번만 초기화해서, 자동조회가 나중에 값을 채워도
@@ -4634,6 +4648,44 @@ def _render_kr_theme_chip_editor():
             )
             selected_detail_values = {}
             with st.expander("선택 테마 세부 입력", expanded=True):
+                # 2026-07-13 추가: 후발주/추격주의/메모가 항상 빈 칸이라는 지적 —
+                # 대표 종목별 개별 등락률을 조회해 순위를 매기고(1등 대장주, 2·3등
+                # 양전이면 후발주, 4등 이하 추격주의), 테마명으로 뉴스도 1건 찾아
+                # 메모에 채운다. 버튼을 눌렀을 때만 조회하며 점수·판정·DB에는
+                # 반영하지 않는다(theme_data.fetch_kr_theme_stock_detail 참고).
+                if st.button(
+                    "이 테마 후발주·추격주의·메모 자동 채우기",
+                    key=f"kr_theme_stock_detail_fetch_{selected_theme_slug}",
+                ):
+                    with st.spinner("종목별 등락률·뉴스 조회 중..."):
+                        _stock_detail = theme_data.fetch_kr_theme_stock_detail(_theme_detail_selected)
+                        _pending = {}
+                        if _stock_detail.get("ok"):
+                            if _stock_detail.get("후발주"):
+                                _pending["후발주"] = _stock_detail["후발주"]
+                            if _stock_detail.get("추격주의"):
+                                _pending["추격주의"] = _stock_detail["추격주의"]
+                        else:
+                            st.session_state[f"_kr_theme_stock_detail_error_{selected_theme_slug}"] = (
+                                _stock_detail.get("error") or "조회 실패"
+                            )
+                        _client_id = st.secrets.get("NAVER_CLIENT_ID")
+                        _client_secret = st.secrets.get("NAVER_CLIENT_SECRET")
+                        if _client_id and _client_secret:
+                            _news_result = news_data.fetch_naver_news(
+                                _client_id, _client_secret, f"{_theme_detail_selected} 테마", display=3, sort="date"
+                            )
+                            _news_items = _news_result.get("data") or []
+                            if _news_items:
+                                _pending["메모"] = f"[뉴스] {_news_items[0].get('title') or ''}".strip()
+                        if _pending:
+                            st.session_state[f"_kr_theme_stock_detail_pending_{selected_theme_slug}"] = _pending
+                    st.rerun()
+                _stock_detail_error = st.session_state.pop(
+                    f"_kr_theme_stock_detail_error_{selected_theme_slug}", None
+                )
+                if _stock_detail_error:
+                    st.caption(f"자동 채우기 실패: {_stock_detail_error} — 직접 입력해 주세요.")
                 for field_name, key_prefix in field_specs:
                     widget_key = f"{key_prefix}{selected_theme_slug}"
                     if field_name == "메모":

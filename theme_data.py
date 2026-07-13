@@ -77,6 +77,22 @@ def _classify_kr_theme_verdict(avg_change_pct):
     return "보통"
 
 
+def _get_kr_stock_maps():
+    """FinanceDataReader의 KRX 전체 종목 목록에서 {코드: 정식 종목명}과 {코드: 시장} 매핑을
+    함께 만든다. 실패하면 빈 dict 2개를 반환한다(예외 없이 안전하게 대체)."""
+    try:
+        import FinanceDataReader as fdr
+
+        df = fdr.StockListing("KRX")
+    except Exception:
+        return {}, {}
+    if df is None or df.empty or not {"Code", "Name", "Market"}.issubset(df.columns):
+        return {}, {}
+    code_to_name = {str(code).strip(): str(name).strip() for code, name in zip(df["Code"], df["Name"])}
+    code_to_market = {str(code).strip(): str(market).strip() for code, market in zip(df["Code"], df["Market"])}
+    return code_to_name, code_to_market
+
+
 def _get_kr_stock_code_to_name_map():
     """FinanceDataReader의 KRX 전체 종목 목록에서 {6자리 코드: 정식 종목명} 매핑을 만든다.
 
@@ -86,15 +102,8 @@ def _get_kr_stock_code_to_name_map():
     (2026-07-13, 사용자가 이전에도 지적한 문제). 실패하면 빈 dict를 반환하고,
     호출부는 그러면 네이버가 준 축약 이름을 그대로 쓴다(예외 없이 안전하게 대체).
     """
-    try:
-        import FinanceDataReader as fdr
-
-        df = fdr.StockListing("KRX")
-    except Exception:
-        return {}
-    if df is None or df.empty or "Code" not in df.columns or "Name" not in df.columns:
-        return {}
-    return {str(code).strip(): str(name).strip() for code, name in zip(df["Code"], df["Name"])}
+    code_to_name, _ = _get_kr_stock_maps()
+    return code_to_name
 
 
 def fetch_kr_theme_snapshot():
@@ -168,6 +177,95 @@ def fetch_kr_theme_snapshot():
         "error": None,
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "themes": themes,
+    }
+
+
+def fetch_kr_theme_stock_detail(theme_name):
+    """선택된 테마 1개의 대표 종목별 등락률을 개별 조회해서 대장주/후발주/추격주의를
+    자동 산정한다(2026-07-13 추가).
+
+    fetch_kr_theme_snapshot()은 20개 테마 전체를 한 번에 훑으며 종목 "이름"만 모아
+    보여줄 뿐 개별 등락률은 조회하지 않는다 — 테마당 최대 4종목을 20개 테마 전부에
+    개별 조회하면 네트워크 호출이 너무 많아진다. 이 함수는 "선택 테마 세부 입력"에서
+    버튼을 눌렀을 때만 그 테마 1개에 대해서만 개별 종목 등락률을 조회해 순위를 매긴다.
+    CLAUDE.md 5번 기준(3등주부터 기대값 급감, 대장주가 -7~10% 꺾이면 후발주 청산)을
+    참고해 1등=대장주, 2·3등(양전)=후발주, 4등 이하=추격주의로 분류한다. 점수·판정·
+    DB에는 반영하지 않는 참고용 계산이다.
+    """
+    import price_data
+
+    naver_ids = KR_THEME_NAVER_MAPPING.get(theme_name)
+    if not naver_ids:
+        return {"ok": False, "error": "등록되지 않은 테마입니다"}
+
+    parsed = {}
+    last_error = None
+    for page in range(1, 9):
+        url = NAVER_THEME_LIST_URL if page == 1 else f"{NAVER_THEME_LIST_URL}?page={page}"
+        try:
+            resp = requests.get(url, timeout=8, headers=NAVER_HEADERS)
+            resp.raise_for_status()
+            resp.encoding = "euc-kr"
+            parsed.update(_parse_naver_theme_list(resp.text))
+        except Exception as e:
+            last_error = str(e)
+            continue
+        if set(naver_ids).issubset(parsed.keys()):
+            break
+
+    matched = [parsed[i] for i in naver_ids if i in parsed]
+    if not matched:
+        return {"ok": False, "error": last_error or "테마 데이터를 찾지 못했습니다"}
+
+    code_to_name, code_to_market = _get_kr_stock_maps()
+
+    candidates = []
+    seen_codes = set()
+    for m in matched:
+        for code, truncated_name in m["top_stocks"]:
+            if code in seen_codes:
+                continue
+            seen_codes.add(code)
+            name = code_to_name.get(code, truncated_name)
+            market = code_to_market.get(code)
+            suffix = ".KQ" if market == "KOSDAQ" else ".KS"
+            try:
+                snap = price_data.get_snapshot_defaults(f"{code}{suffix}")
+            except Exception:
+                snap = {"ok": False}
+            change_pct = None
+            if snap.get("ok") and snap.get("current") and snap.get("prev_close"):
+                change_pct = round(
+                    (snap["current"] - snap["prev_close"]) / snap["prev_close"] * 100, 2
+                )
+            candidates.append({"code": code, "name": name, "change_pct": change_pct})
+
+    ranked = sorted(
+        (c for c in candidates if c["change_pct"] is not None),
+        key=lambda c: c["change_pct"],
+        reverse=True,
+    )
+    failed_names = [c["name"] for c in candidates if c["change_pct"] is None]
+
+    if not ranked:
+        return {
+            "ok": False,
+            "error": "종목 시세를 하나도 조회하지 못했습니다",
+            "price_fetch_failed": failed_names,
+        }
+
+    leader = ranked[0]
+    laggards = [c["name"] for c in ranked[1:3] if c["change_pct"] > 0]
+    chase_warning = [c["name"] for c in ranked[3:]]
+
+    return {
+        "ok": True,
+        "error": None,
+        "대장주": leader["name"],
+        "후발주": ", ".join(laggards) if laggards else None,
+        "추격주의": ", ".join(chase_warning) if chase_warning else None,
+        "candidates": candidates,
+        "price_fetch_failed": failed_names,
     }
 
 
