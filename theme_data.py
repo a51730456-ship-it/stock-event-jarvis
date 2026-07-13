@@ -34,7 +34,7 @@ _THEME_ROW_PATTERN = re.compile(
     re.S,
 )
 _TOP_STOCK_PATTERN = re.compile(
-    r'col_type[56]">.*?<a href="/item/main\.naver\?code=\d+">([^<]+)</a>',
+    r'col_type[56]">.*?<a href="/item/main\.naver\?code=(\d+)">([^<]+)</a>',
     re.S,
 )
 
@@ -49,7 +49,7 @@ def _parse_naver_theme_list(html):
         rows[int(theme_id)] = {
             "name": name,
             "change_pct": float(pct),
-            "top_stocks": top_stocks[:2],
+            "top_stocks": top_stocks[:4],
         }
     return rows
 
@@ -60,6 +60,26 @@ def _classify_kr_theme_verdict(avg_change_pct):
     if avg_change_pct <= -2.0:
         return "약함"
     return "보통"
+
+
+def _get_kr_stock_code_to_name_map():
+    """FinanceDataReader의 KRX 전체 종목 목록에서 {6자리 코드: 정식 종목명} 매핑을 만든다.
+
+    네이버 테마별 시세 페이지가 대표 종목명을 셀 안에서 줄여서 주는 문제(예:
+    "피에스케이.." — 네이버 원본 HTML 자체가 이미 줄인 상태라 정규식으로는 복구
+    불가)를 해결하기 위해, 같은 셀에 있는 6자리 종목코드로 정식 이름을 다시 찾는다
+    (2026-07-13, 사용자가 이전에도 지적한 문제). 실패하면 빈 dict를 반환하고,
+    호출부는 그러면 네이버가 준 축약 이름을 그대로 쓴다(예외 없이 안전하게 대체).
+    """
+    try:
+        import FinanceDataReader as fdr
+
+        df = fdr.StockListing("KRX")
+    except Exception:
+        return {}
+    if df is None or df.empty or "Code" not in df.columns or "Name" not in df.columns:
+        return {}
+    return {str(code).strip(): str(name).strip() for code, name in zip(df["Code"], df["Name"])}
 
 
 def fetch_kr_theme_snapshot():
@@ -100,6 +120,8 @@ def fetch_kr_theme_snapshot():
             "themes": {},
         }
 
+    code_to_name = _get_kr_stock_code_to_name_map()
+
     themes = {}
     for jarvis_theme, naver_ids in KR_THEME_NAVER_MAPPING.items():
         matched = [parsed[i] for i in naver_ids if i in parsed]
@@ -109,14 +131,16 @@ def fetch_kr_theme_snapshot():
         avg_pct = round(sum(m["change_pct"] for m in matched) / len(matched), 2)
         # 예전엔 첫 번째로 매칭된 네이버 서브테마의 첫 종목 1개만 썼다 — 매칭되는 서브테마가
         # 여러 개면 나머지 종목 정보가 버려졌다. 매칭된 모든 서브테마의 대표 종목을 중복
-        # 없이 모아 최대 3개까지 콤마로 합친다(2026-07-13, 사용자 요청: 대표 종목이 너무
-        # 적다는 지적 반영).
+        # 없이 모아 최대 4개까지 콤마로 합친다(2026-07-13, 사용자 요청: 대표 종목이 너무
+        # 적다는 지적 반영). 종목명은 code_to_name으로 정식 이름을 우선 쓰고, 매핑에 없으면
+        # 네이버가 준 축약 이름을 그대로 쓴다.
         top_stocks_all = []
         for m in matched:
-            for name in m["top_stocks"]:
-                if name and name not in top_stocks_all:
-                    top_stocks_all.append(name)
-        top_stock = ", ".join(top_stocks_all[:3]) if top_stocks_all else None
+            for code, truncated_name in m["top_stocks"]:
+                resolved_name = code_to_name.get(code, truncated_name)
+                if resolved_name and resolved_name not in top_stocks_all:
+                    top_stocks_all.append(resolved_name)
+        top_stock = ", ".join(top_stocks_all[:4]) if top_stocks_all else None
         themes[jarvis_theme] = {
             "ok": True,
             "change_pct": avg_pct,
