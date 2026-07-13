@@ -141,6 +141,41 @@ def _try_fdr_ohlcv(symbol, start, end):
     return df
 
 
+def get_intraday_last(ticker):
+    """오늘 1분봉 중 가장 최근 값을 조회한다(장중 현재가에 가장 가까운 값).
+
+    실시간 스트리밍이 아니다 — 호출된 그 순간에 한 번만 조회하는 스냅샷이며,
+    자동으로 반복 호출되지 않는다(화면에 뜨는 숫자가 항상 전날 종가라서 시간차가
+    크다는 지적을 반영해 2026-07-13 사용자 명시 요청으로 추가). 기존
+    get_snapshot_defaults()는 그대로 두고 완전히 새 함수로 분리했다. 장이 닫혀
+    있거나(주말·공휴일·장 시작 전) 1분봉이 없으면 ok=False를 반환하며, 호출부는
+    그러면 기존처럼 최근 완료된 거래일 종가로 대체 표시해야 한다.
+    """
+    try:
+        import yfinance as yf
+
+        df = yf.Ticker(ticker).history(period="1d", interval="1m")
+        if df is None or df.empty or "Close" not in df.columns:
+            return {"ok": False, "error": "장중 1분봉 데이터 없음"}
+        last = df.iloc[-1]
+        close = float(last["Close"])
+        if not math.isfinite(close) or close <= 0:
+            return {"ok": False, "error": "장중 데이터 유효성 실패"}
+        asof_str = None
+        try:
+            asof = df.index[-1]
+            # tz_convert(None)은 UTC로 변환 후 tz만 지워서 시각이 바뀐다(버그로 KOSPI
+            # 12:17 KST가 03:17로 표시됨, 2026-07-13 발견). tz_localize(None)은 시각은
+            # 그대로 두고 tz 표기만 지운다 — _clean_index()와 동일한 방식으로 통일.
+            asof_local = asof.tz_localize(None) if asof.tzinfo is not None else asof
+            asof_str = asof_local.strftime("%H:%M")
+        except Exception:
+            asof_str = None
+        return {"ok": True, "current": close, "asof": asof_str}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 def get_snapshot_defaults(ticker):
     """장중 스냅샷 "기본값 자동 채우기" 전용 조회. DB에 저장하지 않는 읽기 전용 헬퍼다.
 

@@ -2389,9 +2389,25 @@ def _fetch_market_overview(market):
         card_items = []
         for label, ticker in card[1:]:
             try:
-                item = _market_overview_price_item(label, ticker, price_data.get_snapshot_defaults(ticker))
+                _daily_result = price_data.get_snapshot_defaults(ticker)
             except Exception:
-                item = _market_overview_price_item(label, ticker, None)
+                _daily_result = None
+            item = _market_overview_price_item(label, ticker, _daily_result)
+            item["asof"] = None
+            # 2026-07-13 사용자 요청("차트/수치 시간차가 너무 크다") — 이 버튼을 누른
+            # 순간 1분봉으로 현재가를 다시 조회해서 전날 종가 대신 보여준다. 여전히
+            # 클릭했을 때 한 번만 조회하는 방식이고(자동/반복 조회 아님), 장이 닫혀
+            # 있으면 조용히 실패해서 기존 전날 종가 표시로 되돌아간다.
+            if item["status"] == "정상" and _daily_result and _daily_result.get("prev_close"):
+                try:
+                    _intraday = price_data.get_intraday_last(ticker)
+                except Exception:
+                    _intraday = {"ok": False}
+                if _intraday.get("ok"):
+                    _prev_close = _daily_result["prev_close"]
+                    item["current"] = _intraday["current"]
+                    item["change_pct"] = _safe_pct_diff(_intraday["current"], _prev_close)
+                    item["asof"] = _intraday.get("asof")
             item["history"] = []
             if item["status"] == "정상":
                 # 실시간 아님 — 이 버튼을 누른 시점에만 최근 10일치 종가를 한 번 조회한다.
@@ -2552,10 +2568,15 @@ def _render_market_overview(market):
                         _spark = _sparkline_svg(
                             item.get("history") or [], is_up=(change is not None and change >= 0)
                         )
+                        # 2026-07-13 추가: 장중 1분봉 조회에 성공하면 "장중 HH:MM 기준"을,
+                        # 실패해서 전날 종가로 대체됐으면 "전일 종가 기준"을 보여줘서 지금
+                        # 보이는 숫자가 언제 시점인지 헷갈리지 않게 한다.
+                        _asof_text = f"장중 {item['asof']} 기준" if item.get("asof") else "전일 종가 기준(장 마감/휴장)"
                         card_parts.append(
                             f"<div style='font-size:18px;line-height:1.65;color:#CBD5E1'>{item['label']}</div>"
                             f"<div style='font-size:23px;line-height:1.5;font-weight:800;color:#f9fafb'>{item['current']:,.2f}{unit}</div>"
-                            f"<div style='font-size:18px;line-height:1.65;color:{change_color};margin-top:6px'>전일 대비 등락률 {change_text}</div>"
+                            f"<div style='font-size:18px;line-height:1.65;color:{change_color};margin-top:6px'>{'등락률' if item.get('asof') else '전일 대비 등락률'} {change_text}</div>"
+                            f"<div style='font-size:14px;line-height:1.5;color:#8b95a5;margin-top:2px'>{_asof_text}</div>"
                             f"{_spark}"
                         )
                 card_parts.append("</div>")
@@ -2586,12 +2607,33 @@ def _render_market_overview(market):
             for _err in _bookmaker_snapshot.get("errors") or []:
                 st.caption(f"일부 실패: {_err}")
             if _bookmaker_snapshot.get("signals"):
-                for _sig in _bookmaker_snapshot["signals"]:
-                    _prob = f"{_sig['probability_pct']}%" if _sig.get("probability_pct") is not None else "-"
+                # 2026-07-13 재정리: 출처별로 나눠서 카드 형태로 보여준다(기존엔 한 줄짜리
+                # 불릿을 영어 원문 그대로 쭉 나열해서 "알아먹기 힘들다"는 지적을 받음).
+                for _source in ("Polymarket", "Kalshi"):
+                    _source_signals = [s for s in _bookmaker_snapshot["signals"] if s.get("source") == _source]
+                    if not _source_signals:
+                        continue
+                    st.markdown(f"**{_source}**")
+                    _rows_html = []
+                    for _sig in _source_signals:
+                        _prob = f"{_sig['probability_pct']}%" if _sig.get("probability_pct") is not None else "-"
+                        _prob_color = "#22c55e" if (_sig.get("probability_pct") or 0) >= 50 else "#f87171"
+                        _rows_html.append(
+                            "<div style='display:flex;justify-content:space-between;gap:12px;"
+                            "padding:8px 0;border-bottom:1px solid #2a2f3a'>"
+                            f"<span style='color:#e5e7eb'>{html.escape(_sig['question'] or '-')}</span>"
+                            f"<span style='white-space:nowrap;font-weight:700;color:{_prob_color}'>{_prob}</span>"
+                            "</div>"
+                        )
                     st.markdown(
-                        f"- **[{_sig['source']}]** {_sig['question']} — 확률 {_prob} "
-                        f"(마감 {_sig.get('end_date') or '-'})"
+                        "<div style='background:#171a21;border:1px solid #303642;border-radius:8px;"
+                        f"padding:4px 12px;margin-bottom:14px'>{''.join(_rows_html)}</div>",
+                        unsafe_allow_html=True,
                     )
+                st.caption(
+                    "확률은 원문 시장 질문(영어) 기준 Yes 확률입니다 — 어느 업종·종목에 "
+                    "영향을 줄지는 참고해서 직접 해석해 주세요."
+                )
             elif not _bookmaker_snapshot.get("errors"):
                 st.caption("현재 거시경제 관련 활성 시장을 찾지 못했습니다.")
         st.text_area(

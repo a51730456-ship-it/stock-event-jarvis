@@ -15,6 +15,8 @@ Polymarket Gamma API / Kalshi 공개 시장 데이터 API는 둘 다 인증 없�
 사람이 판단한다.
 """
 
+import re
+
 import requests
 
 POLYMARKET_GAMMA_URL = "https://gamma-api.polymarket.com/markets"
@@ -28,8 +30,10 @@ MACRO_KEYWORDS = (
     "fed", "rate cut", "rate hike", "interest rate", "inflation", "cpi",
     "recession", "tariff", "trade war", "china", "oil price", "opec",
     "nvidia", "chip", "semiconductor", "export control", "war", "ceasefire",
-    "election", "shutdown", "debt ceiling", "powell", "trump",
+    "shutdown", "debt ceiling", "powell",
 )
+# "election" 키워드는 뺐다 — 대통령선거 개별 인물 베팅(예: "Pete Buttigieg 2028 당선?")
+# 처럼 국내 증시와 무관한 잡음을 너무 많이 끌어왔다(2026-07-13, 실사용 확인).
 
 
 def _to_float(value):
@@ -39,9 +43,16 @@ def _to_float(value):
         return 0.0
 
 
+_MACRO_KEYWORD_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(k) for k in MACRO_KEYWORDS) + r")\b", re.IGNORECASE
+)
+
+
 def _question_matches(text):
-    text_lower = (text or "").lower()
-    return any(keyword in text_lower for keyword in MACRO_KEYWORDS)
+    # 단순 부분문자열 매칭("war" in "Warriors")이 스포츠 등 무관한 시장을 끌어오는
+    # 문제가 있어 단어 경계(\b) 매칭으로 바꿨다(2026-07-13, "LeBron James...Warriors"가
+    # "war" 키워드에 잘못 걸린 것 확인 후 수정).
+    return bool(_MACRO_KEYWORD_PATTERN.search(text or ""))
 
 
 def fetch_polymarket_signals(limit=6):
@@ -128,6 +139,12 @@ def fetch_kalshi_signals(limit=6, max_series=15):
             )
             resp.raise_for_status()
             for m in resp.json().get("markets", []):
+                # 거래량 0인 시장은 걸러낸다 — 실측 결과 대부분의 매칭 시장이 24시간
+                # 거래량 0(사실상 아무도 안 거래하는 유령 시장)이었고, 이런 시장은
+                # 신뢰할 수 없는 신호라는 지적을 반영했다(2026-07-13).
+                volume_24h = _to_float(m.get("volume_24h_fp"))
+                if volume_24h <= 0:
+                    continue
                 try:
                     yes_bid = m.get("yes_bid_dollars")
                     probability_pct = round(float(yes_bid) * 100, 1) if yes_bid is not None else None
@@ -138,7 +155,7 @@ def fetch_kalshi_signals(limit=6, max_series=15):
                         "source": "Kalshi",
                         "question": m.get("title"),
                         "probability_pct": probability_pct,
-                        "volume_24h": _to_float(m.get("volume_24h_fp")),
+                        "volume_24h": volume_24h,
                         "end_date": (m.get("close_time") or "")[:10],
                     }
                 )
@@ -146,7 +163,18 @@ def fetch_kalshi_signals(limit=6, max_series=15):
             continue
 
     matched.sort(key=lambda x: x.get("volume_24h") or 0, reverse=True)
-    return {"ok": True, "error": None, "signals": matched[:limit]}
+    # 같은 질문 문구가 임계값(threshold)만 다른 여러 시장으로 쪼개져 반복 등장하는
+    # 경우가 많다(예: "How high will CPI get this year?"가 구간마다 별도 시장으로 3번
+    # 나옴) — 같은 질문 문구는 거래량이 가장 높은 것 하나만 남긴다(2026-07-13).
+    seen_questions = set()
+    deduped = []
+    for item in matched:
+        q = item.get("question")
+        if q in seen_questions:
+            continue
+        seen_questions.add(q)
+        deduped.append(item)
+    return {"ok": True, "error": None, "signals": deduped[:limit]}
 
 
 def fetch_bookmaker_snapshot(limit_per_source=5):
