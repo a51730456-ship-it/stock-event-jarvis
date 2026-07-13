@@ -187,6 +187,16 @@ def parse_quick_text(text):
             penalty_reason = None
             buy_confirmed = "미확정"
             buy_confirm_condition = "확인 필요"
+        elif 8 <= len(parts) <= 12:
+            # 6/7/13개 필드 형식 중 어디에도 안 맞는 애매한 개수(필드 하나 누락/추가 등).
+            # 예전엔 이 구간이 "6개 이하" 분기로 조용히 흘러들어가 verdict/신호분류/이벤트명
+            # 자리가 밀려서 저장됐다(2026-07-13 전체 코드검사에서 발견) — 대신 명확히
+            # 건너뛰고 경고한다.
+            warnings.append(
+                f"종목 줄 필드 개수({len(parts)}개)가 지원 형식(6개 이하/7개/13개)과 "
+                f"맞지 않아 건너뜁니다: {line}"
+            )
+            continue
         else:
             # 기존 형식(6개 이하): 종목명 / 티커 / market / 판정 / 신호 분류 / 이벤트명
             trade_mode = "공통"
