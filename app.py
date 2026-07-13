@@ -289,6 +289,23 @@ if not _app_password:
 
 if not st.session_state.get("authenticated"):
     st.title("자비스 주식 기록장 - 로그인")
+    st.markdown(
+        """
+        <style>
+        .st-key-login_password_input input { max-width: 280px !important; }
+        .st-key-login_submit button {
+            background-color: #facc15 !important;
+            color: #1a1a1a !important;
+            border: 1px solid #ca8a04 !important;
+            font-size: 1.1rem !important;
+            font-weight: 800 !important;
+            padding: 10px 28px !important;
+            min-height: 48px !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
     if st.button("로그인", key="login_submit"):
         if _login_password_input == _app_password:
@@ -4139,7 +4156,9 @@ def _render_kr_theme_chip_editor():
         """,
         unsafe_allow_html=True,
     )
-    if st.button("테마 참고판 자동 조회", key="kr_theme_auto_fetch"):
+    if st.button("테마 참고판 자동 조회", key="kr_theme_auto_fetch") or st.session_state.pop(
+        "kr_theme_auto_fetch_pending", False
+    ):
         _kr_theme_selected_before_fetch = st.session_state.get("kr_theme_detail_selector")
         _kr_theme_fetch_result = theme_data.fetch_kr_theme_snapshot()
         if not _kr_theme_fetch_result["ok"]:
@@ -4742,12 +4761,18 @@ def _render_kr_fable_mockup1_preview():
         with left_col:
             trade_mode = st.selectbox(
                 "매매유형 선택",
-                ["단타", "스윙"],
+                ["단타", "스윙", "전체"],
                 key="mockup1_trade_mode",
             )
-            score_key = "danta_score" if trade_mode == "단타" else "swing_score"
-            verdict_key = "danta_verdict" if trade_mode == "단타" else "swing_verdict"
-            sorted_rows = sorted(rows, key=lambda row: row[score_key], reverse=True)
+            show_all_modes = trade_mode == "전체"
+            score_key = "swing_score" if trade_mode == "스윙" else "danta_score"
+            verdict_key = "swing_verdict" if trade_mode == "스윙" else "danta_verdict"
+            if show_all_modes:
+                sorted_rows = sorted(
+                    rows, key=lambda row: max(row["danta_score"], row["swing_score"]), reverse=True
+                )
+            else:
+                sorted_rows = sorted(rows, key=lambda row: row[score_key], reverse=True)
             rows_by_ticker = {row["ticker"]: row for row in sorted_rows}
             ticker_options = list(rows_by_ticker)
             pending_ticker = st.session_state.pop("mockup1_pending_ticker", None)
@@ -4790,10 +4815,16 @@ def _render_kr_fable_mockup1_preview():
                 '[class*="st-key-mockup1_candidate_"] button p { font-size: 21px !important; }'
             ]
             for row in sorted_rows:
-                _verdict_display = _display_verdict_name(row[verdict_key])
-                if _verdict_display == "1순위 후보":
+                if show_all_modes:
+                    _verdict_candidates = [
+                        _display_verdict_name(row["danta_verdict"]),
+                        _display_verdict_name(row["swing_verdict"]),
+                    ]
+                else:
+                    _verdict_candidates = [_display_verdict_name(row[verdict_key])]
+                if "1순위 후보" in _verdict_candidates:
                     _candidate_color = "#4ade80"
-                elif _verdict_display == "관찰 후보":
+                elif "관찰 후보" in _verdict_candidates:
                     _candidate_color = "#15803d"
                 else:
                     _candidate_color = None
@@ -4804,12 +4835,23 @@ def _render_kr_fable_mockup1_preview():
                     )
             st.markdown(f"<style>{''.join(_candidate_style_rules)}</style>", unsafe_allow_html=True)
 
-            _candidate_label_gap = " " * 4  # 일반 스페이스는 여러 개 써도 브라우저가 하나로 합치므로 줄바꿈 없는 공백 사용
+            _candidate_label_gap = " " * 4
             for row in sorted_rows:
                 candidate_key = f"mockup1_candidate_{row['ticker']}"
+                if show_all_modes:
+                    _candidate_label = (
+                        f"{row['name']}{_candidate_label_gap}"
+                        f"단타 {_display_verdict_name(row['danta_verdict'])} {row['danta_score']}점"
+                        f"{_candidate_label_gap}"
+                        f"스윙 {_display_verdict_name(row['swing_verdict'])} {row['swing_score']}점"
+                    )
+                else:
+                    _candidate_label = (
+                        f"{row['name']}{_candidate_label_gap}{_display_verdict_name(row[verdict_key])}"
+                        f"{_candidate_label_gap}{row[score_key]}점"
+                    )
                 if st.button(
-                    f"{row['name']}{_candidate_label_gap}{_display_verdict_name(row[verdict_key])}"
-                    f"{_candidate_label_gap}{row[score_key]}점",
+                    _candidate_label,
                     key=candidate_key,
                     help=f"{sector_by_ticker.get(row['ticker'], '-')} · 확인 필요: {'예' if row['needs_confirmation'] else '아니오'}",
                 ):
@@ -4821,10 +4863,18 @@ def _render_kr_fable_mockup1_preview():
         current_value = _get_snapshot_value(selected_ticker, "current")
         with right_col:
             st.markdown(f"## {selected_row['name']}")
-            st.caption(
-                f"{trade_mode} · {_display_verdict_name(selected_verdict)} · "
-                f"{selected_row[score_key]}점"
-            )
+            if show_all_modes:
+                st.caption(
+                    f"단타 {_display_verdict_name(selected_row['danta_verdict'])} "
+                    f"{selected_row['danta_score']}점 · "
+                    f"스윙 {_display_verdict_name(selected_row['swing_verdict'])} "
+                    f"{selected_row['swing_score']}점"
+                )
+            else:
+                st.caption(
+                    f"{trade_mode} · {_display_verdict_name(selected_verdict)} · "
+                    f"{selected_row[score_key]}점"
+                )
             st.markdown(
                 """
                 <style>
@@ -4901,7 +4951,9 @@ def _render_kr_fable_mockup1_preview():
                 else f"{selected_row['turnover_ratio_pct']:.2f}%",
             )
 
-            if trade_mode == "단타":
+            if trade_mode != "스윙":
+                # "단타" 또는 "전체"(전체는 단타 기준으로 대표 표시, 아래 "전체 근거"
+                # expander에 단타·스윙 둘 다 항상 표시됨)
                 selected_score = selected_row["danta_score"]
                 selected_score_reason = selected_row["danta_score_reason"]
                 selected_top_reason = selected_row["danta_top_candidate_reason"]
@@ -5040,6 +5092,40 @@ def _render_risk_plan_preview(stock_name, ticker, risk_fields):
 
 
 with tab_kr:
+    # 로그인 직후 한국장 탭을 열면, "오늘 한국장 자료 불러오기"/"오늘 종목 판단 준비하기"/
+    # "테마 참고판 자동 조회" 3개 버튼을 순서대로 자동 실행한다(2026-07-13 사용자 요청).
+    # 2단계로 나눈 이유: SNAPSHOT_STOCKS(거래대금 상위 동적 목록)는 스크립트 맨 위에서
+    # 한 번만 계산되므로, 종목을 새로 뽑은 뒤 그 목록으로 주가를 채우려면 한 번 다시
+    # 실행(rerun)해야 한다 — 실제 대기시간이 필요한 건 아니고, 화면이 자동으로 한 번 더
+    # 새로고침되는 것뿐이다. 이 세션에서 한 번만 실행되며(session_state 플래그로 관리),
+    # 이후에는 화면 상단 버튼들로 원하는 만큼 다시 실행할 수 있다.
+    if not st.session_state.get("kr_auto_run_stage1_done"):
+        _kr_auto_run_stocks = price_data.get_top_kr_stocks_by_amount(12)
+        if _kr_auto_run_stocks:
+            st.session_state["dynamic_snapshot_stocks"] = _kr_auto_run_stocks
+            st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state["kr_auto_run_stage1_done"] = True
+        st.rerun()
+    elif not st.session_state.get("kr_auto_run_stage2_done"):
+        st.session_state["kr_market_overview_result"] = _fetch_market_overview("KR")
+        st.session_state["kr_market_overview_checked_at"] = st.session_state["kr_market_overview_result"]["checked_at"]
+
+        _kr_auto_mood_result = run_kr_mood_auto_check()
+        _kr_auto_fill_result = run_kr_snapshot_auto_fill()
+        _kr_auto_stage2_preview = build_kr_stage2_preview()
+        st.session_state["kr_auto_preview_stage0_status"] = {"ok": "예", "partial": "부분", "fail": "아니오"}[
+            _kr_auto_mood_result["status"]
+        ]
+        st.session_state["kr_auto_preview_stage1_status"] = {"ok": "예", "partial": "부분", "fail": "아니오"}[
+            _kr_auto_fill_result["status"]
+        ]
+        st.session_state["kr_auto_preview_stage2_generated"] = bool(_kr_auto_stage2_preview["rows"])
+        st.session_state["kr_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        st.session_state["kr_theme_auto_fetch_pending"] = True
+        st.session_state["kr_auto_run_stage2_done"] = True
+        st.rerun()
+
     _render_market_overview("KR")
     st.subheader("한국장")
     _render_kr_fable_mockup1_preview()
