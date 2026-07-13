@@ -58,11 +58,19 @@ def determine_entry_rule(timing_class):
     return "다음 거래일 시가(보수적)"
 
 
-def _entry_point(price_df, ref_date, rule):
+def _entry_point(price_df, ref_date, rule, market=None):
     """price_df에서 rule에 따른 기준일/기준가/기준일의 위치(인덱스)를 찾는다.
 
     ref_date **이전** 데이터는 절대 사용하지 않는다.
     데이터가 아직 없으면 (None, None, None) 반환 -> 호출부에서 "대기"로 처리.
+
+    market이 "US"이면 "다음 거래일" 계열 규칙에서 ref_date와 같은 날짜 라벨도 포함한다
+    (idx >= ref_date). 미국 장 세션은 미국 동부시간(ET) 거래일로 라벨링되는데 ref_date는
+    saved_at의 한국시간(KST) 달력 날짜라, 같은 라벨의 세션이 그날 저녁(22:30~23:30 KST경)에
+    아직 열리지 않은 상태일 수 있다. strict(>)를 쓰면 아직 열리지도 않은 이 세션을 건너뛰고
+    하루 뒤 세션으로 밀려서 계산되는 버그가 있었다(2026-07-13 전체 코드검사에서 발견,
+    상하님 승인 후 수정). market이 None/"KR"이면 기존과 동일하게 strict(>)를 쓴다 — KRX는
+    KST 달력일과 거래일 라벨이 그대로 맞아 문제가 없다.
     """
     if price_df is None or price_df.empty:
         return None, None, None
@@ -84,7 +92,10 @@ def _entry_point(price_df, ref_date, rule):
         return entry_date, float(price_df.loc[entry_date, "Open"]), idx.get_loc(entry_date)
 
     # "다음 거래일 시가" / "다음 거래일 시가(보수적)"
-    candidates = idx[idx > ref_date]
+    if market == "US":
+        candidates = idx[idx >= ref_date]
+    else:
+        candidates = idx[idx > ref_date]
     if len(candidates) == 0:
         return None, None, None
     entry_date = candidates[0]
@@ -191,8 +202,13 @@ def evaluate_item(report, item):
         result["outcome_details"] = _empty_outcome_details()
         return result
 
-    entry_date, entry_price, entry_idx = _entry_point(price_df, ref_date, result["entry_rule"])
-    b_entry_date, b_entry_price, b_entry_idx = _entry_point(bench_df, ref_date, result["entry_rule"])
+    _item_market = item.get("market")
+    entry_date, entry_price, entry_idx = _entry_point(
+        price_df, ref_date, result["entry_rule"], market=_item_market
+    )
+    b_entry_date, b_entry_price, b_entry_idx = _entry_point(
+        bench_df, ref_date, result["entry_rule"], market=_item_market
+    )
 
     if entry_date is None or b_entry_date is None:
         result["status"] = "대기"
@@ -307,7 +323,9 @@ def _evaluate_benchmark_for_no_rec(report, benchmark_name, market_label):
         result["status"] = "데이터 부족"
         return result
 
-    entry_date, entry_price, entry_idx = _entry_point(bench_df, ref_date, result["entry_rule"])
+    entry_date, entry_price, entry_idx = _entry_point(
+        bench_df, ref_date, result["entry_rule"], market=market_label
+    )
     if entry_date is None:
         result["status"] = "대기"
         return result
