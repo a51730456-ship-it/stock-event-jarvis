@@ -3476,7 +3476,7 @@ if _saved_view == "오늘 요약":
 with tab_aux:
     _aux_view = st.radio(
         "보조 화면",
-        ["수동 기록 입력", "추가 기능", "사용법", "이 앱의 원칙", "자비스 매매 사용법"],
+        ["사용법", "자비스 매매 사용법", "이 앱의 원칙", "수동 기록 입력", "추가 기능"],
         horizontal=True,
         key="aux_view_selector",
     )
