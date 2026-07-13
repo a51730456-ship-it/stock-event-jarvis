@@ -4251,6 +4251,14 @@ def _render_kr_theme_chip_editor():
         suffix = " ⚠추격주의" if elapsed >= 4 else ""
         return f"경과 {elapsed}일차{suffix}"
 
+    # 강함 -> 보통 -> 확인 필요 -> 약함 -> 감시 순으로 정렬(2026-07-13 사용자 요청). 네이버
+    # 데이터를 그대로 가져오는 구조라 "아주 강함" 단계는 원래 없다(_classify_kr_theme_verdict
+    # 참고 — 강함/보통/약함 3단계뿐).
+    _KR_THEME_STATUS_PRIORITY = {"강함": 0, "보통": 1, "확인 필요": 2, "약함": 3, "감시": 4}
+    _kr_theme_sorted_rows = sorted(
+        (row for row in theme_rows if row.get("테마")),
+        key=lambda row: _KR_THEME_STATUS_PRIORITY.get(row.get("상태"), 5),
+    )
     _kr_theme_df = pd.DataFrame(
         [
             {
@@ -4261,8 +4269,7 @@ def _render_kr_theme_chip_editor():
                 "경고": "후발주 청산 검토" if row.get("대장주상태") == "꺾임" else "",
                 "세부 입력": "선택됨" if row.get("테마") == _theme_detail_selected else "선택 가능",
             }
-            for row in theme_rows
-            if row.get("테마")
+            for row in _kr_theme_sorted_rows
         ]
     )
 
@@ -4283,16 +4290,30 @@ def _render_kr_theme_chip_editor():
         .apply(_kr_theme_warning_styler, subset=["경고"])
         .apply(_kr_theme_row_highlight, axis=1)
     )
-    st.dataframe(
-        _kr_theme_styled_df,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "참고 지표 또는 대표 종목": st.column_config.TextColumn(
-                "참고 지표 또는 대표 종목", width="large"
-            ),
-        },
+    st.markdown(
+        """
+        <style>
+        /* st.dataframe(glide-data-grid)은 셀 텍스트를 canvas에 직접 그려서 일반
+           font-size CSS가 안 먹는다 — 자체 CSS 변수(--gdg-*)로 폰트를 읽는다. */
+        .st-key-kr_theme_table [data-testid="stDataFrame"] {
+            --gdg-header-font-style: 700 17px "Source Sans", sans-serif !important;
+            --gdg-base-font-style: 400 17px "Source Sans", sans-serif !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
+    with st.container(key="kr_theme_table"):
+        st.dataframe(
+            _kr_theme_styled_df,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "참고 지표 또는 대표 종목": st.column_config.TextColumn(
+                    "참고 지표 또는 대표 종목", width=550
+                ),
+            },
+        )
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = [dict(row) for row in theme_rows]
 
@@ -4761,7 +4782,7 @@ def _render_kr_fable_mockup1_preview():
         with left_col:
             trade_mode = st.selectbox(
                 "매매유형 선택",
-                ["단타", "스윙", "전체"],
+                ["전체", "단타", "스윙"],
                 key="mockup1_trade_mode",
             )
             show_all_modes = trade_mode == "전체"
@@ -4839,11 +4860,15 @@ def _render_kr_fable_mockup1_preview():
             for row in sorted_rows:
                 candidate_key = f"mockup1_candidate_{row['ticker']}"
                 if show_all_modes:
+                    # st.button 라벨은 st.markdown의 색상 문법(:blue[...]/:green[...])
+                    # 일부를 지원한다. Streamlit이 제공하는 색은 정해진 이름(blue/green
+                    # 등)뿐이라 "코발트색"/"형광초록색" 같은 정확한 색상은 지정할 수
+                    # 없어 가장 가까운 blue/green으로 표시한다.
                     _candidate_label = (
                         f"{row['name']}{_candidate_label_gap}"
-                        f"단타 {_display_verdict_name(row['danta_verdict'])} {row['danta_score']}점"
+                        f":blue[단타 {_display_verdict_name(row['danta_verdict'])} {row['danta_score']}점]"
                         f"{_candidate_label_gap}"
-                        f"스윙 {_display_verdict_name(row['swing_verdict'])} {row['swing_score']}점"
+                        f":green[스윙 {_display_verdict_name(row['swing_verdict'])} {row['swing_score']}점]"
                     )
                 else:
                     _candidate_label = (
@@ -5449,7 +5474,12 @@ with tab_kr:
                 **{"text-align": "right"},
             )
         )
-        st.dataframe(styled_result_df, width="stretch", hide_index=True)
+        # 표 안에서 스크롤하지 않고 전체 행이 한 번에 보이도록 행 수에 맞춰 높이를 계산한다
+        # (기본 높이는 고정이라 종목이 늘어나면 안에서 스크롤이 생겼다, 2026-07-13 사용자 요청).
+        _result_table_height = 38 * (len(result_rows) + 1) + 3
+        st.dataframe(
+            styled_result_df, width="stretch", hide_index=True, height=_result_table_height
+        )
         st.caption("시총 대비 거래대금 '확인 필요' 기준은 5% 이상(1차 버전 임시 기준)입니다.")
         st.caption(
             "점수는 자동매수 신호가 아니라 장중 후보 비교용 참고 점수입니다. 외부 환경과 "
