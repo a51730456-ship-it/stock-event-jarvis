@@ -233,21 +233,54 @@ def get_snapshot_defaults(ticker):
     }
 
 
+def _try_yfinance_ohlc_chart(symbol, start, end):
+    """차트 전용 조회. _try_yfinance_ohlcv와 달리 최신 행이 아직 확정 안 됐어도
+    (NaN 등, 장중 스냅샷 기준으로는 무효) 그 행만 제외하고 나머지 과거 데이터는
+    살린다 — 스냅샷 "현재가" 채우기와 달리 차트는 지난 몇 달치 흐름을 보여주는
+    용도라 최신 하루가 아직 안 채워졌다고 전체를 버릴 이유가 없다."""
+    import yfinance as yf
+
+    df = yf.Ticker(symbol).history(start=start, end=end)
+    if df is None or df.empty or not all(c in df.columns for c in _SNAPSHOT_COLUMNS):
+        return None
+    df = _clean_index(df[_SNAPSHOT_COLUMNS].copy())
+    if not _latest_ohlc_row_is_valid(df):
+        df = df.iloc[:-1]
+    return df if not df.empty else None
+
+
+def _try_fdr_ohlc_chart(symbol, start, end):
+    """차트 전용 조회. _try_fdr_ohlcv와 달리 최신 행만 무효해도 나머지는 살린다."""
+    import FinanceDataReader as fdr
+
+    df = fdr.DataReader(symbol, start, end)
+    if df is None or df.empty or not all(c in df.columns for c in _SNAPSHOT_COLUMNS):
+        return None
+    df = _clean_index(df[_SNAPSHOT_COLUMNS].copy())
+    if not _latest_ohlc_row_is_valid(df):
+        df = df.iloc[:-1]
+    return df if not df.empty else None
+
+
 def get_ohlc_history_for_chart(ticker, start, end):
     """차트 표시 전용 일봉 OHLC 조회 (읽기 전용, 점수 계산과 무관).
 
     yfinance 우선, 실패 시 FinanceDataReader 보조. 기존 계산 로직
-    (get_snapshot_defaults 등)은 건드리지 않고 내부 헬퍼(_try_yfinance_ohlcv/
-    _try_fdr_ohlcv)를 그대로 재사용한다. 조회 실패 시 예외 대신 None을 반환한다.
+    (get_snapshot_defaults 등)은 건드리지 않는다 — 전용 헬퍼(_try_yfinance_ohlc_chart/
+    _try_fdr_ohlc_chart)를 따로 써서, 스냅샷용 헬퍼(_try_yfinance_ohlcv/_try_fdr_ohlcv)의
+    "최신 행 하나라도 무효면 전체 거부" 기준이 차트에는 그대로 적용되지 않게 했다
+    (2026-07-13 전체 코드검사에서 발견: 최신 하루치만 깨져도 몇 달치 차트가 통째로
+    "데이터 없음"으로 나오던 문제, 상하님 승인 후 수정). 조회 실패 시 예외 대신
+    None을 반환한다.
     """
     try:
-        df = _try_yfinance_ohlcv(ticker, start, end)
+        df = _try_yfinance_ohlc_chart(ticker, start, end)
         if df is not None and len(df) > 0:
             return df
     except Exception:
         pass
     try:
-        df = _try_fdr_ohlcv(_fdr_code(ticker), start, end)
+        df = _try_fdr_ohlc_chart(_fdr_code(ticker), start, end)
         if df is not None and len(df) > 0:
             return df
     except Exception:
