@@ -44,41 +44,34 @@ def render_login_transition(st, earth_markup):
             overflow: hidden;
             border-radius: 50%;
             background: #01040a;
-            box-shadow: 0 0 0 2px rgba(75, 181, 255, .84), 0 0 24px rgba(35, 139, 255, .34);
-        }
-        .jarvis-early-earth .jarvis-earth-image {
-            position: absolute;
-            inset: -8%;
-            display: block;
-            width: 116%;
-            max-width: none;
-            height: 116%;
-            object-fit: cover;
-            opacity: 1;
-            transform: scale(1.08) rotate(0deg);
-            animation: jarvis-early-earth-turn 120s linear infinite;
-            animation-fill-mode: both;
-            will-change: transform;
-        }
-        .jarvis-early-earth .jarvis-orbit {
-            position: absolute;
-            z-index: 1;
-            left: -2%;
-            top: 35%;
-            width: 104%;
-            height: 29%;
-            border: 2px solid rgba(58, 155, 255, .72);
-            border-radius: 50%;
-            transform: rotate(-13deg);
-            animation: jarvis-early-ring 2s ease-out forwards;
+            box-shadow: 0 0 0 2px rgba(91, 190, 255, .78), 0 0 18px rgba(34, 139, 255, .3);
+            animation: jarvis-early-rim-charge 2s ease-out forwards;
             animation-fill-mode: forwards;
         }
-        .jarvis-early-earth .jarvis-orbit-secondary {
-            top: 37%;
-            height: 25%;
-            border-width: 1px;
-            transform: rotate(58deg);
-            animation-name: jarvis-early-ring-soft;
+        .jarvis-early-earth .jarvis-earth-surface {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background-color: #02102d;
+            background-image: var(--jarvis-earth-texture);
+            background-repeat: repeat-x;
+            background-size: 200% 100%;
+            background-position: 120% 50%;
+            opacity: 1;
+            animation: jarvis-early-earth-surface-turn 80s linear infinite;
+            animation-fill-mode: both;
+            will-change: background-position;
+        }
+        .jarvis-early-earth .jarvis-earth-surface::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at 32% 27%, rgba(126, 202, 255, .16) 0, transparent 32%),
+                radial-gradient(circle at 48% 44%, transparent 42%, rgba(0, 5, 19, .22) 68%, rgba(0, 2, 10, .78) 100%),
+                linear-gradient(90deg, rgba(0, 4, 16, .46), transparent 24%, transparent 68%, rgba(0, 3, 14, .62));
         }
         .jarvis-early-panel {
             position: absolute;
@@ -154,19 +147,14 @@ def render_login_transition(st, earth_markup):
             animation: jarvis-early-light-expand 2s ease-in forwards;
             animation-fill-mode: forwards;
         }
-        @keyframes jarvis-early-earth-turn {
-            from { transform: scale(1.08) rotate(0deg); }
-            to { transform: scale(1.08) rotate(360deg); }
+        @keyframes jarvis-early-earth-surface-turn {
+            from { background-position: 120% 50%; }
+            to { background-position: -80% 50%; }
         }
-        @keyframes jarvis-early-ring {
-            0% { opacity: .45; box-shadow: 0 0 2px rgba(73, 178, 255, .1); }
-            8%, 20% { opacity: 1; border-color: #79ceff; box-shadow: 0 0 15px #2598ff; }
-            50%, 100% { opacity: .34; box-shadow: 0 0 6px rgba(37, 152, 255, .25); }
-        }
-        @keyframes jarvis-early-ring-soft {
-            0% { opacity: .2; }
-            8%, 20% { opacity: .9; border-color: #8ad7ff; box-shadow: 0 0 12px #278fff; }
-            50%, 100% { opacity: .18; }
+        @keyframes jarvis-early-rim-charge {
+            0% { box-shadow: 0 0 0 2px rgba(91, 190, 255, .62), 0 0 10px rgba(34, 139, 255, .2); }
+            8%, 20% { box-shadow: 0 0 0 2px #8ad7ff, 0 0 28px rgba(37, 152, 255, .85); }
+            50%, 100% { box-shadow: 0 0 0 2px rgba(91, 190, 255, .78), 0 0 18px rgba(34, 139, 255, .3); }
         }
         @keyframes jarvis-early-panel-fade {
             0% { opacity: 1; transform: translateY(-50%) scale(1); }

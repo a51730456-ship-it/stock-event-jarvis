@@ -284,10 +284,9 @@ try:
     _jarvis_earth_src = "data:image/webp;base64," + base64.b64encode(_jarvis_earth_bytes).decode("ascii")
     _jarvis_earth_markup = (
         '<div class="jarvis-earth-visual">'
-        '<div class="jarvis-orbit jarvis-orbit-primary"></div>'
-        '<div class="jarvis-orbit jarvis-orbit-secondary"></div>'
         '<div class="jarvis-earth-disc">'
-        f'<img class="jarvis-earth-image" src="{_jarvis_earth_src}" alt="아프리카와 유럽이 선명한 지구">'
+        f'<div class="jarvis-earth-surface" role="img" aria-label="한국과 동아시아가 보이는 회전 지구" '
+        f'style="--jarvis-earth-texture:url({_jarvis_earth_src})"></div>'
         "</div></div>"
     )
 except OSError:
@@ -377,41 +376,32 @@ if not st.session_state.get("authenticated"):
             overflow: hidden;
             border-radius: 50%;
             background: #01040a;
-            box-shadow: 0 0 0 2px rgba(70, 176, 255, .72), 0 0 22px rgba(34, 139, 255, .28);
+            box-shadow: 0 0 0 2px rgba(91, 190, 255, .78), 0 0 18px rgba(34, 139, 255, .3);
         }
-        .jarvis-earth-image {
+        .jarvis-earth-surface {
             position: absolute;
-            inset: -8%;
-            display: block;
-            width: 116%;
-            max-width: none;
-            height: 116%;
-            object-fit: cover;
-            opacity: 1;
-            animation: jarvis-earth-turn 120s linear infinite;
-            animation-fill-mode: both;
-            will-change: transform;
-        }
-        .jarvis-orbit {
-            position: absolute;
-            z-index: 1;
-            left: -2%;
-            top: 35%;
-            width: 104%;
-            height: 29%;
-            border: 2px solid rgba(53, 145, 255, .72);
+            inset: 0;
             border-radius: 50%;
-            transform: rotate(-13deg);
-            box-shadow: 0 0 9px rgba(42, 139, 255, .18);
+            background-color: #02102d;
+            background-image: var(--jarvis-earth-texture);
+            background-repeat: repeat-x;
+            background-size: 200% 100%;
+            background-position: 120% 50%;
+            opacity: 1;
+            animation: jarvis-earth-surface-turn 80s linear infinite;
+            animation-fill-mode: both;
+            will-change: background-position;
         }
-        .jarvis-orbit-primary { animation: jarvis-orbit-pulse 5.5s ease-in-out infinite; }
-        .jarvis-orbit-secondary {
-            top: 37%;
-            height: 25%;
-            border-width: 1px;
-            border-color: rgba(103, 201, 255, .4);
-            transform: rotate(58deg);
-            animation: jarvis-orbit-pulse 7.5s ease-in-out -2s infinite;
+        .jarvis-earth-surface::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at 32% 27%, rgba(126, 202, 255, .16) 0, transparent 32%),
+                radial-gradient(circle at 48% 44%, transparent 42%, rgba(0, 5, 19, .22) 68%, rgba(0, 2, 10, .78) 100%),
+                linear-gradient(90deg, rgba(0, 4, 16, .46), transparent 24%, transparent 68%, rgba(0, 3, 14, .62));
         }
         .jarvis-earth-fallback {
             width: min(58vw, 500px);
@@ -486,12 +476,11 @@ if not st.session_state.get("authenticated"):
             box-shadow: 0 15px 42px rgba(14, 112, 235, .42), inset 0 1px rgba(255, 255, 255, .24) !important;
         }
         [data-testid="stAlert"] { border-radius: 12px !important; background: rgba(65, 17, 24, .58) !important; }
-        @keyframes jarvis-earth-turn {
-            from { transform: scale(1.08) rotate(0deg); }
-            to { transform: scale(1.08) rotate(360deg); }
+        @keyframes jarvis-earth-surface-turn {
+            from { background-position: 120% 50%; }
+            to { background-position: -80% 50%; }
         }
         @keyframes jarvis-star-drift { to { transform: translate3d(90px, 55px, 0); } }
-        @keyframes jarvis-orbit-pulse { 0%, 100% { opacity: .28; } 50% { opacity: .86; } }
         @media (max-width: 1100px) {
             [data-testid="stMainBlockContainer"] { padding: 1.25rem 2rem 2rem !important; align-items: flex-start; }
             div[data-testid="stHorizontalBlock"]:has(.jarvis-earth-stage) {
@@ -521,9 +510,7 @@ if not st.session_state.get("authenticated"):
         @media (prefers-reduced-motion: reduce) {
             [data-testid="stAppViewContainer"]::before,
             [data-testid="stAppViewContainer"]::after,
-            .jarvis-earth-image,
-            .jarvis-orbit-primary,
-            .jarvis-orbit-secondary { animation: none !important; }
+            .jarvis-earth-surface { animation: none !important; }
         }
         </style>
         """,

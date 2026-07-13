@@ -34,9 +34,8 @@ class LoginVisualContractTests(unittest.TestCase):
         for marker in (
             'Path(__file__).parent / "assets" / "jarvis_earth.webp"',
             "data:image/webp;base64,",
-            "jarvis-earth-image",
-            "jarvis-orbit-primary",
-            "jarvis-earth-turn",
+            "jarvis-earth-surface",
+            "jarvis-earth-surface-turn",
         ):
             self.assertIn(marker, SOURCE)
         self.assertNotIn("jarvis_earth.svg", SOURCE)
@@ -64,10 +63,12 @@ class LoginVisualContractTests(unittest.TestCase):
             SOURCE.index("login_visual.render_login_transition"),
             SOURCE.index("db.init_db()"),
         )
-        self.assertIn("animation: jarvis-earth-turn 120s linear infinite", SOURCE)
-        self.assertIn("animation: jarvis-early-earth-turn 120s linear infinite", VISUAL_SOURCE)
-        self.assertIn("rotate(0deg)", TRANSITION_SOURCE)
-        self.assertIn("rotate(360deg)", TRANSITION_SOURCE)
+        self.assertIn("animation: jarvis-earth-surface-turn 80s linear infinite", SOURCE)
+        self.assertIn("animation: jarvis-early-earth-surface-turn 80s linear infinite", VISUAL_SOURCE)
+        self.assertIn("background-position: 120% 50%", TRANSITION_SOURCE)
+        self.assertIn("background-position: -80% 50%", TRANSITION_SOURCE)
+        markup_source = SOURCE.split("_jarvis_earth_markup = (", 1)[1].split("except OSError", 1)[0]
+        self.assertNotIn("jarvis-orbit", markup_source)
         self.assertNotIn("time.sleep(", SOURCE)
         self.assertNotIn("setTimeout(", SOURCE)
 
