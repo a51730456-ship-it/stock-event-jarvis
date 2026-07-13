@@ -2582,8 +2582,9 @@ def _render_market_overview(market):
             label_visibility="collapsed",
         )
 
-    if market == "KR":
-        _render_kr_market_mood_strip()
+    # 2026-07-13 사용자 요청으로 KOSPI/KOSDAQ/달러원/나스닥100선물/SOXX·SMH 요약 스트립 제거
+    # — 위 차트 카드(가격+스파크라인)와 정보가 중복된다는 지적. _render_kr_market_mood_strip()
+    # 함수 자체는 다른 곳에서 쓸 수도 있어 남겨두고 호출만 뺀다.
     st.markdown("<div style='font-size:19px;line-height:1.65;font-weight:800;margin-top:40px;margin-bottom:14px'>시장 주요 뉴스 후보</div>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-bottom:22px'>네이버 뉴스 검색 결과를 중복 제거한 참고 후보이며 시장 전체를 대표하지 않습니다.</div>", unsafe_allow_html=True)
     if not result["news"] and result.get("news_failed"):
@@ -4342,6 +4343,16 @@ def _render_kr_theme_chip_editor():
     with st.container(key="kr_theme_reference"):
         theme_columns = st.columns(2, gap="large")
     _theme_detail_options = ["선택 안 함"] + [str(row.get("테마") or "") for row in theme_rows if row.get("테마")]
+    # 처음 열었을 때 "선택 안 함"이면 아래 "선택 테마 현재 상태"/"선택 테마 세부 입력"이
+    # 통째로 안 보여서 헷갈린다는 지적 — 아직 한 번도 선택한 적 없으면 "강함" 테마 중
+    # 첫 번째를 기본으로 선택해둔다(2026-07-13 사용자 요청).
+    if "kr_theme_detail_selector" not in st.session_state:
+        _default_strong_theme = next(
+            (row.get("테마") for row in theme_rows if row.get("상태") == "강함" and row.get("테마")),
+            None,
+        )
+        if _default_strong_theme:
+            st.session_state["kr_theme_detail_selector"] = _default_strong_theme
     _theme_detail_selected = st.selectbox(
         "세부 입력할 테마 선택",
         _theme_detail_options,
@@ -4447,16 +4458,32 @@ def _render_kr_theme_chip_editor():
         unsafe_allow_html=True,
     )
     with st.container(key="kr_theme_table"):
-        st.dataframe(
+        _kr_theme_table_event = st.dataframe(
             _kr_theme_styled_df,
             width="stretch",
             hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row",
             column_config={
                 "참고 지표 또는 대표 종목": st.column_config.TextColumn(
                     "참고 지표 또는 대표 종목", width=550
                 ),
             },
         )
+    # 표에서 테마 행을 직접 클릭해도 "세부 입력할 테마 선택" 드롭다운과 동기화되게 한다
+    # (2026-07-13 사용자 요청 — 드롭다운으로만 되고 표 클릭으로는 안 됐던 문제).
+    _kr_theme_clicked_rows = (
+        _kr_theme_table_event.selection.rows
+        if _kr_theme_table_event and _kr_theme_table_event.selection
+        else []
+    )
+    if _kr_theme_clicked_rows:
+        _kr_theme_clicked_idx = _kr_theme_clicked_rows[0]
+        if 0 <= _kr_theme_clicked_idx < len(_kr_theme_sorted_rows):
+            _kr_theme_clicked_name = _kr_theme_sorted_rows[_kr_theme_clicked_idx].get("테마")
+            if _kr_theme_clicked_name and st.session_state.get("kr_theme_detail_selector") != _kr_theme_clicked_name:
+                st.session_state["kr_theme_detail_selector"] = _kr_theme_clicked_name
+                st.rerun()
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = [dict(row) for row in theme_rows]
 
@@ -4557,6 +4584,22 @@ def _render_kr_theme_chip_editor():
                 )
                 st.session_state["kr_theme_detail_synced_theme"] = _theme_detail_selected
 
+            # 위 "테마가 바뀔 때만" 동기화로는 못 잡는 경우 하나 더 방어한다: 같은 테마를
+            # 이미 본 적 있어서(동기화 마커가 안 바뀜) 위 블록을 건너뛰었는데, 그 사이
+            # "테마 참고판 자동 조회"가 새로 실행돼서 표(행 데이터)에는 대장주가 채워졌지만
+            # 이 위젯은 여전히 예전 빈 값을 들고 있는 경우. 표에는 값이 있는데 입력칸이
+            # 비어있으면 테마 전환 여부와 무관하게 항상 바로잡는다(2026-07-13, 반복 지적됨).
+            _leader_widget_key = f"kr_theme_leader_{selected_theme_slug}"
+            _row_leader_value = str(selected_theme_row.get("대장주") or "").strip()
+            _widget_leader_value = str(st.session_state.get(_leader_widget_key, "")).strip()
+            if _row_leader_value and not _widget_leader_value:
+                st.session_state[_leader_widget_key] = _row_leader_value
+                _leader_auto_fix = _kr_theme_leader_auto_status(_row_leader_value)
+                st.session_state[_leader_status_key] = (
+                    _leader_auto_fix["verdict"] if _leader_auto_fix["available"]
+                    else str(selected_theme_row.get("대장주상태") or "강세유지")
+                )
+
             selected_status = st.selectbox(
                 "선택 테마 현재 상태",
                 status_options,
@@ -4615,8 +4658,8 @@ def _render_kr_primary_actions():
         else:
             st.caption("판단 준비 완료: 시장 분위기 확인 / 오늘 주가 입력 / 미리보기 생성")
 
-    st.markdown("### 오늘 판단 준비")
-    st.caption("이 버튼 하나로 시장 분위기 확인, 오늘 주가 채우기, 종목 판단 미리보기를 진행합니다.")
+    # 2026-07-13 사용자 요청으로 "오늘 판단 준비" 안내 헤더/캡션 제거(자동실행으로 이미
+    # 처리되어 안내문이 불필요하다는 지적) — 상태 캡션(실행중/완료/실패)은 실질 정보라 유지.
     action_cols = st.columns(1)
     repair_expander = st.expander("문제가 있을 때 단계별 다시 실행", expanded=False)
     with action_cols[0]:
@@ -4866,8 +4909,8 @@ def _render_kr_fable_mockup1_preview():
     )
     st.markdown(f'<div class="jarvis-m1-stepper">{step_html}</div>', unsafe_allow_html=True)
 
-    st.markdown("### 오늘 기록 실행")
-    st.caption("시장 분위기와 오늘 주가를 확인한 뒤 종목 판단 미리보기를 생성합니다.")
+    # 2026-07-13 사용자 요청으로 "오늘 기록 실행" 안내 헤더/캡션 제거 — 로그인 시 자동실행되므로
+    # 이제는 안내문 없이 버튼(및 문제 시 재실행용 확장 패널)만 노출한다.
     _render_kr_primary_actions()
 
     st.markdown("### 종목 판단 미리보기")
