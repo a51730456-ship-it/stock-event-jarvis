@@ -9,6 +9,8 @@ from streamlit.testing.v1 import AppTest
 
 ROOT = Path(__file__).parent
 SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
+VISUAL_SOURCE = (ROOT / "login_visual.py").read_text(encoding="utf-8")
+TRANSITION_SOURCE = SOURCE + VISUAL_SOURCE
 EARTH_PATH = ROOT / "assets" / "jarvis_earth.webp"
 TEST_PASSWORD = "jarvis-login-transition-test"
 
@@ -57,7 +59,15 @@ class LoginVisualContractTests(unittest.TestCase):
             "@media (prefers-reduced-motion: reduce)",
             "animation-duration: .2s",
         ):
-            self.assertIn(marker, SOURCE)
+            self.assertIn(marker, TRANSITION_SOURCE)
+        self.assertLess(
+            SOURCE.index("login_visual.render_login_transition"),
+            SOURCE.index("db.init_db()"),
+        )
+        self.assertIn("animation: jarvis-earth-turn 120s linear infinite", SOURCE)
+        self.assertIn("animation: jarvis-early-earth-turn 120s linear infinite", VISUAL_SOURCE)
+        self.assertIn("rotate(0deg)", TRANSITION_SOURCE)
+        self.assertIn("rotate(360deg)", TRANSITION_SOURCE)
         self.assertNotIn("time.sleep(", SOURCE)
         self.assertNotIn("setTimeout(", SOURCE)
 

@@ -16,6 +16,7 @@ import streamlit as st
 
 import database as db
 import disclosure_data
+import login_visual
 import news_data
 import performance
 import bookmaker_data
@@ -380,14 +381,14 @@ if not st.session_state.get("authenticated"):
         }
         .jarvis-earth-image {
             position: absolute;
-            inset: -5%;
+            inset: -8%;
             display: block;
-            width: 110%;
+            width: 116%;
             max-width: none;
-            height: 110%;
+            height: 116%;
             object-fit: cover;
             opacity: 1;
-            animation: jarvis-earth-turn 28s ease-in-out infinite alternate;
+            animation: jarvis-earth-turn 120s linear infinite;
             animation-fill-mode: both;
             will-change: transform;
         }
@@ -486,8 +487,8 @@ if not st.session_state.get("authenticated"):
         }
         [data-testid="stAlert"] { border-radius: 12px !important; background: rgba(65, 17, 24, .58) !important; }
         @keyframes jarvis-earth-turn {
-            from { transform: translate3d(-1.2%, 0, 0) scale(1.035) rotate(-.6deg); }
-            to { transform: translate3d(1.2%, 0, 0) scale(1.035) rotate(.6deg); }
+            from { transform: scale(1.08) rotate(0deg); }
+            to { transform: scale(1.08) rotate(360deg); }
         }
         @keyframes jarvis-star-drift { to { transform: translate3d(90px, 55px, 0); } }
         @keyframes jarvis-orbit-pulse { 0%, 100% { opacity: .28; } 50% { opacity: .86; } }
@@ -554,6 +555,12 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 _login_transition_pending = bool(st.session_state.get("login_transition_pending"))
+_login_transition_rendered_early = False
+if _login_transition_pending:
+    # 본문보다 먼저 고정 오버레이를 보내 자비스 화면이 순간 노출되는 플래시를 막는다.
+    st.session_state.pop("login_transition_pending", None)
+    login_visual.render_login_transition(st, _jarvis_earth_markup)
+    _login_transition_rendered_early = True
 
 db.init_db()
 create_daily_db_backup_once()
@@ -9374,7 +9381,7 @@ if _aux_view == "사용법":
 
 # 성공 오버레이는 본문이 모두 렌더링된 뒤 pending 값을 한 번만 꺼내 표시한다.
 # CSS만으로 2초 뒤 숨기므로 앱 실행을 막는 sleep/JavaScript 타이머가 없다.
-if _login_transition_pending:
+if _login_transition_pending and not _login_transition_rendered_early:
     st.session_state.pop("login_transition_pending", None)
     st.markdown(
         """
