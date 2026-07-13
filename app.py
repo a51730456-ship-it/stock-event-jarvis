@@ -1962,7 +1962,7 @@ tab_kr, tab_us, tab_action, tab_review, tab_saved, tab_aux = st.tabs(
     ]
 )
 
-SNAPSHOT_STOCKS = [
+DEFAULT_SNAPSHOT_STOCKS = [
     {"name": "삼성전자", "ticker": "005930.KS", "sector": "반도체"},
     {"name": "SK하이닉스", "ticker": "000660.KS", "sector": "반도체"},
     {"name": "현대차", "ticker": "005380.KS", "sector": "자동차"},
@@ -1971,6 +1971,12 @@ SNAPSHOT_STOCKS = [
     {"name": "한화오션", "ticker": "042660.KS", "sector": "조선"},
     {"name": "한화에어로스페이스", "ticker": "012450.KS", "sector": "방산"},
 ]
+# 2026-07-13(사용자 명시 요청): 하드코딩 7종목 고정 대신, "오늘 거래대금 상위 종목 다시
+# 선정" 버튼을 누르면 session_state["dynamic_snapshot_stocks"]가 채워져 이 목록을
+# 대체한다. 버튼을 아직 안 눌렀으면(세션 시작 직후 등) DEFAULT_SNAPSHOT_STOCKS로
+# 안전하게 대체(fallback)한다. SNAPSHOT_STOCKS를 참조하는 기존 코드는 전부 그대로 두고
+# (이 이름 자체가 매 스크립트 실행마다 새로 계산되는 전역 변수라) 손댈 필요 없다.
+SNAPSHOT_STOCKS = st.session_state.get("dynamic_snapshot_stocks") or DEFAULT_SNAPSHOT_STOCKS
 SNAPSHOT_FIELDS = ["current", "prev_close", "open", "high", "low", "turnover", "market_cap", "volume"]
 SNAPSHOT_NAME_TO_TICKER = {s["name"]: s["ticker"] for s in SNAPSHOT_STOCKS}
 
@@ -5148,49 +5154,32 @@ with tab_kr:
 
     st.caption("외국인 선물 방향과 프로그램 수급 방향은 이번 1차 자동화에서는 수동 확인 항목입니다.")
 
-    with st.expander("0단계 시장 분위기 수동 입력(선택) - 자동 확인이 부족할 때만 사용", expanded=False):
-        e1, e2, e3 = st.columns(3)
-        nq_change = e1.number_input(
-            "나스닥100 선물 등락률(%)", value=0.0, step=0.1, format="%.2f", key="snap_nq_change"
-        )
-        soxx_dir = e2.selectbox("SOXX/SMH 방향", ["미입력", "강함", "보통", "약함"], key="snap_soxx_dir")
-        usdkrw_dir = e3.selectbox("달러/원 방향", ["미입력", "상승", "하락", "보합"], key="snap_usdkrw_dir")
-
-        e4, e5, e6 = st.columns(3)
-        kospi200_futures_dir = e4.selectbox(
-            "KOSPI200 선물 방향", ["미입력", "상승", "하락", "보합"], key="snap_kospi200_dir"
-        )
-        foreign_futures_dir = e5.selectbox(
-            "외국인 선물 방향", ["미입력", "순매수", "순매도", "중립"], key="snap_foreign_dir"
-        )
-        program_dir = e6.selectbox(
-            "프로그램 수급 방향", ["미입력", "순매수", "순매도", "중립"], key="snap_program_dir"
-        )
-
-        st.markdown(
-            f"""
-            <div style="background-color:#171a21;border:1px solid #303642;border-radius:10px;padding:14px;margin-top:8px;">
-            <b>시장 분위기 입력값 확인</b><br>
-            - 나스닥100 선물: {nq_change:+.2f}%<br>
-            - SOXX/SMH 방향: {soxx_dir}<br>
-            - 달러/원 방향: {usdkrw_dir}<br>
-            - KOSPI200 선물 방향: {kospi200_futures_dir}<br>
-            - 외국인 선물 방향: {foreign_futures_dir}<br>
-            - 프로그램 수급 방향: {program_dir}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    with st.expander("오늘 거래대금 상위 종목 다시 선정", expanded=False):
         st.caption(
-            "위에서 입력한 값입니다(자동 분석 아님). 매수 신호가 아니라 참고용이며, "
-            "이 화면 입력값은 저장되지 않습니다."
+            "코스피/코스닥 전체 종목 중 오늘(가장 최근 완료된 거래일) 거래대금 상위 종목을 "
+            "자동으로 뽑아 아래 종목 목록을 대체합니다. 우선주·스팩·관리종목·투자주의환기종목은 "
+            "제외합니다. 저장되지 않으며 이 세션에서만 유지됩니다(다시 접속하면 기본 "
+            f"{len(DEFAULT_SNAPSHOT_STOCKS)}종목으로 돌아갑니다)."
         )
-        _kr_mood_unset_count = sum(
-            1 for v in (soxx_dir, usdkrw_dir, kospi200_futures_dir, foreign_futures_dir, program_dir)
-            if v == "미입력"
+        _dynamic_top_n = st.number_input(
+            "몇 종목?", min_value=5, max_value=30, value=20, step=1, key="dynamic_snapshot_n"
         )
-        if _kr_mood_unset_count >= 4:
-            st.caption("시장 분위기 판단값이 거의 입력되지 않았습니다. 필요하면 위 항목을 선택하세요.")
+        if st.button("거래대금 상위 종목 다시 불러오기", key="dynamic_snapshot_refresh"):
+            _new_stocks = price_data.get_top_kr_stocks_by_amount(int(_dynamic_top_n))
+            if _new_stocks:
+                st.session_state["dynamic_snapshot_stocks"] = _new_stocks
+                st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                st.success(f"{len(_new_stocks)}개 종목으로 갱신했습니다.")
+                st.rerun()
+            else:
+                st.warning("거래대금 상위 종목 조회 실패(네트워크 문제일 수 있습니다). 기존 목록을 유지합니다.")
+        if st.session_state.get("dynamic_snapshot_updated_at"):
+            st.caption(
+                f"마지막 갱신: {st.session_state['dynamic_snapshot_updated_at']} · "
+                f"현재 {len(SNAPSHOT_STOCKS)}종목 추적 중"
+            )
+        else:
+            st.caption(f"아직 갱신 안 함 · 기본 {len(SNAPSHOT_STOCKS)}종목(고정) 사용 중")
 
     # 2. 간편 스냅샷 입력 (붙여넣기 자동 채우기)
     st.markdown("---")
