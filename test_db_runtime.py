@@ -58,6 +58,50 @@ class DbRuntimeTests(unittest.TestCase):
         finally:
             adapter.close()
 
+    def test_remote_connections_are_reused_after_close(self):
+        raw = sqlite3.connect(":memory:")
+        with (
+            mock.patch.object(db_runtime, "_REMOTE_POOLS", {}),
+            mock.patch.object(
+                db_runtime,
+                "turso_config",
+                return_value=("libsql://example.turso.io", "token"),
+            ),
+            mock.patch.object(libsql, "connect", return_value=raw) as connect_mock,
+        ):
+            first = db_runtime.connect("ignored.db")
+            first.execute("CREATE TABLE sample (id INTEGER PRIMARY KEY)")
+            first.close()
+
+            second = db_runtime.connect("ignored.db")
+            second.execute("INSERT INTO sample VALUES (1)")
+            second.close()
+
+        self.assertEqual(connect_mock.call_count, 1)
+        self.assertEqual(raw.execute("SELECT COUNT(*) FROM sample").fetchone()[0], 1)
+        raw.close()
+
+    def test_remote_pool_does_not_share_a_borrowed_connection(self):
+        raw_connections = [sqlite3.connect(":memory:"), sqlite3.connect(":memory:")]
+        with (
+            mock.patch.object(db_runtime, "_REMOTE_POOLS", {}),
+            mock.patch.object(
+                db_runtime,
+                "turso_config",
+                return_value=("libsql://example.turso.io", "token"),
+            ),
+            mock.patch.object(libsql, "connect", side_effect=raw_connections) as connect_mock,
+        ):
+            first = db_runtime.connect("ignored.db")
+            second = db_runtime.connect("ignored.db")
+            self.assertIsNot(first._connection, second._connection)
+            first.close()
+            second.close()
+
+        self.assertEqual(connect_mock.call_count, 2)
+        for connection in raw_connections:
+            connection.close()
+
     def test_database_schema_and_crud_work_through_libsql_adapter(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             database_path = str(Path(temp_dir) / "remote_like.db")

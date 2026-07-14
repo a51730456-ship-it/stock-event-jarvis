@@ -5,7 +5,9 @@ TURSO_DATABASE_URL/TURSO_AUTH_TOKEN이 둘 다 있을 때만 원격 DB를 사용
 """
 
 import os
+import queue
 import sqlite3
+import threading
 
 
 def _setting(name):
@@ -106,6 +108,61 @@ class ConnectionAdapter:
         return getattr(self._connection, name)
 
 
+class _PooledConnectionAdapter(ConnectionAdapter):
+    """Return a remote connection to its pool instead of closing its socket."""
+
+    def __init__(self, connection, pool):
+        super().__init__(connection)
+        self._pool = pool
+        self._released = False
+
+    def close(self):
+        if self._released:
+            return
+        self._released = True
+        self._pool.release(self._connection)
+
+
+class _RemoteConnectionPool:
+    """Small process-local pool; a borrowed connection is never shared concurrently."""
+
+    def __init__(self, url, token):
+        self._url = url
+        self._token = token
+        self._available = queue.LifoQueue()
+
+    def _new_connection(self):
+        import libsql
+
+        connection = libsql.connect(database=self._url, auth_token=self._token)
+        connection.execute("PRAGMA foreign_keys = ON")
+        return connection
+
+    def acquire(self):
+        try:
+            connection = self._available.get_nowait()
+        except queue.Empty:
+            connection = self._new_connection()
+        return _PooledConnectionAdapter(connection, self)
+
+    def release(self, connection):
+        self._available.put(connection)
+
+
+_REMOTE_POOLS = {}
+_REMOTE_POOLS_LOCK = threading.Lock()
+
+
+def _remote_pool(url, token):
+    key = (url, token)
+    with _REMOTE_POOLS_LOCK:
+        pool = _REMOTE_POOLS.get(key)
+        if pool is None:
+            pool = _RemoteConnectionPool(url, token)
+            _REMOTE_POOLS[key] = pool
+        return pool
+
+
 def connect(local_path):
     config = turso_config()
     if config is None:
@@ -114,9 +171,5 @@ def connect(local_path):
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
-    import libsql
-
     url, token = config
-    connection = ConnectionAdapter(libsql.connect(database=url, auth_token=token))
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+    return _remote_pool(url, token).acquire()

@@ -7,27 +7,12 @@ import html
 import logging
 import re
 import sqlite3
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-import pandas as pd
 import streamlit as st
-
-import database as db
-import disclosure_data
-import login_visual
-import news_data
-import performance
-import bookmaker_data
-import deepl_translate
-import theme_data
-import theme_history
-import price_data
-import kis_market_data
-import naver_market_data
 
 _reference_panel_logger = logging.getLogger("jarvis.reference_panels")
 
@@ -596,6 +581,25 @@ if not st.session_state.get("authenticated"):
             else:
                 st.error("비밀번호가 올바르지 않습니다.")
     st.stop()
+
+# 로그인 화면에는 Streamlit과 정적 이미지밖에 필요하지 않다. 시세·뉴스·DB 모듈은
+# 인증 뒤에 불러와 무료 서버의 첫 비밀번호 화면을 최대한 빨리 표시한다.
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import pandas as pd
+
+import database as db
+import disclosure_data
+import login_visual
+import news_data
+import performance
+import bookmaker_data
+import deepl_translate
+import theme_data
+import theme_history
+import price_data
+import kis_market_data
+import naver_market_data
 
 _login_transition_pending = bool(st.session_state.get("login_transition_pending"))
 _login_transition_rendered_early = False

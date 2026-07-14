@@ -17,6 +17,21 @@ def _function(name):
 
 
 class CloudStartupPerformanceTests(unittest.TestCase):
+    def test_login_screen_precedes_heavy_market_imports(self):
+        auth_gate = SOURCE.index('if not st.session_state.get("authenticated"):')
+        stop_at = SOURCE.index("    st.stop()", auth_gate)
+
+        for import_line in (
+            "import pandas as pd",
+            "import database as db",
+            "import news_data",
+            "import performance",
+            "import bookmaker_data",
+            "import theme_data",
+            "import price_data",
+        ):
+            self.assertGreater(SOURCE.index(import_line), stop_at, import_line)
+
     def test_snapshot_batch_is_parallel_and_isolates_one_ticker_failure(self):
         class PriceData:
             @staticmethod
