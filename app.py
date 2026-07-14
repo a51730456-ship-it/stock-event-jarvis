@@ -10,6 +10,7 @@ import sqlite3
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -2668,6 +2669,37 @@ def _get_kr_index_intraday(ticker):
     return yahoo_result
 
 
+def _get_recent_market_intraday(ticker, *, now=None):
+    """최근 1분봉만 장중값으로 인정한다. 오래된 마지막 봉은 종가 fallback으로 넘긴다."""
+    try:
+        result = price_data.get_intraday_last(ticker)
+    except Exception:
+        return {"ok": False, "error": "장중 1분봉 조회 실패"}
+    if not result or not result.get("ok") or not result.get("prev_close"):
+        return result or {"ok": False, "error": "장중 1분봉 데이터 없음"}
+
+    try:
+        as_of_date = str(result.get("as_of_date") or "").strip()
+        as_of_time = str(result.get("as_of_time") or result.get("asof") or "").strip()
+        as_of = datetime.strptime(f"{as_of_date} {as_of_time}", "%Y-%m-%d %H:%M").replace(
+            tzinfo=ZoneInfo("Asia/Seoul")
+        )
+        now_seoul = now or datetime.now(ZoneInfo("Asia/Seoul"))
+        if now_seoul.tzinfo is None:
+            now_seoul = now_seoul.replace(tzinfo=ZoneInfo("Asia/Seoul"))
+        else:
+            now_seoul = now_seoul.astimezone(ZoneInfo("Asia/Seoul"))
+        # Yahoo의 NQ 선물은 약 10분 늦을 수 있어 15분까지 허용한다. 그 밖의 자산은
+        # 5분 이내 봉만 사용해 미국장 마감 뒤의 ETF 마지막 봉을 장중가로 오인하지 않는다.
+        max_age = timedelta(minutes=15 if str(ticker).upper() == "NQ=F" else 5)
+        age = now_seoul - as_of
+        if as_of.date() != now_seoul.date() or age > max_age or age < -timedelta(minutes=1):
+            return {"ok": False, "error": "최신 장중 1분봉이 아님"}
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "장중 1분봉 기준 시각 확인 실패"}
+    return {**result, "source": "Yahoo 1분봉(지연 가능)"}
+
+
 def _sparkline_svg(values, is_up, width=110, height=32):
     """최근 며칠치 종가로 아주 작은 추세선(SVG)을 그린다. 실시간이 아니라 "오늘 X장 자료
     불러오기" 버튼을 누른 시점의 일봉 데이터로만 그린다(CLAUDE.md "실시간 자동조회 금지"
@@ -2702,6 +2734,11 @@ def _fetch_market_overview(market):
             if market == "KR" and ticker in {"^KS11", "^KQ11"}:
                 try:
                     _intraday = _get_kr_index_intraday(ticker)
+                except Exception:
+                    _intraday = {"ok": False}
+            else:
+                try:
+                    _intraday = _get_recent_market_intraday(ticker)
                 except Exception:
                     _intraday = {"ok": False}
             if _intraday.get("ok") and _intraday.get("prev_close"):
@@ -3102,7 +3139,7 @@ def _render_market_overview(market):
                 source = f" · 원문 도메인: {hostname}" if hostname else ""
                 st.markdown(f"<div style='font-size:19px;line-height:1.65;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:18px 0 6px'>• {title_markdown}</div>", unsafe_allow_html=True)
                 st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-bottom:18px'>{item.get('pub_date') or '-'}{source}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-top:22px'>최신 조회 {st.session_state.get(checked_key) or '-'} · 가격 지연 가능 · 뉴스 발행시각 기준</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin-top:22px'>최신 조회 {st.session_state.get(checked_key) or '-'} · 뉴스는 자동 반복 갱신이 아닌 조회 시점의 검색 결과 · 발행시각은 한국시간 기준</div>", unsafe_allow_html=True)
     next_step = (
         "다음에는 아래의 0단계 시장 분위기 자동 확인과 ① 오늘 주가 자동 채우기를 진행하세요."
         if market == "KR"

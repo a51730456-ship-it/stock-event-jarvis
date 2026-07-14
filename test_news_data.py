@@ -121,7 +121,22 @@ class NewsDataTests(unittest.TestCase):
         payload = {"items": [{"originallink": "same", "link": "n1", "title": "1", "pubDate": "Tue, 11 Jul 2026 10:00:00 +0900"}, {"originallink": "same", "link": "n2", "title": "2"}, {"link": "n1", "title": "3"}, {"link": "n3", "title": "4"}]}
         result = n.fetch_naver_news("ID", "SECRET", "q", http_get=lambda *a, **k: response(json.dumps(payload).encode()))
         self.assertEqual([x["title"] for x in result["data"]], ["1", "3", "4"])
-        self.assertEqual(result["data"][0]["pub_date"], "2026-07-11 01:00:00")
+        self.assertEqual(result["data"][0]["pub_date"], "2026-07-11 10:00:00")
+
+    def test_publication_time_is_displayed_in_seoul_time(self):
+        payload = {
+            "items": [
+                {
+                    "title": "시장 뉴스",
+                    "link": "https://example/news",
+                    "pubDate": "Tue, 14 Jul 2026 02:38:00 +0000",
+                }
+            ]
+        }
+        result = n.fetch_naver_news(
+            "ID", "SECRET", "코스피", http_get=lambda *a, **k: response(json.dumps(payload).encode())
+        )
+        self.assertEqual(result["data"][0]["pub_date"], "2026-07-14 11:38:00")
 
     def test_validation(self):
         get = lambda *a, **k: self.fail("HTTP called")

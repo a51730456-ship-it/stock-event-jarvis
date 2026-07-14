@@ -7,11 +7,12 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import timezone
+from zoneinfo import ZoneInfo
 
 TIMEOUT = 10
 ENDPOINT = "https://openapi.naver.com/v1/search/news.json"
 _TAG_RE = re.compile(r"<[^>]*>")
+_SEOUL_TZ = ZoneInfo("Asia/Seoul")
 
 _DIRECT_RULES = (
     ("실적", ("실적 발표", "매출 증가", "매출 감소", "매출 발표", "영업이익", "순이익", "흑자전환", "적자전환", "실적 전망 상향", "실적 전망 하향", "가이던스 발표", "가이던스 변경")),
@@ -112,7 +113,7 @@ def _normalize_pub_date(value):
     try:
         parsed = email.utils.parsedate_to_datetime(str(value))
         if parsed.tzinfo is not None:
-            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+            parsed = parsed.astimezone(_SEOUL_TZ).replace(tzinfo=None)
         return parsed.isoformat(sep=" ")
     except (TypeError, ValueError, OverflowError):
         return str(value).strip()

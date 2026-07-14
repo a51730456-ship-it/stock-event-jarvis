@@ -3,17 +3,20 @@ import math
 from datetime import datetime
 import unittest
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import naver_market_data
 
 
 SOURCE = Path("app.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
-WANTED = {"_market_overview_status", "_market_overview_direction", "_dedup_market_overview_news", "_market_overview_price_item", "_get_kr_index_intraday", "_fetch_market_overview"}
+WANTED = {"_market_overview_status", "_market_overview_direction", "_dedup_market_overview_news", "_market_overview_price_item", "_get_kr_index_intraday", "_get_recent_market_intraday", "_fetch_market_overview"}
 NODES = [node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name in WANTED]
 NAMESPACE = {
     "math": math,
     "datetime": datetime,
+    "timedelta": __import__("datetime").timedelta,
+    "ZoneInfo": ZoneInfo,
     "MARKET_OVERVIEW_MIN_SIGNALS": 3,
     "MARKET_OVERVIEW_PRICE_SPECS": {
         "KR": [("KOSPI·KOSDAQ", ("KOSPI", "^KS11"), ("KOSDAQ", "^KQ11")), ("달러/원", ("달러/원", "KRW=X")), ("반도체", ("SOXX", "SOXX")), ("나스닥100 선물", ("NQ=F", "NQ=F"))],
@@ -35,6 +38,7 @@ NAMESPACE = {
 }
 exec(compile(ast.Module(body=NODES, type_ignores=[]), "app.py", "exec"), NAMESPACE)
 GET_KR_INDEX_INTRADAY = NAMESPACE["_get_kr_index_intraday"]
+GET_RECENT_MARKET_INTRADAY = NAMESPACE["_get_recent_market_intraday"]
 
 
 class MarketOverviewTests(unittest.TestCase):
@@ -171,7 +175,7 @@ class MarketOverviewTests(unittest.TestCase):
         result = NAMESPACE["_fetch_market_overview"]("KR")
 
         items = result["price_cards"][0]["items"]
-        self.assertEqual(price.intraday_calls, ["^KS11", "^KQ11"])
+        self.assertEqual(price.intraday_calls, ["^KS11", "^KQ11", "KRW=X", "SOXX", "NQ=F"])
         self.assertTrue(all(item["data_kind"] == "daily_close" for item in items))
         self.assertTrue(all(item["asof"] == "2026-07-10" for item in items))
 
@@ -277,6 +281,60 @@ class MarketOverviewTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["source"], "Yahoo 1분봉(지연 가능)")
+
+    def test_recent_intraday_accepts_current_fx_and_nq_but_rejects_closed_etf(self):
+        class Price:
+            rows = {
+                "KRW=X": ("11:46", 1492.08, 1497.02),
+                "NQ=F": ("11:36", 29383.0, 29475.75),
+                "SOXX": ("04:59", 553.16, 581.34),
+            }
+
+            def get_intraday_last(self, ticker):
+                as_of_time, current, previous = self.rows[ticker]
+                return {
+                    "ok": True,
+                    "current": current,
+                    "prev_close": previous,
+                    "as_of_date": "2026-07-14",
+                    "as_of_time": as_of_time,
+                    "data_kind": "intraday",
+                }
+
+        NAMESPACE["price_data"] = Price()
+        now = datetime(2026, 7, 14, 11, 46, tzinfo=ZoneInfo("Asia/Seoul"))
+
+        fx = GET_RECENT_MARKET_INTRADAY("KRW=X", now=now)
+        nq = GET_RECENT_MARKET_INTRADAY("NQ=F", now=now)
+        soxx = GET_RECENT_MARKET_INTRADAY("SOXX", now=now)
+
+        self.assertTrue(fx["ok"])
+        self.assertTrue(nq["ok"])
+        self.assertEqual(nq["as_of_time"], "11:36")
+        self.assertEqual(nq["source"], "Yahoo 1분봉(지연 가능)")
+        self.assertFalse(soxx["ok"])
+
+    def test_nq_older_than_fifteen_minutes_is_not_labeled_intraday(self):
+        class Price:
+            def get_intraday_last(self, ticker):
+                return {
+                    "ok": True,
+                    "current": 29383.0,
+                    "prev_close": 29475.75,
+                    "as_of_date": "2026-07-14",
+                    "as_of_time": "11:30",
+                }
+
+        NAMESPACE["price_data"] = Price()
+        result = GET_RECENT_MARKET_INTRADAY(
+            "NQ=F", now=datetime(2026, 7, 14, 11, 46, tzinfo=ZoneInfo("Asia/Seoul"))
+        )
+        self.assertFalse(result["ok"])
+
+    def test_news_caption_distinguishes_query_time_from_publication_time(self):
+        render_source = SOURCE[SOURCE.index("def _render_market_overview"):SOURCE.index("def _get_snapshot_value")]
+        self.assertIn("뉴스는 자동 반복 갱신이 아닌 조회 시점의 검색 결과", render_source)
+        self.assertIn("발행시각은 한국시간 기준", render_source)
 
     def test_today_intraday_replaces_only_kr_index_close(self):
         class Price:
