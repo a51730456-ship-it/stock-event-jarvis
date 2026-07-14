@@ -37,7 +37,18 @@ class TabletStructureTests(unittest.TestCase):
     def test_candidate_cards_are_restored_and_linked_to_existing_selection(self):
         self.assertIn('rows_by_ticker = {row["ticker"]: row for row in sorted_rows}', SOURCE)
         self.assertIn('mockup1_candidate_', SOURCE)
-        self.assertIn('st.session_state["mockup1_selected_ticker"] = row["ticker"]', SOURCE)
+        # Streamlit은 selectbox가 생성된 뒤 같은 실행 안에서 위젯 키를 직접 바꾸면
+        # StreamlitAPIException이 날 수 있다. 후보 카드 클릭은 pending 키에 저장하고,
+        # 다음 rerun에서 selectbox 생성 전에 기존 선택 키로 옮기는 구조를 검증한다.
+        pending_read = 'pending_ticker = st.session_state.pop("mockup1_pending_ticker", None)'
+        selected_write = 'st.session_state["mockup1_selected_ticker"] = pending_ticker'
+        selectbox_key = 'key="mockup1_selected_ticker"'
+        pending_write = 'st.session_state["mockup1_pending_ticker"] = row["ticker"]'
+        for marker in (pending_read, selected_write, selectbox_key, pending_write):
+            self.assertIn(marker, SOURCE)
+        self.assertLess(SOURCE.index(pending_read), SOURCE.index(selected_write))
+        self.assertLess(SOURCE.index(selected_write), SOURCE.index(selectbox_key))
+        self.assertLess(SOURCE.index(selectbox_key), SOURCE.index(pending_write))
         self.assertIn('left_col, right_col = st.columns([0.34, 0.66]', SOURCE)
         self.assertNotIn('for row in enumerate([])', SOURCE)
 
