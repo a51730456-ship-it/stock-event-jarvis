@@ -64,6 +64,12 @@ class ThresholdLabelTranslationTests(unittest.TestCase):
     def test_exactly(self):
         self.assertEqual(bd._translate_threshold_label("Exactly 0.5%"), "정확히 0.5%")
 
+    def test_at_least_and_at_most_percent(self):
+        # 2026-07-15 사용자 지적: Kalshi 라벨이 "At least 4.5%" 형태라 기존 Above/Below만
+        # 인식하는 패턴에 안 걸려 번역 안 되고 원문 그대로 노출되고 있었다.
+        self.assertEqual(bd._translate_threshold_label("At least 4.5%"), "4.5% 이상")
+        self.assertEqual(bd._translate_threshold_label("At most 3.0%"), "3.0% 이하")
+
     def test_above_dollar_amount(self):
         self.assertEqual(bd._translate_threshold_label("Above $80 billion"), "$80 billion 이상")
 

@@ -91,9 +91,13 @@ def _is_expired(end_date_str):
 
 
 _THRESHOLD_LABEL_PATTERN = re.compile(
-    r"^(Above|Below|Exactly)\s+(-?\$?[\d.,]+%?\s*(trillion|billion|million)?)$", re.IGNORECASE
+    r"^(Above|Below|Exactly|At least|At most)\s+(-?\$?[\d.,]+%?\s*(trillion|billion|million)?)$",
+    re.IGNORECASE,
 )
-_LABEL_KO = {"above": "이상", "below": "이하", "exactly": "정확히"}
+_LABEL_KO = {
+    "above": "이상", "below": "이하", "exactly": "정확히",
+    "at least": "이상", "at most": "이하",
+}
 _BPS_LABEL_PATTERN = re.compile(r"^(\d+)(\+)?\s*bps?\s+(increase|decrease)$", re.IGNORECASE)
 _CUT_COUNT_LABEL_PATTERN = re.compile(r"^Exactly\s+(\d+)\s+cuts?$", re.IGNORECASE)
 _ZERO_CUT_LABEL_PATTERN = re.compile(r"^0\s*\(0\s*bps?\)$", re.IGNORECASE)

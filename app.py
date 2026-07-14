@@ -1666,6 +1666,49 @@ def _us_swing_narrative_text(row):
     return "\n".join(lines)
 
 
+def build_us_stage2_preview():
+    """미국장 2단계(총점/판단/1순위 근거/감점 이유) 미리보기 전용 함수 — 한국장
+    build_kr_stage2_preview()와 동일한 목적의 US 버전(2026-07-15 사용자 요청).
+
+    US_SNAPSHOT_STOCKS(거래대금 상위 자동 선정 결과)를 순회하며 기존 "② 미국장 스윙
+    계산 결과"와 똑같은 compute_us_swing_breakdown() 점수 엔진을 그대로 재사용한다 —
+    새 점수 공식을 만들지 않는다. session_state에 있는 현재 입력값을 그대로 읽어서
+    계산만 하며 DB에는 아무 것도 저장하지 않는다.
+    """
+    rows = []
+    for s in US_SNAPSHOT_STOCKS:
+        ticker = s["ticker"]
+        current = _get_snapshot_value(ticker, "current")
+        prev_close = _get_snapshot_value(ticker, "prev_close")
+        open_price = _get_snapshot_value(ticker, "open")
+        high = _get_snapshot_value(ticker, "high")
+        low = _get_snapshot_value(ticker, "low")
+        turnover = _get_snapshot_value(ticker, "turnover")
+        market_cap = _get_snapshot_value(ticker, "market_cap")
+
+        if not any([current, prev_close, open_price, high, low]):
+            continue
+
+        change_pct = _safe_pct_diff(current, prev_close)
+        open_pos_pct = _safe_pct_diff(current, open_price)
+        high_drop_pct = _safe_pct_diff(current, high)
+        turnover_ratio_pct = _safe_ratio_pct(turnover, market_cap)
+        material_memo = (st.session_state.get(f"snap_{ticker}_material_memo", "") or "").strip()
+
+        breakdown = compute_us_swing_breakdown(
+            s["name"], change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, material_memo
+        )
+        breakdown["ticker"] = ticker
+        breakdown["change_pct"] = change_pct
+        breakdown["validation_errors"] = _validate_snapshot_price_inputs(
+            s["name"], current, open_price, high, low, _get_snapshot_value(ticker, "volume"), turnover,
+        )
+        breakdown["needs_confirmation"] = bool(breakdown["validation_errors"])
+        rows.append(breakdown)
+
+    return {"rows": rows}
+
+
 def _build_item_text_lookup():
     """(report_id, ticker, trade_mode) -> 관련 텍스트를 합친 문자열 목록. 후보 점수의 숫자
     근거를 저장된 문장에서 뽑아내기 위한 조회용이다(DB에 새 컬럼을 만들지 않는다)."""
@@ -7067,6 +7110,65 @@ def _render_tab_us():
         st.session_state["us_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if st.session_state.get("us_auto_preview_done_at"):
         st.caption(f"판단 준비 완료: {st.session_state['us_auto_preview_done_at']}")
+
+    # 2026-07-15 사용자 요청(반복 요청): 한국장의 "2단계 판단 미리보기"와 동일한 형태를
+    # 미국장에도 만든다. 점수 엔진은 새로 만들지 않고 기존 compute_us_swing_breakdown()을
+    # build_us_stage2_preview()로 재사용한다(아래 "② 미국장 스윙 계산 결과"와 같은 로직).
+    st.markdown("#### 미국 종목 판단 미리보기 (저장 전, 자동 계산)")
+    st.caption(
+        "아직 저장하지 않은 상태의 참고용 미리보기입니다. 매수 신호가 아니며, 실제로 기록을 "
+        "남기려면 아래 '③ 미국장 스윙 기록 바로 저장'을 따로 눌러야 합니다. 이 미리보기 자체는 "
+        "DB에 아무 것도 저장하지 않습니다."
+    )
+    _us_stage2_preview = build_us_stage2_preview()
+    if not _us_stage2_preview["rows"]:
+        st.info("아직 입력된 종목이 없어 미국 종목 판단 미리보기를 만들 수 없습니다.")
+    else:
+        _us_stage2_rows_sorted = sorted(
+            _us_stage2_preview["rows"], key=lambda r: r["total_score"], reverse=True,
+        )
+
+        def _us_stage2_verdict_styler(col):
+            styles = []
+            for val in col:
+                if val == "추천 후보":
+                    styles.append("color: #39ff14; font-weight: 800")
+                elif val == "감시":
+                    styles.append("color: #4b9fff")
+                else:
+                    styles.append("")
+            return styles
+
+        def _us_stage2_confirm_styler(col):
+            return [
+                "color: #f97316; font-weight: 800" if val == "예" else ""
+                for val in col
+            ]
+
+        _us_stage2_df = pd.DataFrame(
+            [
+                {
+                    "종목명": r["name"],
+                    "총점": int(round(r["total_score"])),
+                    "판단": r["verdict"],
+                    "확인 필요": "예" if r["needs_confirmation"] else "-",
+                }
+                for r in _us_stage2_rows_sorted
+            ]
+        )
+        _us_stage2_styled_df = (
+            _us_stage2_df.style
+            .apply(_us_stage2_verdict_styler, subset=["판단"])
+            .apply(_us_stage2_confirm_styler, subset=["확인 필요"])
+        )
+        st.dataframe(_us_stage2_styled_df, width="stretch", hide_index=True)
+        st.markdown("종목별 1순위 근거 / 감점 이유 (미리보기)")
+        for r in _us_stage2_rows_sorted:
+            with st.expander(f"{r['name']} — {r['verdict']} (총점 {r['total_score']:.0f}점)"):
+                st.write(f"1순위 근거: {r['priority_reason']}")
+                st.write(f"감점 이유: {r['deduction_reason']}")
+                if r["validation_errors"]:
+                    st.warning("확인 필요: " + "; ".join(r["validation_errors"]))
 
     with st.expander("오늘 거래대금 상위 종목 다시 선정(미국)", expanded=False):
         st.caption(
