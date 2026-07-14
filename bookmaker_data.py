@@ -93,6 +93,12 @@ _THRESHOLD_LABEL_PATTERN = re.compile(
     r"^(Above|Below|Exactly)\s+(-?\$?[\d.,]+%?\s*(trillion|billion|million)?)$", re.IGNORECASE
 )
 _LABEL_KO = {"above": "이상", "below": "이하", "exactly": "정확히"}
+_BPS_LABEL_PATTERN = re.compile(r"^(\d+)(\+)?\s*bps?\s+(increase|decrease)$", re.IGNORECASE)
+_SIMPLE_LABEL_KO = {
+    "no change": "동결",
+    "yes": "예",
+    "no": "아니오",
+}
 
 
 def _translate_threshold_label(label):
@@ -103,7 +109,17 @@ def _translate_threshold_label(label):
     """
     if not label:
         return label
-    m = _THRESHOLD_LABEL_PATTERN.match(label.strip())
+    stripped = label.strip()
+    simple = _SIMPLE_LABEL_KO.get(stripped.lower())
+    if simple:
+        return simple
+    bps_match = _BPS_LABEL_PATTERN.match(stripped)
+    if bps_match:
+        amount, plus, direction = bps_match.groups()
+        amount_text = f"{amount}bp 이상" if plus else f"{amount}bp"
+        direction_text = "인상" if direction.lower() == "increase" else "인하"
+        return f"{amount_text} {direction_text}"
+    m = _THRESHOLD_LABEL_PATTERN.match(stripped)
     if not m:
         return label
     direction, value = m.group(1).lower(), m.group(2).strip()

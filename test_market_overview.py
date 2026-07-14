@@ -99,6 +99,7 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertNotIn("실시간", render_source)
         for phrase in ("장중 {item['asof']} 기준", "{item['asof']} 종가 기준", "조회 기준 확인 불가"):
             self.assertIn(phrase, render_source)
+        self.assertIn("deepl_translate.translate_market_title_locally", render_source)
 
     def test_no_market_fetch_before_button(self):
         panel = SOURCE[SOURCE.index("def _render_market_overview"):]
@@ -109,19 +110,21 @@ class MarketOverviewTests(unittest.TestCase):
         button = 'if st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)"'
         self.assertLess(panel.index(button), panel.index("bookmaker_data.fetch_bookmaker_snapshot()"))
 
-    def test_login_and_rerun_keep_keys_without_market_auto_run(self):
+    def test_login_followup_reruns_restore_three_kr_auto_actions(self):
         tab_start = SOURCE.index("with tab_kr:")
         panel_start = SOURCE.index('_render_market_overview("KR")', tab_start)
         tab_prelude = SOURCE[tab_start:panel_start]
+        self.assertIn("not _login_transition_pending", tab_prelude)
         self.assertIn("kr_auto_run_stage1_done", tab_prelude)
         self.assertIn("kr_auto_run_stage2_done", tab_prelude)
-        for forbidden_call in (
+        for required_call in (
             "get_top_kr_stocks_by_amount(",
             '_fetch_market_overview("KR")',
             "run_kr_mood_auto_check()",
             "run_kr_snapshot_auto_fill()",
+            'st.session_state["kr_theme_auto_fetch_pending"] = True',
         ):
-            self.assertNotIn(forbidden_call, tab_prelude)
+            self.assertIn(required_call, tab_prelude)
 
     def test_intraday_failure_falls_back_to_dated_close(self):
         class Price:
@@ -171,6 +174,8 @@ class MarketOverviewTests(unittest.TestCase):
                 return {
                     "ok": True,
                     "current": 102.0,
+                    "prev_close": 100.0,
+                    "prev_close_as_of_date": "2026-07-13",
                     "asof": "12:17",
                     "as_of_time": "12:17",
                     "as_of_date": "2026-07-14",
@@ -193,6 +198,7 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertTrue(all(item["data_kind"] == "intraday" for item in items))
         self.assertTrue(all(item["as_of_date"] == "2026-07-14" for item in items))
         self.assertTrue(all(item["as_of_time"] == "12:17" for item in items))
+        self.assertTrue(all(item["change_pct"] == 2.0 for item in items))
 
     def test_price_lookup_failure_has_unknown_reference_time(self):
         class Price:

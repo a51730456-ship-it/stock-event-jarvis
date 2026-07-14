@@ -42,6 +42,27 @@ class IntradayLastTests(unittest.TestCase):
         self.assertEqual(result["as_of_time"], "12:17")
         self.assertEqual(result["as_of_date"], "2026-07-13")
         self.assertEqual(result["data_kind"], "intraday")
+        mock_ticker_cls.return_value.history.assert_called_once_with(period="5d", interval="1m")
+
+    @patch("yfinance.Ticker")
+    def test_previous_session_last_minute_is_returned_for_change_baseline(self, mock_ticker_cls):
+        idx = pd.DatetimeIndex(
+            [
+                "2026-07-10 15:29:00+09:00",
+                "2026-07-10 15:30:00+09:00",
+                "2026-07-13 12:17:00+09:00",
+            ],
+            name="Datetime",
+        )
+        df = pd.DataFrame({"Close": [100.0, 101.0, 102.0]}, index=idx)
+        mock_ticker_cls.return_value = _fake_ticker(df)
+
+        result = price_data.get_intraday_last("^KS11")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["current"], 102.0)
+        self.assertEqual(result["prev_close"], 101.0)
+        self.assertEqual(result["prev_close_as_of_date"], "2026-07-10")
 
     @patch("yfinance.Ticker")
     def test_utc_index_is_explicitly_converted_to_seoul(self, mock_ticker_cls):

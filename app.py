@@ -2693,8 +2693,11 @@ def _fetch_market_overview(market):
                 except Exception:
                     _intraday = {"ok": False}
                 if _intraday.get("ok"):
-                    # completed_only=True 결과의 current가 바로 최근 완료 거래일 종가다.
-                    _prev_close = _daily_result["current"]
+                    # 직전 거래일 일봉이 누락될 수 있으므로 5일치 1분봉에서 구한
+                    # 직전 세션 종가를 우선 사용한다. 없을 때만 완료 일봉으로 대체한다.
+                    _prev_close = _intraday.get("prev_close")
+                    if _prev_close is None:
+                        _prev_close = _daily_result["current"]
                     item["current"] = _intraday["current"]
                     item["change_pct"] = _safe_pct_diff(_intraday["current"], _prev_close)
                     item["asof"] = _intraday.get("as_of_time") or _intraday.get("asof")
@@ -2927,7 +2930,10 @@ def _render_market_overview(market):
             for _err in _bookmaker_snapshot.get("errors") or []:
                 st.caption(f"일부 실패: {_err}")
             if not st.secrets.get("DEEPL_API_KEY"):
-                st.caption("한국어 번역을 사용하려면 DeepL API 키가 필요합니다 — 지금은 영어 원문만 표시됩니다.")
+                st.caption(
+                    "DeepL API 키가 없어 자주 쓰는 금융 제목·조건은 내장 한국어로 표시하고, "
+                    "그 밖의 문장은 영어 원문으로 표시합니다."
+                )
             elif st.session_state.get("bookmaker_translation_error"):
                 st.caption(f"번역 일부 실패: {st.session_state['bookmaker_translation_error']}")
             _translation_cache = st.session_state.get("bookmaker_translation_cache") or {}
@@ -2955,7 +2961,10 @@ def _render_market_overview(market):
                         # 이벤트(카드) 하나가 번역 실패 등으로 문제가 생겨도 다른 카드
                         # 렌더링은 계속되도록 카드별로 격리한다.
                         try:
-                            _title_ko = _translation_cache.get(_ev["title"])
+                            _title_ko = (
+                                _translation_cache.get(_ev["title"])
+                                or deepl_translate.translate_market_title_locally(_ev["title"])
+                            )
                             _title_html = (
                                 f"<div style='font-size:19px;font-weight:800;color:#f9fafb'>{html.escape(_title_ko)}</div>"
                                 f"<div style='font-size:13px;color:#8b95a5;margin-top:2px'>영어 원문: {html.escape(_ev['title'])}</div>"
@@ -5755,11 +5764,36 @@ def _render_risk_plan_preview(stock_name, ticker, risk_fields):
 
 
 with tab_kr:
-    # 앱 실행·로그인·일반 rerun에서는 외부 조회를 시작하지 않는다. 시장·종목·테마
-    # 자료는 아래에 유지된 기존 버튼을 사용자가 눌렀을 때만 조회한다. 이전 세션과의
-    # 호환을 위해 기존 완료 플래그 키는 유지하되 자동 실행 조건에는 사용하지 않는다.
-    st.session_state.setdefault("kr_auto_run_stage1_done", False)
-    st.session_state.setdefault("kr_auto_run_stage2_done", False)
+    # 로그인 직후 한국장 탭을 열면 "오늘 한국장 자료 불러오기"/"오늘 종목 판단
+    # 준비하기"/"테마 참고판 자동 조회" 3개 동작을 세션당 한 번 순서대로 실행한다.
+    # 로그인 성공 전환 화면이 떠 있는 실행에서는 조회하지 않고 다음 rerun부터 시작한다.
+    if not _login_transition_pending and not st.session_state.get("kr_auto_run_stage1_done"):
+        _kr_auto_run_stocks = price_data.get_top_kr_stocks_by_amount(12)
+        if _kr_auto_run_stocks:
+            st.session_state["dynamic_snapshot_stocks"] = _kr_auto_run_stocks
+            st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state["kr_auto_run_stage1_done"] = True
+        st.rerun()
+    elif not _login_transition_pending and not st.session_state.get("kr_auto_run_stage2_done"):
+        st.session_state["kr_market_overview_result"] = _fetch_market_overview("KR")
+        st.session_state["kr_market_overview_checked_at"] = st.session_state["kr_market_overview_result"]["checked_at"]
+
+        _kr_auto_mood_result = run_kr_mood_auto_check()
+        _kr_auto_fill_result = run_kr_snapshot_auto_fill()
+        _kr_auto_stage2_preview = build_kr_stage2_preview()
+        st.session_state["kr_auto_preview_stage0_status"] = {"ok": "예", "partial": "부분", "fail": "아니오"}[
+            _kr_auto_mood_result["status"]
+        ]
+        st.session_state["kr_auto_preview_stage1_status"] = {"ok": "예", "partial": "부분", "fail": "아니오"}[
+            _kr_auto_fill_result["status"]
+        ]
+        st.session_state["kr_auto_preview_stage2_generated"] = bool(_kr_auto_stage2_preview["rows"])
+        st.session_state["kr_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        st.session_state["kr_theme_auto_fetch_pending"] = True
+        st.session_state["kr_auto_run_stage2_done"] = True
+        st.rerun()
+
     _render_market_overview("KR")
     st.subheader("한국장")
     _render_kr_fable_mockup1_preview()

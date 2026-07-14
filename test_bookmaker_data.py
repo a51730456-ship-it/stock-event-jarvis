@@ -41,6 +41,12 @@ class WordBoundaryMatchTests(unittest.TestCase):
 
 
 class ThresholdLabelTranslationTests(unittest.TestCase):
+    def test_fed_decision_labels(self):
+        self.assertEqual(bd._translate_threshold_label("No change"), "동결")
+        self.assertEqual(bd._translate_threshold_label("25 bps increase"), "25bp 인상")
+        self.assertEqual(bd._translate_threshold_label("25 bps decrease"), "25bp 인하")
+        self.assertEqual(bd._translate_threshold_label("50+ bps decrease"), "50bp 이상 인하")
+
     def test_above_percent(self):
         self.assertEqual(bd._translate_threshold_label("Above 4.00%"), "4.00% 이상")
 

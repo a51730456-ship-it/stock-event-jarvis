@@ -12,6 +12,14 @@ def _response(status_code=200, json_payload=None):
 
 
 class DeeplTranslateTests(unittest.TestCase):
+    def test_local_finance_title_fallbacks(self):
+        self.assertEqual(dt.translate_market_title_locally("Fed Decision in July?"), "7월 연준 금리 결정")
+        self.assertEqual(
+            dt.translate_market_title_locally("What will WTI Crude Oil (WTI) hit in July 2026?"),
+            "2026년 7월 WTI 원유 가격은 어디까지 오를까?",
+        )
+        self.assertIsNone(dt.translate_market_title_locally("Unrecognized entertainment event"))
+
     @patch("deepl_translate.requests.post")
     def test_empty_texts_makes_no_call(self, mock_post):
         result = dt.translate_texts_to_ko([], "some-key")

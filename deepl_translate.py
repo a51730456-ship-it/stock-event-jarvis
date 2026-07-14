@@ -5,12 +5,52 @@ DB 저장에는 사용하지 않는다. 호출 시점은 이 모듈이 정하지
 "도박사 신호 불러오기" 버튼을 눌렀을 때만, 그리고 아직 캐시에 없는 문장만 넘긴다.
 
 API 키·요청 헤더·원시 예외 메시지는 절대 반환하지 않는다(화면에 노출 금지 요구사항).
+DeepL 키가 없는 경우에도 자주 노출되는 금융 이벤트 제목은 아래 로컬 규칙으로
+한국어 요약을 제공한다. 규칙에 없는 문장은 원문을 임의 번역하지 않는다.
 """
+
+import re
 
 import requests
 
 DEEPL_FREE_ENDPOINT = "https://api-free.deepl.com/v2/translate"
 REQUEST_TIMEOUT = 8
+
+_MONTH_KO = {
+    "january": "1월", "february": "2월", "march": "3월", "april": "4월",
+    "may": "5월", "june": "6월", "july": "7월", "august": "8월",
+    "september": "9월", "october": "10월", "november": "11월", "december": "12월",
+}
+
+
+def translate_market_title_locally(text):
+    """키 없이도 안전하게 번역할 수 있는 반복 금융 이벤트 제목만 한국어화한다."""
+    if not text:
+        return None
+    original = str(text).strip()
+
+    fed_match = re.fullmatch(r"Fed Decision in ([A-Za-z]+)\??", original, re.IGNORECASE)
+    if fed_match:
+        month = _MONTH_KO.get(fed_match.group(1).lower())
+        if month:
+            return f"{month} 연준 금리 결정"
+
+    wti_match = re.fullmatch(
+        r"What will WTI Crude Oil \(WTI\) hit in ([A-Za-z]+) (\d{4})\?",
+        original,
+        re.IGNORECASE,
+    )
+    if wti_match:
+        month = _MONTH_KO.get(wti_match.group(1).lower())
+        if month:
+            return f"{wti_match.group(2)}년 {month} WTI 원유 가격은 어디까지 오를까?"
+
+    exact_titles = {
+        "us cpi this year": "올해 미국 소비자물가지수(CPI)",
+        "cpi inflation": "소비자물가지수(CPI) 인플레이션",
+        "fed decision": "연준 금리 결정",
+    }
+    return exact_titles.get(original.lower())
 
 
 def translate_texts_to_ko(texts, api_key, timeout=REQUEST_TIMEOUT):
