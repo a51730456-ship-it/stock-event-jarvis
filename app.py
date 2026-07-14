@@ -2538,9 +2538,10 @@ SNAPSHOT_CALC_CANONICAL_NAMES = {
     "turnover_ratio_pct": "trading_value_to_market_cap_pct",
 }
 
-# 미국장 스윙 기록 바로 저장 전용 기본 종목(8개). 한국 종목(SNAPSHOT_STOCKS)과는
-# ticker가 겹치지 않으므로 같은 session_state 키 규칙(snap_{ticker}_{field})을 그대로 쓴다.
-US_SNAPSHOT_STOCKS = [
+# 미국장 스윙 기록 바로 저장 전용 기본 종목(8개, 고정 리스트 안 뽑혔을 때 대체값).
+# 한국 종목(SNAPSHOT_STOCKS)과는 ticker가 겹치지 않으므로 같은 session_state 키 규칙
+# (snap_{ticker}_{field})을 그대로 쓴다.
+DEFAULT_US_SNAPSHOT_STOCKS = [
     {"name": "TSLA", "ticker": "TSLA", "sector": "미국-자동차"},
     {"name": "AMD", "ticker": "AMD", "sector": "미국-반도체"},
     {"name": "AVGO", "ticker": "AVGO", "sector": "미국-반도체"},
@@ -2550,6 +2551,56 @@ US_SNAPSHOT_STOCKS = [
     {"name": "NVDA", "ticker": "NVDA", "sector": "미국-반도체"},
     {"name": "MSFT", "ticker": "MSFT", "sector": "미국-빅테크"},
 ]
+
+# 2026-07-15(사용자 명시 요청): 한국장처럼 "거래대금 상위 종목 자동 선정"을 미국장에도
+# 적용한다. 다만 미국 전체 상장 종목(수천 개)을 무료 소스로 실시간 스캔할 방법이 없어
+# (KRX 전체 종목표 같은 벌크 API가 없음), 유동성 높은 대형주 후보군 안에서 오늘 거래대금
+# (근사치 = 거래량×종가) 상위를 골라낸다. 사용자가 이 방식(1안)을 명시적으로 선택했다.
+US_CANDIDATE_UNIVERSE = [
+    {"name": "TSLA", "ticker": "TSLA", "sector": "미국-자동차"},
+    {"name": "AMD", "ticker": "AMD", "sector": "미국-반도체"},
+    {"name": "AVGO", "ticker": "AVGO", "sector": "미국-반도체"},
+    {"name": "META", "ticker": "META", "sector": "미국-빅테크"},
+    {"name": "GOOGL", "ticker": "GOOGL", "sector": "미국-빅테크"},
+    {"name": "AAPL", "ticker": "AAPL", "sector": "미국-빅테크"},
+    {"name": "NVDA", "ticker": "NVDA", "sector": "미국-반도체"},
+    {"name": "MSFT", "ticker": "MSFT", "sector": "미국-빅테크"},
+    {"name": "AMZN", "ticker": "AMZN", "sector": "미국-빅테크"},
+    {"name": "NFLX", "ticker": "NFLX", "sector": "미국-미디어"},
+    {"name": "INTC", "ticker": "INTC", "sector": "미국-반도체"},
+    {"name": "QCOM", "ticker": "QCOM", "sector": "미국-반도체"},
+    {"name": "MU", "ticker": "MU", "sector": "미국-반도체"},
+    {"name": "PLTR", "ticker": "PLTR", "sector": "미국-소프트웨어"},
+    {"name": "COIN", "ticker": "COIN", "sector": "미국-핀테크"},
+    {"name": "RIVN", "ticker": "RIVN", "sector": "미국-자동차"},
+    {"name": "LCID", "ticker": "LCID", "sector": "미국-자동차"},
+    {"name": "SOFI", "ticker": "SOFI", "sector": "미국-핀테크"},
+    {"name": "F", "ticker": "F", "sector": "미국-자동차"},
+    {"name": "GM", "ticker": "GM", "sector": "미국-자동차"},
+    {"name": "BA", "ticker": "BA", "sector": "미국-항공방산"},
+    {"name": "DIS", "ticker": "DIS", "sector": "미국-미디어"},
+    {"name": "PYPL", "ticker": "PYPL", "sector": "미국-핀테크"},
+    {"name": "UBER", "ticker": "UBER", "sector": "미국-플랫폼"},
+    {"name": "ABNB", "ticker": "ABNB", "sector": "미국-플랫폼"},
+    {"name": "CRWD", "ticker": "CRWD", "sector": "미국-소프트웨어"},
+    {"name": "SNOW", "ticker": "SNOW", "sector": "미국-소프트웨어"},
+    {"name": "SHOP", "ticker": "SHOP", "sector": "미국-소프트웨어"},
+    {"name": "SQ", "ticker": "SQ", "sector": "미국-핀테크"},
+    {"name": "MRNA", "ticker": "MRNA", "sector": "미국-바이오"},
+    {"name": "PFE", "ticker": "PFE", "sector": "미국-바이오"},
+    {"name": "XOM", "ticker": "XOM", "sector": "미국-에너지"},
+    {"name": "CVX", "ticker": "CVX", "sector": "미국-에너지"},
+    {"name": "JPM", "ticker": "JPM", "sector": "미국-금융"},
+    {"name": "BAC", "ticker": "BAC", "sector": "미국-금융"},
+    {"name": "WMT", "ticker": "WMT", "sector": "미국-유통"},
+]
+
+# 2026-07-13(한국장과 동일 패턴): "미국 거래대금 상위 종목 다시 선정" 버튼을 누르면
+# session_state["dynamic_us_snapshot_stocks"]가 채워져 이 목록을 대체한다. 아직 버튼을
+# 안 눌렀으면(세션 시작 직후 등) DEFAULT_US_SNAPSHOT_STOCKS로 안전하게 대체한다.
+# US_SNAPSHOT_STOCKS를 참조하는 기존 코드(스윙 계산, 종목 자동 채우기 등)는 전부 그대로
+# 두고 손댈 필요 없다 — 매 스크립트 실행마다 새로 계산되는 전역 변수이기 때문.
+US_SNAPSHOT_STOCKS = st.session_state.get("dynamic_us_snapshot_stocks") or DEFAULT_US_SNAPSHOT_STOCKS
 
 
 MARKET_OVERVIEW_MIN_SIGNALS = 3
@@ -4570,6 +4621,31 @@ KR_MARKET_MOOD_AUTO_TARGETS = [
 def _cached_get_top_kr_stocks_by_amount(n):
     """여러 기기의 로그인에서 KRX 전체 종목표를 반복해서 받지 않게 한다."""
     return price_data.get_top_kr_stocks_by_amount(n)
+
+
+def _fetch_top_us_stocks_by_amount(n):
+    """US_CANDIDATE_UNIVERSE(유동성 높은 대형주 약 35종목) 안에서 오늘 거래대금
+    (근사치 = 거래량×종가) 상위 n개를 골라낸다.
+
+    KRX 전체 종목표 같은 벌크 API가 미국 시장에는 없어서, 전체 시장을 스캔하는 대신
+    미리 정한 후보군 안에서만 병렬 조회 후 정렬한다(2026-07-15 사용자 승인 방식).
+    조회 실패 종목은 제외하고, 유효한 종목이 하나도 없으면 빈 리스트를 반환한다.
+    """
+    tickers = tuple(s["ticker"] for s in US_CANDIDATE_UNIVERSE)
+    results = _fetch_kr_snapshot_results(tickers)
+    ranked = [
+        stock for stock in US_CANDIDATE_UNIVERSE
+        if (results.get(stock["ticker"]) or {}).get("ok")
+        and (results[stock["ticker"]].get("turnover") or 0) > 0
+    ]
+    ranked.sort(key=lambda stock: results[stock["ticker"]]["turnover"], reverse=True)
+    return ranked[:n]
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_get_top_us_stocks_by_amount(n):
+    """여러 기기의 로그인에서 미국 후보군 35종목을 반복해서 조회하지 않게 한다."""
+    return _fetch_top_us_stocks_by_amount(n)
 
 
 def _fetch_kr_mood_source_results():
@@ -6877,13 +6953,25 @@ US_AUTO_RUN_VERSION = "2026-07-15-v1"
 
 with tab_us:
     # 2026-07-15 사용자 요청: 미국장 탭도 한국장 탭과 동일하게 로그인(탭 진입) 후
-    # "오늘 미국장 자료 불러오기"/"섹터 ETF 자동 조회"/"미국장 기본 종목 불러오기"를
-    # 세션당 한 번 자동으로 순서대로 실행한다. 기존 버튼들은 그대로 남겨두고, 같은
+    # "종목 자동 선정" → "시장자료/섹터ETF/테마지표/종목 스냅샷 불러오기"를 세션당 한 번
+    # 자동으로 순서대로 실행한다. 한국장(stage1=종목선정 → stage2=상세조회)과 동일한
+    # 2단계 구조 — stage1에서 US_CANDIDATE_UNIVERSE 안에서 거래대금 상위 8종목을 뽑아
+    # dynamic_us_snapshot_stocks에 저장하고 rerun해야, 모듈 상단의 US_SNAPSHOT_STOCKS가
+    # 그 새 목록을 반영한 채로 stage2가 실행된다. 기존 버튼들은 그대로 남겨두고, 같은
     # session_state 키에 결과를 채워 넣어 버튼을 다시 눌러도 정상 동작하게 한다.
     if st.session_state.get("us_auto_run_version") != US_AUTO_RUN_VERSION:
         st.session_state["us_auto_run_stage1_done"] = False
+        st.session_state["us_auto_run_stage2_done"] = False
         st.session_state["us_auto_run_version"] = US_AUTO_RUN_VERSION
     if not st.session_state.get("us_auto_run_stage1_done"):
+        _us_auto_run_stocks = _cached_get_top_us_stocks_by_amount(8)
+        if _us_auto_run_stocks:
+            st.session_state["dynamic_us_snapshot_stocks"] = _us_auto_run_stocks
+            st.session_state["dynamic_us_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state["us_auto_run_stage1_done"] = True
+        if not _login_transition_pending:
+            st.rerun()
+    if not st.session_state.get("us_auto_run_stage2_done"):
         st.session_state["us_market_overview_result"] = _cached_fetch_market_overview("US")
         st.session_state["us_market_overview_checked_at"] = st.session_state["us_market_overview_result"]["checked_at"]
 
@@ -6905,7 +6993,7 @@ with tab_us:
         st.session_state["us_stock_auto_fill_results"] = _us_auto_fetch_results
 
         st.session_state["us_bookmaker_auto_fetch_pending"] = True
-        st.session_state["us_auto_run_stage1_done"] = True
+        st.session_state["us_auto_run_stage2_done"] = True
         # KR 자동실행 단계와 동일하게, 로그인 직후 전환 연출이 떠 있는 실행에서는
         # 즉시 rerun하지 않고 그 실행 안에서 계속 이어간다. KR 쪽 테마 자동조회가
         # 이미 자체 rerun으로 전환 오버레이를 다시 세워 보여주므로(위 kr_theme_auto_fetch_pending
@@ -6917,7 +7005,9 @@ with tab_us:
     _render_market_overview("US")
     st.subheader("미국장")
     st.caption(
-        "스윙 전용 흐름(TSLA, AMD, AVGO, META, GOOGL, AAPL, NVDA, MSFT). 한국 종목은 다루지 않으며, "
+        "스윙 전용 흐름 — 유동성 높은 대형주 약 35종목 후보군 중 오늘 거래대금 상위 8종목을 "
+        "자동 선정합니다(현재: " + ", ".join(s["name"] for s in US_SNAPSHOT_STOCKS) + "). "
+        "한국 종목은 다루지 않으며, "
         "시장 분위기는 한국장 탭 입력값을 그대로 사용합니다. 입력값은 저장되지 않으며, "
         "③ 스윙 기록 바로 저장을 눌렀을 때만 저장되어 오늘 저장 요약/지난 기록에 반영됩니다."
     )
@@ -6946,11 +7036,16 @@ with tab_us:
     # 이미 자동으로 한 번 실행되며, 이 버튼은 그 결과를 강제로 새로고침할 때 쓴다).
     if st.button("오늘 미국 종목 판단 준비하기", key="us_auto_preview_run", type="primary"):
         with st.spinner("미국장 자료 새로고침 중..."):
+            _us_reselected = _fetch_top_us_stocks_by_amount(8)
+            if _us_reselected:
+                st.session_state["dynamic_us_snapshot_stocks"] = _us_reselected
+                st.session_state["dynamic_us_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.session_state["us_market_overview_result"] = _fetch_market_overview("US")
             st.session_state["us_market_overview_checked_at"] = st.session_state["us_market_overview_result"]["checked_at"]
             st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
             st.session_state["us_theme_indicators_result"] = theme_data.fetch_us_theme_indicators()
-            _us_refresh_tickers = [s["ticker"] for s in US_SNAPSHOT_STOCKS]
+            _us_refresh_stocks = _us_reselected or US_SNAPSHOT_STOCKS
+            _us_refresh_tickers = [s["ticker"] for s in _us_refresh_stocks]
             _us_refresh_results = _fetch_kr_snapshot_results(_us_refresh_tickers)
             for _us_ticker, _us_result in _us_refresh_results.items():
                 if _us_result.get("ok"):
@@ -6966,6 +7061,28 @@ with tab_us:
         st.session_state["us_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if st.session_state.get("us_auto_preview_done_at"):
         st.caption(f"판단 준비 완료: {st.session_state['us_auto_preview_done_at']}")
+
+    with st.expander("오늘 거래대금 상위 종목 다시 선정(미국)", expanded=False):
+        st.caption(
+            f"후보군 {len(US_CANDIDATE_UNIVERSE)}종목(유동성 높은 대형주) 중 오늘 거래대금 상위 "
+            "종목을 자동으로 뽑아 아래 스윙 계산 대상 목록을 대체합니다. 저장되지 않으며 이 "
+            f"세션에서만 유지됩니다(다시 접속하면 기본 {len(DEFAULT_US_SNAPSHOT_STOCKS)}종목으로 돌아갑니다)."
+        )
+        _dynamic_us_top_n = st.number_input(
+            "몇 종목?", min_value=5, max_value=len(US_CANDIDATE_UNIVERSE), value=8, step=1,
+            key="dynamic_us_snapshot_n",
+        )
+        if st.button("미국 거래대금 상위 종목 다시 불러오기", key="dynamic_us_snapshot_refresh"):
+            _new_us_stocks = _fetch_top_us_stocks_by_amount(int(_dynamic_us_top_n))
+            if _new_us_stocks:
+                st.session_state["dynamic_us_snapshot_stocks"] = _new_us_stocks
+                st.session_state["dynamic_us_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                st.success(f"{len(_new_us_stocks)}개 종목으로 갱신했습니다.")
+                st.rerun()
+            else:
+                st.warning("거래대금 상위 종목을 찾지 못했습니다(네트워크 문제일 수 있습니다).")
+        if st.session_state.get("dynamic_us_snapshot_updated_at"):
+            st.caption(f"마지막 선정: {st.session_state['dynamic_us_snapshot_updated_at']}")
 
     # ---- 미국장 테마 레이더 1차 참고판 (수기 참고용, 저장/점수/판단 미반영) ----
     st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)

@@ -104,6 +104,63 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         self.assertIn('"us_auto_run_stage1_done"', login_handler)
         self.assertIn('"kr_bookmaker_auto_fetch_pending"', login_handler)
 
+    def test_us_dynamic_stock_selection_ranks_by_turnover_and_isolates_failures(self):
+        # 2026-07-15 사용자 요청: 미국장도 한국장처럼 거래대금 상위 종목을 자동 선정해야
+        # 한다(대형주 후보군 안에서). 조회 실패/거래대금 0 종목은 후보에서 빠져야 한다.
+        class PriceData:
+            @staticmethod
+            def get_snapshot_defaults(ticker):
+                turnovers = {"TSLA": 300.0, "AMD": 500.0, "AAPL": 100.0}
+                if ticker == "FAIL":
+                    raise TimeoutError("mock timeout")
+                if ticker == "ZERO":
+                    return {"ok": True, "turnover": 0}
+                return {"ok": True, "turnover": turnovers.get(ticker, 1.0)}
+
+        namespace = {
+            "ThreadPoolExecutor": ThreadPoolExecutor,
+            "as_completed": as_completed,
+            "price_data": PriceData(),
+        }
+        exec(
+            compile(
+                ast.Module(
+                    body=[_function("_fetch_kr_snapshot_results"), _function("_fetch_top_us_stocks_by_amount")],
+                    type_ignores=[],
+                ),
+                "app.py",
+                "exec",
+            ),
+            namespace,
+        )
+        namespace["US_CANDIDATE_UNIVERSE"] = [
+            {"name": "TSLA", "ticker": "TSLA", "sector": "x"},
+            {"name": "AMD", "ticker": "AMD", "sector": "x"},
+            {"name": "AAPL", "ticker": "AAPL", "sector": "x"},
+            {"name": "FAIL", "ticker": "FAIL", "sector": "x"},
+            {"name": "ZERO", "ticker": "ZERO", "sector": "x"},
+        ]
+
+        result = namespace["_fetch_top_us_stocks_by_amount"](2)
+
+        self.assertEqual([s["ticker"] for s in result], ["AMD", "TSLA"])
+
+    def test_us_stock_selection_stage_precedes_detail_fetch_stage(self):
+        us_tab = SOURCE[SOURCE.index('with tab_us:'):SOURCE.index('_render_market_overview("US")', SOURCE.index('with tab_us:'))]
+        select_stage = us_tab.index('if not st.session_state.get("us_auto_run_stage1_done"):')
+        detail_stage = us_tab.index('if not st.session_state.get("us_auto_run_stage2_done"):')
+        self.assertLess(select_stage, detail_stage)
+        self.assertIn('_cached_get_top_us_stocks_by_amount(8)', us_tab)
+        self.assertIn('st.session_state["dynamic_us_snapshot_stocks"]', us_tab)
+
+    def test_us_primary_action_reselects_stocks_before_refreshing_details(self):
+        primary_action = SOURCE[
+            SOURCE.index('key="us_auto_preview_run"'):
+            SOURCE.index('st.session_state["us_auto_preview_done_at"]')
+        ]
+        self.assertIn("_fetch_top_us_stocks_by_amount(8)", primary_action)
+        self.assertIn('st.session_state["dynamic_us_snapshot_stocks"] = _us_reselected', primary_action)
+
 
 if __name__ == "__main__":
     unittest.main()
