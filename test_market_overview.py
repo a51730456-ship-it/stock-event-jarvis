@@ -7,7 +7,7 @@ from pathlib import Path
 
 SOURCE = Path("app.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
-WANTED = {"_market_overview_status", "_market_overview_direction", "_dedup_market_overview_news", "_market_overview_price_item", "_fetch_market_overview"}
+WANTED = {"_market_overview_status", "_market_overview_direction", "_dedup_market_overview_news", "_market_overview_price_item", "_get_kr_index_intraday", "_fetch_market_overview"}
 NODES = [node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name in WANTED]
 NAMESPACE = {
     "math": math,
@@ -31,6 +31,7 @@ NAMESPACE = {
     "_recent_naver_news_items": lambda items: items or [],
 }
 exec(compile(ast.Module(body=NODES, type_ignores=[]), "app.py", "exec"), NAMESPACE)
+GET_KR_INDEX_INTRADAY = NAMESPACE["_get_kr_index_intraday"]
 
 
 class MarketOverviewTests(unittest.TestCase):
@@ -161,6 +162,7 @@ class MarketOverviewTests(unittest.TestCase):
 
         price = Price()
         NAMESPACE["price_data"] = price
+        NAMESPACE["_get_kr_index_intraday"] = price.get_intraday_last
         NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
 
         result = NAMESPACE["_fetch_market_overview"]("KR")
@@ -169,6 +171,55 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertEqual(price.intraday_calls, ["^KS11", "^KQ11"])
         self.assertTrue(all(item["data_kind"] == "daily_close" for item in items))
         self.assertTrue(all(item["asof"] == "2026-07-10" for item in items))
+
+    def test_kis_is_preferred_and_yahoo_is_not_called(self):
+        class Kis:
+            def get_index_snapshot(self, ticker, app_key, app_secret):
+                return {"ok": True, "current": 102.0, "prev_close": 100.0, "source": "한국투자증권"}
+
+        class Price:
+            calls = []
+
+            def get_intraday_last(self, ticker):
+                self.calls.append(ticker)
+                return {"ok": False}
+
+        class Secrets:
+            def get(self, key):
+                return "configured"
+
+        price = Price()
+        NAMESPACE["kis_market_data"] = Kis()
+        NAMESPACE["price_data"] = price
+        NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
+
+        result = GET_KR_INDEX_INTRADAY("^KS11")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"], "한국투자증권")
+        self.assertEqual(price.calls, [])
+
+    def test_yahoo_fallback_is_labeled_as_delayed(self):
+        class Kis:
+            def get_index_snapshot(self, ticker, app_key, app_secret):
+                return {"ok": False, "error": "no key"}
+
+        class Price:
+            def get_intraday_last(self, ticker):
+                return {"ok": True, "current": 101.0, "prev_close": 100.0}
+
+        class Secrets:
+            def get(self, key):
+                return None
+
+        NAMESPACE["kis_market_data"] = Kis()
+        NAMESPACE["price_data"] = Price()
+        NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
+
+        result = GET_KR_INDEX_INTRADAY("^KS11")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"], "Yahoo 1분봉(지연 가능)")
 
     def test_today_intraday_replaces_only_kr_index_close(self):
         class Price:
@@ -200,6 +251,7 @@ class MarketOverviewTests(unittest.TestCase):
                 return None
 
         NAMESPACE["price_data"] = Price()
+        NAMESPACE["_get_kr_index_intraday"] = NAMESPACE["price_data"].get_intraday_last
         NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
 
         result = NAMESPACE["_fetch_market_overview"]("KR")
@@ -209,6 +261,41 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertTrue(all(item["as_of_date"] == "2026-07-14" for item in items))
         self.assertTrue(all(item["as_of_time"] == "12:17" for item in items))
         self.assertTrue(all(item["change_pct"] == 2.0 for item in items))
+
+    def test_kis_intraday_does_not_depend_on_yahoo_daily_success(self):
+        class Price:
+            daily_calls = []
+
+            def get_snapshot_defaults(self, ticker, completed_only=False):
+                self.daily_calls.append(ticker)
+                return {"ok": False, "error": "yahoo down"}
+
+            def get_ohlc_history_for_chart(self, *args):
+                return None
+
+        class Secrets:
+            def get(self, key):
+                return None
+
+        price = Price()
+        NAMESPACE["price_data"] = price
+        NAMESPACE["_get_kr_index_intraday"] = lambda ticker: {
+            "ok": True,
+            "current": 102.0,
+            "prev_close": 100.0,
+            "as_of_time": "11:09",
+            "as_of_date": "2026-07-14",
+            "source": "한국투자증권",
+        }
+        NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
+
+        result = NAMESPACE["_fetch_market_overview"]("KR")
+
+        items = result["price_cards"][0]["items"]
+        self.assertTrue(all(item["status"] == "정상" for item in items))
+        self.assertTrue(all(item["source"] == "한국투자증권" for item in items))
+        self.assertNotIn("^KS11", price.daily_calls)
+        self.assertNotIn("^KQ11", price.daily_calls)
 
     def test_price_lookup_failure_has_unknown_reference_time(self):
         class Price:
@@ -220,6 +307,7 @@ class MarketOverviewTests(unittest.TestCase):
                 return None
 
         NAMESPACE["price_data"] = Price()
+        NAMESPACE["_get_kr_index_intraday"] = lambda ticker: {"ok": False, "error": "network"}
         NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
 
         result = NAMESPACE["_fetch_market_overview"]("KR")

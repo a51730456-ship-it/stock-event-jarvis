@@ -24,6 +24,7 @@ import deepl_translate
 import theme_data
 import theme_history
 import price_data
+import kis_market_data
 
 _reference_panel_logger = logging.getLogger("jarvis.reference_panels")
 
@@ -2639,6 +2640,27 @@ def _market_overview_price_item(label, ticker, result):
     return {"label": label, "ticker": ticker, "status": "정상", "current": current, "change_pct": change_pct}
 
 
+def _get_kr_index_intraday(ticker):
+    """무료 KIS 현재지수를 우선하고, 설정/조회 실패 시 기존 Yahoo 1분봉으로 대체한다."""
+    try:
+        kis_result = kis_market_data.get_index_snapshot(
+            ticker,
+            st.secrets.get("KIS_APP_KEY"),
+            st.secrets.get("KIS_APP_SECRET"),
+        )
+    except Exception:
+        kis_result = {"ok": False}
+    if kis_result.get("ok"):
+        return kis_result
+    try:
+        yahoo_result = price_data.get_intraday_last(ticker)
+    except Exception:
+        yahoo_result = {"ok": False}
+    if yahoo_result.get("ok"):
+        return {**yahoo_result, "source": "Yahoo 1분봉(지연 가능)"}
+    return yahoo_result
+
+
 def _sparkline_svg(values, is_up, width=110, height=32):
     """최근 며칠치 종가로 아주 작은 추세선(SVG)을 그린다. 실시간이 아니라 "오늘 X장 자료
     불러오기" 버튼을 누른 시점의 일봉 데이터로만 그린다(CLAUDE.md "실시간 자동조회 금지"
@@ -2669,50 +2691,34 @@ def _fetch_market_overview(market):
     for card in MARKET_OVERVIEW_PRICE_SPECS[market]:
         card_items = []
         for label, ticker in card[1:]:
-            try:
-                if market == "KR" and ticker in {"^KS11", "^KQ11"}:
-                    _daily_result = price_data.get_snapshot_defaults(ticker, completed_only=True)
-                else:
-                    _daily_result = price_data.get_snapshot_defaults(ticker)
-            except Exception:
-                _daily_result = None
-            item = _market_overview_price_item(label, ticker, _daily_result)
-            # asof/data_kind: 화면에 "지금 이 순간"처럼 착각하게 두지 않기 위해, 실제
-            # 데이터가 언제 것인지와 대체 여부를 명확히 구분해서 담는다(2026-07-13
-            # 사용자 피드백 반영).
-            # - "intraday": 1분봉 장중가, asof=장중 시각(HH:MM)
-            # - "daily_close": 1분봉 실패 -> 최근 완료된 거래일 종가로 대체, asof=그 날짜
-            # - "unknown": 둘 다 실패
-            item["data_kind"] = "daily_close" if _daily_result and _daily_result.get("as_of_date") else "unknown"
-            item["asof"] = _daily_result.get("as_of_date") if _daily_result else None
-            item["as_of_date"] = _daily_result.get("as_of_date") if _daily_result else None
-            item["as_of_time"] = None
-            # 이 버튼을 누른 순간 1분봉으로 현재가를 다시 조회해서 전날 종가 대신
-            # 보여준다. 여전히 클릭했을 때 한 번만 조회하는 방식이고(자동/반복 조회
-            # 아님), 장이 닫혀 있으면 조용히 실패해서 최근 종가 표시로 되돌아간다.
-            if (
-                market == "KR"
-                and ticker in {"^KS11", "^KQ11"}
-                and item["status"] == "정상"
-                and _daily_result
-                and _daily_result.get("prev_close")
-            ):
+            _intraday = {"ok": False}
+            if market == "KR" and ticker in {"^KS11", "^KQ11"}:
                 try:
-                    _intraday = price_data.get_intraday_last(ticker)
+                    _intraday = _get_kr_index_intraday(ticker)
                 except Exception:
                     _intraday = {"ok": False}
-                if _intraday.get("ok"):
-                    # 직전 거래일 일봉이 누락될 수 있으므로 5일치 1분봉에서 구한
-                    # 직전 세션 종가를 우선 사용한다. 없을 때만 완료 일봉으로 대체한다.
-                    _prev_close = _intraday.get("prev_close")
-                    if _prev_close is None:
-                        _prev_close = _daily_result["current"]
-                    item["current"] = _intraday["current"]
-                    item["change_pct"] = _safe_pct_diff(_intraday["current"], _prev_close)
-                    item["asof"] = _intraday.get("as_of_time") or _intraday.get("asof")
-                    item["as_of_time"] = item["asof"]
-                    item["as_of_date"] = _intraday.get("as_of_date")
-                    item["data_kind"] = "intraday"
+            if _intraday.get("ok") and _intraday.get("prev_close"):
+                item = _market_overview_price_item(label, ticker, _intraday)
+                item["asof"] = _intraday.get("as_of_time") or _intraday.get("asof")
+                item["as_of_time"] = item["asof"]
+                item["as_of_date"] = _intraday.get("as_of_date")
+                item["data_kind"] = "intraday"
+                item["source"] = _intraday.get("source")
+            else:
+                try:
+                    if market == "KR" and ticker in {"^KS11", "^KQ11"}:
+                        _daily_result = price_data.get_snapshot_defaults(ticker, completed_only=True)
+                    else:
+                        _daily_result = price_data.get_snapshot_defaults(ticker)
+                except Exception:
+                    _daily_result = None
+                item = _market_overview_price_item(label, ticker, _daily_result)
+                # 장중 조회 실패 시에만 최근 완료 거래일 종가로 대체한다. KIS/Yahoo
+                # 모두 실패해도 다른 카드와 뉴스는 계속 표시한다.
+                item["data_kind"] = "daily_close" if _daily_result and _daily_result.get("as_of_date") else "unknown"
+                item["asof"] = _daily_result.get("as_of_date") if _daily_result else None
+                item["as_of_date"] = _daily_result.get("as_of_date") if _daily_result else None
+                item["as_of_time"] = None
             item["history"] = []
             if item["status"] == "정상":
                 # 실시간 아님 — 이 버튼을 누른 시점에만 최근 10일치 종가를 한 번 조회한다.
@@ -2894,7 +2900,8 @@ def _render_market_overview(market):
                         # 실제 대체된 종가의 날짜를 보여주고 "가격 지연 가능"을 항상 덧붙인다.
                         _data_kind = item.get("data_kind")
                         if _data_kind == "intraday":
-                            _asof_text = f"장중 {item['asof']} 기준"
+                            _source_text = f" · {item.get('source')}" if item.get("source") else ""
+                            _asof_text = f"장중 {item['asof']} 기준{_source_text}"
                         elif _data_kind == "daily_close":
                             _asof_text = f"{item['asof']} 종가 기준"
                         else:
@@ -4497,7 +4504,12 @@ def run_kr_mood_auto_check():
     _mood_results = []
     _ok_count = 0
     for _mood_name, _mood_ticker in KR_MARKET_MOOD_AUTO_TARGETS:
-        _mood_result = price_data.get_snapshot_defaults(_mood_ticker)
+        if _mood_ticker in {"^KS11", "^KQ11"}:
+            _mood_result = _get_kr_index_intraday(_mood_ticker)
+            if not _mood_result.get("ok"):
+                _mood_result = price_data.get_snapshot_defaults(_mood_ticker)
+        else:
+            _mood_result = price_data.get_snapshot_defaults(_mood_ticker)
         if _mood_result.get("ok"):
             _ok_count += 1
             _mood_change_pct = _safe_pct_diff(_mood_result["current"], _mood_result["prev_close"])
@@ -4507,7 +4519,7 @@ def run_kr_mood_auto_check():
                     "등락률(%)": _fmt_signed_pct(_mood_change_pct),
                     "판정": _kr_mood_auto_verdict(_mood_name, _mood_change_pct),
                     "현재값": _mood_result["current"],
-                    "출처": "자동 조회",
+                    "출처": _mood_result.get("source") or "자동 조회",
                 }
             )
         else:
