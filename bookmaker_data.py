@@ -26,6 +26,7 @@ Polymarket Gamma API / Kalshi 공개 시장 데이터 API는 둘 다 인증 없�
 
 import math
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import requests
@@ -282,10 +283,9 @@ def fetch_kalshi_events(limit_events=6, max_series=15):
     except Exception:
         return {"ok": False, "error": "Kalshi 시리즈 조회 실패", "events": []}
 
-    events_by_ticker = {}
-    for ticker in matched_series[:max_series]:
-        if not ticker:
-            continue
+    tickers = [ticker for ticker in matched_series[:max_series] if ticker]
+
+    def _fetch_series_markets(ticker):
         try:
             resp = requests.get(
                 KALSHI_MARKETS_URL,
@@ -293,7 +293,29 @@ def fetch_kalshi_events(limit_events=6, max_series=15):
                 timeout=REQUEST_TIMEOUT,
             )
             resp.raise_for_status()
-            for m in resp.json().get("markets", []):
+            return resp.json().get("markets", [])
+        except Exception:
+            return []
+
+    markets_by_ticker = {}
+    if tickers:
+        with ThreadPoolExecutor(max_workers=min(6, len(tickers))) as executor:
+            future_to_ticker = {
+                executor.submit(_fetch_series_markets, ticker): ticker for ticker in tickers
+            }
+            for future in as_completed(future_to_ticker):
+                ticker = future_to_ticker[future]
+                try:
+                    markets_by_ticker[ticker] = future.result()
+                except Exception:
+                    markets_by_ticker[ticker] = []
+
+    events_by_ticker = {}
+    for ticker in tickers:
+        if not ticker:
+            continue
+        try:
+            for m in markets_by_ticker.get(ticker, []):
                 end_date = (m.get("close_time") or "")[:10]
                 if _is_expired(end_date):
                     continue
@@ -369,8 +391,21 @@ def fetch_bookmaker_snapshot(limit_per_source=5):
     "events": [...]}  (2026-07-13: 필드명이 "signals"에서 "events"로 바뀜 —
     이 함수를 쓰는 app.py도 함께 갱신해야 한다.)
     """
-    poly = fetch_polymarket_events(limit_events=limit_per_source)
-    kalshi = fetch_kalshi_events(limit_events=limit_per_source)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        poly_future = executor.submit(
+            fetch_polymarket_events, limit_events=limit_per_source
+        )
+        kalshi_future = executor.submit(
+            fetch_kalshi_events, limit_events=limit_per_source
+        )
+        try:
+            poly = poly_future.result()
+        except Exception:
+            poly = {"ok": False, "error": "Polymarket 조회 실패", "events": []}
+        try:
+            kalshi = kalshi_future.result()
+        except Exception:
+            kalshi = {"ok": False, "error": "Kalshi 조회 실패", "events": []}
 
     errors = []
     if not poly.get("ok"):

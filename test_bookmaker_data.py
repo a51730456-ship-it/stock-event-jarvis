@@ -1,4 +1,5 @@
 import unittest
+from threading import Barrier
 from unittest.mock import patch, MagicMock
 
 import bookmaker_data as bd
@@ -286,6 +287,36 @@ class PolymarketEventGroupingTests(unittest.TestCase):
 
 class KalshiEventGroupingTests(unittest.TestCase):
     @patch("bookmaker_data.requests.get")
+    def test_series_market_requests_run_in_parallel(self, mock_get):
+        market_barrier = Barrier(2)
+        completed = []
+
+        def side_effect(url, params=None, timeout=None):
+            if url == bd.KALSHI_SERIES_URL:
+                if params.get("category") == "Economics":
+                    return _response(
+                        {
+                            "series": [
+                                {"ticker": "KXFED", "title": "Fed decision"},
+                                {"ticker": "KXCPI", "title": "CPI inflation"},
+                            ]
+                        }
+                    )
+                return _response({"series": []})
+            if url == bd.KALSHI_MARKETS_URL:
+                market_barrier.wait(timeout=1)
+                completed.append(params["series_ticker"])
+                return _response({"markets": []})
+            raise AssertionError(f"unexpected url {url}")
+
+        mock_get.side_effect = side_effect
+
+        result = bd.fetch_kalshi_events(limit_events=10, max_series=15)
+
+        self.assertTrue(result["ok"])
+        self.assertCountEqual(completed, ["KXFED", "KXCPI"])
+
+    @patch("bookmaker_data.requests.get")
     def test_groups_by_event_ticker_and_filters_zero_volume_events(self, mock_get):
         def side_effect(url, params=None, timeout=None):
             if url == bd.KALSHI_SERIES_URL:
@@ -368,6 +399,22 @@ class KalshiEventGroupingTests(unittest.TestCase):
 
 
 class BookmakerSnapshotIsolationTests(unittest.TestCase):
+    @patch("bookmaker_data.fetch_kalshi_events")
+    @patch("bookmaker_data.fetch_polymarket_events")
+    def test_two_sources_start_in_parallel(self, mock_poly, mock_kalshi):
+        source_barrier = Barrier(2)
+
+        def source_result(source):
+            source_barrier.wait(timeout=1)
+            return {"ok": True, "error": None, "events": []}
+
+        mock_poly.side_effect = lambda **kwargs: source_result("Polymarket")
+        mock_kalshi.side_effect = lambda **kwargs: source_result("Kalshi")
+
+        snapshot = bd.fetch_bookmaker_snapshot()
+
+        self.assertEqual(snapshot["errors"], [])
+
     @patch("bookmaker_data.fetch_kalshi_events")
     @patch("bookmaker_data.fetch_polymarket_events")
     def test_one_source_failure_does_not_block_the_other(self, mock_poly, mock_kalshi):

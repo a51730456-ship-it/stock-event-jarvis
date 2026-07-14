@@ -119,7 +119,12 @@ class MarketOverviewTests(unittest.TestCase):
     def test_no_bookmaker_fetch_before_its_button(self):
         panel = SOURCE[SOURCE.index("def _render_market_overview"):SOURCE.index("def _get_snapshot_value")]
         button = 'if st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)"'
-        self.assertLess(panel.index(button), panel.index("bookmaker_data.fetch_bookmaker_snapshot()"))
+        self.assertLess(panel.index(button), panel.index("_cached_fetch_bookmaker_snapshot()"))
+        cached_fetch = SOURCE[
+            SOURCE.index("def _cached_fetch_bookmaker_snapshot"):
+            SOURCE.index("def _cached_translate_bookmaker_texts")
+        ]
+        self.assertIn("bookmaker_data.fetch_bookmaker_snapshot()", cached_fetch)
 
     def test_login_followup_reruns_restore_three_kr_auto_actions(self):
         self.assertIn("로그인 후 한국장 자료·종목 판단·테마 참고판을 자동으로 불러오는 중입니다.", SOURCE)

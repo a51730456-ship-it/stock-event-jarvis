@@ -62,6 +62,8 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         self.assertIn("@st.cache_data(ttl=60, show_spinner=False)\ndef _cached_kr_mood_source_results", SOURCE)
         self.assertIn("@st.cache_data(ttl=90, show_spinner=False)\ndef _cached_kr_snapshot_results", SOURCE)
         self.assertIn("@st.cache_data(ttl=300, show_spinner=False)\ndef _cached_fetch_kr_theme_snapshot", SOURCE)
+        self.assertIn("@st.cache_data(ttl=120, show_spinner=False)\ndef _cached_fetch_bookmaker_snapshot", SOURCE)
+        self.assertIn("@st.cache_data(ttl=3600, show_spinner=False)\ndef _cached_translate_bookmaker_texts", SOURCE)
 
         tab_prelude = SOURCE[SOURCE.index("with tab_kr:"):SOURCE.index('_render_market_overview("KR")', SOURCE.index("with tab_kr:"))]
         self.assertIn('_cached_fetch_market_overview("KR")', tab_prelude)
@@ -76,6 +78,13 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         ]
         self.assertIn("run_kr_mood_auto_check(force_refresh=True)", actions)
         self.assertIn("run_kr_snapshot_auto_fill(force_refresh=True)", actions)
+
+    def test_manual_stock_prepare_does_not_force_a_second_full_rerun(self):
+        actions = SOURCE[
+            SOURCE.index("def _render_kr_primary_actions"):
+            SOURCE.index("def _render_kr_fable_mockup1_preview")
+        ]
+        self.assertNotIn("st.rerun()", actions)
 
 
 if __name__ == "__main__":

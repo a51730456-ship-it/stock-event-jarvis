@@ -2835,6 +2835,18 @@ def _cached_fetch_market_overview(market):
     return _fetch_market_overview(market)
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_fetch_bookmaker_snapshot():
+    """사용자가 버튼을 눌렀을 때만 조회하고, 짧은 시간의 중복 조회는 재사용한다."""
+    return bookmaker_data.fetch_bookmaker_snapshot()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _cached_translate_bookmaker_texts(texts, _api_key):
+    """같은 공개 시장 문장의 번역을 기기별 세션에서도 다시 요청하지 않는다."""
+    return deepl_translate.translate_texts_to_ko(list(texts), _api_key)
+
+
 def _render_kr_market_mood_strip():
     """한국장 요약 스트립(KOSPI/KOSDAQ/달러원/나스닥100선물/SOXX·SMH/오늘저장/금일손실R)을
     한 줄 카드로 렌더링한다. 2026-07-13 사용자 요청으로 "시장 주요 뉴스 후보" 위로
@@ -3001,7 +3013,7 @@ def _render_market_overview(market):
         # 로그인/다른 탭 렌더링에서는 번역 API를 절대 호출하지 않는다.
         if st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)", key=f"{prefix}_bookmaker_fetch"):
             with st.spinner("Polymarket/Kalshi 조회 중..."):
-                _snapshot = bookmaker_data.fetch_bookmaker_snapshot()
+                _snapshot = _cached_fetch_bookmaker_snapshot()
             _translation_cache = st.session_state.setdefault("bookmaker_translation_cache", {})
             _market_texts = []
             for _event in _snapshot.get("events", []):
@@ -3020,7 +3032,9 @@ def _render_market_overview(market):
             st.session_state.pop("bookmaker_translation_error", None)
             if _texts_to_translate and _deepl_key:
                 with st.spinner("한국어 번역 중..."):
-                    _translate_result = deepl_translate.translate_texts_to_ko(_texts_to_translate, _deepl_key)
+                    _translate_result = _cached_translate_bookmaker_texts(
+                        tuple(_texts_to_translate), _deepl_key
+                    )
                 if _translate_result.get("ok"):
                     _translation_cache.update(_translate_result.get("translations") or {})
                 else:
@@ -5400,7 +5414,6 @@ def _render_kr_primary_actions():
                     st.session_state["kr_auto_preview_last_error"] = None
                 st.session_state["kr_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 st.session_state["kr_auto_preview_running"] = False
-                st.rerun()
     with repair_expander:
         if st.button(
             "0단계 시장 분위기 자동 확인",
@@ -5415,7 +5428,6 @@ def _render_kr_primary_actions():
                 st.session_state["kr_mood_auto_last_error"] = _mood_run_result["message"]
                 st.session_state["kr_mood_auto_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 st.session_state["kr_mood_auto_running"] = False
-                st.rerun()
     with repair_expander:
         if st.button(
             "① 오늘 주가 자동 채우기",
@@ -5430,7 +5442,6 @@ def _render_kr_primary_actions():
                 st.session_state["kr_snapshot_auto_fill_last_error"] = _fill_run_result["message"]
                 st.session_state["kr_snapshot_auto_fill_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 st.session_state["kr_snapshot_auto_fill_running"] = False
-                st.rerun()
 
     st.caption(
         "0→1→2 버튼은 미리보기만 만듭니다. DB에 저장하지 않으며, 실제 기록을 남기려면 "
