@@ -7,6 +7,7 @@ import html
 import logging
 import re
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -604,7 +605,15 @@ if _login_transition_pending:
     login_visual.render_login_transition(st, _jarvis_earth_markup)
     _login_transition_rendered_early = True
 
-db.init_db()
+
+@st.cache_resource(show_spinner=False)
+def _initialize_database_once():
+    """원격 DB의 스키마 확인을 서버 프로세스마다 한 번만 수행한다."""
+    db.init_db()
+    return True
+
+
+_initialize_database_once()
 create_daily_db_backup_once()
 
 st.markdown(
@@ -2814,6 +2823,14 @@ def _fetch_market_overview(market):
         "status": _market_overview_status(market, signal_changes, signal_details),
         "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def _cached_fetch_market_overview(market):
+    """로그인 자동조회가 가까운 시각의 동일 시장 자료를 중복 호출하지 않게 한다."""
+    return _fetch_market_overview(market)
+
+
 def _render_kr_market_mood_strip():
     """한국장 요약 스트립(KOSPI/KOSDAQ/달러원/나스닥100선물/SOXX·SMH/오늘저장/금일손실R)을
     한 줄 카드로 렌더링한다. 2026-07-13 사용자 요청으로 "시장 주요 뉴스 후보" 위로
@@ -4523,6 +4540,68 @@ KR_MARKET_MOOD_AUTO_TARGETS = [
 ]
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_get_top_kr_stocks_by_amount(n):
+    """여러 기기의 로그인에서 KRX 전체 종목표를 반복해서 받지 않게 한다."""
+    return price_data.get_top_kr_stocks_by_amount(n)
+
+
+def _fetch_kr_mood_source_results():
+    """시장 분위기 원자료를 읽되 Yahoo 종목은 제한된 수로 병렬 조회한다."""
+    results = {}
+    index_tickers = [ticker for _, ticker in KR_MARKET_MOOD_AUTO_TARGETS if ticker in {"^KS11", "^KQ11"}]
+    other_tickers = [ticker for _, ticker in KR_MARKET_MOOD_AUTO_TARGETS if ticker not in {"^KS11", "^KQ11"}]
+
+    for ticker in index_tickers:
+        result = _get_kr_index_intraday(ticker)
+        if not result.get("ok"):
+            result = price_data.get_snapshot_defaults(ticker)
+        results[ticker] = result
+
+    with ThreadPoolExecutor(max_workers=min(4, len(other_tickers))) as executor:
+        future_to_ticker = {
+            executor.submit(price_data.get_snapshot_defaults, ticker): ticker
+            for ticker in other_tickers
+        }
+        for future in as_completed(future_to_ticker):
+            ticker = future_to_ticker[future]
+            try:
+                results[ticker] = future.result()
+            except Exception:
+                results[ticker] = {"ok": False, "error": "시장 자료 조회 실패"}
+    return results
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_kr_mood_source_results():
+    return _fetch_kr_mood_source_results()
+
+
+def _fetch_kr_snapshot_results(tickers):
+    """종목별 Yahoo 조회를 네 개씩 병렬 처리하고 종목별 실패는 격리한다."""
+    tickers = tuple(tickers)
+    if not tickers:
+        return {}
+    results = {}
+    with ThreadPoolExecutor(max_workers=min(4, len(tickers))) as executor:
+        future_to_ticker = {
+            executor.submit(price_data.get_snapshot_defaults, ticker): ticker
+            for ticker in tickers
+        }
+        for future in as_completed(future_to_ticker):
+            ticker = future_to_ticker[future]
+            try:
+                results[ticker] = future.result()
+            except Exception:
+                results[ticker] = {"ok": False, "error": "종목 자료 조회 실패"}
+    return results
+
+
+@st.cache_data(ttl=90, show_spinner=False)
+def _cached_kr_snapshot_results(tickers):
+    return _fetch_kr_snapshot_results(tickers)
+
+
 def _kr_mood_auto_verdict(name, change_pct):
     """0단계 시장 분위기 자동 확인 전용 판정(참고용, 매수 신호 아님). 달러/원은 별도 문구."""
     if change_pct is None:
@@ -4540,7 +4619,7 @@ def _kr_mood_auto_verdict(name, change_pct):
     return "보합 (중립)"
 
 
-def run_kr_mood_auto_check():
+def run_kr_mood_auto_check(force_refresh=False):
     """0단계 시장 분위기 자동 확인 공용 조회 함수 (읽기 전용, DB 저장 없음).
 
     KR_MARKET_MOOD_AUTO_TARGETS를 조회해 기존과 동일한 형식으로
@@ -4551,13 +4630,16 @@ def run_kr_mood_auto_check():
     """
     _mood_results = []
     _ok_count = 0
+    _mood_source_results = (
+        _fetch_kr_mood_source_results()
+        if force_refresh
+        else _cached_kr_mood_source_results()
+    )
     for _mood_name, _mood_ticker in KR_MARKET_MOOD_AUTO_TARGETS:
-        if _mood_ticker in {"^KS11", "^KQ11"}:
-            _mood_result = _get_kr_index_intraday(_mood_ticker)
-            if not _mood_result.get("ok"):
-                _mood_result = price_data.get_snapshot_defaults(_mood_ticker)
-        else:
-            _mood_result = price_data.get_snapshot_defaults(_mood_ticker)
+        _mood_result = _mood_source_results.get(_mood_ticker) or {
+            "ok": False,
+            "error": "시장 자료 조회 실패",
+        }
         if _mood_result.get("ok"):
             _ok_count += 1
             _mood_change_pct = _safe_pct_diff(_mood_result["current"], _mood_result["prev_close"])
@@ -4594,7 +4676,7 @@ def run_kr_mood_auto_check():
     return {"status": status, "results": _mood_results, "message": message, "ok_count": _ok_count, "total": _total}
 
 
-def run_kr_snapshot_auto_fill():
+def run_kr_snapshot_auto_fill(force_refresh=False):
     """1단계 오늘 주가 자동 채우기 공용 조회 함수 (읽기 전용, DB 저장 없음).
 
     SNAPSHOT_STOCKS를 조회해 성공한 종목만 session_state 입력값에 반영한다. 실패한 종목은
@@ -4604,11 +4686,15 @@ def run_kr_snapshot_auto_fill():
     반환: {"status": "ok"/"partial"/"fail", "results": {...}, "message": str 또는 None,
     "ok_count": int, "total": int}
     """
-    fetch_results = {}
+    _snapshot_tickers = tuple(s["ticker"] for s in SNAPSHOT_STOCKS)
+    fetch_results = (
+        _fetch_kr_snapshot_results(_snapshot_tickers)
+        if force_refresh
+        else _cached_kr_snapshot_results(_snapshot_tickers)
+    )
     _ok_count = 0
     for s in SNAPSHOT_STOCKS:
-        result = price_data.get_snapshot_defaults(s["ticker"])
-        fetch_results[s["ticker"]] = result
+        result = fetch_results.get(s["ticker"]) or {"ok": False, "error": "종목 자료 조회 실패"}
         if result.get("ok"):
             _ok_count += 1
             prefix = f"snap_{s['ticker']}_"
@@ -4754,6 +4840,12 @@ KR_THEME_WATCH_DATA_KEY = "kr_theme_watch_rows"
 KR_THEME_WATCH_EDITOR_KEY = "kr_theme_watch_editor"
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_fetch_kr_theme_snapshot():
+    """여러 기기의 로그인에서 같은 테마 페이지를 반복해서 읽지 않게 한다."""
+    return theme_data.fetch_kr_theme_snapshot()
+
+
 def _render_kr_theme_chip_editor():
     """기존 한국장 테마 list[dict]를 단일 session_state 원본으로 편집한다 (DB 미사용)."""
     st.markdown(
@@ -4839,11 +4931,15 @@ def _render_kr_theme_chip_editor():
         """,
         unsafe_allow_html=True,
     )
-    if st.button("테마 참고판 자동 조회", key="kr_theme_auto_fetch") or st.session_state.pop(
-        "kr_theme_auto_fetch_pending", False
-    ):
+    _kr_theme_manual_fetch = st.button("테마 참고판 자동 조회", key="kr_theme_auto_fetch")
+    _kr_theme_auto_fetch = st.session_state.pop("kr_theme_auto_fetch_pending", False)
+    if _kr_theme_manual_fetch or _kr_theme_auto_fetch:
         _kr_theme_selected_before_fetch = st.session_state.get("kr_theme_detail_selector")
-        _kr_theme_fetch_result = theme_data.fetch_kr_theme_snapshot()
+        _kr_theme_fetch_result = (
+            theme_data.fetch_kr_theme_snapshot()
+            if _kr_theme_manual_fetch
+            else _cached_fetch_kr_theme_snapshot()
+        )
         if not _kr_theme_fetch_result["ok"]:
             st.session_state["kr_theme_auto_fetch_error"] = _kr_theme_fetch_result.get("error") or "조회 실패"
         else:
@@ -5276,11 +5372,11 @@ def _render_kr_primary_actions():
                 _stage_status_display = {"ok": "예", "partial": "부분", "fail": "아니오"}
 
                 # 1) 0단계: 시장 분위기 자동 확인 (공용 함수, 일부 실패해도 중단하지 않음)
-                _mood_run_result = run_kr_mood_auto_check()
+                _mood_run_result = run_kr_mood_auto_check(force_refresh=True)
                 _stage0_status = _stage_status_display[_mood_run_result["status"]]
 
                 # 2) 1단계: 오늘 주가 자동 채우기 (공용 함수, 실패 종목은 건너뛰고 기존 입력값 유지)
-                _fill_run_result = run_kr_snapshot_auto_fill()
+                _fill_run_result = run_kr_snapshot_auto_fill(force_refresh=True)
                 _stage1_status = _stage_status_display[_fill_run_result["status"]]
 
                 # 3) 2단계: 미리보기 생성 (DB 저장 호출 없음 — build_kr_stage2_preview()는 조회 전용)
@@ -5311,7 +5407,7 @@ def _render_kr_primary_actions():
                 st.info("이미 실행 중입니다.")
             else:
                 st.session_state["kr_mood_auto_running"] = True
-                _mood_run_result = run_kr_mood_auto_check()
+                _mood_run_result = run_kr_mood_auto_check(force_refresh=True)
                 st.session_state["kr_mood_auto_last_error"] = _mood_run_result["message"]
                 st.session_state["kr_mood_auto_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 st.session_state["kr_mood_auto_running"] = False
@@ -5326,7 +5422,7 @@ def _render_kr_primary_actions():
                 st.info("이미 실행 중입니다.")
             else:
                 st.session_state["kr_snapshot_auto_fill_running"] = True
-                _fill_run_result = run_kr_snapshot_auto_fill()
+                _fill_run_result = run_kr_snapshot_auto_fill(force_refresh=True)
                 st.session_state["kr_snapshot_auto_fill_last_error"] = _fill_run_result["message"]
                 st.session_state["kr_snapshot_auto_fill_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 st.session_state["kr_snapshot_auto_fill_running"] = False
@@ -5868,7 +5964,7 @@ with tab_kr:
         st.session_state["kr_theme_auto_fetch_pending"] = False
         st.session_state["kr_auto_run_version"] = KR_AUTO_RUN_VERSION
     if not st.session_state.get("kr_auto_run_stage1_done"):
-        _kr_auto_run_stocks = price_data.get_top_kr_stocks_by_amount(12)
+        _kr_auto_run_stocks = _cached_get_top_kr_stocks_by_amount(12)
         if _kr_auto_run_stocks:
             st.session_state["dynamic_snapshot_stocks"] = _kr_auto_run_stocks
             st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -5876,7 +5972,7 @@ with tab_kr:
         if not _login_transition_pending:
             st.rerun()
     if not st.session_state.get("kr_auto_run_stage2_done"):
-        st.session_state["kr_market_overview_result"] = _fetch_market_overview("KR")
+        st.session_state["kr_market_overview_result"] = _cached_fetch_market_overview("KR")
         st.session_state["kr_market_overview_checked_at"] = st.session_state["kr_market_overview_result"]["checked_at"]
 
         _kr_auto_mood_result = run_kr_mood_auto_check()
