@@ -10,6 +10,7 @@
 """
 
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
@@ -106,6 +107,32 @@ def _get_kr_stock_code_to_name_map():
     return code_to_name
 
 
+def _fetch_theme_pages_in_parallel(pages):
+    """네이버 테마별 시세 페이지 여러 개를 동시에 조회한다.
+
+    반환: {page: (parsed_dict, error_str_or_None)}
+    """
+    pages = list(pages)
+
+    def _fetch_page(page):
+        url = NAVER_THEME_LIST_URL if page == 1 else f"{NAVER_THEME_LIST_URL}?page={page}"
+        try:
+            resp = requests.get(url, timeout=8, headers=NAVER_HEADERS)
+            resp.raise_for_status()
+            resp.encoding = "euc-kr"
+            return page, _parse_naver_theme_list(resp.text), None
+        except Exception as e:
+            return page, {}, str(e)
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(pages)) as executor:
+        futures = [executor.submit(_fetch_page, page) for page in pages]
+        for future in as_completed(futures):
+            page, page_parsed, err = future.result()
+            results[page] = (page_parsed, err)
+    return results
+
+
 def fetch_kr_theme_snapshot():
     """자비스 8개 테마의 네이버 매핑 기반 평균 등락률·대표종목·자동판정을 가져온다.
 
@@ -115,24 +142,23 @@ def fetch_kr_theme_snapshot():
     """
     from datetime import datetime
 
-    # 네이버 테마별 시세는 여러 페이지에 나뉘어 있다. 매핑에 필요한 theme_id를
-    # 전부 찾을 때까지(또는 최대 8페이지까지) 순회한다.
+    # 네이버 테마별 시세는 여러 페이지에 나뉘어 있다. 순차 조회는 페이지당 약
+    # 0.8~0.9초씩 누적돼 8페이지면 4~5초가 걸린다(2026-07-15 실측). 필요한
+    # theme_id가 어느 페이지에 있는지 미리 알 수 없으므로 8페이지를 동시에
+    # 조회해 병목을 없앤다.
     needed_ids = {tid for ids in KR_THEME_NAVER_MAPPING.values() for tid in ids}
     parsed = {}
     last_error = None
+    page_results = _fetch_theme_pages_in_parallel(range(1, 9))
     for page in range(1, 9):
-        url = NAVER_THEME_LIST_URL if page == 1 else f"{NAVER_THEME_LIST_URL}?page={page}"
-        try:
-            resp = requests.get(url, timeout=8, headers=NAVER_HEADERS)
-            resp.raise_for_status()
-            resp.encoding = "euc-kr"
-            parsed.update(_parse_naver_theme_list(resp.text))
-        except Exception as e:
+        page_parsed, err = page_results.get(page, ({}, None))
+        if err:
             # 한 페이지 실패로 이미 파싱한 다른 페이지 결과까지 버리지 않는다 —
             # fetch_us_sector_snapshot/fetch_us_theme_indicators와 동일하게 개별
             # 실패는 건너뛰고 이어간다(2026-07-13 전체 코드검사에서 발견/수정).
-            last_error = str(e)
+            last_error = err
             continue
+        parsed.update(page_parsed)
         if needed_ids.issubset(parsed.keys()):
             break
 
@@ -200,16 +226,13 @@ def fetch_kr_theme_stock_detail(theme_name):
 
     parsed = {}
     last_error = None
+    page_results = _fetch_theme_pages_in_parallel(range(1, 9))
     for page in range(1, 9):
-        url = NAVER_THEME_LIST_URL if page == 1 else f"{NAVER_THEME_LIST_URL}?page={page}"
-        try:
-            resp = requests.get(url, timeout=8, headers=NAVER_HEADERS)
-            resp.raise_for_status()
-            resp.encoding = "euc-kr"
-            parsed.update(_parse_naver_theme_list(resp.text))
-        except Exception as e:
-            last_error = str(e)
+        page_parsed, err = page_results.get(page, ({}, None))
+        if err:
+            last_error = err
             continue
+        parsed.update(page_parsed)
         if set(naver_ids).issubset(parsed.keys()):
             break
 
