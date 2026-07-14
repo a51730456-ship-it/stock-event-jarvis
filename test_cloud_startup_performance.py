@@ -65,7 +65,7 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         self.assertIn("@st.cache_data(ttl=120, show_spinner=False)\ndef _cached_fetch_bookmaker_snapshot", SOURCE)
         self.assertIn("@st.cache_data(ttl=3600, show_spinner=False)\ndef _cached_translate_bookmaker_texts", SOURCE)
 
-        tab_prelude = SOURCE[SOURCE.index("with tab_kr:"):SOURCE.index('_render_market_overview("KR")', SOURCE.index("with tab_kr:"))]
+        tab_prelude = SOURCE[SOURCE.index("def _render_tab_kr():"):SOURCE.index('_render_market_overview("KR")', SOURCE.index("def _render_tab_kr():"))]
         self.assertIn('_cached_fetch_market_overview("KR")', tab_prelude)
         self.assertIn("_cached_get_top_kr_stocks_by_amount(12)", tab_prelude)
         self.assertIn("run_kr_mood_auto_check()", tab_prelude)
@@ -89,7 +89,7 @@ class CloudStartupPerformanceTests(unittest.TestCase):
     def test_us_tab_auto_runs_market_overview_sector_and_stock_snapshot_once(self):
         # 2026-07-15 사용자 요청: 미국장 탭도 한국장 탭처럼 로그인(탭 진입) 후 한 번
         # 자동으로 시장자료/섹터ETF/8종목 스냅샷을 순서대로 불러와야 한다.
-        us_tab = SOURCE[SOURCE.index('with tab_us:'):SOURCE.index('_render_market_overview("US")', SOURCE.index('with tab_us:'))]
+        us_tab = SOURCE[SOURCE.index('def _render_tab_us():'):SOURCE.index('_render_market_overview("US")', SOURCE.index('def _render_tab_us():'))]
         self.assertIn('if not st.session_state.get("us_auto_run_stage1_done"):', us_tab)
         self.assertIn('_cached_fetch_market_overview("US")', us_tab)
         self.assertIn('theme_data.fetch_us_sector_snapshot()', us_tab)
@@ -146,7 +146,7 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         self.assertEqual([s["ticker"] for s in result], ["AMD", "TSLA"])
 
     def test_us_stock_selection_stage_precedes_detail_fetch_stage(self):
-        us_tab = SOURCE[SOURCE.index('with tab_us:'):SOURCE.index('_render_market_overview("US")', SOURCE.index('with tab_us:'))]
+        us_tab = SOURCE[SOURCE.index('def _render_tab_us():'):SOURCE.index('_render_market_overview("US")', SOURCE.index('def _render_tab_us():'))]
         select_stage = us_tab.index('if not st.session_state.get("us_auto_run_stage1_done"):')
         detail_stage = us_tab.index('if not st.session_state.get("us_auto_run_stage2_done"):')
         self.assertLess(select_stage, detail_stage)

@@ -140,7 +140,7 @@ class MarketOverviewTests(unittest.TestCase):
     def test_login_followup_reruns_restore_three_kr_auto_actions(self):
         self.assertIn("로그인 후 한국장 자료·종목 판단·테마 참고판을 자동으로 불러오는 중입니다.", SOURCE)
         self.assertIn("로그인 후 한국장 자료를 자동으로 불러왔습니다.", SOURCE)
-        tab_start = SOURCE.index("with tab_kr:")
+        tab_start = SOURCE.index("def _render_tab_kr():")
         panel_start = SOURCE.index('_render_market_overview("KR")', tab_start)
         tab_prelude = SOURCE[tab_start:panel_start]
         self.assertIn("not _login_transition_pending", tab_prelude)

@@ -6051,7 +6051,8 @@ def _render_risk_plan_preview(stock_name, ticker, risk_fields):
 
 KR_AUTO_RUN_VERSION = "2026-07-14-previous-close-v2"
 
-with tab_kr:
+@st.fragment
+def _render_tab_kr():
     # 로그인 직후 한국장 탭을 열면 "오늘 한국장 자료 불러오기"/"오늘 종목 판단
     # 준비하기"/"테마 참고판 자동 조회" 3개 동작을 세션당 한 번 순서대로 실행한다.
     # 로그인 성공 전환 화면이 떠 있는 실행에서는 조회하지 않고 다음 rerun부터 시작한다.
@@ -6949,9 +6950,14 @@ with tab_kr:
                 st.session_state.pop("kr_show_save_preview", None)
                 st.rerun()
 
+with tab_kr:
+    _render_tab_kr()
+
+
 US_AUTO_RUN_VERSION = "2026-07-15-v1"
 
-with tab_us:
+@st.fragment
+def _render_tab_us():
     # 2026-07-15 사용자 요청: 미국장 탭도 한국장 탭과 동일하게 로그인(탭 진입) 후
     # "종목 자동 선정" → "시장자료/섹터ETF/테마지표/종목 스냅샷 불러오기"를 세션당 한 번
     # 자동으로 순서대로 실행한다. 한국장(stage1=종목선정 → stage2=상세조회)과 동일한
@@ -7556,6 +7562,10 @@ with tab_us:
             )
             st.markdown("---")
             _render_risk_and_warning_inputs(s["ticker"], "US")
+
+with tab_us:
+    _render_tab_us()
+
 
 def _render_judgment_outcome_save_button(selected_report_id, perf_rows_all, key_prefix=""):
     _item_lookup = _build_item_judgment_lookup()
