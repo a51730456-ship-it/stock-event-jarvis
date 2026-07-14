@@ -4,6 +4,8 @@ from datetime import datetime
 import unittest
 from pathlib import Path
 
+import naver_market_data
+
 
 SOURCE = Path("app.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
@@ -29,6 +31,7 @@ NAMESPACE = {
     "MARKET_OVERVIEW_HISTORY_TERMS": ("과거", "역사", "회고", "몇 년 전", "10년 전", "지난해"),
     "_safe_pct_diff": lambda a, b: None if not b else (a - b) / b * 100,
     "_recent_naver_news_items": lambda items: items or [],
+    "naver_market_data": naver_market_data,
 }
 exec(compile(ast.Module(body=NODES, type_ignores=[]), "app.py", "exec"), NAMESPACE)
 GET_KR_INDEX_INTRADAY = NAMESPACE["_get_kr_index_intraday"]
@@ -184,12 +187,21 @@ class MarketOverviewTests(unittest.TestCase):
                 self.calls.append(ticker)
                 return {"ok": False}
 
+        class Naver:
+            calls = []
+
+            def get_index_snapshot(self, ticker):
+                self.calls.append(ticker)
+                return {"ok": False}
+
         class Secrets:
             def get(self, key):
                 return "configured"
 
         price = Price()
+        naver = Naver()
         NAMESPACE["kis_market_data"] = Kis()
+        NAMESPACE["naver_market_data"] = naver
         NAMESPACE["price_data"] = price
         NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
 
@@ -197,6 +209,46 @@ class MarketOverviewTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["source"], "한국투자증권")
+        self.assertEqual(naver.calls, [])
+        self.assertEqual(price.calls, [])
+
+    def test_naver_is_used_before_yahoo_when_kis_is_unavailable(self):
+        class Kis:
+            def get_index_snapshot(self, ticker, app_key, app_secret):
+                return {"ok": False, "error": "no key"}
+
+        class Naver:
+            def get_index_snapshot(self, ticker):
+                return {
+                    "ok": True,
+                    "current": 101.5,
+                    "prev_close": 100.0,
+                    "as_of_time": "11:26",
+                    "source": "네이버 금융 현재지수",
+                }
+
+        class Price:
+            calls = []
+
+            def get_intraday_last(self, ticker):
+                self.calls.append(ticker)
+                return {"ok": False}
+
+        class Secrets:
+            def get(self, key):
+                return None
+
+        price = Price()
+        NAMESPACE["kis_market_data"] = Kis()
+        NAMESPACE["naver_market_data"] = Naver()
+        NAMESPACE["price_data"] = price
+        NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
+
+        result = GET_KR_INDEX_INTRADAY("^KS11")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"], "네이버 금융 현재지수")
+        self.assertEqual(result["as_of_time"], "11:26")
         self.assertEqual(price.calls, [])
 
     def test_yahoo_fallback_is_labeled_as_delayed(self):
@@ -208,11 +260,16 @@ class MarketOverviewTests(unittest.TestCase):
             def get_intraday_last(self, ticker):
                 return {"ok": True, "current": 101.0, "prev_close": 100.0}
 
+        class Naver:
+            def get_index_snapshot(self, ticker):
+                return {"ok": False, "error": "network"}
+
         class Secrets:
             def get(self, key):
                 return None
 
         NAMESPACE["kis_market_data"] = Kis()
+        NAMESPACE["naver_market_data"] = Naver()
         NAMESPACE["price_data"] = Price()
         NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
 

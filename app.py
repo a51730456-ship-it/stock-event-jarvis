@@ -25,6 +25,7 @@ import theme_data
 import theme_history
 import price_data
 import kis_market_data
+import naver_market_data
 
 _reference_panel_logger = logging.getLogger("jarvis.reference_panels")
 
@@ -2641,7 +2642,7 @@ def _market_overview_price_item(label, ticker, result):
 
 
 def _get_kr_index_intraday(ticker):
-    """무료 KIS 현재지수를 우선하고, 설정/조회 실패 시 기존 Yahoo 1분봉으로 대체한다."""
+    """KIS, 네이버 현재지수, Yahoo 지연 1분봉 순서로 국내 장중지수를 조회한다."""
     try:
         kis_result = kis_market_data.get_index_snapshot(
             ticker,
@@ -2652,6 +2653,12 @@ def _get_kr_index_intraday(ticker):
         kis_result = {"ok": False}
     if kis_result.get("ok"):
         return kis_result
+    try:
+        naver_result = naver_market_data.get_index_snapshot(ticker)
+    except Exception:
+        naver_result = {"ok": False}
+    if naver_result.get("ok"):
+        return naver_result
     try:
         yahoo_result = price_data.get_intraday_last(ticker)
     except Exception:
