@@ -65,6 +65,23 @@ class IntradayLastTests(unittest.TestCase):
         self.assertEqual(result["prev_close_as_of_date"], "2026-07-10")
 
     @patch("yfinance.Ticker")
+    def test_official_previous_close_overrides_mismatched_previous_minute(self, mock_ticker_cls):
+        idx = pd.DatetimeIndex(
+            ["2026-07-10 15:30:00+09:00", "2026-07-13 12:17:00+09:00"],
+            name="Datetime",
+        )
+        ticker = _fake_ticker(pd.DataFrame({"Close": [110.0, 102.0]}, index=idx))
+        ticker.get_history_metadata.return_value = {"previousClose": 100.0}
+        mock_ticker_cls.return_value = ticker
+
+        result = price_data.get_intraday_last("^KS11")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["current"], 102.0)
+        self.assertEqual(result["prev_close"], 100.0)
+        self.assertEqual(result["prev_close_as_of_date"], "2026-07-10")
+
+    @patch("yfinance.Ticker")
     def test_utc_index_is_explicitly_converted_to_seoul(self, mock_ticker_cls):
         idx = pd.DatetimeIndex(["2026-07-13 03:17:00+00:00"], name="Datetime")
         df = pd.DataFrame({"Close": [6955.5]}, index=idx)

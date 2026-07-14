@@ -575,6 +575,15 @@ if not st.session_state.get("authenticated"):
             if _login_password_input == _app_password:
                 st.session_state["authenticated"] = True
                 st.session_state["login_transition_pending"] = True
+                # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
+                # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.
+                for _kr_auto_key in (
+                    "kr_auto_run_version",
+                    "kr_auto_run_stage1_done",
+                    "kr_auto_run_stage2_done",
+                    "kr_theme_auto_fetch_pending",
+                ):
+                    st.session_state.pop(_kr_auto_key, None)
                 st.rerun()
             else:
                 st.error("비밀번호가 올바르지 않습니다.")
@@ -2824,15 +2833,30 @@ def _render_market_overview(market):
     button_key = f"{prefix}_market_overview_load"
     title = "오늘 한국장 한눈에" if market == "KR" else "오늘 미국장 한눈에"
     market_label = "한국장" if market == "KR" else "미국장"
+    result = st.session_state.get(result_key)
 
     st.markdown(f"<div style='font-size:26px;font-weight:800;margin:0 0 10px 0'>{title}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin:14px 0 22px'>먼저 아래 파란 버튼을 눌러 오늘 {market_label} 자료를 확인하세요.</div>", unsafe_allow_html=True)
+    if market == "KR":
+        _overview_guide = (
+            "로그인 후 한국장 자료를 자동으로 불러왔습니다. 필요할 때만 아래 파란 버튼으로 다시 조회하세요."
+            if result else
+            "로그인 후 한국장 자료·종목 판단·테마 참고판을 자동으로 불러오는 중입니다."
+        )
+    else:
+        _overview_guide = f"먼저 아래 파란 버튼을 눌러 오늘 {market_label} 자료를 확인하세요."
+    st.markdown(
+        f"<div style='font-size:18px;line-height:1.7;color:#CBD5E1;margin:14px 0 22px'>{_overview_guide}</div>",
+        unsafe_allow_html=True,
+    )
     if st.button("오늘 한국장 자료 불러오기" if market == "KR" else "오늘 미국장 자료 불러오기", key=button_key):
         st.session_state[result_key] = _fetch_market_overview(market)
         st.session_state[checked_key] = st.session_state[result_key]["checked_at"]
-    result = st.session_state.get(result_key)
+        result = st.session_state[result_key]
     if not result:
-        st.info("버튼을 눌러 시장 자료를 확인하세요. 앱 실행만으로 외부 조회는 하지 않습니다.")
+        if market == "KR":
+            st.info("한국장 자동 조회가 진행 중입니다.")
+        else:
+            st.info("버튼을 눌러 시장 자료를 확인하세요. 앱 실행만으로 외부 조회는 하지 않습니다.")
         return
     state, explanation = result["status"]
     state_colors = {"우호": "#15803D", "혼조": "#1D4ED8", "경계": "#D97706", "자료 부족": "#6B7280"}
@@ -2893,13 +2917,7 @@ def _render_market_overview(market):
     # 제한). 버튼을 눌렀을 때만 조회하고(로그인 시 자동실행 안 됨), session_state에만
     # 유지하며 DB에 저장하지 않고, 점수·판정 계산에도 절대 반영하지 않는다.
     with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=True):
-        st.caption(
-            "아래 버튼을 눌러야만 조회합니다(자동실행 아님). Polymarket/Kalshi 공개 "
-            "시장 데이터 API에서 금리·인플레이션·관세 등 거시경제 관련 활성 시장을 "
-            "거래량 상위로 몇 개 가져와 참고용으로만 보여줍니다 — 관련성 판단은 사람이 "
-            "직접 해야 합니다. 점수·판정·DB 저장에는 반영되지 않습니다. 아래 텍스트 칸은 "
-            "그날 ChatGPT 브리핑의 [도박사] 문단을 그대로 붙여넣는 용도로 계속 씁니다."
-        )
+        st.caption("버튼을 누를 때만 조회 · 참고용 · 점수·판정·DB 저장 미반영")
         # 2026-07-13 3차 수정: 임계값 다른 계약을 "사건 그룹"으로 묶어 보여주고(중복
         # 삭제 아님 — 확률분포), DeepL Free API로 사건 제목을 한국어로 번역해서 큰
         # 글씨로 먼저 보여준다(상하님이 영어 원문을 알아보기 어렵다는 지적). 번역은
@@ -2909,15 +2927,24 @@ def _render_market_overview(market):
             with st.spinner("Polymarket/Kalshi 조회 중..."):
                 _snapshot = bookmaker_data.fetch_bookmaker_snapshot()
             _translation_cache = st.session_state.setdefault("bookmaker_translation_cache", {})
-            _titles_to_translate = list(dict.fromkeys(
-                ev["title"] for ev in _snapshot.get("events", [])
-                if ev.get("title") and ev["title"] not in _translation_cache
-            ))
+            _market_texts = []
+            for _event in _snapshot.get("events", []):
+                if _event.get("title"):
+                    _market_texts.append(_event["title"])
+                _market_texts.extend(
+                    contract["question"]
+                    for contract in _event.get("contracts", [])
+                    if contract.get("question")
+                )
+            _texts_to_translate = [
+                text for text in dict.fromkeys(_market_texts)
+                if text not in _translation_cache
+            ]
             _deepl_key = st.secrets.get("DEEPL_API_KEY")
             st.session_state.pop("bookmaker_translation_error", None)
-            if _titles_to_translate and _deepl_key:
+            if _texts_to_translate and _deepl_key:
                 with st.spinner("한국어 번역 중..."):
-                    _translate_result = deepl_translate.translate_texts_to_ko(_titles_to_translate, _deepl_key)
+                    _translate_result = deepl_translate.translate_texts_to_ko(_texts_to_translate, _deepl_key)
                 if _translate_result.get("ok"):
                     _translation_cache.update(_translate_result.get("translations") or {})
                 else:
@@ -2929,12 +2956,7 @@ def _render_market_overview(market):
                 st.caption(f"마지막 조회: {_bookmaker_snapshot['checked_at']}")
             for _err in _bookmaker_snapshot.get("errors") or []:
                 st.caption(f"일부 실패: {_err}")
-            if not st.secrets.get("DEEPL_API_KEY"):
-                st.caption(
-                    "DeepL API 키가 없어 자주 쓰는 금융 제목·조건은 내장 한국어로 표시하고, "
-                    "그 밖의 문장은 영어 원문으로 표시합니다."
-                )
-            elif st.session_state.get("bookmaker_translation_error"):
+            if st.secrets.get("DEEPL_API_KEY") and st.session_state.get("bookmaker_translation_error"):
                 st.caption(f"번역 일부 실패: {st.session_state['bookmaker_translation_error']}")
             _translation_cache = st.session_state.get("bookmaker_translation_cache") or {}
             if _bookmaker_snapshot.get("events"):
@@ -2953,7 +2975,7 @@ def _render_market_overview(market):
                     if not _source_events:
                         continue
                     st.markdown(
-                        f"<div style='font-size:18px;font-weight:800;color:#dbeafe;"
+                        f"<div style='font-size:22px;font-weight:800;color:#dbeafe;"
                         f"margin:18px 0 8px'>{html.escape(_source)}</div>",
                         unsafe_allow_html=True,
                     )
@@ -2963,20 +2985,20 @@ def _render_market_overview(market):
                         try:
                             _title_ko = (
                                 _translation_cache.get(_ev["title"])
-                                or deepl_translate.translate_market_title_locally(_ev["title"])
+                                or deepl_translate.translate_market_text_locally(_ev["title"])
                             )
                             _title_html = (
-                                f"<div style='font-size:19px;font-weight:800;color:#f9fafb'>{html.escape(_title_ko)}</div>"
-                                f"<div style='font-size:13px;color:#8b95a5;margin-top:2px'>영어 원문: {html.escape(_ev['title'])}</div>"
+                                f"<div style='font-size:23px;line-height:1.45;font-weight:800;color:#f9fafb'>{html.escape(_title_ko)}</div>"
+                                f"<div style='font-size:14px;line-height:1.5;color:#9ca3af;margin-top:4px'>영어 원문: {html.escape(_ev['title'])}</div>"
                                 if _title_ko else
-                                f"<div style='font-size:19px;font-weight:800;color:#f9fafb'>{html.escape(_ev['title'] or '-')}</div>"
-                                + ("<div style='font-size:13px;color:#8b95a5;margin-top:2px'>번역 실패 · 영어 원문 표시</div>"
+                                f"<div style='font-size:19px;line-height:1.5;font-weight:800;color:#f9fafb'>{html.escape(_ev['title'] or '-')}</div>"
+                                + ("<div style='font-size:14px;color:#9ca3af;margin-top:3px'>번역 실패 · 영어 원문 표시</div>"
                                    if st.secrets.get("DEEPL_API_KEY") else "")
                             )
                             _event_volume = _ev.get("event_volume")
                             _event_volume_text = f"{_event_volume:,.0f}" if _event_volume is not None else "확인 불가"
                             _meta = (
-                                f"<div style='font-size:13px;color:#8b95a5;margin-top:6px'>{html.escape(str(_ev['source']))} · "
+                                f"<div style='font-size:15px;color:#aeb7c5;margin-top:8px'>{html.escape(str(_ev['source']))} · "
                                 f"마감 {html.escape(str(_ev.get('end_date') or '-'))} · 24시간 거래량 {_event_volume_text}</div>"
                             )
                             _contract_rows = []
@@ -2985,7 +3007,20 @@ def _render_market_overview(market):
                                 _prob = f"{_c['probability_pct']}%" if _c.get("probability_pct") is not None else "-"
                                 _prob_color = "#22c55e" if (_c.get("probability_pct") or 0) >= 50 else "#f87171"
                                 _updated = html.escape(str(_c.get("updated_at") or "-")[:16])
-                                _question = html.escape(str(_c.get("question") or "-"))
+                                _question_original = str(_c.get("question") or "-")
+                                _question_ko = (
+                                    _translation_cache.get(_question_original)
+                                    or deepl_translate.translate_market_text_locally(_question_original)
+                                )
+                                _question_html = (
+                                    f"<div style='color:#e5e7eb;font-size:17px;line-height:1.55;font-weight:700;margin-top:7px'>"
+                                    f"{html.escape(_question_ko)}</div>"
+                                    f"<div style='color:#9ca3af;font-size:14px;line-height:1.5;margin-top:3px'>"
+                                    f"영어 원문: {html.escape(_question_original)}</div>"
+                                    if _question_ko else
+                                    f"<div style='color:#cbd5e1;font-size:16px;line-height:1.55;margin-top:7px'>"
+                                    f"{html.escape(_question_original)}</div>"
+                                )
                                 _market_id = html.escape(str(_c.get("market_id") or "-"))
                                 _volume = _c.get("volume_24h")
                                 _volume_text = f"{_volume:,.0f}" if _volume is not None else "확인 불가"
@@ -2996,30 +3031,26 @@ def _render_market_overview(market):
                                     if _market_url.startswith(("https://", "http://")) else ""
                                 )
                                 _contract_rows.append(
-                                    "<div style='padding:8px 0;border-bottom:1px solid #2a2f3a'>"
-                                    "<div style='display:flex;justify-content:space-between;gap:12px;font-size:15px'>"
-                                    f"<span style='color:#cbd5e1'>{html.escape(str(_label_ko))}</span>"
-                                    f"<span style='white-space:nowrap;font-weight:700;color:{_prob_color}'>{_prob}</span>"
+                                    "<div style='padding:12px 0;border-bottom:1px solid #2a2f3a'>"
+                                    "<div style='display:flex;justify-content:space-between;gap:12px;font-size:18px;font-weight:800'>"
+                                    f"<span style='color:#e2e8f0'>{html.escape(str(_label_ko))}</span>"
+                                    f"<span style='white-space:nowrap;color:{_prob_color}'>{_prob}</span>"
                                     "</div>"
-                                    f"<div style='color:#8b95a5;font-size:12px;margin-top:3px'>{_question}</div>"
-                                    f"<div style='color:#6b7280;font-size:12px;margin-top:2px'>시장 ID {_market_id} · "
+                                    f"{_question_html}"
+                                    f"<div style='color:#7f8998;font-size:13px;line-height:1.5;margin-top:5px'>시장 ID {_market_id} · "
                                     f"24시간 거래량 {_volume_text} · 갱신 {_updated}{_url_html}</div>"
                                     "</div>"
                                 )
                             st.markdown(
                                 "<div style='background:#171a21;border:1px solid #303642;border-radius:8px;"
-                                f"padding:12px 14px;margin-bottom:14px'>{_title_html}{_meta}"
-                                f"<div style='margin-top:8px'>{''.join(_contract_rows)}</div></div>",
+                                f"padding:18px 20px;margin-bottom:16px'>{_title_html}{_meta}"
+                                f"<div style='margin-top:12px'>{''.join(_contract_rows)}</div></div>",
                                 unsafe_allow_html=True,
                             )
                         except Exception:
                             st.caption(f"[{_ev.get('source', '-')}] 카드 표시 실패 — 건너뜁니다.")
                             continue
-                st.caption(
-                    "확률은 각 계약의 Yes 확률(원문 시장 기준)입니다. 예측시장 결과는 참고 "
-                    "조회일 뿐 매수·매도 추천이 아니며, 어느 업종·종목에 영향을 줄지는 "
-                    "직접 해석해 주세요."
-                )
+                st.caption("확률은 각 계약의 Yes 확률이며 매수·매도 추천이 아닙니다.")
             elif not _bookmaker_snapshot.get("errors"):
                 st.caption("현재 거시경제 관련 활성 시장을 찾지 못했습니다.")
         st.text_area(
@@ -5763,18 +5794,28 @@ def _render_risk_plan_preview(stock_name, ticker, risk_fields):
         st.write(f"예상 보유기간: {_value('expected_holding_days')}")
 
 
+KR_AUTO_RUN_VERSION = "2026-07-14-previous-close-v2"
+
 with tab_kr:
     # 로그인 직후 한국장 탭을 열면 "오늘 한국장 자료 불러오기"/"오늘 종목 판단
     # 준비하기"/"테마 참고판 자동 조회" 3개 동작을 세션당 한 번 순서대로 실행한다.
     # 로그인 성공 전환 화면이 떠 있는 실행에서는 조회하지 않고 다음 rerun부터 시작한다.
-    if not _login_transition_pending and not st.session_state.get("kr_auto_run_stage1_done"):
+    # 이미 열려 있던 브라우저 세션도 보정 버전이 달라지면 완료 플래그를 한 번 초기화해
+    # 사용자가 버튼을 다시 누르지 않아도 새 기준으로 자동 조회한다.
+    if st.session_state.get("kr_auto_run_version") != KR_AUTO_RUN_VERSION:
+        st.session_state["kr_auto_run_stage1_done"] = False
+        st.session_state["kr_auto_run_stage2_done"] = False
+        st.session_state["kr_theme_auto_fetch_pending"] = False
+        st.session_state["kr_auto_run_version"] = KR_AUTO_RUN_VERSION
+    if not st.session_state.get("kr_auto_run_stage1_done"):
         _kr_auto_run_stocks = price_data.get_top_kr_stocks_by_amount(12)
         if _kr_auto_run_stocks:
             st.session_state["dynamic_snapshot_stocks"] = _kr_auto_run_stocks
             st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state["kr_auto_run_stage1_done"] = True
-        st.rerun()
-    elif not _login_transition_pending and not st.session_state.get("kr_auto_run_stage2_done"):
+        if not _login_transition_pending:
+            st.rerun()
+    if not st.session_state.get("kr_auto_run_stage2_done"):
         st.session_state["kr_market_overview_result"] = _fetch_market_overview("KR")
         st.session_state["kr_market_overview_checked_at"] = st.session_state["kr_market_overview_result"]["checked_at"]
 
@@ -5792,7 +5833,13 @@ with tab_kr:
 
         st.session_state["kr_theme_auto_fetch_pending"] = True
         st.session_state["kr_auto_run_stage2_done"] = True
-        st.rerun()
+        # 로그인 전환 실행 중에는 테마 조회가 끝나며 발생하는 rerun 뒤에도 전환
+        # 오버레이를 한 번 보여준다. 자동 3단계를 즉시 수행하면서 기존 로그인
+        # 성공 연출이 사라지지 않게 하는 상태 전달일 뿐 화면 자체는 변경하지 않는다.
+        if _login_transition_pending:
+            st.session_state["login_transition_pending"] = True
+        if not _login_transition_pending:
+            st.rerun()
 
     _render_market_overview("KR")
     st.subheader("한국장")

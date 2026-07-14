@@ -7,6 +7,7 @@ pykrx는 이번 1차 성과검증에서는 사용하지 않는다.
 """
 
 import math
+import numbers
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -162,13 +163,31 @@ def get_intraday_last(ticker):
     try:
         import yfinance as yf
 
-        # 오늘 현재가뿐 아니라 직전 거래일의 마지막 1분봉도 함께 받아 전일 종가
-        # 기준을 잡는다. yfinance 일봉은 간혹 직전 거래일 행이 누락되어 며칠 전
-        # 종가와 비교되는 경우가 있으므로(2026-07-14 KOSPI/KOSDAQ에서 확인),
-        # 장중 등락률의 기준값은 직전 거래일 1분봉 종가를 우선 사용한다.
-        df = yf.Ticker(ticker).history(period="5d", interval="1m")
+        # 오늘 현재가와 Yahoo 차트 메타데이터의 공식 전일 종가를 함께 받는다.
+        # 직전 거래일의 마지막 1분봉 값은 보정/조정 문제로 실제 전일 종가와 다를 수
+        # 있으므로 previousClose를 우선하고, 메타데이터가 없을 때만 1분봉을 대체로 쓴다.
+        ticker_data = yf.Ticker(ticker)
+        df = ticker_data.history(period="5d", interval="1m")
         if df is None or df.empty or "Close" not in df.columns:
             return {"ok": False, "error": "장중 1분봉 데이터 없음"}
+
+        metadata = {}
+        try:
+            get_metadata = getattr(ticker_data, "get_history_metadata", None)
+            if callable(get_metadata):
+                metadata = get_metadata() or {}
+        except Exception:
+            metadata = {}
+
+        metadata_prev_close = None
+        try:
+            raw_candidate = metadata.get("previousClose")
+            if isinstance(raw_candidate, numbers.Real) and not isinstance(raw_candidate, bool):
+                candidate = float(raw_candidate)
+                if math.isfinite(candidate) and candidate > 0:
+                    metadata_prev_close = candidate
+        except (TypeError, ValueError):
+            metadata_prev_close = None
 
         # 아직 값이 확정되지 않은 마지막 행(NaN/Infinity/0 이하)은 사용하지 않고,
         # 같은 응답 안에서 가장 최근의 유효한 1분봉을 고른다.
@@ -207,8 +226,10 @@ def get_intraday_last(ticker):
         if previous_rows:
             previous_date = max(row[0].date() for row in previous_rows)
             previous_session_rows = [row for row in previous_rows if row[0].date() == previous_date]
-            prev_close = previous_session_rows[-1][1]
+            prev_close = metadata_prev_close or previous_session_rows[-1][1]
             prev_close_as_of_date = previous_date.strftime("%Y-%m-%d")
+        elif metadata_prev_close is not None:
+            prev_close = metadata_prev_close
 
         as_of_date = asof_seoul.strftime("%Y-%m-%d")
         as_of_time = asof_seoul.strftime("%H:%M")

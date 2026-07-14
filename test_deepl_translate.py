@@ -20,6 +20,34 @@ class DeeplTranslateTests(unittest.TestCase):
         )
         self.assertIsNone(dt.translate_market_title_locally("Unrecognized entertainment event"))
 
+    def test_local_finance_question_fallbacks(self):
+        self.assertEqual(
+            dt.translate_market_text_locally(
+                "Will the Fed increase interest rates by 25 bps after the July 2026 meeting?"
+            ),
+            "2026년 7월 연준 회의 후 기준금리가 25bp 인상될까?",
+        )
+        self.assertEqual(
+            dt.translate_market_text_locally("Will WTI Crude Oil (WTI) hit (HIGH) $80 in July?"),
+            "7월 WTI 원유 가격이 80달러 이상 오를까?",
+        )
+        self.assertEqual(
+            dt.translate_market_text_locally(
+                "Will core CPI inflation exceed headline CPI inflation in June 2026?"
+            ),
+            "2026년 6월 근원 CPI 상승률이 전체 CPI 상승률을 웃돌까?",
+        )
+        self.assertEqual(
+            dt.translate_market_text_locally("Will no Fed rate cuts happen in 2026?"),
+            "2026년 연준이 금리를 한 번도 인하하지 않을까?",
+        )
+        self.assertEqual(
+            dt.translate_market_text_locally(
+                "Will NVIDIA be the largest company in the world by market cap on July 31?"
+            ),
+            "7월 31일 시가총액 세계 1위 기업이 NVIDIA일까?",
+        )
+
     @patch("deepl_translate.requests.post")
     def test_empty_texts_makes_no_call(self, mock_post):
         result = dt.translate_texts_to_ko([], "some-key")

@@ -23,15 +23,19 @@ _MONTH_KO = {
 }
 
 
-def translate_market_title_locally(text):
-    """키 없이도 안전하게 번역할 수 있는 반복 금융 이벤트 제목만 한국어화한다."""
+def _month_to_ko(month_name):
+    return _MONTH_KO.get(str(month_name).lower())
+
+
+def translate_market_text_locally(text):
+    """키 없이도 안전하게 번역할 수 있는 반복 금융 제목·질문을 한국어화한다."""
     if not text:
         return None
     original = str(text).strip()
 
     fed_match = re.fullmatch(r"Fed Decision in ([A-Za-z]+)\??", original, re.IGNORECASE)
     if fed_match:
-        month = _MONTH_KO.get(fed_match.group(1).lower())
+        month = _month_to_ko(fed_match.group(1))
         if month:
             return f"{month} 연준 금리 결정"
 
@@ -41,16 +45,96 @@ def translate_market_title_locally(text):
         re.IGNORECASE,
     )
     if wti_match:
-        month = _MONTH_KO.get(wti_match.group(1).lower())
+        month = _month_to_ko(wti_match.group(1))
         if month:
             return f"{wti_match.group(2)}년 {month} WTI 원유 가격은 어디까지 오를까?"
+
+    fed_unchanged = re.fullmatch(
+        r"Will there be no change in Fed interest rates after the ([A-Za-z]+) (\d{4}) meeting\?",
+        original,
+        re.IGNORECASE,
+    )
+    if fed_unchanged:
+        month = _month_to_ko(fed_unchanged.group(1))
+        if month:
+            return f"{fed_unchanged.group(2)}년 {month} 연준 회의 후 기준금리가 동결될까?"
+
+    fed_move = re.fullmatch(
+        r"Will the Fed (increase|decrease) interest rates by (\d+)(\+)? bps after the "
+        r"([A-Za-z]+) (\d{4}) meeting\?",
+        original,
+        re.IGNORECASE,
+    )
+    if fed_move:
+        direction, amount, plus, month_name, year = fed_move.groups()
+        month = _month_to_ko(month_name)
+        if month:
+            amount_text = f"{amount}bp 이상" if plus else f"{amount}bp"
+            direction_text = "인상" if direction.lower() == "increase" else "인하"
+            return f"{year}년 {month} 연준 회의 후 기준금리가 {amount_text} {direction_text}될까?"
+
+    wti_level = re.fullmatch(
+        r"Will WTI Crude Oil \(WTI\) hit \(HIGH\) \$(\d+(?:\.\d+)?) in ([A-Za-z]+)\?",
+        original,
+        re.IGNORECASE,
+    )
+    if wti_level:
+        month = _month_to_ko(wti_level.group(2))
+        if month:
+            return f"{month} WTI 원유 가격이 {wti_level.group(1)}달러 이상 오를까?"
+
+    fed_cut_count = re.fullmatch(r"Will the Fed cut rates (\d+) times\?", original, re.IGNORECASE)
+    if fed_cut_count:
+        return f"연준이 금리를 {fed_cut_count.group(1)}회 인하할까?"
+
+    no_fed_cuts = re.fullmatch(r"Will no Fed rate cuts happen in (\d{4})\?", original, re.IGNORECASE)
+    if no_fed_cuts:
+        return f"{no_fed_cuts.group(1)}년 연준이 금리를 한 번도 인하하지 않을까?"
+
+    largest_company = re.fullmatch(
+        r"Will (.+?) be the largest company in the world by market cap on ([A-Za-z]+) (\d{1,2})\?",
+        original,
+        re.IGNORECASE,
+    )
+    if largest_company:
+        company, month_name, day = largest_company.groups()
+        month = _month_to_ko(month_name)
+        if month:
+            return f"{month} {int(day)}일 시가총액 세계 1위 기업이 {company}일까?"
+
+    cpi_compare = re.fullmatch(
+        r"Will core CPI inflation exceed headline CPI inflation in ([A-Za-z]+) (\d{4})\?",
+        original,
+        re.IGNORECASE,
+    )
+    if cpi_compare:
+        month = _month_to_ko(cpi_compare.group(1))
+        if month:
+            return f"{cpi_compare.group(2)}년 {month} 근원 CPI 상승률이 전체 CPI 상승률을 웃돌까?"
 
     exact_titles = {
         "us cpi this year": "올해 미국 소비자물가지수(CPI)",
         "cpi inflation": "소비자물가지수(CPI) 인플레이션",
         "fed decision": "연준 금리 결정",
+        "how many fed rate cuts in 2026?": "2026년 연준 금리 인하 횟수",
+        "fed rate hike in 2026?": "2026년 연준 금리 인상 여부",
+        "largest company end of july?": "7월 말 시가총액 1위 기업",
+        "will the federal reserve cut rates before 2027?": "2027년 이전 연준 금리 인하 여부",
+        "will the bank of japan hike 25bps at the july 2026 monetary policy meeting?":
+            "2026년 7월 일본은행이 기준금리를 25bp 인상할까?",
+        "will any 2026 freddie mac primary mortgage market survey (pmms) report a 30-year fixed-rate mortgage rate below 5.75%?":
+            "2026년 미국 30년 고정 모기지 금리가 5.75% 아래로 내려갈까?",
+        "will china obtains or develops a functional extreme ultraviolet (euv) lithography machine that capable of patterning semiconductor wafers in a fabrication facility be confirmed before jan 1, 2030?":
+            "2030년 이전 중국의 반도체용 EUV 노광장비 확보·개발이 확인될까?",
+        "will the bank of mexico maintain current rate at the august bank of mexico governing board meeting?":
+            "8월 멕시코 중앙은행이 현재 기준금리를 유지할까?",
     }
     return exact_titles.get(original.lower())
+
+
+def translate_market_title_locally(text):
+    """기존 호출자 호환용 별칭."""
+    return translate_market_text_locally(text)
 
 
 def translate_texts_to_ko(texts, api_key, timeout=REQUEST_TIMEOUT):

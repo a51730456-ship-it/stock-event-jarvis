@@ -99,7 +99,10 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertNotIn("실시간", render_source)
         for phrase in ("장중 {item['asof']} 기준", "{item['asof']} 종가 기준", "조회 기준 확인 불가"):
             self.assertIn(phrase, render_source)
-        self.assertIn("deepl_translate.translate_market_title_locally", render_source)
+        self.assertIn("deepl_translate.translate_market_text_locally", render_source)
+        self.assertIn("영어 원문:", render_source)
+        self.assertIn("font-size:23px", render_source)
+        self.assertIn("font-size:17px", render_source)
 
     def test_no_market_fetch_before_button(self):
         panel = SOURCE[SOURCE.index("def _render_market_overview"):]
@@ -111,12 +114,15 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertLess(panel.index(button), panel.index("bookmaker_data.fetch_bookmaker_snapshot()"))
 
     def test_login_followup_reruns_restore_three_kr_auto_actions(self):
+        self.assertIn("로그인 후 한국장 자료·종목 판단·테마 참고판을 자동으로 불러오는 중입니다.", SOURCE)
+        self.assertIn("로그인 후 한국장 자료를 자동으로 불러왔습니다.", SOURCE)
         tab_start = SOURCE.index("with tab_kr:")
         panel_start = SOURCE.index('_render_market_overview("KR")', tab_start)
         tab_prelude = SOURCE[tab_start:panel_start]
         self.assertIn("not _login_transition_pending", tab_prelude)
         self.assertIn("kr_auto_run_stage1_done", tab_prelude)
         self.assertIn("kr_auto_run_stage2_done", tab_prelude)
+        self.assertIn("KR_AUTO_RUN_VERSION", tab_prelude)
         for required_call in (
             "get_top_kr_stocks_by_amount(",
             '_fetch_market_overview("KR")',
@@ -125,6 +131,10 @@ class MarketOverviewTests(unittest.TestCase):
             'st.session_state["kr_theme_auto_fetch_pending"] = True',
         ):
             self.assertIn(required_call, tab_prelude)
+
+        login_start = SOURCE.index('if not st.session_state.get("authenticated"):')
+        login_source = SOURCE[login_start:SOURCE.index("st.stop()", login_start)]
+        self.assertIn('st.session_state.pop(_kr_auto_key, None)', login_source)
 
     def test_intraday_failure_falls_back_to_dated_close(self):
         class Price:

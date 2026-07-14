@@ -47,6 +47,13 @@ class ThresholdLabelTranslationTests(unittest.TestCase):
         self.assertEqual(bd._translate_threshold_label("25 bps decrease"), "25bp 인하")
         self.assertEqual(bd._translate_threshold_label("50+ bps decrease"), "50bp 이상 인하")
 
+    def test_grouped_condition_labels(self):
+        self.assertEqual(bd._translate_threshold_label("Exactly 3 cuts"), "3회 인하")
+        self.assertEqual(bd._translate_threshold_label("0 (0 bps)"), "0회 인하")
+        self.assertEqual(bd._translate_threshold_label("In June 2026"), "2026년 6월")
+        self.assertEqual(bd._translate_threshold_label("≥ $80"), "$80 이상")
+        self.assertEqual(bd._translate_threshold_label("¡è $85"), "$85 이상")
+
     def test_above_percent(self):
         self.assertEqual(bd._translate_threshold_label("Above 4.00%"), "4.00% 이상")
 

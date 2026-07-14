@@ -94,6 +94,15 @@ _THRESHOLD_LABEL_PATTERN = re.compile(
 )
 _LABEL_KO = {"above": "이상", "below": "이하", "exactly": "정확히"}
 _BPS_LABEL_PATTERN = re.compile(r"^(\d+)(\+)?\s*bps?\s+(increase|decrease)$", re.IGNORECASE)
+_CUT_COUNT_LABEL_PATTERN = re.compile(r"^Exactly\s+(\d+)\s+cuts?$", re.IGNORECASE)
+_ZERO_CUT_LABEL_PATTERN = re.compile(r"^0\s*\(0\s*bps?\)$", re.IGNORECASE)
+_MONTH_YEAR_LABEL_PATTERN = re.compile(r"^In\s+([A-Za-z]+)\s+(\d{4})$", re.IGNORECASE)
+_HIGH_PRICE_LABEL_PATTERN = re.compile(r"^(?:≥|>=|>|↑|¡è)\s*(\$[\d.,]+)$", re.IGNORECASE)
+_MONTH_KO = {
+    "january": "1월", "february": "2월", "march": "3월", "april": "4월",
+    "may": "5월", "june": "6월", "july": "7월", "august": "8월",
+    "september": "9월", "october": "10월", "november": "11월", "december": "12월",
+}
 _SIMPLE_LABEL_KO = {
     "no change": "동결",
     "yes": "예",
@@ -113,6 +122,19 @@ def _translate_threshold_label(label):
     simple = _SIMPLE_LABEL_KO.get(stripped.lower())
     if simple:
         return simple
+    cut_count_match = _CUT_COUNT_LABEL_PATTERN.match(stripped)
+    if cut_count_match:
+        return f"{cut_count_match.group(1)}회 인하"
+    if _ZERO_CUT_LABEL_PATTERN.match(stripped):
+        return "0회 인하"
+    month_year_match = _MONTH_YEAR_LABEL_PATTERN.match(stripped)
+    if month_year_match:
+        month = _MONTH_KO.get(month_year_match.group(1).lower())
+        if month:
+            return f"{month_year_match.group(2)}년 {month}"
+    high_price_match = _HIGH_PRICE_LABEL_PATTERN.match(stripped)
+    if high_price_match:
+        return f"{high_price_match.group(1)} 이상"
     bps_match = _BPS_LABEL_PATTERN.match(stripped)
     if bps_match:
         amount, plus, direction = bps_match.groups()
