@@ -884,7 +884,8 @@ st.markdown(
        않는다(브라우저에서 직접 확인, scrollTop 이동 시 sticky는 함께 스크롤되어 사라짐).
        position:fixed로 뷰포트 기준 고정하고, 바로 아래 탭 내용에 그만큼 padding-top을 더해
        가려지지 않게 한다. */
-    [data-testid="stTabs"] [data-baseweb="tab-list"] {
+    [data-testid="stTabs"] [data-baseweb="tab-list"],
+    [data-testid="stTabs"] [role="tablist"] {
         position: fixed !important;
         top: 60px;
         left: 0;
@@ -3006,22 +3007,18 @@ def _render_market_overview(market):
     # 자체가 기술적으로 불가능하다는 뜻이 아니다(공개 API는 인증 없이 조회 가능,
     # theme_data.py의 네이버 스크래핑과 동일하게 이미 한 번 재승인된 전례가 있는 종류의
     # 제한). session_state에만 유지하며 DB에 저장하지 않고, 점수·판정 계산에도 절대
-    # 반영하지 않는다. (2026-07-15: 사용자 요청으로 한국장(KR)은 로그인 후 자동 조회
-    # 체인에 포함시켰다 — kr_auto_run_stage2에서 세션당 한 번만 pending 플래그를 세운다.
-    # 미국장(US)은 여전히 버튼을 눌렀을 때만 조회한다.)
+    # 반영하지 않는다. (2026-07-15: 사용자 요청으로 KR·US 둘 다 로그인/탭 진입 후 자동
+    # 조회 체인에 포함시켰다 — kr_auto_run_stage2 / us_auto_run_stage1에서 세션당 한 번만
+    # pending 플래그를 세운다.)
     with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=True):
         _bookmaker_manual_fetch = st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)", key=f"{prefix}_bookmaker_fetch")
-        _bookmaker_auto_fetch = prefix == "kr" and st.session_state.pop("kr_bookmaker_auto_fetch_pending", False)
-        st.caption(
-            "한국장은 로그인 후 자동 조회 · 미국장은 버튼을 누를 때만 조회 · 참고용 · 점수·판정·DB 저장 미반영"
-            if market == "KR" else
-            "버튼을 누를 때만 조회 · 참고용 · 점수·판정·DB 저장 미반영"
-        )
+        _bookmaker_auto_fetch = st.session_state.pop(f"{prefix}_bookmaker_auto_fetch_pending", False)
+        st.caption("로그인/탭 진입 후 자동 조회 · 참고용 · 점수·판정·DB 저장 미반영")
         # 2026-07-13 3차 수정: 임계값 다른 계약을 "사건 그룹"으로 묶어 보여주고(중복
         # 삭제 아님 — 확률분포), DeepL Free API로 사건 제목을 한국어로 번역해서 큰
         # 글씨로 먼저 보여준다(상하님이 영어 원문을 알아보기 어렵다는 지적). 번역은
-        # 이 버튼을 눌렀을 때(또는 KR 자동 조회 때), 그리고 세션 캐시에 없는 새 문장만
-        # 호출한다 — 미국장 렌더링에서는 번역 API를 자동으로 호출하지 않는다.
+        # 이 버튼을 눌렀을 때(또는 자동 조회 때), 그리고 세션 캐시에 없는 새 문장만
+        # 호출한다.
         if _bookmaker_manual_fetch or _bookmaker_auto_fetch:
             with st.spinner("Polymarket/Kalshi 조회 중..."):
                 _snapshot = _cached_fetch_bookmaker_snapshot()
@@ -6907,6 +6904,7 @@ with tab_us:
                 st.session_state[_us_prefix + "market_cap"] = _us_result["market_cap"] or 0.0
         st.session_state["us_stock_auto_fill_results"] = _us_auto_fetch_results
 
+        st.session_state["us_bookmaker_auto_fetch_pending"] = True
         st.session_state["us_auto_run_stage1_done"] = True
         # KR 자동실행 단계와 동일하게, 로그인 직후 전환 연출이 떠 있는 실행에서는
         # 즉시 rerun하지 않고 그 실행 안에서 계속 이어간다. KR 쪽 테마 자동조회가
@@ -6943,6 +6941,32 @@ with tab_us:
     )
     st.caption("미국장은 한국시간 밤에 실시간 단타로 보지 않고, 전일 종가와 스윙 후보를 확인하는 용도입니다.")
 
+    # 2026-07-15 사용자 요청: 한국장의 "오늘 종목 판단 준비하기"처럼, 미국장도 시장자료·
+    # 섹터ETF·테마지표·8종목 스냅샷을 한 번에 다시 불러오는 버튼을 만든다(탭 진입 시
+    # 이미 자동으로 한 번 실행되며, 이 버튼은 그 결과를 강제로 새로고침할 때 쓴다).
+    if st.button("오늘 미국 종목 판단 준비하기", key="us_auto_preview_run", type="primary"):
+        with st.spinner("미국장 자료 새로고침 중..."):
+            st.session_state["us_market_overview_result"] = _fetch_market_overview("US")
+            st.session_state["us_market_overview_checked_at"] = st.session_state["us_market_overview_result"]["checked_at"]
+            st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
+            st.session_state["us_theme_indicators_result"] = theme_data.fetch_us_theme_indicators()
+            _us_refresh_tickers = [s["ticker"] for s in US_SNAPSHOT_STOCKS]
+            _us_refresh_results = _fetch_kr_snapshot_results(_us_refresh_tickers)
+            for _us_ticker, _us_result in _us_refresh_results.items():
+                if _us_result.get("ok"):
+                    _us_prefix = f"snap_{_us_ticker}_"
+                    st.session_state[_us_prefix + "current"] = _us_result["current"]
+                    st.session_state[_us_prefix + "prev_close"] = _us_result["prev_close"]
+                    st.session_state[_us_prefix + "open"] = _us_result["open"]
+                    st.session_state[_us_prefix + "high"] = _us_result["high"]
+                    st.session_state[_us_prefix + "low"] = _us_result["low"]
+                    st.session_state[_us_prefix + "turnover"] = _us_result["turnover"]
+                    st.session_state[_us_prefix + "market_cap"] = _us_result["market_cap"] or 0.0
+            st.session_state["us_stock_auto_fill_results"] = _us_refresh_results
+        st.session_state["us_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if st.session_state.get("us_auto_preview_done_at"):
+        st.caption(f"판단 준비 완료: {st.session_state['us_auto_preview_done_at']}")
+
     # ---- 미국장 테마 레이더 1차 참고판 (수기 참고용, 저장/점수/판단 미반영) ----
     st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
     st.markdown(
@@ -6956,12 +6980,16 @@ with tab_us:
         unsafe_allow_html=True,
     )
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-    with st.expander("펼쳐서 테마 레이더 입력하기", expanded=False):
+    # 2026-07-15 사용자 요청: 한국장 테마 참고판처럼 자동 조회 결과가 접혀서 안 보이지
+    # 않도록 기본으로 펼쳐 둔다(로그인/탭 진입 시 이미 자동으로 조회되어 있음).
+    with st.expander("펼쳐서 테마 레이더 입력하기", expanded=True):
         st.caption(
             "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
             "미국장 테마와 한국장 연결 가능성을 빠르게 정리합니다."
         )
-        st.caption("섹터 ETF 자동 조회는 참고용 표시일 뿐이며 점수·판정·DB 저장에는 반영되지 않습니다.")
+        st.caption("탭 진입 시 자동 조회 · 참고용 표시일 뿐이며 점수·판정·DB 저장에는 반영되지 않습니다.")
+        if st.session_state.get("us_sector_auto_fetch_result", {}).get("checked_at"):
+            st.caption(f"마지막 자동 조회: {st.session_state['us_sector_auto_fetch_result']['checked_at']}")
         if st.button("섹터 ETF 자동 조회 (SOXX/SMH/XLK/XLE/XLF)", key="us_sector_auto_fetch"):
             st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
             st.session_state["us_theme_indicators_result"] = theme_data.fetch_us_theme_indicators()

@@ -10,9 +10,13 @@
 """
 
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
+
+_KR_STOCK_MAPS_CACHE_TTL_SECONDS = 24 * 60 * 60
+_kr_stock_maps_cache = {"at": 0.0, "value": ({}, {})}
 
 NAVER_THEME_LIST_URL = "https://finance.naver.com/sise/theme.naver"
 NAVER_HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -80,17 +84,27 @@ def _classify_kr_theme_verdict(avg_change_pct):
 
 def _get_kr_stock_maps():
     """FinanceDataReader의 KRX 전체 종목 목록에서 {코드: 정식 종목명}과 {코드: 시장} 매핑을
-    함께 만든다. 실패하면 빈 dict 2개를 반환한다(예외 없이 안전하게 대체)."""
+    함께 만든다. 실패하면 빈 dict 2개를 반환한다(예외 없이 안전하게 대체).
+
+    KRX 전체 종목(약 2500개) 조회는 몇 초씩 걸리는데 하루 안에는 거의 안 바뀌는 정적
+    데이터라, 캐시 없이 테마 참고판 새로고침마다 매번 다시 받고 있었다(2026-07-15
+    실측 발견 — 수동 새로고침이 느린 원인 중 하나였다). 24시간 캐시로 재사용한다.
+    """
+    now = time.time()
+    if now - _kr_stock_maps_cache["at"] < _KR_STOCK_MAPS_CACHE_TTL_SECONDS:
+        return _kr_stock_maps_cache["value"]
     try:
         import FinanceDataReader as fdr
 
         df = fdr.StockListing("KRX")
     except Exception:
-        return {}, {}
+        return _kr_stock_maps_cache["value"] if _kr_stock_maps_cache["at"] else ({}, {})
     if df is None or df.empty or not {"Code", "Name", "Market"}.issubset(df.columns):
-        return {}, {}
+        return _kr_stock_maps_cache["value"] if _kr_stock_maps_cache["at"] else ({}, {})
     code_to_name = {str(code).strip(): str(name).strip() for code, name in zip(df["Code"], df["Name"])}
     code_to_market = {str(code).strip(): str(market).strip() for code, market in zip(df["Code"], df["Market"])}
+    _kr_stock_maps_cache["at"] = now
+    _kr_stock_maps_cache["value"] = (code_to_name, code_to_market)
     return code_to_name, code_to_market
 
 
