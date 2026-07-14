@@ -270,18 +270,33 @@ def fetch_kalshi_events(limit_events=6, max_series=15):
     시리즈에 속한 시장만 조회하는 2단계 방식을 쓴다. 같은 event_ticker 아래 여러
     임계값 계약(yes_sub_title로 구분)이 있으면 하나의 이벤트로 묶는다.
     """
-    matched_series = []
+    categories = ("Economics", "Politics")
+
+    def _fetch_category_series(category):
+        resp = requests.get(
+            KALSHI_SERIES_URL, params={"category": category}, timeout=REQUEST_TIMEOUT
+        )
+        resp.raise_for_status()
+        return resp.json().get("series", [])
+
+    series_by_category = {}
     try:
-        for category in ("Economics", "Politics"):
-            resp = requests.get(
-                KALSHI_SERIES_URL, params={"category": category}, timeout=REQUEST_TIMEOUT
-            )
-            resp.raise_for_status()
-            for s in resp.json().get("series", []):
-                if _question_matches(s.get("title")):
-                    matched_series.append(s.get("ticker"))
+        with ThreadPoolExecutor(max_workers=len(categories)) as executor:
+            future_to_category = {
+                executor.submit(_fetch_category_series, category): category
+                for category in categories
+            }
+            for future in as_completed(future_to_category):
+                category = future_to_category[future]
+                series_by_category[category] = future.result()
     except Exception:
         return {"ok": False, "error": "Kalshi 시리즈 조회 실패", "events": []}
+
+    matched_series = []
+    for category in categories:
+        for s in series_by_category.get(category, []):
+            if _question_matches(s.get("title")):
+                matched_series.append(s.get("ticker"))
 
     tickers = [ticker for ticker in matched_series[:max_series] if ticker]
 
@@ -299,7 +314,7 @@ def fetch_kalshi_events(limit_events=6, max_series=15):
 
     markets_by_ticker = {}
     if tickers:
-        with ThreadPoolExecutor(max_workers=min(6, len(tickers))) as executor:
+        with ThreadPoolExecutor(max_workers=len(tickers)) as executor:
             future_to_ticker = {
                 executor.submit(_fetch_series_markets, ticker): ticker for ticker in tickers
             }

@@ -287,6 +287,25 @@ class PolymarketEventGroupingTests(unittest.TestCase):
 
 class KalshiEventGroupingTests(unittest.TestCase):
     @patch("bookmaker_data.requests.get")
+    def test_category_series_requests_run_in_parallel(self, mock_get):
+        category_barrier = Barrier(2)
+        completed = []
+
+        def side_effect(url, params=None, timeout=None):
+            if url == bd.KALSHI_SERIES_URL:
+                category_barrier.wait(timeout=1)
+                completed.append(params["category"])
+                return _response({"series": []})
+            raise AssertionError(f"unexpected url {url}")
+
+        mock_get.side_effect = side_effect
+
+        result = bd.fetch_kalshi_events(limit_events=10, max_series=15)
+
+        self.assertTrue(result["ok"])
+        self.assertCountEqual(completed, ["Economics", "Politics"])
+
+    @patch("bookmaker_data.requests.get")
     def test_series_market_requests_run_in_parallel(self, mock_get):
         market_barrier = Barrier(2)
         completed = []
