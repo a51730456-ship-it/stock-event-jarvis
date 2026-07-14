@@ -3,9 +3,10 @@
 import json
 import math
 import re
-import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
+
+import db_runtime
 
 DB_PATH = Path(__file__).parent / "db" / "jarvis.sqlite3"
 
@@ -30,10 +31,11 @@ TRADE_MODE_CHOICES = ["공통", "단타", "스윙"]
 
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    return db_runtime.connect(DB_PATH)
+
+
+def is_remote_database():
+    return db_runtime.is_remote_database()
 
 
 def init_db():

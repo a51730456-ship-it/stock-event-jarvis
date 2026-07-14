@@ -8,17 +8,13 @@ FK도 없고 서로 참조하지 않는다. 점수·판정·report DB 저장 로
 "강함"인 구간의 첫 날을 찾아 경과일수를 계산한다.
 """
 
-import sqlite3
 from datetime import datetime, timedelta
-from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "db" / "jarvis.sqlite3"
+import database as db
 
 
 def _get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return db.get_connection()
 
 
 def init_theme_history_table():

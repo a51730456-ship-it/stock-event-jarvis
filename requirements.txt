@@ -3,3 +3,4 @@ pandas==2.3.3
 yfinance==1.5.1
 finance-datareader==0.9.202
 pykrx==1.2.8
+libsql==0.1.11

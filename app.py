@@ -260,6 +260,10 @@ def create_daily_db_backup_once():
     백업 실패는 앱을 죽이지 않고 경고만 표시한다. 원본 DB는 읽기만 하며 절대 수정하지 않는다.
     """
     try:
+        # Streamlit Cloud에서는 운영 원본이 Turso에 있고 로컬 파일은 임시이므로,
+        # 기존 SQLite 파일 백업을 시도하지 않는다. Turso의 서버 측 복구를 사용한다.
+        if db.is_remote_database():
+            return
         db_path = db.DB_PATH
         if not db_path.exists():
             return
