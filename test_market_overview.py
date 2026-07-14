@@ -116,15 +116,26 @@ class MarketOverviewTests(unittest.TestCase):
         panel = SOURCE[SOURCE.index("def _render_market_overview"):]
         self.assertLess(panel.index("st.button"), panel.index("_fetch_market_overview"))
 
-    def test_no_bookmaker_fetch_before_its_button(self):
+    def test_us_bookmaker_fetch_stays_button_gated_kr_gets_auto_fetch(self):
+        # 2026-07-15: 사용자 요청으로 KR은 로그인 후 자동 조회 체인에 도박사 신호를
+        # 포함시켰다. US는 여전히 버튼을 눌렀을 때만 조회해야 한다(자동실행 금지 유지).
         panel = SOURCE[SOURCE.index("def _render_market_overview"):SOURCE.index("def _get_snapshot_value")]
-        button = 'if st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)"'
+        button = 'st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)"'
         self.assertLess(panel.index(button), panel.index("_cached_fetch_bookmaker_snapshot()"))
+        self.assertIn('prefix == "kr" and st.session_state.pop("kr_bookmaker_auto_fetch_pending"', panel)
         cached_fetch = SOURCE[
             SOURCE.index("def _cached_fetch_bookmaker_snapshot"):
             SOURCE.index("def _cached_translate_bookmaker_texts")
         ]
         self.assertIn("bookmaker_data.fetch_bookmaker_snapshot()", cached_fetch)
+
+    def test_kr_stage2_arms_bookmaker_auto_fetch_pending_flag(self):
+        stage2 = SOURCE[
+            SOURCE.index('if not st.session_state.get("kr_auto_run_stage2_done")'):
+            SOURCE.index('_render_market_overview("KR")')
+        ]
+        self.assertIn('st.session_state["kr_bookmaker_auto_fetch_pending"] = True', stage2)
+        self.assertIn('st.session_state["kr_theme_auto_fetch_pending"] = True', stage2)
 
     def test_login_followup_reruns_restore_three_kr_auto_actions(self):
         self.assertIn("로그인 후 한국장 자료·종목 판단·테마 참고판을 자동으로 불러오는 중입니다.", SOURCE)

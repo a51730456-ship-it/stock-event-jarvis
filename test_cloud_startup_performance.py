@@ -86,6 +86,24 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         ]
         self.assertNotIn("st.rerun()", actions)
 
+    def test_us_tab_auto_runs_market_overview_sector_and_stock_snapshot_once(self):
+        # 2026-07-15 사용자 요청: 미국장 탭도 한국장 탭처럼 로그인(탭 진입) 후 한 번
+        # 자동으로 시장자료/섹터ETF/8종목 스냅샷을 순서대로 불러와야 한다.
+        us_tab = SOURCE[SOURCE.index('with tab_us:'):SOURCE.index('_render_market_overview("US")', SOURCE.index('with tab_us:'))]
+        self.assertIn('if not st.session_state.get("us_auto_run_stage1_done"):', us_tab)
+        self.assertIn('_cached_fetch_market_overview("US")', us_tab)
+        self.assertIn('theme_data.fetch_us_sector_snapshot()', us_tab)
+        self.assertIn('theme_data.fetch_us_theme_indicators()', us_tab)
+        self.assertIn('_cached_kr_snapshot_results(_us_auto_tickers)', us_tab)
+        self.assertIn('st.session_state["us_auto_run_stage1_done"] = True', us_tab)
+
+    def test_relogin_resets_us_auto_run_flags_alongside_kr(self):
+        login_button_at = SOURCE.index('if st.button("로그인"')
+        login_handler = SOURCE[login_button_at:SOURCE.index("st.stop()", login_button_at)]
+        self.assertIn('"us_auto_run_version"', login_handler)
+        self.assertIn('"us_auto_run_stage1_done"', login_handler)
+        self.assertIn('"kr_bookmaker_auto_fetch_pending"', login_handler)
+
 
 if __name__ == "__main__":
     unittest.main()

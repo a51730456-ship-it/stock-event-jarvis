@@ -575,6 +575,9 @@ if not st.session_state.get("authenticated"):
                     "kr_auto_run_stage1_done",
                     "kr_auto_run_stage2_done",
                     "kr_theme_auto_fetch_pending",
+                    "kr_bookmaker_auto_fetch_pending",
+                    "us_auto_run_version",
+                    "us_auto_run_stage1_done",
                 ):
                     st.session_state.pop(_kr_auto_key, None)
                 st.rerun()
@@ -3002,16 +3005,24 @@ def _render_market_overview(market):
     # "자동연동 금지"는 자동으로 점수·판정·DB에 반영하는 것을 금지한다는 뜻이지, 조회
     # 자체가 기술적으로 불가능하다는 뜻이 아니다(공개 API는 인증 없이 조회 가능,
     # theme_data.py의 네이버 스크래핑과 동일하게 이미 한 번 재승인된 전례가 있는 종류의
-    # 제한). 버튼을 눌렀을 때만 조회하고(로그인 시 자동실행 안 됨), session_state에만
-    # 유지하며 DB에 저장하지 않고, 점수·판정 계산에도 절대 반영하지 않는다.
+    # 제한). session_state에만 유지하며 DB에 저장하지 않고, 점수·판정 계산에도 절대
+    # 반영하지 않는다. (2026-07-15: 사용자 요청으로 한국장(KR)은 로그인 후 자동 조회
+    # 체인에 포함시켰다 — kr_auto_run_stage2에서 세션당 한 번만 pending 플래그를 세운다.
+    # 미국장(US)은 여전히 버튼을 눌렀을 때만 조회한다.)
     with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=True):
-        st.caption("버튼을 누를 때만 조회 · 참고용 · 점수·판정·DB 저장 미반영")
+        _bookmaker_manual_fetch = st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)", key=f"{prefix}_bookmaker_fetch")
+        _bookmaker_auto_fetch = prefix == "kr" and st.session_state.pop("kr_bookmaker_auto_fetch_pending", False)
+        st.caption(
+            "한국장은 로그인 후 자동 조회 · 미국장은 버튼을 누를 때만 조회 · 참고용 · 점수·판정·DB 저장 미반영"
+            if market == "KR" else
+            "버튼을 누를 때만 조회 · 참고용 · 점수·판정·DB 저장 미반영"
+        )
         # 2026-07-13 3차 수정: 임계값 다른 계약을 "사건 그룹"으로 묶어 보여주고(중복
         # 삭제 아님 — 확률분포), DeepL Free API로 사건 제목을 한국어로 번역해서 큰
         # 글씨로 먼저 보여준다(상하님이 영어 원문을 알아보기 어렵다는 지적). 번역은
-        # 이 버튼을 눌렀을 때, 그리고 세션 캐시에 없는 새 문장만 호출한다 — 앱 실행/
-        # 로그인/다른 탭 렌더링에서는 번역 API를 절대 호출하지 않는다.
-        if st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)", key=f"{prefix}_bookmaker_fetch"):
+        # 이 버튼을 눌렀을 때(또는 KR 자동 조회 때), 그리고 세션 캐시에 없는 새 문장만
+        # 호출한다 — 미국장 렌더링에서는 번역 API를 자동으로 호출하지 않는다.
+        if _bookmaker_manual_fetch or _bookmaker_auto_fetch:
             with st.spinner("Polymarket/Kalshi 조회 중..."):
                 _snapshot = _cached_fetch_bookmaker_snapshot()
             _translation_cache = st.session_state.setdefault("bookmaker_translation_cache", {})
@@ -6003,6 +6014,7 @@ with tab_kr:
         st.session_state["kr_auto_preview_done_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         st.session_state["kr_theme_auto_fetch_pending"] = True
+        st.session_state["kr_bookmaker_auto_fetch_pending"] = True
         st.session_state["kr_auto_run_stage2_done"] = True
         # 로그인 전환 실행 중에는 테마 조회가 끝나며 발생하는 rerun 뒤에도 전환
         # 오버레이를 한 번 보여준다. 자동 3단계를 즉시 수행하면서 기존 로그인
@@ -6864,7 +6876,46 @@ with tab_kr:
                 st.session_state.pop("kr_show_save_preview", None)
                 st.rerun()
 
+US_AUTO_RUN_VERSION = "2026-07-15-v1"
+
 with tab_us:
+    # 2026-07-15 사용자 요청: 미국장 탭도 한국장 탭과 동일하게 로그인(탭 진입) 후
+    # "오늘 미국장 자료 불러오기"/"섹터 ETF 자동 조회"/"미국장 기본 종목 불러오기"를
+    # 세션당 한 번 자동으로 순서대로 실행한다. 기존 버튼들은 그대로 남겨두고, 같은
+    # session_state 키에 결과를 채워 넣어 버튼을 다시 눌러도 정상 동작하게 한다.
+    if st.session_state.get("us_auto_run_version") != US_AUTO_RUN_VERSION:
+        st.session_state["us_auto_run_stage1_done"] = False
+        st.session_state["us_auto_run_version"] = US_AUTO_RUN_VERSION
+    if not st.session_state.get("us_auto_run_stage1_done"):
+        st.session_state["us_market_overview_result"] = _cached_fetch_market_overview("US")
+        st.session_state["us_market_overview_checked_at"] = st.session_state["us_market_overview_result"]["checked_at"]
+
+        st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
+        st.session_state["us_theme_indicators_result"] = theme_data.fetch_us_theme_indicators()
+
+        _us_auto_tickers = [s["ticker"] for s in US_SNAPSHOT_STOCKS]
+        _us_auto_fetch_results = _cached_kr_snapshot_results(_us_auto_tickers)
+        for _us_ticker, _us_result in _us_auto_fetch_results.items():
+            if _us_result.get("ok"):
+                _us_prefix = f"snap_{_us_ticker}_"
+                st.session_state[_us_prefix + "current"] = _us_result["current"]
+                st.session_state[_us_prefix + "prev_close"] = _us_result["prev_close"]
+                st.session_state[_us_prefix + "open"] = _us_result["open"]
+                st.session_state[_us_prefix + "high"] = _us_result["high"]
+                st.session_state[_us_prefix + "low"] = _us_result["low"]
+                st.session_state[_us_prefix + "turnover"] = _us_result["turnover"]
+                st.session_state[_us_prefix + "market_cap"] = _us_result["market_cap"] or 0.0
+        st.session_state["us_stock_auto_fill_results"] = _us_auto_fetch_results
+
+        st.session_state["us_auto_run_stage1_done"] = True
+        # KR 자동실행 단계와 동일하게, 로그인 직후 전환 연출이 떠 있는 실행에서는
+        # 즉시 rerun하지 않고 그 실행 안에서 계속 이어간다. KR 쪽 테마 자동조회가
+        # 이미 자체 rerun으로 전환 오버레이를 다시 세워 보여주므로(위 kr_theme_auto_fetch_pending
+        # 처리부), 여기서는 다시 세우지 않는다 — 다시 세우면 이 실행이 마지막 패스가 될 때
+        # login_transition_pending이 아무도 소비하지 않은 채 세션에 남는다.
+        if not _login_transition_pending:
+            st.rerun()
+
     _render_market_overview("US")
     st.subheader("미국장")
     st.caption(

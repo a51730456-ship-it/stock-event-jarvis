@@ -292,6 +292,28 @@ def fetch_kr_theme_stock_detail(theme_name):
     }
 
 
+def _fetch_tickers_in_parallel(fetch_fn, tickers):
+    """티커별 조회 함수를 동시에 실행한다(price_data.py는 읽기 전용으로만 호출).
+
+    yfinance 건당 응답이 0.8~1초 안팎이라 섹터 ETF(5개)/테마 지표(약 18개)를 순차
+    조회하면 2~4초가 누적된다(2026-07-15 실측). 개별 실패는 격리해 나머지는 계속
+    진행한다.
+    """
+    tickers = list(dict.fromkeys(tickers))
+    if not tickers:
+        return {}
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(tickers)) as executor:
+        future_to_ticker = {executor.submit(fetch_fn, ticker): ticker for ticker in tickers}
+        for future in as_completed(future_to_ticker):
+            ticker = future_to_ticker[future]
+            try:
+                results[ticker] = future.result()
+            except Exception:
+                results[ticker] = {"ok": False}
+    return results
+
+
 US_SECTOR_ETFS = [
     ("SOXX", "반도체"),
     ("SMH", "반도체"),
@@ -311,13 +333,13 @@ def fetch_us_sector_snapshot():
 
     import price_data
 
+    tickers = [ticker for ticker, _label in US_SECTOR_ETFS]
+    results = _fetch_tickers_in_parallel(price_data.get_snapshot_defaults, tickers)
+
     sectors = []
     any_ok = False
     for ticker, label in US_SECTOR_ETFS:
-        try:
-            result = price_data.get_snapshot_defaults(ticker)
-        except Exception:
-            result = {"ok": False}
+        result = results.get(ticker) or {"ok": False}
         if result.get("ok") and result.get("current") and result.get("prev_close"):
             change_pct = round(
                 (result["current"] - result["prev_close"]) / result["prev_close"] * 100, 2
@@ -361,13 +383,12 @@ def fetch_us_theme_indicators():
     import price_data
 
     all_tickers = sorted({t for tickers in US_THEME_INDICATOR_MAPPING.values() for t in tickers})
+    results = _fetch_tickers_in_parallel(price_data.get_snapshot_defaults, all_tickers)
+
     values = {}
     any_ok = False
     for ticker in all_tickers:
-        try:
-            result = price_data.get_snapshot_defaults(ticker)
-        except Exception:
-            result = {"ok": False}
+        result = results.get(ticker) or {"ok": False}
         if result.get("ok") and result.get("current") and result.get("prev_close"):
             values[ticker] = round(
                 (result["current"] - result["prev_close"]) / result["prev_close"] * 100, 2
