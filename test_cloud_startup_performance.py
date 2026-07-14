@@ -92,8 +92,8 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         us_tab = SOURCE[SOURCE.index('def _render_tab_us():'):SOURCE.index('_render_market_overview("US")', SOURCE.index('def _render_tab_us():'))]
         self.assertIn('if not st.session_state.get("us_auto_run_stage1_done"):', us_tab)
         self.assertIn('_cached_fetch_market_overview("US")', us_tab)
-        self.assertIn('theme_data.fetch_us_sector_snapshot()', us_tab)
-        self.assertIn('theme_data.fetch_us_theme_indicators()', us_tab)
+        self.assertIn('_cached_fetch_us_sector_snapshot()', us_tab)
+        self.assertIn('_cached_fetch_us_theme_indicators()', us_tab)
         self.assertIn('_cached_kr_snapshot_results(_us_auto_tickers)', us_tab)
         self.assertIn('st.session_state["us_auto_run_stage1_done"] = True', us_tab)
 
@@ -158,8 +158,48 @@ class CloudStartupPerformanceTests(unittest.TestCase):
             SOURCE.index('key="us_auto_preview_run"'):
             SOURCE.index('st.session_state["us_auto_preview_done_at"]')
         ]
-        self.assertIn("_fetch_top_us_stocks_by_amount(8)", primary_action)
+        self.assertIn("_short_cached_top_us_stocks_by_amount(8)", primary_action)
         self.assertIn('st.session_state["dynamic_us_snapshot_stocks"] = _us_reselected', primary_action)
+
+    def test_refresh_buttons_use_short_cache_not_a_full_bypass(self):
+        # 2026-07-15 사용자 요청: "새로고침 버튼을 바로 다시 누르면 또 느리다"는 지적으로,
+        # force_refresh 경로가 캐시를 완전히 무시하던 것을 8초짜리 짧은 캐시로 바꿨다.
+        # 연속 재클릭은 즉시 응답되면서도, 몇 초 뒤 실제 새로고침 의도는 그대로 살아있다.
+        self.assertIn(
+            "@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)\ndef _short_cached_fetch_market_overview",
+            SOURCE,
+        )
+        self.assertIn(
+            "@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)\ndef _short_cached_kr_mood_source_results",
+            SOURCE,
+        )
+        self.assertIn(
+            "@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)\ndef _short_cached_kr_snapshot_results",
+            SOURCE,
+        )
+        self.assertIn(
+            "@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)\ndef _short_cached_fetch_kr_theme_snapshot",
+            SOURCE,
+        )
+        self.assertIn(
+            "@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)\ndef _short_cached_fetch_us_sector_snapshot",
+            SOURCE,
+        )
+        self.assertIn(
+            "@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)\ndef _short_cached_fetch_us_theme_indicators",
+            SOURCE,
+        )
+        self.assertIn(
+            "@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)\ndef _short_cached_top_us_stocks_by_amount",
+            SOURCE,
+        )
+
+        run_mood_fn = SOURCE[SOURCE.index("def run_kr_mood_auto_check"):SOURCE.index("def run_kr_snapshot_auto_fill")]
+        self.assertIn("_short_cached_kr_mood_source_results()", run_mood_fn)
+        self.assertNotIn("_fetch_kr_mood_source_results()\n        if force_refresh", run_mood_fn)
+
+        run_fill_fn = SOURCE[SOURCE.index("def run_kr_snapshot_auto_fill"):SOURCE.index("_AUTO_FETCH_FIELD_LABELS")]
+        self.assertIn("_short_cached_kr_snapshot_results(_snapshot_tickers)", run_fill_fn)
 
 
 if __name__ == "__main__":

@@ -2933,6 +2933,20 @@ def _cached_fetch_market_overview(market):
     return _fetch_market_overview(market)
 
 
+# 2026-07-15 사용자 요청: "새로고침" 버튼들은 지금까지 캐시를 완전히 무시하고 매번
+# 새로 조회했다 — 의도적 새로고침이니 당연한 설계였지만, 실수로 또는 확인 차 바로
+# 다시 누르면 매번 몇 초씩 다시 기다려야 했다("다시 누르면 너무 느리다"). 8초 정도의
+# 아주 짧은 캐시만 끼워 넣으면 연속 재클릭은 즉시 응답되면서도, 실제 "새로고침" 의도
+# (몇 초~몇 분 뒤 다시 누르는 경우)는 그대로 살아있다. 시세 데이터는 8초 안에 크게
+# 달라지지 않으므로 정확도 손해도 사실상 없다.
+FORCE_REFRESH_SHORT_TTL = 8
+
+
+@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
+def _short_cached_fetch_market_overview(market):
+    return _fetch_market_overview(market)
+
+
 @st.cache_data(ttl=120, show_spinner=False)
 def _cached_fetch_bookmaker_snapshot():
     """사용자가 버튼을 눌렀을 때만 조회하고, 짧은 시간의 중복 조회는 재사용한다."""
@@ -3034,7 +3048,7 @@ def _render_market_overview(market):
         unsafe_allow_html=True,
     )
     if st.button("오늘 한국장 자료 불러오기" if market == "KR" else "오늘 미국장 자료 불러오기", key=button_key):
-        st.session_state[result_key] = _fetch_market_overview(market)
+        st.session_state[result_key] = _short_cached_fetch_market_overview(market)
         st.session_state[checked_key] = st.session_state[result_key]["checked_at"]
         result = st.session_state[result_key]
     if not result:
@@ -4691,6 +4705,11 @@ def _cached_get_top_us_stocks_by_amount(n):
     return _fetch_top_us_stocks_by_amount(n)
 
 
+@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
+def _short_cached_top_us_stocks_by_amount(n):
+    return _fetch_top_us_stocks_by_amount(n)
+
+
 def _fetch_kr_mood_source_results():
     """시장 분위기 원자료를 읽되 Yahoo 종목은 제한된 수로 병렬 조회한다."""
     results = {}
@@ -4722,6 +4741,11 @@ def _cached_kr_mood_source_results():
     return _fetch_kr_mood_source_results()
 
 
+@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
+def _short_cached_kr_mood_source_results():
+    return _fetch_kr_mood_source_results()
+
+
 def _fetch_kr_snapshot_results(tickers):
     """종목별 Yahoo 조회를 네 개씩 병렬 처리하고 종목별 실패는 격리한다."""
     tickers = tuple(tickers)
@@ -4744,6 +4768,11 @@ def _fetch_kr_snapshot_results(tickers):
 
 @st.cache_data(ttl=90, show_spinner=False)
 def _cached_kr_snapshot_results(tickers):
+    return _fetch_kr_snapshot_results(tickers)
+
+
+@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
+def _short_cached_kr_snapshot_results(tickers):
     return _fetch_kr_snapshot_results(tickers)
 
 
@@ -4776,7 +4805,7 @@ def run_kr_mood_auto_check(force_refresh=False):
     _mood_results = []
     _ok_count = 0
     _mood_source_results = (
-        _fetch_kr_mood_source_results()
+        _short_cached_kr_mood_source_results()
         if force_refresh
         else _cached_kr_mood_source_results()
     )
@@ -4833,7 +4862,7 @@ def run_kr_snapshot_auto_fill(force_refresh=False):
     """
     _snapshot_tickers = tuple(s["ticker"] for s in SNAPSHOT_STOCKS)
     fetch_results = (
-        _fetch_kr_snapshot_results(_snapshot_tickers)
+        _short_cached_kr_snapshot_results(_snapshot_tickers)
         if force_refresh
         else _cached_kr_snapshot_results(_snapshot_tickers)
     )
@@ -4991,6 +5020,33 @@ def _cached_fetch_kr_theme_snapshot():
     return theme_data.fetch_kr_theme_snapshot()
 
 
+@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
+def _short_cached_fetch_kr_theme_snapshot():
+    return theme_data.fetch_kr_theme_snapshot()
+
+
+@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
+def _short_cached_fetch_us_sector_snapshot():
+    return theme_data.fetch_us_sector_snapshot()
+
+
+@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
+def _short_cached_fetch_us_theme_indicators():
+    return theme_data.fetch_us_theme_indicators()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_fetch_us_sector_snapshot():
+    """여러 기기의 탭 진입에서 같은 섹터 ETF 조회를 반복하지 않게 한다."""
+    return theme_data.fetch_us_sector_snapshot()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_fetch_us_theme_indicators():
+    """여러 기기의 탭 진입에서 같은 테마 지표 조회를 반복하지 않게 한다."""
+    return theme_data.fetch_us_theme_indicators()
+
+
 def _render_kr_theme_chip_editor():
     """기존 한국장 테마 list[dict]를 단일 session_state 원본으로 편집한다 (DB 미사용)."""
     st.markdown(
@@ -5081,7 +5137,7 @@ def _render_kr_theme_chip_editor():
     if _kr_theme_manual_fetch or _kr_theme_auto_fetch:
         _kr_theme_selected_before_fetch = st.session_state.get("kr_theme_detail_selector")
         _kr_theme_fetch_result = (
-            theme_data.fetch_kr_theme_snapshot()
+            _short_cached_fetch_kr_theme_snapshot()
             if _kr_theme_manual_fetch
             else _cached_fetch_kr_theme_snapshot()
         )
@@ -7024,8 +7080,8 @@ def _render_tab_us():
         st.session_state["us_market_overview_result"] = _cached_fetch_market_overview("US")
         st.session_state["us_market_overview_checked_at"] = st.session_state["us_market_overview_result"]["checked_at"]
 
-        st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
-        st.session_state["us_theme_indicators_result"] = theme_data.fetch_us_theme_indicators()
+        st.session_state["us_sector_auto_fetch_result"] = _cached_fetch_us_sector_snapshot()
+        st.session_state["us_theme_indicators_result"] = _cached_fetch_us_theme_indicators()
 
         _us_auto_tickers = [s["ticker"] for s in US_SNAPSHOT_STOCKS]
         _us_auto_fetch_results = _cached_kr_snapshot_results(_us_auto_tickers)
@@ -7085,17 +7141,17 @@ def _render_tab_us():
     # 이미 자동으로 한 번 실행되며, 이 버튼은 그 결과를 강제로 새로고침할 때 쓴다).
     if st.button("오늘 미국 종목 판단 준비하기", key="us_auto_preview_run", type="primary"):
         with st.spinner("미국장 자료 새로고침 중..."):
-            _us_reselected = _fetch_top_us_stocks_by_amount(8)
+            _us_reselected = _short_cached_top_us_stocks_by_amount(8)
             if _us_reselected:
                 st.session_state["dynamic_us_snapshot_stocks"] = _us_reselected
                 st.session_state["dynamic_us_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.session_state["us_market_overview_result"] = _fetch_market_overview("US")
+            st.session_state["us_market_overview_result"] = _short_cached_fetch_market_overview("US")
             st.session_state["us_market_overview_checked_at"] = st.session_state["us_market_overview_result"]["checked_at"]
-            st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
-            st.session_state["us_theme_indicators_result"] = theme_data.fetch_us_theme_indicators()
+            st.session_state["us_sector_auto_fetch_result"] = _short_cached_fetch_us_sector_snapshot()
+            st.session_state["us_theme_indicators_result"] = _short_cached_fetch_us_theme_indicators()
             _us_refresh_stocks = _us_reselected or US_SNAPSHOT_STOCKS
             _us_refresh_tickers = [s["ticker"] for s in _us_refresh_stocks]
-            _us_refresh_results = _fetch_kr_snapshot_results(_us_refresh_tickers)
+            _us_refresh_results = _short_cached_kr_snapshot_results(_us_refresh_tickers)
             for _us_ticker, _us_result in _us_refresh_results.items():
                 if _us_result.get("ok"):
                     _us_prefix = f"snap_{_us_ticker}_"
@@ -7181,7 +7237,7 @@ def _render_tab_us():
             key="dynamic_us_snapshot_n",
         )
         if st.button("미국 거래대금 상위 종목 다시 불러오기", key="dynamic_us_snapshot_refresh"):
-            _new_us_stocks = _fetch_top_us_stocks_by_amount(int(_dynamic_us_top_n))
+            _new_us_stocks = _short_cached_top_us_stocks_by_amount(int(_dynamic_us_top_n))
             if _new_us_stocks:
                 st.session_state["dynamic_us_snapshot_stocks"] = _new_us_stocks
                 st.session_state["dynamic_us_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -7216,8 +7272,8 @@ def _render_tab_us():
         if st.session_state.get("us_sector_auto_fetch_result", {}).get("checked_at"):
             st.caption(f"마지막 자동 조회: {st.session_state['us_sector_auto_fetch_result']['checked_at']}")
         if st.button("섹터 ETF 자동 조회 (SOXX/SMH/XLK/XLE/XLF)", key="us_sector_auto_fetch"):
-            st.session_state["us_sector_auto_fetch_result"] = theme_data.fetch_us_sector_snapshot()
-            st.session_state["us_theme_indicators_result"] = theme_data.fetch_us_theme_indicators()
+            st.session_state["us_sector_auto_fetch_result"] = _short_cached_fetch_us_sector_snapshot()
+            st.session_state["us_theme_indicators_result"] = _short_cached_fetch_us_theme_indicators()
             st.rerun()
         _us_sector_result = st.session_state.get("us_sector_auto_fetch_result")
         if _us_sector_result:
