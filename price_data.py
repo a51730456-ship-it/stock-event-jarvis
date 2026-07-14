@@ -7,6 +7,8 @@ pykrx는 이번 1차 성과검증에서는 사용하지 않는다.
 """
 
 import math
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -97,6 +99,12 @@ def get_benchmark_history(benchmark_name, start, end):
 # 완전히 분리된 새 함수다. 기존 함수/성과검증 로직은 전혀 건드리지 않는다.
 
 _SNAPSHOT_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
+_SEOUL_TZ = ZoneInfo("Asia/Seoul")
+
+
+def _now_seoul():
+    """테스트에서 고정할 수 있는 한국 현재 시각."""
+    return datetime.now(_SEOUL_TZ)
 
 
 def _latest_ohlc_row_is_valid(df):
@@ -157,26 +165,51 @@ def get_intraday_last(ticker):
         df = yf.Ticker(ticker).history(period="1d", interval="1m")
         if df is None or df.empty or "Close" not in df.columns:
             return {"ok": False, "error": "장중 1분봉 데이터 없음"}
-        last = df.iloc[-1]
-        close = float(last["Close"])
-        if not math.isfinite(close) or close <= 0:
+
+        # 아직 값이 확정되지 않은 마지막 행(NaN/Infinity/0 이하)은 사용하지 않고,
+        # 같은 응답 안에서 가장 최근의 유효한 1분봉을 고른다.
+        valid_positions = []
+        for position, value in enumerate(df["Close"].tolist()):
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(numeric) and numeric > 0:
+                valid_positions.append((position, numeric))
+        if not valid_positions:
             return {"ok": False, "error": "장중 데이터 유효성 실패"}
-        asof_str = None
+
+        last_position, close = valid_positions[-1]
         try:
-            asof = df.index[-1]
-            # tz_convert(None)은 UTC로 변환 후 tz만 지워서 시각이 바뀐다(버그로 KOSPI
-            # 12:17 KST가 03:17로 표시됨, 2026-07-13 발견). tz_localize(None)은 시각은
-            # 그대로 두고 tz 표기만 지운다 — _clean_index()와 동일한 방식으로 통일.
-            asof_local = asof.tz_localize(None) if asof.tzinfo is not None else asof
-            asof_str = asof_local.strftime("%H:%M")
+            asof = pd.Timestamp(df.index[last_position])
+            # 시간대가 있는 값은 반드시 Asia/Seoul로 변환한다. 시간대가 없는 값은
+            # yfinance의 한국 거래소 현지 시각으로 간주해 Asia/Seoul을 명시한다.
+            asof_seoul = (
+                asof.tz_localize(_SEOUL_TZ)
+                if asof.tzinfo is None
+                else asof.tz_convert(_SEOUL_TZ)
+            )
         except Exception:
-            asof_str = None
-        return {"ok": True, "current": close, "asof": asof_str}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": "장중 조회 기준 시각 확인 불가"}
+
+        as_of_date = asof_seoul.strftime("%Y-%m-%d")
+        if asof_seoul.date() != _now_seoul().date():
+            return {"ok": False, "error": "오늘 장중 1분봉 데이터 없음"}
+
+        as_of_time = asof_seoul.strftime("%H:%M")
+        return {
+            "ok": True,
+            "current": close,
+            "asof": as_of_time,  # 기존 호출자 호환
+            "as_of_time": as_of_time,
+            "as_of_date": as_of_date,
+            "data_kind": "intraday",
+        }
+    except Exception:
+        return {"ok": False, "error": "장중 시세 조회 실패"}
 
 
-def get_snapshot_defaults(ticker):
+def get_snapshot_defaults(ticker, completed_only=False):
     """장중 스냅샷 "기본값 자동 채우기" 전용 조회. DB에 저장하지 않는 읽기 전용 헬퍼다.
 
     yfinance 우선, 실패 시 FinanceDataReader 보조로 최근 일봉(시가/고가/저가/종가/거래량)을
@@ -186,9 +219,10 @@ def get_snapshot_defaults(ticker):
     거래대금/시가총액은 일별 정확한 값을 무료 소스에서 안정적으로 얻기 어려워
     근사치(거래량×종가, 상장주식수×종가)로 계산하고 *_approx=True로 표시한다.
     조회 실패 시 예외를 던지지 않고 {"ok": False, "error": "..."}를 반환한다.
-    """
-    from datetime import datetime, timedelta
 
+    completed_only=True이면 한국 장중(15:40 이전)에 생성된 오늘 일봉을 제외한다.
+    기본값은 False이므로 기존 호출자의 장중 스냅샷 동작은 그대로 유지된다.
+    """
     now = datetime.now()
     start_str = (now - timedelta(days=15)).strftime("%Y-%m-%d")
     end_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -204,6 +238,15 @@ def get_snapshot_defaults(ticker):
         except Exception:
             df = None
 
+    if df is not None and completed_only and not df.empty:
+        try:
+            now_seoul = _now_seoul()
+            last_date = pd.Timestamp(df.index[-1]).date()
+            if last_date == now_seoul.date() and now_seoul.time() < time(15, 40):
+                df = df.iloc[:-1]
+        except Exception:
+            return {"ok": False, "error": "완료 거래일 확인 실패"}
+
     if df is None or len(df) < 2:
         return {"ok": False, "error": "시세 조회 실패(데이터 없음)"}
 
@@ -218,6 +261,14 @@ def get_snapshot_defaults(ticker):
         volume = float(last["Volume"])
     except Exception as e:
         return {"ok": False, "error": f"시세 데이터 해석 실패: {e}"}
+
+    # 이 종가가 실제로 "며칠 몇 일자" 데이터인지 호출부가 표시할 수 있도록 날짜를
+    # 같이 반환한다(추가 필드라 기존 호출부는 영향 없음, 2026-07-13 추가 — 화면에
+    # "최근 종가로 대체"라고만 쓰면 정확히 언제 종가인지 알 수 없다는 지적 반영).
+    try:
+        as_of_date = df.index[-1].strftime("%Y-%m-%d")
+    except Exception:
+        as_of_date = None
 
     # 최종 반환 직전 재검증. _try_yfinance_ohlcv()/_try_fdr_ohlcv()가 이미 최신 행의
     # OHLC 유효성을 확인하지만, 여기서도 실제로 반환할 값 자체를 다시 확인해 NaN/
@@ -265,6 +316,9 @@ def get_snapshot_defaults(ticker):
         "turnover_approx": True,
         "market_cap": market_cap,
         "market_cap_approx": True,
+        "as_of_date": as_of_date,
+        "as_of_time": None,
+        "data_kind": "daily_close",
     }
 
 

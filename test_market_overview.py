@@ -14,7 +14,7 @@ NAMESPACE = {
     "datetime": datetime,
     "MARKET_OVERVIEW_MIN_SIGNALS": 3,
     "MARKET_OVERVIEW_PRICE_SPECS": {
-        "KR": [("KOSPI·KOSDAQ", ("KOSPI", "^KS11")), ("달러/원", ("달러/원", "KRW=X")), ("반도체", ("SOXX", "SOXX")), ("나스닥100 선물", ("NQ=F", "NQ=F"))],
+        "KR": [("KOSPI·KOSDAQ", ("KOSPI", "^KS11"), ("KOSDAQ", "^KQ11")), ("달러/원", ("달러/원", "KRW=X")), ("반도체", ("SOXX", "SOXX")), ("나스닥100 선물", ("NQ=F", "NQ=F"))],
         "US": [("S&P500·Nasdaq", ("S&P500", "^GSPC")), ("미국 10년물", ("미국 10년물", "^TNX")), ("VIX", ("VIX", "^VIX")), ("반도체", ("SOXX", "SOXX"))],
     },
     "MARKET_OVERVIEW_NEWS_QUERIES": {"KR": ("q1", "q2"), "US": ("q1", "q2")},
@@ -97,10 +97,121 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertNotIn("원문 보기", render_source)
         render_source = SOURCE[SOURCE.index("def _render_market_overview"):SOURCE.index("def _get_snapshot_value")]
         self.assertNotIn("실시간", render_source)
+        for phrase in ("장중 {item['asof']} 기준", "{item['asof']} 종가 기준", "조회 기준 확인 불가"):
+            self.assertIn(phrase, render_source)
 
     def test_no_market_fetch_before_button(self):
         panel = SOURCE[SOURCE.index("def _render_market_overview"):]
         self.assertLess(panel.index("st.button"), panel.index("_fetch_market_overview"))
+
+    def test_no_bookmaker_fetch_before_its_button(self):
+        panel = SOURCE[SOURCE.index("def _render_market_overview"):SOURCE.index("def _get_snapshot_value")]
+        button = 'if st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)"'
+        self.assertLess(panel.index(button), panel.index("bookmaker_data.fetch_bookmaker_snapshot()"))
+
+    def test_login_and_rerun_keep_keys_without_market_auto_run(self):
+        tab_start = SOURCE.index("with tab_kr:")
+        panel_start = SOURCE.index('_render_market_overview("KR")', tab_start)
+        tab_prelude = SOURCE[tab_start:panel_start]
+        self.assertIn("kr_auto_run_stage1_done", tab_prelude)
+        self.assertIn("kr_auto_run_stage2_done", tab_prelude)
+        for forbidden_call in (
+            "get_top_kr_stocks_by_amount(",
+            '_fetch_market_overview("KR")',
+            "run_kr_mood_auto_check()",
+            "run_kr_snapshot_auto_fill()",
+        ):
+            self.assertNotIn(forbidden_call, tab_prelude)
+
+    def test_intraday_failure_falls_back_to_dated_close(self):
+        class Price:
+            intraday_calls = []
+
+            def get_snapshot_defaults(self, ticker, completed_only=False):
+                return {
+                    "ok": True,
+                    "current": 101.0,
+                    "prev_close": 100.0,
+                    "as_of_date": "2026-07-10",
+                }
+
+            def get_intraday_last(self, ticker):
+                self.intraday_calls.append(ticker)
+                return {"ok": False, "error": "empty"}
+
+            def get_ohlc_history_for_chart(self, *args):
+                return None
+
+        class Secrets:
+            def get(self, key):
+                return None
+
+        price = Price()
+        NAMESPACE["price_data"] = price
+        NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
+
+        result = NAMESPACE["_fetch_market_overview"]("KR")
+
+        items = result["price_cards"][0]["items"]
+        self.assertEqual(price.intraday_calls, ["^KS11", "^KQ11"])
+        self.assertTrue(all(item["data_kind"] == "daily_close" for item in items))
+        self.assertTrue(all(item["asof"] == "2026-07-10" for item in items))
+
+    def test_today_intraday_replaces_only_kr_index_close(self):
+        class Price:
+            def get_snapshot_defaults(self, ticker, completed_only=False):
+                return {
+                    "ok": True,
+                    "current": 101.0,
+                    "prev_close": 100.0,
+                    "as_of_date": "2026-07-10",
+                }
+
+            def get_intraday_last(self, ticker):
+                return {
+                    "ok": True,
+                    "current": 102.0,
+                    "asof": "12:17",
+                    "as_of_time": "12:17",
+                    "as_of_date": "2026-07-14",
+                    "data_kind": "intraday",
+                }
+
+            def get_ohlc_history_for_chart(self, *args):
+                return None
+
+        class Secrets:
+            def get(self, key):
+                return None
+
+        NAMESPACE["price_data"] = Price()
+        NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
+
+        result = NAMESPACE["_fetch_market_overview"]("KR")
+
+        items = result["price_cards"][0]["items"]
+        self.assertTrue(all(item["data_kind"] == "intraday" for item in items))
+        self.assertTrue(all(item["as_of_date"] == "2026-07-14" for item in items))
+        self.assertTrue(all(item["as_of_time"] == "12:17" for item in items))
+
+    def test_price_lookup_failure_has_unknown_reference_time(self):
+        class Price:
+            def get_snapshot_defaults(self, ticker, completed_only=False):
+                return {"ok": False, "error": "network"}
+
+        class Secrets:
+            def get(self, key):
+                return None
+
+        NAMESPACE["price_data"] = Price()
+        NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
+
+        result = NAMESPACE["_fetch_market_overview"]("KR")
+
+        items = result["price_cards"][0]["items"]
+        self.assertTrue(all(item["status"] == "확인 불가" for item in items))
+        self.assertTrue(all(item["data_kind"] == "unknown" for item in items))
+        self.assertTrue(all(item["asof"] is None for item in items))
 
     def test_partial_price_failure_does_not_drop_news(self):
         class Price:
