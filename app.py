@@ -3674,11 +3674,23 @@ def _render_risk_and_warning_inputs(ticker, market, compact=False):
         entry_price = rc1.number_input(
             "진입가", min_value=0.0, step=100.0, key=prefix + "entry_price"
         )
-        rc1.caption(f"{entry_price:,.0f}" if entry_price else "-")
+        # 2026-07-15 사용자 반복 지적: 쉼표 표시가 st.caption(기본 14px 안팎)이라 잘
+        # 안 보였다 — 앱 기본 글자 크기(19px)로 키우고, 입력 안 한 경우 이유도 명시한다.
+        rc1.markdown(
+            f"<div style='font-size:19px;color:#e5e7eb;font-weight:700'>{entry_price:,.0f}</div>"
+            if entry_price else
+            "<div style='font-size:16px;color:#8b95a5'>아직 입력 안 함</div>",
+            unsafe_allow_html=True,
+        )
         stop_loss_price = rc2.number_input(
             "손절가", value=0.0, min_value=0.0, step=100.0, key=prefix + "stop_loss_price"
         )
-        rc2.caption(f"{stop_loss_price:,.0f}" if stop_loss_price else "-")
+        rc2.markdown(
+            f"<div style='font-size:19px;color:#e5e7eb;font-weight:700'>{stop_loss_price:,.0f}</div>"
+            if stop_loss_price else
+            "<div style='font-size:16px;color:#8b95a5'>아직 입력 안 함(자동 계산 안 됨, 직접 입력 필요)</div>",
+            unsafe_allow_html=True,
+        )
 
         account_size = st.session_state.get("risk_account_size", 0.0)
         risk_percent = st.session_state.get("risk_percent_setting", 1.0)
