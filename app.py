@@ -3176,6 +3176,10 @@ def _render_market_overview(market):
                             f"<div style='font-size:18px;line-height:1.65;color:{change_color};margin-top:6px'>{'등락률' if _data_kind == 'intraday' else '전일 대비 등락률'} {change_text}</div>"
                             f"<div style='font-size:14px;line-height:1.5;color:#8b95a5;margin-top:2px'>{_asof_text}</div>"
                             f"{_spark}"
+                            # 미니 차트는 오늘 장중 흐름이 아니라 최근 10일 종가 추이다 —
+                            # 오늘 +6%인데 차트가 하락으로 보이면 지난주 하락 구간이 담긴
+                            # 것이니 라벨로 명시해 혼동을 막는다(2026-07-15 사용자 질문).
+                            + ("<div style='font-size:12px;line-height:1.4;color:#6b7280'>최근 10일 추이</div>" if item.get("history") else "")
                         )
                 card_parts.append("</div>")
                 st.markdown("".join(card_parts), unsafe_allow_html=True)
