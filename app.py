@@ -578,6 +578,7 @@ if not st.session_state.get("authenticated"):
                     "kr_bookmaker_auto_fetch_pending",
                     "us_auto_run_version",
                     "us_auto_run_stage1_done",
+                    "parallel_warmup_done",
                 ):
                     st.session_state.pop(_kr_auto_key, None)
                 st.rerun()
@@ -2330,6 +2331,41 @@ tab_kr, tab_us, tab_action, tab_review, tab_saved, tab_aux = st.tabs(
     [
         "① 한국장 판단", "② 미국장 판단", "③ 행동·청산", "④ 복기·통계", "⑤ 기록 조회", "⑥ 보조",
     ]
+)
+
+# 탭을 바꿔도 브라우저 스크롤 위치가 그대로 남아, 미국장 판단을 눌러도 화면 중간부터
+# 보이던 문제(2026-07-15 사용자 지적) — 탭 버튼 클릭 시 맨 위로 스크롤한다.
+# st.markdown의 <script>는 실행되지 않으므로 components.html(iframe)로 부모 문서에
+# 리스너를 단다. 새 요소가 생겨도 리스너가 유지되도록 MutationObserver로 재바인딩한다.
+import streamlit.components.v1 as _st_components
+
+_st_components.html(
+    """<script>
+    (function () {
+      const doc = window.parent.document;
+      function scrollAllTops() {
+        [
+          doc.querySelector('[data-testid="stMain"]'),
+          doc.querySelector('section.main'),
+          doc.querySelector('[data-testid="stAppViewContainer"]'),
+          doc.scrollingElement,
+        ].forEach(function (el) { if (el && el.scrollTo) el.scrollTo({ top: 0 }); });
+        window.parent.scrollTo({ top: 0 });
+      }
+      function bind() {
+        doc.querySelectorAll('[data-testid="stTabs"] [role="tab"]').forEach(function (btn) {
+          if (btn.dataset.jarvisScrollBound) return;
+          btn.dataset.jarvisScrollBound = "1";
+          btn.addEventListener("click", function () {
+            requestAnimationFrame(function () { requestAnimationFrame(scrollAllTops); });
+          });
+        });
+      }
+      bind();
+      new MutationObserver(bind).observe(doc.body, { subtree: true, childList: true });
+    })();
+    </script>""",
+    height=0,
 )
 
 DEFAULT_SNAPSHOT_STOCKS = [
@@ -5947,9 +5983,7 @@ def _render_kr_fable_mockup1_preview():
         unsafe_allow_html=True,
     )
 
-    stage2_preview = build_kr_stage2_preview()
-    rows = stage2_preview["rows"]
-    active_step = 2 if rows else 1
+    active_step = 2 if st.session_state.get("snap_auto_fill_results") else 1
     steps = [
         (1, "오늘 기록", "시장·주가 자동 채우기"),
         (2, "종목 판단", "점수 확인·리스크 입력"),
@@ -5969,6 +6003,12 @@ def _render_kr_fable_mockup1_preview():
     # 2026-07-13 사용자 요청으로 "오늘 기록 실행" 안내 헤더/캡션 제거 — 로그인 시 자동실행되므로
     # 이제는 안내문 없이 버튼(및 문제 시 재실행용 확장 패널)만 노출한다.
     _render_kr_primary_actions()
+
+    # 미리보기 데이터는 반드시 버튼 처리(_render_kr_primary_actions) 뒤에 계산한다 —
+    # 예전에는 버튼보다 먼저 계산해서, 버튼이 거래대금 상위 12종목을 재선정해도 그
+    # 실행에서는 여전히 이전 종목(3개)만 보였다(2026-07-15 사용자 반복 지적의 원인).
+    stage2_preview = build_kr_stage2_preview()
+    rows = stage2_preview["rows"]
 
     st.markdown("### 종목 판단 미리보기")
     if not rows:
@@ -6450,10 +6490,71 @@ def _render_risk_plan_preview(stock_name, ticker, risk_fields):
         st.write(f"예상 보유기간: {_value('expected_holding_days')}")
 
 
+# ---- 로그인 직후 병렬 워밍업 (2026-07-15 사용자 요청: "순차 실행이 원인이면 순차
+# 실행하지 마라") ----
+# 예전에는 한국장 체인(시장자료→분위기→종목→테마→도박사)과 미국장 체인이 전부
+# 순서대로 실행돼 로그인 후 첫 화면까지 15~20초가 걸렸다. 어차피 전부 캐시 함수라,
+# 여기서 한꺼번에 병렬로 데워두면 아래 탭 렌더링은 캐시 히트만 하게 되어 전체 시간이
+# "가장 느린 항목 하나"의 시간으로 줄어든다. 실패는 각 항목별로 무시한다(아래 탭
+# 렌더링이 어차피 개별 실패를 처리한다).
+if not st.session_state.get("parallel_warmup_done"):
+    try:
+        with ThreadPoolExecutor(max_workers=10) as _warm_executor:
+            _warm_phase1 = [
+                _warm_executor.submit(_cached_fetch_market_overview, "KR"),
+                _warm_executor.submit(_cached_fetch_market_overview, "US"),
+                _warm_executor.submit(_cached_kr_mood_source_results),
+                _warm_executor.submit(_cached_fetch_kr_theme_snapshot),
+                _warm_executor.submit(_cached_fetch_us_sector_snapshot),
+                _warm_executor.submit(_cached_fetch_us_theme_indicators),
+                _warm_executor.submit(_cached_fetch_bookmaker_snapshot),
+            ]
+            _warm_kr_top_future = _warm_executor.submit(_cached_get_top_kr_stocks_by_amount, 12)
+            _warm_us_top_future = _warm_executor.submit(_cached_get_top_us_stocks_by_amount, 8)
+            try:
+                _warm_kr_top = _warm_kr_top_future.result()
+            except Exception:
+                _warm_kr_top = []
+            try:
+                _warm_us_top = _warm_us_top_future.result()
+            except Exception:
+                _warm_us_top = []
+            _warm_kr_list = (
+                _warm_kr_top if (_warm_kr_top and len(_warm_kr_top) >= MIN_TRUSTED_TOP_STOCKS)
+                else DEFAULT_SNAPSHOT_STOCKS
+            )
+            _warm_us_list = (
+                _warm_us_top if (_warm_us_top and len(_warm_us_top) >= 5)
+                else DEFAULT_US_SNAPSHOT_STOCKS
+            )
+            _warm_phase2 = [
+                _warm_executor.submit(
+                    _cached_kr_snapshot_results, tuple(s["ticker"] for s in _warm_kr_list)
+                ),
+                _warm_executor.submit(
+                    _cached_kr_snapshot_results, tuple(s["ticker"] for s in _warm_us_list)
+                ),
+            ]
+            for _warm_future in as_completed(_warm_phase1 + _warm_phase2):
+                try:
+                    _warm_future.result()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    st.session_state["parallel_warmup_done"] = True
+
+
 KR_AUTO_RUN_VERSION = "2026-07-14-previous-close-v2"
 
 @st.fragment
 def _render_tab_kr():
+    # 프래그먼트 rerun에서는 모듈 상단의 `SNAPSHOT_STOCKS = session_state or 기본값`
+    # 재계산이 실행되지 않아, 버튼 클릭으로 종목 목록이 바뀌어도 다음 클릭까지 옛
+    # 목록이 남았다(2026-07-15 "아직도 3종목" 원인 중 하나). 매 프래그먼트 실행마다
+    # 세션 기준으로 전역을 다시 맞춘다.
+    globals()["SNAPSHOT_STOCKS"] = st.session_state.get("dynamic_snapshot_stocks") or DEFAULT_SNAPSHOT_STOCKS
+    globals()["SNAPSHOT_NAME_TO_TICKER"] = {s["name"]: s["ticker"] for s in SNAPSHOT_STOCKS}
     # 로그인 직후 한국장 탭을 열면 "오늘 한국장 자료 불러오기"/"오늘 종목 판단
     # 준비하기"/"테마 참고판 자동 조회" 3개 동작을 세션당 한 번 순서대로 실행한다.
     # 로그인 성공 전환 화면이 떠 있는 실행에서는 조회하지 않고 다음 rerun부터 시작한다.
@@ -7359,6 +7460,9 @@ US_AUTO_RUN_VERSION = "2026-07-15-v1"
 
 @st.fragment
 def _render_tab_us():
+    # 프래그먼트 rerun에서는 모듈 상단의 US_SNAPSHOT_STOCKS 재계산이 실행되지 않는다
+    # — KR 탭과 같은 이유로 매 프래그먼트 실행마다 세션 기준으로 전역을 다시 맞춘다.
+    globals()["US_SNAPSHOT_STOCKS"] = st.session_state.get("dynamic_us_snapshot_stocks") or DEFAULT_US_SNAPSHOT_STOCKS
     # 2026-07-15 사용자 요청: 미국장 탭도 한국장 탭과 동일하게 로그인(탭 진입) 후
     # "종목 자동 선정" → "시장자료/섹터ETF/테마지표/종목 스냅샷 불러오기"를 세션당 한 번
     # 자동으로 순서대로 실행한다. 한국장(stage1=종목선정 → stage2=상세조회)과 동일한
@@ -7471,9 +7575,14 @@ def _render_tab_us():
     if st.button("오늘 미국 종목 판단 준비하기", key="us_auto_preview_run", type="primary"):
         with st.spinner("미국장 자료 새로고침 중..."):
             _us_reselected = _short_cached_top_us_stocks_by_amount(8)
-            if _us_reselected:
+            if _us_reselected and len(_us_reselected) >= 5:
                 st.session_state["dynamic_us_snapshot_stocks"] = _us_reselected
                 st.session_state["dynamic_us_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # 이번 실행에서 바로 반영되도록 전역도 갱신(프래그먼트 rerun은 모듈
+                # 상단 재계산을 건너뛴다).
+                globals()["US_SNAPSHOT_STOCKS"] = _us_reselected
+            else:
+                _us_reselected = None
             st.session_state["us_market_overview_result"] = _short_cached_fetch_market_overview("US")
             st.session_state["us_market_overview_checked_at"] = st.session_state["us_market_overview_result"]["checked_at"]
             st.session_state["us_sector_auto_fetch_result"] = _short_cached_fetch_us_sector_snapshot()

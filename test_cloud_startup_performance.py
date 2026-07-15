@@ -161,6 +161,44 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         self.assertIn("_short_cached_top_us_stocks_by_amount(8)", primary_action)
         self.assertIn('st.session_state["dynamic_us_snapshot_stocks"] = _us_reselected', primary_action)
 
+    def test_kr_mockup_preview_is_computed_after_primary_actions_button(self):
+        # 2026-07-15: 미리보기 데이터가 버튼 처리보다 먼저 계산되면, 버튼이 종목을
+        # 재선정해도 그 실행에서는 이전(3종목) 목록이 보인다 — 반드시 버튼 뒤여야 한다.
+        mockup_fn = SOURCE[
+            SOURCE.index("def _render_kr_fable_mockup1_preview"):
+            SOURCE.index("def _render_us_stock_judgment_preview")
+        ]
+        self.assertLess(
+            mockup_fn.index("_render_kr_primary_actions()"),
+            mockup_fn.index("stage2_preview = build_kr_stage2_preview()"),
+        )
+
+    def test_login_warmup_runs_all_auto_fetches_in_parallel(self):
+        # 2026-07-15 사용자 요청("순차 실행하지 마라"): 로그인 직후 KR/US 자동조회
+        # 전부를 병렬로 데워서 탭 렌더링은 캐시 히트만 하게 한다.
+        warmup = SOURCE[
+            SOURCE.index('if not st.session_state.get("parallel_warmup_done"):'):
+            SOURCE.index('KR_AUTO_RUN_VERSION = ')
+        ]
+        for call in (
+            '_cached_fetch_market_overview, "KR"',
+            '_cached_fetch_market_overview, "US"',
+            "_cached_kr_mood_source_results",
+            "_cached_fetch_kr_theme_snapshot",
+            "_cached_fetch_us_sector_snapshot",
+            "_cached_fetch_us_theme_indicators",
+            "_cached_fetch_bookmaker_snapshot",
+            "_cached_get_top_kr_stocks_by_amount, 12",
+            "_cached_get_top_us_stocks_by_amount, 8",
+        ):
+            self.assertIn(call, warmup)
+
+    def test_fragments_refresh_dynamic_stock_globals_each_run(self):
+        kr_fragment = SOURCE[SOURCE.index("def _render_tab_kr():"):SOURCE.index("with tab_kr:\n    _render_tab_kr()")]
+        self.assertIn('globals()["SNAPSHOT_STOCKS"]', kr_fragment)
+        us_fragment = SOURCE[SOURCE.index("def _render_tab_us():"):SOURCE.index("with tab_us:\n    _render_tab_us()")]
+        self.assertIn('globals()["US_SNAPSHOT_STOCKS"]', us_fragment)
+
     def test_refresh_buttons_use_short_cache_not_a_full_bypass(self):
         # 2026-07-15 사용자 요청: "새로고침 버튼을 바로 다시 누르면 또 느리다"는 지적으로,
         # force_refresh 경로가 캐시를 완전히 무시하던 것을 8초짜리 짧은 캐시로 바꿨다.
