@@ -5630,12 +5630,20 @@ def _render_kr_theme_chip_editor():
         unsafe_allow_html=True,
     )
     with st.container(key="kr_theme_table"):
+        # 2026-07-15: key 없이 호출하면 Streamlit이 위젯 정체성(id)을 data 내용까지
+        # 해시에 넣어 계산한다(streamlit/elements/lib/utils.py 실측 확인). 이 표의
+        # "세부 입력" 열은 선택된 테마가 바뀔 때마다 "선택됨"/"선택 가능" 텍스트가
+        # 바뀌므로, 행을 클릭해서 선택할 때마다 표 내용이 달라져 위젯 id가 매번
+        # 새로 계산되고, 방금 클릭한 체크 표시가 다음 rerun에서 사라졌다(사용자
+        # 반복 지적 — "원전 클릭해도 체크 표시가 안 남는다"). key를 명시하면
+        # id 계산에서 data 내용이 빠져 선택 상태가 rerun 사이에 유지된다.
         _kr_theme_table_event = st.dataframe(
             _kr_theme_styled_df,
             width="stretch",
             hide_index=True,
             on_select="rerun",
             selection_mode="single-row",
+            key="kr_theme_table_df",
             column_config={
                 "참고 지표 또는 대표 종목": st.column_config.TextColumn(
                     "참고 지표 또는 대표 종목", width=550
@@ -5794,6 +5802,23 @@ def _render_kr_theme_chip_editor():
                 "선택 테마 현재 상태",
                 status_options,
                 key=selected_status_key,
+            )
+            # 2026-07-15 사용자 요청: 선택된 테마/상태가 셀렉트박스 글자 크기(기본)로만
+            # 보여서 눈에 안 띈다는 지적 — "원전 / 강함"처럼 테마명·상태를 색깔 있는
+            # 큰 글자(기존 대비 약 4배)로 한 번 더 보여준다. 값 자체는 selectbox와
+            # 동일하며, 이 표시는 참고용이고 저장에는 영향을 주지 않는다.
+            _selected_status_color = {
+                "강함": "#ff4b4b",
+                "감시": "#facc15",
+                "보통": "#4b9fff",
+                "약함": "#94a3b8",
+                "확인 필요": "#6b7280",
+            }.get(selected_status, "#e5e7eb")
+            st.markdown(
+                f"<div style='font-size:64px;font-weight:800;line-height:1.2;"
+                f"color:{_selected_status_color};margin:0.2rem 0 0.7rem'>"
+                f"{html.escape(_theme_detail_selected)} / {html.escape(selected_status)}</div>",
+                unsafe_allow_html=True,
             )
             selected_detail_values = {}
             with st.expander("선택 테마 세부 입력", expanded=True):

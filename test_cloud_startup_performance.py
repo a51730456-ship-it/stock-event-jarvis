@@ -239,6 +239,23 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         run_fill_fn = SOURCE[SOURCE.index("def run_kr_snapshot_auto_fill"):SOURCE.index("_AUTO_FETCH_FIELD_LABELS")]
         self.assertIn("_short_cached_kr_snapshot_results(_snapshot_tickers)", run_fill_fn)
 
+    def test_kr_theme_table_has_stable_key_so_row_selection_persists(self):
+        # 2026-07-15: st.dataframe을 key 없이 호출하면 Streamlit이 위젯 id를 data
+        # 내용까지 포함해 해시한다(streamlit/elements/lib/utils.py의
+        # compute_and_register_element_id 실측 확인). 이 표는 선택된 테마가 바뀔
+        # 때마다 "세부 입력" 열 값이 바뀌어 매 클릭마다 위젯 id가 달라졌고, 그
+        # 결과 방금 클릭한 행의 체크 표시가 다음 rerun에서 사라졌다(사용자 반복
+        # 지적). key를 명시하면 selection_mode/is_selection_activated만 id 계산에
+        # 쓰이고 data는 제외되어 선택 상태가 유지된다 — 이 key가 다시 빠지지
+        # 않도록 회귀 테스트로 고정한다.
+        theme_editor_fn = SOURCE[
+            SOURCE.index("def _render_kr_theme_chip_editor"):
+            SOURCE.index("def _render_kr_primary_actions")
+        ]
+        self.assertIn("_kr_theme_table_event = st.dataframe(", theme_editor_fn)
+        self.assertIn('key="kr_theme_table_df"', theme_editor_fn)
+        self.assertIn('on_select="rerun"', theme_editor_fn)
+
     def test_memoized_kr_stage2_preview_reuses_cache_but_detects_manual_edits(self):
         # 2026-07-15: 카드 클릭 시 12종목 점수를 매번 새로 계산하던 것을 캐싱했다.
         # 캐시 키가 "언제 자동조회했는지" 타임스탬프만 보면, 사용자가 종목별 입력
