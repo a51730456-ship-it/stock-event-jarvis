@@ -975,9 +975,13 @@ st.markdown(
         font-size: 18px !important;
         line-height: 1.5 !important;
     }
-    [data-testid="stTabs"] [data-baseweb="tab"],
-    [data-testid="stTabs"] [data-baseweb="tab"] p {
-        font-size: 24px !important;
+    html body [data-testid="stTabs"] [data-baseweb="tab"],
+    html body [data-testid="stTabs"] [data-baseweb="tab"] p,
+    html body [data-testid="stTabs"] [role="tab"],
+    html body [data-testid="stTabs"] [role="tab"] p,
+    html body [data-testid="stTabs"] [role="tab"] div {
+        font-size: 28px !important;
+        font-weight: 800 !important;
         line-height: 1.5 !important;
     }
     [data-testid="stMarkdownContainer"] h1,
