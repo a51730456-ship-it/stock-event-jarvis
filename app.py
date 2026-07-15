@@ -902,12 +902,12 @@ st.markdown(
         padding-top: 64px !important;
     }
     [data-testid="stTabs"] [data-baseweb="tab"] {
-        font-size: 1.2rem !important;
+        font-size: 1.5rem !important;
         font-weight: 700 !important;
-        padding: 14px 20px !important;
+        padding: 14px 22px !important;
     }
     [data-testid="stTabs"] [data-baseweb="tab"] p {
-        font-size: 1.2rem !important;
+        font-size: 1.5rem !important;
         font-weight: 700 !important;
     }
     [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
@@ -977,7 +977,7 @@ st.markdown(
     }
     [data-testid="stTabs"] [data-baseweb="tab"],
     [data-testid="stTabs"] [data-baseweb="tab"] p {
-        font-size: 20px !important;
+        font-size: 24px !important;
         line-height: 1.5 !important;
     }
     [data-testid="stMarkdownContainer"] h1,
@@ -6601,6 +6601,11 @@ def _render_tab_kr():
         if _kr_auto_run_stocks and len(_kr_auto_run_stocks) >= MIN_TRUSTED_TOP_STOCKS:
             st.session_state["dynamic_snapshot_stocks"] = _kr_auto_run_stocks
             st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 로그인 전환 실행에서는 rerun 없이 같은 실행에서 stage2가 이어지므로,
+            # 전역을 즉시 갱신하지 않으면 stage2가 기본 7종목만 채워 첫 화면이
+            # 3~4종목이 된다(2026-07-15 사용자 반복 확인 — 초기 로딩만 3종목).
+            globals()["SNAPSHOT_STOCKS"] = _kr_auto_run_stocks
+            globals()["SNAPSHOT_NAME_TO_TICKER"] = {s["name"]: s["ticker"] for s in _kr_auto_run_stocks}
         st.session_state["kr_auto_run_stage1_done"] = True
         if not _login_transition_pending:
             st.rerun()
@@ -7514,6 +7519,9 @@ def _render_tab_us():
         if _us_auto_run_stocks and len(_us_auto_run_stocks) >= 5:
             st.session_state["dynamic_us_snapshot_stocks"] = _us_auto_run_stocks
             st.session_state["dynamic_us_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # KR stage1과 같은 이유 — 로그인 전환 실행에서 stage2가 같은 실행에서
+            # 이어지므로 전역을 즉시 갱신한다.
+            globals()["US_SNAPSHOT_STOCKS"] = _us_auto_run_stocks
         st.session_state["us_auto_run_stage1_done"] = True
         if not _login_transition_pending:
             st.rerun()
