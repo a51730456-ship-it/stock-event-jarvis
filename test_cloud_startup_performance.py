@@ -315,6 +315,94 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         memoized()
         self.assertEqual(call_count["n"], 3, "위험관리 입력값도 그대로면 다시 캐시를 재사용해야 한다")
 
+    def test_fragment_scoped_rerun_tries_fragment_scope_then_falls_back(self):
+        # 2026-07-15 사용자 지적("뭐든 클릭하면 속도가 여전히 느린이유가 뭐냐"):
+        # st.rerun()을 scope 없이 부르면 fragment 안에서 호출해도 항상 전체 앱을
+        # 다시 실행한다(Streamlit 기본값 scope="app" - 소스 실측 확인). 지난 세션엔
+        # scope="fragment"가 AppTest에서 예외가 나서 "플랫폼 제약"이라 결론지었지만,
+        # AppTest는 st.dataframe 행 선택 같은 진짜 프래그먼트 트리거를 재현할 방법이
+        # 없어(select_rows 같은 API 자체가 없음) 그 결론 자체가 테스트 한계였을 가능성이
+        # 높다. 실제 배포에서는 성립할 수 있으므로 먼저 시도하고, 안 되면(StreamlitAPIException)
+        # 항상 기존과 동일하게 안전하게 되돌아가는 래퍼를 검증한다.
+        class FakeAPIException(Exception):
+            pass
+
+        class FakeErrors:
+            StreamlitAPIException = FakeAPIException
+
+        calls = []
+
+        class StFragmentOk:
+            errors = FakeErrors
+
+            def rerun(self, *, scope="app"):
+                calls.append(scope)
+
+        namespace = {"st": StFragmentOk()}
+        exec(
+            compile(ast.Module(body=[_function("_fragment_scoped_rerun")], type_ignores=[]), "app.py", "exec"),
+            namespace,
+        )
+        namespace["_fragment_scoped_rerun"]()
+        self.assertEqual(calls, ["fragment"], "fragment rerun이 가능하면 그것만 부르고 끝나야 한다")
+
+        calls.clear()
+
+        class StFragmentBlocked:
+            errors = FakeErrors
+
+            def rerun(self, *, scope="app"):
+                calls.append(scope)
+                if scope == "fragment":
+                    raise FakeAPIException("scope=fragment can only be specified ...")
+
+        namespace2 = {"st": StFragmentBlocked()}
+        exec(
+            compile(ast.Module(body=[_function("_fragment_scoped_rerun")], type_ignores=[]), "app.py", "exec"),
+            namespace2,
+        )
+        namespace2["_fragment_scoped_rerun"]()
+        self.assertEqual(
+            calls, ["fragment", "app"],
+            "fragment rerun이 막히면 예외를 삼키고 전체 rerun으로 안전하게 돌아가야 한다",
+        )
+
+    def test_theme_table_and_candidate_card_clicks_use_fragment_scoped_rerun(self):
+        # 위 헬퍼가 실제로 3곳(테마 표 클릭, 한국장/미국장 후보 카드 클릭)에 연결돼
+        # 있는지 고정한다 - 그냥 만들어만 두고 안 쓰면 의미가 없다.
+        theme_editor_fn = SOURCE[
+            SOURCE.index("def _render_kr_theme_chip_editor"):
+            SOURCE.index("def _render_kr_primary_actions")
+        ]
+        self.assertIn('st.session_state["_kr_theme_pending_select"] = _kr_theme_clicked_name', theme_editor_fn)
+        self.assertIn("_fragment_scoped_rerun()", theme_editor_fn)
+
+        kr_mockup_fn = SOURCE[
+            SOURCE.index("def _render_kr_fable_mockup1_preview"):
+            SOURCE.index("def _render_us_stock_judgment_preview")
+        ]
+        self.assertIn('st.session_state["mockup1_pending_ticker"] = row["ticker"]', kr_mockup_fn)
+        self.assertIn("_fragment_scoped_rerun()", kr_mockup_fn)
+
+        us_judgment_fn = SOURCE[
+            SOURCE.index("def _render_us_stock_judgment_preview"):
+            SOURCE.index("def _render_review_tag_editors")
+        ]
+        self.assertIn('st.session_state["us_mockup_pending_ticker"] = row["ticker"]', us_judgment_fn)
+        self.assertIn("_fragment_scoped_rerun()", us_judgment_fn)
+
+    def test_bookmaker_expander_title_is_2x_red_on_light_cobalt_background(self):
+        # 2026-07-15 사용자 요청: "오늘 한국장 도박사(예측시장) 의견" 제목 글자를
+        # 2배 크기(기존 17px -> 34px), 붉은색, 배경은 연한 코발트 블루로.
+        # st.expander는 label에 HTML을 못 써서 key로 범위를 좁혀 CSS로 덮어썼다 -
+        # 그 key와 CSS 규칙이 실제로 있는지, KR/US 둘 다 고유한 key를 쓰는지 고정한다.
+        self.assertIn('key=f"{prefix}_bookmaker_expander"', SOURCE)
+        self.assertIn(".st-key-{prefix}_bookmaker_expander", SOURCE)
+        self.assertIn("font-size: 34px !important", SOURCE)
+        self.assertIn("color: #ef4444 !important", SOURCE)
+        self.assertIn("background-color: rgba(0, 71, 171, 0.16) !important", SOURCE)
+        self.assertIn("prefix = market.lower()", SOURCE)
+
 
 if __name__ == "__main__":
     unittest.main()

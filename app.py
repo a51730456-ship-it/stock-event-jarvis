@@ -3347,7 +3347,30 @@ def _render_market_overview(market):
     # pending 플래그를 세운다.)
     # 2026-07-15 사용자 지적: 위 가격 카드와 아래 도박사 패널이 너무 붙어있었다.
     st.markdown("<div style='height:22px;'></div>", unsafe_allow_html=True)
-    with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=True):
+    # 2026-07-15 사용자 요청: 이 구획 제목만 글자 2배 크기(17px -> 34px)에 붉은색,
+    # 연한 코발트 블루 배경을 넣는다. st.expander는 label에 HTML을 못 쓰므로
+    # key로 이 expander만 골라 CSS로 덮어쓴다(다른 expander는 기존 스타일 유지).
+    st.markdown(
+        f"""
+        <style>
+        .st-key-{prefix}_bookmaker_expander [data-testid="stExpander"] summary,
+        .st-key-{prefix}_bookmaker_expander [data-testid="stExpander"] summary p {{
+            font-size: 34px !important;
+            font-weight: 800 !important;
+            color: #ef4444 !important;
+        }}
+        .st-key-{prefix}_bookmaker_expander [data-testid="stExpander"] {{
+            background-color: rgba(0, 71, 171, 0.16) !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.expander(
+        f"오늘 {market_label} 도박사(예측시장) 의견",
+        expanded=True,
+        key=f"{prefix}_bookmaker_expander",
+    ):
         _bookmaker_manual_fetch = st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)", key=f"{prefix}_bookmaker_fetch")
         _bookmaker_auto_fetch = st.session_state.pop(f"{prefix}_bookmaker_auto_fetch_pending", False)
         # 2026-07-13 3차 수정: 임계값 다른 계약을 "사건 그룹"으로 묶어 보여주고(중복
@@ -3597,6 +3620,25 @@ def parse_quick_snapshot_text(text):
         if line_ok:
             updates[ticker] = values
     return updates, warnings
+
+
+def _fragment_scoped_rerun():
+    """`@st.fragment` 안에서 클릭 등으로 발생한 rerun을 가능하면 그 프래그먼트로만 좁힌다.
+
+    st.rerun()을 scope 없이 그냥 부르면 fragment 안에서 호출해도 항상 전체 앱을
+    다시 실행한다(Streamlit 기본값 scope="app" — streamlit.commands.execution_control.rerun
+    실측 확인). 반면 scope="fragment"는 "지금 진짜로 fragment-scoped rerun이 진행
+    중일 때"만 허용되는데, 이는 클릭한 위젯이 프론트엔드에서 fragment_id와 함께
+    전달됐을 때만 성립한다 — AppTest는 이 경로를 제대로 재현하지 못해(예: st.dataframe
+    행 선택을 흉내 낼 방법이 없음) 예전 세션에서 "플랫폼 제약"으로 오판했었다.
+    실제 배포(진짜 브라우저 클릭)에서는 성립할 가능성이 높으므로, 여기서 먼저
+    scope="fragment"를 시도하고, 조건이 안 맞으면(StreamlitAPIException) 기존과
+    동일하게 전체 rerun으로 안전하게 되돌아간다 — 실패해도 동작은 항상 이전과 같다.
+    """
+    try:
+        st.rerun(scope="fragment")
+    except st.errors.StreamlitAPIException:
+        st.rerun()
 
 
 def _safe_pct_diff(a, b):
@@ -5663,11 +5705,9 @@ def _render_kr_theme_chip_editor():
             _kr_theme_clicked_name = _kr_theme_sorted_rows[_kr_theme_clicked_idx].get("테마")
             if _kr_theme_clicked_name and st.session_state.get("kr_theme_detail_selector") != _kr_theme_clicked_name:
                 st.session_state["_kr_theme_pending_select"] = _kr_theme_clicked_name
-                # 2026-07-15 확인: scope="fragment"는 이 Streamlit 버전에서
-                # "StreamlitAPIException: scope=fragment can only be specified from
-                # @st.fragment-decorated functions during fragment reruns"로 즉시
-                # 예외를 던진다(AppTest로 실측 확인, 아래 두 곳도 동일) — 기본 scope로 되돌린다.
-                st.rerun()
+                # 2026-07-15: 표 클릭은 이미 이 프래그먼트 안에서 일어나므로, 가능하면
+                # 전체 앱이 아니라 이 프래그먼트만 다시 그린다(_fragment_scoped_rerun 참고).
+                _fragment_scoped_rerun()
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = [dict(row) for row in theme_rows]
 
@@ -6287,7 +6327,7 @@ def _render_kr_fable_mockup1_preview():
                     help=f"{sector_by_ticker.get(row['ticker'], '-')} · 확인 필요: {'예' if row['needs_confirmation'] else '아니오'}",
                 ):
                     st.session_state["mockup1_pending_ticker"] = row["ticker"]
-                    st.rerun()
+                    _fragment_scoped_rerun()
 
         selected_row = rows_by_ticker[selected_ticker]
         selected_verdict = selected_row[verdict_key]
@@ -6503,7 +6543,7 @@ def _render_us_stock_judgment_preview():
                 help=f"{row.get('sector', '-')} · 확인 필요: {'예' if row['needs_confirmation'] else '아니오'}",
             ):
                 st.session_state["us_mockup_pending_ticker"] = row["ticker"]
-                st.rerun()
+                _fragment_scoped_rerun()
 
     selected_row = rows_by_ticker[selected_ticker]
     current_value = _get_snapshot_value(selected_ticker, "current")
