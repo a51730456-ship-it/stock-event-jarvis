@@ -5579,6 +5579,10 @@ def _render_kr_theme_chip_editor():
             _kr_theme_clicked_name = _kr_theme_sorted_rows[_kr_theme_clicked_idx].get("테마")
             if _kr_theme_clicked_name and st.session_state.get("kr_theme_detail_selector") != _kr_theme_clicked_name:
                 st.session_state["_kr_theme_pending_select"] = _kr_theme_clicked_name
+                # 2026-07-15 확인: scope="fragment"는 이 Streamlit 버전에서
+                # "StreamlitAPIException: scope=fragment can only be specified from
+                # @st.fragment-decorated functions during fragment reruns"로 즉시
+                # 예외를 던진다(AppTest로 실측 확인, 아래 두 곳도 동일) — 기본 scope로 되돌린다.
                 st.rerun()
     split_index = (len(theme_rows) + 1) // 2
     updated_rows = [dict(row) for row in theme_rows]
@@ -6218,6 +6222,13 @@ def _render_kr_fable_mockup1_preview():
                     display: flex;
                     flex-direction: column;
                     gap: 2px;
+                    /* 2026-07-15 사용자 지적: 옆의 현재가/시총대비거래대금(st.metric)은
+                       테두리 박스가 있는데 시가대비/고점대비만 맨 텍스트라 어긋나
+                       보였다 — 같은 stMetric 박스 스타일(테두리·배경·모서리)을 맞춘다. */
+                    background-color: rgba(23, 26, 33, 0.92);
+                    border: 1px solid #303642;
+                    border-radius: 10px;
+                    padding: 10px 14px;
                 }
                 .jarvis-m1-pct-label {
                     font-size: 17px;
