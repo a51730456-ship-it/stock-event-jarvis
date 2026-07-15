@@ -130,6 +130,14 @@ def translate_market_text_locally(text):
         if month:
             return f"{fomc_dissent.group(2)}년 {month} FOMC 회의에서 반대표를 던질 위원은?"
 
+    nvidia_h200 = re.fullmatch(
+        r"Will Nvidia H200 chips being delivered to mainland China be confirmed\?",
+        original,
+        re.IGNORECASE,
+    )
+    if nvidia_h200:
+        return "엔비디아 H200 칩의 중국 본토 인도가 확인될까?"
+
     exact_titles = {
         "us cpi this year": "올해 미국 소비자물가지수(CPI)",
         "cpi inflation": "소비자물가지수(CPI) 인플레이션",

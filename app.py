@@ -1416,8 +1416,8 @@ def build_kr_stage2_preview():
                     "스윙", swing_score, _display_verdict_name(swing_verdict)
                 ),
                 "risk_fields": _collect_risk_fields(ticker),
-                "danta_buy_confirm_condition": _auto_buy_confirm_condition("단타", "KR"),
-                "swing_buy_confirm_condition": _auto_buy_confirm_condition("스윙", "KR"),
+                "danta_buy_confirm_condition": _auto_buy_confirm_condition("단타", "KR", turnover_ratio_pct),
+                "swing_buy_confirm_condition": _auto_buy_confirm_condition("스윙", "KR", turnover_ratio_pct),
                 "needs_confirmation": (danta_verdict == "확인 필요") or bool(row_validation_errors),
                 "validation_errors": row_validation_errors,
             }
@@ -1893,13 +1893,26 @@ def _resolve_signal_category(
     return None, None
 
 
-def _auto_buy_confirm_condition(trade_mode, market):
+def _auto_buy_confirm_condition(trade_mode, market, turnover_ratio_pct=None):
     """매수 확정 조건 자동 문구. 매매유형(단타/스윙)을 먼저 보고, 공통/그 외면 시장(KR/US)
-    기준 문구를 쓴다."""
+    기준 문구를 쓴다.
+
+    turnover_ratio_pct가 있으면 "거래대금 유지" 뒤 괄호에 실제 시총 대비 거래대금
+    수치를 채운다(2026-07-15 사용자 요청: 조건 문구가 항상 똑같은 안내문이라 실제
+    자료를 찾아 넣어달라는 지적). 5% 기준은 기존 "② 오늘 주가 계산 결과" 표의
+    "확인 필요" 판정과 동일하다. 프로그램/외국인 수급은 아직 데이터 소스가 없어
+    "자료 미연동"으로 명시한다(임의로 값을 지어내지 않는다).
+    """
+    if turnover_ratio_pct is None:
+        _turnover_note = ""
+    elif turnover_ratio_pct >= 5:
+        _turnover_note = f"({turnover_ratio_pct:.2f}%, 확인 필요)"
+    else:
+        _turnover_note = f"({turnover_ratio_pct:.2f}%, 기준 이내)"
     if trade_mode == "단타":
-        return "시가 위 유지 + 고점 대비 밀림 제한 + 거래대금 유지 + 프로그램/외국인 수급 확인 필요"
+        return f"시가 위 유지 + 고점 대비 밀림 제한 + 거래대금 유지{_turnover_note} + 프로그램/외국인 수급(자료 미연동)"
     if trade_mode == "스윙":
-        return "종가 강세 유지 + 거래대금 유지 + 다음날 흐름 재확인 필요"
+        return f"종가 강세 유지 + 거래대금 유지{_turnover_note} + 다음날 흐름 재확인 필요"
     if market == "US":
         return "본장 거래량 + 섹터 동반 강도 + 프리/애프터 변동 확인 필요"
     return "장중 수급 + 섹터 강도 + 종가 위치 확인 필요"
@@ -3258,10 +3271,11 @@ def _render_market_overview(market):
     # 반영하지 않는다. (2026-07-15: 사용자 요청으로 KR·US 둘 다 로그인/탭 진입 후 자동
     # 조회 체인에 포함시켰다 — kr_auto_run_stage2 / us_auto_run_stage1에서 세션당 한 번만
     # pending 플래그를 세운다.)
+    # 2026-07-15 사용자 지적: 위 가격 카드와 아래 도박사 패널이 너무 붙어있었다.
+    st.markdown("<div style='height:22px;'></div>", unsafe_allow_html=True)
     with st.expander(f"오늘 {market_label} 도박사(예측시장) 의견", expanded=True):
         _bookmaker_manual_fetch = st.button("오늘 도박사 신호 불러오기(Polymarket/Kalshi)", key=f"{prefix}_bookmaker_fetch")
         _bookmaker_auto_fetch = st.session_state.pop(f"{prefix}_bookmaker_auto_fetch_pending", False)
-        st.caption("로그인/탭 진입 후 자동 조회 · 참고용 · 점수·판정·DB 저장 미반영")
         # 2026-07-13 3차 수정: 임계값 다른 계약을 "사건 그룹"으로 묶어 보여주고(중복
         # 삭제 아님 — 확률분포), DeepL Free API로 사건 제목을 한국어로 번역해서 큰
         # 글씨로 먼저 보여준다(상하님이 영어 원문을 알아보기 어렵다는 지적). 번역은
@@ -3351,7 +3365,14 @@ def _render_market_overview(market):
                                 f"마감 {html.escape(str(_ev.get('end_date') or '-'))} · 24시간 거래량 {_event_volume_text}</div>"
                             )
                             _contract_rows = []
-                            for _c in _ev.get("contracts", []):
+                            # 2026-07-15 사용자 지적: 확률이 낮은 계약까지 다 보여주면
+                            # 화면이 너무 길어진다 — 확률 높은 순 상위 3개만 표시한다.
+                            _ev_contracts_sorted = sorted(
+                                _ev.get("contracts", []),
+                                key=lambda c: c.get("probability_pct") or 0,
+                                reverse=True,
+                            )
+                            for _c in _ev_contracts_sorted[:3]:
                                 _label_ko = bookmaker_data._translate_threshold_label(_c.get("label"))
                                 _prob = f"{_c['probability_pct']}%" if _c.get("probability_pct") is not None else "-"
                                 _prob_color = "#22c55e" if (_c.get("probability_pct") or 0) >= 50 else "#f87171"
@@ -3402,15 +3423,10 @@ def _render_market_overview(market):
                 st.caption("확률은 각 계약의 Yes 확률이며 매수·매도 추천이 아닙니다.")
             elif not _bookmaker_snapshot.get("errors"):
                 st.caption("현재 거시경제 관련 활성 시장을 찾지 못했습니다.")
-        st.text_area(
-            "도박사(예측시장) 의견",
-            key=f"{prefix}_bookmaker_opinion",
-            height=140,
-            placeholder="예: Polymarket/Kalshi 확률 변화, 선거·금리·관세 이벤트 확률 등",
-            label_visibility="collapsed",
-        )
+    # 2026-07-15 사용자 요청으로 수동 메모 입력칸 삭제(자동 조회 결과만 참고, 손으로
+    # 다시 옮겨 적을 필요 없음). 저장하는 값이 아니었으므로 삭제해도 손실 없음.
 
-    # 2026-07-13 사용자 요청으로 KOSPI/KOSDAQ/달러원/나스닥100선물/SOXX·SMH 요약 스트립 제거
+    # 2026-07-13 사용자 요청으로 KOSPI/코스닥/달러원/나스닥100선물/SOXX·SMH 요약 스트립 제거
     # — 위 차트 카드(가격+스파크라인)와 정보가 중복된다는 지적. _render_kr_market_mood_strip()
     # 함수 자체는 다른 곳에서 쓸 수도 있어 남겨두고 호출만 뺀다.
     st.markdown("<div style='font-size:19px;line-height:1.65;font-weight:800;margin-top:40px;margin-bottom:14px'>시장 주요 뉴스 후보</div>", unsafe_allow_html=True)
@@ -5346,6 +5362,13 @@ def _render_kr_theme_chip_editor():
         .st-key-kr_theme_auto_fetch button p {
             color: #1f2937 !important;
         }
+        /* 2026-07-15 사용자 요청: 대장주 등 세부 입력칸 글자가 너무 작았다. */
+        [class*="st-key-kr_theme_leader_"] input,
+        [class*="st-key-kr_theme_laggard_"] input,
+        [class*="st-key-kr_theme_chase_warning_"] input,
+        [class*="st-key-kr_theme_memo_"] input {
+            font-size: 19px !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -6948,6 +6971,24 @@ def _render_tab_kr():
                 return styles
             return _apply
 
+        def _score_tier_styler(col):
+            # 2026-07-15 사용자 요청: 관심 점수 칸에 색이 전혀 없어 구분이 안 됐다 —
+            # 80점 이상/70점 이상을 단계별 색으로 표시한다(매수 신호 아님, 구분용).
+            styles = []
+            for val in col:
+                try:
+                    score = float(val)
+                except (TypeError, ValueError):
+                    styles.append("")
+                    continue
+                if score >= 80:
+                    styles.append("color: #39ff14; font-weight: 800")
+                elif score >= 70:
+                    styles.append("color: #facc15; font-weight: 700")
+                else:
+                    styles.append("")
+            return styles
+
         result_df = pd.DataFrame(result_rows)
         styled_result_df = (
             result_df.style
@@ -6955,6 +6996,7 @@ def _render_tab_kr():
             .apply(_signed_pct_color_styler(open_pos_raw_list), subset=["시가대비(오늘)"])
             .apply(_signed_pct_color_styler(high_drop_raw_list), subset=["고점대비(오늘)"])
             .apply(_signed_pct_color_styler(low_recover_raw_list), subset=["저점대비(오늘)"])
+            .apply(_score_tier_styler, subset=["단기 관심 점수", "며칠 관심 점수"])
             .set_properties(
                 subset=[
                     "단기 관심 점수", "며칠 관심 점수", "현재가", "전일대비(%)",
