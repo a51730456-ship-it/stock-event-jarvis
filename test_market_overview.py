@@ -1,5 +1,6 @@
 import ast
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 import unittest
 from pathlib import Path
@@ -10,13 +11,15 @@ import naver_market_data
 
 SOURCE = Path("app.py").read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
-WANTED = {"_market_overview_status", "_market_overview_direction", "_dedup_market_overview_news", "_market_overview_price_item", "_get_kr_index_intraday", "_get_recent_market_intraday", "_fetch_market_overview"}
+WANTED = {"_market_overview_status", "_market_overview_direction", "_dedup_market_overview_news", "_market_overview_price_item", "_get_kr_index_intraday", "_get_recent_market_intraday", "_fetch_market_overview", "_build_market_overview_price_item"}
 NODES = [node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name in WANTED]
 NAMESPACE = {
     "math": math,
     "datetime": datetime,
     "timedelta": __import__("datetime").timedelta,
     "ZoneInfo": ZoneInfo,
+    "ThreadPoolExecutor": ThreadPoolExecutor,
+    "as_completed": as_completed,
     "MARKET_OVERVIEW_MIN_SIGNALS": 3,
     "MARKET_OVERVIEW_PRICE_SPECS": {
         "KR": [("KOSPI·KOSDAQ", ("KOSPI", "^KS11"), ("KOSDAQ", "^KQ11")), ("달러/원", ("달러/원", "KRW=X")), ("반도체", ("SOXX", "SOXX")), ("나스닥100 선물", ("NQ=F", "NQ=F"))],
@@ -95,6 +98,8 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertIn('"오늘 미국장 한눈에"', SOURCE)
         self.assertIn('key=button_key', SOURCE)
         self.assertIn('news_data.fetch_naver_news(client_id, client_secret, query, display=10, sort="date")', SOURCE)
+        # 2026-07-15: 시장자료 조회는 티커 순차(6~10초)에서 전체 병렬로 바뀌었다.
+        self.assertIn("_build_market_overview_price_item", SOURCE)
         self.assertIn("시장 주요 뉴스 후보", SOURCE)
         self.assertIn("원문 도메인", SOURCE)
         render_source = SOURCE[SOURCE.index("def _render_market_overview"):SOURCE.index("def _get_snapshot_value")]
@@ -117,8 +122,8 @@ class MarketOverviewTests(unittest.TestCase):
         # 어제 값으로 보이던 문제 — 장중가 실패 시 네이버 최근 종가를 먼저 쓰고,
         # 그것도 실패할 때만 yfinance 완료 거래일 종가로 넘어가야 한다.
         fetch_fn = SOURCE[
-            SOURCE.index("def _fetch_market_overview"):
-            SOURCE.index("def _cached_fetch_market_overview")
+            SOURCE.index("def _build_market_overview_price_item"):
+            SOURCE.index("def _fetch_market_overview")
         ]
         naver_at = fetch_fn.index("naver_market_data.get_index_daily_close(ticker)")
         yfinance_at = fetch_fn.index("price_data.get_snapshot_defaults(ticker, completed_only=True)")

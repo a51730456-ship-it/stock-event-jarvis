@@ -2842,82 +2842,120 @@ def _sparkline_svg(values, is_up, width=110, height=32):
     )
 
 
+def _build_market_overview_price_item(market, label, ticker):
+    """카드 항목 1개(티커 1개)의 장중가→종가 폴백 + 10일 이력을 만든다.
+
+    2026-07-15: 예전에는 이 작업을 티커 8~10개에 대해 순차 실행해서(티커당 장중 조회
+    0.5~1초 + 이력 조회 0.5초) 시장 자료 버튼 한 번에 6~10초가 걸렸다 — 사용자가
+    반복 지적한 "너무 느리다"의 최대 단일 병목. _fetch_market_overview()가 이 함수를
+    티커별로 병렬 호출한다.
+    """
+    _intraday = {"ok": False}
+    if market == "KR" and ticker in {"^KS11", "^KQ11"}:
+        try:
+            _intraday = _get_kr_index_intraday(ticker)
+        except Exception:
+            _intraday = {"ok": False}
+    else:
+        try:
+            _intraday = _get_recent_market_intraday(ticker)
+        except Exception:
+            _intraday = {"ok": False}
+    if _intraday.get("ok") and _intraday.get("prev_close"):
+        item = _market_overview_price_item(label, ticker, _intraday)
+        item["asof"] = _intraday.get("as_of_time") or _intraday.get("asof")
+        item["as_of_time"] = item["asof"]
+        item["as_of_date"] = _intraday.get("as_of_date")
+        item["data_kind"] = "intraday"
+        item["source"] = _intraday.get("source")
+    else:
+        _daily_result = None
+        if market == "KR" and ticker in {"^KS11", "^KQ11"}:
+            # 야간에는 yfinance가 당일 종가를 하루 늦게 올려서 KOSPI/KOSDAQ가
+            # 어제 값(-8.95% 같은)으로 보이던 문제(2026-07-15 사용자 확인) —
+            # 네이버가 주는 가장 최근 종가를 먼저 쓰고, 그것도 실패할 때만
+            # yfinance 완료 거래일 종가로 넘어간다. price_data.py는 손대지 않는다.
+            try:
+                _naver_close = naver_market_data.get_index_daily_close(ticker)
+            except Exception:
+                _naver_close = {"ok": False}
+            if _naver_close.get("ok"):
+                _daily_result = _naver_close
+        if _daily_result is None:
+            try:
+                if market == "KR" and ticker in {"^KS11", "^KQ11"}:
+                    _daily_result = price_data.get_snapshot_defaults(ticker, completed_only=True)
+                else:
+                    _daily_result = price_data.get_snapshot_defaults(ticker)
+            except Exception:
+                _daily_result = None
+        item = _market_overview_price_item(label, ticker, _daily_result)
+        # 장중 조회 실패 시에만 최근 완료 거래일 종가로 대체한다. KIS/Yahoo
+        # 모두 실패해도 다른 카드와 뉴스는 계속 표시한다.
+        item["data_kind"] = "daily_close" if _daily_result and _daily_result.get("as_of_date") else "unknown"
+        item["asof"] = _daily_result.get("as_of_date") if _daily_result else None
+        item["as_of_date"] = _daily_result.get("as_of_date") if _daily_result else None
+        item["as_of_time"] = None
+    item["history"] = []
+    if item["status"] == "정상":
+        # 실시간 아님 — 이 버튼을 누른 시점에만 최근 10일치 종가를 한 번 조회한다.
+        try:
+            _hist_end = datetime.now()
+            _hist_start = _hist_end - timedelta(days=14)
+            _hist_df = price_data.get_ohlc_history_for_chart(
+                ticker, _hist_start.strftime("%Y-%m-%d"), _hist_end.strftime("%Y-%m-%d")
+            )
+            if _hist_df is not None and not _hist_df.empty:
+                item["history"] = [float(v) for v in _hist_df["Close"].tail(10).tolist()]
+        except Exception:
+            item["history"] = []
+        # yfinance 이력에 아직 오늘 값이 없으면(밤·장중), 이력 끝에 현재값을
+        # 붙인다 — 숫자는 +6%인데 미니 차트는 어제까지의 하락만 그려져 서로
+        # 모순돼 보이던 문제(2026-07-15 사용자 지적) 수정. 마지막 이력과 거의
+        # 같은 값이면(이미 반영됨) 중복으로 붙이지 않는다.
+        _cur = item.get("current")
+        if item["history"] and isinstance(_cur, (int, float)) and math.isfinite(_cur):
+            _last_hist = item["history"][-1]
+            if _last_hist and abs(_cur - _last_hist) / abs(_last_hist) > 0.0005:
+                item["history"] = item["history"] + [float(_cur)]
+    return item
+
+
 def _fetch_market_overview(market):
     rows = []
     signal_changes = {}
     signal_details = {}
-    for card in MARKET_OVERVIEW_PRICE_SPECS[market]:
-        card_items = []
+
+    # 카드 항목(티커)들을 전부 동시에 조회한다 — 순서는 카드 정의 순서를 유지한다.
+    _specs = []
+    for _card_index, card in enumerate(MARKET_OVERVIEW_PRICE_SPECS[market]):
         for label, ticker in card[1:]:
-            _intraday = {"ok": False}
-            if market == "KR" and ticker in {"^KS11", "^KQ11"}:
+            _specs.append((_card_index, label, ticker))
+    _items_by_position = {}
+    if _specs:
+        with ThreadPoolExecutor(max_workers=min(16, len(_specs))) as _executor:
+            _future_to_position = {
+                _executor.submit(_build_market_overview_price_item, market, label, ticker): position
+                for position, (_card_index, label, ticker) in enumerate(_specs)
+            }
+            for _future in as_completed(_future_to_position):
+                _position = _future_to_position[_future]
+                _card_index, _label, _ticker = _specs[_position]
                 try:
-                    _intraday = _get_kr_index_intraday(ticker)
+                    _items_by_position[_position] = _future.result()
                 except Exception:
-                    _intraday = {"ok": False}
-            else:
-                try:
-                    _intraday = _get_recent_market_intraday(ticker)
-                except Exception:
-                    _intraday = {"ok": False}
-            if _intraday.get("ok") and _intraday.get("prev_close"):
-                item = _market_overview_price_item(label, ticker, _intraday)
-                item["asof"] = _intraday.get("as_of_time") or _intraday.get("asof")
-                item["as_of_time"] = item["asof"]
-                item["as_of_date"] = _intraday.get("as_of_date")
-                item["data_kind"] = "intraday"
-                item["source"] = _intraday.get("source")
-            else:
-                _daily_result = None
-                if market == "KR" and ticker in {"^KS11", "^KQ11"}:
-                    # 야간에는 yfinance가 당일 종가를 하루 늦게 올려서 KOSPI/KOSDAQ가
-                    # 어제 값(-8.95% 같은)으로 보이던 문제(2026-07-15 사용자 확인) —
-                    # 네이버가 주는 가장 최근 종가를 먼저 쓰고, 그것도 실패할 때만
-                    # yfinance 완료 거래일 종가로 넘어간다. price_data.py는 손대지 않는다.
-                    try:
-                        _naver_close = naver_market_data.get_index_daily_close(ticker)
-                    except Exception:
-                        _naver_close = {"ok": False}
-                    if _naver_close.get("ok"):
-                        _daily_result = _naver_close
-                if _daily_result is None:
-                    try:
-                        if market == "KR" and ticker in {"^KS11", "^KQ11"}:
-                            _daily_result = price_data.get_snapshot_defaults(ticker, completed_only=True)
-                        else:
-                            _daily_result = price_data.get_snapshot_defaults(ticker)
-                    except Exception:
-                        _daily_result = None
-                item = _market_overview_price_item(label, ticker, _daily_result)
-                # 장중 조회 실패 시에만 최근 완료 거래일 종가로 대체한다. KIS/Yahoo
-                # 모두 실패해도 다른 카드와 뉴스는 계속 표시한다.
-                item["data_kind"] = "daily_close" if _daily_result and _daily_result.get("as_of_date") else "unknown"
-                item["asof"] = _daily_result.get("as_of_date") if _daily_result else None
-                item["as_of_date"] = _daily_result.get("as_of_date") if _daily_result else None
-                item["as_of_time"] = None
-            item["history"] = []
-            if item["status"] == "정상":
-                # 실시간 아님 — 이 버튼을 누른 시점에만 최근 10일치 종가를 한 번 조회한다.
-                try:
-                    _hist_end = datetime.now()
-                    _hist_start = _hist_end - timedelta(days=14)
-                    _hist_df = price_data.get_ohlc_history_for_chart(
-                        ticker, _hist_start.strftime("%Y-%m-%d"), _hist_end.strftime("%Y-%m-%d")
-                    )
-                    if _hist_df is not None and not _hist_df.empty:
-                        item["history"] = [float(v) for v in _hist_df["Close"].tail(10).tolist()]
-                except Exception:
-                    item["history"] = []
-                # yfinance 이력에 아직 오늘 값이 없으면(밤·장중), 이력 끝에 현재값을
-                # 붙인다 — 숫자는 +6%인데 미니 차트는 어제까지의 하락만 그려져 서로
-                # 모순돼 보이던 문제(2026-07-15 사용자 지적) 수정. 마지막 이력과 거의
-                # 같은 값이면(이미 반영됨) 중복으로 붙이지 않는다.
-                _cur = item.get("current")
-                if item["history"] and isinstance(_cur, (int, float)) and math.isfinite(_cur):
-                    _last_hist = item["history"][-1]
-                    if _last_hist and abs(_cur - _last_hist) / abs(_last_hist) > 0.0005:
-                        item["history"] = item["history"] + [float(_cur)]
-            card_items.append(item)
+                    _items_by_position[_position] = {
+                        "label": _label, "ticker": _ticker, "status": "확인 불가",
+                        "current": None, "change_pct": None, "history": [],
+                        "data_kind": "unknown", "asof": None, "as_of_date": None, "as_of_time": None,
+                    }
+
+    for _card_index, card in enumerate(MARKET_OVERVIEW_PRICE_SPECS[market]):
+        card_items = [
+            _items_by_position[position]
+            for position, (spec_card_index, _label, _ticker) in enumerate(_specs)
+            if spec_card_index == _card_index
+        ]
         valid_changes = [item["change_pct"] for item in card_items if item["change_pct"] is not None]
         signal_details[card[0]] = valid_changes
         if valid_changes:
@@ -2933,16 +2971,23 @@ def _fetch_market_overview(market):
     news_failed = 0
     client_id = st.secrets.get("NAVER_CLIENT_ID")
     client_secret = st.secrets.get("NAVER_CLIENT_SECRET")
-    for query in MARKET_OVERVIEW_NEWS_QUERIES[market]:
-        try:
-            result = news_data.fetch_naver_news(client_id, client_secret, query, display=10, sort="date")
-            if result.get("status") in ("정상", "데이터 없음"):
-                recent = _recent_naver_news_items(result.get("data", []))
-                news_rows.extend(recent)
-            else:
+    _news_queries = MARKET_OVERVIEW_NEWS_QUERIES[market]
+
+    def _fetch_news_query(query):
+        return news_data.fetch_naver_news(client_id, client_secret, query, display=10, sort="date")
+
+    with ThreadPoolExecutor(max_workers=len(_news_queries)) as _news_executor:
+        _news_futures = [_news_executor.submit(_fetch_news_query, query) for query in _news_queries]
+        for _news_future in _news_futures:
+            try:
+                result = _news_future.result()
+                if result.get("status") in ("정상", "데이터 없음"):
+                    recent = _recent_naver_news_items(result.get("data", []))
+                    news_rows.extend(recent)
+                else:
+                    news_failed += 1
+            except Exception:
                 news_failed += 1
-        except Exception:
-            news_failed += 1
     return {
         "market": market,
         "price_cards": rows,
@@ -4737,6 +4782,17 @@ def _cached_get_top_kr_stocks_by_amount(n):
         return []
 
 
+@st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
+def _short_cached_top_kr_stocks_by_amount(n):
+    return price_data.get_top_kr_stocks_by_amount(n)
+
+
+# 장 시작 전에는 KRX 거래대금 데이터가 대부분 비어 있어 상위 선정이 서너 종목만
+# 반환될 수 있다(2026-07-15 새벽 로그인 화면에서 확인 — "3종목만 나온다").
+# 이 개수 미만이면 선정 결과를 불신하고 기존 목록을 유지한다.
+MIN_TRUSTED_TOP_STOCKS = 8
+
+
 def _fetch_top_us_stocks_by_amount(n):
     """US_CANDIDATE_UNIVERSE(유동성 높은 대형주 약 35종목) 안에서 오늘 거래대금
     (근사치 = 거래량×종가) 상위 n개를 골라낸다.
@@ -5665,6 +5721,17 @@ def _render_kr_primary_actions():
 
                 _stage_status_display = {"ok": "예", "partial": "부분", "fail": "아니오"}
 
+                # 0) 거래대금 상위 종목 재선정 — 장 시작 전 로그인 때 3종목짜리 엉터리
+                # 목록이 세션에 박히면 이 버튼을 눌러도 계속 3종목만 보이던 문제
+                # (2026-07-15) 수정. 프래그먼트 rerun에서는 모듈 상단의 SNAPSHOT_STOCKS
+                # 재계산이 실행되지 않으므로, 이번 실행에서 바로 반영되도록 전역도 갱신한다.
+                _kr_reselected = _short_cached_top_kr_stocks_by_amount(12)
+                if _kr_reselected and len(_kr_reselected) >= MIN_TRUSTED_TOP_STOCKS:
+                    st.session_state["dynamic_snapshot_stocks"] = _kr_reselected
+                    st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    globals()["SNAPSHOT_STOCKS"] = _kr_reselected
+                    globals()["SNAPSHOT_NAME_TO_TICKER"] = {s["name"]: s["ticker"] for s in _kr_reselected}
+
                 # 1) 0단계: 시장 분위기 자동 확인 (공용 함수, 일부 실패해도 중단하지 않음)
                 _mood_run_result = run_kr_mood_auto_check(force_refresh=True)
                 _stage0_status = _stage_status_display[_mood_run_result["status"]]
@@ -6395,7 +6462,7 @@ def _render_tab_kr():
         st.session_state["kr_auto_run_version"] = KR_AUTO_RUN_VERSION
     if not st.session_state.get("kr_auto_run_stage1_done"):
         _kr_auto_run_stocks = _cached_get_top_kr_stocks_by_amount(12)
-        if _kr_auto_run_stocks:
+        if _kr_auto_run_stocks and len(_kr_auto_run_stocks) >= MIN_TRUSTED_TOP_STOCKS:
             st.session_state["dynamic_snapshot_stocks"] = _kr_auto_run_stocks
             st.session_state["dynamic_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state["kr_auto_run_stage1_done"] = True
@@ -7301,7 +7368,7 @@ def _render_tab_us():
         st.session_state["us_auto_run_version"] = US_AUTO_RUN_VERSION
     if not st.session_state.get("us_auto_run_stage1_done"):
         _us_auto_run_stocks = _cached_get_top_us_stocks_by_amount(8)
-        if _us_auto_run_stocks:
+        if _us_auto_run_stocks and len(_us_auto_run_stocks) >= 5:
             st.session_state["dynamic_us_snapshot_stocks"] = _us_auto_run_stocks
             st.session_state["dynamic_us_snapshot_updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state["us_auto_run_stage1_done"] = True
@@ -7348,11 +7415,38 @@ def _render_tab_us():
         "③ 스윙 기록 바로 저장을 눌렀을 때만 저장되어 오늘 저장 요약/지난 기록에 반영됩니다."
     )
 
-    # 미국장 시장 분위기 요약 — 한국장 탭에서 입력한 값을 그대로 요약 표시만 한다(새 계산 없음).
+    # 미국장 시장 분위기 요약 — 한국장 탭의 수동 입력값이 있으면 그것을, 없으면
+    # 0단계 자동 확인 결과(kr_mood_auto_results)로 채운다. 예전에는 수동 입력값만
+    # 읽어서 자동조회가 끝나도 "0.00% / 미입력"으로만 보였다(2026-07-15 사용자 지적).
     st.markdown("### 0단계 미국장 시장 분위기 확인")
+    _kr_mood_rows = {row["항목"]: row for row in (st.session_state.get("kr_mood_auto_results") or [])}
+
+    def _us_mood_direction_from_auto(name):
+        _pct_text = str((_kr_mood_rows.get(name) or {}).get("등락률(%)") or "")
+        if _pct_text.startswith("+"):
+            return "상승"
+        if _pct_text.startswith("-"):
+            return "하락"
+        return "미입력"
+
     _us_nq_change = st.session_state.get("snap_nq_change", 0.0)
+    if not _us_nq_change:
+        try:
+            _us_nq_change = float(
+                str((_kr_mood_rows.get("나스닥100 선물") or {}).get("등락률(%)") or "0").replace("%", "").replace("+", "")
+            )
+        except (TypeError, ValueError):
+            _us_nq_change = 0.0
     _us_soxx_dir = st.session_state.get("snap_soxx_dir", "미입력")
+    if _us_soxx_dir == "미입력":
+        _us_soxx_dir = _us_mood_direction_from_auto("SOXX")
+        if _us_soxx_dir != "미입력":
+            _us_soxx_dir += " (자동 조회)"
     _us_usdkrw_dir = st.session_state.get("snap_usdkrw_dir", "미입력")
+    if _us_usdkrw_dir == "미입력":
+        _us_usdkrw_dir = _us_mood_direction_from_auto("달러/원")
+        if _us_usdkrw_dir != "미입력":
+            _us_usdkrw_dir += " (자동 조회)"
     st.markdown(
         f"""
         <div style="background-color:#171a21;border:1px solid #303642;border-radius:10px;padding:14px;margin-top:8px;">
@@ -7419,11 +7513,14 @@ def _render_tab_us():
         )
 
         def _us_stage2_verdict_styler(col):
+            # KR 2단계 표와 같은 색 규칙: 추천(초록)·감시(노랑)·보류(파랑).
             styles = []
             for val in col:
                 if val == "추천 후보":
                     styles.append("color: #39ff14; font-weight: 800")
                 elif val == "감시":
+                    styles.append("color: #facc15")
+                elif val == "보류(선반영)":
                     styles.append("color: #4b9fff")
                 else:
                     styles.append("")
@@ -7451,7 +7548,9 @@ def _render_tab_us():
             .apply(_us_stage2_verdict_styler, subset=["판단"])
             .apply(_us_stage2_confirm_styler, subset=["확인 필요"])
         )
-        st.dataframe(_us_stage2_styled_df, width="stretch", hide_index=True)
+        # 컬럼이 4개뿐이라 화면 전체로 늘리면 칸이 지나치게 넓어진다(2026-07-15 지적)
+        # — 내용 폭에 맞춘다.
+        st.dataframe(_us_stage2_styled_df, width="content", hide_index=True)
         st.markdown("종목별 1순위 근거 / 감점 이유 (미리보기)")
         for r in _us_stage2_rows_sorted:
             with st.expander(f"{r['name']} — {r['verdict']} (총점 {r['total_score']:.0f}점)"):
@@ -7527,7 +7626,10 @@ def _render_tab_us():
             ("바이오", "XBI, IBB"),
         ]
     ]
-    # 섹터/지표 자동 조회 결과가 있으면 7개 테마 전부 등락률 기준으로 상태를 자동 채운다.
+    # 섹터/지표 자동 조회 결과가 있으면 7개 테마 전부 등락률 기준으로 상태를 자동 채우고,
+    # 대장주/후발주 칸도 그날 등락률 상위 지표 티커로 자동 채운다(2026-07-15 지적:
+    # "대장주 후발주 내용이 없다" — 미국장은 네이버 테마 같은 종목명 소스가 없어
+    # 참고 지표 티커 중 강한 순서로 채우는 참고용 표기다).
     _us_indicators_result = st.session_state.get("us_theme_indicators_result")
     if _us_indicators_result and _us_indicators_result["ok"]:
         _us_indicator_values = _us_indicators_result["values"]
@@ -7549,6 +7651,17 @@ def _render_tab_us():
                 _row["현재 상태"] = "약함"
             else:
                 _row["현재 상태"] = "보통"
+            _ranked_tickers = sorted(
+                (t for t in _tickers if _us_indicator_values.get(t) is not None),
+                key=lambda t: _us_indicator_values[t],
+                reverse=True,
+            )
+            if _ranked_tickers and not _row["대장주"]:
+                _row["대장주"] = f"{_ranked_tickers[0]} ({_us_indicator_values[_ranked_tickers[0]]:+.2f}%)"
+            if len(_ranked_tickers) > 1 and not _row["후발주"]:
+                _row["후발주"] = ", ".join(
+                    f"{t} ({_us_indicator_values[t]:+.2f}%)" for t in _ranked_tickers[1:3]
+                )
             if not _row["메모"]:
                 _row["메모"] = f"자동조회 참고: {'/'.join(_tickers)} 평균 {_avg_change:+.2f}%"
     # 세부 입력(대장주/후발주/추격주의/메모/상태)은 테마별 session_state 키에 저장되어
@@ -7571,8 +7684,25 @@ def _render_tab_us():
         if _saved_status:
             _row["현재 상태"] = _saved_status
 
+    def _us_theme_status_styler(col):
+        # KR 테마 참고판과 같은 색 규칙: 강함(빨강)·감시(노랑)·보통(파랑)·약함(회색).
+        styles = []
+        for val in col:
+            if val == "강함":
+                styles.append("color: #ff4b4b; font-weight: 800")
+            elif val == "감시":
+                styles.append("color: #facc15; font-weight: 700")
+            elif val == "보통":
+                styles.append("color: #4b9fff")
+            elif val == "약함":
+                styles.append("color: #94a3b8")
+            else:
+                styles.append("color: #6b7280")
+        return styles
+
+    _us_theme_df = pd.DataFrame(_us_theme_watch_rows)
     st.dataframe(
-        pd.DataFrame(_us_theme_watch_rows),
+        _us_theme_df.style.apply(_us_theme_status_styler, subset=["현재 상태"]),
         width="stretch",
         height=308,
         row_height=38,
