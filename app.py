@@ -1430,6 +1430,47 @@ def build_kr_stage2_preview():
     }
 
 
+def _memoized_kr_stage2_preview():
+    """build_kr_stage2_preview()를 세션 안에서 짧게 메모이즈한다.
+
+    2026-07-15: st.rerun(scope="fragment")를 시도했다가 Streamlit 공식 문서에
+    "fragment가 이미 앱 전체 재실행의 일부로 실행 중이면 fragment-scope rerun은
+    허용되지 않는다"는 제약이 있어(실제 소스 확인) 되돌렸다 — 종목 카드 하나 클릭할
+    때마다 여전히 전체 rerun이 일어난다. 대신 실제 계산량을 줄인다: build_kr_stage2_preview()는
+    12종목마다 단타·스윙 점수·근거 문장을 전부 새로 만드는데, 입력값(종목 목록·오늘 주가
+    자동채우기 결과)이 안 바뀌었으면 같은 결과가 나온다 — 카드 클릭처럼 입력값을 안 바꾸는
+    rerun에서는 재사용한다.
+    """
+    # 종목별 상세 입력 카드는 사용자가 직접 값을 고쳐 쓸 수 있고(snap_{ticker}_{field}),
+    # build_kr_stage2_preview()는 가격 필드 외에도 진입가·손절가 등 위험관리 입력값
+    # (_collect_risk_fields)까지 읽는다. 특정 필드만 골라 캐시 키에 넣으면 나중에
+    # 함수가 새 필드를 더 읽게 됐을 때 캐시가 그 변경을 놓치고 옛 값을 돌려줄 수 있으므로,
+    # snap_{ticker}_ 로 시작하는 session_state 항목을 통째로 스캔해 키를 만든다
+    # (한국 종목 티커는 밑줄을 포함하지 않으므로 "snap_티커_필드명" 분리가 안전하다).
+    _ticker_list = [s["ticker"] for s in SNAPSHOT_STOCKS]
+    _ticker_set = set(_ticker_list)
+    _snap_state = {}
+    for _k, _v in st.session_state.items():
+        if not _k.startswith("snap_"):
+            continue
+        _parts = _k.split("_", 2)
+        if len(_parts) == 3 and _parts[1] in _ticker_set:
+            _snap_state.setdefault(_parts[1], []).append((_parts[2], _v))
+    _cache_key = (
+        tuple(
+            (t, tuple(sorted(_snap_state.get(t, []))))
+            for t in _ticker_list
+        ),
+        st.session_state.get("kr_mood_auto_results") is not None,
+    )
+    _cache = st.session_state.get("_kr_stage2_preview_cache")
+    if _cache and _cache.get("key") == _cache_key:
+        return _cache["value"]
+    _value = build_kr_stage2_preview()
+    st.session_state["_kr_stage2_preview_cache"] = {"key": _cache_key, "value": _value}
+    return _value
+
+
 def _us_swing_upside_score(change_pct):
     """상승률 점수(0~20). 전일 대비 등락률 기준."""
     if change_pct is None:
@@ -2949,6 +2990,39 @@ def _build_market_overview_price_item(market, label, ticker):
         item["asof"] = _daily_result.get("as_of_date") if _daily_result else None
         item["as_of_date"] = _daily_result.get("as_of_date") if _daily_result else None
         item["as_of_time"] = None
+        if item["status"] != "정상":
+            # 2026-07-15 실측 확인: yfinance가 최신 거래일 행에 NaN OHLC를 준 채로
+            # 며칠 유지하는 경우가 있다(SOXX/SMH에서 재현) — get_snapshot_defaults가
+            # 쓰는 헬퍼는 "최신 행 하나라도 무효면 전체 거부"라 이럴 때 완전히 실패한다.
+            # get_ohlc_history_for_chart는 그 문제를 피하려고 이미 따로 만든 함수라서
+            # (price_data.py 자체 주석에 명시) 마지막 유효한 종가까지 내려가서 쓴다.
+            # price_data.py는 건드리지 않는다.
+            try:
+                _fallback_end = datetime.now()
+                _fallback_start = _fallback_end - timedelta(days=10)
+                _fallback_df = price_data.get_ohlc_history_for_chart(
+                    ticker, _fallback_start.strftime("%Y-%m-%d"), _fallback_end.strftime("%Y-%m-%d")
+                )
+            except Exception:
+                _fallback_df = None
+            if _fallback_df is not None and not _fallback_df.empty and "Close" in _fallback_df.columns:
+                _valid_closes = [
+                    (idx, float(v)) for idx, v in _fallback_df["Close"].items()
+                    if isinstance(v, (int, float)) and math.isfinite(v) and v > 0
+                ]
+                if len(_valid_closes) >= 2:
+                    _fb_asof, _fb_current = _valid_closes[-1]
+                    _fb_prev_close = _valid_closes[-2][1]
+                    item = {
+                        "label": label, "ticker": ticker, "status": "정상",
+                        "current": _fb_current,
+                        "change_pct": _safe_pct_diff(_fb_current, _fb_prev_close),
+                    }
+                    item["data_kind"] = "daily_close"
+                    _fb_date_text = pd.Timestamp(_fb_asof).strftime("%Y-%m-%d")
+                    item["asof"] = _fb_date_text
+                    item["as_of_date"] = _fb_date_text
+                    item["as_of_time"] = None
     item["history"] = []
     item["history_kind"] = "daily"
     if item["status"] == "정상":
@@ -3351,7 +3425,9 @@ def _render_market_overview(market):
                                 or deepl_translate.translate_market_text_locally(_ev["title"])
                             )
                             _title_html = (
-                                f"<div style='font-size:23px;line-height:1.45;font-weight:800;color:#f9fafb'>{html.escape(_title_ko)}</div>"
+                                # 2026-07-15 사용자 요청: 굵게 표시한 제목이 흰색 계열이라
+                                # 색이 없어 보였다 — 눈에 띄는 파란색으로 바꾼다.
+                                f"<div style='font-size:23px;line-height:1.45;font-weight:800;color:#60a5fa'>{html.escape(_title_ko)}</div>"
                                 f"<div style='font-size:14px;line-height:1.5;color:#9ca3af;margin-top:4px'>영어 원문: {html.escape(_ev['title'])}</div>"
                                 if _title_ko else
                                 f"<div style='font-size:19px;line-height:1.5;font-weight:800;color:#f9fafb'>{html.escape(_ev['title'] or '-')}</div>"
@@ -3674,10 +3750,10 @@ def _render_risk_and_warning_inputs(ticker, market, compact=False):
         entry_price = rc1.number_input(
             "진입가", min_value=0.0, step=100.0, key=prefix + "entry_price"
         )
-        # 2026-07-15 사용자 반복 지적: 쉼표 표시가 st.caption(기본 14px 안팎)이라 잘
-        # 안 보였다 — 앱 기본 글자 크기(19px)로 키우고, 입력 안 한 경우 이유도 명시한다.
+        # 2026-07-15 사용자 3번째 지적: 19px로는 여전히 작다고 해서 2배(38px)로,
+        # 색도 회색 계열 대신 눈에 띄는 초록으로 바꾼다.
         rc1.markdown(
-            f"<div style='font-size:19px;color:#e5e7eb;font-weight:700'>{entry_price:,.0f}</div>"
+            f"<div style='font-size:38px;color:#4ade80;font-weight:800'>{entry_price:,.0f}</div>"
             if entry_price else
             "<div style='font-size:16px;color:#8b95a5'>아직 입력 안 함</div>",
             unsafe_allow_html=True,
@@ -3686,7 +3762,7 @@ def _render_risk_and_warning_inputs(ticker, market, compact=False):
             "손절가", value=0.0, min_value=0.0, step=100.0, key=prefix + "stop_loss_price"
         )
         rc2.markdown(
-            f"<div style='font-size:19px;color:#e5e7eb;font-weight:700'>{stop_loss_price:,.0f}</div>"
+            f"<div style='font-size:38px;color:#f87171;font-weight:800'>{stop_loss_price:,.0f}</div>"
             if stop_loss_price else
             "<div style='font-size:16px;color:#8b95a5'>아직 입력 안 함(자동 계산 안 됨, 직접 입력 필요)</div>",
             unsafe_allow_html=True,
@@ -6075,7 +6151,8 @@ def _render_kr_fable_mockup1_preview():
     # 미리보기 데이터는 반드시 버튼 처리(_render_kr_primary_actions) 뒤에 계산한다 —
     # 예전에는 버튼보다 먼저 계산해서, 버튼이 거래대금 상위 12종목을 재선정해도 그
     # 실행에서는 여전히 이전 종목(3개)만 보였다(2026-07-15 사용자 반복 지적의 원인).
-    stage2_preview = build_kr_stage2_preview()
+    # 종목 카드 클릭처럼 입력값이 그대로인 rerun에서는 메모이즈된 결과를 재사용한다.
+    stage2_preview = _memoized_kr_stage2_preview()
     rows = stage2_preview["rows"]
 
     st.markdown("### 종목 판단 미리보기")
@@ -7147,7 +7224,7 @@ def _render_tab_kr():
             "남기려면 아래 '▼ 저장 전 확인으로 이동' 버튼을 따로 눌러야 합니다. 이 미리보기 자체는 "
             "DB에 아무 것도 저장하지 않습니다."
         )
-        _stage2_preview = build_kr_stage2_preview()
+        _stage2_preview = _memoized_kr_stage2_preview()
         st.caption(
             f"0단계 시장 분위기 반영: {'예' if _stage2_preview['stage0_reflected'] else '아니오 (수동 또는 미실행)'} / "
             f"1단계 오늘 주가 자동 채우기 반영: {'예' if _stage2_preview['stage1_reflected'] else '아니오 (수동 입력 값 기준)'}"
@@ -7256,7 +7333,7 @@ def _render_tab_kr():
             # 미리보기(build_kr_stage2_preview())와 같은 판단 계산값을 재사용한다 — 미리보기와
             # 저장 결과가 서로 다른 값으로 보이는 사고를 막기 위함. 저장 흐름(items_to_save 구성,
             # db.save_report() 호출)은 그대로 두고, 판단 계산 부분만 대체한다.
-            _stage2_preview_for_save = build_kr_stage2_preview()
+            _stage2_preview_for_save = _memoized_kr_stage2_preview()
             _stage2_rows_by_ticker = {r["ticker"]: r for r in _stage2_preview_for_save["rows"]}
 
             kr_preview_rows = []

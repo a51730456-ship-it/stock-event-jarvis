@@ -170,7 +170,7 @@ class CloudStartupPerformanceTests(unittest.TestCase):
         ]
         self.assertLess(
             mockup_fn.index("_render_kr_primary_actions()"),
-            mockup_fn.index("stage2_preview = build_kr_stage2_preview()"),
+            mockup_fn.index("stage2_preview = _memoized_kr_stage2_preview()"),
         )
 
     def test_login_warmup_runs_all_auto_fetches_in_parallel(self):
@@ -238,6 +238,65 @@ class CloudStartupPerformanceTests(unittest.TestCase):
 
         run_fill_fn = SOURCE[SOURCE.index("def run_kr_snapshot_auto_fill"):SOURCE.index("_AUTO_FETCH_FIELD_LABELS")]
         self.assertIn("_short_cached_kr_snapshot_results(_snapshot_tickers)", run_fill_fn)
+
+    def test_memoized_kr_stage2_preview_reuses_cache_but_detects_manual_edits(self):
+        # 2026-07-15: 카드 클릭 시 12종목 점수를 매번 새로 계산하던 것을 캐싱했다.
+        # 캐시 키가 "언제 자동조회했는지" 타임스탬프만 보면, 사용자가 종목별 입력
+        # 카드에서 값을 직접 고친 직후에도 캐시가 옛 점수를 그대로 돌려주는 사고가
+        # 날 수 있다(_get_snapshot_value/_collect_risk_fields가 읽는 snap_{ticker}_*
+        # 값 전체를 캐시 키가 반영해야 함) — 이를 회귀 테스트로 고정한다.
+        session_state = {}
+
+        class SessionState:
+            def get(self, key, default=None):
+                return session_state.get(key, default)
+
+            def __setitem__(self, key, value):
+                session_state[key] = value
+
+            def items(self):
+                return session_state.items()
+
+        class St:
+            session_state = SessionState()
+
+        call_count = {"n": 0}
+
+        def fake_build_kr_stage2_preview():
+            call_count["n"] += 1
+            return {"rows": [], "call": call_count["n"]}
+
+        namespace = {
+            "st": St(),
+            "SNAPSHOT_STOCKS": [{"name": "테스트종목", "ticker": "000001"}],
+            "build_kr_stage2_preview": fake_build_kr_stage2_preview,
+        }
+        exec(
+            compile(ast.Module(body=[_function("_memoized_kr_stage2_preview")], type_ignores=[]), "app.py", "exec"),
+            namespace,
+        )
+        memoized = namespace["_memoized_kr_stage2_preview"]
+
+        first = memoized()
+        self.assertEqual(call_count["n"], 1)
+
+        second = memoized()
+        self.assertEqual(call_count["n"], 1, "입력값이 그대로면 캐시를 재사용해야 한다")
+        self.assertEqual(first, second)
+
+        session_state["snap_000001_current"] = 12345.0
+        memoized()
+        self.assertEqual(call_count["n"], 2, "가격 입력값이 바뀌면 캐시를 무효화해야 한다")
+
+        session_state["snap_000001_entry_price"] = 9999.0
+        memoized()
+        self.assertEqual(
+            call_count["n"], 3,
+            "진입가 등 위험관리 입력값이 바뀌어도 캐시를 무효화해야 한다(risk_fields도 이 함수의 결과에 포함됨)",
+        )
+
+        memoized()
+        self.assertEqual(call_count["n"], 3, "위험관리 입력값도 그대로면 다시 캐시를 재사용해야 한다")
 
 
 if __name__ == "__main__":
