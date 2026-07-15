@@ -2933,18 +2933,37 @@ def _build_market_overview_price_item(market, label, ticker):
         item["as_of_date"] = _daily_result.get("as_of_date") if _daily_result else None
         item["as_of_time"] = None
     item["history"] = []
+    item["history_kind"] = "daily"
     if item["status"] == "정상":
-        # 실시간 아님 — 이 버튼을 누른 시점에만 최근 10일치 종가를 한 번 조회한다.
-        try:
-            _hist_end = datetime.now()
-            _hist_start = _hist_end - timedelta(days=14)
-            _hist_df = price_data.get_ohlc_history_for_chart(
-                ticker, _hist_start.strftime("%Y-%m-%d"), _hist_end.strftime("%Y-%m-%d")
-            )
-            if _hist_df is not None and not _hist_df.empty:
-                item["history"] = [float(v) for v in _hist_df["Close"].tail(10).tolist()]
-        except Exception:
-            item["history"] = []
+        # 장중 값이면 미니 차트도 오늘 장중 흐름(5분봉)으로 그린다 — 네이버처럼
+        # 숫자(+6%)와 차트 방향이 일치해야 한다는 지적(2026-07-15) 반영.
+        # 실시간 스트리밍이 아니라 이 조회 시점에 한 번 받는 지연 가능 스냅샷이다.
+        if item.get("data_kind") == "intraday":
+            try:
+                import yfinance as yf
+
+                _intra_df = yf.Ticker(ticker).history(period="1d", interval="5m")
+                _intra_closes = [
+                    float(v) for v in _intra_df["Close"].tolist()
+                    if isinstance(v, (int, float)) and math.isfinite(v)
+                ]
+                if len(_intra_closes) >= 5:
+                    item["history"] = _intra_closes[-40:]
+                    item["history_kind"] = "intraday"
+            except Exception:
+                pass
+        if not item["history"]:
+            # 실시간 아님 — 이 버튼을 누른 시점에만 최근 10일치 종가를 한 번 조회한다.
+            try:
+                _hist_end = datetime.now()
+                _hist_start = _hist_end - timedelta(days=14)
+                _hist_df = price_data.get_ohlc_history_for_chart(
+                    ticker, _hist_start.strftime("%Y-%m-%d"), _hist_end.strftime("%Y-%m-%d")
+                )
+                if _hist_df is not None and not _hist_df.empty:
+                    item["history"] = [float(v) for v in _hist_df["Close"].tail(10).tolist()]
+            except Exception:
+                item["history"] = []
         # yfinance 이력에 아직 오늘 값이 없으면(밤·장중), 이력 끝에 현재값을
         # 붙인다 — 숫자는 +6%인데 미니 차트는 어제까지의 하락만 그려져 서로
         # 모순돼 보이던 문제(2026-07-15 사용자 지적) 수정. 마지막 이력과 거의
@@ -3212,10 +3231,16 @@ def _render_market_overview(market):
                             f"<div style='font-size:18px;line-height:1.65;color:{change_color};margin-top:6px'>{'등락률' if _data_kind == 'intraday' else '전일 대비 등락률'} {change_text}</div>"
                             f"<div style='font-size:14px;line-height:1.5;color:#8b95a5;margin-top:2px'>{_asof_text}</div>"
                             f"{_spark}"
-                            # 미니 차트는 오늘 장중 흐름이 아니라 최근 10일 종가 추이다 —
-                            # 오늘 +6%인데 차트가 하락으로 보이면 지난주 하락 구간이 담긴
-                            # 것이니 라벨로 명시해 혼동을 막는다(2026-07-15 사용자 질문).
-                            + ("<div style='font-size:12px;line-height:1.4;color:#6b7280'>최근 10일 추이</div>" if item.get("history") else "")
+                            # 장중 값이면 오늘 5분봉 흐름, 아니면 최근 10일 종가 추이 —
+                            # 어떤 구간의 차트인지 라벨로 명시한다(2026-07-15 사용자 지적).
+                            + (
+                                (
+                                    "<div style='font-size:12px;line-height:1.4;color:#6b7280'>오늘 장중 추이(5분봉·지연 가능)</div>"
+                                    if item.get("history_kind") == "intraday"
+                                    else "<div style='font-size:12px;line-height:1.4;color:#6b7280'>최근 10일 추이</div>"
+                                )
+                                if item.get("history") else ""
+                            )
                         )
                 card_parts.append("</div>")
                 st.markdown("".join(card_parts), unsafe_allow_html=True)
@@ -6553,6 +6578,12 @@ def _render_tab_kr():
     # 재계산이 실행되지 않아, 버튼 클릭으로 종목 목록이 바뀌어도 다음 클릭까지 옛
     # 목록이 남았다(2026-07-15 "아직도 3종목" 원인 중 하나). 매 프래그먼트 실행마다
     # 세션 기준으로 전역을 다시 맞춘다.
+    # 이전 세션/장 시작 전 로그인에서 3종목짜리 불신 목록이 세션에 박혀 있으면 버리고
+    # 재선정을 트리거한다(2026-07-15 "아직 3종목" 자가 복구).
+    _dyn_kr = st.session_state.get("dynamic_snapshot_stocks")
+    if _dyn_kr and len(_dyn_kr) < MIN_TRUSTED_TOP_STOCKS:
+        st.session_state.pop("dynamic_snapshot_stocks", None)
+        st.session_state["kr_auto_run_stage1_done"] = False
     globals()["SNAPSHOT_STOCKS"] = st.session_state.get("dynamic_snapshot_stocks") or DEFAULT_SNAPSHOT_STOCKS
     globals()["SNAPSHOT_NAME_TO_TICKER"] = {s["name"]: s["ticker"] for s in SNAPSHOT_STOCKS}
     # 로그인 직후 한국장 탭을 열면 "오늘 한국장 자료 불러오기"/"오늘 종목 판단
@@ -7462,6 +7493,10 @@ US_AUTO_RUN_VERSION = "2026-07-15-v1"
 def _render_tab_us():
     # 프래그먼트 rerun에서는 모듈 상단의 US_SNAPSHOT_STOCKS 재계산이 실행되지 않는다
     # — KR 탭과 같은 이유로 매 프래그먼트 실행마다 세션 기준으로 전역을 다시 맞춘다.
+    _dyn_us = st.session_state.get("dynamic_us_snapshot_stocks")
+    if _dyn_us and len(_dyn_us) < 5:
+        st.session_state.pop("dynamic_us_snapshot_stocks", None)
+        st.session_state["us_auto_run_stage1_done"] = False
     globals()["US_SNAPSHOT_STOCKS"] = st.session_state.get("dynamic_us_snapshot_stocks") or DEFAULT_US_SNAPSHOT_STOCKS
     # 2026-07-15 사용자 요청: 미국장 탭도 한국장 탭과 동일하게 로그인(탭 진입) 후
     # "종목 자동 선정" → "시장자료/섹터ETF/테마지표/종목 스냅샷 불러오기"를 세션당 한 번
