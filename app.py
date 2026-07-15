@@ -1699,7 +1699,11 @@ def build_us_stage2_preview():
             s["name"], change_pct, open_pos_pct, high_drop_pct, turnover_ratio_pct, material_memo
         )
         breakdown["ticker"] = ticker
+        breakdown["sector"] = s.get("sector", "-")
         breakdown["change_pct"] = change_pct
+        breakdown["open_pos_pct"] = open_pos_pct
+        breakdown["high_drop_pct"] = high_drop_pct
+        breakdown["turnover_ratio_pct"] = turnover_ratio_pct
         breakdown["validation_errors"] = _validate_snapshot_price_inputs(
             s["name"], current, open_price, high, low, _get_snapshot_value(ticker, "volume"), turnover,
         )
@@ -2904,6 +2908,15 @@ def _fetch_market_overview(market):
                         item["history"] = [float(v) for v in _hist_df["Close"].tail(10).tolist()]
                 except Exception:
                     item["history"] = []
+                # yfinance 이력에 아직 오늘 값이 없으면(밤·장중), 이력 끝에 현재값을
+                # 붙인다 — 숫자는 +6%인데 미니 차트는 어제까지의 하락만 그려져 서로
+                # 모순돼 보이던 문제(2026-07-15 사용자 지적) 수정. 마지막 이력과 거의
+                # 같은 값이면(이미 반영됨) 중복으로 붙이지 않는다.
+                _cur = item.get("current")
+                if item["history"] and isinstance(_cur, (int, float)) and math.isfinite(_cur):
+                    _last_hist = item["history"][-1]
+                    if _last_hist and abs(_cur - _last_hist) / abs(_last_hist) > 0.0005:
+                        item["history"] = item["history"] + [float(_cur)]
             card_items.append(item)
         valid_changes = [item["change_pct"] for item in card_items if item["change_pct"] is not None]
         signal_details[card[0]] = valid_changes
@@ -3553,24 +3566,30 @@ def _render_risk_and_warning_inputs(ticker, market, compact=False):
         if risk["warning"]:
             st.warning(risk["warning"])
 
-        with st.expander("리스크 관리 공통 설정", expanded=False):
-            st.caption(
-                "계좌금액/1회 리스크%는 한국장·미국장 권장 수량 계산에 공통으로 쓰입니다. "
-                "자동매매가 아니라 화면 표시용 참고 계산입니다."
-            )
-            r1, r2, r3 = st.columns(3)
-            r1.number_input(
-                "계좌금액", value=0.0, min_value=0.0, step=1000000.0, key="risk_account_size"
-            )
-            r2.number_input(
-                "1회 리스크(%)", value=1.0, min_value=0.0, max_value=2.0, step=0.1,
-                key="risk_percent_setting",
-            )
-            today_loss_r = r3.number_input(
-                "금일 손실R (수동 입력)", value=0.0, step=0.1, key="risk_today_loss_r"
-            )
-            if today_loss_r <= -2:
-                st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
+        # 공통 설정 위젯(risk_account_size 등)은 전역 키라 한 페이지에 한 번만 만들 수
+        # 있다 — 한국장 목업이 항상 먼저 렌더링하므로 KR에서만 생성하고, 미국장 목업
+        # (2026-07-15 추가)에서는 안내만 표시한다(값은 같은 세션 키를 공유).
+        if market == "KR":
+            with st.expander("리스크 관리 공통 설정", expanded=False):
+                st.caption(
+                    "계좌금액/1회 리스크%는 한국장·미국장 권장 수량 계산에 공통으로 쓰입니다. "
+                    "자동매매가 아니라 화면 표시용 참고 계산입니다."
+                )
+                r1, r2, r3 = st.columns(3)
+                r1.number_input(
+                    "계좌금액", value=0.0, min_value=0.0, step=1000000.0, key="risk_account_size"
+                )
+                r2.number_input(
+                    "1회 리스크(%)", value=1.0, min_value=0.0, max_value=2.0, step=0.1,
+                    key="risk_percent_setting",
+                )
+                today_loss_r = r3.number_input(
+                    "금일 손실R (수동 입력)", value=0.0, step=0.1, key="risk_today_loss_r"
+                )
+                if today_loss_r <= -2:
+                    st.error("금일 신규 판단 중지 - 당일 손실 -2R 도달")
+        else:
+            st.caption("계좌금액/1회 리스크% 공통 설정은 ① 한국장 판단 탭의 종목 판단 미리보기에서 변경합니다.")
 
         with st.expander("청산 계획", expanded=False):
             ec1, ec2, ec3 = st.columns(3)
@@ -4690,10 +4709,32 @@ KR_MARKET_MOOD_AUTO_TARGETS = [
 ]
 
 
+class _EmptyFetchResult(Exception):
+    """조회 실패(빈 결과)를 st.cache_data에 저장하지 않기 위한 신호.
+
+    2026-07-15 사용자 화면에서 확인: 장 시작 전(00:42) 로그인 때 거래대금 상위 조회가
+    실패하면 그 빈 결과가 300초 캐시에 저장돼, 이후 재시도해도 계속 기본 종목 일부만
+    표시됐다. st.cache_data는 예외가 발생한 호출을 캐시하지 않으므로, 빈 결과일 때
+    예외를 던지고 바깥에서 받아 빈 값으로 돌려주면 "실패는 캐시 안 함"이 된다.
+    """
+
+
 @st.cache_data(ttl=300, show_spinner=False)
+def _cached_top_kr_stocks_nonempty(n):
+    stocks = price_data.get_top_kr_stocks_by_amount(n)
+    if not stocks:
+        raise _EmptyFetchResult()
+    return stocks
+
+
 def _cached_get_top_kr_stocks_by_amount(n):
-    """여러 기기의 로그인에서 KRX 전체 종목표를 반복해서 받지 않게 한다."""
-    return price_data.get_top_kr_stocks_by_amount(n)
+    """여러 기기의 로그인에서 KRX 전체 종목표를 반복해서 받지 않게 한다(실패는 캐시 안 함)."""
+    try:
+        return _cached_top_kr_stocks_nonempty(n)
+    except _EmptyFetchResult:
+        return []
+    except Exception:
+        return []
 
 
 def _fetch_top_us_stocks_by_amount(n):
@@ -4716,9 +4757,21 @@ def _fetch_top_us_stocks_by_amount(n):
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def _cached_top_us_stocks_nonempty(n):
+    stocks = _fetch_top_us_stocks_by_amount(n)
+    if not stocks:
+        raise _EmptyFetchResult()
+    return stocks
+
+
 def _cached_get_top_us_stocks_by_amount(n):
-    """여러 기기의 로그인에서 미국 후보군 35종목을 반복해서 조회하지 않게 한다."""
-    return _fetch_top_us_stocks_by_amount(n)
+    """여러 기기의 로그인에서 미국 후보군 35종목을 반복해서 조회하지 않게 한다(실패는 캐시 안 함)."""
+    try:
+        return _cached_top_us_stocks_nonempty(n)
+    except _EmptyFetchResult:
+        return []
+    except Exception:
+        return []
 
 
 @st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
@@ -4787,8 +4840,28 @@ def _fetch_kr_snapshot_results(tickers):
 
 
 @st.cache_data(ttl=90, show_spinner=False)
+def _cached_kr_snapshot_results_raw(tickers):
+    results = _fetch_kr_snapshot_results(tickers)
+    if results and not any((r or {}).get("ok") for r in results.values()):
+        raise _EmptyFetchResult()  # 전 종목 실패는 캐시하지 않는다 — 다음 호출에서 재시도
+    return results
+
+
 def _cached_kr_snapshot_results(tickers):
-    return _fetch_kr_snapshot_results(tickers)
+    tickers = tuple(tickers)
+    try:
+        results = _cached_kr_snapshot_results_raw(tickers)
+    except _EmptyFetchResult:
+        return {t: {"ok": False, "error": "종목 자료 조회 실패"} for t in tickers}
+    except Exception:
+        return {t: {"ok": False, "error": "종목 자료 조회 실패"} for t in tickers}
+    # 일부 종목만 실패한 캐시 결과는 실패분만 즉시 한 번 더 조회해서 메꾼다 —
+    # 로그인 자동 채우기에서 일시 오류로 3종목만 뜨던 문제(2026-07-15) 보정.
+    failed = tuple(t for t in tickers if not (results.get(t) or {}).get("ok"))
+    if failed and len(failed) < len(tickers):
+        retry = _fetch_kr_snapshot_results(failed)
+        results = {**results, **{t: r for t, r in retry.items() if (r or {}).get("ok")}}
+    return results
 
 
 @st.cache_data(ttl=FORCE_REFRESH_SHORT_TTL, show_spinner=False)
@@ -6091,6 +6164,144 @@ def _render_kr_fable_mockup1_preview():
     st.caption("실제 자동조회·입력·저장은 아래 기존 화면을 사용합니다.")
 
 
+def _render_us_stock_judgment_preview():
+    """미국장 '종목 판단 미리보기' — 한국장 목업1 미리보기와 같은 레이아웃(종목 선택·
+    점수 카드·핵심 근거·리스크 관리)을 미국 스윙 점수 엔진으로 그린다(2026-07-15
+    사용자 반복 요청: 캡처의 KR 화면과 동일한 형태). CSS는 KR 목업이 먼저 렌더링하며
+    주입한 jarvis-m1-* 클래스를 그대로 재사용한다. DB 저장 없음, 매수 신호 아님.
+    """
+    stage2_preview = build_us_stage2_preview()
+    rows = stage2_preview["rows"]
+    st.markdown("### 종목 판단 미리보기")
+    if not rows:
+        st.info("아직 불러온 종목 데이터가 없습니다. 위 '오늘 미국 종목 판단 준비하기'를 눌러주세요.")
+        return
+
+    left_col, right_col = st.columns([0.34, 0.66], gap="large")
+    with left_col:
+        sorted_rows = sorted(rows, key=lambda row: row["total_score"], reverse=True)
+        rows_by_ticker = {row["ticker"]: row for row in sorted_rows}
+        ticker_options = list(rows_by_ticker)
+        pending_ticker = st.session_state.pop("us_mockup_pending_ticker", None)
+        selectbox_index = 0
+        if pending_ticker in ticker_options:
+            selectbox_index = ticker_options.index(pending_ticker)
+            st.session_state["us_mockup_selected_ticker"] = pending_ticker
+        selected_ticker = st.selectbox(
+            "종목 선택",
+            ticker_options,
+            index=selectbox_index,
+            format_func=lambda ticker: rows_by_ticker[ticker]["name"],
+            key="us_mockup_selected_ticker",
+        )
+
+        _us_candidate_style_rules = [
+            '[class*="st-key-us_mockup_candidate_"] button, '
+            '[class*="st-key-us_mockup_candidate_"] button p { font-size: 21px !important; }'
+        ]
+        for row in sorted_rows:
+            if row["verdict"] == "추천 후보":
+                _us_candidate_style_rules.append(
+                    f'[class*="st-key-us_mockup_candidate_{row["ticker"]}"] button p '
+                    '{ color: #4ade80 !important; font-weight: 800 !important; }'
+                )
+        st.markdown(f"<style>{''.join(_us_candidate_style_rules)}</style>", unsafe_allow_html=True)
+
+        _gap = " " * 4
+        for row in sorted_rows:
+            if st.button(
+                f"{row['name']}{_gap}:green[스윙 {row['verdict']} {row['total_score']:.0f}점]",
+                key=f"us_mockup_candidate_{row['ticker']}",
+                help=f"{row.get('sector', '-')} · 확인 필요: {'예' if row['needs_confirmation'] else '아니오'}",
+            ):
+                st.session_state["us_mockup_pending_ticker"] = row["ticker"]
+                st.rerun()
+
+    selected_row = rows_by_ticker[selected_ticker]
+    current_value = _get_snapshot_value(selected_ticker, "current")
+    with right_col:
+        st.markdown(f"## {selected_row['name']}")
+        st.caption(f"스윙 {selected_row['verdict']} · 총점 {selected_row['total_score']:.0f}점 ({selected_row['tier_label']})")
+        _us_detail_container = st.container(key="us_mockup_detail_panel")
+
+    def _us_pct_card_html(label, value):
+        if value is None:
+            return (
+                f'<div class="jarvis-m1-pct-card">'
+                f'<span class="jarvis-m1-pct-label">{label}</span>'
+                f'<span class="jarvis-m1-pct-value">-</span></div>'
+            )
+        css_class = "jarvis-m1-pct-up" if value > 0 else "jarvis-m1-pct-down" if value < 0 else ""
+        return (
+            f'<div class="jarvis-m1-pct-card">'
+            f'<span class="jarvis-m1-pct-label">{label}</span>'
+            f'<span class="jarvis-m1-pct-value {css_class}">{_fmt_signed_pct(value)}</span></div>'
+        )
+
+    with _us_detail_container:
+        metric_current, metric_open, metric_high, metric_turnover = st.columns(4)
+        metric_current.metric(
+            "현재가",
+            "-" if current_value is None else f"{current_value:,.2f}",
+            delta=(
+                None
+                if selected_row["change_pct"] is None
+                else _fmt_signed_pct(selected_row["change_pct"])
+            ),
+        )
+        with metric_open:
+            st.markdown(_us_pct_card_html("시가 대비", selected_row["open_pos_pct"]), unsafe_allow_html=True)
+        with metric_high:
+            st.markdown(_us_pct_card_html("고점 대비", selected_row["high_drop_pct"]), unsafe_allow_html=True)
+        metric_turnover.metric(
+            "시총 대비 거래대금",
+            "-"
+            if selected_row["turnover_ratio_pct"] is None
+            else f"{selected_row['turnover_ratio_pct']:.2f}%",
+        )
+
+        def _us_labeled_line(label, value):
+            st.markdown(
+                f'<div style="font-size:18px;line-height:1.7;margin:4px 0;">'
+                f'<span style="color:#60a5fa;font-weight:700;">{label}:</span> '
+                f'<span style="color:#4ade80;font-weight:700;">{value}</span></div>',
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("#### 핵심 근거")
+        st.markdown(
+            f'<div class="jarvis-m1-score-highlight">점수: {selected_row["total_score"]:.0f}</div>',
+            unsafe_allow_html=True,
+        )
+        _us_labeled_line(
+            "점수 근거",
+            f"{selected_row['upside_note']}, {selected_row['close_pos_note']}, {selected_row['momentum_note']}",
+        )
+        _us_labeled_line("1순위 후보 근거", selected_row["priority_reason"])
+        _us_labeled_line("감점 이유", selected_row["deduction_reason"])
+        _us_labeled_line("매수 확정 여부", "미확정")
+
+        with st.expander("전체 근거", expanded=False):
+            _us_labeled_line("상승률 점수 (0~20)", f"{selected_row['upside_score']:.0f} — {selected_row['upside_note']}")
+            _us_labeled_line("종가 위치 점수 (0~20)", f"{selected_row['close_pos_score']:.0f} — {selected_row['close_pos_note']}")
+            _us_labeled_line("시장 분위기 (참고, 0~15)", f"{selected_row['mood_score']:.0f} — {selected_row['mood_note']}")
+            _us_labeled_line("재료 점수 (0~20)", f"{selected_row['material_score']:.0f} — {selected_row['material_note']}")
+            _us_labeled_line("거래/탄력 점수 (0~15)", f"{selected_row['momentum_score']:.0f} — {selected_row['momentum_note']}")
+            _us_labeled_line("위험 감점", f"{selected_row['risk_score']:.0f} — {selected_row['risk_note']}")
+            _us_labeled_line("시가 대비", _fmt_signed_pct(selected_row["open_pos_pct"]))
+            _us_labeled_line("고점 대비", _fmt_signed_pct(selected_row["high_drop_pct"]))
+            _us_labeled_line(
+                "시총 대비 거래대금",
+                "-"
+                if selected_row["turnover_ratio_pct"] is None
+                else f"{selected_row['turnover_ratio_pct']:.2f}%",
+            )
+            _us_labeled_line("validation_errors", selected_row["validation_errors"] or "-")
+            _us_labeled_line("매수 확정 조건", selected_row["buy_confirm_condition"])
+
+        _render_risk_and_warning_inputs(selected_ticker, "US", compact=True)
+
+
 def _render_review_tag_editors(saved_item, display_name, trade_mode, key_prefix="tab4_"):
     """Render the existing review tag/filter editors for one report item."""
     item_id = saved_item.get("id")
@@ -7187,10 +7398,13 @@ def _render_tab_us():
     if st.session_state.get("us_auto_preview_done_at"):
         st.caption(f"판단 준비 완료: {st.session_state['us_auto_preview_done_at']}")
 
-    # 2026-07-15 사용자 요청(반복 요청): 한국장의 "2단계 판단 미리보기"와 동일한 형태를
-    # 미국장에도 만든다. 점수 엔진은 새로 만들지 않고 기존 compute_us_swing_breakdown()을
-    # build_us_stage2_preview()로 재사용한다(아래 "② 미국장 스윙 계산 결과"와 같은 로직).
-    st.markdown("#### 미국 종목 판단 미리보기 (저장 전, 자동 계산)")
+    # 2026-07-15 사용자 반복 요청: 한국장 목업1과 동일한 "종목 판단 미리보기"(종목 선택·
+    # 점수 카드·핵심 근거·리스크 관리)를 미국장에도 그린다.
+    _render_us_stock_judgment_preview()
+
+    # 한국장의 "2단계 판단 미리보기"와 동일한 형태의 요약 표. 점수 엔진은 새로 만들지
+    # 않고 기존 compute_us_swing_breakdown()을 build_us_stage2_preview()로 재사용한다.
+    st.markdown("#### 2단계 판단 미리보기 (저장 전, 자동 계산)")
     st.caption(
         "아직 저장하지 않은 상태의 참고용 미리보기입니다. 매수 신호가 아니며, 실제로 기록을 "
         "남기려면 아래 '③ 미국장 스윙 기록 바로 저장'을 따로 눌러야 합니다. 이 미리보기 자체는 "
@@ -7268,126 +7482,123 @@ def _render_tab_us():
         if st.session_state.get("dynamic_us_snapshot_updated_at"):
             st.caption(f"마지막 선정: {st.session_state['dynamic_us_snapshot_updated_at']}")
 
-    # ---- 미국장 테마 레이더 1차 참고판 (수기 참고용, 저장/점수/판단 미반영) ----
-    st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+    # ---- 미국장 테마 참고판 (수기 참고용, 저장/점수/판단 미반영) ----
+    # 2026-07-15 사용자 반복 요청: 한국장 테마 참고판(노란 버튼 + 표 + 세부 입력)과 같은
+    # 형태로 재구성. 기존 접힌 expander("테마 레이더")를 없애고 항상 펼쳐 보여준다.
+    st.markdown("#### 테마 참고판 (미국)")
     st.markdown(
         """
-        <div style="background-color:#74d99f;border:1px solid #22c55e;color:#052e16;
-        font-size:1.05rem;font-weight:800;border-radius:8px;padding:6px 12px;
-        margin-top:14px;margin-bottom:10px;">
-        🌐 미국장 테마 레이더 1차 참고판 (저장 안 됨)
-        </div>
+        <style>
+        .st-key-us_theme_auto_fetch button {
+            background: #facc15 !important;
+            color: #1f2937 !important;
+            border-color: #eab308 !important;
+        }
+        .st-key-us_theme_auto_fetch button p { color: #1f2937 !important; }
+        </style>
         """,
         unsafe_allow_html=True,
     )
-    st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-    # 2026-07-15 사용자 요청: 한국장 테마 참고판처럼 자동 조회 결과가 접혀서 안 보이지
-    # 않도록 기본으로 펼쳐 둔다(로그인/탭 진입 시 이미 자동으로 조회되어 있음).
-    with st.expander("펼쳐서 테마 레이더 입력하기", expanded=True):
-        st.caption(
-            "이 영역은 저장/점수/판단에 반영되지 않는 수기 참고판입니다. "
-            "미국장 테마와 한국장 연결 가능성을 빠르게 정리합니다."
-        )
-        st.caption("탭 진입 시 자동 조회 · 참고용 표시일 뿐이며 점수·판정·DB 저장에는 반영되지 않습니다.")
-        if st.session_state.get("us_sector_auto_fetch_result", {}).get("checked_at"):
-            st.caption(f"마지막 자동 조회: {st.session_state['us_sector_auto_fetch_result']['checked_at']}")
-        if st.button("섹터 ETF 자동 조회 (SOXX/SMH/XLK/XLE/XLF)", key="us_sector_auto_fetch"):
-            st.session_state["us_sector_auto_fetch_result"] = _short_cached_fetch_us_sector_snapshot()
-            st.session_state["us_theme_indicators_result"] = _short_cached_fetch_us_theme_indicators()
-            st.rerun()
-        _us_sector_result = st.session_state.get("us_sector_auto_fetch_result")
-        if _us_sector_result:
-            if _us_sector_result["ok"]:
-                st.dataframe(
-                    pd.DataFrame(
-                        [
-                            {
-                                "티커": s["ticker"],
-                                "섹터": s["label"],
-                                "등락률(%)": f"{s['change_pct']:+.2f}%" if s["ok"] else "조회 실패",
-                            }
-                            for s in _us_sector_result["sectors"]
-                        ]
-                    ),
-                    width="stretch",
-                    hide_index=True,
-                )
-                st.caption(f"마지막 자동 조회: {_us_sector_result['checked_at']}")
-            else:
-                st.warning("섹터 ETF 자동 조회 실패 — 네트워크 문제일 수 있습니다.")
-        _us_theme_watch_rows = [
-            {
-                "테마": theme,
-                "참고 지표": indicators,
-                "상태": "확인 필요",
-                "대장주": "",
-                "후발주": "",
-                "추격주의": "",
-                "메모": "",
-            }
-            for theme, indicators in [
-                ("AI/반도체", "SOXX, SMH, NVDA, AVGO, AMD"),
-                ("금리/성장주", "QQQ, VIX, 미국 10년물, DXY"),
-                ("전력망/원전", "XLU, GRID, URA"),
-                ("방산/전쟁", "ITA, XAR, LMT, NOC"),
-                ("에너지/유가", "WTI, XLE, XOP"),
-                ("자동차/전기차", "TSLA, LIT"),
-                ("바이오", "XBI, IBB"),
-            ]
+    if st.button("테마 참고판 자동 조회", key="us_theme_auto_fetch"):
+        st.session_state["us_sector_auto_fetch_result"] = _short_cached_fetch_us_sector_snapshot()
+        st.session_state["us_theme_indicators_result"] = _short_cached_fetch_us_theme_indicators()
+        st.rerun()
+    if st.session_state.get("us_sector_auto_fetch_result", {}).get("checked_at"):
+        st.caption(f"마지막 자동 조회: {st.session_state['us_sector_auto_fetch_result']['checked_at']}")
+    st.caption("탭 진입 시 자동 조회 · 참고용 표시일 뿐이며 점수·판정·DB 저장에는 반영되지 않습니다.")
+
+    _us_theme_watch_rows = [
+        {
+            "테마": theme,
+            "현재 상태": "확인 필요",
+            "참고 지표": indicators,
+            "대장주": "",
+            "후발주": "",
+            "추격주의": "",
+            "메모": "",
+        }
+        for theme, indicators in [
+            ("AI/반도체", "SOXX, SMH, NVDA, AVGO, AMD"),
+            ("금리/성장주", "QQQ, VIX, 미국 10년물, DXY"),
+            ("전력망/원전", "XLU, GRID, URA"),
+            ("방산/전쟁", "ITA, XAR, LMT, NOC"),
+            ("에너지/유가", "WTI, XLE, XOP"),
+            ("자동차/전기차", "TSLA, LIT"),
+            ("바이오", "XBI, IBB"),
         ]
-        # 섹터/지표 자동 조회 결과가 있으면 7개 테마 전부 등락률 기준으로 상태를 자동
-        # 채운다(theme_data.US_THEME_INDICATOR_MAPPING, 각 테마의 "참고 지표" 컬럼에 이미
-        # 적힌 티커 그대로 사용). 대장주 칸은 개별 종목명이 아니라 티커 참고용이라 채우지
-        # 않고, 메모에만 참고 표시하며 사용자가 이미 입력한 셀(edited_rows)은 덮어쓰지 않는다.
-        _us_indicators_result = st.session_state.get("us_theme_indicators_result")
-        if _us_indicators_result and _us_indicators_result["ok"]:
-            _us_indicator_values = _us_indicators_result["values"]
-            _us_editor_state = st.session_state.get("us_theme_watch_editor") or {}
-            _us_edited_rows = _us_editor_state.get("edited_rows") or {}
-            for _idx, _row in enumerate(_us_theme_watch_rows):
-                _tickers = theme_data.US_THEME_INDICATOR_MAPPING.get(_row["테마"])
-                if not _tickers:
-                    continue
-                _vals = [
-                    _us_indicator_values[t]
-                    for t in _tickers
-                    if _us_indicator_values.get(t) is not None
-                ]
-                if not _vals:
-                    continue
-                _avg_change = sum(_vals) / len(_vals)
-                if _avg_change >= 1.0:
-                    _auto_status = "강함"
-                elif _avg_change <= -1.0:
-                    _auto_status = "약함"
-                else:
-                    _auto_status = "보통"
-                _row_edits = _us_edited_rows.get(_idx, {})
-                if "상태" not in _row_edits:
-                    _row["상태"] = _auto_status
-                if "메모" not in _row_edits and not _row["메모"]:
-                    _row["메모"] = f"자동조회 참고: {'/'.join(_tickers)} 평균 {_avg_change:+.2f}%"
-        st.data_editor(
-            pd.DataFrame(_us_theme_watch_rows),
-            key="us_theme_watch_editor",
-            width="stretch",
-            height=308,
-            row_height=38,
-            hide_index=True,
-            num_rows="fixed",
-            disabled=["테마", "참고 지표"],
-            column_config={
-                "상태": st.column_config.SelectboxColumn(
-                    "상태",
-                    options=["강함", "감시", "보통", "약함", "확인 필요"],
-                    required=True,
-                ),
-                "대장주": st.column_config.TextColumn("대장주"),
-                "후발주": st.column_config.TextColumn("후발주"),
-                "추격주의": st.column_config.TextColumn("추격주의"),
-                "메모": st.column_config.TextColumn("메모"),
-            },
-        )
+    ]
+    # 섹터/지표 자동 조회 결과가 있으면 7개 테마 전부 등락률 기준으로 상태를 자동 채운다.
+    _us_indicators_result = st.session_state.get("us_theme_indicators_result")
+    if _us_indicators_result and _us_indicators_result["ok"]:
+        _us_indicator_values = _us_indicators_result["values"]
+        for _row in _us_theme_watch_rows:
+            _tickers = theme_data.US_THEME_INDICATOR_MAPPING.get(_row["테마"])
+            if not _tickers:
+                continue
+            _vals = [
+                _us_indicator_values[t]
+                for t in _tickers
+                if _us_indicator_values.get(t) is not None
+            ]
+            if not _vals:
+                continue
+            _avg_change = sum(_vals) / len(_vals)
+            if _avg_change >= 1.0:
+                _row["현재 상태"] = "강함"
+            elif _avg_change <= -1.0:
+                _row["현재 상태"] = "약함"
+            else:
+                _row["현재 상태"] = "보통"
+            if not _row["메모"]:
+                _row["메모"] = f"자동조회 참고: {'/'.join(_tickers)} 평균 {_avg_change:+.2f}%"
+    # 세부 입력(대장주/후발주/추격주의/메모/상태)은 테마별 session_state 키에 저장되어
+    # rerun에도 유지되고, 표에도 다시 반영한다 — 한국장 테마 참고판과 같은 동작.
+    def _us_theme_slug(theme_name):
+        return "_".join(f"u{ord(c):04x}" for c in theme_name if c.isalnum())
+
+    for _row in _us_theme_watch_rows:
+        _slug = _us_theme_slug(_row["테마"])
+        for _field, _key_prefix in (
+            ("대장주", "us_theme_leader_"),
+            ("후발주", "us_theme_laggard_"),
+            ("추격주의", "us_theme_chase_warning_"),
+            ("메모", "us_theme_memo_"),
+        ):
+            _saved = st.session_state.get(f"{_key_prefix}{_slug}")
+            if _saved:
+                _row[_field] = _saved
+        _saved_status = st.session_state.get(f"us_theme_status_{_slug}")
+        if _saved_status:
+            _row["현재 상태"] = _saved_status
+
+    st.dataframe(
+        pd.DataFrame(_us_theme_watch_rows),
+        width="stretch",
+        height=308,
+        row_height=38,
+        hide_index=True,
+    )
+
+    _us_theme_names = [row["테마"] for row in _us_theme_watch_rows]
+    _us_theme_detail_selected = st.selectbox(
+        "세부 입력할 테마 선택", _us_theme_names, key="us_theme_detail_selector"
+    )
+    _us_selected_slug = _us_theme_slug(_us_theme_detail_selected)
+    _us_selected_row = next(r for r in _us_theme_watch_rows if r["테마"] == _us_theme_detail_selected)
+    _us_status_options = ["강함", "감시", "보통", "약함", "확인 필요"]
+    st.selectbox(
+        "선택 테마 현재 상태",
+        _us_status_options,
+        index=_us_status_options.index(_us_selected_row["현재 상태"])
+        if _us_selected_row["현재 상태"] in _us_status_options else 4,
+        key=f"us_theme_status_{_us_selected_slug}",
+    )
+    with st.expander("선택 테마 세부 입력", expanded=True):
+        st.text_input("대장주", key=f"us_theme_leader_{_us_selected_slug}")
+        st.text_input("후발주", key=f"us_theme_laggard_{_us_selected_slug}")
+        st.text_input("추격주의", key=f"us_theme_chase_warning_{_us_selected_slug}")
+        st.text_input("메모", key=f"us_theme_memo_{_us_selected_slug}")
+    st.caption("테마 참고판은 session_state에서만 유지되며 DB·점수·판정에는 반영되지 않습니다.")
 
     _us_today_loss_r = st.session_state.get("risk_today_loss_r", 0.0)
     if _us_today_loss_r <= -2:
@@ -7496,11 +7707,20 @@ def _render_tab_us():
                     "티커": r["ticker"],
                     "스윙 순위": _us_calc_rank.get(r["ticker"], "미평가"),
                     "총점": r["total_score"],
-                    "스윙/며칠 관심점수": r["close_pos_score"],
-                    "단기/상승률 점수": r["upside_score"],
+                    "판단": r["tier_label"],
+                    "현재가": (
+                        "-"
+                        if _get_snapshot_value(r["ticker"], "current") is None
+                        else f"{_get_snapshot_value(r['ticker'], 'current'):,.2f}"
+                    ),
+                    "전일대비(%)": "-" if r["change_pct"] is None else _fmt_signed_pct(r["change_pct"]),
+                    "시가대비(오늘)": "-" if r["open_pos_pct"] is None else _fmt_signed_pct(r["open_pos_pct"]),
+                    "고점대비(오늘)": "-" if r["high_drop_pct"] is None else _fmt_signed_pct(r["high_drop_pct"]),
+                    "시총 대비 거래대금(%)": (
+                        "-" if r["turnover_ratio_pct"] is None else f"{r['turnover_ratio_pct']:.2f}"
+                    ),
                     "거래/탄력 점수": r["momentum_score"],
                     "위험 감점": r["risk_score"],
-                    "판단": r["tier_label"],
                     "1순위 근거": r["priority_reason"],
                 }
                 for r in _us_calc_sorted
@@ -7739,7 +7959,11 @@ def _render_tab_us():
                 placeholder="예: 로보택시 기대감, AI 실적 발표, 신제품 발표 등",
             )
             st.markdown("---")
-            _render_risk_and_warning_inputs(s["ticker"], "US")
+            # 리스크 관리(진입가/손절가 등) 위젯은 위 "종목 판단 미리보기"의 선택 종목
+            # 패널에서 같은 세션 키(snap_{ticker}_entry_price 등)로 생성된다 — 같은
+            # 종목을 두 곳에서 동시에 만들면 DuplicateWidgetID로 화면 전체가 죽어서
+            # (2026-07-15 확인) 이 카드에서는 안내만 남긴다. 한국장 상세 카드와 동일한 구조.
+            st.caption("진입가·손절가 등 리스크 관리 입력은 위 '종목 판단 미리보기'에서 해당 종목을 선택해 진행하세요.")
 
 with tab_us:
     _render_tab_us()

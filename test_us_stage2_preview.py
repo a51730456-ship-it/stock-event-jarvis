@@ -27,11 +27,22 @@ class USStage2PreviewStructureTests(unittest.TestCase):
         self.assertIn("compute_us_swing_breakdown(", preview_fn)
         self.assertIn("US_SNAPSHOT_STOCKS", preview_fn)
 
-    def test_us_tab_renders_stage2_preview_before_theme_radar(self):
+    def test_us_tab_renders_previews_before_theme_board(self):
         us_tab = SOURCE[SOURCE.index("def _render_tab_us():"):SOURCE.index("with tab_us:\n    _render_tab_us()")]
-        preview_at = us_tab.index("build_us_stage2_preview()")
-        theme_radar_at = us_tab.index("미국장 테마 레이더 1차 참고판")
-        self.assertLess(preview_at, theme_radar_at)
+        rich_preview_at = us_tab.index("_render_us_stock_judgment_preview()")
+        table_preview_at = us_tab.index("build_us_stage2_preview()")
+        theme_board_at = us_tab.index("테마 참고판 (미국)")
+        self.assertLess(rich_preview_at, table_preview_at)
+        self.assertLess(table_preview_at, theme_board_at)
+
+    def test_us_theme_board_mirrors_kr_yellow_button_and_detail_inputs(self):
+        # 2026-07-15 사용자 반복 요청: 한국장 테마 참고판(노란 버튼 + 표 + 세부 입력)과
+        # 같은 형태를 미국장에도 만든다.
+        us_tab = SOURCE[SOURCE.index("def _render_tab_us():"):SOURCE.index("with tab_us:\n    _render_tab_us()")]
+        self.assertIn('st.button("테마 참고판 자동 조회", key="us_theme_auto_fetch")', us_tab)
+        self.assertIn('"세부 입력할 테마 선택", _us_theme_names, key="us_theme_detail_selector"', us_tab)
+        for key_prefix in ("us_theme_leader_", "us_theme_laggard_", "us_theme_chase_warning_", "us_theme_memo_"):
+            self.assertIn(key_prefix, us_tab)
 
 
 class USStage2PreviewRuntimeTests(unittest.TestCase):
@@ -66,12 +77,12 @@ class USStage2PreviewRuntimeTests(unittest.TestCase):
             app.button[0].click().run(timeout=90)
             self.assertEqual(len(app.exception), 0)
 
-            self.assertTrue(
-                any("미국 종목 판단 미리보기" in str(node.value) for node in app.markdown)
-            )
-            self.assertTrue(
-                any("종목별 1순위 근거" in str(node.value) for node in app.markdown)
-            )
+            markdown_texts = [str(node.value) for node in app.markdown]
+            self.assertTrue(any("종목 판단 미리보기" in t for t in markdown_texts))
+            self.assertTrue(any("2단계 판단 미리보기" in t for t in markdown_texts))
+            self.assertTrue(any("종목별 1순위 근거" in t for t in markdown_texts))
+            self.assertTrue(any("테마 참고판 (미국)" in t for t in markdown_texts))
+            self.assertTrue(any("핵심 근거" in t for t in markdown_texts))
             self.assertGreater(len(app.dataframe), 0)
 
 
