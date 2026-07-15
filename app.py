@@ -2864,13 +2864,26 @@ def _fetch_market_overview(market):
                 item["data_kind"] = "intraday"
                 item["source"] = _intraday.get("source")
             else:
-                try:
-                    if market == "KR" and ticker in {"^KS11", "^KQ11"}:
-                        _daily_result = price_data.get_snapshot_defaults(ticker, completed_only=True)
-                    else:
-                        _daily_result = price_data.get_snapshot_defaults(ticker)
-                except Exception:
-                    _daily_result = None
+                _daily_result = None
+                if market == "KR" and ticker in {"^KS11", "^KQ11"}:
+                    # 야간에는 yfinance가 당일 종가를 하루 늦게 올려서 KOSPI/KOSDAQ가
+                    # 어제 값(-8.95% 같은)으로 보이던 문제(2026-07-15 사용자 확인) —
+                    # 네이버가 주는 가장 최근 종가를 먼저 쓰고, 그것도 실패할 때만
+                    # yfinance 완료 거래일 종가로 넘어간다. price_data.py는 손대지 않는다.
+                    try:
+                        _naver_close = naver_market_data.get_index_daily_close(ticker)
+                    except Exception:
+                        _naver_close = {"ok": False}
+                    if _naver_close.get("ok"):
+                        _daily_result = _naver_close
+                if _daily_result is None:
+                    try:
+                        if market == "KR" and ticker in {"^KS11", "^KQ11"}:
+                            _daily_result = price_data.get_snapshot_defaults(ticker, completed_only=True)
+                        else:
+                            _daily_result = price_data.get_snapshot_defaults(ticker)
+                    except Exception:
+                        _daily_result = None
                 item = _market_overview_price_item(label, ticker, _daily_result)
                 # 장중 조회 실패 시에만 최근 완료 거래일 종가로 대체한다. KIS/Yahoo
                 # 모두 실패해도 다른 카드와 뉴스는 계속 표시한다.
@@ -3153,6 +3166,9 @@ def _render_market_overview(market):
                     )
                 if _translate_result.get("ok"):
                     _translation_cache.update(_translate_result.get("translations") or {})
+                    # 배치 일부만 실패한 경우: 성공분은 반영하고 실패 사실도 알려준다.
+                    if _translate_result.get("error"):
+                        st.session_state["bookmaker_translation_error"] = _translate_result.get("error")
                 else:
                     st.session_state["bookmaker_translation_error"] = _translate_result.get("error")
             st.session_state[f"{prefix}_bookmaker_snapshot"] = _snapshot
@@ -4722,7 +4738,7 @@ def _fetch_kr_mood_source_results():
             result = price_data.get_snapshot_defaults(ticker)
         results[ticker] = result
 
-    with ThreadPoolExecutor(max_workers=min(4, len(other_tickers))) as executor:
+    with ThreadPoolExecutor(max_workers=min(16, len(other_tickers))) as executor:
         future_to_ticker = {
             executor.submit(price_data.get_snapshot_defaults, ticker): ticker
             for ticker in other_tickers
@@ -4747,12 +4763,16 @@ def _short_cached_kr_mood_source_results():
 
 
 def _fetch_kr_snapshot_results(tickers):
-    """종목별 Yahoo 조회를 네 개씩 병렬 처리하고 종목별 실패는 격리한다."""
+    """종목별 Yahoo 조회를 병렬 처리하고 종목별 실패는 격리한다.
+
+    2026-07-15: 4개씩 배치에서 최대 16개 동시로 확대 — 12종목 기준 3배치(~2.4초)가
+    1배치(~0.9초)로 줄어든다. yfinance 건당 응답이 느린 무료 환경에서 체감이 크다.
+    """
     tickers = tuple(tickers)
     if not tickers:
         return {}
     results = {}
-    with ThreadPoolExecutor(max_workers=min(4, len(tickers))) as executor:
+    with ThreadPoolExecutor(max_workers=min(16, len(tickers))) as executor:
         future_to_ticker = {
             executor.submit(price_data.get_snapshot_defaults, ticker): ticker
             for ticker in tickers

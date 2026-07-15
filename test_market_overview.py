@@ -112,6 +112,18 @@ class MarketOverviewTests(unittest.TestCase):
         self.assertIn("font-size:23px", render_source)
         self.assertIn("font-size:17px", render_source)
 
+    def test_kr_index_daily_fallback_prefers_naver_close_over_yfinance(self):
+        # 2026-07-15: 야간에 yfinance가 당일 종가를 하루 늦게 올려 KOSPI가 -8.95% 같은
+        # 어제 값으로 보이던 문제 — 장중가 실패 시 네이버 최근 종가를 먼저 쓰고,
+        # 그것도 실패할 때만 yfinance 완료 거래일 종가로 넘어가야 한다.
+        fetch_fn = SOURCE[
+            SOURCE.index("def _fetch_market_overview"):
+            SOURCE.index("def _cached_fetch_market_overview")
+        ]
+        naver_at = fetch_fn.index("naver_market_data.get_index_daily_close(ticker)")
+        yfinance_at = fetch_fn.index("price_data.get_snapshot_defaults(ticker, completed_only=True)")
+        self.assertLess(naver_at, yfinance_at)
+
     def test_no_market_fetch_before_button(self):
         panel = SOURCE[SOURCE.index("def _render_market_overview"):]
         self.assertLess(panel.index("st.button"), panel.index("_fetch_market_overview"))
@@ -183,8 +195,17 @@ class MarketOverviewTests(unittest.TestCase):
             def get(self, key):
                 return None
 
+        class NaverStub:
+            daily_close_calls = []
+
+            def get_index_daily_close(self, ticker):
+                self.daily_close_calls.append(ticker)
+                return {"ok": False, "error": "테스트: 네이버 종가 없음"}
+
         price = Price()
+        naver_stub = NaverStub()
         NAMESPACE["price_data"] = price
+        NAMESPACE["naver_market_data"] = naver_stub
         NAMESPACE["_get_kr_index_intraday"] = price.get_intraday_last
         NAMESPACE["st"] = type("StreamlitStub", (), {"secrets": Secrets()})()
 
@@ -192,6 +213,8 @@ class MarketOverviewTests(unittest.TestCase):
 
         items = result["price_cards"][0]["items"]
         self.assertEqual(price.intraday_calls, ["^KS11", "^KQ11", "KRW=X", "SOXX", "NQ=F"])
+        # 국내 지수 2개는 yfinance 종가로 넘어가기 전에 네이버 최근 종가를 먼저 시도한다.
+        self.assertEqual(naver_stub.daily_close_calls, ["^KS11", "^KQ11"])
         self.assertTrue(all(item["data_kind"] == "daily_close" for item in items))
         self.assertTrue(all(item["asof"] == "2026-07-10" for item in items))
 

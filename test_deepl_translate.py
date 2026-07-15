@@ -123,6 +123,57 @@ class DeeplTranslateTests(unittest.TestCase):
         self.assertEqual(result["translations"], {})
 
     @patch("deepl_translate.requests.post")
+    def test_over_forty_texts_are_split_into_multiple_requests(self, mock_post):
+        # DeepL API는 요청당 text 50개 제한 — 예전엔 전체를 한 번에 보내다 한도 초과로
+        # 요청 전체가 거부돼 화면이 통째로 영어로 남았다(2026-07-15 실사용 확인).
+        texts = [f"sentence {i}" for i in range(90)]
+
+        def post_side_effect(url, data=None, timeout=None):
+            batch = data["text"]
+            self.assertLessEqual(len(batch), dt.MAX_TEXTS_PER_REQUEST)
+            return _response(200, {"translations": [{"text": f"ko:{t}"} for t in batch]})
+
+        mock_post.side_effect = post_side_effect
+
+        result = dt.translate_texts_to_ko(texts, "fake-key")
+
+        self.assertTrue(result["ok"])
+        self.assertIsNone(result["error"])
+        self.assertEqual(len(result["translations"]), 90)
+        self.assertEqual(result["translations"]["sentence 0"], "ko:sentence 0")
+        self.assertEqual(mock_post.call_count, 3)
+
+    @patch("deepl_translate.requests.post")
+    def test_one_failed_batch_keeps_other_batches_translations(self, mock_post):
+        texts = [f"sentence {i}" for i in range(80)]
+        call_index = {"n": 0}
+
+        def post_side_effect(url, data=None, timeout=None):
+            call_index["n"] += 1
+            if call_index["n"] == 2:
+                return _response(456, {})  # 두 번째 묶음만 한도 초과로 거부
+            batch = data["text"]
+            return _response(200, {"translations": [{"text": f"ko:{t}"} for t in batch]})
+
+        mock_post.side_effect = post_side_effect
+
+        result = dt.translate_texts_to_ko(texts, "fake-key")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(result["translations"]), 40)
+        self.assertIn("일부 문장 번역 실패", result["error"])
+
+    def test_new_kalshi_local_title_rules(self):
+        self.assertEqual(
+            dt.translate_market_text_locally("Inflation surge in 2026?"),
+            "2026년 인플레이션 급등 가능성",
+        )
+        self.assertEqual(
+            dt.translate_market_text_locally("Who will dissent at the July 2026 FOMC meeting?"),
+            "2026년 7월 FOMC 회의에서 반대표를 던질 위원은?",
+        )
+
+    @patch("deepl_translate.requests.post")
     def test_call_uses_post_body_not_query_string(self, mock_post):
         mock_post.return_value = _response(200, {"translations": [{"text": "안녕"}]})
         dt.translate_texts_to_ko(["hi"], "fake-key")

@@ -108,5 +108,58 @@ class NaverMarketDataTests(unittest.TestCase):
         self.assertEqual(calls, [])
 
 
+class NaverIndexDailyCloseTests(unittest.TestCase):
+    # 2026-07-15 추가: 야간에 yfinance가 당일 종가를 하루 늦게 올려 KOSPI/KOSDAQ가
+    # 어제 값으로 표시되던 문제 — 장이 닫혀 있어도 네이버의 최근 종가를 대체 조회한다.
+
+    def test_closed_market_returns_latest_close(self):
+        result = naver_market_data.get_index_daily_close(
+            "^KS11",
+            now=datetime(2026, 7, 14, 22, 30, tzinfo=SEOUL),
+            request_json=lambda *args, **kwargs: _payload(
+                marketStatus="CLOSE",
+                closePrice="6,856.83",
+                fluctuationsRatio="0.73",
+                localTradedAt="2026-07-14T15:30:00+09:00",
+            ),
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["current"], 6856.83)
+        self.assertAlmostEqual(result["change_pct"], 0.73)
+        self.assertEqual(result["as_of_date"], "2026-07-14")
+        self.assertEqual(result["data_kind"], "daily_close")
+        self.assertEqual(result["source"], "네이버 금융 종가")
+
+    def test_stale_close_older_than_seven_days_is_rejected(self):
+        result = naver_market_data.get_index_daily_close(
+            "^KS11",
+            now=datetime(2026, 7, 22, 22, 30, tzinfo=SEOUL),
+            request_json=lambda *args, **kwargs: _payload(
+                marketStatus="CLOSE", localTradedAt="2026-07-14T15:30:00+09:00",
+            ),
+        )
+        self.assertFalse(result["ok"])
+
+    def test_malformed_and_network_failures_do_not_raise(self):
+        for bad_payload in ({}, {"datas": "x"}, {"datas": []}):
+            with self.subTest(payload=bad_payload):
+                result = naver_market_data.get_index_daily_close(
+                    "^KS11",
+                    now=datetime(2026, 7, 14, 22, 30, tzinfo=SEOUL),
+                    request_json=lambda *args, **kwargs: bad_payload,
+                )
+                self.assertFalse(result["ok"])
+        result = naver_market_data.get_index_daily_close(
+            "^KS11",
+            now=datetime(2026, 7, 14, 22, 30, tzinfo=SEOUL),
+            request_json=lambda *args, **kwargs: (_ for _ in ()).throw(OSError("network")),
+        )
+        self.assertFalse(result["ok"])
+
+    def test_unsupported_ticker_rejected(self):
+        result = naver_market_data.get_index_daily_close("AAPL")
+        self.assertFalse(result["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()

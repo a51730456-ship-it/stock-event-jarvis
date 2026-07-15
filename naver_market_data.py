@@ -58,6 +58,68 @@ def _parse_traded_at(value):
     return parsed.astimezone(_SEOUL_TZ)
 
 
+def get_index_daily_close(ticker, *, now=None, request_json=None):
+    """장이 닫혀 있어도 네이버가 보여주는 가장 최근 종가를 반환한다.
+
+    2026-07-15 추가: 야간에 yfinance가 당일 종가를 아직 안 올려서 KOSPI/KOSDAQ가
+    하루 지난 값(-8.95% 같은)으로 표시되던 문제의 대체 조회 경로. get_index_snapshot()과
+    같은 폴링 응답을 쓰지만 장중 검증(marketStatus=OPEN, 5분 신선도)을 요구하지 않고,
+    응답의 localTradedAt이 최근 7일 안이기만 하면 그 날짜의 종가로 인정한다.
+    실시간 스트리밍이 아니라 호출 시점에 한 번 조회하는 스냅샷이다.
+    """
+    index_code = _INDEX_CODES.get(str(ticker).upper())
+    if not index_code:
+        return {"ok": False, "error": "지원하지 않는 국내 지수"}
+
+    now = now or _now_seoul()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=_SEOUL_TZ)
+    else:
+        now = now.astimezone(_SEOUL_TZ)
+
+    request_json = request_json or _request_json
+    try:
+        response = request_json(f"{_BASE_URL}/{index_code}", timeout=5)
+        rows = response.get("datas") if isinstance(response, dict) else None
+        if not isinstance(rows, list):
+            return {"ok": False, "error": "네이버 지수 데이터 없음"}
+        row = next(
+            (
+                item
+                for item in rows
+                if isinstance(item, dict) and str(item.get("itemCode") or "").upper() == index_code
+            ),
+            None,
+        )
+        if not row:
+            return {"ok": False, "error": "네이버 지수 항목 없음"}
+
+        current = _finite_number(row.get("closePrice"))
+        change_pct = _finite_number(row.get("fluctuationsRatio"))
+        traded_at = _parse_traded_at(row.get("localTradedAt"))
+        if current is None or current <= 0 or change_pct is None or change_pct <= -100 or traded_at is None:
+            return {"ok": False, "error": "네이버 지수 유효성 검사 실패"}
+        if not (timedelta(0) - timedelta(minutes=1) <= now - traded_at <= timedelta(days=7)):
+            return {"ok": False, "error": "네이버 지수 기준 시각이 범위를 벗어남"}
+
+        previous_close = current / (1 + change_pct / 100)
+        if not math.isfinite(previous_close) or previous_close <= 0:
+            return {"ok": False, "error": "네이버 전일 종가 계산 실패"}
+        return {
+            "ok": True,
+            "current": current,
+            "prev_close": previous_close,
+            "change_pct": change_pct,
+            "asof": traded_at.strftime("%Y-%m-%d"),
+            "as_of_time": None,
+            "as_of_date": traded_at.strftime("%Y-%m-%d"),
+            "data_kind": "daily_close",
+            "source": "네이버 금융 종가",
+        }
+    except Exception:
+        return {"ok": False, "error": "네이버 지수 종가 조회 실패"}
+
+
 def get_index_snapshot(ticker, *, now=None, request_json=None):
     """오늘 장중 현재지수를 기존 가격 결과 구조로 반환한다.
 

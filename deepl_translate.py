@@ -15,6 +15,10 @@ import requests
 
 DEEPL_FREE_ENDPOINT = "https://api-free.deepl.com/v2/translate"
 REQUEST_TIMEOUT = 8
+# DeepL API는 요청 1건에 text 파라미터를 최대 50개까지만 받는다. 그 이상이면 요청
+# 전체가 400으로 거부돼 한 문장도 번역되지 않는다(2026-07-15 실사용 화면에서 확인 —
+# Polymarket+Kalshi 이벤트가 많은 날 번역이 통째로 빠졌다). 여유를 두고 40개씩 나눈다.
+MAX_TEXTS_PER_REQUEST = 40
 
 _MONTH_KO = {
     "january": "1월", "february": "2월", "march": "3월", "april": "4월",
@@ -112,6 +116,20 @@ def translate_market_text_locally(text):
         if month:
             return f"{cpi_compare.group(2)}년 {month} 근원 CPI 상승률이 전체 CPI 상승률을 웃돌까?"
 
+    inflation_surge = re.fullmatch(r"Inflation surge in (\d{4})\?", original, re.IGNORECASE)
+    if inflation_surge:
+        return f"{inflation_surge.group(1)}년 인플레이션 급등 가능성"
+
+    fomc_dissent = re.fullmatch(
+        r"Who will dissent at the ([A-Za-z]+) (\d{4}) FOMC meeting\?",
+        original,
+        re.IGNORECASE,
+    )
+    if fomc_dissent:
+        month = _month_to_ko(fomc_dissent.group(1))
+        if month:
+            return f"{fomc_dissent.group(2)}년 {month} FOMC 회의에서 반대표를 던질 위원은?"
+
     exact_titles = {
         "us cpi this year": "올해 미국 소비자물가지수(CPI)",
         "cpi inflation": "소비자물가지수(CPI) 인플레이션",
@@ -156,6 +174,27 @@ def translate_texts_to_ko(texts, api_key, timeout=REQUEST_TIMEOUT):
     if not api_key:
         return {"ok": False, "translations": {}, "error": "DeepL API 키가 설정되지 않았습니다"}
 
+    # 40개씩 나눠 보내고, 한 묶음이 실패해도 나머지 묶음의 번역은 그대로 살린다 —
+    # 예전에는 전체를 한 번에 보내다 50개 제한에 걸리면 화면 전체가 영어로 남았다.
+    translations = {}
+    batch_error = None
+    for start in range(0, len(texts), MAX_TEXTS_PER_REQUEST):
+        batch = texts[start:start + MAX_TEXTS_PER_REQUEST]
+        result = _translate_batch(batch, api_key, timeout)
+        if result["ok"]:
+            translations.update(result["translations"])
+        else:
+            batch_error = result["error"]
+
+    if not translations:
+        return {"ok": False, "translations": {}, "error": batch_error or "번역 결과가 비어 있습니다"}
+    if batch_error:
+        return {"ok": True, "translations": translations, "error": f"일부 문장 번역 실패: {batch_error}"}
+    return {"ok": True, "translations": translations, "error": None}
+
+
+def _translate_batch(texts, api_key, timeout):
+    """40개 이하 문장 한 묶음을 DeepL에 보낸다. 예외를 던지지 않는다."""
     try:
         resp = requests.post(
             DEEPL_FREE_ENDPOINT,
