@@ -77,6 +77,36 @@ class LoginVisualContractTests(unittest.TestCase):
         self.assertNotIn("time.sleep(", SOURCE)
         self.assertNotIn("setTimeout(", SOURCE)
 
+    def test_login_chime_is_short_quiet_inline_audio(self):
+        # 2026-07-15 사용자 요청: 로그인 성공 시 아주 작은 소리를 짧게 재생한다.
+        # 외부 URL 요청 없이(속도 영향 없음) base64로 인라인 삽입해야 하고, autoplay
+        # 속성으로 재생하며, 소리 자체도 진폭이 작아야("아주 소리 작게") 한다.
+        for marker in (
+            "<audio autoplay preload=\"auto\"",
+            "data:audio/wav;base64,",
+            "_LOGIN_CHIME_WAV_BASE64",
+        ):
+            self.assertIn(marker, VISUAL_SOURCE)
+        self.assertNotIn("<script", VISUAL_SOURCE)
+
+        ns = {}
+        exec(compile(VISUAL_SOURCE, "login_visual.py", "exec"), ns)
+        b64 = ns["_LOGIN_CHIME_WAV_BASE64"]
+        import base64
+        import struct
+        import wave
+        import io
+
+        raw = base64.b64decode(b64)
+        self.assertEqual(raw[:4], b"RIFF")
+        with wave.open(io.BytesIO(raw), "rb") as wf:
+            duration_s = wf.getnframes() / wf.getframerate()
+            frames = wf.readframes(wf.getnframes())
+        self.assertLess(duration_s, 1.0, "로그인음은 짧아야 한다(1초 미만)")
+        samples = struct.unpack(f"<{len(frames) // 2}h", frames)
+        peak_ratio = max(abs(s) for s in samples) / 32768
+        self.assertLess(peak_ratio, 0.15, "로그인음은 아주 작은 소리여야 한다(피크 진폭 15% 미만)")
+
 
 class LoginAppLifecycleTests(unittest.TestCase):
     @staticmethod
@@ -107,6 +137,7 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertNotIn("login_transition_pending", app.session_state.filtered_state)
         self.assertEqual(_overlay_count(app), 1)
         self.assertTrue(any("ACCESS GRANTED" in str(node.value) for node in app.markdown))
+        self.assertTrue(any("<audio autoplay" in str(node.value) for node in app.markdown))
 
         # The existing market auto-run is outside this feature; mark it complete so the
         # following rerun isolates the one-shot transition behavior.
@@ -117,6 +148,7 @@ class LoginAppLifecycleTests(unittest.TestCase):
             app.run(timeout=60)
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(_overlay_count(app), 0)
+        self.assertFalse(any("<audio autoplay" in str(node.value) for node in app.markdown))
         self.assertFalse(any("DuplicateWidgetID" in str(error.value) for error in app.exception))
 
 
