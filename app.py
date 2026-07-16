@@ -279,10 +279,11 @@ st.markdown(
     <style>
     [data-testid="stSidebarNav"] a,
     [data-testid="stSidebarNav"] a * {
-        font-size: 1.15rem !important;
-        font-weight: 700 !important;
+        font-size: 1.8rem !important;
+        font-weight: 800 !important;
         color: #ffb020 !important;
-        padding: 0.5rem 1rem !important;
+        padding: 0.7rem 1rem !important;
+        line-height: 1.4 !important;
     }
     [data-testid="stSidebarNav"] a:hover,
     [data-testid="stSidebarNav"] a:hover * {
