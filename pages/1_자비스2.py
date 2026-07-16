@@ -253,7 +253,10 @@ def _render_playbook() -> None:
         st.info("구성종목 데이터가 없습니다.")
         return
 
-    stock_opts = [f"{s['name']} ({s['code']}) {s['change_pct']:+.2f}%" for s in stocks]
+    def _pct_label(v):
+        return f"{v:+.2f}%" if v is not None else "N/A"
+
+    stock_opts = [f"{s['name']} ({s['code']}) {_pct_label(s.get('change_pct'))}" for s in stocks]
     sel_idx = st.selectbox(
         "종목 선택", range(len(stock_opts)),
         format_func=lambda i: stock_opts[i],
