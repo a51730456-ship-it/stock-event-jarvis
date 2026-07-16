@@ -14,6 +14,23 @@ import streamlit as st
 
 st.set_page_config(page_title="자비스2 — 순환매 플레이북", layout="wide")
 
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebarNav"] a {
+        font-size: 1.15rem !important;
+        font-weight: 700 !important;
+        color: #ffb020 !important;
+        padding: 0.5rem 1rem !important;
+    }
+    [data-testid="stSidebarNav"] a:hover {
+        color: #ffcf6b !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 _log = logging.getLogger(__name__)
 
 # ── 인증 게이트 ────────────────────────────────────────────────────────────────

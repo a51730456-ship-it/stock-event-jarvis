@@ -273,6 +273,24 @@ def create_daily_db_backup_once():
 
 st.set_page_config(page_title="자비스 주식 기록장", layout="wide")
 
+# 사이드바 페이지 목록(app/자비스2) 글자를 키우고 색을 넣어 눈에 띄게 한다.
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebarNav"] a {
+        font-size: 1.15rem !important;
+        font-weight: 700 !important;
+        color: #ffb020 !important;
+        padding: 0.5rem 1rem !important;
+    }
+    [data-testid="stSidebarNav"] a:hover {
+        color: #ffcf6b !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 try:
     _jarvis_earth_bytes = (Path(__file__).parent / "assets" / "jarvis_earth.webp").read_bytes()
     _jarvis_earth_src = "data:image/webp;base64," + base64.b64encode(_jarvis_earth_bytes).decode("ascii")

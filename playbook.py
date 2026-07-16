@@ -81,7 +81,8 @@ def _init_playbook_tables() -> None:
         # config 기본값 삽입 (이미 있으면 무시)
         for key, value in _PLAYBOOK_CONFIG_DEFAULTS.items():
             conn.execute(
-                "INSERT OR IGNORE INTO playbook_config (key, value) VALUES (?, ?)",
+                "INSERT INTO playbook_config (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO NOTHING",
                 (key, value),
             )
         # 마이그레이션: P1 초기 기본값에서 변경된 항목을 구 기본값 그대로인 경우에만 업데이트
