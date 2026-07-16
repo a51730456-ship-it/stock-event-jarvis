@@ -77,6 +77,16 @@ def _tag_str(theme: str, setup: str, age: int | None, alert_state: str | None) -
     return " ".join(parts)
 
 
+_EXIT_SCENARIOS = {
+    "눌림재상승": "+1R 절반 익절 · 대장 꺾임 시 전량",
+    "돌파": "+1R 절반 익절 · 돌파 실패(되돌림) 시 전량",
+}
+
+
+def _exit_scenario(setup: str | None) -> str:
+    return _EXIT_SCENARIOS.get(setup or "", "청산 규칙 미지정")
+
+
 # ── 섹션 1: 시장상태 스트립 ───────────────────────────────────────────────────
 
 
@@ -268,6 +278,14 @@ def _render_playbook() -> None:
     sel_stock = stocks[sel_idx]
     sel_code = sel_stock["code"]
 
+    with st.expander(f"{sel_stock['name']} 일봉 차트 (참고용)", expanded=False):
+        chart_df = market_data.get_daily(sel_code)
+        if chart_df is None or chart_df.empty:
+            st.info("차트 데이터를 불러오지 못했습니다.")
+        else:
+            st.line_chart(chart_df["Close"].tail(60), height=220)
+            st.caption("종가 기준 최근 60거래일. 참고용이며 점수·판정에는 반영되지 않습니다.")
+
     # 경보 계산
     w_result = playbook.max_warning(sel_code)
     lb_result = playbook.leader_break(sel_code)
@@ -429,6 +447,14 @@ def _render_crash_log() -> None:
             st.error(f"저장 실패: {ex}")
 
 
+def _render_interest_scoreboard_ref() -> None:
+    with st.expander("관심점수판 · 참고용 (동결 중)", expanded=False):
+        st.caption(
+            "30건 통계 후 조건별 재평가 예정 — 지금은 감으로 건드리지 않습니다. "
+            "기존 관심 점수표는 자비스1(사이드바 'app' 페이지) 한국장 판단 탭에서 그대로 볼 수 있습니다."
+        )
+
+
 # ── 섹션 4: 테마판 요약 ──────────────────────────────────────────────────────
 
 
@@ -517,6 +543,8 @@ def _render_journal() -> None:
             c1.metric("진입가", f"{r.get('entry_price') or '—':,}" if r.get("entry_price") else "—")
             c2.metric("손절가", f"{r.get('stop_price') or '—':,}" if r.get("stop_price") else "—")
             c3.metric("1R", f"{r.get('r_amount') or '—':,.0f}원" if r.get("r_amount") else "—")
+            if not is_dropped and not result:
+                st.caption(f"청산 시나리오: {_exit_scenario(setup)}")
             if age_days is not None:
                 st.caption(f"테마나이 D+{age_days}")
             if tags:
@@ -525,6 +553,97 @@ def _render_journal() -> None:
             if alert:
                 reason = r.get("alert_ignore_reason", "")
                 st.caption(f"경보: {alert} / 무시사유: {reason or '없음'}")
+
+
+# ── 섹션 4b: 오픈 리스크 + 보유 포지션 카드 ──────────────────────────────────
+
+
+def _render_open_risk() -> None:
+    st.subheader("오픈 리스크")
+    open_pos = playbook.get_open_positions()
+    open_n = len(open_pos)
+    st.progress(min(open_n / 3, 1.0), text=f"{open_n}건 / 3건 기준 (플레이북 기록 건수 합산)")
+    if open_n >= 3:
+        st.warning(f"미청산 {open_n}건 — 신규 진입 시 오픈 리스크 한도 점검")
+
+    st.markdown("**보유 포지션**")
+    if not open_pos:
+        st.caption("보유 중인 포지션이 없습니다.")
+        return
+
+    for r in open_pos:
+        theme_nm = r.get("theme_name", "—")
+        ticker = r.get("target_ticker", "—")
+        stop_price = r.get("stop_price")
+        setup = r.get("setup")
+        tags = r.get("tags", "")
+        with st.container(border=True):
+            c1, c2 = st.columns([2, 1])
+            c1.markdown(f"**{theme_nm}** · `{ticker}`")
+            c2.markdown(f"손절 {stop_price:,.0f}" if stop_price else "손절 —")
+            st.caption(f"청산 시나리오: {_exit_scenario(setup)}")
+            if tags:
+                st.caption(tags)
+
+
+# ── 섹션 5b: 무시 로그 (경보 + 필터 통합) ───────────────────────────────────
+
+
+def _render_ignore_log() -> None:
+    st.subheader("무시 로그 (경보 + 필터 통합)")
+    records = playbook.get_journal_recent(30)
+
+    log_rows = []
+    for r in records:
+        date_short = (r.get("recorded_at") or "")[5:10] or "—"
+        theme_nm = r.get("theme_name", "—")
+        if r.get("alert_state"):
+            reason = r.get("alert_ignore_reason") or "사유 없음"
+            log_rows.append(("막차경보", date_short, theme_nm, reason))
+        elif r.get("is_dropped"):
+            reason = r.get("tags") or "—"
+            log_rows.append(("필터", date_short, theme_nm, reason))
+
+    if not log_rows:
+        st.caption("경보 무시·필터 로그가 없습니다.")
+        return
+
+    for tag_label, date_short, theme_nm, reason in log_rows[:15]:
+        render = st.error if tag_label == "막차경보" else st.info
+        render(f"**{tag_label}**  {date_short} {theme_nm} — \"{reason}\"")
+
+
+# ── 섹션 5c: 태그별 기대값 채점표 (30건 전까지 잠금) ─────────────────────────
+
+
+def _render_tag_scorecard() -> None:
+    st.markdown("**태그별 기대값 채점표**")
+    records = playbook.get_journal_recent(30)
+    total = len(records)
+    st.progress(min(total / 30, 1.0), text=f"기록 진행 {total}/30건")
+
+    tag_counts: dict[str, int] = {}
+    for r in records:
+        for tag in (r.get("tags") or "").split():
+            tag = tag.lstrip("#")
+            if not tag:
+                continue
+            tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+    if not tag_counts:
+        st.caption("아직 태그가 달린 기록이 없습니다.")
+        return
+
+    rows = [
+        {"태그": tag, "건수": cnt, "평균 R": "잠김"}
+        for tag, cnt in sorted(tag_counts.items(), key=lambda kv: -kv[1])
+    ]
+    import pandas as pd
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.caption(
+        "30건 도달 시 자동 활성 · 소표본 판단은 우연에 속는 지름길이라 잠급니다. "
+        "평균 R은 청산 결과 기록 기능이 아직 없어 30건 이후에도 v1.1 과제로 남습니다."
+    )
 
 
 # ── 섹션 6: 설정 ─────────────────────────────────────────────────────────────
@@ -562,7 +681,8 @@ def _render_settings() -> None:
         try:
             for k, v in updated.items():
                 conn.execute(
-                    "INSERT OR REPLACE INTO playbook_config (key, value) VALUES (?, ?)",
+                    "INSERT INTO playbook_config (key, value) VALUES (?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     (k, v),
                 )
             conn.commit()
@@ -581,28 +701,34 @@ def _render_settings() -> None:
 def main() -> None:
     st.title("자비스2 — 순환매 플레이북")
 
-    # 섹션 1
-    _render_market_state()
-    st.divider()
+    tab_kr, tab_action, tab_stats, tab_journal, tab_settings = st.tabs(
+        ["한국장", "행동·청산", "복기·통계", "기록", "보조"]
+    )
 
-    # 섹션 2
-    _render_playbook()
-    st.divider()
+    with tab_kr:
+        _render_market_state()
+        st.divider()
+        _render_playbook()
+        st.divider()
+        _render_crash_log()
+        _render_theme_panel()
+        st.divider()
+        _render_interest_scoreboard_ref()
 
-    # 섹션 3 (급락일만 표시)
-    _render_crash_log()
+    with tab_action:
+        _render_open_risk()
+        st.divider()
+        _render_ignore_log()
 
-    # 섹션 4
-    _render_theme_panel()
-    st.divider()
+    with tab_stats:
+        _render_tag_scorecard()
 
-    # 섹션 5
-    _render_journal()
-    st.divider()
+    with tab_journal:
+        _render_journal()
 
-    # 섹션 6
-    with st.expander("설정 (playbook_config)", expanded=False):
-        _render_settings()
+    with tab_settings:
+        with st.expander("플레이북 설정 (playbook_config)", expanded=True):
+            _render_settings()
 
 
 main()
