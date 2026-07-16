@@ -463,57 +463,113 @@ def _render_interest_scoreboard_ref() -> None:
 # ── 섹션 4: 테마판 요약 ──────────────────────────────────────────────────────
 
 
+# 자비스1 테마 상태 색 관례 참조: 강함 빨강 / 보통 파랑 / 약함 회색 (app.py 5873행대)
+_VERDICT_STYLE = {
+    "강함": ("#ff4b4b", "rgba(255,75,75,0.14)"),
+    "보통": ("#4b9fff", "rgba(75,159,255,0.14)"),
+    "약함": ("#94a3b8", "rgba(148,163,184,0.14)"),
+}
+
+
+def _fetch_theme_snap_into_state() -> None:
+    snap = fetch_kr_theme_snapshot()
+    st.session_state["j2_theme_snap"] = snap
+    if snap.get("ok"):
+        verdicts = {
+            name: info.get("verdict", "보통")
+            for name, info in snap.get("themes", {}).items()
+            if info.get("ok")
+        }
+        if verdicts:
+            try:
+                theme_history.record_theme_states(verdicts)
+            except Exception as e:
+                _log.warning("record_theme_states (panel) failed: %s", e)
+
+
 def _render_theme_panel() -> None:
-    st.subheader("테마판 요약")
-    st.caption("아래 버튼을 누르면 네이버에서 테마 등락률을 새로 가져옵니다.")
+    st.subheader("테마판")
+
+    # 초기 화면에서 클릭 없이 자동 조회 (세션당 1회, 이후엔 버튼으로 갱신)
+    snap = st.session_state.get("j2_theme_snap")
+    if snap is None:
+        with st.spinner("테마판 자동 조회 중…"):
+            _fetch_theme_snap_into_state()
+        snap = st.session_state.get("j2_theme_snap")
 
     if st.button("테마판 새로고침", key="j2_theme_panel_refresh"):
         with st.spinner("20개 테마 조회 중 (병렬)…"):
-            snap = fetch_kr_theme_snapshot()
-            st.session_state["j2_theme_snap"] = snap
-            # theme_state_log 축적
-            if snap.get("ok"):
-                verdicts = {
-                    name: info.get("verdict", "보통")
-                    for name, info in snap.get("themes", {}).items()
-                    if info.get("ok")
-                }
-                if verdicts:
-                    try:
-                        theme_history.record_theme_states(verdicts)
-                    except Exception as e:
-                        _log.warning("record_theme_states (panel) failed: %s", e)
+            _fetch_theme_snap_into_state()
         st.rerun()
 
-    snap = st.session_state.get("j2_theme_snap")
-    if snap is None:
-        st.info("**테마판 새로고침** 버튼을 눌러 데이터를 가져오세요.")
+    if not snap or not snap.get("ok"):
+        st.warning(f"테마 조회 실패: {(snap or {}).get('error', '알 수 없음')}")
         return
 
-    if not snap.get("ok"):
-        st.warning(f"테마 조회 실패: {snap.get('error')}")
-        return
-
-    rows = []
+    items = []
+    failed = 0
     for name, info in snap.get("themes", {}).items():
-        if not info.get("ok"):
-            rows.append({"테마": name, "등락률": "—", "판정": "조회실패", "연속강세일": "—"})
-            continue
-        age = theme_history.get_theme_elapsed_strong_days(name)
-        rows.append({
-            "테마": name,
-            "등락률": f"{info['change_pct']:+.2f}%",
-            "판정": info.get("verdict", "—"),
-            "연속강세일": f"D+{age}" if age else "—",
-        })
+        if info.get("ok"):
+            items.append((name, info))
+        else:
+            failed += 1
+    # 등락률 높은 순 — 뜨거운 테마가 위로
+    items.sort(key=lambda x: x[1].get("change_pct") if x[1].get("change_pct") is not None else -999, reverse=True)
 
-    import pandas as pd
-    df_snap = pd.DataFrame(rows)
-    st.dataframe(df_snap, use_container_width=True, hide_index=True)
+    cards = []
+    for name, info in items:
+        pct = info.get("change_pct")
+        verdict = info.get("verdict", "—")
+        try:
+            age = theme_history.get_theme_elapsed_strong_days(name)
+        except Exception:
+            age = None
+        if pct is None:
+            pct_color, pct_txt = "#9ca3af", "—"
+        elif pct > 0:
+            pct_color, pct_txt = "#ff4b4b", f"+{pct:.2f}%"
+        elif pct < 0:
+            pct_color, pct_txt = "#4b9fff", f"{pct:.2f}%"
+        else:
+            pct_color, pct_txt = "#9ca3af", "0.00%"
+        vc, vbg = _VERDICT_STYLE.get(verdict, ("#9ca3af", "rgba(148,163,184,0.14)"))
+        streak = f"연속 {age}일" if age else ""
+        cards.append(
+            f"<div class='j2-tcard'>"
+            f"<div class='j2-tname'>{name}</div>"
+            f"<div class='j2-tpct' style='color:{pct_color}'>{pct_txt}</div>"
+            f"<div class='j2-tfoot'>"
+            f"<span class='j2-tbadge' style='color:{vc};background:{vbg}'>{verdict}</span>"
+            f"<span class='j2-tstreak'>{streak}</span>"
+            f"</div></div>"
+        )
+
+    st.markdown(
+        """
+        <style>
+        .j2-tgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr));
+                    gap:0.6rem; margin:0.4rem 0 0.8rem; }
+        .j2-tcard { background:#141b2a; border:1px solid #263247; border-radius:12px;
+                    padding:0.7rem 0.85rem; }
+        .j2-tcard:hover { border-color:#3b4d6b; }
+        .j2-tname { font-size:1.0rem; font-weight:700; color:#e5e7eb; margin-bottom:0.1rem;
+                    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .j2-tpct { font-size:1.55rem; font-weight:800; line-height:1.25; }
+        .j2-tfoot { display:flex; align-items:center; gap:0.45rem; margin-top:0.3rem; }
+        .j2-tbadge { font-size:0.78rem; font-weight:700; padding:0.08rem 0.55rem;
+                     border-radius:999px; }
+        .j2-tstreak { font-size:0.78rem; color:#9ca3af; }
+        </style>
+        <div class='j2-tgrid'>""" + "".join(cards) + "</div>",
+        unsafe_allow_html=True,
+    )
 
     checked_at = snap.get("checked_at")
-    if checked_at:
-        st.caption(f"조회 시각: {checked_at}")
+    foot = f"조회 시각: {checked_at}" if checked_at else ""
+    if failed:
+        foot += f"  ·  조회 실패 {failed}개 테마"
+    if foot:
+        st.caption(foot)
 
 
 # ── 섹션 5: 판단 기록 ────────────────────────────────────────────────────────
@@ -718,13 +774,14 @@ def main() -> None:
     )
 
     with tab_kr:
+        # 초기 화면: 클릭 없이 시장상태 + 테마판이 바로 보이게 배치
         _render_market_state()
+        st.divider()
+        _render_theme_panel()
         st.divider()
         _render_playbook()
         st.divider()
         _render_crash_log()
-        _render_theme_panel()
-        st.divider()
         _render_interest_scoreboard_ref()
 
     with tab_action:
