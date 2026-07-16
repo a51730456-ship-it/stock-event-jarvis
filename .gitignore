@@ -1,9 +1,28 @@
+# runtime cache
+cache/
+
+# test artifacts
+.test-run-*/
+
+# Claude Code local settings
+.claude/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
+
+# env
 .env
 .streamlit/secrets.toml
+
+# database
 db/*.sqlite3
+
+# app backups
 backups/
+
+# logs
 *.log

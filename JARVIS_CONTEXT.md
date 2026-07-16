@@ -109,6 +109,43 @@
   파일이라 미수정, 상하님 확인 필요(다음 세션 최우선).** price_data.py 일봉차트 검증
   게이트도 경미한 이슈 있으나 보호 파일이라 미수정.
 
+## 자비스2 — 순환매 플레이북 페이지 (2026-07-16 추가)
+
+### 파일 구조
+- `pages/1_자비스2.py` — Streamlit 멀티페이지 자비스2 본체 (신규)
+- `market_data.py` — 일봉 조회 + 지표 계산 (P1 신규)
+- `theme_detail.py` — 네이버 sise_group_detail 구성종목 파싱 (P1 신규)
+- `playbook.py` — 판정 함수 6개 + DB 헬퍼 + 테이블 초기화 (P1 신규)
+- `DECISIONS.md` — P2 자율 결정 내역 기록 (신규)
+
+### 신규 DB 테이블 (기존 테이블 무변경)
+- `playbook_config`: 8개 설정값 (near_high_pct, value_mult, min_value_eok,
+  max_spike_pct, entry_max_age, leader_break_pct, rank_limit, volatile_days_warn)
+- `playbook_journal`: 진입/탈락 기록 (setup, entry/stop/qty/r_amount, alert 이력, tags)
+- `crash_log`: 급락일 원인 가설 + 보유논리훼손 기록
+
+### 페이지 구성 (위→아래)
+1. 시장상태 스트립: market_state() — 하락국면 OR 60일 변동일수 ≥ 12 시 경고
+2. 순환매 플레이북: 테마선택→신호확인→대장카드→매수대상→경보→기록
+3. 급락일 기록: 코스피 -3% 이하인 날만 표시 (당일 캐시 기반)
+4. 테마판 요약: 전체 20개 테마 등락률·연속강세일 표
+5. 판단 기록: playbook_journal n/30 진행바 + 최근 카드
+6. 설정: playbook_config 8개 값 편집
+
+### 경보 정책
+- max_warning (최근 20일 내 +20% 이상 급등) → 경보 배지
+- leader_break (최근 고점 -7% 이상 하락) → 경보 배지
+- 테마나이 D+4 이상 → 추격 주의 배지
+- 경보는 차단 아닌 확인창 — 무시 시 사유 텍스트 필수
+
+### 알려진 한계 / 미완료 항목
+- theme_state_log 축적은 "신호 확인" / "테마판 새로고침" 버튼 클릭 시에만 발생
+  (페이지 로딩 자동 축적 아님 — UX 트레이드오프)
+- target_ticker 저장 시 ".KS" suffix 고정 (코스닥 종목도 동일 — get_daily가 폴백 처리)
+- 3R 게이지는 건수 기준 (계좌 크기 미설정으로 금액 기반 불가)
+- 테마 상세 페이지(sise_group_detail) 거래대금 단위: 백만원 (네이버 thead 확인 완료)
+- crash_log UI는 오늘 코스피 -3% 이하 당일만 표시됨 (과거 급락일 소급 입력 불가)
+
 ## 작업 원칙 (항상 지킬 것)
 - 코드 수정 전 sqlite3 backup API로 반드시 백업 (shutil 금지)
 - 저장 로직·DB 관련 변경은 조사 후 먼저 보고, 승인 받고 나서 수정
