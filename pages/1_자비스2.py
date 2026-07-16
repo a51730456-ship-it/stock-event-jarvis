@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
-from urllib.parse import quote
 
 import streamlit as st
 
@@ -146,13 +145,7 @@ def _render_playbook() -> None:
     st.caption("매수신호·점수·목표가는 표시하지 않습니다. 기록과 확인 도구입니다.")
 
     # ── 2a. 테마 선택 + 신호 확인 ──────────────────────────────────────────────
-    # 테마판 카드 클릭(쿼리 파라미터) → 테마 자동 선택 + 신호 자동 조회
-    qp_theme = st.query_params.get("j2_theme")
-    if qp_theme and qp_theme in _THEME_NAMES and st.session_state.get("j2_qp_done") != qp_theme:
-        st.session_state["j2_qp_done"] = qp_theme
-        st.session_state["j2_theme_select"] = qp_theme
-        st.session_state["j2_autorun_signal"] = True
-
+    # (테마판 버튼 클릭 시 j2_theme_select/j2_autorun_signal이 미리 설정되어 들어온다)
     prev_theme = st.session_state.get("j2_prev_theme", "")
     theme = st.selectbox("테마 선택", _THEME_NAMES, key="j2_theme_select")
     if theme != prev_theme:
@@ -573,54 +566,54 @@ def _render_theme_panel() -> None:
     # 등락률 높은 순 — 뜨거운 테마가 위로
     items.sort(key=lambda x: x[1].get("change_pct") if x[1].get("change_pct") is not None else -999, reverse=True)
 
-    cards = []
-    for name, info in items:
-        pct = info.get("change_pct")
-        verdict = info.get("verdict", "—")
-        try:
-            age = theme_history.get_theme_elapsed_strong_days(name)
-        except Exception:
-            age = None
-        if pct is None:
-            pct_color, pct_txt = "#9ca3af", "—"
-        elif pct > 0:
-            pct_color, pct_txt = "#ff4b4b", f"+{pct:.2f}%"
-        elif pct < 0:
-            pct_color, pct_txt = "#4b9fff", f"{pct:.2f}%"
-        else:
-            pct_color, pct_txt = "#9ca3af", "0.00%"
-        vc, vbg = _VERDICT_STYLE.get(verdict, ("#9ca3af", "rgba(148,163,184,0.14)"))
-        streak = f"연속 {age}일" if age else ""
-        cards.append(
-            f"<a class='j2-tcard' href='?j2_theme={quote(name, safe='')}' target='_self'>"
-            f"<div class='j2-tname'>{name}</div>"
-            f"<div class='j2-tpct' style='color:{pct_color}'>{pct_txt}</div>"
-            f"<div class='j2-tfoot'>"
-            f"<span class='j2-tbadge' style='color:{vc};background:{vbg}'>{verdict}</span>"
-            f"<span class='j2-tstreak'>{streak}</span>"
-            f"</div></a>"
-        )
-
+    # 카드 = st.button (같은 세션 안에서 rerun — 링크 방식은 세션이 초기화되어
+    # 로그인이 풀리므로 금지). 버튼을 카드처럼 보이게 CSS로 스타일링.
     st.markdown(
         """
         <style>
-        .j2-tgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr));
-                    gap:0.6rem; margin:0.4rem 0 0.8rem; }
-        .j2-tcard { background:#141b2a; border:1px solid #263247; border-radius:12px;
-                    padding:0.7rem 0.85rem; display:block; text-decoration:none !important;
-                    cursor:pointer; }
-        .j2-tcard:hover { border-color:#ffb020; }
-        .j2-tname { font-size:1.0rem; font-weight:700; color:#e5e7eb; margin-bottom:0.1rem;
-                    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .j2-tpct { font-size:1.55rem; font-weight:800; line-height:1.25; }
-        .j2-tfoot { display:flex; align-items:center; gap:0.45rem; margin-top:0.3rem; }
-        .j2-tbadge { font-size:0.78rem; font-weight:700; padding:0.08rem 0.55rem;
-                     border-radius:999px; }
-        .j2-tstreak { font-size:0.78rem; color:#9ca3af; }
+        div[class*="st-key-j2_tp_"] button {
+            background: #141b2a !important;
+            border: 1px solid #263247 !important;
+            border-radius: 12px !important;
+            width: 100%;
+            min-height: 5.2rem;
+            padding: 0.55rem 0.8rem !important;
+            justify-content: flex-start;
+        }
+        div[class*="st-key-j2_tp_"] button:hover { border-color: #ffb020 !important; }
+        div[class*="st-key-j2_tp_"] button [data-testid="stMarkdownContainer"] p {
+            font-size: 1.02rem; line-height: 1.45; text-align: left;
+        }
         </style>
-        <div class='j2-tgrid'>""" + "".join(cards) + "</div>",
+        """,
         unsafe_allow_html=True,
     )
+
+    per_row = 4
+    for row_start in range(0, len(items), per_row):
+        row_items = items[row_start:row_start + per_row]
+        cols = st.columns(per_row)
+        for offset, (name, info) in enumerate(row_items):
+            pct = info.get("change_pct")
+            verdict = info.get("verdict", "—")
+            try:
+                age = theme_history.get_theme_elapsed_strong_days(name)
+            except Exception:
+                age = None
+            if pct is None:
+                pct_md = "—"
+            elif pct > 0:
+                pct_md = f":red[**+{pct:.2f}%**]"
+            elif pct < 0:
+                pct_md = f":blue[**{pct:.2f}%**]"
+            else:
+                pct_md = "**0.00%**"
+            streak_md = f" · 연속 {age}일" if age else ""
+            label = f"**{name}**  \n{pct_md}  \n:gray[{verdict}{streak_md}]"
+            with cols[offset]:
+                if st.button(label, key=f"j2_tp_{row_start + offset}", use_container_width=True):
+                    st.session_state["j2_theme_select"] = name
+                    st.session_state["j2_autorun_signal"] = True
 
     checked_at = snap.get("checked_at")
     foot = f"조회 시각: {checked_at}" if checked_at else ""
