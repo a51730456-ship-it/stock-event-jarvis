@@ -5,3 +5,4 @@ finance-datareader==0.9.202
 pykrx==1.2.8
 libsql==0.1.11
 requests
+# rebuild trigger 2026-07-16
