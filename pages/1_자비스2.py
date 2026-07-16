@@ -69,6 +69,14 @@ def _age_is_warn(age: int | None, entry_max_age: float) -> bool:
     return age is not None and age > entry_max_age
 
 
+def _sign_html(v, digits: int = 2) -> str:
+    """등락 수치를 한국 시장 색 관례(+빨강/−파랑)로 표기하는 HTML."""
+    if v is None:
+        return "<span style='color:#9ca3af'>데이터 없음</span>"
+    color = "#ff4b4b" if v > 0 else "#4b9fff" if v < 0 else "#9ca3af"
+    return f"<span style='color:{color};font-weight:800'>{v:+.{digits}f}%</span>"
+
+
 def _tag_str(theme: str, setup: str, age: int | None, alert_state: str | None) -> str:
     parts = ["#순환매", f"#{setup}"]
     if age is not None:
@@ -142,12 +150,28 @@ def _clear_theme_cache() -> None:
         st.session_state.pop(k, None)
 
 
-def _render_playbook() -> None:
+def _render_playbook(open_pos: list) -> None:
     cfg = _cfg()
     st.subheader("순환매 플레이북")
     st.caption("매수신호·점수·목표가는 표시하지 않습니다. 기록과 확인 도구입니다.")
 
     # ── 2a. 테마 선택 + 신호 확인 ──────────────────────────────────────────────
+    # 첫 로딩: 클릭 없이 가장 강한(등락률 1위) 테마를 자동 선택하고 신호까지 자동 조회
+    if not st.session_state.get("j2_boot_done"):
+        snap0 = st.session_state.get("j2_theme_snap")
+        if snap0 is not None:
+            st.session_state["j2_boot_done"] = True
+            if snap0.get("ok"):
+                valid = [
+                    (n, i["change_pct"])
+                    for n, i in snap0.get("themes", {}).items()
+                    if i.get("ok") and i.get("change_pct") is not None and n in _THEME_NAMES
+                ]
+                if valid:
+                    top_theme = max(valid, key=lambda x: x[1])[0]
+                    st.session_state["j2_theme_select"] = top_theme
+                    st.session_state["j2_autorun_signal"] = True
+
     # (테마판 버튼 클릭 시 j2_theme_select/j2_autorun_signal이 미리 설정되어 들어온다)
     prev_theme = st.session_state.get("j2_prev_theme", "")
     theme = st.selectbox("테마 선택", _THEME_NAMES, key="j2_theme_select")
@@ -272,7 +296,11 @@ def _render_playbook() -> None:
     st.divider()
 
     # ── 2b. 대장 확인 카드 — 1등(대장)·2등·3등 항상 표시 ─────────────────────
-    st.markdown("**대장 확인** · 매수 대상 아님 — 확인용")
+    st.markdown(
+        "<span style='color:#34d399;font-weight:800;font-size:1.12rem'>대장 확인</span>"
+        " <span style='color:#9ca3af'>· 매수 대상 아님 — 확인용</span>",
+        unsafe_allow_html=True,
+    )
     rank_limit_v = int(cfg.get("rank_limit", 2))
     st.caption(
         f"정렬 기준: ① 52주 신고가 근접 여부 → ② 거래대금 배수(20일 평균 대비). "
@@ -289,11 +317,21 @@ def _render_playbook() -> None:
                 pct_h = c.get("pct_from_52w_high")
                 mult_c = c.get("turnover_mult")
                 chg = c.get("change_pct")
-                lines = [f"**{rank_names[i]} — {c['name']}** `{c['code']}`"]
-                lines.append(f"52주고가대비: {pct_h:+.1f}%" if pct_h is not None else "52주고가대비: 데이터 없음")
-                lines.append(f"거래대금배수: {mult_c:.2f}배" if mult_c is not None else "거래대금배수: 데이터 없음")
-                lines.append(f"등락률: {chg:+.2f}%" if chg is not None else "등락률: 데이터 없음")
-                st.markdown("  \n".join(lines))
+                mult_txt = (
+                    f"<span style='font-weight:700'>{mult_c:.2f}배</span>"
+                    if mult_c is not None
+                    else "<span style='color:#9ca3af'>데이터 없음</span>"
+                )
+                # 종목명·등수: 밝은 코발트색 / 라벨: 밝은 초록 / 수치: +빨강 −파랑
+                st.markdown(
+                    f"<div style='color:#4dc3ff;font-weight:800;font-size:1.06rem;margin-bottom:0.15rem'>"
+                    f"{rank_names[i]} — {c['name']} "
+                    f"<span style='font-size:0.85rem;color:#93c5fd'>{c['code']}</span></div>"
+                    f"<div><span style='color:#34d399;font-weight:600'>52주고가대비</span>: {_sign_html(pct_h, 1)}</div>"
+                    f"<div><span style='color:#34d399;font-weight:600'>거래대금배수</span>: {mult_txt}</div>"
+                    f"<div><span style='color:#34d399;font-weight:600'>등락률</span>: {_sign_html(chg, 2)}</div>",
+                    unsafe_allow_html=True,
+                )
                 if i + 1 > rank_limit_v:
                     st.error(f"{i + 1}등 — 매수 금지 (등수 한계 {rank_limit_v})")
                 elif c.get("near_high"):
@@ -350,15 +388,34 @@ def _render_playbook() -> None:
     w_result = playbook.max_warning(sel_code)
     lb_result = playbook.leader_break(sel_code)
 
-    # 선택 종목 요약 정보 (판단 참고용)
-    ic1, ic2, ic3, ic4 = st.columns(4)
-    ic1.metric("현재가", f"{sel_stock['price']:,}원" if sel_stock.get("price") else "—")
-    _chg = sel_stock.get("change_pct")
-    ic2.metric("오늘 등락률", f"{_chg:+.2f}%" if _chg is not None else "—")
+    # 선택 종목 요약 정보 (판단 참고용) — 등락 수치는 +빨강/−파랑
+    _price = sel_stock.get("price")
     _tv = sel_stock.get("turnover_mil")
-    ic3.metric("오늘 거래대금", f"{_tv / 100:,.0f}억" if _tv else "—")
     _dp = lb_result.get("drop_pct") if lb_result.get("ok") else None
-    ic4.metric("최근 20일 고점 대비", f"{_dp:+.1f}%" if _dp is not None else "—")
+
+    def _stat(label: str, value_html: str) -> str:
+        return (
+            f"<div style='color:#9ca3af;font-size:0.85rem'>{label}</div>"
+            f"<div style='font-size:1.45rem;line-height:1.4'>{value_html}</div>"
+        )
+
+    ic1, ic2, ic3, ic4 = st.columns(4)
+    ic1.markdown(
+        _stat("현재가", f"<b>{_price:,}원</b>" if _price else "—"),
+        unsafe_allow_html=True,
+    )
+    ic2.markdown(
+        _stat("오늘 등락률", _sign_html(sel_stock.get("change_pct"))),
+        unsafe_allow_html=True,
+    )
+    ic3.markdown(
+        _stat("오늘 거래대금", f"<b>{_tv / 100:,.0f}억</b>" if _tv else "—"),
+        unsafe_allow_html=True,
+    )
+    ic4.markdown(
+        _stat("최근 20일 고점 대비", _sign_html(_dp, 1)),
+        unsafe_allow_html=True,
+    )
 
     alerts: list[str] = []
     if w_result.get("ok") and w_result.get("warning"):
@@ -399,8 +456,7 @@ def _render_playbook() -> None:
     else:
         one_r = 0
 
-    # 3R 게이지 (playbook_journal 미청산 기준)
-    open_pos = playbook.get_open_positions()
+    # 3R 게이지 (playbook_journal 미청산 기준 — main()에서 1회 조회해 전달받음)
     open_n = len(open_pos)
     gauge_val = min(open_n / 3, 1.0)
     st.caption(f"오픈 포지션: {open_n}건 / 3건 기준")
@@ -671,9 +727,8 @@ def _render_theme_panel() -> None:
 # ── 섹션 5: 판단 기록 ────────────────────────────────────────────────────────
 
 
-def _render_journal() -> None:
+def _render_journal(records: list) -> None:
     st.subheader("판단 기록")
-    records = playbook.get_journal_recent(30)
     total = len(records)
     st.progress(min(total / 30, 1.0), text=f"{total}/30건 (30건 달성 시 조건별 기대값 분석 가능)")
 
@@ -715,9 +770,8 @@ def _render_journal() -> None:
 # ── 섹션 4b: 오픈 리스크 + 보유 포지션 카드 ──────────────────────────────────
 
 
-def _render_open_risk() -> None:
+def _render_open_risk(open_pos: list) -> None:
     st.subheader("오픈 리스크")
-    open_pos = playbook.get_open_positions()
     open_n = len(open_pos)
     st.progress(min(open_n / 3, 1.0), text=f"{open_n}건 / 3건 기준 (플레이북 기록 건수 합산)")
     if open_n >= 3:
@@ -746,9 +800,8 @@ def _render_open_risk() -> None:
 # ── 섹션 5b: 무시 로그 (경보 + 필터 통합) ───────────────────────────────────
 
 
-def _render_ignore_log() -> None:
+def _render_ignore_log(records: list) -> None:
     st.subheader("무시 로그 (경보 + 필터 통합)")
-    records = playbook.get_journal_recent(30)
 
     log_rows = []
     for r in records:
@@ -773,9 +826,8 @@ def _render_ignore_log() -> None:
 # ── 섹션 5c: 태그별 기대값 채점표 (30건 전까지 잠금) ─────────────────────────
 
 
-def _render_tag_scorecard() -> None:
+def _render_tag_scorecard(records: list) -> None:
     st.markdown("**태그별 기대값 채점표**")
-    records = playbook.get_journal_recent(30)
     total = len(records)
     st.progress(min(total / 30, 1.0), text=f"기록 진행 {total}/30건")
 
@@ -870,6 +922,11 @@ def main() -> None:
         ["한국장", "행동·청산", "복기·통계", "기록", "보조"]
     )
 
+    # journal/open-positions는 rerun당 1회만 조회해 전 탭에 공유
+    # (기존엔 렌더링마다 4회 중복 조회 — 원격 DB에선 매번 네트워크 왕복)
+    records = playbook.get_journal_recent(30)
+    open_pos = playbook.get_open_positions()
+
     with tab_kr:
         # 초기 화면: 클릭 없이 시장상태 + 적격대장 + 테마판이 바로 보이게 배치
         _render_market_state()
@@ -878,21 +935,21 @@ def main() -> None:
         st.divider()
         _render_theme_panel()
         st.divider()
-        _render_playbook()
+        _render_playbook(open_pos)
         st.divider()
         _render_crash_log()
         _render_interest_scoreboard_ref()
 
     with tab_action:
-        _render_open_risk()
+        _render_open_risk(open_pos)
         st.divider()
-        _render_ignore_log()
+        _render_ignore_log(records)
 
     with tab_stats:
-        _render_tag_scorecard()
+        _render_tag_scorecard(records)
 
     with tab_journal:
-        _render_journal()
+        _render_journal(records)
 
     with tab_settings:
         with st.expander("플레이북 설정 (playbook_config)", expanded=True):

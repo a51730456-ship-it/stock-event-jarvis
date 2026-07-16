@@ -18,6 +18,10 @@ _log = logging.getLogger(__name__)
 _CACHE_DIR = Path(__file__).parent / "cache" / "market_data"
 _KOSPI_INDEX = "^KS11"
 
+# 프로세스 메모리 캐시 — 파일 캐시가 있어도 rerun마다 JSON 300행을 재파싱하면
+# 화면당 수십 ms씩 누적된다. {key: (yyyy-mm-dd, df)}
+_MEM_CACHE: dict = {}
+
 
 # ── 내부 헬퍼 ──────────────────────────────────────────────────────────────────
 
@@ -114,9 +118,16 @@ def get_daily(code6: str):
     """
     code6 = str(code6).strip().zfill(6)
 
+    today = datetime.now().strftime("%Y-%m-%d")
+    hit = _MEM_CACHE.get(code6)
+    if hit and hit[0] == today:
+        return hit[1]
+
     cached = _load_cache(code6)
     if cached is not None and len(cached) > 1:
-        return _clean_ohlcv(cached)
+        out = _clean_ohlcv(cached)
+        _MEM_CACHE[code6] = (today, out)
+        return out
 
     df = _download_yf(f"{code6}.KS")
     if df is None or len(df) <= 1:
@@ -127,22 +138,33 @@ def get_daily(code6: str):
         return None
 
     _save_cache(code6, df)
-    return _clean_ohlcv(df)
+    out = _clean_ohlcv(df)
+    _MEM_CACHE[code6] = (today, out)
+    return out
 
 
 def get_index_daily(ticker: str = _KOSPI_INDEX):
     """지수(기본: ^KS11) 일봉 DataFrame. 당일 캐시 적용. 실패 시 None."""
     safe_key = ticker.replace("^", "IDX_")
+    today = datetime.now().strftime("%Y-%m-%d")
+    hit = _MEM_CACHE.get(safe_key)
+    if hit and hit[0] == today:
+        return hit[1]
+
     cached = _load_cache(safe_key)
     if cached is not None and len(cached) > 1:
-        return _clean_ohlcv(cached)
+        out = _clean_ohlcv(cached)
+        _MEM_CACHE[safe_key] = (today, out)
+        return out
 
     df = _download_yf(ticker)
     if df is None or len(df) <= 1:
         return None
 
     _save_cache(safe_key, df)
-    return _clean_ohlcv(df)
+    out = _clean_ohlcv(df)
+    _MEM_CACHE[safe_key] = (today, out)
+    return out
 
 
 # ── 지표 함수 ─────────────────────────────────────────────────────────────────
