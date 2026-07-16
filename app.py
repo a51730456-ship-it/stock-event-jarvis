@@ -277,12 +277,14 @@ st.set_page_config(page_title="자비스 주식 기록장", layout="wide")
 st.markdown(
     """
     <style>
+    [data-testid="stSidebarNav"] a {
+        padding: 0.7rem 1rem !important;
+    }
     [data-testid="stSidebarNav"] a,
     [data-testid="stSidebarNav"] a * {
         font-size: 1.8rem !important;
         font-weight: 800 !important;
         color: #ffb020 !important;
-        padding: 0.7rem 1rem !important;
         line-height: 1.4 !important;
     }
     [data-testid="stSidebarNav"] a:hover,

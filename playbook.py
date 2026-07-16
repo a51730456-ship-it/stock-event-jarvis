@@ -24,7 +24,7 @@ _PLAYBOOK_CONFIG_DEFAULTS = {
     "max_spike_pct": 20.0,       # 최근 20일 내 이 % 이상 단일 급등 시 경보
     "entry_max_age": 3.0,        # 테마 연속강세 경과 거래일이 이 일 초과 시 추격 주의
     "leader_break_pct": 7.0,     # 대장주 최근 고점 대비 이 % 이상 하락 시 붕괴 경보
-    "rank_limit": 3.0,           # 대장 후보 반환 최대 수 (find_leader)
+    "rank_limit": 2.0,           # 등수 한계 — 매수는 2등주까지(3등 금지). 대장 카드 표시 수도 이 값
     "volatile_days_warn": 12.0,  # 60일 ±3% 변동일수 이 이상이면 시장 경고
 }
 
@@ -35,19 +35,26 @@ def _get_connection():
 
 
 def _init_playbook_tables() -> None:
-    """playbook_config / playbook_journal 테이블을 없으면 만든다.
+    """playbook_config / playbook_journal / crash_log 테이블을 없으면 만든다.
     기존 DB 테이블에는 어떤 변경도 가하지 않는다.
+
+    Turso 원격(libsql)에서 upsert 계열 구문(INSERT OR IGNORE, ON CONFLICT)이
+    간헐적으로 ValueError를 내는 것이 배포에서 확인되어, 여기서는
+    database.py가 운영에서 검증한 것과 같은 원시 구문(단문 CREATE/SELECT/INSERT)만 쓴다.
     """
     conn = _get_connection()
     try:
-        conn.executescript(
+        conn.execute(
             """
             CREATE TABLE IF NOT EXISTS playbook_config (
                 key   TEXT PRIMARY KEY,
                 value REAL NOT NULL,
                 note  TEXT
-            );
-
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS playbook_journal (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
                 recorded_at      TEXT NOT NULL,
@@ -65,8 +72,11 @@ def _init_playbook_tables() -> None:
                 tags             TEXT,
                 is_dropped       INTEGER DEFAULT 0,
                 result           TEXT
-            );
-
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS crash_log (
                 id                    INTEGER PRIMARY KEY AUTOINCREMENT,
                 recorded_at           TEXT NOT NULL,
@@ -75,19 +85,23 @@ def _init_playbook_tables() -> None:
                 causes                TEXT,
                 holding_logic_broken  TEXT,
                 memo                  TEXT
-            );
+            )
             """
         )
-        # config 기본값 삽입 (이미 있으면 무시)
+        # config 기본값 삽입 — 없는 키만 넣는다 (upsert 구문 회피)
+        existing = {r[0] for r in conn.execute("SELECT key FROM playbook_config").fetchall()}
         for key, value in _PLAYBOOK_CONFIG_DEFAULTS.items():
-            conn.execute(
-                "INSERT INTO playbook_config (key, value) VALUES (?, ?) "
-                "ON CONFLICT(key) DO NOTHING",
-                (key, value),
-            )
-        # 마이그레이션: P1 초기 기본값에서 변경된 항목을 구 기본값 그대로인 경우에만 업데이트
+            if key not in existing:
+                conn.execute(
+                    "INSERT INTO playbook_config (key, value) VALUES (?, ?)",
+                    (key, value),
+                )
+        # 마이그레이션: 과거 잘못 배포된 기본값(rank_limit=3, 오해석)을
+        # 그 값 그대로인 경우에만 매매 규칙 값 2로 되돌린다.
+        # 주의: 방향을 (2→3)으로 두면 사용자가 설정에서 2로 바꿔도
+        # 재시작마다 3으로 되돌리는 지뢰가 된다 — 반드시 (3→2)여야 한다.
         _MIGRATIONS = {
-            "rank_limit": (2.0, 3.0),   # (old_default, new_default)
+            "rank_limit": (3.0, 2.0),   # (wrong_old_default, corrected_default)
         }
         for key, (old_val, new_val) in _MIGRATIONS.items():
             conn.execute(
@@ -99,22 +113,41 @@ def _init_playbook_tables() -> None:
         conn.close()
 
 
-def _get_config() -> dict:
-    """playbook_config 테이블에서 설정값을 읽어 dict로 반환."""
-    _init_playbook_tables()
-    conn = _get_connection()
+_tables_ready = False
+
+
+def _ensure_tables() -> None:
+    """테이블 초기화를 시도하되, 실패해도 예외를 밖으로 던지지 않는다.
+    성공하면 프로세스당 1회만 실행하고, 실패하면 다음 호출에서 재시도한다."""
+    global _tables_ready
+    if _tables_ready:
+        return
     try:
-        rows = conn.execute("SELECT key, value FROM playbook_config").fetchall()
-        return {r[0]: r[1] for r in rows}
-    finally:
-        conn.close()
+        _init_playbook_tables()
+        _tables_ready = True
+    except Exception as e:
+        _log.warning("playbook 테이블 초기화 실패(다음 호출에서 재시도): %s", e)
 
 
-# 모듈 임포트 시 테이블 자동 생성
-try:
-    _init_playbook_tables()
-except Exception as _e:
-    _log.warning("playbook_tables init failed: %s", _e)
+def _get_config() -> dict:
+    """playbook_config 설정을 읽는다. DB 장애가 나도 기본값으로 항상 dict를
+    반환해 페이지 렌더링 자체는 막지 않는다."""
+    _ensure_tables()
+    cfg = dict(_PLAYBOOK_CONFIG_DEFAULTS)
+    try:
+        conn = _get_connection()
+        try:
+            rows = conn.execute("SELECT key, value FROM playbook_config").fetchall()
+            cfg.update({r[0]: r[1] for r in rows})
+        finally:
+            conn.close()
+    except Exception as e:
+        _log.warning("playbook_config 읽기 실패(기본값 사용): %s", e)
+    return cfg
+
+
+# 모듈 임포트 시 테이블 자동 생성 (실패해도 임포트는 계속된다)
+_ensure_tables()
 
 
 # ── 판정 함수 6개 ──────────────────────────────────────────────────────────────
@@ -401,6 +434,7 @@ def save_journal_entry(
     """playbook_journal에 진입 기록을 저장하고 새 행의 id를 반환한다."""
     r_amount = abs(entry_price - stop_price) * qty
     recorded_at = datetime.now().isoformat(timespec="seconds")
+    _ensure_tables()
     conn = _get_connection()
     try:
         cur = conn.execute(
@@ -431,6 +465,7 @@ def save_dropout_entry(
 ) -> int:
     """playbook_journal에 탈락 기록을 저장하고 새 행의 id를 반환한다."""
     recorded_at = datetime.now().isoformat(timespec="seconds")
+    _ensure_tables()
     conn = _get_connection()
     try:
         cur = conn.execute(
@@ -452,7 +487,7 @@ def save_dropout_entry(
 
 def get_open_positions() -> list[dict]:
     """미청산(is_dropped=0, result IS NULL) 진입 기록 목록을 반환한다."""
-    _init_playbook_tables()
+    _ensure_tables()
     conn = _get_connection()
     try:
         rows = conn.execute(
@@ -468,7 +503,7 @@ def get_open_positions() -> list[dict]:
 
 def get_journal_recent(n: int = 30) -> list[dict]:
     """playbook_journal 최근 n건을 반환한다."""
-    _init_playbook_tables()
+    _ensure_tables()
     conn = _get_connection()
     try:
         rows = conn.execute(
@@ -492,6 +527,7 @@ def save_crash_log(
     """crash_log에 급락일 기록을 저장한다."""
     import json as _json
     recorded_at = datetime.now().isoformat(timespec="seconds")
+    _ensure_tables()
     conn = _get_connection()
     try:
         conn.execute(

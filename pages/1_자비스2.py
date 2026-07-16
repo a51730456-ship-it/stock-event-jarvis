@@ -17,12 +17,14 @@ st.set_page_config(page_title="자비스2 — 순환매 플레이북", layout="w
 st.markdown(
     """
     <style>
+    [data-testid="stSidebarNav"] a {
+        padding: 0.7rem 1rem !important;
+    }
     [data-testid="stSidebarNav"] a,
     [data-testid="stSidebarNav"] a * {
         font-size: 1.8rem !important;
         font-weight: 800 !important;
         color: #ffb020 !important;
-        padding: 0.7rem 1rem !important;
         line-height: 1.4 !important;
     }
     [data-testid="stSidebarNav"] a:hover,
@@ -292,9 +294,12 @@ def _render_playbook() -> None:
 
     alerts: list[str] = []
     if w_result.get("ok") and w_result.get("warning"):
-        alerts.append(f"급등 경보 ({w_result.get('max_gain_pct', 0):+.1f}%, {w_result.get('spike_days')}일)")
+        alerts.append(
+            f"막차 경보 — 최근 20거래일 내 일간 {w_result.get('max_gain_pct', 0):+.1f}% 급등 이력"
+            f" ({w_result.get('spike_days')}일)"
+        )
     if lb_result.get("ok") and lb_result.get("broken"):
-        alerts.append(f"대장 붕괴 경보 ({lb_result.get('drop_pct', 0):+.1f}%)")
+        alerts.append(f"대장 꺾임 경보 — 최근 고점 대비 {lb_result.get('drop_pct', 0):+.1f}%")
     if age_warn:
         alerts.append(f"테마 추격 주의 (D+{age})")
 
@@ -361,7 +366,7 @@ def _render_playbook() -> None:
                 for e in errors:
                     st.error(e)
             else:
-                alert_state_str = ", ".join(["급등" if "급등" in a else "붕괴" if "붕괴" in a else "추격" for a in alerts]) if alerts else None
+                alert_state_str = ", ".join(["막차" if "막차" in a else "꺾임" if "꺾임" in a else "추격" for a in alerts]) if alerts else None
                 tags = _tag_str(theme, setup, age, alert_state_str)
                 leader_candidates = leader_result.get("candidates", []) if leader_result else []
                 leader_name = leader_candidates[0]["name"] if leader_candidates else None
@@ -650,13 +655,13 @@ def _render_tag_scorecard() -> None:
 
 
 _CFG_LABELS = {
-    "near_high_pct":       ("고점 근접 기준 (%)", "52주 최고가 대비 이 % 이내면 '근접'으로 판단"),
-    "value_mult":          ("거래대금 급증 배수", "당일 거래대금이 20일 평균의 이 배 이상이면 급증"),
-    "min_value_eok":       ("최소 거래대금 (억원)", "이 금액 미만 종목은 대장 후보 제외 (현재 미구현)"),
-    "max_spike_pct":       ("급등 경보 기준 (%)", "최근 20일 내 이 % 이상 단일 급등 시 경보"),
-    "entry_max_age":       ("추격 주의 기준 (거래일)", "테마 연속강세 이 일 초과 시 추격 주의"),
-    "leader_break_pct":    ("대장 붕괴 기준 (%)", "최근 고점 대비 이 % 이상 하락 시 붕괴 경보"),
-    "rank_limit":          ("대장 후보 최대 수", "find_leader 반환 최대 개수"),
+    "near_high_pct":       ("신고가 근접 (%)", "52주 최고가 대비 이 % 이내면 '근접'으로 판단"),
+    "value_mult":          ("거래대금 배수", "당일 거래대금이 20일 평균의 이 배 이상이면 급증"),
+    "min_value_eok":       ("유동성 하한 (억)", "이 금액 미만 종목은 대장 후보 제외 (현재 미구현)"),
+    "max_spike_pct":       ("막차 기준 (%)", "최근 20일 내 이 % 이상 단일 급등 시 막차 경보"),
+    "entry_max_age":       ("진입 허용 (일차)", "테마 연속강세 이 일 초과 시 추격 주의"),
+    "leader_break_pct":    ("대장 꺾임 (%)", "최근 고점 대비 이 % 이상 하락 시 꺾임 경보"),
+    "rank_limit":          ("등수 한계", "매수는 이 등수까지만 허용 (2 = 3등주 매수 금지)"),
     "volatile_days_warn":  ("시장 경고 변동일수", "60일 중 ±3% 이상 날이 이 이상이면 시장 경고"),
 }
 
@@ -679,12 +684,19 @@ def _render_settings() -> None:
         import database
         conn = database.get_connection()
         try:
+            # Turso 원격에서 upsert 구문이 간헐 실패해 SELECT 후 분기 방식만 쓴다
             for k, v in updated.items():
-                conn.execute(
-                    "INSERT INTO playbook_config (key, value) VALUES (?, ?) "
-                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                    (k, v),
-                )
+                row = conn.execute(
+                    "SELECT 1 FROM playbook_config WHERE key=?", (k,)
+                ).fetchone()
+                if row is None:
+                    conn.execute(
+                        "INSERT INTO playbook_config (key, value) VALUES (?, ?)", (k, v)
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE playbook_config SET value=? WHERE key=?", (v, k)
+                    )
             conn.commit()
             st.success("설정 저장 완료.")
             # 시장상태 캐시도 무효화 (volatile_days_warn 변경 대응)
