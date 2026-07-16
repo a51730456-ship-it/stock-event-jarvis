@@ -11,6 +11,7 @@ DB 저장·자동매매·실시간 조회와는 무관하다.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 
 _log = logging.getLogger(__name__)
@@ -129,9 +130,23 @@ def _ensure_tables() -> None:
         _log.warning("playbook 테이블 초기화 실패(다음 호출에서 재시도): %s", e)
 
 
+# 설정 캐시 — 한 화면 렌더링에 _get_config가 4~6회 호출되는데, 원격(Turso)에선
+# 매번 네트워크 왕복이라 느려지고 실패 표면도 커진다. 5초 TTL이면 충분.
+_CFG_CACHE = {"at": 0.0, "cfg": None}
+_CFG_TTL_SEC = 5.0
+
+
+def invalidate_config_cache() -> None:
+    """설정 저장 직후 호출해 다음 읽기가 DB에서 새로 오게 한다."""
+    _CFG_CACHE["cfg"] = None
+
+
 def _get_config() -> dict:
     """playbook_config 설정을 읽는다. DB 장애가 나도 기본값으로 항상 dict를
-    반환해 페이지 렌더링 자체는 막지 않는다."""
+    반환해 페이지 렌더링 자체는 막지 않는다. 성공 결과는 5초간 캐시."""
+    now = time.time()
+    if _CFG_CACHE["cfg"] is not None and now - _CFG_CACHE["at"] < _CFG_TTL_SEC:
+        return dict(_CFG_CACHE["cfg"])
     _ensure_tables()
     cfg = dict(_PLAYBOOK_CONFIG_DEFAULTS)
     try:
@@ -141,6 +156,8 @@ def _get_config() -> dict:
             cfg.update({r[0]: r[1] for r in rows})
         finally:
             conn.close()
+        _CFG_CACHE["cfg"] = dict(cfg)
+        _CFG_CACHE["at"] = now
     except Exception as e:
         _log.warning("playbook_config 읽기 실패(기본값 사용): %s", e)
     return cfg

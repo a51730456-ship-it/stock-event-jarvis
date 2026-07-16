@@ -100,7 +100,10 @@ def _render_market_state() -> None:
     if ms is None:
         with st.spinner("시장 상태 조회 중…"):
             ms = playbook.market_state()
-            st.session_state["j2_market_state"] = ms
+            # 성공 결과만 캐시 — 실패를 캐시하면 재시도 경로가 없어
+            # 세션 내내 실패 화면에 갇힌다
+            if ms and ms.get("ok"):
+                st.session_state["j2_market_state"] = ms
 
     if not ms or not ms.get("ok"):
         st.info(f"시장 상태 조회 실패: {ms.get('error', '알 수 없음')}")
@@ -847,6 +850,7 @@ def _render_settings() -> None:
                         "UPDATE playbook_config SET value=? WHERE key=?", (v, k)
                     )
             conn.commit()
+            playbook.invalidate_config_cache()
             st.success("설정 저장 완료.")
             # 시장상태 캐시도 무효화 (volatile_days_warn 변경 대응)
             st.session_state.pop("j2_market_state", None)

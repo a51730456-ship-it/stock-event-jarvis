@@ -19,6 +19,9 @@ _DETAIL_URL = "https://finance.naver.com/sise/sise_group_detail.naver?type=theme
 _HEADERS = {"User-Agent": "Mozilla/5.0"}
 _REQUEST_INTERVAL = 0.3  # 기존 스크래핑 관행: 요청 간 최소 0.3초
 
+_FETCH_CACHE: dict = {}   # {테마명: (timestamp, result)}
+_FETCH_TTL_SEC = 60.0
+
 
 # ── HTML 파싱 ────────────────────────────────────────────────────────────────
 
@@ -152,6 +155,13 @@ def fetch_theme_stocks(theme_name: str) -> dict:
     if not naver_ids:
         return {"ok": False, "error": f"등록되지 않은 테마: {theme_name}", "stocks": []}
 
+    # 신호 확인 한 번에 이 함수가 3회 호출되는 구조(theme_signals/직접/find_leader)라
+    # 60초 TTL 캐시로 중복 스크래핑을 제거한다. 성공 결과만 캐시.
+    now = time.time()
+    hit = _FETCH_CACHE.get(theme_name)
+    if hit and now - hit[0] < _FETCH_TTL_SEC:
+        return hit[1]
+
     all_stocks: list[dict] = []
     seen_codes: set[str] = set()
 
@@ -167,4 +177,6 @@ def fetch_theme_stocks(theme_name: str) -> dict:
     if not all_stocks:
         return {"ok": False, "error": "구성종목 파싱 실패 (0종목)", "stocks": []}
 
-    return {"ok": True, "stocks": all_stocks, "error": None}
+    result = {"ok": True, "stocks": all_stocks, "error": None}
+    _FETCH_CACHE[theme_name] = (now, result)
+    return result
