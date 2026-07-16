@@ -105,7 +105,7 @@ def _get_config() -> dict:
     conn = _get_connection()
     try:
         rows = conn.execute("SELECT key, value FROM playbook_config").fetchall()
-        return {r["key"]: r["value"] for r in rows}
+        return {r[0]: r[1] for r in rows}
     finally:
         conn.close()
 
