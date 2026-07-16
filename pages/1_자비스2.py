@@ -167,6 +167,18 @@ def _render_playbook() -> None:
             st.session_state["j2_leader"] = leader_result
             st.session_state["j2_age"] = age
 
+            # 적격 대장(52주 신고가 근접 통과) 발견 시 별도 난에 축적
+            qualified = [
+                c for c in (leader_result.get("candidates") or [])
+                if c.get("near_high")
+            ]
+            if qualified:
+                store = st.session_state.setdefault("j2_qualified", {})
+                store[theme] = {
+                    "stocks": qualified,
+                    "at": datetime.now().strftime("%H:%M"),
+                }
+
             # theme_state_log 축적 (upsert 안전 확인됨: ON CONFLICT DO UPDATE)
             if sigs.get("ok") and stocks_result.get("ok"):
                 stocks = stocks_result["stocks"]
@@ -275,16 +287,18 @@ def _render_playbook() -> None:
                 mult_c = c.get("turnover_mult")
                 chg = c.get("change_pct")
                 lines = [f"**{rank_names[i]} — {c['name']}** `{c['code']}`"]
-                lines.append(f"52주고가대비: {pct_h:+.1f}%" if pct_h is not None else "52주고가대비: —")
-                lines.append(f"거래대금배수: {mult_c:.2f}배" if mult_c is not None else "거래대금배수: —")
-                lines.append(f"등락률: {chg:+.2f}%" if chg is not None else "등락률: —")
+                lines.append(f"52주고가대비: {pct_h:+.1f}%" if pct_h is not None else "52주고가대비: 데이터 없음")
+                lines.append(f"거래대금배수: {mult_c:.2f}배" if mult_c is not None else "거래대금배수: 데이터 없음")
+                lines.append(f"등락률: {chg:+.2f}%" if chg is not None else "등락률: 데이터 없음")
                 st.markdown("  \n".join(lines))
                 if i + 1 > rank_limit_v:
                     st.error(f"{i + 1}등 — 매수 금지 (등수 한계 {rank_limit_v})")
                 elif c.get("near_high"):
                     st.success("52주고가 근접 — 적격")
+                elif pct_h is None:
+                    st.info("일봉 데이터 없음 — 근접 판정 불가")
                 else:
-                    st.warning("고가 근접 미달")
+                    st.warning(f"고가 근접 미달 (52주고가 대비 {pct_h:+.1f}%)")
     else:
         err = leader_result.get("error") if leader_result else "후보 없음"
         st.warning(f"대장 후보를 계산하지 못했습니다: {err}")
@@ -314,7 +328,9 @@ def _render_playbook() -> None:
     sel_idx = st.selectbox(
         "종목 선택", range(len(stock_opts)),
         format_func=lambda i: stock_opts[i],
-        key="j2_stock_select",
+        # 테마별 별도 키 — 이전 테마의 선택 인덱스가 남아 차트/요약이
+        # 다른 종목을 가리키는 불일치를 원천 차단
+        key=f"j2_stock_select_{theme}",
     )
     sel_stock = stocks[sel_idx]
     sel_code = sel_stock["code"]
@@ -510,6 +526,32 @@ def _render_interest_scoreboard_ref() -> None:
 
 
 # ── 섹션 4: 테마판 요약 ──────────────────────────────────────────────────────
+
+
+def _render_qualified_slot() -> None:
+    """적격 대장 별도 난 — 52주 신고가 근접 게이트를 통과한 종목은 희소하고
+    중요하므로 테마판 위에 항상 표시한다. 신호 확인에서 발견될 때마다 축적."""
+    st.markdown("**⭐ 적격 대장 현황** — 52주 신고가 근접 게이트 통과 종목")
+    store = st.session_state.get("j2_qualified") or {}
+    rows = []
+    for theme_nm, info in store.items():
+        for c in info.get("stocks", []):
+            rows.append((theme_nm, c, info.get("at", "")))
+    if not rows:
+        st.info("아직 없음 — 테마 신호 확인에서 적격 대장이 발견되면 여기에 표시됩니다.")
+        return
+    cols = st.columns(min(len(rows), 4))
+    for i, (theme_nm, c, at_time) in enumerate(rows[:4]):
+        with cols[i]:
+            pct_h = c.get("pct_from_52w_high")
+            pct_txt = f"{pct_h:+.1f}%" if pct_h is not None else "—"
+            st.success(
+                f"**{c['name']}** `{c['code']}`  \n"
+                f"{theme_nm} · 52주고가대비 {pct_txt}  \n"
+                f"확인 {at_time}"
+            )
+    if len(rows) > 4:
+        st.caption(f"외 {len(rows) - 4}건")
 
 
 # 자비스1 테마 상태 색 관례 참조: 강함 빨강 / 보통 파랑 / 약함 회색 (app.py 5873행대)
@@ -825,8 +867,10 @@ def main() -> None:
     )
 
     with tab_kr:
-        # 초기 화면: 클릭 없이 시장상태 + 테마판이 바로 보이게 배치
+        # 초기 화면: 클릭 없이 시장상태 + 적격대장 + 테마판이 바로 보이게 배치
         _render_market_state()
+        st.divider()
+        _render_qualified_slot()
         st.divider()
         _render_theme_panel()
         st.divider()

@@ -89,6 +89,20 @@ def _download_yf(ticker: str, period: str = "300d"):
         return None
 
 
+def _clean_ohlcv(df):
+    """Close/High가 NaN인 행(장중 미확정 행 등) 제거.
+
+    yfinance가 당일 장중 행을 High/Close=NaN, Volume만 채워 내려주는 경우가
+    확인됨 — NaN 한 행이 52주고가·거래대금배수 등 모든 지표를 NaN으로
+    오염시키므로 소스에서 제거한다.
+    """
+    try:
+        cleaned = df.dropna(subset=["Close", "High"])
+        return cleaned if len(cleaned) > 1 else df
+    except Exception:
+        return df
+
+
 # ── 공개 API ──────────────────────────────────────────────────────────────────
 
 
@@ -102,7 +116,7 @@ def get_daily(code6: str):
 
     cached = _load_cache(code6)
     if cached is not None and len(cached) > 1:
-        return cached
+        return _clean_ohlcv(cached)
 
     df = _download_yf(f"{code6}.KS")
     if df is None or len(df) <= 1:
@@ -113,7 +127,7 @@ def get_daily(code6: str):
         return None
 
     _save_cache(code6, df)
-    return df
+    return _clean_ohlcv(df)
 
 
 def get_index_daily(ticker: str = _KOSPI_INDEX):
@@ -121,14 +135,14 @@ def get_index_daily(ticker: str = _KOSPI_INDEX):
     safe_key = ticker.replace("^", "IDX_")
     cached = _load_cache(safe_key)
     if cached is not None and len(cached) > 1:
-        return cached
+        return _clean_ohlcv(cached)
 
     df = _download_yf(ticker)
     if df is None or len(df) <= 1:
         return None
 
     _save_cache(safe_key, df)
-    return df
+    return _clean_ohlcv(df)
 
 
 # ── 지표 함수 ─────────────────────────────────────────────────────────────────

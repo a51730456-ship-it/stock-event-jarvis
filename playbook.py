@@ -261,28 +261,37 @@ def find_leader(theme_name: str) -> dict:
         if not result["ok"]:
             return {"ok": False, "error": result["error"], "candidates": []}
 
-        candidates = []
-        for s in result["stocks"]:
+        # 속도: 전 종목 순차 조회(종목당 1~3초 × 30종목 = 1분 이상)가 병목이었다.
+        # 대장 후보는 등락률 상위에서 나오므로 상위 8종목만, 5개 병렬로 조회한다.
+        # (같은 날 두 번째 조회부터는 파일 캐시로 즉시 응답)
+        top = sorted(
+            [s for s in result["stocks"] if s.get("change_pct") is not None],
+            key=lambda s: s["change_pct"],
+            reverse=True,
+        )[:8]
+
+        def _probe(s):
             df = market_data.get_daily(s["code"])
             if df is None:
-                continue
+                return None
             pct_high = market_data.pct_from_52w_high(df)
             mult = market_data.today_turnover_multiple(df)
             if pct_high is not None and pct_high != pct_high:
                 pct_high = None  # NaN 방어
             if mult is not None and mult != mult:
                 mult = None  # NaN 방어
-            near_high = pct_high is not None and pct_high >= -near_pct
-            candidates.append(
-                {
-                    "code": s["code"],
-                    "name": s["name"],
-                    "pct_from_52w_high": pct_high,
-                    "near_high": near_high,
-                    "turnover_mult": mult,
-                    "change_pct": s.get("change_pct"),
-                }
-            )
+            return {
+                "code": s["code"],
+                "name": s["name"],
+                "pct_from_52w_high": pct_high,
+                "near_high": pct_high is not None and pct_high >= -near_pct,
+                "turnover_mult": mult,
+                "change_pct": s.get("change_pct"),
+            }
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            candidates = [c for c in pool.map(_probe, top) if c is not None]
 
         def _sort_key(c):
             near = 1 if c["near_high"] else 0
