@@ -34,10 +34,9 @@ _NAME_PATTERN = re.compile(
 # number td 값 (태그 제거 후 숫자)
 _NUM_TD = re.compile(r'<td class="number"[^>]*>([\s\S]*?)</td>', re.S)
 
-# 등락률 — span 색상으로 부호 결정
-_PCT_SPAN = re.compile(
-    r'<span class="tah p11 (red|blue)01">\s*\+?([\d.]+)%\s*</span>', re.S
-)
+# 등락률 — 색상 클래스(red01/blue01/nv01 등)에 의존하지 않고 텍스트에 이미
+# 포함된 부호(-)를 그대로 읽는다. 네이버가 클래스명을 바꿔도 안전하다.
+_PCT_NUM = re.compile(r"([+-]?[\d]+\.?[\d]*)\s*%")
 
 _COMMA_NUM = re.compile(r"[\d,]+")
 
@@ -75,13 +74,12 @@ def _parse_stocks(html: str) -> list[dict]:
         except Exception:
             price = None
 
-        # 등락률 (index 2: span 색 기반 부호 결정)
-        pct_m = _PCT_SPAN.search(num_tds[2])
+        # 등락률 (index 2: 텍스트에 이미 포함된 부호를 그대로 사용)
+        pct_m = _PCT_NUM.search(_strip_tags(num_tds[2]))
         change_pct = None
         if pct_m:
             try:
-                sign = -1 if pct_m.group(1) == "blue" else 1
-                change_pct = round(sign * float(pct_m.group(2)), 2)
+                change_pct = round(float(pct_m.group(1)), 2)
             except Exception:
                 pass
 
