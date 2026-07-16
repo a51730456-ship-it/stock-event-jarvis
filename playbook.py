@@ -195,6 +195,8 @@ def theme_signals(theme_name: str) -> dict:
             df = market_data.get_daily(leader_code)
             if df is not None:
                 leader_value_mult = market_data.today_turnover_multiple(df)
+        if leader_value_mult is not None and leader_value_mult != leader_value_mult:
+            leader_value_mult = None  # NaN 방어 (거래대금 결측 시 화면에 'nanx' 방지)
 
         streak = theme_history.get_theme_elapsed_strong_days(theme_name)
 
@@ -266,6 +268,10 @@ def find_leader(theme_name: str) -> dict:
                 continue
             pct_high = market_data.pct_from_52w_high(df)
             mult = market_data.today_turnover_multiple(df)
+            if pct_high is not None and pct_high != pct_high:
+                pct_high = None  # NaN 방어
+            if mult is not None and mult != mult:
+                mult = None  # NaN 방어
             near_high = pct_high is not None and pct_high >= -near_pct
             candidates.append(
                 {
@@ -284,7 +290,9 @@ def find_leader(theme_name: str) -> dict:
             return (near, mult)
 
         candidates.sort(key=_sort_key, reverse=True)
-        return {"ok": True, "candidates": candidates[:rank_limit], "error": None}
+        # 표시용 상위 3개(대장/2등/3등)를 항상 반환한다. rank_limit(등수 한계)은
+        # 매매 규칙이며 페이지에서 '매수 금지 등수' 라벨링에 사용한다.
+        return {"ok": True, "candidates": candidates[:3], "error": None}
     except Exception as e:
         _log.warning("find_leader failed %s: %s", theme_name, e)
         return {"ok": False, "error": str(e), "candidates": []}
@@ -398,8 +406,12 @@ def market_state() -> dict:
         if df is None or len(df) < 61:
             return {"ok": False, "error": "지수 데이터 부족", "phase": None}
 
-        closes = df["Close"]
+        closes = df["Close"].dropna()
+        if len(closes) < 61:
+            return {"ok": False, "error": "지수 데이터 부족", "phase": None}
         ret_60d = (float(closes.iloc[-1]) / float(closes.iloc[-61]) - 1) * 100
+        if ret_60d != ret_60d:
+            return {"ok": False, "error": "지수 데이터 결측(NaN)", "phase": None}
         phase = "하락국면" if ret_60d < 0 else "상승국면"
         volatile = market_data.volatile_days_60d(df)
 

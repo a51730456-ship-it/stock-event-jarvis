@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -135,7 +136,7 @@ def _render_market_state() -> None:
 
 
 def _clear_theme_cache() -> None:
-    for k in ["j2_signals", "j2_leader", "j2_stocks"]:
+    for k in ["j2_signals", "j2_leader", "j2_stocks", "j2_stock_select"]:
         st.session_state.pop(k, None)
 
 
@@ -145,13 +146,23 @@ def _render_playbook() -> None:
     st.caption("매수신호·점수·목표가는 표시하지 않습니다. 기록과 확인 도구입니다.")
 
     # ── 2a. 테마 선택 + 신호 확인 ──────────────────────────────────────────────
+    # 테마판 카드 클릭(쿼리 파라미터) → 테마 자동 선택 + 신호 자동 조회
+    qp_theme = st.query_params.get("j2_theme")
+    if qp_theme and qp_theme in _THEME_NAMES and st.session_state.get("j2_qp_done") != qp_theme:
+        st.session_state["j2_qp_done"] = qp_theme
+        st.session_state["j2_theme_select"] = qp_theme
+        st.session_state["j2_autorun_signal"] = True
+
     prev_theme = st.session_state.get("j2_prev_theme", "")
     theme = st.selectbox("테마 선택", _THEME_NAMES, key="j2_theme_select")
     if theme != prev_theme:
         _clear_theme_cache()
         st.session_state["j2_prev_theme"] = theme
 
-    if st.button("신호 확인 (네트워크 조회)", key="j2_signal_btn"):
+    run_signal = st.button("신호 확인 (네트워크 조회)", key="j2_signal_btn")
+    if st.session_state.pop("j2_autorun_signal", False):
+        run_signal = True
+    if run_signal:
         with st.spinner("네이버 테마 조회 중…"):
             sigs = playbook.theme_signals(theme)
             stocks_result = theme_detail.fetch_theme_stocks(theme)
@@ -209,9 +220,12 @@ def _render_playbook() -> None:
         mult = sigs.get("leader_value_mult")
         val_thresh = cfg.get("value_mult", 3.0)
         val_ok = mult is not None and mult >= val_thresh
-        (st.success if val_ok else st.warning)(
-            f"거래대금 급증 {'✔' if val_ok else '✗'}  ({mult:.1f}x)" if mult else f"거래대금 급증 ✗  (데이터 없음)"
-        )
+        if mult is not None:
+            (st.success if val_ok else st.warning)(
+                f"거래대금 급증 {'✔' if val_ok else '✗'}  (등락 1위 종목이 20일 평균의 {mult:.1f}배 / 기준 {val_thresh:.0f}배)"
+            )
+        else:
+            st.warning("거래대금 급증 ✗  (데이터 없음)")
     with col3:
         streak = sigs.get("strong_streak")
         streak_ok = streak is not None and streak >= 2
@@ -226,47 +240,79 @@ def _render_playbook() -> None:
         else:
             st.info("테마나이: 이력 축적 중")
 
+    # 양전 종목이 실제로 무엇인지 펼쳐서 확인 (등락률 높은 순)
+    _all_stocks = (stocks_result or {}).get("stocks", [])
+    _ups = sorted(
+        [s for s in _all_stocks if (s.get("change_pct") or 0) > 0],
+        key=lambda s: s["change_pct"], reverse=True,
+    )
+    if _ups:
+        with st.expander(f"양전 종목 {len(_ups)}개 보기 (등락률 순)", expanded=False):
+            chips = "".join(
+                f"<span class='j2-upchip'>{s['name']} <b>+{s['change_pct']:.2f}%</b></span>"
+                for s in _ups
+            )
+            st.markdown(
+                "<style>.j2-upchip{color:#fca5a5;background:rgba(255,75,75,0.10);"
+                "padding:0.15rem 0.55rem;border-radius:8px;display:inline-block;"
+                "margin:0.15rem 0.2rem;font-size:0.88rem}"
+                ".j2-upchip b{color:#ff4b4b}</style>"
+                f"<div>{chips}</div>",
+                unsafe_allow_html=True,
+            )
+
     st.divider()
 
-    # ── 2b. 대장 확인 카드 ───────────────────────────────────────────────────
+    # ── 2b. 대장 확인 카드 — 1등(대장)·2등·3등 항상 표시 ─────────────────────
     st.markdown("**대장 확인** · 매수 대상 아님 — 확인용")
-    if leader_result and leader_result.get("ok"):
-        candidates = leader_result.get("candidates", [])
-        near_ok = any(c.get("near_high") for c in candidates)
-        if not near_ok or not candidates:
-            st.info("적격 대장 없음 — 52주 고가 근접 10% 게이트 미충족")
-        else:
-            cols = st.columns(min(len(candidates), 3))
-            for i, c in enumerate(candidates[:3]):
-                with cols[i]:
-                    label = "52주고가 근접" if c.get("near_high") else "근접 미달"
-                    pct_h = c.get("pct_from_52w_high")
-                    mult_c = c.get("turnover_mult")
-                    chg = c.get("change_pct")
-                    st.markdown(
-                        f"**{c['name']}** `{c['code']}`  \n"
-                        f"52주고가대비: {pct_h:+.1f}%  \n"
-                        f"거래대금배수: {mult_c:.2f}x  \n"
-                        f"등락률: {chg:+.2f}%"
-                        if pct_h is not None and mult_c is not None and chg is not None
-                        else f"**{c['name']}** `{c['code']}`  \n데이터 부족"
-                    )
-                    if c.get("near_high"):
-                        st.success(label)
-                    else:
-                        st.warning(label)
+    rank_limit_v = int(cfg.get("rank_limit", 2))
+    st.caption(
+        f"정렬 기준: ① 52주 신고가 근접 여부 → ② 거래대금 배수(20일 평균 대비). "
+        f"등수 한계 {rank_limit_v} — {rank_limit_v}등주까지만 매수 허용."
+    )
+    if leader_result and leader_result.get("ok") and leader_result.get("candidates"):
+        candidates = leader_result["candidates"][:3]
+        if not any(c.get("near_high") for c in candidates):
+            st.info("적격 대장 없음 — 52주 고가 근접 10% 게이트 미충족 (아래는 참고용 상위 후보)")
+        rank_names = ["1등 · 대장주", "2등주", "3등주"]
+        cols = st.columns(len(candidates))
+        for i, c in enumerate(candidates):
+            with cols[i]:
+                pct_h = c.get("pct_from_52w_high")
+                mult_c = c.get("turnover_mult")
+                chg = c.get("change_pct")
+                lines = [f"**{rank_names[i]} — {c['name']}** `{c['code']}`"]
+                lines.append(f"52주고가대비: {pct_h:+.1f}%" if pct_h is not None else "52주고가대비: —")
+                lines.append(f"거래대금배수: {mult_c:.2f}배" if mult_c is not None else "거래대금배수: —")
+                lines.append(f"등락률: {chg:+.2f}%" if chg is not None else "등락률: —")
+                st.markdown("  \n".join(lines))
+                if i + 1 > rank_limit_v:
+                    st.error(f"{i + 1}등 — 매수 금지 (등수 한계 {rank_limit_v})")
+                elif c.get("near_high"):
+                    st.success("52주고가 근접 — 적격")
+                else:
+                    st.warning("고가 근접 미달")
     else:
-        err = leader_result.get("error") if leader_result else "—"
-        st.warning(f"대장 조회 실패: {err}")
+        err = leader_result.get("error") if leader_result else "후보 없음"
+        st.warning(f"대장 후보를 계산하지 못했습니다: {err}")
 
     st.divider()
 
     # ── 2c. 매수 대상 선택 ──────────────────────────────────────────────────
     st.markdown("**매수 대상 선택** (반자동 — 최종 선택은 사용자)")
+    st.caption(
+        "후보 출처: 네이버 이 테마의 구성종목 전체를 **등락률 높은 순**으로 정렬한 목록. "
+        "자비스는 목록과 경보만 제공하고 매수 판단은 사용자가 합니다."
+    )
     stocks = (stocks_result or {}).get("stocks", [])
     if not stocks:
         st.info("구성종목 데이터가 없습니다.")
         return
+    stocks = sorted(
+        stocks,
+        key=lambda s: s.get("change_pct") if s.get("change_pct") is not None else -999,
+        reverse=True,
+    )
 
     def _pct_label(v):
         return f"{v:+.2f}%" if v is not None else "N/A"
@@ -291,6 +337,16 @@ def _render_playbook() -> None:
     # 경보 계산
     w_result = playbook.max_warning(sel_code)
     lb_result = playbook.leader_break(sel_code)
+
+    # 선택 종목 요약 정보 (판단 참고용)
+    ic1, ic2, ic3, ic4 = st.columns(4)
+    ic1.metric("현재가", f"{sel_stock['price']:,}원" if sel_stock.get("price") else "—")
+    _chg = sel_stock.get("change_pct")
+    ic2.metric("오늘 등락률", f"{_chg:+.2f}%" if _chg is not None else "—")
+    _tv = sel_stock.get("turnover_mil")
+    ic3.metric("오늘 거래대금", f"{_tv / 100:,.0f}억" if _tv else "—")
+    _dp = lb_result.get("drop_pct") if lb_result.get("ok") else None
+    ic4.metric("최근 20일 고점 대비", f"{_dp:+.1f}%" if _dp is not None else "—")
 
     alerts: list[str] = []
     if w_result.get("ok") and w_result.get("warning"):
@@ -489,6 +545,7 @@ def _fetch_theme_snap_into_state() -> None:
 
 def _render_theme_panel() -> None:
     st.subheader("테마판")
+    st.caption("카드를 클릭하면 아래 플레이북 테마가 자동 선택되고 신호도 자동 조회됩니다.")
 
     # 초기 화면에서 클릭 없이 자동 조회 (세션당 1회, 이후엔 버튼으로 갱신)
     snap = st.session_state.get("j2_theme_snap")
@@ -535,13 +592,13 @@ def _render_theme_panel() -> None:
         vc, vbg = _VERDICT_STYLE.get(verdict, ("#9ca3af", "rgba(148,163,184,0.14)"))
         streak = f"연속 {age}일" if age else ""
         cards.append(
-            f"<div class='j2-tcard'>"
+            f"<a class='j2-tcard' href='?j2_theme={quote(name, safe='')}' target='_self'>"
             f"<div class='j2-tname'>{name}</div>"
             f"<div class='j2-tpct' style='color:{pct_color}'>{pct_txt}</div>"
             f"<div class='j2-tfoot'>"
             f"<span class='j2-tbadge' style='color:{vc};background:{vbg}'>{verdict}</span>"
             f"<span class='j2-tstreak'>{streak}</span>"
-            f"</div></div>"
+            f"</div></a>"
         )
 
     st.markdown(
@@ -550,8 +607,9 @@ def _render_theme_panel() -> None:
         .j2-tgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr));
                     gap:0.6rem; margin:0.4rem 0 0.8rem; }
         .j2-tcard { background:#141b2a; border:1px solid #263247; border-radius:12px;
-                    padding:0.7rem 0.85rem; }
-        .j2-tcard:hover { border-color:#3b4d6b; }
+                    padding:0.7rem 0.85rem; display:block; text-decoration:none !important;
+                    cursor:pointer; }
+        .j2-tcard:hover { border-color:#ffb020; }
         .j2-tname { font-size:1.0rem; font-weight:700; color:#e5e7eb; margin-bottom:0.1rem;
                     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .j2-tpct { font-size:1.55rem; font-weight:800; line-height:1.25; }
