@@ -191,6 +191,32 @@ def _weekly_ohlc(df):
     )
 
 
+def _render_html_table(styled_df, max_height: int = 620) -> None:
+    """pandas Styler를 실제 HTML/CSS로 렌더링한다.
+
+    st.dataframe(캔버스 기반 glide-data-grid)은 df.style의 text-align 등
+    임의 CSS를 조용히 무시한다(색상 .map()만 별도 경로로 반영됨) —
+    헤더 가운데 정렬·값 정렬 요청이 계속 실패했던 근본 원인. 진짜 HTML로
+    그리면 CSS가 그대로 먹는다. 대가: st.dataframe의 on_select(행 클릭)
+    상호작용이 없어짐 — 호출부에서 별도 선택+버튼으로 대체할 것."""
+    html = styled_df.to_html()
+    st.markdown(
+        "<style>"
+        ".j2htbl-wrap { max-height:" + str(max_height) + "px; overflow:auto; "
+        "border:1px solid #263247; border-radius:8px; margin-bottom:0.5rem; }"
+        ".j2htbl-wrap table { width:100%; border-collapse:collapse; font-size:0.92rem; }"
+        ".j2htbl-wrap thead th { position:sticky; top:0; background:#161d2b; "
+        "color:#e5e7eb; font-weight:700; padding:0.5rem 0.6rem; "
+        "border-bottom:2px solid #2d3b52; z-index:1; }"
+        ".j2htbl-wrap tbody td { padding:0.42rem 0.6rem; border-bottom:1px solid #1f2937; "
+        "color:#e5e7eb; white-space:nowrap; }"
+        ".j2htbl-wrap tbody tr:hover { background:#1a2332; }"
+        "</style>"
+        f"<div class='j2htbl-wrap'>{html}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _candle_chart(dfo, height: int, bar_size: int = 6):
     """캔들 봉차트 (한국 관례: 상승 빨강 / 하락 파랑). altair 내장 사용."""
     import altair as alt
@@ -1061,9 +1087,9 @@ def _render_near_high_table() -> None:
             return "#facc15"
         return "#9ca3af"
 
-    # 값은 실제 숫자 dtype으로 채운다 — df.style의 text-align은 st.dataframe의
-    # 캔버스 렌더러가 조용히 무시한다(색상 .map()만 반영됨). 숫자 dtype +
-    # column_config.NumberColumn이 우측 정렬을 보장하는 유일한 방법이다.
+    # st.dataframe(캔버스 렌더러)는 df.style의 text-align/컬럼값 정렬을 전부
+    # 무시한다 — 색상(.map())만 별도 경로로 반영됨. 진짜 HTML/CSS로 그려야
+    # 정렬이 실제로 먹는다. 대신 행 클릭 자동이동은 아래 선택+버튼으로 대체.
     rows = []
     for r in rows_raw:
         mkt = market_data.get_market(r["code"])
@@ -1073,12 +1099,12 @@ def _render_near_high_table() -> None:
             "종목명": f"{r['name']} ({r['code']})",
             "테마": r["theme"],
             "시장": mkt_txt,
-            "52주고가대비": r.get("pct_from_52w_high"),
-            "현재가": r.get("price"),
-            "오늘 등락률": r.get("change_pct"),
+            "52주고가대비": f"{r['pct_from_52w_high']:+.1f}%",
+            "현재가": f"{r['price']:,.0f}" if r.get("price") else "—",
+            "오늘 등락률": f"{r['change_pct']:+.2f}%" if r.get("change_pct") is not None else "—",
             "종합점수": _score,
             "셋업 판정": r.get("judge", "—"),
-            "거래대금배수": r.get("turnover_mult"),
+            "거래대금배수": f"{r['turnover_mult']:.2f}배" if r.get("turnover_mult") is not None else "—",
         })
 
     import pandas as pd
@@ -1086,13 +1112,10 @@ def _render_near_high_table() -> None:
     df = pd.DataFrame(rows)
 
     def _style_updown(val):
-        try:
-            v = float(val)
-        except (TypeError, ValueError):
-            return ""
-        if v > 0:
+        s = str(val)
+        if s.startswith("+"):
             return "color:#ff4b4b; font-weight:700"
-        if v < 0:
+        if s.startswith("-"):
             return "color:#4b9fff; font-weight:700"
         return ""
 
@@ -1112,27 +1135,33 @@ def _render_near_high_table() -> None:
         except (TypeError, ValueError):
             return ""
 
+    _right_cols = ["52주고가대비", "현재가", "오늘 등락률", "종합점수", "거래대금배수"]
+    _center_cols = ["시장", "셋업 판정"]
     styled = (
         df.style
         .map(_style_updown, subset=["52주고가대비", "오늘 등락률"])
         .map(_style_judge, subset=["셋업 판정"])
         .map(_style_mkt, subset=["시장"])
         .map(_style_score, subset=["종합점수"])
+        .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
+        .set_properties(subset=_right_cols, **{"text-align": "right"})
+        .set_properties(subset=_center_cols, **{"text-align": "center"})
+        .hide(axis="index")
     )
-    # 높이: 최대 15행, 행 수가 적으면 그만큼만 (빈 공간 없이)
-    _tbl_h = min(len(rows_raw), 15) * 35 + 40
-    event = st.dataframe(
-        styled, use_container_width=True, hide_index=True, height=_tbl_h,
-        on_select="rerun", selection_mode="single-row", key="j2_nh_tbl",
-        column_config={
-            "52주고가대비": st.column_config.NumberColumn("52주고가대비", format="%+.1f%%"),
-            "현재가": st.column_config.NumberColumn("현재가", format="%d"),
-            "오늘 등락률": st.column_config.NumberColumn("오늘 등락률", format="%+.2f%%"),
-            "종합점수": st.column_config.NumberColumn("종합점수", format="%d"),
-            "거래대금배수": st.column_config.NumberColumn("거래대금배수", format="%.2f배"),
-        },
-    )
+    _render_html_table(styled)
     st.caption(f"스캔 시각 {saved['at']} · {result.get('scanned', 0)}종목 검사, {len(rows_raw)}종목 통과")
+
+    # 행 클릭 자동이동 대체 — 표는 이제 순수 HTML이라 클릭 이벤트가 없다
+    _nh_themes = sorted({r["theme"] for r in rows_raw})
+    _nc1, _nc2 = st.columns([3, 1])
+    _nh_pick = _nc1.selectbox(
+        "표에서 테마 골라 플레이북으로 이동", _nh_themes, key="j2_nh_theme_pick",
+    )
+    if _nc2.button("이동", key="j2_nh_goto_btn", use_container_width=True):
+        if _nh_pick in _THEME_NAMES and _nh_pick != st.session_state.get("j2_prev_theme"):
+            st.session_state["j2_pending_theme"] = _nh_pick
+            st.session_state["j2_scroll_playbook"] = True
+            st.rerun()
 
     with st.expander("📖 52주 신고가 + 테마 매매기법 설명서", expanded=False):
         st.markdown(
@@ -1216,18 +1245,6 @@ D+3 초과는 막차 취급(**[자비스 임의값]**).
 """
         )
 
-    sel_rows = []
-    try:
-        sel_rows = list(event.selection.rows)
-    except Exception:
-        pass
-    if sel_rows:
-        clicked_theme = str(rows_raw[sel_rows[0]]["theme"])
-        if clicked_theme in _THEME_NAMES and clicked_theme != st.session_state.get("j2_prev_theme"):
-            st.session_state["j2_pending_theme"] = clicked_theme
-            st.session_state["j2_scroll_playbook"] = True
-            st.rerun()
-
 
 _JUDGE_ORDER = {"돌파 임박": 0, "눌림 관찰": 1, "막차 주의": 2, "부적격": 3}
 _JUDGE_STYLE = {
@@ -1285,11 +1302,11 @@ def _render_leader_table() -> None:
             "테마": theme_nm,
             "52주": w52,
             "셋업 판정": c.get("setup_judge", "—"),
-            "현재가": price,
-            "전일대비(%)": chg,
-            "시가대비(오늘)": op,
-            "고점대비(오늘)": hp,
-            "거래대금배수": mult,
+            "현재가": f"{price:,.0f}" if price else "—",
+            "전일대비(%)": f"{chg:+.2f}%" if chg is not None else "—",
+            "시가대비(오늘)": f"{op:+.2f}%" if op is not None else "—",
+            "고점대비(오늘)": f"{hp:+.2f}%" if hp is not None else "—",
+            "거래대금배수": f"{mult:.2f}배" if mult is not None else "—",
         })
 
     import pandas as pd
@@ -1297,13 +1314,10 @@ def _render_leader_table() -> None:
     df = pd.DataFrame(rows)
 
     def _style_updown(val):
-        try:
-            v = float(val)
-        except (TypeError, ValueError):
-            return ""
-        if v > 0:
+        s = str(val)
+        if s.startswith("+"):
             return "color:#ff4b4b; font-weight:700"
-        if v < 0:
+        if s.startswith("-"):
             return "color:#4b9fff; font-weight:700"
         return ""
 
@@ -1315,36 +1329,29 @@ def _render_leader_table() -> None:
     def _style_judge(val):
         return _JUDGE_STYLE.get(str(val), "")
 
+    _right_cols = ["현재가", "전일대비(%)", "시가대비(오늘)", "고점대비(오늘)", "거래대금배수"]
+    _center_cols = ["등수", "셋업 판정"]
     styled = (
         df.style
         .map(_style_updown, subset=["전일대비(%)", "시가대비(오늘)", "고점대비(오늘)"])
         .map(_style_52w, subset=["52주"])
         .map(_style_judge, subset=["셋업 판정"])
+        .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
+        .set_properties(subset=_right_cols, **{"text-align": "right"})
+        .set_properties(subset=_center_cols, **{"text-align": "center"})
+        .hide(axis="index")
     )
-    st.caption("행을 클릭하면 해당 테마의 순환매 플레이북으로 바로 이동합니다.")
-    event = st.dataframe(
-        styled, use_container_width=True, hide_index=True,
-        on_select="rerun", selection_mode="single-row", key="j2_leader_tbl",
-        column_config={
-            "현재가": st.column_config.NumberColumn("현재가", format="%d"),
-            "전일대비(%)": st.column_config.NumberColumn("전일대비(%)", format="%+.2f%%"),
-            "시가대비(오늘)": st.column_config.NumberColumn("시가대비(오늘)", format="%+.2f%%"),
-            "고점대비(오늘)": st.column_config.NumberColumn("고점대비(오늘)", format="%+.2f%%"),
-            "거래대금배수": st.column_config.NumberColumn("거래대금배수", format="%.2f배"),
-        },
+    st.caption("아래에서 테마를 골라 이동하면 해당 테마의 순환매 플레이북으로 연결됩니다.")
+    _render_html_table(styled)
+
+    _lt_themes = sorted({theme_nm for theme_nm, _, _ in raw})
+    _lc1, _lc2 = st.columns([3, 1])
+    _lt_pick = _lc1.selectbox(
+        "표에서 테마 골라 플레이북으로 이동", _lt_themes, key="j2_leader_theme_pick",
     )
-    sel_rows = []
-    try:
-        sel_rows = list(event.selection.rows)
-    except Exception:
-        pass
-    if sel_rows:
-        clicked_theme = str(df.iloc[sel_rows[0]]["테마"])
-        # 이미 보고 있는 테마 행을 눌렀을 땐 아무것도 안 함 (무한 rerun 방지)
-        if clicked_theme in _THEME_NAMES and clicked_theme != st.session_state.get("j2_prev_theme"):
-            # 플레이북 selectbox는 이 시점엔 이미 그려져 직접 수정 불가 —
-            # 다음 run 시작 시 적용되는 보류 키로 전달
-            st.session_state["j2_pending_theme"] = clicked_theme
+    if _lc2.button("이동", key="j2_leader_goto_btn", use_container_width=True):
+        if _lt_pick in _THEME_NAMES and _lt_pick != st.session_state.get("j2_prev_theme"):
+            st.session_state["j2_pending_theme"] = _lt_pick
             st.session_state["j2_scroll_playbook"] = True
             st.rerun()
 
