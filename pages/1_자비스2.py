@@ -921,8 +921,23 @@ def _load_nh_scan_file():
     return None
 
 
-def _ensure_nh_scan():
-    """신고가 임박주 스캔 결과 확보: 세션 → 당일 파일 → 자동 스캔 순."""
+def _is_cloud() -> bool:
+    """Turso 원격 DB 사용 여부로 클라우드 배포인지 판별.
+    클라우드는 자원이 제한적이라 1,038종목 전수 스캔이 세션을 통째로
+    멈추게 한 사고가 있었음 (2026-07-17) — 그래서 자동 스캔을 금지한다."""
+    try:
+        import database
+        return database.is_remote_database()
+    except Exception:
+        return False
+
+
+def _ensure_nh_scan(force_scan: bool = False):
+    """신고가 임박주 스캔 결과 확보: 세션 → 당일 파일 → 자동 스캔 순.
+
+    클라우드에서는 캐시가 없으면 자동 스캔하지 않고 None을 반환한다
+    (force_scan=True로 명시 호출할 때만 스캔 허용 — 버튼 클릭 경로).
+    로컬은 기존과 동일하게 항상 자동 스캔."""
     saved = st.session_state.get("j2_nh_scan")
     if saved:
         return saved
@@ -935,6 +950,10 @@ def _ensure_nh_scan():
         }
         st.session_state["j2_nh_scan"] = saved
         return saved
+
+    if _is_cloud() and not force_scan:
+        return None
+
     prog = st.progress(0.0, text="신고가 임박주 자동 스캔 중… (하루 첫 스캔만 수 분, 이후 즉시)")
     result = playbook.scan_near_high(
         per_theme=3,
@@ -977,11 +996,16 @@ def _render_near_high_table() -> None:
             _NH_CACHE_FILE.unlink()
         except Exception:
             pass
+        st.session_state["j2_nh_force_scan"] = True
         st.rerun()
 
-    saved = _ensure_nh_scan()
+    _force = st.session_state.pop("j2_nh_force_scan", False)
+    saved = _ensure_nh_scan(force_scan=_force)
     if not saved:
-        st.info("스캔 결과가 없습니다.")
+        st.info(
+            "아직 스캔 결과가 없습니다 — 온라인에서는 전 테마 전수 스캔이 무거워 "
+            "자동 실행하지 않습니다. 위 '다시 스캔' 버튼을 눌러 실행하세요."
+        )
         return
     result = saved["result"]
     if not result.get("ok"):
