@@ -1061,6 +1061,9 @@ def _render_near_high_table() -> None:
             return "#facc15"
         return "#9ca3af"
 
+    # 값은 실제 숫자 dtype으로 채운다 — df.style의 text-align은 st.dataframe의
+    # 캔버스 렌더러가 조용히 무시한다(색상 .map()만 반영됨). 숫자 dtype +
+    # column_config.NumberColumn이 우측 정렬을 보장하는 유일한 방법이다.
     rows = []
     for r in rows_raw:
         mkt = market_data.get_market(r["code"])
@@ -1070,12 +1073,12 @@ def _render_near_high_table() -> None:
             "종목명": f"{r['name']} ({r['code']})",
             "테마": r["theme"],
             "시장": mkt_txt,
-            "52주고가대비": f"{r['pct_from_52w_high']:+.1f}%",
-            "현재가": f"{r['price']:,.0f}" if r.get("price") else "—",
-            "오늘 등락률": f"{r['change_pct']:+.2f}%" if r.get("change_pct") is not None else "—",
+            "52주고가대비": r.get("pct_from_52w_high"),
+            "현재가": r.get("price"),
+            "오늘 등락률": r.get("change_pct"),
             "종합점수": _score,
             "셋업 판정": r.get("judge", "—"),
-            "거래대금배수": f"{r['turnover_mult']:.2f}배" if r.get("turnover_mult") is not None else "—",
+            "거래대금배수": r.get("turnover_mult"),
         })
 
     import pandas as pd
@@ -1083,10 +1086,13 @@ def _render_near_high_table() -> None:
     df = pd.DataFrame(rows)
 
     def _style_updown(val):
-        s = str(val)
-        if s.startswith("+"):
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return ""
+        if v > 0:
             return "color:#ff4b4b; font-weight:700"
-        if s.startswith("-"):
+        if v < 0:
             return "color:#4b9fff; font-weight:700"
         return ""
 
@@ -1106,21 +1112,25 @@ def _render_near_high_table() -> None:
         except (TypeError, ValueError):
             return ""
 
-    _numeric_cols = ["52주고가대비", "현재가", "오늘 등락률", "종합점수", "거래대금배수"]
     styled = (
         df.style
         .map(_style_updown, subset=["52주고가대비", "오늘 등락률"])
         .map(_style_judge, subset=["셋업 판정"])
         .map(_style_mkt, subset=["시장"])
         .map(_style_score, subset=["종합점수"])
-        .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
-        .set_properties(subset=_numeric_cols, **{"text-align": "right"})
     )
     # 높이: 최대 15행, 행 수가 적으면 그만큼만 (빈 공간 없이)
     _tbl_h = min(len(rows_raw), 15) * 35 + 40
     event = st.dataframe(
         styled, use_container_width=True, hide_index=True, height=_tbl_h,
         on_select="rerun", selection_mode="single-row", key="j2_nh_tbl",
+        column_config={
+            "52주고가대비": st.column_config.NumberColumn("52주고가대비", format="%+.1f%%"),
+            "현재가": st.column_config.NumberColumn("현재가", format="%d"),
+            "오늘 등락률": st.column_config.NumberColumn("오늘 등락률", format="%+.2f%%"),
+            "종합점수": st.column_config.NumberColumn("종합점수", format="%d"),
+            "거래대금배수": st.column_config.NumberColumn("거래대금배수", format="%.2f배"),
+        },
     )
     st.caption(f"스캔 시각 {saved['at']} · {result.get('scanned', 0)}종목 검사, {len(rows_raw)}종목 통과")
 
@@ -1275,11 +1285,11 @@ def _render_leader_table() -> None:
             "테마": theme_nm,
             "52주": w52,
             "셋업 판정": c.get("setup_judge", "—"),
-            "현재가": f"{price:,.0f}" if price else "—",
-            "전일대비(%)": f"{chg:+.2f}%" if chg is not None else "—",
-            "시가대비(오늘)": f"{op:+.2f}%" if op is not None else "—",
-            "고점대비(오늘)": f"{hp:+.2f}%" if hp is not None else "—",
-            "거래대금배수": f"{mult:.2f}배" if mult is not None else "—",
+            "현재가": price,
+            "전일대비(%)": chg,
+            "시가대비(오늘)": op,
+            "고점대비(오늘)": hp,
+            "거래대금배수": mult,
         })
 
     import pandas as pd
@@ -1287,10 +1297,13 @@ def _render_leader_table() -> None:
     df = pd.DataFrame(rows)
 
     def _style_updown(val):
-        s = str(val)
-        if s.startswith("+"):
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return ""
+        if v > 0:
             return "color:#ff4b4b; font-weight:700"
-        if s.startswith("-"):
+        if v < 0:
             return "color:#4b9fff; font-weight:700"
         return ""
 
@@ -1302,19 +1315,23 @@ def _render_leader_table() -> None:
     def _style_judge(val):
         return _JUDGE_STYLE.get(str(val), "")
 
-    _numeric_cols = ["현재가", "전일대비(%)", "시가대비(오늘)", "고점대비(오늘)", "거래대금배수"]
     styled = (
         df.style
         .map(_style_updown, subset=["전일대비(%)", "시가대비(오늘)", "고점대비(오늘)"])
         .map(_style_52w, subset=["52주"])
         .map(_style_judge, subset=["셋업 판정"])
-        .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
-        .set_properties(subset=_numeric_cols, **{"text-align": "right"})
     )
     st.caption("행을 클릭하면 해당 테마의 순환매 플레이북으로 바로 이동합니다.")
     event = st.dataframe(
         styled, use_container_width=True, hide_index=True,
         on_select="rerun", selection_mode="single-row", key="j2_leader_tbl",
+        column_config={
+            "현재가": st.column_config.NumberColumn("현재가", format="%d"),
+            "전일대비(%)": st.column_config.NumberColumn("전일대비(%)", format="%+.2f%%"),
+            "시가대비(오늘)": st.column_config.NumberColumn("시가대비(오늘)", format="%+.2f%%"),
+            "고점대비(오늘)": st.column_config.NumberColumn("고점대비(오늘)", format="%+.2f%%"),
+            "거래대금배수": st.column_config.NumberColumn("거래대금배수", format="%.2f배"),
+        },
     )
     sel_rows = []
     try:
