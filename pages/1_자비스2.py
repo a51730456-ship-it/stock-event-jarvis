@@ -50,9 +50,24 @@ st.markdown(
 
 _log = logging.getLogger(__name__)
 
-# ── 인증 게이트 ────────────────────────────────────────────────────────────────
+# ── 인증 게이트 — 이 페이지에서 바로 로그인 가능 (자비스1 경유 불필요) ─────────
 if not st.session_state.get("authenticated"):
-    st.warning("자비스1 메인 페이지에서 먼저 로그인하세요.")
+    st.markdown("## 자비스2 — 순환매 플레이북")
+    st.caption("승인된 사용자만 접근할 수 있습니다. 여기서 바로 로그인하세요.")
+    try:
+        _app_password = st.secrets.get("APP_PASSWORD")
+    except Exception:
+        _app_password = None
+    if not _app_password:
+        st.warning("비밀번호 설정이 필요합니다. .streamlit/secrets.toml에 APP_PASSWORD를 설정하세요.")
+        st.stop()
+    _j2_pw = st.text_input("비밀번호", type="password", key="j2_login_password")
+    if st.button("로그인", key="j2_login_submit", use_container_width=True):
+        if _j2_pw == _app_password:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("비밀번호가 올바르지 않습니다.")
     st.stop()
 
 # ── 공통 임포트 (인증 후) ──────────────────────────────────────────────────────
