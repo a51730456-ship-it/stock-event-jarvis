@@ -114,6 +114,31 @@ def _download_yf(ticker: str, period: str = "300d"):
         return None
 
 
+def _download_fdr(code6: str):
+    """FDR(KRX 원천) 일봉 — 주 소스. 야후는 새벽에 300일 요청에 이틀치만
+    반환하는 열화가 확인돼(가짜 52주고가≈현재가 → 오판) 폴백으로 강등."""
+    try:
+        import FinanceDataReader as fdr
+        from datetime import timedelta
+
+        start = (datetime.now() - timedelta(days=450)).strftime("%Y-%m-%d")
+        df = fdr.DataReader(code6, start)
+        if df is None or len(df) <= 1:
+            return None
+        required = ["Open", "High", "Low", "Close", "Volume"]
+        if not set(required).issubset(set(df.columns)):
+            return None
+        df = df[required]
+        df.index = pd.to_datetime(df.index).normalize()
+        df.index.name = "Date"
+        if df.index.duplicated().any():
+            return None
+        return df.tail(300)
+    except Exception as e:
+        _log.debug("fdr download failed %s: %s", code6, e)
+        return None
+
+
 def _clean_ohlcv(df):
     """Close/High가 NaN인 행(장중 미확정 행 등) 제거.
 
@@ -145,22 +170,27 @@ def get_daily(code6: str):
         return hit[1]
 
     cached = _load_cache(code6)
-    if cached is not None and len(cached) > 1:
+    # 열화 응답(수 행짜리) 캐시 방어 — 60행 미만이면 다시 받는다
+    if cached is not None and len(cached) >= 60:
         out = _clean_ohlcv(cached)
         _MEM_CACHE[code6] = (today, out)
         return out
 
-    df = _download_yf(f"{code6}.KS")
-    market = "KOSPI"
-    if df is None or len(df) <= 1:
-        df = _download_yf(f"{code6}.KQ")
-        market = "KOSDAQ"
+    df = _download_fdr(code6)
+    if df is None or len(df) < 60:
+        dfy = _download_yf(f"{code6}.KS")
+        market = "KOSPI"
+        if dfy is None or len(dfy) <= 1:
+            dfy = _download_yf(f"{code6}.KQ")
+            market = "KOSDAQ"
+        if dfy is not None and (df is None or len(dfy) > len(df)):
+            df = dfy
+            _MARKET_MAP[code6] = market
 
     if df is None or len(df) <= 1:
         _log.warning("get_daily: no data for %s", code6)
         return None
 
-    _MARKET_MAP[code6] = market
     _save_cache(code6, df)
     out = _clean_ohlcv(df)
     _MEM_CACHE[code6] = (today, out)
