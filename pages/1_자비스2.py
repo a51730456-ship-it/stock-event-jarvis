@@ -48,6 +48,20 @@ st.markdown(
     h1 { font-size: 2.05rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.7rem !important; }
     [data-testid="stMetricLabel"] { font-size: 0.85rem !important; }
+    /* 테마 선택·종목 선택 셀렉트박스 강조 (2026-07-18 사용자 요청) —
+       j2_stock_select_ 는 테마별 동적 key라 부분일치(attr *=)로 잡는다 */
+    div[class*="st-key-j2_theme_select"] label p,
+    div[class*="st-key-j2_stock_select_"] label p {
+        font-size: 1.15rem !important;
+        font-weight: 700 !important;
+        color: #facc15 !important;
+    }
+    div[class*="st-key-j2_theme_select"] [data-baseweb="select"] > div,
+    div[class*="st-key-j2_stock_select_"] [data-baseweb="select"] > div {
+        background-color: rgba(250, 204, 21, 0.16) !important;
+        font-weight: 700 !important;
+        border-color: #facc15 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -671,9 +685,10 @@ def _render_playbook(open_pos: list) -> None:
     sel_stock = stocks[sel_idx]
     sel_code = sel_stock["code"]
 
-    # 선택된 종목명 강조 (2배 크기 · 밝은 초록) — Streamlit 셀렉트 표시값 오버레이
+    # 선택된 종목명 강조 (밝은 초록) — Streamlit 셀렉트 표시값 오버레이
+    # (2026-07-18 사용자 요청으로 한 치수 축소: 2.1rem -> 1.5rem)
     st.markdown(
-        f"<div style='font-size:2.1rem;font-weight:900;color:#22c55e;margin:-0.6rem 0 0.3rem'>"
+        f"<div style='font-size:1.5rem;font-weight:900;color:#22c55e;margin:-0.6rem 0 0.3rem'>"
         f"{sel_stock['name']} ({sel_code})</div>",
         unsafe_allow_html=True,
     )
@@ -701,7 +716,7 @@ def _render_playbook(open_pos: list) -> None:
         cc1, cc2 = st.columns(2)
         with cc1:
             st.markdown(
-                f"<div style='font-size:1.7rem;font-weight:800;color:#22c55e'>"
+                f"<div style='font-size:1.3rem;font-weight:800;color:#22c55e'>"
                 f"{sel_stock['name']} 일봉 (최근 60거래일)</div>",
                 unsafe_allow_html=True,
             )
@@ -709,7 +724,7 @@ def _render_playbook(open_pos: list) -> None:
         with cc2:
             try:
                 st.markdown(
-                    f"<div style='font-size:1.7rem;font-weight:800;color:#22c55e'>"
+                    f"<div style='font-size:1.3rem;font-weight:800;color:#22c55e'>"
                     f"{sel_stock['name']} 주봉 (최근 52주)</div>",
                     unsafe_allow_html=True,
                 )
