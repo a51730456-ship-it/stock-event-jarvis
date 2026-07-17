@@ -609,20 +609,23 @@ def _render_playbook(open_pos: list) -> None:
         unsafe_allow_html=True,
     )
 
-    with st.expander(f"{sel_stock['name']} 일봉·주봉 차트 (참고용)", expanded=False):
-        chart_df = market_data.get_daily(sel_code)
-        if chart_df is None or chart_df.empty:
-            st.info("차트 데이터를 불러오지 못했습니다.")
-        else:
-            st.caption("일봉 (최근 60거래일)")
-            st.line_chart(chart_df["Close"].tail(60), height=220, color="#ff4b4b")
+    # 일봉·주봉 차트 — 접지 않고 항상 표시, 대장 확인 카드와 동일한 크기(130)
+    chart_df = market_data.get_daily(sel_code)
+    if chart_df is None or chart_df.empty:
+        st.info("차트 데이터를 불러오지 못했습니다.")
+    else:
+        cc1, cc2 = st.columns(2)
+        with cc1:
+            st.caption(f"{sel_stock['name']} 일봉 (최근 60거래일)")
+            st.line_chart(chart_df["Close"].tail(60), height=130, color="#ff4b4b")
+        with cc2:
             try:
                 _wk = chart_df["Close"].resample("W").last().dropna().tail(52)
-                st.caption("주봉 (최근 52주)")
-                st.line_chart(_wk, height=220, color="#ff4b4b")
-            except Exception:
-                pass
-            st.caption("종가 기준. 참고용이며 점수·판정에는 반영되지 않습니다.")
+                st.caption(f"{sel_stock['name']} 주봉 (최근 52주)")
+                st.line_chart(_wk, height=130, color="#ff4b4b")
+            except Exception as e:
+                _log.warning("주봉 차트 실패 %s: %s", sel_code, e)
+                st.caption("주봉 차트 데이터 없음")
 
     # 경보 계산
     w_result = playbook.max_warning(sel_code)
