@@ -553,10 +553,16 @@ def _render_playbook(open_pos: list) -> None:
                 # 일봉·주봉 캔들차트 자동 표시 (find_leader가 이미 받아둔 데이터라 즉시)
                 df_c = market_data.get_daily(c["code"])
                 if df_c is not None and not df_c.empty:
-                    st.caption("일봉 (최근 60일)")
+                    st.markdown(
+                        "<div style='font-size:1.3rem;font-weight:800;color:#22c55e'>일봉 (최근 60일)</div>",
+                        unsafe_allow_html=True,
+                    )
                     st.altair_chart(_candle_chart(df_c.tail(60), 300, 4), use_container_width=True)
                     try:
-                        st.caption("주봉 (최근 52주)")
+                        st.markdown(
+                            "<div style='font-size:1.3rem;font-weight:800;color:#22c55e'>주봉 (최근 52주)</div>",
+                            unsafe_allow_html=True,
+                        )
                         st.altair_chart(_candle_chart(_weekly_ohlc(df_c), 300, 5), use_container_width=True)
                     except Exception:
                         pass
@@ -639,9 +645,9 @@ def _render_playbook(open_pos: list) -> None:
     sel_stock = stocks[sel_idx]
     sel_code = sel_stock["code"]
 
-    # 선택된 종목명 강조 (2배 크기 · 밝은 주홍) — Streamlit 셀렉트 표시값 오버레이
+    # 선택된 종목명 강조 (2배 크기 · 밝은 초록) — Streamlit 셀렉트 표시값 오버레이
     st.markdown(
-        f"<div style='font-size:2.1rem;font-weight:900;color:#ff5722;margin:-0.6rem 0 0.3rem'>"
+        f"<div style='font-size:2.1rem;font-weight:900;color:#22c55e;margin:-0.6rem 0 0.3rem'>"
         f"{sel_stock['name']} ({sel_code})</div>",
         unsafe_allow_html=True,
     )
@@ -668,11 +674,19 @@ def _render_playbook(open_pos: list) -> None:
     else:
         cc1, cc2 = st.columns(2)
         with cc1:
-            st.caption(f"{sel_stock['name']} 일봉 (최근 60거래일)")
+            st.markdown(
+                f"<div style='font-size:1.7rem;font-weight:800;color:#22c55e'>"
+                f"{sel_stock['name']} 일봉 (최근 60거래일)</div>",
+                unsafe_allow_html=True,
+            )
             st.altair_chart(_candle_chart(chart_df.tail(60), 460, 7), use_container_width=True)
         with cc2:
             try:
-                st.caption(f"{sel_stock['name']} 주봉 (최근 52주)")
+                st.markdown(
+                    f"<div style='font-size:1.7rem;font-weight:800;color:#22c55e'>"
+                    f"{sel_stock['name']} 주봉 (최근 52주)</div>",
+                    unsafe_allow_html=True,
+                )
                 st.altair_chart(_candle_chart(_weekly_ohlc(chart_df), 460, 8), use_container_width=True)
             except Exception as e:
                 _log.warning("주봉 차트 실패 %s: %s", sel_code, e)
@@ -693,19 +707,17 @@ def _render_playbook(open_pos: list) -> None:
             f"<div style='font-size:1.45rem;line-height:1.4'>{value_html}</div>"
         )
 
+    # 현재가·오늘등락률 둘 다 등락 부호 기준 색상 (+빨강/−파랑)
+    _chg_val = sel_stock.get("change_pct")
+    _price_color = "#ff4b4b" if (_chg_val or 0) > 0 else "#4b9fff" if (_chg_val or 0) < 0 else "#e5e7eb"
+
     ic1, ic2, ic3, ic4 = st.columns(4)
     ic1.markdown(
-        _stat("현재가", f"<b style='color:#ff5722'>{_price:,}원</b>" if _price else "—"),
+        _stat("현재가", f"<b style='color:{_price_color}'>{_price:,}원</b>" if _price else "—"),
         unsafe_allow_html=True,
     )
-    _chg_val = sel_stock.get("change_pct")
     ic2.markdown(
-        _stat(
-            "오늘 등락률",
-            _sign_html(_chg_val) if _chg_val else
-            f"<span style='color:#ff5722;font-weight:800'>{_chg_val:+.2f}%</span>" if _chg_val is not None else
-            "<span style='color:#9ca3af'>데이터 없음</span>",
-        ),
+        _stat("오늘 등락률", _sign_html(_chg_val)),
         unsafe_allow_html=True,
     )
     ic3.markdown(
