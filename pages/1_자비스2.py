@@ -31,6 +31,18 @@ st.markdown(
     [data-testid="stSidebarNav"] a:hover * {
         color: #ffcf6b !important;
     }
+    [data-testid="stSidebarNav"] li:first-child a p {
+        font-size: 0 !important;
+    }
+    [data-testid="stSidebarNav"] li:first-child a p::before {
+        content: "자비스1";
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:first-child a:hover p::before {
+        color: #ffcf6b;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -88,7 +100,8 @@ def _enrich_candidates(cands: list) -> None:
     """
     cfg = _cfg()
     val_mult = cfg.get("value_mult", 3.0)
-    for c in cands:
+
+    def _one(c):
         info = market_data.get_intraday_summary(c["code"])
         if info:
             last, o, h = info["last"], info["open"], info["high"]
@@ -110,6 +123,10 @@ def _enrich_candidates(cands: list) -> None:
             c["setup_judge"] = "눌림 관찰"
         else:
             c["setup_judge"] = "부적격"
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(_one, cands))
 
 
 def _tag_str(theme: str, setup: str, age: int | None, alert_state: str | None) -> str:
@@ -233,12 +250,21 @@ def _render_playbook(open_pos: list) -> None:
 
     # (테마판 버튼 클릭 시 j2_theme_select/j2_autorun_signal이 미리 설정되어 들어온다)
     prev_theme = st.session_state.get("j2_prev_theme", "")
+
+    # 자비스1에 다녀오면 Streamlit이 이 페이지 위젯 상태를 지워 선택이 첫 테마로
+    # 리셋되고, '테마 바뀜'으로 오인해 조회 결과까지 지워지는 버그 방지 —
+    # 위젯 상태가 사라졌으면 마지막 선택(prev_theme)을 복원한다.
+    if "j2_theme_select" not in st.session_state and prev_theme in _THEME_NAMES:
+        st.session_state["j2_theme_select"] = prev_theme
+
     theme = st.selectbox("테마 선택", _THEME_NAMES, key="j2_theme_select")
     if theme != prev_theme:
         _clear_theme_cache()
         st.session_state["j2_prev_theme"] = theme
+        # 테마를 고르기만 하면 자동 조회 — 별도 버튼 클릭 불필요
+        st.session_state["j2_autorun_signal"] = True
 
-    run_signal = st.button("신호 확인 (네트워크 조회)", key="j2_signal_btn")
+    run_signal = st.button("신호 새로고침 (테마 선택 시 자동 조회됨)", key="j2_signal_btn")
     if st.session_state.pop("j2_autorun_signal", False):
         run_signal = True
     if run_signal:
@@ -410,11 +436,11 @@ def _render_playbook(open_pos: list) -> None:
                 df_c = market_data.get_daily(c["code"])
                 if df_c is not None and not df_c.empty:
                     st.caption("일봉 (최근 60일)")
-                    st.line_chart(df_c["Close"].tail(60), height=130)
+                    st.line_chart(df_c["Close"].tail(60), height=130, color="#ff4b4b")
                     try:
                         weekly = df_c["Close"].resample("W").last().dropna().tail(52)
                         st.caption("주봉 (최근 52주)")
-                        st.line_chart(weekly, height=130)
+                        st.line_chart(weekly, height=130, color="#ff4b4b")
                     except Exception:
                         pass
     else:
@@ -461,7 +487,7 @@ def _render_playbook(open_pos: list) -> None:
         if chart_df is None or chart_df.empty:
             st.info("차트 데이터를 불러오지 못했습니다.")
         else:
-            st.line_chart(chart_df["Close"].tail(60), height=220)
+            st.line_chart(chart_df["Close"].tail(60), height=220, color="#ff4b4b")
             st.caption("종가 기준 최근 60거래일. 참고용이며 점수·판정에는 반영되지 않습니다.")
 
     # 경보 계산

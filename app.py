@@ -291,6 +291,23 @@ st.markdown(
     [data-testid="stSidebarNav"] a:hover * {
         color: #ffcf6b !important;
     }
+    /* 첫 항목 'app' 라벨을 '자비스1'로 표시 (app.py는 배포 진입 파일이라 파일명 변경 불가) */
+    [data-testid="stSidebarNav"] li:first-child a p {
+        font-size: 0 !important;
+    }
+    [data-testid="stSidebarNav"] li:first-child a p::before {
+        content: "자비스1";
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:first-child a:hover p::before {
+        color: #ffcf6b;
+    }
+    /* 자비스1 상단 고정 탭바가 사이드바 메뉴를 가리지 않도록 아래로 내림 */
+    [data-testid="stSidebarNav"] {
+        padding-top: 3.4rem !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -587,9 +604,19 @@ if not st.session_state.get("authenticated"):
             unsafe_allow_html=True,
         )
         _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
+        # 로그인 후 이동할 화면을 미리 고른다 — 자비스2 선택 시 자비스1 로딩을
+        # 건너뛰고 바로 진입해 대기 시간을 없앤다 (2026-07-17 사용자 요청).
+        _login_dest = st.radio(
+            "로그인 후 이동",
+            ["자비스1 (기록장)", "자비스2 (순환매 플레이북)"],
+            horizontal=True,
+            key="login_dest_choice",
+        )
         if st.button("로그인", key="login_submit", use_container_width=True):
             if _login_password_input == _app_password:
                 st.session_state["authenticated"] = True
+                if str(_login_dest).startswith("자비스2"):
+                    st.switch_page("pages/1_자비스2.py")
                 st.session_state["login_transition_pending"] = True
                 # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
                 # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.
