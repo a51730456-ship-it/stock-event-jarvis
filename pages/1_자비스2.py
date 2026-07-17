@@ -563,12 +563,26 @@ def _render_playbook(open_pos: list) -> None:
             _rank_map[_rc["code"]] = _ri + 1
 
     stock_opts = [f"{s['name']} ({s['code']}) {_pct_label(s.get('change_pct'))}" for s in stocks]
-    _default_idx = 0
-    for _i, _s in enumerate(stocks):
-        _r = _rank_map.get(_s["code"])
-        if _r is None or _r <= rank_limit_v:
-            _default_idx = _i
-            break
+
+    # 기본 선택 우선순위: ①적격 대장(1등주) → ②적격 2등주 → ③돌파 임박 →
+    # ④등락률 1위(등수 한계 밖만 건너뜀)
+    _cands_all = (leader_result.get("candidates") or []) if leader_result and leader_result.get("ok") else []
+    _code_to_idx = {s["code"]: i for i, s in enumerate(stocks)}
+
+    def _pick_default() -> int:
+        for c in _cands_all[:rank_limit_v]:
+            if c.get("near_high") and c["code"] in _code_to_idx:
+                return _code_to_idx[c["code"]]
+        for c in _cands_all[:rank_limit_v]:
+            if c.get("setup_judge") == "돌파 임박" and c["code"] in _code_to_idx:
+                return _code_to_idx[c["code"]]
+        for _i, _s in enumerate(stocks):
+            _r = _rank_map.get(_s["code"])
+            if _r is None or _r <= rank_limit_v:
+                return _i
+        return 0
+
+    _default_idx = _pick_default()
     sel_idx = st.selectbox(
         "종목 선택", range(len(stock_opts)),
         index=_default_idx,
@@ -588,10 +602,10 @@ def _render_playbook(open_pos: list) -> None:
         else "대장 후보 아님 — 등락률 1위부터 시작해 등수 한계 밖(3등주)만 건너뛴 기본값"
     )
     st.markdown(
-        f"<div style='color:#ffa14a;font-weight:700'>선정 기준: 이 목록은 적격/대장 판정과 "
-        f"무관하게 테마 전체를 <b>등락률 순</b>으로 정렬한 것입니다. "
+        f"<div style='color:#ffa14a;font-weight:700'>기본 선택 우선순위: "
+        f"①적격 대장(1등주) → ②적격 2등주 → ③돌파 임박 → ④등락률 1위. "
         f"현재 선택 {sel_stock['name']} = {_why}. "
-        f"적격 여부는 위 '대장 확인'·'적격 대장 현황'에서 확인하세요.</div>",
+        f"목록 자체는 테마 전체를 등락률 순 정렬 — 최종 선택은 사용자.</div>",
         unsafe_allow_html=True,
     )
 
