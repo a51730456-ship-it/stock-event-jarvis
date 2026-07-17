@@ -77,6 +77,41 @@ def _sign_html(v, digits: int = 2) -> str:
     return f"<span style='color:{color};font-weight:800'>{v:+.{digits}f}%</span>"
 
 
+def _enrich_candidates(cands: list) -> None:
+    """1·2등주 후보에 장중 시가대비/고점대비와 셋업 판정을 채운다 (수집 시점 기준).
+
+    셋업 판정(참고용 — 매수 신호 아님, 연구 기반 휴리스틱):
+      막차 주의  = 최근 20거래일 내 +20% 급등 이력 (추격 금지 원칙)
+      돌파 임박  = 52주 신고가 근접 + 거래대금 배수 기준(value_mult) 충족
+      눌림 관찰  = 신고가 근접이지만 거래대금 미충족 — 눌림재상승 후보
+      부적격     = 신고가 근접 게이트 미충족
+    """
+    cfg = _cfg()
+    val_mult = cfg.get("value_mult", 3.0)
+    for c in cands:
+        info = market_data.get_intraday_summary(c["code"])
+        if info:
+            last, o, h = info["last"], info["open"], info["high"]
+            if last:
+                c["price"] = c.get("price") or round(last)
+            c["open_pct"] = round((last / o - 1) * 100, 2) if o else None
+            c["high_pct"] = round((last / h - 1) * 100, 2) if h else None
+        try:
+            w = playbook.max_warning(c["code"])
+            spike = bool(w.get("ok") and w.get("warning"))
+        except Exception:
+            spike = False
+        mult = c.get("turnover_mult")
+        if spike:
+            c["setup_judge"] = "막차 주의"
+        elif c.get("near_high") and mult is not None and mult >= val_mult:
+            c["setup_judge"] = "돌파 임박"
+        elif c.get("near_high"):
+            c["setup_judge"] = "눌림 관찰"
+        else:
+            c["setup_judge"] = "부적격"
+
+
 def _tag_str(theme: str, setup: str, age: int | None, alert_state: str | None) -> str:
     parts = ["#순환매", f"#{setup}"]
     if age is not None:
@@ -168,9 +203,33 @@ def _render_playbook(open_pos: list) -> None:
                     if i.get("ok") and i.get("change_pct") is not None and n in _THEME_NAMES
                 ]
                 if valid:
-                    top_theme = max(valid, key=lambda x: x[1])[0]
+                    ranked_themes = [n for n, _ in sorted(valid, key=lambda x: x[1], reverse=True)]
+                    top_theme = ranked_themes[0]
                     st.session_state["j2_theme_select"] = top_theme
                     st.session_state["j2_autorun_signal"] = True
+
+                    # 강한 테마 5개의 1·2등주 자동 수집 → 대장주 모음 표
+                    # (첫 로딩만 네트워크 조회로 오래 걸림, 같은 날 재로딩은 캐시)
+                    lt = st.session_state.setdefault("j2_leader_table", {})
+                    top5 = ranked_themes[:5]
+                    prog = st.progress(0.0, text="강한 테마 5개 대장주 자동 수집 중… (첫 로딩만 오래 걸립니다)")
+                    for k, tn in enumerate(top5):
+                        try:
+                            lr = playbook.find_leader(tn)
+                            if lr.get("ok") and lr.get("candidates"):
+                                pair = lr["candidates"][:2]
+                                _enrich_candidates(pair)
+                                lt[tn] = [(i + 1, c) for i, c in enumerate(pair)]
+                                q = [c for c in lr["candidates"] if c.get("near_high")]
+                                if q:
+                                    st.session_state.setdefault("j2_qualified", {})[tn] = {
+                                        "stocks": q,
+                                        "at": datetime.now().strftime("%H:%M"),
+                                    }
+                        except Exception as e:
+                            _log.warning("auto leader collect failed %s: %s", tn, e)
+                        prog.progress((k + 1) / len(top5), text=f"{tn} 수집 완료 ({k + 1}/{len(top5)})")
+                    prog.empty()
 
     # (테마판 버튼 클릭 시 j2_theme_select/j2_autorun_signal이 미리 설정되어 들어온다)
     prev_theme = st.session_state.get("j2_prev_theme", "")
@@ -206,12 +265,11 @@ def _render_playbook(open_pos: list) -> None:
                     "at": datetime.now().strftime("%H:%M"),
                 }
 
-            # 대장주 모음 표(맨 아래)용 — 1·2등주만 테마별 축적
+            # 대장주 모음 표(맨 아래)용 — 1·2등주만 테마별 축적 (장중·판정 보강 포함)
+            pair = (leader_result.get("candidates") or [])[:2]
+            _enrich_candidates(pair)
             lt = st.session_state.setdefault("j2_leader_table", {})
-            lt[theme] = [
-                (i + 1, c)
-                for i, c in enumerate((leader_result.get("candidates") or [])[:2])
-            ]
+            lt[theme] = [(i + 1, c) for i, c in enumerate(pair)]
 
             # theme_state_log 축적 (upsert 안전 확인됨: ON CONFLICT DO UPDATE)
             if sigs.get("ok") and stocks_result.get("ok"):
@@ -598,36 +656,68 @@ def _render_crash_log() -> None:
             st.error(f"저장 실패: {ex}")
 
 
+_JUDGE_ORDER = {"돌파 임박": 0, "눌림 관찰": 1, "막차 주의": 2, "부적격": 3}
+_JUDGE_STYLE = {
+    "돌파 임박": "color:#22c55e; font-weight:800",
+    "눌림 관찰": "color:#facc15; font-weight:700",
+    "막차 주의": "color:#ff4b4b; font-weight:700",
+    "부적격": "color:#9ca3af",
+}
+
+
 def _render_leader_table() -> None:
-    """신호 확인에서 나온 1·2등주만 모은 표 (자비스1 '오늘 주가 계산 결과' 스타일).
-    메모/시총대비 거래대금/섹터 없이 — 등수/52주 칸 포함."""
+    """강한 테마의 1·2등주 모음 표 — 확률 높은 셋업 판정 순 정렬.
+    (자비스1 '오늘 주가 계산 결과' 스타일 · 메모/시총대비/섹터 없음)"""
     st.subheader("대장주 모음 (1·2등주)")
+    st.caption(
+        "셋업 판정 기준(참고용 자동 판정 — 매수 신호 아님): "
+        "**돌파 임박**=신고가 근접+거래대금 배수 충족 · **눌림 관찰**=신고가 근접(배수 미충족) · "
+        "**막차 주의**=20일 내 +20% 급등 이력 · **부적격**=근접 게이트 미충족. 판정 순으로 정렬."
+    )
     store = st.session_state.get("j2_leader_table") or {}
-    rows = []
+    raw = []
     for theme_nm, cands in store.items():
         for rank, c in cands:
-            pct_h = c.get("pct_from_52w_high")
-            if c.get("near_high"):
-                w52 = "52주 고가근접 — 적격"
-            elif pct_h is not None:
-                w52 = f"고가근접미달 (52주고가대비 {pct_h:+.1f}%)"
-            else:
-                w52 = "데이터 없음"
-            chg = c.get("change_pct")
-            mult = c.get("turnover_mult")
-            price = c.get("price")
-            rows.append({
-                "등수": f"{rank}등주",
-                "종목명": f"{c['name']} ({c['code']})",
-                "테마": theme_nm,
-                "52주": w52,
-                "현재가": f"{price:,}" if price else "—",
-                "전일대비(%)": f"{chg:+.2f}%" if chg is not None else "—",
-                "거래대금배수": f"{mult:.2f}배" if mult is not None else "—",
-            })
-    if not rows:
-        st.info("아직 없음 — 테마 신호 확인에서 대장 후보가 나오면 여기에 쌓입니다.")
+            raw.append((theme_nm, rank, c))
+    if not raw:
+        st.info("아직 없음 — 첫 로딩 자동 수집 또는 테마 신호 확인에서 대장 후보가 나오면 쌓입니다.")
         return
+
+    # 확률 높은 판정 순 → 같은 판정 안에서는 52주고가 근접 순
+    def _sort_key(item):
+        _, _, c = item
+        judge = c.get("setup_judge", "부적격")
+        pct_h = c.get("pct_from_52w_high")
+        return (_JUDGE_ORDER.get(judge, 9), -(pct_h if pct_h is not None else -999))
+
+    raw.sort(key=_sort_key)
+
+    rows = []
+    for theme_nm, rank, c in raw:
+        pct_h = c.get("pct_from_52w_high")
+        if c.get("near_high"):
+            w52 = "52주 고가근접 — 적격"
+        elif pct_h is not None:
+            w52 = f"고가근접미달 (52주고가대비 {pct_h:+.1f}%)"
+        else:
+            w52 = "데이터 없음"
+        chg = c.get("change_pct")
+        mult = c.get("turnover_mult")
+        price = c.get("price")
+        op = c.get("open_pct")
+        hp = c.get("high_pct")
+        rows.append({
+            "등수": f"{rank}등주",
+            "종목명": f"{c['name']} ({c['code']})",
+            "테마": theme_nm,
+            "52주": w52,
+            "셋업 판정": c.get("setup_judge", "—"),
+            "현재가": f"{price:,.0f}" if price else "—",
+            "전일대비(%)": f"{chg:+.2f}%" if chg is not None else "—",
+            "시가대비(오늘)": f"{op:+.2f}%" if op is not None else "—",
+            "고점대비(오늘)": f"{hp:+.2f}%" if hp is not None else "—",
+            "거래대금배수": f"{mult:.2f}배" if mult is not None else "—",
+        })
 
     import pandas as pd
 
@@ -642,14 +732,18 @@ def _render_leader_table() -> None:
         return ""
 
     def _style_52w(val):
-        if "적격" in str(val):
+        if "적격" in str(val) and "미달" not in str(val):
             return "color:#34d399; font-weight:700"
         return ""
 
+    def _style_judge(val):
+        return _JUDGE_STYLE.get(str(val), "")
+
     styled = (
         df.style
-        .map(_style_updown, subset=["전일대비(%)"])
+        .map(_style_updown, subset=["전일대비(%)", "시가대비(오늘)", "고점대비(오늘)"])
         .map(_style_52w, subset=["52주"])
+        .map(_style_judge, subset=["셋업 판정"])
     )
     st.dataframe(styled, use_container_width=True, hide_index=True)
 

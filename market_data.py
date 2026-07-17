@@ -7,6 +7,7 @@
 
 import json
 import logging
+import time
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -164,6 +165,53 @@ def get_index_daily(ticker: str = _KOSPI_INDEX):
     _save_cache(safe_key, df)
     out = _clean_ohlcv(df)
     _MEM_CACHE[safe_key] = (today, out)
+    return out
+
+
+_INTRADAY_CACHE: dict = {}
+_INTRADAY_TTL_SEC = 120.0
+
+
+def get_intraday_summary(code6: str):
+    """당일 1분봉 기반 시가/고가/현재가. {"open","high","last"} 또는 None.
+    120초 메모리 캐시 (실시간 자동조회 허용 — 2026-07-17 사용자 지시)."""
+    code6 = str(code6).strip().zfill(6)
+    now = time.time()
+    hit = _INTRADAY_CACHE.get(code6)
+    if hit and now - hit[0] < _INTRADAY_TTL_SEC:
+        return hit[1]
+
+    out = None
+    for suffix in (".KS", ".KQ"):
+        try:
+            import yfinance as yf
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                df = yf.download(
+                    f"{code6}{suffix}", period="1d", interval="1m",
+                    auto_adjust=True, progress=False,
+                )
+            if df is None or df.empty:
+                continue
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            closes = df["Close"].dropna()
+            opens = df["Open"].dropna()
+            highs = df["High"].dropna()
+            if closes.empty or opens.empty or highs.empty:
+                continue
+            out = {
+                "open": float(opens.iloc[0]),
+                "high": float(highs.max()),
+                "last": float(closes.iloc[-1]),
+            }
+            break
+        except Exception as e:
+            _log.debug("intraday fetch failed %s%s: %s", code6, suffix, e)
+            continue
+
+    _INTRADAY_CACHE[code6] = (now, out)
     return out
 
 
