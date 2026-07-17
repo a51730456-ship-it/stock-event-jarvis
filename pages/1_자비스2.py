@@ -1008,6 +1008,12 @@ def _render_near_high_table() -> None:
         "기준: 52주 고가 대비 -10% 이내 · 근접도 순, 테마별 최대 3개. "
         "행을 클릭하면 해당 테마 플레이북으로 이동하고 매수 대상에 자동 선택됩니다."
     )
+    st.caption(
+        "**종합점수 공식(0~100, 투명 공개)**: 52주고가 근접도(0~75점, 학술 근거 있는 "
+        "핵심 신호) + 거래대금배수(0~25점, 관행 기준 1.5배 이상 만점). 막차 주의 종목은 "
+        "15점 상한 강제. 초록 70+ / 노랑 40~69 / 회색 40미만. "
+        "이 표에 이미 나온 지표를 조합한 정렬 보조값일 뿐 — 검증된 매수 신호가 아닙니다."
+    )
 
     if st.button("다시 스캔 (최신 시세로 갱신)", key="j2_nh_scan_btn"):
         st.session_state.pop("j2_nh_scan", None)
@@ -1035,26 +1041,40 @@ def _render_near_high_table() -> None:
         st.info(f"신고가 임박주 없음 — {result.get('scanned', 0)}종목 스캔 결과 게이트 통과 0건.")
         return
 
-    from concurrent.futures import ThreadPoolExecutor as _TPE
-    with _TPE(max_workers=6) as _pool:
-        _intras = list(_pool.map(lambda r: market_data.get_intraday_summary(r["code"]), rows_raw))
+    def _nh_score(pct_h, mult, judge) -> int:
+        """종합점수(0~100) = 근접도(0~75, 학술 근거·52주고가 0%에 가까울수록 高)
+        + 거래대금배수(0~25, 관행 기준 1.5배 이상 만점). 막차 주의면 15점 상한 강제
+        (오닐 관행 — 추격 금지 대상은 우선순위 최하). 매수신호 아님 — 이 표에 이미
+        나온 두 지표(52주고가대비·거래대금배수)를 조합한 참고용 정렬 보조 지표."""
+        prox = max(0.0, min(10.0, abs(pct_h))) if pct_h is not None else 10.0
+        s1 = (10.0 - prox) / 10.0 * 75.0
+        s2 = min((mult or 0.0) / 1.5, 1.0) * 25.0
+        total = round(s1 + s2)
+        if judge == "막차 주의":
+            total = min(total, 15)
+        return max(0, min(100, total))
+
+    def _score_color(sc: int) -> str:
+        if sc >= 70:
+            return "#22c55e"
+        if sc >= 40:
+            return "#facc15"
+        return "#9ca3af"
 
     rows = []
-    for r, _intra in zip(rows_raw, _intras):
+    for r in rows_raw:
         mkt = market_data.get_market(r["code"])
         mkt_txt = "코스닥" if mkt == "KOSDAQ" else "코스피" if mkt == "KOSPI" else "—"
-        _open_amt = None
-        if _intra and _intra.get("open") and _intra.get("last"):
-            _open_amt = _intra["last"] - _intra["open"]
+        _score = _nh_score(r.get("pct_from_52w_high"), r.get("turnover_mult"), r.get("judge"))
         rows.append({
             "종목명": f"{r['name']} ({r['code']})",
             "테마": r["theme"],
             "시장": mkt_txt,
             "52주고가대비": f"{r['pct_from_52w_high']:+.1f}%",
-            "당일시가대비(원)": f"{_open_amt:+,.0f}원" if _open_amt is not None else "—",
-            "셋업 판정": r.get("judge", "—"),
             "현재가": f"{r['price']:,.0f}" if r.get("price") else "—",
             "오늘 등락률": f"{r['change_pct']:+.2f}%" if r.get("change_pct") is not None else "—",
+            "종합점수": _score,
+            "셋업 판정": r.get("judge", "—"),
             "거래대금배수": f"{r['turnover_mult']:.2f}배" if r.get("turnover_mult") is not None else "—",
         })
 
@@ -1080,11 +1100,18 @@ def _render_near_high_table() -> None:
             return "color:#4b9fff; font-weight:700"
         return ""
 
+    def _style_score(val):
+        try:
+            return f"color:{_score_color(int(val))}; font-weight:800"
+        except (TypeError, ValueError):
+            return ""
+
     styled = (
         df.style
-        .map(_style_updown, subset=["52주고가대비", "당일시가대비(원)", "오늘 등락률"])
+        .map(_style_updown, subset=["52주고가대비", "오늘 등락률"])
         .map(_style_judge, subset=["셋업 판정"])
         .map(_style_mkt, subset=["시장"])
+        .map(_style_score, subset=["종합점수"])
     )
     # 높이: 최대 15행, 행 수가 적으면 그만큼만 (빈 공간 없이)
     _tbl_h = min(len(rows_raw), 15) * 35 + 40
