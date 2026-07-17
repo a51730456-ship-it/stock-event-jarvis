@@ -304,6 +304,7 @@ def find_leader(theme_name: str) -> dict:
                 "near_high": pct_high is not None and pct_high >= -near_pct,
                 "turnover_mult": mult,
                 "change_pct": s.get("change_pct"),
+                "price": s.get("price"),
             }
 
         from concurrent.futures import ThreadPoolExecutor

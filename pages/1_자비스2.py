@@ -206,6 +206,13 @@ def _render_playbook(open_pos: list) -> None:
                     "at": datetime.now().strftime("%H:%M"),
                 }
 
+            # 대장주 모음 표(맨 아래)용 — 1·2등주만 테마별 축적
+            lt = st.session_state.setdefault("j2_leader_table", {})
+            lt[theme] = [
+                (i + 1, c)
+                for i, c in enumerate((leader_result.get("candidates") or [])[:2])
+            ]
+
             # theme_state_log 축적 (upsert 안전 확인됨: ON CONFLICT DO UPDATE)
             if sigs.get("ok") and stocks_result.get("ok"):
                 stocks = stocks_result["stocks"]
@@ -279,7 +286,7 @@ def _render_playbook(open_pos: list) -> None:
         key=lambda s: s["change_pct"], reverse=True,
     )
     if _ups:
-        with st.expander(f"양전 종목 {len(_ups)}개 보기 (등락률 순)", expanded=False):
+        with st.expander(f"양전 종목 {len(_ups)}개 보기 (등락률 순)", expanded=True):
             chips = "".join(
                 f"<span class='j2-upchip'>{s['name']} <b>+{s['change_pct']:.2f}%</b></span>"
                 for s in _ups
@@ -340,6 +347,18 @@ def _render_playbook(open_pos: list) -> None:
                     st.info("일봉 데이터 없음 — 근접 판정 불가")
                 else:
                     st.warning(f"고가 근접 미달 (52주고가 대비 {pct_h:+.1f}%)")
+
+                # 일봉·주봉 차트 자동 표시 (find_leader가 이미 받아둔 데이터라 즉시)
+                df_c = market_data.get_daily(c["code"])
+                if df_c is not None and not df_c.empty:
+                    st.caption("일봉 (최근 60일)")
+                    st.line_chart(df_c["Close"].tail(60), height=130)
+                    try:
+                        weekly = df_c["Close"].resample("W").last().dropna().tail(52)
+                        st.caption("주봉 (최근 52주)")
+                        st.line_chart(weekly, height=130)
+                    except Exception:
+                        pass
     else:
         err = leader_result.get("error") if leader_result else "후보 없음"
         st.warning(f"대장 후보를 계산하지 못했습니다: {err}")
@@ -574,6 +593,62 @@ def _render_crash_log() -> None:
             st.success("급락일 기록 저장 완료.")
         except Exception as ex:
             st.error(f"저장 실패: {ex}")
+
+
+def _render_leader_table() -> None:
+    """신호 확인에서 나온 1·2등주만 모은 표 (자비스1 '오늘 주가 계산 결과' 스타일).
+    메모/시총대비 거래대금/섹터 없이 — 등수/52주 칸 포함."""
+    st.subheader("대장주 모음 (1·2등주)")
+    store = st.session_state.get("j2_leader_table") or {}
+    rows = []
+    for theme_nm, cands in store.items():
+        for rank, c in cands:
+            pct_h = c.get("pct_from_52w_high")
+            if c.get("near_high"):
+                w52 = "52주 고가근접 — 적격"
+            elif pct_h is not None:
+                w52 = f"고가근접미달 (52주고가대비 {pct_h:+.1f}%)"
+            else:
+                w52 = "데이터 없음"
+            chg = c.get("change_pct")
+            mult = c.get("turnover_mult")
+            price = c.get("price")
+            rows.append({
+                "등수": f"{rank}등주",
+                "종목명": f"{c['name']} ({c['code']})",
+                "테마": theme_nm,
+                "52주": w52,
+                "현재가": f"{price:,}" if price else "—",
+                "전일대비(%)": f"{chg:+.2f}%" if chg is not None else "—",
+                "거래대금배수": f"{mult:.2f}배" if mult is not None else "—",
+            })
+    if not rows:
+        st.info("아직 없음 — 테마 신호 확인에서 대장 후보가 나오면 여기에 쌓입니다.")
+        return
+
+    import pandas as pd
+
+    df = pd.DataFrame(rows)
+
+    def _style_updown(val):
+        s = str(val)
+        if s.startswith("+"):
+            return "color:#ff4b4b; font-weight:700"
+        if s.startswith("-"):
+            return "color:#4b9fff; font-weight:700"
+        return ""
+
+    def _style_52w(val):
+        if "적격" in str(val):
+            return "color:#34d399; font-weight:700"
+        return ""
+
+    styled = (
+        df.style
+        .map(_style_updown, subset=["전일대비(%)"])
+        .map(_style_52w, subset=["52주"])
+    )
+    st.dataframe(styled, use_container_width=True, hide_index=True)
 
 
 def _render_interest_scoreboard_ref() -> None:
@@ -939,6 +1014,8 @@ def main() -> None:
         st.divider()
         _render_crash_log()
         _render_interest_scoreboard_ref()
+        st.divider()
+        _render_leader_table()
 
     with tab_action:
         _render_open_risk(open_pos)
