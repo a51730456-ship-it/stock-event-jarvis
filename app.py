@@ -609,6 +609,7 @@ if not st.session_state.get("authenticated"):
         _login_dest = st.radio(
             "로그인 후 이동",
             ["자비스1 (기록장)", "자비스2 (순환매 플레이북)"],
+            index=1,  # 기본 선택: 자비스2 (2026-07-17 사용자 요청)
             horizontal=True,
             key="login_dest_choice",
         )
