@@ -219,8 +219,15 @@ def _clear_theme_cache() -> None:
 
 def _render_playbook(open_pos: list) -> None:
     cfg = _cfg()
-    st.subheader("순환매 플레이북")
+    st.subheader("순환매 플레이북", anchor="playbook")
     st.caption("매수신호·점수·목표가는 표시하지 않습니다. 기록과 확인 도구입니다.")
+
+    # 대장주 모음 표에서 행 클릭으로 넘어온 테마 적용 (표는 이 섹션보다 뒤에
+    # 그려지므로 보류 키를 통해 다음 run에서 위젯 생성 전에 반영)
+    pending = st.session_state.pop("j2_pending_theme", None)
+    if pending and pending in _THEME_NAMES:
+        st.session_state["j2_theme_select"] = pending
+        st.session_state["j2_autorun_signal"] = True
 
     # ── 2a. 테마 선택 + 신호 확인 ──────────────────────────────────────────────
     # 첫 로딩: 클릭 없이 가장 강한(등락률 1위) 테마를 자동 선택하고 신호까지 자동 조회
@@ -282,6 +289,16 @@ def _render_playbook(open_pos: list) -> None:
     run_signal = st.button("신호 새로고침 (테마 선택 시 자동 조회됨)", key="j2_signal_btn")
     if st.session_state.pop("j2_autorun_signal", False):
         run_signal = True
+
+    # 표 클릭으로 넘어온 경우: 조회가 끝난 표시 run에서 플레이북 위치로 스크롤
+    if not run_signal and st.session_state.pop("j2_scroll_playbook", False):
+        import streamlit.components.v1 as components
+        components.html(
+            "<script>window.parent.document.getElementById('playbook')"
+            "?.scrollIntoView({behavior:'smooth'});</script>",
+            height=0,
+        )
+
     if run_signal:
         with st.spinner("네이버 테마 조회 중…"):
             sigs = playbook.theme_signals(theme)
@@ -786,7 +803,25 @@ def _render_leader_table() -> None:
         .map(_style_52w, subset=["52주"])
         .map(_style_judge, subset=["셋업 판정"])
     )
-    st.dataframe(styled, use_container_width=True, hide_index=True)
+    st.caption("행을 클릭하면 해당 테마의 순환매 플레이북으로 바로 이동합니다.")
+    event = st.dataframe(
+        styled, use_container_width=True, hide_index=True,
+        on_select="rerun", selection_mode="single-row", key="j2_leader_tbl",
+    )
+    sel_rows = []
+    try:
+        sel_rows = list(event.selection.rows)
+    except Exception:
+        pass
+    if sel_rows:
+        clicked_theme = str(df.iloc[sel_rows[0]]["테마"])
+        # 이미 보고 있는 테마 행을 눌렀을 땐 아무것도 안 함 (무한 rerun 방지)
+        if clicked_theme in _THEME_NAMES and clicked_theme != st.session_state.get("j2_prev_theme"):
+            # 플레이북 selectbox는 이 시점엔 이미 그려져 직접 수정 불가 —
+            # 다음 run 시작 시 적용되는 보류 키로 전달
+            st.session_state["j2_pending_theme"] = clicked_theme
+            st.session_state["j2_scroll_playbook"] = True
+            st.rerun()
 
 
 def _render_interest_scoreboard_ref() -> None:
