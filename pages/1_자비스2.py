@@ -43,6 +43,10 @@ st.markdown(
     [data-testid="stSidebarNav"] li:first-child a:hover p::before {
         color: #ffcf6b;
     }
+    /* 제목·지표 글자 한 치수 축소 (2026-07-17 사용자 요청) */
+    h1 { font-size: 2.05rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1.7rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 0.85rem !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -197,11 +201,23 @@ def _render_market_state() -> None:
     c4.metric("경고", "⚠ 진입 축소" if is_warn else "정상")
 
     if is_warn:
+        reasons = []
+        if phase == "하락국면":
+            reasons.append(
+                f"- 코스피 60거래일 수익률이 {ret60:+.1f}%로 **하락국면**입니다. "
+                "하락국면에서는 신고가 돌파가 되돌림으로 끝나는 비율이 높아집니다."
+            )
+        if vdays and vdays >= warn_days:
+            reasons.append(
+                f"- 최근 60거래일 중 지수가 하루 **±3% 이상** 움직인 날이 **{vdays}일** — "
+                f"경고 기준({warn_days}일)의 {vdays / warn_days:.1f}배입니다. "
+                "변동성이 큰 장에서는 손절선이 하루 만에 훼손되기 쉽습니다."
+            )
         st.warning(
-            "**모멘텀 진입 축소 권고** — "
-            + ("하락국면 " if phase == "하락국면" else "")
-            + (f"60일 변동일수 {vdays}일(기준 {warn_days}일) " if vdays and vdays >= warn_days else "")
-            + "→ 새 진입 시 포지션 크기 절반 이하 고려"
+            "**모멘텀 진입 축소 권고**\n\n"
+            + "\n".join(reasons)
+            + "\n\n**행동 지침**: 신규 진입 포지션 크기 절반 이하 · "
+            "돌파 추격보다 눌림 재상승 셋업 우선 · 손절가 이탈 시 미련 없이 청산."
         )
 
     if st.button("시장 상태 새로고침", key="j2_ms_refresh"):
@@ -488,6 +504,7 @@ def _render_playbook(open_pos: list) -> None:
     st.markdown("**매수 대상 선택** (반자동 — 최종 선택은 사용자)")
     st.caption(
         "후보 출처: 네이버 이 테마의 구성종목 전체를 **등락률 높은 순**으로 정렬한 목록. "
+        "대장 등수 한계 밖 종목(예: 3등주)은 기본 선택에서 건너뛰고, 직접 선택하면 경보가 뜹니다. "
         "자비스는 목록과 경보만 제공하고 매수 판단은 사용자가 합니다."
     )
     stocks = (stocks_result or {}).get("stocks", [])
@@ -503,9 +520,23 @@ def _render_playbook(open_pos: list) -> None:
     def _pct_label(v):
         return f"{v:+.2f}%" if v is not None else "N/A"
 
+    # 대장 등수 맵 — 등수 한계 밖(예: 3등주)은 기본 선택에서 건너뛰고,
+    # 사용자가 직접 고르면 아래 경보로 처리한다 (목록 자체는 숨기지 않음)
+    _rank_map: dict = {}
+    if leader_result and leader_result.get("ok"):
+        for _ri, _rc in enumerate(leader_result.get("candidates") or []):
+            _rank_map[_rc["code"]] = _ri + 1
+
     stock_opts = [f"{s['name']} ({s['code']}) {_pct_label(s.get('change_pct'))}" for s in stocks]
+    _default_idx = 0
+    for _i, _s in enumerate(stocks):
+        _r = _rank_map.get(_s["code"])
+        if _r is None or _r <= rank_limit_v:
+            _default_idx = _i
+            break
     sel_idx = st.selectbox(
         "종목 선택", range(len(stock_opts)),
+        index=_default_idx,
         format_func=lambda i: stock_opts[i],
         # 테마별 별도 키 — 이전 테마의 선택 인덱스가 남아 차트/요약이
         # 다른 종목을 가리키는 불일치를 원천 차단
@@ -563,6 +594,12 @@ def _render_playbook(open_pos: list) -> None:
         )
     if lb_result.get("ok") and lb_result.get("broken"):
         alerts.append(f"대장 꺾임 경보 — 최근 고점 대비 {lb_result.get('drop_pct', 0):+.1f}%")
+    _sel_rank = _rank_map.get(sel_code)
+    if _sel_rank is not None and _sel_rank > rank_limit_v:
+        alerts.append(
+            f"등수 한계 경보 — 이 종목은 대장 {_sel_rank}등주 "
+            f"(규칙: {rank_limit_v}등주까지만 매수 허용)"
+        )
     if age_warn:
         alerts.append(f"테마 추격 주의 (D+{age})")
 
@@ -628,7 +665,7 @@ def _render_playbook(open_pos: list) -> None:
                 for e in errors:
                     st.error(e)
             else:
-                alert_state_str = ", ".join(["막차" if "막차" in a else "꺾임" if "꺾임" in a else "추격" for a in alerts]) if alerts else None
+                alert_state_str = ", ".join(["막차" if "막차" in a else "꺾임" if "꺾임" in a else "등수" if "등수" in a else "추격" for a in alerts]) if alerts else None
                 tags = _tag_str(theme, setup, age, alert_state_str)
                 leader_candidates = leader_result.get("candidates", []) if leader_result else []
                 leader_name = leader_candidates[0]["name"] if leader_candidates else None
@@ -881,7 +918,8 @@ def _render_live_strip() -> None:
 
 def _render_qualified_slot() -> None:
     """적격 대장 별도 난 — 52주 신고가 근접 게이트를 통과한 종목은 희소하고
-    중요하므로 테마판 위에 항상 표시한다. 신호 확인에서 발견될 때마다 축적."""
+    중요하므로 테마판 위에 항상 표시한다. 신호 확인에서 발견될 때마다 축적.
+    전 건 표시(생략 없음). 종목명 코발트/테마 빨강/수치 부호색."""
     st.markdown("**⭐ 적격 대장 현황** — 52주 신고가 근접 게이트 통과 종목")
     store = st.session_state.get("j2_qualified") or {}
     rows = []
@@ -891,18 +929,26 @@ def _render_qualified_slot() -> None:
     if not rows:
         st.info("아직 없음 — 테마 신호 확인에서 적격 대장이 발견되면 여기에 표시됩니다.")
         return
-    cols = st.columns(min(len(rows), 4))
-    for i, (theme_nm, c, at_time) in enumerate(rows[:4]):
-        with cols[i]:
-            pct_h = c.get("pct_from_52w_high")
-            pct_txt = f"{pct_h:+.1f}%" if pct_h is not None else "—"
-            st.success(
-                f"**{c['name']}** `{c['code']}`  \n"
-                f"{theme_nm} · 52주고가대비 {pct_txt}  \n"
-                f"확인 {at_time}"
-            )
-    if len(rows) > 4:
-        st.caption(f"외 {len(rows) - 4}건")
+    per_row = 4
+    for start in range(0, len(rows), per_row):
+        chunk = rows[start:start + per_row]
+        cols = st.columns(per_row)
+        for i, (theme_nm, c, at_time) in enumerate(chunk):
+            with cols[i]:
+                pct_h = c.get("pct_from_52w_high")
+                chg = c.get("change_pct")
+                st.markdown(
+                    "<div style='background:rgba(52,211,153,0.08);border:1px solid #14532d;"
+                    "border-radius:10px;padding:0.6rem 0.75rem;margin-bottom:0.5rem'>"
+                    f"<div style='color:#4dc3ff;font-weight:800;font-size:1.05rem'>{c['name']} "
+                    f"<span style='font-size:0.8rem;color:#93c5fd'>{c['code']}</span></div>"
+                    f"<div style='color:#ff6b6b;font-weight:700'>{theme_nm}</div>"
+                    f"<div><span style='color:#34d399'>52주고가대비</span>: {_sign_html(pct_h, 1)}</div>"
+                    f"<div><span style='color:#34d399'>오늘 등락률</span>: {_sign_html(chg, 2)}</div>"
+                    f"<div style='color:#9ca3af;font-size:0.78rem'>확인시각 {at_time}</div>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
 
 
 # 자비스1 테마 상태 색 관례 참조: 강함 빨강 / 보통 파랑 / 약함 회색 (app.py 5873행대)
