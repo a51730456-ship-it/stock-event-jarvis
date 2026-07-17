@@ -530,7 +530,13 @@ def _render_playbook(open_pos: list) -> None:
     st.divider()
 
     # ── 2c. 매수 대상 선택 ──────────────────────────────────────────────────
-    st.markdown("**매수 대상 선택** (반자동 — 최종 선택은 사용자)")
+    st.markdown(
+        "<div style='display:inline-block;border:2px solid #facc15;border-radius:8px;"
+        "padding:0.25rem 0.75rem;margin-bottom:0.3rem'>"
+        "<span style='color:#3b82f6;font-weight:800;font-size:1.25rem'>매수 대상 선택</span>"
+        " <span style='color:#9ca3af'>(반자동 — 최종 선택은 사용자)</span></div>",
+        unsafe_allow_html=True,
+    )
     st.caption(
         "후보 출처: 네이버 이 테마의 구성종목 전체를 **등락률 높은 순**으로 정렬한 목록. "
         "대장 등수 한계 밖 종목(예: 3등주)은 기본 선택에서 건너뛰고, 직접 선택하면 경보가 뜹니다. "
@@ -574,13 +580,35 @@ def _render_playbook(open_pos: list) -> None:
     sel_stock = stocks[sel_idx]
     sel_code = sel_stock["code"]
 
-    with st.expander(f"{sel_stock['name']} 일봉 차트 (참고용)", expanded=False):
+    # 선정 기준 명시 — 왜 이 종목이 기본 선택됐는지 (밝은 주황)
+    _sr = _rank_map.get(sel_code)
+    _why = (
+        f"대장 {_sr}등주"
+        if _sr is not None
+        else "대장 후보 아님 — 등락률 1위부터 시작해 등수 한계 밖(3등주)만 건너뛴 기본값"
+    )
+    st.markdown(
+        f"<div style='color:#ffa14a;font-weight:700'>선정 기준: 이 목록은 적격/대장 판정과 "
+        f"무관하게 테마 전체를 <b>등락률 순</b>으로 정렬한 것입니다. "
+        f"현재 선택 {sel_stock['name']} = {_why}. "
+        f"적격 여부는 위 '대장 확인'·'적격 대장 현황'에서 확인하세요.</div>",
+        unsafe_allow_html=True,
+    )
+
+    with st.expander(f"{sel_stock['name']} 일봉·주봉 차트 (참고용)", expanded=False):
         chart_df = market_data.get_daily(sel_code)
         if chart_df is None or chart_df.empty:
             st.info("차트 데이터를 불러오지 못했습니다.")
         else:
+            st.caption("일봉 (최근 60거래일)")
             st.line_chart(chart_df["Close"].tail(60), height=220, color="#ff4b4b")
-            st.caption("종가 기준 최근 60거래일. 참고용이며 점수·판정에는 반영되지 않습니다.")
+            try:
+                _wk = chart_df["Close"].resample("W").last().dropna().tail(52)
+                st.caption("주봉 (최근 52주)")
+                st.line_chart(_wk, height=220, color="#ff4b4b")
+            except Exception:
+                pass
+            st.caption("종가 기준. 참고용이며 점수·판정에는 반영되지 않습니다.")
 
     # 경보 계산
     w_result = playbook.max_warning(sel_code)
