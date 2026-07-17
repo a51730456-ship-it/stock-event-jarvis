@@ -691,6 +691,11 @@ def _render_playbook(open_pos: list) -> None:
 
     st.divider()
 
+    # ⭐ 52주 신고가 임박주 — 매수 대상 선택 바로 아래 (2026-07-17 사용자 지정 위치)
+    _render_near_high_table()
+
+    st.divider()
+
     # ── 2d. 셋업 + 진입가/손절가/수량 ──────────────────────────────────────
     st.markdown("**셋업 및 진입 계획** — 위에서 고른 매수 대상을 기록하는 곳")
     st.caption(
@@ -1486,8 +1491,6 @@ def main() -> None:
         st.divider()
         _render_crash_log()
         _render_interest_scoreboard_ref()
-        st.divider()
-        _render_near_high_table()
         st.divider()
         _render_leader_table()
 
