@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 
 import streamlit as st
 
@@ -271,7 +272,16 @@ def _render_playbook(open_pos: list) -> None:
                 ]
                 if valid:
                     ranked_themes = [n for n, _ in sorted(valid, key=lambda x: x[1], reverse=True)]
-                    top_theme = ranked_themes[0]
+
+                    # ⭐ 신고가 임박주 자동 스캔 — 1위 종목의 테마를 기본 선택
+                    # (당일 파일 캐시가 있으면 즉시, 없으면 자동 스캔)
+                    nh = _ensure_nh_scan()
+                    nh_rows = ((nh or {}).get("result") or {}).get("rows") or []
+                    if nh_rows and nh_rows[0].get("theme") in _THEME_NAMES:
+                        st.session_state["j2_nh_top"] = nh_rows[0]
+                        top_theme = nh_rows[0]["theme"]
+                    else:
+                        top_theme = ranked_themes[0]
                     st.session_state["j2_theme_select"] = top_theme
                     st.session_state["j2_autorun_signal"] = True
 
@@ -571,6 +581,10 @@ def _render_playbook(open_pos: list) -> None:
     _code_to_idx = {s["code"]: i for i, s in enumerate(stocks)}
 
     def _pick_default() -> int:
+        # ⓪ 신고가 임박주 1위 (현재 테마 소속일 때) — 스캐너와 직결
+        _nh_top = st.session_state.get("j2_nh_top")
+        if _nh_top and _nh_top.get("theme") == theme and _nh_top.get("code") in _code_to_idx:
+            return _code_to_idx[_nh_top["code"]]
         for c in _cands_all[:rank_limit_v]:
             if c.get("near_high") and c["code"] in _code_to_idx:
                 return _code_to_idx[c["code"]]
@@ -604,8 +618,8 @@ def _render_playbook(open_pos: list) -> None:
     )
     st.markdown(
         f"<div style='color:#ffa14a;font-weight:700'>기본 선택 우선순위: "
-        f"①적격 대장(1등주) → ②적격 2등주 → ③돌파 임박 → ④등락률 1위. "
-        f"현재 선택 {sel_stock['name']} = {_why}. "
+        f"⓪신고가 임박 1위(현재 테마일 때) → ①적격 대장(1등주) → ②적격 2등주 → "
+        f"③돌파 임박 → ④등락률 1위. 현재 선택 {sel_stock['name']} = {_why}. "
         f"목록 자체는 테마 전체를 등락률 순 정렬 — 최종 선택은 사용자.</div>",
         unsafe_allow_html=True,
     )
@@ -839,34 +853,81 @@ def _render_crash_log() -> None:
             st.error(f"저장 실패: {ex}")
 
 
+_NH_CACHE_FILE = Path(__file__).parent.parent / "cache" / "market_data" / "nh_scan.json"
+
+
+def _load_nh_scan_file():
+    """당일 스캔 결과 파일 캐시 — 재접속/새 세션에서 재스캔 없이 즉시 로드."""
+    try:
+        d = json.loads(_NH_CACHE_FILE.read_text(encoding="utf-8"))
+        if d.get("date") == datetime.now().strftime("%Y-%m-%d"):
+            return d
+    except Exception:
+        pass
+    return None
+
+
+def _ensure_nh_scan():
+    """신고가 임박주 스캔 결과 확보: 세션 → 당일 파일 → 자동 스캔 순."""
+    saved = st.session_state.get("j2_nh_scan")
+    if saved:
+        return saved
+    fd = _load_nh_scan_file()
+    if fd:
+        saved = {
+            "result": {"ok": True, "rows": fd.get("rows", []),
+                       "scanned": fd.get("scanned", 0), "error": None},
+            "at": fd.get("at", ""),
+        }
+        st.session_state["j2_nh_scan"] = saved
+        return saved
+    prog = st.progress(0.0, text="신고가 임박주 자동 스캔 중… (하루 첫 스캔만 수 분, 이후 즉시)")
+    result = playbook.scan_near_high(
+        per_theme=3,
+        progress_cb=lambda f, t: prog.progress(min(f, 1.0), text=t),
+    )
+    prog.empty()
+    at = datetime.now().strftime("%m-%d %H:%M")
+    saved = {"result": result, "at": at}
+    st.session_state["j2_nh_scan"] = saved
+    if result.get("ok"):
+        try:
+            _NH_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _NH_CACHE_FILE.write_text(
+                json.dumps({
+                    "date": datetime.now().strftime("%Y-%m-%d"), "at": at,
+                    "scanned": result.get("scanned", 0), "rows": result["rows"],
+                }, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            _log.warning("nh scan cache save failed: %s", e)
+    return saved
+
+
 def _render_near_high_table() -> None:
     """⭐ 52주 신고가 임박주 — 자비스2 취지의 핵심 표.
     대장주 모음(테마 등락률 서열)과 별개로, 전 테마 구성종목 전수에서
     52주 고가 근접 게이트를 실제 통과한 종목만 모은다. 행 클릭 → 플레이북 연결."""
     st.subheader("⭐ 52주 신고가 임박주 — 진짜 근접 종목")
     st.caption(
-        "유니버스: 20개 테마 구성종목 전체(중복 제거) 전수 스캔 · "
-        "기준: 52주 고가 대비 -10% 이내(설정 신고가 근접) · 근접도 순, 테마별 최대 3개. "
-        "첫 스캔은 수 분 걸리고 같은 날 재스캔은 캐시로 빠릅니다. "
-        "행을 클릭하면 해당 테마 플레이북으로 이동하고, 적격 대장이면 매수 대상에 자동 선택됩니다."
+        "자동 스캔: 접속 시 당일 결과를 자동 표시 (하루 첫 스캔만 수 분, 이후 즉시). "
+        "유니버스: 20개 테마 구성종목 전체(중복 제거) 전수 · "
+        "기준: 52주 고가 대비 -10% 이내 · 근접도 순, 테마별 최대 3개. "
+        "행을 클릭하면 해당 테마 플레이북으로 이동하고 매수 대상에 자동 선택됩니다."
     )
 
-    if st.button("신고가 임박주 스캔 (전 테마 전수)", key="j2_nh_scan_btn"):
-        prog = st.progress(0.0, text="스캔 준비…")
-        result = playbook.scan_near_high(
-            per_theme=3,
-            progress_cb=lambda f, t: prog.progress(min(f, 1.0), text=t),
-        )
-        prog.empty()
-        st.session_state["j2_nh_scan"] = {
-            "result": result,
-            "at": datetime.now().strftime("%m-%d %H:%M"),
-        }
+    if st.button("다시 스캔 (최신 시세로 갱신)", key="j2_nh_scan_btn"):
+        st.session_state.pop("j2_nh_scan", None)
+        try:
+            _NH_CACHE_FILE.unlink()
+        except Exception:
+            pass
         st.rerun()
 
-    saved = st.session_state.get("j2_nh_scan")
+    saved = _ensure_nh_scan()
     if not saved:
-        st.info("아직 스캔 전 — 위 버튼을 누르면 전 테마에서 신고가 임박주를 찾습니다.")
+        st.info("스캔 결과가 없습니다.")
         return
     result = saved["result"]
     if not result.get("ok"):
@@ -920,8 +981,10 @@ def _render_near_high_table() -> None:
         .map(_style_judge, subset=["셋업 판정"])
         .map(_style_mkt, subset=["시장"])
     )
+    # 높이: 최대 15행, 행 수가 적으면 그만큼만 (빈 공간 없이)
+    _tbl_h = min(len(rows_raw), 15) * 35 + 40
     event = st.dataframe(
-        styled, use_container_width=True, hide_index=True,
+        styled, use_container_width=True, hide_index=True, height=_tbl_h,
         on_select="rerun", selection_mode="single-row", key="j2_nh_tbl",
     )
     st.caption(f"스캔 시각 {saved['at']} · {result.get('scanned', 0)}종목 검사, {len(rows_raw)}종목 통과")
