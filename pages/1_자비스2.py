@@ -279,7 +279,7 @@ def _render_playbook(open_pos: list) -> None:
                                 if q:
                                     st.session_state.setdefault("j2_qualified", {})[tn] = {
                                         "stocks": q,
-                                        "at": datetime.now().strftime("%H:%M"),
+                                        "at": datetime.now().strftime("%m-%d %H:%M"),
                                     }
                         except Exception as e:
                             _log.warning("auto leader collect failed %s: %s", tn, e)
@@ -336,7 +336,7 @@ def _render_playbook(open_pos: list) -> None:
                 store = st.session_state.setdefault("j2_qualified", {})
                 store[theme] = {
                     "stocks": qualified,
-                    "at": datetime.now().strftime("%H:%M"),
+                    "at": datetime.now().strftime("%m-%d %H:%M"),
                 }
 
             # 대장주 모음 표(맨 아래)용 — 1·2등주만 테마별 축적 (장중·판정 보강 포함)
@@ -411,18 +411,35 @@ def _render_playbook(open_pos: list) -> None:
         else:
             st.info("테마나이: 이력 축적 중")
 
-    # 양전 종목이 실제로 무엇인지 펼쳐서 확인 (등락률 높은 순)
+    # 양전 종목 — 대장 1·2·3등 우선, 등락률 순, 최대 10개만 표시
     _all_stocks = (stocks_result or {}).get("stocks", [])
-    _ups = sorted(
-        [s for s in _all_stocks if (s.get("change_pct") or 0) > 0],
-        key=lambda s: s["change_pct"], reverse=True,
-    )
+    _ups = [s for s in _all_stocks if (s.get("change_pct") or 0) > 0]
     if _ups:
-        with st.expander(f"양전 종목 {len(_ups)}개 보기 (등락률 순)", expanded=True):
-            chips = "".join(
-                f"<span class='j2-upchip'>{s['name']} <b>+{s['change_pct']:.2f}%</b></span>"
-                for s in _ups
+        _lead_codes = []
+        if leader_result and leader_result.get("ok"):
+            _lead_codes = [c["code"] for c in (leader_result.get("candidates") or [])]
+
+        def _up_key(s):
+            lead = _lead_codes.index(s["code"]) if s["code"] in _lead_codes else 99
+            return (lead, -(s.get("change_pct") or 0))
+
+        _shown = sorted(_ups, key=_up_key)[:10]
+        _marks = "①②③"
+
+        def _chip(s):
+            prefix = ""
+            if s["code"] in _lead_codes and _lead_codes.index(s["code"]) < 3:
+                prefix = f"{_marks[_lead_codes.index(s['code'])]} "
+            return (
+                f"<span class='j2-upchip'>{prefix}{s['name']} "
+                f"<b>+{s['change_pct']:.2f}%</b></span>"
             )
+
+        with st.expander(
+            f"양전 종목 상위 {len(_shown)}개 (전체 {len(_ups)}개 · 대장 1·2·3등 우선 → 등락률 순)",
+            expanded=True,
+        ):
+            chips = "".join(_chip(s) for s in _shown)
             st.markdown(
                 "<style>.j2-upchip{color:#fca5a5;background:rgba(255,75,75,0.10);"
                 "padding:0.15rem 0.55rem;border-radius:8px;display:inline-block;"
@@ -617,7 +634,15 @@ def _render_playbook(open_pos: list) -> None:
     st.divider()
 
     # ── 2d. 셋업 + 진입가/손절가/수량 ──────────────────────────────────────
-    st.markdown("**셋업 및 진입 계획**")
+    st.markdown("**셋업 및 진입 계획** — 위에서 고른 매수 대상을 기록하는 곳")
+    st.caption(
+        "자비스는 주문하지 않습니다 — 증권사에서 실제 매수한(또는 하려는) 내용을 여기 **기록**합니다. "
+        "사용 순서: ① 셋업 선택 — **눌림재상승**=돌파 후 3~5% 눌렸다 재상승할 때 진입 / "
+        "**돌파**=신고가 돌파 순간 진입. "
+        "② 진입가·손절가·수량 입력 → 1R(이 매매에서 감수하는 최대 손실 금액)이 자동 계산됩니다. "
+        "③ **기록하고 진입** = 판단 기록 저장 · **탈락으로 기록** = 검토했지만 진입 안 한 것도 기록. "
+        "이렇게 30건이 쌓이면 어떤 셋업이 나에게 확률 높은지 통계로 확인합니다."
+    )
     setup = st.radio("셋업", ["눌림재상승", "돌파"], horizontal=True, key="j2_setup")
 
     c1, c2, c3 = st.columns(3)
@@ -916,10 +941,12 @@ def _render_live_strip() -> None:
     st.caption(f"갱신 {datetime.now().strftime('%H:%M:%S')}")
 
 
+@st.fragment(run_every=60)
 def _render_qualified_slot() -> None:
     """적격 대장 별도 난 — 52주 신고가 근접 게이트를 통과한 종목은 희소하고
     중요하므로 테마판 위에 항상 표시한다. 신호 확인에서 발견될 때마다 축적.
-    전 건 표시(생략 없음). 종목명 코발트/테마 빨강/수치 부호색."""
+    전 건 표시. 시세(오늘 등락률)는 1분마다 자동 갱신(실시간).
+    코스피=파랑 / 코스닥=초록 배지."""
     st.markdown("**⭐ 적격 대장 현황** — 52주 신고가 근접 게이트 통과 종목")
     store = st.session_state.get("j2_qualified") or {}
     rows = []
@@ -929,6 +956,18 @@ def _render_qualified_slot() -> None:
     if not rows:
         st.info("아직 없음 — 테마 신호 확인에서 적격 대장이 발견되면 여기에 표시됩니다.")
         return
+
+    # 실시간 시세 맵 (테마당 네이버 1회/분 — 60초 TTL 캐시와 주기 일치)
+    live: dict = {}
+    for theme_nm in store.keys():
+        try:
+            res = theme_detail.fetch_theme_stocks(theme_nm)
+            if res.get("ok"):
+                for s in res["stocks"]:
+                    live[s["code"]] = s
+        except Exception:
+            pass
+
     per_row = 4
     for start in range(0, len(rows), per_row):
         chunk = rows[start:start + per_row]
@@ -936,19 +975,31 @@ def _render_qualified_slot() -> None:
         for i, (theme_nm, c, at_time) in enumerate(chunk):
             with cols[i]:
                 pct_h = c.get("pct_from_52w_high")
-                chg = c.get("change_pct")
+                liv = live.get(c["code"]) or {}
+                chg = liv.get("change_pct", c.get("change_pct"))
+                mkt = market_data.get_market(c["code"])
+                if mkt == "KOSDAQ":
+                    mkt_html = " <span style='color:#22c55e;font-weight:700'>코스닥</span>"
+                elif mkt == "KOSPI":
+                    mkt_html = " <span style='color:#4b9fff;font-weight:700'>코스피</span>"
+                else:
+                    mkt_html = ""
                 st.markdown(
                     "<div style='background:rgba(52,211,153,0.08);border:1px solid #14532d;"
                     "border-radius:10px;padding:0.6rem 0.75rem;margin-bottom:0.5rem'>"
                     f"<div style='color:#4dc3ff;font-weight:800;font-size:1.05rem'>{c['name']} "
                     f"<span style='font-size:0.8rem;color:#93c5fd'>{c['code']}</span></div>"
-                    f"<div style='color:#ff6b6b;font-weight:700'>{theme_nm}</div>"
+                    f"<div style='color:#ff6b6b;font-weight:700'>{theme_nm}{mkt_html}</div>"
                     f"<div><span style='color:#34d399'>52주고가대비</span>: {_sign_html(pct_h, 1)}</div>"
                     f"<div><span style='color:#34d399'>오늘 등락률</span>: {_sign_html(chg, 2)}</div>"
-                    f"<div style='color:#9ca3af;font-size:0.78rem'>확인시각 {at_time}</div>"
+                    f"<div style='color:#9ca3af;font-size:0.78rem'>적격 확인 {at_time}</div>"
                     "</div>",
                     unsafe_allow_html=True,
                 )
+    st.caption(
+        f"시세 갱신 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} · 1분마다 자동 · "
+        "'적격 확인'은 그 테마 신호를 마지막으로 조회해 게이트 통과를 확인한 시각"
+    )
 
 
 # 자비스1 테마 상태 색 관례 참조: 강함 빨강 / 보통 파랑 / 약함 회색 (app.py 5873행대)

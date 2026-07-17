@@ -23,6 +23,9 @@ _KOSPI_INDEX = "^KS11"
 # 화면당 수십 ms씩 누적된다. {key: (yyyy-mm-dd, df)}
 _MEM_CACHE: dict = {}
 
+# 코스피/코스닥 구분 맵 — get_daily가 .KS/.KQ 어느 쪽으로 성공했는지 기록
+_MARKET_MAP: dict = {}
+
 
 # ── 내부 헬퍼 ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +45,9 @@ def _load_cache(code6: str):
         records = data.get("records")
         if not records:
             return None
+        mk = data.get("market")
+        if mk:
+            _MARKET_MAP[code6] = mk
         df = pd.DataFrame(records)
         df["Date"] = pd.to_datetime(df["Date"])
         df = df.set_index("Date")
@@ -63,6 +69,7 @@ def _save_cache(code6: str, df: pd.DataFrame) -> None:
                 records[col] = records[col].dt.strftime("%Y-%m-%d")
         data = {
             "date": datetime.now().strftime("%Y-%m-%d"),
+            "market": _MARKET_MAP.get(code6),
             "records": records.to_dict(orient="records"),
         }
         p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
@@ -131,13 +138,16 @@ def get_daily(code6: str):
         return out
 
     df = _download_yf(f"{code6}.KS")
+    market = "KOSPI"
     if df is None or len(df) <= 1:
         df = _download_yf(f"{code6}.KQ")
+        market = "KOSDAQ"
 
     if df is None or len(df) <= 1:
         _log.warning("get_daily: no data for %s", code6)
         return None
 
+    _MARKET_MAP[code6] = market
     _save_cache(code6, df)
     out = _clean_ohlcv(df)
     _MEM_CACHE[code6] = (today, out)
@@ -166,6 +176,42 @@ def get_index_daily(ticker: str = _KOSPI_INDEX):
     out = _clean_ohlcv(df)
     _MEM_CACHE[safe_key] = (today, out)
     return out
+
+
+_KRX_SETS = {"loaded": False, "KOSPI": set(), "KOSDAQ": set()}
+
+
+def _load_krx_sets() -> None:
+    """KRX 공식 상장 목록으로 코스피/코스닥 집합 구성 (프로세스당 1회).
+    야후 접미사 추측(.KQ 조회)은 코스피 종목에도 데이터가 와 오판해 폐기."""
+    if _KRX_SETS["loaded"]:
+        return
+    try:
+        import FinanceDataReader as fdr
+
+        for mk in ("KOSPI", "KOSDAQ"):
+            listing = fdr.StockListing(mk)
+            col = "Code" if "Code" in listing.columns else "Symbol"
+            _KRX_SETS[mk] = set(listing[col].astype(str).str.zfill(6))
+        _KRX_SETS["loaded"] = True
+    except Exception as e:
+        _log.debug("krx ticker list load failed: %s", e)
+
+
+def get_market(code6: str):
+    """코스피/코스닥 구분 — 'KOSPI'/'KOSDAQ' 또는 None. KRX 목록 기준."""
+    code6 = str(code6).strip().zfill(6)
+    _load_krx_sets()
+    if code6 in _KRX_SETS["KOSDAQ"]:
+        return "KOSDAQ"
+    if code6 in _KRX_SETS["KOSPI"]:
+        return "KOSPI"
+    # KRX 목록 조회 실패 시 get_daily가 기록해 둔 접미사 기반 폴백
+    m = _MARKET_MAP.get(code6)
+    if m:
+        return m
+    _load_cache(code6)
+    return _MARKET_MAP.get(code6)
 
 
 _INTRADAY_CACHE: dict = {}
