@@ -454,6 +454,94 @@ def market_state() -> dict:
         return {"ok": False, "error": str(e), "phase": None}
 
 
+def scan_near_high(per_theme: int = 3, progress_cb=None) -> dict:
+    """전 테마 구성종목 전수에서 '진짜 52주 신고가 임박주'를 스캔한다.
+
+    자비스2 취지의 핵심: 테마 등락률 상위(반등주가 섞임)가 아니라,
+    52주 고가 근접 게이트(near_high_pct 이내)를 실제로 통과한 종목만 추린다.
+    유니버스 = 20개 테마 구성종목 전체(중복 제거). 테마별 최대 per_theme개,
+    근접도 순 정렬. 첫 스캔은 수 분(일봉 전수 조회), 당일 재스캔은 캐시로 빠름.
+
+    반환: {"ok", "rows": [{code,name,theme,price,change_pct,
+           pct_from_52w_high,turnover_mult,judge}], "scanned", "error"}
+    """
+    try:
+        import theme_detail
+        import market_data
+        from theme_data import KR_THEME_NAVER_MAPPING
+        from concurrent.futures import ThreadPoolExecutor
+
+        cfg = _get_config()
+        near_pct = cfg.get("near_high_pct", 10.0)
+        val_mult = cfg.get("value_mult", 3.0)
+
+        themes = list(KR_THEME_NAVER_MAPPING.keys())
+        stock_map: dict = {}
+        for i, t in enumerate(themes):
+            r = theme_detail.fetch_theme_stocks(t)
+            if r.get("ok"):
+                for s in r["stocks"]:
+                    e = stock_map.setdefault(s["code"], dict(s, themes=[]))
+                    e["themes"].append(t)
+            if progress_cb:
+                progress_cb(0.2 * (i + 1) / len(themes), f"구성종목 수집: {t}")
+
+        items = list(stock_map.items())
+        total = max(1, len(items))
+        done = [0]
+
+        def _probe(item):
+            code, e = item
+            try:
+                df = market_data.get_daily(code)
+                done[0] += 1
+                if progress_cb and done[0] % 20 == 0:
+                    progress_cb(0.2 + 0.8 * done[0] / total,
+                                f"일봉 스캔 {done[0]}/{total}")
+                if df is None:
+                    return None
+                pct = market_data.pct_from_52w_high(df)
+                if pct is None or pct != pct or pct < -near_pct:
+                    return None
+                mult = market_data.today_turnover_multiple(df)
+                if mult is not None and mult != mult:
+                    mult = None
+                w = max_warning(code)
+                if w.get("ok") and w.get("warning"):
+                    judge = "막차 주의"
+                elif mult is not None and mult >= val_mult:
+                    judge = "돌파 임박"
+                else:
+                    judge = "눌림 관찰"
+                return {
+                    "code": code, "name": e["name"], "theme": e["themes"][0],
+                    "price": e.get("price"), "change_pct": e.get("change_pct"),
+                    "pct_from_52w_high": pct, "turnover_mult": mult,
+                    "judge": judge,
+                }
+            except Exception:
+                return None
+
+        rows = []
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for res in pool.map(_probe, items):
+                if res:
+                    rows.append(res)
+
+        rows.sort(key=lambda r: r["pct_from_52w_high"], reverse=True)
+        per: dict = {}
+        capped = []
+        for r in rows:
+            c = per.get(r["theme"], 0)
+            if c < per_theme:
+                capped.append(r)
+                per[r["theme"]] = c + 1
+        return {"ok": True, "rows": capped, "scanned": len(items), "error": None}
+    except Exception as e:
+        _log.warning("scan_near_high failed: %s", e)
+        return {"ok": False, "rows": [], "scanned": 0, "error": str(e)}
+
+
 # ── DB 저장·조회 헬퍼 (자비스2 UI에서 사용) ────────────────────────────────────
 
 

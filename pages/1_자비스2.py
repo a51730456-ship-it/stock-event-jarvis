@@ -88,7 +88,7 @@ from theme_data import KR_THEME_NAVER_MAPPING, fetch_kr_theme_snapshot
 # AttributeError 실사례. 최신 심볼이 없으면 해당 모듈을 자동 리로드한다.
 if not hasattr(market_data, "get_market"):
     market_data = importlib.reload(market_data)
-if not hasattr(playbook, "invalidate_config_cache"):
+if not hasattr(playbook, "scan_near_high"):
     playbook = importlib.reload(playbook)
 if not hasattr(theme_detail, "_FETCH_CACHE"):
     theme_detail = importlib.reload(theme_detail)
@@ -538,9 +538,10 @@ def _render_playbook(open_pos: list) -> None:
         unsafe_allow_html=True,
     )
     st.caption(
-        "후보 출처: 네이버 이 테마의 구성종목 전체를 **등락률 높은 순**으로 정렬한 목록. "
-        "대장 등수 한계 밖 종목(예: 3등주)은 기본 선택에서 건너뛰고, 직접 선택하면 경보가 뜹니다. "
-        "자비스는 목록과 경보만 제공하고 매수 판단은 사용자가 합니다."
+        "후보 출처 두 갈래 — ① **신고가 임박 매매(취지)**: 아래 '⭐ 52주 신고가 임박주' 표에서 "
+        "행을 클릭하면 이 화면과 연결되고, 적격 대장이 기본 선택 1순위로 잡힙니다. "
+        "② **순환매 관찰**: 이 드롭다운은 테마 구성종목 전체를 등락률 순으로 정렬한 목록입니다. "
+        "등수 한계 밖(3등주)은 기본 선택에서 건너뛰고 직접 선택 시 경보. 매수 판단은 사용자."
     )
     stocks = (stocks_result or {}).get("stocks", [])
     if not stocks:
@@ -831,6 +832,106 @@ def _render_crash_log() -> None:
             st.success("급락일 기록 저장 완료.")
         except Exception as ex:
             st.error(f"저장 실패: {ex}")
+
+
+def _render_near_high_table() -> None:
+    """⭐ 52주 신고가 임박주 — 자비스2 취지의 핵심 표.
+    대장주 모음(테마 등락률 서열)과 별개로, 전 테마 구성종목 전수에서
+    52주 고가 근접 게이트를 실제 통과한 종목만 모은다. 행 클릭 → 플레이북 연결."""
+    st.subheader("⭐ 52주 신고가 임박주 — 진짜 근접 종목")
+    st.caption(
+        "유니버스: 20개 테마 구성종목 전체(중복 제거) 전수 스캔 · "
+        "기준: 52주 고가 대비 -10% 이내(설정 신고가 근접) · 근접도 순, 테마별 최대 3개. "
+        "첫 스캔은 수 분 걸리고 같은 날 재스캔은 캐시로 빠릅니다. "
+        "행을 클릭하면 해당 테마 플레이북으로 이동하고, 적격 대장이면 매수 대상에 자동 선택됩니다."
+    )
+
+    if st.button("신고가 임박주 스캔 (전 테마 전수)", key="j2_nh_scan_btn"):
+        prog = st.progress(0.0, text="스캔 준비…")
+        result = playbook.scan_near_high(
+            per_theme=3,
+            progress_cb=lambda f, t: prog.progress(min(f, 1.0), text=t),
+        )
+        prog.empty()
+        st.session_state["j2_nh_scan"] = {
+            "result": result,
+            "at": datetime.now().strftime("%m-%d %H:%M"),
+        }
+        st.rerun()
+
+    saved = st.session_state.get("j2_nh_scan")
+    if not saved:
+        st.info("아직 스캔 전 — 위 버튼을 누르면 전 테마에서 신고가 임박주를 찾습니다.")
+        return
+    result = saved["result"]
+    if not result.get("ok"):
+        st.warning(f"스캔 실패: {result.get('error')}")
+        return
+    rows_raw = result.get("rows", [])
+    if not rows_raw:
+        st.info(f"신고가 임박주 없음 — {result.get('scanned', 0)}종목 스캔 결과 게이트 통과 0건.")
+        return
+
+    rows = []
+    for r in rows_raw:
+        mkt = market_data.get_market(r["code"])
+        mkt_txt = "코스닥" if mkt == "KOSDAQ" else "코스피" if mkt == "KOSPI" else "—"
+        rows.append({
+            "종목명": f"{r['name']} ({r['code']})",
+            "테마": r["theme"],
+            "시장": mkt_txt,
+            "52주고가대비": f"{r['pct_from_52w_high']:+.1f}%",
+            "셋업 판정": r.get("judge", "—"),
+            "현재가": f"{r['price']:,.0f}" if r.get("price") else "—",
+            "오늘 등락률": f"{r['change_pct']:+.2f}%" if r.get("change_pct") is not None else "—",
+            "거래대금배수": f"{r['turnover_mult']:.2f}배" if r.get("turnover_mult") is not None else "—",
+        })
+
+    import pandas as pd
+
+    df = pd.DataFrame(rows)
+
+    def _style_updown(val):
+        s = str(val)
+        if s.startswith("+"):
+            return "color:#ff4b4b; font-weight:700"
+        if s.startswith("-"):
+            return "color:#4b9fff; font-weight:700"
+        return ""
+
+    def _style_judge(val):
+        return _JUDGE_STYLE.get(str(val), "")
+
+    def _style_mkt(val):
+        if str(val) == "코스닥":
+            return "color:#22c55e; font-weight:700"
+        if str(val) == "코스피":
+            return "color:#4b9fff; font-weight:700"
+        return ""
+
+    styled = (
+        df.style
+        .map(_style_updown, subset=["52주고가대비", "오늘 등락률"])
+        .map(_style_judge, subset=["셋업 판정"])
+        .map(_style_mkt, subset=["시장"])
+    )
+    event = st.dataframe(
+        styled, use_container_width=True, hide_index=True,
+        on_select="rerun", selection_mode="single-row", key="j2_nh_tbl",
+    )
+    st.caption(f"스캔 시각 {saved['at']} · {result.get('scanned', 0)}종목 검사, {len(rows_raw)}종목 통과")
+
+    sel_rows = []
+    try:
+        sel_rows = list(event.selection.rows)
+    except Exception:
+        pass
+    if sel_rows:
+        clicked_theme = str(rows_raw[sel_rows[0]]["theme"])
+        if clicked_theme in _THEME_NAMES and clicked_theme != st.session_state.get("j2_prev_theme"):
+            st.session_state["j2_pending_theme"] = clicked_theme
+            st.session_state["j2_scroll_playbook"] = True
+            st.rerun()
 
 
 _JUDGE_ORDER = {"돌파 임박": 0, "눌림 관찰": 1, "막차 주의": 2, "부적격": 3}
@@ -1385,6 +1486,8 @@ def main() -> None:
         st.divider()
         _render_crash_log()
         _render_interest_scoreboard_ref()
+        st.divider()
+        _render_near_high_table()
         st.divider()
         _render_leader_table()
 
