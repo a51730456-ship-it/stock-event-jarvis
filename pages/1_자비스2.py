@@ -363,6 +363,9 @@ def _render_playbook(open_pos: list) -> None:
         err = leader_result.get("error") if leader_result else "후보 없음"
         st.warning(f"대장 후보를 계산하지 못했습니다: {err}")
 
+    # 실시간 시세 스트립 (1분 자동 갱신 — 이 조각만 다시 그려짐)
+    _render_live_strip()
+
     st.divider()
 
     # ── 2c. 매수 대상 선택 ──────────────────────────────────────────────────
@@ -660,6 +663,50 @@ def _render_interest_scoreboard_ref() -> None:
 
 
 # ── 섹션 4: 테마판 요약 ──────────────────────────────────────────────────────
+
+
+@st.fragment(run_every=60)
+def _render_live_strip() -> None:
+    """대장 후보 3종목 실시간 시세 — 1분마다 이 조각만 자동 갱신.
+    (2026-07-17 사용자 지시로 실시간 자동조회 금지 규칙 해제)
+    fetch_theme_stocks의 60초 TTL 캐시와 주기가 맞아 분당 네이버 요청 1회."""
+    theme = st.session_state.get("j2_prev_theme") or ""
+    leader_result = st.session_state.get("j2_leader")
+    if not theme or not leader_result or not leader_result.get("ok"):
+        return
+    cands = (leader_result.get("candidates") or [])[:3]
+    if not cands:
+        return
+    try:
+        res = theme_detail.fetch_theme_stocks(theme)
+    except Exception:
+        return
+    if not res.get("ok"):
+        return
+    price_map = {s["code"]: s for s in res["stocks"]}
+
+    st.markdown(
+        "<span style='color:#34d399;font-weight:800'>실시간 시세</span> "
+        "<span style='color:#9ca3af;font-size:0.82rem'>(1분마다 자동 갱신 · 네이버 지연시세)</span>",
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(len(cands))
+    for i, c in enumerate(cands):
+        live = price_map.get(c["code"])
+        with cols[i]:
+            if live and live.get("price"):
+                st.markdown(
+                    f"<span style='color:#4dc3ff;font-weight:800'>{c['name']}</span><br>"
+                    f"<span style='font-size:1.35rem;font-weight:800'>{live['price']:,}원</span> "
+                    f"{_sign_html(live.get('change_pct'))}",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"<span style='color:#4dc3ff;font-weight:800'>{c['name']}</span><br>—",
+                    unsafe_allow_html=True,
+                )
+    st.caption(f"갱신 {datetime.now().strftime('%H:%M:%S')}")
 
 
 def _render_qualified_slot() -> None:
