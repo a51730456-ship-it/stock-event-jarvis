@@ -1,16 +1,7 @@
 @echo off
-chcp 65001 >nul
+rem 이 .bat은 숨김 실행기(vbs)를 넘겨주고 즉시 닫힌다(대기하지 않음).
+rem 실제 서버는 완전히 숨김 창(콘솔 없음)으로 뜬다 — Windows Terminal의
+rem 기본 터미널 설정이 /min을 가로채 무시하는 문제를 우회 (2026-07-17)
 cd /d "%~dp0"
-if not exist ".venv\Scripts\python.exe" (
-    echo [오류] .venv 가상환경의 Python을 찾을 수 없습니다.
-    echo 먼저 README.md의 가상환경 생성 및 설치 명령을 실행하세요.
-    pause
-    exit /b 1
-)
-rem 서버 콘솔을 최소화 상태로 실행 — Windows 터미널이 /min을 무시하는
-rem 문제가 있어 클래식 콘솔(conhost)로 강제한다 (2026-07-17 사용자 요청)
-start "Jarvis Server" /min conhost.exe ".venv\Scripts\python.exe" -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501
-rem 서버가 뜰 시간을 준 뒤 브라우저를 자동으로 연다 — 로그인 화면만 보이게
-timeout /t 4 /nobreak >nul
-start "" http://localhost:8501
+start "" wscript.exe "자비스실행_hidden.vbs"
 exit
