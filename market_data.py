@@ -7,6 +7,7 @@
 
 import json
 import logging
+import threading
 import time
 import warnings
 from datetime import datetime
@@ -25,6 +26,10 @@ _MEM_CACHE: dict = {}
 
 # 코스피/코스닥 구분 맵 — get_daily가 .KS/.KQ 어느 쪽으로 성공했는지 기록
 _MARKET_MAP: dict = {}
+
+# yfinance는 모듈 공유 상태를 써서 동시 호출 시 응답이 섞인다
+# (일봉 요청에 분봉이 배달되는 오염 실사례) — 전역 락으로 직렬화
+_YF_LOCK = threading.Lock()
 
 
 # ── 내부 헬퍼 ──────────────────────────────────────────────────────────────────
@@ -51,6 +56,8 @@ def _load_cache(code6: str):
         df = pd.DataFrame(records)
         df["Date"] = pd.to_datetime(df["Date"])
         df = df.set_index("Date")
+        if df.index.duplicated().any():
+            return None  # 분봉 오염 캐시 무시
         return df
     except Exception as e:
         _log.debug("cache load failed %s: %s", code6, e)
@@ -82,9 +89,10 @@ def _download_yf(ticker: str, period: str = "300d"):
     try:
         import yfinance as yf
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            df = yf.download(ticker, period=period, auto_adjust=True, progress=False)
+        with _YF_LOCK:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                df = yf.download(ticker, period=period, auto_adjust=True, progress=False)
         if df is None or df.empty:
             return None
         if isinstance(df.columns, pd.MultiIndex):
@@ -95,7 +103,12 @@ def _download_yf(ticker: str, period: str = "300d"):
         if df.index.tz is not None:
             df.index = df.index.tz_localize(None)
         df.index = df.index.normalize()
-        return df[list(required)]
+        df = df[list(required)]
+        # 분봉 오염 방어: 정규화 후 날짜가 중복되면 일봉이 아님 — 폐기
+        if df.index.duplicated().any():
+            _log.warning("non-daily frame rejected %s", ticker)
+            return None
+        return df
     except Exception as e:
         _log.debug("yf download failed %s: %s", ticker, e)
         return None
@@ -232,12 +245,13 @@ def get_intraday_summary(code6: str):
         try:
             import yfinance as yf
 
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                df = yf.download(
-                    f"{code6}{suffix}", period="1d", interval="1m",
-                    auto_adjust=True, progress=False,
-                )
+            with _YF_LOCK:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    df = yf.download(
+                        f"{code6}{suffix}", period="1d", interval="1m",
+                        auto_adjust=True, progress=False,
+                    )
             if df is None or df.empty:
                 continue
             if isinstance(df.columns, pd.MultiIndex):
