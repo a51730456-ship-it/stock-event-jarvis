@@ -181,6 +181,37 @@ def _exit_scenario(setup: str | None) -> str:
     return _EXIT_SCENARIOS.get(setup or "", "청산 규칙 미지정")
 
 
+def _weekly_ohlc(df):
+    """일봉 → 주봉 OHLC 합성."""
+    return (
+        df.resample("W")
+        .agg({"Open": "first", "High": "max", "Low": "min", "Close": "last"})
+        .dropna()
+        .tail(52)
+    )
+
+
+def _candle_chart(dfo, height: int, bar_size: int = 6):
+    """캔들 봉차트 (한국 관례: 상승 빨강 / 하락 파랑). altair 내장 사용."""
+    import altair as alt
+
+    d = dfo.reset_index()
+    d = d.rename(columns={d.columns[0]: "Date"})
+    color = alt.condition(
+        "datum.Close >= datum.Open", alt.value("#ff4b4b"), alt.value("#4b9fff")
+    )
+    base = alt.Chart(d).encode(
+        x=alt.X("Date:T", axis=alt.Axis(format="%m-%d", title=None, labelAngle=0))
+    )
+    wick = base.mark_rule().encode(
+        y=alt.Y("Low:Q", scale=alt.Scale(zero=False), title=None),
+        y2="High:Q",
+        color=color,
+    )
+    body = base.mark_bar(size=bar_size).encode(y="Open:Q", y2="Close:Q", color=color)
+    return (wick + body).properties(height=height)
+
+
 # ── 섹션 1: 시장상태 스트립 ───────────────────────────────────────────────────
 
 
@@ -328,11 +359,11 @@ def _render_playbook(open_pos: list) -> None:
     if st.session_state.pop("j2_autorun_signal", False):
         run_signal = True
 
-    # 표 클릭으로 넘어온 경우: 조회가 끝난 표시 run에서 플레이북 위치로 스크롤
+    # 표 클릭으로 넘어온 경우: 조회가 끝난 표시 run에서 '매수 대상 선택' 위치로 스크롤
     if not run_signal and st.session_state.pop("j2_scroll_playbook", False):
         import streamlit.components.v1 as components
         components.html(
-            "<script>window.parent.document.getElementById('playbook')"
+            "<script>window.parent.document.getElementById('buy-target')"
             "?.scrollIntoView({behavior:'smooth'});</script>",
             height=0,
         )
@@ -519,15 +550,14 @@ def _render_playbook(open_pos: list) -> None:
                 else:
                     st.warning(f"고가 근접 미달 (52주고가 대비 {pct_h:+.1f}%)")
 
-                # 일봉·주봉 차트 자동 표시 (find_leader가 이미 받아둔 데이터라 즉시)
+                # 일봉·주봉 캔들차트 자동 표시 (find_leader가 이미 받아둔 데이터라 즉시)
                 df_c = market_data.get_daily(c["code"])
                 if df_c is not None and not df_c.empty:
                     st.caption("일봉 (최근 60일)")
-                    st.line_chart(df_c["Close"].tail(60), height=130, color="#ff4b4b")
+                    st.altair_chart(_candle_chart(df_c.tail(60), 300, 4), use_container_width=True)
                     try:
-                        weekly = df_c["Close"].resample("W").last().dropna().tail(52)
                         st.caption("주봉 (최근 52주)")
-                        st.line_chart(weekly, height=130, color="#ff4b4b")
+                        st.altair_chart(_candle_chart(_weekly_ohlc(df_c), 300, 5), use_container_width=True)
                     except Exception:
                         pass
     else:
@@ -541,7 +571,7 @@ def _render_playbook(open_pos: list) -> None:
 
     # ── 2c. 매수 대상 선택 ──────────────────────────────────────────────────
     st.markdown(
-        "<div style='display:inline-block;border:2px solid #facc15;border-radius:8px;"
+        "<div id='buy-target' style='display:inline-block;border:2px solid #facc15;border-radius:8px;"
         "padding:0.25rem 0.75rem;margin-bottom:0.3rem'>"
         "<span style='color:#3b82f6;font-weight:800;font-size:1.25rem'>매수 대상 선택</span>"
         " <span style='color:#9ca3af'>(반자동 — 최종 선택은 사용자)</span></div>",
@@ -624,7 +654,7 @@ def _render_playbook(open_pos: list) -> None:
         unsafe_allow_html=True,
     )
 
-    # 일봉·주봉 차트 — 접지 않고 항상 표시, 대장 확인 카드와 동일한 크기(130)
+    # 일봉·주봉 캔들차트 — 항상 표시, 4:3 비율에 가깝게 (컬럼 절반폭 기준)
     chart_df = market_data.get_daily(sel_code)
     if chart_df is None or chart_df.empty:
         st.info("차트 데이터를 불러오지 못했습니다.")
@@ -632,12 +662,11 @@ def _render_playbook(open_pos: list) -> None:
         cc1, cc2 = st.columns(2)
         with cc1:
             st.caption(f"{sel_stock['name']} 일봉 (최근 60거래일)")
-            st.line_chart(chart_df["Close"].tail(60), height=130, color="#ff4b4b")
+            st.altair_chart(_candle_chart(chart_df.tail(60), 460, 7), use_container_width=True)
         with cc2:
             try:
-                _wk = chart_df["Close"].resample("W").last().dropna().tail(52)
                 st.caption(f"{sel_stock['name']} 주봉 (최근 52주)")
-                st.line_chart(_wk, height=130, color="#ff4b4b")
+                st.altair_chart(_candle_chart(_weekly_ohlc(chart_df), 460, 8), use_container_width=True)
             except Exception as e:
                 _log.warning("주봉 차트 실패 %s: %s", sel_code, e)
                 st.caption("주봉 차트 데이터 없음")
