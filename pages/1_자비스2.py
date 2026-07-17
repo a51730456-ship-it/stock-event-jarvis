@@ -711,7 +711,11 @@ def _render_playbook(open_pos: list) -> None:
     _chg_val = sel_stock.get("change_pct")
     _price_color = "#ff4b4b" if (_chg_val or 0) > 0 else "#4b9fff" if (_chg_val or 0) < 0 else "#e5e7eb"
 
-    ic1, ic2, ic3, ic4 = st.columns(4)
+    # 거래대금 배수 — 돌파 확인 관행 기준 1.5배 이상이면 초록
+    _mult = market_data.today_turnover_multiple(chart_df) if chart_df is not None and not chart_df.empty else None
+    _mult_color = "#22c55e" if (_mult or 0) >= 1.5 else "#e5e7eb"
+
+    ic1, ic2, ic3, ic4, ic5 = st.columns(5)
     ic1.markdown(
         _stat("현재가", f"<b style='color:{_price_color}'>{_price:,}원</b>" if _price else "—"),
         unsafe_allow_html=True,
@@ -726,6 +730,13 @@ def _render_playbook(open_pos: list) -> None:
     )
     ic4.markdown(
         _stat("최근 20일 고점 대비", _sign_html(_dp, 1)),
+        unsafe_allow_html=True,
+    )
+    ic5.markdown(
+        _stat(
+            "거래대금 배수 (돌파 확인 1.5배↑)",
+            f"<b style='color:{_mult_color}'>{_mult:.2f}배</b>" if _mult is not None else "—",
+        ),
         unsafe_allow_html=True,
     )
 
@@ -743,6 +754,14 @@ def _render_playbook(open_pos: list) -> None:
             f"등수 한계 경보 — 이 종목은 대장 {_sel_rank}등주 "
             f"(규칙: {rank_limit_v}등주까지만 매수 허용)"
         )
+    # 시가 급등 추격 금지 (관행 기준 +5% — 오닐 CANSLIM 이상적 매수점 이내 진입 원칙)
+    _intra = market_data.get_intraday_summary(sel_code)
+    if _intra and _intra.get("open") and _intra.get("last"):
+        _open_gain = (_intra["last"] / _intra["open"] - 1) * 100
+        if _open_gain >= 5.0:
+            alerts.append(
+                f"시가 급등 추격 금지 — 오늘 시가 대비 {_open_gain:+.1f}% (관행 기준 +5%)"
+            )
     if age_warn:
         alerts.append(f"테마 추격 주의 (D+{age})")
 
@@ -821,7 +840,7 @@ def _render_playbook(open_pos: list) -> None:
                 for e in errors:
                     st.error(e)
             else:
-                alert_state_str = ", ".join(["막차" if "막차" in a else "꺾임" if "꺾임" in a else "등수" if "등수" in a else "추격" for a in alerts]) if alerts else None
+                alert_state_str = ", ".join(["막차" if "막차" in a else "꺾임" if "꺾임" in a else "등수" if "등수" in a else "시가" if "시가" in a else "추격" for a in alerts]) if alerts else None
                 tags = _tag_str(theme, setup, age, alert_state_str)
                 leader_candidates = leader_result.get("candidates", []) if leader_result else []
                 leader_name = leader_candidates[0]["name"] if leader_candidates else None
@@ -979,10 +998,10 @@ def _ensure_nh_scan(force_scan: bool = False):
 
 
 def _render_near_high_table() -> None:
-    """⭐ 52주 신고가 임박주 — 자비스2 취지의 핵심 표.
+    """⭐ 52주 신고가 + 테마 — 자비스2 취지의 핵심 표(추천 관찰 종목).
     대장주 모음(테마 등락률 서열)과 별개로, 전 테마 구성종목 전수에서
     52주 고가 근접 게이트를 실제 통과한 종목만 모은다. 행 클릭 → 플레이북 연결."""
-    st.subheader("⭐ 52주 신고가 임박주 — 진짜 근접 종목")
+    st.subheader("⭐ 52주 신고가 + 테마 — 추천 관찰 종목")
     st.caption(
         "자동 스캔: 접속 시 당일 결과를 자동 표시 (하루 첫 스캔만 수 분, 이후 즉시). "
         "유니버스: 20개 테마 구성종목 전체(중복 제거) 전수 · "
@@ -1074,6 +1093,39 @@ def _render_near_high_table() -> None:
         on_select="rerun", selection_mode="single-row", key="j2_nh_tbl",
     )
     st.caption(f"스캔 시각 {saved['at']} · {result.get('scanned', 0)}종목 검사, {len(rows_raw)}종목 통과")
+
+    with st.expander("📖 52주 신고가 + 테마 매매기법 설명서", expanded=False):
+        st.markdown(
+            """
+### 이 기법이 무엇인가
+테마(산업) 안에서 52주 신고가에 근접한 대장주를 골라, 돌파 또는 눌림재상승에서만 진입하는 스윙 기법.
+**근거 등급** — [학술] 52주 신고가 근접주는 이후 초과수익 경향(George&Hwang 2004, 20개국 확인).
+원인은 앵커링: 투자자가 52주 고가를 심리적 기준점 삼아 호재에 과소반응. 이 효과는 개별 기업보다
+산업(테마) 정보 과소반응이 주도 → "테마+신고가" 조합의 근거. 하락장에선 모멘텀 수익 급감 →
+상단 시장상태 경고의 근거. [관행] 세부 규칙은 윌리엄 오닐(CANSLIM) 유래 — 검증 통계 아님.
+"성공률 95%" 류 수치는 근거 없는 마케팅. [임의값] 설정 임계값은 시작값 — 기록 30건 전 변경 금지.
+
+### 실전 순서 (화면 위→아래)
+**① 시장 확인** — 맨 위 경고 스트립. 하락국면/변동성 경고 시 신규 진입 중단이 원칙.
+**② 테마 게이트** — 신호등 3개(양전 3종목+/거래대금 급증/연속강세) + 테마나이. D+3 초과는 막차.
+수동 확인: 재료가 지속형인가? 실적·수주·정책=지속형, 풍문·단발 뉴스=단발형. 재료 유형을 태그로 기록.
+**③ 종목 선택** — 이 표(⭐ 52주 신고가+테마)가 추천 관찰 목록. 셋업 판정 읽는 법:
+돌파 임박=근접+거래대금 배수 충족(최우선) / 눌림 관찰=근접만 / 막차 주의=20일 내 +20% 급등 이력(진입 금지) / 부적격.
+행 클릭 → 플레이북·매수 대상에 자동 연결. 대장주 모음 표는 테마 진위 확인용(매수 대상 아님).
+**④ 진입 — 두 셋업만**
+· 돌파: 신고가 돌파 + 당일 거래대금이 20일 평균의 1.5배 이상(관행·수동 확인 — 요약 카드의 거래대금 배수 참고).
+  시가 대비 +5% 이상 이미 급등했으면 추격 금지(경보 뜸). 막차 경보 시 사유 없이 진입 금지.
+· 눌림재상승: 테마 발화 후 눌림 → 전일 고가 회복 시 진입. 손절 = 눌림 구간 저가.
+수량은 1R 계산과 3건 오픈 한도 안에서만. 경보 무시 시 사유 필수 입력.
+**⑤ 손절** — 돌파 기준가를 종가로 하회하고 회복 못 할 때. 병행 안전선(관행): 진입가 -7~8% 무조건.
+대장 지위를 다른 종목에 넘길 때(대장 꺾임 경보). 테마 동반 상승 종목 수 급감할 때.
+**⑥ 보유·청산 일일 체크 (수동)** — 하나라도 해당하면 축소 검토:
+대장꺾임 배지 점등 / 신호등 소멸(동반상승 급감) / 거래량 없이 신고가만 갱신(수요 약화) /
+장대음봉+거래량 증가(기관 분산) / 지수 급락일(급락일 기록에 남길 것).
+대장주가 거래량 동반하며 신고가를 계속 높이면 보유. 테마 전체가 꺾이면 내 종목이 버텨도 정리.
+**⑦ 기록 규율** — 탈락(진입 안 한 것)도 반드시 기록. 목표 30건. 30건 전에는 임계값·규칙 변경 금지.
+"""
+        )
 
     sel_rows = []
     try:
