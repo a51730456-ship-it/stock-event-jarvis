@@ -639,6 +639,13 @@ def _render_playbook(open_pos: list) -> None:
     sel_stock = stocks[sel_idx]
     sel_code = sel_stock["code"]
 
+    # 선택된 종목명 강조 (2배 크기 · 밝은 주홍) — Streamlit 셀렉트 표시값 오버레이
+    st.markdown(
+        f"<div style='font-size:2.1rem;font-weight:900;color:#ff5722;margin:-0.6rem 0 0.3rem'>"
+        f"{sel_stock['name']} ({sel_code})</div>",
+        unsafe_allow_html=True,
+    )
+
     # 선정 기준 명시 — 왜 이 종목이 기본 선택됐는지 (밝은 주황)
     _sr = _rank_map.get(sel_code)
     _why = (
@@ -688,11 +695,17 @@ def _render_playbook(open_pos: list) -> None:
 
     ic1, ic2, ic3, ic4 = st.columns(4)
     ic1.markdown(
-        _stat("현재가", f"<b>{_price:,}원</b>" if _price else "—"),
+        _stat("현재가", f"<b style='color:#ff5722'>{_price:,}원</b>" if _price else "—"),
         unsafe_allow_html=True,
     )
+    _chg_val = sel_stock.get("change_pct")
     ic2.markdown(
-        _stat("오늘 등락률", _sign_html(sel_stock.get("change_pct"))),
+        _stat(
+            "오늘 등락률",
+            _sign_html(_chg_val) if _chg_val else
+            f"<span style='color:#ff5722;font-weight:800'>{_chg_val:+.2f}%</span>" if _chg_val is not None else
+            "<span style='color:#9ca3af'>데이터 없음</span>",
+        ),
         unsafe_allow_html=True,
     )
     ic3.markdown(
@@ -967,15 +980,23 @@ def _render_near_high_table() -> None:
         st.info(f"신고가 임박주 없음 — {result.get('scanned', 0)}종목 스캔 결과 게이트 통과 0건.")
         return
 
+    from concurrent.futures import ThreadPoolExecutor as _TPE
+    with _TPE(max_workers=6) as _pool:
+        _intras = list(_pool.map(lambda r: market_data.get_intraday_summary(r["code"]), rows_raw))
+
     rows = []
-    for r in rows_raw:
+    for r, _intra in zip(rows_raw, _intras):
         mkt = market_data.get_market(r["code"])
         mkt_txt = "코스닥" if mkt == "KOSDAQ" else "코스피" if mkt == "KOSPI" else "—"
+        _open_amt = None
+        if _intra and _intra.get("open") and _intra.get("last"):
+            _open_amt = _intra["last"] - _intra["open"]
         rows.append({
             "종목명": f"{r['name']} ({r['code']})",
             "테마": r["theme"],
             "시장": mkt_txt,
             "52주고가대비": f"{r['pct_from_52w_high']:+.1f}%",
+            "당일시가대비(원)": f"{_open_amt:+,.0f}원" if _open_amt is not None else "—",
             "셋업 판정": r.get("judge", "—"),
             "현재가": f"{r['price']:,.0f}" if r.get("price") else "—",
             "오늘 등락률": f"{r['change_pct']:+.2f}%" if r.get("change_pct") is not None else "—",
@@ -1006,7 +1027,7 @@ def _render_near_high_table() -> None:
 
     styled = (
         df.style
-        .map(_style_updown, subset=["52주고가대비", "오늘 등락률"])
+        .map(_style_updown, subset=["52주고가대비", "당일시가대비(원)", "오늘 등락률"])
         .map(_style_judge, subset=["셋업 판정"])
         .map(_style_mkt, subset=["시장"])
     )
