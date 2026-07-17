@@ -75,11 +75,23 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # ── 공통 임포트 (인증 후) ──────────────────────────────────────────────────────
+import importlib
+
 import market_data
 import playbook
 import theme_detail
 import theme_history
 from theme_data import KR_THEME_NAVER_MAPPING, fetch_kr_theme_snapshot
+
+# 배포 서버가 파일만 동기화하고 프로세스를 재시작하지 않으면, 이미 임포트된
+# 모듈이 옛 버전으로 남아 페이지(새 코드)와 어긋난다 — get_market
+# AttributeError 실사례. 최신 심볼이 없으면 해당 모듈을 자동 리로드한다.
+if not hasattr(market_data, "get_market"):
+    market_data = importlib.reload(market_data)
+if not hasattr(playbook, "invalidate_config_cache"):
+    playbook = importlib.reload(playbook)
+if not hasattr(theme_detail, "_FETCH_CACHE"):
+    theme_detail = importlib.reload(theme_detail)
 
 _THEME_NAMES = list(KR_THEME_NAVER_MAPPING.keys())
 
