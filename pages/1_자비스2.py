@@ -1106,12 +1106,15 @@ def _render_near_high_table() -> None:
         except (TypeError, ValueError):
             return ""
 
+    _numeric_cols = ["52주고가대비", "현재가", "오늘 등락률", "종합점수", "거래대금배수"]
     styled = (
         df.style
         .map(_style_updown, subset=["52주고가대비", "오늘 등락률"])
         .map(_style_judge, subset=["셋업 판정"])
         .map(_style_mkt, subset=["시장"])
         .map(_style_score, subset=["종합점수"])
+        .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
+        .set_properties(subset=_numeric_cols, **{"text-align": "right"})
     )
     # 높이: 최대 15행, 행 수가 적으면 그만큼만 (빈 공간 없이)
     _tbl_h = min(len(rows_raw), 15) * 35 + 40
@@ -1299,11 +1302,14 @@ def _render_leader_table() -> None:
     def _style_judge(val):
         return _JUDGE_STYLE.get(str(val), "")
 
+    _numeric_cols = ["현재가", "전일대비(%)", "시가대비(오늘)", "고점대비(오늘)", "거래대금배수"]
     styled = (
         df.style
         .map(_style_updown, subset=["전일대비(%)", "시가대비(오늘)", "고점대비(오늘)"])
         .map(_style_52w, subset=["52주"])
         .map(_style_judge, subset=["셋업 판정"])
+        .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
+        .set_properties(subset=_numeric_cols, **{"text-align": "right"})
     )
     st.caption("행을 클릭하면 해당 테마의 순환매 플레이북으로 바로 이동합니다.")
     event = st.dataframe(
