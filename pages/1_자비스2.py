@@ -59,7 +59,9 @@ st.markdown(
     div[class*="st-key-j2_theme_select"] [data-baseweb="select"],
     div[class*="st-key-j2_stock_select_"] [data-baseweb="select"],
     div[class*="st-key-j2_theme_select"] [data-baseweb="select"] > div,
-    div[class*="st-key-j2_stock_select_"] [data-baseweb="select"] > div {
+    div[class*="st-key-j2_stock_select_"] [data-baseweb="select"] > div,
+    div[class*="st-key-j2_theme_select"] [data-testid="stSelectbox"] [role="group"],
+    div[class*="st-key-j2_stock_select_"] [data-testid="stSelectbox"] [role="group"] {
         background-color: rgba(250, 204, 21, 0.16) !important;
         font-weight: 700 !important;
         border-color: #facc15 !important;
