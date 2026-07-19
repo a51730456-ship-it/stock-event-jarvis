@@ -134,6 +134,12 @@ st.markdown(
         box-shadow: 0 0 14px rgba(77,166,255,0.28), inset 0 0 20px rgba(77,166,255,0.07);
     }
     .j3-holo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.95rem 1.3rem; }
+    /* 왼쪽 열(조건 기준가·무효화 가격)이 카드 왼쪽에 붙어 보여 안쪽으로 들여쓴다 */
+    .j3-holo-cell:nth-child(odd) { padding-left: 1.6rem; }
+    .j3-holo-foot { display: flex; justify-content: flex-end; margin-top: 1rem; }
+    .j3-holo-foot .label { color: #4da6ff; font-size: 0.92rem; font-weight: 800; }
+    .j3-holo-foot .val { color: #44f0a1; font-size: 1.5rem; font-weight: 800; line-height: 1.25; }
+    .j3-holo-foot .state { color: #9aa0aa; font-size: 0.95rem; font-weight: 700; }
     .j3-holo-cell .label { color: #9aa0aa; font-size: 0.85rem; }
     .j3-holo-cell .val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.2; text-shadow: 0 0 8px rgba(77,166,255,0.45); }
     .j3-holo-corner { position: absolute; width: 14px; height: 14px; border-color: #4da6ff; }
@@ -680,9 +686,16 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
         f"<tr><td class='j3-fac-name'>{name}</td>{_gain_cell(part, maximum)}</tr>"
         for name, part, maximum in zip(factor_names, leader["score_parts"], factor_max)
     )
+    # 총점 행: 글자 한 치수 크게 + 배경 밝은 초록
+    total_style = (
+        "font-weight:800; font-size:1.1rem; background:rgba(68,240,161,0.22); "
+        "border-top:4px double rgba(255,255,255,0.55)"
+    )
     total_row = (
-        "<tr><td class='j3-fac-name' style='font-weight:800; border-top:4px double rgba(255,255,255,0.55)'>총점</td>"
-        f"{_gain_cell(leader.get('score'), 100, top_border=True)}</tr>"
+        f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
+        f"<td class='j3-fac-val' style='{total_style}'>"
+        f"<span style='color:#ff5b5b; font-weight:800'>{_number(leader.get('score'))}</span> "
+        "<span style='color:#ff5b5b'>(100)</span></td></tr>"
     )
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
@@ -724,7 +737,12 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
             "<div class='j3-holo-card'>"
             "<span class='j3-holo-corner tl'></span><span class='j3-holo-corner tr'></span>"
             "<span class='j3-holo-corner bl'></span><span class='j3-holo-corner br'></span>"
-            f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
+            f"<div class='j3-holo-grid'>{plan_grid}</div>"
+            "<div class='j3-holo-foot'><div style='text-align:right'>"
+            "<div class='label'>종목 조건점수</div>"
+            f"<div class='val'>{float(leader.get('score') or 0):.1f}/100</div>"
+            f"<div class='state'>{plan.get('state', '')}</div>"
+            "</div></div></div>",
             unsafe_allow_html=True,
         )
         # 가격이 '—'인 이유와 함께, 어느 가격이 되면 조건이 성립하는지 참고가를 보여준다.
@@ -890,11 +908,11 @@ def _render_radar_tab(market: dict) -> None:
         on_select="rerun",
         selection_mode="single-cell",
         column_config={
-            "순위": st.column_config.Column(width="small"),
-            "ETF": st.column_config.Column(width="small"),
-            "당일": st.column_config.Column(width="small"),
-            "20일 상대강도": st.column_config.Column(width="small"),
-            "상태": st.column_config.Column(width="small"),
+            "순위": st.column_config.Column(width=70, alignment="center"),
+            "ETF": st.column_config.Column(width=80, alignment="center"),
+            "상태": st.column_config.Column(width=80, alignment="center"),
+            "당일": st.column_config.Column(width=90, alignment="center"),
+            "20일 상대강도": st.column_config.Column(width=110, alignment="center"),
             "구성종목 확산": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f%%"),
             "조건점수": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
         },
