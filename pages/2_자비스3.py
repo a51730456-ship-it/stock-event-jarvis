@@ -152,10 +152,10 @@ st.markdown(
         padding: 1.15rem 1.3rem;
         box-shadow: 0 0 14px rgba(77,166,255,0.28), inset 0 0 20px rgba(77,166,255,0.07);
     }
-    /* 왼쪽 열은 안쪽으로, 오른쪽 열(매수 허용 상단·2R 목표)은 왼쪽으로 당긴다 */
-    .j3-holo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.95rem 0.4rem; }
-    .j3-holo-cell:nth-child(odd) { padding-left: 1.6rem; }
-    .j3-holo-cell:nth-child(even) { margin-left: -1.8rem; }
+    /* 3열: 1열 가격 · 2열 가격 · 3열 종목 조건점수(오른쪽 빈 공간) */
+    .j3-holo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.95rem 0.4rem; }
+    .j3-holo-cell:nth-child(3n+1) { padding-left: 1.6rem; }
+    .j3-holo-cell:nth-child(3n+2) { margin-left: -1.8rem; }
     /* 종목 조건점수는 2R 목표(참고) 바로 아래, 같은 열에 둔다 */
     /* 종목 조건점수는 같은 그리드의 오른쪽 열에 넣어 2R 목표와 라인을 맞춘다 */
     .j3-holo-score .label { color: #4da6ff !important; font-size: 0.92rem; font-weight: 800; }
@@ -757,23 +757,27 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
                 ("무효화 가격 (참고)", _price(ref_invalidation), "#ff5b5b"),
                 ("2R 목표 (참고)", _price(ref_target), "#44f0a1"),
             ]
-        plan_grid = "".join(
+        plan_boxes = [
             f"<div class='j3-holo-cell'><div class='label'>{label}</div>"
             f"<div class='val' style='color:{color}'>{value}</div></div>"
             for label, value, color in plan_cells
+        ]
+        # 3열 배치: [기준가][허용상단][종목 조건점수] / [무효화][2R 목표][빈칸]
+        score_box = (
+            "<div class='j3-holo-cell j3-holo-score'>"
+            "<div class='label'>종목 조건점수</div>"
+            f"<div class='val'>{float(leader.get('score') or 0):.1f}/100</div>"
+            f"<div class='state'>{plan.get('state', '')}</div></div>"
+        )
+        plan_grid = (
+            plan_boxes[0] + plan_boxes[1] + score_box
+            + plan_boxes[2] + plan_boxes[3] + "<div class='j3-holo-cell'></div>"
         )
         st.markdown(
             "<div class='j3-holo-card'>"
             "<span class='j3-holo-corner tl'></span><span class='j3-holo-corner tr'></span>"
             "<span class='j3-holo-corner bl'></span><span class='j3-holo-corner br'></span>"
-            f"<div class='j3-holo-grid'>{plan_grid}"
-            # 빈 칸 + 점수 칸을 같은 그리드에 넣어야 2R 목표와 왼쪽 라인이 정확히 맞는다.
-            "<div class='j3-holo-cell'></div>"
-            "<div class='j3-holo-cell j3-holo-score'>"
-            "<div class='label'>종목 조건점수</div>"
-            f"<div class='val'>{float(leader.get('score') or 0):.1f}/100</div>"
-            f"<div class='state'>{plan.get('state', '')}</div>"
-            "</div></div></div>",
+            f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
             unsafe_allow_html=True,
         )
         # 가격이 '—'인 이유와 함께, 어느 가격이 되면 조건이 성립하는지 참고가를 보여준다.
