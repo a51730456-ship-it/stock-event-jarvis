@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -104,6 +105,8 @@ st.markdown(
     .j3-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
     .j3-theme-table td.j3-th-name { text-align: left; padding-left: 1.2rem; font-weight: 800; }
     .j3-theme-table th.j3-th-left { text-align: left; padding-left: 1.2rem; }
+    .j3-th-link { display: block; text-decoration: none; }
+    .j3-th-link:hover { text-decoration: underline; }
     .j3-th-selected { background: rgba(255,176,32,0.13); }
     .j3-th-muted { color: #9aa0aa; }
     .j3-barwrap { display: flex; align-items: center; gap: 6px; }
@@ -228,7 +231,7 @@ def _theme_table_html(ranking: dict, selected: str | None) -> str:
         body.append(
             f"<tr class='j3-th-row{highlight}'>"
             f"<td>{row.get('rank', '')}</td>"
-            f"<td class='j3-th-name' style='color:{sc}'>{name}</td>"
+            f"<td class='j3-th-name'><a class='j3-th-link' href='?j3t={quote(name)}' target='_self' style='color:{sc}'>{name}</a></td>"
             f"<td>{row.get('etf', '')}</td>"
             f"<td>{score_bar}</td>"
             f"<td style='color:{sc}; font-weight:800'>{status}</td>"
@@ -758,8 +761,15 @@ def _render_radar_tab(market: dict) -> None:
         st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
 
     st.markdown("### 20개 테마 실시간 순위")
-    st.caption("순위 일람입니다. 아래 ‘테마 선택’에서 테마를 누르면 대장주와 상세가 즉시 연결됩니다.")
+    st.caption("테마 이름을 클릭하면 아래 ‘테마 선택’과 대장주·상세가 그 테마로 연결됩니다.")
     names = [row["name"] for row in ranking["rows"] if row.get("ok")]
+    # 테마칸(링크) 클릭 → query param으로 선택을 반영한 뒤 URL을 정리한다.
+    clicked_theme = st.query_params.get("j3t")
+    if clicked_theme in names:
+        st.session_state["j3_theme_choice_widget"] = clicked_theme
+        st.session_state["j3_theme_choice"] = clicked_theme
+    if "j3t" in st.query_params:
+        del st.query_params["j3t"]
     st.markdown(
         _theme_table_html(ranking, st.session_state.get("j3_theme_choice")),
         unsafe_allow_html=True,
