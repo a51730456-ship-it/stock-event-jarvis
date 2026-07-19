@@ -102,7 +102,8 @@ st.markdown(
     .j3-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
     .j3-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
-    .j3-theme-table td.j3-th-name { font-weight: 800; }
+    .j3-theme-table td.j3-th-name { text-align: left; padding-left: 1.2rem; font-weight: 800; }
+    .j3-theme-table th.j3-th-left { text-align: left; padding-left: 1.2rem; }
     .j3-th-selected { background: rgba(255,176,32,0.13); }
     .j3-th-muted { color: #9aa0aa; }
     .j3-barwrap { display: flex; align-items: center; gap: 6px; }
@@ -173,6 +174,16 @@ def _signed_pct_html(value) -> str:
     return f"<span class='{_sign_class(value)}'>{_pct(value)}</span>"
 
 
+def _sign_color(value) -> str:
+    """미국장 색 hex: 상승(+) 밝은 코발트, 하락(−) 붉은색 (인라인 지정용)."""
+    if value is None:
+        return "#9aa0aa"
+    try:
+        return "#4da6ff" if float(value) >= 0 else "#ff5b5b"
+    except (TypeError, ValueError):
+        return "#9aa0aa"
+
+
 def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=False) -> str:
     if sub_signed:
         sub_html = f"<div class='j3-top-sub {_sign_class(sub)}'>{_pct(sub)}</div>"
@@ -217,20 +228,20 @@ def _theme_table_html(ranking: dict, selected: str | None) -> str:
         body.append(
             f"<tr class='j3-th-row{highlight}'>"
             f"<td>{row.get('rank', '')}</td>"
-            f"<td class='j3-th-name'>{name}</td>"
+            f"<td class='j3-th-name' style='color:{sc}'>{name}</td>"
             f"<td>{row.get('etf', '')}</td>"
             f"<td>{score_bar}</td>"
             f"<td style='color:{sc}; font-weight:800'>{status}</td>"
-            f"<td class='{_sign_class(change)}'>{_pct(change)}</td>"
-            f"<td class='{_sign_class(rs20)}'>{rs_text}</td>"
+            f"<td style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</td>"
+            f"<td style='color:{_sign_color(rs20)}; font-weight:700'>{rs_text}</td>"
             f"<td>{breadth_bar}</td></tr>"
         )
     return (
         "<table class='j3-theme-table'><colgroup>"
-        "<col style='width:6%'><col style='width:20%'><col style='width:8%'>"
-        "<col style='width:20%'><col style='width:8%'><col style='width:10%'>"
+        "<col style='width:6%'><col style='width:18%'><col style='width:8%'>"
+        "<col style='width:22%'><col style='width:8%'><col style='width:10%'>"
         "<col style='width:14%'><col style='width:14%'></colgroup>"
-        "<thead><tr><th>순위</th><th>테마</th><th>ETF</th><th>조건점수</th>"
+        "<thead><tr><th>순위</th><th class='j3-th-left'>테마</th><th>ETF</th><th>조건점수</th>"
         "<th>상태</th><th>당일</th><th>20일 상대강도</th><th>구성종목 확산</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody></table>"
     )
@@ -567,19 +578,30 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
 
     factor_names = ["테마 대비 상대강도", "52주 신고가 위치", "추세", "유동성", "변동성 안정"]
     factor_max = [25, 25, 20, 15, 15]
+
+    def _gain_cell(part, maximum):
+        # 획득은 붉은색, 옆의 (최대)는 회색으로 한 칸에 합친다.
+        return (
+            "<td class='j3-fac-val'>"
+            f"<span style='color:#ff5b5b; font-weight:800'>{_number(part)}</span>"
+            f"<span style='color:#9aa0aa'>({maximum})</span></td>"
+        )
+
     factor_rows = "".join(
-        f"<tr><td class='j3-fac-name'>{name}</td>"
-        f"<td class='j3-fac-val'>{_number(part)}</td>"
-        f"<td class='j3-fac-val'>{maximum}</td></tr>"
+        f"<tr><td class='j3-fac-name'>{name}</td>{_gain_cell(part, maximum)}</tr>"
         for name, part, maximum in zip(factor_names, leader["score_parts"], factor_max)
     )
-    score_col, plan_col = st.columns([1, 1])
+    total_row = (
+        "<tr><td class='j3-fac-name' style='font-weight:800'>총점</td>"
+        f"{_gain_cell(leader.get('score'), 100)}</tr>"
+    )
+    score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
         st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
         st.markdown(
             "<table class='j3-factor-table'><thead><tr>"
-            "<th>심사 항목</th><th>획득</th><th>최대</th></tr></thead>"
-            f"<tbody>{factor_rows}</tbody></table>",
+            "<th>심사 항목</th><th>획득(최대)</th></tr></thead>"
+            f"<tbody>{factor_rows}{total_row}</tbody></table>",
             unsafe_allow_html=True,
         )
         st.markdown(
