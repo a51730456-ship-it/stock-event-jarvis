@@ -157,11 +157,10 @@ st.markdown(
     .j3-holo-cell:nth-child(odd) { padding-left: 1.6rem; }
     .j3-holo-cell:nth-child(even) { margin-left: -1.8rem; }
     /* 종목 조건점수는 2R 목표(참고) 바로 아래, 같은 열에 둔다 */
-    .j3-holo-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 1rem; }
-    .j3-holo-foot > div:last-child { margin-left: -1.8rem; }
-    .j3-holo-foot .label { color: #4da6ff; font-size: 0.92rem; font-weight: 800; }
-    .j3-holo-foot .val { color: #44f0a1; font-size: 1.5rem; font-weight: 800; line-height: 1.25; }
-    .j3-holo-foot .state { color: #9aa0aa; font-size: 0.95rem; font-weight: 700; }
+    /* 종목 조건점수는 같은 그리드의 오른쪽 열에 넣어 2R 목표와 라인을 맞춘다 */
+    .j3-holo-score .label { color: #4da6ff !important; font-size: 0.92rem; font-weight: 800; }
+    .j3-holo-score .val { color: #44f0a1 !important; font-size: 1.5rem; font-weight: 800; line-height: 1.25; }
+    .j3-holo-score .state { color: #9aa0aa; font-size: 0.95rem; font-weight: 700; }
     /* 참고 안내: 위 카드와 간격 + 글자 키움 */
     .j3-plan-note { margin-top: 1.1rem; color: #9aa0aa; font-size: 1rem; line-height: 1.65; }
     .j3-plan-note b { color: #44f0a1; font-size: 1.1rem; font-weight: 800; }
@@ -767,8 +766,10 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
             "<div class='j3-holo-card'>"
             "<span class='j3-holo-corner tl'></span><span class='j3-holo-corner tr'></span>"
             "<span class='j3-holo-corner bl'></span><span class='j3-holo-corner br'></span>"
-            f"<div class='j3-holo-grid'>{plan_grid}</div>"
-            "<div class='j3-holo-foot'><div></div><div>"
+            f"<div class='j3-holo-grid'>{plan_grid}"
+            # 빈 칸 + 점수 칸을 같은 그리드에 넣어야 2R 목표와 왼쪽 라인이 정확히 맞는다.
+            "<div class='j3-holo-cell'></div>"
+            "<div class='j3-holo-cell j3-holo-score'>"
             "<div class='label'>종목 조건점수</div>"
             f"<div class='val'>{float(leader.get('score') or 0):.1f}/100</div>"
             f"<div class='state'>{plan.get('state', '')}</div>"
