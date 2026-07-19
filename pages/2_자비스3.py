@@ -656,6 +656,13 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
             f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
             unsafe_allow_html=True,
         )
+        # 가격이 '—'인 이유를 알려준다(관찰·제외·추격 금지는 기준가 자체가 없다).
+        if plan.get("trigger") is None:
+            st.caption(
+                f"※ 지금은 ‘{plan.get('state')}’ 상태라 기준가·목표가가 아직 없습니다. "
+                "‘돌파 확인’(신고가 부근 거래량 증가) 또는 ‘눌림목 대기’(상승추세 20일선 눌림) "
+                "조건이 만들어질 때 가격이 표시됩니다."
+            )
         st.write("")
         if plan.get("recommendation") == "조건부 후보":
             st.success(plan.get("buy_reason"))
@@ -808,12 +815,13 @@ def _render_radar_tab(market: dict) -> None:
     if st.session_state.get("j3_theme_choice_widget") not in names:
         preferred_theme = st.session_state.get("j3_theme_choice")
         st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
-    selected_theme = st.pills(
+    # st.pills는 이 환경에서 클릭이 먹지 않아 검증된 radio로 교체한다(선택 동작만 교체).
+    selected_theme = st.radio(
         "테마 선택",
         names,
-        selection_mode="single",
+        horizontal=True,
         key="j3_theme_choice_widget",
-    ) or names[0]
+    )
     st.session_state["j3_theme_choice"] = selected_theme
     theme_row = next((row for row in ranking["rows"] if row["name"] == selected_theme), None)
     if theme_row is None:

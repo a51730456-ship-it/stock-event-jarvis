@@ -117,8 +117,36 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("일봉/주봉/월봉 한눈에 보기" in str(node.value) for node in app.markdown))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 
+    def test_theme_selection_click_actually_switches_theme(self):
+        """테마 선택 위젯을 실제로 눌러 테마가 바뀌는지 검증한다(st.pills 클릭 불가 회귀 방지)."""
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=[]):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=60)
+            theme_radio = [node for node in app.radio if str(node.label) == "테마 선택"]
+            self.assertEqual(len(theme_radio), 1, "테마 선택 위젯이 클릭 가능한 형태로 있어야 합니다")
+            theme_radio[0].set_value("양자컴퓨팅").run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(app.session_state.filtered_state.get("j3_theme_choice"), "양자컴퓨팅")
+
     def test_table_click_and_chart_color_contracts_are_present(self):
         source = PAGE.read_text(encoding="utf-8")
+        # 테마 선택은 클릭이 확실한 radio로 유지(st.pills는 이 환경에서 클릭 불가).
+        self.assertNotIn("st.pills(", source)
         # 테마표·대장주표는 가운데 정렬 HTML 표(선택은 pills·radio).
         self.assertIn("_theme_table_html", source)
         self.assertIn("_leader_table_html", source)
