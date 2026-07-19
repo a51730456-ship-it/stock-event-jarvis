@@ -252,25 +252,6 @@ def _safe_error_text(error) -> str:
     return text[:220]
 
 
-def _selected_rows(event) -> list[int]:
-    try:
-        rows = [int(value) for value in event.selection.rows]
-        if rows:
-            return rows
-        cells = list(event.selection.cells)
-        return [int(cells[0][0])] if cells else []
-    except (AttributeError, KeyError, TypeError, ValueError):
-        try:
-            selection = event.get("selection", {})
-            rows = [int(value) for value in selection.get("rows", [])]
-            if rows:
-                return rows
-            cells = selection.get("cells", [])
-            return [int(cells[0][0])] if cells else []
-        except (AttributeError, TypeError, ValueError):
-            return []
-
-
 def _trend_position(row: dict, label: str) -> str:
     current = row.get("current")
     sma20, sma50 = row.get("sma20"), row.get("sma50")
@@ -356,23 +337,45 @@ def _relative_strength_guide(value) -> tuple[str, str]:
     return level, meaning
 
 
-def _leader_table(leaders: list[dict]) -> pd.DataFrame:
-    rank_labels = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
-    rows = []
+def _leader_table_html(leaders: list[dict], selected_ticker: str | None) -> str:
+    """대장주 1~6위를 HTML 표로 그린다(가운데 정렬, 당일·52주·20일 +파랑/−빨강)."""
+    rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
+    body = []
     for leader in leaders[:6]:
         metrics, plan = leader["metrics"], leader["plan"]
         rank = int(leader["rank"])
-        rows.append({
-            "순위": rank_labels.get(rank, f"{rank}위"),
-            "종목": leader["name"],
-            "티커": leader["ticker"],
-            "조건점수": leader["score"],
-            "52주 고가 대비": metrics.get("from_high_pct"),
-            "20일 수익률": metrics.get("ret20"),
-            "매수 상태": plan.get("state"),
-            "상세 연결": "클릭하면 상세 선택" if rank <= 3 else "예비 관찰",
-        })
-    return pd.DataFrame(rows)
+        ticker = leader["ticker"]
+        score = float(leader["score"])
+        highlight = " j3-th-selected" if ticker == selected_ticker else ""
+        score_bar = (
+            "<div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{score:.1f}</span></div>"
+        )
+        change, from_high, ret20 = metrics.get("change_pct"), metrics.get("from_high_pct"), metrics.get("ret20")
+        detail = "상세 분석 대상" if rank <= 3 else "예비 관찰"
+        body.append(
+            f"<tr class='j3-th-row{highlight}'>"
+            f"<td>{rank_mark.get(rank, f'{rank}위')}</td>"
+            f"<td class='j3-th-name'>{leader['name']}</td>"
+            f"<td>{ticker}</td>"
+            f"<td>{score_bar}</td>"
+            f"<td style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</td>"
+            f"<td style='color:{_sign_color(from_high)}; font-weight:700'>{_pct(from_high)}</td>"
+            f"<td style='color:{_sign_color(ret20)}; font-weight:700'>{_pct(ret20)}</td>"
+            f"<td>{plan.get('state', '')}</td>"
+            f"<td class='j3-th-muted'>{detail}</td></tr>"
+        )
+    return (
+        "<table class='j3-theme-table'><colgroup>"
+        "<col style='width:9%'><col style='width:18%'><col style='width:8%'>"
+        "<col style='width:17%'><col style='width:9%'><col style='width:11%'>"
+        "<col style='width:11%'><col style='width:9%'><col style='width:8%'></colgroup>"
+        "<thead><tr><th>순위</th><th class='j3-th-left'>종목</th><th>티커</th>"
+        "<th>조건점수</th><th>당일</th><th>52주 고가 대비</th><th>20일 수익률</th>"
+        "<th>매수 상태</th><th>상세 연결</th></tr></thead>"
+        f"<tbody>{''.join(body)}</tbody></table>"
+    )
 
 
 def _price_chart(payload: dict, timeframe: str, include_volume: bool = False, height: int | None = None):
@@ -808,38 +811,17 @@ def _render_radar_tab(market: dict) -> None:
     if leader_result.get("stale"):
         st.warning("일부 종목은 마지막 정상 시세로 계산했습니다.")
     leaders = leader_result["rows"]
-    leader_view = _leader_table(leaders)
     st.markdown(
         f"<div class='j3-section-title'><span class='j3-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
         unsafe_allow_html=True,
     )
-    st.caption("1–3위는 색으로 구분했습니다. 1–3위의 어느 셀을 클릭해도 아래 ‘상세 종목 선택’과 상세 분석이 연결됩니다.")
-    leader_event = st.dataframe(
-        leader_view,
-        hide_index=True,
-        width="stretch",
-        key=f"j3_leader_rank_table_{selected_theme}",
-        on_select="rerun",
-        selection_mode="single-cell",
-        column_config={
-            "조건점수": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
-            "52주 고가 대비": st.column_config.NumberColumn(format="%+.1f%%"),
-            "20일 수익률": st.column_config.NumberColumn(format="%+.1f%%"),
-        },
-    )
-
+    st.caption("1–3위는 색으로 구분했습니다. 상세 분석은 아래 ‘상세 종목 선택’에서 1~3위를 고르세요.")
     top_candidates = leaders[:3]
     ticker_options = [leader["ticker"] for leader in top_candidates]
-    clicked_leader_rows = _selected_rows(leader_event)
-    if clicked_leader_rows and 0 <= clicked_leader_rows[0] < len(leader_view):
-        clicked_index = clicked_leader_rows[0]
-        clicked_ticker = str(leader_view.iloc[clicked_index]["티커"])
-        selection_token = (selected_theme, clicked_index, clicked_ticker)
-        if clicked_index < 3 and selection_token != st.session_state.get("j3_last_leader_table_selection"):
-            st.session_state[f"j3_stock_choice_{selected_theme}"] = clicked_ticker
-            st.session_state["j3_last_leader_table_selection"] = selection_token
-        elif clicked_index >= 3:
-            st.info("4~6위는 예비 관찰 종목입니다. 현재 상세 매수 심사는 검증 강도가 높은 1~3위만 연결합니다.")
+    st.markdown(
+        _leader_table_html(leaders, st.session_state.get(f"j3_stock_choice_{selected_theme}")),
+        unsafe_allow_html=True,
+    )
 
     _render_leader_comparison(leaders)
 

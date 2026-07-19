@@ -110,20 +110,19 @@ class Jarvis3PageTests(unittest.TestCase):
         markdowns = [str(node.value) for node in app.markdown]
         self.assertTrue(any("NVDA" in value for value in markdowns))
         self.assertTrue(any("j3-stock-name" in value for value in markdowns))
-        # 테마 순위표는 HTML(가운데 정렬), 대장주 1–6위표는 클릭용 dataframe.
-        self.assertGreaterEqual(len(app.dataframe), 1)
+        # 테마 순위표·대장주 1–6위표 모두 HTML(가운데 정렬), 선택은 pills·radio.
         self.assertTrue(any("j3-theme-table" in value for value in markdowns))
+        self.assertTrue(any("52주 고가 대비" in value for value in markdowns))
         self.assertTrue(any("테마 종목 1–6위" in str(node.value) for node in app.markdown))
         self.assertTrue(any("일봉/주봉/월봉 한눈에 보기" in str(node.value) for node in app.markdown))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 
     def test_table_click_and_chart_color_contracts_are_present(self):
         source = PAGE.read_text(encoding="utf-8")
-        # 테마 순위표는 가운데 정렬 HTML 표, 대장주 1–6위표는 클릭용 dataframe.
+        # 테마 순위표·대장주 1–6위표는 가운데 정렬 HTML 표, 선택은 pills·radio.
         self.assertIn("j3-theme-table", source)
-        self.assertIn('key=f"j3_leader_rank_table_', source)
-        self.assertIn('on_select="rerun"', source)
-        self.assertIn('selection_mode="single-cell"', source)
+        self.assertIn("_leader_table_html", source)
+        self.assertIn("상세 종목 선택", source)
         self.assertIn("j3_stock_choice_", source)
         self.assertIn("get_chart_bundle", source)
         self.assertIn('range=["#69bff8", "#ff4d4f", "#a855f7"]', source)
