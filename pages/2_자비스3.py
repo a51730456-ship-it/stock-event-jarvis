@@ -361,6 +361,25 @@ def _relative_strength_guide(value) -> tuple[str, str]:
     return level, meaning
 
 
+def _leader_chart_payload(value):
+    """대장주 비교 차트 자료를 payload 형식으로 통일한다.
+
+    온라인에서 jarvis3_data 모듈이 옛 버전으로 캐시되면 DataFrame이 올 수 있어
+    (payload dict / DataFrame) 두 형식을 모두 받아들인다.
+    """
+    if isinstance(value, dict):
+        return value if value.get("ok") else None
+    columns = getattr(value, "columns", None)
+    if value is None or columns is None or getattr(value, "empty", True) or "Close" not in columns:
+        return None
+    frame = value.copy()
+    if "MA20" not in frame.columns:
+        frame["MA20"] = frame["Close"].rolling(20).mean()
+    if "MA50" not in frame.columns:
+        frame["MA50"] = frame["Close"].rolling(50).mean()
+    return {"ok": True, "price": frame[["Close", "MA20", "MA50"]], "volume": None, "stale": False}
+
+
 def _leader_table_html(leaders: list[dict], selected_ticker: str | None) -> str:
     """대장주 1~6위를 HTML 표로 그린다(가운데 정렬, 당일·52주·20일 +파랑/−빨강)."""
     rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
@@ -562,8 +581,8 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                 st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
             with daily_col:
                 st.caption("일봉 · 최근 60거래일")
-                daily_payload = leader.get("daily_chart")
-                if isinstance(daily_payload, dict) and daily_payload.get("ok"):
+                daily_payload = _leader_chart_payload(leader.get("daily_chart"))
+                if daily_payload:
                     st.altair_chart(
                         _price_chart(daily_payload, "일봉", include_volume=False, height=210),
                         width="stretch",
@@ -573,8 +592,8 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     st.info("일봉 자료 없음")
             with weekly_col:
                 st.caption("주봉 · 최근 52주")
-                weekly_payload = leader.get("weekly_chart")
-                if isinstance(weekly_payload, dict) and weekly_payload.get("ok"):
+                weekly_payload = _leader_chart_payload(leader.get("weekly_chart"))
+                if weekly_payload:
                     st.altair_chart(
                         _price_chart(weekly_payload, "주봉", include_volume=False, height=210),
                         width="stretch",
@@ -656,12 +675,18 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
             f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
             unsafe_allow_html=True,
         )
-        # 가격이 '—'인 이유를 알려준다(관찰·제외·추격 금지는 기준가 자체가 없다).
+        # 가격이 '—'인 이유와 함께, 어느 가격이 되면 조건이 성립하는지 참고가를 보여준다.
         if plan.get("trigger") is None:
+            hints = []
+            high52, sma20 = metrics.get("high52"), metrics.get("sma20")
+            if high52:
+                hints.append(f"돌파 조건 도달가 {_price(float(high52) * 0.98)} (52주 고가 −2% 지점)")
+            if sma20:
+                hints.append(f"눌림목 조건 도달가 {_price(sma20)} (20일선)")
+            hint_text = f"참고 — {' · '.join(hints)}. " if hints else ""
             st.caption(
-                f"※ 지금은 ‘{plan.get('state')}’ 상태라 기준가·목표가가 아직 없습니다. "
-                "‘돌파 확인’(신고가 부근 거래량 증가) 또는 ‘눌림목 대기’(상승추세 20일선 눌림) "
-                "조건이 만들어질 때 가격이 표시됩니다."
+                f"※ 지금은 ‘{plan.get('state')}’ 상태라 확정 기준가·목표가가 아직 없습니다. {hint_text}"
+                "이 조건이 실제로 충족되면 위 칸에 매수 가격이 표시됩니다."
             )
         st.write("")
         if plan.get("recommendation") == "조건부 후보":
