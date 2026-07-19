@@ -109,8 +109,8 @@ st.markdown(
     .j3-th-selected { background: rgba(255,176,32,0.13); }
     .j3-th-muted { color: #9aa0aa; }
     .j3-barwrap { display: flex; align-items: center; gap: 6px; }
-    .j3-bar { position: relative; flex: 1; background: rgba(255,255,255,0.10); border-radius: 4px; height: 14px; overflow: hidden; }
-    .j3-bar-fill { height: 14px; background: #ff5b5b; }
+    .j3-bar { position: relative; flex: 1; background: rgba(255,255,255,0.10); border-radius: 4px; height: 8px; overflow: hidden; }
+    .j3-bar-fill { height: 8px; background: #ff5b5b; }
     .j3-bar-blue { background: #4da6ff; }
     .j3-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
     .j3-holo-card {
@@ -227,6 +227,33 @@ def _theme_table(ranking: dict) -> pd.DataFrame:
             "구성종목 확산": row.get("breadth"),
         })
     return pd.DataFrame(rows)
+
+
+_STATUS_HEX = {"주도": "#44f0a1", "관찰": "#ff9d3b", "약함": "#9aa0aa"}
+
+
+def _style_theme_table(table: pd.DataFrame):
+    """st.dataframe에서 가능한 글자색만 입힌다(상태·테마명·당일·상대강도).
+
+    st.dataframe은 가운데 정렬과 ProgressColumn 막대색은 지원하지 않는다.
+    """
+    def sign_style(value):
+        if pd.isna(value):
+            return "color:#9aa0aa"
+        return "color:#4da6ff" if value >= 0 else "color:#ff5b5b"
+
+    def status_style(value):
+        return f"color:{_STATUS_HEX.get(value, '#9aa0aa')}; font-weight:700"
+
+    def theme_style(row):
+        color = _STATUS_HEX.get(row["상태"], "#e6e6e6")
+        return [f"color:{color}; font-weight:700" if col == "테마" else "" for col in row.index]
+
+    styler = table.style.format({"당일": "{:+.2f}%", "20일 상대강도": "{:+.1f}%p"}, na_rep="—")
+    styler = styler.map(sign_style, subset=["당일", "20일 상대강도"])
+    styler = styler.map(status_style, subset=["상태"])
+    styler = styler.apply(theme_style, axis=1)
+    return styler
 
 
 def _selected_rows(event) -> list[int]:
@@ -776,15 +803,19 @@ def _render_radar_tab(market: dict) -> None:
     st.markdown("### 20개 테마 실시간 순위")
     st.caption("원하는 테마 행을 클릭하면 아래 ‘테마 선택’과 대장주 목록이 즉시 연결됩니다.")
     theme_event = st.dataframe(
-        table,
+        _style_theme_table(table),
         hide_index=True,
         width="stretch",
+        height=740,  # 20개 테마가 스크롤 없이 다 보이게
         key="j3_theme_rank_table",
         on_select="rerun",
         selection_mode="single-cell",
         column_config={
-            "당일": st.column_config.NumberColumn(format="%+.2f%%"),
-            "20일 상대강도": st.column_config.NumberColumn(format="%+.1f%%p"),
+            "순위": st.column_config.Column(width="small"),
+            "ETF": st.column_config.Column(width="small"),
+            "당일": st.column_config.Column(width="small"),
+            "20일 상대강도": st.column_config.Column(width="small"),
+            "상태": st.column_config.Column(width="small"),
             "구성종목 확산": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f%%"),
             "조건점수": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
         },
