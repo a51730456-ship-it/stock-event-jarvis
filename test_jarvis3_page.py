@@ -148,7 +148,8 @@ class Jarvis3PageTests(unittest.TestCase):
         # 테마 선택은 클릭이 확실한 radio로 유지(st.pills는 이 환경에서 클릭 불가).
         self.assertNotIn("st.pills(", source)
         # 테마표·대장주표 모두 가운데 정렬 HTML 표(선택은 테마/상세 라디오).
-        self.assertIn("_theme_table_html", source)
+        self.assertIn("_render_theme_table", source)
+        self.assertIn("j3tbtn_", source)  # 테마명 클릭 버튼
         self.assertIn("_leader_table_html", source)
         self.assertIn("j3-bar-green", source)  # 구성종목 확산 초록 막대
         # 세션을 끊는 HTML 링크(<a href='?...'>)는 절대 넣지 않는다.
