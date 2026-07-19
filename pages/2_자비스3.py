@@ -37,7 +37,7 @@ st.markdown(
     }
     .j3-score-guide { margin-top: 0.35rem; }
     .j3-market-flow {
-        margin: 0.35rem 0 0.8rem 0;
+        margin: 1.9rem 0 0.8rem 0;
         padding: 0.75rem 1rem;
         border-left: 4px solid #44f0a1;
         background: rgba(34, 197, 94, 0.08);
@@ -48,6 +48,7 @@ st.markdown(
         font-size: 1rem;
         font-weight: 800;
         line-height: 1.65;
+        margin-top: 1.9rem;
         margin-bottom: 0.8rem;
         padding: 0.8rem 1rem;
         border: 1px solid rgba(77, 166, 255, 0.45);
@@ -93,6 +94,22 @@ st.markdown(
     .j3-action-label { color: #4da6ff; font-weight: 800; }
     .j3-action-posture { color: #ff5b5b; font-weight: 800; }
     .j3-action-detail { color: #ff9d3b; font-weight: 800; }
+    .j3-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+    .j3-top-cell { min-width: 150px; }
+    .j3-top-label { color: #9aa0aa; font-size: 0.9rem; }
+    .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
+    .j3-top-sub { font-size: 0.95rem; font-weight: 700; }
+    .j3-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
+    .j3-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
+    .j3-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
+    .j3-theme-table td.j3-th-name { font-weight: 800; }
+    .j3-th-selected { background: rgba(255,176,32,0.13); }
+    .j3-th-muted { color: #9aa0aa; }
+    .j3-barwrap { display: flex; align-items: center; gap: 6px; }
+    .j3-bar { position: relative; flex: 1; background: rgba(255,255,255,0.10); border-radius: 4px; height: 14px; overflow: hidden; }
+    .j3-bar-fill { height: 14px; background: #44f0a1; }
+    .j3-bar-blue { background: #4da6ff; }
+    .j3-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -154,6 +171,69 @@ def _sign_class(value) -> str:
 
 def _signed_pct_html(value) -> str:
     return f"<span class='{_sign_class(value)}'>{_pct(value)}</span>"
+
+
+def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=False) -> str:
+    if sub_signed:
+        sub_html = f"<div class='j3-top-sub {_sign_class(sub)}'>{_pct(sub)}</div>"
+    else:
+        sub_html = f"<div class='j3-top-sub' style='color:{sub_color or '#9aa0aa'}'>{sub}</div>"
+    return (
+        f"<div class='j3-top-cell'><div class='j3-top-label'>{label}</div>"
+        f"<div class='j3-top-val' style='color:{value_color}'>{value}</div>{sub_html}</div>"
+    )
+
+
+def _theme_table_html(ranking: dict, selected: str | None) -> str:
+    """20개 테마 순위를 가운데 정렬·좁은 칸으로 HTML 표에 그린다(상태는 색 구분)."""
+    status_color = {"주도": "#44f0a1", "관찰": "#ff9d3b", "약함": "#9aa0aa"}
+    body = []
+    for row in ranking.get("rows", []):
+        name = row.get("name", "")
+        highlight = " j3-th-selected" if name == selected else ""
+        if not row.get("ok"):
+            body.append(
+                f"<tr class='j3-th-row{highlight}'><td>{row.get('rank', '')}</td>"
+                f"<td class='j3-th-name'>{name}</td><td>{row.get('etf', '')}</td>"
+                "<td colspan='5' class='j3-th-muted'>자료 부족</td></tr>"
+            )
+            continue
+        score = float(row.get("score") or 0)
+        breadth = row.get("breadth")
+        change, rs20 = row.get("change_pct"), row.get("rs20")
+        status = row.get("status", "")
+        sc = status_color.get(status, "#9aa0aa")
+        score_bar = (
+            "<div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{score:.1f}</span></div>"
+        )
+        breadth_bar = "—" if breadth is None else (
+            "<div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill j3-bar-blue' style='width:{min(float(breadth), 100):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{float(breadth):.0f}%</span></div>"
+        )
+        rs_text = "—" if rs20 is None else f"{float(rs20):+.1f}%p"
+        body.append(
+            f"<tr class='j3-th-row{highlight}'>"
+            f"<td>{row.get('rank', '')}</td>"
+            f"<td class='j3-th-name'>{name}</td>"
+            f"<td>{row.get('etf', '')}</td>"
+            f"<td>{score_bar}</td>"
+            f"<td style='color:{sc}; font-weight:800'>{status}</td>"
+            f"<td class='{_sign_class(change)}'>{_pct(change)}</td>"
+            f"<td class='{_sign_class(rs20)}'>{rs_text}</td>"
+            f"<td>{breadth_bar}</td></tr>"
+        )
+    return (
+        "<table class='j3-theme-table'><colgroup>"
+        "<col style='width:6%'><col style='width:20%'><col style='width:8%'>"
+        "<col style='width:20%'><col style='width:8%'><col style='width:10%'>"
+        "<col style='width:14%'><col style='width:14%'></colgroup>"
+        "<thead><tr><th>순위</th><th>테마</th><th>ETF</th><th>조건점수</th>"
+        "<th>상태</th><th>당일</th><th>20일 상대강도</th><th>구성종목 확산</th></tr></thead>"
+        f"<tbody>{''.join(body)}</tbody></table>"
+    )
 
 
 def _safe_error_text(error) -> str:
@@ -341,11 +421,22 @@ def _render_market_overview() -> None:
         return
 
     phase = overview.get("phase", {}).get("label", "—")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("시장 국면", overview["regime"], f"조건 {overview['score']}/100")
-    c2.metric("SPY", _price(overview["rows"]["SPY"].get("current")), _pct(overview["rows"]["SPY"].get("change_pct")))
-    c3.metric("QQQ", _price(overview["rows"]["QQQ"].get("current")), _pct(overview["rows"]["QQQ"].get("change_pct")))
-    c4.metric("장 상태", phase, f"VIX {_number(overview['rows'].get('^VIX', {}).get('current'), 2)}")
+    regime_color = {"방어 우선": "#ff5b5b", "중립·선별": "#ff9d3b", "상승 우위": "#44f0a1"}.get(overview["regime"], "#e6e6e6")
+    if phase == "정규장 시간":
+        phase_color = "#44f0a1"
+    elif phase in ("프리마켓", "애프터마켓"):
+        phase_color = "#ff9d3b"
+    else:
+        phase_color = "#ff5b5b"
+    spy_row, qqq_row = overview["rows"]["SPY"], overview["rows"]["QQQ"]
+    vix_value = overview["rows"].get("^VIX", {}).get("current")
+    top_cells = [
+        _top_metric("시장 국면", overview["regime"], regime_color, f"조건 {overview['score']}/100"),
+        _top_metric("SPY", _price(spy_row.get("current")), "#e6e6e6", spy_row.get("change_pct"), sub_signed=True),
+        _top_metric("QQQ", _price(qqq_row.get("current")), "#e6e6e6", qqq_row.get("change_pct"), sub_signed=True),
+        _top_metric("장 상태", phase, phase_color, f"VIX {_number(vix_value, 2)}"),
+    ]
+    st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     st.markdown(
         f"""
         <div class="j3-score-guide">
@@ -405,22 +496,6 @@ def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
 def _load_theme_rankings() -> dict:
     with st.spinner("미국 20개 테마와 구성종목을 조회하는 중입니다…"):
         return j3data.get_theme_rankings()
-
-
-def _theme_table(ranking: dict) -> pd.DataFrame:
-    rows = []
-    for row in ranking.get("rows", []):
-        rows.append({
-            "순위": row.get("rank"),
-            "테마": row.get("name"),
-            "ETF": row.get("etf"),
-            "조건점수": row.get("score"),
-            "상태": row.get("status", "자료부족"),
-            "당일": row.get("change_pct"),
-            "20일 상대강도": row.get("rs20"),
-            "구성종목 확산": row.get("breadth"),
-        })
-    return pd.DataFrame(rows)
 
 
 def _render_leader_comparison(leaders: list[dict]) -> None:
@@ -656,36 +731,17 @@ def _render_radar_tab(market: dict) -> None:
     if ranking.get("stale"):
         st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
 
-    table = _theme_table(ranking)
     st.markdown("### 20개 테마 실시간 순위")
-    st.caption("원하는 테마 행을 클릭하면 아래 ‘테마 선택’과 대장주 목록이 즉시 연결됩니다.")
-    theme_event = st.dataframe(
-        table,
-        hide_index=True,
-        width="stretch",
-        key="j3_theme_rank_table",
-        on_select="rerun",
-        selection_mode="single-cell",
-        column_config={
-            "당일": st.column_config.NumberColumn(format="%+.2f%%"),
-            "20일 상대강도": st.column_config.NumberColumn(format="%+.1f%%p"),
-            "구성종목 확산": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f%%"),
-            "조건점수": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
-        },
+    st.caption("순위 일람입니다. 아래 ‘테마 선택’에서 테마를 누르면 대장주와 상세가 즉시 연결됩니다.")
+    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
+    st.markdown(
+        _theme_table_html(ranking, st.session_state.get("j3_theme_choice")),
+        unsafe_allow_html=True,
     )
     st.caption(
         f"테마 계산 시각: {ranking.get('checked_at') or '—'} · ETF 상대강도와 구성종목 추세를 합산 · "
         "미국 휴장일에는 마지막 거래일 자료"
     )
-    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
-    clicked_theme_rows = _selected_rows(theme_event)
-    if clicked_theme_rows and 0 <= clicked_theme_rows[0] < len(table):
-        clicked_theme = str(table.iloc[clicked_theme_rows[0]]["테마"])
-        selection_token = (clicked_theme_rows[0], clicked_theme)
-        if clicked_theme in names and selection_token != st.session_state.get("j3_last_theme_table_selection"):
-            st.session_state["j3_theme_choice_widget"] = clicked_theme
-            st.session_state["j3_theme_choice"] = clicked_theme
-            st.session_state["j3_last_theme_table_selection"] = selection_token
     if st.session_state.get("j3_theme_choice_widget") not in names:
         preferred_theme = st.session_state.get("j3_theme_choice")
         st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]

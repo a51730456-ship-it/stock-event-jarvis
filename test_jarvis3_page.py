@@ -110,15 +110,18 @@ class Jarvis3PageTests(unittest.TestCase):
         markdowns = [str(node.value) for node in app.markdown]
         self.assertTrue(any("NVDA" in value for value in markdowns))
         self.assertTrue(any("j3-stock-name" in value for value in markdowns))
-        # 테마 순위표·대장주표는 클릭용 dataframe 2개, 선정근거는 HTML 표.
-        self.assertGreaterEqual(len(app.dataframe), 2)
+        # 테마 순위표는 HTML(가운데 정렬), 대장주 1–6위표는 클릭용 dataframe.
+        self.assertGreaterEqual(len(app.dataframe), 1)
+        self.assertTrue(any("j3-theme-table" in value for value in markdowns))
         self.assertTrue(any("테마 종목 1–6위" in str(node.value) for node in app.markdown))
         self.assertTrue(any("일봉/주봉/월봉 한눈에 보기" in str(node.value) for node in app.markdown))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 
     def test_table_click_and_chart_color_contracts_are_present(self):
         source = PAGE.read_text(encoding="utf-8")
-        self.assertIn('key="j3_theme_rank_table"', source)
+        # 테마 순위표는 가운데 정렬 HTML 표, 대장주 1–6위표는 클릭용 dataframe.
+        self.assertIn("j3-theme-table", source)
+        self.assertIn('key=f"j3_leader_rank_table_', source)
         self.assertIn('on_select="rerun"', source)
         self.assertIn('selection_mode="single-cell"', source)
         self.assertIn("j3_stock_choice_", source)
