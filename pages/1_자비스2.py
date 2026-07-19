@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -982,12 +983,46 @@ def _is_cloud() -> bool:
         return False
 
 
+_nh_bg_scan_lock = threading.Lock()
+_nh_bg_scan_state = {"running": False}
+
+
+def _run_nh_scan_background() -> None:
+    """전수 스캔을 별도 스레드에서 돌려 세션(메인 스크립트)을 막지 않는다.
+
+    2026-07-17 사고 원인은 스캔이 메인 스크립트를 블로킹해서 세션 전체가
+    멈춘 것 — 백그라운드 스레드 + 파일 캐시 조합으로 그 블로킹 자체를
+    없앤다. playbook.scan_near_high는 streamlit을 import하지 않는 순수
+    함수라 별도 스레드에서 돌려도 안전하다."""
+    try:
+        result = playbook.scan_near_high(per_theme=3)
+        if result.get("ok"):
+            at = datetime.now().strftime("%m-%d %H:%M")
+            try:
+                _NH_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                _NH_CACHE_FILE.write_text(
+                    json.dumps({
+                        "date": datetime.now().strftime("%Y-%m-%d"), "at": at,
+                        "scanned": result.get("scanned", 0), "rows": result["rows"],
+                    }, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            except Exception as e:
+                _log.warning("nh scan cache save failed (background): %s", e)
+    except Exception as e:
+        _log.warning("background nh scan failed: %s", e)
+    finally:
+        with _nh_bg_scan_lock:
+            _nh_bg_scan_state["running"] = False
+
+
 def _ensure_nh_scan(force_scan: bool = False):
     """신고가 임박주 스캔 결과 확보: 세션 → 당일 파일 → 자동 스캔 순.
 
-    클라우드에서는 캐시가 없으면 자동 스캔하지 않고 None을 반환한다
-    (force_scan=True로 명시 호출할 때만 스캔 허용 — 버튼 클릭 경로).
-    로컬은 기존과 동일하게 항상 자동 스캔."""
+    클라우드에서는 캐시가 없으면 메인 스크립트를 막는 동기 스캔 대신
+    백그라운드 스레드로 스캔을 걸어두고 None을 반환한다(호출부가 폴링용
+    fragment라 완료되면 자동으로 다시 뜬다). force_scan=True(버튼 클릭)는
+    기존처럼 동기로 즉시 실행. 로컬은 기존과 동일하게 항상 자동 스캔."""
     saved = st.session_state.get("j2_nh_scan")
     if saved:
         return saved
@@ -1002,6 +1037,10 @@ def _ensure_nh_scan(force_scan: bool = False):
         return saved
 
     if _is_cloud() and not force_scan:
+        with _nh_bg_scan_lock:
+            if not _nh_bg_scan_state["running"]:
+                _nh_bg_scan_state["running"] = True
+                threading.Thread(target=_run_nh_scan_background, daemon=True).start()
         return None
 
     prog = st.progress(0.0, text="신고가 임박주 자동 스캔 중… (하루 첫 스캔만 수 분, 이후 즉시)")
@@ -1028,10 +1067,14 @@ def _ensure_nh_scan(force_scan: bool = False):
     return saved
 
 
+@st.fragment(run_every=8)
 def _render_near_high_table() -> None:
     """⭐ 52주 신고가 + 테마 — 자비스2 취지의 핵심 표(추천 관찰 종목).
     대장주 모음(테마 등락률 서열)과 별개로, 전 테마 구성종목 전수에서
-    52주 고가 근접 게이트를 실제 통과한 종목만 모은다. 행 클릭 → 플레이북 연결."""
+    52주 고가 근접 게이트를 실제 통과한 종목만 모은다. 행 클릭 → 플레이북 연결.
+
+    8초마다 이 조각만 다시 그려서, 클라우드에서 백그라운드로 도는 전수
+    스캔이 끝나면 사용자 조작 없이 자동으로 결과가 나타나게 한다."""
     st.subheader("⭐ 52주 신고가 + 테마 — 추천 관찰 종목")
     st.caption(
         "자동 스캔: 접속 시 당일 결과를 자동 표시 (하루 첫 스캔만 수 분, 이후 즉시). "
@@ -1058,10 +1101,14 @@ def _render_near_high_table() -> None:
     _force = st.session_state.pop("j2_nh_force_scan", False)
     saved = _ensure_nh_scan(force_scan=_force)
     if not saved:
-        st.info(
-            "아직 스캔 결과가 없습니다 — 온라인에서는 전 테마 전수 스캔이 무거워 "
-            "자동 실행하지 않습니다. 위 '다시 스캔' 버튼을 눌러 실행하세요."
-        )
+        if _is_cloud():
+            st.info(
+                "자동 스캔 진행 중입니다 (보통 몇 분 걸림) — 이 화면을 열어두시면 "
+                "완료되는 대로 자동으로 표시됩니다. 급하면 위 '다시 스캔' 버튼으로 "
+                "바로 실행할 수도 있습니다."
+            )
+        else:
+            st.info("아직 스캔 결과가 없습니다 — 위 '다시 스캔' 버튼을 눌러 실행하세요.")
         return
     result = saved["result"]
     if not result.get("ok"):
