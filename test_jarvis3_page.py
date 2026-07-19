@@ -45,6 +45,13 @@ def _ranking():
     return {"ok": True, "rows": rows, "stale": False, "checked_at": "x"}
 
 
+def _leader_chart_payload(start=100):
+    chart = _chart(start)
+    chart["MA20"] = chart["Close"].rolling(20).mean()
+    chart["MA50"] = chart["Close"].rolling(50).mean()
+    return {"ok": True, "price": chart[["Close", "MA20", "MA50"]], "volume": None, "stale": False}
+
+
 def _leaders():
     rows = []
     for index, ticker in enumerate(("NVDA", "AVGO", "AMD", "MU", "TSM", "ASML"), 1):
@@ -60,8 +67,9 @@ def _leaders():
         rows.append({
             "rank": index, "ticker": ticker, "name": ticker, "score": 90-index,
             "score_parts": [22, 22, 18, 14, 13], "metrics": metrics, "plan": plan,
-            "stock_reason": f"테마 내 종합 {index}위", "daily_chart": _chart(),
-            "weekly_chart": _chart(80),
+            "stock_reason": f"테마 내 종합 {index}위",
+            "daily_chart": _leader_chart_payload(),
+            "weekly_chart": _leader_chart_payload(80),
         })
     return {"ok": True, "rows": rows, "stale": False, "checked_at": "x", "etf": "SMH"}
 

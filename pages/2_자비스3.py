@@ -88,6 +88,11 @@ st.markdown(
     .j3-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 700; }
     .j3-chart-heading { margin-top: 1.6rem; font-size: 1.15rem; font-weight: 800; color: #e6e6e6; }
     .j3-theme-badge { display: inline-block; background: rgba(255,176,32,0.16); color: #ffb020; border: 1px solid #ffb020; border-radius: 0.5rem; padding: 0.15rem 0.7rem; font-weight: 800; font-size: 1.05rem; margin-right: 0.4rem; }
+    .j3-flow-label { color: #44f0a1; font-weight: 800; }
+    .j3-flow-body { color: #4da6ff; font-weight: 800; }
+    .j3-action-label { color: #4da6ff; font-weight: 800; }
+    .j3-action-posture { color: #ff5b5b; font-weight: 800; }
+    .j3-action-detail { color: #ff9d3b; font-weight: 800; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -279,13 +284,13 @@ def _leader_table(leaders: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _price_chart(payload: dict, timeframe: str, include_volume: bool = False):
+def _price_chart(payload: dict, timeframe: str, include_volume: bool = False, height: int | None = None):
     price = payload["price"].reset_index()
     date_column = price.columns[0]
     price = price.rename(columns={date_column: "날짜", "Close": "주가", "MA20": "20일선", "MA50": "50일선"})
     available = [column for column in ("주가", "20일선", "50일선") if column in price.columns]
     long_price = price.melt(id_vars=["날짜"], value_vars=available, var_name="구분", value_name="가격").dropna()
-    line_height = 220 if include_volume else 315
+    line_height = height if height is not None else (220 if include_volume else 315)
     line = (
         alt.Chart(long_price)
         .mark_line(strokeWidth=2)
@@ -349,11 +354,11 @@ def _render_market_overview() -> None:
             {_market_score_detail(overview)}
         </div>
         <div class="j3-market-flow">
-            시장 전체 흐름: {_market_flow_text(overview)}
+            <span class="j3-flow-label">시장 전체 흐름</span> : <span class="j3-flow-body">{_market_flow_text(overview)}</span>
         </div>
         <div class="j3-action-box">
-            행동 기준: {overview['posture']}<br>
-            {_market_action_detail(overview)}
+            <span class="j3-action-label">행동 기준</span> : <span class="j3-action-posture">{overview['posture']}</span><br>
+            <span class="j3-action-detail">{_market_action_detail(overview)}</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -444,14 +449,24 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                 st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
             with daily_col:
                 st.caption("일봉 · 최근 60거래일")
-                if leader.get("daily_chart") is not None and not leader["daily_chart"].empty:
-                    st.line_chart(leader["daily_chart"], height=155, width="stretch")
+                daily_payload = leader.get("daily_chart")
+                if isinstance(daily_payload, dict) and daily_payload.get("ok"):
+                    st.altair_chart(
+                        _price_chart(daily_payload, "일봉", include_volume=False, height=210),
+                        width="stretch",
+                        theme="streamlit",
+                    )
                 else:
                     st.info("일봉 자료 없음")
             with weekly_col:
                 st.caption("주봉 · 최근 52주")
-                if leader.get("weekly_chart") is not None and not leader["weekly_chart"].empty:
-                    st.line_chart(leader["weekly_chart"], height=155, width="stretch")
+                weekly_payload = leader.get("weekly_chart")
+                if isinstance(weekly_payload, dict) and weekly_payload.get("ok"):
+                    st.altair_chart(
+                        _price_chart(weekly_payload, "주봉", include_volume=False, height=210),
+                        width="stretch",
+                        theme="streamlit",
+                    )
                 else:
                     st.info("주봉 자료 없음")
 

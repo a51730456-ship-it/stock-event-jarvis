@@ -631,14 +631,9 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
         daily_chart = None
         weekly_chart = None
         if daily_frame is not None and not daily_frame.empty:
-            daily_chart = daily_frame[["Close"]].tail(60).copy()
-            weekly_chart = (
-                daily_frame[["Close"]]
-                .resample("W-FRI")
-                .last()
-                .dropna(subset=["Close"])
-                .tail(52)
-            )
+            # 대장주 비교 차트도 종목 상세와 같은 형식(주가·20일선·50일선)으로 만든다.
+            daily_chart = _prepare_chart_payload(daily_frame, None, 60, daily_meta)
+            weekly_chart = _prepare_chart_payload(daily_frame, "W-FRI", 52, daily_meta)
         rows.append({
             "ticker": ticker,
             "name": STOCK_NAMES.get(ticker, ticker),
