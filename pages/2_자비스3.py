@@ -56,6 +56,32 @@ st.markdown(
     }
     h1 { font-size: 2.05rem !important; }
     [data-testid="stMetricValue"] { font-size: 1.65rem !important; }
+    /* 종목 상세 색 규칙: 종목명 밝은 보라, 라벨 코발트, +파랑/−빨강, 내용 초록 */
+    .j3-stock-name { color: #c084fc; font-size: 1.7rem; font-weight: 800; line-height: 1.2; margin-top: 0.3rem; }
+    .j3-stock-sub { color: #9aa0aa; font-size: 0.95rem; margin: 0.1rem 0 0.7rem; }
+    .j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.2rem 0 0.4rem; }
+    .j3-mc { min-width: 120px; }
+    .j3-mc-label { color: #4da6ff; font-size: 0.92rem; font-weight: 800; }
+    .j3-mc-val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
+    .j3-mc-sub { font-size: 0.95rem; font-weight: 800; }
+    .j3-up { color: #4da6ff; }
+    .j3-down { color: #ff5b5b; }
+    .j3-muted { color: #9aa0aa; }
+    .j3-section-title { color: #4da6ff; font-size: 1.2rem; font-weight: 800; margin: 1rem 0 0.5rem; }
+    .j3-factor-table { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; font-size: 0.95rem; }
+    .j3-factor-table th { text-align: center; color: #4da6ff; font-weight: 800; padding: 0.45rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
+    .j3-factor-table td { color: #44f0a1; font-weight: 700; padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .j3-factor-table td.j3-fac-name { text-align: left; }
+    .j3-factor-table td.j3-fac-val { text-align: center; }
+    .j3-reason-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 0.55rem; padding: 0.6rem 0.75rem; height: 100%; }
+    .j3-reason-title { color: #4da6ff; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.25rem; }
+    .j3-reason-body { color: #44f0a1; font-weight: 700; font-size: 0.9rem; line-height: 1.45; }
+    .j3-chart-title { color: #e6e6e6; font-weight: 800; font-size: 1rem; margin-bottom: 0.1rem; }
+    .j3-leader-name { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
+    .j3-leader-name .j3-medal { font-size: 1.6rem; vertical-align: -2px; }
+    .j3-leader-score-label { color: #4da6ff; font-size: 0.85rem; font-weight: 800; margin-top: 0.35rem; }
+    .j3-leader-score { color: #ff5b5b; font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
+    .j3-leader-state { color: #9aa0aa; font-size: 0.9rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -103,6 +129,20 @@ def _price(value) -> str:
 
 def _number(value, digits=1) -> str:
     return "—" if value is None else f"{float(value):,.{digits}f}"
+
+
+def _sign_class(value) -> str:
+    """미국장 색: 상승(+)은 푸른색, 하락(−)은 붉은색."""
+    if value is None:
+        return "j3-muted"
+    try:
+        return "j3-up" if float(value) >= 0 else "j3-down"
+    except (TypeError, ValueError):
+        return "j3-muted"
+
+
+def _signed_pct_html(value) -> str:
+    return f"<span class='{_sign_class(value)}'>{_pct(value)}</span>"
 
 
 def _safe_error_text(error) -> str:
@@ -257,7 +297,7 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False):
             ),
             tooltip=[alt.Tooltip("날짜:T", title="날짜"), alt.Tooltip("구분:N"), alt.Tooltip("가격:Q", format=",.2f")],
         )
-        .properties(height=line_height, title=timeframe)
+        .properties(height=line_height)
     )
     volume = payload.get("volume")
     if not include_volume or volume is None or volume.empty:
@@ -320,7 +360,7 @@ def _render_market_overview() -> None:
 
 
 @st.fragment(run_every=60)
-def _render_selected_live_quote() -> None:
+def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
     ticker = st.session_state.get("j3_selected_ticker")
     if not ticker:
         return
@@ -329,11 +369,24 @@ def _render_selected_live_quote() -> None:
     if not quote.get("ok"):
         st.warning(f"{ticker} 실시간 시세 갱신 실패: {_safe_error_text(quote.get('error'))}")
         return
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("최근가", _price(quote.get("current")), _pct(quote.get("change_pct")))
-    c2.metric("52주 신고가 대비", _pct(quote.get("from_high_pct")))
-    c3.metric("20일 수익률", _pct(quote.get("ret20")))
-    c4.metric("14일 변동성(ATR)", _pct(quote.get("atr_pct")))
+    # 최근가·52주대비·20일수익률·14일변동성·종목조건점수를 한 줄에 표시한다.
+    # 라벨은 코발트, 증감 부호는 미국장 색(+파랑/−빨강), 종목조건점수는 우측 끝.
+    score_val = f"{float(stock_score):.1f}/100" if stock_score is not None else "—"
+    state_sub = f"<div class='j3-mc-sub j3-muted'>{entry_state}</div>" if entry_state else ""
+    change_sub = f"<div class='j3-mc-sub {_sign_class(quote.get('change_pct'))}'>{_pct(quote.get('change_pct'))}</div>"
+    cells = [
+        f"<div class='j3-mc'><div class='j3-mc-label'>최근가</div>"
+        f"<div class='j3-mc-val'>{_price(quote.get('current'))}</div>{change_sub}</div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
+        f"<div class='j3-mc-val {_sign_class(quote.get('from_high_pct'))}'>{_pct(quote.get('from_high_pct'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
+        f"<div class='j3-mc-val {_sign_class(quote.get('ret20'))}'>{_pct(quote.get('ret20'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
+        f"<div class='j3-mc-val {_sign_class(quote.get('atr_pct'))}'>{_pct(quote.get('atr_pct'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
+        f"<div class='j3-mc-val'>{score_val}</div>{state_sub}</div>",
+    ]
+    st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
     stale_text = " · 마지막 정상 자료" if quote.get("stale") else ""
     st.caption(f"시세 기준 {quote.get('source_time') or '—'}{stale_text} · 1분 자동 갱신")
 
@@ -360,15 +413,28 @@ def _theme_table(ranking: dict) -> pd.DataFrame:
 
 
 def _render_leader_comparison(leaders: list[dict]) -> None:
-    st.markdown("### 대장주 1~3위 · 일봉/주봉 비교")
+    st.markdown("<div class='j3-section-title'>대장주 1~3위 · 일봉/주봉 비교</div>", unsafe_allow_html=True)
+    medal_by_rank = {1: "🥇", 2: "🥈", 3: "🥉"}
     for leader in leaders[:3]:
         metrics, plan = leader["metrics"], leader["plan"]
+        rank = int(leader["rank"])
+        # 메달은 종합점수 80점 이상인 대장주에만 붙인다.
+        medal = medal_by_rank.get(rank, "") if float(leader["score"]) >= 80 else ""
+        medal_html = f"<span class='j3-medal'>{medal}</span> " if medal else ""
         with st.container(border=True):
             left, daily_col, weekly_col = st.columns([1.05, 1.25, 1.25])
             with left:
-                st.markdown(f"**{leader['rank']}위 · {leader['name']}**  ")
+                st.markdown(
+                    f"<div class='j3-leader-name'>{medal_html}{rank}위 · {leader['name']}</div>",
+                    unsafe_allow_html=True,
+                )
                 st.code(leader["ticker"])
-                st.metric("종목 조건점수", f"{leader['score']:.1f}", plan.get("state"))
+                st.markdown(
+                    "<div class='j3-leader-score-label'>종목 조건점수</div>"
+                    f"<div class='j3-leader-score'>{float(leader['score']):.1f}</div>"
+                    f"<div class='j3-leader-state'>{plan.get('state')}</div>",
+                    unsafe_allow_html=True,
+                )
                 st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
             with daily_col:
                 st.caption("일봉 · 최근 60거래일")
@@ -390,26 +456,32 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
     metrics, plan = leader["metrics"], leader["plan"]
 
     st.divider()
-    header_left, header_right = st.columns([2.2, 1])
-    with header_left:
-        st.subheader(f"{leader['name']} · {ticker}")
-        st.caption(f"{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}")
-    with header_right:
-        st.metric("종목 조건점수", f"{leader['score']:.1f}/100", plan.get("state"))
+    st.markdown(
+        f"<div class='j3-stock-name'>{leader['name']} · {ticker}</div>"
+        f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
+        unsafe_allow_html=True,
+    )
 
-    _render_selected_live_quote()
+    # 종목조건점수는 위로 빼지 않고 아래 한 줄 지표에 함께 표시한다.
+    _render_selected_live_quote(leader.get("score"), plan.get("state"))
 
     factor_names = ["테마 대비 상대강도", "52주 신고가 위치", "추세", "유동성", "변동성 안정"]
     factor_max = [25, 25, 20, 15, 15]
-    factor_df = pd.DataFrame({
-        "심사 항목": factor_names,
-        "획득": leader["score_parts"],
-        "최대": factor_max,
-    })
+    factor_rows = "".join(
+        f"<tr><td class='j3-fac-name'>{name}</td>"
+        f"<td class='j3-fac-val'>{_number(part)}</td>"
+        f"<td class='j3-fac-val'>{maximum}</td></tr>"
+        for name, part, maximum in zip(factor_names, leader["score_parts"], factor_max)
+    )
     score_col, plan_col = st.columns([1, 1])
     with score_col:
-        st.markdown("#### 종목 선정 근거")
-        st.dataframe(factor_df, hide_index=True, width="stretch")
+        st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<table class='j3-factor-table'><thead><tr>"
+            "<th>심사 항목</th><th>획득</th><th>최대</th></tr></thead>"
+            f"<tbody>{factor_rows}</tbody></table>",
+            unsafe_allow_html=True,
+        )
         st.info(leader["stock_reason"])
     with plan_col:
         st.markdown("#### 매수 심사 결과")
@@ -435,6 +507,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
         for timeframe, chart_column in chart_columns.items():
             payload = chart_bundle["charts"].get(timeframe, {})
             with chart_column:
+                # 제목을 차트 밖에서 통일된 높이로 그려 일봉·주봉·월봉을 한 줄에 정렬한다.
+                st.markdown(f"<div class='j3-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
                 if payload.get("ok"):
                     st.altair_chart(
                         _price_chart(payload, timeframe, include_volume=timeframe == "일봉"),
@@ -448,12 +522,19 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
     else:
         st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
 
-    st.markdown("#### 추천 근거 요약")
-    r1, r2, r3, r4 = st.columns(4)
-    r1.info(f"**시장 근거**\n\n{market.get('regime', '자료부족')} · {market.get('score', 0)}/100")
-    r2.info(f"**테마 근거**\n\n{theme_row.get('basis', '자료부족')}")
-    r3.info(f"**종목 근거**\n\n{leader['stock_reason']}")
-    r4.info(f"**매수 근거**\n\n{plan.get('buy_reason', '자료부족')}")
+    st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
+    reason_cards = [
+        ("시장 근거", f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"),
+        ("테마 근거", theme_row.get("basis", "자료부족")),
+        ("종목 근거", leader["stock_reason"]),
+        ("매수 근거", plan.get("buy_reason", "자료부족")),
+    ]
+    for column, (title, body) in zip(st.columns(4), reason_cards):
+        column.markdown(
+            f"<div class='j3-reason-card'><div class='j3-reason-title'>{title}</div>"
+            f"<div class='j3-reason-body'>{body}</div></div>",
+            unsafe_allow_html=True,
+        )
 
     _render_buy_form(theme_row, leader, market)
 
