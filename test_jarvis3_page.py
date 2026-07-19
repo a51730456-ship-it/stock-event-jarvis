@@ -147,10 +147,12 @@ class Jarvis3PageTests(unittest.TestCase):
         source = PAGE.read_text(encoding="utf-8")
         # 테마 선택은 클릭이 확실한 radio로 유지(st.pills는 이 환경에서 클릭 불가).
         self.assertNotIn("st.pills(", source)
-        # 테마표·대장주표는 가운데 정렬 HTML 표(선택은 pills·radio).
-        self.assertIn("_theme_table_html", source)
+        # 테마표는 행 클릭이 되는 st.dataframe(세션 유지) + Styler 글자색.
+        self.assertIn('key="j3_theme_rank_table"', source)
+        self.assertIn('on_select="rerun"', source)
+        self.assertIn("_style_theme_table", source)
+        self.assertIn("_selected_rows", source)
         self.assertIn("_leader_table_html", source)
-        self.assertIn("j3-bar-green", source)  # 구성종목 확산 초록 막대
         # 세션을 끊는 HTML 링크(<a href='?...'>)는 절대 넣지 않는다.
         self.assertNotIn("href='?j3t=", source)
         self.assertIn("상세 종목 선택", source)

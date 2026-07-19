@@ -114,6 +114,17 @@ st.markdown(
     .j3-bar-blue { background: #4da6ff; }
     .j3-bar-green { background: #44f0a1; }
     .j3-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
+    /* 상세 종목 선택: 라벨은 스카이블루·두 치수 크게, 보기 글자는 한 치수 크게 */
+    div[class*="st-key-j3_stock_choice"] [data-testid="stWidgetLabel"] p {
+        color: #7cc8ff !important;
+        font-size: 1.55rem !important;
+        font-weight: 800 !important;
+    }
+    div[class*="st-key-j3_stock_choice"] label p,
+    div[class*="st-key-j3_stock_choice"] label div,
+    div[class*="st-key-j3_stock_choice"] label span {
+        font-size: 1.12rem !important;
+    }
     .j3-holo-card {
         position: relative;
         background: linear-gradient(135deg, rgba(77,166,255,0.07), rgba(168,85,247,0.07));
@@ -217,58 +228,64 @@ def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=Fa
 _STATUS_HEX = {"주도": "#44f0a1", "관찰": "#ff9d3b", "약함": "#9aa0aa"}
 
 
-def _theme_table_html(ranking: dict, selected: str | None) -> str:
-    """20개 테마 순위를 가운데 정렬 HTML 표로 그린다.
-
-    st.dataframe으로는 불가능한 가운데 정렬·글자색·막대색(확산 초록)을 위해 HTML을 쓴다.
-    행 클릭은 세션을 끊으므로 넣지 않는다(선택은 아래 '테마 선택' pills로).
-    """
-    body = []
+def _theme_table(ranking: dict) -> pd.DataFrame:
+    rows = []
     for row in ranking.get("rows", []):
-        name = row.get("name", "")
-        highlight = " j3-th-selected" if name == selected else ""
-        if not row.get("ok"):
-            body.append(
-                f"<tr class='j3-th-row{highlight}'><td>{row.get('rank', '')}</td>"
-                f"<td class='j3-th-name'>{name}</td><td>{row.get('etf', '')}</td>"
-                "<td colspan='5' class='j3-th-muted'>자료 부족</td></tr>"
-            )
-            continue
-        score = float(row.get("score") or 0)
-        breadth, change, rs20 = row.get("breadth"), row.get("change_pct"), row.get("rs20")
-        status = row.get("status", "")
-        sc = _STATUS_HEX.get(status, "#9aa0aa")
-        score_bar = (
-            "<div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{score:.1f}</span></div>"
-        )
-        breadth_bar = "—" if breadth is None else (
-            "<div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(breadth), 100):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{float(breadth):.0f}%</span></div>"
-        )
-        rs_text = "—" if rs20 is None else f"{float(rs20):+.1f}%p"
-        body.append(
-            f"<tr class='j3-th-row{highlight}'>"
-            f"<td>{row.get('rank', '')}</td>"
-            f"<td class='j3-th-name' style='color:{sc}'>{name}</td>"
-            f"<td>{row.get('etf', '')}</td>"
-            f"<td>{score_bar}</td>"
-            f"<td style='color:{sc}; font-weight:800'>{status}</td>"
-            f"<td style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</td>"
-            f"<td style='color:{_sign_color(rs20)}; font-weight:700'>{rs_text}</td>"
-            f"<td>{breadth_bar}</td></tr>"
-        )
-    return (
-        "<table class='j3-theme-table'><colgroup>"
-        "<col style='width:6%'><col style='width:20%'><col style='width:8%'>"
-        "<col style='width:20%'><col style='width:9%'><col style='width:11%'>"
-        "<col style='width:13%'><col style='width:13%'></colgroup>"
-        "<thead><tr><th>순위</th><th class='j3-th-left'>테마</th><th>ETF</th><th>조건점수</th>"
-        "<th>상태</th><th>당일</th><th>20일 상대강도</th><th>구성종목 확산</th></tr></thead>"
-        f"<tbody>{''.join(body)}</tbody></table>"
-    )
+        rows.append({
+            "순위": row.get("rank"),
+            "테마": row.get("name"),
+            "ETF": row.get("etf"),
+            "조건점수": row.get("score"),
+            "상태": row.get("status", "자료부족"),
+            "당일": row.get("change_pct"),
+            "20일 상대강도": row.get("rs20"),
+            "구성종목 확산": row.get("breadth"),
+        })
+    return pd.DataFrame(rows)
+
+
+def _style_theme_table(table: pd.DataFrame):
+    """클릭 가능한 st.dataframe에서 넣을 수 있는 글자색을 입힌다.
+
+    (st.dataframe은 가운데 정렬·막대색은 지원하지 않지만 행 클릭이 되고 세션이 안 끊긴다.)
+    """
+    def sign_style(value):
+        if pd.isna(value):
+            return "color:#9aa0aa"
+        return "color:#4da6ff" if value >= 0 else "color:#ff5b5b"
+
+    def status_style(value):
+        return f"color:{_STATUS_HEX.get(value, '#9aa0aa')}; font-weight:700"
+
+    def theme_style(row):
+        color = _STATUS_HEX.get(row["상태"], "#e6e6e6")
+        return [f"color:{color}; font-weight:700" if col == "테마" else "" for col in row.index]
+
+    styler = table.style.format({"당일": "{:+.2f}%", "20일 상대강도": "{:+.1f}%p"}, na_rep="—")
+    styler = styler.map(sign_style, subset=["당일", "20일 상대강도"])
+    styler = styler.map(status_style, subset=["상태"])
+    styler = styler.apply(theme_style, axis=1)
+    return styler
+
+
+def _selected_rows(event) -> list[int]:
+    """st.dataframe 선택 이벤트에서 클릭된 행 인덱스를 추출한다."""
+    try:
+        rows = [int(value) for value in event.selection.rows]
+        if rows:
+            return rows
+        cells = list(event.selection.cells)
+        return [int(cells[0][0])] if cells else []
+    except (AttributeError, KeyError, TypeError, ValueError):
+        try:
+            selection = event.get("selection", {})
+            rows = [int(value) for value in selection.get("rows", [])]
+            if rows:
+                return rows
+            cells = selection.get("cells", [])
+            return [int(cells[0][0])] if cells else []
+        except (AttributeError, TypeError, ValueError):
+            return []
 
 
 def _safe_error_text(error) -> str:
@@ -359,6 +376,31 @@ def _relative_strength_guide(value) -> tuple[str, str]:
         level = "매우 약함"
     meaning = f"최근 20거래일 동안 해당 테마 ETF가 SPY보다 {abs(value):.1f}%p {'더 올랐거나 덜 내렸습니다' if value >= 0 else '뒤처졌습니다'}."
     return level, meaning
+
+
+def _reference_plan(metrics: dict):
+    """확정 셋업 전 종목의 '조건 도달 기준' 참고 가격을 계산한다.
+
+    돌파 조건(52주 고가 −2%)과 눌림목 조건(20일선) 중 현재가에 가까운 쪽을 기준가로 본다.
+    실제 매수 판정(state·recommendation)은 바꾸지 않는다.
+    """
+    current = metrics.get("current")
+    if not current:
+        return None, None, None, None
+    current = float(current)
+    high52, sma20, atr = metrics.get("high52"), metrics.get("sma20"), metrics.get("atr")
+    candidates = []
+    if high52:
+        candidates.append(float(high52) * 0.98)
+    if sma20:
+        candidates.append(float(sma20))
+    if not candidates:
+        return None, None, None, None
+    trigger = min(candidates, key=lambda price: abs(price - current))
+    invalidation = current - max((float(atr) if atr else current * 0.03) * 2, current * 0.03)
+    zone_high = trigger * 1.007
+    target = trigger + 2 * (trigger - invalidation)
+    return trigger, zone_high, invalidation, target
 
 
 def _leader_chart_payload(value):
@@ -657,12 +699,22 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
         )
     with plan_col:
         st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
-        plan_cells = [
-            ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
-            ("매수 허용 상단", _price(plan.get("zone_high")), "#e6e6e6"),
-            ("무효화 가격", _price(plan.get("invalidation")), "#ff5b5b"),
-            ("2R 목표 참고", _price(plan.get("target")), "#44f0a1"),
-        ]
+        if plan.get("trigger") is not None:
+            plan_cells = [
+                ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
+                ("매수 허용 상단", _price(plan.get("zone_high")), "#e6e6e6"),
+                ("무효화 가격", _price(plan.get("invalidation")), "#ff5b5b"),
+                ("2R 목표 참고", _price(plan.get("target")), "#44f0a1"),
+            ]
+        else:
+            # 확정 셋업 전(관찰·제외·추격금지)에는 조건 도달 기준의 참고 가격을 채워 보여준다.
+            ref_trigger, ref_zone_high, ref_invalidation, ref_target = _reference_plan(metrics)
+            plan_cells = [
+                ("조건 기준가 (참고)", _price(ref_trigger), "#e6e6e6"),
+                ("매수 허용 상단 (참고)", _price(ref_zone_high), "#e6e6e6"),
+                ("무효화 가격 (참고)", _price(ref_invalidation), "#ff5b5b"),
+                ("2R 목표 (참고)", _price(ref_target), "#44f0a1"),
+            ]
         plan_grid = "".join(
             f"<div class='j3-holo-cell'><div class='label'>{label}</div>"
             f"<div class='val' style='color:{color}'>{value}</div></div>"
@@ -826,17 +878,40 @@ def _render_radar_tab(market: dict) -> None:
     if ranking.get("stale"):
         st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
 
+    table = _theme_table(ranking)
     st.markdown("### 20개 테마 실시간 순위")
-    st.caption("순위 일람입니다. 아래 ‘테마 선택’에서 테마를 누르면 대장주·상세가 그 테마로 연결됩니다.")
-    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
-    st.markdown(
-        _theme_table_html(ranking, st.session_state.get("j3_theme_choice")),
-        unsafe_allow_html=True,
+    st.caption("원하는 테마 행을 클릭하면 아래 ‘테마 선택’과 대장주·상세가 그 테마로 연결됩니다.")
+    theme_event = st.dataframe(
+        _style_theme_table(table),
+        hide_index=True,
+        width="stretch",
+        height=740,  # 20개 테마가 스크롤 없이 다 보이게
+        key="j3_theme_rank_table",
+        on_select="rerun",
+        selection_mode="single-cell",
+        column_config={
+            "순위": st.column_config.Column(width="small"),
+            "ETF": st.column_config.Column(width="small"),
+            "당일": st.column_config.Column(width="small"),
+            "20일 상대강도": st.column_config.Column(width="small"),
+            "상태": st.column_config.Column(width="small"),
+            "구성종목 확산": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f%%"),
+            "조건점수": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
+        },
     )
     st.caption(
         f"테마 계산 시각: {ranking.get('checked_at') or '—'} · ETF 상대강도와 구성종목 추세를 합산 · "
         "미국 휴장일에는 마지막 거래일 자료"
     )
+    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
+    clicked_theme_rows = _selected_rows(theme_event)
+    if clicked_theme_rows and 0 <= clicked_theme_rows[0] < len(table):
+        clicked_theme = str(table.iloc[clicked_theme_rows[0]]["테마"])
+        selection_token = (clicked_theme_rows[0], clicked_theme)
+        if clicked_theme in names and selection_token != st.session_state.get("j3_last_theme_table_selection"):
+            st.session_state["j3_theme_choice_widget"] = clicked_theme
+            st.session_state["j3_theme_choice"] = clicked_theme
+            st.session_state["j3_last_theme_table_selection"] = selection_token
     if st.session_state.get("j3_theme_choice_widget") not in names:
         preferred_theme = st.session_state.get("j3_theme_choice")
         st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
@@ -903,11 +978,22 @@ def _render_radar_tab(market: dict) -> None:
     if stock_key in st.session_state and st.session_state[stock_key] not in ticker_options:
         del st.session_state[stock_key]
 
+    medal_by_rank = {1: "🥇", 2: "🥈", 3: "🥉"}
+    # 상태 색은 20개 테마 순위표의 상태색과 같은 규칙(주도 초록·관찰 주황·약함 회색)을 쓴다.
+    state_color_word = {"주도": "green", "관찰": "orange", "약함": "gray"}
+
     def _stock_label(ticker):
         item = next((cand for cand in top_candidates if cand["ticker"] == ticker), None)
         if item is None:
             return ticker
-        return f"{item['rank']}위 · {item['name']} ({ticker}) · {item['score']:.1f}점 · {item['plan']['state']}"
+        rank = int(item["rank"])
+        medal = medal_by_rank.get(rank, "")
+        state = item["plan"].get("state", "")
+        color_word = state_color_word.get(state, "gray")
+        return (
+            f"{medal} :green[**{rank}위 · {item['name']} ({ticker})**] · "
+            f":red[**{item['score']:.1f}점**] · :{color_word}[**{state}**]"
+        )
 
     selected_ticker = st.radio(
         "상세 종목 선택",
