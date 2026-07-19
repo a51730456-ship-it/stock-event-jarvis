@@ -108,7 +108,7 @@ st.markdown(
     .j3-th-muted { color: #9aa0aa; }
     .j3-barwrap { display: flex; align-items: center; gap: 6px; }
     .j3-bar { position: relative; flex: 1; background: rgba(255,255,255,0.10); border-radius: 4px; height: 14px; overflow: hidden; }
-    .j3-bar-fill { height: 14px; background: #44f0a1; }
+    .j3-bar-fill { height: 14px; background: #ff5b5b; }
     .j3-bar-blue { background: #4da6ff; }
     .j3-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
     </style>
@@ -579,12 +579,13 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
     factor_names = ["테마 대비 상대강도", "52주 신고가 위치", "추세", "유동성", "변동성 안정"]
     factor_max = [25, 25, 20, 15, 15]
 
-    def _gain_cell(part, maximum):
-        # 획득은 붉은색, 옆의 (최대)는 회색으로 한 칸에 합친다.
+    def _gain_cell(part, maximum, *, top_border=False):
+        # 획득값과 (최대) 모두 붉은색, 사이 한 칸 띄운다. 총점 행은 위에 이중선.
+        border = " style='border-top:4px double rgba(255,255,255,0.55)'" if top_border else ""
         return (
-            "<td class='j3-fac-val'>"
-            f"<span style='color:#ff5b5b; font-weight:800'>{_number(part)}</span>"
-            f"<span style='color:#9aa0aa'>({maximum})</span></td>"
+            f"<td class='j3-fac-val'{border}>"
+            f"<span style='color:#ff5b5b; font-weight:800'>{_number(part)}</span> "
+            f"<span style='color:#ff5b5b'>({maximum})</span></td>"
         )
 
     factor_rows = "".join(
@@ -592,8 +593,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
         for name, part, maximum in zip(factor_names, leader["score_parts"], factor_max)
     )
     total_row = (
-        "<tr><td class='j3-fac-name' style='font-weight:800'>총점</td>"
-        f"{_gain_cell(leader.get('score'), 100)}</tr>"
+        "<tr><td class='j3-fac-name' style='font-weight:800; border-top:4px double rgba(255,255,255,0.55)'>총점</td>"
+        f"{_gain_cell(leader.get('score'), 100, top_border=True)}</tr>"
     )
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
