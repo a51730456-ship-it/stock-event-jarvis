@@ -82,6 +82,12 @@ st.markdown(
     .j3-leader-score-label { color: #4da6ff; font-size: 0.85rem; font-weight: 800; margin-top: 0.35rem; }
     .j3-leader-score { color: #ff5b5b; font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
     .j3-leader-state { color: #9aa0aa; font-size: 0.9rem; }
+    .j3-green { color: #44f0a1; }
+    .j3-green-strong { color: #22c55e; font-weight: 800; }
+    .j3-theme-box { background: rgba(77,166,255,0.08); border: 1px solid rgba(77,166,255,0.3); border-radius: 0.55rem; padding: 0.7rem 0.9rem; font-size: 0.95rem; line-height: 1.7; margin-bottom: 0.6rem; }
+    .j3-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 700; }
+    .j3-chart-heading { margin-top: 1.6rem; font-size: 1.15rem; font-weight: 800; color: #e6e6e6; }
+    .j3-theme-badge { display: inline-block; background: rgba(255,176,32,0.16); color: #ffb020; border: 1px solid #ffb020; border-radius: 0.5rem; padding: 0.15rem 0.7rem; font-weight: 800; font-size: 1.05rem; margin-right: 0.4rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -384,7 +390,7 @@ def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
         f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
         f"<div class='j3-mc-val {_sign_class(quote.get('atr_pct'))}'>{_pct(quote.get('atr_pct'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
-        f"<div class='j3-mc-val'>{score_val}</div>{state_sub}</div>",
+        f"<div class='j3-mc-val j3-green'>{score_val}</div>{state_sub}</div>",
     ]
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
     stale_text = " · 마지막 정상 자료" if quote.get("stale") else ""
@@ -456,8 +462,12 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
     metrics, plan = leader["metrics"], leader["plan"]
 
     st.divider()
+    # 대장주 비교와 동일하게, 80점 이상 1~3위 종목이면 종목명에도 메달을 붙인다.
+    detail_rank = int(leader.get("rank") or 0)
+    detail_medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(detail_rank, "") if float(leader.get("score") or 0) >= 80 else ""
+    detail_medal_html = f"<span class='j3-medal'>{detail_medal}</span> " if detail_medal else ""
     st.markdown(
-        f"<div class='j3-stock-name'>{leader['name']} · {ticker}</div>"
+        f"<div class='j3-stock-name'>{detail_medal_html}{leader['name']} · {ticker}</div>"
         f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
         unsafe_allow_html=True,
     )
@@ -482,9 +492,12 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
             f"<tbody>{factor_rows}</tbody></table>",
             unsafe_allow_html=True,
         )
-        st.info(leader["stock_reason"])
+        st.markdown(
+            f"<div class='j3-reason-mustard'>{leader['stock_reason']}</div>",
+            unsafe_allow_html=True,
+        )
     with plan_col:
-        st.markdown("#### 매수 심사 결과")
+        st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
         p1, p2 = st.columns(2)
         p1.metric("조건 기준가", _price(plan.get("trigger")))
         p2.metric("매수 허용 상단", _price(plan.get("zone_high")))
@@ -498,7 +511,11 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
         else:
             st.warning(plan.get("buy_reason"))
 
-    st.markdown("#### 가격 차트 · 일봉/주봉/월봉 한눈에 보기")
+    # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 차트 섹션을 시작한다.
+    st.markdown(
+        "<div class='j3-chart-heading'>가격 차트 · 일봉/주봉/월봉 한눈에 보기</div>",
+        unsafe_allow_html=True,
+    )
     st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
     chart_bundle = j3data.get_chart_bundle(ticker)
     if chart_bundle.get("ok"):
@@ -666,11 +683,23 @@ def _render_radar_tab(market: dict) -> None:
     st.session_state["j3_theme_choice"] = selected_theme
     theme_row = next(row for row in ranking["rows"] if row["name"] == selected_theme)
     rs_level, rs_meaning = _relative_strength_guide(theme_row.get("rs20"))
-    st.info(
-        f"**{selected_theme} · {theme_row['status']} · {theme_row['score']:.1f}/100**  \n"
-        f"{theme_row.get('basis', '근거 자료 부족')}  \n"
-        f"**20일 상대강도 해석: {rs_level}** — {rs_meaning}  \n"
-        "기준: +10%p 이상 매우 강함 · +5–10%p 강함 · 0–5%p 시장 대비 우위 · 음수는 시장 대비 약세"
+    if theme_row.get("rs60") is not None and theme_row.get("breadth") is not None:
+        basis_html = (
+            f"<span class='j3-green-strong'>20일 상대강도</span> {theme_row['rs20']:+.1f}%p · "
+            f"60일 {theme_row['rs60']:+.1f}%p · 20일선 위 {theme_row['breadth']:.0f}%"
+        )
+    else:
+        basis_html = theme_row.get("basis", "근거 자료 부족")
+    st.markdown(
+        "<div class='j3-theme-box'>"
+        f"<span class='j3-green-strong'>{selected_theme} · {theme_row['status']}</span> : "
+        f"<span class='j3-green'>{theme_row['score']:.1f}/100</span><br>"
+        f"{basis_html}<br>"
+        f"<span class='j3-green-strong'>20일 상대강도 해석</span> : {rs_level} — {rs_meaning}<br>"
+        "<span class='j3-green-strong'>기준</span> : +10%p 이상 매우 강함 · +5–10%p 강함 · "
+        "0–5%p 시장 대비 우위 · 음수는 시장 대비 약세"
+        "</div>",
+        unsafe_allow_html=True,
     )
 
     with st.spinner(f"{selected_theme} 대장주를 조회하는 중입니다…"):
@@ -686,7 +715,10 @@ def _render_radar_tab(market: dict) -> None:
         st.warning("일부 종목은 마지막 정상 시세로 계산했습니다.")
     leaders = leader_result["rows"]
     leader_view = _leader_table(leaders)
-    st.markdown("### 테마 종목 1–6위")
+    st.markdown(
+        f"<div class='j3-section-title'><span class='j3-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
+        unsafe_allow_html=True,
+    )
     st.caption("1–3위는 색으로 구분했습니다. 1–3위의 어느 셀을 클릭해도 아래 ‘상세 종목 선택’과 상세 분석이 연결됩니다.")
     leader_event = st.dataframe(
         leader_view,
