@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date
-from urllib.parse import quote
 
 import streamlit as st
 
@@ -214,56 +213,40 @@ def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=Fa
     )
 
 
-def _theme_table_html(ranking: dict, selected: str | None) -> str:
-    """20개 테마 순위를 가운데 정렬·좁은 칸으로 HTML 표에 그린다(상태는 색 구분)."""
-    status_color = {"주도": "#44f0a1", "관찰": "#ff9d3b", "약함": "#9aa0aa"}
-    body = []
+def _theme_table(ranking: dict) -> pd.DataFrame:
+    rows = []
     for row in ranking.get("rows", []):
-        name = row.get("name", "")
-        highlight = " j3-th-selected" if name == selected else ""
-        if not row.get("ok"):
-            body.append(
-                f"<tr class='j3-th-row{highlight}'><td>{row.get('rank', '')}</td>"
-                f"<td class='j3-th-name'>{name}</td><td>{row.get('etf', '')}</td>"
-                "<td colspan='5' class='j3-th-muted'>자료 부족</td></tr>"
-            )
-            continue
-        score = float(row.get("score") or 0)
-        breadth = row.get("breadth")
-        change, rs20 = row.get("change_pct"), row.get("rs20")
-        status = row.get("status", "")
-        sc = status_color.get(status, "#9aa0aa")
-        score_bar = (
-            "<div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{score:.1f}</span></div>"
-        )
-        breadth_bar = "—" if breadth is None else (
-            "<div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill j3-bar-blue' style='width:{min(float(breadth), 100):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{float(breadth):.0f}%</span></div>"
-        )
-        rs_text = "—" if rs20 is None else f"{float(rs20):+.1f}%p"
-        body.append(
-            f"<tr class='j3-th-row{highlight}'>"
-            f"<td>{row.get('rank', '')}</td>"
-            f"<td class='j3-th-name'><a class='j3-th-link' href='?j3t={quote(name)}' target='_self' style='color:{sc}'>{name}</a></td>"
-            f"<td>{row.get('etf', '')}</td>"
-            f"<td>{score_bar}</td>"
-            f"<td style='color:{sc}; font-weight:800'>{status}</td>"
-            f"<td style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</td>"
-            f"<td style='color:{_sign_color(rs20)}; font-weight:700'>{rs_text}</td>"
-            f"<td>{breadth_bar}</td></tr>"
-        )
-    return (
-        "<table class='j3-theme-table'><colgroup>"
-        "<col style='width:6%'><col style='width:18%'><col style='width:8%'>"
-        "<col style='width:22%'><col style='width:8%'><col style='width:10%'>"
-        "<col style='width:14%'><col style='width:14%'></colgroup>"
-        "<thead><tr><th>순위</th><th class='j3-th-left'>테마</th><th>ETF</th><th>조건점수</th>"
-        "<th>상태</th><th>당일</th><th>20일 상대강도</th><th>구성종목 확산</th></tr></thead>"
-        f"<tbody>{''.join(body)}</tbody></table>"
-    )
+        rows.append({
+            "순위": row.get("rank"),
+            "테마": row.get("name"),
+            "ETF": row.get("etf"),
+            "조건점수": row.get("score"),
+            "상태": row.get("status", "자료부족"),
+            "당일": row.get("change_pct"),
+            "20일 상대강도": row.get("rs20"),
+            "구성종목 확산": row.get("breadth"),
+        })
+    return pd.DataFrame(rows)
+
+
+def _selected_rows(event) -> list[int]:
+    """st.dataframe 선택 이벤트에서 클릭된 행 인덱스를 추출한다."""
+    try:
+        rows = [int(value) for value in event.selection.rows]
+        if rows:
+            return rows
+        cells = list(event.selection.cells)
+        return [int(cells[0][0])] if cells else []
+    except (AttributeError, KeyError, TypeError, ValueError):
+        try:
+            selection = event.get("selection", {})
+            rows = [int(value) for value in selection.get("rows", [])]
+            if rows:
+                return rows
+            cells = selection.get("cells", [])
+            return [int(cells[0][0])] if cells else []
+        except (AttributeError, TypeError, ValueError):
+            return []
 
 
 def _safe_error_text(error) -> str:
@@ -789,24 +772,36 @@ def _render_radar_tab(market: dict) -> None:
     if ranking.get("stale"):
         st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
 
+    table = _theme_table(ranking)
     st.markdown("### 20개 테마 실시간 순위")
-    st.caption("테마 이름을 클릭하면 아래 ‘테마 선택’과 대장주·상세가 그 테마로 연결됩니다.")
-    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
-    # 테마칸(링크) 클릭 → query param으로 선택을 반영한 뒤 URL을 정리한다.
-    clicked_theme = st.query_params.get("j3t")
-    if clicked_theme in names:
-        st.session_state["j3_theme_choice_widget"] = clicked_theme
-        st.session_state["j3_theme_choice"] = clicked_theme
-    if "j3t" in st.query_params:
-        del st.query_params["j3t"]
-    st.markdown(
-        _theme_table_html(ranking, st.session_state.get("j3_theme_choice")),
-        unsafe_allow_html=True,
+    st.caption("원하는 테마 행을 클릭하면 아래 ‘테마 선택’과 대장주 목록이 즉시 연결됩니다.")
+    theme_event = st.dataframe(
+        table,
+        hide_index=True,
+        width="stretch",
+        key="j3_theme_rank_table",
+        on_select="rerun",
+        selection_mode="single-cell",
+        column_config={
+            "당일": st.column_config.NumberColumn(format="%+.2f%%"),
+            "20일 상대강도": st.column_config.NumberColumn(format="%+.1f%%p"),
+            "구성종목 확산": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.0f%%"),
+            "조건점수": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
+        },
     )
     st.caption(
         f"테마 계산 시각: {ranking.get('checked_at') or '—'} · ETF 상대강도와 구성종목 추세를 합산 · "
         "미국 휴장일에는 마지막 거래일 자료"
     )
+    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
+    clicked_theme_rows = _selected_rows(theme_event)
+    if clicked_theme_rows and 0 <= clicked_theme_rows[0] < len(table):
+        clicked_theme = str(table.iloc[clicked_theme_rows[0]]["테마"])
+        selection_token = (clicked_theme_rows[0], clicked_theme)
+        if clicked_theme in names and selection_token != st.session_state.get("j3_last_theme_table_selection"):
+            st.session_state["j3_theme_choice_widget"] = clicked_theme
+            st.session_state["j3_theme_choice"] = clicked_theme
+            st.session_state["j3_last_theme_table_selection"] = selection_token
     if st.session_state.get("j3_theme_choice_widget") not in names:
         preferred_theme = st.session_state.get("j3_theme_choice")
         st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]

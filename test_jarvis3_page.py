@@ -119,8 +119,12 @@ class Jarvis3PageTests(unittest.TestCase):
 
     def test_table_click_and_chart_color_contracts_are_present(self):
         source = PAGE.read_text(encoding="utf-8")
-        # 테마 순위표·대장주 1–6위표는 가운데 정렬 HTML 표, 선택은 pills·radio.
-        self.assertIn("j3-theme-table", source)
+        # 테마표는 세션을 지키는 클릭용 st.dataframe(HTML 링크 금지 — 새로고침이 로그인 세션을 끊음).
+        self.assertIn('key="j3_theme_rank_table"', source)
+        self.assertIn('on_select="rerun"', source)
+        self.assertIn('selection_mode="single-cell"', source)
+        self.assertNotIn("href='?j3t=", source)
+        # 대장주 1–6위표는 HTML(선택은 radio).
         self.assertIn("_leader_table_html", source)
         self.assertIn("상세 종목 선택", source)
         self.assertIn("j3_stock_choice_", source)
