@@ -1,5 +1,6 @@
 import socket
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,6 +15,24 @@ TRANSITION_SOURCE = SOURCE + VISUAL_SOURCE
 EARTH_PATH = ROOT / "assets" / "jarvis_earth.webp"
 DOT_EARTH_PATH = ROOT / "assets" / "jarvis_dot_earth.webp"
 TEST_PASSWORD = "jarvis-login-transition-test"
+
+
+@contextmanager
+def _offline_market_stubs():
+    """로그인 연출 테스트가 자동 시장 워밍업의 네트워크 시간에 좌우되지 않게 한다."""
+    with patch("price_data.get_snapshot_defaults", return_value={"ok": False}), \
+         patch("price_data.get_intraday_last", return_value={"ok": False}), \
+         patch("price_data.get_ohlc_history_for_chart", return_value=None), \
+         patch("price_data.get_top_kr_stocks_by_amount", return_value=[]), \
+         patch("kis_market_data.get_index_snapshot", return_value={"ok": False}), \
+         patch("naver_market_data.get_index_snapshot", return_value={"ok": False}), \
+         patch("naver_market_data.get_index_daily_close", return_value={"ok": False}), \
+         patch("news_data.fetch_naver_news", return_value={"status": "데이터 없음", "data": []}), \
+         patch("theme_data.fetch_kr_theme_snapshot", return_value={"ok": False, "themes": {}}), \
+         patch("theme_data.fetch_us_sector_snapshot", return_value={"ok": False, "sectors": []}), \
+         patch("theme_data.fetch_us_theme_indicators", return_value={"ok": False, "values": {}}), \
+         patch("bookmaker_data.fetch_bookmaker_snapshot", return_value={"ok": True, "events": [], "errors": []}):
+        yield
 
 
 def _new_app():
@@ -115,7 +134,7 @@ class LoginAppLifecycleTests(unittest.TestCase):
 
     def test_pre_auth_and_wrong_password_have_no_exceptions_or_network(self):
         app = _new_app()
-        with self._socket_block():
+        with self._socket_block(), _offline_market_stubs():
             app.run()
             self.assertEqual(len(app.exception), 0)
             self.assertEqual(app.text_input[0].key, "login_password_input")
@@ -128,8 +147,11 @@ class LoginAppLifecycleTests(unittest.TestCase):
 
     def test_success_transition_plays_once_and_normal_rerun_does_not_replay(self):
         app = _new_app()
-        with self._socket_block():
+        with self._socket_block(), _offline_market_stubs():
             app.run()
+            # 멀티페이지가 2개 이상이면 AppTest도 실제 switch_page를 수행한다.
+            # 이 테스트는 자비스1 로그인 전환 자체를 검증하므로 목적지를 명시한다.
+            app.radio[0].set_value("자비스1 (기록장)")
             app.text_input[0].set_value(TEST_PASSWORD)
             app.button[0].click().run(timeout=60)
         self.assertEqual(len(app.exception), 0)
@@ -144,7 +166,13 @@ class LoginAppLifecycleTests(unittest.TestCase):
         app.session_state["kr_auto_run_stage1_done"] = True
         app.session_state["kr_auto_run_stage2_done"] = True
         app.session_state["kr_theme_auto_fetch_pending"] = False
-        with self._socket_block():
+        app.session_state["kr_bookmaker_auto_fetch_pending"] = False
+        app.session_state["kr_auto_run_version"] = "2026-07-14-previous-close-v2"
+        app.session_state["us_auto_run_stage1_done"] = True
+        app.session_state["us_auto_run_stage2_done"] = True
+        app.session_state["us_auto_run_version"] = "2026-07-15-v1"
+        app.session_state["parallel_warmup_done"] = True
+        with self._socket_block(), _offline_market_stubs():
             app.run(timeout=60)
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(_overlay_count(app), 0)

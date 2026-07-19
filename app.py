@@ -273,7 +273,7 @@ def create_daily_db_backup_once():
 
 st.set_page_config(page_title="자비스 주식 기록장", layout="wide")
 
-# 사이드바 페이지 목록(app/자비스2) 글자를 키우고 색을 넣어 눈에 띄게 한다.
+# 사이드바 페이지 목록(app/자비스2/자비스3) 글자를 키우고 색을 넣어 눈에 띄게 한다.
 st.markdown(
     """
     <style>
@@ -604,12 +604,12 @@ if not st.session_state.get("authenticated"):
             unsafe_allow_html=True,
         )
         _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
-        # 로그인 후 이동할 화면을 미리 고른다 — 자비스2 선택 시 자비스1 로딩을
-        # 건너뛰고 바로 진입해 대기 시간을 없앤다 (2026-07-17 사용자 요청).
+        # 로그인 후 이동할 화면을 미리 고른다 — 자비스2/3 선택 시 자비스1 로딩을
+        # 건너뛰고 바로 진입해 대기 시간을 없앤다.
         _login_dest = st.radio(
             "로그인 후 이동",
-            ["자비스1 (기록장)", "자비스2 (순환매 플레이북)"],
-            index=1,  # 기본 선택: 자비스2 (2026-07-17 사용자 요청)
+            ["자비스1 (기록장)", "자비스2 (순환매 플레이북)", "자비스3 (미국 테마 레이더)"],
+            index=1,  # 기존 자비스2 기본 이동은 유지하고 자비스3를 선택지로 추가
             horizontal=True,
             key="login_dest_choice",
         )
@@ -618,6 +618,8 @@ if not st.session_state.get("authenticated"):
                 st.session_state["authenticated"] = True
                 if str(_login_dest).startswith("자비스2"):
                     st.switch_page("pages/1_자비스2.py")
+                if str(_login_dest).startswith("자비스3"):
+                    st.switch_page("pages/2_자비스3.py")
                 st.session_state["login_transition_pending"] = True
                 # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
                 # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.

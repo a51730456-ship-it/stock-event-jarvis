@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
+from test_login_transition import _offline_market_stubs
 
 
 ROOT = Path(__file__).parent
@@ -19,19 +20,22 @@ def _logged_in_app():
     전부 완료 상태로 표시한 AppTest 인스턴스를 반환한다."""
     app = AppTest.from_file(ROOT / "app.py", default_timeout=60)
     app.secrets["APP_PASSWORD"] = TEST_PASSWORD
-    with _socket_block():
+    with _socket_block(), _offline_market_stubs():
         app.run()
+        app.radio[0].set_value("자비스1 (기록장)")
         app.text_input[0].set_value(TEST_PASSWORD)
         app.button[0].click().run(timeout=60)
 
     app.session_state["kr_auto_run_stage1_done"] = True
     app.session_state["kr_auto_run_stage2_done"] = True
+    app.session_state["kr_auto_run_version"] = "2026-07-14-previous-close-v2"
     app.session_state["kr_theme_auto_fetch_pending"] = False
     app.session_state["kr_bookmaker_auto_fetch_pending"] = False
     app.session_state["parallel_warmup_done"] = True
     app.session_state["us_auto_run_stage1_done"] = True
-    app.session_state["us_auto_run_version"] = 1
-    with _socket_block():
+    app.session_state["us_auto_run_stage2_done"] = True
+    app.session_state["us_auto_run_version"] = "2026-07-15-v1"
+    with _socket_block(), _offline_market_stubs():
         app.run(timeout=60)
     return app
 
@@ -56,7 +60,7 @@ class KrThemeTableClickSyncTests(unittest.TestCase):
         app.session_state["kr_theme_table_df"] = {
             "selection": {"rows": [1], "columns": [], "cells": []}
         }
-        with _socket_block():
+        with _socket_block(), _offline_market_stubs():
             app.run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)

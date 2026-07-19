@@ -51,6 +51,7 @@ class TabFragmentIsolationRuntimeTests(unittest.TestCase):
 
             app = _new_app()
             app.run(timeout=90)
+            app.radio[0].set_value("자비스1 (기록장)")
             app.text_input[0].set_value(TEST_PASSWORD)
             app.button[0].click().run(timeout=90)
             self.assertEqual(len(app.exception), 0)
