@@ -133,13 +133,19 @@ st.markdown(
         padding: 1.15rem 1.3rem;
         box-shadow: 0 0 14px rgba(77,166,255,0.28), inset 0 0 20px rgba(77,166,255,0.07);
     }
-    .j3-holo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.95rem 1.3rem; }
-    /* 왼쪽 열(조건 기준가·무효화 가격)이 카드 왼쪽에 붙어 보여 안쪽으로 들여쓴다 */
+    /* 왼쪽 열은 안쪽으로, 오른쪽 열(매수 허용 상단·2R 목표)은 왼쪽으로 당긴다 */
+    .j3-holo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.95rem 0.4rem; }
     .j3-holo-cell:nth-child(odd) { padding-left: 1.6rem; }
-    .j3-holo-foot { display: flex; justify-content: flex-end; margin-top: 1rem; }
+    .j3-holo-cell:nth-child(even) { margin-left: -1.8rem; }
+    /* 종목 조건점수는 2R 목표(참고)와 같은 열에 맞춘다 */
+    .j3-holo-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 1.1rem; }
+    .j3-holo-foot > div:last-child { margin-left: -1.8rem; }
     .j3-holo-foot .label { color: #4da6ff; font-size: 0.92rem; font-weight: 800; }
     .j3-holo-foot .val { color: #44f0a1; font-size: 1.5rem; font-weight: 800; line-height: 1.25; }
     .j3-holo-foot .state { color: #9aa0aa; font-size: 0.95rem; font-weight: 700; }
+    /* 참고 안내: 위 카드와 간격 + 글자 키움 */
+    .j3-plan-note { margin-top: 1.1rem; color: #9aa0aa; font-size: 1rem; line-height: 1.65; }
+    .j3-plan-note b { color: #44f0a1; font-size: 1.1rem; font-weight: 800; }
     .j3-holo-cell .label { color: #9aa0aa; font-size: 0.85rem; }
     .j3-holo-cell .val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.2; text-shadow: 0 0 8px rgba(77,166,255,0.45); }
     .j3-holo-corner { position: absolute; width: 14px; height: 14px; border-color: #4da6ff; }
@@ -688,7 +694,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
     )
     # 총점 행: 글자 한 치수 크게 + 배경 밝은 초록
     total_style = (
-        "font-weight:800; font-size:1.1rem; background:rgba(68,240,161,0.22); "
+        "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
         "border-top:4px double rgba(255,255,255,0.55)"
     )
     total_row = (
@@ -738,7 +744,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
             "<span class='j3-holo-corner tl'></span><span class='j3-holo-corner tr'></span>"
             "<span class='j3-holo-corner bl'></span><span class='j3-holo-corner br'></span>"
             f"<div class='j3-holo-grid'>{plan_grid}</div>"
-            "<div class='j3-holo-foot'><div style='text-align:right'>"
+            "<div class='j3-holo-foot'><div></div><div>"
             "<div class='label'>종목 조건점수</div>"
             f"<div class='val'>{float(leader.get('score') or 0):.1f}/100</div>"
             f"<div class='state'>{plan.get('state', '')}</div>"
@@ -750,13 +756,15 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
             hints = []
             high52, sma20 = metrics.get("high52"), metrics.get("sma20")
             if high52:
-                hints.append(f"돌파 조건 도달가 {_price(float(high52) * 0.98)} (52주 고가 −2% 지점)")
+                hints.append(f"돌파 조건 도달가 <b>{_price(float(high52) * 0.98)}</b> (52주 고가 −2% 지점)")
             if sma20:
-                hints.append(f"눌림목 조건 도달가 {_price(sma20)} (20일선)")
+                hints.append(f"눌림목 조건 도달가 <b>{_price(sma20)}</b> (20일선)")
             hint_text = f"참고 — {' · '.join(hints)}. " if hints else ""
-            st.caption(
-                f"※ 지금은 ‘{plan.get('state')}’ 상태라 확정 기준가·목표가가 아직 없습니다. {hint_text}"
-                "이 조건이 실제로 충족되면 위 칸에 매수 가격이 표시됩니다."
+            # st.caption은 '$'를 LaTeX 수식으로 해석해 글자가 깨지므로 HTML로 그린다.
+            st.markdown(
+                f"<div class='j3-plan-note'>※ 지금은 ‘{plan.get('state')}’ 상태라 확정 기준가·목표가가 "
+                f"아직 없습니다. {hint_text}이 조건이 실제로 충족되면 위 칸에 매수 가격이 표시됩니다.</div>",
+                unsafe_allow_html=True,
             )
         st.write("")
         if plan.get("recommendation") == "조건부 후보":
