@@ -209,32 +209,6 @@ def _weekly_ohlc(df):
     )
 
 
-def _render_html_table(styled_df, max_height: int = 620) -> None:
-    """pandas Styler를 실제 HTML/CSS로 렌더링한다.
-
-    st.dataframe(캔버스 기반 glide-data-grid)은 df.style의 text-align 등
-    임의 CSS를 조용히 무시한다(색상 .map()만 별도 경로로 반영됨) —
-    헤더 가운데 정렬·값 정렬 요청이 계속 실패했던 근본 원인. 진짜 HTML로
-    그리면 CSS가 그대로 먹는다. 대가: st.dataframe의 on_select(행 클릭)
-    상호작용이 없어짐 — 호출부에서 별도 선택+버튼으로 대체할 것."""
-    html = styled_df.to_html()
-    st.markdown(
-        "<style>"
-        ".j2htbl-wrap { max-height:" + str(max_height) + "px; overflow:auto; "
-        "border:1px solid #263247; border-radius:8px; margin-bottom:0.5rem; }"
-        ".j2htbl-wrap table { width:100%; border-collapse:collapse; font-size:0.92rem; }"
-        ".j2htbl-wrap thead th { position:sticky; top:0; background:#161d2b; "
-        "color:#e5e7eb; font-weight:700; padding:0.5rem 0.6rem; "
-        "border-bottom:2px solid #2d3b52; z-index:1; }"
-        ".j2htbl-wrap tbody td { padding:0.42rem 0.6rem; border-bottom:1px solid #1f2937; "
-        "color:#e5e7eb; white-space:nowrap; }"
-        ".j2htbl-wrap tbody tr:hover { background:#1a2332; }"
-        "</style>"
-        f"<div class='j2htbl-wrap'>{html}</div>",
-        unsafe_allow_html=True,
-    )
-
-
 def _candle_chart(dfo, height: int, bar_size: int = 6):
     """캔들 봉차트 (한국 관례: 상승 빨강 / 하락 파랑). altair 내장 사용."""
     import altair as alt
@@ -332,6 +306,13 @@ def _render_playbook(open_pos: list) -> None:
     if pending and pending in _THEME_NAMES:
         st.session_state["j2_theme_select"] = pending
         st.session_state["j2_autorun_signal"] = True
+
+    # 신고가 표에서 종목을 클릭했을 때, 같은 테마 안에서는 종목 선택 위젯의 키가
+    # 그대로라 index= 파라미터가 무시된다(Streamlit이 이미 저장된 값을 우선함).
+    # 위젯 상태를 지워 이번 run에 _pick_default()의 index가 실제로 먹게 만든다.
+    _nh_force_theme = st.session_state.pop("j2_nh_force_stock_reset_theme", None)
+    if _nh_force_theme:
+        st.session_state.pop(f"j2_stock_select_{_nh_force_theme}", None)
 
     # ── 2a. 테마 선택 + 신호 확인 ──────────────────────────────────────────────
     # 첫 로딩: 클릭 없이 가장 강한(등락률 1위) 테마를 자동 선택하고 신호까지 자동 조회
@@ -629,7 +610,7 @@ def _render_playbook(open_pos: list) -> None:
     )
     st.caption(
         "후보 출처 두 갈래 — ① **신고가 임박 매매(취지)**: 아래 '⭐ 52주 신고가 임박주' 표에서 "
-        "행을 클릭하면 이 화면과 연결되고, 적격 대장이 기본 선택 1순위로 잡힙니다. "
+        "행을 클릭하면 이 화면과 연결되고, 클릭한 그 종목이 기본 선택 1순위로 잡힙니다. "
         "② **순환매 관찰**: 이 드롭다운은 테마 구성종목 전체를 등락률 순으로 정렬한 목록입니다. "
         "등수 한계 밖(3등주)은 기본 선택에서 건너뛰고 직접 선택 시 경보. 매수 판단은 사용자."
     )
@@ -831,12 +812,17 @@ def _render_playbook(open_pos: list) -> None:
     # ── 2d. 셋업 + 진입가/손절가/수량 ──────────────────────────────────────
     st.markdown("**셋업 및 진입 계획** — 위에서 고른 매수 대상을 기록하는 곳")
     st.caption(
-        "자비스는 주문하지 않습니다 — 증권사에서 실제 매수한(또는 하려는) 내용을 여기 **기록**합니다. "
-        "사용 순서: ① 셋업 선택 — **눌림재상승**=돌파 후 3~5% 눌렸다 재상승할 때 진입 / "
-        "**돌파**=신고가 돌파 순간 진입. "
-        "② 진입가·손절가·수량 입력 → 1R(이 매매에서 감수하는 최대 손실 금액)이 자동 계산됩니다. "
-        "③ **기록하고 진입** = 판단 기록 저장 · **탈락으로 기록** = 검토했지만 진입 안 한 것도 기록. "
-        "이렇게 30건이 쌓이면 어떤 셋업이 나에게 확률 높은지 통계로 확인합니다."
+        "자비스는 주문을 넣지 않습니다. 증권사에서 실제로 산(또는 사려는) 내용을 여기에 "
+        "직접 **기록**만 합니다.\n\n"
+        "**① 셋업(매매 상황) 고르기**\n"
+        "- **눌림재상승**: 한번 뜬 뒤 3~5%쯤 눌렸다가 다시 오를 때 사는 방법\n"
+        "- **돌파**: 52주 신고가를 막 뚫는 순간 사는 방법\n\n"
+        "**② 진입가·손절가·수량 입력**\n"
+        "입력하면 1R(이번 매매에서 잃어도 되는 최대 금액)이 자동으로 계산됩니다.\n\n"
+        "**③ 저장하기**\n"
+        "- **기록하고 진입**: 실제로 산 판단을 저장\n"
+        "- **탈락으로 기록**: 검토는 했지만 사지 않은 경우도 기록\n\n"
+        "이렇게 기록이 30건 쌓이면 어떤 셋업이 나에게 더 잘 맞는지 통계로 확인할 수 있습니다."
     )
     setup = st.radio("셋업", ["눌림재상승", "돌파"], horizontal=True, key="j2_setup")
 
@@ -1106,9 +1092,10 @@ def _render_near_high_table() -> None:
             return "#facc15"
         return "#9ca3af"
 
-    # st.dataframe(캔버스 렌더러)는 df.style의 text-align/컬럼값 정렬을 전부
-    # 무시한다 — 색상(.map())만 별도 경로로 반영됨. 진짜 HTML/CSS로 그려야
-    # 정렬이 실제로 먹는다. 대신 행 클릭 자동이동은 아래 선택+버튼으로 대체.
+    # 값은 실제 숫자 dtype으로 채운다 — column_config.NumberColumn이 우측 정렬
+    # 서식을 맡고, st.dataframe의 on_select로 행 클릭 → 매수 대상 자동 연결을
+    # 유지한다. (순수 HTML로 바꾸면 가운데 정렬은 되지만 클릭 자체가 사라진다 —
+    # 2026-07-19 사용자가 클릭 기능을 우선시한다고 확인, 클릭 유지 쪽으로 되돌림.)
     rows = []
     for r in rows_raw:
         mkt = market_data.get_market(r["code"])
@@ -1118,12 +1105,12 @@ def _render_near_high_table() -> None:
             "종목명": f"{r['name']} ({r['code']})",
             "테마": r["theme"],
             "시장": mkt_txt,
-            "52주고가대비": f"{r['pct_from_52w_high']:+.1f}%",
-            "현재가": f"{r['price']:,.0f}" if r.get("price") else "—",
-            "오늘 등락률": f"{r['change_pct']:+.2f}%" if r.get("change_pct") is not None else "—",
+            "52주고가대비": r.get("pct_from_52w_high"),
+            "현재가": r.get("price"),
+            "오늘 등락률": r.get("change_pct"),
             "종합점수": _score,
             "셋업 판정": r.get("judge", "—"),
-            "거래대금배수": f"{r['turnover_mult']:.2f}배" if r.get("turnover_mult") is not None else "—",
+            "거래대금배수": r.get("turnover_mult"),
         })
 
     import pandas as pd
@@ -1131,10 +1118,13 @@ def _render_near_high_table() -> None:
     df = pd.DataFrame(rows)
 
     def _style_updown(val):
-        s = str(val)
-        if s.startswith("+"):
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return ""
+        if v > 0:
             return "color:#ff4b4b; font-weight:700"
-        if s.startswith("-"):
+        if v < 0:
             return "color:#4b9fff; font-weight:700"
         return ""
 
@@ -1154,31 +1144,49 @@ def _render_near_high_table() -> None:
         except (TypeError, ValueError):
             return ""
 
-    _right_cols = ["52주고가대비", "현재가", "오늘 등락률", "종합점수", "거래대금배수"]
-    _center_cols = ["시장", "셋업 판정"]
     styled = (
         df.style
         .map(_style_updown, subset=["52주고가대비", "오늘 등락률"])
         .map(_style_judge, subset=["셋업 판정"])
         .map(_style_mkt, subset=["시장"])
         .map(_style_score, subset=["종합점수"])
-        .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
-        .set_properties(subset=_right_cols, **{"text-align": "right"})
-        .set_properties(subset=_center_cols, **{"text-align": "center"})
-        .hide(axis="index")
     )
-    _render_html_table(styled)
+    # 높이: 최대 15행, 행 수가 적으면 그만큼만 (빈 공간 없이)
+    _tbl_h = min(len(rows_raw), 15) * 35 + 40
+    event = st.dataframe(
+        styled, use_container_width=True, hide_index=True, height=_tbl_h,
+        on_select="rerun", selection_mode="single-row", key="j2_nh_tbl",
+        column_config={
+            "종목명": st.column_config.TextColumn("종목명", alignment="left"),
+            "테마": st.column_config.TextColumn("테마", alignment="center"),
+            "시장": st.column_config.TextColumn("시장", alignment="center"),
+            "52주고가대비": st.column_config.NumberColumn("52주고가대비", format="%+.1f%%", alignment="right"),
+            "현재가": st.column_config.NumberColumn("현재가", format="%,d", alignment="right"),
+            "오늘 등락률": st.column_config.NumberColumn("오늘 등락률", format="%+.2f%%", alignment="right"),
+            "종합점수": st.column_config.NumberColumn("종합점수", format="%d", alignment="right"),
+            "셋업 판정": st.column_config.TextColumn("셋업 판정", alignment="center"),
+            "거래대금배수": st.column_config.NumberColumn("거래대금배수", format="%.2f배", alignment="right"),
+        },
+    )
     st.caption(f"스캔 시각 {saved['at']} · {result.get('scanned', 0)}종목 검사, {len(rows_raw)}종목 통과")
 
-    # 행 클릭 자동이동 대체 — 표는 이제 순수 HTML이라 클릭 이벤트가 없다
-    _nh_themes = sorted({r["theme"] for r in rows_raw})
-    _nc1, _nc2 = st.columns([3, 1])
-    _nh_pick = _nc1.selectbox(
-        "표에서 테마 골라 플레이북으로 이동", _nh_themes, key="j2_nh_theme_pick",
-    )
-    if _nc2.button("이동", key="j2_nh_goto_btn", use_container_width=True):
-        if _nh_pick in _THEME_NAMES and _nh_pick != st.session_state.get("j2_prev_theme"):
-            st.session_state["j2_pending_theme"] = _nh_pick
+    sel_rows = []
+    try:
+        sel_rows = list(event.selection.rows)
+    except Exception:
+        pass
+    if sel_rows:
+        _picked = rows_raw[sel_rows[0]]
+        _target = {"theme": _picked["theme"], "code": _picked["code"]}
+        # st.dataframe의 선택 상태는 다음 rerun에도 그대로 남아있으므로, 이미
+        # 처리한 선택이면(=nh_top이 이미 같은 값) 다시 반응하지 않는다 —
+        # 이 가드가 없으면 클릭 한 번에 매 rerun마다 재실행되어 화면이 계속
+        # 깜빡이는 무한 루프가 생긴다(2026-07-19 실사용 확인).
+        if _picked["theme"] in _THEME_NAMES and st.session_state.get("j2_nh_top") != _target:
+            st.session_state["j2_nh_top"] = _target
+            st.session_state["j2_nh_force_stock_reset_theme"] = _picked["theme"]
+            if _picked["theme"] != st.session_state.get("j2_prev_theme"):
+                st.session_state["j2_pending_theme"] = _picked["theme"]
             st.session_state["j2_scroll_playbook"] = True
             st.rerun()
 
@@ -1186,81 +1194,92 @@ def _render_near_high_table() -> None:
         st.markdown(
             """
 ### 표시 방식 안내
-🤖 **자동** = 자비스가 계산·표시 (그대로 확인만 하면 됨)
-✍️ **수동** = 사용자가 직접 판단·확인·기록해야 하는 것 (자비스가 대신 안 함)
+🤖 **자동** = 자비스가 계산해서 보여줌 → 그냥 확인만 하면 됩니다
+✍️ **수동** = 사용자가 직접 판단하고 기록해야 함 → 자비스가 대신 안 해줍니다
 
 ---
 
-### 이 기법이 무엇인가
-테마(산업) 안에서 52주 신고가에 근접한 대장주를 골라, 돌파 또는 눌림재상승에서만 진입하는 스윙 기법.
+### 이 기법을 한마디로
+같은 업종(테마) 안에서 52주 최고가에 가까워진 대장 종목을 골라, "막 뚫고 오를 때" 또는
+"살짝 눌렸다가 다시 오를 때"만 사는 며칠~몇 주짜리 매매법입니다.
 
-**근거 등급 — 출처를 구분해 둡니다**
+**숫자들이 어디서 나왔는지 구분해 둡니다 (믿을 만한 정도가 다릅니다)**
 
-- **[학술]** 52주 신고가 근접주는 이후 초과수익 경향(George&Hwang 2004, 20개국 확인).
-  원인은 앵커링: 투자자가 52주 고가를 심리적 기준점 삼아 호재에 과소반응. 개별 기업보다
-  산업(테마) 정보 과소반응이 주도 → "테마+신고가" 조합의 근거. 하락장에선 모멘텀 수익 급감
-  → 시장상태 경고의 근거.
-- **[관행]** 거래대금 1.5배, 시가+5% 추격금지, 손절 -7~8%, 청산 신호들은 윌리엄 오닐(CANSLIM)
-  유래 — 검증 통계 아님. "성공률 95%" 류 수치는 근거 없는 마케팅이니 무시할 것.
-- **[자비스 임의값]** 테마나이 D+3, 신고가 근접 게이트 10%, 막차 기준 20% 급등 등 설정
-  임계값은 전부 제(자비스)가 정한 시작값입니다 — 논문에도 오닐 자료에도 없는 숫자입니다.
-  기록 30건 전 변경 금지.
+- 🎓 **학술 연구 근거**: "52주 최고가 근처 종목이 그 뒤에도 더 오르는 경향"은 실제 논문
+  (George & Hwang 2004, 20개국 확인)에서 나온 결과입니다. 사람들이 52주 최고가를 기준점
+  삼아 좋은 소식에도 반응을 늦게/적게 하기 때문(앵커링)이고, 개별 회사보다 업종 전체가 이런
+  늦은 반응을 더 크게 보입니다. 그래서 "업종 + 신고가"를 같이 보는 근거가 있고, 반대로
+  하락장에서는 이 효과가 확 줄어드니 시장 상태 경고가 뜨면 조심해야 합니다.
+- 📖 **오래된 매매 관행**: 거래대금 1.5배, 시가 대비 +5% 급등 시 추격 금지, 손절 -7~8%
+  같은 규칙은 윌리엄 오닐의 CANSLIM 기법에서 가져온 경험칙입니다. 통계로 검증된 수치는
+  아니에요. "성공률 95%" 같은 문구를 어디서 보셨다면 근거 없는 광고이니 무시하세요.
+- ⚙️ **자비스가 임의로 정한 값**: 테마 나이 D+3(3일 넘으면 막차 취급), 신고가 근접 기준
+  10% 이내, 급등 기준 20% 같은 숫자는 전부 제(자비스)가 시작값으로 정한 것입니다. 논문에도
+  오닐 자료에도 없는 숫자예요. 기록이 30건 쌓이기 전까지는 이 숫자들을 바꾸지 않습니다.
 
-🤖 **종합점수(⭐ 표) 계산 방식**: 52주고가 근접도 0~75점([학술] 근거 있는 핵심 신호라 최대
-가중치) + 거래대금배수 0~25점([관행] 1.5배 이상 만점). 막차 주의 판정이면 15점 상한 강제.
-매수 신호가 아니라 이미 표에 나온 두 지표를 조합한 정렬 보조값일 뿐입니다.
+🤖 **종합점수는 어떻게 계산되나요**: 52주 최고가에 얼마나 가까운지(0~75점, 근거 있는
+핵심 신호라 비중 최대) + 거래대금이 얼마나 늘었는지(0~25점, 1.5배 이상이면 만점)를 더한
+값입니다. "막차 주의" 판정이면 아무리 계산해도 15점을 못 넘게 강제로 깎습니다. 매수 신호가
+아니라, 표에 이미 나온 두 숫자를 하나로 합쳐 정렬하기 편하게 만든 참고값일 뿐입니다.
 
 ---
 
-### 실전 순서 (화면 위→아래)
+### 화면에서 보는 순서 (위 → 아래)
 
-**① 시장 확인**
-🤖 맨 위 경고 스트립을 봅니다. 하락국면/변동성 경고가 뜨면 신규 진입 중단이 원칙입니다.
+**① 시장부터 확인하세요**
+🤖 맨 위 경고 문구를 봅니다. "하락국면"이나 "변동성 경고"가 떠 있으면 새로 진입하지 않는
+게 원칙입니다.
 
-**② 테마 게이트**
-🤖 신호등 3개(양전 3종목+ / 거래대금 급증 / 연속강세) + 테마나이가 자동 표시됩니다.
-D+3 초과는 막차 취급(**[자비스 임의값]**).
-✍️ 재료가 지속형인지는 직접 판단하세요 — 실적·수주·정책=지속형, 풍문·단발 뉴스=단발형.
-재료 유형을 태그로 기록해 두세요.
+**② 테마(업종) 상태를 봅니다**
+🤖 신호등 3개(오른 종목 3개 이상 / 거래대금 급증 / 며칠째 계속 강세)와 "테마 나이"가 자동
+표시됩니다. 테마가 뜬 지 3일 넘으면 "막차"로 취급합니다(자비스가 정한 기준).
+✍️ 다만 이 호재가 "계속 갈 재료"인지는 직접 판단하세요 — 실적·수주·정책 발표=오래 갈 재료,
+소문·하루짜리 뉴스=짧게 끝날 재료. 어떤 유형인지 태그로 기록해 두세요.
 
-**③ 종목 선택**
-🤖 ⭐ 52주 신고가+테마 표가 추천 관찰 목록입니다. 셋업 판정이 자동 계산됩니다:
-돌파 임박(근접+배수 충족, 최우선) / 눌림 관찰(근접만) / 막차 주의(20일 내 +20% 급등, 진입 금지)
-/ 부적격. 행을 클릭하면 플레이북·매수 대상에 자동 연결됩니다.
-✍️ 대장주 모음 표는 테마 진위 확인용입니다(매수 대상 아님) — 최종 종목 선택은 직접 하세요.
+**③ 종목을 고릅니다**
+🤖 '⭐ 52주 신고가 + 테마' 표가 추천 후보 목록입니다. 판정은 자동으로 매겨집니다:
+**돌파 임박**(신고가 근접 + 거래대금까지 충분함, 가장 우선) → **눌림 관찰**(신고가는
+가까운데 거래대금은 아직 부족) → **막차 주의**(최근 20일 안에 이미 20% 넘게 급등, 진입
+금지) → **부적격**. 표에서 종목을 고르고 '이동' 버튼을 누르면 아래 매매 계획 화면까지
+자동으로 연결됩니다.
+✍️ '대장주 모음' 표는 "이 테마가 진짜 강한지" 확인하는 참고용입니다(살 종목 아님) —
+실제로 살 종목은 직접 고르세요.
 
-**④ 진입 — 두 셋업만**
-- **돌파**: 신고가 돌파 + 당일 거래대금이 20일 평균의 1.5배 이상.
-  🤖 요약 카드의 거래대금 배수 칸을 참고하세요. 시가 대비 +5% 이상 급등했으면 자동 경보(추격 금지).
-  막차 경보가 뜨면 사유를 입력하기 전까지 진입이 막힙니다.
-  ✍️ 실제로 돌파했는지, 거래량이 충분한지는 직접 확인하세요.
-- **눌림재상승**: 테마 발화 후 눌림 → 전일 고가 회복 시 진입. 손절 = 눌림 구간 저가.
-  ✍️ 눌림·재상승 여부는 직접 판단하세요.
+**④ 들어갈 때 — 딱 두 가지 상황에서만**
+- **돌파**: 52주 신고가를 뚫고, 오늘 거래대금이 최근 20일 평균의 1.5배 이상일 때.
+  🤖 요약 카드의 "거래대금 배수" 칸을 보세요. 시가 대비 +5% 넘게 이미 급등했으면 자동
+  경고가 뜹니다(추격 매수 금지). 이 경고가 뜨면 이유를 적기 전까지 진입 자체가 막힙니다.
+  ✍️ 진짜로 뚫었는지, 거래량이 충분한지는 직접 눈으로 확인하세요.
+- **눌림재상승**: 테마가 한번 뜬 뒤 잠깐 눌렸다가 전날 고점을 다시 회복할 때 진입. 손절선은
+  눌렸던 구간의 저점.
+  ✍️ "눌렸다가 다시 오르는 중"인지는 직접 판단하세요.
 
-🤖 수량을 입력하면 1R이 자동 계산되고, 3건 오픈 한도 게이지가 표시됩니다.
-✍️ 경보를 무시하려면 사유를 반드시 입력해야 저장됩니다(자비스가 강제).
+🤖 매수 수량을 입력하면 1R(이 매매에서 잃어도 되는 최대 금액)이 자동 계산되고, 동시에 열어둔
+포지션이 3건을 넘지 않게 게이지로 보여줍니다.
+✍️ 경고를 무시하고 진행하려면 사유를 반드시 적어야 저장됩니다(자비스가 강제로 막음).
 
-**⑤ 손절**
-✍️ 돌파 기준가를 종가로 하회하고 회복 못 할 때 손절하세요. 병행 안전선(**[관행]**): 진입가
--7~8% 도달 시 무조건.
-🤖 대장 꺾임 경보가 뜨면 확인하세요.
-✍️ 테마 동반 상승 종목 수가 급감했는지는 직접 체크하세요.
+**⑤ 손절 — 손실을 자르는 기준**
+✍️ 돌파했던 기준가 아래로 종가가 마감되고 회복을 못 하면 손절하세요. 추가 안전선(오래된
+매매 관행): 진입가 대비 -7~8% 도달하면 이유 불문 손절.
+🤖 대장 종목이 꺾였다는 경고가 뜨면 확인하세요.
+✍️ 같이 오르던 테마 종목 수가 갑자기 줄었는지는 직접 체크하세요.
 
-**⑥ 보유·청산 일일 체크**
-✍️ 아래는 전부 수동 체크입니다 — 하나라도 해당하면 축소를 검토하세요:
-- 대장꺾임 배지 점등 (🤖 자동 표시됨, 확인은 직접)
-- 신호등 소멸 — 동반상승 종목 수 급감 (✍️ 재조회해서 확인)
-- 거래량 없이 신고가만 갱신 — 수요 약화 신호 (✍️ 직접 확인, 자동 감지 안 됨)
-- 장대음봉 + 거래량 증가 — 기관 분산 신호 (✍️ 직접 확인, 자동 감지 안 됨)
-- 지수 급락일 (🤖 자동 감지되면 급락일 기록 섹션이 뜸, ✍️ 원인은 직접 기록)
+**⑥ 보유 중이거나 정리할 때 — 매일 확인할 것**
+✍️ 아래는 전부 직접 확인해야 합니다. 하나라도 해당되면 포지션을 줄이는 걸 고려하세요.
+- 대장 종목이 꺾였다는 표시가 떴는지 (🤖 뜨는 것 자체는 자동, 확인은 직접)
+- 같이 오르던 종목 수가 줄었는지 (✍️ 다시 조회해서 직접 확인)
+- 거래량 없이 가격만 신고가를 갱신하는지 — 사려는 사람이 줄었다는 신호 (✍️ 자동 감지
+  안 됨, 직접 확인)
+- 긴 음봉 + 거래량 증가 — 큰손이 팔고 있다는 신호일 수 있음 (✍️ 자동 감지 안 됨, 직접 확인)
+- 지수가 급락한 날인지 (🤖 자동 감지되면 기록 섹션이 뜸, ✍️ 원인은 직접 적어두기)
 
-대장주가 거래량을 동반하며 신고가를 계속 높이면 보유하세요. 테마 전체가 꺾이면 내 종목이
-버텨도 정리하세요.
+대장 종목이 거래량을 동반하며 계속 신고가를 갈아치우면 보유하세요. 반대로 테마 전체가
+꺾이면 내 종목이 아직 버티고 있어도 정리하는 걸 원칙으로 하세요.
 
-**⑦ 기록 규율**
-✍️ 탈락(진입 안 한 것)도 반드시 기록하세요. 목표 30건.
-🤖 진행률(N/30건)은 판단 기록 탭에 자동 표시됩니다.
-30건 전에는 임계값·규칙을 감으로 바꾸지 마세요.
+**⑦ 기록은 꼭 남기세요**
+✍️ 검토했지만 사지 않은 것도 반드시 기록하세요. 목표는 30건입니다.
+🤖 지금까지 몇 건 기록했는지(N/30건)는 '판단 기록' 탭에 자동으로 표시됩니다.
+30건이 쌓이기 전에는 기준값이나 규칙을 감으로 바꾸지 마세요.
 """
         )
 
@@ -1321,11 +1340,11 @@ def _render_leader_table() -> None:
             "테마": theme_nm,
             "52주": w52,
             "셋업 판정": c.get("setup_judge", "—"),
-            "현재가": f"{price:,.0f}" if price else "—",
-            "전일대비(%)": f"{chg:+.2f}%" if chg is not None else "—",
-            "시가대비(오늘)": f"{op:+.2f}%" if op is not None else "—",
-            "고점대비(오늘)": f"{hp:+.2f}%" if hp is not None else "—",
-            "거래대금배수": f"{mult:.2f}배" if mult is not None else "—",
+            "현재가": price,
+            "전일대비(%)": chg,
+            "시가대비(오늘)": op,
+            "고점대비(오늘)": hp,
+            "거래대금배수": mult,
         })
 
     import pandas as pd
@@ -1333,10 +1352,13 @@ def _render_leader_table() -> None:
     df = pd.DataFrame(rows)
 
     def _style_updown(val):
-        s = str(val)
-        if s.startswith("+"):
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return ""
+        if v > 0:
             return "color:#ff4b4b; font-weight:700"
-        if s.startswith("-"):
+        if v < 0:
             return "color:#4b9fff; font-weight:700"
         return ""
 
@@ -1348,29 +1370,43 @@ def _render_leader_table() -> None:
     def _style_judge(val):
         return _JUDGE_STYLE.get(str(val), "")
 
-    _right_cols = ["현재가", "전일대비(%)", "시가대비(오늘)", "고점대비(오늘)", "거래대금배수"]
-    _center_cols = ["등수", "셋업 판정"]
     styled = (
         df.style
         .map(_style_updown, subset=["전일대비(%)", "시가대비(오늘)", "고점대비(오늘)"])
         .map(_style_52w, subset=["52주"])
         .map(_style_judge, subset=["셋업 판정"])
-        .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
-        .set_properties(subset=_right_cols, **{"text-align": "right"})
-        .set_properties(subset=_center_cols, **{"text-align": "center"})
-        .hide(axis="index")
     )
-    st.caption("아래에서 테마를 골라 이동하면 해당 테마의 순환매 플레이북으로 연결됩니다.")
-    _render_html_table(styled)
-
-    _lt_themes = sorted({theme_nm for theme_nm, _, _ in raw})
-    _lc1, _lc2 = st.columns([3, 1])
-    _lt_pick = _lc1.selectbox(
-        "표에서 테마 골라 플레이북으로 이동", _lt_themes, key="j2_leader_theme_pick",
+    st.caption("행을 클릭하면 해당 테마의 순환매 플레이북 + 매수 대상으로 바로 연결됩니다.")
+    event = st.dataframe(
+        styled, use_container_width=True, hide_index=True,
+        on_select="rerun", selection_mode="single-row", key="j2_leader_tbl",
+        column_config={
+            "등수": st.column_config.TextColumn("등수", alignment="center"),
+            "종목명": st.column_config.TextColumn("종목명", alignment="left"),
+            "테마": st.column_config.TextColumn("테마", alignment="center"),
+            "52주": st.column_config.TextColumn("52주", alignment="left"),
+            "셋업 판정": st.column_config.TextColumn("셋업 판정", alignment="center"),
+            "현재가": st.column_config.NumberColumn("현재가", format="%,d", alignment="right"),
+            "전일대비(%)": st.column_config.NumberColumn("전일대비(%)", format="%+.2f%%", alignment="right"),
+            "시가대비(오늘)": st.column_config.NumberColumn("시가대비(오늘)", format="%+.2f%%", alignment="right"),
+            "고점대비(오늘)": st.column_config.NumberColumn("고점대비(오늘)", format="%+.2f%%", alignment="right"),
+            "거래대금배수": st.column_config.NumberColumn("거래대금배수", format="%.2f배", alignment="right"),
+        },
     )
-    if _lc2.button("이동", key="j2_leader_goto_btn", use_container_width=True):
-        if _lt_pick in _THEME_NAMES and _lt_pick != st.session_state.get("j2_prev_theme"):
-            st.session_state["j2_pending_theme"] = _lt_pick
+    sel_rows = []
+    try:
+        sel_rows = list(event.selection.rows)
+    except Exception:
+        pass
+    if sel_rows:
+        _p_theme, _p_rank, _p_c = raw[sel_rows[0]]
+        _target = {"theme": _p_theme, "code": _p_c["code"]}
+        # (동일 이유로 idempotent 가드 — 위 신고가 표와 같은 무한 루프 방지)
+        if _p_theme in _THEME_NAMES and st.session_state.get("j2_nh_top") != _target:
+            st.session_state["j2_nh_top"] = _target
+            st.session_state["j2_nh_force_stock_reset_theme"] = _p_theme
+            if _p_theme != st.session_state.get("j2_prev_theme"):
+                st.session_state["j2_pending_theme"] = _p_theme
             st.session_state["j2_scroll_playbook"] = True
             st.rerun()
 
