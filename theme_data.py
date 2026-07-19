@@ -19,7 +19,12 @@ _KR_STOCK_MAPS_CACHE_TTL_SECONDS = 24 * 60 * 60
 _kr_stock_maps_cache = {"at": 0.0, "value": ({}, {})}
 
 NAVER_THEME_LIST_URL = "https://finance.naver.com/sise/theme.naver"
-NAVER_HEADERS = {"User-Agent": "Mozilla/5.0"}
+NAVER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+}
 
 # 사용자 승인된 매핑안 (2026-07-12). 자비스 테마 -> 네이버 테마 ID 목록.
 # 2개 이상이면 평균 등락률을 낸다. 근거는 대화 승인 내역 참고.
@@ -130,13 +135,20 @@ def _fetch_theme_pages_in_parallel(pages):
 
     def _fetch_page(page):
         url = NAVER_THEME_LIST_URL if page == 1 else f"{NAVER_THEME_LIST_URL}?page={page}"
-        try:
-            resp = requests.get(url, timeout=8, headers=NAVER_HEADERS)
-            resp.raise_for_status()
-            resp.encoding = "euc-kr"
-            return page, _parse_naver_theme_list(resp.text), None
-        except Exception as e:
-            return page, {}, str(e)
+        # 클라우드 배포 환경은 간헐적으로 접속이 타임아웃되는 경우가 있어
+        # 짧게 재시도한다(2026-07-19 확인 — 온라인에서만 connect timeout 발생).
+        last_err = None
+        for attempt in range(3):
+            try:
+                resp = requests.get(url, timeout=8, headers=NAVER_HEADERS)
+                resp.raise_for_status()
+                resp.encoding = "euc-kr"
+                return page, _parse_naver_theme_list(resp.text), None
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
+        return page, {}, str(last_err)
 
     results = {}
     with ThreadPoolExecutor(max_workers=len(pages)) as executor:

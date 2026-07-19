@@ -16,7 +16,12 @@ from theme_data import KR_THEME_NAVER_MAPPING
 _log = logging.getLogger(__name__)
 
 _DETAIL_URL = "https://finance.naver.com/sise/sise_group_detail.naver?type=theme&no={no}"
-_HEADERS = {"User-Agent": "Mozilla/5.0"}
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+}
 _REQUEST_INTERVAL = 0.3  # 기존 스크래핑 관행: 요청 간 최소 0.3초
 
 _FETCH_CACHE: dict = {}   # {테마명: (timestamp, result)}
@@ -117,16 +122,24 @@ def _parse_stocks(html: str) -> list[dict]:
 
 
 def _fetch_one(no: int) -> list[dict]:
-    """네이버 테마 상세(no)에서 구성종목 목록을 가져온다. 실패 시 빈 리스트."""
+    """네이버 테마 상세(no)에서 구성종목 목록을 가져온다. 실패 시 빈 리스트.
+
+    클라우드 배포 환경에서 간헐적으로 connect timeout이 나는 경우가 있어
+    짧게 재시도한다(2026-07-19 확인 — 로컬은 항상 되고 온라인만 가끔 막힘)."""
     url = _DETAIL_URL.format(no=no)
-    try:
-        resp = requests.get(url, timeout=10, headers=_HEADERS)
-        resp.raise_for_status()
-        resp.encoding = "euc-kr"
-        return _parse_stocks(resp.text)
-    except Exception as e:
-        _log.warning("theme_detail fetch failed no=%s: %s", no, e)
-        return []
+    last_err = None
+    for attempt in range(3):
+        try:
+            resp = requests.get(url, timeout=10, headers=_HEADERS)
+            resp.raise_for_status()
+            resp.encoding = "euc-kr"
+            return _parse_stocks(resp.text)
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+    _log.warning("theme_detail fetch failed no=%s: %s", no, last_err)
+    return []
 
 
 # ── 공개 API ─────────────────────────────────────────────────────────────────
