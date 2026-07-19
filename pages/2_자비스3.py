@@ -114,6 +114,22 @@ st.markdown(
     .j3-bar-fill { height: 14px; background: #ff5b5b; }
     .j3-bar-blue { background: #4da6ff; }
     .j3-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
+    .j3-holo-card {
+        position: relative;
+        background: linear-gradient(135deg, rgba(77,166,255,0.07), rgba(168,85,247,0.07));
+        border: 1px solid rgba(77,166,255,0.55);
+        border-radius: 10px;
+        padding: 1.15rem 1.3rem;
+        box-shadow: 0 0 14px rgba(77,166,255,0.28), inset 0 0 20px rgba(77,166,255,0.07);
+    }
+    .j3-holo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.95rem 1.3rem; }
+    .j3-holo-cell .label { color: #9aa0aa; font-size: 0.85rem; }
+    .j3-holo-cell .val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.2; text-shadow: 0 0 8px rgba(77,166,255,0.45); }
+    .j3-holo-corner { position: absolute; width: 14px; height: 14px; border-color: #4da6ff; }
+    .j3-holo-corner.tl { top: 6px; left: 6px; border-top: 2px solid #4da6ff; border-left: 2px solid #4da6ff; }
+    .j3-holo-corner.tr { top: 6px; right: 6px; border-top: 2px solid #4da6ff; border-right: 2px solid #4da6ff; }
+    .j3-holo-corner.bl { bottom: 6px; left: 6px; border-bottom: 2px solid #4da6ff; border-left: 2px solid #4da6ff; }
+    .j3-holo-corner.br { bottom: 6px; right: 6px; border-bottom: 2px solid #4da6ff; border-right: 2px solid #4da6ff; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -617,12 +633,25 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
         )
     with plan_col:
         st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
-        p1, p2 = st.columns(2)
-        p1.metric("조건 기준가", _price(plan.get("trigger")))
-        p2.metric("매수 허용 상단", _price(plan.get("zone_high")))
-        p3, p4 = st.columns(2)
-        p3.metric("무효화 가격", _price(plan.get("invalidation")))
-        p4.metric("2R 목표 참고", _price(plan.get("target")))
+        plan_cells = [
+            ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
+            ("매수 허용 상단", _price(plan.get("zone_high")), "#e6e6e6"),
+            ("무효화 가격", _price(plan.get("invalidation")), "#ff5b5b"),
+            ("2R 목표 참고", _price(plan.get("target")), "#44f0a1"),
+        ]
+        plan_grid = "".join(
+            f"<div class='j3-holo-cell'><div class='label'>{label}</div>"
+            f"<div class='val' style='color:{color}'>{value}</div></div>"
+            for label, value, color in plan_cells
+        )
+        st.markdown(
+            "<div class='j3-holo-card'>"
+            "<span class='j3-holo-corner tl'></span><span class='j3-holo-corner tr'></span>"
+            "<span class='j3-holo-corner bl'></span><span class='j3-holo-corner br'></span>"
+            f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
+            unsafe_allow_html=True,
+        )
+        st.write("")
         if plan.get("recommendation") == "조건부 후보":
             st.success(plan.get("buy_reason"))
         elif plan.get("state") == "추격 금지":
