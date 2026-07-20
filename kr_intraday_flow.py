@@ -17,6 +17,28 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
+# 상태값·시점·세기·신선도는 미국장 엔진과 공유한다. 판정 기준은 공유하지 않는다.
+from market_signal_common import (  # noqa: F401  (기존 호출부 호환용 재수출)
+    FRESHNESS_DELAYED_SECONDS,
+    FRESHNESS_OK_SECONDS,
+    STATUS_COLOR,
+    STATUS_MARK,
+    STRENGTH_LABEL,
+    TIMING_LABEL,
+    MarketCode,
+    MarketSignal,
+    SignalStatus,
+    SignalStrength,
+    SignalTiming,
+    data_status_text,
+    flow_reading,
+    freshness_label,
+    is_stale,
+)
+
+# 한국장 엔진은 신호 타입 이름을 FlowSignal로 써왔다. 공통 타입의 별칭으로 둔다.
+FlowSignal = MarketSignal
+
 # ---------------------------------------------------------------------------
 # 임계치 상수 — 화면 문구가 아니라 여기만 고치면 판정이 바뀐다.
 # ---------------------------------------------------------------------------
@@ -27,27 +49,10 @@ LOW_RECOVERY_NEUTRAL_PCT = 0.3
 NON_ARBITRAGE_MIN_DELTAS = 3
 NON_ARBITRAGE_MIN_SPAN_SECONDS = 15 * 60
 
-# 데이터 신선도(초)
-FRESHNESS_OK_SECONDS = 120
-FRESHNESS_DELAYED_SECONDS = 300
 
 # 늦은 신호 기준 시각
 LATE_SIGNAL_HOUR = 13
 
-
-class SignalStatus(str, Enum):
-    POSITIVE = "positive"
-    NEUTRAL = "neutral"
-    NEGATIVE = "negative"
-    UNKNOWN = "unknown"
-
-
-class SignalTiming(str, Enum):
-    LEADING = "leading"
-    CONFIRMING = "confirming"
-    LATE = "late"
-    FAKE = "fake"
-    UNKNOWN = "unknown"
 
 
 class ReboundVerdict(str, Enum):
@@ -66,47 +71,7 @@ VERDICT_LABEL = {
     ReboundVerdict.INSUFFICIENT_DATA: "⚪ 데이터 부족",
 }
 
-STATUS_COLOR = {
-    SignalStatus.POSITIVE: "#22c55e",
-    SignalStatus.NEUTRAL: "#eab308",
-    SignalStatus.NEGATIVE: "#ef4444",
-    SignalStatus.UNKNOWN: "#9ca3af",
-}
 
-TIMING_LABEL = {
-    SignalTiming.LEADING: "선행",
-    SignalTiming.CONFIRMING: "확인",
-    SignalTiming.LATE: "늦음",
-    SignalTiming.FAKE: "가짜",
-    SignalTiming.UNKNOWN: "확인 필요",
-}
-
-
-@dataclass
-class FlowSignal:
-    key: str
-    label: str
-    status: SignalStatus
-    value: float | int | None = None
-    display_value: str = "-"
-    reason: str = ""
-    source: str = "-"
-    as_of: datetime | None = None
-    freshness_seconds: int | None = None
-    is_direct: bool = True
-    timing: SignalTiming = SignalTiming.UNKNOWN
-
-    @property
-    def is_positive(self) -> bool:
-        return self.status is SignalStatus.POSITIVE
-
-    @property
-    def is_negative(self) -> bool:
-        return self.status is SignalStatus.NEGATIVE
-
-    @property
-    def is_unknown(self) -> bool:
-        return self.status is SignalStatus.UNKNOWN
 
 
 @dataclass
@@ -133,6 +98,7 @@ class FlowEngineResult:
     missing_reasons: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     data_status: str = ""
+    flow_note: str = ""  # 무엇이 앞서고 무엇이 뒤따르는지 — 흐름 판독 한 줄
 
     def signal(self, key: str) -> FlowSignal | None:
         return next((s for s in self.signals if s.key == key), None)
@@ -202,23 +168,6 @@ def find_electronics_sector_code(rows) -> str | None:
 # ---------------------------------------------------------------------------
 # 신선도
 # ---------------------------------------------------------------------------
-def freshness_label(freshness_seconds: int | None) -> str:
-    if freshness_seconds is None:
-        return "확인 필요"
-    if freshness_seconds <= FRESHNESS_OK_SECONDS:
-        return "정상"
-    if freshness_seconds <= FRESHNESS_DELAYED_SECONDS:
-        return "지연"
-    return "오래됨"
-
-
-def _is_stale(signal: FlowSignal) -> bool:
-    return (
-        signal.freshness_seconds is not None
-        and signal.freshness_seconds > FRESHNESS_DELAYED_SECONDS
-    )
-
-
 # ---------------------------------------------------------------------------
 # 증분 계산 (누적값 → 구간 순증)
 # ---------------------------------------------------------------------------
@@ -389,7 +338,7 @@ def evaluate_basis(history, *, current_basis=None, as_of=None, freshness=None) -
         source="KIS",
         as_of=as_of,
         freshness_seconds=freshness,
-        is_direct=False,
+        strength=SignalStrength.PROXY,
         timing=SignalTiming.LEADING,
     )
     points = [v for _, v in sorted(
@@ -425,7 +374,7 @@ def evaluate_foreign_futures(snapshot: ForeignFuturesFlowSnapshot | None) -> Flo
         label="외국인 선물 직접수급",
         status=SignalStatus.UNKNOWN,
         source="미연결",
-        is_direct=True,
+        strength=SignalStrength.DIRECT,
         timing=SignalTiming.LEADING,
     )
     if snapshot is None or not snapshot.available or snapshot.net_contracts is None:
@@ -637,7 +586,7 @@ def decide_verdict(signals: list[FlowSignal], *, extras=None) -> FlowEngineResul
 
     # --- 데이터 부족 우선 판정 -------------------------------------------------
     core_unknown = sum(1 for s in core if s.is_unknown)
-    stale = [s for s in core if _is_stale(s)]
+    stale = [s for s in core if is_stale(s)]
     if not core or core_unknown >= max(1, len(CORE_KEYS) // 2 + 1) or len(stale) >= 2:
         return _build_result(
             ReboundVerdict.INSUFFICIENT_DATA,
@@ -705,7 +654,7 @@ def decide_verdict(signals: list[FlowSignal], *, extras=None) -> FlowEngineResul
             signals,
             core,
             warnings,
-            headline="프로그램·베이시스·반도체 어느 쪽도 돌아서지 않았습니다. 지금은 매수 자리가 아닙니다.",
+            headline="프로그램·베이시스·반도체 어느 쪽도 아직 방향을 돌리지 않았습니다.",
         )
 
     # --- 3. 확인 중 -----------------------------------------------------------
@@ -745,10 +694,6 @@ def _build_result(verdict, signals, core, warnings, *, headline) -> FlowEngineRe
     supporting = [s.reason for s in signals if s.is_positive][:4]
     missing = [s.reason for s in signals if s.is_negative or s.is_unknown][:4]
 
-    known = [s for s in signals if not s.is_unknown]
-    unknown = [s for s in signals if s.is_unknown]
-    data_status = f"자동 확인 {len(known)}개 · 확인 필요 {len(unknown)}개"
-
     return FlowEngineResult(
         verdict=verdict,
         verdict_label=VERDICT_LABEL[verdict],
@@ -758,7 +703,8 @@ def _build_result(verdict, signals, core, warnings, *, headline) -> FlowEngineRe
         supporting_reasons=supporting,
         missing_reasons=missing,
         warnings=warnings,
-        data_status=data_status,
+        data_status=data_status_text(signals),
+        flow_note=flow_reading(signals),
     )
 
 

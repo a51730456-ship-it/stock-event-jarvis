@@ -657,6 +657,8 @@ import theme_history
 import price_data
 import kis_market_data
 import kr_intraday_flow
+import market_signal_common
+import us_market_signal_engine
 import naver_market_data
 
 _login_transition_pending = bool(st.session_state.get("login_transition_pending"))
@@ -5469,27 +5471,17 @@ _FLOW_TABLE_KEYS = (
 )
 
 
-def render_kr_flow_card():
-    """🎯 기관 수급 반전 포착 카드. 0단계 결과 바로 아래에 놓인다."""
-    st.markdown("### 🎯 기관 수급 반전 포착")
-    st.caption(
-        "지금이 기관이 들어오는 자리인지 먼저 판정합니다. 매수 추천이 아니라 "
-        "나쁜 자리에서 사지 않기 위한 확인 장치입니다."
-    )
+def render_market_signal_card(
+    result, *, verdict_style, core_display, table_keys, detail_title, detail_caption, table_key
+):
+    """한국장·미국장이 함께 쓰는 카드 렌더러.
 
-    if st.button("수급 다시 확인", key="kr_flow_refresh"):
-        with st.spinner("장중 수급 확인 중..."):
-            run_kr_flow_check()
-
-    result = st.session_state.get("kr_flow_result")
-    if result is None:
-        st.info("‘수급 다시 확인’을 누르면 프로그램·기관·베이시스·반도체 수급을 읽어 판정합니다.")
-        _render_foreign_futures_input()
-        return
-
-    bg, border, text = _FLOW_VERDICT_STYLE[result.verdict]
-    _core_as_of = next((s.as_of for s in result.signals if s.as_of), None)
-    _as_of_label = _core_as_of.strftime("%H:%M") + " 기준" if _core_as_of else "기준시각 확인 필요"
+    공통으로 두는 것은 카드 모양·상태색·표 형식뿐이다. 판정 기준과 결론 문구는
+    시장별 엔진이 이미 만들어서 넘겨준다 — 여기서 KR/US를 분기하지 않는다.
+    """
+    bg, border, text = verdict_style[result.verdict]
+    _card_as_of = next((s.as_of for s in result.signals if s.as_of), None)
+    _as_of_label = _card_as_of.strftime("%H:%M") + " 기준" if _card_as_of else "기준시각 확인 필요"
 
     st.markdown(
         f"""
@@ -5502,6 +5494,9 @@ def render_kr_flow_card():
           <div style="font-size:1.0rem;color:{text};margin-top:10px;line-height:1.5;">
             {result.headline}
           </div>
+          <div style="font-size:0.9rem;color:{text};opacity:0.9;margin-top:8px;">
+            흐름: {result.flow_note}
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -5513,11 +5508,11 @@ def render_kr_flow_card():
     # 핵심 4개 — 모바일 1열, 그 위 2열 (기존 반응형 규칙과 동일하게 columns 사용)
     st.markdown("#### 핵심 4개")
     _core_cols = st.columns(2)
-    for index, (key, label) in enumerate(_FLOW_CORE_DISPLAY):
+    for index, (key, label) in enumerate(core_display):
         signal = result.signal(key)
         if signal is None:
             continue
-        color = kr_intraday_flow.STATUS_COLOR[signal.status]
+        color = market_signal_common.STATUS_COLOR[signal.status]
         with _core_cols[index % 2]:
             st.markdown(
                 f"""
@@ -5533,41 +5528,65 @@ def render_kr_flow_card():
                 unsafe_allow_html=True,
             )
 
-    # 근거 / 미충족
     if result.supporting_reasons:
-        st.markdown("**근거**")
+        st.markdown("**켜진 신호**")
         for reason in result.supporting_reasons:
             st.markdown(f"- {reason}")
     if result.missing_reasons:
-        st.markdown("**미충족**")
+        st.markdown("**아직 아닌 신호**")
         for reason in result.missing_reasons:
             st.markdown(f"- {reason}")
 
-    with st.expander("전체 수급 상세", expanded=False):
+    with st.expander(detail_title, expanded=False):
         _rows = []
-        for key in _FLOW_TABLE_KEYS:
+        for key in table_keys:
             signal = result.signal(key)
             if signal is None:
                 continue
             _rows.append({
                 "항목": signal.label,
                 "현재값": signal.display_value,
-                "판정": {
-                    kr_intraday_flow.SignalStatus.POSITIVE: "⭕",
-                    kr_intraday_flow.SignalStatus.NEUTRAL: "🟡",
-                    kr_intraday_flow.SignalStatus.NEGATIVE: "❌",
-                    kr_intraday_flow.SignalStatus.UNKNOWN: "⚪",
-                }[signal.status],
-                "구분": kr_intraday_flow.TIMING_LABEL[signal.timing],
+                "판정": market_signal_common.STATUS_MARK[signal.status],
+                "구분": market_signal_common.TIMING_LABEL[signal.timing],
+                "신호세기": market_signal_common.STRENGTH_LABEL[signal.strength],
                 "설명": signal.reason,
-                "신선도": kr_intraday_flow.freshness_label(signal.freshness_seconds),
+                "신선도": market_signal_common.freshness_label(signal.freshness_seconds),
             })
         if _rows:
-            st.dataframe(pd.DataFrame(_rows), width="stretch", hide_index=True)
-        st.caption(
+            st.dataframe(pd.DataFrame(_rows), width="stretch", hide_index=True, key=table_key)
+        st.caption(detail_caption)
+
+
+def render_kr_flow_card():
+    """🎯 한국장 기관 수급 반전 포착. 0단계 결과 바로 아래에 놓인다."""
+    st.markdown("### 🎯 한국장 기관 수급 반전 포착")
+    st.caption(
+        "지금 기관이 들어오는 장인지, 무엇이 먼저 움직였는지를 읽어줍니다. "
+        "매수·매도 판단은 상하님이 다른 자비스와 함께 결정하시는 몫입니다."
+    )
+
+    if st.button("수급 다시 확인", key="kr_flow_refresh"):
+        with st.spinner("장중 수급 확인 중..."):
+            run_kr_flow_check()
+
+    result = st.session_state.get("kr_flow_result")
+    if result is None:
+        st.info("‘수급 다시 확인’을 누르면 프로그램·기관·베이시스·반도체 수급을 읽어 상태를 판정합니다.")
+        _render_foreign_futures_input()
+        return
+
+    render_market_signal_card(
+        result,
+        verdict_style=_FLOW_VERDICT_STYLE,
+        core_display=_FLOW_CORE_DISPLAY,
+        table_keys=_FLOW_TABLE_KEYS,
+        detail_title="한국장 전체 수급 상세",
+        detail_caption=(
             "‘기금·연기금’은 KIS 원본 필드명이 기금입니다. 시장베이시스는 외국인 선물 "
             "직접 수급이 없을 때 쓰는 대체 신호이며 직접 수급값이 아닙니다."
-        )
+        ),
+        table_key="kr_flow_detail_table",
+    )
 
     _failures = st.session_state.get("kr_flow_failures") or []
     if _failures:
@@ -5576,6 +5595,93 @@ def render_kr_flow_card():
                 st.markdown(f"- {failure}")
 
     _render_foreign_futures_input()
+
+
+_US_VERDICT_STYLE = {
+    us_market_signal_engine.UsMarketVerdict.RISK_ON: ("#14532d", "#22c55e", "#86efac"),
+    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: ("#1e3a5f", "#3b82f6", "#93c5fd"),
+    us_market_signal_engine.UsMarketVerdict.MIXED: ("#4a2e05", "#eab308", "#fde047"),
+    us_market_signal_engine.UsMarketVerdict.RISK_OFF: ("#4c1d1d", "#ef4444", "#fca5a5"),
+    us_market_signal_engine.UsMarketVerdict.INSUFFICIENT_DATA: ("#27272a", "#71717a", "#d4d4d8"),
+}
+
+_US_CORE_DISPLAY = (
+    ("US_NQ_FUTURES", "나스닥100 선물"),
+    ("US_SOXX", "SOXX"),
+    ("US_VIX", "VIX"),
+    ("US_TNX", "미국 10년물"),
+)
+
+_US_TABLE_KEYS = tuple(spec[0] for spec in us_market_signal_engine.US_SIGNAL_SPECS)
+
+
+def run_us_market_signal_check(force_refresh=False):
+    """미국장 신호 티커를 한 번에 조회해 판정을 만든다. DB 저장은 하지 않는다.
+
+    미국장 신호는 전부 현재값·전일대비로 판정하므로 한국장처럼 스냅숏을 누적할
+    필요가 없다. 안 쓰는 테이블을 만들지 않기 위해 일부러 저장하지 않는다.
+    """
+    tickers = tuple(spec[2] for spec in us_market_signal_engine.US_SIGNAL_SPECS)
+    results = (
+        _short_cached_kr_snapshot_results(tickers)
+        if force_refresh
+        else _cached_kr_snapshot_results(tickers)
+    )
+
+    quotes = {}
+    failures = []
+    for ticker in tickers:
+        quote = results.get(ticker) or {}
+        if quote.get("ok"):
+            quotes[ticker] = {
+                "change_pct": _safe_pct_diff(quote.get("current"), quote.get("prev_close")),
+                "as_of": datetime.now(),
+                "source": quote.get("source") or "자동 조회",
+            }
+        else:
+            failures.append(f"{ticker} 조회 실패")
+
+    result = us_market_signal_engine.build_us_market_signal_result(quotes)
+    st.session_state["us_signal_result"] = result
+    st.session_state["us_signal_failures"] = failures
+    return result
+
+
+def render_us_market_signal_card():
+    """🌐 미국장 선행신호·시장 상태. 미국장 시장요약 바로 아래에 놓인다."""
+    st.markdown("### 🌐 미국장 선행신호·시장 상태")
+    st.caption(
+        "선물·반도체 ETF·변동성·금리가 서로 같은 방향인지, 무엇이 먼저 움직였는지를 읽어줍니다. "
+        "미국은 장중 수급 공개 데이터가 없어 한국장과 판정 방식이 다릅니다."
+    )
+
+    if st.button("미국장 신호 다시 확인", key="us_signal_refresh"):
+        with st.spinner("미국장 신호 확인 중..."):
+            run_us_market_signal_check(force_refresh=True)
+
+    result = st.session_state.get("us_signal_result")
+    if result is None:
+        st.info("‘미국장 신호 다시 확인’을 누르면 선물·반도체·VIX·금리를 읽어 상태를 판정합니다.")
+        return
+
+    render_market_signal_card(
+        result,
+        verdict_style=_US_VERDICT_STYLE,
+        core_display=_US_CORE_DISPLAY,
+        table_keys=_US_TABLE_KEYS,
+        detail_title="미국장 전체 신호 상세",
+        detail_caption=(
+            "VIX·미국 10년물·달러지수는 오르면 위험자산에 부담이라 ‘하락’이 긍정 판정입니다. "
+            "선물·반도체 ETF는 본장보다 먼저 움직여 선행, 지수는 결과라서 확인 신호로 봅니다."
+        ),
+        table_key="us_signal_detail_table",
+    )
+
+    _failures = st.session_state.get("us_signal_failures") or []
+    if _failures:
+        with st.expander(f"확인 필요 항목 {len(_failures)}건", expanded=False):
+            for failure in _failures:
+                st.markdown(f"- {failure}")
 
 
 def _render_foreign_futures_input():
@@ -8165,6 +8271,8 @@ def _render_tab_us():
             st.rerun()
 
     _render_market_overview("US")
+
+    render_us_market_signal_card()
     st.subheader("미국장")
     st.caption(
         "스윙 전용 흐름 — 유동성 높은 대형주 약 35종목 후보군 중 오늘 거래대금 상위 8종목을 "
