@@ -1,0 +1,71 @@
+"""시장 판단 — 자비스1·2·3과 분리된 독립 화면.
+
+한국장 기관 수급과 미국장 선행신호를 읽어 지금 시장 상태와 흐름을 보여준다.
+종목을 고르는 화면이 아니다. 여기서 시장을 먼저 확인하고, 무엇을 할지는
+사용자가 자비스1·2·3을 오가며 스스로 정한다.
+"""
+
+from __future__ import annotations
+
+import streamlit as st
+
+st.set_page_config(page_title="시장 판단", layout="wide")
+
+# 사이드바 표기는 자비스2·3 페이지와 같은 규칙을 따른다(첫 항목 'app' → '자비스1').
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebarNav"] a {
+        padding: 0.7rem 1rem !important;
+    }
+    [data-testid="stSidebarNav"] a,
+    [data-testid="stSidebarNav"] a * {
+        font-size: 1.8rem !important;
+        font-weight: 800 !important;
+        color: #ffb020 !important;
+        line-height: 1.4 !important;
+    }
+    [data-testid="stSidebarNav"] a:hover,
+    [data-testid="stSidebarNav"] a:hover * {
+        color: #ffcf6b !important;
+    }
+    [data-testid="stSidebarNav"] li:first-child a p {
+        font-size: 0 !important;
+    }
+    [data-testid="stSidebarNav"] li:first-child a p::before {
+        content: "자비스1";
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:first-child a:hover p::before {
+        color: #ffcf6b;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ── 인증 게이트 — 여기서 바로 로그인 가능 (자비스1 경유 불필요) ─────────────────
+if not st.session_state.get("authenticated"):
+    st.markdown("## 🧭 시장 판단")
+    st.caption("승인된 사용자만 접근할 수 있습니다. 여기서 바로 로그인하세요.")
+    try:
+        _app_password = st.secrets.get("APP_PASSWORD")
+    except Exception:
+        _app_password = None
+    if not _app_password:
+        st.warning("비밀번호 설정이 필요합니다. .streamlit/secrets.toml에 APP_PASSWORD를 설정하세요.")
+        st.stop()
+    _pw = st.text_input("비밀번호", type="password", key="market_login_password")
+    if st.button("로그인", key="market_login_submit", use_container_width=True):
+        if _pw == _app_password:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("비밀번호가 올바르지 않습니다.")
+    st.stop()
+
+import market_signal_ui
+
+market_signal_ui.render_market_judgment_page()
