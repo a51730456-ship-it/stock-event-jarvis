@@ -127,6 +127,57 @@ def init_db():
                     REFERENCES report_items(id)
                     ON DELETE CASCADE
             );
+
+            -- 한국장 장중 기관 수급 스냅숏 (2026-07-20 추가).
+            -- 비차익 프로그램의 "15분 연속 유입"은 누적값이 아니라 스냅숏 간 증분으로만
+            -- 판정할 수 있어서, 판정 시점마다 원자료를 그대로 쌓아둔다.
+            -- 값이 없는 항목은 0이 아니라 NULL로 저장한다 (미확인과 0원을 구분).
+            CREATE TABLE IF NOT EXISTS kr_intraday_flow_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trade_date TEXT NOT NULL,
+                captured_at TEXT NOT NULL,
+
+                program_net_amount REAL,
+                program_net_change REAL,
+
+                arbitrage_net_amount REAL,
+                non_arbitrage_net_amount REAL,
+
+                foreign_cash_net_amount REAL,
+                personal_cash_net_amount REAL,
+                institution_cash_net_amount REAL,
+
+                securities_net_amount REAL,
+                investment_trust_net_amount REAL,
+                private_fund_net_amount REAL,
+                fund_net_amount REAL,
+
+                futures_basis REAL,
+                futures_market_basis REAL,
+
+                foreign_futures_net_contracts INTEGER,
+                foreign_futures_source TEXT,
+
+                samsung_price REAL,
+                samsung_open REAL,
+                samsung_day_low REAL,
+
+                hynix_price REAL,
+                hynix_open REAL,
+                hynix_day_low REAL,
+
+                electronics_turnover REAL,
+                electronics_institution_net REAL,
+
+                raw_source_status TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                -- 같은 분에 버튼을 여러 번 눌러도 한 행만 남긴다.
+                UNIQUE(trade_date, captured_at)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_kr_flow_date_time
+                ON kr_intraday_flow_snapshots(trade_date, captured_at);
             """
         )
         conn.commit()
@@ -1703,5 +1754,80 @@ def get_report_review_status():
             """
         ).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# 한국장 장중 기관 수급 스냅숏 (2026-07-20 추가)
+# ---------------------------------------------------------------------------
+KR_FLOW_SNAPSHOT_FIELDS = (
+    "program_net_amount",
+    "program_net_change",
+    "arbitrage_net_amount",
+    "non_arbitrage_net_amount",
+    "foreign_cash_net_amount",
+    "personal_cash_net_amount",
+    "institution_cash_net_amount",
+    "securities_net_amount",
+    "investment_trust_net_amount",
+    "private_fund_net_amount",
+    "fund_net_amount",
+    "futures_basis",
+    "futures_market_basis",
+    "foreign_futures_net_contracts",
+    "foreign_futures_source",
+    "samsung_price",
+    "samsung_open",
+    "samsung_day_low",
+    "hynix_price",
+    "hynix_open",
+    "hynix_day_low",
+    "electronics_turnover",
+    "electronics_institution_net",
+    "raw_source_status",
+)
+
+
+def save_kr_flow_snapshot(trade_date, captured_at, values):
+    """장중 수급 스냅숏 저장. 같은 분에 다시 눌러도 한 행만 남는다(최신값으로 갱신).
+
+    values에 없는 항목은 NULL로 저장한다 — 0으로 채우면 '미확인'이 '0원'이 된다.
+    """
+    columns = ["trade_date", "captured_at", *KR_FLOW_SNAPSHOT_FIELDS]
+    params = [trade_date, captured_at] + [
+        (values or {}).get(name) for name in KR_FLOW_SNAPSHOT_FIELDS
+    ]
+    placeholders = ", ".join("?" for _ in columns)
+    updates = ", ".join(f"{name}=excluded.{name}" for name in KR_FLOW_SNAPSHOT_FIELDS)
+
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            f"INSERT INTO kr_intraday_flow_snapshots ({', '.join(columns)}) "
+            f"VALUES ({placeholders}) "
+            f"ON CONFLICT(trade_date, captured_at) DO UPDATE SET {updates}",
+            params,
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def list_kr_flow_snapshots(trade_date, limit=40):
+    """당일 스냅숏을 오래된 순으로 돌려준다. 증분 판정에 그대로 쓴다."""
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+        raise ValueError("limit must be a positive integer")
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM ("
+            "  SELECT * FROM kr_intraday_flow_snapshots WHERE trade_date = ? "
+            "  ORDER BY captured_at DESC LIMIT ?"
+            ") ORDER BY captured_at ASC",
+            (trade_date, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
     finally:
         conn.close()

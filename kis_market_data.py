@@ -170,3 +170,194 @@ def get_index_snapshot(ticker, app_key, app_secret, *, now=None, request_json=No
 def _clear_token_cache_for_tests():
     with _TOKEN_LOCK:
         _TOKEN_CACHE.update({"app_key": None, "token": None, "expires_at": 0.0})
+
+
+# ===========================================================================
+# 장중 수급 조회 (2026-07-20 추가) — 전부 읽기 전용 시세/수급 API다.
+# 주문·잔고 API는 여기에도 넣지 않는다.
+#
+# 아래 경로와 TR ID는 사용자가 확인한 KIS 공식 문서 기준이다. 키가 없거나 응답이
+# 예상과 다르면 예외 대신 ok=False를 돌려주고, 호출부는 그 항목만 UNKNOWN으로
+# 처리한다. 절대 0으로 대체하지 않는다.
+# ===========================================================================
+
+_PROGRAM_TODAY_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-today"
+_PROGRAM_TODAY_TR_ID = "FHPPG04600101"
+
+_PROGRAM_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/investor-program-trade-today"
+_PROGRAM_INVESTOR_TR_ID = "HHPPG046600C1"
+
+_INVESTOR_TIME_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-time-by-market"
+_INVESTOR_TIME_TR_ID = "FHPTJ04030000"
+
+_SECTOR_CATEGORY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"
+_SECTOR_CATEGORY_TR_ID = "FHPUP02140000"
+
+_FUTURES_PRICE_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-price"
+_FUTURES_PRICE_TR_ID = "FHMIF10000000"
+
+
+def _kis_get(path, tr_id, params, app_key, app_secret, request_json, *, timeout=6):
+    """공통 GET 호출. 성공하면 (True, output), 실패하면 (False, 사유)."""
+    app_key = str(app_key or "").strip()
+    app_secret = str(app_secret or "").strip()
+    if not app_key or not app_secret:
+        return False, "KIS API 키 없음"
+
+    request_json = request_json or _request_json
+    try:
+        token = _get_access_token(app_key, app_secret, request_json)
+        if not token:
+            return False, "KIS 접근토큰 발급 실패"
+        response = request_json(
+            "GET",
+            f"{_BASE_URL}{path}?{urlencode(params)}",
+            headers={
+                "Content-Type": "application/json",
+                "authorization": f"Bearer {token}",
+                "appkey": app_key,
+                "appsecret": app_secret,
+                "tr_id": tr_id,
+                "custtype": "P",
+            },
+            timeout=timeout,
+        )
+    except Exception:
+        return False, "KIS 조회 실패"
+
+    if str(response.get("rt_cd")) != "0":
+        return False, "KIS 응답 오류"
+
+    # KIS는 API에 따라 output / output1 / output2를 쓴다. 있는 것을 순서대로 쓴다.
+    for field in ("output", "output1", "output2"):
+        value = response.get(field)
+        if value:
+            return True, value
+    return False, "KIS 응답에 데이터 없음"
+
+
+def get_program_trade_intraday(app_key, app_secret, *, market="K", request_json=None):
+    """프로그램매매 종합현황(시간) — 최근 약 30분 구간 데이터를 리스트로 돌려준다."""
+    ok, payload = _kis_get(
+        _PROGRAM_TODAY_PATH,
+        _PROGRAM_TODAY_TR_ID,
+        {"FID_COND_MRKT_DIV_CODE": "J", "FID_MRKT_CLS_CODE": market},
+        app_key,
+        app_secret,
+        request_json,
+    )
+    if not ok:
+        return {"ok": False, "error": payload, "rows": []}
+    rows = payload if isinstance(payload, list) else [payload]
+    return {
+        "ok": True,
+        "rows": [r for r in rows if isinstance(r, dict)],
+        "source": "KIS 프로그램매매 종합현황",
+    }
+
+
+def get_program_trade_by_investor(app_key, app_secret, *, market_code="1", request_json=None):
+    """투자자별 차익·비차익 프로그램 당일 수급."""
+    ok, payload = _kis_get(
+        _PROGRAM_INVESTOR_PATH,
+        _PROGRAM_INVESTOR_TR_ID,
+        {"MRKT_DIV_CLS_CODE": market_code},
+        app_key,
+        app_secret,
+        request_json,
+    )
+    if not ok:
+        return {"ok": False, "error": payload, "rows": []}
+    rows = payload if isinstance(payload, list) else [payload]
+    return {
+        "ok": True,
+        "rows": [r for r in rows if isinstance(r, dict)],
+        "source": "KIS 투자자별 프로그램매매",
+    }
+
+
+def get_market_investor_intraday(
+    app_key, app_secret, *, market_code="999", sector_code="S001", request_json=None
+):
+    """시장별 투자자매매동향(시간) — 외국인/개인/기관 및 기관 세부 주체."""
+    ok, payload = _kis_get(
+        _INVESTOR_TIME_PATH,
+        _INVESTOR_TIME_TR_ID,
+        {"FID_INPUT_ISCD": market_code, "FID_INPUT_ISCD_2": sector_code},
+        app_key,
+        app_secret,
+        request_json,
+    )
+    if not ok:
+        return {"ok": False, "error": payload, "row": None}
+    row = payload[0] if isinstance(payload, list) and payload else payload
+    if not isinstance(row, dict):
+        return {"ok": False, "error": "KIS 투자자 수급 형식 오류", "row": None}
+    return {"ok": True, "row": row, "source": "KIS 시장별 투자자매매동향"}
+
+
+def get_sector_category_prices(app_key, app_secret, *, market="K", request_json=None):
+    """업종별 지수·거래대금 목록. 전기전자 업종코드를 이름으로 찾을 때 쓴다."""
+    ok, payload = _kis_get(
+        _SECTOR_CATEGORY_PATH,
+        _SECTOR_CATEGORY_TR_ID,
+        {
+            "FID_COND_MRKT_DIV_CODE": "U",
+            "FID_INPUT_ISCD": "0001",
+            "FID_COND_SCR_DIV_CODE": "20214",
+            "FID_MRKT_CLS_CODE": market,
+            "FID_BLNG_CLS_CODE": "0",
+        },
+        app_key,
+        app_secret,
+        request_json,
+    )
+    if not ok:
+        return {"ok": False, "error": payload, "rows": []}
+    rows = payload if isinstance(payload, list) else [payload]
+    return {"ok": True, "rows": [r for r in rows if isinstance(r, dict)], "source": "KIS 업종별 시세"}
+
+
+def get_kospi200_futures_snapshot(app_key, app_secret, *, futures_code=None, request_json=None):
+    """KOSPI200 선물 현재가와 베이시스.
+
+    최근월물 코드는 하드코딩하지 않는다. 호출부가 설정값으로 넘기지 않으면
+    조회하지 않고 미확인으로 돌려준다 — 임의 종목코드로 엉뚱한 값을 만들지 않기 위함이다.
+    """
+    code = str(futures_code or "").strip()
+    if not code:
+        return {
+            "ok": False,
+            "error": "KOSPI200 최근월물 코드 미설정",
+            "futures_code": None,
+        }
+
+    ok, payload = _kis_get(
+        _FUTURES_PRICE_PATH,
+        _FUTURES_PRICE_TR_ID,
+        {"FID_COND_MRKT_DIV_CODE": "F", "FID_INPUT_ISCD": code},
+        app_key,
+        app_secret,
+        request_json,
+    )
+    if not ok:
+        return {"ok": False, "error": payload, "futures_code": code}
+
+    row = payload[0] if isinstance(payload, list) and payload else payload
+    if not isinstance(row, dict):
+        return {"ok": False, "error": "KIS 선물 시세 형식 오류", "futures_code": code}
+
+    from kr_intraday_flow import parse_kis_number
+
+    return {
+        "ok": True,
+        "futures_code": code,
+        "price": parse_kis_number(row.get("futs_prpr")),
+        "change_pct": parse_kis_number(row.get("futs_prdy_ctrt")),
+        "basis": parse_kis_number(row.get("basis")),
+        "market_basis": parse_kis_number(row.get("mrkt_basis")),
+        "open_interest": parse_kis_number(row.get("hts_otst_stpl_qty")),
+        "open_interest_change": parse_kis_number(row.get("otst_stpl_qty_icdc")),
+        "as_of": _now_seoul(),
+        "source": "KIS",
+    }
