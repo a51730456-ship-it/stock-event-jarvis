@@ -79,6 +79,8 @@ st.markdown(
     .j3-reason-body { color: #44f0a1; font-weight: 700; font-size: 0.9rem; line-height: 1.45; }
     .j3-chart-title { color: #e6e6e6; font-weight: 800; font-size: 1rem; margin-bottom: 0.1rem; }
     .j3-leader-name { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
+    .j3-leader-live { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; margin-top: 0.35rem; }
+    .j3-leader-live .j3-mc-sub { font-size: 1rem; }
     .j3-leader-name .j3-medal { font-size: 1.6rem; vertical-align: -2px; }
     .j3-leader-score-label { color: #4da6ff; font-size: 0.85rem; font-weight: 800; margin-top: 0.35rem; }
     .j3-leader-score { color: #ff5b5b; font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
@@ -117,14 +119,18 @@ st.markdown(
     /* 클릭 가능한 테마표: 머리글·칸은 가운데 정렬, 테마명은 버튼 */
     .j3-th-head { text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
         padding: 0.45rem 0 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.22); }
-    .j3-td { text-align: center; color: #e6e6e6; font-size: 0.92rem; padding: 0.45rem 0;
-        border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 2.1rem; }
+    /* 테마명 버튼 행과 나머지 HTML 칸의 세로 라인을 맞춘다(2026-07-22 사용자 지시:
+       "Line 일치시킬 것") — 양쪽 다 같은 고정 높이(2.5rem)에 수직 가운데 정렬. */
+    .j3-td { text-align: center; color: #e6e6e6; font-size: 0.92rem; padding: 0;
+        border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 2.5rem;
+        display: flex; align-items: center; justify-content: center; }
+    .j3-td > .j3-barwrap { width: 100%; }
     div[class*="st-key-j3tbtn_"] button {
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
-        padding: 0.25rem 0 !important;
-        min-height: 0 !important;
+        padding: 0 !important;
+        min-height: 2.5rem !important;
         width: 100% !important;
         border-bottom: 1px solid rgba(255,255,255,0.06) !important;
         border-radius: 0 !important;
@@ -206,6 +212,7 @@ import pandas as pd
 
 import jarvis3_data as j3data
 import jarvis3_store as j3store
+import market_signal_ui
 
 
 def _pct(value) -> str:
@@ -258,6 +265,37 @@ def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=Fa
 _STATUS_HEX = {"주도": "#44f0a1", "관찰": "#ff9d3b", "약함": "#9aa0aa"}
 
 
+def _fear_greed_color(score) -> str:
+    """CNN 게이지 구간색: 공포는 붉게, 탐욕은 초록으로."""
+    if score is None:
+        return "#9aa0aa"
+    score = float(score)
+    if score <= 25:
+        return "#ff5b5b"
+    if score < 45:
+        return "#ff9d3b"
+    if score <= 55:
+        return "#e6e6e6"
+    if score < 75:
+        return "#44f0a1"
+    return "#22c55e"
+
+
+def _fear_greed_cell() -> str:
+    """공포·탐욕 지수 상단 칸. 조회 실패 시 '자료 부족'으로만 표시한다."""
+    fg = j3data.get_fear_greed()
+    if not fg.get("ok"):
+        return _top_metric("공포·탐욕 지수", "—", "#9aa0aa", "자료 부족")
+    color = _fear_greed_color(fg.get("score"))
+    previous = fg.get("previous_close")
+    sub = fg.get("rating_kr") or "—"
+    if previous is not None:
+        sub += f" · 전일 {previous:.0f}"
+    if fg.get("stale"):
+        sub += " · 마지막 정상값"
+    return _top_metric("공포·탐욕 지수", f"{fg['score']:.0f}/100", color, sub, sub_color=color)
+
+
 _THEME_COL_WIDTHS = [0.75, 2.3, 0.9, 2.2, 0.95, 1.05, 1.35, 1.45]
 
 
@@ -272,19 +310,23 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
         column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
 
     # 테마명 버튼 색을 상태색과 맞춘다(선택된 테마는 주황 배경으로 표시).
+    # 키는 2자리 고정폭(j3tbtn_01)으로 만든다 — class*= 부분일치 선택자라서
+    # j3tbtn_1이 j3tbtn_10~19에도 매칭돼 안 고른 행에 배경이 묻던 버그 수정
+    # (2026-07-22 사용자 제보: "클릭 후 흔적이 남음").
     button_css = []
     clicked = None
     for index, row in enumerate(ranking.get("rows", [])):
         name = row.get("name", "")
         color = _STATUS_HEX.get(row.get("status", ""), "#e6e6e6")
-        button_css.append(f"div[class*='st-key-j3tbtn_{index}'] button p {{ color: {color} !important; }}")
+        button_key = f"j3tbtn_{index:02d}"
+        button_css.append(f"div[class*='st-key-{button_key}'] button p {{ color: {color} !important; }}")
         if name == selected:
             button_css.append(
-                f"div[class*='st-key-j3tbtn_{index}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
+                f"div[class*='st-key-{button_key}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
             )
         cols = st.columns(_THEME_COL_WIDTHS)
         cols[0].markdown(f"<div class='j3-td'>{row.get('rank', '')}</div>", unsafe_allow_html=True)
-        if cols[1].button(name, key=f"j3tbtn_{index}", width="stretch"):
+        if cols[1].button(name, key=button_key, width="stretch"):
             clicked = name
         cols[2].markdown(f"<div class='j3-td'>{row.get('etf', '')}</div>", unsafe_allow_html=True)
         if not row.get("ok"):
@@ -363,7 +405,9 @@ def _market_flow_text(overview: dict) -> str:
             sections.append(f"VIX {vix_value:.1f}은 25~35 경계 구간이라 변동성 확대에 주의해야 합니다")
         else:
             sections.append(f"VIX {vix_value:.1f}은 35 이상으로 시장 공포와 급변 위험이 매우 높습니다")
-    return ". ".join(sections) + "."
+    # 문장이 한 덩어리로 붙으면 너무 빽빽하다는 지적(2026-07-22 캡처 빗금 표시)에 따라
+    # 문장마다 줄을 바꿔 보여준다.
+    return ".<br>".join(sections) + "."
 
 
 def _market_score_detail(overview: dict) -> str:
@@ -378,19 +422,23 @@ def _market_score_detail(overview: dict) -> str:
 
 
 def _market_action_detail(overview: dict) -> str:
+    # 문장마다 <br>로 줄을 바꾼다 — 글자가 너무 빽빽하다는 지적(2026-07-22 캡처 빗금) 반영.
     score = float(overview.get("score") or 0)
     if score >= 75:
         return (
-            "시장 추세와 위험선호가 충분히 확인된 구간입니다. 그래도 아무 종목이나 매수하지 않고, "
-            "주도 테마이면서 종목점수 75점 이상인 대장주가 기준가격을 통과할 때만 분할 진입합니다."
+            "시장 추세와 위험선호가 충분히 확인된 구간입니다.<br>"
+            "그래도 아무 종목이나 매수하지 않고, 주도 테마이면서 종목점수 75점 이상인 "
+            "대장주가 기준가격을 통과할 때만 분할 진입합니다."
         )
     if score >= 50:
         return (
-            "시장 일부만 강한 선별 구간입니다. 매수 비중을 평소보다 줄이고, 주도 테마의 1~3위 종목 중 "
+            "시장 일부만 강한 선별 구간입니다.<br>"
+            "매수 비중을 평소보다 줄이고, 주도 테마의 1~3위 종목 중 "
             "돌파 또는 20일선 눌림 조건이 확인된 종목만 심사합니다."
         )
     return (
-        "상승장 확인 조건이 부족하므로 신규 매수를 보류합니다. 보유 종목의 손절 기준과 비중을 먼저 관리하고, "
+        "상승장 확인 조건이 부족하므로 신규 매수를 보류합니다.<br>"
+        "보유 종목의 손절 기준과 비중을 먼저 관리하고,<br>"
         "SPY·QQQ의 20·50일선 회복과 시장점수 50점 이상을 확인한 뒤 다시 매수 심사를 시작합니다."
     )
 
@@ -543,6 +591,43 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False, he
     return alt.vconcat(line, bars, spacing=4).resolve_scale(x="shared")
 
 
+def _intraday_chart(payload: dict, height: int = 200):
+    """당일 1분봉 흐름 차트 — 자비스1 코스피/코스닥 당일 차트와 같은 단순 라인.
+
+    전일 종가는 회색 점선 기준선으로 그리고, 선 색은 전일 종가 대비
+    상승이면 파랑·하락이면 빨강(미국장 색 규칙)으로 칠한다.
+    """
+    frame = payload["price"].reset_index()
+    frame.columns = ["시각", "가격"]
+    prev_close = payload.get("prev_close")
+    last_price = float(frame["가격"].iloc[-1])
+    if prev_close:
+        line_color = "#4da6ff" if last_price >= float(prev_close) else "#ff5b5b"
+    else:
+        line_color = "#69bff8"
+    line = (
+        alt.Chart(frame)
+        .mark_line(strokeWidth=2, color=line_color)
+        .encode(
+            x=alt.X("시각:T", title=None, axis=alt.Axis(format="%H:%M", labelAngle=0, tickCount=5)),
+            y=alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(tickCount=5)),
+            tooltip=[
+                alt.Tooltip("시각:T", title="시각(뉴욕)", format="%H:%M"),
+                alt.Tooltip("가격:Q", format=",.2f"),
+            ],
+        )
+        .properties(height=height)
+    )
+    if prev_close:
+        baseline = (
+            alt.Chart(pd.DataFrame({"전일 종가": [float(prev_close)]}))
+            .mark_rule(strokeDash=[4, 4], color="#9aa0aa")
+            .encode(y="전일 종가:Q")
+        )
+        return line + baseline
+    return line
+
+
 @st.fragment(run_every=60)
 def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
@@ -569,6 +654,7 @@ def _render_market_overview() -> None:
         _top_metric("SPY", _price(spy_row.get("current")), "#e6e6e6", spy_row.get("change_pct"), sub_signed=True),
         _top_metric("QQQ", _price(qqq_row.get("current")), "#e6e6e6", qqq_row.get("change_pct"), sub_signed=True),
         _top_metric("장 상태", phase, phase_color, f"VIX {_number(vix_value, 2)}"),
+        _fear_greed_cell(),
     ]
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     st.markdown(
@@ -576,7 +662,11 @@ def _render_market_overview() -> None:
         <div class="j3-score-guide">
             조건점수 {overview['score']}/100은 상승장 확인 조건에서 얻은 점수이며 승률이 아닙니다.<br>
             0~49점 방어 우선 · 50~74점 중립·선별 · 75~100점 상승 우위<br>
-            {_market_score_detail(overview)}
+            {_market_score_detail(overview)}<br>
+            장 상태는 미국 세션 단계입니다(뉴욕시각 기준): 프리마켓 04:00~09:30 → 정규장 09:30~16:00
+            → 애프터마켓 16:00~20:00 → 장 마감 · 아래 VIX는 공포지수 현재값입니다.<br>
+            공포·탐욕 지수는 CNN이 7개 심리 지표로 집계한 값(0 극단적 공포 ~ 100 극단적 탐욕)으로
+            참고용이며 점수·판정에는 반영하지 않습니다.
         </div>
         <div class="j3-market-flow">
             <span class="j3-flow-label">시장 전체 흐름</span> : <span class="j3-flow-body">{_market_flow_text(overview)}</span>
@@ -633,7 +723,7 @@ def _load_theme_rankings() -> dict:
 
 
 def _render_leader_comparison(leaders: list[dict]) -> None:
-    st.markdown("<div class='j3-section-title'>대장주 1~3위 · 일봉/주봉 비교</div>", unsafe_allow_html=True)
+    st.markdown("<div class='j3-section-title'>대장주 1~3위 · 당일/일봉/주봉 비교</div>", unsafe_allow_html=True)
     medal_by_rank = {1: "🥇", 2: "🥈", 3: "🥉"}
     for leader in leaders[:3]:
         metrics, plan = leader["metrics"], leader["plan"]
@@ -642,13 +732,20 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
         medal = medal_by_rank.get(rank, "") if float(leader["score"]) >= 80 else ""
         medal_html = f"<span class='j3-medal'>{medal}</span> " if medal else ""
         with st.container(border=True):
-            left, daily_col, weekly_col = st.columns([1.05, 1.25, 1.25])
+            left, intraday_col, daily_col, weekly_col = st.columns([1.0, 1.15, 1.15, 1.15])
             with left:
                 st.markdown(
                     f"<div class='j3-leader-name'>{medal_html}{rank}위 · {leader['name']}</div>",
                     unsafe_allow_html=True,
                 )
                 st.code(leader["ticker"])
+                # 당일 주가와 등락률 — +파랑/−빨강 (2026-07-22 사용자 지시).
+                change_pct = metrics.get("change_pct")
+                st.markdown(
+                    f"<div class='j3-leader-live'>{_price(metrics.get('current'))} "
+                    f"<span class='j3-mc-sub {_sign_class(change_pct)}'>{_pct(change_pct)}</span></div>",
+                    unsafe_allow_html=True,
+                )
                 st.markdown(
                     "<div class='j3-leader-score-label'>종목 조건점수</div>"
                     f"<div class='j3-leader-score'>{float(leader['score']):.1f}</div>"
@@ -656,6 +753,19 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     unsafe_allow_html=True,
                 )
                 st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
+            with intraday_col:
+                st.caption("당일 · 실시간(지연 가능)")
+                intraday_payload = leader.get("intraday_chart")
+                if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+                    st.altair_chart(
+                        _intraday_chart(intraday_payload, height=210),
+                        width="stretch",
+                        theme="streamlit",
+                    )
+                    # 차트 밑에 기준 날짜·시간 표시 (2026-07-22 사용자 지시).
+                    st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+                else:
+                    st.info("당일 자료 없음")
             with daily_col:
                 st.caption("일봉 · 최근 60거래일")
                 daily_payload = _leader_chart_payload(leader.get("daily_chart"))
@@ -848,10 +958,47 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
     _render_buy_form(theme_row, leader, market)
 
 
+_RECORD_COLUMNS = [
+    "id", "buy_date", "ticker", "stock_name", "theme_name", "trade_style",
+    "buy_price", "quantity", "status", "sell_date", "sell_price", "result_pct",
+    "market_regime", "market_score", "theme_score", "stock_score", "memo",
+]
+
+
+def _records_view(records: list[dict]) -> pd.DataFrame:
+    view = pd.DataFrame(records)
+    return view[[col for col in _RECORD_COLUMNS if col in view.columns]]
+
+
 def _render_buy_form(theme_row: dict, leader: dict, market: dict) -> None:
     ticker = leader["ticker"]
     metrics, plan = leader["metrics"], leader["plan"]
-    st.markdown("#### 실제 매수 기록")
+    # 제목 옆에서 그동안 저장한 매수 기록 현황을 바로 펼쳐볼 수 있게 한다
+    # (2026-07-22 사용자 지시 — 저장 폼과 현황이 함께 있어야 한다).
+    title_col, status_col = st.columns([1, 1.7])
+    with title_col:
+        st.markdown("#### 실제 매수 기록")
+    with status_col:
+        try:
+            progress = j3store.trade_progress()
+            summary = (
+                f"보유 {progress['open_count']}건 · 청산 {progress['closed_count']}/"
+                f"{progress['minimum_sample']}건 · 전체 {progress['total_count']}건"
+            )
+        except Exception:
+            summary = None
+        expander_label = f"📋 매수 기록 현황 보기 — {summary}" if summary else "📋 매수 기록 현황 보기"
+        with st.expander(expander_label, expanded=False):
+            try:
+                records = j3store.list_trades(limit=100)
+            except Exception as exc:
+                st.error(f"기록 조회 실패: {_safe_error_text(exc)}")
+                records = []
+            if records:
+                st.dataframe(_records_view(records), hide_index=True, width="stretch")
+                st.caption("청산 입력과 전체 목록은 위 ‘매수 기록 현황’ 탭에 있습니다.")
+            else:
+                st.caption("아직 저장된 매수 기록이 없습니다.")
     st.caption("실제로 매수한 경우에만 저장합니다. 저장 시 당시 시장·테마·종목 조건도 함께 보존됩니다.")
     with st.form(f"j3_buy_form_{ticker}", clear_on_submit=False):
         c1, c2, c3, c4 = st.columns(4)
@@ -967,9 +1114,13 @@ def _render_radar_tab(market: dict) -> None:
         )
     else:
         basis_html = theme_row.get("basis", "근거 자료 부족")
+    # 상태 단어(주도/관찰/약함)는 20개 테마 순위표와 같은 상태색을 쓴다
+    # (2026-07-22 사용자 지시: "실시간 순위 상태와 같은 색으로").
+    status_hex = _STATUS_HEX.get(theme_row.get("status", ""), "#e6e6e6")
     st.markdown(
         "<div class='j3-theme-box'>"
-        f"<span class='j3-green-strong'>{selected_theme} · {theme_row['status']}</span> : "
+        f"<span class='j3-green-strong'>{selected_theme}</span> · "
+        f"<span style='color:{status_hex}; font-weight:800'>{theme_row['status']}</span> : "
         f"<span class='j3-green'>{theme_row['score']:.1f}/100</span><br>"
         f"{basis_html}<br>"
         f"<span class='j3-green-strong'>20일 상대강도 해석</span> : {rs_level} — {rs_meaning}<br>"
@@ -1042,7 +1193,7 @@ def _render_radar_tab(market: dict) -> None:
 
 
 def _render_records_tab() -> None:
-    st.subheader("실제 매수 데이터")
+    st.subheader("매수 기록 현황")
     try:
         progress = j3store.trade_progress()
         records = j3store.list_trades(limit=300)
@@ -1059,13 +1210,7 @@ def _render_records_tab() -> None:
         st.caption("아직 저장된 자비스3 매수 기록이 없습니다.")
         return
 
-    view = pd.DataFrame(records)
-    columns = [
-        "id", "buy_date", "ticker", "stock_name", "theme_name", "trade_style",
-        "buy_price", "quantity", "status", "sell_date", "sell_price", "result_pct",
-        "market_regime", "market_score", "theme_score", "stock_score", "memo",
-    ]
-    st.dataframe(view[[col for col in columns if col in view.columns]], hide_index=True, width="stretch")
+    st.dataframe(_records_view(records), hide_index=True, width="stretch")
 
     open_records = [record for record in records if record.get("status") == "보유"]
     if open_records:
@@ -1120,7 +1265,13 @@ def main() -> None:
     _render_market_overview()
     market = st.session_state.get("j3_market_overview") or {"ok": False, "score": 0, "regime": "자료부족"}
     st.divider()
-    radar_tab, records_tab, method_tab = st.tabs(["테마·종목", "매수 기록", "판정 기준"])
+    # 시장판단 화면의 두 신호 카드를 자비스3에서도 그대로 보여준다(2026-07-22 사용자 지시).
+    # 같은 렌더러·같은 세션 상태를 재사용하므로 시장판단 페이지와 판정이 항상 일치한다.
+    market_signal_ui.render_us_market_signal_card()
+    st.divider()
+    market_signal_ui.render_kr_flow_card()
+    st.divider()
+    radar_tab, records_tab, method_tab = st.tabs(["테마·종목", "매수 기록 현황", "판정 기준"])
     with radar_tab:
         _render_radar_tab(market)
     with records_tab:

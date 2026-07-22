@@ -13,7 +13,6 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
-import pandas as pd
 import streamlit as st
 
 import database
@@ -262,6 +261,54 @@ _FLOW_TABLE_KEYS = (
 )
 
 
+# 상세 표의 값별 색 — 같은 값은 어느 시장 카드에서든 같은 색으로 보이게 한다.
+_TIMING_COLOR = {
+    "선행": "#4da6ff", "확인": "#e6e6e6", "늦음": "#ff9d3b",
+    "가짜": "#ef4444", "확인 필요": "#9ca3af",
+}
+_STRENGTH_COLOR = {"직접": "#22c55e", "대체": "#ff9d3b", "간접": "#9ca3af"}
+_FRESHNESS_COLOR = {
+    "정상": "#22c55e", "지연": "#ff9d3b", "오래됨": "#ef4444", "확인 필요": "#9ca3af",
+}
+
+_SIGNAL_TABLE_LEGEND_HTML = """
+<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);
+border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.9rem;line-height:1.8;">
+  <div style="font-weight:800;color:#e6e6e6;margin-bottom:2px;">표 읽는 법</div>
+  <b style="color:#9ca3af;">판정</b> :
+  ⭕ <span style="color:#22c55e;">긍정(신호 켜짐)</span> ·
+  🟡 <span style="color:#eab308;">중립(보합)</span> ·
+  ❌ <span style="color:#ef4444;">부정</span> ·
+  ⚪ <span style="color:#9ca3af;">확인 필요(자료 없음)</span><br>
+  <b style="color:#9ca3af;">구분</b> :
+  <span style="color:#4da6ff;">선행</span> = 본장보다 먼저 움직이는 지표 ·
+  <span style="color:#e6e6e6;">확인</span> = 결과로 따라오는 지표 ·
+  <span style="color:#ff9d3b;">늦음</span> = 이미 지나간 흐름일 수 있는 신호<br>
+  <b style="color:#9ca3af;">신호세기</b> :
+  <span style="color:#22c55e;">직접</span> = 원자료 그대로 ·
+  <span style="color:#ff9d3b;">대체</span> = 직접값이 없어 대신 쓰는 근사 신호 ·
+  <span style="color:#9ca3af;">간접</span> = 참고 수준 신호<br>
+  <b style="color:#9ca3af;">신선도</b> :
+  <span style="color:#22c55e;">정상</span> = 2분 이내 자료 ·
+  <span style="color:#ff9d3b;">지연</span> = 5분 이내 ·
+  <span style="color:#ef4444;">오래됨</span> = 5분 초과 ·
+  <span style="color:#9ca3af;">확인 필요</span> = 기준시각 없음
+</div>
+"""
+
+_SIGNAL_TABLE_CSS = """
+<style>
+.msig-table { width:100%; border-collapse:collapse; font-size:0.92rem; }
+.msig-table th { text-align:center; color:#9aa0aa; font-weight:800; padding:0.45rem 0.4rem;
+  border-bottom:1px solid rgba(255,255,255,0.2); }
+.msig-table td { text-align:center; padding:0.4rem 0.4rem; color:#e6e6e6;
+  border-bottom:1px solid rgba(255,255,255,0.07); }
+.msig-table td.msig-name { text-align:left; font-weight:800; }
+.msig-table td.msig-reason { text-align:left; color:#c9ced6; font-size:0.88rem; }
+</style>
+"""
+
+
 def render_market_signal_card(
     result, *, verdict_style, core_display, table_keys, detail_title, detail_caption, table_key
 ):
@@ -328,23 +375,40 @@ def render_market_signal_card(
         for reason in result.missing_reasons:
             st.markdown(f"- {reason}")
 
-    with st.expander(detail_title, expanded=False):
-        _rows = []
+    # 상세 표는 자동으로 펼치고, 표 위에 각 열이 무엇을 뜻하는지 범례를 둔다
+    # (2026-07-22 사용자 지시 — 캡처 주석: "자동으로 열리게", "설명 따로 위에 만들 것",
+    # "색깔은 조건마다 다르게").
+    with st.expander(detail_title, expanded=True):
+        st.markdown(_SIGNAL_TABLE_LEGEND_HTML, unsafe_allow_html=True)
+        _rows_html = []
         for key in table_keys:
             signal = result.signal(key)
             if signal is None:
                 continue
-            _rows.append({
-                "항목": signal.label,
-                "현재값": signal.display_value,
-                "판정": market_signal_common.STATUS_MARK[signal.status],
-                "구분": market_signal_common.TIMING_LABEL[signal.timing],
-                "신호세기": market_signal_common.STRENGTH_LABEL[signal.strength],
-                "설명": signal.reason,
-                "신선도": market_signal_common.freshness_label(signal.freshness_seconds),
-            })
-        if _rows:
-            st.dataframe(pd.DataFrame(_rows), width="stretch", hide_index=True, key=table_key)
+            status_color = market_signal_common.STATUS_COLOR[signal.status]
+            timing_text = market_signal_common.TIMING_LABEL[signal.timing]
+            strength_text = market_signal_common.STRENGTH_LABEL[signal.strength]
+            fresh_text = market_signal_common.freshness_label(signal.freshness_seconds)
+            _rows_html.append(
+                "<tr>"
+                f"<td class='msig-name'>{signal.label}</td>"
+                f"<td style='color:{status_color};font-weight:700'>{signal.display_value}</td>"
+                f"<td>{market_signal_common.STATUS_MARK[signal.status]}</td>"
+                f"<td style='color:{_TIMING_COLOR.get(timing_text, '#e6e6e6')};font-weight:700'>{timing_text}</td>"
+                f"<td style='color:{_STRENGTH_COLOR.get(strength_text, '#e6e6e6')};font-weight:700'>{strength_text}</td>"
+                f"<td class='msig-reason'>{signal.reason}</td>"
+                f"<td style='color:{_FRESHNESS_COLOR.get(fresh_text, '#e6e6e6')};font-weight:700'>{fresh_text}</td>"
+                "</tr>"
+            )
+        if _rows_html:
+            st.markdown(
+                _SIGNAL_TABLE_CSS
+                + "<table class='msig-table'><thead><tr>"
+                "<th>항목</th><th>현재값</th><th>판정</th><th>구분</th>"
+                "<th>신호세기</th><th>설명</th><th>신선도</th></tr></thead>"
+                f"<tbody>{''.join(_rows_html)}</tbody></table>",
+                unsafe_allow_html=True,
+            )
         st.caption(detail_caption)
 
 

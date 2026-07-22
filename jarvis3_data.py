@@ -93,6 +93,8 @@ def clear_runtime_cache() -> None:
     """사용자가 새로고침을 눌렀을 때 자비스3 메모리 캐시만 비운다."""
     with _CACHE_LOCK:
         _CACHE.clear()
+    with _FEAR_GREED_LOCK:
+        _FEAR_GREED_CACHE.update({"at": 0.0, "value": None})
 
 
 def _finite(value) -> float | None:
@@ -309,6 +311,97 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
         "atr_pct": atr_pct,
         "source_time": _source_time(intraday) or _source_time(daily),
     }
+
+
+# ---------------------------------------------------------------------------
+# CNN 공포·탐욕 지수 (2026-07-22 추가) — 읽기 전용 참고 지표.
+# 점수·판정에는 반영하지 않고 시장판단 상단에 표시만 한다.
+# ---------------------------------------------------------------------------
+_FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+_FEAR_GREED_TTL_SECONDS = 300.0
+_FEAR_GREED_LOCK = threading.Lock()
+_FEAR_GREED_CACHE: dict = {"at": 0.0, "value": None}
+
+_FEAR_GREED_RATING_KR = {
+    "extreme fear": "극단적 공포",
+    "fear": "공포",
+    "neutral": "중립",
+    "greed": "탐욕",
+    "extreme greed": "극단적 탐욕",
+}
+
+
+def fear_greed_label(score: float) -> str:
+    """CNN 게이지와 같은 구간 이름. rating 문자열이 없을 때의 대체 라벨."""
+    if score <= 25:
+        return "극단적 공포"
+    if score < 45:
+        return "공포"
+    if score <= 55:
+        return "중립"
+    if score < 75:
+        return "탐욕"
+    return "극단적 탐욕"
+
+
+def _fear_greed_request(url: str, *, timeout: float = 8):
+    import json
+    from urllib.request import Request, urlopen
+
+    request = Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+    with urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def get_fear_greed(request_json=None) -> dict:
+    """CNN 공포·탐욕 지수(0~100)를 조회한다. 실패하면 ok=False 또는 마지막 정상값."""
+    now = time.time()
+    with _FEAR_GREED_LOCK:
+        cached = _FEAR_GREED_CACHE["value"]
+        if cached and now - _FEAR_GREED_CACHE["at"] < _FEAR_GREED_TTL_SECONDS:
+            return dict(cached)
+    try:
+        payload = (request_json or _fear_greed_request)(_FEAR_GREED_URL)
+        block = payload.get("fear_and_greed") if isinstance(payload, dict) else None
+        if not isinstance(block, dict):
+            raise RuntimeError("응답에 fear_and_greed 데이터가 없습니다")
+        score = _finite(block.get("score"))
+        if score is None or not 0 <= score <= 100:
+            raise RuntimeError("지수 값이 0~100 범위가 아닙니다")
+        rating = str(block.get("rating") or "").strip().lower()
+        value = {
+            "ok": True,
+            "score": round(score, 1),
+            "rating": rating,
+            "rating_kr": _FEAR_GREED_RATING_KR.get(rating) or fear_greed_label(score),
+            "previous_close": _finite(block.get("previous_close")),
+            "previous_1_week": _finite(block.get("previous_1_week")),
+            "previous_1_month": _finite(block.get("previous_1_month")),
+            "previous_1_year": _finite(block.get("previous_1_year")),
+            "as_of": str(block.get("timestamp") or ""),
+            "stale": False,
+            "source": "CNN Fear & Greed",
+        }
+        with _FEAR_GREED_LOCK:
+            _FEAR_GREED_CACHE.update({"at": now, "value": dict(value)})
+        return value
+    except Exception as exc:
+        _log.warning("jarvis3 fear&greed fetch failed: %s", exc)
+        with _FEAR_GREED_LOCK:
+            stale_value = _FEAR_GREED_CACHE["value"]
+        if stale_value:
+            return {**stale_value, "stale": True, "error": str(exc)}
+        return {"ok": False, "error": str(exc)}
 
 
 def market_phase(now: datetime | None = None) -> dict:
@@ -610,6 +703,32 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
     }
 
 
+def _intraday_chart_payload(frame: pd.DataFrame | None, prev_close: float | None) -> dict | None:
+    """당일 1분봉 흐름 차트 자료. 자비스1 코스피/코스닥 당일 차트와 같은 성격이다.
+
+    이미 받아 둔 1일 1분봉(live) 프레임을 재사용하므로 추가 네트워크 호출이 없다.
+    차트 x축이 뉴욕 거래시간으로 보이도록 시각을 뉴욕 기준 naive로 바꾼다.
+    """
+    if frame is None or frame.empty or "Close" not in frame.columns:
+        return None
+    closes = frame["Close"].dropna().astype(float)
+    if len(closes) < 5:
+        return None
+    price = closes.to_frame(name="Close")
+    try:
+        index = pd.DatetimeIndex(price.index)
+        if index.tz is not None:
+            price.index = index.tz_convert(_NY).tz_localize(None)
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "price": price,
+        "prev_close": _finite(prev_close),
+        "source_time": _source_time(frame),
+    }
+
+
 def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: float = 0) -> dict:
     theme = THEME_BY_NAME.get(theme_name)
     if theme is None:
@@ -641,6 +760,7 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
             "score_parts": parts,
             "metrics": metrics,
             "plan": plan,
+            "intraday_chart": _intraday_chart_payload(live.get(ticker), metrics.get("prev_close")),
             "daily_chart": daily_chart,
             "weekly_chart": weekly_chart,
         })

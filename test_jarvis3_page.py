@@ -52,6 +52,20 @@ def _leader_chart_payload(start=100):
     return {"ok": True, "price": chart[["Close", "MA20", "MA50"]], "volume": None, "stale": False}
 
 
+def _intraday_chart_payload():
+    index = pd.date_range("2026-07-21 09:30", periods=30, freq="min")
+    price = pd.DataFrame({"Close": [100 + i * 0.1 for i in range(30)]}, index=index)
+    return {"ok": True, "price": price, "prev_close": 99.5, "source_time": "2026-07-21T23:00:00+09:00"}
+
+
+def _fear_greed():
+    return {
+        "ok": True, "score": 41.0, "rating": "fear", "rating_kr": "공포",
+        "previous_close": 45.0, "previous_1_week": 55.0, "previous_1_month": 57.0,
+        "previous_1_year": 44.0, "as_of": "x", "stale": False, "source": "CNN Fear & Greed",
+    }
+
+
 def _leaders():
     rows = []
     for index, ticker in enumerate(("NVDA", "AVGO", "AMD", "MU", "TSM", "ASML"), 1):
@@ -68,6 +82,8 @@ def _leaders():
             "rank": index, "ticker": ticker, "name": ticker, "score": 90-index,
             "score_parts": [22, 22, 18, 14, 13], "metrics": metrics, "plan": plan,
             "stock_reason": f"테마 내 종합 {index}위",
+            # 1위는 당일 차트가 있고 2위부터는 없는 상황(자료 없음 분기)을 함께 검증한다.
+            "intraday_chart": _intraday_chart_payload() if index == 1 else None,
             "daily_chart": _leader_chart_payload(),
             "weekly_chart": _leader_chart_payload(80),
         })
@@ -86,6 +102,7 @@ def _chart_bundle():
 class Jarvis3PageTests(unittest.TestCase):
     def test_authenticated_page_renders_market_before_theme_and_records(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={
@@ -120,6 +137,7 @@ class Jarvis3PageTests(unittest.TestCase):
     def test_theme_selection_click_actually_switches_theme(self):
         """테마 선택 위젯을 실제로 눌러 테마가 바뀌는지 검증한다(st.pills 클릭 불가 회귀 방지)."""
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={
@@ -164,6 +182,15 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3-leader-score", source)
         self.assertIn("🥇", source)
         self.assertIn('float(leader["score"]) >= 80', source)
+        # 2026-07-22 추가 계약: 공포·탐욕 지수 칸, 당일 차트, 매수 기록 현황,
+        # 시장판단 신호 카드 재사용, 테마 버튼 키 2자리 고정폭(CSS 부분일치 버그 방지).
+        self.assertIn("공포·탐욕 지수", source)
+        self.assertIn("_intraday_chart", source)
+        self.assertIn("당일 · 실시간(지연 가능)", source)
+        self.assertIn("매수 기록 현황", source)
+        self.assertIn("render_us_market_signal_card", source)
+        self.assertIn("render_kr_flow_card", source)
+        self.assertIn("j3tbtn_{index:02d}", source)
 
     def test_main_login_includes_jarvis3_destination(self):
         source = (ROOT / "app.py").read_text(encoding="utf-8")
@@ -172,6 +199,7 @@ class Jarvis3PageTests(unittest.TestCase):
 
     def test_login_can_switch_directly_to_jarvis3(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={

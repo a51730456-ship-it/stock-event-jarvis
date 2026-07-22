@@ -106,6 +106,36 @@ class Jarvis3DataTests(unittest.TestCase):
         self.assertLessEqual(len(result["charts"]["일봉"]["price"]), 180)
         download.assert_called_once_with(("NVDA",), period="10y", interval="1d", ttl_seconds=300)
 
+    def test_fear_greed_parses_cnn_payload_without_network(self):
+        payload = {
+            "fear_and_greed": {
+                "score": 41.0, "rating": "fear", "previous_close": 45.0,
+                "previous_1_week": 55.0, "previous_1_month": 57.0,
+                "previous_1_year": 44.0, "timestamp": "2026-07-22T07:00:00+00:00",
+            }
+        }
+        result = j3.get_fear_greed(request_json=lambda url: payload)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["score"], 41.0)
+        self.assertEqual(result["rating_kr"], "공포")
+        self.assertEqual(result["previous_close"], 45.0)
+
+    def test_fear_greed_bad_payload_returns_not_ok(self):
+        result = j3.get_fear_greed(request_json=lambda url: {"unexpected": True})
+        self.assertFalse(result.get("ok"))
+
+    def test_intraday_chart_payload_converts_timezone_and_keeps_prev_close(self):
+        payload = j3._intraday_chart_payload(_intraday_frame(230), 229.0)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["prev_close"], 229.0)
+        self.assertIsNone(pd.DatetimeIndex(payload["price"].index).tz)
+        self.assertEqual(len(payload["price"]), 8)
+
+    def test_intraday_chart_payload_requires_enough_bars(self):
+        self.assertIsNone(j3._intraday_chart_payload(None, 100.0))
+        short = _intraday_frame(230).head(3)
+        self.assertIsNone(j3._intraday_chart_payload(short, 100.0))
+
 
 if __name__ == "__main__":
     unittest.main()
