@@ -1025,80 +1025,6 @@ def _render_stock_detail(
     _render_buy_form(theme_row, leader, market, top_candidates, stock_key)
 
 
-_RECORD_COLUMNS = [
-    "id", "buy_date", "ticker", "stock_name", "theme_name", "trade_style",
-    "buy_price", "quantity", "status", "sell_date", "sell_price", "result_pct",
-    "market_regime", "market_score", "theme_score", "stock_score", "memo",
-]
-
-
-_RECORD_HEADERS_KR = {
-    "id": "번호", "buy_date": "매수일", "ticker": "티커", "stock_name": "종목명",
-    "theme_name": "테마", "trade_style": "매매유형", "buy_price": "매수가(USD)",
-    "quantity": "수량", "status": "상태", "current_pl_pct": "현재 손익률(%)",
-    "sell_date": "매도일", "sell_price": "매도가(USD)", "result_pct": "확정 손익률(%)",
-    "market_regime": "시장 국면", "market_score": "시장점수",
-    "theme_score": "테마점수", "stock_score": "종목점수", "memo": "메모",
-}
-
-
-def _records_view(records: list[dict]):
-    """저장 기록을 한글 제목 표로 만든다(2026-07-22 사용자 지시).
-
-    보유 중인 기록은 최근가를 조회해 '현재 손익률(%)'을 계산하고,
-    이익은 파랑·손실은 빨강(미국장 색 규칙)으로 칠한다. 시세 조회가 실패한
-    종목은 값을 만들지 않고 '—'로 둔다.
-    """
-    view = pd.DataFrame(records)
-    view = view[[col for col in _RECORD_COLUMNS if col in view.columns]]
-
-    open_tickers = sorted({
-        str(record.get("ticker")) for record in records
-        if record.get("status") == "보유" and record.get("ticker")
-    })[:30]
-    current_prices = {}
-    for ticker in open_tickers:
-        quote = j3data.get_live_quote(ticker)
-        if quote.get("ok") and quote.get("current"):
-            current_prices[ticker] = float(quote["current"])
-
-    def _live_pl(row):
-        if row.get("status") != "보유":
-            return None
-        current = current_prices.get(str(row.get("ticker")))
-        buy_price = row.get("buy_price")
-        if current and buy_price:
-            return (current / float(buy_price) - 1) * 100
-        return None
-
-    if not view.empty and "status" in view.columns:
-        view.insert(view.columns.get_loc("status") + 1, "current_pl_pct", view.apply(_live_pl, axis=1))
-    view = view.rename(columns=_RECORD_HEADERS_KR)
-
-    def _pl_style(value):
-        try:
-            if value is None or pd.isna(value):
-                return ""
-            return "color:#4da6ff;font-weight:700" if float(value) >= 0 else "color:#ff5b5b;font-weight:700"
-        except (TypeError, ValueError):
-            return ""
-
-    pl_columns = [col for col in ("현재 손익률(%)", "확정 손익률(%)") if col in view.columns]
-    formats = {col: "{:+.2f}" for col in pl_columns}
-    for col in ("매수가(USD)", "매도가(USD)"):
-        if col in view.columns:
-            formats[col] = "{:,.2f}"
-    # 수량·점수 칸은 소수점 없이 표시(2026-07-22 사용자 지시).
-    for col in ("수량", "시장점수", "테마점수", "종목점수"):
-        if col in view.columns:
-            formats[col] = "{:,.0f}"
-    # 첫 format 호출은 전체 칸에 na_rep(—)만 깔고, 두 번째가 칸별 형식을 덮는다 —
-    # 형식 dict에 없는 칸(매도일·메모 등)의 None이 'None' 글자로 보이던 문제 수정.
-    styler = view.style.format(na_rep="—").format(formats, na_rep="—")
-    if pl_columns:
-        styler = styler.map(_pl_style, subset=pl_columns)
-    return styler
-
 
 def _render_buy_form(
     theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str
@@ -1107,9 +1033,30 @@ def _render_buy_form(
     metrics, plan = leader["metrics"], leader["plan"]
     # 위 '추천 근거 요약' 카드와 붙어 보이지 않게 한 줄 띄운다(2026-07-22 사용자 지시).
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+
+    # 상세 종목 선택(복제)은 네모칸 밖, '실제 매수 기록' 제목 위에 둔다
+    # (2026-07-22 사용자 지시). 여기서 골라도 위 상세 전체가 같이 바뀐다.
+    ticker_options = [item["ticker"] for item in top_candidates]
+    by_ticker = {item["ticker"]: item for item in top_candidates}
+    mirror_key = f"{stock_key}_form"
+
+    def _apply_form_stock_change():
+        # 아래 라디오에서 고른 종목을 위 라디오(진짜 선택 상태)에 반영한다.
+        st.session_state[stock_key] = st.session_state[mirror_key]
+
+    if st.session_state.get(mirror_key) != ticker or st.session_state.get(mirror_key) not in ticker_options:
+        st.session_state[mirror_key] = ticker
+    st.radio(
+        "상세 종목 선택",
+        ticker_options,
+        format_func=lambda value: _stock_radio_label(by_ticker[value]) if value in by_ticker else value,
+        horizontal=True,
+        key=mirror_key,
+        on_change=_apply_form_stock_change,
+    )
+
     # 제목 옆에서 그동안 저장한 매수 기록 현황을 바로 펼쳐볼 수 있게 한다
     # (2026-07-22 사용자 지시 — 저장 폼과 현황이 함께 있어야 한다).
-    # 제목 열을 좁혀 현황 박스가 제목 바로 옆에 붙게 한다(멀리 떨어져 보인다는 지적 반영).
     title_col, status_col = st.columns([0.28, 1.72])
     with title_col:
         st.markdown("#### 실제 매수 기록")
@@ -1130,14 +1077,14 @@ def _render_buy_form(
                 st.error(f"기록 조회 실패: {_safe_error_text(exc)}")
                 records = []
             if records:
-                st.dataframe(_records_view(records), hide_index=True, width="stretch")
-                st.caption("청산 입력과 전체 목록은 위 ‘매수 기록 현황’ 탭에 있습니다.")
+                # 읽기 전용 표였을 때 매도일·매도가를 눌러도 안 된다는 지적(2026-07-22)
+                # → 여기서도 같은 클릭 입력형 표를 쓴다.
+                _render_records_editor(records, key_prefix="form")
             else:
                 st.caption("아직 저장된 매수 기록이 없습니다.")
     st.caption("실제로 매수한 경우에만 저장합니다. 저장 시 당시 시장·테마·종목 조건도 함께 보존됩니다.")
     # 화면이 길어 여기까지 내려오면 어느 종목인지 헷갈린다는 지적(2026-07-22)에 따라,
-    # 네모칸 안 맨 위에 ①종목 이름·지표 헤더 ②상세 종목 선택을 그대로 한 번 더 넣는다
-    # (위쪽 원본은 지우지 않음). 여기 라디오에서 골라도 위 상세 전체가 같이 바뀐다.
+    # 네모칸 안 맨 위에 종목 이름·지표 헤더를 그대로 한 번 더 넣는다(위쪽 원본 유지).
     with st.container(border=True):
         form_rank = int(leader.get("rank") or 0)
         form_medal = _MEDAL_BY_RANK.get(form_rank, "") if float(leader.get("score") or 0) >= 80 else ""
@@ -1148,26 +1095,6 @@ def _render_buy_form(
             unsafe_allow_html=True,
         )
         _render_selected_live_quote(leader.get("score"), plan.get("state"))
-
-        ticker_options = [item["ticker"] for item in top_candidates]
-        by_ticker = {item["ticker"]: item for item in top_candidates}
-        mirror_key = f"{stock_key}_form"
-
-        def _apply_form_stock_change():
-            # 아래 라디오에서 고른 종목을 위 라디오(진짜 선택 상태)에 반영한다.
-            st.session_state[stock_key] = st.session_state[mirror_key]
-
-        if st.session_state.get(mirror_key) != ticker or st.session_state.get(mirror_key) not in ticker_options:
-            st.session_state[mirror_key] = ticker
-        st.radio(
-            "상세 종목 선택",
-            ticker_options,
-            format_func=lambda value: _stock_radio_label(by_ticker[value]) if value in by_ticker else value,
-            horizontal=True,
-            key=mirror_key,
-            on_change=_apply_form_stock_change,
-        )
-
         _render_buy_form_fields(theme_row, leader, market)
 
 
@@ -1394,12 +1321,13 @@ def _records_live_prices(records: list[dict]) -> dict:
     return prices
 
 
-def _render_records_editor(records: list[dict]) -> None:
+def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None:
     """매수 기록 현황 표 하나에서 바로 청산을 입력한다(2026-07-22 사용자 지시).
 
     종목 줄의 매도일 칸을 누르면 달력이 뜨고, 매도가 칸에 금액을 넣으면 확정
     손익률이 자동 계산된다(표 아래 미리보기 → 저장 시 확정 칸에 기록).
     매도가는 매수가 ±50% 범위만 허용한다. 제목·내용은 가운데 정렬한다.
+    key_prefix로 탭·매수 폼 두 곳에서 각각 독립 위젯으로 쓴다.
     """
     saved_message = st.session_state.pop("j3_close_saved_msg", None)
     if saved_message:
@@ -1469,7 +1397,7 @@ def _render_records_editor(records: list[dict]) -> None:
         "종목점수": st.column_config.NumberColumn(format="%.0f", **center),
         "메모": st.column_config.TextColumn(**center),
     }
-    editor_key = "j3_records_editor"
+    editor_key = f"j3_records_editor_{key_prefix}"
     edited = st.data_editor(
         frame,
         column_config=column_config,
@@ -1508,7 +1436,7 @@ def _render_records_editor(records: list[dict]) -> None:
     if touched_closed:
         st.warning("이미 청산된 기록은 수정되지 않습니다: " + ", ".join(sorted(set(touched_closed))))
 
-    if st.button("청산 저장 (매도일·매도가 입력된 종목만)", key="j3_close_editor_save", width="stretch"):
+    if st.button("청산 저장 (매도일·매도가 입력된 종목만)", key=f"j3_close_editor_save_{key_prefix}", width="stretch"):
         saved_count = 0
         errors = []
         for index, record in enumerate(records):
