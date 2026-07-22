@@ -7,6 +7,7 @@
 
 import json
 import math
+import re
 from datetime import datetime, time as datetime_time, timedelta
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
@@ -183,3 +184,74 @@ def get_index_snapshot(ticker, *, now=None, request_json=None):
         }
     except Exception:
         return {"ok": False, "error": "네이버 현재지수 조회 실패"}
+
+
+# ---------------------------------------------------------------------------
+# 외국인 KOSPI200 선물 순매수 (2026-07-22 추가)
+#
+# KIS 공개 API에는 선물 투자자별 수급 조회처가 확인되지 않아 그동안 HTS 수동
+# 입력만 받았다. 네이버 금융의 '파생 투자자별 매매동향' 페이지(sosok=03 = 선물)가
+# 당일 누적 순매수 계약수를 지연 공개하는 것을 확인해(실측: 개인+외국인+기관계+
+# 기타법인 = 0 정합) 자동 조회를 붙인다. 지연 공개치이므로 실패하면 조용히
+# ok=False를 돌려주고, 호출부는 기존 원칙대로 '확인 필요'로 둔다.
+# ---------------------------------------------------------------------------
+
+_FUTURES_INVESTOR_URL = (
+    "https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate={date}&sosok=03"
+)
+_FUTURES_ROW_PATTERN = re.compile(
+    r'<td class="date2">\s*([\d.]+)\s*</td>(.*?)</tr>', re.S
+)
+_FUTURES_NUMBER_PATTERN = re.compile(r">([+-]?[\d,]+)<")
+
+
+def _request_text(url, *, timeout=8):
+    request = Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Referer": "https://finance.naver.com/",
+        },
+        method="GET",
+    )
+    with urlopen(request, timeout=timeout) as response:
+        return response.read().decode("euc-kr", errors="replace")
+
+
+def get_foreign_futures_daily_net(*, now=None, request_text=None):
+    """네이버 파생 투자자별 매매동향(선물)에서 외국인 당일 순매수 계약수를 읽는다.
+
+    반환 값은 당일 누적 순매수(계약, 지연 공개치)다. 오늘 자 행이 아직 없으면
+    (개장 초·휴장일) ok=False를 돌려주고 임의 값을 만들지 않는다.
+    표 열 순서는 날짜 | 개인 | 외국인 | 기관계 | ... 이므로 두 번째 숫자가 외국인이다.
+    """
+    now = now or _now_seoul()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=_SEOUL_TZ)
+    else:
+        now = now.astimezone(_SEOUL_TZ)
+
+    request_text = request_text or _request_text
+    try:
+        html = request_text(_FUTURES_INVESTOR_URL.format(date=now.strftime("%Y%m%d")))
+        if "외국인" not in html:
+            return {"ok": False, "error": "네이버 선물 수급 페이지 형식 변경 가능성"}
+        rows = _FUTURES_ROW_PATTERN.findall(html)
+        if not rows:
+            return {"ok": False, "error": "네이버 선물 수급 데이터 없음"}
+        first_date, first_body = rows[0]
+        if first_date.strip() != now.strftime("%y.%m.%d"):
+            return {"ok": False, "error": "오늘 선물 수급 자료가 아직 없음"}
+        numbers = _FUTURES_NUMBER_PATTERN.findall(first_body)
+        if len(numbers) < 3:
+            return {"ok": False, "error": "네이버 선물 수급 열 부족"}
+        net_contracts = int(numbers[1].replace(",", ""))
+        return {
+            "ok": True,
+            "net_contracts": net_contracts,
+            "trade_date": now.strftime("%Y-%m-%d"),
+            "as_of": now,
+            "source": "네이버 선물 투자자동향(지연)",
+        }
+    except Exception:
+        return {"ok": False, "error": "네이버 선물 수급 조회 실패"}

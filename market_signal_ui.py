@@ -19,6 +19,7 @@ import database
 import kis_market_data
 import kr_intraday_flow
 import market_signal_common
+import naver_market_data
 import price_data
 import us_market_signal_engine
 
@@ -187,11 +188,19 @@ def collect_kr_flow_snapshot():
         else:
             failures.append(f"{'삼성전자' if prefix == 'samsung' else 'SK하이닉스'} 가격 조회 실패")
 
-    # 7) 외국인 선물 직접 수급 — 수동 입력값만 쓴다. 없으면 저장도 하지 않는다.
+    # 7) 외국인 선물 수급 — 수동 입력값이 있으면 우선, 없으면 네이버 지연 공개치를
+    #    자동 조회한다(2026-07-22 사용자 지시: 직접 입력 대신 자동으로 찾아 띄울 것).
     manual = st.session_state.get("kr_flow_foreign_futures_manual") or {}
     if manual.get("net_contracts") is not None and manual.get("trade_date") == _flow_today():
         values["foreign_futures_net_contracts"] = int(manual["net_contracts"])
         values["foreign_futures_source"] = manual.get("source") or "HTS 수동 입력"
+    else:
+        auto_futures = naver_market_data.get_foreign_futures_daily_net()
+        if auto_futures.get("ok"):
+            values["foreign_futures_net_contracts"] = int(auto_futures["net_contracts"])
+            values["foreign_futures_source"] = auto_futures.get("source") or "네이버 선물 투자자동향(지연)"
+        else:
+            failures.append("외국인 선물 자동 조회 실패 — 확인 필요")
 
     values["raw_source_status"] = " / ".join(failures) if failures else "정상"
     return values, failures
@@ -228,6 +237,25 @@ def run_kr_flow_check():
             confidence="manual",
             available=True,
         )
+    elif values.get("foreign_futures_net_contracts") is not None:
+        # 네이버 자동 조회치 — 직전 스냅숏에 저장된 값과 비교해 증감 방향도 판정한다.
+        previous_value = None
+        for snap in reversed(snapshots[:-1]):
+            try:
+                candidate = snap.get("foreign_futures_net_contracts")
+            except AttributeError:
+                candidate = None
+            if candidate is not None:
+                previous_value = int(candidate)
+                break
+        foreign_futures = kr_intraday_flow.ForeignFuturesFlowSnapshot(
+            net_contracts=int(values["foreign_futures_net_contracts"]),
+            previous_net_contracts=previous_value,
+            as_of=datetime.now(),
+            source=values.get("foreign_futures_source") or "네이버 선물 투자자동향(지연)",
+            confidence="delayed_public",
+            available=True,
+        )
 
     result = kr_intraday_flow.build_result_from_snapshots(
         snapshots, foreign_futures=foreign_futures
@@ -262,6 +290,15 @@ _FLOW_TABLE_KEYS = (
 
 
 # 상세 표의 값별 색 — 같은 값은 어느 시장 카드에서든 같은 색으로 보이게 한다.
+# 판정 칸은 마크만이 아니라 '표 읽는 법'과 똑같은 뜻 글자를 함께 쓴다
+# (2026-07-22 사용자 지시: "⭕ 긍정(신호 켜짐)"처럼 마크와 내용을 같이 넣을 것).
+_STATUS_TEXT = {
+    market_signal_common.SignalStatus.POSITIVE: "긍정(신호 켜짐)",
+    market_signal_common.SignalStatus.NEUTRAL: "중립(보합)",
+    market_signal_common.SignalStatus.NEGATIVE: "부정",
+    market_signal_common.SignalStatus.UNKNOWN: "확인 필요",
+}
+
 _TIMING_COLOR = {
     "선행": "#4da6ff", "확인": "#e6e6e6", "늦음": "#ff9d3b",
     "가짜": "#ef4444", "확인 필요": "#9ca3af",
@@ -393,7 +430,8 @@ def render_market_signal_card(
                 "<tr>"
                 f"<td class='msig-name'>{signal.label}</td>"
                 f"<td style='color:{status_color};font-weight:700'>{signal.display_value}</td>"
-                f"<td>{market_signal_common.STATUS_MARK[signal.status]}</td>"
+                f"<td style='color:{status_color};font-weight:700;white-space:nowrap'>"
+                f"{market_signal_common.STATUS_MARK[signal.status]} {_STATUS_TEXT[signal.status]}</td>"
                 f"<td style='color:{_TIMING_COLOR.get(timing_text, '#e6e6e6')};font-weight:700'>{timing_text}</td>"
                 f"<td style='color:{_STRENGTH_COLOR.get(strength_text, '#e6e6e6')};font-weight:700'>{strength_text}</td>"
                 f"<td class='msig-reason'>{signal.reason}</td>"
@@ -426,9 +464,9 @@ def render_kr_flow_card():
 
     result = st.session_state.get("kr_flow_result")
     if result is None:
-        st.info("‘수급 다시 확인’을 누르면 프로그램·기관·베이시스·반도체 수급을 읽어 상태를 판정합니다.")
-        _render_foreign_futures_input()
-        return
+        # 버튼을 누르기 전에도 첫 화면에서 자동으로 한 번 읽는다(2026-07-22 사용자 지시).
+        with st.spinner("장중 수급 자동 확인 중..."):
+            result = run_kr_flow_check()
 
     render_market_signal_card(
         result,
@@ -521,8 +559,9 @@ def render_us_market_signal_card():
 
     result = st.session_state.get("us_signal_result")
     if result is None:
-        st.info("‘미국장 신호 다시 확인’을 누르면 선물·반도체·VIX·금리를 읽어 상태를 판정합니다.")
-        return
+        # 버튼을 누르기 전에도 첫 화면에서 자동으로 한 번 읽는다(2026-07-22 사용자 지시).
+        with st.spinner("미국장 신호 자동 확인 중..."):
+            result = run_us_market_signal_check()
 
     render_market_signal_card(
         result,
@@ -546,10 +585,11 @@ def render_us_market_signal_card():
 
 def _render_foreign_futures_input():
     """외국인 KOSPI200 선물 순매수 — 자동 조회처가 없어 HTS 값을 직접 받는다."""
-    with st.expander("외국인 KOSPI200 선물 순매수 직접 입력 (HTS)", expanded=False):
+    with st.expander("외국인 KOSPI200 선물 순매수 직접 입력 (자동 조회 실패 시 보조용)", expanded=False):
         st.caption(
-            "이 값만 자동 조회처가 확인되지 않았습니다. 비워두면 ‘확인 필요’로 두고 "
-            "시장베이시스를 대체 신호로만 씁니다. 임의 값을 만들지 않습니다."
+            "평소에는 네이버 선물 투자자동향(지연 공개치)에서 자동으로 읽어오므로 "
+            "직접 입력할 필요가 없습니다. 자동 조회가 실패했는데 HTS에서 값을 확인한 "
+            "경우에만 여기에 넣으면 됩니다(입력값이 자동값보다 우선). 임의 값을 만들지 않습니다."
         )
         _net = st.number_input(
             "순매수 계약 수 (순매도는 음수)",

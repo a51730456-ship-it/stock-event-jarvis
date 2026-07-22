@@ -348,6 +348,8 @@ def _fear_greed_request(url: str, *, timeout: float = 8):
     import json
     from urllib.request import Request, urlopen
 
+    # CNN이 브라우저가 아닌 요청을 418로 차단한다 — Referer·언어 헤더까지 있어야
+    # 통과한다(2026-07-22 실측: UA만으로는 418, 아래 조합으로 200 확인).
     request = Request(
         url,
         headers={
@@ -356,6 +358,8 @@ def _fear_greed_request(url: str, *, timeout: float = 8):
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
             "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://edition.cnn.com/markets/fear-and-greed",
         },
         method="GET",
     )

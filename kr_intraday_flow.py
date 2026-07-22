@@ -378,7 +378,7 @@ def evaluate_foreign_futures(snapshot: ForeignFuturesFlowSnapshot | None) -> Flo
         timing=SignalTiming.LEADING,
     )
     if snapshot is None or not snapshot.available or snapshot.net_contracts is None:
-        sig.reason = "외국인 선물 직접 수급 확인 필요 (자동 조회처 없음, HTS 수동 입력)"
+        sig.reason = "외국인 선물 수급 확인 필요 (네이버 자동 조회 실패 — HTS 수동 입력 가능)"
         sig.display_value = "확인 필요"
         return sig
 

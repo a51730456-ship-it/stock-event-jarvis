@@ -103,6 +103,10 @@ class Jarvis3PageTests(unittest.TestCase):
     def test_authenticated_page_renders_market_before_theme_and_records(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])), \
+             patch("database.save_kr_flow_snapshot"), \
+             patch("database.list_kr_flow_snapshots", return_value=[{}]), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={
@@ -138,6 +142,10 @@ class Jarvis3PageTests(unittest.TestCase):
         """테마 선택 위젯을 실제로 눌러 테마가 바뀌는지 검증한다(st.pills 클릭 불가 회귀 방지)."""
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])), \
+             patch("database.save_kr_flow_snapshot"), \
+             patch("database.list_kr_flow_snapshots", return_value=[{}]), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={
@@ -200,6 +208,10 @@ class Jarvis3PageTests(unittest.TestCase):
     def test_login_can_switch_directly_to_jarvis3(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])), \
+             patch("database.save_kr_flow_snapshot"), \
+             patch("database.list_kr_flow_snapshots", return_value=[{}]), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={

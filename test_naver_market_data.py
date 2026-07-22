@@ -161,5 +161,49 @@ class NaverIndexDailyCloseTests(unittest.TestCase):
         self.assertFalse(result["ok"])
 
 
+def _futures_html(first_date="26.07.22"):
+    return (
+        "<table><tr><th>날짜</th><th>개인</th><th>외국인</th><th>기관계</th></tr>"
+        f'<tr><td class="date2">{first_date}</td>'
+        "<td>265</td><td>1,679</td><td>-1,971</td><td>27</td></tr>"
+        '<tr><td class="date2">26.07.21</td>'
+        "<td>-164</td><td>-2,485</td><td>2,391</td><td>258</td></tr></table>"
+    )
+
+
+class ForeignFuturesDailyNetTests(unittest.TestCase):
+    """네이버 파생 투자자별 매매동향(선물) — 외국인 순매수 자동 조회."""
+
+    NOW = datetime(2026, 7, 22, 10, 30, tzinfo=SEOUL)
+
+    def test_reads_foreign_net_from_today_row(self):
+        result = naver_market_data.get_foreign_futures_daily_net(
+            now=self.NOW, request_text=lambda url, **kwargs: _futures_html()
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["net_contracts"], 1679)
+        self.assertEqual(result["trade_date"], "2026-07-22")
+        self.assertIn("네이버", result["source"])
+
+    def test_rejects_when_today_row_missing(self):
+        result = naver_market_data.get_foreign_futures_daily_net(
+            now=self.NOW, request_text=lambda url, **kwargs: _futures_html("26.07.21")
+        )
+        self.assertFalse(result["ok"])
+
+    def test_network_failure_returns_not_ok(self):
+        result = naver_market_data.get_foreign_futures_daily_net(
+            now=self.NOW,
+            request_text=lambda *args, **kwargs: (_ for _ in ()).throw(OSError("network")),
+        )
+        self.assertFalse(result["ok"])
+
+    def test_layout_change_returns_not_ok_instead_of_wrong_number(self):
+        result = naver_market_data.get_foreign_futures_daily_net(
+            now=self.NOW, request_text=lambda url, **kwargs: "<html>구조가 바뀐 페이지</html>"
+        )
+        self.assertFalse(result["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -158,10 +158,14 @@ st.markdown(
         padding: 1.15rem 1.3rem;
         box-shadow: 0 0 14px rgba(77,166,255,0.28), inset 0 0 20px rgba(77,166,255,0.07);
     }
-    /* 3열: 1열 가격 · 2열 가격 · 3열 종목 조건점수(오른쪽 빈 공간) */
-    .j3-holo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.95rem 0.4rem; }
-    .j3-holo-cell:nth-child(3n+1) { padding-left: 1.6rem; }
-    .j3-holo-cell:nth-child(3n+2) { margin-left: -1.8rem; }
+    /* 3열: 1열 가격 · 2열 가격 · 3열 종목 조건점수. 칸 사이 가로 간격을 넉넉히 두고
+       (2026-07-22 사용자 지시: 화면이 작으면 글자가 붙어버림), 좁은 화면에서는
+       2열로 바꿔 절대 겹치지 않게 한다. */
+    .j3-holo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem 1.8rem; }
+    .j3-holo-cell { min-width: 0; }
+    @media (max-width: 900px) {
+        .j3-holo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     /* 종목 조건점수는 2R 목표(참고) 바로 아래, 같은 열에 둔다 */
     /* 종목 조건점수는 같은 그리드의 오른쪽 열에 넣어 2R 목표와 라인을 맞춘다 */
     .j3-holo-score .label { color: #4da6ff !important; font-size: 0.92rem; font-weight: 800; }
@@ -282,8 +286,16 @@ def _fear_greed_color(score) -> str:
 
 
 def _fear_greed_cell() -> str:
-    """공포·탐욕 지수 상단 칸. 조회 실패 시 '자료 부족'으로만 표시한다."""
-    fg = j3data.get_fear_greed()
+    """공포·탐욕 지수 상단 칸. 조회 실패 시 '자료 부족'으로만 표시한다.
+
+    온라인 배포 직후 jarvis3_data 모듈이 옛 버전으로 캐시돼 있으면 함수가 아직
+    없을 수 있어 getattr로 방어한다(_leader_chart_payload와 같은 이유,
+    2026-07-22 온라인 AttributeError 실제 발생).
+    """
+    fetcher = getattr(j3data, "get_fear_greed", None)
+    if fetcher is None:
+        return _top_metric("공포·탐욕 지수", "—", "#9aa0aa", "모듈 갱신 대기")
+    fg = fetcher()
     if not fg.get("ok"):
         return _top_metric("공포·탐욕 지수", "—", "#9aa0aa", "자료 부족")
     color = _fear_greed_color(fg.get("score"))
@@ -739,9 +751,11 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     unsafe_allow_html=True,
                 )
                 st.code(leader["ticker"])
-                # 당일 주가와 등락률 — +파랑/−빨강 (2026-07-22 사용자 지시).
+                # 당일 주가와 등락률 — 제목은 '종목 조건점수' 라벨과 같은 크기·색
+                # (2026-07-22 사용자 지시).
                 change_pct = metrics.get("change_pct")
                 st.markdown(
+                    "<div class='j3-leader-score-label'>현재가 · 등락률</div>"
                     f"<div class='j3-leader-live'>{_price(metrics.get('current'))} "
                     f"<span class='j3-mc-sub {_sign_class(change_pct)}'>{_pct(change_pct)}</span></div>",
                     unsafe_allow_html=True,
@@ -973,6 +987,8 @@ def _records_view(records: list[dict]) -> pd.DataFrame:
 def _render_buy_form(theme_row: dict, leader: dict, market: dict) -> None:
     ticker = leader["ticker"]
     metrics, plan = leader["metrics"], leader["plan"]
+    # 위 '추천 근거 요약' 카드와 붙어 보이지 않게 한 줄 띄운다(2026-07-22 사용자 지시).
+    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
     # 제목 옆에서 그동안 저장한 매수 기록 현황을 바로 펼쳐볼 수 있게 한다
     # (2026-07-22 사용자 지시 — 저장 폼과 현황이 함께 있어야 한다).
     title_col, status_col = st.columns([1, 1.7])

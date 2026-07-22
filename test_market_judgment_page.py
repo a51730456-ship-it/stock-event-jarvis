@@ -1,15 +1,29 @@
 """시장 판단이 자비스1·2·3과 분리된 독립 화면인지 확인한다."""
 
+import contextlib
 import unittest
+from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 
 
+@contextlib.contextmanager
+def _no_network_signal_patches():
+    """2026-07-22부터 두 카드가 첫 화면에서 자동 조회하므로, 테스트에서는
+    네트워크·DB 접근을 막고 '자료 없음' 상태로 렌더되게 한다."""
+    with patch("market_signal_ui._fetch_quotes", return_value={}), \
+         patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, ["KIS API 키 미설정"])), \
+         patch("database.save_kr_flow_snapshot"), \
+         patch("database.list_kr_flow_snapshots", return_value=[{}]):
+        yield
+
+
 class MarketJudgmentPageTest(unittest.TestCase):
     def _run(self):
-        at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
-        at.session_state["authenticated"] = True
-        at.run()
+        with _no_network_signal_patches():
+            at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
+            at.session_state["authenticated"] = True
+            at.run()
         return at
 
     def test_page_renders_both_cards(self):
@@ -66,14 +80,15 @@ class Jarvis1NoLongerHostsCardsTest(unittest.TestCase):
 
 
 class NoFabricatedVerdictTest(unittest.TestCase):
-    def test_no_verdict_before_fetch(self):
-        """조회 전에는 판정을 만들어내지 않는다."""
-        at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
-        at.session_state["authenticated"] = True
-        at.run()
+    def test_no_verdict_without_data(self):
+        """자동 조회가 자료를 못 얻으면 판정을 만들어내지 않는다(데이터 부족만 표시)."""
+        with _no_network_signal_patches():
+            at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
+            at.session_state["authenticated"] = True
+            at.run()
         text = " ".join(m.value for m in at.markdown)
         for verdict in ("기관성 반등 확인", "위험선호 확산", "위험회피 우세"):
-            self.assertNotIn(verdict, text, f"조회 전에 '{verdict}' 판정이 표시됐습니다")
+            self.assertNotIn(verdict, text, f"자료 없이 '{verdict}' 판정이 표시됐습니다")
 
     def test_manual_futures_value_is_scoped_to_today(self):
         """어제 입력한 외국인 선물 값이 오늘 판정에 새어들어오면 안 된다."""
@@ -91,9 +106,10 @@ class Jarvis2And3UntouchedTest(unittest.TestCase):
         self.assertEqual(at.exception, [], "자비스2 렌더 중 예외")
 
     def test_jarvis3_still_renders(self):
-        at = AppTest.from_file("pages/2_자비스3.py", default_timeout=120)
-        at.session_state["authenticated"] = True
-        at.run()
+        with _no_network_signal_patches():
+            at = AppTest.from_file("pages/2_자비스3.py", default_timeout=120)
+            at.session_state["authenticated"] = True
+            at.run()
         self.assertEqual(at.exception, [], "자비스3 렌더 중 예외")
 
 
