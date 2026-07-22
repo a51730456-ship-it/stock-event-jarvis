@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -22,6 +23,19 @@ import market_signal_common
 import naver_market_data
 import price_data
 import us_market_signal_engine
+
+
+_SEOUL_TZ = ZoneInfo("Asia/Seoul")
+
+
+def _now_seoul():
+    """기준시각은 항상 한국 시간이다.
+
+    스트림릿 클라우드 서버는 UTC라서 datetime.now()를 쓰면 화면에 04:28처럼
+    9시간 어긋난 시각이 표시된다(2026-07-22 사용자 제보). tzinfo는 떼서 돌려준다 —
+    기존 신호 dataclass가 naive datetime끼리 빼기 때문이다.
+    """
+    return datetime.now(_SEOUL_TZ).replace(tzinfo=None)
 
 
 def _safe_pct_diff(a, b):
@@ -207,14 +221,14 @@ def collect_kr_flow_snapshot():
 
 
 def _flow_today():
-    return datetime.now().strftime("%Y-%m-%d")
+    return _now_seoul().strftime("%Y-%m-%d")
 
 
 def run_kr_flow_check():
     """수급을 한 번 읽어 DB에 쌓고, 당일 스냅숏 전체로 판정을 만든다."""
     values, failures = collect_kr_flow_snapshot()
     trade_date = _flow_today()
-    captured_at = datetime.now().replace(second=0, microsecond=0).isoformat()
+    captured_at = _now_seoul().replace(second=0, microsecond=0).isoformat()
 
     try:
         database.save_kr_flow_snapshot(trade_date, captured_at, values)
@@ -251,7 +265,7 @@ def run_kr_flow_check():
         foreign_futures = kr_intraday_flow.ForeignFuturesFlowSnapshot(
             net_contracts=int(values["foreign_futures_net_contracts"]),
             previous_net_contracts=previous_value,
-            as_of=datetime.now(),
+            as_of=_now_seoul(),
             source=values.get("foreign_futures_source") or "네이버 선물 투자자동향(지연)",
             confidence="delayed_public",
             available=True,
@@ -346,8 +360,40 @@ _SIGNAL_TABLE_CSS = """
 """
 
 
+def kr_flow_diagnosis(result) -> str | None:
+    """한국장 수급이 왜 비어 있는지 한 줄로 설명한다.
+
+    사용자가 조치할 수 있는 것(장 시간 기다리기)과 없는 것(API 장애)을 구분해 알려준다.
+    """
+    failures = st.session_state.get("kr_flow_failures") or []
+    app_key, app_secret = _flow_kis_keys()
+    now = _now_seoul()
+    in_session = now.weekday() < 5 and 9 <= now.hour < 16
+
+    if not app_key or not app_secret:
+        return (
+            "이 컴퓨터에는 증권사(KIS) 조회 키가 없어 프로그램·기관 수급을 못 읽습니다. "
+            "온라인 자비스에서는 정상 조회됩니다."
+        )
+    if not in_session:
+        return (
+            "지금은 한국 정규장(09:00~15:30) 시간이 아니라 장중 수급이 공개되지 않습니다. "
+            "장이 열리면 자동으로 채워집니다."
+        )
+    kis_failures = [f for f in failures if "조회 실패" in f or "응답" in f]
+    if kis_failures:
+        return (
+            f"증권사(KIS) 수급 조회가 지금 실패하고 있습니다({len(kis_failures)}건). "
+            "잠시 뒤 ‘수급 다시 확인’을 눌러보세요 — 값을 임의로 만들지 않고 비워 둡니다."
+        )
+    if failures:
+        return "일부 항목이 아직 안 채워졌습니다. 스냅숏이 15분 이상 쌓이면 자동으로 판정됩니다."
+    return None
+
+
 def render_market_signal_card(
-    result, *, verdict_style, core_display, table_keys, detail_title, detail_caption, table_key
+    result, *, verdict_style, core_display, table_keys, detail_title, detail_caption,
+    table_key, diagnosis_text=None,
 ):
     """한국장·미국장이 함께 쓰는 카드 렌더러.
 
@@ -356,7 +402,16 @@ def render_market_signal_card(
     """
     bg, border, text = verdict_style[result.verdict]
     _card_as_of = next((s.as_of for s in result.signals if s.as_of), None)
-    _as_of_label = _card_as_of.strftime("%H:%M") + " 기준" if _card_as_of else "기준시각 확인 필요"
+    _as_of_label = _card_as_of.strftime("%H:%M") + " 기준(한국시각)" if _card_as_of else "기준시각 확인 필요"
+
+    # 왜 '확인 중'인지 한 줄로 알려준다(2026-07-22 사용자 제보: 계속 확인 중인데 이유가 안 보임).
+    # 실패 목록을 나열하지 않고, 자료가 왜 비었는지 원인만 요약한다.
+    _unknown_count = sum(1 for signal in result.signals if signal.is_unknown)
+    _cause = diagnosis_text(result) if diagnosis_text else None
+    _cause_html = (
+        f"<div style='font-size:0.9rem;color:{text};opacity:0.95;margin-top:8px;'>왜 확인 중인가: {_cause}</div>"
+        if _cause and _unknown_count else ""
+    )
 
     st.markdown(
         f"""
@@ -372,6 +427,7 @@ def render_market_signal_card(
           <div style="font-size:0.9rem;color:{text};opacity:0.9;margin-top:8px;">
             흐름: {result.flow_note}
           </div>
+          {_cause_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -479,6 +535,7 @@ def render_kr_flow_card():
             "직접 수급이 없을 때 쓰는 대체 신호이며 직접 수급값이 아닙니다."
         ),
         table_key="kr_flow_detail_table",
+        diagnosis_text=kr_flow_diagnosis,
     )
 
     # 조회 실패 목록과 외국인 선물 수동 입력칸은 없앴다(2026-07-22 사용자 지시).
@@ -525,7 +582,7 @@ def run_us_market_signal_check(force_refresh=False):
         if quote.get("ok"):
             quotes[ticker] = {
                 "change_pct": _safe_pct_diff(quote.get("current"), quote.get("prev_close")),
-                "as_of": datetime.now(),
+                "as_of": _now_seoul(),
                 "source": quote.get("source") or "자동 조회",
             }
         else:
