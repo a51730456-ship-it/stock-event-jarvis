@@ -1227,6 +1227,53 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     }
 
 
+def get_theme_universe(*, ttl_seconds: float = 1800) -> dict:
+    """전체 테마의 구성종목을 한 번 모아 '종목별 소속 테마 목록'을 만든다.
+
+    266개 테마를 매번 훑으면 네이버 요청이 몰려 느려지고 차단될 수도 있다(2026-07-22
+    실측). 결과를 30분 캐시해 눌림목 조회가 반복돼도 재수집하지 않게 한다.
+    워커도 16 → 10으로 낮춰 요청을 완만하게 보낸다.
+    """
+
+    def _produce():
+        listing = get_all_themes()
+        if not listing.get("ok"):
+            raise RuntimeError(listing.get("error") or "테마 목록 조회 실패")
+        seen: dict[str, dict] = {}
+        themes = list(listing["themes"].values())
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {
+                executor.submit(get_theme_stocks, theme["no"]): theme for theme in themes
+            }
+            for future in as_completed(futures):
+                theme = futures[future]
+                try:
+                    detail = future.result()
+                except Exception:
+                    continue
+                if not detail.get("ok"):
+                    continue
+                for stock in detail["stocks"]:
+                    if _is_excluded(stock["name"], stock["code"]):
+                        continue
+                    entry = seen.get(stock["code"])
+                    if entry is None:
+                        seen[stock["code"]] = {
+                            **stock, "themes": [theme["name"]], "theme_name": theme["name"]
+                        }
+                    elif theme["name"] not in entry["themes"]:
+                        entry["themes"].append(theme["name"])
+        if not seen:
+            raise RuntimeError("구성종목을 모으지 못했습니다")
+        return {"stocks": seen, "theme_count": len(themes)}
+
+    try:
+        value, stale = _cached("theme_universe", ttl_seconds, _produce)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "stocks": {}}
+    return {"ok": True, "stale": stale, **value}
+
+
 def clear_pullback_cache() -> None:
     """눌림목 결과만 다시 계산하게 한다(다른 캐시는 그대로 둔다)."""
     with _CACHE_LOCK:
@@ -1266,9 +1313,9 @@ def find_pullback_stocks(
     high_days_min: int = 1,
     high_days_max: int = 20,
     min_stock_score: float = 75.0,
-    min_trading_value: float = 5e9,
-    theme_scan_limit: int = 130,
-    scan_limit: int = 120,
+    min_trading_value: float = 2e10,
+    theme_scan_limit: int = 300,
+    scan_limit: int = 200,
     result_limit: int = 15,
     ttl_seconds: float = 1800,
 ) -> dict:
@@ -1284,40 +1331,10 @@ def find_pullback_stocks(
     """
 
     def _produce():
-        listing = get_all_themes()
-        if not listing.get("ok"):
-            raise RuntimeError(listing.get("error") or "테마 목록 조회 실패")
-
-        # 1) 테마 구성종목을 모으면서 '이 종목이 몇 개 테마에 속하는지' 센다.
-        # 266개를 전부 훑으면 6~7초가 걸린다(실측). 당일 등락률 상위 theme_scan_limit개만
-        # 봐도 은행(49위)처럼 순위 밖 테마는 충분히 들어오고 시간은 절반으로 준다.
-        seen: dict[str, dict] = {}
-        themes = sorted(
-            listing["themes"].values(), key=lambda t: t["change_pct"], reverse=True
-        )[:theme_scan_limit]
-        with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = {
-                executor.submit(get_theme_stocks, theme["no"]): theme
-                for theme in themes
-            }
-            for future in as_completed(futures):
-                theme = futures[future]
-                try:
-                    detail = future.result()
-                except Exception:
-                    continue
-                if not detail.get("ok"):
-                    continue
-                for stock in detail["stocks"]:
-                    if _is_excluded(stock["name"], stock["code"]):
-                        continue
-                    entry = seen.get(stock["code"])
-                    if entry is None:
-                        seen[stock["code"]] = {
-                            **stock, "themes": [theme["name"]], "theme_name": theme["name"]
-                        }
-                    elif theme["name"] not in entry["themes"]:
-                        entry["themes"].append(theme["name"])
+        universe = get_theme_universe()
+        if not universe.get("ok"):
+            raise RuntimeError(universe.get("error") or "테마 구성종목 조회 실패")
+        seen = universe["stocks"]
 
         candidates = [
             item for item in seen.values()
@@ -1381,7 +1398,7 @@ def find_pullback_stocks(
 
         final = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            for future in as_completed([executor.submit(_finalize, s) for s in screened[:60]]):
+            for future in as_completed([executor.submit(_finalize, s) for s in screened[:25]]):
                 try:
                     item = future.result()
                 except Exception:
