@@ -1339,6 +1339,18 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
     )
 
     prices = _records_live_prices(records)
+
+    def _pl_text(value):
+        # 입력형 표는 글자색 지정이 안 되는 부품이라 색깔 원으로 이익/손실을 표시한다
+        # (2026-07-22 사용자 지시: 손익률에 색): 이익 🔵 파랑 · 손실 🔴 빨강.
+        if value is None:
+            return None
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
+        return f"{'🔵' if value >= 0 else '🔴'} {value:+.2f}%"
+
     editor_rows = []
     for record in records:
         is_open = record.get("status") == "보유"
@@ -1355,10 +1367,10 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
             "매수가(USD)": buy_price,
             "수량": record.get("quantity"),
             "상태": record.get("status"),
-            "현재 손익률(%)": live_pl,
+            "현재 손익률(%)": _pl_text(live_pl),
             "매도일": record.get("sell_date"),
             "매도가(USD)": record.get("sell_price"),
-            "확정 손익률(%)": record.get("result_pct"),
+            "확정 손익률(%)": _pl_text(record.get("result_pct")),
             "시장 국면": record.get("market_regime"),
             "시장점수": record.get("market_score"),
             "테마점수": record.get("theme_score"),
@@ -1367,8 +1379,7 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
         })
     frame = pd.DataFrame(editor_rows)
     frame["매도일"] = pd.to_datetime(frame["매도일"])
-    for column in ("매수가(USD)", "매도가(USD)", "확정 손익률(%)", "현재 손익률(%)",
-                   "수량", "시장점수", "테마점수", "종목점수"):
+    for column in ("매수가(USD)", "매도가(USD)", "수량", "시장점수", "테마점수", "종목점수"):
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
 
     center = {"alignment": "center"}
@@ -1382,7 +1393,7 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
         "매수가(USD)": st.column_config.NumberColumn(format="%.2f", **center),
         "수량": st.column_config.NumberColumn(format="%.0f", **center),
         "상태": st.column_config.TextColumn(**center),
-        "현재 손익률(%)": st.column_config.NumberColumn(format="%+.2f", **center),
+        "현재 손익률(%)": st.column_config.TextColumn(**center),
         "매도일": st.column_config.DateColumn(
             "매도일", format="YYYY-MM-DD", help="보유 종목 칸을 누르면 달력이 뜹니다", **center
         ),
@@ -1390,7 +1401,7 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
             "매도가(USD)", min_value=0.01, step=0.01, format="%.2f",
             help="매수가 ±50% 범위에서 입력", **center,
         ),
-        "확정 손익률(%)": st.column_config.NumberColumn(format="%+.2f", **center),
+        "확정 손익률(%)": st.column_config.TextColumn(**center),
         "시장 국면": st.column_config.TextColumn(**center),
         "시장점수": st.column_config.NumberColumn(format="%.0f", **center),
         "테마점수": st.column_config.NumberColumn(format="%.0f", **center),
