@@ -58,6 +58,16 @@ def _intraday_chart_payload():
     return {"ok": True, "price": price, "prev_close": 99.5, "source_time": "2026-07-21T23:00:00+09:00"}
 
 
+def _sample_trades():
+    return [{
+        "id": 1, "buy_date": "2026-07-20", "ticker": "NVDA", "stock_name": "NVIDIA",
+        "theme_name": "반도체", "trade_style": "스윙", "buy_price": 150.0,
+        "quantity": 1.0, "status": "보유", "sell_date": None, "sell_price": None,
+        "result_pct": None, "market_regime": "중립·선별", "market_score": 65,
+        "theme_score": 80, "stock_score": 85, "memo": None,
+    }]
+
+
 def _fear_greed():
     return {
         "ok": True, "score": 41.0, "rating": "fear", "rating_kr": "공포",
@@ -115,7 +125,7 @@ class Jarvis3PageTests(unittest.TestCase):
              patch("jarvis3_store.trade_progress", return_value={
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
-             patch("jarvis3_store.list_trades", return_value=[]):
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
@@ -151,7 +161,7 @@ class Jarvis3PageTests(unittest.TestCase):
              patch("jarvis3_store.trade_progress", return_value={
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
-             patch("jarvis3_store.list_trades", return_value=[]):
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
@@ -197,7 +207,7 @@ class Jarvis3PageTests(unittest.TestCase):
 
     def test_main_login_includes_jarvis3_destination(self):
         source = (ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn("자비스3 (미국 테마 레이더)", source)
+        self.assertIn("미국테마 (자비스3)", source)
         self.assertIn('st.switch_page("pages/2_자비스3.py")', source)
 
     def test_login_can_switch_directly_to_jarvis3(self):
@@ -215,11 +225,11 @@ class Jarvis3PageTests(unittest.TestCase):
              patch("jarvis3_store.trade_progress", return_value={
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
-             patch("jarvis3_store.list_trades", return_value=[]):
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
             app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.run(timeout=60)
-            app.radio[0].set_value("자비스3 (미국 테마 레이더)")
+            app.radio[0].set_value("미국테마 (자비스3)")
             app.text_input[0].set_value("test")
             app.button[0].click().run(timeout=60)
 

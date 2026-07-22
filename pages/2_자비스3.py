@@ -224,12 +224,32 @@ def _login_gate() -> None:
 
 _login_gate()
 
+import importlib
+
 import altair as alt
 import pandas as pd
 
 import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
+
+# ── 온라인 옛 모듈 자가복구 ──────────────────────────────────────────────────
+# 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
+# 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
+# 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
+if not hasattr(j3data, "get_fear_greed") or not hasattr(j3data, "_intraday_chart_payload"):
+    j3data = importlib.reload(j3data)
+if not hasattr(market_signal_ui, "_STATUS_TEXT"):
+    import sys
+
+    for _dep_name in (
+        "market_signal_common", "kr_intraday_flow",
+        "us_market_signal_engine", "naver_market_data",
+    ):
+        _dep = sys.modules.get(_dep_name)
+        if _dep is not None:
+            importlib.reload(_dep)
+    market_signal_ui = importlib.reload(market_signal_ui)
 
 
 def _pct(value) -> str:
@@ -992,9 +1012,66 @@ _RECORD_COLUMNS = [
 ]
 
 
-def _records_view(records: list[dict]) -> pd.DataFrame:
+_RECORD_HEADERS_KR = {
+    "id": "번호", "buy_date": "매수일", "ticker": "티커", "stock_name": "종목명",
+    "theme_name": "테마", "trade_style": "매매유형", "buy_price": "매수가(USD)",
+    "quantity": "수량", "status": "상태", "current_pl_pct": "현재 손익률(%)",
+    "sell_date": "매도일", "sell_price": "매도가(USD)", "result_pct": "확정 손익률(%)",
+    "market_regime": "시장 국면", "market_score": "시장점수",
+    "theme_score": "테마점수", "stock_score": "종목점수", "memo": "메모",
+}
+
+
+def _records_view(records: list[dict]):
+    """저장 기록을 한글 제목 표로 만든다(2026-07-22 사용자 지시).
+
+    보유 중인 기록은 최근가를 조회해 '현재 손익률(%)'을 계산하고,
+    이익은 파랑·손실은 빨강(미국장 색 규칙)으로 칠한다. 시세 조회가 실패한
+    종목은 값을 만들지 않고 '—'로 둔다.
+    """
     view = pd.DataFrame(records)
-    return view[[col for col in _RECORD_COLUMNS if col in view.columns]]
+    view = view[[col for col in _RECORD_COLUMNS if col in view.columns]]
+
+    open_tickers = sorted({
+        str(record.get("ticker")) for record in records
+        if record.get("status") == "보유" and record.get("ticker")
+    })[:30]
+    current_prices = {}
+    for ticker in open_tickers:
+        quote = j3data.get_live_quote(ticker)
+        if quote.get("ok") and quote.get("current"):
+            current_prices[ticker] = float(quote["current"])
+
+    def _live_pl(row):
+        if row.get("status") != "보유":
+            return None
+        current = current_prices.get(str(row.get("ticker")))
+        buy_price = row.get("buy_price")
+        if current and buy_price:
+            return (current / float(buy_price) - 1) * 100
+        return None
+
+    if not view.empty and "status" in view.columns:
+        view.insert(view.columns.get_loc("status") + 1, "current_pl_pct", view.apply(_live_pl, axis=1))
+    view = view.rename(columns=_RECORD_HEADERS_KR)
+
+    def _pl_style(value):
+        try:
+            if value is None or pd.isna(value):
+                return ""
+            return "color:#4da6ff;font-weight:700" if float(value) >= 0 else "color:#ff5b5b;font-weight:700"
+        except (TypeError, ValueError):
+            return ""
+
+    pl_columns = [col for col in ("현재 손익률(%)", "확정 손익률(%)") if col in view.columns]
+    formats = {col: "{:+.2f}" for col in pl_columns}
+    for col in ("매수가(USD)", "매도가(USD)"):
+        if col in view.columns:
+            formats[col] = "{:,.2f}"
+    styler = view.style.format(formats, na_rep="—")
+    if pl_columns:
+        styler = styler.map(_pl_style, subset=pl_columns)
+    return styler
 
 
 def _render_buy_form(theme_row: dict, leader: dict, market: dict) -> None:

@@ -632,7 +632,7 @@ if not st.session_state.get("authenticated"):
                 "시장 판단",
                 "자비스1 (기록장)",
                 "자비스2 (순환매 플레이북)",
-                "자비스3 (미국 테마 레이더)",
+                "미국테마 (자비스3)",
             ],
             index=2,  # 기존 자비스2 기본 이동을 그대로 유지한다
             horizontal=True,
@@ -645,7 +645,7 @@ if not st.session_state.get("authenticated"):
                     st.switch_page("pages/0_시장판단.py")
                 if str(_login_dest).startswith("자비스2"):
                     st.switch_page("pages/1_자비스2.py")
-                if str(_login_dest).startswith("자비스3"):
+                if str(_login_dest).startswith("미국테마"):
                     st.switch_page("pages/2_자비스3.py")
                 st.session_state["login_transition_pending"] = True
                 # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증

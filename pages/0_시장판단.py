@@ -86,4 +86,19 @@ if not st.session_state.get("authenticated"):
 
 import market_signal_ui
 
+# 온라인 배포 갱신 때 페이지만 새로 읽히고 모듈은 옛것이 남는 경우 자가복구
+# (자비스3 페이지와 같은 이유·같은 방식, 2026-07-22).
+if not hasattr(market_signal_ui, "_STATUS_TEXT"):
+    import importlib
+    import sys
+
+    for _dep_name in (
+        "market_signal_common", "kr_intraday_flow",
+        "us_market_signal_engine", "naver_market_data",
+    ):
+        _dep = sys.modules.get(_dep_name)
+        if _dep is not None:
+            importlib.reload(_dep)
+    market_signal_ui = importlib.reload(market_signal_ui)
+
 market_signal_ui.render_market_judgment_page()
