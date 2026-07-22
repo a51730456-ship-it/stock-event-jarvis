@@ -32,9 +32,17 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(2) { order: 1; }
     [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
     [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
+    [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
     [data-testid="stSidebarNav"] li:nth-child(4) a p { font-size: 0 !important; }
     [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
         content: "미국테마";
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p::before {
+        content: "한국테마";
         font-size: 1.4rem;
         font-weight: 800;
         color: #ffb020;
@@ -149,8 +157,10 @@ st.markdown(
         border-radius: 0 !important;
     }
     div[class*="st-key-j3tbtn_"] button:hover { background: rgba(255,255,255,0.06) !important; }
+    /* 테마명은 좌측 정렬(제목만 가운데) — 2026-07-22 사용자 지시 */
+    div[class*="st-key-j3tbtn_"] button { justify-content: flex-start !important; padding-left: 0.9rem !important; }
     div[class*="st-key-j3tbtn_"] button p {
-        font-weight: 800 !important; font-size: 0.95rem !important; margin: 0 !important;
+        font-weight: 800 !important; font-size: 0.95rem !important; margin: 0 !important; text-align: left !important;
     }
     /* 상세 종목 선택: 라벨은 스카이블루·두 치수 크게, 보기 글자는 한 치수 크게 */
     div[class*="st-key-j3_stock_choice"] [data-testid="stWidgetLabel"] p {

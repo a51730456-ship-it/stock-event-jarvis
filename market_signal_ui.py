@@ -481,13 +481,9 @@ def render_kr_flow_card():
         table_key="kr_flow_detail_table",
     )
 
-    _failures = st.session_state.get("kr_flow_failures") or []
-    if _failures:
-        with st.expander(f"확인 필요 항목 {len(_failures)}건", expanded=False):
-            for failure in _failures:
-                st.markdown(f"- {failure}")
-
-    _render_foreign_futures_input()
+    # 조회 실패 목록과 외국인 선물 수동 입력칸은 없앴다(2026-07-22 사용자 지시).
+    # 사용자가 손쓸 수 없는 항목을 나열해봐야 의미가 없고, 못 가져온 값은 이미 위 표에
+    # '확인 필요'로 정확히 표시된다. 외국인 선물은 네이버에서 자동 조회한다.
 
 
 _US_VERDICT_STYLE = {
@@ -575,46 +571,10 @@ def render_us_market_signal_card():
         ),
         table_key="us_signal_detail_table",
     )
-
-    _failures = st.session_state.get("us_signal_failures") or []
-    if _failures:
-        with st.expander(f"확인 필요 항목 {len(_failures)}건", expanded=False):
-            for failure in _failures:
-                st.markdown(f"- {failure}")
+    # 실패 목록 나열은 없앴다(2026-07-22 사용자 지시) — 못 가져온 값은 위 표에
+    # '확인 필요'로 이미 표시되고, 사용자가 손쓸 수 없는 항목이라 나열해도 의미가 없다.
 
 
-def _render_foreign_futures_input():
-    """외국인 KOSPI200 선물 순매수 — 자동 조회처가 없어 HTS 값을 직접 받는다."""
-    with st.expander("외국인 KOSPI200 선물 순매수 직접 입력 (자동 조회 실패 시 보조용)", expanded=False):
-        st.caption(
-            "평소에는 네이버 선물 투자자동향(지연 공개치)에서 자동으로 읽어오므로 "
-            "직접 입력할 필요가 없습니다. 자동 조회가 실패했는데 HTS에서 값을 확인한 "
-            "경우에만 여기에 넣으면 됩니다(입력값이 자동값보다 우선). 임의 값을 만들지 않습니다."
-        )
-        _net = st.number_input(
-            "순매수 계약 수 (순매도는 음수)",
-            value=0, step=50, key="kr_flow_ff_net",
-        )
-        _prev = st.number_input(
-            "직전 확인값 (선택, 증감 판정용)",
-            value=0, step=50, key="kr_flow_ff_prev",
-        )
-        _source = st.text_input("출처", value="HTS", key="kr_flow_ff_source")
-        _col_save, _col_clear = st.columns(2)
-        with _col_save:
-            if st.button("이 값 사용", key="kr_flow_ff_save"):
-                st.session_state["kr_flow_foreign_futures_manual"] = {
-                    "net_contracts": int(_net),
-                    "previous_net_contracts": int(_prev) if _prev else None,
-                    "as_of": datetime.now(),
-                    "source": _source or "HTS 수동 입력",
-                    "trade_date": _flow_today(),  # 당일에만 쓴다
-                }
-                st.success("입력값을 오늘 판정에 반영합니다. ‘수급 다시 확인’을 눌러주세요.")
-        with _col_clear:
-            if st.button("입력값 지우기", key="kr_flow_ff_clear"):
-                st.session_state.pop("kr_flow_foreign_futures_manual", None)
-                st.success("외국인 선물 직접 수급을 ‘확인 필요’로 되돌렸습니다.")
 
 
 

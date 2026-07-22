@@ -51,6 +51,7 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(2) { order: 1; }
     [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
     [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
+    [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
     [data-testid="stSidebarNav"] li:nth-child(4) a p {
         font-size: 0 !important;
     }
@@ -61,6 +62,18 @@ st.markdown(
         color: #ffb020;
     }
     [data-testid="stSidebarNav"] li:nth-child(4) a:hover p::before {
+        color: #ffcf6b;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p {
+        font-size: 0 !important;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p::before {
+        content: "한국테마";
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(5) a:hover p::before {
         color: #ffcf6b;
     }
     /* 제목·지표 글자 한 치수 축소 (2026-07-17 사용자 요청) */
