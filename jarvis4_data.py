@@ -1230,8 +1230,9 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
 def find_pullback_stocks(
     *,
     min_theme_count: int = 2,
-    high_days_center: int = 15,
-    high_days_tolerance: int = 8,
+    high_days_min: int = 1,
+    high_days_max: int = 15,
+    min_stock_score: float = 80.0,
     min_trading_value: float = 5e9,
     scan_limit: int = 180,
     result_limit: int = 15,
@@ -1239,13 +1240,12 @@ def find_pullback_stocks(
 ) -> dict:
     """상승추세 중 조정받은 눌림목 종목을 찾는다 (2026-07-22 사용자 스펙).
 
-    조건 네 가지 — 조건을 새로 만들지 않고 사용자가 정한 것만 쓴다:
-    1. **2개 이상 테마에 속한 종목** — 여러 테마에 걸쳐 있다는 건 시장이 그 종목을
-       여러 각도에서 보고 있다는 뜻이다. 이 필터가 후보를 크게 줄여 전체 스캔을 가볍게 한다.
-    2. **52주 신고가를 약 15일 전에 찍은 종목** — 최근에 강했고, 조정 기간이 적당히 지난 것.
-    3. **상승추세 유지** — 20일선 부근이면서 50일선 위(추세가 살아 있어야 눌림목이다).
-    4. **눌림 깊이 5~20%** — 조사 근거상 건강한 조정은 고점 대비 5~10%대이고,
-       국내는 변동성이 커 20%까지 본다.
+    조건 세 가지 — 사용자가 정한 것만 쓴다:
+    1. **52주 최고가를 찍고 1~15일 지난 종목** — 방금 고점을 찍고 내려오는 중인 것.
+       (2026-07-22 수정: 15일 ±8일로 잘못 잡아 3일·6일 전인 하나금융지주·신한지주가
+       빠졌다. 창은 1~15일 그대로다.)
+    2. **2개 이상 테마에 속한 종목**
+    3. **종목 조건점수 80점 이상** — 나머지 품질은 이 점수 하나로 거른다.
 
     하락장 판단은 이 함수가 하지 않는다 — 시장 국면은 상단 '한국 전체시장 판단'에서
     사용자가 보고 정한다.
@@ -1296,25 +1296,18 @@ def find_pullback_stocks(
         candidates.sort(key=lambda item: item.get("trading_value") or 0, reverse=True)
         candidates = candidates[:scan_limit]
 
-        # 2) 일봉으로 '신고가 15일 전 + 상승추세 + 적당한 눌림'을 거른다.
-        low, high = high_days_center - high_days_tolerance, high_days_center + high_days_tolerance
+        # 2) 일봉으로 '52주 최고가 찍고 1~15일 지난 종목'만 거른다.
+        low, high = high_days_min, high_days_max
 
         def _screen(stock):
             metrics = _series_metrics(get_daily_frame(stock["code"]), stock.get("price"))
             if not metrics.get("ok"):
                 return None
             days_ago = metrics.get("high52_days_ago")
-            from_high = metrics.get("from_high_pct")
-            current, sma20, sma50 = metrics.get("current"), metrics.get("sma20"), metrics.get("sma50")
             if days_ago is None or not (low <= days_ago <= high):
                 return None
-            if from_high is None or not (-20.0 <= from_high <= -3.0):
-                return None
-            if not current or not sma20 or not sma50:
-                return None
-            if current <= sma50:                      # 상승추세가 깨진 종목은 눌림목이 아니다
-                return None
-            if abs(current / sma20 - 1) > 0.08:       # 20일선에서 너무 멀면 제외
+            # 고점을 찍고 '내려가는' 종목이어야 한다(고점 그대로면 눌림이 아니다).
+            if (metrics.get("from_high_pct") or 0) >= 0:
                 return None
             return {**stock, "metrics": metrics}
 
@@ -1329,24 +1322,31 @@ def find_pullback_stocks(
                     screened.append(item)
 
         # 3) 살아남은 종목만 수급을 조회해 최종 점수를 매긴다.
+        # 상대강도 기준은 KOSPI 20일 수익률을 쓴다 — 테마를 가로지르는 검색이라
+        # 테마 상대강도를 못 쓰는데, None으로 넘기면 20점이 통째로 0점이 돼
+        # 하나금융지주가 95점에서 75.5점으로 떨어졌다(2026-07-22 실측 수정).
+        kospi = _index_metrics("KS11")
+        market_ret20 = kospi.get("ret20") if kospi.get("ok") else None
+
         def _finalize(item):
             flow = get_stock_flow(item["code"])
             quality = _pullback_quality(item["metrics"], flow)
-            score, parts = _stock_score(item["metrics"], flow, None)
+            score, parts = _stock_score(item["metrics"], flow, market_ret20)
             return {**item, "flow": flow, "pullback": quality,
                     "score": score, "score_parts": parts}
 
         final = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            for future in as_completed([executor.submit(_finalize, s) for s in screened[:40]]):
+            for future in as_completed([executor.submit(_finalize, s) for s in screened[:60]]):
                 try:
                     item = future.result()
                 except Exception:
                     continue
-                if item.get("pullback"):
+                # 나머지 품질은 종목 조건점수 하나로 거른다(사용자 지시: 80점 이상).
+                if item.get("pullback") and float(item.get("score") or 0) >= min_stock_score:
                     final.append(item)
 
-        final.sort(key=lambda item: item["pullback"]["score"], reverse=True)
+        final.sort(key=lambda item: float(item.get("score") or 0), reverse=True)
         final = final[:result_limit]
         for index, item in enumerate(final, 1):
             item["pullback_rank"] = index

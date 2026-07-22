@@ -281,51 +281,64 @@ class PullbackFinderTests(unittest.TestCase):
             stocks = [self._stock("035720", "게임A")]
         return {"ok": True, "stale": False, "stocks": stocks}
 
-    def _metrics(self, days_ago, from_high, above_sma50=True, gap=0.01):
+    def _metrics(self, days_ago, from_high):
         current = 60_000
         return {
-            "ok": True, "current": current, "sma20": current / (1 + gap),
-            "sma50": current * 0.9 if above_sma50 else current * 1.1,
-            "sma200": current * 0.8, "high52_days_ago": days_ago,
-            "from_high_pct": from_high, "ret20": 5.0, "ret5": 1.0,
-            "change_pct": 0.5, "atr_pct": 3.0, "avg_trading_value": 2e10,
+            "ok": True, "current": current, "sma20": current * 0.99,
+            "sma50": current * 0.9, "sma200": current * 0.8,
+            "high52_days_ago": days_ago, "from_high_pct": from_high,
+            "ret20": 5.0, "ret5": 1.0, "change_pct": 0.5,
+            "atr_pct": 3.0, "avg_trading_value": 2e10,
         }
 
-    def _run(self, metrics_by_code):
+    def _run(self, metrics, score=95.0):
+        # find_pullback_stocks는 10분 캐시를 쓴다 — 한 테스트에서 조건을 바꿔 두 번
+        # 부를 때 앞 결과가 그대로 나오지 않도록 매번 비운다.
+        j4.clear_runtime_cache()
         with patch.object(j4, "get_all_themes",
                           return_value={"ok": True, "themes": self._themes()}), \
              patch.object(j4, "get_theme_stocks", side_effect=self._theme_stocks), \
              patch.object(j4, "get_daily_frame", return_value=object()), \
              patch.object(j4, "get_stock_flow", return_value=_flow()), \
-             patch.object(j4, "_series_metrics",
-                          side_effect=lambda frame, price=None, _m=metrics_by_code: _m["current"]):
+             patch.object(j4, "_index_metrics", return_value={"ok": True, "ret20": -14.0}), \
+             patch.object(j4, "_series_metrics", return_value=metrics), \
+             patch.object(j4, "_stock_score", return_value=(score, [20, 15, 20, 15, 10, 15])):
             return j4.find_pullback_stocks()
 
     def test_single_theme_stock_is_excluded(self):
-        """1개 테마에만 속한 종목은 제외된다(사용자 스펙 1번)."""
-        result = self._run({"current": self._metrics(15, -8.0)})
+        """1개 테마에만 속한 종목은 제외된다(사용자 스펙)."""
+        result = self._run(self._metrics(5, -8.0))
         names = [row["name"] for row in result["rows"]]
         self.assertIn("하나금융지주", names)
         self.assertNotIn("게임A", names, "테마 1개짜리 종목이 들어왔습니다")
 
+    def test_high_within_one_to_fifteen_days_is_kept(self):
+        """52주 최고가를 찍고 1~15일 지난 종목이 대상이다.
+
+        2026-07-22 회귀 방지: 창을 15±8일(7~23일)로 잡는 바람에 3일·6일 전에
+        신고가를 찍은 하나금융지주·신한지주가 통째로 빠졌다.
+        """
+        for days in (1, 3, 6, 15):
+            with self.subTest(days=days):
+                result = self._run(self._metrics(days, -8.0))
+                self.assertTrue(result["rows"], f"신고가 {days}일 전 종목이 빠졌습니다")
+
     def test_high_outside_window_is_excluded(self):
-        """신고가가 15일 전 창(±8일) 밖이면 제외된다(사용자 스펙 2번)."""
-        result = self._run({"current": self._metrics(60, -8.0)})
-        self.assertEqual(result["rows"], [])
+        for days in (0, 16, 60):
+            with self.subTest(days=days):
+                self.assertEqual(self._run(self._metrics(days, -8.0))["rows"], [])
 
-    def test_broken_trend_is_excluded(self):
-        """50일선 아래로 내려간 종목은 눌림목이 아니다(사용자 스펙 3번)."""
-        result = self._run({"current": self._metrics(15, -8.0, above_sma50=False)})
-        self.assertEqual(result["rows"], [])
+    def test_stock_below_score_threshold_is_excluded(self):
+        """나머지 품질은 종목 점수 80점 하나로 거른다(사용자 지시)."""
+        self.assertTrue(self._run(self._metrics(5, -8.0), score=80.0)["rows"])
+        self.assertEqual(self._run(self._metrics(5, -8.0), score=79.9)["rows"], [])
 
-    def test_too_shallow_or_too_deep_is_excluded(self):
-        """고점 대비 -3~-20% 밖은 제외한다(사용자 스펙 4번)."""
-        self.assertEqual(self._run({"current": self._metrics(15, -1.0)})["rows"], [])
-        self.assertEqual(self._run({"current": self._metrics(15, -35.0)})["rows"], [])
+    def test_stock_at_its_high_is_not_a_pullback(self):
+        """고점을 찍고 '내려가는' 종목이어야 한다."""
+        self.assertEqual(self._run(self._metrics(5, 0.0))["rows"], [])
 
     def test_window_is_reported(self):
-        result = self._run({"current": self._metrics(15, -8.0)})
-        self.assertEqual(result["window"], (7, 23))
+        self.assertEqual(self._run(self._metrics(5, -8.0))["window"], (1, 15))
 
 
 class ExclusionTests(unittest.TestCase):

@@ -1397,10 +1397,9 @@ def _render_pullback_finder() -> None:
         unsafe_allow_html=True,
     )
     st.caption(
-        "**2개 이상 테마에 속하고**, **52주 신고가를 약 15일 전에 찍었으며**, "
-        "**50일선 위에서 20일선 부근까지 눌린** 종목만 찾습니다(고점 대비 −3~−20%). "
-        "테마 순위와 무관하게 전체에서 찾으므로 은행처럼 순위 밖 테마도 포함됩니다. "
-        "하락장 판단은 상단 ‘한국 전체시장 판단’에서 직접 보고 정하십시오."
+        "조건 3가지 — **52주 최고가를 찍고 1~15일 지난 종목** · **2개 이상 테마에 속한 종목** · "
+        "**종목 조건점수 80점 이상**. 테마 순위와 무관하게 전체에서 찾으므로 은행처럼 "
+        "순위 밖 테마도 포함됩니다. 하락장 판단은 상단 ‘한국 전체시장 판단’에서 직접 보고 정하십시오."
     )
     if st.button("눌림목 종목 찾기 실행", key="j4_pullback_find", width="stretch"):
         st.session_state["j4_pullback_requested"] = True
@@ -1413,11 +1412,11 @@ def _render_pullback_finder() -> None:
         st.error(f"눌림목 조회 실패: {_safe_error_text(result.get('error'))}")
         return
     rows = result.get("rows") or []
-    window = result.get("window") or (7, 23)
+    window = result.get("window") or (1, 15)
     st.caption(
         f"2개 이상 테마 종목 {result.get('multi_theme_count', 0)}개 중 거래대금 상위 "
-        f"{result.get('scanned_count', 0)}개를 심사해, 신고가 {window[0]}~{window[1]}일 전·"
-        f"상승추세 조건을 만족한 {result.get('screened_count', 0)}개를 찾았습니다."
+        f"{result.get('scanned_count', 0)}개를 심사 → 신고가 {window[0]}~{window[1]}일 전 "
+        f"{result.get('screened_count', 0)}개 → 80점 이상 {len(rows)}개"
     )
     if not rows:
         st.info("지금 조건에 맞는 눌림목 종목이 없습니다. 조건을 낮추지 않고 그대로 둡니다.")
