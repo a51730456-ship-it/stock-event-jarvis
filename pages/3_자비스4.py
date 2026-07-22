@@ -1398,7 +1398,7 @@ def _render_pullback_finder() -> None:
     )
     st.caption(
         "조건 3가지 — **52주 최고가를 찍고 1~15일 지난 종목** · **2개 이상 테마에 속한 종목** · "
-        "**종목 조건점수 80점 이상**. 테마 순위와 무관하게 전체에서 찾으므로 은행처럼 "
+        "**신고가 찍던 시점의 종목 점수 80점 이상**. 테마 순위와 무관하게 전체에서 찾으므로 은행처럼 "
         "순위 밖 테마도 포함됩니다. 하락장 판단은 상단 ‘한국 전체시장 판단’에서 직접 보고 정하십시오."
     )
     if st.button("눌림목 종목 찾기 실행", key="j4_pullback_find", width="stretch"):
@@ -1422,9 +1422,9 @@ def _render_pullback_finder() -> None:
         st.info("지금 조건에 맞는 눌림목 종목이 없습니다. 조건을 낮추지 않고 그대로 둡니다.")
         return
 
-    widths = [0.6, 2.1, 0.9, 1.8, 1.3, 1.2, 1.2, 0.9, 1.3, 1.1]
+    widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.2, 1.1, 0.9, 1.3, 1.3, 1.2]
     titles = ["순위", "종목", "코드", "눌림 점수", "신고가", "고점 대비", "20일선 이격",
-              "테마수", "수급(외+기 5일)", "종목 점수"]
+              "테마수", "수급(외+기 5일)", "신고가 때 점수", "지금 점수"]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
 
@@ -1459,13 +1459,17 @@ def _render_pullback_finder() -> None:
         cols[8].markdown(
             f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
             unsafe_allow_html=True)
+        peak = row.get("peak_score")
         cols[9].markdown(
+            f"<div class='j4-td' style='color:#44f0a1; font-weight:800'>"
+            f"{f'{float(peak):.1f}' if peak is not None else '—'}</div>", unsafe_allow_html=True)
+        cols[10].markdown(
             f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
             unsafe_allow_html=True)
     st.caption(
-        "속한 테마: " + " · ".join(
-            f"**{row['name']}** {', '.join(row.get('themes') or [])[:60]}" for row in rows[:5]
-        )
+        "**‘신고가 때 점수’가 판정 기준입니다** — 눌림목은 그때 좋았던 종목이 지금 눌린 것이라, "
+        "지금 점수로 자르면 눌렸다는 이유로 탈락합니다. 일봉을 신고가 시점까지 잘라 같은 계산을 "
+        "다시 돌린 값이며, 수급은 현재 값을 씁니다(가격 항목만 정확히 역산)."
     )
 
 

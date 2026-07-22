@@ -1227,6 +1227,33 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     }
 
 
+def score_at_past(daily: pd.DataFrame | None, flow: dict, market_ret20, days_ago: int):
+    """며칠 전 시점의 종목 조건점수를 역산한다.
+
+    눌림목은 '그때 좋았던 종목이 지금 눌린 것'이다. 지금 점수로 자르면 눌렸다는
+    이유로 탈락한다 — 신고가를 찍던 날은 신고가 위치가 만점이었을 테니 그때 점수를
+    봐야 한다(2026-07-22 사용자 지적).
+
+    일봉을 그 시점까지 잘라 같은 계산을 돌린다. 수급(flow)은 과거 값을 복원하지
+    않고 현재 값을 그대로 쓴다 — 가격 기반 항목만 정확히 역산된다.
+    """
+    # 역산이 실패해도 종목이 통째로 빠지면 안 된다 — None을 돌려주면 호출부가
+    # 현재 점수로 대신 판단한다.
+    try:
+        if daily is None or days_ago is None or days_ago <= 0:
+            return None
+        if len(daily) <= days_ago + 25:
+            return None
+        past = daily.iloc[: len(daily) - days_ago]
+        metrics = _series_metrics(past)
+        if not metrics.get("ok"):
+            return None
+        score, parts = _stock_score(metrics, flow, market_ret20)
+        return {"score": score, "parts": parts, "metrics": metrics}
+    except Exception:
+        return None
+
+
 def find_pullback_stocks(
     *,
     min_theme_count: int = 2,
@@ -1332,8 +1359,16 @@ def find_pullback_stocks(
             flow = get_stock_flow(item["code"])
             quality = _pullback_quality(item["metrics"], flow)
             score, parts = _stock_score(item["metrics"], flow, market_ret20)
+            # 신고가를 찍던 시점의 점수를 역산한다 — 눌림목은 '그때 좋았던 종목'이므로
+            # 이 점수로 걸러야 한다(지금 점수는 눌린 만큼 낮게 나온다).
+            past = score_at_past(
+                get_daily_frame(item["code"]), flow, market_ret20,
+                item["metrics"].get("high52_days_ago"),
+            )
             return {**item, "flow": flow, "pullback": quality,
-                    "score": score, "score_parts": parts}
+                    "score": score, "score_parts": parts,
+                    "peak_score": past["score"] if past else None,
+                    "peak_parts": past["parts"] if past else None}
 
         final = []
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -1342,11 +1377,18 @@ def find_pullback_stocks(
                     item = future.result()
                 except Exception:
                     continue
-                # 나머지 품질은 종목 조건점수 하나로 거른다(사용자 지시: 80점 이상).
-                if item.get("pullback") and float(item.get("score") or 0) >= min_stock_score:
+                # 80점 기준은 '신고가 시점 점수'로 본다 — 지금 점수는 눌린 만큼 낮다.
+                # 역산이 안 되는 종목만 현재 점수로 대신 판단한다.
+                gate_score = item.get("peak_score")
+                if gate_score is None:
+                    gate_score = item.get("score")
+                if item.get("pullback") and float(gate_score or 0) >= min_stock_score:
                     final.append(item)
 
-        final.sort(key=lambda item: float(item.get("score") or 0), reverse=True)
+        final.sort(
+            key=lambda item: float(item.get("peak_score") or item.get("score") or 0),
+            reverse=True,
+        )
         final = final[:result_limit]
         for index, item in enumerate(final, 1):
             item["pullback_rank"] = index

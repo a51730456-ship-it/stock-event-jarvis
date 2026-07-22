@@ -341,6 +341,30 @@ class PullbackFinderTests(unittest.TestCase):
         self.assertEqual(self._run(self._metrics(5, -8.0))["window"], (1, 15))
 
 
+class ScoreAtPastTests(unittest.TestCase):
+    """신고가 시점 점수 역산 — 눌림목은 '그때 좋았던 종목'이라 그 점수로 걸러야 한다."""
+
+    def test_peak_score_is_higher_than_now_for_a_pullback(self):
+        # 60일 오르다가 마지막 10일 급락 → 지금은 눌렸지만 고점 때는 좋았던 종목
+        rising = _daily_frame(periods=200)
+        falling = rising.copy()
+        falling.iloc[-10:] = falling.iloc[-10:] * 0.9
+        now = j4._series_metrics(falling)
+        now_score, _ = j4._stock_score(now, _flow(), -10.0)
+        past = j4.score_at_past(falling, _flow(), -10.0, 10)
+        self.assertIsNotNone(past)
+        self.assertGreater(past["score"], now_score)
+
+    def test_returns_none_when_history_too_short(self):
+        self.assertIsNone(j4.score_at_past(_daily_frame(periods=30), _flow(), -10.0, 20))
+        self.assertIsNone(j4.score_at_past(None, _flow(), -10.0, 5))
+        self.assertIsNone(j4.score_at_past(_daily_frame(), _flow(), -10.0, 0))
+
+    def test_bad_input_does_not_raise(self):
+        """역산이 실패해도 예외를 던지지 않는다(종목이 통째로 빠지면 안 된다)."""
+        self.assertIsNone(j4.score_at_past(object(), _flow(), -10.0, 5))
+
+
 class ExclusionTests(unittest.TestCase):
     def test_spac_and_preferred_shares_excluded(self):
         self.assertTrue(j4._is_excluded("미래에셋스팩5호", "123456"))
