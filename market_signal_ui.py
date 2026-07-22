@@ -467,7 +467,7 @@ _US_CORE_DISPLAY = (
     ("US_TNX", "미국 10년물"),
 )
 
-_US_TABLE_KEYS = tuple(spec[0] for spec in us_market_signal_engine.US_SIGNAL_SPECS)
+_US_TABLE_KEYS = tuple(spec[0] for spec in us_market_signal_engine.US_SIGNAL_SPECS) + ("US_VIX_TERM",)
 
 
 def run_us_market_signal_check(force_refresh=False):
@@ -476,7 +476,8 @@ def run_us_market_signal_check(force_refresh=False):
     미국장 신호는 전부 현재값·전일대비로 판정하므로 한국장처럼 스냅숏을 누적할
     필요가 없다. 안 쓰는 테이블을 만들지 않기 위해 일부러 저장하지 않는다.
     """
-    tickers = tuple(spec[2] for spec in us_market_signal_engine.US_SIGNAL_SPECS)
+    # ^VIX3M은 신호 스펙에는 없지만 VIX 기간구조(대체신호) 계산에 필요해서 함께 조회한다.
+    tickers = tuple(spec[2] for spec in us_market_signal_engine.US_SIGNAL_SPECS) + ("^VIX3M",)
     results = (
         _short_cached_quotes(tickers)
         if force_refresh
@@ -496,7 +497,11 @@ def run_us_market_signal_check(force_refresh=False):
         else:
             failures.append(f"{ticker} 조회 실패")
 
-    result = us_market_signal_engine.build_us_market_signal_result(quotes)
+    extras = {
+        "vix_current": (results.get("^VIX") or {}).get("current"),
+        "vix3m_current": (results.get("^VIX3M") or {}).get("current"),
+    }
+    result = us_market_signal_engine.build_us_market_signal_result(quotes, extras=extras)
     st.session_state["us_signal_result"] = result
     st.session_state["us_signal_failures"] = failures
     return result

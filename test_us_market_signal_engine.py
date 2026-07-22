@@ -171,5 +171,57 @@ class TimingTest(unittest.TestCase):
         self.assertIs(result.signal("US_SP500").timing, SignalTiming.CONFIRMING)
 
 
+class FlowProxyTest(unittest.TestCase):
+    """미국 장중 수급 원자료가 없어서 쓰는 무료 대체신호(HYG·VIX 기간구조) 검증."""
+
+    def test_hyg_is_a_leading_signal_in_specs(self):
+        keys = {spec[0]: spec for spec in us.US_SIGNAL_SPECS}
+        self.assertIn("US_HYG", keys)
+        self.assertEqual(keys["US_HYG"][2], "HYG")
+        self.assertIs(keys["US_HYG"][3], SignalTiming.LEADING)
+
+    def test_vix_term_contango_is_positive_proxy(self):
+        signal = us.build_vix_term_signal(17.0, 20.0)
+        self.assertIs(signal.status, SignalStatus.POSITIVE)
+        self.assertEqual(signal.key, "US_VIX_TERM")
+        self.assertEqual(signal.strength.value, "proxy")
+
+    def test_vix_term_backwardation_is_negative(self):
+        signal = us.build_vix_term_signal(24.0, 20.0)
+        self.assertIs(signal.status, SignalStatus.NEGATIVE)
+        self.assertIn("역전", signal.reason)
+
+    def test_vix_term_flat_zone_is_neutral(self):
+        signal = us.build_vix_term_signal(19.6, 20.0)
+        self.assertIs(signal.status, SignalStatus.NEUTRAL)
+
+    def test_vix_term_missing_data_stays_unknown_not_zero(self):
+        signal = us.build_vix_term_signal(None, 20.0)
+        self.assertIs(signal.status, SignalStatus.UNKNOWN)
+        self.assertIsNone(signal.value)
+
+    def test_result_includes_vix_term_signal_from_extras(self):
+        result = us.build_us_market_signal_result(
+            _risk_on_quotes(), now=NOW,
+            extras={"vix_current": 17.0, "vix3m_current": 20.0},
+        )
+        term = result.signal("US_VIX_TERM")
+        self.assertIsNotNone(term)
+        self.assertIs(term.status, SignalStatus.POSITIVE)
+
+    def test_result_without_extras_reports_term_unknown(self):
+        result = us.build_us_market_signal_result(_risk_on_quotes(), now=NOW)
+        term = result.signal("US_VIX_TERM")
+        self.assertIsNotNone(term)
+        self.assertIs(term.status, SignalStatus.UNKNOWN)
+
+    def test_index_up_with_backwardation_warns_hedged_rally(self):
+        result = us.build_us_market_signal_result(
+            _risk_on_quotes(), now=NOW,
+            extras={"vix_current": 24.0, "vix3m_current": 20.0},
+        )
+        self.assertTrue(any("기간구조" in warning for warning in result.warnings))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -37,6 +37,11 @@ DIRECTION_THRESHOLD_PCT = 0.3
 # VIX·금리는 평소에도 변동이 커서 "급등" 기준을 따로 둔다.
 VIX_SPIKE_PCT = 5.0
 RATE_SPIKE_PCT = 2.0
+# VIX 기간구조(단기/3개월) — 미국의 장중 수급 공개 데이터가 없어서 쓰는 '대체신호'.
+# 1.0 초과(백워데이션)는 기관이 단기 급락 위험에 웃돈을 내는 상태라 부정이다.
+# 0.95 이하(정상 콘탱고)는 긍정, 그 사이는 중립으로 본다(2026-07-22 조사·추가).
+VIX_TERM_CALM_RATIO = 0.95
+VIX_TERM_STRESS_RATIO = 1.0
 
 
 class UsMarketVerdict(str, Enum):
@@ -88,6 +93,9 @@ US_SIGNAL_SPECS = (
     ("US_VIX", "VIX", "^VIX", SignalTiming.LEADING, True),
     ("US_TNX", "미국 10년물", "^TNX", SignalTiming.LEADING, True),
     ("US_DXY", "달러지수", "DX-Y.NYB", SignalTiming.CONFIRMING, True),
+    # 하이일드 크레딧 — 기관 위험선호가 먼저 움직이는 곳이라 '수급 근사' 선행신호로 쓴다
+    # (2026-07-22 조사·추가: 미국 장중 수급 원자료는 전부 유료라 무료 근사를 쓴다).
+    ("US_HYG", "하이일드 크레딧(HYG)", "HYG", SignalTiming.LEADING, False),
     ("US_SP500", "S&P500", "^GSPC", SignalTiming.CONFIRMING, False),
     ("US_NASDAQ", "Nasdaq", "^IXIC", SignalTiming.CONFIRMING, False),
 )
@@ -132,6 +140,54 @@ def build_us_signal(key, label, change_pct, timing, inverted, *, as_of=None, fre
         else:
             signal.reason = f"{label} 보합"
     return signal
+
+
+def build_vix_term_signal(vix_current, vix3m_current, *, as_of=None, freshness=None) -> MarketSignal:
+    """VIX 기간구조(단기/3개월) 신호 — 기관 수급 직접값이 아니라 '대체신호'다.
+
+    비율 > 1.0(백워데이션)이면 기관이 단기 급락 위험에 웃돈을 내는 스트레스 상태.
+    값이 없으면 UNKNOWN이고 0이나 임의 값으로 채우지 않는다.
+    """
+    ratio = None
+    try:
+        vix_value = float(vix_current) if vix_current is not None else None
+        vix3m_value = float(vix3m_current) if vix3m_current is not None else None
+        if vix_value and vix3m_value and vix_value > 0 and vix3m_value > 0:
+            ratio = vix_value / vix3m_value
+    except (TypeError, ValueError):
+        ratio = None
+
+    if ratio is None:
+        status = SignalStatus.UNKNOWN
+        display = "확인 필요"
+        reason = "VIX 기간구조 확인 필요 (VIX 또는 VIX3M 자료 없음)"
+    elif ratio <= VIX_TERM_CALM_RATIO:
+        status = SignalStatus.POSITIVE
+        display = f"VIX/3개월 {ratio:.2f}"
+        reason = "VIX 기간구조 정상(콘탱고) — 단기 공포 프리미엄이 낮습니다"
+    elif ratio <= VIX_TERM_STRESS_RATIO:
+        status = SignalStatus.NEUTRAL
+        display = f"VIX/3개월 {ratio:.2f}"
+        reason = "VIX 기간구조 평탄 — 단기 경계가 커지는 중입니다"
+    else:
+        status = SignalStatus.NEGATIVE
+        display = f"VIX/3개월 {ratio:.2f}"
+        reason = "VIX 기간구조 역전(백워데이션) — 기관이 단기 급락 위험에 웃돈을 내고 있습니다"
+
+    return MarketSignal(
+        key="US_VIX_TERM",
+        label="VIX 기간구조",
+        status=status,
+        value=ratio,
+        display_value=display,
+        reason=reason,
+        source="^VIX·^VIX3M 계산",
+        as_of=as_of,
+        freshness_seconds=freshness,
+        strength=SignalStrength.PROXY,
+        timing=SignalTiming.LEADING,
+        market=MarketCode.US,
+    )
 
 
 def _all_positive(signals):
@@ -189,6 +245,13 @@ def detect_us_fake_signals(by_key, *, extras=None) -> list[str]:
     if extras.get("bookmaker_low_liquidity") is True:
         warnings.append("예측시장 확률이 움직였지만 거래량·유동성이 적습니다 — 저유동성 간접신호입니다.")
 
+    # 지수는 오르는데 VIX 기간구조가 역전 — 기관이 헤지를 강하게 사는 상승
+    vix_term = by_key.get("US_VIX_TERM")
+    if index_up and vix_term is not None and vix_term.is_negative:
+        warnings.append(
+            "지수는 오르는데 VIX 기간구조가 역전돼 있습니다 — 기관이 단기 급락 헤지를 사면서 오르는 불안한 상승입니다."
+        )
+
     return warnings
 
 
@@ -225,6 +288,19 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
                 source=quote.get("source") or "시세 조회",
             )
         )
+
+    # VIX 기간구조 대체신호 — 현재값 두 개가 extras로 오면 계산하고, 없으면 UNKNOWN으로 표시한다.
+    vix_as_of = (quotes.get("^VIX") or {}).get("as_of")
+    term_freshness = None
+    if isinstance(vix_as_of, datetime):
+        term_freshness = int((now - vix_as_of).total_seconds())
+    signals.append(
+        build_vix_term_signal(
+            extras.get("vix_current"), extras.get("vix3m_current"),
+            as_of=vix_as_of if isinstance(vix_as_of, datetime) else None,
+            freshness=term_freshness,
+        )
+    )
 
     by_key = {s.key: s for s in signals}
     core = [by_key[k] for k in US_CORE_KEYS if k in by_key]
