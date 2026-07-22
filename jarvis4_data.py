@@ -203,11 +203,22 @@ def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None)
     sma20 = _finite(closes.tail(20).mean())
     sma50 = _finite(closes.tail(50).mean()) if len(closes) >= 50 else None
     sma200 = _finite(closes.tail(200).mean()) if len(closes) >= 200 else None
+    # 52주 신고가와 '그 고점을 며칠 전에 찍었나'. 눌림목 판별의 핵심 재료다 —
+    # 최근에 신고가를 찍고 지금 눌린 종목이 곧 '올라가던 종목의 조정'이다
+    # (2026-07-22 사용자 제안: 복잡한 전체 스캔 대신 이 한 가지만 보면 된다).
     high52 = None
+    high52_days_ago = None
+    window = daily.tail(248)
     if "High" in daily.columns:
-        high52 = _finite(daily["High"].tail(248).max())
+        highs = window["High"].dropna().astype(float)
+        if not highs.empty:
+            high52 = _finite(highs.max())
+            high52_days_ago = int(len(highs) - 1 - highs.values.argmax())
     if high52 is None:
-        high52 = _finite(closes.tail(248).max())
+        window_closes = closes.tail(248)
+        high52 = _finite(window_closes.max())
+        if high52 is not None and not window_closes.empty:
+            high52_days_ago = int(len(window_closes) - 1 - window_closes.values.argmax())
 
     volume_ratio = None
     avg_trading_value = None
@@ -244,6 +255,7 @@ def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None)
         "sma50": sma50,
         "sma200": sma200,
         "high52": high52,
+        "high52_days_ago": high52_days_ago,
         "from_high_pct": ((current / high52 - 1) * 100) if high52 else None,
         "volume_ratio": volume_ratio,
         "avg_trading_value": avg_trading_value,
@@ -1144,7 +1156,9 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     매수 심사 통과 여부(게이트)와는 다른 관점이다. 지금 시장이 나빠 못 사더라도,
     시장이 돌아섰을 때 먼저 볼 관찰 목록을 만드는 것이 목적이다(2026-07-22 사용자 제안).
 
-    보는 것 네 가지:
+    보는 것 다섯 가지:
+    - 신고가 시점 : 52주 신고가를 최근에 찍었을수록 좋다. '올라가던 종목'인지 가리는
+                    가장 단순하고 확실한 기준이다(2026-07-22 사용자 제안).
     - 20일선 이격 : 20일선에 붙어 있을수록 좋은 자리(멀면 아직 안 눌렸거나 이미 이탈)
     - 장기 추세   : 200·50일선 위면 상승 추세가 살아 있다는 뜻
     - 눌림 깊이   : 고점 대비 -5~-20%가 건강한 조정. 너무 얕으면 조정 전, 깊으면 추세 훼손
@@ -1157,14 +1171,25 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     gap_pct = (current / sma20 - 1) * 100          # 20일선 이격도
     from_high = metrics.get("from_high_pct")
 
-    # 20일선에 붙을수록 만점(±2% 이내 35점 → ±8% 0점)
-    proximity = max(0.0, 35.0 * (1 - max(0.0, abs(gap_pct) - 2.0) / 6.0))
+    # 신고가를 며칠 전에 찍었나 — 20거래일(약 한 달) 이내면 만점, 120일 넘으면 0점.
+    days_ago = metrics.get("high52_days_ago")
+    if days_ago is None:
+        recency = 0.0
+    elif days_ago <= 20:
+        recency = 25.0
+    elif days_ago >= 120:
+        recency = 0.0
+    else:
+        recency = 25.0 * (1 - (days_ago - 20) / 100.0)
+
+    # 20일선에 붙을수록 만점(±2% 이내 25점 → ±8% 0점)
+    proximity = max(0.0, 25.0 * (1 - max(0.0, abs(gap_pct) - 2.0) / 6.0))
 
     trend = 0.0
     if metrics.get("sma50") and current > metrics["sma50"]:
-        trend += 12.0
+        trend += 10.0
     if metrics.get("sma200") and current > metrics["sma200"]:
-        trend += 13.0
+        trend += 10.0
 
     # 고점 대비 -5~-20%를 건강한 눌림으로 본다.
     if from_high is None:
@@ -1185,13 +1210,15 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     else:
         supply = 0.0
 
-    score = round(proximity + trend + depth + supply, 1)
+    score = round(recency + proximity + trend + depth + supply, 1)
     return {
         "score": score,
         "gap_pct": gap_pct,
         "from_high_pct": from_high,
+        "high52_days_ago": days_ago,
         "above_sma200": bool(metrics.get("sma200") and current > metrics["sma200"]),
-        "parts": [round(proximity, 1), round(trend, 1), round(depth, 1), round(supply, 1)],
+        "parts": [round(recency, 1), round(proximity, 1), round(trend, 1),
+                  round(depth, 1), round(supply, 1)],
     }
 
 

@@ -1397,12 +1397,13 @@ def _render_pullback_table(result: dict) -> None:
     )
     st.caption(
         "‘올라가던 종목이 얼마나 좋은 자리까지 눌렸나’를 100점으로 잰 순위입니다 — "
-        "20일선 이격 35 + 장기추세(50·200일선) 25 + 눌림 깊이 25 + 수급 15. "
+        "**신고가 시점 25**(52주 신고가를 최근에 찍었나) + 20일선 이격 25 + "
+        "장기추세(50·200일선) 20 + 눌림 깊이 15 + 수급 15. "
         "매수 게이트와는 별개라, 지금 못 사더라도 시장이 돌아섰을 때 먼저 볼 목록입니다. "
         "종목 이름을 누르면 아래 상세가 그 종목으로 바뀝니다."
     )
-    widths = [0.6, 2.2, 0.9, 1.9, 1.7, 1.2, 1.1, 1.3, 1.1]
-    titles = ["순위", "종목", "코드", "눌림 점수", "테마", "20일선 이격",
+    widths = [0.6, 2.2, 0.9, 1.9, 1.6, 1.3, 1.2, 1.1, 1.3, 1.1]
+    titles = ["순위", "종목", "코드", "눌림 점수", "테마", "신고가 시점", "20일선 이격",
               "고점 대비", "수급(외+기 5일)", "종목 점수"]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
@@ -1425,24 +1426,35 @@ def _render_pullback_table(result: dict) -> None:
         cols[4].markdown(
             f"<div class='j4-td j4-muted'>{row['theme_name']}</div>", unsafe_allow_html=True
         )
+        # 신고가를 최근에 찍었을수록 좋은 눌림목이라 초록으로 표시한다.
+        days_ago = quality.get("high52_days_ago")
+        if days_ago is None:
+            days_text, days_color = "—", "#9aa0aa"
+        else:
+            days_text = f"{days_ago}일 전"
+            days_color = "#44f0a1" if days_ago <= 20 else "#ff9d3b" if days_ago <= 60 else "#9aa0aa"
+        cols[5].markdown(
+            f"<div class='j4-td' style='color:{days_color}; font-weight:700'>{days_text}</div>",
+            unsafe_allow_html=True,
+        )
         gap = quality["gap_pct"]
         # 20일선에 붙어 있을수록 좋은 자리라 초록, 멀수록 회색으로 표시한다.
         gap_color = "#44f0a1" if abs(gap) <= 3 else "#ff9d3b" if abs(gap) <= 6 else "#9aa0aa"
-        cols[5].markdown(
+        cols[6].markdown(
             f"<div class='j4-td' style='color:{gap_color}; font-weight:700'>{gap:+.2f}%</div>",
             unsafe_allow_html=True,
         )
-        cols[6].markdown(
+        cols[7].markdown(
             f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:700'>"
             f"{_pct(quality['from_high_pct'])}</div>",
             unsafe_allow_html=True,
         )
         net5 = flow.get("net5_amount") if flow.get("ok") else None
-        cols[7].markdown(
+        cols[8].markdown(
             f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
             unsafe_allow_html=True,
         )
-        cols[8].markdown(
+        cols[9].markdown(
             f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
             unsafe_allow_html=True,
         )

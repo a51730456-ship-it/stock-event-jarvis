@@ -190,13 +190,25 @@ class ThemeGateOverrideTests(unittest.TestCase):
 class PullbackQualityTests(unittest.TestCase):
     """눌림목 베스트 — '올라가던 종목이 얼마나 좋은 자리까지 눌렸나'를 잰다."""
 
-    def _metrics(self, current, sma20, sma50=None, sma200=None, from_high=-10.0):
+    def _metrics(self, current, sma20, sma50=None, sma200=None, from_high=-10.0, days_ago=10):
         return {
             "current": current, "sma20": sma20,
             "sma50": sma50 if sma50 is not None else current * 0.95,
             "sma200": sma200 if sma200 is not None else current * 0.9,
-            "from_high_pct": from_high,
+            "from_high_pct": from_high, "high52_days_ago": days_ago,
         }
+
+    def test_recent_high_scores_higher_than_old_high(self):
+        """52주 신고가를 최근에 찍었을수록 좋은 눌림목이다(2026-07-22 사용자 제안)."""
+        recent = j4._pullback_quality(self._metrics(101, 100, days_ago=5), _flow())
+        old = j4._pullback_quality(self._metrics(101, 100, days_ago=200), _flow())
+        self.assertGreater(recent["score"], old["score"])
+        self.assertEqual(recent["high52_days_ago"], 5)
+
+    def test_series_metrics_reports_days_since_52w_high(self):
+        frame = _daily_frame()          # 계속 오르는 시계열 → 마지막 날이 신고가
+        metrics = j4._series_metrics(frame)
+        self.assertEqual(metrics["high52_days_ago"], 0)
 
     def test_closer_to_sma20_scores_higher(self):
         near = j4._pullback_quality(self._metrics(101, 100), _flow())
