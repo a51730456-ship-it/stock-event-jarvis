@@ -1386,6 +1386,80 @@ def _render_theme_finder(forced: list[str]) -> None:
                 st.rerun()
 
 
+def _render_pullback_table(result: dict) -> None:
+    """눌림목 베스트 — 지금 못 사더라도 시장이 돌아섰을 때 먼저 볼 관찰 목록."""
+    rows = result.get("pullback_rows") or []
+    if not rows:
+        return
+    st.markdown(
+        "<div class='j4-section-title'>📉 눌림목 베스트 (상승 추세 중 조정받은 종목)</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "‘올라가던 종목이 얼마나 좋은 자리까지 눌렸나’를 100점으로 잰 순위입니다 — "
+        "20일선 이격 35 + 장기추세(50·200일선) 25 + 눌림 깊이 25 + 수급 15. "
+        "매수 게이트와는 별개라, 지금 못 사더라도 시장이 돌아섰을 때 먼저 볼 목록입니다. "
+        "종목 이름을 누르면 아래 상세가 그 종목으로 바뀝니다."
+    )
+    widths = [0.6, 2.2, 0.9, 1.9, 1.7, 1.2, 1.1, 1.3, 1.1]
+    titles = ["순위", "종목", "코드", "눌림 점수", "테마", "20일선 이격",
+              "고점 대비", "수급(외+기 5일)", "종목 점수"]
+    for column, title in zip(st.columns(widths), titles):
+        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
+
+    for index, row in enumerate(rows):
+        quality, flow = row["pullback"], row["flow"]
+        cols = st.columns(widths)
+        cols[0].markdown(f"<div class='j4-td'>{row['pullback_rank']}</div>", unsafe_allow_html=True)
+        if cols[1].button(row["name"], key=f"j4pull_{index:02d}", width="stretch"):
+            st.session_state["j4_pending_pick"] = (row["theme_name"], row["code"])
+            st.rerun()
+        cols[2].markdown(f"<div class='j4-td'>{row['code']}</div>", unsafe_allow_html=True)
+        score = float(quality["score"])
+        cols[3].markdown(
+            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
+            f"<div class='j4-bar-fill j4-bar-green' style='width:{min(score, 100):.0f}%'></div></div>"
+            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>",
+            unsafe_allow_html=True,
+        )
+        cols[4].markdown(
+            f"<div class='j4-td j4-muted'>{row['theme_name']}</div>", unsafe_allow_html=True
+        )
+        gap = quality["gap_pct"]
+        # 20일선에 붙어 있을수록 좋은 자리라 초록, 멀수록 회색으로 표시한다.
+        gap_color = "#44f0a1" if abs(gap) <= 3 else "#ff9d3b" if abs(gap) <= 6 else "#9aa0aa"
+        cols[5].markdown(
+            f"<div class='j4-td' style='color:{gap_color}; font-weight:700'>{gap:+.2f}%</div>",
+            unsafe_allow_html=True,
+        )
+        cols[6].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:700'>"
+            f"{_pct(quality['from_high_pct'])}</div>",
+            unsafe_allow_html=True,
+        )
+        net5 = flow.get("net5_amount") if flow.get("ok") else None
+        cols[7].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
+            unsafe_allow_html=True,
+        )
+        cols[8].markdown(
+            f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j4pull_'] button { background: transparent !important; border: none !important;"
+        " box-shadow: none !important; padding: 0 0 0 0.9rem !important; min-height: 2.5rem !important;"
+        " width: 100% !important; justify-content: flex-start !important;"
+        " border-bottom: 1px solid rgba(255,255,255,0.06) !important; border-radius: 0 !important; }"
+        "div[class*='st-key-j4pull_'] button:hover { background: rgba(255,255,255,0.06) !important; }"
+        "div[class*='st-key-j4pull_'] button p { font-weight: 800 !important; font-size: 0.95rem !important;"
+        " margin: 0 !important; color: #7cc8ff !important; text-align: left !important; }"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+
+
 def _render_pass_table(ranking: dict, market: dict) -> None:
     """매수 심사 통과 종목 1~10위 — 클릭하면 아래 상세가 그 종목으로 바뀐다."""
     st.markdown(
@@ -1405,6 +1479,7 @@ def _render_pass_table(ranking: dict, market: dict) -> None:
             f"지금은 상위 {result.get('scanned_themes', 0)}개 테마에서 매수 심사를 통과한 종목도, "
             "가격 셋업이 완성된 대기 종목도 없습니다."
         )
+        _render_pullback_table(result)
         return
 
     if result.get("blocked_reason"):
@@ -1467,6 +1542,8 @@ def _render_pass_table(ranking: dict, market: dict) -> None:
             f"<div class='j4-td' style='color:{state_color}; font-weight:800'>{state_text}</div>",
             unsafe_allow_html=True,
         )
+    _render_pullback_table(result)
+
     st.markdown(
         "<style>"
         "div[class*='st-key-j4pass_'] button { background: transparent !important; border: none !important;"

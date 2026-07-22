@@ -113,7 +113,18 @@ def _pass_candidates():
     for index, leader in enumerate(leaders, 1):
         theme_name = "반도체/HBM" if index == 1 else "조선/해운"
         rows.append({**leader, "theme_name": theme_name, "theme_row": {"name": theme_name}, "pass_rank": index})
-    return {"ok": True, "rows": rows, "scanned_themes": 8, "checked_at": "x"}
+    pullback = [
+        {**row, "pullback_rank": index,
+         "pullback": {"score": 95.0 - index, "gap_pct": 1.1, "from_high_pct": -8.1,
+                      "above_sma200": True, "parts": [35, 25, 25, 10]},
+         "gate_blocked": True}
+        for index, row in enumerate(rows, 1)
+    ]
+    return {
+        "ok": True, "rows": rows, "pullback_rows": pullback,
+        "passed_count": len(rows), "waiting_count": 0, "blocked_reason": None,
+        "scanned_themes": 20, "checked_at": "x",
+    }
 
 
 def _chart_payload():
@@ -271,6 +282,15 @@ class Jarvis4PageTests(unittest.TestCase):
         pass_buttons = [node for node in app.button if str(node.key or "").startswith("j4pass_")]
         self.assertEqual(len(pass_buttons), 3)
         self.assertIn("조선/해운", markdowns)
+
+    def test_pullback_table_renders_and_is_clickable(self):
+        """눌림목 베스트 표(2026-07-22 사용자 제안)가 뜨고 클릭 버튼이 있어야 한다."""
+        app = _run_page()
+        self.assertEqual(len(app.exception), 0)
+        markdowns = " ".join(str(node.value) for node in app.markdown)
+        self.assertIn("눌림목 베스트", markdowns)
+        pull_buttons = [node for node in app.button if str(node.key or "").startswith("j4pull_")]
+        self.assertEqual(len(pull_buttons), 3)
 
     def test_pass_table_click_switches_theme_and_stock(self):
         """통과 종목을 누르면 테마·종목 선택이 함께 바뀌어 아래 상세가 교체된다."""

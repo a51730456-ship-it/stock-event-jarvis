@@ -1138,6 +1138,63 @@ def get_intraday_chart(code: str, *, ttl_seconds: float = 60) -> dict | None:
     }
 
 
+def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
+    """눌림목 품질 100점 — '올라가던 종목이 얼마나 좋은 자리까지 눌렸나'를 잰다.
+
+    매수 심사 통과 여부(게이트)와는 다른 관점이다. 지금 시장이 나빠 못 사더라도,
+    시장이 돌아섰을 때 먼저 볼 관찰 목록을 만드는 것이 목적이다(2026-07-22 사용자 제안).
+
+    보는 것 네 가지:
+    - 20일선 이격 : 20일선에 붙어 있을수록 좋은 자리(멀면 아직 안 눌렸거나 이미 이탈)
+    - 장기 추세   : 200·50일선 위면 상승 추세가 살아 있다는 뜻
+    - 눌림 깊이   : 고점 대비 -5~-20%가 건강한 조정. 너무 얕으면 조정 전, 깊으면 추세 훼손
+    - 수급        : 눌리는 동안 외국인·기관이 담고 있으면 반등 확률이 높다
+    """
+    current, sma20 = metrics.get("current"), metrics.get("sma20")
+    if not current or not sma20:
+        return None
+
+    gap_pct = (current / sma20 - 1) * 100          # 20일선 이격도
+    from_high = metrics.get("from_high_pct")
+
+    # 20일선에 붙을수록 만점(±2% 이내 35점 → ±8% 0점)
+    proximity = max(0.0, 35.0 * (1 - max(0.0, abs(gap_pct) - 2.0) / 6.0))
+
+    trend = 0.0
+    if metrics.get("sma50") and current > metrics["sma50"]:
+        trend += 12.0
+    if metrics.get("sma200") and current > metrics["sma200"]:
+        trend += 13.0
+
+    # 고점 대비 -5~-20%를 건강한 눌림으로 본다.
+    if from_high is None:
+        depth = 0.0
+    elif -20.0 <= from_high <= -5.0:
+        depth = 25.0
+    elif -30.0 <= from_high < -20.0 or -5.0 < from_high <= -2.0:
+        depth = 15.0
+    elif from_high < -30.0:
+        depth = 5.0
+    else:
+        depth = 10.0
+
+    if flow.get("ok"):
+        net5 = flow.get("net5_amount") or 0
+        streak = flow.get("buy_streak_days") or 0
+        supply = min(15.0, (8.0 if net5 > 0 else 0.0) + min(7.0, streak * 2.0))
+    else:
+        supply = 0.0
+
+    score = round(proximity + trend + depth + supply, 1)
+    return {
+        "score": score,
+        "gap_pct": gap_pct,
+        "from_high_pct": from_high,
+        "above_sma200": bool(metrics.get("sma200") and current > metrics["sma200"]),
+        "parts": [round(proximity, 1), round(trend, 1), round(depth, 1), round(supply, 1)],
+    }
+
+
 def get_pass_candidates(
     ranking_rows: list[dict],
     market_score: float,
@@ -1167,7 +1224,7 @@ def get_pass_candidates(
         result = get_theme_leaders(
             theme, market_score=market_score, theme_score=float(theme.get("score") or 0)
         )
-        passed, waiting = [], []
+        passed, waiting, pullback = [], [], []
         if result.get("ok"):
             for leader in result["rows"]:
                 plan = leader.get("plan") or {}
@@ -1178,18 +1235,29 @@ def get_pass_candidates(
                     # 가격 셋업은 완성됐는데 시장·테마 점수 게이트에서 막힌 종목.
                     # 시장이 회복되면 곧바로 후보가 되므로 대기 목록으로 보여준다.
                     waiting.append({**item, "gate_blocked": True})
-        return passed, waiting
+                # 눌림목 후보는 게이트와 무관하게 따로 모은다 — 지금 못 사더라도
+                # 시장이 돌아섰을 때 먼저 볼 관찰 목록이다(2026-07-22 사용자 제안).
+                if plan.get("state") == "눌림목 대기":
+                    quality = _pullback_quality(leader["metrics"], leader.get("flow") or {})
+                    if quality:
+                        pullback.append({
+                            **item,
+                            "pullback": quality,
+                            "gate_blocked": plan.get("recommendation") != "조건부 후보",
+                        })
+        return passed, waiting, pullback
 
-    passed_rows, waiting_rows = [], []
+    passed_rows, waiting_rows, pullback_rows = [], [], []
     with ThreadPoolExecutor(max_workers=min(8, len(themes))) as executor:
         futures = [executor.submit(_scan, theme) for theme in themes]
         for future in as_completed(futures):
             try:
-                passed, waiting = future.result()
+                passed, waiting, pullback = future.result()
             except Exception:
                 continue
             passed_rows.extend(passed)
             waiting_rows.extend(waiting)
+            pullback_rows.extend(pullback)
 
     def by_score(row):
         return float(row.get("score") or 0)
@@ -1206,6 +1274,13 @@ def get_pass_candidates(
 
     passed_rows = dedupe(passed_rows)
     waiting_rows = dedupe(waiting_rows)
+    pullback_rows = sorted(
+        {row["code"]: row for row in pullback_rows}.values(),
+        key=lambda row: row["pullback"]["score"],
+        reverse=True,
+    )[:result_limit]
+    for index, row in enumerate(pullback_rows, 1):
+        row["pullback_rank"] = index
     rows = (passed_rows or waiting_rows)[:result_limit]
     for index, row in enumerate(rows, 1):
         row["pass_rank"] = index
@@ -1226,6 +1301,7 @@ def get_pass_candidates(
     return {
         "ok": True,
         "rows": rows,
+        "pullback_rows": pullback_rows,
         "passed_count": len(passed_rows),
         "waiting_count": len(waiting_rows),
         "blocked_reason": blocked_reason,

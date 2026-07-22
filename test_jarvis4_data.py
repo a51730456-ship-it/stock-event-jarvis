@@ -187,6 +187,61 @@ class ThemeGateOverrideTests(unittest.TestCase):
         self.assertIn("은행", scanned, "직접 추가한 테마가 통과 종목 심사에서 빠졌습니다")
 
 
+class PullbackQualityTests(unittest.TestCase):
+    """눌림목 베스트 — '올라가던 종목이 얼마나 좋은 자리까지 눌렸나'를 잰다."""
+
+    def _metrics(self, current, sma20, sma50=None, sma200=None, from_high=-10.0):
+        return {
+            "current": current, "sma20": sma20,
+            "sma50": sma50 if sma50 is not None else current * 0.95,
+            "sma200": sma200 if sma200 is not None else current * 0.9,
+            "from_high_pct": from_high,
+        }
+
+    def test_closer_to_sma20_scores_higher(self):
+        near = j4._pullback_quality(self._metrics(101, 100), _flow())
+        far = j4._pullback_quality(self._metrics(110, 100), _flow())
+        self.assertGreater(near["score"], far["score"])
+
+    def test_healthy_depth_beats_broken_trend(self):
+        healthy = j4._pullback_quality(self._metrics(101, 100, from_high=-12.0), _flow())
+        broken = j4._pullback_quality(self._metrics(101, 100, from_high=-45.0), _flow())
+        self.assertGreater(healthy["score"], broken["score"])
+
+    def test_below_long_term_averages_scores_lower(self):
+        above = j4._pullback_quality(self._metrics(101, 100, sma50=95, sma200=90), _flow())
+        below = j4._pullback_quality(self._metrics(101, 100, sma50=120, sma200=130), _flow())
+        self.assertGreater(above["score"], below["score"])
+        self.assertTrue(above["above_sma200"])
+        self.assertFalse(below["above_sma200"])
+
+    def test_supply_inflow_adds_score(self):
+        with_flow = j4._pullback_quality(self._metrics(101, 100), _flow(net5_amount=50e8, streak=4))
+        without = j4._pullback_quality(self._metrics(101, 100), {"ok": False})
+        self.assertGreater(with_flow["score"], without["score"])
+
+    def test_missing_sma20_returns_none(self):
+        self.assertIsNone(j4._pullback_quality({"current": 100}, _flow()))
+
+    def test_pass_candidates_expose_pullback_rows(self):
+        rows = [{"name": "은행", "ok": True, "score": 22.1, "no": 99}]
+        metrics = j4._series_metrics(_daily_frame())
+        leader = {
+            "code": "086790", "name": "하나금융지주", "rank": 1, "score": 95.0,
+            "score_parts": [20, 12, 20, 15, 8, 20], "metrics": metrics, "flow": _flow(),
+            "plan": {"state": "눌림목 대기", "recommendation": "관찰"},
+            "stock_reason": "x",
+        }
+        with patch.object(j4, "get_theme_leaders", return_value={"ok": True, "rows": [leader]}):
+            result = j4.get_pass_candidates(rows, market_score=30)
+        pullback = result.get("pullback_rows")
+        self.assertTrue(pullback, "눌림목 목록이 비었습니다")
+        self.assertEqual(pullback[0]["name"], "하나금융지주")
+        self.assertEqual(pullback[0]["pullback_rank"], 1)
+        # 게이트에 막혔어도 눌림목 목록에는 올라와야 한다.
+        self.assertTrue(pullback[0]["gate_blocked"])
+
+
 class ExclusionTests(unittest.TestCase):
     def test_spac_and_preferred_shares_excluded(self):
         self.assertTrue(j4._is_excluded("미래에셋스팩5호", "123456"))
