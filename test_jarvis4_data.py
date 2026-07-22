@@ -142,6 +142,51 @@ class EntryPlanTests(unittest.TestCase):
         self.assertIn("방어", plan["buy_reason"])
 
 
+class ThemeGateOverrideTests(unittest.TestCase):
+    """테마가 약해도 압도적으로 강한 종목은 버리지 않는다.
+
+    2026-07-22 사용자 지적으로 넣은 규칙 — 국내 네이버 테마는 성격이 섞여 있어
+    테마 평균이 종목 품질을 대표하지 못한다(실측: '은행' 22.1점인데 하나금융지주 95.0점).
+    """
+
+    def _plan(self, score, theme_score, market_score=60):
+        metrics = j4._series_metrics(_daily_frame())
+        return j4._entry_plan(metrics, score, market_score, theme_score)
+
+    def test_strong_stock_passes_weak_theme_gate(self):
+        plan = self._plan(score=95, theme_score=22.1)
+        self.assertEqual(plan["recommendation"], "조건부 후보")
+
+    def test_mid_score_stock_still_blocked_by_weak_theme(self):
+        plan = self._plan(score=81, theme_score=22.1)
+        self.assertEqual(plan["recommendation"], "관찰")
+        self.assertIn("테마 강도", plan["buy_reason"])
+
+    def test_override_does_not_bypass_market_gate(self):
+        """시장 게이트는 종목이 아무리 강해도 면제되지 않는다."""
+        plan = self._plan(score=95, theme_score=22.1, market_score=30)
+        self.assertNotEqual(plan["recommendation"], "조건부 후보")
+        self.assertIn("방어", plan["buy_reason"])
+
+    def test_forced_theme_is_scanned_even_beyond_theme_limit(self):
+        """직접 추가한 테마는 순위가 밀려도 통과 종목 심사에 들어간다."""
+        rows = [
+            {"name": f"테마{index}", "ok": True, "score": 80 - index, "no": index}
+            for index in range(1, 25)
+        ]
+        rows.append({"name": "은행", "ok": True, "score": 22.1, "no": 99, "is_forced": True})
+        scanned = []
+
+        def fake_leaders(theme, **kwargs):
+            scanned.append(theme["name"])
+            return {"ok": True, "rows": []}
+
+        with patch.object(j4, "get_theme_leaders", side_effect=fake_leaders):
+            j4.get_pass_candidates(rows, market_score=60, theme_limit=20)
+
+        self.assertIn("은행", scanned, "직접 추가한 테마가 통과 종목 심사에서 빠졌습니다")
+
+
 class ExclusionTests(unittest.TestCase):
     def test_spac_and_preferred_shares_excluded(self):
         self.assertTrue(j4._is_excluded("미래에셋스팩5호", "123456"))

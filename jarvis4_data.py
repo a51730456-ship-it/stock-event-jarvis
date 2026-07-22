@@ -48,6 +48,8 @@ DISPLAY_THEME_COUNT = 20
 CANDIDATE_THEME_COUNT = 30
 # 테마당 심사할 구성종목 수 (거래대금 상위부터).
 THEME_STOCK_LIMIT = 8
+# 이 점수를 넘는 종목은 테마 점수가 낮아도 후보로 인정한다(테마 게이트 면제).
+STRONG_STOCK_OVERRIDE = 85.0
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -955,7 +957,13 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
         state = "제외"
         trigger = zone_high = invalidation = target = None
 
-    gates_ok = market_score >= 50 and theme_score >= 60 and score >= 70
+    # 테마 게이트는 종목 점수로 면제될 수 있다(2026-07-22 사용자 지적으로 수정).
+    # 미국판은 테마=ETF라 테마가 약하면 구성종목도 대체로 약했지만, 국내 네이버 테마는
+    # 성격이 섞여 있어 테마 평균이 종목 품질을 대표하지 못한다 — 실측: '은행' 테마는
+    # 22.1점(약함)인데 하나금융지주는 95.0점이었다. 압도적으로 강한 종목을 테마 평균
+    # 때문에 버리지 않는다.
+    theme_ok = theme_score >= 60 or score >= STRONG_STOCK_OVERRIDE
+    gates_ok = market_score >= 50 and theme_ok and score >= 70
     if gates_ok and state in {"돌파 확인", "눌림목 대기"}:
         recommendation = "조건부 후보"
     elif state in {"추격 금지", "제외"}:
@@ -965,8 +973,11 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
 
     if market_score < 50:
         buy_reason = "시장 국면이 방어 우선이라 신규 매수를 보류합니다."
-    elif theme_score < 60:
-        buy_reason = "테마 강도가 기준 미달이라 종목 점수가 높아도 매수하지 않습니다."
+    elif not theme_ok:
+        buy_reason = (
+            f"테마 강도가 기준 미달입니다(종목 점수가 {STRONG_STOCK_OVERRIDE:.0f}점을 넘으면 "
+            "테마와 무관하게 후보로 봅니다)."
+        )
     elif score < 70:
         buy_reason = "종목 조건점수가 기준 미달입니다."
     elif state == "돌파 확인":
@@ -1131,7 +1142,7 @@ def get_pass_candidates(
     ranking_rows: list[dict],
     market_score: float,
     *,
-    theme_limit: int = 8,
+    theme_limit: int = 20,
     result_limit: int = 10,
 ) -> dict:
     """여러 테마를 가로질러 '매수 심사를 통과한' 종목만 모아 순위를 매긴다.
@@ -1141,7 +1152,14 @@ def get_pass_candidates(
     통과 기준은 종목 상세와 같다 — 가격 셋업이 완성('돌파 확인'·'눌림목 대기')됐고
     시장·테마·종목 점수 게이트를 넘은 것. 조건을 새로 만들지 않는다.
     """
-    themes = [row for row in ranking_rows if row.get("ok")][:theme_limit]
+    usable = [row for row in ranking_rows if row.get("ok")]
+    themes = usable[:theme_limit]
+    # 사용자가 직접 추가한 테마는 점수가 낮아 뒤로 밀렸더라도 반드시 심사한다
+    # (2026-07-22: 은행 테마가 21위라 잘려서 하나금융지주 95점이 후보에서 빠졌다).
+    picked = {row["name"] for row in themes}
+    themes.extend(
+        row for row in usable if row.get("is_forced") and row["name"] not in picked
+    )
     if not themes:
         return {"ok": False, "error": "심사할 테마가 없습니다", "rows": []}
 
