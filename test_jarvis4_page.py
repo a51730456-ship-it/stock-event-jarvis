@@ -127,6 +127,32 @@ def _pass_candidates():
     }
 
 
+def _pullback_stocks():
+    """눌림목 종목 찾기 결과(사용자 스펙: 신고가 1~20일 전 · 테마 2개 이상 · 75점 이상)."""
+    rows = []
+    for index, (code, name, themes) in enumerate(
+        (("086790", "하나금융지주", ["반도체/HBM", "조선/해운"]),
+         ("055550", "신한지주", ["조선/해운", "방산"])), 1
+    ):
+        rows.append({
+            "code": code, "name": name, "themes": themes, "theme_name": themes[0],
+            "price": 60_000, "change_pct": 0.5, "volume": 400_000, "trading_value": 2e10,
+            "metrics": _index_metrics(60_000, 0.5),
+            "flow": _flow(), "score": 95.5 - index * 5, "peak_score": 96.7 - index * 5,
+            "score_parts": [20, 15, 20, 15, 10, 15],
+            "pullback": {"score": 95.1 - index, "gap_pct": 1.1, "from_high_pct": -7.6,
+                         "high52_days_ago": 3 * index, "above_sma200": True,
+                         "parts": [25, 25, 20, 15, 10]},
+            "pullback_rank": index,
+            "plan": {"state": "눌림목 대기", "recommendation": "조건부 후보"},
+        })
+    return {
+        "ok": True, "stale": False, "rows": rows,
+        "multi_theme_count": 291, "scanned_count": 180, "screened_count": 21,
+        "window": (1, 20), "checked_at": "x",
+    }
+
+
 def _chart_payload():
     index = pd.bdate_range("2026-01-01", periods=60)
     frame = pd.DataFrame({"Close": [100_000 + i * 500 for i in range(60)]}, index=index)
@@ -171,6 +197,7 @@ def _patches():
             },
         }),
         patch("jarvis4_data.get_pass_candidates", return_value=_pass_candidates()),
+        patch("jarvis4_data.find_pullback_stocks", return_value=_pullback_stocks()),
         patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])),
         patch("database.save_kr_flow_snapshot"),
         patch("database.list_kr_flow_snapshots", return_value=[{}]),
@@ -283,14 +310,44 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertEqual(len(pass_buttons), 3)
         self.assertIn("조선/해운", markdowns)
 
-    def test_pullback_table_renders_and_is_clickable(self):
-        """눌림목 베스트 표(2026-07-22 사용자 제안)가 뜨고 클릭 버튼이 있어야 한다."""
+    def test_pullback_finder_runs_automatically_and_is_clickable(self):
+        """눌림목 표는 페이지에 들어오면 자동으로 뜨고, 종목은 클릭할 수 있어야 한다.
+
+        (2026-07-22 사용자 지시 — 조건 밖 종목이 섞였던 옛 '눌림목 베스트' 표는 없앴다)
+        """
         app = _run_page()
         self.assertEqual(len(app.exception), 0)
         markdowns = " ".join(str(node.value) for node in app.markdown)
-        self.assertIn("눌림목 베스트", markdowns)
-        pull_buttons = [node for node in app.button if str(node.key or "").startswith("j4pull_")]
-        self.assertEqual(len(pull_buttons), 3)
+        self.assertIn("눌림목 종목 찾기", markdowns)
+        self.assertNotIn("눌림목 베스트", markdowns)
+        keys = [str(node.key or "") for node in app.button]
+        self.assertIn("j4_pullback_find", keys)          # 다시 찾기 버튼
+        # 버튼을 누르지 않아도 결과 표가 이미 그려져 있어야 한다.
+        self.assertTrue(
+            [key for key in keys if key.startswith("j4pbf_")],
+            "눌림목 종목이 자동으로 뜨지 않았습니다",
+        )
+
+    def test_pullback_click_adds_theme_and_selects_stock(self):
+        """눌림목 종목을 누르면 그 테마가 목록에 추가되고 상세가 그 종목으로 바뀐다."""
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            target = [node for node in app.button if str(node.key or "") == "j4pbf_00"]
+            self.assertEqual(len(target), 1)
+            target[0].click().run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+        state = app.session_state.filtered_state
+        self.assertIn("반도체/HBM", state.get("j4_forced_themes") or [])
+        self.assertEqual(len(app.exception), 0)
 
     def test_pass_table_click_switches_theme_and_stock(self):
         """통과 종목을 누르면 테마·종목 선택이 함께 바뀌어 아래 상세가 교체된다."""

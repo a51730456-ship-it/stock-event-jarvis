@@ -1227,6 +1227,12 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     }
 
 
+def clear_pullback_cache() -> None:
+    """눌림목 결과만 다시 계산하게 한다(다른 캐시는 그대로 둔다)."""
+    with _CACHE_LOCK:
+        _CACHE.pop("pullback_stocks", None)
+
+
 def score_at_past(daily: pd.DataFrame | None, flow: dict, market_ret20, days_ago: int):
     """며칠 전 시점의 종목 조건점수를 역산한다.
 

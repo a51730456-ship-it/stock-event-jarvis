@@ -1401,10 +1401,11 @@ def _render_pullback_finder() -> None:
         "**신고가 찍던 시점의 종목 점수 75점 이상**. 테마 순위와 무관하게 전체에서 찾으므로 은행처럼 "
         "순위 밖 테마도 포함됩니다. 하락장 판단은 상단 ‘한국 전체시장 판단’에서 직접 보고 정하십시오."
     )
-    if st.button("눌림목 종목 찾기 실행", key="j4_pullback_find", width="stretch"):
-        st.session_state["j4_pullback_requested"] = True
-    if not st.session_state.get("j4_pullback_requested"):
-        return
+    # 페이지에 들어오면 자동으로 뜬다(2026-07-22 사용자 지시). 결과는 10분 캐시라
+    # 두 번째부터는 즉시 표시되고, 다시 계산하려면 아래 버튼을 누른다.
+    if st.button("눌림목 다시 찾기", key="j4_pullback_find", width="stretch"):
+        j4data.clear_pullback_cache()
+        st.rerun()
 
     with st.spinner("전체 테마의 구성종목에서 눌림목 조건을 확인하는 중입니다…"):
         result = j4data.find_pullback_stocks()
@@ -1428,13 +1429,20 @@ def _render_pullback_finder() -> None:
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
 
-    for row in rows:
+    for index, row in enumerate(rows):
         quality, flow = row["pullback"], row.get("flow") or {}
         cols = st.columns(widths)
         cols[0].markdown(f"<div class='j4-td'>{row['pullback_rank']}</div>", unsafe_allow_html=True)
-        cols[1].markdown(
-            f"<div class='j4-td' style='color:#7cc8ff; font-weight:800; justify-content:flex-start;"
-            f" padding-left:0.9rem'>{row['name']}</div>", unsafe_allow_html=True)
+        # 종목을 누르면 그 종목이 속한 테마를 목록에 넣고(순위 밖일 수 있으므로) 선택까지 옮긴다.
+        if cols[1].button(row["name"], key=f"j4pbf_{index:02d}", width="stretch"):
+            themes = row.get("themes") or []
+            if themes:
+                forced = list(st.session_state.get("j4_forced_themes") or [])
+                if themes[0] not in forced:
+                    forced.append(themes[0])
+                st.session_state["j4_forced_themes"] = forced
+                st.session_state["j4_pending_pick"] = (themes[0], row["code"])
+            st.rerun()
         cols[2].markdown(f"<div class='j4-td'>{row['code']}</div>", unsafe_allow_html=True)
         score = float(quality["score"])
         cols[3].markdown(
@@ -1466,96 +1474,23 @@ def _render_pullback_finder() -> None:
         cols[10].markdown(
             f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
             unsafe_allow_html=True)
-    st.caption(
-        "**‘신고가 때 점수’가 판정 기준입니다** — 눌림목은 그때 좋았던 종목이 지금 눌린 것이라, "
-        "지금 점수로 자르면 눌렸다는 이유로 탈락합니다. 일봉을 신고가 시점까지 잘라 같은 계산을 "
-        "다시 돌린 값이며, 수급은 현재 값을 씁니다(가격 항목만 정확히 역산)."
-    )
-
-
-def _render_pullback_table(result: dict) -> None:
-    """눌림목 베스트 — 지금 못 사더라도 시장이 돌아섰을 때 먼저 볼 관찰 목록."""
-    rows = result.get("pullback_rows") or []
-    if not rows:
-        return
-    st.markdown(
-        "<div class='j4-section-title'>📉 눌림목 베스트 (상승 추세 중 조정받은 종목)</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption(
-        "‘올라가던 종목이 얼마나 좋은 자리까지 눌렸나’를 100점으로 잰 순위입니다 — "
-        "**신고가 시점 25**(52주 신고가를 최근에 찍었나) + 20일선 이격 25 + "
-        "장기추세(50·200일선) 20 + 눌림 깊이 15 + 수급 15. "
-        "매수 게이트와는 별개라, 지금 못 사더라도 시장이 돌아섰을 때 먼저 볼 목록입니다. "
-        "종목 이름을 누르면 아래 상세가 그 종목으로 바뀝니다."
-    )
-    widths = [0.6, 2.2, 0.9, 1.9, 1.6, 1.3, 1.2, 1.1, 1.3, 1.1]
-    titles = ["순위", "종목", "코드", "눌림 점수", "테마", "신고가 시점", "20일선 이격",
-              "고점 대비", "수급(외+기 5일)", "종목 점수"]
-    for column, title in zip(st.columns(widths), titles):
-        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
-
-    for index, row in enumerate(rows):
-        quality, flow = row["pullback"], row["flow"]
-        cols = st.columns(widths)
-        cols[0].markdown(f"<div class='j4-td'>{row['pullback_rank']}</div>", unsafe_allow_html=True)
-        if cols[1].button(row["name"], key=f"j4pull_{index:02d}", width="stretch"):
-            st.session_state["j4_pending_pick"] = (row["theme_name"], row["code"])
-            st.rerun()
-        cols[2].markdown(f"<div class='j4-td'>{row['code']}</div>", unsafe_allow_html=True)
-        score = float(quality["score"])
-        cols[3].markdown(
-            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
-            f"<div class='j4-bar-fill j4-bar-green' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>",
-            unsafe_allow_html=True,
-        )
-        cols[4].markdown(
-            f"<div class='j4-td j4-muted'>{row['theme_name']}</div>", unsafe_allow_html=True
-        )
-        # 신고가를 최근에 찍었을수록 좋은 눌림목이라 초록으로 표시한다.
-        days_ago = quality.get("high52_days_ago")
-        if days_ago is None:
-            days_text, days_color = "—", "#9aa0aa"
-        else:
-            days_text = f"{days_ago}일 전"
-            days_color = "#44f0a1" if days_ago <= 20 else "#ff9d3b" if days_ago <= 60 else "#9aa0aa"
-        cols[5].markdown(
-            f"<div class='j4-td' style='color:{days_color}; font-weight:700'>{days_text}</div>",
-            unsafe_allow_html=True,
-        )
-        gap = quality["gap_pct"]
-        # 20일선에 붙어 있을수록 좋은 자리라 초록, 멀수록 회색으로 표시한다.
-        gap_color = "#44f0a1" if abs(gap) <= 3 else "#ff9d3b" if abs(gap) <= 6 else "#9aa0aa"
-        cols[6].markdown(
-            f"<div class='j4-td' style='color:{gap_color}; font-weight:700'>{gap:+.2f}%</div>",
-            unsafe_allow_html=True,
-        )
-        cols[7].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:700'>"
-            f"{_pct(quality['from_high_pct'])}</div>",
-            unsafe_allow_html=True,
-        )
-        net5 = flow.get("net5_amount") if flow.get("ok") else None
-        cols[8].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
-            unsafe_allow_html=True,
-        )
-        cols[9].markdown(
-            f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
-            unsafe_allow_html=True,
-        )
     st.markdown(
         "<style>"
-        "div[class*='st-key-j4pull_'] button { background: transparent !important; border: none !important;"
+        "div[class*='st-key-j4pbf_'] button { background: transparent !important; border: none !important;"
         " box-shadow: none !important; padding: 0 0 0 0.9rem !important; min-height: 2.5rem !important;"
         " width: 100% !important; justify-content: flex-start !important;"
         " border-bottom: 1px solid rgba(255,255,255,0.06) !important; border-radius: 0 !important; }"
-        "div[class*='st-key-j4pull_'] button:hover { background: rgba(255,255,255,0.06) !important; }"
-        "div[class*='st-key-j4pull_'] button p { font-weight: 800 !important; font-size: 0.95rem !important;"
+        "div[class*='st-key-j4pbf_'] button:hover { background: rgba(255,255,255,0.06) !important; }"
+        "div[class*='st-key-j4pbf_'] button p { font-weight: 800 !important; font-size: 0.95rem !important;"
         " margin: 0 !important; color: #7cc8ff !important; text-align: left !important; }"
         "</style>",
         unsafe_allow_html=True,
+    )
+    st.caption(
+        "**‘신고가 때 점수’가 판정 기준입니다** — 눌림목은 그때 좋았던 종목이 지금 눌린 것이라, "
+        "지금 점수로 자르면 눌렸다는 이유로 탈락합니다. 일봉을 신고가 시점까지 잘라 같은 계산을 "
+        "다시 돌린 값이며, 수급은 현재 값을 씁니다(가격 항목만 정확히 역산). "
+        "종목 이름을 누르면 그 종목의 테마가 위 목록에 추가되고 아래 상세가 그 종목으로 바뀝니다."
     )
 
 
@@ -1579,7 +1514,6 @@ def _render_pass_table(ranking: dict, market: dict) -> None:
             f"지금은 상위 {result.get('scanned_themes', 0)}개 테마에서 매수 심사를 통과한 종목도, "
             "가격 셋업이 완성된 대기 종목도 없습니다."
         )
-        _render_pullback_table(result)
         return
 
     if result.get("blocked_reason"):
@@ -1642,7 +1576,6 @@ def _render_pass_table(ranking: dict, market: dict) -> None:
             f"<div class='j4-td' style='color:{state_color}; font-weight:800'>{state_text}</div>",
             unsafe_allow_html=True,
         )
-    _render_pullback_table(result)
     _render_pullback_finder()
 
     st.markdown(
