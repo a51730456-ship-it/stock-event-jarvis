@@ -1267,6 +1267,7 @@ def find_pullback_stocks(
     high_days_max: int = 20,
     min_stock_score: float = 75.0,
     min_trading_value: float = 5e9,
+    theme_scan_limit: int = 130,
     scan_limit: int = 120,
     result_limit: int = 15,
     ttl_seconds: float = 1800,
@@ -1287,13 +1288,17 @@ def find_pullback_stocks(
         if not listing.get("ok"):
             raise RuntimeError(listing.get("error") or "테마 목록 조회 실패")
 
-        # 1) 전체 테마 구성종목을 모으면서 '이 종목이 몇 개 테마에 속하는지' 센다.
+        # 1) 테마 구성종목을 모으면서 '이 종목이 몇 개 테마에 속하는지' 센다.
+        # 266개를 전부 훑으면 6~7초가 걸린다(실측). 당일 등락률 상위 theme_scan_limit개만
+        # 봐도 은행(49위)처럼 순위 밖 테마는 충분히 들어오고 시간은 절반으로 준다.
         seen: dict[str, dict] = {}
-        themes = listing["themes"]
+        themes = sorted(
+            listing["themes"].values(), key=lambda t: t["change_pct"], reverse=True
+        )[:theme_scan_limit]
         with ThreadPoolExecutor(max_workers=16) as executor:
             futures = {
                 executor.submit(get_theme_stocks, theme["no"]): theme
-                for theme in themes.values()
+                for theme in themes
             }
             for future in as_completed(futures):
                 theme = futures[future]
