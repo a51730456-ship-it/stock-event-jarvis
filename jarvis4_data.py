@@ -44,10 +44,10 @@ _THEME_DETAIL_URL = "https://finance.naver.com/sise/sise_group_detail.naver?type
 _STOCK_FLOW_URL = "https://finance.naver.com/item/frgn.naver?code={code}"
 
 # 화면에 보여줄 테마 수와, 그 후보로 상세 조회할 테마 수.
-DISPLAY_THEME_COUNT = 20
+DISPLAY_THEME_COUNT = 10
 # 후보 테마 수. 표에는 20개만 보이지만, 눌림목·통과 종목 심사는 이 범위 전체를 훑는다 —
 # 30개로 자르면 '은행'(당일 49위) 같은 테마의 좋은 눌림목을 통째로 놓친다(2026-07-22).
-CANDIDATE_THEME_COUNT = 70
+CANDIDATE_THEME_COUNT = 40
 # 테마당 심사할 구성종목 수 (거래대금 상위부터).
 THEME_STOCK_LIMIT = 8
 # 이 점수를 넘는 종목은 테마 점수가 낮아도 후보로 인정한다(테마 게이트 면제).
@@ -1267,9 +1267,9 @@ def find_pullback_stocks(
     high_days_max: int = 20,
     min_stock_score: float = 75.0,
     min_trading_value: float = 5e9,
-    scan_limit: int = 180,
+    scan_limit: int = 120,
     result_limit: int = 15,
-    ttl_seconds: float = 600,
+    ttl_seconds: float = 1800,
 ) -> dict:
     """상승추세 중 조정받은 눌림목 종목을 찾는다 (2026-07-22 사용자 스펙).
 
@@ -1417,7 +1417,7 @@ def get_pass_candidates(
     ranking_rows: list[dict],
     market_score: float,
     *,
-    theme_limit: int = 60,
+    theme_limit: int = 12,
     result_limit: int = 10,
 ) -> dict:
     """여러 테마를 가로질러 '매수 심사를 통과한' 종목만 모아 순위를 매긴다.

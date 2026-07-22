@@ -1201,7 +1201,7 @@ def _render_radar_tab(market: dict) -> None:
             j4data.clear_runtime_cache()
             st.rerun()
     with note_col:
-        st.caption("테마 순위는 5분 캐시, 시장판단은 1분 자동 갱신됩니다.")
+        st.caption("테마 순위는 5분 캐시, 눌림목은 30분 캐시, 시장판단은 1분 자동 갱신됩니다.")
 
     # 사용자가 직접 고른 테마는 순위 밖이어도 반드시 심사해 목록에 넣는다
     # (2026-07-22: 금융·은행처럼 오늘 약한 테마도 눌림목을 보고 싶다는 요구).
@@ -1235,7 +1235,7 @@ def _render_radar_tab(market: dict) -> None:
 국내에서 더 잘 듣는 추세(이동평균선) 배점을 15→20으로 올렸습니다.**
             """
         )
-    st.markdown("### 오늘의 강한 테마 20 · 실시간 순위")
+    st.markdown(f"### 오늘의 강한 테마 {len(ranking['rows'])} · 실시간 순위")
     entered, dropped = ranking.get("entered") or [], ranking.get("dropped") or []
     change_text = ""
     if entered:

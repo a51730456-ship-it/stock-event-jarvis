@@ -235,7 +235,7 @@ class Jarvis4PageTests(unittest.TestCase):
         # 시장판단의 한국장 기관 수급 반전 카드를 그대로 가져왔는지
         self.assertIn("한국장 기관 수급 현황", markdowns)
         # 동적 테마 선정 문구와 테마표
-        self.assertIn("오늘의 강한 테마 20", markdowns)
+        self.assertIn("오늘의 강한 테마", markdowns)
         self.assertIn("자동 탈락", markdowns)
         # 종목 상세와 한국형 6개 항목
         self.assertIn("SK하이닉스", markdowns)
