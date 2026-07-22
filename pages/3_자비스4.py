@@ -199,7 +199,14 @@ import jarvis4_store as j4store
 import market_signal_ui
 
 # 온라인 배포 갱신 때 옛 모듈이 프로세스에 남으면 스스로 새 코드를 읽는다(자비스3와 동일).
-if not hasattr(j4data, "get_theme_rankings"):
+# 새 함수를 추가할 때마다 이 목록에 넣어야 한다 — 빠뜨리면 온라인에서 AttributeError가 난다
+# (2026-07-22: get_us_futures_live를 빠뜨려 실제로 발생했다).
+_REQUIRED_J4_FUNCTIONS = (
+    "get_theme_rankings", "get_theme_leaders", "get_market_overview",
+    "get_us_futures_live", "get_intraday_chart", "get_pass_candidates",
+    "get_chart_bundle", "get_live_quote", "round_to_tick",
+)
+if any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS):
     j4data = importlib.reload(j4data)
 if not hasattr(market_signal_ui, "_STATUS_TEXT"):
     import sys
@@ -315,8 +322,15 @@ _REGIME_HEX = {"방어 우선": "#ff5b5b", "중립·선별": "#ff9d3b", "상승 
 
 
 def _us_futures_cell() -> str:
-    """나스닥100 선물 실시간 — 한국 장중에 미국이 지금 어디로 가는지 본다."""
-    futures = j4data.get_us_futures_live()
+    """나스닥100 선물 실시간 — 한국 장중에 미국이 지금 어디로 가는지 본다.
+
+    온라인 배포 직후 옛 모듈이 남아 함수가 없을 수 있어 getattr로 방어한다
+    (2026-07-22 실제 AttributeError 발생 — 위 reload와 이중 안전장치).
+    """
+    fetcher = getattr(j4data, "get_us_futures_live", None)
+    if fetcher is None:
+        return _top_metric("나스닥100 선물", "—", "#9aa0aa", "모듈 갱신 대기")
+    futures = fetcher()
     if not futures.get("ok"):
         return _top_metric("나스닥100 선물", "—", "#9aa0aa", "자료 부족")
     values = futures.get("values") or {}

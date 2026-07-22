@@ -173,16 +173,19 @@ def collect_kr_flow_snapshot():
         if naver_flow.get("ok"):
             amounts = naver_flow["values"]
 
-            def _to_won(name):
+            def _to_million(name):
+                # 엔진(_fmt_amount·임계값)은 KIS와 같은 '백만원' 단위를 기대한다.
+                # 네이버는 억원이므로 ×100이 맞다. 원(×1e8)으로 넣었더니 화면에
+                # '+20,361,000,000억'처럼 1억 배 부풀려졌다(2026-07-22 실측 수정).
                 value = amounts.get(name)
-                return None if value is None else float(value) * 1e8  # 억원 → 원
+                return None if value is None else float(value) * 100
 
-            values["foreign_cash_net_amount"] = _to_won("foreign")
-            values["personal_cash_net_amount"] = _to_won("personal")
-            values["institution_cash_net_amount"] = _to_won("institution")
-            values["securities_net_amount"] = _to_won("securities")
-            values["investment_trust_net_amount"] = _to_won("investment_trust")
-            values["fund_net_amount"] = _to_won("pension")
+            values["foreign_cash_net_amount"] = _to_million("foreign")
+            values["personal_cash_net_amount"] = _to_million("personal")
+            values["institution_cash_net_amount"] = _to_million("institution")
+            values["securities_net_amount"] = _to_million("securities")
+            values["investment_trust_net_amount"] = _to_million("investment_trust")
+            values["fund_net_amount"] = _to_million("pension")
             values["investor_flow_source"] = naver_flow.get("source")
         else:
             failures.append("투자자별 수급 대체 조회도 실패")

@@ -220,6 +220,21 @@ class MarketInvestorFlowTests(unittest.TestCase):
     def test_unsupported_market_rejected(self):
         self.assertFalse(naver_market_data.get_market_investor_flow("NASDAQ")["ok"])
 
+    def test_unit_conversion_to_engine_million_won(self):
+        """엔진은 백만원 단위를 기대한다 — 억원×100이어야 화면 표시가 맞다.
+
+        원(×1e8)으로 넣었더니 '+20,361,000,000억'처럼 1억 배 부풀려진 적이 있다
+        (2026-07-22). 그 회귀를 막는다.
+        """
+        import kr_intraday_flow
+
+        result = naver_market_data.get_market_investor_flow(
+            "KOSPI", now=self.NOW, request_text=lambda url, **kwargs: _investor_html()
+        )
+        foreign_eok = result["values"]["foreign"]  # 20,145억
+        self.assertEqual(kr_intraday_flow._fmt_amount(foreign_eok * 100), "+20,145억")
+        self.assertNotEqual(kr_intraday_flow._fmt_amount(foreign_eok * 1e8), "+20,145억")
+
     def test_stale_date_rejected_instead_of_using_yesterday(self):
         result = naver_market_data.get_market_investor_flow(
             "KOSPI", now=self.NOW, request_text=lambda url, **kwargs: _investor_html("26.07.21")

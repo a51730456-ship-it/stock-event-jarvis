@@ -456,10 +456,13 @@ def get_us_futures_live(*, ttl_seconds: float = 60) -> dict:
 
         import yfinance as yf
 
+        # 선물 등락률은 '전일 정산가 대비'다. 24시간 전 값과 비교하면 야간 거래분이
+        # 섞여 부호까지 뒤집힌다(2026-07-22 실측: 네이버 -0.41%인데 +0.48%로 나왔다).
+        # 그래서 일봉으로 전일 종가(정산가)를 잡고, 오늘 봉의 종가를 현재가로 쓴다.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             raw = yf.download(
-                ["NQ=F", "ES=F"], period="2d", interval="1h", group_by="ticker",
+                ["NQ=F", "ES=F"], period="5d", interval="1d", group_by="ticker",
                 auto_adjust=False, progress=False, threads=True, timeout=12,
             )
         out = {}
@@ -470,14 +473,13 @@ def get_us_futures_live(*, ttl_seconds: float = 60) -> dict:
                 if len(closes) < 2:
                     continue
                 current = _finite(closes.iloc[-1])
-                # 전일 대비는 마지막 값과 24시간 전 값을 비교한다(1시간봉 기준).
-                base_index = max(0, len(closes) - 1 - 24)
-                base = _finite(closes.iloc[base_index])
-                if current and base:
+                prev_settle = _finite(closes.iloc[-2])
+                if current and prev_settle:
                     out[symbol] = {
                         "label": label,
                         "current": current,
-                        "change_pct": (current / base - 1) * 100,
+                        "prev_close": prev_settle,
+                        "change_pct": (current / prev_settle - 1) * 100,
                     }
             except Exception:
                 continue

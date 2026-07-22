@@ -244,6 +244,11 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("j4pass_{index:02d}", source)
         self.assertIn("round_to_tick", source)
         self.assertIn("j4tbtn_{index:02d}", source)
+        # 온라인에서 옛 모듈이 남아도 죽지 않도록 필요한 함수를 전부 검사해 reload한다
+        # (2026-07-22 get_us_futures_live 누락으로 AttributeError 발생)
+        self.assertIn("_REQUIRED_J4_FUNCTIONS", source)
+        for name in ("get_us_futures_live", "get_pass_candidates", "get_intraday_chart"):
+            self.assertIn(f'"{name}"', source)
         # 자비스3 모듈을 건드리지 않는다
         self.assertNotIn("jarvis3_store", source)
         self.assertNotIn("import jarvis3_data", source)
