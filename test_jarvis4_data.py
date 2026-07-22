@@ -313,32 +313,32 @@ class PullbackFinderTests(unittest.TestCase):
         self.assertNotIn("게임A", names, "테마 1개짜리 종목이 들어왔습니다")
 
     def test_high_within_one_to_fifteen_days_is_kept(self):
-        """52주 최고가를 찍고 1~15일 지난 종목이 대상이다.
+        """52주 최고가를 찍고 1~20일 지난 종목이 대상이다.
 
         2026-07-22 회귀 방지: 창을 15±8일(7~23일)로 잡는 바람에 3일·6일 전에
         신고가를 찍은 하나금융지주·신한지주가 통째로 빠졌다.
         """
-        for days in (1, 3, 6, 15):
+        for days in (1, 3, 6, 15, 20):
             with self.subTest(days=days):
                 result = self._run(self._metrics(days, -8.0))
                 self.assertTrue(result["rows"], f"신고가 {days}일 전 종목이 빠졌습니다")
 
     def test_high_outside_window_is_excluded(self):
-        for days in (0, 16, 60):
+        for days in (0, 21, 60):
             with self.subTest(days=days):
                 self.assertEqual(self._run(self._metrics(days, -8.0))["rows"], [])
 
     def test_stock_below_score_threshold_is_excluded(self):
-        """나머지 품질은 종목 점수 80점 하나로 거른다(사용자 지시)."""
-        self.assertTrue(self._run(self._metrics(5, -8.0), score=80.0)["rows"])
-        self.assertEqual(self._run(self._metrics(5, -8.0), score=79.9)["rows"], [])
+        """나머지 품질은 종목 점수 75점 하나로 거른다(사용자 지시)."""
+        self.assertTrue(self._run(self._metrics(5, -8.0), score=75.0)["rows"])
+        self.assertEqual(self._run(self._metrics(5, -8.0), score=74.9)["rows"], [])
 
     def test_stock_at_its_high_is_not_a_pullback(self):
         """고점을 찍고 '내려가는' 종목이어야 한다."""
         self.assertEqual(self._run(self._metrics(5, 0.0))["rows"], [])
 
     def test_window_is_reported(self):
-        self.assertEqual(self._run(self._metrics(5, -8.0))["window"], (1, 15))
+        self.assertEqual(self._run(self._metrics(5, -8.0))["window"], (1, 20))
 
 
 class ScoreAtPastTests(unittest.TestCase):
