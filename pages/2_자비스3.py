@@ -225,6 +225,7 @@ def _login_gate() -> None:
 _login_gate()
 
 import importlib
+import time
 
 import altair as alt
 import pandas as pd
@@ -1323,81 +1324,149 @@ def _render_records_tab() -> None:
         st.caption("아직 저장된 자비스3 매수 기록이 없습니다.")
         return
 
-    st.dataframe(_records_view(records), hide_index=True, width="stretch")
-
-    _render_close_editor(records)
+    _render_records_editor(records)
 
 
-def _render_close_editor(records: list[dict]) -> None:
-    """보유 기록 청산을 표에서 바로 입력한다(2026-07-22 사용자 지시).
+def _records_live_prices(records: list[dict]) -> dict:
+    """보유 종목 최근가를 조회한다. 표 편집 중 값이 바뀌면 입력이 초기화될 수 있어
+    같은 기록 구성에서는 5분 동안 세션에 고정해 둔다."""
+    fingerprint = tuple(sorted((int(r["id"]), str(r.get("status"))) for r in records))
+    cache = st.session_state.get("j3_records_pl_cache") or {}
+    if cache.get("fp") == fingerprint and time.time() - cache.get("at", 0) < 300:
+        return cache["prices"]
+    open_tickers = sorted({
+        str(record.get("ticker")) for record in records
+        if record.get("status") == "보유" and record.get("ticker")
+    })[:30]
+    prices = {}
+    for ticker in open_tickers:
+        quote = j3data.get_live_quote(ticker)
+        if quote.get("ok") and quote.get("current"):
+            prices[ticker] = float(quote["current"])
+    st.session_state["j3_records_pl_cache"] = {"fp": fingerprint, "at": time.time(), "prices": prices}
+    return prices
 
-    매도일 칸을 누르면 달력이 뜨고, 매도가 칸에 금액을 넣으면 확정 손익률이
-    자동 계산돼 미리보기 칸에 바로 나타난다. 매도가는 매수가 ±50% 범위만 허용한다.
+
+def _render_records_editor(records: list[dict]) -> None:
+    """매수 기록 현황 표 하나에서 바로 청산을 입력한다(2026-07-22 사용자 지시).
+
+    종목 줄의 매도일 칸을 누르면 달력이 뜨고, 매도가 칸에 금액을 넣으면 확정
+    손익률이 자동 계산된다(표 아래 미리보기 → 저장 시 확정 칸에 기록).
+    매도가는 매수가 ±50% 범위만 허용한다. 제목·내용은 가운데 정렬한다.
     """
     saved_message = st.session_state.pop("j3_close_saved_msg", None)
     if saved_message:
         st.success(saved_message)
-
-    open_records = [record for record in records if record.get("status") == "보유"]
-    if not open_records:
-        return
-    st.markdown("#### 청산 입력 — 표에서 매도일·매도가를 직접 클릭해 입력")
     st.caption(
-        "매도일 칸을 누르면 달력이 뜨고, 매도가를 넣는 순간 확정 손익률이 자동 계산됩니다. "
-        "매도가는 매수가 ±50% 범위 안에서만 저장됩니다."
+        "보유 종목 줄에서 매도일 칸을 누르면 달력이 뜨고, 매도가(USD) 칸에 금액을 넣으면 "
+        "표 아래에 확정 손익률이 자동 계산됩니다. ‘청산 저장’을 눌러야 확정됩니다. "
+        "매도가는 매수가 ±50% 범위만 저장됩니다."
     )
-    editor_key = "j3_close_editor"
-    edited_rows = (st.session_state.get(editor_key) or {}).get("edited_rows", {})
+
+    prices = _records_live_prices(records)
     editor_rows = []
-    for index, record in enumerate(open_records):
-        buy_price = float(record["buy_price"])
-        pending = edited_rows.get(index, {})
-        pending_price = pending.get("매도가(USD)")
-        preview = None
-        try:
-            if pending_price:
-                preview = (float(pending_price) / buy_price - 1) * 100
-        except (TypeError, ValueError):
-            preview = None
+    for record in records:
+        is_open = record.get("status") == "보유"
+        buy_price = float(record["buy_price"]) if record.get("buy_price") is not None else None
+        current = prices.get(str(record.get("ticker"))) if is_open else None
+        live_pl = (current / buy_price - 1) * 100 if current and buy_price else None
         editor_rows.append({
             "번호": int(record["id"]),
-            "티커": record["ticker"],
-            "종목명": record["stock_name"],
-            "매수일": record["buy_date"],
+            "매수일": record.get("buy_date"),
+            "티커": record.get("ticker"),
+            "종목명": record.get("stock_name"),
+            "테마": record.get("theme_name"),
+            "매매유형": record.get("trade_style"),
             "매수가(USD)": buy_price,
-            "매도일": None,
-            "매도가(USD)": None,
-            "확정 손익률(%) 자동계산": preview,
-            "허용 매도가 범위": f"{buy_price * 0.5:,.2f} ~ {buy_price * 1.5:,.2f}",
+            "수량": record.get("quantity"),
+            "상태": record.get("status"),
+            "현재 손익률(%)": live_pl,
+            "매도일": record.get("sell_date"),
+            "매도가(USD)": record.get("sell_price"),
+            "확정 손익률(%)": record.get("result_pct"),
+            "시장 국면": record.get("market_regime"),
+            "시장점수": record.get("market_score"),
+            "테마점수": record.get("theme_score"),
+            "종목점수": record.get("stock_score"),
+            "메모": record.get("memo"),
         })
-    editor_frame = pd.DataFrame(editor_rows)
-    # 빈 매도일·매도가 칸이 달력·숫자 입력으로 열리도록 자료형을 명시한다.
-    editor_frame["매도일"] = pd.to_datetime(editor_frame["매도일"])
-    editor_frame["매도가(USD)"] = editor_frame["매도가(USD)"].astype("float64")
-    editor_frame["확정 손익률(%) 자동계산"] = editor_frame["확정 손익률(%) 자동계산"].astype("float64")
+    frame = pd.DataFrame(editor_rows)
+    frame["매도일"] = pd.to_datetime(frame["매도일"])
+    for column in ("매수가(USD)", "매도가(USD)", "확정 손익률(%)", "현재 손익률(%)",
+                   "수량", "시장점수", "테마점수", "종목점수"):
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+
+    center = {"alignment": "center"}
+    column_config = {
+        "번호": st.column_config.NumberColumn(format="%d", **center),
+        "매수일": st.column_config.TextColumn(**center),
+        "티커": st.column_config.TextColumn(**center),
+        "종목명": st.column_config.TextColumn(**center),
+        "테마": st.column_config.TextColumn(**center),
+        "매매유형": st.column_config.TextColumn(**center),
+        "매수가(USD)": st.column_config.NumberColumn(format="%.2f", **center),
+        "수량": st.column_config.NumberColumn(format="%.0f", **center),
+        "상태": st.column_config.TextColumn(**center),
+        "현재 손익률(%)": st.column_config.NumberColumn(format="%+.2f", **center),
+        "매도일": st.column_config.DateColumn(
+            "매도일", format="YYYY-MM-DD", help="보유 종목 칸을 누르면 달력이 뜹니다", **center
+        ),
+        "매도가(USD)": st.column_config.NumberColumn(
+            "매도가(USD)", min_value=0.01, step=0.01, format="%.2f",
+            help="매수가 ±50% 범위에서 입력", **center,
+        ),
+        "확정 손익률(%)": st.column_config.NumberColumn(format="%+.2f", **center),
+        "시장 국면": st.column_config.TextColumn(**center),
+        "시장점수": st.column_config.NumberColumn(format="%.0f", **center),
+        "테마점수": st.column_config.NumberColumn(format="%.0f", **center),
+        "종목점수": st.column_config.NumberColumn(format="%.0f", **center),
+        "메모": st.column_config.TextColumn(**center),
+    }
+    editor_key = "j3_records_editor"
     edited = st.data_editor(
-        editor_frame,
-        column_config={
-            "매도일": st.column_config.DateColumn("매도일", help="칸을 누르면 달력이 뜹니다"),
-            "매도가(USD)": st.column_config.NumberColumn(
-                "매도가(USD)", min_value=0.01, step=0.01, format="%.2f",
-                help="매수가 ±50% 범위에서 입력",
-            ),
-            "매수가(USD)": st.column_config.NumberColumn(format="%.2f"),
-            "확정 손익률(%) 자동계산": st.column_config.NumberColumn(format="%+.2f"),
-        },
-        disabled=[
-            "번호", "티커", "종목명", "매수일", "매수가(USD)",
-            "확정 손익률(%) 자동계산", "허용 매도가 범위",
-        ],
+        frame,
+        column_config=column_config,
+        disabled=[col for col in frame.columns if col not in ("매도일", "매도가(USD)")],
         hide_index=True,
         width="stretch",
         key=editor_key,
     )
+
+    # 매도가를 넣는 순간 자동 계산되는 확정 손익률 미리보기(저장 전).
+    previews = []
+    touched_closed = []
+    for index, record in enumerate(records):
+        row = edited.iloc[index]
+        if record.get("status") != "보유":
+            same_price = pd.isna(row["매도가(USD)"]) if record.get("sell_price") is None \
+                else (not pd.isna(row["매도가(USD)"]) and float(row["매도가(USD)"]) == float(record["sell_price"]))
+            if not same_price:
+                touched_closed.append(str(record.get("ticker")))
+            continue
+        sell_price = row["매도가(USD)"]
+        if sell_price is None or pd.isna(sell_price) or not record.get("buy_price"):
+            continue
+        pl = (float(sell_price) / float(record["buy_price"]) - 1) * 100
+        color = "#4da6ff" if pl >= 0 else "#ff5b5b"
+        previews.append(
+            f"<b>{record['ticker']}</b> 매도가 ${float(sell_price):,.2f} → 확정 손익률 "
+            f"<span style='color:{color};font-weight:800'>{pl:+.2f}%</span>"
+        )
+    if previews:
+        st.markdown(
+            "<div class='j3-plan-note'>자동계산 미리보기 — " + " · ".join(previews)
+            + " <span class='j3-muted'>(청산 저장을 누르면 확정 손익률 칸에 기록됩니다)</span></div>",
+            unsafe_allow_html=True,
+        )
+    if touched_closed:
+        st.warning("이미 청산된 기록은 수정되지 않습니다: " + ", ".join(sorted(set(touched_closed))))
+
     if st.button("청산 저장 (매도일·매도가 입력된 종목만)", key="j3_close_editor_save", width="stretch"):
         saved_count = 0
         errors = []
-        for index, record in enumerate(open_records):
+        for index, record in enumerate(records):
+            if record.get("status") != "보유":
+                continue
             row = edited.iloc[index]
             sell_date, sell_price = row["매도일"], row["매도가(USD)"]
             has_date = sell_date is not None and not pd.isna(sell_date)
@@ -1429,6 +1498,7 @@ def _render_close_editor(records: list[dict]) -> None:
         if saved_count and not errors:
             st.session_state["j3_close_saved_msg"] = f"{saved_count}건 청산을 저장했습니다."
             st.session_state.pop(editor_key, None)
+            st.session_state.pop("j3_records_pl_cache", None)
             st.rerun()
         elif saved_count:
             st.success(f"{saved_count}건 청산을 저장했습니다. 위 오류 항목은 저장되지 않았습니다.")
