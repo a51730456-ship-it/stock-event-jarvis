@@ -171,6 +171,69 @@ class ThemeScoreTests(unittest.TestCase):
         self.assertFalse(j4._theme_score([], 1.0, 0.5).get("ok"))
 
 
+class ThemeCarryOverTests(unittest.TestCase):
+    """어제 강했던 테마가 오늘 하루 쉰다고 목록에서 통째로 사라지면 안 된다.
+
+    2026-07-22 사용자 지적(금융 테마 실종)으로 넣은 규칙 — 당일 등락률 상위 30에
+    못 들어도 직전 상위 테마는 계속 심사한다.
+    """
+
+    def tearDown(self):
+        j4.clear_runtime_cache()
+        j4._CACHE.pop("previous_theme_names", None)
+
+    def test_refresh_keeps_previous_ranking_memory(self):
+        j4._CACHE["previous_theme_names"] = {"at": 0, "value": ["은행", "증권"]}
+        j4._CACHE["theme_list"] = {"at": 0, "value": {"x": 1}}
+        j4.clear_runtime_cache()
+        self.assertNotIn("theme_list", j4._CACHE)
+        self.assertIn("previous_theme_names", j4._CACHE)
+        self.assertEqual(j4._CACHE["previous_theme_names"]["value"], ["은행", "증권"])
+
+    def test_previous_top_theme_is_rescanned_even_if_weak_today(self):
+        themes = {index: {"no": index, "name": f"테마{index}", "change_pct": 9.0 - index * 0.1}
+                  for index in range(1, 60)}
+        # 오늘 꼴찌권인데 어제 상위권이었던 테마
+        themes[99] = {"no": 99, "name": "은행", "change_pct": -0.4}
+        j4._CACHE["previous_theme_names"] = {"at": 0, "value": ["은행"]}
+
+        scanned = []
+
+        def fake_stocks(theme_no, **kwargs):
+            scanned.append(theme_no)
+            return {"ok": True, "stale": False, "stocks": [
+                {"code": "000001", "name": "종목", "price": 10_000,
+                 "change_pct": 1.0, "volume": 5_000_000, "trading_value": 5e10}
+            ]}
+
+        with patch.object(j4, "get_all_themes", return_value={"ok": True, "themes": themes}), \
+             patch.object(j4, "_index_metrics", return_value={"ok": True, "change_pct": 0.5}), \
+             patch.object(j4, "_live_index", return_value=None), \
+             patch.object(j4, "get_theme_stocks", side_effect=fake_stocks):
+            j4.get_theme_rankings()
+
+        self.assertIn(99, scanned, "어제 상위권 테마가 오늘 심사에서 빠졌습니다")
+
+    def test_rankings_expose_next_rows_for_dropped_themes(self):
+        themes = {index: {"no": index, "name": f"테마{index}", "change_pct": 9.0 - index * 0.1}
+                  for index in range(1, 40)}
+
+        def fake_stocks(theme_no, **kwargs):
+            return {"ok": True, "stale": False, "stocks": [
+                {"code": "000001", "name": "종목", "price": 10_000,
+                 "change_pct": float(theme_no % 7), "volume": 5_000_000, "trading_value": 5e10}
+            ]}
+
+        with patch.object(j4, "get_all_themes", return_value={"ok": True, "themes": themes}), \
+             patch.object(j4, "_index_metrics", return_value={"ok": True, "change_pct": 0.5}), \
+             patch.object(j4, "_live_index", return_value=None), \
+             patch.object(j4, "get_theme_stocks", side_effect=fake_stocks):
+            result = j4.get_theme_rankings()
+
+        self.assertLessEqual(len(result["rows"]), j4.DISPLAY_THEME_COUNT)
+        self.assertTrue(result.get("next_rows"), "21위 밖 목록이 있어야 합니다")
+
+
 class StockFlowParsingTests(unittest.TestCase):
     def test_parses_naver_flow_table(self):
         html = (

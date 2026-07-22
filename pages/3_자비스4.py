@@ -1256,6 +1256,22 @@ def _render_radar_tab(market: dict) -> None:
     if clicked_theme in names:
         st.session_state["j4_theme_choice"] = clicked_theme
         st.session_state["j4_theme_choice_widget"] = clicked_theme
+    # 21위 밖으로 밀린 테마도 볼 수 있게 한다 — 찾던 테마가 왜 안 보이는지 확인용
+    # (2026-07-22 사용자 지적: 금융주 테마가 목록에서 사라졌다).
+    next_rows = ranking.get("next_rows") or []
+    if next_rows:
+        with st.expander(f"21위 밖 테마 {len(next_rows)}개 보기 (오늘 기준 미달로 빠진 테마)", expanded=False):
+            lines = [
+                f"<span class='j4-muted'>{index}위</span> <b>{row['name']}</b> "
+                f"<span style='color:{_STATUS_HEX.get(row['status'], '#e6e6e6')}'>{row['score']:.1f}점</span> "
+                f"<span style='color:{_sign_color(row['change_pct'])}'>{_pct(row['change_pct'])}</span>"
+                for index, row in enumerate(next_rows, len(ranking["rows"]) + 1)
+            ]
+            st.markdown(" · ".join(lines), unsafe_allow_html=True)
+            st.caption(
+                "여기 있는 테마는 오늘 점수가 20위 안에 못 든 것뿐이며, 다음 조회에서 점수가 오르면 "
+                "자동으로 다시 올라옵니다. 어제 상위권이었던 테마는 오늘 등락률이 낮아도 계속 심사합니다."
+            )
     st.caption(f"테마 계산 시각: {ranking.get('checked_at') or '—'} · 한국 휴장일에는 마지막 거래일 자료")
 
     if st.session_state.get("j4_theme_choice_widget") not in names:

@@ -57,9 +57,17 @@ _CACHE: dict = {}
 # 공통 유틸
 # ---------------------------------------------------------------------------
 def clear_runtime_cache() -> None:
-    """사용자가 새로고침을 눌렀을 때 자비스4 메모리 캐시만 비운다."""
+    """사용자가 새로고침을 눌렀을 때 자비스4 메모리 캐시만 비운다.
+
+    직전 테마 순위(previous_theme_names)는 남긴다 — 새로고침은 자료를 다시 받으려는
+    것이지 '어제 뭐가 강했는지'를 잊으라는 뜻이 아니다. 이 기억이 사라지면 신규 진입·
+    탈락 표시와, 오늘 하루 쉰 강세 테마의 이월 심사가 함께 끊긴다.
+    """
     with _CACHE_LOCK:
+        keep = _CACHE.get("previous_theme_names")
         _CACHE.clear()
+        if keep is not None:
+            _CACHE["previous_theme_names"] = keep
 
 
 def _finite(value) -> float | None:
@@ -689,8 +697,22 @@ def get_theme_rankings() -> dict:
     kospi_change = kospi.get("change_pct") or 0.0
 
     # 1차: 네이버가 주는 당일 평균 등락률로 후보를 좁힌다(무료·빠름).
-    candidates = sorted(themes.values(), key=lambda t: t["change_pct"], reverse=True)
-    candidates = candidates[:CANDIDATE_THEME_COUNT]
+    ordered = sorted(themes.values(), key=lambda t: t["change_pct"], reverse=True)
+    candidates = ordered[:CANDIDATE_THEME_COUNT]
+
+    # 당일 등락률만으로 자르면 '꾸준히 강했는데 오늘 하루 쉰' 테마가 통째로 사라진다
+    # (2026-07-22 사용자 지적: 금융주가 얼마 전까지 좋았는데 목록에서 빠졌다 —
+    # 실측 결과 금융 최고 테마가 당일 49위라 후보 30에 못 들었다).
+    # 그래서 직전 조회에서 상위권이었던 테마는 오늘 등락률이 낮아도 계속 심사한다.
+    # 계속 약하면 점수가 낮아 자연히 20위 밖으로 밀려나므로 '자동 탈락' 원칙은 유지된다.
+    previous_entry = _CACHE.get("previous_theme_names")
+    previous_names = set(previous_entry["value"]) if previous_entry else set()
+    if previous_names:
+        picked = {theme["name"] for theme in candidates}
+        for theme in ordered:
+            if theme["name"] in previous_names and theme["name"] not in picked:
+                candidates.append(theme)
+                picked.add(theme["name"])
 
     rows = []
     with ThreadPoolExecutor(max_workers=10) as executor:
@@ -723,6 +745,13 @@ def get_theme_rankings() -> dict:
             })
 
     rows.sort(key=lambda row: row["score"], reverse=True)
+    # 21위 밖으로 밀린 테마도 이름·점수만 남겨 둔다 — "왜 그 테마가 빠졌나"를
+    # 화면에서 확인할 수 있어야 한다(2026-07-22 사용자 지적).
+    next_rows = [
+        {"name": row["name"], "score": row["score"], "change_pct": row["change_pct"],
+         "status": row["status"]}
+        for row in rows[DISPLAY_THEME_COUNT:DISPLAY_THEME_COUNT + 10]
+    ]
     rows = rows[:DISPLAY_THEME_COUNT]
     for index, row in enumerate(rows, 1):
         row["rank"] = index
@@ -740,6 +769,7 @@ def get_theme_rankings() -> dict:
     return {
         "ok": bool(rows),
         "rows": rows,
+        "next_rows": next_rows,
         "entered": entered,
         "dropped": dropped,
         "total_scanned": len(themes),
