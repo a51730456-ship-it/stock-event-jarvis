@@ -164,6 +164,29 @@ def collect_kr_flow_snapshot():
         else:
             failures.append("투자자별 수급 조회 실패")
 
+    # 3-b) KIS 투자자별 수급이 비었으면 네이버 지연 공개치로 채운다
+    #      (2026-07-22 추가: KIS가 실패하면 수급 항목이 통째로 비어 판정이 계속
+    #      '확인 중'에 머물렀다. 값을 만들어내는 게 아니라 공개된 지연치를 쓰고,
+    #      아래에서 신호 세기를 '대체'로 표시한다.)
+    if values.get("foreign_cash_net_amount") is None:
+        naver_flow = naver_market_data.get_market_investor_flow("KOSPI")
+        if naver_flow.get("ok"):
+            amounts = naver_flow["values"]
+
+            def _to_won(name):
+                value = amounts.get(name)
+                return None if value is None else float(value) * 1e8  # 억원 → 원
+
+            values["foreign_cash_net_amount"] = _to_won("foreign")
+            values["personal_cash_net_amount"] = _to_won("personal")
+            values["institution_cash_net_amount"] = _to_won("institution")
+            values["securities_net_amount"] = _to_won("securities")
+            values["investment_trust_net_amount"] = _to_won("investment_trust")
+            values["fund_net_amount"] = _to_won("pension")
+            values["investor_flow_source"] = naver_flow.get("source")
+        else:
+            failures.append("투자자별 수급 대체 조회도 실패")
+
         # 4) KOSPI200 선물 베이시스 (최근월물 코드는 설정값에서만 읽는다)
         futures = kis_market_data.get_kospi200_futures_snapshot(
             app_key, app_secret, futures_code=st.secrets.get("KIS_KOSPI200_FUTURES_CODE")
@@ -239,6 +262,12 @@ def run_kr_flow_check():
         snapshots = database.list_kr_flow_snapshots(trade_date)
     except Exception:
         snapshots = [{**values, "captured_at": captured_at}]
+
+    # 투자자별 수급을 네이버 대체 경로로 채웠다는 사실은 DB 스키마를 바꾸지 않고
+    # 표시용으로만 최신 스냅숏에 실어 보낸다(판정 표에서 '대체'로 구분하기 위함).
+    if values.get("investor_flow_source") and snapshots:
+        snapshots = list(snapshots)
+        snapshots[-1] = {**dict(snapshots[-1]), "investor_flow_source": values["investor_flow_source"]}
 
     manual = st.session_state.get("kr_flow_foreign_futures_manual") or {}
     foreign_futures = None
@@ -343,7 +372,12 @@ border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.9rem;line-hei
   <span style="color:#22c55e;">정상</span> = 2분 이내 자료 ·
   <span style="color:#ff9d3b;">지연</span> = 5분 이내 ·
   <span style="color:#ef4444;">오래됨</span> = 5분 초과 ·
-  <span style="color:#9ca3af;">확인 필요</span> = 기준시각 없음
+  <span style="color:#9ca3af;">확인 필요</span> = 기준시각 없음<br>
+  <b style="color:#9ca3af;">‘확인 필요’의 뜻</b> :
+  값을 <b>못 가져온 것</b>이지 0이라는 뜻이 아닙니다. 설명 칸을 보면 이유가 나뉩니다 —
+  <span style="color:#e6e6e6;">‘스냅숏 부족’</span>은 자료는 오는데 15분 치가 아직 안 쌓인 것(시간이 지나면 채워짐),
+  <span style="color:#e6e6e6;">‘수급 확인 필요’</span>는 증권사 API에서 못 받아온 것입니다.
+  확인 안 된 값을 임의로 만들지 않는 것이 이 화면의 원칙입니다.
 </div>
 """
 

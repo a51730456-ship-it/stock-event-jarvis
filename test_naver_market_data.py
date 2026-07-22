@@ -171,6 +171,69 @@ def _futures_html(first_date="26.07.22"):
     )
 
 
+def _investor_html(first_date="26.07.22"):
+    return (
+        "<table>"
+        f'<tr><td class="date2">{first_date}</td>'
+        "<td>-18,873</td><td>20,145</td><td>-1,169</td><td>-1,954</td><td>240</td>"
+        "<td>-830</td><td>0</td><td>5</td><td>1,370</td><td>-102</td></tr>"
+        '<tr><td class="date2">26.07.21</td>'
+        "<td>-16,421</td><td>2,952</td><td>13,744</td><td>8,891</td><td>1,157</td>"
+        "<td>3,158</td><td>0</td><td>12</td><td>500</td><td>-275</td></tr></table>"
+    )
+
+
+class MarketInvestorFlowTests(unittest.TestCase):
+    """KIS 실패 시 쓰는 무료 대체 경로 — 코스피/코스닥 투자자별 매매동향."""
+
+    NOW = datetime(2026, 7, 22, 13, 30, tzinfo=SEOUL)
+
+    def test_parses_today_investor_row(self):
+        result = naver_market_data.get_market_investor_flow(
+            "KOSPI", now=self.NOW, request_text=lambda url, **kwargs: _investor_html()
+        )
+        self.assertTrue(result["ok"])
+        values = result["values"]
+        self.assertEqual(values["personal"], -18_873)
+        self.assertEqual(values["foreign"], 20_145)
+        self.assertEqual(values["institution"], -1_169)
+        self.assertEqual(values["securities"], -1_954)
+        self.assertEqual(values["pension"], 1_370)
+        self.assertEqual(result["unit"], "억원")
+
+    def test_sum_of_main_investors_is_near_zero(self):
+        """개인+외국인+기관계+기타법인 ≈ 0이어야 열 순서가 맞는 것이다."""
+        result = naver_market_data.get_market_investor_flow(
+            "KOSPI", now=self.NOW, request_text=lambda url, **kwargs: _investor_html()
+        )
+        values = result["values"]
+        total = values["personal"] + values["foreign"] + values["institution"] + values["etc_corp"]
+        self.assertLessEqual(abs(total), 10)
+
+    def test_kosdaq_supported(self):
+        result = naver_market_data.get_market_investor_flow(
+            "KOSDAQ", now=self.NOW, request_text=lambda url, **kwargs: _investor_html()
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["market"], "KOSDAQ")
+
+    def test_unsupported_market_rejected(self):
+        self.assertFalse(naver_market_data.get_market_investor_flow("NASDAQ")["ok"])
+
+    def test_stale_date_rejected_instead_of_using_yesterday(self):
+        result = naver_market_data.get_market_investor_flow(
+            "KOSPI", now=self.NOW, request_text=lambda url, **kwargs: _investor_html("26.07.21")
+        )
+        self.assertFalse(result["ok"])
+
+    def test_network_failure_returns_not_ok(self):
+        result = naver_market_data.get_market_investor_flow(
+            "KOSPI", now=self.NOW,
+            request_text=lambda *args, **kwargs: (_ for _ in ()).throw(OSError("network")),
+        )
+        self.assertFalse(result["ok"])
+
+
 class ForeignFuturesDailyNetTests(unittest.TestCase):
     """네이버 파생 투자자별 매매동향(선물) — 외국인 순매수 자동 조회."""
 

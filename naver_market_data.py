@@ -218,6 +218,68 @@ def _request_text(url, *, timeout=8):
         return response.read().decode("euc-kr", errors="replace")
 
 
+_INVESTOR_TREND_URL = (
+    "https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate={date}&sosok={sosok}"
+)
+_MARKET_SOSOK = {"KOSPI": "01", "KOSDAQ": "02"}
+# 표 열 순서(2026-07-22 실측): 날짜 | 개인 | 외국인 | 기관계 | 금융투자 | 보험 |
+# 투신 | 기타금융 | 은행 | 연기금등 | 기타법인. 단위는 억원이다.
+_INVESTOR_COLUMNS = (
+    "personal", "foreign", "institution", "securities", "insurance",
+    "investment_trust", "etc_finance", "bank", "pension", "etc_corp",
+)
+
+
+def get_market_investor_flow(market="KOSPI", *, now=None, request_text=None):
+    """코스피/코스닥 투자자별 매매동향(당일 누적 순매수, 억원).
+
+    2026-07-22 추가: KIS 투자자별 수급 API가 실패해도 수급 항목이 통째로 비지 않도록
+    쓰는 무료 대체 경로다. 네이버 공개 화면의 지연 공개치이므로 직접 수급값이 아니며,
+    호출부는 이 값을 '대체 신호'로 표시해야 한다. 오늘 행이 없으면 만들지 않는다.
+    """
+    sosok = _MARKET_SOSOK.get(str(market).upper())
+    if not sosok:
+        return {"ok": False, "error": "지원하지 않는 시장"}
+
+    now = now or _now_seoul()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=_SEOUL_TZ)
+    else:
+        now = now.astimezone(_SEOUL_TZ)
+
+    request_text = request_text or _request_text
+    try:
+        html = request_text(_INVESTOR_TREND_URL.format(date=now.strftime("%Y%m%d"), sosok=sosok))
+        rows = _FUTURES_ROW_PATTERN.findall(html)
+        if not rows:
+            return {"ok": False, "error": "네이버 투자자 매매동향 데이터 없음"}
+        first_date, first_body = rows[0]
+        if first_date.strip() != now.strftime("%y.%m.%d"):
+            return {"ok": False, "error": "오늘 투자자 매매동향 자료가 아직 없음"}
+        numbers = _FUTURES_NUMBER_PATTERN.findall(first_body)
+        if len(numbers) < 4:
+            return {"ok": False, "error": "네이버 투자자 매매동향 열 부족"}
+
+        values = {}
+        for index, name in enumerate(_INVESTOR_COLUMNS):
+            if index < len(numbers):
+                try:
+                    values[name] = int(numbers[index].replace(",", ""))
+                except ValueError:
+                    values[name] = None
+        return {
+            "ok": True,
+            "market": str(market).upper(),
+            "unit": "억원",
+            "values": values,
+            "trade_date": now.strftime("%Y-%m-%d"),
+            "as_of": now,
+            "source": "네이버 투자자매매동향(지연)",
+        }
+    except Exception:
+        return {"ok": False, "error": "네이버 투자자 매매동향 조회 실패"}
+
+
 def get_foreign_futures_daily_net(*, now=None, request_text=None):
     """네이버 파생 투자자별 매매동향(선물)에서 외국인 당일 순매수 계약수를 읽는다.
 

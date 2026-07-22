@@ -855,18 +855,24 @@ def build_result_from_snapshots(
         ("private_fund", "사모", "private_fund_net_amount", SignalTiming.CONFIRMING),
         ("fund", "기금·연기금", "fund_net_amount", SignalTiming.CONFIRMING),
     )
+    # 투자자별 수급이 KIS가 아니라 네이버 지연 공개치로 채워졌으면 '대체' 신호로 표시한다
+    # (2026-07-22: KIS 실패 시 수급 항목이 통째로 비지 않도록 대체 경로를 붙였다).
+    investor_source = latest.get("investor_flow_source")
     for key, label, column, timing in investor_specs:
-        signals.append(
-            evaluate_investor(
-                key,
-                label,
-                latest.get(column),
-                _series(snapshots, column),
-                as_of=as_of,
-                freshness=freshness,
-                timing=timing,
-            )
+        signal = evaluate_investor(
+            key,
+            label,
+            latest.get(column),
+            _series(snapshots, column),
+            as_of=as_of,
+            freshness=freshness,
+            timing=timing,
         )
+        if investor_source and latest.get(column) is not None:
+            signal.strength = SignalStrength.PROXY
+            signal.source = investor_source
+            signal.reason = f"{signal.reason} (지연 공개치)"
+        signals.append(signal)
 
     # 전기전자 — 거래대금과 투자자 수급은 따로 표시한다. 업종 수급이 검증되지
     # 않으면 KOSPI 전체 수급으로 대신 채우지 않는다.
