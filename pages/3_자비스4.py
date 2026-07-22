@@ -707,7 +707,7 @@ def _kr_flow_hint() -> str:
     """기관 수급 반전 카드 판정을 단타 참고 문구로 옮긴다(점수에는 반영하지 않는다)."""
     result = st.session_state.get("kr_flow_result")
     if result is None:
-        return "기관 수급 반전 판정은 위 ‘한국장 기관 수급 반전 포착’ 카드에서 확인하세요."
+        return "기관 수급 반전 판정은 위 ‘한국장 기관 수급 현황’ 카드에서 확인하세요."
     return f"기관 수급 반전: <b>{result.verdict_label}</b> · {result.headline}"
 
 
@@ -1228,6 +1228,16 @@ def _render_radar_tab(market: dict) -> None:
     st.caption("표에서 테마 이름을 클릭하면 대장주·상세가 그 테마로 연결됩니다.")
 
     names = [row["name"] for row in ranking["rows"]]
+
+    # 아래 '매수 심사 통과 종목' 표에서 고른 종목을 위젯 생성 전에 반영한다.
+    pending = st.session_state.pop("j4_pending_pick", None)
+    if pending:
+        pending_theme, pending_code = pending
+        if pending_theme in names:
+            st.session_state["j4_theme_choice"] = pending_theme
+            st.session_state["j4_theme_choice_widget"] = pending_theme
+            st.session_state[f"j4_stock_choice_{pending_theme}"] = pending_code
+
     clicked_theme = _render_theme_table(ranking, st.session_state.get("j4_theme_choice"))
     if clicked_theme in names:
         st.session_state["j4_theme_choice"] = clicked_theme
@@ -1291,7 +1301,107 @@ def _render_radar_tab(market: dict) -> None:
         "상세 종목 선택", code_options, format_func=_label, horizontal=True, key=stock_key
     )
     selected_leader = next((item for item in top_candidates if item["code"] == selected_code), top_candidates[0])
+
+    # 여러 테마를 가로질러 '지금 실제로 살 자리'만 모아 보여준다(2026-07-22 사용자 요청).
+    # 여기서 종목을 누르면 테마 선택까지 함께 바뀌어 아래 상세가 전부 그 종목으로 교체된다.
+    _render_pass_table(ranking, market)
+
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
+
+
+def _render_pass_table(ranking: dict, market: dict) -> None:
+    """매수 심사 통과 종목 1~10위 — 클릭하면 아래 상세가 그 종목으로 바뀐다."""
+    st.markdown(
+        "<div class='j4-section-title'>✅ 매수 심사 통과 종목 (전체 테마 교차 · 최대 10위)</div>",
+        unsafe_allow_html=True,
+    )
+    with st.spinner("상위 테마 종목을 한꺼번에 심사하는 중입니다…"):
+        result = j4data.get_pass_candidates(
+            ranking.get("rows") or [], float(market.get("score") or 0)
+        )
+    if not result.get("ok"):
+        st.info(f"통과 종목 심사를 하지 못했습니다: {_safe_error_text(result.get('error'))}")
+        return
+    rows = result.get("rows") or []
+    if not rows:
+        st.info(
+            f"지금은 상위 {result.get('scanned_themes', 0)}개 테마에서 매수 심사를 통과한 종목도, "
+            "가격 셋업이 완성된 대기 종목도 없습니다."
+        )
+        return
+
+    if result.get("blocked_reason"):
+        st.warning(f"⏸ 통과 0건 — {result['blocked_reason']}")
+    st.caption(
+        f"상위 {result.get('scanned_themes', 0)}개 테마를 교차 심사한 결과입니다. "
+        "종목 이름을 누르면 아래 상세·매수 기록이 그 종목으로 바뀝니다."
+    )
+    widths = [0.6, 2.2, 0.9, 2.0, 1.6, 1.0, 1.1, 1.3, 1.2, 1.1]
+    titles = ["순위", "종목", "코드", "조건점수", "테마", "당일", "52주 고가 대비",
+              "수급(외+기 5일)", "기준가", "상태"]
+    for column, title in zip(st.columns(widths), titles):
+        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
+
+    for index, row in enumerate(rows):
+        metrics, plan, flow = row["metrics"], row["plan"], row["flow"]
+        cols = st.columns(widths)
+        cols[0].markdown(f"<div class='j4-td'>{row['pass_rank']}</div>", unsafe_allow_html=True)
+        if cols[1].button(row["name"], key=f"j4pass_{index:02d}", width="stretch"):
+            # 이 표는 테마·종목 라디오보다 아래에 그려지므로, 위젯이 이미 만들어진
+            # 뒤에 세션 값을 바꾸면 StreamlitAPIException이 난다. 그래서 선택은
+            # pending에만 적어두고, 다음 실행의 위젯 생성 '전'에 반영한다.
+            st.session_state["j4_pending_pick"] = (row["theme_name"], row["code"])
+            st.rerun()
+        cols[2].markdown(f"<div class='j4-td'>{row['code']}</div>", unsafe_allow_html=True)
+        score = float(row.get("score") or 0)
+        cols[3].markdown(
+            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
+            f"<div class='j4-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>",
+            unsafe_allow_html=True,
+        )
+        cols[4].markdown(
+            f"<div class='j4-td j4-muted'>{row['theme_name']}</div>", unsafe_allow_html=True
+        )
+        change = metrics.get("change_pct")
+        cols[5].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</div>",
+            unsafe_allow_html=True,
+        )
+        from_high = metrics.get("from_high_pct")
+        cols[6].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(from_high)}; font-weight:700'>{_pct(from_high)}</div>",
+            unsafe_allow_html=True,
+        )
+        net5 = flow.get("net5_amount") if flow.get("ok") else None
+        cols[7].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
+            unsafe_allow_html=True,
+        )
+        cols[8].markdown(
+            f"<div class='j4-td' style='color:#44f0a1; font-weight:700'>{_won(plan.get('trigger'))}</div>",
+            unsafe_allow_html=True,
+        )
+        if row.get("gate_blocked"):
+            state_text, state_color = "게이트 대기", "#ff9d3b"
+        else:
+            state_text, state_color = "통과", "#44f0a1"
+        cols[9].markdown(
+            f"<div class='j4-td' style='color:{state_color}; font-weight:800'>{state_text}</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j4pass_'] button { background: transparent !important; border: none !important;"
+        " box-shadow: none !important; padding: 0 0 0 0.9rem !important; min-height: 2.5rem !important;"
+        " width: 100% !important; justify-content: flex-start !important;"
+        " border-bottom: 1px solid rgba(255,255,255,0.06) !important; border-radius: 0 !important; }"
+        "div[class*='st-key-j4pass_'] button:hover { background: rgba(255,255,255,0.06) !important; }"
+        "div[class*='st-key-j4pass_'] button p { font-weight: 800 !important; font-size: 0.95rem !important;"
+        " margin: 0 !important; color: #44f0a1 !important; text-align: left !important; }"
+        "</style>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_records_tab() -> None:

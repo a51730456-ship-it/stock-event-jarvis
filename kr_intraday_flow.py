@@ -66,8 +66,10 @@ class ReboundVerdict(str, Enum):
 VERDICT_LABEL = {
     ReboundVerdict.CONFIRMED: "🟢 기관성 반등 확인",
     ReboundVerdict.PROXY_CONFIRMED: "🔵 기관성 반등 유력 — 대체신호",
-    ReboundVerdict.WATCHING: "🟡 확인 중",
-    ReboundVerdict.NOT_CONFIRMED: "🔴 아직 아님",
+    # '확인 중'은 조회 중(로딩)으로 오해된다는 지적(2026-07-22)에 따라, 상태를
+    # 그대로 서술하는 이름으로 바꿨다 — 신호가 몇 개 켜졌는지가 곧 판정이다.
+    ReboundVerdict.WATCHING: "🟡 일부 신호만 켜짐",
+    ReboundVerdict.NOT_CONFIRMED: "🔴 반전 신호 없음",
     ReboundVerdict.INSUFFICIENT_DATA: "⚪ 데이터 부족",
 }
 

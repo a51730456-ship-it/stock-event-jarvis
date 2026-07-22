@@ -443,7 +443,7 @@ def render_market_signal_card(
     _unknown_count = sum(1 for signal in result.signals if signal.is_unknown)
     _cause = diagnosis_text(result) if diagnosis_text else None
     _cause_html = (
-        f"<div style='font-size:0.9rem;color:{text};opacity:0.95;margin-top:8px;'>왜 확인 중인가: {_cause}</div>"
+        f"<div style='font-size:0.9rem;color:{text};opacity:0.95;margin-top:8px;'>못 읽은 항목이 있는 이유: {_cause}</div>"
         if _cause and _unknown_count else ""
     )
 
@@ -541,8 +541,8 @@ def render_market_signal_card(
 
 
 def render_kr_flow_card():
-    """🎯 한국장 기관 수급 반전 포착. 0단계 결과 바로 아래에 놓인다."""
-    st.markdown("### 🎯 한국장 기관 수급 반전 포착")
+    """🎯 한국장 기관 수급 현황. 0단계 결과 바로 아래에 놓인다."""
+    st.markdown("### 🎯 한국장 기관 수급 현황")
     st.caption(
         "지금 기관이 들어오는 장인지, 무엇이 먼저 움직였는지를 읽어줍니다. "
         "매수·매도 판단은 상하님이 다른 자비스와 함께 결정하시는 몫입니다."

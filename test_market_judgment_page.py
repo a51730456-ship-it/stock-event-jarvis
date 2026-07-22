@@ -31,7 +31,7 @@ class MarketJudgmentPageTest(unittest.TestCase):
         self.assertEqual(at.exception, [], "시장 판단 페이지 렌더 중 예외")
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("시장 판단", text)
-        self.assertIn("한국장 기관 수급 반전 포착", text)
+        self.assertIn("한국장 기관 수급 현황", text)
         self.assertIn("미국장 선행신호·시장 상태", text)
 
     def test_both_refresh_buttons_present(self):
@@ -46,7 +46,7 @@ class MarketJudgmentPageTest(unittest.TestCase):
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("승인된 사용자만", " ".join(c.value for c in at.caption) + text)
         # 인증 전에는 카드가 나오면 안 된다.
-        self.assertNotIn("기관 수급 반전 포착", text)
+        self.assertNotIn("기관 수급 현황", text)
 
 
 class Jarvis1NoLongerHostsCardsTest(unittest.TestCase):
@@ -58,7 +58,7 @@ class Jarvis1NoLongerHostsCardsTest(unittest.TestCase):
         at.run()
         self.assertEqual(at.exception, [], "자비스1 렌더 중 예외")
         text = " ".join(m.value for m in at.markdown)
-        self.assertNotIn("한국장 기관 수급 반전 포착", text)
+        self.assertNotIn("한국장 기관 수급 현황", text)
         self.assertNotIn("미국장 선행신호·시장 상태", text)
 
     def test_jarvis1_existing_features_intact(self):
