@@ -444,6 +444,54 @@ def _live_index(ticker: str) -> float | None:
     return None
 
 
+def get_us_futures_live(*, ttl_seconds: float = 60) -> dict:
+    """나스닥100·S&P500 선물 실시간(지연 가능). 한국 장중에 미국 방향을 먼저 보여준다.
+
+    한국장은 미국 선물과 같은 방향으로 움직이는 경우가 많아, 전일 종가만이 아니라
+    지금 선물이 어디로 가는지가 장중 판단에 쓸모 있다(2026-07-22 사용자 요청).
+    """
+
+    def _produce():
+        import warnings
+
+        import yfinance as yf
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            raw = yf.download(
+                ["NQ=F", "ES=F"], period="2d", interval="1h", group_by="ticker",
+                auto_adjust=False, progress=False, threads=True, timeout=12,
+            )
+        out = {}
+        for symbol, label in (("NQ=F", "나스닥100 선물"), ("ES=F", "S&P500 선물")):
+            try:
+                frame = raw[symbol] if isinstance(raw.columns, pd.MultiIndex) else raw
+                closes = frame["Close"].dropna().astype(float)
+                if len(closes) < 2:
+                    continue
+                current = _finite(closes.iloc[-1])
+                # 전일 대비는 마지막 값과 24시간 전 값을 비교한다(1시간봉 기준).
+                base_index = max(0, len(closes) - 1 - 24)
+                base = _finite(closes.iloc[base_index])
+                if current and base:
+                    out[symbol] = {
+                        "label": label,
+                        "current": current,
+                        "change_pct": (current / base - 1) * 100,
+                    }
+            except Exception:
+                continue
+        if not out:
+            raise RuntimeError("미국 선물 시세를 가져오지 못했습니다")
+        return out
+
+    try:
+        values, stale = _cached("us_futures", ttl_seconds, _produce)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "stale": stale, "values": values}
+
+
 def _us_previous_session() -> dict:
     """미국 전일 결과 — 한국장은 미국 전일과 갭 상관이 높아 게이트에 넣는다."""
     try:

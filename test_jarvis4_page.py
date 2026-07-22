@@ -137,6 +137,13 @@ def _patches():
         patch("jarvis4_data.get_theme_leaders", return_value=_leaders()),
         patch("jarvis4_data.get_chart_bundle", return_value=_chart_bundle()),
         patch("jarvis4_data.get_live_quote", return_value={"ok": True, "current": 1_990_000}),
+        patch("jarvis4_data.get_intraday_chart", return_value=None),
+        patch("jarvis4_data.get_us_futures_live", return_value={
+            "ok": True, "stale": False, "values": {
+                "NQ=F": {"label": "나스닥100 선물", "current": 29_207.25, "change_pct": 0.53},
+                "ES=F": {"label": "S&P500 선물", "current": 7_536.75, "change_pct": 0.30},
+            },
+        }),
         patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])),
         patch("database.save_kr_flow_snapshot"),
         patch("database.list_kr_flow_snapshots", return_value=[{}]),
@@ -216,6 +223,10 @@ class Jarvis4PageTests(unittest.TestCase):
         # 수급 카드 재사용, 단타 참고 신호, 호가단위, 동적 테마
         self.assertIn("render_kr_flow_card", source)
         self.assertIn("단타 참고 신호", source)
+        # 나스닥100 선물 실시간 칸(2026-07-22 사용자 요청)과 가격칸 설명
+        self.assertIn("나스닥100 선물", source)
+        self.assertIn("get_us_futures_live", source)
+        self.assertIn("가격 칸이 채워지는 기준", source)
         self.assertIn("round_to_tick", source)
         self.assertIn("j4tbtn_{index:02d}", source)
         # 자비스3 모듈을 건드리지 않는다

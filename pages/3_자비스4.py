@@ -314,6 +314,29 @@ def _market_flow_text(overview: dict) -> str:
 _REGIME_HEX = {"방어 우선": "#ff5b5b", "중립·선별": "#ff9d3b", "상승 우위": "#44f0a1"}
 
 
+def _us_futures_cell() -> str:
+    """나스닥100 선물 실시간 — 한국 장중에 미국이 지금 어디로 가는지 본다."""
+    futures = j4data.get_us_futures_live()
+    if not futures.get("ok"):
+        return _top_metric("나스닥100 선물", "—", "#9aa0aa", "자료 부족")
+    values = futures.get("values") or {}
+    nasdaq = values.get("NQ=F") or {}
+    sp500 = values.get("ES=F") or {}
+    if not nasdaq.get("current"):
+        return _top_metric("나스닥100 선물", "—", "#9aa0aa", "자료 부족")
+    change = nasdaq.get("change_pct")
+    sub = f"{_pct(change)}"
+    if sp500.get("change_pct") is not None:
+        sub += f" · S&P500 선물 {sp500['change_pct']:+.2f}%"
+    return _top_metric(
+        "나스닥100 선물",
+        f"{nasdaq['current']:,.0f}",
+        _sign_color(change),
+        sub,
+        sub_color=_sign_color(change),
+    )
+
+
 def _market_score_detail(overview: dict) -> str:
     """획득/미충족 항목을 색으로 구분한다 — 항목명은 흰색, 점수는 초록, 미충족은 회색."""
     breakdown = overview.get("score_breakdown") or []
@@ -412,10 +435,11 @@ def _render_market_overview() -> None:
             us_prev.get("regime") or "—",
             "#e6e6e6",
             (
-                f"SPY {us_prev['spy_change']:+.2f} · QQQ {us_prev['qqq_change']:+.2f}"
+                f"S&P500 {us_prev['spy_change']:+.2f}% · 나스닥100 {us_prev['qqq_change']:+.2f}%"
                 + (f" · 공포탐욕 {us_prev['fear_greed']:.0f}" if us_prev.get("fear_greed") else "")
             ) if us_prev.get("ok") else "자료 부족",
         ),
+        _us_futures_cell(),
     ]
     st.markdown(f"<div class='j4-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     st.markdown(
@@ -798,6 +822,16 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
                 f"아직 없습니다. {hint_text}이 조건이 실제로 충족되면 위 칸에 매수 가격이 표시됩니다.</div>",
                 unsafe_allow_html=True,
             )
+        # 가격이 있는 종목과 없는 종목이 왜 갈리는지 한 줄로 설명한다
+        # (2026-07-22 사용자 질문: 삼성전자는 비었는데 기아·현대모비스는 왜 다 있나).
+        st.markdown(
+            f"<div class='j4-plan-note'>※ <b>가격 칸이 채워지는 기준</b> — "
+            f"‘돌파 확인’이나 ‘눌림목 대기’처럼 <b>가격 셋업이 완성된 종목만</b> 기준가·손절가·목표가가 나옵니다. "
+            f"‘제외’·‘관찰’·‘추격 금지’는 아직 살 자리가 없다는 뜻이라 비워 둡니다.<br>"
+            f"※ <b>‘{plan.get('state')}’(가격 상태)와 ‘{plan.get('recommendation')}’(최종 판정)은 다른 말</b>입니다 — "
+            f"가격 셋업이 완성돼도 시장·테마 점수가 기준 미달이면 최종 판정은 매수가 아닙니다.</div>",
+            unsafe_allow_html=True,
+        )
         st.markdown(
             f"<div class='j4-danta-box'><span class='j4-danta-title'>⚡ 단타 참고 신호</span> — {_kr_flow_hint()}<br>"
             "<span class='j4-muted'>수급 반전이 🟢로 바뀌고 기준가를 넘으면 장중 진입 신호로 참고합니다 "
