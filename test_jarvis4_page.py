@@ -144,6 +144,11 @@ def _patches():
     return (
         patch("jarvis4_data.get_market_overview", return_value=_market()),
         patch("jarvis4_data.get_theme_rankings", return_value=_ranking()),
+        patch("jarvis4_data.get_all_themes", return_value={
+            "ok": True, "stale": False,
+            "themes": {1: {"no": 1, "name": "반도체/HBM", "change_pct": 2.4},
+                       2: {"no": 2, "name": "은행", "change_pct": -0.4}},
+        }),
         patch("jarvis4_data.get_theme_leaders", return_value=_leaders()),
         patch("jarvis4_data.get_chart_bundle", return_value=_chart_bundle()),
         patch("jarvis4_data.get_live_quote", return_value={"ok": True, "current": 1_990_000}),
@@ -247,6 +252,10 @@ class Jarvis4PageTests(unittest.TestCase):
         # 온라인에서 옛 모듈이 남아도 죽지 않도록 필요한 함수를 전부 검사해 reload한다
         # (2026-07-22 get_us_futures_live 누락으로 AttributeError 발생)
         self.assertIn("_REQUIRED_J4_FUNCTIONS", source)
+        # 전체 테마 직접 찾기(2026-07-22: 순위 밖 테마도 보고 싶다는 요구)
+        self.assertIn("_render_theme_finder", source)
+        self.assertIn("j4_forced_themes", source)
+        self.assertIn("force_names", source)
         for name in ("get_us_futures_live", "get_pass_candidates", "get_intraday_chart"):
             self.assertIn(f'"{name}"', source)
         # 자비스3 모듈을 건드리지 않는다

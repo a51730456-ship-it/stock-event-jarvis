@@ -214,6 +214,34 @@ class ThemeCarryOverTests(unittest.TestCase):
 
         self.assertIn(99, scanned, "어제 상위권 테마가 오늘 심사에서 빠졌습니다")
 
+    def test_forced_theme_is_included_even_when_weak(self):
+        """사용자가 직접 고른 테마는 점수가 낮아도 목록에 남아야 한다."""
+        themes = {index: {"no": index, "name": f"테마{index}", "change_pct": 9.0 - index * 0.1}
+                  for index in range(1, 60)}
+        themes[99] = {"no": 99, "name": "은행", "change_pct": -0.4}
+
+        def fake_stocks(theme_no, **kwargs):
+            # 은행만 약하게, 나머지는 강하게 만든다.
+            change = -1.0 if theme_no == 99 else 4.0
+            return {"ok": True, "stale": False, "stocks": [
+                {"code": "000001", "name": "종목", "price": 10_000,
+                 "change_pct": change, "volume": 5_000_000, "trading_value": 5e10}
+            ]}
+
+        with patch.object(j4, "get_all_themes", return_value={"ok": True, "themes": themes}), \
+             patch.object(j4, "_index_metrics", return_value={"ok": True, "change_pct": 0.5}), \
+             patch.object(j4, "_live_index", return_value=None), \
+             patch.object(j4, "get_theme_stocks", side_effect=fake_stocks):
+            result = j4.get_theme_rankings(force_names=("은행",))
+
+        names = [row["name"] for row in result["rows"]]
+        self.assertIn("은행", names, "직접 고른 테마가 목록에서 빠졌습니다")
+        bank = next(row for row in result["rows"] if row["name"] == "은행")
+        self.assertTrue(bank.get("is_forced"))
+        # 점수 순 정렬은 유지된다(약한 테마가 위로 올라오면 안 된다).
+        scores = [row["score"] for row in result["rows"]]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+
     def test_rankings_expose_next_rows_for_dropped_themes(self):
         themes = {index: {"no": index, "name": f"테마{index}", "change_pct": 9.0 - index * 0.1}
                   for index in range(1, 40)}

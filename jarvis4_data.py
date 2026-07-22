@@ -686,8 +686,12 @@ def _theme_score(detail_stocks: list[dict], theme_change: float, kospi_change: f
     }
 
 
-def get_theme_rankings() -> dict:
-    """네이버 전체 테마에서 오늘 강한 테마 20개를 자동 선정한다."""
+def get_theme_rankings(force_names: tuple[str, ...] | list[str] = ()) -> dict:
+    """네이버 전체 테마에서 오늘 강한 테마 20개를 자동 선정한다.
+
+    force_names에 이름을 주면 그 테마는 점수·순위와 무관하게 반드시 심사해서 목록에
+    넣는다(사용자가 직접 찾아본 테마용, 2026-07-22 추가).
+    """
     listing = get_all_themes()
     if not listing.get("ok"):
         return {"ok": False, "error": listing.get("error"), "rows": []}
@@ -707,10 +711,12 @@ def get_theme_rankings() -> dict:
     # 계속 약하면 점수가 낮아 자연히 20위 밖으로 밀려나므로 '자동 탈락' 원칙은 유지된다.
     previous_entry = _CACHE.get("previous_theme_names")
     previous_names = set(previous_entry["value"]) if previous_entry else set()
-    if previous_names:
+    forced = {str(name) for name in (force_names or ())}
+    keep_names = previous_names | forced
+    if keep_names:
         picked = {theme["name"] for theme in candidates}
         for theme in ordered:
-            if theme["name"] in previous_names and theme["name"] not in picked:
+            if theme["name"] in keep_names and theme["name"] not in picked:
                 candidates.append(theme)
                 picked.add(theme["name"])
 
@@ -752,9 +758,13 @@ def get_theme_rankings() -> dict:
          "status": row["status"]}
         for row in rows[DISPLAY_THEME_COUNT:DISPLAY_THEME_COUNT + 10]
     ]
-    rows = rows[:DISPLAY_THEME_COUNT]
+    # 사용자가 직접 찾아본 테마는 점수가 낮아도 목록에 남긴다(순위는 실제 점수 순).
+    forced_rows = [row for row in rows[DISPLAY_THEME_COUNT:] if row["name"] in forced]
+    rows = rows[:DISPLAY_THEME_COUNT] + forced_rows
+    rows.sort(key=lambda row: row["score"], reverse=True)
     for index, row in enumerate(rows, 1):
         row["rank"] = index
+        row["is_forced"] = row["name"] in forced
 
     # 어제 대비 신규 진입·탈락 표시 (세션이 아니라 모듈 캐시에 보관).
     previous = _CACHE.get("previous_theme_names", {}).get("value") if _CACHE.get("previous_theme_names") else None

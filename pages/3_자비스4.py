@@ -503,7 +503,11 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             )
         cols = st.columns(_THEME_COL_WIDTHS)
         cols[0].markdown(f"<div class='j4-td'>{row.get('rank', '')}</div>", unsafe_allow_html=True)
-        label = f"{name} 🆕" if row.get("is_new") else name
+        label = name
+        if row.get("is_forced"):
+            label = f"{name} 🔎"   # 사용자가 직접 추가한 테마
+        elif row.get("is_new"):
+            label = f"{name} 🆕"
         if cols[1].button(label, key=button_key, width="stretch"):
             clicked = name
         cols[2].markdown(f"<div class='j4-td'>{row.get('stock_count', '')}</div>", unsafe_allow_html=True)
@@ -1199,8 +1203,11 @@ def _render_radar_tab(market: dict) -> None:
     with note_col:
         st.caption("테마 순위는 5분 캐시, 시장판단은 1분 자동 갱신됩니다.")
 
+    # 사용자가 직접 고른 테마는 순위 밖이어도 반드시 심사해 목록에 넣는다
+    # (2026-07-22: 금융·은행처럼 오늘 약한 테마도 눌림목을 보고 싶다는 요구).
+    forced = st.session_state.get("j4_forced_themes") or []
     with st.spinner("네이버 전체 테마를 훑어 오늘 강한 테마를 고르는 중입니다…"):
-        ranking = j4data.get_theme_rankings()
+        ranking = j4data.get_theme_rankings(force_names=tuple(forced))
     if not ranking.get("ok"):
         st.error(f"테마 자료 조회 실패: {_safe_error_text(ranking.get('error'))}")
         return
@@ -1256,6 +1263,8 @@ def _render_radar_tab(market: dict) -> None:
     if clicked_theme in names:
         st.session_state["j4_theme_choice"] = clicked_theme
         st.session_state["j4_theme_choice_widget"] = clicked_theme
+    _render_theme_finder(forced)
+
     # 21위 밖으로 밀린 테마도 볼 수 있게 한다 — 찾던 테마가 왜 안 보이는지 확인용
     # (2026-07-22 사용자 지적: 금융주 테마가 목록에서 사라졌다).
     next_rows = ranking.get("next_rows") or []
@@ -1337,6 +1346,43 @@ def _render_radar_tab(market: dict) -> None:
     _render_pass_table(ranking, market)
 
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
+
+
+def _render_theme_finder(forced: list[str]) -> None:
+    """네이버 전체 테마 중 원하는 것을 직접 골라 목록에 넣는다.
+
+    오늘 순위가 낮아 자동 선정에서 빠진 테마(예: 은행)도 눌림목을 확인하고 싶다는
+    요구(2026-07-22)에 맞춘 기능이다. 고른 테마는 점수와 무관하게 심사·표시된다.
+    """
+    listing = j4data.get_all_themes()
+    if not listing.get("ok"):
+        return
+    themes = listing["themes"]
+    names = [
+        theme["name"] for theme in
+        sorted(themes.values(), key=lambda t: t["change_pct"], reverse=True)
+    ]
+    with st.expander(
+        f"🔎 전체 {len(names)}개 테마에서 직접 찾기"
+        + (f" — 지금 추가된 테마: {', '.join(forced)}" if forced else ""),
+        expanded=False,
+    ):
+        st.caption(
+            "오늘 순위가 낮아 자동 선정에서 빠진 테마도 여기서 고르면 표에 들어옵니다. "
+            "점수가 낮으면 '약함'으로 표시되며, 판정 기준은 다른 테마와 똑같습니다."
+        )
+        picked = st.multiselect(
+            "찾아볼 테마 (여러 개 가능)", names, default=forced, key="j4_theme_finder"
+        )
+        col_add, col_clear = st.columns(2)
+        with col_add:
+            if st.button("이 테마들 목록에 추가", key="j4_theme_finder_add", width="stretch"):
+                st.session_state["j4_forced_themes"] = list(picked)
+                st.rerun()
+        with col_clear:
+            if st.button("직접 추가한 테마 비우기", key="j4_theme_finder_clear", width="stretch"):
+                st.session_state["j4_forced_themes"] = []
+                st.rerun()
 
 
 def _render_pass_table(ranking: dict, market: dict) -> None:
