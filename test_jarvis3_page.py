@@ -173,6 +173,34 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(app.session_state.filtered_state.get("j3_theme_choice"), "양자컴퓨팅")
 
+    def test_form_stock_radio_switches_selection_too(self):
+        """매수 폼 안의 상세 종목 선택(아래 라디오)에서 골라도 전체 선택이 바뀐다."""
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=60)
+            stock_radios = [node for node in app.radio if str(node.label) == "상세 종목 선택"]
+            self.assertEqual(len(stock_radios), 2, "위·아래 두 곳에 상세 종목 선택이 있어야 합니다")
+            stock_radios[1].set_value("AVGO").run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(app.session_state.filtered_state.get("j3_stock_choice_반도체"), "AVGO")
+
     def test_table_click_and_chart_color_contracts_are_present(self):
         source = PAGE.read_text(encoding="utf-8")
         # 테마 선택은 클릭이 확실한 radio로 유지(st.pills는 이 환경에서 클릭 불가).

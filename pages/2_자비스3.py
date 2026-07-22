@@ -838,7 +838,26 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     st.info("주봉 자료 없음")
 
 
-def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
+_MEDAL_BY_RANK = {1: "🥇", 2: "🥈", 3: "🥉"}
+# 상태 색은 20개 테마 순위표의 상태색과 같은 규칙(주도 초록·관찰 주황·약함 회색)을 쓴다.
+_STATE_COLOR_WORD = {"주도": "green", "관찰": "orange", "약함": "gray"}
+
+
+def _stock_radio_label(item: dict) -> str:
+    """상세 종목 선택 라디오 한 항목의 표시 문구(위·아래 라디오가 같은 형식을 쓴다)."""
+    rank = int(item["rank"])
+    medal = _MEDAL_BY_RANK.get(rank, "")
+    state = item["plan"].get("state", "")
+    color_word = _STATE_COLOR_WORD.get(state, "gray")
+    return (
+        f"{medal} :green[**{rank}위 · {item['name']} ({item['ticker']})**] · "
+        f":red[**{item['score']:.1f}점**] · :{color_word}[**{state}**]"
+    )
+
+
+def _render_stock_detail(
+    theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str
+) -> None:
     ticker = leader["ticker"]
     st.session_state["j3_selected_ticker"] = ticker
     metrics, plan = leader["metrics"], leader["plan"]
@@ -1003,7 +1022,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict) -> None:
             unsafe_allow_html=True,
         )
 
-    _render_buy_form(theme_row, leader, market)
+    _render_buy_form(theme_row, leader, market, top_candidates, stock_key)
 
 
 _RECORD_COLUMNS = [
@@ -1081,7 +1100,9 @@ def _records_view(records: list[dict]):
     return styler
 
 
-def _render_buy_form(theme_row: dict, leader: dict, market: dict) -> None:
+def _render_buy_form(
+    theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str
+) -> None:
     ticker = leader["ticker"]
     metrics, plan = leader["metrics"], leader["plan"]
     # 위 '추천 근거 요약' 카드와 붙어 보이지 않게 한 줄 띄운다(2026-07-22 사용자 지시).
@@ -1114,7 +1135,46 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict) -> None:
             else:
                 st.caption("아직 저장된 매수 기록이 없습니다.")
     st.caption("실제로 매수한 경우에만 저장합니다. 저장 시 당시 시장·테마·종목 조건도 함께 보존됩니다.")
-    with st.form(f"j3_buy_form_{ticker}", clear_on_submit=False):
+    # 화면이 길어 여기까지 내려오면 어느 종목인지 헷갈린다는 지적(2026-07-22)에 따라,
+    # 네모칸 안 맨 위에 ①종목 이름·지표 헤더 ②상세 종목 선택을 그대로 한 번 더 넣는다
+    # (위쪽 원본은 지우지 않음). 여기 라디오에서 골라도 위 상세 전체가 같이 바뀐다.
+    with st.container(border=True):
+        form_rank = int(leader.get("rank") or 0)
+        form_medal = _MEDAL_BY_RANK.get(form_rank, "") if float(leader.get("score") or 0) >= 80 else ""
+        form_medal_html = f"<span class='j3-medal'>{form_medal}</span> " if form_medal else ""
+        st.markdown(
+            f"<div class='j3-stock-name'>{form_medal_html}{leader['name']} · {ticker}</div>"
+            f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
+            unsafe_allow_html=True,
+        )
+        _render_selected_live_quote(leader.get("score"), plan.get("state"))
+
+        ticker_options = [item["ticker"] for item in top_candidates]
+        by_ticker = {item["ticker"]: item for item in top_candidates}
+        mirror_key = f"{stock_key}_form"
+
+        def _apply_form_stock_change():
+            # 아래 라디오에서 고른 종목을 위 라디오(진짜 선택 상태)에 반영한다.
+            st.session_state[stock_key] = st.session_state[mirror_key]
+
+        if st.session_state.get(mirror_key) != ticker or st.session_state.get(mirror_key) not in ticker_options:
+            st.session_state[mirror_key] = ticker
+        st.radio(
+            "상세 종목 선택",
+            ticker_options,
+            format_func=lambda value: _stock_radio_label(by_ticker[value]) if value in by_ticker else value,
+            horizontal=True,
+            key=mirror_key,
+            on_change=_apply_form_stock_change,
+        )
+
+        _render_buy_form_fields(theme_row, leader, market)
+
+
+def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict) -> None:
+    ticker = leader["ticker"]
+    metrics, plan = leader["metrics"], leader["plan"]
+    with st.form(f"j3_buy_form_{ticker}", clear_on_submit=False, border=False):
         c1, c2, c3, c4 = st.columns(4)
         buy_date = c1.date_input("매수일", value=date.today(), key=f"j3_buy_date_{ticker}")
         default_price = float(metrics.get("current") or 0.01)
@@ -1275,22 +1335,9 @@ def _render_radar_tab(market: dict) -> None:
     if stock_key in st.session_state and st.session_state[stock_key] not in ticker_options:
         del st.session_state[stock_key]
 
-    medal_by_rank = {1: "🥇", 2: "🥈", 3: "🥉"}
-    # 상태 색은 20개 테마 순위표의 상태색과 같은 규칙(주도 초록·관찰 주황·약함 회색)을 쓴다.
-    state_color_word = {"주도": "green", "관찰": "orange", "약함": "gray"}
-
     def _stock_label(ticker):
         item = next((cand for cand in top_candidates if cand["ticker"] == ticker), None)
-        if item is None:
-            return ticker
-        rank = int(item["rank"])
-        medal = medal_by_rank.get(rank, "")
-        state = item["plan"].get("state", "")
-        color_word = state_color_word.get(state, "gray")
-        return (
-            f"{medal} :green[**{rank}위 · {item['name']} ({ticker})**] · "
-            f":red[**{item['score']:.1f}점**] · :{color_word}[**{state}**]"
-        )
+        return _stock_radio_label(item) if item else ticker
 
     selected_ticker = st.radio(
         "상세 종목 선택",
@@ -1303,7 +1350,7 @@ def _render_radar_tab(market: dict) -> None:
         (item for item in top_candidates if item["ticker"] == selected_ticker),
         top_candidates[0],
     )
-    _render_stock_detail(theme_row, selected_leader, market)
+    _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
 
 
 def _render_records_tab() -> None:
