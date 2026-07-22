@@ -106,27 +106,6 @@ def _leaders():
     return {"ok": True, "rows": rows, "theme_ret20": 8.0, "checked_at": "x"}
 
 
-def _pass_candidates():
-    """매수 심사를 통과한 종목만 모은 교차 순위(테마가 다른 종목이 섞여 있어야 한다)."""
-    leaders = _leaders()["rows"]
-    rows = []
-    for index, leader in enumerate(leaders, 1):
-        theme_name = "반도체/HBM" if index == 1 else "조선/해운"
-        rows.append({**leader, "theme_name": theme_name, "theme_row": {"name": theme_name}, "pass_rank": index})
-    pullback = [
-        {**row, "pullback_rank": index,
-         "pullback": {"score": 95.0 - index, "gap_pct": 1.1, "from_high_pct": -8.1,
-                      "above_sma200": True, "parts": [35, 25, 25, 10]},
-         "gate_blocked": True}
-        for index, row in enumerate(rows, 1)
-    ]
-    return {
-        "ok": True, "rows": rows, "pullback_rows": pullback,
-        "passed_count": len(rows), "waiting_count": 0, "blocked_reason": None,
-        "scanned_themes": 20, "checked_at": "x",
-    }
-
-
 def _pullback_stocks():
     """눌림목 종목 찾기 결과(사용자 스펙: 신고가 1~20일 전 · 테마 2개 이상 · 75점 이상)."""
     rows = []
@@ -196,7 +175,6 @@ def _patches():
                 "ES=F": {"label": "S&P500 선물", "current": 7_536.75, "change_pct": 0.30},
             },
         }),
-        patch("jarvis4_data.get_pass_candidates", return_value=_pass_candidates()),
         patch("jarvis4_data.find_pullback_stocks", return_value=_pullback_stocks()),
         patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])),
         patch("database.save_kr_flow_snapshot"),
@@ -281,10 +259,10 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("나스닥100 선물", source)
         self.assertIn("get_us_futures_live", source)
         self.assertIn("가격 칸이 채워지는 기준", source)
-        # 매수 심사 통과 종목 교차 표(2026-07-22 사용자 요청)
-        self.assertIn("_render_pass_table", source)
-        self.assertIn("get_pass_candidates", source)
-        self.assertIn("j4pass_{index:02d}", source)
+        # 눌림목 종목 찾기(사용자 스펙) — 통과 종목 교차 표는 2026-07-22 제거됐다
+        self.assertIn("_render_pullback_finder", source)
+        self.assertIn("find_pullback_stocks", source)
+        self.assertNotIn("_render_pass_table", source)
         self.assertIn("round_to_tick", source)
         self.assertIn("j4tbtn_{index:02d}", source)
         # 온라인에서 옛 모듈이 남아도 죽지 않도록 필요한 함수를 전부 검사해 reload한다
@@ -294,21 +272,11 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("_render_theme_finder", source)
         self.assertIn("j4_forced_themes", source)
         self.assertIn("force_names", source)
-        for name in ("get_us_futures_live", "get_pass_candidates", "get_intraday_chart"):
+        for name in ("get_us_futures_live", "find_pullback_stocks", "get_intraday_chart"):
             self.assertIn(f'"{name}"', source)
         # 자비스3 모듈을 건드리지 않는다
         self.assertNotIn("jarvis3_store", source)
         self.assertNotIn("import jarvis3_data", source)
-
-    def test_pass_table_lists_candidates_across_themes(self):
-        app = _run_page()
-        self.assertEqual(len(app.exception), 0)
-        markdowns = " ".join(str(node.value) for node in app.markdown)
-        self.assertIn("매수 심사 통과 종목", markdowns)
-        # 통과 종목 버튼이 렌더되고, 다른 테마 종목이 섞여 있어야 한다.
-        pass_buttons = [node for node in app.button if str(node.key or "").startswith("j4pass_")]
-        self.assertEqual(len(pass_buttons), 3)
-        self.assertIn("조선/해운", markdowns)
 
     def test_pullback_finder_runs_automatically_and_is_clickable(self):
         """눌림목 표는 페이지에 들어오면 자동으로 뜨고, 종목은 클릭할 수 있어야 한다.
@@ -348,41 +316,6 @@ class Jarvis4PageTests(unittest.TestCase):
         state = app.session_state.filtered_state
         self.assertIn("반도체/HBM", state.get("j4_forced_themes") or [])
         self.assertEqual(len(app.exception), 0)
-
-    def test_pass_table_click_switches_theme_and_stock(self):
-        """통과 종목을 누르면 테마·종목 선택이 함께 바뀌어 아래 상세가 교체된다."""
-        started = []
-        try:
-            for item in _patches():
-                item.start()
-                started.append(item)
-            app = AppTest.from_file(str(PAGE), default_timeout=90)
-            app.secrets["APP_PASSWORD"] = "test"
-            app.session_state["authenticated"] = True
-            app.run(timeout=90)
-            target = [node for node in app.button if str(node.key or "") == "j4pass_01"]
-            self.assertEqual(len(target), 1)
-            target[0].click().run(timeout=90)
-        finally:
-            for item in reversed(started):
-                item.stop()
-        state = app.session_state.filtered_state
-        self.assertEqual(state.get("j4_theme_choice"), "조선/해운")
-        self.assertEqual(state.get("j4_stock_choice_조선/해운"), "042700")
-        self.assertEqual(len(app.exception), 0, "통과 종목 클릭에서 예외가 나면 안 됩니다")
-
-    def test_login_page_offers_jarvis4(self):
-        source = (ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn("한국테마 (자비스4)", source)
-        self.assertIn('st.switch_page("pages/3_자비스4.py")', source)
-
-    def test_sidebar_has_five_ordered_items_everywhere(self):
-        """페이지마다 사이드바 순서·이름 규칙이 같아야 한다(5번째=한국테마)."""
-        for name in ("app.py", "pages/0_시장판단.py", "pages/1_자비스2.py",
-                     "pages/2_자비스3.py", "pages/3_자비스4.py"):
-            source = (ROOT / name).read_text(encoding="utf-8")
-            self.assertIn('li:nth-child(5) { order: 5; }', source, f"{name}에 5번째 순서 규칙 없음")
-            self.assertIn('content: "한국테마"', source, f"{name}에 한국테마 라벨 없음")
 
 
 if __name__ == "__main__":

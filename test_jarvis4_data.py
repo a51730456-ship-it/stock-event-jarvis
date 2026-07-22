@@ -168,25 +168,6 @@ class ThemeGateOverrideTests(unittest.TestCase):
         self.assertNotEqual(plan["recommendation"], "조건부 후보")
         self.assertIn("방어", plan["buy_reason"])
 
-    def test_forced_theme_is_scanned_even_beyond_theme_limit(self):
-        """직접 추가한 테마는 순위가 밀려도 통과 종목 심사에 들어간다."""
-        rows = [
-            {"name": f"테마{index}", "ok": True, "score": 80 - index, "no": index}
-            for index in range(1, 25)
-        ]
-        rows.append({"name": "은행", "ok": True, "score": 22.1, "no": 99, "is_forced": True})
-        scanned = []
-
-        def fake_leaders(theme, **kwargs):
-            scanned.append(theme["name"])
-            return {"ok": True, "rows": []}
-
-        with patch.object(j4, "get_theme_leaders", side_effect=fake_leaders):
-            j4.get_pass_candidates(rows, market_score=60, theme_limit=20)
-
-        self.assertIn("은행", scanned, "직접 추가한 테마가 통과 종목 심사에서 빠졌습니다")
-
-
 class PullbackQualityTests(unittest.TestCase):
     """눌림목 베스트 — '올라가던 종목이 얼마나 좋은 자리까지 눌렸나'를 잰다."""
 
@@ -234,25 +215,6 @@ class PullbackQualityTests(unittest.TestCase):
 
     def test_missing_sma20_returns_none(self):
         self.assertIsNone(j4._pullback_quality({"current": 100}, _flow()))
-
-    def test_pass_candidates_expose_pullback_rows(self):
-        rows = [{"name": "은행", "ok": True, "score": 22.1, "no": 99}]
-        metrics = j4._series_metrics(_daily_frame())
-        leader = {
-            "code": "086790", "name": "하나금융지주", "rank": 1, "score": 95.0,
-            "score_parts": [20, 12, 20, 15, 8, 20], "metrics": metrics, "flow": _flow(),
-            "plan": {"state": "눌림목 대기", "recommendation": "관찰"},
-            "stock_reason": "x",
-        }
-        with patch.object(j4, "get_theme_leaders", return_value={"ok": True, "rows": [leader]}):
-            result = j4.get_pass_candidates(rows, market_score=30)
-        pullback = result.get("pullback_rows")
-        self.assertTrue(pullback, "눌림목 목록이 비었습니다")
-        self.assertEqual(pullback[0]["name"], "하나금융지주")
-        self.assertEqual(pullback[0]["pullback_rank"], 1)
-        # 게이트에 막혔어도 눌림목 목록에는 올라와야 한다.
-        self.assertTrue(pullback[0]["gate_blocked"])
-
 
 class PullbackFinderTests(unittest.TestCase):
     """사용자 스펙(2026-07-22): 2개 이상 테마 + 신고가 15일 전 + 상승추세 중 조정."""

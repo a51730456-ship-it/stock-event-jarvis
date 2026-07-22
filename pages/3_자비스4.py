@@ -203,7 +203,7 @@ import market_signal_ui
 # (2026-07-22: get_us_futures_live를 빠뜨려 실제로 발생했다).
 _REQUIRED_J4_FUNCTIONS = (
     "get_theme_rankings", "get_theme_leaders", "get_market_overview",
-    "get_us_futures_live", "get_intraday_chart", "get_pass_candidates",
+    "get_us_futures_live", "get_intraday_chart", "find_pullback_stocks",
     "get_chart_bundle", "get_live_quote", "round_to_tick",
 )
 if any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS):
@@ -1344,7 +1344,7 @@ def _render_radar_tab(market: dict) -> None:
 
     # 여러 테마를 가로질러 '지금 실제로 살 자리'만 모아 보여준다(2026-07-22 사용자 요청).
     # 여기서 종목을 누르면 테마 선택까지 함께 바뀌어 아래 상세가 전부 그 종목으로 교체된다.
-    _render_pass_table(ranking, market)
+    _render_pullback_finder()
 
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
 
@@ -1491,104 +1491,6 @@ def _render_pullback_finder() -> None:
         "지금 점수로 자르면 눌렸다는 이유로 탈락합니다. 일봉을 신고가 시점까지 잘라 같은 계산을 "
         "다시 돌린 값이며, 수급은 현재 값을 씁니다(가격 항목만 정확히 역산). "
         "종목 이름을 누르면 그 종목의 테마가 위 목록에 추가되고 아래 상세가 그 종목으로 바뀝니다."
-    )
-
-
-def _render_pass_table(ranking: dict, market: dict) -> None:
-    """매수 심사 통과 종목 1~10위 — 클릭하면 아래 상세가 그 종목으로 바뀐다."""
-    st.markdown(
-        "<div class='j4-section-title'>✅ 매수 심사 통과 종목 (전체 테마 교차 · 최대 10위)</div>",
-        unsafe_allow_html=True,
-    )
-    # 표에 보이는 20개가 아니라 '심사된 전체 테마'를 넘긴다 — 은행처럼 순위 밖 테마의
-    # 좋은 눌림목을 놓치지 않기 위함이다(2026-07-22 사용자 지적).
-    scan_rows = ranking.get("all_scored") or ranking.get("rows") or []
-    with st.spinner(f"{len(scan_rows)}개 테마의 종목을 한꺼번에 심사하는 중입니다…"):
-        result = j4data.get_pass_candidates(scan_rows, float(market.get("score") or 0))
-    if not result.get("ok"):
-        st.info(f"통과 종목 심사를 하지 못했습니다: {_safe_error_text(result.get('error'))}")
-        return
-    rows = result.get("rows") or []
-    if not rows:
-        st.info(
-            f"지금은 상위 {result.get('scanned_themes', 0)}개 테마에서 매수 심사를 통과한 종목도, "
-            "가격 셋업이 완성된 대기 종목도 없습니다."
-        )
-        return
-
-    if result.get("blocked_reason"):
-        st.warning(f"⏸ 통과 0건 — {result['blocked_reason']}")
-    st.caption(
-        f"상위 {result.get('scanned_themes', 0)}개 테마를 교차 심사한 결과입니다. "
-        "종목 이름을 누르면 아래 상세·매수 기록이 그 종목으로 바뀝니다."
-    )
-    widths = [0.6, 2.2, 0.9, 2.0, 1.6, 1.0, 1.1, 1.3, 1.2, 1.1]
-    titles = ["순위", "종목", "코드", "조건점수", "테마", "당일", "52주 고가 대비",
-              "수급(외+기 5일)", "기준가", "상태"]
-    for column, title in zip(st.columns(widths), titles):
-        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
-
-    for index, row in enumerate(rows):
-        metrics, plan, flow = row["metrics"], row["plan"], row["flow"]
-        cols = st.columns(widths)
-        cols[0].markdown(f"<div class='j4-td'>{row['pass_rank']}</div>", unsafe_allow_html=True)
-        if cols[1].button(row["name"], key=f"j4pass_{index:02d}", width="stretch"):
-            # 이 표는 테마·종목 라디오보다 아래에 그려지므로, 위젯이 이미 만들어진
-            # 뒤에 세션 값을 바꾸면 StreamlitAPIException이 난다. 그래서 선택은
-            # pending에만 적어두고, 다음 실행의 위젯 생성 '전'에 반영한다.
-            st.session_state["j4_pending_pick"] = (row["theme_name"], row["code"])
-            st.rerun()
-        cols[2].markdown(f"<div class='j4-td'>{row['code']}</div>", unsafe_allow_html=True)
-        score = float(row.get("score") or 0)
-        cols[3].markdown(
-            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
-            f"<div class='j4-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>",
-            unsafe_allow_html=True,
-        )
-        cols[4].markdown(
-            f"<div class='j4-td j4-muted'>{row['theme_name']}</div>", unsafe_allow_html=True
-        )
-        change = metrics.get("change_pct")
-        cols[5].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</div>",
-            unsafe_allow_html=True,
-        )
-        from_high = metrics.get("from_high_pct")
-        cols[6].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(from_high)}; font-weight:700'>{_pct(from_high)}</div>",
-            unsafe_allow_html=True,
-        )
-        net5 = flow.get("net5_amount") if flow.get("ok") else None
-        cols[7].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
-            unsafe_allow_html=True,
-        )
-        cols[8].markdown(
-            f"<div class='j4-td' style='color:#44f0a1; font-weight:700'>{_won(plan.get('trigger'))}</div>",
-            unsafe_allow_html=True,
-        )
-        if row.get("gate_blocked"):
-            state_text, state_color = "게이트 대기", "#ff9d3b"
-        else:
-            state_text, state_color = "통과", "#44f0a1"
-        cols[9].markdown(
-            f"<div class='j4-td' style='color:{state_color}; font-weight:800'>{state_text}</div>",
-            unsafe_allow_html=True,
-        )
-    _render_pullback_finder()
-
-    st.markdown(
-        "<style>"
-        "div[class*='st-key-j4pass_'] button { background: transparent !important; border: none !important;"
-        " box-shadow: none !important; padding: 0 0 0 0.9rem !important; min-height: 2.5rem !important;"
-        " width: 100% !important; justify-content: flex-start !important;"
-        " border-bottom: 1px solid rgba(255,255,255,0.06) !important; border-radius: 0 !important; }"
-        "div[class*='st-key-j4pass_'] button:hover { background: rgba(255,255,255,0.06) !important; }"
-        "div[class*='st-key-j4pass_'] button p { font-weight: 800 !important; font-size: 0.95rem !important;"
-        " margin: 0 !important; color: #44f0a1 !important; text-align: left !important; }"
-        "</style>",
-        unsafe_allow_html=True,
     )
 
 
