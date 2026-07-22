@@ -104,9 +104,6 @@ class Jarvis3PageTests(unittest.TestCase):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("market_signal_ui._fetch_quotes", return_value={}), \
-             patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])), \
-             patch("database.save_kr_flow_snapshot"), \
-             patch("database.list_kr_flow_snapshots", return_value=[{}]), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={
@@ -143,9 +140,6 @@ class Jarvis3PageTests(unittest.TestCase):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("market_signal_ui._fetch_quotes", return_value={}), \
-             patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])), \
-             patch("database.save_kr_flow_snapshot"), \
-             patch("database.list_kr_flow_snapshots", return_value=[{}]), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={
@@ -197,7 +191,8 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("당일 · 실시간(지연 가능)", source)
         self.assertIn("매수 기록 현황", source)
         self.assertIn("render_us_market_signal_card", source)
-        self.assertIn("render_kr_flow_card", source)
+        # 한국장 수급 카드는 자비스4(국내) 전용 — 미국 페이지에는 넣지 않는다(2026-07-22).
+        self.assertNotIn("render_kr_flow_card", source)
         self.assertIn("j3tbtn_{index:02d}", source)
 
     def test_main_login_includes_jarvis3_destination(self):
@@ -209,9 +204,6 @@ class Jarvis3PageTests(unittest.TestCase):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("market_signal_ui._fetch_quotes", return_value={}), \
-             patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])), \
-             patch("database.save_kr_flow_snapshot"), \
-             patch("database.list_kr_flow_snapshots", return_value=[{}]), \
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.get_live_quote", return_value={

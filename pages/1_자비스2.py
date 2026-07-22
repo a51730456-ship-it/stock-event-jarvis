@@ -24,7 +24,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] a,
     [data-testid="stSidebarNav"] a * {
-        font-size: 1.8rem !important;
+        font-size: 1.4rem !important;
         font-weight: 800 !important;
         color: #ffb020 !important;
         line-height: 1.4 !important;
@@ -38,11 +38,29 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:first-child a p::before {
         content: "자비스1";
-        font-size: 1.8rem;
+        font-size: 1.4rem;
         font-weight: 800;
         color: #ffb020;
     }
     [data-testid="stSidebarNav"] li:first-child a:hover p::before {
+        color: #ffcf6b;
+    }
+    /* 사이드바 순서: 시장판단 → 자비스1 → 자비스2 → 미국테마 (2026-07-22 사용자 지시) */
+    [data-testid="stSidebarNav"] ul { display: flex; flex-direction: column; }
+    [data-testid="stSidebarNav"] li:nth-child(1) { order: 2; }
+    [data-testid="stSidebarNav"] li:nth-child(2) { order: 1; }
+    [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
+    [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p {
+        font-size: 0 !important;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
+        content: "미국테마";
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(4) a:hover p::before {
         color: #ffcf6b;
     }
     /* 제목·지표 글자 한 치수 축소 (2026-07-17 사용자 요청) */

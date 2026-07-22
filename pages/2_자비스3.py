@@ -14,7 +14,7 @@ st.markdown(
     [data-testid="stSidebarNav"] a { padding: 0.7rem 1rem !important; }
     [data-testid="stSidebarNav"] a,
     [data-testid="stSidebarNav"] a * {
-        font-size: 1.8rem !important;
+        font-size: 1.4rem !important;
         font-weight: 800 !important;
         color: #ffb020 !important;
         line-height: 1.4 !important;
@@ -22,7 +22,20 @@ st.markdown(
     [data-testid="stSidebarNav"] li:first-child a p { font-size: 0 !important; }
     [data-testid="stSidebarNav"] li:first-child a p::before {
         content: "자비스1";
-        font-size: 1.8rem;
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    /* 사이드바 순서: 시장판단 → 자비스1 → 자비스2 → 미국테마 (2026-07-22 사용자 지시) */
+    [data-testid="stSidebarNav"] ul { display: flex; flex-direction: column; }
+    [data-testid="stSidebarNav"] li:nth-child(1) { order: 2; }
+    [data-testid="stSidebarNav"] li:nth-child(2) { order: 1; }
+    [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
+    [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
+        content: "미국테마";
+        font-size: 1.4rem;
         font-weight: 800;
         color: #ffb020;
     }
@@ -991,7 +1004,8 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict) -> None:
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
     # 제목 옆에서 그동안 저장한 매수 기록 현황을 바로 펼쳐볼 수 있게 한다
     # (2026-07-22 사용자 지시 — 저장 폼과 현황이 함께 있어야 한다).
-    title_col, status_col = st.columns([1, 1.7])
+    # 제목 열을 좁혀 현황 박스가 제목 바로 옆에 붙게 한다(멀리 떨어져 보인다는 지적 반영).
+    title_col, status_col = st.columns([0.28, 1.72])
     with title_col:
         st.markdown("#### 실제 매수 기록")
     with status_col:
@@ -1281,11 +1295,10 @@ def main() -> None:
     _render_market_overview()
     market = st.session_state.get("j3_market_overview") or {"ok": False, "score": 0, "regime": "자료부족"}
     st.divider()
-    # 시장판단 화면의 두 신호 카드를 자비스3에서도 그대로 보여준다(2026-07-22 사용자 지시).
-    # 같은 렌더러·같은 세션 상태를 재사용하므로 시장판단 페이지와 판정이 항상 일치한다.
+    # 미국장 선행신호 카드만 자비스3에 둔다(2026-07-22 사용자 정정: 한국장 수급 카드는
+    # 미국 페이지에 어울리지 않으므로 자비스4(국내)에 넣는다). 같은 렌더러·세션 상태를
+    # 재사용하므로 시장판단 페이지와 판정이 항상 일치한다.
     market_signal_ui.render_us_market_signal_card()
-    st.divider()
-    market_signal_ui.render_kr_flow_card()
     st.divider()
     radar_tab, records_tab, method_tab = st.tabs(["테마·종목", "매수 기록 현황", "판정 기준"])
     with radar_tab:
