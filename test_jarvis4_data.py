@@ -254,6 +254,80 @@ class PullbackQualityTests(unittest.TestCase):
         self.assertTrue(pullback[0]["gate_blocked"])
 
 
+class PullbackFinderTests(unittest.TestCase):
+    """사용자 스펙(2026-07-22): 2개 이상 테마 + 신고가 15일 전 + 상승추세 중 조정."""
+
+    def tearDown(self):
+        j4.clear_runtime_cache()
+
+    def _themes(self):
+        return {
+            1: {"no": 1, "name": "은행", "change_pct": -0.4},
+            2: {"no": 2, "name": "금융지주", "change_pct": 0.3},
+            3: {"no": 3, "name": "게임", "change_pct": 1.0},
+        }
+
+    def _stock(self, code, name, value=2e10):
+        return {"code": code, "name": name, "price": 60_000,
+                "change_pct": 0.5, "volume": 400_000, "trading_value": value}
+
+    def _theme_stocks(self, theme_no, **kwargs):
+        # 하나금융지주는 테마 2개(은행·금융지주), 게임주는 1개뿐이다.
+        if theme_no == 1:
+            stocks = [self._stock("086790", "하나금융지주")]
+        elif theme_no == 2:
+            stocks = [self._stock("086790", "하나금융지주")]
+        else:
+            stocks = [self._stock("035720", "게임A")]
+        return {"ok": True, "stale": False, "stocks": stocks}
+
+    def _metrics(self, days_ago, from_high, above_sma50=True, gap=0.01):
+        current = 60_000
+        return {
+            "ok": True, "current": current, "sma20": current / (1 + gap),
+            "sma50": current * 0.9 if above_sma50 else current * 1.1,
+            "sma200": current * 0.8, "high52_days_ago": days_ago,
+            "from_high_pct": from_high, "ret20": 5.0, "ret5": 1.0,
+            "change_pct": 0.5, "atr_pct": 3.0, "avg_trading_value": 2e10,
+        }
+
+    def _run(self, metrics_by_code):
+        with patch.object(j4, "get_all_themes",
+                          return_value={"ok": True, "themes": self._themes()}), \
+             patch.object(j4, "get_theme_stocks", side_effect=self._theme_stocks), \
+             patch.object(j4, "get_daily_frame", return_value=object()), \
+             patch.object(j4, "get_stock_flow", return_value=_flow()), \
+             patch.object(j4, "_series_metrics",
+                          side_effect=lambda frame, price=None, _m=metrics_by_code: _m["current"]):
+            return j4.find_pullback_stocks()
+
+    def test_single_theme_stock_is_excluded(self):
+        """1개 테마에만 속한 종목은 제외된다(사용자 스펙 1번)."""
+        result = self._run({"current": self._metrics(15, -8.0)})
+        names = [row["name"] for row in result["rows"]]
+        self.assertIn("하나금융지주", names)
+        self.assertNotIn("게임A", names, "테마 1개짜리 종목이 들어왔습니다")
+
+    def test_high_outside_window_is_excluded(self):
+        """신고가가 15일 전 창(±8일) 밖이면 제외된다(사용자 스펙 2번)."""
+        result = self._run({"current": self._metrics(60, -8.0)})
+        self.assertEqual(result["rows"], [])
+
+    def test_broken_trend_is_excluded(self):
+        """50일선 아래로 내려간 종목은 눌림목이 아니다(사용자 스펙 3번)."""
+        result = self._run({"current": self._metrics(15, -8.0, above_sma50=False)})
+        self.assertEqual(result["rows"], [])
+
+    def test_too_shallow_or_too_deep_is_excluded(self):
+        """고점 대비 -3~-20% 밖은 제외한다(사용자 스펙 4번)."""
+        self.assertEqual(self._run({"current": self._metrics(15, -1.0)})["rows"], [])
+        self.assertEqual(self._run({"current": self._metrics(15, -35.0)})["rows"], [])
+
+    def test_window_is_reported(self):
+        result = self._run({"current": self._metrics(15, -8.0)})
+        self.assertEqual(result["window"], (7, 23))
+
+
 class ExclusionTests(unittest.TestCase):
     def test_spac_and_preferred_shares_excluded(self):
         self.assertTrue(j4._is_excluded("미래에셋스팩5호", "123456"))

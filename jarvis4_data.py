@@ -45,7 +45,9 @@ _STOCK_FLOW_URL = "https://finance.naver.com/item/frgn.naver?code={code}"
 
 # 화면에 보여줄 테마 수와, 그 후보로 상세 조회할 테마 수.
 DISPLAY_THEME_COUNT = 20
-CANDIDATE_THEME_COUNT = 30
+# 후보 테마 수. 표에는 20개만 보이지만, 눌림목·통과 종목 심사는 이 범위 전체를 훑는다 —
+# 30개로 자르면 '은행'(당일 49위) 같은 테마의 좋은 눌림목을 통째로 놓친다(2026-07-22).
+CANDIDATE_THEME_COUNT = 70
 # 테마당 심사할 구성종목 수 (거래대금 상위부터).
 THEME_STOCK_LIMIT = 8
 # 이 점수를 넘는 종목은 테마 점수가 낮아도 후보로 인정한다(테마 게이트 면제).
@@ -765,6 +767,8 @@ def get_theme_rankings(force_names: tuple[str, ...] | list[str] = ()) -> dict:
             })
 
     rows.sort(key=lambda row: row["score"], reverse=True)
+    # 표에는 20개만 보이지만, 눌림목·통과 종목 심사가 쓸 수 있도록 전체 심사 결과를 남긴다.
+    all_scored = list(rows)
     # 21위 밖으로 밀린 테마도 이름·점수만 남겨 둔다 — "왜 그 테마가 빠졌나"를
     # 화면에서 확인할 수 있어야 한다(2026-07-22 사용자 지적).
     next_rows = [
@@ -793,6 +797,7 @@ def get_theme_rankings(force_names: tuple[str, ...] | list[str] = ()) -> dict:
     return {
         "ok": bool(rows),
         "rows": rows,
+        "all_scored": all_scored,
         "next_rows": next_rows,
         "entered": entered,
         "dropped": dropped,
@@ -1222,11 +1227,151 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     }
 
 
+def find_pullback_stocks(
+    *,
+    min_theme_count: int = 2,
+    high_days_center: int = 15,
+    high_days_tolerance: int = 8,
+    min_trading_value: float = 5e9,
+    scan_limit: int = 180,
+    result_limit: int = 15,
+    ttl_seconds: float = 600,
+) -> dict:
+    """상승추세 중 조정받은 눌림목 종목을 찾는다 (2026-07-22 사용자 스펙).
+
+    조건 네 가지 — 조건을 새로 만들지 않고 사용자가 정한 것만 쓴다:
+    1. **2개 이상 테마에 속한 종목** — 여러 테마에 걸쳐 있다는 건 시장이 그 종목을
+       여러 각도에서 보고 있다는 뜻이다. 이 필터가 후보를 크게 줄여 전체 스캔을 가볍게 한다.
+    2. **52주 신고가를 약 15일 전에 찍은 종목** — 최근에 강했고, 조정 기간이 적당히 지난 것.
+    3. **상승추세 유지** — 20일선 부근이면서 50일선 위(추세가 살아 있어야 눌림목이다).
+    4. **눌림 깊이 5~20%** — 조사 근거상 건강한 조정은 고점 대비 5~10%대이고,
+       국내는 변동성이 커 20%까지 본다.
+
+    하락장 판단은 이 함수가 하지 않는다 — 시장 국면은 상단 '한국 전체시장 판단'에서
+    사용자가 보고 정한다.
+    """
+
+    def _produce():
+        listing = get_all_themes()
+        if not listing.get("ok"):
+            raise RuntimeError(listing.get("error") or "테마 목록 조회 실패")
+
+        # 1) 전체 테마 구성종목을 모으면서 '이 종목이 몇 개 테마에 속하는지' 센다.
+        seen: dict[str, dict] = {}
+        themes = listing["themes"]
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = {
+                executor.submit(get_theme_stocks, theme["no"]): theme
+                for theme in themes.values()
+            }
+            for future in as_completed(futures):
+                theme = futures[future]
+                try:
+                    detail = future.result()
+                except Exception:
+                    continue
+                if not detail.get("ok"):
+                    continue
+                for stock in detail["stocks"]:
+                    if _is_excluded(stock["name"], stock["code"]):
+                        continue
+                    entry = seen.get(stock["code"])
+                    if entry is None:
+                        seen[stock["code"]] = {
+                            **stock, "themes": [theme["name"]], "theme_name": theme["name"]
+                        }
+                    elif theme["name"] not in entry["themes"]:
+                        entry["themes"].append(theme["name"])
+
+        candidates = [
+            item for item in seen.values()
+            if len(item["themes"]) >= min_theme_count
+            and (item.get("trading_value") or 0) >= min_trading_value
+        ]
+        if not candidates:
+            raise RuntimeError("조건에 맞는 종목이 없습니다")
+        # 조회 시간이 후보 수에 비례하므로 거래대금 상위부터 상한을 둔다 —
+        # 눌림목을 노릴 만한 종목은 거래대금이 받쳐주는 쪽이다.
+        multi_theme_total = len(candidates)
+        candidates.sort(key=lambda item: item.get("trading_value") or 0, reverse=True)
+        candidates = candidates[:scan_limit]
+
+        # 2) 일봉으로 '신고가 15일 전 + 상승추세 + 적당한 눌림'을 거른다.
+        low, high = high_days_center - high_days_tolerance, high_days_center + high_days_tolerance
+
+        def _screen(stock):
+            metrics = _series_metrics(get_daily_frame(stock["code"]), stock.get("price"))
+            if not metrics.get("ok"):
+                return None
+            days_ago = metrics.get("high52_days_ago")
+            from_high = metrics.get("from_high_pct")
+            current, sma20, sma50 = metrics.get("current"), metrics.get("sma20"), metrics.get("sma50")
+            if days_ago is None or not (low <= days_ago <= high):
+                return None
+            if from_high is None or not (-20.0 <= from_high <= -3.0):
+                return None
+            if not current or not sma20 or not sma50:
+                return None
+            if current <= sma50:                      # 상승추세가 깨진 종목은 눌림목이 아니다
+                return None
+            if abs(current / sma20 - 1) > 0.08:       # 20일선에서 너무 멀면 제외
+                return None
+            return {**stock, "metrics": metrics}
+
+        screened = []
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            for future in as_completed([executor.submit(_screen, s) for s in candidates]):
+                try:
+                    item = future.result()
+                except Exception:
+                    continue
+                if item:
+                    screened.append(item)
+
+        # 3) 살아남은 종목만 수급을 조회해 최종 점수를 매긴다.
+        def _finalize(item):
+            flow = get_stock_flow(item["code"])
+            quality = _pullback_quality(item["metrics"], flow)
+            score, parts = _stock_score(item["metrics"], flow, None)
+            return {**item, "flow": flow, "pullback": quality,
+                    "score": score, "score_parts": parts}
+
+        final = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for future in as_completed([executor.submit(_finalize, s) for s in screened[:40]]):
+                try:
+                    item = future.result()
+                except Exception:
+                    continue
+                if item.get("pullback"):
+                    final.append(item)
+
+        final.sort(key=lambda item: item["pullback"]["score"], reverse=True)
+        final = final[:result_limit]
+        for index, item in enumerate(final, 1):
+            item["pullback_rank"] = index
+            item["plan"] = _entry_plan(item["metrics"], item["score"], 100, 100)
+        return {
+            "rows": final,
+            "multi_theme_count": multi_theme_total,
+            "scanned_count": len(candidates),
+            "screened_count": len(screened),
+            "window": (low, high),
+            "checked_at": datetime.now(_SEOUL).isoformat(timespec="seconds"),
+        }
+
+    try:
+        value, stale = _cached("pullback_stocks", ttl_seconds, _produce)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "rows": []}
+    return {"ok": True, "stale": stale, **value}
+
+
 def get_pass_candidates(
     ranking_rows: list[dict],
     market_score: float,
     *,
-    theme_limit: int = 20,
+    theme_limit: int = 60,
     result_limit: int = 10,
 ) -> dict:
     """여러 테마를 가로질러 '매수 심사를 통과한' 종목만 모아 순위를 매긴다.

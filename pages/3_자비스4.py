@@ -1386,6 +1386,90 @@ def _render_theme_finder(forced: list[str]) -> None:
                 st.rerun()
 
 
+def _render_pullback_finder() -> None:
+    """상승추세 중 조정받은 눌림목 종목 (2026-07-22 사용자 스펙).
+
+    조건: 2개 이상 테마 + 52주 신고가 15일 전(±8일) + 50일선 위 + 고점 대비 -3~-20%.
+    조회량이 있어 버튼을 누를 때만 실행하고, 결과는 10분간 유지한다.
+    """
+    st.markdown(
+        "<div class='j4-section-title'>📉 눌림목 종목 찾기 (상승추세 중 조정)</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "**2개 이상 테마에 속하고**, **52주 신고가를 약 15일 전에 찍었으며**, "
+        "**50일선 위에서 20일선 부근까지 눌린** 종목만 찾습니다(고점 대비 −3~−20%). "
+        "테마 순위와 무관하게 전체에서 찾으므로 은행처럼 순위 밖 테마도 포함됩니다. "
+        "하락장 판단은 상단 ‘한국 전체시장 판단’에서 직접 보고 정하십시오."
+    )
+    if st.button("눌림목 종목 찾기 실행", key="j4_pullback_find", width="stretch"):
+        st.session_state["j4_pullback_requested"] = True
+    if not st.session_state.get("j4_pullback_requested"):
+        return
+
+    with st.spinner("전체 테마의 구성종목에서 눌림목 조건을 확인하는 중입니다…"):
+        result = j4data.find_pullback_stocks()
+    if not result.get("ok"):
+        st.error(f"눌림목 조회 실패: {_safe_error_text(result.get('error'))}")
+        return
+    rows = result.get("rows") or []
+    window = result.get("window") or (7, 23)
+    st.caption(
+        f"2개 이상 테마 종목 {result.get('multi_theme_count', 0)}개 중 거래대금 상위 "
+        f"{result.get('scanned_count', 0)}개를 심사해, 신고가 {window[0]}~{window[1]}일 전·"
+        f"상승추세 조건을 만족한 {result.get('screened_count', 0)}개를 찾았습니다."
+    )
+    if not rows:
+        st.info("지금 조건에 맞는 눌림목 종목이 없습니다. 조건을 낮추지 않고 그대로 둡니다.")
+        return
+
+    widths = [0.6, 2.1, 0.9, 1.8, 1.3, 1.2, 1.2, 0.9, 1.3, 1.1]
+    titles = ["순위", "종목", "코드", "눌림 점수", "신고가", "고점 대비", "20일선 이격",
+              "테마수", "수급(외+기 5일)", "종목 점수"]
+    for column, title in zip(st.columns(widths), titles):
+        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
+
+    for row in rows:
+        quality, flow = row["pullback"], row.get("flow") or {}
+        cols = st.columns(widths)
+        cols[0].markdown(f"<div class='j4-td'>{row['pullback_rank']}</div>", unsafe_allow_html=True)
+        cols[1].markdown(
+            f"<div class='j4-td' style='color:#7cc8ff; font-weight:800; justify-content:flex-start;"
+            f" padding-left:0.9rem'>{row['name']}</div>", unsafe_allow_html=True)
+        cols[2].markdown(f"<div class='j4-td'>{row['code']}</div>", unsafe_allow_html=True)
+        score = float(quality["score"])
+        cols[3].markdown(
+            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
+            f"<div class='j4-bar-fill j4-bar-green' style='width:{min(score, 100):.0f}%'></div></div>"
+            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>", unsafe_allow_html=True)
+        cols[4].markdown(
+            f"<div class='j4-td' style='color:#44f0a1; font-weight:700'>"
+            f"{quality.get('high52_days_ago')}일 전</div>", unsafe_allow_html=True)
+        cols[5].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:700'>"
+            f"{_pct(quality['from_high_pct'])}</div>", unsafe_allow_html=True)
+        gap = quality["gap_pct"]
+        gap_color = "#44f0a1" if abs(gap) <= 3 else "#ff9d3b"
+        cols[6].markdown(
+            f"<div class='j4-td' style='color:{gap_color}; font-weight:700'>{gap:+.2f}%</div>",
+            unsafe_allow_html=True)
+        cols[7].markdown(
+            f"<div class='j4-td' style='color:#ffb020; font-weight:700'>{len(row.get('themes') or [])}</div>",
+            unsafe_allow_html=True)
+        net5 = flow.get("net5_amount") if flow.get("ok") else None
+        cols[8].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
+            unsafe_allow_html=True)
+        cols[9].markdown(
+            f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
+            unsafe_allow_html=True)
+    st.caption(
+        "속한 테마: " + " · ".join(
+            f"**{row['name']}** {', '.join(row.get('themes') or [])[:60]}" for row in rows[:5]
+        )
+    )
+
+
 def _render_pullback_table(result: dict) -> None:
     """눌림목 베스트 — 지금 못 사더라도 시장이 돌아섰을 때 먼저 볼 관찰 목록."""
     rows = result.get("pullback_rows") or []
@@ -1478,10 +1562,11 @@ def _render_pass_table(ranking: dict, market: dict) -> None:
         "<div class='j4-section-title'>✅ 매수 심사 통과 종목 (전체 테마 교차 · 최대 10위)</div>",
         unsafe_allow_html=True,
     )
-    with st.spinner("상위 테마 종목을 한꺼번에 심사하는 중입니다…"):
-        result = j4data.get_pass_candidates(
-            ranking.get("rows") or [], float(market.get("score") or 0)
-        )
+    # 표에 보이는 20개가 아니라 '심사된 전체 테마'를 넘긴다 — 은행처럼 순위 밖 테마의
+    # 좋은 눌림목을 놓치지 않기 위함이다(2026-07-22 사용자 지적).
+    scan_rows = ranking.get("all_scored") or ranking.get("rows") or []
+    with st.spinner(f"{len(scan_rows)}개 테마의 종목을 한꺼번에 심사하는 중입니다…"):
+        result = j4data.get_pass_candidates(scan_rows, float(market.get("score") or 0))
     if not result.get("ok"):
         st.info(f"통과 종목 심사를 하지 못했습니다: {_safe_error_text(result.get('error'))}")
         return
@@ -1555,6 +1640,7 @@ def _render_pass_table(ranking: dict, market: dict) -> None:
             unsafe_allow_html=True,
         )
     _render_pullback_table(result)
+    _render_pullback_finder()
 
     st.markdown(
         "<style>"
