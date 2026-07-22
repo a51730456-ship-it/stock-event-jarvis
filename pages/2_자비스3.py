@@ -1068,7 +1068,13 @@ def _records_view(records: list[dict]):
     for col in ("매수가(USD)", "매도가(USD)"):
         if col in view.columns:
             formats[col] = "{:,.2f}"
-    styler = view.style.format(formats, na_rep="—")
+    # 수량·점수 칸은 소수점 없이 표시(2026-07-22 사용자 지시).
+    for col in ("수량", "시장점수", "테마점수", "종목점수"):
+        if col in view.columns:
+            formats[col] = "{:,.0f}"
+    # 첫 format 호출은 전체 칸에 na_rep(—)만 깔고, 두 번째가 칸별 형식을 덮는다 —
+    # 형식 dict에 없는 칸(매도일·메모 등)의 None이 'None' 글자로 보이던 문제 수정.
+    styler = view.style.format(na_rep="—").format(formats, na_rep="—")
     if pl_columns:
         styler = styler.map(_pl_style, subset=pl_columns)
     return styler
@@ -1319,26 +1325,113 @@ def _render_records_tab() -> None:
 
     st.dataframe(_records_view(records), hide_index=True, width="stretch")
 
+    _render_close_editor(records)
+
+
+def _render_close_editor(records: list[dict]) -> None:
+    """보유 기록 청산을 표에서 바로 입력한다(2026-07-22 사용자 지시).
+
+    매도일 칸을 누르면 달력이 뜨고, 매도가 칸에 금액을 넣으면 확정 손익률이
+    자동 계산돼 미리보기 칸에 바로 나타난다. 매도가는 매수가 ±50% 범위만 허용한다.
+    """
+    saved_message = st.session_state.pop("j3_close_saved_msg", None)
+    if saved_message:
+        st.success(saved_message)
+
     open_records = [record for record in records if record.get("status") == "보유"]
-    if open_records:
-        with st.expander("보유 기록 청산 입력", expanded=False):
-            by_id = {int(record["id"]): record for record in open_records}
-            trade_id = st.selectbox(
-                "청산할 기록",
-                list(by_id),
-                format_func=lambda value: f"#{value} · {by_id[value]['ticker']} · {by_id[value]['buy_date']} · ${by_id[value]['buy_price']:,.2f}",
-                key="j3_close_trade_id",
-            )
-            c1, c2 = st.columns(2)
-            sell_date = c1.date_input("실제 매도일", value=date.today(), key="j3_sell_date")
-            sell_price = c2.number_input("실제 매도가(USD)", min_value=0.01, value=0.01, step=0.01, key="j3_sell_price")
-            if st.button("청산 기록 저장", key="j3_close_submit", width="stretch"):
-                try:
-                    j3store.close_trade(trade_id, sell_date=sell_date, sell_price=sell_price)
-                    st.success("청산 기록을 저장했습니다.")
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"청산 저장 실패: {_safe_error_text(exc)}")
+    if not open_records:
+        return
+    st.markdown("#### 청산 입력 — 표에서 매도일·매도가를 직접 클릭해 입력")
+    st.caption(
+        "매도일 칸을 누르면 달력이 뜨고, 매도가를 넣는 순간 확정 손익률이 자동 계산됩니다. "
+        "매도가는 매수가 ±50% 범위 안에서만 저장됩니다."
+    )
+    editor_key = "j3_close_editor"
+    edited_rows = (st.session_state.get(editor_key) or {}).get("edited_rows", {})
+    editor_rows = []
+    for index, record in enumerate(open_records):
+        buy_price = float(record["buy_price"])
+        pending = edited_rows.get(index, {})
+        pending_price = pending.get("매도가(USD)")
+        preview = None
+        try:
+            if pending_price:
+                preview = (float(pending_price) / buy_price - 1) * 100
+        except (TypeError, ValueError):
+            preview = None
+        editor_rows.append({
+            "번호": int(record["id"]),
+            "티커": record["ticker"],
+            "종목명": record["stock_name"],
+            "매수일": record["buy_date"],
+            "매수가(USD)": buy_price,
+            "매도일": None,
+            "매도가(USD)": None,
+            "확정 손익률(%) 자동계산": preview,
+            "허용 매도가 범위": f"{buy_price * 0.5:,.2f} ~ {buy_price * 1.5:,.2f}",
+        })
+    editor_frame = pd.DataFrame(editor_rows)
+    # 빈 매도일·매도가 칸이 달력·숫자 입력으로 열리도록 자료형을 명시한다.
+    editor_frame["매도일"] = pd.to_datetime(editor_frame["매도일"])
+    editor_frame["매도가(USD)"] = editor_frame["매도가(USD)"].astype("float64")
+    editor_frame["확정 손익률(%) 자동계산"] = editor_frame["확정 손익률(%) 자동계산"].astype("float64")
+    edited = st.data_editor(
+        editor_frame,
+        column_config={
+            "매도일": st.column_config.DateColumn("매도일", help="칸을 누르면 달력이 뜹니다"),
+            "매도가(USD)": st.column_config.NumberColumn(
+                "매도가(USD)", min_value=0.01, step=0.01, format="%.2f",
+                help="매수가 ±50% 범위에서 입력",
+            ),
+            "매수가(USD)": st.column_config.NumberColumn(format="%.2f"),
+            "확정 손익률(%) 자동계산": st.column_config.NumberColumn(format="%+.2f"),
+        },
+        disabled=[
+            "번호", "티커", "종목명", "매수일", "매수가(USD)",
+            "확정 손익률(%) 자동계산", "허용 매도가 범위",
+        ],
+        hide_index=True,
+        width="stretch",
+        key=editor_key,
+    )
+    if st.button("청산 저장 (매도일·매도가 입력된 종목만)", key="j3_close_editor_save", width="stretch"):
+        saved_count = 0
+        errors = []
+        for index, record in enumerate(open_records):
+            row = edited.iloc[index]
+            sell_date, sell_price = row["매도일"], row["매도가(USD)"]
+            has_date = sell_date is not None and not pd.isna(sell_date)
+            has_price = sell_price is not None and not pd.isna(sell_price)
+            if not has_date and not has_price:
+                continue
+            label = f"#{record['id']} {record['ticker']}"
+            if not (has_date and has_price):
+                errors.append(f"{label}: 매도일과 매도가를 모두 입력해야 저장됩니다")
+                continue
+            buy_price = float(record["buy_price"])
+            if not buy_price * 0.5 <= float(sell_price) <= buy_price * 1.5:
+                errors.append(
+                    f"{label}: 매도가는 매수가 ±50% 범위"
+                    f"({buy_price * 0.5:,.2f} ~ {buy_price * 1.5:,.2f})여야 합니다"
+                )
+                continue
+            try:
+                j3store.close_trade(
+                    int(record["id"]),
+                    sell_date=pd.Timestamp(sell_date).date(),
+                    sell_price=float(sell_price),
+                )
+                saved_count += 1
+            except Exception as exc:
+                errors.append(f"{label}: {_safe_error_text(exc)}")
+        for error in errors:
+            st.error(error)
+        if saved_count and not errors:
+            st.session_state["j3_close_saved_msg"] = f"{saved_count}건 청산을 저장했습니다."
+            st.session_state.pop(editor_key, None)
+            st.rerun()
+        elif saved_count:
+            st.success(f"{saved_count}건 청산을 저장했습니다. 위 오류 항목은 저장되지 않았습니다.")
 
 
 def _render_method_tab() -> None:
