@@ -14,6 +14,10 @@ from zoneinfo import ZoneInfo
 
 import streamlit as st
 
+# 로그인 화면 지구(WebGL). streamlit 외에 무거운 것을 끌어오지 않으므로
+# 인증 게이트 앞에서 불러도 첫 화면이 늦어지지 않는다.
+import login_globe
+
 _reference_panel_logger = logging.getLogger("jarvis.reference_panels")
 
 
@@ -357,23 +361,11 @@ try:
         "</div></div>"
     )
 except OSError:
+    _jarvis_earth_src = ""
     _jarvis_earth_markup = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
 
-# 로그인 화면 지구 (2026-07-23 사용자 선택: 점 지구 → 우주에서 본 실사 지구).
-# 전환 연출과 같은 NASA 텍스처를 그대로 재사용한다 — 파일을 두 번 읽지 않으므로
-# 첫 화면 로딩이 오히려 가벼워진다(점 지구 36KB 읽기·base64 인코딩이 사라진다).
-try:
-    _jarvis_login_earth_markup = (
-        '<div class="jarvis-waiting-earth-visual">'
-        '<div class="jarvis-waiting-earth-halo"></div>'
-        '<div class="jarvis-waiting-earth-disc">'
-        f'<div class="jarvis-waiting-earth-surface" role="img" aria-label="우주에서 본 자전하는 지구" '
-        f'style="--jarvis-dot-earth-texture:url({_jarvis_earth_src})"></div>'
-        "</div></div>"
-    )
-except NameError:
-    # 위 텍스처 로드가 실패했을 때만 여기로 온다.
-    _jarvis_login_earth_markup = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
+# 로그인 화면 지구는 login_globe.py가 WebGL로 그린다(2026-07-23 사용자 지시).
+# 전환 연출과 같은 NASA 텍스처를 그대로 넘기므로 파일을 두 번 읽지 않는다.
 
 # 비밀번호 게이트: 인증 전에는 DB 초기화/자동 백업/앱 본문이 전혀 실행되지 않는다.
 # 비밀번호는 .streamlit/secrets.toml의 APP_PASSWORD에서만 읽으며 코드에 직접 쓰지 않는다.
@@ -441,75 +433,18 @@ if not st.session_state.get("authenticated"):
             backdrop-filter: blur(22px) saturate(130%);
             -webkit-backdrop-filter: blur(22px) saturate(130%);
         }
-        .jarvis-earth-stage {
-            width: 100%;
-            max-width: 720px;
-            margin-inline: auto;
-        }
-        .jarvis-waiting-earth-visual {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 1;
-            isolation: isolate;
-        }
-        /* 실사 지구의 대기 산란광. 예전 보라·청록 네온 후광을 대신한다 —
-           진짜 지구 사진 위에 네온을 두르면 사진이 합성처럼 보인다. */
-        .jarvis-waiting-earth-halo {
-            position: absolute;
-            inset: 4.5%;
-            z-index: 1;
-            border-radius: 50%;
-            background: radial-gradient(circle at 38% 32%, rgba(150, 214, 255, .22), transparent 58%);
-            box-shadow: 0 0 46px rgba(46, 132, 224, .38), 0 0 120px rgba(28, 96, 190, .26);
-            opacity: .9;
-            animation: jarvis-waiting-halo-breathe 5.5s ease-in-out infinite;
-        }
-        .jarvis-waiting-earth-disc {
-            position: absolute;
-            inset: 7.5%;
-            z-index: 2;
-            overflow: hidden;
-            border-radius: 50%;
-            background: #000104;
-            /* 자전축 23.4° — 지구가 똑바로 서 있으면 도리어 지구처럼 안 보인다. */
-            transform: rotate(-23.4deg);
-            box-shadow: inset 0 0 26px rgba(10, 40, 80, .55);
-        }
-        .jarvis-waiting-earth-disc::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            z-index: 3;
-            /* 대기층이 빛을 산란시켜 가장자리가 파랗게 뜨는 것 */
-            border: 1px solid rgba(140, 205, 255, .34);
-            border-radius: 50%;
-            pointer-events: none;
-            box-shadow: inset 0 0 22px rgba(120, 196, 255, .5);
-        }
-        .jarvis-waiting-earth-surface {
-            position: absolute;
-            inset: 0;
-            border-radius: 50%;
-            background-color: #000104;
-            background-image: var(--jarvis-dot-earth-texture);
-            background-repeat: repeat-x;
-            background-size: 200% 100%;
-            background-position: 120% 50%;
-            opacity: 1;
-            animation: jarvis-waiting-earth-turn 90s linear infinite;
-            animation-fill-mode: both;
-            will-change: background-position;
-        }
-        .jarvis-waiting-earth-surface::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            border-radius: 50%;
-            pointer-events: none;
-            /* 낮·밤 경계(터미네이터)와 가장자리 어둠. 왼쪽 위에서 해가 든다. */
-            background:
-                radial-gradient(circle at 40% 36%, transparent 0 40%, rgba(0, 1, 7, .28) 62%, rgba(0, 1, 6, .96) 99%),
-                linear-gradient(96deg, rgba(0, 0, 0, .05) 38%, rgba(0, 2, 10, .72) 74%, rgba(0, 1, 5, .95) 100%);
+        /* 지구 자리 표식. 실제 그림은 아래 iframe(WebGL 캔버스)이 그리지만,
+           바깥 열 배치가 이 클래스의 :has() 선택자에 걸려 있으므로 남겨둔다. */
+        .jarvis-earth-stage { width: 100%; height: 0; }
+        /* data-testid가 iframe 자체에 붙는 버전과 감싸는 div에 붙는 버전이 모두
+           있어 둘 다 잡는다(로컬 1.58 ↔ 온라인 1.59 DOM 차이). */
+        iframe[data-testid="stIFrame"],
+        div[data-testid="stIFrame"] iframe {
+            background: transparent !important;
+            border: 0 !important;
+            width: 100% !important;
+            height: 520px !important;
+            display: block;
         }
         .jarvis-earth-fallback {
             width: min(58vw, 500px);
@@ -584,14 +519,6 @@ if not st.session_state.get("authenticated"):
             box-shadow: 0 15px 42px rgba(14, 112, 235, .42), inset 0 1px rgba(255, 255, 255, .24) !important;
         }
         [data-testid="stAlert"] { border-radius: 12px !important; background: rgba(65, 17, 24, .58) !important; }
-        @keyframes jarvis-waiting-earth-turn {
-            from { background-position: 120% 50%; }
-            to { background-position: -80% 50%; }
-        }
-        @keyframes jarvis-waiting-halo-breathe {
-            0%, 100% { opacity: .58; transform: scale(.985); }
-            50% { opacity: .82; transform: scale(1.015); }
-        }
         @keyframes jarvis-star-drift { to { transform: translate3d(90px, 55px, 0); } }
         @media (max-width: 1100px) {
             [data-testid="stMainBlockContainer"] { padding: 1.25rem 2rem 2rem !important; align-items: flex-start; }
@@ -605,12 +532,14 @@ if not st.session_state.get("authenticated"):
                 flex: 1 1 auto !important;
                 min-width: 0 !important;
             }
-            .jarvis-earth-stage { width: min(64vw, 460px); }
+            iframe[data-testid="stIFrame"],
+            div[data-testid="stIFrame"] iframe { height: 380px !important; }
             div[data-testid="stColumn"]:has(.jarvis-login-panel-heading) { max-width: 640px; margin-inline: auto; }
         }
         @media (max-width: 640px) {
             [data-testid="stMainBlockContainer"] { padding: .5rem 1rem 1.25rem !important; }
-            .jarvis-earth-stage { width: min(84vw, 330px); }
+            iframe[data-testid="stIFrame"],
+            div[data-testid="stIFrame"] iframe { height: 300px !important; }
             div[data-testid="stColumn"]:has(.jarvis-login-panel-heading) {
                 min-width: 0;
                 padding: 1.35rem !important;
@@ -621,9 +550,8 @@ if not st.session_state.get("authenticated"):
         }
         @media (prefers-reduced-motion: reduce) {
             [data-testid="stAppViewContainer"]::before,
-            [data-testid="stAppViewContainer"]::after,
-            .jarvis-waiting-earth-surface,
-            .jarvis-waiting-earth-halo { animation: none !important; }
+            [data-testid="stAppViewContainer"]::after { animation: none !important; }
+            /* 지구 자전은 캔버스 안에서 prefers-reduced-motion을 직접 본다 */
         }
         </style>
         """,
@@ -631,7 +559,8 @@ if not st.session_state.get("authenticated"):
     )
     _login_earth_col, _login_panel_col = st.columns([1.25, 1], gap="large", vertical_alignment="center")
     with _login_earth_col:
-        st.markdown('<div class="jarvis-earth-stage">' + _jarvis_login_earth_markup + "</div>", unsafe_allow_html=True)
+        st.markdown('<div class="jarvis-earth-stage" aria-hidden="true"></div>', unsafe_allow_html=True)
+        login_globe.render_login_globe(st, _jarvis_earth_src)
     with _login_panel_col:
         st.markdown(
             """

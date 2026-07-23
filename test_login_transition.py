@@ -55,11 +55,12 @@ class LoginVisualContractTests(unittest.TestCase):
         for marker in (
             'Path(__file__).parent / "assets" / "jarvis_earth.webp"',
             "data:image/webp;base64,",
-            "jarvis-waiting-earth-surface",
-            "jarvis-waiting-earth-turn",
+            "login_globe.render_login_globe(st, _jarvis_earth_src)",
         ):
             self.assertIn(marker, SOURCE)
         self.assertNotIn("jarvis_earth.svg", SOURCE)
+        # 평면 지도를 옆으로 밀던 옛 방식은 완전히 걷어냈다.
+        self.assertNotIn("jarvis-waiting-earth", SOURCE)
 
     def test_transition_timing_responsive_and_reduced_motion_contract(self):
         for marker in (
@@ -84,10 +85,8 @@ class LoginVisualContractTests(unittest.TestCase):
             SOURCE.index("login_visual.render_login_transition"),
             SOURCE.index("db.init_db()"),
         )
-        self.assertIn("animation: jarvis-waiting-earth-turn 90s linear infinite", SOURCE)
         self.assertIn("animation: jarvis-early-earth-surface-turn 80s linear infinite", VISUAL_SOURCE)
         self.assertIn("login_visual.render_login_transition(st, _jarvis_earth_markup)", SOURCE)
-        self.assertIn("_jarvis_login_earth_markup + \"</div>\"", SOURCE)
         self.assertIn("background-position: 120% 50%", TRANSITION_SOURCE)
         self.assertIn("background-position: -80% 50%", TRANSITION_SOURCE)
         markup_source = SOURCE.split("_jarvis_earth_markup = (", 1)[1].split("except OSError", 1)[0]
