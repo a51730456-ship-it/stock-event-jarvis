@@ -443,8 +443,16 @@ if not st.session_state.get("authenticated"):
             background: transparent !important;
             border: 0 !important;
             width: 100% !important;
-            height: 520px !important;
+            height: 660px !important;
             display: block;
+        }
+        /* Streamlit은 컴포넌트를 감싼 칸을 flex: 0 0 <height>px로 못박는다.
+           그래서 iframe 높이만 CSS로 줄이면 칸은 그대로 남아 아래에 빈 공간이
+           생긴다(2026-07-23 모바일 실측). flex-basis를 풀어 칸이 iframe을
+           그대로 감싸게 한다. */
+        div[data-testid="stElementContainer"]:has(iframe[data-testid="stIFrame"]) {
+            flex: 0 0 auto !important;
+            height: auto !important;
         }
         .jarvis-earth-fallback {
             width: min(58vw, 500px);
@@ -533,13 +541,13 @@ if not st.session_state.get("authenticated"):
                 min-width: 0 !important;
             }
             iframe[data-testid="stIFrame"],
-            div[data-testid="stIFrame"] iframe { height: 380px !important; }
+            div[data-testid="stIFrame"] iframe { height: 420px !important; }
             div[data-testid="stColumn"]:has(.jarvis-login-panel-heading) { max-width: 640px; margin-inline: auto; }
         }
         @media (max-width: 640px) {
             [data-testid="stMainBlockContainer"] { padding: .5rem 1rem 1.25rem !important; }
             iframe[data-testid="stIFrame"],
-            div[data-testid="stIFrame"] iframe { height: 300px !important; }
+            div[data-testid="stIFrame"] iframe { height: 340px !important; }
             div[data-testid="stColumn"]:has(.jarvis-login-panel-heading) {
                 min-width: 0;
                 padding: 1.35rem !important;

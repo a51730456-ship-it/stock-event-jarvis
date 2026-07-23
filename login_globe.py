@@ -42,7 +42,10 @@ const vec3 ATMO = vec3(0.36, 0.62, 1.0);
 
 void main() {
     vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / (0.5 * min(uRes.x, uRes.y));
-    p /= 1.10;                       /* 대기광이 잘리지 않게 여백을 둔다 */
+    /* 구가 화면의 짧은 쪽에서 차지하는 비율. 1보다 커지면 구가 화면을 넘어
+       위아래가 잘린다(2026-07-23 실측 — 1.10으로 두었다가 잘렸다).
+       0.86이면 바깥 대기광이 들어설 자리까지 남는다. */
+    p /= 0.86;
     float r2 = dot(p, p);
 
     if (r2 > 1.0) {
@@ -250,6 +253,6 @@ def _js_string(value: str) -> str:
     return json.dumps(value)
 
 
-def render_login_globe(st, texture_src: str, *, height: int = 480) -> None:
+def render_login_globe(st, texture_src: str, *, height: int = 660) -> None:
     """로그인 화면 왼쪽에 자전하는 지구를 띄운다."""
     components.html(globe_html(texture_src), height=height)
