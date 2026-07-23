@@ -13,7 +13,6 @@ SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
 VISUAL_SOURCE = (ROOT / "login_visual.py").read_text(encoding="utf-8")
 TRANSITION_SOURCE = SOURCE + VISUAL_SOURCE
 EARTH_PATH = ROOT / "assets" / "jarvis_earth.webp"
-DOT_EARTH_PATH = ROOT / "assets" / "jarvis_dot_earth.webp"
 TEST_PASSWORD = "jarvis-login-transition-test"
 
 
@@ -47,14 +46,14 @@ def _overlay_count(app):
 
 class LoginVisualContractTests(unittest.TestCase):
     def test_earth_is_1400px_local_webp_under_500kb(self):
-        for earth_path in (EARTH_PATH, DOT_EARTH_PATH):
-            self.assertLessEqual(earth_path.stat().st_size, 500_000)
-            with Image.open(earth_path) as earth:
-                self.assertEqual(earth.format, "WEBP")
-                self.assertEqual(earth.size, (1400, 1400))
+        # 2026-07-23: 로그인 화면도 실사 지구(jarvis_earth.webp)를 쓰기로 해
+        # 점 지구는 더 이상 앱에서 읽지 않는다. 텍스처는 한 장만 검사한다.
+        self.assertLessEqual(EARTH_PATH.stat().st_size, 500_000)
+        with Image.open(EARTH_PATH) as earth:
+            self.assertEqual(earth.format, "WEBP")
+            self.assertEqual(earth.size, (1400, 1400))
         for marker in (
             'Path(__file__).parent / "assets" / "jarvis_earth.webp"',
-            'Path(__file__).parent / "assets" / "jarvis_dot_earth.webp"',
             "data:image/webp;base64,",
             "jarvis-waiting-earth-surface",
             "jarvis-waiting-earth-turn",
@@ -85,7 +84,7 @@ class LoginVisualContractTests(unittest.TestCase):
             SOURCE.index("login_visual.render_login_transition"),
             SOURCE.index("db.init_db()"),
         )
-        self.assertIn("animation: jarvis-waiting-earth-turn 60s linear infinite", SOURCE)
+        self.assertIn("animation: jarvis-waiting-earth-turn 90s linear infinite", SOURCE)
         self.assertIn("animation: jarvis-early-earth-surface-turn 80s linear infinite", VISUAL_SOURCE)
         self.assertIn("login_visual.render_login_transition(st, _jarvis_earth_markup)", SOURCE)
         self.assertIn("_jarvis_login_earth_markup + \"</div>\"", SOURCE)

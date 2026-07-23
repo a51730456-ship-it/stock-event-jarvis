@@ -359,18 +359,20 @@ try:
 except OSError:
     _jarvis_earth_markup = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
 
+# 로그인 화면 지구 (2026-07-23 사용자 선택: 점 지구 → 우주에서 본 실사 지구).
+# 전환 연출과 같은 NASA 텍스처를 그대로 재사용한다 — 파일을 두 번 읽지 않으므로
+# 첫 화면 로딩이 오히려 가벼워진다(점 지구 36KB 읽기·base64 인코딩이 사라진다).
 try:
-    _jarvis_dot_earth_bytes = (Path(__file__).parent / "assets" / "jarvis_dot_earth.webp").read_bytes()
-    _jarvis_dot_earth_src = "data:image/webp;base64," + base64.b64encode(_jarvis_dot_earth_bytes).decode("ascii")
     _jarvis_login_earth_markup = (
         '<div class="jarvis-waiting-earth-visual">'
         '<div class="jarvis-waiting-earth-halo"></div>'
         '<div class="jarvis-waiting-earth-disc">'
-        f'<div class="jarvis-waiting-earth-surface" role="img" aria-label="점으로 표현된 회전 지구" '
-        f'style="--jarvis-dot-earth-texture:url({_jarvis_dot_earth_src})"></div>'
+        f'<div class="jarvis-waiting-earth-surface" role="img" aria-label="우주에서 본 자전하는 지구" '
+        f'style="--jarvis-dot-earth-texture:url({_jarvis_earth_src})"></div>'
         "</div></div>"
     )
-except OSError:
+except NameError:
+    # 위 텍스처 로드가 실패했을 때만 여기로 온다.
     _jarvis_login_earth_markup = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
 
 # 비밀번호 게이트: 인증 전에는 DB 초기화/자동 백업/앱 본문이 전혀 실행되지 않는다.
@@ -450,14 +452,16 @@ if not st.session_state.get("authenticated"):
             aspect-ratio: 1;
             isolation: isolate;
         }
+        /* 실사 지구의 대기 산란광. 예전 보라·청록 네온 후광을 대신한다 —
+           진짜 지구 사진 위에 네온을 두르면 사진이 합성처럼 보인다. */
         .jarvis-waiting-earth-halo {
             position: absolute;
-            inset: 5.7%;
+            inset: 4.5%;
             z-index: 1;
             border-radius: 50%;
-            background: conic-gradient(from 215deg, rgba(141, 27, 255, .78), rgba(68, 48, 255, .28) 28%, rgba(32, 197, 255, .78) 52%, rgba(0, 91, 255, .2) 72%, rgba(141, 27, 255, .7));
-            filter: blur(16px);
-            opacity: .72;
+            background: radial-gradient(circle at 38% 32%, rgba(150, 214, 255, .22), transparent 58%);
+            box-shadow: 0 0 46px rgba(46, 132, 224, .38), 0 0 120px rgba(28, 96, 190, .26);
+            opacity: .9;
             animation: jarvis-waiting-halo-breathe 5.5s ease-in-out infinite;
         }
         .jarvis-waiting-earth-disc {
@@ -467,17 +471,20 @@ if not st.session_state.get("authenticated"):
             overflow: hidden;
             border-radius: 50%;
             background: #000104;
-            box-shadow: inset 14px 0 30px rgba(118, 30, 255, .18), inset -14px 0 30px rgba(22, 191, 255, .2);
+            /* 자전축 23.4° — 지구가 똑바로 서 있으면 도리어 지구처럼 안 보인다. */
+            transform: rotate(-23.4deg);
+            box-shadow: inset 0 0 26px rgba(10, 40, 80, .55);
         }
         .jarvis-waiting-earth-disc::after {
             content: "";
             position: absolute;
             inset: 0;
             z-index: 3;
-            border: 1px solid rgba(123, 218, 255, .46);
+            /* 대기층이 빛을 산란시켜 가장자리가 파랗게 뜨는 것 */
+            border: 1px solid rgba(140, 205, 255, .34);
             border-radius: 50%;
             pointer-events: none;
-            box-shadow: inset 10px 0 24px rgba(125, 28, 255, .18), inset -10px 0 24px rgba(28, 194, 255, .24);
+            box-shadow: inset 0 0 22px rgba(120, 196, 255, .5);
         }
         .jarvis-waiting-earth-surface {
             position: absolute;
@@ -489,7 +496,7 @@ if not st.session_state.get("authenticated"):
             background-size: 200% 100%;
             background-position: 120% 50%;
             opacity: 1;
-            animation: jarvis-waiting-earth-turn 60s linear infinite;
+            animation: jarvis-waiting-earth-turn 90s linear infinite;
             animation-fill-mode: both;
             will-change: background-position;
         }
@@ -499,9 +506,10 @@ if not st.session_state.get("authenticated"):
             inset: 0;
             border-radius: 50%;
             pointer-events: none;
+            /* 낮·밤 경계(터미네이터)와 가장자리 어둠. 왼쪽 위에서 해가 든다. */
             background:
-                radial-gradient(circle at 43% 38%, transparent 0 43%, rgba(0, 1, 7, .2) 60%, rgba(0, 1, 6, .94) 98%),
-                linear-gradient(90deg, rgba(18, 0, 43, .48), transparent 29%, transparent 66%, rgba(0, 33, 57, .42));
+                radial-gradient(circle at 40% 36%, transparent 0 40%, rgba(0, 1, 7, .28) 62%, rgba(0, 1, 6, .96) 99%),
+                linear-gradient(96deg, rgba(0, 0, 0, .05) 38%, rgba(0, 2, 10, .72) 74%, rgba(0, 1, 5, .95) 100%);
         }
         .jarvis-earth-fallback {
             width: min(58vw, 500px);
@@ -636,9 +644,9 @@ if not st.session_state.get("authenticated"):
             """,
             unsafe_allow_html=True,
         )
-        _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
-        # 로그인 후 이동할 화면을 미리 고른다 — 자비스2/3 선택 시 자비스1 로딩을
-        # 건너뛰고 바로 진입해 대기 시간을 없앤다.
+        # 위에서 아래로 순서대로 입력하고 마지막에 누르는 흐름이 되도록
+        # '이동할 곳 → 비밀번호 → 로그인' 순으로 둔다(2026-07-23 사용자 지시).
+        # 자비스2/3 선택 시 자비스1 로딩을 건너뛰고 바로 진입해 대기 시간을 없앤다.
         _login_dest = st.radio(
             "로그인 후 이동",
             [
@@ -652,6 +660,7 @@ if not st.session_state.get("authenticated"):
             horizontal=True,
             key="login_dest_choice",
         )
+        _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
         if st.button("로그인", key="login_submit", use_container_width=True):
             if _login_password_input == _app_password:
                 st.session_state["authenticated"] = True
