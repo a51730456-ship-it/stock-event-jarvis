@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -262,7 +263,40 @@ def _latest_table_html(rows: list[dict], histories: dict[int, list[dict]]) -> st
     )
 
 
-def _stock_table_html(stocks: list[dict], theme_row: dict) -> str:
+def _session_progress(captured_at) -> float:
+    """장 시작(09:00)부터 이 수집 시각까지 정규장 6시간30분 중 얼마나 지났는지.
+
+    오늘 거래량을 전일 '하루치'와 그냥 나누면 장중에는 무조건 1배 미만으로 나온다.
+    경과율로 나눠야 '평소 이맘때 대비 몇 배 페이스인가'가 된다.
+    """
+    try:
+        moment = datetime.fromisoformat(str(captured_at))
+    except (TypeError, ValueError):
+        return 1.0
+    opened = moment.replace(hour=9, minute=0, second=0, microsecond=0)
+    ratio = (moment - opened).total_seconds() / (6.5 * 3600)
+    return min(1.0, max(0.02, ratio))
+
+
+def _pace_cell(volume, previous_volume, progress: float) -> str:
+    """전일 대비 거래 페이스 칸."""
+    volume = float(volume or 0)
+    previous_volume = float(previous_volume or 0)
+    if previous_volume <= 0 or volume <= 0:
+        return "<td class='j5-muted'>—</td>"
+    pace = (volume / previous_volume) / progress
+    if pace >= 2.0:
+        cls = "j5-warn"
+    elif pace >= 1.3:
+        cls = "j5-good"
+    elif pace >= 0.7:
+        cls = "j5-muted"
+    else:
+        cls = "j5-neg"
+    return f"<td class='{cls}'>{pace:.2f}배</td>"
+
+
+def _stock_table_html(stocks: list[dict], theme_row: dict, progress: float = 1.0) -> str:
     """테마를 펼쳤을 때 보이는 구성종목 표.
 
     구간 거래대금이 큰 순서로 준다 — 맨 위 종목이 그 테마 점수를 끌어올린 종목이다.
@@ -291,7 +325,8 @@ def _stock_table_html(stocks: list[dict], theme_row: dict) -> str:
             f"<td class='j5-good'>{_eok(interval)}</td>"
             f"<td class='{share_class}'>{share * 100:.0f}%</td>"
             f"<td class='j5-muted'>{_eok(stock.get('trading_value'))}</td>"
-            f"<td class='{overlap_class}'>{theme_count or '—'}</td>"
+            + _pace_cell(stock.get("volume"), stock.get("previous_volume"), progress)
+            + f"<td class='{overlap_class}'>{theme_count or '—'}</td>"
             "</tr>"
         )
 
@@ -301,20 +336,29 @@ def _stock_table_html(stocks: list[dict], theme_row: dict) -> str:
     top_share = float(theme_row.get("top_contributor_share") or 0)
     top_raw = max((float(s.get("interval_trading_value") or 0) for s in stocks), default=0.0)
     top_raw_share = (top_raw / interval_total) if interval_total > 0 else 0.0
+    today_volume = sum(float(s.get("volume") or 0) for s in stocks)
+    prev_volume = sum(float(s.get("previous_volume") or 0) for s in stocks)
+    theme_pace = (
+        f"{(today_volume / prev_volume) / progress:.2f}배"
+        if prev_volume > 0 and today_volume > 0 else "—"
+    )
     head = (
         f"<div class='j5-note'>구성종목 {members}개 · 오른 종목 {advancers}개 · "
         f"거래가 늘어난 종목 {active}개<br>"
         f"<b>최대종목 기여 {top_share * 100:.0f}%</b>(중복소속 보정 후 — 점수·경보 판정에 쓰는 값) · "
         f"실제 돈 기준으로는 {top_raw_share * 100:.0f}%"
         + ("  <b class='j5-warn'>— 한 종목이 절반 넘게 만들었습니다</b>" if top_raw_share >= 0.55 else "")
+        + f"<br>테마 전체 거래 페이스 <b>{theme_pace}</b>"
+        + " · <span class='j5-muted'>전일 대비는 <b>매수+매도 합계 거래량</b>이 평소 이맘때보다 "
+        "몇 배인지입니다. 순매수(들어온 돈)가 아닙니다 — 팔자가 쏟아져도 올라갑니다.</span>"
         + "</div>"
     )
     return (
         head
-        + "<div class='j5-table-wrap'><table class='j5-table' style='min-width:760px'>"
+        + "<div class='j5-table-wrap'><table class='j5-table' style='min-width:860px'>"
         "<thead><tr><th>#</th><th class='j5-left'>종목</th><th>코드</th><th>현재가</th>"
         "<th>등락</th><th>구간 거래대금</th><th>테마 내 비중</th><th>오늘 누적</th>"
-        "<th>소속테마</th></tr></thead>"
+        "<th>전일 대비</th><th>소속테마</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody></table></div>"
     )
 
@@ -468,8 +512,11 @@ def main() -> None:
         )
         st.caption(
             "구간 거래대금이 큰 순서입니다. 맨 위 종목이 그 테마 점수를 끌어올린 종목입니다. "
-            "‘테마 내 비중’이 한 종목에 쏠려 있으면 테마가 퍼진 것이 아니라 그 종목 혼자 움직인 것입니다."
+            "‘테마 내 비중’이 한 종목에 쏠려 있으면 테마가 퍼진 것이 아니라 그 종목 혼자 움직인 것입니다. "
+            "‘전일 대비’는 오늘 거래량이 전일 하루치 대비 몇 배 페이스인지로, 장 경과 시간을 보정한 값입니다 "
+            "(1.00배 = 평소와 같은 속도)."
         )
+        progress = _session_progress(latest.get("captured_at") if latest else None)
         for rank, row in enumerate(latest_rows, 1):
             theme_no = row.get("theme_no")
             stocks = stock_groups.get(int(theme_no)) if theme_no is not None else None
@@ -488,7 +535,10 @@ def main() -> None:
                         + f" (합계 −{float(row.get('lead_penalty') or 0):.0f}점)</div>",
                         unsafe_allow_html=True,
                     )
-                st.markdown(_stock_table_html(stocks or [], row), unsafe_allow_html=True)
+                st.markdown(
+                    _stock_table_html(stocks or [], row, progress),
+                    unsafe_allow_html=True,
+                )
     else:
         st.info("아직 원자료가 없습니다. 1회 수집하거나 별도 수집기를 실행하십시오.")
 
