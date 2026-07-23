@@ -497,8 +497,10 @@ def main() -> None:
     # 동시호가에는 늘어난 거래가 없어 구간 지표가 전부 0이 되고, 그대로 줄을 세우면
     # 266개가 모두 0점인 채 뜻 없는 1위가 남는다(2026-07-23 실측).
     active_run = store.latest_active_run()
-    rank_run_id = active_run.get("id") if active_run else None
-    if active_run and latest and int(active_run["id"]) != int(latest["id"]):
+    rank_run_id = (active_run or {}).get("id")
+    latest_run_id = (latest or {}).get("id")
+    # 두 수집을 식별할 수 있을 때만 비교한다 — 최신 수집 정보에 id가 없을 수도 있다.
+    if rank_run_id is not None and latest_run_id is not None and int(rank_run_id) != int(latest_run_id):
         st.warning(
             f"장중 거래가 멈춘 뒤라 최신 수집({str(latest.get('captured_at'))[11:16]})에는 "
             f"구간 지표가 없습니다. 아래 순위는 값이 살아 있던 마지막 시점 "
