@@ -11,7 +11,6 @@
 WebGL을 못 쓰는 환경에서는 정적 원형 그라디언트로 조용히 물러난다.
 """
 
-import streamlit.components.v1 as components
 
 # 파이썬 사전 렌더링에서 맞춘 값 (scratchpad/globe_preview.py)
 _TILT_RAD = 0.408407  # 자전축 23.4°
@@ -255,4 +254,6 @@ def _js_string(value: str) -> str:
 
 def render_login_globe(st, texture_src: str, *, height: int = 660) -> None:
     """로그인 화면 왼쪽에 자전하는 지구를 띄운다."""
-    components.html(globe_html(texture_src), height=height)
+    # st.components.v1.html은 Streamlit이 2026-06-01부로 폐기 예정이라 st.iframe을 쓴다.
+    # st.iframe은 HTML 문자열도 그대로 받는다(입력 종류를 스스로 판별한다).
+    st.iframe(globe_html(texture_src), height=height)
