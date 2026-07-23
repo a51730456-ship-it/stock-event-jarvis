@@ -313,12 +313,45 @@ def latest_run(*, kind: str | None = None, db_path=None) -> dict | None:
         return dict(row) if row else None
 
 
-def latest_theme_rows(*, limit: int = 20, db_path=None) -> list[dict]:
+def latest_active_run(*, minimum_ready_themes: int = 20, db_path=None) -> dict | None:
+    """구간 거래활동이 실제로 잡힌 마지막 수집을 돌려준다.
+
+    장 마감 뒤나 마감 동시호가(15:20~15:30) 구간에는 직전 수집과 견줘 늘어난
+    거래가 없어 구간 지표가 전부 0이 된다. 그 수집으로 순위를 매기면 266개 테마가
+    모두 0점이 되고, 화면에는 뜻 없는 1위·2위가 남는다(2026-07-23 실측).
+    그래서 화면은 '마지막으로 값이 살아 있던 수집'을 기준으로 보여준다.
+
+    '살아 있다'의 기준은 활동 종목이 하나라도 있는 것이 아니라, 참여 종목이 3개
+    이상인 테마가 충분히 많은 것이다. 마감 직전 15:35 수집은 전체 6,417행 중 22개만
+    움직여 테마 순위가 여전히 무의미했다(같은 날 실측).
+    """
     ensure_schema(db_path)
     with connection(db_path) as conn:
-        run = conn.execute(
-            "SELECT id FROM collection_runs WHERE status != 'failed' ORDER BY id DESC LIMIT 1"
+        row = conn.execute(
+            """
+            SELECT r.*, SUM(CASE WHEN t.active_count >= 3 THEN 1 ELSE 0 END) AS ready_themes
+            FROM collection_runs r
+            JOIN theme_snapshots t ON t.run_id = r.id
+            WHERE r.status != 'failed' AND r.kind = 'full'
+            GROUP BY r.id
+            HAVING ready_themes >= ?
+            ORDER BY r.id DESC
+            LIMIT 1
+            """,
+            (int(minimum_ready_themes),),
         ).fetchone()
+        return dict(row) if row else None
+
+
+def latest_theme_rows(*, limit: int = 20, run_id: int | None = None, db_path=None) -> list[dict]:
+    ensure_schema(db_path)
+    with connection(db_path) as conn:
+        if run_id is not None:
+            run = {"id": int(run_id)}
+        else:
+            run = conn.execute(
+                "SELECT id FROM collection_runs WHERE status != 'failed' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
         if not run:
             return []
         rows = conn.execute(
@@ -556,7 +589,7 @@ def theme_rows_for_run(run_id: int, *, db_path=None) -> list[dict]:
         return [dict(row) for row in rows]
 
 
-def latest_theme_stock_rows(theme_nos, *, db_path=None) -> dict[int, list[dict]]:
+def latest_theme_stock_rows(theme_nos, *, run_id: int | None = None, db_path=None) -> dict[int, list[dict]]:
     """가장 최근 전체 수집에서 테마별 구성종목을 한 번에 가져온다.
 
     화면에서 테마를 펼쳤을 때 '왜 이 테마가 올라왔는지'를 종목 단위로 보여주기
@@ -569,10 +602,13 @@ def latest_theme_stock_rows(theme_nos, *, db_path=None) -> dict[int, list[dict]]
     ensure_schema(db_path)
     placeholders = ",".join("?" for _ in numbers)
     with connection(db_path) as conn:
-        run = conn.execute(
-            "SELECT id FROM collection_runs WHERE kind = 'full' AND status != 'failed' "
-            "ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        if run_id is not None:
+            run = {"id": int(run_id)}
+        else:
+            run = conn.execute(
+                "SELECT id FROM collection_runs WHERE kind = 'full' AND status != 'failed' "
+                "ORDER BY id DESC LIMIT 1"
+            ).fetchone()
         if run is None:
             return {}
         rows = conn.execute(

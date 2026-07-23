@@ -493,7 +493,18 @@ def main() -> None:
         "여러 테마에 겹친 영향과 단일종목 집중은 별도로 감점합니다.</div>",
         unsafe_allow_html=True,
     )
-    all_latest_rows = store.latest_theme_rows(limit=400)
+    # 순위는 '구간 거래활동이 살아 있던 마지막 수집'으로 매긴다. 마감 뒤나 마감
+    # 동시호가에는 늘어난 거래가 없어 구간 지표가 전부 0이 되고, 그대로 줄을 세우면
+    # 266개가 모두 0점인 채 뜻 없는 1위가 남는다(2026-07-23 실측).
+    active_run = store.latest_active_run()
+    rank_run_id = active_run.get("id") if active_run else None
+    if active_run and latest and int(active_run["id"]) != int(latest["id"]):
+        st.warning(
+            f"장중 거래가 멈춘 뒤라 최신 수집({str(latest.get('captured_at'))[11:16]})에는 "
+            f"구간 지표가 없습니다. 아래 순위는 값이 살아 있던 마지막 시점 "
+            f"**{str(active_run.get('captured_at'))[11:16]}** 기준입니다."
+        )
+    all_latest_rows = store.latest_theme_rows(limit=400, run_id=rank_run_id)
     latest_rows = engine.rank_lead_themes(all_latest_rows)[:20]
     if latest_rows:
         histories = store.theme_activity_history(
@@ -504,7 +515,8 @@ def main() -> None:
         # 위 표는 그대로 두고, 아래에 테마별 구성종목을 펼쳐 볼 수 있게 덧붙인다.
         # 어떤 종목이 그 테마를 끌어올렸는지 눈으로 확인하기 위한 것이다.
         stock_groups = store.latest_theme_stock_rows(
-            [row.get("theme_no") for row in latest_rows]
+            [row.get("theme_no") for row in latest_rows],
+            run_id=rank_run_id,
         )
         st.markdown(
             "<div class='j5-section-title'>테마별 구성종목 · 누르면 펼쳐집니다</div>",
@@ -516,7 +528,9 @@ def main() -> None:
             "‘전일 대비’는 오늘 거래량이 전일 하루치 대비 몇 배 페이스인지로, 장 경과 시간을 보정한 값입니다 "
             "(1.00배 = 평소와 같은 속도)."
         )
-        progress = _session_progress(latest.get("captured_at") if latest else None)
+        progress = _session_progress(
+            (active_run or latest or {}).get("captured_at")
+        )
         for rank, row in enumerate(latest_rows, 1):
             theme_no = row.get("theme_no")
             stocks = stock_groups.get(int(theme_no)) if theme_no is not None else None
