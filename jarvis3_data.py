@@ -159,6 +159,37 @@ def _copy_frames(frames: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     return {ticker: frame.copy() for ticker, frame in frames.items()}
 
 
+def _download_cache_only(
+    tickers, *, period: str, interval: str, ttl_seconds: float, prepost: bool = False
+) -> tuple[dict[str, pd.DataFrame], dict]:
+    """정확 키 또는 더 큰 배치의 메모리 캐시만 읽고 네트워크는 호출하지 않는다."""
+    unique = tuple(dict.fromkeys(str(t).strip().upper() for t in tickers if str(t).strip()))
+    requested = set(unique)
+    now = time.time()
+    with _CACHE_LOCK:
+        for cached_key, candidate in _CACHE.items():
+            if not isinstance(cached_key, tuple) or len(cached_key) != 4:
+                continue
+            cached_tickers, cached_period, cached_interval, cached_prepost = cached_key
+            if (
+                cached_period == period
+                and cached_interval == interval
+                and bool(cached_prepost) == bool(prepost)
+                and requested.issubset(set(cached_tickers))
+                and now - candidate["at"] < ttl_seconds
+            ):
+                frames = {
+                    ticker: candidate["frames"][ticker].copy()
+                    for ticker in unique if ticker in candidate["frames"]
+                }
+                if frames:
+                    return frames, {
+                        "ok": True, "error": None, "stale": False,
+                        "fetched_at": candidate["fetched_at"], "reused_superset": True,
+                    }
+    return {}, {"ok": False, "error": "재사용할 일봉 배치가 없습니다", "stale": False}
+
+
 def _download_cached(
     tickers,
     *,
@@ -178,6 +209,29 @@ def _download_cached(
             return _copy_frames(cached["frames"]), {
                 "ok": True, "error": None, "stale": False, "fetched_at": cached["fetched_at"]
             }
+        # 테마 순위가 이미 더 큰 티커 묶음을 한 번에 내려받았다면 그 프레임을 재사용한다.
+        # 눌림목 찾기가 130여 종목을 다시 다운로드하지 않게 하는 핵심 경로다.
+        requested = set(unique)
+        for cached_key, candidate in _CACHE.items():
+            if not isinstance(cached_key, tuple) or len(cached_key) != 4:
+                continue
+            cached_tickers, cached_period, cached_interval, cached_prepost = cached_key
+            if (
+                cached_period == period
+                and cached_interval == interval
+                and bool(cached_prepost) == bool(prepost)
+                and requested.issubset(set(cached_tickers))
+                and now - candidate["at"] < ttl_seconds
+            ):
+                frames = {
+                    ticker: candidate["frames"][ticker].copy()
+                    for ticker in unique if ticker in candidate["frames"]
+                }
+                if frames:
+                    return frames, {
+                        "ok": True, "error": None, "stale": False,
+                        "fetched_at": candidate["fetched_at"], "reused_superset": True,
+                    }
 
     try:
         import yfinance as yf
@@ -265,10 +319,17 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
     sma50 = _finite(closes.tail(50).mean()) if len(closes) >= 50 else None
     sma200 = _finite(closes.tail(200).mean()) if len(closes) >= 200 else None
     high52 = None
+    high52_days_ago = None
     if "High" in daily.columns:
-        high52 = _finite(daily["High"].tail(252).max())
+        highs = daily["High"].dropna().astype(float).tail(252)
+        if not highs.empty:
+            high52 = _finite(highs.max())
+            high52_days_ago = int(len(highs) - 1 - highs.values.argmax())
     if high52 is None:
-        high52 = _finite(closes.tail(252).max())
+        high_closes = closes.tail(252)
+        high52 = _finite(high_closes.max())
+        if high52 is not None and not high_closes.empty:
+            high52_days_ago = int(len(high_closes) - 1 - high_closes.values.argmax())
 
     volume_ratio = None
     avg_dollar_volume = None
@@ -304,6 +365,7 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
         "sma50": sma50,
         "sma200": sma200,
         "high52": high52,
+        "high52_days_ago": high52_days_ago,
         "from_high_pct": ((current / high52 - 1) * 100) if high52 else None,
         "volume_ratio": volume_ratio,
         "avg_dollar_volume": avg_dollar_volume,
@@ -597,6 +659,130 @@ def get_theme_rankings() -> dict:
         "checked_at": live_meta.get("fetched_at") or daily_meta.get("fetched_at"),
         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
         "error": live_meta.get("error") if live_meta.get("stale") else None,
+    }
+
+
+def _pullback_quality(metrics: dict, theme_count: int) -> dict | None:
+    """미국 종목 눌림목 품질. 다중 테마는 필수가 아니라 최대 5점 가산이다."""
+    current = _finite(metrics.get("current"))
+    sma20 = _finite(metrics.get("sma20"))
+    if current is None or sma20 is None or current <= 0:
+        return None
+    days_ago = metrics.get("high52_days_ago")
+    from_high = _finite(metrics.get("from_high_pct"))
+    gap = (current / sma20 - 1) * 100
+
+    if days_ago is None:
+        recency = 0.0
+    elif days_ago <= 10:
+        recency = 25.0
+    elif days_ago >= 60:
+        recency = 0.0
+    else:
+        recency = 25.0 * (1 - (days_ago - 10) / 50)
+    proximity = max(0.0, 20.0 * (1 - max(0.0, abs(gap) - 1.5) / 7.5))
+    trend = 0.0
+    if metrics.get("sma50") and current > metrics["sma50"]:
+        trend += 10.0
+    if metrics.get("sma200") and current > metrics["sma200"]:
+        trend += 10.0
+    if from_high is None:
+        depth = 0.0
+    elif -20 <= from_high <= -4:
+        depth = 20.0
+    elif -28 <= from_high < -20 or -4 < from_high <= -2:
+        depth = 12.0
+    else:
+        depth = 3.0
+    liquidity = _scale(metrics.get("avg_dollar_volume"), 20_000_000, 500_000_000, 10)
+    theme_bonus = min(5.0, max(0, int(theme_count) - 1) * 2.5)
+    return {
+        "score": round(min(100.0, recency + proximity + trend + depth + liquidity + theme_bonus), 1),
+        "parts": [round(recency, 1), round(proximity, 1), round(trend, 1),
+                  round(depth, 1), round(liquidity, 1), round(theme_bonus, 1)],
+        "gap_pct": gap,
+        "from_high_pct": from_high,
+        "high52_days_ago": days_ago,
+    }
+
+
+def find_pullback_stocks(
+    *,
+    high_days_min: int = 1,
+    high_days_max: int = 20,
+    min_score: float = 60.0,
+    result_limit: int = 20,
+    reuse_only: bool = False,
+) -> dict:
+    """미국 테마 전체 종목에서 상승추세 중 조정 후보를 한 번에 찾는다.
+
+    테마 순위가 받은 1년 일봉 묶음을 그대로 재사용한다. 이 함수를 먼저 실행한
+    경우에도 모든 종목을 yfinance 한 번의 배치 요청으로 받는다.
+    """
+    memberships: dict[str, list[str]] = {}
+    for theme in US_THEMES:
+        for ticker in theme["stocks"]:
+            memberships.setdefault(ticker, []).append(theme["name"])
+    tickers = tuple(memberships)
+    loader = _download_cache_only if reuse_only else _download_cached
+    daily, meta = loader(tickers, period="1y", interval="1d", ttl_seconds=300)
+    if not daily:
+        return {"ok": False, "error": meta.get("error") or "미국 종목 일봉 조회 실패", "rows": []}
+
+    rows = []
+    trend_count = 0
+    window_count = 0
+    for ticker, themes in memberships.items():
+        metrics = _series_metrics(daily.get(ticker))
+        if not metrics.get("ok"):
+            continue
+        current = metrics.get("current")
+        sma50 = metrics.get("sma50")
+        sma200 = metrics.get("sma200")
+        if not current or not sma50:
+            continue
+        # 상승 배열(sma50>sma200)은 유지하되 조정 중 50일선을 3% 이내로 잠깐
+        # 밑도는 종목은 눌림 후보에서 바로 버리지 않는다.
+        if current < sma50 * 0.97:
+            continue
+        if sma200 and (sma50 <= sma200 or current <= sma200):
+            continue
+        trend_count += 1
+        days_ago = metrics.get("high52_days_ago")
+        from_high = metrics.get("from_high_pct")
+        if days_ago is None or not (high_days_min <= days_ago <= high_days_max):
+            continue
+        if from_high is None or from_high >= -0.5:
+            continue
+        window_count += 1
+        quality = _pullback_quality(metrics, len(themes))
+        if quality and quality["score"] >= min_score:
+            rows.append({
+                "ticker": ticker,
+                "name": STOCK_NAMES.get(ticker, ticker),
+                "themes": themes,
+                "theme_count": len(themes),
+                "metrics": metrics,
+                "pullback": quality,
+            })
+    rows.sort(
+        key=lambda row: (row["pullback"]["score"], row["metrics"].get("avg_dollar_volume") or 0),
+        reverse=True,
+    )
+    rows = rows[: max(1, int(result_limit))]
+    for index, row in enumerate(rows, 1):
+        row["pullback_rank"] = index
+    return {
+        "ok": True,
+        "rows": rows,
+        "universe_count": len(tickers),
+        "data_count": len(daily),
+        "trend_count": trend_count,
+        "window_count": window_count,
+        "window": (high_days_min, high_days_max),
+        "checked_at": meta.get("fetched_at"),
+        "stale": bool(meta.get("stale")),
+        "reused_batch": bool(meta.get("reused_superset")),
     }
 
 

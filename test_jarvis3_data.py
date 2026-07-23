@@ -136,6 +136,32 @@ class Jarvis3DataTests(unittest.TestCase):
         short = _intraday_frame(230).head(3)
         self.assertIsNone(j3._intraday_chart_payload(short, 100.0))
 
+    def test_pullback_finder_keeps_single_theme_stock(self):
+        frame = _daily_frame()
+        # 5거래일 전 신고가 뒤 약 6% 조정, 장기 이동평균은 여전히 위다.
+        for offset in range(5):
+            frame.iloc[-(offset + 1), frame.columns.get_loc("Close")] *= 0.94
+            frame.iloc[-(offset + 1), frame.columns.get_loc("High")] *= 0.94
+            frame.iloc[-(offset + 1), frame.columns.get_loc("Low")] *= 0.94
+            frame.iloc[-(offset + 1), frame.columns.get_loc("Open")] *= 0.94
+        meta = {"ok": True, "stale": False, "error": None, "fetched_at": "x"}
+        with patch.object(j3, "_download_cached", return_value=({"QCOM": frame}, meta)):
+            result = j3.find_pullback_stocks(min_score=0)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["rows"][0]["ticker"], "QCOM")
+        self.assertEqual(result["rows"][0]["theme_count"], 1)
+
+    def test_multi_theme_is_bonus_not_required(self):
+        metrics = {
+            "current": 100, "sma20": 100, "sma50": 90, "sma200": 80,
+            "high52_days_ago": 5, "from_high_pct": -8,
+            "avg_dollar_volume": 500_000_000,
+        }
+        single = j3._pullback_quality(metrics, 1)
+        multi = j3._pullback_quality(metrics, 3)
+        self.assertIsNotNone(single)
+        self.assertGreater(multi["score"], single["score"])
+
 
 if __name__ == "__main__":
     unittest.main()

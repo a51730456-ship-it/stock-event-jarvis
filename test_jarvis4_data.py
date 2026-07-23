@@ -69,6 +69,42 @@ class MarketPhaseTests(unittest.TestCase):
         self.assertEqual(j4.market_phase(auction)["label"], "장전 동시호가")
 
 
+class ThemeDetailParsingTests(unittest.TestCase):
+    def test_regular_row_uses_direct_trading_value_from_tail_columns(self):
+        parsed = j4._parse_theme_detail_numbers(
+            ["15,480", "500", "3", "670,662", "10,538", "600,000"]
+        )
+        self.assertEqual(parsed["price"], 15_480)
+        self.assertEqual(parsed["volume"], 670_662)
+        self.assertEqual(parsed["trading_value_million"], 10_538)
+        self.assertEqual(parsed["trading_value"], 10_538_000_000)
+        self.assertEqual(parsed["previous_volume"], 600_000)
+        self.assertNotEqual(parsed["trading_value"], parsed["price"] * parsed["volume"])
+
+    def test_flat_row_keeps_tail_columns_aligned_and_preserves_zero(self):
+        parsed = j4._parse_theme_detail_numbers(
+            ["14,100", "0", "0", "0", "0", "0", "62,046"]
+        )
+        self.assertEqual(parsed["price"], 14_100)
+        self.assertEqual(parsed["volume"], 0)
+        self.assertEqual(parsed["trading_value_million"], 0)
+        self.assertEqual(parsed["trading_value"], 0)
+        self.assertEqual(parsed["previous_volume"], 62_046)
+
+    def test_fetch_exposes_parser_version_and_previous_volume(self):
+        html = """
+        <td class="name"><a href="/item/main.naver?code=123456">테스트</a></td>
+        <td>14,100</td><td>0</td><td>0</td><td>0</td><td>0</td>
+        <td>0</td><td>62,046</td><td><span>+0.00%</span></td></tr>
+        """
+        with patch.object(j4, "_get_text", return_value=html):
+            rows = j4._fetch_theme_detail(1)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["trading_value"], 0)
+        self.assertEqual(rows[0]["previous_volume"], 62_046)
+        self.assertEqual(rows[0]["parser_version"], j4.THEME_DETAIL_PARSER_VERSION)
+
+
 class SeriesMetricsTests(unittest.TestCase):
     def test_metrics_compute_trend_and_atr(self):
         metrics = j4._series_metrics(_daily_frame())
@@ -231,7 +267,8 @@ class PullbackFinderTests(unittest.TestCase):
 
     def _stock(self, code, name, value=2e10):
         return {"code": code, "name": name, "price": 60_000,
-                "change_pct": 0.5, "volume": 400_000, "trading_value": value}
+                "change_pct": 0.5, "volume": 400_000, "trading_value": value,
+                "previous_volume": 400_000}
 
     def _theme_stocks(self, theme_no, **kwargs):
         # 하나금융지주는 테마 2개(은행·금융지주), 게임주는 1개뿐이다.
@@ -253,13 +290,13 @@ class PullbackFinderTests(unittest.TestCase):
             "atr_pct": 3.0, "avg_trading_value": 2e10,
         }
 
-    def _run(self, metrics, score=95.0):
+    def _run(self, metrics, score=95.0, theme_stocks=None):
         # find_pullback_stocks는 10분 캐시를 쓴다 — 한 테스트에서 조건을 바꿔 두 번
         # 부를 때 앞 결과가 그대로 나오지 않도록 매번 비운다.
         j4.clear_runtime_cache()
         with patch.object(j4, "get_all_themes",
                           return_value={"ok": True, "themes": self._themes()}), \
-             patch.object(j4, "get_theme_stocks", side_effect=self._theme_stocks), \
+             patch.object(j4, "get_theme_stocks", side_effect=theme_stocks or self._theme_stocks), \
              patch.object(j4, "get_daily_frame", return_value=object()), \
              patch.object(j4, "get_stock_flow", return_value=_flow()), \
              patch.object(j4, "_index_metrics", return_value={"ok": True, "ret20": -14.0}), \
@@ -301,6 +338,32 @@ class PullbackFinderTests(unittest.TestCase):
 
     def test_window_is_reported(self):
         self.assertEqual(self._run(self._metrics(5, -8.0))["window"], (1, 20))
+
+    def test_previous_day_volume_keeps_premarket_candidate_alive(self):
+        def premarket(theme_no, **_kwargs):
+            code = "086790" if theme_no in (1, 2) else "035720"
+            name = "하나금융지주" if theme_no in (1, 2) else "게임A"
+            stock = self._stock(code, name, value=0)
+            stock["previous_volume"] = 400_000  # 60,000원×40만주 = 240억원
+            return {"ok": True, "stocks": [stock]}
+
+        result = self._run(self._metrics(5, -8.0), theme_stocks=premarket)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["rows"])
+        self.assertGreater(result["liquid_count"], 0)
+
+    def test_zero_liquidity_is_empty_result_not_failure(self):
+        def no_liquidity(theme_no, **_kwargs):
+            code = "086790" if theme_no in (1, 2) else "035720"
+            name = "하나금융지주" if theme_no in (1, 2) else "게임A"
+            stock = self._stock(code, name, value=0)
+            stock["previous_volume"] = 0
+            return {"ok": True, "stocks": [stock]}
+
+        result = self._run(self._metrics(5, -8.0), theme_stocks=no_liquidity)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["rows"], [])
+        self.assertEqual(result["liquid_count"], 0)
 
 
 class ScoreAtPastTests(unittest.TestCase):

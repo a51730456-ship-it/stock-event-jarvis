@@ -190,6 +190,7 @@ def collect_kr_flow_snapshot():
         else:
             failures.append("투자자별 수급 대체 조회도 실패")
 
+    if app_key and app_secret:
         # 4) KOSPI200 선물 베이시스 (최근월물 코드는 설정값에서만 읽는다)
         futures = kis_market_data.get_kospi200_futures_snapshot(
             app_key, app_secret, futures_code=st.secrets.get("KIS_KOSPI200_FUTURES_CODE")

@@ -316,6 +316,7 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
     [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
     [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
+    [data-testid="stSidebarNav"] li:nth-child(6) { order: 6; }
     /* 네 번째 항목 '자비스3' 라벨을 '미국테마'로 표시 (파일명 변경 없이 CSS로) */
     [data-testid="stSidebarNav"] li:nth-child(4) a p {
         font-size: 0 !important;
@@ -340,6 +341,10 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:nth-child(5) a:hover p::before {
         color: #ffcf6b;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p::before {
+        content: "테마 선행감지"; font-size: 1.4rem; font-weight: 800; color: #ffb020;
     }
     /* 자비스1 상단 고정 탭바가 사이드바 메뉴를 가리지 않도록 아래로 내림 */
     [data-testid="stSidebarNav"] {
@@ -592,6 +597,7 @@ if not st.session_state.get("authenticated"):
                 "자비스2 (순환매 플레이북)",
                 "미국테마 (자비스3)",
                 "한국테마 (자비스4)",
+                "테마 선행감지 (자비스5·실험)",
             ],
             index=2,  # 기존 자비스2 기본 이동을 그대로 유지한다
             horizontal=True,
@@ -609,6 +615,8 @@ if not st.session_state.get("authenticated"):
                     st.switch_page("pages/2_자비스3.py")
                 if str(_login_dest).startswith("한국테마"):
                     st.switch_page("pages/3_자비스4.py")
+                if str(_login_dest).startswith("테마 선행감지"):
+                    st.switch_page("pages/4_자비스5.py")
                 st.session_state["login_transition_pending"] = True
                 # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
                 # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.

@@ -278,23 +278,33 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertNotIn("jarvis3_store", source)
         self.assertNotIn("import jarvis3_data", source)
 
-    def test_pullback_finder_runs_automatically_and_is_clickable(self):
-        """눌림목 표는 페이지에 들어오면 자동으로 뜨고, 종목은 클릭할 수 있어야 한다.
-
-        (2026-07-22 사용자 지시 — 조건 밖 종목이 섞였던 옛 '눌림목 베스트' 표는 없앴다)
-        """
-        app = _run_page()
-        self.assertEqual(len(app.exception), 0)
-        markdowns = " ".join(str(node.value) for node in app.markdown)
-        self.assertIn("눌림목 종목 찾기", markdowns)
-        self.assertNotIn("눌림목 베스트", markdowns)
-        keys = [str(node.key or "") for node in app.button]
-        self.assertIn("j4_pullback_find", keys)          # 다시 찾기 버튼
-        # 버튼을 누르지 않아도 결과 표가 이미 그려져 있어야 한다.
-        self.assertTrue(
-            [key for key in keys if key.startswith("j4pbf_")],
-            "눌림목 종목이 자동으로 뜨지 않았습니다",
-        )
+    def test_pullback_finder_runs_only_after_button_and_is_clickable(self):
+        """느린 전수검색은 버튼으로 시작하고 결과 종목은 클릭할 수 있어야 한다."""
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            self.assertEqual(len(app.exception), 0)
+            markdowns = " ".join(str(node.value) for node in app.markdown)
+            self.assertIn("눌림목 종목 찾기", markdowns)
+            self.assertNotIn("눌림목 베스트", markdowns)
+            keys = [str(node.key or "") for node in app.button]
+            self.assertIn("j4_pullback_find", keys)
+            self.assertFalse([key for key in keys if key.startswith("j4pbf_")])
+            find_button = next(
+                node for node in app.button if str(node.key or "") == "j4_pullback_find"
+            )
+            find_button.click().run(timeout=90)
+            keys = [str(node.key or "") for node in app.button]
+            self.assertTrue([key for key in keys if key.startswith("j4pbf_")])
+        finally:
+            for item in reversed(started):
+                item.stop()
 
     def test_pullback_click_adds_theme_and_selects_stock(self):
         """눌림목 종목을 누르면 그 테마가 목록에 추가되고 상세가 그 종목으로 바뀐다."""
@@ -307,6 +317,10 @@ class Jarvis4PageTests(unittest.TestCase):
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.run(timeout=90)
+            find_button = next(
+                node for node in app.button if str(node.key or "") == "j4_pullback_find"
+            )
+            find_button.click().run(timeout=90)
             target = [node for node in app.button if str(node.key or "") == "j4pbf_00"]
             self.assertEqual(len(target), 1)
             target[0].click().run(timeout=90)

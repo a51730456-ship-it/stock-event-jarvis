@@ -38,6 +38,7 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
     [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
     [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
+    [data-testid="stSidebarNav"] li:nth-child(6) { order: 6; }
     [data-testid="stSidebarNav"] li:nth-child(4) a p { font-size: 0 !important; }
     [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
         content: "미국테마";
@@ -47,6 +48,10 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(5) a p::before {
         content: "한국테마";
         font-size: 1.4rem; font-weight: 800; color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p::before {
+        content: "테마 선행감지"; font-size: 1.4rem; font-weight: 800; color: #ffb020;
     }
     .j4-score-guide, .j4-market-flow {
         color: #44f0a1; font-size: 1rem; font-weight: 800; line-height: 1.65;
@@ -159,6 +164,12 @@ st.markdown(
     .j4-danta-title { color: #ff9d3b; font-weight: 800; }
     .j4-new-badge { background: rgba(255,176,32,0.16); color: #ffb020; border: 1px solid #ffb020;
         border-radius: 5px; padding: 0 6px; font-size: 0.78rem; font-weight: 800; margin-left: 6px; }
+    .j4-pull-guide { border-left: 4px solid #4da6ff; background: rgba(77,166,255,.07);
+        border-radius: .45rem; padding: .7rem .9rem; color: #b7c0ce; line-height: 1.6;
+        margin: .15rem 0 .65rem; }
+    .j4-pull-guide b { color: #44f0a1; }
+    .j4-pull-stats { color: #9dccff; font-size: .93rem; line-height: 1.55;
+        margin: .15rem 0 .65rem; text-align: left; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -765,7 +776,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     st.markdown(f"<div class='j4-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
     factor_names = ["테마 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)", "유동성(거래대금)", "변동성 안정", "수급(외국인+기관)"]
-    factor_max = [20, 20, 15, 15, 10, 20]
+    factor_max = [20, 15, 20, 15, 10, 20]
 
     def _gain_cell(part, maximum, *, top_border=False):
         border = " style='border-top:4px double rgba(255,255,255,0.55)'" if top_border else ""
@@ -1390,35 +1401,49 @@ def _render_theme_finder(forced: list[str]) -> None:
 def _render_pullback_finder() -> None:
     """상승추세 중 조정받은 눌림목 종목 (2026-07-22 사용자 스펙).
 
-    조건: 2개 이상 테마 + 52주 신고가 15일 전(±8일) + 50일선 위 + 고점 대비 -3~-20%.
-    조회량이 있어 버튼을 누를 때만 실행하고, 결과는 10분간 유지한다.
+    조회량이 있어 버튼을 누를 때만 실행하고, 결과는 화면 세션에 유지한다.
     """
     st.markdown(
         "<div class='j4-section-title'>📉 눌림목 종목 찾기 (상승추세 중 조정)</div>",
         unsafe_allow_html=True,
     )
-    st.caption(
-        "조건 3가지 — **52주 최고가를 찍고 1~20일 지난 종목** · **2개 이상 테마에 속한 종목** · "
-        "**신고가 찍던 시점의 종목 점수 75점 이상**. 테마 순위와 무관하게 전체에서 찾으므로 은행처럼 "
-        "순위 밖 테마도 포함됩니다. 하락장 판단은 상단 ‘한국 전체시장 판단’에서 직접 보고 정하십시오."
+    st.markdown(
+        "<div class='j4-pull-guide'><b>무엇을 찾나</b> — 52주 최고가를 찍은 뒤 1~20거래일 조정 중이며, "
+        "2개 이상 테마에 속하고, <b>신고가 당시 종목 점수가 75점 이상</b>이었던 종목입니다. "
+        "현재 점수가 낮아졌어도 신고가 당시 가격·기술 조건이 좋았다면 남깁니다.<br>"
+        "<b>표 읽는 법</b> — ‘고점 대비 <span class='j4-down'>−10%</span>’는 신고가에서 10% "
+        "조정됐다는 뜻이고, ‘20일선 이격 0%’에 가까울수록 20일선 부근입니다. "
+        "<span class='j4-up'>+ 상승은 빨강</span> · <span class='j4-down'>− 하락은 파랑</span> "
+        "(한국시장 색 규칙). 테마 순위 밖 종목도 전체 검색에 포함됩니다.</div>",
+        unsafe_allow_html=True,
     )
-    # 페이지에 들어오면 자동으로 뜬다(2026-07-22 사용자 지시). 결과는 10분 캐시라
-    # 두 번째부터는 즉시 표시되고, 다시 계산하려면 아래 버튼을 누른다.
-    if st.button("눌림목 다시 찾기", key="j4_pullback_find", width="stretch"):
+    run_requested = st.button(
+        "눌림목 찾기 / 최신 자료로 다시 찾기", key="j4_pullback_find", width="stretch"
+    )
+    if run_requested:
         j4data.clear_pullback_cache()
-        st.rerun()
+        with st.spinner("전체 테마를 갱신하고 유동성 상위 50개를 확인하는 중입니다…"):
+            st.session_state["j4_pullback_result"] = j4data.find_pullback_stocks()
 
-    with st.spinner("전체 테마의 구성종목에서 눌림목 조건을 확인하는 중입니다…"):
-        result = j4data.find_pullback_stocks()
+    result = st.session_state.get("j4_pullback_result")
+    if result is None:
+        st.info("위 버튼을 누르면 조회합니다. 페이지를 여는 것만으로는 전수 검색하지 않습니다.")
+        return
     if not result.get("ok"):
         st.error(f"눌림목 조회 실패: {_safe_error_text(result.get('error'))}")
         return
     rows = result.get("rows") or []
     window = result.get("window") or (1, 20)
-    st.caption(
-        f"2개 이상 테마 종목 {result.get('multi_theme_count', 0)}개 중 거래대금 상위 "
-        f"{result.get('scanned_count', 0)}개를 심사 → 신고가 {window[0]}~{window[1]}일 전 "
-        f"{result.get('screened_count', 0)}개 → 75점 이상 {len(rows)}개"
+    st.markdown(
+        "<div class='j4-pull-stats'>"
+        f"전체 <b>{result.get('universe_count', 0):,}개</b> → "
+        f"2개 이상 테마 <b>{result.get('multi_theme_count', 0):,}개</b> → "
+        f"오늘 거래대금 또는 전일거래량 환산 200억 이상 <b>{result.get('liquid_count', 0):,}개</b> → "
+        f"유동성 상위 <b>{result.get('scanned_count', 0):,}개</b> 일봉 심사 → "
+        f"신고가 {window[0]}~{window[1]}일 전 <b>{result.get('screened_count', 0):,}개</b> → "
+        f"수급 확인 <b>{result.get('flow_checked_count', 0):,}개</b> → "
+        f"최종 75점 이상 <b class='j4-green'>{len(rows):,}개</b></div>",
+        unsafe_allow_html=True,
     )
     if not rows:
         st.info("지금 조건에 맞는 눌림목 종목이 없습니다. 조건을 낮추지 않고 그대로 둡니다.")
@@ -1426,7 +1451,7 @@ def _render_pullback_finder() -> None:
 
     widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.2, 1.1, 0.9, 1.3, 1.3, 1.2]
     titles = ["순위", "종목", "코드", "눌림 점수", "신고가", "고점 대비", "20일선 이격",
-              "테마수", "수급(외+기 5일)", "신고가 때 점수", "지금 점수"]
+              "테마수", "수급(외+기 5일)", "신고가 기술점수", "지금 종합점수"]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
 
@@ -1457,7 +1482,7 @@ def _render_pullback_finder() -> None:
             f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:700'>"
             f"{_pct(quality['from_high_pct'])}</div>", unsafe_allow_html=True)
         gap = quality["gap_pct"]
-        gap_color = "#44f0a1" if abs(gap) <= 3 else "#ff9d3b"
+        gap_color = _sign_color(gap)
         cols[6].markdown(
             f"<div class='j4-td' style='color:{gap_color}; font-weight:700'>{gap:+.2f}%</div>",
             unsafe_allow_html=True)
@@ -1488,9 +1513,10 @@ def _render_pullback_finder() -> None:
         unsafe_allow_html=True,
     )
     st.caption(
-        "**‘신고가 때 점수’가 판정 기준입니다** — 눌림목은 그때 좋았던 종목이 지금 눌린 것이라, "
-        "지금 점수로 자르면 눌렸다는 이유로 탈락합니다. 일봉을 신고가 시점까지 잘라 같은 계산을 "
-        "다시 돌린 값이며, 수급은 현재 값을 씁니다(가격 항목만 정확히 역산). "
+        "**‘신고가 기술점수’가 75점 이상인지가 판정 기준입니다** — 종목 일봉과 KOSPI 일봉을 "
+        "신고가 날짜까지 함께 잘라 당시 상대강도·신고가 위치·추세·유동성·변동성을 다시 계산합니다. "
+        "과거 외국인·기관 수급은 복원할 수 없어 현재 수급을 섞지 않고, 가격·기술 80점을 "
+        "100점으로 환산합니다. ‘지금 종합점수’에만 현재 외국인·기관 수급이 포함됩니다. "
         "종목 이름을 누르면 그 종목의 테마가 위 목록에 추가되고 아래 상세가 그 종목으로 바뀝니다."
     )
 
@@ -1560,12 +1586,18 @@ def main() -> None:
     # 시장판단 화면의 한국장 기관 수급 반전 카드를 그대로 가져온다(자비스4 전용).
     market_signal_ui.render_kr_flow_card()
     st.divider()
-    radar_tab, records_tab, method_tab = st.tabs(["테마·종목", "매수 기록 현황", "판정 기준"])
-    with radar_tab:
+    section = st.radio(
+        "자비스4 보기",
+        ["테마·종목", "매수 기록 현황", "판정 기준"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="j4_section",
+    )
+    if section == "테마·종목":
         _render_radar_tab(market)
-    with records_tab:
+    elif section == "매수 기록 현황":
         _render_records_tab()
-    with method_tab:
+    else:
         _render_method_tab()
 
 

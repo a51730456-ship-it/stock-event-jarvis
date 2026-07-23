@@ -52,6 +52,7 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
     [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
     [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
+    [data-testid="stSidebarNav"] li:nth-child(6) { order: 6; }
     [data-testid="stSidebarNav"] li:nth-child(4) a p {
         font-size: 0 !important;
     }
@@ -75,6 +76,10 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:nth-child(5) a:hover p::before {
         color: #ffcf6b;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p::before {
+        content: "테마 선행감지"; font-size: 1.4rem; font-weight: 800; color: #ffb020;
     }
     /* 제목·지표 글자 한 치수 축소 (2026-07-17 사용자 요청) */
     h1 { font-size: 2.05rem !important; }

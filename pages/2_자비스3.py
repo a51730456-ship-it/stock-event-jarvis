@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+import html
 
 import streamlit as st
 
@@ -33,6 +34,7 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
     [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
     [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
+    [data-testid="stSidebarNav"] li:nth-child(6) { order: 6; }
     [data-testid="stSidebarNav"] li:nth-child(4) a p { font-size: 0 !important; }
     [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
         content: "미국테마";
@@ -46,6 +48,10 @@ st.markdown(
         font-size: 1.4rem;
         font-weight: 800;
         color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p::before {
+        content: "테마 선행감지"; font-size: 1.4rem; font-weight: 800; color: #ffb020;
     }
     div[class*="st-key-j3_theme_choice"] [data-baseweb="button-group"] {
         gap: 0.35rem;
@@ -204,6 +210,43 @@ st.markdown(
     .j3-holo-corner.tr { top: 6px; right: 6px; border-top: 2px solid #4da6ff; border-right: 2px solid #4da6ff; }
     .j3-holo-corner.bl { bottom: 6px; left: 6px; border-bottom: 2px solid #4da6ff; border-left: 2px solid #4da6ff; }
     .j3-holo-corner.br { bottom: 6px; right: 6px; border-bottom: 2px solid #4da6ff; border-right: 2px solid #4da6ff; }
+    .j3-pull-guide { border-left: 4px solid #4da6ff; background: rgba(77,166,255,.07);
+        border-radius: .45rem; padding: .7rem .9rem; color: #b7c0ce; line-height: 1.6;
+        margin: .15rem 0 .65rem; }
+    .j3-pull-guide b { color: #44f0a1; }
+    .j3-pull-stats { color: #9dccff; font-size: .93rem; line-height: 1.55;
+        margin: .15rem 0 .65rem; text-align: left; }
+    .j3-pull-table-wrap { overflow-x: auto; border: 1px solid rgba(255,255,255,.08);
+        border-radius: .55rem; margin-top: .25rem; }
+    .j3-pull-table { width: 100%; min-width: 1120px; border-collapse: collapse;
+        table-layout: fixed; font-size: .9rem; }
+    .j3-pull-table th { text-align: center; color: #7cc8ff; font-weight: 800;
+        padding: .58rem .42rem; background: rgba(77,166,255,.07);
+        border-bottom: 1px solid rgba(77,166,255,.32); }
+    .j3-pull-table td { text-align: center; color: #e6e6e6; padding: .52rem .42rem;
+        border-bottom: 1px solid rgba(255,255,255,.06); vertical-align: middle;
+        overflow: hidden; text-overflow: ellipsis; }
+    .j3-pull-table tr:last-child td { border-bottom: none; }
+    .j3-pull-table th.j3-pull-left, .j3-pull-table td.j3-pull-left { text-align: left; }
+    .j3-pull-name { color: #c084fc !important; font-weight: 800; }
+    .j3-pull-theme { color: #9dccff !important; }
+    .j3-pull-amber { color: #ffb020 !important; font-weight: 800; }
+    .j3-pull-detail { border: 1px solid rgba(192,132,252,.45);
+        background: linear-gradient(135deg, rgba(192,132,252,.08), rgba(77,166,255,.06));
+        border-radius: .65rem; padding: .75rem 1rem; margin: 1rem 0 .4rem; }
+    .j3-pull-detail-title { color: #c084fc; font-size: 1.35rem; font-weight: 800; }
+    .j3-pull-detail-sub { color: #9dccff; font-size: .92rem; margin-top: .15rem; }
+    div[class*="st-key-j3pbf_"] button {
+        background: transparent !important; border: none !important; box-shadow: none !important;
+        padding: 0 0 0 .8rem !important; min-height: 2.5rem !important; width: 100% !important;
+        justify-content: flex-start !important; border-bottom: 1px solid rgba(255,255,255,.06) !important;
+        border-radius: 0 !important;
+    }
+    div[class*="st-key-j3pbf_"] button:hover { background: rgba(77,166,255,.09) !important; }
+    div[class*="st-key-j3pbf_"] button p {
+        color: #c084fc !important; font-weight: 800 !important; font-size: .94rem !important;
+        margin: 0 !important; text-align: left !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -248,7 +291,11 @@ import market_signal_ui
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-if not hasattr(j3data, "get_fear_greed") or not hasattr(j3data, "_intraday_chart_payload"):
+if (
+    not hasattr(j3data, "get_fear_greed")
+    or not hasattr(j3data, "_intraday_chart_payload")
+    or not hasattr(j3data, "find_pullback_stocks")
+):
     j3data = importlib.reload(j3data)
 if not hasattr(market_signal_ui, "_STATUS_TEXT"):
     import sys
@@ -647,6 +694,38 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False, he
     return alt.vconcat(line, bars, spacing=4).resolve_scale(x="shared")
 
 
+def _render_price_chart_bundle(ticker: str) -> None:
+    """선택 종목의 일봉·주봉·월봉을 한 번의 10년 일봉 조회로 그린다."""
+    st.markdown(
+        "<div class='j3-chart-heading'>가격 차트 · 일봉/주봉/월봉 한눈에 보기</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
+        "일봉 거래량은 일봉 바로 아래에 표시됩니다."
+    )
+    chart_bundle = j3data.get_chart_bundle(ticker)
+    if not chart_bundle.get("ok"):
+        st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
+        return
+    daily_col, weekly_col, monthly_col = st.columns(3)
+    chart_columns = {"일봉": daily_col, "주봉": weekly_col, "월봉": monthly_col}
+    for timeframe, chart_column in chart_columns.items():
+        payload = chart_bundle["charts"].get(timeframe, {})
+        with chart_column:
+            st.markdown(f"<div class='j3-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
+            if payload.get("ok"):
+                st.altair_chart(
+                    _price_chart(payload, timeframe, include_volume=timeframe == "일봉"),
+                    width="stretch",
+                    theme="streamlit",
+                )
+            else:
+                st.warning(f"{timeframe} 자료 없음")
+    if chart_bundle.get("stale"):
+        st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
+
+
 def _intraday_chart(payload: dict, height: int = 200):
     """당일 1분봉 흐름 차트 — 자비스1 코스피/코스닥 당일 차트와 같은 단순 라인.
 
@@ -991,32 +1070,7 @@ def _render_stock_detail(
             st.warning(plan.get("buy_reason"))
 
     # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 차트 섹션을 시작한다.
-    st.markdown(
-        "<div class='j3-chart-heading'>가격 차트 · 일봉/주봉/월봉 한눈에 보기</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
-    chart_bundle = j3data.get_chart_bundle(ticker)
-    if chart_bundle.get("ok"):
-        daily_col, weekly_col, monthly_col = st.columns(3)
-        chart_columns = {"일봉": daily_col, "주봉": weekly_col, "월봉": monthly_col}
-        for timeframe, chart_column in chart_columns.items():
-            payload = chart_bundle["charts"].get(timeframe, {})
-            with chart_column:
-                # 제목을 차트 밖에서 통일된 높이로 그려 일봉·주봉·월봉을 한 줄에 정렬한다.
-                st.markdown(f"<div class='j3-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
-                if payload.get("ok"):
-                    st.altair_chart(
-                        _price_chart(payload, timeframe, include_volume=timeframe == "일봉"),
-                        width="stretch",
-                        theme="streamlit",
-                    )
-                else:
-                    st.warning(f"{timeframe} 자료 없음")
-        if chart_bundle.get("stale"):
-            st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
-    else:
-        st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
+    _render_price_chart_bundle(ticker)
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
     reason_cards = [
@@ -1288,6 +1342,171 @@ def _render_radar_tab(market: dict) -> None:
         top_candidates[0],
     )
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
+    _render_pullback_finder()
+
+
+def _render_pullback_detail(row: dict) -> None:
+    """상단 테마 선택과 독립된 눌림목 종목 차트 상세."""
+    ticker = str(row.get("ticker") or "")
+    metrics = row.get("metrics") or {}
+    quality = row.get("pullback") or {}
+    themes = " · ".join(row.get("themes") or []) or "테마 정보 없음"
+    avg_value = metrics.get("avg_dollar_volume")
+    st.markdown(
+        "<div class='j3-pull-detail'>"
+        f"<div class='j3-pull-detail-title'>{html.escape(str(row.get('name') or ticker))} · "
+        f"{html.escape(ticker)}</div>"
+        "<div class='j3-pull-detail-sub'>미국 눌림목 목록에서 독립 선택 · "
+        f"{html.escape(themes)}</div></div>",
+        unsafe_allow_html=True,
+    )
+    cells = [
+        f"<div class='j3-mc'><div class='j3-mc-label'>최근 종가</div>"
+        f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>고점 대비</div>"
+        f"<div class='j3-mc-val {_sign_class(quality.get('from_high_pct'))}'>"
+        f"{_pct(quality.get('from_high_pct'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>20일선 이격</div>"
+        f"<div class='j3-mc-val {_sign_class(quality.get('gap_pct'))}'>"
+        f"{_pct(quality.get('gap_pct'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>평균 거래대금</div>"
+        f"<div class='j3-mc-val j3-green'>"
+        f"{f'${float(avg_value) / 1e6:,.0f}M' if avg_value is not None else '—'}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
+        f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div></div>",
+    ]
+    st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+    st.caption(
+        "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
+        "이 상세와 일봉·주봉·월봉 차트만 즉시 교체됩니다."
+    )
+    _render_price_chart_bundle(ticker)
+
+
+def _render_pullback_finder() -> None:
+    """20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""
+    st.divider()
+    st.markdown(
+        "<div class='j3-section-title'>📉 눌림목 종목 찾기 (상승추세 중 조정)</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='j3-pull-guide'><b>무엇을 찾나</b> — 50일선·200일선이 살아 있는 상승추세에서, "
+        "52주 신고가를 찍은 뒤 1~20거래일 동안 20일선 부근으로 조정받은 종목입니다.<br>"
+        "<b>표 읽는 법</b> — ‘고점 대비 <span class='j3-down'>−10%</span>’는 신고가에서 10% "
+        "내려왔다는 뜻이고, ‘20일선 이격 0%’에 가까울수록 20일선 근처입니다. "
+        "눌림 점수는 추세·조정 깊이·20일선 근접·거래대금을 합친 100점 점수이며 높을수록 조건이 좋습니다.<br>"
+        "<span class='j3-up'>+ 상승은 파랑</span> · <span class='j3-down'>− 하락은 빨강</span> "
+        "(미국시장 색 규칙) · 여러 테마 소속은 필수가 아니라 최대 5점 가산</div>",
+        unsafe_allow_html=True,
+    )
+    result = j3data.find_pullback_stocks(reuse_only=True)
+    if not result.get("ok"):
+        st.error(f"미국 눌림목 조회 실패: {_safe_error_text(result.get('error'))}")
+        return
+    rows = result.get("rows") or []
+    window = result.get("window") or (1, 20)
+    reuse_text = "기존 일봉 배치 재사용" if result.get("reused_batch") else "일봉 1회 배치 조회"
+    st.markdown(
+        "<div class='j3-pull-stats'>"
+        f"전체 <b>{result.get('universe_count', 0):,}개</b> → "
+        f"일봉 확보 <b>{result.get('data_count', 0):,}개</b> → "
+        f"상승추세 <b>{result.get('trend_count', 0):,}개</b> → "
+        f"신고가 {window[0]}~{window[1]}일 전 조정 <b>{result.get('window_count', 0):,}개</b> → "
+        f"최종 60점 이상 <b class='j3-green'>{len(rows):,}개</b> · {reuse_text}</div>",
+        unsafe_allow_html=True,
+    )
+    if not rows:
+        st.info("현재 조건에 맞는 미국 눌림목 종목이 없습니다.")
+        return
+
+    widths = [0.55, 1.7, 0.8, 1.45, 1.0, 1.1, 1.15, 1.25, 1.8, 0.85]
+    titles = [
+        "순위", "종목", "티커", "눌림 점수", "신고가", "고점 대비",
+        "20일선 이격", "평균 거래대금", "소속 테마", "테마 가산",
+    ]
+    for column, title in zip(st.columns(widths), titles):
+        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+
+    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    selected_css = []
+    for index, row in enumerate(rows):
+        quality = row["pullback"]
+        from_high = quality.get("from_high_pct")
+        gap = quality.get("gap_pct")
+        score = float(quality.get("score") or 0)
+        avg_value = row["metrics"].get("avg_dollar_volume")
+        theme_bonus = float((quality.get("parts") or [0])[-1])
+        themes = " · ".join(row.get("themes") or []) or "—"
+        cols = st.columns(widths)
+        cols[0].markdown(
+            f"<div class='j3-td j3-muted'>{int(row['pullback_rank'])}</div>",
+            unsafe_allow_html=True,
+        )
+        if cols[1].button(
+            str(row.get("name") or row.get("ticker") or "—"),
+            key=f"j3pbf_{index:02d}",
+            width="stretch",
+        ):
+            st.session_state["j3_pullback_selected_ticker"] = row["ticker"]
+            st.rerun()
+        if row.get("ticker") == selected_ticker:
+            selected_css.append(
+                f"div[class*='st-key-j3pbf_{index:02d}'] button "
+                "{ background: rgba(192,132,252,.16) !important; "
+                "border-left: 3px solid #c084fc !important; }"
+            )
+        cols[2].markdown(
+            f"<div class='j3-td'>{html.escape(str(row.get('ticker') or '—'))}</div>",
+            unsafe_allow_html=True,
+        )
+        cols[3].markdown(
+            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill j3-bar-green' style='width:{max(0, min(score, 100)):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{score:.1f}</span></div></div>",
+            unsafe_allow_html=True,
+        )
+        cols[4].markdown(
+            f"<div class='j3-td j3-green'>{int(quality.get('high52_days_ago') or 0)}일 전</div>",
+            unsafe_allow_html=True,
+        )
+        cols[5].markdown(
+            f"<div class='j3-td {_sign_class(from_high)}'>{_pct(from_high)}</div>",
+            unsafe_allow_html=True,
+        )
+        cols[6].markdown(
+            f"<div class='j3-td {_sign_class(gap)}'>{_pct(gap)}</div>",
+            unsafe_allow_html=True,
+        )
+        avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
+        cols[7].markdown(
+            f"<div class='j3-td j3-green'>{avg_text}</div>",
+            unsafe_allow_html=True,
+        )
+        cols[8].markdown(
+            f"<div class='j3-td j3-pull-theme' title='{html.escape(themes)}'>"
+            f"{html.escape(themes)}</div>",
+            unsafe_allow_html=True,
+        )
+        cols[9].markdown(
+            f"<div class='j3-td j3-pull-amber'>{theme_bonus:.1f}/5</div>",
+            unsafe_allow_html=True,
+        )
+    if selected_css:
+        st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+    st.caption(
+        "평균 거래대금은 최근 일봉 기준 달러 거래규모입니다. 이 표는 진입가를 확정하는 매수 신호가 아니라, "
+        "상승추세가 아직 유지되는 조정 후보를 좁히는 1차 목록입니다. "
+        "보라색 종목 이름을 누르면 맨 아래 독립 차트가 열립니다."
+    )
+    selected_row = next(
+        (row for row in rows if row.get("ticker") == selected_ticker),
+        None,
+    )
+    if selected_row:
+        _render_pullback_detail(selected_row)
+    else:
+        st.info("눌림목 종목 이름을 누르면 이 목록 맨 아래에 독립 상세와 일봉·주봉·월봉 차트가 표시됩니다.")
 
 
 def _render_records_tab() -> None:
@@ -1536,12 +1755,18 @@ def main() -> None:
     # 재사용하므로 시장판단 페이지와 판정이 항상 일치한다.
     market_signal_ui.render_us_market_signal_card()
     st.divider()
-    radar_tab, records_tab, method_tab = st.tabs(["테마·종목", "매수 기록 현황", "판정 기준"])
-    with radar_tab:
+    section = st.radio(
+        "자비스3 보기",
+        ["테마·종목", "매수 기록 현황", "판정 기준"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="j3_section",
+    )
+    if section == "테마·종목":
         _render_radar_tab(market)
-    with records_tab:
+    elif section == "매수 기록 현황":
         _render_records_tab()
-    with method_tab:
+    else:
         _render_method_tab()
 
 

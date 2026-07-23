@@ -109,6 +109,22 @@ def _chart_bundle():
     return {"ok": True, "charts": {"일봉": payload, "주봉": payload, "월봉": payload}, "stale": False}
 
 
+def _pullbacks():
+    return {
+        "ok": True, "universe_count": 137, "data_count": 137, "trend_count": 54,
+        "window_count": 22, "window": (1, 20), "reused_batch": True,
+        "rows": [{
+            "pullback_rank": 1, "name": "NVIDIA", "ticker": "NVDA",
+            "pullback": {
+                "score": 82.5, "high52_days_ago": 7, "from_high_pct": -8.2,
+                "gap_pct": 1.4, "parts": [20, 18, 17, 14, 5],
+            },
+            "metrics": {"avg_dollar_volume": 3_200_000_000},
+            "themes": ["반도체", "AI 인프라"],
+        }],
+    }
+
+
 class Jarvis3PageTests(unittest.TestCase):
     def test_authenticated_page_renders_market_before_theme_and_records(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
@@ -121,6 +137,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
              }), \
              patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_data.find_pullback_stocks", return_value=_pullbacks()), \
              patch("jarvis3_store.ensure_tables"), \
              patch("jarvis3_store.trade_progress", return_value={
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
@@ -130,6 +147,10 @@ class Jarvis3PageTests(unittest.TestCase):
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.run(timeout=60)
+            pullback_button = next(
+                node for node in app.button if str(node.key or "") == "j3pbf_00"
+            )
+            pullback_button.click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
         subheaders = [str(node.value) for node in app.subheader]
@@ -143,6 +164,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("52주 고가 대비" in value for value in markdowns))
         self.assertTrue(any("테마 종목 1–6위" in str(node.value) for node in app.markdown))
         self.assertTrue(any("일봉/주봉/월봉 한눈에 보기" in str(node.value) for node in app.markdown))
+        self.assertTrue(any("j3-pull-table" in value for value in markdowns))
+        self.assertTrue(any("NVIDIA" in str(node.label) for node in app.button))
+        self.assertTrue(any("j3-down" in value for value in markdowns))
+        self.assertEqual(app.session_state.filtered_state.get("j3_pullback_selected_ticker"), "NVDA")
+        self.assertTrue(any("미국 눌림목 목록에서 독립 선택" in value for value in markdowns))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 
     def test_theme_selection_click_actually_switches_theme(self):
@@ -220,6 +246,12 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3-stock-name", source)
         self.assertIn("j3-section-title", source)
         self.assertIn("j3-leader-score", source)
+        # 새 미국 눌림목 표도 기본 dataframe이 아니라 기존 색·정렬 계약을 따른다.
+        self.assertIn("j3-pull-table", source)
+        self.assertIn("j3-pull-guide", source)
+        self.assertIn("+ 상승은 파랑", source)
+        self.assertIn("− 하락은 빨강", source)
+        self.assertNotIn("st.dataframe(view, hide_index=True", source)
         self.assertIn("🥇", source)
         self.assertIn('float(leader["score"]) >= 80', source)
         # 2026-07-22 추가 계약: 공포·탐욕 지수 칸, 당일 차트, 매수 기록 현황,

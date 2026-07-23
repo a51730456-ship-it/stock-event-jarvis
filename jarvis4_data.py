@@ -52,9 +52,11 @@ CANDIDATE_THEME_COUNT = 40
 THEME_STOCK_LIMIT = 8
 # 이 점수를 넘는 종목은 테마 점수가 낮아도 후보로 인정한다(테마 게이트 면제).
 STRONG_STOCK_OVERRIDE = 85.0
+THEME_DETAIL_PARSER_VERSION = 2
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
+_HTTP_LOCAL = threading.local()
 
 
 # ---------------------------------------------------------------------------
@@ -115,11 +117,21 @@ def _cached(key, ttl_seconds, producer):
     return value, False
 
 
+def _http_session() -> requests.Session:
+    """워커별 연결 풀을 재사용해 반복 HTTPS 핸드셰이크를 줄인다."""
+    session = getattr(_HTTP_LOCAL, "session", None)
+    if session is None:
+        session = requests.Session()
+        session.headers.update(_HEADERS)
+        _HTTP_LOCAL.session = session
+    return session
+
+
 def _get_text(url: str, *, timeout: float = 8, retries: int = 2) -> str:
     last_error = None
     for attempt in range(retries + 1):
         try:
-            response = requests.get(url, timeout=timeout, headers=_HEADERS)
+            response = _http_session().get(url, timeout=timeout)
             response.raise_for_status()
             response.encoding = "euc-kr"
             return response.text
@@ -186,16 +198,21 @@ def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None)
     closes = daily["Close"].dropna().astype(float)
     if len(closes) < 25:
         return {"ok": False}
-    current = _finite(live_price) or _finite(closes.iloc[-1])
+    live_current = _finite(live_price)
+    current = live_current or _finite(closes.iloc[-1])
     if not current:
         return {"ok": False}
 
     today = datetime.now(_SEOUL).date()
     last_date = pd.Timestamp(closes.index[-1]).date()
-    if last_date == today and len(closes) >= 2:
-        prev_close = _finite(closes.iloc[-2])
+    if live_current is not None:
+        # 장중 현재가를 따로 넣었으면 일봉의 마지막 값이 오늘 행인지에 따라
+        # 전일 종가 위치가 달라진다.
+        prev_close = _finite(closes.iloc[-2] if last_date == today and len(closes) >= 2 else closes.iloc[-1])
     else:
-        prev_close = _finite(closes.iloc[-1])
+        # 종가 일봉 자체를 현재가로 쓸 때는 바로 앞 거래일이 비교 기준이다.
+        # 예전 코드는 마지막 종가를 자기 자신과 비교해 등락률이 항상 0%가 됐다.
+        prev_close = _finite(closes.iloc[-2]) if len(closes) >= 2 else None
 
     def ret(days: int):
         index = min(days + 1, len(closes))
@@ -359,6 +376,45 @@ _DETAIL_ROW_PATTERN = re.compile(
 _DETAIL_PCT_PATTERN = re.compile(r'([+-]?\d+\.\d+)%')
 
 
+def _parse_theme_detail_numbers(numbers: list[str] | tuple[str, ...]) -> dict:
+    """가변 숫자 열을 뒤에서 읽어 현재량·거래대금·전일량을 분리한다.
+
+    전일비가 보합이면 평문 ``0``이 하나 더 잡혀 앞쪽 인덱스가 밀린다.
+    마지막 세 열은 현재 거래량, 거래대금(백만원), 전일 거래량 순서다.
+    """
+    values = list(numbers or [])
+    price = _parse_number(values[0]) if values else None
+    if len(values) < 4:
+        return {
+            "price": price,
+            "volume": None,
+            "trading_value_million": None,
+            "trading_value": None,
+            "previous_volume": None,
+        }
+
+    volume = _parse_number(values[-3])
+    trading_value_million = _parse_number(values[-2])
+    previous_volume = _parse_number(values[-1])
+    if volume is not None and volume < 0:
+        volume = None
+    if trading_value_million is not None and trading_value_million < 0:
+        trading_value_million = None
+    if previous_volume is not None and previous_volume < 0:
+        previous_volume = None
+    return {
+        "price": price,
+        "volume": volume,
+        "trading_value_million": trading_value_million,
+        "trading_value": (
+            trading_value_million * 1_000_000
+            if trading_value_million is not None
+            else None
+        ),
+        "previous_volume": previous_volume,
+    }
+
+
 def _fetch_theme_page(page: int) -> dict:
     url = _THEME_LIST_URL if page == 1 else f"{_THEME_LIST_URL}?page={page}"
     html = _get_text(url)
@@ -400,19 +456,21 @@ def _fetch_theme_detail(theme_no: int) -> list[dict]:
     stocks = []
     for code, name, body in _DETAIL_ROW_PATTERN.findall(html):
         numbers = _FLOW_NUMBER_PATTERN.findall(body)
+        parsed = _parse_theme_detail_numbers(numbers)
         percents = _DETAIL_PCT_PATTERN.findall(body)
-        price = _parse_number(numbers[0]) if numbers else None
-        volume = _parse_number(numbers[3]) if len(numbers) > 3 else None
         change_pct = float(percents[0]) if percents else None
-        if price is None:
+        if parsed["price"] is None:
             continue
         stocks.append({
             "code": code,
             "name": name.strip(),
-            "price": price,
+            "price": parsed["price"],
             "change_pct": change_pct,
-            "volume": volume,
-            "trading_value": (price * volume) if (price and volume) else None,
+            "volume": parsed["volume"],
+            "trading_value_million": parsed["trading_value_million"],
+            "trading_value": parsed["trading_value"],
+            "previous_volume": parsed["previous_volume"],
+            "parser_version": THEME_DETAIL_PARSER_VERSION,
         })
     return stocks
 
@@ -1227,12 +1285,12 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     }
 
 
-def get_theme_universe(*, ttl_seconds: float = 1800) -> dict:
+def get_theme_universe(*, ttl_seconds: float = 90) -> dict:
     """전체 테마의 구성종목을 한 번 모아 '종목별 소속 테마 목록'을 만든다.
 
-    266개 테마를 매번 훑으면 네이버 요청이 몰려 느려지고 차단될 수도 있다(2026-07-22
-    실측). 결과를 30분 캐시해 눌림목 조회가 반복돼도 재수집하지 않게 한다.
-    워커도 16 → 10으로 낮춰 요청을 완만하게 보낸다.
+    구성관계는 천천히 변하지만 거래대금은 장중 계속 변한다. 예전 30분 캐시는 장전
+    0원 스냅샷을 오전 내내 재사용할 수 있어 90초로 줄인다. 화면은 수동 실행이므로
+    사용자가 조회하지 않는 동안에는 네이버 요청이 발생하지 않는다.
     """
 
     def _produce():
@@ -1243,7 +1301,9 @@ def get_theme_universe(*, ttl_seconds: float = 1800) -> dict:
         themes = list(listing["themes"].values())
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {
-                executor.submit(get_theme_stocks, theme["no"]): theme for theme in themes
+                executor.submit(
+                    get_theme_stocks, theme["no"], ttl_seconds=ttl_seconds
+                ): theme for theme in themes
             }
             for future in as_completed(futures):
                 theme = futures[future]
@@ -1275,20 +1335,35 @@ def get_theme_universe(*, ttl_seconds: float = 1800) -> dict:
 
 
 def clear_pullback_cache() -> None:
-    """눌림목 결과만 다시 계산하게 한다(다른 캐시는 그대로 둔다)."""
+    """눌림목 재검색 때 결과와 장중 테마 상세를 함께 갱신한다."""
     with _CACHE_LOCK:
-        _CACHE.pop("pullback_stocks", None)
+        for key in list(_CACHE):
+            if key == "theme_universe" or key == "theme_list":
+                _CACHE.pop(key, None)
+            elif isinstance(key, tuple) and key and key[0] in {"pullback_stocks", "theme_detail"}:
+                _CACHE.pop(key, None)
 
 
-def score_at_past(daily: pd.DataFrame | None, flow: dict, market_ret20, days_ago: int):
-    """며칠 전 시점의 종목 조건점수를 역산한다.
+def score_at_past(
+    daily: pd.DataFrame | None,
+    flow: dict,
+    market_ret20,
+    days_ago: int,
+    *,
+    market_daily: pd.DataFrame | None = None,
+):
+    """며칠 전 시점의 가격·기술 조건점수를 100점으로 환산한다.
 
     눌림목은 '그때 좋았던 종목이 지금 눌린 것'이다. 지금 점수로 자르면 눌렸다는
     이유로 탈락한다 — 신고가를 찍던 날은 신고가 위치가 만점이었을 테니 그때 점수를
     봐야 한다(2026-07-22 사용자 지적).
 
-    일봉을 그 시점까지 잘라 같은 계산을 돌린다. 수급(flow)은 과거 값을 복원하지
-    않고 현재 값을 그대로 쓴다 — 가격 기반 항목만 정확히 역산된다.
+    일봉을 그 시점까지 자르고, KOSPI도 같은 날짜까지 잘라 당시 20일 상대강도를
+    복원한다. 과거 외국인·기관 수급은 현재 데이터로 복원할 수 없으므로 절대 섞지
+    않는다. 종목점수의 가격·기술 80점을 100점으로 환산해 서로 비교한다.
+
+    ``flow`` 인자는 기존 호출 호환을 위해 남기되 과거점수에는 사용하지 않는다.
+    ``market_daily``가 없을 때만 전달받은 market_ret20을 대체 기준으로 쓴다.
     """
     # 역산이 실패해도 종목이 통째로 빠지면 안 된다 — None을 돌려주면 호출부가
     # 현재 점수로 대신 판단한다.
@@ -1301,8 +1376,28 @@ def score_at_past(daily: pd.DataFrame | None, flow: dict, market_ret20, days_ago
         metrics = _series_metrics(past)
         if not metrics.get("ok"):
             return None
-        score, parts = _stock_score(metrics, flow, market_ret20)
-        return {"score": score, "parts": parts, "metrics": metrics}
+        past_market_ret20 = market_ret20
+        market_basis = "현재 KOSPI 대체"
+        if isinstance(market_daily, pd.DataFrame) and not market_daily.empty:
+            cutoff = pd.Timestamp(past.index[-1])
+            aligned_market = market_daily.loc[:cutoff]
+            market_metrics = _series_metrics(aligned_market)
+            if market_metrics.get("ok") and market_metrics.get("ret20") is not None:
+                past_market_ret20 = market_metrics["ret20"]
+                market_basis = "신고가 당시 KOSPI"
+
+        # 과거 수급을 현재 수급으로 위장하지 않는다. 가격·기술 80점만 계산한 뒤
+        # 100점으로 환산한다. 추격 감점은 _stock_score 안에서 그대로 반영된다.
+        raw_score, parts = _stock_score(metrics, {"ok": False}, past_market_ret20)
+        technical_score = round(min(100.0, max(0.0, raw_score / 80.0 * 100.0)), 1)
+        return {
+            "score": technical_score,
+            "raw_score": raw_score,
+            "parts": parts[:5],
+            "metrics": metrics,
+            "as_of": pd.Timestamp(past.index[-1]).date().isoformat(),
+            "basis": f"과거 가격·기술(수급 제외) · {market_basis}",
+        }
     except Exception:
         return None
 
@@ -1315,9 +1410,9 @@ def find_pullback_stocks(
     min_stock_score: float = 75.0,
     min_trading_value: float = 2e10,
     theme_scan_limit: int = 300,
-    scan_limit: int = 200,
+    scan_limit: int = 50,
     result_limit: int = 15,
-    ttl_seconds: float = 1800,
+    ttl_seconds: float = 600,
 ) -> dict:
     """상승추세 중 조정받은 눌림목 종목을 찾는다 (2026-07-22 사용자 스펙).
 
@@ -1336,24 +1431,46 @@ def find_pullback_stocks(
             raise RuntimeError(universe.get("error") or "테마 구성종목 조회 실패")
         seen = universe["stocks"]
 
+        multi_theme = [
+            item for item in seen.values() if len(item["themes"]) >= min_theme_count
+        ]
+        # 장전·장초반에는 오늘 누적 거래대금이 0에 가깝다. HTML에 이미 있는
+        # 전일거래량×현재가를 유동성 대체값으로 함께 쓰되, 오늘 값과 둘 중 큰 값을
+        # 선택해 시간대에 따라 후보 수가 수십 배 흔들리는 문제를 줄인다.
+        for item in multi_theme:
+            current_value = float(item.get("trading_value") or 0)
+            previous_proxy = float(item.get("price") or 0) * float(item.get("previous_volume") or 0)
+            item["liquidity_value"] = max(current_value, previous_proxy)
         candidates = [
-            item for item in seen.values()
-            if len(item["themes"]) >= min_theme_count
-            and (item.get("trading_value") or 0) >= min_trading_value
+            item for item in multi_theme
+            if item["liquidity_value"] >= min_trading_value
         ]
         if not candidates:
-            raise RuntimeError("조건에 맞는 종목이 없습니다")
+            return {
+                "rows": [],
+                "universe_count": len(seen),
+                "multi_theme_count": len(multi_theme),
+                "liquid_count": 0,
+                "scanned_count": 0,
+                "screened_count": 0,
+                "flow_checked_count": 0,
+                "window": (high_days_min, high_days_max),
+                "message": "유동성 기준을 통과한 종목이 없습니다.",
+                "checked_at": datetime.now(_SEOUL).isoformat(timespec="seconds"),
+            }
         # 조회 시간이 후보 수에 비례하므로 거래대금 상위부터 상한을 둔다 —
         # 눌림목을 노릴 만한 종목은 거래대금이 받쳐주는 쪽이다.
-        multi_theme_total = len(candidates)
-        candidates.sort(key=lambda item: item.get("trading_value") or 0, reverse=True)
+        multi_theme_total = len(multi_theme)
+        liquid_total = len(candidates)
+        candidates.sort(key=lambda item: item.get("liquidity_value") or 0, reverse=True)
         candidates = candidates[:scan_limit]
 
         # 2) 일봉으로 '52주 최고가 찍고 1~15일 지난 종목'만 거른다.
         low, high = high_days_min, high_days_max
 
         def _screen(stock):
-            metrics = _series_metrics(get_daily_frame(stock["code"]), stock.get("price"))
+            daily = get_daily_frame(stock["code"])
+            metrics = _series_metrics(daily, stock.get("price"))
             if not metrics.get("ok"):
                 return None
             days_ago = metrics.get("high52_days_ago")
@@ -1362,7 +1479,7 @@ def find_pullback_stocks(
             # 고점을 찍고 '내려가는' 종목이어야 한다(고점 그대로면 눌림이 아니다).
             if (metrics.get("from_high_pct") or 0) >= 0:
                 return None
-            return {**stock, "metrics": metrics}
+            return {**stock, "metrics": metrics, "daily": daily}
 
         screened = []
         with ThreadPoolExecutor(max_workers=16) as executor:
@@ -1380,6 +1497,12 @@ def find_pullback_stocks(
         # 하나금융지주가 95점에서 75.5점으로 떨어졌다(2026-07-22 실측 수정).
         kospi = _index_metrics("KS11")
         market_ret20 = kospi.get("ret20") if kospi.get("ok") else None
+        try:
+            kospi_daily, _kospi_stale = _cached(
+                ("index", "KS11"), 300, lambda: _index_frame("KS11")
+            )
+        except Exception:
+            kospi_daily = None
 
         def _finalize(item):
             flow = get_stock_flow(item["code"])
@@ -1388,17 +1511,22 @@ def find_pullback_stocks(
             # 신고가를 찍던 시점의 점수를 역산한다 — 눌림목은 '그때 좋았던 종목'이므로
             # 이 점수로 걸러야 한다(지금 점수는 눌린 만큼 낮게 나온다).
             past = score_at_past(
-                get_daily_frame(item["code"]), flow, market_ret20,
+                item.get("daily"), flow, market_ret20,
                 item["metrics"].get("high52_days_ago"),
+                market_daily=kospi_daily,
             )
             return {**item, "flow": flow, "pullback": quality,
                     "score": score, "score_parts": parts,
                     "peak_score": past["score"] if past else None,
-                    "peak_parts": past["parts"] if past else None}
+                    "peak_parts": past["parts"] if past else None,
+                    "peak_score_date": past["as_of"] if past else None,
+                    "peak_score_basis": past["basis"] if past else "현재 종합점수 대체"}
 
         final = []
+        screened.sort(key=lambda item: item.get("liquidity_value") or 0, reverse=True)
+        flow_targets = screened[:25]
         with ThreadPoolExecutor(max_workers=10) as executor:
-            for future in as_completed([executor.submit(_finalize, s) for s in screened[:25]]):
+            for future in as_completed([executor.submit(_finalize, s) for s in flow_targets]):
                 try:
                     item = future.result()
                 except Exception:
@@ -1419,17 +1547,26 @@ def find_pullback_stocks(
         for index, item in enumerate(final, 1):
             item["pullback_rank"] = index
             item["plan"] = _entry_plan(item["metrics"], item["score"], 100, 100)
+            item.pop("daily", None)
         return {
             "rows": final,
+            "universe_count": len(seen),
             "multi_theme_count": multi_theme_total,
+            "liquid_count": liquid_total,
             "scanned_count": len(candidates),
             "screened_count": len(screened),
+            "flow_checked_count": len(flow_targets),
             "window": (low, high),
             "checked_at": datetime.now(_SEOUL).isoformat(timespec="seconds"),
         }
 
     try:
-        value, stale = _cached("pullback_stocks", ttl_seconds, _produce)
+        cache_key = (
+            "pullback_stocks", min_theme_count, high_days_min, high_days_max,
+            float(min_stock_score), float(min_trading_value), int(theme_scan_limit),
+            int(scan_limit), int(result_limit),
+        )
+        value, stale = _cached(cache_key, ttl_seconds, _produce)
     except Exception as exc:
         return {"ok": False, "error": str(exc), "rows": []}
     return {"ok": True, "stale": stale, **value}
