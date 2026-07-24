@@ -330,6 +330,49 @@ class Jarvis4PageTests(unittest.TestCase):
         state = app.session_state.filtered_state
         self.assertIn("반도체/HBM", state.get("j4_forced_themes") or [])
         self.assertEqual(len(app.exception), 0)
+        # 하나금융지주(086790)는 이 테마의 거래대금 상위 3위 대장주가 아니다.
+        # 그래도 '상세 종목 선택'에 더해져 아래 상세가 그 종목으로 바뀌어야 한다
+        # (2026-07-24 사용자 지적: 1순위를 눌러도 밑이 안 바뀐다).
+        self.assertEqual(state.get("j4_stock_choice_반도체/HBM"), "086790")
+        detail_markdowns = [
+            str(node.value) for node in app.markdown
+            if "<div class='j4-stock-name'>" in str(node.value)
+        ]
+        self.assertTrue(detail_markdowns, "종목 상세가 렌더되지 않았다")
+        self.assertTrue(
+            all("하나금융지주" in value for value in detail_markdowns),
+            f"상세가 클릭한 종목으로 바뀌지 않았다: {detail_markdowns}",
+        )
+        radio_labels = [
+            str(option)
+            for node in app.radio if str(node.label) == "상세 종목 선택"
+            for option in node.options
+        ]
+        self.assertTrue(any("086790" in label for label in radio_labels), radio_labels)
+
+    def test_pullback_table_shows_today_price_column(self):
+        """눌림목 표는 신고가와 고점 대비 사이에 당일주가를 보여준다(2026-07-24)."""
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            next(
+                node for node in app.button if str(node.key or "") == "j4_pullback_find"
+            ).click().run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+        self.assertEqual(len(app.exception), 0)
+        headers = [str(node.value) for node in app.markdown if "j4-th-head" in str(node.value)]
+        titles = [value for value in headers if "당일주가" in value]
+        self.assertTrue(titles, "당일주가 칸이 없다")
+        cells = " ".join(str(node.value) for node in app.markdown)
+        self.assertIn("60,000원", cells)
 
 
 if __name__ == "__main__":

@@ -295,6 +295,7 @@ if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
     or not hasattr(j3data, "find_pullback_stocks")
+    or not hasattr(j3data, "analyze_pullback_stock")
 ):
     j3data = importlib.reload(j3data)
 if not hasattr(market_signal_ui, "_STATUS_TEXT"):
@@ -783,12 +784,22 @@ def _render_market_overview() -> None:
     else:
         phase_color = "#ff5b5b"
     spy_row, qqq_row = overview["rows"]["SPY"], overview["rows"]["QQQ"]
-    vix_value = overview["rows"].get("^VIX", {}).get("current")
+    vix_row = overview["rows"].get("^VIX", {})
+    vix_value = vix_row.get("current")
+    vix_change = vix_row.get("change_pct")
+    # VIX는 '현재 수준(18.70)'과 '전일 대비 변동률(+12.38%)'이 서로 다른 값이다.
+    # 아래 선행신호 카드가 변동률만 보여줘 혼동이 생긴다는 지적(2026-07-24)에 따라
+    # 여기서 두 값을 한 줄에 같이 보여준다. VIX는 오르면 위험이라 색을 뒤집는다.
+    vix_sub = (
+        f"VIX {_number(vix_value, 2)} "
+        f"<span style='color:{_sign_color(None if vix_change is None else -float(vix_change))}'>"
+        f"{_pct(vix_change)}</span>"
+    )
     top_cells = [
         _top_metric("시장 국면", overview["regime"], regime_color, f"조건 {overview['score']}/100"),
         _top_metric("SPY", _price(spy_row.get("current")), "#e6e6e6", spy_row.get("change_pct"), sub_signed=True),
         _top_metric("QQQ", _price(qqq_row.get("current")), "#e6e6e6", qqq_row.get("change_pct"), sub_signed=True),
-        _top_metric("장 상태", phase, phase_color, f"VIX {_number(vix_value, 2)}"),
+        _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b"),
         _fear_greed_cell(),
     ]
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
@@ -798,8 +809,11 @@ def _render_market_overview() -> None:
             조건점수 {overview['score']}/100은 상승장 확인 조건에서 얻은 점수이며 승률이 아닙니다.<br>
             0~49점 방어 우선 · 50~74점 중립·선별 · 75~100점 상승 우위<br>
             {_market_score_detail(overview)}<br>
-            장 상태는 미국 세션 단계입니다(뉴욕시각 기준): 프리마켓 04:00~09:30 → 정규장 09:30~16:00
-            → 애프터마켓 16:00~20:00 → 장 마감 · 아래 VIX는 공포지수 현재값입니다.<br>
+            시장 상황은 미국 세션 단계입니다(뉴욕시각 기준): 프리마켓 04:00~09:30 → 정규장 09:30~16:00
+            → 애프터마켓 16:00~20:00 → 장 마감<br>
+            VIX 두 값은 서로 다른 것입니다 — 위 <b>VIX 18.70 같은 숫자는 공포지수 현재 수준</b>(25 미만이면
+            과열 아님)이고, 아래 선행신호 카드의 <b>VIX +12.38% 같은 값은 전일 종가 대비 변동률</b>입니다.
+            수준은 낮은데 하루 변동만 큰 날이 있어 두 값이 함께 있어도 모순이 아닙니다.<br>
             공포·탐욕 지수는 CNN이 7개 심리 지표로 집계한 값(0 극단적 공포 ~ 100 극단적 탐욕)으로
             참고용이며 점수·판정에는 반영하지 않습니다.
         </div>
@@ -1342,11 +1356,15 @@ def _render_radar_tab(market: dict) -> None:
         top_candidates[0],
     )
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
-    _render_pullback_finder()
+    _render_pullback_finder(market, ranking)
 
 
-def _render_pullback_detail(row: dict) -> None:
-    """상단 테마 선택과 독립된 눌림목 종목 차트 상세."""
+def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
+    """상단 테마 선택과 독립된 눌림목 종목 상세.
+
+    자비스4(한국) 종목 상세와 같은 구성으로 맞춘다(2026-07-24 사용자 지시) —
+    선정 근거 점수표 · 매수 심사 결과 · 일봉/주봉/월봉 차트를 함께 보여준다.
+    """
     ticker = str(row.get("ticker") or "")
     metrics = row.get("metrics") or {}
     quality = row.get("pullback") or {}
@@ -1361,8 +1379,10 @@ def _render_pullback_detail(row: dict) -> None:
         unsafe_allow_html=True,
     )
     cells = [
-        f"<div class='j3-mc'><div class='j3-mc-label'>최근 종가</div>"
-        f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
+        f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div>"
+        f"<div class='j3-mc-sub {_sign_class(metrics.get('change_pct'))}'>"
+        f"{_pct(metrics.get('change_pct'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>고점 대비</div>"
         f"<div class='j3-mc-val {_sign_class(quality.get('from_high_pct'))}'>"
         f"{_pct(quality.get('from_high_pct'))}</div></div>",
@@ -1376,14 +1396,148 @@ def _render_pullback_detail(row: dict) -> None:
         f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div></div>",
     ]
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+
+    # ── 선정 근거·매수 심사 (자비스4 종목 상세와 같은 구성) ──────────────────
+    # 눌림목 검색은 테마를 가로지르므로 상대강도 기준은 SPY 20일 수익률을 쓴다.
+    market_score = float(market.get("score") or 0)
+    spy_ret20 = ((market.get("rows") or {}).get("SPY") or {}).get("ret20")
+    theme_scores = {
+        item.get("name"): float(item.get("score") or 0)
+        for item in (ranking.get("rows") or [])
+        if item.get("ok") and item.get("name")
+    }
+    own_scores = [theme_scores[name] for name in (row.get("themes") or []) if name in theme_scores]
+    theme_score = max(own_scores) if own_scores else 0.0
+    review = j3data.analyze_pullback_stock(
+        row,
+        benchmark_ret20=spy_ret20,
+        market_score=market_score,
+        theme_score=theme_score,
+    )
+    plan = review.get("plan") or {}
+
+    factor_names = ["SPY 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)", "유동성(거래대금)", "변동성 안정"]
+    factor_max = [25, 25, 20, 15, 15]
+
+    def _fac_cell(part, maximum):
+        return (
+            "<td class='j3-fac-val'>"
+            f"<span style='color:#ff5b5b; font-weight:800'>{_number(part)}</span> "
+            f"<span style='color:#ff5b5b'>({maximum})</span></td>"
+        )
+
+    factor_rows = "".join(
+        f"<tr><td class='j3-fac-name'>{name}</td>{_fac_cell(part, maximum)}</tr>"
+        for name, part, maximum in zip(factor_names, review.get("score_parts") or [], factor_max)
+    )
+    total_style = (
+        "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
+        "border-top:4px double rgba(255,255,255,0.55)"
+    )
+    total_row = (
+        f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
+        f"<td class='j3-fac-val' style='{total_style}'>"
+        f"<span style='color:#ff5b5b; font-weight:800'>{_number(review.get('score'))}</span> "
+        "<span style='color:#ff5b5b'>(100)</span></td></tr>"
+    )
+    score_col, plan_col = st.columns([1, 1], gap="large")
+    with score_col:
+        st.markdown(
+            "<div class='j3-section-title'>종목 선정 근거 (미국형 5개 항목)</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<table class='j3-factor-table'><thead><tr>"
+            "<th>심사 항목</th><th>획득(최대)</th></tr></thead>"
+            f"<tbody>{factor_rows}{total_row}</tbody></table>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div class='j3-reason-mustard'>{html.escape(review.get('stock_reason') or '')}</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "상대강도 기준은 테마 ETF가 아니라 SPY 20일 수익률입니다 — 눌림목 검색은 여러 테마를 "
+            "가로질러 돌기 때문입니다. 그래서 위 테마 대장주 표의 점수와 다를 수 있습니다."
+        )
+    with plan_col:
+        st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
+        if plan.get("trigger") is not None:
+            plan_cells = [
+                ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
+                ("매수 허용 상단", _price(plan.get("zone_high")), "#e6e6e6"),
+                ("무효화 가격", _price(plan.get("invalidation")), "#ff5b5b"),
+                ("2R 목표 참고", _price(plan.get("target")), "#44f0a1"),
+            ]
+        else:
+            ref_trigger, ref_zone_high, ref_invalidation, ref_target = _reference_plan(metrics)
+            plan_cells = [
+                ("조건 기준가 (참고)", _price(ref_trigger), "#e6e6e6"),
+                ("매수 허용 상단 (참고)", _price(ref_zone_high), "#e6e6e6"),
+                ("무효화 가격 (참고)", _price(ref_invalidation), "#ff5b5b"),
+                ("2R 목표 (참고)", _price(ref_target), "#44f0a1"),
+            ]
+        plan_boxes = [
+            f"<div class='j3-holo-cell'><div class='label'>{label}</div>"
+            f"<div class='val' style='color:{color}'>{value}</div></div>"
+            for label, value, color in plan_cells
+        ]
+        score_box = (
+            "<div class='j3-holo-cell j3-holo-score'>"
+            "<div class='label'>종목 조건점수</div>"
+            f"<div class='val'>{float(review.get('score') or 0):.1f}/100</div>"
+            f"<div class='state'>{plan.get('state', '')}</div></div>"
+        )
+        plan_grid = (
+            plan_boxes[0] + plan_boxes[1] + score_box
+            + plan_boxes[2] + plan_boxes[3] + "<div class='j3-holo-cell'></div>"
+        )
+        st.markdown(
+            "<div class='j3-holo-card'>"
+            "<span class='j3-holo-corner tl'></span><span class='j3-holo-corner tr'></span>"
+            "<span class='j3-holo-corner bl'></span><span class='j3-holo-corner br'></span>"
+            f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div class='j3-plan-note'>※ <b>가격 칸이 채워지는 기준</b> — ‘돌파 확인’이나 ‘눌림목 대기’처럼 "
+            "<b>가격 셋업이 완성된 종목만</b> 확정 기준가·손절가·목표가가 나옵니다. "
+            "‘관찰’·‘제외’·‘추격 금지’는 아직 살 자리가 없다는 뜻이라 참고가로만 채웁니다.<br>"
+            f"※ <b>‘{plan.get('state', '')}’(가격 상태)와 ‘{plan.get('recommendation', '')}’(최종 판정)은 "
+            "다른 말</b>입니다 — 가격 셋업이 완성돼도 시장·테마 점수가 기준 미달이면 최종 판정은 매수가 "
+            f"아닙니다(이 종목의 테마 점수 {theme_score:.1f}/100 · 시장 {market_score:.0f}/100).</div>",
+            unsafe_allow_html=True,
+        )
+        st.write("")
+        if plan.get("recommendation") == "조건부 후보":
+            st.success(plan.get("buy_reason"))
+        elif plan.get("state") == "추격 금지":
+            st.error(plan.get("buy_reason"))
+        else:
+            st.warning(plan.get("buy_reason"))
+
     st.caption(
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
         "이 상세와 일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
     _render_price_chart_bundle(ticker)
 
+    st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
+    reason_cards = [
+        ("시장 근거", f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"),
+        ("테마 근거", f"{themes} · 최고 테마 점수 {theme_score:.1f}/100"),
+        ("종목 근거", review.get("stock_reason") or "자료부족"),
+        ("매수 근거", plan.get("buy_reason", "자료부족")),
+    ]
+    for column, (title, body) in zip(st.columns(4), reason_cards):
+        column.markdown(
+            f"<div class='j3-reason-card'><div class='j3-reason-title'>{title}</div>"
+            f"<div class='j3-reason-body'>{html.escape(str(body))}</div></div>",
+            unsafe_allow_html=True,
+        )
 
-def _render_pullback_finder() -> None:
+
+def _render_pullback_finder(market: dict, ranking: dict) -> None:
     """20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""
     st.divider()
     st.markdown(
@@ -1420,9 +1574,9 @@ def _render_pullback_finder() -> None:
         st.info("현재 조건에 맞는 미국 눌림목 종목이 없습니다.")
         return
 
-    widths = [0.55, 1.7, 0.8, 1.45, 1.0, 1.1, 1.15, 1.25, 1.8, 0.85]
+    widths = [0.55, 1.7, 0.8, 1.45, 1.0, 1.4, 1.1, 1.15, 1.25, 1.8, 0.85]
     titles = [
-        "순위", "종목", "티커", "눌림 점수", "신고가", "고점 대비",
+        "순위", "종목", "티커", "눌림 점수", "신고가", "당일주가", "고점 대비",
         "20일선 이격", "평균 거래대금", "소속 테마", "테마 가산",
     ]
     for column, title in zip(st.columns(widths), titles):
@@ -1470,25 +1624,35 @@ def _render_pullback_finder() -> None:
             f"<div class='j3-td j3-green'>{int(quality.get('high52_days_ago') or 0)}일 전</div>",
             unsafe_allow_html=True,
         )
+        # 당일주가 — 신고가와 고점 대비 사이에서 '지금 얼마인지'를 바로 보게 한다
+        # (2026-07-24 사용자 지시). 등락은 미국장 색 규칙(+파랑 −빨강)으로 진하게.
+        current_price = row["metrics"].get("current")
+        change_pct = row["metrics"].get("change_pct")
         cols[5].markdown(
-            f"<div class='j3-td {_sign_class(from_high)}'>{_pct(from_high)}</div>",
+            f"<div class='j3-td' style='font-weight:800; color:#e6e6e6'>{_price(current_price)}"
+            f"<span style='color:{_sign_color(change_pct)}; font-weight:800'>"
+            f" {_pct(change_pct)}</span></div>",
             unsafe_allow_html=True,
         )
         cols[6].markdown(
-            f"<div class='j3-td {_sign_class(gap)}'>{_pct(gap)}</div>",
+            f"<div class='j3-td {_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</div>",
+            unsafe_allow_html=True,
+        )
+        cols[7].markdown(
+            f"<div class='j3-td {_sign_class(gap)}' style='font-weight:800'>{_pct(gap)}</div>",
             unsafe_allow_html=True,
         )
         avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
-        cols[7].markdown(
+        cols[8].markdown(
             f"<div class='j3-td j3-green'>{avg_text}</div>",
             unsafe_allow_html=True,
         )
-        cols[8].markdown(
+        cols[9].markdown(
             f"<div class='j3-td j3-pull-theme' title='{html.escape(themes)}'>"
             f"{html.escape(themes)}</div>",
             unsafe_allow_html=True,
         )
-        cols[9].markdown(
+        cols[10].markdown(
             f"<div class='j3-td j3-pull-amber'>{theme_bonus:.1f}/5</div>",
             unsafe_allow_html=True,
         )
@@ -1497,16 +1661,20 @@ def _render_pullback_finder() -> None:
     st.caption(
         "평균 거래대금은 최근 일봉 기준 달러 거래규모입니다. 이 표는 진입가를 확정하는 매수 신호가 아니라, "
         "상승추세가 아직 유지되는 조정 후보를 좁히는 1차 목록입니다. "
-        "보라색 종목 이름을 누르면 맨 아래 독립 차트가 열립니다."
+        "보라색 종목 이름을 누르면 맨 아래에 그 종목의 선정 근거 점수표·매수 심사 결과와 "
+        "일봉·주봉·월봉 차트가 함께 열립니다."
     )
     selected_row = next(
         (row for row in rows if row.get("ticker") == selected_ticker),
         None,
     )
     if selected_row:
-        _render_pullback_detail(selected_row)
+        _render_pullback_detail(selected_row, market, ranking)
     else:
-        st.info("눌림목 종목 이름을 누르면 이 목록 맨 아래에 독립 상세와 일봉·주봉·월봉 차트가 표시됩니다.")
+        st.info(
+            "눌림목 종목 이름을 누르면 이 목록 맨 아래에 그 종목의 선정 근거 점수표·매수 심사 결과와 "
+            "일봉·주봉·월봉 차트가 표시됩니다."
+        )
 
 
 def _render_records_tab() -> None:

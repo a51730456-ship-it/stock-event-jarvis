@@ -1031,6 +1031,43 @@ def get_chart_data(ticker: str, timeframe: str) -> dict:
     return _prepare_chart_payload(frame, resample_rule, limit, meta)
 
 
+def analyze_pullback_stock(
+    row: dict,
+    *,
+    benchmark_ret20: float | None = None,
+    market_score: float = 0.0,
+    theme_score: float = 0.0,
+) -> dict:
+    """눌림목 표에서 고른 종목을 대장주와 같은 기준으로 다시 심사한다.
+
+    눌림목 검색은 테마를 가로질러 돌기 때문에 테마 ETF 상대강도를 쓸 수 없다.
+    한국 자비스4가 KOSPI 20일 수익률을 기준으로 쓰듯, 여기서는 SPY 20일 수익률을
+    상대강도 기준으로 넘겨 받는다(넘기지 않으면 상대강도 25점이 통째로 0이 된다).
+    """
+    metrics = row.get("metrics") or {}
+    # 종목 20일 수익률이 없으면 상대강도를 계산할 수 없다 — 기준값을 그대로 넘기면
+    # None 뺄셈으로 죽으므로 이때는 기준 없음(상대강도 0점)으로 내린다.
+    if metrics.get("ret20") is None:
+        benchmark_ret20 = None
+    score, parts = _leader_score(metrics, benchmark_ret20)
+    plan = _entry_plan(metrics, score, float(market_score or 0), float(theme_score or 0))
+    from_high = metrics.get("from_high_pct")
+    ret20 = metrics.get("ret20")
+    reason = f"눌림목 순위 {row.get('pullback_rank', '—')}위"
+    if from_high is not None:
+        reason += f" · 52주 고가 대비 {from_high:.1f}%"
+    if ret20 is not None:
+        reason += f" · 20일 수익률 {ret20:+.1f}%"
+    return {
+        "ok": bool(metrics.get("ok")),
+        "score": score,
+        "score_parts": parts,
+        "plan": plan,
+        "stock_reason": reason,
+        "benchmark_ret20": benchmark_ret20,
+    }
+
+
 def get_chart_bundle(ticker: str) -> dict:
     """한 번의 10년 일봉 조회로 일봉·주봉·월봉 차트를 함께 만든다."""
     ticker = str(ticker).strip().upper()

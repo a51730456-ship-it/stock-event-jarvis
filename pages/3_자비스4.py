@@ -640,14 +640,52 @@ _STATE_COLOR_WORD = {"돌파 확인": "green", "눌림목 대기": "orange", "�
 
 
 def _stock_radio_label(item: dict) -> str:
-    rank = int(item["rank"])
+    rank = int(item.get("rank") or 0)
     medal = _MEDAL_BY_RANK.get(rank, "")
     state = item["plan"].get("state", "")
     color_word = _STATE_COLOR_WORD.get(state, "gray")
+    # 눌림목 표에서 직접 고른 종목은 테마 대장주 순위 밖일 수 있다(rank 0).
+    rank_text = f"{rank}위" if rank else "눌림목 선택"
     return (
-        f"{medal} :green[**{rank}위 · {item['name']} ({item['code']})**] · "
+        f"{medal} :green[**{rank_text} · {item['name']} ({item['code']})**] · "
         f":red[**{item['score']:.1f}점**] · :{color_word}[**{state}**]"
     )
+
+
+def _pullback_as_candidate(row: dict, leaders: list[dict]) -> dict | None:
+    """눌림목 표에서 고른 종목을 '상세 종목 선택' 후보 모양으로 바꾼다.
+
+    거래대금 상위 3위 안에 없는 종목을 눌러도 아래 상세가 그 종목으로 바뀌어야 한다는
+    2026-07-24 지시. 이미 대장주 목록에 있으면 그 항목(테마 상대강도로 재계산된 점수)을
+    그대로 쓰고, 목록 밖 종목만 눌림목 자료로 후보를 만든다.
+    """
+    if not row or not row.get("code"):
+        return None
+    found = next((item for item in leaders if item["code"] == row["code"]), None)
+    if found is not None:
+        return found
+    metrics = row.get("metrics") or {}
+    flow = row.get("flow") or {}
+    from_high = metrics.get("from_high_pct")
+    flow_text = (
+        f" · 외국인+기관 5일 {flow['net5_amount'] / 1e8:+,.0f}억"
+        if flow.get("ok") else " · 수급 확인 필요"
+    )
+    return {
+        "code": row["code"],
+        "name": row.get("name") or row["code"],
+        "metrics": metrics,
+        "flow": flow,
+        "score": row.get("score") or 0.0,
+        "score_parts": row.get("score_parts") or [0] * 6,
+        "plan": row.get("plan") or {},
+        "rank": 0,
+        "from_pullback": True,
+        "stock_reason": (
+            f"눌림목 선택 종목 · 52주 고가 대비 {from_high:.1f}%{flow_text}"
+            if from_high is not None else f"눌림목 선택 종목{flow_text}"
+        ),
+    }
 
 
 def _intraday_chart(payload: dict, height: int = 210):
@@ -751,7 +789,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     detail_medal_html = f"<span class='j4-medal'>{detail_medal}</span> " if detail_medal else ""
     st.markdown(
         f"<div class='j4-stock-name'>{detail_medal_html}{leader['name']} · {code}</div>"
-        f"<div class='j4-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
+        f"<div class='j4-stock-sub'>{theme_row['name']} "
+        f"{f'대장주 {detail_rank}위' if detail_rank else '눌림목 선택 종목'} · {plan.get('recommendation')}</div>",
         unsafe_allow_html=True,
     )
 
@@ -1136,7 +1175,8 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates
         form_medal_html = f"<span class='j4-medal'>{form_medal}</span> " if form_medal else ""
         st.markdown(
             f"<div class='j4-stock-name'>{form_medal_html}{leader['name']} · {code}</div>"
-            f"<div class='j4-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')} · "
+            f"<div class='j4-stock-sub'>{theme_row['name']} "
+            f"{f'대장주 {form_rank}위' if form_rank else '눌림목 선택 종목'} · {plan.get('recommendation')} · "
             f"현재가 {_won(metrics.get('current'))} "
             f"<span class='{_sign_class(metrics.get('change_pct'))}'>{_pct(metrics.get('change_pct'))}</span></div>",
             unsafe_allow_html=True,
@@ -1263,14 +1303,28 @@ def _render_radar_tab(market: dict) -> None:
 
     names = [row["name"] for row in ranking["rows"]]
 
-    # 아래 '매수 심사 통과 종목' 표에서 고른 종목을 위젯 생성 전에 반영한다.
+    # 눌림목 표에서 고른 종목을 위젯 생성 전에 반영한다.
     pending = st.session_state.pop("j4_pending_pick", None)
     if pending:
         pending_theme, pending_code = pending
+        if pending_theme not in names:
+            # 첫 테마가 심사에서 빠졌으면 그 종목의 다른 테마로 넘어간다 —
+            # 어느 테마로든 목록에 잡혀야 아래 상세가 그 종목으로 바뀐다.
+            picked_row = st.session_state.get("j4_pullback_pick_row") or {}
+            pending_theme = next(
+                (name for name in (picked_row.get("themes") or []) if name in names),
+                pending_theme,
+            )
         if pending_theme in names:
             st.session_state["j4_theme_choice"] = pending_theme
             st.session_state["j4_theme_choice_widget"] = pending_theme
             st.session_state[f"j4_stock_choice_{pending_theme}"] = pending_code
+            st.session_state["j4_pullback_pick"] = (pending_theme, pending_code)
+        else:
+            st.warning(
+                f"‘{pending_code}’의 테마가 오늘 테마 목록에 없어 상세를 열지 못했습니다. "
+                "‘테마 직접 찾기’에서 그 테마를 목록에 추가한 뒤 다시 눌러 주세요."
+            )
 
     clicked_theme = _render_theme_table(ranking, st.session_state.get("j4_theme_choice"))
     if clicked_theme in names:
@@ -1341,6 +1395,16 @@ def _render_radar_tab(market: dict) -> None:
     _render_leader_comparison(leaders)
 
     top_candidates = leaders[:3]
+    # 눌림목 표에서 고른 종목이 이 테마의 거래대금 상위 3위 밖이면 후보에서 지워져
+    # 아래 상세가 안 바뀌었다(2026-07-24 사용자 지적). 고른 종목은 후보에 강제로 넣는다.
+    picked = st.session_state.get("j4_pullback_pick")
+    if picked and picked[0] == selected_theme:
+        if picked[1] not in [item["code"] for item in top_candidates]:
+            extra = _pullback_as_candidate(
+                st.session_state.get("j4_pullback_pick_row"), leaders
+            )
+            if extra is not None and extra["code"] == picked[1]:
+                top_candidates = top_candidates + [extra]
     code_options = [leader["code"] for leader in top_candidates]
     if stock_key in st.session_state and st.session_state[stock_key] not in code_options:
         del st.session_state[stock_key]
@@ -1422,6 +1486,9 @@ def _render_pullback_finder() -> None:
     )
     if run_requested:
         j4data.clear_pullback_cache()
+        # 이전 검색에서 고른 종목 자료는 여기서 버린다 — 새 결과와 섞이면 옛 점수가 남는다.
+        st.session_state.pop("j4_pullback_pick", None)
+        st.session_state.pop("j4_pullback_pick_row", None)
         with st.spinner("전체 테마를 갱신하고 유동성 상위 50개를 확인하는 중입니다…"):
             st.session_state["j4_pullback_result"] = j4data.find_pullback_stocks()
 
@@ -1449,8 +1516,8 @@ def _render_pullback_finder() -> None:
         st.info("지금 조건에 맞는 눌림목 종목이 없습니다. 조건을 낮추지 않고 그대로 둡니다.")
         return
 
-    widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.2, 1.1, 0.9, 1.3, 1.3, 1.2]
-    titles = ["순위", "종목", "코드", "눌림 점수", "신고가", "고점 대비", "20일선 이격",
+    widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.6, 1.2, 1.1, 0.9, 1.3, 1.3, 1.2]
+    titles = ["순위", "종목", "코드", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
               "테마수", "수급(외+기 5일)", "신고가 기술점수", "지금 종합점수"]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
@@ -1468,6 +1535,9 @@ def _render_pullback_finder() -> None:
                     forced.append(themes[0])
                 st.session_state["j4_forced_themes"] = forced
                 st.session_state["j4_pending_pick"] = (themes[0], row["code"])
+                # 상위 3위 밖 종목도 상세로 열 수 있게 고른 종목을 그대로 남겨 둔다.
+                st.session_state["j4_pullback_pick"] = (themes[0], row["code"])
+                st.session_state["j4_pullback_pick_row"] = row
             st.rerun()
         cols[2].markdown(f"<div class='j4-td'>{row['code']}</div>", unsafe_allow_html=True)
         score = float(quality["score"])
@@ -1478,26 +1548,34 @@ def _render_pullback_finder() -> None:
         cols[4].markdown(
             f"<div class='j4-td' style='color:#44f0a1; font-weight:700'>"
             f"{quality.get('high52_days_ago')}일 전</div>", unsafe_allow_html=True)
+        # 당일주가 — 신고가와 고점 대비 사이에 지금 가격과 등락을 진하게 넣는다
+        # (2026-07-24 사용자 지시). 한국시장 색 규칙(+빨강 −파랑)을 그대로 쓴다.
+        current_price = row["metrics"].get("current")
+        change_pct = row["metrics"].get("change_pct")
         cols[5].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:700'>"
+            f"<div class='j4-td' style='font-weight:800; color:#e6e6e6'>{_won(current_price)}"
+            f"<span style='color:{_sign_color(change_pct)}; font-weight:800'>"
+            f" {_pct(change_pct)}</span></div>", unsafe_allow_html=True)
+        cols[6].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:800'>"
             f"{_pct(quality['from_high_pct'])}</div>", unsafe_allow_html=True)
         gap = quality["gap_pct"]
         gap_color = _sign_color(gap)
-        cols[6].markdown(
-            f"<div class='j4-td' style='color:{gap_color}; font-weight:700'>{gap:+.2f}%</div>",
-            unsafe_allow_html=True)
         cols[7].markdown(
+            f"<div class='j4-td' style='color:{gap_color}; font-weight:800'>{gap:+.2f}%</div>",
+            unsafe_allow_html=True)
+        cols[8].markdown(
             f"<div class='j4-td' style='color:#ffb020; font-weight:700'>{len(row.get('themes') or [])}</div>",
             unsafe_allow_html=True)
         net5 = flow.get("net5_amount") if flow.get("ok") else None
-        cols[8].markdown(
+        cols[9].markdown(
             f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
             unsafe_allow_html=True)
         peak = row.get("peak_score")
-        cols[9].markdown(
+        cols[10].markdown(
             f"<div class='j4-td' style='color:#44f0a1; font-weight:800'>"
             f"{f'{float(peak):.1f}' if peak is not None else '—'}</div>", unsafe_allow_html=True)
-        cols[10].markdown(
+        cols[11].markdown(
             f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
             unsafe_allow_html=True)
     st.markdown(
@@ -1517,7 +1595,8 @@ def _render_pullback_finder() -> None:
         "신고가 날짜까지 함께 잘라 당시 상대강도·신고가 위치·추세·유동성·변동성을 다시 계산합니다. "
         "과거 외국인·기관 수급은 복원할 수 없어 현재 수급을 섞지 않고, 가격·기술 80점을 "
         "100점으로 환산합니다. ‘지금 종합점수’에만 현재 외국인·기관 수급이 포함됩니다. "
-        "종목 이름을 누르면 그 종목의 테마가 위 목록에 추가되고 아래 상세가 그 종목으로 바뀝니다."
+        "종목 이름을 누르면 그 종목의 테마가 위 목록에 추가되고, 거래대금 상위 3위 밖 종목이어도 "
+        "‘상세 종목 선택’에 그 종목이 더해지면서 아래 상세가 바로 그 종목으로 바뀝니다."
     )
 
 

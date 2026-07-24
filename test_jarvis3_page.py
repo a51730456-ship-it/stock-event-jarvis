@@ -119,7 +119,12 @@ def _pullbacks():
                 "score": 82.5, "high52_days_ago": 7, "from_high_pct": -8.2,
                 "gap_pct": 1.4, "parts": [20, 18, 17, 14, 5],
             },
-            "metrics": {"avg_dollar_volume": 3_200_000_000},
+            "metrics": {
+                "ok": True, "current": 178.5, "change_pct": -1.35, "ret5": 2.0, "ret20": 6.0,
+                "from_high_pct": -8.2, "sma20": 176.0, "sma50": 170.0, "sma200": 150.0,
+                "high52": 194.0, "volume_ratio": 1.1, "atr": 6.0, "atr_pct": 3.4,
+                "avg_dollar_volume": 3_200_000_000,
+            },
             "themes": ["반도체", "AI 인프라"],
         }],
     }
@@ -169,6 +174,18 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("j3-down" in value for value in markdowns))
         self.assertEqual(app.session_state.filtered_state.get("j3_pullback_selected_ticker"), "NVDA")
         self.assertTrue(any("미국 눌림목 목록에서 독립 선택" in value for value in markdowns))
+        # 눌림목 상세는 자비스4와 같은 구성이다 — 선정 근거 점수표·매수 심사 결과까지
+        # 함께 보여준다(2026-07-24 사용자 지시).
+        self.assertTrue(any("종목 선정 근거 (미국형 5개 항목)" in value for value in markdowns))
+        self.assertTrue(any("j3-factor-table" in value for value in markdowns))
+        self.assertTrue(any("j3-holo-card" in value for value in markdowns))
+        self.assertTrue(any("가격 칸이 채워지는 기준" in value for value in markdowns))
+        # 눌림목 표에 당일주가 칸이 있고 값이 채워진다
+        self.assertTrue(any("당일주가" in value for value in markdowns))
+        self.assertTrue(any("$178.50" in value for value in markdowns))
+        # 상단 칸 이름은 '장 상태'가 아니라 '시장 상황'이고 VIX는 붉은색이다
+        self.assertTrue(any("시장 상황" in value for value in markdowns))
+        self.assertFalse(any(">장 상태<" in value for value in markdowns))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 
     def test_theme_selection_click_actually_switches_theme(self):
