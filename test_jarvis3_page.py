@@ -173,13 +173,16 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("NVIDIA" in str(node.label) for node in app.button))
         self.assertTrue(any("j3-down" in value for value in markdowns))
         self.assertEqual(app.session_state.filtered_state.get("j3_pullback_selected_ticker"), "NVDA")
-        self.assertTrue(any("미국 눌림목 목록에서 독립 선택" in value for value in markdowns))
+        self.assertTrue(any("눌림목 선택 종목" in value for value in markdowns))
         # 눌림목 상세는 자비스4와 같은 구성이다 — 선정 근거 점수표·매수 심사 결과까지
         # 함께 보여준다(2026-07-24 사용자 지시).
         self.assertTrue(any("종목 선정 근거 (미국형 5개 항목)" in value for value in markdowns))
         self.assertTrue(any("j3-factor-table" in value for value in markdowns))
         self.assertTrue(any("j3-holo-card" in value for value in markdowns))
         self.assertTrue(any("가격 칸이 채워지는 기준" in value for value in markdowns))
+        self.assertTrue(any("j3-danta-box" in value for value in markdowns))
+        self.assertTrue(any("14일 변동성(ATR)" in value for value in markdowns))
+        self.assertTrue(any("종목 조건점수" in value for value in markdowns))
         # 눌림목 표에 당일주가 칸이 있고 값이 채워진다
         self.assertTrue(any("당일주가" in value for value in markdowns))
         self.assertTrue(any("$178.50" in value for value in markdowns))

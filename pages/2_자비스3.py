@@ -203,6 +203,9 @@ st.markdown(
     /* 참고 안내: 위 카드와 간격 + 글자 키움 */
     .j3-plan-note { margin-top: 1.1rem; color: #9aa0aa; font-size: 1rem; line-height: 1.65; }
     .j3-plan-note b { color: #44f0a1; font-size: 1.1rem; font-weight: 800; }
+    .j3-danta-box { border: 1px solid rgba(234,179,8,0.5); background: rgba(234,179,8,0.07);
+        border-radius: 0.55rem; padding: 0.7rem 0.9rem; margin-top: 0.9rem; line-height: 1.7; }
+    .j3-danta-title { color: #ff9d3b; font-weight: 800; }
     .j3-holo-cell .label { color: #9aa0aa; font-size: 0.85rem; }
     .j3-holo-cell .val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.2; text-shadow: 0 0 8px rgba(77,166,255,0.45); }
     .j3-holo-corner { position: absolute; width: 14px; height: 14px; border-color: #4da6ff; }
@@ -1359,6 +1362,21 @@ def _render_radar_tab(market: dict) -> None:
     _render_pullback_finder(market, ranking)
 
 
+def _us_signal_hint() -> str:
+    """미국장 선행신호 카드 판정을 단타 참고 문구로 옮긴다(점수에는 반영하지 않는다).
+
+    한국장 자비스4의 ‘기관 수급 반전’ 자리에 들어가는 미국판이다. 미국은 장중
+    투자자별 수급 공개 자료가 없어 선물·반도체·변동성·금리 방향을 대신 쓴다.
+    """
+    result = st.session_state.get("us_signal_result")
+    if result is None:
+        return "선행신호 판정은 위 ‘미국장 선행신호·시장 상태’ 카드에서 확인하세요."
+    return (
+        f"미국장 선행신호: <b>{html.escape(str(result.verdict_label))}</b> · "
+        f"{html.escape(str(result.headline))}"
+    )
+
+
 def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     """상단 테마 선택과 독립된 눌림목 종목 상세.
 
@@ -1370,32 +1388,6 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     quality = row.get("pullback") or {}
     themes = " · ".join(row.get("themes") or []) or "테마 정보 없음"
     avg_value = metrics.get("avg_dollar_volume")
-    st.markdown(
-        "<div class='j3-pull-detail'>"
-        f"<div class='j3-pull-detail-title'>{html.escape(str(row.get('name') or ticker))} · "
-        f"{html.escape(ticker)}</div>"
-        "<div class='j3-pull-detail-sub'>미국 눌림목 목록에서 독립 선택 · "
-        f"{html.escape(themes)}</div></div>",
-        unsafe_allow_html=True,
-    )
-    cells = [
-        f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
-        f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div>"
-        f"<div class='j3-mc-sub {_sign_class(metrics.get('change_pct'))}'>"
-        f"{_pct(metrics.get('change_pct'))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>고점 대비</div>"
-        f"<div class='j3-mc-val {_sign_class(quality.get('from_high_pct'))}'>"
-        f"{_pct(quality.get('from_high_pct'))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>20일선 이격</div>"
-        f"<div class='j3-mc-val {_sign_class(quality.get('gap_pct'))}'>"
-        f"{_pct(quality.get('gap_pct'))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>평균 거래대금</div>"
-        f"<div class='j3-mc-val j3-green'>"
-        f"{f'${float(avg_value) / 1e6:,.0f}M' if avg_value is not None else '—'}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
-        f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div></div>",
-    ]
-    st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
     # ── 선정 근거·매수 심사 (자비스4 종목 상세와 같은 구성) ──────────────────
     # 눌림목 검색은 테마를 가로지르므로 상대강도 기준은 SPY 20일 수익률을 쓴다.
@@ -1415,6 +1407,42 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         theme_score=theme_score,
     )
     plan = review.get("plan") or {}
+
+    # 종목 이름·판정은 자비스4 종목 상세와 같은 형식으로 크게 보여준다.
+    st.markdown(
+        f"<div class='j3-stock-name'>{html.escape(str(row.get('name') or ticker))} · "
+        f"{html.escape(ticker)}</div>"
+        f"<div class='j3-stock-sub'>{html.escape(themes)} 눌림목 선택 종목 · "
+        f"{html.escape(str(plan.get('recommendation') or '판정 없음'))}</div>",
+        unsafe_allow_html=True,
+    )
+    cells = [
+        f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
+        f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div>"
+        f"<div class='j3-mc-sub {_sign_class(metrics.get('change_pct'))}'>"
+        f"{_pct(metrics.get('change_pct'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
+        f"<div class='j3-mc-val {_sign_class(metrics.get('from_high_pct'))}'>"
+        f"{_pct(metrics.get('from_high_pct'))}</div>"
+        f"<div class='j3-mc-sub j3-muted'>{int(quality.get('high52_days_ago') or 0)}일 전 신고가</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
+        f"<div class='j3-mc-val {_sign_class(metrics.get('ret20'))}'>"
+        f"{_pct(metrics.get('ret20'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
+        f"<div class='j3-mc-val j3-up'>{_pct(metrics.get('atr_pct'))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>평균 거래대금</div>"
+        f"<div class='j3-mc-val j3-green'>"
+        f"{f'${float(avg_value) / 1e6:,.0f}M' if avg_value is not None else '—'}</div>"
+        "<div class='j3-mc-sub j3-muted'>미국은 장중 수급 공개 없음</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
+        f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}/100</div>"
+        f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
+        f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div>"
+        f"<div class='j3-mc-sub {_sign_class(quality.get('gap_pct'))}'>"
+        f"20일선 이격 {_pct(quality.get('gap_pct'))}</div></div>",
+    ]
+    st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
     factor_names = ["SPY 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)", "유동성(거래대금)", "변동성 안정"]
     factor_max = [25, 25, 20, 15, 15]
@@ -1506,6 +1534,14 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
             f"※ <b>‘{plan.get('state', '')}’(가격 상태)와 ‘{plan.get('recommendation', '')}’(최종 판정)은 "
             "다른 말</b>입니다 — 가격 셋업이 완성돼도 시장·테마 점수가 기준 미달이면 최종 판정은 매수가 "
             f"아닙니다(이 종목의 테마 점수 {theme_score:.1f}/100 · 시장 {market_score:.0f}/100).</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"<div class='j3-danta-box'><span class='j3-danta-title'>⚡ 단타 참고 신호</span> — "
+            f"{_us_signal_hint()}<br>"
+            "<span class='j3-muted'>선행신호가 위험선호로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
+            "참고합니다 (점수·판정에는 반영하지 않습니다). 미국은 장중 투자자별 수급 공개 자료가 없어 "
+            "한국장의 ‘기관 수급 반전’ 대신 선물·반도체·변동성·금리 방향을 씁니다.</span></div>",
             unsafe_allow_html=True,
         )
         st.write("")
