@@ -58,7 +58,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072403
+MODULE_REVISION = 2026072404
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -621,6 +621,9 @@ def _us_previous_session() -> dict:
             "score": overview.get("score"),
             "fear_greed": fear_greed.get("score") if fear_greed.get("ok") else None,
             "fear_greed_label": fear_greed.get("rating_kr") if fear_greed.get("ok") else None,
+            # 게이지 그림에는 지난 값(전일·1주·1개월·1년)까지 필요하다. 자비스4 화면은
+            # 규칙상 jarvis3_data를 직접 import하지 않으므로 여기서 통째로 넘긴다.
+            "fear_greed_detail": dict(fear_greed) if fear_greed.get("ok") else None,
         }
     except Exception:
         return {"ok": False}

@@ -43,6 +43,12 @@ def _market():
         "us_prev": {
             "ok": True, "spy_change": 0.74, "qqq_change": 1.66,
             "regime": "중립·선별", "score": 65, "fear_greed": 41.0, "fear_greed_label": "공포",
+            # 게이지 그림은 지난 값까지 받아 그린다(2026-07-24).
+            "fear_greed_detail": {
+                "ok": True, "score": 41.0, "rating_kr": "공포", "previous_close": 45.0,
+                "previous_1_week": 55.0, "previous_1_month": 57.0, "previous_1_year": 44.0,
+                "stale": False,
+            },
         },
         "foreign": {"ok": True, "net5_amount": 2.41e11, "detail": "삼성전자 5일 +1,200억"},
         "phase": {"label": "정규장", "seoul_time": "2026-07-22T10:00:00+09:00"},
@@ -219,6 +225,13 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("SK하이닉스", markdowns)
         self.assertIn("수급(외국인+기관)", markdowns)
         self.assertIn("j4-stock-name", markdowns)
+        # 공포·탐욕 게이지를 한국테마 상단에도 넣었다(2026-07-24 사용자 요청).
+        # 구간 이름은 한국어여야 한다.
+        self.assertIn("fg-gauge", markdowns)
+        self.assertIn("fg-needle", markdowns)
+        self.assertIn("공포·탐욕 지수", markdowns)
+        self.assertIn("전일 종가", markdowns)
+        self.assertNotIn("EXTREME FEAR", markdowns)
 
     def test_theme_selection_switches_theme(self):
         started = []

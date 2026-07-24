@@ -240,6 +240,7 @@ import importlib
 import altair as alt
 import pandas as pd
 
+import fear_greed_ui
 import jarvis4_data as j4data
 import jarvis4_store as j4store
 import market_signal_ui
@@ -255,7 +256,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072403
+_REQUIRED_J4_REVISION = 2026072404
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -534,6 +535,16 @@ def _render_market_overview() -> None:
     st.caption(
         f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'} · 1분 자동 갱신 · "
         "네이버·FinanceDataReader 조회이므로 지연될 수 있음"
+    )
+    # 공포·탐욕 지수 게이지 — 미국 지표지만 한국장이 미국 전일과 갭 상관이 높아
+    # 여기서도 함께 본다(2026-07-24 사용자 요청). 스타일은 로그인 문 뒤라 여기서 넣는다.
+    st.markdown(
+        f"<style>{fear_greed_ui.CSS}</style>"
+        + fear_greed_ui.card_html(
+            us_prev.get("fear_greed_detail"),
+            title="공포·탐욕 지수 (미국 시장 심리)",
+        ),
+        unsafe_allow_html=True,
     )
 
 

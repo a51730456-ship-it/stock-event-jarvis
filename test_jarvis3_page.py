@@ -212,6 +212,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("점수 두 개는 서로 다른 것을 잽니다" in value for value in markdowns))
         # 상단 칸 이름은 '장 상태'가 아니라 '시장 상황'이고 VIX는 붉은색이다
         self.assertTrue(any("시장 상황" in value for value in markdowns))
+        # 공포·탐욕 게이지(반원 그림)를 상단에 넣었다. 구간 이름은 한국어다.
+        self.assertTrue(any("fg-gauge" in value for value in markdowns))
+        self.assertTrue(any("fg-needle" in value for value in markdowns))
+        self.assertTrue(any("전일 종가" in value for value in markdowns))
+        self.assertFalse(any("EXTREME FEAR" in value for value in markdowns))
         self.assertFalse(any(">장 상태<" in value for value in markdowns))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 

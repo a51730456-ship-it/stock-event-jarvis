@@ -303,6 +303,7 @@ import time
 import altair as alt
 import pandas as pd
 
+import fear_greed_ui
 import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
@@ -917,6 +918,21 @@ def _render_market_overview() -> None:
     st.caption(
         f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'}{stale_text} · "
         "1분 자동 갱신 · 거래소 정식 실시간 피드가 아니므로 지연될 수 있음"
+    )
+    _render_fear_greed_gauge()
+
+
+def _render_fear_greed_gauge() -> None:
+    """공포·탐욕 지수 게이지. CNN 화면과 같은 반원 그림을 직접 그린다(2026-07-24).
+
+    스타일은 여기서 함께 넣는다 — 페이지 맨 위 <style> 덩어리는 로그인 문 앞이라
+    fear_greed_ui를 아직 import하기 전이다.
+    """
+    fetcher = getattr(j3data, "get_fear_greed", None)
+    data = fetcher() if fetcher else {"ok": False}
+    st.markdown(
+        f"<style>{fear_greed_ui.CSS}</style>" + fear_greed_ui.card_html(data),
+        unsafe_allow_html=True,
     )
 
 
