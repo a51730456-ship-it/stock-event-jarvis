@@ -251,6 +251,21 @@ class Jarvis4PageTests(unittest.TestCase):
         # 숫자가 두 군데 나오지 않게 '미국 전일' 부제에서는 뺐다.
         self.assertNotIn("공포탐욕 41", markdowns)
 
+    def test_mobile_rules_are_emitted_and_scoped_to_phones(self):
+        """폰 전용 규칙이 나가야 하고, 태블릿·PC가 바뀌면 안 된다(2026-07-24)."""
+        app = _run_page()
+        self.assertEqual(len(app.exception), 0)
+        blocks = [str(n.value) for n in app.markdown if "@media (max-width: 600px)" in str(n.value)]
+        self.assertEqual(len(blocks), 1, "폰 규칙 덩어리는 하나여야 한다")
+        css = blocks[0]
+        # 미디어쿼리 밖에 규칙이 새면 태블릿까지 바뀐다.
+        self.assertTrue(css.startswith("<style>@media"))
+        self.assertEqual(css.count("@media"), 1)
+        # 표 두 개와 머리글, 게이지 순서 규칙이 모두 들어 있어야 한다.
+        for key in ("st-key-j4tbtn_", "st-key-j4pbf_", "j4-th-head", ".fg-box { order"):
+            self.assertIn(key, css)
+
+
     def test_theme_selection_switches_theme(self):
         started = []
         try:

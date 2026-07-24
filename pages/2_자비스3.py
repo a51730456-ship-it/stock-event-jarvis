@@ -305,6 +305,7 @@ import altair as alt
 import pandas as pd
 
 import fear_greed_ui
+import mobile_ui
 import regime_gauge_ui
 import jarvis3_data as j3data
 import jarvis3_store as j3store
@@ -2090,6 +2091,21 @@ def _render_method_tab() -> None:
 
 
 def main() -> None:
+    st.markdown(
+        mobile_ui.page_css(
+            # 머리글 줄은 폰에서 감춘다 — 세로로 쌓이면 제목만 여러 줄이 된다.
+            mobile_ui.hide_header_rows("j3-th-head"),
+            # 테마표(8칸) — 폰에서는 테마·점수·상태·당일만 남긴다.
+            mobile_ui.table_css("j3tbtn_", 8, {
+                2: "", 4: "조건점수", 5: "상태", 6: "당일",
+            }, "j3-td"),
+            # 눌림목표(12칸) — 폰에서는 종목·두 점수·주가·고점 대비만 남긴다.
+            mobile_ui.table_css("j3pbf_", 12, {
+                2: "", 4: "눌림", 5: "종목점수", 7: "현재가", 8: "고점 대비",
+            }, "j3-td"),
+        ),
+        unsafe_allow_html=True,
+    )
     st.title("자비스3 — 미국 테마 레이더")
     try:
         j3store.ensure_tables()

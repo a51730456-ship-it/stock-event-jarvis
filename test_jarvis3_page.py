@@ -274,6 +274,28 @@ class Jarvis3PageTests(unittest.TestCase):
             app.session_state.filtered_state.get("j3_pullback_selected_ticker"), "ANET"
         )
 
+    def test_mobile_rules_are_emitted_and_scoped_to_phones(self):
+        """폰 전용 규칙이 나가야 하고, 태블릿·PC가 바뀌면 안 된다(2026-07-24)."""
+        with patch("jarvis3_data.get_market_overview", return_value=_market()),              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()),              patch("market_signal_ui._fetch_quotes", return_value={}),              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()),              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()),              patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }),              patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()),              patch("jarvis3_data.find_pullback_stocks", return_value=_pullbacks()),              patch("jarvis3_store.ensure_tables"),              patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }),              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=60)
+        self.assertEqual(len(app.exception), 0)
+        blocks = [str(n.value) for n in app.markdown if "@media (max-width: 600px)" in str(n.value)]
+        self.assertEqual(len(blocks), 1)
+        css = blocks[0]
+        self.assertTrue(css.startswith("<style>@media"))
+        self.assertEqual(css.count("@media"), 1)
+        for key in ("st-key-j3tbtn_", "st-key-j3pbf_", "j3-th-head", ".fg-box { order"):
+            self.assertIn(key, css)
+
+
     def test_theme_selection_click_actually_switches_theme(self):
         """테마 선택 위젯을 실제로 눌러 테마가 바뀌는지 검증한다(st.pills 클릭 불가 회귀 방지)."""
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \

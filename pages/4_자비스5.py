@@ -146,6 +146,7 @@ def _login_gate() -> None:
 
 _login_gate()
 
+import mobile_ui
 import jarvis5_collector as collector
 import jarvis5_data as engine
 import jarvis5_store as store
@@ -514,6 +515,8 @@ def _outcome_table_html(rows: list[dict]) -> str:
 
 def main() -> None:
     store.ensure_schema()
+    # 폰에서만 글자·표를 줄인다(자비스5 표는 HTML이라 칸을 숨기지 않고 글자만 줄인다).
+    st.markdown(mobile_ui.page_css(), unsafe_allow_html=True)
     st.title("자비스5 — 한국테마 선행감지 (실험)")
     st.markdown(
         "<div class='j5-note'><span class='j5-warn'>테스트용 관찰 도구입니다.</span> "

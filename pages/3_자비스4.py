@@ -242,6 +242,7 @@ import altair as alt
 import pandas as pd
 
 import fear_greed_ui
+import mobile_ui
 import regime_gauge_ui
 import jarvis4_data as j4data
 import jarvis4_store as j4store
@@ -1791,6 +1792,20 @@ def _render_method_tab() -> None:
 
 
 def main() -> None:
+    st.markdown(
+        mobile_ui.page_css(
+            mobile_ui.hide_header_rows("j4-th-head"),
+            # 테마표(8칸) — 폰에서는 테마·점수·상태·당일만 남긴다.
+            mobile_ui.table_css("j4tbtn_", 8, {
+                2: "", 4: "조건점수", 5: "상태", 6: "당일",
+            }, "j4-td"),
+            # 눌림목표(12칸) — 폰에서는 종목·눌림·주가·고점 대비·신고가 기술점수만.
+            mobile_ui.table_css("j4pbf_", 12, {
+                2: "", 4: "눌림", 6: "현재가", 7: "고점 대비", 11: "신고가점수",
+            }, "j4-td"),
+        ),
+        unsafe_allow_html=True,
+    )
     st.title("자비스4 — 한국 테마 레이더")
     try:
         j4store.ensure_tables()
