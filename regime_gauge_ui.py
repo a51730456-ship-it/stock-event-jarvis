@@ -64,18 +64,21 @@ def _change_row(label: str, value) -> tuple:
 
 
 def us_prev_box_html(us_prev: dict | None, *, title: str = "미국 전일") -> str:
-    """미국 전일 박스 — 한국장은 미국 전일과 갭 상관이 높아 함께 본다."""
+    """미국 전일 박스 — 한국장은 미국 전일과 갭 상관이 높아 함께 본다.
+
+    이 점수는 자비스3(미국테마) 상단의 '시장 국면'과 **같은 계산**이다
+    (jarvis4_data._us_previous_session이 jarvis3_data.get_market_overview를 그대로
+    쓴다). 그래서 세 구간도 시장 국면 박스와 똑같이 보여준다 — 지수 등락만 적으면
+    이 점수가 어느 단계인지 알 수 없다(2026-07-24 사용자 지시).
+    """
     us_prev = us_prev or {}
     ok = bool(us_prev.get("ok"))
     score = us_prev.get("score") if ok else None
     regime = us_prev.get("regime") if ok else None
-    rows = [
+    rows = _zone_rows(score) + [
         _change_row("S&P500", us_prev.get("spy_change") if ok else None),
         _change_row("나스닥100", us_prev.get("qqq_change") if ok else None),
     ]
-    if score is not None:
-        name, color = gauge_ui.zone_of(score, ZONES)
-        rows.append(("조건점수 구간", RANGE_TEXT[name], name, color, False))
     return gauge_ui.box_html(
         title,
         score,

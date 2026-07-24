@@ -89,6 +89,18 @@ class UsPrevBoxTests(unittest.TestCase):
         # 미국장 색 규칙 — 상승은 파랑
         self.assertIn("#4da6ff", html)
 
+    def test_box_also_shows_all_three_score_ranges(self):
+        """이 점수는 자비스3 '시장 국면'과 같은 계산이므로 구간도 같이 보여준다."""
+        html = rg.us_prev_box_html(self._us())
+        for text in ("방어 우선", "0~49", "중립·선별", "50~74", "상승 우위", "75~100"):
+            self.assertIn(text, html)
+        rows = ["<div class='fg-hist-row'" + part
+                for part in html.split("<div class='fg-hist-row'")[1:]]
+        self.assertEqual(len(rows), 5, "구간 3줄 + 지수 2줄")
+        current = [row for row in rows if "지금" in row]
+        self.assertEqual(len(current), 1)
+        self.assertIn("50~74", current[0], "65점은 중립·선별 구간이다")
+
     def test_falling_index_uses_red(self):
         html = rg.us_prev_box_html(self._us(spy_change=-1.2))
         self.assertIn("-1.20%", html)
