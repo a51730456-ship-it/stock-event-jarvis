@@ -70,11 +70,22 @@ STOCK_NAMES = {
     "FSLR": "First Solar", "ENPH": "Enphase Energy", "ISRG": "Intuitive Surgical",
 }
 
-MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX")
+# 지수 자체. ETF(SPY·QQQ)는 지수를 따라갈 뿐이라 등락률이 조금씩 어긋난다
+# (2026-07-24 실측: 전일 S&P500 지수 -1.21%인데 SPY는 -1.23%, 나스닥100 -1.87% vs
+# QQQ -1.90%). 화면에 '지수'라고 적는 자리에는 지수를 그대로 쓴다.
+US_INDEX_DISPLAY = (
+    ("^GSPC", "S&P 500"),
+    ("^IXIC", "나스닥 종합"),
+    ("^DJI", "다우존스"),
+    ("^NDX", "나스닥 100"),
+)
+US_INDEX_SYMBOLS = tuple(symbol for symbol, _name in US_INDEX_DISPLAY)
+
+MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072405
+MODULE_REVISION = 2026072406
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -540,8 +551,11 @@ def get_market_overview() -> dict:
     daily, daily_meta = _download_cached(
         MARKET_SYMBOLS, period="1y", interval="1d", ttl_seconds=300
     )
+    # 지수는 시간외·프리마켓 거래가 없어 1분봉을 달라고 하면 빈 응답과 경고만
+    # 돌아온다. 지수는 일봉만 쓰고, 실시간이 있는 것만 1분봉을 받는다(2026-07-24).
+    _INTRADAY_SYMBOLS = tuple(s for s in MARKET_SYMBOLS if s not in US_INDEX_SYMBOLS)
     intraday, live_meta = _download_cached(
-        MARKET_SYMBOLS, period="1d", interval="1m", ttl_seconds=45, prepost=True
+        _INTRADAY_SYMBOLS, period="1d", interval="1m", ttl_seconds=45, prepost=True
     )
     rows = {}
     for ticker in MARKET_SYMBOLS:

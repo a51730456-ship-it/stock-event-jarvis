@@ -58,7 +58,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072405
+MODULE_REVISION = 2026072406
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -613,8 +613,17 @@ def _us_previous_session() -> dict:
         # '미국 전일'은 끝난 정규장을 묻는 자리다. change_pct는 지금 값(프리마켓·
         # 시간외 포함) 기준이라 한국 저녁에 보면 전일 -1.2%가 프리마켓 +0.2%로
         # 뒤집혀 보였고, 조건점수 15점까지 잘못 붙었다(2026-07-24 실측 수정).
-        spy = rows.get("SPY", {}).get("last_session_change_pct")
-        qqq = rows.get("QQQ", {}).get("last_session_change_pct")
+        #
+        # 값은 ETF가 아니라 지수를 쓴다 — 화면에 'S&P500'이라고 적으므로 지수와
+        # 같아야 한다(SPY는 -1.23%, 지수는 -1.21%로 조금 어긋난다).
+        def _session_change(index_symbol, etf_symbol):
+            value = rows.get(index_symbol, {}).get("last_session_change_pct")
+            if value is None:
+                value = rows.get(etf_symbol, {}).get("last_session_change_pct")
+            return value
+
+        spy = _session_change("^GSPC", "SPY")
+        qqq = _session_change("^NDX", "QQQ")
         fear_greed = j3.get_fear_greed()
         return {
             "ok": spy is not None and qqq is not None,

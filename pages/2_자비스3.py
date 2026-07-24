@@ -314,7 +314,7 @@ import market_signal_ui
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072405
+_REQUIRED_J3_REVISION = 2026072406
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -874,6 +874,7 @@ def _render_market_overview() -> None:
     # 찍히고 SPY·QQQ의 '$' 두 개가 수식으로 잡혔다(2026-07-24 실제 깨짐).
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
+    _render_us_index_row(overview, phase)
     st.markdown(
         f"""
         <div class="j3-score-guide">
@@ -903,6 +904,35 @@ def _render_market_overview() -> None:
         f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'}{stale_text} · "
         "1분 자동 갱신 · 거래소 정식 실시간 피드가 아니므로 지연될 수 있음"
     )
+
+
+def _render_us_index_row(overview: dict, phase: str) -> None:
+    """4대 지수 줄 — S&P 500 · 나스닥 종합 · 다우존스 · 나스닥 100 (2026-07-24 추가).
+
+    ETF(SPY·QQQ)가 아니라 지수를 그대로 쓴다. 정규장이 아니면 마지막으로 끝난
+    정규장의 종가와 등락을 보여준다 — 지수는 시간외 거래가 없어서 '지금 값'을
+    쓰면 등락이 0%로 나온다.
+    """
+    display = getattr(j3data, "US_INDEX_DISPLAY", ())
+    if not display:
+        return
+    live = phase == "정규장 시간"
+    rows = overview.get("rows") or {}
+    cells = []
+    for symbol, name in display:
+        row = rows.get(symbol) or {}
+        if not row.get("ok"):
+            cells.append(_top_metric(name, "—", "#9aa0aa", "자료 부족"))
+            continue
+        change = row.get("change_pct") if live else row.get("last_session_change_pct")
+        note = "정규장" if live else "장 마감 기준"
+        cells.append(
+            f"<div class='j3-top-cell'><div class='j3-top-label'>{name}</div>"
+            f"<div class='j3-top-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
+            f"<div class='j3-top-sub {_sign_class(change)}'>{_pct(change)} "
+            f"<span class='j3-muted'>· {note}</span></div></div>"
+        )
+    st.markdown(f"<div class='j3-top-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
 
 def _fear_greed_box() -> str:
