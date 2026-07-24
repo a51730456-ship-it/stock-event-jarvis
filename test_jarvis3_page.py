@@ -126,6 +126,19 @@ def _pullbacks():
                 "avg_dollar_volume": 3_200_000_000,
             },
             "themes": ["반도체", "AI 인프라"],
+        }, {
+            "pullback_rank": 2, "name": "Arista Networks", "ticker": "ANET",
+            "pullback": {
+                "score": 79.0, "high52_days_ago": 10, "from_high_pct": -6.9,
+                "gap_pct": 2.5, "parts": [19, 17, 16, 13, 4],
+            },
+            "metrics": {
+                "ok": True, "current": 176.6, "change_pct": 1.0, "ret5": 1.0, "ret20": 4.0,
+                "from_high_pct": -6.9, "sma20": 172.0, "sma50": 165.0, "sma200": 140.0,
+                "high52": 190.0, "volume_ratio": 1.0, "atr": 5.0, "atr_pct": 2.8,
+                "avg_dollar_volume": 1_444_000_000,
+            },
+            "themes": ["AI 인프라"],
         }],
     }
 
@@ -190,6 +203,52 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("시장 상황" in value for value in markdowns))
         self.assertFalse(any(">장 상태<" in value for value in markdowns))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
+
+    def test_pullback_detail_opens_top_ranked_stock_without_click(self):
+        """클릭하지 않아도 눌림목 1순위 상세가 바로 열려 있어야 한다(2026-07-24 지시)."""
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_data.find_pullback_stocks", return_value=_pullbacks()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=60)
+
+            names = [
+                str(node.value) for node in app.markdown
+                if "<div class='j3-stock-name'>" in str(node.value)
+            ]
+            # 아무것도 누르지 않은 첫 화면에서 1순위(NVDA) 상세가 이미 열려 있다
+            self.assertTrue(any("NVDA" in value for value in names), names)
+            self.assertFalse(any("ANET" in value for value in names), names)
+
+            # 2순위를 누르면 그 종목으로 바뀐다
+            next(
+                node for node in app.button if str(node.key or "") == "j3pbf_01"
+            ).click().run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        names_after = [
+            str(node.value) for node in app.markdown
+            if "<div class='j3-stock-name'>" in str(node.value)
+        ]
+        self.assertTrue(any("ANET" in value for value in names_after), names_after)
+        self.assertEqual(
+            app.session_state.filtered_state.get("j3_pullback_selected_ticker"), "ANET"
+        )
 
     def test_theme_selection_click_actually_switches_theme(self):
         """테마 선택 위젯을 실제로 눌러 테마가 바뀌는지 검증한다(st.pills 클릭 불가 회귀 방지)."""

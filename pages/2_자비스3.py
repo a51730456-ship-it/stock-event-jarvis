@@ -1635,7 +1635,12 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
 
+    # 아무것도 누르지 않았거나 고른 종목이 이번 결과에서 빠졌으면 1순위를 자동으로 연다
+    # (2026-07-24 사용자 지시: 클릭하지 않아도 맨 위 종목 상세가 바로 보여야 한다).
+    tickers_now = [row.get("ticker") for row in rows]
     selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    if selected_ticker not in tickers_now:
+        selected_ticker = rows[0].get("ticker")
     selected_css = []
     for index, row in enumerate(rows):
         quality = row["pullback"]
@@ -1714,20 +1719,14 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     st.caption(
         "평균 거래대금은 최근 일봉 기준 달러 거래규모입니다. 이 표는 진입가를 확정하는 매수 신호가 아니라, "
         "상승추세가 아직 유지되는 조정 후보를 좁히는 1차 목록입니다. "
-        "보라색 종목 이름을 누르면 맨 아래에 그 종목의 선정 근거 점수표·매수 심사 결과와 "
-        "일봉·주봉·월봉 차트가 함께 열립니다."
+        "아래 상세는 처음에 1순위 종목이 열려 있고, 보라색 종목 이름을 누르면 그 종목의 "
+        "선정 근거 점수표·매수 심사 결과와 일봉·주봉·월봉 차트로 바뀝니다."
     )
     selected_row = next(
         (row for row in rows if row.get("ticker") == selected_ticker),
-        None,
+        rows[0],
     )
-    if selected_row:
-        _render_pullback_detail(selected_row, market, ranking)
-    else:
-        st.info(
-            "눌림목 종목 이름을 누르면 이 목록 맨 아래에 그 종목의 선정 근거 점수표·매수 심사 결과와 "
-            "일봉·주봉·월봉 차트가 표시됩니다."
-        )
+    _render_pullback_detail(selected_row, market, ranking)
 
 
 def _render_records_tab() -> None:
