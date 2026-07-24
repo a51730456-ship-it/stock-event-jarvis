@@ -541,27 +541,20 @@ def render_market_signal_card(
         if verdict_order else ""
     )
     st.markdown(f"<style>{gauge_ui.CSS}{_SIGNAL_GAUGE_CSS}</style>", unsafe_allow_html=True)
+    # 줄바꿈·들여쓰기 없이 한 줄로 만든다. 여러 줄에 걸쳐 들여쓰면 빈 부분(예: 원인
+    # 문구가 없을 때)에서 마크다운이 다음 줄을 코드블록으로 잡아 '</div>'가 화면에
+    # 글자로 찍힌다(2026-07-24 실제 발생).
     st.markdown(
-        f"""
-        <div style="background-color:{bg};border:2px solid {border};border-radius:10px;
-        padding:16px;margin-top:8px;">
-          <div style="font-size:1.35rem;font-weight:800;color:{text};">{result.verdict_label}</div>
-          <div style="font-size:0.85rem;color:{text};opacity:0.85;margin-top:4px;">
-            {_as_of_label} · {result.data_status}
-          </div>
-          <div class="sig-body">{_gauge_html}
-            <div class="sig-text">
-              <div style="font-size:1.0rem;color:{text};line-height:1.5;">
-                {result.headline}
-              </div>
-              <div style="font-size:0.9rem;color:{text};opacity:0.9;margin-top:8px;">
-                흐름: {result.flow_note}
-              </div>
-              {_cause_html}
-            </div>
-          </div>
-        </div>
-        """,
+        f'<div style="background-color:{bg};border:2px solid {border};border-radius:10px;'
+        f'padding:16px;margin-top:8px;">'
+        f'<div style="font-size:1.35rem;font-weight:800;color:{text};">{result.verdict_label}</div>'
+        f'<div style="font-size:0.85rem;color:{text};opacity:0.85;margin-top:4px;">'
+        f'{_as_of_label} · {result.data_status}</div>'
+        f'<div class="sig-body">{_gauge_html}<div class="sig-text">'
+        f'<div style="font-size:1.0rem;color:{text};line-height:1.5;">{result.headline}</div>'
+        f'<div style="font-size:0.9rem;color:{text};opacity:0.9;margin-top:8px;">'
+        f'흐름: {result.flow_note}</div>'
+        f'{_cause_html}</div></div></div>',
         unsafe_allow_html=True,
     )
 

@@ -123,5 +123,88 @@ class VerdictGaugeTests(unittest.TestCase):
             self.assertIn(verdict, ui._VERDICT_SHORT, "눈금에 쓸 짧은 이름이 없다")
 
 
+class CardHtmlTests(unittest.TestCase):
+    """카드 HTML은 들여쓰기·빈 줄이 없어야 한다.
+
+    여러 줄에 걸쳐 들여쓰면 원인 문구가 비었을 때 마크다운이 다음 줄을 코드블록으로
+    잡아 '</div>'가 화면에 글자로 찍힌다(2026-07-24 실제 발생).
+    """
+
+    def _render_and_capture(self, cause=None):
+        import market_signal_common as common
+        import us_market_signal_engine as us
+
+        def _signal(key, status):
+            signal = common.MarketSignal(
+                key=key, label=key, status=status, source="x",
+                timing=common.SignalTiming.LEADING,
+            )
+            signal.display_value, signal.reason = "+0.1%", "설명"
+            return signal
+
+        result = us.UsSignalResult(
+            verdict=us.UsMarketVerdict.MIXED,
+            verdict_label=us.VERDICT_LABEL[us.UsMarketVerdict.MIXED],
+            headline="한 방향이 아닙니다.",
+            flow_note="선행 신호 1개만 켜졌습니다.",
+            signals=[
+                _signal("US_NQ_FUTURES", common.SignalStatus.POSITIVE),
+                _signal("US_SOXX", common.SignalStatus.UNKNOWN),
+            ],
+            data_status="자동 확인 13개",
+        )
+        captured = []
+
+        class _FakeSt:
+            def markdown(self, text, **_kwargs):
+                captured.append(text)
+
+            def caption(self, *a, **k):
+                pass
+
+            def warning(self, *a, **k):
+                pass
+
+            def columns(self, count):
+                return [self] * count
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def table(self, *a, **k):
+                pass
+
+            def expander(self, *a, **k):
+                return self
+
+            def write(self, *a, **k):
+                pass
+
+        original = ui.st
+        ui.st = _FakeSt()
+        try:
+            ui.render_market_signal_card(
+                result, verdict_style=ui._US_VERDICT_STYLE,
+                core_display=ui._US_CORE_DISPLAY, table_keys=ui._US_TABLE_KEYS,
+                detail_title="t", detail_caption="c", table_key="k",
+                diagnosis_text=(lambda _r: cause) if cause else None,
+                verdict_order=ui.US_VERDICT_ORDER,
+            )
+        finally:
+            ui.st = original
+        return next(t for t in captured if 'class="sig-body"' in t)
+
+    def test_card_html_is_one_line_without_indentation(self):
+        for cause in (None, "키가 없습니다"):
+            with self.subTest(cause=cause):
+                card = self._render_and_capture(cause)
+                self.assertNotIn("\n", card, "줄바꿈이 있으면 코드블록으로 잡힐 수 있다")
+                self.assertEqual(card.count("<div"), card.count("</div>"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
