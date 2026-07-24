@@ -157,7 +157,43 @@ def card_html(data: dict | None, *, title: str = "공포·탐욕 지수") -> str
     )
 
 
+def box_html(data: dict | None, *, title: str = "공포·탐욕 지수") -> str:
+    """상단 지표 줄에 끼워 넣는 작은 게이지 박스 (2026-07-24 사용자 지시).
+
+    아래에 따로 큰 카드를 두지 않고 맨 위 숫자 옆에 바로 붙이려는 것이라
+    가로로 길게 늘어나지 않게 폭을 고정한다. 안내 문구는 넣지 않는다 —
+    화면 위쪽 조건점수 설명에 이미 같은 내용이 있다.
+    """
+    data = data or {}
+    ok = bool(data.get("ok"))
+    score = data.get("score") if ok else None
+    label = data.get("rating_kr") if ok else None
+    stale = " · 마지막 정상값" if ok and data.get("stale") else ""
+    return (
+        "<div class='fg-box'>"
+        f"<div class='fg-box-title'>{html.escape(title)}{stale}</div>"
+        "<div class='fg-box-body'>"
+        f"<div class='fg-box-gauge'>{gauge_svg(score, label=label)}</div>"
+        f"<div class='fg-box-hist'>{_history_rows(data) if ok else ''}</div>"
+        "</div></div>"
+    )
+
+
 CSS = """
+.fg-box { border: 1px solid rgba(255,255,255,0.12); border-radius: 0.6rem;
+    background: rgba(255,255,255,0.03); padding: 0.5rem 0.7rem 0.45rem;
+    display: inline-block; }
+.fg-box-title { color: #4da6ff; font-size: 0.92rem; font-weight: 800; margin-bottom: 0.1rem; }
+.fg-box-body { display: flex; align-items: center; gap: 0.9rem; }
+.fg-box-gauge .fg-gauge { width: 132px; height: 88px; }
+.fg-box-gauge .fg-score { font-size: 46px; }
+.fg-box-gauge .fg-zone { font-size: 20px; }
+.fg-box-gauge .fg-tick { font-size: 14px; }
+.fg-box-hist { min-width: 168px; }
+.fg-box-hist .fg-hist-row { padding: 0.14rem 0; gap: 0.45rem; }
+.fg-box-hist .fg-hist-label { font-size: 0.8rem; }
+.fg-box-hist .fg-hist-zone { font-size: 0.8rem; }
+.fg-box-hist .fg-hist-value { font-size: 0.76rem; padding: 0.02rem 0.45rem; min-width: 1.9rem; }
 .fg-card { border: 1px solid rgba(255,255,255,0.10); border-radius: 0.7rem;
     background: rgba(255,255,255,0.025); padding: 0.8rem 1rem 0.7rem; margin: 0.2rem 0 0.9rem; }
 .fg-title { color: #4da6ff; font-size: 1.2rem; font-weight: 800; margin-bottom: 0.3rem; }

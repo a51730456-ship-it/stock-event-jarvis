@@ -502,12 +502,17 @@ def _render_market_overview() -> None:
             "미국 전일",
             us_prev.get("regime") or "—",
             "#e6e6e6",
+            # 공포탐욕 숫자는 오른쪽 게이지 박스에 있으므로 여기서 뺀다 — 줄이
+            # 길어지기만 한다(2026-07-24 사용자 지시).
             (
                 f"S&P500 {us_prev['spy_change']:+.2f}% · 나스닥100 {us_prev['qqq_change']:+.2f}%"
-                + (f" · 공포탐욕 {us_prev['fear_greed']:.0f}" if us_prev.get("fear_greed") else "")
             ) if us_prev.get("ok") else "자료 부족",
         ),
         _us_futures_cell(),
+        f"<style>{fear_greed_ui.CSS}</style>"
+        + fear_greed_ui.box_html(
+            us_prev.get("fear_greed_detail"), title="공포·탐욕 지수 (미국)"
+        ),
     ]
     st.markdown(f"<div class='j4-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     st.markdown(
@@ -520,7 +525,11 @@ def _render_market_overview() -> None:
             {_market_score_detail(overview)}<br>
             <span style="color:#4da6ff">시장상태</span>
             <span style="color:#9aa0aa; font-weight:600">는 한국 세션 단계입니다 :</span>
-            <span style="color:#e6e6e6">장전 동시호가 08:30~09:00 → 정규장 09:00~15:30 → 시간외 → 장 마감</span>
+            <span style="color:#e6e6e6">장전 동시호가 08:30~09:00 → 정규장 09:00~15:30 → 시간외 → 장 마감</span><br>
+            <span style="color:#4da6ff">공포·탐욕 지수</span>
+            <span style="color:#9aa0aa; font-weight:600">는 CNN이 7개 심리 지표로 집계한 미국 시장 심리
+            (0 극단적 공포 ~ 100 극단적 탐욕)이며 참고용입니다. 한국장 조건점수·매수 판정에는
+            반영하지 않습니다.</span>
         </div>
         <div class="j4-market-flow">
             <span class="j4-flow-label">시장 전체 흐름</span> : <span class="j4-flow-body">{_market_flow_text(overview)}</span>
@@ -535,16 +544,6 @@ def _render_market_overview() -> None:
     st.caption(
         f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'} · 1분 자동 갱신 · "
         "네이버·FinanceDataReader 조회이므로 지연될 수 있음"
-    )
-    # 공포·탐욕 지수 게이지 — 미국 지표지만 한국장이 미국 전일과 갭 상관이 높아
-    # 여기서도 함께 본다(2026-07-24 사용자 요청). 스타일은 로그인 문 뒤라 여기서 넣는다.
-    st.markdown(
-        f"<style>{fear_greed_ui.CSS}</style>"
-        + fear_greed_ui.card_html(
-            us_prev.get("fear_greed_detail"),
-            title="공포·탐욕 지수 (미국 시장 심리)",
-        ),
-        unsafe_allow_html=True,
     )
 
 

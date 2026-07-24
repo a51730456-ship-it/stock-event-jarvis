@@ -232,6 +232,14 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("공포·탐욕 지수", markdowns)
         self.assertIn("전일 종가", markdowns)
         self.assertNotIn("EXTREME FEAR", markdowns)
+        # 게이지는 상단 지표 줄 안에 있어야 한다 — 아래 큰 카드로 빼지 않는다.
+        top_row = next(
+            str(node.value) for node in app.markdown
+            if "<div class='j4-top-row'>" in str(node.value)
+        )
+        self.assertIn("fg-box", top_row)
+        # 숫자가 두 군데 나오지 않게 '미국 전일' 부제에서는 뺐다.
+        self.assertNotIn("공포탐욕 41", markdowns)
 
     def test_theme_selection_switches_theme(self):
         started = []

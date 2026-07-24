@@ -217,6 +217,10 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("fg-needle" in value for value in markdowns))
         self.assertTrue(any("전일 종가" in value for value in markdowns))
         self.assertFalse(any("EXTREME FEAR" in value for value in markdowns))
+        # 게이지는 상단 지표 줄 안, 숫자 칸 바로 옆에 있어야 한다.
+        top_row = next(value for value in markdowns if "<div class='j3-top-row'>" in value)
+        self.assertIn("fg-box", top_row)
+        self.assertIn("공포·탐욕 지수", top_row)
         self.assertFalse(any(">장 상태<" in value for value in markdowns))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 
