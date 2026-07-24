@@ -28,6 +28,13 @@ import us_market_signal_engine
 
 _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 
+# 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
+# (jarvis3_data·jarvis4_data와 같은 장치). 기존 가드는 '_STATUS_TEXT가 있나'만 봐서,
+# 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
+# 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
+# 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
+MODULE_REVISION = 2026072406
+
 
 def _now_seoul():
     """기준시각은 항상 한국 시간이다.

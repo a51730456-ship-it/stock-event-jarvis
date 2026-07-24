@@ -264,17 +264,27 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-if not hasattr(market_signal_ui, "_STATUS_TEXT"):
+_REQUIRED_SIGNAL_UI_REVISION = 2026072406
+if (
+    not hasattr(market_signal_ui, "_STATUS_TEXT")
+    # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
+    or int(getattr(market_signal_ui, "MODULE_REVISION", 0)) < _REQUIRED_SIGNAL_UI_REVISION
+):
     import sys
 
+    # 게이지 그림 모듈도 함께 다시 읽는다 — 카드가 이것들을 쓰므로 하나만 옛것이면
+    # 화면 일부만 옛 모습으로 남는다.
     for _dep_name in (
         "market_signal_common", "kr_intraday_flow",
         "us_market_signal_engine", "naver_market_data",
+        "gauge_ui", "fear_greed_ui", "regime_gauge_ui",
     ):
         _dep = sys.modules.get(_dep_name)
         if _dep is not None:
             importlib.reload(_dep)
     market_signal_ui = importlib.reload(market_signal_ui)
+    fear_greed_ui = sys.modules.get("fear_greed_ui", fear_greed_ui)
+    regime_gauge_ui = sys.modules.get("regime_gauge_ui", regime_gauge_ui)
 
 
 def _pct(value) -> str:
