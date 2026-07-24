@@ -187,6 +187,24 @@ st.markdown(
     .j4-pull-guide b { color: #44f0a1; }
     .j4-pull-stats { color: #9dccff; font-size: .93rem; line-height: 1.55;
         margin: .15rem 0 .65rem; text-align: left; }
+    /* 눌림목 찾기 버튼 — 밝은 스카이 블루 바탕에 클로드 로고 주황 글씨.
+       글씨 크기·굵기는 위 섹션 제목(1.2rem/800)과 맞춘다 (2026-07-24 사용자 지시). */
+    div[class*="st-key-j4_pullback_find"] button {
+        background: #cfe9ff !important;
+        border: 1px solid #8ec9f5 !important;
+        border-radius: .5rem !important;
+        min-height: 3rem !important;
+    }
+    div[class*="st-key-j4_pullback_find"] button:hover {
+        background: #b9dfff !important;
+        border-color: #6db6ee !important;
+    }
+    div[class*="st-key-j4_pullback_find"] button p {
+        color: #c15f3c !important;
+        font-size: 1.2rem !important;
+        font-weight: 800 !important;
+        margin: 0 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
