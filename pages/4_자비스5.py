@@ -273,7 +273,7 @@ def _latest_table_html(rows: list[dict], histories: dict[int, list[dict]]) -> st
         "<col style='width:10%'><col style='width:8%'><col style='width:8%'>"
         "<col style='width:7%'><col style='width:8%'></colgroup>"
         "<thead><tr><th>순위</th><th class='j5-left'>테마</th><th>선행 후보점수</th>"
-        "<th>최근 약 30분</th><th>직전 대비</th><th>분당 거래활동</th>"
+        "<th>최근 흐름 (수집 12회)</th><th>직전 대비</th><th>분당 거래활동</th>"
         "<th>동일시각 배수</th><th>상승확산</th><th>거래참여</th>"
         "<th>최대종목 기여</th><th>시장대비</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody></table></div>"
@@ -486,7 +486,9 @@ def main() -> None:
         "<b>순위는 분당 거래금액이 큰 순서가 아닙니다.</b> 과거 같은 시각 대비 증가, 실제 거래에 "
         "참여한 종목 비율, 상승 종목 확산, 한 종목 독점 여부를 합친 점수입니다. "
         "<b>분당 거래활동</b>은 매수·매도 합계 거래대금을 테마 크기와 중복 소속으로 보정한 참고값입니다. "
-        "<b>최근 약 30분</b> 미니차트는 각 테마 자체 흐름이므로 삼성전자와 작은 종목의 절대금액을 "
+        "<b>최근 흐름</b> 미니차트는 <b>가장 최근 수집 12회</b>를 이은 선입니다(3분 간격으로 정상 "
+        "수집되면 약 30분). 수집이 멈춰 점이 2개뿐이면 직선으로 보입니다. 각 테마 자체 흐름이라 "
+        "삼성전자와 작은 종목의 절대금액을 "
         "서로 직접 비교하지 않습니다. <b>동일시각 배수</b>는 과거 같은 시각 대비이며, "
         "3거래일 전까지는 ‘학습중’으로 표시합니다. "
         "<b>상승확산</b>은 오른 종목 수, <b>거래참여</b>는 실제 거래가 늘어난 종목 수입니다. "
@@ -530,6 +532,19 @@ def main() -> None:
             [row.get("theme_no") for row in latest_rows],
             limit_runs=12,
         )
+        # 미니차트가 직선으로 보이는 이유를 화면에서 바로 알려준다 — 그림을 바꾼 게
+        # 아니라 이을 점이 2개뿐이면 직선이 된다(2026-07-24 사용자 질문).
+        _point_counts = [
+            len([r for r in rows if r.get("activity_intensity") is not None])
+            for rows in histories.values()
+        ]
+        _max_points = max(_point_counts) if _point_counts else 0
+        if _max_points < 4:
+            st.warning(
+                f"미니차트를 그릴 수집 시점이 오늘 **{_max_points}개**뿐이라 선이 직선으로 보입니다. "
+                "정상은 장중 3분마다 수집해 12개 점을 잇는 것입니다. "
+                "`run_jarvis5_collector.bat`이 꺼져 있는지 확인해 주세요."
+            )
         st.markdown(_latest_table_html(latest_rows, histories), unsafe_allow_html=True)
         # 위 표는 그대로 두고, 아래에 테마별 구성종목을 펼쳐 볼 수 있게 덧붙인다.
         # 어떤 종목이 그 테마를 끌어올렸는지 눈으로 확인하기 위한 것이다.

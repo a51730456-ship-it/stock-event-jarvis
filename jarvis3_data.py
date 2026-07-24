@@ -74,7 +74,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX")
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 20260724
+MODULE_REVISION = 2026072402
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -376,7 +376,26 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
         "atr": atr,
         "atr_pct": atr_pct,
         "source_time": _source_time(intraday) or _source_time(daily),
+        # 당일 시가·고가·저가·종가 (2026-07-24 사용자 요청, 자비스4와 같은 칸).
+        # 장중에는 일봉 마지막 행이 진행 중인 값이고, 오늘 행이 아직 없으면
+        # 마지막 거래일 값이므로 day_is_today로 구분해 화면에서 알려준다.
+        **_day_prices(daily, last_date == today_ny),
     }
+
+
+def _day_prices(daily: pd.DataFrame, is_today: bool) -> dict:
+    """일봉 마지막 행의 시가·고가·저가·종가를 꺼낸다(자비스4와 같은 형식)."""
+    values = {"day_open": None, "day_high": None, "day_low": None,
+              "day_close": None, "day_is_today": bool(is_today)}
+    try:
+        last = daily.iloc[-1]
+    except Exception:
+        return values
+    for key, column in (("day_open", "Open"), ("day_high", "High"),
+                        ("day_low", "Low"), ("day_close", "Close")):
+        if column in daily.columns:
+            values[key] = _finite(last[column])
+    return values
 
 
 # ---------------------------------------------------------------------------

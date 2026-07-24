@@ -311,7 +311,7 @@ import market_signal_ui
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 20260724
+_REQUIRED_J3_REVISION = 2026072402
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -718,6 +718,69 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False, he
     return alt.vconcat(line, bars, spacing=4).resolve_scale(x="shared")
 
 
+def _render_day_price_row(metrics: dict) -> None:
+    """당일 가격 한 줄 — 현재가·전일 종가·시가·고가·저가·종가(자비스4와 같은 칸).
+
+    2026-07-24 사용자 요청. 고가·저가 옆 백분율은 전일 종가 대비이며
+    미국시장 색 규칙(+파랑 −빨강)을 쓴다.
+    """
+    prev_close = metrics.get("prev_close")
+    current = metrics.get("current")
+    day_open = metrics.get("day_open")
+    day_high = metrics.get("day_high")
+    day_low = metrics.get("day_low")
+    day_close = metrics.get("day_close")
+    phase = (j3data.market_phase() or {}).get("label", "")
+    intraday = phase in ("정규장 시간", "프리마켓", "애프터마켓")
+
+    def _vs_prev(value):
+        if value is None or not prev_close:
+            return None
+        return (float(value) / float(prev_close) - 1) * 100
+
+    def _cell(label, value, change, *, sub_text=None, value_color=None):
+        if value_color:
+            color = value_color
+        elif change is not None:
+            color = _sign_color(change)
+        else:
+            color = "#e6e6e6"
+        if change is not None:
+            sub = f"<div class='j3-mc-sub' style='color:{_sign_color(change)}'>{_pct(change)}</div>"
+        elif sub_text:
+            sub = f"<div class='j3-mc-sub j3-muted'>{sub_text}</div>"
+        else:
+            sub = ""
+        return (
+            f"<div class='j3-mc'><div class='j3-mc-label'>{label}</div>"
+            f"<div class='j3-mc-val' style='color:{color}'>{_price(value)}</div>{sub}</div>"
+        )
+
+    note = (
+        "장중이라 고가·저가·종가는 지금까지의 값입니다"
+        if metrics.get("day_is_today")
+        else "오늘 일봉이 아직 없어 마지막 거래일 값입니다"
+    )
+    st.markdown(
+        "<div class='j3-chart-heading'>당일 가격 · 시가/고가/저가 한눈에 보기</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(f"고가·저가 옆 백분율은 전일 종가 대비입니다. {note}.")
+    cells = [
+        _cell("현재가", current, metrics.get("change_pct")),
+        _cell("전일 종가", prev_close, None, sub_text="어제 마감", value_color="#e6e6e6"),
+        _cell("당일 시가", day_open, _vs_prev(day_open)),
+        _cell("당일 고가", day_high, _vs_prev(day_high)),
+        _cell("당일 저가", day_low, _vs_prev(day_low)),
+        _cell(
+            "당일 종가(장중)" if intraday else "당일 종가",
+            current if intraday else day_close,
+            _vs_prev(current if intraday else day_close),
+        ),
+    ]
+    st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+
+
 def _render_price_chart_bundle(ticker: str) -> None:
     """선택 종목의 일봉·주봉·월봉을 한 번의 10년 일봉 조회로 그린다."""
     st.markdown(
@@ -1106,7 +1169,8 @@ def _render_stock_detail(
         else:
             st.warning(plan.get("buy_reason"))
 
-    # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 차트 섹션을 시작한다.
+    # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 당일 가격·차트 섹션을 시작한다.
+    _render_day_price_row(metrics)
     _render_price_chart_bundle(ticker)
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
@@ -1579,6 +1643,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
         "이 상세와 일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
+    _render_day_price_row(metrics)
     _render_price_chart_bundle(ticker)
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)

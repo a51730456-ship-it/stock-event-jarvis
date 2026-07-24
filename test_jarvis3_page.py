@@ -124,6 +124,8 @@ def _pullbacks():
                 "from_high_pct": -8.2, "sma20": 176.0, "sma50": 170.0, "sma200": 150.0,
                 "high52": 194.0, "volume_ratio": 1.1, "atr": 6.0, "atr_pct": 3.4,
                 "avg_dollar_volume": 3_200_000_000,
+                "prev_close": 180.94, "day_open": 181.0, "day_high": 182.4,
+                "day_low": 177.2, "day_close": 178.5, "day_is_today": True,
             },
             "themes": ["반도체", "AI 인프라"],
         }, {
@@ -194,6 +196,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("j3-holo-card" in value for value in markdowns))
         self.assertTrue(any("가격 칸이 채워지는 기준" in value for value in markdowns))
         self.assertTrue(any("j3-danta-box" in value for value in markdowns))
+        # 당일 가격 칸(자비스4와 같은 구성) — 시가·고가·저가·전일 종가
+        self.assertTrue(any("당일 가격 · 시가/고가/저가 한눈에 보기" in value for value in markdowns))
+        self.assertTrue(any("전일 종가" in value for value in markdowns))
+        self.assertTrue(any("당일 고가" in value for value in markdowns))
+        self.assertTrue(any("$182.40" in value for value in markdowns))
         self.assertTrue(any("14일 변동성(ATR)" in value for value in markdowns))
         self.assertTrue(any("종목 조건점수" in value for value in markdowns))
         # 눌림목 표에 당일주가 칸이 있고 값이 채워진다
