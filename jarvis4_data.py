@@ -58,7 +58,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072402
+MODULE_REVISION = 2026072403
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1431,7 +1431,9 @@ def find_pullback_stocks(
     *,
     min_theme_count: int = 2,
     high_days_min: int = 1,
-    high_days_max: int = 20,
+    # 20일이면 삼성전자(신고가 24일 전)처럼 조금 늦게 눌린 대형주가 통째로 빠진다.
+    # 2026-07-24 사용자 지시로 30일까지 넓혔다.
+    high_days_max: int = 30,
     min_stock_score: float = 75.0,
     min_trading_value: float = 2e10,
     theme_scan_limit: int = 300,

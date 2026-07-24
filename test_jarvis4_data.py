@@ -311,19 +311,20 @@ class PullbackFinderTests(unittest.TestCase):
         self.assertIn("하나금융지주", names)
         self.assertNotIn("게임A", names, "테마 1개짜리 종목이 들어왔습니다")
 
-    def test_high_within_one_to_fifteen_days_is_kept(self):
-        """52주 최고가를 찍고 1~20일 지난 종목이 대상이다.
+    def test_high_within_window_is_kept(self):
+        """52주 최고가를 찍고 1~30일 지난 종목이 대상이다.
 
         2026-07-22 회귀 방지: 창을 15±8일(7~23일)로 잡는 바람에 3일·6일 전에
         신고가를 찍은 하나금융지주·신한지주가 통째로 빠졌다.
+        2026-07-24 사용자 지시로 20일 → 30일로 넓혔다(신고가 24일 전인 삼성전자 포함).
         """
-        for days in (1, 3, 6, 15, 20):
+        for days in (1, 3, 6, 15, 20, 24, 30):
             with self.subTest(days=days):
                 result = self._run(self._metrics(days, -8.0))
                 self.assertTrue(result["rows"], f"신고가 {days}일 전 종목이 빠졌습니다")
 
     def test_high_outside_window_is_excluded(self):
-        for days in (0, 21, 60):
+        for days in (0, 31, 60):
             with self.subTest(days=days):
                 self.assertEqual(self._run(self._metrics(days, -8.0))["rows"], [])
 
@@ -337,7 +338,7 @@ class PullbackFinderTests(unittest.TestCase):
         self.assertEqual(self._run(self._metrics(5, 0.0))["rows"], [])
 
     def test_window_is_reported(self):
-        self.assertEqual(self._run(self._metrics(5, -8.0))["window"], (1, 20))
+        self.assertEqual(self._run(self._metrics(5, -8.0))["window"], (1, 30))
 
     def test_previous_day_volume_keeps_premarket_candidate_alive(self):
         def premarket(theme_no, **_kwargs):

@@ -311,7 +311,7 @@ import market_signal_ui
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072402
+_REQUIRED_J3_REVISION = 2026072403
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -1697,7 +1697,9 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         f"일봉 확보 <b>{result.get('data_count', 0):,}개</b> → "
         f"상승추세 <b>{result.get('trend_count', 0):,}개</b> → "
         f"신고가 {window[0]}~{window[1]}일 전 조정 <b>{result.get('window_count', 0):,}개</b> → "
-        f"최종 60점 이상 <b class='j3-green'>{len(rows):,}개</b> · {reuse_text}</div>",
+        f"최종 눌림 점수 {float(result.get('min_score') or 0):.0f}점 이상 "
+        f"<b class='j3-green'>{len(rows):,}개</b>(최대 {int(result.get('result_limit') or 0)}개) "
+        f"· {reuse_text}</div>",
         unsafe_allow_html=True,
     )
     if not rows:

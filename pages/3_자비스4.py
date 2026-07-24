@@ -237,7 +237,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072402
+_REQUIRED_J4_REVISION = 2026072403
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -1557,7 +1557,7 @@ def _render_pullback_finder() -> None:
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<div class='j4-pull-guide'><b>무엇을 찾나</b> — 52주 최고가를 찍은 뒤 1~20거래일 조정 중이며, "
+        "<div class='j4-pull-guide'><b>무엇을 찾나</b> — 52주 최고가를 찍은 뒤 1~30거래일 조정 중이며, "
         "2개 이상 테마에 속하고, <b>신고가 당시 종목 점수가 75점 이상</b>이었던 종목입니다. "
         "현재 점수가 낮아졌어도 신고가 당시 가격·기술 조건이 좋았다면 남깁니다.<br>"
         "<b>표 읽는 법</b> — ‘고점 대비 <span class='j4-down'>−10%</span>’는 신고가에서 10% "

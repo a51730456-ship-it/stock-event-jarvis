@@ -74,7 +74,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX")
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072402
+MODULE_REVISION = 2026072403
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -733,8 +733,10 @@ def find_pullback_stocks(
     *,
     high_days_min: int = 1,
     high_days_max: int = 20,
-    min_score: float = 60.0,
-    result_limit: int = 20,
+    # 2026-07-24 사용자 지시로 합격선을 60 → 75점으로 올리고 목록을 8개로 줄였다 —
+    # 한국(신고가 시점 75점)과 같은 성격의 짧은 목록으로 맞추기 위해서다.
+    min_score: float = 75.0,
+    result_limit: int = 8,
     reuse_only: bool = False,
 ) -> dict:
     """미국 테마 전체 종목에서 상승추세 중 조정 후보를 한 번에 찾는다.
@@ -803,6 +805,10 @@ def find_pullback_stocks(
         "trend_count": trend_count,
         "window_count": window_count,
         "window": (high_days_min, high_days_max),
+        # 화면 안내 문구가 합격선을 직접 적지 않고 이 값을 쓰게 한다 —
+        # 기준을 바꿔도 문구가 따라 바뀌도록.
+        "min_score": float(min_score),
+        "result_limit": int(result_limit),
         "checked_at": meta.get("fetched_at"),
         "stale": bool(meta.get("stale")),
         "reused_batch": bool(meta.get("reused_superset")),
