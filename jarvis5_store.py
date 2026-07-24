@@ -401,7 +401,8 @@ def theme_activity_history(
         run_placeholders = ",".join("?" for _ in run_ids)
         rows = conn.execute(
             f"""
-            SELECT t.theme_no, r.captured_at, t.activity_intensity, t.baseline_ratio
+            SELECT t.theme_no, r.captured_at, r.interval_seconds,
+                   t.activity_intensity, t.baseline_ratio
             FROM theme_snapshots t
             JOIN collection_runs r ON r.id = t.run_id
             WHERE t.theme_no IN ({placeholders})

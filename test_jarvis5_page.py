@@ -75,15 +75,21 @@ class Jarvis5PageTests(unittest.TestCase):
             "top_contributor_share": .61, "relative_change_pct": -.75,
             "median_change_pct": -.2,
         }]
+        # 미니차트는 실제 시각으로 가로축을 잡으므로 captured_at·interval_seconds를 함께 준다.
         histories = {
             1: [
-                {"activity_intensity": 1_800_000_000},
-                {"activity_intensity": 2_400_000_000},
-                {"activity_intensity": 3_250_000_000},
+                {"captured_at": "2026-07-23T12:00:00+09:00", "interval_seconds": 180,
+                 "activity_intensity": 1_800_000_000},
+                {"captured_at": "2026-07-23T12:15:00+09:00", "interval_seconds": 180,
+                 "activity_intensity": 2_400_000_000},
+                {"captured_at": "2026-07-23T12:30:00+09:00", "interval_seconds": 180,
+                 "activity_intensity": 3_250_000_000},
             ],
             2: [
-                {"activity_intensity": 2_500_000_000},
-                {"activity_intensity": 2_100_000_000},
+                {"captured_at": "2026-07-23T12:15:00+09:00", "interval_seconds": 180,
+                 "activity_intensity": 2_500_000_000},
+                {"captured_at": "2026-07-23T12:30:00+09:00", "interval_seconds": 180,
+                 "activity_intensity": 2_100_000_000},
             ],
         }
         signals = [{
@@ -116,6 +122,9 @@ class Jarvis5PageTests(unittest.TestCase):
         self.assertIn("표 읽는 법", markup)
         self.assertIn("거래금액순 아님", markup)
         self.assertIn("j5-spark-line", markup)
+        # 미니차트 툴팁에 실제 시간대가 들어간다(고정 문구 '약 30분'을 쓰지 않는다).
+        self.assertIn("12:00~12:30", markup)
+        self.assertNotIn("약 30분", markup)
         self.assertIn("선행 후보점수", markup)
         self.assertIn("매수 신호가 아니라 검증 전 후보", markup)
         self.assertIn("반도체", markup)

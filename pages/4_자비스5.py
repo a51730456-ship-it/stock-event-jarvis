@@ -189,40 +189,108 @@ def _summary_cards(latest: dict | None) -> str:
     return f"<div class='j5-kpi-grid'>{cards}</div>"
 
 
+# 수집 간격이 이보다 짧으면 분당 환산값을 믿지 않는다. 네이버 누적 거래대금은
+# 실시간이 아니라 몇십 초 늦게 갱신되므로, 32초 간격 수집은 "아직 안 오른 누적값"을
+# 0.53분으로 나눠 엉뚱하게 작은 값을 만든다(2026-07-24 실측: 같은 테마가 32초 수집
+# 166만 → 78분 수집 2억5천만으로 153배 차이. 이 가짜 저점 때문에 거의 모든 테마의
+# 미니차트가 '올라가는 선'으로 보였다).
+SPARK_MIN_INTERVAL_SECONDS = 60.0
+
+
+def _parse_captured_at(value):
+    try:
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _history_points(history: list[dict]) -> list[dict]:
+    """미니차트·직전 대비에 쓸 수 있는 점만 시간과 함께 남긴다."""
+    points = []
+    for row in history:
+        value = row.get("activity_intensity")
+        if value is None:
+            continue
+        interval = row.get("interval_seconds")
+        if interval is not None and float(interval) < SPARK_MIN_INTERVAL_SECONDS:
+            continue
+        points.append({
+            "value": float(value),
+            "at": _parse_captured_at(row.get("captured_at")),
+        })
+    return points
+
+
+def _span_text(points: list[dict]) -> str:
+    """미니차트가 실제로 담고 있는 시간 범위를 문장으로 만든다."""
+    times = [p["at"] for p in points if p["at"] is not None]
+    if len(times) < 2:
+        return f"수집 {len(points)}회"
+    minutes = (times[-1] - times[0]).total_seconds() / 60
+    span = f"{minutes / 60:.1f}시간" if minutes >= 90 else f"{minutes:.0f}분"
+    return f"{times[0].strftime('%H:%M')}~{times[-1].strftime('%H:%M')} · {span} · 수집 {len(points)}회"
+
+
 def _sparkline_svg(history: list[dict]) -> str:
-    values = [
-        float(row["activity_intensity"])
-        for row in history
-        if row.get("activity_intensity") is not None
-    ]
-    if len(values) < 2:
+    """최근 분당 거래활동 미니차트.
+
+    가로축은 '몇 번째 수집'이 아니라 실제 시각이다. 수집이 78분·271분처럼 들쭉날쭉
+    벌어진 날 균등 간격으로 그리면 기울기가 거짓말을 한다(2026-07-24 사용자 지적).
+    가로 점선은 이 구간이 시작된 수준이라, 선이 그 위면 활동이 늘어난 것이다.
+    """
+    points = _history_points(history)
+    if len(points) < 2:
         return "<span class='j5-muted'>자료 축적중</span>"
+    values = [p["value"] for p in points]
     width, height, pad = 104, 28, 3
     low, high = min(values), max(values)
     spread = high - low
-    points = []
-    for index, value in enumerate(values):
-        x = pad + index * (width - 2 * pad) / max(1, len(values) - 1)
-        y = height / 2 if spread == 0 else pad + (high - value) / spread * (height - 2 * pad)
-        points.append(f"{x:.1f},{y:.1f}")
-    color = "#ff5b5b" if values[-1] > values[0] else "#4da6ff" if values[-1] < values[0] else "#9aa0aa"
+
+    def _y(value):
+        if spread == 0:
+            return height / 2
+        return pad + (high - value) / spread * (height - 2 * pad)
+
+    times = [p["at"] for p in points]
+    total = None
+    if all(t is not None for t in times):
+        total = (times[-1] - times[0]).total_seconds()
+    coords = []
+    for index, point in enumerate(points):
+        if total and total > 0:
+            ratio = (point["at"] - times[0]).total_seconds() / total
+        else:
+            ratio = index / max(1, len(points) - 1)
+        coords.append((pad + ratio * (width - 2 * pad), _y(point["value"])))
+
+    change = (values[-1] / values[0] - 1) * 100 if values[0] > 0 else None
+    if values[-1] > values[0]:
+        color = "#ff5b5b"
+    elif values[-1] < values[0]:
+        color = "#4da6ff"
+    else:
+        color = "#9aa0aa"
+    start_y = _y(values[0])
+    change_text = f"구간 변화 {change:+.1f}%" if change is not None else "구간 변화 계산 불가"
+    tooltip = _esc(f"{_span_text(points)} · {change_text}")
+    path = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
     return (
         f"<svg class='j5-spark' viewBox='0 0 {width} {height}' role='img' "
-        "aria-label='최근 분당 거래활동 변화'>"
-        f"<line class='j5-spark-base' x1='{pad}' y1='{height - pad}' "
-        f"x2='{width - pad}' y2='{height - pad}'></line>"
-        f"<polyline class='j5-spark-line' stroke='{color}' points='{' '.join(points)}'></polyline>"
-        f"<circle cx='{points[-1].split(',')[0]}' cy='{points[-1].split(',')[1]}' "
+        f"aria-label='{tooltip}'><title>{tooltip}</title>"
+        f"<line class='j5-spark-base' x1='{pad}' y1='{start_y:.1f}' "
+        f"x2='{width - pad}' y2='{start_y:.1f}'></line>"
+        f"<polyline class='j5-spark-line' stroke='{color}' points='{path}'></polyline>"
+        + "".join(
+            f"<circle cx='{x:.1f}' cy='{y:.1f}' r='1.6' fill='{color}' opacity='.55'></circle>"
+            for x, y in coords[:-1]
+        )
+        + f"<circle cx='{coords[-1][0]:.1f}' cy='{coords[-1][1]:.1f}' "
         f"r='2.5' fill='{color}'></circle></svg>"
     )
 
 
 def _history_delta(history: list[dict]) -> float | None:
-    values = [
-        float(row["activity_intensity"])
-        for row in history
-        if row.get("activity_intensity") is not None
-    ]
+    values = [point["value"] for point in _history_points(history)]
     if len(values) < 2 or values[-2] <= 0:
         return None
     return (values[-1] / values[-2] - 1) * 100
@@ -273,7 +341,7 @@ def _latest_table_html(rows: list[dict], histories: dict[int, list[dict]]) -> st
         "<col style='width:10%'><col style='width:8%'><col style='width:8%'>"
         "<col style='width:7%'><col style='width:8%'></colgroup>"
         "<thead><tr><th>순위</th><th class='j5-left'>테마</th><th>선행 후보점수</th>"
-        "<th>최근 흐름 (수집 12회)</th><th>직전 대비</th><th>분당 거래활동</th>"
+        "<th>최근 흐름 (시각 기준)</th><th>직전 대비</th><th>분당 거래활동</th>"
         "<th>동일시각 배수</th><th>상승확산</th><th>거래참여</th>"
         "<th>최대종목 기여</th><th>시장대비</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody></table></div>"
@@ -486,8 +554,10 @@ def main() -> None:
         "<b>순위는 분당 거래금액이 큰 순서가 아닙니다.</b> 과거 같은 시각 대비 증가, 실제 거래에 "
         "참여한 종목 비율, 상승 종목 확산, 한 종목 독점 여부를 합친 점수입니다. "
         "<b>분당 거래활동</b>은 매수·매도 합계 거래대금을 테마 크기와 중복 소속으로 보정한 참고값입니다. "
-        "<b>최근 흐름</b> 미니차트는 <b>가장 최근 수집 12회</b>를 이은 선입니다(3분 간격으로 정상 "
-        "수집되면 약 30분). 수집이 멈춰 점이 2개뿐이면 직선으로 보입니다. 각 테마 자체 흐름이라 "
+        "<b>최근 흐름</b> 미니차트는 가장 최근 수집 12회를 <b>실제 시각 기준</b>으로 이은 선입니다. "
+        "가로 점선은 그 구간이 시작된 수준이라 선이 점선 위면 활동이 늘어난 것입니다. 마우스를 "
+        "올리면 실제 시간대와 변화율이 나옵니다. 수집 간격이 1분보다 짧은 시점은 누적 거래대금이 "
+        "아직 갱신되기 전이라 값이 크게 튀므로 차트에서 뺍니다. 각 테마 자체 흐름이라 "
         "삼성전자와 작은 종목의 절대금액을 "
         "서로 직접 비교하지 않습니다. <b>동일시각 배수</b>는 과거 같은 시각 대비이며, "
         "3거래일 전까지는 ‘학습중’으로 표시합니다. "
@@ -532,18 +602,31 @@ def main() -> None:
             [row.get("theme_no") for row in latest_rows],
             limit_runs=12,
         )
-        # 미니차트가 직선으로 보이는 이유를 화면에서 바로 알려준다 — 그림을 바꾼 게
-        # 아니라 이을 점이 2개뿐이면 직선이 된다(2026-07-24 사용자 질문).
-        _point_counts = [
-            len([r for r in rows if r.get("activity_intensity") is not None])
-            for rows in histories.values()
-        ]
-        _max_points = max(_point_counts) if _point_counts else 0
-        if _max_points < 4:
+        # 미니차트가 담고 있는 실제 시간대와 점 개수를 알려준다 — '약 30분'처럼
+        # 고정 문구를 쓰면 수집이 띄엄띄엄한 날 거짓말이 된다(2026-07-24 사용자 지적).
+        _sample = max(
+            (_history_points(rows) for rows in histories.values()),
+            key=len,
+            default=[],
+        )
+        if len(_sample) < 2:
             st.warning(
-                f"미니차트를 그릴 수집 시점이 오늘 **{_max_points}개**뿐이라 선이 직선으로 보입니다. "
-                "정상은 장중 3분마다 수집해 12개 점을 잇는 것입니다. "
-                "`run_jarvis5_collector.bat`이 꺼져 있는지 확인해 주세요."
+                f"미니차트를 그릴 수집 시점이 오늘 **{len(_sample)}개**뿐이라 선을 그릴 수 없습니다. "
+                "장중 3분마다 자동 수집되도록 `run_jarvis5_collector.bat`을 켜 주세요."
+            )
+        else:
+            _times = [p["at"] for p in _sample if p["at"] is not None]
+            _gap = (
+                (_times[-1] - _times[0]).total_seconds() / 60 / max(1, len(_times) - 1)
+                if len(_times) >= 2 else 0
+            )
+            st.caption(
+                f"미니차트 구간: **{_span_text(_sample)}** · 평균 수집 간격 {_gap:.0f}분. "
+                "가로축은 실제 시각이라 오래 비어 있던 구간은 선이 길게 늘어납니다."
+                + (
+                    " 3분 간격 자동 수집(`run_jarvis5_collector.bat`)이 꺼져 있어 점이 드뭅니다."
+                    if _gap > 10 else ""
+                )
             )
         st.markdown(_latest_table_html(latest_rows, histories), unsafe_allow_html=True)
         # 위 표는 그대로 두고, 아래에 테마별 구성종목을 펼쳐 볼 수 있게 덧붙인다.
