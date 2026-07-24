@@ -311,11 +311,14 @@ import market_signal_ui
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
+_REQUIRED_J3_REVISION = 20260724
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
     or not hasattr(j3data, "find_pullback_stocks")
     or not hasattr(j3data, "analyze_pullback_stock")
+    # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 자비스4에서 실제 발생).
+    or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
 if not hasattr(market_signal_ui, "_STATUS_TEXT"):

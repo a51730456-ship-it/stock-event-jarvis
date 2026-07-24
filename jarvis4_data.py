@@ -53,6 +53,12 @@ THEME_STOCK_LIMIT = 8
 # 이 점수를 넘는 종목은 테마 점수가 낮아도 후보로 인정한다(테마 게이트 면제).
 STRONG_STOCK_OVERRIDE = 85.0
 THEME_DETAIL_PARSER_VERSION = 2
+# 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다.
+# 스트림릿은 페이지 파일만 다시 읽고 import된 모듈은 그대로 두는 경우가 있어,
+# 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
+# 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
+# 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
+MODULE_REVISION = 20260724
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}

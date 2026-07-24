@@ -234,7 +234,14 @@ _REQUIRED_J4_FUNCTIONS = (
     "get_us_futures_live", "get_intraday_chart", "find_pullback_stocks",
     "get_chart_bundle", "get_live_quote", "round_to_tick",
 )
-if any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS):
+# 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
+# 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
+# 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
+_REQUIRED_J4_REVISION = 20260724
+if (
+    any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
+    or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
+):
     j4data = importlib.reload(j4data)
 if not hasattr(market_signal_ui, "_STATUS_TEXT"):
     import sys
@@ -1495,7 +1502,11 @@ def _render_pullback_finder() -> None:
         "<b>표 읽는 법</b> — ‘고점 대비 <span class='j4-down'>−10%</span>’는 신고가에서 10% "
         "조정됐다는 뜻이고, ‘20일선 이격 0%’에 가까울수록 20일선 부근입니다. "
         "<span class='j4-up'>+ 상승은 빨강</span> · <span class='j4-down'>− 하락은 파랑</span> "
-        "(한국시장 색 규칙). 테마 순위 밖 종목도 전체 검색에 포함됩니다.</div>",
+        "(한국시장 색 규칙). 테마 순위 밖 종목도 전체 검색에 포함됩니다.<br>"
+        "<b>순위는 ‘신고가 기술점수’ 순입니다 — 눌림 점수 순이 아닙니다.</b> "
+        "<b>눌림 점수</b>는 지금 자리를 참고로 보는 값이며 "
+        "신고가 최근성 25 + 20일선 근접 25 + 추세 20 + 조정 깊이 25 + 수급 15을 더한 "
+        "<b>최대 110점</b>이라 100점을 넘을 수 있습니다(막대는 100%에서 멈춥니다).</div>",
         unsafe_allow_html=True,
     )
     run_requested = st.button(
