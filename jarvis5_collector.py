@@ -183,15 +183,58 @@ def collect_once(
         }
 
 
-def run_loop(*, interval_seconds: int = 180, max_workers: int = 10, db_path=None) -> None:
+def _parse_clock(text: str | None) -> dt_time | None:
+    """'15:35' 같은 한국시각 문자열을 시각으로 바꾼다."""
+    if not text:
+        return None
+    hour, _, minute = str(text).partition(":")
+    return dt_time(int(hour), int(minute or 0))
+
+
+def run_loop(
+    *,
+    interval_seconds: int = 180,
+    max_workers: int = 10,
+    db_path=None,
+    until: str | None = None,
+    export_dir=None,
+) -> None:
+    """장중 반복 수집.
+
+    ``until``과 ``export_dir``은 클라우드(GitHub Actions)용이다. 노트북을 켜 두지
+    않아도 자료가 쌓이게 하려고 붙였다(2026-07-24). 클라우드 작업은 최대 6시간까지만
+    살 수 있어 정해진 시각에 스스로 끝나야 하고, 끝나면 사라지므로 수집할 때마다
+    하루치 파일을 남겨 저장소에 올릴 수 있게 한다.
+    """
     interval_seconds = max(60, int(interval_seconds))
+    stop_at = _parse_clock(until)
     with collector_instance_lock():
         print("자비스5 수집기 시작 — 장중 전체 테마 거래활동을 실험용 DB에 저장합니다.", flush=True)
+        if stop_at:
+            print(f"종료 예정 시각(한국시각): {stop_at.strftime('%H:%M')}", flush=True)
         while True:
-            if is_collection_window():
+            now = _now()
+            if stop_at and now.time() >= stop_at:
+                print("예정 시각이 되어 수집을 마칩니다.", flush=True)
+                return
+            if is_collection_window(now):
                 result = collect_once(max_workers=max_workers, db_path=db_path)
                 print(json.dumps(result, ensure_ascii=False), flush=True)
+                if export_dir:
+                    _export_quietly(export_dir, db_path=db_path)
             time.sleep(interval_seconds if is_collection_window() else 60)
+
+
+def _export_quietly(export_dir, *, db_path=None) -> None:
+    """하루치 파일을 다시 쓴다. 실패해도 수집은 계속되어야 한다."""
+    try:
+        import jarvis5_sync as sync
+
+        result = sync.export_day(out_dir=export_dir, db_path=db_path)
+        if not result.get("ok"):
+            print(f"[내보내기 건너뜀] {result.get('error')}", flush=True)
+    except Exception as exc:
+        print(f"[내보내기 실패] {exc}", flush=True)
 
 
 def main() -> None:
@@ -203,14 +246,28 @@ def main() -> None:
     parser.add_argument("--interval", type=int, default=180, help="장중 반복 간격(초, 최소 60)")
     parser.add_argument("--workers", type=int, default=10, help="네이버 상세 조회 동시 작업 수")
     parser.add_argument("--db", type=Path, default=None, help="테스트용 DB 경로")
+    parser.add_argument(
+        "--until", default=None,
+        help="이 시각(한국시각 HH:MM)이 되면 스스로 끝낸다 — 클라우드 작업용",
+    )
+    parser.add_argument(
+        "--export-dir", default=None,
+        help="수집할 때마다 하루치 파일을 이 폴더에 남긴다 — 클라우드 작업용",
+    )
     args = parser.parse_args()
     if args.once:
-        print(json.dumps(
-            collect_once(max_workers=args.workers, db_path=args.db),
-            ensure_ascii=False,
-        ))
+        result = collect_once(max_workers=args.workers, db_path=args.db)
+        if args.export_dir:
+            _export_quietly(args.export_dir, db_path=args.db)
+        print(json.dumps(result, ensure_ascii=False))
         return
-    run_loop(interval_seconds=args.interval, max_workers=args.workers, db_path=args.db)
+    run_loop(
+        interval_seconds=args.interval,
+        max_workers=args.workers,
+        db_path=args.db,
+        until=args.until,
+        export_dir=args.export_dir,
+    )
 
 
 if __name__ == "__main__":

@@ -149,6 +149,7 @@ _login_gate()
 import jarvis5_collector as collector
 import jarvis5_data as engine
 import jarvis5_store as store
+import jarvis5_sync as sync
 
 
 def _eok(value) -> str:
@@ -525,7 +526,7 @@ def main() -> None:
     latest = store.latest_run()
     st.markdown(_summary_cards(latest), unsafe_allow_html=True)
 
-    left, right = st.columns([1.4, 1])
+    left, middle, right = st.columns([1.2, 1.2, 1.4])
     with left:
         if st.button("전체 테마 스냅샷 1회 수집", type="primary", width="stretch"):
             with st.spinner("네이버 전체 테마 원자료를 수집하는 중입니다…"):
@@ -539,10 +540,28 @@ def main() -> None:
                 st.rerun()
             else:
                 st.error(f"수집 실패: {result.get('error')}")
+    with middle:
+        # 노트북이 꺼져 있던 날 클라우드가 대신 모아 둔 자료를 합친다(2026-07-24).
+        if st.button("클라우드에 쌓인 자료 가져오기", width="stretch"):
+            with st.spinner("내려받아 둔 파일을 로컬 DB에 합치는 중입니다…"):
+                merged = sync.import_dir()
+            if not merged.get("ok"):
+                st.warning(merged.get("error") or "가져올 자료가 없습니다")
+            elif merged.get("added_runs"):
+                st.success(
+                    f"{merged['day_count']}일치 중 새로 들어온 수집 {merged['added_runs']}회 · "
+                    f"테마 {merged['added_theme_rows']:,}행"
+                )
+                st.rerun()
+            else:
+                st.info("이미 다 들어와 있습니다. 새로 합칠 자료가 없습니다.")
     with right:
+        _dates = sync.available_dates()
+        _have = f"내려받은 자료: {len(_dates)}일치({_dates[0]}~{_dates[-1]})" if _dates else "내려받은 자료 없음"
         st.caption(
-            "연속 기록: 프로젝트 폴더의 `run_jarvis5_collector.bat` 실행 → 장중 3분마다 수집. "
-            "화면을 닫아도 별도 창의 수집기는 계속 동작합니다."
+            f"{_have}. 자료는 GitHub이 장중에 대신 모으므로 노트북을 꺼 둬도 쌓입니다. "
+            "`자비스5_자료받기.bat`을 실행하면 최신 자료를 내려받아 자동으로 합칩니다. "
+            "이 컴퓨터에서 직접 3분마다 모으려면 `run_jarvis5_collector.bat`을 켜세요."
         )
 
     st.markdown(

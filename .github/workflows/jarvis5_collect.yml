@@ -1,0 +1,99 @@
+# 자비스5 테마 선행감지 자료를 노트북 없이 쌓는다 (2026-07-24 사용자 요청).
+#
+# 노트북을 켜 둬야만 자료가 모이던 것을, GitHub 컴퓨터가 장중에 대신 수집하도록
+# 옮긴 것이다. 금요일에 노트북을 끄고 월요일에 켜도 그 사이 자료가 남아 있다.
+#
+# 작업 하나가 최대 6시간까지만 살 수 있어 오전·오후로 나눈다.
+# cron은 UTC 기준이고 한국시각은 +9시간이다.
+#   오전: 23:55 UTC = 다음날 08:55 KST → 12:10 KST까지
+#   오후: 03:05 UTC = 같은 날 12:05 KST → 15:35 KST까지
+# 예약 실행은 GitHub 사정으로 5~20분 늦게 시작될 수 있다. 늦게 시작해도 그
+# 시점부터 3분 간격으로 수집하므로 자료가 통째로 비지는 않는다.
+name: 자비스5 테마 수집
+
+on:
+  schedule:
+    - cron: "55 23 * * 0-4"   # 일~목 23:55 UTC = 월~금 08:55 KST
+    - cron: "5 3 * * 1-5"     # 월~금 03:05 UTC = 월~금 12:05 KST
+  workflow_dispatch:
+    inputs:
+      until:
+        description: "언제까지 수집할지 (한국시각 HH:MM)"
+        required: false
+        default: "15:35"
+
+concurrency:
+  # 오전 작업이 아직 안 끝났는데 오후 작업이 시작되면 오전 쪽을 끝낸다.
+  group: jarvis5-collect
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340   # 6시간 한도보다 넉넉히 아래로 둔다
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 필요한 것만 설치
+        # 수집기는 네이버 HTML만 읽으므로 streamlit·yfinance까지 받을 필요가 없다.
+        run: pip install requests pandas
+
+      - name: 마칠 시각 정하기
+        id: plan
+        run: |
+          HOUR=$(TZ=Asia/Seoul date +%H)
+          if [ -n "${{ inputs.until }}" ]; then
+            UNTIL="${{ inputs.until }}"
+          elif [ "$HOUR" -lt 11 ]; then
+            UNTIL="12:10"
+          else
+            UNTIL="15:35"
+          fi
+          echo "until=$UNTIL" >> "$GITHUB_OUTPUT"
+          echo "한국시각 $(TZ=Asia/Seoul date +%H:%M) 시작 · $UNTIL 까지 수집"
+
+      - name: 지난 자료 불러오기
+        # 동일시각 기준선은 지난 거래일 자료가 있어야 계산된다. 그리고 오늘 자료가
+        # 이미 있으면(오후 작업) 이어서 구간값을 계산하려면 직전 누적값이 필요하다.
+        run: python jarvis5_sync.py import --days 20
+
+      - name: 장중 수집
+        run: |
+          python jarvis5_collector.py \
+            --interval 180 \
+            --until "${{ steps.plan.outputs.until }}" \
+            --export-dir data/jarvis5 &
+          COLLECTOR=$!
+          git config user.name "jarvis5-collector"
+          git config user.email "jarvis5-collector@users.noreply.github.com"
+          # 수집기가 도는 동안 10분마다 결과를 저장소에 올린다. 중간에 작업이
+          # 끊겨도 그때까지 모은 자료는 남는다.
+          while kill -0 "$COLLECTOR" 2>/dev/null; do
+            sleep 600
+            git add data/jarvis5 || true
+            if ! git diff --cached --quiet; then
+              git commit -m "자비스5 수집 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M')" || true
+              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+              git push origin "HEAD:${GITHUB_REF_NAME}" || true
+            fi
+          done
+          wait "$COLLECTOR" || true
+
+      - name: 마지막 자료 올리기
+        if: always()
+        run: |
+          git config user.name "jarvis5-collector"
+          git config user.email "jarvis5-collector@users.noreply.github.com"
+          git add data/jarvis5 || true
+          if ! git diff --cached --quiet; then
+            git commit -m "자비스5 수집 마감 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M')"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
