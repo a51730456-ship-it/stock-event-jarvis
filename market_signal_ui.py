@@ -19,6 +19,7 @@ import streamlit as st
 import database
 import kis_market_data
 import kr_intraday_flow
+import gauge_ui
 import market_signal_common
 import naver_market_data
 import price_data
@@ -339,6 +340,43 @@ _FLOW_TABLE_KEYS = (
 # 상세 표의 값별 색 — 같은 값은 어느 시장 카드에서든 같은 색으로 보이게 한다.
 # 판정 칸은 마크만이 아니라 '표 읽는 법'과 똑같은 뜻 글자를 함께 쓴다
 # (2026-07-22 사용자 지시: "⭕ 긍정(신호 켜짐)"처럼 마크와 내용을 같이 넣을 것).
+# 눈금 안에 들어갈 짧은 단계 이름 — 카드 제목의 긴 문구(🟡 방향 혼조 …)는 반원
+# 안에 넣으면 넘친다. 뜻이 달라지지 않는 선에서 줄인 이름만 쓴다.
+_VERDICT_SHORT = {
+    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: "반전 없음",
+    kr_intraday_flow.ReboundVerdict.WATCHING: "일부 켜짐",
+    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: "반등 유력",
+    kr_intraday_flow.ReboundVerdict.CONFIRMED: "반등 확인",
+    us_market_signal_engine.UsMarketVerdict.RISK_OFF: "위험회피",
+    us_market_signal_engine.UsMarketVerdict.MIXED: "방향 혼조",
+    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: "선호 초기",
+    us_market_signal_engine.UsMarketVerdict.RISK_ON: "위험선호",
+}
+
+# 나쁜 쪽 → 좋은 쪽 순서. 눈금 왼쪽부터 이 차례로 놓인다.
+KR_VERDICT_ORDER = (
+    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED,
+    kr_intraday_flow.ReboundVerdict.WATCHING,
+    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED,
+    kr_intraday_flow.ReboundVerdict.CONFIRMED,
+)
+US_VERDICT_ORDER = (
+    us_market_signal_engine.UsMarketVerdict.RISK_OFF,
+    us_market_signal_engine.UsMarketVerdict.MIXED,
+    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY,
+    us_market_signal_engine.UsMarketVerdict.RISK_ON,
+)
+
+_SIGNAL_GAUGE_CSS = """
+.sig-body { display: flex; flex-wrap: wrap; align-items: center; gap: 1.1rem; margin-top: 10px; }
+.sig-gauge { flex: 0 0 auto; }
+.sig-gauge .fg-gauge { width: 190px; height: 127px; }
+.sig-gauge .fg-zone { font-size: 21px; }
+.sig-counts { flex: 0 0 auto; min-width: 168px; }
+.sig-text { flex: 1 1 320px; min-width: 260px; }
+@media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 160px; height: 107px; } }
+"""
+
 _STATUS_TEXT = {
     market_signal_common.SignalStatus.POSITIVE: "긍정(신호 켜짐)",
     market_signal_common.SignalStatus.NEUTRAL: "중립(보합)",
@@ -429,9 +467,55 @@ def kr_flow_diagnosis(result) -> str | None:
     return None
 
 
+def _verdict_gauge_html(result, verdict_style, verdict_order) -> str:
+    """판정을 반원 눈금 위에 올린다 (2026-07-24 사용자 요청).
+
+    공포·탐욕 게이지와 같은 모양으로 맞추되 **숫자는 만들지 않는다.** 이 카드의
+    판정은 0~100 점수가 아니라 네 단계 중 하나이므로, 바늘은 지금 단계의 한가운데를
+    가리키고 가운데 글자에는 단계 이름만 적는다. 없는 점수를 지어내지 않기 위해서다.
+
+    verdict_order는 나쁜 쪽 → 좋은 쪽 순서다. 목록에 없는 판정(데이터 부족)은
+    바늘 없이 눈금만 그린다.
+    """
+    step = 100 / len(verdict_order)
+    zones = []
+    for index, verdict in enumerate(verdict_order):
+        color = verdict_style[verdict][1]
+        name = _VERDICT_SHORT.get(verdict) or str(verdict)
+        zones.append((round(step * (index + 1)), name, color))
+
+    score = None
+    if result.verdict in verdict_order:
+        score = step * (verdict_order.index(result.verdict) + 0.5)
+
+    counts = {
+        market_signal_common.SignalStatus.POSITIVE: 0,
+        market_signal_common.SignalStatus.NEGATIVE: 0,
+        market_signal_common.SignalStatus.NEUTRAL: 0,
+        market_signal_common.SignalStatus.UNKNOWN: 0,
+    }
+    for signal in result.signals:
+        if signal.status in counts:
+            counts[signal.status] += 1
+    rows = [
+        ("켜진 신호", "긍정", counts[market_signal_common.SignalStatus.POSITIVE], "#22c55e"),
+        ("아직 아닌 신호", "부정", counts[market_signal_common.SignalStatus.NEGATIVE], "#ef4444"),
+        ("중립", "보합", counts[market_signal_common.SignalStatus.NEUTRAL], "#9ca3af"),
+        ("확인 필요", "자료 없음", counts[market_signal_common.SignalStatus.UNKNOWN], "#71717a"),
+    ]
+    row_tuples = [(label, note, f"{value}개", color, value == 0)
+                  for label, note, value, color in rows]
+
+    return (
+        "<div class='sig-gauge'>"
+        f"{gauge_ui.gauge_svg(score, zones, ticks=(), show_score=False)}</div>"
+        f"<div class='sig-counts'>{gauge_ui.rows_html(row_tuples)}</div>"
+    )
+
+
 def render_market_signal_card(
     result, *, verdict_style, core_display, table_keys, detail_title, detail_caption,
-    table_key, diagnosis_text=None,
+    table_key, diagnosis_text=None, verdict_order=(),
 ):
     """한국장·미국장이 함께 쓰는 카드 렌더러.
 
@@ -451,6 +535,12 @@ def render_market_signal_card(
         if _cause and _unknown_count else ""
     )
 
+    # 판정을 눈금 위에 올려 지금이 어느 단계인지 한눈에 보이게 한다(2026-07-24).
+    _gauge_html = (
+        _verdict_gauge_html(result, verdict_style, tuple(verdict_order))
+        if verdict_order else ""
+    )
+    st.markdown(f"<style>{gauge_ui.CSS}{_SIGNAL_GAUGE_CSS}</style>", unsafe_allow_html=True)
     st.markdown(
         f"""
         <div style="background-color:{bg};border:2px solid {border};border-radius:10px;
@@ -459,13 +549,17 @@ def render_market_signal_card(
           <div style="font-size:0.85rem;color:{text};opacity:0.85;margin-top:4px;">
             {_as_of_label} · {result.data_status}
           </div>
-          <div style="font-size:1.0rem;color:{text};margin-top:10px;line-height:1.5;">
-            {result.headline}
+          <div class="sig-body">{_gauge_html}
+            <div class="sig-text">
+              <div style="font-size:1.0rem;color:{text};line-height:1.5;">
+                {result.headline}
+              </div>
+              <div style="font-size:0.9rem;color:{text};opacity:0.9;margin-top:8px;">
+                흐름: {result.flow_note}
+              </div>
+              {_cause_html}
+            </div>
           </div>
-          <div style="font-size:0.9rem;color:{text};opacity:0.9;margin-top:8px;">
-            흐름: {result.flow_note}
-          </div>
-          {_cause_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -574,6 +668,7 @@ def render_kr_flow_card():
         ),
         table_key="kr_flow_detail_table",
         diagnosis_text=kr_flow_diagnosis,
+        verdict_order=KR_VERDICT_ORDER,
     )
 
     # 조회 실패 목록과 외국인 선물 수동 입력칸은 없앴다(2026-07-22 사용자 지시).
@@ -665,6 +760,7 @@ def render_us_market_signal_card():
             "선물·반도체 ETF는 본장보다 먼저 움직여 선행, 지수는 결과라서 확인 신호로 봅니다."
         ),
         table_key="us_signal_detail_table",
+        verdict_order=US_VERDICT_ORDER,
     )
     # 실패 목록 나열은 없앴다(2026-07-22 사용자 지시) — 못 가져온 값은 위 표에
     # '확인 필요'로 이미 표시되고, 사용자가 손쓸 수 없는 항목이라 나열해도 의미가 없다.

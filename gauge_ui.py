@@ -59,8 +59,19 @@ def _arc(start_ratio: float, end_ratio: float, color: str) -> str:
     )
 
 
-def gauge_svg(score, zones, *, label: str | None = None, ticks=(0, 25, 50, 75, 100)) -> str:
-    """반원 게이지 하나. score가 없으면 바늘 없이 구간만 그린다."""
+def gauge_svg(
+    score,
+    zones,
+    *,
+    label: str | None = None,
+    ticks=(0, 25, 50, 75, 100),
+    show_score: bool = True,
+) -> str:
+    """반원 게이지 하나. score가 없으면 바늘 없이 구간만 그린다.
+
+    show_score=False는 숫자가 없는 판정에 쓴다 — 시장 신호 카드처럼 0~100 점수가
+    아니라 '네 단계 중 어디인가'만 나타낼 때는 숫자를 지어내지 않는다.
+    """
     parts = [
         f"<svg class='fg-gauge' viewBox='0 0 {_WIDTH} {_HEIGHT}' role='img' "
         f"aria-label='{'' if score is None else round(float(score))}'>"
@@ -86,12 +97,13 @@ def gauge_svg(score, zones, *, label: str | None = None, ticks=(0, 25, 50, 75, 1
         )
         parts.append(f"<circle cx='{_CENTER_X}' cy='{_CENTER_Y}' r='7' class='fg-hub'></circle>")
         name, color = zone_of(value, zones)
+        if show_score:
+            parts.append(
+                f"<text x='{_CENTER_X}' y='{_CENTER_Y + 44}' class='fg-score' "
+                f"text-anchor='middle' fill='{color}'>{value:.0f}</text>"
+            )
         parts.append(
-            f"<text x='{_CENTER_X}' y='{_CENTER_Y + 44}' class='fg-score' "
-            f"text-anchor='middle' fill='{color}'>{value:.0f}</text>"
-        )
-        parts.append(
-            f"<text x='{_CENTER_X}' y='{_CENTER_Y + 68}' class='fg-zone' "
+            f"<text x='{_CENTER_X}' y='{_CENTER_Y + (68 if show_score else 46)}' class='fg-zone' "
             f"text-anchor='middle' fill='{color}'>{html.escape(label or name)}</text>"
         )
     else:
