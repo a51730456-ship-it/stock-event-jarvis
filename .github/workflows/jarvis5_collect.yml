@@ -75,8 +75,18 @@ jobs:
           git config user.email "jarvis5-collector@users.noreply.github.com"
           # 수집기가 도는 동안 10분마다 결과를 저장소에 올린다. 중간에 작업이
           # 끊겨도 그때까지 모은 자료는 남는다.
+          #
+          # 확인은 20초마다 한다. 예전에는 sleep 600으로 한 번에 기다려서, 장이
+          # 끝난 뒤라 수집기가 1초 만에 끝나도 10분을 통째로 기다렸다
+          # (2026-07-24 사용자 지적: "왜 이리 오래 걸리나").
+          WAITED=0
           while kill -0 "$COLLECTOR" 2>/dev/null; do
-            sleep 600
+            sleep 20
+            WAITED=$((WAITED + 20))
+            if [ "$WAITED" -lt 600 ]; then
+              continue
+            fi
+            WAITED=0
             git add data/jarvis5 || true
             if ! git diff --cached --quiet; then
               git commit -m "자비스5 수집 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M')" || true
