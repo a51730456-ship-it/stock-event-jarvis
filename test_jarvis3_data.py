@@ -163,5 +163,57 @@ class Jarvis3DataTests(unittest.TestCase):
         self.assertGreater(multi["score"], single["score"])
 
 
+class LastSessionChangeTests(unittest.TestCase):
+    """'미국 전일'은 끝난 정규장이어야 한다.
+
+    2026-07-24 실측 회귀: 한국 저녁(뉴욕 새벽)에 보면 전일 -1.23%가 프리마켓
+    +0.22%로 뒤집혀 보였고, 한국 조건점수의 '미국 전일 15점'까지 잘못 붙었다.
+    """
+
+    def _closes(self, values, last_day="2026-07-23"):
+        index = pd.bdate_range(end=last_day, periods=len(values))
+        return pd.Series(values, index=index)
+
+    def test_uses_finished_session_when_last_bar_is_yesterday(self):
+        closes = self._closes([100.0, 98.77])  # -1.23%
+        change = j3._last_session_change(
+            closes, datetime(2026, 7, 23).date(), datetime(2026, 7, 24).date(),
+            now_ny=datetime(2026, 7, 24, 5, 0),
+        )
+        self.assertAlmostEqual(change, -1.23, places=2)
+
+    def test_today_bar_after_close_is_finished(self):
+        """한국 장중(뉴욕 저녁)에는 오늘 일봉이 이미 끝난 장이다."""
+        closes = self._closes([100.0, 98.77])
+        change = j3._last_session_change(
+            closes, datetime(2026, 7, 23).date(), datetime(2026, 7, 23).date(),
+            now_ny=datetime(2026, 7, 23, 19, 0),
+        )
+        self.assertAlmostEqual(change, -1.23, places=2)
+
+    def test_today_bar_before_close_is_skipped(self):
+        """미국 장중에는 오늘 일봉이 진행 중이므로 한 칸 앞 세션을 쓴다."""
+        closes = self._closes([100.0, 98.77, 105.0])
+        change = j3._last_session_change(
+            closes, datetime(2026, 7, 23).date(), datetime(2026, 7, 23).date(),
+            now_ny=datetime(2026, 7, 23, 10, 0),
+        )
+        self.assertAlmostEqual(change, -1.23, places=2)
+
+    def test_short_history_returns_none_instead_of_guessing(self):
+        self.assertIsNone(j3._last_session_change(
+            self._closes([100.0]), datetime(2026, 7, 23).date(),
+            datetime(2026, 7, 24).date(), now_ny=datetime(2026, 7, 24, 5, 0),
+        ))
+
+    def test_metrics_expose_both_numbers_separately(self):
+        """지금 값 기준(change_pct)과 끝난 장(last_session_change_pct)은 다른 값이다."""
+        daily = _daily_frame()
+        metrics = j3._series_metrics(daily, _intraday_frame(500.0))
+        self.assertIn("last_session_change_pct", metrics)
+        self.assertIsNotNone(metrics["last_session_change_pct"])
+        self.assertNotEqual(metrics["change_pct"], metrics["last_session_change_pct"])
+
+
 if __name__ == "__main__":
     unittest.main()

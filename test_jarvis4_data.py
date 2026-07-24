@@ -534,5 +534,53 @@ class StockFlowParsingTests(unittest.TestCase):
         self.assertEqual(result["rows"], [])
 
 
+class UsPreviousSessionTests(unittest.TestCase):
+    """'미국 전일' 게이트는 끝난 정규장 등락을 써야 한다(2026-07-24 실측 회귀).
+
+    프리마켓 값을 쓰면 전일 -1.2%인 날에도 15점이 붙는다.
+    """
+
+    def _overview(self, spy_now, spy_session, qqq_now, qqq_session):
+        return {
+            "ok": True, "score": 25, "regime": "방어 우선",
+            "rows": {
+                "SPY": {"change_pct": spy_now, "last_session_change_pct": spy_session},
+                "QQQ": {"change_pct": qqq_now, "last_session_change_pct": qqq_session},
+            },
+        }
+
+    def _run(self, overview):
+        import sys
+        import types
+
+        fake = types.ModuleType("jarvis3_data")
+        fake.get_market_overview = lambda: overview
+        fake.get_fear_greed = lambda: {"ok": False}
+        original = sys.modules.get("jarvis3_data")
+        sys.modules["jarvis3_data"] = fake
+        try:
+            return j4._us_previous_session()
+        finally:
+            if original is not None:
+                sys.modules["jarvis3_data"] = original
+            else:
+                del sys.modules["jarvis3_data"]
+
+    def test_uses_finished_session_not_premarket(self):
+        result = self._run(self._overview(0.22, -1.23, 0.06, -1.90))
+        self.assertAlmostEqual(result["spy_change"], -1.23, places=2)
+        self.assertAlmostEqual(result["qqq_change"], -1.90, places=2)
+
+    def test_gate_fails_when_previous_session_closed_down(self):
+        result = self._run(self._overview(0.22, -1.23, 0.06, -1.90))
+        passed = (result.get("spy_change") or 0) >= 0 and (result.get("qqq_change") or 0) >= 0
+        self.assertFalse(passed, "전일 하락 마감인데 15점이 붙으면 안 된다")
+
+    def test_gate_passes_when_previous_session_closed_up(self):
+        result = self._run(self._overview(-0.5, 1.1, -0.3, 0.8))
+        passed = (result.get("spy_change") or 0) >= 0 and (result.get("qqq_change") or 0) >= 0
+        self.assertTrue(passed)
+
+
 if __name__ == "__main__":
     unittest.main()

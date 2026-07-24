@@ -74,7 +74,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX")
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072403
+MODULE_REVISION = 2026072405
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -297,6 +297,26 @@ def _source_time(frame: pd.DataFrame | None) -> str | None:
         return None
 
 
+def _last_session_change(closes, last_date, today_ny, now_ny=None) -> float | None:
+    """마지막으로 '끝난' 정규장의 등락률.
+
+    일봉 마지막 줄이 오늘 날짜여도 장이 아직 안 끝났으면(뉴욕 16시 전) 그 줄은
+    진행 중이라 쓰면 안 된다. 그 경우 한 칸 앞 세션을 쓴다.
+    """
+    if len(closes) < 2:
+        return None
+    now_ny = now_ny or datetime.now(_NY)
+    finished = last_date < today_ny or now_ny.time() >= dt_time(16, 0)
+    end = -1 if finished else -2
+    if len(closes) < abs(end) + 1:
+        return None
+    base = _finite(closes.iloc[end - 1])
+    close = _finite(closes.iloc[end])
+    if not base or close is None:
+        return None
+    return (close / base - 1) * 100
+
+
 def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = None) -> dict:
     if daily is None or len(daily) < 25:
         return {"ok": False}
@@ -317,6 +337,11 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
         prev_close = _finite(closes.iloc[-2])
     else:
         prev_close = _finite(closes.iloc[-1])
+
+    # '마지막으로 끝난 정규장'의 등락률. change_pct는 지금 값(프리마켓·시간외 포함)
+    # 기준이라 '미국 전일'처럼 끝난 장을 물어보는 자리에는 쓸 수 없다
+    # (2026-07-24 실측: 전일 -1.23%인데 화면에 프리마켓 +0.22%가 나왔다).
+    last_session_change_pct = _last_session_change(closes, last_date, today_ny)
 
     ret = lambda days: (current / float(closes.iloc[-min(days + 1, len(closes))]) - 1) * 100
     sma20 = _finite(closes.tail(20).mean())
@@ -362,6 +387,7 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
         "current": current,
         "prev_close": prev_close,
         "change_pct": ((current / prev_close - 1) * 100) if prev_close else None,
+        "last_session_change_pct": last_session_change_pct,
         "ret5": ret(5),
         "ret20": ret(20),
         "ret60": ret(60) if len(closes) >= 61 else None,
