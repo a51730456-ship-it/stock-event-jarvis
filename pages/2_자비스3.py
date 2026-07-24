@@ -1502,8 +1502,11 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
             unsafe_allow_html=True,
         )
         st.caption(
-            "상대강도 기준은 테마 ETF가 아니라 SPY 20일 수익률입니다 — 눌림목 검색은 여러 테마를 "
-            "가로질러 돌기 때문입니다. 그래서 위 테마 대장주 표의 점수와 다를 수 있습니다."
+            "이 점수는 위 표의 ‘종목 조건점수’와 같은 값이며, 표의 순위를 정하는 ‘눌림 점수’와는 "
+            "다른 것을 잽니다 — 눌림 점수는 지금이 눌림 자리로 좋은지, 이 점수는 종목 자체가 "
+            "좋은지를 봅니다. 상대강도 기준은 테마 ETF가 아니라 SPY 20일 수익률입니다"
+            "(눌림목 검색은 여러 테마를 가로질러 돌기 때문). 그래서 위 테마 대장주 표의 점수와도 "
+            "다를 수 있습니다."
         )
     with plan_col:
         st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
@@ -1601,8 +1604,14 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         "<div class='j3-pull-guide'><b>무엇을 찾나</b> — 50일선·200일선이 살아 있는 상승추세에서, "
         "52주 신고가를 찍은 뒤 1~20거래일 동안 20일선 부근으로 조정받은 종목입니다.<br>"
         "<b>표 읽는 법</b> — ‘고점 대비 <span class='j3-down'>−10%</span>’는 신고가에서 10% "
-        "내려왔다는 뜻이고, ‘20일선 이격 0%’에 가까울수록 20일선 근처입니다. "
-        "눌림 점수는 추세·조정 깊이·20일선 근접·거래대금을 합친 100점 점수이며 높을수록 조건이 좋습니다.<br>"
+        "내려왔다는 뜻이고, ‘20일선 이격 0%’에 가까울수록 20일선 근처입니다.<br>"
+        "<b>점수 두 개는 서로 다른 것을 잽니다</b> — <b>눌림 점수</b>는 <u>지금이 눌림 자리로 좋은가</u>"
+        "(신고가 최근성 25 + 20일선 근접 20 + 추세 20 + 조정 깊이 20 + 거래대금 10 + 테마 가산 5)이고, "
+        "<b>종목 조건점수</b>는 <u>종목 자체가 좋은가</u>"
+        "(SPY 대비 상대강도 25 + 52주 신고가 위치 25 + 추세 20 + 거래대금 15 + 변동성 안정 15)입니다. "
+        "<b>순위는 눌림 점수 기준</b>이라, 눌림 자리가 덜 좋아도 종목 자체 점수는 더 높을 수 있습니다 "
+        "(예: 20일선에서 멀리 떨어져 있으면 눌림 점수만 크게 깎입니다). "
+        "아래 상세의 점수는 이 표의 ‘종목 조건점수’와 같은 값입니다.<br>"
         "<span class='j3-up'>+ 상승은 파랑</span> · <span class='j3-down'>− 하락은 빨강</span> "
         "(미국시장 색 규칙) · 여러 테마 소속은 필수가 아니라 최대 5점 가산</div>",
         unsafe_allow_html=True,
@@ -1627,13 +1636,16 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         st.info("현재 조건에 맞는 미국 눌림목 종목이 없습니다.")
         return
 
-    widths = [0.55, 1.7, 0.8, 1.45, 1.0, 1.4, 1.1, 1.15, 1.25, 1.8, 0.85]
+    widths = [0.55, 1.7, 0.8, 1.45, 1.2, 1.0, 1.4, 1.1, 1.15, 1.25, 1.8, 0.85]
     titles = [
-        "순위", "종목", "티커", "눌림 점수", "신고가", "당일주가", "고점 대비",
+        "순위", "종목", "티커", "눌림 점수", "종목 조건점수", "신고가", "당일주가", "고점 대비",
         "20일선 이격", "평균 거래대금", "소속 테마", "테마 가산",
     ]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+
+    # 표의 '종목 조건점수'는 아래 상세와 같은 계산이어야 한다 — 같은 함수·같은 기준(SPY 20일)을 쓴다.
+    spy_ret20_for_table = ((market.get("rows") or {}).get("SPY") or {}).get("ret20")
 
     # 아무것도 누르지 않았거나 고른 종목이 이번 결과에서 빠졌으면 1순위를 자동으로 연다
     # (2026-07-24 사용자 지시: 클릭하지 않아도 맨 위 종목 상세가 바로 보여야 한다).
@@ -1678,7 +1690,18 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
             f"<span class='j3-bar-num'>{score:.1f}</span></div></div>",
             unsafe_allow_html=True,
         )
+        # 종목 조건점수 — 아래 상세와 같은 값. 순위(눌림 점수)와 다른 것을 재는 점수라
+        # 20위가 3위보다 높을 수 있다(2026-07-24 사용자 질문에 따라 표에 함께 표시).
+        stock_score = float(
+            j3data.analyze_pullback_stock(row, benchmark_ret20=spy_ret20_for_table).get("score") or 0
+        )
         cols[4].markdown(
+            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill' style='width:{max(0, min(stock_score, 100)):.0f}%; background:#c084fc'></div></div>"
+            f"<span class='j3-bar-num'>{stock_score:.1f}</span></div></div>",
+            unsafe_allow_html=True,
+        )
+        cols[5].markdown(
             f"<div class='j3-td j3-green'>{int(quality.get('high52_days_ago') or 0)}일 전</div>",
             unsafe_allow_html=True,
         )
@@ -1686,31 +1709,31 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         # (2026-07-24 사용자 지시). 등락은 미국장 색 규칙(+파랑 −빨강)으로 진하게.
         current_price = row["metrics"].get("current")
         change_pct = row["metrics"].get("change_pct")
-        cols[5].markdown(
+        cols[6].markdown(
             f"<div class='j3-td' style='font-weight:800; color:#e6e6e6'>{_price(current_price)}"
             f"<span style='color:{_sign_color(change_pct)}; font-weight:800'>"
             f" {_pct(change_pct)}</span></div>",
             unsafe_allow_html=True,
         )
-        cols[6].markdown(
+        cols[7].markdown(
             f"<div class='j3-td {_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</div>",
             unsafe_allow_html=True,
         )
-        cols[7].markdown(
+        cols[8].markdown(
             f"<div class='j3-td {_sign_class(gap)}' style='font-weight:800'>{_pct(gap)}</div>",
             unsafe_allow_html=True,
         )
         avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
-        cols[8].markdown(
+        cols[9].markdown(
             f"<div class='j3-td j3-green'>{avg_text}</div>",
             unsafe_allow_html=True,
         )
-        cols[9].markdown(
+        cols[10].markdown(
             f"<div class='j3-td j3-pull-theme' title='{html.escape(themes)}'>"
             f"{html.escape(themes)}</div>",
             unsafe_allow_html=True,
         )
-        cols[10].markdown(
+        cols[11].markdown(
             f"<div class='j3-td j3-pull-amber'>{theme_bonus:.1f}/5</div>",
             unsafe_allow_html=True,
         )

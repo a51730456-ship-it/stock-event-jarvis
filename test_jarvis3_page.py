@@ -199,6 +199,10 @@ class Jarvis3PageTests(unittest.TestCase):
         # 눌림목 표에 당일주가 칸이 있고 값이 채워진다
         self.assertTrue(any("당일주가" in value for value in markdowns))
         self.assertTrue(any("$178.50" in value for value in markdowns))
+        # 순위 기준(눌림 점수)과 종목 자체 점수를 표에서 같이 본다 — 둘이 달라 보이는
+        # 이유를 화면에서 설명한다(2026-07-24 사용자 질문).
+        self.assertTrue(any("종목 조건점수" in value for value in markdowns))
+        self.assertTrue(any("점수 두 개는 서로 다른 것을 잽니다" in value for value in markdowns))
         # 상단 칸 이름은 '장 상태'가 아니라 '시장 상황'이고 VIX는 붉은색이다
         self.assertTrue(any("시장 상황" in value for value in markdowns))
         self.assertFalse(any(">장 상태<" in value for value in markdowns))
