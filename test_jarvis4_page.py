@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+import gauge_ui
 from streamlit.testing.v1 import AppTest
 
 ROOT = Path(__file__).parent
@@ -238,6 +239,12 @@ class Jarvis4PageTests(unittest.TestCase):
             if "<div class='j4-top-row'>" in str(node.value)
         )
         self.assertIn("fg-box", top_row)
+        # 시장 국면·미국 전일·공포탐욕 세 가지 모두 같은 게이지로 보여준다.
+        for name in ("시장 국면", "미국 전일", "공포·탐욕 지수 (미국)"):
+            self.assertIn(name, top_row)
+        # 나란히 서면 구별이 안 되므로 제목 색이 서로 달라야 한다.
+        for color in (gauge_ui.TITLE_GREEN, gauge_ui.TITLE_GREEN_DEEP, gauge_ui.TITLE_BLUE):
+            self.assertIn(color, top_row)
         # 숫자가 두 군데 나오지 않게 '미국 전일' 부제에서는 뺐다.
         self.assertNotIn("공포탐욕 41", markdowns)
 

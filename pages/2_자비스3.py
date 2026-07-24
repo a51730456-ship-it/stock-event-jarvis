@@ -304,6 +304,7 @@ import altair as alt
 import pandas as pd
 
 import fear_greed_ui
+import regime_gauge_ui
 import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
@@ -399,29 +400,6 @@ def _fear_greed_color(score) -> str:
     if score < 75:
         return "#44f0a1"
     return "#22c55e"
-
-
-def _fear_greed_cell() -> str:
-    """공포·탐욕 지수 상단 칸. 조회 실패 시 '자료 부족'으로만 표시한다.
-
-    온라인 배포 직후 jarvis3_data 모듈이 옛 버전으로 캐시돼 있으면 함수가 아직
-    없을 수 있어 getattr로 방어한다(_leader_chart_payload와 같은 이유,
-    2026-07-22 온라인 AttributeError 실제 발생).
-    """
-    fetcher = getattr(j3data, "get_fear_greed", None)
-    if fetcher is None:
-        return _top_metric("공포·탐욕 지수", "—", "#9aa0aa", "모듈 갱신 대기")
-    fg = fetcher()
-    if not fg.get("ok"):
-        return _top_metric("공포·탐욕 지수", "—", "#9aa0aa", "자료 부족")
-    color = _fear_greed_color(fg.get("score"))
-    previous = fg.get("previous_close")
-    sub = fg.get("rating_kr") or "—"
-    if previous is not None:
-        sub += f" · 전일 {previous:.0f}"
-    if fg.get("stale"):
-        sub += " · 마지막 정상값"
-    return _top_metric("공포·탐욕 지수", f"{fg['score']:.0f}/100", color, sub, sub_color=color)
 
 
 _THEME_COL_WIDTHS = [0.75, 2.3, 0.9, 2.2, 0.95, 1.05, 1.35, 1.45]
@@ -863,7 +841,6 @@ def _render_market_overview() -> None:
         return
 
     phase = overview.get("phase", {}).get("label", "—")
-    regime_color = {"방어 우선": "#ff5b5b", "중립·선별": "#ff9d3b", "상승 우위": "#44f0a1"}.get(overview["regime"], "#e6e6e6")
     if phase == "정규장 시간":
         phase_color = "#44f0a1"
     elif phase in ("프리마켓", "애프터마켓"):
@@ -883,13 +860,12 @@ def _render_market_overview() -> None:
         f"{_pct(vix_change)}</span>"
     )
     top_cells = [
-        _top_metric("시장 국면", overview["regime"], regime_color, f"조건 {overview['score']}/100"),
+        # 시장 국면도 공포·탐욕과 같은 반원 게이지로 통일한다 — 국면 이름만 크게
+        # 적으면 '방어 우선'이 25점인지 49점인지 알 수 없다(2026-07-24 사용자 지시).
+        f"<style>{fear_greed_ui.CSS}</style>" + regime_gauge_ui.regime_box_html(overview),
         _top_metric("SPY", _price(spy_row.get("current")), "#e6e6e6", spy_row.get("change_pct"), sub_signed=True),
         _top_metric("QQQ", _price(qqq_row.get("current")), "#e6e6e6", qqq_row.get("change_pct"), sub_signed=True),
         _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b"),
-        _fear_greed_cell(),
-        # 게이지는 숫자 칸 바로 옆에 붙인다 — 아래에 큰 카드를 따로 두지 않는다
-        # (2026-07-24 사용자 지시).
         _fear_greed_box(),
     ]
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)

@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
+import gauge_ui
 from streamlit.testing.v1 import AppTest
 
 

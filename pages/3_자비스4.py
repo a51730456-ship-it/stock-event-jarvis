@@ -241,6 +241,7 @@ import altair as alt
 import pandas as pd
 
 import fear_greed_ui
+import regime_gauge_ui
 import jarvis4_data as j4data
 import jarvis4_store as j4store
 import market_signal_ui
@@ -475,17 +476,19 @@ def _render_market_overview() -> None:
         return
 
     phase = overview.get("phase", {}).get("label", "—")
-    regime_color = {"방어 우선": "#ff5b5b", "중립·선별": "#ff9d3b", "상승 우위": "#44f0a1"}.get(
-        overview["regime"], "#e6e6e6"
-    )
+    # 아래 조건점수 안내문이 국면 색을 그대로 쓴다(게이지 색과 같아야 한다).
+    regime_color = regime_gauge_ui.color_of(overview.get("score"))
     phase_color = "#44f0a1" if phase == "정규장" else "#ff9d3b" if "동시호가" in phase or "시간외" in phase else "#ff5b5b"
     rows = overview["rows"]
     kospi, kosdaq, usdkrw = rows.get("KOSPI", {}), rows.get("KOSDAQ", {}), rows.get("USDKRW", {})
     foreign = overview.get("foreign") or {}
     us_prev = overview.get("us_prev") or {}
 
+    # 시장 국면·미국 전일·공포탐욕 세 가지를 같은 반원 게이지로 통일한다
+    # (2026-07-24 사용자 지시). 나란히 서면 구별이 안 되므로 제목 색을 다르게 준다 —
+    # 시장 국면은 밝은 초록, 미국 전일은 진한 초록, 공포·탐욕은 파랑.
     top_cells = [
-        _top_metric("시장 국면", overview["regime"], regime_color, f"조건 {overview['score']}/100"),
+        f"<style>{fear_greed_ui.CSS}</style>" + regime_gauge_ui.regime_box_html(overview),
         _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"), sub_signed=True),
         _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"), sub_signed=True),
         _top_metric(
@@ -498,19 +501,9 @@ def _render_market_overview() -> None:
             _sign_color(foreign.get("net5_amount")) if foreign.get("ok") else "#9aa0aa",
             "삼성전자+SK하이닉스" if foreign.get("ok") else "자료 부족",
         ),
-        _top_metric(
-            "미국 전일",
-            us_prev.get("regime") or "—",
-            "#e6e6e6",
-            # 공포탐욕 숫자는 오른쪽 게이지 박스에 있으므로 여기서 뺀다 — 줄이
-            # 길어지기만 한다(2026-07-24 사용자 지시).
-            (
-                f"S&P500 {us_prev['spy_change']:+.2f}% · 나스닥100 {us_prev['qqq_change']:+.2f}%"
-            ) if us_prev.get("ok") else "자료 부족",
-        ),
+        regime_gauge_ui.us_prev_box_html(us_prev),
         _us_futures_cell(),
-        f"<style>{fear_greed_ui.CSS}</style>"
-        + fear_greed_ui.box_html(
+        fear_greed_ui.box_html(
             us_prev.get("fear_greed_detail"), title="공포·탐욕 지수 (미국)"
         ),
     ]
