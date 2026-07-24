@@ -281,12 +281,29 @@ st.set_page_config(page_title="자비스 주식 기록장", layout="wide")
 st.markdown(
     """
     <style>
+    /* 왼쪽 메뉴는 좁게, 오른쪽 본문은 넓게 (2026-07-24 사용자 지시). j-narrow-sidebar */
+    [data-testid="stSidebar"],
+    section[data-testid="stSidebar"] {
+        width: 10rem !important; min-width: 10rem !important; max-width: 10rem !important;
+    }
+    [data-testid="stSidebar"] > div,
+    [data-testid="stSidebarContent"],
+    section[data-testid="stSidebar"] > div {
+        width: 10rem !important; min-width: 10rem !important;
+    }
+    /* 메뉴 글자가 만드는 자동 최소폭 때문에 사이드바가 안 좁아지는 것을 막는다 */
+    [data-testid="stSidebarNav"],
+    [data-testid="stSidebarNav"] ul,
+    [data-testid="stSidebarNav"] li,
+    [data-testid="stSidebarNav"] a { min-width: 0 !important; max-width: 100% !important; }
+    [data-testid="stSidebarNav"] a p { overflow-wrap: anywhere; }
+    [data-testid="stSidebarNav"] li { margin: 0 !important; }
     [data-testid="stSidebarNav"] a {
-        padding: 0.7rem 1rem !important;
+        padding: 0.45rem 0.6rem !important;
     }
     [data-testid="stSidebarNav"] a,
     [data-testid="stSidebarNav"] a * {
-        font-size: 1.4rem !important;
+        font-size: 1.15rem !important;
         font-weight: 800 !important;
         color: #ffb020 !important;
         line-height: 1.4 !important;
@@ -301,7 +318,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:first-child a p::before {
         content: "자비스1";
-        font-size: 1.4rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: #ffb020;
     }
@@ -323,7 +340,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
         content: "미국테마";
-        font-size: 1.4rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: #ffb020;
     }
@@ -335,7 +352,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:nth-child(5) a p::before {
         content: "한국테마";
-        font-size: 1.4rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: #ffb020;
     }
@@ -344,7 +361,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
     [data-testid="stSidebarNav"] li:nth-child(6) a p::before {
-        content: "테마 선행감지"; font-size: 1.4rem; font-weight: 800; color: #ffb020;
+        content: "한국테마\\A(선행감지)"; white-space: pre; line-height: 1.2; font-size: 1.15rem; font-weight: 800; color: #ffb020;
     }
     /* 자비스1 상단 고정 탭바가 사이드바 메뉴를 가리지 않도록 아래로 내림 */
     [data-testid="stSidebarNav"] {
@@ -597,7 +614,7 @@ if not st.session_state.get("authenticated"):
                 "자비스2 (순환매 플레이북)",
                 "미국테마 (자비스3)",
                 "한국테마 (자비스4)",
-                "테마 선행감지 (자비스5·실험)",
+                "한국테마 선행감지 (자비스5·실험)",
             ],
             index=2,  # 기존 자비스2 기본 이동을 그대로 유지한다
             horizontal=True,
@@ -613,10 +630,12 @@ if not st.session_state.get("authenticated"):
                     st.switch_page("pages/1_자비스2.py")
                 if str(_login_dest).startswith("미국테마"):
                     st.switch_page("pages/2_자비스3.py")
+                # '한국테마 선행감지'가 '한국테마'로 먼저 잡혀 자비스4로 새면 안 된다 —
+                # 더 긴 이름을 먼저 검사한다(2026-07-24 이름 변경).
+                if str(_login_dest).startswith("한국테마 선행감지"):
+                    st.switch_page("pages/4_자비스5.py")
                 if str(_login_dest).startswith("한국테마"):
                     st.switch_page("pages/3_자비스4.py")
-                if str(_login_dest).startswith("테마 선행감지"):
-                    st.switch_page("pages/4_자비스5.py")
                 st.session_state["login_transition_pending"] = True
                 # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
                 # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.

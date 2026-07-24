@@ -1,4 +1,4 @@
-"""자비스5 — 테마 선행감지 실험 화면."""
+"""자비스5 — 한국테마 선행감지 실험 화면."""
 
 from __future__ import annotations
 
@@ -10,16 +10,33 @@ from pathlib import Path
 import streamlit as st
 
 
-st.set_page_config(page_title="자비스5 — 테마 선행감지", layout="wide")
+st.set_page_config(page_title="자비스5 — 한국테마 선행감지", layout="wide")
 st.markdown(
     """
     <style>
-    [data-testid="stSidebarNav"] a { padding: .7rem 1rem !important; }
+    /* 왼쪽 메뉴는 좁게, 오른쪽 본문은 넓게 (2026-07-24 사용자 지시). j-narrow-sidebar */
+    [data-testid="stSidebar"],
+    section[data-testid="stSidebar"] {
+        width: 10rem !important; min-width: 10rem !important; max-width: 10rem !important;
+    }
+    [data-testid="stSidebar"] > div,
+    [data-testid="stSidebarContent"],
+    section[data-testid="stSidebar"] > div {
+        width: 10rem !important; min-width: 10rem !important;
+    }
+    /* 메뉴 글자가 만드는 자동 최소폭 때문에 사이드바가 안 좁아지는 것을 막는다 */
+    [data-testid="stSidebarNav"],
+    [data-testid="stSidebarNav"] ul,
+    [data-testid="stSidebarNav"] li,
+    [data-testid="stSidebarNav"] a { min-width: 0 !important; max-width: 100% !important; }
+    [data-testid="stSidebarNav"] a p { overflow-wrap: anywhere; }
+    [data-testid="stSidebarNav"] li { margin: 0 !important; }
+    [data-testid="stSidebarNav"] a { padding: .45rem .6rem !important; }
     [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] a * {
-        font-size: 1.4rem !important; font-weight: 800 !important; color: #ffb020 !important;
+        font-size: 1.15rem !important; font-weight: 800 !important; color: #ffb020 !important;
     }
     [data-testid="stSidebarNav"] li:first-child a p { font-size: 0 !important; }
-    [data-testid="stSidebarNav"] li:first-child a p::before { content: "자비스1"; font-size: 1.4rem; }
+    [data-testid="stSidebarNav"] li:first-child a p::before { content: "자비스1"; font-size: 1.15rem; }
     [data-testid="stSidebarNav"] ul { display: flex; flex-direction: column; }
     [data-testid="stSidebarNav"] li:nth-child(1) { order: 2; }
     [data-testid="stSidebarNav"] li:nth-child(2) { order: 1; }
@@ -30,9 +47,9 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(4) a p,
     [data-testid="stSidebarNav"] li:nth-child(5) a p,
     [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
-    [data-testid="stSidebarNav"] li:nth-child(4) a p::before { content: "미국테마"; font-size: 1.4rem; }
-    [data-testid="stSidebarNav"] li:nth-child(5) a p::before { content: "한국테마"; font-size: 1.4rem; }
-    [data-testid="stSidebarNav"] li:nth-child(6) a p::before { content: "테마 선행감지"; font-size: 1.4rem; }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p::before { content: "미국테마"; font-size: 1.15rem; }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p::before { content: "한국테마"; font-size: 1.15rem; }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p::before { content: "한국테마\\A(선행감지)"; white-space: pre; line-height: 1.2; font-size: 1.15rem; }
     .j5-note { border: 1px solid rgba(77,166,255,.45); background: rgba(37,99,235,.10);
         border-radius: .6rem; padding: .8rem 1rem; color: #9dccff; line-height: 1.65; }
     .j5-warn { color: #ffb020; font-weight: 800; }
@@ -110,7 +127,7 @@ st.markdown(
 def _login_gate() -> None:
     if st.session_state.get("authenticated"):
         return
-    st.markdown("## 자비스5 — 테마 선행감지")
+    st.markdown("## 자비스5 — 한국테마 선행감지")
     try:
         password = st.secrets.get("APP_PASSWORD")
     except Exception:
@@ -428,7 +445,7 @@ def _outcome_table_html(rows: list[dict]) -> str:
 
 def main() -> None:
     store.ensure_schema()
-    st.title("자비스5 — 테마 선행감지 (실험)")
+    st.title("자비스5 — 한국테마 선행감지 (실험)")
     st.markdown(
         "<div class='j5-note'><span class='j5-warn'>테스트용 관찰 도구입니다.</span> "
         "거래대금은 매수·매도 합계이므로 ‘자금 순유입’으로 표시하지 않습니다. "

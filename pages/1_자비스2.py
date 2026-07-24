@@ -19,12 +19,29 @@ st.set_page_config(page_title="자비스2 — 순환매 플레이북", layout="w
 st.markdown(
     """
     <style>
+    /* 왼쪽 메뉴는 좁게, 오른쪽 본문은 넓게 (2026-07-24 사용자 지시). j-narrow-sidebar */
+    [data-testid="stSidebar"],
+    section[data-testid="stSidebar"] {
+        width: 10rem !important; min-width: 10rem !important; max-width: 10rem !important;
+    }
+    [data-testid="stSidebar"] > div,
+    [data-testid="stSidebarContent"],
+    section[data-testid="stSidebar"] > div {
+        width: 10rem !important; min-width: 10rem !important;
+    }
+    /* 메뉴 글자가 만드는 자동 최소폭 때문에 사이드바가 안 좁아지는 것을 막는다 */
+    [data-testid="stSidebarNav"],
+    [data-testid="stSidebarNav"] ul,
+    [data-testid="stSidebarNav"] li,
+    [data-testid="stSidebarNav"] a { min-width: 0 !important; max-width: 100% !important; }
+    [data-testid="stSidebarNav"] a p { overflow-wrap: anywhere; }
+    [data-testid="stSidebarNav"] li { margin: 0 !important; }
     [data-testid="stSidebarNav"] a {
-        padding: 0.7rem 1rem !important;
+        padding: 0.45rem 0.6rem !important;
     }
     [data-testid="stSidebarNav"] a,
     [data-testid="stSidebarNav"] a * {
-        font-size: 1.4rem !important;
+        font-size: 1.15rem !important;
         font-weight: 800 !important;
         color: #ffb020 !important;
         line-height: 1.4 !important;
@@ -38,7 +55,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:first-child a p::before {
         content: "자비스1";
-        font-size: 1.4rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: #ffb020;
     }
@@ -58,7 +75,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
         content: "미국테마";
-        font-size: 1.4rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: #ffb020;
     }
@@ -70,7 +87,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:nth-child(5) a p::before {
         content: "한국테마";
-        font-size: 1.4rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: #ffb020;
     }
@@ -79,7 +96,7 @@ st.markdown(
     }
     [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
     [data-testid="stSidebarNav"] li:nth-child(6) a p::before {
-        content: "테마 선행감지"; font-size: 1.4rem; font-weight: 800; color: #ffb020;
+        content: "한국테마\\A(선행감지)"; white-space: pre; line-height: 1.2; font-size: 1.15rem; font-weight: 800; color: #ffb020;
     }
     /* 제목·지표 글자 한 치수 축소 (2026-07-17 사용자 요청) */
     h1 { font-size: 2.05rem !important; }
