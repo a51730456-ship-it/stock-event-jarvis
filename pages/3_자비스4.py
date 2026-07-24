@@ -237,7 +237,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 20260724
+_REQUIRED_J4_REVISION = 2026072402
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -802,6 +802,65 @@ def _kr_flow_hint() -> str:
     return f"기관 수급 반전: <b>{result.verdict_label}</b> · {result.headline}"
 
 
+def _render_day_price_row(metrics: dict) -> None:
+    """당일 가격 한 줄 — 현재가·전일 종가·시가·고가·저가·종가.
+
+    2026-07-24 사용자 요청: 차트 위 빈자리에 그날 가격을 한눈에 본다. 고가·저가는
+    전일 종가 대비 몇 %인지 함께 적고, 한국시장 색 규칙(+빨강 −파랑)을 쓴다.
+    """
+    prev_close = metrics.get("prev_close")
+    current = metrics.get("current")
+    day_open = metrics.get("day_open")
+    day_high = metrics.get("day_high")
+    day_low = metrics.get("day_low")
+    day_close = metrics.get("day_close")
+    intraday = j4data.is_regular_session()
+
+    def _vs_prev(value):
+        if value is None or not prev_close:
+            return None
+        return (float(value) / float(prev_close) - 1) * 100
+
+    def _cell(label, value, change, *, sub_text=None, value_color=None):
+        if value_color:
+            color = value_color
+        elif change is not None:
+            color = _sign_color(change)
+        else:
+            color = "#e6e6e6"
+        sub = (
+            f"<div class='j4-mc-sub' style='color:{_sign_color(change)}'>{_pct(change)}</div>"
+            if change is not None else
+            (f"<div class='j4-mc-sub j4-muted'>{sub_text}</div>" if sub_text else "")
+        )
+        return (
+            f"<div class='j4-mc'><div class='j4-mc-label'>{label}</div>"
+            f"<div class='j4-mc-val' style='color:{color}'>{_won(value)}</div>{sub}</div>"
+        )
+
+    title_note = "장중이라 고가·저가·종가는 지금까지의 값입니다" if metrics.get("day_is_today") else \
+        f"오늘 일봉이 아직 없어 마지막 거래일({metrics.get('last_date') or '—'}) 값입니다"
+    st.markdown(
+        "<div class='j4-chart-heading'>당일 가격 · 시가/고가/저가 한눈에 보기</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(f"고가·저가 옆 백분율은 전일 종가 대비입니다. {title_note}.")
+    cells = [
+        _cell("현재가", current, metrics.get("change_pct")),
+        _cell("전일 종가", prev_close, None, sub_text="어제 마감", value_color="#e6e6e6"),
+        _cell("당일 시가", day_open, _vs_prev(day_open)),
+        _cell("당일 고가", day_high, _vs_prev(day_high)),
+        _cell("당일 저가", day_low, _vs_prev(day_low)),
+        _cell(
+            "당일 종가" if not intraday else "당일 종가(장중)",
+            current if intraday else day_close,
+            _vs_prev(current if intraday else day_close),
+            sub_text=None,
+        ),
+    ]
+    st.markdown(f"<div class='j4-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+
+
 def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str) -> None:
     code = leader["code"]
     st.session_state["j4_selected_code"] = code
@@ -937,6 +996,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
             st.error(plan.get("buy_reason"))
         else:
             st.warning(plan.get("buy_reason"))
+
+    _render_day_price_row(metrics)
 
     st.markdown("<div class='j4-chart-heading'>가격 차트 · 일봉/주봉/월봉 한눈에 보기</div>", unsafe_allow_html=True)
     st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
@@ -1518,7 +1579,21 @@ def _render_pullback_finder() -> None:
         st.session_state.pop("j4_pullback_pick", None)
         st.session_state.pop("j4_pullback_pick_row", None)
         with st.spinner("전체 테마를 갱신하고 유동성 상위 50개를 확인하는 중입니다…"):
-            st.session_state["j4_pullback_result"] = j4data.find_pullback_stocks()
+            found = j4data.find_pullback_stocks()
+        st.session_state["j4_pullback_result"] = found
+        # 조회하자마자 1순위 종목 상세가 아래에 펼쳐지게 한다 — 누르지 않아도 된다
+        # (2026-07-24 사용자 지시). 위젯이 만들어지기 전에 반영해야 하므로 rerun한다.
+        top_row = (found.get("rows") or [None])[0] if found.get("ok") else None
+        top_themes = (top_row or {}).get("themes") or []
+        if top_row and top_themes:
+            forced = list(st.session_state.get("j4_forced_themes") or [])
+            if top_themes[0] not in forced:
+                forced.append(top_themes[0])
+            st.session_state["j4_forced_themes"] = forced
+            st.session_state["j4_pending_pick"] = (top_themes[0], top_row["code"])
+            st.session_state["j4_pullback_pick"] = (top_themes[0], top_row["code"])
+            st.session_state["j4_pullback_pick_row"] = top_row
+            st.rerun()
 
     result = st.session_state.get("j4_pullback_result")
     if result is None:

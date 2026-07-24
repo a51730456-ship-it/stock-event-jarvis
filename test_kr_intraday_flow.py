@@ -88,11 +88,17 @@ class StockReboundTest(unittest.TestCase):
         )
         self.assertIs(sig.status, SignalStatus.POSITIVE)
 
-    def test_low_recovery_above_threshold(self):
+    def test_low_recovery_below_open_is_not_positive(self):
+        """갭하락 후 저점에서만 튄 것은 '돌아섰다'가 아니다(2026-07-24 사용자 지적).
+
+        시가를 되찾기 전까지는 중립으로 둔다 — 그래야 '반도체는 돌아섰다' 문구가
+        갭하락 중인 날에 뜨지 않는다.
+        """
         sig = flow.evaluate_stock_rebound(
             "hynix", "SK하이닉스", {"current": 100900, "open": 102000, "low": 100000}
         )
-        self.assertIs(sig.status, SignalStatus.POSITIVE)
+        self.assertIs(sig.status, SignalStatus.NEUTRAL)
+        self.assertIn("시가 아래", sig.reason)
 
     def test_new_low_overrides_open_recovery(self):
         sig = flow.evaluate_stock_rebound(

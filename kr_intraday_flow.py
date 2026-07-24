@@ -454,8 +454,11 @@ def evaluate_stock_rebound(
         sig.status = SignalStatus.POSITIVE
         sig.reason = f"{label} 시가 회복"
     elif low_recovery_pct >= LOW_RECOVERY_POSITIVE_PCT:
-        sig.status = SignalStatus.POSITIVE
-        sig.reason = f"{label} 장중 저점 대비 {low_recovery_pct:.1f}% 회복"
+        # 갭하락한 날 저점에서만 튄 것을 '돌아섰다'로 부르면 안 된다 —
+        # 시가 아래에 있으면 아직 그날 흐름을 되돌린 것이 아니다(2026-07-24 사용자 지적:
+        # 삼성전자·SK하이닉스가 갭하락 중인데 '반도체는 돌아섰다'로 나왔다).
+        sig.status = SignalStatus.NEUTRAL
+        sig.reason = f"{label} 저점에서만 반등 (아직 시가 아래 · 저점 대비 +{low_recovery_pct:.1f}%)"
     elif low_recovery_pct >= LOW_RECOVERY_NEUTRAL_PCT:
         sig.status = SignalStatus.NEUTRAL
         sig.reason = f"{label} 저점 대비 소폭 회복 ({low_recovery_pct:.1f}%)"
@@ -688,7 +691,8 @@ def _watching_headline(non_arb, both_semis_up, samsung, hynix) -> str:
         if lagging:
             return f"비차익 매수는 들어오지만 {'·'.join(lagging)} 회복이 아직 없습니다."
     if both_semis_up:
-        return "반도체는 돌아섰지만 프로그램 수급 지속이 아직 확인되지 않았습니다."
+        # '돌아섰다'는 시가를 되찾은 경우에만 쓴다(저점에서만 튄 날과 구분).
+        return "반도체가 장중 시가를 되찾았지만 프로그램 수급 지속은 아직 확인되지 않았습니다."
     return "일부 신호만 돌아선 상태입니다. 추가 확인이 필요합니다."
 
 

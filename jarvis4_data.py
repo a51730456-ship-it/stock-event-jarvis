@@ -58,7 +58,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 20260724
+MODULE_REVISION = 2026072402
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -287,7 +287,26 @@ def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None)
         "atr": atr,
         "atr_pct": atr_pct,
         "last_date": last_date.isoformat(),
+        # 당일 시가·고가·저가·종가 (2026-07-24 사용자 요청: 상세에 당일 가격을 함께 본다).
+        # 장중에는 일봉 마지막 행이 오늘 행이라 '진행 중인 값'이고, 오늘 행이 아직
+        # 없으면 마지막 거래일 값이므로 day_is_today로 구분해 화면에서 알려준다.
+        **_day_prices(daily, last_date == today),
     }
+
+
+def _day_prices(daily: pd.DataFrame, is_today: bool) -> dict:
+    """일봉 마지막 행의 시가·고가·저가·종가를 꺼낸다."""
+    values = {"day_open": None, "day_high": None, "day_low": None,
+              "day_close": None, "day_is_today": bool(is_today)}
+    try:
+        last = daily.iloc[-1]
+    except Exception:
+        return values
+    for key, column in (("day_open", "Open"), ("day_high", "High"),
+                        ("day_low", "Low"), ("day_close", "Close")):
+        if column in daily.columns:
+            values[key] = _finite(last[column])
+    return values
 
 
 # ---------------------------------------------------------------------------
