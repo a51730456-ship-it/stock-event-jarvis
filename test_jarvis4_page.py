@@ -245,6 +245,9 @@ class Jarvis4PageTests(unittest.TestCase):
         # 나란히 서면 구별이 안 되므로 제목 색이 서로 달라야 한다.
         for color in (gauge_ui.TITLE_GREEN, gauge_ui.TITLE_GREEN_DEEP, gauge_ui.TITLE_BLUE):
             self.assertIn(color, top_row)
+        # <style>을 지표 줄 안에 넣으면 스트림릿이 그 덩어리를 HTML로 안 보고 글로
+        # 흘려버려 CSS가 글자로 찍힌다(2026-07-24 실제 깨짐). 반드시 따로 내보낸다.
+        self.assertNotIn("<style>", top_row)
         # 숫자가 두 군데 나오지 않게 '미국 전일' 부제에서는 뺐다.
         self.assertNotIn("공포탐욕 41", markdowns)
 

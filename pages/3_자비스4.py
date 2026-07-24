@@ -123,7 +123,8 @@ st.markdown(
     .j4-action-label { color: #4da6ff; font-weight: 800; }
     .j4-action-posture { color: #ff5b5b; font-weight: 800; }
     .j4-action-detail { color: #ff9d3b; font-weight: 800; }
-    .j4-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+    .j4-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
+        align-items: center; }
     .j4-top-cell { min-width: 150px; }
     /* 제목은 코발트, 값은 항목별 색 — 무엇이 제목이고 무엇이 결과인지 구분되게 한다
        (2026-07-22 사용자 지시). */
@@ -488,7 +489,7 @@ def _render_market_overview() -> None:
     # (2026-07-24 사용자 지시). 나란히 서면 구별이 안 되므로 제목 색을 다르게 준다 —
     # 시장 국면은 밝은 초록, 미국 전일은 진한 초록, 공포·탐욕은 파랑.
     top_cells = [
-        f"<style>{fear_greed_ui.CSS}</style>" + regime_gauge_ui.regime_box_html(overview),
+        regime_gauge_ui.regime_box_html(overview),
         _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"), sub_signed=True),
         _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"), sub_signed=True),
         _top_metric(
@@ -507,6 +508,9 @@ def _render_market_overview() -> None:
             us_prev.get("fear_greed_detail"), title="공포·탐욕 지수 (미국)"
         ),
     ]
+    # 게이지 스타일은 지표 줄과 따로 내보낸다 — 줄 안에 <style>을 끼워 넣으면
+    # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버린다(2026-07-24 실제 깨짐).
+    st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j4-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     st.markdown(
         f"""

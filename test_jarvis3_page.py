@@ -222,6 +222,9 @@ class Jarvis3PageTests(unittest.TestCase):
         top_row = next(value for value in markdowns if "<div class='j3-top-row'>" in value)
         self.assertIn("fg-box", top_row)
         self.assertIn("공포·탐욕 지수", top_row)
+        # <style>을 지표 줄 안에 넣으면 스트림릿이 그 덩어리를 HTML로 안 보고 글로
+        # 흘려버려 CSS가 글자로 찍힌다(2026-07-24 실제 깨짐). 반드시 따로 내보낸다.
+        self.assertNotIn("<style>", top_row)
         self.assertFalse(any(">장 상태<" in value for value in markdowns))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 

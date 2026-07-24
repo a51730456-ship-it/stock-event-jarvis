@@ -142,17 +142,19 @@ def box_html(
 
 
 CSS = """
+/* 상단 지표 줄에는 게이지 박스가 최대 세 개까지 들어간다. 폭이 넓으면 줄이
+   넘어가므로 필요한 만큼만 차지하게 한다(2026-07-24 실측 후 조정). */
 .fg-box { border: 1px solid rgba(255,255,255,0.12); border-radius: 0.6rem;
-    background: rgba(255,255,255,0.03); padding: 0.5rem 0.7rem 0.45rem;
+    background: rgba(255,255,255,0.03); padding: 0.45rem 0.6rem 0.4rem;
     display: inline-block; }
 .fg-box-title { font-size: 0.92rem; font-weight: 800; margin-bottom: 0.1rem; }
-.fg-box-body { display: flex; align-items: center; gap: 0.9rem; }
+.fg-box-body { display: flex; align-items: center; gap: 0.6rem; }
 .fg-box-gauge { flex: 0 0 auto; }
-.fg-box-gauge .fg-gauge { width: 132px; height: 88px; }
+.fg-box-gauge .fg-gauge { width: 124px; height: 83px; }
 .fg-box-gauge .fg-score { font-size: 46px; }
 .fg-box-gauge .fg-zone { font-size: 20px; }
 .fg-box-gauge .fg-tick { font-size: 14px; }
-.fg-box-hist { min-width: 168px; }
+.fg-box-hist { min-width: 132px; }
 .fg-score { font-weight: 800; }
 .fg-zone { font-weight: 800; }
 .fg-tick { fill: #9aa0aa; font-weight: 700; }

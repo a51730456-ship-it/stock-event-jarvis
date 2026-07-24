@@ -140,7 +140,8 @@ st.markdown(
     .j3-action-label { color: #4da6ff; font-weight: 800; }
     .j3-action-posture { color: #ff5b5b; font-weight: 800; }
     .j3-action-detail { color: #ff9d3b; font-weight: 800; }
-    .j3-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+    .j3-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
+        align-items: center; }
     .j3-top-cell { min-width: 150px; }
     .j3-top-label { color: #9aa0aa; font-size: 0.9rem; }
     .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
@@ -862,12 +863,16 @@ def _render_market_overview() -> None:
     top_cells = [
         # 시장 국면도 공포·탐욕과 같은 반원 게이지로 통일한다 — 국면 이름만 크게
         # 적으면 '방어 우선'이 25점인지 49점인지 알 수 없다(2026-07-24 사용자 지시).
-        f"<style>{fear_greed_ui.CSS}</style>" + regime_gauge_ui.regime_box_html(overview),
+        regime_gauge_ui.regime_box_html(overview),
         _top_metric("SPY", _price(spy_row.get("current")), "#e6e6e6", spy_row.get("change_pct"), sub_signed=True),
         _top_metric("QQQ", _price(qqq_row.get("current")), "#e6e6e6", qqq_row.get("change_pct"), sub_signed=True),
         _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b"),
         _fear_greed_box(),
     ]
+    # 게이지 스타일은 지표 줄과 따로 내보낸다. 줄 안에 <style>을 끼워 넣으면
+    # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버려서, CSS가 글자로
+    # 찍히고 SPY·QQQ의 '$' 두 개가 수식으로 잡혔다(2026-07-24 실제 깨짐).
+    st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     st.markdown(
         f"""
@@ -908,7 +913,7 @@ def _fear_greed_box() -> str:
     """
     fetcher = getattr(j3data, "get_fear_greed", None)
     data = fetcher() if fetcher else {"ok": False}
-    return f"<style>{fear_greed_ui.CSS}</style>" + fear_greed_ui.box_html(data)
+    return fear_greed_ui.box_html(data)
 
 
 @st.fragment(run_every=60)
