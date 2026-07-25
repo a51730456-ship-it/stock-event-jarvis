@@ -1816,10 +1816,14 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         # (2026-07-24 사용자 지시). 등락은 미국장 색 규칙(+파랑 −빨강)으로 진하게.
         current_price = row["metrics"].get("current")
         change_pct = row["metrics"].get("change_pct")
+        # 가격과 등락을 두 줄로 쌓는다 — 한 줄이면 좁은 화면(태블릿)에서 폭이 넘쳐
+        # 옆 칸 값과 겹쳤다(2026-07-25). 값은 그대로, 배치만 바꾼다.
         cols[6].markdown(
-            f"<div class='j3-td' style='font-weight:800; color:#e6e6e6'>{_price(current_price)}"
-            f"<span style='color:{_sign_color(change_pct)}; font-weight:800'>"
-            f" {_pct(change_pct)}</span></div>",
+            f"<div class='j3-td' style='font-weight:800; color:#e6e6e6'>"
+            f"<span style='display:inline-flex; flex-direction:column; align-items:center; line-height:1.12'>"
+            f"<span>{_price(current_price)}</span>"
+            f"<span style='color:{_sign_color(change_pct)}; font-weight:800; font-size:.82rem'>"
+            f"{_pct(change_pct)}</span></span></div>",
             unsafe_allow_html=True,
         )
         cols[7].markdown(

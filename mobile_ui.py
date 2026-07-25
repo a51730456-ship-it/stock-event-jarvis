@@ -43,6 +43,7 @@ def table_css(button_prefix: str, total: int, keep: dict[int, str], cell_class: 
     cell_class    : 값 칸에 붙은 클래스(j3-td / j4-td)
     """
     row = f"{_BLOCK}:has(div[class*='st-key-{button_prefix}'])"
+    bar_class = cell_class.split("-")[0] + "-barwrap"  # j3-td -> j3-barwrap
     rules = [
         # 종목 사이를 선으로 나눠 카드처럼 보이게 한다.
         f"{row} {{ border-bottom: 1px solid rgba(255,255,255,0.14) !important;"
@@ -50,6 +51,11 @@ def table_css(button_prefix: str, total: int, keep: dict[int, str], cell_class: 
         # 쌓인 칸은 낮고 왼쪽 정렬로 — 가운데 정렬이면 이름표와 값이 흩어져 보인다.
         f"{row} .{cell_class} {{ min-height: 1.65rem !important;"
         " justify-content: flex-start !important; text-align: left !important; }",
+        # 점수 막대 칸: 폰에서는 값 앞에 이름표가 붙는데, 막대가 폭 100%를 다
+        # 먹으면 이름표 자리가 없어 한 글자씩 세로로 쪼개진다("눌림"→"눌"/"림").
+        # 막대를 이름표 옆에서 줄어들게 해 한 줄에 나란히 둔다.
+        f"{row} .{bar_class} {{ width: auto !important; flex: 1 1 auto;"
+        " min-width: 0 !important; }",
         # 종목 이름 버튼은 한 줄을 다 쓰고 크게.
         f"{row} div[class*='st-key-{button_prefix}'] button p"
         " { font-size: 1.02rem !important; }",
@@ -66,7 +72,7 @@ def table_css(button_prefix: str, total: int, keep: dict[int, str], cell_class: 
         rules.append(
             f"{row} > div:nth-child({index}) [data-testid='stMarkdownContainer'] > div::before"
             f" {{ content: '{label} '; color: #9aa0aa; font-weight: 700;"
-            " margin-right: .35rem; font-size: .82rem; }"
+            " margin-right: .35rem; font-size: .82rem; white-space: nowrap; }"
         )
     return "\n".join(rules)
 
