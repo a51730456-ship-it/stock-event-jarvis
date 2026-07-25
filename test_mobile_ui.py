@@ -121,8 +121,6 @@ class RealPageMappingTests(unittest.TestCase):
     # 2026-07-25부터 폰에서도 칸을 감추지 않는다 — 감췄더니 "다른 항목은 어디
     # 갔나"라는 말이 나왔다. 그래서 남길 칸 = 표의 전체 칸이다.
     CASES = (
-        ("자비스3 테마표", 8, set(range(1, 9))),
-        ("자비스3 눌림목표", 12, set(range(1, 13))),
     )
 
     def test_every_column_stays_visible_on_phones(self):
@@ -139,7 +137,7 @@ class RealPageMappingTests(unittest.TestCase):
 
         root = pathlib.Path(__file__).parent
         # 자비스4 눌림목표는 세로로 쌓지 않고 옆으로 밀어 보므로 칸 규칙이 없다.
-        expected = {"j3tbtn_": 8, "j3pbf_": 12}
+        expected = {}
         sources = "\n".join(
             (root / name).read_text(encoding="utf-8")
             for name in ("pages/2_자비스3.py", "pages/3_자비스4.py")

@@ -308,8 +308,14 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(css[: len("<style>")], "<style>")
         self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
         phone_block = css[css.index("@media (max-width: 600px)"):]
-        for key in ("st-key-j3tbtn_", "st-key-j3pbf_", "j3-th-head", ".fg-box { order"):
-            self.assertIn(key, phone_block)
+        # 두 표는 세로로 쌓지 않고 옆으로 밀어 보므로 표·머리글 규칙이 폰 규칙에 없다.
+        self.assertIn(".fg-box { order", phone_block)
+        self.assertNotIn("st-key-j3pbf_", phone_block)
+        # 대신 표를 감싸는 스크롤 상자가 페이지에 있어야 한다.
+        page_source = PAGE.read_text(encoding="utf-8")
+        self.assertIn('st.container(key="j3_theme_table")', page_source)
+        self.assertIn('st.container(key="j3_pullback_table")', page_source)
+        self.assertIn(".st-key-j3_pullback_table", page_source)
         # 메뉴 규칙은 폰 묶음 밖(태블릿까지)에 있어야 한다.
         self.assertNotIn("stSidebarNav", phone_block)
 

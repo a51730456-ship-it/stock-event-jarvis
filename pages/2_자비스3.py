@@ -180,6 +180,21 @@ st.markdown(
         border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 2.5rem;
         display: flex; align-items: center; justify-content: center; }
     .j3-td > .j3-barwrap { width: 100%; }
+    /* 좁은 화면에서는 칸을 쥐어짜 글자를 자르는 대신 표를 원래 폭으로 두고
+       손가락으로 옆으로 민다(2026-07-25 사용자 지시). 화면 전체는 안 밀린다. */
+    .st-key-j3_pullback_table,
+    .st-key-j3_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 1200px) {
+        .st-key-j3_pullback_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1150px;
+        }
+        .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 900px;
+        }
+        .st-key-j3_pullback_table [data-testid="stColumn"],
+        .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
+    }
+    .j3-td { white-space: nowrap; }
     div[class*="st-key-j3tbtn_"] button {
         background: transparent !important;
         border: none !important;
@@ -446,7 +461,9 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     나머지 칸은 HTML이라 가운데 정렬·색·막대를 그대로 쓸 수 있다.
     """
     titles = ["순위", "테마", "ETF", "조건점수", "상태", "당일", "20일 상대강도", "구성종목 확산"]
-    for column, title in zip(st.columns(_THEME_COL_WIDTHS), titles):
+    # 폰·태블릿에서 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25, 한국테마와 같은 방식).
+    theme_box = st.container(key="j3_theme_table")
+    for column, title in zip(theme_box.columns(_THEME_COL_WIDTHS), titles):
         column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
 
     # 테마명 버튼 색을 상태색과 맞춘다(선택된 테마는 주황 배경으로 표시).
@@ -464,7 +481,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
         )
     for index, row in enumerate(all_rows):
-        target = st if index < _THEME_VISIBLE_COUNT or rest_box is None else rest_box
+        target = theme_box if index < _THEME_VISIBLE_COUNT or rest_box is None else rest_box
         name = row.get("name", "")
         color = _STATUS_HEX.get(row.get("status", ""), "#e6e6e6")
         button_key = f"j3tbtn_{index:02d}"
@@ -1812,7 +1829,9 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         "순위", "종목", "티커", "눌림 점수", "종목 조건점수", "신고가", "당일주가", "고점 대비",
         "20일선 이격", "평균 거래대금", "소속 테마", "테마 가산",
     ]
-    for column, title in zip(st.columns(widths), titles):
+    # 머리글과 줄이 같이 밀려야 하므로 한 상자에 담는다(2026-07-25).
+    table_box = st.container(key="j3_pullback_table")
+    for column, title in zip(table_box.columns(widths), titles):
         column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
 
     # 표의 '종목 조건점수'는 아래 상세와 같은 계산이어야 한다 — 같은 함수·같은 기준(SPY 20일)을 쓴다.
@@ -1833,7 +1852,7 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         avg_value = row["metrics"].get("avg_dollar_volume")
         theme_bonus = float((quality.get("parts") or [0])[-1])
         themes = " · ".join(row.get("themes") or []) or "—"
-        cols = st.columns(widths)
+        cols = table_box.columns(widths)
         cols[0].markdown(
             f"<div class='j3-td j3-muted'>{int(row['pullback_rank'])}</div>",
             unsafe_allow_html=True,
@@ -2160,23 +2179,9 @@ def _render_method_tab() -> None:
 
 def main() -> None:
     st.markdown(
-        mobile_ui.page_css(
-            # 머리글 줄은 폰에서 감춘다 — 세로로 쌓이면 제목만 여러 줄이 된다.
-            mobile_ui.hide_header_rows("j3-th-head"),
-            # 테마표(8칸) — 폰에서도 칸을 감추지 않는다. 감췄더니 "다른 항목은
-            # 어디 갔나"라는 말이 나왔다(2026-07-25). 겹침이 해결돼 세로로 쌓아도
-            # 읽히므로 전부 보여주고 이름표만 붙인다.
-            mobile_ui.table_css("j3tbtn_", 8, {
-                1: "순위", 2: "", 3: "ETF", 4: "조건점수", 5: "상태", 6: "당일",
-                7: "20일 상대강도", 8: "구성종목 확산",
-            }, "j3-td"),
-            # 눌림목표(12칸) — 위와 같은 이유로 전부 보여준다.
-            mobile_ui.table_css("j3pbf_", 12, {
-                1: "순위", 2: "", 3: "티커", 4: "눌림", 5: "종목점수", 6: "신고가",
-                7: "현재가", 8: "고점 대비", 9: "20일선 이격", 10: "평균 거래대금",
-                11: "소속 테마", 12: "테마 가산",
-            }, "j3-td"),
-        ),
+        # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
+        # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
+        mobile_ui.page_css(),
         unsafe_allow_html=True,
     )
     st.title("자비스3 — 미국 테마 레이더")
