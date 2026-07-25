@@ -304,7 +304,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072511
+_REQUIRED_J4_REVISION = 2026072512
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -979,7 +979,7 @@ def _kr_index_payload(symbol: str) -> dict:
     네이버 분봉 조회를 지수에도 그대로 쓴다.
     """
     try:
-        payload = j4data.get_intraday_chart(symbol)
+        payload = j4data.get_last_session_intraday(symbol)
     except Exception:
         return {}
     if not isinstance(payload, dict) or not payload.get("ok"):
@@ -1000,14 +1000,9 @@ def _kr_index_chart(symbol: str, fallback: str) -> dict:
     주말에는 네이버 분봉이 비어 있어 '분봉 데이터가 없습니다'가 온다. 그때는
     최근 일봉 흐름을 쓰고 기준선도 그 구간 첫 종가로 맞춰 그림과 어긋나지 않게 한다.
     """
-    payload = _kr_index_payload(symbol)
-    if payload:
-        return payload
-    try:
-        points = j4data.get_index_sparkline(fallback)
-    except Exception:
-        return {}
-    return {"points": points, "base": points[0]} if len(points) >= 2 else {}
+    # 분봉을 못 구하면 그리지 않는다 — 30일 일봉으로 대신 그렸더니 '기준선 위로
+    # 간 적이 없는데 빨간 구간이 있다'는 지적을 받았다(2026-07-25).
+    return _kr_index_payload(symbol)
 
 
 def _us_index_cells() -> list:

@@ -60,7 +60,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072511
+MODULE_REVISION = 2026072512
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1280,14 +1280,29 @@ _MINUTE_URL = (
 _MINUTE_ROW_PATTERN = re.compile(r'\["(\d{12})",[^,]*,[^,]*,[^,]*,\s*([\d.]+)')
 
 
-def get_intraday_chart(code: str, *, ttl_seconds: float = 60) -> dict | None:
+def get_last_session_intraday(code: str, back_days: int = 5) -> dict | None:
+    """마지막으로 열린 장의 분봉. 주말·휴장이면 하루씩 거슬러 올라가며 찾는다.
+
+    2026-07-25: 주말에 분봉이 없다고 30일 일봉으로 대신 그렸더니 '코스피가 기준가
+    위로 간 적이 없는데 빨간 구간이 있다'는 지적을 받았다. 그림은 언제나 '하루치
+    분봉 + 그 전날 종가'여야 한다. 자료가 없으면 그리지 않는다(틀린 그림보다 낫다).
+    """
+    for back in range(back_days + 1):
+        day = (datetime.now(_SEOUL) - timedelta(days=back)).strftime("%Y%m%d")
+        payload = get_intraday_chart(code, day=day)
+        if isinstance(payload, dict) and payload.get("ok"):
+            return payload
+    return None
+
+
+def get_intraday_chart(code: str, *, ttl_seconds: float = 60, day: str | None = None) -> dict | None:
     """당일 분봉 흐름(네이버 siseJson). 자비스3의 당일 차트와 같은 역할이다.
 
     FinanceDataReader는 분봉을 주지 않아서 네이버 차트 API를 쓴다. 응답은 JSON이 아니라
     파이썬 리터럴 형식이고 시가·고가·저가는 null이라 종가만 뽑아 쓴다.
     """
     code = str(code).strip()
-    day = datetime.now(_SEOUL).strftime("%Y%m%d")
+    day = day or datetime.now(_SEOUL).strftime("%Y%m%d")
 
     def _produce():
         text = _get_text(_MINUTE_URL.format(code=code, day=day), timeout=8)
