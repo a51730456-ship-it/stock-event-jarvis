@@ -146,18 +146,23 @@ st.markdown(
        두고 손가락으로 옆으로 밀어 본다(2026-07-25 사용자 지시). 화면 전체는 안 밀린다. */
     .j4-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     /* 눌림목 표도 같은 방식 — 좁은 화면에서 줄이 접히지 않게 폭을 지키고 옆으로 민다. */
-    .st-key-j4_pullback_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .st-key-j4_pullback_table,
+    .st-key-j4_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
         .st-key-j4_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1180px;
         }
-        .st-key-j4_pullback_table [data-testid="stColumn"] { min-width: 0 !important; }
+        .st-key-j4_theme_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 900px;
+        }
+        .st-key-j4_pullback_table [data-testid="stColumn"],
+        .st-key-j4_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     @media (max-width: 1200px) {
         .j4-table-scroll .j4-theme-table { min-width: 980px; }
     }
     .j4-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
-    .j4-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
+    .j4-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; }
     .j4-theme-table td.j4-th-name { text-align: left; padding-left: 1.2rem; font-weight: 800; }
     /* 값이 칸 폭에 걸려 두 줄로 접히면 표가 통째로 흔들린다(2026-07-25 태블릿 실측:
        '+0.00 %', '0058 30'처럼 접혔다). 숫자·점은 한 줄로 붙들고 종목명만 줄바꿈을 허용한다. */
@@ -602,7 +607,9 @@ def _render_market_overview() -> None:
 def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     """테마표를 그리고, 테마 이름 버튼이 눌리면 그 테마명을 돌려준다(자비스3와 같은 방식)."""
     titles = ["순위", "테마", "종목수", "조건점수", "상태", "당일", "KOSPI 대비", "구성종목 확산"]
-    for column, title in zip(st.columns(_THEME_COL_WIDTHS), titles):
+    # 폰에서도 태블릿처럼 옆으로 밀어 본다(2026-07-25 사용자 지시).
+    theme_box = st.container(key="j4_theme_table")
+    for column, title in zip(theme_box.columns(_THEME_COL_WIDTHS), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
 
     button_css = []
@@ -615,7 +622,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
         )
     for index, row in enumerate(all_rows):
-        target = st if index < _THEME_VISIBLE_COUNT or rest_box is None else rest_box
+        target = theme_box if index < _THEME_VISIBLE_COUNT or rest_box is None else rest_box
         name = row.get("name", "")
         color = _STATUS_HEX.get(row.get("status", ""), "#e6e6e6")
         button_key = f"j4tbtn_{index:02d}"
@@ -861,7 +868,10 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     unsafe_allow_html=True,
                 )
                 if flow.get("ok"):
-                    st.caption(f"외국인+기관 5일 {_eok(flow.get('net5_amount'))} · 연속 {flow.get('buy_streak_days', 0)}일")
+                    st.caption(
+                        f"외국인+기관 5일 {_eok(flow.get('net5_amount'))} · 동반 "
+                        f"{int(flow.get('both_buy_days5') or 0)}/{int(flow.get('window5') or 0)}일"
+                    )
                 st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
             bundle = j4data.get_chart_bundle(leader["code"])
             charts = bundle.get("charts", {}) if bundle.get("ok") else {}
@@ -1058,7 +1068,9 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         f"<div class='j4-mc'><div class='j4-mc-label'>외국인+기관 5일</div>"
         f"<div class='j4-mc-val {_sign_class(flow.get('net5_amount') if flow.get('ok') else None)}'>"
         f"{_eok(flow.get('net5_amount')) if flow.get('ok') else '—'}</div>"
-        f"<div class='j4-mc-sub j4-muted'>연속 {flow.get('buy_streak_days', 0)}일</div></div>",
+        f"<div class='j4-mc-sub j4-muted'>동반 {int(flow.get('both_buy_days5') or 0)}"
+        f"/{int(flow.get('window5') or 0)}일 · 20일 {int(flow.get('both_buy_days20') or 0)}"
+        f"/{int(flow.get('both_sell_days20') or 0)}/{int(flow.get('window20') or 0)}</div></div>",
         f"<div class='j4-mc'><div class='j4-mc-label'>종목 조건점수</div>"
         f"<div class='j4-mc-val j4-green'>{float(leader.get('score') or 0):.1f}/100</div>"
         f"<div class='j4-mc-sub j4-muted'>{plan.get('state', '')}</div></div>",
@@ -1992,15 +2004,9 @@ def _render_method_tab() -> None:
 def main() -> None:
     st.markdown(
         mobile_ui.page_css(
-            mobile_ui.hide_header_rows("j4-th-head"),
-            # 테마표(8칸) — 폰에서는 테마·점수·상태·당일만 남긴다.
-            mobile_ui.table_css("j4tbtn_", 8, {
-                1: "순위", 2: "", 3: "종목수", 4: "조건점수", 5: "상태", 6: "당일",
-                7: "KOSPI 대비", 8: "구성종목 확산",
-            }, "j4-td"),
-            # 눌림목표(12칸) — 미국테마와 같이 폰에서도 전부 보여준다(2026-07-25).
-            # 눌림목 표는 폰에서도 세로로 쌓지 않고 옆으로 밀어서 본다(2026-07-25
-            # 사용자 지시). 그래서 여기에 칸 규칙을 두지 않는다.
+            # 폰 머리글을 숨기던 규칙은 뺐다 — 세로로 쌓던 시절 규칙이라, 옆으로
+            # 밀어 보는 지금은 '종목·눌림 점수·신고가…'가 안 보였다(2026-07-25 지적).
+            # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 보므로 칸 규칙도 두지 않는다.
         ),
         unsafe_allow_html=True,
     )

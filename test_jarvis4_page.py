@@ -271,7 +271,9 @@ class Jarvis4PageTests(unittest.TestCase):
         phone_block = css[css.index("@media (max-width: 600px)"):]
         # 표 두 개와 머리글, 게이지 순서 규칙이 모두 들어 있어야 한다.
         # 눌림목 표(j4pbf_)는 세로로 쌓지 않고 옆으로 밀어 보므로 폰 규칙에 없다.
-        for key in ("st-key-j4tbtn_", "j4-th-head", ".fg-box { order"):
+        # 자비스4의 두 표는 세로로 쌓지 않고 옆으로 밀어 보므로 표 규칙이 폰 규칙에 없다.
+        # 머리글도 숨기지 않는다 — 숨겼더니 폰에서 '종목·눌림 점수'가 안 보였다.
+        for key in (".fg-box { order",):
             self.assertIn(key, phone_block)
         self.assertNotIn("stSidebarNav", phone_block)
 
@@ -513,7 +515,8 @@ class PartnerFlowColumnTests(unittest.TestCase):
         self.assertIn("j4-table-scroll", blob)
         self.assertIn("min-width: 980px", blob)
         # 눌림목표: 상자가 스크롤되고 줄이 접히지 않아야 한다
-        self.assertIn(".st-key-j4_pullback_table { overflow-x: auto", blob)
+        self.assertIn(".st-key-j4_theme_table { overflow-x: auto", blob)
+        self.assertIn("min-width: 900px", blob)
         self.assertIn("flex-wrap: nowrap !important; min-width: 1180px", blob)
         # 필터 체크박스가 있어야 한다
         self.assertTrue(
