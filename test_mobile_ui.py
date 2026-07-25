@@ -15,10 +15,11 @@ class MediaQueryTests(unittest.TestCase):
     def test_no_rule_sits_outside_a_media_query(self):
         """규칙이 미디어쿼리 밖으로 새면 PC 화면까지 바뀐다.
 
-        미디어쿼리는 둘이다 — 표·글자는 폰(600px), 메뉴는 태블릿까지(1200px).
+        미디어쿼리는 셋이다 — 메뉴·상단 지표 줄은 태블릿까지(1200px),
+        표·글자는 폰(600px).
         """
         css = m.page_css(m.table_css("x_", 4, {2: "이름"}, "j3-td"))
-        self.assertEqual(css.count("@media"), 2)
+        self.assertEqual(css.count("@media"), 3)
         # <style> 바로 뒤부터 첫 @media 앞까지 규칙이 있으면 안 된다.
         head = css[len("<style>"): css.index("@media")]
         self.assertEqual(head.strip(), "")
@@ -27,9 +28,12 @@ class MediaQueryTests(unittest.TestCase):
         """표·글자 규칙은 폰(600px) 묶음 안에 있어야 태블릿이 안 바뀐다."""
         css = m.page_css(m.table_css("x_", 4, {2: "이름"}, "j3-td"))
         phone_block = css[css.index(f"@media (max-width: {m.PHONE_MAX_WIDTH}px)"): css.rindex("}</style>")]
-        self.assertIn(".fg-box", phone_block)
         self.assertIn(".j3-theme-table", phone_block)
         self.assertNotIn("stSidebarNav", phone_block)
+        # 상단 지표 줄은 태블릿까지 걸려야 하므로 폰 묶음 안에 있으면 안 된다.
+        self.assertNotIn(".fg-box", phone_block)
+        tablet_block = css[css.index(f"@media (max-width: {m.SIDEBAR_MAX_WIDTH}px)", css.index("stSidebarNav")):]
+        self.assertIn(".fg-box", tablet_block[: tablet_block.index("@media (max-width: 600px)")])
 
     def test_phone_breakpoint_excludes_galaxy_tab_s8_plus(self):
         """갤럭시탭 S8+는 1138px이라 폰 규칙에 걸리면 안 된다."""

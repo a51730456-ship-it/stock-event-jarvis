@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026072502
+MODULE_REVISION = 2026072507
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -108,7 +108,9 @@ SIDEBAR_NAV_CSS = f"""
 }}
 """
 
-# 상단 지표 줄 — 폰에서 숫자는 2열로, 게이지는 한 줄에 하나씩 작게.
+# 상단 지표 줄 — 숫자는 2열로, 게이지는 한 줄에 하나씩.
+# 태블릿까지(≤1200px) 걸리게 따로 뺐다 — 폰은 정갈한데 태블릿만 흩어져 보인다는
+# 지적을 따랐다(2026-07-25). 표·글자 규칙(600px)과 기준이 달라 분리해 둔다.
 TOP_ROW_CSS = """
 .j3-top-row, .j4-top-row { gap: 0.8rem 1rem; }
 .j3-top-cell, .j4-top-cell { min-width: calc(50% - 0.6rem); }
@@ -179,7 +181,8 @@ def page_css(*table_rules: str) -> str:
         # 메뉴 규칙은 태블릿까지(≤1200px) 걸려야 해서 폰 묶음 밖에 따로 둔다.
         # 안에 넣으면 두 미디어쿼리가 겹쳐 600px로 좁아진다.
         "<style>" + SIDEBAR_NAV_CSS
+        + f"@media (max-width: {SIDEBAR_MAX_WIDTH}px) {{" + TOP_ROW_CSS + "}"
         + f"@media (max-width: {PHONE_MAX_WIDTH}px) {{"
-        + TOP_ROW_CSS + THEME_TABLE_CSS + CONTENT_CSS + "".join(table_rules)
+        + THEME_TABLE_CSS + CONTENT_CSS + "".join(table_rules)
         + "}</style>"
     )

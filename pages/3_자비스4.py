@@ -176,7 +176,10 @@ st.markdown(
     .j4-bar-fill { height: 8px; background: #ff5b5b; }
     .j4-bar-green { background: #44f0a1; }
     .j4-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
-    .j4-th-head { text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
+    /* 제목이 두 줄이 되면 한 줄짜리와 밑줄이 어긋났다(2026-07-25 사용자 지적).
+       모두 같은 높이를 갖고 글자는 아래에 붙여 밑줄을 한 줄로 맞춘다. */
+    .j4-th-head { display: flex; align-items: flex-end; justify-content: center;
+        min-height: 3.1rem; text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
         padding: 0.45rem 0 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.22); }
     .j4-td { text-align: center; color: #e6e6e6; font-size: 0.92rem; padding: 0;
         border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 2.5rem;
@@ -281,7 +284,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026072502
+_REQUIRED_MOBILE_REVISION = 2026072507
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import regime_gauge_ui
@@ -572,8 +575,11 @@ def _render_market_overview() -> None:
     # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버린다(2026-07-24 실제 깨짐).
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j4-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
-    st.markdown(
-        f"""
+    # 긴 설명은 접어 둔다 — 폰·태블릿에서 이 글이 첫 화면을 다 먹었다
+    # (2026-07-25 사용자 지시, 미국테마와 같은 방식). 값·판정은 그대로다.
+    with st.expander("조건점수·시장 상태 설명 보기", expanded=False):
+        st.markdown(
+            f"""
         <div class="j4-score-guide">
             <span style="color:#4da6ff">조건점수</span>
             <span style="color:{regime_color}">{overview['score']}/100</span>
@@ -588,6 +594,11 @@ def _render_market_overview() -> None:
             (0 극단적 공포 ~ 100 극단적 탐욕)이며 참고용입니다. 한국장 조건점수·매수 판정에는
             반영하지 않습니다.</span>
         </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        f"""
         <div class="j4-market-flow">
             <span class="j4-flow-label">시장 전체 흐름</span> : <span class="j4-flow-body">{_market_flow_text(overview)}</span>
         </div>

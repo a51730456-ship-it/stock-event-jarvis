@@ -304,12 +304,16 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(len(blocks), 1)
         css = blocks[0]
         # 미디어쿼리는 둘이다 — 메뉴는 태블릿까지(1200px), 표·글자는 폰만(600px).
-        self.assertEqual(css.count("@media"), 2)
+        # 미디어쿼리는 셋 — 메뉴·상단 지표 줄은 태블릿까지(1200px), 표·글자는 폰(600px).
+        self.assertEqual(css.count("@media"), 3)
         self.assertEqual(css[: len("<style>")], "<style>")
         self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
         phone_block = css[css.index("@media (max-width: 600px)"):]
         # 두 표는 세로로 쌓지 않고 옆으로 밀어 보므로 표·머리글 규칙이 폰 규칙에 없다.
-        self.assertIn(".fg-box { order", phone_block)
+        # 상단 지표 줄(.fg-box)은 태블릿까지 걸리게 1200px 묶음으로 옮겼다.
+        self.assertNotIn(".fg-box { order", phone_block)
+        self.assertIn(".fg-box { order", css)
+        self.assertIn("@media (max-width: 1200px)", css)
         self.assertNotIn("st-key-j3pbf_", phone_block)
         # 대신 표를 감싸는 스크롤 상자가 페이지에 있어야 한다.
         page_source = PAGE.read_text(encoding="utf-8")

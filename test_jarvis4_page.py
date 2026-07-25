@@ -265,7 +265,8 @@ class Jarvis4PageTests(unittest.TestCase):
         css = blocks[0]
         # 미디어쿼리 밖에 규칙이 새면 PC까지 바뀐다. 미디어쿼리는 둘이다 —
         # 메뉴는 태블릿까지(1200px), 표·글자는 폰만(600px).
-        self.assertEqual(css.count("@media"), 2)
+        # 미디어쿼리는 셋 — 메뉴·상단 지표 줄은 태블릿까지(1200px), 표·글자는 폰(600px).
+        self.assertEqual(css.count("@media"), 3)
         self.assertEqual(css[: len("<style>")], "<style>")
         self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
         phone_block = css[css.index("@media (max-width: 600px)"):]
@@ -273,8 +274,10 @@ class Jarvis4PageTests(unittest.TestCase):
         # 눌림목 표(j4pbf_)는 세로로 쌓지 않고 옆으로 밀어 보므로 폰 규칙에 없다.
         # 자비스4의 두 표는 세로로 쌓지 않고 옆으로 밀어 보므로 표 규칙이 폰 규칙에 없다.
         # 머리글도 숨기지 않는다 — 숨겼더니 폰에서 '종목·눌림 점수'가 안 보였다.
-        for key in (".fg-box { order",):
-            self.assertIn(key, phone_block)
+        # 상단 지표 줄(.fg-box)은 태블릿까지 걸리게 1200px 묶음으로 옮겼다.
+        self.assertNotIn(".fg-box { order", phone_block)
+        self.assertIn(".fg-box { order", css)
+        self.assertIn("@media (max-width: 1200px)", css)
         self.assertNotIn("stSidebarNav", phone_block)
 
 

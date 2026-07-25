@@ -172,7 +172,10 @@ st.markdown(
     .j3-bar-green { background: #44f0a1; }
     .j3-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
     /* 클릭 가능한 테마표: 머리글·칸은 가운데 정렬, 테마명은 버튼 */
-    .j3-th-head { text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
+    /* 제목이 두 줄이 되면 한 줄짜리와 밑줄이 어긋났다(2026-07-25 사용자 지적).
+       모두 같은 높이를 갖고 글자는 아래에 붙여 밑줄을 한 줄로 맞춘다. */
+    .j3-th-head { display: flex; align-items: flex-end; justify-content: center;
+        min-height: 3.1rem; text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
         padding: 0.45rem 0 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.22); }
     /* 테마명 버튼 행과 나머지 HTML 칸의 세로 라인을 맞춘다(2026-07-22 사용자 지시:
        "Line 일치시킬 것") — 양쪽 다 같은 고정 높이(2.5rem)에 수직 가운데 정렬. */
@@ -335,7 +338,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026072502
+_REQUIRED_MOBILE_REVISION = 2026072507
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import regime_gauge_ui
