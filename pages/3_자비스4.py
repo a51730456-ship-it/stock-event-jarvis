@@ -138,6 +138,12 @@ st.markdown(
     .j4-top-row { display: flex; gap: 2.6rem 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
         align-items: center; }
     .j4-top-cell { min-width: 150px; padding-left: 1.6rem; }
+    /* 지수 차트 묶음과 시장상태 아래 묶음을 갈라 주는 빈 줄. 폰·태블릿(≤1200px)에서만
+       쓴다 — 노트북에서는 한 줄에 여러 칸이 들어가 이 끊김이 필요 없다. */
+    .j4-top-break { display: none; }
+    @media (max-width: 1200px) {
+        .j4-top-break { display: block; flex: 0 0 100%; height: 3rem; }
+    }
     /* 제목은 코발트, 값은 항목별 색 — 무엇이 제목이고 무엇이 결과인지 구분되게 한다
        (2026-07-22 사용자 지시). */
     .j4-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
@@ -599,6 +605,9 @@ def _render_market_overview() -> None:
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
         *_us_index_cells(),
+        # 폰·태블릿에서 시장상태가 바로 위 차트에 붙어 보였다 — 여기서 줄을 끊고
+        # 두 줄만큼 띄운다(2026-07-25 지시). PC에서는 이 칸이 없는 것과 같다.
+        "<div class='j4-top-break'></div>",
         _top_metric(
             "시장상태", phase, phase_color,
             f"원/달러 {_number(usdkrw.get('current'), 1)}" if usdkrw.get("ok") else "원/달러 —",
