@@ -192,11 +192,13 @@ st.markdown(
     .j4-fm-name { font-size: 0.82rem; font-weight: 800; color: #cfd4dc; margin-top: 8px; }
     /* 동반 그림은 값 오른쪽에 세로로 세워 붙인다 — 값 밑에 쌓으면 칸이 너무 길어졌다
        (2026-07-25 지시). 자리가 모자라면 알아서 값 아래로 내려간다. */
-    .j4-top-split { display: flex; flex-wrap: wrap; gap: 0.2rem 1.1rem; align-items: flex-start; }
-    /* 기준 너비를 내용 크기가 아니라 작은 값으로 잡아야 좁은 폰(360px)에서도 줄이
-       안 접히고 옆으로 붙는다 — auto로 두면 둘의 합이 넘쳐 바로 아래로 내려간다. */
-    .j4-top-main { flex: 1 1 150px; min-width: 0; }
-    .j4-top-side { flex: 1 1 145px; min-width: 0; }
+    .j4-top-split { display: flex; flex-wrap: wrap; gap: 0.2rem 0.7rem; align-items: flex-start; }
+    /* 기준 너비를 내용 크기가 아니라 작은 값으로 잡아야 좁은 폰에서도 줄이 안 접히고
+       옆으로 붙는다. 150/145로는 폰(칸 폭 약 300px)에서 합이 넘쳐 그림이 값 아래로
+       내려갔다(2026-07-25 실제 화면). 둘 다 min-width를 0으로 두어 모자라면 글이
+       줄바꿈되게 하고, 접히는 것은 마지막 수단으로 남긴다. */
+    .j4-top-main { flex: 1 1 125px; min-width: 0; }
+    .j4-top-side { flex: 1 1 140px; min-width: 0; }
     .j4-fm-pair { display: flex; flex-direction: column; gap: 0.3rem; }
     .j4-fm-stock { min-width: 0; }
     .j4-fm-pair .j4-fm-stock:first-child .j4-fm-name { margin-top: 0; }
