@@ -60,7 +60,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072512
+MODULE_REVISION = 2026072513
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -597,6 +597,167 @@ def get_index_sparkline(symbol: str, days: int = 30) -> list:
     if frame is None or frame.empty or "Close" not in frame.columns:
         return []
     return [float(v) for v in frame["Close"].dropna().tail(days).tolist()]
+
+
+# ---------------------------------------------------------------------------
+# 지수 분봉 (2026-07-25) — 왜 두 곳을 이어 붙이는가
+#
+# 종목에 쓰는 네이버 siseJson은 'KOSPI'·'KPI200'을 받지 않는다(머리줄만 오고 값이
+# 없다). 네이버 JSON 차트 api.stock.naver.com은 day·week·month뿐이라 분봉이 없다.
+# 둘 다 실제로 불러 확인했다. 그래서 지수 분봉은 두 곳을 이어 붙인다.
+#   ① 야후 ^KS11·^KQ11 1분봉 — 09:00~15:00을 한 번에 받는다. 다만 야후가 아는
+#      한국장은 15:00에 끝나 마감 30분이 통째로 없고, 장중에는 값이 늦다.
+#   ② 네이버 '시간별 시세'(HTML) — 분 단위로 정확하고 15:30까지 있다. 한 쪽에 6줄뿐이라
+#      하루를 다 받으려면 66번을 불러야 해서 꼬리(최근 48분)만 받는다.
+# 겹치는 구간은 네이버 값을 쓴다. 야후의 지연분과 마감 30분을 이 꼬리가 덮는다.
+# ---------------------------------------------------------------------------
+_INDEX_YAHOO = {"KOSPI": "^KS11", "KOSDAQ": "^KQ11"}
+_INDEX_DAILY = {"KOSPI": "KS11", "KOSDAQ": "KQ11"}
+_INDEX_TIME_URL = (
+    "https://finance.naver.com/sise/sise_index_time.naver"
+    "?code={code}&thistime={stamp}&page={page}"
+)
+_INDEX_TIME_ROW = re.compile(
+    r'class="date">(\d{2}):(\d{2})</td>\s*<td class="number_1">([\d,]+\.\d+)')
+# 한 쪽이 6줄이므로 8쪽 = 48분. 야후 지연분과 마감 30분을 함께 덮을 만큼만 받는다.
+_INDEX_TAIL_PAGES = 8
+
+
+def _yahoo_index_minutes(symbol: str) -> list:
+    """야후 1분봉에서 마지막으로 열린 장 하루치만 뽑는다. [(시각, 값)]."""
+    import warnings
+
+    import yfinance as yf
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        raw = yf.download(
+            _INDEX_YAHOO[symbol], period="5d", interval="1m",
+            auto_adjust=False, progress=False, threads=False, timeout=15,
+        )
+    if raw is None or raw.empty or "Close" not in raw:
+        raise RuntimeError("야후 지수 분봉이 비어 있습니다")
+    closes = raw["Close"]
+    if isinstance(closes, pd.DataFrame):
+        closes = closes.iloc[:, 0]
+    closes = closes.dropna()
+    stamps = closes.index
+    try:
+        stamps = stamps.tz_convert(_SEOUL)
+    except (TypeError, AttributeError):
+        pass
+    if len(closes) < 5:
+        raise RuntimeError("야후 지수 분봉이 부족합니다")
+    last_day = stamps[-1].date()
+    rows = [
+        (datetime(stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute), float(value))
+        for stamp, value in zip(stamps, closes.tolist()) if stamp.date() == last_day
+    ]
+    if len(rows) < 5:
+        raise RuntimeError("야후 지수 분봉이 부족합니다")
+    return rows
+
+
+def _index_tail_stamp(day) -> str:
+    """네이버 '시간별 시세'의 기준 시각. 지난 장은 15:30, 오늘 장중이면 지금."""
+    now = datetime.now(_SEOUL)
+    if day < now.date() or now.time() > dt_time(15, 30):
+        return f"{day:%Y%m%d}153000"
+    return now.strftime("%Y%m%d%H%M00")
+
+
+def _naver_index_tail(symbol: str, day) -> list:
+    """네이버 '시간별 시세'의 마지막 몇 분. [(시각, 값)]."""
+    stamp = _index_tail_stamp(day)
+    anchor = datetime.strptime(stamp, "%Y%m%d%H%M%S")
+    rows = []
+    for page in range(1, _INDEX_TAIL_PAGES + 1):
+        text = _get_text(_INDEX_TIME_URL.format(code=symbol, stamp=stamp, page=page), timeout=8)
+        found = _INDEX_TIME_ROW.findall(text)
+        if not found:
+            break
+        for hour, minute, price in found:
+            # 코스피는 천 단위 쉼표가 붙는다("6,690.02") — _parse_number로 벗겨야 한다.
+            value = _parse_number(price)
+            if value is None:
+                continue
+            when = datetime.combine(day, dt_time(int(hour), int(minute)))
+            # 기준 시각보다 뒤인 줄은 버린다. 장 초반(09:03 같은 때)에 쪽을 넘기면
+            # 전날 마감 줄이 딸려 올 수 있는데, 그걸 오늘 것으로 찍으면 하루 그림의
+            # 맨 앞에 15:30 값이 박힌다.
+            if when <= anchor:
+                rows.append((when, value))
+    return rows
+
+
+def _index_prev_close(symbol: str, day) -> float | None:
+    """그 세션 '전날' 종가 — 그림의 기준선이다. 같은 날 종가를 쓰면 선이 어긋난다."""
+    daily_symbol = _INDEX_DAILY[symbol]
+    try:
+        frame, _stale = _cached(("index", daily_symbol), 300, lambda: _index_frame(daily_symbol))
+    except Exception:
+        return None
+    if frame is None or frame.empty or "Close" not in frame.columns:
+        return None
+    closes = frame["Close"].dropna()
+    prior = [v for stamp, v in closes.items() if pd.Timestamp(stamp).date() < day]
+    return _finite(prior[-1]) if prior else None
+
+
+def get_index_intraday(symbol: str, *, ttl_seconds: float = 60) -> dict:
+    """KOSPI·KOSDAQ 하루치 분봉과 그 전날 종가. 실패하면 빈 dict.
+
+    돌려주는 값은 {"points": 분봉 종가들, "base": 전일 종가, "session": 날짜,
+    "last_time": 마지막 시각}이다. 자료가 없으면 그리지 않는다 — 일봉으로 대신
+    그렸다가 '기준선 위로 간 적이 없는데 빨간 구간이 있다'는 지적을 받았다(2026-07-25).
+    """
+    symbol = str(symbol).strip().upper()
+    if symbol not in _INDEX_YAHOO:
+        return {}
+
+    def _produce():
+        body = _yahoo_index_minutes(symbol)
+        day = body[-1][0].date()
+        merged = dict(body)
+        try:
+            # 꼬리를 못 받아도 그림은 그린다 — 09:00~15:00만으로도 하루 흐름은 맞다.
+            merged.update(_naver_index_tail(symbol, day))
+        except Exception as exc:
+            _log.warning("jarvis4 지수 꼬리 조회 실패 %s: %s", symbol, exc)
+        return [(stamp, merged[stamp]) for stamp in sorted(merged)]
+
+    try:
+        rows, _stale = _cached(("index_intraday", symbol), ttl_seconds, _produce)
+    except Exception:
+        return {}
+    if len(rows) < 5:
+        return {}
+    day = rows[-1][0].date()
+    base = _index_prev_close(symbol, day)
+    if base is None:
+        return {}
+    return {
+        "points": _thin_points([value for _stamp, value in rows]),
+        "base": base,
+        "session": day.isoformat(),
+        "last_time": rows[-1][0].strftime("%H:%M"),
+    }
+
+
+# 그림은 가로 120px이라 391분을 다 그리면 한 점이 0.3px이다 — 눈에는 똑같은데
+# HTML만 지수 한 칸에 45KB가 된다. 폰에서 쓸데없이 무거워지므로 솎아 낸다.
+_INDEX_POINT_LIMIT = 180
+
+
+def _thin_points(points: list) -> list:
+    """점이 너무 많으면 일정 간격으로 솎는다. 마지막 값(종가)은 반드시 남긴다."""
+    if len(points) <= _INDEX_POINT_LIMIT:
+        return points
+    step = len(points) // _INDEX_POINT_LIMIT + 1
+    thinned = points[::step]
+    if (len(points) - 1) % step:
+        thinned.append(points[-1])
+    return thinned
 
 
 def _index_metrics(symbol: str, live_price: float | None = None) -> dict:

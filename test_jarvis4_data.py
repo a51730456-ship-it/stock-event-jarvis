@@ -666,3 +666,84 @@ class FlowScoreUsesPartnerDaysTests(unittest.TestCase):
         self.assertIsNotNone(quality_low)
         self.assertIsNotNone(quality_high)
         self.assertGreater(quality_high["score"], quality_low["score"])
+
+
+class IndexIntradayTests(unittest.TestCase):
+    """지수 분봉 자료원 (2026-07-25).
+
+    네이버 siseJson은 'KOSPI'를 받지 않고 네이버 JSON 차트는 day·week·month뿐이라,
+    야후 분봉(09:00~15:00)에 네이버 '시간별 시세' 꼬리(마감 15:30까지)를 이어 붙인다.
+    두 곳을 붙이는 규칙이 깨지면 그림이 마감 전에 끊기거나 엉뚱한 값이 섞인다.
+    """
+
+    TAIL_HTML = """
+        <tr><td class="date">15:30</td><td class="number_1">6,690.02</td></tr>
+        <tr><td class="date">15:29</td><td class="number_1">6,692.54</td></tr>
+        <tr><td class="date">15:00</td><td class="number_1">6,704.13</td></tr>
+    """
+
+    def _body(self, day="2026-07-24"):
+        stamps = pd.date_range(f"{day} 09:00", f"{day} 14:59", freq="1min")
+        return [(stamp.to_pydatetime(), 6700.0 + i * 0.1) for i, stamp in enumerate(stamps)]
+
+    def test_tail_parses_thousands_separator(self):
+        """코스피 값에는 천 단위 쉼표가 붙는다 — 못 벗기면 꼬리가 통째로 빈다."""
+        with patch.object(j4, "_get_text", return_value=self.TAIL_HTML):
+            rows = j4._naver_index_tail("KOSPI", datetime(2026, 7, 24).date())
+        self.assertEqual([value for _stamp, value in rows][:2], [6690.02, 6692.54])
+
+    def test_tail_drops_rows_after_the_anchor(self):
+        """장 초반에는 전날 마감 줄이 딸려 올 수 있다. 기준 시각 뒤는 버려야 한다."""
+        today = datetime.now(SEOUL).date()
+        with patch.object(j4, "_get_text", return_value=self.TAIL_HTML), \
+                patch.object(j4, "_index_tail_stamp", return_value=f"{today:%Y%m%d}090300"):
+            rows = j4._naver_index_tail("KOSPI", today)
+        self.assertEqual(rows, [])
+
+    def test_intraday_merges_tail_and_uses_prior_close_as_base(self):
+        day = datetime(2026, 7, 24).date()
+        j4._CACHE.pop(("index_intraday", "KOSPI"), None)
+        with patch.object(j4, "_yahoo_index_minutes", return_value=self._body()), \
+                patch.object(j4, "_naver_index_tail",
+                             return_value=[(datetime(2026, 7, 24, 15, 30), 6690.02)]), \
+                patch.object(j4, "_index_prev_close", return_value=7096.89):
+            payload = j4.get_index_intraday("KOSPI", ttl_seconds=0)
+        self.assertEqual(payload["session"], day.isoformat())
+        self.assertEqual(payload["last_time"], "15:30")       # 마감까지 이어졌다
+        self.assertEqual(payload["points"][-1], 6690.02)
+        self.assertEqual(payload["base"], 7096.89)            # 기준선은 전날 종가
+
+    def test_intraday_still_draws_when_tail_fails(self):
+        """네이버 꼬리가 막혀도 09:00~15:00만으로 그린다."""
+        j4._CACHE.pop(("index_intraday", "KOSPI"), None)
+        with patch.object(j4, "_yahoo_index_minutes", return_value=self._body()), \
+                patch.object(j4, "_naver_index_tail", side_effect=RuntimeError("차단")), \
+                patch.object(j4, "_index_prev_close", return_value=7096.89):
+            payload = j4.get_index_intraday("KOSPI", ttl_seconds=0)
+        self.assertEqual(payload["last_time"], "14:59")
+
+    def test_intraday_returns_nothing_without_a_base(self):
+        """기준선을 모르면 그리지 않는다 — 틀린 그림보다 빈 칸이 낫다."""
+        j4._CACHE.pop(("index_intraday", "KOSPI"), None)
+        with patch.object(j4, "_yahoo_index_minutes", return_value=self._body()), \
+                patch.object(j4, "_naver_index_tail", return_value=[]), \
+                patch.object(j4, "_index_prev_close", return_value=None):
+            self.assertEqual(j4.get_index_intraday("KOSPI", ttl_seconds=0), {})
+
+    def test_unknown_symbol_is_ignored(self):
+        self.assertEqual(j4.get_index_intraday("005930"), {})
+
+
+class ThinPointsTests(unittest.TestCase):
+    """그림 점 솎기 — 폰에서 지수 한 칸이 45KB나 되지 않게 한다 (2026-07-25)."""
+
+    def test_short_series_is_untouched(self):
+        points = [1.0, 2.0, 3.0]
+        self.assertIs(j4._thin_points(points), points)
+
+    def test_long_series_keeps_the_closing_value(self):
+        points = [float(i) for i in range(391)]
+        thinned = j4._thin_points(points)
+        self.assertLessEqual(len(thinned), j4._INDEX_POINT_LIMIT + 1)
+        self.assertEqual(thinned[0], 0.0)
+        self.assertEqual(thinned[-1], 390.0)      # 종가는 반드시 남는다
