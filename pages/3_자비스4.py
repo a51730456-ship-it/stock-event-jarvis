@@ -986,27 +986,34 @@ def _kr_flow_hint() -> str:
 # 왼쪽이 최근일이다. 숫자(3/5)가 앞에 오므로 점이 잘려도 뜻은 잃지 않는다.
 # 글자(●◐○)로 그렸더니 글꼴마다 크기가 달라 ◐만 커 보였다(2026-07-25 사용자 지적).
 # CSS 동그라미로 그려 넷 다 같은 크기로 맞춘다. 보합만 속이 빈 원이다.
-# 색은 방향(빨강 사고·파랑 팔고), 속을 채웠는지는 '둘 다인지 한쪽인지'다.
-# 9px 동그라미라 비슷한 색을 여러 개 쓰면 구별이 안 되므로 채움으로 갈랐다(2026-07-25).
+# 동그라미 하나가 '둘'을 나타낸다 — 둘 다면 꽉 채우고, 한쪽만이면 반만 채운다
+# (2026-07-25 사용자 안). 속을 비우는 방식은 한눈에 안 들어와 반반으로 바꿨다.
+# (테두리색, 배경)
+_HALF_WHITE = "linear-gradient(90deg, {color} 0 50%, #ffffff 50% 100%)"
 _FLOW_MARK_STYLE = {
-    "both_buy": ("#ff5b5b", True),    # 외국인·기관 둘 다 순매수 — 꽉 찬 빨강
-    "one_buy": ("#ff5b5b", False),    # 한쪽만 순매수, 다른 쪽 보합 — 빈 빨강
-    "both_sell": ("#4da6ff", True),   # 둘 다 순매도 — 꽉 찬 파랑
-    "one_sell": ("#4da6ff", False),   # 한쪽만 순매도 — 빈 파랑
-    "cross": ("#ffb020", True),       # 한쪽은 사고 한쪽은 팔고 — 주황
-    "one": ("#ffb020", True),         # 옛 자료 호환(주황으로 둔다)
-    "flat": ("#9aa0aa", False),       # 둘 다 거의 0 — 빈 회색
+    # 외국인·기관 둘 다 순매수 — 꽉 찬 빨강
+    "both_buy": ("#ff5b5b", "#ff5b5b"),
+    # 한쪽만 순매수(다른 쪽 보합) — 절반 빨강, 절반 흰색
+    "one_buy": ("#ff5b5b", _HALF_WHITE.format(color="#ff5b5b")),
+    # 둘 다 순매도 — 꽉 찬 파랑
+    "both_sell": ("#4da6ff", "#4da6ff"),
+    # 한쪽만 순매도 — 절반 파랑, 절반 흰색
+    "one_sell": ("#4da6ff", _HALF_WHITE.format(color="#4da6ff")),
+    # 한쪽은 사고 한쪽은 팔고 — 주황
+    "cross": ("#ffb020", "#ffb020"),
+    "one": ("#ffb020", "#ffb020"),    # 옛 자료 호환
+    # 둘 다 거의 0 — 빈 회색
+    "flat": ("#9aa0aa", "transparent"),
 }
 
 
 def _flow_dots(marks) -> str:
     dots = []
     for mark in (marks or []):
-        color, filled = _FLOW_MARK_STYLE.get(mark, _FLOW_MARK_STYLE["flat"])
-        background = color if filled else "transparent"
+        border, background = _FLOW_MARK_STYLE.get(mark, _FLOW_MARK_STYLE["flat"])
         dots.append(
             "<span style='display:inline-block; width:9px; height:9px; border-radius:50%;"
-            f" background:{background}; border:1px solid {color}; margin-right:3px'></span>"
+            f" background:{background}; border:1px solid {border}; margin-right:3px'></span>"
         )
     return "".join(dots)
 
@@ -2161,7 +2168,7 @@ def _render_pullback_finder() -> None:
         st.caption(
         (f"수급 기준일 **{_flow_latest}** · 그날부터 거꾸로 센 거래일입니다. " if _flow_latest else "")
         + "동반(5일) 동그라미는 **왼쪽이 가장 최근 거래일**입니다 — 빨강은 외국인·기관이 "
-            "둘 다 순매수, 파랑은 둘 다 순매도입니다. 속이 빈 빨강·파랑은 한쪽만 "
+            "둘 다 순매수, 파랑은 둘 다 순매도입니다. 절반만 칠해진 빨강·파랑은 한쪽만 "
             "사거나 판 날이고, 주황은 한쪽은 사고 한쪽은 판 날, 빈 회색은 둘 다 보합입니다. "
             "수급 칸은 5일 순매수 금액이 그 기간 거래대금의 몇 %인지이고, "
             "동반(매수/매도/20일)은 20거래일 중 동반매수·동반매도 일수입니다."
