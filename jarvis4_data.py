@@ -58,7 +58,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072506
+MODULE_REVISION = 2026072509
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -580,6 +580,21 @@ def _index_frame(symbol: str) -> pd.DataFrame | None:
     if frame is None or frame.empty or "Close" not in frame.columns:
         return None
     return frame.sort_index()
+
+
+
+def get_index_sparkline(symbol: str, days: int = 30) -> list:
+    """지수의 최근 종가 흐름 — 상단 KOSPI·KOSDAQ 칸에 작은 선을 그린다(2026-07-25).
+
+    이미 받아 둔 일봉(_index_metrics와 같은 캐시)을 그대로 쓴다. 실패하면 빈 목록.
+    """
+    try:
+        frame, _stale = _cached(("index", symbol), 300, lambda: _index_frame(symbol))
+    except Exception:
+        return []
+    if frame is None or frame.empty or "Close" not in frame.columns:
+        return []
+    return [float(v) for v in frame["Close"].dropna().tail(days).tolist()]
 
 
 def _index_metrics(symbol: str, live_price: float | None = None) -> dict:

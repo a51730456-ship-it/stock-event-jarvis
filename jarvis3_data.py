@@ -85,7 +85,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072501
+MODULE_REVISION = 2026072509
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1068,6 +1068,28 @@ def get_intraday_chart(ticker: str) -> dict | None:
     live, _ = _download_cached((ticker,), period="1d", interval="1m", ttl_seconds=45, prepost=True)
     metrics = _series_metrics(daily.get(ticker), live.get(ticker))
     return _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"))
+
+
+
+def get_index_sparklines(days: int = 30) -> dict:
+    """4대 지수의 최근 종가 흐름 — 상단 지수 칸에 작은 선을 그리는 데 쓴다.
+
+    네이버 금융 첫 화면처럼 숫자 밑에 흐름을 보여 달라는 요청(2026-07-25).
+    실패하면 빈 dict를 돌려주고, 화면은 선 없이 숫자만 보여준다.
+    """
+    try:
+        frames, _meta = _download_cached(US_INDEX_SYMBOLS, period="3mo", interval="1d", ttl_seconds=600)
+    except Exception:
+        return {}
+    result = {}
+    for symbol in US_INDEX_SYMBOLS:
+        frame = frames.get(symbol)
+        if frame is None or frame.empty or "Close" not in frame.columns:
+            continue
+        closes = [float(v) for v in frame["Close"].dropna().tail(days).tolist()]
+        if len(closes) >= 2:
+            result[symbol] = closes
+    return result
 
 
 def _prepare_chart_payload(frame: pd.DataFrame, resample_rule: str | None, limit: int, meta: dict) -> dict:

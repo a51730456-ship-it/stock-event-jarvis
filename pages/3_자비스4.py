@@ -298,12 +298,13 @@ import market_signal_ui
 _REQUIRED_J4_FUNCTIONS = (
     "get_theme_rankings", "get_theme_leaders", "get_market_overview",
     "get_us_futures_live", "get_intraday_chart", "find_pullback_stocks",
+    "get_index_sparkline",
     "get_chart_bundle", "get_live_quote", "round_to_tick",
 )
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072506
+_REQUIRED_J4_REVISION = 2026072509
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -548,8 +549,13 @@ def _render_market_overview() -> None:
     # 시장 국면은 밝은 초록, 미국 전일은 진한 초록, 공포·탐욕은 파랑.
     top_cells = [
         regime_gauge_ui.regime_box_html(overview),
-        _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"), sub_signed=True),
-        _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"), sub_signed=True),
+        # 숫자 밑에 최근 흐름 선을 붙인다(2026-07-25 사용자 요청, 미국테마와 같은 모양).
+        _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
+                    sub_signed=True).replace("</div></div>",
+            "</div>" + _sparkline_svg(_index_spark("KS11"), _sign_color(kospi.get("change_pct"))) + "</div>", 1),
+        _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"),
+                    sub_signed=True).replace("</div></div>",
+            "</div>" + _sparkline_svg(_index_spark("KQ11"), _sign_color(kosdaq.get("change_pct"))) + "</div>", 1),
         _top_metric(
             "시장상태", phase, phase_color,
             f"원/달러 {_number(usdkrw.get('current'), 1)}" if usdkrw.get("ok") else "원/달러 —",
@@ -944,6 +950,33 @@ def _flow_dots(marks) -> str:
             f" background:{background}; border:1px solid {color}; margin-right:3px'></span>"
         )
     return "".join(dots)
+
+
+
+def _index_spark(symbol: str) -> list:
+    try:
+        return j4data.get_index_sparkline(symbol)
+    except Exception:
+        return []
+
+
+def _sparkline_svg(values, color: str, width: int = 150, height: int = 34) -> str:
+    """숫자 밑 작은 선(미국테마와 같은 방식, 2026-07-25 요청)."""
+    points = [float(v) for v in (values or []) if v is not None]
+    if len(points) < 2:
+        return ""
+    low, high = min(points), max(points)
+    span = (high - low) or 1.0
+    step = width / (len(points) - 1)
+    coords = " ".join(
+        f"{index * step:.1f},{height - 2 - (value - low) / span * (height - 4):.1f}"
+        for index, value in enumerate(points)
+    )
+    return (
+        f"<svg viewBox='0 0 {width} {height}' width='100%' height='{height}' "
+        f"preserveAspectRatio='none'><polyline points='{coords}' fill='none' "
+        f"stroke='{color}' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'/></svg>"
+    )
 
 
 

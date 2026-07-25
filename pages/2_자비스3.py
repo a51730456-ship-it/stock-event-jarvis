@@ -350,13 +350,14 @@ import market_signal_ui
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072501
+_REQUIRED_J3_REVISION = 2026072509
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
     or not hasattr(j3data, "find_pullback_stocks")
     or not hasattr(j3data, "analyze_pullback_stock")
     or not hasattr(j3data, "get_intraday_chart")
+    or not hasattr(j3data, "get_index_sparklines")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 자비스4에서 실제 발생).
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
@@ -925,6 +926,9 @@ def _render_market_overview() -> None:
     top_cells = [
         # 시장 국면도 공포·탐욕과 같은 반원 게이지로 통일한다 — 국면 이름만 크게
         # 적으면 '방어 우선'이 25점인지 49점인지 알 수 없다(2026-07-24 사용자 지시).
+        # 4대 지수를 게이지 앞에 둔다 — '시장 국면' 카드 위에 올려 달라는 요청
+        # (2026-07-25). 폰에서는 숫자 칸이 앞, 게이지가 뒤로 가는 규칙 그대로다.
+        *_us_index_cells(overview, phase),
         regime_gauge_ui.regime_box_html(overview),
         _top_metric("SPY", _price(spy_row.get("current")), "#e6e6e6", spy_row.get("change_pct"), sub_signed=True),
         _top_metric("QQQ", _price(qqq_row.get("current")), "#e6e6e6", qqq_row.get("change_pct"), sub_signed=True),
@@ -936,7 +940,6 @@ def _render_market_overview() -> None:
     # 찍히고 SPY·QQQ의 '$' 두 개가 수식으로 잡혔다(2026-07-24 실제 깨짐).
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
-    _render_us_index_row(overview, phase)
     # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
     # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
     with st.expander("조건점수·시장 상황 설명 보기", expanded=False):
@@ -978,7 +981,30 @@ def _render_market_overview() -> None:
     )
 
 
-def _render_us_index_row(overview: dict, phase: str) -> None:
+
+def _sparkline_svg(values, color: str, width: int = 150, height: int = 34) -> str:
+    """숫자 밑에 그리는 작은 선. 네이버 금융 첫 화면 같은 모양(2026-07-25 요청).
+
+    값이 모자라면 빈 문자열을 돌려주고 화면은 숫자만 보여준다.
+    """
+    points = [float(v) for v in (values or []) if v is not None]
+    if len(points) < 2:
+        return ""
+    low, high = min(points), max(points)
+    span = (high - low) or 1.0
+    step = width / (len(points) - 1)
+    coords = " ".join(
+        f"{index * step:.1f},{height - 2 - (value - low) / span * (height - 4):.1f}"
+        for index, value in enumerate(points)
+    )
+    return (
+        f"<svg class='j3-spark' viewBox='0 0 {width} {height}' width='100%' height='{height}' "
+        f"preserveAspectRatio='none'><polyline points='{coords}' fill='none' "
+        f"stroke='{color}' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'/></svg>"
+    )
+
+
+def _us_index_cells(overview: dict, phase: str) -> list:
     """4대 지수 줄 — S&P 500 · 나스닥 종합 · 다우존스 · 나스닥 100 (2026-07-24 추가).
 
     ETF(SPY·QQQ)가 아니라 지수를 그대로 쓴다. 정규장이 아니면 마지막으로 끝난
@@ -987,7 +1013,11 @@ def _render_us_index_row(overview: dict, phase: str) -> None:
     """
     display = getattr(j3data, "US_INDEX_DISPLAY", ())
     if not display:
-        return
+        return []
+    try:
+        sparklines = j3data.get_index_sparklines()
+    except Exception:
+        sparklines = {}
     live = phase == "정규장 시간"
     rows = overview.get("rows") or {}
     cells = []
@@ -1002,9 +1032,11 @@ def _render_us_index_row(overview: dict, phase: str) -> None:
             f"<div class='j3-top-cell'><div class='j3-top-label'>{name}</div>"
             f"<div class='j3-top-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j3-top-sub {_sign_class(change)}'>{_pct(change)} "
-            f"<span class='j3-muted'>· {note}</span></div></div>"
+            f"<span class='j3-muted'>· {note}</span></div>"
+            + _sparkline_svg(sparklines.get(symbol), _sign_color(change))
+            + "</div>"
         )
-    st.markdown(f"<div class='j3-top-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+    return cells
 
 
 def _fear_greed_box() -> str:
