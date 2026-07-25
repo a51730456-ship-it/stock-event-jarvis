@@ -152,7 +152,7 @@ st.markdown(
     .j3-action-detail { color: #ff9d3b; font-weight: 800; }
     .j3-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
         align-items: center; }
-    .j3-top-cell { min-width: 150px; }
+    .j3-top-cell { min-width: 150px; padding-left: 1.6rem; }
     .j3-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
     .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
     .j3-top-sub { font-size: 0.95rem; font-weight: 700; }
@@ -1055,7 +1055,7 @@ def _us_index_cells(overview: dict, phase: str) -> list:
         change = row.get("change_pct") if live else row.get("last_session_change_pct")
         note = "정규장" if live else "장 마감 기준"
         cells.append(
-            f"<div class='j3-top-cell' style='padding-left:1.6rem'>"
+            f"<div class='j3-top-cell'>"
             f"<div class='j3-top-label'>{name}</div>"
             f"<div class='j3-top-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j3-top-sub {_sign_class(change)}'>{_pct(change)} "

@@ -135,7 +135,7 @@ st.markdown(
     .j4-action-detail { color: #ff9d3b; font-weight: 800; }
     .j4-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
         align-items: center; }
-    .j4-top-cell { min-width: 150px; }
+    .j4-top-cell { min-width: 150px; padding-left: 1.6rem; }
     /* 제목은 코발트, 값은 항목별 색 — 무엇이 제목이고 무엇이 결과인지 구분되게 한다
        (2026-07-22 사용자 지시). */
     .j4-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
@@ -469,7 +469,7 @@ def _us_futures_cell() -> str:
     )
     chart = _sparkline_svg(us_index_data.futures_sparkline(), "#4da6ff", "#ff5b5b")
     cell = cell.replace("<div class='j4-top-cell'",
-                        "<div class='j4-top-cell' style='padding-left:1.6rem'", 1)
+                        "<div class='j4-top-cell'", 1)
     return cell.replace("</div></div>", "</div>" + chart + "</div>", 1) if chart else cell
 
 
@@ -559,11 +559,11 @@ def _render_market_overview() -> None:
         # 한국장 색 규칙: 오르면 빨강, 내리면 파랑(미국과 반대).
         _top_metric("코스피", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
                     sub_signed=True).replace("<div class='j4-top-cell'",
-            "<div class='j4-top-cell' style='padding-left:1.6rem'", 1).replace("</div></div>", "</div>"
+            "<div class='j4-top-cell'", 1).replace("</div></div>", "</div>"
             + _sparkline_svg(_kr_index_chart("KOSPI", "KS11"), "#ff5b5b", "#4da6ff") + "</div>", 1),
         _top_metric("코스닥", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"),
                     sub_signed=True).replace("<div class='j4-top-cell'",
-            "<div class='j4-top-cell' style='padding-left:1.6rem'", 1).replace("</div></div>", "</div>"
+            "<div class='j4-top-cell'", 1).replace("</div></div>", "</div>"
             + _sparkline_svg(_kr_index_chart("KOSDAQ", "KQ11"), "#ff5b5b", "#4da6ff") + "</div>", 1),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
@@ -1020,7 +1020,7 @@ def _us_index_cells() -> list:
         change = (last / base - 1) * 100 if base else None
         # 미국 시장 색 규칙: 오르면 파랑, 내리면 빨강.
         cells.append(
-            f"<div class='j4-top-cell' style='padding-left:1.6rem'>"
+            f"<div class='j4-top-cell'>"
             f"<div class='j4-top-label'>{name}</div>"
             f"<div class='j4-top-val' style='color:#e6e6e6'>{_number(last, 2)}</div>"
             f"<div class='j4-top-sub' style='color:{'#4da6ff' if (change or 0) >= 0 else '#ff5b5b'}'>"
