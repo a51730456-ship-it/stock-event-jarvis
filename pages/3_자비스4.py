@@ -868,9 +868,13 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     unsafe_allow_html=True,
                 )
                 if flow.get("ok"):
+                    # 표와 같은 이름·같은 기간을 쓴다 — 카드만 5일이면 표의
+                    # '동반(매수/매도/20일)'과 어긋나 보인다(2026-07-25 사용자 지적).
                     st.caption(
-                        f"외국인+기관 5일 {_eok(flow.get('net5_amount'))} · 동반 "
-                        f"{int(flow.get('both_buy_days5') or 0)}/{int(flow.get('window5') or 0)}일"
+                        f"외국인+기관 5일 {_eok(flow.get('net5_amount'))} · 동반(5일) "
+                        f"{int(flow.get('both_buy_days5') or 0)}/{int(flow.get('window5') or 0)}"
+                        f" · 동반(매수/매도/20일) {int(flow.get('both_buy_days20') or 0)}"
+                        f"/{int(flow.get('both_sell_days20') or 0)}/{int(flow.get('window20') or 0)}"
                     )
                 st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
             bundle = j4data.get_chart_bundle(leader["code"])
@@ -1068,9 +1072,10 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         f"<div class='j4-mc'><div class='j4-mc-label'>외국인+기관 5일</div>"
         f"<div class='j4-mc-val {_sign_class(flow.get('net5_amount') if flow.get('ok') else None)}'>"
         f"{_eok(flow.get('net5_amount')) if flow.get('ok') else '—'}</div>"
-        f"<div class='j4-mc-sub j4-muted'>동반 {int(flow.get('both_buy_days5') or 0)}"
-        f"/{int(flow.get('window5') or 0)}일 · 20일 {int(flow.get('both_buy_days20') or 0)}"
-        f"/{int(flow.get('both_sell_days20') or 0)}/{int(flow.get('window20') or 0)}</div></div>",
+        f"<div class='j4-mc-sub j4-muted'>동반(5일) {int(flow.get('both_buy_days5') or 0)}"
+        f"/{int(flow.get('window5') or 0)} · 동반(매수/매도/20일) "
+        f"{int(flow.get('both_buy_days20') or 0)}/{int(flow.get('both_sell_days20') or 0)}"
+        f"/{int(flow.get('window20') or 0)}</div></div>",
         f"<div class='j4-mc'><div class='j4-mc-label'>종목 조건점수</div>"
         f"<div class='j4-mc-val j4-green'>{float(leader.get('score') or 0):.1f}/100</div>"
         f"<div class='j4-mc-sub j4-muted'>{plan.get('state', '')}</div></div>",
