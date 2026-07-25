@@ -982,7 +982,7 @@ def _render_market_overview() -> None:
 
 
 
-def _sparkline_svg(values, color: str, width: int = 150, height: int = 34) -> str:
+def _sparkline_svg(values, color: str, width: int = 96, height: int = 72) -> str:
     """숫자 밑에 그리는 작은 선. 네이버 금융 첫 화면 같은 모양(2026-07-25 요청).
 
     값이 모자라면 빈 문자열을 돌려주고 화면은 숫자만 보여준다.
@@ -998,8 +998,10 @@ def _sparkline_svg(values, color: str, width: int = 150, height: int = 34) -> st
         for index, value in enumerate(points)
     )
     return (
-        f"<svg class='j3-spark' viewBox='0 0 {width} {height}' width='100%' height='{height}' "
-        f"preserveAspectRatio='none'><polyline points='{coords}' fill='none' "
+        f"<svg viewBox='0 0 {width} {height}' width='{width}' height='{height}' "
+        f"style='display:block; margin-top:.35rem; border:1px solid rgba(255,255,255,.22);"
+        f" border-radius:6px; background:rgba(255,255,255,.03); padding:2px'>"
+        f"<polyline points='{coords}' fill='none' "
         f"stroke='{color}' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'/></svg>"
     )
 

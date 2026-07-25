@@ -960,7 +960,7 @@ def _index_spark(symbol: str) -> list:
         return []
 
 
-def _sparkline_svg(values, color: str, width: int = 150, height: int = 34) -> str:
+def _sparkline_svg(values, color: str, width: int = 96, height: int = 72) -> str:
     """숫자 밑 작은 선(미국테마와 같은 방식, 2026-07-25 요청)."""
     points = [float(v) for v in (values or []) if v is not None]
     if len(points) < 2:
@@ -973,8 +973,10 @@ def _sparkline_svg(values, color: str, width: int = 150, height: int = 34) -> st
         for index, value in enumerate(points)
     )
     return (
-        f"<svg viewBox='0 0 {width} {height}' width='100%' height='{height}' "
-        f"preserveAspectRatio='none'><polyline points='{coords}' fill='none' "
+        f"<svg viewBox='0 0 {width} {height}' width='{width}' height='{height}' "
+        f"style='display:block; margin-top:.35rem; border:1px solid rgba(255,255,255,.22);"
+        f" border-radius:6px; background:rgba(255,255,255,.03); padding:2px'>"
+        f"<polyline points='{coords}' fill='none' "
         f"stroke='{color}' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'/></svg>"
     )
 
