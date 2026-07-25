@@ -1020,7 +1020,7 @@ def _sparkline_svg(payload, up_color: str, down_color: str,
     ) + f" {width:.1f},{base_y:.1f}"
     return (
         f"<svg viewBox='0 0 {width:.0f} {height}' width='{width:.0f}' height='{height}' "
-        f"style='display:block; margin:.4rem 0 .1rem 1.4rem;"
+        f"style='display:block; margin:.4rem 0 .1rem;"
         f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
         f" background:rgba(255,255,255,.03)'>"
         f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"
@@ -1055,7 +1055,8 @@ def _us_index_cells(overview: dict, phase: str) -> list:
         change = row.get("change_pct") if live else row.get("last_session_change_pct")
         note = "정규장" if live else "장 마감 기준"
         cells.append(
-            f"<div class='j3-top-cell'><div class='j3-top-label'>{name}</div>"
+            f"<div class='j3-top-cell' style='padding-left:1.6rem'>"
+            f"<div class='j3-top-label'>{name}</div>"
             f"<div class='j3-top-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j3-top-sub {_sign_class(change)}'>{_pct(change)} "
             f"<span class='j3-muted'>· {note}</span></div>"

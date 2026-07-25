@@ -550,12 +550,14 @@ def _render_market_overview() -> None:
     top_cells = [
         regime_gauge_ui.regime_box_html(overview),
         # 한국장 색 규칙: 오르면 빨강, 내리면 파랑(미국과 반대).
-        _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
-                    sub_signed=True).replace("</div></div>", "</div>"
-            + _sparkline_svg(_kr_index_payload("KS11"), "#ff5b5b", "#4da6ff") + "</div>", 1),
-        _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"),
-                    sub_signed=True).replace("</div></div>", "</div>"
-            + _sparkline_svg(_kr_index_payload("KQ11"), "#ff5b5b", "#4da6ff") + "</div>", 1),
+        _top_metric("코스피", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
+                    sub_signed=True).replace("<div class='j4-top-cell'",
+            "<div class='j4-top-cell' style='padding-left:1.6rem'", 1).replace("</div></div>", "</div>"
+            + _sparkline_svg(_kr_index_chart("KOSPI", "KS11"), "#ff5b5b", "#4da6ff") + "</div>", 1),
+        _top_metric("코스닥", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"),
+                    sub_signed=True).replace("<div class='j4-top-cell'",
+            "<div class='j4-top-cell' style='padding-left:1.6rem'", 1).replace("</div></div>", "</div>"
+            + _sparkline_svg(_kr_index_chart("KOSDAQ", "KQ11"), "#ff5b5b", "#4da6ff") + "</div>", 1),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
         *_us_index_cells(),
@@ -964,14 +966,41 @@ def _index_spark(symbol: str) -> list:
 
 
 def _kr_index_payload(symbol: str) -> dict:
-    """KOSPI·KOSDAQ 그림 자료 — 최근 일봉과 전일 종가(분봉 소스가 없어 일봉을 쓴다)."""
+    """KOSPI·KOSDAQ 그림 자료 — 네이버 당일 분봉과 전일 종가(2026-07-25 재수정).
+
+    일봉 30개로 그렸더니 기준선(전일 종가)이 그림과 안 맞았다. 종목에 쓰던
+    네이버 분봉 조회를 지수에도 그대로 쓴다.
+    """
     try:
-        points = j4data.get_index_sparkline(symbol)
+        payload = j4data.get_intraday_chart(symbol)
     except Exception:
         return {}
-    if len(points) < 3:
+    if not isinstance(payload, dict) or not payload.get("ok"):
         return {}
-    return {"points": points, "base": points[-2]}
+    frame, base = payload.get("price"), payload.get("prev_close")
+    if frame is None or base is None:
+        return {}
+    try:
+        points = [float(v) for v in frame["Close"].dropna().tolist()]
+    except Exception:
+        return {}
+    return {"points": points, "base": float(base)} if len(points) >= 2 else {}
+
+
+def _kr_index_chart(symbol: str, fallback: str) -> dict:
+    """당일 분봉이 있으면 그것으로, 없으면(주말·휴장) 최근 일봉으로 그린다.
+
+    주말에는 네이버 분봉이 비어 있어 '분봉 데이터가 없습니다'가 온다. 그때는
+    최근 일봉 흐름을 쓰고 기준선도 그 구간 첫 종가로 맞춰 그림과 어긋나지 않게 한다.
+    """
+    payload = _kr_index_payload(symbol)
+    if payload:
+        return payload
+    try:
+        points = j4data.get_index_sparkline(fallback)
+    except Exception:
+        return {}
+    return {"points": points, "base": points[0]} if len(points) >= 2 else {}
 
 
 def _us_index_cells() -> list:
@@ -989,7 +1018,8 @@ def _us_index_cells() -> list:
         change = (last / base - 1) * 100 if base else None
         # 미국 시장 색 규칙: 오르면 파랑, 내리면 빨강.
         cells.append(
-            f"<div class='j4-top-cell'><div class='j4-top-label'>{name}</div>"
+            f"<div class='j4-top-cell' style='padding-left:1.6rem'>"
+            f"<div class='j4-top-label'>{name}</div>"
             f"<div class='j4-top-val' style='color:#e6e6e6'>{_number(last, 2)}</div>"
             f"<div class='j4-top-sub' style='color:{'#4da6ff' if (change or 0) >= 0 else '#ff5b5b'}'>"
             f"{_pct(change)} <span class='j4-muted'>· 장 마감 기준</span></div>"
@@ -1036,7 +1066,7 @@ def _sparkline_svg(payload, up_color: str, down_color: str,
     ) + f" {width:.1f},{base_y:.1f}"
     return (
         f"<svg viewBox='0 0 {width:.0f} {height}' width='{width:.0f}' height='{height}' "
-        f"style='display:block; margin:.4rem 0 .1rem 1.4rem;"
+        f"style='display:block; margin:.4rem 0 .1rem;"
         f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
         f" background:rgba(255,255,255,.03)'>"
         f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"
