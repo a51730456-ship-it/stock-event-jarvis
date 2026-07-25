@@ -58,7 +58,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072504
+MODULE_REVISION = 2026072505
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -422,6 +422,15 @@ def get_stock_flow(code: str, *, ttl_seconds: float = 300) -> dict:
         "window5": len(marks[:5]),
         "window20": len(marks),
         "net5_amount": _amount(recent5),
+        # 금액만으로는 큰 종목인지 작은 종목인지 감이 안 온다(2026-07-25 사용자 지적).
+        # 그날그날 거래대금 합으로 나눠 '거래대금의 몇 %를 사갔나'를 같이 준다.
+        # 실무에서도 금액보다 거래대금 대비 비중으로 보라고 권한다.
+        "turnover5_amount": sum((row.get("volume") or 0) * (row.get("close") or 0) for row in recent5),
+        "net5_ratio_pct": (
+            _amount(recent5) / turnover5 * 100
+            if (turnover5 := sum((row.get("volume") or 0) * (row.get("close") or 0) for row in recent5))
+            else None
+        ),
         "net20_amount": _amount(recent20),
         "net5_shares": sum(combined[:5]),
         "buy_streak_days": streak,

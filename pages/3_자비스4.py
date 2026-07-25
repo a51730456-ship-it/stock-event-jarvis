@@ -276,7 +276,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072504
+_REQUIRED_J4_REVISION = 2026072505
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -658,7 +658,20 @@ def _leader_table_html(leaders: list[dict], selected_code: str | None) -> str:
             f"<span class='j4-bar-num'>{score:.1f}</span></div>"
         )
         change, from_high, ret20 = metrics.get("change_pct"), metrics.get("from_high_pct"), metrics.get("ret20")
+        # 수급은 금액만으로 감이 안 와서 '5일 거래대금 대비 비중'을 함께 적고,
+        # 눌림목 표와 같은 '동반(5일)' 칸을 여기에도 넣는다(2026-07-25 사용자 지시).
         net5 = flow.get("net5_amount") if flow.get("ok") else None
+        net_ratio = flow.get("net5_ratio_pct") if flow.get("ok") else None
+        net5_cell = _eok(net5) + ("" if net_ratio is None else
+            f"<span style='color:#9aa0aa; font-size:.78rem'> 대금 {net_ratio:+.1f}%</span>")
+        if flow.get("ok"):
+            both5, win5 = int(flow.get("both_buy_days5") or 0), int(flow.get("window5") or 0)
+            both5_cell = (
+                f"<span style='color:{'#ff5b5b' if both5 >= 3 else '#9aa0aa'}; font-weight:800'>"
+                f"{both5}/{win5}</span> {_flow_dots((flow.get('day_marks') or [])[:5])}"
+            )
+        else:
+            both5_cell = "<span style='color:#9aa0aa'>확인 필요</span>"
         body.append(
             f"<tr class='j4-th-row{highlight}'>"
             f"<td>{rank_mark.get(rank, f'{rank}위')}</td>"
@@ -668,17 +681,19 @@ def _leader_table_html(leaders: list[dict], selected_code: str | None) -> str:
             f"<td style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</td>"
             f"<td style='color:{_sign_color(from_high)}; font-weight:700'>{_pct(from_high)}</td>"
             f"<td style='color:{_sign_color(ret20)}; font-weight:700'>{_pct(ret20)}</td>"
-            f"<td style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</td>"
+            f"<td style='color:{_sign_color(net5)}; font-weight:700'>{net5_cell}</td>"
+            f"<td>{both5_cell}</td>"
             f"<td>{plan.get('state', '')}</td></tr>"
         )
     return (
         "<table class='j4-theme-table'><colgroup>"
-        "<col style='width:9%'><col style='width:19%'><col style='width:8%'>"
-        "<col style='width:16%'><col style='width:9%'><col style='width:11%'>"
-        "<col style='width:10%'><col style='width:10%'><col style='width:8%'></colgroup>"
+        "<col style='width:7%'><col style='width:17%'><col style='width:7%'>"
+        "<col style='width:14%'><col style='width:8%'><col style='width:10%'>"
+        "<col style='width:9%'><col style='width:13%'><col style='width:8%'>"
+        "<col style='width:7%'></colgroup>"
         "<thead><tr><th>순위</th><th style='text-align:left; padding-left:1.2rem'>종목</th><th>코드</th>"
         "<th>조건점수</th><th>당일</th><th>52주 고가 대비</th><th>20일 수익률</th>"
-        "<th>수급(외+기 5일)</th><th>매수 상태</th></tr></thead>"
+        "<th>수급(외+기 5일)</th><th>동반(5일)</th><th>매수 상태</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody></table>"
     )
 
@@ -868,21 +883,26 @@ def _kr_flow_hint() -> str:
 
 # 하루 수급 점 — 한국시장 색 규칙(매수 빨강 · 매도 파랑)을 그대로 쓴다.
 # 왼쪽이 최근일이다. 숫자(3/5)가 앞에 오므로 점이 잘려도 뜻은 잃지 않는다.
+# 글자(●◐○)로 그렸더니 글꼴마다 크기가 달라 ◐만 커 보였다(2026-07-25 사용자 지적).
+# CSS 동그라미로 그려 넷 다 같은 크기로 맞춘다. 보합만 속이 빈 원이다.
 _FLOW_MARK_STYLE = {
-    "both_buy": ("●", "#ff5b5b"),    # 외국인·기관 둘 다 순매수
-    "both_sell": ("●", "#4da6ff"),   # 둘 다 순매도
-    "one": ("◐", "#ffb020"),         # 한쪽만 또는 엇갈림
-    "flat": ("○", "#9aa0aa"),        # 둘 다 거의 0
+    "both_buy": ("#ff5b5b", True),    # 외국인·기관 둘 다 순매수 — 빨강(한국장 매수색)
+    "both_sell": ("#4da6ff", True),   # 둘 다 순매도 — 파랑
+    "one": ("#ffb020", True),         # 한쪽만 또는 엇갈림 — 주황
+    "flat": ("#9aa0aa", False),       # 둘 다 거의 0 — 빈 원
 }
 
 
 def _flow_dots(marks) -> str:
-    return "".join(
-        f"<span style='color:{color}'>{glyph}</span>"
-        for glyph, color in (
-            _FLOW_MARK_STYLE.get(mark, _FLOW_MARK_STYLE["flat"]) for mark in (marks or [])
+    dots = []
+    for mark in (marks or []):
+        color, filled = _FLOW_MARK_STYLE.get(mark, _FLOW_MARK_STYLE["flat"])
+        background = color if filled else "transparent"
+        dots.append(
+            "<span style='display:inline-block; width:9px; height:9px; border-radius:50%;"
+            f" background:{background}; border:1px solid {color}; margin-right:3px'></span>"
         )
-    )
+    return "".join(dots)
 
 
 def _render_day_price_row(metrics: dict) -> None:
@@ -1748,8 +1768,10 @@ def _render_pullback_finder() -> None:
             return
         rows = kept
 
-    widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.6, 1.2, 1.1, 0.9, 1.3, 1.9, 1.0, 1.3, 1.2]
-    titles = ["순위", "종목", "코드", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
+    widths = [0.55, 2.0, 1.4, 1.1, 1.6, 1.15, 1.05, 0.8, 1.7, 2.0, 1.5, 1.2, 1.1]
+    # 코드 칸은 뺐다 — 태블릿에서 수급·동반 칸이 서로 겹쳤다(2026-07-25 사용자 지적).
+    # 종목코드는 종목을 누르면 나오는 상세에 그대로 있다.
+    titles = ["순위", "종목", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
               "테마수", "수급(외+기 5일)", "동반(5일)", "동반(20일)", "신고가 기술점수", "지금 종합점수"]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
@@ -1771,13 +1793,12 @@ def _render_pullback_finder() -> None:
                 st.session_state["j4_pullback_pick"] = (themes[0], row["code"])
                 st.session_state["j4_pullback_pick_row"] = row
             st.rerun()
-        cols[2].markdown(f"<div class='j4-td'>{row['code']}</div>", unsafe_allow_html=True)
         score = float(quality["score"])
-        cols[3].markdown(
+        cols[2].markdown(
             "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
             f"<div class='j4-bar-fill j4-bar-green' style='width:{min(score, 100):.0f}%'></div></div>"
             f"<span class='j4-bar-num'>{score:.1f}</span></div></div>", unsafe_allow_html=True)
-        cols[4].markdown(
+        cols[3].markdown(
             f"<div class='j4-td' style='color:#44f0a1; font-weight:700'>"
             f"{quality.get('high52_days_ago')}일 전</div>", unsafe_allow_html=True)
         # 당일주가 — 신고가와 고점 대비 사이에 지금 가격과 등락을 진하게 넣는다
@@ -1786,26 +1807,32 @@ def _render_pullback_finder() -> None:
         change_pct = row["metrics"].get("change_pct")
         # 가격과 등락을 두 줄로 쌓는다 — 한 줄이면 좁은 화면(태블릿)에서 폭이 넘쳐
         # 옆 칸 값과 겹쳤다(2026-07-25). 값은 그대로, 배치만 바꾼다.
-        cols[5].markdown(
+        cols[4].markdown(
             f"<div class='j4-td' style='font-weight:800; color:#e6e6e6'>"
             f"<span style='display:inline-flex; flex-direction:column; align-items:center; line-height:1.12'>"
             f"<span>{_won(current_price)}</span>"
             f"<span style='color:{_sign_color(change_pct)}; font-weight:800; font-size:.82rem'>"
             f"{_pct(change_pct)}</span></span></div>", unsafe_allow_html=True)
-        cols[6].markdown(
+        cols[5].markdown(
             f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:800'>"
             f"{_pct(quality['from_high_pct'])}</div>", unsafe_allow_html=True)
         gap = quality["gap_pct"]
         gap_color = _sign_color(gap)
-        cols[7].markdown(
+        cols[6].markdown(
             f"<div class='j4-td' style='color:{gap_color}; font-weight:800'>{gap:+.2f}%</div>",
             unsafe_allow_html=True)
-        cols[8].markdown(
+        cols[7].markdown(
             f"<div class='j4-td' style='color:#ffb020; font-weight:700'>{len(row.get('themes') or [])}</div>",
             unsafe_allow_html=True)
+        # 금액만 보면 큰 종목인지 감이 안 와서 '5일 거래대금의 몇 %'를 함께 적는다.
         net5 = flow.get("net5_amount") if flow.get("ok") else None
-        cols[9].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
+        net_ratio = flow.get("net5_ratio_pct") if flow.get("ok") else None
+        ratio_text = "" if net_ratio is None else (
+            f"<span style='color:#9aa0aa; font-size:.78rem'> 대금 {net_ratio:+.1f}%</span>"
+        )
+        cols[8].markdown(
+            f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>"
+            f"{_eok(net5)}{ratio_text}</div>",
             unsafe_allow_html=True)
         # 동반 수급 — 외국인·기관이 '둘 다' 순매수한 날을 센다(금액 기준).
         # 5일은 점으로 모양까지, 20일은 숫자로 긴 흐름만 본다(2026-07-25 사용자 요청).
@@ -1824,19 +1851,19 @@ def _render_pullback_finder() -> None:
             both20_html = (
                 "<div class='j4-barwrap'><div class='j4-bar'>"
                 f"<div class='j4-bar-fill' style='width:{min(ratio20, 100):.0f}%'></div></div>"
-                f"<span class='j4-bar-num'>{both20}/{win20}</span></div>"
-                f"<span style='color:#4da6ff; font-weight:700; font-size:.8rem'> 매도 {sell20}</span>"
+                f"<span class='j4-bar-num'>매수 {both20}/{win20}</span></div>"
+                f"<span style='color:#4da6ff; font-weight:700; font-size:.8rem'>매도 {sell20}일</span>"
             )
         else:
             both5_html = "<span style='color:#9aa0aa'>확인 필요</span>"
             both20_html = "<span style='color:#9aa0aa'>확인 필요</span>"
-        cols[10].markdown(f"<div class='j4-td'>{both5_html}</div>", unsafe_allow_html=True)
-        cols[11].markdown(f"<div class='j4-td'>{both20_html}</div>", unsafe_allow_html=True)
+        cols[9].markdown(f"<div class='j4-td'>{both5_html}</div>", unsafe_allow_html=True)
+        cols[10].markdown(f"<div class='j4-td'>{both20_html}</div>", unsafe_allow_html=True)
         peak = row.get("peak_score")
-        cols[12].markdown(
+        cols[11].markdown(
             f"<div class='j4-td' style='color:#44f0a1; font-weight:800'>"
             f"{f'{float(peak):.1f}' if peak is not None else '—'}</div>", unsafe_allow_html=True)
-        cols[13].markdown(
+        cols[12].markdown(
             f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
             unsafe_allow_html=True)
     st.markdown(
@@ -1923,10 +1950,10 @@ def main() -> None:
                 7: "KOSPI 대비", 8: "구성종목 확산",
             }, "j4-td"),
             # 눌림목표(12칸) — 미국테마와 같이 폰에서도 전부 보여준다(2026-07-25).
-            mobile_ui.table_css("j4pbf_", 14, {
-                1: "순위", 2: "", 3: "코드", 4: "눌림", 5: "신고가", 6: "현재가",
-                7: "고점 대비", 8: "20일선 이격", 9: "테마수", 10: "수급(외+기 5일)",
-                11: "동반(5일)", 12: "동반(20일)", 13: "신고가점수", 14: "지금 종합점수",
+            mobile_ui.table_css("j4pbf_", 13, {
+                1: "순위", 2: "", 3: "눌림", 4: "신고가", 5: "현재가", 6: "고점 대비",
+                7: "20일선 이격", 8: "테마수", 9: "수급(외+기 5일)", 10: "동반(5일)",
+                11: "동반(20일)", 12: "신고가점수", 13: "지금 종합점수",
             }, "j4-td"),
         ),
         unsafe_allow_html=True,

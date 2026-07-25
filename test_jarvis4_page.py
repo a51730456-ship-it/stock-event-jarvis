@@ -466,12 +466,16 @@ class PartnerFlowColumnTests(unittest.TestCase):
         self.assertIn("동반(20일)", blob)
         # 5일: 숫자 3/5 와 점 네 종류(매수 빨강·매도 파랑·한쪽 주황)
         self.assertIn("3/5", blob)
-        self.assertIn("#ff5b5b", blob)   # 동반 매수 점
-        self.assertIn("#4da6ff", blob)   # 동반 매도 점
-        self.assertIn("◐", blob)         # 한쪽만
+        # 점은 글자가 아니라 CSS 동그라미다 — 글꼴마다 크기가 달라 ◐만 커 보였다.
+        self.assertIn("border-radius:50%", blob)
+        self.assertIn("#ff5b5b", blob)   # 동반 매수
+        self.assertIn("#4da6ff", blob)   # 동반 매도
+        self.assertIn("#ffb020", blob)   # 한쪽만
         # 20일: 막대와 14/20, 그리고 동반매도 일수
-        self.assertIn("14/20", blob)
-        self.assertIn("매도 3", blob)
+        self.assertIn("매수 14/20", blob)
+        self.assertIn("매도 3일", blob)
+        # 금액 옆에 5일 거래대금 대비 비중도 적어야 한다(금액만으로는 감이 안 온다).
+        self.assertIn("대금 ", blob)
         # 필터 체크박스가 있어야 한다
         self.assertTrue(
             any("동반 순매수" in str(node.label) for node in app.checkbox),
