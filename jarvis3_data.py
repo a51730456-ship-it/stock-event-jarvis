@@ -85,7 +85,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072510
+MODULE_REVISION = 2026072515
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1092,10 +1092,26 @@ def get_index_sparklines(days: int = 30) -> dict:
         if frame is None or frame.empty or closes is None or len(closes) < 2:
             continue
         points = [float(v) for v in frame["Close"].dropna().tolist()]
-        base = _finite(closes["Close"].dropna().iloc[-2])
+        base = _prior_session_close(closes, pd.Timestamp(frame.index[-1]).date())
         if len(points) >= 2 and base:
             result[symbol] = {"points": points, "base": base}
     return result
+
+
+def _prior_session_close(daily: pd.DataFrame, session_day) -> float | None:
+    """분봉이 그리는 그 날 '앞' 세션의 종가 — 그림의 기준선이자 등락률의 분모다.
+
+    2026-07-25 실측 사고: iloc[-2]로 잡았더니 야후 일봉에 금요일 줄이 아직 안 올라온
+    사이에 기준선이 하루 더 옛날(수요일) 종가가 됐다. 그래서 S&P가 실제로는 +0.06%인데
+    화면에 -1.15%로 뜨고, 그림은 선 전체가 기준선 아래로 내려가 통째로 빨갛게 나왔다.
+    일봉의 몇 번째 줄인지가 아니라 '분봉 날짜보다 앞선 마지막 종가'로 잡아야 한다.
+    """
+    try:
+        closes = daily["Close"].dropna()
+    except Exception:
+        return None
+    prior = [v for stamp, v in closes.items() if pd.Timestamp(stamp).date() < session_day]
+    return _finite(prior[-1]) if prior else None
 
 
 def _prepare_chart_payload(frame: pd.DataFrame, resample_rule: str | None, limit: int, meta: dict) -> dict:

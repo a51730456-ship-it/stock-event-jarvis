@@ -217,3 +217,32 @@ class LastSessionChangeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PriorSessionCloseTests(unittest.TestCase):
+    """지수 그림의 기준선 (2026-07-25 실측 사고).
+
+    iloc[-2]로 잡았더니 야후 일봉에 금요일 줄이 아직 안 올라온 사이 기준선이 하루 더
+    옛날(수요일) 종가가 됐다. S&P가 실제로는 +0.06%인데 화면에 -1.15%로 뜨고, 그림은
+    선 전체가 기준선 아래로 내려가 4개 지수가 통째로 빨갛게 나왔다.
+    """
+
+    DAILY = pd.DataFrame(
+        {"Close": [7498.96, 7408.30, 7411.98]},
+        index=pd.to_datetime(["2026-07-22", "2026-07-23", "2026-07-24"]),
+    )
+
+    def test_uses_the_close_before_the_intraday_day(self):
+        base = j3._prior_session_close(self.DAILY, pd.Timestamp("2026-07-24").date())
+        self.assertAlmostEqual(base, 7408.30)
+
+    def test_is_right_even_when_that_day_is_missing_from_the_daily_frame(self):
+        """금요일 줄이 아직 없어도 기준선은 목요일 종가여야 한다 — 이게 그 사고다."""
+        lagging = self.DAILY.iloc[:2]                     # 7/24 줄이 아직 없다
+        self.assertAlmostEqual(float(lagging["Close"].iloc[-2]), 7498.96)   # 옛 방식
+        base = j3._prior_session_close(lagging, pd.Timestamp("2026-07-24").date())
+        self.assertAlmostEqual(base, 7408.30)             # 새 방식
+
+    def test_returns_none_without_any_earlier_session(self):
+        self.assertIsNone(
+            j3._prior_session_close(self.DAILY, pd.Timestamp("2026-07-22").date()))
