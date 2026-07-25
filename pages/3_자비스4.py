@@ -176,6 +176,12 @@ st.markdown(
     .j4-bar-fill { height: 8px; background: #ff5b5b; }
     .j4-bar-green { background: #44f0a1; }
     .j4-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
+    /* 카드 안의 동반 수급 그림 — 표에 쓰던 점·막대를 그대로 옮겨 쓴다(2026-07-25). */
+    .j4-flowmarks { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+    .j4-fm-row { display: flex; align-items: center; gap: 6px; }
+    .j4-fm-label { font-size: 0.76rem; font-weight: 700; color: #9aa0aa; white-space: nowrap; }
+    .j4-fm-cell { flex: 1; min-width: 92px; }
+    .j4-fm-name { font-size: 0.82rem; font-weight: 800; color: #cfd4dc; margin-top: 8px; }
     /* 제목이 두 줄이 되면 한 줄짜리와 밑줄이 어긋났다(2026-07-25 사용자 지적).
        모두 같은 높이를 갖고 글자는 아래에 붙여 밑줄을 한 줄로 맞춘다. */
     .j4-th-head { display: flex; align-items: flex-end; justify-content: center;
@@ -304,7 +310,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072513
+_REQUIRED_J4_REVISION = 2026072514
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -579,10 +585,12 @@ def _render_market_overview() -> None:
             _eok(foreign.get("net5_amount")) if foreign.get("ok") else "—",
             _sign_color(foreign.get("net5_amount")) if foreign.get("ok") else "#9aa0aa",
             (
-                "삼성전자+SK하이닉스 · 외국인+기관 "
+                # '외국인+기관 순매수/순매도'는 줄을 바꿔 아래로 내린다(2026-07-25 지시).
+                # 순매수·순매도는 합계 부호를 따라 저절로 바뀐다.
+                "삼성전자+SK하이닉스<br>외국인+기관 "
                 + ("순매수" if (foreign.get("net5_amount") or 0) > 0 else "순매도")
             ) if foreign.get("ok") else "자료 부족",
-        ),
+        ).replace("</div></div>", "</div>" + _leader_flow_marks(foreign) + "</div>", 1),
         regime_gauge_ui.us_prev_box_html(us_prev),
         _us_futures_cell(),
         fear_greed_ui.box_html(
@@ -899,14 +907,10 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     unsafe_allow_html=True,
                 )
                 if flow.get("ok"):
-                    # 표와 같은 이름·같은 기간을 쓴다 — 카드만 5일이면 표의
-                    # '동반(매수/매도/20일)'과 어긋나 보인다(2026-07-25 사용자 지적).
-                    st.caption(
-                        f"외국인+기관 5일 {_eok(flow.get('net5_amount'))} · 동반(5일) "
-                        f"{int(flow.get('both_buy_days5') or 0)}/{int(flow.get('window5') or 0)}"
-                        f" · 동반(매수/매도/20일) {int(flow.get('both_buy_days20') or 0)}"
-                        f"/{int(flow.get('both_sell_days20') or 0)}/{int(flow.get('window20') or 0)}"
-                    )
+                    # 동반 숫자('1/5 · 1/1/20')는 읽히지 않는다는 지적(2026-07-25)에 따라
+                    # 표에서 쓰던 점·막대 그림으로 바꾼다. 금액은 글로 남긴다.
+                    st.caption(f"외국인+기관 5일 {_eok(flow.get('net5_amount'))}")
+                    st.markdown(_flow_marks_html(flow), unsafe_allow_html=True)
                 st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
             bundle = j4data.get_chart_bundle(leader["code"])
             charts = bundle.get("charts", {}) if bundle.get("ok") else {}
@@ -1077,6 +1081,38 @@ def _partner5_cell(flow: dict) -> str:
     )
 
 
+def _leader_flow_marks(foreign: dict) -> str:
+    """대표종목 칸 — 삼성전자·SK하이닉스 각각의 동반 그림을 이름과 함께 붙인다.
+
+    합계 금액만으로는 두 종목 중 어느 쪽이 팔린 것인지 알 수 없다(2026-07-25 지시).
+    """
+    blocks = []
+    for stock in (foreign.get("stocks") or []):
+        marks = _flow_marks_html(stock.get("flow") or {})
+        if marks:
+            blocks.append(f"<div class='j4-fm-name'>{stock.get('label', '')}</div>{marks}")
+    return "".join(blocks)
+
+
+def _flow_marks_html(flow: dict, *, titled: bool = True) -> str:
+    """동반(5일) 점 다섯 + 동반(매수/매도/20일) 막대를 카드 안에 넣는다(2026-07-25).
+
+    '1/5 · 1/1/20' 같은 숫자 나열은 읽히지 않는다는 지적을 받았다. 표에서 쓰던
+    그림을 그대로 옮겨 쓴다 — 표와 카드가 같은 그림이라야 눈이 옮겨 다니지 않는다.
+    """
+    if not isinstance(flow, dict) or not flow.get("ok"):
+        return ""
+    rows = (("동반(5일)", _partner5_cell(flow)),
+            ("동반(매수/매도/20일)", _partner20_cell(flow)))
+    body = "".join(
+        "<div class='j4-fm-row'>"
+        + (f"<span class='j4-fm-label'>{label}</span>" if titled else "")
+        + f"<span class='j4-fm-cell'>{cell}</span></div>"
+        for label, cell in rows
+    )
+    return f"<div class='j4-flowmarks'>{body}</div>"
+
+
 def _partner20_cell(flow: dict) -> str:
     """동반(매수/매도/20일) — 막대 하나 안에 매수는 빨강, 매도는 파랑으로 같이 담는다.
 
@@ -1201,13 +1237,11 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         f"<div class='j4-mc-val {_sign_class(metrics.get('ret20'))}'>{_pct(metrics.get('ret20'))}</div></div>",
         f"<div class='j4-mc'><div class='j4-mc-label'>14일 변동성(ATR)</div>"
         f"<div class='j4-mc-val j4-up'>{_pct(metrics.get('atr_pct'))}</div></div>",
+        # 금액(+488억)은 바로 아래 '종목 선정 근거' 줄에 또 나온다. 여기서는 숫자를 빼고
+        # 동반 그림만 둔다(2026-07-25 지시) — 숫자 나열이 겹쳐 읽히지 않았다.
         f"<div class='j4-mc'><div class='j4-mc-label'>외국인+기관 5일</div>"
-        f"<div class='j4-mc-val {_sign_class(flow.get('net5_amount') if flow.get('ok') else None)}'>"
-        f"{_eok(flow.get('net5_amount')) if flow.get('ok') else '—'}</div>"
-        f"<div class='j4-mc-sub j4-muted'>동반(5일) {int(flow.get('both_buy_days5') or 0)}"
-        f"/{int(flow.get('window5') or 0)} · 동반(매수/매도/20일) "
-        f"{int(flow.get('both_buy_days20') or 0)}/{int(flow.get('both_sell_days20') or 0)}"
-        f"/{int(flow.get('window20') or 0)}</div></div>",
+        + (_flow_marks_html(flow) or "<div class='j4-mc-val j4-muted'>—</div>")
+        + "</div>",
         f"<div class='j4-mc'><div class='j4-mc-label'>종목 조건점수</div>"
         f"<div class='j4-mc-val j4-green'>{float(leader.get('score') or 0):.1f}/100</div>"
         f"<div class='j4-mc-sub j4-muted'>{plan.get('state', '')}</div></div>",

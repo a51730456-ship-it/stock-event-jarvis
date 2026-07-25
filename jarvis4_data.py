@@ -60,7 +60,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072513
+MODULE_REVISION = 2026072514
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -880,15 +880,20 @@ def _market_foreign_flow() -> dict:
     total5 = 0.0
     ok_any = False
     details = []
+    stocks = []
     for code, label in (("005930", "삼성전자"), ("000660", "SK하이닉스")):
         flow = get_stock_flow(code)
         if flow.get("ok"):
             ok_any = True
             total5 += flow["net5_amount"]
             details.append(f"{label} 5일 {flow['net5_amount'] / 1e8:+,.0f}억")
+            # 합계만 주면 화면이 종목별 동반 그림을 못 그린다(2026-07-25 사용자 요청).
+            stocks.append({"code": code, "label": label, "flow": flow})
     if not ok_any:
         return {"ok": False}
-    return {"ok": True, "net5_amount": total5, "detail": " · ".join(details)}
+    return {
+        "ok": True, "net5_amount": total5, "detail": " · ".join(details), "stocks": stocks,
+    }
 
 
 def get_market_overview() -> dict:
