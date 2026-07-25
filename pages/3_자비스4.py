@@ -145,6 +145,11 @@ st.markdown(
     .j4-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j4-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
     .j4-theme-table td.j4-th-name { text-align: left; padding-left: 1.2rem; font-weight: 800; }
+    /* 값이 칸 폭에 걸려 두 줄로 접히면 표가 통째로 흔들린다(2026-07-25 태블릿 실측:
+       '+0.00 %', '0058 30'처럼 접혔다). 숫자·점은 한 줄로 붙들고 종목명만 줄바꿈을 허용한다. */
+    .j4-theme-table td, .j4-theme-table th { white-space: nowrap; }
+    .j4-theme-table td.j4-th-name { white-space: normal; }
+    .j4-td { white-space: nowrap; }
     .j4-th-selected { background: rgba(255,176,32,0.13); }
     .j4-th-muted { color: #9aa0aa; }
     .j4-barwrap { display: flex; align-items: center; gap: 6px; width: 100%; }
@@ -658,42 +663,32 @@ def _leader_table_html(leaders: list[dict], selected_code: str | None) -> str:
             f"<span class='j4-bar-num'>{score:.1f}</span></div>"
         )
         change, from_high, ret20 = metrics.get("change_pct"), metrics.get("from_high_pct"), metrics.get("ret20")
-        # 수급은 금액만으로 감이 안 와서 '5일 거래대금 대비 비중'을 함께 적고,
-        # 눌림목 표와 같은 '동반(5일)' 칸을 여기에도 넣는다(2026-07-25 사용자 지시).
-        net5 = flow.get("net5_amount") if flow.get("ok") else None
-        net_ratio = flow.get("net5_ratio_pct") if flow.get("ok") else None
-        net5_cell = _eok(net5) + ("" if net_ratio is None else
-            f"<span style='color:#9aa0aa; font-size:.78rem'> 대금 {net_ratio:+.1f}%</span>")
-        if flow.get("ok"):
-            both5, win5 = int(flow.get("both_buy_days5") or 0), int(flow.get("window5") or 0)
-            both5_cell = (
-                f"<span style='color:{'#ff5b5b' if both5 >= 3 else '#9aa0aa'}; font-weight:800'>"
-                f"{both5}/{win5}</span> {_flow_dots((flow.get('day_marks') or [])[:5])}"
-            )
-        else:
-            both5_cell = "<span style='color:#9aa0aa'>확인 필요</span>"
+        # 눌림목 표와 같은 칸을 여기에도 둔다(2026-07-25 사용자 지시).
+        # 코드 칸은 뺐다 — 태블릿에서 '0058/30'처럼 두 줄로 접혔고, 코드는 아래
+        # 상세와 차트 카드에 그대로 있다.
         body.append(
             f"<tr class='j4-th-row{highlight}'>"
             f"<td>{rank_mark.get(rank, f'{rank}위')}</td>"
             f"<td class='j4-th-name'>{leader['name']}</td>"
-            f"<td>{leader['code']}</td>"
             f"<td>{score_bar}</td>"
             f"<td style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</td>"
             f"<td style='color:{_sign_color(from_high)}; font-weight:700'>{_pct(from_high)}</td>"
             f"<td style='color:{_sign_color(ret20)}; font-weight:700'>{_pct(ret20)}</td>"
-            f"<td style='color:{_sign_color(net5)}; font-weight:700'>{net5_cell}</td>"
-            f"<td>{both5_cell}</td>"
+            f"<td>{_flow_ratio_cell(flow)}</td>"
+            f"<td>{_partner5_cell(flow)}</td>"
+            f"<td>{_partner20_cell(flow)}</td>"
             f"<td>{plan.get('state', '')}</td></tr>"
         )
     return (
         "<table class='j4-theme-table'><colgroup>"
-        "<col style='width:7%'><col style='width:17%'><col style='width:7%'>"
-        "<col style='width:14%'><col style='width:8%'><col style='width:10%'>"
-        "<col style='width:9%'><col style='width:13%'><col style='width:8%'>"
-        "<col style='width:7%'></colgroup>"
-        "<thead><tr><th>순위</th><th style='text-align:left; padding-left:1.2rem'>종목</th><th>코드</th>"
+        "<col style='width:6%'><col style='width:16%'><col style='width:13%'>"
+        "<col style='width:7%'><col style='width:9%'><col style='width:8%'>"
+        "<col style='width:8%'><col style='width:11%'><col style='width:14%'>"
+        "<col style='width:8%'></colgroup>"
+        "<thead><tr><th>순위</th><th style='text-align:left; padding-left:1.2rem'>종목</th>"
         "<th>조건점수</th><th>당일</th><th>52주 고가 대비</th><th>20일 수익률</th>"
-        "<th>수급(외+기 5일)</th><th>동반(5일)</th><th>매수 상태</th></tr></thead>"
+        "<th>수급(대금%)</th><th>동반(5일)</th><th>동반(매수/매도/20일)</th>"
+        "<th>매수 상태</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody></table>"
     )
 
@@ -903,6 +898,57 @@ def _flow_dots(marks) -> str:
             f" background:{background}; border:1px solid {color}; margin-right:3px'></span>"
         )
     return "".join(dots)
+
+
+
+def _partner5_cell(flow: dict) -> str:
+    """동반(5일) — 숫자 + 점 다섯. 왼쪽이 가장 최근일이다."""
+    if not flow.get("ok"):
+        return "<span style='color:#9aa0aa'>확인 필요</span>"
+    both, window = int(flow.get("both_buy_days5") or 0), int(flow.get("window5") or 0)
+    return (
+        f"<span style='color:{'#ff5b5b' if both >= 3 else '#9aa0aa'}; font-weight:800'>"
+        f"{both}/{window}</span> {_flow_dots((flow.get('day_marks') or [])[:5])}"
+    )
+
+
+def _partner20_cell(flow: dict) -> str:
+    """동반(매수/매도/20일) — 막대 하나 안에 매수는 빨강, 매도는 파랑으로 같이 담는다.
+
+    막대를 둘로 나누면 자리를 두 배로 먹고 태블릿에서 줄이 접혔다(2026-07-25).
+    """
+    if not flow.get("ok"):
+        return "<span style='color:#9aa0aa'>확인 필요</span>"
+    buy = int(flow.get("both_buy_days20") or 0)
+    sell = int(flow.get("both_sell_days20") or 0)
+    window = int(flow.get("window20") or 0)
+    buy_pct = (buy / window * 100) if window else 0
+    sell_pct = (sell / window * 100) if window else 0
+    return (
+        "<div class='j4-barwrap'><div class='j4-bar'>"
+        "<div style='display:flex; height:8px'>"
+        f"<div style='width:{min(buy_pct, 100):.0f}%; background:#ff5b5b'></div>"
+        f"<div style='width:{min(sell_pct, 100 - min(buy_pct, 100)):.0f}%; background:#4da6ff'></div>"
+        "</div></div>"
+        "<span class='j4-bar-num' style='white-space:nowrap'>"
+        f"<span style='color:#ff5b5b'>{buy}</span>/"
+        f"<span style='color:#4da6ff'>{sell}</span>/"
+        f"<span style='color:#9aa0aa'>{window}</span></span></div>"
+    )
+
+
+def _flow_ratio_cell(flow: dict) -> str:
+    """수급 칸 — 금액 대신 '5일 거래대금의 몇 %'만 보여준다(2026-07-25 사용자 지시).
+
+    금액(+321억)은 큰 종목인지 작은 종목인지 감이 없어서 뺐다. 절대 금액은
+    종목을 누르면 나오는 상세에 그대로 있다.
+    """
+    if not flow.get("ok"):
+        return "<span style='color:#9aa0aa'>확인 필요</span>"
+    ratio = flow.get("net5_ratio_pct")
+    if ratio is None:
+        return "<span style='color:#9aa0aa'>—</span>"
+    return f"<span style='color:{_sign_color(ratio)}; font-weight:800'>{ratio:+.1f}%</span>"
 
 
 def _render_day_price_row(metrics: dict) -> None:
@@ -1772,7 +1818,7 @@ def _render_pullback_finder() -> None:
     # 코드 칸은 뺐다 — 태블릿에서 수급·동반 칸이 서로 겹쳤다(2026-07-25 사용자 지적).
     # 종목코드는 종목을 누르면 나오는 상세에 그대로 있다.
     titles = ["순위", "종목", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
-              "테마수", "수급(외+기 5일)", "동반(5일)", "동반(20일)", "신고가 기술점수", "지금 종합점수"]
+              "테마수", "수급(대금%)", "동반(5일)", "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
 
@@ -1824,41 +1870,11 @@ def _render_pullback_finder() -> None:
         cols[7].markdown(
             f"<div class='j4-td' style='color:#ffb020; font-weight:700'>{len(row.get('themes') or [])}</div>",
             unsafe_allow_html=True)
-        # 금액만 보면 큰 종목인지 감이 안 와서 '5일 거래대금의 몇 %'를 함께 적는다.
-        net5 = flow.get("net5_amount") if flow.get("ok") else None
-        net_ratio = flow.get("net5_ratio_pct") if flow.get("ok") else None
-        ratio_text = "" if net_ratio is None else (
-            f"<span style='color:#9aa0aa; font-size:.78rem'> 대금 {net_ratio:+.1f}%</span>"
-        )
         cols[8].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>"
-            f"{_eok(net5)}{ratio_text}</div>",
-            unsafe_allow_html=True)
-        # 동반 수급 — 외국인·기관이 '둘 다' 순매수한 날을 센다(금액 기준).
-        # 5일은 점으로 모양까지, 20일은 숫자로 긴 흐름만 본다(2026-07-25 사용자 요청).
-        if flow.get("ok"):
-            both5, win5 = int(flow.get("both_buy_days5") or 0), int(flow.get("window5") or 0)
-            both20, win20 = int(flow.get("both_buy_days20") or 0), int(flow.get("window20") or 0)
-            both5_html = (
-                f"<span style='color:{'#ff5b5b' if both5 >= 3 else '#9aa0aa'}; font-weight:800'>"
-                f"{both5}/{win5}</span> "
-                f"<span style='letter-spacing:1px'>{_flow_dots((flow.get('day_marks') or [])[:5])}</span>"
-            )
-            # 20일은 막대 + 숫자 + 동반매도 일수. 색 기준선(예: 8일 이상 빨강)은
-            # 근거가 없어 두지 않고, 비율은 막대 길이로 보게 한다.
-            sell20 = int(flow.get("both_sell_days20") or 0)
-            ratio20 = (both20 / win20 * 100) if win20 else 0
-            both20_html = (
-                "<div class='j4-barwrap'><div class='j4-bar'>"
-                f"<div class='j4-bar-fill' style='width:{min(ratio20, 100):.0f}%'></div></div>"
-                f"<span class='j4-bar-num'>매수 {both20}/{win20}</span></div>"
-                f"<span style='color:#4da6ff; font-weight:700; font-size:.8rem'>매도 {sell20}일</span>"
-            )
-        else:
-            both5_html = "<span style='color:#9aa0aa'>확인 필요</span>"
-            both20_html = "<span style='color:#9aa0aa'>확인 필요</span>"
-        cols[9].markdown(f"<div class='j4-td'>{both5_html}</div>", unsafe_allow_html=True)
-        cols[10].markdown(f"<div class='j4-td'>{both20_html}</div>", unsafe_allow_html=True)
+            f"<div class='j4-td'>{_flow_ratio_cell(flow)}</div>", unsafe_allow_html=True)
+        # 동반 수급 — 외국인·기관이 '둘 다' 순매수한 날. 왼쪽이 가장 최근일이다.
+        cols[9].markdown(f"<div class='j4-td'>{_partner5_cell(flow)}</div>", unsafe_allow_html=True)
+        cols[10].markdown(f"<div class='j4-td'>{_partner20_cell(flow)}</div>", unsafe_allow_html=True)
         peak = row.get("peak_score")
         cols[11].markdown(
             f"<div class='j4-td' style='color:#44f0a1; font-weight:800'>"
@@ -1877,6 +1893,12 @@ def _render_pullback_finder() -> None:
         " margin: 0 !important; color: #7cc8ff !important; text-align: left !important; }"
         "</style>",
         unsafe_allow_html=True,
+    )
+    st.caption(
+        "동반(5일) 동그라미는 **왼쪽이 가장 최근 거래일**입니다 — 빨강은 외국인·기관이 "
+        "둘 다 순매수, 파랑은 둘 다 순매도, 주황은 한쪽만, 빈 원은 보합입니다. "
+        "수급 칸은 5일 순매수 금액이 그 기간 거래대금의 몇 %인지이고, "
+        "동반(매수/매도/20일)은 20거래일 중 동반매수·동반매도 일수입니다."
     )
     st.caption(
         "**‘신고가 기술점수’가 75점 이상인지가 판정 기준입니다** — 종목 일봉과 KOSPI 일봉을 "

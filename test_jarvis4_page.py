@@ -91,6 +91,7 @@ def _flow(ok=True):
         "day_marks": ["both_buy", "both_buy", "one", "both_buy", "both_sell"],
         "both_buy_days5": 3, "window5": 5,
         "both_buy_days20": 14, "both_sell_days20": 3, "window20": 20,
+        "turnover5_amount": 6.42e12, "net5_ratio_pct": 5.0,
         "foreign_net5": 60_000, "institution_net5": 40_000, "latest_date": "2026.07.21",
     }
 
@@ -461,21 +462,26 @@ class PartnerFlowColumnTests(unittest.TestCase):
         markdowns = [str(node.value) for node in app.markdown]
         blob = "\n".join(markdowns)
 
-        # 머리글 두 개가 나와야 한다
+        # 머리글
         self.assertIn("동반(5일)", blob)
-        self.assertIn("동반(20일)", blob)
-        # 5일: 숫자 3/5 와 점 네 종류(매수 빨강·매도 파랑·한쪽 주황)
+        self.assertIn("동반(매수/매도/20일)", blob)
+        self.assertIn("수급(대금%)", blob)
+        # 5일: 숫자 3/5 와 점(글자가 아니라 CSS 동그라미 — 글꼴마다 크기가 달랐다)
         self.assertIn("3/5", blob)
-        # 점은 글자가 아니라 CSS 동그라미다 — 글꼴마다 크기가 달라 ◐만 커 보였다.
         self.assertIn("border-radius:50%", blob)
         self.assertIn("#ff5b5b", blob)   # 동반 매수
         self.assertIn("#4da6ff", blob)   # 동반 매도
         self.assertIn("#ffb020", blob)   # 한쪽만
-        # 20일: 막대와 14/20, 그리고 동반매도 일수
-        self.assertIn("매수 14/20", blob)
-        self.assertIn("매도 3일", blob)
-        # 금액 옆에 5일 거래대금 대비 비중도 적어야 한다(금액만으로는 감이 안 온다).
-        self.assertIn("대금 ", blob)
+        # 20일: 막대 하나에 매수·매도를 같이 담고 숫자는 매수/매도/전체
+        self.assertIn(">14</span>/", blob)
+        self.assertIn(">3</span>/", blob)
+        self.assertIn(">20</span>", blob)
+        # 수급은 금액이 아니라 거래대금 대비 비중만 보여준다(금액은 감이 없다).
+        self.assertIn("+5.0%", blob)
+        self.assertNotIn("대금 +", blob)
+        # 점 읽는 법(왼쪽이 최근일)을 화면에 밝혀 둔다
+        captions = " ".join(str(node.value) for node in app.caption)
+        self.assertIn("왼쪽이 가장 최근 거래일", captions)
         # 필터 체크박스가 있어야 한다
         self.assertTrue(
             any("동반 순매수" in str(node.label) for node in app.checkbox),
