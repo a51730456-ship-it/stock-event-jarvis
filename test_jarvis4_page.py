@@ -270,7 +270,8 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
         phone_block = css[css.index("@media (max-width: 600px)"):]
         # 표 두 개와 머리글, 게이지 순서 규칙이 모두 들어 있어야 한다.
-        for key in ("st-key-j4tbtn_", "st-key-j4pbf_", "j4-th-head", ".fg-box { order"):
+        # 눌림목 표(j4pbf_)는 세로로 쌓지 않고 옆으로 밀어 보므로 폰 규칙에 없다.
+        for key in ("st-key-j4tbtn_", "j4-th-head", ".fg-box { order"):
             self.assertIn(key, phone_block)
         self.assertNotIn("stSidebarNav", phone_block)
 
@@ -479,9 +480,41 @@ class PartnerFlowColumnTests(unittest.TestCase):
         # 수급은 금액이 아니라 거래대금 대비 비중만 보여준다(금액은 감이 없다).
         self.assertIn("+5.0%", blob)
         self.assertNotIn("대금 +", blob)
-        # 점 읽는 법(왼쪽이 최근일)을 화면에 밝혀 둔다
+        # 점 읽는 법(왼쪽이 최근일)과 수급 기준일을 화면에 밝혀 둔다
         captions = " ".join(str(node.value) for node in app.caption)
         self.assertIn("왼쪽이 가장 최근 거래일", captions)
+        self.assertIn("수급 기준일", captions)
+
+    def test_wide_tables_scroll_sideways_on_small_screens(self):
+        """좁은 화면에서는 칸을 쥐어짜지 않고 표만 옆으로 민다(2026-07-25 사용자 지시).
+
+        칸을 줄이면 글자가 잘리고, 세로로 쌓으면 줄이 길어진다. 그래서 표를 원래
+        폭으로 두고 손가락으로 미는 방식을 쓴다 — 폰·태블릿 공통.
+        """
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            next(
+                node for node in app.button if str(node.key or "") == "j4_pullback_find"
+            ).click().run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+
+        self.assertEqual(len(app.exception), 0)
+        blob = chr(10).join(str(node.value) for node in app.markdown)
+        # 테마 종목표: 감싸는 상자와 최소 폭
+        self.assertIn("j4-table-scroll", blob)
+        self.assertIn("min-width: 980px", blob)
+        # 눌림목표: 상자가 스크롤되고 줄이 접히지 않아야 한다
+        self.assertIn(".st-key-j4_pullback_table { overflow-x: auto", blob)
+        self.assertIn("flex-wrap: nowrap !important; min-width: 1180px", blob)
         # 필터 체크박스가 있어야 한다
         self.assertTrue(
             any("동반 순매수" in str(node.label) for node in app.checkbox),

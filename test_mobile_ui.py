@@ -124,7 +124,6 @@ class RealPageMappingTests(unittest.TestCase):
         ("자비스3 테마표", 8, set(range(1, 9))),
         ("자비스3 눌림목표", 12, set(range(1, 13))),
         ("자비스4 테마표", 8, set(range(1, 9))),
-        ("자비스4 눌림목표", 13, set(range(1, 14))),
     )
 
     def test_every_column_stays_visible_on_phones(self):
@@ -140,7 +139,8 @@ class RealPageMappingTests(unittest.TestCase):
         import re
 
         root = pathlib.Path(__file__).parent
-        expected = {"j3tbtn_": 8, "j3pbf_": 12, "j4tbtn_": 8, "j4pbf_": 13}
+        # 자비스4 눌림목표는 세로로 쌓지 않고 옆으로 밀어 보므로 칸 규칙이 없다.
+        expected = {"j3tbtn_": 8, "j3pbf_": 12, "j4tbtn_": 8}
         sources = "\n".join(
             (root / name).read_text(encoding="utf-8")
             for name in ("pages/2_자비스3.py", "pages/3_자비스4.py")

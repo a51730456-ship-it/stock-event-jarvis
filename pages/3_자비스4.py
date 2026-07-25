@@ -142,6 +142,20 @@ st.markdown(
     .j4-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
     .j4-top-sub { font-size: 0.95rem; font-weight: 700; }
     .j4-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
+    /* 좁은 화면(태블릿·폰)에서는 칸을 쥐어짜 글자를 자르는 대신, 표를 원래 폭으로
+       두고 손가락으로 옆으로 밀어 본다(2026-07-25 사용자 지시). 화면 전체는 안 밀린다. */
+    .j4-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    /* 눌림목 표도 같은 방식 — 좁은 화면에서 줄이 접히지 않게 폭을 지키고 옆으로 민다. */
+    .st-key-j4_pullback_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 1200px) {
+        .st-key-j4_pullback_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1180px;
+        }
+        .st-key-j4_pullback_table [data-testid="stColumn"] { min-width: 0 !important; }
+    }
+    @media (max-width: 1200px) {
+        .j4-table-scroll .j4-theme-table { min-width: 980px; }
+    }
     .j4-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j4-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
     .j4-theme-table td.j4-th-name { text-align: left; padding-left: 1.2rem; font-weight: 800; }
@@ -532,11 +546,16 @@ def _render_market_overview() -> None:
             "시장상태", phase, phase_color,
             f"원/달러 {_number(usdkrw.get('current'), 1)}" if usdkrw.get("ok") else "원/달러 —",
         ),
+        # 숫자 앞의 −만으로는 판 것인지 감이 안 온다는 지적(2026-07-25)에 따라
+        # '순매도/순매수'를 글로 함께 적는다. 값은 그대로다.
         _top_metric(
             "대표종목 5일 수급",
             _eok(foreign.get("net5_amount")) if foreign.get("ok") else "—",
             _sign_color(foreign.get("net5_amount")) if foreign.get("ok") else "#9aa0aa",
-            "삼성전자+SK하이닉스" if foreign.get("ok") else "자료 부족",
+            (
+                "삼성전자+SK하이닉스 · 외국인+기관 "
+                + ("순매수" if (foreign.get("net5_amount") or 0) > 0 else "순매도")
+            ) if foreign.get("ok") else "자료 부족",
         ),
         regime_gauge_ui.us_prev_box_html(us_prev),
         _us_futures_cell(),
@@ -680,7 +699,7 @@ def _leader_table_html(leaders: list[dict], selected_code: str | None) -> str:
             f"<td>{plan.get('state', '')}</td></tr>"
         )
     return (
-        "<table class='j4-theme-table'><colgroup>"
+        "<div class='j4-table-scroll'><table class='j4-theme-table'><colgroup>"
         "<col style='width:6%'><col style='width:16%'><col style='width:13%'>"
         "<col style='width:7%'><col style='width:9%'><col style='width:8%'>"
         "<col style='width:8%'><col style='width:11%'><col style='width:14%'>"
@@ -689,7 +708,7 @@ def _leader_table_html(leaders: list[dict], selected_code: str | None) -> str:
         "<th>조건점수</th><th>당일</th><th>52주 고가 대비</th><th>20일 수익률</th>"
         "<th>수급(대금%)</th><th>동반(5일)</th><th>동반(매수/매도/20일)</th>"
         "<th>매수 상태</th></tr></thead>"
-        f"<tbody>{''.join(body)}</tbody></table>"
+        f"<tbody>{''.join(body)}</tbody></table></div>"
     )
 
 
@@ -1819,12 +1838,15 @@ def _render_pullback_finder() -> None:
     # 종목코드는 종목을 누르면 나오는 상세에 그대로 있다.
     titles = ["순위", "종목", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
               "테마수", "수급(대금%)", "동반(5일)", "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"]
-    for column, title in zip(st.columns(widths), titles):
+    # 좁은 화면에서는 칸을 쥐어짜 글자를 자르는 대신 표를 옆으로 밀어서 본다
+    # (2026-07-25 사용자 지시). 머리글과 줄이 같이 밀려야 하므로 한 상자에 담는다.
+    table_box = st.container(key="j4_pullback_table")
+    for column, title in zip(table_box.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
 
     for index, row in enumerate(rows):
         quality, flow = row["pullback"], row.get("flow") or {}
-        cols = st.columns(widths)
+        cols = table_box.columns(widths)
         cols[0].markdown(f"<div class='j4-td'>{row['pullback_rank']}</div>", unsafe_allow_html=True)
         # 종목을 누르면 그 종목이 속한 테마를 목록에 넣고(순위 밖일 수 있으므로) 선택까지 옮긴다.
         if cols[1].button(row["name"], key=f"j4pbf_{index:02d}", width="stretch"):
@@ -1894,8 +1916,13 @@ def _render_pullback_finder() -> None:
         "</style>",
         unsafe_allow_html=True,
     )
+    _flow_latest = next(
+        ((row.get("flow") or {}).get("latest_date") for row in rows
+         if (row.get("flow") or {}).get("latest_date")), None
+    )
     st.caption(
-        "동반(5일) 동그라미는 **왼쪽이 가장 최근 거래일**입니다 — 빨강은 외국인·기관이 "
+        (f"수급 기준일 **{_flow_latest}** · 그날부터 거꾸로 센 거래일입니다. " if _flow_latest else "")
+        + "동반(5일) 동그라미는 **왼쪽이 가장 최근 거래일**입니다 — 빨강은 외국인·기관이 "
         "둘 다 순매수, 파랑은 둘 다 순매도, 주황은 한쪽만, 빈 원은 보합입니다. "
         "수급 칸은 5일 순매수 금액이 그 기간 거래대금의 몇 %인지이고, "
         "동반(매수/매도/20일)은 20거래일 중 동반매수·동반매도 일수입니다."
@@ -1972,11 +1999,8 @@ def main() -> None:
                 7: "KOSPI 대비", 8: "구성종목 확산",
             }, "j4-td"),
             # 눌림목표(12칸) — 미국테마와 같이 폰에서도 전부 보여준다(2026-07-25).
-            mobile_ui.table_css("j4pbf_", 13, {
-                1: "순위", 2: "", 3: "눌림", 4: "신고가", 5: "현재가", 6: "고점 대비",
-                7: "20일선 이격", 8: "테마수", 9: "수급(외+기 5일)", 10: "동반(5일)",
-                11: "동반(20일)", 12: "신고가점수", 13: "지금 종합점수",
-            }, "j4-td"),
+            # 눌림목 표는 폰에서도 세로로 쌓지 않고 옆으로 밀어서 본다(2026-07-25
+            # 사용자 지시). 그래서 여기에 칸 규칙을 두지 않는다.
         ),
         unsafe_allow_html=True,
     )
