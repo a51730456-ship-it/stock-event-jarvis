@@ -1701,9 +1701,29 @@ def _render_pullback_finder() -> None:
         st.info("지금 조건에 맞는 눌림목 종목이 없습니다. 조건을 낮추지 않고 그대로 둡니다.")
         return
 
-    widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.6, 1.2, 1.1, 0.9, 1.3, 1.3, 1.2]
+    # 연속 수급 필터 — 켜고 끄며 비교하려고 버튼으로 뒀다(2026-07-25 사용자 요청).
+    # 걸러내는 것뿐이고 점수·순위·계산은 하나도 바꾸지 않는다. 종목이 다 사라지면
+    # 끄라고 알려 준다 — 조건을 몰래 낮추지 않는다.
+    only_streak = st.checkbox(
+        "외국인+기관 연속 2일 이상만 보기",
+        key="j4_pullback_only_streak",
+        help="이미 2개 이상 테마·정배열·눌림목을 통과한 목록에서, 수급이 이틀 이상 "
+             "이어진 종목만 남깁니다. 끄면 전체가 다시 보입니다.",
+    )
+    if only_streak:
+        kept = [
+            row for row in rows
+            if int(((row.get("flow") or {}).get("buy_streak_days") or 0)) >= 2
+        ]
+        st.caption(f"연속 2일 이상: {len(kept)}개 / 전체 {len(rows)}개")
+        if not kept:
+            st.info("연속 2일 이상인 종목이 없습니다. 위 선택을 끄면 전체가 보입니다.")
+            return
+        rows = kept
+
+    widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.6, 1.2, 1.1, 0.9, 1.3, 1.1, 1.3, 1.2]
     titles = ["순위", "종목", "코드", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
-              "테마수", "수급(외+기 5일)", "신고가 기술점수", "지금 종합점수"]
+              "테마수", "수급(외+기 5일)", "연속 수급일", "신고가 기술점수", "지금 종합점수"]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
 
@@ -1760,11 +1780,17 @@ def _render_pullback_finder() -> None:
         cols[9].markdown(
             f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
             unsafe_allow_html=True)
-        peak = row.get("peak_score")
+        # 연속 수급일 — 외국인+기관이 며칠 연속 순매수했는지(2026-07-25 사용자 요청).
+        # jarvis4_data가 이미 세어 둔 값을 그대로 보여준다. 2일 이상이면 초록으로 강조.
+        streak = int(flow.get("buy_streak_days") or 0) if flow.get("ok") else 0
         cols[10].markdown(
+            f"<div class='j4-td' style='color:{'#44f0a1' if streak >= 2 else '#9aa0aa'};"
+            f" font-weight:800'>{streak}일</div>", unsafe_allow_html=True)
+        peak = row.get("peak_score")
+        cols[11].markdown(
             f"<div class='j4-td' style='color:#44f0a1; font-weight:800'>"
             f"{f'{float(peak):.1f}' if peak is not None else '—'}</div>", unsafe_allow_html=True)
-        cols[11].markdown(
+        cols[12].markdown(
             f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
             unsafe_allow_html=True)
     st.markdown(
@@ -1851,10 +1877,10 @@ def main() -> None:
                 7: "KOSPI 대비", 8: "구성종목 확산",
             }, "j4-td"),
             # 눌림목표(12칸) — 미국테마와 같이 폰에서도 전부 보여준다(2026-07-25).
-            mobile_ui.table_css("j4pbf_", 12, {
+            mobile_ui.table_css("j4pbf_", 13, {
                 1: "순위", 2: "", 3: "코드", 4: "눌림", 5: "신고가", 6: "현재가",
                 7: "고점 대비", 8: "20일선 이격", 9: "테마수", 10: "수급(외+기 5일)",
-                11: "신고가점수", 12: "지금 종합점수",
+                11: "연속 수급일", 12: "신고가점수", 13: "지금 종합점수",
             }, "j4-td"),
         ),
         unsafe_allow_html=True,
