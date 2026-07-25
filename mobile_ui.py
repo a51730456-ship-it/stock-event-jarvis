@@ -51,6 +51,11 @@ def table_css(button_prefix: str, total: int, keep: dict[int, str], cell_class: 
         # 쌓인 칸은 낮고 왼쪽 정렬로 — 가운데 정렬이면 이름표와 값이 흩어져 보인다.
         f"{row} .{cell_class} {{ min-height: 1.65rem !important;"
         " justify-content: flex-start !important; text-align: left !important; }",
+        # 칸을 감싸는 그릇에도 같은 높이를 준다. 이게 없으면 그릇만 10px로 눌린 채
+        # 26px짜리 글자가 넘쳐, 조건점수·상태·당일 글자가 서로 겹쳐 찍힌다
+        # (2026-07-25 폰 412px 실측: 겹친 칸 3쌍 → 0쌍).
+        f"{row} div:has(> [data-testid='stMarkdownContainer'])"
+        " { min-height: 1.75rem !important; }",
         # 점수 막대 칸: 폰에서는 값 앞에 이름표가 붙는데, 막대가 폭 100%를 다
         # 먹으면 이름표 자리가 없어 한 글자씩 세로로 쪼개진다("눌림"→"눌"/"림").
         # 막대를 이름표 옆에서 줄어들게 해 한 줄에 나란히 둔다.
@@ -104,6 +109,33 @@ TOP_ROW_CSS = """
 .fg-box-title { font-size: 0.86rem; }
 """
 
+# 테마 종목표(HTML 표 9칸)는 폰에서 칸이 34px까지 좁아져 '+1.76%'가 한 글자씩
+# 세로로 쪼개지고 조건점수 막대는 실오라기가 됐다(2026-07-25 실측).
+# 티커·매수 상태·상세 연결을 접고, 남은 칸은 줄바꿈을 막아 한 줄로 읽히게 한다.
+# 값은 하나도 바꾸지 않는다 — 티커는 종목명 옆에, 매수 상태는 아래 상세에 그대로 있다.
+THEME_TABLE_CSS = """
+.j3-theme-table, .j4-theme-table { table-layout: auto !important; }
+.j3-theme-table col, .j4-theme-table col { width: auto !important; }
+/* 자비스3(미국): 3 티커 · 8 매수 상태 · 9 상세 연결을 접는다. */
+.j3-theme-table th:nth-child(3), .j3-theme-table td:nth-child(3),
+.j3-theme-table th:nth-child(8), .j3-theme-table td:nth-child(8),
+.j3-theme-table th:nth-child(9), .j3-theme-table td:nth-child(9),
+/* 자비스4(한국): 3 코드 · 9 매수 상태만 접는다. 8 수급은 자비스4의 핵심이라 남긴다. */
+.j4-theme-table th:nth-child(3), .j4-theme-table td:nth-child(3),
+.j4-theme-table th:nth-child(9), .j4-theme-table td:nth-child(9) { display: none !important; }
+.j3-theme-table th, .j3-theme-table td,
+.j4-theme-table th, .j4-theme-table td {
+    white-space: nowrap !important; padding: 0.4rem 0.25rem !important;
+}
+/* 종목명만 줄바꿈을 허용한다 — 이름이 길어도 표가 옆으로 넘치지 않게. */
+.j3-theme-table td.j3-th-name, .j4-theme-table td.j4-th-name {
+    white-space: normal !important; padding-left: 0.4rem !important;
+}
+.j3-theme-table th.j3-th-left, .j4-theme-table th.j4-th-left { padding-left: 0.4rem !important; }
+/* 조건점수 막대가 실오라기로 보이던 것을 막는다. */
+.j3-theme-table .j3-barwrap, .j4-theme-table .j4-barwrap { min-width: 68px; }
+"""
+
 # 종목 상세·신호 카드 등 나머지 자리.
 CONTENT_CSS = """
 h1 { font-size: 1.5rem !important; }
@@ -129,6 +161,6 @@ def page_css(*table_rules: str) -> str:
     """폰에서만 도는 <style> 한 덩어리. 표 규칙은 화면마다 달라 받아서 넣는다."""
     return (
         f"<style>@media (max-width: {PHONE_MAX_WIDTH}px) {{"
-        + SIDEBAR_NAV_CSS + TOP_ROW_CSS + CONTENT_CSS + "".join(table_rules)
+        + SIDEBAR_NAV_CSS + TOP_ROW_CSS + THEME_TABLE_CSS + CONTENT_CSS + "".join(table_rules)
         + "}</style>"
     )

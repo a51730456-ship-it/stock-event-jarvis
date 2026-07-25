@@ -85,7 +85,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072406
+MODULE_REVISION = 2026072501
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1055,6 +1055,19 @@ def get_live_quote(ticker: str) -> dict:
         "ticker": ticker,
         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
     }
+
+
+def get_intraday_chart(ticker: str) -> dict | None:
+    """아무 종목의 당일 1분봉 차트 자료. 눌림목 상세에서 쓴다(2026-07-25 추가).
+
+    테마 대장주는 목록을 만들 때 intraday_chart를 함께 담지만, 눌림목 종목은
+    고른 뒤에야 알 수 있어 그때 한 종목만 따로 불러온다.
+    """
+    ticker = str(ticker).strip().upper()
+    daily, _ = _download_cached((ticker,), period="1y", interval="1d", ttl_seconds=300)
+    live, _ = _download_cached((ticker,), period="1d", interval="1m", ttl_seconds=45, prepost=True)
+    metrics = _series_metrics(daily.get(ticker), live.get(ticker))
+    return _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"))
 
 
 def _prepare_chart_payload(frame: pd.DataFrame, resample_rule: str | None, limit: int, meta: dict) -> dict:

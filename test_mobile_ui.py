@@ -28,6 +28,25 @@ class MediaQueryTests(unittest.TestCase):
         # 갤럭시 S21 울트라(412px)는 걸려야 한다.
         self.assertGreater(m.PHONE_MAX_WIDTH, 412)
 
+    def test_stacked_cells_get_a_wrapper_height(self):
+        """그릇에 높이를 안 주면 칸이 10px로 눌려 글자가 서로 겹쳐 찍힌다.
+
+        2026-07-25 폰 412px 실측: 이 규칙이 없으면 조건점수·상태·당일이 겹쳤다.
+        """
+        css = m.table_css("j3tbtn_", 8, {2: "", 4: "조건점수"}, "j3-td")
+        self.assertIn("div:has(> [data-testid='stMarkdownContainer'])", css)
+        self.assertIn("min-height: 1.75rem", css)
+
+    def test_theme_table_keeps_supply_column_on_jarvis4(self):
+        """자비스4의 8번 칸은 수급이라 폰에서도 남겨야 한다(자비스4의 핵심)."""
+        css = m.THEME_TABLE_CSS
+        self.assertIn(".j3-theme-table th:nth-child(8)", css)      # 미국은 매수 상태 → 접는다
+        self.assertNotIn(".j4-theme-table th:nth-child(8)", css)   # 한국은 수급 → 남긴다
+
+    def test_theme_table_numbers_do_not_wrap(self):
+        """칸이 좁아 '+1.76%'가 한 글자씩 세로로 쪼개지던 것을 막는다."""
+        self.assertIn("white-space: nowrap", m.THEME_TABLE_CSS)
+
     def test_phone_hides_only_the_first_three_sidebar_items(self):
         """폰 메뉴는 미국테마·한국테마·선행감지(li 4·5·6)만 남긴다.
 

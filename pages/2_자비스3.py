@@ -318,12 +318,13 @@ import market_signal_ui
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072406
+_REQUIRED_J3_REVISION = 2026072501
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
     or not hasattr(j3data, "find_pullback_stocks")
     or not hasattr(j3data, "analyze_pullback_stock")
+    or not hasattr(j3data, "get_intraday_chart")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 자비스4에서 실제 발생).
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
@@ -889,20 +890,28 @@ def _render_market_overview() -> None:
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     _render_us_index_row(overview, phase)
+    # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
+    # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
+    with st.expander("조건점수·시장 상황 설명 보기", expanded=False):
+        st.markdown(
+            f"""
+            <div class="j3-score-guide">
+                조건점수 {overview['score']}/100은 상승장 확인 조건에서 얻은 점수이며 승률이 아닙니다.<br>
+                0~49점 방어 우선 · 50~74점 중립·선별 · 75~100점 상승 우위<br>
+                {_market_score_detail(overview)}<br>
+                시장 상황은 미국 세션 단계입니다(뉴욕시각 기준): 프리마켓 04:00~09:30 → 정규장 09:30~16:00
+                → 애프터마켓 16:00~20:00 → 장 마감<br>
+                VIX 두 값은 서로 다른 것입니다 — 위 <b>VIX 18.70 같은 숫자는 공포지수 현재 수준</b>(25 미만이면
+                과열 아님)이고, 아래 선행신호 카드의 <b>VIX +12.38% 같은 값은 전일 종가 대비 변동률</b>입니다.
+                수준은 낮은데 하루 변동만 큰 날이 있어 두 값이 함께 있어도 모순이 아닙니다.<br>
+                공포·탐욕 지수는 CNN이 7개 심리 지표로 집계한 값(0 극단적 공포 ~ 100 극단적 탐욕)으로
+                참고용이며 점수·판정에는 반영하지 않습니다.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     st.markdown(
         f"""
-        <div class="j3-score-guide">
-            조건점수 {overview['score']}/100은 상승장 확인 조건에서 얻은 점수이며 승률이 아닙니다.<br>
-            0~49점 방어 우선 · 50~74점 중립·선별 · 75~100점 상승 우위<br>
-            {_market_score_detail(overview)}<br>
-            시장 상황은 미국 세션 단계입니다(뉴욕시각 기준): 프리마켓 04:00~09:30 → 정규장 09:30~16:00
-            → 애프터마켓 16:00~20:00 → 장 마감<br>
-            VIX 두 값은 서로 다른 것입니다 — 위 <b>VIX 18.70 같은 숫자는 공포지수 현재 수준</b>(25 미만이면
-            과열 아님)이고, 아래 선행신호 카드의 <b>VIX +12.38% 같은 값은 전일 종가 대비 변동률</b>입니다.
-            수준은 낮은데 하루 변동만 큰 날이 있어 두 값이 함께 있어도 모순이 아닙니다.<br>
-            공포·탐욕 지수는 CNN이 7개 심리 지표로 집계한 값(0 극단적 공포 ~ 100 극단적 탐욕)으로
-            참고용이며 점수·판정에는 반영하지 않습니다.
-        </div>
         <div class="j3-market-flow">
             <span class="j3-flow-label">시장 전체 흐름</span> : <span class="j3-flow-body">{_market_flow_text(overview)}</span>
         </div>
@@ -1681,9 +1690,25 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
 
     st.caption(
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
-        "이 상세와 일봉·주봉·월봉 차트만 즉시 교체됩니다."
+        "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
     _render_day_price_row(metrics)
+    # 당일 차트 — 테마 대장주 상세에는 있는데 눌림목 상세에만 없었다(2026-07-25 사용자
+    # 지적). 대장주와 같은 자료·같은 차트를 쓴다.
+    st.markdown("<div class='j3-chart-heading'>당일 · 실시간(지연 가능)</div>", unsafe_allow_html=True)
+    intraday_error = ""
+    try:
+        intraday_payload = j3data.get_intraday_chart(ticker)
+    except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
+        intraday_payload = None
+        intraday_error = _safe_error_text(exc)
+    if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+        st.altair_chart(_intraday_chart(intraday_payload, height=210), width="stretch", theme="streamlit")
+        st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+    elif intraday_error:
+        st.info(f"당일 자료 없음 — {intraday_error}")
+    else:
+        st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
     _render_price_chart_bundle(ticker)
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
@@ -1724,7 +1749,16 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         "(미국시장 색 규칙) · 여러 테마 소속은 필수가 아니라 최대 5점 가산</div>",
         unsafe_allow_html=True,
     )
-    result = j3data.find_pullback_stocks(reuse_only=True)
+    # 한국테마(자비스4)와 같이 버튼을 눌러야 펼쳐진다(2026-07-25 사용자 지시).
+    # 페이지를 여는 것만으로 20종목 표가 통째로 쏟아지면 폰에서 화면을 다 먹었다.
+    if st.button("눌림목 찾기 / 최신 자료로 다시 찾기", key="j3_pullback_find", width="stretch"):
+        st.session_state.pop("j3_pullback_selected_ticker", None)
+        with st.spinner("미국 20개 테마 전체에서 상승추세 조정 종목을 찾는 중입니다…"):
+            st.session_state["j3_pullback_result"] = j3data.find_pullback_stocks(reuse_only=True)
+    result = st.session_state.get("j3_pullback_result")
+    if result is None:
+        st.info("위 버튼을 누르면 조회합니다. 페이지를 여는 것만으로는 전수 검색하지 않습니다.")
+        return
     if not result.get("ok"):
         st.error(f"미국 눌림목 조회 실패: {_safe_error_text(result.get('error'))}")
         return

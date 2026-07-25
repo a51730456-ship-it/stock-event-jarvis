@@ -605,10 +605,10 @@ def render_market_signal_card(
         for reason in result.missing_reasons:
             st.markdown(f"- {reason}")
 
-    # 상세 표는 자동으로 펼치고, 표 위에 각 열이 무엇을 뜻하는지 범례를 둔다
-    # (2026-07-22 사용자 지시 — 캡처 주석: "자동으로 열리게", "설명 따로 위에 만들 것",
-    # "색깔은 조건마다 다르게").
-    with st.expander(detail_title, expanded=True):
+    # 상세 표는 접어 둔다 — 폰에서 이 표가 첫 화면을 다 먹어 정작 봐야 할 카드가
+    # 한참 밑으로 밀렸다(2026-07-25 사용자 지시: "눌러야 내용이 나오도록").
+    # 표 위 범례는 펼쳤을 때 같이 보인다.
+    with st.expander(detail_title, expanded=False):
         st.markdown(_SIGNAL_TABLE_LEGEND_HTML, unsafe_allow_html=True)
         _rows_html = []
         for key in table_keys:

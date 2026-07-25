@@ -168,6 +168,10 @@ class Jarvis3PageTests(unittest.TestCase):
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.run(timeout=60)
+            # 눌림목 표는 버튼을 눌러야 나온다(2026-07-25 사용자 지시). 한국테마와 같다.
+            next(
+                node for node in app.button if str(node.key or "") == "j3_pullback_find"
+            ).click().run(timeout=60)
             pullback_button = next(
                 node for node in app.button if str(node.key or "") == "j3pbf_00"
             )
@@ -229,7 +233,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 
     def test_pullback_detail_opens_top_ranked_stock_without_click(self):
-        """클릭하지 않아도 눌림목 1순위 상세가 바로 열려 있어야 한다(2026-07-24 지시)."""
+        """눌림목을 찾고 나면 종목을 누르지 않아도 1순위 상세가 열려 있어야 한다.
+
+        2026-07-24 지시(1순위 자동 열림)는 그대로 두고, 2026-07-25 지시에 따라
+        표 자체는 '눌림목 찾기' 버튼을 누른 뒤에 나온다.
+        """
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("market_signal_ui._fetch_quotes", return_value={}), \
@@ -250,6 +258,11 @@ class Jarvis3PageTests(unittest.TestCase):
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.run(timeout=60)
+            # 표는 버튼을 눌러야 나온다. 누르기 전에는 안내만 보인다.
+            self.assertFalse(any(str(node.key or "") == "j3pbf_00" for node in app.button))
+            next(
+                node for node in app.button if str(node.key or "") == "j3_pullback_find"
+            ).click().run(timeout=60)
 
             names = [
                 str(node.value) for node in app.markdown
