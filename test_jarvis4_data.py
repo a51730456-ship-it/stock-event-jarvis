@@ -609,7 +609,17 @@ class DayFlowMarkTests(unittest.TestCase):
 
     def test_opposite_directions_never_count_as_partner(self):
         """외국인 대량 매수 + 기관 매도는 '동반'이 아니다 — 합산했다면 매수로 둔갑한다."""
-        self.assertEqual(self._mark(50_000, -48_000), "one")
+        self.assertEqual(self._mark(50_000, -48_000), "cross")
+
+    def test_one_side_buy_and_sell_are_told_apart(self):
+        """'한쪽만 샀다'와 '한쪽만 팔았다'와 '엇갈렸다'가 각각 달라야 한다.
+
+        예전에는 셋을 'one' 하나로 뭉쳐 같은 주황 동그라미로 나왔다(2026-07-25 지적).
+        """
+        self.assertEqual(self._mark(50_000, 10), "one_buy")     # 외국인만 삼
+        self.assertEqual(self._mark(10, 50_000), "one_buy")     # 기관만 삼
+        self.assertEqual(self._mark(-50_000, 10), "one_sell")   # 외국인만 팜
+        self.assertEqual(self._mark(10, -50_000), "one_sell")   # 기관만 팜
 
     def test_tiny_moves_are_flat(self):
         self.assertEqual(self._mark(10, 10), "flat")
