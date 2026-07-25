@@ -26,3 +26,25 @@ def sparklines() -> dict:
         return jarvis3_data.get_index_sparklines()
     except Exception:
         return {}
+
+
+def futures_sparkline(symbol: str = "NQ=F") -> dict:
+    """미국 선물의 당일 분봉과 전일 종가. 실패하면 빈 dict.
+
+    한국 장중에 미국 선물이 어디로 가는지 그림으로 보려고 쓴다(2026-07-25 요청).
+    """
+    try:
+        import jarvis3_data
+
+        intraday, _m1 = jarvis3_data._download_cached(
+            (symbol,), period="1d", interval="5m", ttl_seconds=180)
+        daily, _m2 = jarvis3_data._download_cached(
+            (symbol,), period="1mo", interval="1d", ttl_seconds=600)
+        frame, closes = intraday.get(symbol), daily.get(symbol)
+        if frame is None or frame.empty or closes is None or len(closes) < 2:
+            return {}
+        points = [float(v) for v in frame["Close"].dropna().tolist()]
+        base = float(closes["Close"].dropna().iloc[-2])
+        return {"points": points, "base": base} if len(points) >= 2 else {}
+    except Exception:
+        return {}

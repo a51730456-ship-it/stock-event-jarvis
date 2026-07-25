@@ -457,13 +457,20 @@ def _us_futures_cell() -> str:
     sub = f"{_pct(change)}"
     if sp500.get("change_pct") is not None:
         sub += f" · S&P500 선물 {sp500['change_pct']:+.2f}%"
-    return _top_metric(
+    # 선물도 당일 분봉 그림을 붙인다(2026-07-25 사용자 요청). 미국 색 규칙.
+    import us_index_data
+
+    cell = _top_metric(
         "나스닥100 선물",
         f"{nasdaq['current']:,.0f}",
         _sign_color(change),
         sub,
         sub_color=_sign_color(change),
     )
+    chart = _sparkline_svg(us_index_data.futures_sparkline(), "#4da6ff", "#ff5b5b")
+    cell = cell.replace("<div class='j4-top-cell'",
+                        "<div class='j4-top-cell' style='padding-left:1.6rem'", 1)
+    return cell.replace("</div></div>", "</div>" + chart + "</div>", 1) if chart else cell
 
 
 def _market_score_detail(overview: dict) -> str:
