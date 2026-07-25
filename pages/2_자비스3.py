@@ -982,7 +982,8 @@ def _render_market_overview() -> None:
 
 
 
-def _sparkline_svg(payload, up_color: str, down_color: str, height: int = 78) -> str:
+def _sparkline_svg(payload, up_color: str, down_color: str,
+                   width: float = 120.0, height: int = 90) -> str:
     """네이버 금융식 그림 — 당일 분봉 + 전일 종가 기준선(2026-07-25 사용자 지적 반영).
 
     기준선 위 구간과 아래 구간을 다른 색으로 그린다. 색은 시장 규칙을 부르는 쪽이
@@ -996,7 +997,7 @@ def _sparkline_svg(payload, up_color: str, down_color: str, height: int = 78) ->
         return ""
     low, high = min(points + [base]), max(points + [base])
     span = (high - low) or 1.0
-    width, pad = 300.0, 6.0
+    pad = 6.0
     inner = height - pad * 2
     step = width / (len(points) - 1)
 
@@ -1018,8 +1019,8 @@ def _sparkline_svg(payload, up_color: str, down_color: str, height: int = 78) ->
         f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points)
     ) + f" {width:.1f},{base_y:.1f}"
     return (
-        f"<svg viewBox='0 0 {width:.0f} {height}' width='100%' height='{height}' "
-        f"preserveAspectRatio='none' style='display:block; margin-top:.4rem;"
+        f"<svg viewBox='0 0 {width:.0f} {height}' width='{width:.0f}' height='{height}' "
+        f"style='display:block; margin:.4rem 0 .1rem 1.4rem;"
         f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
         f" background:rgba(255,255,255,.03)'>"
         f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"

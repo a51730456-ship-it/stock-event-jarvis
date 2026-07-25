@@ -549,8 +549,13 @@ def _render_market_overview() -> None:
     # 시장 국면은 밝은 초록, 미국 전일은 진한 초록, 공포·탐욕은 파랑.
     top_cells = [
         regime_gauge_ui.regime_box_html(overview),
-        _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"), sub_signed=True),
-        _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"), sub_signed=True),
+        # 한국장 색 규칙: 오르면 빨강, 내리면 파랑(미국과 반대).
+        _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
+                    sub_signed=True).replace("</div></div>", "</div>"
+            + _sparkline_svg(_kr_index_payload("KS11"), "#ff5b5b", "#4da6ff") + "</div>", 1),
+        _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"),
+                    sub_signed=True).replace("</div></div>", "</div>"
+            + _sparkline_svg(_kr_index_payload("KQ11"), "#ff5b5b", "#4da6ff") + "</div>", 1),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
         *_us_index_cells(),
@@ -958,6 +963,17 @@ def _index_spark(symbol: str) -> list:
         return []
 
 
+def _kr_index_payload(symbol: str) -> dict:
+    """KOSPI·KOSDAQ 그림 자료 — 최근 일봉과 전일 종가(분봉 소스가 없어 일봉을 쓴다)."""
+    try:
+        points = j4data.get_index_sparkline(symbol)
+    except Exception:
+        return {}
+    if len(points) < 3:
+        return {}
+    return {"points": points, "base": points[-2]}
+
+
 def _us_index_cells() -> list:
     """미국 4대 지수 칸 — 당일 분봉과 전일 종가로 값·등락·그림을 만든다."""
     import us_index_data
@@ -982,7 +998,8 @@ def _us_index_cells() -> list:
     return cells
 
 
-def _sparkline_svg(payload, up_color: str, down_color: str, height: int = 78) -> str:
+def _sparkline_svg(payload, up_color: str, down_color: str,
+                   width: float = 120.0, height: int = 90) -> str:
     """네이버 금융식 그림 — 당일 분봉 + 전일 종가 기준선(2026-07-25 사용자 지적 반영).
 
     기준선 위 구간과 아래 구간을 다른 색으로 그린다. 색은 시장 규칙을 부르는 쪽이
@@ -996,7 +1013,7 @@ def _sparkline_svg(payload, up_color: str, down_color: str, height: int = 78) ->
         return ""
     low, high = min(points + [base]), max(points + [base])
     span = (high - low) or 1.0
-    width, pad = 300.0, 6.0
+    pad = 6.0
     inner = height - pad * 2
     step = width / (len(points) - 1)
 
@@ -1018,8 +1035,8 @@ def _sparkline_svg(payload, up_color: str, down_color: str, height: int = 78) ->
         f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points)
     ) + f" {width:.1f},{base_y:.1f}"
     return (
-        f"<svg viewBox='0 0 {width:.0f} {height}' width='100%' height='{height}' "
-        f"preserveAspectRatio='none' style='display:block; margin-top:.4rem;"
+        f"<svg viewBox='0 0 {width:.0f} {height}' width='{width:.0f}' height='{height}' "
+        f"style='display:block; margin:.4rem 0 .1rem 1.4rem;"
         f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
         f" background:rgba(255,255,255,.03)'>"
         f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"
