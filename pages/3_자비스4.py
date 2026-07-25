@@ -11,6 +11,8 @@ from datetime import date
 
 import streamlit as st
 
+import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
+
 st.set_page_config(page_title="자비스4 — 한국 테마 레이더", layout="wide")
 
 st.markdown(
@@ -213,6 +215,7 @@ st.markdown(
 
 
 def _login_gate() -> None:
+    auth.sync_auth()  # 쿠키에 로그인이 남아 있으면 되살린다(폰 복귀 시 재로그인 방지).
     if st.session_state.get("authenticated"):
         return
     st.markdown("## 자비스4 — 한국 테마 레이더")

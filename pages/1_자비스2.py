@@ -14,6 +14,8 @@ from pathlib import Path
 
 import streamlit as st
 
+import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
+
 st.set_page_config(page_title="자비스2 — 순환매 플레이북", layout="wide")
 
 st.markdown(
@@ -128,6 +130,7 @@ st.markdown(
 _log = logging.getLogger(__name__)
 
 # ── 인증 게이트 — 이 페이지에서 바로 로그인 가능 (자비스1 경유 불필요) ─────────
+auth.sync_auth()  # 쿠키에 로그인이 남아 있으면 되살린다(폰 복귀 시 재로그인 방지).
 if not st.session_state.get("authenticated"):
     st.markdown("## 자비스2 — 순환매 플레이북")
     st.caption("승인된 사용자만 접근할 수 있습니다. 여기서 바로 로그인하세요.")

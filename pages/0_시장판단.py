@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
+
 st.set_page_config(page_title="시장 판단", layout="wide")
 
 # 사이드바 표기는 자비스2·3 페이지와 같은 규칙을 따른다(첫 항목 'app' → '자비스1').
@@ -100,6 +102,7 @@ st.markdown(
 )
 
 # ── 인증 게이트 — 여기서 바로 로그인 가능 (자비스1 경유 불필요) ─────────────────
+auth.sync_auth()  # 쿠키에 로그인이 남아 있으면 되살린다(폰 복귀 시 재로그인 방지).
 if not st.session_state.get("authenticated"):
     st.markdown("## 🧭 시장 판단")
     st.caption("승인된 사용자만 접근할 수 있습니다. 여기서 바로 로그인하세요.")

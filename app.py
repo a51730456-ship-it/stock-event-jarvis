@@ -18,6 +18,10 @@ import streamlit as st
 # 인증 게이트 앞에서 불러도 첫 화면이 늦어지지 않는다.
 import login_globe
 
+# 로그인 유지(쿠키). 가벼운 모듈이라 게이트 앞에서 불러도 된다. 쿠키가 안 되면
+# 조용히 세션 기반 동작으로 남는다. [[project_jarvis_persistent_login]]
+import auth
+
 _reference_panel_logger = logging.getLogger("jarvis.reference_panels")
 
 
@@ -399,6 +403,9 @@ except Exception:
 if not _app_password:
     st.warning("비밀번호 설정이 필요합니다. .streamlit/secrets.toml에 APP_PASSWORD를 설정하세요.")
     st.stop()
+
+# 쿠키에 로그인이 남아 있으면 되살리고, 세션이 로그인 상태면 쿠키를 심는다.
+auth.sync_auth()
 
 if not st.session_state.get("authenticated"):
     st.markdown(

@@ -1,0 +1,57 @@
+"""로그인 유지(쿠키) 핵심 로직 테스트.
+
+실제 브라우저·쿠키 프런트엔드 없이 순수 로직만 굳힌다. 인증은 안전이 중요하므로
+결정 규칙(_decide)과 토큰 생성(_expected_token)이 조용히 뒤집히지 않게 한다.
+"""
+
+import unittest
+from unittest import mock
+
+import auth
+
+
+class DecideTests(unittest.TestCase):
+    TOKEN = "abc123"
+
+    def test_logged_in_and_cookie_matches_does_nothing(self):
+        self.assertIsNone(auth._decide(True, self.TOKEN, self.TOKEN))
+
+    def test_logged_in_but_cookie_missing_sets_cookie(self):
+        self.assertEqual(auth._decide(True, None, self.TOKEN), "set")
+
+    def test_logged_in_but_cookie_stale_resets_cookie(self):
+        self.assertEqual(auth._decide(True, "old", self.TOKEN), "set")
+
+    def test_logged_out_with_matching_cookie_restores(self):
+        self.assertEqual(auth._decide(False, self.TOKEN, self.TOKEN), "restore")
+
+    def test_logged_out_without_cookie_does_nothing(self):
+        self.assertIsNone(auth._decide(False, None, self.TOKEN))
+
+    def test_logged_out_with_wrong_cookie_does_not_restore(self):
+        """엉뚱한 쿠키로는 절대 로그인이 되살아나면 안 된다."""
+        self.assertIsNone(auth._decide(False, "forged", self.TOKEN))
+
+
+class TokenTests(unittest.TestCase):
+    def test_token_depends_on_password_and_hides_it(self):
+        with mock.patch.object(auth.st, "secrets", {"APP_PASSWORD": "pw-one"}):
+            t1 = auth._expected_token()
+        with mock.patch.object(auth.st, "secrets", {"APP_PASSWORD": "pw-two"}):
+            t2 = auth._expected_token()
+        self.assertTrue(t1 and t2)
+        self.assertNotEqual(t1, t2)                 # 비번이 다르면 토큰도 다르다
+        self.assertNotIn("pw-one", t1)              # 비번이 토큰에 노출되지 않는다
+        self.assertEqual(len(t1), 64)               # sha256 hex
+
+    def test_token_is_stable_for_same_password(self):
+        with mock.patch.object(auth.st, "secrets", {"APP_PASSWORD": "same"}):
+            self.assertEqual(auth._expected_token(), auth._expected_token())
+
+    def test_no_password_gives_no_token(self):
+        with mock.patch.object(auth.st, "secrets", {}):
+            self.assertIsNone(auth._expected_token())
+
+
+if __name__ == "__main__":
+    unittest.main()
