@@ -330,7 +330,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072516
+_REQUIRED_J4_REVISION = 2026072517
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -986,24 +986,33 @@ def _kr_flow_hint() -> str:
 # 왼쪽이 최근일이다. 숫자(3/5)가 앞에 오므로 점이 잘려도 뜻은 잃지 않는다.
 # 글자(●◐○)로 그렸더니 글꼴마다 크기가 달라 ◐만 커 보였다(2026-07-25 사용자 지적).
 # CSS 동그라미로 그려 넷 다 같은 크기로 맞춘다. 보합만 속이 빈 원이다.
-# 동그라미 하나가 '둘'을 나타낸다 — 둘 다면 꽉 채우고, 한쪽만이면 반만 채운다
-# (2026-07-25 사용자 안). 속을 비우는 방식은 한눈에 안 들어와 반반으로 바꿨다.
-# (테두리색, 배경)
-_HALF_WHITE = "linear-gradient(90deg, {color} 0 50%, #ffffff 50% 100%)"
+# 동그라미 하나가 그날의 '두 사람'이다 — 왼쪽 반은 외국인, 오른쪽 반은 기관.
+# 각 반의 색이 그 사람의 방향이다: 빨강 샀다, 파랑 팔았다, 흰색 보합.
+# 그래서 둘 다 사면 통째로 빨강, 둘 다 팔면 통째로 파랑, 엇갈리면 반반이 된다
+# (2026-07-25 사용자 선택). 테두리를 투명으로 두면 배경이 테두리 자리까지 칠해져
+# 다른 동그라미와 크기가 같게 유지된다.
+_BUY, _SELL, _NONE = "#ff5b5b", "#4da6ff", "#ffffff"
+
+
+def _half(left: str, right: str) -> tuple:
+    return "transparent", f"linear-gradient(90deg, {left} 0 50%, {right} 50% 100%)"
+
+
 _FLOW_MARK_STYLE = {
-    # 외국인·기관 둘 다 순매수 — 꽉 찬 빨강
-    "both_buy": ("#ff5b5b", "#ff5b5b"),
-    # 한쪽만 순매수(다른 쪽 보합) — 절반 빨강, 절반 흰색
-    "one_buy": ("#ff5b5b", _HALF_WHITE.format(color="#ff5b5b")),
-    # 둘 다 순매도 — 꽉 찬 파랑
-    "both_sell": ("#4da6ff", "#4da6ff"),
-    # 한쪽만 순매도 — 절반 파랑, 절반 흰색
-    "one_sell": ("#4da6ff", _HALF_WHITE.format(color="#4da6ff")),
-    # 한쪽은 사고 한쪽은 팔고 — 주황
+    "both_buy": (_BUY, _BUY),          # 외국인·기관 둘 다 순매수
+    "both_sell": (_SELL, _SELL),       # 둘 다 순매도
+    "f_buy_i_sell": _half(_BUY, _SELL),   # 외국인 사고, 기관 팔고
+    "f_sell_i_buy": _half(_SELL, _BUY),   # 외국인 팔고, 기관 사고
+    "f_buy": _half(_BUY, _NONE),          # 외국인만 순매수
+    "i_buy": _half(_NONE, _BUY),          # 기관만 순매수
+    "f_sell": _half(_SELL, _NONE),        # 외국인만 순매도
+    "i_sell": _half(_NONE, _SELL),        # 기관만 순매도
+    "flat": ("#9aa0aa", "transparent"),   # 둘 다 보합 — 빈 회색
+    # 옛 자료가 프로세스에 남아 있을 때만 쓰인다(리비전이 오르면 사라진다).
     "cross": ("#ffb020", "#ffb020"),
-    "one": ("#ffb020", "#ffb020"),    # 옛 자료 호환
-    # 둘 다 거의 0 — 빈 회색
-    "flat": ("#9aa0aa", "transparent"),
+    "one": ("#ffb020", "#ffb020"),
+    "one_buy": _half(_BUY, _NONE),
+    "one_sell": _half(_SELL, _NONE),
 }
 
 
@@ -2167,9 +2176,11 @@ def _render_pullback_finder() -> None:
     with st.expander("표 읽는 법 보기", expanded=False):
         st.caption(
         (f"수급 기준일 **{_flow_latest}** · 그날부터 거꾸로 센 거래일입니다. " if _flow_latest else "")
-        + "동반(5일) 동그라미는 **왼쪽이 가장 최근 거래일**입니다 — 빨강은 외국인·기관이 "
-            "둘 다 순매수, 파랑은 둘 다 순매도입니다. 절반만 칠해진 빨강·파랑은 한쪽만 "
-            "사거나 판 날이고, 주황은 한쪽은 사고 한쪽은 판 날, 빈 회색은 둘 다 보합입니다. "
+        + "동반(5일) 동그라미는 **왼쪽이 가장 최근 거래일**입니다. 동그라미 하나가 그날의 "
+            "두 사람이고, **왼쪽 반은 외국인, 오른쪽 반은 기관**입니다. 각 반의 색이 그 사람의 "
+            "방향입니다 — 빨강은 순매수, 파랑은 순매도, 흰색은 보합. 그래서 둘 다 사면 통째로 "
+            "빨강, 둘 다 팔면 통째로 파랑, 엇갈리면 반은 빨강 반은 파랑, 둘 다 보합이면 빈 "
+            "회색입니다. "
             "수급 칸은 5일 순매수 금액이 그 기간 거래대금의 몇 %인지이고, "
             "동반(매수/매도/20일)은 20거래일 중 동반매수·동반매도 일수입니다."
         )

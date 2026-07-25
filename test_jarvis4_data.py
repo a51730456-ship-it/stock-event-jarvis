@@ -609,17 +609,20 @@ class DayFlowMarkTests(unittest.TestCase):
 
     def test_opposite_directions_never_count_as_partner(self):
         """외국인 대량 매수 + 기관 매도는 '동반'이 아니다 — 합산했다면 매수로 둔갑한다."""
-        self.assertEqual(self._mark(50_000, -48_000), "cross")
+        self.assertEqual(self._mark(50_000, -48_000), "f_buy_i_sell")
 
-    def test_one_side_buy_and_sell_are_told_apart(self):
-        """'한쪽만 샀다'와 '한쪽만 팔았다'와 '엇갈렸다'가 각각 달라야 한다.
+    def test_who_bought_and_who_sold_are_told_apart(self):
+        """화면이 왼쪽 반=외국인, 오른쪽 반=기관으로 그리므로 둘을 섞으면 안 된다.
 
-        예전에는 셋을 'one' 하나로 뭉쳐 같은 주황 동그라미로 나왔다(2026-07-25 지적).
+        예전에는 아래 여섯 가지를 'one'/'cross'로 뭉쳐 같은 주황으로 나왔다.
+        실제 자료에서는 이 엇갈림이 절반 이상이라 통째로 묻혔다(2026-07-25).
         """
-        self.assertEqual(self._mark(50_000, 10), "one_buy")     # 외국인만 삼
-        self.assertEqual(self._mark(10, 50_000), "one_buy")     # 기관만 삼
-        self.assertEqual(self._mark(-50_000, 10), "one_sell")   # 외국인만 팜
-        self.assertEqual(self._mark(10, -50_000), "one_sell")   # 기관만 팜
+        self.assertEqual(self._mark(50_000, -48_000), "f_buy_i_sell")
+        self.assertEqual(self._mark(-50_000, 48_000), "f_sell_i_buy")
+        self.assertEqual(self._mark(50_000, 10), "f_buy")       # 외국인만 삼
+        self.assertEqual(self._mark(10, 50_000), "i_buy")       # 기관만 삼
+        self.assertEqual(self._mark(-50_000, 10), "f_sell")     # 외국인만 팜
+        self.assertEqual(self._mark(10, -50_000), "i_sell")     # 기관만 팜
 
     def test_tiny_moves_are_flat(self):
         self.assertEqual(self._mark(10, 10), "flat")

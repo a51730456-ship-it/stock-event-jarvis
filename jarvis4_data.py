@@ -60,7 +60,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072516
+MODULE_REVISION = 2026072517
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -370,14 +370,21 @@ def _day_flow_mark(row: dict) -> str:
         return "both_buy"
     if foreign_sell and institution_sell:
         return "both_sell"
-    # 예전에는 아래 셋을 'one' 하나로 뭉쳤다. 그러면 '외국인만 샀다'와 '한쪽은 사고
-    # 한쪽은 팔았다'가 같은 색이 되어 구별이 안 된다는 지적을 받았다(2026-07-25).
-    if (foreign_buy and institution_sell) or (foreign_sell and institution_buy):
-        return "cross"
-    if foreign_buy or institution_buy:
-        return "one_buy"
-    if foreign_sell or institution_sell:
-        return "one_sell"
+    # 화면은 동그라미의 왼쪽 반을 외국인, 오른쪽 반을 기관으로 그린다. 그래서 '엇갈렸다'로
+    # 뭉치지 않고 누가 사고 누가 팔았는지까지 나눈다(2026-07-25 사용자 선택).
+    # 뭉쳐 두면 실제 자료의 절반 이상(8종목 160일 중 101일)이 한 색으로 묻힌다.
+    if foreign_buy and institution_sell:
+        return "f_buy_i_sell"
+    if foreign_sell and institution_buy:
+        return "f_sell_i_buy"
+    if foreign_buy:
+        return "f_buy"
+    if foreign_sell:
+        return "f_sell"
+    if institution_buy:
+        return "i_buy"
+    if institution_sell:
+        return "i_sell"
     return "flat"
 
 
