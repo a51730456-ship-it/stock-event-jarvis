@@ -44,7 +44,9 @@ _THEME_DETAIL_URL = "https://finance.naver.com/sise/sise_group_detail.naver?type
 _STOCK_FLOW_URL = "https://finance.naver.com/item/frgn.naver?code={code}"
 
 # 화면에 보여줄 테마 수와, 그 후보로 상세 조회할 테마 수.
-DISPLAY_THEME_COUNT = 10
+# 미국테마(자비스3)가 20개를 보여주므로 한국도 20개로 맞춘다(2026-07-25 사용자 지시).
+# 화면에서는 1~10위만 펼치고 11위부터는 '더 보기'로 접힌다.
+DISPLAY_THEME_COUNT = 20
 # 후보 테마 수. 표에는 20개만 보이지만, 눌림목·통과 종목 심사는 이 범위 전체를 훑는다 —
 # 30개로 자르면 '은행'(당일 49위) 같은 테마의 좋은 눌림목을 통째로 놓친다(2026-07-22).
 CANDIDATE_THEME_COUNT = 40
@@ -58,7 +60,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072509
+MODULE_REVISION = 2026072511
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
