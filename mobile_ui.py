@@ -140,9 +140,10 @@ THEME_TABLE_CSS = """
 .j4-theme-table th, .j4-theme-table td {
     white-space: nowrap !important; padding: 0.4rem 0.25rem !important;
 }
-/* 종목명만 줄바꿈을 허용한다 — 이름이 길어도 표가 옆으로 넘치지 않게. */
+/* 종목명도 한 줄로 둔다 — 줄바꿈을 허용했더니 'DB손해보험'이 한 글자씩 세로로
+   쪼개졌다(2026-07-25 폰 실측). 표가 넘치면 아래 규칙대로 옆으로 밀어서 본다. */
 .j3-theme-table td.j3-th-name, .j4-theme-table td.j4-th-name {
-    white-space: normal !important; padding-left: 0.4rem !important;
+    white-space: nowrap !important; padding-left: 0.4rem !important;
 }
 .j3-theme-table th.j3-th-left, .j4-theme-table th.j4-th-left { padding-left: 0.4rem !important; }
 /* 조건점수 막대가 실오라기로 보이던 것을 막는다. */

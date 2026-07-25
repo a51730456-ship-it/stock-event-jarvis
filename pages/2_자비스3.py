@@ -434,6 +434,10 @@ def _fear_greed_color(score) -> str:
 
 _THEME_COL_WIDTHS = [0.75, 2.3, 0.9, 2.2, 0.95, 1.05, 1.35, 1.45]
 
+# 테마 순위표에서 처음부터 보여줄 개수. 나머지는 접어 두고 눌러서 본다
+# (2026-07-25 사용자 지시). 자비스4도 같은 값을 쓴다.
+_THEME_VISIBLE_COUNT = 10
+
 
 def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     """테마표를 그리고, 테마 이름 버튼이 눌리면 그 테마명을 돌려준다.
@@ -451,7 +455,16 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     # (2026-07-22 사용자 제보: "클릭 후 흔적이 남음").
     button_css = []
     clicked = None
-    for index, row in enumerate(ranking.get("rows", [])):
+    # 11위부터는 접어 둔다 — 20개가 다 펼쳐져 있으면 폰에서 화면을 다 먹는다
+    # (2026-07-25 사용자 지시). 값·순위·계산은 그대로이고, 그리는 자리만 바꾼다.
+    all_rows = list(ranking.get("rows", []))
+    rest_box = None
+    if len(all_rows) > _THEME_VISIBLE_COUNT:
+        rest_box = st.expander(
+            f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
+        )
+    for index, row in enumerate(all_rows):
+        target = st if index < _THEME_VISIBLE_COUNT or rest_box is None else rest_box
         name = row.get("name", "")
         color = _STATUS_HEX.get(row.get("status", ""), "#e6e6e6")
         button_key = f"j3tbtn_{index:02d}"
@@ -460,7 +473,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             button_css.append(
                 f"div[class*='st-key-{button_key}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
             )
-        cols = st.columns(_THEME_COL_WIDTHS)
+        cols = target.columns(_THEME_COL_WIDTHS)
         cols[0].markdown(f"<div class='j3-td'>{row.get('rank', '')}</div>", unsafe_allow_html=True)
         if cols[1].button(name, key=button_key, width="stretch"):
             clicked = name

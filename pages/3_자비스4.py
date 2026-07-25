@@ -359,6 +359,9 @@ def _safe_error_text(error) -> str:
 _STATUS_HEX = {"주도": "#44f0a1", "관찰": "#ff9d3b", "약함": "#9aa0aa"}
 _THEME_COL_WIDTHS = [0.7, 2.4, 0.85, 2.0, 0.9, 1.0, 1.3, 1.6]
 
+# 테마 순위표에서 처음부터 보여줄 개수. 나머지는 접어 둔다(자비스3와 같은 값).
+_THEME_VISIBLE_COUNT = 10
+
 
 def _trend_position(row: dict, label: str) -> str:
     current, sma20, sma50 = row.get("current"), row.get("sma20"), row.get("sma50")
@@ -580,7 +583,15 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
 
     button_css = []
     clicked = None
-    for index, row in enumerate(ranking.get("rows", [])):
+    # 11위부터는 접어 둔다(자비스3와 같은 규칙, 2026-07-25 사용자 지시).
+    all_rows = list(ranking.get("rows", []))
+    rest_box = None
+    if len(all_rows) > _THEME_VISIBLE_COUNT:
+        rest_box = st.expander(
+            f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
+        )
+    for index, row in enumerate(all_rows):
+        target = st if index < _THEME_VISIBLE_COUNT or rest_box is None else rest_box
         name = row.get("name", "")
         color = _STATUS_HEX.get(row.get("status", ""), "#e6e6e6")
         button_key = f"j4tbtn_{index:02d}"
@@ -589,7 +600,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             button_css.append(
                 f"div[class*='st-key-{button_key}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
             )
-        cols = st.columns(_THEME_COL_WIDTHS)
+        cols = target.columns(_THEME_COL_WIDTHS)
         cols[0].markdown(f"<div class='j4-td'>{row.get('rank', '')}</div>", unsafe_allow_html=True)
         label = name
         if row.get("is_forced"):
@@ -1052,6 +1063,23 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
 
     _render_day_price_row(metrics)
 
+    # 당일 차트 — 테마 대장주 상세에는 있는데 눌림목 상세에만 없었다(2026-07-25
+    # 사용자 지적, 미국테마와 같은 처리). 대장주와 같은 자료·같은 차트를 쓴다.
+    st.markdown("<div class='j4-chart-heading'>당일 · 실시간(지연 가능)</div>", unsafe_allow_html=True)
+    intraday_error = ""
+    try:
+        intraday_payload = j4data.get_intraday_chart(code)
+    except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
+        intraday_payload = None
+        intraday_error = _safe_error_text(exc)
+    if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+        st.altair_chart(_intraday_chart(intraday_payload), width="stretch", theme="streamlit")
+        st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+    elif intraday_error:
+        st.info(f"당일 자료 없음 — {intraday_error}")
+    else:
+        st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
+
     st.markdown("<div class='j4-chart-heading'>가격 차트 · 일봉/주봉/월봉 한눈에 보기</div>", unsafe_allow_html=True)
     st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
     chart_bundle = j4data.get_chart_bundle(code)
@@ -1404,7 +1432,8 @@ def _render_radar_tab(market: dict) -> None:
 
     # 자비스3(미국)에 없고 자비스4에만 넣은 승률 보완 장치를 화면에서 바로 보이게 한다
     # (2026-07-22 사용자 질문: "승률 올리려고 뭘 찾았나? 표시는 했나?").
-    with st.expander("📈 자비스4에만 있는 승률 보완 장치 9가지 (미국테마에 없는 것)", expanded=True):
+    # 처음엔 접어 둔다 — 폰에서 이 표가 첫 화면을 다 먹었다(2026-07-25 사용자 지시).
+    with st.expander("📈 자비스4에만 있는 승률 보완 장치 9가지 (미국테마에 없는 것)", expanded=False):
         st.markdown(
             """
 | # | 무엇 | 왜 승률에 도움이 되나 | 어디서 보이나 |
