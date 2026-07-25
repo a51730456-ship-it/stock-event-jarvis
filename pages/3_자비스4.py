@@ -184,10 +184,16 @@ st.markdown(
     .j4-fm-label { font-size: 0.76rem; font-weight: 700; color: #9aa0aa; white-space: nowrap; }
     .j4-fm-cell { flex: 1; min-width: 92px; }
     .j4-fm-name { font-size: 0.82rem; font-weight: 800; color: #cfd4dc; margin-top: 8px; }
-    /* 삼성전자·SK하이닉스를 위아래로 쌓으면 폰에서 칸이 너무 길어진다 — 옆으로 붙인다
-       (2026-07-25 폰 지적). 자리가 모자라면 알아서 아래로 내려간다. */
-    .j4-fm-pair { display: flex; flex-wrap: wrap; gap: 0 0.9rem; }
-    .j4-fm-stock { flex: 1 1 148px; min-width: 148px; }
+    /* 동반 그림은 값 오른쪽에 세로로 세워 붙인다 — 값 밑에 쌓으면 칸이 너무 길어졌다
+       (2026-07-25 지시). 자리가 모자라면 알아서 값 아래로 내려간다. */
+    .j4-top-split { display: flex; flex-wrap: wrap; gap: 0.2rem 1.1rem; align-items: flex-start; }
+    /* 기준 너비를 내용 크기가 아니라 작은 값으로 잡아야 좁은 폰(360px)에서도 줄이
+       안 접히고 옆으로 붙는다 — auto로 두면 둘의 합이 넘쳐 바로 아래로 내려간다. */
+    .j4-top-main { flex: 1 1 150px; min-width: 0; }
+    .j4-top-side { flex: 1 1 145px; min-width: 0; }
+    .j4-fm-pair { display: flex; flex-direction: column; gap: 0.3rem; }
+    .j4-fm-stock { min-width: 0; }
+    .j4-fm-pair .j4-fm-stock:first-child .j4-fm-name { margin-top: 0; }
     /* 제목이 두 줄이 되면 한 줄짜리와 밑줄이 어긋났다(2026-07-25 사용자 지적).
        모두 같은 높이를 갖고 글자는 아래에 붙여 밑줄을 한 줄로 맞춘다. */
     .j4-th-head { display: flex; align-items: flex-end; justify-content: center;
@@ -381,15 +387,28 @@ def _sign_color(value) -> str:
         return "#9aa0aa"
 
 
-def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=False) -> str:
+def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=False,
+                side: str = "") -> str:
+    """상단 지표 칸. side를 주면 그 내용을 값 오른쪽에 나란히 붙인다.
+
+    side는 대표종목 칸의 동반 그림에 쓴다 — 값 밑에 쌓으면 칸이 너무 길어진다
+    (2026-07-25 폰 지적).
+    """
     if sub_signed:
         sub_html = f"<div class='j4-top-sub {_sign_class(sub)}'>{_pct(sub)}</div>"
     else:
         sub_html = f"<div class='j4-top-sub' style='color:{sub_color or '#9aa0aa'}'>{sub}</div>"
-    return (
-        f"<div class='j4-top-cell'><div class='j4-top-label'>{label}</div>"
-        f"<div class='j4-top-val' style='color:{value_color}'>{value}</div>{sub_html}</div>"
+    inner = (
+        f"<div class='j4-top-label'>{label}</div>"
+        f"<div class='j4-top-val' style='color:{value_color}'>{value}</div>{sub_html}"
     )
+    if side:
+        return (
+            "<div class='j4-top-cell'><div class='j4-top-split'>"
+            f"<div class='j4-top-main'>{inner}</div>"
+            f"<div class='j4-top-side'>{side}</div></div></div>"
+        )
+    return f"<div class='j4-top-cell'>{inner}</div>"
 
 
 def _safe_error_text(error) -> str:
@@ -596,7 +615,9 @@ def _render_market_overview() -> None:
                 "삼성전자+SK하이닉스<br>외국인+기관 "
                 + ("순매수" if (foreign.get("net5_amount") or 0) > 0 else "순매도")
             ) if foreign.get("ok") else "자료 부족",
-        ).replace("</div></div>", "</div>" + _leader_flow_marks(foreign) + "</div>", 1),
+            # 동반 그림은 값 밑이 아니라 오른쪽에 세워 붙인다(2026-07-25 지시).
+            side=_leader_flow_marks(foreign),
+        ),
         regime_gauge_ui.us_prev_box_html(us_prev),
         _us_futures_cell(),
         fear_greed_ui.box_html(
