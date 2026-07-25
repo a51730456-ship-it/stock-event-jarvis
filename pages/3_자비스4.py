@@ -133,7 +133,9 @@ st.markdown(
     .j4-action-label { color: #4da6ff; font-weight: 800; }
     .j4-action-posture { color: #ff5b5b; font-weight: 800; }
     .j4-action-detail { color: #ff9d3b; font-weight: 800; }
-    .j4-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
+    /* 줄 사이(세로) 간격을 가로보다 넉넉히 준다 — 대표종목 칸이 길어지면서 바로 위
+       차트에 붙어 보였다(2026-07-25 태블릿 지적). */
+    .j4-top-row { display: flex; gap: 2.6rem 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
         align-items: center; }
     .j4-top-cell { min-width: 150px; padding-left: 1.6rem; }
     /* 제목은 코발트, 값은 항목별 색 — 무엇이 제목이고 무엇이 결과인지 구분되게 한다
@@ -182,6 +184,10 @@ st.markdown(
     .j4-fm-label { font-size: 0.76rem; font-weight: 700; color: #9aa0aa; white-space: nowrap; }
     .j4-fm-cell { flex: 1; min-width: 92px; }
     .j4-fm-name { font-size: 0.82rem; font-weight: 800; color: #cfd4dc; margin-top: 8px; }
+    /* 삼성전자·SK하이닉스를 위아래로 쌓으면 폰에서 칸이 너무 길어진다 — 옆으로 붙인다
+       (2026-07-25 폰 지적). 자리가 모자라면 알아서 아래로 내려간다. */
+    .j4-fm-pair { display: flex; flex-wrap: wrap; gap: 0 0.9rem; }
+    .j4-fm-stock { flex: 1 1 148px; min-width: 148px; }
     /* 제목이 두 줄이 되면 한 줄짜리와 밑줄이 어긋났다(2026-07-25 사용자 지적).
        모두 같은 높이를 갖고 글자는 아래에 붙여 밑줄을 한 줄로 맞춘다. */
     .j4-th-head { display: flex; align-items: flex-end; justify-content: center;
@@ -1088,13 +1094,17 @@ def _leader_flow_marks(foreign: dict) -> str:
     """
     blocks = []
     for stock in (foreign.get("stocks") or []):
-        marks = _flow_marks_html(stock.get("flow") or {})
+        # 좁은 칸에 둘을 나란히 놓아야 하므로 제목은 짧게 쓴다.
+        marks = _flow_marks_html(stock.get("flow") or {}, compact=True)
         if marks:
-            blocks.append(f"<div class='j4-fm-name'>{stock.get('label', '')}</div>{marks}")
-    return "".join(blocks)
+            blocks.append(
+                f"<div class='j4-fm-stock'><div class='j4-fm-name'>{stock.get('label', '')} 동반"
+                f"</div>{marks}</div>"
+            )
+    return f"<div class='j4-fm-pair'>{''.join(blocks)}</div>" if blocks else ""
 
 
-def _flow_marks_html(flow: dict, *, titled: bool = True) -> str:
+def _flow_marks_html(flow: dict, *, titled: bool = True, compact: bool = False) -> str:
     """동반(5일) 점 다섯 + 동반(매수/매도/20일) 막대를 카드 안에 넣는다(2026-07-25).
 
     '1/5 · 1/1/20' 같은 숫자 나열은 읽히지 않는다는 지적을 받았다. 표에서 쓰던
@@ -1102,8 +1112,12 @@ def _flow_marks_html(flow: dict, *, titled: bool = True) -> str:
     """
     if not isinstance(flow, dict) or not flow.get("ok"):
         return ""
-    rows = (("동반(5일)", _partner5_cell(flow)),
-            ("동반(매수/매도/20일)", _partner20_cell(flow)))
+    rows = (
+        # 좁은 칸에서는 제목이 자리를 다 먹어 막대가 안 보인다. 종목 이름 줄에 '동반'을
+        # 적어 두고 여기서는 기간만 쓴다.
+        ("5일" if compact else "동반(5일)", _partner5_cell(flow)),
+        ("20일" if compact else "동반(매수/매도/20일)", _partner20_cell(flow)),
+    )
     body = "".join(
         "<div class='j4-fm-row'>"
         + (f"<span class='j4-fm-label'>{label}</span>" if titled else "")
