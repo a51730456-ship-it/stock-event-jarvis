@@ -584,3 +584,39 @@ class UsPreviousSessionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DayFlowMarkTests(unittest.TestCase):
+    """하루 수급 판정(동반/한쪽/보합)을 굳혀 둔다 (2026-07-25).
+
+    핵심은 두 가지다.
+      1. 외국인·기관을 합치지 않는다 — 합치면 +500억/−480억이 순매수로 둔갑한다.
+      2. '거의 0'인 날은 그날 거래량 대비 비율로 걸러낸다 — 큰 종목의 자잘한
+         매매를 매수 신호로 치지 않는다.
+    """
+
+    BASE = {"close": 1000, "volume": 1_000_000}
+
+    def _mark(self, foreign, institution, **extra):
+        row = {**self.BASE, **extra, "foreign_net": foreign, "institution_net": institution}
+        return j4._day_flow_mark(row)
+
+    def test_both_buying_is_a_partner_day(self):
+        self.assertEqual(self._mark(5000, 4000), "both_buy")
+
+    def test_both_selling_is_marked_separately(self):
+        self.assertEqual(self._mark(-5000, -4000), "both_sell")
+
+    def test_opposite_directions_never_count_as_partner(self):
+        """외국인 대량 매수 + 기관 매도는 '동반'이 아니다 — 합산했다면 매수로 둔갑한다."""
+        self.assertEqual(self._mark(50_000, -48_000), "one")
+
+    def test_tiny_moves_are_flat(self):
+        self.assertEqual(self._mark(10, 10), "flat")
+
+    def test_flat_threshold_is_relative_to_that_days_volume(self):
+        """같은 주수라도 그날 거래량이 많으면 '보합'이다 — 자잘한 매매는 신호가 아니다."""
+        busy = self._mark(400, 400, volume=1_000_000)   # 거래량의 0.04% → 무시
+        quiet = self._mark(400, 400, volume=100_000)    # 거래량의 0.4%  → 동반 매수
+        self.assertEqual(busy, "flat")
+        self.assertEqual(quiet, "both_buy")

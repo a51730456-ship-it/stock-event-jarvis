@@ -87,6 +87,10 @@ def _flow(ok=True):
     return {
         "ok": ok, "rows": [], "net5_amount": 3.21e11, "net20_amount": 9e11,
         "net5_shares": 100_000, "buy_streak_days": 4,
+        # 동반(둘 다 순매수) 자료 — 5일은 점까지, 20일은 숫자만 쓴다.
+        "day_marks": ["both_buy", "both_buy", "one", "both_buy", "both_sell"],
+        "both_buy_days5": 3, "window5": 5,
+        "both_buy_days20": 14, "both_sell_days20": 3, "window20": 20,
         "foreign_net5": 60_000, "institution_net5": 40_000, "latest_date": "2026.07.21",
     }
 
@@ -427,3 +431,49 @@ class Jarvis4PageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PartnerFlowColumnTests(unittest.TestCase):
+    """동반 수급 칸이 실제로 그려지는지 확인한다 (2026-07-25).
+
+    폰·태블릿·PC가 같은 HTML을 쓰므로 여기서 통과하면 세 화면 모두 나온다
+    (폰은 mobile_ui가 같은 칸을 세로로 쌓고 이름표만 붙인다).
+    """
+
+    def test_partner_columns_and_filter_render(self):
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            next(
+                node for node in app.button if str(node.key or "") == "j4_pullback_find"
+            ).click().run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+
+        self.assertEqual(len(app.exception), 0)
+        markdowns = [str(node.value) for node in app.markdown]
+        blob = "\n".join(markdowns)
+
+        # 머리글 두 개가 나와야 한다
+        self.assertIn("동반(5일)", blob)
+        self.assertIn("동반(20일)", blob)
+        # 5일: 숫자 3/5 와 점 네 종류(매수 빨강·매도 파랑·한쪽 주황)
+        self.assertIn("3/5", blob)
+        self.assertIn("#ff5b5b", blob)   # 동반 매수 점
+        self.assertIn("#4da6ff", blob)   # 동반 매도 점
+        self.assertIn("◐", blob)         # 한쪽만
+        # 20일: 막대와 14/20, 그리고 동반매도 일수
+        self.assertIn("14/20", blob)
+        self.assertIn("매도 3", blob)
+        # 필터 체크박스가 있어야 한다
+        self.assertTrue(
+            any("동반 순매수" in str(node.label) for node in app.checkbox),
+            [str(node.label) for node in app.checkbox],
+        )

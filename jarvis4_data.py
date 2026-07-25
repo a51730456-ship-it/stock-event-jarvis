@@ -58,7 +58,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072406
+MODULE_REVISION = 2026072504
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -341,6 +341,38 @@ def _parse_stock_flow(html: str) -> list[dict]:
     return rows
 
 
+# 하루 수급을 네 가지로 나눈다 (2026-07-25 사용자 요청).
+#   both_buy  외국인·기관이 둘 다 순매수 = '동반'
+#   both_sell 둘 다 순매도
+#   one       한쪽만 움직였거나 서로 엇갈림
+#   flat      둘 다 거의 0
+# 외국인과 기관을 합치지 않는다. 합치면 외국인 +500억 / 기관 −480억인 날이
+# '순매수'로 둔갑한다. 한국 증권사 화면(키움 0785·미래에셋 0228 등)도 둘을 합치지
+# 않고 따로 보여주며, '동반 순매수'를 별도 개념으로 쓴다. 그 방식을 따른다.
+#
+# 부호 자체는 주수로 재나 금액으로 재나 같다 — 같은 종목·같은 날이면 종가가 양쪽에
+# 똑같이 곱해지기 때문이다. 그래서 여기서 중요한 것은 '얼마나 작으면 무시할까'이고,
+# 그 기준을 그날 거래량 대비 비율로 둔다. 큰 종목의 자잘한 매매를 신호로 치지 않는다.
+_FLAT_RATIO = 0.0005  # 그날 거래량의 0.05% 미만은 '보합'으로 본다(임의 기준, 화면에 밝힌다)
+
+
+def _day_flow_mark(row: dict) -> str:
+    close = row.get("close") or 0
+    volume = row.get("volume") or 0
+    flat = abs(volume * close) * _FLAT_RATIO
+    foreign = (row.get("foreign_net") or 0) * close
+    institution = (row.get("institution_net") or 0) * close
+    foreign_buy, foreign_sell = foreign > flat, foreign < -flat
+    institution_buy, institution_sell = institution > flat, institution < -flat
+    if foreign_buy and institution_buy:
+        return "both_buy"
+    if foreign_sell and institution_sell:
+        return "both_sell"
+    if foreign_buy or foreign_sell or institution_buy or institution_sell:
+        return "one"
+    return "flat"
+
+
 def get_stock_flow(code: str, *, ttl_seconds: float = 300) -> dict:
     """종목별 외국인·기관 순매매(주 단위, 최근 20거래일)와 요약 지표."""
     code = str(code).strip()
@@ -374,10 +406,21 @@ def get_stock_flow(code: str, *, ttl_seconds: float = 300) -> dict:
         else:
             break
 
+    marks = [_day_flow_mark(row) for row in rows[:20]]   # 최근 날짜가 앞
     return {
         "ok": True,
         "stale": stale,
         "rows": rows,
+        # 동반(둘 다 순매수) 일수 — 5일은 세부, 20일은 긴 흐름. 실무에서 5일·20일
+        # 두 창을 같이 보라는 권고를 따른다.
+        "day_marks": marks,
+        "both_buy_days5": sum(1 for mark in marks[:5] if mark == "both_buy"),
+        "both_buy_days20": sum(1 for mark in marks if mark == "both_buy"),
+        # 20일은 점을 20개 찍을 수 없어 '동반매도 일수'를 숫자로 따로 준다 —
+        # 그래야 '꾸준히 매집'과 '사고팔고 반복'이 갈린다(2026-07-25).
+        "both_sell_days20": sum(1 for mark in marks if mark == "both_sell"),
+        "window5": len(marks[:5]),
+        "window20": len(marks),
         "net5_amount": _amount(recent5),
         "net20_amount": _amount(recent20),
         "net5_shares": sum(combined[:5]),

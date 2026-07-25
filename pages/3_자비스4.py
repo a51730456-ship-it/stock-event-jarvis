@@ -276,7 +276,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072406
+_REQUIRED_J4_REVISION = 2026072504
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -864,6 +864,25 @@ def _kr_flow_hint() -> str:
     if result is None:
         return "기관 수급 반전 판정은 위 ‘한국장 기관 수급 현황’ 카드에서 확인하세요."
     return f"기관 수급 반전: <b>{result.verdict_label}</b> · {result.headline}"
+
+
+# 하루 수급 점 — 한국시장 색 규칙(매수 빨강 · 매도 파랑)을 그대로 쓴다.
+# 왼쪽이 최근일이다. 숫자(3/5)가 앞에 오므로 점이 잘려도 뜻은 잃지 않는다.
+_FLOW_MARK_STYLE = {
+    "both_buy": ("●", "#ff5b5b"),    # 외국인·기관 둘 다 순매수
+    "both_sell": ("●", "#4da6ff"),   # 둘 다 순매도
+    "one": ("◐", "#ffb020"),         # 한쪽만 또는 엇갈림
+    "flat": ("○", "#9aa0aa"),        # 둘 다 거의 0
+}
+
+
+def _flow_dots(marks) -> str:
+    return "".join(
+        f"<span style='color:{color}'>{glyph}</span>"
+        for glyph, color in (
+            _FLOW_MARK_STYLE.get(mark, _FLOW_MARK_STYLE["flat"]) for mark in (marks or [])
+        )
+    )
 
 
 def _render_day_price_row(metrics: dict) -> None:
@@ -1704,26 +1723,34 @@ def _render_pullback_finder() -> None:
     # 연속 수급 필터 — 켜고 끄며 비교하려고 버튼으로 뒀다(2026-07-25 사용자 요청).
     # 걸러내는 것뿐이고 점수·순위·계산은 하나도 바꾸지 않는다. 종목이 다 사라지면
     # 끄라고 알려 준다 — 조건을 몰래 낮추지 않는다.
-    only_streak = st.checkbox(
-        "외국인+기관 연속 2일 이상만 보기",
+    only_both = st.checkbox(
+        "외국인·기관 동반 순매수 3일 이상(5일 중)만 보기",
         key="j4_pullback_only_streak",
-        help="이미 2개 이상 테마·정배열·눌림목을 통과한 목록에서, 수급이 이틀 이상 "
-             "이어진 종목만 남깁니다. 끄면 전체가 다시 보입니다.",
+        help="이미 2개 이상 테마·정배열·눌림목을 통과한 목록에서, 최근 5거래일 중 "
+             "외국인과 기관이 '둘 다' 순매수한 날이 3일 이상이고 5일 누적 금액도 "
+             "플러스인 종목만 남깁니다. 날짜 수만 보면 '3일 조금 사고 이틀에 크게 판' "
+             "종목이 통과하므로 금액 조건을 함께 겁니다. 끄면 전체가 다시 보입니다.",
     )
-    if only_streak:
-        kept = [
-            row for row in rows
-            if int(((row.get("flow") or {}).get("buy_streak_days") or 0)) >= 2
-        ]
-        st.caption(f"연속 2일 이상: {len(kept)}개 / 전체 {len(rows)}개")
+    if only_both:
+        kept = []
+        for row in rows:
+            flow = row.get("flow") or {}
+            if not flow.get("ok"):
+                continue                       # 못 가져온 값을 0으로 치지 않는다
+            if int(flow.get("both_buy_days5") or 0) < 3:
+                continue
+            if float(flow.get("net5_amount") or 0) <= 0:
+                continue
+            kept.append(row)
+        st.caption(f"동반 3일 이상 · 5일 누적 플러스: {len(kept)}개 / 전체 {len(rows)}개")
         if not kept:
-            st.info("연속 2일 이상인 종목이 없습니다. 위 선택을 끄면 전체가 보입니다.")
+            st.info("조건에 맞는 종목이 없습니다. 위 선택을 끄면 전체가 보입니다.")
             return
         rows = kept
 
-    widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.6, 1.2, 1.1, 0.9, 1.3, 1.1, 1.3, 1.2]
+    widths = [0.6, 2.1, 0.9, 1.5, 1.2, 1.6, 1.2, 1.1, 0.9, 1.3, 1.9, 1.0, 1.3, 1.2]
     titles = ["순위", "종목", "코드", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
-              "테마수", "수급(외+기 5일)", "연속 수급일", "신고가 기술점수", "지금 종합점수"]
+              "테마수", "수급(외+기 5일)", "동반(5일)", "동반(20일)", "신고가 기술점수", "지금 종합점수"]
     for column, title in zip(st.columns(widths), titles):
         column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
 
@@ -1780,17 +1807,36 @@ def _render_pullback_finder() -> None:
         cols[9].markdown(
             f"<div class='j4-td' style='color:{_sign_color(net5)}; font-weight:700'>{_eok(net5)}</div>",
             unsafe_allow_html=True)
-        # 연속 수급일 — 외국인+기관이 며칠 연속 순매수했는지(2026-07-25 사용자 요청).
-        # jarvis4_data가 이미 세어 둔 값을 그대로 보여준다. 2일 이상이면 초록으로 강조.
-        streak = int(flow.get("buy_streak_days") or 0) if flow.get("ok") else 0
-        cols[10].markdown(
-            f"<div class='j4-td' style='color:{'#44f0a1' if streak >= 2 else '#9aa0aa'};"
-            f" font-weight:800'>{streak}일</div>", unsafe_allow_html=True)
+        # 동반 수급 — 외국인·기관이 '둘 다' 순매수한 날을 센다(금액 기준).
+        # 5일은 점으로 모양까지, 20일은 숫자로 긴 흐름만 본다(2026-07-25 사용자 요청).
+        if flow.get("ok"):
+            both5, win5 = int(flow.get("both_buy_days5") or 0), int(flow.get("window5") or 0)
+            both20, win20 = int(flow.get("both_buy_days20") or 0), int(flow.get("window20") or 0)
+            both5_html = (
+                f"<span style='color:{'#ff5b5b' if both5 >= 3 else '#9aa0aa'}; font-weight:800'>"
+                f"{both5}/{win5}</span> "
+                f"<span style='letter-spacing:1px'>{_flow_dots((flow.get('day_marks') or [])[:5])}</span>"
+            )
+            # 20일은 막대 + 숫자 + 동반매도 일수. 색 기준선(예: 8일 이상 빨강)은
+            # 근거가 없어 두지 않고, 비율은 막대 길이로 보게 한다.
+            sell20 = int(flow.get("both_sell_days20") or 0)
+            ratio20 = (both20 / win20 * 100) if win20 else 0
+            both20_html = (
+                "<div class='j4-barwrap'><div class='j4-bar'>"
+                f"<div class='j4-bar-fill' style='width:{min(ratio20, 100):.0f}%'></div></div>"
+                f"<span class='j4-bar-num'>{both20}/{win20}</span></div>"
+                f"<span style='color:#4da6ff; font-weight:700; font-size:.8rem'> 매도 {sell20}</span>"
+            )
+        else:
+            both5_html = "<span style='color:#9aa0aa'>확인 필요</span>"
+            both20_html = "<span style='color:#9aa0aa'>확인 필요</span>"
+        cols[10].markdown(f"<div class='j4-td'>{both5_html}</div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div class='j4-td'>{both20_html}</div>", unsafe_allow_html=True)
         peak = row.get("peak_score")
-        cols[11].markdown(
+        cols[12].markdown(
             f"<div class='j4-td' style='color:#44f0a1; font-weight:800'>"
             f"{f'{float(peak):.1f}' if peak is not None else '—'}</div>", unsafe_allow_html=True)
-        cols[12].markdown(
+        cols[13].markdown(
             f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
             unsafe_allow_html=True)
     st.markdown(
@@ -1877,10 +1923,10 @@ def main() -> None:
                 7: "KOSPI 대비", 8: "구성종목 확산",
             }, "j4-td"),
             # 눌림목표(12칸) — 미국테마와 같이 폰에서도 전부 보여준다(2026-07-25).
-            mobile_ui.table_css("j4pbf_", 13, {
+            mobile_ui.table_css("j4pbf_", 14, {
                 1: "순위", 2: "", 3: "코드", 4: "눌림", 5: "신고가", 6: "현재가",
                 7: "고점 대비", 8: "20일선 이격", 9: "테마수", 10: "수급(외+기 5일)",
-                11: "연속 수급일", 12: "신고가점수", 13: "지금 종합점수",
+                11: "동반(5일)", 12: "동반(20일)", 13: "신고가점수", 14: "지금 종합점수",
             }, "j4-td"),
         ),
         unsafe_allow_html=True,
