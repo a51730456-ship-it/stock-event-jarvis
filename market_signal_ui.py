@@ -33,7 +33,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026072502
+MODULE_REVISION = 2026072508
 
 
 def _now_seoul():
@@ -573,37 +573,40 @@ def render_market_signal_card(
     for warning in result.warnings:
         st.warning(warning)
 
-    # 핵심 4개 — 모바일 1열, 그 위 2열 (기존 반응형 규칙과 동일하게 columns 사용)
-    st.markdown("#### 핵심 4개")
-    _core_cols = st.columns(2)
-    for index, (key, label) in enumerate(core_display):
-        signal = result.signal(key)
-        if signal is None:
-            continue
-        color = market_signal_common.STATUS_COLOR[signal.status]
-        with _core_cols[index % 2]:
-            st.markdown(
-                f"""
-                <div style="border-left:5px solid {color};padding:8px 12px;margin-bottom:8px;
-                background-color:rgba(255,255,255,0.03);border-radius:6px;">
-                  <div style="font-size:0.85rem;opacity:0.75;">{label}</div>
-                  <div style="font-size:1.05rem;font-weight:700;color:{color};">
-                    {signal.display_value}
-                  </div>
-                  <div style="font-size:0.8rem;opacity:0.8;">{signal.reason}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    # 핵심 4개와 신호 목록도 접어 둔다 — 첫 화면이 설명으로 가득 찼다
+    # (2026-07-25 사용자 지시: "다 숨겨라"). 값·판정은 그대로다.
+    with st.expander("핵심 4개 · 신호 목록 보기", expanded=False):
+        # 핵심 4개 — 모바일 1열, 그 위 2열 (기존 반응형 규칙과 동일하게 columns 사용)
+        st.markdown("#### 핵심 4개")
+        _core_cols = st.columns(2)
+        for index, (key, label) in enumerate(core_display):
+            signal = result.signal(key)
+            if signal is None:
+                continue
+            color = market_signal_common.STATUS_COLOR[signal.status]
+            with _core_cols[index % 2]:
+                st.markdown(
+                    f"""
+                    <div style="border-left:5px solid {color};padding:8px 12px;margin-bottom:8px;
+                    background-color:rgba(255,255,255,0.03);border-radius:6px;">
+                      <div style="font-size:0.85rem;opacity:0.75;">{label}</div>
+                      <div style="font-size:1.05rem;font-weight:700;color:{color};">
+                        {signal.display_value}
+                      </div>
+                      <div style="font-size:0.8rem;opacity:0.8;">{signal.reason}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-    if result.supporting_reasons:
-        st.markdown("**켜진 신호**")
-        for reason in result.supporting_reasons:
-            st.markdown(f"- {reason}")
-    if result.missing_reasons:
-        st.markdown("**아직 아닌 신호**")
-        for reason in result.missing_reasons:
-            st.markdown(f"- {reason}")
+        if result.supporting_reasons:
+            st.markdown("**켜진 신호**")
+            for reason in result.supporting_reasons:
+                st.markdown(f"- {reason}")
+        if result.missing_reasons:
+            st.markdown("**아직 아닌 신호**")
+            for reason in result.missing_reasons:
+                st.markdown(f"- {reason}")
 
     # 상세 표는 접어 둔다 — 폰에서 이 표가 첫 화면을 다 먹어 정작 봐야 할 카드가
     # 한참 밑으로 밀렸다(2026-07-25 사용자 지시: "눌러야 내용이 나오도록").

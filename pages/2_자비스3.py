@@ -361,7 +361,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026072502
+_REQUIRED_SIGNAL_UI_REVISION = 2026072508
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -957,18 +957,20 @@ def _render_market_overview() -> None:
             """,
             unsafe_allow_html=True,
         )
-    st.markdown(
-        f"""
-        <div class="j3-market-flow">
-            <span class="j3-flow-label">시장 전체 흐름</span> : <span class="j3-flow-body">{_market_flow_text(overview)}</span>
-        </div>
-        <div class="j3-action-box">
-            <span class="j3-action-label">행동 기준</span> : <span class="j3-action-posture">{overview['posture']}</span><br>
-            <span class="j3-action-detail">{_market_action_detail(overview)}</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # 시장 전체 흐름·행동 기준도 접는다(2026-07-25 사용자 지시: "다 숨겨라").
+    with st.expander("시장 전체 흐름 · 행동 기준 보기", expanded=False):
+        st.markdown(
+            f"""
+            <div class="j3-market-flow">
+                <span class="j3-flow-label">시장 전체 흐름</span> : <span class="j3-flow-body">{_market_flow_text(overview)}</span>
+            </div>
+            <div class="j3-action-box">
+                <span class="j3-action-label">행동 기준</span> : <span class="j3-action-posture">{overview['posture']}</span><br>
+                <span class="j3-action-detail">{_market_action_detail(overview)}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     stale_text = " · 마지막 정상 자료 표시 중" if overview.get("stale") else ""
     st.caption(
         f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'}{stale_text} · "
