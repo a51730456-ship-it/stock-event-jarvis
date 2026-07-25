@@ -28,6 +28,20 @@ class MediaQueryTests(unittest.TestCase):
         # 갤럭시 S21 울트라(412px)는 걸려야 한다.
         self.assertGreater(m.PHONE_MAX_WIDTH, 412)
 
+    def test_phone_hides_only_the_first_three_sidebar_items(self):
+        """폰 메뉴는 미국테마·한국테마·선행감지(li 4·5·6)만 남긴다.
+
+        자비스1·시장판단·자비스2(li 1·2·3)는 감추되, 남길 4·5·6은 감추면 안 된다.
+        규칙은 반드시 미디어쿼리 안에 있어야 태블릿·PC 메뉴가 그대로다.
+        """
+        css = m.page_css()
+        inner = css[css.index("{", css.index("@media")) + 1: css.rindex("}</style>")]
+        # 사이드바 메뉴를 감추는 규칙 덩어리만 뽑아 nth-child 번호를 확인한다.
+        block = next(b for b in inner.split("}")
+                     if "stSidebarNav" in b and "display: none" in b)
+        hidden = {int(n) for n in re.findall(r"nth-child\((\d+)\)", block)}
+        self.assertEqual(hidden, {1, 2, 3})
+
 
 class TableCssTests(unittest.TestCase):
     def _hidden_indexes(self, css):
