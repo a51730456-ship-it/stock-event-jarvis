@@ -138,7 +138,7 @@ st.markdown(
     .j4-top-cell { min-width: 150px; }
     /* 제목은 코발트, 값은 항목별 색 — 무엇이 제목이고 무엇이 결과인지 구분되게 한다
        (2026-07-22 사용자 지시). */
-    .j4-top-label { color: #4da6ff; font-size: 0.92rem; font-weight: 800; }
+    .j4-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
     .j4-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
     .j4-top-sub { font-size: 0.95rem; font-weight: 700; }
     .j4-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
@@ -960,24 +960,37 @@ def _index_spark(symbol: str) -> list:
         return []
 
 
-def _sparkline_svg(values, color: str, width: int = 96, height: int = 72) -> str:
-    """숫자 밑 작은 선(미국테마와 같은 방식, 2026-07-25 요청)."""
+def _sparkline_svg(values, color: str, width: int = 120, height: int = 90) -> str:
+    """네이버 금융 첫 화면 같은 작은 흐름 그림 (2026-07-25 사용자 요청).
+
+    기준선(구간 첫 종가)을 점선으로 긋고, 선과 기준선 사이를 옅게 채운다.
+    색은 구간 시작 대비 오름/내림으로 정한다(한국·미국 색 규칙은 부르는 쪽이 준다).
+    값이 모자라면 빈 문자열 — 화면은 숫자만 보여준다.
+    """
     points = [float(v) for v in (values or []) if v is not None]
     if len(points) < 2:
         return ""
     low, high = min(points), max(points)
     span = (high - low) or 1.0
+    pad = 8
+    inner = height - pad * 2
     step = width / (len(points) - 1)
-    coords = " ".join(
-        f"{index * step:.1f},{height - 2 - (value - low) / span * (height - 4):.1f}"
-        for index, value in enumerate(points)
-    )
+
+    def _y(value):
+        return pad + inner - (value - low) / span * inner
+
+    coords = " ".join(f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points))
+    base_y = _y(points[0])
+    area = f"0,{base_y:.1f} " + coords + f" {width:.1f},{base_y:.1f}"
     return (
         f"<svg viewBox='0 0 {width} {height}' width='{width}' height='{height}' "
-        f"style='display:block; margin-top:.35rem; border:1px solid rgba(255,255,255,.22);"
-        f" border-radius:6px; background:rgba(255,255,255,.03); padding:2px'>"
-        f"<polyline points='{coords}' fill='none' "
-        f"stroke='{color}' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'/></svg>"
+        f"style='display:block; margin-top:.4rem; border:1px solid rgba(255,255,255,.22);"
+        f" border-radius:8px; background:rgba(255,255,255,.03)'>"
+        f"<polygon points='{area}' fill='{color}' fill-opacity='0.16'/>"
+        f"<line x1='0' y1='{base_y:.1f}' x2='{width}' y2='{base_y:.1f}' "
+        f"stroke='rgba(255,255,255,.35)' stroke-width='1' stroke-dasharray='3 3'/>"
+        f"<polyline points='{coords}' fill='none' stroke='{color}' stroke-width='1.8' "
+        f"stroke-linejoin='round' stroke-linecap='round'/></svg>"
     )
 
 
