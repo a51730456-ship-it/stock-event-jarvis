@@ -413,56 +413,10 @@ if not _app_password:
     st.warning("비밀번호 설정이 필요합니다. .streamlit/secrets.toml에 APP_PASSWORD를 설정하세요.")
     st.stop()
 
-# 쿠키에 로그인이 남아 있으면 되살리고, 세션이 로그인 상태면 쿠키를 심는다.
-auth.sync_auth()
-
-
-def _small_screen_redirect_to_us_theme() -> None:
-    """폰·태블릿에서 '/'로 들어오면 미국테마(자비스3)로 옮긴다.
-
-    쿠키 자동로그인을 넣은 뒤 폰에서 주소로 들어오면 로그인 화면(목적지 고르기)을
-    건너뛰고 무거운 자비스1이 바로 열렸다(2026-07-25 사용자 지적). 폰·태블릿 메뉴에는
-    자비스1이 없으므로 여기로 올 이유도 없다.
-
-    옮기는 방법은 왼쪽 메뉴의 자비스3 링크를 눌러 주는 것이다. 스트림릿은 이 화면을
-    iframe에 넣으면서 상위 창 주소를 직접 바꾸는 권한(allow-top-navigation)을 주지 않아
-    `location.replace`는 조용히 막힌다(2026-07-25 실측). 링크 클릭은 허용된다.
-
-    노트북·PC(1200px 초과)에서는 아무 일도 하지 않는다 — 자비스1을 그대로 쓴다.
-    메뉴가 아직 안 그려졌을 수 있어 잠깐 동안 다시 시도하고, 그래도 안 되면
-    지금처럼 이 화면이 그대로 보인다(막혀도 손해는 없다).
-    """
-    import streamlit.components.v1 as _components
-
-    _components.html(
-        """
-        <script>
-        (function () {
-          var tries = 0;
-          var timer = setInterval(function () {
-            tries += 1;
-            if (tries > 40) { clearInterval(timer); return; }
-            try {
-              var top = window.parent;
-              if (!top || top === window) { clearInterval(timer); return; }
-              if (top.innerWidth > 1200) { clearInterval(timer); return; }
-              var items = top.document.querySelectorAll("[data-testid='stSidebarNav'] li");
-              if (items.length < 4) { return; }
-              var link = items[3].querySelector("a");
-              if (!link) { clearInterval(timer); return; }
-              clearInterval(timer);
-              link.click();
-            } catch (e) { clearInterval(timer); }
-          }, 150);
-        })();
-        </script>
-        """,
-        height=0,
-    )
-
-
-if st.session_state.get("authenticated"):
-    _small_screen_redirect_to_us_theme()
+# 첫 화면에서는 쿠키로 로그인을 '되살리지' 않는다 — 되살리면 어디로 갈지 고르는
+# 이 화면이 통째로 건너뛰어지고 무거운 자비스1이 바로 열린다(2026-07-25 사용자 지적).
+# 쿠키 심기는 그대로 해서, 옮겨간 자비스3·4·5에서는 로그인이 유지된다.
+auth.sync_auth(restore=False)
 
 if not st.session_state.get("authenticated"):
     st.markdown(

@@ -130,5 +130,33 @@ class RealPageMappingTests(unittest.TestCase):
                 self.assertLessEqual(len(keep), 5, "폰에서 다섯 칸을 넘으면 다시 길어진다")
 
 
+class ModuleRevisionTests(unittest.TestCase):
+    """온라인에 옛 모듈이 남지 않게 리비전 표식을 굳혀 둔다(CLAUDE.md 11번).
+
+    2026-07-25에 이 표식이 없어서 폰 수정이 온라인에 하나도 반영되지 않았다.
+    """
+
+    PAGES = ("pages/2_자비스3.py", "pages/3_자비스4.py", "pages/4_자비스5.py")
+
+    def test_mobile_ui_has_a_revision(self):
+        self.assertIsInstance(getattr(m, "MODULE_REVISION", None), int)
+
+    def test_pages_require_the_current_mobile_revision(self):
+        """mobile_ui를 고치고 리비전만 올리면 이 테스트가 페이지 동기화를 강제한다."""
+        import pathlib
+        import re
+
+        root = pathlib.Path(__file__).parent
+        for name in self.PAGES:
+            with self.subTest(name):
+                source = (root / name).read_text(encoding="utf-8")
+                found = re.search(r"_REQUIRED_MOBILE_REVISION = (\d+)", source)
+                self.assertIsNotNone(found, f"{name}에 mobile_ui 리비전 가드가 없다")
+                self.assertEqual(
+                    int(found.group(1)), m.MODULE_REVISION,
+                    f"{name}의 요구 리비전이 mobile_ui.MODULE_REVISION과 다르다",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,6 +19,13 @@ PHONE_MAX_WIDTH보다 넓은 화면(태블릿·PC)에는 아무 영향이 없다
 
 from __future__ import annotations
 
+# 실행 중인 프로세스에 옛 모듈이 남아 있는지 페이지가 알아채기 위한 표식이다
+# (jarvis3_data·market_signal_ui와 같은 장치, CLAUDE.md 11번 규칙).
+# 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
+# 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
+# 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
+MODULE_REVISION = 2026072502
+
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
 

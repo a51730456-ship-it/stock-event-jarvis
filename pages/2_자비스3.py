@@ -309,6 +309,12 @@ import pandas as pd
 
 import fear_greed_ui
 import mobile_ui
+
+# 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
+# (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
+_REQUIRED_MOBILE_REVISION = 2026072502
+if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
+    mobile_ui = importlib.reload(mobile_ui)
 import regime_gauge_ui
 import jarvis3_data as j3data
 import jarvis3_store as j3store
@@ -329,7 +335,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026072407
+_REQUIRED_SIGNAL_UI_REVISION = 2026072502
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).

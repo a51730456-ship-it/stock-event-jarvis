@@ -65,11 +65,15 @@ def _decide(authenticated: bool, cookie_value, token: str) -> str | None:
     return "restore" if cookie_value == token else None
 
 
-def sync_auth() -> None:
+def sync_auth(restore: bool = True) -> None:
     """세션과 쿠키를 맞춘다. 페이지 로그인 게이트 맨 앞에서 부른다.
 
     - 세션이 로그인 상태면: 쿠키에 토큰이 없거나 다를 때만 심는다.
     - 세션이 로그인 상태가 아니면: 쿠키 토큰이 맞으면 로그인을 되살린다.
+
+    restore=False면 되살리지 않고 쿠키를 심기만 한다. 첫 화면(app.py)에서 쓴다 —
+    거기서 되살리면 '어디로 갈지 고르는 로그인 화면'이 통째로 건너뛰어지고 무거운
+    자비스1이 바로 열렸다(2026-07-25 사용자 지적). 첫 화면은 항상 보여야 한다.
 
     쿠키 관련이 하나라도 실패하면 조용히 넘어간다(세션 기반 동작 유지).
     """
@@ -92,7 +96,7 @@ def sync_auth() -> None:
                 expires=datetime.now() + timedelta(days=_COOKIE_DAYS),
                 same_site="lax",
             )
-        elif action == "restore":
+        elif action == "restore" and restore:
             st.session_state["authenticated"] = True
     except Exception:
         # 쿠키가 안 되면 지금까지처럼 세션만으로 동작한다.

@@ -149,7 +149,15 @@ def _login_gate() -> None:
 
 _login_gate()
 
+import importlib
+
 import mobile_ui
+
+# 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
+# (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
+_REQUIRED_MOBILE_REVISION = 2026072502
+if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
+    mobile_ui = importlib.reload(mobile_ui)
 import jarvis5_collector as collector
 import jarvis5_data as engine
 import jarvis5_store as store
