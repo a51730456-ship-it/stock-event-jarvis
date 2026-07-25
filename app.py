@@ -578,6 +578,15 @@ if not st.session_state.get("authenticated"):
             .jarvis-login-panel-heading { margin-bottom: 1.15rem; }
             .jarvis-login-panel-heading h1 { font-size: clamp(1.85rem, 10vw, 2.5rem) !important; }
         }
+        /* 폰·태블릿에서는 '로그인 후 이동'을 미국테마·한국테마·선행감지 셋만
+           보이게 한다(2026-07-25 사용자 지시). 앞 3개(시장판단·자비스1·자비스2)를
+           숨기되 옵션 자체는 남겨 둔다 — 노트북/PC(1200px 초과)에서는 6개 다 보이고
+           나중에 되살릴 수도 있다. 갤럭시탭 S8+(1138px)는 이 규칙에 걸린다. */
+        @media (max-width: 1200px) {
+            .st-key-login_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(-n+3) {
+                display: none !important;
+            }
+        }
         @media (prefers-reduced-motion: reduce) {
             [data-testid="stAppViewContainer"]::before,
             [data-testid="stAppViewContainer"]::after { animation: none !important; }
@@ -616,7 +625,10 @@ if not st.session_state.get("authenticated"):
                 "한국테마 (자비스4)",
                 "한국테마 선행감지 (자비스5·실험)",
             ],
-            index=2,  # 기존 자비스2 기본 이동을 그대로 유지한다
+            # 기본 이동을 미국테마(자비스3)로 둔다 — 폰·태블릿에서는 앞 3개
+            # (시장판단·자비스1·자비스2)를 CSS로 숨기므로, 숨겨진 자비스2가 기본으로
+            # 선택돼 있으면 '선택된 항목이 안 보이는' 상태가 된다(2026-07-25).
+            index=3,
             horizontal=True,
             key="login_dest_choice",
         )
