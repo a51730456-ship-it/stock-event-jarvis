@@ -12,15 +12,24 @@ import mobile_ui as m
 
 
 class MediaQueryTests(unittest.TestCase):
-    def test_all_rules_live_inside_the_phone_media_query(self):
-        """규칙이 미디어쿼리 밖으로 새면 태블릿·PC까지 바뀐다."""
+    def test_no_rule_sits_outside_a_media_query(self):
+        """규칙이 미디어쿼리 밖으로 새면 PC 화면까지 바뀐다.
+
+        미디어쿼리는 둘이다 — 표·글자는 폰(600px), 메뉴는 태블릿까지(1200px).
+        """
         css = m.page_css(m.table_css("x_", 4, {2: "이름"}, "j3-td"))
-        self.assertEqual(css.count("@media"), 1)
-        inner = css[css.index("{", css.index("@media")) + 1: css.rindex("}</style>")]
-        # 미디어쿼리 앞뒤에 규칙이 붙어 있지 않아야 한다.
-        head = css[: css.index("@media")]
-        self.assertEqual(head, "<style>")
-        self.assertIn(".fg-box", inner)
+        self.assertEqual(css.count("@media"), 2)
+        # <style> 바로 뒤부터 첫 @media 앞까지 규칙이 있으면 안 된다.
+        head = css[len("<style>"): css.index("@media")]
+        self.assertEqual(head.strip(), "")
+
+    def test_phone_rules_stay_in_the_phone_media_query(self):
+        """표·글자 규칙은 폰(600px) 묶음 안에 있어야 태블릿이 안 바뀐다."""
+        css = m.page_css(m.table_css("x_", 4, {2: "이름"}, "j3-td"))
+        phone_block = css[css.index(f"@media (max-width: {m.PHONE_MAX_WIDTH}px)"): css.rindex("}</style>")]
+        self.assertIn(".fg-box", phone_block)
+        self.assertIn(".j3-theme-table", phone_block)
+        self.assertNotIn("stSidebarNav", phone_block)
 
     def test_phone_breakpoint_excludes_galaxy_tab_s8_plus(self):
         """갤럭시탭 S8+는 1138px이라 폰 규칙에 걸리면 안 된다."""
@@ -54,12 +63,17 @@ class MediaQueryTests(unittest.TestCase):
         규칙은 반드시 미디어쿼리 안에 있어야 태블릿·PC 메뉴가 그대로다.
         """
         css = m.page_css()
-        inner = css[css.index("{", css.index("@media")) + 1: css.rindex("}</style>")]
         # 사이드바 메뉴를 감추는 규칙 덩어리만 뽑아 nth-child 번호를 확인한다.
-        block = next(b for b in inner.split("}")
+        block = next(b for b in css.split("}")
                      if "stSidebarNav" in b and "display: none" in b)
         hidden = {int(n) for n in re.findall(r"nth-child\((\d+)\)", block)}
         self.assertEqual(hidden, {1, 2, 3})
+
+    def test_menu_rule_reaches_tablets_but_not_pc(self):
+        """메뉴는 폰·태블릿에서만 3개다 — 갤럭시탭 S8+(1138px)도 걸려야 한다."""
+        self.assertGreaterEqual(m.SIDEBAR_MAX_WIDTH, 1138)
+        self.assertLess(m.SIDEBAR_MAX_WIDTH, 1280)  # 노트북은 6개 그대로
+        self.assertIn(f"@media (max-width: {m.SIDEBAR_MAX_WIDTH}px)", m.SIDEBAR_NAV_CSS)
 
 
 class TableCssTests(unittest.TestCase):

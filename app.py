@@ -371,6 +371,15 @@ st.markdown(
     [data-testid="stSidebarNav"] {
         padding-top: 3.4rem !important;
     }
+    /* 폰·태블릿(≤1200px)에서는 메뉴를 미국테마·한국테마·선행감지 셋만 남긴다
+       (2026-07-25 사용자 지시). 자비스3·4·5에는 mobile_ui가 같은 규칙을 넣지만
+       이 화면(자비스1)에는 없어서 폰에서 메뉴 6개가 다 보였다.
+       옵션을 지우는 게 아니라 감추는 것이라 노트북/PC에서는 그대로 6개다. */
+    @media (max-width: 1200px) {
+        [data-testid="stSidebarNav"] li:nth-child(1),
+        [data-testid="stSidebarNav"] li:nth-child(2),
+        [data-testid="stSidebarNav"] li:nth-child(3) { display: none !important; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -406,6 +415,54 @@ if not _app_password:
 
 # 쿠키에 로그인이 남아 있으면 되살리고, 세션이 로그인 상태면 쿠키를 심는다.
 auth.sync_auth()
+
+
+def _small_screen_redirect_to_us_theme() -> None:
+    """폰·태블릿에서 '/'로 들어오면 미국테마(자비스3)로 옮긴다.
+
+    쿠키 자동로그인을 넣은 뒤 폰에서 주소로 들어오면 로그인 화면(목적지 고르기)을
+    건너뛰고 무거운 자비스1이 바로 열렸다(2026-07-25 사용자 지적). 폰·태블릿 메뉴에는
+    자비스1이 없으므로 여기로 올 이유도 없다.
+
+    옮기는 방법은 왼쪽 메뉴의 자비스3 링크를 눌러 주는 것이다. 스트림릿은 이 화면을
+    iframe에 넣으면서 상위 창 주소를 직접 바꾸는 권한(allow-top-navigation)을 주지 않아
+    `location.replace`는 조용히 막힌다(2026-07-25 실측). 링크 클릭은 허용된다.
+
+    노트북·PC(1200px 초과)에서는 아무 일도 하지 않는다 — 자비스1을 그대로 쓴다.
+    메뉴가 아직 안 그려졌을 수 있어 잠깐 동안 다시 시도하고, 그래도 안 되면
+    지금처럼 이 화면이 그대로 보인다(막혀도 손해는 없다).
+    """
+    import streamlit.components.v1 as _components
+
+    _components.html(
+        """
+        <script>
+        (function () {
+          var tries = 0;
+          var timer = setInterval(function () {
+            tries += 1;
+            if (tries > 40) { clearInterval(timer); return; }
+            try {
+              var top = window.parent;
+              if (!top || top === window) { clearInterval(timer); return; }
+              if (top.innerWidth > 1200) { clearInterval(timer); return; }
+              var items = top.document.querySelectorAll("[data-testid='stSidebarNav'] li");
+              if (items.length < 4) { return; }
+              var link = items[3].querySelector("a");
+              if (!link) { clearInterval(timer); return; }
+              clearInterval(timer);
+              link.click();
+            } catch (e) { clearInterval(timer); }
+          }, 150);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
+if st.session_state.get("authenticated"):
+    _small_screen_redirect_to_us_theme()
 
 if not st.session_state.get("authenticated"):
     st.markdown(

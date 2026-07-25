@@ -85,11 +85,20 @@ def table_css(button_prefix: str, total: int, keep: dict[int, str], cell_class: 
 # 폰에서는 사이드바 메뉴를 자비스3·4·5(미국테마·한국테마·선행감지)만 남긴다.
 # 나머지 셋(자비스1·시장판단·자비스2 = li 1~3)은 감춘다. (2026-07-25 사용자 지시)
 # nth-child는 감춰도 번호가 밀리지 않으므로, app.py의 순서·이름표 규칙
-# (nth-child 4/5/6)은 그대로 맞는다. 태블릿·PC(600px 초과)에는 영향이 없다.
-SIDEBAR_NAV_CSS = """
+# (nth-child 4/5/6)은 그대로 맞는다.
+#
+# 이 규칙만 태블릿까지(≤1200px) 넓게 잡는다 — 사용자가 "스마트폰과 태블릿에만
+# 3개"라고 지시했다. 표·글자 규칙(600px)과 기준이 달라서 따로 둔다.
+# app.py에도 같은 규칙이 있다(자비스1 화면용). 한쪽만 고치면 화면마다 메뉴가
+# 달라지므로 둘을 같이 고쳐야 한다.
+SIDEBAR_MAX_WIDTH = 1200
+
+SIDEBAR_NAV_CSS = f"""
+@media (max-width: {SIDEBAR_MAX_WIDTH}px) {{
 [data-testid="stSidebarNav"] li:nth-child(1),
 [data-testid="stSidebarNav"] li:nth-child(2),
-[data-testid="stSidebarNav"] li:nth-child(3) { display: none !important; }
+[data-testid="stSidebarNav"] li:nth-child(3) {{ display: none !important; }}
+}}
 """
 
 # 상단 지표 줄 — 폰에서 숫자는 2열로, 게이지는 한 줄에 하나씩 작게.
@@ -160,7 +169,10 @@ h2 { font-size: 1.2rem !important; }
 def page_css(*table_rules: str) -> str:
     """폰에서만 도는 <style> 한 덩어리. 표 규칙은 화면마다 달라 받아서 넣는다."""
     return (
-        f"<style>@media (max-width: {PHONE_MAX_WIDTH}px) {{"
-        + SIDEBAR_NAV_CSS + TOP_ROW_CSS + THEME_TABLE_CSS + CONTENT_CSS + "".join(table_rules)
+        # 메뉴 규칙은 태블릿까지(≤1200px) 걸려야 해서 폰 묶음 밖에 따로 둔다.
+        # 안에 넣으면 두 미디어쿼리가 겹쳐 600px로 좁아진다.
+        "<style>" + SIDEBAR_NAV_CSS
+        + f"@media (max-width: {PHONE_MAX_WIDTH}px) {{"
+        + TOP_ROW_CSS + THEME_TABLE_CSS + CONTENT_CSS + "".join(table_rules)
         + "}</style>"
     )

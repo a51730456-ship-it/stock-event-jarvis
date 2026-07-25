@@ -303,10 +303,15 @@ class Jarvis3PageTests(unittest.TestCase):
         blocks = [str(n.value) for n in app.markdown if "@media (max-width: 600px)" in str(n.value)]
         self.assertEqual(len(blocks), 1)
         css = blocks[0]
-        self.assertTrue(css.startswith("<style>@media"))
-        self.assertEqual(css.count("@media"), 1)
+        # 미디어쿼리는 둘이다 — 메뉴는 태블릿까지(1200px), 표·글자는 폰만(600px).
+        self.assertEqual(css.count("@media"), 2)
+        self.assertEqual(css[: len("<style>")], "<style>")
+        self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
+        phone_block = css[css.index("@media (max-width: 600px)"):]
         for key in ("st-key-j3tbtn_", "st-key-j3pbf_", "j3-th-head", ".fg-box { order"):
-            self.assertIn(key, css)
+            self.assertIn(key, phone_block)
+        # 메뉴 규칙은 폰 묶음 밖(태블릿까지)에 있어야 한다.
+        self.assertNotIn("stSidebarNav", phone_block)
 
 
     def test_theme_selection_click_actually_switches_theme(self):

@@ -258,12 +258,16 @@ class Jarvis4PageTests(unittest.TestCase):
         blocks = [str(n.value) for n in app.markdown if "@media (max-width: 600px)" in str(n.value)]
         self.assertEqual(len(blocks), 1, "폰 규칙 덩어리는 하나여야 한다")
         css = blocks[0]
-        # 미디어쿼리 밖에 규칙이 새면 태블릿까지 바뀐다.
-        self.assertTrue(css.startswith("<style>@media"))
-        self.assertEqual(css.count("@media"), 1)
+        # 미디어쿼리 밖에 규칙이 새면 PC까지 바뀐다. 미디어쿼리는 둘이다 —
+        # 메뉴는 태블릿까지(1200px), 표·글자는 폰만(600px).
+        self.assertEqual(css.count("@media"), 2)
+        self.assertEqual(css[: len("<style>")], "<style>")
+        self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
+        phone_block = css[css.index("@media (max-width: 600px)"):]
         # 표 두 개와 머리글, 게이지 순서 규칙이 모두 들어 있어야 한다.
         for key in ("st-key-j4tbtn_", "st-key-j4pbf_", "j4-th-head", ".fg-box { order"):
-            self.assertIn(key, css)
+            self.assertIn(key, phone_block)
+        self.assertNotIn("stSidebarNav", phone_block)
 
 
     def test_theme_selection_switches_theme(self):
