@@ -11,6 +11,14 @@ import streamlit as st
 
 import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
 
+# 배포 갱신 중 옛 auth가 프로세스에 남으면 함수 모양이 안 맞아 화면이 죽는다
+# (2026-07-25 온라인 실발생). 리비전이 낮으면 다시 읽는다.
+_REQUIRED_AUTH_REVISION = 2026072503
+if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
+    import importlib as _importlib
+
+    auth = _importlib.reload(auth)
+
 st.set_page_config(page_title="시장 판단", layout="wide")
 
 # 사이드바 표기는 자비스2·3 페이지와 같은 규칙을 따른다(첫 항목 'app' → '자비스1').

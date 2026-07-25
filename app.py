@@ -416,7 +416,17 @@ if not _app_password:
 # 첫 화면에서는 쿠키로 로그인을 '되살리지' 않는다 — 되살리면 어디로 갈지 고르는
 # 이 화면이 통째로 건너뛰어지고 무거운 자비스1이 바로 열린다(2026-07-25 사용자 지적).
 # 쿠키 심기는 그대로 해서, 옮겨간 자비스3·4·5에서는 로그인이 유지된다.
-auth.sync_auth(restore=False)
+#
+# 배포 갱신 중에는 이 파일만 새로 읽히고 auth는 옛것이 남을 수 있다. 그때 옛
+# sync_auth는 restore 인자를 몰라 TypeError가 나면서 앱 전체가 죽었다(2026-07-25
+# 온라인 실발생). 옛 모듈이면 옛 방식으로 부른다 — 로그인 화면이 한 번 더 뜨는 것이
+# 화면이 죽는 것보다 낫다. (이 파일에서는 모듈을 다시 읽지 않는다. 그렇게 고치던
+# 방식은 2026-07-11에 걷어냈고 test_reference_panel_guard가 막고 있다.
+# 자가복구는 pages/*.py 쪽 리비전 가드가 맡는다.)
+try:
+    auth.sync_auth(restore=False)
+except TypeError:
+    auth.sync_auth()
 
 if not st.session_state.get("authenticated"):
     st.markdown(

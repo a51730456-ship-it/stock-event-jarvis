@@ -127,18 +127,15 @@ TOP_ROW_CSS = """
 
 # 테마 종목표(HTML 표 9칸)는 폰에서 칸이 34px까지 좁아져 '+1.76%'가 한 글자씩
 # 세로로 쪼개지고 조건점수 막대는 실오라기가 됐다(2026-07-25 실측).
-# 티커·매수 상태·상세 연결을 접고, 남은 칸은 줄바꿈을 막아 한 줄로 읽히게 한다.
-# 값은 하나도 바꾸지 않는다 — 티커는 종목명 옆에, 매수 상태는 아래 상세에 그대로 있다.
+# 칸을 감추지 않고, 글자를 줄이고 줄바꿈을 막은 뒤 넘치면 표만 옆으로 밀어서 본다.
+# 값은 하나도 바꾸지 않는다.
 THEME_TABLE_CSS = """
 .j3-theme-table, .j4-theme-table { table-layout: auto !important; }
 .j3-theme-table col, .j4-theme-table col { width: auto !important; }
-/* 자비스3(미국): 3 티커 · 8 매수 상태 · 9 상세 연결을 접는다. */
-.j3-theme-table th:nth-child(3), .j3-theme-table td:nth-child(3),
-.j3-theme-table th:nth-child(8), .j3-theme-table td:nth-child(8),
-.j3-theme-table th:nth-child(9), .j3-theme-table td:nth-child(9),
-/* 자비스4(한국): 3 코드 · 9 매수 상태만 접는다. 8 수급은 자비스4의 핵심이라 남긴다. */
-.j4-theme-table th:nth-child(3), .j4-theme-table td:nth-child(3),
-.j4-theme-table th:nth-child(9), .j4-theme-table td:nth-child(9) { display: none !important; }
+/* 칸은 감추지 않는다 — 감췄더니 "다른 항목은 어디 갔나"라는 말이 나왔다
+   (2026-07-25 사용자 지적). 대신 글자를 줄이고 줄바꿈을 막아 한 줄로 읽히게 하고,
+   넘치면 표만 옆으로 밀어서 본다(아래 wrap 규칙). */
+.j3-theme-table, .j4-theme-table { font-size: 0.74rem !important; }
 .j3-theme-table th, .j3-theme-table td,
 .j4-theme-table th, .j4-theme-table td {
     white-space: nowrap !important; padding: 0.4rem 0.25rem !important;
@@ -150,6 +147,8 @@ THEME_TABLE_CSS = """
 .j3-theme-table th.j3-th-left, .j4-theme-table th.j4-th-left { padding-left: 0.4rem !important; }
 /* 조건점수 막대가 실오라기로 보이던 것을 막는다. */
 .j3-theme-table .j3-barwrap, .j4-theme-table .j4-barwrap { min-width: 68px; }
+/* 칸을 다 보여주니 폭이 넘칠 수 있다 — 표만 옆으로 밀어서 본다(화면 전체는 안 밀린다). */
+.j3-theme-table, .j4-theme-table { display: block; overflow-x: auto; white-space: nowrap; }
 """
 
 # 종목 상세·신호 카드 등 나머지 자리.

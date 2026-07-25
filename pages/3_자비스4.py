@@ -13,6 +13,14 @@ import streamlit as st
 
 import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
 
+# 배포 갱신 중 옛 auth가 프로세스에 남으면 함수 모양이 안 맞아 화면이 죽는다
+# (2026-07-25 온라인 실발생). 리비전이 낮으면 다시 읽는다.
+_REQUIRED_AUTH_REVISION = 2026072503
+if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
+    import importlib as _importlib
+
+    auth = _importlib.reload(auth)
+
 st.set_page_config(page_title="자비스4 — 한국 테마 레이더", layout="wide")
 
 st.markdown(
@@ -1810,11 +1818,14 @@ def main() -> None:
             mobile_ui.hide_header_rows("j4-th-head"),
             # 테마표(8칸) — 폰에서는 테마·점수·상태·당일만 남긴다.
             mobile_ui.table_css("j4tbtn_", 8, {
-                2: "", 4: "조건점수", 5: "상태", 6: "당일",
+                1: "순위", 2: "", 3: "종목수", 4: "조건점수", 5: "상태", 6: "당일",
+                7: "KOSPI 대비", 8: "구성종목 확산",
             }, "j4-td"),
-            # 눌림목표(12칸) — 폰에서는 종목·눌림·주가·고점 대비·신고가 기술점수만.
+            # 눌림목표(12칸) — 미국테마와 같이 폰에서도 전부 보여준다(2026-07-25).
             mobile_ui.table_css("j4pbf_", 12, {
-                2: "", 4: "눌림", 6: "현재가", 7: "고점 대비", 11: "신고가점수",
+                1: "순위", 2: "", 3: "코드", 4: "눌림", 5: "신고가", 6: "현재가",
+                7: "고점 대비", 8: "20일선 이격", 9: "테마수", 10: "수급(외+기 5일)",
+                11: "신고가점수", 12: "지금 종합점수",
             }, "j4-td"),
         ),
         unsafe_allow_html=True,

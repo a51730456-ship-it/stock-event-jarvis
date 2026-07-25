@@ -25,6 +25,12 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 
+# 옛 모듈이 프로세스에 남아 있는지 부르는 쪽이 알아채기 위한 표식이다
+# (CLAUDE.md 11번 규칙). 이 표식이 없어서 2026-07-25 배포 중 온라인이
+# `sync_auth(restore=False)`에서 TypeError로 죽었다 — 페이지는 새 코드인데
+# auth는 restore 인자를 모르는 옛 모듈이었다. 함수 모양이 바뀌면 올린다.
+MODULE_REVISION = 2026072503
+
 _COOKIE_NAME = "jarvis_auth"
 # 소금은 비밀이 아니다. 토큰 형식을 바꾸고 싶을 때(예: 기존 쿠키 무효화) 값을 올린다.
 _SALT = "jarvis-auth-v1"

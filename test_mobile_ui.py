@@ -46,11 +46,14 @@ class MediaQueryTests(unittest.TestCase):
         self.assertIn("div:has(> [data-testid='stMarkdownContainer'])", css)
         self.assertIn("min-height: 1.75rem", css)
 
-    def test_theme_table_keeps_supply_column_on_jarvis4(self):
-        """자비스4의 8번 칸은 수급이라 폰에서도 남겨야 한다(자비스4의 핵심)."""
+    def test_theme_table_hides_no_column(self):
+        """테마 종목표도 폰에서 칸을 감추지 않는다(2026-07-25 사용자 지적).
+
+        좁으면 글자를 줄이고, 그래도 넘치면 표만 옆으로 밀어서 본다.
+        """
         css = m.THEME_TABLE_CSS
-        self.assertIn(".j3-theme-table th:nth-child(8)", css)      # 미국은 매수 상태 → 접는다
-        self.assertNotIn(".j4-theme-table th:nth-child(8)", css)   # 한국은 수급 → 남긴다
+        self.assertNotIn("display: none", css)
+        self.assertIn("overflow-x: auto", css)
 
     def test_theme_table_numbers_do_not_wrap(self):
         """칸이 좁아 '+1.76%'가 한 글자씩 세로로 쪼개지던 것을 막는다."""
@@ -115,19 +118,40 @@ class RealPageMappingTests(unittest.TestCase):
     숨겨지는 일을 막는다.
     """
 
+    # 2026-07-25부터 폰에서도 칸을 감추지 않는다 — 감췄더니 "다른 항목은 어디
+    # 갔나"라는 말이 나왔다. 그래서 남길 칸 = 표의 전체 칸이다.
     CASES = (
-        ("자비스3 테마표", 8, {2, 4, 5, 6}),
-        ("자비스3 눌림목표", 12, {2, 4, 5, 7, 8}),
-        ("자비스4 테마표", 8, {2, 4, 5, 6}),
-        ("자비스4 눌림목표", 12, {2, 4, 6, 7, 11}),
+        ("자비스3 테마표", 8, set(range(1, 9))),
+        ("자비스3 눌림목표", 12, set(range(1, 13))),
+        ("자비스4 테마표", 8, set(range(1, 9))),
+        ("자비스4 눌림목표", 12, set(range(1, 13))),
     )
 
-    def test_kept_columns_are_within_range_and_include_the_name(self):
+    def test_every_column_stays_visible_on_phones(self):
         for name, total, keep in self.CASES:
             with self.subTest(name):
                 self.assertTrue(all(1 <= i <= total for i in keep), "칸 번호가 범위 밖")
                 self.assertIn(2, keep, "종목·테마 이름 칸(2)은 반드시 남겨야 누를 수 있다")
-                self.assertLessEqual(len(keep), 5, "폰에서 다섯 칸을 넘으면 다시 길어진다")
+                self.assertEqual(len(keep), total, "폰에서도 칸을 감추지 않는다")
+
+    def test_pages_keep_every_column_too(self):
+        """화면 코드가 실제로 전체 칸을 남기는지 본다 — 여기서만 고치면 소용없다."""
+        import pathlib
+        import re
+
+        root = pathlib.Path(__file__).parent
+        expected = {"j3tbtn_": 8, "j3pbf_": 12, "j4tbtn_": 8, "j4pbf_": 12}
+        sources = "\n".join(
+            (root / name).read_text(encoding="utf-8")
+            for name in ("pages/2_자비스3.py", "pages/3_자비스4.py")
+        )
+        for prefix, total in expected.items():
+            with self.subTest(prefix):
+                block = re.search(
+                    rf'table_css\("{prefix}", {total}, \{{(.*?)\}}', sources, re.S)
+                self.assertIsNotNone(block, f"{prefix} 표 설정을 찾지 못했다")
+                kept = {int(n) for n in re.findall(r"(\d+):", block.group(1))}
+                self.assertEqual(kept, set(range(1, total + 1)))
 
 
 class ModuleRevisionTests(unittest.TestCase):
