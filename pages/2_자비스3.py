@@ -350,7 +350,7 @@ import market_signal_ui
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072509
+_REQUIRED_J3_REVISION = 2026072510
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -982,37 +982,50 @@ def _render_market_overview() -> None:
 
 
 
-def _sparkline_svg(values, color: str, width: int = 120, height: int = 90) -> str:
-    """네이버 금융 첫 화면 같은 작은 흐름 그림 (2026-07-25 사용자 요청).
+def _sparkline_svg(payload, up_color: str, down_color: str, height: int = 78) -> str:
+    """네이버 금융식 그림 — 당일 분봉 + 전일 종가 기준선(2026-07-25 사용자 지적 반영).
 
-    기준선(구간 첫 종가)을 점선으로 긋고, 선과 기준선 사이를 옅게 채운다.
-    색은 구간 시작 대비 오름/내림으로 정한다(한국·미국 색 규칙은 부르는 쪽이 준다).
-    값이 모자라면 빈 문자열 — 화면은 숫자만 보여준다.
+    기준선 위 구간과 아래 구간을 다른 색으로 그린다. 색은 시장 규칙을 부르는 쪽이
+    준다(미국은 오르면 파랑, 한국은 오르면 빨강).
     """
-    points = [float(v) for v in (values or []) if v is not None]
-    if len(points) < 2:
+    if not isinstance(payload, dict):
         return ""
-    low, high = min(points), max(points)
+    points = [float(v) for v in (payload.get("points") or []) if v is not None]
+    base = payload.get("base")
+    if len(points) < 2 or not base:
+        return ""
+    low, high = min(points + [base]), max(points + [base])
     span = (high - low) or 1.0
-    pad = 8
+    width, pad = 300.0, 6.0
     inner = height - pad * 2
     step = width / (len(points) - 1)
 
     def _y(value):
         return pad + inner - (value - low) / span * inner
 
-    coords = " ".join(f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points))
-    base_y = _y(points[0])
-    area = f"0,{base_y:.1f} " + coords + f" {width:.1f},{base_y:.1f}"
+    base_y = _y(base)
+    segments = []
+    for index in range(len(points) - 1):
+        first, second = points[index], points[index + 1]
+        color = up_color if (first + second) / 2 >= base else down_color
+        segments.append(
+            f"<line x1='{index * step:.1f}' y1='{_y(first):.1f}' "
+            f"x2='{(index + 1) * step:.1f}' y2='{_y(second):.1f}' "
+            f"stroke='{color}' stroke-width='1.6' stroke-linecap='round'/>"
+        )
+    fill = up_color if points[-1] >= base else down_color
+    area = f"0,{base_y:.1f} " + " ".join(
+        f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points)
+    ) + f" {width:.1f},{base_y:.1f}"
     return (
-        f"<svg viewBox='0 0 {width} {height}' width='{width}' height='{height}' "
-        f"style='display:block; margin-top:.4rem; border:1px solid rgba(255,255,255,.22);"
-        f" border-radius:8px; background:rgba(255,255,255,.03)'>"
-        f"<polygon points='{area}' fill='{color}' fill-opacity='0.16'/>"
-        f"<line x1='0' y1='{base_y:.1f}' x2='{width}' y2='{base_y:.1f}' "
-        f"stroke='rgba(255,255,255,.35)' stroke-width='1' stroke-dasharray='3 3'/>"
-        f"<polyline points='{coords}' fill='none' stroke='{color}' stroke-width='1.8' "
-        f"stroke-linejoin='round' stroke-linecap='round'/></svg>"
+        f"<svg viewBox='0 0 {width:.0f} {height}' width='100%' height='{height}' "
+        f"preserveAspectRatio='none' style='display:block; margin-top:.4rem;"
+        f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
+        f" background:rgba(255,255,255,.03)'>"
+        f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"
+        f"<line x1='0' y1='{base_y:.1f}' x2='{width:.0f}' y2='{base_y:.1f}' "
+        f"stroke='rgba(255,255,255,.38)' stroke-width='1' stroke-dasharray='4 4'/>"
+        + "".join(segments) + "</svg>"
     )
 
 
@@ -1045,7 +1058,7 @@ def _us_index_cells(overview: dict, phase: str) -> list:
             f"<div class='j3-top-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j3-top-sub {_sign_class(change)}'>{_pct(change)} "
             f"<span class='j3-muted'>· {note}</span></div>"
-            + _sparkline_svg(sparklines.get(symbol), _sign_color(change))
+            + _sparkline_svg(sparklines.get(symbol), "#4da6ff", "#ff5b5b")
             + "</div>"
         )
     return cells

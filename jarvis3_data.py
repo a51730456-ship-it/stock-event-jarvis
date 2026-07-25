@@ -85,7 +85,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072509
+MODULE_REVISION = 2026072510
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1072,23 +1072,29 @@ def get_intraday_chart(ticker: str) -> dict | None:
 
 
 def get_index_sparklines(days: int = 30) -> dict:
-    """4대 지수의 최근 종가 흐름 — 상단 지수 칸에 작은 선을 그리는 데 쓴다.
+    """4대 지수의 '당일 분봉 흐름'과 '전일 종가'.
 
-    네이버 금융 첫 화면처럼 숫자 밑에 흐름을 보여 달라는 요청(2026-07-25).
-    실패하면 빈 dict를 돌려주고, 화면은 선 없이 숫자만 보여준다.
+    네이버 금융처럼 그리려면 30일 일봉이 아니라 마지막 장의 분봉이어야 하고,
+    기준선은 전일 종가여야 한다(2026-07-25 사용자 지적 — 이전 구현이 틀렸다).
+    분봉을 못 받으면 그 지수는 빼고 숫자만 보여준다.
     """
     try:
-        frames, _meta = _download_cached(US_INDEX_SYMBOLS, period="3mo", interval="1d", ttl_seconds=600)
+        intraday, _m1 = _download_cached(
+            US_INDEX_SYMBOLS, period="1d", interval="5m", ttl_seconds=300)
+        daily, _m2 = _download_cached(
+            US_INDEX_SYMBOLS, period="1mo", interval="1d", ttl_seconds=600)
     except Exception:
         return {}
     result = {}
     for symbol in US_INDEX_SYMBOLS:
-        frame = frames.get(symbol)
-        if frame is None or frame.empty or "Close" not in frame.columns:
+        frame = intraday.get(symbol)
+        closes = daily.get(symbol)
+        if frame is None or frame.empty or closes is None or len(closes) < 2:
             continue
-        closes = [float(v) for v in frame["Close"].dropna().tail(days).tolist()]
-        if len(closes) >= 2:
-            result[symbol] = closes
+        points = [float(v) for v in frame["Close"].dropna().tolist()]
+        base = _finite(closes["Close"].dropna().iloc[-2])
+        if len(points) >= 2 and base:
+            result[symbol] = {"points": points, "base": base}
     return result
 
 

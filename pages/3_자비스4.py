@@ -549,13 +549,11 @@ def _render_market_overview() -> None:
     # 시장 국면은 밝은 초록, 미국 전일은 진한 초록, 공포·탐욕은 파랑.
     top_cells = [
         regime_gauge_ui.regime_box_html(overview),
-        # 숫자 밑에 최근 흐름 선을 붙인다(2026-07-25 사용자 요청, 미국테마와 같은 모양).
-        _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
-                    sub_signed=True).replace("</div></div>",
-            "</div>" + _sparkline_svg(_index_spark("KS11"), _sign_color(kospi.get("change_pct"))) + "</div>", 1),
-        _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"),
-                    sub_signed=True).replace("</div></div>",
-            "</div>" + _sparkline_svg(_index_spark("KQ11"), _sign_color(kosdaq.get("change_pct"))) + "</div>", 1),
+        _top_metric("KOSPI", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"), sub_signed=True),
+        _top_metric("KOSDAQ", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"), sub_signed=True),
+        # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
+        # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
+        *_us_index_cells(),
         _top_metric(
             "시장상태", phase, phase_color,
             f"원/달러 {_number(usdkrw.get('current'), 1)}" if usdkrw.get("ok") else "원/달러 —",
@@ -960,37 +958,74 @@ def _index_spark(symbol: str) -> list:
         return []
 
 
-def _sparkline_svg(values, color: str, width: int = 120, height: int = 90) -> str:
-    """네이버 금융 첫 화면 같은 작은 흐름 그림 (2026-07-25 사용자 요청).
+def _us_index_cells() -> list:
+    """미국 4대 지수 칸 — 당일 분봉과 전일 종가로 값·등락·그림을 만든다."""
+    import us_index_data
 
-    기준선(구간 첫 종가)을 점선으로 긋고, 선과 기준선 사이를 옅게 채운다.
-    색은 구간 시작 대비 오름/내림으로 정한다(한국·미국 색 규칙은 부르는 쪽이 준다).
-    값이 모자라면 빈 문자열 — 화면은 숫자만 보여준다.
+    data = us_index_data.sparklines()
+    names = dict(us_index_data.display())
+    cells = []
+    for symbol, name in names.items():
+        payload = data.get(symbol)
+        if not payload:
+            continue
+        last, base = payload["points"][-1], payload["base"]
+        change = (last / base - 1) * 100 if base else None
+        # 미국 시장 색 규칙: 오르면 파랑, 내리면 빨강.
+        cells.append(
+            f"<div class='j4-top-cell'><div class='j4-top-label'>{name}</div>"
+            f"<div class='j4-top-val' style='color:#e6e6e6'>{_number(last, 2)}</div>"
+            f"<div class='j4-top-sub' style='color:{'#4da6ff' if (change or 0) >= 0 else '#ff5b5b'}'>"
+            f"{_pct(change)} <span class='j4-muted'>· 장 마감 기준</span></div>"
+            + _sparkline_svg(payload, "#4da6ff", "#ff5b5b") + "</div>"
+        )
+    return cells
+
+
+def _sparkline_svg(payload, up_color: str, down_color: str, height: int = 78) -> str:
+    """네이버 금융식 그림 — 당일 분봉 + 전일 종가 기준선(2026-07-25 사용자 지적 반영).
+
+    기준선 위 구간과 아래 구간을 다른 색으로 그린다. 색은 시장 규칙을 부르는 쪽이
+    준다(미국은 오르면 파랑, 한국은 오르면 빨강).
     """
-    points = [float(v) for v in (values or []) if v is not None]
-    if len(points) < 2:
+    if not isinstance(payload, dict):
         return ""
-    low, high = min(points), max(points)
+    points = [float(v) for v in (payload.get("points") or []) if v is not None]
+    base = payload.get("base")
+    if len(points) < 2 or not base:
+        return ""
+    low, high = min(points + [base]), max(points + [base])
     span = (high - low) or 1.0
-    pad = 8
+    width, pad = 300.0, 6.0
     inner = height - pad * 2
     step = width / (len(points) - 1)
 
     def _y(value):
         return pad + inner - (value - low) / span * inner
 
-    coords = " ".join(f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points))
-    base_y = _y(points[0])
-    area = f"0,{base_y:.1f} " + coords + f" {width:.1f},{base_y:.1f}"
+    base_y = _y(base)
+    segments = []
+    for index in range(len(points) - 1):
+        first, second = points[index], points[index + 1]
+        color = up_color if (first + second) / 2 >= base else down_color
+        segments.append(
+            f"<line x1='{index * step:.1f}' y1='{_y(first):.1f}' "
+            f"x2='{(index + 1) * step:.1f}' y2='{_y(second):.1f}' "
+            f"stroke='{color}' stroke-width='1.6' stroke-linecap='round'/>"
+        )
+    fill = up_color if points[-1] >= base else down_color
+    area = f"0,{base_y:.1f} " + " ".join(
+        f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points)
+    ) + f" {width:.1f},{base_y:.1f}"
     return (
-        f"<svg viewBox='0 0 {width} {height}' width='{width}' height='{height}' "
-        f"style='display:block; margin-top:.4rem; border:1px solid rgba(255,255,255,.22);"
-        f" border-radius:8px; background:rgba(255,255,255,.03)'>"
-        f"<polygon points='{area}' fill='{color}' fill-opacity='0.16'/>"
-        f"<line x1='0' y1='{base_y:.1f}' x2='{width}' y2='{base_y:.1f}' "
-        f"stroke='rgba(255,255,255,.35)' stroke-width='1' stroke-dasharray='3 3'/>"
-        f"<polyline points='{coords}' fill='none' stroke='{color}' stroke-width='1.8' "
-        f"stroke-linejoin='round' stroke-linecap='round'/></svg>"
+        f"<svg viewBox='0 0 {width:.0f} {height}' width='100%' height='{height}' "
+        f"preserveAspectRatio='none' style='display:block; margin-top:.4rem;"
+        f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
+        f" background:rgba(255,255,255,.03)'>"
+        f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"
+        f"<line x1='0' y1='{base_y:.1f}' x2='{width:.0f}' y2='{base_y:.1f}' "
+        f"stroke='rgba(255,255,255,.38)' stroke-width='1' stroke-dasharray='4 4'/>"
+        + "".join(segments) + "</svg>"
     )
 
 
