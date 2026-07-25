@@ -988,42 +988,37 @@ def _kr_flow_hint() -> str:
 # CSS 동그라미로 그려 넷 다 같은 크기로 맞춘다. 보합만 속이 빈 원이다.
 # 동그라미 하나가 그날의 '두 사람'이다 — 왼쪽 반은 외국인, 오른쪽 반은 기관.
 # 각 반의 색이 그 사람의 방향이다: 빨강 샀다, 파랑 팔았다, 흰색 보합.
-# 그래서 둘 다 사면 통째로 빨강, 둘 다 팔면 통째로 파랑, 엇갈리면 반반이 된다
-# (2026-07-25 사용자 선택).
-#
-# 반반은 CSS 그라디언트로 칠하면 안 된다 — 배경이 테두리 안쪽(9px)을 기준으로 잘리고
-# 테두리 자리로 색이 번져, 반원이 아니라 네모난 띠처럼 보인다(2026-07-25 실제 화면).
-# 반원 두 개를 SVG로 직접 그린다. 그러면 어느 브라우저에서나 같은 모양이다.
-_BUY, _SELL, _NONE = "#ff5b5b", "#4da6ff", "#ffffff"
+# 반반으로 갈라 보니 어지럽기만 하다는 지적(2026-07-25). 세 색으로 끝낸다 —
+# 둘 다 사면 빨강, 둘 다 팔면 파랑, 나머지는 전부 흰색. '누가 사고 누가 팔았나'는
+# 자료에는 그대로 남아 있으니(jarvis4_data의 day_marks) 나중에 되살릴 수 있다.
+# 파랑이 옅어 눈에 안 든다는 지적(2026-07-25)에 따라 진한 파랑으로 내렸다.
+# 동반 표시(동그라미·20일 막대·숫자)는 전부 이 색을 함께 쓴다 — 한 칸 안에서
+# 두 가지 파랑이 섞이면 고장 난 것처럼 보인다.
+_BUY, _SELL, _NONE = "#ff5b5b", "#1f6feb", "#ffffff"
 
-# (왼쪽 반 = 외국인, 오른쪽 반 = 기관). None이면 둘 다 보합이라 빈 원을 그린다.
 _FLOW_MARK_STYLE = {
-    "both_buy": (_BUY, _BUY),            # 외국인·기관 둘 다 순매수
-    "both_sell": (_SELL, _SELL),         # 둘 다 순매도
-    "f_buy_i_sell": (_BUY, _SELL),       # 외국인 사고, 기관 팔고
-    "f_sell_i_buy": (_SELL, _BUY),       # 외국인 팔고, 기관 사고
-    "f_buy": (_BUY, _NONE),              # 외국인만 순매수
-    "i_buy": (_NONE, _BUY),              # 기관만 순매수
-    "f_sell": (_SELL, _NONE),            # 외국인만 순매도
-    "i_sell": (_NONE, _SELL),            # 기관만 순매도
-    "flat": (None, None),                # 둘 다 보합 — 빈 회색 원
+    "both_buy": _BUY,       # 외국인·기관 둘 다 순매수
+    "both_sell": _SELL,     # 둘 다 순매도
+    # 아래는 전부 흰색 — 한쪽만 움직였거나 서로 엇갈린 날이다.
+    "f_buy_i_sell": _NONE,
+    "f_sell_i_buy": _NONE,
+    "f_buy": _NONE,
+    "i_buy": _NONE,
+    "f_sell": _NONE,
+    "i_sell": _NONE,
+    "flat": None,           # 둘 다 보합 — 빈 회색 원
 }
-
-# 반지름 5, 지름 10. 왼쪽 반원은 위 꼭짓점에서 아래 꼭짓점까지 왼쪽으로 도는 호,
-# 오른쪽 반원은 같은 두 점을 오른쪽으로 도는 호다.
-_DOT_LEFT = "M5,0.5 A4.5,4.5 0 0,0 5,9.5 Z"
-_DOT_RIGHT = "M5,0.5 A4.5,4.5 0 0,1 5,9.5 Z"
 
 
 def _flow_dots(marks) -> str:
+    """동그라미 다섯. 글자(●○)는 글꼴마다 크기가 달라 SVG로 그린다(2026-07-25)."""
     dots = []
     for mark in (marks or []):
-        left, right = _FLOW_MARK_STYLE.get(mark, (None, None))
-        if left is None or right is None:
-            body = "<circle cx='5' cy='5' r='4.2' fill='none' stroke='#9aa0aa' stroke-width='1'/>"
-        else:
-            body = (f"<path d='{_DOT_LEFT}' fill='{left}'/>"
-                    f"<path d='{_DOT_RIGHT}' fill='{right}'/>")
+        color = _FLOW_MARK_STYLE.get(mark, None)
+        body = (
+            f"<circle cx='5' cy='5' r='4.5' fill='{color}'/>" if color
+            else "<circle cx='5' cy='5' r='4.2' fill='none' stroke='#9aa0aa' stroke-width='1'/>"
+        )
         dots.append(
             "<svg width='10' height='10' viewBox='0 0 10 10' "
             f"style='vertical-align:middle; margin-right:3px'>{body}</svg>"
@@ -1199,12 +1194,12 @@ def _partner20_cell(flow: dict) -> str:
     return (
         "<div class='j4-barwrap'><div class='j4-bar'>"
         "<div style='display:flex; height:8px'>"
-        f"<div style='width:{min(buy_pct, 100):.0f}%; background:#ff5b5b'></div>"
-        f"<div style='width:{min(sell_pct, 100 - min(buy_pct, 100)):.0f}%; background:#4da6ff'></div>"
+        f"<div style='width:{min(buy_pct, 100):.0f}%; background:{_BUY}'></div>"
+        f"<div style='width:{min(sell_pct, 100 - min(buy_pct, 100)):.0f}%; background:{_SELL}'></div>"
         "</div></div>"
         "<span class='j4-bar-num' style='white-space:nowrap'>"
-        f"<span style='color:#ff5b5b'>{buy}</span>/"
-        f"<span style='color:#4da6ff'>{sell}</span>/"
+        f"<span style='color:{_BUY}'>{buy}</span>/"
+        f"<span style='color:{_SELL}'>{sell}</span>/"
         f"<span style='color:#9aa0aa'>{window}</span></span></div>"
     )
 
@@ -2180,11 +2175,9 @@ def _render_pullback_finder() -> None:
     with st.expander("표 읽는 법 보기", expanded=False):
         st.caption(
         (f"수급 기준일 **{_flow_latest}** · 그날부터 거꾸로 센 거래일입니다. " if _flow_latest else "")
-        + "동반(5일) 동그라미는 **왼쪽이 가장 최근 거래일**입니다. 동그라미 하나가 그날의 "
-            "두 사람이고, **왼쪽 반은 외국인, 오른쪽 반은 기관**입니다. 각 반의 색이 그 사람의 "
-            "방향입니다 — 빨강은 순매수, 파랑은 순매도, 흰색은 보합. 그래서 둘 다 사면 통째로 "
-            "빨강, 둘 다 팔면 통째로 파랑, 엇갈리면 반은 빨강 반은 파랑, 둘 다 보합이면 빈 "
-            "회색입니다. "
+        + "동반(5일) 동그라미는 **왼쪽이 가장 최근 거래일**입니다 — 빨강은 외국인·기관이 "
+            "둘 다 순매수한 날, 파랑은 둘 다 순매도한 날, 흰색은 한쪽만 움직였거나 서로 "
+            "엇갈린 날, 빈 회색은 둘 다 보합인 날입니다. "
             "수급 칸은 5일 순매수 금액이 그 기간 거래대금의 몇 %인지이고, "
             "동반(매수/매도/20일)은 20거래일 중 동반매수·동반매도 일수입니다."
         )

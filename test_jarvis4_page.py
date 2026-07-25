@@ -472,14 +472,13 @@ class PartnerFlowColumnTests(unittest.TestCase):
         self.assertIn("동반(5일)", blob)
         self.assertIn("동반(매수/매도/20일)", blob)
         self.assertIn("수급(대금%)", blob)
-        # 5일: 숫자 3/5 와 동그라미. 글자(●◐)는 글꼴마다 크기가 달라 못 쓰고,
-        # CSS 그라디언트는 반원으로 안 잘려 네모난 띠로 보였다(2026-07-25).
-        # 그래서 반원 두 개를 SVG로 직접 그린다.
+        # 5일: 숫자 3/5 와 동그라미. 글자(●○)는 글꼴마다 크기가 달라 SVG 원으로 그린다.
+        # 반반으로 갈랐더니 어지럽다고 해서 세 색으로 되돌렸다(2026-07-25).
         self.assertIn("3/5", blob)
-        self.assertIn("A4.5,4.5 0 0,0", blob)   # 왼쪽 반원(외국인)
-        self.assertIn("A4.5,4.5 0 0,1", blob)   # 오른쪽 반원(기관)
-        self.assertIn("#ff5b5b", blob)   # 순매수 — 빨강
-        self.assertIn("#4da6ff", blob)   # 순매도 — 파랑
+        self.assertIn("<circle cx='5' cy='5'", blob)
+        self.assertIn("#ff5b5b", blob)   # 둘 다 순매수 — 빨강
+        self.assertIn("#4da6ff", blob)   # 둘 다 순매도 — 파랑
+        self.assertNotIn("A4.5,4.5", blob)   # 반원은 더 이상 그리지 않는다
         # 20일: 막대 하나에 매수·매도를 같이 담고 숫자는 매수/매도/전체
         self.assertIn(">14</span>/", blob)
         self.assertIn(">3</span>/", blob)
