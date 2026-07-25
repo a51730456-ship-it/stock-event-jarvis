@@ -522,6 +522,10 @@ class PartnerFlowColumnTests(unittest.TestCase):
         self.assertIn(".st-key-j4_theme_table { overflow-x: auto", blob)
         self.assertIn("min-width: 900px", blob)
         self.assertIn("flex-wrap: nowrap !important; min-width: 1180px", blob)
+        # 11~20위를 담은 '더 보기'도 같은 규칙을 받아야 한다. 빠뜨렸더니 폰에서
+        # 그 안만 칸이 세로로 쌓였다(2026-07-25).
+        self.assertIn(".st-key-j4_theme_rest", blob)
+        self.assertIn('.st-key-j4_theme_rest [data-testid="stHorizontalBlock"]', blob)
         # 필터 체크박스가 있어야 한다
         self.assertTrue(
             any("동반 순매수" in str(node.label) for node in app.checkbox),

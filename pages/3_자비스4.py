@@ -154,16 +154,21 @@ st.markdown(
        두고 손가락으로 옆으로 밀어 본다(2026-07-25 사용자 지시). 화면 전체는 안 밀린다. */
     .j4-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     /* 눌림목 표도 같은 방식 — 좁은 화면에서 줄이 접히지 않게 폭을 지키고 옆으로 민다. */
+    /* 11~20위를 담은 '더 보기'도 같은 규칙을 받아야 한다 — 빠뜨렸더니 폰에서 그 안만
+       칸이 세로로 쌓였다(2026-07-25 사용자 지적). */
     .st-key-j4_pullback_table,
+    .st-key-j4_theme_rest,
     .st-key-j4_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
         .st-key-j4_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1180px;
         }
+        .st-key-j4_theme_rest [data-testid="stHorizontalBlock"],
         .st-key-j4_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
         .st-key-j4_pullback_table [data-testid="stColumn"],
+        .st-key-j4_theme_rest [data-testid="stColumn"],
         .st-key-j4_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     @media (max-width: 1200px) {
@@ -695,7 +700,9 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     all_rows = list(ranking.get("rows", []))
     rest_box = None
     if len(all_rows) > _THEME_VISIBLE_COUNT:
-        rest_box = st.expander(
+        # 키를 가진 칸으로 한 번 감싼다 — 그래야 위 표와 같은 '옆으로 밀기' CSS가
+        # 이 안에도 걸린다. st.expander 자체에는 key를 줄 수 없다.
+        rest_box = st.container(key="j4_theme_rest").expander(
             f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
         )
     for index, row in enumerate(all_rows):
