@@ -58,7 +58,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072505
+MODULE_REVISION = 2026072506
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1034,8 +1034,12 @@ def _stock_score(metrics: dict, flow: dict, theme_ret20: float | None) -> tuple[
         base = (trading_value or 0) * 5
         flow_ratio = (net5 / base) if base > 0 else None
         amount_points = _scale(flow_ratio, 0.0, 0.12, 14)  # 5일 거래대금의 12%면 만점
-        streak_points = min(6.0, (flow.get("buy_streak_days") or 0) * 2.0)
-        flow_points = amount_points + streak_points
+        # 2026-07-25: '연속'(외국인+기관을 합쳐서 센 연속일)에서 '동반'(둘 다 순매수한
+        # 날 수)으로 바꿨다. 합산은 외국인 +500억·기관 −480억을 순매수로 둔갑시켜
+        # 화면에서 이미 버린 기준이라, 점수도 같은 자를 쓰게 맞췄다(사용자 지시).
+        # 5일 중 3일이면 만점 6점. 동반이 더 엄격해 점수는 전보다 낮게 나온다.
+        partner_points = min(6.0, (flow.get("both_buy_days5") or 0) * 2.0)
+        flow_points = amount_points + partner_points
     flow["net5_ratio"] = flow_ratio if flow.get("ok") else None
 
     score = rs_points + high_points + trend_points + liquidity_points + risk_points + flow_points
@@ -1360,8 +1364,9 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
 
     if flow.get("ok"):
         net5 = flow.get("net5_amount") or 0
-        streak = flow.get("buy_streak_days") or 0
-        supply = min(15.0, (8.0 if net5 > 0 else 0.0) + min(7.0, streak * 2.0))
+        # 위 조건점수와 같은 이유로 '연속' 대신 '동반'을 쓴다(2026-07-25).
+        partner = flow.get("both_buy_days5") or 0
+        supply = min(15.0, (8.0 if net5 > 0 else 0.0) + min(7.0, partner * 2.0))
     else:
         supply = 0.0
 

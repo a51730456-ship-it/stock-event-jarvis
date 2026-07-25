@@ -620,3 +620,49 @@ class DayFlowMarkTests(unittest.TestCase):
         quiet = self._mark(400, 400, volume=100_000)    # 거래량의 0.4%  → 동반 매수
         self.assertEqual(busy, "flat")
         self.assertEqual(quiet, "both_buy")
+
+
+class FlowScoreUsesPartnerDaysTests(unittest.TestCase):
+    """수급 점수가 '동반'(둘 다 순매수)을 쓰는지 굳혀 둔다 (2026-07-25 사용자 지시).
+
+    옛 '연속'은 외국인+기관을 합쳐서 세는 방식이라, 외국인 +500억·기관 −480억인
+    날도 순매수로 세어 점수를 부풀렸다. 화면을 동반으로 바꾼 뒤 점수만 옛 기준으로
+    남으면 화면과 점수가 어긋난다.
+    """
+
+    METRICS = {
+        "ok": True, "ret20": 5.0, "from_high_pct": -8.0, "current": 50_000,
+        "sma20": 49_000, "sma50": 47_000, "sma200": 44_000, "atr_pct": 3.0,
+        "avg_trading_value": 3e10, "trading_value": 3e10, "change_pct": 1.0,
+    }
+
+    def _flow(self, *, partner_days, streak_days):
+        return {
+            "ok": True, "net5_amount": 1e10, "both_buy_days5": partner_days,
+            "window5": 5, "buy_streak_days": streak_days,
+        }
+
+    def test_partner_days_raise_the_score(self):
+        low = j4._stock_score(self.METRICS, self._flow(partner_days=0, streak_days=0), 2.0)[0]
+        high = j4._stock_score(self.METRICS, self._flow(partner_days=3, streak_days=0), 2.0)[0]
+        self.assertGreater(high, low)
+        self.assertAlmostEqual(high - low, 6.0, places=1)   # 3일이면 만점 6점
+
+    def test_old_streak_no_longer_moves_the_score(self):
+        """합산 연속일이 아무리 길어도 점수는 오르지 않아야 한다."""
+        without = j4._stock_score(self.METRICS, self._flow(partner_days=0, streak_days=0), 2.0)[0]
+        with_streak = j4._stock_score(self.METRICS, self._flow(partner_days=0, streak_days=19), 2.0)[0]
+        self.assertEqual(without, with_streak)
+
+    def test_pullback_supply_also_uses_partner_days(self):
+        quality_low = j4._pullback_quality(
+            {**self.METRICS, "high52_days_ago": 5, "from_high_pct": -8.0},
+            self._flow(partner_days=0, streak_days=19),
+        )
+        quality_high = j4._pullback_quality(
+            {**self.METRICS, "high52_days_ago": 5, "from_high_pct": -8.0},
+            self._flow(partner_days=4, streak_days=0),
+        )
+        self.assertIsNotNone(quality_low)
+        self.assertIsNotNone(quality_high)
+        self.assertGreater(quality_high["score"], quality_low["score"])
