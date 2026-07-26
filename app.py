@@ -338,12 +338,18 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
     [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
     [data-testid="stSidebarNav"] li:nth-child(6) { order: 6; }
+    [data-testid="stSidebarNav"] li:nth-child(7) { order: 7; }
+    [data-testid="stSidebarNav"] li:nth-child(7) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(7) a p::before {
+        content: "종가관찰\\A(자비스6)"; white-space: pre; line-height: 1.2;
+        font-size: 1.15rem; font-weight: 800; color: #ffb020;
+    }
     /* 네 번째 항목 '자비스3' 라벨을 '미국테마'로 표시 (파일명 변경 없이 CSS로) */
     [data-testid="stSidebarNav"] li:nth-child(4) a p {
         font-size: 0 !important;
     }
     [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
-        content: "미국테마";
+        content: "미국테마\\A(자비스3)"; white-space: pre; line-height: 1.2;
         font-size: 1.15rem;
         font-weight: 800;
         color: #ffb020;
@@ -355,7 +361,7 @@ st.markdown(
         font-size: 0 !important;
     }
     [data-testid="stSidebarNav"] li:nth-child(5) a p::before {
-        content: "한국테마";
+        content: "한국테마\\A(자비스4)"; white-space: pre; line-height: 1.2;
         font-size: 1.15rem;
         font-weight: 800;
         color: #ffb020;
@@ -651,7 +657,8 @@ if not st.session_state.get("authenticated"):
                 "자비스2 (순환매 플레이북)",
                 "미국테마 (자비스3)",
                 "한국테마 (자비스4)",
-                "한국테마 선행감지 (자비스5·실험)",
+                "선행감지 (자비스5·실험)",
+                "종가관찰 (자비스6·연습)",
             ],
             # 기본 이동을 미국테마(자비스3)로 둔다 — 폰·태블릿에서는 앞 3개
             # (시장판단·자비스1·자비스2)를 CSS로 숨기므로, 숨겨진 자비스2가 기본으로
@@ -670,10 +677,10 @@ if not st.session_state.get("authenticated"):
                     st.switch_page("pages/1_자비스2.py")
                 if str(_login_dest).startswith("미국테마"):
                     st.switch_page("pages/2_자비스3.py")
-                # '한국테마 선행감지'가 '한국테마'로 먼저 잡혀 자비스4로 새면 안 된다 —
-                # 더 긴 이름을 먼저 검사한다(2026-07-24 이름 변경).
-                if str(_login_dest).startswith("한국테마 선행감지"):
+                if str(_login_dest).startswith("선행감지"):
                     st.switch_page("pages/4_자비스5.py")
+                if str(_login_dest).startswith("종가관찰"):
+                    st.switch_page("pages/5_자비스6.py")
                 if str(_login_dest).startswith("한국테마"):
                     st.switch_page("pages/3_자비스4.py")
                 st.session_state["login_transition_pending"] = True

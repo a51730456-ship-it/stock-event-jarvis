@@ -54,11 +54,17 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
     [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
     [data-testid="stSidebarNav"] li:nth-child(6) { order: 6; }
+    [data-testid="stSidebarNav"] li:nth-child(7) { order: 7; }
+    [data-testid="stSidebarNav"] li:nth-child(7) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(7) a p::before {
+        content: "종가관찰\\A(자비스6)"; white-space: pre; line-height: 1.2;
+        font-size: 1.15rem; font-weight: 800; color: #ffb020;
+    }
     [data-testid="stSidebarNav"] li:nth-child(4) a p,
     [data-testid="stSidebarNav"] li:nth-child(5) a p,
     [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
-    [data-testid="stSidebarNav"] li:nth-child(4) a p::before { content: "미국테마"; font-size: 1.15rem; }
-    [data-testid="stSidebarNav"] li:nth-child(5) a p::before { content: "한국테마"; font-size: 1.15rem; }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p::before { content: "미국테마\\A(자비스3)"; white-space: pre; line-height: 1.2; font-size: 1.15rem; }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p::before { content: "한국테마\\A(자비스4)"; white-space: pre; line-height: 1.2; font-size: 1.15rem; }
     [data-testid="stSidebarNav"] li:nth-child(6) a p::before { content: "한국테마\\A(선행감지)"; white-space: pre; line-height: 1.2; font-size: 1.15rem; }
     .j5-note { border: 1px solid rgba(77,166,255,.45); background: rgba(37,99,235,.10);
         border-radius: .6rem; padding: .8rem 1rem; color: #9dccff; line-height: 1.65; }
