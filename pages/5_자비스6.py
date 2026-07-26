@@ -197,16 +197,25 @@ def _load_candidates(limit: int = 12) -> dict:
         quotes = quote_api.get_quotes(codes)
     except Exception:
         quotes = {}
+    # 정규장(09:00~15:19) 안에서만 실시간 값으로 덮어쓴다. 장이 끝난 뒤에는
+    # 일봉이 정확하고, 실시간 쪽은 NXT가 섞여 시가·저가가 일봉과 어긋난다
+    # (2026-07-26 실측). 관찰 구간(14:30~)이 아니라 정규장 전체인 것이 중요하다 —
+    # 관찰 구간으로 좁히면 오전 내내 어제 고가·저가가 오늘 값으로 나온다.
+    live = j6.market_phase()["live"]
     for row in rows:
         quote = quotes.get(row["code"]) or {}
-        # 장중에만 실시간 값으로 덮어쓴다. 장이 끝난 뒤에는 일봉이 정확하고,
-        # 실시간 쪽은 NXT가 섞여 시가·저가가 일봉과 어긋난다(2026-07-26 실측).
-        if quote.get("tradable") and j6.market_phase()["watching"]:
-            for key in ("day_open", "day_high", "day_low"):
+        # 현재가까지 같이 덮어써야 한다. 현재가만 일봉에 두면 윗꼬리가
+        # '어제 종가 ÷ 오늘 고가'로 계산돼 엉뚱한 값이 나온다.
+        if quote.get("tradable") and live:
+            for key in ("price", "day_open", "day_high", "day_low"):
                 if quote.get(key):
                     row["stock"][key] = quote[key]
             if quote.get("trading_value"):
                 row["stock"]["trading_value"] = quote["trading_value"]
+            row["stock"]["is_today"] = True
+        else:
+            # 일봉 마지막 행이 오늘 행인가. 아니면 화면에 '어제 자료'라고 밝힌다.
+            row["stock"]["is_today"] = bool(row["metrics"].get("day_is_today"))
         row["stock"]["market_cap"] = quote.get("market_cap")
         row["eval"] = j6.evaluate(row["stock"], row["metrics"],
                                   row["flow"], row["theme_row"])
@@ -234,7 +243,7 @@ def _render_header(market: dict, phase: dict) -> None:
     if not phase["watching"]:
         st.markdown(
             f"<div class='j6-note'>지금은 <b>{_esc(phase['label'])}</b>입니다. "
-            "관찰 구간은 평일 14:30~15:19입니다. 그 밖에는 마지막 자료를 보여줍니다.</div>",
+            "관찰 구간은 평일 14:30~15:18입니다. 그 밖에는 마지막 자료를 보여줍니다.</div>",
             unsafe_allow_html=True,
         )
 
@@ -371,6 +380,10 @@ def _fixed_chart(frame, *, height: int = 300, width: int | str = "container", co
 
 def _render_detail(row: dict) -> None:
     e, m = row["eval"], row["metrics"]
+    # 카드에 적는 값은 **조건을 잰 값과 같아야 한다.** 예전에는 카드가 일봉을,
+    # 바로 아래 '윗꼬리 N%' 문장이 실시간을 읽어 같은 화면에서 고가·저가가
+    # 서로 달랐다(2026-07-26). 이제 둘 다 stock 하나만 본다.
+    s = row.get("stock") or {}
     st.markdown(f"### {row['name']} · {row['theme']}")
 
     # ── 당일 가격. 자비스4와 같은 방식으로, 전일 종가 대비 몇 %인지 함께 적는다.
@@ -395,14 +408,20 @@ def _render_detail(row: dict) -> None:
     st.markdown(
         "<div class='j6-kpi-grid' style='grid-template-columns:repeat(5,minmax(0,1fr))'>"
         + _cell("전일종가", prev, None)
-        + _cell("시가", m.get("day_open"), _vs(m.get("day_open")))
-        + _cell("고가", m.get("day_high"), _vs(m.get("day_high")))
-        + _cell("저가", m.get("day_low"), _vs(m.get("day_low")))
-        + _cell("현재가", m.get("current"), m.get("change_pct"))
+        + _cell("시가", s.get("day_open"), _vs(s.get("day_open")))
+        + _cell("고가", s.get("day_high"), _vs(s.get("day_high")))
+        + _cell("저가", s.get("day_low"), _vs(s.get("day_low")))
+        + _cell("현재가", s.get("price"), _vs(s.get("price")))
         + "</div>",
         unsafe_allow_html=True,
     )
-    st.caption("백분율은 전일 종가 대비입니다.")
+    if s.get("is_today"):
+        st.caption("백분율은 전일 종가 대비입니다.")
+    else:
+        # 오늘 행이 아직 일봉에 없으면 위 넉 줄은 **지난 거래일** 값이다.
+        # 말 없이 두면 어제 캔들을 오늘 것으로 읽는다.
+        st.caption(f"백분율은 전일 종가 대비입니다. 위 가격은 오늘이 아니라 "
+                   f"**지난 거래일({m.get('last_date') or '—'})** 값입니다.")
 
     # ── 차트를 가격 바로 밑에 둔다(2026-07-26 사용자 지시).
     intraday = j4.get_last_session_intraday(row["code"])
@@ -454,7 +473,8 @@ def _render_detail(row: dict) -> None:
     _guide("당일 가격과 윗꼬리 읽는 법", guide.day_price)
     if e["location"] is not None:
         st.markdown(
-            f"<div class='j6-note'>오늘 <b>저가에서 {e['location']*100:.0f}% 지점</b>에서 "
+            f"<div class='j6-note'>{'오늘' if s.get('is_today') else '지난 거래일'} "
+            f"<b>저가에서 {e['location']*100:.0f}% 지점</b>에서 "
             f"끝났습니다. 윗꼬리 <b>{e['upper_wick']*100:.0f}%</b> — 고가에서 그만큼 "
             "밀렸다는 뜻이고, 밀린 만큼 <b>위에 물린 사람이 많다</b>는 뜻입니다.</div>",
             unsafe_allow_html=True,

@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 
-MODULE_REVISION = 2026072701
+MODULE_REVISION = 2026072702
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 
@@ -32,8 +32,12 @@ DEFAULTS = {
 }
 
 # 판단을 끊는 시각. 15:20이 지나면 종가가 정해지므로 그 뒤 자료는 쓰지 않는다.
-CUTOFF = dt_time(15, 19)
+# 화면·설명·명세가 모두 "15:18에 끊는다"인데 코드만 15:19까지 열려 있었다
+# (2026-07-26). 같은 화면에서 '판단 마감 15:18'과 '관찰 구간 ~15:19'가 함께
+# 보였다. 글로 밝힌 쪽에 코드를 맞춘다.
+CUTOFF = dt_time(15, 18)
 WATCH_FROM = dt_time(14, 30)
+OPEN = dt_time(9, 0)
 
 
 def _finite(value):
@@ -45,22 +49,45 @@ def _finite(value):
 
 
 def market_phase(now: datetime | None = None) -> dict:
-    """지금이 하루 중 어느 단계인지."""
+    """지금이 하루 중 어느 단계인지.
+
+    돌려주는 두 깃발은 뜻이 다르다. 섞어 쓰면 안 된다.
+
+    - ``watching`` : 후보를 굳히는 구간 (평일 14:30~15:19)
+    - ``live``     : 실시간 시세를 써도 되는 구간 (평일 09:00~15:19)
+
+    오전에도 체결은 정상이라 실시간 값이 일봉보다 정확하다. 이 둘을 같은
+    것으로 보고 ``watching``으로 실시간을 껐더니 09:00~14:29 내내 어제
+    고가·저가를 오늘 것처럼 보여 줬다(2026-07-26). 반대로 15:20부터는 종가
+    단일가라 실시간 쪽에 NXT가 섞여 시가·저가가 일봉과 어긋난다.
+    """
     stamp = (now or datetime.now(_SEOUL)).astimezone(_SEOUL)
-    clock = stamp.time()
-    if stamp.weekday() >= 5:
-        return {"label": "주말 휴장", "watching": False}
-    if clock < dt_time(9, 0):
-        return {"label": "장 전", "watching": False}
-    if clock < WATCH_FROM:
-        return {"label": "장중 (관찰 전)", "watching": False}
-    if clock <= CUTOFF:
-        return {"label": "관찰 구간", "watching": True}
-    if clock < dt_time(15, 30):
-        return {"label": "종가 단일가 (판단 마감)", "watching": False}
-    if clock < dt_time(20, 0):
-        return {"label": "시간외", "watching": False}
-    return {"label": "장 마감", "watching": False}
+    # 초를 버리고 **분으로** 견준다. 초까지 두고 `clock <= 15:18`을 하면
+    # 15:18:00 정각까지만 통과해 15:18:30에는 이미 꺼진다. "15:18까지 본다"는
+    # 말과 다르다(2026-07-26 테스트가 잡음).
+    clock = stamp.time().replace(second=0, microsecond=0)
+    weekday = stamp.weekday() < 5
+
+    if not weekday:
+        label = "주말 휴장"
+    elif clock < OPEN:
+        label = "장 전"
+    elif clock < WATCH_FROM:
+        label = "장중 (관찰 전)"
+    elif clock <= CUTOFF:
+        label = "관찰 구간"
+    elif clock < dt_time(15, 30):
+        label = "종가 단일가 (판단 마감)"
+    elif clock < dt_time(20, 0):
+        label = "시간외"
+    else:
+        label = "장 마감"
+
+    return {
+        "label": label,
+        "watching": label == "관찰 구간",
+        "live": weekday and OPEN <= clock <= CUTOFF,
+    }
 
 
 def intraday_location(price, low, high):

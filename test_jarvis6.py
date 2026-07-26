@@ -77,6 +77,44 @@ class ConditionTests(unittest.TestCase):
         self.assertLess(j6.CUTOFF.hour * 60 + j6.CUTOFF.minute, 15 * 60 + 20)
 
 
+class PhaseTests(unittest.TestCase):
+    """실시간 값을 언제 쓰는가.
+
+    한 번 사고가 났다. '관찰 구간(14:30~)'으로 실시간을 껐더니 09:00~14:29
+    내내 어제 고가·저가가 오늘 값으로 나왔다. watching과 live는 다르다.
+    """
+
+    def _at(self, day: str, clock: str) -> dict:
+        stamp = pd.Timestamp(f"{day} {clock}", tz="Asia/Seoul").to_pydatetime()
+        return j6.market_phase(stamp)
+
+    # 2026-07-27은 월요일, 2026-07-26은 일요일이다.
+    def test_morning_is_live_but_not_watching(self):
+        phase = self._at("2026-07-27", "10:30")
+        self.assertTrue(phase["live"], "오전에도 체결은 정상이다")
+        self.assertFalse(phase["watching"])
+
+    def test_watch_window_is_live_too(self):
+        phase = self._at("2026-07-27", "15:00")
+        self.assertTrue(phase["live"])
+        self.assertTrue(phase["watching"])
+
+    def test_closing_auction_is_not_live(self):
+        """15:20부터는 단일가라 실시간에 NXT가 섞인다."""
+        for clock in ("15:19", "15:25", "16:00"):
+            with self.subTest(clock=clock):
+                self.assertFalse(self._at("2026-07-27", clock)["live"])
+
+    def test_before_open_and_weekend_are_not_live(self):
+        self.assertFalse(self._at("2026-07-27", "08:30")["live"])
+        self.assertFalse(self._at("2026-07-26", "15:00")["live"])
+
+    def test_screen_text_and_cutoff_agree(self):
+        """화면·설명·명세가 전부 15:18이다. 코드만 다르면 안 된다."""
+        self.assertEqual((j6.CUTOFF.hour, j6.CUTOFF.minute), (15, 18))
+        self.assertTrue(self._at("2026-07-27", "15:18:30")["watching"])
+
+
 class StoreTests(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
