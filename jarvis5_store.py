@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 DB_PATH = Path(__file__).parent / "db" / "jarvis5_theme_lead.sqlite3"
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 @contextmanager
@@ -93,6 +93,13 @@ def ensure_schema(db_path: str | Path | None = None) -> None:
                 theme_count INTEGER NOT NULL DEFAULT 1,
                 contribution_weight REAL NOT NULL DEFAULT 1,
                 parser_version INTEGER,
+                -- 당일 시가·고가·저가 (2026-07-26 추가). 테마 상세 페이지에는 없어
+                -- 실시간 시세 묶음조회로 따로 받는다. 종가위치·윗꼬리 계산에 쓰며
+                -- 지나가면 소급할 수 없어 그때그때 찍어 둔다.
+                day_open REAL,
+                day_high REAL,
+                day_low REAL,
+                market_cap REAL,
                 PRIMARY KEY (run_id, theme_no, stock_code),
                 FOREIGN KEY (run_id) REFERENCES collection_runs(id) ON DELETE CASCADE
             );
@@ -145,6 +152,15 @@ def ensure_schema(db_path: str | Path | None = None) -> None:
         }
         if "activity_intensity" not in theme_columns:
             conn.execute("ALTER TABLE theme_snapshots ADD COLUMN activity_intensity REAL")
+        # 이미 쌓인 DB에도 칸을 더한다. 예전 행은 비워 두면 된다 — 그날 값을
+        # 지어내지 않는다(2026-07-26). 값이 없는 날은 종가위치를 계산하지 않는다.
+        stock_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(theme_stock_snapshots)").fetchall()
+        }
+        for column in ("day_open", "day_high", "day_low", "market_cap"):
+            if column not in stock_columns:
+                conn.execute(f"ALTER TABLE theme_stock_snapshots ADD COLUMN {column} REAL")
         signal_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(experiment_signals)").fetchall()
         }
@@ -237,8 +253,9 @@ def save_collection(
             INSERT INTO theme_stock_snapshots(
                 run_id, theme_no, stock_code, stock_name, price, change_pct,
                 volume, trading_value, previous_volume, interval_trading_value,
-                theme_count, contribution_weight, parser_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                theme_count, contribution_weight, parser_version,
+                day_open, day_high, day_low, market_cap
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -255,6 +272,10 @@ def save_collection(
                     int(row.get("theme_count") or 1),
                     float(row.get("contribution_weight") or 1),
                     row.get("parser_version"),
+                    row.get("day_open"),
+                    row.get("day_high"),
+                    row.get("day_low"),
+                    row.get("market_cap"),
                 )
                 for row in stocks
             ],

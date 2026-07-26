@@ -92,6 +92,33 @@ def fetch_raw_themes(
     return raw, failures
 
 
+def _fetch_quotes(raw_themes: list[dict]) -> dict[str, dict]:
+    """수집한 종목들의 당일 시가·고가·저가를 한 번에 받아 온다 (2026-07-26 추가).
+
+    테마 상세 페이지에는 고가·저가가 없어 종가위치·윗꼬리를 계산할 수 없다.
+    그 값은 지나가면 소급이 안 되므로 수집할 때마다 같이 찍는다.
+
+    실측으로 2,342종목이 800씩 3번, 약 0.4초다. 3분 주기에는 부담이 없다.
+    실패하면 빈 사전을 돌려주고 수집은 예전대로 계속한다 — 이 조회 때문에
+    테마 수집 자체가 멈추면 안 된다.
+    """
+    codes = {
+        str(stock.get("code") or "").strip()
+        for theme in raw_themes
+        for stock in (theme.get("stocks") or [])
+        if str(stock.get("code") or "").strip()
+    }
+    if not codes:
+        return {}
+    try:
+        import naver_stock_quote as quote_api
+
+        return quote_api.get_quotes(sorted(codes))
+    except Exception as exc:
+        print(f"[시세 묶음조회 실패] {exc}", flush=True)
+        return {}
+
+
 def collect_once(
     *,
     kind: str = "full",
@@ -123,11 +150,13 @@ def collect_once(
                 previous_at = previous_at.replace(tzinfo=_SEOUL)
             interval_seconds = max(1.0, (captured_at - previous_at).total_seconds())
         baselines = store.same_time_interval_baselines(captured_at, db_path=db_path)
+        quotes = _fetch_quotes(raw_themes)
         theme_rows, stock_rows = engine.build_theme_snapshot(
             raw_themes,
             previous_values=previous,
             baselines=baselines,
             interval_seconds=interval_seconds,
+            quotes=quotes,
         )
         status = "partial" if failures else "ok"
         run_id = store.save_collection(

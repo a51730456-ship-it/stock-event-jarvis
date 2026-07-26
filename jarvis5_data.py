@@ -138,6 +138,7 @@ def build_theme_snapshot(
     previous_values: dict[tuple[int, str], float] | None = None,
     baselines: dict[int, float] | None = None,
     interval_seconds: float | None = None,
+    quotes: dict[str, dict] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """원시 테마 상세를 테마행·종목행으로 바꾼다.
 
@@ -147,6 +148,9 @@ def build_theme_snapshot(
     """
     previous_values = previous_values or {}
     baselines = baselines or {}
+    # 당일 시가·고가·저가는 테마 상세에 없어 실시간 시세 묶음조회로 따로 받는다
+    # (2026-07-26). 못 받아도 예전처럼 동작해야 하므로 없으면 빈 사전이다.
+    quotes = quotes or {}
     interval_minutes = (
         max(float(interval_seconds), 1.0) / 60.0
         if _finite(interval_seconds) is not None and float(interval_seconds) > 0
@@ -192,6 +196,15 @@ def build_theme_snapshot(
                 "contribution_weight": weight,
                 "parser_version": stock.get("parser_version"),
             }
+            quote = quotes.get(code)
+            if quote:
+                # 거래정지 종목은 고가·저가가 0이나 옛값으로 굳어 있다. 그대로
+                # 저장하면 나중에 종가위치가 엉뚱하게 계산되므로 넣지 않는다.
+                if quote.get("tradable"):
+                    row["day_open"] = quote.get("day_open")
+                    row["day_high"] = quote.get("day_high")
+                    row["day_low"] = quote.get("day_low")
+                row["market_cap"] = quote.get("market_cap")
             stock_rows.append(row)
             members.append(row)
 

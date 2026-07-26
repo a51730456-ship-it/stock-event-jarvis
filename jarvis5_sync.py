@@ -55,6 +55,9 @@ _STOCK_FIELDS = (
     "captured_at", "theme_no", "stock_code", "stock_name", "price", "change_pct",
     "volume", "trading_value", "previous_volume", "interval_trading_value",
     "theme_count", "contribution_weight", "parser_version",
+    # 2026-07-26 추가. 스키마를 바꿨으면 여기도 같이 고쳐야 클라우드에서 모은
+    # 자료가 통째로 빠지지 않는다(CLAUDE.md 10항).
+    "day_open", "day_high", "day_low", "market_cap",
 )
 _PARTS = {"runs": _RUN_FIELDS, "themes": _THEME_FIELDS, "stocks": _STOCK_FIELDS}
 
