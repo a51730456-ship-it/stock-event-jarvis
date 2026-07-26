@@ -140,12 +140,16 @@ def _dots(items) -> str:
     )
 
 
+def _guide(title: str, producer) -> None:
+    """설명은 그 내용이 있는 자리에서 펼친다. 따로 찾아가지 않게."""
+    with st.expander(title, expanded=False):
+        st.markdown(producer(), unsafe_allow_html=True)
+
+
 def _render_guides() -> None:
-    """설명은 전부 접어 둔다. 궁금할 때만 펼친다(자비스4와 같은 방식)."""
-    st.markdown("#### 설명")
+    """설명만 따로 훑고 싶을 때 쓰는 목록."""
     for title, producer in guide.SECTIONS:
-        with st.expander(title, expanded=False):
-            st.markdown(producer(), unsafe_allow_html=True)
+        _guide(title, producer)
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -289,6 +293,7 @@ def _render_detail(row: dict) -> None:
         unsafe_allow_html=True,
     )
 
+    _guide("당일 가격과 윗꼬리 읽는 법", guide.day_price)
     if e["location"] is not None:
         st.markdown(
             f"<div class='j6-guide'>오늘 <b>저가에서 {e['location']*100:.0f}% 지점</b>에 있습니다. "
@@ -310,6 +315,7 @@ def _render_detail(row: dict) -> None:
         st.markdown(f"<div class='j6-sub'><b style='color:#4da6ff'>{_esc(label)}</b><br>{marks}</div>",
                     unsafe_allow_html=True)
 
+    _guide("수급은 어디까지 보이나요", guide.supply_demand)
     for warning in e["warnings"]:
         st.markdown(f"<div class='j6-note'>주의 — {_esc(warning)} "
                     "(막지 않습니다. 사시면 기록만 남습니다.)</div>", unsafe_allow_html=True)
@@ -319,23 +325,30 @@ def _render_detail(row: dict) -> None:
         if intraday and intraday.get("ok"):
             st.caption(f"당일 분봉 · {intraday.get('source_time')}")
             st.line_chart(intraday["price"], height=180)
+        # 일봉·주봉·월봉을 한 줄에 나란히 놓는다. 눌러서 바꿔 보면 서로 비교가 안 된다.
         bundle = j4.get_chart_bundle(row["code"])
         if bundle.get("ok"):
-            names = list(bundle["charts"].keys())
-            picked = st.radio("기간", names, horizontal=True,
-                              key=f"j6_chart_{row['code']}")
-            payload = bundle["charts"].get(picked) or {}
-            frame = payload.get("price")
-            if payload.get("ok") and frame is not None and len(frame):
-                st.line_chart(frame, height=220)
-            else:
-                st.caption(f"{picked} 자료가 없습니다.")
+            charts = bundle["charts"]
+            names = list(charts.keys())
+            for column, name in zip(st.columns(len(names)), names):
+                payload = charts.get(name) or {}
+                frame = payload.get("price")
+                with column:
+                    st.markdown(
+                        f"<div style='color:#4da6ff;font-weight:800;font-size:.95rem'>{_esc(name)}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if payload.get("ok") and frame is not None and len(frame):
+                        st.line_chart(frame, height=200)
+                    else:
+                        st.caption("자료 없음")
 
     key = f"j6_{row['code']}"
     reason = st.text_input("왜 오르나 (나중에 써도 됩니다)", key=f"{key}_reason")
     cont = st.text_input("내일까지 갈 근거", key=f"{key}_cont")
     inval = st.text_input("틀렸다고 볼 조건", key=f"{key}_inval")
 
+    _guide("연습은 어떻게 하나요", guide.practice_mode)
     left, right = st.columns(2)
     for column, action, label in ((left, "bought", "샀다"), (right, "skipped", "안 샀다")):
         if column.button(label, key=f"{key}_{action}", width="stretch"):
@@ -346,6 +359,9 @@ def _render_detail(row: dict) -> None:
 
 
 def _render_records() -> None:
+    _guide("기록해서 뭘 얻나요", guide.why_record)
+    _guide("저녁에 뭘 확인하나요", guide.after_hours)
+    _guide("다음 날 언제 파나요", guide.next_morning)
     picks = store.list_picks(limit=40)
     if not picks:
         st.caption("아직 기록이 없습니다. 후보에서 '샀다'나 '안 샀다'를 누르면 쌓입니다.")
@@ -404,6 +420,7 @@ def main() -> None:
         "<b>추천기가 아니고, 막지도 않습니다.</b> 지금은 <b>1주 고정 연습</b>이라 돈이 들지 않습니다.</div>",
         unsafe_allow_html=True,
     )
+    _guide("자비스6이 뭔가요", guide.what_is_this)
 
     # 결과가 안 붙은 기록을 조용히 채운다. 부르는 곳이 없으면 영원히 반쪽이다.
     try:
@@ -415,10 +432,11 @@ def main() -> None:
     tab_watch, tab_record, tab_guide = st.tabs(["후보 보기", "기록 · 복기", "설명"])
 
     with tab_watch:
-        if st.button("후보 불러오기", key="j6_load", width="stretch"):
-            _load_candidates.clear()
-        data = _load_candidates()
+        with st.spinner("오늘 후보를 재는 중입니다…"):
+            data = _load_candidates()
         _render_header(data.get("market") or {}, phase)
+        _guide("시장 상태는 왜 먼저 보나요", guide.market_gate)
+        _guide("왜 15시 18분인가요", guide.timing)
         if not data.get("ok"):
             st.warning(f"자료를 가져오지 못했습니다: {data.get('error')}")
             return
@@ -432,8 +450,12 @@ def main() -> None:
                               names, key="j6_pick")
         picked = rows[names.index(chosen)]
         _render_table(rows, picked["code"])
+        _guide("재료·자리·힘이 뭔가요", guide.three_groups)
         st.divider()
         _render_detail(picked)
+        if st.button("자료 다시 받기", key="j6_reload"):
+            _load_candidates.clear()
+            st.rerun()
 
     with tab_record:
         _render_records()
