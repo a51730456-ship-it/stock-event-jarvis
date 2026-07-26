@@ -244,3 +244,58 @@ def review(db_path=None) -> dict:
     groups.append(block([r for r in rows if (r.get("from_high_pct") or 0) < -3],
                         "전고점 3% 밖"))
     return {"total": len(rows), "groups": groups, "minimum": MIN_SAMPLE}
+
+
+def fill_outcomes(*, quote_fn=None, daily_fn=None, db_path=None) -> dict:
+    """결과가 안 붙은 기록에 익일 시초가를 채운다.
+
+    이걸 부르는 곳이 없으면 기록이 영원히 반쪽으로 남는다. 화면을 열 때마다
+    조용히 한 번 돌린다. 사람이 입력할 것은 없다.
+
+    다음 날 시초가는 일봉의 시가를 쓴다. 3분 스냅샷의 첫 값은 개장 전
+    호가일 수 있어 시초가로 삼으면 틀린다.
+    """
+    ensure_schema(db_path)
+    pending = pending_outcomes(db_path=db_path)
+    if not pending:
+        return {"checked": 0, "filled": 0}
+
+    if daily_fn is None:
+        import jarvis4_data as j4
+        daily_fn = j4.get_daily_frame
+    if quote_fn is None:
+        import naver_stock_quote as quote_api
+        quote_fn = quote_api.get_quotes
+
+    quotes = {}
+    try:
+        quotes = quote_fn(sorted({row["code"] for row in pending}))
+    except Exception:
+        quotes = {}
+
+    filled = 0
+    for row in pending:
+        try:
+            frame = daily_fn(row["code"])
+            if frame is None or len(frame) < 2:
+                continue
+            import pandas as pd
+
+            after = frame[pd.to_datetime(frame.index).date
+                          > pd.Timestamp(row["trade_date"]).date()]
+            if after.empty:
+                continue  # 아직 다음 거래일이 안 왔다
+            first = after.iloc[0]
+            quote = quotes.get(row["code"]) or {}
+            save_outcome(
+                int(row["id"]),
+                next_date=str(pd.Timestamp(after.index[0]).date()),
+                next_open=float(first["Open"]),
+                entry=row["price"],
+                after_hours_price=quote.get("after_price"),
+                db_path=db_path,
+            )
+            filled += 1
+        except Exception:
+            continue  # 한 종목이 실패해도 나머지는 채운다
+    return {"checked": len(pending), "filled": filled}

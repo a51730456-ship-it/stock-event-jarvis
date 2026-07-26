@@ -33,6 +33,20 @@ st.markdown(
     [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] a * {
         font-size: 1.15rem !important; font-weight: 800 !important; color: #ffb020 !important;
     }
+    /* 파일명이 그대로 보이지 않게 이름을 덮어쓴다(자비스4와 같은 방식) */
+    [data-testid="stSidebarNav"] li:nth-child(1) a p,
+    [data-testid="stSidebarNav"] li:nth-child(4) a p,
+    [data-testid="stSidebarNav"] li:nth-child(5) a p,
+    [data-testid="stSidebarNav"] li:nth-child(6) a p,
+    [data-testid="stSidebarNav"] li:nth-child(7) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(1) a p::before { content: "자비스1"; }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p::before { content: "미국테마"; }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p::before { content: "한국테마"; }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p::before { content: "선행감지"; }
+    [data-testid="stSidebarNav"] li:nth-child(7) a p::before { content: "종가관찰"; }
+    [data-testid="stSidebarNav"] li a p::before {
+        font-size: 1.15rem; font-weight: 800; color: #ffb020;
+    }
     .j6-guide { color: #9aa0aa; font-size: 0.95rem; line-height: 1.75; }
     .j6-guide b { color: #e6e6e6; font-weight: 700; }
     .j6-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
@@ -133,7 +147,9 @@ def _load_candidates(limit: int = 12) -> dict:
     if not ranking.get("ok"):
         return {"ok": False, "error": ranking.get("error"), "market": market}
 
-    rows = []
+    # 시가총액은 테마 상세에 없고 실시간 묶음조회에 들어 있다. 대형주에서만
+    # 외인·기관 수급을 무겁게 보므로 이 값이 없으면 판정이 틀어진다.
+    codes, rows = [], []
     for theme_row in ranking["rows"][:6]:
         leaders = j4.get_theme_leaders(theme_row, market.get("score", 0),
                                        theme_row.get("score", 0))
@@ -151,13 +167,30 @@ def _load_candidates(limit: int = 12) -> dict:
                                  * (metrics.get("volume_ratio") or 0),
                 "market_cap": None,
             }
-            evaluation = j6.evaluate(stock, metrics, flow, theme_row)
+            codes.append(leader.get("code"))
             rows.append({
                 "code": leader.get("code"), "name": leader.get("name"),
                 "theme": theme_row.get("name"), "stock": stock,
                 "metrics": metrics, "flow": flow, "theme_row": theme_row,
-                "eval": evaluation,
             })
+
+    try:
+        import naver_stock_quote as quote_api
+        quotes = quote_api.get_quotes(codes)
+    except Exception:
+        quotes = {}
+    for row in rows:
+        quote = quotes.get(row["code"]) or {}
+        if quote.get("tradable"):
+            for key in ("day_open", "day_high", "day_low"):
+                if quote.get(key):
+                    row["stock"][key] = quote[key]
+            if quote.get("trading_value"):
+                row["stock"]["trading_value"] = quote["trading_value"]
+        row["stock"]["market_cap"] = quote.get("market_cap")
+        row["eval"] = j6.evaluate(row["stock"], row["metrics"],
+                                  row["flow"], row["theme_row"])
+
     return {"ok": True, "market": market, "rows": j6.rank(rows)[:limit],
             "checked_at": datetime.now(_SEOUL).strftime("%H:%M")}
 
@@ -339,6 +372,12 @@ def main() -> None:
         "<b>추천기가 아니고, 막지도 않습니다.</b> 지금은 <b>1주 고정 연습</b>이라 돈이 들지 않습니다.</div>",
         unsafe_allow_html=True,
     )
+
+    # 결과가 안 붙은 기록을 조용히 채운다. 부르는 곳이 없으면 영원히 반쪽이다.
+    try:
+        store.fill_outcomes()
+    except Exception:
+        pass
 
     phase = j6.market_phase()
     tab_watch, tab_record, tab_guide = st.tabs(["후보 보기", "기록 · 복기", "설명"])
