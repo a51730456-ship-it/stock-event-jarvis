@@ -47,24 +47,33 @@ st.markdown(
     [data-testid="stSidebarNav"] li a p::before {
         font-size: 1.15rem; font-weight: 800; color: #ffb020;
     }
-    .j6-guide { color: #9aa0aa; font-size: 0.95rem; line-height: 1.75; }
-    .j6-guide b { color: #e6e6e6; font-weight: 700; }
+    .j6-guide { color: #c8ccd4; font-size: 1rem; line-height: 1.8; font-weight: 600; }
+    .j6-guide b { color: #ffffff; font-weight: 800; }
     .j6-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
         gap: .7rem; margin: .8rem 0; }
     .j6-kpi { border: 1px solid rgba(255,255,255,.11); background: rgba(255,255,255,.025);
         border-radius: .6rem; padding: .7rem .9rem; text-align: center; }
-    .j6-kpi-label { color: #4da6ff; font-size: .85rem; font-weight: 800; }
-    .j6-kpi-value { color: #44f0a1; font-size: 1.4rem; font-weight: 800; }
-    .j6-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
-    .j6-table th { color: #9aa0aa; font-weight: 700; text-align: center;
-        padding: .5rem .4rem; border-bottom: 1px solid rgba(255,255,255,.14); }
-    .j6-table td { padding: .55rem .4rem; text-align: center;
-        border-bottom: 1px solid rgba(255,255,255,.07); }
+    .j6-kpi-label { color: #4da6ff; font-size: .9rem; font-weight: 800; }
+    .j6-kpi-value { color: #44f0a1; font-size: 1.5rem; font-weight: 800; }
+    .j6-check { color: #44f0a1; font-weight: 800; }
+    .j6-cross { color: #ff6b6b; font-weight: 800; }
+    .j6-table { width: 100%; border-collapse: collapse; font-size: 1.02rem; }
+    .j6-table th { color: #4da6ff; font-weight: 800; text-align: center;
+        padding: .6rem .4rem; border-bottom: 2px solid rgba(255,255,255,.2);
+        font-size: .95rem; }
+    .j6-table td { padding: .62rem .4rem; text-align: center; font-weight: 800;
+        color: #e6e6e6; border-bottom: 1px solid rgba(255,255,255,.09); }
     .j6-table td.j6-left { text-align: left; }
+    .j6-name { color: #ffffff; font-size: 1.05rem; font-weight: 800; }
+    .j6-theme { color: #9aa0aa; font-size: .85rem; font-weight: 700; }
+    .j6-sel { background: rgba(77,166,255,.16); }
+    .j6-sel td { border-bottom-color: rgba(77,166,255,.4); }
+    .j6-dim td { opacity: .45; }
     .j6-up { color: #ff5b5b; } .j6-down { color: #4da6ff; } .j6-muted { color: #9aa0aa; }
     .j6-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:3px; }
     .j6-on { background:#44f0a1; } .j6-off { background:#4a4f57; }
-    .j6-note { color:#ffb020; font-size:.9rem; }
+    .j6-note { color:#ffb020; font-size:1rem; font-weight:800; line-height:1.7; }
+    .j6-sub { color:#c8ccd4; font-size:1rem; font-weight:700; line-height:1.85; }
     @media (max-width: 600px) {
         .j6-kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
         .j6-table { font-size: .82rem; }
@@ -219,24 +228,40 @@ def _render_header(market: dict, phase: dict) -> None:
         )
 
 
-def _render_table(rows: list[dict]) -> None:
-    head = ("종목 · 테마", "재료", "자리", "힘", "전고점", "거래대금", "윗꼬리", "수급")
+def _why(e: dict) -> str:
+    """이 종목이 왜 밀렸는지 한 마디로. 숫자만 늘어놓으면 안 읽힌다."""
+    if e["warnings"]:
+        return e["warnings"][0]
+    if (e["from_high"] or -99) < -10:
+        return f"전고점이 {abs(e['from_high']):.0f}% 남았다"
+    if (e["upper_wick"] or 0) > 0.5:
+        return f"고가에서 {e['upper_wick']*100:.0f}% 밀렸다"
+    if (e["value_ratio"] or 0) < 2:
+        return "돈이 덜 몰렸다"
+    if e["passed"] >= 6:
+        return "조건은 채웠다 — 이유만 적으면 된다"
+    return "—"
+
+
+def _render_table(rows: list[dict], selected_code: str | None = None) -> None:
+    head = ("종목 · 테마", "재료", "자리", "힘", "전고점", "거래대금", "윗꼬리", "왜")
     body = []
     for row in rows:
         e = row["eval"]
         vr = e["value_ratio"]
         uw = e["upper_wick"]
+        cls = "j6-sel" if row["code"] == selected_code else ""
         body.append(
-            "<tr>"
-            f"<td class='j6-left'><b>{_esc(row['name'])}</b>"
-            f"<br><span class='j6-muted' style='font-size:.85rem'>{_esc(row['theme'])}</span></td>"
+            f"<tr class='{cls}'>"
+            f"<td class='j6-left'><span class='j6-name'>{_esc(row['name'])}</span>"
+            f"<br><span class='j6-theme'>{_esc(row['theme'])}</span></td>"
             f"<td>{_dots(e['material'])}</td>"
             f"<td>{_dots(e['place'])}</td>"
             f"<td>{_dots(e['strength'])}</td>"
             f"<td>{_pct(e['from_high'])}</td>"
             f"<td>{f'{vr:.1f}배' if vr else '—'}</td>"
             f"<td>{f'{uw*100:.0f}%' if uw is not None else '—'}</td>"
-            f"<td>{e['both_buy_days5']}일/5일</td>"
+            f"<td class='j6-left' style='font-size:.88rem'>{_esc(_why(e))}</td>"
             "</tr>"
         )
     st.markdown(
@@ -275,11 +300,14 @@ def _render_detail(row: dict) -> None:
     for label, items in (("재료 (사람이 적는 것)", e["material"]),
                          ("자리 (차트)", e["place"]),
                          ("힘 (오늘 들어오는 돈)", e["strength"])):
-        marks = " · ".join(
-            f"{'✔' if ok else '✖'} {name}" + (f" {value}" if value else "")
+        marks = " &nbsp; ".join(
+            (f"<span class='j6-check'>&#10004;</span>" if ok
+             else f"<span class='j6-cross'>&#10008;</span>")
+            + f" {_esc(name)}"
+            + (f" <span class='j6-muted'>{_esc(value)}</span>" if value else "")
             for name, ok, value in items
         )
-        st.markdown(f"<div class='j6-guide'><b>{_esc(label)}</b><br>{_esc(marks)}</div>",
+        st.markdown(f"<div class='j6-sub'><b style='color:#4da6ff'>{_esc(label)}</b><br>{marks}</div>",
                     unsafe_allow_html=True)
 
     for warning in e["warnings"]:
@@ -293,11 +321,15 @@ def _render_detail(row: dict) -> None:
             st.line_chart(intraday["price"], height=180)
         bundle = j4.get_chart_bundle(row["code"])
         if bundle.get("ok"):
-            for name, payload in bundle["charts"].items():
-                closes = (payload or {}).get("closes")
-                if closes:
-                    st.caption(name)
-                    st.line_chart(closes, height=140)
+            names = list(bundle["charts"].keys())
+            picked = st.radio("기간", names, horizontal=True,
+                              key=f"j6_chart_{row['code']}")
+            payload = bundle["charts"].get(picked) or {}
+            frame = payload.get("price")
+            if payload.get("ok") and frame is not None and len(frame):
+                st.line_chart(frame, height=220)
+            else:
+                st.caption(f"{picked} 자료가 없습니다.")
 
     key = f"j6_{row['code']}"
     reason = st.text_input("왜 오르나 (나중에 써도 됩니다)", key=f"{key}_reason")
@@ -395,10 +427,13 @@ def main() -> None:
             st.info("오늘 조건에 걸린 종목이 없습니다. 없는 날도 정상입니다.")
             return
         st.caption(f"{data['checked_at']} 기준 · {len(rows)}개")
-        _render_table(rows)
         names = [f"{r['name']} ({r['theme']})" for r in rows]
-        chosen = st.selectbox("자세히 볼 종목", names, key="j6_pick")
-        _render_detail(rows[names.index(chosen)])
+        chosen = st.selectbox("종목 고르기 — 고른 것이 아래 표에서 파랗게 보입니다",
+                              names, key="j6_pick")
+        picked = rows[names.index(chosen)]
+        _render_table(rows, picked["code"])
+        st.divider()
+        _render_detail(picked)
 
     with tab_record:
         _render_records()

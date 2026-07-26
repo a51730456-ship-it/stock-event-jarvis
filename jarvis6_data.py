@@ -155,9 +155,21 @@ def evaluate(stock: dict, daily_metrics: dict, flow: dict | None,
 
 
 def rank(rows: list[dict]) -> list[dict]:
-    """채운 조건 수 → 거래대금 배수 순. 점수를 만들지 않는다."""
-    return sorted(
-        rows,
-        key=lambda row: (row["eval"]["passed"], row["eval"]["value_ratio"] or 0),
-        reverse=True,
-    )
+    """볼 만한 것부터 위로 올린다. 점수를 만들지 않는다.
+
+    2026-07-26: 채운 조건 수만으로 세우니 전고점 -62%짜리가 2등에 올라왔다.
+    이 매매의 전제는 '전고점 가까운 자리'다. 그게 아닌 종목은 조건을 몇 개
+    채웠든 살 자리가 아니므로 아래로 내린다. 되돌아보기에서도 전고점 거리가
+    가장 또렷하게 갈렸다(가까울수록 단조롭게 좋아짐).
+    """
+    def key(row):
+        e = row["eval"]
+        near = (e["from_high"] or -99) >= -10      # 전고점 10% 밖은 자리가 아니다
+        clean = (e["upper_wick"] or 1.0) <= 0.5    # 반 넘게 밀린 날은 뒤로
+        return (
+            1 if (near and clean and not e["warnings"]) else 0,
+            e["passed"],
+            e["from_high"] or -99,
+        )
+
+    return sorted(rows, key=key, reverse=True)
