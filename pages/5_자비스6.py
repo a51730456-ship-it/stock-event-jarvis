@@ -327,6 +327,37 @@ def _render_table(rows: list[dict]) -> int | None:
     return picked[0] if picked else None
 
 
+def _fixed_chart(frame, *, height: int = 300, width: int = 400, colors=None):
+    """움직이지 않는 차트. 4:3 비율로 고정한다.
+
+    st.line_chart는 마우스 휠에 확대·이동이 붙어 있어 스크롤할 때마다 그림이
+    흔들린다(2026-07-26 사용자 지적). 알테어로 직접 그리고 selection을 넣지
+    않으면 움직이지 않는다.
+    """
+    import altair as alt
+    import pandas as pd
+
+    if frame is None or not len(frame):
+        st.caption("자료 없음")
+        return
+    tidy = frame.reset_index()
+    tidy = tidy.rename(columns={tidy.columns[0]: "x"})
+    tidy = tidy.melt("x", var_name="선", value_name="값").dropna()
+    scale = alt.Scale(domain=list(frame.columns), range=colors) if colors else alt.Undefined
+    chart = (
+        alt.Chart(tidy)
+        .mark_line(strokeWidth=1.6)
+        .encode(
+            x=alt.X("x:T", title=None),
+            y=alt.Y("값:Q", title=None, scale=alt.Scale(zero=False)),
+            color=alt.Color("선:N", scale=scale, legend=None),
+        )
+        .properties(width=width, height=height)
+        .configure_view(strokeWidth=0)
+    )
+    st.altair_chart(chart, use_container_width=False)
+
+
 def _render_detail(row: dict) -> None:
     e, m = row["eval"], row["metrics"]
     st.markdown(f"### {row['name']} · {row['theme']}")
@@ -365,15 +396,13 @@ def _render_detail(row: dict) -> None:
     # ── 차트를 가격 바로 밑에 둔다(2026-07-26 사용자 지시).
     intraday = j4.get_last_session_intraday(row["code"])
     if intraday and intraday.get("ok"):
-        left, _spare = st.columns([3, 1])   # 4:3 비율로 눌러 세로로 길어지지 않게
-        with left:
-            st.markdown(
-                f"<div style='color:#4da6ff;font-weight:800'>당일 분봉 "
-                f"<span class='j6-muted' style='font-size:.85rem'>{_esc(intraday.get('source_time'))}</span></div>",
-                unsafe_allow_html=True,
-            )
-            with st.container(border=True):
-                st.line_chart(intraday["price"], height=260)
+        st.markdown(
+            f"<div style='color:#4da6ff;font-weight:800'>당일 분봉 "
+            f"<span class='j6-muted' style='font-size:.85rem'>{_esc(intraday.get('source_time'))}</span></div>",
+            unsafe_allow_html=True,
+        )
+        with st.container(border=True):
+            _fixed_chart(intraday["price"], width=440, height=330, colors=["#4da6ff"])
 
     bundle = j4.get_chart_bundle(row["code"])
     if bundle.get("ok"):
@@ -389,16 +418,12 @@ def _render_detail(row: dict) -> None:
                     "<span style='color:#b07cff;font-size:.8rem'> · 50일선</span></div>",
                     unsafe_allow_html=True,
                 )
+                # 자비스4가 주는 자료에 MA20·MA50이 이미 들어 있다.
+                # 여기서 또 만들면 칸이 다섯인데 색이 셋이라 화면이 터진다.
                 if payload.get("ok") and frame is not None and len(frame):
-                    plot = frame.copy()
-                    close = plot.iloc[:, 0]
-                    plot["20일선"] = close.rolling(20).mean()
-                    plot["50일선"] = close.rolling(50).mean()
                     with st.container(border=True):
-                        st.line_chart(
-                            plot, height=210,
-                            color=["#9aa0aa", "#ff5b5b", "#b07cff"],
-                        )
+                        _fixed_chart(frame, width=300, height=225,
+                                     colors=["#e6e6e6", "#ff5b5b", "#b07cff"])
                 else:
                     st.caption("자료 없음")
 
@@ -544,10 +569,12 @@ def main() -> None:
                 unsafe_allow_html=True)
         else:
             st.markdown(
-                "<div class='j6-note'>오늘은 조건이 맞는 종목이 없습니다. "
-                "없는 날도 정상입니다 — 살 자리가 없으면 쉬는 것이 이 매매의 원칙입니다.<br>"
-                "<span class='j6-sub'>아래는 <b>오늘 강한 종목</b>일 뿐 "
-                "<b>후보가 아닙니다.</b> 왜 조건에 안 맞는지 보시라고 둡니다.</span></div>",
+                "<div class='j6-note'>오늘은 <b>살 종목이 없습니다.</b> "
+                "없는 날이 더 많고, 그게 정상입니다 — 살 자리가 없으면 쉬는 것이 "
+                "이 매매의 원칙입니다.<br>"
+                "<span class='j6-sub'>아래 표는 <b>순위가 아닙니다.</b> "
+                "오늘 거래가 많았던 종목을 <b>왜 안 되는지 보시라고</b> 늘어놓은 것입니다. "
+                "맨 위에 있다고 제일 나은 것이 아닙니다.</span></div>",
                 unsafe_allow_html=True)
 
         shown = good or rest
