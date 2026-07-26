@@ -233,47 +233,87 @@ def _render_header(market: dict, phase: dict) -> None:
 
 
 def _why(e: dict) -> str:
-    """이 종목이 왜 밀렸는지 한 마디로. 숫자만 늘어놓으면 안 읽힌다."""
+    """왜 이 종목이 여기 있나 — 한 마디로.
+
+    좋으면 좋은 이유를, 아니면 걸린 이유를 적는다. 숫자만 늘어놓으면
+    무엇을 보라는 건지 알 수 없다.
+    """
     if e["warnings"]:
         return e["warnings"][0]
-    if (e["from_high"] or -99) < -10:
-        return f"전고점이 {abs(e['from_high']):.0f}% 남았다"
-    if (e["upper_wick"] or 0) > 0.5:
-        return f"고가에서 {e['upper_wick']*100:.0f}% 밀렸다"
-    if (e["value_ratio"] or 0) < 2:
-        return "돈이 덜 몰렸다"
-    if e["passed"] >= 6:
-        return "조건은 채웠다 — 이유만 적으면 된다"
-    return "—"
+
+    from_high = e["from_high"]
+    wick = e["upper_wick"]
+    ratio = e["value_ratio"]
+
+    # 걸린 이유가 있으면 그것부터
+    if from_high is not None and from_high < -10:
+        return f"전고점이 {abs(from_high):.0f}% 남아 자리가 아니다"
+    if wick is not None and wick > 0.5:
+        return f"고가에서 {wick*100:.0f}% 밀렸다"
+    if ratio is not None and ratio < 2:
+        return f"거래대금 {ratio:.1f}배 — 돈이 덜 몰렸다"
+
+    # 여기까지 왔으면 좋은 이유를 적는다
+    good = []
+    if from_high is not None:
+        good.append("신고가 돌파" if from_high >= 0 else f"전고점 {abs(from_high):.1f}% 앞")
+    if ratio is not None:
+        good.append(f"돈 {ratio:.1f}배 몰림")
+    if wick is not None and wick <= 0.2:
+        good.append("고가 마감")
+    if e["both_buy_days5"] >= 3:
+        good.append(f"외인·기관 {e['both_buy_days5']}일 동반")
+    return " · ".join(good) if good else "—"
 
 
-def _render_table(rows: list[dict], selected_code: str | None = None) -> None:
-    head = ("종목 · 테마", "재료", "자리", "힘", "전고점", "거래대금", "윗꼬리", "왜")
-    body = []
-    for row in rows:
-        e = row["eval"]
-        vr = e["value_ratio"]
-        uw = e["upper_wick"]
-        cls = "j6-sel" if row["code"] == selected_code else ""
-        body.append(
-            f"<tr class='{cls}'>"
-            f"<td class='j6-left'><span class='j6-name'>{_esc(row['name'])}</span>"
-            f"<br><span class='j6-theme'>{_esc(row['theme'])}</span></td>"
-            f"<td>{_dots(e['material'])}</td>"
-            f"<td>{_dots(e['place'])}</td>"
-            f"<td>{_dots(e['strength'])}</td>"
-            f"<td>{_pct(e['from_high'])}</td>"
-            f"<td>{f'{vr:.1f}배' if vr else '—'}</td>"
-            f"<td>{f'{uw*100:.0f}%' if uw is not None else '—'}</td>"
-            f"<td class='j6-left' style='font-size:.88rem'>{_esc(_why(e))}</td>"
-            "</tr>"
-        )
-    st.markdown(
-        "<table class='j6-table'><thead><tr>"
-        + "".join(f"<th>{_esc(h)}</th>" for h in head)
-        + "</tr></thead><tbody>" + "".join(body) + "</tbody></table>",
-        unsafe_allow_html=True,
+def _render_table(rows: list[dict]) -> int | None:
+    """클릭되는 표. 줄을 누르면 그 종목이 아래에 펼쳐진다.
+
+    HTML 표는 예쁘게 그릴 수 있지만 눌러도 파이썬이 알 수 없다. 그래서
+    스트림릿 표에 선택을 켜고, 색은 스타일러로 입힌다.
+    종목은 초록, 테마는 붉은색(2026-07-26 사용자 지시).
+    """
+    import pandas as pd
+
+    frame = pd.DataFrame([
+        {
+            "종목": row["name"],
+            "테마": row["theme"],
+            "왜 이 종목인가": _why(row["eval"]),
+            "조건": f"{row['eval']['passed']}/{row['eval']['total']}",
+            "전고점": (f"{row['eval']['from_high']:+.1f}%"
+                     if row["eval"]["from_high"] is not None else "—"),
+            "거래대금": (f"{row['eval']['value_ratio']:.1f}배"
+                     if row["eval"]["value_ratio"] else "—"),
+            "윗꼬리": (f"{row['eval']['upper_wick']*100:.0f}%"
+                     if row["eval"]["upper_wick"] is not None else "—"),
+            "수급": f"{row['eval']['both_buy_days5']}일/5일",
+        }
+        for row in rows
+    ])
+
+    styled = (
+        frame.style
+        .set_properties(subset=["종목"], **{"color": "#44f0a1", "font-weight": "800"})
+        .set_properties(subset=["테마"], **{"color": "#ff6b6b", "font-weight": "700"})
+        .set_properties(subset=["왜 이 종목인가"], **{"color": "#e6e6e6", "font-weight": "700"})
+        .set_properties(subset=["조건"], **{"color": "#4da6ff", "font-weight": "800"})
     )
+
+    event = st.dataframe(
+        styled,
+        width="stretch",
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="j6_table",
+        column_config={
+            "왜 이 종목인가": st.column_config.TextColumn(width="large"),
+            "종목": st.column_config.TextColumn(width="small"),
+        },
+    )
+    picked = (event.selection or {}).get("rows") or []
+    return picked[0] if picked else None
 
 
 def _render_detail(row: dict) -> None:
@@ -444,15 +484,15 @@ def main() -> None:
         if not rows:
             st.info("오늘 조건에 걸린 종목이 없습니다. 없는 날도 정상입니다.")
             return
-        st.caption(f"{data['checked_at']} 기준 · {len(rows)}개")
-        names = [f"{r['name']} ({r['theme']})" for r in rows]
-        chosen = st.selectbox("종목 고르기 — 고른 것이 아래 표에서 파랗게 보입니다",
-                              names, key="j6_pick")
-        picked = rows[names.index(chosen)]
-        _render_table(rows, picked["code"])
+        st.caption(f"{data['checked_at']} 기준 · {len(rows)}개 · "
+                   "표에서 종목 줄을 누르면 아래에 자세히 나옵니다")
+        index = _render_table(rows)
         _guide("재료·자리·힘이 뭔가요", guide.three_groups)
         st.divider()
-        _render_detail(picked)
+        if index is None:
+            st.info("위 표에서 보고 싶은 종목 줄을 눌러 주십시오.")
+        else:
+            _render_detail(rows[index])
         if st.button("자료 다시 받기", key="j6_reload"):
             _load_candidates.clear()
             st.rerun()
