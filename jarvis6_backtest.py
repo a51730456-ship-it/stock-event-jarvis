@@ -294,3 +294,129 @@ def _smoke_test() -> None:
 
 if __name__ == "__main__":
     _smoke_test()
+
+
+# ---------------------------------------------------------------------------
+# 일봉 낙관적 사전검사 — "이 방식이 과거에 통했나"를 재는 1차 관문
+# ---------------------------------------------------------------------------
+# 이 결과는 실제로 낼 수 있는 성적이 아니라 **상한선**이다. 종가와 당일 총거래량은
+# 15:20이 지나야 아는 값인데 그걸로 후보를 뽑기 때문이다. 여기서 안 되면 실제로는
+# 더 나쁘다. 여기서 되더라도 "된다"가 아니라 "더 볼 만하다"까지다.
+
+SELL_TAX = 0.0015          # 증권거래세(농특세 포함) 매도 시
+FEE = 0.00015              # 수수료 편도
+SLIPPAGE = 0.0005          # 시초가 체결 미끄러짐 가정
+ROUND_TRIP_COST = FEE * 2 + SELL_TAX + SLIPPAGE
+
+MIN_VALUE = 5_000_000_000  # 20일 중앙 거래대금 50억 미만은 제외
+MIN_PRICE = 1_000
+WARMUP = 260               # 전고점·평균 계산에 필요한 최소 일수
+
+
+def build_features(frame: pd.DataFrame) -> pd.DataFrame | None:
+    """하루하루에 대해 조건 값을 계산한다. 그날까지의 자료만 쓴다."""
+    if frame is None or len(frame) < WARMUP + 5:
+        return None
+    d = frame.copy()
+    o, h, l, c, v = d["open"], d["high"], d["low"], d["close"], d["volume"]
+    rng = (h - l).replace(0, pd.NA)
+
+    d["value"] = c * v
+    d["value_med20"] = d["value"].rolling(20).median()
+    # 오늘 거래대금이 최근 20일 중앙값의 몇 배인가 (오늘 제외한 과거와 비교)
+    d["vol_ratio"] = d["value"] / d["value"].shift(1).rolling(20).median()
+
+    # 전고점: 어제까지의 250일 최고가와 비교한다. 오늘 고가를 넣으면
+    # "오늘 신고가니까 오늘 신고가 근처"라는 동어반복이 된다.
+    prior_high = h.shift(1).rolling(250).max()
+    d["from_high"] = (c / prior_high - 1) * 100
+    # 그 고점을 며칠 전에 찍었나
+    d["days_since_high"] = (
+        h.shift(1).rolling(250).apply(lambda x: len(x) - 1 - x.argmax(), raw=True)
+    )
+
+    d["upper_wick"] = (h - c) / rng           # 0 = 고가 마감, 1 = 종일 밀림
+    d["close_pos"] = (c - l) / rng            # 1 = 고가 마감
+    d["body"] = (c - o) / rng
+    d["ret1"] = (c / c.shift(1) - 1) * 100
+
+    # 익일 시초가에 판다. 다음 거래일이 없으면(상폐 등) 거래로 치지 않는다.
+    d["next_open"] = o.shift(-1)
+    d["gross"] = (d["next_open"] / c - 1)
+    d["net"] = d["gross"] - ROUND_TRIP_COST
+
+    d["ok"] = (
+        (d["value_med20"] >= MIN_VALUE)
+        & (c >= MIN_PRICE)
+        & d["next_open"].notna()
+        & d["from_high"].notna()
+        & rng.notna()
+    )
+    d["dow"] = pd.to_datetime(d["date"]).dt.dayofweek
+    d["year"] = pd.to_datetime(d["date"]).dt.year
+    return d.iloc[WARMUP:]
+
+
+def collect_signals(*, limit: int | None = None, progress=None) -> pd.DataFrame:
+    """전 종목의 하루하루 조건값을 한 표로 모은다."""
+    universe = build_universe()
+    market = dict(zip(universe["code"], universe["market"]))
+    codes = [Path(p).stem for p in (_CACHE_DIR).glob("*.csv")]
+    if limit:
+        codes = codes[:limit]
+    keep = ["date", "close", "value", "vol_ratio", "from_high", "days_since_high",
+            "upper_wick", "close_pos", "body", "ret1", "net", "gross", "dow", "year"]
+    out = []
+    for index, code in enumerate(codes, 1):
+        if market.get(code) not in ("KOSPI", "KOSDAQ"):
+            continue
+        frame = clean_daily(pd.read_csv(_CACHE_DIR / f"{code}.csv"))
+        rows = build_features(frame)
+        if rows is None:
+            continue
+        rows = rows[rows["ok"]]
+        if rows.empty:
+            continue
+        rows = rows[keep].copy()
+        rows["code"] = code
+        rows["market"] = market[code]
+        out.append(rows)
+        if progress and index % 300 == 0:
+            progress(index, len(codes))
+    return pd.concat(out, ignore_index=True) if out else pd.DataFrame()
+
+
+def summarize(net: pd.Series) -> dict:
+    """거래 결과 한 묶음을 성적표로 바꾼다. 승률만 보지 않는다."""
+    n = len(net)
+    if n == 0:
+        return {"n": 0}
+    wins, losses = net[net > 0], net[net <= 0]
+    gain, loss = wins.sum(), -losses.sum()
+    equity = (1 + net).cumprod()
+    drawdown = (equity / equity.cummax() - 1).min()
+    return {
+        "n": n,
+        "win": len(wins) / n * 100,
+        "avg": net.mean() * 100,          # 거래당 기대값(%)
+        "avg_win": wins.mean() * 100 if len(wins) else 0.0,
+        "avg_loss": losses.mean() * 100 if len(losses) else 0.0,
+        "rr": (wins.mean() / -losses.mean()) if len(wins) and len(losses) else float("nan"),
+        "pf": (gain / loss) if loss > 0 else float("inf"),
+        "mdd": drawdown * 100,
+    }
+
+
+def apply_condition(rows: pd.DataFrame, *, from_high: float, vol_ratio: float,
+                    upper_wick: float = 1.0, close_pos: float = 0.0,
+                    days_min: int = 0) -> pd.DataFrame:
+    """조건을 걸어 후보만 남긴다. 기본 전제는 '오늘 오른 양봉'이다."""
+    return rows[
+        (rows["ret1"] > 0)
+        & (rows["body"] > 0)
+        & (rows["from_high"] >= from_high)
+        & (rows["vol_ratio"] >= vol_ratio)
+        & (rows["upper_wick"] <= upper_wick)
+        & (rows["close_pos"] >= close_pos)
+        & (rows["days_since_high"] >= days_min)
+    ]
