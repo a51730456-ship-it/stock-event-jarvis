@@ -266,7 +266,7 @@ def _why(e: dict) -> str:
     return " · ".join(good) if good else "—"
 
 
-def _render_table(rows: list[dict]) -> int | None:
+def _render_table(rows: list[dict], ranked: bool = True) -> int | None:
     """클릭되는 표. 줄을 누르면 그 종목이 아래에 펼쳐진다.
 
     HTML 표는 예쁘게 그릴 수 있지만 눌러도 파이썬이 알 수 없다. 그래서
@@ -277,7 +277,7 @@ def _render_table(rows: list[dict]) -> int | None:
 
     frame = pd.DataFrame([
         {
-            "순": f"{i}위",
+            **({"순": f"{i}위"} if ranked else {}),
             "종목": row["name"],
             "테마": row["theme"],
             "왜 이 종목인가": _why(row["eval"]),
@@ -308,6 +308,7 @@ def _render_table(rows: list[dict]) -> int | None:
         on_select="rerun",
         selection_mode="single-row",
         key="j6_table",
+        height=min(15, len(frame)) * 36 + 40,
         column_config={
             "왜 이 종목인가": st.column_config.TextColumn(width="large"),
             "종목": st.column_config.TextColumn(width="small"),
@@ -590,7 +591,7 @@ def main() -> None:
                 "맨 위에 있다고 제일 나은 것이 아닙니다.</span></div>",
                 unsafe_allow_html=True)
 
-        shown = good or rest
+        shown = (good or rest)[:15]
         if shown and not good:
             top = shown[0]["eval"]
             bits = []
@@ -606,13 +607,15 @@ def main() -> None:
                 bits.append(f"외인·기관 {top['both_buy_days5']}일 동반")
             strong = " · ".join(bits) or "나은 점이 딱히 없음"
             st.markdown(
-                f"<div class='j6-sub'>그나마 나은 것은 <b style='color:#44f0a1'>"
-                f"{_esc(shown[0]['name'])}</b>입니다 — {_esc(strong)}. "
+                f"<div class='j6-sub'>전고점에 가장 가까운 것은 <b style='color:#44f0a1'>"
+                f"{_esc(shown[0]['name'])}</b>입니다({_esc(strong)}). "
                 f"<b style='color:#ff5b5b'>그래도 {_esc(_why(top))}</b>라 "
-                "지금은 살 자리가 아닙니다.</div>",
+                "<b>사는 종목이 아닙니다.</b> 오늘은 하나도 없습니다.</div>",
                 unsafe_allow_html=True)
-        st.caption(f"{data['checked_at']} 기준 · {len(shown)}개")
-        index = _render_table(shown)
+        st.caption(
+            f"{data['checked_at']} 기준 · {len(shown)}개"
+            + ("" if good else " · 전고점에 가까운 순으로 늘어놓았습니다"))
+        index = _render_table(shown, ranked=bool(good))
         rows = shown
         _guide("재료·자리·힘이 뭔가요", guide.three_groups)
         st.divider()
