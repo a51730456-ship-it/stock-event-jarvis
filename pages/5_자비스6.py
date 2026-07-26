@@ -1,0 +1,371 @@
+"""자비스6 — 종가 관찰. 장 막판에 조건을 재서 보여주고, 눌러 둔 것을 기록한다.
+
+추천기가 아니다. 막지도 않는다. 경고는 보여주되 클릭은 항상 되고, 무시한 것도
+기록한다. 그래야 나중에 '경고 지킨 매매와 무시한 매매 중 뭐가 나았나'를 숫자로
+비교할 수 있다(JARVIS_CONTEXT: 필터 준수 vs 무시 손익 차이 증명).
+
+자료는 자비스4·5가 이미 모은 것을 쓴다. 새로 조회하지 않는다.
+"""
+
+from __future__ import annotations
+
+import html
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+import streamlit as st
+
+import auth
+
+_REQUIRED_AUTH_REVISION = 2026072503
+if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
+    import importlib as _importlib
+    auth = _importlib.reload(auth)
+
+st.set_page_config(page_title="자비스6 — 종가 관찰", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"], section[data-testid="stSidebar"] {
+        width: 10rem !important; min-width: 10rem !important; max-width: 10rem !important;
+    }
+    [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] a * {
+        font-size: 1.15rem !important; font-weight: 800 !important; color: #ffb020 !important;
+    }
+    .j6-guide { color: #9aa0aa; font-size: 0.95rem; line-height: 1.75; }
+    .j6-guide b { color: #e6e6e6; font-weight: 700; }
+    .j6-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+        gap: .7rem; margin: .8rem 0; }
+    .j6-kpi { border: 1px solid rgba(255,255,255,.11); background: rgba(255,255,255,.025);
+        border-radius: .6rem; padding: .7rem .9rem; text-align: center; }
+    .j6-kpi-label { color: #4da6ff; font-size: .85rem; font-weight: 800; }
+    .j6-kpi-value { color: #44f0a1; font-size: 1.4rem; font-weight: 800; }
+    .j6-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    .j6-table th { color: #9aa0aa; font-weight: 700; text-align: center;
+        padding: .5rem .4rem; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .j6-table td { padding: .55rem .4rem; text-align: center;
+        border-bottom: 1px solid rgba(255,255,255,.07); }
+    .j6-table td.j6-left { text-align: left; }
+    .j6-up { color: #ff5b5b; } .j6-down { color: #4da6ff; } .j6-muted { color: #9aa0aa; }
+    .j6-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:3px; }
+    .j6-on { background:#44f0a1; } .j6-off { background:#4a4f57; }
+    .j6-note { color:#ffb020; font-size:.9rem; }
+    @media (max-width: 600px) {
+        .j6-kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        .j6-table { font-size: .82rem; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+def _login_gate() -> None:
+    auth.sync_auth()
+    if st.session_state.get("authenticated"):
+        return
+    st.markdown("## 자비스6 — 종가 관찰")
+    try:
+        password = st.secrets.get("APP_PASSWORD")
+    except Exception:
+        password = None
+    if not password:
+        st.warning(".streamlit/secrets.toml에 APP_PASSWORD 설정이 필요합니다.")
+        st.stop()
+    entered = st.text_input("비밀번호", type="password", key="j6_login_password")
+    if st.button("자비스6 로그인", width="stretch"):
+        if entered == password:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        st.error("비밀번호가 올바르지 않습니다.")
+    st.stop()
+
+
+_login_gate()
+
+import importlib
+
+import jarvis4_data as j4
+import jarvis6_data as j6
+import jarvis6_guide as guide
+import jarvis6_store as store
+
+# 배포 중 옛 모듈이 프로세스에 남으면 계산이 조용히 옛것으로 돈다(CLAUDE.md 11항).
+for _module, _need in ((j6, 2026072701), (guide, 2026072701), (store, 2026072701)):
+    if int(getattr(_module, "MODULE_REVISION", 0)) < _need:
+        importlib.reload(_module)
+
+_SEOUL = ZoneInfo("Asia/Seoul")
+
+
+def _esc(value) -> str:
+    return html.escape(str(value if value is not None else "—"))
+
+
+def _pct(value, digits=1) -> str:
+    if value is None:
+        return "<span class='j6-muted'>—</span>"
+    cls = "j6-up" if value > 0 else "j6-down" if value < 0 else "j6-muted"
+    return f"<span class='{cls}'>{value:+.{digits}f}%</span>"
+
+
+def _dots(items) -> str:
+    return "".join(
+        f"<span class='j6-dot {'j6-on' if ok else 'j6-off'}' title='{_esc(name)}'></span>"
+        for name, ok, _v in items
+    )
+
+
+def _render_guides() -> None:
+    """설명은 전부 접어 둔다. 궁금할 때만 펼친다(자비스4와 같은 방식)."""
+    st.markdown("#### 설명")
+    for title, producer in guide.SECTIONS:
+        with st.expander(title, expanded=False):
+            st.markdown(producer(), unsafe_allow_html=True)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _load_candidates(limit: int = 12) -> dict:
+    """자비스4가 이미 쓰는 조회를 그대로 쓴다. 새 자료원을 만들지 않는다."""
+    market = j4.get_market_overview()
+    ranking = j4.get_theme_rankings()
+    if not ranking.get("ok"):
+        return {"ok": False, "error": ranking.get("error"), "market": market}
+
+    rows = []
+    for theme_row in ranking["rows"][:6]:
+        leaders = j4.get_theme_leaders(theme_row, market.get("score", 0),
+                                       theme_row.get("score", 0))
+        if not leaders.get("ok"):
+            continue
+        for leader in leaders["rows"][:3]:
+            metrics = leader.get("metrics") or {}
+            flow = leader.get("flow") or {}
+            stock = {
+                "price": metrics.get("current"),
+                "day_open": metrics.get("day_open"),
+                "day_high": metrics.get("day_high"),
+                "day_low": metrics.get("day_low"),
+                "trading_value": (metrics.get("avg_trading_value") or 0)
+                                 * (metrics.get("volume_ratio") or 0),
+                "market_cap": None,
+            }
+            evaluation = j6.evaluate(stock, metrics, flow, theme_row)
+            rows.append({
+                "code": leader.get("code"), "name": leader.get("name"),
+                "theme": theme_row.get("name"), "stock": stock,
+                "metrics": metrics, "flow": flow, "theme_row": theme_row,
+                "eval": evaluation,
+            })
+    return {"ok": True, "market": market, "rows": j6.rank(rows)[:limit],
+            "checked_at": datetime.now(_SEOUL).strftime("%H:%M")}
+
+
+def _render_header(market: dict, phase: dict) -> None:
+    now = datetime.now(_SEOUL)
+    cells = [
+        ("지금", now.strftime("%H:%M")),
+        ("단계", phase["label"]),
+        ("시장", f"{market.get('score', 0):.0f}점 {market.get('regime', '—')}"
+                 if market.get("ok") else "자료 없음"),
+        ("판단 마감", "15:18"),
+    ]
+    st.markdown(
+        "<div class='j6-kpi-grid'>"
+        + "".join(f"<div class='j6-kpi'><div class='j6-kpi-label'>{_esc(a)}</div>"
+                  f"<div class='j6-kpi-value'>{_esc(b)}</div></div>" for a, b in cells)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+    if not phase["watching"]:
+        st.markdown(
+            f"<div class='j6-note'>지금은 <b>{_esc(phase['label'])}</b>입니다. "
+            "관찰 구간은 평일 14:30~15:19입니다. 그 밖에는 마지막 자료를 보여줍니다.</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def _render_table(rows: list[dict]) -> None:
+    head = ("종목 · 테마", "재료", "자리", "힘", "전고점", "거래대금", "윗꼬리", "수급")
+    body = []
+    for row in rows:
+        e = row["eval"]
+        vr = e["value_ratio"]
+        uw = e["upper_wick"]
+        body.append(
+            "<tr>"
+            f"<td class='j6-left'><b>{_esc(row['name'])}</b>"
+            f"<br><span class='j6-muted' style='font-size:.85rem'>{_esc(row['theme'])}</span></td>"
+            f"<td>{_dots(e['material'])}</td>"
+            f"<td>{_dots(e['place'])}</td>"
+            f"<td>{_dots(e['strength'])}</td>"
+            f"<td>{_pct(e['from_high'])}</td>"
+            f"<td>{f'{vr:.1f}배' if vr else '—'}</td>"
+            f"<td>{f'{uw*100:.0f}%' if uw is not None else '—'}</td>"
+            f"<td>{e['both_buy_days5']}일/5일</td>"
+            "</tr>"
+        )
+    st.markdown(
+        "<table class='j6-table'><thead><tr>"
+        + "".join(f"<th>{_esc(h)}</th>" for h in head)
+        + "</tr></thead><tbody>" + "".join(body) + "</tbody></table>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_detail(row: dict) -> None:
+    e, m = row["eval"], row["metrics"]
+    st.markdown(f"### {row['name']} · {row['theme']}")
+
+    cells = [("전일종가", m.get("prev_close")), ("시가", m.get("day_open")),
+             ("고가", m.get("day_high")), ("저가", m.get("day_low")),
+             ("현재가", m.get("current"))]
+    st.markdown(
+        "<div class='j6-kpi-grid' style='grid-template-columns:repeat(5,minmax(0,1fr))'>"
+        + "".join(
+            f"<div class='j6-kpi'><div class='j6-kpi-label'>{_esc(a)}</div>"
+            f"<div class='j6-kpi-value'>{f'{b:,.0f}' if b else '—'}</div></div>"
+            for a, b in cells)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+    if e["location"] is not None:
+        st.markdown(
+            f"<div class='j6-guide'>오늘 <b>저가에서 {e['location']*100:.0f}% 지점</b>에 있습니다. "
+            f"윗꼬리 <b>{e['upper_wick']*100:.0f}%</b> — 고가에서 그만큼 밀렸다는 뜻입니다.</div>",
+            unsafe_allow_html=True,
+        )
+        st.progress(min(1.0, max(0.0, e["location"])))
+
+    for label, items in (("재료 (사람이 적는 것)", e["material"]),
+                         ("자리 (차트)", e["place"]),
+                         ("힘 (오늘 들어오는 돈)", e["strength"])):
+        marks = " · ".join(
+            f"{'✔' if ok else '✖'} {name}" + (f" {value}" if value else "")
+            for name, ok, value in items
+        )
+        st.markdown(f"<div class='j6-guide'><b>{_esc(label)}</b><br>{_esc(marks)}</div>",
+                    unsafe_allow_html=True)
+
+    for warning in e["warnings"]:
+        st.markdown(f"<div class='j6-note'>주의 — {_esc(warning)} "
+                    "(막지 않습니다. 사시면 기록만 남습니다.)</div>", unsafe_allow_html=True)
+
+    with st.expander("차트 보기 (당일 · 일봉 · 주봉 · 월봉)", expanded=False):
+        intraday = j4.get_last_session_intraday(row["code"])
+        if intraday and intraday.get("ok"):
+            st.caption(f"당일 분봉 · {intraday.get('source_time')}")
+            st.line_chart(intraday["price"], height=180)
+        bundle = j4.get_chart_bundle(row["code"])
+        if bundle.get("ok"):
+            for name, payload in bundle["charts"].items():
+                closes = (payload or {}).get("closes")
+                if closes:
+                    st.caption(name)
+                    st.line_chart(closes, height=140)
+
+    key = f"j6_{row['code']}"
+    reason = st.text_input("왜 오르나 (나중에 써도 됩니다)", key=f"{key}_reason")
+    cont = st.text_input("내일까지 갈 근거", key=f"{key}_cont")
+    inval = st.text_input("틀렸다고 볼 조건", key=f"{key}_inval")
+
+    left, right = st.columns(2)
+    for column, action, label in ((left, "bought", "샀다"), (right, "skipped", "안 샀다")):
+        if column.button(label, key=f"{key}_{action}", width="stretch"):
+            row["stock"].update({"reason": reason, "continuation": cont,
+                                 "invalidation": inval})
+            store.save_pick(row, action=action)
+            st.success(f"{row['name']} — {label}로 기록했습니다. 1주 기준, 연습입니다.")
+
+
+def _render_records() -> None:
+    picks = store.list_picks(limit=40)
+    if not picks:
+        st.caption("아직 기록이 없습니다. 후보에서 '샀다'나 '안 샀다'를 누르면 쌓입니다.")
+        return
+    body = []
+    for p in picks:
+        action = "샀다" if p["action"] == "bought" else "안 샀다"
+        price = f"{p['price']:,.0f}" if p.get("price") else "—"
+        has_reason = "있음" if (p.get("reason") or "").strip() else "없음"
+        body.append(
+            "<tr>"
+            f"<td>{_esc(p['trade_date'])}</td>"
+            f"<td class='j6-left'>{_esc(p['name'])}</td>"
+            f"<td>{action}</td>"
+            f"<td>{price}</td>"
+            f"<td>{p['passed']}/{p['total']}</td>"
+            f"<td>{has_reason}</td>"
+            f"<td>{_pct(p.get('net_pct'), 2)}</td>"
+            "</tr>"
+        )
+    st.markdown(
+        "<table class='j6-table'><thead><tr>"
+        + "".join(f"<th>{h}</th>" for h in
+                  ("날짜", "종목", "행동", "가격", "조건", "이유", "익일 결과"))
+        + "</tr></thead><tbody>" + "".join(body) + "</tbody></table>",
+        unsafe_allow_html=True,
+    )
+
+    summary = store.review()
+    st.markdown("#### 조건별 성적")
+    if summary["total"] < store.MIN_SAMPLE:
+        st.markdown(
+            f"<div class='j6-guide'>결과가 붙은 기록이 <b>{summary['total']}건</b>입니다. "
+            f"<b>{store.MIN_SAMPLE}건</b>이 넘어야 숫자를 보여드립니다. "
+            "표본이 적을 때 승률을 말하면 그건 거짓말입니다.</div>",
+            unsafe_allow_html=True,
+        )
+        return
+    for group in summary["groups"]:
+        if not group["enough"]:
+            st.markdown(f"<div class='j6-guide'>{_esc(group['label'])} — "
+                        f"{group['n']}건 (표본 부족)</div>", unsafe_allow_html=True)
+            continue
+        st.markdown(
+            f"<div class='j6-guide'><b>{_esc(group['label'])}</b> {group['n']}건 · "
+            f"승률 {group['win']:.0f}% · 거래당 {group['avg']:+.2f}% · "
+            f"손익비 {group['rr']:.2f} · 최악 {group['worst']:+.2f}%</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def main() -> None:
+    st.markdown("## 자비스6 — 종가 관찰")
+    st.markdown(
+        "<div class='j6-guide'>장 막판에 조건을 재서 보여주고, 눌러 둔 것을 기록합니다. "
+        "<b>추천기가 아니고, 막지도 않습니다.</b> 지금은 <b>1주 고정 연습</b>이라 돈이 들지 않습니다.</div>",
+        unsafe_allow_html=True,
+    )
+
+    phase = j6.market_phase()
+    tab_watch, tab_record, tab_guide = st.tabs(["후보 보기", "기록 · 복기", "설명"])
+
+    with tab_watch:
+        if st.button("후보 불러오기", key="j6_load", width="stretch"):
+            _load_candidates.clear()
+        data = _load_candidates()
+        _render_header(data.get("market") or {}, phase)
+        if not data.get("ok"):
+            st.warning(f"자료를 가져오지 못했습니다: {data.get('error')}")
+            return
+        rows = data["rows"]
+        if not rows:
+            st.info("오늘 조건에 걸린 종목이 없습니다. 없는 날도 정상입니다.")
+            return
+        st.caption(f"{data['checked_at']} 기준 · {len(rows)}개")
+        _render_table(rows)
+        names = [f"{r['name']} ({r['theme']})" for r in rows]
+        chosen = st.selectbox("자세히 볼 종목", names, key="j6_pick")
+        _render_detail(rows[names.index(chosen)])
+
+    with tab_record:
+        _render_records()
+
+    with tab_guide:
+        _render_guides()
+
+
+main()
