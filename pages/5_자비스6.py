@@ -169,7 +169,12 @@ def _load_candidates(limit: int = 12) -> dict:
         if not leaders.get("ok"):
             continue
         for leader in leaders["rows"][:3]:
-            metrics = leader.get("metrics") or {}
+            # 자비스4의 metrics는 장 마감 뒤 현재가를 같이 넘기는 경로가 있어
+            # '전일 종가'에 오늘 종가가 들어간다(2026-07-26 실측: 현대해상
+            # 전일 40,350 · 등락 +0.00%). 자비스6은 일봉에서 직접 다시 잰다.
+            metrics = j4._series_metrics(j4.get_daily_frame(leader.get("code")))
+            if not metrics.get("ok"):
+                metrics = leader.get("metrics") or {}
             flow = leader.get("flow") or {}
             stock = {
                 "price": metrics.get("current"),
@@ -194,7 +199,9 @@ def _load_candidates(limit: int = 12) -> dict:
         quotes = {}
     for row in rows:
         quote = quotes.get(row["code"]) or {}
-        if quote.get("tradable"):
+        # 장중에만 실시간 값으로 덮어쓴다. 장이 끝난 뒤에는 일봉이 정확하고,
+        # 실시간 쪽은 NXT가 섞여 시가·저가가 일봉과 어긋난다(2026-07-26 실측).
+        if quote.get("tradable") and j6.market_phase()["watching"]:
             for key in ("day_open", "day_high", "day_low"):
                 if quote.get(key):
                     row["stock"][key] = quote[key]
