@@ -277,6 +277,7 @@ def _render_table(rows: list[dict]) -> int | None:
 
     frame = pd.DataFrame([
         {
+            "순": f"{i}위",
             "종목": row["name"],
             "테마": row["theme"],
             "왜 이 종목인가": _why(row["eval"]),
@@ -289,7 +290,7 @@ def _render_table(rows: list[dict]) -> int | None:
                      if row["eval"]["upper_wick"] is not None else "—"),
             "외인·기관 같이 산 날": f"5일 중 {row['eval']['both_buy_days5']}일",
         }
-        for row in rows
+        for i, row in enumerate(rows, 1)
     ])
 
     styled = (
@@ -310,6 +311,7 @@ def _render_table(rows: list[dict]) -> int | None:
         column_config={
             "왜 이 종목인가": st.column_config.TextColumn(width="large"),
             "종목": st.column_config.TextColumn(width="small"),
+            "순": st.column_config.TextColumn(width="small"),
         },
     )
     st.markdown(
@@ -327,7 +329,7 @@ def _render_table(rows: list[dict]) -> int | None:
     return picked[0] if picked else None
 
 
-def _fixed_chart(frame, *, height: int = 300, width: int = 400, colors=None):
+def _fixed_chart(frame, *, height: int = 300, width: int | str = "container", colors=None):
     """움직이지 않는 차트. 4:3 비율로 고정한다.
 
     st.line_chart는 마우스 휠에 확대·이동이 붙어 있어 스크롤할 때마다 그림이
@@ -355,7 +357,8 @@ def _fixed_chart(frame, *, height: int = 300, width: int = 400, colors=None):
         .properties(width=width, height=height)
         .configure_view(strokeWidth=0)
     )
-    st.altair_chart(chart, use_container_width=False)
+    # width="container"면 칸 너비를 꽉 채운다. 고정 폭으로 두면 오른쪽이 텅 빈다.
+    st.altair_chart(chart, use_container_width=(width == "container"))
 
 
 def _render_detail(row: dict) -> None:
@@ -401,8 +404,9 @@ def _render_detail(row: dict) -> None:
             f"<span class='j6-muted' style='font-size:.85rem'>{_esc(intraday.get('source_time'))}</span></div>",
             unsafe_allow_html=True,
         )
-        with st.container(border=True):
-            _fixed_chart(intraday["price"], width=440, height=330, colors=["#4da6ff"])
+        left, _blank = st.columns([4, 3])   # 4:3
+        with left, st.container(border=True):
+            _fixed_chart(intraday["price"], height=330, colors=["#4da6ff"])
 
     bundle = j4.get_chart_bundle(row["code"])
     if bundle.get("ok"):
@@ -412,18 +416,27 @@ def _render_detail(row: dict) -> None:
             payload = charts.get(name) or {}
             frame = payload.get("price")
             with column:
+                # 월봉은 14개월치뿐이라 20선·50선을 만들 수 없다. 없는 선을
+                # 제목에 적어 두면 안 그려진 것이 고장으로 보인다.
+                have = []
+                if frame is not None and len(frame):
+                    if "MA20" in frame and frame["MA20"].notna().any():
+                        have.append("<span style='color:#ff5b5b;font-size:.8rem'>20선</span>")
+                    if "MA50" in frame and frame["MA50"].notna().any():
+                        have.append("<span style='color:#9b5cff;font-size:.8rem'>50선</span>")
+                note = " · ".join(have) if have else (
+                    "<span class='j6-muted' style='font-size:.8rem'>봉이 적어 선 없음</span>")
                 st.markdown(
-                    f"<div style='color:#4da6ff;font-weight:800'>{_esc(name)} "
-                    "<span style='color:#ff5b5b;font-size:.8rem'>20일선</span>"
-                    "<span style='color:#b07cff;font-size:.8rem'> · 50일선</span></div>",
+                    f"<div style='color:#4da6ff;font-weight:800'>{_esc(name)} {note}</div>",
                     unsafe_allow_html=True,
                 )
-                # 자비스4가 주는 자료에 MA20·MA50이 이미 들어 있다.
-                # 여기서 또 만들면 칸이 다섯인데 색이 셋이라 화면이 터진다.
                 if payload.get("ok") and frame is not None and len(frame):
+                    # 값이 하나도 없는 선은 빼고 그린다. 색 수와 칸 수가 어긋나면 터진다.
+                    plot = frame.loc[:, [c for c in frame.columns if frame[c].notna().any()]]
+                    palette = {"Close": "#4da6ff", "MA20": "#ff5b5b", "MA50": "#9b5cff"}
                     with st.container(border=True):
-                        _fixed_chart(frame, width=300, height=225,
-                                     colors=["#e6e6e6", "#ff5b5b", "#b07cff"])
+                        _fixed_chart(plot, height=240,
+                                     colors=[palette.get(c, "#9aa0aa") for c in plot.columns])
                 else:
                     st.caption("자료 없음")
 
@@ -578,6 +591,26 @@ def main() -> None:
                 unsafe_allow_html=True)
 
         shown = good or rest
+        if shown and not good:
+            top = shown[0]["eval"]
+            bits = []
+            # 이 매매의 첫째 축은 전고점 거리다. 되돌아보기에서 가장 또렷하게
+            # 갈렸으므로 나은 점을 적을 때도 이것부터 적는다.
+            if top["from_high"] is not None and top["from_high"] >= -10:
+                bits.append(f"전고점 {abs(top['from_high']):.1f}% 앞")
+            if top["upper_wick"] is not None and top["upper_wick"] <= 0.2:
+                bits.append("고가 부근 마감")
+            if top["value_ratio"] and top["value_ratio"] >= 2:
+                bits.append(f"돈 {top['value_ratio']:.1f}배 몰림")
+            if top["both_buy_days5"] >= 3:
+                bits.append(f"외인·기관 {top['both_buy_days5']}일 동반")
+            strong = " · ".join(bits) or "나은 점이 딱히 없음"
+            st.markdown(
+                f"<div class='j6-sub'>그나마 나은 것은 <b style='color:#44f0a1'>"
+                f"{_esc(shown[0]['name'])}</b>입니다 — {_esc(strong)}. "
+                f"<b style='color:#ff5b5b'>그래도 {_esc(_why(top))}</b>라 "
+                "지금은 살 자리가 아닙니다.</div>",
+                unsafe_allow_html=True)
         st.caption(f"{data['checked_at']} 기준 · {len(shown)}개")
         index = _render_table(shown)
         rows = shown
