@@ -280,14 +280,14 @@ def _render_table(rows: list[dict]) -> int | None:
             "종목": row["name"],
             "테마": row["theme"],
             "왜 이 종목인가": _why(row["eval"]),
-            "조건": f"{row['eval']['passed']}/{row['eval']['total']}",
-            "전고점": (f"{row['eval']['from_high']:+.1f}%"
+            "맞은 조건": f"{row['eval']['passed']}개 / 7개",
+            "전고점까지": (f"{row['eval']['from_high']:+.1f}%"
                      if row["eval"]["from_high"] is not None else "—"),
-            "거래대금": (f"{row['eval']['value_ratio']:.1f}배"
+            "거래대금 (평소 대비)": (f"{row['eval']['value_ratio']:.1f}배"
                      if row["eval"]["value_ratio"] else "—"),
-            "윗꼬리": (f"{row['eval']['upper_wick']*100:.0f}%"
+            "고가에서 밀린 정도": (f"{row['eval']['upper_wick']*100:.0f}%"
                      if row["eval"]["upper_wick"] is not None else "—"),
-            "수급": f"{row['eval']['both_buy_days5']}일/5일",
+            "외인·기관 같이 산 날": f"5일 중 {row['eval']['both_buy_days5']}일",
         }
         for row in rows
     ])
@@ -297,7 +297,7 @@ def _render_table(rows: list[dict]) -> int | None:
         .set_properties(subset=["종목"], **{"color": "#44f0a1", "font-weight": "800"})
         .set_properties(subset=["테마"], **{"color": "#ff6b6b", "font-weight": "700"})
         .set_properties(subset=["왜 이 종목인가"], **{"color": "#e6e6e6", "font-weight": "700"})
-        .set_properties(subset=["조건"], **{"color": "#4da6ff", "font-weight": "800"})
+        .set_properties(subset=["맞은 조건"], **{"color": "#4da6ff", "font-weight": "800"})
     )
 
     event = st.dataframe(
@@ -312,6 +312,17 @@ def _render_table(rows: list[dict]) -> int | None:
             "종목": st.column_config.TextColumn(width="small"),
         },
     )
+    st.markdown(
+        "<div class='j6-sub' style='font-size:.92rem'>"
+        "<b style='color:#4da6ff'>맞은 조건</b> 자비스6이 보는 7가지 중 몇 개를 채웠나 "
+        "(전고점·윗꼬리·기간조정·거래대금·고가부근마감·테마동반·수급) &nbsp;·&nbsp; "
+        "<b style='color:#4da6ff'>전고점까지</b> 예전 고점까지 얼마 남았나. "
+        "0%에 가까울수록 좋은 자리 &nbsp;·&nbsp; "
+        "<b style='color:#4da6ff'>거래대금</b> 평소(20일 평균)의 몇 배로 돈이 몰렸나 &nbsp;·&nbsp; "
+        "<b style='color:#4da6ff'>고가에서 밀린 정도</b> 0%면 고가에 끝난 것, "
+        "높을수록 위에서 물린 사람이 많다는 뜻</div>",
+        unsafe_allow_html=True,
+    )
     picked = (event.selection or {}).get("rows") or []
     return picked[0] if picked else None
 
@@ -320,24 +331,86 @@ def _render_detail(row: dict) -> None:
     e, m = row["eval"], row["metrics"]
     st.markdown(f"### {row['name']} · {row['theme']}")
 
-    cells = [("전일종가", m.get("prev_close")), ("시가", m.get("day_open")),
-             ("고가", m.get("day_high")), ("저가", m.get("day_low")),
-             ("현재가", m.get("current"))]
+    # ── 당일 가격. 자비스4와 같은 방식으로, 전일 종가 대비 몇 %인지 함께 적는다.
+    #    한국 색 규칙은 +빨강 −파랑이지만 사용자 지시대로 +파랑 −빨강으로 쓴다.
+    prev = m.get("prev_close")
+
+    def _vs(value):
+        if value is None or not prev:
+            return None
+        return (float(value) / float(prev) - 1) * 100
+
+    def _cell(label, value, change):
+        color = "#e6e6e6"
+        sub = ""
+        if change is not None:
+            color = "#4da6ff" if change > 0 else "#ff5b5b" if change < 0 else "#9aa0aa"
+            sub = f"<div style='color:{color};font-size:.95rem;font-weight:800'>{change:+.2f}%</div>"
+        text = f"{value:,.0f}" if value else "—"
+        return (f"<div class='j6-kpi'><div class='j6-kpi-label'>{_esc(label)}</div>"
+                f"<div class='j6-kpi-value' style='color:{color}'>{text}</div>{sub}</div>")
+
     st.markdown(
         "<div class='j6-kpi-grid' style='grid-template-columns:repeat(5,minmax(0,1fr))'>"
-        + "".join(
-            f"<div class='j6-kpi'><div class='j6-kpi-label'>{_esc(a)}</div>"
-            f"<div class='j6-kpi-value'>{f'{b:,.0f}' if b else '—'}</div></div>"
-            for a, b in cells)
+        + _cell("전일종가", prev, None)
+        + _cell("시가", m.get("day_open"), _vs(m.get("day_open")))
+        + _cell("고가", m.get("day_high"), _vs(m.get("day_high")))
+        + _cell("저가", m.get("day_low"), _vs(m.get("day_low")))
+        + _cell("현재가", m.get("current"), m.get("change_pct"))
         + "</div>",
         unsafe_allow_html=True,
     )
+    st.caption("백분율은 전일 종가 대비입니다.")
 
+    # ── 차트를 가격 바로 밑에 둔다(2026-07-26 사용자 지시).
+    intraday = j4.get_last_session_intraday(row["code"])
+    if intraday and intraday.get("ok"):
+        left, _spare = st.columns([3, 1])   # 4:3 비율로 눌러 세로로 길어지지 않게
+        with left:
+            st.markdown(
+                f"<div style='color:#4da6ff;font-weight:800'>당일 분봉 "
+                f"<span class='j6-muted' style='font-size:.85rem'>{_esc(intraday.get('source_time'))}</span></div>",
+                unsafe_allow_html=True,
+            )
+            with st.container(border=True):
+                st.line_chart(intraday["price"], height=260)
+
+    bundle = j4.get_chart_bundle(row["code"])
+    if bundle.get("ok"):
+        charts = bundle["charts"]
+        names = list(charts.keys())
+        for column, name in zip(st.columns(len(names)), names):
+            payload = charts.get(name) or {}
+            frame = payload.get("price")
+            with column:
+                st.markdown(
+                    f"<div style='color:#4da6ff;font-weight:800'>{_esc(name)} "
+                    "<span style='color:#ff5b5b;font-size:.8rem'>20일선</span>"
+                    "<span style='color:#b07cff;font-size:.8rem'> · 50일선</span></div>",
+                    unsafe_allow_html=True,
+                )
+                if payload.get("ok") and frame is not None and len(frame):
+                    plot = frame.copy()
+                    close = plot.iloc[:, 0]
+                    plot["20일선"] = close.rolling(20).mean()
+                    plot["50일선"] = close.rolling(50).mean()
+                    with st.container(border=True):
+                        st.line_chart(
+                            plot, height=210,
+                            color=["#9aa0aa", "#ff5b5b", "#b07cff"],
+                        )
+                else:
+                    st.caption("자료 없음")
+
+    _guide("차트는 뭘 보나요", guide.chart_block)
+
+    # ── 종가 위치. 이 한 줄이 이 화면에서 제일 중요하다.
     _guide("당일 가격과 윗꼬리 읽는 법", guide.day_price)
     if e["location"] is not None:
         st.markdown(
-            f"<div class='j6-guide'>오늘 <b>저가에서 {e['location']*100:.0f}% 지점</b>에 있습니다. "
-            f"윗꼬리 <b>{e['upper_wick']*100:.0f}%</b> — 고가에서 그만큼 밀렸다는 뜻입니다.</div>",
+            f"<div class='j6-note'>오늘 <b>저가에서 {e['location']*100:.0f}% 지점</b>에서 "
+            f"끝났습니다. 윗꼬리 <b>{e['upper_wick']*100:.0f}%</b> — 고가에서 그만큼 "
+            "밀렸다는 뜻이고, 밀린 만큼 <b>위에 물린 사람이 많다</b>는 뜻입니다.</div>",
             unsafe_allow_html=True,
         )
         st.progress(min(1.0, max(0.0, e["location"])))
@@ -359,29 +432,6 @@ def _render_detail(row: dict) -> None:
     for warning in e["warnings"]:
         st.markdown(f"<div class='j6-note'>주의 — {_esc(warning)} "
                     "(막지 않습니다. 사시면 기록만 남습니다.)</div>", unsafe_allow_html=True)
-
-    with st.expander("차트 보기 (당일 · 일봉 · 주봉 · 월봉)", expanded=False):
-        intraday = j4.get_last_session_intraday(row["code"])
-        if intraday and intraday.get("ok"):
-            st.caption(f"당일 분봉 · {intraday.get('source_time')}")
-            st.line_chart(intraday["price"], height=180)
-        # 일봉·주봉·월봉을 한 줄에 나란히 놓는다. 눌러서 바꿔 보면 서로 비교가 안 된다.
-        bundle = j4.get_chart_bundle(row["code"])
-        if bundle.get("ok"):
-            charts = bundle["charts"]
-            names = list(charts.keys())
-            for column, name in zip(st.columns(len(names)), names):
-                payload = charts.get(name) or {}
-                frame = payload.get("price")
-                with column:
-                    st.markdown(
-                        f"<div style='color:#4da6ff;font-weight:800;font-size:.95rem'>{_esc(name)}</div>",
-                        unsafe_allow_html=True,
-                    )
-                    if payload.get("ok") and frame is not None and len(frame):
-                        st.line_chart(frame, height=200)
-                    else:
-                        st.caption("자료 없음")
 
     key = f"j6_{row['code']}"
     reason = st.text_input("왜 오르나 (나중에 써도 됩니다)", key=f"{key}_reason")
@@ -484,9 +534,26 @@ def main() -> None:
         if not rows:
             st.info("오늘 조건에 걸린 종목이 없습니다. 없는 날도 정상입니다.")
             return
-        st.caption(f"{data['checked_at']} 기준 · {len(rows)}개 · "
-                   "표에서 종목 줄을 누르면 아래에 자세히 나옵니다")
-        index = _render_table(rows)
+        good = [r for r in rows if r["eval"]["passed"] >= 5 and not r["eval"]["warnings"]]
+        rest = [r for r in rows if r not in good]
+
+        if good:
+            st.markdown(
+                f"<div class='j6-sub'>조건이 맞는 종목 <b style='color:#44f0a1'>"
+                f"{len(good)}개</b>입니다. 줄을 누르면 아래에 자세히 나옵니다.</div>",
+                unsafe_allow_html=True)
+        else:
+            st.markdown(
+                "<div class='j6-note'>오늘은 조건이 맞는 종목이 없습니다. "
+                "없는 날도 정상입니다 — 살 자리가 없으면 쉬는 것이 이 매매의 원칙입니다.<br>"
+                "<span class='j6-sub'>아래는 <b>오늘 강한 종목</b>일 뿐 "
+                "<b>후보가 아닙니다.</b> 왜 조건에 안 맞는지 보시라고 둡니다.</span></div>",
+                unsafe_allow_html=True)
+
+        shown = good or rest
+        st.caption(f"{data['checked_at']} 기준 · {len(shown)}개")
+        index = _render_table(shown)
+        rows = shown
         _guide("재료·자리·힘이 뭔가요", guide.three_groups)
         st.divider()
         if index is None:
