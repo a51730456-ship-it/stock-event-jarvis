@@ -195,11 +195,30 @@ def _sign_class(value) -> str:
     return "j5-muted"
 
 
+def _day_price_note(latest: dict | None) -> str:
+    """당일 고가·저가가 몇 %나 찍혔는지 (2026-07-26 추가).
+
+    이 값은 지나가면 소급이 안 된다. 클라우드 작업이 초록불로 끝나도 시세
+    조회만 조용히 실패할 수 있어서, 그때 알아채는 유일한 표시다.
+    거래정지 종목은 저장하지 않으므로 100%가 나오지는 않는다.
+    """
+    if not latest:
+        return ""
+    try:
+        coverage = store.day_price_coverage(latest.get("id"))
+    except Exception:
+        return ""
+    ratio = coverage.get("ratio")
+    return "" if ratio is None else f" · 고저 {ratio * 100:.0f}%"
+
+
 def _summary_cards(latest: dict | None) -> str:
     values = [
         ("최근 수집", str(latest.get("captured_at") or "—")[5:16] if latest else "없음"),
         ("테마", f"{int(latest.get('theme_count') or 0):,}개" if latest else "0개"),
-        ("종목행", f"{int(latest.get('stock_row_count') or 0):,}개" if latest else "0개"),
+        ("종목행",
+         f"{int(latest.get('stock_row_count') or 0):,}개{_day_price_note(latest)}"
+         if latest else "0개"),
         ("수집시간", f"{float(latest.get('elapsed_seconds') or 0):.1f}초" if latest else "—"),
     ]
     cards = "".join(

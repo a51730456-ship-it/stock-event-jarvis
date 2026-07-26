@@ -118,6 +118,10 @@ def get_quotes(codes, *, batch_size: int = BATCH_SIZE, max_workers: int = 3,
     unique = []
     seen = set()
     for code in codes or []:
+        # str(None)은 'None'이라는 멀쩡해 보이는 문자열이 된다. 그대로 두면
+        # 종목코드로 요청에 섞여 들어간다(테스트로 잡음, 2026-07-26).
+        if code is None:
+            continue
         text = str(code).strip()
         if text and text not in seen:
             seen.add(text)

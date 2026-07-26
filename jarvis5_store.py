@@ -601,6 +601,41 @@ def same_time_interval_baselines(
     return baselines
 
 
+def day_price_coverage(run_id: int | None = None, *, db_path=None) -> dict:
+    """그 수집에서 당일 고가·저가가 몇 %나 채워졌는지 센다 (2026-07-26 추가).
+
+    이 값은 지나가면 소급할 수 없다. 그래서 '잘 쌓이고 있나'를 화면에서 바로
+    볼 수 있어야 한다. 클라우드 작업이 초록불로 끝나도 시세 조회만 조용히
+    실패할 수 있는데, 그때 알아채는 유일한 방법이 이 숫자다.
+
+    거래정지 종목은 애초에 저장하지 않으므로 100%가 나오지는 않는다.
+    """
+    ensure_schema(db_path)
+    with connection(db_path) as conn:
+        if run_id is None:
+            row = conn.execute(
+                "SELECT id FROM collection_runs WHERE status != 'failed' "
+                "ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return {"total": 0, "filled": 0, "ratio": None}
+            run_id = int(row["id"])
+        counts = conn.execute(
+            "SELECT COUNT(*) AS total, "
+            "SUM(CASE WHEN day_high IS NOT NULL THEN 1 ELSE 0 END) AS filled "
+            "FROM theme_stock_snapshots WHERE run_id = ?",
+            (int(run_id),),
+        ).fetchone()
+
+    total = int(counts["total"] or 0)
+    filled = int(counts["filled"] or 0)
+    return {
+        "total": total,
+        "filled": filled,
+        "ratio": (filled / total) if total else None,
+    }
+
+
 def theme_rows_for_run(run_id: int, *, db_path=None) -> list[dict]:
     ensure_schema(db_path)
     with connection(db_path) as conn:
