@@ -1013,6 +1013,9 @@ def render_market_signal_card(
     # 상세 표는 접어 둔다 — 폰에서 이 표가 첫 화면을 다 먹어 정작 봐야 할 카드가
     # 한참 밑으로 밀렸다(2026-07-25 사용자 지시: "눌러야 내용이 나오도록").
     # 표 위 범례는 펼쳤을 때 같이 보인다.
+    # 한국장 판정에는 장중이었는지가 실려 온다. 미국 카드에는 없으므로 기본은 장중.
+    _market_closed = not getattr(result, "session_open", True)
+
     with st.expander(detail_title, expanded=False):
         st.markdown(_SIGNAL_TABLE_LEGEND_HTML, unsafe_allow_html=True)
         _rows_html = []
@@ -1023,10 +1026,16 @@ def render_market_signal_card(
             status_color = market_signal_common.STATUS_COLOR[signal.status]
             timing_text = market_signal_common.TIMING_LABEL[signal.timing]
             source_text = market_signal_common.source_word(signal)
-            # 글자는 '3분 전'처럼 실제 시간, 색은 등급으로 칠한다.
-            fresh_text = market_signal_common.freshness_text(signal.freshness_seconds)
-            fresh_color = _FRESHNESS_COLOR.get(
-                market_signal_common.freshness_label(signal.freshness_seconds), "#e6e6e6"
+            # 글자는 '3분 전'처럼 실제 시간, 색은 등급으로 칠한다. 장이 끝난 뒤에는
+            # '장 마감값'이라고 적고 초록으로 둔다 — 종가는 늦은 값이 아니다.
+            fresh_text = market_signal_common.freshness_text(
+                signal.freshness_seconds, closed=_market_closed
+            )
+            fresh_color = (
+                "#22c55e" if (_market_closed and signal.freshness_seconds is not None)
+                else _FRESHNESS_COLOR.get(
+                    market_signal_common.freshness_label(signal.freshness_seconds), "#e6e6e6"
+                )
             )
             # 기관계를 쪼갠 하위 항목은 이름 앞에 └를 붙여 눈으로 계층이 보이게 한다.
             name_text = signal.label

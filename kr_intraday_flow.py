@@ -54,6 +54,25 @@ NON_ARBITRAGE_MIN_SPAN_SECONDS = 15 * 60
 # 늦은 신호 기준 시각
 LATE_SIGNAL_HOUR = 13
 
+# 한국 정규장. '자료가 오래됐다'는 판정은 장중에만 뜻이 있다 — 장이 끝난 뒤의
+# 15:30 종가는 늦은 값이 아니라 그날의 최종값이다(2026-07-29: 16시에 화면이
+# '데이터 부족'으로 바뀌어 사용자가 지적했다. 신선도를 자료 시각으로 재게
+# 고치면서 삼성전자·SK하이닉스 종가가 '30분 지남'으로 잡힌 탓이다).
+SESSION_OPEN_HOUR_MINUTE = (9, 0)
+SESSION_CLOSE_HOUR_MINUTE = (15, 30)
+
+
+def is_session_open(moment: datetime | None) -> bool:
+    """그 시각이 한국 정규장 안인가. 휴장일까지는 보지 않는다."""
+    if moment is None:
+        return False
+    if moment.weekday() >= 5:
+        return False
+    minutes = moment.hour * 60 + moment.minute
+    start = SESSION_OPEN_HOUR_MINUTE[0] * 60 + SESSION_OPEN_HOUR_MINUTE[1]
+    end = SESSION_CLOSE_HOUR_MINUTE[0] * 60 + SESSION_CLOSE_HOUR_MINUTE[1]
+    return start <= minutes <= end
+
 
 
 class ReboundVerdict(str, Enum):
@@ -102,6 +121,9 @@ class FlowEngineResult:
     warnings: list[str] = field(default_factory=list)
     data_status: str = ""
     flow_note: str = ""  # 무엇이 앞서고 무엇이 뒤따르는지 — 흐름 판독 한 줄
+    # 이 판정을 만든 시각이 장중이었나. 장이 끝난 뒤에는 '오래된 자료'라는 말이
+    # 성립하지 않으므로 화면과 판정이 둘 다 이 값을 본다.
+    session_open: bool = True
 
     def signal(self, key: str) -> FlowSignal | None:
         return next((s for s in self.signals if s.key == key), None)
@@ -655,8 +677,15 @@ CORE_KEYS = ("foreign_futures", "non_arbitrage", "samsung", "hynix")
 
 
 def decide_verdict(signals: list[FlowSignal], *, extras=None) -> FlowEngineResult:
-    by_key = {s.key: s for s in signals}
+    """판정 하나를 만든다. 장중이었는지는 결과에 실어 화면도 같이 보게 한다."""
     extras = extras or {}
+    result = _decide_verdict(signals, extras=extras)
+    result.session_open = bool(extras.get("session_open", True))
+    return result
+
+
+def _decide_verdict(signals: list[FlowSignal], *, extras) -> FlowEngineResult:
+    by_key = {s.key: s for s in signals}
 
     foreign_futures = by_key.get("foreign_futures")
     non_arb = by_key.get("non_arbitrage")
@@ -674,7 +703,9 @@ def decide_verdict(signals: list[FlowSignal], *, extras=None) -> FlowEngineResul
 
     # --- 데이터 부족 우선 판정 -------------------------------------------------
     core_unknown = sum(1 for s in core if s.is_unknown)
-    stale = [s for s in core if is_stale(s)]
+    # 장이 끝난 뒤에는 오래됨을 따지지 않는다. 종가는 늦은 값이 아니라 최종값이다.
+    session_open = extras.get("session_open", True)
+    stale = [s for s in core if is_stale(s)] if session_open else []
     if not core or core_unknown >= max(1, len(CORE_KEYS) // 2 + 1) or len(stale) >= 2:
         return _build_result(
             ReboundVerdict.INSUFFICIENT_DATA,
@@ -1049,6 +1080,8 @@ def build_result_from_snapshots(
     merged_extras.setdefault(
         "semis_turnover_declining", _semis_turnover_declining(snapshots)
     )
+    # 장이 끝난 뒤에는 '자료가 오래됐다'는 이유로 판정을 접지 않는다.
+    merged_extras.setdefault("session_open", is_session_open(now))
 
     return decide_verdict(signals, extras=merged_extras)
 

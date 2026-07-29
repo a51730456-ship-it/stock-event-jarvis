@@ -178,15 +178,20 @@ class MarketSignalResult:
         return [s for s in self.signals if s.timing is timing]
 
 
-def freshness_text(freshness_seconds: int | None) -> str:
+def freshness_text(freshness_seconds: int | None, *, closed: bool = False) -> str:
     """자료가 몇 분 된 것인지 그대로 적는다.
 
     예전에는 정상·지연·오래됨이라는 등급을 만들어 붙였는데, 등급 이름만 봐서는
     무슨 뜻인지 알 수 없다는 지적을 받았다(2026-07-29). 몇 분 전인지 적으면
     설명이 필요 없다. 색은 그대로 freshness_label 기준으로 칠한다.
+
+    장이 끝난 뒤에는 '30분 전'이 아니라 '장 마감값'이라고 적는다. 15:30 종가를
+    16시에 보고 늦은 값이라고 하면 안 된다 — 그게 그날의 최종값이다.
     """
     if freshness_seconds is None:
         return "모름"
+    if closed:
+        return "장 마감값"
     if freshness_seconds < 60:
         return "방금"
     minutes = int(freshness_seconds // 60)

@@ -414,6 +414,55 @@ class StabilityTest(unittest.TestCase):
         self.assertIsNone(flow._recent_change([]))
 
 
+class AfterCloseTest(unittest.TestCase):
+    """2026-07-29 16:00: 장이 끝나자 화면이 '데이터 부족'으로 바뀌었다.
+
+    신선도를 자료 시각으로 재게 고치면서 15:30 종가가 '30분 지남'으로 잡혔고,
+    핵심 4개 중 삼성전자·SK하이닉스 둘이 오래됨으로 걸려 판정이 접혔다.
+    종가는 늦은 값이 아니라 그날의 최종값이다.
+    """
+
+    def _rebound_rows(self):
+        rows = _rebound_snapshots()
+        # 종가 시각을 실어 준다(온라인에서 네이버 시세로 채워지는 경로).
+        close = BASE.replace(hour=15, minute=30)
+        rows[-1]["samsung_quote_as_of"] = close.isoformat()
+        rows[-1]["hynix_quote_as_of"] = close.isoformat()
+        return rows
+
+    def test_closing_prices_do_not_collapse_the_verdict(self):
+        rows = self._rebound_rows()
+        after_close = BASE.replace(hour=16, minute=0)
+        result = flow.build_result_from_snapshots(rows, now=after_close)
+        self.assertIsNot(result.verdict, ReboundVerdict.INSUFFICIENT_DATA)
+        self.assertFalse(result.session_open)
+
+    def test_during_session_stale_data_still_collapses(self):
+        """장중에 자료가 진짜 멈추면 그때는 접는 것이 맞다."""
+        rows = _rebound_snapshots()
+        stale_stamp = BASE.replace(hour=10, minute=0).isoformat()
+        rows[-1]["samsung_quote_as_of"] = stale_stamp
+        rows[-1]["hynix_quote_as_of"] = stale_stamp
+        result = flow.build_result_from_snapshots(rows, now=BASE.replace(hour=11, minute=0))
+        self.assertTrue(result.session_open)
+        self.assertIs(result.verdict, ReboundVerdict.INSUFFICIENT_DATA)
+
+    def test_session_window(self):
+        self.assertTrue(flow.is_session_open(BASE.replace(hour=9, minute=0)))
+        self.assertTrue(flow.is_session_open(BASE.replace(hour=15, minute=30)))
+        self.assertFalse(flow.is_session_open(BASE.replace(hour=15, minute=31)))
+        self.assertFalse(flow.is_session_open(BASE.replace(hour=8, minute=59)))
+        # 2026-07-25는 토요일이다.
+        self.assertFalse(flow.is_session_open(datetime(2026, 7, 25, 11, 0)))
+
+    def test_closing_value_is_labelled_not_late(self):
+        from market_signal_common import freshness_text
+        self.assertEqual(freshness_text(1800, closed=True), "장 마감값")
+        self.assertEqual(freshness_text(1800, closed=False), "30분 전")
+        # 시각을 모르는 것은 장이 끝나도 여전히 모르는 것이다.
+        self.assertEqual(freshness_text(None, closed=True), "모름")
+
+
 class ExclusionNoteTest(unittest.TestCase):
     """개수에서 뺀 줄은 판정 칸에 ⭕를 찍지 않는다 — 표와 카드가 어긋나 보였다."""
 
