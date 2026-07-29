@@ -62,7 +62,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072917
+MODULE_REVISION = 2026072918
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1690,6 +1690,114 @@ def _analyze_stock(stock: dict, theme_ret20: float | None) -> dict | None:
         "partial": bool(metrics.get("partial")),
         "bars": metrics.get("bars"),
     }
+
+
+def _krx_listing() -> list[tuple[str, str, str]]:
+    """상장 종목 (코드, 이름, 시장) 전체. 하루 한 번만 받아 캐시에 둔다."""
+    def _produce():
+        import FinanceDataReader as fdr
+
+        frame = fdr.StockListing("KRX")
+        out = []
+        for _, row in frame.iterrows():
+            code = str(row.get("Code") or "").strip()
+            name = str(row.get("Name") or "").strip()
+            if len(code) == 6 and name:
+                out.append((code, name, str(row.get("Market") or "").strip()))
+        if not out:
+            raise RuntimeError("상장 종목 목록이 비었습니다")
+        return out
+
+    listing, _stale = _cached("krx_listing", 6 * 3600, _produce)
+    return listing
+
+
+def search_stocks(query: str, *, limit: int = 12) -> dict:
+    """이름 일부나 종목코드로 종목을 찾는다. 오타에도 비슷한 이름을 같이 준다.
+
+    사용자가 들고 있는 종목을 직접 쳐서 상세를 보려는 용도라, 테마 목록에 없는
+    종목도 찾아야 한다(2026-07-29 요청 '내 종목 현재상황').
+    """
+    text = str(query or "").strip()
+    if len(text) < 1:
+        return {"ok": True, "rows": []}
+    try:
+        listing = _krx_listing()
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "rows": []}
+
+    if text.isdigit():
+        rows = [item for item in listing if item[0].startswith(text)]
+        return {"ok": True, "rows": [
+            {"code": c, "name": n, "market": m} for c, n, m in rows[:limit]
+        ]}
+
+    lowered = text.lower().replace(" ", "")
+
+    def _key(name):
+        return name.lower().replace(" ", "")
+
+    starts = [i for i in listing if _key(i[1]).startswith(lowered)]
+    contains = [i for i in listing if lowered in _key(i[1]) and i not in starts]
+    picked = starts + contains
+    if len(picked) < limit:
+        # 오타까지 받아 준다 — '비슷하게라도 치면' 나와야 한다.
+        import difflib
+
+        already = {i[0] for i in picked}
+        similar = difflib.get_close_matches(
+            lowered, [_key(i[1]) for i in listing], n=limit, cutoff=0.6
+        )
+        for target in similar:
+            for item in listing:
+                if _key(item[1]) == target and item[0] not in already:
+                    picked.append(item)
+                    already.add(item[0])
+    return {"ok": True, "rows": [
+        {"code": c, "name": n, "market": m} for c, n, m in picked[:limit]
+    ]}
+
+
+def analyze_one_stock(code: str, name: str, *, market_score: float = 0,
+                      theme_score: float = 0) -> dict:
+    """종목 하나만 대장주와 똑같은 방식으로 심사한다.
+
+    테마 안에서 재는 상대강도(theme_ret20)는 비교할 테마가 없으므로 뺀다 —
+    그 항목은 0점이 되고, 그래서 점수를 테마 대장주 점수와 나란히 견주면 안 된다.
+    """
+    code = str(code or "").strip()
+    if len(code) != 6:
+        return {"ok": False, "error": "종목코드가 6자리가 아닙니다"}
+    daily = get_daily_frame(code)
+    metrics = _series_metrics(daily, None)
+    if not metrics.get("ok"):
+        return {"ok": False, "error": f"{name or code} 시세를 가져오지 못했습니다"}
+    flow = get_stock_flow(code)
+    score, parts = _stock_score(metrics, flow, None)
+    row = {
+        "code": code,
+        "name": name or code,
+        "metrics": metrics,
+        "flow": flow,
+        "score": score,
+        "score_parts": parts,
+        "plan": _entry_plan(metrics, score, market_score, theme_score),
+        "daily": daily,
+        "rank": 0,
+        "partial": bool(metrics.get("partial")),
+        "bars": metrics.get("bars"),
+        "from_search": True,
+    }
+    from_high = metrics.get("from_high_pct")
+    flow_text = (
+        f" · 외국인+기관 5일 {flow['net5_amount'] / 1e8:+,.0f}억"
+        if flow.get("ok") else " · 수급 확인 필요"
+    )
+    row["stock_reason"] = (
+        f"직접 찾은 종목 · 52주 고가 대비 {from_high:.1f}%{flow_text}"
+        if from_high is not None else f"직접 찾은 종목{flow_text}"
+    )
+    return {"ok": True, "row": row}
 
 
 def _leaders_failure(stocks: list) -> dict:

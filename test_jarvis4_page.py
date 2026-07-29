@@ -549,8 +549,13 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in reversed(started):
                 item.stop()
 
-    def test_pullback_click_adds_theme_and_selects_stock(self):
-        """눌림목 종목을 누르면 그 테마가 목록에 추가되고 상세가 그 종목으로 바뀐다."""
+    def test_pullback_click_opens_its_own_detail_only(self):
+        """눌림목 종목을 누르면 **아래 눌림목 상세만** 그 종목으로 열린다.
+
+        2026-07-29 지시로 상세를 위(테마 종목)·아래(눌림목)로 갈랐다. 예전에는
+        눌림목을 누르면 테마 선택까지 옮겨 가 위쪽 상세가 통째로 바뀌었다 —
+        두 종목을 나란히 볼 수 없었다.
+        """
         started = []
         try:
             for item in _patches():
@@ -571,27 +576,75 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in reversed(started):
                 item.stop()
         state = app.session_state.filtered_state
-        self.assertIn("반도체/HBM", state.get("j4_forced_themes") or [])
         self.assertEqual(len(app.exception), 0)
-        # 하나금융지주(086790)는 이 테마의 거래대금 상위 3위 대장주가 아니다.
-        # 그래도 '상세 종목 선택'에 더해져 아래 상세가 그 종목으로 바뀌어야 한다
-        # (2026-07-24 사용자 지적: 1순위를 눌러도 밑이 안 바뀐다).
-        self.assertEqual(state.get("j4_stock_choice_반도체/HBM"), "086790")
+        # 고른 종목은 눌림목 상세용 자리에만 남는다.
+        self.assertEqual((state.get("j4_pullback_pick") or ("", ""))[1], "086790")
         detail_markdowns = [
             str(node.value) for node in app.markdown
             if "<div class='j4-stock-name'>" in str(node.value)
         ]
         self.assertTrue(detail_markdowns, "종목 상세가 렌더되지 않았다")
+        # 아래 눌림목 상세에는 고른 종목이 떠야 한다.
         self.assertTrue(
-            all("하나금융지주" in value for value in detail_markdowns),
-            f"상세가 클릭한 종목으로 바뀌지 않았다: {detail_markdowns}",
+            any("하나금융지주" in value for value in detail_markdowns),
+            f"눌림목 상세가 안 열렸다: {detail_markdowns}",
         )
-        radio_labels = [
-            str(option)
-            for node in app.radio if str(node.label) == "상세 종목 선택"
-            for option in node.options
-        ]
-        self.assertTrue(any("086790" in label for label in radio_labels), radio_labels)
+        # 위쪽 테마 종목 상세는 그대로 남아야 한다 — 둘을 나란히 보는 것이 목적이다.
+        self.assertGreaterEqual(len(detail_markdowns), 2, detail_markdowns)
+        self.assertTrue(
+            any("하나금융지주" not in value for value in detail_markdowns),
+            f"위쪽 테마 상세까지 눌림목 종목으로 바뀌었다: {detail_markdowns}",
+        )
+        # 테마 선택은 건드리지 않는다.
+        self.assertNotIn("반도체/HBM", state.get("j4_forced_themes") or [])
+
+    def test_my_stock_panel_searches_and_opens_detail(self):
+        """맨 아래 '내 종목 현재상황'에서 이름을 치면 종목이 뜨고 상세가 열린다."""
+        started = []
+        search = patch("jarvis4_data.search_stocks", return_value={
+            "ok": True,
+            "rows": [{"code": "086790", "name": "하나금융지주", "market": "KOSPI"}],
+        })
+        analyze = patch("jarvis4_data.analyze_one_stock", return_value={
+            "ok": True,
+            "row": {
+                "code": "086790", "name": "하나금융지주", "rank": 0,
+                "score": 61.2, "score_parts": [0, 12, 18, 15, 8, 8],
+                "metrics": _index_metrics(60_000, 0.5), "flow": _flow(),
+                "plan": {"state": "눌림목 대기", "recommendation": "조건부 후보"},
+                "daily": None, "partial": False, "bars": 240,
+                "stock_reason": "직접 찾은 종목",
+            },
+        })
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            for extra in (search, analyze):
+                extra.start()
+                started.append(extra)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            box = next(
+                node for node in app.text_input if str(node.key or "") == "j4_my_stock_query"
+            )
+            box.set_value("하나금융").run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+        self.assertEqual(len(app.exception), 0)
+        headings = [str(node.value) for node in app.markdown]
+        self.assertTrue(
+            any("내 종목 현재상황" in value for value in headings),
+            "‘내 종목 현재상황’ 제목이 없다",
+        )
+        details = [v for v in headings if "<div class='j4-stock-name'>" in v]
+        self.assertTrue(
+            any("하나금융지주" in value for value in details),
+            f"찾은 종목 상세가 안 열렸다: {details}",
+        )
 
     def test_pullback_table_shows_today_price_column(self):
         """눌림목 표는 신고가와 고점 대비 사이에 당일주가를 보여준다(2026-07-24)."""

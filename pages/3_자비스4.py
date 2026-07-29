@@ -363,11 +363,13 @@ _REQUIRED_J4_FUNCTIONS = (
     "get_us_futures_live", "get_fx_intraday", "get_intraday_chart", "find_pullback_stocks",
     "get_index_sparkline", "get_index_intraday",
     "get_chart_bundle", "get_live_quote", "round_to_tick",
+    # 2026-07-29 '내 종목 현재상황'에서 쓴다.
+    "search_stocks", "analyze_one_stock",
 )
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072917
+_REQUIRED_J4_REVISION = 2026072918
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -1462,9 +1464,16 @@ def _render_day_price_row(metrics: dict) -> None:
     st.markdown(f"<div class='j4-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
 
-def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str) -> None:
+def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
+                         stock_key: str, *, panel: str = "theme") -> None:
+    """종목 상세 한 벌. 같은 화면을 위(테마 종목)·아래(눌림목 종목) 두 곳에 그린다.
+
+    panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다 — 같은 종목을 위아래
+    둘 다 고르면 매수 기록 입력칸 키가 겹쳐 화면이 죽는다(2026-07-29 분리 요청).
+    """
     code = leader["code"]
-    st.session_state["j4_selected_code"] = code
+    if panel == "theme":
+        st.session_state["j4_selected_code"] = code
     metrics, plan, flow = leader["metrics"], leader["plan"], leader["flow"]
 
     st.divider()
@@ -1652,7 +1661,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
             unsafe_allow_html=True,
         )
 
-    _render_buy_form(theme_row, leader, market, top_candidates, stock_key)
+    _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
 
 
 # ---------------------------------------------------------------------------
@@ -1825,7 +1834,8 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
             st.success(f"{saved_count}건 청산을 저장했습니다. 위 오류 항목은 저장되지 않았습니다.")
 
 
-def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str) -> None:
+def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
+                     stock_key: str, *, panel: str = "theme") -> None:
     code = leader["code"]
     metrics, plan, flow = leader["metrics"], leader["plan"], leader["flow"]
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
@@ -1834,6 +1844,8 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates
     code_options = [item["code"] for item in top_candidates]
     by_code = {item["code"]: item for item in top_candidates}
     mirror_key = f"{stock_key}_form"
+    # 위·아래 상세가 같은 종목을 열어도 입력칸 키가 겹치지 않게 한다.
+    wid = f"{panel}_{code}"
 
     def _apply_form_stock_change():
         st.session_state[stock_key] = st.session_state[mirror_key]
@@ -1869,7 +1881,8 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates
                 st.error(f"기록 조회 실패: {_safe_error_text(exc)}")
                 records = []
             if records:
-                _render_records_editor(records, key_prefix="form")
+                # 상세가 여러 벌 그려지므로 표 키도 패널별로 갈라야 한다.
+                _render_records_editor(records, key_prefix=f"form_{panel}")
             else:
                 st.caption("아직 저장된 매수 기록이 없습니다.")
     st.caption("실제로 매수한 경우에만 저장합니다. 저장 시 당시 시장·테마·종목·수급 조건도 함께 보존됩니다.")
@@ -1886,19 +1899,19 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates
             f"<span class='{_sign_class(metrics.get('change_pct'))}'>{_pct(metrics.get('change_pct'))}</span></div>",
             unsafe_allow_html=True,
         )
-        with st.form(f"j4_buy_form_{code}", clear_on_submit=False, border=False):
+        with st.form(f"j4_buy_form_{wid}", clear_on_submit=False, border=False):
             c1, c2, c3, c4 = st.columns(4)
-            buy_date = c1.date_input("매수일", value=date.today(), key=f"j4_buy_date_{code}")
+            buy_date = c1.date_input("매수일", value=date.today(), key=f"j4_buy_date_{wid}")
             default_price = float(metrics.get("current") or 1)
             # 원화는 소수점이 없지만 min_value·step과 자료형이 어긋나면 위젯이 예외를 낸다.
             buy_price = c2.number_input(
                 "실제 매수가(원)", min_value=1.0, value=float(round(default_price)), step=10.0,
-                key=f"j4_buy_price_{code}", format="%.0f",
+                key=f"j4_buy_price_{wid}", format="%.0f",
             )
-            quantity = c3.number_input("수량(선택)", min_value=0.0, value=0.0, step=1.0, key=f"j4_buy_qty_{code}")
-            trade_style = c4.selectbox("매매유형", ["단타", "스윙", "중장기"], index=1, key=f"j4_trade_style_{code}")
-            memo = st.text_area("매수 이유·메모", key=f"j4_buy_memo_{code}", height=80)
-            confirmed = st.checkbox("실제 체결된 매수임을 확인합니다", key=f"j4_buy_confirm_{code}")
+            quantity = c3.number_input("수량(선택)", min_value=0.0, value=0.0, step=1.0, key=f"j4_buy_qty_{wid}")
+            trade_style = c4.selectbox("매매유형", ["단타", "스윙", "중장기"], index=1, key=f"j4_trade_style_{wid}")
+            memo = st.text_area("매수 이유·메모", key=f"j4_buy_memo_{wid}", height=80)
+            confirmed = st.checkbox("실제 체결된 매수임을 확인합니다", key=f"j4_buy_confirm_{wid}")
             submitted = st.form_submit_button("매수 기록 저장", width="stretch")
 
         if submitted:
@@ -2009,28 +2022,9 @@ def _render_radar_tab(market: dict) -> None:
 
     names = [row["name"] for row in ranking["rows"]]
 
-    # 눌림목 표에서 고른 종목을 위젯 생성 전에 반영한다.
-    pending = st.session_state.pop("j4_pending_pick", None)
-    if pending:
-        pending_theme, pending_code = pending
-        if pending_theme not in names:
-            # 첫 테마가 심사에서 빠졌으면 그 종목의 다른 테마로 넘어간다 —
-            # 어느 테마로든 목록에 잡혀야 아래 상세가 그 종목으로 바뀐다.
-            picked_row = st.session_state.get("j4_pullback_pick_row") or {}
-            pending_theme = next(
-                (name for name in (picked_row.get("themes") or []) if name in names),
-                pending_theme,
-            )
-        if pending_theme in names:
-            st.session_state["j4_theme_choice"] = pending_theme
-            st.session_state["j4_theme_choice_widget"] = pending_theme
-            st.session_state[f"j4_stock_choice_{pending_theme}"] = pending_code
-            st.session_state["j4_pullback_pick"] = (pending_theme, pending_code)
-        else:
-            st.warning(
-                f"‘{pending_code}’의 테마가 오늘 테마 목록에 없어 상세를 열지 못했습니다. "
-                "‘테마 직접 찾기’에서 그 테마를 목록에 추가한 뒤 다시 눌러 주세요."
-            )
+    # 눌림목 클릭이 테마 선택을 옮기던 장치는 없앴다(2026-07-29). 이제 눌림목 종목은
+    # 자기 자리(아래 눌림목 상세)에서만 열리므로 위쪽 테마를 건드릴 이유가 없다.
+    st.session_state.pop("j4_pending_pick", None)
 
     clicked_theme = _render_theme_table(ranking, st.session_state.get("j4_theme_choice"))
     if clicked_theme in names:
@@ -2114,17 +2108,10 @@ def _render_radar_tab(market: dict) -> None:
 
     _render_leader_comparison(leaders)
 
+    # 위 상세는 **테마 종목만** 쓴다. 눌림목에서 고른 종목은 아래 제 자리에 따로
+    # 그린다 — 예전에는 여기에 끼워 넣어 눌림목을 누르면 위 상세까지 통째로
+    # 바뀌었다(2026-07-29 사용자 지시: 위·아래를 따로 보게 해 달라).
     top_candidates = leaders[:3]
-    # 눌림목 표에서 고른 종목이 이 테마의 거래대금 상위 3위 밖이면 후보에서 지워져
-    # 아래 상세가 안 바뀌었다(2026-07-24 사용자 지적). 고른 종목은 후보에 강제로 넣는다.
-    picked = st.session_state.get("j4_pullback_pick")
-    if picked and picked[0] == selected_theme:
-        if picked[1] not in [item["code"] for item in top_candidates]:
-            extra = _pullback_as_candidate(
-                st.session_state.get("j4_pullback_pick_row"), leaders
-            )
-            if extra is not None and extra["code"] == picked[1]:
-                top_candidates = top_candidates + [extra]
     code_options = [leader["code"] for leader in top_candidates]
     if stock_key in st.session_state and st.session_state[stock_key] not in code_options:
         del st.session_state[stock_key]
@@ -2138,11 +2125,98 @@ def _render_radar_tab(market: dict) -> None:
     )
     selected_leader = next((item for item in top_candidates if item["code"] == selected_code), top_candidates[0])
 
+    # ① 테마 종목 상세 — 눌림목 위에 둔다.
+    _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key,
+                         panel="theme")
+
     # 여러 테마를 가로질러 '지금 실제로 살 자리'만 모아 보여준다(2026-07-22 사용자 요청).
-    # 여기서 종목을 누르면 테마 선택까지 함께 바뀌어 아래 상세가 전부 그 종목으로 교체된다.
     _render_pullback_finder()
 
-    _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
+    # ② 눌림목에서 고른 종목 상세 — 위 ①과 서로 영향을 주지 않는다.
+    _render_pullback_detail(market)
+
+    # ③ 내가 들고 있는 종목 상세 — 이름을 쳐서 직접 찾는다.
+    _render_my_stock_panel(market)
+
+
+def _render_pullback_detail(market: dict) -> None:
+    """눌림목 표에서 고른 종목의 상세. 위쪽 테마 종목 상세와 완전히 별개다."""
+    picked_row = st.session_state.get("j4_pullback_pick_row")
+    picked = st.session_state.get("j4_pullback_pick")
+    if not picked_row or not picked:
+        st.caption("위 눌림목 표에서 종목 이름을 누르면 여기에 그 종목 상세가 열립니다.")
+        return
+    leader = _pullback_as_candidate(picked_row, [])
+    if leader is None:
+        return
+    theme_name = (picked_row.get("themes") or [picked[0]])[0]
+    st.markdown(
+        f"<div class='j4-section-title'>눌림목에서 고른 종목 · {leader['name']}</div>",
+        unsafe_allow_html=True,
+    )
+    _render_stock_detail(
+        {"name": theme_name}, leader, market, [leader],
+        "j4_pullback_detail_choice", panel="pullback",
+    )
+
+
+def _render_my_stock_panel(market: dict) -> None:
+    """내 종목 현재상황 — 이름을 치면 비슷한 종목이 뜨고, 고르면 상세가 열린다."""
+    st.divider()
+    st.markdown("<div class='j4-section-title'>내 종목 현재상황</div>", unsafe_allow_html=True)
+    st.caption(
+        "들고 있는 종목 이름이나 종목코드를 치면 비슷한 이름까지 찾아 줍니다. "
+        "테마 목록에 없는 종목도 됩니다."
+    )
+    query = st.text_input(
+        "종목 이름 또는 코드", key="j4_my_stock_query", placeholder="예: 삼성전자, 하이닉스, 005930"
+    )
+    if not str(query or "").strip():
+        return
+
+    found = j4data.search_stocks(query)
+    if not found.get("ok"):
+        st.error(f"종목 목록 조회 실패: {_safe_error_text(found.get('error'))}")
+        return
+    rows = found.get("rows") or []
+    if not rows:
+        st.warning(f"‘{query}’와 비슷한 종목을 못 찾았습니다. 이름 일부만 쳐 보세요.")
+        return
+
+    options = [row["code"] for row in rows]
+    by_code = {row["code"]: row for row in rows}
+    chosen = st.radio(
+        "찾은 종목",
+        options,
+        format_func=lambda code: (
+            f"{by_code[code]['name']} ({code})"
+            + (f" · {by_code[code]['market']}" if by_code[code].get("market") else "")
+        ),
+        horizontal=True,
+        key="j4_my_stock_pick",
+    )
+    with st.spinner(f"{by_code[chosen]['name']} 심사 중입니다…"):
+        result = j4data.analyze_one_stock(
+            chosen, by_code[chosen]["name"],
+            market_score=float(market.get("score") or 0),
+        )
+    if not result.get("ok"):
+        st.error(_safe_error_text(result.get("error")))
+        return
+    leader = result["row"]
+    if leader.get("partial"):
+        st.info(
+            f"📌 상장한 지 얼마 안 돼({leader.get('bars')}거래일) 일부 칸이 비어 있습니다. "
+            f"20일 수익률·20일선·52주 고가 대비는 {j4data.MIN_HISTORY_BARS}거래일이 쌓여야 나옵니다."
+        )
+    st.caption(
+        "이 점수에는 **테마 대비 상대강도 20점이 빠져 있습니다** — 견줄 테마가 없기 때문입니다. "
+        "위 테마 대장주 점수와 나란히 비교하지 마세요."
+    )
+    _render_stock_detail(
+        {"name": "내 종목"}, leader, market, [leader],
+        "j4_my_stock_detail_choice", panel="mystock",
+    )
 
 
 def _render_theme_finder(forced: list[str]) -> None:
@@ -2220,15 +2294,15 @@ def _render_pullback_finder() -> None:
         st.session_state["j4_pullback_result"] = found
         # 조회하자마자 1순위 종목 상세가 아래에 펼쳐지게 한다 — 누르지 않아도 된다
         # (2026-07-24 사용자 지시). 위젯이 만들어지기 전에 반영해야 하므로 rerun한다.
+        # 1순위 종목을 아래 눌림목 상세에 바로 펼친다. 테마 목록과 테마 선택은
+        # 더 이상 건드리지 않는다 — 눌림목 상세가 제 자리를 갖게 됐기 때문이다
+        # (2026-07-29: 위 테마 상세와 아래 눌림목 상세를 따로 본다).
         top_row = (found.get("rows") or [None])[0] if found.get("ok") else None
-        top_themes = (top_row or {}).get("themes") or []
-        if top_row and top_themes:
-            forced = list(st.session_state.get("j4_forced_themes") or [])
-            if top_themes[0] not in forced:
-                forced.append(top_themes[0])
-            st.session_state["j4_forced_themes"] = forced
-            st.session_state["j4_pending_pick"] = (top_themes[0], top_row["code"])
-            st.session_state["j4_pullback_pick"] = (top_themes[0], top_row["code"])
+        if top_row:
+            top_themes = top_row.get("themes") or []
+            st.session_state["j4_pullback_pick"] = (
+                (top_themes[0] if top_themes else ""), top_row["code"]
+            )
             st.session_state["j4_pullback_pick_row"] = top_row
             st.rerun()
 
@@ -2299,18 +2373,15 @@ def _render_pullback_finder() -> None:
         quality, flow = row["pullback"], row.get("flow") or {}
         cols = table_box.columns(widths)
         cols[0].markdown(f"<div class='j4-td'>{row['pullback_rank']}</div>", unsafe_allow_html=True)
-        # 종목을 누르면 그 종목이 속한 테마를 목록에 넣고(순위 밖일 수 있으므로) 선택까지 옮긴다.
+        # 종목을 누르면 **바로 아래** 눌림목 상세만 그 종목으로 바뀐다.
+        # 위쪽 테마 선택과 테마 종목 상세는 건드리지 않는다(2026-07-29 지시:
+        # 위·아래가 서로 영향을 주지 않게 따로 볼 것).
         if cols[1].button(row["name"], key=f"j4pbf_{index:02d}", width="stretch"):
             themes = row.get("themes") or []
-            if themes:
-                forced = list(st.session_state.get("j4_forced_themes") or [])
-                if themes[0] not in forced:
-                    forced.append(themes[0])
-                st.session_state["j4_forced_themes"] = forced
-                st.session_state["j4_pending_pick"] = (themes[0], row["code"])
-                # 상위 3위 밖 종목도 상세로 열 수 있게 고른 종목을 그대로 남겨 둔다.
-                st.session_state["j4_pullback_pick"] = (themes[0], row["code"])
-                st.session_state["j4_pullback_pick_row"] = row
+            st.session_state["j4_pullback_pick"] = (
+                (themes[0] if themes else ""), row["code"]
+            )
+            st.session_state["j4_pullback_pick_row"] = row
             st.rerun()
         score = float(quality["score"])
         cols[2].markdown(
@@ -2385,8 +2456,8 @@ def _render_pullback_finder() -> None:
         "신고가 날짜까지 함께 잘라 당시 상대강도·신고가 위치·추세·유동성·변동성을 다시 계산합니다. "
         "과거 외국인·기관 수급은 복원할 수 없어 현재 수급을 섞지 않고, 가격·기술 80점을 "
         "100점으로 환산합니다. ‘지금 종합점수’에만 현재 외국인·기관 수급이 포함됩니다. "
-        "종목 이름을 누르면 그 종목의 테마가 위 목록에 추가되고, 거래대금 상위 3위 밖 종목이어도 "
-        "‘상세 종목 선택’에 그 종목이 더해지면서 아래 상세가 바로 그 종목으로 바뀝니다."
+        "종목 이름을 누르면 **바로 아래**에 그 종목 상세가 열립니다 — 위쪽 테마 종목 상세는 "
+        "그대로 남아 둘을 나란히 볼 수 있습니다."
     )
 
 
