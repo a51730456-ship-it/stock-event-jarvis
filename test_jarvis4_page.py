@@ -366,50 +366,43 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("-18,786억", top_row)
         # 종목별 금액은 부호대로 칠한다. 회색 한 줄에 몰아 두면 어느 쪽이
         # 파는 쪽인지 안 보인다(2026-07-29 지시).
-        # 종목별 줄은 5일 합계가 아니라 **하루치**이고, 며칠 것인지 날짜를
-        # 같이 적는다. 날짜 없이 '(당일)'이라고만 쓰면 오늘 것으로 읽혀
-        # 거짓말이 된다 — 종목별 당일 수급은 장중에 공개되지 않는다.
-        self.assertIn("삼성전자(07.28) <span style='color:#ff5b5b", top_row)
+        self.assertIn("삼성전자 <span style='color:#ff5b5b", top_row)
         self.assertIn("-3,100억", top_row)
-        self.assertIn("SK하이닉스(07.28) <span style='color:#ff5b5b", top_row)
+        self.assertIn("SK하이닉스 <span style='color:#ff5b5b", top_row)
         self.assertIn("-4,250억", top_row)
-        # 설명 두 줄은 뺐다(2026-07-29 지시). '하루치'만 앞에 붙이고, 며칠
-        # 것인지는 종목 옆 날짜로 읽는다.
-        self.assertIn("하루치 · 삼성전자(07.28)", top_row)
+        # 완료 거래일 한 줄, 당일 한 줄로 나눈다(2026-07-29 지정 형식).
+        # 날짜는 줄 앞에 한 번만 적는다 — 종목마다 붙이면 같은 날짜가 두 번 나온다.
+        self.assertIn("(07.28) : 삼성전자", top_row)
+        self.assertIn("(당일) : 아직 안 올라왔습니다", top_row)
         self.assertNotIn("위 줄은 종목별 하루치입니다", top_row)
         self.assertNotIn("종목별 당일 수급은 장 마감 뒤 공개됩니다", top_row)
-        # 오늘 것이 아직 없으면 언제 볼 수 있는지는 알려 준다(2026-07-29 지시).
-        self.assertIn("오늘 것은 장 마감 뒤 올라옵니다", top_row)
         self.assertIn("현재가 1분 자동조회", top_row)
         # '5일 확정 수급수량 × 현재가'는 뺐다(2026-07-29 지시).
         self.assertNotIn("5일 확정 수급수량", top_row)
         self.assertNotIn("KOSPI 당일 외국인+기관 수급", top_row)
 
-    def test_today_flow_is_labelled_today(self):
-        """네이버가 오늘 종목별 수급을 올리면 날짜 대신 '(오늘)'로 뜬다.
+    def test_today_line_fills_in_when_published(self):
+        """당일 수급이 올라오면 '(당일)' 줄이 숫자로 채워진다.
 
-        종목별 당일 수급은 장이 끝난 뒤 저녁에 공개된다. 그전에는 07.28처럼
-        날짜가 그대로 보이고, 올라오면 저절로 오늘 것으로 바뀐다(2026-07-29 지시).
+        완료 거래일 줄은 그대로 07.28을 지켜야 한다 — 두 줄이 같은 값이 되면
+        어제와 오늘을 구별할 수 없다(2026-07-29 지정 형식).
         """
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-
-        today = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y.%m.%d")
         market = _market()
-        for stock in market["foreign"]["stocks"]:
-            stock["day_date"] = today
-            stock["flow"]["latest_date"] = today
+        for stock, amount in zip(market["foreign"]["stocks"], (-1_200 * 1e8, -2_400 * 1e8)):
+            stock["today_net_amount"] = amount
+            stock["today_date"] = "2026.07.29"
         app = _run_page(market)
         self.assertEqual(len(app.exception), 0)
         top_row = next(
             str(node.value) for node in app.markdown
             if "<div class='j4-top-row'>" in str(node.value)
         )
-        self.assertIn("삼성전자(오늘)", top_row)
-        self.assertIn("SK하이닉스(오늘)", top_row)
-        self.assertNotIn(f"삼성전자({today[5:]})", top_row)
-        # 이미 오늘 것이 떠 있으면 기다리라는 안내는 사라져야 한다.
-        self.assertNotIn("오늘 것은 장 마감 뒤 올라옵니다", top_row)
+        self.assertIn("(07.28) : 삼성전자", top_row)
+        self.assertIn("(당일) : 삼성전자", top_row)
+        self.assertIn("-1,200억", top_row)
+        self.assertIn("-2,400억", top_row)
+        # 채워졌으면 기다리라는 안내는 사라져야 한다.
+        self.assertNotIn("아직 안 올라왔습니다", top_row)
 
     def test_representative_flow_names_only_successful_stock(self):
         """한 종목 조회만 성공하면 두 종목 합계인 것처럼 표시하지 않는다."""

@@ -367,7 +367,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072916
+_REQUIRED_J4_REVISION = 2026072917
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -564,36 +564,40 @@ def _representative_flow_sub(foreign: dict) -> str:
         # 설명 두 줄은 뺐다(2026-07-29 지시). 대신 날짜 자리에 오늘 것이면 '오늘'을
         # 적어, 굳이 읽지 않아도 오늘 것인지 아닌지 한눈에 보이게 한다. 네이버가
         # 종목별 당일 수급을 올리면 rows[0]이 오늘 줄로 바뀌어 저절로 '오늘'이 된다.
-        today_text = _now_seoul().strftime("%Y.%m.%d")
-        stock_parts = []
-        waiting_for_today = False
-        for stock in stocks:
-            amount = stock.get("day_net_amount")
-            if amount is None:
-                continue
-            day = str(stock.get("day_date") or "").strip()
-            if day == today_text:
-                when = "(오늘)"
-            elif len(day) >= 10:
-                when = f"({day[5:]})"
-                waiting_for_today = True
-            else:
-                when = ""
-                waiting_for_today = True
-            stock_parts.append(
-                f"{stock.get('label') or stock.get('code')}{when} "
-                f"<span style='color:{_sign_color(amount)};font-weight:800'>"
-                f"{_eok(amount)}</span>"
+        # 완료 거래일 한 줄, 당일 한 줄. 당일이 아직 안 올라왔으면 그렇다고 적는다
+        # (2026-07-29 사용자 지정 형식).
+        def _stock_line(amount_key):
+            parts = []
+            for stock in stocks:
+                amount = stock.get(amount_key)
+                if amount is None:
+                    continue
+                parts.append(
+                    f"{stock.get('label') or stock.get('code')} "
+                    f"<span style='color:{_sign_color(amount)};font-weight:800'>"
+                    f"{_eok(amount)}</span>"
+                )
+            return " · ".join(parts)
+
+        day_dates = {str(s.get("day_date") or "").strip() for s in stocks if s.get("day_date")}
+        day_label = f"({next(iter(day_dates))[5:]})" if len(day_dates) == 1 else "(직전 거래일)"
+        day_line = _stock_line("day_net_amount")
+
+        today_line = _stock_line("today_net_amount")
+        if today_line:
+            today_html = f"(당일) : {today_line}"
+        else:
+            # 종목별 당일 수급은 KRX 확정 집계가 나온 뒤에야 공개된다. 장중은 물론
+            # 마감 직후에도 없다 — 언제 볼 수 있는지만 밝히고 값을 지어내지 않는다.
+            today_html = (
+                "<span class='j4-muted'>(당일) : 아직 안 올라왔습니다 · "
+                "장 마감 뒤 집계되면 자동으로 채워집니다</span>"
             )
         stale = " · 이전 정상 현재가" if foreign.get("live_stale") else ""
-        # 오늘 것이 아직 안 올라왔을 때만 언제 볼 수 있는지 알려 준다(2026-07-29 지시).
-        # 오늘 것이 이미 떠 있으면 이 줄은 안 나온다 — 늘 붙어 있으면 잔소리가 된다.
-        pending = (
-            "<br><span class='j4-muted'>오늘 것은 장 마감 뒤 올라옵니다</span>"
-            if waiting_for_today else ""
-        )
         return (
-            f"{target}<br>하루치 · {' · '.join(stock_parts)}{pending}"
+            f"{target}"
+            f"<br>{day_label} : {day_line}"
+            f"<br>{today_html}"
             f"<br>외국인+기관 {direction}"
             f"<br><span class='j4-muted'>현재가 1분 자동조회{stale} · {as_of}</span>"
         )

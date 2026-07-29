@@ -62,7 +62,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072916
+MODULE_REVISION = 2026072917
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1072,24 +1072,36 @@ def _market_foreign_flow() -> dict:
             # "그래서 어제는 팔았나 샀나"를 알 수 없다(2026-07-29 사용자 요청).
             # 오늘치는 장중에 공개되지 않으므로 **그 행의 날짜를 같이** 돌려주고
             # 화면이 며칠 것인지 밝힌다.
+            # 완료 거래일과 당일을 **따로** 돌려준다(2026-07-29 사용자 요청 형식).
+            # 당일 줄은 네이버가 종목별 수급을 올리기 전까지 비어 있다.
             day_rows = flow.get("rows") or []
-            day_amount = None
-            day_date = None
-            if day_rows:
-                latest = day_rows[0]
-                day_date = str(latest.get("date") or "").strip() or None
-                day_shares = (latest.get("foreign_net") or 0) + (latest.get("institution_net") or 0)
-                base = current_price if current_price is not None else _finite(latest.get("close"))
-                if base is not None:
-                    day_amount = day_shares * base
+            today_text = datetime.now(_SEOUL).strftime("%Y.%m.%d")
+
+            def _amount_of(row):
+                if not row:
+                    return None
+                shares = (row.get("foreign_net") or 0) + (row.get("institution_net") or 0)
+                base = current_price if current_price is not None else _finite(row.get("close"))
+                return shares * base if base is not None else None
+
+            today_row = next(
+                (r for r in day_rows if str(r.get("date") or "").strip() == today_text), None
+            )
+            prev_row = next(
+                (r for r in day_rows if str(r.get("date") or "").strip() != today_text), None
+            )
             stocks.append({
                 "code": code,
                 "label": label,
                 "flow": flow,
                 "quote": quote,
                 "live_net5_amount": live_amount,
-                "day_net_amount": day_amount,
-                "day_date": day_date,
+                # 가장 최근 '완료' 거래일 — 오늘 것이 올라와도 이 줄은 어제 것을 지킨다.
+                "day_net_amount": _amount_of(prev_row),
+                "day_date": str((prev_row or {}).get("date") or "").strip() or None,
+                # 당일. 아직 공개 전이면 None이고 화면이 그렇게 밝힌다.
+                "today_net_amount": _amount_of(today_row),
+                "today_date": today_text if today_row else None,
             })
     if not ok_any:
         return {"ok": False}
