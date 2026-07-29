@@ -594,18 +594,28 @@ _SIGNAL_GAUGE_CSS = """
 @media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 160px; height: 107px; } }
 """
 
+# 이 칸은 값이 올랐나 내렸나가 아니라 '반등 신호가 켜졌나'를 답한다.
+# 예전 글자 '중립(보합)'은 -12.86%인 삼성전자와 +2조 순매수인 기관계에 똑같이
+# 붙었다. 보합은 "거의 안 움직였다"는 뜻이라 둘 다 틀린 말이었다
+# (2026-07-29 사용자 지적: "뭐가 중립이란 말이냐").
 _STATUS_TEXT = {
-    market_signal_common.SignalStatus.POSITIVE: "긍정(신호 켜짐)",
-    market_signal_common.SignalStatus.NEUTRAL: "중립(보합)",
-    market_signal_common.SignalStatus.NEGATIVE: "부정",
-    market_signal_common.SignalStatus.UNKNOWN: "확인 필요",
+    market_signal_common.SignalStatus.POSITIVE: "켜짐",
+    market_signal_common.SignalStatus.NEUTRAL: "애매",
+    market_signal_common.SignalStatus.NEGATIVE: "아님",
+    market_signal_common.SignalStatus.UNKNOWN: "자료 없음",
 }
 
 _TIMING_COLOR = {
-    "선행": "#4da6ff", "확인": "#e6e6e6", "늦음": "#ff9d3b",
-    "가짜": "#ef4444", "확인 필요": "#9ca3af",
+    "먼저 움직임": "#4da6ff", "뒤따라옴": "#e6e6e6", "이미 늦음": "#ff9d3b",
+    "가짜": "#ef4444", "모름": "#9ca3af",
 }
-_STRENGTH_COLOR = {"그대로": "#22c55e", "대신": "#ff9d3b", "참고": "#9ca3af"}
+# 값을 어디서 가져왔는지. 증권사 원본이면 초록, 공개 화면에서 긁어온 것이면 주황.
+_SOURCE_COLOR = {
+    "증권사": "#22c55e", "HTS 입력": "#22c55e", "시세": "#22c55e",
+    "네이버": "#ff9d3b", "네이버 시세": "#ff9d3b", "뉴스": "#ff9d3b",
+    "없음": "#9ca3af",
+}
+# 색은 등급으로 정하고, 글자는 '3분 전'처럼 실제 시간을 적는다.
 _FRESHNESS_COLOR = {
     "정상": "#22c55e", "지연": "#ff9d3b", "오래됨": "#ef4444", "확인 필요": "#9ca3af",
 }
@@ -614,40 +624,41 @@ _SIGNAL_TABLE_LEGEND_HTML = """
 <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);
 border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.9rem;line-height:1.8;">
   <div style="font-weight:800;color:#e6e6e6;margin-bottom:2px;">표 읽는 법</div>
-  <b style="color:#9ca3af;">판정</b> :
-  ⭕ <span style="color:#22c55e;">긍정(신호 켜짐)</span> ·
-  🟡 <span style="color:#eab308;">중립(보합)</span> ·
-  ❌ <span style="color:#ef4444;">부정</span> ·
-  ⚪ <span style="color:#9ca3af;">확인 필요(자료 없음)</span><br>
-  <b style="color:#9ca3af;">구분</b> :
-  <span style="color:#4da6ff;">선행</span> = 본장보다 먼저 움직이는 지표 ·
-  <span style="color:#e6e6e6;">확인</span> = 결과로 따라오는 지표 ·
-  <span style="color:#ff9d3b;">늦음</span> = 이미 지나간 흐름일 수 있는 신호<br>
-  <b style="color:#9ca3af;">어디서 온 값</b> :
-  <span style="color:#22c55e;">그대로</span> = 그 항목을 그대로 받아온 값 ·
-  <span style="color:#ff9d3b;">대신</span> = 원래 봐야 할 값을 못 구해 다른 것으로 채운 값 ·
-  <span style="color:#9ca3af;">참고</span> = 판정에 넣지 않고 보기만 하는 값<br>
+  <b style="color:#e6e6e6;">이 표는 “지금 반등이 시작됐나”를 항목마다 따로 묻는 표입니다.</b>
+  값이 올랐는지 내렸는지를 매기는 표가 아닙니다.<br>
+  <b style="color:#9ca3af;">반등 신호인가</b> :
+  ⭕ <span style="color:#22c55e;">켜짐</span> = 반등 쪽 신호 ·
+  🟡 <span style="color:#eab308;">애매</span> = 반등이라 하기엔 이름 ·
+  ❌ <span style="color:#ef4444;">아님</span> = 오히려 반대 ·
+  ⚪ <span style="color:#9ca3af;">자료 없음</span> = 값을 못 가져옴<br>
   <span style="margin-left:3.2em;color:#c9ced6;">
-  ‘대신’이 무엇을 무엇으로 바꾼 것인지는 <b>설명 칸</b>에 적혀 있습니다. 지금 쓰이는 것은 둘입니다 —
-  <b>외국인 선물</b>은 증권사 원본 대신 <b>네이버 공개치</b>(몇 분 늦음),
-  <b>투자자별 수급</b>도 증권사 대신 <b>네이버 공개치</b>,
-  <b>시장베이시스</b>는 외국인 선물 직접값이 없을 때 <b>대신 보는 다른 지표</b>입니다.
+  주가가 많이 빠진 종목도 저점에서 조금 오르면 <b>🟡 애매</b>가 됩니다 —
+  “많이 빠졌다”가 아니라 “아직 반등이라 부르기 이르다”는 뜻입니다.
   </span><br>
-  <b style="color:#9ca3af;">신선도</b> :
-  <span style="color:#22c55e;">정상</span> = 2분 이내 자료 ·
-  <span style="color:#ff9d3b;">지연</span> = 5분 이내 ·
-  <span style="color:#ef4444;">오래됨</span> = 5분 초과 ·
-  <span style="color:#9ca3af;">확인 필요</span> = 기준시각 없음<br>
-  <b style="color:#9ca3af;">개수 세기</b> :
-  상위 항목을 쪼갠 하위 내역(금융투자·투신·사모·기금은 모두 <b>기관계</b>의 부분)과
-  반대 주체(개인)는 위 ‘켜진 신호 N개’에 <b>넣지 않습니다</b> — 같은 한 건이 여러 번
-  세어져 신호가 많이 켜진 것처럼 보이는 것을 막기 위함입니다.
-  표에는 <span style="color:#9ca3af;">참고</span>로 그대로 보여줍니다.<br>
-  <b style="color:#9ca3af;">‘확인 필요’의 뜻</b> :
-  값을 <b>못 가져온 것</b>이지 0이라는 뜻이 아닙니다. 설명 칸을 보면 이유가 나뉩니다 —
-  <span style="color:#e6e6e6;">‘스냅숏 부족’</span>은 자료는 오는데 15분 치가 아직 안 쌓인 것(시간이 지나면 채워짐),
-  <span style="color:#e6e6e6;">‘수급 확인 필요’</span>는 증권사 API에서 못 받아온 것입니다.
-  확인 안 된 값을 임의로 만들지 않는 것이 이 화면의 원칙입니다.
+  <b style="color:#9ca3af;">언제 나오는 신호</b> :
+  <span style="color:#4da6ff;">먼저 움직임</span> = 시장보다 앞서 움직이는 항목 ·
+  <span style="color:#e6e6e6;">뒤따라옴</span> = 결과로 따라오는 항목 ·
+  <span style="color:#ff9d3b;">이미 늦음</span> = 지나간 흐름일 수 있음<br>
+  <b style="color:#9ca3af;">이 값 어디서 왔나</b> :
+  <span style="color:#22c55e;">증권사</span> = 증권사에서 받은 값 ·
+  <span style="color:#ff9d3b;">네이버</span> = 네이버 화면에 공개된 값(증권사에서 못 받아 대신 쓰는 것, 몇 분 늦습니다) ·
+  <span style="color:#22c55e;">HTS 입력</span> = 사람이 직접 적어 넣은 값 ·
+  <span style="color:#9ca3af;">없음</span> = 가져올 데가 없음<br>
+  <b style="color:#9ca3af;">몇 분 된 값</b> :
+  <span style="color:#22c55e;">방금</span>·<span style="color:#ff9d3b;">3분 전</span>처럼
+  그 값이 몇 분 전 것인지 그대로 적습니다.
+  <span style="color:#22c55e;">초록</span>은 2분 이내, <span style="color:#ff9d3b;">주황</span>은 5분 이내,
+  <span style="color:#ef4444;">빨강</span>은 5분이 넘은 값입니다.
+  <span style="color:#9ca3af;">모름</span>은 그 자료에 시각이 안 적혀 있어 언제 것인지 알 수 없다는 뜻입니다.<br>
+  <b style="color:#9ca3af;">└ 표시와 개인</b> :
+  <b>기관계</b>는 금융투자·투신·사모·기금을 <b>모두 더한 값</b>입니다. 그래서 아래 └ 항목들은
+  기관계와 같은 돈이며, 위 ‘켜진 신호 N개’에는 기관계 하나만 셉니다.
+  <b>개인</b>은 기관·외국인이 사면 파는 반대편이라 역시 개수에 넣지 않고 참고로만 보여줍니다.<br>
+  <b style="color:#9ca3af;">‘자료 없음’의 뜻</b> :
+  값이 0이라는 게 아니라 <b>못 가져왔다</b>는 뜻입니다. 이유는 두 가지이고 설명 칸에 나뉘어 있습니다 —
+  <span style="color:#e6e6e6;">‘스냅숏 부족’</span>은 자료는 오는데 15분 치가 아직 안 쌓인 것(시간이 지나면 채워집니다),
+  <span style="color:#e6e6e6;">‘수급 확인 필요’</span>는 증권사에서 못 받아온 것입니다.
+  확인 안 된 값을 임의로 지어내지 않는 것이 이 화면의 원칙입니다.
 </div>
 """
 
@@ -817,10 +828,10 @@ def _verdict_gauge_html(
         if signal.status in counts:
             counts[signal.status] += 1
     rows = [
-        ("켜진 신호", "긍정", counts[market_signal_common.SignalStatus.POSITIVE], "#22c55e"),
-        ("아직 아닌 신호", "부정", counts[market_signal_common.SignalStatus.NEGATIVE], "#ef4444"),
-        ("중립", "보합", counts[market_signal_common.SignalStatus.NEUTRAL], "#9ca3af"),
-        ("확인 필요", "자료 없음", counts[market_signal_common.SignalStatus.UNKNOWN], "#71717a"),
+        ("켜진 신호", "켜짐", counts[market_signal_common.SignalStatus.POSITIVE], "#22c55e"),
+        ("반대 신호", "아님", counts[market_signal_common.SignalStatus.NEGATIVE], "#ef4444"),
+        ("애매한 신호", "애매", counts[market_signal_common.SignalStatus.NEUTRAL], "#9ca3af"),
+        ("못 읽은 항목", "자료 없음", counts[market_signal_common.SignalStatus.UNKNOWN], "#71717a"),
     ]
     row_tuples = [(label, note, f"{value}개", color, value == 0)
                   for label, note, value, color in rows]
@@ -965,28 +976,39 @@ def render_market_signal_card(
                 continue
             status_color = market_signal_common.STATUS_COLOR[signal.status]
             timing_text = market_signal_common.TIMING_LABEL[signal.timing]
-            strength_text = market_signal_common.STRENGTH_LABEL[signal.strength]
-            fresh_text = market_signal_common.freshness_label(signal.freshness_seconds)
+            source_text = market_signal_common.source_word(signal)
+            # 글자는 '3분 전'처럼 실제 시간, 색은 등급으로 칠한다.
+            fresh_text = market_signal_common.freshness_text(signal.freshness_seconds)
+            fresh_color = _FRESHNESS_COLOR.get(
+                market_signal_common.freshness_label(signal.freshness_seconds), "#e6e6e6"
+            )
+            # 기관계를 쪼갠 하위 항목은 이름 앞에 └를 붙여 눈으로 계층이 보이게 한다.
+            name_text = signal.label
+            if not signal.counts_toward_totals and signal.key != "personal":
+                name_text = f"└ {signal.label}"
             _rows_html.append(
                 "<tr>"
-                f"<td class='msig-name'>{signal.label}</td>"
+                f"<td class='msig-name'>{name_text}</td>"
                 f"<td style='color:{_VALUE_COLOR};font-weight:700'>"
                 f"{_colorize_signed(signal.display_value)}</td>"
                 f"<td style='color:{status_color};font-weight:700;white-space:nowrap'>"
                 f"{market_signal_common.STATUS_MARK[signal.status]} {_STATUS_TEXT[signal.status]}"
                 f"{_falling_tag(signal, falling_market)}</td>"
                 f"<td style='color:{_TIMING_COLOR.get(timing_text, '#e6e6e6')};font-weight:700'>{timing_text}</td>"
-                f"<td style='color:{_STRENGTH_COLOR.get(strength_text, '#e6e6e6')};font-weight:700'>{strength_text}</td>"
+                f"<td style='color:{_SOURCE_COLOR.get(source_text, '#e6e6e6')};font-weight:700'>{source_text}</td>"
                 f"<td class='msig-reason'>{signal.reason}</td>"
-                f"<td style='color:{_FRESHNESS_COLOR.get(fresh_text, '#e6e6e6')};font-weight:700'>{fresh_text}</td>"
+                f"<td style='color:{fresh_color};font-weight:700'>{fresh_text}</td>"
                 "</tr>"
             )
         if _rows_html:
             st.markdown(
                 _SIGNAL_TABLE_CSS
+                # 칸 이름이 곧 그 칸의 질문이 되게 적는다. '판정·구분·신호세기·
+                # 신선도'는 무엇에 대한 것인지 이름만 봐서는 알 수 없었다
+                # (2026-07-29 사용자 지적: "신호세기가 무슨 신호에 대한 세기냐").
                 + "<table class='msig-table'><thead><tr>"
-                "<th>항목</th><th>현재값</th><th>판정</th><th>구분</th>"
-                "<th>신호세기</th><th>설명</th><th>신선도</th></tr></thead>"
+                "<th>항목</th><th>지금 값</th><th>반등 신호인가</th><th>언제 나오는 신호</th>"
+                "<th>이 값 어디서 왔나</th><th>왜 그렇게 봤나</th><th>몇 분 된 값</th></tr></thead>"
                 f"<tbody>{''.join(_rows_html)}</tbody></table>",
                 unsafe_allow_html=True,
             )

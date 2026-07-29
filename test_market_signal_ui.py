@@ -202,7 +202,7 @@ class VerdictGaugeTests(unittest.TestCase):
         )
         self.assertIn("켜진 신호", html)
         self.assertIn("2개", html)
-        self.assertIn("확인 필요", html)
+        self.assertIn("못 읽은 항목", html)
 
     def test_both_markets_have_four_ordered_steps(self):
         self.assertEqual(len(ui.KR_VERDICT_ORDER), 4)

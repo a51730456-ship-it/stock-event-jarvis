@@ -160,7 +160,8 @@ class UnknownAndSeparationTest(unittest.TestCase):
     def test_flow_note_describes_leading_vs_confirming(self):
         result = us.build_us_market_signal_result(_risk_on_quotes(), now=NOW)
         self.assertTrue(result.flow_note)
-        self.assertIn("선행", result.flow_note)
+        # 문구는 '선행/확인'에서 쉬운 말로 바뀌었다(2026-07-29). 뜻은 그대로다.
+        self.assertIn("먼저 움직이는 신호", result.flow_note)
 
 
 class TimingTest(unittest.TestCase):

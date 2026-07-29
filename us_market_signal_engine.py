@@ -159,7 +159,7 @@ def build_vix_term_signal(vix_current, vix3m_current, *, as_of=None, freshness=N
 
     if ratio is None:
         status = SignalStatus.UNKNOWN
-        display = "확인 필요"
+        display = "못 읽음"
         reason = "VIX 기간구조 확인 필요 (VIX 또는 VIX3M 자료 없음)"
     elif ratio <= VIX_TERM_CALM_RATIO:
         status = SignalStatus.POSITIVE

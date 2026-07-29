@@ -92,7 +92,7 @@ class FlowReadingTest(unittest.TestCase):
             common.MarketSignal("a", "A", common.SignalStatus.POSITIVE, timing=common.SignalTiming.LEADING),
             common.MarketSignal("b", "B", common.SignalStatus.NEGATIVE, timing=common.SignalTiming.CONFIRMING),
         ]
-        self.assertIn("확인 신호는 아직 없습니다", common.flow_reading(signals))
+        self.assertIn("뒤따라오는 신호는 아직 없습니다", common.flow_reading(signals))
 
     def test_confirming_without_leading_is_flagged_as_late(self):
         signals = [
@@ -105,6 +105,76 @@ class FlowReadingTest(unittest.TestCase):
             common.MarketSignal("c", "C", common.SignalStatus.POSITIVE, timing=common.SignalTiming.LATE),
         ]
         self.assertIn("지나간", common.flow_reading(signals))
+
+
+class PlainWordingTest(unittest.TestCase):
+    """2026-07-29: 화면 용어가 뜻을 설명해야만 알 수 있는 말이면 안 된다.
+
+    직접·대체·그대로·대신·신선도·보합은 전부 사용자가 "무슨 말이냐"고 되물은
+    말이다. 다시 기어들어오지 않게 막는다.
+    """
+
+    BANNED = ("신선도", "보합", "선행", "신호세기", "긍정", "부정")
+
+    def test_banned_jargon_is_gone_from_table_words(self):
+        import market_signal_ui as ui
+
+        shown = list(ui._STATUS_TEXT.values())
+        shown += list(common.TIMING_LABEL.values())
+        shown += [ui._SIGNAL_TABLE_LEGEND_HTML]
+        for word in self.BANNED:
+            for text in shown:
+                self.assertNotIn(word, text, f"화면에 '{word}'가 남아 있다")
+
+    def test_flow_reading_uses_plain_words(self):
+        signals = [
+            common.MarketSignal("a", "A", common.SignalStatus.POSITIVE,
+                                timing=common.SignalTiming.LEADING),
+            common.MarketSignal("b", "B", common.SignalStatus.POSITIVE,
+                                timing=common.SignalTiming.CONFIRMING),
+        ]
+        text = common.flow_reading(signals)
+        self.assertIn("먼저 움직이는 신호", text)
+        self.assertNotIn("선행", text)
+        self.assertNotIn("확인 신호", text)
+
+    def test_freshness_says_actual_minutes(self):
+        self.assertEqual(common.freshness_text(None), "모름")
+        self.assertEqual(common.freshness_text(0), "방금")
+        self.assertEqual(common.freshness_text(59), "방금")
+        self.assertEqual(common.freshness_text(180), "3분 전")
+        self.assertEqual(common.freshness_text(7 * 60), "7분 전")
+        self.assertEqual(common.freshness_text(3 * 3600), "3시간 전")
+
+    def test_source_word_names_the_actual_place(self):
+        def sig(source):
+            return common.MarketSignal("k", "L", common.SignalStatus.UNKNOWN, source=source)
+
+        self.assertEqual(common.source_word(sig("KIS")), "증권사")
+        self.assertEqual(common.source_word(sig("네이버 선물 투자자동향(지연)")), "네이버")
+        self.assertEqual(common.source_word(sig("HTS 수동 입력")), "HTS 입력")
+        self.assertEqual(common.source_word(sig("가격 스냅샷")), "네이버 시세")
+        self.assertEqual(common.source_word(sig("미연결")), "없음")
+        self.assertEqual(common.source_word(sig("")), "없음")
+
+    def test_crashing_stock_is_not_called_flat(self):
+        """-12%인 종목에 '보합'이라 적던 사고를 막는다."""
+        import market_signal_ui as ui
+
+        neutral = ui._STATUS_TEXT[common.SignalStatus.NEUTRAL]
+        self.assertNotIn("보합", neutral)
+        self.assertEqual(neutral, "애매")
+
+    def test_every_status_word_has_a_color(self):
+        """글자를 바꾸고 색 표를 안 고치면 화면이 회색으로 죽는다."""
+        import market_signal_ui as ui
+
+        for timing in common.SignalTiming:
+            if timing is common.SignalTiming.FAKE:
+                continue
+            self.assertIn(common.TIMING_LABEL[timing], ui._TIMING_COLOR)
+        for word in ("증권사", "네이버", "HTS 입력", "네이버 시세", "없음"):
+            self.assertIn(word, ui._SOURCE_COLOR)
 
 
 if __name__ == "__main__":

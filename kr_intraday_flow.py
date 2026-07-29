@@ -356,7 +356,7 @@ def evaluate_basis(history, *, current_basis=None, as_of=None, freshness=None) -
         [(ts, v) for ts, v in (history or []) if ts is not None and v is not None]
     )]
     if len(points) < 2:
-        sig.reason = "베이시스 변화 확인에 필요한 스냅숏 부족"
+        sig.reason = "베이시스 변화 확인에 필요한 스냅숏 부족 — 외국인 선물 대신 보는 지표"
         return sig
 
     recent = points[-4:]
@@ -375,6 +375,9 @@ def evaluate_basis(history, *, current_basis=None, as_of=None, freshness=None) -
     else:
         sig.status = SignalStatus.NEUTRAL
         sig.reason = "시장베이시스 방향 혼조"
+    # 출처 칸에는 '증권사'라고만 나오므로, 이것이 원래 보려던 값이 아니라는 사실은
+    # 설명 칸에 적어야 전달된다(2026-07-29).
+    sig.reason = f"{sig.reason} — 외국인 선물 대신 보는 지표"
     return sig
 
 
@@ -401,7 +404,7 @@ def evaluate_foreign_futures(snapshot: ForeignFuturesFlowSnapshot | None) -> Flo
     )
     if snapshot is None or not snapshot.available or snapshot.net_contracts is None:
         sig.reason = "외국인 선물 수급 확인 필요 (네이버 자동 조회 실패 — HTS 수동 입력 가능)"
-        sig.display_value = "확인 필요"
+        sig.display_value = "못 읽음"
         return sig
 
     current = snapshot.net_contracts
@@ -1030,19 +1033,19 @@ def _semis_turnover_declining(snapshots):
 def _fmt_amount(value) -> str:
     """순매수 금액(백만원 단위 가정)을 억 단위로 축약."""
     if value is None:
-        return "확인 필요"
+        return "못 읽음"
     try:
         number = float(value)
     except (TypeError, ValueError):
-        return "확인 필요"
+        return "못 읽음"
     억 = number / 100.0  # KIS 금액 필드는 백만원 단위 → 100백만원 = 1억
     return f"{억:+,.0f}억"
 
 
 def _fmt_number(value) -> str:
     if value is None:
-        return "확인 필요"
+        return "못 읽음"
     try:
         return f"{float(value):+,.2f}"
     except (TypeError, ValueError):
-        return "확인 필요"
+        return "못 읽음"

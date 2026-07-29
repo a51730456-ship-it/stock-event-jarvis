@@ -65,23 +65,46 @@ STATUS_MARK = {
     SignalStatus.UNKNOWN: "⚪",
 }
 
+# 이 칸은 '본장보다 먼저 움직이는 지표냐, 결과로 따라오는 지표냐'를 말한다.
+# 선행·확인이라는 말을 일반인이 알아듣지 못한다는 지적을 받아 풀어 썼다
+# (2026-07-29 사용자 지시: "저런 말은 일반인인 내가 알아 먹겠냐").
 TIMING_LABEL = {
-    SignalTiming.LEADING: "선행",
-    SignalTiming.CONFIRMING: "확인",
-    SignalTiming.LATE: "늦음",
+    SignalTiming.LEADING: "먼저 움직임",
+    SignalTiming.CONFIRMING: "뒤따라옴",
+    SignalTiming.LATE: "이미 늦음",
     SignalTiming.FAKE: "가짜",
-    SignalTiming.UNKNOWN: "확인 필요",
+    SignalTiming.UNKNOWN: "모름",
 }
 
-# 이 칸은 '이 숫자를 얼마나 믿을 수 있나'를 말한다.
-# 예전 이름은 직접·대체·간접이었는데 "대체가 뭘 대체한다는 건지 모르겠다"는
-# 지적을 받아 뜻이 그대로 읽히는 말로 바꿨다(2026-07-29 사용자 지시).
-# 무엇을 무엇으로 대신했는지는 각 줄의 '설명' 칸에 적는다.
+# 직접/대체 → 그대로/대신 → 원본/대신 씀 순으로 두 번 고쳤는데 전부 "그게 무슨
+# 말이냐"는 답을 받았다(2026-07-29). 뜻을 설명해야 알 수 있는 말은 화면에 쓰지
+# 않는다. 이 칸에는 값을 어디서 가져왔는지 **기관 이름을 그대로** 적는다.
 STRENGTH_LABEL = {
-    SignalStrength.DIRECT: "그대로",
-    SignalStrength.PROXY: "대신",
+    SignalStrength.DIRECT: "원본",
+    SignalStrength.PROXY: "대신 씀",
     SignalStrength.INDIRECT: "참고",
 }
+
+# 화면에 실제로 나가는 것은 이쪽이다. source 문자열에서 기관 이름만 뽑는다.
+_SOURCE_WORDS = (
+    ("네이버", "네이버"),
+    ("HTS", "HTS 입력"),
+    ("KIS", "증권사"),
+    ("가격 스냅샷", "네이버 시세"),
+    ("시세 조회", "시세"),
+    ("^VIX", "시세"),
+    ("시장 이벤트", "뉴스"),
+    ("미연결", "없음"),
+)
+
+
+def source_word(signal) -> str:
+    """이 값을 어디서 가져왔는지 한 마디로. 설명이 필요한 말은 쓰지 않는다."""
+    text = str(getattr(signal, "source", "") or "")
+    for needle, word in _SOURCE_WORDS:
+        if needle in text:
+            return word
+    return text.strip() or "없음"
 
 # 데이터 신선도(초)
 FRESHNESS_OK_SECONDS = 120
@@ -151,6 +174,23 @@ class MarketSignalResult:
         return [s for s in self.signals if s.timing is timing]
 
 
+def freshness_text(freshness_seconds: int | None) -> str:
+    """자료가 몇 분 된 것인지 그대로 적는다.
+
+    예전에는 정상·지연·오래됨이라는 등급을 만들어 붙였는데, 등급 이름만 봐서는
+    무슨 뜻인지 알 수 없다는 지적을 받았다(2026-07-29). 몇 분 전인지 적으면
+    설명이 필요 없다. 색은 그대로 freshness_label 기준으로 칠한다.
+    """
+    if freshness_seconds is None:
+        return "모름"
+    if freshness_seconds < 60:
+        return "방금"
+    minutes = int(freshness_seconds // 60)
+    if minutes < 60:
+        return f"{minutes}분 전"
+    return f"{minutes // 60}시간 전"
+
+
 def freshness_label(freshness_seconds: int | None) -> str:
     if freshness_seconds is None:
         return "확인 필요"
@@ -174,10 +214,12 @@ def counted_signals(signals):
 
 
 def data_status_text(signals) -> str:
+    # '자동 확인 / 확인 필요'는 무엇이 확인됐다는 건지 알 수 없다는 지적을 받아
+    # 읽었나 못 읽었나로 바꿨다(2026-07-29).
     counted = counted_signals(signals)
     known = [s for s in counted if not s.is_unknown]
     unknown = [s for s in counted if s.is_unknown]
-    return f"자동 확인 {len(known)}개 · 확인 필요 {len(unknown)}개"
+    return f"읽은 항목 {len(known)}개 · 못 읽은 항목 {len(unknown)}개"
 
 
 def flow_reading(signals) -> str:
@@ -195,14 +237,17 @@ def flow_reading(signals) -> str:
     late_on = [s for s in signals if s.timing is SignalTiming.LATE]
 
     if late_on and not leading_on:
-        return "늦은 신호만 켜져 있습니다 — 이미 지나간 흐름일 수 있습니다."
+        return "이미 지나간 신호만 켜져 있습니다 — 늦었을 수 있습니다."
     if leading_on and confirming_on:
-        return f"선행 {len(leading_on)}개가 켜졌고 확인 신호 {len(confirming_on)}개가 뒤따르고 있습니다."
+        return (f"먼저 움직이는 신호 {len(leading_on)}개가 켜졌고, "
+                f"뒤따라오는 신호 {len(confirming_on)}개가 따라붙었습니다.")
     if leading_on and not confirming_on:
-        return f"선행 신호 {len(leading_on)}개만 켜졌고 확인 신호는 아직 없습니다."
+        return (f"먼저 움직이는 신호 {len(leading_on)}개만 켜졌고, "
+                "뒤따라오는 신호는 아직 없습니다.")
     if confirming_on and not leading_on:
-        return "선행 신호 없이 확인 신호만 켜졌습니다 — 뒤늦은 반응일 수 있습니다."
-    return "선행·확인 신호 모두 아직 켜지지 않았습니다."
+        return ("먼저 움직이는 신호 없이 뒤따라오는 신호만 켜졌습니다 — "
+                "뒤늦은 반응일 수 있습니다.")
+    return "먼저 움직이는 신호도, 뒤따라오는 신호도 아직 없습니다."
 
 
 def pct_status(change_pct, *, positive_at=0.3, inverted=False):

@@ -121,7 +121,7 @@ class ForeignFuturesTest(unittest.TestCase):
         sig = flow.evaluate_foreign_futures(None)
         self.assertIs(sig.status, SignalStatus.UNKNOWN)
         self.assertIsNone(sig.value)
-        self.assertEqual(sig.display_value, "확인 필요")
+        self.assertEqual(sig.display_value, "못 읽음")
 
     def test_manual_input_net_buy_is_positive(self):
         snap = ForeignFuturesFlowSnapshot(
@@ -358,7 +358,7 @@ class CountingTest(unittest.TestCase):
         result = flow.build_result_from_snapshots(self._institution_buying(), now=_ts(16))
         counted = flow.counted_signals(result.signals)
         known = sum(1 for s in counted if not s.is_unknown)
-        self.assertIn(f"자동 확인 {known}개", result.data_status)
+        self.assertIn(f"읽은 항목 {known}개", result.data_status)
         self.assertLess(len(counted), len(result.signals))
 
 
