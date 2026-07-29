@@ -11,6 +11,7 @@ app.py를 import하면 자비스1 앱 전체가 실행되므로, 필요한 조�
 from __future__ import annotations
 
 import importlib
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -37,7 +38,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026072909
+MODULE_REVISION = 2026072910
 
 
 def _now_seoul():
@@ -48,6 +49,91 @@ def _now_seoul():
     기존 신호 dataclass가 naive datetime끼리 빼기 때문이다.
     """
     return datetime.now(_SEOUL_TZ).replace(tzinfo=None)
+
+
+# 부호가 붙은 수(-4.55%, +1,711계약, +13,550억)를 찾아 색을 입힌다.
+_SIGNED_NUMBER = re.compile(r"[+\-][\d,]+(?:\.\d+)?%?")
+
+# 오름은 파랑, 내림은 빨강. 한국 관행은 반대지만 사용자 지시가 이 색이다.
+_UP_COLOR = "#4da6ff"
+_DOWN_COLOR = "#ff5b5b"
+
+
+# 지수가 이만큼 넘게 빠지면 '하락장'이라고 적는다. 순매수가 사실이어도
+# 지수가 무너지는 날에는 그 '긍정'을 다르게 읽어야 한다.
+FALLING_MARKET_PCT = -2.0
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _cached_kospi_snapshot():
+    """코스피 현재지수. 30초만 캐시한다.
+
+    수급 카드는 장중 1분마다 자동으로 다시 그린다. 그릴 때마다 지수를 새로
+    받으면 그만큼 화면이 늦어진다. 하락장이냐 아니냐는 30초 사이에 뒤집히지
+    않으므로 이 정도로 충분하다.
+    """
+    return naver_market_data.get_index_snapshot("KOSPI")
+
+
+def falling_market_note(*, snapshot_fn=None, label="코스피"):
+    """지금 지수가 크게 빠지고 있으면 붙일 꼬리표를 만든다.
+
+    2026-07-29: 코스피 -5.7%인 날 표가 '긍정' 초록으로 도배됐다. 기관계
+    +1조 3,550억 순매수는 사실이라 판정 자체는 틀리지 않았지만, 수급 판정이
+    가격을 전혀 안 봐서 맨 위 결론('반전 신호 없음')과 앞뒤가 어긋나 보였다.
+
+    **판정은 바꾸지 않는다**(사용자 선택 1번). 긍정 옆에 '(하락장)'만 적어
+    무슨 상황에서 켜진 신호인지 알 수 있게 한다. 지수를 못 읽으면 조용히
+    아무것도 안 붙인다 — 없는 값을 0으로 보고 '하락장 아님'이라 하면 안 된다.
+    """
+    fetch = snapshot_fn or _cached_kospi_snapshot
+    try:
+        snapshot = fetch() or {}
+    except Exception:
+        return None
+    if not snapshot.get("ok"):
+        return None
+    change = snapshot.get("change_pct")
+    try:
+        change = float(change)
+    except (TypeError, ValueError):
+        return None
+    if change > FALLING_MARKET_PCT:
+        return None
+    return {"label": label, "change_pct": change, "text": "(하락장)"}
+
+
+def _falling_tag(signal, falling_market) -> str:
+    """긍정으로 켜진 신호에만 '(하락장)'을 붙인다.
+
+    중립·부정에까지 붙이면 화면이 꼬리표로 뒤덮여 정작 봐야 할 것이 묻힌다.
+    오해가 생기는 자리는 '지수가 무너지는데 초록'인 곳뿐이다.
+    """
+    if not falling_market:
+        return ""
+    if signal.status is not market_signal_common.SignalStatus.POSITIVE:
+        return ""
+    return (f" <span style='color:{_DOWN_COLOR};font-weight:800'>"
+            f"{falling_market['text']}</span>")
+
+
+def _colorize_signed(text) -> str:
+    """값 안의 부호 붙은 수만 오름·내림 색으로 칠한다.
+
+    판정색(초록·노랑·붉은색)이 값을 통째로 덮으면 오른 건지 내린 건지
+    알 수 없다 — 코스피 -5.7%인 날 '210,000 (-4.55% · 저점대비 +1.45%)'가
+    전부 노랑(보합)으로 떠서 구분이 안 됐다(2026-07-29 사용자 지적).
+    판정색은 칸 테두리와 판정 글자에만 남긴다.
+    """
+    if not text:
+        return ""
+
+    def paint(match):
+        mark = match.group()
+        color = _UP_COLOR if mark[0] == "+" else _DOWN_COLOR
+        return f"<span style='color:{color}'>{mark}</span>"
+
+    return _SIGNED_NUMBER.sub(paint, str(text))
 
 
 def _safe_pct_diff(a, b):
@@ -713,7 +799,7 @@ def _verdict_gauge_html(
 def render_market_signal_card(
     result, *, verdict_style, core_display, table_keys, detail_title, detail_caption,
     table_key, diagnosis_text=None, verdict_order=(), previous_stage=None,
-    show_position_score=False,
+    show_position_score=False, falling_market=None,
 ):
     """한국장·미국장이 함께 쓰는 카드 렌더러.
 
@@ -732,6 +818,17 @@ def render_market_signal_card(
         f"<div style='font-size:0.9rem;color:{text};opacity:0.95;margin-top:8px;'>못 읽은 항목이 있는 이유: {_cause}</div>"
         if _cause and _unknown_count else ""
     )
+
+    # 지수가 무너지는 날이면 맨 위에도 한 줄 적는다. 표를 안 펼치는 날이
+    # 더 많아서, 꼬리표만 달아 두면 못 보고 지나간다.
+    _falling_html = ""
+    if falling_market:
+        _falling_html = (
+            f"<div style='font-size:0.95rem;color:{_DOWN_COLOR};font-weight:800;margin-top:8px;'>"
+            f"{falling_market['label']} {falling_market['change_pct']:+.2f}% — 지금은 하락장입니다. "
+            f"켜진 '긍정'은 <b>지수가 빠지는 중에</b> 나온 순매수입니다.</div>"
+        )
+    _cause_html = _falling_html + _cause_html
 
     # 판정을 눈금 위에 올려 지금이 어느 단계인지 한눈에 보이게 한다(2026-07-24).
     _gauge_html = (
@@ -783,7 +880,7 @@ def render_market_signal_card(
                     background-color:rgba(255,255,255,0.03);border-radius:6px;">
                       <div style="font-size:0.85rem;opacity:0.75;">{label}</div>
                       <div style="font-size:1.05rem;font-weight:700;color:{color};">
-                        {signal.display_value}
+                        {_colorize_signed(signal.display_value)}
                       </div>
                       <div style="font-size:0.8rem;opacity:0.8;">{signal.reason}</div>
                     </div>
@@ -817,9 +914,11 @@ def render_market_signal_card(
             _rows_html.append(
                 "<tr>"
                 f"<td class='msig-name'>{signal.label}</td>"
-                f"<td style='color:{status_color};font-weight:700'>{signal.display_value}</td>"
+                f"<td style='color:{status_color};font-weight:700'>"
+                f"{_colorize_signed(signal.display_value)}</td>"
                 f"<td style='color:{status_color};font-weight:700;white-space:nowrap'>"
-                f"{market_signal_common.STATUS_MARK[signal.status]} {_STATUS_TEXT[signal.status]}</td>"
+                f"{market_signal_common.STATUS_MARK[signal.status]} {_STATUS_TEXT[signal.status]}"
+                f"{_falling_tag(signal, falling_market)}</td>"
                 f"<td style='color:{_TIMING_COLOR.get(timing_text, '#e6e6e6')};font-weight:700'>{timing_text}</td>"
                 f"<td style='color:{_STRENGTH_COLOR.get(strength_text, '#e6e6e6')};font-weight:700'>{strength_text}</td>"
                 f"<td class='msig-reason'>{signal.reason}</td>"
@@ -897,6 +996,9 @@ def render_kr_flow_card():
             "직접 수급이 없을 때 쓰는 대체 신호이며 직접 수급값이 아닙니다."
         ),
         table_key="kr_flow_detail_table",
+        # 지수가 크게 빠지는 날에는 '긍정' 옆에 (하락장)을 적는다. 판정은
+        # 그대로 두고 상황만 알려 준다(2026-07-29 사용자 선택 1번).
+        falling_market=falling_market_note(),
         diagnosis_text=kr_flow_diagnosis,
         verdict_order=KR_VERDICT_ORDER,
         previous_stage=_previous_kr_flow_stage(),

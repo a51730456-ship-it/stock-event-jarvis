@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import market_signal_common
 import market_signal_ui as ui
 
 
@@ -360,6 +361,70 @@ class CardHtmlTests(unittest.TestCase):
                 self.assertNotIn("\n", card, "줄바꿈이 있으면 코드블록으로 잡힐 수 있다")
                 self.assertEqual(card.count("<div"), card.count("</div>"))
 
+
+class SignedColorTests(unittest.TestCase):
+    """오름은 파랑, 내림은 빨강.
+
+    판정색이 값을 통째로 덮으면 오른 건지 내린 건지 알 수 없다 —
+    -4.55%가 보합 노랑으로 떠서 구분이 안 됐다(2026-07-29 사용자 지적).
+    """
+
+    def test_minus_is_red_and_plus_is_blue(self):
+        html = ui._colorize_signed("210,000 (-4.55% · 저점대비 +1.45%)")
+        self.assertIn(f"color:{ui._DOWN_COLOR}'>-4.55%", html)
+        self.assertIn(f"color:{ui._UP_COLOR}'>+1.45%", html)
+
+    def test_units_other_than_percent_are_colored_too(self):
+        self.assertIn(f"color:{ui._UP_COLOR}'>+1,711", ui._colorize_signed("+1,711계약"))
+
+    def test_plain_number_is_left_alone(self):
+        self.assertEqual(ui._colorize_signed("209,000"), "209,000")
+
+    def test_missing_value_does_not_crash(self):
+        self.assertEqual(ui._colorize_signed(None), "")
+
+
+class FallingMarketTests(unittest.TestCase):
+    """지수가 무너지는 날 '긍정'에 (하락장)을 붙인다. 판정은 안 바꾼다."""
+
+    def _note(self, pct):
+        return ui.falling_market_note(snapshot_fn=lambda: {"ok": True, "change_pct": pct})
+
+    def test_big_drop_is_marked(self):
+        self.assertEqual(self._note(-6.14)["text"], "(하락장)")
+
+    def test_small_drop_is_not_marked(self):
+        """조금 빠진 날까지 붙이면 꼬리표가 늘 붙어 뜻이 없어진다."""
+        self.assertIsNone(self._note(-1.9))
+        self.assertIsNone(self._note(0.5))
+
+    def test_unreadable_index_marks_nothing(self):
+        """못 읽은 것을 '하락장 아님'으로 단정하지 않는다."""
+        self.assertIsNone(ui.falling_market_note(snapshot_fn=lambda: {"ok": False}))
+        self.assertIsNone(ui.falling_market_note(
+            snapshot_fn=lambda: (_ for _ in ()).throw(RuntimeError("망"))))
+
+    def test_tag_goes_only_on_positive_signals(self):
+        note = {"label": "코스피", "change_pct": -6.14, "text": "(하락장)"}
+
+        class Fake:
+            def __init__(self, status):
+                self.status = status
+
+        status = market_signal_common.SignalStatus
+        self.assertIn("(하락장)", ui._falling_tag(Fake(status.POSITIVE), note))
+        for other in (status.NEUTRAL, status.NEGATIVE, status.UNKNOWN):
+            self.assertEqual(ui._falling_tag(Fake(other), note), "")
+
+    def test_no_tag_when_market_is_not_falling(self):
+        status = market_signal_common.SignalStatus
+
+        class Fake:
+            status = None
+
+        fake = Fake()
+        fake.status = status.POSITIVE
+        self.assertEqual(ui._falling_tag(fake, None), "")
 
 
 if __name__ == "__main__":
