@@ -598,6 +598,67 @@ class Jarvis4PageTests(unittest.TestCase):
         # 테마 선택은 건드리지 않는다.
         self.assertNotIn("반도체/HBM", state.get("j4_forced_themes") or [])
 
+    def test_leader_name_click_changes_the_detail(self):
+        """표의 종목 이름을 누르면 위쪽 상세가 그 종목으로 바뀐다(2026-07-29 지시).
+
+        예전에는 순수 HTML 표라 이름을 눌러도 아무 일이 없었다 — 눌림목 표는
+        눌리는데 이 표만 안 눌려 고장으로 보였다.
+        """
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            # 2위(한미반도체) 이름 버튼을 누른다.
+            target = next(
+                node for node in app.button if str(node.key or "") == "j4lbtn_01"
+            )
+            target.click().run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+        self.assertEqual(len(app.exception), 0)
+        state = app.session_state.filtered_state
+        self.assertEqual(state.get("j4_stock_choice_반도체/HBM"), "042700")
+        details = [
+            str(node.value) for node in app.markdown
+            if "<div class='j4-stock-name'>" in str(node.value)
+        ]
+        self.assertTrue(
+            any("한미반도체" in value for value in details),
+            f"이름을 눌렀는데 상세가 안 바뀌었다: {details}",
+        )
+
+    def test_leader_table_scrolls_sideways_like_the_others(self):
+        """폰·태블릿에서 종목표도 옆으로 밀려야 한다.
+
+        칸 방식으로 바꾸면서 이미 도는 두 표와 같은 CSS에 얹었는지 확인한다 —
+        빠뜨리면 좁은 화면에서 칸이 세로로 쌓인다.
+        """
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+        blob = "".join(str(node.value) for node in app.markdown)
+        # 셀렉터는 이미 도는 두 표와 한 묶음으로 적혀 있다. 세 규칙에 다 들어갔는지 본다.
+        self.assertIn(".st-key-j4_leader_table,", blob)
+        self.assertIn('.st-key-j4_leader_table [data-testid="stHorizontalBlock"]', blob)
+        self.assertIn('.st-key-j4_leader_table [data-testid="stColumn"]', blob)
+        # 옆으로 밀기 규칙과 같은 묶음에 있어야 뜻이 있다.
+        self.assertIn("overflow-x: auto", blob)
+
     def test_all_six_leaders_are_selectable(self):
         """표에 1~6위를 보여주면서 상세는 1~3위만 고를 수 있었다(2026-07-29 지적).
 

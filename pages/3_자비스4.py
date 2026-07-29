@@ -175,19 +175,25 @@ st.markdown(
     /* 눌림목 표도 같은 방식 — 좁은 화면에서 줄이 접히지 않게 폭을 지키고 옆으로 민다. */
     /* 11~20위를 담은 '더 보기'도 같은 규칙을 받아야 한다 — 빠뜨렸더니 폰에서 그 안만
        칸이 세로로 쌓였다(2026-07-25 사용자 지적). */
+    /* 종목표(j4_leader_table)도 2026-07-29에 이름을 누를 수 있게 칸 방식으로 바꾸면서
+       이미 폰·태블릿에서 잘 도는 위 두 표와 **똑같은 규칙**에 얹었다. 새 규칙을
+       만들지 않은 것은 그래야 나중에 한 곳만 고쳐도 셋이 같이 따라오기 때문이다. */
     .st-key-j4_pullback_table,
     .st-key-j4_theme_rest,
+    .st-key-j4_leader_table,
     .st-key-j4_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
         .st-key-j4_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1180px;
         }
         .st-key-j4_theme_rest [data-testid="stHorizontalBlock"],
+        .st-key-j4_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j4_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
         .st-key-j4_pullback_table [data-testid="stColumn"],
         .st-key-j4_theme_rest [data-testid="stColumn"],
+        .st-key-j4_leader_table [data-testid="stColumn"],
         .st-key-j4_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     @media (max-width: 1200px) {
@@ -936,7 +942,73 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     return clicked
 
 
+_LEADER_COL_WIDTHS = [0.7, 2.0, 1.6, 0.95, 1.15, 1.05, 1.0, 1.5, 1.7, 1.15]
+
+
+def _render_leader_table(leaders: list[dict], selected_code: str | None) -> str | None:
+    """종목표를 그리고, 종목 이름 버튼이 눌리면 그 종목코드를 돌려준다.
+
+    예전에는 순수 HTML 표라 이름을 눌러도 아무 일이 없었다 — 눌림목 표는 눌리는데
+    이 표만 안 눌려 고장으로 보였다(2026-07-29 지시). 테마표·눌림목표와 같은
+    방식(칸 나누기 + 이름 버튼)으로 맞춘다. 아래 '상세 종목 선택'은 그대로 둔다.
+    """
+    titles = ["순위", "종목", "조건점수", "당일", "52주 고가 대비", "20일 수익률",
+              "수급(대금%)", "동반(5일)", "동반(매수/매도/20일)", "매수 상태"]
+    box = st.container(key="j4_leader_table")
+    for column, title in zip(box.columns(_LEADER_COL_WIDTHS), titles):
+        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
+
+    rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
+    button_css = []
+    clicked = None
+    for index, leader in enumerate(leaders[:6]):
+        metrics, plan, flow = leader["metrics"], leader["plan"], leader["flow"]
+        rank = int(leader.get("rank") or 0)
+        score = float(leader.get("score") or 0)
+        button_key = f"j4lbtn_{index:02d}"
+        if leader["code"] == selected_code:
+            button_css.append(
+                f"div[class*='st-key-{button_key}'] button "
+                "{ background: rgba(255,176,32,0.16) !important; }"
+            )
+        cols = box.columns(_LEADER_COL_WIDTHS)
+        cols[0].markdown(
+            f"<div class='j4-td'>{rank_mark.get(rank, f'{rank}위')}</div>", unsafe_allow_html=True)
+        if cols[1].button(leader["name"], key=button_key, width="stretch"):
+            clicked = leader["code"]
+        cols[2].markdown(
+            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
+            f"<div class='j4-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>",
+            unsafe_allow_html=True,
+        )
+        for slot, value in (
+            (3, metrics.get("change_pct")),
+            (4, metrics.get("from_high_pct")),
+            (5, metrics.get("ret20")),
+        ):
+            cols[slot].markdown(
+                f"<div class='j4-td' style='color:{_sign_color(value)}; font-weight:700'>"
+                f"{_pct(value)}</div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div class='j4-td'>{_flow_ratio_cell(flow)}</div>", unsafe_allow_html=True)
+        cols[7].markdown(f"<div class='j4-td'>{_partner5_cell(flow)}</div>", unsafe_allow_html=True)
+        cols[8].markdown(f"<div class='j4-td'>{_partner20_cell(flow)}</div>", unsafe_allow_html=True)
+        cols[9].markdown(
+            f"<div class='j4-td'>{plan.get('state', '')}</div>", unsafe_allow_html=True)
+
+    if button_css:
+        st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
+    return clicked
+
+
 def _leader_table_html(leaders: list[dict], selected_code: str | None) -> str:
+    """(지금은 안 씀) 예전 HTML 표.
+
+    2026-07-29에 이름을 누를 수 있게 _render_leader_table로 바꿨다. 이 함수를
+    지우지 않고 남겨 둔 이유는, 폰에서 새 표가 이상하면 호출부 한 줄만 되돌리면
+    바로 예전 화면으로 돌아갈 수 있게 하기 위해서다. 폰 CSS(mobile_ui.py의
+    .j4-theme-table 규칙)도 그대로 살아 있다.
+    """
     rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
     body = []
     for leader in leaders[:6]:
@@ -2106,9 +2178,14 @@ def _render_radar_tab(market: dict) -> None:
         f"<div class='j4-section-title'><span class='j4-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
         unsafe_allow_html=True,
     )
-    st.caption("거래대금 상위 종목만 심사합니다. 아래 ‘상세 종목 선택’에서 1~6위 아무 종목이나 고르면 상세가 그 종목으로 바뀝니다.")
+    st.caption("거래대금 상위 종목만 심사합니다. 표에서 종목 이름을 누르거나 아래 ‘상세 종목 선택’에서 고르면 상세가 그 종목으로 바뀝니다.")
     stock_key = f"j4_stock_choice_{selected_theme}"
-    st.markdown(_leader_table_html(leaders, st.session_state.get(stock_key)), unsafe_allow_html=True)
+    # 표의 종목 이름을 눌러도 상세가 바뀌어야 한다(2026-07-29 지시). 눌림목 표는
+    # 눌리는데 이 표만 안 눌려 고장으로 보였다. 라디오는 그대로 둔다.
+    clicked_code = _render_leader_table(leaders, st.session_state.get(stock_key))
+    if clicked_code and clicked_code != st.session_state.get(stock_key):
+        st.session_state[stock_key] = clicked_code
+        st.rerun()
 
     _render_leader_comparison(leaders)
 
