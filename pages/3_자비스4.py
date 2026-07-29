@@ -7,7 +7,16 @@
 from __future__ import annotations
 
 import time
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
+# 기준일 비교는 항상 한국 시각으로 한다 — 클라우드 서버는 UTC라서
+# datetime.now()를 쓰면 자정 무렵에 '오늘'이 하루 어긋난다.
+_PAGE_SEOUL = ZoneInfo("Asia/Seoul")
+
+
+def _now_seoul() -> datetime:
+    return datetime.now(_PAGE_SEOUL)
 
 import streamlit as st
 
@@ -552,25 +561,41 @@ def _representative_flow_sub(foreign: dict) -> str:
         # 날짜를 괄호에 같이 적는다. 종목별 당일 수급은 장중에 공개되지 않아
         # 여기 숫자는 **가장 최근 완료 거래일**의 것이다. 날짜를 빼고 '(당일)'
         # 이라고만 쓰면 오늘 것으로 읽혀 거짓말이 된다.
+        # 설명 두 줄은 뺐다(2026-07-29 지시). 대신 날짜 자리에 오늘 것이면 '오늘'을
+        # 적어, 굳이 읽지 않아도 오늘 것인지 아닌지 한눈에 보이게 한다. 네이버가
+        # 종목별 당일 수급을 올리면 rows[0]이 오늘 줄로 바뀌어 저절로 '오늘'이 된다.
+        today_text = _now_seoul().strftime("%Y.%m.%d")
         stock_parts = []
+        waiting_for_today = False
         for stock in stocks:
             amount = stock.get("day_net_amount")
             if amount is None:
                 continue
             day = str(stock.get("day_date") or "").strip()
-            when = f"({day[5:]})" if len(day) >= 10 else ""
+            if day == today_text:
+                when = "(오늘)"
+            elif len(day) >= 10:
+                when = f"({day[5:]})"
+                waiting_for_today = True
+            else:
+                when = ""
+                waiting_for_today = True
             stock_parts.append(
                 f"{stock.get('label') or stock.get('code')}{when} "
                 f"<span style='color:{_sign_color(amount)};font-weight:800'>"
                 f"{_eok(amount)}</span>"
             )
         stale = " · 이전 정상 현재가" if foreign.get("live_stale") else ""
+        # 오늘 것이 아직 안 올라왔을 때만 언제 볼 수 있는지 알려 준다(2026-07-29 지시).
+        # 오늘 것이 이미 떠 있으면 이 줄은 안 나온다 — 늘 붙어 있으면 잔소리가 된다.
+        pending = (
+            "<br><span class='j4-muted'>오늘 것은 장 마감 뒤 올라옵니다</span>"
+            if waiting_for_today else ""
+        )
         return (
-            f"{target}<br>{' · '.join(stock_parts)}"
+            f"{target}<br>하루치 · {' · '.join(stock_parts)}{pending}"
             f"<br>외국인+기관 {direction}"
-            f"<br><span class='j4-muted'>위 줄은 종목별 하루치입니다 · "
-            f"종목별 당일 수급은 장 마감 뒤 공개됩니다"
-            f"<br>현재가 1분 자동조회{stale} · {as_of}</span>"
+            f"<br><span class='j4-muted'>현재가 1분 자동조회{stale} · {as_of}</span>"
         )
     return (
         f"{target}<br>외국인+기관 {direction}"
