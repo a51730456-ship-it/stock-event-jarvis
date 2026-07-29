@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
-MODULE_REVISION = 2026072601
+MODULE_REVISION = 2026072902
 
 _URL = "https://polling.finance.naver.com/api/realtime/domestic/stock/{codes}"
 _HEADERS = {
@@ -68,6 +68,22 @@ def _number(value) -> float | None:
     return result if result == result and result not in (float("inf"), float("-inf")) else None
 
 
+def _prev_close(payload: dict):
+    """전일 종가 = 현재가 − 전일 대비.
+
+    네이버 응답에 전일 종가 칸은 없고 `compareToPreviousClosePriceRaw`(전일 대비)만
+    있다. 둘 다 없으면 **지어내지 않고 None을 돌려준다** — 없는 값을 0으로 채우면
+    등락률이 조용히 틀린 채로 화면에 뜬다.
+    """
+    price = _number(payload.get("closePriceRaw") or payload.get("closePrice"))
+    diff = _number(payload.get("compareToPreviousClosePriceRaw")
+                   or payload.get("compareToPreviousClosePrice"))
+    if price is None or diff is None:
+        return None
+    prev = price - diff
+    return prev if prev > 0 else None
+
+
 def _pick(payload: dict) -> dict:
     """응답 한 종목분에서 우리가 쓸 값만 꺼낸다."""
     over = payload.get("overMarketPriceInfo") or {}
@@ -76,6 +92,12 @@ def _pick(payload: dict) -> dict:
     return {
         "code": str(payload.get("itemCode") or "").strip(),
         "price": _number(payload.get("closePriceRaw") or payload.get("closePrice")),
+        # 전일 종가. 네이버는 이 값을 직접 주지 않고 '전일 대비'만 주므로
+        # 현재가에서 빼서 되돌린다. 이걸 안 읽어 prev_close가 None이던 탓에
+        # 화면이 등락을 '저점 대비'로만 적었다. 저점 대비는 폭락일에도 늘
+        # 플러스라서, 코스피 -5.7%인 날 삼성전자가 '+1.2%'로 보였다
+        # (2026-07-29 실측).
+        "prev_close": _prev_close(payload),
         "day_open": _number(payload.get("openPriceRaw") or payload.get("openPrice")),
         "day_high": _number(payload.get("highPriceRaw") or payload.get("highPrice")),
         "day_low": _number(payload.get("lowPriceRaw") or payload.get("lowPrice")),

@@ -161,10 +161,12 @@ def init_db():
                 samsung_price REAL,
                 samsung_open REAL,
                 samsung_day_low REAL,
+                samsung_prev_close REAL,
 
                 hynix_price REAL,
                 hynix_open REAL,
                 hynix_day_low REAL,
+                hynix_prev_close REAL,
 
                 electronics_turnover REAL,
                 electronics_institution_net REAL,
@@ -209,6 +211,17 @@ def _migrate_add_columns(conn):
 
     # 판단 설명(점수/근거/매수 확정) 표시 기능용 추가 컬럼. 기존 행은 건드리지 않고
     # (NULL로 남겨 "정보 없음"으로 표시), 새로 저장되는 행부터 save_report()가 값을 채운다.
+    # 삼성전자·SK하이닉스 전일 종가. 없던 시절에는 화면이 등락을 '저점 대비'로만
+    # 적었는데, 저점 대비는 폭락일에도 늘 플러스라 코스피 -5.7%인 날 삼성전자가
+    # '+1.2%'로 보였다(2026-07-29 사용자 지적). 옛 행은 NULL로 두면 화면이
+    # 알아서 저점 대비만 적는다.
+    flow_cols = {row["name"] for row in
+                 conn.execute("PRAGMA table_info(kr_intraday_flow_snapshots)")}
+    for column in ("samsung_prev_close", "hynix_prev_close"):
+        if flow_cols and column not in flow_cols:
+            conn.execute(
+                f"ALTER TABLE kr_intraday_flow_snapshots ADD COLUMN {column} REAL")
+
     if "score" not in item_cols:
         conn.execute("ALTER TABLE report_items ADD COLUMN score REAL")
     if "score_reason" not in item_cols:
@@ -1780,9 +1793,11 @@ KR_FLOW_SNAPSHOT_FIELDS = (
     "samsung_price",
     "samsung_open",
     "samsung_day_low",
+    "samsung_prev_close",
     "hynix_price",
     "hynix_open",
     "hynix_day_low",
+    "hynix_prev_close",
     "electronics_turnover",
     "electronics_institution_net",
     "raw_source_status",

@@ -37,7 +37,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026072908
+MODULE_REVISION = 2026072909
 
 
 def _now_seoul():
@@ -282,12 +282,16 @@ def collect_kr_flow_snapshot(*, force_refresh=False):
             values[f"{prefix}_price"] = live.get("price")
             values[f"{prefix}_open"] = live.get("day_open")
             values[f"{prefix}_day_low"] = live.get("day_low")
+            # 전일 종가가 있어야 화면이 '전일 대비'를 적을 수 있다. 없으면
+            # 저점 대비만 남는데, 그건 폭락일에도 늘 플러스라 오해를 부른다.
+            values[f"{prefix}_prev_close"] = live.get("prev_close")
             continue
         quote = price_data.get_snapshot_defaults(ticker)
         if quote.get("ok"):
             values[f"{prefix}_price"] = quote.get("current")
             values[f"{prefix}_open"] = quote.get("open")
             values[f"{prefix}_day_low"] = quote.get("low")
+            values[f"{prefix}_prev_close"] = quote.get("prev_close")
             failures.append(f"{label} 네이버 장중 시세 실패 — 기존 가격으로 대체")
         else:
             failures.append(f"{label} 가격 조회 실패")

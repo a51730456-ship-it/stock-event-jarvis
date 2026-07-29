@@ -436,7 +436,16 @@ def evaluate_stock_rebound(
 
     sig.value = current
     low_recovery_pct = (current - day_low) / day_low * 100
-    sig.display_value = f"{current:,.0f} (저점대비 +{low_recovery_pct:.2f}%)"
+    # 전일 대비를 **앞에** 적는다. 저점 대비만 적으면 폭락일에도 늘 플러스라
+    # 오른 것처럼 읽힌다 (2026-07-29: 코스피 -5.7%인 날 삼성전자가
+    # '209,500 (저점대비 +1.21%)'로 떠서 네이버의 '-5.00%'와 어긋나 보였다).
+    prev_close = quote.get("prev_close")
+    if prev_close:
+        change_pct = (current - prev_close) / prev_close * 100
+        sig.display_value = (f"{current:,.0f} ({change_pct:+.2f}% · "
+                             f"저점대비 +{low_recovery_pct:.2f}%)")
+    else:
+        sig.display_value = f"{current:,.0f} (저점대비 +{low_recovery_pct:.2f}%)"
 
     # 최근 구간에서 저점을 다시 깬 경우가 최우선 부정 조건이다.
     lows = [v for v in (recent_lows or []) if v is not None]
@@ -819,6 +828,7 @@ def build_result_from_snapshots(
                 "current": latest.get("samsung_price"),
                 "open": latest.get("samsung_open"),
                 "low": latest.get("samsung_day_low"),
+                "prev_close": latest.get("samsung_prev_close"),
             },
             recent_lows=[r.get("samsung_day_low") for r in snapshots[-4:]],
             as_of=as_of,
@@ -831,6 +841,7 @@ def build_result_from_snapshots(
                 "current": latest.get("hynix_price"),
                 "open": latest.get("hynix_open"),
                 "low": latest.get("hynix_day_low"),
+                "prev_close": latest.get("hynix_prev_close"),
             },
             recent_lows=[r.get("hynix_day_low") for r in snapshots[-4:]],
             as_of=as_of,

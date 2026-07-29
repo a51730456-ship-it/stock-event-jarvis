@@ -147,5 +147,44 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(quote_api.get_quotes([]), {})
 
 
+class PrevCloseTests(unittest.TestCase):
+    """전일 종가를 되돌려 낸다.
+
+    이걸 안 읽던 탓에 화면이 등락을 '저점 대비'로만 적었다. 저점 대비는
+    폭락일에도 늘 플러스라, 코스피 -5.7%인 날 삼성전자가 '+1.2%'로 보였다
+    (2026-07-29 사용자 지적).
+    """
+
+    def test_prev_close_is_current_minus_change(self):
+        picked = quote_api._pick({
+            "itemCode": "005930",
+            "closePriceRaw": "210000",
+            "compareToPreviousClosePriceRaw": "-10000",
+        })
+        self.assertEqual(picked["prev_close"], 220000.0)
+
+    def test_rising_day_also_works(self):
+        picked = quote_api._pick({
+            "itemCode": "000660",
+            "closePriceRaw": "1406000",
+            "compareToPreviousClosePriceRaw": "56000",
+        })
+        self.assertEqual(picked["prev_close"], 1350000.0)
+
+    def test_missing_change_gives_none_not_zero(self):
+        """없는 값을 0으로 채우면 등락률이 조용히 틀린 채로 화면에 뜬다."""
+        picked = quote_api._pick({"itemCode": "005930", "closePriceRaw": "210000"})
+        self.assertIsNone(picked["prev_close"])
+
+    def test_nonsense_change_does_not_make_a_zero_baseline(self):
+        """전일 종가가 0 이하로 나오면 쓰지 않는다 — 나누다 터진다."""
+        picked = quote_api._pick({
+            "itemCode": "005930",
+            "closePriceRaw": "210000",
+            "compareToPreviousClosePriceRaw": "210000",
+        })
+        self.assertIsNone(picked["prev_close"])
+
+
 if __name__ == "__main__":
     unittest.main()
