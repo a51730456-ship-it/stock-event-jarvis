@@ -362,6 +362,92 @@ class CountingTest(unittest.TestCase):
         self.assertLess(len(counted), len(result.signals))
 
 
+class StabilityTest(unittest.TestCase):
+    """2026-07-29: 판정이 1분마다 켜짐↔애매로 계속 뒤집혔다(실측 17/38구간)."""
+
+    def test_same_value_twice_is_not_read_as_slowdown(self):
+        """네이버가 새 줄을 안 올린 분은 '유입 둔화'가 아니다."""
+        # 스냅숏은 1분 간격이다. 마지막 두 분만 값이 그대로 — 자료가 아직 안 바뀐 것.
+        values = [1000.0, 1200.0, 1400.0, 1600.0, 1800.0, 1800.0]
+        rows = [
+            _snapshot(m, institution_cash_net_amount=v)
+            for m, v in zip((0, 1, 2, 3, 4, 5), values)
+        ]
+        result = flow.build_result_from_snapshots(rows, now=_ts(6))
+        signal = result.signal("institution")
+        self.assertIs(signal.status, SignalStatus.POSITIVE)
+        self.assertNotIn("둔화", signal.reason)
+
+    def test_one_minute_dip_does_not_flip_the_verdict(self):
+        """5분 내내 늘었으면 마지막 1분이 조금 줄어도 켜짐을 유지한다."""
+        values = [1000.0, 1400.0, 1800.0, 2200.0, 2600.0, 2550.0]
+        rows = [
+            _snapshot(m, institution_cash_net_amount=v)
+            for m, v in zip((0, 1, 2, 3, 4, 5), values)
+        ]
+        result = flow.build_result_from_snapshots(rows, now=_ts(6))
+        self.assertIs(result.signal("institution").status, SignalStatus.POSITIVE)
+
+    def test_real_five_minute_decline_still_shows(self):
+        """진짜로 5분 내내 줄면 그때는 켜짐에서 내려와야 한다."""
+        values = [3000.0, 2800.0, 2600.0, 2400.0, 2200.0, 2000.0]
+        rows = [
+            _snapshot(m, institution_cash_net_amount=v)
+            for m, v in zip((0, 1, 2, 3, 4, 5), values)
+        ]
+        result = flow.build_result_from_snapshots(rows, now=_ts(6))
+        self.assertIsNot(result.signal("institution").status, SignalStatus.POSITIVE)
+
+    def test_recent_change_uses_window_not_last_step(self):
+        base = [(_ts(m), v) for m, v in
+                zip((0, 1, 2, 3, 4, 5), (100.0, 200.0, 300.0, 400.0, 500.0, 480.0))]
+        # 직전 한 구간만 보면 -20이지만, 5분 창으로 보면 +380이다.
+        self.assertEqual(flow._recent_change(base), 380.0)
+
+    def test_recent_change_falls_back_when_window_is_empty(self):
+        """오래 쉬었다 다시 켠 경우 창 안에 현재밖에 없어도 방향은 말해야 한다."""
+        base = [(_ts(0), 100.0), (_ts(40), 300.0)]
+        self.assertEqual(flow._recent_change(base), 200.0)
+
+    def test_single_point_direction_is_unknown(self):
+        self.assertIsNone(flow._recent_change([(_ts(0), 100.0)]))
+        self.assertIsNone(flow._recent_change([]))
+
+
+class ExclusionNoteTest(unittest.TestCase):
+    """개수에서 뺀 줄은 판정 칸에 ⭕를 찍지 않는다 — 표와 카드가 어긋나 보였다."""
+
+    def _rows(self):
+        return [
+            _snapshot(
+                m,
+                institution_cash_net_amount=2000.0 * (i + 1),
+                securities_net_amount=1500.0 * (i + 1),
+                personal_cash_net_amount=-1800.0 * (i + 1),
+            )
+            for i, m in enumerate((0, 5, 10, 15))
+        ]
+
+    def test_subtotal_rows_say_they_belong_to_institution(self):
+        result = flow.build_result_from_snapshots(self._rows(), now=_ts(16))
+        self.assertEqual(result.signal("securities").exclusion_note, "기관계에 포함")
+
+    def test_personal_says_reference_only(self):
+        result = flow.build_result_from_snapshots(self._rows(), now=_ts(16))
+        self.assertIn("참고만", result.signal("personal").exclusion_note)
+
+    def test_counted_rows_have_no_note(self):
+        result = flow.build_result_from_snapshots(self._rows(), now=_ts(16))
+        self.assertEqual(result.signal("institution").exclusion_note, "")
+
+    def test_note_exists_for_every_uncounted_signal(self):
+        """개수에서 빼놓고 표시를 안 하면 다시 앞뒤가 안 맞아 보인다."""
+        result = flow.build_result_from_snapshots(self._rows(), now=_ts(16))
+        for signal in result.signals:
+            if not signal.counts_toward_totals:
+                self.assertTrue(signal.exclusion_note, f"{signal.key}에 표시가 없다")
+
+
 class FreshnessTest(unittest.TestCase):
     """신선도는 스냅숏을 저장한 시각이 아니라 자료 자체의 기준시각으로 잰다."""
 

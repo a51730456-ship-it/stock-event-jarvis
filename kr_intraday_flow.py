@@ -188,6 +188,34 @@ def _deltas(series):
     ]
 
 
+# 판정을 '직전 1분 대비'로 내리면 자료가 조금만 출렁여도 매분 뒤집힌다.
+# 2026-07-29 실측: 38구간 중 외국인 선물 17번·기관계 18번 뒤집혔다. 게다가
+# 네이버가 아직 새 줄을 안 올린 분에는 증분이 정확히 0으로 잡혀 '유입 둔화'로
+# 오판했다(기관계 20회). 시장이 멈춘 게 아니라 자료가 안 바뀐 것뿐이다.
+# 그래서 한 구간이 아니라 최근 몇 분을 통째로 본다.
+TREND_WINDOW_SECONDS = 5 * 60
+
+
+def _recent_change(series, *, window_seconds=TREND_WINDOW_SECONDS):
+    """최근 window 동안의 순변화. 1분 노이즈로 판정이 뒤집히지 않게 한다.
+
+    창 안에 현재 점밖에 없으면(오래 쉬었다 다시 켠 경우) 바로 직전 점과 비교한다.
+    비교할 점이 아예 없으면 None — 방향을 모른다는 뜻이며 0으로 바꾸지 않는다.
+    """
+    points = sorted(
+        (ts, val) for ts, val in (series or []) if ts is not None and val is not None
+    )
+    if len(points) < 2:
+        return None
+    latest_ts, latest_val = points[-1]
+    within = [
+        p for p in points[:-1]
+        if (latest_ts - p[0]).total_seconds() <= window_seconds
+    ]
+    base = within[0] if within else points[-2]
+    return latest_val - base[1]
+
+
 def _pick_freshness(measured, fallback):
     """자료 시각으로 잰 값이 있으면 그것을 쓰고, 없을 때만 조회 시각으로 내려간다.
 
@@ -238,7 +266,10 @@ def evaluate_program_total(current_net, history, *, as_of=None, freshness=None) 
             sig.status = SignalStatus.NEUTRAL
         return sig
 
-    last = deltas[-1]
+    # 방향은 최근 몇 분의 순변화로 본다. 한 구간만 보면 매분 뒤집힌다.
+    last = _recent_change(history)
+    if last is None:
+        last = deltas[-1]
     recent = deltas[-3:]
 
     if current_net > 0 and last > 0:
@@ -537,8 +568,8 @@ def evaluate_investor(key, label, current_net, history, *, as_of=None, freshness
         sig.reason = f"{label} 수급 확인 필요"
         return sig
 
-    deltas = [d for _, d in _deltas(history)]
-    last = deltas[-1] if deltas else None
+    # 직전 한 구간이 아니라 최근 몇 분의 순변화로 본다(위 _recent_change 설명 참고).
+    last = _recent_change(history)
 
     if current_net > 0 and (last is None or last > 0):
         sig.status = SignalStatus.POSITIVE
@@ -965,6 +996,9 @@ def build_result_from_snapshots(
         signal.counts_toward_totals = counts
         if not counts:
             signal.strength = SignalStrength.INDIRECT
+            signal.exclusion_note = (
+                "참고만 (반대편)" if key == "personal" else "기관계에 포함"
+            )
         if from_naver:
             signal.strength = SignalStrength.PROXY if counts else SignalStrength.INDIRECT
             signal.source = investor_source

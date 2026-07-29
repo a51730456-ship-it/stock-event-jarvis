@@ -432,6 +432,36 @@ def collect_kr_flow_snapshot(*, force_refresh=False):
     return values, failures
 
 
+def _value_before(snapshots, column, *, seconds, latest_at):
+    """seconds만큼 전 시점의 값. 그만큼 안 쌓였으면 가장 오래된 값을 쓴다.
+
+    엔진의 _recent_change와 같은 기준이다 — 외국인 선물만 직전 1분과 비교하면
+    같은 표 안에서 항목마다 다른 잣대를 쓰게 된다.
+    """
+    known = []
+    for snap in snapshots or []:
+        try:
+            value = snap.get(column)
+        except AttributeError:
+            continue
+        if value is None:
+            continue
+        stamp = snap.get("captured_at")
+        if isinstance(stamp, str):
+            try:
+                stamp = datetime.fromisoformat(stamp)
+            except ValueError:
+                continue
+        if not isinstance(stamp, datetime):
+            continue
+        known.append((stamp, value))
+    if not known:
+        return None
+    known.sort()
+    older = [v for ts, v in known if (latest_at - ts).total_seconds() >= seconds]
+    return int(older[-1]) if older else int(known[0][1])
+
+
 def _flow_today():
     return _now_seoul().strftime("%Y-%m-%d")
 
@@ -492,16 +522,14 @@ def run_kr_flow_check(*, force_refresh=False):
             available=True,
         )
     elif values.get("foreign_futures_net_contracts") is not None:
-        # 네이버 자동 조회치 — 직전 스냅숏에 저장된 값과 비교해 증감 방향도 판정한다.
-        previous_value = None
-        for snap in reversed(snapshots[:-1]):
-            try:
-                candidate = snap.get("foreign_futures_net_contracts")
-            except AttributeError:
-                candidate = None
-            if candidate is not None:
-                previous_value = int(candidate)
-                break
+        # 직전 1분 값과 비교하면 판정이 매분 뒤집힌다(2026-07-29 실측 17/38).
+        # 다른 항목과 같은 기준으로 몇 분 전 값과 비교한다.
+        previous_value = _value_before(
+            snapshots[:-1],
+            "foreign_futures_net_contracts",
+            seconds=kr_intraday_flow.TREND_WINDOW_SECONDS,
+            latest_at=_now_seoul(),
+        )
         foreign_futures = kr_intraday_flow.ForeignFuturesFlowSnapshot(
             net_contracts=int(values["foreign_futures_net_contracts"]),
             previous_net_contracts=previous_value,
@@ -652,8 +680,13 @@ border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.9rem;line-hei
   <span style="color:#9ca3af;">모름</span>은 그 자료에 시각이 안 적혀 있어 언제 것인지 알 수 없다는 뜻입니다.<br>
   <b style="color:#9ca3af;">└ 표시와 개인</b> :
   <b>기관계</b>는 금융투자·투신·사모·기금을 <b>모두 더한 값</b>입니다. 그래서 아래 └ 항목들은
-  기관계와 같은 돈이며, 위 ‘켜진 신호 N개’에는 기관계 하나만 셉니다.
-  <b>개인</b>은 기관·외국인이 사면 파는 반대편이라 역시 개수에 넣지 않고 참고로만 보여줍니다.<br>
+  기관계와 같은 돈이며, 판정 칸에 ⭕ 대신
+  <span style="color:#9ca3af;">‘기관계에 포함’</span>이라고 적고 위 ‘켜진 신호 N개’에도 기관계 하나만 셉니다.
+  <b>개인</b>은 기관·외국인이 사면 파는 반대편이라 역시
+  <span style="color:#9ca3af;">‘참고만’</span>으로 두고 개수에 넣지 않습니다. 값은 그대로 보여줍니다.<br>
+  <b style="color:#9ca3af;">판정이 자주 바뀌지 않게</b> :
+  방향은 직전 1분이 아니라 <b>최근 5분</b>을 통째로 보고 정합니다. 1분마다 비교하면
+  자료가 조금만 출렁여도 켜짐과 애매가 계속 뒤집힙니다.<br>
   <b style="color:#9ca3af;">‘자료 없음’의 뜻</b> :
   값이 0이라는 게 아니라 <b>못 가져왔다</b>는 뜻입니다. 이유는 두 가지이고 설명 칸에 나뉘어 있습니다 —
   <span style="color:#e6e6e6;">‘스냅숏 부족’</span>은 자료는 오는데 15분 치가 아직 안 쌓인 것(시간이 지나면 채워집니다),
@@ -986,14 +1019,25 @@ def render_market_signal_card(
             name_text = signal.label
             if not signal.counts_toward_totals and signal.key != "personal":
                 name_text = f"└ {signal.label}"
+            # 개수에서 뺀 줄은 ⭕/🟡을 찍지 않는다. 표에 초록이 넷 보이는데 카드는
+            # '켜진 신호 1개'라고 하면 앞뒤가 안 맞아 보인다(2026-07-29 사용자 지적).
+            if signal.exclusion_note:
+                verdict_cell = signal.exclusion_note
+                verdict_color = "#9ca3af"
+            else:
+                verdict_cell = (
+                    f"{market_signal_common.STATUS_MARK[signal.status]} "
+                    f"{_STATUS_TEXT[signal.status]}"
+                    f"{_falling_tag(signal, falling_market)}"
+                )
+                verdict_color = status_color
             _rows_html.append(
                 "<tr>"
                 f"<td class='msig-name'>{name_text}</td>"
                 f"<td style='color:{_VALUE_COLOR};font-weight:700'>"
                 f"{_colorize_signed(signal.display_value)}</td>"
-                f"<td style='color:{status_color};font-weight:700;white-space:nowrap'>"
-                f"{market_signal_common.STATUS_MARK[signal.status]} {_STATUS_TEXT[signal.status]}"
-                f"{_falling_tag(signal, falling_market)}</td>"
+                f"<td style='color:{verdict_color};font-weight:700;white-space:nowrap'>"
+                f"{verdict_cell}</td>"
                 f"<td style='color:{_TIMING_COLOR.get(timing_text, '#e6e6e6')};font-weight:700'>{timing_text}</td>"
                 f"<td style='color:{_SOURCE_COLOR.get(source_text, '#e6e6e6')};font-weight:700'>{source_text}</td>"
                 f"<td class='msig-reason'>{signal.reason}</td>"

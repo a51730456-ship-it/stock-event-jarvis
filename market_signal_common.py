@@ -134,6 +134,10 @@ class MarketSignal:
     #  2) 반대 주체 — 개인은 기관·외국인의 거울상이라 같은 눈금으로 세면 안 된다.
     # 표에는 그대로 보여준다. 세지 않을 뿐 숨기지 않는다.
     counts_toward_totals: bool = True
+    # 개수에서 뺀 이유를 판정 칸에 대신 적을 짧은 말. 비어 있으면 판정을 그대로 쓴다.
+    # 이게 없으면 표에는 ⭕가 넷 보이는데 카드는 '켜진 신호 1개'라고 해서
+    # 앞뒤가 안 맞아 보인다(2026-07-29 사용자 지적).
+    exclusion_note: str = ""
 
     @property
     def is_positive(self) -> bool:
