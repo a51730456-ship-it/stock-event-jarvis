@@ -30,5 +30,6 @@ backups/
 # 자비스5 클라우드 수집 자료는 저장소에 올린다(data/jarvis5). 쓰다 만 임시 파일만 뺀다.
 data/jarvis5/*.tmp
 data/jarvis6/*.tmp
+data/stock_flow/*.tmp
 
 db/jarvis6_close.sqlite3

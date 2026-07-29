@@ -1,0 +1,56 @@
+# 종목별 하루치 수급을 저녁에 모아 둔다.
+#
+# 왜 (2026-07-29 실측): 네이버 종목별 수급표는 20거래일치만 준다. 한 달이
+# 지나면 그 앞은 사라진다. 지나간 수급은 소급할 수 없으므로 그날그날 받아
+# 둬야 한다. 자비스6이 나중에 "외국인이 산 다음 날 올랐나"를 답하려면
+# 이 자료가 필요하다.
+#
+# 종목별 당일 수급은 거래소가 장중에 공개하지 않는다. 장 마감(15:30) 뒤
+# 저녁에야 그날 줄이 생긴다. 그래서 18:40에 돈다.
+# cron은 UTC고 한국시각은 +9시간이다. 09:40 UTC = 18:40 KST.
+# 예약이 5~20분 늦어도 상관없다 — 저녁 내내 같은 값이다.
+name: 종목별 수급 모으기
+
+on:
+  schedule:
+    - cron: "40 9 * * 1-5"    # 월~금 09:40 UTC = 18:40 KST
+  workflow_dispatch:
+
+concurrency:
+  group: stock-flow-log
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 필요한 것만 설치
+        # 네이버 HTML만 읽는다. 화면(streamlit)은 필요 없다.
+        run: pip install requests pandas
+
+      - name: 그날 수급 받아 두기
+        run: python stock_flow_log.py --export-dir data/stock_flow
+
+      - name: 저장소에 올리기
+        if: always()
+        run: |
+          git config user.name "stock-flow-log"
+          git config user.email "stock-flow-log@users.noreply.github.com"
+          git add data/stock_flow || true
+          if ! git diff --cached --quiet; then
+            git commit -m "종목별 수급 $(TZ=Asia/Seoul date +'%Y-%m-%d')"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          else
+            echo "새로 쌓을 것이 없습니다"
+          fi
