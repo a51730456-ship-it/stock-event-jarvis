@@ -113,6 +113,66 @@ class YahooOneMinuteChartTests(unittest.TestCase):
         self.assertEqual(row["chart"]["base"], 99.0)
 
 
+class FuturesSessionWindowTests(unittest.TestCase):
+    """2026-07-29: 나스닥 선물 차트가 네이버와 모양이 전혀 달랐다.
+
+    Yahoo의 range=1d가 '뉴욕 자정' 이후만 줘서, 한국시각 13시가 지나면 차트가
+    한두 시간짜리 토막이 됐다(실측 14:26 KST에 79봉). 이번 세션 전체를 그린다.
+    """
+
+    NY = ZoneInfo("America/New_York")
+
+    def _stamp(self, month, day, hour, minute=0):
+        return int(datetime(2026, month, day, hour, minute, tzinfo=self.NY).timestamp())
+
+    def _payload(self, stamps):
+        return {
+            "chart": {
+                "error": None,
+                "result": [{
+                    "meta": {"previousClose": 100.0, "dataGranularity": "1m"},
+                    "timestamp": list(stamps),
+                    "indicators": {"quote": [{"close": [100.0 + i for i in range(len(stamps))]}]},
+                }],
+            },
+        }
+
+    def test_session_starts_at_new_york_six_pm(self):
+        # 7/29 01:26 ET → 이번 세션은 7/28 18:00 ET에 열렸다.
+        start = j4._session_start_stamp(self._stamp(7, 29, 1, 26))
+        self.assertEqual(start, float(self._stamp(7, 28, 18)))
+
+    def test_evening_bar_belongs_to_the_session_that_just_opened(self):
+        # 7/28 20:00 ET는 같은 날 18:00에 열린 세션이다.
+        start = j4._session_start_stamp(self._stamp(7, 28, 20))
+        self.assertEqual(start, float(self._stamp(7, 28, 18)))
+
+    def test_bars_before_this_session_are_dropped(self):
+        stamps = [
+            self._stamp(7, 28, 14),   # 지난 세션 (버려야 함)
+            self._stamp(7, 28, 15),   # 지난 세션 (버려야 함)
+            self._stamp(7, 28, 19),   # 이번 세션
+            self._stamp(7, 28, 23),   # 이번 세션
+            self._stamp(7, 29, 1),    # 이번 세션 (마지막)
+        ]
+        row = j4._parse_yahoo_1m_chart(self._payload(stamps), symbol="NQ=F", label="나스닥100 선물")
+        self.assertEqual(len(row["chart"]["points"]), 3)
+        self.assertEqual(row["chart"]["points"][-1], row["current"])
+
+    def test_afternoon_korea_time_keeps_a_long_chart(self):
+        """14시 KST(=01시 ET)에도 토막이 아니라 세션 전체가 남아야 한다."""
+        stamps = [self._stamp(7, 28, 18) + 60 * i for i in range(0, 440)]
+        row = j4._parse_yahoo_1m_chart(self._payload(stamps), symbol="NQ=F", label="나스닥100 선물")
+        # 180점으로 솎이지만, 79봉짜리 토막으로 줄어들면 안 된다.
+        self.assertGreater(len(row["chart"]["points"]), 100)
+
+    def test_short_response_is_not_emptied(self):
+        """세션 경계 밖 자료뿐이어도 차트를 비우지 않는다."""
+        stamps = [self._stamp(7, 28, 14), self._stamp(7, 28, 15)]
+        row = j4._parse_yahoo_1m_chart(self._payload(stamps), symbol="NQ=F", label="나스닥100 선물")
+        self.assertEqual(len(row["chart"]["points"]), 2)
+
+
 class ThemeDetailParsingTests(unittest.TestCase):
     def test_regular_row_uses_direct_trading_value_from_tail_columns(self):
         parsed = j4._parse_theme_detail_numbers(

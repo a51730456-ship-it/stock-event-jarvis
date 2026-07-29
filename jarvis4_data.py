@@ -62,7 +62,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072912
+MODULE_REVISION = 2026072914
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -796,6 +796,31 @@ def _live_index(ticker: str) -> float | None:
     return None
 
 
+# 지수선물·환율은 거의 24시간 돈다. 그런데 Yahoo의 range=1d는 이 종목들에서
+# '뉴욕 자정' 이후만 돌려준다. 한국시각 13시가 지나면 차트가 한두 시간짜리
+# 토막으로 줄어든다 — 2026-07-29 14:26 KST에 79봉(1.3시간)만 왔다. 네이버는
+# 세션 전체를 그리므로 같은 시각에 모양이 전혀 달라 보였다(사용자 지적).
+# 그래서 이틀치를 받아 '이번 세션'만 남긴다. CME 지수선물의 하루는 뉴욕
+# 18시에 시작해 다음 날 17시에 끝난다.
+_NEW_YORK = ZoneInfo("America/New_York")
+_SESSION_OPEN_HOUR_ET = 18
+
+
+def _session_start_stamp(last_stamp: int) -> float:
+    """마지막 봉이 속한 세션이 시작한 시각(epoch).
+
+    주말도 알아서 맞는다 — 금요일 17시 마감 뒤에는 목요일 18시가 아니라
+    그 봉이 속한 금요일 세션(목 18시~금 17시)의 시작을 돌려준다.
+    """
+    moment = datetime.fromtimestamp(last_stamp, tz=_NEW_YORK)
+    start = moment.replace(
+        hour=_SESSION_OPEN_HOUR_ET, minute=0, second=0, microsecond=0
+    )
+    if moment < start:
+        start -= timedelta(days=1)
+    return start.timestamp()
+
+
 def _parse_yahoo_1m_chart(payload: dict, *, symbol: str, label: str) -> dict:
     """Yahoo 단일 1분봉 응답을 화면 값으로 바꾼다.
 
@@ -832,6 +857,10 @@ def _parse_yahoo_1m_chart(payload: dict, *, symbol: str, label: str) -> dict:
         raise RuntimeError(f"{label} 전일 기준가가 없습니다")
 
     last_stamp, current = rows[-1]
+    # 이번 세션만 그린다. 세션 경계를 못 찾거나 자료가 너무 적으면 받은 걸 다 쓴다.
+    session_rows = [row for row in rows if row[0] >= _session_start_stamp(last_stamp)]
+    if len(session_rows) >= 2:
+        rows = session_rows
     points = [value for _stamp, value in rows]
     as_of = datetime.fromtimestamp(last_stamp, tz=_SEOUL).strftime("%m.%d %H:%M")
     delay = _finite(meta.get("exchangeDataDelayedBy"))
@@ -862,7 +891,9 @@ def _fetch_yahoo_1m_chart(symbol: str, label: str) -> dict:
                 url,
                 params={
                     "interval": "1m",
-                    "range": "1d",
+                    # 1d로 받으면 뉴욕 자정 이후만 온다. 세션 전체를 그리려면
+                    # 이틀치를 받아 위 _session_start_stamp로 잘라야 한다.
+                    "range": "2d",
                     "includePrePost": "true",
                     "events": "div,splits",
                 },
