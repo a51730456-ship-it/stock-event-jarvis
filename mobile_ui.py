@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026072507
+MODULE_REVISION = 2026072922
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -156,6 +156,10 @@ THEME_TABLE_CSS = """
 
 # 종목 상세·신호 카드 등 나머지 자리.
 CONTENT_CSS = """
+/* '이 테마 기법에 대한 설명' 단추 — 폰에서 글자만 줄여 화면 밖으로 안 밀리게 한다.
+   단추 모양 자체는 method_help.py에 있고, 폰 규칙만 규칙 12에 따라 여기 둔다. */
+div[class*="st-key-jarvis_method_help"] button p { font-size: .86rem !important; }
+div[class*="st-key-jarvis_method_help"] button { padding: .3rem .7rem !important; }
 h1 { font-size: 1.5rem !important; }
 h2 { font-size: 1.2rem !important; }
 .j3-stock-name, .j4-stock-name { font-size: 1.3rem; }

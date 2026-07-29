@@ -368,9 +368,16 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026072507
+_REQUIRED_MOBILE_REVISION = 2026072922
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
+import method_help
+
+# 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
+# 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
+_REQUIRED_METHOD_HELP_REVISION = 2026072922
+if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
+    method_help = importlib.reload(method_help)
 import regime_gauge_ui
 import jarvis3_data as j3data
 import jarvis3_store as j3store
@@ -2412,6 +2419,9 @@ def main() -> None:
         mobile_ui.page_css(),
         unsafe_allow_html=True,
     )
+    # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
+    # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
+    method_help.render(st, "US")
     st.title("자비스3 — 미국 테마 레이더")
     try:
         j3store.ensure_tables()
