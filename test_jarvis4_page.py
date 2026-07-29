@@ -598,6 +598,45 @@ class Jarvis4PageTests(unittest.TestCase):
         # 테마 선택은 건드리지 않는다.
         self.assertNotIn("반도체/HBM", state.get("j4_forced_themes") or [])
 
+    def test_all_six_leaders_are_selectable(self):
+        """표에 1~6위를 보여주면서 상세는 1~3위만 고를 수 있었다(2026-07-29 지적).
+
+        4~6위를 눌러도 아무 일이 없어 고장으로 보였다. 표에 나온 여섯 개는
+        모두 '상세 종목 선택'에 있어야 한다.
+        """
+        six = _leaders()
+        base = six["rows"][0]
+        for index, (code, name) in enumerate(
+            (("034730", "SK"), ("010950", "S-Oil"), ("096770", "SK이노베이션")), 4
+        ):
+            six["rows"].append({**base, "code": code, "name": name, "rank": index,
+                                "score": 40.0 - index})
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            leaders = patch("jarvis4_data.get_theme_leaders", return_value=six)
+            leaders.start()
+            started.append(leaders)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+        self.assertEqual(len(app.exception), 0)
+        picker = next(
+            node for node in app.radio
+            if str(node.label) == "상세 종목 선택" and len(node.options) > 1
+        )
+        self.assertEqual(len(picker.options), 6, list(picker.options))
+        # AppTest는 화면에 보이는 글자를 준다. 4~6위가 실제로 골라지는지 본다.
+        labels = " / ".join(str(option) for option in picker.options)
+        for code in ("034730", "010950", "096770"):
+            self.assertIn(code, labels, labels)
+
     def test_my_stock_panel_searches_and_opens_detail(self):
         """맨 아래 '내 종목 현재상황'에서 이름을 치면 종목이 뜨고 상세가 열린다."""
         started = []

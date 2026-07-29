@@ -113,6 +113,48 @@ class YahooOneMinuteChartTests(unittest.TestCase):
         self.assertEqual(row["chart"]["base"], 99.0)
 
 
+class ChartHistoryTests(unittest.TestCase):
+    """2026-07-29: 월봉에 20선·50선이 아예 없고 주봉 50주선이 토막났다.
+
+    차트용 일봉을 400일(약 13개월)만 받아서, 월봉이 14개밖에 안 나와 20개월선을
+    낼 수 없었다. 차트는 심사용보다 훨씬 긴 자료를 받는다.
+    """
+
+    def _daily(self, days):
+        index = pd.bdate_range(end="2026-07-29", periods=days)
+        return pd.DataFrame(
+            {"Close": [1000.0 + i for i in range(days)],
+             "Open": [1000.0 + i for i in range(days)],
+             "High": [1010.0 + i for i in range(days)],
+             "Low": [990.0 + i for i in range(days)],
+             "Volume": [1000] * days},
+            index=index,
+        )
+
+    def test_chart_history_is_long_enough_for_monthly_averages(self):
+        # 월봉 36개 + 50개월선을 채우려면 86개월이 필요하다.
+        self.assertGreaterEqual(j4._CHART_HISTORY_DAYS, 86 * 30)
+
+    def test_all_three_timeframes_have_both_moving_averages(self):
+        long_frame = self._daily(1748)
+        with patch.object(j4, "_read_daily", return_value=long_frame), \
+                patch.object(j4, "_cached", side_effect=lambda key, ttl, produce: (produce(), False)):
+            bundle = j4.get_chart_bundle("034730")
+        self.assertTrue(bundle["ok"])
+        for name in ("일봉", "주봉", "월봉"):
+            price = bundle["charts"][name]["price"]
+            self.assertGreater(price["MA20"].notna().sum(), 0, f"{name} 20선이 비었다")
+            self.assertGreater(price["MA50"].notna().sum(), 0, f"{name} 50선이 비었다")
+
+    def test_short_history_still_draws_something(self):
+        """상장한 지 얼마 안 된 종목은 이평선이 비어도 차트는 나와야 한다."""
+        with patch.object(j4, "_read_daily", return_value=self._daily(30)), \
+                patch.object(j4, "_cached", side_effect=lambda key, ttl, produce: (produce(), False)):
+            bundle = j4.get_chart_bundle("365660")
+        self.assertTrue(bundle["ok"])
+        self.assertGreater(len(bundle["charts"]["일봉"]["price"]), 0)
+
+
 class NewlyListedThemeTests(unittest.TestCase):
     """2026-07-29: '2026 하반기 신규상장' 테마만 누르면 빨간 에러가 났다.
 

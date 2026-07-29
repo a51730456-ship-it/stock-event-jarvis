@@ -62,7 +62,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072918
+MODULE_REVISION = 2026072919
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -2364,9 +2364,26 @@ def _prepare_chart_payload(frame: pd.DataFrame, resample_rule: str | None, limit
     }
 
 
+# 차트용 일봉은 심사용(400일)보다 훨씬 길게 받는다.
+# 400일이면 월봉이 14개월뿐이라 20개월선이 아예 안 그려지고, 주봉 50주선도
+# 마지막 9개만 나와 선이 토막났다(2026-07-29 사용자 지적).
+# 월봉 36개 + 50개월선을 채우려면 86개월(약 7년)이 필요하다. 실측 0.1초.
+_CHART_HISTORY_DAYS = 2600
+
+
 def get_chart_bundle(code: str) -> dict:
     """한 번의 일봉 조회로 일봉·주봉·월봉 차트를 함께 만든다."""
-    frame = get_daily_frame(code, ttl_seconds=300)
+    code = str(code).strip()
+    try:
+        frame, _stale = _cached(
+            ("chart_daily", code), 300,
+            lambda: _read_daily(code, days=_CHART_HISTORY_DAYS),
+        )
+    except Exception:
+        frame = None
+    if frame is None or frame.empty:
+        # 긴 자료를 못 받으면 심사용 짧은 자료로라도 그린다.
+        frame = get_daily_frame(code, ttl_seconds=300)
     if frame is None or frame.empty:
         return {"ok": False, "error": "차트 자료가 없습니다", "charts": {}}
     return {

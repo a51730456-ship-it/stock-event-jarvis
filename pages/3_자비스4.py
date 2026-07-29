@@ -130,7 +130,9 @@ st.markdown(
     .j4-reason-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 0.55rem; padding: 0.6rem 0.75rem; height: 100%; }
     .j4-reason-title { color: #4da6ff; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.25rem; }
     .j4-reason-body { color: #44f0a1; font-weight: 700; font-size: 0.9rem; line-height: 1.45; }
-    .j4-chart-title { color: #e6e6e6; font-weight: 800; font-size: 1rem; margin-bottom: 0.1rem; }
+    /* 일봉·주봉·월봉 이름은 파랑(2026-07-29 지시). 상세가 세 벌 그려지므로
+       여기 한 곳만 고치면 테마 종목·눌림목·내 종목 화면에 모두 적용된다. */
+    .j4-chart-title { color: #4da6ff; font-weight: 800; font-size: 1rem; margin-bottom: 0.1rem; }
     .j4-leader-name { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
     .j4-leader-name .j4-medal { font-size: 1.6rem; vertical-align: -2px; }
     .j4-leader-live { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; margin-top: 0.35rem; }
@@ -141,7 +143,9 @@ st.markdown(
     .j4-green-strong { color: #22c55e; font-weight: 800; }
     .j4-theme-box { background: rgba(77,166,255,0.08); border: 1px solid rgba(77,166,255,0.3); border-radius: 0.55rem; padding: 0.7rem 0.9rem; font-size: 0.95rem; line-height: 1.7; margin-bottom: 0.6rem; }
     .j4-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 700; }
-    .j4-chart-heading { margin-top: 1.6rem; font-size: 1.15rem; font-weight: 800; color: #e6e6e6; }
+    /* 차트 구역 제목은 초록(2026-07-29 지시) — '당일·실시간', '가격 차트 …' 등.
+       상세 세 벌에 공통으로 먹는다. */
+    .j4-chart-heading { margin-top: 1.6rem; font-size: 1.15rem; font-weight: 800; color: #44f0a1; }
     .j4-theme-badge { display: inline-block; background: rgba(255,176,32,0.16); color: #ffb020; border: 1px solid #ffb020; border-radius: 0.5rem; padding: 0.15rem 0.7rem; font-weight: 800; font-size: 1.05rem; margin-right: 0.4rem; }
     .j4-flow-label { color: #44f0a1; font-weight: 800; }
     .j4-flow-body { color: #4da6ff; font-weight: 800; }
@@ -369,7 +373,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072918
+_REQUIRED_J4_REVISION = 2026072919
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -2102,7 +2106,7 @@ def _render_radar_tab(market: dict) -> None:
         f"<div class='j4-section-title'><span class='j4-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
         unsafe_allow_html=True,
     )
-    st.caption("거래대금 상위 종목만 심사합니다. 상세 분석은 아래 ‘상세 종목 선택’에서 1~3위를 고르세요.")
+    st.caption("거래대금 상위 종목만 심사합니다. 아래 ‘상세 종목 선택’에서 1~6위 아무 종목이나 고르면 상세가 그 종목으로 바뀝니다.")
     stock_key = f"j4_stock_choice_{selected_theme}"
     st.markdown(_leader_table_html(leaders, st.session_state.get(stock_key)), unsafe_allow_html=True)
 
@@ -2111,7 +2115,11 @@ def _render_radar_tab(market: dict) -> None:
     # 위 상세는 **테마 종목만** 쓴다. 눌림목에서 고른 종목은 아래 제 자리에 따로
     # 그린다 — 예전에는 여기에 끼워 넣어 눌림목을 누르면 위 상세까지 통째로
     # 바뀌었다(2026-07-29 사용자 지시: 위·아래를 따로 보게 해 달라).
-    top_candidates = leaders[:3]
+    #
+    # 표에 1~6위를 보여주면서 상세는 1~3위만 고를 수 있었다. 4~6위를 눌러도
+    # 아무 일이 없어 고장으로 보였다(2026-07-29 지적). 표에 나온 여섯 개를
+    # 그대로 고를 수 있게 한다.
+    top_candidates = leaders[:6]
     code_options = [leader["code"] for leader in top_candidates]
     if stock_key in st.session_state and st.session_state[stock_key] not in code_options:
         del st.session_state[stock_key]
