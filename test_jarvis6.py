@@ -10,7 +10,9 @@
 
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -201,6 +203,75 @@ class StoreTests(unittest.TestCase):
     def test_skipped_picks_are_not_given_outcomes(self):
         store.save_pick(self._row(), action="skipped", db_path=self.db)
         self.assertEqual(store.pending_outcomes(db_path=self.db), [])
+
+
+class AutoLogTests(unittest.TestCase):
+    """사람이 안 눌러도 자료가 쌓이는가.
+
+    이게 자비스6의 목숨줄이다. 안 쌓이면 30건이 영영 안 차고,
+    30건이 안 차면 이 매매가 되는지 끝까지 모른다.
+    """
+
+    def setUp(self):
+        import jarvis6_autolog as autolog
+        self.autolog = autolog
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.out = Path(self.tempdir.name) / "jarvis6"
+        self.db = Path(self.tempdir.name) / "j6.sqlite3"
+        stock = _stock()
+        metrics = _metrics()
+        self.row = {"code": "042660", "name": "한화오션", "theme": "조선",
+                    "stock": stock, "metrics": metrics,
+                    "flow": {"both_buy_days5": 4}, "theme_row": {"advancers": 4},
+                    "eval": j6.evaluate(stock, metrics, {"both_buy_days5": 4},
+                                        {"advancers": 4})}
+        self.when = datetime(2026, 7, 27, 15, 18, tzinfo=ZoneInfo("Asia/Seoul"))
+
+    def tearDown(self):
+        self.tempdir.cleanup()
+
+    def _build(self):
+        return {"ok": True, "rows": [self.row], "market": {}, "checked_at": "15:18"}
+
+    def test_only_good_rows_are_written(self):
+        """화면에서 초록으로 보이는 것만 남긴다. 기준은 한 곳에만 있다."""
+        weak = dict(self.row, code="000660", name="약한종목",
+                    eval=j6.evaluate(_stock(day_high=99999.0), _metrics(from_high_pct=-40.0),
+                                     {}, {}))
+        result = self.autolog.collect(
+            now=self.when, export_dir=self.out,
+            builder=lambda: {"ok": True, "rows": [self.row, weak]})
+        self.assertEqual(result["saved"], 1)
+
+    def test_importing_twice_does_not_double_count(self):
+        """다시 불러도 성적이 부풀면 안 된다."""
+        self.autolog.collect(now=self.when, export_dir=self.out, builder=self._build)
+        for _ in range(3):
+            store.import_auto_logs(source_dir=self.out, db_path=self.db)
+        self.assertEqual(store.headline(db_path=self.db)["recorded"], 1)
+
+    def test_trade_date_comes_from_the_file_not_today(self):
+        """어제 남긴 것을 오늘 들여와도 어제 것이어야 한다."""
+        self.autolog.collect(now=self.when, export_dir=self.out, builder=self._build)
+        store.import_auto_logs(source_dir=self.out, db_path=self.db)
+        self.assertEqual(store.list_picks(db_path=self.db)[0]["trade_date"], "2026-07-27")
+
+    def test_broken_file_does_not_stop_the_rest(self):
+        self.autolog.collect(now=self.when, export_dir=self.out, builder=self._build)
+        (self.out / "2026-07-28.json").write_text("{쓰다 만", encoding="utf-8")
+        self.assertEqual(
+            store.import_auto_logs(source_dir=self.out, db_path=self.db)["rows"], 1)
+
+    def test_refuses_to_run_after_the_closing_auction(self):
+        """15:20이 지난 뒤 남기면 종가를 보고 종가에 샀다고 적는 셈이다."""
+        code = self.autolog.main(["--export-dir", str(self.out)])
+        self.assertEqual(code, 0)
+        self.assertFalse(list(self.out.glob("*.json")) if self.out.exists() else [])
+
+    def test_headline_hides_the_score_until_enough(self):
+        head = store.headline(db_path=self.db)
+        self.assertFalse(head["enough"])
+        self.assertIsNone(head["avg"])
 
 
 if __name__ == "__main__":

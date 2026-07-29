@@ -55,6 +55,16 @@ st.markdown(
         border-radius: .6rem; padding: .7rem .9rem; text-align: center; }
     .j6-kpi-label { color: #4da6ff; font-size: .9rem; font-weight: 800; }
     .j6-kpi-value { color: #44f0a1; font-size: 1.5rem; font-weight: 800; }
+    /* 맨 위 두 칸. 이것만 봐도 되게 크게 둔다. 폰에서는 한 줄씩 쌓는다. */
+    .j6-summary { display: grid; grid-template-columns: repeat(2, minmax(0,1fr));
+        gap: .8rem; margin: .2rem 0 1.1rem; }
+    .j6-card { border: 1px solid rgba(77,166,255,.35); background: rgba(77,166,255,.06);
+        border-radius: .8rem; padding: 1rem 1.1rem; }
+    .j6-big { font-size: 2.4rem; font-weight: 900; line-height: 1.2; margin-top: .25rem; }
+    @media (max-width: 600px) {
+        .j6-summary { grid-template-columns: 1fr; }
+        .j6-big { font-size: 2rem; }
+    }
     .j6-check { color: #44f0a1; font-weight: 800; }
     .j6-cross { color: #ff6b6b; font-weight: 800; }
     .j6-table { width: 100%; border-collapse: collapse; font-size: 1.02rem; }
@@ -154,74 +164,81 @@ def _render_guides() -> None:
 
 @st.cache_data(ttl=120, show_spinner=False)
 def _load_candidates(limit: int = 12) -> dict:
-    """자비스4가 이미 쓰는 조회를 그대로 쓴다. 새 자료원을 만들지 않는다."""
-    market = j4.get_market_overview()
-    ranking = j4.get_theme_rankings()
-    if not ranking.get("ok"):
-        return {"ok": False, "error": ranking.get("error"), "market": market}
+    """계산은 jarvis6_data가 한다. 화면은 캐시로 감싸기만 한다.
 
-    # 시가총액은 테마 상세에 없고 실시간 묶음조회에 들어 있다. 대형주에서만
-    # 외인·기관 수급을 무겁게 보므로 이 값이 없으면 판정이 틀어진다.
-    codes, rows = [], []
-    for theme_row in ranking["rows"][:6]:
-        leaders = j4.get_theme_leaders(theme_row, market.get("score", 0),
-                                       theme_row.get("score", 0))
-        if not leaders.get("ok"):
-            continue
-        for leader in leaders["rows"][:3]:
-            # 자비스4의 metrics는 장 마감 뒤 현재가를 같이 넘기는 경로가 있어
-            # '전일 종가'에 오늘 종가가 들어간다(2026-07-26 실측: 현대해상
-            # 전일 40,350 · 등락 +0.00%). 자비스6은 일봉에서 직접 다시 잰다.
-            metrics = j4._series_metrics(j4.get_daily_frame(leader.get("code")))
-            if not metrics.get("ok"):
-                metrics = leader.get("metrics") or {}
-            flow = leader.get("flow") or {}
-            stock = {
-                "price": metrics.get("current"),
-                "day_open": metrics.get("day_open"),
-                "day_high": metrics.get("day_high"),
-                "day_low": metrics.get("day_low"),
-                "trading_value": (metrics.get("avg_trading_value") or 0)
-                                 * (metrics.get("volume_ratio") or 0),
-                "market_cap": None,
-            }
-            codes.append(leader.get("code"))
-            rows.append({
-                "code": leader.get("code"), "name": leader.get("name"),
-                "theme": theme_row.get("name"), "stock": stock,
-                "metrics": metrics, "flow": flow, "theme_row": theme_row,
-            })
+    GitHub이 매일 15:18에 같은 계산을 사람 없이 돌려야 해서 밖으로 옮겼다.
+    두 벌로 두면 화면과 기록이 서로 다른 답을 내게 된다.
+    """
+    return j6.build_candidates(limit)
+
+
+_is_good = j6.is_good   # 기준은 jarvis6_data 한 곳에만 둔다
+
+
+def _render_summary(data: dict, phase: dict) -> None:
+    """맨 위 두 칸. 이 화면에서 **이것만 봐도 되게** 만든다.
+
+    표·차트·설명을 다 읽어야 뜻을 알 수 있으면 안 쓰게 된다
+    (2026-07-26 지시: "화면에 보고 이해하게 해달라"). 그래서 오늘 한 줄,
+    지금까지 한 줄로 줄이고 나머지는 전부 아래로 내린다.
+    """
+    rows = data.get("rows") or []
+    good = [r for r in rows if _is_good(r)]
+    when = "오늘 15:18 기준" if phase["label"] in (
+        "종가 단일가 (판단 마감)", "시간외", "장 마감") else "지금 기준"
+
+    if not data.get("ok"):
+        today_body = "<div class='j6-big' style='color:#9aa0aa'>자료 없음</div>"
+    elif good:
+        names = " · ".join(_esc(r["name"]) for r in good[:6])
+        today_body = (f"<div class='j6-big' style='color:#44f0a1'>{len(good)}개</div>"
+                      f"<div class='j6-sub' style='margin-top:.2rem'>{names}</div>")
+    else:
+        today_body = ("<div class='j6-big' style='color:#9aa0aa'>없음</div>"
+                      "<div class='j6-sub' style='margin-top:.2rem'>"
+                      "없는 날이 더 많습니다. 그게 정상입니다.</div>")
 
     try:
-        import naver_stock_quote as quote_api
-        quotes = quote_api.get_quotes(codes)
+        head = store.headline()
     except Exception:
-        quotes = {}
-    # 정규장(09:00~15:18) 안에서만 실시간 값으로 덮어쓴다. 장이 끝난 뒤에는
-    # 일봉이 정확하고, 실시간 쪽은 NXT가 섞여 시가·저가가 일봉과 어긋난다
-    # (2026-07-26 실측). 관찰 구간(14:30~)이 아니라 정규장 전체인 것이 중요하다 —
-    # 관찰 구간으로 좁히면 오전 내내 어제 고가·저가가 오늘 값으로 나온다.
-    live = j6.market_phase()["live"]
-    for row in rows:
-        quote = quotes.get(row["code"]) or {}
-        # 현재가까지 같이 덮어써야 한다. 현재가만 일봉에 두면 윗꼬리가
-        # '어제 종가 ÷ 오늘 고가'로 계산돼 엉뚱한 값이 나온다.
-        if quote.get("tradable") and live:
-            for key in ("price", "day_open", "day_high", "day_low"):
-                if quote.get(key):
-                    row["stock"][key] = quote[key]
-            if quote.get("trading_value"):
-                row["stock"]["trading_value"] = quote["trading_value"]
-            row["stock"]["is_today"] = True
-        else:
-            # 일봉 마지막 행이 오늘 행인가. 아니면 화면에 '어제 자료'라고 밝힌다.
-            row["stock"]["is_today"] = bool(row["metrics"].get("day_is_today"))
-        row["stock"]["market_cap"] = quote.get("market_cap")
-        row["eval"] = j6.evaluate(row["stock"], row["metrics"],
-                                  row["flow"], row["theme_row"])
+        head = None
 
-    return {"ok": True, "market": market, "rows": j6.rank(rows)[:limit],
-            "checked_at": datetime.now(_SEOUL).strftime("%H:%M")}
+    if head is None:
+        past_body = "<div class='j6-big' style='color:#9aa0aa'>—</div>"
+    elif head["enough"]:
+        # 승률만 크게 띄우지 않는다. 기대값·최악을 반드시 같이 적는다.
+        color = "#4da6ff" if (head["avg"] or 0) > 0 else "#ff5b5b"
+        past_body = (
+            f"<div class='j6-big' style='color:{color}'>{head['avg']:+.2f}%</div>"
+            f"<div class='j6-sub' style='margin-top:.2rem'>"
+            f"{head['settled']}번 중 <b>{head['win']:.0f}%</b>가 이익 · "
+            f"제일 나빴을 때 <b style='color:#ff5b5b'>{head['worst']:+.1f}%</b></div>")
+    else:
+        left = head["minimum"] - head["settled"]
+        past_body = (
+            f"<div class='j6-big' style='color:#e6e6e6'>{head['recorded']}번</div>"
+            f"<div class='j6-sub' style='margin-top:.2rem'>"
+            f"성적은 <b>{head['minimum']}번</b>부터 보여드립니다. "
+            f"{left}번 더 쌓이면 나옵니다.</div>")
+
+    st.markdown(
+        "<div class='j6-summary'>"
+        f"<div class='j6-card'><div class='j6-kpi-label'>{_esc(when)} · "
+        f"조건 다 채운 종목</div>{today_body}</div>"
+        "<div class='j6-card'><div class='j6-kpi-label'>지금까지 자동으로 기록한 것 · "
+        "다음날 아침에 팔았다면</div>" + past_body + "</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    # 사용자가 제일 헷갈려한 지점이다("자동이라며 왜 내가 눌러?").
+    # 무엇이 자동이고 무엇이 사람 몫인지 화면에 한 줄로 박아 둔다.
+    st.markdown(
+        "<div class='j6-sub'>매일 <b>15:15~15:18</b>에 조건을 채운 종목을 "
+        "<b style='color:#44f0a1'>자동으로</b> 남깁니다. "
+        "<b>누르지 않으셔도 됩니다.</b> 다음 날 아침 결과도 저절로 붙습니다. "
+        "직접 누르는 것은 <b>내가 고른 것</b>으로 따로 표시될 뿐입니다.</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_header(market: dict, phase: dict) -> None:
@@ -518,13 +535,22 @@ def _render_records() -> None:
     _guide("기록해서 뭘 얻나요", guide.why_record)
     _guide("저녁에 뭘 확인하나요", guide.after_hours)
     _guide("다음 날 언제 파나요", guide.next_morning)
+    import json
+
     picks = store.list_picks(limit=40)
     if not picks:
-        st.caption("아직 기록이 없습니다. 후보에서 '샀다'나 '안 샀다'를 누르면 쌓입니다.")
+        st.caption("아직 기록이 없습니다. 매일 15:15에 자동으로 쌓이고, "
+                   "직접 '샀다'를 눌러도 쌓입니다.")
         return
     body = []
     for p in picks:
-        action = "샀다" if p["action"] == "bought" else "안 샀다"
+        # 기계가 남긴 것을 '샀다'로 보여주면 안 된다. 누른 적이 없으시다.
+        try:
+            auto = bool(json.loads(p.get("snapshot") or "{}").get("auto"))
+        except Exception:
+            auto = False
+        action = ("자동" if auto else
+                  "샀다" if p["action"] == "bought" else "안 샀다")
         price = f"{p['price']:,.0f}" if p.get("price") else "—"
         has_reason = "있음" if (p.get("reason") or "").strip() else "없음"
         body.append(
@@ -578,18 +604,25 @@ def main() -> None:
     )
     _guide("자비스6이 뭔가요", guide.what_is_this)
 
-    # 결과가 안 붙은 기록을 조용히 채운다. 부르는 곳이 없으면 영원히 반쪽이다.
-    try:
-        store.fill_outcomes()
-    except Exception:
-        pass
+    # GitHub이 15:18에 남긴 자동 기록을 먼저 들여오고, 그 다음 결과를 채운다.
+    # 순서가 중요하다 — 들여오기 전에 채우면 오늘 것이 빠진다.
+    # 부르는 곳이 없으면 영원히 반쪽이다(한 번 사고가 났다).
+    for step in (store.import_auto_logs, store.fill_outcomes):
+        try:
+            step()
+        except Exception:
+            pass
 
     phase = j6.market_phase()
+
+    # 맨 위 두 칸은 탭보다 먼저 그린다. 어느 탭에 있든 이것부터 보여야 한다.
+    with st.spinner("오늘 후보를 재는 중입니다…"):
+        data = _load_candidates()
+    _render_summary(data, phase)
+
     tab_watch, tab_record, tab_guide = st.tabs(["후보 보기", "기록 · 복기", "설명"])
 
     with tab_watch:
-        with st.spinner("오늘 후보를 재는 중입니다…"):
-            data = _load_candidates()
         _render_header(data.get("market") or {}, phase)
         _guide("시장 상태는 왜 먼저 보나요", guide.market_gate)
         _guide("왜 15시 18분인가요", guide.timing)
@@ -600,8 +633,8 @@ def main() -> None:
         if not rows:
             st.info("오늘 조건에 걸린 종목이 없습니다. 없는 날도 정상입니다.")
             return
-        good = [r for r in rows if r["eval"]["passed"] >= 5 and not r["eval"]["warnings"]]
-        rest = [r for r in rows if r not in good]
+        good = [r for r in rows if _is_good(r)]
+        rest = [r for r in rows if not _is_good(r)]
 
         if good:
             st.markdown(

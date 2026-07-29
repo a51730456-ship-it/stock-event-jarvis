@@ -87,10 +87,16 @@ def ensure_schema(db_path=None) -> None:
 ROUND_TRIP_COST = 0.00015 * 2 + 0.0015 + 0.0005
 
 
-def save_pick(row: dict, *, action: str = "bought", db_path=None) -> int:
-    """클릭 한 번으로 그 순간을 통째로 저장한다. 아무것도 묻지 않는다."""
+def save_pick(row: dict, *, action: str = "bought", db_path=None,
+              at: datetime | None = None, auto: bool = False) -> int:
+    """클릭 한 번으로 그 순간을 통째로 저장한다. 아무것도 묻지 않는다.
+
+    ``at``  : 언제 결정한 것으로 칠지. 자동기록을 나중에 들여올 때 그날 날짜로 넣는다.
+    ``auto``: 사람이 누른 게 아니라 기계가 남긴 것. 스냅샷 안에만 표시한다 —
+              칸을 새로 만들면 이미 쌓인 DB를 손봐야 한다.
+    """
     ensure_schema(db_path)
-    now = datetime.now(_SEOUL)
+    now = at or datetime.now(_SEOUL)
     evaluation = row.get("eval") or {}
     metrics = row.get("metrics") or {}
     stock = row.get("stock") or {}
@@ -110,7 +116,8 @@ def save_pick(row: dict, *, action: str = "bought", db_path=None) -> int:
         (stock.get("invalidation") or "").strip() or None,
         json.dumps(evaluation.get("warnings") or [], ensure_ascii=False),
         1 if evaluation.get("warnings") else 0,
-        json.dumps({"stock": stock, "eval": evaluation}, ensure_ascii=False, default=str),
+        json.dumps({"stock": stock, "eval": evaluation, "auto": bool(auto)},
+                   ensure_ascii=False, default=str),
     )
     with _LOCK, connection(db_path) as conn:
         cursor = conn.execute(
@@ -244,6 +251,70 @@ def review(db_path=None) -> dict:
     groups.append(block([r for r in rows if (r.get("from_high_pct") or 0) < -3],
                         "전고점 3% 밖"))
     return {"total": len(rows), "groups": groups, "minimum": MIN_SAMPLE}
+
+
+AUTO_DIR = "data/jarvis6"
+
+
+def import_auto_logs(*, source_dir=None, db_path=None) -> dict:
+    """GitHub이 15:18에 남긴 파일을 DB로 들여온다.
+
+    파일로 한 번 거치는 이유: 온라인과 노트북이 서로 다른 DB를 쓴다. 수집기가
+    DB에 바로 쓰면 한쪽에만 쌓인다. 파일은 저장소에 있으니 양쪽 다 읽는다.
+
+    같은 날·같은 종목은 `ON CONFLICT(trade_date, code)`로 한 줄만 남는다.
+    그래서 몇 번을 다시 불러도 성적이 부풀지 않는다.
+    """
+    from pathlib import Path
+
+    folder = Path(source_dir or AUTO_DIR)
+    if not folder.is_dir():
+        return {"ok": True, "files": 0, "rows": 0}
+
+    ensure_schema(db_path)
+    files = rows = 0
+    for path in sorted(folder.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            stamp = datetime.fromisoformat(payload["decided_at"])
+        except Exception:
+            # 쓰다 만 파일 하나 때문에 나머지가 안 들어오면 안 된다.
+            continue
+        files += 1
+        for row in payload.get("rows") or []:
+            try:
+                save_pick(row, db_path=db_path, at=stamp, auto=True)
+                rows += 1
+            except Exception:
+                continue
+    return {"ok": True, "files": files, "rows": rows}
+
+
+def headline(db_path=None) -> dict:
+    """화면 맨 위 한 칸에 쓸 것만 추린다.
+
+    사용자가 표와 설명을 다 읽지 않아도 **두 줄로 알 수 있어야 한다**
+    (2026-07-26 지시: "화면에 보고 이해하게 해달라"). 그래서 여기서
+    미리 다 계산해 두고 화면은 받아 적기만 한다.
+
+    숨기는 규칙은 review와 같다. 표본이 30건에 못 미치면 성적을 안 낸다.
+    낼 때도 승률만 띄우지 않고 기대값·최악을 같이 준다.
+    """
+    ensure_schema(db_path)
+    with connection(db_path) as conn:
+        recorded = int(conn.execute(
+            "SELECT COUNT(*) FROM picks WHERE action='bought'").fetchone()[0])
+    summary = review(db_path)
+    whole = summary["groups"][0]
+    return {
+        "recorded": recorded,          # 기록된 횟수 (결과가 아직 안 붙은 것 포함)
+        "settled": summary["total"],   # 결과까지 붙은 횟수
+        "minimum": summary["minimum"],
+        "enough": bool(whole.get("enough")),
+        "avg": whole.get("avg"),
+        "win": whole.get("win"),
+        "worst": whole.get("worst"),
+    }
 
 
 def fill_outcomes(*, quote_fn=None, daily_fn=None, db_path=None) -> dict:

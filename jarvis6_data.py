@@ -181,6 +181,90 @@ def evaluate(stock: dict, daily_metrics: dict, flow: dict | None,
     }
 
 
+def build_candidates(limit: int = 12) -> dict:
+    """오늘 후보를 계산한다. 자비스4가 이미 쓰는 조회만 쓴다.
+
+    화면 안에 있던 것을 여기로 옮겼다(2026-07-26). GitHub이 매일 15:18에
+    사람 없이 이걸 불러 기록해야 하는데, 스트림릿 페이지 안에 있으면 못 부른다.
+    화면은 이 함수를 캐시로 감싸기만 한다.
+    """
+    import jarvis4_data as j4          # 무겁다. 테스트가 부를 일 없으니 여기서 부른다.
+
+    market = j4.get_market_overview()
+    ranking = j4.get_theme_rankings()
+    if not ranking.get("ok"):
+        return {"ok": False, "error": ranking.get("error"), "market": market}
+
+    # 시가총액은 테마 상세에 없고 실시간 묶음조회에 들어 있다. 대형주에서만
+    # 외인·기관 수급을 무겁게 보므로 이 값이 없으면 판정이 틀어진다.
+    codes, rows = [], []
+    for theme_row in ranking["rows"][:6]:
+        leaders = j4.get_theme_leaders(theme_row, market.get("score", 0),
+                                       theme_row.get("score", 0))
+        if not leaders.get("ok"):
+            continue
+        for leader in leaders["rows"][:3]:
+            # 자비스4의 metrics는 장 마감 뒤 현재가를 같이 넘기는 경로가 있어
+            # '전일 종가'에 오늘 종가가 들어간다(2026-07-26 실측: 현대해상
+            # 전일 40,350 · 등락 +0.00%). 자비스6은 일봉에서 직접 다시 잰다.
+            metrics = j4._series_metrics(j4.get_daily_frame(leader.get("code")))
+            if not metrics.get("ok"):
+                metrics = leader.get("metrics") or {}
+            stock = {
+                "price": metrics.get("current"),
+                "day_open": metrics.get("day_open"),
+                "day_high": metrics.get("day_high"),
+                "day_low": metrics.get("day_low"),
+                "trading_value": (metrics.get("avg_trading_value") or 0)
+                                 * (metrics.get("volume_ratio") or 0),
+                "market_cap": None,
+            }
+            codes.append(leader.get("code"))
+            rows.append({
+                "code": leader.get("code"), "name": leader.get("name"),
+                "theme": theme_row.get("name"), "stock": stock,
+                "metrics": metrics, "flow": leader.get("flow") or {},
+                "theme_row": theme_row,
+            })
+
+    try:
+        import naver_stock_quote as quote_api
+        quotes = quote_api.get_quotes(codes)
+    except Exception:
+        quotes = {}
+    # 정규장(09:00~15:18) 안에서만 실시간 값으로 덮어쓴다. 장이 끝난 뒤에는
+    # 일봉이 정확하고, 실시간 쪽은 NXT가 섞여 시가·저가가 일봉과 어긋난다
+    # (2026-07-26 실측). 관찰 구간(14:30~)이 아니라 정규장 전체인 것이 중요하다 —
+    # 관찰 구간으로 좁히면 오전 내내 어제 고가·저가가 오늘 값으로 나온다.
+    live = market_phase()["live"]
+    for row in rows:
+        quote = quotes.get(row["code"]) or {}
+        # 현재가까지 같이 덮어써야 한다. 현재가만 일봉에 두면 윗꼬리가
+        # '어제 종가 ÷ 오늘 고가'로 계산돼 엉뚱한 값이 나온다.
+        if quote.get("tradable") and live:
+            for key in ("price", "day_open", "day_high", "day_low"):
+                if quote.get(key):
+                    row["stock"][key] = quote[key]
+            if quote.get("trading_value"):
+                row["stock"]["trading_value"] = quote["trading_value"]
+            row["stock"]["is_today"] = True
+        else:
+            # 일봉 마지막 행이 오늘 행인가. 아니면 화면에 '어제 자료'라고 밝힌다.
+            row["stock"]["is_today"] = bool(row["metrics"].get("day_is_today"))
+        row["stock"]["market_cap"] = quote.get("market_cap")
+        row["eval"] = evaluate(row["stock"], row["metrics"],
+                               row["flow"], row["theme_row"])
+
+    return {"ok": True, "market": market, "rows": rank(rows)[:limit],
+            "checked_at": datetime.now(_SEOUL).strftime("%H:%M")}
+
+
+def is_good(row: dict) -> bool:
+    """살 만한가. 한 곳에서만 정한다 — 화면과 자동기록이 달라지면 안 된다."""
+    evaluation = row.get("eval") or {}
+    return evaluation.get("passed", 0) >= 5 and not evaluation.get("warnings")
+
+
 def rank(rows: list[dict]) -> list[dict]:
     """볼 만한 것부터 위로 올린다. 점수를 만들지 않는다.
 
