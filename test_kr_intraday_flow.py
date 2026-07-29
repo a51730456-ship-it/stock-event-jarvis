@@ -14,6 +14,7 @@ from kr_intraday_flow import (
     ForeignFuturesFlowSnapshot,
     ReboundVerdict,
     SignalStatus,
+    SignalStrength,
 )
 
 
@@ -136,6 +137,62 @@ class ForeignFuturesTest(unittest.TestCase):
         )
         self.assertIs(flow.evaluate_foreign_futures(snap).status, SignalStatus.POSITIVE)
 
+    # --- 2026-07-29 사용자 지적 ------------------------------------------------
+    def test_naver_delayed_value_is_not_direct(self):
+        """네이버 지연 공개치를 초록 '직접'으로 표시하면 안 된다."""
+        snap = ForeignFuturesFlowSnapshot(
+            net_contracts=2582, previous_net_contracts=2400, as_of=BASE,
+            source="네이버 선물 투자자동향(지연)", confidence="delayed_public",
+            available=True,
+        )
+        sig = flow.evaluate_foreign_futures(snap)
+        self.assertIs(sig.strength, SignalStrength.PROXY)
+        self.assertFalse(sig.is_direct)
+
+    def test_hts_manual_input_stays_direct(self):
+        snap = ForeignFuturesFlowSnapshot(
+            net_contracts=2582, previous_net_contracts=2400, as_of=BASE,
+            source="HTS 수동 입력", confidence="manual", available=True,
+        )
+        self.assertIs(flow.evaluate_foreign_futures(snap).strength, SignalStrength.DIRECT)
+
+    def test_transition_wording_only_on_real_sign_change(self):
+        """직전이 음수였다가 양수로 넘어왔을 때만 '전환'이라고 쓴다."""
+        turned = ForeignFuturesFlowSnapshot(
+            net_contracts=800, previous_net_contracts=-1200, as_of=BASE,
+            confidence="manual", available=True,
+        )
+        self.assertIn("전환", flow.evaluate_foreign_futures(turned).reason)
+
+        # 아침부터 계속 순매수였고 더 늘었을 뿐이면 '전환'이 아니라 '확대'다.
+        growing = ForeignFuturesFlowSnapshot(
+            net_contracts=2582, previous_net_contracts=2400, as_of=BASE,
+            confidence="manual", available=True,
+        )
+        sig = flow.evaluate_foreign_futures(growing)
+        self.assertIs(sig.status, SignalStatus.POSITIVE)
+        self.assertNotIn("전환", sig.reason)
+        self.assertIn("확대", sig.reason)
+
+    def test_shrinking_net_buy_is_not_positive(self):
+        """누적이 플러스여도 줄어드는 중이면 켜진 신호로 세지 않는다."""
+        snap = ForeignFuturesFlowSnapshot(
+            net_contracts=2400, previous_net_contracts=2582, as_of=BASE,
+            confidence="manual", available=True,
+        )
+        sig = flow.evaluate_foreign_futures(snap)
+        self.assertIs(sig.status, SignalStatus.NEUTRAL)
+        self.assertNotIn("전환", sig.reason)
+
+    def test_no_previous_value_does_not_claim_transition(self):
+        snap = ForeignFuturesFlowSnapshot(
+            net_contracts=2582, as_of=BASE, confidence="manual", available=True,
+        )
+        sig = flow.evaluate_foreign_futures(snap)
+        self.assertIs(sig.status, SignalStatus.POSITIVE)
+        self.assertNotIn("전환", sig.reason)
+        self.assertIn("미확인", sig.reason)
+
 
 def _snapshot(minutes, **overrides):
     row = {
@@ -193,7 +250,7 @@ class VerdictTest(unittest.TestCase):
             _rebound_snapshots(),
             foreign_futures=ForeignFuturesFlowSnapshot(
                 net_contracts=800, previous_net_contracts=-1200,
-                as_of=_ts(15), source="HTS", available=True,
+                as_of=_ts(15), source="HTS", confidence="manual", available=True,
             ),
             now=_ts(16),
         )
@@ -252,11 +309,113 @@ class VerdictTest(unittest.TestCase):
             _rebound_snapshots(),
             foreign_futures=ForeignFuturesFlowSnapshot(
                 net_contracts=800, previous_net_contracts=-1200,
-                as_of=_ts(15), source="HTS", available=True,
+                as_of=_ts(15), source="HTS", confidence="manual", available=True,
             ),
             now=_ts(40),
         )
         self.assertIs(result.verdict, ReboundVerdict.INSUFFICIENT_DATA)
+
+
+class CountingTest(unittest.TestCase):
+    """2026-07-29: '켜진 신호 4개'가 실은 기관 순매수 한 건의 중복 집계였다."""
+
+    def _institution_buying(self):
+        # 기관계 = 금융투자 + 투신 + 기금. 넷이 같이 늘어나는 상황.
+        return [
+            _snapshot(
+                m,
+                institution_cash_net_amount=2000.0 * (i + 1),
+                securities_net_amount=1500.0 * (i + 1),
+                investment_trust_net_amount=400.0 * (i + 1),
+                fund_net_amount=100.0 * (i + 1),
+                personal_cash_net_amount=-1800.0 * (i + 1),
+            )
+            for i, m in enumerate((0, 5, 10, 15))
+        ]
+
+    def test_institution_subtotals_are_not_counted(self):
+        result = flow.build_result_from_snapshots(self._institution_buying(), now=_ts(16))
+        counted = {s.key for s in flow.counted_signals(result.signals)}
+        self.assertIn("institution", counted)
+        for key in ("securities", "investment_trust", "private_fund", "fund"):
+            self.assertNotIn(key, counted)
+
+    def test_personal_is_shown_but_not_counted(self):
+        result = flow.build_result_from_snapshots(self._institution_buying(), now=_ts(16))
+        personal = result.signal("personal")
+        # 값은 반드시 있어야 한다 — 누가 파는지 안 보이던 게 문제였다.
+        self.assertIsNotNone(personal)
+        self.assertIsNotNone(personal.value)
+        self.assertNotIn("personal", {s.key for s in flow.counted_signals(result.signals)})
+
+    def test_reason_list_has_no_duplicate_institution_entries(self):
+        result = flow.build_result_from_snapshots(self._institution_buying(), now=_ts(16))
+        joined = " / ".join(result.supporting_reasons)
+        self.assertNotIn("금융투자", joined)
+        self.assertNotIn("투신", joined)
+
+    def test_data_status_counts_exclude_subtotals(self):
+        result = flow.build_result_from_snapshots(self._institution_buying(), now=_ts(16))
+        counted = flow.counted_signals(result.signals)
+        known = sum(1 for s in counted if not s.is_unknown)
+        self.assertIn(f"자동 확인 {known}개", result.data_status)
+        self.assertLess(len(counted), len(result.signals))
+
+
+class FreshnessTest(unittest.TestCase):
+    """신선도는 스냅숏을 저장한 시각이 아니라 자료 자체의 기준시각으로 잰다."""
+
+    def test_investor_freshness_uses_data_timestamp(self):
+        rows = [
+            _snapshot(
+                m,
+                institution_cash_net_amount=2000.0 * (i + 1),
+                investor_flow_source="네이버 시간별 투자자매매동향(지연 가능)",
+                # 저장은 방금 했지만 자료는 7분 전 것이다.
+                investor_flow_as_of=_ts(m - 7).isoformat(),
+            )
+            for i, m in enumerate((0, 5, 10, 15))
+        ]
+        result = flow.build_result_from_snapshots(rows, now=_ts(15))
+        institution = result.signal("institution")
+        self.assertEqual(institution.freshness_seconds, 7 * 60)
+        self.assertEqual(flow.freshness_label(institution.freshness_seconds), "오래됨")
+
+    def test_missing_data_timestamp_is_unknown_not_normal(self):
+        """시각 없는 일별 표로 내려갔으면 '정상'이라고 하면 안 된다."""
+        rows = [
+            _snapshot(
+                m,
+                institution_cash_net_amount=2000.0 * (i + 1),
+                investor_flow_source="네이버 투자자매매동향(지연)",
+            )
+            for i, m in enumerate((0, 5, 10, 15))
+        ]
+        result = flow.build_result_from_snapshots(rows, now=_ts(15))
+        institution = result.signal("institution")
+        self.assertIsNone(institution.freshness_seconds)
+        self.assertEqual(flow.freshness_label(institution.freshness_seconds), "확인 필요")
+
+    def test_stock_freshness_uses_trade_timestamp(self):
+        rows = [
+            _snapshot(
+                m,
+                samsung_price=70000,
+                samsung_open=70100,
+                samsung_day_low=69500,
+                samsung_quote_as_of=_ts(m - 4).isoformat(),
+            )
+            for m in (0, 5, 10, 15)
+        ]
+        result = flow.build_result_from_snapshots(rows, now=_ts(15))
+        self.assertEqual(result.signal("samsung").freshness_seconds, 4 * 60)
+
+    def test_kis_rows_fall_back_to_capture_time(self):
+        """KIS 항목은 조회 그 자체가 자료 시각이라 스냅숏 시각을 그대로 쓴다."""
+        rows = [_snapshot(m, program_net_amount=100.0 * (i + 1))
+                for i, m in enumerate((0, 5, 10, 15))]
+        result = flow.build_result_from_snapshots(rows, now=_ts(16))
+        self.assertEqual(result.signal("program_total").freshness_seconds, 60)
 
 
 class FakeReboundTest(unittest.TestCase):

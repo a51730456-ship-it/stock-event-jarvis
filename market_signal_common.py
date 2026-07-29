@@ -73,10 +73,14 @@ TIMING_LABEL = {
     SignalTiming.UNKNOWN: "확인 필요",
 }
 
+# 이 칸은 '이 숫자를 얼마나 믿을 수 있나'를 말한다.
+# 예전 이름은 직접·대체·간접이었는데 "대체가 뭘 대체한다는 건지 모르겠다"는
+# 지적을 받아 뜻이 그대로 읽히는 말로 바꿨다(2026-07-29 사용자 지시).
+# 무엇을 무엇으로 대신했는지는 각 줄의 '설명' 칸에 적는다.
 STRENGTH_LABEL = {
-    SignalStrength.DIRECT: "직접",
-    SignalStrength.PROXY: "대체",
-    SignalStrength.INDIRECT: "간접",
+    SignalStrength.DIRECT: "그대로",
+    SignalStrength.PROXY: "대신",
+    SignalStrength.INDIRECT: "참고",
 }
 
 # 데이터 신선도(초)
@@ -100,6 +104,13 @@ class MarketSignal:
     strength: SignalStrength = SignalStrength.DIRECT
     timing: SignalTiming = SignalTiming.UNKNOWN
     market: MarketCode | None = None
+    # 개수 세기('켜진 신호 N개')에 넣을 신호인지. 기본은 넣는다.
+    # False로 두는 것은 두 종류다 (2026-07-29 사용자 지시, 5번 '가'안):
+    #  1) 상위 항목의 하위 내역 — 금융투자·투신·사모·기금은 전부 기관계의 부분이다.
+    #     넷을 따로 세면 기관 순매수 한 건이 네 번 켜진 것처럼 보인다.
+    #  2) 반대 주체 — 개인은 기관·외국인의 거울상이라 같은 눈금으로 세면 안 된다.
+    # 표에는 그대로 보여준다. 세지 않을 뿐 숨기지 않는다.
+    counts_toward_totals: bool = True
 
     @property
     def is_positive(self) -> bool:
@@ -157,9 +168,15 @@ def is_stale(signal) -> bool:
     )
 
 
+def counted_signals(signals):
+    """개수 표시에 넣을 신호만 고른다. 하위 내역·반대 주체는 빠진다."""
+    return [s for s in (signals or []) if getattr(s, "counts_toward_totals", True)]
+
+
 def data_status_text(signals) -> str:
-    known = [s for s in signals if not s.is_unknown]
-    unknown = [s for s in signals if s.is_unknown]
+    counted = counted_signals(signals)
+    known = [s for s in counted if not s.is_unknown]
+    unknown = [s for s in counted if s.is_unknown]
     return f"자동 확인 {len(known)}개 · 확인 필요 {len(unknown)}개"
 
 
@@ -168,7 +185,11 @@ def flow_reading(signals) -> str:
 
     이게 이 카드의 핵심이다. 판정 하나보다 '지금 선행신호가 켜졌는데 확인신호가
     아직 없다'는 서술이 사용자가 다른 자비스와 대조할 때 훨씬 쓸모 있다.
+
+    개수는 counted_signals 기준이다. 기관계를 쪼갠 하위 항목까지 세면 '확인 신호
+    3개'처럼 부풀려진다 — 실은 기관 순매수 한 건이다(2026-07-29 사용자 지적).
     """
+    signals = counted_signals(signals)
     leading_on = [s for s in signals if s.timing is SignalTiming.LEADING and s.is_positive]
     confirming_on = [s for s in signals if s.timing is SignalTiming.CONFIRMING and s.is_positive]
     late_on = [s for s in signals if s.timing is SignalTiming.LATE]

@@ -256,6 +256,25 @@ def _fresh_naver_stock_quote(quote, *, now=None) -> bool:
     return traded_at.date() == now.date() and now.time() > datetime.strptime("15:30", "%H:%M").time()
 
 
+def _naive_seoul(value):
+    """자료가 밝힌 기준시각을 naive 한국시각으로 맞춘다. 못 읽으면 None.
+
+    신호 dataclass가 naive끼리 빼기 때문에 tzinfo를 남기면 신선도 계산이 터진다.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is not None:
+        value = value.astimezone(_SEOUL_TZ).replace(tzinfo=None)
+    return value
+
+
 def collect_kr_flow_snapshot(*, force_refresh=False):
     """KIS + 가격 데이터를 한 번 읽어 스냅숏 dict와 실패 목록을 만든다."""
     app_key, app_secret = _flow_kis_keys()
@@ -324,6 +343,10 @@ def collect_kr_flow_snapshot(*, force_refresh=False):
             values["investment_trust_net_amount"] = _to_million("investment_trust")
             values["fund_net_amount"] = _to_million("pension")
             values["investor_flow_source"] = naver_flow.get("source")
+            # 네이버 시간별 표는 몇 시 기준인지 밝힌다. 그 시각으로 신선도를 재야
+            # '정상'이 실제로 최근 자료라는 뜻이 된다. 시각이 없는 일별 표로 내려간
+            # 경우에는 비워 두고 화면이 '확인 필요'로 나가게 한다(2026-07-29).
+            values["investor_flow_as_of"] = _naive_seoul(naver_flow.get("as_of"))
         else:
             failures.append("투자자별 수급 대체 조회도 실패")
 
@@ -378,6 +401,8 @@ def collect_kr_flow_snapshot(*, force_refresh=False):
             # 전일 종가가 있어야 화면이 '전일 대비'를 적을 수 있다. 없으면
             # 저점 대비만 남는데, 그건 폭락일에도 늘 플러스라 오해를 부른다.
             values[f"{prefix}_prev_close"] = live.get("prev_close")
+            # 체결 시각으로 신선도를 잰다. 조회 시각으로 재면 5분 전 값도 '정상'이다.
+            values[f"{prefix}_quote_as_of"] = _naive_seoul(live.get("traded_at"))
             continue
         quote = price_data.get_snapshot_defaults(ticker)
         if quote.get("ok"):
@@ -444,11 +469,16 @@ def run_kr_flow_check(*, force_refresh=False):
     except Exception:
         snapshots = [{**values, "captured_at": captured_at}]
 
-    # 투자자별 수급을 네이버 대체 경로로 채웠다는 사실은 DB 스키마를 바꾸지 않고
-    # 표시용으로만 최신 스냅숏에 실어 보낸다(판정 표에서 '대체'로 구분하기 위함).
-    if values.get("investor_flow_source") and snapshots:
+    # 출처와 자료 기준시각은 DB 스키마를 바꾸지 않고 표시용으로만 최신 스냅숏에
+    # 실어 보낸다(판정 표의 '대체' 구분과 신선도 계산에 쓴다).
+    _passthrough = [
+        "investor_flow_source", "investor_flow_as_of",
+        "samsung_quote_as_of", "hynix_quote_as_of",
+    ]
+    _extra = {k: values[k] for k in _passthrough if values.get(k) is not None}
+    if _extra and snapshots:
         snapshots = list(snapshots)
-        snapshots[-1] = {**dict(snapshots[-1]), "investor_flow_source": values["investor_flow_source"]}
+        snapshots[-1] = {**dict(snapshots[-1]), **_extra}
 
     manual = st.session_state.get("kr_flow_foreign_futures_manual") or {}
     foreign_futures = None
@@ -482,7 +512,11 @@ def run_kr_flow_check(*, force_refresh=False):
         )
 
     result = kr_intraday_flow.build_result_from_snapshots(
-        snapshots, foreign_futures=foreign_futures
+        snapshots,
+        foreign_futures=foreign_futures,
+        # 기준시각은 한국시각이다. 넘기지 않으면 datetime.now()가 쓰이는데
+        # 스트림릿 클라우드는 UTC라 9시간 어긋난 값으로 신선도를 재게 된다.
+        now=_now_seoul(),
     )
     st.session_state["kr_flow_result"] = result
     st.session_state["kr_flow_failures"] = failures
@@ -506,9 +540,11 @@ _FLOW_CORE_DISPLAY = (
     ("hynix", "SK하이닉스"),
 )
 
+# 개인은 계산은 되고 있었는데 이 목록에 없어서 표에 안 나왔다 — 기관이 사는 것만
+# 보이고 누가 파는지는 안 보였다(2026-07-29 사용자 지적: 개인 -1조 7,814억).
 _FLOW_TABLE_KEYS = (
     "program_total", "arbitrage", "non_arbitrage", "market_basis",
-    "foreign_futures", "foreign_cash", "institution", "securities",
+    "foreign_futures", "foreign_cash", "personal", "institution", "securities",
     "investment_trust", "private_fund", "fund",
     "electronics_turnover", "electronics_institution", "samsung", "hynix",
 )
@@ -569,7 +605,7 @@ _TIMING_COLOR = {
     "선행": "#4da6ff", "확인": "#e6e6e6", "늦음": "#ff9d3b",
     "가짜": "#ef4444", "확인 필요": "#9ca3af",
 }
-_STRENGTH_COLOR = {"직접": "#22c55e", "대체": "#ff9d3b", "간접": "#9ca3af"}
+_STRENGTH_COLOR = {"그대로": "#22c55e", "대신": "#ff9d3b", "참고": "#9ca3af"}
 _FRESHNESS_COLOR = {
     "정상": "#22c55e", "지연": "#ff9d3b", "오래됨": "#ef4444", "확인 필요": "#9ca3af",
 }
@@ -587,15 +623,26 @@ border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.9rem;line-hei
   <span style="color:#4da6ff;">선행</span> = 본장보다 먼저 움직이는 지표 ·
   <span style="color:#e6e6e6;">확인</span> = 결과로 따라오는 지표 ·
   <span style="color:#ff9d3b;">늦음</span> = 이미 지나간 흐름일 수 있는 신호<br>
-  <b style="color:#9ca3af;">신호세기</b> :
-  <span style="color:#22c55e;">직접</span> = 원자료 그대로 ·
-  <span style="color:#ff9d3b;">대체</span> = 직접값이 없어 대신 쓰는 근사 신호 ·
-  <span style="color:#9ca3af;">간접</span> = 참고 수준 신호<br>
+  <b style="color:#9ca3af;">어디서 온 값</b> :
+  <span style="color:#22c55e;">그대로</span> = 그 항목을 그대로 받아온 값 ·
+  <span style="color:#ff9d3b;">대신</span> = 원래 봐야 할 값을 못 구해 다른 것으로 채운 값 ·
+  <span style="color:#9ca3af;">참고</span> = 판정에 넣지 않고 보기만 하는 값<br>
+  <span style="margin-left:3.2em;color:#c9ced6;">
+  ‘대신’이 무엇을 무엇으로 바꾼 것인지는 <b>설명 칸</b>에 적혀 있습니다. 지금 쓰이는 것은 둘입니다 —
+  <b>외국인 선물</b>은 증권사 원본 대신 <b>네이버 공개치</b>(몇 분 늦음),
+  <b>투자자별 수급</b>도 증권사 대신 <b>네이버 공개치</b>,
+  <b>시장베이시스</b>는 외국인 선물 직접값이 없을 때 <b>대신 보는 다른 지표</b>입니다.
+  </span><br>
   <b style="color:#9ca3af;">신선도</b> :
   <span style="color:#22c55e;">정상</span> = 2분 이내 자료 ·
   <span style="color:#ff9d3b;">지연</span> = 5분 이내 ·
   <span style="color:#ef4444;">오래됨</span> = 5분 초과 ·
   <span style="color:#9ca3af;">확인 필요</span> = 기준시각 없음<br>
+  <b style="color:#9ca3af;">개수 세기</b> :
+  상위 항목을 쪼갠 하위 내역(금융투자·투신·사모·기금은 모두 <b>기관계</b>의 부분)과
+  반대 주체(개인)는 위 ‘켜진 신호 N개’에 <b>넣지 않습니다</b> — 같은 한 건이 여러 번
+  세어져 신호가 많이 켜진 것처럼 보이는 것을 막기 위함입니다.
+  표에는 <span style="color:#9ca3af;">참고</span>로 그대로 보여줍니다.<br>
   <b style="color:#9ca3af;">‘확인 필요’의 뜻</b> :
   값을 <b>못 가져온 것</b>이지 0이라는 뜻이 아닙니다. 설명 칸을 보면 이유가 나뉩니다 —
   <span style="color:#e6e6e6;">‘스냅숏 부족’</span>은 자료는 오는데 15분 치가 아직 안 쌓인 것(시간이 지나면 채워짐),
@@ -764,7 +811,9 @@ def _verdict_gauge_html(
         market_signal_common.SignalStatus.NEUTRAL: 0,
         market_signal_common.SignalStatus.UNKNOWN: 0,
     }
-    for signal in result.signals:
+    # 하위 내역(금융투자·투신·사모·기금)과 반대 주체(개인)는 세지 않는다.
+    # 넷을 따로 세면 기관 순매수 한 건이 '켜진 신호 4개'로 부풀려진다(2026-07-29).
+    for signal in market_signal_common.counted_signals(result.signals):
         if signal.status in counts:
             counts[signal.status] += 1
     rows = [
@@ -999,8 +1048,9 @@ def render_kr_flow_card():
         table_keys=_FLOW_TABLE_KEYS,
         detail_title="한국장 전체 수급 상세",
         detail_caption=(
-            "‘기금·연기금’은 KIS 원본 필드명이 기금입니다. 시장베이시스는 외국인 선물 "
-            "직접 수급이 없을 때 쓰는 대체 신호이며 직접 수급값이 아닙니다."
+            "‘기금·연기금’은 KIS 원본 필드명이 기금입니다. 시장베이시스는 외국인 선물이 "
+            "얼마나 사고팔았는지를 못 구했을 때 대신 보는 다른 지표이며, 수급값 자체가 "
+            "아닙니다. ‘기관계’는 금융투자·투신·사모·기금을 모두 더한 값입니다."
         ),
         table_key="kr_flow_detail_table",
         # 지수가 크게 빠지는 날에는 '긍정' 옆에 (하락장)을 적는다. 판정은

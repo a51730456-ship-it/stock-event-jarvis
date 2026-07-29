@@ -30,6 +30,7 @@ from market_signal_common import (  # noqa: F401  (기존 호출부 호환용 �
     SignalStatus,
     SignalStrength,
     SignalTiming,
+    counted_signals,
     data_status_text,
     flow_reading,
     freshness_label,
@@ -185,6 +186,14 @@ def _deltas(series):
         (points[i][0], points[i][1] - points[i - 1][1])
         for i in range(1, len(points))
     ]
+
+
+def _pick_freshness(measured, fallback):
+    """자료 시각으로 잰 값이 있으면 그것을 쓰고, 없을 때만 조회 시각으로 내려간다.
+
+    0초도 유효한 값이므로 `or`로 고르면 안 된다.
+    """
+    return fallback if measured is None else measured
 
 
 def _span_seconds(series) -> float | None:
@@ -369,8 +378,19 @@ def evaluate_basis(history, *, current_basis=None, as_of=None, freshness=None) -
     return sig
 
 
+# 외국인 선물 자료가 '직접값'인 경우는 HTS 원본을 사람이 옮겨 적었을 때뿐이다.
+# 네이버 파생 투자자동향은 공개된 지연치라 대체 신호다 (2026-07-29 사용자 지적:
+# 신선도가 '확인 필요'인데 신호세기만 초록 '직접'으로 떠서 원본 자료처럼 보였다).
+_FOREIGN_FUTURES_DIRECT_CONFIDENCE = ("manual",)
+
+
 def evaluate_foreign_futures(snapshot: ForeignFuturesFlowSnapshot | None) -> FlowSignal:
-    """외국인 KOSPI200 선물 순매수 직접값. 없으면 UNKNOWN이고 0으로 만들지 않는다."""
+    """외국인 KOSPI200 선물 순매수. 없으면 UNKNOWN이고 0으로 만들지 않는다.
+
+    '전환'은 직전 값이 0 이하였다가 플러스로 넘어온 것을 실제로 확인했을 때만 쓴다.
+    당일 누적이 플러스라는 것만으로 전환이라 적으면, 아침부터 계속 순매수였고 지금은
+    오히려 줄어드는 중에도 "방금 돌아섰다"로 읽힌다 (2026-07-29 사용자 지적).
+    """
     sig = FlowSignal(
         key="foreign_futures",
         label="외국인 선물 직접수급",
@@ -384,27 +404,47 @@ def evaluate_foreign_futures(snapshot: ForeignFuturesFlowSnapshot | None) -> Flo
         sig.display_value = "확인 필요"
         return sig
 
-    sig.value = snapshot.net_contracts
-    sig.display_value = f"{snapshot.net_contracts:+,}계약"
+    current = snapshot.net_contracts
+    sig.value = current
+    sig.display_value = f"{current:+,}계약"
     sig.source = snapshot.source
     sig.as_of = snapshot.as_of
+    is_direct = snapshot.confidence in _FOREIGN_FUTURES_DIRECT_CONFIDENCE
+    sig.strength = SignalStrength.DIRECT if is_direct else SignalStrength.PROXY
 
+    previous = snapshot.previous_net_contracts
     change = snapshot.change
-    if change is None and snapshot.previous_net_contracts is not None:
-        change = snapshot.net_contracts - snapshot.previous_net_contracts
+    if change is None and previous is not None:
+        change = current - previous
 
-    if snapshot.net_contracts > 0:
+    if change is None:
+        # 직전 값이 없으면 방향이 바뀌었는지 말할 수 없다. 누적 부호만 밝힌다.
+        sig.status = SignalStatus.POSITIVE if current > 0 else SignalStatus.NEUTRAL
+        state = "순매수" if current > 0 else "순매도"
+        sig.reason = f"외국인 선물 당일 누적 {state} (방향 변화는 스냅숏 부족으로 미확인)"
+    elif change > 0:
         sig.status = SignalStatus.POSITIVE
-        sig.reason = "외국인 선물 순매수 전환"
-    elif change is not None and change > 0:
-        sig.status = SignalStatus.POSITIVE
-        sig.reason = "외국인 선물 순매도 규모 감소"
-    elif change is not None and change < 0:
-        sig.status = SignalStatus.NEGATIVE
-        sig.reason = "외국인 선물 순매도 확대"
+        if previous is not None and previous <= 0 < current:
+            sig.reason = "외국인 선물 순매도 → 순매수 전환"
+        elif current > 0:
+            sig.reason = "외국인 선물 순매수 확대"
+        else:
+            sig.reason = "외국인 선물 순매도 규모 감소"
+    elif change < 0:
+        if current > 0:
+            sig.status = SignalStatus.NEUTRAL
+            sig.reason = "외국인 선물 누적 순매수이나 최근 구간은 매수 감소"
+        else:
+            sig.status = SignalStatus.NEGATIVE
+            sig.reason = "외국인 선물 순매도 확대"
     else:
         sig.status = SignalStatus.NEUTRAL
-        sig.reason = "외국인 선물 순매도 지속 (변화 미미)"
+        state = "순매수" if current > 0 else "순매도"
+        sig.reason = f"외국인 선물 당일 누적 {state} (최근 구간 변화 없음)"
+
+    if not is_direct:
+        # '대신'이라고만 적어두면 무엇을 무엇으로 바꾼 것인지 알 수 없다.
+        sig.reason = f"{sig.reason} — 증권사 원본 대신 네이버 공개치"
     return sig
 
 
@@ -706,8 +746,11 @@ def _watching_headline(non_arb, both_semis_up, samsung, hynix) -> str:
 
 
 def _build_result(verdict, signals, core, warnings, *, headline) -> FlowEngineResult:
-    supporting = [s.reason for s in signals if s.is_positive][:4]
-    missing = [s.reason for s in signals if s.is_negative or s.is_unknown][:4]
+    # 목록에서도 하위 내역은 뺀다. '기관계 순매수 / 금융투자 순매수 / 투신 순매수'가
+    # 나란히 서면 서로 다른 세 근거처럼 읽히지만 같은 돈이다(2026-07-29).
+    listed = counted_signals(signals)
+    supporting = [s.reason for s in listed if s.is_positive][:4]
+    missing = [s.reason for s in listed if s.is_negative or s.is_unknown][:4]
 
     return FlowEngineResult(
         verdict=verdict,
@@ -806,6 +849,28 @@ def build_result_from_snapshots(
     now = now or datetime.now()
     freshness = int((now - as_of).total_seconds()) if as_of else None
 
+    def _row_stamp(column):
+        """자료 자체의 기준시각을 읽는다. 스냅숏을 '저장한' 시각과 다르다.
+
+        저장 시각으로 신선도를 재면 방금 저장했다는 이유만으로 항상 '정상'이 된다
+        — 네이버가 5분 밀린 값을 줘도 초록으로 떴다(2026-07-29 사용자 지적).
+        시각을 모르면 None을 돌려주고 화면은 '확인 필요'로 둔다.
+        """
+        stamp = latest.get(column)
+        if isinstance(stamp, str):
+            try:
+                stamp = datetime.fromisoformat(stamp)
+            except ValueError:
+                return None
+        if not isinstance(stamp, datetime):
+            return None
+        # 기존 신호 dataclass는 naive끼리 빼므로 tzinfo는 떼서 맞춘다.
+        return stamp.replace(tzinfo=None) if stamp.tzinfo is not None else stamp
+
+    def _row_freshness(column):
+        stamp = _row_stamp(column)
+        return None if stamp is None else int((now - stamp).total_seconds())
+
     basis_sig = evaluate_basis(
         _series(snapshots, "futures_market_basis"),
         current_basis=latest.get("futures_market_basis"),
@@ -831,8 +896,8 @@ def build_result_from_snapshots(
                 "prev_close": latest.get("samsung_prev_close"),
             },
             recent_lows=[r.get("samsung_day_low") for r in snapshots[-4:]],
-            as_of=as_of,
-            freshness=freshness,
+            as_of=_row_stamp("samsung_quote_as_of") or as_of,
+            freshness=_pick_freshness(_row_freshness("samsung_quote_as_of"), freshness),
         ),
         evaluate_stock_rebound(
             "hynix",
@@ -844,8 +909,8 @@ def build_result_from_snapshots(
                 "prev_close": latest.get("hynix_prev_close"),
             },
             recent_lows=[r.get("hynix_day_low") for r in snapshots[-4:]],
-            as_of=as_of,
-            freshness=freshness,
+            as_of=_row_stamp("hynix_quote_as_of") or as_of,
+            freshness=_pick_freshness(_row_freshness("hynix_quote_as_of"), freshness),
         ),
         evaluate_program_total(
             latest.get("program_net_amount"),
@@ -863,32 +928,44 @@ def build_result_from_snapshots(
         basis_sig,
     ]
 
+    # counts=False인 항목은 표에는 나오지만 '켜진 신호 N개'에는 안 들어간다.
+    # 금융투자·투신·사모·기금은 전부 기관계를 쪼갠 것이라 같이 세면 한 건이 다섯 번
+    # 켜진 것처럼 보이고, 개인은 기관·외국인의 거울상이라 같은 눈금에 못 올린다
+    # (2026-07-29 사용자 선택 '가'안: 기관계만 세고 하위는 참고로 둔다).
     investor_specs = (
-        ("foreign_cash", "외국인 현물", "foreign_cash_net_amount", SignalTiming.CONFIRMING),
-        ("personal", "개인", "personal_cash_net_amount", SignalTiming.CONFIRMING),
-        ("institution", "기관계", "institution_cash_net_amount", SignalTiming.CONFIRMING),
-        ("securities", "금융투자", "securities_net_amount", SignalTiming.CONFIRMING),
-        ("investment_trust", "투신", "investment_trust_net_amount", SignalTiming.CONFIRMING),
-        ("private_fund", "사모", "private_fund_net_amount", SignalTiming.CONFIRMING),
-        ("fund", "기금·연기금", "fund_net_amount", SignalTiming.CONFIRMING),
+        ("foreign_cash", "외국인 현물", "foreign_cash_net_amount", SignalTiming.CONFIRMING, True),
+        ("personal", "개인", "personal_cash_net_amount", SignalTiming.CONFIRMING, False),
+        ("institution", "기관계", "institution_cash_net_amount", SignalTiming.CONFIRMING, True),
+        ("securities", "금융투자", "securities_net_amount", SignalTiming.CONFIRMING, False),
+        ("investment_trust", "투신", "investment_trust_net_amount", SignalTiming.CONFIRMING, False),
+        ("private_fund", "사모", "private_fund_net_amount", SignalTiming.CONFIRMING, False),
+        ("fund", "기금·연기금", "fund_net_amount", SignalTiming.CONFIRMING, False),
     )
     # 투자자별 수급이 KIS가 아니라 네이버 지연 공개치로 채워졌으면 '대체' 신호로 표시한다
     # (2026-07-22: KIS 실패 시 수급 항목이 통째로 비지 않도록 대체 경로를 붙였다).
     investor_source = latest.get("investor_flow_source")
-    for key, label, column, timing in investor_specs:
+    investor_as_of = _row_stamp("investor_flow_as_of")
+    investor_freshness = _row_freshness("investor_flow_as_of")
+    for key, label, column, timing, counts in investor_specs:
+        from_naver = bool(investor_source) and latest.get(column) is not None
         signal = evaluate_investor(
             key,
             label,
             latest.get(column),
             _series(snapshots, column),
-            as_of=as_of,
-            freshness=freshness,
+            # 네이버 대체 경로일 때는 그 표가 밝힌 기준시각으로 잰다. 시각이 없는
+            # 일별 표로 내려갔다면 신선도를 지어내지 않고 '확인 필요'로 둔다.
+            as_of=investor_as_of if from_naver else as_of,
+            freshness=investor_freshness if from_naver else freshness,
             timing=timing,
         )
-        if investor_source and latest.get(column) is not None:
-            signal.strength = SignalStrength.PROXY
+        signal.counts_toward_totals = counts
+        if not counts:
+            signal.strength = SignalStrength.INDIRECT
+        if from_naver:
+            signal.strength = SignalStrength.PROXY if counts else SignalStrength.INDIRECT
             signal.source = investor_source
-            signal.reason = f"{signal.reason} (지연 공개치)"
+            signal.reason = f"{signal.reason} — 증권사 대신 네이버 공개치"
         signals.append(signal)
 
     # 전기전자 — 거래대금과 투자자 수급은 따로 표시한다. 업종 수급이 검증되지
