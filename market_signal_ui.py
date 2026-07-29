@@ -10,8 +10,9 @@ app.py를 import하면 자비스1 앱 전체가 실행되므로, 필요한 조�
 
 from __future__ import annotations
 
+import importlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import streamlit as st
@@ -22,9 +23,12 @@ import kr_intraday_flow
 import gauge_ui
 import market_signal_common
 import naver_market_data
+import naver_stock_quote
 import price_data
 import us_market_signal_engine
 
+if not hasattr(database, "list_previous_kr_flow_snapshots"):
+    database = importlib.reload(database)
 
 _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 
@@ -33,7 +37,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026072508
+MODULE_REVISION = 2026072908
 
 
 def _now_seoul():
@@ -108,9 +112,9 @@ def _flow_kis_keys():
     return st.secrets.get("KIS_APP_KEY"), st.secrets.get("KIS_APP_SECRET")
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def _flow_electronics_sector_code(_app_key, _app_secret):
-    """전기전자 업종코드를 이름으로 찾아 거래일 동안 캐시한다. 못 찾으면 None."""
+    """전기전자 업종코드·누적 거래대금을 1분 동안만 캐시한다."""
     result = kis_market_data.get_sector_category_prices(_app_key, _app_secret)
     if not result.get("ok"):
         return None, None
@@ -130,7 +134,36 @@ def _flow_electronics_sector_code(_app_key, _app_secret):
     return code, turnover
 
 
-def collect_kr_flow_snapshot():
+def _fresh_naver_stock_quote(quote, *, now=None) -> bool:
+    """네이버 장중 종목 시세가 현재 한국장 값인지 확인한다."""
+    quote = quote or {}
+    if quote.get("price") is None or quote.get("day_open") is None or quote.get("day_low") is None:
+        return False
+    now = now or _now_seoul()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=_SEOUL_TZ)
+    else:
+        now = now.astimezone(_SEOUL_TZ)
+    traded_at = quote.get("traded_at")
+    try:
+        traded_at = datetime.fromisoformat(str(traded_at))
+    except (TypeError, ValueError):
+        return False
+    if traded_at.tzinfo is None:
+        traded_at = traded_at.replace(tzinfo=_SEOUL_TZ)
+    else:
+        traded_at = traded_at.astimezone(_SEOUL_TZ)
+    age = now - traded_at
+    if quote.get("market_status") == "OPEN":
+        return (
+            traded_at.date() == now.date()
+            and -timedelta(minutes=1) <= age <= timedelta(minutes=5)
+        )
+    # 장 마감 뒤에는 같은 날의 마감 스냅숏까지만 허용한다.
+    return traded_at.date() == now.date() and now.time() > datetime.strptime("15:30", "%H:%M").time()
+
+
+def collect_kr_flow_snapshot(*, force_refresh=False):
     """KIS + 가격 데이터를 한 번 읽어 스냅숏 dict와 실패 목록을 만든다."""
     app_key, app_secret = _flow_kis_keys()
     values = {}
@@ -172,12 +205,15 @@ def collect_kr_flow_snapshot():
         else:
             failures.append("투자자별 수급 조회 실패")
 
-    # 3-b) KIS 투자자별 수급이 비었으면 네이버 지연 공개치로 채운다
+    # 3-b) KIS 투자자별 수급이 비었으면 네이버 시간별 공개치로 채운다
     #      (2026-07-22 추가: KIS가 실패하면 수급 항목이 통째로 비어 판정이 계속
     #      '확인 중'에 머물렀다. 값을 만들어내는 게 아니라 공개된 지연치를 쓰고,
     #      아래에서 신호 세기를 '대체'로 표시한다.)
     if values.get("foreign_cash_net_amount") is None:
-        naver_flow = naver_market_data.get_market_investor_flow("KOSPI")
+        naver_flow = naver_market_data.get_market_investor_flow_intraday("KOSPI")
+        if not naver_flow.get("ok"):
+            # 장외·개장 직후 시간별 표가 비면 당일 누적 표를 마지막 대안으로 쓴다.
+            naver_flow = naver_market_data.get_market_investor_flow("KOSPI")
         if naver_flow.get("ok"):
             amounts = naver_flow["values"]
 
@@ -210,6 +246,8 @@ def collect_kr_flow_snapshot():
             failures.append(f"선물 베이시스 조회 실패 ({futures.get('error')})")
 
         # 5) 전기전자 업종 — 코드를 이름으로 찾고, 못 찾으면 추측하지 않는다
+        if force_refresh:
+            _flow_electronics_sector_code.clear()
         sector_code, sector_turnover = _flow_electronics_sector_code(app_key, app_secret)
         values["electronics_turnover"] = sector_turnover
         if sector_code:
@@ -227,15 +265,32 @@ def collect_kr_flow_snapshot():
         else:
             failures.append("전기전자 업종코드 자동 탐색 실패")
 
-    # 6) 삼성전자·SK하이닉스 (기존 가격 조회 재사용)
-    for prefix, ticker in (("samsung", _FLOW_SAMSUNG_TICKER), ("hynix", _FLOW_HYNIX_TICKER)):
+    # 6) 삼성전자·SK하이닉스 — Yahoo 일봉은 장중 약 20분까지 차이 났다.
+    #    네이버 폴링의 현재가·시가·저가가 5분 이내일 때 우선 사용하고 실패할 때만
+    #    기존 가격 조회로 내려간다.
+    now = _now_seoul()
+    try:
+        live_quotes = naver_stock_quote.get_quotes(("005930", "000660"))
+    except Exception:
+        live_quotes = {}
+    for prefix, code, ticker, label in (
+        ("samsung", "005930", _FLOW_SAMSUNG_TICKER, "삼성전자"),
+        ("hynix", "000660", _FLOW_HYNIX_TICKER, "SK하이닉스"),
+    ):
+        live = live_quotes.get(code) or {}
+        if _fresh_naver_stock_quote(live, now=now):
+            values[f"{prefix}_price"] = live.get("price")
+            values[f"{prefix}_open"] = live.get("day_open")
+            values[f"{prefix}_day_low"] = live.get("day_low")
+            continue
         quote = price_data.get_snapshot_defaults(ticker)
         if quote.get("ok"):
             values[f"{prefix}_price"] = quote.get("current")
             values[f"{prefix}_open"] = quote.get("open")
             values[f"{prefix}_day_low"] = quote.get("low")
+            failures.append(f"{label} 네이버 장중 시세 실패 — 기존 가격으로 대체")
         else:
-            failures.append(f"{'삼성전자' if prefix == 'samsung' else 'SK하이닉스'} 가격 조회 실패")
+            failures.append(f"{label} 가격 조회 실패")
 
     # 7) 외국인 선물 수급 — 수동 입력값이 있으면 우선, 없으면 네이버 지연 공개치를
     #    자동 조회한다(2026-07-22 사용자 지시: 직접 입력 대신 자동으로 찾아 띄울 것).
@@ -259,11 +314,28 @@ def _flow_today():
     return _now_seoul().strftime("%Y-%m-%d")
 
 
-def run_kr_flow_check():
+def _expected_previous_weekday(trade_date: str) -> str | None:
+    """주말만 건너뛴 직전 평일. 거래소 휴장일은 저장 여부로 따로 구별한다."""
+    try:
+        day = datetime.strptime(str(trade_date), "%Y-%m-%d").date() - timedelta(days=1)
+    except (TypeError, ValueError):
+        return None
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day.isoformat()
+
+
+def run_kr_flow_check(*, force_refresh=False):
     """수급을 한 번 읽어 DB에 쌓고, 당일 스냅숏 전체로 판정을 만든다."""
-    values, failures = collect_kr_flow_snapshot()
+    attempted_at = _now_seoul()
+    # 실패하더라도 마지막 시도 시각을 남겨 전체 화면 rerun 때 API를 연속 호출하지 않는다.
+    st.session_state["kr_flow_last_attempt_at"] = attempted_at
+    try:
+        values, failures = collect_kr_flow_snapshot(force_refresh=force_refresh)
+    except Exception:
+        values, failures = {}, ["한국장 수급 자동 조회 실패"]
     trade_date = _flow_today()
-    captured_at = _now_seoul().replace(second=0, microsecond=0).isoformat()
+    captured_at = attempted_at.replace(second=0, microsecond=0).isoformat()
 
     try:
         database.save_kr_flow_snapshot(trade_date, captured_at, values)
@@ -317,6 +389,7 @@ def run_kr_flow_check():
     )
     st.session_state["kr_flow_result"] = result
     st.session_state["kr_flow_failures"] = failures
+    st.session_state["kr_flow_last_checked_at"] = _now_seoul()
     return result
 
 
@@ -379,6 +452,10 @@ _SIGNAL_GAUGE_CSS = """
 .sig-gauge { flex: 0 0 auto; }
 .sig-gauge .fg-gauge { width: 190px; height: 127px; }
 .sig-gauge .fg-zone { font-size: 21px; }
+.sig-current-score { margin-top: -0.35rem; text-align: center;
+  font-size: 1.05rem; font-weight: 900; }
+.sig-prev-score { margin-top: 0.08rem; text-align: center;
+  font-size: 0.83rem; font-weight: 800; }
 .sig-counts { flex: 0 0 auto; min-width: 168px; }
 .sig-text { flex: 1 1 320px; min-width: 260px; }
 @media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 160px; height: 107px; } }
@@ -479,12 +556,98 @@ def kr_flow_diagnosis(result) -> str | None:
     return None
 
 
-def _verdict_gauge_html(result, verdict_style, verdict_order) -> str:
+def _verdict_stage_number(verdict, verdict_order) -> int | None:
+    """판정이 전체 단계 중 몇 번째인지 돌려준다(예: 일부 켜짐 = 2/4단계)."""
+    verdict_order = tuple(verdict_order or ())
+    if not verdict_order or verdict not in verdict_order:
+        return None
+    return verdict_order.index(verdict) + 1
+
+
+def _verdict_needle_position(verdict, verdict_order) -> float | None:
+    """네 단계 판정의 바늘을 해당 구간 중앙에 놓을 내부 위치값을 돌려준다."""
+    stage = _verdict_stage_number(verdict, verdict_order)
+    if stage is None:
+        return None
+    step = 100 / len(tuple(verdict_order))
+    return step * (stage - 0.5)
+
+
+def _saved_foreign_futures(snapshots):
+    """저장된 스냅숏에서 당시 외국인 선물 상태를 복원한다."""
+    known = []
+    for row in snapshots or []:
+        value = row.get("foreign_futures_net_contracts")
+        if value is None:
+            continue
+        stamp = row.get("captured_at")
+        if isinstance(stamp, str):
+            try:
+                stamp = datetime.fromisoformat(stamp)
+            except ValueError:
+                stamp = None
+        known.append((int(value), stamp, row.get("foreign_futures_source")))
+    if not known:
+        return None
+    current, as_of, source = known[-1]
+    previous = known[-2][0] if len(known) >= 2 else None
+    return kr_intraday_flow.ForeignFuturesFlowSnapshot(
+        net_contracts=current,
+        previous_net_contracts=previous,
+        as_of=as_of,
+        source=source or "저장된 공개 수급",
+        confidence="saved",
+        available=True,
+    )
+
+
+def _previous_kr_flow_stage() -> dict | None:
+    """저장된 직전 평일 스냅숏으로 직전 판정 단계를 다시 계산한다."""
+    try:
+        today = _flow_today()
+        saved = database.list_previous_kr_flow_snapshots(today)
+        snapshots = list(saved.get("rows") or [])
+        if not snapshots:
+            return None
+        last_stamp = snapshots[-1].get("captured_at")
+        if isinstance(last_stamp, str):
+            last_stamp = datetime.fromisoformat(last_stamp)
+        result = kr_intraday_flow.build_result_from_snapshots(
+            snapshots,
+            foreign_futures=_saved_foreign_futures(snapshots),
+            # 과거 자료를 현재시각과 비교하면 모두 '오래됨'이 되므로 당시 마지막
+            # 스냅숏 시각을 판정시각으로 쓴다.
+            now=last_stamp,
+        )
+        score = _verdict_needle_position(result.verdict, KR_VERDICT_ORDER)
+        if score is None:
+            return None
+        return {
+            "score": score,
+            "label": _VERDICT_SHORT.get(result.verdict) or str(result.verdict),
+            "color": _FLOW_VERDICT_STYLE.get(
+                result.verdict, ("", "#9ca3af", "")
+            )[1],
+            "trade_date": saved.get("trade_date"),
+            # 정확히 직전 평일 자료일 때만 '전일'이라고 부른다. 저장이 며칠 비었거나
+            # 평일 휴장일을 건너뛴 자료라면 날짜와 함께 '직전 저장'으로 밝힌다.
+            "period_label": (
+                "전일"
+                if saved.get("trade_date") == _expected_previous_weekday(today)
+                else "직전 저장"
+            ),
+        }
+    except Exception:
+        return None
+
+
+def _verdict_gauge_html(
+    result, verdict_style, verdict_order, previous_stage=None, *, show_position_score=False
+) -> str:
     """판정을 반원 눈금 위에 올린다 (2026-07-24 사용자 요청).
 
-    공포·탐욕 게이지와 같은 모양으로 맞추되 **숫자는 만들지 않는다.** 이 카드의
-    판정은 0~100 점수가 아니라 네 단계 중 하나이므로, 바늘은 지금 단계의 한가운데를
-    가리키고 가운데 글자에는 단계 이름만 적는다. 없는 점수를 지어내지 않기 위해서다.
+    숫자는 승률이나 매수점수가 아니라 네 판정 구간의 중앙 위치값이다.
+    한국장 카드에서만 현재·전일을 같은 0~100 눈금(12·38·62·88)으로 표시한다.
 
     verdict_order는 나쁜 쪽 → 좋은 쪽 순서다. 목록에 없는 판정(데이터 부족)은
     바늘 없이 눈금만 그린다.
@@ -496,9 +659,7 @@ def _verdict_gauge_html(result, verdict_style, verdict_order) -> str:
         name = _VERDICT_SHORT.get(verdict) or str(verdict)
         zones.append((round(step * (index + 1)), name, color))
 
-    score = None
-    if result.verdict in verdict_order:
-        score = step * (verdict_order.index(result.verdict) + 0.5)
+    score = _verdict_needle_position(result.verdict, verdict_order)
 
     counts = {
         market_signal_common.SignalStatus.POSITIVE: 0,
@@ -518,16 +679,37 @@ def _verdict_gauge_html(result, verdict_style, verdict_order) -> str:
     row_tuples = [(label, note, f"{value}개", color, value == 0)
                   for label, note, value, color in rows]
 
+    score_html = ""
+    if show_position_score and score is not None:
+        current_color = verdict_style.get(result.verdict, ("", "#9ca3af", ""))[1]
+        score_html = (
+            f"<div class='sig-current-score' style='color:{current_color}'>"
+            f"{score:.0f}</div>"
+        )
+    if previous_stage and previous_stage.get("score") is not None:
+        day = str(previous_stage.get("trade_date") or "")
+        day = day[5:].replace("-", ".") if len(day) >= 10 else ""
+        day_text = f"({day})" if day else ""
+        period_label = str(previous_stage.get("period_label") or "직전 저장")
+        previous_color = str(previous_stage.get("color") or "#9ca3af")
+        score_html += (
+            f"<div class='sig-prev-score' style='color:{previous_color}'>"
+            f"{period_label}{day_text} {float(previous_stage['score']):.0f} · "
+            f"{previous_stage.get('label') or '판정 확인'}</div>"
+        )
+
     return (
         "<div class='sig-gauge'>"
-        f"{gauge_ui.gauge_svg(score, zones, ticks=(), show_score=False)}</div>"
+        f"{gauge_ui.gauge_svg(score, zones, ticks=(), show_score=False)}"
+        f"{score_html}</div>"
         f"<div class='sig-counts'>{gauge_ui.rows_html(row_tuples)}</div>"
     )
 
 
 def render_market_signal_card(
     result, *, verdict_style, core_display, table_keys, detail_title, detail_caption,
-    table_key, diagnosis_text=None, verdict_order=(),
+    table_key, diagnosis_text=None, verdict_order=(), previous_stage=None,
+    show_position_score=False,
 ):
     """한국장·미국장이 함께 쓰는 카드 렌더러.
 
@@ -549,7 +731,13 @@ def render_market_signal_card(
 
     # 판정을 눈금 위에 올려 지금이 어느 단계인지 한눈에 보이게 한다(2026-07-24).
     _gauge_html = (
-        _verdict_gauge_html(result, verdict_style, tuple(verdict_order))
+        _verdict_gauge_html(
+            result,
+            verdict_style,
+            tuple(verdict_order),
+            previous_stage=previous_stage,
+            show_position_score=show_position_score,
+        )
         if verdict_order else ""
     )
     st.markdown(f"<style>{gauge_ui.CSS}{_SIGNAL_GAUGE_CSS}</style>", unsafe_allow_html=True)
@@ -646,21 +834,51 @@ def render_market_signal_card(
         st.caption(detail_caption)
 
 
+def _kr_flow_auto_due(result, last_attempt, now=None) -> bool:
+    """최초·새 거래일·장중 1분 경과 때 자동 조회할지 판정한다."""
+    now = now or _now_seoul()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=_SEOUL_TZ)
+    else:
+        now = now.astimezone(_SEOUL_TZ)
+    if isinstance(last_attempt, str):
+        try:
+            last_attempt = datetime.fromisoformat(last_attempt)
+        except ValueError:
+            last_attempt = None
+    if last_attempt is not None:
+        if last_attempt.tzinfo is None:
+            last_attempt = last_attempt.replace(tzinfo=_SEOUL_TZ)
+        else:
+            last_attempt = last_attempt.astimezone(_SEOUL_TZ)
+    if result is None or last_attempt is None or last_attempt.date() != now.date():
+        return True
+    in_session = (
+        now.weekday() < 5
+        and datetime.strptime("09:00", "%H:%M").time()
+        <= now.time()
+        <= datetime.strptime("15:30", "%H:%M").time()
+    )
+    return in_session and now - last_attempt >= timedelta(seconds=55)
+
+
+@st.fragment(run_every=60)
 def render_kr_flow_card():
     """🎯 한국장 기관 수급 현황. 0단계 결과 바로 아래에 놓인다."""
     st.markdown("### 🎯 한국장 기관 수급 현황")
     st.caption(
         "지금 기관이 들어오는 장인지, 무엇이 먼저 움직였는지를 읽어줍니다. "
-        "매수·매도 판단은 상하님이 다른 자비스와 함께 결정하시는 몫입니다."
+        "장중에는 1분마다 자동 확인하며, 버튼을 누르면 즉시 다시 조회합니다."
     )
 
-    if st.button("수급 다시 확인", key="kr_flow_refresh"):
-        with st.spinner("장중 수급 확인 중..."):
-            run_kr_flow_check()
-
+    clicked = st.button("수급 다시 확인", key="kr_flow_refresh")
     result = st.session_state.get("kr_flow_result")
-    if result is None:
-        # 버튼을 누르기 전에도 첫 화면에서 자동으로 한 번 읽는다(2026-07-22 사용자 지시).
+    if clicked:
+        with st.spinner("장중 수급 확인 중..."):
+            result = run_kr_flow_check(force_refresh=True)
+    elif _kr_flow_auto_due(
+        result, st.session_state.get("kr_flow_last_attempt_at"), _now_seoul()
+    ):
         with st.spinner("장중 수급 자동 확인 중..."):
             result = run_kr_flow_check()
 
@@ -677,6 +895,8 @@ def render_kr_flow_card():
         table_key="kr_flow_detail_table",
         diagnosis_text=kr_flow_diagnosis,
         verdict_order=KR_VERDICT_ORDER,
+        previous_stage=_previous_kr_flow_stage(),
+        show_position_score=True,
     )
 
     # 조회 실패 목록과 외국인 선물 수동 입력칸은 없앴다(2026-07-22 사용자 지시).

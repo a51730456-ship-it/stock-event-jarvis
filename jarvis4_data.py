@@ -30,6 +30,7 @@ import requests
 
 _log = logging.getLogger(__name__)
 _SEOUL = ZoneInfo("Asia/Seoul")
+_NY = ZoneInfo("America/New_York")
 
 _HEADERS = {
     "User-Agent": (
@@ -42,6 +43,7 @@ _HEADERS = {
 _THEME_LIST_URL = "https://finance.naver.com/sise/theme.naver"
 _THEME_DETAIL_URL = "https://finance.naver.com/sise/sise_group_detail.naver?type=theme&no={no}"
 _STOCK_FLOW_URL = "https://finance.naver.com/item/frgn.naver?code={code}"
+_YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 
 # 화면에 보여줄 테마 수와, 그 후보로 상세 조회할 테마 수.
 # 미국테마(자비스3)가 20개를 보여주므로 한국도 20개로 맞춘다(2026-07-25 사용자 지시).
@@ -60,7 +62,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072517
+MODULE_REVISION = 2026072906
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -794,47 +796,95 @@ def _live_index(ticker: str) -> float | None:
     return None
 
 
-def get_us_futures_live(*, ttl_seconds: float = 60) -> dict:
-    """나스닥100·S&P500 선물 실시간(지연 가능). 한국 장중에 미국 방향을 먼저 보여준다.
+def _parse_yahoo_1m_chart(payload: dict, *, symbol: str, label: str) -> dict:
+    """Yahoo 단일 1분봉 응답을 화면 값으로 바꾼다.
 
-    한국장은 미국 선물과 같은 방향으로 움직이는 경우가 많아, 전일 종가만이 아니라
-    지금 선물이 어디로 가는지가 장중 판단에 쓸모 있다(2026-07-22 사용자 요청).
+    현재가, 차트 마지막 값, 전일 기준가를 서로 다른 요청에서 섞지 않는다.
+    Yahoo 응답의 ``previousClose``는 선물의 직전 정산가이므로 화면 등락률 기준도
+    같은 응답 안에서 완결된다.
     """
+    chart = payload.get("chart") or {}
+    if chart.get("error"):
+        raise RuntimeError(f"{label} 조회 오류: {chart['error']}")
+    results = chart.get("result") or []
+    if not results:
+        raise RuntimeError(f"{label} 1분봉 응답이 비었습니다")
+
+    result = results[0] or {}
+    meta = result.get("meta") or {}
+    timestamps = result.get("timestamp") or []
+    quotes = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+    closes = quotes.get("close") or []
+
+    rows = []
+    for raw_stamp, raw_close in zip(timestamps, closes):
+        stamp = _finite(raw_stamp)
+        close = _finite(raw_close)
+        if stamp is not None and close is not None:
+            rows.append((int(stamp), close))
+    if len(rows) < 2:
+        raise RuntimeError(f"{label} 1분봉 자료가 부족합니다")
+
+    prev_close = _finite(meta.get("previousClose"))
+    if prev_close is None:
+        prev_close = _finite(meta.get("chartPreviousClose"))
+    if prev_close is None or prev_close <= 0:
+        raise RuntimeError(f"{label} 전일 기준가가 없습니다")
+
+    last_stamp, current = rows[-1]
+    points = [value for _stamp, value in rows]
+    as_of = datetime.fromtimestamp(last_stamp, tz=_SEOUL).strftime("%m.%d %H:%M")
+    delay = _finite(meta.get("exchangeDataDelayedBy"))
+    return {
+        "label": label,
+        "symbol": symbol,
+        "contract": meta.get("shortName"),
+        # 표시 숫자와 차트 끝값은 반드시 이 한 값이다.
+        "current": current,
+        "prev_close": prev_close,
+        "change_pct": (current / prev_close - 1) * 100,
+        "chart": {"points": _thin_points(points), "base": prev_close},
+        "as_of": as_of,
+        "interval": meta.get("dataGranularity") or "1m",
+        "delay_minutes": delay,
+        "source": "Yahoo Finance Chart",
+    }
+
+
+def _fetch_yahoo_1m_chart(symbol: str, label: str) -> dict:
+    """Yahoo Chart API의 단일 1분봉 응답을 가져온다."""
+    encoded_symbol = requests.utils.quote(symbol, safe="")
+    url = _YAHOO_CHART_URL.format(symbol=encoded_symbol)
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = _http_session().get(
+                url,
+                params={
+                    "interval": "1m",
+                    "range": "1d",
+                    "includePrePost": "true",
+                    "events": "div,splits",
+                },
+                headers={"Referer": "https://finance.yahoo.com/"},
+                timeout=12,
+            )
+            response.raise_for_status()
+            return _parse_yahoo_1m_chart(response.json(), symbol=symbol, label=label)
+        except Exception as exc:
+            last_error = exc
+            if attempt < 2:
+                time.sleep(0.6 * (attempt + 1))
+    raise RuntimeError(f"{label} 1분봉 조회 실패: {last_error}")
+
+
+def get_us_futures_live(*, ttl_seconds: float = 60) -> dict:
+    """나스닥100·S&P500 선물의 동일 응답 기반 최신 1분봉 값과 당일 차트."""
 
     def _produce():
-        import warnings
-
-        import yfinance as yf
-
-        # 선물 등락률은 '전일 정산가 대비'다. 24시간 전 값과 비교하면 야간 거래분이
-        # 섞여 부호까지 뒤집힌다(2026-07-22 실측: 네이버 -0.41%인데 +0.48%로 나왔다).
-        # 그래서 일봉으로 전일 종가(정산가)를 잡고, 오늘 봉의 종가를 현재가로 쓴다.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            raw = yf.download(
-                ["NQ=F", "ES=F"], period="5d", interval="1d", group_by="ticker",
-                auto_adjust=False, progress=False, threads=True, timeout=12,
-            )
         out = {}
         for symbol, label in (("NQ=F", "나스닥100 선물"), ("ES=F", "S&P500 선물")):
-            try:
-                frame = raw[symbol] if isinstance(raw.columns, pd.MultiIndex) else raw
-                closes = frame["Close"].dropna().astype(float)
-                if len(closes) < 2:
-                    continue
-                current = _finite(closes.iloc[-1])
-                prev_settle = _finite(closes.iloc[-2])
-                if current and prev_settle:
-                    out[symbol] = {
-                        "label": label,
-                        "current": current,
-                        "prev_close": prev_settle,
-                        "change_pct": (current / prev_settle - 1) * 100,
-                    }
-            except Exception:
-                continue
-        if not out:
-            raise RuntimeError("미국 선물 시세를 가져오지 못했습니다")
+            out[symbol] = _fetch_yahoo_1m_chart(symbol, label)
         return out
 
     try:
@@ -842,6 +892,20 @@ def get_us_futures_live(*, ttl_seconds: float = 60) -> dict:
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
     return {"ok": True, "stale": stale, "values": values}
+
+
+def get_fx_intraday(*, ttl_seconds: float = 60) -> dict:
+    """원/달러의 동일 응답 기반 최신 1분봉 값과 당일 차트."""
+
+    try:
+        value, stale = _cached(
+            "fx_intraday",
+            ttl_seconds,
+            lambda: _fetch_yahoo_1m_chart("KRW=X", "원/달러 환율"),
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "stale": stale, **value}
 
 
 def _us_previous_session() -> dict:
@@ -868,12 +932,18 @@ def _us_previous_session() -> dict:
         spy = _session_change("^GSPC", "SPY")
         qqq = _session_change("^NDX", "QQQ")
         fear_greed = j3.get_fear_greed()
+        previous_market = overview.get("previous_market") or {}
         return {
             "ok": spy is not None and qqq is not None,
             "spy_change": spy,
             "qqq_change": qqq,
-            "regime": overview.get("regime"),
-            "score": overview.get("score"),
+            # 한국 화면에서는 '미국 전일 등락률' 대신 전일 미국 시장국면을 보여 준다.
+            "regime": previous_market.get("regime"),
+            "score": previous_market.get("score"),
+            "posture": previous_market.get("posture"),
+            # 한국테마에도 미국테마의 시장국면 카드를 그대로 그리기 위한 원본이다.
+            # score만 따로 옮기면 '전일 시장국면' 행이 빠져 두 화면이 달라진다.
+            "market_overview": dict(overview),
             "fear_greed": fear_greed.get("score") if fear_greed.get("ok") else None,
             "fear_greed_label": fear_greed.get("rating_kr") if fear_greed.get("ok") else None,
             # 게이지 그림에는 지난 값(전일·1주·1개월·1년)까지 필요하다. 자비스4 화면은
@@ -890,23 +960,172 @@ def _market_foreign_flow() -> dict:
     시장 전체 투자자 매매동향은 KIS 키가 있어야 하고 온라인에서만 되므로,
     키 없이도 항상 되는 대표종목 수급을 시장 수급의 근사로 쓴다(대체 신호로 표기).
     """
+    codes = (("005930", "삼성전자"), ("000660", "SK하이닉스"))
+    try:
+        import naver_stock_quote
+
+        def _live_quotes():
+            payload = naver_stock_quote.get_quotes([code for code, _label in codes])
+            if any(
+                not (payload.get(code) or {}).get("price")
+                for code, _label in codes
+            ):
+                raise RuntimeError("대표종목 현재가 일부 누락")
+            return payload
+
+        quotes, quotes_stale = _cached("market_representative_live_quotes", 55, _live_quotes)
+    except Exception:
+        quotes, quotes_stale = {}, False
+
     total5 = 0.0
+    live_total5 = 0.0
+    live_foreign5 = 0.0
+    live_institution5 = 0.0
+    live_count = 0
+    quote_times = []
+    previous_total5 = 0.0
     ok_any = False
+    previous_ok_any = False
     details = []
     stocks = []
-    for code, label in (("005930", "삼성전자"), ("000660", "SK하이닉스")):
+    for code, label in codes:
         flow = get_stock_flow(code)
         if flow.get("ok"):
             ok_any = True
             total5 += flow["net5_amount"]
+            previous_rows = (flow.get("rows") or [])[1:6]
+            if previous_rows:
+                previous_ok_any = True
+                previous_total5 += sum(
+                    ((row.get("foreign_net") or 0) + (row.get("institution_net") or 0))
+                    * (row.get("close") or 0) for row in previous_rows
+                )
             details.append(f"{label} 5일 {flow['net5_amount'] / 1e8:+,.0f}억")
             # 합계만 주면 화면이 종목별 동반 그림을 못 그린다(2026-07-25 사용자 요청).
-            stocks.append({"code": code, "label": label, "flow": flow})
+            quote = quotes.get(code) or {}
+            current_price = _finite(quote.get("price"))
+            live_amount = None
+            if current_price is not None:
+                live_count += 1
+                live_amount = (flow.get("net5_shares") or 0) * current_price
+                live_total5 += live_amount
+                live_foreign5 += (flow.get("foreign_net5") or 0) * current_price
+                live_institution5 += (flow.get("institution_net5") or 0) * current_price
+                if quote.get("traded_at"):
+                    quote_times.append(str(quote["traded_at"]))
+            stocks.append({
+                "code": code,
+                "label": label,
+                "flow": flow,
+                "quote": quote,
+                "live_net5_amount": live_amount,
+            })
     if not ok_any:
         return {"ok": False}
     return {
-        "ok": True, "net5_amount": total5, "detail": " · ".join(details), "stocks": stocks,
+        "ok": True, "net5_amount": total5,
+        "previous_net5_amount": previous_total5 if previous_ok_any else None,
+        "detail": " · ".join(details), "stocks": stocks,
+        # 최근 5거래일 수급수량 자체는 완료 거래일 확정치다. 금액만 두 종목의
+        # 장중 현재가로 1분마다 다시 환산한다. 이를 오늘 신규 수급으로 표시하지 않는다.
+        "live_ok": live_count == len(codes),
+        "live_net5_amount": live_total5 if live_count == len(codes) else None,
+        "live_foreign_net5_amount": live_foreign5 if live_count == len(codes) else None,
+        "live_institution_net5_amount": live_institution5 if live_count == len(codes) else None,
+        "live_as_of": max(quote_times) if quote_times else None,
+        "live_stale": bool(quotes_stale),
+        "live_source": "네이버 현재가 1분 자동조회",
     }
+
+
+def _market_intraday_investor_flow(*, ttl_seconds: float = 55) -> dict:
+    """KOSPI 당일 외국인+기관 시간별 누적 수급(네이버 지연 공개치).
+
+    종목별 5일 수급을 현재가로 재평가하면 오늘 수급처럼 보이는 잘못된 값이 된다.
+    따라서 장중 카드에는 시장 전체 시간별 표를 별도 값으로 제공한다.
+    """
+    import naver_market_data
+
+    def _produce():
+        result = naver_market_data.get_market_investor_flow_intraday("KOSPI")
+        if not result.get("ok"):
+            raise RuntimeError(result.get("error") or "KOSPI 장중 수급 조회 실패")
+        values = result.get("values") or {}
+        foreign = _finite(values.get("foreign"))
+        institution = _finite(values.get("institution"))
+        if foreign is None or institution is None:
+            raise RuntimeError("KOSPI 장중 수급 주요 열 없음")
+        return {
+            "ok": True,
+            "foreign_eok": foreign,
+            "institution_eok": institution,
+            "net_amount": (foreign + institution) * 1e8,
+            "as_of": (
+                result.get("as_of").isoformat()
+                if isinstance(result.get("as_of"), datetime)
+                else result.get("as_of")
+            ),
+            "as_of_time": result.get("as_of_time"),
+            "trade_date": result.get("trade_date"),
+            "source": result.get("source") or "네이버 시간별 투자자매매동향(지연 가능)",
+            "realtime": False,
+        }
+
+    try:
+        value, stale = _cached("market_intraday_investor_flow", ttl_seconds, _produce)
+    except Exception:
+        return {"ok": False}
+    return {**value, "stale": bool(stale)}
+
+
+def _previous_index_metrics(symbol: str) -> dict:
+    """오늘 일봉이 있으면 제외하고, 직전 완료 한국장의 지표를 다시 계산한다."""
+    try:
+        frame, _stale = _cached(("index", symbol), 300, lambda: _index_frame(symbol))
+    except Exception:
+        return {"ok": False}
+    if frame is None or frame.empty:
+        return {"ok": False}
+    last_date = pd.Timestamp(frame.index[-1]).date()
+    completed = frame if last_date < datetime.now(_SEOUL).date() else frame.iloc[:-1]
+    return _series_metrics(completed)
+
+
+def _market_regime_label(score: int) -> tuple[str, str]:
+    if score >= 75:
+        return "상승 우위", "조건 충족 종목만 매수 심사"
+    if score >= 50:
+        return "중립·선별", "비중 축소·확인 후 진입"
+    return "방어 우선", "신규 매수 보류"
+
+
+def _previous_korean_market_regime(foreign: dict, us_prev: dict) -> dict | None:
+    """직전 완료 한국장 기준의 시장국면.
+
+    가격·환율은 그날 종가로 다시 계산하고, 수급은 대표종목 5일 묶음을 하루
+    뒤로 밀어 같은 기준일로 맞춘다. 자료가 모자라면 표시하지 않는다.
+    """
+    kospi = _previous_index_metrics("KS11")
+    kosdaq = _previous_index_metrics("KQ11")
+    usdkrw = _previous_index_metrics("USD/KRW")
+    if not kospi.get("ok"):
+        return None
+    score = 0
+    checks = (
+        (bool(kospi.get("sma50") and kospi["current"] > kospi["sma50"]), 20),
+        (bool(kospi.get("sma20") and kospi["current"] > kospi["sma20"]), 10),
+        (bool(kosdaq.get("ok") and kosdaq.get("sma50") and kosdaq["current"] > kosdaq["sma50"]), 15),
+        (bool(kosdaq.get("ok") and kosdaq.get("sma20") and kosdaq["current"] > kosdaq["sma20"]), 10),
+        (bool(us_prev.get("ok") and (us_prev.get("spy_change") or 0) >= 0
+              and (us_prev.get("qqq_change") or 0) >= 0), 15),
+        (bool(foreign.get("previous_net5_amount") is not None
+              and foreign.get("previous_net5_amount") > 0), 15),
+        (bool(usdkrw.get("ok") and usdkrw.get("sma20") and usdkrw["current"] <= usdkrw["sma20"]), 15),
+    )
+    score = sum(points for passed, points in checks if passed)
+    regime, posture = _market_regime_label(score)
+    return {"ok": True, "score": score, "regime": regime, "posture": posture,
+            "as_of": "직전 완료 한국장"}
 
 
 def get_market_overview() -> dict:
@@ -916,6 +1135,7 @@ def get_market_overview() -> dict:
     usdkrw = _index_metrics("USD/KRW")
     us_prev = _us_previous_session()
     foreign = _market_foreign_flow()
+    intraday_flow = _market_intraday_investor_flow()
 
     if not kospi.get("ok"):
         return {
@@ -959,12 +1179,12 @@ def get_market_overview() -> dict:
         10, "KOSDAQ 단기추세 양호",
     )
 
-    # 미국 전일 — 한국장 갭 상관이 높아 15점.
+    # 미국 시장국면(전일) — 한국장 갭 상관이 높아 15점.
     if us_prev.get("ok"):
         us_ok = (us_prev.get("spy_change") or 0) >= 0 and (us_prev.get("qqq_change") or 0) >= 0
-        add_check("미국 전일", us_ok, 15, "미국 전일 상승 마감")
+        add_check("미국 시장국면(전일)", us_ok, 15, "미국 전일 상승 마감")
     else:
-        breakdown.append({"label": "미국 전일", "earned": 0, "max": 15, "state": "자료부족"})
+        breakdown.append({"label": "미국 시장국면(전일)", "earned": 0, "max": 15, "state": "자료부족"})
 
     # 외국인·기관 수급 (대표종목 근사) 15점.
     if foreign.get("ok"):
@@ -979,12 +1199,7 @@ def get_market_overview() -> dict:
     else:
         breakdown.append({"label": "원/달러 안정", "earned": 0, "max": 15, "state": "자료부족"})
 
-    if score >= 75:
-        regime, posture = "상승 우위", "조건 충족 종목만 매수 심사"
-    elif score >= 50:
-        regime, posture = "중립·선별", "비중 축소·확인 후 진입"
-    else:
-        regime, posture = "방어 우선", "신규 매수 보류"
+    regime, posture = _market_regime_label(score)
 
     return {
         "ok": True,
@@ -995,7 +1210,9 @@ def get_market_overview() -> dict:
         "score_breakdown": breakdown,
         "rows": {"KOSPI": kospi, "KOSDAQ": kosdaq, "USDKRW": usdkrw},
         "us_prev": us_prev,
+        "previous_market": _previous_korean_market_regime(foreign, us_prev),
         "foreign": foreign,
+        "intraday_flow": intraday_flow,
         "phase": market_phase(),
         "checked_at": datetime.now(_SEOUL).isoformat(timespec="seconds"),
     }

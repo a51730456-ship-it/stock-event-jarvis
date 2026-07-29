@@ -352,11 +352,15 @@ import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
 
+_REQUIRED_REGIME_GAUGE_REVISION = 2026072904
+if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
+    regime_gauge_ui = importlib.reload(regime_gauge_ui)
+
 # ── 온라인 옛 모듈 자가복구 ──────────────────────────────────────────────────
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072515
+_REQUIRED_J3_REVISION = 2026072901
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -368,7 +372,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026072508
+_REQUIRED_SIGNAL_UI_REVISION = 2026072908
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).

@@ -221,6 +221,9 @@ def _request_text(url, *, timeout=8):
 _INVESTOR_TREND_URL = (
     "https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate={date}&sosok={sosok}"
 )
+_INVESTOR_INTRADAY_URL = (
+    "https://finance.naver.com/sise/investorDealTrendTime.naver?bizdate={date}&sosok={sosok}"
+)
 _MARKET_SOSOK = {"KOSPI": "01", "KOSDAQ": "02"}
 # 표 열 순서(2026-07-22 실측): 날짜 | 개인 | 외국인 | 기관계 | 금융투자 | 보험 |
 # 투신 | 기타금융 | 은행 | 연기금등 | 기타법인. 단위는 억원이다.
@@ -228,6 +231,84 @@ _INVESTOR_COLUMNS = (
     "personal", "foreign", "institution", "securities", "insurance",
     "investment_trust", "etc_finance", "bank", "pension", "etc_corp",
 )
+_INVESTOR_TIME_ROW_PATTERN = re.compile(
+    r'<td class="date2">\s*(\d{1,2}:\d{2})\s*</td>(.*?)</tr>', re.S
+)
+_INVESTOR_TIME_COLUMNS = (
+    "personal", "foreign", "institution", "securities", "insurance",
+    "investment_trust", "bank", "etc_finance", "pension", "etc_corp",
+)
+
+
+def get_market_investor_flow_intraday(market="KOSPI", *, now=None, request_text=None):
+    """코스피/코스닥 시간별 투자자 순매수 최신 행(억원).
+
+    네이버 공개 화면은 보통 1~2분 간격으로 갱신되며 거래소 정식 스트리밍 피드가
+    아니다. 장중에는 5분 넘게 멈춘 행을 현재 수급으로 인정하지 않는다.
+    """
+    sosok = _MARKET_SOSOK.get(str(market).upper())
+    if not sosok:
+        return {"ok": False, "error": "지원하지 않는 시장"}
+
+    now = now or _now_seoul()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=_SEOUL_TZ)
+    else:
+        now = now.astimezone(_SEOUL_TZ)
+
+    request_text = request_text or _request_text
+    try:
+        page = request_text(
+            _INVESTOR_INTRADAY_URL.format(date=now.strftime("%Y%m%d"), sosok=sosok)
+        )
+        rows = _INVESTOR_TIME_ROW_PATTERN.findall(page)
+        if not rows:
+            return {"ok": False, "error": "네이버 시간별 투자자 수급 데이터 없음"}
+
+        time_text, body = rows[0]
+        numbers = _FUTURES_NUMBER_PATTERN.findall(body)
+        if len(numbers) != len(_INVESTOR_TIME_COLUMNS):
+            return {"ok": False, "error": "네이버 시간별 투자자 수급 열 부족"}
+        values = {}
+        for index, name in enumerate(_INVESTOR_TIME_COLUMNS):
+            try:
+                values[name] = int(numbers[index].replace(",", ""))
+            except ValueError:
+                return {"ok": False, "error": "네이버 시간별 투자자 수급 숫자 오류"}
+        # 개인+외국인+기관계+기타법인은 시장 전체에서 거의 0이어야 한다.
+        # 오차가 크면 HTML 열 순서가 바뀐 것으로 보고 잘못된 수급을 내보내지 않는다.
+        balance = (
+            values["personal"] + values["foreign"]
+            + values["institution"] + values["etc_corp"]
+        )
+        if abs(balance) > 5:
+            return {"ok": False, "error": "네이버 시간별 투자자 수급 정합성 오류"}
+
+        hour, minute = (int(part) for part in time_text.split(":", 1))
+        as_of = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        age = now - as_of
+        if age < -timedelta(minutes=1):
+            return {"ok": False, "error": "네이버 시간별 투자자 수급 시각 오류"}
+        if _is_regular_session(now) and age > _MAX_STALENESS:
+            return {"ok": False, "error": "네이버 시간별 투자자 수급이 오래됨"}
+
+        return {
+            "ok": True,
+            "market": str(market).upper(),
+            "unit": "억원",
+            "values": values,
+            "foreign_institution_total": values["foreign"] + values["institution"],
+            "trade_date": now.strftime("%Y-%m-%d"),
+            "as_of": as_of,
+            "as_of_time": as_of.strftime("%H:%M"),
+            "delay_seconds": max(0, int(age.total_seconds())),
+            "stale": False,
+            "realtime": False,
+            "data_kind": "intraday_delayed_public",
+            "source": "네이버 시간별 투자자매매동향(지연 가능)",
+        }
+    except Exception:
+        return {"ok": False, "error": "네이버 시간별 투자자 수급 조회 실패"}
 
 
 def get_market_investor_flow(market="KOSPI", *, now=None, request_text=None):

@@ -183,6 +183,72 @@ def _investor_html(first_date="26.07.22"):
     )
 
 
+def _investor_time_html(first_time="13:29"):
+    return (
+        "<table>"
+        f'<tr><td class="date2">{first_time}</td>'
+        '<td class="rate_down3">-14,258</td>'
+        '<td class="rate_up3">1,745</td>'
+        '<td class="rate_up3">12,548</td>'
+        '<td class="rate_up3">7,088</td>'
+        '<td class="rate_up3">236</td>'
+        '<td class="rate_up3">3,376</td>'
+        '<td class="rate_down3">-24</td>'
+        '<td class="rate_up3">31</td>'
+        '<td class="rate_up3">1,842</td>'
+        '<td class="rate_down3">-35</td></tr>'
+        '<tr><td class="date2">13:28</td><td>-1</td><td>1</td><td>2</td>'
+        '<td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>'
+        "</table>"
+    )
+
+
+class IntradayMarketInvestorFlowTests(unittest.TestCase):
+    NOW = datetime(2026, 7, 22, 13, 30, 20, tzinfo=SEOUL)
+
+    def test_reads_latest_timed_row_and_real_source_time(self):
+        result = naver_market_data.get_market_investor_flow_intraday(
+            "KOSPI", now=self.NOW,
+            request_text=lambda url, **kwargs: _investor_time_html(),
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["as_of_time"], "13:29")
+        self.assertEqual(result["values"]["foreign"], 1_745)
+        self.assertEqual(result["values"]["institution"], 12_548)
+        self.assertEqual(result["values"]["pension"], 1_842)
+        self.assertEqual(result["foreign_institution_total"], 14_293)
+        self.assertFalse(result["realtime"])
+        self.assertEqual(result["unit"], "억원")
+        self.assertIn("지연", result["source"])
+
+    def test_stale_intraday_row_is_rejected_during_market(self):
+        result = naver_market_data.get_market_investor_flow_intraday(
+            "KOSPI", now=self.NOW,
+            request_text=lambda url, **kwargs: _investor_time_html("13:20"),
+        )
+        self.assertFalse(result["ok"])
+
+    def test_main_investor_balance_guards_against_column_shift(self):
+        broken = _investor_time_html().replace("-14,258", "-10,000", 1)
+        result = naver_market_data.get_market_investor_flow_intraday(
+            "KOSPI", now=self.NOW, request_text=lambda url, **kwargs: broken,
+        )
+        self.assertFalse(result["ok"])
+
+    def test_malformed_or_network_failure_is_safe(self):
+        for page in ("<html>없음</html>", '<td class="date2">13:29</td><td>1</td>'):
+            with self.subTest(page=page):
+                result = naver_market_data.get_market_investor_flow_intraday(
+                    "KOSPI", now=self.NOW, request_text=lambda url, **kwargs: page,
+                )
+                self.assertFalse(result["ok"])
+        result = naver_market_data.get_market_investor_flow_intraday(
+            "KOSPI", now=self.NOW,
+            request_text=lambda *args, **kwargs: (_ for _ in ()).throw(OSError("network")),
+        )
+        self.assertFalse(result["ok"])
+
+
 class MarketInvestorFlowTests(unittest.TestCase):
     """KIS 실패 시 쓰는 무료 대체 경로 — 코스피/코스닥 투자자별 매매동향."""
 

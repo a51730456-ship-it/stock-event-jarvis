@@ -4,8 +4,7 @@
 크게 적으면 '방어 우선'이 25점인지 49점인지 알 수 없어서, 조건점수가 구간 어디쯤인지
 바늘로 보여준다.
 
-세 박스가 나란히 서면 구별이 안 되므로 제목 색을 다르게 준다 —
-공포·탐욕은 파랑, 시장 국면은 밝은 초록, 미국 전일은 진한 초록.
+시장 국면과 공포·탐욕 제목은 같은 스카이블루로 통일한다.
 
 이 파일은 그림만 만든다. 국면 판정과 조건점수 계산은 jarvis3_data·jarvis4_data가 한다.
 """
@@ -13,6 +12,8 @@
 from __future__ import annotations
 
 import gauge_ui
+
+MODULE_REVISION = 2026072904
 
 # 조건점수 구간 — jarvis3_data·jarvis4_data의 판정 기준과 같아야 한다.
 # 0~49 방어 우선 · 50~74 중립·선별 · 75~100 상승 우위
@@ -38,20 +39,42 @@ def _zone_rows(score) -> list[tuple]:
     ]
 
 
-def regime_box_html(overview: dict | None, *, title: str = "시장 국면") -> str:
+def _previous_regime_row(overview: dict) -> tuple | None:
+    previous = overview.get("previous_market") or {}
+    if not previous.get("ok") or previous.get("score") is None:
+        return None
+    score = float(previous["score"])
+    regime = previous.get("regime") or gauge_ui.zone_of(score, ZONES)[0]
+    return ("전일 시장국면", regime, f"{score:.0f}점", color_of(score), False)
+
+
+def regime_box_html(overview: dict | None, *, title: str = "시장 국면",
+                    note_prefix: str = " · ") -> str:
     """시장 국면 박스. 조건점수를 게이지로, 세 구간을 오른쪽에 보여준다."""
     overview = overview or {}
     ok = bool(overview.get("ok"))
     score = overview.get("score") if ok else None
     regime = overview.get("regime") if ok else None
-    return gauge_ui.box_html(
+    rows = _zone_rows(score)
+    previous_row = _previous_regime_row(overview)
+    if previous_row:
+        rows.append(previous_row)
+    box = gauge_ui.box_html(
         title,
         score,
         ZONES,
-        _zone_rows(score),
+        rows,
         label=regime,
-        title_color=gauge_ui.TITLE_GREEN,
+        title_color=gauge_ui.TITLE_BLUE,
         note=overview.get("posture") if ok else "",
+        note_color=color_of(score) if ok else None,
+        note_prefix=note_prefix,
+    )
+    # 구간명과 구별되도록 과거 비교 항목 이름도 제목과 같은 스카이블루로 표시한다.
+    return box.replace(
+        "<span class='fg-hist-label'>전일 시장국면</span>",
+        f"<span class='fg-hist-label' style='color:{gauge_ui.TITLE_BLUE}'>"
+        "전일 시장국면</span>",
     )
 
 
@@ -85,7 +108,7 @@ def us_prev_box_html(us_prev: dict | None, *, title: str = "미국 전일") -> s
         ZONES,
         rows,
         label=regime,
-        title_color=gauge_ui.TITLE_GREEN_DEEP,
+        title_color=gauge_ui.TITLE_BLUE,
     )
 
 

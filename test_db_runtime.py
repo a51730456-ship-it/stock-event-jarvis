@@ -122,6 +122,30 @@ class DbRuntimeTests(unittest.TestCase):
             self.assertEqual(len(reports), 1)
             self.assertEqual(reports[0]["day_conclusion"], "[테스트] Turso 호환")
 
+    def test_previous_flow_snapshots_skip_weekend_rows(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+            database_path = str(Path(temp_dir) / "flow_history.db")
+
+            def connection_factory():
+                return db_runtime.ConnectionAdapter(libsql.connect(database_path))
+
+            with mock.patch.object(database, "get_connection", side_effect=connection_factory):
+                database.init_db()
+                database.save_kr_flow_snapshot(
+                    "2026-07-24", "2026-07-24T15:00:00", {"samsung_price": 90_000}
+                )
+                database.save_kr_flow_snapshot(
+                    "2026-07-25", "2026-07-25T12:00:00", {"samsung_price": 91_000}
+                )
+                database.save_kr_flow_snapshot(
+                    "2026-07-27", "2026-07-27T15:00:00", {"samsung_price": 92_000}
+                )
+                previous = database.list_previous_kr_flow_snapshots("2026-07-28")
+
+            self.assertEqual(previous["trade_date"], "2026-07-27")
+            self.assertEqual(len(previous["rows"]), 1)
+            self.assertEqual(previous["rows"][0]["samsung_price"], 92_000)
+
 
 if __name__ == "__main__":
     unittest.main()

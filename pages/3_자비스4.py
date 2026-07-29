@@ -317,7 +317,12 @@ import altair as alt
 import pandas as pd
 
 import fear_greed_ui
+import gauge_ui
 import mobile_ui
+
+_REQUIRED_GAUGE_UI_REVISION = 2026072901
+if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
+    gauge_ui = importlib.reload(gauge_ui)
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
@@ -328,26 +333,38 @@ import regime_gauge_ui
 import jarvis4_data as j4data
 import jarvis4_store as j4store
 import market_signal_ui
+import us_index_data
+
+_REQUIRED_REGIME_GAUGE_REVISION = 2026072904
+if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
+    regime_gauge_ui = importlib.reload(regime_gauge_ui)
+
+_REQUIRED_US_INDEX_DATA_REVISION = 2026072901
+if (
+    not hasattr(us_index_data, "market_overview")
+    or int(getattr(us_index_data, "MODULE_REVISION", 0)) < _REQUIRED_US_INDEX_DATA_REVISION
+):
+    us_index_data = importlib.reload(us_index_data)
 
 # 온라인 배포 갱신 때 옛 모듈이 프로세스에 남으면 스스로 새 코드를 읽는다(자비스3와 동일).
 # 새 함수를 추가할 때마다 이 목록에 넣어야 한다 — 빠뜨리면 온라인에서 AttributeError가 난다
 # (2026-07-22: get_us_futures_live를 빠뜨려 실제로 발생했다).
 _REQUIRED_J4_FUNCTIONS = (
     "get_theme_rankings", "get_theme_leaders", "get_market_overview",
-    "get_us_futures_live", "get_intraday_chart", "find_pullback_stocks",
+    "get_us_futures_live", "get_fx_intraday", "get_intraday_chart", "find_pullback_stocks",
     "get_index_sparkline", "get_index_intraday",
     "get_chart_bundle", "get_live_quote", "round_to_tick",
 )
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072517
+_REQUIRED_J4_REVISION = 2026072906
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026072508
+_REQUIRED_SIGNAL_UI_REVISION = 2026072908
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -462,7 +479,14 @@ def _market_flow_text(overview: dict) -> str:
         _trend_position(rows.get("KOSDAQ", {}), "KOSDAQ"),
     ]
     foreign = overview.get("foreign") or {}
-    if foreign.get("ok"):
+    if foreign.get("live_ok"):
+        amount = foreign.get("live_net5_amount") or 0
+        direction = "순매수" if amount > 0 else "순매도" if amount < 0 else "보합"
+        sections.append(
+            f"삼성전자·SK하이닉스 최근 5거래일 수급은 현재가 환산 {_eok(amount)} "
+            f"{direction}입니다(현재가 1분 자동조회)"
+        )
+    elif foreign.get("ok"):
         amount = foreign["net5_amount"]
         if amount > 0:
             sections.append(f"대표종목(삼성전자·SK하이닉스) 5일 수급이 {amount / 1e8:+,.0f}억으로 순매수 우위입니다")
@@ -477,49 +501,130 @@ def _market_flow_text(overview: dict) -> str:
     us_prev = overview.get("us_prev") or {}
     if us_prev.get("ok"):
         sections.append(
-            f"미국 전일은 SPY {us_prev['spy_change']:+.2f}% · 나스닥100 {us_prev['qqq_change']:+.2f}%로 "
+            f"미국 시장국면(전일)은 {us_prev.get('score', '—')}점 {us_prev.get('regime', '자료 부족')} · "
+            f"SPY {us_prev['spy_change']:+.2f}% · 나스닥100 {us_prev['qqq_change']:+.2f}%로 "
             f"{'우호적' if (us_prev['spy_change'] or 0) >= 0 else '부담'}입니다"
         )
     return ".<br>".join(sections) + "."
+
+
+def _representative_flow_sub(foreign: dict) -> str:
+    """대표종목 5일 수급의 대상·방향·자료원·기준일을 숨김없이 표시한다."""
+    if not foreign.get("ok"):
+        return "자료 부족"
+    stocks = list(foreign.get("stocks") or [])
+    if not stocks:
+        return "자료 부족"
+    labels = [str(stock.get("label") or stock.get("code") or "종목") for stock in stocks]
+    target = "+".join(labels)
+    if len(stocks) < 2:
+        target += " (일부 자료)"
+
+    live = bool(foreign.get("live_ok") and foreign.get("live_net5_amount") is not None)
+    amount = float(
+        foreign.get("live_net5_amount") if live else foreign.get("net5_amount") or 0
+    )
+    direction = "순매수" if amount > 0 else "순매도" if amount < 0 else "보합"
+
+    latest_dates = [
+        str(((stock.get("flow") or {}).get("latest_date") or "")).strip()
+        for stock in stocks
+    ]
+    known_dates = [value for value in latest_dates if value]
+    if len(known_dates) < len(stocks):
+        as_of = "기준일 일부 확인 불가"
+    elif len(set(known_dates)) == 1:
+        as_of = f"{known_dates[0]} 기준"
+    else:
+        as_of = f"기준일 상이({min(known_dates)}~{max(known_dates)})"
+    if live:
+        stock_parts = [
+            f"{stock.get('label') or stock.get('code')} {_eok(stock.get('live_net5_amount'))}"
+            for stock in stocks if stock.get("live_net5_amount") is not None
+        ]
+        stale = " · 이전 정상 현재가" if foreign.get("live_stale") else ""
+        return (
+            f"{target}<br>{' · '.join(stock_parts)}"
+            f"<br>외국인+기관 {direction}"
+            f"<br><span class='j4-muted'>현재가 1분 자동조회{stale}"
+            f"<br>5일 확정 수급수량 × 현재가 · {as_of}</span>"
+        )
+    return (
+        f"{target}<br>외국인+기관 {direction}"
+        f"<br><span class='j4-muted'>네이버 일별 수급 · {as_of}"
+        "<br>순매매수량×종가 추정(실시간 아님)</span>"
+    )
+
+
+def _intraday_market_flow_sub(flow: dict) -> str:
+    """KOSPI 당일 장중 수급의 주체·원천·실제 표 시각을 표시한다."""
+    if not flow.get("ok"):
+        return "자료 부족"
+    foreign = float(flow.get("foreign_eok") or 0)
+    institution = float(flow.get("institution_eok") or 0)
+    stale_text = " · 이전 정상값" if flow.get("stale") else ""
+    return (
+        f"외국인 <span style='color:{_sign_color(foreign)}'>{foreign:+,.0f}억</span>"
+        f" · 기관 <span style='color:{_sign_color(institution)}'>{institution:+,.0f}억</span>"
+        f"<br><span class='j4-muted'>{flow.get('as_of_time') or '—'} 기준 · 1분 자동조회{stale_text}"
+        "<br>네이버 시간별 공개치(지연 가능)</span>"
+    )
 
 
 _REGIME_HEX = {"방어 우선": "#ff5b5b", "중립·선별": "#ff9d3b", "상승 우위": "#44f0a1"}
 
 
 def _us_futures_cell() -> str:
-    """나스닥100 선물 실시간 — 한국 장중에 미국이 지금 어디로 가는지 본다.
+    """나스닥100 선물 최신 1분봉 — 한국 장중에 미국 방향을 함께 본다.
 
     온라인 배포 직후 옛 모듈이 남아 함수가 없을 수 있어 getattr로 방어한다
     (2026-07-22 실제 AttributeError 발생 — 위 reload와 이중 안전장치).
     """
     fetcher = getattr(j4data, "get_us_futures_live", None)
     if fetcher is None:
-        return _top_metric("나스닥100 선물", "—", "#9aa0aa", "모듈 갱신 대기")
+        return _top_metric("나스닥100 선물 (1분봉)", "—", "#9aa0aa", "모듈 갱신 대기")
     futures = fetcher()
     if not futures.get("ok"):
-        return _top_metric("나스닥100 선물", "—", "#9aa0aa", "자료 부족")
+        return _top_metric("나스닥100 선물 (1분봉)", "—", "#9aa0aa", "자료 부족")
     values = futures.get("values") or {}
     nasdaq = values.get("NQ=F") or {}
     sp500 = values.get("ES=F") or {}
     if not nasdaq.get("current"):
-        return _top_metric("나스닥100 선물", "—", "#9aa0aa", "자료 부족")
+        return _top_metric("나스닥100 선물 (1분봉)", "—", "#9aa0aa", "자료 부족")
     change = nasdaq.get("change_pct")
-    sub = f"{_pct(change)}"
+    sub = f"<span style='color:{_sign_color(change)}'>{_pct(change)}</span>"
     if sp500.get("change_pct") is not None:
-        sub += f" · S&P500 선물 {sp500['change_pct']:+.2f}%"
-    # 선물도 당일 분봉 그림을 붙인다(2026-07-25 사용자 요청). 미국 색 규칙.
-    import us_index_data
+        sub += (f" · S&P500 선물 <span style='color:{_sign_color(sp500['change_pct'])}'>"
+                f"{sp500['change_pct']:+.2f}%</span>")
+    sub += f"<br><span class='j4-muted'>1분봉 기준 {nasdaq.get('as_of') or '—'}</span>"
 
     cell = _top_metric(
-        "나스닥100 선물",
+        "나스닥100 선물 (1분봉)",
         f"{nasdaq['current']:,.0f}",
         _sign_color(change),
         sub,
         sub_color=_sign_color(change),
     )
-    chart = _sparkline_svg(us_index_data.futures_sparkline(), "#4da6ff", "#ff5b5b")
+    chart = _sparkline_svg(nasdaq.get("chart") or {}, "#4da6ff", "#ff5b5b")
     cell = cell.replace("<div class='j4-top-cell'",
                         "<div class='j4-top-cell'", 1)
+    return cell.replace("</div></div>", "</div>" + chart + "</div>", 1) if chart else cell
+
+
+def _fx_cell() -> str:
+    """원/달러 환율을 독립 카드와 당일 차트로 표시한다."""
+    fetcher = getattr(j4data, "get_fx_intraday", None)
+    if fetcher is None:
+        return _top_metric("원/달러 환율 (1분봉)", "—", "#9aa0aa", "모듈 갱신 대기")
+    fx = fetcher()
+    if not fx.get("ok"):
+        return _top_metric("원/달러 환율 (1분봉)", "—", "#9aa0aa", "자료 부족")
+    change = fx.get("change_pct")
+    sub = (f"<span style='color:{_sign_color(change)}'>{_pct(change)}</span>"
+           f"<br><span class='j4-muted'>1분봉 기준 {fx.get('as_of') or '—'}</span>")
+    cell = _top_metric("원/달러 환율 (1분봉)", _number(fx.get("current"), 2),
+                       _sign_color(change), sub, sub_color="#e6e6e6")
+    chart = _sparkline_svg(fx.get("chart") or {}, "#ff5b5b", "#4da6ff")
     return cell.replace("</div></div>", "</div>" + chart + "</div>", 1) if chart else cell
 
 
@@ -600,12 +705,30 @@ def _render_market_overview() -> None:
     kospi, kosdaq, usdkrw = rows.get("KOSPI", {}), rows.get("KOSDAQ", {}), rows.get("USDKRW", {})
     foreign = overview.get("foreign") or {}
     us_prev = overview.get("us_prev") or {}
+    if foreign.get("live_ok"):
+        flow_cell = _top_metric(
+            "대표종목 5일 수급 (현재가 환산)",
+            _eok(foreign.get("live_net5_amount")),
+            _sign_color(foreign.get("live_net5_amount")),
+            _representative_flow_sub(foreign),
+            side=_leader_flow_marks(foreign),
+        )
+    else:
+        # 장외·원천 장애 때는 완료 거래일 자료임을 분명히 하고 종전 값을 보조로 남긴다.
+        flow_cell = _top_metric(
+            "대표종목 5일 수급 (종가)",
+            _eok(foreign.get("net5_amount")) if foreign.get("ok") else "—",
+            _sign_color(foreign.get("net5_amount")) if foreign.get("ok") else "#9aa0aa",
+            _representative_flow_sub(foreign),
+            side=_leader_flow_marks(foreign),
+        )
 
-    # 시장 국면·미국 전일·공포탐욕 세 가지를 같은 반원 게이지로 통일한다
-    # (2026-07-24 사용자 지시). 나란히 서면 구별이 안 되므로 제목 색을 다르게 준다 —
-    # 시장 국면은 밝은 초록, 미국 전일은 진한 초록, 공포·탐욕은 파랑.
+    # 시장 국면·미국 시장국면·공포탐욕 세 가지를 같은 반원 게이지로 통일한다.
+    # 제목은 스카이블루로 두고, 미국 카드의 '(미국)'만 밝은 초록으로 구분한다.
     top_cells = [
-        regime_gauge_ui.regime_box_html(overview),
+        regime_gauge_ui.regime_box_html(overview, title="시장 국면 (한국)"),
+        # 한국장보다 먼저 움직이는 나스닥100 선물을 코스피 앞에 둔다.
+        _us_futures_cell(),
         # 한국장 색 규칙: 오르면 빨강, 내리면 파랑(미국과 반대).
         _top_metric("코스피", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
                     sub_signed=True).replace("<div class='j4-top-cell'",
@@ -615,6 +738,7 @@ def _render_market_overview() -> None:
                     sub_signed=True).replace("<div class='j4-top-cell'",
             "<div class='j4-top-cell'", 1).replace("</div></div>", "</div>"
             + _sparkline_svg(_kr_index_chart("KOSDAQ"), "#ff5b5b", "#4da6ff") + "</div>", 1),
+        _fx_cell(),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
         *_us_index_cells(),
@@ -623,25 +747,14 @@ def _render_market_overview() -> None:
         "<div class='j4-top-break'></div>",
         _top_metric(
             "시장상태", phase, phase_color,
-            f"원/달러 {_number(usdkrw.get('current'), 1)}" if usdkrw.get("ok") else "원/달러 —",
+            "한국 거래 세션",
         ),
-        # 숫자 앞의 −만으로는 판 것인지 감이 안 온다는 지적(2026-07-25)에 따라
-        # '순매도/순매수'를 글로 함께 적는다. 값은 그대로다.
-        _top_metric(
-            "대표종목 5일 수급",
-            _eok(foreign.get("net5_amount")) if foreign.get("ok") else "—",
-            _sign_color(foreign.get("net5_amount")) if foreign.get("ok") else "#9aa0aa",
-            (
-                # '외국인+기관 순매수/순매도'는 줄을 바꿔 아래로 내린다(2026-07-25 지시).
-                # 순매수·순매도는 합계 부호를 따라 저절로 바뀐다.
-                "삼성전자+SK하이닉스<br>외국인+기관 "
-                + ("순매수" if (foreign.get("net5_amount") or 0) > 0 else "순매도")
-            ) if foreign.get("ok") else "자료 부족",
-            # 동반 그림은 값 밑이 아니라 오른쪽에 세워 붙인다(2026-07-25 지시).
-            side=_leader_flow_marks(foreign),
+        flow_cell,
+        # 미국테마의 시장 국면 카드를 제목·문구·전일 행까지 그대로 복제한다.
+        # 한국 화면용 제목이나 S&P/나스닥 별도 행을 덧붙이지 않는다.
+        regime_gauge_ui.regime_box_html(
+            us_prev.get("market_overview"), title="시장 국면 (미국)", note_prefix=" : "
         ),
-        regime_gauge_ui.us_prev_box_html(us_prev),
-        _us_futures_cell(),
         fear_greed_ui.box_html(
             us_prev.get("fear_greed_detail"), title="공포·탐욕 지수 (미국)"
         ),
@@ -1068,26 +1181,33 @@ def _kr_index_chart(symbol: str) -> dict:
 
 
 def _us_index_cells() -> list:
-    """미국 4대 지수 칸 — 당일 분봉과 전일 종가로 값·등락·그림을 만든다."""
-    import us_index_data
-
+    """미국테마의 4대 지수 값과 판정을 그대로 쓰고 그림만 함께 붙인다."""
+    overview = us_index_data.market_overview()
     data = us_index_data.sparklines()
-    names = dict(us_index_data.display())
+    display = us_index_data.display()
+    if not overview.get("ok") or not display:
+        return []
+    phase = (overview.get("phase") or {}).get("label", "—")
+    live = phase == "정규장 시간"
+    rows = overview.get("rows") or {}
     cells = []
-    for symbol, name in names.items():
-        payload = data.get(symbol)
-        if not payload:
+    for symbol, name in display:
+        row = rows.get(symbol) or {}
+        if not row.get("ok"):
+            cells.append(_top_metric(name, "—", "#9aa0aa", "자료 부족"))
             continue
-        last, base = payload["points"][-1], payload["base"]
-        change = (last / base - 1) * 100 if base else None
+        # 미국테마와 같은 규칙: 숫자는 시장 요약값, 장 마감 뒤 등락률은 마지막으로
+        # 끝난 정규장 값을 쓴다. 차트 끝값으로 숫자를 다시 계산하지 않는다.
+        change = row.get("change_pct") if live else row.get("last_session_change_pct")
+        note = "정규장" if live else "장 마감 기준"
         # 미국 시장 색 규칙: 오르면 파랑, 내리면 빨강.
         cells.append(
             f"<div class='j4-top-cell'>"
             f"<div class='j4-top-label'>{name}</div>"
-            f"<div class='j4-top-val' style='color:#e6e6e6'>{_number(last, 2)}</div>"
+            f"<div class='j4-top-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j4-top-sub' style='color:{'#4da6ff' if (change or 0) >= 0 else '#ff5b5b'}'>"
-            f"{_pct(change)} <span class='j4-muted'>· 장 마감 기준</span></div>"
-            + _sparkline_svg(payload, "#4da6ff", "#ff5b5b") + "</div>"
+            f"{_pct(change)} <span class='j4-muted'>· {note}</span></div>"
+            + _sparkline_svg(data.get(symbol), "#4da6ff", "#ff5b5b") + "</div>"
         )
     return cells
 
@@ -2102,7 +2222,7 @@ def _render_pullback_finder() -> None:
     # 코드 칸은 뺐다 — 태블릿에서 수급·동반 칸이 서로 겹쳤다(2026-07-25 사용자 지적).
     # 종목코드는 종목을 누르면 나오는 상세에 그대로 있다.
     titles = ["순위", "종목", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
-              "테마수", "수급(대금%)", "동반(5일)", "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"]
+              "테마수", "수급(대금%)", "동반(최근 → 5일 전)", "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"]
     # 좁은 화면에서는 칸을 쥐어짜 글자를 자르는 대신 표를 옆으로 밀어서 본다
     # (2026-07-25 사용자 지시). 머리글과 줄이 같이 밀려야 하므로 한 상자에 담는다.
     table_box = st.container(key="j4_pullback_table")

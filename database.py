@@ -1831,3 +1831,49 @@ def list_kr_flow_snapshots(trade_date, limit=40):
         return [dict(row) for row in rows]
     finally:
         conn.close()
+
+
+def list_previous_kr_flow_snapshots(before_trade_date, limit=40):
+    """기준일보다 앞선 최근 *저장 평일*의 한국장 수급 스냅숏을 돌려준다.
+
+    주말에 화면을 열어 저장된 행은 비교에서 제외한다. 휴일 여부를 임의로
+    추측하지 않고 실제 저장된 평일 중 가장 최근 날짜를 쓰며, 호출부가 그 날짜를
+    확인해 정확한 직전 평일이면 '전일', 아니면 '직전 저장'이라고 표시한다.
+    """
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+        raise ValueError("limit must be a positive integer")
+    try:
+        cutoff = date.fromisoformat(str(before_trade_date))
+    except ValueError as exc:
+        raise ValueError("before_trade_date must be YYYY-MM-DD") from exc
+
+    conn = get_connection()
+    try:
+        date_rows = conn.execute(
+            "SELECT DISTINCT trade_date FROM kr_intraday_flow_snapshots "
+            "WHERE trade_date < ? ORDER BY trade_date DESC",
+            (cutoff.isoformat(),),
+        ).fetchall()
+        previous_date = None
+        for row in date_rows:
+            candidate = row["trade_date"]
+            try:
+                parsed = date.fromisoformat(candidate)
+            except (TypeError, ValueError):
+                continue
+            if parsed.weekday() < 5:
+                previous_date = candidate
+                break
+        if previous_date is None:
+            return {"trade_date": None, "rows": []}
+
+        rows = conn.execute(
+            "SELECT * FROM ("
+            "  SELECT * FROM kr_intraday_flow_snapshots WHERE trade_date = ? "
+            "  ORDER BY captured_at DESC LIMIT ?"
+            ") ORDER BY captured_at ASC",
+            (previous_date, limit),
+        ).fetchall()
+        return {"trade_date": previous_date, "rows": [dict(row) for row in rows]}
+    finally:
+        conn.close()

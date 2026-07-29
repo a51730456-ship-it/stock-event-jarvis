@@ -7,6 +7,10 @@
 
 from __future__ import annotations
 
+# 이 통로의 반환 함수가 바뀌었는데 실행 중인 Streamlit 프로세스에 옛 모듈이 남는
+# 경우를 막기 위한 표식이다.
+MODULE_REVISION = 2026072901
+
 # 자비스3 자료 모듈의 최소 리비전. 온라인에서 옛 모듈이 프로세스에 남으면 자비스4의
 # 미국 지수 칸이 조용히 옛 계산을 계속 쓴다 — 자비스4 페이지에는 자비스3 리비전을
 # 확인하는 문지기가 없으므로 이 통로가 대신 확인한다(2026-07-25).
@@ -36,6 +40,18 @@ def sparklines() -> dict:
     """{심볼: {"points": 당일 분봉 종가들, "base": 전일 종가}}. 실패하면 빈 dict."""
     try:
         return _j3().get_index_sparklines()
+    except Exception:
+        return {}
+
+
+def market_overview() -> dict:
+    """미국테마 상단 카드가 실제로 쓰는 시장 요약값을 그대로 돌려준다.
+
+    한국테마가 차트 마지막 점으로 현재가와 등락률을 다시 계산하면 미국테마 카드와
+    숫자가 달라진다. 숫자는 이 요약값, 그림만 ``sparklines()``를 사용한다.
+    """
+    try:
+        return _j3().get_market_overview()
     except Exception:
         return {}
 

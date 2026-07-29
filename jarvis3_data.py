@@ -85,7 +85,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072515
+MODULE_REVISION = 2026072901
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -547,6 +547,79 @@ def market_phase(now: datetime | None = None) -> dict:
     return {"label": label, "new_york_time": now_ny.isoformat(timespec="seconds")}
 
 
+def _market_regime_from_rows(rows: dict) -> dict:
+    """SPY·QQQ·IWM·VIX 행으로 시장 조건점수와 국면을 만든다.
+
+    현재 장중값과 전일 마감값에 같은 배점을 적용하기 위해 계산을 한 곳에 둔다.
+    """
+    spy, qqq = rows.get("SPY", {}), rows.get("QQQ", {})
+    iwm, vix = rows.get("IWM", {}), rows.get("^VIX", {})
+    score = 0
+    reasons = []
+    score_breakdown = []
+
+    def add_trend_check(label: str, row: dict, average_key: str, points: int, reason: str) -> None:
+        nonlocal score
+        current = row.get("current")
+        average = row.get(average_key)
+        passed = current is not None and average is not None and current > average
+        earned = points if passed else 0
+        score += earned
+        if passed:
+            reasons.append(reason)
+        score_breakdown.append({"label": label, "earned": earned, "max": points,
+                                "state": "충족" if passed else "미충족"})
+
+    add_trend_check("SPY 50일선", spy, "sma50", 25, "SPY 50일선 위")
+    add_trend_check("QQQ 50일선", qqq, "sma50", 20, "QQQ 50일선 위")
+    add_trend_check("SPY 20일선", spy, "sma20", 15, "SPY 단기추세 양호")
+    add_trend_check("QQQ 20일선", qqq, "sma20", 15, "QQQ 단기추세 양호")
+    add_trend_check("IWM 50일선", iwm, "sma50", 10, "중소형주 동행")
+    vix_value = vix.get("current") if vix.get("ok") else None
+    if vix_value is not None and vix_value < 25:
+        score += 15
+        reasons.append("VIX 25 미만")
+        vix_earned, vix_state = 15, "충족"
+    elif vix_value is not None and vix_value < 35:
+        score += 5
+        reasons.append("VIX 경계 구간")
+        vix_earned, vix_state = 5, "부분 충족"
+    else:
+        vix_earned = 0
+        vix_state = "자료부족" if vix_value is None else "미충족"
+    score_breakdown.append({"label": "VIX 위험수준", "earned": vix_earned, "max": 15,
+                            "state": vix_state})
+
+    if score >= 75:
+        regime, posture = "상승 우위", "조건 충족 종목만 매수 심사"
+    elif score >= 50:
+        regime, posture = "중립·선별", "비중 축소·확인 후 진입"
+    else:
+        regime, posture = "방어 우선", "신규 매수 보류"
+    return {"ok": True, "score": score, "regime": regime, "posture": posture,
+            "reasons": reasons, "score_breakdown": score_breakdown}
+
+
+def _previous_market_regime(daily: dict) -> dict | None:
+    """직전 완료 미국장의 같은 조건점수. 장중에는 오늘 일봉을 제외한다."""
+    rows = {}
+    today_ny = datetime.now(_NY).date()
+    for ticker in ("SPY", "QQQ", "IWM", "^VIX"):
+        frame = daily.get(ticker)
+        if frame is None or frame.empty:
+            return None
+        last_date = pd.Timestamp(frame.index[-1])
+        last_date = last_date.tz_convert(_NY).date() if last_date.tzinfo else last_date.date()
+        completed = frame if last_date < today_ny else frame.iloc[:-1]
+        metrics = _series_metrics(completed)
+        if not metrics.get("ok"):
+            return None
+        rows[ticker] = metrics
+    result = _market_regime_from_rows(rows)
+    result["as_of"] = "직전 완료 미국장"
+    return result
+
+
 def get_market_overview() -> dict:
     daily, daily_meta = _download_cached(
         MARKET_SYMBOLS, period="1y", interval="1d", ttl_seconds=300
@@ -570,65 +643,14 @@ def get_market_overview() -> dict:
             "rows": rows,
         }
 
-    score = 0
-    reasons = []
-    score_breakdown = []
-
-    def add_trend_check(label: str, row: dict, average_key: str, points: int, reason: str) -> None:
-        nonlocal score
-        current = row.get("current")
-        average = row.get(average_key)
-        passed = current is not None and average is not None and current > average
-        earned = points if passed else 0
-        score += earned
-        if passed:
-            reasons.append(reason)
-        score_breakdown.append({
-            "label": label,
-            "earned": earned,
-            "max": points,
-            "state": "충족" if passed else "미충족",
-        })
-
-    add_trend_check("SPY 50일선", spy, "sma50", 25, "SPY 50일선 위")
-    add_trend_check("QQQ 50일선", qqq, "sma50", 20, "QQQ 50일선 위")
-    add_trend_check("SPY 20일선", spy, "sma20", 15, "SPY 단기추세 양호")
-    add_trend_check("QQQ 20일선", qqq, "sma20", 15, "QQQ 단기추세 양호")
-    add_trend_check("IWM 50일선", iwm, "sma50", 10, "중소형주 동행")
-    vix_value = vix.get("current") if vix.get("ok") else None
-    if vix_value is not None and vix_value < 25:
-        score += 15
-        reasons.append("VIX 25 미만")
-        vix_earned, vix_state = 15, "충족"
-    elif vix_value is not None and vix_value < 35:
-        score += 5
-        reasons.append("VIX 경계 구간")
-        vix_earned, vix_state = 5, "부분 충족"
-    else:
-        vix_earned = 0
-        vix_state = "자료부족" if vix_value is None else "미충족"
-    score_breakdown.append({
-        "label": "VIX 위험수준",
-        "earned": vix_earned,
-        "max": 15,
-        "state": vix_state,
-    })
-
-    if score >= 75:
-        regime, posture = "상승 우위", "조건 충족 종목만 매수 심사"
-    elif score >= 50:
-        regime, posture = "중립·선별", "비중 축소·확인 후 진입"
-    else:
-        regime, posture = "방어 우선", "신규 매수 보류"
+    assessment = _market_regime_from_rows(rows)
+    previous_market = _previous_market_regime(daily)
 
     source_times = [row.get("source_time") for row in rows.values() if row.get("source_time")]
     return {
         "ok": True,
-        "score": score,
-        "regime": regime,
-        "posture": posture,
-        "reasons": reasons,
-        "score_breakdown": score_breakdown,
+        **assessment,
+        "previous_market": previous_market,
         "rows": rows,
         "phase": market_phase(),
         "checked_at": max(source_times) if source_times else live_meta.get("fetched_at"),

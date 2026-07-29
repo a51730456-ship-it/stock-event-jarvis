@@ -69,6 +69,50 @@ class MarketPhaseTests(unittest.TestCase):
         self.assertEqual(j4.market_phase(auction)["label"], "장전 동시호가")
 
 
+class YahooOneMinuteChartTests(unittest.TestCase):
+    def _payload(self, *, previous_close=100.0):
+        return {
+            "chart": {
+                "error": None,
+                "result": [{
+                    "meta": {
+                        "previousClose": previous_close,
+                        "chartPreviousClose": 99.0,
+                        "shortName": "Test Sep 26",
+                        "dataGranularity": "1m",
+                    },
+                    "timestamp": [1_785_282_300, 1_785_282_360, 1_785_282_420],
+                    "indicators": {
+                        "quote": [{
+                            "close": [101.0, None, 102.0],
+                        }],
+                    },
+                }],
+            },
+        }
+
+    def test_current_chart_last_and_change_use_one_response(self):
+        row = j4._parse_yahoo_1m_chart(
+            self._payload(previous_close=100.0),
+            symbol="NQ=F",
+            label="나스닥100 선물",
+        )
+        self.assertEqual(row["current"], 102.0)
+        self.assertEqual(row["chart"]["points"][-1], row["current"])
+        self.assertEqual(row["prev_close"], 100.0)
+        self.assertAlmostEqual(row["change_pct"], 2.0)
+        self.assertEqual(row["interval"], "1m")
+
+    def test_chart_previous_close_is_only_a_fallback(self):
+        row = j4._parse_yahoo_1m_chart(
+            self._payload(previous_close=None),
+            symbol="KRW=X",
+            label="원/달러 환율",
+        )
+        self.assertEqual(row["prev_close"], 99.0)
+        self.assertEqual(row["chart"]["base"], 99.0)
+
+
 class ThemeDetailParsingTests(unittest.TestCase):
     def test_regular_row_uses_direct_trading_value_from_tail_columns(self):
         parsed = j4._parse_theme_detail_numbers(
@@ -532,6 +576,77 @@ class StockFlowParsingTests(unittest.TestCase):
             result = j4.get_stock_flow("000660")
         self.assertFalse(result["ok"])
         self.assertEqual(result["rows"], [])
+
+
+class IntradayMarketInvestorFlowTests(unittest.TestCase):
+    def setUp(self):
+        j4.clear_runtime_cache()
+
+    def test_converts_foreign_and_institution_eok_to_won_amount(self):
+        payload = {
+            "ok": True,
+            "values": {"foreign": 1_745, "institution": 12_548},
+            "as_of": datetime(2026, 7, 29, 10, 37, tzinfo=SEOUL),
+            "as_of_time": "10:37",
+            "trade_date": "2026-07-29",
+            "source": "네이버 시간별 투자자매매동향(지연 가능)",
+        }
+        with patch(
+            "naver_market_data.get_market_investor_flow_intraday",
+            return_value=payload,
+        ):
+            result = j4._market_intraday_investor_flow(ttl_seconds=0)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["foreign_eok"], 1_745)
+        self.assertEqual(result["institution_eok"], 12_548)
+        self.assertEqual(result["net_amount"], 14_293 * 1e8)
+        self.assertEqual(result["as_of_time"], "10:37")
+        self.assertFalse(result["realtime"])
+
+    def test_failure_does_not_turn_into_zero_flow(self):
+        with patch(
+            "naver_market_data.get_market_investor_flow_intraday",
+            return_value={"ok": False, "error": "자료 없음"},
+        ):
+            result = j4._market_intraday_investor_flow(ttl_seconds=0)
+        self.assertFalse(result["ok"])
+        self.assertNotIn("net_amount", result)
+
+
+class RepresentativeLiveFlowTests(unittest.TestCase):
+    def setUp(self):
+        j4.clear_runtime_cache()
+
+    def test_revalues_each_stocks_five_day_shares_with_current_price(self):
+        flows = {
+            "005930": {
+                "ok": True, "net5_amount": 18_000, "net5_shares": 100,
+                "foreign_net5": 70, "institution_net5": 30, "rows": [],
+            },
+            "000660": {
+                "ok": True, "net5_amount": -12_000, "net5_shares": -10,
+                "foreign_net5": -6, "institution_net5": -4, "rows": [],
+            },
+        }
+        quotes = {
+            "005930": {"price": 200, "traded_at": "2026-07-29T10:55:00+09:00"},
+            "000660": {"price": 1_000, "traded_at": "2026-07-29T10:55:01+09:00"},
+        }
+        with (
+            patch.object(j4, "get_stock_flow", side_effect=lambda code: flows[code]),
+            patch("naver_stock_quote.get_quotes", return_value=quotes),
+        ):
+            result = j4._market_foreign_flow()
+
+        self.assertTrue(result["live_ok"])
+        self.assertEqual(result["live_net5_amount"], 10_000)
+        self.assertEqual(result["live_foreign_net5_amount"], 8_000)
+        self.assertEqual(result["live_institution_net5_amount"], 2_000)
+        self.assertEqual(result["live_as_of"], "2026-07-29T10:55:01+09:00")
+        self.assertEqual(
+            [stock["live_net5_amount"] for stock in result["stocks"]],
+            [20_000, -10_000],
+        )
 
 
 class UsPreviousSessionTests(unittest.TestCase):

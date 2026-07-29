@@ -4,6 +4,7 @@ import re
 import unittest
 
 import fear_greed_ui as fg
+import gauge_ui
 
 
 class ZoneTests(unittest.TestCase):
@@ -89,6 +90,13 @@ class CardTests(unittest.TestCase):
         html = fg.card_html(self._data())
         for english in ("EXTREME FEAR", "GREED", "NEUTRAL", "Fear & Greed"):
             self.assertNotIn(english, html)
+
+    def test_us_country_suffix_only_uses_bright_green(self):
+        html = fg.box_html(self._data(), title="공포·탐욕 지수 (미국)")
+        self.assertIn(
+            f"공포·탐욕 지수 <span style='color:{gauge_ui.TITLE_GREEN}'>(미국)</span>",
+            html,
+        )
 
 
 if __name__ == "__main__":

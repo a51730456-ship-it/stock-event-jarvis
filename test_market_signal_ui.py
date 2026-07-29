@@ -1,11 +1,21 @@
 import re
 import unittest
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import market_signal_ui as ui
 
 
 class MarketSignalUiFlowTests(unittest.TestCase):
+    def test_naver_quote_accepts_naive_app_clock_and_aware_trade_time(self):
+        quote = {
+            "price": 224_250, "day_open": 226_500, "day_low": 219_750,
+            "market_status": "OPEN", "traded_at": "2026-07-29T10:33:32+09:00",
+        }
+        self.assertTrue(ui._fresh_naver_stock_quote(
+            quote, now=datetime(2026, 7, 29, 10, 34)
+        ))
+
     def test_kis_success_still_collects_futures_and_electronics(self):
         investor_row = {
             "frgn_ntby_tr_pbmn": "100", "prsn_ntby_tr_pbmn": "-200",
@@ -31,6 +41,7 @@ class MarketSignalUiFlowTests(unittest.TestCase):
                  "ok": True, "basis": 1.2, "market_basis": 1.0,
              }) as futures, \
              patch.object(ui, "_flow_electronics_sector_code", return_value=("001", 1234)), \
+             patch.object(ui.naver_stock_quote, "get_quotes", return_value={}), \
              patch.object(ui.price_data, "get_snapshot_defaults", return_value={
                  "ok": True, "current": 100, "open": 99, "low": 98,
              }), \
@@ -47,9 +58,51 @@ class MarketSignalUiFlowTests(unittest.TestCase):
         self.assertEqual(values["electronics_turnover"], 1234)
         self.assertNotIn("선물 베이시스 조회 실패", " / ".join(failures))
 
+    def test_naver_intraday_quotes_override_delayed_daily_prices(self):
+        now = datetime(2026, 7, 29, 10, 33, 40, tzinfo=ui._SEOUL_TZ)
+        market_flow = {
+            "ok": True,
+            "values": {
+                "personal": -14_258, "foreign": 1_745, "institution": 12_548,
+                "securities": 7_088, "insurance": 236, "investment_trust": 3_376,
+                "bank": -24, "etc_finance": 31, "pension": 1_842, "etc_corp": -35,
+            },
+            "source": "네이버 시간별 투자자매매동향(지연 가능)",
+        }
+        quotes = {
+            "005930": {
+                "price": 224_250, "day_open": 226_500, "day_low": 219_750,
+                "market_status": "OPEN", "traded_at": "2026-07-29T10:33:32+09:00",
+            },
+            "000660": {
+                "price": 1_497_000, "day_open": 1_567_000, "day_low": 1_467_000,
+                "market_status": "OPEN", "traded_at": "2026-07-29T10:33:32+09:00",
+            },
+        }
+        with patch.object(ui, "_flow_kis_keys", return_value=(None, None)), \
+             patch.object(ui, "_now_seoul", return_value=now), \
+             patch.object(
+                 ui.naver_market_data, "get_market_investor_flow_intraday",
+                 return_value=market_flow,
+             ), \
+             patch.object(ui.naver_stock_quote, "get_quotes", return_value=quotes), \
+             patch.object(ui.price_data, "get_snapshot_defaults") as old_price, \
+             patch.object(
+                 ui.naver_market_data, "get_foreign_futures_daily_net",
+                 return_value={"ok": False},
+             ), \
+             patch.object(ui.st, "session_state", {}), \
+             patch.object(ui.st, "secrets", {}):
+            values, _failures = ui.collect_kr_flow_snapshot()
+        self.assertEqual(values["samsung_price"], 224_250)
+        self.assertEqual(values["hynix_price"], 1_497_000)
+        self.assertEqual(values["samsung_day_low"], 219_750)
+        self.assertEqual(values["foreign_cash_net_amount"], 174_500)
+        old_price.assert_not_called()
+
 
 class VerdictGaugeTests(unittest.TestCase):
-    """판정 게이지 — 없는 점수를 지어내지 않고 단계만 가리켜야 한다(2026-07-24)."""
+    """판정 게이지 — 네 단계의 위치값과 전일 위치를 표시한다."""
 
     def _result(self, verdict, statuses=()):
         import market_signal_common as common
@@ -83,15 +136,49 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions), "나쁜 쪽에서 좋은 쪽으로 가야 한다")
         self.assertLess(positions[0], positions[-1])
 
-    def test_no_invented_score_number(self):
-        """이 카드의 판정은 0~100 점수가 아니다 — 숫자를 만들어 붙이면 안 된다."""
+    def test_position_score_is_shown_on_the_same_scale_as_previous(self):
+        """현재·전일은 같은 판정 위치값 눈금으로 비교한다."""
         import us_market_signal_engine as us
 
         html = ui._verdict_gauge_html(
-            self._result(us.UsMarketVerdict.MIXED), ui._US_VERDICT_STYLE, ui.US_VERDICT_ORDER
+            self._result(us.UsMarketVerdict.MIXED),
+            ui._US_VERDICT_STYLE,
+            ui.US_VERDICT_ORDER,
+            show_position_score=True,
         )
         self.assertNotIn("fg-score", html)
+        self.assertIn("sig-current-score", html)
+        self.assertIn(">38</div>", html)
+        self.assertNotIn("2/4단계", html)
         self.assertIn("방향 혼조", html)
+
+    def test_previous_score_keeps_its_own_verdict_color(self):
+        import us_market_signal_engine as us
+
+        html = ui._verdict_gauge_html(
+            self._result(us.UsMarketVerdict.MIXED),
+            ui._US_VERDICT_STYLE,
+            ui.US_VERDICT_ORDER,
+            previous_stage={
+                "score": 12.5, "label": "위험회피", "trade_date": "2026-07-28",
+                "period_label": "전일", "color": "#ef4444",
+            },
+            show_position_score=True,
+        )
+        self.assertIn("sig-prev-score", html)
+        self.assertIn("color:#ef4444", html)
+        self.assertIn("전일(07.28) 12 · 위험회피", html)
+
+    def test_us_card_does_not_show_kr_position_score_by_default(self):
+        """사용자가 요청한 위치값은 한국장 카드에만 붙이고 미국장에는 번지지 않는다."""
+        import us_market_signal_engine as us
+
+        html = ui._verdict_gauge_html(
+            self._result(us.UsMarketVerdict.MIXED),
+            ui._US_VERDICT_STYLE,
+            ui.US_VERDICT_ORDER,
+        )
+        self.assertNotIn("sig-current-score", html)
 
     def test_insufficient_data_draws_no_needle(self):
         import us_market_signal_engine as us
@@ -121,6 +208,75 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertEqual(len(ui.US_VERDICT_ORDER), 4)
         for verdict in ui.KR_VERDICT_ORDER + ui.US_VERDICT_ORDER:
             self.assertIn(verdict, ui._VERDICT_SHORT, "눈금에 쓸 짧은 이름이 없다")
+
+    def test_previous_kr_stage_uses_saved_previous_day(self):
+        import kr_intraday_flow as kr
+
+        saved = {
+            "trade_date": "2026-07-28",
+            "rows": [{"captured_at": "2026-07-28T15:05:00"}],
+        }
+        rebuilt = self._result(kr.ReboundVerdict.WATCHING)
+        with patch.object(
+            ui.database, "list_previous_kr_flow_snapshots", return_value=saved
+        ), patch.object(
+            ui, "_flow_today", return_value="2026-07-29"
+        ), patch.object(
+            ui.kr_intraday_flow, "build_result_from_snapshots", return_value=rebuilt
+        ):
+            previous = ui._previous_kr_flow_stage()
+        self.assertEqual(previous["trade_date"], "2026-07-28")
+        self.assertEqual(previous["score"], 37.5)
+        self.assertEqual(previous["label"], "일부 켜짐")
+        self.assertEqual(previous["color"], "#eab308")
+        self.assertEqual(previous["period_label"], "전일")
+
+    def test_previous_kr_stage_marks_older_snapshot_as_last_saved(self):
+        import kr_intraday_flow as kr
+
+        saved = {
+            "trade_date": "2026-07-24",
+            "rows": [{"captured_at": "2026-07-24T15:05:00"}],
+        }
+        rebuilt = self._result(kr.ReboundVerdict.NOT_CONFIRMED)
+        with patch.object(
+            ui.database, "list_previous_kr_flow_snapshots", return_value=saved
+        ), patch.object(
+            ui, "_flow_today", return_value="2026-07-29"
+        ), patch.object(
+            ui.kr_intraday_flow, "build_result_from_snapshots", return_value=rebuilt
+        ):
+            previous = ui._previous_kr_flow_stage()
+        self.assertEqual(previous["period_label"], "직전 저장")
+
+
+class KrFlowAutoRefreshTests(unittest.TestCase):
+    def test_first_load_and_new_day_are_due(self):
+        now = datetime(2026, 7, 29, 10, 30, tzinfo=ui._SEOUL_TZ)
+        self.assertTrue(ui._kr_flow_auto_due(None, None, now))
+        self.assertTrue(ui._kr_flow_auto_due(
+            object(), datetime(2026, 7, 28, 15, 30, tzinfo=ui._SEOUL_TZ), now
+        ))
+
+    def test_intraday_refreshes_after_one_minute_but_not_before(self):
+        now = datetime(2026, 7, 29, 10, 30, tzinfo=ui._SEOUL_TZ)
+        self.assertFalse(ui._kr_flow_auto_due(
+            object(), now - timedelta(seconds=30), now
+        ))
+        self.assertTrue(ui._kr_flow_auto_due(
+            object(), now - timedelta(seconds=60), now
+        ))
+
+    def test_naive_now_and_aware_saved_time_can_be_compared(self):
+        now = datetime(2026, 7, 29, 10, 30)
+        saved = datetime(2026, 7, 29, 10, 29, tzinfo=ui._SEOUL_TZ)
+        self.assertTrue(ui._kr_flow_auto_due(object(), saved, now))
+
+    def test_after_hours_does_not_repeat_same_day(self):
+        now = datetime(2026, 7, 29, 18, 0, tzinfo=ui._SEOUL_TZ)
+        self.assertFalse(ui._kr_flow_auto_due(
+            object(), now - timedelta(hours=2), now
+        ))
 
 
 class CardHtmlTests(unittest.TestCase):

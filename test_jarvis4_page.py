@@ -26,6 +26,10 @@ def _index_metrics(current=6641.52, change=0.87):
 def _market():
     return {
         "ok": True, "score": 60, "regime": "중립·선별", "posture": "비중 축소·확인 후 진입",
+        "previous_market": {
+            "ok": True, "score": 55, "regime": "중립·선별",
+            "posture": "비중 축소·확인 후 진입",
+        },
         "reasons": ["KOSPI 50일선 위"],
         "score_breakdown": [
             {"label": "KOSPI 50일선", "earned": 20, "max": 20, "state": "충족"},
@@ -44,6 +48,14 @@ def _market():
         "us_prev": {
             "ok": True, "spy_change": 0.74, "qqq_change": 1.66,
             "regime": "중립·선별", "score": 65, "fear_greed": 41.0, "fear_greed_label": "공포",
+            "market_overview": {
+                "ok": True, "score": 65, "regime": "중립·선별",
+                "posture": "비중 축소·확인 후 진입",
+                "previous_market": {
+                    "ok": True, "score": 60, "regime": "중립·선별",
+                    "posture": "비중 축소·확인 후 진입",
+                },
+            },
             # 게이지 그림은 지난 값까지 받아 그린다(2026-07-24).
             "fear_greed_detail": {
                 "ok": True, "score": 41.0, "rating_kr": "공포", "previous_close": 45.0,
@@ -51,7 +63,31 @@ def _market():
                 "stale": False,
             },
         },
-        "foreign": {"ok": True, "net5_amount": 2.41e11, "detail": "삼성전자 5일 +1,200억"},
+        "foreign": {
+            "ok": True, "net5_amount": 2.41e11,
+            "live_ok": True, "live_net5_amount": -18_786 * 1e8,
+            "live_foreign_net5_amount": -8_000 * 1e8,
+            "live_institution_net5_amount": -10_786 * 1e8,
+            "live_as_of": "2026-07-29T10:55:00+09:00",
+            "live_stale": False,
+            "detail": "삼성전자 5일 +1,200억",
+            "stocks": [
+                {
+                    "label": "삼성전자", "live_net5_amount": -7_500 * 1e8,
+                    "flow": {"latest_date": "2026.07.28"},
+                },
+                {
+                    "label": "SK하이닉스", "live_net5_amount": -11_286 * 1e8,
+                    "flow": {"latest_date": "2026.07.28"},
+                },
+            ],
+        },
+        "intraday_flow": {
+            "ok": True, "foreign_eok": 1_745, "institution_eok": 12_548,
+            "net_amount": 14_293 * 1e8, "as_of_time": "10:37",
+            "source": "네이버 시간별 투자자매매동향(지연 가능)",
+            "realtime": False, "stale": False,
+        },
         "phase": {"label": "정규장", "seoul_time": "2026-07-22T10:00:00+09:00"},
         "checked_at": "2026-07-22T10:00:00+09:00",
     }
@@ -158,6 +194,31 @@ def _chart_bundle():
     return {"ok": True, "charts": {"일봉": payload, "주봉": payload, "월봉": payload}}
 
 
+def _us_market_overview():
+    return {
+        "ok": True,
+        "phase": {"label": "장 마감"},
+        "rows": {
+            "^GSPC": {
+                "ok": True, "current": 7_428.78,
+                "change_pct": 0.21, "last_session_change_pct": 0.21,
+            },
+            "^IXIC": {
+                "ok": True, "current": 24_876.91,
+                "change_pct": -0.22, "last_session_change_pct": -0.22,
+            },
+            "^DJI": {
+                "ok": True, "current": 52_747.32,
+                "change_pct": 1.03, "last_session_change_pct": 1.03,
+            },
+            "^NDX": {
+                "ok": True, "current": 27_763.13,
+                "change_pct": -0.98, "last_session_change_pct": -0.98,
+            },
+        },
+    }
+
+
 def _trades():
     return [{
         "id": 1, "buy_date": "2026-07-20", "code": "000660", "stock_name": "SK하이닉스",
@@ -168,9 +229,9 @@ def _trades():
     }]
 
 
-def _patches():
+def _patches(market=None):
     return (
-        patch("jarvis4_data.get_market_overview", return_value=_market()),
+        patch("jarvis4_data.get_market_overview", return_value=market or _market()),
         patch("jarvis4_data.get_theme_rankings", return_value=_ranking()),
         patch("jarvis4_data.get_all_themes", return_value={
             "ok": True, "stale": False,
@@ -181,11 +242,43 @@ def _patches():
         patch("jarvis4_data.get_chart_bundle", return_value=_chart_bundle()),
         patch("jarvis4_data.get_live_quote", return_value={"ok": True, "current": 1_990_000}),
         patch("jarvis4_data.get_intraday_chart", return_value=None),
+        patch("jarvis4_data.get_index_intraday", return_value={
+            "points": [6_590.0, 6_610.0, 6_641.52], "base": 6_584.2,
+        }),
         patch("jarvis4_data.get_us_futures_live", return_value={
             "ok": True, "stale": False, "values": {
-                "NQ=F": {"label": "나스닥100 선물", "current": 29_207.25, "change_pct": 0.53},
-                "ES=F": {"label": "S&P500 선물", "current": 7_536.75, "change_pct": 0.30},
+                "NQ=F": {
+                    "label": "나스닥100 선물", "current": 28_149.25,
+                    "prev_close": 27_922.0, "change_pct": 0.81,
+                    "chart": {"points": [27_980.0, 28_020.0, 28_149.25], "base": 27_922.0},
+                    "as_of": "07.29 09:22",
+                },
+                "ES=F": {
+                    "label": "S&P500 선물", "current": 7_498.25,
+                    "prev_close": 7_465.25, "change_pct": 0.44,
+                    "chart": {"points": [7_470.0, 7_485.0, 7_498.25], "base": 7_465.25},
+                    "as_of": "07.29 09:22",
+                },
             },
+        }),
+        patch("jarvis4_data.get_fx_intraday", return_value={
+            "ok": True, "stale": False, "current": 1_455.98,
+            "prev_close": 1_453.71, "change_pct": 0.16,
+            "chart": {"points": [1_453.8, 1_454.9, 1_455.98], "base": 1_453.71},
+            "as_of": "07.29 09:22",
+        }),
+        patch("us_index_data.display", return_value=[
+            ("^GSPC", "S&P 500"), ("^IXIC", "나스닥 종합"),
+            ("^DJI", "다우존스"), ("^NDX", "나스닥100"),
+        ]),
+        patch("us_index_data.market_overview", return_value=_us_market_overview()),
+        patch("us_index_data.sparklines", return_value={
+            # 차트 끝값은 일부러 요약값과 다르게 둔다. 한국테마가 이 값을 숫자로
+            # 재계산하지 않고 미국테마의 요약값을 그대로 쓰는지 검증한다.
+            "^GSPC": {"points": [7_410.0, 7_427.26], "base": 7_413.0},
+            "^IXIC": {"points": [24_900.0, 24_874.45], "base": 24_932.0},
+            "^DJI": {"points": [52_650.0, 52_731.60], "base": 52_206.0},
+            "^NDX": {"points": [27_800.0, 27_760.90], "base": 28_040.0},
         }),
         patch("jarvis4_data.find_pullback_stocks", return_value=_pullback_stocks()),
         patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, [])),
@@ -199,10 +292,10 @@ def _patches():
     )
 
 
-def _run_page():
+def _run_page(market=None):
     started = []
     try:
-        for item in _patches():
+        for item in _patches(market):
             item.start()
             started.append(item)
         app = AppTest.from_file(str(PAGE), default_timeout=90)
@@ -244,17 +337,70 @@ class Jarvis4PageTests(unittest.TestCase):
             if "<div class='j4-top-row'>" in str(node.value)
         )
         self.assertIn("fg-box", top_row)
-        # 시장 국면·미국 전일·공포탐욕 세 가지 모두 같은 게이지로 보여준다.
-        for name in ("시장 국면", "미국 전일", "공포·탐욕 지수 (미국)"):
-            self.assertIn(name, top_row)
-        # 나란히 서면 구별이 안 되므로 제목 색이 서로 달라야 한다.
-        for color in (gauge_ui.TITLE_GREEN, gauge_ui.TITLE_GREEN_DEEP, gauge_ui.TITLE_BLUE):
-            self.assertIn(color, top_row)
+        # 시장 국면·미국 시장국면·공포탐욕 세 가지 모두 같은 게이지로 보여준다.
+        self.assertIn("시장 국면 (한국)", top_row)
+        us_country = "<span style='color:#44f0a1'>(미국)</span>"
+        self.assertIn(f"시장 국면 {us_country}", top_row)
+        self.assertIn(f"공포·탐욕 지수 {us_country}", top_row)
+        self.assertEqual(top_row.count(us_country), 2)
+        # 선물 숫자와 차트는 같은 1분봉 응답을 쓰고 시각도 함께 보여준다.
+        self.assertIn("28,149", top_row)
+        self.assertIn("1분봉 기준 07.29 09:22", top_row)
+        self.assertIn("<svg", top_row)
+        # 미국 4대 지수 숫자는 차트 끝점으로 재계산하지 않고 미국테마 값을 쓴다.
+        for value in ("7,428.78", "24,876.91", "52,747.32", "27,763.13"):
+            self.assertIn(value, top_row)
+        for chart_last in ("7,427.26", "24,874.45", "52,731.60", "27,760.90"):
+            self.assertNotIn(f">{chart_last}<", top_row)
+        # 세 카드 제목은 사용자 요청대로 같은 스카이블루를 쓴다.
+        self.assertGreaterEqual(top_row.count(gauge_ui.TITLE_BLUE), 3)
+        self.assertIn("전일 시장국면", top_row)
         # <style>을 지표 줄 안에 넣으면 스트림릿이 그 덩어리를 HTML로 안 보고 글로
         # 흘려버려 CSS가 글자로 찍힌다(2026-07-24 실제 깨짐). 반드시 따로 내보낸다.
         self.assertNotIn("<style>", top_row)
         # 숫자가 두 군데 나오지 않게 '미국 전일' 부제에서는 뺐다.
         self.assertNotIn("공포탐욕 41", markdowns)
+        self.assertIn("대표종목 5일 수급 (현재가 환산)", top_row)
+        self.assertIn("-18,786억", top_row)
+        self.assertIn("삼성전자 -7,500억", top_row)
+        self.assertIn("SK하이닉스 -11,286억", top_row)
+        self.assertIn("현재가 1분 자동조회", top_row)
+        self.assertIn("5일 확정 수급수량 × 현재가", top_row)
+        self.assertNotIn("KOSPI 당일 외국인+기관 수급", top_row)
+
+    def test_representative_flow_names_only_successful_stock(self):
+        """한 종목 조회만 성공하면 두 종목 합계인 것처럼 표시하지 않는다."""
+        market = _market()
+        market["intraday_flow"] = {"ok": False}
+        market["foreign"]["live_ok"] = False
+        market["foreign"]["stocks"] = [
+            {"label": "삼성전자", "flow": {"latest_date": "2026.07.28"}},
+        ]
+        app = _run_page(market)
+        self.assertEqual(len(app.exception), 0)
+        top_row = next(
+            str(node.value) for node in app.markdown
+            if "<div class='j4-top-row'>" in str(node.value)
+        )
+        self.assertIn("삼성전자 (일부 자료)", top_row)
+        self.assertNotIn("삼성전자+SK하이닉스", top_row)
+
+    def test_representative_flow_discloses_mixed_source_dates(self):
+        """두 종목의 최신 일자가 다르면 더 최신 날짜 하나로 뭉뚱그리지 않는다."""
+        market = _market()
+        market["intraday_flow"] = {"ok": False}
+        market["foreign"]["live_ok"] = False
+        market["foreign"]["stocks"] = [
+            {"label": "삼성전자", "flow": {"latest_date": "2026.07.28"}},
+            {"label": "SK하이닉스", "flow": {"latest_date": "2026.07.27"}},
+        ]
+        app = _run_page(market)
+        self.assertEqual(len(app.exception), 0)
+        top_row = next(
+            str(node.value) for node in app.markdown
+            if "<div class='j4-top-row'>" in str(node.value)
+        )
+        self.assertIn("기준일 상이(2026.07.27~2026.07.28)", top_row)
 
     def test_mobile_rules_are_emitted_and_scoped_to_phones(self):
         """폰 전용 규칙이 나가야 하고, 태블릿·PC가 바뀌면 안 된다(2026-07-24)."""

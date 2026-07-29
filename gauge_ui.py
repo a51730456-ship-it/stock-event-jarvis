@@ -14,6 +14,8 @@ from __future__ import annotations
 import html
 import math
 
+MODULE_REVISION = 2026072901
+
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"
 TITLE_GREEN = "#44f0a1"
@@ -130,6 +132,18 @@ def rows_html(rows) -> str:
     return "".join(out)
 
 
+def _title_html(title: str) -> str:
+    """제목 본문은 기본색, 끝의 '(미국)'만 밝은 초록색으로 출력한다."""
+    country = "(미국)"
+    if title.endswith(country):
+        base = title[:-len(country)]
+        return (
+            f"{html.escape(base)}"
+            f"<span style='color:{TITLE_GREEN}'>{html.escape(country)}</span>"
+        )
+    return html.escape(title)
+
+
 def box_html(
     title: str,
     score,
@@ -139,13 +153,18 @@ def box_html(
     label: str | None = None,
     title_color: str = TITLE_BLUE,
     note: str = "",
+    note_color: str | None = None,
+    note_prefix: str = " · ",
 ) -> str:
     """상단 지표 줄에 끼워 넣는 게이지 박스. 가로로 길어지지 않게 폭을 고정한다."""
-    suffix = f" · {note}" if note else ""
+    suffix = (
+        f"{note_prefix}<span style='color:{note_color}'>{html.escape(note)}</span>"
+        if note and note_color else f"{note_prefix}{html.escape(note)}" if note else ""
+    )
     return (
         "<div class='fg-box'>"
         f"<div class='fg-box-title' style='color:{title_color}'>"
-        f"{html.escape(title)}{html.escape(suffix)}</div>"
+        f"{_title_html(title)}{suffix}</div>"
         "<div class='fg-box-body'>"
         f"<div class='fg-box-gauge'>{gauge_svg(score, zones, label=label)}</div>"
         f"<div class='fg-box-hist'>{rows_html(rows)}</div>"

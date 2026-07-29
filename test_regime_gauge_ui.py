@@ -64,14 +64,39 @@ class RegimeBoxTests(unittest.TestCase):
         self.assertNotIn("fg-needle", html)
         self.assertIn("자료 부족", html)
 
-    def test_title_colour_differs_from_fear_greed(self):
-        """세 박스가 나란히 서므로 제목 색이 겹치면 안 된다."""
-        self.assertIn(gauge_ui.TITLE_GREEN, rg.regime_box_html(self._overview()))
-        self.assertIn(gauge_ui.TITLE_GREEN_DEEP, rg.us_prev_box_html({
+    def test_titles_and_previous_label_use_sky_blue(self):
+        """시장 국면·미국 시장·전일 비교 제목은 스카이블루로 통일한다."""
+        current = rg.regime_box_html({
+            **self._overview(),
+            "previous_market": {
+                "ok": True, "score": 25, "regime": "방어 우선",
+            },
+        })
+        self.assertIn(gauge_ui.TITLE_BLUE, current)
+        self.assertIn(
+            f"class='fg-hist-label' style='color:{gauge_ui.TITLE_BLUE}'",
+            current,
+        )
+        self.assertIn(gauge_ui.TITLE_BLUE, rg.us_prev_box_html({
             "ok": True, "score": 65, "regime": "중립·선별", "spy_change": 0.1, "qqq_change": 0.2,
         }))
-        self.assertNotEqual(gauge_ui.TITLE_GREEN, gauge_ui.TITLE_GREEN_DEEP)
-        self.assertNotEqual(gauge_ui.TITLE_GREEN, gauge_ui.TITLE_BLUE)
+
+    def test_us_country_suffix_only_uses_bright_green(self):
+        html = rg.regime_box_html(self._overview(), title="시장 국면 (미국)")
+        self.assertIn(
+            f"시장 국면 <span style='color:{gauge_ui.TITLE_GREEN}'>(미국)</span>",
+            html,
+        )
+
+    def test_previous_regime_falls_back_from_score_when_label_is_missing(self):
+        """전일 국면명이 빠져도 점수 구간에서 복원해 카드가 깨지지 않는다."""
+        html = rg.regime_box_html({
+            **self._overview(),
+            "previous_market": {"ok": True, "score": 25},
+        })
+        self.assertIn("전일 시장국면", html)
+        self.assertIn("방어 우선", html)
+        self.assertIn("25점", html)
 
 
 class UsPrevBoxTests(unittest.TestCase):
