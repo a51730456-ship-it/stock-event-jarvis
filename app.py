@@ -519,38 +519,21 @@ if not st.session_state.get("authenticated"):
             box-shadow: 0 0 38px rgba(55, 173, 255, .48);
         }
         .jarvis-login-panel-heading { margin: 0 0 1.8rem; }
+        /* 이 줄이 이제 화면 제목이다. 큰 h1을 없앤 대신 조금 키웠다(2026-07-29).
+           대문자 변환은 뺀다 — 'Stock Event Jarvis'를 원래 대소문자로 보여준다. */
         .jarvis-login-kicker {
             color: #6abaff;
-            font: 700 .72rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
-            letter-spacing: .22em;
-            text-transform: uppercase;
+            font: 700 1.15rem/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+            letter-spacing: .12em;
         }
-        .jarvis-login-panel-heading h1 {
-            margin: .65rem 0 .45rem !important;
-            color: #f2f8ff !important;
-            font-size: clamp(2rem, 4vw, 3.25rem) !important;
-            line-height: 1.04 !important;
-            letter-spacing: -.04em;
-            text-shadow: 0 0 32px rgba(61, 148, 255, .28);
-        }
-        .jarvis-login-subtitle { color: #9badc5; font-size: .96rem; line-height: 1.65; }
-        .jarvis-login-status {
-            display: flex;
-            align-items: center;
-            gap: .55rem;
-            margin-top: 1.25rem;
-            color: #7fa5cf;
-            font: 600 .72rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
-            letter-spacing: .08em;
-        }
-        .jarvis-login-status::before {
-            content: "";
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #3f9cff;
-            box-shadow: 0 0 14px #3f9cff;
-        }
+        /* 큰 제목 h1은 2026-07-29에 없앴다 — 폰에서 칸이 길어 아래가 잘렸다.
+           그 이름은 위 kicker 자리로 옮겼다. */
+        .jarvis-login-subtitle { color: #9badc5; font-size: .96rem; line-height: 1.65;
+            margin-top: .55rem; }
+        /* 이름만 초록으로 (2026-07-29 사용자 지시). */
+        .jarvis-login-owner { color: #44f0a1; font-weight: 800; }
+        /* .jarvis-login-status(ENCRYPTED SESSION 줄)는 2026-07-29에 없앴다.
+           폰에서 칸이 길어 잘리는 것을 줄이려고 지운 것이다. */
         .st-key-login_password_input label p { color: #d9e8fa !important; font-weight: 650 !important; }
         .st-key-login_password_input input {
             width: 100% !important;
@@ -609,8 +592,16 @@ if not st.session_state.get("authenticated"):
                 padding: 1.35rem !important;
                 border-radius: 18px;
             }
-            .jarvis-login-panel-heading { margin-bottom: 1.15rem; }
-            .jarvis-login-panel-heading h1 { font-size: clamp(1.85rem, 10vw, 2.5rem) !important; }
+            /* 폰에서 칸이 길어 아래가 잘렸다 — 제목 자리를 더 줄인다(2026-07-29). */
+            .jarvis-login-panel-heading { margin-bottom: .75rem; }
+            .jarvis-login-kicker { font-size: 1rem; letter-spacing: .08em; }
+        }
+        /* 세로가 짧은 폰에서는 지구를 줄여 로그인 단추까지 한 화면에 들어오게 한다
+           (2026-07-29 사용자 지적: 지구 밑 네모칸이 잘린다). 가로폭이 아니라
+           **화면 높이**를 보는 규칙이라 태블릿 가로보기에는 걸리지 않는다. */
+        @media (max-height: 800px) and (max-width: 640px) {
+            iframe[data-testid="stIFrame"],
+            div[data-testid="stIFrame"] iframe { height: 230px !important; }
         }
         /* 폰·태블릿에서는 '로그인 후 이동'을 미국테마·한국테마·선행감지 셋만
            보이게 한다(2026-07-25 사용자 지시). 앞 3개(시장판단·자비스1·자비스2)를
@@ -637,11 +628,15 @@ if not st.session_state.get("authenticated"):
     with _login_panel_col:
         st.markdown(
             """
+            <!-- 폰에서 네모칸이 너무 길어 아래가 잘렸다(2026-07-29 사용자 지적).
+                 큰 제목(h1)과 영어 상태줄을 없애고, 맨 위 작은 글씨 자리에
+                 Stock Event Jarvis를 넣어 높이를 줄였다. -->
             <div class="jarvis-login-panel-heading">
-                <div class="jarvis-login-kicker">SECURE MARKET INTELLIGENCE</div>
-                <h1>Stock Event Jarvis</h1>
-                <div class="jarvis-login-subtitle">자비스 주식 기록장 · 승인된 사용자만 접근할 수 있습니다.</div>
-                <div class="jarvis-login-status">ENCRYPTED SESSION / STANDBY</div>
+                <div class="jarvis-login-kicker">Stock Event Jarvis</div>
+                <div class="jarvis-login-subtitle">
+                    <span class="jarvis-login-owner">장상하</span>의 테마 주식 기록장 ·
+                    승인된 사용자만 접근할 수 있습니다.
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
