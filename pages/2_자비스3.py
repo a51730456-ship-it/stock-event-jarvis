@@ -191,19 +191,43 @@ st.markdown(
     .j3-td > .j3-barwrap { width: 100%; }
     /* 좁은 화면에서는 칸을 쥐어짜 글자를 자르는 대신 표를 원래 폭으로 두고
        손가락으로 옆으로 민다(2026-07-25 사용자 지시). 화면 전체는 안 밀린다. */
+    /* 종목표(j3_leader_table)도 이름을 누를 수 있게 칸 방식으로 바꾸면서
+       이미 폰·태블릿에서 잘 도는 위 두 표와 똑같은 규칙에 얹었다(2026-07-29). */
     .st-key-j3_pullback_table,
+    .st-key-j3_leader_table,
     .st-key-j3_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
         .st-key-j3_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1150px;
         }
+        .st-key-j3_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
         .st-key-j3_pullback_table [data-testid="stColumn"],
+        .st-key-j3_leader_table [data-testid="stColumn"],
         .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     .j3-td { white-space: nowrap; }
+    /* 눌림목 찾기 버튼 — 한국테마(자비스4)와 같은 밝은 스카이 블루 바탕에
+       클로드 로고 주황 글씨로 맞춘다(2026-07-29 사용자 지시). 같은 기능인데
+       두 화면 색이 달라 보였다. */
+    div[class*="st-key-j3_pullback_find"] button {
+        background: #cfe9ff !important;
+        border: 1px solid #8ec9f5 !important;
+        border-radius: .5rem !important;
+        min-height: 3rem !important;
+    }
+    div[class*="st-key-j3_pullback_find"] button:hover {
+        background: #b9dfff !important;
+        border-color: #6db6ee !important;
+    }
+    div[class*="st-key-j3_pullback_find"] button p {
+        color: #c15f3c !important;
+        font-size: 1.2rem !important;
+        font-weight: 800 !important;
+        margin: 0 !important;
+    }
     div[class*="st-key-j3tbtn_"] button {
         background: transparent !important;
         border: none !important;
@@ -360,7 +384,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072901
+_REQUIRED_J3_REVISION = 2026072920
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -685,8 +709,70 @@ def _leader_chart_payload(value):
     return {"ok": True, "price": frame[["Close", "MA20", "MA50"]], "volume": None, "stale": False}
 
 
+_LEADER_COL_WIDTHS = [0.75, 1.9, 0.85, 1.6, 0.95, 1.25, 1.15, 1.1]
+
+
+def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> str | None:
+    """종목표를 그리고, 종목 이름 버튼이 눌리면 그 티커를 돌려준다.
+
+    한국테마(자비스4)와 같은 방식이다(2026-07-29 지시). 예전에는 순수 HTML 표라
+    이름을 눌러도 아무 일이 없었다. 아래 '상세 종목 선택'은 그대로 둔다.
+    폰·태블릿 규칙은 이미 도는 테마표·눌림목표와 같은 CSS 묶음에 얹었다.
+    """
+    titles = ["순위", "종목", "티커", "조건점수", "당일", "52주 고가 대비",
+              "20일 수익률", "매수 상태"]
+    box = st.container(key="j3_leader_table")
+    for column, title in zip(box.columns(_LEADER_COL_WIDTHS), titles):
+        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+
+    rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
+    button_css = []
+    clicked = None
+    for index, leader in enumerate(leaders[:6]):
+        metrics, plan = leader["metrics"], leader["plan"]
+        rank = int(leader.get("rank") or 0)
+        ticker = leader["ticker"]
+        score = float(leader.get("score") or 0)
+        button_key = f"j3lbtn_{index:02d}"
+        if ticker == selected_ticker:
+            button_css.append(
+                f"div[class*='st-key-{button_key}'] button "
+                "{ background: rgba(255,176,32,0.16) !important; }"
+            )
+        cols = box.columns(_LEADER_COL_WIDTHS)
+        cols[0].markdown(
+            f"<div class='j3-td'>{rank_mark.get(rank, f'{rank}위')}</div>", unsafe_allow_html=True)
+        if cols[1].button(leader["name"], key=button_key, width="stretch"):
+            clicked = ticker
+        cols[2].markdown(f"<div class='j3-td'>{ticker}</div>", unsafe_allow_html=True)
+        cols[3].markdown(
+            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{score:.1f}</span></div></div>",
+            unsafe_allow_html=True,
+        )
+        for slot, value in (
+            (4, metrics.get("change_pct")),
+            (5, metrics.get("from_high_pct")),
+            (6, metrics.get("ret20")),
+        ):
+            cols[slot].markdown(
+                f"<div class='j3-td' style='color:{_sign_color(value)}; font-weight:700'>"
+                f"{_pct(value)}</div>", unsafe_allow_html=True)
+        cols[7].markdown(
+            f"<div class='j3-td'>{plan.get('state', '')}</div>", unsafe_allow_html=True)
+
+    if button_css:
+        st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
+    return clicked
+
+
 def _leader_table_html(leaders: list[dict], selected_ticker: str | None) -> str:
-    """대장주 1~6위를 HTML 표로 그린다(가운데 정렬, 당일·52주·20일 +파랑/−빨강)."""
+    """(지금은 안 씀) 예전 HTML 표.
+
+    2026-07-29에 이름을 누를 수 있게 _render_leader_table로 바꿨다. 폰에서
+    새 표가 이상하면 호출부 한 줄만 되돌리면 예전 화면으로 돌아간다.
+    """
     rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
     body = []
     for leader in leaders[:6]:
@@ -1579,17 +1665,18 @@ def _render_radar_tab(market: dict) -> None:
         f"<div class='j3-section-title'><span class='j3-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
         unsafe_allow_html=True,
     )
-    st.caption("1–3위는 색으로 구분했습니다. 상세 분석은 아래 ‘상세 종목 선택’에서 1~3위를 고르세요.")
-    top_candidates = leaders[:3]
+    st.caption("표에서 종목 이름을 누르거나 아래 ‘상세 종목 선택’에서 1~6위 아무 종목이나 고르면 상세가 그 종목으로 바뀝니다.")
+    # 표에 1~6위를 보여주면서 상세는 1~3위만 고를 수 있었다(2026-07-29 지적,
+    # 한국테마와 같은 문제). 표에 나온 여섯 개를 그대로 고를 수 있게 한다.
+    top_candidates = leaders[:6]
     ticker_options = [leader["ticker"] for leader in top_candidates]
-    st.markdown(
-        _leader_table_html(leaders, st.session_state.get(f"j3_stock_choice_{selected_theme}")),
-        unsafe_allow_html=True,
-    )
+    stock_key = f"j3_stock_choice_{selected_theme}"
+    clicked_ticker = _render_leader_table(leaders, st.session_state.get(stock_key))
+    if clicked_ticker and clicked_ticker != st.session_state.get(stock_key):
+        st.session_state[stock_key] = clicked_ticker
+        st.rerun()
 
     _render_leader_comparison(leaders)
-
-    stock_key = f"j3_stock_choice_{selected_theme}"
     # 재랭킹으로 이전에 고른 종목이 top3에서 빠지면 st.radio가 예외를 낸다 → 미리 정리한다.
     if stock_key in st.session_state and st.session_state[stock_key] not in ticker_options:
         del st.session_state[stock_key]

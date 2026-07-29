@@ -352,6 +352,70 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(app.session_state.filtered_state.get("j3_theme_choice"), "양자컴퓨팅")
 
+    def test_leader_name_click_changes_the_detail(self):
+        """표의 종목 이름을 누르면 상세가 그 종목으로 바뀐다(2026-07-29 지시).
+
+        한국테마와 같은 방식이다. 예전에는 순수 HTML 표라 눌러도 아무 일이
+        없었다. '상세 종목 선택' 라디오는 그대로 남아 있어야 한다.
+        """
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=60)
+            buttons = [node for node in app.button if str(node.key or "").startswith("j3lbtn_")]
+            self.assertTrue(buttons, "종목 이름 버튼이 없다 — 표가 눌리지 않는다")
+            buttons[1].click().run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        state = app.session_state.filtered_state
+        chosen = next(
+            (value for key, value in state.items() if str(key).startswith("j3_stock_choice_")),
+            None,
+        )
+        self.assertIsNotNone(chosen, state)
+        # 라디오는 지우지 않았다(사용자 지시).
+        self.assertTrue([node for node in app.radio if str(node.label) == "상세 종목 선택"])
+
+    def test_leader_table_scrolls_sideways_like_the_others(self):
+        """폰·태블릿에서 종목표도 옆으로 밀려야 한다(칸 방식으로 바꾼 뒤 확인)."""
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=60)
+        blob = "".join(str(node.value) for node in app.markdown)
+        self.assertIn(".st-key-j3_leader_table,", blob)
+        self.assertIn('.st-key-j3_leader_table [data-testid="stHorizontalBlock"]', blob)
+        self.assertIn('.st-key-j3_leader_table [data-testid="stColumn"]', blob)
+        # 눌림목 찾기 버튼도 한국테마와 같은 색이어야 한다.
+        self.assertIn('div[class*="st-key-j3_pullback_find"] button', blob)
+        self.assertIn("#cfe9ff", blob)
+
     def test_form_stock_radio_switches_selection_too(self):
         """매수 폼 안의 상세 종목 선택(아래 라디오)에서 골라도 전체 선택이 바뀐다."""
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \

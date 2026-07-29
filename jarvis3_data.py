@@ -85,7 +85,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072901
+MODULE_REVISION = 2026072920
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1217,9 +1217,15 @@ def analyze_pullback_stock(
 
 
 def get_chart_bundle(ticker: str) -> dict:
-    """한 번의 10년 일봉 조회로 일봉·주봉·월봉 차트를 함께 만든다."""
+    """일봉·주봉·월봉 차트를 한 번의 조회로 함께 만든다.
+
+    10년치로는 월봉 120개를 그릴 때 50개월선의 앞 49개월이 비어 선이 토막났다
+    (2026-07-29 실측: NVDA 월봉 120개 중 50선 72개). 상장 이후 전체를 받아
+    이평선을 채운다. 상장한 지 얼마 안 된 종목은 자료 자체가 없어 여전히 짧다 —
+    그건 지어낼 수 없다.
+    """
     ticker = str(ticker).strip().upper()
-    frames, meta = _download_cached((ticker,), period="10y", interval="1d", ttl_seconds=300)
+    frames, meta = _download_cached((ticker,), period="max", interval="1d", ttl_seconds=300)
     frame = frames.get(ticker)
     if frame is None or frame.empty:
         return {"ok": False, "error": meta.get("error") or "차트 자료가 없습니다", "charts": {}}

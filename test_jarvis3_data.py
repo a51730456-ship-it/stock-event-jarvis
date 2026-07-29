@@ -104,7 +104,20 @@ class Jarvis3DataTests(unittest.TestCase):
         self.assertEqual(set(result["charts"]), {"일봉", "주봉", "월봉"})
         self.assertIsNotNone(result["charts"]["일봉"]["volume"])
         self.assertLessEqual(len(result["charts"]["일봉"]["price"]), 180)
-        download.assert_called_once_with(("NVDA",), period="10y", interval="1d", ttl_seconds=300)
+        # 10년치로는 월봉 120개를 그릴 때 50개월선의 앞 49개월이 비어 선이
+        # 토막났다(2026-07-29 실측: NVDA 월봉 50선 72/120). 상장 이후 전체를 받는다.
+        download.assert_called_once_with(("NVDA",), period="max", interval="1d", ttl_seconds=300)
+
+    def test_chart_history_fills_the_monthly_moving_averages(self):
+        """월봉 120개를 그리려면 20·50개월선이 채워질 만큼 자료가 있어야 한다."""
+        frame = _daily_frame(periods=200 * 22)   # 약 200개월치 영업일
+        meta = {"ok": True, "stale": False, "error": None, "fetched_at": "x"}
+        with patch.object(j3, "_download_cached", return_value=({"NVDA": frame}, meta)):
+            result = j3.get_chart_bundle("NVDA")
+        monthly = result["charts"]["월봉"]["price"]
+        self.assertGreater(monthly["MA20"].notna().sum(), 0)
+        self.assertGreater(monthly["MA50"].notna().sum(), 0)
+        self.assertEqual(monthly["MA50"].isna().sum(), 0, "월봉 50선 앞부분이 비어 있다")
 
     def test_fear_greed_parses_cnn_payload_without_network(self):
         payload = {
