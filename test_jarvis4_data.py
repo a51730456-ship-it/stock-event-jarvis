@@ -125,40 +125,51 @@ class NewlyListedThemeTests(unittest.TestCase):
         index = pd.date_range("2026-07-01", periods=bars, freq="D")
         return pd.DataFrame({"Close": [1000.0 + i for i in range(bars)]}, index=index)
 
-    def test_short_history_is_reported_as_too_new(self):
-        stocks = [
+    def _stocks(self):
+        return [
             {"code": "365660", "name": "레몬헬스케어", "trading_value": 2.7e10, "price": 4275.0},
             {"code": "387690", "name": "레메디", "trading_value": 1.1e10, "price": 7330.0},
         ]
+
+    def test_newly_listed_stocks_still_appear_in_the_list(self):
+        """이게 핵심이다 — 목록이 비면 그 아래 화면(대장주 차트·눌림목)이 통째로 사라진다."""
         with patch.object(j4, "get_daily_frame", side_effect=lambda code: self._frame(
-            17 if code == "365660" else 12)):
-            out = j4.get_theme_leaders({"no": 615, "stocks": stocks})
-        self.assertFalse(out["ok"])
-        self.assertEqual(out["reason"], "too_new")
-        self.assertIn("상장한 지 얼마 안 된", out["error"])
-        self.assertIn("레몬헬스케어 17일", out["error"])
-        self.assertNotIn("시세를 가져오지 못했습니다", out["error"])
+                17 if code == "365660" else 12)):
+            out = j4.get_theme_leaders({"no": 615, "stocks": self._stocks()})
+        self.assertTrue(out["ok"])
+        self.assertEqual(len(out["rows"]), 2)
+        self.assertEqual({r["name"] for r in out["rows"]}, {"레몬헬스케어", "레메디"})
 
-    def test_too_new_still_reports_what_we_know(self):
-        stocks = [{"code": "365660", "name": "레몬헬스케어", "trading_value": 2.7e10, "price": 4275.0}]
+    def test_newly_listed_rows_are_marked_partial_with_bar_count(self):
+        with patch.object(j4, "get_daily_frame", side_effect=lambda code: self._frame(
+                17 if code == "365660" else 12)):
+            out = j4.get_theme_leaders({"no": 615, "stocks": self._stocks()})
+        by_name = {r["name"]: r for r in out["rows"]}
+        self.assertTrue(by_name["레몬헬스케어"]["partial"])
+        self.assertEqual(by_name["레몬헬스케어"]["bars"], 17)
+        self.assertEqual(by_name["레메디"]["bars"], 12)
+
+    def test_newly_listed_rows_keep_price_and_blank_the_long_windows(self):
         with patch.object(j4, "get_daily_frame", side_effect=lambda code: self._frame(17)):
-            out = j4.get_theme_leaders({"no": 615, "stocks": stocks})
-        skipped = out["skipped"]
-        self.assertEqual(skipped[0]["bars"], 17)
-        self.assertEqual(skipped[0]["price"], 4275.0)
+            out = j4.get_theme_leaders({"no": 615, "stocks": self._stocks()[:1]})
+        metrics = out["rows"][0]["metrics"]
+        self.assertIsNotNone(metrics["current"])
+        self.assertIsNone(metrics["ret20"])
+        self.assertIsNone(metrics["from_high_pct"])
 
-    def test_missing_quote_keeps_the_old_message(self):
-        """진짜로 시세를 못 가져온 경우까지 '신규상장'이라고 하면 안 된다."""
+    def test_missing_quote_still_fails_loudly(self):
+        """진짜로 시세를 못 가져온 경우는 예전처럼 실패여야 한다."""
         stocks = [{"code": "000000", "name": "없는종목", "trading_value": 1.0}]
         with patch.object(j4, "get_daily_frame", return_value=None):
             out = j4.get_theme_leaders({"no": 1, "stocks": stocks})
+        self.assertFalse(out["ok"])
         self.assertEqual(out["reason"], "no_quote")
         self.assertIn("시세를 가져오지 못했습니다", out["error"])
 
-    def test_threshold_constant_matches_metrics_gate(self):
-        """상수를 바꾸면 안내 문구의 '25거래일'도 같이 따라가야 한다."""
-        self.assertFalse(j4._series_metrics(self._frame(j4.MIN_HISTORY_BARS - 1))["ok"])
-        self.assertTrue(j4._series_metrics(self._frame(j4.MIN_HISTORY_BARS))["ok"])
+    def test_threshold_constant_drives_the_partial_flag(self):
+        """상수를 바꾸면 화면 안내의 '25거래일'도 같이 따라가야 한다."""
+        self.assertTrue(j4._series_metrics(self._frame(j4.MIN_HISTORY_BARS - 1))["partial"])
+        self.assertFalse(j4._series_metrics(self._frame(j4.MIN_HISTORY_BARS))["partial"])
 
 
 class FuturesSessionWindowTests(unittest.TestCase):
@@ -267,9 +278,39 @@ class SeriesMetricsTests(unittest.TestCase):
         self.assertGreater(metrics["atr_pct"], 0)
         self.assertGreater(metrics["avg_trading_value"], 0)
 
-    def test_short_history_is_rejected(self):
-        self.assertFalse(j4._series_metrics(_daily_frame(periods=10)).get("ok"))
+    def test_short_history_keeps_what_it_can_and_blanks_the_rest(self):
+        """이력이 짧아도 통째로 버리지 않는다 — 긴 창이 필요한 값만 비운다.
+
+        예전에는 ok=False로 돌려보내 종목이 목록에서 사라졌고, 구성종목이 전부
+        신규상장이면 화면 전체가 안 나왔다(2026-07-29).
+        """
+        metrics = j4._series_metrics(_daily_frame(periods=12))
+        self.assertTrue(metrics["ok"])
+        self.assertTrue(metrics["partial"])
+        self.assertEqual(metrics["bars"], 12)
+        # 있는 값은 그대로 준다.
+        self.assertIsNotNone(metrics["current"])
+        self.assertIsNotNone(metrics["change_pct"])
+        self.assertIsNotNone(metrics["ret5"])
+        # 12일치로는 낼 수 없는 값은 반드시 비어 있어야 한다.
+        for key in ("ret20", "ret60", "sma20", "sma50", "sma200",
+                    "high52", "high52_days_ago", "from_high_pct"):
+            self.assertIsNone(metrics[key], f"{key}는 12일치로 낼 수 없다")
+
+    def test_full_history_is_not_marked_partial(self):
+        metrics = j4._series_metrics(_daily_frame())
+        self.assertFalse(metrics["partial"])
+        self.assertIsNotNone(metrics["ret20"])
+
+    def test_too_short_or_missing_is_still_rejected(self):
+        self.assertFalse(j4._series_metrics(_daily_frame(periods=1)).get("ok"))
         self.assertFalse(j4._series_metrics(None).get("ok"))
+
+    def test_returns_never_borrow_the_oldest_bar(self):
+        """3일치로 '5일 수익률'을 만들어내면 안 된다."""
+        metrics = j4._series_metrics(_daily_frame(periods=3))
+        self.assertTrue(metrics["ok"])
+        self.assertIsNone(metrics["ret5"])
 
 
 class StockScoreTests(unittest.TestCase):

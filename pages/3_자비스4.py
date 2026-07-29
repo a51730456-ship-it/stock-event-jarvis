@@ -358,7 +358,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072915
+_REQUIRED_J4_REVISION = 2026072916
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -2058,34 +2058,23 @@ def _render_radar_tab(market: dict) -> None:
             theme_score=float(theme_row.get("score") or 0),
         )
     if not leader_result.get("ok"):
-        # 상장한 지 얼마 안 돼 지표를 못 내는 것은 고장이 아니다. 빨간 '조회 실패'로
-        # 띄우면 뭔가 망가진 줄 알게 된다(2026-07-29 '2026 하반기 신규상장' 테마).
-        # 아는 값(종목명·상장 후 거래일수·현재가)은 그대로 보여준다.
-        if leader_result.get("reason") == "too_new":
-            st.info(f"📌 {_safe_error_text(leader_result.get('error'))}")
-            _skipped = leader_result.get("skipped") or []
-            if _skipped:
-                _lines = []
-                for _s in _skipped:
-                    _price = _s.get("price")
-                    _price_text = f" · 현재가 {_price:,.0f}원" if _price else ""
-                    _lines.append(
-                        f"<li><b>{_s.get('name')}</b> ({_s.get('code')}) — "
-                        f"상장 후 {_s.get('bars')}거래일{_price_text}</li>"
-                    )
-                st.markdown(
-                    "<div style='font-size:0.9rem;color:#c9ced6;'>구성종목</div>"
-                    f"<ul style='font-size:0.92rem;color:#e6e6e6;'>{''.join(_lines)}</ul>",
-                    unsafe_allow_html=True,
-                )
-            st.caption(
-                "위 테마 순위의 당일 등락률·KOSPI 대비는 네이버 테마 자료라서 그대로 맞습니다. "
-                "여기서 못 내는 것은 20일 추세·신고가처럼 과거 이력이 필요한 지표뿐입니다."
-            )
-        else:
-            st.error(f"대장주 조회 실패: {_safe_error_text(leader_result.get('error'))}")
+        st.error(f"대장주 조회 실패: {_safe_error_text(leader_result.get('error'))}")
         return
     leaders = leader_result["rows"]
+
+    # 상장한 지 얼마 안 된 종목은 20일선·52주 고가 칸이 비어 나온다. 화면은 그대로
+    # 다 그리되(2026-07-29 사용자 지시), 왜 빈 칸이 있는지와 점수를 나란히 비교하면
+    # 안 된다는 것을 위에 적어 준다.
+    _partial = [row for row in leaders if row.get("partial")]
+    if _partial:
+        _days = " · ".join(f"{row['name']} {row.get('bars')}일" for row in _partial)
+        st.info(
+            f"📌 상장한 지 얼마 안 된 종목이 있어 일부 칸이 비어 있습니다 ({_days}). "
+            f"20일 수익률·20일선·52주 고가 대비는 {j4data.MIN_HISTORY_BARS}거래일이 "
+            "쌓여야 나옵니다. 당일 등락률·현재가·차트는 그대로 맞습니다.\n\n"
+            "빈 항목은 점수에서 0점으로 잡히므로, 이 종목의 조건점수를 다른 종목과 "
+            "나란히 비교하지 마세요."
+        )
     st.markdown(
         f"<div class='j4-section-title'><span class='j4-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
         unsafe_allow_html=True,

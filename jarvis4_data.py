@@ -62,7 +62,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072915
+MODULE_REVISION = 2026072916
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -207,12 +207,19 @@ MIN_HISTORY_BARS = 25
 
 
 def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None) -> dict:
-    """추세·신고가·변동성 지표. 자비스3 _series_metrics의 한국판이다."""
-    if daily is None or len(daily) < MIN_HISTORY_BARS:
+    """추세·신고가·변동성 지표. 자비스3 _series_metrics의 한국판이다.
+
+    이력이 MIN_HISTORY_BARS에 못 미치면 긴 창이 필요한 값(20일선·52주 고가 등)만
+    None으로 두고 partial=True로 표시한다. 예전에는 통째로 실패로 돌려보내 그
+    종목이 목록에서 사라졌고, 신규상장 테마처럼 구성종목이 전부 짧으면 화면 전체가
+    안 나왔다(2026-07-29 사용자 지적: "그런 김에 화면은 나오게 해줘야지").
+    """
+    if daily is None or len(daily) < 2:
         return {"ok": False}
     closes = daily["Close"].dropna().astype(float)
-    if len(closes) < MIN_HISTORY_BARS:
+    if len(closes) < 2:
         return {"ok": False}
+    partial = len(closes) < MIN_HISTORY_BARS
     live_current = _finite(live_price)
     current = live_current or _finite(closes.iloc[-1])
     if not current:
@@ -230,8 +237,11 @@ def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None)
         prev_close = _finite(closes.iloc[-2]) if len(closes) >= 2 else None
 
     def ret(days: int):
-        index = min(days + 1, len(closes))
-        base = _finite(closes.iloc[-index])
+        # 이력이 모자라면 가장 오래된 값으로 때우지 않는다 — 12일치를 '20일
+        # 수익률'이라고 적으면 그건 지어낸 값이다.
+        if len(closes) < days + 1:
+            return None
+        base = _finite(closes.iloc[-(days + 1)])
         return (current / base - 1) * 100 if base else None
 
     sma20 = _finite(closes.tail(20).mean())
@@ -277,8 +287,10 @@ def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None)
         if atr:
             atr_pct = atr / current * 100
 
-    return {
+    metrics = {
         "ok": True,
+        "bars": int(len(closes)),
+        "partial": partial,
         "current": current,
         "prev_close": prev_close,
         "change_pct": ((current / prev_close - 1) * 100) if prev_close else None,
@@ -301,6 +313,13 @@ def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None)
         # 없으면 마지막 거래일 값이므로 day_is_today로 구분해 화면에서 알려준다.
         **_day_prices(daily, last_date == today),
     }
+    if partial:
+        # 20일선을 12일치로 그리거나 12일 최고가를 '52주 고가'라고 부르지 않는다.
+        # 값을 비워 두면 화면이 '-'로 적고, 그 칸이 왜 비었는지는 따로 안내한다.
+        for key in ("ret20", "ret60", "sma20", "sma50", "sma200",
+                    "high52", "high52_days_ago", "from_high_pct"):
+            metrics[key] = None
+    return metrics
 
 
 def _day_prices(daily: pd.DataFrame, is_today: bool) -> dict:
@@ -1654,6 +1673,10 @@ def _analyze_stock(stock: dict, theme_ret20: float | None) -> dict | None:
         "score": score,
         "score_parts": parts,
         "daily": daily,
+        # 이력이 짧아 일부 지표가 빈 종목. 점수를 다른 종목과 나란히 비교하면
+        # 안 된다 — 빈 항목이 0점으로 잡혀 실제보다 낮게 나온다.
+        "partial": bool(metrics.get("partial")),
+        "bars": metrics.get("bars"),
     }
 
 
