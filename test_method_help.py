@@ -57,6 +57,32 @@ class TextTests(unittest.TestCase):
         self.assertIn("수급", method_help.KR_TEXT)
         self.assertIn("참고", method_help.KR_TEXT)
 
+    def test_each_text_walks_the_user_through_the_screen(self):
+        """초보자가 '뭘 어떻게 하라는 건지' 알 수 있게 보는 순서가 있어야 한다.
+
+        2026-07-29 사용자 지적 — 숫자만 있고 사용법이 없으면 이해가 안 된다.
+        """
+        for text in (method_help.US_TEXT, method_help.KR_TEXT):
+            self.assertIn("이 순서로 보십시오", text)
+            for step in ("①", "②", "③", "④", "⑤"):
+                self.assertIn(step, text, f"{step} 단계가 빠졌다")
+            # 화면에서 실제로 눌러야 하는 자리와 거르는 자리를 짚어야 한다.
+            self.assertIn("신고가 돌파", text)
+            self.assertIn("눌림목", text)
+            self.assertIn("추격 금지", text)
+
+    def test_hard_words_are_explained_where_they_first_appear(self):
+        """설명해야 아는 말은 화면에 그냥 두지 않는다(쉬운 말 규칙)."""
+        for text in (method_help.US_TEXT, method_help.KR_TEXT):
+            self.assertIn("50일선**(최근 50거래일 평균 가격선)", text)
+        self.assertIn("외국인과 기관이 이 종목을 사고 있나", method_help.KR_TEXT)
+
+    def test_the_two_markets_give_different_instructions(self):
+        """미국은 시장 점수를 믿으라 하고, 한국은 수급을 보라 한다."""
+        self.assertIn("이 안전장치가 잘 듣습니다", method_help.US_TEXT)
+        self.assertIn("미국만큼 잘 듣지 않습니다", method_help.KR_TEXT)
+        self.assertNotIn("미국만큼 잘 듣지 않습니다", method_help.US_TEXT)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-"""자비스3 — 미국 테마 레이더와 실제 매수 기록 페이지."""
+﻿"""자비스3 — 미국 테마 레이더와 실제 매수 기록 페이지."""
 
 from __future__ import annotations
 
@@ -375,7 +375,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026072922
+_REQUIRED_METHOD_HELP_REVISION = 2026072923
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
