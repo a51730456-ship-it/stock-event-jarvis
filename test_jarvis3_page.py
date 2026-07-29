@@ -391,6 +391,53 @@ class Jarvis3PageTests(unittest.TestCase):
         # 라디오는 지우지 않았다(사용자 지시).
         self.assertTrue([node for node in app.radio if str(node.label) == "상세 종목 선택"])
 
+    def test_my_stock_panel_searches_and_opens_detail(self):
+        """맨 아래 '내 종목 현재상황'에서 이름을 치면 종목이 뜨고 상세가 열린다."""
+        found = {"ok": True, "rows": [
+            {"ticker": "NVDA", "name": "NVIDIA Corp", "market": "NASDAQ"},
+        ]}
+        analyzed = {"ok": True, "row": {
+            **_leaders()["rows"][0], "ticker": "NVDA", "name": "NVIDIA",
+            "rank": 0, "from_search": True,
+        }}
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_data.search_stocks", return_value=found), \
+             patch("jarvis3_data.analyze_one_stock", return_value=analyzed), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=60)
+            box = next(
+                node for node in app.text_input if str(node.key or "") == "j3_my_stock_query"
+            )
+            box.set_value("엔비디아").run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        blob = "".join(str(node.value) for node in app.markdown)
+        captions = "".join(str(node.value) for node in app.caption)
+        self.assertIn("내 종목 현재상황", blob)
+        # 미국 종목이라도 한글로 칠 수 있다는 것을 화면이 알려 준다.
+        self.assertIn("한글로 쳐도 됩니다", captions)
+        self.assertIn("NVIDIA", blob)
+
+    def test_korean_aliases_cover_the_common_names(self):
+        """'영어로만 쳐야 하나'에 대한 답 — 널리 쓰는 한글 이름은 티커로 이어 준다."""
+        import jarvis3_data as j3
+
+        for korean, ticker in (("엔비디아", "NVDA"), ("애플", "AAPL"),
+                               ("테슬라", "TSLA"), ("팔란티어", "PLTR")):
+            self.assertEqual(j3.KOREAN_TICKER_ALIASES.get(korean), ticker)
+
     def test_leader_table_scrolls_sideways_like_the_others(self):
         """폰·태블릿에서 종목표도 옆으로 밀려야 한다(칸 방식으로 바꾼 뒤 확인)."""
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \

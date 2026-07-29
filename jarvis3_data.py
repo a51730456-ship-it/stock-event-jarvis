@@ -85,7 +85,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072920
+MODULE_REVISION = 2026072921
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -203,6 +203,23 @@ def _download_cache_only(
                         "fetched_at": candidate["fetched_at"], "reused_superset": True,
                     }
     return {}, {"ok": False, "error": "재사용할 일봉 배치가 없습니다", "stale": False}
+
+
+def _cached_value(key, ttl_seconds: float, produce):
+    """시세가 아닌 일반 값(예: 상장 종목 목록)을 같은 캐시에 담는다.
+
+    _download_cached는 (티커, 기간, 간격, 프리포스트) 4칸 키만 다루므로 그쪽에
+    끼워 넣을 수 없다. 키를 문자열로 두어 그 순회 로직과 섞이지 않게 한다.
+    """
+    now = time.time()
+    with _CACHE_LOCK:
+        cached = _CACHE.get(key)
+        if cached and now - cached["at"] < ttl_seconds:
+            return cached["value"], False
+    value = produce()
+    with _CACHE_LOCK:
+        _CACHE[key] = {"at": now, "value": value}
+    return value, False
 
 
 def _download_cached(
@@ -1062,6 +1079,153 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
         "error": None if rows else (live_meta.get("error") or daily_meta.get("error") or "종목 시세 조회 실패"),
     }
+
+
+# 미국 종목은 티커·회사명이 영어다. 그래도 한글로 칠 수 있어야 한다
+# (2026-07-29 사용자 질문 "이거 영어로만 쳐야겠지?"). 널리 쓰는 한글 이름을
+# 티커로 이어 준다. 여기 없는 종목은 영어로 치면 된다.
+KOREAN_TICKER_ALIASES = {
+    "엔비디아": "NVDA", "애플": "AAPL", "테슬라": "TSLA", "구글": "GOOGL",
+    "알파벳": "GOOGL", "아마존": "AMZN", "마이크로소프트": "MSFT", "마소": "MSFT",
+    "메타": "META", "페이스북": "META", "넷플릭스": "NFLX", "브로드컴": "AVGO",
+    "인텔": "INTC", "마이크론": "MU", "퀄컴": "QCOM", "티에스엠씨": "TSM",
+    "티에스엠시": "TSM", "타이완반도체": "TSM", "팔란티어": "PLTR",
+    "오라클": "ORCL", "델": "DELL", "아리스타": "ANET", "버티브": "VRT",
+    "코인베이스": "COIN", "로빈후드": "HOOD", "페이팔": "PYPL",
+    "마이크로스트래티지": "MSTR", "스트래티지": "MSTR",
+    "일라이릴리": "LLY", "릴리": "LLY", "존슨앤존슨": "JNJ", "화이자": "PFE",
+    "머크": "MRK", "모더나": "MRNA", "버크셔": "BRK-B", "코스트코": "COST",
+    "월마트": "WMT", "스타벅스": "SBUX", "맥도날드": "MCD", "나이키": "NKE",
+    "보잉": "BA", "록히드마틴": "LMT", "레이시온": "RTX", "캐터필러": "CAT",
+    "엑슨": "XOM", "엑슨모빌": "XOM", "셰브론": "CVX", "쉐브론": "CVX",
+    "비자": "V", "마스터카드": "MA", "제이피모건": "JPM", "골드만삭스": "GS",
+    "디즈니": "DIS", "우버": "UBER", "에어비앤비": "ABNB", "슈퍼마이크로": "SMCI",
+    "암": "ARM", "에이엠디": "AMD", "이비아이디": "EBAY",
+}
+
+
+def _us_listing() -> list[tuple[str, str, str]]:
+    """미국 상장 종목 (티커, 이름, 시장) 전체. 하루 한 번만 받아 캐시에 둔다."""
+    def _produce():
+        import FinanceDataReader as fdr
+
+        out, seen = [], set()
+        for market in ("NASDAQ", "NYSE", "AMEX"):
+            try:
+                frame = fdr.StockListing(market)
+            except Exception:
+                continue
+            for _, row in frame.iterrows():
+                symbol = str(row.get("Symbol") or "").strip().upper()
+                name = str(row.get("Name") or "").strip()
+                if not symbol or symbol in seen:
+                    continue
+                seen.add(symbol)
+                out.append((symbol, name or symbol, market))
+        if not out:
+            raise RuntimeError("미국 상장 종목 목록이 비었습니다")
+        return out
+
+    listing, _stale = _cached_value("us_listing", 6 * 3600, _produce)
+    return listing
+
+
+def search_stocks(query: str, *, limit: int = 12) -> dict:
+    """티커나 회사 이름으로 미국 종목을 찾는다. 한글 이름과 오타도 받아 준다."""
+    text = str(query or "").strip()
+    if not text:
+        return {"ok": True, "rows": []}
+    try:
+        listing = _us_listing()
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "rows": []}
+
+    by_symbol = {item[0]: item for item in listing}
+    picked, seen = [], set()
+
+    def _add(item):
+        if item and item[0] not in seen:
+            seen.add(item[0])
+            picked.append(item)
+
+    # 1) 한글 이름으로 바로 찾기
+    korean = KOREAN_TICKER_ALIASES.get(text.replace(" ", ""))
+    if korean:
+        _add(by_symbol.get(korean) or (korean, STOCK_NAMES.get(korean, korean), "US"))
+
+    upper = text.upper().replace(" ", "")
+    lowered = text.lower().replace(" ", "")
+
+    def _key(name):
+        return str(name).lower().replace(" ", "")
+
+    # 2) 티커 일치 → 티커 시작 → 이름 시작 → 이름 포함
+    _add(by_symbol.get(upper))
+    for item in listing:
+        if item[0].startswith(upper):
+            _add(item)
+    for item in listing:
+        if _key(item[1]).startswith(lowered):
+            _add(item)
+    for item in listing:
+        if lowered in _key(item[1]):
+            _add(item)
+
+    # 3) 그래도 모자라면 오타까지 받아 준다
+    if len(picked) < limit:
+        import difflib
+
+        names = [_key(item[1]) for item in listing]
+        for target in difflib.get_close_matches(lowered, names, n=limit, cutoff=0.7):
+            for item in listing:
+                if _key(item[1]) == target:
+                    _add(item)
+
+    return {"ok": True, "rows": [
+        {"ticker": t, "name": n, "market": m} for t, n, m in picked[:limit]
+    ]}
+
+
+def analyze_one_stock(ticker: str, *, market_score: float = 0,
+                      theme_score: float = 0) -> dict:
+    """종목 하나만 대장주와 똑같은 방식으로 심사한다.
+
+    테마 안에서 재는 상대강도(theme_ret20)는 비교할 테마가 없으므로 뺀다 —
+    그 항목은 0점이 되고, 그래서 점수를 테마 대장주 점수와 나란히 견주면 안 된다.
+    """
+    ticker = str(ticker or "").strip().upper()
+    if not ticker:
+        return {"ok": False, "error": "티커가 비었습니다"}
+    daily, daily_meta = _download_cached((ticker,), period="1y", interval="1d", ttl_seconds=300)
+    live, _live_meta = _download_cached(
+        (ticker,), period="1d", interval="1m", ttl_seconds=45, prepost=True)
+    metrics = _series_metrics(daily.get(ticker), live.get(ticker))
+    if not metrics.get("ok"):
+        return {"ok": False,
+                "error": daily_meta.get("error") or f"{ticker} 시세를 가져오지 못했습니다"}
+    score, parts = _leader_score(metrics, None)
+    frame = daily.get(ticker)
+    row = {
+        "ticker": ticker,
+        "name": STOCK_NAMES.get(ticker, ticker),
+        "score": score,
+        "score_parts": parts,
+        "metrics": metrics,
+        "plan": _entry_plan(metrics, score, market_score, theme_score),
+        "intraday_chart": _intraday_chart_payload(live.get(ticker), metrics.get("prev_close")),
+        "daily_chart": (_prepare_chart_payload(frame, None, 60, daily_meta)
+                        if frame is not None and not frame.empty else None),
+        "weekly_chart": (_prepare_chart_payload(frame, "W-FRI", 52, daily_meta)
+                         if frame is not None and not frame.empty else None),
+        "rank": 0,
+        "from_search": True,
+    }
+    from_high = metrics.get("from_high_pct")
+    row["stock_reason"] = (
+        f"직접 찾은 종목 · 52주 고가 대비 {from_high:.1f}%"
+        if from_high is not None else "직접 찾은 종목"
+    )
+    return {"ok": True, "row": row}
 
 
 def get_live_quote(ticker: str) -> dict:

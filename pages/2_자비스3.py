@@ -384,7 +384,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072920
+_REQUIRED_J3_REVISION = 2026072921
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -392,6 +392,9 @@ if (
     or not hasattr(j3data, "analyze_pullback_stock")
     or not hasattr(j3data, "get_intraday_chart")
     or not hasattr(j3data, "get_index_sparklines")
+    # 2026-07-29 '내 종목 현재상황'에서 쓴다. 빠뜨리면 온라인에서 AttributeError가 난다.
+    or not hasattr(j3data, "search_stocks")
+    or not hasattr(j3data, "analyze_one_stock")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 자비스4에서 실제 발생).
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
@@ -1298,10 +1301,13 @@ def _stock_radio_label(item: dict) -> str:
 
 
 def _render_stock_detail(
-    theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str
+    theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
+    *, panel: str = "theme",
 ) -> None:
+    """종목 상세 한 벌. panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다."""
     ticker = leader["ticker"]
-    st.session_state["j3_selected_ticker"] = ticker
+    if panel == "theme":
+        st.session_state["j3_selected_ticker"] = ticker
     metrics, plan = leader["metrics"], leader["plan"]
 
     st.divider()
@@ -1440,12 +1446,13 @@ def _render_stock_detail(
             unsafe_allow_html=True,
         )
 
-    _render_buy_form(theme_row, leader, market, top_candidates, stock_key)
+    _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
 
 
 
 def _render_buy_form(
-    theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str
+    theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
+    *, panel: str = "theme",
 ) -> None:
     ticker = leader["ticker"]
     metrics, plan = leader["metrics"], leader["plan"]
@@ -1497,7 +1504,7 @@ def _render_buy_form(
             if records:
                 # 읽기 전용 표였을 때 매도일·매도가를 눌러도 안 된다는 지적(2026-07-22)
                 # → 여기서도 같은 클릭 입력형 표를 쓴다.
-                _render_records_editor(records, key_prefix="form")
+                _render_records_editor(records, key_prefix=f"form_{panel}")
             else:
                 st.caption("아직 저장된 매수 기록이 없습니다.")
     st.caption("실제로 매수한 경우에만 저장합니다. 저장 시 당시 시장·테마·종목 조건도 함께 보존됩니다.")
@@ -1513,30 +1520,31 @@ def _render_buy_form(
             unsafe_allow_html=True,
         )
         _render_selected_live_quote(leader.get("score"), plan.get("state"))
-        _render_buy_form_fields(theme_row, leader, market)
+        _render_buy_form_fields(theme_row, leader, market, panel=panel)
 
 
-def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict) -> None:
+def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict,
+                            *, panel: str = "theme") -> None:
     ticker = leader["ticker"]
     metrics, plan = leader["metrics"], leader["plan"]
-    with st.form(f"j3_buy_form_{ticker}", clear_on_submit=False, border=False):
+    with st.form(f"j3_buy_form_{panel}_{ticker}", clear_on_submit=False, border=False):
         c1, c2, c3, c4 = st.columns(4)
-        buy_date = c1.date_input("매수일", value=date.today(), key=f"j3_buy_date_{ticker}")
+        buy_date = c1.date_input("매수일", value=date.today(), key=f"j3_buy_date_{panel}_{ticker}")
         default_price = float(metrics.get("current") or 0.01)
         buy_price = c2.number_input(
             "실제 매수가(USD)", min_value=0.01, value=round(default_price, 2), step=0.01,
-            key=f"j3_buy_price_{ticker}",
+            key=f"j3_buy_price_{panel}_{ticker}",
         )
         quantity = c3.number_input(
-            "수량(선택)", min_value=0.0, value=0.0, step=1.0, key=f"j3_buy_qty_{ticker}",
+            "수량(선택)", min_value=0.0, value=0.0, step=1.0, key=f"j3_buy_qty_{panel}_{ticker}",
         )
         trade_style = c4.selectbox(
-            "매매유형", ["스윙", "단타", "중장기"], key=f"j3_trade_style_{ticker}",
+            "매매유형", ["스윙", "단타", "중장기"], key=f"j3_trade_style_{panel}_{ticker}",
         )
-        memo = st.text_area("매수 이유·메모", key=f"j3_buy_memo_{ticker}", height=80)
+        memo = st.text_area("매수 이유·메모", key=f"j3_buy_memo_{panel}_{ticker}", height=80)
         confirmed = st.checkbox(
             "실제 체결된 매수임을 확인합니다",
-            key=f"j3_buy_confirm_{ticker}",
+            key=f"j3_buy_confirm_{panel}_{ticker}",
         )
         submitted = st.form_submit_button("매수 기록 저장", width="stretch")
 
@@ -1698,6 +1706,62 @@ def _render_radar_tab(market: dict) -> None:
     )
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     _render_pullback_finder(market, ranking)
+    _render_my_stock_panel(market)
+
+
+def _render_my_stock_panel(market: dict) -> None:
+    """내 종목 현재상황 — 티커나 회사 이름을 치면 그 종목 상세가 열린다.
+
+    한국테마(자비스4)와 같은 자리·같은 화면이다(2026-07-29 요청). 미국 종목이라
+    티커·회사명은 영어지만, 널리 쓰는 한글 이름(엔비디아·애플…)도 받아 준다.
+    """
+    st.divider()
+    st.markdown(
+        "<div class='j3-section-title'>내 종목 현재상황</div>", unsafe_allow_html=True)
+    st.caption(
+        "티커나 회사 이름을 치면 비슷한 이름까지 찾아 줍니다. "
+        "**한글로 쳐도 됩니다**(엔비디아·애플·테슬라 등). 테마 목록에 없는 종목도 됩니다."
+    )
+    query = st.text_input(
+        "종목 이름 또는 티커", key="j3_my_stock_query",
+        placeholder="예: 엔비디아, NVDA, apple, 팔란티어",
+    )
+    if not str(query or "").strip():
+        return
+
+    found = j3data.search_stocks(query)
+    if not found.get("ok"):
+        st.error(f"종목 목록 조회 실패: {_safe_error_text(found.get('error'))}")
+        return
+    rows = found.get("rows") or []
+    if not rows:
+        st.warning(f"‘{query}’와 비슷한 종목을 못 찾았습니다. 티커나 이름 일부만 쳐 보세요.")
+        return
+
+    options = [row["ticker"] for row in rows]
+    by_ticker = {row["ticker"]: row for row in rows}
+    chosen = st.radio(
+        "찾은 종목",
+        options,
+        format_func=lambda t: f"{by_ticker[t]['name']} ({t})",
+        horizontal=True,
+        key="j3_my_stock_pick",
+    )
+    with st.spinner(f"{by_ticker[chosen]['name']} 심사 중입니다…"):
+        result = j3data.analyze_one_stock(
+            chosen, market_score=float(market.get("score") or 0))
+    if not result.get("ok"):
+        st.error(_safe_error_text(result.get("error")))
+        return
+    leader = result["row"]
+    st.caption(
+        "이 점수에는 **테마 대비 상대강도가 빠져 있습니다** — 견줄 테마가 없기 때문입니다. "
+        "위 테마 대장주 점수와 나란히 비교하지 마세요."
+    )
+    _render_stock_detail(
+        {"name": "내 종목"}, leader, market, [leader],
+        "j3_my_stock_detail_choice", panel="mystock",
+    )
 
 
 def _us_signal_hint() -> str:
