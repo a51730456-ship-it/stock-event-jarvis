@@ -62,7 +62,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072906
+MODULE_REVISION = 2026072912
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1013,12 +1013,28 @@ def _market_foreign_flow() -> dict:
                 live_institution5 += (flow.get("institution_net5") or 0) * current_price
                 if quote.get("traded_at"):
                     quote_times.append(str(quote["traded_at"]))
+            # 하루치(가장 최근 완료 거래일)도 따로 낸다. 5일 합계만 보여 주면
+            # "그래서 어제는 팔았나 샀나"를 알 수 없다(2026-07-29 사용자 요청).
+            # 오늘치는 장중에 공개되지 않으므로 **그 행의 날짜를 같이** 돌려주고
+            # 화면이 며칠 것인지 밝힌다.
+            day_rows = flow.get("rows") or []
+            day_amount = None
+            day_date = None
+            if day_rows:
+                latest = day_rows[0]
+                day_date = str(latest.get("date") or "").strip() or None
+                day_shares = (latest.get("foreign_net") or 0) + (latest.get("institution_net") or 0)
+                base = current_price if current_price is not None else _finite(latest.get("close"))
+                if base is not None:
+                    day_amount = day_shares * base
             stocks.append({
                 "code": code,
                 "label": label,
                 "flow": flow,
                 "quote": quote,
                 "live_net5_amount": live_amount,
+                "day_net_amount": day_amount,
+                "day_date": day_date,
             })
     if not ok_any:
         return {"ok": False}

@@ -74,10 +74,12 @@ def _market():
             "stocks": [
                 {
                     "label": "삼성전자", "live_net5_amount": -7_500 * 1e8,
+                    "day_net_amount": -3_100 * 1e8, "day_date": "2026.07.28",
                     "flow": {"latest_date": "2026.07.28"},
                 },
                 {
                     "label": "SK하이닉스", "live_net5_amount": -11_286 * 1e8,
+                    "day_net_amount": -4_250 * 1e8, "day_date": "2026.07.28",
                     "flow": {"latest_date": "2026.07.28"},
                 },
             ],
@@ -364,10 +366,14 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("-18,786억", top_row)
         # 종목별 금액은 부호대로 칠한다. 회색 한 줄에 몰아 두면 어느 쪽이
         # 파는 쪽인지 안 보인다(2026-07-29 지시).
-        self.assertIn("삼성전자 <span style='color:#ff5b5b", top_row)
-        self.assertIn("-7,500억", top_row)
-        self.assertIn("SK하이닉스 <span style='color:#ff5b5b", top_row)
-        self.assertIn("-11,286억", top_row)
+        # 종목별 줄은 5일 합계가 아니라 **하루치**이고, 며칠 것인지 날짜를
+        # 같이 적는다. 날짜 없이 '(당일)'이라고만 쓰면 오늘 것으로 읽혀
+        # 거짓말이 된다 — 종목별 당일 수급은 장중에 공개되지 않는다.
+        self.assertIn("삼성전자(07.28) <span style='color:#ff5b5b", top_row)
+        self.assertIn("-3,100억", top_row)
+        self.assertIn("SK하이닉스(07.28) <span style='color:#ff5b5b", top_row)
+        self.assertIn("-4,250억", top_row)
+        self.assertIn("종목별 당일 수급은 장 마감 뒤 공개됩니다", top_row)
         self.assertIn("현재가 1분 자동조회", top_row)
         # '5일 확정 수급수량 × 현재가'는 뺐다(2026-07-29 지시).
         self.assertNotIn("5일 확정 수급수량", top_row)

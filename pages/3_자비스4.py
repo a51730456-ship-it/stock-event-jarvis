@@ -358,7 +358,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072906
+_REQUIRED_J4_REVISION = 2026072912
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -545,19 +545,32 @@ def _representative_flow_sub(foreign: dict) -> str:
     else:
         as_of = f"기준일 상이({min(known_dates)}~{max(known_dates)})"
     if live:
-        # 종목별 금액도 부호대로 칠한다. 회색 한 줄에 몰아 두면 어느 쪽이
-        # 파는 쪽인지 안 보인다(2026-07-29 지시).
-        stock_parts = [
-            f"{stock.get('label') or stock.get('code')} "
-            f"<span style='color:{_sign_color(stock.get('live_net5_amount'))};font-weight:800'>"
-            f"{_eok(stock.get('live_net5_amount'))}</span>"
-            for stock in stocks if stock.get("live_net5_amount") is not None
-        ]
+        # 종목별은 **하루치**를 적는다. 5일 합계만 보여 주면 "그래서 그날은
+        # 팔았나 샀나"를 알 수 없다(2026-07-29 지시). 금액도 부호대로 칠한다 —
+        # 회색 한 줄에 몰아 두면 어느 쪽이 파는 쪽인지 안 보인다.
+        #
+        # 날짜를 괄호에 같이 적는다. 종목별 당일 수급은 장중에 공개되지 않아
+        # 여기 숫자는 **가장 최근 완료 거래일**의 것이다. 날짜를 빼고 '(당일)'
+        # 이라고만 쓰면 오늘 것으로 읽혀 거짓말이 된다.
+        stock_parts = []
+        for stock in stocks:
+            amount = stock.get("day_net_amount")
+            if amount is None:
+                continue
+            day = str(stock.get("day_date") or "").strip()
+            when = f"({day[5:]})" if len(day) >= 10 else ""
+            stock_parts.append(
+                f"{stock.get('label') or stock.get('code')}{when} "
+                f"<span style='color:{_sign_color(amount)};font-weight:800'>"
+                f"{_eok(amount)}</span>"
+            )
         stale = " · 이전 정상 현재가" if foreign.get("live_stale") else ""
         return (
             f"{target}<br>{' · '.join(stock_parts)}"
             f"<br>외국인+기관 {direction}"
-            f"<br><span class='j4-muted'>현재가 1분 자동조회{stale} · {as_of}</span>"
+            f"<br><span class='j4-muted'>위 줄은 종목별 하루치입니다 · "
+            f"종목별 당일 수급은 장 마감 뒤 공개됩니다"
+            f"<br>현재가 1분 자동조회{stale} · {as_of}</span>"
         )
     return (
         f"{target}<br>외국인+기관 {direction}"
