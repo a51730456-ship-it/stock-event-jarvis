@@ -62,7 +62,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072914
+MODULE_REVISION = 2026072915
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -201,12 +201,17 @@ def get_daily_frame(code: str, *, ttl_seconds: float = 300) -> pd.DataFrame | No
     return None if frame is None else frame.copy()
 
 
+# 추세·신고가 지표를 내려면 최소한 이만큼의 거래일이 쌓여야 한다.
+# 신규상장 종목은 한동안 이 줄에 걸린다 — 20일선을 12일치로 그릴 수는 없다.
+MIN_HISTORY_BARS = 25
+
+
 def _series_metrics(daily: pd.DataFrame | None, live_price: float | None = None) -> dict:
     """추세·신고가·변동성 지표. 자비스3 _series_metrics의 한국판이다."""
-    if daily is None or len(daily) < 25:
+    if daily is None or len(daily) < MIN_HISTORY_BARS:
         return {"ok": False}
     closes = daily["Close"].dropna().astype(float)
-    if len(closes) < 25:
+    if len(closes) < MIN_HISTORY_BARS:
         return {"ok": False}
     live_current = _finite(live_price)
     current = live_current or _finite(closes.iloc[-1])
@@ -1652,6 +1657,45 @@ def _analyze_stock(stock: dict, theme_ret20: float | None) -> dict | None:
     }
 
 
+def _leaders_failure(stocks: list) -> dict:
+    """대장주를 한 종목도 못 남겼을 때, 이유를 종목별로 밝혀서 돌려준다.
+
+    일봉을 다시 부르지만 캐시가 걸려 있어 새로 조회하지는 않는다.
+    """
+    short, missing = [], []
+    for stock in stocks or []:
+        code, name = stock.get("code"), stock.get("name")
+        if _is_excluded(name, code):
+            continue
+        try:
+            daily = get_daily_frame(code)
+        except Exception:
+            daily = None
+        bars = 0 if daily is None else len(daily)
+        entry = {"code": code, "name": name, "bars": bars, "price": stock.get("price")}
+        (short if 0 < bars < MIN_HISTORY_BARS else missing).append(entry)
+
+    if short and not missing:
+        days = " · ".join(f"{s['name']} {s['bars']}일" for s in short)
+        return {
+            "ok": False,
+            "reason": "too_new",
+            "error": (
+                f"상장한 지 얼마 안 된 종목들이라 추세 지표를 낼 수 없습니다 "
+                f"({days}). 20일선·신고가는 {MIN_HISTORY_BARS}거래일이 쌓여야 나옵니다."
+            ),
+            "rows": [],
+            "skipped": short,
+        }
+    return {
+        "ok": False,
+        "reason": "no_quote",
+        "error": "구성종목 시세를 가져오지 못했습니다",
+        "rows": [],
+        "skipped": short + missing,
+    }
+
+
 def get_theme_leaders(theme_row: dict, market_score: float = 0, theme_score: float = 0) -> dict:
     """선택한 테마의 대장주 순위. 거래대금 상위 종목만 심사한다."""
     stocks = theme_row.get("stocks") or []
@@ -1683,7 +1727,11 @@ def get_theme_leaders(theme_row: dict, market_score: float = 0, theme_score: flo
                 rows.append(result)
 
     if not rows:
-        return {"ok": False, "error": "구성종목 시세를 가져오지 못했습니다", "rows": []}
+        # 왜 한 종목도 못 남겼는지 구별해서 알려준다. '시세를 못 가져왔다'로
+        # 뭉뚱그리면 신규상장 테마처럼 시세는 멀쩡히 오는데 이력이 짧아 지표만
+        # 못 내는 경우에 엉뚱한 원인을 찾게 된다(2026-07-29 '2026 하반기
+        # 신규상장' 테마에서 실제로 발생: 레몬헬스케어 17일·레메디 12일치뿐).
+        return _leaders_failure(ranked_by_value)
 
     ret20_values = [r["metrics"]["ret20"] for r in rows if r["metrics"].get("ret20") is not None]
     if ret20_values:

@@ -113,6 +113,54 @@ class YahooOneMinuteChartTests(unittest.TestCase):
         self.assertEqual(row["chart"]["base"], 99.0)
 
 
+class NewlyListedThemeTests(unittest.TestCase):
+    """2026-07-29: '2026 하반기 신규상장' 테마만 누르면 빨간 에러가 났다.
+
+    시세는 멀쩡히 오는데 상장한 지 얼마 안 돼 25거래일이 안 쌓여서 지표를 못 낸
+    것이었다. '시세를 가져오지 못했습니다'는 틀린 설명이라 원인을 엉뚱한 데서
+    찾게 된다.
+    """
+
+    def _frame(self, bars):
+        index = pd.date_range("2026-07-01", periods=bars, freq="D")
+        return pd.DataFrame({"Close": [1000.0 + i for i in range(bars)]}, index=index)
+
+    def test_short_history_is_reported_as_too_new(self):
+        stocks = [
+            {"code": "365660", "name": "레몬헬스케어", "trading_value": 2.7e10, "price": 4275.0},
+            {"code": "387690", "name": "레메디", "trading_value": 1.1e10, "price": 7330.0},
+        ]
+        with patch.object(j4, "get_daily_frame", side_effect=lambda code: self._frame(
+            17 if code == "365660" else 12)):
+            out = j4.get_theme_leaders({"no": 615, "stocks": stocks})
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["reason"], "too_new")
+        self.assertIn("상장한 지 얼마 안 된", out["error"])
+        self.assertIn("레몬헬스케어 17일", out["error"])
+        self.assertNotIn("시세를 가져오지 못했습니다", out["error"])
+
+    def test_too_new_still_reports_what_we_know(self):
+        stocks = [{"code": "365660", "name": "레몬헬스케어", "trading_value": 2.7e10, "price": 4275.0}]
+        with patch.object(j4, "get_daily_frame", side_effect=lambda code: self._frame(17)):
+            out = j4.get_theme_leaders({"no": 615, "stocks": stocks})
+        skipped = out["skipped"]
+        self.assertEqual(skipped[0]["bars"], 17)
+        self.assertEqual(skipped[0]["price"], 4275.0)
+
+    def test_missing_quote_keeps_the_old_message(self):
+        """진짜로 시세를 못 가져온 경우까지 '신규상장'이라고 하면 안 된다."""
+        stocks = [{"code": "000000", "name": "없는종목", "trading_value": 1.0}]
+        with patch.object(j4, "get_daily_frame", return_value=None):
+            out = j4.get_theme_leaders({"no": 1, "stocks": stocks})
+        self.assertEqual(out["reason"], "no_quote")
+        self.assertIn("시세를 가져오지 못했습니다", out["error"])
+
+    def test_threshold_constant_matches_metrics_gate(self):
+        """상수를 바꾸면 안내 문구의 '25거래일'도 같이 따라가야 한다."""
+        self.assertFalse(j4._series_metrics(self._frame(j4.MIN_HISTORY_BARS - 1))["ok"])
+        self.assertTrue(j4._series_metrics(self._frame(j4.MIN_HISTORY_BARS))["ok"])
+
+
 class FuturesSessionWindowTests(unittest.TestCase):
     """2026-07-29: 나스닥 선물 차트가 네이버와 모양이 전혀 달랐다.
 

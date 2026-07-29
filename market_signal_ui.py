@@ -648,10 +648,22 @@ _FRESHNESS_COLOR = {
     "정상": "#22c55e", "지연": "#ff9d3b", "오래됨": "#ef4444", "확인 필요": "#9ca3af",
 }
 
+# 범례를 접어 둔다(2026-07-29 사용자 지시). 스트림릿은 펼침(expander) 안에 펼침을
+# 못 넣으므로 HTML <details>를 쓴다 — 표 자체가 이미 펼침 안에 있기 때문이다.
 _SIGNAL_TABLE_LEGEND_HTML = """
-<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);
-border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.9rem;line-height:1.8;">
-  <div style="font-weight:800;color:#e6e6e6;margin-bottom:2px;">표 읽는 법</div>
+<style>
+.msig-legend { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.12);
+  border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:0.9rem; line-height:1.8; }
+.msig-legend > summary { font-weight:800; color:#e6e6e6; cursor:pointer; list-style:none; }
+.msig-legend > summary::-webkit-details-marker { display:none; }
+.msig-legend > summary::before { content:"▸ "; color:#9aa0aa; }
+.msig-legend[open] > summary::before { content:"▾ "; }
+.msig-legend > summary .msig-legend-hint { font-weight:600; color:#9ca3af; }
+.msig-legend[open] > summary .msig-legend-hint { display:none; }
+</style>
+<details class="msig-legend">
+  <summary>표 읽는 법 <span class="msig-legend-hint">(눌러서 펼치기)</span></summary>
+  <div style="margin-top:8px;">
   <b style="color:#e6e6e6;">이 표는 “지금 반등이 시작됐나”를 항목마다 따로 묻는 표입니다.</b>
   값이 올랐는지 내렸는지를 매기는 표가 아닙니다.<br>
   <b style="color:#9ca3af;">반등 신호인가</b> :
@@ -692,7 +704,8 @@ border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:0.9rem;line-hei
   <span style="color:#e6e6e6;">‘스냅숏 부족’</span>은 자료는 오는데 15분 치가 아직 안 쌓인 것(시간이 지나면 채워집니다),
   <span style="color:#e6e6e6;">‘수급 확인 필요’</span>는 증권사에서 못 받아온 것입니다.
   확인 안 된 값을 임의로 지어내지 않는 것이 이 화면의 원칙입니다.
-</div>
+  </div>
+</details>
 """
 
 _SIGNAL_TABLE_CSS = """
