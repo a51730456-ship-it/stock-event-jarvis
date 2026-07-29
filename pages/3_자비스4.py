@@ -364,7 +364,7 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026072910
+_REQUIRED_SIGNAL_UI_REVISION = 2026072911
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -415,10 +415,17 @@ def _sign_class(value) -> str:
 
 
 def _sign_color(value) -> str:
+    """오름(+) 파랑, 내림(−) 붉은색.
+
+    한국 관행은 반대(+빨강 −파랑)라 예전에는 그렇게 칠했는데, 자비스3(미국)은
+    +파랑 −빨강이라 같은 앱에서 색이 정반대였다. 사용자 지시는 +파랑 −빨강이므로
+    한쪽으로 모은다 — 대표종목 5일 수급 -69,244억이 파랑으로 떠서 순매도인지
+    순매수인지 헷갈렸다(2026-07-29 지적).
+    """
     if value is None:
         return "#9aa0aa"
     try:
-        return "#ff5b5b" if float(value) >= 0 else "#4da6ff"
+        return "#4da6ff" if float(value) >= 0 else "#ff5b5b"
     except (TypeError, ValueError):
         return "#9aa0aa"
 
@@ -538,16 +545,19 @@ def _representative_flow_sub(foreign: dict) -> str:
     else:
         as_of = f"기준일 상이({min(known_dates)}~{max(known_dates)})"
     if live:
+        # 종목별 금액도 부호대로 칠한다. 회색 한 줄에 몰아 두면 어느 쪽이
+        # 파는 쪽인지 안 보인다(2026-07-29 지시).
         stock_parts = [
-            f"{stock.get('label') or stock.get('code')} {_eok(stock.get('live_net5_amount'))}"
+            f"{stock.get('label') or stock.get('code')} "
+            f"<span style='color:{_sign_color(stock.get('live_net5_amount'))};font-weight:800'>"
+            f"{_eok(stock.get('live_net5_amount'))}</span>"
             for stock in stocks if stock.get("live_net5_amount") is not None
         ]
         stale = " · 이전 정상 현재가" if foreign.get("live_stale") else ""
         return (
             f"{target}<br>{' · '.join(stock_parts)}"
             f"<br>외국인+기관 {direction}"
-            f"<br><span class='j4-muted'>현재가 1분 자동조회{stale}"
-            f"<br>5일 확정 수급수량 × 현재가 · {as_of}</span>"
+            f"<br><span class='j4-muted'>현재가 1분 자동조회{stale} · {as_of}</span>"
         )
     return (
         f"{target}<br>외국인+기관 {direction}"

@@ -362,10 +362,15 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertNotIn("공포탐욕 41", markdowns)
         self.assertIn("대표종목 5일 수급 (현재가 환산)", top_row)
         self.assertIn("-18,786억", top_row)
-        self.assertIn("삼성전자 -7,500억", top_row)
-        self.assertIn("SK하이닉스 -11,286억", top_row)
+        # 종목별 금액은 부호대로 칠한다. 회색 한 줄에 몰아 두면 어느 쪽이
+        # 파는 쪽인지 안 보인다(2026-07-29 지시).
+        self.assertIn("삼성전자 <span style='color:#ff5b5b", top_row)
+        self.assertIn("-7,500억", top_row)
+        self.assertIn("SK하이닉스 <span style='color:#ff5b5b", top_row)
+        self.assertIn("-11,286억", top_row)
         self.assertIn("현재가 1분 자동조회", top_row)
-        self.assertIn("5일 확정 수급수량 × 현재가", top_row)
+        # '5일 확정 수급수량 × 현재가'는 뺐다(2026-07-29 지시).
+        self.assertNotIn("5일 확정 수급수량", top_row)
         self.assertNotIn("KOSPI 당일 외국인+기관 수급", top_row)
 
     def test_representative_flow_names_only_successful_stock(self):

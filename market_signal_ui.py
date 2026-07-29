@@ -38,7 +38,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026072910
+MODULE_REVISION = 2026072911
 
 
 def _now_seoul():
@@ -57,6 +57,13 @@ _SIGNED_NUMBER = re.compile(r"[+\-][\d,]+(?:\.\d+)?%?")
 # 오름은 파랑, 내림은 빨강. 한국 관행은 반대지만 사용자 지시가 이 색이다.
 _UP_COLOR = "#4da6ff"
 _DOWN_COLOR = "#ff5b5b"
+
+# 값 줄의 기본색. 판정색(초록·노랑·붉은색)을 값에 입히면 종목마다 같은 줄이
+# 다른 색으로 떠서 서로 다른 뜻처럼 보인다 — 삼성전자(부정)는 통째로 붉고
+# SK하이닉스(중립)는 노랬다(2026-07-29 지적: "삼성전자는 왜 저렇게 했냐,
+# 하이닉스처럼 해야지"). 값은 흰색으로 두고 부호 붙은 수만 색을 갈라 준다.
+# 판정색은 칸 테두리와 판정 글자에만 남는다.
+_VALUE_COLOR = "#e6e6e6"
 
 
 # 지수가 이만큼 넘게 빠지면 '하락장'이라고 적는다. 순매수가 사실이어도
@@ -879,7 +886,7 @@ def render_market_signal_card(
                     <div style="border-left:5px solid {color};padding:8px 12px;margin-bottom:8px;
                     background-color:rgba(255,255,255,0.03);border-radius:6px;">
                       <div style="font-size:0.85rem;opacity:0.75;">{label}</div>
-                      <div style="font-size:1.05rem;font-weight:700;color:{color};">
+                      <div style="font-size:1.05rem;font-weight:700;color:{_VALUE_COLOR};">
                         {_colorize_signed(signal.display_value)}
                       </div>
                       <div style="font-size:0.8rem;opacity:0.8;">{signal.reason}</div>
@@ -914,7 +921,7 @@ def render_market_signal_card(
             _rows_html.append(
                 "<tr>"
                 f"<td class='msig-name'>{signal.label}</td>"
-                f"<td style='color:{status_color};font-weight:700'>"
+                f"<td style='color:{_VALUE_COLOR};font-weight:700'>"
                 f"{_colorize_signed(signal.display_value)}</td>"
                 f"<td style='color:{status_color};font-weight:700;white-space:nowrap'>"
                 f"{market_signal_common.STATUS_MARK[signal.status]} {_STATUS_TEXT[signal.status]}"
