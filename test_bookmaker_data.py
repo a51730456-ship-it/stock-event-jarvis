@@ -1,8 +1,19 @@
 import unittest
+from datetime import datetime, timedelta, timezone
 from threading import Barrier
 from unittest.mock import patch, MagicMock
 
 import bookmaker_data as bd
+
+
+def _iso_days_from_now(days):
+    """실행 시각(UTC) 기준 상대 날짜를 ISO 문자열로 만든다.
+
+    픽스처에 고정 날짜를 박아 두면 그 날이 지나는 순간 _is_expired()가
+    '이미 끝난 시장'으로 걸러내 테스트가 저절로 깨진다
+    (2026-07-30 실제 발생: endDate가 2026-07-29로 고정돼 있었다).
+    """
+    return (datetime.now(timezone.utc) + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _response(json_payload, status_code=200):
@@ -96,75 +107,81 @@ class ExpiryTests(unittest.TestCase):
 class PolymarketEventGroupingTests(unittest.TestCase):
     @patch("bookmaker_data.requests.get")
     def test_groups_same_event_and_excludes_zero_volume_and_expired(self, mock_get):
+        # 아직 안 끝난 시장은 '오늘+3일', 이미 끝난 시장은 '오늘-1일'로 만든다.
+        # 날짜를 고정하면 그 날이 지나는 순간 만료 필터에 걸려 테스트가 깨진다.
+        open_end_date = _iso_days_from_now(3)
+        recently_updated = _iso_days_from_now(-1)
         markets = [
             {
                 "question": "Will the Fed decrease interest rates by 25 bps after the July 2026 meeting?",
-                "endDate": "2026-07-29T00:00:00Z",
+                "endDate": open_end_date,
                 "lastTradePrice": 0.006,
                 "volume24hr": 187958.36,
                 "liquidity": 601192.7,
                 "events": [{"id": "287395", "title": "Fed Decision in July?"}],
                 "groupItemTitle": "25 bps decrease",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": recently_updated,
                 "id": "1654957",
             },
             {
                 "question": "Will there be no change in Fed interest rates after the July 2026 meeting?",
-                "endDate": "2026-07-29T00:00:00Z",
+                "endDate": open_end_date,
                 "lastTradePrice": 0.77,
                 "volume24hr": 219424.86,
                 "liquidity": 553073.4,
                 "events": [{"id": "287395", "title": "Fed Decision in July?"}],
                 "groupItemTitle": "No change",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": recently_updated,
                 "id": "1654958",
             },
             {
                 # 같은 사건 안에서도 거래량이 숫자 0인 개별 계약은 제외한다.
                 "question": "Will the Fed increase interest rates after the July 2026 meeting?",
-                "endDate": "2026-07-29T00:00:00Z",
+                "endDate": open_end_date,
                 "lastTradePrice": 0.01,
                 "volume24hr": 0,
                 "liquidity": 100,
                 "events": [{"id": "287395", "title": "Fed Decision in July?"}],
                 "groupItemTitle": "25 bps increase",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": recently_updated,
                 "id": "1654959",
             },
             {
                 # 거래량 0인 유령 이벤트 -> 이벤트 전체가 제외되어야 함
                 "question": "Will a ghost event happen?",
-                "endDate": "2099-01-01T00:00:00Z",
+                "endDate": open_end_date,
                 "lastTradePrice": 0.5,
                 "volume24hr": 0,
                 "liquidity": 0,
                 "events": [{"id": "999999", "title": "Ghost event"}],
                 "groupItemTitle": "Yes",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": recently_updated,
                 "id": "1",
             },
             {
-                # 마감일이 과거인 시장은 이미 끝난 시장이므로 제외되어야 함
-                "question": "Will something already resolved happen?",
-                "endDate": "2020-01-01T00:00:00Z",
+                # 마감일이 과거인 시장은 이미 끝난 시장이므로 제외되어야 함.
+                # 질문에 거시 키워드('fed', 'rate')를 넣어 둔다 — 키워드 필터에서 먼저
+                # 걸러지면 만료 필터를 통과했는지 확인할 수 없다.
+                "question": "Did the Fed already change the interest rate last year?",
+                "endDate": _iso_days_from_now(-1),
                 "lastTradePrice": 0.5,
                 "volume24hr": 5000,
                 "liquidity": 1000,
                 "events": [{"id": "888888", "title": "Resolved event"}],
                 "groupItemTitle": "Yes",
-                "updatedAt": "2020-01-02T00:00:00Z",
+                "updatedAt": _iso_days_from_now(-2),
                 "id": "2",
             },
             {
                 # 거시경제 키워드와 무관 -> 매칭 안 되어야 함
                 "question": "Will the Lakers win the championship?",
-                "endDate": "2099-01-01T00:00:00Z",
+                "endDate": open_end_date,
                 "lastTradePrice": 0.5,
                 "volume24hr": 5000,
                 "liquidity": 1000,
                 "events": [{"id": "777777", "title": "NBA championship"}],
                 "groupItemTitle": "Yes",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": recently_updated,
                 "id": "3",
             },
         ]
