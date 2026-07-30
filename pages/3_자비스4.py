@@ -423,6 +423,11 @@ def _login_gate() -> None:
         return
     st.markdown("## 자비스4 — 한국 테마 레이더")
     st.caption("승인된 사용자만 접근할 수 있습니다. 여기서 바로 로그인할 수 있습니다.")
+    # 빌드 표식을 로그인 **전에** 보여 준다. 클라우드가 옛 빌드를 계속 서빙한 사례가
+    # 있는데(DECISIONS.md 11번), 표식이 로그인 안쪽에만 있으면 확인하려고 매번
+    # 로그인해야 하고 폰·태블릿에서는 확인 자체가 번거롭다. 여기 있으면 눈으로 끝난다.
+    # 비밀은 아니다 — 날짜와 판 번호뿐이다.
+    st.caption(f"🔧 {_SPEED_STAMP} · 계산모듈 {getattr(j4data, 'MODULE_REVISION', '?')}")
     try:
         password = st.secrets.get("APP_PASSWORD")
     except Exception:
