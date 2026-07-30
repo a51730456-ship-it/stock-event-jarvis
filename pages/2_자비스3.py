@@ -279,6 +279,22 @@ st.markdown(
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         max-width: 100%;
     }
+    /* 제목 띠 — 단추가 아니라 제목이다(누를 곳이 아니다). 순위 7 단추(초록)·
+       눌림목 단추(파랑)와 같은 결로 맞춘 보라색. 한국테마와 같은 모양이다. */
+    .j3-band {
+        display: inline-block;
+        border-radius: .5rem;
+        padding: .6rem 1.1rem;
+        margin: .2rem 0 .6rem;
+        color: #ffffff;
+        font-size: 1.02rem;
+        font-weight: 800;
+        letter-spacing: .01em;
+    }
+    .j3-band-purple {
+        background: linear-gradient(90deg, #2a1450 0%, #3d1f74 38%, #7c3aed 100%);
+        box-shadow: 0 2px 10px rgba(124,58,237,.25);
+    }
     /* '지금 할 일' 지침 상자 — 매수 심사 결과 표 바로 위. 테두리 색은
        guidance.py가 판정에 따라 정한다(초록 진입 · 노랑 대기 · 빨강 금지).
        한국테마(j4-guide)와 같은 모양이다. */
@@ -1920,7 +1936,9 @@ def _render_my_stock_panel(market: dict) -> None:
     """
     st.divider()
     st.markdown(
-        "<div class='j3-section-title'>내 종목 현재상황</div>", unsafe_allow_html=True)
+        # 제목을 보라색 그라데이션 띠로 — 순위 7(초록)·눌림목(파랑)과 나란히 구분된다
+        # (2026-07-30 사용자 지시). 여기는 누를 곳이 아니라 제목이므로 단추가 아니다.
+        "<div class='j3-band j3-band-purple'>내 종목 현재상황</div>", unsafe_allow_html=True)
     st.caption(
         "티커나 회사 이름을 치면 비슷한 이름까지 찾아 줍니다. "
         "**한글로 쳐도 됩니다**(엔비디아·애플·테슬라 등). 테마 목록에 없는 종목도 됩니다."
@@ -2243,10 +2261,18 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 한국테마(자비스4)와 같이 버튼을 눌러야 펼쳐진다(2026-07-25 사용자 지시).
     # 페이지를 여는 것만으로 20종목 표가 통째로 쏟아지면 폰에서 화면을 다 먹었다.
     # 제목은 '눌림목 찾기'만, 폭도 글자만큼만 둔다(2026-07-30 사용자 지시).
+    # 열려 있을 때 다시 누르면 접는다(2026-07-30 사용자 지적: 두 번째 클릭이 안 먹었다).
     if st.button("눌림목 찾기", key="j3_pullback_find"):
+        if st.session_state.get("j3_pullback_open"):
+            st.session_state["j3_pullback_open"] = False
+            st.rerun()
+        st.session_state["j3_pullback_open"] = True
         st.session_state.pop("j3_pullback_selected_ticker", None)
         with st.spinner("미국 20개 테마 전체에서 상승추세 조정 종목을 찾는 중입니다…"):
             st.session_state["j3_pullback_result"] = j3data.find_pullback_stocks(reuse_only=True)
+    if not st.session_state.get("j3_pullback_open"):
+        st.caption("단추를 누르면 조회합니다. 열린 뒤 다시 누르면 접힙니다.")
+        return
     result = st.session_state.get("j3_pullback_result")
     if result is None:
         st.info("위 버튼을 누르면 조회합니다. 페이지를 여는 것만으로는 전수 검색하지 않습니다.")

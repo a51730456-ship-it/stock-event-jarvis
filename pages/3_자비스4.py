@@ -279,6 +279,22 @@ st.markdown(
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         max-width: 100%;
     }
+    /* 제목 띠 — 단추가 아니라 제목이다(누를 곳이 아니다). 순위 7 단추(초록)·
+       눌림목 단추(파랑)와 같은 결로 맞춘 보라색(2026-07-30 사용자 지시). */
+    .j4-band {
+        display: inline-block;
+        border-radius: .5rem;
+        padding: .6rem 1.1rem;
+        margin: .2rem 0 .6rem;
+        color: #ffffff;
+        font-size: 1.02rem;
+        font-weight: 800;
+        letter-spacing: .01em;
+    }
+    .j4-band-purple {
+        background: linear-gradient(90deg, #2a1450 0%, #3d1f74 38%, #7c3aed 100%);
+        box-shadow: 0 2px 10px rgba(124,58,237,.25);
+    }
     /* '지금 할 일' 지침 상자 — 매수 심사 결과 표 바로 위. 테두리 색은
        guidance.py가 판정에 따라 정한다(초록 진입 · 노랑 대기 · 빨강 금지). */
     .j4-guide {
@@ -2463,7 +2479,12 @@ def _render_pullback_detail(market: dict) -> None:
 def _render_my_stock_panel(market: dict) -> None:
     """내 종목 현재상황 — 이름을 치면 비슷한 종목이 뜨고, 고르면 상세가 열린다."""
     st.divider()
-    st.markdown("<div class='j4-section-title'>내 종목 현재상황</div>", unsafe_allow_html=True)
+    # 제목을 보라색 그라데이션 띠로 — 순위 7(초록)·눌림목(파랑)과 나란히 구분된다
+    # (2026-07-30 사용자 지시). 여기는 누를 곳이 아니라 제목이므로 단추가 아니다.
+    st.markdown(
+        "<div class='j4-band j4-band-purple'>내 종목 현재상황</div>",
+        unsafe_allow_html=True,
+    )
     st.caption(
         "들고 있는 종목 이름이나 종목코드를 치면 비슷한 이름까지 찾아 줍니다. "
         "테마 목록에 없는 종목도 됩니다."
@@ -2585,7 +2606,12 @@ def _render_pullback_finder() -> None:
         # 제목은 '눌림목 찾기'만, 폭도 글자만큼만 둔다(2026-07-30 사용자 지시).
         "눌림목 찾기", key="j4_pullback_find"
     )
+    # 열려 있을 때 다시 누르면 접는다(2026-07-30 사용자 지적: 두 번째 클릭이 안 먹었다).
+    if run_requested and st.session_state.get("j4_pullback_open"):
+        st.session_state["j4_pullback_open"] = False
+        st.rerun()
     if run_requested:
+        st.session_state["j4_pullback_open"] = True
         j4data.clear_pullback_cache()
         # 이전 검색에서 고른 종목 자료는 여기서 버린다 — 새 결과와 섞이면 옛 점수가 남는다.
         st.session_state.pop("j4_pullback_pick", None)
@@ -2607,6 +2633,9 @@ def _render_pullback_finder() -> None:
             st.session_state["j4_pullback_pick_row"] = top_row
             st.rerun()
 
+    if not st.session_state.get("j4_pullback_open"):
+        st.caption("단추를 누르면 조회합니다. 열린 뒤 다시 누르면 접힙니다.")
+        return
     result = st.session_state.get("j4_pullback_result")
     if result is None:
         st.info("위 버튼을 누르면 조회합니다. 페이지를 여는 것만으로는 전수 검색하지 않습니다.")

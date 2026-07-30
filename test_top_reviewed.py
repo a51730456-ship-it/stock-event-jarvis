@@ -195,6 +195,30 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn(f'"{prefix}_top7_open"', block, f"{market}에 접었다 펴는 장치가 없다")
             self.assertIn("if is_open:", block, f"{market}가 다시 눌러도 안 접힌다")
 
+    def test_pullback_also_toggles(self):
+        """눌림목 찾기도 두 번째 클릭에 접혀야 한다(2026-07-30 사용자 지적)."""
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            block = source.split("def _render_pullback_finder(")[1].split("\ndef ")[0]
+            self.assertIn(f'"{prefix}_pullback_open"', block,
+                          f"{market} 눌림목이 다시 눌러도 안 접힌다")
+
+    def test_my_stock_heading_is_a_purple_band(self):
+        """'내 종목 현재상황' 제목은 보라색 띠(2026-07-30 사용자 지시). 단추는 아니다."""
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            self.assertIn(f"{prefix}-band {{", source, f"{market}에 띠 CSS가 없다")
+            self.assertIn(f"{prefix}-band-purple {{", source)
+            self.assertIn("#7c3aed", source, f"{market} 띠가 보라색이 아니다")
+            self.assertIn(f"'{prefix}-band {prefix}-band-purple'>내 종목 현재상황", source,
+                          f"{market} 제목에 띠가 안 붙었다")
+            # 누를 곳이 아니다 — 단추로 만들면 안 된다.
+            self.assertNotIn('st.button("내 종목 현재상황"', source)
+
     def test_themes_are_fetched_in_parallel(self):
         """로딩이 너무 길다는 지적(2026-07-30) — 테마를 한꺼번에 돌린다."""
         import pathlib
