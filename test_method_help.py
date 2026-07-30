@@ -31,6 +31,48 @@ class ButtonTests(unittest.TestCase):
         self.assertIn("st-key-jarvis_method_help", mobile_ui.CONTENT_CSS)
 
 
+class PanelTests(unittest.TestCase):
+    """2026-07-30 사용자 지시 — 색 구분, 그리고 굴려도 따라오는 절반 크기 창."""
+
+    def test_colors_are_split_three_ways(self):
+        css = method_help.BUTTON_CSS
+        # 큰 제목 초록 · 번호 항목 파랑 · 강조 붉은색.
+        self.assertIn("--j-title", css)
+        self.assertIn("--j-step", css)
+        self.assertIn("--j-mark", css)
+        self.assertIn('[data-testid="stPopoverBody"] h3 { color: var(--j-title)', css)
+        self.assertIn('[data-testid="stPopoverBody"] h5 { color: var(--j-step)', css)
+        self.assertIn('[data-testid="stPopoverBody"] strong { color: var(--j-mark)', css)
+        # 앱에 테마 파일이 없어 보는 사람의 밝기 설정을 따라간다 — 두 벌 다 있어야 한다.
+        self.assertIn("prefers-color-scheme: dark", css)
+
+    def test_panel_is_pinned_and_half_height(self):
+        css = method_help.BUTTON_CSS
+        # floating-ui의 inline transform을 지우지 않으면 단추를 따라 흘러간다.
+        self.assertIn("transform: none !important", css)
+        self.assertIn("position: fixed !important", css)
+        self.assertIn("height: 50vh !important", css)
+        self.assertIn("overflow-y: auto !important", css)
+
+    def test_step_headings_are_h5_and_others_h3(self):
+        """색이 h3/h5로 갈리므로 제목 단계가 흐트러지면 색이 엉킨다."""
+        import re
+
+        for text in (method_help.US_TEXT, method_help.KR_TEXT):
+            for line in text.split("\n"):
+                if line.startswith("#####"):
+                    self.assertRegex(
+                        line, r"^##### [①②③④⑤⑥]", f"h5는 번호 항목만이어야 한다: {line}"
+                    )
+                elif line.startswith("#"):
+                    self.assertTrue(
+                        line.startswith("### ") and not line.startswith("#### "),
+                        f"번호 항목 말고는 전부 h3여야 한다: {line}",
+                    )
+            # 단계 제목이 실제로 h5로 붙어 있어야 한다.
+            self.assertTrue(re.search(r"^##### ①", text, re.M))
+
+
 class TextTests(unittest.TestCase):
     def test_both_markets_have_their_own_text(self):
         self.assertNotEqual(method_help.US_TEXT, method_help.KR_TEXT)
@@ -136,6 +178,71 @@ class TextTests(unittest.TestCase):
         for text in (method_help.US_TEXT, method_help.KR_TEXT):
             self.assertIn("아직 검증된 값이 아닙니다", text)
             self.assertIn("30건", text)
+
+    def test_summary_comes_first(self):
+        """2026-07-30 사용자 지시 — 핵심을 맨 앞에 짧게.
+
+        무슨 기법인지 · 몇 년치 어떻게 검토했는지 · 언제 사고 · 어디에 적고 ·
+        언제 파는지가 첫 화면에 다 있어야 한다.
+        """
+        for text in (method_help.US_TEXT, method_help.KR_TEXT):
+            head = text.lstrip()
+            self.assertTrue(
+                head.startswith("### 한눈에 — 이게 무슨 기법인가"),
+                "요약이 맨 앞에 없다",
+            )
+            summary = head.split("### 이 화면은 무엇을 하는 곳인가")[0]
+            for key in ("무슨 기법", "어디서 왔나", "얼마나 검토", "언제 사나",
+                        "어디에 적나", "언제 파나"):
+                self.assertIn(key, summary, f"요약에 '{key}' 줄이 없다")
+            # 파는 때가 없다는 사실은 요약에서부터 밝힌다.
+            self.assertIn("아직 없습니다", summary)
+
+    def test_korea_summary_says_it_fits_worse_and_what_was_added(self):
+        """한국은 덜 맞는다는 것과, 그래서 무엇을 보강했는지가 요약에 있어야 한다."""
+        summary = method_help.KR_TEXT.split("### 이 화면은 무엇을 하는 곳인가")[0]
+        self.assertIn("미국만큼 듣지 않았습니다", summary)
+        self.assertIn("2.9%", summary)
+        self.assertIn("3.6%", summary)
+        self.assertIn("보강했습니다", summary)
+        self.assertIn("수급을 종목 점수 100점 중 20점", summary)
+        # 미국 요약에는 이 이야기가 없어야 한다(두 화면이 같은 말을 하면 안 된다).
+        us_summary = method_help.US_TEXT.split("### 이 화면은 무엇을 하는 곳인가")[0]
+        self.assertNotIn("보강했습니다", us_summary)
+        self.assertIn("이 안전장치가 잘 듣습니다", us_summary)
+
+    def test_it_names_where_the_method_came_from(self):
+        """2026-07-30 사용자 지시 — 이 기법의 근원을 밝힐 것.
+
+        조사 원본은 docs/METHOD_ORIGINS.md. 논문 이름을 빼면 근거 없는 계보가 된다.
+        """
+        for text in (method_help.US_TEXT, method_help.KR_TEXT):
+            self.assertIn("이 방법은 어디서 왔나", text)
+            for name in ("Moskowitz & Grinblatt (1999)", "George & Hwang (2004)", "Weinstein"):
+                self.assertIn(name, text, f"{name}가 빠졌다")
+            # 한 편의 논문에서 나온 것이 아니라는 사실을 분명히 한다.
+            self.assertIn("한 편의 논문에서 나온 기법이 아닙니다", text)
+
+    def test_it_admits_there_is_no_sell_signal(self):
+        """매도 시점 — 지금 앱에 없다는 사실을 감추지 않는다."""
+        for text in (method_help.US_TEXT, method_help.KR_TEXT):
+            self.assertIn("언제 팔 것인가", text)
+            self.assertIn("파는 때를 알려주지 않습니다", text)
+            # Han·Zhou·Zhu의 −10% 손절 결과. 논문 값은 −49.79% → −11.36%이고
+            # 화면에는 반올림해 적는다.
+            self.assertIn("−49.8% → −11.4%", text)
+            self.assertIn("Han·Zhou·Zhu", text)
+            # 남의 자료로 잰 값이라는 것을 반드시 붙인다.
+            self.assertIn("남의 자료로 잰 값입니다", text)
+
+    def test_origins_doc_exists_and_lists_sources(self):
+        import pathlib
+
+        doc = pathlib.Path("docs/METHOD_ORIGINS.md")
+        self.assertTrue(doc.exists(), "조사 원본 문서가 없다")
+        body = doc.read_text(encoding="utf-8")
+        for token in ("Do Industries Explain Momentum", "52-Week High", "Taming Momentum Crashes"):
+            self.assertIn(token, body)
 
     def test_it_explains_every_price_box(self):
         """'매수 심사 결과' 네 칸이 각각 무슨 뜻인지 다 적어야 한다."""
