@@ -66,7 +66,10 @@ MODULE_REVISION = 2026073010
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
-_HTTP_LOCAL = threading.local()
+_HTTP_LOCK = threading.Lock()
+_HTTP_SESSION: "requests.Session | None" = None
+# 한꺼번에 열어 둘 연결 수. 테마 6갈래 × 종목 8갈래 = 최대 48이라 그보다 넉넉히 둔다.
+_HTTP_POOL_SIZE = 64
 
 
 # ---------------------------------------------------------------------------
@@ -128,13 +131,33 @@ def _cached(key, ttl_seconds, producer):
 
 
 def _http_session() -> requests.Session:
-    """워커별 연결 풀을 재사용해 반복 HTTPS 핸드셰이크를 줄인다."""
-    session = getattr(_HTTP_LOCAL, "session", None)
-    if session is None:
-        session = requests.Session()
-        session.headers.update(_HEADERS)
-        _HTTP_LOCAL.session = session
-    return session
+    """모든 워커가 함께 쓰는 연결 하나. HTTPS 악수를 한 번만 한다.
+
+    2026-07-30 실측 — 워커 스레드마다 세션을 따로 두던 방식은 '매수심사결과 높은
+    순위 7' 한 번에 **새 세션 114개**를 만들었다. 테마마다 ThreadPoolExecutor를
+    새로 만들어 스레드가 매번 죽고, 스레드에 딸린 세션도 같이 죽기 때문이다.
+    세션 하나당 TLS 악수 한 번이라, 지연이 큰 회선(클라우드→네이버)에서는
+    그 악수가 그대로 대기 시간이 된다(사용자 실측 15초).
+
+    연결을 함께 쓰면 악수는 한 번이고, 그 뒤로는 이미 열린 연결을 돌려 쓴다.
+    requests의 연결 풀은 여러 스레드가 같이 써도 안전하다. 다만 기본 풀이
+    호스트당 10개라 그대로 두면 워커가 줄을 서므로 넉넉히 늘린다.
+    """
+    global _HTTP_SESSION
+    session = _HTTP_SESSION
+    if session is not None:
+        return session
+    with _HTTP_LOCK:
+        if _HTTP_SESSION is None:
+            session = requests.Session()
+            session.headers.update(_HEADERS)
+            adapter = requests.adapters.HTTPAdapter(
+                pool_connections=8, pool_maxsize=_HTTP_POOL_SIZE, max_retries=0
+            )
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
+            _HTTP_SESSION = session
+    return _HTTP_SESSION
 
 
 def _get_text(url: str, *, timeout: float = 8, retries: int = 2) -> str:
@@ -1839,8 +1862,15 @@ def _leaders_failure(stocks: list) -> dict:
     }
 
 
-def get_theme_leaders(theme_row: dict, market_score: float = 0, theme_score: float = 0) -> dict:
-    """선택한 테마의 대장주 순위. 거래대금 상위 종목만 심사한다."""
+def get_theme_leaders(theme_row: dict, market_score: float = 0, theme_score: float = 0,
+                      stock_limit: int | None = None) -> dict:
+    """선택한 테마의 대장주 순위. 거래대금 상위 종목만 심사한다.
+
+    stock_limit — 몇 종목까지 심사할지. 기본은 THEME_STOCK_LIMIT(8)이다.
+    '매수심사결과 높은 순위 7'은 테마 20개를 한꺼번에 돌아 종목 수가 8배로 불어나므로
+    더 적은 수를 넘겨 받는다(2026-07-30 사용자 지적: 15초는 너무 느리다).
+    """
+    limit = int(stock_limit or THEME_STOCK_LIMIT)
     stocks = theme_row.get("stocks") or []
     if not stocks:
         detail = get_theme_stocks(theme_row.get("no"))
@@ -1852,9 +1882,9 @@ def get_theme_leaders(theme_row: dict, market_score: float = 0, theme_score: flo
         [s for s in stocks if s.get("trading_value")],
         key=lambda s: s["trading_value"],
         reverse=True,
-    )[:THEME_STOCK_LIMIT]
+    )[:limit]
     if not ranked_by_value:
-        ranked_by_value = stocks[:THEME_STOCK_LIMIT]
+        ranked_by_value = stocks[:limit]
 
     # 테마 20일 수익률 = 구성종목 20일 수익률의 중앙값(테마 ETF가 없는 국내 사정).
     theme_ret20 = None
@@ -1909,6 +1939,15 @@ def get_theme_leaders(theme_row: dict, market_score: float = 0, theme_score: flo
 
 TOP_REVIEW_LIMIT = 7
 
+# 순위 7을 뽑을 때 테마마다 몇 종목까지 볼지.
+# 3으로 줄여 봤더니 1.0초 빨라지는 대신 상위 7 중 2개가 바뀌었다
+# (2026-07-30 실측: 코리안리·오리온이 빠지고 현대해상·S-Oil이 들어왔다).
+# 속도는 연결 재사용으로 잡는 쪽이 낫다고 보고 정확도를 지킨다 — 기본값 그대로 8이다.
+TOP_REVIEW_STOCKS_PER_THEME = THEME_STOCK_LIMIT
+
+# 결과를 따로 캐시하지는 않는다 — 일봉·수급이 이미 300초 캐시라 다시 누르면
+# 그물망 조회가 거의 다 걸린다(2026-07-30 실측: 두 번째 누름 0.2초).
+
 
 def _keep_better(picked: dict, row: dict, *, source: str) -> None:
     """같은 종목이 여러 테마에 겹치면 점수가 높은 쪽만 남긴다."""
@@ -1956,7 +1995,7 @@ def find_top_reviewed_stocks(
 
     # 테마를 하나씩 돌면 20개에 한참 걸린다(2026-07-30 사용자 지적: 로딩이 너무 길다).
     # 테마끼리는 서로를 안 기다리므로 한꺼번에 돌린다. 안쪽 종목 조회도 이미 병렬이라
-    # 너무 많이 벌리면 네이버 쪽이 막으므로 4갈래로만 나눈다.
+    # 너무 많이 벌리면 네이버 쪽이 막으므로 6갈래로만 나눈다.
     def _one(theme_row):
         # 예외는 여기서 잡아 테마 이름과 함께 돌려준다 — 밖에서 잡으면 어느 테마가
         # 실패했는지 알 수 없다.
@@ -1966,13 +2005,14 @@ def find_top_reviewed_stocks(
                 theme_row,
                 market_score=market_score,
                 theme_score=float(theme_row.get("score") or 0),
+                stock_limit=TOP_REVIEW_STOCKS_PER_THEME,
             )
         except Exception as exc:
             return name, {"ok": False, "error": str(exc), "rows": []}
 
     themes = list(theme_rows or [])
     if themes:
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=6) as executor:
             for future in [executor.submit(_one, row) for row in themes]:
                 name, result = future.result()
                 if not result.get("ok"):

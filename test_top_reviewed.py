@@ -40,7 +40,7 @@ class KoreaTests(unittest.TestCase):
     def test_ranks_by_stock_score_only_and_caps_at_seven(self):
         themes = [{"name": f"테마{i}", "score": 50 + i} for i in range(4)]
 
-        def fake_leaders(theme_row, market_score=0, theme_score=0):
+        def fake_leaders(theme_row, market_score=0, theme_score=0, stock_limit=None):
             index = int(str(theme_row["name"])[-1])
             return {"ok": True, "rows": [
                 _kr_leader(f"{index}0000{n}", f"종목{index}{n}", 90 - index * 10 - n)
@@ -60,7 +60,7 @@ class KoreaTests(unittest.TestCase):
     def test_same_stock_in_two_themes_is_kept_once_with_the_better_score(self):
         themes = [{"name": "가", "score": 80}, {"name": "나", "score": 70}]
 
-        def fake_leaders(theme_row, market_score=0, theme_score=0):
+        def fake_leaders(theme_row, market_score=0, theme_score=0, stock_limit=None):
             score = 88.0 if theme_row["name"] == "가" else 61.0
             return {"ok": True, "rows": [_kr_leader("005930", "삼성전자", score)]}
 
@@ -74,7 +74,7 @@ class KoreaTests(unittest.TestCase):
     def test_one_broken_theme_does_not_lose_the_others(self):
         themes = [{"name": "성한테마", "score": 80}, {"name": "고장테마", "score": 70}]
 
-        def fake_leaders(theme_row, market_score=0, theme_score=0):
+        def fake_leaders(theme_row, market_score=0, theme_score=0, stock_limit=None):
             if theme_row["name"] == "고장테마":
                 raise RuntimeError("네이버 응답 없음")
             return {"ok": True, "rows": [_kr_leader("000660", "SK하이닉스", 77.0)]}
@@ -271,6 +271,39 @@ class PageWiringTests(unittest.TestCase):
             source = pathlib.Path(path).read_text(encoding="utf-8")
             self.assertIn('"find_top_reviewed_stocks"', source,
                           f"{market} 모듈 리로드 가드에 새 함수가 없다")
+
+
+class HttpSessionTests(unittest.TestCase):
+    """느린 원인이었던 HTTPS 악수 (2026-07-30 사용자 실측: 순위 7이 15초).
+
+    워커 스레드마다 세션을 따로 두면 테마마다 스레드가 죽고 살아나며 세션도 새로
+    만들어져, 한 번 훑는 데 새 세션이 114개 생겼다. 지연이 큰 회선에서는 그 악수가
+    그대로 대기 시간이 된다. 연결을 함께 쓰도록 되돌아가면 이 테스트가 깨진다.
+    """
+
+    def test_the_session_is_shared_not_per_thread(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        first = j4._http_session()
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            others = list(executor.map(lambda _: j4._http_session(), range(16)))
+        for session in others:
+            self.assertIs(first, session, "스레드마다 세션이 따로 만들어진다")
+
+    def test_the_pool_is_big_enough_for_the_workers(self):
+        import pathlib
+        import re
+
+        source = pathlib.Path("jarvis4_data.py").read_text(encoding="utf-8")
+        self.assertIn("pool_maxsize=_HTTP_POOL_SIZE", source)
+        # 테마 6갈래 × 종목 8갈래 = 48. 풀이 그보다 작으면 워커가 줄을 선다.
+        self.assertGreaterEqual(j4._HTTP_POOL_SIZE, 48)
+        block = source.split("def find_top_reviewed_stocks(")[1].split("\ndef ")[0]
+        workers = int(re.search(r"max_workers=(\d+)", block).group(1))
+        self.assertLessEqual(workers * 8, j4._HTTP_POOL_SIZE)
+
+    def test_thread_local_session_is_gone(self):
+        self.assertFalse(hasattr(j4, "_HTTP_LOCAL"), "옛 스레드별 세션이 남아 있다")
 
 
 class UnitedStatesTests(unittest.TestCase):
