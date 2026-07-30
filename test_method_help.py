@@ -32,14 +32,19 @@ class ButtonTests(unittest.TestCase):
         """CLAUDE.md 12번 — 폰 규칙은 mobile_ui.py 폰 묶음 안에만 둔다."""
         self.assertNotIn("max-width: 600px", method_help.BUTTON_CSS)
 
-    def test_button_drops_two_lines_on_phone_and_tablet(self):
-        """2026-07-30 사용자 지시 — 스마트폰과 태블릿에서 두 줄 밑으로.
+    def test_top_gap_is_only_as_tall_as_the_toolbar(self):
+        """2026-07-30 사용자 지적 — 위 여백이 너무 많다, 전체를 위로 올려라.
 
-        폰 묶음(600px)이 아니라 태블릿까지 걸리는 묶음(1200px)에 있어야 한다.
+        실측(폰 412px · PC 1280px) — 스트림릿 기본 여백 96px, 도구막대 60px.
+        64px로 줄이면 본문이 도구막대 바로 밑에서 시작하고(단추 top 179→98,
+        제목 238→156), 도구막대는 그대로 눌러 화면을 어둡게 바꿀 수 있다.
+        더 줄이면 단추가 도구막대를 덮어 ⋮ 메뉴를 못 누른다.
         """
-        self.assertIn("st-key-jarvis_method_help", mobile_ui.TOP_ROW_CSS)
-        self.assertIn("margin-top: 3.2rem !important", mobile_ui.TOP_ROW_CSS)
-        self.assertEqual(1200, mobile_ui.SIDEBAR_MAX_WIDTH)
+        css = method_help.BUTTON_CSS
+        self.assertIn('[data-testid="stMainBlockContainer"],', css)
+        self.assertIn("padding-top: 4rem !important", css)
+        # 폰 전용이 아니라 모든 화면에 걸리는 규칙이다 — 폰 묶음에 있으면 안 된다.
+        self.assertNotIn("st-key-jarvis_method_help", mobile_ui.TOP_ROW_CSS)
 
 
 class PanelTests(unittest.TestCase):
