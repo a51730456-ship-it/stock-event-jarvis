@@ -188,7 +188,8 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("j3-theme-table" in value for value in markdowns))
         self.assertTrue(any("52주 고가 대비" in value for value in markdowns))
         self.assertTrue(any("테마 종목 1–6위" in str(node.value) for node in app.markdown))
-        self.assertTrue(any("일봉/주봉/월봉 한눈에 보기" in str(node.value) for node in app.markdown))
+        # 일봉·주봉·월봉은 눌러야 받아 온다(2026-07-30) — 여는 단추가 있어야 한다.
+        self.assertTrue(any("일봉 · 주봉 · 월봉 보기" in str(node.label) for node in app.button))
         self.assertTrue(any("j3-pull-table" in value for value in markdowns))
         self.assertTrue(any("NVIDIA" in str(node.label) for node in app.button))
         self.assertTrue(any("j3-down" in value for value in markdowns))
@@ -484,8 +485,15 @@ class Jarvis3PageTests(unittest.TestCase):
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.run(timeout=60)
+            # 매수 기록은 눌러야 열린다(2026-07-30 사용자 지시). 열기 전에는
+            # 그 안의 '상세 종목 선택'(복제)도 없다.
             stock_radios = [node for node in app.radio if str(node.label) == "상세 종목 선택"]
-            self.assertEqual(len(stock_radios), 2, "위·아래 두 곳에 상세 종목 선택이 있어야 합니다")
+            self.assertEqual(len(stock_radios), 1, "열기 전에는 상세 종목 선택이 하나여야 합니다")
+            opener = [node for node in app.button if "실제 매수기록 저장" in str(node.label)]
+            self.assertTrue(opener, "매수기록 여는 단추가 없습니다")
+            opener[0].click().run(timeout=60)
+            stock_radios = [node for node in app.radio if str(node.label) == "상세 종목 선택"]
+            self.assertEqual(len(stock_radios), 2, "열고 나면 위·아래 두 곳에 있어야 합니다")
             stock_radios[1].set_value("AVGO").run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)

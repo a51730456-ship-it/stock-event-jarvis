@@ -1781,47 +1781,57 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
 
     # 당일 차트 — 테마 대장주 상세에는 있는데 눌림목 상세에만 없었다(2026-07-25
     # 사용자 지적, 미국테마와 같은 처리). 대장주와 같은 자료·같은 차트를 쓴다.
-    st.markdown("<div class='j4-chart-heading'>당일 · 실시간(지연 가능)</div>", unsafe_allow_html=True)
+    # 차트는 눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축).
+    # 늘 그리면 종목을 고를 때마다 분봉·일봉·주봉·월봉을 다 받아 와 느려진다.
+    show_intraday = _section_toggle(
+        "📈 당일 · 실시간 차트 보기", f"j4_intraday_open_{panel}_{code}",
+        close_label="당일 차트 닫기",
+    )
     intraday_error = ""
-    try:
-        intraday_payload = j4data.get_intraday_chart(code)
-    except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
-        intraday_payload = None
-        intraday_error = _safe_error_text(exc)
+    intraday_payload = None
+    if show_intraday:
+        try:
+            intraday_payload = j4data.get_intraday_chart(code)
+        except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
+            intraday_error = _safe_error_text(exc)
     # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
     # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 아래와 같은 3분할의
     # 첫 칸에만 그린다 — 폭이 같아지고 높이를 INTRADAY_CHART_HEIGHT로 맞춘다.
-    intraday_col, _, _ = st.columns(3)
-    with intraday_col:
-        if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-            st.altair_chart(
-                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
-                width="stretch", theme="streamlit",
-            )
-            st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-        elif intraday_error:
-            st.info(f"당일 자료 없음 — {intraday_error}")
-        else:
-            st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
+    if show_intraday:
+        intraday_col, _, _ = st.columns(3)
+        with intraday_col:
+            if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+                st.altair_chart(
+                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
+                    width="stretch", theme="streamlit",
+                )
+                st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+            elif intraday_error:
+                st.info(f"당일 자료 없음 — {intraday_error}")
+            else:
+                st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
 
-    st.markdown("<div class='j4-chart-heading'>가격 차트 · 일봉/주봉/월봉 한눈에 보기</div>", unsafe_allow_html=True)
-    st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
-    chart_bundle = j4data.get_chart_bundle(code)
-    if chart_bundle.get("ok"):
-        daily_col, weekly_col, monthly_col = st.columns(3)
-        for timeframe, chart_column in (("일봉", daily_col), ("주봉", weekly_col), ("월봉", monthly_col)):
-            payload = chart_bundle["charts"].get(timeframe, {})
-            with chart_column:
-                st.markdown(f"<div class='j4-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
-                if payload.get("ok"):
-                    st.altair_chart(
-                        _price_chart(payload, include_volume=timeframe == "일봉"),
-                        width="stretch", theme="streamlit",
-                    )
-                else:
-                    st.warning(f"{timeframe} 자료 없음")
-    else:
-        st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
+    if _section_toggle(
+        "📊 일봉 · 주봉 · 월봉 보기", f"j4_bundle_open_{panel}_{code}",
+        close_label="일봉·주봉·월봉 닫기",
+    ):
+        st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
+        chart_bundle = j4data.get_chart_bundle(code)
+        if chart_bundle.get("ok"):
+            daily_col, weekly_col, monthly_col = st.columns(3)
+            for timeframe, chart_column in (("일봉", daily_col), ("주봉", weekly_col), ("월봉", monthly_col)):
+                payload = chart_bundle["charts"].get(timeframe, {})
+                with chart_column:
+                    st.markdown(f"<div class='j4-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
+                    if payload.get("ok"):
+                        st.altair_chart(
+                            _price_chart(payload, include_volume=timeframe == "일봉"),
+                            width="stretch", theme="streamlit",
+                        )
+                    else:
+                        st.warning(f"{timeframe} 자료 없음")
+        else:
+            st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
 
     st.markdown("<div class='j4-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
     reason_cards = [
@@ -2010,11 +2020,31 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
             st.success(f"{saved_count}건 청산을 저장했습니다. 위 오류 항목은 저장되지 않았습니다.")
 
 
+def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
+    """눌러야 열리는 구역. 열려 있으면 닫는 단추를 보여준다(2026-07-30 사용자 지시).
+
+    st.expander는 접혀 있어도 안을 다 그린다 — 시세·차트를 미리 받아 오므로
+    여는 시간이 안 줄어든다. 그래서 아예 그리지 않는 방식으로 둔다.
+    """
+    is_open = bool(st.session_state.get(key))
+    if st.button(("✕ " + (close_label or label)) if is_open else label, key=f"btn_{key}"):
+        st.session_state[key] = not is_open
+        is_open = not is_open
+    return is_open
+
+
 def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
                      stock_key: str, *, panel: str = "theme") -> None:
     code = leader["code"]
     metrics, plan, flow = leader["metrics"], leader["plan"], leader["flow"]
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+    # 매수 기록은 눌러야 열린다 — 늘 펴 두면 화면이 길고 기록 조회도 매번 돈다
+    # (2026-07-30 사용자 지시). 상세가 여러 벌 그려지므로 열림 여부도 패널별로 나눈다.
+    if not _section_toggle(
+        "💾 실제 매수기록 저장하시겠습니까?", f"j4_buyform_open_{panel}_{code}",
+        close_label="매수기록 닫기",
+    ):
+        return
 
     # 상세 종목 선택(복제)은 '실제 매수 기록' 제목 위에 둔다(자비스3와 같은 배치).
     code_options = [item["code"] for item in top_candidates]
@@ -2351,24 +2381,26 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     is_open = bool(st.session_state.get("j4_top7_open"))
     if st.button("매수심사결과 높은 순위 7", key="j4_top7_find"):
         if is_open:
+            # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다
+            # (2026-07-30 사용자 실측: 닫는 데 5초). 값만 바꾸고 아래에서 빠져나간다.
             st.session_state["j4_top7_open"] = False
-            st.rerun()
-        st.session_state.pop("j4_top7_pick_row", None)
-        with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
-            found = j4data.find_top_reviewed_stocks(
-                ranking.get("rows") or [],
-                market_score=float(market.get("score") or 0),
-                extra_rows=pull_rows,
-            )
-        st.session_state["j4_top7_result"] = found
-        st.session_state["j4_top7_open"] = True
-        first = (found.get("rows") or [None])[0]
-        if first:
-            st.session_state["j4_top7_pick_row"] = first
+            st.session_state.pop("j4_top7_pick_row", None)
+        else:
+            with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
+                found = j4data.find_top_reviewed_stocks(
+                    ranking.get("rows") or [],
+                    market_score=float(market.get("score") or 0),
+                    extra_rows=pull_rows,
+                )
+            st.session_state["j4_top7_result"] = found
+            st.session_state["j4_top7_open"] = True
+            # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
+            # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30). 표에서 종목을
+            # 누를 때만 받는다.
+            st.session_state.pop("j4_top7_pick_row", None)
         # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
         # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
-        # 그대로 쓰인다. rerun을 부르면 시세·차트까지 통째로 한 번 더 그려
-        # 기다리는 시간이 두 배가 된다(2026-07-30 사용자 지적: 로딩이 너무 길다).
+        # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
 
     if not st.session_state.get("j4_top7_open"):
         st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
@@ -2610,9 +2642,13 @@ def _render_pullback_finder() -> None:
         "눌림목 찾기", key="j4_pullback_find"
     )
     # 열려 있을 때 다시 누르면 접는다(2026-07-30 사용자 지적: 두 번째 클릭이 안 먹었다).
+    # 닫을 때는 조회도 rerun도 하지 않는다 — 둘 다 하면 닫는 데만 시간이 걸린다
+    # (2026-07-30 사용자 실측: 닫는 데 1.5초).
     if run_requested and st.session_state.get("j4_pullback_open"):
         st.session_state["j4_pullback_open"] = False
-        st.rerun()
+        st.session_state.pop("j4_pullback_pick", None)
+        st.session_state.pop("j4_pullback_pick_row", None)
+        run_requested = False
     if run_requested:
         st.session_state["j4_pullback_open"] = True
         j4data.clear_pullback_cache()
@@ -2623,10 +2659,10 @@ def _render_pullback_finder() -> None:
             found = j4data.find_pullback_stocks()
         st.session_state["j4_pullback_result"] = found
         # 조회하자마자 1순위 종목 상세가 아래에 펼쳐지게 한다 — 누르지 않아도 된다
-        # (2026-07-24 사용자 지시). 위젯이 만들어지기 전에 반영해야 하므로 rerun한다.
-        # 1순위 종목을 아래 눌림목 상세에 바로 펼친다. 테마 목록과 테마 선택은
-        # 더 이상 건드리지 않는다 — 눌림목 상세가 제 자리를 갖게 됐기 때문이다
-        # (2026-07-29: 위 테마 상세와 아래 눌림목 상세를 따로 본다).
+        # (2026-07-24 사용자 지시). 그 지시는 그대로 두되, rerun은 뺐다 —
+        # 눌림목 상세는 이 함수 다음에 그려지므로 지금 넣은 값이 그대로 쓰인다.
+        # rerun을 부르면 화면을 통째로 한 번 더 그려 여는 시간이 두 배가 된다
+        # (2026-07-30 사용자 실측: 여는 데 7초).
         top_row = (found.get("rows") or [None])[0] if found.get("ok") else None
         if top_row:
             top_themes = top_row.get("themes") or []
@@ -2634,7 +2670,6 @@ def _render_pullback_finder() -> None:
                 (top_themes[0] if top_themes else ""), top_row["code"]
             )
             st.session_state["j4_pullback_pick_row"] = top_row
-            st.rerun()
 
     if not st.session_state.get("j4_pullback_open"):
         st.caption("단추를 누르면 조회합니다. 열린 뒤 다시 누르면 접힙니다.")

@@ -219,6 +219,34 @@ class PageWiringTests(unittest.TestCase):
         self.assertIn(":not(:has(", rule)
         self.assertNotIn("j4-th-head", rule)
 
+    def test_closing_does_no_work(self):
+        """닫는 데 5초가 걸렸다(2026-07-30 사용자 실측).
+
+        닫을 때 조회를 돌리거나 st.rerun()을 부르면 화면을 통째로 다시 그린다.
+        닫기는 값만 바꾸고 끝나야 한다.
+        """
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
+            close = block.split("if is_open:")[1].split("else:")[0]
+            self.assertNotIn("st.rerun()", close, f"{market}가 닫을 때 다시 그린다")
+            self.assertNotIn("find_top_reviewed_stocks", close,
+                             f"{market}가 닫을 때도 조회한다")
+            # 조회는 '여는 쪽'에만 있어야 한다.
+            self.assertIn("find_top_reviewed_stocks", block.split("else:")[1][:600])
+
+    def test_opening_does_not_preload_a_stock_detail(self):
+        """1위 상세를 미리 펴면 분봉·일봉·주봉·월봉을 다 받아 오느라 느려진다."""
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
+            self.assertNotIn(f'st.session_state["{prefix}_top7_pick_row"] = first', block,
+                             f"{market}가 1위 상세를 미리 편다")
+
     def test_pullback_also_toggles(self):
         """눌림목 찾기도 두 번째 클릭에 접혀야 한다(2026-07-30 사용자 지적)."""
         import pathlib

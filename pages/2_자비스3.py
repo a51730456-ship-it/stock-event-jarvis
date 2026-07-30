@@ -995,12 +995,17 @@ def _render_day_price_row(metrics: dict) -> None:
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
 
-def _render_price_chart_bundle(ticker: str) -> None:
-    """선택 종목의 일봉·주봉·월봉을 한 번의 10년 일봉 조회로 그린다."""
-    st.markdown(
-        "<div class='j3-chart-heading'>가격 차트 · 일봉/주봉/월봉 한눈에 보기</div>",
-        unsafe_allow_html=True,
-    )
+def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
+    """선택 종목의 일봉·주봉·월봉을 한 번의 10년 일봉 조회로 그린다.
+
+    눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축) — 늘 그리면 종목을 고를
+    때마다 10년치를 받아 와 느려진다.
+    """
+    if not _section_toggle(
+        "📊 일봉 · 주봉 · 월봉 보기", f"j3_bundle_open_{panel}_{ticker}",
+        close_label="일봉·주봉·월봉 닫기",
+    ):
+        return
     st.caption(
         "주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
         "일봉 거래량은 일봉 바로 아래에 표시됩니다."
@@ -1518,7 +1523,8 @@ def _render_stock_detail(
 
     # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 당일 가격·차트 섹션을 시작한다.
     _render_day_price_row(metrics)
-    _render_price_chart_bundle(ticker)
+    # panel을 넘겨야 같은 종목을 위·아래 두 상세에서 열어도 단추 키가 안 겹친다.
+    _render_price_chart_bundle(ticker, panel=panel)
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
     reason_cards = [
@@ -1538,6 +1544,20 @@ def _render_stock_detail(
 
 
 
+def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
+    """눌러야 열리는 구역. 열려 있으면 닫는 단추를 보여준다(2026-07-30 사용자 지시).
+
+    st.expander는 접혀 있어도 안을 다 그린다 — 시세·차트를 미리 받아 오므로
+    여는 시간이 안 줄어든다. 그래서 아예 그리지 않는 방식으로 둔다.
+    한국테마(자비스4)와 같은 장치다.
+    """
+    is_open = bool(st.session_state.get(key))
+    if st.button(("✕ " + (close_label or label)) if is_open else label, key=f"btn_{key}"):
+        st.session_state[key] = not is_open
+        is_open = not is_open
+    return is_open
+
+
 def _render_buy_form(
     theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
     *, panel: str = "theme",
@@ -1546,6 +1566,13 @@ def _render_buy_form(
     metrics, plan = leader["metrics"], leader["plan"]
     # 위 '추천 근거 요약' 카드와 붙어 보이지 않게 한 줄 띄운다(2026-07-22 사용자 지시).
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+    # 매수 기록은 눌러야 열린다 — 늘 펴 두면 화면이 길고 기록 조회도 매번 돈다
+    # (2026-07-30 사용자 지시, 한국테마와 같은 처리).
+    if not _section_toggle(
+        "💾 실제 매수기록 저장하시겠습니까?", f"j3_buyform_open_{panel}_{ticker}",
+        close_label="매수기록 닫기",
+    ):
+        return
 
     # 상세 종목 선택(복제)은 네모칸 밖, '실제 매수 기록' 제목 위에 둔다
     # (2026-07-22 사용자 지시). 여기서 골라도 위 상세 전체가 같이 바뀐다.
@@ -1823,24 +1850,25 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     is_open = bool(st.session_state.get("j3_top7_open"))
     if st.button("매수심사결과 높은 순위 7", key="j3_top7_find"):
         if is_open:
+            # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다
+            # (2026-07-30 사용자 실측: 닫는 데 5초).
             st.session_state["j3_top7_open"] = False
-            st.rerun()
-        st.session_state.pop("j3_top7_pick_row", None)
-        with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
-            found = j3data.find_top_reviewed_stocks(
-                ranking.get("rows") or [],
-                market_score=float(market.get("score") or 0),
-                extra_rows=pull_rows,
-            )
-        st.session_state["j3_top7_result"] = found
-        st.session_state["j3_top7_open"] = True
-        first = (found.get("rows") or [None])[0]
-        if first:
-            st.session_state["j3_top7_pick_row"] = first
+            st.session_state.pop("j3_top7_pick_row", None)
+        else:
+            with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
+                found = j3data.find_top_reviewed_stocks(
+                    ranking.get("rows") or [],
+                    market_score=float(market.get("score") or 0),
+                    extra_rows=pull_rows,
+                )
+            st.session_state["j3_top7_result"] = found
+            st.session_state["j3_top7_open"] = True
+            # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
+            # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
+            st.session_state.pop("j3_top7_pick_row", None)
         # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
         # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
-        # 그대로 쓰인다. rerun을 부르면 시세·차트까지 통째로 한 번 더 그려
-        # 기다리는 시간이 두 배가 된다(2026-07-30 사용자 지적: 로딩이 너무 길다).
+        # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
 
     if not st.session_state.get("j3_top7_open"):
         st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
@@ -2197,29 +2225,33 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     _render_day_price_row(metrics)
     # 당일 차트 — 테마 대장주 상세에는 있는데 눌림목 상세에만 없었다(2026-07-25 사용자
     # 지적). 대장주와 같은 자료·같은 차트를 쓴다.
-    st.markdown("<div class='j3-chart-heading'>당일 · 실시간(지연 가능)</div>", unsafe_allow_html=True)
-    intraday_error = ""
-    try:
-        intraday_payload = j3data.get_intraday_chart(ticker)
-    except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
-        intraday_payload = None
-        intraday_error = _safe_error_text(exc)
-    # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
-    # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 아래와 같은 3분할의
-    # 첫 칸에만 그린다 — 폭이 같아지고 높이를 INTRADAY_CHART_HEIGHT로 맞춘다.
-    intraday_col, _, _ = st.columns(3)
-    with intraday_col:
-        if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-            st.altair_chart(
-                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
-                width="stretch", theme="streamlit",
-            )
-            st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-        elif intraday_error:
-            st.info(f"당일 자료 없음 — {intraday_error}")
-        else:
-            st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
-    _render_price_chart_bundle(ticker)
+    # 차트는 눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축).
+    if _section_toggle(
+        "📈 당일 · 실시간 차트 보기", f"j3_intraday_open_pullback_{ticker}",
+        close_label="당일 차트 닫기",
+    ):
+        intraday_error = ""
+        try:
+            intraday_payload = j3data.get_intraday_chart(ticker)
+        except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
+            intraday_payload = None
+            intraday_error = _safe_error_text(exc)
+        # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
+        # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 아래와 같은 3분할의
+        # 첫 칸에만 그린다 — 폭이 같아지고 높이를 INTRADAY_CHART_HEIGHT로 맞춘다.
+        intraday_col, _, _ = st.columns(3)
+        with intraday_col:
+            if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+                st.altair_chart(
+                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
+                    width="stretch", theme="streamlit",
+                )
+                st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+            elif intraday_error:
+                st.info(f"당일 자료 없음 — {intraday_error}")
+            else:
+                st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
+    _render_price_chart_bundle(ticker, panel="pullback")
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
     reason_cards = [
@@ -2267,12 +2299,14 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 열려 있을 때 다시 누르면 접는다(2026-07-30 사용자 지적: 두 번째 클릭이 안 먹었다).
     if st.button("눌림목 찾기", key="j3_pullback_find"):
         if st.session_state.get("j3_pullback_open"):
+            # 닫기 — 조회도 rerun도 하지 않는다(2026-07-30 사용자 실측: 닫는 데 1.5초).
             st.session_state["j3_pullback_open"] = False
-            st.rerun()
-        st.session_state["j3_pullback_open"] = True
-        st.session_state.pop("j3_pullback_selected_ticker", None)
-        with st.spinner("미국 20개 테마 전체에서 상승추세 조정 종목을 찾는 중입니다…"):
-            st.session_state["j3_pullback_result"] = j3data.find_pullback_stocks(reuse_only=True)
+            st.session_state.pop("j3_pullback_selected_ticker", None)
+        else:
+            st.session_state["j3_pullback_open"] = True
+            st.session_state.pop("j3_pullback_selected_ticker", None)
+            with st.spinner("미국 20개 테마 전체에서 상승추세 조정 종목을 찾는 중입니다…"):
+                st.session_state["j3_pullback_result"] = j3data.find_pullback_stocks(reuse_only=True)
     if not st.session_state.get("j3_pullback_open"):
         st.caption("단추를 누르면 조회합니다. 열린 뒤 다시 누르면 접힙니다.")
         return
