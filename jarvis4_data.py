@@ -1306,12 +1306,24 @@ def _previous_korean_market_regime(foreign: dict, us_prev: dict) -> dict | None:
 
 def get_market_overview() -> dict:
     """한국 전체시장 판단 — 조건점수 100점."""
-    kospi = _index_metrics("KS11", _live_index("^KS11"))
-    kosdaq = _index_metrics("KQ11", _live_index("^KQ11"))
-    usdkrw = _index_metrics("USD/KRW")
-    us_prev = _us_previous_session()
-    foreign = _market_foreign_flow()
-    intraday_flow = _market_intraday_investor_flow()
+    # 여섯 조회는 서로 기다릴 이유가 없다. 차례차례 돌리면 합계가 그대로 대기가 된다
+    # (2026-07-30 실측: 미국전일 2.09 + KOSPI 0.81 + 원달러 0.56 + 외국인 0.36 + 나머지
+    # = 약 4.1초). 같이 돌리면 가장 긴 것만 기다린다. 받는 자료·계산·점수는 그대로다.
+    # 캐시는 잠금(_CACHE_LOCK)으로 지켜지고 HTTP 연결도 여러 스레드가 함께 쓰도록
+    # 만들어 둔 것이라(_http_session) 나눠 돌려도 안전하다.
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        f_kospi = executor.submit(lambda: _index_metrics("KS11", _live_index("^KS11")))
+        f_kosdaq = executor.submit(lambda: _index_metrics("KQ11", _live_index("^KQ11")))
+        f_usdkrw = executor.submit(_index_metrics, "USD/KRW")
+        f_us_prev = executor.submit(_us_previous_session)
+        f_foreign = executor.submit(_market_foreign_flow)
+        f_intraday = executor.submit(_market_intraday_investor_flow)
+        kospi = f_kospi.result()
+        kosdaq = f_kosdaq.result()
+        usdkrw = f_usdkrw.result()
+        us_prev = f_us_prev.result()
+        foreign = f_foreign.result()
+        intraday_flow = f_intraday.result()
 
     if not kospi.get("ok"):
         return {
