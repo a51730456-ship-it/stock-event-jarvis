@@ -279,6 +279,25 @@ st.markdown(
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         max-width: 100%;
     }
+    /* '선택종목 세부사항 보기' — 눌림목 단추와 같은 모양에 진한 황금색
+       (2026-07-30 사용자 지시). 상세 한 벌을 통째로 여닫는 단추다. */
+    div[class*="st-key-btn_j4_detail_open_"] button {
+        background: linear-gradient(90deg, #3a2705 0%, #6b4a0e 38%, #d9a521 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(217,165,33,.28) !important;
+    }
+    div[class*="st-key-btn_j4_detail_open_"] button:hover {
+        background: linear-gradient(90deg, #4a3208 0%, #855c14 38%, #efc04a 100%) !important;
+    }
+    div[class*="st-key-btn_j4_detail_open_"] button p {
+        color: #ffffff !important;
+        font-size: 1.02rem !important;
+        font-weight: 800 !important;
+        letter-spacing: .01em !important;
+        margin: 0 !important;
+    }
     /* 제목 띠 — 단추가 아니라 제목이다(누를 곳이 아니다). 순위 7 단추(초록)·
        눌림목 단추(파랑)와 같은 결로 맞춘 보라색(2026-07-30 사용자 지시). */
     .j4-band {
@@ -1634,6 +1653,13 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     metrics, plan, flow = leader["metrics"], leader["plan"], leader["flow"]
 
     st.divider()
+    # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
+    # 파트마다 따로 기억하므로 테마 상세만 열고 눌림목 상세는 닫아 둘 수 있다.
+    if not _section_toggle(
+        "🔎 선택종목 세부사항 보기", f"j4_detail_open_{panel}",
+        close_label="선택종목 세부사항 닫기",
+    ):
+        return
     detail_rank = int(leader.get("rank") or 0)
     detail_medal = _MEDAL_BY_RANK.get(detail_rank, "") if float(leader.get("score") or 0) >= 80 else ""
     detail_medal_html = f"<span class='j4-medal'>{detail_medal}</span> " if detail_medal else ""
@@ -1784,7 +1810,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     # 차트는 눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축).
     # 늘 그리면 종목을 고를 때마다 분봉·일봉·주봉·월봉을 다 받아 와 느려진다.
     show_intraday = _section_toggle(
-        "📈 당일 · 실시간 차트 보기", f"j4_intraday_open_{panel}_{code}",
+        "📈 당일 · 실시간 차트 보기", f"j4_intraday_open_{panel}",
         close_label="당일 차트 닫기",
     )
     intraday_error = ""
@@ -1812,7 +1838,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
                 st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
 
     if _section_toggle(
-        "📊 일봉 · 주봉 · 월봉 보기", f"j4_bundle_open_{panel}_{code}",
+        "📊 일봉 · 주봉 · 월봉 보기", f"j4_bundle_open_{panel}",
         close_label="일봉·주봉·월봉 닫기",
     ):
         st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
@@ -2041,7 +2067,7 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates
     # 매수 기록은 눌러야 열린다 — 늘 펴 두면 화면이 길고 기록 조회도 매번 돈다
     # (2026-07-30 사용자 지시). 상세가 여러 벌 그려지므로 열림 여부도 패널별로 나눈다.
     if not _section_toggle(
-        "💾 실제 매수기록 저장하시겠습니까?", f"j4_buyform_open_{panel}_{code}",
+        "💾 실제 매수기록 저장하시겠습니까?", f"j4_buyform_open_{panel}",
         close_label="매수기록 닫기",
     ):
         return

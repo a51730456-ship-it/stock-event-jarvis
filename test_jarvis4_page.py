@@ -303,11 +303,25 @@ def _run_page(market=None):
         app = AppTest.from_file(str(PAGE), default_timeout=90)
         app.secrets["APP_PASSWORD"] = "test"
         app.session_state["authenticated"] = True
+        _open_all_details(app)
         app.run(timeout=90)
         return app
     finally:
         for item in reversed(started):
             item.stop()
+
+
+def _open_all_details(app):
+    """상세·매수기록을 미리 펴 둔다.
+
+    2026-07-30부터 이 구역들은 눌러야 열린다(사용자 지시). 테스트에서 단추를
+    누르면 patch가 이미 풀린 뒤라 시세를 실제로 받으러 나가므로, 세션 값으로
+    열어 둔 상태에서 화면을 그린다. 여는 장치 자체는 test_top_reviewed가 지킨다.
+    """
+    for panel in ("theme", "pullback", "top7", "mystock"):
+        app.session_state[f"j4_detail_open_{panel}"] = True
+        app.session_state[f"j4_buyform_open_{panel}"] = True
+    return app
 
 
 class Jarvis4PageTests(unittest.TestCase):
@@ -472,6 +486,7 @@ class Jarvis4PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
             theme_radio = [node for node in app.radio if str(node.label) == "테마 선택"]
             self.assertEqual(len(theme_radio), 1)
@@ -531,6 +546,7 @@ class Jarvis4PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
             self.assertEqual(len(app.exception), 0)
             markdowns = " ".join(str(node.value) for node in app.markdown)
@@ -564,6 +580,7 @@ class Jarvis4PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
             find_button = next(
                 node for node in app.button if str(node.key or "") == "j4_pullback_find"
@@ -612,6 +629,7 @@ class Jarvis4PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
             # 2위(한미반도체) 이름 버튼을 누른다.
             target = next(
@@ -647,6 +665,7 @@ class Jarvis4PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
         finally:
             for item in reversed(started):
@@ -683,6 +702,7 @@ class Jarvis4PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
         finally:
             for item in reversed(started):
@@ -726,6 +746,7 @@ class Jarvis4PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
             box = next(
                 node for node in app.text_input if str(node.key or "") == "j4_my_stock_query"
@@ -756,6 +777,7 @@ class Jarvis4PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
             next(
                 node for node in app.button if str(node.key or "") == "j4_pullback_find"
@@ -791,6 +813,7 @@ class PartnerFlowColumnTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
             next(
                 node for node in app.button if str(node.key or "") == "j4_pullback_find"
@@ -840,6 +863,7 @@ class PartnerFlowColumnTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=90)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=90)
             next(
                 node for node in app.button if str(node.key or "") == "j4_pullback_find"

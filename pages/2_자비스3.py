@@ -279,6 +279,25 @@ st.markdown(
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         max-width: 100%;
     }
+    /* '선택종목 세부사항 보기' — 눌림목 단추와 같은 모양에 진한 황금색
+       (2026-07-30 사용자 지시, 한국테마와 같은 모양). */
+    div[class*="st-key-btn_j3_detail_open_"] button {
+        background: linear-gradient(90deg, #3a2705 0%, #6b4a0e 38%, #d9a521 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(217,165,33,.28) !important;
+    }
+    div[class*="st-key-btn_j3_detail_open_"] button:hover {
+        background: linear-gradient(90deg, #4a3208 0%, #855c14 38%, #efc04a 100%) !important;
+    }
+    div[class*="st-key-btn_j3_detail_open_"] button p {
+        color: #ffffff !important;
+        font-size: 1.02rem !important;
+        font-weight: 800 !important;
+        letter-spacing: .01em !important;
+        margin: 0 !important;
+    }
     /* 제목 띠 — 단추가 아니라 제목이다(누를 곳이 아니다). 순위 7 단추(초록)·
        눌림목 단추(파랑)와 같은 결로 맞춘 보라색. 한국테마와 같은 모양이다. */
     .j3-band {
@@ -1002,7 +1021,7 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
     때마다 10년치를 받아 와 느려진다.
     """
     if not _section_toggle(
-        "📊 일봉 · 주봉 · 월봉 보기", f"j3_bundle_open_{panel}_{ticker}",
+        "📊 일봉 · 주봉 · 월봉 보기", f"j3_bundle_open_{panel}",
         close_label="일봉·주봉·월봉 닫기",
     ):
         return
@@ -1395,6 +1414,12 @@ def _render_stock_detail(
     metrics, plan = leader["metrics"], leader["plan"]
 
     st.divider()
+    # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시, 한국테마와 같다).
+    if not _section_toggle(
+        "🔎 선택종목 세부사항 보기", f"j3_detail_open_{panel}",
+        close_label="선택종목 세부사항 닫기",
+    ):
+        return
     # 대장주 비교와 동일하게, 80점 이상 1~3위 종목이면 종목명에도 메달을 붙인다.
     detail_rank = int(leader.get("rank") or 0)
     detail_medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(detail_rank, "") if float(leader.get("score") or 0) >= 80 else ""
@@ -1569,7 +1594,7 @@ def _render_buy_form(
     # 매수 기록은 눌러야 열린다 — 늘 펴 두면 화면이 길고 기록 조회도 매번 돈다
     # (2026-07-30 사용자 지시, 한국테마와 같은 처리).
     if not _section_toggle(
-        "💾 실제 매수기록 저장하시겠습니까?", f"j3_buyform_open_{panel}_{ticker}",
+        "💾 실제 매수기록 저장하시겠습니까?", f"j3_buyform_open_{panel}",
         close_label="매수기록 닫기",
     ):
         return
@@ -2038,6 +2063,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     선정 근거 점수표 · 매수 심사 결과 · 일봉/주봉/월봉 차트를 함께 보여준다.
     """
     ticker = str(row.get("ticker") or "")
+    # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
+    if not _section_toggle(
+        "🔎 선택종목 세부사항 보기", "j3_detail_open_pullback",
+        close_label="선택종목 세부사항 닫기",
+    ):
+        return
     metrics = row.get("metrics") or {}
     quality = row.get("pullback") or {}
     themes = " · ".join(row.get("themes") or []) or "테마 정보 없음"
@@ -2227,7 +2258,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     # 지적). 대장주와 같은 자료·같은 차트를 쓴다.
     # 차트는 눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축).
     if _section_toggle(
-        "📈 당일 · 실시간 차트 보기", f"j3_intraday_open_pullback_{ticker}",
+        "📈 당일 · 실시간 차트 보기", "j3_intraday_open_pullback",
         close_label="당일 차트 닫기",
     ):
         intraday_error = ""

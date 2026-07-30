@@ -146,6 +146,19 @@ def _pullbacks():
     }
 
 
+def _open_all_details(app):
+    """상세·매수기록을 미리 펴 둔다.
+
+    2026-07-30부터 이 구역들은 눌러야 열린다(사용자 지시). 테스트에서 단추를
+    누르면 patch가 이미 풀린 뒤라 시세를 실제로 받으러 나가므로, 세션 값으로
+    열어 둔 상태에서 화면을 그린다. 여는 장치 자체는 test_top_reviewed가 지킨다.
+    """
+    for panel in ("theme", "pullback", "top7", "mystock"):
+        app.session_state[f"j3_detail_open_{panel}"] = True
+        app.session_state[f"j3_buyform_open_{panel}"] = True
+    return app
+
+
 class Jarvis3PageTests(unittest.TestCase):
     def test_authenticated_page_renders_market_before_theme_and_records(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
@@ -167,6 +180,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=60)
             # 눌림목 표는 버튼을 눌러야 나온다(2026-07-25 사용자 지시). 한국테마와 같다.
             next(
@@ -258,6 +272,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=60)
             # 표는 버튼을 눌러야 나온다. 누르기 전에는 안내만 보인다.
             self.assertFalse(any(str(node.key or "") == "j3pbf_00" for node in app.button))
@@ -299,6 +314,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=60)
         self.assertEqual(len(app.exception), 0)
         blocks = [str(n.value) for n in app.markdown if "@media (max-width: 600px)" in str(n.value)]
@@ -345,6 +361,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=60)
             theme_radio = [node for node in app.radio if str(node.label) == "테마 선택"]
             self.assertEqual(len(theme_radio), 1, "테마 선택 위젯이 클릭 가능한 형태로 있어야 합니다")
@@ -377,6 +394,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=60)
             buttons = [node for node in app.button if str(node.key or "").startswith("j3lbtn_")]
             self.assertTrue(buttons, "종목 이름 버튼이 없다 — 표가 눌리지 않는다")
@@ -417,6 +435,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=60)
             box = next(
                 node for node in app.text_input if str(node.key or "") == "j3_my_stock_query"
@@ -455,6 +474,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=60)
         blob = "".join(str(node.value) for node in app.markdown)
         self.assertIn(".st-key-j3_leader_table,", blob)
@@ -484,16 +504,12 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            _open_all_details(app)
             app.run(timeout=60)
-            # 매수 기록은 눌러야 열린다(2026-07-30 사용자 지시). 열기 전에는
-            # 그 안의 '상세 종목 선택'(복제)도 없다.
+            # 매수 기록은 눌러야 열린다(2026-07-30 사용자 지시) — _open_all_details가
+            # 미리 열어 둔 상태다. 열려 있으면 그 안의 '상세 종목 선택'(복제)도 있다.
             stock_radios = [node for node in app.radio if str(node.label) == "상세 종목 선택"]
-            self.assertEqual(len(stock_radios), 1, "열기 전에는 상세 종목 선택이 하나여야 합니다")
-            opener = [node for node in app.button if "실제 매수기록 저장" in str(node.label)]
-            self.assertTrue(opener, "매수기록 여는 단추가 없습니다")
-            opener[0].click().run(timeout=60)
-            stock_radios = [node for node in app.radio if str(node.label) == "상세 종목 선택"]
-            self.assertEqual(len(stock_radios), 2, "열고 나면 위·아래 두 곳에 있어야 합니다")
+            self.assertEqual(len(stock_radios), 2, "위·아래 두 곳에 상세 종목 선택이 있어야 합니다")
             stock_radios[1].set_value("AVGO").run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
