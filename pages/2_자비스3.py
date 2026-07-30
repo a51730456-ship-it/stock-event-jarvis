@@ -1967,60 +1967,23 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         + (f"와 눌림목 {len(pull_rows)}개" if pull_rows else " (눌림목을 먼저 찾으면 함께 봅니다)")
         + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
     )
-    # 단추 두 개로 나눈다 — '열기'와 '새로 뽑기'는 다른 일이다(눌림목과 같은 처리).
-    #
-    # 왜 나눴나: 2026-07-30 폰 실측 8초·닫기 3초·다시 열기 8초. 닫을 때는 자료를
-    # 안 가져오는데도 3초라 그 3초가 판 하나를 다시 그리는 값이다 — 그러면 여는 8초
-    # 중 5초가 자료 몫이다. 그런데 닫았다 다시 열면 그 5초를 또 냈다. 시세 캐시는
-    # 45초라, 사람이 표를 보고 닫고 다시 누를 동안 이미 만료돼 처음부터 다시 받았다.
-    # 이제 뽑아 둔 것이 있으면 조회 없이 그대로 편다. 새 시세로 다시 줄 세우려면
-    # 옆의 '새로 뽑기'를 누른다. 오래된 것을 지금 것으로 착각하지 않도록 뽑은 시각을
-    # 표 위에 적는다.
-    has_result = st.session_state.get("j3_top7_result") is not None
+    # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
+    # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
     is_open = bool(st.session_state.get("j3_top7_open"))
-    col_open, col_again = st.columns([1, 1])
-    with col_open:
-        run_requested = st.button("매수심사결과 높은 순위 7", key="j3_top7_find")
-    # 뽑아 둔 것이 있을 때만 보여 준다 — 처음에는 단추가 하나여야 헷갈리지 않는다.
-    # 자리를 미리 잡아 두는 이유: 처음 뽑는 판에서는 여기까지 왔을 때 아직 결과가
-    # 없어 단추를 못 그린다. 그대로 두면 '새로 뽑기'가 한 판 늦게 나타난다.
-    again_slot = col_again.empty()
-    refresh_requested = (
-        again_slot.button("새로 뽑기", key="j3_top7_refind") if has_result else False
-    )
-    if refresh_requested:
-        st.session_state["j3_top7_result"] = None
-        run_requested = True
-        is_open = False          # 새로 뽑기는 접는 동작이 아니다
+    run_requested = st.button("매수심사결과 높은 순위 7", key="j3_top7_find")
     if run_requested and is_open:
         # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다.
         st.session_state["j3_top7_open"] = False
         st.session_state.pop("j3_top7_pick_row", None)
-        st.session_state["j3_t_top7"] = (0.0, 0.0)
-        run_requested = False
-    if run_requested and st.session_state.get("j3_top7_result") is not None:
-        # 뽑아 둔 것이 있으면 조회 없이 그대로 편다. 여기가 다시 여는 5초를 없애는 자리다.
-        st.session_state["j3_top7_open"] = True
-        st.session_state["j3_t_top7"] = (0.0, 0.0)
         run_requested = False
     if run_requested:
-        # 걸린 시간을 재 둔다 — 노트북 숫자로는 온라인을 알 수 없어 화면에 찍는다
-        # (한국테마와 같은 방식). 벽시계 시간과 그중 계산(CPU) 시간을 따로 본다.
-        wall0, cpu0 = time.perf_counter(), time.process_time()
         with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
             found = j3data.find_top_reviewed_stocks(
                 ranking.get("rows") or [],
                 market_score=float(market.get("score") or 0),
                 extra_rows=pull_rows,
             )
-        st.session_state["j3_t_top7"] = (
-            time.perf_counter() - wall0, time.process_time() - cpu0
-        )
         st.session_state["j3_top7_result"] = found
-        st.session_state["j3_top7_found_at"] = datetime.now(_PAGE_SEOUL)
-        if not has_result:
-            # 처음 뽑은 판이다. 위에 잡아 둔 자리에 지금 채워 넣는다.
-            again_slot.button("새로 뽑기", key="j3_top7_refind")
         st.session_state["j3_top7_open"] = True
         # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
         # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
@@ -2046,20 +2009,6 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         f"테마 {result.get('scanned_themes', 0)}개 심사 · 후보 {result.get('candidate_count', 0)}개 → 상위 {len(rows)}개"
         + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
     )
-    found_at = st.session_state.get("j3_top7_found_at")
-    if found_at:
-        # 언제 뽑은 것인지 반드시 보여 준다 — 여는 것과 뽑는 것을 나눴으므로,
-        # 오래된 결과를 지금 것으로 착각하면 안 된다.
-        st.caption(
-            f"🔎 이 순위는 **{found_at.strftime('%H:%M:%S')}**에 뽑은 것입니다. "
-            "지금 시세로 다시 줄 세우려면 위 **새로 뽑기**를 누르십시오."
-        )
-    took = st.session_state.get("j3_t_top7")
-    if took:
-        st.caption(
-            f"⏱ 순위 7 — 자료 받는 데 **{took[0]:.1f}초** (그중 계산 {took[1]:.1f}초) "
-            f"· 계산모듈 {getattr(j3data, 'MODULE_REVISION', '?')}"
-        )
 
     st.caption("종목 이름을 누르면 아래에 그 종목 상세가 열립니다.")
     widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]

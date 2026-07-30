@@ -284,9 +284,6 @@ class Jarvis3PageTests(unittest.TestCase):
             next(
                 node for node in app.button if str(node.key or "") == "j3_top7_find"
             ).click().run(timeout=60)
-            # 뽑고 나면 '새로 뽑기'가 생기고 뽑은 시각이 남는다.
-            self.assertTrue(any(str(node.key or "") == "j3_top7_refind" for node in app.button))
-            self.assertIsNotNone(app.session_state.filtered_state.get("j3_top7_found_at"))
             next(
                 node for node in app.button if str(node.key or "") == "j3top7_00"
             ).click().run(timeout=60)

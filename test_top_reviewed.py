@@ -196,30 +196,21 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn("if run_requested and is_open:", block,
                           f"{market}가 다시 눌러도 안 접힌다")
 
-    def test_reopening_uses_the_saved_result(self):
-        """닫았다 다시 열 때 같은 순위를 또 뽑느라 시간을 다시 냈다.
+    def test_there_is_only_one_button(self):
+        """단추는 하나다 (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 마라).
 
-        2026-07-30 폰 실측(미국테마): 열기 8초 · 닫기 3초 · 다시 열기 8초.
-        시세 캐시가 45초라 사람이 표를 보고 닫고 다시 누르면 이미 만료돼 처음부터
-        다시 받았다. 이제 뽑아 둔 것이 있으면 조회 없이 그대로 편다.
+        같은 날 '열기'와 '새로 뽑기'로 나눴다가 되돌렸다 — 묻지 않고 화면에 단추를
+        늘린 것이 문제였다. 늘리려면 먼저 물어야 한다.
         """
         import pathlib
 
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
             block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
-            self.assertIn(f'"새로 뽑기", key="{prefix}_top7_refind"', block,
-                          f"{market}에 '새로 뽑기' 단추가 없다")
-            reopen = block.split(
-                f'if run_requested and st.session_state.get("{prefix}_top7_result") is not None:'
-            )[1].split("\n    if ")[0]
-            self.assertNotIn("find_top_reviewed_stocks", reopen,
-                             f"{market}가 다시 열 때도 새로 뽑는다")
-            self.assertIn(f'"{prefix}_top7_open"] = True', reopen,
-                          f"{market}가 저장된 결과로 펴지지 않는다")
-            # 언제 뽑은 것인지 화면에 남아야 한다 — 오래된 순위를 지금 것으로 보면 안 된다.
-            self.assertIn(f'"{prefix}_top7_found_at"', block,
-                          f"{market}에 뽑은 시각이 없다")
+            self.assertNotIn('button("새로 뽑기"', block, f"{market}에 단추가 또 늘었다")
+            self.assertNotIn(f"{prefix}_top7_refind", block)
+            self.assertEqual(1, block.count("st.button(\"매수심사결과 높은 순위 7\""),
+                             f"{market} 순위 7 단추가 하나가 아니다")
 
     def test_phone_rules_exist_and_live_in_mobile_ui(self):
         """폰에서 한 종목이 여섯 줄로 쌓였다(2026-07-30 캡처).
