@@ -609,6 +609,20 @@ def _safe_error_text(error) -> str:
 
 _STATUS_HEX = {"주도": "#44f0a1", "관찰": "#ff9d3b", "약함": "#9aa0aa"}
 _THEME_COL_WIDTHS = [0.7, 2.4, 0.85, 2.0, 0.9, 1.0, 1.3, 1.6]
+# 한 줄을 세 칸으로만 나눈다 — 순위 · 테마(단추) · 나머지 여섯을 묶은 한 덩이.
+# 칸마다 요소를 만들면 폰이 느려진다(2026-07-30 실측: 표 두 개가 요소 476개).
+_THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_WIDTHS[2:])]
+_THEME_REST_WIDTHS = _THEME_COL_WIDTHS[2:]
+
+
+def _flex_row(widths: list[float], cells: list[str], *, head: bool = False) -> str:
+    """여러 칸을 한 덩이 HTML로 그린다. 칸 폭은 원래 비율을 그대로 쓴다."""
+    kind = "j4-th-head" if head else "j4-td"
+    inner = "".join(
+        f"<div class='{kind}' style='flex:{width} 1 0; min-width:0'>{cell}</div>"
+        for width, cell in zip(widths, cells)
+    )
+    return f"<div style='display:flex; align-items:center; gap:.15rem'>{inner}</div>"
 
 # 테마 순위표에서 처음부터 보여줄 개수. 나머지는 접어 둔다(자비스3와 같은 값).
 _THEME_VISIBLE_COUNT = 10
@@ -999,11 +1013,16 @@ def _render_market_overview() -> None:
 
 def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     """테마표를 그리고, 테마 이름 버튼이 눌리면 그 테마명을 돌려준다(자비스3와 같은 방식)."""
-    titles = ["순위", "테마", "종목수", "조건점수", "상태", "당일", "KOSPI 대비", "구성종목 확산"]
     # 폰에서도 태블릿처럼 옆으로 밀어 본다(2026-07-25 사용자 지시).
     theme_box = st.container(key="j4_theme_table")
-    for column, title in zip(theme_box.columns(_THEME_COL_WIDTHS), titles):
-        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
+    head = theme_box.columns(_THEME_ROW_WIDTHS)
+    head[0].markdown("<div class='j4-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j4-th-head'>테마</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(_THEME_REST_WIDTHS, ["종목수", "조건점수", "상태", "당일",
+                                       "KOSPI 대비", "구성종목 확산"], head=True),
+        unsafe_allow_html=True,
+    )
 
     button_css = []
     clicked = None
@@ -1026,7 +1045,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             button_css.append(
                 f"div[class*='st-key-{button_key}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
             )
-        cols = target.columns(_THEME_COL_WIDTHS)
+        cols = target.columns(_THEME_ROW_WIDTHS)
         cols[0].markdown(f"<div class='j4-td'>{row.get('rank', '')}</div>", unsafe_allow_html=True)
         label = name
         if row.get("is_forced"):
@@ -1035,42 +1054,40 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             label = f"{name} 🆕"
         if cols[1].button(label, key=button_key, width="stretch"):
             clicked = name
-        cols[2].markdown(f"<div class='j4-td'>{row.get('stock_count', '')}</div>", unsafe_allow_html=True)
+        # 나머지 여섯 칸은 한 덩이로 그린다 — 칸마다 요소를 만들면 폰이 느려진다
+        # (2026-07-30 실측: 표 두 개가 요소 476개를 만들고 있었다).
         score = float(row.get("score") or 0)
-        cols[3].markdown(
-            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
-            f"<div class='j4-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>",
-            unsafe_allow_html=True,
-        )
-        cols[4].markdown(
-            f"<div class='j4-td' style='color:{color}; font-weight:800'>{row.get('status', '')}</div>",
-            unsafe_allow_html=True,
-        )
         change = row.get("change_pct")
-        cols[5].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</div>",
-            unsafe_allow_html=True,
-        )
         relative = row.get("relative")
         relative_text = "—" if relative is None else f"{float(relative):+.2f}%p"
-        cols[6].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(relative)}; font-weight:700'>{relative_text}</div>",
-            unsafe_allow_html=True,
-        )
         up_ratio = row.get("up_ratio")
         breadth_cell = "—" if up_ratio is None else (
             "<div class='j4-barwrap'><div class='j4-bar'>"
             f"<div class='j4-bar-fill j4-bar-green' style='width:{min(float(up_ratio), 100):.0f}%'></div></div>"
             f"<span class='j4-bar-num'>{float(up_ratio):.0f}%</span></div>"
         )
-        cols[7].markdown(f"<div class='j4-td'>{breadth_cell}</div>", unsafe_allow_html=True)
+        cols[2].markdown(
+            _flex_row(_THEME_REST_WIDTHS, [
+                f"{row.get('stock_count', '')}",
+                "<div class='j4-barwrap'><div class='j4-bar'>"
+                f"<div class='j4-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+                f"<span class='j4-bar-num'>{score:.1f}</span></div>",
+                f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
+                f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
+                f"<span style='color:{_sign_color(relative)}; font-weight:700'>{relative_text}</span>",
+                breadth_cell,
+            ]),
+            unsafe_allow_html=True,
+        )
 
     st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
     return clicked
 
 
 _LEADER_COL_WIDTHS = [0.7, 2.0, 1.6, 0.95, 1.15, 1.05, 1.0, 1.5, 1.7, 1.15]
+# 테마표와 같은 이유로 세 칸만 쓴다 — 순위 · 종목(단추) · 나머지 여덟을 묶은 한 덩이.
+_LEADER_ROW_WIDTHS = [_LEADER_COL_WIDTHS[0], _LEADER_COL_WIDTHS[1], sum(_LEADER_COL_WIDTHS[2:])]
+_LEADER_REST_WIDTHS = _LEADER_COL_WIDTHS[2:]
 
 
 def _render_leader_table(leaders: list[dict], selected_code: str | None) -> str | None:
@@ -1080,11 +1097,16 @@ def _render_leader_table(leaders: list[dict], selected_code: str | None) -> str 
     이 표만 안 눌려 고장으로 보였다(2026-07-29 지시). 테마표·눌림목표와 같은
     방식(칸 나누기 + 이름 버튼)으로 맞춘다. 아래 '상세 종목 선택'은 그대로 둔다.
     """
-    titles = ["순위", "종목", "조건점수", "당일", "52주 고가 대비", "20일 수익률",
-              "수급(대금%)", "동반(5일)", "동반(매수/매도/20일)", "매수 상태"]
     box = st.container(key="j4_leader_table")
-    for column, title in zip(box.columns(_LEADER_COL_WIDTHS), titles):
-        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
+    head = box.columns(_LEADER_ROW_WIDTHS)
+    head[0].markdown("<div class='j4-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j4-th-head'>종목</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(_LEADER_REST_WIDTHS, ["조건점수", "당일", "52주 고가 대비", "20일 수익률",
+                                        "수급(대금%)", "동반(5일)", "동반(매수/매도/20일)",
+                                        "매수 상태"], head=True),
+        unsafe_allow_html=True,
+    )
 
     rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
     button_css = []
@@ -1099,30 +1121,29 @@ def _render_leader_table(leaders: list[dict], selected_code: str | None) -> str 
                 f"div[class*='st-key-{button_key}'] button "
                 "{ background: rgba(255,176,32,0.16) !important; }"
             )
-        cols = box.columns(_LEADER_COL_WIDTHS)
+        cols = box.columns(_LEADER_ROW_WIDTHS)
         cols[0].markdown(
             f"<div class='j4-td'>{rank_mark.get(rank, f'{rank}위')}</div>", unsafe_allow_html=True)
         if cols[1].button(leader["name"], key=button_key, width="stretch"):
             clicked = leader["code"]
+        # 나머지 여덟 칸은 한 덩이로 그린다(2026-07-30 — 요소 수를 줄여 폰을 빠르게).
         cols[2].markdown(
-            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
-            f"<div class='j4-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>",
+            _flex_row(_LEADER_REST_WIDTHS, [
+                "<div class='j4-barwrap'><div class='j4-bar'>"
+                f"<div class='j4-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+                f"<span class='j4-bar-num'>{score:.1f}</span></div>",
+                *(
+                    f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
+                    for value in (metrics.get("change_pct"), metrics.get("from_high_pct"),
+                                  metrics.get("ret20"))
+                ),
+                _flow_ratio_cell(flow),
+                _partner5_cell(flow),
+                _partner20_cell(flow),
+                str(plan.get("state", "")),
+            ]),
             unsafe_allow_html=True,
         )
-        for slot, value in (
-            (3, metrics.get("change_pct")),
-            (4, metrics.get("from_high_pct")),
-            (5, metrics.get("ret20")),
-        ):
-            cols[slot].markdown(
-                f"<div class='j4-td' style='color:{_sign_color(value)}; font-weight:700'>"
-                f"{_pct(value)}</div>", unsafe_allow_html=True)
-        cols[6].markdown(f"<div class='j4-td'>{_flow_ratio_cell(flow)}</div>", unsafe_allow_html=True)
-        cols[7].markdown(f"<div class='j4-td'>{_partner5_cell(flow)}</div>", unsafe_allow_html=True)
-        cols[8].markdown(f"<div class='j4-td'>{_partner20_cell(flow)}</div>", unsafe_allow_html=True)
-        cols[9].markdown(
-            f"<div class='j4-td'>{plan.get('state', '')}</div>", unsafe_allow_html=True)
 
     if button_css:
         st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)

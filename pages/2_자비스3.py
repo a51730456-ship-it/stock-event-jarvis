@@ -614,6 +614,23 @@ def _fear_greed_color(score) -> str:
 
 
 _THEME_COL_WIDTHS = [0.75, 2.3, 0.9, 2.2, 0.95, 1.05, 1.35, 1.45]
+# 한 줄을 세 칸으로만 나눈다 — 순위 · 테마(단추) · 나머지를 묶은 한 덩이.
+# 칸마다 요소를 만들면 폰이 느려진다(2026-07-30 실측, 한국테마와 같은 처리).
+_THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_WIDTHS[2:])]
+_THEME_REST_WIDTHS = _THEME_COL_WIDTHS[2:]
+
+
+def _flex_row(widths: list[float], cells: list[str], *, head: bool = False,
+              muted_from: int | None = None) -> str:
+    """여러 칸을 한 덩이 HTML로 그린다. 칸 폭은 원래 비율을 그대로 쓴다."""
+    kind = "j3-th-head" if head else "j3-td"
+    parts = []
+    for index, (width, cell) in enumerate(zip(widths, cells)):
+        extra = " j3-th-muted" if muted_from is not None and index >= muted_from else ""
+        parts.append(
+            f"<div class='{kind}{extra}' style='flex:{width} 1 0; min-width:0'>{cell}</div>"
+        )
+    return f"<div style='display:flex; align-items:center; gap:.15rem'>{''.join(parts)}</div>"
 
 # 테마 순위표에서 처음부터 보여줄 개수. 나머지는 접어 두고 눌러서 본다
 # (2026-07-25 사용자 지시). 자비스4도 같은 값을 쓴다.
@@ -626,11 +643,16 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     테마명만 st.button이라 클릭이 확실히 되고(세션도 안 끊김),
     나머지 칸은 HTML이라 가운데 정렬·색·막대를 그대로 쓸 수 있다.
     """
-    titles = ["순위", "테마", "ETF", "조건점수", "상태", "당일", "20일 상대강도", "구성종목 확산"]
     # 폰·태블릿에서 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25, 한국테마와 같은 방식).
     theme_box = st.container(key="j3_theme_table")
-    for column, title in zip(theme_box.columns(_THEME_COL_WIDTHS), titles):
-        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+    head = theme_box.columns(_THEME_ROW_WIDTHS)
+    head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j3-th-head'>테마</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(_THEME_REST_WIDTHS, ["ETF", "조건점수", "상태", "당일",
+                                       "20일 상대강도", "구성종목 확산"], head=True),
+        unsafe_allow_html=True,
+    )
 
     # 테마명 버튼 색을 상태색과 맞춘다(선택된 테마는 주황 배경으로 표시).
     # 키는 2자리 고정폭(j3tbtn_01)으로 만든다 — class*= 부분일치 선택자라서
@@ -656,42 +678,40 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             button_css.append(
                 f"div[class*='st-key-{button_key}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
             )
-        cols = target.columns(_THEME_COL_WIDTHS)
+        cols = target.columns(_THEME_ROW_WIDTHS)
         cols[0].markdown(f"<div class='j3-td'>{row.get('rank', '')}</div>", unsafe_allow_html=True)
         if cols[1].button(name, key=button_key, width="stretch"):
             clicked = name
-        cols[2].markdown(f"<div class='j3-td'>{row.get('etf', '')}</div>", unsafe_allow_html=True)
+        # 나머지 여섯 칸은 한 덩이로 그린다 — 칸마다 요소를 만들면 폰이 느려진다
+        # (2026-07-30 실측: 표 두 개가 요소 476개를 만들고 있었다).
+        etf = str(row.get("etf", ""))
         if not row.get("ok"):
-            for cell in cols[3:]:
-                cell.markdown("<div class='j3-td j3-th-muted'>자료 부족</div>", unsafe_allow_html=True)
+            cols[2].markdown(
+                _flex_row(_THEME_REST_WIDTHS, [etf] + ["자료 부족"] * 5, muted_from=1),
+                unsafe_allow_html=True,
+            )
             continue
         score = float(row.get("score") or 0)
         breadth, change, rs20 = row.get("breadth"), row.get("change_pct"), row.get("rs20")
-        cols[3].markdown(
-            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{score:.1f}</span></div></div>",
-            unsafe_allow_html=True,
-        )
-        cols[4].markdown(
-            f"<div class='j3-td' style='color:{color}; font-weight:800'>{row.get('status', '')}</div>",
-            unsafe_allow_html=True,
-        )
-        cols[5].markdown(
-            f"<div class='j3-td' style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</div>",
-            unsafe_allow_html=True,
-        )
         rs_text = "—" if rs20 is None else f"{float(rs20):+.1f}%p"
-        cols[6].markdown(
-            f"<div class='j3-td' style='color:{_sign_color(rs20)}; font-weight:700'>{rs_text}</div>",
-            unsafe_allow_html=True,
-        )
         breadth_cell = "—" if breadth is None else (
             "<div class='j3-barwrap'><div class='j3-bar'>"
             f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(breadth), 100):.0f}%'></div></div>"
             f"<span class='j3-bar-num'>{float(breadth):.0f}%</span></div>"
         )
-        cols[7].markdown(f"<div class='j3-td'>{breadth_cell}</div>", unsafe_allow_html=True)
+        cols[2].markdown(
+            _flex_row(_THEME_REST_WIDTHS, [
+                etf,
+                "<div class='j3-barwrap'><div class='j3-bar'>"
+                f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+                f"<span class='j3-bar-num'>{score:.1f}</span></div>",
+                f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
+                f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
+                f"<span style='color:{_sign_color(rs20)}; font-weight:700'>{rs_text}</span>",
+                breadth_cell,
+            ]),
+            unsafe_allow_html=True,
+        )
 
     st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
     return clicked
@@ -838,6 +858,9 @@ def _leader_chart_payload(value):
 
 
 _LEADER_COL_WIDTHS = [0.75, 1.9, 0.85, 1.6, 0.95, 1.25, 1.15, 1.1]
+# 테마표와 같은 이유로 세 칸만 쓴다 — 순위 · 종목(단추) · 나머지를 묶은 한 덩이.
+_LEADER_ROW_WIDTHS = [_LEADER_COL_WIDTHS[0], _LEADER_COL_WIDTHS[1], sum(_LEADER_COL_WIDTHS[2:])]
+_LEADER_REST_WIDTHS = _LEADER_COL_WIDTHS[2:]
 
 
 def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> str | None:
@@ -847,11 +870,15 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     이름을 눌러도 아무 일이 없었다. 아래 '상세 종목 선택'은 그대로 둔다.
     폰·태블릿 규칙은 이미 도는 테마표·눌림목표와 같은 CSS 묶음에 얹었다.
     """
-    titles = ["순위", "종목", "티커", "조건점수", "당일", "52주 고가 대비",
-              "20일 수익률", "매수 상태"]
     box = st.container(key="j3_leader_table")
-    for column, title in zip(box.columns(_LEADER_COL_WIDTHS), titles):
-        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+    head = box.columns(_LEADER_ROW_WIDTHS)
+    head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(_LEADER_REST_WIDTHS, ["티커", "조건점수", "당일", "52주 고가 대비",
+                                        "20일 수익률", "매수 상태"], head=True),
+        unsafe_allow_html=True,
+    )
 
     rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
     button_css = []
@@ -867,28 +894,27 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
                 f"div[class*='st-key-{button_key}'] button "
                 "{ background: rgba(255,176,32,0.16) !important; }"
             )
-        cols = box.columns(_LEADER_COL_WIDTHS)
+        cols = box.columns(_LEADER_ROW_WIDTHS)
         cols[0].markdown(
             f"<div class='j3-td'>{rank_mark.get(rank, f'{rank}위')}</div>", unsafe_allow_html=True)
         if cols[1].button(leader["name"], key=button_key, width="stretch"):
             clicked = ticker
-        cols[2].markdown(f"<div class='j3-td'>{ticker}</div>", unsafe_allow_html=True)
-        cols[3].markdown(
-            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{score:.1f}</span></div></div>",
+        # 나머지 여섯 칸은 한 덩이로 그린다(2026-07-30 — 요소 수를 줄여 폰을 빠르게).
+        cols[2].markdown(
+            _flex_row(_LEADER_REST_WIDTHS, [
+                ticker,
+                "<div class='j3-barwrap'><div class='j3-bar'>"
+                f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+                f"<span class='j3-bar-num'>{score:.1f}</span></div>",
+                *(
+                    f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
+                    for value in (metrics.get("change_pct"), metrics.get("from_high_pct"),
+                                  metrics.get("ret20"))
+                ),
+                str(plan.get("state", "")),
+            ]),
             unsafe_allow_html=True,
         )
-        for slot, value in (
-            (4, metrics.get("change_pct")),
-            (5, metrics.get("from_high_pct")),
-            (6, metrics.get("ret20")),
-        ):
-            cols[slot].markdown(
-                f"<div class='j3-td' style='color:{_sign_color(value)}; font-weight:700'>"
-                f"{_pct(value)}</div>", unsafe_allow_html=True)
-        cols[7].markdown(
-            f"<div class='j3-td'>{plan.get('state', '')}</div>", unsafe_allow_html=True)
 
     if button_css:
         st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
