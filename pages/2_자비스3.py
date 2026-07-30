@@ -1011,6 +1011,13 @@ def _render_price_chart_bundle(ticker: str) -> None:
         st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
 
 
+# 종목 상세의 당일 차트 높이. 아래 일봉·주봉·월봉과 같은 3분할 폭에 그리므로
+# 이 높이가 곧 가로세로 비율을 정한다(2026-07-30 사용자 지시: 4:3).
+# 실측 — 넓은 화면(1280px)에서 한 칸이 359px이라 4:3이면 269px다.
+# 화면이 좁아지면 칸도 좁아져 세로가 상대적으로 길어진다(픽셀 높이는 고정이므로).
+INTRADAY_CHART_HEIGHT = 269
+
+
 def _intraday_chart(payload: dict, height: int = 200):
     """당일 1분봉 흐름 차트 — 자비스1 코스피/코스닥 당일 차트와 같은 단순 라인.
 
@@ -2176,13 +2183,21 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
         intraday_payload = None
         intraday_error = _safe_error_text(exc)
-    if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-        st.altair_chart(_intraday_chart(intraday_payload, height=210), width="stretch", theme="streamlit")
-        st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-    elif intraday_error:
-        st.info(f"당일 자료 없음 — {intraday_error}")
-    else:
-        st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
+    # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
+    # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 아래와 같은 3분할의
+    # 첫 칸에만 그린다 — 폭이 같아지고 높이를 INTRADAY_CHART_HEIGHT로 맞춘다.
+    intraday_col, _, _ = st.columns(3)
+    with intraday_col:
+        if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+            st.altair_chart(
+                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
+                width="stretch", theme="streamlit",
+            )
+            st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+        elif intraday_error:
+            st.info(f"당일 자료 없음 — {intraday_error}")
+        else:
+            st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
     _render_price_chart_bundle(ticker)
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)

@@ -1203,6 +1203,13 @@ def _pullback_as_candidate(row: dict, leaders: list[dict]) -> dict | None:
     }
 
 
+# 종목 상세의 당일 차트 높이. 아래 일봉·주봉·월봉과 같은 3분할 폭에 그리므로
+# 이 높이가 곧 가로세로 비율을 정한다(2026-07-30 사용자 지시: 4:3).
+# 실측 — 넓은 화면(1280px)에서 한 칸이 359px이라 4:3이면 269px다.
+# 화면이 좁아지면 칸도 좁아져 세로가 상대적으로 길어진다(픽셀 높이는 고정이므로).
+INTRADAY_CHART_HEIGHT = 269
+
+
 def _intraday_chart(payload: dict, height: int = 210):
     """당일 분봉 차트 — 전일 종가를 점선 기준선으로 그린다(한국장 색: 상승 빨강)."""
     frame = payload["price"].reset_index()
@@ -1765,13 +1772,21 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
         intraday_payload = None
         intraday_error = _safe_error_text(exc)
-    if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-        st.altair_chart(_intraday_chart(intraday_payload), width="stretch", theme="streamlit")
-        st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-    elif intraday_error:
-        st.info(f"당일 자료 없음 — {intraday_error}")
-    else:
-        st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
+    # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
+    # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 아래와 같은 3분할의
+    # 첫 칸에만 그린다 — 폭이 같아지고 높이를 INTRADAY_CHART_HEIGHT로 맞춘다.
+    intraday_col, _, _ = st.columns(3)
+    with intraday_col:
+        if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+            st.altair_chart(
+                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
+                width="stretch", theme="streamlit",
+            )
+            st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+        elif intraday_error:
+            st.info(f"당일 자료 없음 — {intraday_error}")
+        else:
+            st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
 
     st.markdown("<div class='j4-chart-heading'>가격 차트 · 일봉/주봉/월봉 한눈에 보기</div>", unsafe_allow_html=True)
     st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
