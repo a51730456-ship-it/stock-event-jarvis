@@ -86,7 +86,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026073010
+MODULE_REVISION = 2026073011
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1031,6 +1031,58 @@ def _intraday_chart_payload(frame: pd.DataFrame | None, prev_close: float | None
 TOP_REVIEW_LIMIT = 7
 
 
+def _cache_is_warm(tickers, *, period: str, interval: str, ttl_seconds: float,
+                   prepost: bool = False) -> bool:
+    """이 티커 묶음을 덮는 캐시가 이미 있는지. 있으면 프레임을 복사하지 않는다."""
+    requested = {str(t).strip().upper() for t in tickers if str(t).strip()}
+    if not requested:
+        return True
+    now = time.time()
+    with _CACHE_LOCK:
+        for cached_key, candidate in _CACHE.items():
+            if not isinstance(cached_key, tuple) or len(cached_key) != 4:
+                continue
+            cached_tickers, cached_period, cached_interval, cached_prepost = cached_key
+            if (
+                cached_period == period
+                and cached_interval == interval
+                and bool(cached_prepost) == bool(prepost)
+                and requested.issubset(set(cached_tickers))
+                and now - candidate["at"] < ttl_seconds
+            ):
+                return True
+    return False
+
+
+def _prefetch_leader_quotes(theme_rows) -> None:
+    """순위 7이 볼 테마 전체의 시세를 **한 번에** 받아 둔다 (2026-07-30).
+
+    이걸 안 하면 테마마다 자기 1분봉을 따로 받는다. 테마 순위는 1분봉을 ETF만
+    받아 두기 때문에 종목 1분봉은 캐시에 없고, 20개 테마가 각자 내려받는다.
+    게다가 다운로드는 _DOWNLOAD_LOCK 하나로 묶여 있어 스레드를 4개 띄워도 동시에
+    받지 못하고 20번을 줄줄이 기다린다 — 이것이 '클릭하면 느리다'의 몸통이다.
+    여기서 한 묶음으로 받아 두면 각 테마는 _download_cached의 묶음 재사용 경로를 탄다.
+    """
+    tickers: list[str] = []
+    for row in theme_rows or []:
+        theme = THEME_BY_NAME.get(str(row.get("name") or ""))
+        if theme is None:
+            continue
+        tickers.extend((theme["etf"], theme["alt_etf"], *theme["stocks"]))
+    unique = list(dict.fromkeys(tickers))
+    if not unique:
+        return
+    # 실패해도 그냥 넘어간다 — 각 테마가 예전처럼 자기 몫을 받으면 되므로
+    # 여기서 막히면 느려지기만 하고 결과는 같다.
+    try:
+        if not _cache_is_warm(unique, period="1y", interval="1d", ttl_seconds=300):
+            _download_cached(unique, period="1y", interval="1d", ttl_seconds=300)
+        if not _cache_is_warm(unique, period="1d", interval="1m", ttl_seconds=45, prepost=True):
+            _download_cached(unique, period="1d", interval="1m", ttl_seconds=45, prepost=True)
+    except Exception as exc:
+        _log.warning("jarvis3 top7 prefetch failed: %s", exc)
+
+
 def _keep_better(picked: dict, row: dict, *, source: str) -> None:
     """같은 종목이 여러 테마에 겹치면 점수가 높은 쪽만 남긴다."""
     ticker = str(row.get("ticker") or "").strip().upper()
@@ -1083,12 +1135,15 @@ def find_top_reviewed_stocks(
                 name,
                 market_score=market_score,
                 theme_score=float(theme_row.get("score") or 0),
+                # 표만 그리므로 차트 자료는 만들지 않는다 — 만들면 157종목치가 다 버려진다.
+                with_charts=False,
             )
         except Exception as exc:
             return name, {"ok": False, "error": str(exc), "rows": []}
 
     themes = list(theme_rows or [])
     if themes:
+        _prefetch_leader_quotes(themes)
         with ThreadPoolExecutor(max_workers=4) as executor:
             for future in [executor.submit(_one, row) for row in themes]:
                 name, result = future.result()
@@ -1127,7 +1182,15 @@ def find_top_reviewed_stocks(
     }
 
 
-def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: float = 0) -> dict:
+def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: float = 0,
+                      with_charts: bool = True) -> dict:
+    """선택한 테마의 대장주 순위.
+
+    with_charts — 분봉·일봉·주봉 차트 자료를 함께 담을지. 테마 하나를 열어 볼 때는
+    옆에 차트를 그리니 담아야 하지만, '매수심사결과 높은 순위 7'은 테마 20개를
+    한꺼번에 돌면서 표만 그린다. 그때 157종목 차트를 만들면 전부 버려진다
+    (2026-07-30 실측: 차트 만들기만 노트북 CPU 0.7초, 온라인은 코어가 적어 더 걸린다).
+    """
     theme = THEME_BY_NAME.get(theme_name)
     if theme is None:
         return {"ok": False, "error": "등록되지 않은 테마입니다", "rows": []}
@@ -1147,7 +1210,7 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
         daily_frame = daily.get(ticker)
         daily_chart = None
         weekly_chart = None
-        if daily_frame is not None and not daily_frame.empty:
+        if with_charts and daily_frame is not None and not daily_frame.empty:
             # 대장주 비교 차트도 종목 상세와 같은 형식(주가·20일선·50일선)으로 만든다.
             daily_chart = _prepare_chart_payload(daily_frame, None, 60, daily_meta)
             weekly_chart = _prepare_chart_payload(daily_frame, "W-FRI", 52, daily_meta)
@@ -1158,7 +1221,10 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
             "score_parts": parts,
             "metrics": metrics,
             "plan": plan,
-            "intraday_chart": _intraday_chart_payload(live.get(ticker), metrics.get("prev_close")),
+            "intraday_chart": (
+                _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"))
+                if with_charts else None
+            ),
             "daily_chart": daily_chart,
             "weekly_chart": weekly_chart,
         })

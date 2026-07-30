@@ -507,7 +507,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026073010
+_REQUIRED_J3_REVISION = 2026073011
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -1956,12 +1956,18 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             st.session_state["j3_top7_open"] = False
             st.session_state.pop("j3_top7_pick_row", None)
         else:
+            # 걸린 시간을 재 둔다 — 노트북 숫자로는 온라인을 알 수 없어 화면에 찍는다
+            # (한국테마와 같은 방식). 벽시계 시간과 그중 계산(CPU) 시간을 따로 본다.
+            wall0, cpu0 = time.perf_counter(), time.process_time()
             with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
                 found = j3data.find_top_reviewed_stocks(
                     ranking.get("rows") or [],
                     market_score=float(market.get("score") or 0),
                     extra_rows=pull_rows,
                 )
+            st.session_state["j3_t_top7"] = (
+                time.perf_counter() - wall0, time.process_time() - cpu0
+            )
             st.session_state["j3_top7_result"] = found
             st.session_state["j3_top7_open"] = True
             # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
@@ -1988,6 +1994,12 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         f"테마 {result.get('scanned_themes', 0)}개 심사 · 후보 {result.get('candidate_count', 0)}개 → 상위 {len(rows)}개"
         + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
     )
+    took = st.session_state.get("j3_t_top7")
+    if took:
+        st.caption(
+            f"⏱ 순위 7 — 자료 받는 데 **{took[0]:.1f}초** (그중 계산 {took[1]:.1f}초) "
+            f"· 계산모듈 {getattr(j3data, 'MODULE_REVISION', '?')}"
+        )
 
     st.caption("종목 이름을 누르면 아래에 그 종목 상세가 열립니다.")
     widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]

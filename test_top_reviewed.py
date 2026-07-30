@@ -393,7 +393,10 @@ class UnitedStatesTests(unittest.TestCase):
     def test_ranks_by_score_and_dedups_by_ticker(self):
         themes = [{"name": "반도체", "score": 80}, {"name": "AI", "score": 75}]
 
-        def fake_leaders(theme_name, market_score=0, theme_score=0):
+        seen_charts = []
+
+        def fake_leaders(theme_name, market_score=0, theme_score=0, with_charts=True):
+            seen_charts.append(with_charts)
             score = 91.0 if theme_name == "반도체" else 64.0
             return {"ok": True, "rows": [_us_leader("NVDA", score), _us_leader("AMD", 55.0)]}
 
@@ -403,6 +406,8 @@ class UnitedStatesTests(unittest.TestCase):
         self.assertEqual(["NVDA", "AMD"], [row["ticker"] for row in result["rows"]])
         self.assertEqual(91.0, result["rows"][0]["score"])
         self.assertEqual(["AI", "반도체"], sorted(result["rows"][0]["sources"]))
+        # 표만 그리는 자리라 차트 자료는 만들지 않는다(2026-07-30 속도).
+        self.assertEqual([False, False], seen_charts)
 
     def test_limit_is_seven_by_default(self):
         self.assertEqual(7, j3.TOP_REVIEW_LIMIT)
