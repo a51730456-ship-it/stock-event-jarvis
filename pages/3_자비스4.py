@@ -2161,7 +2161,36 @@ def _show_timing(slot: str, label: str) -> None:
     got = st.session_state.get(slot)
     if not got:
         return
-    st.caption(f"⏱ {label} — 서버가 쓴 시간 **{got[0]:.1f}초** (그중 계산 {got[1]:.1f}초)")
+    st.caption(f"⏱ {label} — 자료 받는 데 **{got[0]:.1f}초** (그중 계산 {got[1]:.1f}초)")
+
+
+def _start_page_timer() -> None:
+    st.session_state["_j4_page_t0"] = (time.perf_counter(), time.process_time())
+
+
+def _finish_page_timer() -> None:
+    started = st.session_state.get("_j4_page_t0")
+    if not started:
+        return
+    st.session_state["_j4_page_last"] = (
+        time.perf_counter() - started[0], time.process_time() - started[1]
+    )
+
+
+def _show_page_timer() -> None:
+    """직전 판에서 서버가 판 하나를 만드는 데 쓴 시간 전부.
+
+    지금 판의 총시간은 페이지 맨 끝에 가서야 알 수 있으므로 직전 값을 찍는다.
+    단추를 누르면 판이 새로 그려지니, 그 단추의 값은 그 다음 판에서 보인다.
+    """
+    got = st.session_state.get("_j4_page_last")
+    if not got:
+        st.caption("⏳ 서버가 판 하나를 만든 시간 — 한 번 더 누르시면 여기 찍힙니다.")
+        return
+    st.caption(
+        f"⏳ **직전 판**에서 서버가 화면을 만든 시간 **{got[0]:.1f}초** "
+        f"(그중 계산 {got[1]:.1f}초) — 상하님이 세신 초에서 이걸 빼면 브라우저 몫입니다."
+    )
 
 
 def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
@@ -2320,6 +2349,7 @@ def _render_radar_tab(market: dict) -> None:
     # 서빙한 사례가 있다(DECISIONS.md 11번). 페이지 파일은 매번 다시 읽히므로
     # 여기 적은 표식은 배포된 페이지를 그대로 나타낸다.
     st.caption(f"🔧 {_SPEED_STAMP} · 계산모듈 {getattr(j4data, 'MODULE_REVISION', '?')}")
+    _show_page_timer()
     _show_timing("j4_t_market", "시장판단")
     _show_timing("j4_t_rank", "테마 순위")
     if not ranking.get("ok"):
@@ -3031,6 +3061,7 @@ def _render_method_tab() -> None:
 
 
 def main() -> None:
+    _start_page_timer()
     st.markdown(
         mobile_ui.page_css(
             # 폰 머리글을 숨기던 규칙은 뺐다 — 세로로 쌓던 시절 규칙이라, 옆으로
@@ -3081,6 +3112,13 @@ def main() -> None:
         _render_records_tab()
     else:
         _render_method_tab()
+
+    # 판 하나를 서버가 만드는 데 쓴 시간 — 자료 가져오는 시간만이 아니라 **전부**다.
+    # 2026-07-30 사용자 실측에서 이것 없이는 결론이 안 났다: 눌림목을 닫을 때
+    # 자료조회는 0초인데 6초가 걸렸다. 그 6초가 서버가 화면을 만드는 시간인지
+    # 브라우저가 그리는 시간인지 가릴 수가 없었다.
+    # 지금 판의 총시간은 이 줄에 와서야 알 수 있으므로 다음 판 맨 위에 찍는다.
+    _finish_page_timer()
 
 
 main()
