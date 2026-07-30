@@ -42,17 +42,53 @@ class PanelTests(unittest.TestCase):
         self.assertIn("--j-mark", css)
         self.assertIn('[data-testid="stPopoverBody"] h3 { color: var(--j-title)', css)
         self.assertIn('[data-testid="stPopoverBody"] h5 { color: var(--j-step)', css)
-        self.assertIn('[data-testid="stPopoverBody"] strong { color: var(--j-mark)', css)
+        # 붉은색은 문단·인용문의 굵은 글씨에만. 표·목록까지 붉히면 온통 붉어진다
+        # (2026-07-30 사용자 지적).
+        self.assertIn('[data-testid="stPopoverBody"] p > strong,', css)
+        self.assertIn("blockquote strong { color: var(--j-mark)", css)
+        self.assertIn("td strong,", css)
+        self.assertIn("li strong { color: inherit !important; }", css)
         # 앱에 테마 파일이 없어 보는 사람의 밝기 설정을 따라간다 — 두 벌 다 있어야 한다.
         self.assertIn("prefers-color-scheme: dark", css)
 
-    def test_panel_is_pinned_and_half_height(self):
+    def test_panel_is_pinned_top_right_and_half_height(self):
         css = method_help.BUTTON_CSS
         # floating-ui의 inline transform을 지우지 않으면 단추를 따라 흘러간다.
         self.assertIn("transform: none !important", css)
         self.assertIn("position: fixed !important", css)
         self.assertIn("height: 50vh !important", css)
         self.assertIn("overflow-y: auto !important", css)
+        # 아래가 아니라 오른쪽 '맨 위'다(2026-07-30 사용자 지시).
+        self.assertIn("top: 4.2rem !important", css)
+        self.assertIn("bottom: auto !important", css)
+
+    def test_there_is_always_a_way_to_close_it(self):
+        """본문을 내리면 여는 단추가 사라져 닫을 수 없었다(2026-07-30 사용자 지적).
+
+        여는 단추를 sticky로 붙이는 방법은 안 먹었다(실측). 그래서 창 안에
+        닫기 단추를 둔다 — 이게 유일한 닫는 길이므로 사라지면 안 된다.
+        """
+        import inspect
+
+        # 여는 단추가 곧 닫는 단추다 — 화면에 못박혀 있어야 한다.
+        self.assertIn(".st-key-jarvis_method_help {", method_help.BUTTON_CSS)
+        self.assertIn("position: fixed !important", method_help.BUTTON_CSS)
+        # 어떻게 닫는지 창 안에 적어 준다.
+        self.assertIn("다시 누르", method_help.CLOSE_HINT)
+        source = inspect.getsource(method_help.render)
+        self.assertIn("CLOSE_HINT", source, "닫는 방법 안내가 창 안에 없다")
+
+    def test_bold_runs_are_not_broken_by_korean_particles(self):
+        """닫는 ** 앞이 %·)·' 이고 뒤에 한글이 붙으면 별표가 그대로 찍힌다.
+
+        2026-07-30 실측 — '**−10%**면', '**분야(테마)**를'이 화면에 별표째 나왔다.
+        조사를 굵은 글씨 안으로 넣어 피한다.
+        """
+        import re
+
+        for text in (method_help.US_TEXT, method_help.KR_TEXT):
+            broken = re.findall(r"\*\*[^*\n]*[%)'\]）]\*\*[가-힣]", text)
+            self.assertEqual([], broken, f"굵은 글씨가 깨진다: {broken}")
 
     def test_step_headings_are_h5_and_others_h3(self):
         """색이 h3/h5로 갈리므로 제목 단계가 흐트러지면 색이 엉킨다."""
@@ -210,6 +246,38 @@ class TextTests(unittest.TestCase):
         us_summary = method_help.US_TEXT.split("### 이 화면은 무엇을 하는 곳인가")[0]
         self.assertNotIn("보강했습니다", us_summary)
         self.assertIn("이 안전장치가 잘 듣습니다", us_summary)
+
+    def test_explanation_and_screen_agree_on_the_guidance(self):
+        """2026-07-30 사용자 지적 — 지침이 명확하지 않다.
+
+        설명이 소개하는 '지금 할 일' 문구는 guidance.py가 실제로 내보내는 문구와
+        같아야 한다. 한쪽만 고치면 화면과 설명이 다른 말을 하게 된다.
+        """
+        import guidance
+
+        for text in (method_help.US_TEXT, method_help.KR_TEXT):
+            self.assertIn("그래서 지금 뭘 하라는 건가", text)
+            self.assertIn("지금 할 일", text)
+
+        cases = [
+            {"state": "돌파 확인", "recommendation": "조건부 후보", "trigger": 1.0},
+            {"state": "추격 금지", "recommendation": "추천 제외"},
+            {"state": "제외", "recommendation": "추천 제외"},
+            {"state": "관찰", "recommendation": "관찰"},
+            {"state": "눌림목 대기", "recommendation": "관찰"},
+            {},
+        ]
+        for plan in cases:
+            score = 15 if plan.get("state") == "관찰" else 70
+            headline = guidance.build(plan, money=lambda v: f"{v}", market_score=score)["headline"]
+            # 진입 자리 문구는 뒤에 상태 이름이 괄호로 붙는다("… (돌파 확인)").
+            # 설명에는 상태별로 다 적을 수 없으니 괄호 앞부분만 맞춰 본다.
+            stem = headline.split(" (")[0]
+            for text in (method_help.US_TEXT, method_help.KR_TEXT):
+                self.assertIn(
+                    stem, text,
+                    f"화면에는 '{headline}'이 뜨는데 설명에 그 말이 없다",
+                )
 
     def test_it_names_where_the_method_came_from(self):
         """2026-07-30 사용자 지시 — 이 기법의 근원을 밝힐 것.

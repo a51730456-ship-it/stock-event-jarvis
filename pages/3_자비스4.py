@@ -254,6 +254,19 @@ st.markdown(
     div[class*="st-key-j4_stock_choice"] [data-testid="stWidgetLabel"] p {
         color: #7cc8ff !important; font-size: 1.55rem !important; font-weight: 800 !important;
     }
+    /* '지금 할 일' 지침 상자 — 매수 심사 결과 표 바로 위. 테두리 색은
+       guidance.py가 판정에 따라 정한다(초록 진입 · 노랑 대기 · 빨강 금지). */
+    .j4-guide {
+        border: 2px solid; border-radius: 10px; padding: .6rem .85rem;
+        margin: 0 0 .7rem; background: rgba(255,255,255,0.03);
+    }
+    .j4-guide-tag {
+        font-size: .74rem; font-weight: 800; letter-spacing: .04em;
+        border: 1px solid currentColor; border-radius: .4rem;
+        padding: .05rem .4rem; margin-right: .5rem;
+    }
+    .j4-guide-head { font-size: 1.02rem; font-weight: 800; }
+    .j4-guide-body { margin-top: .35rem; font-size: .92rem; line-height: 1.5; color: #e6e6e6; }
     /* 테두리는 노랑 — 매수 심사 결과가 이 화면에서 제일 먼저 눈에 띄어야 한다
        (2026-07-30 사용자 지시). */
     .j4-holo-card {
@@ -350,11 +363,18 @@ if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
 _REQUIRED_MOBILE_REVISION = 2026072922
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
+import guidance
+
+# 지침 문구를 바꾸면 guidance의 리비전을 올린다(규칙 11).
+_REQUIRED_GUIDANCE_REVISION = 2026073010
+if int(getattr(guidance, "MODULE_REVISION", 0)) < _REQUIRED_GUIDANCE_REVISION:
+    guidance = importlib.reload(guidance)
+
 import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026073011
+_REQUIRED_METHOD_HELP_REVISION = 2026073015
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
@@ -1633,6 +1653,15 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         # 괄호 안내는 뺐다 — 제목은 짧게(2026-07-30 사용자 지시). 호가단위 반올림은
         # 계속 하고 있고, 설명은 '이 테마 기법에 대한 설명' 안에 적어 두었다.
         st.markdown("<div class='j4-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
+        # 점수·상태만 있고 '뭘 하라는 건지'가 없다는 지적(2026-07-30). 판정을 사람
+        # 말로 다시 쓴 한 줄을 표 위에 얹는다 — 새 판정을 만들지는 않는다.
+        st.markdown(
+            guidance.html(
+                guidance.build(plan, money=_won, market_score=market.get("score")),
+                css_class="j4-guide",
+            ),
+            unsafe_allow_html=True,
+        )
         plan_cells = [
             ("조건 기준가", _won(plan.get("trigger")), "#e6e6e6"),
             ("매수 허용 상단", _won(plan.get("zone_high")), "#e6e6e6"),
