@@ -16,6 +16,7 @@ pykrx는 쓰지 않는다 — KRX가 로그인(KRX_ID/KRX_PW)을 요구하도록
 
 from __future__ import annotations
 
+import io
 import logging
 import math
 import pickle
@@ -273,12 +274,60 @@ def is_regular_session(now: datetime | None = None) -> bool:
 # ---------------------------------------------------------------------------
 # 종목 일봉 (FinanceDataReader)
 # ---------------------------------------------------------------------------
-def _read_daily(code: str, days: int = 400) -> pd.DataFrame | None:
-    import FinanceDataReader as fdr
+def _read_daily_naver(code: str, days: int) -> pd.DataFrame | None:
+    """네이버 일봉을 공용 연결로 직접 받는다. FinanceDataReader와 같은 주소·같은 계산.
 
+    2026-07-30 실측 — FinanceDataReader는 종목마다 ``count=6000``(약 24년치)을 받아
+    파싱한 뒤 우리가 쓸 400일만 잘라 버렸다. 269줄을 쓰려고 6000줄을 파싱한 것이다.
+    게다가 자기 안에서 맨 ``requests.get``을 불러 종목마다 새 연결·새 SSL 준비를
+    했다 — 이 앱이 `_http_session`으로 이미 없앤 낭비를 그대로 되살렸다.
+
+    같이 돌릴 때 종목당 CPU가 0.34초 → 1.12초로 세 배가 됐다(일꾼 1개 대 12개).
+    코어가 10개인 노트북은 이걸 감추지만, 코어 1~2개인 온라인은 실제시간이 CPU
+    시간을 따라간다 — 50종목이면 50초대다.
+
+    주소·파싱·`Change` 계산은 FinanceDataReader가 하던 것과 같게 둔다. 다만 필요한
+    만큼만 받고(``count``), 연결은 공용 세션을 쓴다. 자르기 전 여유분을 두어 창의
+    첫날 ``Change``도 전날 대비로 제대로 나오게 한다.
+    """
     end = datetime.now(_SEOUL).date()
     start = end - timedelta(days=days)
-    frame = fdr.DataReader(str(code), start.isoformat(), end.isoformat())
+    # 400 달력일 ≈ 275 거래일. 두 배 가까이 받아 두면 앞쪽 여유분이 넉넉하다.
+    count = max(600, int(days * 1.5))
+    url = (
+        "https://fchart.stock.naver.com/sise.nhn"
+        f"?timeframe=day&count={count}&requestType=0&symbol={code}"
+    )
+    response = _http_session().get(url, timeout=10)
+    response.raise_for_status()
+    rows = re.findall(r'<item data=\"(.*?)\" />', response.text, re.DOTALL)
+    if not rows:
+        return None
+    frame = pd.read_csv(
+        io.StringIO("\n".join(rows)), delimiter="|", header=None, dtype={0: str}
+    )
+    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
+    frame["Date"] = pd.to_datetime(frame["Date"], format="%Y%m%d")
+    frame.set_index("Date", inplace=True)
+    frame.sort_index(inplace=True)
+    frame["Change"] = frame["Close"].pct_change()
+    return frame.loc[start.isoformat():end.isoformat()]
+
+
+def _read_daily(code: str, days: int = 400) -> pd.DataFrame | None:
+    code = str(code)
+    frame = None
+    try:
+        frame = _read_daily_naver(code, days)
+    except Exception as exc:
+        # 조용히 예전 방식으로 넘어간다 — 네이버 응답 모양이 바뀌어도 화면이 비지 않게.
+        _log.warning("jarvis4 naver daily failed code=%s: %s", code, exc)
+    if frame is None or frame.empty or "Close" not in frame.columns:
+        import FinanceDataReader as fdr
+
+        end = datetime.now(_SEOUL).date()
+        start = end - timedelta(days=days)
+        frame = fdr.DataReader(code, start.isoformat(), end.isoformat())
     if frame is None or frame.empty or "Close" not in frame.columns:
         return None
     frame = frame[~frame.index.duplicated(keep="last")].sort_index()
@@ -2476,7 +2525,12 @@ def find_pullback_stocks(
             return {**stock, "metrics": metrics, "daily": daily}
 
         screened = []
-        with ThreadPoolExecutor(max_workers=16) as executor:
+        # 일꾼을 16개에서 8개로 줄인다. 일봉은 대기보다 계산이 지배하는 일이고,
+        # 일꾼을 늘리면 연결을 그만큼 새로 열어 SSL 준비를 반복한다.
+        # 50종목 실측(2026-07-30, 공용연결로 바꾼 뒤):
+        #   일꾼 4개 실제 1.21초/CPU 2.84 · 6개 0.67/1.58 · 8개 0.66/1.59 · 16개 1.17/8.09
+        # 코어가 1~2개인 온라인에서는 실제시간이 CPU 시간을 따라가므로 CPU가 낮은 쪽이 낫다.
+        with ThreadPoolExecutor(max_workers=8) as executor:
             for future in as_completed([executor.submit(_screen, s) for s in candidates]):
                 try:
                     item = future.result()
