@@ -247,6 +247,53 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertFalse(any(">장 상태<" in value for value in markdowns))
         self.assertTrue(any("실제 매수 기록" in str(node.value) for node in app.markdown))
 
+    def test_top7_click_opens_detail_even_though_it_lives_in_a_fragment(self):
+        """순위 7을 프래그먼트로 묶은 뒤에도 표→상세가 이어지는지 (2026-07-30).
+
+        묶은 이유는 속도다 — 단추 한 번에 판 전체를 다시 그리던 것을 이 덩이만
+        다시 그리게 했다. 다만 표만 묶고 상세를 밖에 두면 종목을 눌러도 상세가
+        다시 안 그려진다. 그래서 둘을 같은 덩이에 넣었고, 이 시험이 그것을 지킨다.
+        """
+        found = {
+            "ok": True,
+            "rows": [{**row, "pick_rank": index, "sources": ["반도체"]}
+                     for index, row in enumerate(_leaders()["rows"][:2], 1)],
+            "scanned_themes": 3, "candidate_count": 2, "errors": [],
+        }
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.find_top_reviewed_stocks", return_value=found), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=[]):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            _open_all_details(app)
+            app.run(timeout=60)
+            next(
+                node for node in app.button if str(node.key or "") == "j3_top7_find"
+            ).click().run(timeout=60)
+            next(
+                node for node in app.button if str(node.key or "") == "j3top7_00"
+            ).click().run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertTrue(
+            any("순위 7에서 고른 종목" in str(node.value) for node in app.markdown),
+            "종목을 눌렀는데 상세가 안 열렸다",
+        )
+
     def test_pullback_detail_opens_top_ranked_stock_without_click(self):
         """눌림목을 찾고 나면 종목을 누르지 않아도 1순위 상세가 열려 있어야 한다.
 

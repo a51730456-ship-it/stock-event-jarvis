@@ -565,6 +565,44 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in reversed(started):
                 item.stop()
 
+    def test_reopening_does_not_search_again_within_five_minutes(self):
+        """닫았다 바로 다시 열 때 같은 결과를 또 찾으면 안 된다 (2026-07-31).
+
+        오늘 '새로 찾기' 단추를 뺐더니 열 때마다 다시 찾아 느려졌다는 지적을 받았다.
+        단추는 하나로 두되, 방금 찾아 둔 것이 5분 안이면 조회 없이 그대로 편다.
+        """
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            with patch("jarvis4_data.find_pullback_stocks",
+                       return_value=_pullback_stocks()) as search,                  patch("jarvis4_data.clear_pullback_cache") as clear:
+                app = AppTest.from_file(str(PAGE), default_timeout=90)
+                app.secrets["APP_PASSWORD"] = "test"
+                app.session_state["authenticated"] = True
+                _open_all_details(app)
+                app.run(timeout=90)
+
+                def press():
+                    next(node for node in app.button
+                         if str(node.key or "") == "j4_pullback_find").click().run(timeout=90)
+
+                press()                      # 열기 — 여기서 한 번 찾는다
+                self.assertEqual(1, search.call_count)
+                press()                      # 닫기
+                self.assertFalse(app.session_state.filtered_state.get("j4_pullback_open"))
+                press()                      # 다시 열기 — 또 찾으면 안 된다
+                self.assertEqual(1, search.call_count, "다시 열 때 또 찾았다")
+                self.assertEqual(1, clear.call_count, "다시 열 때 캐시를 또 지웠다")
+                self.assertTrue(app.session_state.filtered_state.get("j4_pullback_open"))
+                keys = [str(node.key or "") for node in app.button]
+                self.assertTrue([k for k in keys if k.startswith("j4pbf_")],
+                                "다시 열었는데 표가 안 보인다")
+        finally:
+            for item in reversed(started):
+                item.stop()
+
     def test_pullback_click_opens_its_own_detail_only(self):
         """눌림목 종목을 누르면 **아래 눌림목 상세만** 그 종목으로 열린다.
 

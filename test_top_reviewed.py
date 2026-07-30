@@ -193,7 +193,28 @@ class PageWiringTests(unittest.TestCase):
             source = pathlib.Path(path).read_text(encoding="utf-8")
             block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
             self.assertIn(f'"{prefix}_top7_open"', block, f"{market}에 접었다 펴는 장치가 없다")
-            self.assertIn("if is_open:", block, f"{market}가 다시 눌러도 안 접힌다")
+            # 두 페이지의 단추 짜임새가 서로 다르다(미국은 run_requested를 거친다).
+            # 어느 쪽이든 '열려 있으면 접는' 갈래가 있으면 된다.
+            self.assertTrue(
+                "if run_requested and is_open:" in block or "if is_open:" in block,
+                f"{market}가 다시 눌러도 안 접힌다",
+            )
+
+    def test_there_is_only_one_button(self):
+        """단추는 하나다 (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 마라).
+
+        같은 날 '열기'와 '새로 뽑기'로 나눴다가 되돌렸다 — 묻지 않고 화면에 단추를
+        늘린 것이 문제였다. 늘리려면 먼저 물어야 한다.
+        """
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
+            self.assertNotIn('button("새로 뽑기"', block, f"{market}에 단추가 또 늘었다")
+            self.assertNotIn(f"{prefix}_top7_refind", block)
+            self.assertEqual(1, block.count("st.button(\"매수심사결과 높은 순위 7\""),
+                             f"{market} 순위 7 단추가 하나가 아니다")
 
     def test_phone_rules_exist_and_live_in_mobile_ui(self):
         """폰에서 한 종목이 여섯 줄로 쌓였다(2026-07-30 캡처).
@@ -230,12 +251,18 @@ class PageWiringTests(unittest.TestCase):
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
             block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
-            close = block.split("if is_open:")[1].split("else:")[0]
+            if "if run_requested and is_open:" in block:
+                close = block.split("if run_requested and is_open:")[1].split("\n    if ")[0]
+                run = block.split("\n    if run_requested:\n")[1]
+            else:
+                close = block.split("if is_open:")[1].split("else:")[0]
+                run = block.split("else:")[1]
             self.assertNotIn("st.rerun()", close, f"{market}가 닫을 때 다시 그린다")
             self.assertNotIn("find_top_reviewed_stocks", close,
                              f"{market}가 닫을 때도 조회한다")
-            # 조회는 '여는 쪽'에만 있어야 한다.
-            self.assertIn("find_top_reviewed_stocks", block.split("else:")[1][:600])
+            # 조회는 '뽑는 쪽' 갈래에만 있어야 한다.
+            self.assertIn("find_top_reviewed_stocks", run,
+                          f"{market}에서 뽑는 자리가 사라졌다")
 
     def test_opening_does_not_preload_a_stock_detail(self):
         """1위 상세를 미리 펴면 분봉·일봉·주봉·월봉을 다 받아 오느라 느려진다."""
@@ -393,16 +420,26 @@ class UnitedStatesTests(unittest.TestCase):
     def test_ranks_by_score_and_dedups_by_ticker(self):
         themes = [{"name": "반도체", "score": 80}, {"name": "AI", "score": 75}]
 
-        def fake_leaders(theme_name, market_score=0, theme_score=0):
+        seen_charts = []
+        seen_live = []
+
+        def fake_leaders(theme_name, market_score=0, theme_score=0, with_charts=True,
+                         with_live=True):
+            seen_charts.append(with_charts)
+            seen_live.append(with_live)
             score = 91.0 if theme_name == "반도체" else 64.0
             return {"ok": True, "rows": [_us_leader("NVDA", score), _us_leader("AMD", 55.0)]}
 
-        with patch.object(j3, "get_theme_leaders", side_effect=fake_leaders):
+        with patch.object(j3, "get_theme_leaders", side_effect=fake_leaders),              patch.object(j3, "_download_cached", return_value=({}, {})):
             result = j3.find_top_reviewed_stocks(themes, market_score=60)
 
         self.assertEqual(["NVDA", "AMD"], [row["ticker"] for row in result["rows"]])
         self.assertEqual(91.0, result["rows"][0]["score"])
         self.assertEqual(["AI", "반도체"], sorted(result["rows"][0]["sources"]))
+        # 표만 그리는 자리라 차트 자료는 만들지 않는다(2026-07-30 속도).
+        self.assertEqual([False, False], seen_charts)
+        # 1차는 종가로만 줄 세운다 — 157종목 분봉을 받던 것을 없앴다(2026-07-31).
+        self.assertEqual([False, False], seen_live)
 
     def test_limit_is_seven_by_default(self):
         self.assertEqual(7, j3.TOP_REVIEW_LIMIT)

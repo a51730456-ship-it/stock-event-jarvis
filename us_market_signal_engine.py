@@ -52,6 +52,8 @@ class UsMarketVerdict(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
+# 2026-07-30 이 이름들을 쉬운 말로 바꿨다가 사용자 지시로 되돌렸다
+# ("바꾸는 게 더 이상하다"). 미국장 이름은 이대로 둔다.
 VERDICT_LABEL = {
     UsMarketVerdict.RISK_ON: "🟢 위험선호 확산",
     UsMarketVerdict.RISK_ON_EARLY: "🔵 위험선호 초기 — 선행신호만",
