@@ -2827,17 +2827,27 @@ def _render_pullback_finder() -> None:
     widths = [0.55, 2.0, 1.4, 1.1, 1.6, 1.15, 1.05, 0.8, 1.7, 2.0, 1.5, 1.2, 1.1]
     # 코드 칸은 뺐다 — 태블릿에서 수급·동반 칸이 서로 겹쳤다(2026-07-25 사용자 지적).
     # 종목코드는 종목을 누르면 나오는 상세에 그대로 있다.
-    titles = ["순위", "종목", "눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
-              "테마수", "수급(대금%)", "동반(최근 → 5일 전)", "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"]
+    # 테마표·대장주표와 같은 이유로 한 줄을 세 칸으로만 나눈다 — 칸마다 요소를
+    # 만들면 폰이 느려진다(2026-07-30 실측). 나머지 열한 칸은 한 덩이로 그린다.
+    row_widths = [widths[0], widths[1], sum(widths[2:])]
+    rest_widths = widths[2:]
     # 좁은 화면에서는 칸을 쥐어짜 글자를 자르는 대신 표를 옆으로 밀어서 본다
     # (2026-07-25 사용자 지시). 머리글과 줄이 같이 밀려야 하므로 한 상자에 담는다.
     table_box = st.container(key="j4_pullback_table")
-    for column, title in zip(table_box.columns(widths), titles):
-        column.markdown(f"<div class='j4-th-head'>{title}</div>", unsafe_allow_html=True)
+    head = table_box.columns(row_widths)
+    head[0].markdown("<div class='j4-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j4-th-head'>종목</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(rest_widths, ["눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
+                                "테마수", "수급(대금%)", "동반(최근 → 5일 전)",
+                                "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"],
+                  head=True),
+        unsafe_allow_html=True,
+    )
 
     for index, row in enumerate(rows):
         quality, flow = row["pullback"], row.get("flow") or {}
-        cols = table_box.columns(widths)
+        cols = table_box.columns(row_widths)
         cols[0].markdown(f"<div class='j4-td'>{row['pullback_rank']}</div>", unsafe_allow_html=True)
         # 종목을 누르면 **바로 아래** 눌림목 상세만 그 종목으로 바뀐다.
         # 위쪽 테마 선택과 테마 종목 상세는 건드리지 않는다(2026-07-29 지시:
@@ -2850,48 +2860,39 @@ def _render_pullback_finder() -> None:
             st.session_state["j4_pullback_pick_row"] = row
             st.rerun()
         score = float(quality["score"])
-        cols[2].markdown(
-            "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
-            f"<div class='j4-bar-fill j4-bar-green' style='width:{min(score, 100):.0f}%'></div></div>"
-            f"<span class='j4-bar-num'>{score:.1f}</span></div></div>", unsafe_allow_html=True)
-        cols[3].markdown(
-            f"<div class='j4-td' style='color:#44f0a1; font-weight:700'>"
-            f"{quality.get('high52_days_ago')}일 전</div>", unsafe_allow_html=True)
-        # 당일주가 — 신고가와 고점 대비 사이에 지금 가격과 등락을 진하게 넣는다
-        # (2026-07-24 사용자 지시). 한국시장 색 규칙(+빨강 −파랑)을 그대로 쓴다.
-        current_price = row["metrics"].get("current")
-        change_pct = row["metrics"].get("change_pct")
-        # 가격과 등락을 두 줄로 쌓는다 — 한 줄이면 좁은 화면(태블릿)에서 폭이 넘쳐
-        # 옆 칸 값과 겹쳤다(2026-07-25). 값은 그대로, 배치만 바꾼다.
-        cols[4].markdown(
-            f"<div class='j4-td' style='font-weight:800; color:#e6e6e6'>"
-            f"<span style='display:inline-flex; flex-direction:column; align-items:center; line-height:1.12'>"
-            f"<span>{_won(current_price)}</span>"
-            f"<span style='color:{_sign_color(change_pct)}; font-weight:800; font-size:.82rem'>"
-            f"{_pct(change_pct)}</span></span></div>", unsafe_allow_html=True)
-        cols[5].markdown(
-            f"<div class='j4-td' style='color:{_sign_color(quality['from_high_pct'])}; font-weight:800'>"
-            f"{_pct(quality['from_high_pct'])}</div>", unsafe_allow_html=True)
         gap = quality["gap_pct"]
-        gap_color = _sign_color(gap)
-        cols[6].markdown(
-            f"<div class='j4-td' style='color:{gap_color}; font-weight:800'>{gap:+.2f}%</div>",
-            unsafe_allow_html=True)
-        cols[7].markdown(
-            f"<div class='j4-td' style='color:#ffb020; font-weight:700'>{len(row.get('themes') or [])}</div>",
-            unsafe_allow_html=True)
-        cols[8].markdown(
-            f"<div class='j4-td'>{_flow_ratio_cell(flow)}</div>", unsafe_allow_html=True)
-        # 동반 수급 — 외국인·기관이 '둘 다' 순매수한 날. 왼쪽이 가장 최근일이다.
-        cols[9].markdown(f"<div class='j4-td'>{_partner5_cell(flow)}</div>", unsafe_allow_html=True)
-        cols[10].markdown(f"<div class='j4-td'>{_partner20_cell(flow)}</div>", unsafe_allow_html=True)
         peak = row.get("peak_score")
-        cols[11].markdown(
-            f"<div class='j4-td' style='color:#44f0a1; font-weight:800'>"
-            f"{f'{float(peak):.1f}' if peak is not None else '—'}</div>", unsafe_allow_html=True)
-        cols[12].markdown(
-            f"<div class='j4-td' style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</div>",
-            unsafe_allow_html=True)
+        # 당일주가 — 가격과 등락을 두 줄로 쌓는다. 한 줄이면 좁은 화면에서 폭이 넘쳐
+        # 옆 칸 값과 겹쳤다(2026-07-25). 값은 그대로, 배치만 바꾼다.
+        price_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+            f"<span>{_won(row['metrics'].get('current'))}</span>"
+            f"<span style='color:{_sign_color(row['metrics'].get('change_pct'))};"
+            f" font-weight:800; font-size:.82rem'>{_pct(row['metrics'].get('change_pct'))}</span></span>"
+        )
+        cols[2].markdown(
+            _flex_row(rest_widths, [
+                "<div class='j4-barwrap'><div class='j4-bar'>"
+                f"<div class='j4-bar-fill j4-bar-green' style='width:{min(score, 100):.0f}%'></div>"
+                f"</div><span class='j4-bar-num'>{score:.1f}</span></div>",
+                f"<span style='color:#44f0a1; font-weight:700'>"
+                f"{quality.get('high52_days_ago')}일 전</span>",
+                price_cell,
+                f"<span style='color:{_sign_color(quality['from_high_pct'])}; font-weight:800'>"
+                f"{_pct(quality['from_high_pct'])}</span>",
+                f"<span style='color:{_sign_color(gap)}; font-weight:800'>{gap:+.2f}%</span>",
+                f"<span style='color:#ffb020; font-weight:700'>{len(row.get('themes') or [])}</span>",
+                _flow_ratio_cell(flow),
+                # 동반 수급 — 외국인·기관이 '둘 다' 순매수한 날. 왼쪽이 가장 최근일이다.
+                _partner5_cell(flow),
+                _partner20_cell(flow),
+                f"<span style='color:#44f0a1; font-weight:800'>"
+                f"{f'{float(peak):.1f}' if peak is not None else '—'}</span>",
+                f"<span style='color:#ff5b5b; font-weight:700'>{float(row['score']):.1f}</span>",
+            ]),
+            unsafe_allow_html=True,
+        )
     st.markdown(
         "<style>"
         "div[class*='st-key-j4pbf_'] button { background: transparent !important; border: none !important;"

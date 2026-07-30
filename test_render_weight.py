@@ -44,12 +44,23 @@ class RowWidthTests(unittest.TestCase):
             self.assertIn("def _flex_row(", source, f"{market}에 한 덩이로 그리는 함수가 없다")
             self.assertIn(f"_flex_row(_{'THEME'}_REST_WIDTHS", source)
             self.assertIn(f"_flex_row(_{'LEADER'}_REST_WIDTHS", source)
-            # 옛 방식(칸 번호로 하나씩 쓰기)이 이 두 표에 남아 있으면 안 된다.
-            # 눌림목 표는 아직 옛 방식이라 여기서 보지 않는다.
-            for fn in ("_render_theme_table", "_render_leader_table"):
+            # 옛 방식(칸 번호로 하나씩 쓰기)이 남아 있으면 안 된다.
+            for fn in ("_render_theme_table", "_render_leader_table",
+                       "_render_pullback_finder"):
                 block = source.split(f"def {fn}(")[1].split("\ndef ")[0]
                 stray = re.findall(r"cols\[[3-9]\]\.markdown", block)
                 self.assertEqual([], stray, f"{market} {fn}에 옛 칸별 그리기가 남았다: {stray}")
+
+    def test_pullback_table_also_uses_three_columns(self):
+        """눌림목 표가 제일 컸다 — 13칸 × 15줄(2026-07-30 사용자 지시로 같이 줄임)."""
+        for market, (path, _prefix) in PAGES.items():
+            source = self._source(path)
+            block = source.split("def _render_pullback_finder(")[1].split("\ndef ")[0]
+            self.assertIn("row_widths = [widths[0], widths[1], sum(widths[2:])]", block,
+                          f"{market} 눌림목 표가 아직 칸마다 요소를 만든다")
+            self.assertIn("rest_widths = widths[2:]", block)
+            self.assertIn("_flex_row(rest_widths", block)
+            self.assertIn("table_box.columns(row_widths)", block)
 
     def test_widths_still_add_up_to_the_original(self):
         """폭 비율은 그대로여야 머리글과 본문이 줄 맞는다."""

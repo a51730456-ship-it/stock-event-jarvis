@@ -2443,14 +2443,21 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         return
 
     widths = [0.55, 1.7, 0.8, 1.45, 1.2, 1.0, 1.4, 1.1, 1.15, 1.25, 1.8, 0.85]
-    titles = [
-        "순위", "종목", "티커", "눌림 점수", "종목 조건점수", "신고가", "당일주가", "고점 대비",
-        "20일선 이격", "평균 거래대금", "소속 테마", "테마 가산",
-    ]
+    # 테마표·대장주표와 같은 이유로 한 줄을 세 칸으로만 나눈다 — 칸마다 요소를
+    # 만들면 폰이 느려진다(2026-07-30 실측). 나머지 열 칸은 한 덩이로 그린다.
+    row_widths = [widths[0], widths[1], sum(widths[2:])]
+    rest_widths = widths[2:]
     # 머리글과 줄이 같이 밀려야 하므로 한 상자에 담는다(2026-07-25).
     table_box = st.container(key="j3_pullback_table")
-    for column, title in zip(table_box.columns(widths), titles):
-        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+    head = table_box.columns(row_widths)
+    head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(rest_widths, ["티커", "눌림 점수", "종목 조건점수", "신고가", "당일주가",
+                                "고점 대비", "20일선 이격", "평균 거래대금", "소속 테마",
+                                "테마 가산"], head=True),
+        unsafe_allow_html=True,
+    )
 
     # 표의 '종목 조건점수'는 아래 상세와 같은 계산이어야 한다 — 같은 함수·같은 기준(SPY 20일)을 쓴다.
     spy_ret20_for_table = ((market.get("rows") or {}).get("SPY") or {}).get("ret20")
@@ -2470,7 +2477,7 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         avg_value = row["metrics"].get("avg_dollar_volume")
         theme_bonus = float((quality.get("parts") or [0])[-1])
         themes = " · ".join(row.get("themes") or []) or "—"
-        cols = table_box.columns(widths)
+        cols = table_box.columns(row_widths)
         cols[0].markdown(
             f"<div class='j3-td j3-muted'>{int(row['pullback_rank'])}</div>",
             unsafe_allow_html=True,
@@ -2488,65 +2495,39 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
                 "{ background: rgba(192,132,252,.16) !important; "
                 "border-left: 3px solid #c084fc !important; }"
             )
-        cols[2].markdown(
-            f"<div class='j3-td'>{html.escape(str(row.get('ticker') or '—'))}</div>",
-            unsafe_allow_html=True,
-        )
-        cols[3].markdown(
-            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill j3-bar-green' style='width:{max(0, min(score, 100)):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{score:.1f}</span></div></div>",
-            unsafe_allow_html=True,
-        )
         # 종목 조건점수 — 아래 상세와 같은 값. 순위(눌림 점수)와 다른 것을 재는 점수라
         # 20위가 3위보다 높을 수 있다(2026-07-24 사용자 질문에 따라 표에 함께 표시).
         stock_score = float(
             j3data.analyze_pullback_stock(row, benchmark_ret20=spy_ret20_for_table).get("score") or 0
         )
-        cols[4].markdown(
-            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill' style='width:{max(0, min(stock_score, 100)):.0f}%; background:#c084fc'></div></div>"
-            f"<span class='j3-bar-num'>{stock_score:.1f}</span></div></div>",
-            unsafe_allow_html=True,
-        )
-        cols[5].markdown(
-            f"<div class='j3-td j3-green'>{int(quality.get('high52_days_ago') or 0)}일 전</div>",
-            unsafe_allow_html=True,
-        )
-        # 당일주가 — 신고가와 고점 대비 사이에서 '지금 얼마인지'를 바로 보게 한다
-        # (2026-07-24 사용자 지시). 등락은 미국장 색 규칙(+파랑 −빨강)으로 진하게.
-        current_price = row["metrics"].get("current")
-        change_pct = row["metrics"].get("change_pct")
-        # 가격과 등락을 두 줄로 쌓는다 — 한 줄이면 좁은 화면(태블릿)에서 폭이 넘쳐
-        # 옆 칸 값과 겹쳤다(2026-07-25). 값은 그대로, 배치만 바꾼다.
-        cols[6].markdown(
-            f"<div class='j3-td' style='font-weight:800; color:#e6e6e6'>"
-            f"<span style='display:inline-flex; flex-direction:column; align-items:center; line-height:1.12'>"
-            f"<span>{_price(current_price)}</span>"
-            f"<span style='color:{_sign_color(change_pct)}; font-weight:800; font-size:.82rem'>"
-            f"{_pct(change_pct)}</span></span></div>",
-            unsafe_allow_html=True,
-        )
-        cols[7].markdown(
-            f"<div class='j3-td {_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</div>",
-            unsafe_allow_html=True,
-        )
-        cols[8].markdown(
-            f"<div class='j3-td {_sign_class(gap)}' style='font-weight:800'>{_pct(gap)}</div>",
-            unsafe_allow_html=True,
-        )
         avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
-        cols[9].markdown(
-            f"<div class='j3-td j3-green'>{avg_text}</div>",
-            unsafe_allow_html=True,
+        # 당일주가 — 가격과 등락을 두 줄로 쌓는다. 한 줄이면 좁은 화면에서 폭이 넘쳐
+        # 옆 칸 값과 겹쳤다(2026-07-25). 등락은 미국장 색 규칙(+파랑 −빨강)이다.
+        price_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+            f"<span>{_price(row['metrics'].get('current'))}</span>"
+            f"<span style='color:{_sign_color(row['metrics'].get('change_pct'))};"
+            f" font-weight:800; font-size:.82rem'>{_pct(row['metrics'].get('change_pct'))}</span></span>"
         )
-        cols[10].markdown(
-            f"<div class='j3-td j3-pull-theme' title='{html.escape(themes)}'>"
-            f"{html.escape(themes)}</div>",
-            unsafe_allow_html=True,
-        )
-        cols[11].markdown(
-            f"<div class='j3-td j3-pull-amber'>{theme_bonus:.1f}/5</div>",
+        cols[2].markdown(
+            _flex_row(rest_widths, [
+                html.escape(str(row.get("ticker") or "—")),
+                "<div class='j3-barwrap'><div class='j3-bar'>"
+                f"<div class='j3-bar-fill j3-bar-green' style='width:{max(0, min(score, 100)):.0f}%'></div>"
+                f"</div><span class='j3-bar-num'>{score:.1f}</span></div>",
+                "<div class='j3-barwrap'><div class='j3-bar'>"
+                f"<div class='j3-bar-fill' style='width:{max(0, min(stock_score, 100)):.0f}%;"
+                f" background:#c084fc'></div></div>"
+                f"<span class='j3-bar-num'>{stock_score:.1f}</span></div>",
+                f"<span class='j3-green'>{int(quality.get('high52_days_ago') or 0)}일 전</span>",
+                price_cell,
+                f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+                f"<span class='{_sign_class(gap)}' style='font-weight:800'>{_pct(gap)}</span>",
+                f"<span class='j3-green'>{avg_text}</span>",
+                f"<span class='j3-pull-theme' title='{html.escape(themes)}'>{html.escape(themes)}</span>",
+                f"<span class='j3-pull-amber'>{theme_bonus:.1f}/5</span>",
+            ]),
             unsafe_allow_html=True,
         )
     if selected_css:
