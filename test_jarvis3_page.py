@@ -445,7 +445,7 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         blob = "".join(str(node.value) for node in app.markdown)
         captions = "".join(str(node.value) for node in app.caption)
-        self.assertIn("내 종목 현재상황", blob)
+        self.assertIn("종목검색 (검색종목 세부사항 보기)", blob)
         # 미국 종목이라도 한글로 칠 수 있다는 것을 화면이 알려 준다.
         self.assertIn("한글로 쳐도 됩니다", captions)
         self.assertIn("NVIDIA", blob)

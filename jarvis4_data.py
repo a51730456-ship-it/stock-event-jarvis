@@ -18,11 +18,13 @@ from __future__ import annotations
 
 import logging
 import math
+import pickle
 import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, time as dt_time, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -62,7 +64,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026073010
+MODULE_REVISION = 2026073020
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -109,6 +111,66 @@ def _parse_number(text) -> float | None:
         return None
 
 
+# ── 공책(파일) 캐시 ─────────────────────────────────────────────────────────
+# 2026-07-30 사용자 지시. 앱이 잠들면 메모리 캐시가 통째로 비워져 깨어날 때마다
+# 처음부터 다시 받는다(사용자 실측: 순위 7이 15초, 다시 누르면 0.2초).
+# 그래서 **느리게 변하는 값만** 파일에도 적어 두고, 깨어날 때 그걸 먼저 읽는다.
+#
+# 적어 두는 것은 두 가지뿐이다.
+#   daily — 일봉. 화면의 현재가는 여기서 오지 않는다(테마 표에서 따로 받는다).
+#           일봉이 만드는 것은 이동평균·52주 고가·20일 수익률이라 하루 안에서는
+#           거의 안 움직인다.
+#   flow  — 외국인·기관 수급. 애초에 하루 한 번 지연 공개되는 값이다.
+# 현재가·지수·분봉처럼 지금 이 순간을 나타내는 값은 절대 적지 않는다.
+#
+# 날짜가 바뀌면 안 쓴다 — 어제 이동평균을 오늘 값인 척 보여주지 않기 위해서다.
+# 파일이 깨졌거나 못 읽어도 그냥 넘어간다. 캐시 때문에 화면이 죽으면 안 된다.
+_DISK_CACHE_DIR = Path("cache") / "jarvis4"
+_DISK_CACHE_KINDS = ("daily", "flow")
+
+
+def _disk_cache_path(key) -> Path | None:
+    if not (isinstance(key, tuple) and len(key) == 2 and key[0] in _DISK_CACHE_KINDS):
+        return None
+    kind, name = key[0], re.sub(r"[^0-9A-Za-z_-]", "", str(key[1]))
+    if not name:
+        return None
+    return _DISK_CACHE_DIR / f"{kind}__{name}.pkl"
+
+
+def _disk_cache_read(key):
+    """오늘 적어 둔 값이면 돌려준다. 아니면 None."""
+    path = _disk_cache_path(key)
+    if path is None or not path.exists():
+        return None
+    try:
+        with path.open("rb") as handle:
+            saved = pickle.load(handle)
+        if saved.get("day") != datetime.now(_SEOUL).strftime("%Y-%m-%d"):
+            return None
+        return saved["value"]
+    except Exception:  # 깨진 파일은 없는 셈 친다.
+        return None
+
+
+def _disk_cache_write(key, value) -> None:
+    path = _disk_cache_path(key)
+    if path is None:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # 쓰다 만 파일을 남기지 않으려고 임시 이름으로 쓴 뒤 바꿔치기한다.
+        temporary = path.with_suffix(".tmp")
+        with temporary.open("wb") as handle:
+            pickle.dump(
+                {"day": datetime.now(_SEOUL).strftime("%Y-%m-%d"), "value": value},
+                handle, protocol=pickle.HIGHEST_PROTOCOL,
+            )
+        temporary.replace(path)
+    except Exception:  # 못 적어도 그냥 넘어간다.
+        pass
+
+
 def _cached(key, ttl_seconds, producer):
     """키별 TTL 캐시. 실패하면 마지막 정상값을 stale로 돌려준다."""
     now = time.time()
@@ -116,6 +178,13 @@ def _cached(key, ttl_seconds, producer):
         entry = _CACHE.get(key)
         if entry and now - entry["at"] < ttl_seconds:
             return entry["value"], False
+    if entry is None:
+        # 메모리에 아무것도 없다 = 앱이 방금 깨어났다. 공책을 먼저 펴 본다.
+        saved = _disk_cache_read(key)
+        if saved is not None:
+            with _CACHE_LOCK:
+                _CACHE[key] = {"at": now, "value": saved}
+            return saved, False
     try:
         value = producer()
     except Exception as exc:
@@ -127,6 +196,7 @@ def _cached(key, ttl_seconds, producer):
         raise
     with _CACHE_LOCK:
         _CACHE[key] = {"at": now, "value": value}
+    _disk_cache_write(key, value)
     return value, False
 
 

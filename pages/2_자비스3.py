@@ -298,6 +298,27 @@ st.markdown(
         letter-spacing: .01em !important;
         margin: 0 !important;
     }
+    /* 안쪽 구역 단추(당일 차트 · 일봉/주봉/월봉 · 매수기록)도 같은 황금색으로.
+       다만 위 단추보다 한 단계 연하게 하고 크기는 원래대로 둔다
+       (2026-07-30 사용자 지시, 한국테마와 같은 모양). */
+    div[class*="st-key-btn_j3_intraday_open_"] button,
+    div[class*="st-key-btn_j3_bundle_open_"] button,
+    div[class*="st-key-btn_j3_buyform_open_"] button {
+        background: linear-gradient(90deg, #6b4d16 0%, #9a7420 38%, #e8c264 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+    }
+    div[class*="st-key-btn_j3_intraday_open_"] button:hover,
+    div[class*="st-key-btn_j3_bundle_open_"] button:hover,
+    div[class*="st-key-btn_j3_buyform_open_"] button:hover {
+        background: linear-gradient(90deg, #7d5b1c 0%, #b28829 38%, #f3d489 100%) !important;
+    }
+    div[class*="st-key-btn_j3_intraday_open_"] button p,
+    div[class*="st-key-btn_j3_bundle_open_"] button p,
+    div[class*="st-key-btn_j3_buyform_open_"] button p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
     /* 제목 띠 — 단추가 아니라 제목이다(누를 곳이 아니다). 순위 7 단추(초록)·
        눌림목 단추(파랑)와 같은 결로 맞춘 보라색. 한국테마와 같은 모양이다. */
     .j3-band {
@@ -1994,7 +2015,7 @@ def _render_my_stock_panel(market: dict) -> None:
     st.markdown(
         # 제목을 보라색 그라데이션 띠로 — 순위 7(초록)·눌림목(파랑)과 나란히 구분된다
         # (2026-07-30 사용자 지시). 여기는 누를 곳이 아니라 제목이므로 단추가 아니다.
-        "<div class='j3-band j3-band-purple'>내 종목 현재상황</div>", unsafe_allow_html=True)
+        "<div class='j3-band j3-band-purple'>종목검색 (검색종목 세부사항 보기)</div>", unsafe_allow_html=True)
     st.caption(
         "티커나 회사 이름을 치면 비슷한 이름까지 찾아 줍니다. "
         "**한글로 쳐도 됩니다**(엔비디아·애플·테슬라 등). 테마 목록에 없는 종목도 됩니다."
