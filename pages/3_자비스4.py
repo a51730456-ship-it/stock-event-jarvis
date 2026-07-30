@@ -2858,7 +2858,10 @@ def _render_pullback_finder() -> None:
                 (themes[0] if themes else ""), row["code"]
             )
             st.session_state["j4_pullback_pick_row"] = row
-            st.rerun()
+            # rerun을 부르지 않는다 — 눌림목 상세는 이 함수 다음(_render_pullback_detail)에
+            # 그려지므로 지금 넣은 값이 그대로 쓰인다. rerun을 부르면 화면을 통째로 한 번
+            # 더 그려 종목 하나 고르는 데 시간이 두 배가 된다(2026-07-30, 순위7 표와 같은 이유).
+            # 이 표에는 고른 줄을 칠하는 CSS가 없어 한 박자 늦는 문제도 생기지 않는다.
         score = float(quality["score"])
         gap = quality["gap_pct"]
         peak = row.get("peak_score")

@@ -2276,7 +2276,10 @@ def get_theme_universe(*, ttl_seconds: float = 90) -> dict:
             raise RuntimeError(listing.get("error") or "테마 목록 조회 실패")
         seen: dict[str, dict] = {}
         themes = list(listing["themes"].values())
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # 테마가 260개다. 한 번에 10개씩 받으면 26번을 기다려야 한다 —
+        # 온라인(스트림릿 클라우드)은 네이버까지 왕복이 길어 이 대기가 그대로 초가 된다.
+        # 20개씩으로 올린다. 받는 자료·계산·신선도는 하나도 바뀌지 않는다(2026-07-30).
+        with ThreadPoolExecutor(max_workers=20) as executor:
             futures = {
                 executor.submit(
                     get_theme_stocks, theme["no"], ttl_seconds=ttl_seconds
