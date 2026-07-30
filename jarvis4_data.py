@@ -693,6 +693,9 @@ def get_all_themes(*, ttl_seconds: float = 300) -> dict:
 
     def _produce():
         themes = {}
+        # 첫 장으로 연결을 먼저 데운 뒤 나머지를 받는 방식도 해 봤다. 이 여덟 장만
+        # 따로 재면 CPU 6.81 → 4.52초로 줄지만, 눌림목 전체로 돌리면 CPU는 그대로고
+        # 실제시간만 0.5초 늘었다 — 값이 없어 안 넣었다(2026-07-30 실측).
         with ThreadPoolExecutor(max_workers=8) as executor:
             futures = {executor.submit(_fetch_theme_page, page): page for page in range(1, 9)}
             for future in as_completed(futures):
@@ -2390,10 +2393,18 @@ def get_theme_universe(*, ttl_seconds: float = 90) -> dict:
             raise RuntimeError(listing.get("error") or "테마 목록 조회 실패")
         seen: dict[str, dict] = {}
         themes = list(listing["themes"].values())
-        # 테마가 260개다. 한 번에 10개씩 받으면 26번을 기다려야 한다 —
-        # 온라인(스트림릿 클라우드)은 네이버까지 왕복이 길어 이 대기가 그대로 초가 된다.
-        # 20개씩으로 올린다. 받는 자료·계산·신선도는 하나도 바뀌지 않는다(2026-07-30).
-        with ThreadPoolExecutor(max_workers=20) as executor:
+        # 테마가 266개다. 한 번에 10개씩 받으면 27번을 기다려야 한다.
+        #
+        # 이 숫자는 같은 날 두 번 고쳤다. 처음엔 실제시간만 보고 20개로 올렸는데,
+        # 스레드별로 CPU를 재 보니 그게 잘못이었다 — 눌림목 첫 클릭(차가움) 실측:
+        #   일꾼 20개 → 실제 4.43초 / CPU 28.58초
+        #   일꾼 12개 → 실제 4.57초 / CPU 18.08초
+        #   일꾼  8개 → 실제 5.20초 / CPU 17.55초
+        # 실제시간은 거의 같은데 CPU가 10초 넘게 차이난다. 연결을 그만큼 새로 열어
+        # SSL 준비를 반복하고, 스레드가 서로 GIL을 다투는 값이다.
+        # 코어가 1~2개인 온라인에서는 실제시간이 CPU를 따라가므로 12개가 낫다.
+        # 받는 자료·계산·신선도는 하나도 바뀌지 않는다(2026-07-30).
+        with ThreadPoolExecutor(max_workers=12) as executor:
             futures = {
                 executor.submit(
                     get_theme_stocks, theme["no"], ttl_seconds=ttl_seconds
@@ -2587,6 +2598,10 @@ def find_pullback_stocks(
         # 50종목 실측(2026-07-30, 공용연결로 바꾼 뒤):
         #   일꾼 4개 실제 1.21초/CPU 2.84 · 6개 0.67/1.58 · 8개 0.66/1.59 · 16개 1.17/8.09
         # 코어가 1~2개인 온라인에서는 실제시간이 CPU 시간을 따라가므로 CPU가 낮은 쪽이 낫다.
+        #
+        # 한 종목으로 연결을 먼저 데워 보는 것도 해 봤다. 따로 재면 CPU가 줄지만
+        # 전체로 돌리면 CPU는 그대로고 실제시간만 0.5초 늘었다 — 그래서 안 넣었다
+        # (2026-07-30 실측).
         with ThreadPoolExecutor(max_workers=8) as executor:
             for future in as_completed([executor.submit(_screen, s) for s in candidates]):
                 try:
