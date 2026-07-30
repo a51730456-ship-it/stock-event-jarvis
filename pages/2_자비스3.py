@@ -303,22 +303,32 @@ st.markdown(
        (2026-07-30 사용자 지시, 한국테마와 같은 모양). */
     div[class*="st-key-btn_j3_intraday_open_"] button,
     div[class*="st-key-btn_j3_bundle_open_"] button,
-    div[class*="st-key-btn_j3_buyform_open_"] button,
-    div[class*="st-key-btn_j3_leadercmp_open"] button {
+    div[class*="st-key-btn_j3_buyform_open_"] button {
         background: linear-gradient(90deg, #6b4d16 0%, #9a7420 38%, #e8c264 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
     }
-    div[class*="st-key-btn_j3_leadercmp_open"] button:hover,
     div[class*="st-key-btn_j3_intraday_open_"] button:hover,
     div[class*="st-key-btn_j3_bundle_open_"] button:hover,
     div[class*="st-key-btn_j3_buyform_open_"] button:hover {
         background: linear-gradient(90deg, #7d5b1c 0%, #b28829 38%, #f3d489 100%) !important;
     }
-    div[class*="st-key-btn_j3_leadercmp_open"] button p,
     div[class*="st-key-btn_j3_intraday_open_"] button p,
     div[class*="st-key-btn_j3_bundle_open_"] button p,
     div[class*="st-key-btn_j3_buyform_open_"] button p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    /* 대장주 1~3위 비교 — 붉은색 그라데이션(2026-07-30 사용자 지시, 한국테마와 같다). */
+    div[class*="st-key-btn_j3_leadercmp_open"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+    }
+    div[class*="st-key-btn_j3_leadercmp_open"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+    }
+    div[class*="st-key-btn_j3_leadercmp_open"] button p {
         color: #ffffff !important;
         font-weight: 700 !important;
     }
@@ -1606,11 +1616,20 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
     st.expander는 접혀 있어도 안을 다 그린다 — 시세·차트를 미리 받아 오므로
     여는 시간이 안 줄어든다. 그래서 아예 그리지 않는 방식으로 둔다.
     한국테마(자비스4)와 같은 장치다.
+
+    여닫기는 on_click으로 처리한다. 단추가 만들어진 뒤에 상태를 뒤집으면 그 판에
+    이미 옛 글자가 찍혀 있어, 닫았는데도 '닫기'가 그대로 남는다
+    (2026-07-30 사용자 지적). on_click은 화면을 다시 그리기 **전에** 돌아서
+    글자와 속내용이 같은 판에서 맞는다.
     """
+    def _flip():
+        st.session_state[key] = not bool(st.session_state.get(key))
+
     is_open = bool(st.session_state.get(key))
-    if st.button(("✕ " + (close_label or label)) if is_open else label, key=f"btn_{key}"):
-        st.session_state[key] = not is_open
-        is_open = not is_open
+    st.button(
+        ("✕ " + (close_label or label)) if is_open else label,
+        key=f"btn_{key}", on_click=_flip,
+    )
     return is_open
 
 

@@ -282,6 +282,34 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn("클릭하면 볼 수 있습니다", source)
             self.assertIn("다시 클릭하면 닫힙니다", source)
 
+    def test_toggle_label_matches_what_is_shown(self):
+        """닫았는데 '닫기'가 그대로 남던 버그(2026-07-30 사용자 지적).
+
+        단추를 만든 뒤에 상태를 뒤집으면 그 판에는 이미 옛 글자가 찍혀 있다.
+        on_click은 화면을 다시 그리기 전에 돌아서 글자와 속내용이 같은 판에서 맞는다.
+        if st.button(...) 방식으로 되돌아가면 다시 뒤바뀐다.
+        """
+        import pathlib
+
+        for market, (path, _prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            block = source.split("def _section_toggle(")[1].split("\ndef ")[0]
+            self.assertIn("on_click=_flip", block, f"{market}가 on_click을 안 쓴다")
+            self.assertNotIn("if st.button(", block,
+                             f"{market}가 단추를 만든 뒤에 상태를 뒤집는다")
+
+    def test_leader_comparison_button_is_red(self):
+        """대장주 1~3위 비교만 붉은색 — 나머지 구역 단추(황금색)와 갈린다."""
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            block = source.split(
+                f'div[class*="st-key-btn_{prefix}_leadercmp_open"] button {{'
+            )[1].split("}")[0]
+            self.assertIn("#4a0f12", block, f"{market} 대장주 비교가 붉은색이 아니다")
+            self.assertNotIn("#6b4d16", block, f"{market} 대장주 비교에 황금색이 남았다")
+
     def test_stock_search_heading_is_a_purple_band(self):
         """'종목검색' 제목은 보라색 띠(2026-07-30 사용자 지시). 단추는 아니다."""
         import pathlib
