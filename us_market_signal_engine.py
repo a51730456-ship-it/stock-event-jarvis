@@ -52,16 +52,14 @@ class UsMarketVerdict(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
-# 화면 이름은 설명해야 아는 말을 쓰지 않는다(2026-07-30 사용자 지시:
-# "위험선호 초기 — 이 말이 무슨 말인지 쉽게 고칠 수 없나").
-# '위험선호/위험회피'는 돈이 주식 쪽으로 오는지 빠지는지를 가리키는 업계 말이라
-# 그 뜻을 그대로 우리말로 적는다. 판정 기준·점수는 하나도 바뀌지 않았다.
+# 2026-07-30 이 이름들을 쉬운 말로 바꿨다가 사용자 지시로 되돌렸다
+# ("바꾸는 게 더 이상하다"). 미국장 이름은 이대로 둔다.
 VERDICT_LABEL = {
-    UsMarketVerdict.RISK_ON: "🟢 사는 쪽이 넓게 퍼짐",
-    UsMarketVerdict.RISK_ON_EARLY: "🔵 먼저 움직이는 것만 오름 — 초반",
-    UsMarketVerdict.MIXED: "🟡 방향이 엇갈림",
-    UsMarketVerdict.RISK_OFF: "🔴 파는 쪽이 우세",
-    UsMarketVerdict.INSUFFICIENT_DATA: "⚪ 자료 부족",
+    UsMarketVerdict.RISK_ON: "🟢 위험선호 확산",
+    UsMarketVerdict.RISK_ON_EARLY: "🔵 위험선호 초기 — 선행신호만",
+    UsMarketVerdict.MIXED: "🟡 방향 혼조",
+    UsMarketVerdict.RISK_OFF: "🔴 위험회피 우세",
+    UsMarketVerdict.INSUFFICIENT_DATA: "⚪ 데이터 부족",
 }
 
 
@@ -329,7 +327,7 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
     vix_ok = vix is not None and not vix.is_negative
     rate_ok = tnx is not None and not tnx.is_negative
 
-    # --- 파는 쪽이 우세 -------------------------------------------------------
+    # --- 위험회피 우세 -------------------------------------------------------
     vix_spike = _is_spike(vix, VIX_SPIKE_PCT)
     rate_spike = _is_spike(tnx, RATE_SPIKE_PCT)
     futures_down = _any_negative(futures)
@@ -337,32 +335,32 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
         driver = "VIX 급등" if vix_spike else "금리 급등"
         return _build(
             UsMarketVerdict.RISK_OFF, signals, core, warnings,
-            headline=f"{driver}과 지수 선물 하락이 함께 나타났습니다. 파는 쪽이 우세한 상태입니다.",
+            headline=f"{driver}과 지수 선물 하락이 함께 나타났습니다. 위험회피가 우세한 상태입니다.",
         )
     if futures_down and _any_negative(semis):
         return _build(
             UsMarketVerdict.RISK_OFF, signals, core, warnings,
-            headline="지수 선물과 반도체가 함께 밀리고 있습니다. 파는 쪽이 우세한 상태입니다.",
+            headline="지수 선물과 반도체가 함께 밀리고 있습니다. 위험회피가 우세한 상태입니다.",
         )
 
-    # --- 사는 쪽이 넓게 퍼짐 -------------------------------------------------------
+    # --- 위험선호 확산 -------------------------------------------------------
     if futures_up and semis_up and vix_ok and rate_ok:
         return _build(
             UsMarketVerdict.RISK_ON, signals, core, warnings,
             headline=(
                 "지수 선물과 반도체가 함께 오르고 VIX·금리도 부담을 주지 않습니다. "
-                "사는 쪽이 넓게 퍼진 상태입니다."
+                "위험선호가 넓게 퍼진 상태입니다."
             ),
         )
 
-    # --- 초반 (먼저 움직이는 것만 켜짐) ------------------------------------------
+    # --- 위험선호 초기 (선행만 켜짐) ------------------------------------------
     if futures_up and semis_up:
         blocker = "VIX" if not vix_ok else "금리"
         return _build(
             UsMarketVerdict.RISK_ON_EARLY, signals, core, warnings,
             headline=(
                 f"선물과 반도체는 함께 오르지만 {blocker} 쪽이 아직 부담을 주고 있습니다. "
-                "사는 쪽이 막 퍼지기 시작한 초반입니다."
+                "위험선호가 퍼지는 초기 단계입니다."
             ),
         )
     if futures_up or semis_up:

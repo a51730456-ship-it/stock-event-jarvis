@@ -781,7 +781,7 @@ def _market_action_detail(overview: dict) -> str:
     score = float(overview.get("score") or 0)
     if score >= 75:
         return (
-            "시장 추세도 좋고 사는 힘도 충분히 확인된 구간입니다.<br>"
+            "시장 추세와 위험선호가 충분히 확인된 구간입니다.<br>"
             "그래도 아무 종목이나 매수하지 않고, 주도 테마이면서 종목점수 75점 이상인 "
             "대장주가 기준가격을 통과할 때만 분할 진입합니다."
         )
@@ -1931,9 +1931,22 @@ def _render_radar_tab(market: dict) -> None:
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     _render_pullback_finder(market, ranking)
     # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
+    _render_top7_section(market, ranking)
+    _render_my_stock_panel(market)
+
+
+@st.fragment
+def _render_top7_section(market: dict, ranking: dict) -> None:
+    """순위 7과 그 상세를 한 덩이로 묶는다 (2026-07-30 폰 실측: 닫는 데 3초).
+
+    이 덩이 안에서 단추를 누르면 스트림릿이 여기만 다시 그린다. 묶기 전에는 단추
+    한 번에 지수 카드·게이지·테마 20줄까지 판 전체를 다시 그렸다 — 자료를 하나도
+    안 가져오는 '닫기'가 3초 걸린 이유가 그것이다.
+    상세도 같이 넣어야 한다. 표만 묶으면 종목 이름을 눌러도 덩이 밖에 있는 상세가
+    다시 안 그려져 아무 일도 안 일어난 것처럼 보인다.
+    """
     _render_top_reviewed(market, ranking)
     _render_top_reviewed_detail(market, ranking)
-    _render_my_stock_panel(market)
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
@@ -1968,11 +1981,13 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     col_open, col_again = st.columns([1, 1])
     with col_open:
         run_requested = st.button("매수심사결과 높은 순위 7", key="j3_top7_find")
-    with col_again:
-        # 뽑아 둔 것이 있을 때만 보여 준다 — 처음에는 단추가 하나여야 헷갈리지 않는다.
-        refresh_requested = (
-            st.button("새로 뽑기", key="j3_top7_refind") if has_result else False
-        )
+    # 뽑아 둔 것이 있을 때만 보여 준다 — 처음에는 단추가 하나여야 헷갈리지 않는다.
+    # 자리를 미리 잡아 두는 이유: 처음 뽑는 판에서는 여기까지 왔을 때 아직 결과가
+    # 없어 단추를 못 그린다. 그대로 두면 '새로 뽑기'가 한 판 늦게 나타난다.
+    again_slot = col_again.empty()
+    refresh_requested = (
+        again_slot.button("새로 뽑기", key="j3_top7_refind") if has_result else False
+    )
     if refresh_requested:
         st.session_state["j3_top7_result"] = None
         run_requested = True
@@ -2003,6 +2018,9 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         )
         st.session_state["j3_top7_result"] = found
         st.session_state["j3_top7_found_at"] = datetime.now(_PAGE_SEOUL)
+        if not has_result:
+            # 처음 뽑은 판이다. 위에 잡아 둔 자리에 지금 채워 넣는다.
+            again_slot.button("새로 뽑기", key="j3_top7_refind")
         st.session_state["j3_top7_open"] = True
         # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
         # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
@@ -2366,7 +2384,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         st.markdown(
             f"<div class='j3-danta-box'><span class='j3-danta-title'>⚡ 단타 참고 신호</span> — "
             f"{_us_signal_hint()}<br>"
-            "<span class='j3-muted'>선행신호가 사는 쪽으로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
+            "<span class='j3-muted'>선행신호가 위험선호로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
             "참고합니다 (점수·판정에는 반영하지 않습니다). 미국은 장중 투자자별 수급 공개 자료가 없어 "
             "한국장의 ‘기관 수급 반전’ 대신 선물·반도체·변동성·금리 방향을 씁니다.</span></div>",
             unsafe_allow_html=True,

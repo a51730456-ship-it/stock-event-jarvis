@@ -2554,11 +2554,13 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     col_open, col_again = st.columns([1, 1])
     with col_open:
         run_requested = st.button("매수심사결과 높은 순위 7", key="j4_top7_find")
-    with col_again:
-        # 뽑아 둔 것이 있을 때만 보여 준다 — 처음에는 단추가 하나여야 헷갈리지 않는다.
-        refresh_requested = (
-            st.button("새로 뽑기", key="j4_top7_refind") if has_result else False
-        )
+    # 뽑아 둔 것이 있을 때만 보여 준다 — 처음에는 단추가 하나여야 헷갈리지 않는다.
+    # 자리를 미리 잡아 두는 이유는 미국테마와 같다 — 안 그러면 처음 뽑은 판에서
+    # '새로 뽑기'가 안 보이고 한 판 뒤에야 나타난다.
+    again_slot = col_again.empty()
+    refresh_requested = (
+        again_slot.button("새로 뽑기", key="j4_top7_refind") if has_result else False
+    )
     if refresh_requested:
         st.session_state["j4_top7_result"] = None
         run_requested = True
@@ -2584,6 +2586,9 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             ))
         st.session_state["j4_top7_result"] = found
         st.session_state["j4_top7_found_at"] = datetime.now(_PAGE_SEOUL)
+        if not has_result:
+            # 처음 뽑은 판이다. 위에 잡아 둔 자리에 지금 채워 넣는다.
+            again_slot.button("새로 뽑기", key="j4_top7_refind")
         st.session_state["j4_top7_open"] = True
         # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
         # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30). 표에서 종목을
