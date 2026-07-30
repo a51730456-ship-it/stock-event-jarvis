@@ -257,6 +257,31 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn(f'"{prefix}_pullback_open"', block,
                           f"{market} 눌림목이 다시 눌러도 안 접힌다")
 
+    def test_heavy_sections_open_only_when_clicked(self):
+        """무거운 구역은 눌러야 열린다(2026-07-30 사용자 지시 + 로딩 단축).
+
+        st.expander는 접혀 있어도 안을 다 그려 시세를 미리 받아 오므로 쓰지 않는다.
+        _section_toggle이 빠지면 다시 늘 그리게 되어 느려진다.
+        """
+        import pathlib
+
+        # (여는 열쇠, 화면에 뜨는 말)
+        sections = [
+            ("_detail_open_", "선택종목 세부사항 보기"),
+            ("_intraday_open_", "당일 · 실시간 차트 보기"),
+            ("_bundle_open_", "일봉 · 주봉 · 월봉 보기"),
+            ("_buyform_open_", "실제 매수기록 저장하시겠습니까?"),
+            ("_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉 비교"),
+        ]
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            for key, label in sections:
+                self.assertIn(f'"{prefix}{key}', source, f"{market}에 '{label}' 여는 장치가 없다")
+                self.assertIn(label, source, f"{market}에 '{label}' 문구가 없다")
+            # 대장주 비교는 제목을 그대로 두고 안내만 뒤에 붙인다.
+            self.assertIn("클릭하면 볼 수 있습니다", source)
+            self.assertIn("다시 클릭하면 닫힙니다", source)
+
     def test_stock_search_heading_is_a_purple_band(self):
         """'종목검색' 제목은 보라색 띠(2026-07-30 사용자 지시). 단추는 아니다."""
         import pathlib

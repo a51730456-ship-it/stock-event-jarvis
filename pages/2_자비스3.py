@@ -303,16 +303,19 @@ st.markdown(
        (2026-07-30 사용자 지시, 한국테마와 같은 모양). */
     div[class*="st-key-btn_j3_intraday_open_"] button,
     div[class*="st-key-btn_j3_bundle_open_"] button,
-    div[class*="st-key-btn_j3_buyform_open_"] button {
+    div[class*="st-key-btn_j3_buyform_open_"] button,
+    div[class*="st-key-btn_j3_leadercmp_open"] button {
         background: linear-gradient(90deg, #6b4d16 0%, #9a7420 38%, #e8c264 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
     }
+    div[class*="st-key-btn_j3_leadercmp_open"] button:hover,
     div[class*="st-key-btn_j3_intraday_open_"] button:hover,
     div[class*="st-key-btn_j3_bundle_open_"] button:hover,
     div[class*="st-key-btn_j3_buyform_open_"] button:hover {
         background: linear-gradient(90deg, #7d5b1c 0%, #b28829 38%, #f3d489 100%) !important;
     }
+    div[class*="st-key-btn_j3_leadercmp_open"] button p,
     div[class*="st-key-btn_j3_intraday_open_"] button p,
     div[class*="st-key-btn_j3_bundle_open_"] button p,
     div[class*="st-key-btn_j3_buyform_open_"] button p {
@@ -1338,7 +1341,14 @@ def _load_theme_rankings() -> dict:
 
 
 def _render_leader_comparison(leaders: list[dict]) -> None:
-    st.markdown("<div class='j3-section-title'>대장주 1~3위 · 당일/일봉/주봉 비교</div>", unsafe_allow_html=True)
+    # 눌러야 열린다(2026-07-30 사용자 지시, 한국테마와 같다). 세 종목 × 차트 세 벌이라
+    # 늘 그리면 화면도 길고 받아 오는 것도 많다. 제목은 그대로 두고 안내만 뒤에 붙인다.
+    if not _section_toggle(
+        "🏅 대장주 1~3위 · 당일/일봉/주봉 비교 — 클릭하면 볼 수 있습니다",
+        "j3_leadercmp_open",
+        close_label="대장주 1~3위 · 당일/일봉/주봉 비교 — 다시 클릭하면 닫힙니다",
+    ):
+        return
     medal_by_rank = {1: "🥇", 2: "🥈", 3: "🥉"}
     for leader in leaders[:3]:
         metrics, plan = leader["metrics"], leader["plan"]
