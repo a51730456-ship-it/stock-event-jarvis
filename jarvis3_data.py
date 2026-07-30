@@ -1,4 +1,4 @@
-"""자비스3 미국 테마 레이더용 시세·판정 엔진.
+﻿"""자비스3 미국 테마 레이더용 시세·판정 엔진.
 
 기존 자비스1/2의 ``price_data.py``·``performance.py``는 사용하거나 수정하지 않는다.
 Yahoo Finance의 최근 가용 시세를 읽기 전용으로 조회하며, 네트워크 실패는 예외 대신
@@ -85,7 +85,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026072921
+MODULE_REVISION = 2026073010
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1024,6 +1024,96 @@ def _intraday_chart_payload(frame: pd.DataFrame | None, prev_close: float | None
         "price": price,
         "prev_close": _finite(prev_close),
         "source_time": _source_time(frame),
+    }
+
+
+TOP_REVIEW_LIMIT = 7
+
+
+def _keep_better(picked: dict, row: dict, *, source: str) -> None:
+    """같은 종목이 여러 테마에 겹치면 점수가 높은 쪽만 남긴다."""
+    ticker = str(row.get("ticker") or "").strip().upper()
+    if not ticker:
+        return
+    kept = picked.get(ticker)
+    if kept is not None:
+        kept.setdefault("sources", [])
+        if source and source not in kept["sources"]:
+            kept["sources"].append(source)
+        if float(row.get("score") or 0) <= float(kept.get("score") or 0):
+            return
+        row = dict(row)
+        row["sources"] = kept["sources"]
+    else:
+        row = dict(row)
+        row["sources"] = [source] if source else []
+    picked[ticker] = row
+
+
+def find_top_reviewed_stocks(
+    theme_rows,
+    *,
+    market_score: float = 0,
+    extra_rows=None,
+    limit: int = TOP_REVIEW_LIMIT,
+) -> dict:
+    """'매수 심사 결과' 종목 조건점수 상위 N개 (2026-07-30 사용자 지시).
+
+    자비스4(한국)의 같은 이름 함수와 짝이다. 전수 검색을 새로 돌리지 않고,
+    **이미 화면에 떠 있는 테마의 대장주**와 **이미 돌려 둔 눌림목 결과**만 모아
+    종목 조건점수 하나로 줄 세운다.
+    """
+    picked: dict[str, dict] = {}
+    errors: list[str] = []
+    scanned_themes = 0
+    theme_scores = {
+        str(row.get("name") or ""): float(row.get("score") or 0)
+        for row in (theme_rows or [])
+    }
+
+    for theme_row in theme_rows or []:
+        name = str(theme_row.get("name") or "")
+        try:
+            result = get_theme_leaders(
+                name,
+                market_score=market_score,
+                theme_score=float(theme_row.get("score") or 0),
+            )
+        except Exception as exc:  # 테마 하나가 실패해도 나머지는 계속 모은다.
+            errors.append(f"{name}: {exc}")
+            continue
+        if not result.get("ok"):
+            errors.append(f"{name}: {result.get('error') or '조회 실패'}")
+            continue
+        scanned_themes += 1
+        for row in result["rows"]:
+            _keep_better(picked, row, source=name)
+
+    for row in extra_rows or []:
+        if not row.get("metrics"):
+            continue
+        # 눌림목 결과는 게이트를 열어 둔 채 계산돼 있다 — 오늘 시장 점수로 다시 판정한다.
+        themes = row.get("themes") or []
+        theme_score = max((theme_scores.get(str(t), 0.0) for t in themes), default=0.0)
+        merged = dict(row)
+        merged["plan"] = _entry_plan(
+            row["metrics"], float(row.get("score") or 0), market_score, theme_score
+        )
+        _keep_better(picked, merged, source=(str(themes[0]) if themes else "눌림목"))
+
+    rows = sorted(
+        picked.values(), key=lambda item: float(item.get("score") or 0), reverse=True
+    )[: max(1, int(limit))]
+    for index, row in enumerate(rows, 1):
+        row["pick_rank"] = index
+
+    return {
+        "ok": bool(rows),
+        "rows": rows,
+        "scanned_themes": scanned_themes,
+        "candidate_count": len(picked),
+        "errors": errors,
+        "checked_at": datetime.now(_NY).isoformat(timespec="seconds"),
     }
 
 

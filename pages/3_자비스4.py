@@ -254,11 +254,13 @@ st.markdown(
     div[class*="st-key-j4_stock_choice"] [data-testid="stWidgetLabel"] p {
         color: #7cc8ff !important; font-size: 1.55rem !important; font-weight: 800 !important;
     }
+    /* 테두리는 노랑 — 매수 심사 결과가 이 화면에서 제일 먼저 눈에 띄어야 한다
+       (2026-07-30 사용자 지시). */
     .j4-holo-card {
         position: relative;
-        background: linear-gradient(135deg, rgba(77,166,255,0.07), rgba(168,85,247,0.07));
-        border: 1px solid rgba(77,166,255,0.55); border-radius: 10px; padding: 1.15rem 1.3rem;
-        box-shadow: 0 0 14px rgba(77,166,255,0.28), inset 0 0 20px rgba(77,166,255,0.07);
+        background: linear-gradient(135deg, rgba(255,209,102,0.07), rgba(255,176,32,0.07));
+        border: 1px solid rgba(255,199,64,0.75); border-radius: 10px; padding: 1.15rem 1.3rem;
+        box-shadow: 0 0 14px rgba(255,199,64,0.30), inset 0 0 20px rgba(255,199,64,0.08);
     }
     .j4-holo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem 1.8rem; }
     .j4-holo-cell { min-width: 0; }
@@ -386,7 +388,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026072919
+_REQUIRED_J4_REVISION = 2026073010
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -1628,7 +1630,9 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         )
         st.markdown(f"<div class='j4-reason-mustard'>{leader['stock_reason']}</div>", unsafe_allow_html=True)
     with plan_col:
-        st.markdown("<div class='j4-section-title'>매수 심사 결과 (원화 · 호가단위 반올림)</div>", unsafe_allow_html=True)
+        # 괄호 안내는 뺐다 — 제목은 짧게(2026-07-30 사용자 지시). 호가단위 반올림은
+        # 계속 하고 있고, 설명은 '이 테마 기법에 대한 설명' 안에 적어 두었다.
+        st.markdown("<div class='j4-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
         plan_cells = [
             ("조건 기준가", _won(plan.get("trigger")), "#e6e6e6"),
             ("매수 허용 상단", _won(plan.get("zone_high")), "#e6e6e6"),

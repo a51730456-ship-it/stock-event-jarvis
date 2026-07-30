@@ -255,13 +255,15 @@ st.markdown(
     div[class*="st-key-j3_stock_choice"] label span {
         font-size: 1.12rem !important;
     }
+    /* 테두리는 노랑 — 매수 심사 결과가 이 화면에서 제일 먼저 눈에 띄어야 한다
+       (2026-07-30 사용자 지시, 한국테마와 같은 색). */
     .j3-holo-card {
         position: relative;
-        background: linear-gradient(135deg, rgba(77,166,255,0.07), rgba(168,85,247,0.07));
-        border: 1px solid rgba(77,166,255,0.55);
+        background: linear-gradient(135deg, rgba(255,209,102,0.07), rgba(255,176,32,0.07));
+        border: 1px solid rgba(255,199,64,0.75);
         border-radius: 10px;
         padding: 1.15rem 1.3rem;
-        box-shadow: 0 0 14px rgba(77,166,255,0.28), inset 0 0 20px rgba(77,166,255,0.07);
+        box-shadow: 0 0 14px rgba(255,199,64,0.30), inset 0 0 20px rgba(255,199,64,0.08);
     }
     /* 3열: 1열 가격 · 2열 가격 · 3열 종목 조건점수. 칸 사이 가로 간격을 넉넉히 두고
        (2026-07-22 사용자 지시: 화면이 작으면 글자가 붙어버림), 좁은 화면에서는
@@ -391,7 +393,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026072921
+_REQUIRED_J3_REVISION = 2026073010
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
