@@ -86,7 +86,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026073110
+MODULE_REVISION = 2026073010
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1030,94 +1030,6 @@ def _intraday_chart_payload(frame: pd.DataFrame | None, prev_close: float | None
 
 TOP_REVIEW_LIMIT = 7
 
-# 지금 시세로 다시 재 볼 후보 수. 종가 순위 30위 밖에서 최종 7위 안으로 들어오려면
-# 하루 만에 스물몇 계단을 올라와야 한다(2026-07-31 실측: 그날 진짜 상위 7은 종가
-# 순위에서도 1~7위였다). 157종목 전부 분봉을 받으면 3.7초, 종가만이면 0.3초였다.
-TOP_REVIEW_REFINE = 30
-
-
-def _refine_top_with_live(rows, *, market_score: float) -> None:
-    """상위 후보만 지금 시세(분봉)로 다시 점수를 낸다. 실패하면 종가 점수 그대로 둔다."""
-    tickers = [str(r.get("ticker") or "").upper() for r in rows if r.get("ticker")]
-    if not tickers:
-        return
-    try:
-        live, meta = _download_cached(
-            tickers, period="1d", interval="1m", ttl_seconds=45, prepost=True
-        )
-        daily, _ = _download_cached(tickers, period="1y", interval="1d", ttl_seconds=300)
-    except Exception as exc:
-        _log.warning("jarvis3 top7 refine failed: %s", exc)
-        return
-    if not live:
-        return
-    for row in rows:
-        ticker = str(row.get("ticker") or "").upper()
-        frame = live.get(ticker)
-        if frame is None or frame.empty:
-            continue
-        metrics = _series_metrics(daily.get(ticker), frame)
-        if not metrics.get("ok"):
-            continue
-        row["metrics"] = metrics
-        # 눌림목에서 온 줄은 점수 계산식이 다르다(눌림 점수). 그건 건드리지 않는다.
-        if "pullback" in row:
-            continue
-        row["score"], row["score_parts"] = _leader_score(metrics, row.get("theme_ret20"))
-        row["plan"] = _entry_plan(
-            metrics, row["score"], market_score, float(row.get("theme_score") or 0)
-        )
-
-
-def _cache_is_warm(tickers, *, period: str, interval: str, ttl_seconds: float,
-                   prepost: bool = False) -> bool:
-    """이 티커 묶음을 덮는 캐시가 이미 있는지. 있으면 프레임을 복사하지 않는다."""
-    requested = {str(t).strip().upper() for t in tickers if str(t).strip()}
-    if not requested:
-        return True
-    now = time.time()
-    with _CACHE_LOCK:
-        for cached_key, candidate in _CACHE.items():
-            if not isinstance(cached_key, tuple) or len(cached_key) != 4:
-                continue
-            cached_tickers, cached_period, cached_interval, cached_prepost = cached_key
-            if (
-                cached_period == period
-                and cached_interval == interval
-                and bool(cached_prepost) == bool(prepost)
-                and requested.issubset(set(cached_tickers))
-                and now - candidate["at"] < ttl_seconds
-            ):
-                return True
-    return False
-
-
-def _prefetch_leader_quotes(theme_rows) -> None:
-    """순위 7이 볼 테마 전체의 시세를 **한 번에** 받아 둔다 (2026-07-30).
-
-    이걸 안 하면 테마마다 자기 1분봉을 따로 받는다. 테마 순위는 1분봉을 ETF만
-    받아 두기 때문에 종목 1분봉은 캐시에 없고, 20개 테마가 각자 내려받는다.
-    게다가 다운로드는 _DOWNLOAD_LOCK 하나로 묶여 있어 스레드를 4개 띄워도 동시에
-    받지 못하고 20번을 줄줄이 기다린다 — 이것이 '클릭하면 느리다'의 몸통이다.
-    여기서 한 묶음으로 받아 두면 각 테마는 _download_cached의 묶음 재사용 경로를 탄다.
-    """
-    tickers: list[str] = []
-    for row in theme_rows or []:
-        theme = THEME_BY_NAME.get(str(row.get("name") or ""))
-        if theme is None:
-            continue
-        tickers.extend((theme["etf"], theme["alt_etf"], *theme["stocks"]))
-    unique = list(dict.fromkeys(tickers))
-    if not unique:
-        return
-    # 실패해도 그냥 넘어간다 — 각 테마가 예전처럼 자기 몫을 받으면 되므로
-    # 여기서 막히면 느려지기만 하고 결과는 같다.
-    try:
-        if not _cache_is_warm(unique, period="1y", interval="1d", ttl_seconds=300):
-            _download_cached(unique, period="1y", interval="1d", ttl_seconds=300)
-    except Exception as exc:
-        _log.warning("jarvis3 top7 prefetch failed: %s", exc)
-
 
 def _keep_better(picked: dict, row: dict, *, source: str) -> None:
     """같은 종목이 여러 테마에 겹치면 점수가 높은 쪽만 남긴다."""
@@ -1171,17 +1083,12 @@ def find_top_reviewed_stocks(
                 name,
                 market_score=market_score,
                 theme_score=float(theme_row.get("score") or 0),
-                # 표만 그리므로 차트 자료는 만들지 않는다 — 만들면 157종목치가 다 버려진다.
-                with_charts=False,
-                # 1차는 종가로만 줄 세운다. 157종목 분봉을 받는 데 시간 대부분이 갔다.
-                with_live=False,
             )
         except Exception as exc:
             return name, {"ok": False, "error": str(exc), "rows": []}
 
     themes = list(theme_rows or [])
     if themes:
-        _prefetch_leader_quotes(themes)
         with ThreadPoolExecutor(max_workers=4) as executor:
             for future in [executor.submit(_one, row) for row in themes]:
                 name, result = future.result()
@@ -1204,14 +1111,8 @@ def find_top_reviewed_stocks(
         )
         _keep_better(picked, merged, source=(str(themes[0]) if themes else "눌림목"))
 
-    ranked = sorted(
-        picked.values(), key=lambda item: float(item.get("score") or 0), reverse=True
-    )
-    # 여기까지는 종가로만 줄 세운 것이다. 상위 후보 몇 개만 지금 시세로 다시 재고
-    # 그 안에서 최종 순위를 낸다 — 157종목 전부 분봉을 받던 것을 없앤다.
-    _refine_top_with_live(ranked[:TOP_REVIEW_REFINE], market_score=market_score)
     rows = sorted(
-        ranked[:TOP_REVIEW_REFINE], key=lambda item: float(item.get("score") or 0), reverse=True
+        picked.values(), key=lambda item: float(item.get("score") or 0), reverse=True
     )[: max(1, int(limit))]
     for index, row in enumerate(rows, 1):
         row["pick_rank"] = index
@@ -1226,27 +1127,13 @@ def find_top_reviewed_stocks(
     }
 
 
-def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: float = 0,
-                      with_charts: bool = True, with_live: bool = True) -> dict:
-    """선택한 테마의 대장주 순위.
-
-    with_charts — 분봉·일봉·주봉 차트 자료를 함께 담을지. 테마 하나를 열어 볼 때는
-    옆에 차트를 그리니 담아야 하지만, '매수심사결과 높은 순위 7'은 테마 20개를
-    한꺼번에 돌면서 표만 그린다. 그때 157종목 차트를 만들면 전부 버려진다
-    (2026-07-30 실측: 차트 만들기만 노트북 CPU 0.7초, 온라인은 코어가 적어 더 걸린다).
-    """
+def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: float = 0) -> dict:
     theme = THEME_BY_NAME.get(theme_name)
     if theme is None:
         return {"ok": False, "error": "등록되지 않은 테마입니다", "rows": []}
     tickers = (theme["etf"], theme["alt_etf"], *theme["stocks"])
     daily, daily_meta = _download_cached(tickers, period="1y", interval="1d", ttl_seconds=300)
-    # with_live=False면 분봉을 아예 안 받는다. 순위 7이 1차로 줄만 세울 때 쓴다 —
-    # 157종목 분봉을 받는 데 시간 대부분이 갔다(2026-07-31 실측 3.7초 → 0.3초).
-    if with_live:
-        live, live_meta = _download_cached(
-            tickers, period="1d", interval="1m", ttl_seconds=45, prepost=True)
-    else:
-        live, live_meta = {}, {}
+    live, live_meta = _download_cached(tickers, period="1d", interval="1m", ttl_seconds=45, prepost=True)
     etf_used = theme["etf"] if theme["etf"] in daily else theme["alt_etf"]
     theme_metrics = _series_metrics(daily.get(etf_used), live.get(etf_used))
     theme_ret20 = theme_metrics.get("ret20") if theme_metrics.get("ok") else None
@@ -1260,7 +1147,7 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
         daily_frame = daily.get(ticker)
         daily_chart = None
         weekly_chart = None
-        if with_charts and daily_frame is not None and not daily_frame.empty:
+        if daily_frame is not None and not daily_frame.empty:
             # 대장주 비교 차트도 종목 상세와 같은 형식(주가·20일선·50일선)으로 만든다.
             daily_chart = _prepare_chart_payload(daily_frame, None, 60, daily_meta)
             weekly_chart = _prepare_chart_payload(daily_frame, "W-FRI", 52, daily_meta)
@@ -1269,16 +1156,9 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
             "name": STOCK_NAMES.get(ticker, ticker),
             "score": score,
             "score_parts": parts,
-            # 이 두 값이 있어야 나중에 이 종목만 따로 다시 점수를 낼 수 있다
-            # (순위 7이 상위 후보만 분봉을 받아 다시 재는 데 쓴다).
-            "theme_ret20": theme_ret20,
-            "theme_score": theme_score,
             "metrics": metrics,
             "plan": plan,
-            "intraday_chart": (
-                _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"))
-                if with_charts else None
-            ),
+            "intraday_chart": _intraday_chart_payload(live.get(ticker), metrics.get("prev_close")),
             "daily_chart": daily_chart,
             "weekly_chart": weekly_chart,
         })

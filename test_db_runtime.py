@@ -10,26 +10,6 @@ import db_runtime
 import libsql
 
 
-class _ExpiredStreamConnection:
-    """서버가 이미 닫아 버린 원격 스트림 흉내. 연결 직후 PRAGMA만 받는다."""
-
-    _ERROR = (
-        'Hrana: api error: status=404 Not Found, '
-        'body={"error":"stream not found: a2f80cac:5103e"}'
-    )
-
-    def __init__(self):
-        self.closed = False
-
-    def execute(self, sql, parameters=()):
-        if sql.strip().upper().startswith("PRAGMA"):
-            return None
-        raise RuntimeError(self._ERROR)
-
-    def close(self):
-        self.closed = True
-
-
 class DbRuntimeTests(unittest.TestCase):
     def test_local_connection_keeps_sqlite_row_contract(self):
         with mock.patch.dict(os.environ, {"TURSO_DATABASE_URL": "", "TURSO_AUTH_TOKEN": ""}, clear=False):
@@ -121,56 +101,6 @@ class DbRuntimeTests(unittest.TestCase):
         self.assertEqual(connect_mock.call_count, 2)
         for connection in raw_connections:
             connection.close()
-
-    def test_pool_replaces_a_connection_whose_remote_stream_expired(self):
-        stale = _ExpiredStreamConnection()
-        good = sqlite3.connect(":memory:")
-        with (
-            mock.patch.object(db_runtime, "_REMOTE_POOLS", {}),
-            mock.patch.object(
-                db_runtime,
-                "turso_config",
-                return_value=("libsql://example.turso.io", "token"),
-            ),
-            mock.patch.object(libsql, "connect", side_effect=[stale, good]) as connect_mock,
-        ):
-            borrowed = db_runtime.connect("ignored.db")
-            borrowed.execute("CREATE TABLE sample (id INTEGER PRIMARY KEY)")
-            borrowed.execute("INSERT INTO sample VALUES (1)")
-            borrowed.close()
-
-            # 끊긴 연결은 버려졌고, 새로 만든 연결만 풀에 남아 다시 쓰인다.
-            again = db_runtime.connect("ignored.db")
-            self.assertIs(again._connection, good)
-            again.close()
-
-        self.assertEqual(connect_mock.call_count, 2)
-        self.assertTrue(stale.closed)
-        self.assertEqual(good.execute("SELECT COUNT(*) FROM sample").fetchone()[0], 1)
-        good.close()
-
-    def test_ordinary_sql_error_keeps_the_pooled_connection(self):
-        raw = sqlite3.connect(":memory:")
-        with (
-            mock.patch.object(db_runtime, "_REMOTE_POOLS", {}),
-            mock.patch.object(
-                db_runtime,
-                "turso_config",
-                return_value=("libsql://example.turso.io", "token"),
-            ),
-            mock.patch.object(libsql, "connect", return_value=raw) as connect_mock,
-        ):
-            borrowed = db_runtime.connect("ignored.db")
-            with self.assertRaises(sqlite3.OperationalError):
-                borrowed.execute("SELECT * FROM missing_table")
-            borrowed.close()
-
-            again = db_runtime.connect("ignored.db")
-            self.assertIs(again._connection, raw)
-            again.close()
-
-        self.assertEqual(connect_mock.call_count, 1)
-        raw.close()
 
     def test_database_schema_and_crud_work_through_libsql_adapter(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
-from zoneinfo import ZoneInfo
+from datetime import date
 import html
 
 import streamlit as st
@@ -470,8 +469,6 @@ _login_gate()
 import importlib
 import time
 
-_PAGE_SEOUL = ZoneInfo("Asia/Seoul")
-
 import altair as alt
 import pandas as pd
 
@@ -510,7 +507,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026073110
+_REQUIRED_J3_REVISION = 2026073010
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -527,7 +524,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026073030
+_REQUIRED_SIGNAL_UI_REVISION = 2026073010
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1214,11 +1211,6 @@ def _render_market_overview() -> None:
                 조건점수 {overview['score']}/100은 상승장 확인 조건에서 얻은 점수이며 승률이 아닙니다.<br>
                 0~49점 방어 우선 · 50~74점 중립·선별 · 75~100점 상승 우위<br>
                 {_market_score_detail(overview)}<br>
-                이 점수와 아래 <b>선행신호 카드는 서로 다른 것을 잽니다</b>(2026-07-30 질문).
-                이 점수는 <b>주가가 20·50일선 위에 있는지</b>를 보고, 선행신호는 <b>오늘 선물·반도체가
-                오르는지</b>를 봅니다. 그래서 한참 빠져 있던 자리에서 오늘 반등이 시작되면
-                선행신호는 켜지는데 이 점수는 아직 낮습니다 — 둘이 달라도 모순이 아닙니다.
-                "오늘 방향"과 "평균선 위/아래"는 다른 이야기입니다.<br>
                 시장 상황은 미국 세션 단계입니다(뉴욕시각 기준): 프리마켓 04:00~09:30 → 정규장 09:30~16:00
                 → 애프터마켓 16:00~20:00 → 장 마감<br>
                 VIX 두 값은 서로 다른 것입니다 — 위 <b>VIX 18.70 같은 숫자는 공포지수 현재 수준</b>(25 미만이면
@@ -1931,35 +1923,9 @@ def _render_radar_tab(market: dict) -> None:
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     _render_pullback_finder(market, ranking)
     # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
-    _render_top7_section(market, ranking)
-    _render_my_stock_panel(market)
-
-
-@st.fragment
-def _render_top7_section(market: dict, ranking: dict) -> None:
-    """순위 7과 그 상세를 한 덩이로 묶는다 (2026-07-30 폰 실측: 닫는 데 3초).
-
-    이 덩이 안에서 단추를 누르면 스트림릿이 여기만 다시 그린다. 묶기 전에는 단추
-    한 번에 지수 카드·게이지·테마 20줄까지 판 전체를 다시 그렸다 — 자료를 하나도
-    안 가져오는 '닫기'가 3초 걸린 이유가 그것이다.
-    상세도 같이 넣어야 한다. 표만 묶으면 종목 이름을 눌러도 덩이 밖에 있는 상세가
-    다시 안 그려져 아무 일도 안 일어난 것처럼 보인다.
-    """
     _render_top_reviewed(market, ranking)
     _render_top_reviewed_detail(market, ranking)
-
-
-def _kept_recently(key: str, seconds: float = 300) -> bool:
-    """방금 찾아 둔 결과가 아직 쓸 만한가 (기본 5분).
-
-    닫았다 바로 다시 열 때 같은 결과를 다시 찾느라 몇 초를 또 내던 것을 없앤다.
-    단추는 그대로 하나다 — 5분이 지나면 알아서 새로 찾는다(2026-07-31).
-    """
-    at = st.session_state.get(key)
-    try:
-        return bool(at) and (time.time() - float(at)) < seconds
-    except (TypeError, ValueError):
-        return False
+    _render_my_stock_panel(market)
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
@@ -1980,36 +1946,27 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         + (f"와 눌림목 {len(pull_rows)}개" if pull_rows else " (눌림목을 먼저 찾으면 함께 봅니다)")
         + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
     )
-    # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
-    # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
+    # 단추는 글자만큼만 — 화면을 가로지르는 긴 바는 뺐다(2026-07-30 사용자 지시).
+    # 열려 있을 때 다시 누르면 닫고, 닫혀 있을 때 누르면 새로 뽑아 연다(같은 지시).
     is_open = bool(st.session_state.get("j3_top7_open"))
-    run_requested = st.button("매수심사결과 높은 순위 7", key="j3_top7_find")
-    if run_requested and is_open:
-        # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다.
-        st.session_state["j3_top7_open"] = False
-        st.session_state.pop("j3_top7_pick_row", None)
-        run_requested = False
-    if (
-        run_requested
-        and _kept_recently("j3_top7_at")
-        and st.session_state.get("j3_top7_result") is not None
-    ):
-        # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
-        st.session_state["j3_top7_open"] = True
-        run_requested = False
-    if run_requested:
-        with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
-            found = j3data.find_top_reviewed_stocks(
-                ranking.get("rows") or [],
-                market_score=float(market.get("score") or 0),
-                extra_rows=pull_rows,
-            )
-        st.session_state["j3_top7_result"] = found
-        st.session_state["j3_top7_at"] = time.time()
-        st.session_state["j3_top7_open"] = True
-        # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
-        # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
-        st.session_state.pop("j3_top7_pick_row", None)
+    if st.button("매수심사결과 높은 순위 7", key="j3_top7_find"):
+        if is_open:
+            # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다
+            # (2026-07-30 사용자 실측: 닫는 데 5초).
+            st.session_state["j3_top7_open"] = False
+            st.session_state.pop("j3_top7_pick_row", None)
+        else:
+            with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
+                found = j3data.find_top_reviewed_stocks(
+                    ranking.get("rows") or [],
+                    market_score=float(market.get("score") or 0),
+                    extra_rows=pull_rows,
+                )
+            st.session_state["j3_top7_result"] = found
+            st.session_state["j3_top7_open"] = True
+            # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
+            # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
+            st.session_state.pop("j3_top7_pick_row", None)
         # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
         # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
         # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
