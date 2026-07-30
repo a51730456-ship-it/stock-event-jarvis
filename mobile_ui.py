@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026073010
+MODULE_REVISION = 2026073011
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -36,6 +36,21 @@ def hide_header_rows(*head_classes: str) -> str:
     """머리글 줄을 통째로 감춘다 — 세로로 쌓이면 제목만 열두 줄이 된다."""
     selector = ", ".join(f"{_BLOCK}:has(.{name})" for name in head_classes)
     return f"{selector} {{ display: none !important; }}"
+
+
+def hide_own_header(container_key: str, button_prefix: str) -> str:
+    """그 표의 머리글 줄만 감춘다 — 다른 표의 머리글은 건드리지 않는다.
+
+    2026-07-25에 클래스로 머리글을 숨겼다가 다른 표의 머리글까지 사라져 되돌렸다.
+    그래서 '이 표 상자 안에서, 종목 단추가 없는 줄'만 집어낸다. 머리글 줄에는
+    단추가 없고 종목 줄에는 있다. 세로로 쌓이는 표에서는 이름표를 칸마다 붙이므로
+    (table_css) 머리글이 없어도 어느 값인지 알 수 있다.
+    """
+    return (
+        f"div[class*='st-key-{container_key}'] {_BLOCK}"
+        f":not(:has(div[class*='st-key-{button_prefix}']))"
+        " { display: none !important; }"
+    )
 
 
 def table_css(button_prefix: str, total: int, keep: dict[int, str], cell_class: str) -> str:

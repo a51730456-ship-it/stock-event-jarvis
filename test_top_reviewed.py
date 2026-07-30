@@ -195,6 +195,30 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn(f'"{prefix}_top7_open"', block, f"{market}에 접었다 펴는 장치가 없다")
             self.assertIn("if is_open:", block, f"{market}가 다시 눌러도 안 접힌다")
 
+    def test_phone_rules_exist_and_live_in_mobile_ui(self):
+        """폰에서 한 종목이 여섯 줄로 쌓였다(2026-07-30 캡처).
+
+        규칙 12 — 폰 규칙은 mobile_ui.py 폰 묶음 안에만 둔다. 페이지는 칸 번호만 넘긴다.
+        """
+        import pathlib
+
+        import mobile_ui
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            self.assertIn(f'mobile_ui.table_css(\n                "{prefix}top7_", 6,', source,
+                          f"{market}에 폰 표 규칙이 없다")
+            self.assertIn(f'hide_own_header("{prefix}_top7_table", "{prefix}top7_")', source,
+                          f"{market} 머리글이 폰에서 여섯 줄로 남는다")
+            # 폰 규칙을 페이지에 직접 쓰면 안 된다.
+            self.assertNotIn("max-width: 600px", source, f"{market}에 폰 규칙이 새어 나왔다")
+
+        # 이 표 머리글만 감춰야 한다 — 클래스로 감추면 눌림목 머리글까지 사라진다.
+        rule = mobile_ui.hide_own_header("j4_top7_table", "j4top7_")
+        self.assertIn("st-key-j4_top7_table", rule)
+        self.assertIn(":not(:has(", rule)
+        self.assertNotIn("j4-th-head", rule)
+
     def test_pullback_also_toggles(self):
         """눌림목 찾기도 두 번째 클릭에 접혀야 한다(2026-07-30 사용자 지적)."""
         import pathlib

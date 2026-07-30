@@ -424,7 +424,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026073010
+_REQUIRED_MOBILE_REVISION = 2026073011
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1837,7 +1837,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         first = (found.get("rows") or [None])[0]
         if first:
             st.session_state["j3_top7_pick_row"] = first
-        st.rerun()
+        # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
+        # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
+        # 그대로 쓰인다. rerun을 부르면 시세·차트까지 통째로 한 번 더 그려
+        # 기다리는 시간이 두 배가 된다(2026-07-30 사용자 지적: 로딩이 너무 길다).
 
     if not st.session_state.get("j3_top7_open"):
         st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
@@ -1874,8 +1877,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         )
         label = f"{row.get('name') or row['ticker']} ({row['ticker']})"
         if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
+            # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
             st.session_state["j3_top7_pick_row"] = row
-            st.rerun()
         score = float(row.get("score") or 0)
         cols[2].markdown(
             "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
@@ -2656,7 +2659,19 @@ def main() -> None:
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
         # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
-        mobile_ui.page_css(),
+        mobile_ui.page_css(
+            # 순위 7 표만 st.columns라 폰에서 한 종목이 여섯 줄로 쌓인다
+            # (2026-07-30 캡처로 확인, 한국테마와 같은 처리). 칸 번호는 표 순서 그대로 —
+            # 1 순위 · 2 종목 · 3 조건점수 · 4 매수 상태 · 5 현재가 · 6 어느 분야.
+            # 표의 칸을 더하거나 빼면 이 번호도 같이 고쳐야 한다(CLAUDE.md 12번).
+            mobile_ui.table_css(
+                "j3top7_", 6,
+                {1: "", 2: "", 3: "조건점수", 4: "상태", 5: "현재가"},
+                "j3-td",
+            ),
+            # 머리글은 이 표 것만 감춘다 — 클래스로 감추면 다른 표 머리글까지 사라진다.
+            mobile_ui.hide_own_header("j3_top7_table", "j3top7_"),
+        ),
         unsafe_allow_html=True,
     )
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).

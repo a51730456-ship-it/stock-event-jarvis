@@ -403,7 +403,7 @@ if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026073010
+_REQUIRED_MOBILE_REVISION = 2026073011
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -2365,7 +2365,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         first = (found.get("rows") or [None])[0]
         if first:
             st.session_state["j4_top7_pick_row"] = first
-        st.rerun()
+        # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
+        # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
+        # 그대로 쓰인다. rerun을 부르면 시세·차트까지 통째로 한 번 더 그려
+        # 기다리는 시간이 두 배가 된다(2026-07-30 사용자 지적: 로딩이 너무 길다).
 
     if not st.session_state.get("j4_top7_open"):
         st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
@@ -2401,8 +2404,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             unsafe_allow_html=True,
         )
         if cols[1].button(row["name"], key=f"j4top7_{index:02d}", width="stretch"):
+            # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
             st.session_state["j4_top7_pick_row"] = row
-            st.rerun()
         score = float(row.get("score") or 0)
         cols[2].markdown(
             "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
@@ -2848,7 +2851,21 @@ def main() -> None:
         mobile_ui.page_css(
             # 폰 머리글을 숨기던 규칙은 뺐다 — 세로로 쌓던 시절 규칙이라, 옆으로
             # 밀어 보는 지금은 '종목·눌림 점수·신고가…'가 안 보였다(2026-07-25 지적).
-            # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 보므로 칸 규칙도 두지 않는다.
+            # 테마표·눌림목표는 HTML 표라 옆으로 밀어 보므로 칸 규칙이 필요 없다.
+            #
+            # 순위 7 표만 st.columns라 폰에서 한 종목이 여섯 줄로 쌓인다
+            # (2026-07-30 캡처로 확인). 칸 번호는 표의 순서 그대로 —
+            # 1 순위 · 2 종목 · 3 조건점수 · 4 매수 상태 · 5 현재가 · 6 어느 분야.
+            # 좁은 화면에서는 앞 다섯 칸만 남기고 이름표를 붙인다.
+            # 표의 칸을 더하거나 빼면 이 번호도 같이 고쳐야 한다(CLAUDE.md 12번).
+            mobile_ui.table_css(
+                "j4top7_", 6,
+                {1: "", 2: "", 3: "조건점수", 4: "상태", 5: "현재가"},
+                "j4-td",
+            ),
+            # 머리글은 이 표 것만 감춘다 — 클래스로 감추면 눌림목 표 머리글까지
+            # 사라진다(2026-07-25에 실제로 그래서 되돌렸다).
+            mobile_ui.hide_own_header("j4_top7_table", "j4top7_"),
         ),
         unsafe_allow_html=True,
     )
