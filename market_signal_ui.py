@@ -38,7 +38,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026073010
+MODULE_REVISION = 2026073030
 
 
 def _now_seoul():
@@ -584,14 +584,15 @@ _FLOW_TABLE_KEYS = (
 # 눈금 안에 들어갈 짧은 단계 이름 — 카드 제목의 긴 문구(🟡 방향 혼조 …)는 반원
 # 안에 넣으면 넘친다. 뜻이 달라지지 않는 선에서 줄인 이름만 쓴다.
 _VERDICT_SHORT = {
-    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: "반전 없음",
+    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: "돌아섬 없음",
     kr_intraday_flow.ReboundVerdict.WATCHING: "일부 켜짐",
     kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: "반등 유력",
     kr_intraday_flow.ReboundVerdict.CONFIRMED: "반등 확인",
-    us_market_signal_engine.UsMarketVerdict.RISK_OFF: "위험회피",
-    us_market_signal_engine.UsMarketVerdict.MIXED: "방향 혼조",
-    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: "선호 초기",
-    us_market_signal_engine.UsMarketVerdict.RISK_ON: "위험선호",
+    # '위험회피·위험선호'는 설명해야 아는 말이라 뜻 그대로 적는다(2026-07-30 사용자 지시).
+    us_market_signal_engine.UsMarketVerdict.RISK_OFF: "파는 쪽",
+    us_market_signal_engine.UsMarketVerdict.MIXED: "엇갈림",
+    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: "막 시작",
+    us_market_signal_engine.UsMarketVerdict.RISK_ON: "사는 쪽",
 }
 
 # 나쁜 쪽 → 좋은 쪽 순서. 눈금 왼쪽부터 이 차례로 놓인다.

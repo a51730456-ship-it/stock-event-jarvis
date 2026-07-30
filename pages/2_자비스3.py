@@ -527,7 +527,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026073010
+_REQUIRED_SIGNAL_UI_REVISION = 2026073030
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -781,7 +781,7 @@ def _market_action_detail(overview: dict) -> str:
     score = float(overview.get("score") or 0)
     if score >= 75:
         return (
-            "시장 추세와 위험선호가 충분히 확인된 구간입니다.<br>"
+            "시장 추세도 좋고 사는 힘도 충분히 확인된 구간입니다.<br>"
             "그래도 아무 종목이나 매수하지 않고, 주도 테마이면서 종목점수 75점 이상인 "
             "대장주가 기준가격을 통과할 때만 분할 진입합니다."
         )
@@ -2366,7 +2366,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         st.markdown(
             f"<div class='j3-danta-box'><span class='j3-danta-title'>⚡ 단타 참고 신호</span> — "
             f"{_us_signal_hint()}<br>"
-            "<span class='j3-muted'>선행신호가 위험선호로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
+            "<span class='j3-muted'>선행신호가 사는 쪽으로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
             "참고합니다 (점수·판정에는 반영하지 않습니다). 미국은 장중 투자자별 수급 공개 자료가 없어 "
             "한국장의 ‘기관 수급 반전’ 대신 선물·반도체·변동성·금리 방향을 씁니다.</span></div>",
             unsafe_allow_html=True,

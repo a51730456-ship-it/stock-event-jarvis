@@ -83,14 +83,17 @@ class ReboundVerdict(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
+# 화면 이름은 설명해야 아는 말을 쓰지 않는다(2026-07-30 사용자 지시, 미국테마와 같이).
+# '기관성'은 외국인·기관이 주도한다는 뜻이고, '대체신호'는 직접 숫자가 없어 다른
+# 자료로 대신 봤다는 뜻이다. 그 뜻을 그대로 우리말로 적는다. 판정 기준은 그대로다.
 VERDICT_LABEL = {
-    ReboundVerdict.CONFIRMED: "🟢 기관성 반등 확인",
-    ReboundVerdict.PROXY_CONFIRMED: "🔵 기관성 반등 유력 — 대체신호",
+    ReboundVerdict.CONFIRMED: "🟢 외국인·기관이 사면서 반등 — 확인",
+    ReboundVerdict.PROXY_CONFIRMED: "🔵 외국인·기관이 사는 쪽 — 다른 자료로 확인",
     # '확인 중'은 조회 중(로딩)으로 오해된다는 지적(2026-07-22)에 따라, 상태를
     # 그대로 서술하는 이름으로 바꿨다 — 신호가 몇 개 켜졌는지가 곧 판정이다.
     ReboundVerdict.WATCHING: "🟡 일부 신호만 켜짐",
-    ReboundVerdict.NOT_CONFIRMED: "🔴 반전 신호 없음",
-    ReboundVerdict.INSUFFICIENT_DATA: "⚪ 데이터 부족",
+    ReboundVerdict.NOT_CONFIRMED: "🔴 돌아설 신호 없음",
+    ReboundVerdict.INSUFFICIENT_DATA: "⚪ 자료 부족",
 }
 
 
@@ -731,7 +734,7 @@ def _decide_verdict(signals: list[FlowSignal], *, extras) -> FlowEngineResult:
             signals,
             core,
             warnings,
-            headline="외국인 선물·비차익·반도체 동시 반등이 모두 확인돼 기관성 반등이 진행 중입니다.",
+            headline="외국인 선물·비차익·반도체 동시 반등이 모두 확인돼 외국인·기관이 사면서 오르는 흐름이 진행 중입니다.",
         )
 
     # --- 2. 기관성 반등 유력 (베이시스 대체판정) ------------------------------
@@ -751,8 +754,9 @@ def _decide_verdict(signals: list[FlowSignal], *, extras) -> FlowEngineResult:
             core,
             warnings,
             headline=(
-                "비차익 프로그램, 시장베이시스, 반도체 동시 반등이 확인돼 기관성 반등 "
-                "가능성이 높습니다. 외국인 선물 직접 수급은 미확인이라 대체판정입니다."
+                "비차익 프로그램, 시장베이시스, 반도체 동시 반등이 확인돼 외국인·기관이 "
+                "사면서 오를 가능성이 높습니다. 외국인 선물 직접 수급은 아직 못 봐서 "
+                "다른 자료로 대신 판단한 것입니다."
             ),
         )
 

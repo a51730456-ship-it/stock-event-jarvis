@@ -261,7 +261,9 @@ class VerdictTest(unittest.TestCase):
             _rebound_snapshots(), foreign_futures=None, now=_ts(16)
         )
         self.assertIs(result.verdict, ReboundVerdict.PROXY_CONFIRMED)
-        self.assertIn("대체", result.verdict_label)
+        # 직접 숫자가 아니라 다른 자료로 대신 봤다는 사실이 이름에 남아야 한다
+        # (2026-07-30 말 바꾸기: '대체신호' → '다른 자료로 확인').
+        self.assertIn("다른 자료", result.verdict_label)
         # 대체판정을 "확인"이라고 쓰면 안 된다.
         self.assertNotIn("반등 확인", result.verdict_label)
 

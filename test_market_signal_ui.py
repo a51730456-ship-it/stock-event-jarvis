@@ -151,7 +151,7 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertIn("sig-current-score", html)
         self.assertIn(">38</div>", html)
         self.assertNotIn("2/4단계", html)
-        self.assertIn("방향 혼조", html)
+        self.assertIn("엇갈림", html)   # 옛 이름 '방향 혼조'(2026-07-30 쉬운 말로 바꿈)
 
     def test_previous_score_keeps_its_own_verdict_color(self):
         import us_market_signal_engine as us
