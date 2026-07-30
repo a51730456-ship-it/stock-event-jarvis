@@ -193,8 +193,12 @@ class PageWiringTests(unittest.TestCase):
             source = pathlib.Path(path).read_text(encoding="utf-8")
             block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
             self.assertIn(f'"{prefix}_top7_open"', block, f"{market}에 접었다 펴는 장치가 없다")
-            self.assertIn("if run_requested and is_open:", block,
-                          f"{market}가 다시 눌러도 안 접힌다")
+            # 두 페이지의 단추 짜임새가 서로 다르다(미국은 run_requested를 거친다).
+            # 어느 쪽이든 '열려 있으면 접는' 갈래가 있으면 된다.
+            self.assertTrue(
+                "if run_requested and is_open:" in block or "if is_open:" in block,
+                f"{market}가 다시 눌러도 안 접힌다",
+            )
 
     def test_there_is_only_one_button(self):
         """단추는 하나다 (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 마라).
@@ -247,12 +251,16 @@ class PageWiringTests(unittest.TestCase):
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
             block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
-            close = block.split("if run_requested and is_open:")[1].split("\n    if ")[0]
+            if "if run_requested and is_open:" in block:
+                close = block.split("if run_requested and is_open:")[1].split("\n    if ")[0]
+                run = block.split("\n    if run_requested:\n")[1]
+            else:
+                close = block.split("if is_open:")[1].split("else:")[0]
+                run = block.split("else:")[1]
             self.assertNotIn("st.rerun()", close, f"{market}가 닫을 때 다시 그린다")
             self.assertNotIn("find_top_reviewed_stocks", close,
                              f"{market}가 닫을 때도 조회한다")
-            # 조회는 마지막 '뽑는 쪽' 갈래에만 있어야 한다.
-            run = block.split("\n    if run_requested:\n")[1]
+            # 조회는 '뽑는 쪽' 갈래에만 있어야 한다.
             self.assertIn("find_top_reviewed_stocks", run,
                           f"{market}에서 뽑는 자리가 사라졌다")
 

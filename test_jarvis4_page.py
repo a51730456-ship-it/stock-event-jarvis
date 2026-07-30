@@ -565,36 +565,6 @@ class Jarvis4PageTests(unittest.TestCase):
             for item in reversed(started):
                 item.stop()
 
-    def test_top7_reopening_does_not_rank_again_within_five_minutes(self):
-        """순위 7도 같다 — 닫았다 바로 다시 열면 뽑아 둔 것을 그대로 편다."""
-        started = []
-        found = {"ok": True, "rows": [], "scanned_themes": 2,
-                 "candidate_count": 0, "errors": []}
-        try:
-            for item in _patches():
-                item.start()
-                started.append(item)
-            with patch("jarvis4_data.find_top_reviewed_stocks", return_value=found) as rank:
-                app = AppTest.from_file(str(PAGE), default_timeout=90)
-                app.secrets["APP_PASSWORD"] = "test"
-                app.session_state["authenticated"] = True
-                _open_all_details(app)
-                app.run(timeout=90)
-
-                def press():
-                    next(node for node in app.button
-                         if str(node.key or "") == "j4_top7_find").click().run(timeout=90)
-
-                press()
-                self.assertEqual(1, rank.call_count)
-                press()                      # 닫기
-                press()                      # 다시 열기
-                self.assertEqual(1, rank.call_count, "다시 열 때 또 뽑았다")
-                self.assertTrue(app.session_state.filtered_state.get("j4_top7_open"))
-        finally:
-            for item in reversed(started):
-                item.stop()
-
     def test_reopening_does_not_search_again_within_five_minutes(self):
         """닫았다 바로 다시 열 때 같은 결과를 또 찾으면 안 된다 (2026-07-31).
 

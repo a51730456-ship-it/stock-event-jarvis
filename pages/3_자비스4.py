@@ -513,7 +513,7 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026073030
+_REQUIRED_SIGNAL_UI_REVISION = 2026073010
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -2456,19 +2456,6 @@ def _render_radar_tab(market: dict) -> None:
     _render_my_stock_panel(market)
 
 
-def _kept_recently(key: str, seconds: float = 300) -> bool:
-    """방금 찾아 둔 결과가 아직 쓸 만한가 (기본 5분).
-
-    닫았다 바로 다시 열 때 같은 결과를 다시 찾느라 몇 초를 또 내던 것을 없앤다.
-    단추는 그대로 하나다 — 5분이 지나면 알아서 새로 찾는다(2026-07-31).
-    """
-    at = st.session_state.get(key)
-    try:
-        return bool(at) and (time.time() - float(at)) < seconds
-    except (TypeError, ValueError):
-        return False
-
-
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
     """매수심사결과 높은 순위 7 (2026-07-30 사용자 지시).
 
@@ -2487,37 +2474,28 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         + (f"와 눌림목 {len(pull_rows)}개" if pull_rows else " (눌림목을 먼저 찾으면 함께 봅니다)")
         + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
     )
-    # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
-    # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
+    # 단추는 글자만큼만 — 화면을 가로지르는 긴 바는 뺐다(2026-07-30 사용자 지시).
+    # 열려 있을 때 다시 누르면 닫고, 닫혀 있을 때 누르면 새로 뽑아 연다(같은 지시).
     is_open = bool(st.session_state.get("j4_top7_open"))
-    run_requested = st.button("매수심사결과 높은 순위 7", key="j4_top7_find")
-    if run_requested and is_open:
-        # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다.
-        st.session_state["j4_top7_open"] = False
-        st.session_state.pop("j4_top7_pick_row", None)
-        run_requested = False
-    if (
-        run_requested
-        and _kept_recently("j4_top7_at")
-        and st.session_state.get("j4_top7_result") is not None
-    ):
-        # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
-        st.session_state["j4_top7_open"] = True
-        run_requested = False
-    if run_requested:
-        with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
-            found = j4data.find_top_reviewed_stocks(
-                ranking.get("rows") or [],
-                market_score=float(market.get("score") or 0),
-                extra_rows=pull_rows,
-            )
-        st.session_state["j4_top7_result"] = found
-        st.session_state["j4_top7_at"] = time.time()
-        st.session_state["j4_top7_open"] = True
-        # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
-        # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30). 표에서 종목을
-        # 누를 때만 받는다.
-        st.session_state.pop("j4_top7_pick_row", None)
+    if st.button("매수심사결과 높은 순위 7", key="j4_top7_find"):
+        if is_open:
+            # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다
+            # (2026-07-30 사용자 실측: 닫는 데 5초). 값만 바꾸고 아래에서 빠져나간다.
+            st.session_state["j4_top7_open"] = False
+            st.session_state.pop("j4_top7_pick_row", None)
+        else:
+            with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
+                found = j4data.find_top_reviewed_stocks(
+                    ranking.get("rows") or [],
+                    market_score=float(market.get("score") or 0),
+                    extra_rows=pull_rows,
+                )
+            st.session_state["j4_top7_result"] = found
+            st.session_state["j4_top7_open"] = True
+            # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
+            # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30). 표에서 종목을
+            # 누를 때만 받는다.
+            st.session_state.pop("j4_top7_pick_row", None)
         # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
         # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
         # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
@@ -2757,24 +2735,41 @@ def _render_pullback_finder() -> None:
             "<b>최대 110점</b>이라 100점을 넘을 수 있습니다(막대는 100%에서 멈춥니다).</div>",
         unsafe_allow_html=True,
         )
-    # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 찾아 편다
-    # (2026-07-30 사용자 지시: 묻지 않고 화면에 단추를 늘리지 마라. 같은 날
-    # 순위 7에 '새로 뽑기'를 붙였다가 같은 이유로 뺐다. 미국테마와 모양을 맞춘다).
+    # 단추 두 개로 나눈다 — '열기'와 '새로 찾기'는 다른 일이다(2026-07-30).
+    #
+    # 왜 나눴나: 온라인 실측에서 여는 데 6초, 닫는 데 1초였다. 닫을 때는 자료를
+    # 안 가져오므로 그 1초가 판 하나를 다시 그리는 값 전부다 — 즉 여는 6초 중
+    # 5초는 자료를 찾는 시간이다. 그런데 닫았다 다시 열면 그 5초를 또 냈다.
+    # 캐시를 지우고 처음부터 다시 찾았기 때문이다. 방금 찾은 것과 같은 결과를
+    # 5초 들여 다시 만든 것이다.
+    #
+    # 이제 '눌림목 찾기'는 찾아 둔 것이 있으면 그대로 편다(조회 없음). 새 자료로
+    # 다시 찾고 싶으면 옆의 '새로 찾기'를 누른다. 오래된 것을 모르고 보는 일이
+    # 없도록 찾은 시각을 표에 같이 적는다.
+    has_result = st.session_state.get("j4_pullback_result") is not None
+    is_open = bool(st.session_state.get("j4_pullback_open"))
+    col_open, col_again = st.columns([1, 1])
+    with col_open:
+        run_requested = st.button("눌림목 찾기", key="j4_pullback_find")
+    with col_again:
+        # 찾아 둔 것이 있을 때만 보여 준다 — 처음에는 단추가 하나여야 헷갈리지 않는다.
+        rerun_requested = (
+            st.button("새로 찾기", key="j4_pullback_refind") if has_result else False
+        )
+    if rerun_requested:
+        st.session_state["j4_pullback_result"] = None
+        run_requested = True
+        is_open = False          # 새로 찾기는 접는 동작이 아니다
+    # 열려 있을 때 다시 누르면 접는다(2026-07-30 사용자 지적: 두 번째 클릭이 안 먹었다).
     # 닫을 때는 조회도 rerun도 하지 않는다 — 둘 다 하면 닫는 데만 시간이 걸린다
     # (2026-07-30 사용자 실측: 닫는 데 1.5초).
-    is_open = bool(st.session_state.get("j4_pullback_open"))
-    run_requested = st.button("눌림목 찾기", key="j4_pullback_find")
     if run_requested and is_open:
         st.session_state["j4_pullback_open"] = False
         st.session_state.pop("j4_pullback_pick", None)
         st.session_state.pop("j4_pullback_pick_row", None)
         run_requested = False
-    if (
-        run_requested
-        and _kept_recently("j4_pullback_at")
-        and st.session_state.get("j4_pullback_result") is not None
-    ):
-        # 방금 찾아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
+    if run_requested and st.session_state.get("j4_pullback_result") is not None:
+        # 찾아 둔 것이 있으면 조회 없이 그대로 편다. 여기가 5초를 없애는 자리다.
         st.session_state["j4_pullback_open"] = True
         run_requested = False
     if run_requested:
@@ -2786,7 +2781,7 @@ def _render_pullback_finder() -> None:
         with st.spinner("전체 테마를 갱신하고 유동성 상위 50개를 확인하는 중입니다…"):
             found = j4data.find_pullback_stocks()
         st.session_state["j4_pullback_result"] = found
-        st.session_state["j4_pullback_at"] = time.time()
+        st.session_state["j4_pullback_found_at"] = datetime.now(_PAGE_SEOUL)
         # 조회하자마자 1순위 종목 상세가 아래에 펼쳐지게 한다 — 누르지 않아도 된다
         # (2026-07-24 사용자 지시). 그 지시는 그대로 두되, rerun은 뺐다 —
         # 눌림목 상세는 이 함수 다음에 그려지므로 지금 넣은 값이 그대로 쓰인다.
@@ -2800,6 +2795,14 @@ def _render_pullback_finder() -> None:
             )
             st.session_state["j4_pullback_pick_row"] = top_row
 
+    found_at = st.session_state.get("j4_pullback_found_at")
+    if found_at and st.session_state.get("j4_pullback_open"):
+        # 언제 찾은 것인지 반드시 보여 준다 — 여는 것과 찾는 것을 나눴으므로,
+        # 오래된 결과를 지금 것으로 착각하면 안 된다.
+        st.caption(
+            f"🔎 이 결과는 **{found_at.strftime('%H:%M:%S')}**에 찾은 것입니다. "
+            "지금 자료로 다시 찾으려면 위 **새로 찾기**를 누르십시오."
+        )
     if not st.session_state.get("j4_pullback_open"):
         st.caption("단추를 누르면 조회합니다. 열린 뒤 다시 누르면 접힙니다.")
         return
