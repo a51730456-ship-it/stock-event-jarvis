@@ -2496,7 +2496,11 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.session_state["j4_top7_open"] = False
         st.session_state.pop("j4_top7_pick_row", None)
         run_requested = False
-    if run_requested and _kept_recently("j4_top7_at")             and st.session_state.get("j4_top7_result") is not None:
+    if (
+        run_requested
+        and _kept_recently("j4_top7_at")
+        and st.session_state.get("j4_top7_result") is not None
+    ):
         # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
         st.session_state["j4_top7_open"] = True
         run_requested = False
@@ -2765,7 +2769,11 @@ def _render_pullback_finder() -> None:
         st.session_state.pop("j4_pullback_pick", None)
         st.session_state.pop("j4_pullback_pick_row", None)
         run_requested = False
-    if run_requested and _kept_recently("j4_pullback_at")             and st.session_state.get("j4_pullback_result") is not None:
+    if (
+        run_requested
+        and _kept_recently("j4_pullback_at")
+        and st.session_state.get("j4_pullback_result") is not None
+    ):
         # 방금 찾아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
         st.session_state["j4_pullback_open"] = True
         run_requested = False
