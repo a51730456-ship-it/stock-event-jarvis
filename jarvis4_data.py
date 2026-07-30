@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026073020
+MODULE_REVISION = 2026073111
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -2440,12 +2440,20 @@ def get_theme_universe(*, ttl_seconds: float = 90) -> dict:
 
 
 def clear_pullback_cache() -> None:
-    """눌림목 재검색 때 결과와 장중 테마 상세를 함께 갱신한다."""
+    """눌림목을 다시 찾을 때 결과와 종목→테마 지도를 새로 만든다.
+
+    테마 상세(theme_detail) 266장은 지우지 않는다. 지우면 단추를 누를 때마다
+    네이버 페이지 266장을 처음부터 다시 받는다 — 2026-07-31 사용자 실측으로
+    이것이 눌림목 12초·다시 눌러도 9초의 몸통임이 확인됐다. 90초 캐시를 그대로
+    살려 두면 그 안에 다시 누를 때는 받아 둔 것을 쓴다(90초가 지나면 예전처럼
+    새로 받는다). 값·점수·판정은 바뀌지 않는다 — 90초 안에는 90초 전 거래대금을
+    쓸 뿐이고, 화면 안내는 이미 눌림목을 30분 캐시라고 적고 있다.
+    """
     with _CACHE_LOCK:
         for key in list(_CACHE):
             if key == "theme_universe" or key == "theme_list":
                 _CACHE.pop(key, None)
-            elif isinstance(key, tuple) and key and key[0] in {"pullback_stocks", "theme_detail"}:
+            elif isinstance(key, tuple) and key and key[0] == "pullback_stocks":
                 _CACHE.pop(key, None)
 
 
