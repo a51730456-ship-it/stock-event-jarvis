@@ -425,6 +425,8 @@ if (
     # 2026-07-29 '내 종목 현재상황'에서 쓴다. 빠뜨리면 온라인에서 AttributeError가 난다.
     or not hasattr(j3data, "search_stocks")
     or not hasattr(j3data, "analyze_one_stock")
+    # 2026-07-30 '매수심사결과 높은 순위 7'에서 쓴다.
+    or not hasattr(j3data, "find_top_reviewed_stocks")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 자비스4에서 실제 발생).
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
@@ -1745,7 +1747,121 @@ def _render_radar_tab(market: dict) -> None:
     )
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     _render_pullback_finder(market, ranking)
+    # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
+    _render_top_reviewed(market, ranking)
+    _render_top_reviewed_detail(market, ranking)
     _render_my_stock_panel(market)
+
+
+def _render_top_reviewed(market: dict, ranking: dict) -> None:
+    """매수심사결과 높은 순위 7 (2026-07-30 사용자 지시).
+
+    전수 검색을 새로 돌리지 않는다 — 지금 화면에 떠 있는 테마의 대장주와,
+    이미 돌려 둔 눌림목 결과만 모아 종목 조건점수로 줄 세운다.
+    결과는 '이 테마 기법에 대한 설명'과 같은 작은 창에 담는다.
+    """
+    st.markdown(
+        "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 7</div>",
+        unsafe_allow_html=True,
+    )
+    pull_rows = (st.session_state.get("j3_pullback_result") or {}).get("rows") or []
+    st.caption(
+        "지금 화면의 테마 대장주"
+        + (f"와 눌림목 {len(pull_rows)}개" if pull_rows else " (눌림목을 먼저 찾으면 함께 봅니다)")
+        + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
+    )
+    if st.button("매수심사결과 높은 순위 7 찾기 / 다시 찾기", key="j3_top7_find", width="stretch"):
+        st.session_state.pop("j3_top7_pick_row", None)
+        with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
+            found = j3data.find_top_reviewed_stocks(
+                ranking.get("rows") or [],
+                market_score=float(market.get("score") or 0),
+                extra_rows=pull_rows,
+            )
+        st.session_state["j3_top7_result"] = found
+        first = (found.get("rows") or [None])[0]
+        if first:
+            st.session_state["j3_top7_pick_row"] = first
+        st.rerun()
+
+    result = st.session_state.get("j3_top7_result")
+    if result is None:
+        st.info("위 단추를 누르면 순위를 뽑습니다. 페이지를 여는 것만으로는 조회하지 않습니다.")
+        return
+    rows = result.get("rows") or []
+    if not rows:
+        st.warning("심사할 대장주를 한 종목도 못 모았습니다. 테마 순위를 먼저 갱신해 보십시오.")
+        return
+
+    errors = result.get("errors") or []
+    st.caption(
+        f"테마 {result.get('scanned_themes', 0)}개 심사 · 후보 {result.get('candidate_count', 0)}개 → 상위 {len(rows)}개"
+        + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
+    )
+
+    with st.popover(f"순위 7 펼쳐 보기 ({len(rows)}개)"):
+        st.caption("종목 이름을 누르면 이 창 아래 화면에 그 종목 상세가 열립니다.")
+        widths = [0.5, 1.8, 1.0, 1.1, 1.3, 1.6]
+        titles = ["순위", "종목", "조건점수", "상태", "현재가", "어느 분야"]
+        box = st.container(key="j3_top7_table")
+        for column, title in zip(box.columns(widths), titles):
+            column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+        for index, row in enumerate(rows):
+            plan = row.get("plan") or {}
+            guide = guidance.build(plan, money=_price, market_score=market.get("score"))
+            dot = {"go": "🟩", "wait": "🟨", "stop": "🟥"}.get(guide["level"], "🟨")
+            cols = box.columns(widths)
+            cols[0].markdown(
+                f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}</div>",
+                unsafe_allow_html=True,
+            )
+            label = f"{row.get('name') or row['ticker']} ({row['ticker']})"
+            if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
+                st.session_state["j3_top7_pick_row"] = row
+                st.rerun()
+            cols[2].markdown(
+                f"<div class='j3-td' style='color:#44f0a1; font-weight:800'>"
+                f"{float(row.get('score') or 0):.1f}</div>", unsafe_allow_html=True)
+            cols[3].markdown(
+                f"<div class='j3-td'>{plan.get('state', '—')}</div>", unsafe_allow_html=True)
+            cols[4].markdown(
+                f"<div class='j3-td' style='font-weight:700'>"
+                f"{_price(row['metrics'].get('current'))}</div>", unsafe_allow_html=True)
+            cols[5].markdown(
+                f"<div class='j3-td j3-muted'>{html.escape(' · '.join(row.get('sources') or []) or '—')}</div>",
+                unsafe_allow_html=True)
+        st.markdown(
+            "<style>"
+            "div[class*='st-key-j3top7_'] button { background: transparent !important;"
+            " border: none !important; box-shadow: none !important; min-height: 2.2rem !important;"
+            " width: 100% !important; justify-content: flex-start !important; }"
+            "div[class*='st-key-j3top7_'] button p { color: #4da6ff !important;"
+            " font-weight: 800 !important; }"
+            "</style>",
+            unsafe_allow_html=True,
+        )
+
+
+def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
+    """순위 7에서 고른 종목의 상세. 위 테마 상세·눌림목 상세와 완전히 별개다."""
+    picked = st.session_state.get("j3_top7_pick_row")
+    if not picked:
+        return
+    st.markdown(
+        f"<div class='j3-section-title'>순위 7에서 고른 종목 · "
+        f"{html.escape(str(picked.get('name') or picked.get('ticker') or ''))}</div>",
+        unsafe_allow_html=True,
+    )
+    # 눌림목에서 온 줄은 눌림목 상세가 그리고, 테마 대장주 줄은 종목 상세가 그린다
+    # ('pullback' 키가 있는 쪽이 눌림목 결과다).
+    if "pullback" in picked:
+        _render_pullback_detail(picked, market, ranking)
+        return
+    theme_name = (picked.get("sources") or ["—"])[0]
+    _render_stock_detail(
+        {"name": theme_name}, picked, market, [picked],
+        "j3_top7_detail_choice", panel="top7",
+    )
 
 
 def _render_my_stock_panel(market: dict) -> None:

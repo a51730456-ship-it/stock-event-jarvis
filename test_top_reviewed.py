@@ -114,6 +114,57 @@ class KoreaTests(unittest.TestCase):
         self.assertEqual([], result["rows"])
 
 
+class PageWiringTests(unittest.TestCase):
+    """자료 함수만 있고 화면에 안 붙어 있으면 아무 소용이 없다."""
+
+    PAGES = {
+        "US": ("pages/2_자비스3.py", "j3"),
+        "KR": ("pages/3_자비스4.py", "j4"),
+    }
+
+    def test_both_pages_show_the_section(self):
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            self.assertIn("매수심사결과 높은 순위 7", source, f"{market} 화면에 제목이 없다")
+            self.assertIn("def _render_top_reviewed(", source, f"{market}에 그리는 함수가 없다")
+            self.assertIn("_render_top_reviewed(market, ranking)", source,
+                          f"{market}에서 부르지 않는다")
+            self.assertIn("find_top_reviewed_stocks(", source, f"{market}가 자료를 안 부른다")
+            # 눌림목 결과도 함께 넣어야 한다(사용자 지시).
+            self.assertIn(f"{prefix}_pullback_result", source)
+            self.assertIn("extra_rows=pull_rows", source)
+
+    def test_clicking_a_row_opens_its_own_detail(self):
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            self.assertIn(f"{prefix}top7_", source, f"{market}에 종목 단추가 없다")
+            self.assertIn(f"{prefix}_top7_pick_row", source)
+            self.assertIn("def _render_top_reviewed_detail(", source)
+            # 상세는 위 테마 상세·눌림목 상세와 키가 겹치면 안 된다.
+            self.assertIn('panel="top7"', source, f"{market} 상세 패널 키가 안 갈렸다")
+
+    def test_results_live_in_a_small_panel(self):
+        """'이 테마 기법에 대한 설명'과 같은 작은 창에 담는다(사용자 지시)."""
+        import pathlib
+
+        for market, (path, _prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            self.assertIn("순위 7 펼쳐 보기", source, f"{market}가 작은 창을 안 쓴다")
+
+    def test_module_reload_guards_know_the_new_function(self):
+        """규칙 11 — 새 함수를 가드에 안 넣으면 온라인에서 AttributeError가 난다."""
+        import pathlib
+
+        for market, (path, _prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            self.assertIn('"find_top_reviewed_stocks"', source,
+                          f"{market} 모듈 리로드 가드에 새 함수가 없다")
+
+
 class UnitedStatesTests(unittest.TestCase):
     def test_ranks_by_score_and_dedups_by_ticker(self):
         themes = [{"name": "반도체", "score": 80}, {"name": "AI", "score": 75}]
