@@ -2545,34 +2545,62 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         + (f"와 눌림목 {len(pull_rows)}개" if pull_rows else " (눌림목을 먼저 찾으면 함께 봅니다)")
         + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
     )
-    # 단추는 글자만큼만 — 화면을 가로지르는 긴 바는 뺐다(2026-07-30 사용자 지시).
-    # 열려 있을 때 다시 누르면 닫고, 닫혀 있을 때 누르면 새로 뽑아 연다(같은 지시).
+    # 단추 두 개로 나눈다 — '열기'와 '새로 뽑기'는 다른 일이다(눌림목과 같은 처리).
+    # 닫았다 다시 열 때 방금 본 것과 같은 결과를 다시 뽑느라 시간을 또 냈다
+    # (2026-07-30 폰 실측, 미국테마: 열기 8초·닫기 3초·다시 열기 8초).
+    # 이제 뽑아 둔 것이 있으면 조회 없이 그대로 편다. 뽑은 시각을 표 위에 적는다.
+    has_result = st.session_state.get("j4_top7_result") is not None
     is_open = bool(st.session_state.get("j4_top7_open"))
-    if st.button("매수심사결과 높은 순위 7", key="j4_top7_find"):
-        if is_open:
-            # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다
-            # (2026-07-30 사용자 실측: 닫는 데 5초). 값만 바꾸고 아래에서 빠져나간다.
-            st.session_state["j4_top7_open"] = False
-            st.session_state.pop("j4_top7_pick_row", None)
-            # 닫을 때도 서버가 쓴 시간을 남긴다 — 닫기가 늦은 게 서버 탓인지 가린다.
-            st.session_state["j4_t_top7"] = (0.0, 0.0)
-        else:
-            with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
-                found = _timed("j4_t_top7", lambda: j4data.find_top_reviewed_stocks(
-                    ranking.get("rows") or [],
-                    market_score=float(market.get("score") or 0),
-                    extra_rows=pull_rows,
-                ))
-            st.session_state["j4_top7_result"] = found
-            st.session_state["j4_top7_open"] = True
-            # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
-            # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30). 표에서 종목을
-            # 누를 때만 받는다.
-            st.session_state.pop("j4_top7_pick_row", None)
+    col_open, col_again = st.columns([1, 1])
+    with col_open:
+        run_requested = st.button("매수심사결과 높은 순위 7", key="j4_top7_find")
+    with col_again:
+        # 뽑아 둔 것이 있을 때만 보여 준다 — 처음에는 단추가 하나여야 헷갈리지 않는다.
+        refresh_requested = (
+            st.button("새로 뽑기", key="j4_top7_refind") if has_result else False
+        )
+    if refresh_requested:
+        st.session_state["j4_top7_result"] = None
+        run_requested = True
+        is_open = False          # 새로 뽑기는 접는 동작이 아니다
+    if run_requested and is_open:
+        # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다.
+        st.session_state["j4_top7_open"] = False
+        st.session_state.pop("j4_top7_pick_row", None)
+        # 닫을 때도 서버가 쓴 시간을 남긴다 — 닫기가 늦은 게 서버 탓인지 가린다.
+        st.session_state["j4_t_top7"] = (0.0, 0.0)
+        run_requested = False
+    if run_requested and st.session_state.get("j4_top7_result") is not None:
+        # 뽑아 둔 것이 있으면 조회 없이 그대로 편다. 여기가 다시 여는 시간을 없애는 자리다.
+        st.session_state["j4_top7_open"] = True
+        st.session_state["j4_t_top7"] = (0.0, 0.0)
+        run_requested = False
+    if run_requested:
+        with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
+            found = _timed("j4_t_top7", lambda: j4data.find_top_reviewed_stocks(
+                ranking.get("rows") or [],
+                market_score=float(market.get("score") or 0),
+                extra_rows=pull_rows,
+            ))
+        st.session_state["j4_top7_result"] = found
+        st.session_state["j4_top7_found_at"] = datetime.now(_PAGE_SEOUL)
+        st.session_state["j4_top7_open"] = True
+        # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
+        # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30). 표에서 종목을
+        # 누를 때만 받는다.
+        st.session_state.pop("j4_top7_pick_row", None)
         # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
         # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
         # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
 
+    found_at = st.session_state.get("j4_top7_found_at")
+    if found_at and st.session_state.get("j4_top7_open"):
+        # 언제 뽑은 것인지 반드시 보여 준다 — 여는 것과 뽑는 것을 나눴으므로,
+        # 오래된 결과를 지금 것으로 착각하면 안 된다.
+        st.caption(
+            f"🔎 이 순위는 **{found_at.strftime('%H:%M:%S')}**에 뽑은 것입니다. "
+            "지금 시세로 다시 줄 세우려면 위 **새로 뽑기**를 누르십시오."
+        )
     _show_timing("j4_t_top7", "매수심사결과 순위 7")
     if not st.session_state.get("j4_top7_open"):
         st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
