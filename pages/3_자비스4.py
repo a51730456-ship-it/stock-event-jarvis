@@ -895,7 +895,7 @@ def _market_action_detail(overview: dict) -> str:
 @st.fragment(run_every=60)
 def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
-    overview = j4data.get_market_overview()
+    overview = _timed("j4_t_market", j4data.get_market_overview)
     st.session_state["j4_market_overview"] = overview
     st.subheader("한국 전체시장 판단")
     if not overview.get("ok"):
@@ -2131,6 +2131,34 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
     return is_open
 
 
+# ---------------------------------------------------------------------------
+# 서버가 쓴 시간 재기 (2026-07-30, 온라인 실측용)
+# ---------------------------------------------------------------------------
+# 온라인에서 스톱워치로만 재면 서버 몫과 브라우저 몫을 가릴 수 없다. 서버가 쓴 시간을
+# 화면에 같이 찍어 두면, 상하님이 세신 시간에서 이 숫자를 빼면 브라우저 몫이 나온다.
+#
+# 이 표시는 값·점수·판정을 건드리지 않는다. 재기만 한다.
+# 계산 시간(process_time)은 프로세스 전체 값이라 여러 사람이 동시에 쓰면 섞인다.
+_SPEED_STAMP = "속도재기 v1 · 2026-07-30"
+
+
+def _timed(slot: str, fn):
+    wall0, cpu0 = time.perf_counter(), time.process_time()
+    try:
+        return fn()
+    finally:
+        st.session_state[slot] = (
+            time.perf_counter() - wall0, time.process_time() - cpu0
+        )
+
+
+def _show_timing(slot: str, label: str) -> None:
+    got = st.session_state.get(slot)
+    if not got:
+        return
+    st.caption(f"⏱ {label} — 서버가 쓴 시간 **{got[0]:.1f}초** (그중 계산 {got[1]:.1f}초)")
+
+
 def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
                      stock_key: str, *, panel: str = "theme") -> None:
     code = leader["code"]
@@ -2280,7 +2308,15 @@ def _render_radar_tab(market: dict) -> None:
     # (2026-07-22: 금융·은행처럼 오늘 약한 테마도 눌림목을 보고 싶다는 요구).
     forced = st.session_state.get("j4_forced_themes") or []
     with st.spinner("네이버 전체 테마를 훑어 오늘 강한 테마를 고르는 중입니다…"):
-        ranking = j4data.get_theme_rankings(force_names=tuple(forced))
+        ranking = _timed(
+            "j4_t_rank", lambda: j4data.get_theme_rankings(force_names=tuple(forced))
+        )
+    # 화면이 새 코드인지 확인하려고 표식을 같이 찍는다 — 클라우드가 옛 빌드를 계속
+    # 서빙한 사례가 있다(DECISIONS.md 11번). 페이지 파일은 매번 다시 읽히므로
+    # 여기 적은 표식은 배포된 페이지를 그대로 나타낸다.
+    st.caption(f"🔧 {_SPEED_STAMP} · 계산모듈 {getattr(j4data, 'MODULE_REVISION', '?')}")
+    _show_timing("j4_t_market", "시장판단")
+    _show_timing("j4_t_rank", "테마 순위")
     if not ranking.get("ok"):
         st.error(f"테마 자료 조회 실패: {_safe_error_text(ranking.get('error'))}")
         return
@@ -2483,13 +2519,15 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             # (2026-07-30 사용자 실측: 닫는 데 5초). 값만 바꾸고 아래에서 빠져나간다.
             st.session_state["j4_top7_open"] = False
             st.session_state.pop("j4_top7_pick_row", None)
+            # 닫을 때도 서버가 쓴 시간을 남긴다 — 닫기가 늦은 게 서버 탓인지 가린다.
+            st.session_state["j4_t_top7"] = (0.0, 0.0)
         else:
             with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
-                found = j4data.find_top_reviewed_stocks(
+                found = _timed("j4_t_top7", lambda: j4data.find_top_reviewed_stocks(
                     ranking.get("rows") or [],
                     market_score=float(market.get("score") or 0),
                     extra_rows=pull_rows,
-                )
+                ))
             st.session_state["j4_top7_result"] = found
             st.session_state["j4_top7_open"] = True
             # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
@@ -2500,6 +2538,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
         # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
 
+    _show_timing("j4_t_top7", "매수심사결과 순위 7")
     if not st.session_state.get("j4_top7_open"):
         st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
         return
@@ -2747,6 +2786,8 @@ def _render_pullback_finder() -> None:
         st.session_state.pop("j4_pullback_pick", None)
         st.session_state.pop("j4_pullback_pick_row", None)
         run_requested = False
+        # 닫을 때도 서버가 쓴 시간을 남긴다 — 닫기가 늦은 게 서버 탓인지 가린다.
+        st.session_state["j4_t_pull"] = (0.0, 0.0)
     if run_requested:
         st.session_state["j4_pullback_open"] = True
         j4data.clear_pullback_cache()
@@ -2754,7 +2795,7 @@ def _render_pullback_finder() -> None:
         st.session_state.pop("j4_pullback_pick", None)
         st.session_state.pop("j4_pullback_pick_row", None)
         with st.spinner("전체 테마를 갱신하고 유동성 상위 50개를 확인하는 중입니다…"):
-            found = j4data.find_pullback_stocks()
+            found = _timed("j4_t_pull", j4data.find_pullback_stocks)
         st.session_state["j4_pullback_result"] = found
         # 조회하자마자 1순위 종목 상세가 아래에 펼쳐지게 한다 — 누르지 않아도 된다
         # (2026-07-24 사용자 지시). 그 지시는 그대로 두되, rerun은 뺐다 —
@@ -2769,6 +2810,7 @@ def _render_pullback_finder() -> None:
             )
             st.session_state["j4_pullback_pick_row"] = top_row
 
+    _show_timing("j4_t_pull", "눌림목 찾기")
     if not st.session_state.get("j4_pullback_open"):
         st.caption("단추를 누르면 조회합니다. 열린 뒤 다시 누르면 접힙니다.")
         return
