@@ -754,7 +754,33 @@ def get_theme_stocks(theme_no: int, *, ttl_seconds: float = 300) -> dict:
 # ---------------------------------------------------------------------------
 # 시장 판단 (KOSPI·KOSDAQ·환율·미국 전일·외국인 수급)
 # ---------------------------------------------------------------------------
+_NAVER_INDEX_SYMBOLS = {"KS11": "KOSPI", "KQ11": "KOSDAQ"}
+
+
 def _index_frame(symbol: str) -> pd.DataFrame | None:
+    """지수 일봉. 코스피·코스닥은 네이버에서 한 번에 받는다.
+
+    2026-07-30 실측 — FinanceDataReader로 지수 하나를 받으면 그 안에서 URL을 **82번**
+    따로 열고, 그 82번이 pandas 경로라 공용 연결을 못 타서 인증서 저장소를 82번
+    새로 읽었다(CPU 1.9초). 눌림목 첫 클릭에서 `_index_frame` 호출은 딱 한 번인데도
+    그랬다. 네이버 fchart는 같은 자료를 요청 한 번으로 준다(600줄 0.38초).
+
+    값 대조(2026-07-30, 269거래일): 시가·고가·저가·종가가 269일 전부 똑같다.
+    거래량만 네이버가 **천 주 단위**라 1000을 곱해 예전과 같은 단위로 맞춘다.
+    이렇게 하면 `_series_metrics`가 내놓는 25개 값이 전부 같아진다.
+
+    환율(USD/KRW)은 네이버 fchart에 없어 예전 방식을 그대로 쓴다.
+    """
+    naver_symbol = _NAVER_INDEX_SYMBOLS.get(str(symbol))
+    if naver_symbol:
+        try:
+            frame = _read_index_naver(naver_symbol)
+            if frame is not None and not frame.empty and "Close" in frame.columns:
+                return frame
+        except Exception as exc:
+            # 조용히 예전 방식으로 넘어간다 — 응답 모양이 바뀌어도 화면이 비지 않게.
+            _log.warning("jarvis4 naver index failed symbol=%s: %s", symbol, exc)
+
     import FinanceDataReader as fdr
 
     end = datetime.now(_SEOUL).date()
@@ -763,6 +789,33 @@ def _index_frame(symbol: str) -> pd.DataFrame | None:
     if frame is None or frame.empty or "Close" not in frame.columns:
         return None
     return frame.sort_index()
+
+
+def _read_index_naver(naver_symbol: str, days: int = 400) -> pd.DataFrame | None:
+    end = datetime.now(_SEOUL).date()
+    start = end - timedelta(days=days)
+    count = max(600, int(days * 1.5))
+    url = (
+        "https://fchart.stock.naver.com/sise.nhn"
+        f"?timeframe=day&count={count}&requestType=0&symbol={naver_symbol}"
+    )
+    response = _http_session().get(url, timeout=10)
+    response.raise_for_status()
+    rows = re.findall(r'<item data=\"(.*?)\" />', response.text, re.DOTALL)
+    if not rows:
+        return None
+    frame = pd.read_csv(
+        io.StringIO("\n".join(rows)), delimiter="|", header=None, dtype={0: str}
+    )
+    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
+    frame["Date"] = pd.to_datetime(frame["Date"], format="%Y%m%d")
+    frame.set_index("Date", inplace=True)
+    frame.sort_index(inplace=True)
+    # 네이버 지수 거래량은 천 주 단위다. 예전(FinanceDataReader)과 같은 단위로 맞춘다 —
+    # 안 맞추면 avg_trading_value가 1000배 작아진다(2026-07-30 대조로 확인).
+    frame["Volume"] = frame["Volume"].astype("float64") * 1000.0
+    frame["Change"] = frame["Close"].pct_change()
+    return frame.loc[start.isoformat():end.isoformat()].sort_index()
 
 
 
@@ -2505,7 +2558,11 @@ def find_pullback_stocks(
         # 눌림목을 노릴 만한 종목은 거래대금이 받쳐주는 쪽이다.
         multi_theme_total = len(multi_theme)
         liquid_total = len(candidates)
-        candidates.sort(key=lambda item: item.get("liquidity_value") or 0, reverse=True)
+        # 동점일 때 종목코드로 갈라 준다. 안 갈라 주면 스레드가 끝나는 순서에 따라
+        # **어느 종목이 상위 50개에 드는지**가 돌릴 때마다 달라진다(2026-07-30 실측).
+        candidates.sort(
+            key=lambda item: (-(item.get("liquidity_value") or 0), str(item.get("code")))
+        )
         candidates = candidates[:scan_limit]
 
         # 2) 일봉으로 '52주 최고가 찍고 1~15일 지난 종목'만 거른다.
@@ -2571,7 +2628,11 @@ def find_pullback_stocks(
                     "peak_score_basis": past["basis"] if past else "현재 종합점수 대체"}
 
         final = []
-        screened.sort(key=lambda item: item.get("liquidity_value") or 0, reverse=True)
+        # 여기도 동점을 종목코드로 갈라 준다 — 수급을 조회할 25개가 흔들리면 결과가
+        # 돌릴 때마다 달라진다.
+        screened.sort(
+            key=lambda item: (-(item.get("liquidity_value") or 0), str(item.get("code")))
+        )
         flow_targets = screened[:25]
         with ThreadPoolExecutor(max_workers=10) as executor:
             for future in as_completed([executor.submit(_finalize, s) for s in flow_targets]):
@@ -2587,9 +2648,15 @@ def find_pullback_stocks(
                 if item.get("pullback") and float(gate_score or 0) >= min_stock_score:
                     final.append(item)
 
+        # 신고가 기술점수가 같으면 종목코드로 갈라 순위를 고정한다. 안 갈라 주면
+        # 새로 고칠 때마다 2위·3위가 뒤바뀐다 — 2026-07-30 실측: KB금융과 신한지주가
+        # 둘 다 95.7점이라 네 번 돌려 한 번 자리가 바뀌었다. 점수는 하나도 안 바꾸고
+        # 동점일 때만 순서를 정한다(종목코드는 값의 좋고 나쁨과 무관한 기준이다).
         final.sort(
-            key=lambda item: float(item.get("peak_score") or item.get("score") or 0),
-            reverse=True,
+            key=lambda item: (
+                -float(item.get("peak_score") or item.get("score") or 0),
+                str(item.get("code")),
+            )
         )
         final = final[:result_limit]
         for index, item in enumerate(final, 1):
