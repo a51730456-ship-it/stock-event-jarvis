@@ -209,23 +209,23 @@ st.markdown(
         .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     .j3-td { white-space: nowrap; }
-    /* 눌림목 찾기 버튼 — 한국테마(자비스4)와 같은 밝은 스카이 블루 바탕에
-       클로드 로고 주황 글씨로 맞춘다(2026-07-29 사용자 지시). 같은 기능인데
-       두 화면 색이 달라 보였다. */
+    /* 눌림목 찾기 버튼 — 순위 7 단추와 같은 모양(글자만큼만)에 진한 푸른색
+       그라데이션(2026-07-30 사용자 지시). 한국테마와 같은 모양이다. */
     div[class*="st-key-j3_pullback_find"] button {
-        background: #cfe9ff !important;
-        border: 1px solid #8ec9f5 !important;
+        background: linear-gradient(90deg, #0b2a4a 0%, #123a63 38%, #1d6fc4 100%) !important;
+        border: none !important;
         border-radius: .5rem !important;
         min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(29,111,196,.25) !important;
     }
     div[class*="st-key-j3_pullback_find"] button:hover {
-        background: #b9dfff !important;
-        border-color: #6db6ee !important;
+        background: linear-gradient(90deg, #0e3559 0%, #164876 38%, #2a86e0 100%) !important;
     }
     div[class*="st-key-j3_pullback_find"] button p {
-        color: #c15f3c !important;
-        font-size: 1.2rem !important;
+        color: #ffffff !important;
+        font-size: 1.02rem !important;
         font-weight: 800 !important;
+        letter-spacing: .01em !important;
         margin: 0 !important;
     }
     div[class*="st-key-j3tbtn_"] button {
@@ -254,6 +254,30 @@ st.markdown(
     div[class*="st-key-j3_stock_choice"] label div,
     div[class*="st-key-j3_stock_choice"] label span {
         font-size: 1.12rem !important;
+    }
+    /* '매수심사결과 높은 순위 7' 단추 — 사용자가 붙여 준 초록 배너 견본 그대로.
+       왼쪽 짙은 초록에서 오른쪽 밝은 초록으로 흐르는 넓은 띠, 흰 글씨 가운데.
+       (2026-07-30 사용자 지시. 한국테마와 같은 모양이다.) */
+    div[class*="st-key-j3_top7_find"] button {
+        background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(18,160,106,.25) !important;
+    }
+    div[class*="st-key-j3_top7_find"] button:hover {
+        background: linear-gradient(90deg, #0a4a37 0%, #0d6244 38%, #16bd7e 100%) !important;
+    }
+    div[class*="st-key-j3_top7_find"] button p {
+        color: #ffffff !important;
+        font-size: 1.02rem !important;
+        font-weight: 800 !important;
+        letter-spacing: .01em !important;
+    }
+    /* 분야 이름이 길면 옆 칸을 덮어썼다 — 한 줄로 자른다(2026-07-30). */
+    .j3-top7-src {
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        max-width: 100%;
     }
     /* '지금 할 일' 지침 상자 — 매수 심사 결과 표 바로 위. 테두리 색은
        guidance.py가 판정에 따라 정한다(초록 진입 · 노랑 대기 · 빨강 금지).
@@ -384,7 +408,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026072922
+_REQUIRED_MOBILE_REVISION = 2026073010
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -431,7 +455,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026072911
+_REQUIRED_SIGNAL_UI_REVISION = 2026073010
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1758,7 +1782,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
 
     전수 검색을 새로 돌리지 않는다 — 지금 화면에 떠 있는 테마의 대장주와,
     이미 돌려 둔 눌림목 결과만 모아 종목 조건점수로 줄 세운다.
-    결과는 '이 테마 기법에 대한 설명'과 같은 작은 창에 담는다.
+    표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다 — 창을 또 눌러
+    여는 방식은 없앴다(2026-07-30 사용자 지시).
     """
     st.markdown(
         "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 7</div>",
@@ -1770,7 +1795,13 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         + (f"와 눌림목 {len(pull_rows)}개" if pull_rows else " (눌림목을 먼저 찾으면 함께 봅니다)")
         + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
     )
-    if st.button("매수심사결과 높은 순위 7 찾기 / 다시 찾기", key="j3_top7_find", width="stretch"):
+    # 단추는 글자만큼만 — 화면을 가로지르는 긴 바는 뺐다(2026-07-30 사용자 지시).
+    # 열려 있을 때 다시 누르면 닫고, 닫혀 있을 때 누르면 새로 뽑아 연다(같은 지시).
+    is_open = bool(st.session_state.get("j3_top7_open"))
+    if st.button("매수심사결과 높은 순위 7", key="j3_top7_find"):
+        if is_open:
+            st.session_state["j3_top7_open"] = False
+            st.rerun()
         st.session_state.pop("j3_top7_pick_row", None)
         with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
             found = j3data.find_top_reviewed_stocks(
@@ -1779,11 +1810,15 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
                 extra_rows=pull_rows,
             )
         st.session_state["j3_top7_result"] = found
+        st.session_state["j3_top7_open"] = True
         first = (found.get("rows") or [None])[0]
         if first:
             st.session_state["j3_top7_pick_row"] = first
         st.rerun()
 
+    if not st.session_state.get("j3_top7_open"):
+        st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
+        return
     result = st.session_state.get("j3_top7_result")
     if result is None:
         st.info("위 단추를 누르면 순위를 뽑습니다. 페이지를 여는 것만으로는 조회하지 않습니다.")
@@ -1799,47 +1834,53 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
     )
 
-    with st.popover(f"순위 7 펼쳐 보기 ({len(rows)}개)"):
-        st.caption("종목 이름을 누르면 이 창 아래 화면에 그 종목 상세가 열립니다.")
-        widths = [0.5, 1.8, 1.0, 1.1, 1.3, 1.6]
-        titles = ["순위", "종목", "조건점수", "상태", "현재가", "어느 분야"]
-        box = st.container(key="j3_top7_table")
-        for column, title in zip(box.columns(widths), titles):
-            column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
-        for index, row in enumerate(rows):
-            plan = row.get("plan") or {}
-            guide = guidance.build(plan, money=_price, market_score=market.get("score"))
-            dot = {"go": "🟩", "wait": "🟨", "stop": "🟥"}.get(guide["level"], "🟨")
-            cols = box.columns(widths)
-            cols[0].markdown(
-                f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}</div>",
-                unsafe_allow_html=True,
-            )
-            label = f"{row.get('name') or row['ticker']} ({row['ticker']})"
-            if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
-                st.session_state["j3_top7_pick_row"] = row
-                st.rerun()
-            cols[2].markdown(
-                f"<div class='j3-td' style='color:#44f0a1; font-weight:800'>"
-                f"{float(row.get('score') or 0):.1f}</div>", unsafe_allow_html=True)
-            cols[3].markdown(
-                f"<div class='j3-td'>{plan.get('state', '—')}</div>", unsafe_allow_html=True)
-            cols[4].markdown(
-                f"<div class='j3-td' style='font-weight:700'>"
-                f"{_price(row['metrics'].get('current'))}</div>", unsafe_allow_html=True)
-            cols[5].markdown(
-                f"<div class='j3-td j3-muted'>{html.escape(' · '.join(row.get('sources') or []) or '—')}</div>",
-                unsafe_allow_html=True)
-        st.markdown(
-            "<style>"
-            "div[class*='st-key-j3top7_'] button { background: transparent !important;"
-            " border: none !important; box-shadow: none !important; min-height: 2.2rem !important;"
-            " width: 100% !important; justify-content: flex-start !important; }"
-            "div[class*='st-key-j3top7_'] button p { color: #4da6ff !important;"
-            " font-weight: 800 !important; }"
-            "</style>",
+    st.caption("종목 이름을 누르면 아래에 그 종목 상세가 열립니다.")
+    widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]
+    titles = ["순위", "종목", "조건점수", "매수 상태", "현재가", "어느 분야"]
+    box = st.container(key="j3_top7_table")
+    for column, title in zip(box.columns(widths), titles):
+        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+    for index, row in enumerate(rows):
+        plan = row.get("plan") or {}
+        guide = guidance.build(plan, money=_price, market_score=market.get("score"))
+        dot = {"go": "🟩", "wait": "🟨", "stop": "🟥"}.get(guide["level"], "🟨")
+        cols = box.columns(widths)
+        cols[0].markdown(
+            f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}위</div>",
             unsafe_allow_html=True,
         )
+        label = f"{row.get('name') or row['ticker']} ({row['ticker']})"
+        if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
+            st.session_state["j3_top7_pick_row"] = row
+            st.rerun()
+        score = float(row.get("score") or 0)
+        cols[2].markdown(
+            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(score, 100):.0f}%'></div>"
+            f"</div><span class='j3-bar-num'>{score:.1f}</span></div></div>",
+            unsafe_allow_html=True)
+        cols[3].markdown(
+            f"<div class='j3-td'>{plan.get('state', '—')}</div>", unsafe_allow_html=True)
+        cols[4].markdown(
+            f"<div class='j3-td' style='font-weight:700'>"
+            f"{_price(row['metrics'].get('current'))}</div>", unsafe_allow_html=True)
+        # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
+        source_text = " · ".join(row.get("sources") or []) or "—"
+        cols[5].markdown(
+            f"<div class='j3-td j3-muted j3-top7-src' title='{html.escape(source_text)}'>"
+            f"{html.escape(source_text)}</div>",
+            unsafe_allow_html=True)
+    # 종목 이름 단추는 '테마 종목' 표와 같은 옷을 입힌다.
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j3top7_'] button { background: transparent !important;"
+        " border: 1px solid rgba(255,255,255,.18) !important; box-shadow: none !important;"
+        " min-height: 2.4rem !important; width: 100% !important; }"
+        "div[class*='st-key-j3top7_'] button p { color: #e6e6e6 !important;"
+        " font-weight: 700 !important; }"
+        "</style>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
@@ -2186,7 +2227,8 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         )
     # 한국테마(자비스4)와 같이 버튼을 눌러야 펼쳐진다(2026-07-25 사용자 지시).
     # 페이지를 여는 것만으로 20종목 표가 통째로 쏟아지면 폰에서 화면을 다 먹었다.
-    if st.button("눌림목 찾기 / 최신 자료로 다시 찾기", key="j3_pullback_find", width="stretch"):
+    # 제목은 '눌림목 찾기'만, 폭도 글자만큼만 둔다(2026-07-30 사용자 지시).
+    if st.button("눌림목 찾기", key="j3_pullback_find"):
         st.session_state.pop("j3_pullback_selected_ticker", None)
         with st.spinner("미국 20개 테마 전체에서 상승추세 조정 종목을 찾는 중입니다…"):
             st.session_state["j3_pullback_result"] = j3data.find_pullback_stocks(reuse_only=True)
@@ -2579,7 +2621,8 @@ def main() -> None:
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
     # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
     method_help.render(st, "US")
-    st.title("자비스3 — 미국 테마 레이더")
+    # 맨 위 제목은 뺐다(2026-07-30 사용자 지시) — 사이드바에 같은 이름이 있고
+    # 첫 화면 높이만 먹었다. 페이지 이름은 파일명이 그대로 쓴다.
     try:
         j3store.ensure_tables()
     except Exception as exc:

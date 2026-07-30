@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026072922
+MODULE_REVISION = 2026073010
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -160,6 +160,11 @@ CONTENT_CSS = """
    단추 모양 자체는 method_help.py에 있고, 폰 규칙만 규칙 12에 따라 여기 둔다. */
 div[class*="st-key-jarvis_method_help"] button p { font-size: .86rem !important; }
 div[class*="st-key-jarvis_method_help"] button { padding: .3rem .7rem !important; }
+/* 폰에서는 단추를 두 줄만큼 더 내린다 — 그 자리에 누를 것이 있는데 단추가 덮고
+   있었다(2026-07-30 사용자 지적). 창도 단추 밑에 붙어 있으므로 같이 내린다.
+   PC·태블릿은 그대로 둔다(규칙 12 — 폰 묶음 안에서만 바꾼다). */
+.st-key-jarvis_method_help { top: 4.3rem !important; }
+[data-testid="stPopoverBody"] { top: 7.8rem !important; }
 h1 { font-size: 1.5rem !important; }
 h2 { font-size: 1.2rem !important; }
 .j3-stock-name, .j4-stock-name { font-size: 1.3rem; }

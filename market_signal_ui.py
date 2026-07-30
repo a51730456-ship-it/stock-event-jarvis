@@ -38,7 +38,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026072911
+MODULE_REVISION = 2026073010
 
 
 def _now_seoul():
@@ -977,6 +977,10 @@ def render_market_signal_card(
 
     # 핵심 4개와 신호 목록도 접어 둔다 — 첫 화면이 설명으로 가득 찼다
     # (2026-07-25 사용자 지시: "다 숨겨라"). 값·판정은 그대로다.
+    # 위 판정 카드와 딱 붙어 있어 답답했다(2026-07-30 사용자 지적) — 한 줄 띄운다.
+    st.markdown(
+        "<div style='height:.9rem'></div>", unsafe_allow_html=True
+    )
     with st.expander("핵심 4개 · 신호 목록 보기", expanded=False):
         # 핵심 4개 — 모바일 1열, 그 위 2열 (기존 반응형 규칙과 동일하게 columns 사용)
         st.markdown("#### 핵심 4개")

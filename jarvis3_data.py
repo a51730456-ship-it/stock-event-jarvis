@@ -12,6 +12,7 @@ import math
 import threading
 import time
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, time as dt_time
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -1071,23 +1072,32 @@ def find_top_reviewed_stocks(
         for row in (theme_rows or [])
     }
 
-    for theme_row in theme_rows or []:
+    # 테마를 하나씩 돌면 20개에 한참 걸린다(2026-07-30 사용자 지적: 로딩이 너무 길다).
+    # 테마끼리는 서로를 안 기다리므로 한꺼번에 돌린다.
+    def _one(theme_row):
+        # 예외는 여기서 잡아 테마 이름과 함께 돌려준다 — 밖에서 잡으면 어느 테마가
+        # 실패했는지 알 수 없다.
         name = str(theme_row.get("name") or "")
         try:
-            result = get_theme_leaders(
+            return name, get_theme_leaders(
                 name,
                 market_score=market_score,
                 theme_score=float(theme_row.get("score") or 0),
             )
-        except Exception as exc:  # 테마 하나가 실패해도 나머지는 계속 모은다.
-            errors.append(f"{name}: {exc}")
-            continue
-        if not result.get("ok"):
-            errors.append(f"{name}: {result.get('error') or '조회 실패'}")
-            continue
-        scanned_themes += 1
-        for row in result["rows"]:
-            _keep_better(picked, row, source=name)
+        except Exception as exc:
+            return name, {"ok": False, "error": str(exc), "rows": []}
+
+    themes = list(theme_rows or [])
+    if themes:
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            for future in [executor.submit(_one, row) for row in themes]:
+                name, result = future.result()
+                if not result.get("ok"):
+                    errors.append(f"{name}: {result.get('error') or '조회 실패'}")
+                    continue
+                scanned_themes += 1
+                for row in result["rows"]:
+                    _keep_better(picked, row, source=name)
 
     for row in extra_rows or []:
         if not row.get("metrics"):

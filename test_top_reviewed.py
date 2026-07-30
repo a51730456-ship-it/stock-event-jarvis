@@ -147,13 +147,73 @@ class PageWiringTests(unittest.TestCase):
             # 상세는 위 테마 상세·눌림목 상세와 키가 겹치면 안 된다.
             self.assertIn('panel="top7"', source, f"{market} 상세 패널 키가 안 갈렸다")
 
-    def test_results_live_in_a_small_panel(self):
-        """'이 테마 기법에 대한 설명'과 같은 작은 창에 담는다(사용자 지시)."""
+    def test_table_opens_straight_on_the_page(self):
+        """2026-07-30 사용자 지시 — 창을 또 눌러 여는 방식을 없앤다.
+
+        단추 한 번에 표가 바로 펴져야 한다. 팝오버로 되돌아가면 이 테스트가 깨진다.
+        """
         import pathlib
 
-        for market, (path, _prefix) in self.PAGES.items():
+        for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
-            self.assertIn("순위 7 펼쳐 보기", source, f"{market}가 작은 창을 안 쓴다")
+            block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
+            self.assertNotIn("st.popover", block, f"{market}가 아직 창을 또 열게 한다")
+            self.assertNotIn("순위 7 펼쳐 보기", source)
+            # 표는 위 테마 종목표와 같은 모양 — 점수 막대를 쓴다.
+            self.assertIn(f"{prefix}-bar-fill", block, f"{market} 표에 점수 막대가 없다")
+            self.assertIn("매수 상태", block)
+
+    def test_the_buttons_are_not_full_width_bars(self):
+        """바가 너무 길다는 지적(2026-07-30) — 글자 크기만큼만 차지한다."""
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            self.assertIn(f'"매수심사결과 높은 순위 7", key="{prefix}_top7_find")', source,
+                          f"{market} 순위 7 단추가 아직 화면을 가로지른다")
+            self.assertIn(f'"눌림목 찾기", key="{prefix}_pullback_find"', source,
+                          f"{market} 눌림목 단추가 아직 화면을 가로지른다")
+            self.assertNotIn(f'key="{prefix}_pullback_find", width="stretch"', source)
+
+    def test_pullback_button_is_a_deep_blue_gradient(self):
+        """캡처 1과 같은 모양에 진한 푸른색(2026-07-30 사용자 지시)."""
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            block = source.split(f'div[class*="st-key-{prefix}_pullback_find"] button {{')[1]
+            self.assertIn("linear-gradient(90deg, #0b2a4a", block, f"{market} 눌림목 단추가 그라데이션이 아니다")
+            self.assertNotIn("#cfe9ff", block.split("}")[0], f"{market}에 옛 하늘색이 남았다")
+
+    def test_the_list_toggles_open_and_closed(self):
+        """한 번 더 누르면 접히고 또 누르면 펴진다(2026-07-30 사용자 지시)."""
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
+            self.assertIn(f'"{prefix}_top7_open"', block, f"{market}에 접었다 펴는 장치가 없다")
+            self.assertIn("if is_open:", block, f"{market}가 다시 눌러도 안 접힌다")
+
+    def test_themes_are_fetched_in_parallel(self):
+        """로딩이 너무 길다는 지적(2026-07-30) — 테마를 한꺼번에 돌린다."""
+        import pathlib
+        import re
+
+        for name in ("jarvis3_data.py", "jarvis4_data.py"):
+            source = pathlib.Path(name).read_text(encoding="utf-8")
+            block = source.split("def find_top_reviewed_stocks(")[1].split("\ndef ")[0]
+            self.assertIn("ThreadPoolExecutor", block, f"{name}가 아직 하나씩 돈다")
+            self.assertTrue(re.search(r"max_workers=\d+", block))
+
+    def test_long_theme_names_do_not_spill_into_the_next_column(self):
+        """분야 이름이 길어 현재가 칸을 덮어썼다(2026-07-30 캡처)."""
+        import pathlib
+
+        for market, (path, prefix) in self.PAGES.items():
+            source = pathlib.Path(path).read_text(encoding="utf-8")
+            self.assertIn(f".{prefix}-top7-src {{", source, f"{market}에 자르는 규칙이 없다")
+            self.assertIn("text-overflow: ellipsis", source)
 
     def test_module_reload_guards_know_the_new_function(self):
         """규칙 11 — 새 함수를 가드에 안 넣으면 온라인에서 AttributeError가 난다."""
