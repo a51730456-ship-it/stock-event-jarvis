@@ -413,13 +413,16 @@ class UnitedStatesTests(unittest.TestCase):
         themes = [{"name": "반도체", "score": 80}, {"name": "AI", "score": 75}]
 
         seen_charts = []
+        seen_live = []
 
-        def fake_leaders(theme_name, market_score=0, theme_score=0, with_charts=True):
+        def fake_leaders(theme_name, market_score=0, theme_score=0, with_charts=True,
+                         with_live=True):
             seen_charts.append(with_charts)
+            seen_live.append(with_live)
             score = 91.0 if theme_name == "반도체" else 64.0
             return {"ok": True, "rows": [_us_leader("NVDA", score), _us_leader("AMD", 55.0)]}
 
-        with patch.object(j3, "get_theme_leaders", side_effect=fake_leaders):
+        with patch.object(j3, "get_theme_leaders", side_effect=fake_leaders),              patch.object(j3, "_download_cached", return_value=({}, {})):
             result = j3.find_top_reviewed_stocks(themes, market_score=60)
 
         self.assertEqual(["NVDA", "AMD"], [row["ticker"] for row in result["rows"]])
@@ -427,6 +430,8 @@ class UnitedStatesTests(unittest.TestCase):
         self.assertEqual(["AI", "반도체"], sorted(result["rows"][0]["sources"]))
         # 표만 그리는 자리라 차트 자료는 만들지 않는다(2026-07-30 속도).
         self.assertEqual([False, False], seen_charts)
+        # 1차는 종가로만 줄 세운다 — 157종목 분봉을 받던 것을 없앴다(2026-07-31).
+        self.assertEqual([False, False], seen_live)
 
     def test_limit_is_seven_by_default(self):
         self.assertEqual(7, j3.TOP_REVIEW_LIMIT)

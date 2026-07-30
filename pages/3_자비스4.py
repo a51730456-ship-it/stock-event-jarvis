@@ -2456,6 +2456,19 @@ def _render_radar_tab(market: dict) -> None:
     _render_my_stock_panel(market)
 
 
+def _kept_recently(key: str, seconds: float = 300) -> bool:
+    """방금 찾아 둔 결과가 아직 쓸 만한가 (기본 5분).
+
+    닫았다 바로 다시 열 때 같은 결과를 다시 찾느라 몇 초를 또 내던 것을 없앤다.
+    단추는 그대로 하나다 — 5분이 지나면 알아서 새로 찾는다(2026-07-31).
+    """
+    at = st.session_state.get(key)
+    try:
+        return bool(at) and (time.time() - float(at)) < seconds
+    except (TypeError, ValueError):
+        return False
+
+
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
     """매수심사결과 높은 순위 7 (2026-07-30 사용자 지시).
 
@@ -2483,6 +2496,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.session_state["j4_top7_open"] = False
         st.session_state.pop("j4_top7_pick_row", None)
         run_requested = False
+    if run_requested and _kept_recently("j4_top7_at")             and st.session_state.get("j4_top7_result") is not None:
+        # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
+        st.session_state["j4_top7_open"] = True
+        run_requested = False
     if run_requested:
         with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
             found = j4data.find_top_reviewed_stocks(
@@ -2491,6 +2508,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
                 extra_rows=pull_rows,
             )
         st.session_state["j4_top7_result"] = found
+        st.session_state["j4_top7_at"] = time.time()
         st.session_state["j4_top7_open"] = True
         # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
         # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30). 표에서 종목을
@@ -2747,6 +2765,10 @@ def _render_pullback_finder() -> None:
         st.session_state.pop("j4_pullback_pick", None)
         st.session_state.pop("j4_pullback_pick_row", None)
         run_requested = False
+    if run_requested and _kept_recently("j4_pullback_at")             and st.session_state.get("j4_pullback_result") is not None:
+        # 방금 찾아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
+        st.session_state["j4_pullback_open"] = True
+        run_requested = False
     if run_requested:
         st.session_state["j4_pullback_open"] = True
         j4data.clear_pullback_cache()
@@ -2756,6 +2778,7 @@ def _render_pullback_finder() -> None:
         with st.spinner("전체 테마를 갱신하고 유동성 상위 50개를 확인하는 중입니다…"):
             found = j4data.find_pullback_stocks()
         st.session_state["j4_pullback_result"] = found
+        st.session_state["j4_pullback_at"] = time.time()
         # 조회하자마자 1순위 종목 상세가 아래에 펼쳐지게 한다 — 누르지 않아도 된다
         # (2026-07-24 사용자 지시). 그 지시는 그대로 두되, rerun은 뺐다 —
         # 눌림목 상세는 이 함수 다음에 그려지므로 지금 넣은 값이 그대로 쓰인다.

@@ -510,7 +510,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026073011
+_REQUIRED_J3_REVISION = 2026073110
 if (
     not hasattr(j3data, "get_fear_greed")
     or not hasattr(j3data, "_intraday_chart_payload")
@@ -1949,6 +1949,19 @@ def _render_top7_section(market: dict, ranking: dict) -> None:
     _render_top_reviewed_detail(market, ranking)
 
 
+def _kept_recently(key: str, seconds: float = 300) -> bool:
+    """방금 찾아 둔 결과가 아직 쓸 만한가 (기본 5분).
+
+    닫았다 바로 다시 열 때 같은 결과를 다시 찾느라 몇 초를 또 내던 것을 없앤다.
+    단추는 그대로 하나다 — 5분이 지나면 알아서 새로 찾는다(2026-07-31).
+    """
+    at = st.session_state.get(key)
+    try:
+        return bool(at) and (time.time() - float(at)) < seconds
+    except (TypeError, ValueError):
+        return False
+
+
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
     """매수심사결과 높은 순위 7 (2026-07-30 사용자 지시).
 
@@ -1976,6 +1989,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.session_state["j3_top7_open"] = False
         st.session_state.pop("j3_top7_pick_row", None)
         run_requested = False
+    if run_requested and _kept_recently("j3_top7_at")             and st.session_state.get("j3_top7_result") is not None:
+        # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
+        st.session_state["j3_top7_open"] = True
+        run_requested = False
     if run_requested:
         with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
             found = j3data.find_top_reviewed_stocks(
@@ -1984,6 +2001,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
                 extra_rows=pull_rows,
             )
         st.session_state["j3_top7_result"] = found
+        st.session_state["j3_top7_at"] = time.time()
         st.session_state["j3_top7_open"] = True
         # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
         # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
