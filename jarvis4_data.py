@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026073111
+MODULE_REVISION = 2026073112
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -890,7 +890,10 @@ def _yahoo_index_minutes(symbol: str) -> list:
         (datetime(stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute), float(value))
         for stamp, value in zip(stamps, closes.tolist()) if stamp.date() == last_day
     ]
-    if len(rows) < 5:
+    # 장 시작 직후에는 오늘 분봉이 두세 개뿐이다. 5개를 요구하면 09:00~09:04에
+    # 조회가 실패하고, 그 사이 캐시에 남은 **어제 자료**가 그려진다
+    # (2026-07-31 09:09 실측: 코스피 +12.71%인데 그림은 어제 모양).
+    if len(rows) < 2:
         raise RuntimeError("야후 지수 분봉이 부족합니다")
     return rows
 
@@ -941,12 +944,18 @@ def _index_prev_close(symbol: str, day) -> float | None:
     return _finite(prior[-1]) if prior else None
 
 
-def get_index_intraday(symbol: str, *, ttl_seconds: float = 60) -> dict:
+def get_index_intraday(symbol: str, *, ttl_seconds: float = 60,
+                       expect_session: str | None = None) -> dict:
     """KOSPI·KOSDAQ 하루치 분봉과 그 전날 종가. 실패하면 빈 dict.
 
     돌려주는 값은 {"points": 분봉 종가들, "base": 전일 종가, "session": 날짜,
     "last_time": 마지막 시각}이다. 자료가 없으면 그리지 않는다 — 일봉으로 대신
     그렸다가 '기준선 위로 간 적이 없는데 빨간 구간이 있다'는 지적을 받았다(2026-07-25).
+
+    expect_session을 주면 그 날짜의 분봉만 돌려준다. 2026-07-31 09:09에 코스피가
+    +12.71%인데 그림은 어제(07-30) 모양이 떴다 — 장 시작 직후에는 야후 분봉이
+    아직 몇 개 없어 조회가 실패하고, 그때 캐시에 남아 있던 **어제 자료**가
+    그대로 그려졌기 때문이다. 오늘 숫자 옆에 어제 그림을 붙이면 거짓말이 된다.
     """
     symbol = str(symbol).strip().upper()
     if symbol not in _INDEX_YAHOO:
@@ -967,9 +976,14 @@ def get_index_intraday(symbol: str, *, ttl_seconds: float = 60) -> dict:
         rows, _stale = _cached(("index_intraday", symbol), ttl_seconds, _produce)
     except Exception:
         return {}
-    if len(rows) < 5:
+    # 장 시작 직후에는 분봉이 두세 개뿐이다. 그것만으로도 선은 그린다 —
+    # 예전 기준(5개)이면 09:00~09:04에 그림이 통째로 사라졌다(2026-07-31 실측).
+    if len(rows) < 2:
         return {}
     day = rows[-1][0].date()
+    # 부르는 쪽이 '오늘 것'을 기대했는데 캐시에 어제 것이 남아 있으면 그리지 않는다.
+    if expect_session and day.isoformat() != str(expect_session):
+        return {}
     base = _index_prev_close(symbol, day)
     if base is None:
         return {}
@@ -1380,17 +1394,49 @@ def _market_regime_label(score: int) -> tuple[str, str]:
     return "방어 우선", "신규 매수 보류"
 
 
+def _us_session_change_before(offset: int = 1) -> dict:
+    """한국장 하루치를 더 거슬러 올라간 미국 정규장 등락.
+
+    offset=1이면 '어제 한국장이 열리기 전 밤'의 미국장이다.
+    """
+    try:
+        import FinanceDataReader as fdr
+
+        out = {}
+        for key, symbol in (("spy_change", "US500"), ("qqq_change", "IXIC")):
+            frame = fdr.DataReader(symbol, (datetime.now(_SEOUL).date()
+                                            - timedelta(days=20)).isoformat())
+            closes = frame["Close"].astype(float).dropna()
+            if len(closes) < offset + 2:
+                return {"ok": False}
+            index = -(offset + 1)
+            out[key] = float(closes.iloc[index] / closes.iloc[index - 1] - 1) * 100
+        out["ok"] = True
+        return out
+    except Exception:
+        return {"ok": False}
+
+
 def _previous_korean_market_regime(foreign: dict, us_prev: dict) -> dict | None:
     """직전 완료 한국장 기준의 시장국면.
 
     가격·환율은 그날 종가로 다시 계산하고, 수급은 대표종목 5일 묶음을 하루
     뒤로 밀어 같은 기준일로 맞춘다. 자료가 모자라면 표시하지 않는다.
+
+    '미국 전일'도 하루 더 거슬러 올라가야 한다(2026-07-31 사용자 지적).
+    예전에는 오늘 화면이 쓰는 us_prev를 그대로 넘겨받아, 어제 한국장 점수를
+    **오늘 새벽 미국장**으로 매겼다. 실제로 이 탓에 15점이 30점으로 보였다 —
+    7/29 밤 미국장은 S&P −1.52%·나스닥 −1.74%라 0점이어야 하는데,
+    7/30 밤(+1.66%·+2.78%)을 가져다 15점을 준 것이다.
     """
     kospi = _previous_index_metrics("KS11")
     kosdaq = _previous_index_metrics("KQ11")
     usdkrw = _previous_index_metrics("USD/KRW")
     if not kospi.get("ok"):
         return None
+    # 어제 한국장 기준이므로 미국장도 하루 뒤로 민다. 못 구하면 그 항목은 0점이
+    # 되게 두고(빈 dict) 점수를 지어내지 않는다.
+    us_prev = _us_session_change_before(1)
     score = 0
     checks = (
         (bool(kospi.get("sma50") and kospi["current"] > kospi["sma50"]), 20),

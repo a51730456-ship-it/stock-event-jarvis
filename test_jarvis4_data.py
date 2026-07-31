@@ -1066,3 +1066,50 @@ class ThinPointsTests(unittest.TestCase):
         self.assertLessEqual(len(thinned), j4._INDEX_POINT_LIMIT + 1)
         self.assertEqual(thinned[0], 0.0)
         self.assertEqual(thinned[-1], 390.0)      # 종가는 반드시 남는다
+
+
+class PreviousRegimeTests(unittest.TestCase):
+    """2026-07-31 사용자 지적 — 어제 15점이었는데 '전일 시장국면'이 30점으로 떴다.
+
+    어제 한국장 점수를 매기면서 '미국 전일'만 오늘 것(오늘 새벽 미국장)을
+    가져다 쓴 탓이다. 7/29 밤은 S&P −1.52%·나스닥 −1.74%라 0점이어야 하는데
+    7/30 밤(+1.66%·+2.78%)을 보고 15점을 줬다.
+    """
+
+    def _closes(self):
+        # 마지막이 오늘 새벽(+), 그 앞이 어제 새벽(−)
+        return pd.Series([100.0, 100.0, 98.5, 100.1])
+
+    def test_us_change_is_shifted_back_one_korean_session(self):
+        frame = pd.DataFrame({"Close": self._closes()})
+        with patch("FinanceDataReader.DataReader", return_value=frame):
+            now = j4._us_session_change_before(0)     # 오늘 기준
+            before = j4._us_session_change_before(1)  # 어제 기준
+        self.assertTrue(now["ok"] and before["ok"])
+        # 오늘 기준은 마지막 봉(+), 어제 기준은 그 앞 봉(−)이어야 한다.
+        self.assertGreater(now["spy_change"], 0)
+        self.assertLess(before["spy_change"], 0)
+
+    def test_previous_regime_does_not_borrow_todays_us_session(self):
+        """어제 점수에 오늘 새벽 미국장을 넣으면 안 된다."""
+        down = {"ok": True, "spy_change": -1.52, "qqq_change": -1.74}
+
+        def _weak(symbol):
+            if symbol == "USD/KRW":
+                # 환율이 20일선 위 = 불안정 = 0점
+                return {"ok": True, "current": 300.0, "sma20": 200.0, "sma50": 100.0}
+            # 지수는 20·50일선 아래 = 0점
+            return {"ok": True, "current": 100.0, "sma20": 200.0, "sma50": 300.0}
+
+        with patch.object(j4, "_previous_index_metrics", side_effect=_weak), \
+             patch.object(j4, "_us_session_change_before", return_value=down):
+            # 호출부가 오늘 것(플러스)을 넘겨도 무시하고 어제 것을 써야 한다.
+            result = j4._previous_korean_market_regime(
+                {}, {"ok": True, "spy_change": 9.9, "qqq_change": 9.9})
+        self.assertIsNotNone(result)
+        # 미국 15점이 붙으면 안 된다 — 지수·수급·환율이 다 미달인 표본이다.
+        self.assertEqual(result["score"], 0, result)
+
+    def test_missing_us_history_does_not_invent_points(self):
+        with patch("FinanceDataReader.DataReader", side_effect=RuntimeError("망")):
+            self.assertFalse(j4._us_session_change_before(1).get("ok"))

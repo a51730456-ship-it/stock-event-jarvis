@@ -429,3 +429,42 @@ class FallingMarketTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SaveFailureFallbackTests(unittest.TestCase):
+    """2026-07-31 09:27 실발생 — 장 시작 25분 뒤인데 '스냅숏이 아직 없습니다'만 떴다.
+
+    자료는 멀쩡히 들어왔는데(기관 -5,182억 · 외국인 선물 +98계약) DB 저장이
+    실패하자 방금 읽은 값까지 통째로 버렸다. 저장은 쌓아 두기용이지
+    보여주기의 전제가 아니다.
+    """
+
+    def _values(self):
+        return {
+            "institution_cash_net_amount": -518_200.0,
+            "foreign_cash_net_amount": 120_000.0,
+            "samsung_price": 208_500.0, "samsung_open": 205_000.0,
+            "samsung_day_low": 204_000.0, "samsung_prev_close": 200_000.0,
+            "investor_flow_source": "네이버 시간별 투자자매매동향(지연 가능)",
+        }
+
+    def test_screen_still_shows_values_when_saving_fails(self):
+        with patch.object(ui, "collect_kr_flow_snapshot", return_value=(self._values(), [])), \
+             patch.object(ui.database, "save_kr_flow_snapshot", side_effect=RuntimeError("디스크 쓰기 불가")), \
+             patch.object(ui.database, "list_kr_flow_snapshots", return_value=[]), \
+             patch.object(ui.st, "session_state", {}):
+            result = ui.run_kr_flow_check()
+        # 스냅숏이 하나도 없다고 접히면 안 된다 — 방금 읽은 값이 있다.
+        self.assertTrue(result.signals, "저장이 실패했다고 화면까지 비우면 안 된다")
+        institution = result.signal("institution")
+        self.assertIsNotNone(institution)
+        self.assertIsNotNone(institution.value)
+
+    def test_failure_reason_is_recorded(self):
+        state = {}
+        with patch.object(ui, "collect_kr_flow_snapshot", return_value=(self._values(), [])), \
+             patch.object(ui.database, "save_kr_flow_snapshot", side_effect=RuntimeError("x")), \
+             patch.object(ui.database, "list_kr_flow_snapshots", return_value=[]), \
+             patch.object(ui.st, "session_state", state):
+            ui.run_kr_flow_check()
+        self.assertTrue(any("저장 실패" in f for f in state.get("kr_flow_failures", [])))

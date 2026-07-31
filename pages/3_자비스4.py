@@ -507,7 +507,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026073111
+_REQUIRED_J4_REVISION = 2026073112
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -939,11 +939,13 @@ def _render_market_overview() -> None:
         _top_metric("코스피", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
                     sub_signed=True).replace("<div class='j4-top-cell'",
             "<div class='j4-top-cell'", 1).replace("</div></div>", "</div>"
-            + _sparkline_svg(_kr_index_chart("KOSPI"), "#ff5b5b", "#4da6ff") + "</div>", 1),
+            + _sparkline_svg(_kr_index_chart("KOSPI", kospi.get("as_of_date")),
+                             "#ff5b5b", "#4da6ff") + "</div>", 1),
         _top_metric("코스닥", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"),
                     sub_signed=True).replace("<div class='j4-top-cell'",
             "<div class='j4-top-cell'", 1).replace("</div></div>", "</div>"
-            + _sparkline_svg(_kr_index_chart("KOSDAQ"), "#ff5b5b", "#4da6ff") + "</div>", 1),
+            + _sparkline_svg(_kr_index_chart("KOSDAQ", kosdaq.get("as_of_date")),
+                             "#ff5b5b", "#4da6ff") + "</div>", 1),
         _fx_cell(),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
@@ -1453,16 +1455,20 @@ def _index_spark(symbol: str) -> list:
         return []
 
 
-def _kr_index_chart(symbol: str) -> dict:
-    """KOSPI·KOSDAQ 그림 자료 — 마지막 장의 분봉과 그 전날 종가.
+def _kr_index_chart(symbol: str, expect_session: str | None = None) -> dict:
+    """KOSPI·KOSDAQ 그림 자료 — 옆에 적힌 숫자와 **같은 날** 분봉만 그린다.
 
     네이버 분봉 API가 지수 심볼을 받지 않아 한동안 그림이 비어 있었다. 자료원은
     jarvis4_data.get_index_intraday로 옮겼다(야후 분봉 + 네이버 시간별 시세 꼬리).
     못 구하면 그리지 않는다 — 30일 일봉으로 대신 그렸더니 '기준선 위로 간 적이
     없는데 빨간 구간이 있다'는 지적을 받았다(2026-07-25).
+
+    expect_session은 옆 숫자의 날짜다. 2026-07-31 09:09에 코스피가 +12.71%인데
+    그림은 어제 모양이 떴다 — 장 시작 직후 분봉 조회가 실패하자 캐시에 남은
+    어제 자료가 그려진 탓이다. 날짜가 다르면 아예 안 그린다.
     """
     try:
-        payload = j4data.get_index_intraday(symbol)
+        payload = j4data.get_index_intraday(symbol, expect_session=expect_session)
     except Exception:
         return {}
     if not isinstance(payload, dict):

@@ -489,15 +489,27 @@ def run_kr_flow_check(*, force_refresh=False):
     trade_date = _flow_today()
     captured_at = attempted_at.replace(second=0, microsecond=0).isoformat()
 
+    save_failed = False
     try:
         database.save_kr_flow_snapshot(trade_date, captured_at, values)
-    except Exception:
-        failures.append("장중 수급 스냅숏 저장 실패")
+    except Exception as exc:
+        save_failed = True
+        failures.append(f"장중 수급 스냅숏 저장 실패 ({type(exc).__name__})")
 
     try:
         snapshots = database.list_kr_flow_snapshots(trade_date)
     except Exception:
+        snapshots = []
+
+    # DB에 못 쌓았어도 방금 읽은 값으로 화면은 채운다.
+    # 2026-07-31 09:27 실발생: 장이 열린 지 25분이 지났는데 '스냅숏이 아직
+    # 없습니다'만 떴다. 자료는 멀쩡히 오는데(기관 -5,182억·외국인 선물 +98계약)
+    # DB 저장이 실패하자 방금 읽은 값까지 통째로 버린 탓이다.
+    # 저장은 '쌓아 두기'용이지 '보여주기'의 전제가 아니다.
+    if not snapshots and values:
         snapshots = [{**values, "captured_at": captured_at}]
+        if not save_failed:
+            failures.append("장중 수급 스냅숏이 아직 안 쌓였습니다 (방금 읽은 값으로 표시)")
 
     # 출처와 자료 기준시각은 DB 스키마를 바꾸지 않고 표시용으로만 최신 스냅숏에
     # 실어 보낸다(판정 표의 '대체' 구분과 신선도 계산에 쓴다).
@@ -731,6 +743,17 @@ def kr_flow_diagnosis(result) -> str | None:
     now = _now_seoul()
     in_session = now.weekday() < 5 and 9 <= now.hour < 16
 
+    # 저장 실패는 가장 먼저 알린다. 이걸 안 알려주면 화면에는 '스냅숏이 아직
+    # 없습니다'만 뜨고, 자료는 멀쩡히 오는데 왜 안 보이는지 알 길이 없다
+    # (2026-07-31 09:27 실발생).
+    save_failed = [f for f in failures if "저장 실패" in f]
+    if save_failed:
+        return (
+            f"수급 자료는 들어왔는데 저장이 실패했습니다({save_failed[0]}). "
+            "화면은 방금 읽은 값으로 채웠으니 지금 값은 맞습니다. 다만 하루치가 "
+            "쌓이지 않아 '15분 연속 유입' 같은 시간 비교 항목은 계속 비어 있습니다."
+        )
+
     if not app_key or not app_secret:
         # 전에는 "온라인 자비스에서는 정상 조회됩니다"라고 적었는데, 온라인에도 키가
         # 없어서 그 화면을 보면서 읽으면 틀린 말이 된다(2026-07-24 사용자 확인).
@@ -925,11 +948,14 @@ def render_market_signal_card(
 
     # 왜 '확인 중'인지 한 줄로 알려준다(2026-07-22 사용자 제보: 계속 확인 중인데 이유가 안 보임).
     # 실패 목록을 나열하지 않고, 자료가 왜 비었는지 원인만 요약한다.
+    # 신호가 아예 하나도 없을 때(스냅숏 0개)도 이유를 적어야 한다. 예전에는
+    # '못 읽은 항목'이 0이라 이 줄이 통째로 빠져, 화면에 '아직 없습니다'만 뜨고
+    # 진짜 원인(저장 실패 등)은 어디에도 안 보였다(2026-07-31 실발생).
     _unknown_count = sum(1 for signal in result.signals if signal.is_unknown)
     _cause = diagnosis_text(result) if diagnosis_text else None
     _cause_html = (
         f"<div style='font-size:0.9rem;color:{text};opacity:0.95;margin-top:8px;'>못 읽은 항목이 있는 이유: {_cause}</div>"
-        if _cause and _unknown_count else ""
+        if _cause and (_unknown_count or not result.signals) else ""
     )
 
     # 지수가 무너지는 날이면 맨 위에도 한 줄 적는다. 표를 안 펼치는 날이
