@@ -179,9 +179,12 @@ st.markdown(
     /* 종목표(j4_leader_table)도 2026-07-29에 이름을 누를 수 있게 칸 방식으로 바꾸면서
        이미 폰·태블릿에서 잘 도는 위 두 표와 **똑같은 규칙**에 얹었다. 새 규칙을
        만들지 않은 것은 그래야 나중에 한 곳만 고쳐도 셋이 같이 따라오기 때문이다. */
+    /* 순위 7 표도 같은 규칙에 얹는다(2026-08-01 사용자 지시) — 폰에서 한 종목이
+       여섯 줄로 쌓이던 것을, 나머지 세 표처럼 옆으로 밀어서 보게 한다. */
     .st-key-j4_pullback_table,
     .st-key-j4_theme_rest,
     .st-key-j4_leader_table,
+    .st-key-j4_top7_table,
     .st-key-j4_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
         .st-key-j4_pullback_table [data-testid="stHorizontalBlock"] {
@@ -189,12 +192,14 @@ st.markdown(
         }
         .st-key-j4_theme_rest [data-testid="stHorizontalBlock"],
         .st-key-j4_leader_table [data-testid="stHorizontalBlock"],
+        .st-key-j4_top7_table [data-testid="stHorizontalBlock"],
         .st-key-j4_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
         .st-key-j4_pullback_table [data-testid="stColumn"],
         .st-key-j4_theme_rest [data-testid="stColumn"],
         .st-key-j4_leader_table [data-testid="stColumn"],
+        .st-key-j4_top7_table [data-testid="stColumn"],
         .st-key-j4_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     @media (max-width: 1200px) {
@@ -471,7 +476,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026073017
+_REQUIRED_METHOD_HELP_REVISION = 2026080110
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
@@ -3025,25 +3030,13 @@ def _render_method_tab() -> None:
 
 def main() -> None:
     st.markdown(
-        mobile_ui.page_css(
-            # 폰 머리글을 숨기던 규칙은 뺐다 — 세로로 쌓던 시절 규칙이라, 옆으로
-            # 밀어 보는 지금은 '종목·눌림 점수·신고가…'가 안 보였다(2026-07-25 지적).
-            # 테마표·눌림목표는 HTML 표라 옆으로 밀어 보므로 칸 규칙이 필요 없다.
-            #
-            # 순위 7 표만 st.columns라 폰에서 한 종목이 여섯 줄로 쌓인다
-            # (2026-07-30 캡처로 확인). 칸 번호는 표의 순서 그대로 —
-            # 1 순위 · 2 종목 · 3 조건점수 · 4 매수 상태 · 5 현재가 · 6 어느 분야.
-            # 좁은 화면에서는 앞 다섯 칸만 남기고 이름표를 붙인다.
-            # 표의 칸을 더하거나 빼면 이 번호도 같이 고쳐야 한다(CLAUDE.md 12번).
-            mobile_ui.table_css(
-                "j4top7_", 6,
-                {1: "", 2: "", 3: "조건점수", 4: "상태", 5: "현재가"},
-                "j4-td",
-            ),
-            # 머리글은 이 표 것만 감춘다 — 클래스로 감추면 눌림목 표 머리글까지
-            # 사라진다(2026-07-25에 실제로 그래서 되돌렸다).
-            mobile_ui.hide_own_header("j4_top7_table", "j4top7_"),
-        ),
+        # 폰 머리글을 숨기던 규칙은 뺐다 — 세로로 쌓던 시절 규칙이라, 옆으로
+        # 밀어 보는 지금은 '종목·눌림 점수·신고가…'가 안 보였다(2026-07-25 지적).
+        # 순위 7 표를 세로로 쌓던 규칙(table_css·hide_own_header)도 2026-08-01에 뺐다.
+        # 사용자 지시 — 나머지 세 표(오늘의 강한테마·테마 종목 1~6위·눌림목 찾기)처럼
+        # 표를 원래 폭으로 두고 손가락으로 옆으로 밀어서 보게 한다. 그 규칙은
+        # 페이지 위 <style>의 .st-key-j4_top7_table 줄에 있다.
+        mobile_ui.page_css(),
         unsafe_allow_html=True,
     )
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).

@@ -216,29 +216,29 @@ class PageWiringTests(unittest.TestCase):
             self.assertEqual(1, block.count("st.button(\"매수심사결과 높은 순위 7\""),
                              f"{market} 순위 7 단추가 하나가 아니다")
 
-    def test_phone_rules_exist_and_live_in_mobile_ui(self):
-        """폰에서 한 종목이 여섯 줄로 쌓였다(2026-07-30 캡처).
+    def test_phone_slides_the_table_sideways(self):
+        """폰에서 한 종목이 여섯 줄로 쌓이던 것을 옆으로 밀어 보게 바꿨다(2026-08-01).
 
-        규칙 12 — 폰 규칙은 mobile_ui.py 폰 묶음 안에만 둔다. 페이지는 칸 번호만 넘긴다.
+        사용자 지시 — 오늘의 강한테마·테마 종목 1~6위·눌림목 찾기가 전부 옆으로
+        미는 방식이니 순위 7도 같게 하라. 그래서 세로로 쌓던 규칙(table_css·
+        hide_own_header)을 빼고, 나머지 세 표와 같은 규칙에 얹었다.
         """
         import pathlib
 
-        import mobile_ui
-
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
-            self.assertIn(f'mobile_ui.table_css(\n                "{prefix}top7_", 6,', source,
-                          f"{market}에 폰 표 규칙이 없다")
-            self.assertIn(f'hide_own_header("{prefix}_top7_table", "{prefix}top7_")', source,
-                          f"{market} 머리글이 폰에서 여섯 줄로 남는다")
+            # 세로로 쌓던 규칙이 되살아나면 다시 여섯 줄이 된다.
+            self.assertNotIn(f'"{prefix}top7_", 6,', source,
+                             f"{market} 순위 7이 다시 세로로 쌓인다")
+            self.assertNotIn(f'hide_own_header("{prefix}_top7_table"', source,
+                             f"{market} 순위 7 머리글이 다시 감춰진다")
+            # 나머지 세 표와 같은 옆으로 밀기 규칙에 들어 있어야 한다.
+            self.assertIn(f".st-key-{prefix}_top7_table,", source,
+                          f"{market} 순위 7이 옆으로 밀리지 않는다")
+            self.assertIn(f'.st-key-{prefix}_top7_table [data-testid="stHorizontalBlock"],',
+                          source, f"{market} 순위 7 줄이 폰에서 접힌다")
             # 폰 규칙을 페이지에 직접 쓰면 안 된다.
             self.assertNotIn("max-width: 600px", source, f"{market}에 폰 규칙이 새어 나왔다")
-
-        # 이 표 머리글만 감춰야 한다 — 클래스로 감추면 눌림목 머리글까지 사라진다.
-        rule = mobile_ui.hide_own_header("j4_top7_table", "j4top7_")
-        self.assertIn("st-key-j4_top7_table", rule)
-        self.assertIn(":not(:has(", rule)
-        self.assertNotIn("j4-th-head", rule)
 
     def test_closing_does_no_work(self):
         """닫는 데 5초가 걸렸다(2026-07-30 사용자 실측).

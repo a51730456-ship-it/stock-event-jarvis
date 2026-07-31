@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026073017
+MODULE_REVISION = 2026080110
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -107,6 +107,76 @@ div[class*="st-key-jarvis_method_help"] button p {
 [data-testid="stPopoverBody"] td strong,
 [data-testid="stPopoverBody"] th strong,
 [data-testid="stPopoverBody"] li strong { color: inherit !important; }
+
+/* ── 미국장 눌림목 매매 설명서 전용 옷 (2026-08-01 사용자 지시) ───────────────
+   "제목·중요내용을 보고 색·기호·밑줄·진하기·크기를 만들어 달라"는 요청이다.
+   규칙은 하나 — 큰 제목은 초록, 단계 제목은 파랑, 매수는 초록·매도는 주황,
+   숫자는 파랑 칸, 주의는 붉은색. 위 세 변수(--j-title/--j-step/--j-mark)를 그대로
+   쓰고 여기서 모자란 색만 더한다. 밝은 화면·어두운 화면 두 벌을 다 둔다. */
+[data-testid="stPopoverBody"] {
+    --mh-line: rgba(127, 127, 127, .30);
+    --mh-buy: #0f7a3d;
+    --mh-sell: #b3541e;
+    --mh-data: #0b5ed7;
+    --mh-key: #6d28d9;
+    --mh-dim: #6b7280;
+    --mh-pos: #0f7a3d;
+    --mh-neg: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+    [data-testid="stPopoverBody"] {
+        --mh-line: rgba(255, 255, 255, .18);
+        --mh-buy: #44f0a1;
+        --mh-sell: #ff9d3b;
+        --mh-data: #4da6ff;
+        --mh-key: #c084fc;
+        --mh-dim: #9aa0aa;
+        --mh-pos: #44f0a1;
+        --mh-neg: #ff6b6b;
+    }
+}
+.mh-doc { line-height: 1.58; font-size: .95rem; }
+.mh-h1 { font-size: 1.34rem; font-weight: 900; color: var(--j-title);
+    border-bottom: 3px solid var(--j-title); padding-bottom: .28rem; margin: 0 0 .75rem; }
+.mh-note { border: 1px dashed var(--mh-line); border-radius: .5rem;
+    padding: .55rem .7rem; font-size: .85rem; color: var(--mh-dim); margin-bottom: .5rem; }
+.mh-note-h { font-weight: 900; color: var(--mh-data); margin-bottom: .15rem; }
+.mh-note b { color: var(--mh-data); font-weight: 900; }
+.mh-h2 { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap;
+    font-size: 1.14rem; font-weight: 900; color: var(--j-step); margin: 1.15rem 0 .45rem; }
+.mh-no { display: inline-flex; align-items: center; justify-content: center;
+    width: 1.55rem; height: 1.55rem; border-radius: 50%; background: var(--j-step);
+    color: #fff; font-size: .92rem; font-weight: 900; }
+.mh-h2 u { text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.mh-box { border-left: 4px solid var(--mh-line); padding-left: .7rem; margin: .45rem 0 .7rem; }
+.mh-box-h { font-weight: 900; font-size: 1rem; margin-bottom: .15rem; }
+.mh-buy-box { border-left-color: var(--mh-buy); }
+.mh-buy-box .mh-box-h { color: var(--mh-buy); }
+.mh-sell-box { border-left-color: var(--mh-sell); }
+.mh-sell-box .mh-box-h { color: var(--mh-sell); }
+.mh-data-box { border-left-color: var(--mh-data); }
+.mh-data-box .mh-box-h { color: var(--mh-data); }
+.mh-warn-box { border-left-color: var(--j-mark); }
+.mh-warn-box .mh-box-h { color: var(--j-mark); }
+.mh-step b { font-weight: 900; color: var(--j-mark); }
+.mh-arrow { color: var(--mh-dim); font-size: .78rem; line-height: 1.1; }
+.mh-go { font-weight: 900; color: var(--mh-buy); }
+.mh-sub { color: var(--mh-dim); font-size: .84rem; }
+.mh-kv { display: flex; justify-content: space-between; gap: .8rem; align-items: baseline;
+    padding: .12rem 0; border-bottom: 1px dotted var(--mh-line); }
+.mh-k { color: var(--mh-dim); }
+.mh-v { font-weight: 900; white-space: nowrap; }
+.mh-pos { color: var(--mh-pos); }
+.mh-neg { color: var(--mh-neg); }
+.mh-list { margin: .1rem 0 0; padding-left: 1.15rem; }
+.mh-list li { padding: .05rem 0; }
+.mh-hold { border: 1px solid var(--mh-line); border-radius: .5rem;
+    padding: .45rem .6rem; margin: .45rem 0; }
+.mh-hold-h { font-weight: 900; color: var(--mh-data); margin-bottom: .1rem; }
+.mh-key { border: 2px solid var(--mh-key); border-radius: .6rem;
+    padding: .55rem .7rem; margin-top: 1.1rem; }
+.mh-key-h { font-weight: 900; color: var(--mh-key); margin-bottom: .2rem; }
+.mh-key b { color: var(--mh-key); font-weight: 900; }
 </style>
 """
 
@@ -155,24 +225,99 @@ _COMMON_TAIL = """
 *자세한 근거와 조사 원본: `docs/METHOD_ORIGINS.md`*
 """
 
+# 미국 설명은 2026-08-01 사용자가 준 '미국장 눌림목 매매 설명서'로 통째로 바꿨다.
+# 앞의 조건점수·논문 이야기는 이 화면에서 뺐다(사용자 지시: "기존 내용 지우고").
+# 숫자는 사용자가 준 검증값 그대로다 — 마음대로 반올림하거나 고치지 않는다.
+# 줄 사이에 빈 줄을 넣지 않는다. 빈 줄이 있으면 스트림릿 마크다운이 그 사이를
+# 문단으로 갈라 <p>를 끼워 넣어 칸 간격이 어긋난다.
 US_TEXT = """
-### 한눈에 — 이게 무슨 기법인가
-
-| | |
-|---|---|
-| **무슨 기법** | 돈이 몰리는 **분야(테마)를** 먼저 고르고, 그 안에서 **제일 앞서 가는 종목**을 사는 방식 |
-| **얼마나 검토** | S&P500 **21년치 5,357거래일**(2005-03 ~ 2026-06). 앞을 훔쳐보지 않고 20일 뒤 종가로 채점 |
-| **언제 사나** | 시장 **50점**↑ · 분야 **70점**↑ · 종목 **75점**↑ 를 다 넘고, 상태가 **'돌파 확인'** 또는 **'눌림목 대기'일** 때 |
-| **어디에 적나** | 실제로 샀을 때만 **'실제 매수 기록'에** 저장. 그때 조건이 함께 남아 나중에 검증합니다 |
-| **언제 파나** | **아직 없습니다.** 아래를 보십시오 |
-
-> **"이걸 사라"고 찍어 주는 화면이 아닙니다.
-> "지금 사면 얼마나 위험한가"를 재 주는 화면입니다.**
-
-**이 기법의 값어치는 '더 버는 것'이 아니라 '크게 깨지지 않는 것'입니다.**
-미국에서는 잘 듣습니다 — 50일선 위에서는 20일 안에 10% 넘게 깨질 확률이
-**3.5% → 1.1%로** 줄었습니다. 다만 더 벌지는 않았습니다(+0.65% vs +1.12%).
-""" + _COMMON_TAIL
+<div class="mh-doc">
+<div class="mh-h1">미국장 눌림목 매매 설명서</div>
+<div class="mh-note">
+<div class="mh-note-h">※ 검증 안내</div>
+GPT-5.6 SOL이 미국 대형주 <b>200개</b>의 실제 주가를 계산하고, Claude 5.8 Opus가 설명과
+숫자를 검수한 뒤 GPT-5.6 SOL이 거래별 원자료로 다시 확인했습니다.
+정상 상승장은 <b>학습 234건 · 별도 검증 119건 · 재검증 5,000회</b>를 거쳤으며,
+급락 반등장은 <b>2025년 4월 한 번의 반등</b>을 분석한 결과입니다.
+</div>
+<div class="mh-h2"><span class="mh-no">1</span>정상 상승장 — <u>신고가 눌림매수</u></div>
+<div class="mh-box mh-buy-box">
+<div class="mh-box-h">▸ 매수</div>
+<div class="mh-step">52주 <b>신고가 돌파</b></div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step"><b>3~5거래일</b> 기다림</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step">돌파 후 고점에서 <b>4~6% 하락한 날</b> 종가 확인</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step mh-go">다음 거래일 <u>시가 매수</u></div>
+</div>
+<div class="mh-box mh-sell-box">
+<div class="mh-box-h">▸ 매도</div>
+<div class="mh-step"><b>120거래일</b> 보유 후 매도</div>
+<div class="mh-sub">※ 약 6개월</div>
+</div>
+<div class="mh-box mh-data-box">
+<div class="mh-box-h">▸ 검증 결과</div>
+<div class="mh-kv"><span class="mh-k">승률</span><span class="mh-v mh-pos">59.7% (119건)</span></div>
+<div class="mh-kv"><span class="mh-k">평균수익</span><span class="mh-v mh-pos">+18.0%</span></div>
+<div class="mh-kv"><span class="mh-k">수익을 순서대로 놓았을 때 가운데 값</span><span class="mh-v mh-pos">+8.9%</span></div>
+<div class="mh-kv"><span class="mh-k">손실 거래</span><span class="mh-v">48건 (40.3%)</span></div>
+<div class="mh-kv"><span class="mh-k">평균적으로 잃은 비율</span><span class="mh-v mh-neg">-11.9%</span></div>
+<div class="mh-kv"><span class="mh-k">손실 거래를 순서대로 놓았을 때 가운데 값</span><span class="mh-v mh-neg">-10.4%</span></div>
+<div class="mh-kv"><span class="mh-k">가장 크게 잃은 경우</span><span class="mh-v mh-neg">-40.7%</span></div>
+</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 주의</div>
+<ul class="mh-list">
+<li>신고가 <b>당일에는 매수하지 않습니다.</b></li>
+<li>4~6% 눌리지 않고 올라가면 <b>추격 매수하지 않습니다.</b></li>
+<li><b>SPY가 계속 하락하는 장</b>에서는 사용하지 않습니다.</li>
+<li>별도 <b>손절 없이</b> 120거래일 보유한 결과입니다.</li>
+</ul>
+</div>
+<div class="mh-h2"><span class="mh-no">2</span>급락 후 반등장 — <u>낙폭 종목 매수</u></div>
+<div class="mh-box mh-buy-box">
+<div class="mh-box-h">▸ 매수</div>
+<div class="mh-step">시장 <b>급락</b></div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step">SPY <b>종가 반등</b> 확인</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step">52주 고점 대비 <b>낙폭</b> 확인</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step mh-go">다음 거래일 <u>시가 매수</u></div>
+</div>
+<div class="mh-box mh-data-box">
+<div class="mh-box-h">▸ 종목과 보유기간</div>
+<div class="mh-hold">
+<div class="mh-hold-h">고점 대비 -40~-50% 종목 → <span class="mh-go">20거래일 보유</span></div>
+<div class="mh-kv"><span class="mh-k">승률</span><span class="mh-v mh-pos">100.0% (12건)</span></div>
+<div class="mh-kv"><span class="mh-k">평균수익</span><span class="mh-v mh-pos">+11.2%</span></div>
+<div class="mh-kv"><span class="mh-k">수익을 순서대로 놓았을 때 가운데 값</span><span class="mh-v mh-pos">+10.5%</span></div>
+</div>
+<div class="mh-hold">
+<div class="mh-hold-h">고점 대비 -30~-40% 종목 → <span class="mh-go">60거래일 보유</span></div>
+<div class="mh-kv"><span class="mh-k">승률</span><span class="mh-v mh-pos">92.6% (27건)</span></div>
+<div class="mh-kv"><span class="mh-k">평균수익</span><span class="mh-v mh-pos">+24.9%</span></div>
+<div class="mh-kv"><span class="mh-k">수익을 순서대로 놓았을 때 가운데 값</span><span class="mh-v mh-pos">+29.6%</span></div>
+</div>
+</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 주의</div>
+<ul class="mh-list">
+<li>신고가가 <b>언제 나왔는지는 보지 않습니다.</b></li>
+<li>고점 대비 <b>얼마나 하락했는지만</b> 봅니다.</li>
+<li>120일 성과는 <b>기술주 폭등 영향</b>이 커서 기본 규칙에서 제외합니다.</li>
+<li>높은 승률은 2025년 4월 <b>한 번의 반등 결과</b>이며 미래 승률이 아닙니다.</li>
+</ul>
+</div>
+<div class="mh-key">
+<div class="mh-key-h">핵심</div>
+<div>정상 상승장 = 신고가 후 <b>3~5일</b>과 <b>4~6% 눌림</b>을 본다.</div>
+<div>급락 반등장 = 신고가 날짜는 보지 않고 <b>고점 대비 낙폭</b>만 본다.</div>
+<div>매수는 항상 <b>종가 확인 후 다음 거래일 시가</b>에 한다.</div>
+</div>
+</div>
+"""
 
 KR_TEXT = """
 ### 한눈에 — 이게 무슨 기법인가
@@ -211,4 +356,9 @@ def render(st, market: str) -> None:
             # 남는다(2026-07-30 실측). 여는 단추를 다시 누르는 것이 닫는 길이라
             # 그 방법을 맨 위에 적어 준다.
             st.caption(CLOSE_HINT)
-            st.markdown(US_TEXT if str(market).upper() == "US" else KR_TEXT)
+            # 미국 설명서는 색·기호·밑줄을 직접 입힌 HTML이다(2026-08-01).
+            # 한국 설명은 지금까지처럼 마크다운이며, 이 옵션을 켜도 그대로 나온다.
+            st.markdown(
+                US_TEXT if str(market).upper() == "US" else KR_TEXT,
+                unsafe_allow_html=True,
+            )

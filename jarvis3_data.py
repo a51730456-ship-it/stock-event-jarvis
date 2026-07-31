@@ -86,7 +86,7 @@ MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026073110
+MODULE_REVISION = 2026080110
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1501,6 +1501,56 @@ def get_index_sparklines(days: int = 30) -> dict:
         base = _prior_session_close(closes, pd.Timestamp(frame.index[-1]).date())
         if len(points) >= 2 and base:
             result[symbol] = {"points": points, "base": base}
+    return result
+
+
+def get_etf_sparklines(
+    symbols=("SPY", "QQQ"), *, daily_sessions: int = 60, max_points: int = 120
+) -> dict:
+    """SPY·QQQ의 '당일 분봉 그림'과 '일봉 석 달 그림' (2026-08-01 사용자 요청).
+
+    야후를 새로 부르지 않는다 — 기간·간격을 시장 요약(get_market_overview)이 쓰는
+    것과 똑같이 맞춰 두면 _download_cached가 이미 받아 둔 더 큰 묶음에서 잘라 준다.
+    분봉은 하루치 1분봉이 900개가 넘어(프리마켓 포함) 그대로 그리면 카드 하나에
+    선이 900개 들어간다. 눈으로는 차이가 없으므로 max_points 개로 솎아 그린다.
+    """
+    wanted = tuple(str(s).strip().upper() for s in symbols if str(s).strip())
+    if not wanted:
+        return {}
+    try:
+        intraday, _m1 = _download_cached(
+            wanted, period="1d", interval="1m", ttl_seconds=45, prepost=True)
+        daily, _m2 = _download_cached(
+            wanted, period="1y", interval="1d", ttl_seconds=300)
+    except Exception:
+        return {}
+
+    def _thin(values: list) -> list:
+        if len(values) <= max_points:
+            return values
+        step = len(values) / max_points
+        picked = [values[int(index * step)] for index in range(max_points)]
+        picked[-1] = values[-1]  # 마지막 값(현재가)은 반드시 남긴다
+        return picked
+
+    result = {}
+    for symbol in wanted:
+        frame, closes = intraday.get(symbol), daily.get(symbol)
+        if closes is None or closes.empty:
+            continue
+        pair = {}
+        if frame is not None and not frame.empty:
+            points = [float(v) for v in frame["Close"].dropna().tolist()]
+            base = _prior_session_close(closes, pd.Timestamp(frame.index[-1]).date())
+            if len(points) >= 2 and base:
+                pair["intraday"] = {"points": _thin(points), "base": base}
+        day_points = [float(v) for v in closes["Close"].dropna().tolist()][-daily_sessions:]
+        if len(day_points) >= 2:
+            # 일봉 그림의 기준선은 '그 구간이 시작한 날의 종가'다. 당일 그림처럼
+            # 전일 종가를 쓰면 석 달치가 전부 기준선 한쪽에 붙어 색이 의미를 잃는다.
+            pair["daily"] = {"points": day_points, "base": day_points[0]}
+        if pair:
+            result[symbol] = pair
     return result
 
 

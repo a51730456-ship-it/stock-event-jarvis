@@ -163,6 +163,21 @@ st.markdown(
     .j3-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
     .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
     .j3-top-sub { font-size: 0.95rem; font-weight: 700; }
+    /* 지수·ETF 여섯 칸(S&P 500·나스닥 종합·다우존스·나스닥 100·SPY·QQQ)만 따로
+       입히는 옷이다(2026-08-01 사용자 지시): 이름은 초록에 한 치수 크게,
+       숫자는 한 치수 작게, 등락률은 한 치수 크게, '장 마감 기준'은 한 치수 작게.
+       '시장 상황'·게이지 칸은 그대로 두라고 했으므로 j3-top-*를 건드리지 않고
+       전용 클래스로만 건다. 이 규칙은 위 j3-top-* 뒤에 와야 색이 덮인다.
+       폰·태블릿(≤1200px) 크기는 mobile_ui의 TOP_ROW_CSS가 나중에 실려 이긴다 —
+       규칙 12대로 폰 크기는 계속 그쪽이 정한다. */
+    .j3-idx-label { color: #44f0a1; font-size: 1.15rem; }
+    .j3-idx-val { font-size: 1.5rem; }
+    .j3-idx-sub { font-size: 1.1rem; }
+    .j3-idx-note { font-size: 0.82rem; }
+    /* SPY·QQQ는 그림이 둘이라 칸을 조금 넓게 잡는다. */
+    .j3-idx-wide { min-width: 240px; }
+    .j3-idx-charts { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .j3-idx-cap { color: #9aa0aa; font-size: 0.78rem; font-weight: 700; text-align: center; }
     .j3-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
     .j3-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
@@ -194,19 +209,24 @@ st.markdown(
        손가락으로 옆으로 민다(2026-07-25 사용자 지시). 화면 전체는 안 밀린다. */
     /* 종목표(j3_leader_table)도 이름을 누를 수 있게 칸 방식으로 바꾸면서
        이미 폰·태블릿에서 잘 도는 위 두 표와 똑같은 규칙에 얹었다(2026-07-29). */
+    /* 순위 7 표도 같은 규칙에 얹는다(2026-08-01 사용자 지시) — 폰에서 한 종목이
+       여섯 줄로 쌓이던 것을, 나머지 세 표처럼 옆으로 밀어서 보게 한다. */
     .st-key-j3_pullback_table,
     .st-key-j3_leader_table,
+    .st-key-j3_top7_table,
     .st-key-j3_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
         .st-key-j3_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1150px;
         }
         .st-key-j3_leader_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_top7_table [data-testid="stHorizontalBlock"],
         .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
         .st-key-j3_pullback_table [data-testid="stColumn"],
         .st-key-j3_leader_table [data-testid="stColumn"],
+        .st-key-j3_top7_table [data-testid="stColumn"],
         .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     .j3-td { white-space: nowrap; }
@@ -348,6 +368,13 @@ st.markdown(
     .j3-band-purple {
         background: linear-gradient(90deg, #2a1450 0%, #3d1f74 38%, #7c3aed 100%);
         box-shadow: 0 2px 10px rgba(124,58,237,.25);
+    }
+    /* 종목검색 칸 이름 — 바로 위 보라색 띠와 같은 계열로 진하게(2026-08-01 지시).
+       어두운 화면에서도 읽히도록 띠의 밝은 쪽 보라를 쓴다. */
+    div[class*="st-key-j3_my_stock_query"] [data-testid="stWidgetLabel"] p {
+        color: #a855f7 !important;
+        font-size: 1.08rem !important;
+        font-weight: 900 !important;
     }
     /* '지금 할 일' 지침 상자 — 매수 심사 결과 표 바로 위. 테두리 색은
        guidance.py가 판정에 따라 정한다(초록 진입 · 노랑 대기 · 빨강 금지).
@@ -494,7 +521,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026073017
+_REQUIRED_METHOD_HELP_REVISION = 2026080110
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
@@ -510,9 +537,11 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026073110
+_REQUIRED_J3_REVISION = 2026080110
 if (
     not hasattr(j3data, "get_fear_greed")
+    # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
+    or not hasattr(j3data, "get_etf_sparklines")
     or not hasattr(j3data, "_intraday_chart_payload")
     or not hasattr(j3data, "find_pullback_stocks")
     or not hasattr(j3data, "analyze_pullback_stock")
@@ -1176,7 +1205,6 @@ def _render_market_overview() -> None:
         phase_color = "#ff9d3b"
     else:
         phase_color = "#ff5b5b"
-    spy_row, qqq_row = overview["rows"]["SPY"], overview["rows"]["QQQ"]
     vix_row = overview["rows"].get("^VIX", {})
     vix_value = vix_row.get("current")
     vix_change = vix_row.get("change_pct")
@@ -1195,8 +1223,8 @@ def _render_market_overview() -> None:
         # (2026-07-25). 폰에서는 숫자 칸이 앞, 게이지가 뒤로 가는 규칙 그대로다.
         *_us_index_cells(overview, phase),
         regime_gauge_ui.regime_box_html(overview),
-        _top_metric("SPY", _price(spy_row.get("current")), "#e6e6e6", spy_row.get("change_pct"), sub_signed=True),
-        _top_metric("QQQ", _price(qqq_row.get("current")), "#e6e6e6", qqq_row.get("change_pct"), sub_signed=True),
+        # SPY·QQQ도 지수 칸과 같은 옷에 그림(당일·일봉)을 넣는다(2026-08-01 지시).
+        *_us_etf_cells(overview),
         _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b"),
         _fear_greed_box(),
     ]
@@ -1326,12 +1354,44 @@ def _us_index_cells(overview: dict, phase: str) -> list:
         note = "정규장" if live else "장 마감 기준"
         cells.append(
             f"<div class='j3-top-cell'>"
-            f"<div class='j3-top-label'>{name}</div>"
-            f"<div class='j3-top-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
-            f"<div class='j3-top-sub {_sign_class(change)}'>{_pct(change)} "
-            f"<span class='j3-muted'>· {note}</span></div>"
+            f"<div class='j3-top-label j3-idx-label'>{name}</div>"
+            f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
+            f"<div class='j3-top-sub j3-idx-sub {_sign_class(change)}'>{_pct(change)} "
+            f"<span class='j3-muted j3-idx-note'>· {note}</span></div>"
             + _sparkline_svg(sparklines.get(symbol), "#4da6ff", "#ff5b5b")
             + "</div>"
+        )
+    return cells
+
+
+def _us_etf_cells(overview: dict) -> list:
+    """SPY·QQQ 칸 — 지수 칸과 같은 옷을 입히고 그림을 둘 넣는다(2026-08-01 지시).
+
+    당일 그림의 기준선은 전일 종가, 일봉 그림의 기준선은 석 달 전 종가다.
+    그림 자료를 못 받으면 그 칸은 지금까지처럼 숫자만 보여준다.
+    """
+    try:
+        charts = j3data.get_etf_sparklines()
+    except Exception:
+        charts = {}
+    rows = overview.get("rows") or {}
+    cells = []
+    for symbol in ("SPY", "QQQ"):
+        row = rows.get(symbol) or {}
+        change = row.get("change_pct")
+        pair = charts.get(symbol) or {}
+        blocks = []
+        for key, caption in (("intraday", "당일"), ("daily", "일봉 3개월")):
+            svg = _sparkline_svg(pair.get(key), "#4da6ff", "#ff5b5b", width=104, height=78)
+            if svg:
+                blocks.append(f"<div>{svg}<div class='j3-idx-cap'>{caption}</div></div>")
+        chart_html = f"<div class='j3-idx-charts'>{''.join(blocks)}</div>" if blocks else ""
+        cells.append(
+            f"<div class='j3-top-cell j3-idx-wide'>"
+            f"<div class='j3-top-label j3-idx-label'>{symbol}</div>"
+            f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>{_price(row.get('current'))}</div>"
+            f"<div class='j3-top-sub j3-idx-sub {_sign_class(change)}'>{_pct(change)}</div>"
+            + chart_html + "</div>"
         )
     return cells
 
@@ -2119,7 +2179,8 @@ def _render_my_stock_panel(market: dict) -> None:
         "**한글로 쳐도 됩니다**(엔비디아·애플·테슬라 등). 테마 목록에 없는 종목도 됩니다."
     )
     query = st.text_input(
-        "종목 이름 또는 티커", key="j3_my_stock_query",
+        # 무엇을 어디에 넣어야 하는지 칸 이름이 직접 말하게 한다(2026-08-01 지시).
+        "종목이름 또는 티커 (아래에 종목이름을 넣어보세요)", key="j3_my_stock_query",
         placeholder="예: 엔비디아, NVDA, apple, 팔란티어",
     )
     if not str(query or "").strip():
@@ -2824,19 +2885,11 @@ def main() -> None:
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
         # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
-        mobile_ui.page_css(
-            # 순위 7 표만 st.columns라 폰에서 한 종목이 여섯 줄로 쌓인다
-            # (2026-07-30 캡처로 확인, 한국테마와 같은 처리). 칸 번호는 표 순서 그대로 —
-            # 1 순위 · 2 종목 · 3 조건점수 · 4 매수 상태 · 5 현재가 · 6 어느 분야.
-            # 표의 칸을 더하거나 빼면 이 번호도 같이 고쳐야 한다(CLAUDE.md 12번).
-            mobile_ui.table_css(
-                "j3top7_", 6,
-                {1: "", 2: "", 3: "조건점수", 4: "상태", 5: "현재가"},
-                "j3-td",
-            ),
-            # 머리글은 이 표 것만 감춘다 — 클래스로 감추면 다른 표 머리글까지 사라진다.
-            mobile_ui.hide_own_header("j3_top7_table", "j3top7_"),
-        ),
+        # 순위 7 표를 세로로 쌓던 규칙(table_css·hide_own_header)은 2026-08-01에 뺐다.
+        # 사용자 지시 — 나머지 세 표(오늘의 강한테마·테마 종목 1~6위·눌림목 찾기)처럼
+        # 표를 원래 폭으로 두고 손가락으로 옆으로 밀어서 보게 한다. 그 규칙은
+        # 페이지 위 <style>의 .st-key-j3_top7_table 줄에 있다.
+        mobile_ui.page_css(),
         unsafe_allow_html=True,
     )
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
