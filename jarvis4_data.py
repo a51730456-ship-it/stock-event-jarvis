@@ -2768,6 +2768,19 @@ def find_breakout_pullback_stocks(
         )
         for row in found["rows"]:
             row.update(row.pop("rule"))
+            row["partner5"] = int((row.get("flow") or {}).get("both_buy_days5") or 0)
+        # 순위 기준은 낙폭 표와 같다(2026-08-01 사용자 지시) — 외국인+기관 동반
+        # 순매수 5일이 가장 큰 비중, 그다음이 같은 테마에서 함께 걸린 종목 수다.
+        found["rows"].sort(
+            key=lambda row: (
+                -row.get("partner5", 0),
+                -row.get("together_tier", 0),
+                -row.get("together_count", 0),
+                -(row.get("liquidity_value") or 0),
+            )
+        )
+        for index, row in enumerate(found["rows"], 1):
+            row["pullback_rank"] = index
         return {**found, "mode": "breakout", "rule": BREAKOUT_PULLBACK_RULE,
                 "result_limit": int(result_limit)}
 

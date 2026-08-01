@@ -236,6 +236,30 @@ st.markdown(
         .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     .j3-td { white-space: nowrap; }
+    /* 구역 맨 아래 닫기 단추 — 위 여는 단추보다 작고 조용하게(2026-08-01 지시).
+       폰에서 구역 끝까지 내려갔을 때 그 자리에서 접으라고 둔 것이라,
+       눈에 띄어 화면을 어지럽히면 안 된다. */
+    div[class*="st-key-close_"] button {
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,.22) !important;
+        border-radius: .45rem !important;
+        min-height: 0 !important;
+        padding: .18rem .7rem !important;
+        width: auto !important;
+        box-shadow: none !important;
+    }
+    div[class*="st-key-close_"] button:hover {
+        background: rgba(255,255,255,.07) !important;
+        border-color: rgba(255,255,255,.4) !important;
+    }
+    div[class*="st-key-close_"] button p {
+        color: #9aa0aa !important;
+        font-size: .82rem !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+    }
+    div[class*="st-key-close_"] { margin: .1rem 0 .8rem; }
     /* 눌림목 찾기 버튼 — 순위 7 단추와 같은 모양(글자만큼만)에 진한 푸른색
        그라데이션(2026-07-30 사용자 지시). 한국테마와 같은 모양이다. */
     div[class*="st-key-j3_pullback_find"] button {
@@ -1202,6 +1226,7 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
                 st.warning(f"{timeframe} 자료 없음")
     if chart_bundle.get("stale"):
         st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
+    _section_close(f"j3_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
 
 
 # 종목 상세의 당일 차트 높이. 아래 일봉·주봉·월봉과 같은 3분할 폭에 그리므로
@@ -1762,6 +1787,8 @@ def _render_stock_detail(
         )
 
     _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
+    # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
+    _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")
 
 
 
@@ -1786,6 +1813,19 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
         key=f"btn_{key}", on_click=_flip,
     )
     return is_open
+
+
+def _section_close(key: str, label: str) -> None:
+    """구역 **맨 아래**에 두는 작은 닫기 단추 (2026-08-01 사용자 지시).
+
+    폰에서는 구역 하나가 화면 몇 장이라, 끝까지 내려가면 위에 있는 여는 단추가
+    화면 밖으로 나간다. 닫으려고 다시 위로 올라가야 했다. 같은 값을 끄는 단추를
+    아래에도 하나 둬서 그 자리에서 접을 수 있게 한다. 한국테마와 같은 장치다.
+    """
+    def _close():
+        st.session_state[key] = False
+
+    st.button(f"✕ {label}", key=f"close_{key}", on_click=_close)
 
 
 def _render_buy_form(
@@ -2523,6 +2563,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
                 st.info(f"당일 자료 없음 — {intraday_error}")
             else:
                 st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
+        _section_close("j3_intraday_open_pullback", "당일 차트 닫기")
     _render_price_chart_bundle(ticker, panel="pullback")
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
@@ -2538,6 +2579,8 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
             f"<div class='j3-reason-body'>{html.escape(str(body))}</div></div>",
             unsafe_allow_html=True,
         )
+    # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
+    _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
 
 
 # 낙폭 두 갈래의 색 (2026-08-01 사용자 지시: "-30~-40과 -40~-50 색깔 구분하고").
@@ -2650,6 +2693,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             width="stretch",
         ):
             st.session_state["j3_pullback_selected_ticker"] = row["ticker"]
+            # 종목을 누르면 상세와 차트까지 한 번에 열린다(2026-08-01 사용자 지시).
+            for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
+                           "j3_bundle_open_pullback"):
+                st.session_state[opened] = True
             st.rerun()
         if row.get("ticker") == selected_ticker:
             selected_css.append(

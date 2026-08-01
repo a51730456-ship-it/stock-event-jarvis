@@ -705,6 +705,28 @@ class Jarvis3PageTests(unittest.TestCase):
         # 표 칸에는 '고점 대비'를 빼고 숫자만 — 폰에서 옆 칸을 덮었다.
         self.assertIn("j3-band-deep'>-40~-50%", joined)
 
+    def test_each_section_can_also_be_closed_from_its_bottom(self):
+        """구역마다 맨 아래에도 닫기 단추를 둔다(2026-08-01, 한국테마와 같은 장치)."""
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn("def _section_close(", source)
+        for key in ("j3_detail_open_", "j3_bundle_open_"):
+            self.assertIn(f'_section_close(f"{key}', source,
+                          f"{key} 구역에 아래 닫기 단추가 없다")
+        self.assertIn('_section_close("j3_intraday_open_pullback"', source)
+        self.assertIn('_section_close("j3_detail_open_pullback"', source)
+        self.assertIn('div[class*="st-key-close_"] button', source)
+
+    def test_clicking_a_stock_opens_the_detail_and_the_charts(self):
+        """2026-08-01 사용자 지시 — 누르면 세부사항과 차트가 같이 열려야 한다.
+
+        한국테마와 같은 동작이다. 이 세 값이 빠지면 누른 뒤 단추를 또 눌러야 한다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
+                       "j3_bundle_open_pullback"):
+            self.assertIn(opened, block, f"{opened}를 열지 않는다")
+
     def test_rulebook_table_slides_sideways_like_the_pullback_table(self):
         """폰에서 순위·종목이 따로 쌓이던 것을 눌림목 표와 같은 규칙으로 맞췄다.
 

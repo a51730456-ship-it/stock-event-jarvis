@@ -518,6 +518,44 @@ class Jarvis4PageTests(unittest.TestCase):
         # 급락 국면이 몇 번뿐이었는지도 밝혀야 한다.
         self.assertIn("CRASH_REBOUND_EVENTS", block)
 
+    def test_each_section_can_also_be_closed_from_its_bottom(self):
+        """폰에서 구역 끝까지 내려가면 위 여는 단추가 화면 밖으로 나간다.
+
+        닫으려고 다시 위로 올라가야 했다(2026-08-01 사용자 지시).
+        구역마다 맨 아래에도 작은 닫기 단추를 둔다.
+        """
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        self.assertIn("def _section_close(", source)
+        for key in ("j4_detail_open_", "j4_intraday_open_", "j4_bundle_open_"):
+            self.assertIn(f'_section_close(f"{key}', source,
+                          f"{key} 구역에 아래 닫기 단추가 없다")
+        # 위 여는 단추보다 작고 조용해야 한다 — 같은 모양이면 화면이 어지럽다.
+        self.assertIn('div[class*="st-key-close_"] button', source)
+
+    def test_clicking_a_stock_opens_the_detail_and_the_charts(self):
+        """2026-08-01 사용자 지시 — 누르면 세부사항과 차트가 같이 열려야 한다.
+
+        그전에는 종목을 누른 뒤 '세부사항 보기'와 '일봉·주봉·월봉 보기'를 또
+        눌러야 했다. 이 세 값이 빠지면 그 불편이 그대로 돌아온다.
+        """
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        for opened in ("j4_detail_open_pullback", "j4_intraday_open_pullback",
+                       "j4_bundle_open_pullback"):
+            self.assertIn(opened, block, f"{opened}를 열지 않는다")
+
+    def test_theme_cell_shows_one_name_and_cannot_overflow(self):
+        """테마 이름을 다 늘어놓아 칸을 뚫고 왼쪽 값들을 덮었다(2026-08-01 캡처).
+
+        대표 하나만 적고 나머지는 '외 N'으로 세며, 넘치면 …로 자른다.
+        """
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        self.assertIn("외 {rest}", block)
+        self.assertIn("j4-rb-clip", block)
+        # 자르는 규칙 자체도 있어야 한다.
+        self.assertIn("text-overflow: ellipsis", source.split(".j4-rb-clip {")[1].split("}")[0])
+
     def test_rulebook_table_compares_trading_value_and_shows_themes(self):
         """2026-08-01 사용자 지시 — 테마를 넣고, 거래대금은 견줄 수 있게 비중으로.
 

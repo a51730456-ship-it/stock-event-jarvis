@@ -144,6 +144,38 @@ st.markdown(
     .j4-green-strong { color: #22c55e; font-weight: 800; }
     /* 낙폭 표의 순위를 정하는 값 — 테마 수(2026-08-01). 4개 이상이 가장 높다. */
     .j4-amber-strong { color: #ffb020; font-weight: 800; }
+    /* 구역 맨 아래 닫기 단추 — 위 여는 단추보다 작고 조용하게(2026-08-01 지시).
+       폰에서 구역 끝까지 내려갔을 때 그 자리에서 접으라고 둔 것이라,
+       눈에 띄어 화면을 어지럽히면 안 된다. */
+    div[class*="st-key-close_"] button {
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,.22) !important;
+        border-radius: .45rem !important;
+        min-height: 0 !important;
+        padding: .18rem .7rem !important;
+        width: auto !important;
+        box-shadow: none !important;
+    }
+    div[class*="st-key-close_"] button:hover {
+        background: rgba(255,255,255,.07) !important;
+        border-color: rgba(255,255,255,.4) !important;
+    }
+    div[class*="st-key-close_"] button p {
+        color: #9aa0aa !important;
+        font-size: .82rem !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+    }
+    div[class*="st-key-close_"] { margin: .1rem 0 .8rem; }
+    /* 설명서 두 갈래 표의 칸은 반드시 제 폭 안에서 잘린다(2026-08-01 캡처).
+       테마 이름이 길어 칸을 뚫고 나가면서 왼쪽 값들을 통째로 덮어 버렸다.
+       칸을 넘치면 …로 자르고, 전체 이름은 마우스를 올리면 보이게 title에 둔다. */
+    .st-key-j4_rulebook_table .j4-td { overflow: hidden; }
+    .j4-rb-clip {
+        display: block; max-width: 100%;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     .j4-theme-box { background: rgba(77,166,255,0.08); border: 1px solid rgba(77,166,255,0.3); border-radius: 0.55rem; padding: 0.7rem 0.9rem; font-size: 0.95rem; line-height: 1.7; margin-bottom: 0.6rem; }
     .j4-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 700; }
     /* 차트 구역 제목은 초록(2026-07-29 지시) — '당일·실시간', '가격 차트 …' 등.
@@ -1962,6 +1994,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
                 st.info(f"당일 자료 없음 — {intraday_error}")
             else:
                 st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
+        _section_close(f"j4_intraday_open_{panel}", "당일 차트 닫기")
 
     if _section_toggle(
         "📊 일봉 · 주봉 · 월봉 보기", f"j4_bundle_open_{panel}",
@@ -1984,6 +2017,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
                         st.warning(f"{timeframe} 자료 없음")
         else:
             st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
+        _section_close(f"j4_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
 
     st.markdown("<div class='j4-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
     reason_cards = [
@@ -2000,6 +2034,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         )
 
     _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
+    # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
+    _section_close(f"j4_detail_open_{panel}", "선택종목 세부사항 닫기")
 
 
 # ---------------------------------------------------------------------------
@@ -2192,6 +2228,19 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
         key=f"btn_{key}", on_click=_flip,
     )
     return is_open
+
+
+def _section_close(key: str, label: str) -> None:
+    """구역 **맨 아래**에 두는 작은 닫기 단추 (2026-08-01 사용자 지시).
+
+    폰에서는 구역 하나가 화면 몇 장이라, 끝까지 내려가면 위에 있는 여는 단추가
+    화면 밖으로 나간다. 닫으려고 다시 위로 올라가야 했다. 같은 값을 끄는 단추를
+    아래에도 하나 둬서 그 자리에서 접을 수 있게 한다.
+    """
+    def _close():
+        st.session_state[key] = False
+
+    st.button(f"✕ {label}", key=f"close_{key}", on_click=_close)
 
 
 def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
@@ -2813,7 +2862,10 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             f"가운데 값 +{rule.get('base_median_return')}%<br>"
             f"<b class='j4-down'>이 규칙이 기준선보다 나았던 해는 "
             f"{rule.get('years_total')}년 중 {rule.get('years_better')}년뿐입니다.</b> "
-            "차이가 작고 해마다 뒤집힙니다 — 이것만 믿고 크게 걸 자리가 아닙니다.</div>",
+            "차이가 작고 해마다 뒤집힙니다 — 이것만 믿고 크게 걸 자리가 아닙니다.<br>"
+            "<b>순위를 매기는 기준</b> — ① <b>외국인+기관이 5일 중 며칠을 같이 샀나</b>"
+            "(동그라미 다섯)가 가장 큰 비중, ② 다음은 <b>같은 기준에 함께 걸린 같은 테마 "
+            "종목 수</b>입니다. 둘이 같으면 거래대금이 큰 종목을 위에 둡니다.</div>",
             unsafe_allow_html=True,
         )
     else:
@@ -2871,16 +2923,13 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         )
         return
 
-    # 낙폭 표는 소속 테마 수로 순위를 매기므로 그 칸을 따로 둔다(2026-08-01 지시).
-    if breakout:
-        widths = [0.55, 1.9, 1.3, 1.15, 1.25, 1.05, 1.7, 2.1]
-        headers = ["당일주가", "고점 대비", "신고가", "보유일수", "거래대금 (평소 대비)", "소속 테마"]
-    else:
-        # 순위를 정하는 두 칸(동반 5일 · 같이 오른 종목)을 앞쪽에 둔다 — 순위를
-        # 왜 그렇게 매겼는지 눈으로 바로 따라갈 수 있게(2026-08-01 사용자 지시).
-        widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.05, 1.1, 1.0, 1.5, 1.75]
-        headers = ["동반 5일 (외국인+기관)", "당일주가", "고점 대비", "갈래", "보유일수",
-                   "같이 오른 종목", "거래대금 (평소 대비)", "소속 테마"]
+    # 두 갈래가 같은 순위 기준을 쓰므로 표도 같은 칸을 쓴다(2026-08-01 사용자 지시).
+    # 순위를 정하는 두 칸(동반 5일 · 같이 걸린 종목)을 앞쪽에 둬서, 순위를 왜 그렇게
+    # 매겼는지 눈으로 바로 따라갈 수 있게 한다. 셋째 칸만 갈래에 따라 다르다.
+    widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.05, 1.1, 1.0, 1.5, 1.75]
+    headers = ["동반 5일 (외국인+기관)", "당일주가", "고점 대비",
+               "신고가" if breakout else "갈래", "보유일수",
+               "같이 걸린 종목", "거래대금 (평소 대비)", "소속 테마"]
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     table_box = st.container(key="j4_rulebook_table")
@@ -2897,11 +2946,16 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             unsafe_allow_html=True,
         )
         if cols[1].button(row["name"], key=f"j4rbf_{index:02d}", width="stretch"):
-            themes = row.get("themes") or []
+            picked_themes = row.get("themes") or []
             st.session_state["j4_pullback_pick"] = (
-                (themes[0] if themes else ""), row["code"]
+                (picked_themes[0] if picked_themes else ""), row["code"]
             )
             st.session_state["j4_pullback_pick_row"] = row
+            # 종목을 누르면 상세와 차트까지 한 번에 열린다(2026-08-01 사용자 지시).
+            # 그전에는 누른 뒤 '세부사항 보기'·'일봉·주봉·월봉 보기'를 또 눌러야 했다.
+            for opened in ("j4_detail_open_pullback", "j4_intraday_open_pullback",
+                           "j4_bundle_open_pullback"):
+                st.session_state[opened] = True
         price_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             " line-height:1.12; font-weight:800; color:#e6e6e6'>"
@@ -2928,7 +2982,14 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             ratio_cell = f"<span class='{times_class}'>{times:.1f}배</span>"
         else:
             ratio_cell = "<span class='j4-muted'>—</span>"
-        themes = " · ".join(row.get("themes") or []) or "—"
+        # 테마 이름을 다 늘어놓으면 칸을 뚫고 나가 왼쪽 값들을 덮는다(2026-08-01 캡처).
+        # 대표 하나만 적고 나머지는 '외 N'으로 센다. 대표는 순위를 정할 때 쓴
+        # 테마(같은 기준에 가장 많이 함께 걸린 테마)다 — 그게 지금 움직이는 테마다.
+        all_themes = [name for name in (row.get("themes") or []) if name]
+        lead = str(row.get("together_theme") or "") or (all_themes[0] if all_themes else "")
+        rest = max(len(all_themes) - 1, 0)
+        theme_text = (f"{lead} 외 {rest}" if rest else lead) or "—"
+        themes = " · ".join(all_themes) or "—"
         volume_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             f" line-height:1.12'><span class='j4-green'>{_eok(value)}</span>"
@@ -2940,27 +3001,25 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             third_cell,
             f"<span class='j4-green'>{int(row.get('hold_days') or 0)}거래일</span>",
         ]
-        if breakout:
-            cells = price_and_high + [volume_cell]
-        else:
-            # 순위를 정한 두 값을 표에 그대로 보여 준다(2026-08-01 사용자 지시).
-            # 1순위 — 외국인+기관이 5일 중 며칠을 같이 샀나(동그라미 다섯).
-            # 2순위 — 같은 테마에서 오늘 같이 오른 종목이 몇 개인가.
-            tier = int(row.get("together_tier") or 0)
-            tier_class = ("j4-muted", "j4-th-muted", "j4-amber-strong", "j4-green-strong")[tier]
-            together = (
-                "<span style='display:inline-flex; flex-direction:column; align-items:center;"
-                f" line-height:1.12'><span class='{tier_class}' style='font-weight:800'>"
-                f"{int(row.get('together_count') or 0)}개</span>"
-                f"<span class='j4-muted' style='font-size:.78rem'"
-                f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
-                f"{html.escape(str(row.get('together_label') or '—'))}</span></span>"
-            )
-            cells = [_partner5_cell(row.get("flow") or {})] + price_and_high + [
-                together, volume_cell
-            ]
+        # 순위를 정한 두 값을 표에 그대로 보여 준다(2026-08-01 사용자 지시).
+        # 1순위 — 외국인+기관이 5일 중 며칠을 같이 샀나(동그라미 다섯).
+        # 2순위 — 같은 기준에 함께 걸린 같은 테마 종목이 몇 개인가.
+        tier = int(row.get("together_tier") or 0)
+        tier_class = ("j4-muted", "j4-th-muted", "j4-amber-strong", "j4-green-strong")[tier]
+        together = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            f" line-height:1.12'><span class='{tier_class}' style='font-weight:800'>"
+            f"{int(row.get('together_count') or 0)}개</span>"
+            f"<span class='j4-muted' style='font-size:.78rem'"
+            f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
+            f"{html.escape(str(row.get('together_label') or '—'))}</span></span>"
+        )
+        cells = [_partner5_cell(row.get("flow") or {})] + price_and_high + [
+            together, volume_cell
+        ]
         cells.append(
-            f"<span class='j4-th-muted' title='{html.escape(themes)}'>{html.escape(themes)}</span>"
+            f"<span class='j4-rb-clip j4-th-muted' title='{html.escape(themes)}'>"
+            f"{html.escape(theme_text)}</span>"
         )
         cols[2].markdown(_flex_row(rest_widths, cells), unsafe_allow_html=True)
     st.caption(
