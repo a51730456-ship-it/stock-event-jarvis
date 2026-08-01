@@ -1,4 +1,4 @@
-﻿"""‘이 테마 기법에 대한 설명’ 단추와 그 내용.
+"""‘이 테마 기법에 대한 설명’ 단추와 그 내용.
 
 자비스3(미국)·자비스4(한국)가 같이 쓴다. 단추와 옷(CSS)은 공용이고, 글은 시장마다
 따로다(US_TEXT · KR_TEXT). 한쪽을 고쳐도 다른 쪽은 그대로여야 한다 — 두 시장은
@@ -330,7 +330,39 @@ KR_TEXT = """
 <div class="mh-step">추격 금지를 국내용으로 따로 뒀습니다 — 하루 30%까지 오르는 시장이라</div>
 <div class="mh-step mh-go">→ 시장 점수는 <u>참고로만</u>, 수급과 종목 점수를 무겁게</div>
 </div>
-<div class="mh-h2"><span class="mh-no">3</span>지금 할 일 — 테두리 색이 곧 답</div>
+<div class="mh-h2"><span class="mh-no">3</span>눌림목 매매 두 갈래 — <u>미국 규칙을 그대로</u></div>
+<div class="mh-note">
+<div class="mh-note-h">※ 먼저 읽으십시오</div>
+아래 두 갈래의 <b>규칙</b>은 미국장 눌림목 매매 설명서의 것을 그대로 씁니다.
+<b>승률·평균수익은 한국 화면에 적지 않습니다</b> — 그 숫자는 미국 대형주 200개로 잰
+값이고, 한국에서는 아직 재보지 않았습니다. 남의 자료로 잰 값을 우리 화면에 옮겨 적지
+않는다는 것이 이 설명서의 원칙입니다.
+</div>
+<div class="mh-box mh-buy-box">
+<div class="mh-box-h">▸ 상승장 (신고가 눌림매수)</div>
+<div class="mh-step">52주 <b>신고가 돌파</b></div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step"><b>3~5거래일</b> 기다림</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step">그 고점에서 <b>4~6% 하락한 날</b> 종가 확인</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step mh-go">다음 거래일 <u>시가 매수</u> · <b>120거래일</b> 보유</div>
+</div>
+<div class="mh-box mh-sell-box">
+<div class="mh-box-h">▸ 급락 후 반등장 (낙폭종목)</div>
+<div class="mh-step">신고가 날짜는 <b>보지 않습니다.</b> 고점 대비 낙폭만 봅니다.</div>
+<div class="mh-kv"><span class="mh-k">고점 대비 -40~-50%</span><span class="mh-v">20거래일 보유</span></div>
+<div class="mh-kv"><span class="mh-k">고점 대비 -30~-40%</span><span class="mh-v">60거래일 보유</span></div>
+</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 두 갈래 모두</div>
+<ul class="mh-list">
+<li>이동평균(20·50·200일선)은 <b>보지 않습니다</b> — 설명서에 없는 조건입니다.</li>
+<li>찾는 범위는 <b>거래대금 상위 200종목</b>입니다(미국의 대형주 200개 자리).</li>
+<li>기준에 맞는 종목이 없으면 <b>기준을 느슨하게 바꾸지 않고</b> ‘없습니다’라고 적습니다.</li>
+</ul>
+</div>
+<div class="mh-h2"><span class="mh-no">4</span>지금 할 일 — 테두리 색이 곧 답</div>
 <div class="mh-box mh-data-box">
 <div class="mh-box-h">▸ ‘매수 심사 결과’ 칸 맨 위 상자</div>
 <div class="mh-kv"><span class="mh-k">🟩 이 기법이 말하는 진입 자리입니다</span><span class="mh-v mh-pos">기준가를 넘으면 산다</span></div>
@@ -339,7 +371,7 @@ KR_TEXT = """
 <div class="mh-kv"><span class="mh-k">🟨 사지 않고 지켜봅니다</span><span class="mh-v">아직 자리가 아님</span></div>
 <div class="mh-kv"><span class="mh-k">🟥 손대지 않습니다 · 후보에서 뺍니다</span><span class="mh-v mh-neg">점수가 높아도 예외 없음</span></div>
 </div>
-<div class="mh-h2"><span class="mh-no">4</span>점수를 잘못 읽는 흔한 경우</div>
+<div class="mh-h2"><span class="mh-no">5</span>점수를 잘못 읽는 흔한 경우</div>
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">⚠ 점수는 앞일을 맞히는 숫자가 아닙니다</div>
 <ul class="mh-list">
@@ -350,7 +382,7 @@ KR_TEXT = """
 </ul>
 <div class="mh-sub">값(현재가·거래대금·수급)은 원자료 그대로이고, 못 가져온 값은 지어내지 않습니다.</div>
 </div>
-<div class="mh-h2"><span class="mh-no">5</span>어디서 왔나 · 언제 파나</div>
+<div class="mh-h2"><span class="mh-no">6</span>어디서 왔나 · 언제 파나</div>
 <div class="mh-box mh-sell-box">
 <div class="mh-box-h">▸ 출처</div>
 <div class="mh-step"><b>한 편의 논문에서 나온 기법이 아닙니다.</b> 논문 세 갈래(Moskowitz &amp; Grinblatt 1999 · George &amp; Hwang 2004 · Moskowitz·Ooi·Pedersen 2012)와 실무 세 갈래(Weinstein · O'Neil · Minervini)가 겹치는 자리입니다.</div>

@@ -1,4 +1,4 @@
-﻿"""자비스4 — 한국 테마 레이더와 실제 매수 기록 페이지.
+"""자비스4 — 한국 테마 레이더와 실제 매수 기록 페이지.
 
 화면 골격은 자비스3(미국 테마 레이더)를 그대로 따르고, 내용만 한국형으로 바꾼다.
 색 규칙은 한국장 기준이다 — 상승은 붉은색, 하락은 푸른색(자비스3와 반대).
@@ -181,10 +181,14 @@ st.markdown(
        만들지 않은 것은 그래야 나중에 한 곳만 고쳐도 셋이 같이 따라오기 때문이다. */
     /* 순위 7 표도 같은 규칙에 얹는다(2026-08-01 사용자 지시) — 폰에서 한 종목이
        여섯 줄로 쌓이던 것을, 나머지 세 표처럼 옆으로 밀어서 보게 한다. */
+    /* 설명서 두 갈래 표(j4_rulebook_table)도 같은 규칙에 얹는다(2026-08-01).
+       **새 표를 만들면 반드시 이 세 목록에 다 넣는다** — 빠뜨리면 폰에서
+       순위·종목이 따로 쌓이고 값이 겹쳐 찍힌다(미국테마에서 실제로 그랬다). */
     .st-key-j4_pullback_table,
     .st-key-j4_theme_rest,
     .st-key-j4_leader_table,
     .st-key-j4_top7_table,
+    .st-key-j4_rulebook_table,
     .st-key-j4_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
         .st-key-j4_pullback_table [data-testid="stHorizontalBlock"] {
@@ -193,6 +197,7 @@ st.markdown(
         .st-key-j4_theme_rest [data-testid="stHorizontalBlock"],
         .st-key-j4_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j4_top7_table [data-testid="stHorizontalBlock"],
+        .st-key-j4_rulebook_table [data-testid="stHorizontalBlock"],
         .st-key-j4_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
@@ -200,7 +205,49 @@ st.markdown(
         .st-key-j4_theme_rest [data-testid="stColumn"],
         .st-key-j4_leader_table [data-testid="stColumn"],
         .st-key-j4_top7_table [data-testid="stColumn"],
+        .st-key-j4_rulebook_table [data-testid="stColumn"],
         .st-key-j4_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
+    }
+    /* 설명서 두 갈래 단추 — 미국테마와 같은 색이다(상승장 초록 · 급락장 주황). */
+    div[class*="st-key-j4_pullback_breakout"] button {
+        background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        min-height: 3rem !important; box-shadow: 0 2px 10px rgba(18,160,106,.25) !important;
+    }
+    div[class*="st-key-j4_pullback_crash"] button {
+        background: linear-gradient(90deg, #4a2408 0%, #7a3c0d 38%, #e07f1f 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        min-height: 3rem !important; box-shadow: 0 2px 10px rgba(224,127,31,.25) !important;
+    }
+    div[class*="st-key-j4_pullback_breakout"] button p,
+    div[class*="st-key-j4_pullback_crash"] button p {
+        color: #ffffff !important; font-size: 1.02rem !important;
+        font-weight: 800 !important; letter-spacing: .01em !important; margin: 0 !important;
+    }
+    /* 낙폭 두 갈래 색 — 미국테마와 같다. 깊은 갈래 주황 · 얕은 갈래 하늘색.
+       한국장 등락색(빨강·파랑)과 겹치지 않는 색이라 등락과 헷갈리지 않는다. */
+    .j4-band-deep, .j4-band-mid {
+        display: inline-block; border-radius: .4rem; padding: .05rem .45rem;
+        font-weight: 800; white-space: nowrap;
+    }
+    .j4-band-deep { color: #ff9d3b; background: rgba(255,157,59,.16);
+        border: 1px solid rgba(255,157,59,.55); }
+    .j4-band-mid { color: #7cc8ff; background: rgba(124,200,255,.14);
+        border: 1px solid rgba(124,200,255,.5); }
+    .j4-card-deep { border-color: rgba(255,157,59,.55) !important; }
+    .j4-card-deep .j4-reason-title { color: #ff9d3b !important; }
+    .j4-card-mid { border-color: rgba(124,200,255,.5) !important; }
+    .j4-card-mid .j4-reason-title { color: #7cc8ff !important; }
+    div[class*="st-key-j4rbf_"] button {
+        background: transparent !important; border: none !important; box-shadow: none !important;
+        padding: 0 0 0 .8rem !important; min-height: 2.5rem !important; width: 100% !important;
+        justify-content: flex-start !important;
+        border-bottom: 1px solid rgba(255,255,255,.06) !important; border-radius: 0 !important;
+    }
+    div[class*="st-key-j4rbf_"] button:hover { background: rgba(255,255,255,.06) !important; }
+    div[class*="st-key-j4rbf_"] button p {
+        font-weight: 800 !important; font-size: .95rem !important;
+        margin: 0 !important; text-align: left !important;
     }
     @media (max-width: 1200px) {
         .j4-table-scroll .j4-theme-table { min-width: 980px; }
@@ -512,7 +559,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026073112
+_REQUIRED_J4_REVISION = 2026080110
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -2721,6 +2768,133 @@ def _render_theme_finder(forced: list[str]) -> None:
                 st.rerun()
 
 
+# 낙폭 두 갈래의 색 — 미국테마와 같은 규칙이다(2026-08-01).
+_BAND_CARD_CLASS = {"deep": "j4-card-deep", "mid": "j4-card-mid"}
+_BAND_CELL_CLASS = {"deep": "j4-band-deep", "mid": "j4-band-mid"}
+
+
+def _render_rulebook_finder(result: dict, mode: str) -> None:
+    """설명서 두 갈래의 결과 표 — 미국테마와 같은 모양이다(2026-08-01 사용자 지시).
+
+    **승률·평균수익은 적지 않는다.** 그 숫자는 미국 대형주 200개로 잰 값이라
+    한국 화면에 옮겨 적으면 화면이 거짓말을 한다. 대신 '한국에서는 아직 재보지
+    않았다'고 분명히 적는다 — 한국 설명서가 스스로 정한 원칙이다.
+    """
+    if not result.get("ok"):
+        st.error(f"조회 실패: {_safe_error_text(result.get('error'))}")
+        return
+    rows = result.get("rows") or []
+    breakout = mode == "breakout"
+    if breakout:
+        rule = result.get("rule") or {}
+        wait_min, wait_max = rule.get("wait_days", (3, 5))
+        drop_low, drop_high = rule.get("drop_band", (-6.0, -4.0))
+        st.markdown(
+            "<div class='j4-pull-guide'>"
+            f"<b>찾는 기준</b> — 52주 신고가를 찍고 <b>{wait_min}~{wait_max}거래일</b>이 지난 뒤, "
+            f"그 고점에서 <b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 종목입니다. "
+            f"사면 <b>{rule.get('hold_days')}거래일</b>(약 6개월) 들고 갑니다. "
+            "이동평균·테마 수는 보지 않습니다 — 설명서에 없는 조건이기 때문입니다.<br>"
+            "<b class='j4-down'>승률·평균수익은 여기 적지 않습니다</b> — 그 숫자는 "
+            "<u>미국 대형주 200개로 잰 값</u>이고, 한국에서는 아직 재보지 않았습니다. "
+            "규칙만 같은 것을 한국 종목에 대 본 결과입니다.</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        counts = result.get("bucket_counts") or {}
+        cards = []
+        for rule in result.get("rules") or []:
+            cards.append(
+                f"<div class='j4-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
+                f"<div class='j4-reason-title'>{rule['label']} → {rule['hold_days']}거래일 보유</div>"
+                f"<div class='j4-reason-body'>지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
+            )
+        st.markdown(
+            "<div class='j4-pull-guide'>"
+            "<b>찾는 기준</b> — 신고가가 언제였는지는 <u>보지 않고</u>, "
+            "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
+            "<b class='j4-down'>승률·평균수익은 여기 적지 않습니다</b> — 갈래를 나눈 근거와 "
+            "보유일수는 <u>미국 자료로 잰 것</u>이고, 한국에서는 아직 재보지 않았습니다."
+            "</div>"
+            f"<div class='j4-metric-row'>{''.join(cards)}</div>",
+            unsafe_allow_html=True,
+        )
+    funnel = ""
+    st.markdown(
+        "<div class='j4-pull-stats'>"
+        f"테마 구성종목 <b>{result.get('universe_count', 0):,}개</b> → "
+        f"거래대금 기준 통과 <b>{result.get('liquid_count', 0):,}개</b> → "
+        f"일봉 확인 <b>{result.get('scanned_count', 0):,}개</b> → "
+        f"{funnel}기준 통과 <b class='j4-green'>{result.get('screened_count', 0):,}개</b> → "
+        f"표시 <b class='j4-green'>{len(rows):,}개</b>"
+        f"(최대 {int(result.get('result_limit') or 0)}개)</div>",
+        unsafe_allow_html=True,
+    )
+    if not rows:
+        st.info(
+            "지금은 이 기준에 맞는 종목이 없습니다. 기준을 느슨하게 바꾸지 않습니다 — "
+            "설명서 그대로 찾은 결과입니다."
+        )
+        return
+
+    widths = [0.55, 1.9, 1.3, 1.25, 1.25, 1.35, 1.9]
+    row_widths = [widths[0], widths[1], sum(widths[2:])]
+    rest_widths = widths[2:]
+    third = "신고가" if breakout else "갈래"
+    table_box = st.container(key="j4_rulebook_table")
+    head = table_box.columns(row_widths)
+    head[0].markdown("<div class='j4-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j4-th-head'>종목</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(rest_widths, ["당일주가", "고점 대비", third, "보유일수", "거래대금"],
+                  head=True),
+        unsafe_allow_html=True,
+    )
+    for index, row in enumerate(rows):
+        metrics = row.get("metrics") or {}
+        from_high = metrics.get("from_high_pct")
+        cols = table_box.columns(row_widths)
+        cols[0].markdown(
+            f"<div class='j4-td'>{int(row.get('pullback_rank') or index + 1)}</div>",
+            unsafe_allow_html=True,
+        )
+        if cols[1].button(row["name"], key=f"j4rbf_{index:02d}", width="stretch"):
+            themes = row.get("themes") or []
+            st.session_state["j4_pullback_pick"] = (
+                (themes[0] if themes else ""), row["code"]
+            )
+            st.session_state["j4_pullback_pick_row"] = row
+        price_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+            f"<span>{_won(metrics.get('current'))}</span>"
+            f"<span style='color:{_sign_color(metrics.get('change_pct'))};"
+            f" font-weight:800; font-size:.82rem'>{_pct(metrics.get('change_pct'))}</span></span>"
+        )
+        if breakout:
+            third_cell = f"<span class='j4-green'>{int(row.get('wait_days') or 0)}일 전</span>"
+        else:
+            # 칸이 좁아 '고점 대비'까지 넣으면 옆 칸을 덮는다 — 왼쪽 칸 이름이 이미 그 말이다.
+            band = str(row.get("bucket_label") or "—").replace("고점 대비 ", "")
+            band_class = _BAND_CELL_CLASS.get(str(row.get("bucket")), "j4-muted")
+            third_cell = f"<span class='{band_class}'>{html.escape(band)}</span>"
+        value = row.get("liquidity_value")
+        cols[2].markdown(
+            _flex_row(rest_widths, [
+                price_cell,
+                f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+                third_cell,
+                f"<span class='j4-green'>{int(row.get('hold_days') or 0)}거래일</span>",
+                f"<span class='j4-green'>{_eok(value)}</span>",
+            ]),
+            unsafe_allow_html=True,
+        )
+    st.caption(
+        "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
+        "그 자리에 와 있는 종목을 좁혀 준 목록이며, 사라는 신호가 아닙니다."
+    )
+
+
 def _render_pullback_finder() -> None:
     """상승추세 중 조정받은 눌림목 종목 (2026-07-22 사용자 스펙).
 
@@ -2767,6 +2941,56 @@ def _render_pullback_finder() -> None:
         rerun_requested = (
             st.button("새로 찾기", key="j4_pullback_refind") if has_result else False
         )
+    # 설명서 두 갈래 — 미국테마와 같은 자리·같은 모양이다(2026-08-01 사용자 지시).
+    # 누르면 같은 자리의 표가 그 갈래로 바뀐다. 같은 단추를 다시 누르면 접힌다.
+    col_breakout, col_crash = st.columns([1, 1])
+    with col_breakout:
+        breakout_requested = st.button("상승장 (신고가 눌림매수)", key="j4_pullback_breakout")
+    with col_crash:
+        crash_requested = st.button("급락 후 반등장 (낙폭종목)", key="j4_pullback_crash")
+    for pressed, spinner, finder in (
+        (breakout_requested, "거래대금 상위 종목에서 신고가 뒤 눌린 종목을 찾는 중입니다…",
+         "find_breakout_pullback_stocks"),
+        (crash_requested, "거래대금 상위 종목에서 고점 대비 낙폭이 큰 종목을 찾는 중입니다…",
+         "find_crash_rebound_stocks"),
+    ):
+        if not pressed:
+            continue
+        mode = "breakout" if finder.startswith("find_breakout") else "crash"
+        already = (
+            st.session_state.get("j4_pullback_open")
+            and st.session_state.get("j4_pullback_mode") == mode
+        )
+        if already:
+            st.session_state["j4_pullback_open"] = False
+            st.session_state.pop("j4_pullback_pick", None)
+            st.session_state.pop("j4_pullback_pick_row", None)
+        else:
+            st.session_state["j4_pullback_open"] = True
+            st.session_state["j4_pullback_mode"] = mode
+            st.session_state.pop("j4_pullback_pick", None)
+            st.session_state.pop("j4_pullback_pick_row", None)
+            with st.spinner(spinner):
+                st.session_state["j4_pullback_result"] = getattr(j4data, finder)()
+            st.session_state["j4_pullback_found_at"] = datetime.now(_PAGE_SEOUL)
+        run_requested = False
+        rerun_requested = False
+    if breakout_requested or crash_requested:
+        result = st.session_state.get("j4_pullback_result")
+        if st.session_state.get("j4_pullback_open") and isinstance(result, dict):
+            _render_rulebook_finder(result, st.session_state.get("j4_pullback_mode"))
+        return
+    if st.session_state.get("j4_pullback_mode") in ("breakout", "crash"):
+        # 갈래 화면을 보던 중에 '눌림목 찾기'를 누르면 원래 표로 돌아간다.
+        if run_requested or rerun_requested:
+            st.session_state["j4_pullback_mode"] = "기본"
+            st.session_state["j4_pullback_result"] = None
+            has_result = False
+        else:
+            result = st.session_state.get("j4_pullback_result")
+            if st.session_state.get("j4_pullback_open") and isinstance(result, dict):
+                _render_rulebook_finder(result, st.session_state.get("j4_pullback_mode"))
+            return
     if rerun_requested:
         st.session_state["j4_pullback_result"] = None
         run_requested = True

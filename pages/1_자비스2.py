@@ -1,4 +1,4 @@
-﻿"""자비스2 — 순환매 플레이북 & 급락일 기록 페이지.
+"""자비스2 — 순환매 플레이북 & 급락일 기록 페이지.
 
 기존 파일(app.py, database.py, theme_history.py 등)은 수정하지 않는다.
 P1 모듈(market_data, theme_detail, playbook)만 import해서 사용한다.

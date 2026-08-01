@@ -1,6 +1,6 @@
 """자비스4(한국 테마) 엔진 테스트 — 네트워크 없이 순수 판정 로직만 검증한다."""
 
-import unittest
+import unittest  # noqa: F401  (아래 클래스들이 쓴다)
 from datetime import datetime
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -32,6 +32,109 @@ def _flow(net5_amount=50e8, streak=3, ok=True):
         "ok": ok, "net5_amount": net5_amount, "buy_streak_days": streak,
         "net20_amount": net5_amount * 3, "rows": [],
     }
+
+
+def _frame_with_high(peak_days_ago: int, from_high_pct: float, periods: int = 260):
+    """지정한 거래일 전에 52주 고가를 찍고, 지금은 고점 대비 X% 아래인 일봉."""
+    index = pd.bdate_range("2025-07-01", periods=periods)
+    values = [50_000.0 + i * 100 for i in range(periods)]
+    peak_index = periods - 1 - peak_days_ago
+    peak = 100_000.0
+    values[peak_index] = peak
+    for i in range(peak_index + 1, periods):
+        values[i] = peak * (1 + from_high_pct / 100.0)
+    close = pd.Series(values, index=index)
+    return pd.DataFrame(
+        {"Open": close, "High": close, "Low": close, "Close": close, "Volume": 500_000.0},
+        index=index,
+    )
+
+
+class RulebookScreenTests(unittest.TestCase):
+    """설명서 두 갈래의 한국판 (2026-08-01 사용자 지시).
+
+    규칙은 미국장 설명서 그대로지만 **승률·평균수익은 한국에 두지 않는다** —
+    미국 자료로 잰 값이라 한국 화면에 옮겨 적으면 화면이 거짓말을 한다.
+    """
+
+    def setUp(self):
+        j4.clear_pullback_cache()
+        self.addCleanup(j4.clear_pullback_cache)
+
+    def _run(self, finder, frames):
+        # 현재가는 일봉의 마지막 종가와 같아야 한다 — 다르면 _series_metrics가 그 값을
+        # 현재가로 써서 고점 대비가 엉뚱해진다(2026-08-01에 실제로 걸렸다).
+        stocks = {
+            code: {"code": code, "name": f"종목{code}", "themes": ["테마"],
+                   "price": float(frame["Close"].iloc[-1]),
+                   "trading_value": 5e10, "previous_volume": 0}
+            for code, frame in frames.items()
+        }
+        with patch.object(j4, "get_theme_universe",
+                          return_value={"ok": True, "stocks": stocks}), \
+             patch.object(j4, "get_daily_frame", side_effect=lambda code, **kw: frames[code]), \
+             patch.object(j4, "get_stock_flow", return_value=_flow()), \
+             patch.object(j4, "_index_metrics", return_value={"ok": True, "ret20": 1.0}):
+            return finder()
+
+    def test_rule_numbers_match_the_us_guide_but_not_its_scores(self):
+        rule = j4.BREAKOUT_PULLBACK_RULE
+        self.assertEqual((3, 5), rule["wait_days"])
+        self.assertEqual((-6.0, -4.0), rule["drop_band"])
+        self.assertEqual(120, rule["hold_days"])
+        self.assertFalse(rule["verified_in_korea"])
+        # 승률·평균수익은 한국 규칙에 없어야 한다.
+        for banned in ("win_rate", "sample", "avg_return"):
+            self.assertNotIn(banned, rule, f"한국 규칙에 {banned}가 들어갔다")
+            for crash_rule in j4.CRASH_REBOUND_RULES:
+                self.assertNotIn(banned, crash_rule, f"한국 낙폭 규칙에 {banned}가 들어갔다")
+        deep, mid = j4.CRASH_REBOUND_RULES
+        self.assertEqual(((-50.0, -40.0), 20), (deep["band"], deep["hold_days"]))
+        self.assertEqual(((-40.0, -30.0), 60), (mid["band"], mid["hold_days"]))
+
+    def test_breakout_takes_only_the_written_window(self):
+        frames = {
+            "000001": _frame_with_high(4, -5.0),    # 자리에 맞음
+            "000002": _frame_with_high(1, -5.0),    # 너무 이르다
+            "000003": _frame_with_high(9, -5.0),    # 너무 늦다
+            "000004": _frame_with_high(4, -2.0),    # 덜 눌렸다
+            "000005": _frame_with_high(4, -9.0),    # 너무 눌렸다
+        }
+        result = self._run(j4.find_breakout_pullback_stocks, frames)
+        self.assertTrue(result["ok"], result.get("error"))
+        self.assertEqual(["000001"], [row["code"] for row in result["rows"]])
+        self.assertEqual(4, result["rows"][0]["wait_days"])
+        self.assertEqual(120, result["rows"][0]["hold_days"])
+
+    def test_crash_splits_two_buckets_and_ignores_the_high_date(self):
+        frames = {
+            "000001": _frame_with_high(200, -45.0),   # 깊은 갈래
+            "000002": _frame_with_high(3, -35.0),     # 얕은 갈래 — 신고가 날짜는 안 본다
+            "000003": _frame_with_high(50, -20.0),    # 덜 빠졌다
+            "000004": _frame_with_high(50, -60.0),    # 너무 빠졌다
+        }
+        result = self._run(j4.find_crash_rebound_stocks, frames)
+        self.assertTrue(result["ok"], result.get("error"))
+        picked = {row["code"]: row for row in result["rows"]}
+        self.assertEqual({"000001", "000002"}, set(picked))
+        self.assertEqual((20, "deep"), (picked["000001"]["hold_days"], picked["000001"]["bucket"]))
+        self.assertEqual((60, "mid"), (picked["000002"]["hold_days"], picked["000002"]["bucket"]))
+        self.assertEqual("000001", result["rows"][0]["code"])   # 깊은 갈래가 위
+        self.assertEqual({"deep": 1, "mid": 1}, result["bucket_counts"])
+
+    def test_neither_screen_filters_on_a_moving_average(self):
+        """설명서에 없는 조건이다. 낙폭 종목은 50일선 위에 있을 리도 없다."""
+        import inspect
+
+        for finder in (j4.find_breakout_pullback_stocks, j4.find_crash_rebound_stocks):
+            source = inspect.getsource(finder)
+            for moving_average in ("sma20", "sma50", "sma200"):
+                self.assertNotIn(f'"{moving_average}"', source,
+                                 f"{finder.__name__}에 {moving_average} 조건이 들어갔다")
+
+    def test_no_match_returns_an_empty_list(self):
+        frames = {"000001": _frame_with_high(4, -20.0)}
+        self.assertEqual([], self._run(j4.find_breakout_pullback_stocks, frames)["rows"])
 
 
 class TickSizeTests(unittest.TestCase):

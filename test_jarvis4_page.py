@@ -477,6 +477,32 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertNotIn("stSidebarNav", phone_block)
 
 
+    def test_the_two_rulebook_buttons_sit_next_to_the_pullback_button(self):
+        """설명서 두 갈래 단추 — 미국테마와 같은 자리·같은 모양(2026-08-01 사용자 지시)."""
+        app = _run_page()
+        self.assertEqual(len(app.exception), 0)
+        keys = [str(node.key or "") for node in app.button]
+        for key in ("j4_pullback_find", "j4_pullback_breakout", "j4_pullback_crash"):
+            self.assertIn(key, keys, f"{key} 단추가 없다")
+
+    def test_rulebook_table_slides_sideways_like_the_others(self):
+        """새 표를 옆으로 밀기 규칙 목록에 안 넣으면 폰에서 줄이 쌓이고 값이 겹친다."""
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        self.assertIn(".st-key-j4_rulebook_table,", source)
+        self.assertIn('.st-key-j4_rulebook_table [data-testid="stHorizontalBlock"],', source)
+        self.assertIn('.st-key-j4_rulebook_table [data-testid="stColumn"],', source)
+
+    def test_korea_never_shows_the_us_win_rates(self):
+        """승률·평균수익은 미국 자료로 잰 값이라 한국 화면에 적지 않는다.
+
+        규칙(며칠·몇 %·보유일수)은 같이 써도 된다 — 그건 '무엇을 보는가'다.
+        """
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        for banned in ("59.7", "92.6", "100.0%", "+18.0", "+11.2", "+24.9", "win_rate", "avg_return"):
+            self.assertNotIn(banned, block, f"한국 화면에 미국 성적 {banned}이 들어갔다")
+        self.assertIn("한국에서는 아직 재보지 않았습니다", block)
+
     def test_theme_selection_switches_theme(self):
         started = []
         try:

@@ -1,4 +1,4 @@
-﻿"""자비스4 한국 테마 레이더용 시세·수급·판정 엔진.
+"""자비스4 한국 테마 레이더용 시세·수급·판정 엔진.
 
 기존 자비스1/2/3의 ``price_data.py``·``performance.py``·``jarvis3_data.py``는 사용하거나
 수정하지 않는다. 이 모듈의 점수는 확률 예측이 아니라 조건 충족도다.
@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026073112
+MODULE_REVISION = 2026080110
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -2495,11 +2495,14 @@ def clear_pullback_cache() -> None:
     새로 받는다). 값·점수·판정은 바뀌지 않는다 — 90초 안에는 90초 전 거래대금을
     쓸 뿐이고, 화면 안내는 이미 눌림목을 30분 캐시라고 적고 있다.
     """
+    # 설명서 두 갈래(2026-08-01)도 같이 지운다 — 안 지우면 '새로 찾기'를 눌러도
+    # 옛 결과가 그대로 나온다.
+    stale_prefixes = ("pullback_stocks", "kr_breakout_pullback", "kr_crash_rebound")
     with _CACHE_LOCK:
         for key in list(_CACHE):
             if key == "theme_universe" or key == "theme_list":
                 _CACHE.pop(key, None)
-            elif isinstance(key, tuple) and key and key[0] == "pullback_stocks":
+            elif isinstance(key, tuple) and key and key[0] in stale_prefixes:
                 _CACHE.pop(key, None)
 
 
@@ -2559,6 +2562,191 @@ def score_at_past(
         }
     except Exception:
         return None
+
+
+# ── 설명서 두 갈래의 한국판 (2026-08-01 사용자 지시) ──────────────────────────
+# 규칙(며칠 기다리고 몇 % 눌린 것을 보는지)은 미국장 눌림목 매매 설명서 그대로다.
+# **승률·평균수익은 여기 두지 않는다.** 그 숫자는 미국 대형주 200개로 잰 값이라
+# 한국 화면에 옮겨 적으면 화면이 거짓말을 한다. 한국 설명서가 스스로 정한 원칙이기도
+# 하다 — "남의 자료로 잰 값이라, 우리 자료로 재보기 전에는 점수에 넣지 않습니다".
+# 한국에서 다시 재면 그때 숫자를 여기에 넣는다.
+BREAKOUT_PULLBACK_RULE = {
+    "wait_days": (3, 5),        # 52주 신고가 돌파 뒤 기다리는 거래일
+    "drop_band": (-6.0, -4.0),  # 그 고점에서 눌린 폭
+    "hold_days": 120,
+    "verified_in_korea": False,
+}
+CRASH_REBOUND_RULES = (
+    {"key": "deep", "band": (-50.0, -40.0), "hold_days": 20, "label": "고점 대비 -40~-50%"},
+    {"key": "mid", "band": (-40.0, -30.0), "hold_days": 60, "label": "고점 대비 -30~-40%"},
+)
+# 한국은 대형주 목록이 따로 없다. 테마 구성종목 중 거래대금 상위 이만큼을 본다 —
+# 미국의 '대형주 200개'와 같은 자리다.
+RULEBOOK_SCAN_LIMIT = 200
+
+
+def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_limit: int) -> dict:
+    """거래대금 상위 종목을 훑어 `match(metrics)`가 참인 것만 모은다.
+
+    find_pullback_stocks와 같은 길을 쓴다 — 테마 구성종목 → 유동성 상위 → 일봉 →
+    조건. 다른 점은 조건이 '설명서 규칙 하나'뿐이고 이동평균·테마 수를 보지 않는
+    것이다(설명서에 없는 조건이라).
+    """
+    universe = get_theme_universe()
+    if not universe.get("ok"):
+        raise RuntimeError(universe.get("error") or "테마 구성종목 조회 실패")
+    seen = universe["stocks"]
+    candidates = []
+    for item in seen.values():
+        current_value = float(item.get("trading_value") or 0)
+        previous_proxy = float(item.get("price") or 0) * float(item.get("previous_volume") or 0)
+        liquidity = max(current_value, previous_proxy)
+        if liquidity >= min_trading_value:
+            candidates.append({**item, "liquidity_value": liquidity})
+    liquid_total = len(candidates)
+    # 동점은 종목코드로 갈라 순서를 고정한다(돌릴 때마다 목록이 바뀌지 않게).
+    candidates.sort(key=lambda item: (-(item.get("liquidity_value") or 0), str(item.get("code"))))
+    candidates = candidates[:scan_limit]
+
+    def _screen(stock):
+        daily = get_daily_frame(stock["code"])
+        metrics = _series_metrics(daily, stock.get("price"))
+        if not metrics.get("ok"):
+            return None
+        matched = match(metrics)
+        if not matched:
+            return None
+        return {**stock, "metrics": metrics, "daily": daily, "rule": matched}
+
+    screened = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for future in as_completed([executor.submit(_screen, s) for s in candidates]):
+            try:
+                item = future.result()
+            except Exception:
+                continue
+            if item:
+                screened.append(item)
+
+    screened.sort(key=lambda item: (-(item.get("liquidity_value") or 0), str(item.get("code"))))
+    picked = screened[:result_limit]
+
+    kospi = _index_metrics("KS11")
+    market_ret20 = kospi.get("ret20") if kospi.get("ok") else None
+
+    def _finalize(item):
+        flow = get_stock_flow(item["code"])
+        score, parts = _stock_score(item["metrics"], flow, market_ret20)
+        return {**item, "flow": flow, "score": score, "score_parts": parts,
+                "pullback": _pullback_quality(item["metrics"], flow) or {}}
+
+    final = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        for future in as_completed([executor.submit(_finalize, s) for s in picked]):
+            try:
+                final.append(future.result())
+            except Exception:
+                continue
+    final.sort(key=lambda item: (-(item.get("liquidity_value") or 0), str(item.get("code"))))
+    for index, item in enumerate(final, 1):
+        item["pullback_rank"] = index
+        item["plan"] = _entry_plan(item["metrics"], item["score"], 100, 100)
+        item.pop("daily", None)
+    return {
+        "rows": final,
+        "universe_count": len(seen),
+        "liquid_count": liquid_total,
+        "scanned_count": len(candidates),
+        "screened_count": len(screened),
+        "checked_at": datetime.now(_SEOUL).isoformat(timespec="seconds"),
+    }
+
+
+def find_breakout_pullback_stocks(
+    *, min_trading_value: float = 2e10, scan_limit: int = RULEBOOK_SCAN_LIMIT,
+    result_limit: int = 20, ttl_seconds: float = 600,
+) -> dict:
+    """설명서 1번의 한국판 — 정상 상승장의 '신고가 눌림매수' 자리.
+
+    52주 신고가 뒤 3~5거래일이 지나고 그 고점에서 4~6% 내려온 종목만 본다.
+    이동평균·테마 수는 보지 않는다 — 설명서에 없는 조건이다.
+    """
+    wait_min, wait_max = BREAKOUT_PULLBACK_RULE["wait_days"]
+    drop_low, drop_high = BREAKOUT_PULLBACK_RULE["drop_band"]
+
+    def _match(metrics):
+        days_ago = metrics.get("high52_days_ago")
+        from_high = metrics.get("from_high_pct")
+        if days_ago is None or not (wait_min <= days_ago <= wait_max):
+            return None
+        if from_high is None or not (drop_low <= from_high <= drop_high):
+            return None
+        return {"wait_days": int(days_ago), "hold_days": BREAKOUT_PULLBACK_RULE["hold_days"]}
+
+    def _produce():
+        found = _rulebook_scan(
+            _match, min_trading_value=min_trading_value,
+            scan_limit=scan_limit, result_limit=result_limit,
+        )
+        for row in found["rows"]:
+            row.update(row.pop("rule"))
+        return {**found, "mode": "breakout", "rule": BREAKOUT_PULLBACK_RULE,
+                "result_limit": int(result_limit)}
+
+    try:
+        key = ("kr_breakout_pullback", float(min_trading_value), int(scan_limit), int(result_limit))
+        value, stale = _cached(key, ttl_seconds, _produce)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "rows": []}
+    return {"ok": True, "stale": stale, **value}
+
+
+def find_crash_rebound_stocks(
+    *, min_trading_value: float = 2e10, scan_limit: int = RULEBOOK_SCAN_LIMIT,
+    result_limit: int = 20, ttl_seconds: float = 600,
+) -> dict:
+    """설명서 2번의 한국판 — 급락 후 반등장의 '낙폭 종목'.
+
+    신고가가 언제였는지는 보지 않고 고점 대비 낙폭만 본다. 이동평균도 보지 않는다 —
+    30~50% 빠진 종목이 50일선 위에 있을 리 없다.
+    """
+
+    def _match(metrics):
+        from_high = metrics.get("from_high_pct")
+        if from_high is None:
+            return None
+        for order, rule in enumerate(CRASH_REBOUND_RULES):
+            low, high = rule["band"]
+            if low <= from_high < high:
+                return {"bucket": rule["key"], "bucket_label": rule["label"],
+                        "hold_days": rule["hold_days"], "_order": order}
+        return None
+
+    def _produce():
+        found = _rulebook_scan(
+            _match, min_trading_value=min_trading_value,
+            scan_limit=scan_limit, result_limit=result_limit,
+        )
+        counts = {rule["key"]: 0 for rule in CRASH_REBOUND_RULES}
+        for row in found["rows"]:
+            row.update(row.pop("rule"))
+            counts[row["bucket"]] = counts.get(row["bucket"], 0) + 1
+        # 낙폭이 깊은 갈래를 위에 둔다(미국 화면과 같은 순서).
+        found["rows"].sort(
+            key=lambda row: (row.get("_order", 9), -(row.get("liquidity_value") or 0))
+        )
+        for index, row in enumerate(found["rows"], 1):
+            row["pullback_rank"] = index
+            row.pop("_order", None)
+        return {**found, "mode": "crash", "rules": CRASH_REBOUND_RULES,
+                "bucket_counts": counts, "result_limit": int(result_limit)}
+
+    try:
+        key = ("kr_crash_rebound", float(min_trading_value), int(scan_limit), int(result_limit))
+        value, stale = _cached(key, ttl_seconds, _produce)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "rows": []}
+    return {"ok": True, "stale": stale, **value}
 
 
 def find_pullback_stocks(

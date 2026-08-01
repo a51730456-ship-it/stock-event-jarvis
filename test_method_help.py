@@ -186,11 +186,32 @@ class UsGuideTests(unittest.TestCase):
         self.assertIn('class="mh-doc"', kr)
         for name in ("mh-h1", "mh-h2", "mh-note", "mh-warn-box", "mh-key"):
             self.assertIn(name, kr, f"{name} 옷이 한국 설명에 없다")
-        # 미국 검증값을 한국 화면에 옮겨 적으면 안 된다 — 다른 시장 자료다.
-        for us_only in ("59.7%", "GPT-5.6 SOL", "120거래일"):
+        # 규칙(3~5거래일·4~6%·120거래일 보유)은 같이 써도 된다 — 그건 '무엇을 보는가'다.
+        # 옮겨 적으면 안 되는 것은 **미국 자료로 잰 성적**이다.
+        for us_only in ("59.7%", "+18.0%", "92.6%", "100.0%", "GPT-5.6 SOL", "재검증 5,000회"):
             self.assertNotIn(us_only, kr, f"미국 검증값 {us_only}이 한국 설명에 새어 들어갔다")
-        # 한국은 그 방식으로 아직 안 쟀다는 것을 밝혀야 한다.
+        # 한국은 그 방식으로 아직 안 쟀다는 것을 두 번 밝혀야 한다(맨 위 + 두 갈래 앞).
         self.assertIn("아직 그 방식으로 재지 않았습니다", kr)
+        self.assertIn("한국에서는 아직 재보지 않았습니다", kr)
+
+    def test_korea_documents_the_two_rulebook_screens(self):
+        """화면에 단추를 만들었으면 설명서에도 그 기준이 있어야 한다(2026-08-01)."""
+        import jarvis4_data as j4
+
+        kr = _visible(method_help.KR_TEXT)
+        self.assertIn("상승장 (신고가 눌림매수)", kr)
+        self.assertIn("급락 후 반등장 (낙폭종목)", kr)
+        # 설명서에 적힌 숫자와 실제로 찾는 기준이 같아야 한다.
+        wait_min, wait_max = j4.BREAKOUT_PULLBACK_RULE["wait_days"]
+        self.assertIn(f"{wait_min}~{wait_max}거래일", kr)
+        self.assertIn("4~6%", kr)
+        self.assertIn(f"{j4.BREAKOUT_PULLBACK_RULE['hold_days']}거래일", kr)
+        deep, mid = j4.CRASH_REBOUND_RULES
+        self.assertIn(f"고점 대비 -40~-50%", kr)
+        self.assertIn(f"{deep['hold_days']}거래일 보유", kr)
+        self.assertIn(f"{mid['hold_days']}거래일 보유", kr)
+        # 이동평균을 안 본다는 것도 적혀 있어야 한다.
+        self.assertIn("보지 않습니다", kr)
 
 
 class TextTests(unittest.TestCase):
