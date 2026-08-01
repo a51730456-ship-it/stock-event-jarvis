@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026073010
+MODULE_REVISION = 2026080110
 
 GO, WAIT, STOP = "go", "wait", "stop"
 
@@ -35,6 +35,23 @@ def build(plan: dict | None, *, money, market_score=None) -> dict:
     state = str(plan.get("state") or "")
     recommendation = str(plan.get("recommendation") or "")
     reason = str(plan.get("buy_reason") or "").strip()
+
+    # 설명서 두 갈래(상승장 신고가 눌림·급락 후 반등장)는 **다른 규칙**이다.
+    # 넘어야 할 기준가도 손절도 없고, 시장 점수 문턱도 이 규칙에는 없다.
+    # 아래 문턱 검사를 태우면 '오늘은 새로 사지 않습니다'가 잘못 붙는다.
+    if plan.get("rule_mode"):
+        hold = plan.get("hold_days")
+        pieces = [f"<b>{plan.get('entry') or '다음 거래일 시가'}</b>에 삽니다"]
+        if hold:
+            pieces.append(f"<b>{int(hold)}거래일</b> 뒤 종가에 팝니다")
+        pieces.append("이 규칙에는 <b>손절가가 없습니다</b>")
+        if recommendation == "조건부 후보":
+            headline = "설명서 규칙에 맞는 자리입니다"
+            level = GO
+        else:
+            headline = f"규칙에는 맞지만 뒷받침이 얇습니다 ({state})"
+            level = WAIT
+        return {"level": level, "headline": headline, "detail": " · ".join(pieces)}
 
     if state in ("", "자료 부족"):
         return {

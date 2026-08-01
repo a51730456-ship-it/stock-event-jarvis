@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080150
+MODULE_REVISION = 2026080160
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -278,14 +278,27 @@ GPT-5.6 SOL이 미국 대형주 <b>200개</b>의 실제 주가를 계산하고, 
 </ul>
 </div>
 <div class="mh-box mh-data-box">
-<div class="mh-box-h">▸ 순위와 점수 (2026-08-01, 10년치로 재 보고 정했습니다)</div>
+<div class="mh-box-h">▸ 순위와 점수 — <u>두 갈래가 다릅니다</u> (2026-08-01, 10년치로 재 봤습니다)</div>
+<div class="mh-hold">
+<div class="mh-hold-h">급락 후 반등장(낙폭 종목)</div>
 <div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">40점</span></div>
 <div class="mh-kv"><span class="mh-k">낙폭 갈래(-40~-50%가 만점)</span><span class="mh-v">25점</span></div>
 <div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v">15점</span></div>
 <div class="mh-kv"><span class="mh-k">사고팔기 쉬운가 · 많이 흔들리지 않나</span><span class="mh-v">각 10점</span></div>
-<div class="mh-sub">테마 동반은 100번 중 이긴 횟수가 0~1개 55번 → 4개 이상 60번으로 갈렸습니다.
-거래대금 연속은 <b>이미 오른 종목이면 점수를 깎습니다</b> — 최근 11일 동안 15% 넘게 오른 뒤라면
-100번 중 48번으로 오히려 손해였습니다(안 오른 쪽은 67번).</div>
+</div>
+<div class="mh-hold">
+<div class="mh-hold-h">상승장(신고가 눌림매수)</div>
+<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">35점</span></div>
+<div class="mh-kv"><span class="mh-k">최근 60일에 얼마나 올랐나</span><span class="mh-v mh-pos">30점</span></div>
+<div class="mh-kv"><span class="mh-k">눌린 폭(-5~-5.5%가 만점)</span><span class="mh-v">15점</span></div>
+<div class="mh-kv"><span class="mh-k">사고팔기 쉬운가 · 많이 흔들리지 않나</span><span class="mh-v">각 10점</span></div>
+<div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v mh-neg">0점</span></div>
+</div>
+<div class="mh-sub"><b>거래대금 연속이 두 갈래에서 정반대입니다.</b> 낙폭에서는 100번 중 67번으로
+좋지만, 상승장에서는 11일 이상일 때 53번으로 <b>거꾸로</b>였습니다(기준 62번). 이미 신고가인데
+거래대금까지 오래 실렸으면 늦은 자리라는 뜻이라, 상승장에서는 점수도 표 칸도 뺐습니다.
+낙폭에서도 <b>이미 오른 종목이면 깎습니다</b> — 최근 11일에 15% 넘게 올랐으면 48번이었습니다.
+상승장에서 대신 쓰는 값은 최근 60일 상승폭입니다(40% 넘으면 70번).</div>
 </div>
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">⚠ 미국에는 외국인·기관 수급 자료가 없습니다</div>
@@ -375,31 +388,36 @@ KR_TEXT = """
 <li>신고가가 <b>언제 나왔는지는 보지 않습니다.</b></li>
 <li>고점 대비 <b>얼마나 하락했는지만</b> 봅니다.</li>
 <li>두 갈래 모두 <b>이동평균을 보지 않습니다</b> — 설명서에 없는 조건입니다.</li>
-<li>코스피가 급락했다가 처음 반등한 날은 12년 동안 <b>여덟 번</b>뿐입니다. 거래 수는 수백 건이지만 사실상 <b>여덟 번의 사건</b>이라, 승률을 앞으로의 확률로 읽으면 안 됩니다.</li>
+<li>코스피가 급락했다가 처음 반등한 날은 12년 동안 <b>여덟 번</b>뿐이라, 승률을 앞으로의 확률로 읽으면 안 됩니다.</li>
 </ul>
 </div>
 <div class="mh-box mh-data-box">
-<div class="mh-box-h">▸ 순위와 점수 (12년치로 재 봤습니다)</div>
+<div class="mh-box-h">▸ 순위와 점수 — <u>두 갈래가 다릅니다</u> (한국 자료로 쟀습니다)</div>
+<div class="mh-hold">
+<div class="mh-hold-h">급락 반등장</div>
 <div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">40점</span></div>
 <div class="mh-kv"><span class="mh-k">낙폭 갈래(-40~-50%가 만점)</span><span class="mh-v">25점</span></div>
 <div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v">20점</span></div>
-<div class="mh-kv"><span class="mh-k">외국인+기관 동반 5일</span><span class="mh-v mh-neg">0점</span></div>
-<div class="mh-sub">테마 동반 — 100번 중 0~1개 49번 → 4개 이상 55번.
-거래대금 연속 — 11일 이상 61번(0일 52번). 단 <b>이미 오른 종목은 깎습니다</b>(최근 11일에
-15% 넘게 올랐으면 48번으로 손해).</div>
+<div class="mh-kv"><span class="mh-k">사고팔기 쉬운가</span><span class="mh-v">15점</span></div>
+<div class="mh-sub">테마 동반 0~1개 49번 → 4개 이상 55번. 거래대금 연속 11일 이상 61번, 단 <b>이미 오른 종목은 깎습니다</b>.</div>
+</div>
+<div class="mh-hold">
+<div class="mh-hold-h">상승장</div>
+<div class="mh-kv"><span class="mh-k">거래대금(500억 이상)</span><span class="mh-v mh-pos">30점</span></div>
+<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">30점</span></div>
+<div class="mh-kv"><span class="mh-k">최근 60일에 얼마나 올랐나</span><span class="mh-v">25점</span></div>
+<div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v">15점</span></div>
+<div class="mh-sub">거래대금 500억 이상 100번 중 69~72번(미만 55번). 테마 동반 혼자 55번 → 2개 70번. 60일 상승폭 40% 넘으면 61번. 거래대금 연속 11일 이상 63번 — <b>미국에서는 거꾸로였습니다.</b></div>
+</div>
 </div>
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">⚠ 외국인+기관 동반은 점수에 넣지 않습니다</div>
-<div class="mh-step">12년치로 재 보니 <b>거꾸로였습니다.</b> 둘이 같이 산 날이 <u>많을수록</u> 성적이
-나빴습니다 — 100번 중 하루도 안 산 종목 52번, 닷새 다 산 종목 46번. 둘이 사는 동안 값이
-이미 올라 따라 들어가면 늦기 때문입니다.</div>
-<div class="mh-sub">표에는 그대로 보여 주되 순위·점수에서는 뺐습니다. docs/KR_RULE_BACKTEST.md</div>
+<div class="mh-step">12년치로 재 보니 <b>거꾸로였습니다.</b> 둘이 같이 산 날이 <u>많을수록</u> 나빴습니다 — 100번 중 안 산 종목 52번, 닷새 다 산 종목 46번.</div>
+<div class="mh-sub">표에는 보여 주되 순위·점수에서는 뺐습니다. docs/KR_RULE_BACKTEST.md</div>
 </div>
 <div class="mh-key">
 <div class="mh-key-h">핵심</div>
-<div>상승장 = 신고가 후 <b>3~5일</b>과 <b>4~6% 눌림</b>을 본다.</div>
-<div>급락 반등장 = 신고가 날짜는 보지 않고 <b>고점 대비 낙폭</b>만 본다.</div>
-<div>매수는 항상 <b>종가 확인 후 다음 거래일 시가</b>에 한다.</div>
+<div>매수는 두 갈래 모두 <b>종가 확인 후 다음 거래일 시가</b>에 한다.</div>
 </div>
 <div class="mh-h2"><span class="mh-no">3</span><span>눌림목 찾기 표는 <u>다른 기준</u>입니다</span></div>
 <div class="mh-box mh-data-box">
@@ -410,19 +428,17 @@ KR_TEXT = """
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">⚠ 한국은 미국과 결론이 다릅니다</div>
 <div class="mh-step">코스피 21년치로 재보니 시장 점수가 <b>미국만큼 듣지 않았습니다.</b></div>
-<div class="mh-kv"><span class="mh-k">20일 안에 10% 넘게 깨질 확률(50일선 위/아래)</span><span class="mh-v mh-neg">한국 2.9% vs 3.6%</span></div>
-<div class="mh-kv"><span class="mh-k">미국은 같은 값이</span><span class="mh-v mh-pos">1.1% vs 3.5%</span></div>
+<div class="mh-kv"><span class="mh-k">20일 안에 10% 깨질 확률(50일선 위/아래)</span><span class="mh-v mh-neg">한국 2.9% vs 3.6%</span></div>
+<div class="mh-kv"><span class="mh-k">미국은</span><span class="mh-v mh-pos">1.1% vs 3.5%</span></div>
 </div>
 <div class="mh-box mh-buy-box">
 <div class="mh-box-h">▸ 그래서 이렇게 보강했습니다</div>
 <div class="mh-step"><b>외국인·기관 수급</b>을 종목 점수 100점 중 <b>20점</b>으로 넣었습니다</div>
-<div class="mh-step">추격 금지를 국내용으로 따로 뒀습니다 — 하루 30%까지 오르는 시장이라</div>
 <div class="mh-step mh-go">→ 시장 점수는 <u>참고로만</u>, 수급과 종목 점수를 무겁게</div>
 </div>
 <div class="mh-key">
 <div class="mh-key-h">이 화면이 하는 일</div>
-<div>“이걸 사라”고 찍어 주는 화면이 <b>아닙니다.</b></div>
-<div><b>“지금 사면 얼마나 위험한가”</b>를 재 주는 화면입니다.</div>
+<div>“이걸 사라”가 아니라 <b>“지금 사면 얼마나 위험한가”</b>를 재 줍니다.</div>
 </div>
 <div class="mh-h2"><span class="mh-no">4</span>지금 할 일 — 테두리 색이 곧 답</div>
 <div class="mh-box mh-data-box">
@@ -433,6 +449,10 @@ KR_TEXT = """
 <div class="mh-kv"><span class="mh-k">🟨 사지 않고 지켜봅니다</span><span class="mh-v">아직 자리가 아님</span></div>
 <div class="mh-kv"><span class="mh-k">🟥 손대지 않습니다 · 후보에서 뺍니다</span><span class="mh-v mh-neg">점수가 높아도 예외 없음</span></div>
 </div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 두 갈래는 이 상자가 다릅니다</div>
+<div class="mh-step">기준가도 손절가도 <b>규칙에 없어</b> <b>사는 때 · 보유 기간 · 파는 때</b>만 적습니다.</div>
+</div>
 <div class="mh-h2"><span class="mh-no">5</span>점수를 잘못 읽는 흔한 경우</div>
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">⚠ 점수는 앞일을 맞히는 숫자가 아닙니다</div>
@@ -440,12 +460,12 @@ KR_TEXT = """
 <li>90점 = “이 종목은 오른다” → <b>틀린 말</b></li>
 <li>30점 = “이걸 사면 크게 깨질 수 있다” → 맞는 말</li>
 </ul>
-<div class="mh-sub">값은 원자료 그대로이고, 못 가져온 값은 지어내지 않습니다.</div>
+<div class="mh-sub">못 가져온 값은 지어내지 않습니다.</div>
 </div>
 <div class="mh-h2"><span class="mh-no">6</span>어디서 왔나 · 언제 파나</div>
 <div class="mh-box mh-sell-box">
 <div class="mh-step"><b>한 편의 논문에서 나온 기법이 아닙니다.</b> 논문(Moskowitz &amp; Grinblatt 1999 · George &amp; Hwang 2004)과 실무(Weinstein · O'Neil · Minervini)가 겹치는 자리입니다.</div>
-<div class="mh-step"><b>파는 때는 아직 이 화면에 없습니다</b> — 조건점수로 고르는 <u>눌림목 찾기 표</u> 이야기입니다. 위 두 갈래에는 보유일수가 정해져 있습니다.</div>
+<div class="mh-step"><b>파는 때는 아직 이 화면에 없습니다</b> — 눌림목 찾기 표 이야기이고, 위 두 갈래에는 보유일수가 있습니다.</div>
 <div class="mh-sub">근거: docs/METHOD_ORIGINS.md · docs/KR_RULE_BACKTEST.md</div>
 </div>
 </div>

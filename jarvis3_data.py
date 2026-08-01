@@ -1084,6 +1084,97 @@ def crash_rebound_score(row: dict) -> dict:
     return {"score": score, "parts": parts, "max": 100.0}
 
 
+# ── 상승장(신고가 눌림매수) 전용 배점 (2026-08-01) ────────────────────────────
+# **낙폭 배점을 그대로 쓰면 안 된다.** 두 자리는 성격이 정반대다. 미국 10년치
+# 3,250개 표본으로 따로 쟀다(기준선 가운데 +6.25% · 100번 중 62번).
+#
+#   35점 같은 테마 동반  — 3개 이상이면 +18.94% · 100번 중 78번(기준 62번). 가장 세다.
+#   30점 최근 60일 상승폭 — 40% 넘게 오른 쪽이 +15.98% · 70번. **강한 종목이 더 간다.**
+#   15점 눌린 폭        — -5~-5.5%가 +7.27% · 66번으로 가장 좋았다.
+#   10점 유동성 / 10점 변동성
+#
+# **낙폭과 정반대인 것 두 가지 — 반드시 기억할 것**
+#   * 거래대금 평소 위 연속: 낙폭에서는 좋지만(67번) 상승장에서는 **거꾸로**다
+#     (11일 이상 +0.98% · 53번). 이미 신고가인데 거래대금까지 오래 실렸으면 늦은 것이다.
+#     그래서 **0점**이고 표에서도 뺀다.
+#   * 최근 상승폭: 낙폭에서는 이미 오른 것이 나빴지만(48번) 상승장에서는 좋다(70번).
+#
+# 안 넣은 것 — 기다린 날(3/4/5일 각 63·63·61번, 차이 없음),
+#              50·200일선 위(신고가 종목은 정의상 100% 위라 가르지 못한다).
+BREAKOUT_SCORE_WEIGHTS = {
+    "together": 35.0, "ret60": 30.0, "drop": 15.0, "liquidity": 10.0, "volatility": 10.0,
+}
+
+
+def breakout_score(row: dict) -> dict:
+    """상승장(신고가 눌림매수) 후보의 점수(100점)와 근거."""
+    metrics = row.get("metrics") or {}
+    weights = BREAKOUT_SCORE_WEIGHTS
+    parts = []
+
+    tier = int(row.get("together_tier") or 0)
+    parts.append(("같은 테마 동반", weights["together"] * (tier / 3.0), weights["together"],
+                  f"{int(row.get('together_count') or 0)}개 함께 걸림"))
+
+    ret60 = metrics.get("ret60")
+    parts.append(("최근 60일 상승폭", _scale(ret60, 0.0, 40.0, weights["ret60"]),
+                  weights["ret60"], "—" if ret60 is None else f"{float(ret60):+.1f}%"))
+
+    # 눌린 폭은 -5~-5.5%가 가장 좋았다. 그 가운데(-5.25%)에서 멀어질수록 깎는다.
+    drop = metrics.get("from_high_pct")
+    if drop is None:
+        drop_points = weights["drop"] * 0.5
+    else:
+        drop_points = _scale(-abs(float(drop) + 5.25), -1.0, 0.0, weights["drop"])
+    parts.append(("눌린 폭", drop_points, weights["drop"],
+                  "—" if drop is None else f"{float(drop):+.1f}%"))
+
+    dollar = metrics.get("avg_dollar_volume") or 0
+    parts.append(("유동성", _scale(float(dollar) / 1e9, 0.05, 1.0, weights["liquidity"]),
+                  weights["liquidity"], f"${float(dollar)/1e6:,.0f}M" if dollar else "—"))
+
+    atr = metrics.get("atr_pct")
+    parts.append(("변동성 안정",
+                  weights["volatility"] if atr is None
+                  else _scale(-float(atr), -8.0, -2.0, weights["volatility"]),
+                  weights["volatility"], f"{float(atr):.1f}%" if atr is not None else "—"))
+
+    return {"score": round(sum(v for _n, v, _m, _t in parts), 1), "parts": parts, "max": 100.0}
+
+
+def breakout_plan(row: dict) -> dict:
+    """상승장(신고가 눌림매수)의 매수 심사 결과.
+
+    낙폭 갈래와 마찬가지로 **넘어야 할 기준가도, 손절가도 없다.** 종가를 확인하고
+    다음 거래일 시가에 사서 120거래일 뒤에 판다.
+    """
+    metrics = row.get("metrics") or {}
+    hold = int(row.get("hold_days") or BREAKOUT_PULLBACK_RULE["hold_days"])
+    score = float(breakout_score(row)["score"])
+    if score >= 70:
+        state, recommendation = "규칙에 맞는 자리", "조건부 후보"
+    elif score >= 50:
+        state, recommendation = "자리는 맞으나 근거가 얇음", "관찰"
+    else:
+        state, recommendation = "규칙만 맞고 뒷받침이 없음", "관찰"
+    return {
+        "state": state,
+        "recommendation": recommendation,
+        "rule_mode": "breakout",
+        "entry": "다음 거래일 시가",
+        "hold_days": hold,
+        "current": metrics.get("current"),
+        "invalidation": None,
+        "target": None,
+        "buy_reason": (
+            f"52주 신고가를 찍고 {int(row.get('wait_days') or 0)}거래일이 지나 "
+            f"고점 대비 {metrics.get('from_high_pct', 0):.1f}%까지 눌린 자리입니다. "
+            f"규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 사서 "
+            f"{hold}거래일 뒤 종가에 팝니다. 이 규칙에는 손절가가 없습니다."
+        ),
+    }
+
+
 def crash_rebound_plan(row: dict) -> dict:
     """급락 후 반등장의 매수 심사 결과.
 
@@ -1103,6 +1194,7 @@ def crash_rebound_plan(row: dict) -> dict:
     return {
         "state": state,
         "recommendation": recommendation,
+        "rule_mode": "crash",
         "entry": "다음 거래일 시가",
         "hold_days": hold,
         "current": metrics.get("current"),
@@ -1141,6 +1233,21 @@ def _rank_key(row: dict):
         -min(int(row.get("volume_streak") or 0), VOLUME_STREAK_LOOKBACK)
         * volume_streak_weight(row.get("recent_gain_pct")),
         -(row["metrics"].get("avg_dollar_volume") or 0),
+    )
+
+
+def _breakout_rank_key(row: dict):
+    """상승장 순위 — 낙폭과 **다른 차례**다(재 본 결과가 다르다, 2026-08-01).
+
+    ① 같은 테마 동반(3개 이상 100번 중 78번) ② 최근 60일 상승폭(40% 넘으면 70번)
+    ③ 거래대금(참고). **거래대금 연속은 안 쓴다** — 상승장에서는 거꾸로였다
+    (11일 이상 53번, 기준선 62번). 낙폭 표에서만 쓴다.
+    """
+    return (
+        -row.get("together_tier", 0),
+        -row.get("together_count", 0),
+        -float((row.get("metrics") or {}).get("ret60") or 0),
+        -((row.get("metrics") or {}).get("avg_dollar_volume") or 0),
     )
 
 
@@ -1193,7 +1300,7 @@ def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int
         row["recent_gain_pct"] = recent_gain_pct(daily.get(ticker))
         rows.append(row)
     _attach_theme_together(rows, memberships)
-    rows.sort(key=_rank_key)
+    rows.sort(key=_breakout_rank_key)
     rows = rows[: max(1, int(result_limit))]
     for index, row in enumerate(rows, 1):
         row["pullback_rank"] = index

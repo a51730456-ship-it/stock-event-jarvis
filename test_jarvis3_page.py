@@ -705,6 +705,36 @@ class Jarvis3PageTests(unittest.TestCase):
         # 표 칸에는 '고점 대비'를 빼고 숫자만 — 폰에서 옆 칸을 덮었다.
         self.assertIn("j3-band-deep'>-40~-50%", joined)
 
+    def test_crash_detail_uses_the_crash_ruler_not_the_ordinary_one(self):
+        """낙폭 종목을 누르면 낙폭 전용 배점이 나와야 한다(2026-08-01).
+
+        기존 조건점수는 '신고가에 가까운가·이동평균 위인가'로 절반을 준다. 낙폭
+        종목은 그 조건을 정의상 하나도 못 맞춰 전부 '제외'로 나왔다 — 찾아 놓고
+        사지 말라는 화면이었다.
+        """
+        app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
+        joined = " ".join(str(node.value) for node in app.markdown)
+        self.assertIn("급락 반등 전용 배점", joined)
+        self.assertIn("낙폭 갈래", joined)
+        # 이 규칙에는 기준가도 손절도 없다 — 없는 것을 있는 것처럼 적으면 안 된다.
+        # (‘2R 목표’·‘조건 기준가’는 위쪽 테마 대장주 상세에도 나오므로, 이 갈래의
+        #  칸이 그것으로 채워지지 않았는지는 아래 소스 검사로 함께 지킨다.)
+        self.assertIn("이 규칙에는 없음", joined)
+        self.assertIn("이 규칙에는 기준가도 손절가도 없습니다", joined)
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
+        self.assertIn('if mode in ("crash", "breakout"):', block)
+
+    def test_breakout_detail_uses_the_breakout_ruler(self):
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                  _breakout_result())
+        joined = " ".join(str(node.value) for node in app.markdown)
+        self.assertIn("신고가 눌림 전용 배점", joined)
+        self.assertIn("최근 60일 상승폭", joined)
+        # 상승장에서는 거래대금 연속이 거꾸로였다 — 표 칸에서 빠져야 한다.
+        self.assertNotIn("거래대금 (평소 위 연속)", joined)
+        self.assertIn("이 규칙에는 없음", joined)
+
     def test_each_section_can_also_be_closed_from_its_bottom(self):
         """구역마다 맨 아래에도 닫기 단추를 둔다(2026-08-01, 한국테마와 같은 장치)."""
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")

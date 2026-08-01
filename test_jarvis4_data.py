@@ -220,6 +220,68 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual("4개 이상", j4.together_tier(9)[1])
 
 
+class KrBreakoutScoreTests(unittest.TestCase):
+    """상승장 배점은 한국에서 따로 재고 정했다 — 미국 값을 옮겨 적으면 안 된다."""
+
+    def _row(self, **over):
+        row = {
+            "code": "000001", "liquidity_value": 6e10, "together_count": 2,
+            "volume_streak": 11, "metrics": {"ret60": 50.0, "from_high_pct": -5.0},
+            "hold_days": 120, "wait_days": 4,
+        }
+        row.update(over)
+        return row
+
+    def test_weights_are_not_a_copy_of_the_us_ones(self):
+        import jarvis3_data as j3
+
+        self.assertNotEqual(j3.BREAKOUT_SCORE_WEIGHTS, j4.BREAKOUT_SCORE_WEIGHTS)
+        # 한국에서 가장 크게 갈린 것은 거래대금이다(500억 이상 100번 중 69~72번).
+        self.assertEqual(
+            "liquidity", max(j4.BREAKOUT_SCORE_WEIGHTS, key=j4.BREAKOUT_SCORE_WEIGHTS.get))
+        self.assertEqual(100.0, sum(j4.BREAKOUT_SCORE_WEIGHTS.values()))
+
+    def test_measured_losers_get_no_points(self):
+        """눌린 폭·변동성은 한국 상승장에서 안 갈렸다 — 배점에 있으면 안 된다."""
+        names = [name for name, _v, _m, _t in j4.breakout_score(self._row())["parts"]]
+        self.assertNotIn("눌린 폭", names)
+        self.assertNotIn("변동성 안정", names)
+
+    def test_volume_streak_is_not_discounted_unlike_the_crash_rule(self):
+        """낙폭에서는 이미 오른 종목을 깎지만 상승장에서는 그대로 준다(63번)."""
+        streak_points = dict(
+            (name, value) for name, value, _m, _t in
+            j4.breakout_score(self._row(recent_gain_pct=40.0))["parts"]
+        )["거래대금 평소 위 연속"]
+        self.assertEqual(j4.BREAKOUT_SCORE_WEIGHTS["volume_streak"], streak_points)
+
+    def test_together_tiers_are_one_and_two_not_the_crash_scale(self):
+        self.assertEqual(3, j4.breakout_together_tier(2)[0])
+        self.assertEqual(2, j4.breakout_together_tier(1)[0])
+        self.assertEqual(0, j4.breakout_together_tier(0)[0])
+        self.assertEqual("혼자", j4.breakout_together_tier(0)[1])
+
+    def test_plan_has_no_stop_loss_and_says_so(self):
+        plan = j4.breakout_plan(self._row())
+        self.assertEqual("breakout", plan["rule_mode"])
+        self.assertIsNone(plan["invalidation"])
+        self.assertIsNone(plan["target"])
+        self.assertEqual(120, plan["hold_days"])
+        self.assertIn("손절가가 없습니다", plan["buy_reason"])
+
+    def test_crash_plan_is_marked_as_a_rulebook_plan_too(self):
+        plan = j4.crash_rebound_plan(self._row(bucket="deep", hold_days=20))
+        self.assertEqual("crash", plan["rule_mode"])
+
+    def test_ranking_puts_trading_value_first(self):
+        big = self._row(code="A", liquidity_value=9e10, together_count=0)
+        small = self._row(code="B", liquidity_value=1e10, together_count=2)
+        for row in (big, small):
+            row["together_tier"] = j4.breakout_together_tier(row["together_count"])[0]
+        order = [r["code"] for r in sorted([small, big], key=j4._breakout_rank_key)]
+        self.assertEqual(["A", "B"], order)
+
+
 class TickSizeTests(unittest.TestCase):
     """호가단위 — 기준가가 실제 주문 가능한 가격이어야 한다."""
 

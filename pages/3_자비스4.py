@@ -552,7 +552,7 @@ if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
 import guidance
 
 # 지침 문구를 바꾸면 guidance의 리비전을 올린다(규칙 11).
-_REQUIRED_GUIDANCE_REVISION = 2026073010
+_REQUIRED_GUIDANCE_REVISION = 2026080110
 if int(getattr(guidance, "MODULE_REVISION", 0)) < _REQUIRED_GUIDANCE_REVISION:
     guidance = importlib.reload(guidance)
 
@@ -560,7 +560,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080150
+_REQUIRED_METHOD_HELP_REVISION = 2026080160
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
@@ -596,7 +596,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026080120
+_REQUIRED_J4_REVISION = 2026080130
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -1349,7 +1349,38 @@ def _stock_radio_label(item: dict) -> str:
     )
 
 
-def _pullback_as_candidate(row: dict, leaders: list[dict]) -> dict | None:
+_RULEBOOK_SCORERS = {
+    "crash": ("급락 반등 전용 배점", "crash_rebound_score", "crash_rebound_plan"),
+    "breakout": ("신고가 눌림 전용 배점", "breakout_score", "breakout_plan"),
+}
+
+
+def _rulebook_overlay(row: dict, mode: str | None) -> dict:
+    """설명서 갈래에서 고른 종목이면 그 갈래 전용 점수·심사로 덮어쓴다.
+
+    기존 6개 항목은 '신고가에 가까운가·이동평균 위인가'로 절반을 준다. 낙폭 종목은
+    그 조건을 정의상 하나도 못 맞춰 전부 '제외'로 나왔다(2026-08-01 실측).
+    찾아 놓고 사지 말라는 화면이 되므로 갈래마다 다른 자를 쓴다.
+    """
+    picked = _RULEBOOK_SCORERS.get(str(mode or ""))
+    if not picked:
+        return {}
+    title, score_fn, plan_fn = picked
+    scored = getattr(j4data, score_fn)(row)
+    plan = getattr(j4data, plan_fn)(row)
+    return {
+        "score": scored["score"],
+        "score_parts": [value for _n, value, _m, _t in scored["parts"]],
+        "factor_names": [name for name, _v, _m, _t in scored["parts"]],
+        "factor_max": [maximum for _n, _v, maximum, _t in scored["parts"]],
+        "factor_notes": [note for _n, _v, _m, note in scored["parts"]],
+        "factor_title": f"종목 선정 근거 ({title})",
+        "plan": plan,
+        "stock_reason": plan.get("buy_reason", ""),
+    }
+
+
+def _pullback_as_candidate(row: dict, leaders: list[dict], *, mode: str | None = None) -> dict | None:
     """눌림목 표에서 고른 종목을 '상세 종목 선택' 후보 모양으로 바꾼다.
 
     거래대금 상위 3위 안에 없는 종목을 눌러도 아래 상세가 그 종목으로 바뀌어야 한다는
@@ -1358,9 +1389,11 @@ def _pullback_as_candidate(row: dict, leaders: list[dict]) -> dict | None:
     """
     if not row or not row.get("code"):
         return None
+    overlay = _rulebook_overlay(row, mode)
     found = next((item for item in leaders if item["code"] == row["code"]), None)
     if found is not None:
-        return found
+        # 대장주 목록에 있어도 설명서 갈래에서 눌렀으면 그 갈래 자로 잰다.
+        return {**found, **overlay} if overlay else found
     metrics = row.get("metrics") or {}
     flow = row.get("flow") or {}
     from_high = metrics.get("from_high_pct")
@@ -1382,6 +1415,7 @@ def _pullback_as_candidate(row: dict, leaders: list[dict]) -> dict | None:
             f"눌림목 선택 종목 · 52주 고가 대비 {from_high:.1f}%{flow_text}"
             if from_high is not None else f"눌림목 선택 종목{flow_text}"
         ),
+        **overlay,
     }
 
 
@@ -1849,8 +1883,15 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     ]
     st.markdown(f"<div class='j4-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
-    factor_names = ["테마 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)", "유동성(거래대금)", "변동성 안정", "수급(외국인+기관)"]
-    factor_max = [20, 15, 20, 15, 10, 20]
+    # 설명서 두 갈래는 **다른 자로 잰다**(2026-08-01). 후보가 자기 배점을 들고 오면
+    # 그것을 쓴다. 기존 6개 항목은 '신고가에 가까운가'로 점수를 주기 때문에 낙폭
+    # 종목이 정의상 전부 '제외'로 나온다.
+    factor_names = leader.get("factor_names") or [
+        "테마 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)",
+        "유동성(거래대금)", "변동성 안정", "수급(외국인+기관)"]
+    factor_max = leader.get("factor_max") or [20, 15, 20, 15, 10, 20]
+    factor_notes = list(leader.get("factor_notes") or []) + [""] * len(factor_names)
+    factor_title = leader.get("factor_title") or "종목 선정 근거 (한국형 6개 항목)"
 
     def _gain_cell(part, maximum, *, top_border=False):
         border = " style='border-top:4px double rgba(255,255,255,0.55)'" if top_border else ""
@@ -1861,8 +1902,11 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         )
 
     factor_rows = "".join(
-        f"<tr><td class='j4-fac-name'>{name}</td>{_gain_cell(part, maximum)}</tr>"
-        for name, part, maximum in zip(factor_names, leader["score_parts"], factor_max)
+        f"<tr><td class='j4-fac-name'>{name}"
+        + (f" <span class='j4-muted' style='font-weight:600'>{note}</span>" if note else "")
+        + f"</td>{_gain_cell(part, maximum)}</tr>"
+        for name, part, maximum, note in zip(
+            factor_names, leader["score_parts"], factor_max, factor_notes)
     )
     total_style = (
         "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
@@ -1877,7 +1921,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
 
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
-        st.markdown("<div class='j4-section-title'>종목 선정 근거 (한국형 6개 항목)</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='j4-section-title'>{factor_title}</div>", unsafe_allow_html=True)
         st.markdown(
             "<table class='j4-factor-table'><thead><tr>"
             "<th>심사 항목</th><th>획득(최대)</th></tr></thead>"
@@ -1898,12 +1942,22 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
             ),
             unsafe_allow_html=True,
         )
-        plan_cells = [
-            ("조건 기준가", _won(plan.get("trigger")), "#e6e6e6"),
-            ("매수 허용 상단", _won(plan.get("zone_high")), "#e6e6e6"),
-            ("무효화 가격", _won(plan.get("invalidation")), "#4da6ff"),
-            ("2R 목표 참고", _won(plan.get("target")), "#ff5b5b"),
-        ]
+        if plan.get("rule_mode"):
+            # 이 규칙에는 넘어야 할 기준가도 손절도 없다. 없는 것을 있는 것처럼
+            # 적지 않고, 규칙이 실제로 정한 것을 적는다.
+            plan_cells = [
+                ("사는 때", str(plan.get("entry") or "—"), "#44f0a1"),
+                ("보유 기간", f"{int(plan.get('hold_days') or 0)}거래일", "#e6e6e6"),
+                ("파는 때", "그날 종가", "#e6e6e6"),
+                ("손절가", "이 규칙에는 없음", "#4da6ff"),
+            ]
+        else:
+            plan_cells = [
+                ("조건 기준가", _won(plan.get("trigger")), "#e6e6e6"),
+                ("매수 허용 상단", _won(plan.get("zone_high")), "#e6e6e6"),
+                ("무효화 가격", _won(plan.get("invalidation")), "#4da6ff"),
+                ("2R 목표 참고", _won(plan.get("target")), "#ff5b5b"),
+            ]
         plan_boxes = [
             f"<div class='j4-holo-cell'><div class='label'>{label}</div>"
             f"<div class='val' style='color:{color}'>{value}</div></div>"
@@ -2707,7 +2761,8 @@ def _render_pullback_detail(market: dict) -> None:
     if not picked_row or not picked:
         st.caption("위 눌림목 표에서 종목 이름을 누르면 여기에 그 종목 상세가 열립니다.")
         return
-    leader = _pullback_as_candidate(picked_row, [])
+    leader = _pullback_as_candidate(
+        picked_row, [], mode=st.session_state.get("j4_pullback_mode"))
     if leader is None:
         return
     theme_name = (picked_row.get("themes") or [picked[0]])[0]
@@ -2863,9 +2918,17 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             f"<b class='j4-down'>이 규칙이 기준선보다 나았던 해는 "
             f"{rule.get('years_total')}년 중 {rule.get('years_better')}년뿐입니다.</b> "
             "차이가 작고 해마다 뒤집힙니다 — 이것만 믿고 크게 걸 자리가 아닙니다.<br>"
-            "<b>순위를 매기는 기준</b> — ① <b>외국인+기관이 5일 중 며칠을 같이 샀나</b>"
-            "(동그라미 다섯)가 가장 큰 비중, ② 다음은 <b>같은 기준에 함께 걸린 같은 테마 "
-            "종목 수</b>입니다. 둘이 같으면 거래대금이 큰 종목을 위에 둡니다.</div>",
+            "<b>순위를 매기는 기준</b>(2026-08-01, 한국 자료로 따로 재고 정했습니다 — "
+            "<u>미국과 다릅니다</u>) — ① <b>거래대금</b>이 가장 크게 갈랐습니다. "
+            "500억 이상이 100번 중 <b>69~72번</b>, 그 아래는 55번이었습니다. "
+            "② 다음은 <b>같은 테마에서 함께 걸린 종목 수</b>(혼자 55번 → 1개 61번 → "
+            "2개 <b>70번</b>), ③ <b>최근 60일 상승폭</b>(40% 넘으면 61번), "
+            "④ <b>거래대금이 평소 위에 며칠 연속인가</b>(11일 이상 63번)입니다.<br>"
+            "<b class='j4-down'>거래대금 연속은 미국 상승장에서는 거꾸로였지만</b>(53번) "
+            "한국에서는 그대로 값을 했습니다. 시장이 다르면 같은 값도 뜻이 다릅니다.<br>"
+            "<b>재 보고 뺀 것</b> — 눌린 폭(-6~-4% 안에서 평평), 변동성(강한 종목에서는 "
+            "좋고 약한 종목에서는 나빠 한 방향이 아님), 기다린 날, 50·200일선(신고가 "
+            "종목은 정의상 전부 위).</div>",
             unsafe_allow_html=True,
         )
     else:
@@ -2927,9 +2990,14 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     # 순위를 정하는 두 칸(동반 5일 · 같이 걸린 종목)을 앞쪽에 둬서, 순위를 왜 그렇게
     # 매겼는지 눈으로 바로 따라갈 수 있게 한다. 셋째 칸만 갈래에 따라 다르다.
     widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.05, 1.1, 1.0, 1.5, 1.75]
+    # 일곱째 칸은 갈래마다 다르다 — 재 본 결과가 다르기 때문이다(2026-08-01).
+    # 상승장에서 가장 크게 갈린 것은 '최근 60일에 얼마나 올랐나'(40% 넘으면 100번 중
+    # 61번)라 그 값을 앞에 세우고 거래대금 액수를 아래에 작게 적는다.
     headers = ["동반 5일 (외국인+기관)", "당일주가", "고점 대비",
                "신고가" if breakout else "갈래", "보유일수",
-               "같이 걸린 종목", "거래대금 (평소 대비)", "소속 테마"]
+               "같이 걸린 종목",
+               "최근 60일 상승폭 (거래대금)" if breakout else "거래대금 (평소 대비)",
+               "소속 테마"]
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     table_box = st.container(key="j4_rulebook_table")
@@ -2990,11 +3058,21 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         rest = max(len(all_themes) - 1, 0)
         theme_text = (f"{lead} 외 {rest}" if rest else lead) or "—"
         themes = " · ".join(all_themes) or "—"
-        volume_cell = (
-            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
-            f" line-height:1.12'><span class='j4-green'>{_eok(value)}</span>"
-            f"<span style='font-size:.82rem'>{ratio_cell}</span></span>"
-        )
+        if breakout:
+            ret60 = metrics.get("ret60")
+            ret_class = "j4-green-strong" if (ret60 or 0) >= 40 else "j4-up"
+            volume_cell = (
+                "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+                f" line-height:1.12'><span class='{ret_class}' style='font-weight:800'>"
+                f"{'—' if ret60 is None else f'{float(ret60):+.1f}%'}</span>"
+                f"<span class='j4-muted' style='font-size:.78rem'>{_eok(value)}</span></span>"
+            )
+        else:
+            volume_cell = (
+                "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+                f" line-height:1.12'><span class='j4-green'>{_eok(value)}</span>"
+                f"<span style='font-size:.82rem'>{ratio_cell}</span></span>"
+            )
         price_and_high = [
             price_cell,
             f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",

@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080120
+MODULE_REVISION = 2026080130
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -2716,6 +2716,24 @@ def _crash_rank_key(row: dict):
     )
 
 
+def _breakout_rank_key(row: dict):
+    """상승장 순위 — 낙폭과 **다른 차례**다(실측이 다르다).
+
+    ① 거래대금(500억 이상 100번 중 69~72번, 미만 55번 — 한국에서 가장 크게 갈렸다)
+    ② 같은 테마 동반 ③ 최근 60일 상승폭 ④ 거래대금 평소 위 연속.
+    낙폭에서 쓰던 '이미 오른 만큼 깎기'는 여기서 쓰지 않는다 — 상승장에서는 이미
+    오른 종목이 더 좋았다(11일 이상 63번).
+    """
+    metrics = row.get("metrics") or {}
+    return (
+        -int(float(row.get("liquidity_value") or 0) // 5e10),   # 500억 묶음(그 아래는 안 가른다)
+        -row.get("together_tier", 0),
+        -float(metrics.get("ret60") or 0),
+        -min(int(row.get("volume_streak") or 0), VOLUME_STREAK_LOOKBACK),
+        str(row.get("code")),
+    )
+
+
 def crash_rebound_score(row: dict) -> dict:
     """급락 후 반등장 후보의 점수(100점)와 근거."""
     metrics = row.get("metrics") or {}
@@ -2750,6 +2768,107 @@ def _eok_text(value: float) -> str:
     return f"{value / 1e8:,.0f}억" if value else "—"
 
 
+# ── 상승장(신고가 눌림매수) 전용 배점 · 한국 (2026-08-01) ─────────────────────
+# **미국 값을 옮겨 적지 않았다.** 한국 자료로 따로 쟀다 —
+# 신고가 눌림 자리 1,779개 · 187종목 · 2015-06~2026-01 · 보유 120거래일.
+# 기준선 가운데 +4.61% · 100번 중 57번.
+#
+# 아래는 전부 **'최근 60일 상승폭을 같게 맞춰 놓고도' 살아남은 것만** 적은 것이다.
+# 그냥 나눠 보면 서로 겹쳐서(강한 종목이 대체로 거래대금도 크다) 이중으로 셀 수 있다.
+#
+#   30점 유동성(거래대금)  — 500억 이상이 100번 중 69번·72번(500억 미만 55번).
+#                          한국에서 **가장 크게 갈린 값**이다. 미국(10점)보다 훨씬 높다.
+#   30점 같은 테마 동반    — 0개 55번 → 1개 61번 → 2개 70번. 상승폭을 맞춰도 남는다
+#                          (강한 구간에서 76번 vs 혼자 57번).
+#   25점 최근 60일 상승폭  — 0~15% 52번 → 15~40% 58번 → 40% 넘음 61번.
+#   15점 거래대금 평소 위 연속 — 0일 55번 → 4~10일 58번 → 11일 이상 63번.
+#
+# **미국 상승장과 정반대인 것 — 반드시 기억할 것**
+#   거래대금 평소 위 연속: 미국 상승장에서는 거꾸로여서 0점이다(11일 이상 53번).
+#   한국 상승장에서는 **바로 간다**(63번). 시장이 다르면 같은 값도 뜻이 다르다.
+#
+# 재 보고 **뺀 것**
+#   * 눌린 폭 — -6~-4% 안에서 56/58/56/56번으로 평평하다. 미국은 갈렸지만(66번)
+#     한국은 안 갈린다. 그래서 0점이다.
+#   * 변동성 — 한 방향이 아니다. 강한 종목에서는 높은 변동성이 좋고(64번) 약한
+#     종목에서는 나쁘다(44번). 조건에 따라 뒤집히는 값으로 점수를 주지 않는다.
+#   * 기다린 날(3일 57번·5일 56번) — 차이 없음.
+#   * 50·200일선 위 — 표본 1,779개가 **전부** 위였다. 신고가 종목은 정의상 그렇다.
+BREAKOUT_SCORE_WEIGHTS = {
+    "liquidity": 30.0, "together": 30.0, "ret60": 25.0, "volume_streak": 15.0,
+}
+
+# 한국 상승장은 같은 날 같은 테마에서 함께 걸리는 일이 미국보다 드물다
+# (0개 1,395 / 1개 311 / 2개 56 / 3개 이상 17). 그래서 낙폭용 2·3·4개 등급을
+# 그대로 쓰면 거의 모두 0점이 된다. 실측이 갈린 자리에 맞춰 1·2개로 나눈다.
+BREAKOUT_TOGETHER_TIERS = ((2, 3, "2개 이상"), (1, 2, "1개"))
+
+
+def breakout_together_tier(count: int) -> tuple[int, str]:
+    """상승장 전용 — 같은 테마에서 함께 걸린 종목 수 → (0~3점, 화면에 적을 말)."""
+    for least, points, label in BREAKOUT_TOGETHER_TIERS:
+        if count >= least:
+            return points, label
+    return 0, "혼자"
+
+
+def breakout_score(row: dict) -> dict:
+    """상승장(신고가 눌림매수) 후보의 점수(100점)와 근거. 한국 전용 배점."""
+    metrics = row.get("metrics") or {}
+    weights = BREAKOUT_SCORE_WEIGHTS
+    parts = []
+
+    value = float(row.get("liquidity_value") or 0)
+    parts.append(("거래대금(유동성)", _scale(value / 1e8, 100, 500, weights["liquidity"]),
+                  weights["liquidity"], _eok_text(value)))
+
+    count = int(row.get("together_count") or 0)
+    tier, tier_label = breakout_together_tier(count)
+    parts.append(("같은 테마 동반", weights["together"] * (tier / 3.0), weights["together"],
+                  f"{count}개 함께 걸림"))
+
+    ret60 = metrics.get("ret60")
+    parts.append(("최근 60일 상승폭", _scale(ret60, 0.0, 40.0, weights["ret60"]),
+                  weights["ret60"], "—" if ret60 is None else f"{float(ret60):+.1f}%"))
+
+    # 낙폭과 달리 여기서는 깎지 않는다 — 한국 상승장은 이미 오른 종목에서 더 좋았다.
+    streak = min(int(row.get("volume_streak") or 0), VOLUME_STREAK_LOOKBACK)
+    parts.append(("거래대금 평소 위 연속",
+                  weights["volume_streak"] * (streak / VOLUME_STREAK_LOOKBACK),
+                  weights["volume_streak"], f"{int(row.get('volume_streak') or 0)}일"))
+
+    return {"score": round(sum(v for _n, v, _m, _t in parts), 1), "parts": parts, "max": 100.0}
+
+
+def breakout_plan(row: dict) -> dict:
+    """상승장(신고가 눌림매수)의 매수 심사 결과. 기준가도 손절가도 규칙에 없다."""
+    metrics = row.get("metrics") or {}
+    hold = int(row.get("hold_days") or BREAKOUT_PULLBACK_RULE["hold_days"])
+    score = float(breakout_score(row)["score"])
+    if score >= 70:
+        state, recommendation = "규칙에 맞는 자리", "조건부 후보"
+    elif score >= 50:
+        state, recommendation = "자리는 맞으나 근거가 얇음", "관찰"
+    else:
+        state, recommendation = "규칙만 맞고 뒷받침이 없음", "관찰"
+    return {
+        "state": state,
+        "recommendation": recommendation,
+        "rule_mode": "breakout",
+        "entry": "다음 거래일 시가",
+        "hold_days": hold,
+        "current": metrics.get("current"),
+        "invalidation": None,
+        "target": None,
+        "buy_reason": (
+            f"52주 신고가를 찍고 {int(row.get('wait_days') or 0)}거래일이 지나 "
+            f"고점 대비 {metrics.get('from_high_pct', 0):.1f}%까지 눌린 자리입니다. "
+            f"규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 사서 "
+            f"{hold}거래일 뒤 종가에 팝니다. 이 규칙에는 손절가가 없습니다."
+        ),
+    }
+
+
 def crash_rebound_plan(row: dict) -> dict:
     """급락 후 반등장의 매수 심사 결과.
 
@@ -2768,6 +2887,7 @@ def crash_rebound_plan(row: dict) -> dict:
     return {
         "state": state,
         "recommendation": recommendation,
+        "rule_mode": "crash",
         "entry": "다음 거래일 시가",
         "hold_days": hold,
         "current": metrics.get("current"),
@@ -2925,8 +3045,12 @@ def find_breakout_pullback_stocks(
         for row in found["rows"]:
             row.update(row.pop("rule"))
             row["partner5"] = int((row.get("flow") or {}).get("both_buy_days5") or 0)
-        # 순위 기준은 낙폭 표와 같다 — 검증된 것만 앞세운다(위 배점 설명 참고).
-        found["rows"].sort(key=_crash_rank_key)
+            # 낙폭용 2·3·4개 등급을 쓰면 상승장에서는 거의 모두 0점이 된다
+            # (한국 상승장은 같이 걸리는 일이 드물다). 실측이 갈린 1·2개로 다시 매긴다.
+            points, label = breakout_together_tier(int(row.get("together_count") or 0))
+            row["together_tier"], row["together_label"] = points, label
+        # 순위는 낙폭 표와 **다르다** — 한국 상승장은 거래대금이 가장 크게 갈랐다.
+        found["rows"].sort(key=_breakout_rank_key)
         for index, row in enumerate(found["rows"], 1):
             row["pullback_rank"] = index
         return {**found, "mode": "breakout", "rule": BREAKOUT_PULLBACK_RULE,

@@ -174,6 +174,39 @@ class RulebookScreenTests(unittest.TestCase):
         quiet = pd.DataFrame({"Close": close, "Volume": pd.Series([1000.0] * 80, index=index)})
         self.assertEqual(0, j3.volume_streak_days(quiet))
 
+    def test_breakout_ranks_by_gain_not_by_volume_streak(self):
+        """상승장 순위는 낙폭과 **다르다** — 거래대금 연속은 여기서 거꾸로였다(53번)."""
+        import inspect
+
+        self.assertNotIn("volume_streak", inspect.getsource(j3._breakout_rank_key))
+        rows = [
+            {"metrics": {"ret60": 5.0, "avg_dollar_volume": 1e8}, "together_tier": 3,
+             "together_count": 4, "volume_streak": 20},
+            {"metrics": {"ret60": 60.0, "avg_dollar_volume": 1e8}, "together_tier": 3,
+             "together_count": 4, "volume_streak": 0},
+        ]
+        ordered = sorted(rows, key=j3._breakout_rank_key)
+        self.assertEqual(60.0, ordered[0]["metrics"]["ret60"])
+
+    def test_breakout_and_crash_are_scored_with_different_rulers(self):
+        """두 갈래에 같은 자를 쓰면 낙폭 종목이 정의상 전부 '제외'로 나온다."""
+        self.assertNotEqual(j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS)
+        # 거래대금 연속은 낙폭에서만 준다(상승장에서는 재 보니 거꾸로였다).
+        self.assertIn("volume_streak", j3.CRASH_SCORE_WEIGHTS)
+        self.assertNotIn("volume_streak", j3.BREAKOUT_SCORE_WEIGHTS)
+        self.assertEqual(100.0, sum(j3.BREAKOUT_SCORE_WEIGHTS.values()))
+
+    def test_rulebook_plans_carry_no_stop_loss(self):
+        row = {"metrics": {"from_high_pct": -5.0, "current": 100.0, "ret60": 20.0},
+               "together_tier": 2, "together_count": 3, "hold_days": 120, "wait_days": 4,
+               "bucket": "deep", "bucket_label": "고점 대비 -40~-50%"}
+        for plan, mode in ((j3.breakout_plan(row), "breakout"),
+                           (j3.crash_rebound_plan(row), "crash")):
+            self.assertEqual(mode, plan["rule_mode"])
+            self.assertIsNone(plan["invalidation"])
+            self.assertIsNone(plan["target"])
+            self.assertIn("손절가가 없습니다", plan["buy_reason"])
+
     def test_no_match_returns_an_empty_list_not_a_loosened_rule(self):
         frames = {"AAPL": _frame_with_high(4, -20.0)}
         self.assertEqual([], self._run(j3.find_breakout_pullback_stocks, frames)["rows"])

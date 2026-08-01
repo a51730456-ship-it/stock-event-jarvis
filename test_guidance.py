@@ -88,6 +88,38 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(50.0, guidance.MARKET_GATE)
 
 
+class RulebookGuideTests(unittest.TestCase):
+    """설명서 두 갈래는 기준가도 손절도 시장 문턱도 없다 — 그대로 말해야 한다."""
+
+    def _plan(self, **over):
+        plan = {"state": "규칙에 맞는 자리", "recommendation": "조건부 후보",
+                "rule_mode": "crash", "entry": "다음 거래일 시가", "hold_days": 20,
+                "buy_reason": "낙폭 종목입니다"}
+        plan.update(over)
+        return plan
+
+    def test_says_when_to_buy_and_sell_and_that_there_is_no_stop(self):
+        guide = guidance.build(self._plan(), money=str)
+        self.assertEqual(guidance.GO, guide["level"])
+        self.assertIn("다음 거래일 시가", guide["detail"])
+        self.assertIn("20거래일", guide["detail"])
+        self.assertIn("손절가가 없습니다", guide["detail"])
+
+    def test_market_gate_does_not_apply_to_the_rulebook(self):
+        """이 규칙에는 시장 점수 문턱이 없다 — '오늘은 새로 사지 않습니다'가 붙으면 안 된다."""
+        guide = guidance.build(self._plan(recommendation="관찰"), money=str, market_score=10)
+        self.assertEqual(guidance.WAIT, guide["level"])
+        self.assertNotIn("오늘은 새로 사지 않습니다", guide["headline"])
+        self.assertIn("손절가가 없습니다", guide["detail"])
+
+    def test_ordinary_plans_are_untouched(self):
+        guide = guidance.build(
+            {"state": "돌파 확인", "recommendation": "조건부 후보", "trigger": 100},
+            money=str)
+        self.assertEqual(guidance.GO, guide["level"])
+        self.assertIn("100", guide["detail"])
+
+
 class HtmlTests(unittest.TestCase):
     def test_html_uses_the_page_prefix_and_level_colour(self):
         guide = {"level": guidance.STOP, "headline": "손대지 않습니다", "detail": "이유"}

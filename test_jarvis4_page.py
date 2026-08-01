@@ -568,6 +568,30 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("avg_trading_value", block)
         self.assertIn("배</span>", block)
 
+    def test_breakout_table_swaps_in_the_gain_column(self):
+        """상승장에서 값을 한 것은 거래대금 비중이 아니라 최근 60일 상승폭이다."""
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        self.assertIn("최근 60일 상승폭 (거래대금)", block)
+        self.assertIn('ret60 = metrics.get("ret60")', block)
+
+    def test_rulebook_detail_uses_its_own_ruler(self):
+        """설명서 갈래는 기존 6개 항목이 아니라 갈래 전용 배점으로 잰다(2026-08-01).
+
+        기존 배점은 '신고가에 얼마나 가까운가'로 점수를 줘서 낙폭 종목이 정의상
+        전부 '제외'로 나왔다. 이 갈림이 빠지면 그 화면으로 되돌아간다.
+        """
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        self.assertIn("_RULEBOOK_SCORERS", source)
+        self.assertIn("crash_rebound_score", source)
+        self.assertIn("breakout_score", source)
+        # 상세 화면이 후보가 들고 온 배점을 실제로 쓰는지.
+        self.assertIn('leader.get("factor_names")', source)
+        self.assertIn('leader.get("factor_max")', source)
+        # 기준가·손절 칸은 이 규칙에 없다.
+        self.assertIn('if plan.get("rule_mode"):', source)
+        self.assertIn("이 규칙에는 없음", source)
+
     def test_theme_selection_switches_theme(self):
         started = []
         try:
