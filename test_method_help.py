@@ -87,8 +87,10 @@ class PanelTests(unittest.TestCase):
 
 
 def _visible(text: str) -> str:
-    """화면에 실제로 보이는 글자만 남긴다 — 미국 설명서는 HTML이라 태그가 섞여 있다."""
-    return re.sub(r"<[^>]+>", "", text)
+    """화면에 실제로 보이는 글자만 남긴다 — 설명서가 HTML이라 태그·기호가 섞여 있다."""
+    import html as _html
+
+    return _html.unescape(re.sub(r"<[^>]+>", "", text))
 
 
 class LengthTests(unittest.TestCase):
@@ -171,8 +173,24 @@ class UsGuideTests(unittest.TestCase):
 
     def test_html_has_no_blank_lines(self):
         """빈 줄이 있으면 스트림릿이 그 사이를 문단으로 갈라 <p>를 끼워 넣는다."""
-        body = method_help.US_TEXT.strip("\n")
-        self.assertNotIn("\n\n", body)
+        for market, text in (("US", method_help.US_TEXT), ("KR", method_help.KR_TEXT)):
+            self.assertNotIn("\n\n", text.strip("\n"), f"{market} 설명서에 빈 줄이 있다")
+
+    def test_korea_wears_the_same_clothes(self):
+        """2026-08-01 — 한국 설명도 미국과 같은 옷(HTML·색·기호)으로 맞췄다.
+
+        한국 눌림목 매매 검증 원고는 아직 못 받아서, 내용은 지금까지 화면에 있던
+        한국 숫자 그대로다. 없는 숫자를 지어내지 않는다.
+        """
+        kr = method_help.KR_TEXT
+        self.assertIn('class="mh-doc"', kr)
+        for name in ("mh-h1", "mh-h2", "mh-note", "mh-warn-box", "mh-key"):
+            self.assertIn(name, kr, f"{name} 옷이 한국 설명에 없다")
+        # 미국 검증값을 한국 화면에 옮겨 적으면 안 된다 — 다른 시장 자료다.
+        for us_only in ("59.7%", "GPT-5.6 SOL", "120거래일"):
+            self.assertNotIn(us_only, kr, f"미국 검증값 {us_only}이 한국 설명에 새어 들어갔다")
+        # 한국은 그 방식으로 아직 안 쟀다는 것을 밝혀야 한다.
+        self.assertIn("아직 그 방식으로 재지 않았습니다", kr)
 
 
 class TextTests(unittest.TestCase):
@@ -196,8 +214,10 @@ class TextTests(unittest.TestCase):
         kr_engine = re.sub(r"\s+", " ", pathlib.Path("jarvis4_data.py").read_text(encoding="utf-8"))
         self.assertIn("theme_score >= 60 or score >= STRONG_STOCK_OVERRIDE", kr_engine)
         self.assertIn("market_score >= 50 and theme_ok and score >= 70", kr_engine)
-        for token in ("**50점**↑", "**60점**↑", "**70점**↑", "85점"):
-            self.assertIn(token, method_help.KR_TEXT)
+        # 2026-08-01부터 한국 설명도 HTML이라 굵게(**) 표시가 없다 — 보이는 글자로 본다.
+        body = _visible(method_help.KR_TEXT)
+        for token in ("50점↑", "60점↑", "70점↑", "85점"):
+            self.assertIn(token, body, f"한국 문구에 {token}이 없다")
 
     def test_it_says_what_the_score_is_not(self):
         """'점수=수익 예측'으로 읽히지 않게 하는 문장이 반드시 있어야 한다.
@@ -234,7 +254,7 @@ class TextTests(unittest.TestCase):
                           f"화면에는 '{headline}'이 뜨는데 설명에 없다")
 
     def test_it_names_where_the_method_came_from(self):
-        kr = method_help.KR_TEXT
+        kr = _visible(method_help.KR_TEXT)
         self.assertIn("한 편의 논문에서 나온 기법이 아닙니다", kr)
         for name in ("Moskowitz & Grinblatt 1999", "George & Hwang 2004", "Weinstein"):
             self.assertIn(name, kr, f"{name}가 빠졌다")

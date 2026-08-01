@@ -1,18 +1,24 @@
 ﻿"""‘이 테마 기법에 대한 설명’ 단추와 그 내용.
 
-자비스3(미국)·자비스4(한국)가 같이 쓴다. 한 곳만 고치면 두 화면이 함께 바뀐다.
+자비스3(미국)·자비스4(한국)가 같이 쓴다. 단추와 옷(CSS)은 공용이고, 글은 시장마다
+따로다(US_TEXT · KR_TEXT). 한쪽을 고쳐도 다른 쪽은 그대로여야 한다 — 두 시장은
+서로 다른 자료로 잰 것이라 숫자를 옮겨 적으면 화면이 거짓말을 한다.
 
-여기 적힌 숫자는 지어낸 것이 아니라 2026-07-29에 실제로 잰 값이다.
-2005-03 ~ 2026-06 지수 일봉(코스피 5,253일 · S&P500 5,357일)으로,
-그날까지의 자료로만 신호를 만들고 20일 뒤 종가로 성적을 쟀다.
-부트스트랩 1,500회로 우연인지도 확인했다. 숫자를 고칠 일이 생기면
-반드시 다시 재고 나서 고친다.
+**숫자는 어디서 왔나**
+  * 미국(US_TEXT) — 2026-08-01에 사용자가 준 '미국장 눌림목 매매 설명서'의 검증값.
+    미국 대형주 200개로 잰 것이며, 그대로 옮겨 적었다.
+  * 한국(KR_TEXT) — 2026-07-29에 실제로 잰 값. 코스피 5,253거래일(2005-03 ~ 2026-06)
+    일봉으로, 그날까지의 자료로만 신호를 만들고 20일 뒤 종가로 채점했다.
+    부트스트랩 1,500회로 우연인지도 확인했다.
+    한국은 아직 미국식(눌림목 매매) 검증을 하지 않았다.
+
+숫자를 고칠 일이 생기면 반드시 다시 재고 나서 고친다. 지어내지 않는다.
 """
 
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080110
+MODULE_REVISION = 2026080130
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -162,10 +168,12 @@ div[class*="st-key-jarvis_method_help"] button p {
 .mh-arrow { color: var(--mh-dim); font-size: .78rem; line-height: 1.1; }
 .mh-go { font-weight: 900; color: var(--mh-buy); }
 .mh-sub { color: var(--mh-dim); font-size: .84rem; }
-.mh-kv { display: flex; justify-content: space-between; gap: .8rem; align-items: baseline;
-    padding: .12rem 0; border-bottom: 1px dotted var(--mh-line); }
-.mh-k { color: var(--mh-dim); }
-.mh-v { font-weight: 900; white-space: nowrap; }
+/* 값이 길면 줄을 바꿔 아래로 내려간다. nowrap으로 묶어 뒀더니 폰(412px)에서 줄이
+   화면 밖으로 25px 삐져나갔다(2026-08-01 실측). 짧은 숫자는 어차피 안 쪼개진다. */
+.mh-kv { display: flex; justify-content: space-between; gap: .5rem .8rem; align-items: baseline;
+    flex-wrap: wrap; padding: .12rem 0; border-bottom: 1px dotted var(--mh-line); }
+.mh-k { color: var(--mh-dim); min-width: 0; }
+.mh-v { font-weight: 900; min-width: 0; overflow-wrap: anywhere; }
 .mh-pos { color: var(--mh-pos); }
 .mh-neg { color: var(--mh-neg); }
 .mh-list { margin: .1rem 0 0; padding-left: 1.15rem; }
@@ -180,50 +188,9 @@ div[class*="st-key-jarvis_method_help"] button p {
 </style>
 """
 
-_COMMON_TAIL = """
----
-
-### 지금 할 일 — 테두리 색이 곧 답
-
-'매수 심사 결과' 칸 맨 위 상자를 보십시오. 화면이 내린 판정을 그대로 옮긴 것입니다.
-
-| | 뜨는 말 | 할 일 |
-|---|---|---|
-| 🟩 | 이 기법이 말하는 진입 자리입니다 | 기준가를 넘으면 사고, 허용 상단까지만. 무효화 가격이 깨지면 판단이 틀린 것 |
-| 🟨 | 오늘은 새로 사지 않습니다 | 시장 점수가 문턱에 못 미치는 날 |
-| 🟨 | 가격 자리는 맞지만 아직 아닙니다 | 뭐가 모자란지 상자에 적혀 있음 |
-| 🟨 | 사지 않고 지켜봅니다 | 아직 자리가 아님 |
-| 🟥 | 손대지 않습니다 · 후보에서 뺍니다 | 추격 자리. **점수가 높아도 예외 없음** |
-
----
-
-### 점수를 잘못 읽는 흔한 경우
-
-| | |
-|---|---|
-| 90점 = "이 종목은 오른다" | ❌ **틀린 말** |
-| 90점 = "지금 조건 여러 개에 걸려 있다" | ✅ 맞는 말 |
-| 30점 = "이걸 사면 덜 번다" | ❌ **틀린 말** |
-| 30점 = "이걸 사면 크게 깨질 수 있다" | ✅ 맞는 말 |
-
-점수는 앞일을 맞히는 숫자가 아니라 **조건을 몇 개나 만족했는지 센 숫자**입니다.
-값(현재가·거래대금·수급)은 원자료 그대로이고, 못 가져온 값은 **지어내지 않습니다**.
-
----
-
-### 어디서 왔나 · 언제 파나
-
-**한 편의 논문에서 나온 기법이 아닙니다.** 논문 세 갈래(Moskowitz & Grinblatt 1999 —
-분야 모멘텀 / George & Hwang 2004 — 52주 신고가 / Moskowitz·Ooi·Pedersen 2012 — 추세)와
-실무 세 갈래(Weinstein · O'Neil · Minervini)가 겹치는 자리입니다.
-
-**파는 때는 아직 이 화면에 없습니다.** 살 때 찍는 '무효화 가격'과 '2R 목표'가 전부이고,
-들고 있는 동안 알려주는 장치가 없습니다. 이 화면의 가장 큰 구멍입니다.
-연구가 말하는 매도 규칙(−10% 손절, −7~8% 손절, +20~25% 부분 익절, 이동평균 이탈)은
-**남의 자료로 잰 값**이라, 우리 자료로 재보기 전에는 점수에 넣지 않습니다.
-
-*자세한 근거와 조사 원본: `docs/METHOD_ORIGINS.md`*
-"""
+# 2026-08-01에 두 설명서를 각자 HTML로 갈아 끼우면서, 두 화면이 나눠 쓰던
+# 마크다운 꼬리말(_COMMON_TAIL)은 없앴다. 같은 글을 두 시장이 함께 쓰면 한쪽만
+# 고쳐야 할 때 다른 쪽까지 바뀌어서다. 그 내용은 한국 설명서 안으로 옮겼다.
 
 # 미국 설명은 2026-08-01 사용자가 준 '미국장 눌림목 매매 설명서'로 통째로 바꿨다.
 # 앞의 조건점수·논문 이야기는 이 화면에서 뺐다(사용자 지시: "기존 내용 지우고").
@@ -319,31 +286,81 @@ GPT-5.6 SOL이 미국 대형주 <b>200개</b>의 실제 주가를 계산하고, 
 </div>
 """
 
+# 한국 설명도 2026-08-01에 미국과 같은 옷(HTML·색·기호)으로 갈아입혔다.
+# **내용은 지어내지 않았다** — 사용자가 준 한국 눌림목 매매 검증 원고가 아직 없어서,
+# 지금까지 화면에 있던 한국 숫자(2026-07-29 실측)를 그대로 옮기고 보여주는 방식만
+# 미국 설명서와 맞췄다. 한국 원고를 받으면 미국처럼 통째로 갈아 끼운다.
+# 빈 줄을 넣지 않는다(미국 설명서와 같은 이유).
 KR_TEXT = """
-### 한눈에 — 이게 무슨 기법인가
-
-| | |
-|---|---|
-| **무슨 기법** | 돈이 몰리는 **분야(테마)를** 먼저 고르고, 그 안에서 **제일 앞서 가는 종목**을 사는 방식 |
-| **얼마나 검토** | 코스피 **21년치 5,253거래일**(2005-03 ~ 2026-06). 앞을 훔쳐보지 않고 20일 뒤 종가로 채점 |
-| **언제 사나** | 시장 **50점**↑ · 분야 **60점**↑(종목 85점↑면 면제) · 종목 **70점**↑ 를 다 넘고, 상태가 **'돌파 확인'** 또는 **'눌림목 대기'일** 때 |
-| **어디에 적나** | 실제로 샀을 때만 **'실제 매수 기록'에** 저장. 그때 조건이 함께 남아 나중에 검증합니다 |
-| **언제 파나** | **아직 없습니다.** 아래를 보십시오 |
-
-> **"이걸 사라"고 찍어 주는 화면이 아닙니다.
-> "지금 사면 얼마나 위험한가"를 재 주는 화면입니다.**
-
-**한국은 미국과 결론이 다릅니다 — 이것이 이 화면의 핵심입니다.**
-코스피 21년치로 재보니 **시장 점수가 미국만큼 듣지 않았습니다.**
-50일선 위든 아래든 10% 넘게 깨질 확률이 **2.9% vs 3.6%로** 거의 같았습니다
-(미국은 1.1% vs 3.5%로 3배 차이).
-
-**그래서 이렇게 보강했습니다** — **외국인·기관 수급**을 종목 점수 100점 중 **20점**으로
-넣었습니다(미국 화면에는 없는 자료). 분야 문턱은 60점으로 낮추고 종목이 85점을 넘으면
-분야를 안 봅니다. 추격 금지도 국내용으로 따로 뒀습니다(하루 30%까지 오르는 시장이라).
-
-→ **시장 점수는 참고로만, 수급과 종목 점수를 무겁게.**
-""" + _COMMON_TAIL
+<div class="mh-doc">
+<div class="mh-h1">한국장 테마 매매 설명서</div>
+<div class="mh-note">
+<div class="mh-note-h">※ 검증 안내</div>
+코스피 <b>21년치 5,253거래일</b>(2005-03 ~ 2026-06) 일봉으로, 그날까지의 자료로만 신호를
+만들고 <b>20일 뒤 종가</b>로 성적을 쟀습니다(앞을 훔쳐보지 않음). 부트스트랩 1,500회로
+우연인지도 확인했습니다. <b>미국장 눌림목 매매 설명서와 같은 검증이 아닙니다</b> —
+한국은 아직 그 방식으로 재지 않았습니다.
+</div>
+<div class="mh-h2"><span class="mh-no">1</span>이게 무슨 기법인가</div>
+<div class="mh-box mh-data-box">
+<div class="mh-box-h">▸ 한눈에</div>
+<div class="mh-kv"><span class="mh-k">무슨 기법</span><span class="mh-v">돈이 몰리는 분야를 먼저 고르고, 그 안 선두 종목</span></div>
+<div class="mh-kv"><span class="mh-k">언제 사나</span><span class="mh-v">시장 50점↑ · 분야 60점↑ · 종목 70점↑</span></div>
+<div class="mh-kv"><span class="mh-k">분야 면제</span><span class="mh-v">종목이 85점을 넘으면 분야를 안 봅니다</span></div>
+<div class="mh-kv"><span class="mh-k">어떤 상태일 때</span><span class="mh-v">‘돌파 확인’ 또는 ‘눌림목 대기’</span></div>
+<div class="mh-kv"><span class="mh-k">어디에 적나</span><span class="mh-v">실제로 샀을 때만 ‘실제 매수 기록’에</span></div>
+<div class="mh-kv"><span class="mh-k">언제 파나</span><span class="mh-v mh-neg">아직 없습니다</span></div>
+</div>
+<div class="mh-key">
+<div class="mh-key-h">이 화면이 하는 일</div>
+<div>“이걸 사라”고 찍어 주는 화면이 <b>아닙니다.</b></div>
+<div><b>“지금 사면 얼마나 위험한가”</b>를 재 주는 화면입니다.</div>
+</div>
+<div class="mh-h2"><span class="mh-no">2</span>한국은 미국과 <u>결론이 다릅니다</u></div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 시장 점수가 미국만큼 듣지 않았습니다</div>
+<div class="mh-kv"><span class="mh-k">한국 — 50일선 위 / 아래에서 20일 안에 10% 넘게 깨질 확률</span><span class="mh-v mh-neg">2.9% vs 3.6%</span></div>
+<div class="mh-kv"><span class="mh-k">미국 — 같은 값</span><span class="mh-v mh-pos">1.1% vs 3.5%</span></div>
+<div class="mh-sub">미국은 3배 차이인데 한국은 거의 같습니다. 그래서 시장 점수만 믿을 수 없습니다.</div>
+</div>
+<div class="mh-box mh-buy-box">
+<div class="mh-box-h">▸ 그래서 이렇게 보강했습니다</div>
+<div class="mh-step"><b>외국인·기관 수급</b>을 종목 점수 100점 중 <b>20점</b>으로 넣었습니다(미국 화면에는 없는 자료)</div>
+<div class="mh-step">분야 문턱을 <b>60점</b>으로 낮추고, 종목이 <b>85점</b>을 넘으면 분야를 안 봅니다</div>
+<div class="mh-step">추격 금지를 국내용으로 따로 뒀습니다 — 하루 30%까지 오르는 시장이라</div>
+<div class="mh-step mh-go">→ 시장 점수는 <u>참고로만</u>, 수급과 종목 점수를 무겁게</div>
+</div>
+<div class="mh-h2"><span class="mh-no">3</span>지금 할 일 — 테두리 색이 곧 답</div>
+<div class="mh-box mh-data-box">
+<div class="mh-box-h">▸ ‘매수 심사 결과’ 칸 맨 위 상자</div>
+<div class="mh-kv"><span class="mh-k">🟩 이 기법이 말하는 진입 자리입니다</span><span class="mh-v mh-pos">기준가를 넘으면 산다</span></div>
+<div class="mh-kv"><span class="mh-k">🟨 오늘은 새로 사지 않습니다</span><span class="mh-v">시장 점수가 문턱 미달</span></div>
+<div class="mh-kv"><span class="mh-k">🟨 가격 자리는 맞지만 아직 아닙니다</span><span class="mh-v">모자란 것이 상자에 적힘</span></div>
+<div class="mh-kv"><span class="mh-k">🟨 사지 않고 지켜봅니다</span><span class="mh-v">아직 자리가 아님</span></div>
+<div class="mh-kv"><span class="mh-k">🟥 손대지 않습니다 · 후보에서 뺍니다</span><span class="mh-v mh-neg">점수가 높아도 예외 없음</span></div>
+</div>
+<div class="mh-h2"><span class="mh-no">4</span>점수를 잘못 읽는 흔한 경우</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 점수는 앞일을 맞히는 숫자가 아닙니다</div>
+<ul class="mh-list">
+<li>90점 = “이 종목은 오른다” → <b>틀린 말</b></li>
+<li>90점 = “지금 조건 여러 개에 걸려 있다” → 맞는 말</li>
+<li>30점 = “이걸 사면 덜 번다” → <b>틀린 말</b></li>
+<li>30점 = “이걸 사면 크게 깨질 수 있다” → 맞는 말</li>
+</ul>
+<div class="mh-sub">값(현재가·거래대금·수급)은 원자료 그대로이고, 못 가져온 값은 지어내지 않습니다.</div>
+</div>
+<div class="mh-h2"><span class="mh-no">5</span>어디서 왔나 · 언제 파나</div>
+<div class="mh-box mh-sell-box">
+<div class="mh-box-h">▸ 출처</div>
+<div class="mh-step"><b>한 편의 논문에서 나온 기법이 아닙니다.</b> 논문 세 갈래(Moskowitz &amp; Grinblatt 1999 · George &amp; Hwang 2004 · Moskowitz·Ooi·Pedersen 2012)와 실무 세 갈래(Weinstein · O'Neil · Minervini)가 겹치는 자리입니다.</div>
+<div class="mh-box-h" style="margin-top:.5rem">▸ 파는 때</div>
+<div class="mh-step"><b>파는 때는 아직 이 화면에 없습니다.</b> 살 때 찍는 ‘무효화 가격’과 ‘2R 목표’가 전부입니다. 이 화면의 가장 큰 구멍입니다.</div>
+<div class="mh-step">연구가 말하는 매도 규칙(−10%·−7~8% 손절, +20~25% 부분 익절, 이동평균 이탈)은 <b>남의 자료로 잰 값</b>이라, 우리 자료로 재보기 전에는 점수에 넣지 않습니다.</div>
+<div class="mh-sub">자세한 근거와 조사 원본: docs/METHOD_ORIGINS.md</div>
+</div>
+</div>
+"""
 
 
 def render(st, market: str) -> None:
@@ -356,8 +373,7 @@ def render(st, market: str) -> None:
             # 남는다(2026-07-30 실측). 여는 단추를 다시 누르는 것이 닫는 길이라
             # 그 방법을 맨 위에 적어 준다.
             st.caption(CLOSE_HINT)
-            # 미국 설명서는 색·기호·밑줄을 직접 입힌 HTML이다(2026-08-01).
-            # 한국 설명은 지금까지처럼 마크다운이며, 이 옵션을 켜도 그대로 나온다.
+            # 두 설명서 모두 색·기호·밑줄을 직접 입힌 HTML이다(2026-08-01).
             st.markdown(
                 US_TEXT if str(market).upper() == "US" else KR_TEXT,
                 unsafe_allow_html=True,
