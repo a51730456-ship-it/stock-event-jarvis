@@ -492,16 +492,41 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn('.st-key-j4_rulebook_table [data-testid="stHorizontalBlock"],', source)
         self.assertIn('.st-key-j4_rulebook_table [data-testid="stColumn"],', source)
 
-    def test_korea_never_shows_the_us_win_rates(self):
-        """승률·평균수익은 미국 자료로 잰 값이라 한국 화면에 적지 않는다.
+    def test_korea_shows_its_own_numbers_never_the_us_ones(self):
+        """2026-08-01에 한국 자료로 직접 쟀다. 미국 성적은 여전히 옮겨 적지 않는다."""
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        for banned in ("59.7", "92.6", "+18.0", "+11.2", "+24.9"):
+            self.assertNotIn(banned, block, f"한국 화면에 미국 성적 {banned}이 들어갔다")
+        # 숫자는 코드(jarvis4_data)에서 가져와야 한다 — 화면에 손으로 적으면 어긋난다.
+        self.assertIn("rule.get('win_rate')", block.replace('"', "'"))
 
-        규칙(며칠·몇 %·보유일수)은 같이 써도 된다 — 그건 '무엇을 보는가'다.
+    def test_korea_always_shows_the_baseline_next_to_the_score(self):
+        """성적만 적으면 광고가 된다.
+
+        오늘 살아남은 종목만 보고 잰 것이라, 같은 종목으로 잰 '아무 날이나 샀으면'과
+        견줄 때만 규칙이 값을 했는지 알 수 있다. 진 갈래는 졌다고 적어야 한다.
         """
         source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
         block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
-        for banned in ("59.7", "92.6", "100.0%", "+18.0", "+11.2", "+24.9", "win_rate", "avg_return"):
-            self.assertNotIn(banned, block, f"한국 화면에 미국 성적 {banned}이 들어갔다")
-        self.assertIn("한국에서는 아직 재보지 않았습니다", block)
+        self.assertIn("아무 날이나 사서 같은 기간 들고 있었으면", block)
+        self.assertIn("아무 종목이나 샀으면", block)
+        self.assertIn("기준선보다 못했습니다", block)
+        self.assertIn("기준선보다 나았습니다", block)
+        # 급락 국면이 몇 번뿐이었는지도 밝혀야 한다.
+        self.assertIn("CRASH_REBOUND_EVENTS", block)
+
+    def test_rulebook_table_compares_trading_value_and_shows_themes(self):
+        """2026-08-01 사용자 지시 — 테마를 넣고, 거래대금은 견줄 수 있게 비중으로.
+
+        액수만 보면 큰 회사가 늘 커서 종목끼리 비교가 안 된다.
+        """
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        self.assertIn("거래대금 (평소 대비)", block)
+        self.assertIn("소속 테마", block)
+        self.assertIn("avg_trading_value", block)
+        self.assertIn("배</span>", block)
 
     def test_theme_selection_switches_theme(self):
         started = []

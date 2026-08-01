@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080110
+MODULE_REVISION = 2026080120
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -2566,20 +2566,53 @@ def score_at_past(
 
 # ── 설명서 두 갈래의 한국판 (2026-08-01 사용자 지시) ──────────────────────────
 # 규칙(며칠 기다리고 몇 % 눌린 것을 보는지)은 미국장 눌림목 매매 설명서 그대로다.
-# **승률·평균수익은 여기 두지 않는다.** 그 숫자는 미국 대형주 200개로 잰 값이라
-# 한국 화면에 옮겨 적으면 화면이 거짓말을 한다. 한국 설명서가 스스로 정한 원칙이기도
-# 하다 — "남의 자료로 잰 값이라, 우리 자료로 재보기 전에는 점수에 넣지 않습니다".
-# 한국에서 다시 재면 그때 숫자를 여기에 넣는다.
+# 숫자는 2026-08-01에 **한국 자료로 직접 쟀다**(그전에는 미국 값이라 안 적었다).
+#
+# 어떻게 쟀나 — 한국 대형주 197종목(오늘 시총 상위 200 중 자료가 있는 것),
+# 2014-05 ~ 2026-07(12년) 일봉. 신호는 그날까지의 자료로만 만들고, 매수는 다음
+# 거래일 시가, 매도는 정해진 거래일 뒤 종가다. 자세한 것은 docs/KR_RULE_BACKTEST.md.
+#
+# **baseline은 반드시 같이 보여 준다.** '아무 날이나 사서 같은 기간 들고 있었을 때'의
+# 성적이다. 규칙 성적만 적으면 좋아 보이지만, 기준선과 견줘야 규칙이 값을 했는지
+# 알 수 있다 — 실제로 낙폭 얕은 갈래는 기준선보다 못했다.
 BREAKOUT_PULLBACK_RULE = {
     "wait_days": (3, 5),        # 52주 신고가 돌파 뒤 기다리는 거래일
     "drop_band": (-6.0, -4.0),  # 그 고점에서 눌린 폭
     "hold_days": 120,
-    "verified_in_korea": False,
+    "verified_in_korea": True,
+    "win_rate": 56.3, "sample": 1816, "avg_return": 15.0, "median_return": 4.3,
+    "base_win_rate": 53.6, "base_avg_return": 11.5, "base_median_return": 2.1,
+    "years_better": 7, "years_total": 12,
 }
 CRASH_REBOUND_RULES = (
-    {"key": "deep", "band": (-50.0, -40.0), "hold_days": 20, "label": "고점 대비 -40~-50%"},
-    {"key": "mid", "band": (-40.0, -30.0), "hold_days": 60, "label": "고점 대비 -30~-40%"},
+    {"key": "deep", "band": (-50.0, -40.0), "hold_days": 20, "label": "고점 대비 -40~-50%",
+     "win_rate": 68.6, "sample": 175, "avg_return": 7.8, "median_return": 7.5,
+     "base_win_rate": 59.0, "base_median_return": 2.5, "beats_baseline": True},
+    {"key": "mid", "band": (-40.0, -30.0), "hold_days": 60, "label": "고점 대비 -30~-40%",
+     "win_rate": 66.0, "sample": 215, "avg_return": 13.9, "median_return": 5.7,
+     "base_win_rate": 66.2, "base_median_return": 7.1, "beats_baseline": False},
 )
+# 12년 동안 코스피가 급락했다가 처음 반등한 날은 여덟 번뿐이다. 거래 수는 수백 건이지만
+# 사실상 **여덟 번의 사건**이라, 승률을 앞으로의 확률로 읽으면 안 된다.
+CRASH_REBOUND_EVENTS = 8
+KR_BACKTEST_SPAN = "2014-05 ~ 2026-07(12년) · 대형주 197종목"
+
+# 낙폭 종목의 순위는 **소속 테마 수**로 매긴다(2026-08-01 사용자 지시).
+# 여러 테마에 걸친 종목일수록 돈이 여러 갈래에서 들어올 자리라, 반등에서 먼저 본다.
+#
+# 등급은 2개·3개·4개 이상 셋으로 나누라고 했는데, 실제로 재 보니 **대형주는 거의
+# 다 4개 이상**이었다(2026-08-01 실측: 상위 20종목이 전부 4~13개). 등급만으로는
+# 줄이 안 서서, 등급은 화면에 적는 이름표로만 쓰고 **순위는 실제 테마 수**로
+# 매긴다 — '여러 테마에 걸친 종목을 위로'라는 뜻은 그대로 지키면서 실제로 갈린다.
+THEME_COUNT_TIERS = ((4, 3, "4개 이상"), (3, 2, "3개"), (2, 1, "2개"))
+
+
+def theme_count_tier(count: int) -> tuple[int, str]:
+    """소속 테마 수 → (순위 점수, 화면에 적을 말)."""
+    for least, points, label in THEME_COUNT_TIERS:
+        if count >= least:
+            return points, label
+    return 0, f"{max(int(count), 0)}개"
 # 한국은 대형주 목록이 따로 없다. 테마 구성종목 중 거래대금 상위 이만큼을 본다 —
 # 미국의 '대형주 200개'와 같은 자리다.
 RULEBOOK_SCAN_LIMIT = 200
@@ -2731,9 +2764,21 @@ def find_crash_rebound_stocks(
         for row in found["rows"]:
             row.update(row.pop("rule"))
             counts[row["bucket"]] = counts.get(row["bucket"], 0) + 1
-        # 낙폭이 깊은 갈래를 위에 둔다(미국 화면과 같은 순서).
+            theme_count = len(row.get("themes") or [])
+            points, label = theme_count_tier(theme_count)
+            row["theme_count"] = theme_count
+            row["theme_tier"] = points
+            row["theme_tier_label"] = label
+        # 순위는 소속 테마 수가 먼저다(2026-08-01 사용자 지시). 등급(2/3/4개 이상)이
+        # 아니라 실제 개수로 줄을 세운다 — 대형주는 거의 다 4개 이상이라 등급으로는
+        # 안 갈린다. 개수가 같으면 낙폭이 깊은 갈래를, 그것도 같으면 거래대금이 큰
+        # 종목을 위에 둔다.
         found["rows"].sort(
-            key=lambda row: (row.get("_order", 9), -(row.get("liquidity_value") or 0))
+            key=lambda row: (
+                -row.get("theme_count", 0),
+                row.get("_order", 9),
+                -(row.get("liquidity_value") or 0),
+            )
         )
         for index, row in enumerate(found["rows"], 1):
             row["pullback_rank"] = index

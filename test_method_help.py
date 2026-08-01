@@ -188,11 +188,34 @@ class UsGuideTests(unittest.TestCase):
             self.assertIn(name, kr, f"{name} 옷이 한국 설명에 없다")
         # 규칙(3~5거래일·4~6%·120거래일 보유)은 같이 써도 된다 — 그건 '무엇을 보는가'다.
         # 옮겨 적으면 안 되는 것은 **미국 자료로 잰 성적**이다.
-        for us_only in ("59.7%", "+18.0%", "92.6%", "100.0%", "GPT-5.6 SOL", "재검증 5,000회"):
+        for us_only in ("59.7%", "+18.0%", "92.6%", "GPT-5.6 SOL", "재검증 5,000회"):
             self.assertNotIn(us_only, kr, f"미국 검증값 {us_only}이 한국 설명에 새어 들어갔다")
-        # 한국은 그 방식으로 아직 안 쟀다는 것을 두 번 밝혀야 한다(맨 위 + 두 갈래 앞).
-        self.assertIn("아직 그 방식으로 재지 않았습니다", kr)
-        self.assertIn("한국에서는 아직 재보지 않았습니다", kr)
+
+    def test_korea_numbers_come_with_their_baseline(self):
+        """2026-08-01에 한국 자료로 직접 쟀다. 성적만 적으면 오해한다.
+
+        살아남은 종목만 보는 치우침은 '아무 날이나 샀으면'과 견줄 때만 상쇄된다.
+        그래서 성적 옆에는 반드시 기준선이 붙어야 하고, 진 갈래는 졌다고 적어야 한다.
+        """
+        import jarvis4_data as j4
+
+        kr = _visible(method_help.KR_TEXT)
+        rule = j4.BREAKOUT_PULLBACK_RULE
+        self.assertTrue(rule["verified_in_korea"])
+        # 화면 숫자와 코드 숫자가 어긋나면 안 된다.
+        self.assertIn(f"승률 {rule['win_rate']}%", kr)
+        self.assertIn(f"승률 {rule['base_win_rate']}%", kr)
+        self.assertIn(f"{rule['years_total']}년 중 {rule['years_better']}년", kr)
+        deep, mid = j4.CRASH_REBOUND_RULES
+        for bucket in (deep, mid):
+            self.assertIn(f"승률 {bucket['win_rate']}%", kr)
+            self.assertIn(f"승률 {bucket['base_win_rate']}%", kr)
+        # 진 갈래는 졌다고 적어야 한다 — 이게 빠지면 화면이 광고가 된다.
+        self.assertFalse(mid["beats_baseline"])
+        self.assertIn("기준선보다 못했습니다", kr)
+        # 급락 국면이 몇 번뿐이었는지도 밝혀야 한다.
+        self.assertIn("여덟 번", kr)
+        self.assertIn("2014-05 ~ 2026-07", kr)
 
     def test_korea_documents_the_two_rulebook_screens(self):
         """화면에 단추를 만들었으면 설명서에도 그 기준이 있어야 한다(2026-08-01)."""
@@ -287,7 +310,9 @@ class TextTests(unittest.TestCase):
         들어갔으므로 이 문장이 있으면 도리어 거짓말이 된다.
         """
         self.assertIn("파는 때는 아직 이 화면에 없습니다", method_help.KR_TEXT)
-        self.assertIn("남의 자료로 잰 값", method_help.KR_TEXT)
+        # 그 문장이 어디 이야기인지 밝혀야 한다 — 두 갈래에는 보유일수가 있어서
+        # 밝히지 않으면 서로 모순되게 읽힌다(2026-08-01).
+        self.assertIn("눌림목 찾기 표", method_help.KR_TEXT)
         self.assertNotIn("파는 때는 아직 이 화면에 없습니다", method_help.US_TEXT)
 
     def test_screen_labels_match_the_pages(self):

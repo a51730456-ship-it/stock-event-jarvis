@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080140
+MODULE_REVISION = 2026080150
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -296,10 +296,11 @@ KR_TEXT = """
 <div class="mh-h1">한국장 눌림목 매매 설명서</div>
 <div class="mh-note">
 <div class="mh-note-h">※ 검증 안내</div>
-아래 두 갈래의 <b>규칙</b>은 미국장 눌림목 매매 설명서의 것을 그대로 씁니다.
-<b>승률·평균수익은 여기 적지 않습니다</b> — 그 숫자는 미국 대형주 200개로 잰 값이고,
-한국에서는 아직 그 방식으로 재지 않았습니다. 남의 자료로 잰 성적을 우리 화면에 옮겨
-적지 않는 것이 이 설명서의 원칙입니다. 찾는 범위는 <b>거래대금 상위 200종목</b>입니다.
+규칙은 미국장 설명서의 것을 그대로 쓰되, <b>숫자는 한국 자료로 직접 쟀습니다</b>
+(2026-08-01). 한국 대형주 <b>197종목</b>의 <b>2014-05 ~ 2026-07(12년)</b> 일봉으로,
+다음 거래일 시가에 사서 정해진 날 뒤 종가에 팔았습니다. <b>지금 살아남은 종목</b>만 봤습니다.<br>
+<b>성적 옆에는 늘 ‘아무 날이나 샀으면’을 같이 적습니다.</b> 같은 종목으로 재므로 그 치우침이
+양쪽에 똑같이 걸려 상쇄됩니다 — 규칙이 값을 했는지는 <u>그 차이</u>로만 알 수 있습니다.
 </div>
 <div class="mh-h2"><span class="mh-no">1</span><span>상승장 (<u>신고가 눌림매수</u>)</span></div>
 <div class="mh-box mh-buy-box">
@@ -322,9 +323,15 @@ KR_TEXT = """
 <ul class="mh-list">
 <li>신고가 <b>당일에는 사지 않습니다.</b></li>
 <li>4~6% 눌리지 않고 올라가면 <b>추격 매수하지 않습니다.</b></li>
-<li>코스피가 계속 하락하는 장에서는 쓰지 않습니다.</li>
 <li>별도 <b>손절 없이</b> 120거래일 보유하는 규칙입니다.</li>
 </ul>
+</div>
+<div class="mh-box mh-data-box">
+<div class="mh-box-h">▸ 한국에서 재 본 성적</div>
+<div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v mh-pos">승률 56.3%(1,816건) · 가운데 값 +4.3%</span></div>
+<div class="mh-kv"><span class="mh-k">아무 날이나 샀으면</span><span class="mh-v">승률 53.6% · 가운데 값 +2.1%</span></div>
+<div class="mh-kv"><span class="mh-k">기준선보다 나았던 해</span><span class="mh-v mh-neg">12년 중 7년</span></div>
+<div class="mh-sub">조금 나았지만 해마다 뒤집힙니다. 이것만 믿고 크게 걸 자리가 아닙니다.</div>
 </div>
 <div class="mh-h2"><span class="mh-no">2</span><span>급락 후 반등장 (<u>낙폭종목</u>)</span></div>
 <div class="mh-box mh-buy-box">
@@ -338,9 +345,16 @@ KR_TEXT = """
 <div class="mh-step mh-go">다음 거래일 <u>시가 매수</u></div>
 </div>
 <div class="mh-box mh-data-box">
-<div class="mh-box-h">▸ 종목과 보유기간</div>
-<div class="mh-kv"><span class="mh-k">고점 대비 -40~-50% 종목</span><span class="mh-v">20거래일 보유</span></div>
-<div class="mh-kv"><span class="mh-k">고점 대비 -30~-40% 종목</span><span class="mh-v">60거래일 보유</span></div>
+<div class="mh-box-h">▸ 고점 대비 -40~-50% → 20거래일 보유</div>
+<div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v mh-pos">승률 68.6%(175건) · 가운데 값 +7.5%</span></div>
+<div class="mh-kv"><span class="mh-k">그날 아무 종목이나 샀으면</span><span class="mh-v">승률 59.0% · 가운데 값 +2.5%</span></div>
+<div class="mh-sub">기준선보다 나았습니다. 두 갈래 중 이쪽이 값을 했습니다.</div>
+</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">▸ 고점 대비 -30~-40% → 60거래일 보유</div>
+<div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v">승률 66.0%(215건) · 가운데 값 +5.7%</span></div>
+<div class="mh-kv"><span class="mh-k">그날 아무 종목이나 샀으면</span><span class="mh-v">승률 66.2% · 가운데 값 +7.1%</span></div>
+<div class="mh-sub"><b>기준선보다 못했습니다</b> — 낙폭을 골라 봐야 아무 대형주나 산 것과 같았습니다.</div>
 </div>
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">⚠ 주의</div>
@@ -348,7 +362,7 @@ KR_TEXT = """
 <li>신고가가 <b>언제 나왔는지는 보지 않습니다.</b></li>
 <li>고점 대비 <b>얼마나 하락했는지만</b> 봅니다.</li>
 <li>두 갈래 모두 <b>이동평균을 보지 않습니다</b> — 설명서에 없는 조건입니다.</li>
-<li>갈래를 나눈 근거는 미국 자료이며, <b>한국에서는 아직 재보지 않았습니다.</b></li>
+<li>코스피가 급락했다가 처음 반등한 날은 12년 동안 <b>여덟 번</b>뿐입니다. 거래 수는 수백 건이지만 사실상 <b>여덟 번의 사건</b>이라, 승률을 앞으로의 확률로 읽으면 안 됩니다.</li>
 </ul>
 </div>
 <div class="mh-key">
@@ -404,8 +418,7 @@ KR_TEXT = """
 <div class="mh-box mh-sell-box">
 <div class="mh-step"><b>한 편의 논문에서 나온 기법이 아닙니다.</b> 논문 세 갈래(Moskowitz &amp; Grinblatt 1999 · George &amp; Hwang 2004 · Moskowitz·Ooi·Pedersen 2012)와 실무 세 갈래(Weinstein · O'Neil · Minervini)가 겹치는 자리입니다.</div>
 <div class="mh-step"><b>파는 때는 아직 이 화면에 없습니다</b> — 조건점수로 고르는 <u>눌림목 찾기 표</u> 이야기입니다. 위 두 갈래에는 보유일수가 정해져 있습니다.</div>
-<div class="mh-step">연구가 말하는 매도 규칙(−10% 손절, +20~25% 부분 익절 등)은 <b>남의 자료로 잰 값</b>이라, 우리 자료로 재보기 전에는 점수에 넣지 않습니다.</div>
-<div class="mh-sub">자세한 근거와 조사 원본: docs/METHOD_ORIGINS.md</div>
+<div class="mh-sub">자세한 근거: docs/METHOD_ORIGINS.md · 한국 검증: docs/KR_RULE_BACKTEST.md</div>
 </div>
 </div>
 """

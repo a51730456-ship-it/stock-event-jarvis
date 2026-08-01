@@ -142,6 +142,8 @@ st.markdown(
     .j4-leader-state { color: #9aa0aa; font-size: 0.9rem; }
     .j4-green { color: #44f0a1; }
     .j4-green-strong { color: #22c55e; font-weight: 800; }
+    /* 낙폭 표의 순위를 정하는 값 — 테마 수(2026-08-01). 4개 이상이 가장 높다. */
+    .j4-amber-strong { color: #ffb020; font-weight: 800; }
     .j4-theme-box { background: rgba(77,166,255,0.08); border: 1px solid rgba(77,166,255,0.3); border-radius: 0.55rem; padding: 0.7rem 0.9rem; font-size: 0.95rem; line-height: 1.7; margin-bottom: 0.6rem; }
     .j4-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 700; }
     /* 차트 구역 제목은 초록(2026-07-29 지시) — '당일·실시간', '가격 차트 …' 등.
@@ -523,7 +525,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080140
+_REQUIRED_METHOD_HELP_REVISION = 2026080150
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
@@ -559,7 +561,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026080110
+_REQUIRED_J4_REVISION = 2026080120
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -2776,15 +2778,20 @@ _BAND_CELL_CLASS = {"deep": "j4-band-deep", "mid": "j4-band-mid"}
 def _render_rulebook_finder(result: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 — 미국테마와 같은 모양이다(2026-08-01 사용자 지시).
 
-    **승률·평균수익은 적지 않는다.** 그 숫자는 미국 대형주 200개로 잰 값이라
-    한국 화면에 옮겨 적으면 화면이 거짓말을 한다. 대신 '한국에서는 아직 재보지
-    않았다'고 분명히 적는다 — 한국 설명서가 스스로 정한 원칙이다.
+    승률·평균수익은 **한국 자료로 직접 잰 값**만 적는다(2026-08-01에 쟀다).
+    미국 성적을 옮겨 적으면 화면이 거짓말을 한다 — 다른 시장 자료다.
+
+    성적 옆에는 **반드시 '아무 날이나 샀으면'을 같이 적는다.** 오늘 살아남은
+    종목만 보고 잰 것이라 성적만 적으면 좋아 보인다. 같은 종목으로 잰 기준선과
+    견줄 때만 그 치우침이 상쇄되고, 규칙이 값을 했는지 알 수 있다.
+    실제로 낙폭 얕은 갈래는 기준선보다 못했고, 그것도 그대로 적는다.
     """
     if not result.get("ok"):
         st.error(f"조회 실패: {_safe_error_text(result.get('error'))}")
         return
     rows = result.get("rows") or []
     breakout = mode == "breakout"
+    span = getattr(j4data, "KR_BACKTEST_SPAN", "")
     if breakout:
         rule = result.get("rule") or {}
         wait_min, wait_max = rule.get("wait_days", (3, 5))
@@ -2795,27 +2802,50 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             f"그 고점에서 <b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 종목입니다. "
             f"사면 <b>{rule.get('hold_days')}거래일</b>(약 6개월) 들고 갑니다. "
             "이동평균·테마 수는 보지 않습니다 — 설명서에 없는 조건이기 때문입니다.<br>"
-            "<b class='j4-down'>승률·평균수익은 여기 적지 않습니다</b> — 그 숫자는 "
-            "<u>미국 대형주 200개로 잰 값</u>이고, 한국에서는 아직 재보지 않았습니다. "
-            "규칙만 같은 것을 한국 종목에 대 본 결과입니다.</div>",
+            f"<b>한국 자료로 잰 성적</b>({span}) — 승률 <b>{rule.get('win_rate')}%</b>"
+            f"({rule.get('sample'):,}건) · 평균 <b>+{rule.get('avg_return')}%</b> · "
+            f"가운데 값 <b>+{rule.get('median_return')}%</b><br>"
+            "<b>아무 날이나 사서 같은 기간 들고 있었으면</b> — 승률 "
+            f"{rule.get('base_win_rate')}% · 평균 +{rule.get('base_avg_return')}% · "
+            f"가운데 값 +{rule.get('base_median_return')}%<br>"
+            f"<b class='j4-down'>이 규칙이 기준선보다 나았던 해는 "
+            f"{rule.get('years_total')}년 중 {rule.get('years_better')}년뿐입니다.</b> "
+            "차이가 작고 해마다 뒤집힙니다 — 이것만 믿고 크게 걸 자리가 아닙니다.</div>",
             unsafe_allow_html=True,
         )
     else:
         counts = result.get("bucket_counts") or {}
         cards = []
         for rule in result.get("rules") or []:
+            verdict = (
+                "<span class='j4-green'>기준선보다 나았습니다</span>"
+                if rule.get("beats_baseline")
+                else "<span class='j4-down'>기준선보다 못했습니다</span>"
+            )
             cards.append(
                 f"<div class='j4-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
                 f"<div class='j4-reason-title'>{rule['label']} → {rule['hold_days']}거래일 보유</div>"
-                f"<div class='j4-reason-body'>지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
+                f"<div class='j4-reason-body'>승률 {rule.get('win_rate')}%"
+                f"({rule.get('sample')}건) · 가운데 값 +{rule.get('median_return')}%<br>"
+                f"아무 종목이나 샀으면 {rule.get('base_win_rate')}% · "
+                f"+{rule.get('base_median_return')}% → {verdict}<br>"
+                f"지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
             )
+        events = getattr(j4data, "CRASH_REBOUND_EVENTS", 0)
         st.markdown(
             "<div class='j4-pull-guide'>"
             "<b>찾는 기준</b> — 신고가가 언제였는지는 <u>보지 않고</u>, "
             "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
-            "<b class='j4-down'>승률·평균수익은 여기 적지 않습니다</b> — 갈래를 나눈 근거와 "
-            "보유일수는 <u>미국 자료로 잰 것</u>이고, 한국에서는 아직 재보지 않았습니다."
-            "</div>"
+            f"<b>한국 자료로 잰 성적</b>({span}). "
+            f"<b class='j4-down'>다만 코스피가 급락했다가 처음 반등한 날은 12년 동안 "
+            f"{events}번뿐입니다</b> — 거래 수는 수백 건이지만 사실상 {events}번의 사건이라, "
+            "승률을 앞으로의 확률로 읽으면 안 됩니다.<br>"
+            "<b>순위는 소속 테마 수로 매깁니다</b> — 여러 테마에 걸친 종목일수록 돈이 여러 "
+            "갈래에서 들어올 자리라 먼저 봅니다. <span class='j4-green-strong'>4개 이상</span>이 "
+            "가장 높고 <span class='j4-amber-strong'>3개</span> · 2개 순인데, "
+            "<b>대형주는 거의 다 4개 이상</b>이라 등급만으로는 줄이 안 섭니다. 그래서 "
+            "<u>실제 테마 수</u>로 세웁니다. 같으면 낙폭이 깊은 갈래를, 그것도 같으면 "
+            "거래대금이 큰 종목을 위에 둡니다.</div>"
             f"<div class='j4-metric-row'>{''.join(cards)}</div>",
             unsafe_allow_html=True,
         )
@@ -2837,19 +2867,21 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         )
         return
 
-    widths = [0.55, 1.9, 1.3, 1.25, 1.25, 1.35, 1.9]
+    # 낙폭 표는 소속 테마 수로 순위를 매기므로 그 칸을 따로 둔다(2026-08-01 지시).
+    if breakout:
+        widths = [0.55, 1.9, 1.3, 1.15, 1.25, 1.05, 1.7, 2.1]
+        headers = ["당일주가", "고점 대비", "신고가", "보유일수", "거래대금 (평소 대비)", "소속 테마"]
+    else:
+        widths = [0.55, 1.9, 1.3, 1.1, 1.2, 1.0, 1.6, 1.0, 1.9]
+        headers = ["당일주가", "고점 대비", "갈래", "보유일수", "거래대금 (평소 대비)",
+                   "테마 수", "소속 테마"]
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
-    third = "신고가" if breakout else "갈래"
     table_box = st.container(key="j4_rulebook_table")
     head = table_box.columns(row_widths)
     head[0].markdown("<div class='j4-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j4-th-head'>종목</div>", unsafe_allow_html=True)
-    head[2].markdown(
-        _flex_row(rest_widths, ["당일주가", "고점 대비", third, "보유일수", "거래대금"],
-                  head=True),
-        unsafe_allow_html=True,
-    )
+    head[2].markdown(_flex_row(rest_widths, headers, head=True), unsafe_allow_html=True)
     for index, row in enumerate(rows):
         metrics = row.get("metrics") or {}
         from_high = metrics.get("from_high_pct")
@@ -2878,17 +2910,43 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             band = str(row.get("bucket_label") or "—").replace("고점 대비 ", "")
             band_class = _BAND_CELL_CLASS.get(str(row.get("bucket")), "j4-muted")
             third_cell = f"<span class='{band_class}'>{html.escape(band)}</span>"
+        # 거래대금은 액수만 보면 종목끼리 비교가 안 된다 — 큰 회사가 늘 크다.
+        # 그래서 '평소(최근 평균) 대비 몇 배'를 같이 적는다(2026-08-01 사용자 지시).
+        # 이 값은 크기와 무관해서 종목끼리 그대로 견줄 수 있고, 지금 돈이 새로
+        # 몰리는 중인지를 바로 보여 준다. 1.0배면 평소만큼, 2배면 평소의 두 배다.
         value = row.get("liquidity_value")
-        cols[2].markdown(
-            _flex_row(rest_widths, [
-                price_cell,
-                f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
-                third_cell,
-                f"<span class='j4-green'>{int(row.get('hold_days') or 0)}거래일</span>",
-                f"<span class='j4-green'>{_eok(value)}</span>",
-            ]),
-            unsafe_allow_html=True,
+        average = metrics.get("avg_trading_value")
+        if value and average:
+            times = float(value) / float(average)
+            times_class = "j4-up" if times >= 1.5 else "j4-muted"
+            ratio_cell = f"<span class='{times_class}'>{times:.1f}배</span>"
+        else:
+            ratio_cell = "<span class='j4-muted'>—</span>"
+        themes = " · ".join(row.get("themes") or []) or "—"
+        cells = [
+            price_cell,
+            f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+            third_cell,
+            f"<span class='j4-green'>{int(row.get('hold_days') or 0)}거래일</span>",
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            f" line-height:1.12'><span class='j4-green'>{_eok(value)}</span>"
+            f"<span style='font-size:.82rem'>{ratio_cell}</span></span>",
+        ]
+        if not breakout:
+            # 순위를 정한 값이라 눈에 띄게 둔다 — 4개 이상이 가장 높은 자리다.
+            tier = int(row.get("theme_tier") or 0)
+            tier_class = ("j4-muted", "j4-th-muted", "j4-amber-strong", "j4-green-strong")[tier]
+            cells.append(
+                "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+                f" line-height:1.12'><span class='{tier_class}' style='font-weight:800'>"
+                f"{int(row.get('theme_count') or 0)}개</span>"
+                f"<span class='j4-muted' style='font-size:.78rem'>"
+                f"{html.escape(str(row.get('theme_tier_label') or '—'))}</span></span>"
+            )
+        cells.append(
+            f"<span class='j4-th-muted' title='{html.escape(themes)}'>{html.escape(themes)}</span>"
         )
+        cols[2].markdown(_flex_row(rest_widths, cells), unsafe_allow_html=True)
     st.caption(
         "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
         "그 자리에 와 있는 종목을 좁혀 준 목록이며, 사라는 신호가 아닙니다."

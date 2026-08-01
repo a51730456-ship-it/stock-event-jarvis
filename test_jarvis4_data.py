@@ -77,20 +77,43 @@ class RulebookScreenTests(unittest.TestCase):
              patch.object(j4, "_index_metrics", return_value={"ok": True, "ret20": 1.0}):
             return finder()
 
-    def test_rule_numbers_match_the_us_guide_but_not_its_scores(self):
+    def test_rule_shape_matches_the_us_guide(self):
         rule = j4.BREAKOUT_PULLBACK_RULE
         self.assertEqual((3, 5), rule["wait_days"])
         self.assertEqual((-6.0, -4.0), rule["drop_band"])
         self.assertEqual(120, rule["hold_days"])
-        self.assertFalse(rule["verified_in_korea"])
-        # 승률·평균수익은 한국 규칙에 없어야 한다.
-        for banned in ("win_rate", "sample", "avg_return"):
-            self.assertNotIn(banned, rule, f"한국 규칙에 {banned}가 들어갔다")
-            for crash_rule in j4.CRASH_REBOUND_RULES:
-                self.assertNotIn(banned, crash_rule, f"한국 낙폭 규칙에 {banned}가 들어갔다")
         deep, mid = j4.CRASH_REBOUND_RULES
         self.assertEqual(((-50.0, -40.0), 20), (deep["band"], deep["hold_days"]))
         self.assertEqual(((-40.0, -30.0), 60), (mid["band"], mid["hold_days"]))
+
+    def test_every_korean_score_carries_its_baseline(self):
+        """2026-08-01에 한국 자료로 직접 쟀다.
+
+        오늘 살아남은 종목만 보고 잰 것이라 성적만 두면 좋아 보인다. 같은 종목으로
+        잰 '아무 날이나 샀으면'이 짝으로 있어야 그 치우침이 상쇄된다. 짝을 지우면
+        화면이 광고가 되므로 여기서 묶어 둔다.
+        """
+        rule = j4.BREAKOUT_PULLBACK_RULE
+        self.assertTrue(rule["verified_in_korea"])
+        for key in ("win_rate", "sample", "avg_return", "median_return",
+                    "base_win_rate", "base_avg_return", "base_median_return",
+                    "years_better", "years_total"):
+            self.assertIn(key, rule, f"신고가 눌림 규칙에 {key}가 없다")
+        # 기준선을 이긴 해가 전체 해보다 많을 수는 없다.
+        self.assertLessEqual(rule["years_better"], rule["years_total"])
+        for bucket in j4.CRASH_REBOUND_RULES:
+            for key in ("win_rate", "sample", "median_return",
+                        "base_win_rate", "base_median_return", "beats_baseline"):
+                self.assertIn(key, bucket, f"{bucket['key']} 갈래에 {key}가 없다")
+            # 이겼다/졌다는 실제 숫자와 같아야 한다 — 손으로 적다 뒤집히면 안 된다.
+            self.assertEqual(
+                bucket["beats_baseline"],
+                bucket["median_return"] > bucket["base_median_return"],
+                f"{bucket['key']} 갈래의 승패 표시가 숫자와 다르다",
+            )
+        # 급락 국면 자체가 몇 번뿐인지도 남겨 둔다 — 승률을 확률로 읽지 않게.
+        self.assertGreater(j4.CRASH_REBOUND_EVENTS, 0)
+        self.assertIn("2014-05", j4.KR_BACKTEST_SPAN)
 
     def test_breakout_takes_only_the_written_window(self):
         frames = {
