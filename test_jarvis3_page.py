@@ -146,6 +146,39 @@ def _pullbacks():
     }
 
 
+def _breakout_result():
+    """설명서 1번(상승장 신고가 눌림) 결과 모양."""
+    rows = [dict(row) for row in _pullbacks()["rows"][:1]]
+    rows[0]["wait_days"] = 4
+    rows[0]["hold_days"] = 120
+    return {
+        "ok": True, "mode": "breakout", "rows": rows,
+        "rule": {"wait_days": (3, 5), "drop_band": (-6.0, -4.0), "hold_days": 120,
+                 "win_rate": 59.7, "sample": 119, "avg_return": 18.0},
+        "universe_count": 200, "data_count": 199, "window_count": 6,
+        "result_limit": 20, "checked_at": "x", "stale": False, "reused_batch": False,
+    }
+
+
+def _crash_result():
+    """설명서 2번(급락 후 반등장 낙폭 종목) 결과 모양."""
+    rows = [dict(row) for row in _pullbacks()["rows"][:1]]
+    rows[0].update({
+        "bucket": "deep", "bucket_label": "고점 대비 -40~-50%", "hold_days": 20,
+        "win_rate": 100.0, "sample": 12, "avg_return": 11.2,
+    })
+    return {
+        "ok": True, "mode": "crash", "rows": rows,
+        "rules": ({"key": "deep", "band": (-50.0, -40.0), "hold_days": 20, "win_rate": 100.0,
+                   "sample": 12, "avg_return": 11.2, "label": "고점 대비 -40~-50%"},
+                  {"key": "mid", "band": (-40.0, -30.0), "hold_days": 60, "win_rate": 92.6,
+                   "sample": 27, "avg_return": 24.9, "label": "고점 대비 -30~-40%"}),
+        "bucket_counts": {"deep": 1, "mid": 3},
+        "universe_count": 200, "data_count": 199,
+        "result_limit": 20, "checked_at": "x", "stale": False, "reused_batch": False,
+    }
+
+
 def _open_all_details(app):
     """상세·매수기록을 미리 펴 둔다.
 
@@ -599,6 +632,66 @@ class Jarvis3PageTests(unittest.TestCase):
         # 한국장 수급 카드는 자비스4(국내) 전용 — 미국 페이지에는 넣지 않는다(2026-07-22).
         self.assertNotIn("render_kr_flow_card", source)
         self.assertIn("j3tbtn_{index:02d}", source)
+
+    def _run_with_mode(self, mode, finder_name, finder_result):
+        """설명서 갈래 단추를 눌렀을 때의 화면을 그린다 (2026-08-01)."""
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch(f"jarvis3_data.{finder_name}", return_value=finder_result), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            _open_all_details(app)
+            app.session_state["j3_pullback_open"] = True
+            app.session_state["j3_pullback_mode"] = mode
+            app.session_state["j3_pullback_result"] = finder_result
+            app.run(timeout=60)
+        self.assertEqual(len(app.exception), 0)
+        return app
+
+    def test_the_two_rulebook_buttons_sit_next_to_the_pullback_button(self):
+        """설명서 두 갈래 단추가 눌림목 찾기 옆에 있어야 한다(2026-08-01 사용자 지시)."""
+        app = self._run_with_mode("기본", "find_pullback_stocks", _pullbacks())
+        keys = [str(node.key or "") for node in app.button]
+        for key in ("j3_pullback_find", "j3_pullback_breakout", "j3_pullback_crash"):
+            self.assertIn(key, keys, f"{key} 단추가 없다")
+
+    def test_breakout_mode_shows_the_written_rule_and_its_own_columns(self):
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks", _breakout_result())
+        markdowns = [str(node.value) for node in app.markdown]
+        joined = " ".join(markdowns)
+        # 설명서 숫자가 화면에 그대로 나와야 한다.
+        self.assertIn("3~5거래일", joined)
+        self.assertIn("120거래일", joined)
+        self.assertIn("59.7", joined)
+        # 눌림목 표가 아니라 이 갈래 전용 표다 — 머리글에 '보유일수'가 있고
+        # '눌림 점수'는 없다(설명 글에는 그 말이 남아 있으므로 머리글만 본다).
+        header = next(value for value in markdowns if "보유일수" in value and "티커" in value)
+        self.assertNotIn("눌림 점수", header)
+        self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
+
+    def test_crash_mode_shows_both_depth_buckets_and_holding_periods(self):
+        app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
+        joined = " ".join(str(node.value) for node in app.markdown)
+        self.assertIn("고점 대비 -40~-50%", joined)
+        self.assertIn("고점 대비 -30~-40%", joined)
+        self.assertIn("20거래일 보유", joined)
+        self.assertIn("60거래일 보유", joined)
+        # 승률이 광고로 읽히지 않게 하는 경고가 반드시 함께 있어야 한다.
+        self.assertIn("앞으로의 승률이 아닙니다", joined)
 
     def test_main_login_includes_jarvis3_destination(self):
         source = (ROOT / "app.py").read_text(encoding="utf-8")

@@ -32,6 +32,120 @@ def _intraday_frame(value):
     )
 
 
+def _frame_with_high(peak_days_ago: int, from_high_pct: float, periods: int = 260):
+    """지정한 거래일 전에 52주 고가를 찍고, 지금은 고점 대비 X% 아래인 일봉을 만든다."""
+    index = pd.bdate_range("2025-07-01", periods=periods)
+    values = [50.0 + i * 0.1 for i in range(periods)]
+    peak_index = periods - 1 - peak_days_ago
+    peak = 100.0
+    values[peak_index] = peak
+    # 고점 뒤 구간은 목표 낙폭까지 곧장 내려온 상태로 둔다.
+    for i in range(peak_index + 1, periods):
+        values[i] = peak * (1 + from_high_pct / 100.0)
+    close = pd.Series(values, index=index)
+    return pd.DataFrame(
+        {
+            "Open": close, "High": close, "Low": close, "Close": close,
+            "Volume": 3_000_000.0,
+        },
+        index=index,
+    )
+
+
+class RulebookScreenTests(unittest.TestCase):
+    """설명서 두 갈래(2026-08-01 사용자 지시)가 설명서 숫자 그대로 거르는지.
+
+    화면 설명(method_help.US_TEXT)과 여기 숫자가 어긋나면 화면이 설명과 다른 것을
+    찾게 된다. 그래서 기준값을 코드 한 곳(jarvis3_data)에 두고 여기서 굳혀 둔다.
+    """
+
+    def tearDown(self):
+        j3.clear_runtime_cache()
+
+    def test_universe_is_two_hundred_and_holds_every_theme_stock(self):
+        self.assertEqual(200, len(j3.US_LARGE_CAP_UNIVERSE))
+        self.assertEqual(200, len(set(j3.US_LARGE_CAP_UNIVERSE)))
+        theme_stocks = {t for theme in j3.US_THEMES for t in theme["stocks"]}
+        # 테마 종목을 다 품어야 야후를 한 번만 부르고 테마 검색이 잘라 쓴다.
+        self.assertTrue(theme_stocks.issubset(set(j3.US_LARGE_CAP_UNIVERSE)))
+
+    def test_rule_numbers_match_the_written_guide(self):
+        import method_help
+
+        rule = j3.BREAKOUT_PULLBACK_RULE
+        self.assertEqual((3, 5), rule["wait_days"])
+        self.assertEqual((-6.0, -4.0), rule["drop_band"])
+        self.assertEqual(120, rule["hold_days"])
+        self.assertIn("3~5거래일", method_help.US_TEXT)
+        self.assertIn("4~6%", method_help.US_TEXT)
+        self.assertIn("120거래일", method_help.US_TEXT)
+        deep, mid = j3.CRASH_REBOUND_RULES
+        self.assertEqual(((-50.0, -40.0), 20), (deep["band"], deep["hold_days"]))
+        self.assertEqual(((-40.0, -30.0), 60), (mid["band"], mid["hold_days"]))
+        self.assertIn("-40~-50%", method_help.US_TEXT)
+        self.assertIn("-30~-40%", method_help.US_TEXT)
+
+    def _run(self, finder, frames):
+        with patch.object(j3, "_download_cached", return_value=(frames, {"fetched_at": "x"})):
+            return finder()
+
+    def test_breakout_takes_only_the_three_to_five_day_four_to_six_percent_window(self):
+        frames = {
+            "AAPL": _frame_with_high(4, -5.0),    # 자리에 맞음
+            "MSFT": _frame_with_high(1, -5.0),    # 너무 이르다(1일 전)
+            "AMZN": _frame_with_high(9, -5.0),    # 너무 늦다(9일 전)
+            "GOOGL": _frame_with_high(4, -2.0),   # 덜 눌렸다
+            "META": _frame_with_high(4, -9.0),    # 너무 눌렸다
+        }
+        result = self._run(j3.find_breakout_pullback_stocks, frames)
+        self.assertTrue(result["ok"])
+        self.assertEqual(["AAPL"], [row["ticker"] for row in result["rows"]])
+        self.assertEqual(4, result["rows"][0]["wait_days"])
+        self.assertEqual(120, result["rows"][0]["hold_days"])
+
+    def test_neither_screen_filters_on_a_moving_average(self):
+        """설명서에 없는 이동평균 조건을 더하면 화면이 설명과 다른 것을 찾는다.
+
+        특히 낙폭 종목은 30~50% 빠진 상태라 50일선 위에 있을 리 없다
+        (2026-08-01 사용자 확인: "굳이 50일선 맞출 필요가 있나").
+        """
+        import inspect
+
+        for finder in (j3.find_breakout_pullback_stocks, j3.find_crash_rebound_stocks):
+            source = inspect.getsource(finder)
+            for moving_average in ("sma20", "sma50", "sma200"):
+                self.assertNotIn(
+                    f'metrics.get("{moving_average}")', source,
+                    f"{finder.__name__}에 {moving_average} 조건이 들어갔다",
+                )
+
+    def test_crash_splits_the_two_depth_buckets_and_ignores_the_high_date(self):
+        frames = {
+            "AAPL": _frame_with_high(200, -45.0),   # 깊은 갈래
+            "MSFT": _frame_with_high(3, -35.0),     # 얕은 갈래 — 신고가 날짜는 안 본다
+            "AMZN": _frame_with_high(50, -20.0),    # 덜 빠졌다
+            "GOOGL": _frame_with_high(50, -60.0),   # 너무 빠졌다
+        }
+        result = self._run(j3.find_crash_rebound_stocks, frames)
+        self.assertTrue(result["ok"])
+        picked = {row["ticker"]: row for row in result["rows"]}
+        self.assertEqual({"AAPL", "MSFT"}, set(picked))
+        self.assertEqual((20, "deep"), (picked["AAPL"]["hold_days"], picked["AAPL"]["bucket"]))
+        self.assertEqual((60, "mid"), (picked["MSFT"]["hold_days"], picked["MSFT"]["bucket"]))
+        # 깊은 갈래가 위에 온다.
+        self.assertEqual("AAPL", result["rows"][0]["ticker"])
+        self.assertEqual({"deep": 1, "mid": 1}, result["bucket_counts"])
+
+    def test_crash_rows_carry_the_reference_numbers(self):
+        frames = {"AAPL": _frame_with_high(200, -45.0)}
+        row = self._run(j3.find_crash_rebound_stocks, frames)["rows"][0]
+        self.assertEqual((100.0, 12, 11.2), (row["win_rate"], row["sample"], row["avg_return"]))
+
+    def test_no_match_returns_an_empty_list_not_a_loosened_rule(self):
+        frames = {"AAPL": _frame_with_high(4, -20.0)}
+        self.assertEqual([], self._run(j3.find_breakout_pullback_stocks, frames)["rows"])
+
+
 class Jarvis3DataTests(unittest.TestCase):
     def tearDown(self):
         j3.clear_runtime_cache()

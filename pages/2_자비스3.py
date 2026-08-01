@@ -242,6 +242,40 @@ st.markdown(
     div[class*="st-key-j3_pullback_find"] button:hover {
         background: linear-gradient(90deg, #0e3559 0%, #164876 38%, #2a86e0 100%) !important;
     }
+    /* 설명서 두 갈래 단추(2026-08-01) — 눌림목 찾기와 같은 모양에 색만 다르게.
+       상승장은 초록, 급락 반등장은 주황. 어느 갈래를 보고 있는지 색으로 안다. */
+    div[class*="st-key-j3_pullback_breakout"] button {
+        background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(18,160,106,.25) !important;
+    }
+    div[class*="st-key-j3_pullback_crash"] button {
+        background: linear-gradient(90deg, #4a2408 0%, #7a3c0d 38%, #e07f1f 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(224,127,31,.25) !important;
+    }
+    div[class*="st-key-j3_pullback_breakout"] button p,
+    div[class*="st-key-j3_pullback_crash"] button p {
+        color: #ffffff !important;
+        font-size: 1.02rem !important;
+        font-weight: 800 !important;
+        letter-spacing: .01em !important;
+        margin: 0 !important;
+    }
+    div[class*="st-key-j3rbf_"] button {
+        background: transparent !important; border: none !important;
+        box-shadow: none !important; padding: 0 !important;
+        min-height: 2.5rem !important; width: 100% !important;
+        border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+        border-radius: 0 !important;
+    }
+    div[class*="st-key-j3rbf_"] button:hover { background: rgba(255,255,255,0.06) !important; }
+    div[class*="st-key-j3rbf_"] button p {
+        color: #c084fc !important; font-weight: 800 !important;
+        font-size: 0.95rem !important; margin: 0 !important;
+    }
     div[class*="st-key-j3_pullback_find"] button p {
         color: #ffffff !important;
         font-size: 1.02rem !important;
@@ -537,11 +571,14 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080110
+_REQUIRED_J3_REVISION = 2026080120
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
     or not hasattr(j3data, "get_etf_sparklines")
+    # 2026-08-01 설명서 두 갈래(상승장 신고가 눌림 · 급락 후 낙폭)에서 쓴다.
+    or not hasattr(j3data, "find_breakout_pullback_stocks")
+    or not hasattr(j3data, "find_crash_rebound_stocks")
     or not hasattr(j3data, "_intraday_chart_payload")
     or not hasattr(j3data, "find_pullback_stocks")
     or not hasattr(j3data, "analyze_pullback_stock")
@@ -2479,6 +2516,150 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         )
 
 
+def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
+    """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
+
+    기본 눌림목 표와 칸이 다르다 — 여기서는 '눌림 점수'가 아니라 설명서가 실제로
+    보는 값(신고가 며칠 전 · 고점 대비 · 보유일수)을 보여준다. 승률·평균수익은
+    설명서에 적힌 검증값을 그대로 옮긴 참고치이며, 이 종목들의 성적이 아니다.
+    """
+    if not result.get("ok"):
+        st.error(f"조회 실패: {_safe_error_text(result.get('error'))}")
+        return
+    rows = result.get("rows") or []
+    breakout = mode == "breakout"
+    if breakout:
+        rule = result.get("rule") or {}
+        wait_min, wait_max = rule.get("wait_days", (3, 5))
+        drop_low, drop_high = rule.get("drop_band", (-6.0, -4.0))
+        st.markdown(
+            "<div class='j3-pull-guide'>"
+            f"<b>찾는 기준</b> — 52주 신고가를 찍고 <b>{wait_min}~{wait_max}거래일</b>이 지난 뒤, "
+            f"그 고점에서 <b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 종목입니다. "
+            "이동평균은 보지 않습니다 — 설명서에 없는 조건이기 때문입니다.<br>"
+            f"<b>설명서의 검증값(참고)</b> — 승률 {rule.get('win_rate')}%"
+            f"({rule.get('sample')}건) · 평균수익 +{rule.get('avg_return')}% · "
+            f"<b>{rule.get('hold_days')}거래일 보유</b>(약 6개월). "
+            "이 숫자는 <u>설명서에 적힌 과거 검증 결과</u>이며 아래 종목의 성적이 아닙니다."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        counts = result.get("bucket_counts") or {}
+        cards = []
+        for rule in result.get("rules") or []:
+            cards.append(
+                "<div class='j3-reason-card'>"
+                f"<div class='j3-reason-title'>{rule['label']} → {rule['hold_days']}거래일 보유</div>"
+                f"<div class='j3-reason-body'>승률 {rule['win_rate']}%({rule['sample']}건) · "
+                f"평균수익 +{rule['avg_return']}% · 지금 해당 종목 "
+                f"{counts.get(rule['key'], 0)}개</div></div>"
+            )
+        st.markdown(
+            "<div class='j3-pull-guide'>"
+            "<b>찾는 기준</b> — 신고가가 언제였는지는 <u>보지 않고</u>, "
+            "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
+            "<b>아래 승률·평균수익은 2025년 4월 한 번의 반등을 분석한 결과</b>이며 "
+            "앞으로의 승률이 아닙니다.</div>"
+            f"<div class='j3-metric-row'>{''.join(cards)}</div>",
+            unsafe_allow_html=True,
+        )
+    reuse_text = "기존 일봉 배치 재사용" if result.get("reused_batch") else "일봉 1회 배치 조회"
+    funnel = (
+        f"신고가 {wait_min}~{wait_max}일 전 <b>{result.get('window_count', 0):,}개</b> → "
+        if breakout else ""
+    )
+    st.markdown(
+        "<div class='j3-pull-stats'>"
+        f"대형주 <b>{result.get('universe_count', 0):,}개</b> → "
+        f"일봉 확보 <b>{result.get('data_count', 0):,}개</b> → "
+        f"{funnel}기준 통과 <b class='j3-green'>{len(rows):,}개</b>"
+        f"(최대 {int(result.get('result_limit') or 0)}개) · {reuse_text}</div>",
+        unsafe_allow_html=True,
+    )
+    if not rows:
+        st.info(
+            "지금은 이 기준에 맞는 종목이 없습니다. 기준을 느슨하게 바꾸지 않습니다 — "
+            "설명서 그대로 찾은 결과입니다."
+        )
+        return
+
+    widths = [0.55, 1.9, 0.9, 1.3, 1.25, 1.25, 1.35, 1.9]
+    row_widths = [widths[0], widths[1], sum(widths[2:])]
+    rest_widths = widths[2:]
+    third = "신고가" if breakout else "갈래"
+    table_box = st.container(key="j3_rulebook_table")
+    head = table_box.columns(row_widths)
+    head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(rest_widths, ["티커", "당일주가", "고점 대비", third, "보유일수",
+                                "평균 거래대금"], head=True),
+        unsafe_allow_html=True,
+    )
+
+    tickers_now = [row.get("ticker") for row in rows]
+    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    if selected_ticker not in tickers_now:
+        selected_ticker = rows[0].get("ticker")
+    selected_css = []
+    for index, row in enumerate(rows):
+        metrics = row.get("metrics") or {}
+        from_high = metrics.get("from_high_pct")
+        avg_value = metrics.get("avg_dollar_volume")
+        avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
+        cols = table_box.columns(row_widths)
+        cols[0].markdown(
+            f"<div class='j3-td j3-muted'>{int(row.get('pullback_rank') or index + 1)}</div>",
+            unsafe_allow_html=True,
+        )
+        if cols[1].button(
+            str(row.get("name") or row.get("ticker") or "—"),
+            key=f"j3rbf_{index:02d}",
+            width="stretch",
+        ):
+            st.session_state["j3_pullback_selected_ticker"] = row["ticker"]
+            st.rerun()
+        if row.get("ticker") == selected_ticker:
+            selected_css.append(
+                f"div[class*='st-key-j3rbf_{index:02d}'] button "
+                "{ background: rgba(192,132,252,.16) !important; "
+                "border-left: 3px solid #c084fc !important; }"
+            )
+        price_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+            f"<span>{_price(metrics.get('current'))}</span>"
+            f"<span style='color:{_sign_color(metrics.get('change_pct'))};"
+            f" font-weight:800; font-size:.82rem'>{_pct(metrics.get('change_pct'))}</span></span>"
+        )
+        if breakout:
+            third_cell = f"<span class='j3-green'>{int(row.get('wait_days') or 0)}일 전</span>"
+        else:
+            third_cell = f"<span class='j3-pull-amber'>{html.escape(str(row.get('bucket_label') or '—'))}</span>"
+        cols[2].markdown(
+            _flex_row(rest_widths, [
+                html.escape(str(row.get("ticker") or "—")),
+                price_cell,
+                f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+                third_cell,
+                f"<span class='j3-green'>{int(row.get('hold_days') or 0)}거래일</span>",
+                f"<span class='j3-green'>{avg_text}</span>",
+            ]),
+            unsafe_allow_html=True,
+        )
+    if selected_css:
+        st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+    st.caption(
+        "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
+        "그 자리에 와 있는 종목을 좁혀 준 목록이며, 사라는 신호가 아닙니다."
+    )
+    selected_row = next(
+        (row for row in rows if row.get("ticker") == selected_ticker), rows[0]
+    )
+    _render_pullback_detail(selected_row, market, ranking)
+
+
 def _render_pullback_finder(market: dict, ranking: dict) -> None:
     """20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""
     st.divider()
@@ -2508,20 +2689,59 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 페이지를 여는 것만으로 20종목 표가 통째로 쏟아지면 폰에서 화면을 다 먹었다.
     # 제목은 '눌림목 찾기'만, 폭도 글자만큼만 둔다(2026-07-30 사용자 지시).
     # 열려 있을 때 다시 누르면 접는다(2026-07-30 사용자 지적: 두 번째 클릭이 안 먹었다).
-    if st.button("눌림목 찾기", key="j3_pullback_find"):
-        if st.session_state.get("j3_pullback_open"):
+    # 설명서(‘이 테마 기법에 대한 설명’)가 말하는 두 갈래를 옆에 단추로 둔다
+    # (2026-08-01 사용자 지시). 어느 단추를 눌렀느냐에 따라 같은 자리의 표가 바뀐다.
+    # 세 단추 모두 열려 있을 때 다시 누르면 접힌다.
+    finder_cols = st.columns(3)
+    pressed = None
+    with finder_cols[0]:
+        if st.button("눌림목 찾기", key="j3_pullback_find"):
+            pressed = "기본"
+    with finder_cols[1]:
+        if st.button("상승장 (신고가 눌림매수)", key="j3_pullback_breakout"):
+            pressed = "breakout"
+    with finder_cols[2]:
+        if st.button("급락 후 반등장 (낙폭종목)", key="j3_pullback_crash"):
+            pressed = "crash"
+    if pressed:
+        already_open = (
+            st.session_state.get("j3_pullback_open")
+            and st.session_state.get("j3_pullback_mode") == pressed
+        )
+        if already_open:
             # 닫기 — 조회도 rerun도 하지 않는다(2026-07-30 사용자 실측: 닫는 데 1.5초).
             st.session_state["j3_pullback_open"] = False
             st.session_state.pop("j3_pullback_selected_ticker", None)
         else:
             st.session_state["j3_pullback_open"] = True
+            st.session_state["j3_pullback_mode"] = pressed
             st.session_state.pop("j3_pullback_selected_ticker", None)
-            with st.spinner("미국 20개 테마 전체에서 상승추세 조정 종목을 찾는 중입니다…"):
-                st.session_state["j3_pullback_result"] = j3data.find_pullback_stocks(reuse_only=True)
+            if pressed == "breakout":
+                with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
+                    st.session_state["j3_pullback_result"] = (
+                        j3data.find_breakout_pullback_stocks()
+                    )
+            elif pressed == "crash":
+                with st.spinner("미국 대형주 200개에서 고점 대비 낙폭이 큰 종목을 찾는 중입니다…"):
+                    st.session_state["j3_pullback_result"] = (
+                        j3data.find_crash_rebound_stocks()
+                    )
+            else:
+                with st.spinner("미국 20개 테마 전체에서 상승추세 조정 종목을 찾는 중입니다…"):
+                    st.session_state["j3_pullback_result"] = j3data.find_pullback_stocks(
+                        reuse_only=True
+                    )
     if not st.session_state.get("j3_pullback_open"):
-        st.caption("단추를 누르면 조회합니다. 열린 뒤 다시 누르면 접힙니다.")
+        st.caption(
+            "단추를 누르면 조회합니다. 열린 뒤 같은 단추를 다시 누르면 접힙니다. "
+            "옆 두 단추는 ‘이 테마 기법에 대한 설명’의 규칙 그대로 찾습니다."
+        )
         return
     result = st.session_state.get("j3_pullback_result")
+    mode = st.session_state.get("j3_pullback_mode") or "기본"
+    if mode in ("breakout", "crash") and isinstance(result, dict):
+        _render_rulebook_finder(result, market, ranking, mode)
+        return
     if result is None:
         st.info("위 버튼을 누르면 조회합니다. 페이지를 여는 것만으로는 전수 검색하지 않습니다.")
         return

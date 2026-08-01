@@ -84,9 +84,46 @@ US_INDEX_SYMBOLS = tuple(symbol for symbol, _name in US_INDEX_DISPLAY)
 
 MARKET_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA", "^VIX") + US_INDEX_SYMBOLS
 
+# ── 설명서가 말하는 두 갈래를 찾을 종목 범위 (2026-08-01 사용자 지시) ──────────
+# '미국장 눌림목 매매 설명서'의 검증은 미국 대형주 200개로 한 것이라, 테마 종목
+# 137개만 훑으면 설명서와 범위가 다르다. 그래서 널리 거래되는 대형주를 더해
+# 200개 안팎으로 넓힌다. 테마 종목을 **전부 포함하는 묶음**이라 야후를 한 번만
+# 부르면 테마 검색도 이 묶음을 잘라 쓴다(_download_cached의 부분집합 재사용).
+# 자료를 못 받는 티커는 조용히 빠지고, 화면에 '일봉 확보 n개'로 실제 수를 적는다.
+_US_LARGE_CAP_EXTRA = (
+    "BRK-B", "JPM", "V", "MA", "UNH", "JNJ", "PG", "HD", "MRK", "PEP",
+    "KO", "ABBV", "COST", "WMT", "BAC", "CRM", "MCD", "TMO", "ACN", "ABT",
+    "LIN", "DHR", "VZ", "TXN", "NKE", "PM", "WFC", "DIS", "MS", "NEE",
+    "UPS", "INTU", "LOW", "GS", "SPGI", "BLK", "AXP", "BKNG", "SYK", "DE",
+    "T", "PLD", "GILD", "TJX", "MDT", "ADP", "MDLZ", "CI", "CVS", "C",
+    "SO", "SCHW", "BSX", "CB", "ORCL", "ADBE", "SBUX", "UBER", "NOW", "LLY",
+    "PFE", "BMY", "ABNB", "ELV", "AON", "ZTS", "DUK", "ITW", "PGR", "EOG",
+    "APD",
+)
+US_LARGE_CAP_UNIVERSE = tuple(dict.fromkeys(
+    [ticker for theme in US_THEMES for ticker in theme["stocks"]] + list(_US_LARGE_CAP_EXTRA)
+))
+
+# 설명서에 적힌 숫자를 여기 한 곳에 둔다. 화면 문구(method_help.US_TEXT)와 이 값이
+# 어긋나면 화면이 설명과 다른 것을 찾게 되므로, 고칠 때는 둘을 같이 고친다.
+BREAKOUT_PULLBACK_RULE = {
+    "wait_days": (3, 5),        # 52주 신고가 돌파 뒤 기다리는 거래일
+    "drop_band": (-6.0, -4.0),  # 그 고점에서 눌린 폭
+    "hold_days": 120,
+    "win_rate": 59.7,
+    "sample": 119,
+    "avg_return": 18.0,
+}
+CRASH_REBOUND_RULES = (
+    {"key": "deep", "band": (-50.0, -40.0), "hold_days": 20,
+     "win_rate": 100.0, "sample": 12, "avg_return": 11.2, "label": "고점 대비 -40~-50%"},
+    {"key": "mid", "band": (-40.0, -30.0), "hold_days": 60,
+     "win_rate": 92.6, "sample": 27, "avg_return": 24.9, "label": "고점 대비 -30~-40%"},
+)
+
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080110
+MODULE_REVISION = 2026080120
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -888,6 +925,140 @@ def find_pullback_stocks(
         # 화면 안내 문구가 합격선을 직접 적지 않고 이 값을 쓰게 한다 —
         # 기준을 바꿔도 문구가 따라 바뀌도록.
         "min_score": float(min_score),
+        "result_limit": int(result_limit),
+        "checked_at": meta.get("fetched_at"),
+        "stale": bool(meta.get("stale")),
+        "reused_batch": bool(meta.get("reused_superset")),
+    }
+
+
+def _universe_daily(reuse_only: bool):
+    """설명서 두 갈래가 함께 쓰는 대형주 묶음의 1년 일봉과 소속 테마."""
+    memberships: dict[str, list[str]] = {}
+    for theme in US_THEMES:
+        for ticker in theme["stocks"]:
+            memberships.setdefault(ticker, []).append(theme["name"])
+    loader = _download_cache_only if reuse_only else _download_cached
+    daily, meta = loader(
+        US_LARGE_CAP_UNIVERSE, period="1y", interval="1d", ttl_seconds=300
+    )
+    return daily, meta, memberships
+
+
+def _universe_row(ticker: str, metrics: dict, memberships: dict) -> dict:
+    themes = memberships.get(ticker) or []
+    return {
+        "ticker": ticker,
+        "name": STOCK_NAMES.get(ticker, ticker),
+        "themes": themes,
+        "theme_count": len(themes),
+        "metrics": metrics,
+        # 상세 화면(_render_pullback_detail)이 눌림 점수를 그대로 쓰므로 같이 담는다.
+        "pullback": _pullback_quality(metrics, len(themes)) or {},
+    }
+
+
+def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int = 20) -> dict:
+    """설명서 1번 — 정상 상승장의 '신고가 눌림매수' 자리를 찾는다 (2026-08-01).
+
+    설명서 그대로만 거른다. **50일선·200일선은 보지 않는다** — 설명서의 규칙은
+    "52주 신고가 돌파 → 3~5거래일 기다림 → 그 고점에서 4~6% 하락한 날 종가 확인"
+    뿐이고, 이동평균 조건은 없다. 여기에 없는 조건을 더하면 화면이 설명과 다른
+    것을 찾게 된다.
+
+    순서는 평균 거래대금이 큰 순이다 — 규칙이 순위를 정해 주지 않으므로, 사고팔기
+    쉬운 종목을 위에 둔다.
+    """
+    daily, meta, memberships = _universe_daily(reuse_only)
+    if not daily:
+        return {"ok": False, "error": meta.get("error") or "미국 종목 일봉 조회 실패", "rows": []}
+
+    wait_min, wait_max = BREAKOUT_PULLBACK_RULE["wait_days"]
+    drop_low, drop_high = BREAKOUT_PULLBACK_RULE["drop_band"]
+    rows, window_count = [], 0
+    for ticker in US_LARGE_CAP_UNIVERSE:
+        metrics = _series_metrics(daily.get(ticker))
+        if not metrics.get("ok"):
+            continue
+        days_ago = metrics.get("high52_days_ago")
+        from_high = metrics.get("from_high_pct")
+        if days_ago is None or not (wait_min <= days_ago <= wait_max):
+            continue
+        window_count += 1
+        if from_high is None or not (drop_low <= from_high <= drop_high):
+            continue
+        row = _universe_row(ticker, metrics, memberships)
+        row["wait_days"] = int(days_ago)
+        row["hold_days"] = BREAKOUT_PULLBACK_RULE["hold_days"]
+        rows.append(row)
+    rows.sort(key=lambda row: row["metrics"].get("avg_dollar_volume") or 0, reverse=True)
+    rows = rows[: max(1, int(result_limit))]
+    for index, row in enumerate(rows, 1):
+        row["pullback_rank"] = index
+    return {
+        "ok": True,
+        "mode": "breakout",
+        "rows": rows,
+        "rule": BREAKOUT_PULLBACK_RULE,
+        "universe_count": len(US_LARGE_CAP_UNIVERSE),
+        "data_count": len(daily),
+        "window_count": window_count,
+        "result_limit": int(result_limit),
+        "checked_at": meta.get("fetched_at"),
+        "stale": bool(meta.get("stale")),
+        "reused_batch": bool(meta.get("reused_superset")),
+    }
+
+
+def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 20) -> dict:
+    """설명서 2번 — 급락 후 반등장의 '낙폭 종목'을 찾는다 (2026-08-01).
+
+    신고가가 언제 나왔는지는 보지 않고, **고점 대비 얼마나 하락했는지만** 본다.
+    50일선 조건도 없다 — 30~50% 빠진 종목이 50일선 위에 있을 리 없고, 설명서에도
+    그런 조건이 없다(2026-08-01 사용자 확인: "굳이 50일선 맞출 필요가 있나").
+
+    낙폭이 깊은 갈래를 위에 두고, 같은 갈래 안에서는 평균 거래대금이 큰 순이다.
+    """
+    daily, meta, memberships = _universe_daily(reuse_only)
+    if not daily:
+        return {"ok": False, "error": meta.get("error") or "미국 종목 일봉 조회 실패", "rows": []}
+
+    rows = []
+    counts = {rule["key"]: 0 for rule in CRASH_REBOUND_RULES}
+    for ticker in US_LARGE_CAP_UNIVERSE:
+        metrics = _series_metrics(daily.get(ticker))
+        if not metrics.get("ok"):
+            continue
+        from_high = metrics.get("from_high_pct")
+        if from_high is None:
+            continue
+        for order, rule in enumerate(CRASH_REBOUND_RULES):
+            low, high = rule["band"]
+            if low <= from_high < high:
+                counts[rule["key"]] += 1
+                row = _universe_row(ticker, metrics, memberships)
+                row["bucket"] = rule["key"]
+                row["bucket_label"] = rule["label"]
+                row["hold_days"] = rule["hold_days"]
+                row["win_rate"] = rule["win_rate"]
+                row["sample"] = rule["sample"]
+                row["avg_return"] = rule["avg_return"]
+                row["_order"] = order
+                rows.append(row)
+                break
+    rows.sort(key=lambda row: (row["_order"], -(row["metrics"].get("avg_dollar_volume") or 0)))
+    rows = rows[: max(1, int(result_limit))]
+    for index, row in enumerate(rows, 1):
+        row["pullback_rank"] = index
+        row.pop("_order", None)
+    return {
+        "ok": True,
+        "mode": "crash",
+        "rows": rows,
+        "rules": CRASH_REBOUND_RULES,
+        "bucket_counts": counts,
+        "universe_count": len(US_LARGE_CAP_UNIVERSE),
+        "data_count": len(daily),
         "result_limit": int(result_limit),
         "checked_at": meta.get("fetched_at"),
         "stale": bool(meta.get("stale")),
