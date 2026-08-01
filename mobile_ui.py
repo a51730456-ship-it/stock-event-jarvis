@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026080110
+MODULE_REVISION = 2026080111
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -104,13 +104,15 @@ def table_css(button_prefix: str, total: int, keep: dict[int, str], cell_class: 
     return "\n".join(rules)
 
 
-# 폰에서는 사이드바 메뉴를 자비스3·4·5(미국테마·한국테마·선행감지)만 남긴다.
-# 나머지 셋(자비스1·시장판단·자비스2 = li 1~3)은 감춘다. (2026-07-25 사용자 지시)
+# 폰·태블릿에서는 사이드바 메뉴를 **미국테마(자비스3)·한국테마(자비스4) 둘만**
+# 남긴다(2026-08-01 사용자 지시. 그전에는 선행감지까지 셋이었다).
+# li 번호는 파일 순서다 — 1 자비스1 · 2 시장판단 · 3 자비스2 · 4 미국테마 ·
+# 5 한국테마 · 6 선행감지 · 7 종가관찰. 그래서 1~3과 6~7을 감춘다.
 # nth-child는 감춰도 번호가 밀리지 않으므로, app.py의 순서·이름표 규칙
-# (nth-child 4/5/6)은 그대로 맞는다.
+# (nth-child 4/5/6/7)은 그대로 맞는다.
 #
-# 이 규칙만 태블릿까지(≤1200px) 넓게 잡는다 — 사용자가 "스마트폰과 태블릿에만
-# 3개"라고 지시했다. 표·글자 규칙(600px)과 기준이 달라서 따로 둔다.
+# 이 규칙만 태블릿까지(≤1200px) 넓게 잡는다 — 사용자가 "스마트폰과 태블릿"이라고
+# 지시했다. 표·글자 규칙(600px)과 기준이 달라서 따로 둔다.
 # app.py에도 같은 규칙이 있다(자비스1 화면용). 한쪽만 고치면 화면마다 메뉴가
 # 달라지므로 둘을 같이 고쳐야 한다.
 SIDEBAR_MAX_WIDTH = 1200
@@ -119,7 +121,9 @@ SIDEBAR_NAV_CSS = f"""
 @media (max-width: {SIDEBAR_MAX_WIDTH}px) {{
 [data-testid="stSidebarNav"] li:nth-child(1),
 [data-testid="stSidebarNav"] li:nth-child(2),
-[data-testid="stSidebarNav"] li:nth-child(3) {{ display: none !important; }}
+[data-testid="stSidebarNav"] li:nth-child(3),
+[data-testid="stSidebarNav"] li:nth-child(6),
+[data-testid="stSidebarNav"] li:nth-child(7) {{ display: none !important; }}
 }}
 """
 

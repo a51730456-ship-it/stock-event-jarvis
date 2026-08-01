@@ -377,14 +377,18 @@ st.markdown(
     [data-testid="stSidebarNav"] {
         padding-top: 3.4rem !important;
     }
-    /* 폰·태블릿(≤1200px)에서는 메뉴를 미국테마·한국테마·선행감지 셋만 남긴다
-       (2026-07-25 사용자 지시). 자비스3·4·5에는 mobile_ui가 같은 규칙을 넣지만
-       이 화면(자비스1)에는 없어서 폰에서 메뉴 6개가 다 보였다.
-       옵션을 지우는 게 아니라 감추는 것이라 노트북/PC에서는 그대로 6개다. */
+    /* 폰·태블릿(≤1200px)에서는 메뉴를 미국테마·한국테마 둘만 남긴다
+       (2026-08-01 사용자 지시. 그전에는 선행감지까지 셋이었다).
+       자비스3·4·5에는 mobile_ui가 같은 규칙을 넣지만 이 화면(자비스1)에는 없어서
+       폰에서 메뉴가 다 보였다. 한쪽만 고치면 화면마다 메뉴가 달라지므로
+       mobile_ui.SIDEBAR_NAV_CSS와 늘 같이 고친다.
+       옵션을 지우는 게 아니라 감추는 것이라 노트북/PC에서는 그대로 7개다. */
     @media (max-width: 1200px) {
         [data-testid="stSidebarNav"] li:nth-child(1),
         [data-testid="stSidebarNav"] li:nth-child(2),
-        [data-testid="stSidebarNav"] li:nth-child(3) { display: none !important; }
+        [data-testid="stSidebarNav"] li:nth-child(3),
+        [data-testid="stSidebarNav"] li:nth-child(6),
+        [data-testid="stSidebarNav"] li:nth-child(7) { display: none !important; }
     }
     </style>
     """,

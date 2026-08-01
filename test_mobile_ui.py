@@ -77,18 +77,28 @@ class MediaQueryTests(unittest.TestCase):
         """칸이 좁아 '+1.76%'가 한 글자씩 세로로 쪼개지던 것을 막는다."""
         self.assertIn("white-space: nowrap", m.THEME_TABLE_CSS)
 
-    def test_phone_hides_only_the_first_three_sidebar_items(self):
-        """폰 메뉴는 미국테마·한국테마·선행감지(li 4·5·6)만 남긴다.
+    def test_phone_menu_keeps_only_the_two_theme_pages(self):
+        """폰·태블릿 메뉴는 미국테마(li 4)·한국테마(li 5) 둘만 남긴다(2026-08-01 지시).
 
-        자비스1·시장판단·자비스2(li 1·2·3)는 감추되, 남길 4·5·6은 감추면 안 된다.
-        규칙은 반드시 미디어쿼리 안에 있어야 태블릿·PC 메뉴가 그대로다.
+        자비스1·시장판단·자비스2(li 1~3)와 선행감지·종가관찰(li 6~7)을 감추되,
+        남길 4·5는 감추면 안 된다. 규칙은 반드시 미디어쿼리 안에 있어야
+        노트북/PC 메뉴가 그대로다.
         """
         css = m.page_css()
         # 사이드바 메뉴를 감추는 규칙 덩어리만 뽑아 nth-child 번호를 확인한다.
         block = next(b for b in css.split("}")
                      if "stSidebarNav" in b and "display: none" in b)
         hidden = {int(n) for n in re.findall(r"nth-child\((\d+)\)", block)}
-        self.assertEqual(hidden, {1, 2, 3})
+        self.assertEqual(hidden, {1, 2, 3, 6, 7})
+
+    def test_jarvis1_screen_hides_the_same_menu_items(self):
+        """app.py에도 같은 규칙이 있다 — 한쪽만 고치면 화면마다 메뉴가 달라진다."""
+        import pathlib
+
+        source = pathlib.Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        block = source.split("@media (max-width: 1200px) {", 1)[1].split("}", 1)[0]
+        hidden = {int(n) for n in re.findall(r"nth-child\((\d+)\)", block)}
+        self.assertEqual(hidden, {1, 2, 3, 6, 7})
 
     def test_menu_rule_reaches_tablets_but_not_pc(self):
         """메뉴는 폰·태블릿에서만 3개다 — 갤럭시탭 S8+(1138px)도 걸려야 한다."""
