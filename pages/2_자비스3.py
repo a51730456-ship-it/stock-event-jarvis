@@ -210,10 +210,14 @@ st.markdown(
     /* 종목표(j3_leader_table)도 이름을 누를 수 있게 칸 방식으로 바꾸면서
        이미 폰·태블릿에서 잘 도는 위 두 표와 똑같은 규칙에 얹었다(2026-07-29). */
     /* 순위 7 표도 같은 규칙에 얹는다(2026-08-01 사용자 지시) — 폰에서 한 종목이
-       여섯 줄로 쌓이던 것을, 나머지 세 표처럼 옆으로 밀어서 보게 한다. */
+       여섯 줄로 쌓이던 것을, 나머지 세 표처럼 옆으로 밀어서 보게 한다.
+       설명서 두 갈래 표(j3_rulebook_table)도 같은 규칙에 얹는다 — 빠뜨렸더니
+       폰에서 순위·종목이 따로 쌓이고 값이 서로 겹쳐 찍혔다(2026-08-01 캡처).
+       **새 표를 만들면 반드시 이 세 목록에 다 넣는다.** */
     .st-key-j3_pullback_table,
     .st-key-j3_leader_table,
     .st-key-j3_top7_table,
+    .st-key-j3_rulebook_table,
     .st-key-j3_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
         .st-key-j3_pullback_table [data-testid="stHorizontalBlock"] {
@@ -221,12 +225,14 @@ st.markdown(
         }
         .st-key-j3_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j3_top7_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"],
         .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
         .st-key-j3_pullback_table [data-testid="stColumn"],
         .st-key-j3_leader_table [data-testid="stColumn"],
         .st-key-j3_top7_table [data-testid="stColumn"],
+        .st-key-j3_rulebook_table [data-testid="stColumn"],
         .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     .j3-td { white-space: nowrap; }
@@ -264,17 +270,35 @@ st.markdown(
         letter-spacing: .01em !important;
         margin: 0 !important;
     }
+    /* 낙폭 두 갈래는 색으로 가른다(2026-08-01 사용자 지시) — 위 설명 카드와 표의
+       같은 갈래가 같은 색이라, 카드를 보고 표에서 그 줄을 바로 찾을 수 있다.
+       깊은 갈래(-40~-50%)는 주황, 얕은 갈래(-30~-40%)는 하늘색이다.
+       상승·하락 색(파랑/빨강)과 겹치지 않는 색을 골라 등락률과 헷갈리지 않는다. */
+    .j3-band-deep, .j3-band-mid {
+        display: inline-block; border-radius: .4rem; padding: .05rem .45rem;
+        font-weight: 800; white-space: nowrap;
+    }
+    .j3-band-deep { color: #ff9d3b; background: rgba(255,157,59,.16);
+        border: 1px solid rgba(255,157,59,.55); }
+    .j3-band-mid { color: #7cc8ff; background: rgba(124,200,255,.14);
+        border: 1px solid rgba(124,200,255,.5); }
+    .j3-card-deep { border-color: rgba(255,157,59,.55) !important; }
+    .j3-card-deep .j3-reason-title { color: #ff9d3b !important; }
+    .j3-card-mid { border-color: rgba(124,200,255,.5) !important; }
+    .j3-card-mid .j3-reason-title { color: #7cc8ff !important; }
+    /* 설명서 두 갈래 표의 종목 단추 — 눌림목 표(j3pbf_)와 똑같은 모양으로 둔다.
+       모양이 다르면 같은 자리에서 단추만 달라 보여 어색하다(2026-08-01). */
     div[class*="st-key-j3rbf_"] button {
-        background: transparent !important; border: none !important;
-        box-shadow: none !important; padding: 0 !important;
-        min-height: 2.5rem !important; width: 100% !important;
-        border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+        background: transparent !important; border: none !important; box-shadow: none !important;
+        padding: 0 0 0 .8rem !important; min-height: 2.5rem !important; width: 100% !important;
+        justify-content: flex-start !important;
+        border-bottom: 1px solid rgba(255,255,255,.06) !important;
         border-radius: 0 !important;
     }
-    div[class*="st-key-j3rbf_"] button:hover { background: rgba(255,255,255,0.06) !important; }
+    div[class*="st-key-j3rbf_"] button:hover { background: rgba(77,166,255,.09) !important; }
     div[class*="st-key-j3rbf_"] button p {
-        color: #c084fc !important; font-weight: 800 !important;
-        font-size: 0.95rem !important; margin: 0 !important;
+        color: #c084fc !important; font-weight: 800 !important; font-size: .94rem !important;
+        margin: 0 !important; text-align: left !important;
     }
     div[class*="st-key-j3_pullback_find"] button p {
         color: #ffffff !important;
@@ -2516,6 +2540,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         )
 
 
+# 낙폭 두 갈래의 색 (2026-08-01 사용자 지시: "-30~-40과 -40~-50 색깔 구분하고").
+# 설명 카드와 표의 같은 갈래가 같은 색이라 카드를 보고 표에서 그 줄을 바로 찾는다.
+_BAND_CARD_CLASS = {"deep": "j3-card-deep", "mid": "j3-card-mid"}
+_BAND_CELL_CLASS = {"deep": "j3-band-deep", "mid": "j3-band-mid"}
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -2548,8 +2578,9 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         counts = result.get("bucket_counts") or {}
         cards = []
         for rule in result.get("rules") or []:
+            # 카드와 표의 같은 갈래가 같은 색이어야 눈으로 이어진다(2026-08-01 지시).
             cards.append(
-                "<div class='j3-reason-card'>"
+                f"<div class='j3-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
                 f"<div class='j3-reason-title'>{rule['label']} → {rule['hold_days']}거래일 보유</div>"
                 f"<div class='j3-reason-body'>승률 {rule['win_rate']}%({rule['sample']}건) · "
                 f"평균수익 +{rule['avg_return']}% · 지금 해당 종목 "
@@ -2636,7 +2667,11 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         if breakout:
             third_cell = f"<span class='j3-green'>{int(row.get('wait_days') or 0)}일 전</span>"
         else:
-            third_cell = f"<span class='j3-pull-amber'>{html.escape(str(row.get('bucket_label') or '—'))}</span>"
+            # 칸이 좁아 '고점 대비 -40~-50%'는 옆 칸을 덮었다(2026-08-01 폰 캡처).
+            # '고점 대비'는 바로 왼쪽 칸 이름이 이미 말하므로 숫자만 남긴다.
+            band = str(row.get("bucket_label") or "—").replace("고점 대비 ", "")
+            band_class = _BAND_CELL_CLASS.get(str(row.get("bucket")), "j3-pull-amber")
+            third_cell = f"<span class='{band_class}'>{html.escape(band)}</span>"
         cols[2].markdown(
             _flex_row(rest_widths, [
                 html.escape(str(row.get("ticker") or "—")),

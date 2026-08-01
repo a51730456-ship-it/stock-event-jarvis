@@ -693,6 +693,29 @@ class Jarvis3PageTests(unittest.TestCase):
         # 승률이 광고로 읽히지 않게 하는 경고가 반드시 함께 있어야 한다.
         self.assertIn("앞으로의 승률이 아닙니다", joined)
 
+    def test_the_two_depth_buckets_get_different_colours(self):
+        """2026-08-01 사용자 지시 — -30~-40과 -40~-50을 색으로 가른다.
+
+        설명 카드와 표의 같은 갈래가 같은 색이어야 카드를 보고 줄을 찾을 수 있다.
+        """
+        app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
+        joined = " ".join(str(node.value) for node in app.markdown)
+        for name in ("j3-band-deep", "j3-card-deep", "j3-card-mid"):
+            self.assertIn(name, joined, f"{name} 색이 화면에 안 실렸다")
+        # 표 칸에는 '고점 대비'를 빼고 숫자만 — 폰에서 옆 칸을 덮었다.
+        self.assertIn("j3-band-deep'>-40~-50%", joined)
+
+    def test_rulebook_table_slides_sideways_like_the_pullback_table(self):
+        """폰에서 순위·종목이 따로 쌓이던 것을 눌림목 표와 같은 규칙으로 맞췄다.
+
+        표 상자 이름을 옆으로 밀기 규칙 목록에 넣지 않으면 다시 쌓인다
+        (2026-08-01 캡처로 확인).
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn(".st-key-j3_rulebook_table,", source)
+        self.assertIn('.st-key-j3_rulebook_table [data-testid="stHorizontalBlock"],', source)
+        self.assertIn('.st-key-j3_rulebook_table [data-testid="stColumn"],', source)
+
     def test_main_login_includes_jarvis3_destination(self):
         source = (ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("미국테마 (자비스3)", source)
