@@ -49,12 +49,24 @@ class MarketJudgmentPageTest(unittest.TestCase):
         self.assertNotIn("기관 수급 현황", text)
 
 
+def _open_jarvis1(timeout=90):
+    """자비스1을 직접 연 상태로 만든다.
+
+    2026-08-01부터 로그인만으로는 자비스1이 열리지 않는다 — 첫 주소로 돌아온 사람에게는
+    '어디로 갈까요' 화면을 띄우기 때문이다. 자비스1을 고른 사람은 주소에 표식이 남고,
+    그 표식이 있을 때만 자비스1이 그려진다.
+    """
+    at = AppTest.from_file("app.py", default_timeout=timeout)
+    at.session_state["authenticated"] = True
+    at.query_params["page"] = "jarvis1"
+    return at
+
+
 class Jarvis1NoLongerHostsCardsTest(unittest.TestCase):
     """카드는 자비스1에서 빠졌어야 한다 — 두 군데에 있으면 안 된다."""
 
     def test_cards_removed_from_jarvis1(self):
-        at = AppTest.from_file("app.py", default_timeout=90)
-        at.session_state["authenticated"] = True
+        at = _open_jarvis1()
         at.run()
         self.assertEqual(at.exception, [], "자비스1 렌더 중 예외")
         text = " ".join(m.value for m in at.markdown)
@@ -62,8 +74,7 @@ class Jarvis1NoLongerHostsCardsTest(unittest.TestCase):
         self.assertNotIn("미국장 선행신호·시장 상태", text)
 
     def test_jarvis1_existing_features_intact(self):
-        at = AppTest.from_file("app.py", default_timeout=90)
-        at.session_state["authenticated"] = True
+        at = _open_jarvis1()
         at.run()
         text = " ".join(m.value for m in at.markdown)
         # 기존 0단계·시장요약은 그대로 남아 있어야 한다.

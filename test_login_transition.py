@@ -176,6 +176,45 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertEqual(_overlay_count(app), 0)
         self.assertFalse(any("<audio autoplay" in str(node.value) for node in app.markdown))
         self.assertFalse(any("DuplicateWidgetID" in str(error.value) for error in app.exception))
+        # 자비스1을 고른 사람은 주소에 표식이 남아야 한다 — 이 표식이 있어야 아래
+        # '뒤로가기' 화면과 구별된다. (AppTest는 값을 목록으로 돌려준다.)
+        mark = app.query_params.get("page")
+        self.assertIn("jarvis1", mark if isinstance(mark, list) else [mark])
+
+    def test_back_button_lands_on_the_chooser_not_on_jarvis1(self):
+        """폰에서 뒤로가기를 여러 번 누르면 첫 주소로 돌아온다(2026-08-01 사용자 지시).
+
+        그때 자비스1의 무거운 탭 화면을 그리면 검은 빈 화면이 한참 떠 있고 버벅인다.
+        이미 로그인한 세션이므로 비밀번호는 다시 묻지 않고, 어디로 갈지 고르는
+        화면만 띄운다. 무거운 모듈은 하나도 읽지 않아야 한다.
+        """
+        app = _new_app()
+        app.session_state["authenticated"] = True  # 로그인은 이미 끝난 세션이다
+        with self._socket_block(), _offline_market_stubs():
+            app.run(timeout=60)
+        self.assertEqual(len(app.exception), 0)
+        markdowns = [str(node.value) for node in app.markdown]
+        self.assertTrue(any("어디로 갈까요" in value for value in markdowns))
+        self.assertTrue(any("비밀번호를 다시 넣지 않아도 됩니다" in value for value in markdowns))
+        # 비밀번호 칸은 없어야 한다 — 다시 로그인시키지 않는다.
+        self.assertEqual([], [node for node in app.text_input if node.key == "login_password_input"])
+        # 고르는 칸과 이동 단추가 있어야 한다.
+        self.assertEqual(["entry_dest_choice"], [node.key for node in app.radio])
+        self.assertIn("entry_go", [node.key for node in app.button])
+        # 자비스1은 그려지지 않아야 한다 — 이게 그려지면 옛 동작으로 돌아간 것이다.
+        self.assertFalse(any("① 한국장 판단" in value for value in markdowns))
+
+    def test_the_chooser_moves_to_the_page_you_picked(self):
+        """고른 곳으로 실제로 옮겨 가는지. 옮기지 못하면 화면에 갇힌다."""
+        app = _new_app()
+        app.session_state["authenticated"] = True
+        with self._socket_block(), _offline_market_stubs():
+            app.run(timeout=60)
+            app.radio[0].set_value("미국테마 (자비스3)")
+            next(node for node in app.button if node.key == "entry_go").click().run(timeout=60)
+        # switch_page가 실제로 일어나면 자비스3 페이지가 열린다(멀티페이지 AppTest).
+        self.assertEqual(len(app.exception), 0)
+        self.assertNotIn("entry_go", [node.key for node in app.button])
 
 
 if __name__ == "__main__":

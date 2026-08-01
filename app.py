@@ -434,6 +434,44 @@ try:
 except TypeError:
     auth.sync_auth()
 
+# 갈 수 있는 곳 — 로그인 화면과 '어디로 갈까' 화면이 같은 목록을 쓴다.
+# 두 곳에 따로 적어 두면 한쪽만 고쳐져 목록이 어긋난다.
+# 순서를 바꾸면 폰·태블릿에서 앞 3개를 숨기는 CSS(nth-child(-n+3))도 같이 고쳐야
+# 한다(CLAUDE.md 12번).
+_DEST_OPTIONS = [
+    "시장 판단",
+    "자비스1 (기록장)",
+    "자비스2 (순환매 플레이북)",
+    "미국테마 (자비스3)",
+    "한국테마 (자비스4)",
+    "선행감지 (자비스5·실험)",
+    "종가관찰 (자비스6·연습)",
+]
+# 기본 이동은 한국테마(자비스4)다(2026-07-29 사용자 지시). 폰·태블릿에서 숨기는
+# 앞 3개에 들어가면 '선택된 항목이 안 보이는' 상태가 되므로 그 밖이어야 한다.
+_DEST_DEFAULT_INDEX = 4
+_DEST_PAGES = {
+    "시장 판단": "pages/0_시장판단.py",
+    "자비스2": "pages/1_자비스2.py",
+    "미국테마": "pages/2_자비스3.py",
+    "한국테마": "pages/3_자비스4.py",
+    "선행감지": "pages/4_자비스5.py",
+    "종가관찰": "pages/5_자비스6.py",
+}
+# 자비스1은 옮겨 갈 페이지가 아니라 이 파일 자체다. 그래서 '자비스1을 보는 중'인지
+# '뒤로가기로 첫 주소에 돌아온 것'인지 세션 값으로는 가를 수 없다 — 세션은 뒤로가기로
+# 지워지지 않는다. 주소에 표식을 남겨서 가른다(아래 '어디로 갈까' 화면 참고).
+_JARVIS1_URL_MARK = "jarvis1"
+
+
+def _go_to(destination: str) -> None:
+    """고른 곳으로 옮긴다. 자비스1이면 주소에 표식만 남기고 이 파일을 계속 그린다."""
+    for prefix, page in _DEST_PAGES.items():
+        if str(destination).startswith(prefix):
+            st.switch_page(page)
+    st.query_params["page"] = _JARVIS1_URL_MARK
+
+
 if not st.session_state.get("authenticated"):
     st.markdown(
         """
@@ -646,20 +684,8 @@ if not st.session_state.get("authenticated"):
         # 자비스2/3 선택 시 자비스1 로딩을 건너뛰고 바로 진입해 대기 시간을 없앤다.
         _login_dest = st.radio(
             "로그인 후 이동",
-            [
-                "시장 판단",
-                "자비스1 (기록장)",
-                "자비스2 (순환매 플레이북)",
-                "미국테마 (자비스3)",
-                "한국테마 (자비스4)",
-                "선행감지 (자비스5·실험)",
-                "종가관찰 (자비스6·연습)",
-            ],
-            # 기본 이동은 한국테마(자비스4)다(2026-07-29 사용자 지시).
-            # 폰·태블릿에서는 앞 3개(시장판단·자비스1·자비스2)를 CSS로 숨기므로
-            # 기본값이 그 안에 들어가면 '선택된 항목이 안 보이는' 상태가 된다.
-            # 한국테마는 숨기지 않는 항목이라 이 조건에 걸리지 않는다.
-            index=4,
+            _DEST_OPTIONS,
+            index=_DEST_DEFAULT_INDEX,
             horizontal=True,
             key="login_dest_choice",
         )
@@ -667,18 +693,8 @@ if not st.session_state.get("authenticated"):
         if st.button("로그인", key="login_submit", use_container_width=True):
             if _login_password_input == _app_password:
                 st.session_state["authenticated"] = True
-                if str(_login_dest).startswith("시장 판단"):
-                    st.switch_page("pages/0_시장판단.py")
-                if str(_login_dest).startswith("자비스2"):
-                    st.switch_page("pages/1_자비스2.py")
-                if str(_login_dest).startswith("미국테마"):
-                    st.switch_page("pages/2_자비스3.py")
-                if str(_login_dest).startswith("선행감지"):
-                    st.switch_page("pages/4_자비스5.py")
-                if str(_login_dest).startswith("종가관찰"):
-                    st.switch_page("pages/5_자비스6.py")
-                if str(_login_dest).startswith("한국테마"):
-                    st.switch_page("pages/3_자비스4.py")
+                # 자비스1 말고는 여기서 페이지가 바뀌며 아래 줄까지 오지 않는다.
+                _go_to(_login_dest)
                 st.session_state["login_transition_pending"] = True
                 # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
                 # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.
@@ -696,6 +712,62 @@ if not st.session_state.get("authenticated"):
                 st.rerun()
             else:
                 st.error("비밀번호가 올바르지 않습니다.")
+    st.stop()
+
+# ── 뒤로가기로 첫 주소에 돌아왔을 때 (2026-08-01 사용자 지시) ────────────────────
+# 폰에서 뒤로가기를 여러 번 누르면 브라우저 기록을 거슬러 올라 이 파일에 닿는다.
+# 지금까지는 곧바로 자비스1의 무거운 탭 화면을 그렸다 — 검은 빈 화면이 한참 떠 있고
+# 그 사이 화면이 버벅였다(2026-08-01 캡처 2장).
+# 사용자가 바라는 것은 "첫 접속화면으로 가야지, 거기서 자비스3을 할지 4를 할지
+# 고르는 화면으로, 다시 로그인 필요 없이"다.
+#
+# 주소에 표식이 있으면(=자비스1을 직접 고른 것) 자비스1을 그대로 그리고,
+# 없으면(=첫 주소로 돌아온 것) 여기서 멈추고 고르는 화면만 그린다.
+# 이 화면은 아래 무거운 모듈(pandas·DB·시세)을 하나도 읽지 않아 바로 뜬다.
+# 비밀번호는 다시 묻지 않는다 — 이미 이 세션에서 확인했다.
+if st.query_params.get("page") != _JARVIS1_URL_MARK:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stMainBlockContainer"] { padding-top: 3.5rem !important; }
+        .jarvis-entry-title { color: #7cc8ff; font-size: 1.45rem; font-weight: 900;
+            letter-spacing: -.01em; margin: .2rem 0 .1rem; }
+        .jarvis-entry-sub { color: #9aa0aa; font-size: .95rem; margin-bottom: 1.1rem; }
+        div[class*="st-key-entry_go"] button {
+            background: linear-gradient(90deg, #0b2a4a 0%, #123a63 38%, #1d6fc4 100%) !important;
+            border: none !important; border-radius: .5rem !important;
+            min-height: 3rem !important;
+        }
+        div[class*="st-key-entry_go"] button p {
+            color: #ffffff !important; font-size: 1.05rem !important; font-weight: 800 !important;
+        }
+        /* 로그인 화면과 똑같이, 폰·태블릿에서는 앞 3개(시장판단·자비스1·자비스2)를
+           숨긴다(CLAUDE.md 12번). 옵션 자체는 남겨 두어 PC에서는 6개가 다 보인다. */
+        @media (max-width: 1200px) {
+            .st-key-entry_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(-n+3) {
+                display: none !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='jarvis-entry-title'>어디로 갈까요</div>"
+        "<div class='jarvis-entry-sub'>이미 로그인되어 있습니다. 비밀번호를 다시 넣지 않아도 됩니다.</div>",
+        unsafe_allow_html=True,
+    )
+    _entry_dest = st.radio(
+        "갈 곳",
+        _DEST_OPTIONS,
+        index=_DEST_DEFAULT_INDEX,
+        horizontal=True,
+        key="entry_dest_choice",
+        label_visibility="collapsed",
+    )
+    if st.button("이동", key="entry_go", use_container_width=True):
+        _go_to(_entry_dest)
+        st.rerun()
     st.stop()
 
 # 로그인 화면에는 Streamlit과 정적 이미지밖에 필요하지 않다. 시세·뉴스·DB 모듈은
