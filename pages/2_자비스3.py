@@ -160,6 +160,21 @@ st.markdown(
     .j3-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
         align-items: center; }
     .j3-top-cell { min-width: 150px; padding-left: 1.6rem; }
+    /* 나스닥 고점 대비 낙폭 한 줄 — 위 지수 칸 바로 아래(2026-08-01).
+       막대는 0%에서 25%까지이고, 세로 눈금이 12% 문턱 자리다. */
+    .j3-ndd { border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
+        padding: .5rem .8rem; margin: .1rem 0 .6rem; background: rgba(255,255,255,.03); }
+    .j3-ndd-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+    .j3-ndd-val { font-size: 1.45rem; font-weight: 900; }
+    .j3-ndd-state { font-size: .95rem; font-weight: 800; }
+    .j3-ndd-bar { position: relative; height: 8px; border-radius: 4px;
+        background: rgba(255,255,255,.10); margin: .35rem 0 .3rem; overflow: hidden; }
+    .j3-ndd-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px;
+        background: linear-gradient(90deg, #ffd166 0%, #44f0a1 100%); }
+    .j3-ndd-mark { position: absolute; top: -3px; bottom: -3px; width: 2px;
+        background: #ffffff; opacity: .85; }
+    .j3-ndd-sub { color: #9aa0aa; font-size: .86rem; font-weight: 700; }
+    .j3-ndd-note { color: #9aa0aa; font-size: .82rem; margin-top: .25rem; line-height: 1.5; }
     .j3-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
     .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
     .j3-top-sub { font-size: 0.95rem; font-weight: 700; }
@@ -626,7 +641,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080130
+_REQUIRED_J3_REVISION = 2026080140
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1326,6 +1341,7 @@ def _render_market_overview() -> None:
     # 찍히고 SPY·QQQ의 '$' 두 개가 수식으로 잡혔다(2026-07-24 실제 깨짐).
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
+    _render_nasdaq_drawdown()
     # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
     # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
     with st.expander("조건점수·시장 상황 설명 보기", expanded=False):
@@ -1455,6 +1471,48 @@ def _us_index_cells(overview: dict, phase: str) -> list:
             + "</div>"
         )
     return cells
+
+
+def _render_nasdaq_drawdown() -> None:
+    """나스닥이 고점에서 얼마나 내려와 있나 — 한 줄 (2026-08-01 사용자 지시).
+
+    55년치로 재 보니 '고점 대비 낙폭' 하나가 다른 어떤 신호보다 잘 들었다.
+    12% 넘게 빠지면 2년 뒤 100번 중 86번(아무 날이나 샀으면 81번)이었고,
+    8% 정도로는 오히려 기준선보다 못했다. 그래서 문턱을 12%로 둔다.
+    숫자와 문턱은 `jarvis3_data`가 정한다 — 화면은 받아 적기만 한다.
+    """
+    state = j3data.get_nasdaq_drawdown()
+    if not state.get("ok"):
+        return
+    pct = float(state.get("drawdown_pct") or 0)
+    entry = float(state.get("entry_pct") or -12)
+    reached = pct <= entry
+    # 막대는 0%(왼쪽)에서 25%(오른쪽)까지. 문턱 자리에 눈금을 하나 세워 둔다.
+    span = 25.0
+    fill = max(0.0, min(100.0, abs(pct) / span * 100))
+    mark = abs(entry) / span * 100
+    gates = " · ".join(
+        f"<span style='color:{'#44f0a1' if g['reached'] else '#9aa0aa'}'>"
+        f"{abs(g['pct']):.0f}% {_price(g['level'])}</span>"
+        for g in state.get("gates") or []
+    )
+    st.markdown(
+        "<div class='j3-ndd'>"
+        f"<div class='j3-ndd-head'><b>나스닥 고점 대비</b> "
+        f"<span class='j3-ndd-val' style='color:{state.get('color')}'>{pct:+.1f}%</span> "
+        f"<span class='j3-ndd-state' style='color:{state.get('color')}'>"
+        f"{html.escape(str(state.get('state') or ''))}</span></div>"
+        f"<div class='j3-ndd-bar'><span class='j3-ndd-fill' style='width:{fill:.1f}%'></span>"
+        f"<span class='j3-ndd-mark' style='left:{mark:.1f}%'></span></div>"
+        f"<div class='j3-ndd-sub'>지금 {_price(state.get('current'))} · "
+        f"1년 최고 {_price(state.get('high'))} · 문턱 {gates}</div>"
+        "<div class='j3-ndd-note'>55년치로 재 보니 <b>12% 넘게 빠졌을 때</b> 산 것이 "
+        "2년 뒤 100번 중 86번이었습니다(아무 날이나 샀으면 81번). "
+        "<b>8% 정도로는 기준선보다 못했습니다.</b> 12%냐 15%냐는 자료로 가릴 수 없어 "
+        "‘12% 넘게’까지만 봅니다. 다이버전스는 6개 설정 중 0개에서 져서 쓰지 않습니다."
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _us_etf_cells(overview: dict) -> list:

@@ -123,7 +123,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080130
+MODULE_REVISION = 2026080140
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1987,6 +1987,74 @@ def get_index_sparklines(days: int = 30) -> dict:
         if len(points) >= 2 and base:
             result[symbol] = {"points": points, "base": base}
     return result
+
+
+# ── 나스닥 고점 대비 낙폭 (2026-08-01) ────────────────────────────────────────
+# 왜 이 값인가 — 55년치(1971~)로 재 봤더니, 나스닥이 **고점 대비 얼마나 빠졌나**
+# 하나가 다른 어떤 신호보다 잘 들었다.
+#
+#   2년 뒤 성적(가운데 값 · 100번 중 이긴 횟수) — 아무 날이나 샀으면 +27.5% · 81번
+#     8% 빠졌을 때  +18.7% · 72번   ← 기준선보다 **못하다**. 너무 자주 산다.
+#    12% 빠졌을 때  +44.7% · 86번   ← 여기부터 확실히 낫다
+#    20% 빠졌을 때  +45.8% · 83번
+#
+# **몇 %가 최적인지는 못 가린다.** 일봉으로 재느냐 주봉으로 재느냐에 따라 10%와 12%의
+# 순서가 뒤집혔다(신호가 55년에 17~32번뿐이라 우연에 묻힌다). 그래서 '12% 넘게'까지만
+# 말하고 그 안에서 순위를 매기지 않는다.
+#
+# 재 보고 **버린 것** — MACD 다이버전스(6개 설정 중 0개에서 기준선에 졌다).
+# 자세한 것: docs/US_THREE_RULES_COMPARE.md
+NASDAQ_DRAWDOWN_GATES = (
+    (-20.0, "아주 깊음", "#ff6b6b"),
+    (-12.0, "사는 자리", "#44f0a1"),
+    (-8.0, "얕음 — 아직 아니다", "#ffd166"),
+)
+NASDAQ_DRAWDOWN_ENTRY = -12.0      # 실측이 뒷받침하는 문턱
+
+
+def nasdaq_drawdown_state(pct: float | None) -> tuple[str, str]:
+    """낙폭 → (화면에 적을 말, 색). 문턱을 코드 한 곳에서만 정한다."""
+    if pct is None:
+        return "자료 없음", "#9aa0aa"
+    for limit, label, color in NASDAQ_DRAWDOWN_GATES:
+        if float(pct) <= limit:
+            return label, color
+    return "고점 근처", "#9aa0aa"
+
+
+def get_nasdaq_drawdown(ttl_seconds: float = 600) -> dict:
+    """나스닥이 1년 최고에서 얼마나 내려와 있나, 그리고 문턱까지 얼마 남았나."""
+    try:
+        daily, meta = _download_cached(
+            ("^IXIC",), period="1y", interval="1d", ttl_seconds=ttl_seconds)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    frame = daily.get("^IXIC")
+    if frame is None or frame.empty:
+        return {"ok": False, "error": meta.get("error") or "나스닥 일봉 조회 실패"}
+    try:
+        close = frame["Close"].dropna().astype(float)
+        high = float(close.max())
+        current = float(close.iloc[-1])
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    if not high:
+        return {"ok": False, "error": "고점을 구할 수 없습니다"}
+    pct = (current / high - 1) * 100
+    state, color = nasdaq_drawdown_state(pct)
+    gates = []
+    for limit, label, _c in sorted(NASDAQ_DRAWDOWN_GATES, key=lambda g: -g[0]):
+        level = high * (1 + limit / 100)
+        gates.append({
+            "pct": limit, "label": label, "level": level,
+            "gap_pct": (level / current - 1) * 100,
+            "reached": pct <= limit,
+        })
+    return {
+        "ok": True, "current": current, "high": high, "drawdown_pct": pct,
+        "state": state, "color": color, "entry_pct": NASDAQ_DRAWDOWN_ENTRY,
+        "gates": gates, "stale": bool(meta.get("stale")),
+    }
 
 
 def get_etf_sparklines(

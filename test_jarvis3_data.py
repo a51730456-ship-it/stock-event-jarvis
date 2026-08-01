@@ -207,6 +207,18 @@ class RulebookScreenTests(unittest.TestCase):
             self.assertIsNone(plan["target"])
             self.assertIn("손절가가 없습니다", plan["buy_reason"])
 
+    def test_nasdaq_drawdown_gate_matches_what_was_measured(self):
+        """문턱 12%는 55년치로 재고 정했다 — 8%는 기준선보다 못했다.
+
+        이 숫자를 슬쩍 낮추면 화면이 '아직 아닌 자리'를 사는 자리라고 말하게 된다.
+        """
+        self.assertEqual(-12.0, j3.NASDAQ_DRAWDOWN_ENTRY)
+        self.assertEqual("사는 자리", j3.nasdaq_drawdown_state(-13.0)[0])
+        self.assertEqual("아주 깊음", j3.nasdaq_drawdown_state(-25.0)[0])
+        self.assertNotEqual("사는 자리", j3.nasdaq_drawdown_state(-9.0)[0])
+        self.assertEqual("고점 근처", j3.nasdaq_drawdown_state(-2.0)[0])
+        self.assertEqual("자료 없음", j3.nasdaq_drawdown_state(None)[0])
+
     def test_no_match_returns_an_empty_list_not_a_loosened_rule(self):
         frames = {"AAPL": _frame_with_high(4, -20.0)}
         self.assertEqual([], self._run(j3.find_breakout_pullback_stocks, frames)["rows"])
