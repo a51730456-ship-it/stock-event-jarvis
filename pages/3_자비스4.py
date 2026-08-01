@@ -438,6 +438,13 @@ st.markdown(
         background: linear-gradient(90deg, #2a1450 0%, #3d1f74 38%, #7c3aed 100%);
         box-shadow: 0 2px 10px rgba(124,58,237,.25);
     }
+    /* 종목검색 칸 이름 — 바로 위 보라색 띠와 같은 계열로 진하게(2026-08-01 지시).
+       미국 화면(j3_my_stock_query)과 같은 색·같은 크기다. */
+    div[class*="st-key-j4_my_stock_query"] [data-testid="stWidgetLabel"] p {
+        color: #a855f7 !important;
+        font-size: 1.08rem !important;
+        font-weight: 900 !important;
+    }
     /* '지금 할 일' 지침 상자 — 매수 심사 결과 표 바로 위. 테두리 색은
        guidance.py가 판정에 따라 정한다(초록 진입 · 노랑 대기 · 빨강 금지). */
     .j4-guide {
@@ -2790,7 +2797,10 @@ def _render_my_stock_panel(market: dict) -> None:
         "테마 목록에 없는 종목도 됩니다."
     )
     query = st.text_input(
-        "종목 이름 또는 코드", key="j4_my_stock_query", placeholder="예: 삼성전자, 하이닉스, 005930"
+        # 무엇을 어디에 넣어야 하는지 칸 이름이 직접 말하게 한다(2026-08-01 지시).
+        # 미국 화면(j3_my_stock_query)과 같은 문구·같은 보라색이다.
+        "종목이름 또는 종목코드 (아래에 종목이름을 넣어보세요)", key="j4_my_stock_query",
+        placeholder="예: 삼성전자, 하이닉스, 005930",
     )
     if not str(query or "").strip():
         return
