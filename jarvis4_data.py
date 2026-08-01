@@ -2597,22 +2597,53 @@ CRASH_REBOUND_RULES = (
 CRASH_REBOUND_EVENTS = 8
 KR_BACKTEST_SPAN = "2014-05 ~ 2026-07(12년) · 대형주 197종목"
 
-# 낙폭 종목의 순위는 **소속 테마 수**로 매긴다(2026-08-01 사용자 지시).
-# 여러 테마에 걸친 종목일수록 돈이 여러 갈래에서 들어올 자리라, 반등에서 먼저 본다.
+# 낙폭 종목의 순위 기준 (2026-08-01 사용자 지시). 두 가지를 순서대로 본다.
 #
-# 등급은 2개·3개·4개 이상 셋으로 나누라고 했는데, 실제로 재 보니 **대형주는 거의
-# 다 4개 이상**이었다(2026-08-01 실측: 상위 20종목이 전부 4~13개). 등급만으로는
-# 줄이 안 서서, 등급은 화면에 적는 이름표로만 쓰고 **순위는 실제 테마 수**로
-# 매긴다 — '여러 테마에 걸친 종목을 위로'라는 뜻은 그대로 지키면서 실제로 갈린다.
-THEME_COUNT_TIERS = ((4, 3, "4개 이상"), (3, 2, "3개"), (2, 1, "2개"))
+#   1순위 — **외국인+기관이 5일 동안 함께 산 날 수**(동그라미 다섯 개, 0~5).
+#           가장 큰 비중이다. 둘이 같이 사는 종목이 반등에서 먼저 간다.
+#   2순위 — **같은 테마에서 같이 오른 종목 수**. 2개·3개·4개 이상으로 나누고
+#           4개 이상이 가장 높다. 한 종목만 튀는 것과 테마가 통째로 살아나는
+#           것은 다르다는 뜻이다.
+#
+# 여기서 '테마 개수'는 그 종목이 **몇 개 테마에 이름을 올렸는지**가 아니라,
+# **같은 테마 안에서 오늘 같이 오른 종목이 몇 개인지**다(2026-08-01 사용자 정정).
+TOGETHER_TIERS = ((4, 3, "4개 이상"), (3, 2, "3개"), (2, 1, "2개"))
 
 
-def theme_count_tier(count: int) -> tuple[int, str]:
-    """소속 테마 수 → (순위 점수, 화면에 적을 말)."""
-    for least, points, label in THEME_COUNT_TIERS:
+def together_tier(count: int) -> tuple[int, str]:
+    """같은 테마에서 같이 오른 종목 수 → (순위 점수, 화면에 적을 말)."""
+    for least, points, label in TOGETHER_TIERS:
         if count >= least:
             return points, label
     return 0, f"{max(int(count), 0)}개"
+
+
+# '밸류업 지수 편입' 같은 것은 업종 테마가 아니라 **명단**이다. 서로 상관없는 대형주
+# 100개가 한 이름 아래 묶여 있어서, 같이 움직였는지를 보는 데는 쓸 수 없다
+# (2026-08-01 실측: 이것 때문에 대부분의 종목이 똑같이 '21개'로 나왔다).
+# 크기로는 못 가른다 — 자동차부품 145개·2차전지 141개는 진짜 업종이다.
+_BASKET_THEME_WORDS = ("밸류업", "지수 편입", "Value-up")
+
+
+def _is_basket_theme(name: str) -> bool:
+    return any(word in str(name) for word in _BASKET_THEME_WORDS)
+
+
+def _theme_together(matched: list) -> dict[str, int]:
+    """테마마다 '같은 기준에 함께 걸린 종목이 몇 개인지' 센다.
+
+    처음에는 테마 전체에서 오늘 오른 종목을 셌는데, 네이버 테마는 범위가 넓어
+    64~135개가 나왔다(2026-08-01 실측). 그러면 2·3·4개 등급이 아무 뜻이 없다.
+    그래서 **같은 낙폭 기준을 통과한 종목끼리** 센다 — '이 테마가 통째로 반등
+    자리에 와 있나'를 재는 것이고, 사용자가 말한 2·3·4개 눈금과도 맞는다.
+    """
+    together: dict[str, int] = {}
+    for item in matched:
+        for theme in item.get("themes") or []:
+            if _is_basket_theme(theme):
+                continue
+            together[theme] = together.get(theme, 0) + 1
+    return together
 # 한국은 대형주 목록이 따로 없다. 테마 구성종목 중 거래대금 상위 이만큼을 본다 —
 # 미국의 '대형주 200개'와 같은 자리다.
 RULEBOOK_SCAN_LIMIT = 200
@@ -2680,6 +2711,20 @@ def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_l
                 final.append(future.result())
             except Exception:
                 continue
+    # 같은 기준에 함께 걸린 종목이 테마마다 몇 개인지 — 낙폭 표의 2순위 기준이다.
+    # 표에 보이는 20개가 아니라 **기준을 통과한 전부**로 센다. 보이는 것만 세면
+    # 순위가 자기 자신을 보고 정해지는 꼴이 된다.
+    together = _theme_together(screened)
+    for item in final:
+        pairs = [
+            (together.get(name, 0), name)
+            for name in (item.get("themes") or [])
+            if not _is_basket_theme(name)
+        ]
+        best = max(pairs) if pairs else (0, "")
+        item["together_count"], item["together_theme"] = best[0], best[1]
+        points, label = together_tier(best[0])
+        item["together_tier"], item["together_label"] = points, label
     final.sort(key=lambda item: (-(item.get("liquidity_value") or 0), str(item.get("code"))))
     for index, item in enumerate(final, 1):
         item["pullback_rank"] = index
@@ -2764,18 +2809,15 @@ def find_crash_rebound_stocks(
         for row in found["rows"]:
             row.update(row.pop("rule"))
             counts[row["bucket"]] = counts.get(row["bucket"], 0) + 1
-            theme_count = len(row.get("themes") or [])
-            points, label = theme_count_tier(theme_count)
-            row["theme_count"] = theme_count
-            row["theme_tier"] = points
-            row["theme_tier_label"] = label
-        # 순위는 소속 테마 수가 먼저다(2026-08-01 사용자 지시). 등급(2/3/4개 이상)이
-        # 아니라 실제 개수로 줄을 세운다 — 대형주는 거의 다 4개 이상이라 등급으로는
-        # 안 갈린다. 개수가 같으면 낙폭이 깊은 갈래를, 그것도 같으면 거래대금이 큰
-        # 종목을 위에 둔다.
+            row["partner5"] = int((row.get("flow") or {}).get("both_buy_days5") or 0)
+        # 순위 기준(2026-08-01 사용자 지시) — 외국인+기관 동반 순매수 5일이 가장 큰
+        # 비중이고, 그다음이 같은 테마에서 같이 오른 종목 수다. 그다음에야 낙폭이
+        # 깊은 갈래, 마지막이 거래대금이다.
         found["rows"].sort(
             key=lambda row: (
-                -row.get("theme_count", 0),
+                -row.get("partner5", 0),
+                -row.get("together_tier", 0),
+                -row.get("together_count", 0),
                 row.get("_order", 9),
                 -(row.get("liquidity_value") or 0),
             )

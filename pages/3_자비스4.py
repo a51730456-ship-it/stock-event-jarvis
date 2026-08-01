@@ -196,10 +196,13 @@ st.markdown(
         .st-key-j4_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1180px;
         }
+        /* 낙폭 표는 칸이 열 개라 900px로는 글자가 짓눌린다(2026-08-01). */
+        .st-key-j4_rulebook_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1150px;
+        }
         .st-key-j4_theme_rest [data-testid="stHorizontalBlock"],
         .st-key-j4_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j4_top7_table [data-testid="stHorizontalBlock"],
-        .st-key-j4_rulebook_table [data-testid="stHorizontalBlock"],
         .st-key-j4_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
@@ -2840,12 +2843,13 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             f"<b class='j4-down'>다만 코스피가 급락했다가 처음 반등한 날은 12년 동안 "
             f"{events}번뿐입니다</b> — 거래 수는 수백 건이지만 사실상 {events}번의 사건이라, "
             "승률을 앞으로의 확률로 읽으면 안 됩니다.<br>"
-            "<b>순위는 소속 테마 수로 매깁니다</b> — 여러 테마에 걸친 종목일수록 돈이 여러 "
-            "갈래에서 들어올 자리라 먼저 봅니다. <span class='j4-green-strong'>4개 이상</span>이 "
-            "가장 높고 <span class='j4-amber-strong'>3개</span> · 2개 순인데, "
-            "<b>대형주는 거의 다 4개 이상</b>이라 등급만으로는 줄이 안 섭니다. 그래서 "
-            "<u>실제 테마 수</u>로 세웁니다. 같으면 낙폭이 깊은 갈래를, 그것도 같으면 "
-            "거래대금이 큰 종목을 위에 둡니다.</div>"
+            "<b>순위를 매기는 기준</b>(2026-08-01 지시) — "
+            "① <b>외국인+기관이 5일 중 며칠을 같이 샀나</b>(동그라미 다섯)가 가장 큰 비중입니다. "
+            "② 다음은 <b>같은 테마에서 오늘 같이 오른 종목 수</b>입니다 — "
+            "<span class='j4-green-strong'>4개 이상</span>이 가장 높고 "
+            "<span class='j4-amber-strong'>3개</span> · 2개 순입니다. "
+            "한 종목만 튀는 것과 테마가 통째로 살아나는 것은 다르기 때문입니다. "
+            "둘이 같으면 낙폭이 깊은 갈래를, 그것도 같으면 거래대금이 큰 종목을 위에 둡니다.</div>"
             f"<div class='j4-metric-row'>{''.join(cards)}</div>",
             unsafe_allow_html=True,
         )
@@ -2872,9 +2876,11 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         widths = [0.55, 1.9, 1.3, 1.15, 1.25, 1.05, 1.7, 2.1]
         headers = ["당일주가", "고점 대비", "신고가", "보유일수", "거래대금 (평소 대비)", "소속 테마"]
     else:
-        widths = [0.55, 1.9, 1.3, 1.1, 1.2, 1.0, 1.6, 1.0, 1.9]
-        headers = ["당일주가", "고점 대비", "갈래", "보유일수", "거래대금 (평소 대비)",
-                   "테마 수", "소속 테마"]
+        # 순위를 정하는 두 칸(동반 5일 · 같이 오른 종목)을 앞쪽에 둔다 — 순위를
+        # 왜 그렇게 매겼는지 눈으로 바로 따라갈 수 있게(2026-08-01 사용자 지시).
+        widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.05, 1.1, 1.0, 1.5, 1.75]
+        headers = ["동반 5일 (외국인+기관)", "당일주가", "고점 대비", "갈래", "보유일수",
+                   "같이 오른 종목", "거래대금 (평소 대비)", "소속 테마"]
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     table_box = st.container(key="j4_rulebook_table")
@@ -2923,26 +2929,36 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         else:
             ratio_cell = "<span class='j4-muted'>—</span>"
         themes = " · ".join(row.get("themes") or []) or "—"
-        cells = [
+        volume_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            f" line-height:1.12'><span class='j4-green'>{_eok(value)}</span>"
+            f"<span style='font-size:.82rem'>{ratio_cell}</span></span>"
+        )
+        price_and_high = [
             price_cell,
             f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
             third_cell,
             f"<span class='j4-green'>{int(row.get('hold_days') or 0)}거래일</span>",
-            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
-            f" line-height:1.12'><span class='j4-green'>{_eok(value)}</span>"
-            f"<span style='font-size:.82rem'>{ratio_cell}</span></span>",
         ]
-        if not breakout:
-            # 순위를 정한 값이라 눈에 띄게 둔다 — 4개 이상이 가장 높은 자리다.
-            tier = int(row.get("theme_tier") or 0)
+        if breakout:
+            cells = price_and_high + [volume_cell]
+        else:
+            # 순위를 정한 두 값을 표에 그대로 보여 준다(2026-08-01 사용자 지시).
+            # 1순위 — 외국인+기관이 5일 중 며칠을 같이 샀나(동그라미 다섯).
+            # 2순위 — 같은 테마에서 오늘 같이 오른 종목이 몇 개인가.
+            tier = int(row.get("together_tier") or 0)
             tier_class = ("j4-muted", "j4-th-muted", "j4-amber-strong", "j4-green-strong")[tier]
-            cells.append(
+            together = (
                 "<span style='display:inline-flex; flex-direction:column; align-items:center;"
                 f" line-height:1.12'><span class='{tier_class}' style='font-weight:800'>"
-                f"{int(row.get('theme_count') or 0)}개</span>"
-                f"<span class='j4-muted' style='font-size:.78rem'>"
-                f"{html.escape(str(row.get('theme_tier_label') or '—'))}</span></span>"
+                f"{int(row.get('together_count') or 0)}개</span>"
+                f"<span class='j4-muted' style='font-size:.78rem'"
+                f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
+                f"{html.escape(str(row.get('together_label') or '—'))}</span></span>"
             )
+            cells = [_partner5_cell(row.get("flow") or {})] + price_and_high + [
+                together, volume_cell
+            ]
         cells.append(
             f"<span class='j4-th-muted' title='{html.escape(themes)}'>{html.escape(themes)}</span>"
         )

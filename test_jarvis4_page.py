@@ -489,8 +489,10 @@ class Jarvis4PageTests(unittest.TestCase):
         """새 표를 옆으로 밀기 규칙 목록에 안 넣으면 폰에서 줄이 쌓이고 값이 겹친다."""
         source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
         self.assertIn(".st-key-j4_rulebook_table,", source)
-        self.assertIn('.st-key-j4_rulebook_table [data-testid="stHorizontalBlock"],', source)
         self.assertIn('.st-key-j4_rulebook_table [data-testid="stColumn"],', source)
+        # 칸이 열 개라 900px로는 글자가 짓눌린다 — 자기 폭을 따로 갖는다(2026-08-01).
+        block = source.split('.st-key-j4_rulebook_table [data-testid="stHorizontalBlock"] {')[1]
+        self.assertIn("min-width: 1150px", block.split("}")[0])
 
     def test_korea_shows_its_own_numbers_never_the_us_ones(self):
         """2026-08-01에 한국 자료로 직접 쟀다. 미국 성적은 여전히 옮겨 적지 않는다."""

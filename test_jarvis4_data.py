@@ -50,6 +50,12 @@ def _frame_with_high(peak_days_ago: int, from_high_pct: float, periods: int = 26
     )
 
 
+def _flow_with_partner(days: int) -> dict:
+    """외국인+기관이 5일 중 며칠을 같이 샀는지만 다르게 만든 수급 자료."""
+    marks = ["both_buy"] * days + ["one"] * (5 - days)
+    return {**_flow(), "day_marks": marks, "both_buy_days5": days, "window5": 5}
+
+
 class RulebookScreenTests(unittest.TestCase):
     """설명서 두 갈래의 한국판 (2026-08-01 사용자 지시).
 
@@ -158,6 +164,54 @@ class RulebookScreenTests(unittest.TestCase):
     def test_no_match_returns_an_empty_list(self):
         frames = {"000001": _frame_with_high(4, -20.0)}
         self.assertEqual([], self._run(j4.find_breakout_pullback_stocks, frames)["rows"])
+
+    def test_crash_ranks_by_partner_flow_first_then_theme_company(self):
+        """순위 기준(2026-08-01 사용자 지시) — ① 외국인+기관 동반 5일, ② 같은 테마 동반.
+
+        동반 수급이 적어도 테마가 통째로 움직이면 위로 오는 일이 있어서는 안 된다.
+        """
+        frames = {
+            "000001": _frame_with_high(50, -45.0),   # 동반 1일 · 테마 동반 많음
+            "000002": _frame_with_high(50, -45.0),   # 동반 4일 · 테마 동반 적음
+            "000003": _frame_with_high(50, -45.0),
+            "000004": _frame_with_high(50, -45.0),
+        }
+        stocks = {
+            "000001": {"code": "000001", "name": "가", "themes": ["큰테마"]},
+            "000002": {"code": "000002", "name": "나", "themes": ["작은테마"]},
+            "000003": {"code": "000003", "name": "다", "themes": ["큰테마"]},
+            "000004": {"code": "000004", "name": "라", "themes": ["큰테마"]},
+        }
+        for code, item in stocks.items():
+            item.update({"price": float(frames[code]["Close"].iloc[-1]),
+                         "trading_value": 5e10, "previous_volume": 0})
+        flows = {"000002": _flow_with_partner(4)}
+        with patch.object(j4, "get_theme_universe", return_value={"ok": True, "stocks": stocks}), \
+             patch.object(j4, "get_daily_frame", side_effect=lambda code, **kw: frames[code]), \
+             patch.object(j4, "get_stock_flow",
+                          side_effect=lambda code: flows.get(code, _flow_with_partner(1))), \
+             patch.object(j4, "_index_metrics", return_value={"ok": True, "ret20": 1.0}):
+            result = j4.find_crash_rebound_stocks()
+        order = [row["code"] for row in result["rows"]]
+        self.assertEqual("000002", order[0], "동반 수급이 가장 큰 비중이어야 한다")
+        # 나머지는 같은 테마에 함께 걸린 수가 많은 쪽(큰테마 3개)이 위로 온다.
+        self.assertEqual(3, result["rows"][1]["together_count"])
+        self.assertEqual("큰테마", result["rows"][1]["together_theme"])
+
+    def test_index_baskets_do_not_count_as_moving_together(self):
+        """'밸류업 지수 편입'은 업종이 아니라 명단이라 같이 움직였다고 볼 수 없다."""
+        self.assertTrue(j4._is_basket_theme("코리아 밸류업 지수(Korea Value-up Index)"))
+        self.assertTrue(j4._is_basket_theme("밸류업(24년 기업가치 제고계획 발표)"))
+        self.assertFalse(j4._is_basket_theme("2차전지"))
+        self.assertFalse(j4._is_basket_theme("반도체 장비"))
+
+    def test_together_tiers_follow_the_two_three_four_scale(self):
+        self.assertEqual(3, j4.together_tier(9)[0])
+        self.assertEqual(3, j4.together_tier(4)[0])
+        self.assertEqual(2, j4.together_tier(3)[0])
+        self.assertEqual(1, j4.together_tier(2)[0])
+        self.assertEqual(0, j4.together_tier(1)[0])
+        self.assertEqual("4개 이상", j4.together_tier(9)[1])
 
 
 class TickSizeTests(unittest.TestCase):
