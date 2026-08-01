@@ -277,6 +277,23 @@ GPT-5.6 SOL이 미국 대형주 <b>200개</b>의 실제 주가를 계산하고, 
 <li>높은 승률은 2025년 4월 <b>한 번의 반등 결과</b>이며 미래 승률이 아닙니다.</li>
 </ul>
 </div>
+<div class="mh-box mh-data-box">
+<div class="mh-box-h">▸ 순위와 점수 (2026-08-01, 10년치로 재 보고 정했습니다)</div>
+<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">40점</span></div>
+<div class="mh-kv"><span class="mh-k">낙폭 갈래(-40~-50%가 만점)</span><span class="mh-v">25점</span></div>
+<div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v">15점</span></div>
+<div class="mh-kv"><span class="mh-k">사고팔기 쉬운가 · 많이 흔들리지 않나</span><span class="mh-v">각 10점</span></div>
+<div class="mh-sub">테마 동반은 100번 중 이긴 횟수가 0~1개 55번 → 4개 이상 60번으로 갈렸습니다.
+거래대금 연속은 <b>이미 오른 종목이면 점수를 깎습니다</b> — 최근 11일 동안 15% 넘게 오른 뒤라면
+100번 중 48번으로 오히려 손해였습니다(안 오른 쪽은 67번).</div>
+</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 미국에는 외국인·기관 수급 자료가 없습니다</div>
+<div class="mh-step">한국 화면에 있는 ‘외국인+기관 동반’ 칸이 여기에는 없습니다. 미국은 그 자료를
+공개하지 않습니다. 대신 쓸 값 여섯 가지(담는 날·담기/털기·거래대금 급증·공매도 비중 등)를
+재 봤지만 <b>하나도 갈리지 않아 넣지 않았습니다.</b></div>
+<div class="mh-sub">자세한 것은 docs/US_RANK_BACKTEST.md</div>
+</div>
 <div class="mh-key">
 <div class="mh-key-h">핵심</div>
 <div>정상 상승장 = 신고가 후 <b>3~5일</b>과 <b>4~6% 눌림</b>을 본다.</div>
@@ -296,11 +313,10 @@ KR_TEXT = """
 <div class="mh-h1">한국장 눌림목 매매 설명서</div>
 <div class="mh-note">
 <div class="mh-note-h">※ 검증 안내</div>
-규칙은 미국장 설명서의 것을 그대로 쓰되, <b>숫자는 한국 자료로 직접 쟀습니다</b>
-(2026-08-01). 한국 대형주 <b>197종목</b>의 <b>2014-05 ~ 2026-07(12년)</b> 일봉으로,
-다음 거래일 시가에 사서 정해진 날 뒤 종가에 팔았습니다. <b>지금 살아남은 종목</b>만 봤습니다.<br>
-<b>성적 옆에는 늘 ‘아무 날이나 샀으면’을 같이 적습니다.</b> 같은 종목으로 재므로 그 치우침이
-양쪽에 똑같이 걸려 상쇄됩니다 — 규칙이 값을 했는지는 <u>그 차이</u>로만 알 수 있습니다.
+규칙은 미국장 설명서의 것을 쓰되 <b>숫자는 한국 자료로 직접 쟀습니다</b> — 대형주 197종목의
+<b>2014-05 ~ 2026-07(12년)</b> 일봉, 다음 거래일 시가 매수·정해진 날 종가 매도.
+<b>지금 살아남은 종목</b>만 봤기에 성적 옆에 늘 ‘아무 날이나 샀으면’을 붙입니다 —
+그 치우침이 양쪽에 똑같이 걸려 상쇄되므로 <u>그 차이</u>로만 값을 했는지 알 수 있습니다.
 </div>
 <div class="mh-h2"><span class="mh-no">1</span><span>상승장 (<u>신고가 눌림매수</u>)</span></div>
 <div class="mh-box mh-buy-box">
@@ -323,7 +339,6 @@ KR_TEXT = """
 <ul class="mh-list">
 <li>신고가 <b>당일에는 사지 않습니다.</b></li>
 <li>4~6% 눌리지 않고 올라가면 <b>추격 매수하지 않습니다.</b></li>
-<li>별도 <b>손절 없이</b> 120거래일 보유하는 규칙입니다.</li>
 </ul>
 </div>
 <div class="mh-box mh-data-box">
@@ -331,14 +346,12 @@ KR_TEXT = """
 <div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v mh-pos">승률 56.3%(1,816건) · 가운데 값 +4.3%</span></div>
 <div class="mh-kv"><span class="mh-k">아무 날이나 샀으면</span><span class="mh-v">승률 53.6% · 가운데 값 +2.1%</span></div>
 <div class="mh-kv"><span class="mh-k">기준선보다 나았던 해</span><span class="mh-v mh-neg">12년 중 7년</span></div>
-<div class="mh-sub">조금 나았지만 해마다 뒤집힙니다. 이것만 믿고 크게 걸 자리가 아닙니다.</div>
+<div class="mh-sub">조금 나았지만 해마다 뒤집힙니다.</div>
 </div>
 <div class="mh-h2"><span class="mh-no">2</span><span>급락 후 반등장 (<u>낙폭종목</u>)</span></div>
 <div class="mh-box mh-buy-box">
 <div class="mh-box-h">▸ 매수</div>
-<div class="mh-step">시장 <b>급락</b></div>
-<div class="mh-arrow">▼</div>
-<div class="mh-step">코스피 <b>종가 반등</b> 확인</div>
+<div class="mh-step">시장 <b>급락</b> 뒤 코스피 <b>종가 반등</b> 확인</div>
 <div class="mh-arrow">▼</div>
 <div class="mh-step">52주 고점 대비 <b>낙폭</b> 확인</div>
 <div class="mh-arrow">▼</div>
@@ -348,7 +361,7 @@ KR_TEXT = """
 <div class="mh-box-h">▸ 고점 대비 -40~-50% → 20거래일 보유</div>
 <div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v mh-pos">승률 68.6%(175건) · 가운데 값 +7.5%</span></div>
 <div class="mh-kv"><span class="mh-k">그날 아무 종목이나 샀으면</span><span class="mh-v">승률 59.0% · 가운데 값 +2.5%</span></div>
-<div class="mh-sub">기준선보다 나았습니다. 두 갈래 중 이쪽이 값을 했습니다.</div>
+<div class="mh-sub">두 갈래 중 이쪽이 값을 했습니다.</div>
 </div>
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">▸ 고점 대비 -30~-40% → 60거래일 보유</div>
@@ -365,6 +378,23 @@ KR_TEXT = """
 <li>코스피가 급락했다가 처음 반등한 날은 12년 동안 <b>여덟 번</b>뿐입니다. 거래 수는 수백 건이지만 사실상 <b>여덟 번의 사건</b>이라, 승률을 앞으로의 확률로 읽으면 안 됩니다.</li>
 </ul>
 </div>
+<div class="mh-box mh-data-box">
+<div class="mh-box-h">▸ 순위와 점수 (12년치로 재 봤습니다)</div>
+<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">40점</span></div>
+<div class="mh-kv"><span class="mh-k">낙폭 갈래(-40~-50%가 만점)</span><span class="mh-v">25점</span></div>
+<div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v">20점</span></div>
+<div class="mh-kv"><span class="mh-k">외국인+기관 동반 5일</span><span class="mh-v mh-neg">0점</span></div>
+<div class="mh-sub">테마 동반 — 100번 중 0~1개 49번 → 4개 이상 55번.
+거래대금 연속 — 11일 이상 61번(0일 52번). 단 <b>이미 오른 종목은 깎습니다</b>(최근 11일에
+15% 넘게 올랐으면 48번으로 손해).</div>
+</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 외국인+기관 동반은 점수에 넣지 않습니다</div>
+<div class="mh-step">12년치로 재 보니 <b>거꾸로였습니다.</b> 둘이 같이 산 날이 <u>많을수록</u> 성적이
+나빴습니다 — 100번 중 하루도 안 산 종목 52번, 닷새 다 산 종목 46번. 둘이 사는 동안 값이
+이미 올라 따라 들어가면 늦기 때문입니다.</div>
+<div class="mh-sub">표에는 그대로 보여 주되 순위·점수에서는 뺐습니다. docs/KR_RULE_BACKTEST.md</div>
+</div>
 <div class="mh-key">
 <div class="mh-key-h">핵심</div>
 <div>상승장 = 신고가 후 <b>3~5일</b>과 <b>4~6% 눌림</b>을 본다.</div>
@@ -376,18 +406,16 @@ KR_TEXT = """
 <div class="mh-box-h">▸ 조건점수로 고릅니다</div>
 <div class="mh-kv"><span class="mh-k">언제 사나</span><span class="mh-v">시장 50점↑ · 분야 60점↑ · 종목 70점↑</span></div>
 <div class="mh-kv"><span class="mh-k">분야 면제</span><span class="mh-v">종목이 85점을 넘으면 분야를 안 봅니다</span></div>
-<div class="mh-kv"><span class="mh-k">어떤 상태일 때</span><span class="mh-v">‘돌파 확인’ 또는 ‘눌림목 대기’</span></div>
-<div class="mh-kv"><span class="mh-k">어디에 적나</span><span class="mh-v">실제로 샀을 때만 ‘실제 매수 기록’에</span></div>
 </div>
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">⚠ 한국은 미국과 결론이 다릅니다</div>
-<div class="mh-step">코스피 <b>21년치 5,253거래일</b>(2005-03 ~ 2026-06)로 재보니 시장 점수가 <b>미국만큼 듣지 않았습니다.</b></div>
-<div class="mh-kv"><span class="mh-k">한국 — 50일선 위/아래에서 20일 안에 10% 넘게 깨질 확률</span><span class="mh-v mh-neg">2.9% vs 3.6%</span></div>
-<div class="mh-kv"><span class="mh-k">미국 — 같은 값</span><span class="mh-v mh-pos">1.1% vs 3.5%</span></div>
+<div class="mh-step">코스피 21년치로 재보니 시장 점수가 <b>미국만큼 듣지 않았습니다.</b></div>
+<div class="mh-kv"><span class="mh-k">20일 안에 10% 넘게 깨질 확률(50일선 위/아래)</span><span class="mh-v mh-neg">한국 2.9% vs 3.6%</span></div>
+<div class="mh-kv"><span class="mh-k">미국은 같은 값이</span><span class="mh-v mh-pos">1.1% vs 3.5%</span></div>
 </div>
 <div class="mh-box mh-buy-box">
 <div class="mh-box-h">▸ 그래서 이렇게 보강했습니다</div>
-<div class="mh-step"><b>외국인·기관 수급</b>을 종목 점수 100점 중 <b>20점</b>으로 넣었습니다(미국 화면에 없는 자료)</div>
+<div class="mh-step"><b>외국인·기관 수급</b>을 종목 점수 100점 중 <b>20점</b>으로 넣었습니다</div>
 <div class="mh-step">추격 금지를 국내용으로 따로 뒀습니다 — 하루 30%까지 오르는 시장이라</div>
 <div class="mh-step mh-go">→ 시장 점수는 <u>참고로만</u>, 수급과 종목 점수를 무겁게</div>
 </div>
@@ -412,13 +440,13 @@ KR_TEXT = """
 <li>90점 = “이 종목은 오른다” → <b>틀린 말</b></li>
 <li>30점 = “이걸 사면 크게 깨질 수 있다” → 맞는 말</li>
 </ul>
-<div class="mh-sub">값(현재가·거래대금·수급)은 원자료 그대로이고, 못 가져온 값은 지어내지 않습니다.</div>
+<div class="mh-sub">값은 원자료 그대로이고, 못 가져온 값은 지어내지 않습니다.</div>
 </div>
 <div class="mh-h2"><span class="mh-no">6</span>어디서 왔나 · 언제 파나</div>
 <div class="mh-box mh-sell-box">
-<div class="mh-step"><b>한 편의 논문에서 나온 기법이 아닙니다.</b> 논문 세 갈래(Moskowitz &amp; Grinblatt 1999 · George &amp; Hwang 2004 · Moskowitz·Ooi·Pedersen 2012)와 실무 세 갈래(Weinstein · O'Neil · Minervini)가 겹치는 자리입니다.</div>
+<div class="mh-step"><b>한 편의 논문에서 나온 기법이 아닙니다.</b> 논문(Moskowitz &amp; Grinblatt 1999 · George &amp; Hwang 2004)과 실무(Weinstein · O'Neil · Minervini)가 겹치는 자리입니다.</div>
 <div class="mh-step"><b>파는 때는 아직 이 화면에 없습니다</b> — 조건점수로 고르는 <u>눌림목 찾기 표</u> 이야기입니다. 위 두 갈래에는 보유일수가 정해져 있습니다.</div>
-<div class="mh-sub">자세한 근거: docs/METHOD_ORIGINS.md · 한국 검증: docs/KR_RULE_BACKTEST.md</div>
+<div class="mh-sub">근거: docs/METHOD_ORIGINS.md · docs/KR_RULE_BACKTEST.md</div>
 </div>
 </div>
 """

@@ -171,9 +171,17 @@ class PageWiringTests(unittest.TestCase):
             source = pathlib.Path(path).read_text(encoding="utf-8")
             self.assertIn(f'"매수심사결과 높은 순위 7", key="{prefix}_top7_find")', source,
                           f"{market} 순위 7 단추가 아직 화면을 가로지른다")
-            self.assertIn(f'"눌림목 찾기", key="{prefix}_pullback_find"', source,
-                          f"{market} 눌림목 단추가 아직 화면을 가로지른다")
-            self.assertNotIn(f'key="{prefix}_pullback_find", width="stretch"', source)
+            # 2026-08-01에 눌림목 단추는 설명서 두 갈래 단추와 나란히 놓이면서
+            # 글자에 '●'를 붙이는 구조로 바뀌었다. 이름이 코드에 그대로 남아 있는지,
+            # 그리고 화면을 가로지르지 않는지만 본다.
+            self.assertIn(f'"{prefix}_pullback_find"', source,
+                          f"{market} 눌림목 단추가 없다")
+            self.assertIn("눌림목 찾기", source, f"{market} 눌림목 단추 이름이 없다")
+            for key in (f"{prefix}_pullback_find", f"{prefix}_pullback_breakout",
+                        f"{prefix}_pullback_crash"):
+                self.assertNotIn(f'key="{key}", width="stretch"', source,
+                                 f"{market} {key} 단추가 화면을 가로지른다")
+                self.assertNotIn(f'key="{key}", use_container_width=True', source)
 
     def test_pullback_button_is_a_deep_blue_gradient(self):
         """캡처 1과 같은 모양에 진한 푸른색(2026-07-30 사용자 지시)."""

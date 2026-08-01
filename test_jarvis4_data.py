@@ -165,10 +165,12 @@ class RulebookScreenTests(unittest.TestCase):
         frames = {"000001": _frame_with_high(4, -20.0)}
         self.assertEqual([], self._run(j4.find_breakout_pullback_stocks, frames)["rows"])
 
-    def test_crash_ranks_by_partner_flow_first_then_theme_company(self):
-        """순위 기준(2026-08-01 사용자 지시) — ① 외국인+기관 동반 5일, ② 같은 테마 동반.
+    def test_crash_ranks_by_theme_company_not_by_partner_flow(self):
+        """순위 기준은 12년치로 재 보고 정했다(2026-08-01) — docs/KR_RULE_BACKTEST.md.
 
-        동반 수급이 적어도 테마가 통째로 움직이면 위로 오는 일이 있어서는 안 된다.
+        처음에는 외국인+기관 동반 5일을 1순위로 뒀는데 재 보니 **거꾸로**였다
+        (동반 일수가 많을수록 성적이 나빴다: 0일 52번 → 5일 46번). 그래서 순위에서
+        뺐다. 되살리면 검증이 부정한 값으로 순위를 매기게 된다.
         """
         frames = {
             "000001": _frame_with_high(50, -45.0),   # 동반 1일 · 테마 동반 많음
@@ -193,10 +195,14 @@ class RulebookScreenTests(unittest.TestCase):
              patch.object(j4, "_index_metrics", return_value={"ok": True, "ret20": 1.0}):
             result = j4.find_crash_rebound_stocks()
         order = [row["code"] for row in result["rows"]]
-        self.assertEqual("000002", order[0], "동반 수급이 가장 큰 비중이어야 한다")
-        # 나머지는 같은 테마에 함께 걸린 수가 많은 쪽(큰테마 3개)이 위로 온다.
-        self.assertEqual(3, result["rows"][1]["together_count"])
-        self.assertEqual("큰테마", result["rows"][1]["together_theme"])
+        # 동반 수급 4일짜리(000002)는 테마 동반이 없어 오히려 뒤로 간다.
+        self.assertEqual("000002", order[-1], "동반 수급이 순위를 끌어올리면 안 된다")
+        self.assertEqual(2, result["rows"][0]["together_count"])
+        self.assertEqual("큰테마", result["rows"][0]["together_theme"])
+        # 순위 함수 자체에도 동반 수급이 들어 있으면 안 된다.
+        import inspect
+
+        self.assertNotIn("partner5", inspect.getsource(j4._crash_rank_key))
 
     def test_index_baskets_do_not_count_as_moving_together(self):
         """'밸류업 지수 편입'은 업종이 아니라 명단이라 같이 움직였다고 볼 수 없다."""

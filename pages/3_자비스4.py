@@ -3076,11 +3076,30 @@ def _render_pullback_finder() -> None:
         )
     # 설명서 두 갈래 — 미국테마와 같은 자리·같은 모양이다(2026-08-01 사용자 지시).
     # 누르면 같은 자리의 표가 그 갈래로 바뀐다. 같은 단추를 다시 누르면 접힌다.
+    #
+    # 지금 어느 갈래를 보고 있는지 단추만 봐서는 알 수 없었다(2026-08-01 사용자 지적).
+    # 열려 있는 갈래의 단추에는 앞에 ●를 붙이고, 아래 CSS가 그 단추를 밝게 칠한다.
+    open_mode = st.session_state.get("j4_pullback_mode") if st.session_state.get("j4_pullback_open") else None
     col_breakout, col_crash = st.columns([1, 1])
     with col_breakout:
-        breakout_requested = st.button("상승장 (신고가 눌림매수)", key="j4_pullback_breakout")
+        breakout_requested = st.button(
+            ("● " if open_mode == "breakout" else "") + "상승장 (신고가 눌림매수)",
+            key="j4_pullback_breakout",
+        )
     with col_crash:
-        crash_requested = st.button("급락 후 반등장 (낙폭종목)", key="j4_pullback_crash")
+        crash_requested = st.button(
+            ("● " if open_mode == "crash" else "") + "급락 후 반등장 (낙폭종목)",
+            key="j4_pullback_crash",
+        )
+    if open_mode:
+        # 열린 단추만 밝게 — 색이 아니라 테두리와 밝기로 갈라 색 규칙을 건드리지 않는다.
+        active = "j4_pullback_breakout" if open_mode == "breakout" else "j4_pullback_crash"
+        st.markdown(
+            f"<style>div[class*='st-key-{active}'] button {{"
+            " outline: 3px solid #ffffff !important; outline-offset: 1px;"
+            " filter: brightness(1.25) !important; }</style>",
+            unsafe_allow_html=True,
+        )
     for pressed, spinner, finder in (
         (breakout_requested, "거래대금 상위 종목에서 신고가 뒤 눌린 종목을 찾는 중입니다…",
          "find_breakout_pullback_stocks"),

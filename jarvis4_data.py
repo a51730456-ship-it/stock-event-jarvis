@@ -2629,6 +2629,158 @@ def _is_basket_theme(name: str) -> bool:
     return any(word in str(name) for word in _BASKET_THEME_WORDS)
 
 
+# ── 급락 후 반등장 전용 배점 (2026-08-01) ────────────────────────────────────
+# 왜 따로 만드나 — 기존 조건점수는 '신고가에 얼마나 가까운가'와 '이동평균 위인가'로
+# 절반을 준다. 고점 대비 -40% 종목은 그 조건을 정의상 하나도 못 맞춘다. 그대로 두면
+# 찾아 놓고 '제외'라고 하는 화면이 된다.
+#
+# **미국(jarvis3)과 배점이 다르다.** 같은 자로 재면 안 된다 — 시장도, 있는 자료도,
+# 재 본 결과도 다르다. 한국 80~197종목 12년치(2014-05~2026-07)로 잰 결과다.
+#
+#   40점 같은 테마 동반 — 낙폭 구간 111,012개. 100번 중 이긴 횟수
+#                        0~1개 49번 / 2개 50번 / 3개 52번 / 4개 이상 55번.
+#                        혼자 빠진 종목은 오히려 손해(가운데 -0.38%)였다.
+#   25점 낙폭 갈래     — -40~-50%(20일 보유)는 100번 중 69번으로 기준선(59번)을
+#                        이겼고, -30~-40%(60일)는 기준선과 같았다. 그래서 깊은
+#                        갈래만 만점을 준다.
+#   20점 거래대금 연속 — 0일 52번 / 4~10일 54번 / 11일 이상 61번(가운데 +4.96%).
+#                        미국(15점)보다 높게 준다 — 한국이 더 뚜렷했다.
+#                        다만 **이미 오른 종목은 깎는다**(아래 설명).
+#   15점 유동성       — 성적 예측이 아니라 '실제로 사고팔 수 있는가'.
+#    0점 외국인+기관 동반 5일 — **재 보니 거꾸로였다.** 187,632개 표본에서
+#                        0일 52번 / 3일 51번 / 5일 46번으로 내려갔고, 낙폭
+#                        구간에서 더 뚜렷했다(3일 이상 53.0번 vs 1일 이하 54.9번).
+#                        둘이 사는 동안 값이 이미 올라 따라 들어가면 늦기 때문이다.
+#                        **표에는 그대로 보여 주되 점수와 순위에서는 뺀다.**
+CRASH_SCORE_WEIGHTS = {
+    "together": 40.0, "bucket": 25.0, "volume_streak": 20.0, "liquidity": 15.0,
+}
+
+# 거래대금 연속을 그냥 주면 안 된다(2026-08-01 사용자 지적: "이미 오른 상황 아닌가?").
+# 한국 낙폭 구간에서 최근 11일 오름폭을 같게 맞춰 놓고 견준 결과
+# (연속 0~3일 → 연속 4일 이상, 가운데 값·100번 중 이긴 횟수):
+#     이미 -5% 넘게 빠짐  +1.65% 55번 → +4.08% 62번   ← 가장 좋다
+#     0~+5%             +0.42% 51번 → +1.92% 54번
+#     +15% 넘게 오름      +1.45% 53번 → -0.77% 48번   ← 손해다
+# 값을 하는 것은 '거래대금이 많다'가 아니라 **'값은 아직 안 올랐는데 돈만 붙어 있다'**다.
+VOLUME_STREAK_LOOKBACK = 11
+VOLUME_STREAK_GATES = ((0.0, 1.0), (15.0, 0.5))
+
+
+def volume_streak_weight(recent_gain_pct: float | None) -> float:
+    """최근에 이미 오른 만큼 거래대금 연속 점수를 깎는 배수(0~1)."""
+    if recent_gain_pct is None:
+        return 0.5
+    for limit, factor in VOLUME_STREAK_GATES:
+        if float(recent_gain_pct) <= limit:
+            return factor
+    return 0.0
+
+
+def volume_streak_days(frame) -> int:
+    """거래대금이 50일 평균 위에 며칠 연속인지. 오늘이 평균 아래면 0."""
+    try:
+        value = frame["Close"].astype(float) * frame["Volume"].astype(float)
+        above = value > value.rolling(50).mean()
+    except Exception:
+        return 0
+    days = 0
+    for flag in reversed(above.tolist()):
+        if flag is not True:
+            break
+        days += 1
+    return days
+
+
+def recent_gain_pct(frame, days: int = VOLUME_STREAK_LOOKBACK) -> float | None:
+    """최근 며칠 동안 이미 얼마나 올랐는지(%)."""
+    try:
+        close = frame["Close"].dropna()
+        if len(close) <= days:
+            return None
+        return (float(close.iloc[-1]) / float(close.iloc[-1 - days]) - 1) * 100
+    except Exception:
+        return None
+
+
+def _crash_rank_key(row: dict):
+    """순위 — ① 같은 테마 동반(검증됨) ② 낙폭 깊은 갈래 ③ 거래대금 연속(이미 오른
+    종목은 깎는다) ④ 거래대금. 외국인+기관 동반은 재 보니 거꾸로라 안 쓴다."""
+    streak = min(int(row.get("volume_streak") or 0), VOLUME_STREAK_LOOKBACK)
+    return (
+        -row.get("together_tier", 0),
+        -row.get("together_count", 0),
+        row.get("_order", 9),
+        -streak * volume_streak_weight(row.get("recent_gain_pct")),
+        -(row.get("liquidity_value") or 0),
+    )
+
+
+def crash_rebound_score(row: dict) -> dict:
+    """급락 후 반등장 후보의 점수(100점)와 근거."""
+    metrics = row.get("metrics") or {}
+    weights = CRASH_SCORE_WEIGHTS
+    parts = []
+
+    tier = int(row.get("together_tier") or 0)
+    parts.append(("같은 테마 동반", weights["together"] * (tier / 3.0), weights["together"],
+                  f"{int(row.get('together_count') or 0)}개 함께 걸림"))
+
+    deep = row.get("bucket") == "deep"
+    parts.append(("낙폭 갈래", weights["bucket"] if deep else weights["bucket"] * 0.5,
+                  weights["bucket"], str(row.get("bucket_label") or "—")))
+
+    streak = min(int(row.get("volume_streak") or 0), VOLUME_STREAK_LOOKBACK)
+    gain = row.get("recent_gain_pct")
+    factor = volume_streak_weight(gain)
+    gain_text = "최근 오름폭 모름" if gain is None else f"최근 11일 {gain:+.1f}%"
+    parts.append(("거래대금 평소 위 연속",
+                  weights["volume_streak"] * (streak / VOLUME_STREAK_LOOKBACK) * factor,
+                  weights["volume_streak"],
+                  f"{int(row.get('volume_streak') or 0)}일 · {gain_text}"))
+
+    value = float(row.get("liquidity_value") or 0)
+    parts.append(("유동성", _scale(value / 1e8, 200, 3000, weights["liquidity"]),
+                  weights["liquidity"], _eok_text(value)))
+
+    return {"score": round(sum(v for _n, v, _m, _t in parts), 1), "parts": parts, "max": 100.0}
+
+
+def _eok_text(value: float) -> str:
+    return f"{value / 1e8:,.0f}억" if value else "—"
+
+
+def crash_rebound_plan(row: dict) -> dict:
+    """급락 후 반등장의 매수 심사 결과.
+
+    이 규칙에는 **넘어야 할 기준가도, 손절가도 없다.** 정해진 날 시가에 사서 정해진
+    날 종가에 판다. 없는 것을 있는 것처럼 적지 않는다.
+    """
+    metrics = row.get("metrics") or {}
+    hold = int(row.get("hold_days") or 0)
+    score = float(crash_rebound_score(row)["score"])
+    if score >= 70:
+        state, recommendation = "규칙에 맞는 자리", "조건부 후보"
+    elif score >= 50:
+        state, recommendation = "자리는 맞으나 근거가 얇음", "관찰"
+    else:
+        state, recommendation = "규칙만 맞고 뒷받침이 없음", "관찰"
+    return {
+        "state": state,
+        "recommendation": recommendation,
+        "entry": "다음 거래일 시가",
+        "hold_days": hold,
+        "current": metrics.get("current"),
+        "invalidation": None,
+        "target": None,
+        "buy_reason": (
+            f"고점 대비 {metrics.get('from_high_pct', 0):.1f}%까지 내려온 낙폭 종목입니다. "
+            f"규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 사서 "
+            f"{hold}거래일 뒤 종가에 팝니다. 이 규칙에는 손절가가 없습니다."
+        ),
+    }
+
+
 def _theme_together(matched: list) -> dict[str, int]:
     """테마마다 '같은 기준에 함께 걸린 종목이 몇 개인지' 센다.
 
@@ -2680,7 +2832,9 @@ def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_l
         matched = match(metrics)
         if not matched:
             return None
-        return {**stock, "metrics": metrics, "daily": daily, "rule": matched}
+        return {**stock, "metrics": metrics, "daily": daily, "rule": matched,
+                "volume_streak": volume_streak_days(daily),
+                "recent_gain_pct": recent_gain_pct(daily)}
 
     screened = []
     with ThreadPoolExecutor(max_workers=8) as executor:
@@ -2716,8 +2870,10 @@ def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_l
     # 순위가 자기 자신을 보고 정해지는 꼴이 된다.
     together = _theme_together(screened)
     for item in final:
+        # **자기 자신은 빼고 센다.** 검증할 때도 그렇게 셌고(docs/KR_RULE_BACKTEST.md),
+        # 미국(jarvis3)도 같다. 안 빼면 2·3·4개 눈금이 한 칸씩 밀려 다른 뜻이 된다.
         pairs = [
-            (together.get(name, 0), name)
+            (max(together.get(name, 0) - 1, 0), name)
             for name in (item.get("themes") or [])
             if not _is_basket_theme(name)
         ]
@@ -2769,16 +2925,8 @@ def find_breakout_pullback_stocks(
         for row in found["rows"]:
             row.update(row.pop("rule"))
             row["partner5"] = int((row.get("flow") or {}).get("both_buy_days5") or 0)
-        # 순위 기준은 낙폭 표와 같다(2026-08-01 사용자 지시) — 외국인+기관 동반
-        # 순매수 5일이 가장 큰 비중, 그다음이 같은 테마에서 함께 걸린 종목 수다.
-        found["rows"].sort(
-            key=lambda row: (
-                -row.get("partner5", 0),
-                -row.get("together_tier", 0),
-                -row.get("together_count", 0),
-                -(row.get("liquidity_value") or 0),
-            )
-        )
+        # 순위 기준은 낙폭 표와 같다 — 검증된 것만 앞세운다(위 배점 설명 참고).
+        found["rows"].sort(key=_crash_rank_key)
         for index, row in enumerate(found["rows"], 1):
             row["pullback_rank"] = index
         return {**found, "mode": "breakout", "rule": BREAKOUT_PULLBACK_RULE,
@@ -2823,18 +2971,11 @@ def find_crash_rebound_stocks(
             row.update(row.pop("rule"))
             counts[row["bucket"]] = counts.get(row["bucket"], 0) + 1
             row["partner5"] = int((row.get("flow") or {}).get("both_buy_days5") or 0)
-        # 순위 기준(2026-08-01 사용자 지시) — 외국인+기관 동반 순매수 5일이 가장 큰
-        # 비중이고, 그다음이 같은 테마에서 같이 오른 종목 수다. 그다음에야 낙폭이
-        # 깊은 갈래, 마지막이 거래대금이다.
-        found["rows"].sort(
-            key=lambda row: (
-                -row.get("partner5", 0),
-                -row.get("together_tier", 0),
-                -row.get("together_count", 0),
-                row.get("_order", 9),
-                -(row.get("liquidity_value") or 0),
-            )
-        )
+        # 순위 기준(2026-08-01, 12년치로 재 보고 정했다) — 위 배점 설명 참고.
+        # 처음에는 외국인+기관 동반 순매수를 1순위로 뒀는데, 재 보니 **거꾸로**였다
+        # (동반 일수가 많을수록 성적이 나빴다). 그래서 순위에서 뺐다.
+        # 표에는 그대로 보여 준다 — 지금 누가 사는지는 그 자체로 볼 값이 있다.
+        found["rows"].sort(key=_crash_rank_key)
         for index, row in enumerate(found["rows"], 1):
             row["pullback_rank"] = index
             row.pop("_order", None)

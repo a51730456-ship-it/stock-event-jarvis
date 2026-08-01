@@ -141,6 +141,39 @@ class RulebookScreenTests(unittest.TestCase):
         row = self._run(j3.find_crash_rebound_stocks, frames)["rows"][0]
         self.assertEqual((100.0, 12, 11.2), (row["win_rate"], row["sample"], row["avg_return"]))
 
+    def test_rank_uses_the_verified_signal_first(self):
+        """순위 기준은 재 보고 정했다(2026-08-01) — docs/US_RANK_BACKTEST.md.
+
+        ① 같은 테마에서 함께 걸린 종목 수(검증됨) ② 거래대금 평소 위 연속(약함)
+        ③ 거래대금 액수(참고). 순서가 뒤집히면 검증 안 된 값이 앞서게 된다.
+        """
+        rows = [
+            {"metrics": {"avg_dollar_volume": 9e9}, "together_tier": 0,
+             "together_count": 0, "volume_streak": 0},
+            {"metrics": {"avg_dollar_volume": 1e8}, "together_tier": 3,
+             "together_count": 4, "volume_streak": 0},
+            {"metrics": {"avg_dollar_volume": 1e8}, "together_tier": 3,
+             "together_count": 4, "volume_streak": 12},
+        ]
+        ordered = sorted(rows, key=j3._rank_key)
+        # 거래대금이 90배 커도 테마 동반이 0이면 뒤로 간다.
+        self.assertEqual(0, ordered[-1]["together_tier"])
+        # 테마 동반이 같으면 거래대금 연속일이 많은 쪽이 앞선다.
+        self.assertEqual(12, ordered[0]["volume_streak"])
+
+    def test_theme_together_tiers_and_volume_streak(self):
+        self.assertEqual(3, j3.theme_together_tier(9)[0])
+        self.assertEqual(2, j3.theme_together_tier(3)[0])
+        self.assertEqual(1, j3.theme_together_tier(2)[0])
+        self.assertEqual(0, j3.theme_together_tier(1)[0])
+        index = pd.bdate_range("2025-01-01", periods=80)
+        close = pd.Series([100.0] * 80, index=index)
+        volume = pd.Series([1000.0] * 60 + [5000.0] * 20, index=index)
+        frame = pd.DataFrame({"Close": close, "Volume": volume})
+        self.assertGreaterEqual(j3.volume_streak_days(frame), 15)
+        quiet = pd.DataFrame({"Close": close, "Volume": pd.Series([1000.0] * 80, index=index)})
+        self.assertEqual(0, j3.volume_streak_days(quiet))
+
     def test_no_match_returns_an_empty_list_not_a_loosened_rule(self):
         frames = {"AAPL": _frame_with_high(4, -20.0)}
         self.assertEqual([], self._run(j3.find_breakout_pullback_stocks, frames)["rows"])

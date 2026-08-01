@@ -236,6 +236,13 @@ st.markdown(
         .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     .j3-td { white-space: nowrap; }
+    /* 설명서 두 갈래 표의 칸은 제 폭 안에서 잘린다 — 테마 이름이 길어 옆 칸을
+       덮던 것을 막는다(2026-08-01, 한국테마와 같은 처리). */
+    .st-key-j3_rulebook_table .j3-td { overflow: hidden; }
+    .j3-rb-clip {
+        display: block; max-width: 100%;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     /* 구역 맨 아래 닫기 단추 — 위 여는 단추보다 작고 조용하게(2026-08-01 지시).
        폰에서 구역 끝까지 내려갔을 때 그 자리에서 접으라고 둔 것이라,
        눈에 띄어 화면을 어지럽히면 안 된다. */
@@ -619,7 +626,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080120
+_REQUIRED_J3_REVISION = 2026080130
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2638,6 +2645,16 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             f"<div class='j3-metric-row'>{''.join(cards)}</div>",
             unsafe_allow_html=True,
         )
+    st.markdown(
+        "<div class='j3-pull-guide'>"
+        "<b>순위를 매기는 기준</b>(2026-08-01, 10년치로 재 보고 정했습니다) — "
+        "① <b>같은 테마에서 함께 걸린 종목 수</b>가 가장 큽니다. 낙폭 구간에서 "
+        "<b>3개부터</b> 가운데 값이 +2.2% → <b>+4.2%</b>로 뛰고 승률도 54.9% → 59.8%였습니다. "
+        "② 다음은 <b>거래대금이 평소 위에 며칠 연속인가</b>인데, 차이가 작아 동점을 가를 때만 씁니다.<br>"
+        "<b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 여섯 가지를 "
+        "재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>",
+        unsafe_allow_html=True,
+    )
     reuse_text = "기존 일봉 배치 재사용" if result.get("reused_batch") else "일봉 1회 배치 조회"
     funnel = (
         f"신고가 {wait_min}~{wait_max}일 전 <b>{result.get('window_count', 0):,}개</b> → "
@@ -2658,7 +2675,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         )
         return
 
-    widths = [0.55, 1.9, 0.9, 1.3, 1.25, 1.25, 1.35, 1.9]
+    widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.2, 1.0, 1.15, 1.5, 1.75]
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     third = "신고가" if breakout else "갈래"
@@ -2668,7 +2685,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[2].markdown(
         _flex_row(rest_widths, ["티커", "당일주가", "고점 대비", third, "보유일수",
-                                "평균 거래대금"], head=True),
+                                "같이 걸린 종목", "거래대금 (평소 위 연속)", "소속 테마"],
+                  head=True),
         unsafe_allow_html=True,
     )
 
@@ -2719,6 +2737,30 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             band = str(row.get("bucket_label") or "—").replace("고점 대비 ", "")
             band_class = _BAND_CELL_CLASS.get(str(row.get("bucket")), "j3-pull-amber")
             third_cell = f"<span class='{band_class}'>{html.escape(band)}</span>"
+        # 순위를 정한 값(테마 동반)과 참고값(거래대금)을 표에 그대로 보여 준다.
+        tier = int(row.get("together_tier") or 0)
+        tier_class = ("j3-muted", "j3-pull-theme", "j3-pull-amber", "j3-green-strong")[tier]
+        together_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            f" line-height:1.12'><span class='{tier_class}' style='font-weight:800'>"
+            f"{int(row.get('together_count') or 0)}개</span>"
+            f"<span class='j3-muted' style='font-size:.78rem'"
+            f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
+            f"{html.escape(str(row.get('together_label') or '—'))}</span></span>"
+        )
+        # 거래대금은 액수만 보면 큰 회사가 늘 크다. 실제로 값을 한 것은 '평소(50일
+        # 평균) 위에 며칠 연속인가'라, 액수 아래에 그 날수를 같이 적는다(2026-08-01).
+        streak = int(row.get("volume_streak") or 0)
+        streak_class = "j3-up" if streak >= 11 else "j3-muted"
+        volume_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            f" line-height:1.12'><span class='j3-green'>{avg_text}</span>"
+            f"<span class='{streak_class}' style='font-size:.82rem'>{streak}일 연속</span></span>"
+        )
+        themes_all = [name for name in (row.get("themes") or []) if name]
+        lead = str(row.get("together_theme") or "") or (themes_all[0] if themes_all else "")
+        rest_n = max(len(themes_all) - 1, 0)
+        theme_text = (f"{lead} 외 {rest_n}" if rest_n else lead) or "—"
         cols[2].markdown(
             _flex_row(rest_widths, [
                 html.escape(str(row.get("ticker") or "—")),
@@ -2726,7 +2768,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
                 third_cell,
                 f"<span class='j3-green'>{int(row.get('hold_days') or 0)}거래일</span>",
-                f"<span class='j3-green'>{avg_text}</span>",
+                together_cell,
+                volume_cell,
+                f"<span class='j3-rb-clip j3-pull-theme'"
+                f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
             ]),
             unsafe_allow_html=True,
         )
@@ -2774,17 +2819,30 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 설명서(‘이 테마 기법에 대한 설명’)가 말하는 두 갈래를 옆에 단추로 둔다
     # (2026-08-01 사용자 지시). 어느 단추를 눌렀느냐에 따라 같은 자리의 표가 바뀐다.
     # 세 단추 모두 열려 있을 때 다시 누르면 접힌다.
+    # 지금 어느 갈래를 보고 있는지 단추만 봐서는 알 수 없었다(2026-08-01 사용자 지적).
+    # 열려 있는 갈래의 단추에는 앞에 ●를 붙이고, 아래 CSS가 그 단추를 밝게 칠한다.
+    open_mode = (
+        (st.session_state.get("j3_pullback_mode") or "기본")
+        if st.session_state.get("j3_pullback_open") else None
+    )
     finder_cols = st.columns(3)
     pressed = None
-    with finder_cols[0]:
-        if st.button("눌림목 찾기", key="j3_pullback_find"):
-            pressed = "기본"
-    with finder_cols[1]:
-        if st.button("상승장 (신고가 눌림매수)", key="j3_pullback_breakout"):
-            pressed = "breakout"
-    with finder_cols[2]:
-        if st.button("급락 후 반등장 (낙폭종목)", key="j3_pullback_crash"):
-            pressed = "crash"
+    for column, (mode, label, key) in zip(finder_cols, (
+        ("기본", "눌림목 찾기", "j3_pullback_find"),
+        ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
+        ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
+    )):
+        with column:
+            if st.button(("● " if open_mode == mode else "") + label, key=key):
+                pressed = mode
+        if open_mode == mode:
+            # 열린 단추만 밝게 — 색이 아니라 테두리와 밝기로 갈라 색 규칙을 안 건드린다.
+            st.markdown(
+                f"<style>div[class*='st-key-{key}'] button {{"
+                " outline: 3px solid #ffffff !important; outline-offset: 1px;"
+                " filter: brightness(1.25) !important; }</style>",
+                unsafe_allow_html=True,
+            )
     if pressed:
         already_open = (
             st.session_state.get("j3_pullback_open")
