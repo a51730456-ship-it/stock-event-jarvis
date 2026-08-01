@@ -367,9 +367,9 @@ class Jarvis3PageTests(unittest.TestCase):
         blocks = [str(n.value) for n in app.markdown if "@media (max-width: 600px)" in str(n.value)]
         self.assertEqual(len(blocks), 1)
         css = blocks[0]
-        # 미디어쿼리는 둘이다 — 메뉴는 태블릿까지(1200px), 표·글자는 폰만(600px).
-        # 미디어쿼리는 셋 — 메뉴·상단 지표 줄은 태블릿까지(1200px), 표·글자는 폰(600px).
-        self.assertEqual(css.count("@media"), 3)
+        # 미디어쿼리는 다섯 — 메뉴·상단 지표 줄은 태블릿까지(1200px), 그 중
+        # '한 줄에 몇 칸'은 세로·가로 두 갈래(2026-08-01), 표·글자는 폰(600px).
+        self.assertEqual(css.count("@media"), 5)
         self.assertEqual(css[: len("<style>")], "<style>")
         self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
         phone_block = css[css.index("@media (max-width: 600px)"):]
@@ -603,7 +603,10 @@ class Jarvis3PageTests(unittest.TestCase):
     def test_main_login_includes_jarvis3_destination(self):
         source = (ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("미국테마 (자비스3)", source)
-        self.assertIn('st.switch_page("pages/2_자비스3.py")', source)
+        # 2026-08-01부터 목적지는 _DEST_PAGES 한 곳에 모아 두고 _go_to가 옮긴다.
+        # 로그인 화면과 '어디로 갈까요' 화면이 같은 표를 쓴다.
+        self.assertIn('"미국테마": "pages/2_자비스3.py"', source)
+        self.assertIn("st.switch_page(page)", source)
 
     def test_login_can_switch_directly_to_jarvis3(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \

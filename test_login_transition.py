@@ -1,3 +1,4 @@
+import re
 import socket
 import unittest
 from contextlib import contextmanager
@@ -203,6 +204,29 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertIn("entry_go", [node.key for node in app.button])
         # 자비스1은 그려지지 않아야 한다 — 이게 그려지면 옛 동작으로 돌아간 것이다.
         self.assertFalse(any("① 한국장 판단" in value for value in markdowns))
+
+    def test_phone_and_tablet_see_only_the_two_theme_pages(self):
+        """폰·태블릿(≤1200px)에서는 미국테마·한국테마 둘만 보인다(2026-08-01 지시).
+
+        옵션을 지우는 게 아니라 감추는 것이다 — 노트북/PC에서는 7개가 다 보여야 하고
+        나중에 되살릴 수 있어야 한다(CLAUDE.md 12번). 목록 순서를 바꾸면 아래 번호도
+        같이 고쳐야 하므로, 그 짝을 여기서 굳혀 둔다.
+        """
+        options = re.search(r"_DEST_OPTIONS = \[(.*?)\]", SOURCE, re.S).group(1)
+        names = re.findall(r'"([^"]+)"', options)
+        self.assertEqual(7, len(names))
+        # 감추는 번호(1~3, 6~7)를 뺀 나머지가 미국테마·한국테마여야 한다.
+        shown = [name for index, name in enumerate(names, 1) if 4 <= index <= 5]
+        self.assertEqual(["미국테마 (자비스3)", "한국테마 (자비스4)"], shown)
+        # 기본 선택은 감추는 항목에 들어가면 안 된다.
+        default = int(re.search(r"_DEST_DEFAULT_INDEX = (\d+)", SOURCE).group(1))
+        self.assertIn(names[default], shown)
+        for key in ("login_dest_choice", "entry_dest_choice"):
+            for rule in ("nth-child(-n+3)", "nth-child(n+6)"):
+                self.assertIn(
+                    f'.st-key-{key} [role="radiogroup"] > label[data-testid="stRadioOption"]:{rule}',
+                    SOURCE, f"{key}에 {rule} 규칙이 없다",
+                )
 
     def test_the_chooser_moves_to_the_page_you_picked(self):
         """고른 곳으로 실제로 옮겨 가는지. 옮기지 못하면 화면에 갇힌다."""

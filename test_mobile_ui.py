@@ -15,14 +15,28 @@ class MediaQueryTests(unittest.TestCase):
     def test_no_rule_sits_outside_a_media_query(self):
         """규칙이 미디어쿼리 밖으로 새면 PC 화면까지 바뀐다.
 
-        미디어쿼리는 셋이다 — 메뉴·상단 지표 줄은 태블릿까지(1200px),
-        표·글자는 폰(600px).
+        미디어쿼리는 다섯이다 — 메뉴·상단 지표 줄은 태블릿까지(1200px),
+        그 중 '한 줄에 몇 칸'은 세로·가로 두 갈래(2026-08-01), 표·글자는 폰(600px).
         """
         css = m.page_css(m.table_css("x_", 4, {2: "이름"}, "j3-td"))
-        self.assertEqual(css.count("@media"), 3)
+        self.assertEqual(css.count("@media"), 5)
         # <style> 바로 뒤부터 첫 @media 앞까지 규칙이 있으면 안 된다.
         head = css[len("<style>"): css.index("@media")]
         self.assertEqual(head.strip(), "")
+
+    def test_cell_count_follows_the_way_you_hold_it(self):
+        """태블릿을 가로로 돌리면 한 줄에 더 담아야 한다(2026-08-01 사용자 지시).
+
+        그전에는 세로·가로 모두 2칸씩이라 돌려도 화면이 그대로였다.
+        방향(orientation)을 보므로 폭이 아니라 돌리는 즉시 바뀐다.
+        """
+        css = m.page_css()
+        self.assertIn(f"@media (max-width: {m.SIDEBAR_MAX_WIDTH}px) and (orientation: portrait)", css)
+        self.assertIn(f"@media (max-width: {m.SIDEBAR_MAX_WIDTH}px) and (orientation: landscape)", css)
+        # 칸 수 규칙은 방향 묶음 안에만 있어야 한다 — 밖에 있으면 돌려도 안 바뀐다.
+        self.assertNotIn("min-width: calc(", m.TOP_ROW_CSS)
+        self.assertIn("calc(50% - 0.6rem)", m.TOP_ROW_PORTRAIT_CSS)
+        self.assertIn("calc(25% - 0.8rem)", m.TOP_ROW_LANDSCAPE_CSS)
 
     def test_phone_rules_stay_in_the_phone_media_query(self):
         """표·글자 규칙은 폰(600px) 묶음 안에 있어야 태블릿이 안 바뀐다."""

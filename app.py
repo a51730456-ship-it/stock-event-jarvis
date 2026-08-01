@@ -436,8 +436,8 @@ except TypeError:
 
 # 갈 수 있는 곳 — 로그인 화면과 '어디로 갈까' 화면이 같은 목록을 쓴다.
 # 두 곳에 따로 적어 두면 한쪽만 고쳐져 목록이 어긋난다.
-# 순서를 바꾸면 폰·태블릿에서 앞 3개를 숨기는 CSS(nth-child(-n+3))도 같이 고쳐야
-# 한다(CLAUDE.md 12번).
+# 순서를 바꾸면 폰·태블릿에서 미국테마·한국테마 둘만 남기는 CSS
+# (nth-child(-n+3)과 nth-child(n+6))도 같이 고쳐야 한다(CLAUDE.md 12번).
 _DEST_OPTIONS = [
     "시장 판단",
     "자비스1 (기록장)",
@@ -641,12 +641,15 @@ if not st.session_state.get("authenticated"):
             iframe[data-testid="stIFrame"],
             div[data-testid="stIFrame"] iframe { height: 230px !important; }
         }
-        /* 폰·태블릿에서는 '로그인 후 이동'을 미국테마·한국테마·선행감지 셋만
-           보이게 한다(2026-07-25 사용자 지시). 앞 3개(시장판단·자비스1·자비스2)를
-           숨기되 옵션 자체는 남겨 둔다 — 노트북/PC(1200px 초과)에서는 6개 다 보이고
-           나중에 되살릴 수도 있다. 갤럭시탭 S8+(1138px)는 이 규칙에 걸린다. */
+        /* 폰·태블릿에서는 '로그인 후 이동'을 미국테마·한국테마 둘만 보이게 한다
+           (2026-08-01 사용자 지시. 그전에는 선행감지까지 셋이었다).
+           앞 3개(시장판단·자비스1·자비스2)와 뒤 2개(선행감지·종가관찰)를 숨기되
+           옵션 자체는 남겨 둔다 — 노트북/PC(1200px 초과)에서는 7개가 다 보이고
+           나중에 되살릴 수도 있다. 갤럭시탭 S8+(1138px)는 이 규칙에 걸린다.
+           목록 순서를 바꾸면 이 번호도 같이 고쳐야 한다(CLAUDE.md 12번). */
         @media (max-width: 1200px) {
-            .st-key-login_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(-n+3) {
+            .st-key-login_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(-n+3),
+            .st-key-login_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(n+6) {
                 display: none !important;
             }
         }
@@ -741,10 +744,12 @@ if st.query_params.get("page") != _JARVIS1_URL_MARK:
         div[class*="st-key-entry_go"] button p {
             color: #ffffff !important; font-size: 1.05rem !important; font-weight: 800 !important;
         }
-        /* 로그인 화면과 똑같이, 폰·태블릿에서는 앞 3개(시장판단·자비스1·자비스2)를
-           숨긴다(CLAUDE.md 12번). 옵션 자체는 남겨 두어 PC에서는 6개가 다 보인다. */
+        /* 로그인 화면과 똑같이, 폰·태블릿에서는 미국테마·한국테마 둘만 보인다
+           (2026-08-01 사용자 지시, CLAUDE.md 12번). 옵션 자체는 남겨 두어
+           노트북/PC에서는 7개가 다 보인다. */
         @media (max-width: 1200px) {
-            .st-key-entry_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(-n+3) {
+            .st-key-entry_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(-n+3),
+            .st-key-entry_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(n+6) {
                 display: none !important;
             }
         }

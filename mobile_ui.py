@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026073013
+MODULE_REVISION = 2026080110
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -123,23 +123,42 @@ SIDEBAR_NAV_CSS = f"""
 }}
 """
 
-# 상단 지표 줄 — 숫자는 2열로, 게이지는 한 줄에 하나씩.
+# 상단 지표 줄 — 글자를 줄이고 게이지를 숫자 뒤로 보낸다.
 # 태블릿까지(≤1200px) 걸리게 따로 뺐다 — 폰은 정갈한데 태블릿만 흩어져 보인다는
 # 지적을 따랐다(2026-07-25). 표·글자 규칙(600px)과 기준이 달라 분리해 둔다.
+# 한 줄에 몇 칸을 담을지는 아래 방향별 묶음이 정한다.
 TOP_ROW_CSS = """
 .j3-top-row, .j4-top-row { gap: 0.8rem 1rem; }
-.j3-top-cell, .j4-top-cell { min-width: calc(50% - 0.6rem); }
 .j3-top-val, .j4-top-val { font-size: 1.3rem; }
 .j3-top-label, .j4-top-label { font-size: 0.84rem; }
 .j3-top-sub, .j4-top-sub { font-size: 0.84rem; }
 /* 게이지는 숫자 뒤로 보낸다 — 폰에서 게이지 세 개가 430px를 먹어 KOSPI·수급이
    첫 화면 밖으로 밀려났다(2026-07-24 실측). 순서만 바꿀 뿐 값은 그대로다. */
-.fg-box { order: 10; width: 100%; box-sizing: border-box; }
+.fg-box { order: 10; box-sizing: border-box; }
 .fg-box-body { gap: 0.7rem; }
 .fg-box-gauge .fg-gauge { width: 104px; height: 70px; }
 .fg-box-hist { min-width: 0; flex: 1 1 auto; }
 .fg-box-hist .fg-hist-row { padding: 0.07rem 0; }
 .fg-box-title { font-size: 0.86rem; }
+"""
+
+# 한 줄에 몇 칸을 담을지는 '들고 있는 방향'을 따른다
+# (2026-08-01 사용자 지시: "가로로 보면 세로로 고정되어 불편하다").
+#
+# 갤럭시탭 S8+는 가로로 들면 1138px, 세로로 들면 그보다 훨씬 좁다. 둘 다 위
+# 1200px 규칙에 걸려서 돌려도 화면이 똑같이 2칸씩으로 남아 있었다. 그래서 칸 수
+# 규칙만 방향별로 갈라 둔다 — 글자 크기·게이지 순서는 위 묶음 그대로다.
+# 폭이 아니라 방향을 보므로 태블릿을 돌리는 즉시 따라 바뀐다.
+TOP_ROW_PORTRAIT_CSS = """
+.j3-top-cell, .j4-top-cell { min-width: calc(50% - 0.6rem); }
+.fg-box { width: 100%; }
+"""
+
+# 가로로 들면 폭이 배로 넓어지므로 한 줄에 네 칸, 게이지는 두 개씩 담는다.
+# 세로일 때와 눈에 띄게 달라야 "돌려도 그대로"라는 말이 안 나온다.
+TOP_ROW_LANDSCAPE_CSS = """
+.j3-top-cell, .j4-top-cell { min-width: calc(25% - 0.8rem); }
+.fg-box { width: calc(50% - 0.5rem); }
 """
 
 # 테마 종목표(HTML 표 9칸)는 폰에서 칸이 34px까지 좁아져 '+1.76%'가 한 글자씩
@@ -201,6 +220,11 @@ def page_css(*table_rules: str) -> str:
         # 안에 넣으면 두 미디어쿼리가 겹쳐 600px로 좁아진다.
         "<style>" + SIDEBAR_NAV_CSS
         + f"@media (max-width: {SIDEBAR_MAX_WIDTH}px) {{" + TOP_ROW_CSS + "}"
+        # 칸 수만 방향을 따라간다 — 태블릿을 돌리면 바로 바뀐다(2026-08-01).
+        + f"@media (max-width: {SIDEBAR_MAX_WIDTH}px) and (orientation: portrait) {{"
+        + TOP_ROW_PORTRAIT_CSS + "}"
+        + f"@media (max-width: {SIDEBAR_MAX_WIDTH}px) and (orientation: landscape) {{"
+        + TOP_ROW_LANDSCAPE_CSS + "}"
         + f"@media (max-width: {PHONE_MAX_WIDTH}px) {{"
         + THEME_TABLE_CSS + CONTENT_CSS + "".join(table_rules)
         + "}</style>"
