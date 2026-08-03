@@ -1870,6 +1870,58 @@ def _render_day_price_row(metrics: dict) -> None:
     st.markdown(f"<div class='j4-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
 
+def _render_guest_stock_charts(code: str, panel: str) -> None:
+    """게스트 상세에서 점수판을 제외한 당일·일봉·주봉·월봉은 그대로 그린다."""
+    show_intraday = _section_toggle(
+        "📈 당일 · 실시간 차트 보기", f"j4_intraday_open_{panel}",
+        close_label="당일 차트 닫기",
+    )
+    intraday_error = ""
+    intraday_payload = None
+    if show_intraday:
+        try:
+            intraday_payload = j4data.get_intraday_chart(code)
+        except Exception as exc:
+            intraday_error = _safe_error_text(exc)
+        intraday_col, _, _ = st.columns(3)
+        with intraday_col:
+            if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+                st.altair_chart(
+                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
+                    width="stretch", theme="streamlit",
+                )
+                st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+            elif intraday_error:
+                st.info(f"당일 자료 없음 — {intraday_error}")
+            else:
+                st.info("당일 자료 없음 — 한국장이 열리면 표시됩니다.")
+        _section_close(f"j4_intraday_open_{panel}", "당일 차트 닫기")
+
+    if not _section_toggle(
+        "📊 일봉 · 주봉 · 월봉 보기", f"j4_bundle_open_{panel}",
+        close_label="일봉·주봉·월봉 닫기",
+    ):
+        return
+    st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
+    chart_bundle = j4data.get_chart_bundle(code)
+    if chart_bundle.get("ok"):
+        daily_col, weekly_col, monthly_col = st.columns(3)
+        for timeframe, chart_column in (("일봉", daily_col), ("주봉", weekly_col), ("월봉", monthly_col)):
+            payload = chart_bundle["charts"].get(timeframe, {})
+            with chart_column:
+                st.markdown(f"<div class='j4-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
+                if payload.get("ok"):
+                    st.altair_chart(
+                        _price_chart(payload, include_volume=timeframe == "일봉"),
+                        width="stretch", theme="streamlit",
+                    )
+                else:
+                    st.warning(f"{timeframe} 자료 없음")
+    else:
+        st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
+    _section_close(f"j4_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
+
+
 def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
                          stock_key: str, *, panel: str = "theme") -> None:
     """종목 상세 한 벌. 같은 화면을 위(테마 종목)·아래(눌림목 종목) 두 곳에 그린다.
@@ -1877,8 +1929,6 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다 — 같은 종목을 위아래
     둘 다 고르면 매수 기록 입력칸 키가 겹쳐 화면이 죽는다(2026-07-29 분리 요청).
     """
-    if auth.is_guest():
-        return
     code = leader["code"]
     if panel == "theme":
         st.session_state["j4_selected_code"] = code
@@ -1901,6 +1951,14 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         f"{f'대장주 {detail_rank}위' if detail_rank else '눌림목 선택 종목'} · {plan.get('recommendation')}</div>",
         unsafe_allow_html=True,
     )
+
+    # 게스트에게는 종목명·가격·차트만 보여 주고, 사용자가 지정한 캡처 영역인
+    # 점수/선정 근거·매수 심사·추천 근거는 만들지 않는다.
+    if auth.is_guest():
+        _render_day_price_row(metrics)
+        _render_guest_stock_charts(code, panel)
+        _section_close(f"j4_detail_open_{panel}", "선택종목 세부사항 닫기")
+        return
 
     cells = [
         f"<div class='j4-mc'><div class='j4-mc-label'>현재가</div>"
@@ -2571,11 +2629,11 @@ def _render_radar_tab(market: dict) -> None:
     if not st.session_state.get("j4_theme_panel_open"):
         st.caption("원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다.")
         _render_pullback_finder()
+        _render_pullback_detail(market)
         if not guest_mode:
-            _render_pullback_detail(market)
             _render_top_reviewed(market, ranking)
             _render_top_reviewed_detail(market)
-            _render_my_stock_panel(market)
+        _render_my_stock_panel(market)
         return
 
     def _close_theme_panel_top():
@@ -2640,15 +2698,15 @@ def _render_radar_tab(market: dict) -> None:
     # 표의 종목 이름을 눌러도 상세가 바뀌어야 한다(2026-07-29 지시). 눌림목 표는
     # 눌리는데 이 표만 안 눌려 고장으로 보였다. 라디오는 그대로 둔다.
     clicked_code = _render_leader_table(leaders, st.session_state.get(stock_key))
-    if clicked_code and not guest_mode:
+    if clicked_code:
         st.session_state[stock_key] = clicked_code
         # 이미 선택된 1위 종목을 다시 눌러도 비교와 상세를 함께 연다.
         st.session_state["j4_detail_open_theme"] = True
         st.session_state["j4_leadercmp_open"] = True
         st.rerun()
 
-    if not guest_mode:
-        _render_leader_comparison(leaders)
+    _render_leader_comparison(leaders)
+    if leaders:
 
         # 위 상세는 **테마 종목만** 쓴다. 눌림목에서 고른 종목은 아래 제 자리에 따로
         # 그린다 — 예전에는 여기에 끼워 넣어 눌림목을 누르면 위 상세까지 통째로
@@ -2685,8 +2743,7 @@ def _render_radar_tab(market: dict) -> None:
     _render_pullback_finder()
 
     # ② 눌림목에서 고른 종목 상세 — 위 ①과 서로 영향을 주지 않는다.
-    if not guest_mode:
-        _render_pullback_detail(market)
+    _render_pullback_detail(market)
 
     # ③ 매수심사결과 높은 순위 7 — 테마 대장주와 눌림목 결과를 한자리에 모아 본다.
     if not guest_mode:
@@ -2694,8 +2751,7 @@ def _render_radar_tab(market: dict) -> None:
         _render_top_reviewed_detail(market)
 
     # ④ 내가 들고 있는 종목 상세 — 이름을 쳐서 직접 찾는다.
-    if not guest_mode:
-        _render_my_stock_panel(market)
+    _render_my_stock_panel(market)
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:

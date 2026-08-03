@@ -194,7 +194,7 @@ def _open_all_details(app):
 
 
 class Jarvis3PageTests(unittest.TestCase):
-    def test_guest_sees_only_two_public_finders_and_no_stock_detail(self):
+    def test_guest_hides_only_private_score_panels_but_keeps_stock_detail(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("market_signal_ui._fetch_quotes", return_value={}), \
@@ -223,12 +223,15 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3_pullback_crash", button_keys)
         self.assertNotIn("j3_pullback_find", button_keys)
         self.assertNotIn("j3_top7_find", button_keys)
-        self.assertFalse([node for node in app.text_input if node.key == "j3_my_stock_query"])
-        self.assertFalse([node for node in app.radio if str(node.label) == "상세 종목 선택"])
+        self.assertTrue([node for node in app.text_input if node.key == "j3_my_stock_query"])
+        self.assertTrue([node for node in app.radio if str(node.label) == "상세 종목 선택"])
         rendered = [str(node.value) for node in app.markdown]
-        self.assertFalse([value for value in rendered if "<div class='j3-stock-name'>" in value])
+        self.assertTrue([value for value in rendered if "<div class='j3-stock-name'>" in value])
         markdowns = " ".join(rendered)
-        self.assertNotIn("추천 근거 요약", markdowns)
+        self.assertNotIn("<div class='j3-section-title'>종목 선정 근거", markdowns)
+        self.assertNotIn("<div class='j3-section-title'>매수 심사 결과</div>", markdowns)
+        self.assertNotIn("<div class='j3-section-title'>추천 근거 요약</div>", markdowns)
+        self.assertTrue([node for node in app.button if "bundle_open" in str(node.key or "")])
 
     def test_theme_rank_click_opens_and_close_button_hides_whole_theme_panel(self):
         """20개 순위의 테마 클릭으로 캡처 속 테마 종목 화면 전체를 여닫는다."""
@@ -712,7 +715,7 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3_stock_choice_", source)
         self.assertIn("j3-leader-head-gap", source)
         self.assertIn("theme_box.markdown", source)
-        self.assertIn("if clicked_ticker and not guest_mode:", source)
+        self.assertIn("if clicked_ticker:", source)
         self.assertIn('st.session_state["j3_detail_open_theme"] = True', source)
         self.assertIn('st.session_state["j3_leadercmp_open"] = True', source)
         self.assertIn("get_chart_bundle", source)
@@ -965,7 +968,7 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3_pullback_crash", button_keys)
         self.assertNotIn("j3_pullback_find", button_keys)
         self.assertNotIn("j3_top7_find", button_keys)
-        self.assertFalse([node for node in app.text_input if node.key == "j3_my_stock_query"])
+        self.assertTrue([node for node in app.text_input if node.key == "j3_my_stock_query"])
 
 
 if __name__ == "__main__":

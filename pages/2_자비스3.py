@@ -1743,8 +1743,6 @@ def _render_stock_detail(
     *, panel: str = "theme",
 ) -> None:
     """종목 상세 한 벌. panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다."""
-    if auth.is_guest():
-        return
     ticker = leader["ticker"]
     if panel == "theme":
         st.session_state["j3_selected_ticker"] = ticker
@@ -1766,6 +1764,14 @@ def _render_stock_detail(
         f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
         unsafe_allow_html=True,
     )
+
+    # 게스트도 종목명·가격·차트는 본다. 사용자가 지정한 세 캡처 영역
+    # (점수/선정 근거·매수 심사·추천 근거)만 만들지 않는다.
+    if auth.is_guest():
+        _render_day_price_row(metrics)
+        _render_price_chart_bundle(ticker, panel=panel)
+        _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")
+        return
 
     # 종목조건점수는 위로 빼지 않고 아래 한 줄 지표에 함께 표시한다.
     _render_selected_live_quote(leader.get("score"), plan.get("state"))
@@ -2136,7 +2142,7 @@ def _render_radar_tab(market: dict) -> None:
         _render_pullback_finder(market, ranking)
         if not guest_mode:
             _render_top7_section(market, ranking)
-            _render_my_stock_panel(market)
+        _render_my_stock_panel(market)
         return
 
     def _close_theme_panel_top():
@@ -2206,7 +2212,7 @@ def _render_radar_tab(market: dict) -> None:
     ticker_options = [leader["ticker"] for leader in top_candidates]
     stock_key = f"j3_stock_choice_{selected_theme}"
     clicked_ticker = _render_leader_table(leaders, st.session_state.get(stock_key))
-    if clicked_ticker and not guest_mode:
+    if clicked_ticker:
         st.session_state[stock_key] = clicked_ticker
         # 이미 선택된 1위 종목을 다시 눌러도 상세가 열려야 한다. 이전에는 선택값과
         # 같으면 이 블록을 건너뛰어, 첫 행(MPC 등)을 눌러도 아무 일도 일어나지 않았다.
@@ -2214,8 +2220,8 @@ def _render_radar_tab(market: dict) -> None:
         st.session_state["j3_leadercmp_open"] = True
         st.rerun()
 
-    if not guest_mode:
-        _render_leader_comparison(leaders)
+    _render_leader_comparison(leaders)
+    if leaders:
         # 재랭킹으로 이전에 고른 종목이 top3에서 빠지면 st.radio가 예외를 낸다 → 미리 정리한다.
         if stock_key in st.session_state and st.session_state[stock_key] not in ticker_options:
             del st.session_state[stock_key]
@@ -2246,7 +2252,7 @@ def _render_radar_tab(market: dict) -> None:
     # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
     if not guest_mode:
         _render_top7_section(market, ranking)
-        _render_my_stock_panel(market)
+    _render_my_stock_panel(market)
 
 
 @st.fragment
@@ -2490,14 +2496,40 @@ def _us_signal_hint() -> str:
     )
 
 
+def _render_guest_pullback_intraday(ticker: str) -> None:
+    """게스트 눌림목 상세에서도 점수판을 제외한 당일 차트는 그대로 보여준다."""
+    if not _section_toggle(
+        "📈 당일 · 실시간 차트 보기", "j3_intraday_open_pullback",
+        close_label="당일 차트 닫기",
+    ):
+        return
+    intraday_error = ""
+    try:
+        intraday_payload = j3data.get_intraday_chart(ticker)
+    except Exception as exc:
+        intraday_payload = None
+        intraday_error = _safe_error_text(exc)
+    intraday_col, _, _ = st.columns(3)
+    with intraday_col:
+        if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+            st.altair_chart(
+                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
+                width="stretch", theme="streamlit",
+            )
+            st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+        elif intraday_error:
+            st.info(f"당일 자료 없음 — {intraday_error}")
+        else:
+            st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
+    _section_close("j3_intraday_open_pullback", "당일 차트 닫기")
+
+
 def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     """상단 테마 선택과 독립된 눌림목 종목 상세.
 
     자비스4(한국) 종목 상세와 같은 구성으로 맞춘다(2026-07-24 사용자 지시) —
     선정 근거 점수표 · 매수 심사 결과 · 일봉/주봉/월봉 차트를 함께 보여준다.
     """
-    if auth.is_guest():
-        return
     ticker = str(row.get("ticker") or "")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
     if not _section_toggle(
@@ -2565,6 +2597,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         f"{html.escape(str(plan.get('recommendation') or '판정 없음'))}</div>",
         unsafe_allow_html=True,
     )
+    if auth.is_guest():
+        _render_day_price_row(metrics)
+        _render_guest_pullback_intraday(ticker)
+        _render_price_chart_bundle(ticker, panel="pullback")
+        _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
+        return
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
         f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div>"
@@ -3038,8 +3076,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     selected_row = next(
         (row for row in rows if row.get("ticker") == selected_ticker), rows[0]
     )
-    if not auth.is_guest():
-        _render_pullback_detail(selected_row, market, ranking)
+    _render_pullback_detail(selected_row, market, ranking)
 
 
 def _render_pullback_finder(market: dict, ranking: dict) -> None:

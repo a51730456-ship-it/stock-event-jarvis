@@ -328,7 +328,7 @@ def _open_all_details(app):
 
 
 class Jarvis4PageTests(unittest.TestCase):
-    def test_guest_sees_only_two_public_finders_and_no_stock_detail(self):
+    def test_guest_hides_only_private_score_panels_but_keeps_stock_detail(self):
         app = _run_page(guest=True)
         self.assertEqual(len(app.exception), 0)
         button_keys = {str(node.key or "") for node in app.button}
@@ -337,12 +337,15 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertNotIn("j4_pullback_find", button_keys)
         self.assertNotIn("j4_pullback_refind", button_keys)
         self.assertNotIn("j4_top7_find", button_keys)
-        self.assertFalse([node for node in app.text_input if node.key == "j4_my_stock_query"])
-        self.assertFalse([node for node in app.radio if str(node.label) == "상세 종목 선택"])
+        self.assertTrue([node for node in app.text_input if node.key == "j4_my_stock_query"])
+        self.assertTrue([node for node in app.radio if str(node.label) == "상세 종목 선택"])
         rendered = [str(node.value) for node in app.markdown]
-        self.assertFalse([value for value in rendered if "<div class='j4-stock-name'>" in value])
+        self.assertTrue([value for value in rendered if "<div class='j4-stock-name'>" in value])
         markdowns = " ".join(rendered)
-        self.assertNotIn("추천 근거 요약", markdowns)
+        self.assertNotIn("<div class='j4-section-title'>종목 선정 근거", markdowns)
+        self.assertNotIn("<div class='j4-section-title'>매수 심사 결과</div>", markdowns)
+        self.assertNotIn("<div class='j4-section-title'>추천 근거 요약</div>", markdowns)
+        self.assertTrue([node for node in app.button if "bundle_open" in str(node.key or "")])
 
     def test_theme_rank_click_opens_and_close_button_hides_whole_theme_panel(self):
         """한국도 순위의 테마 클릭으로 종목 화면 전체를 열고 닫는다."""
