@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import math
 
-MODULE_REVISION = 2026072901
+MODULE_REVISION = 2026080301
 
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"

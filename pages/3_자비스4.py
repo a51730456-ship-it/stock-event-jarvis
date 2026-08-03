@@ -275,6 +275,9 @@ st.markdown(
     .j4-card-deep .j4-reason-title { color: #ff9d3b !important; }
     .j4-card-mid { border-color: rgba(124,200,255,.5) !important; }
     .j4-card-mid .j4-reason-title { color: #7cc8ff !important; }
+    .j4-hold-20 { color: #ff9d3b; font-weight: 850; }
+    .j4-hold-60 { color: #7cc8ff; font-weight: 850; }
+    .j4-hold-120 { color: #44f0a1; font-weight: 850; }
     div[class*="st-key-j4rbf_"] button {
         background: transparent !important; border: none !important; box-shadow: none !important;
         padding: 0 0 0 .8rem !important; min-height: 2.5rem !important; width: 100% !important;
@@ -547,7 +550,7 @@ import fear_greed_ui
 import gauge_ui
 import mobile_ui
 
-_REQUIRED_GAUGE_UI_REVISION = 2026072901
+_REQUIRED_GAUGE_UI_REVISION = 2026080301
 if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
     gauge_ui = importlib.reload(gauge_ui)
 
@@ -609,7 +612,7 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026073010
+_REQUIRED_SIGNAL_UI_REVISION = 2026080305
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -2991,6 +2994,26 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         f"(최대 {int(result.get('result_limit') or 0)}개)</div>",
         unsafe_allow_html=True,
     )
+    # 미국테마와 같은 자리: 깔때기 통계 아래, 순위표 바로 위에서 현재 갈래를
+    # 확인하고 닫는다. 한국 계산값은 그대로 두고 여닫는 방식만 맞춘다.
+    mode_close_label = (
+        "상승장 (신고가 눌림매수) 닫기"
+        if breakout else "급락 후 반등장 (낙폭종목) 닫기"
+    )
+    close_background = (
+        "linear-gradient(90deg,#075d46,#18bf87)"
+        if breakout else "linear-gradient(90deg,#6b2d05,#e67813)"
+    )
+    st.markdown(
+        "<style>div[class*='st-key-close_j4_pullback_open'] button {"
+        f"background:{close_background} !important; color:#fff !important;"
+        "border:1px solid rgba(255,255,255,.28) !important;"
+        "box-shadow:0 0 12px rgba(230,120,19,.20) !important;}"
+        "div[class*='st-key-close_j4_pullback_open'] button p {"
+        "color:#fff !important; font-weight:800 !important;}</style>",
+        unsafe_allow_html=True,
+    )
+    _section_close("j4_pullback_open", mode_close_label)
     if not rows:
         st.info(
             "지금은 이 기준에 맞는 종목이 없습니다. 기준을 느슨하게 바꾸지 않습니다 — "
@@ -3001,15 +3024,13 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     # 두 갈래가 같은 순위 기준을 쓰므로 표도 같은 칸을 쓴다(2026-08-01 사용자 지시).
     # 순위를 정하는 두 칸(동반 5일 · 같이 걸린 종목)을 앞쪽에 둬서, 순위를 왜 그렇게
     # 매겼는지 눈으로 바로 따라갈 수 있게 한다. 셋째 칸만 갈래에 따라 다르다.
-    widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.05, 1.1, 1.0, 1.5, 1.75]
+    widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5]
     # 일곱째 칸은 갈래마다 다르다 — 재 본 결과가 다르기 때문이다(2026-08-01).
     # 상승장에서 가장 크게 갈린 것은 '최근 60일에 얼마나 올랐나'(40% 넘으면 100번 중
     # 61번)라 그 값을 앞에 세우고 거래대금 액수를 아래에 작게 적는다.
-    headers = ["동반 5일 (외국인+기관)", "당일주가", "고점 대비",
-               "신고가" if breakout else "갈래", "보유일수",
-               "같이 걸린 종목",
-               "최근 60일 상승폭 (거래대금)" if breakout else "거래대금 (평소 대비)",
-               "소속 테마"]
+    headers = ["동반 5일 (외국인+기관)", "당일주가", "고점 대비", "소속 테마",
+               "신고가" if breakout else "갈래", "보유일수", "같이 걸린 종목",
+               "최근 60일 상승폭 (거래대금)" if breakout else "거래대금 (평소 대비)"]
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     table_box = st.container(key="j4_rulebook_table")
@@ -3085,11 +3106,19 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
                 f" line-height:1.12'><span class='j4-green'>{_eok(value)}</span>"
                 f"<span style='font-size:.82rem'>{ratio_cell}</span></span>"
             )
+        hold_days = int(row.get("hold_days") or 0)
+        hold_class = (
+            "j4-hold-20" if hold_days == 20
+            else "j4-hold-60" if hold_days == 60
+            else "j4-hold-120"
+        )
         price_and_high = [
             price_cell,
             f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+            f"<span class='j4-rb-clip j4-th-muted' title='{html.escape(themes)}'>"
+            f"{html.escape(theme_text)}</span>",
             third_cell,
-            f"<span class='j4-green'>{int(row.get('hold_days') or 0)}거래일</span>",
+            f"<span class='{hold_class}'>{hold_days}거래일</span>",
         ]
         # 순위를 정한 두 값을 표에 그대로 보여 준다(2026-08-01 사용자 지시).
         # 1순위 — 외국인+기관이 5일 중 며칠을 같이 샀나(동그라미 다섯).
@@ -3097,20 +3126,13 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         tier = int(row.get("together_tier") or 0)
         tier_class = ("j4-muted", "j4-th-muted", "j4-amber-strong", "j4-green-strong")[tier]
         together = (
-            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
-            f" line-height:1.12'><span class='{tier_class}' style='font-weight:800'>"
-            f"{int(row.get('together_count') or 0)}개</span>"
-            f"<span class='j4-muted' style='font-size:.78rem'"
+            f"<span class='{tier_class}' style='font-weight:850'"
             f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
-            f"{html.escape(str(row.get('together_label') or '—'))}</span></span>"
+            f"{int(row.get('together_count') or 0)}개</span>"
         )
         cells = [_partner5_cell(row.get("flow") or {})] + price_and_high + [
             together, volume_cell
         ]
-        cells.append(
-            f"<span class='j4-rb-clip j4-th-muted' title='{html.escape(themes)}'>"
-            f"{html.escape(theme_text)}</span>"
-        )
         cols[2].markdown(_flex_row(rest_widths, cells), unsafe_allow_html=True)
     st.caption(
         "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
@@ -3156,31 +3178,29 @@ def _render_pullback_finder() -> None:
     # 없도록 찾은 시각을 표에 같이 적는다.
     has_result = st.session_state.get("j4_pullback_result") is not None
     is_open = bool(st.session_state.get("j4_pullback_open"))
-    col_open, col_again = st.columns([1, 1])
-    with col_open:
+    open_mode = (
+        st.session_state.get("j4_pullback_mode")
+        if st.session_state.get("j4_pullback_open") else None
+    )
+    # 미국테마와 같은 한 줄 배치: 기본 · 상승장 · 급락장.
+    finder_cols = st.columns(3)
+    with finder_cols[0]:
         run_requested = st.button("눌림목 찾기", key="j4_pullback_find")
-    with col_again:
-        # 찾아 둔 것이 있을 때만 보여 준다 — 처음에는 단추가 하나여야 헷갈리지 않는다.
-        rerun_requested = (
-            st.button("새로 찾기", key="j4_pullback_refind") if has_result else False
-        )
-    # 설명서 두 갈래 — 미국테마와 같은 자리·같은 모양이다(2026-08-01 사용자 지시).
-    # 누르면 같은 자리의 표가 그 갈래로 바뀐다. 같은 단추를 다시 누르면 접힌다.
-    #
-    # 지금 어느 갈래를 보고 있는지 단추만 봐서는 알 수 없었다(2026-08-01 사용자 지적).
-    # 열려 있는 갈래의 단추에는 앞에 ●를 붙이고, 아래 CSS가 그 단추를 밝게 칠한다.
-    open_mode = st.session_state.get("j4_pullback_mode") if st.session_state.get("j4_pullback_open") else None
-    col_breakout, col_crash = st.columns([1, 1])
-    with col_breakout:
+    with finder_cols[1]:
         breakout_requested = st.button(
             ("● " if open_mode == "breakout" else "") + "상승장 (신고가 눌림매수)",
             key="j4_pullback_breakout",
         )
-    with col_crash:
+    with finder_cols[2]:
         crash_requested = st.button(
             ("● " if open_mode == "crash" else "") + "급락 후 반등장 (낙폭종목)",
             key="j4_pullback_crash",
         )
+    # 한국테마는 조회량이 커 방금 찾은 결과를 다시 여는 기능을 유지한다. 새로 찾기는
+    # 세 장세 선택과 다른 동작이라 그 아래 작은 보조 단추로만 둔다.
+    rerun_requested = (
+        st.button("새로 찾기", key="j4_pullback_refind") if has_result else False
+    )
     if open_mode:
         # 열린 단추만 밝게 — 색이 아니라 테두리와 밝기로 갈라 색 규칙을 건드리지 않는다.
         active = "j4_pullback_breakout" if open_mode == "breakout" else "j4_pullback_crash"

@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080304
+MODULE_REVISION = 2026080305
 
 
 def _now_seoul():
@@ -929,14 +929,14 @@ def _saved_foreign_futures(snapshots):
     )
 
 
-def _previous_kr_flow_stage() -> dict | None:
-    """저장된 직전 평일 스냅숏으로 직전 판정 단계를 다시 계산한다."""
+def _previous_kr_flow_comparison() -> tuple[object | None, dict | None]:
+    """저장된 직전 평일 스냅숏으로 전일 판정 전체와 표시정보를 복원한다."""
     try:
         today = _flow_today()
         saved = database.list_previous_kr_flow_snapshots(today)
         snapshots = list(saved.get("rows") or [])
         if not snapshots:
-            return None
+            return None, None
         last_stamp = snapshots[-1].get("captured_at")
         if isinstance(last_stamp, str):
             last_stamp = datetime.fromisoformat(last_stamp)
@@ -949,8 +949,8 @@ def _previous_kr_flow_stage() -> dict | None:
         )
         score = _verdict_needle_position(result.verdict, KR_VERDICT_ORDER)
         if score is None:
-            return None
-        return {
+            return None, None
+        stage = {
             "score": score,
             "label": _VERDICT_SHORT.get(result.verdict) or str(result.verdict),
             "color": _FLOW_VERDICT_STYLE.get(
@@ -965,8 +965,15 @@ def _previous_kr_flow_stage() -> dict | None:
                 else "직전 저장"
             ),
         }
+        return result, stage
     except Exception:
-        return None
+        return None, None
+
+
+def _previous_kr_flow_stage() -> dict | None:
+    """기존 호출부용 직전 판정 단계. 전체 비교에서 표시정보만 돌려준다."""
+    _result, stage = _previous_kr_flow_comparison()
+    return stage
 
 
 def _speedometer_gauge_svg(score, zones) -> str:
@@ -1366,6 +1373,14 @@ def render_kr_flow_card():
         with st.spinner("장중 수급 자동 확인 중..."):
             result = run_kr_flow_check()
 
+    previous_result, previous_stage = _previous_kr_flow_comparison()
+    previous_label = "전일"
+    if previous_stage:
+        previous_label = str(previous_stage.get("period_label") or "전일")
+        previous_date = str(previous_stage.get("trade_date") or "")
+        if len(previous_date) >= 10:
+            previous_label += f" · {previous_date[5:].replace('-', '.')}"
+
     render_market_signal_card(
         result,
         verdict_style=_FLOW_VERDICT_STYLE,
@@ -1383,8 +1398,10 @@ def render_kr_flow_card():
         falling_market=falling_market_note(),
         diagnosis_text=kr_flow_diagnosis,
         verdict_order=KR_VERDICT_ORDER,
-        previous_stage=_previous_kr_flow_stage(),
+        previous_stage=previous_stage,
         show_position_score=True,
+        comparison_result=previous_result,
+        comparison_label=previous_label,
     )
 
     # 조회 실패 목록과 외국인 선물 수동 입력칸은 없앴다(2026-07-22 사용자 지시).

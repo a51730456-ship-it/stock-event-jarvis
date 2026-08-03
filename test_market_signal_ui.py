@@ -245,7 +245,8 @@ class VerdictGaugeTests(unittest.TestCase):
         ), patch.object(
             ui.kr_intraday_flow, "build_result_from_snapshots", return_value=rebuilt
         ):
-            previous = ui._previous_kr_flow_stage()
+            previous_result, previous = ui._previous_kr_flow_comparison()
+        self.assertIs(previous_result, rebuilt)
         self.assertEqual(previous["trade_date"], "2026-07-28")
         self.assertEqual(previous["score"], 37.5)
         self.assertEqual(previous["label"], "일부 켜짐")

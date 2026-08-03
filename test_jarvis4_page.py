@@ -487,6 +487,8 @@ class Jarvis4PageTests(unittest.TestCase):
         keys = [str(node.key or "") for node in app.button]
         for key in ("j4_pullback_find", "j4_pullback_breakout", "j4_pullback_crash"):
             self.assertIn(key, keys, f"{key} 단추가 없다")
+        source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
+        self.assertIn("finder_cols = st.columns(3)", source)
 
     def test_rulebook_table_slides_sideways_like_the_others(self):
         """새 표를 옆으로 밀기 규칙 목록에 안 넣으면 폰에서 줄이 쌓이고 값이 겹친다."""
@@ -570,6 +572,13 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("소속 테마", block)
         self.assertIn("avg_trading_value", block)
         self.assertIn("배</span>", block)
+        headers = block.split("headers = [", 1)[1].split("]", 1)[0]
+        self.assertLess(headers.index("고점 대비"), headers.index("소속 테마"))
+        self.assertLess(headers.index("소속 테마"), headers.index("갈래"))
+        self.assertNotIn("together_label", block)
+        for hold_class in ("j4-hold-20", "j4-hold-60", "j4-hold-120"):
+            self.assertIn(hold_class, block)
+        self.assertIn('_section_close("j4_pullback_open", mode_close_label)', block)
 
     def test_breakout_table_swaps_in_the_gain_column(self):
         """상승장에서 값을 한 것은 거래대금 비중이 아니라 최근 60일 상승폭이다."""
