@@ -24,7 +24,7 @@ def _logged_in_app():
         app.run()
         app.radio[0].set_value("자비스1 (기록장)")
         app.text_input[0].set_value(TEST_PASSWORD)
-        app.button[0].click().run(timeout=60)
+        next(node for node in app.button if node.key == "login_submit").click().run(timeout=60)
 
     app.session_state["kr_auto_run_stage1_done"] = True
     app.session_state["kr_auto_run_stage2_done"] = True

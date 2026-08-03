@@ -25,7 +25,7 @@ import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 �
 
 # 배포 갱신 중 옛 auth가 프로세스에 남으면 함수 모양이 안 맞아 화면이 죽는다
 # (2026-07-25 온라인 실발생). 리비전이 낮으면 다시 읽는다.
-_REQUIRED_AUTH_REVISION = 2026072503
+_REQUIRED_AUTH_REVISION = 2026080301
 if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
     import importlib as _importlib
 
@@ -545,7 +545,7 @@ def _login_gate() -> None:
     entered = st.text_input("비밀번호", type="password", key="j4_login_password")
     if st.button("자비스4 로그인", key="j4_login_submit", width="stretch"):
         if entered == password:
-            st.session_state["authenticated"] = True
+            auth.login_as_owner()
             st.rerun()
         else:
             st.error("비밀번호가 올바르지 않습니다.")
@@ -553,6 +553,19 @@ def _login_gate() -> None:
 
 
 _login_gate()
+
+if auth.is_guest():
+    # 게스트는 사이드바에서도 미국·한국 테마 두 화면만 오갈 수 있다.
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebarNav"] li:not(:nth-child(4)):not(:nth-child(5)) {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 import importlib
 
@@ -1864,6 +1877,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다 — 같은 종목을 위아래
     둘 다 고르면 매수 기록 입력칸 키가 겹쳐 화면이 죽는다(2026-07-29 분리 요청).
     """
+    if auth.is_guest():
+        return
     code = leader["code"]
     if panel == "theme":
         st.session_state["j4_selected_code"] = code
@@ -2459,6 +2474,7 @@ def _render_buy_form(theme_row: dict, leader: dict, market: dict, top_candidates
 # 탭
 # ---------------------------------------------------------------------------
 def _render_radar_tab(market: dict) -> None:
+    guest_mode = auth.is_guest()
     action_col, note_col = st.columns([1, 4])
     with action_col:
         if st.button("온라인 자료 새로고침", key="j4_force_refresh", width="stretch"):
@@ -2555,10 +2571,11 @@ def _render_radar_tab(market: dict) -> None:
     if not st.session_state.get("j4_theme_panel_open"):
         st.caption("원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다.")
         _render_pullback_finder()
-        _render_pullback_detail(market)
-        _render_top_reviewed(market, ranking)
-        _render_top_reviewed_detail(market)
-        _render_my_stock_panel(market)
+        if not guest_mode:
+            _render_pullback_detail(market)
+            _render_top_reviewed(market, ranking)
+            _render_top_reviewed_detail(market)
+            _render_my_stock_panel(market)
         return
 
     def _close_theme_panel_top():
@@ -2623,62 +2640,62 @@ def _render_radar_tab(market: dict) -> None:
     # 표의 종목 이름을 눌러도 상세가 바뀌어야 한다(2026-07-29 지시). 눌림목 표는
     # 눌리는데 이 표만 안 눌려 고장으로 보였다. 라디오는 그대로 둔다.
     clicked_code = _render_leader_table(leaders, st.session_state.get(stock_key))
-    if clicked_code:
+    if clicked_code and not guest_mode:
         st.session_state[stock_key] = clicked_code
         # 이미 선택된 1위 종목을 다시 눌러도 비교와 상세를 함께 연다.
         st.session_state["j4_detail_open_theme"] = True
         st.session_state["j4_leadercmp_open"] = True
         st.rerun()
 
-    _render_leader_comparison(leaders)
+    if not guest_mode:
+        _render_leader_comparison(leaders)
 
-    # 위 상세는 **테마 종목만** 쓴다. 눌림목에서 고른 종목은 아래 제 자리에 따로
-    # 그린다 — 예전에는 여기에 끼워 넣어 눌림목을 누르면 위 상세까지 통째로
-    # 바뀌었다(2026-07-29 사용자 지시: 위·아래를 따로 보게 해 달라).
-    #
-    # 표에 1~6위를 보여주면서 상세는 1~3위만 고를 수 있었다. 4~6위를 눌러도
-    # 아무 일이 없어 고장으로 보였다(2026-07-29 지적). 표에 나온 여섯 개를
-    # 그대로 고를 수 있게 한다.
-    top_candidates = leaders[:6]
-    code_options = [leader["code"] for leader in top_candidates]
-    if stock_key in st.session_state and st.session_state[stock_key] not in code_options:
-        del st.session_state[stock_key]
+        # 위 상세는 **테마 종목만** 쓴다. 눌림목에서 고른 종목은 아래 제 자리에 따로
+        # 그린다 — 예전에는 여기에 끼워 넣어 눌림목을 누르면 위 상세까지 통째로
+        # 바뀌었다(2026-07-29 사용자 지시: 위·아래를 따로 보게 해 달라).
+        top_candidates = leaders[:6]
+        code_options = [leader["code"] for leader in top_candidates]
+        if stock_key in st.session_state and st.session_state[stock_key] not in code_options:
+            del st.session_state[stock_key]
 
-    def _label(code):
-        item = next((cand for cand in top_candidates if cand["code"] == code), None)
-        return _stock_radio_label(item) if item else code
+        def _label(code):
+            item = next((cand for cand in top_candidates if cand["code"] == code), None)
+            return _stock_radio_label(item) if item else code
 
-    def _open_selected_theme_stock():
-        st.session_state["j4_detail_open_theme"] = True
-        st.session_state["j4_leadercmp_open"] = True
+        def _open_selected_theme_stock():
+            st.session_state["j4_detail_open_theme"] = True
+            st.session_state["j4_leadercmp_open"] = True
 
-    selected_code = st.radio(
-        "상세 종목 선택",
-        code_options,
-        format_func=_label,
-        horizontal=True,
-        key=stock_key,
-        on_change=_open_selected_theme_stock,
-    )
-    selected_leader = next((item for item in top_candidates if item["code"] == selected_code), top_candidates[0])
+        selected_code = st.radio(
+            "상세 종목 선택",
+            code_options,
+            format_func=_label,
+            horizontal=True,
+            key=stock_key,
+            on_change=_open_selected_theme_stock,
+        )
+        selected_leader = next((item for item in top_candidates if item["code"] == selected_code), top_candidates[0])
 
-    # ① 테마 종목 상세 — 눌림목 위에 둔다.
-    _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key,
-                         panel="theme")
+        # ① 테마 종목 상세 — 눌림목 위에 둔다.
+        _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key,
+                             panel="theme")
     _section_close("j4_theme_panel_open", "테마 종목 화면 닫기")
 
     # 여러 테마를 가로질러 '지금 실제로 살 자리'만 모아 보여준다(2026-07-22 사용자 요청).
     _render_pullback_finder()
 
     # ② 눌림목에서 고른 종목 상세 — 위 ①과 서로 영향을 주지 않는다.
-    _render_pullback_detail(market)
+    if not guest_mode:
+        _render_pullback_detail(market)
 
     # ③ 매수심사결과 높은 순위 7 — 테마 대장주와 눌림목 결과를 한자리에 모아 본다.
-    _render_top_reviewed(market, ranking)
-    _render_top_reviewed_detail(market)
+    if not guest_mode:
+        _render_top_reviewed(market, ranking)
+        _render_top_reviewed_detail(market)
 
     # ④ 내가 들고 있는 종목 상세 — 이름을 쳐서 직접 찾는다.
-    _render_my_stock_panel(market)
+    if not guest_mode:
+        _render_my_stock_panel(market)
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
@@ -3223,22 +3240,30 @@ def _render_pullback_finder() -> None:
     # 이제 '눌림목 찾기'는 찾아 둔 것이 있으면 그대로 편다(조회 없음). 새 자료로
     # 다시 찾고 싶으면 옆의 '새로 찾기'를 누른다. 오래된 것을 모르고 보는 일이
     # 없도록 찾은 시각을 표에 같이 적는다.
+    guest_mode = auth.is_guest()
+    if guest_mode and st.session_state.get("j4_pullback_mode") not in ("breakout", "crash"):
+        st.session_state["j4_pullback_open"] = False
     has_result = st.session_state.get("j4_pullback_result") is not None
     is_open = bool(st.session_state.get("j4_pullback_open"))
     open_mode = (
         st.session_state.get("j4_pullback_mode")
         if st.session_state.get("j4_pullback_open") else None
     )
-    # 미국테마와 같은 한 줄 배치: 기본 · 상승장 · 급락장.
-    finder_cols = st.columns(3)
-    with finder_cols[0]:
-        run_requested = st.button("눌림목 찾기", key="j4_pullback_find")
-    with finder_cols[1]:
+    # 게스트는 공개 규칙 두 갈래만 본다. 주인 화면은 기존 세 단추를 그대로 둔다.
+    finder_cols = st.columns(2 if guest_mode else 3)
+    if guest_mode:
+        run_requested = False
+        breakout_col, crash_col = finder_cols
+    else:
+        with finder_cols[0]:
+            run_requested = st.button("눌림목 찾기", key="j4_pullback_find")
+        breakout_col, crash_col = finder_cols[1], finder_cols[2]
+    with breakout_col:
         breakout_requested = st.button(
             ("● " if open_mode == "breakout" else "") + "상승장 (신고가 눌림매수)",
             key="j4_pullback_breakout",
         )
-    with finder_cols[2]:
+    with crash_col:
         crash_requested = st.button(
             ("● " if open_mode == "crash" else "") + "급락 후 반등장 (낙폭종목)",
             key="j4_pullback_crash",
@@ -3247,7 +3272,7 @@ def _render_pullback_finder() -> None:
     # 세 장세 선택과 다른 동작이라 그 아래 작은 보조 단추로만 둔다.
     rerun_requested = (
         st.button("새로 찾기", key="j4_pullback_refind") if has_result else False
-    )
+    ) if not guest_mode else False
     if open_mode:
         # 열린 단추만 밝게 — 색이 아니라 테두리와 밝기로 갈라 색 규칙을 건드리지 않는다.
         active = "j4_pullback_breakout" if open_mode == "breakout" else "j4_pullback_crash"

@@ -22,6 +22,13 @@ import login_globe
 # 조용히 세션 기반 동작으로 남는다. [[project_jarvis_persistent_login]]
 import auth
 
+_ACCESS_ROLE_KEY = "jarvis_access_role"
+
+
+def _is_guest_session() -> bool:
+    """app.py는 모듈 재적재 없이도 게스트 상태를 읽는다."""
+    return st.session_state.get(_ACCESS_ROLE_KEY) == "guest"
+
 _reference_panel_logger = logging.getLogger("jarvis.reference_panels")
 
 
@@ -451,6 +458,7 @@ _DEST_OPTIONS = [
     "선행감지 (자비스5·실험)",
     "종가관찰 (자비스6·연습)",
 ]
+_GUEST_DEST_OPTIONS = ["미국테마 (자비스3)", "한국테마 (자비스4)"]
 # 기본 이동은 한국테마(자비스4)다(2026-07-29 사용자 지시). 폰·태블릿에서 숨기는
 # 앞 3개에 들어가면 '선택된 항목이 안 보이는' 상태가 되므로 그 밖이어야 한다.
 _DEST_DEFAULT_INDEX = 4
@@ -607,6 +615,21 @@ if not st.session_state.get("authenticated"):
             border-color: #a8ddff !important;
             box-shadow: 0 15px 42px rgba(14, 112, 235, .42), inset 0 1px rgba(255, 255, 255, .24) !important;
         }
+        .st-key-login_guest button {
+            width: 100% !important;
+            min-height: 48px !important;
+            color: #f7fbff !important;
+            background: linear-gradient(100deg, #14532d, #0f8a58 58%, #20c985) !important;
+            border: 1px solid rgba(88, 244, 170, .58) !important;
+            border-radius: 12px !important;
+            font-size: 1rem !important;
+            font-weight: 850 !important;
+            box-shadow: 0 10px 28px rgba(15, 138, 88, .25) !important;
+        }
+        .st-key-login_guest button:hover {
+            border-color: #b5ffdc !important;
+            filter: brightness(1.12) !important;
+        }
         [data-testid="stAlert"] { border-radius: 12px !important; background: rgba(65, 17, 24, .58) !important; }
         @keyframes jarvis-star-drift { to { transform: translate3d(90px, 55px, 0); } }
         @media (max-width: 1100px) {
@@ -680,7 +703,7 @@ if not st.session_state.get("authenticated"):
                 <div class="jarvis-login-kicker">Stock Event Jarvis</div>
                 <div class="jarvis-login-subtitle">
                     <span class="jarvis-login-owner">장상하</span>의 테마 주식 기록장 ·
-                    승인된 사용자만 접근할 수 있습니다.
+                    게스트 열람 또는 비밀번호 로그인을 선택할 수 있습니다.
                 </div>
             </div>
             """,
@@ -696,10 +719,19 @@ if not st.session_state.get("authenticated"):
             horizontal=True,
             key="login_dest_choice",
         )
+        if st.button("게스트로 보기 (비밀번호 없이)", key="login_guest", use_container_width=True):
+            if str(_login_dest).startswith(("미국테마", "한국테마")):
+                st.session_state["authenticated"] = True
+                st.session_state[_ACCESS_ROLE_KEY] = "guest"
+                _go_to(_login_dest)
+                st.rerun()
+            else:
+                st.error("게스트는 미국테마와 한국테마만 볼 수 있습니다.")
         _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
         if st.button("로그인", key="login_submit", use_container_width=True):
             if _login_password_input == _app_password:
                 st.session_state["authenticated"] = True
+                st.session_state[_ACCESS_ROLE_KEY] = "owner"
                 # 자비스1 말고는 여기서 페이지가 바뀌며 아래 줄까지 오지 않는다.
                 _go_to(_login_dest)
                 st.session_state["login_transition_pending"] = True
@@ -766,10 +798,12 @@ if st.query_params.get("page") != _JARVIS1_URL_MARK:
         "<div class='jarvis-entry-sub'>이미 로그인되어 있습니다. 비밀번호를 다시 넣지 않아도 됩니다.</div>",
         unsafe_allow_html=True,
     )
+    _entry_options = _GUEST_DEST_OPTIONS if _is_guest_session() else _DEST_OPTIONS
+    _entry_default_index = 1 if _is_guest_session() else _DEST_DEFAULT_INDEX
     _entry_dest = st.radio(
         "갈 곳",
-        _DEST_OPTIONS,
-        index=_DEST_DEFAULT_INDEX,
+        _entry_options,
+        index=_entry_default_index,
         horizontal=True,
         key="entry_dest_choice",
         label_visibility="collapsed",

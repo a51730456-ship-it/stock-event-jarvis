@@ -53,7 +53,7 @@ class TabFragmentIsolationRuntimeTests(unittest.TestCase):
             app.run(timeout=90)
             app.radio[0].set_value("자비스1 (기록장)")
             app.text_input[0].set_value(TEST_PASSWORD)
-            app.button[0].click().run(timeout=90)
+            next(node for node in app.button if node.key == "login_submit").click().run(timeout=90)
             self.assertEqual(len(app.exception), 0)
 
             us_sector_calls_before = mock_us_sector.call_count

@@ -194,6 +194,42 @@ def _open_all_details(app):
 
 
 class Jarvis3PageTests(unittest.TestCase):
+    def test_guest_sees_only_two_public_finders_and_no_stock_detail(self):
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.session_state["jarvis_access_role"] = "guest"
+            _open_all_details(app)
+            app.run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        button_keys = {str(node.key or "") for node in app.button}
+        self.assertIn("j3_pullback_breakout", button_keys)
+        self.assertIn("j3_pullback_crash", button_keys)
+        self.assertNotIn("j3_pullback_find", button_keys)
+        self.assertNotIn("j3_top7_find", button_keys)
+        self.assertFalse([node for node in app.text_input if node.key == "j3_my_stock_query"])
+        self.assertFalse([node for node in app.radio if str(node.label) == "상세 종목 선택"])
+        rendered = [str(node.value) for node in app.markdown]
+        self.assertFalse([value for value in rendered if "<div class='j3-stock-name'>" in value])
+        markdowns = " ".join(rendered)
+        self.assertNotIn("추천 근거 요약", markdowns)
+
     def test_theme_rank_click_opens_and_close_button_hides_whole_theme_panel(self):
         """20개 순위의 테마 클릭으로 캡처 속 테마 종목 화면 전체를 여닫는다."""
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
@@ -676,7 +712,7 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3_stock_choice_", source)
         self.assertIn("j3-leader-head-gap", source)
         self.assertIn("theme_box.markdown", source)
-        self.assertIn("if clicked_ticker:", source)
+        self.assertIn("if clicked_ticker and not guest_mode:", source)
         self.assertIn('st.session_state["j3_detail_open_theme"] = True', source)
         self.assertIn('st.session_state["j3_leadercmp_open"] = True', source)
         self.assertIn("get_chart_bundle", source)
@@ -892,11 +928,44 @@ class Jarvis3PageTests(unittest.TestCase):
             app.run(timeout=60)
             app.radio[0].set_value("미국테마 (자비스3)")
             app.text_input[0].set_value("test")
-            app.button[0].click().run(timeout=60)
+            next(node for node in app.button if node.key == "login_submit").click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
         self.assertTrue(app.session_state.filtered_state.get("authenticated"))
         self.assertIn("미국 전체시장 판단", [str(node.value) for node in app.subheader])
+
+    def test_guest_button_switches_without_password_and_keeps_restrictions(self):
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.run(timeout=60)
+            app.radio[0].set_value("미국테마 (자비스3)")
+            next(node for node in app.button if node.key == "login_guest").click().run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        state = app.session_state.filtered_state
+        self.assertTrue(state.get("authenticated"))
+        self.assertEqual(state.get("jarvis_access_role"), "guest")
+        button_keys = {str(node.key or "") for node in app.button}
+        self.assertIn("j3_pullback_breakout", button_keys)
+        self.assertIn("j3_pullback_crash", button_keys)
+        self.assertNotIn("j3_pullback_find", button_keys)
+        self.assertNotIn("j3_top7_find", button_keys)
+        self.assertFalse([node for node in app.text_input if node.key == "j3_my_stock_query"])
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 �
 
 # 배포 갱신 중 옛 auth가 프로세스에 남으면 함수 모양이 안 맞아 화면이 죽는다
 # (2026-07-25 온라인 실발생). 리비전이 낮으면 다시 읽는다.
-_REQUIRED_AUTH_REVISION = 2026072503
+_REQUIRED_AUTH_REVISION = 2026080301
 if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
     import importlib as _importlib
 
@@ -615,7 +615,7 @@ def _login_gate() -> None:
     entered = st.text_input("비밀번호", type="password", key="j3_login_password")
     if st.button("자비스3 로그인", key="j3_login_submit", width="stretch"):
         if entered == password:
-            st.session_state["authenticated"] = True
+            auth.login_as_owner()
             st.rerun()
         else:
             st.error("비밀번호가 올바르지 않습니다.")
@@ -623,6 +623,20 @@ def _login_gate() -> None:
 
 
 _login_gate()
+
+if auth.is_guest():
+    # 게스트는 사이드바를 통해 다른 자비스 화면으로 우회하지 못하고 미국·한국
+    # 테마 두 화면만 오갈 수 있다. 실제 자료·계산에는 손대지 않는 표시 제한이다.
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebarNav"] li:not(:nth-child(4)):not(:nth-child(5)) {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 import importlib
 import time
@@ -1729,6 +1743,8 @@ def _render_stock_detail(
     *, panel: str = "theme",
 ) -> None:
     """종목 상세 한 벌. panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다."""
+    if auth.is_guest():
+        return
     ticker = leader["ticker"]
     if panel == "theme":
         st.session_state["j3_selected_ticker"] = ticker
@@ -2076,6 +2092,7 @@ def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict,
 
 
 def _render_radar_tab(market: dict) -> None:
+    guest_mode = auth.is_guest()
     action_col, note_col = st.columns([1, 4])
     with action_col:
         if st.button("온라인 자료 새로고침", key="j3_force_refresh", width="stretch"):
@@ -2117,8 +2134,9 @@ def _render_radar_tab(market: dict) -> None:
     if not st.session_state.get("j3_theme_panel_open"):
         st.caption("원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다.")
         _render_pullback_finder(market, ranking)
-        _render_top7_section(market, ranking)
-        _render_my_stock_panel(market)
+        if not guest_mode:
+            _render_top7_section(market, ranking)
+            _render_my_stock_panel(market)
         return
 
     def _close_theme_panel_top():
@@ -2188,7 +2206,7 @@ def _render_radar_tab(market: dict) -> None:
     ticker_options = [leader["ticker"] for leader in top_candidates]
     stock_key = f"j3_stock_choice_{selected_theme}"
     clicked_ticker = _render_leader_table(leaders, st.session_state.get(stock_key))
-    if clicked_ticker:
+    if clicked_ticker and not guest_mode:
         st.session_state[stock_key] = clicked_ticker
         # 이미 선택된 1위 종목을 다시 눌러도 상세가 열려야 한다. 이전에는 선택값과
         # 같으면 이 블록을 건너뛰어, 첫 행(MPC 등)을 눌러도 아무 일도 일어나지 않았다.
@@ -2196,37 +2214,39 @@ def _render_radar_tab(market: dict) -> None:
         st.session_state["j3_leadercmp_open"] = True
         st.rerun()
 
-    _render_leader_comparison(leaders)
-    # 재랭킹으로 이전에 고른 종목이 top3에서 빠지면 st.radio가 예외를 낸다 → 미리 정리한다.
-    if stock_key in st.session_state and st.session_state[stock_key] not in ticker_options:
-        del st.session_state[stock_key]
+    if not guest_mode:
+        _render_leader_comparison(leaders)
+        # 재랭킹으로 이전에 고른 종목이 top3에서 빠지면 st.radio가 예외를 낸다 → 미리 정리한다.
+        if stock_key in st.session_state and st.session_state[stock_key] not in ticker_options:
+            del st.session_state[stock_key]
 
-    def _stock_label(ticker):
-        item = next((cand for cand in top_candidates if cand["ticker"] == ticker), None)
-        return _stock_radio_label(item) if item else ticker
+        def _stock_label(ticker):
+            item = next((cand for cand in top_candidates if cand["ticker"] == ticker), None)
+            return _stock_radio_label(item) if item else ticker
 
-    def _open_selected_theme_stock():
-        st.session_state["j3_detail_open_theme"] = True
-        st.session_state["j3_leadercmp_open"] = True
+        def _open_selected_theme_stock():
+            st.session_state["j3_detail_open_theme"] = True
+            st.session_state["j3_leadercmp_open"] = True
 
-    selected_ticker = st.radio(
-        "상세 종목 선택",
-        ticker_options,
-        format_func=_stock_label,
-        horizontal=True,
-        key=stock_key,
-        on_change=_open_selected_theme_stock,
-    )
-    selected_leader = next(
-        (item for item in top_candidates if item["ticker"] == selected_ticker),
-        top_candidates[0],
-    )
-    _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
+        selected_ticker = st.radio(
+            "상세 종목 선택",
+            ticker_options,
+            format_func=_stock_label,
+            horizontal=True,
+            key=stock_key,
+            on_change=_open_selected_theme_stock,
+        )
+        selected_leader = next(
+            (item for item in top_candidates if item["ticker"] == selected_ticker),
+            top_candidates[0],
+        )
+        _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     _section_close("j3_theme_panel_open", "테마 종목 화면 닫기")
     _render_pullback_finder(market, ranking)
     # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
-    _render_top7_section(market, ranking)
-    _render_my_stock_panel(market)
+    if not guest_mode:
+        _render_top7_section(market, ranking)
+        _render_my_stock_panel(market)
 
 
 @st.fragment
@@ -2476,6 +2496,8 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     자비스4(한국) 종목 상세와 같은 구성으로 맞춘다(2026-07-24 사용자 지시) —
     선정 근거 점수표 · 매수 심사 결과 · 일봉/주봉/월봉 차트를 함께 보여준다.
     """
+    if auth.is_guest():
+        return
     ticker = str(row.get("ticker") or "")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
     if not _section_toggle(
@@ -3016,7 +3038,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     selected_row = next(
         (row for row in rows if row.get("ticker") == selected_ticker), rows[0]
     )
-    _render_pullback_detail(selected_row, market, ranking)
+    if not auth.is_guest():
+        _render_pullback_detail(selected_row, market, ranking)
 
 
 def _render_pullback_finder(market: dict, ranking: dict) -> None:
@@ -3053,17 +3076,27 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 세 단추 모두 열려 있을 때 다시 누르면 접힌다.
     # 지금 어느 갈래를 보고 있는지 단추만 봐서는 알 수 없었다(2026-08-01 사용자 지적).
     # 열려 있는 갈래의 단추에는 앞에 ●를 붙이고, 아래 CSS가 그 단추를 밝게 칠한다.
+    guest_mode = auth.is_guest()
+    if guest_mode and st.session_state.get("j3_pullback_mode") not in ("breakout", "crash"):
+        st.session_state["j3_pullback_open"] = False
     open_mode = (
         (st.session_state.get("j3_pullback_mode") or "기본")
         if st.session_state.get("j3_pullback_open") else None
     )
-    finder_cols = st.columns(3)
+    mode_options = (
+        (
+            ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
+            ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
+        )
+        if guest_mode else (
+            ("기본", "눌림목 찾기", "j3_pullback_find"),
+            ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
+            ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
+        )
+    )
+    finder_cols = st.columns(len(mode_options))
     pressed = None
-    for column, (mode, label, key) in zip(finder_cols, (
-        ("기본", "눌림목 찾기", "j3_pullback_find"),
-        ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
-        ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
-    )):
+    for column, (mode, label, key) in zip(finder_cols, mode_options):
         with column:
             if st.button(("● " if open_mode == mode else "") + label, key=key):
                 pressed = mode

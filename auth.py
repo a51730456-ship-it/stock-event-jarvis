@@ -29,7 +29,11 @@ import streamlit as st
 # (CLAUDE.md 11번 규칙). 이 표식이 없어서 2026-07-25 배포 중 온라인이
 # `sync_auth(restore=False)`에서 TypeError로 죽었다 — 페이지는 새 코드인데
 # auth는 restore 인자를 모르는 옛 모듈이었다. 함수 모양이 바뀌면 올린다.
-MODULE_REVISION = 2026072503
+MODULE_REVISION = 2026080301
+
+ACCESS_ROLE_KEY = "jarvis_access_role"
+OWNER_ROLE = "owner"
+GUEST_ROLE = "guest"
 
 _COOKIE_NAME = "jarvis_auth"
 # 소금은 비밀이 아니다. 토큰 형식을 바꾸고 싶을 때(예: 기존 쿠키 무효화) 값을 올린다.
@@ -83,6 +87,14 @@ def sync_auth(restore: bool = True) -> None:
 
     쿠키 관련이 하나라도 실패하면 조용히 넘어간다(세션 기반 동작 유지).
     """
+    # 게스트는 비밀번호를 통과한 사용자가 아니므로 로그인 유지 쿠키를 절대
+    # 만들지 않는다. 같은 브라우저에서 게스트를 본 뒤 다시 접속했을 때 주인
+    # 권한으로 복원되는 일을 막는 보안 경계다.
+    if is_guest():
+        return
+    if st.session_state.get("authenticated"):
+        st.session_state.setdefault(ACCESS_ROLE_KEY, OWNER_ROLE)
+
     token = _expected_token()
     if not token:
         return
@@ -104,6 +116,7 @@ def sync_auth(restore: bool = True) -> None:
             )
         elif action == "restore" and restore:
             st.session_state["authenticated"] = True
+            st.session_state[ACCESS_ROLE_KEY] = OWNER_ROLE
     except Exception:
         # 쿠키가 안 되면 지금까지처럼 세션만으로 동작한다.
         pass
@@ -118,6 +131,7 @@ def clear_auth() -> None:
     끝까지 그려지게 두고, 화면 전환은 그 다음 실행에서 한다.
     """
     st.session_state.pop("authenticated", None)
+    st.session_state.pop(ACCESS_ROLE_KEY, None)
     controller = _controller()
     if controller is None:
         return
@@ -125,3 +139,20 @@ def clear_auth() -> None:
         controller.remove(_COOKIE_NAME)
     except Exception:
         pass
+
+
+def login_as_owner() -> None:
+    """비밀번호를 통과한 사용자를 전체 기능 권한으로 표시한다."""
+    st.session_state["authenticated"] = True
+    st.session_state[ACCESS_ROLE_KEY] = OWNER_ROLE
+
+
+def login_as_guest() -> None:
+    """비밀번호 없는 공개 열람 세션을 표시한다(로그인 쿠키는 만들지 않는다)."""
+    st.session_state["authenticated"] = True
+    st.session_state[ACCESS_ROLE_KEY] = GUEST_ROLE
+
+
+def is_guest() -> bool:
+    """현재 세션이 제한된 게스트 화면인지 반환한다."""
+    return st.session_state.get(ACCESS_ROLE_KEY) == GUEST_ROLE

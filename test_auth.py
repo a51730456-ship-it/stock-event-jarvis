@@ -53,5 +53,33 @@ class TokenTests(unittest.TestCase):
             self.assertIsNone(auth._expected_token())
 
 
+class AccessRoleTests(unittest.TestCase):
+    def test_guest_role_is_separate_from_owner_role(self):
+        state = {}
+        with mock.patch.object(auth.st, "session_state", state):
+            auth.login_as_guest()
+            self.assertTrue(state["authenticated"])
+            self.assertTrue(auth.is_guest())
+            auth.login_as_owner()
+            self.assertTrue(state["authenticated"])
+            self.assertFalse(auth.is_guest())
+            self.assertEqual(state[auth.ACCESS_ROLE_KEY], auth.OWNER_ROLE)
+
+    def test_guest_never_creates_owner_cookie(self):
+        state = {"authenticated": True, auth.ACCESS_ROLE_KEY: auth.GUEST_ROLE}
+        with mock.patch.object(auth.st, "session_state", state), \
+             mock.patch.object(auth, "_controller", side_effect=AssertionError("cookie forbidden")):
+            auth.sync_auth()
+        self.assertEqual(state[auth.ACCESS_ROLE_KEY], auth.GUEST_ROLE)
+
+    def test_clear_auth_removes_access_role(self):
+        state = {"authenticated": True, auth.ACCESS_ROLE_KEY: auth.GUEST_ROLE}
+        with mock.patch.object(auth.st, "session_state", state), \
+             mock.patch.object(auth, "_controller", return_value=None):
+            auth.clear_auth()
+        self.assertNotIn("authenticated", state)
+        self.assertNotIn(auth.ACCESS_ROLE_KEY, state)
+
+
 if __name__ == "__main__":
     unittest.main()

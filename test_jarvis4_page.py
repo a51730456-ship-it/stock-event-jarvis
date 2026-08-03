@@ -294,7 +294,7 @@ def _patches(market=None):
     )
 
 
-def _run_page(market=None):
+def _run_page(market=None, *, guest=False):
     started = []
     try:
         for item in _patches(market):
@@ -304,6 +304,8 @@ def _run_page(market=None):
         app.secrets["APP_PASSWORD"] = "test"
         app.session_state["authenticated"] = True
         _open_all_details(app)
+        if guest:
+            app.session_state["jarvis_access_role"] = "guest"
         app.run(timeout=90)
         return app
     finally:
@@ -326,6 +328,22 @@ def _open_all_details(app):
 
 
 class Jarvis4PageTests(unittest.TestCase):
+    def test_guest_sees_only_two_public_finders_and_no_stock_detail(self):
+        app = _run_page(guest=True)
+        self.assertEqual(len(app.exception), 0)
+        button_keys = {str(node.key or "") for node in app.button}
+        self.assertIn("j4_pullback_breakout", button_keys)
+        self.assertIn("j4_pullback_crash", button_keys)
+        self.assertNotIn("j4_pullback_find", button_keys)
+        self.assertNotIn("j4_pullback_refind", button_keys)
+        self.assertNotIn("j4_top7_find", button_keys)
+        self.assertFalse([node for node in app.text_input if node.key == "j4_my_stock_query"])
+        self.assertFalse([node for node in app.radio if str(node.label) == "상세 종목 선택"])
+        rendered = [str(node.value) for node in app.markdown]
+        self.assertFalse([value for value in rendered if "<div class='j4-stock-name'>" in value])
+        markdowns = " ".join(rendered)
+        self.assertNotIn("추천 근거 요약", markdowns)
+
     def test_theme_rank_click_opens_and_close_button_hides_whole_theme_panel(self):
         """한국도 순위의 테마 클릭으로 종목 화면 전체를 열고 닫는다."""
         started = []
@@ -558,7 +576,7 @@ class Jarvis4PageTests(unittest.TestCase):
         for key in ("j4_pullback_find", "j4_pullback_breakout", "j4_pullback_crash"):
             self.assertIn(key, keys, f"{key} 단추가 없다")
         source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
-        self.assertIn("finder_cols = st.columns(3)", source)
+        self.assertIn("finder_cols = st.columns(2 if guest_mode else 3)", source)
 
     def test_rulebook_table_slides_sideways_like_the_others(self):
         """새 표를 옆으로 밀기 규칙 목록에 안 넣으면 폰에서 줄이 쌓이고 값이 겹친다."""
