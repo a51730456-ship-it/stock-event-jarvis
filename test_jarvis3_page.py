@@ -748,6 +748,8 @@ class Jarvis3PageTests(unittest.TestCase):
         # '눌림 점수'는 없다(설명 글에는 그 말이 남아 있으므로 머리글만 본다).
         header = next(value for value in markdowns if "보유일수" in value and "티커" in value)
         self.assertNotIn("눌림 점수", header)
+        self.assertLess(header.index("고점 대비"), header.index("소속 테마"))
+        self.assertLess(header.index("소속 테마"), header.index("신고가"))
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
         self.assertTrue(any(
             "상승장 (신고가 눌림매수) 닫기" in str(node.label)
@@ -761,6 +763,12 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("고점 대비 -30~-40%", joined)
         self.assertIn("20거래일 보유", joined)
         self.assertIn("60거래일 보유", joined)
+        header = next(
+            str(node.value) for node in app.markdown
+            if "갈래" in str(node.value) and "티커" in str(node.value)
+        )
+        self.assertLess(header.index("고점 대비"), header.index("소속 테마"))
+        self.assertLess(header.index("소속 테마"), header.index("갈래"))
         # 승률이 광고로 읽히지 않게 하는 경고가 반드시 함께 있어야 한다.
         self.assertIn("앞으로의 승률이 아닙니다", joined)
         self.assertTrue(any(

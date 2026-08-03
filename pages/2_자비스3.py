@@ -2890,7 +2890,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         )
         return
 
-    widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.2, 1.0, 1.15, 1.5, 1.75]
+    widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.75, 1.2, 1.0, 1.15, 1.5]
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     third = "신고가" if breakout else "갈래"
@@ -2904,8 +2904,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[2].markdown(
-        _flex_row(rest_widths, ["티커", "당일주가", "고점 대비", third, "보유일수",
-                                "같이 걸린 종목", volume_head, "소속 테마"],
+        _flex_row(rest_widths, ["티커", "당일주가", "고점 대비", "소속 테마", third,
+                                "보유일수", "같이 걸린 종목", volume_head],
                   head=True),
         unsafe_allow_html=True,
     )
@@ -2997,12 +2997,12 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 html.escape(str(row.get("ticker") or "—")),
                 price_cell,
                 f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+                f"<span class='j3-rb-clip j3-pull-theme'"
+                f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
                 third_cell,
                 f"<span class='j3-green'>{int(row.get('hold_days') or 0)}거래일</span>",
                 together_cell,
                 volume_cell,
-                f"<span class='j3-rb-clip j3-pull-theme'"
-                f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
             ]),
             unsafe_allow_html=True,
         )
