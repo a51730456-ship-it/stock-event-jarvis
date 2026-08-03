@@ -3,6 +3,8 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+import pandas as pd
+
 import market_signal_common
 import market_signal_ui as ui
 
@@ -170,6 +172,24 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertIn("color:#ef4444", html)
         self.assertIn("전일(07.28) 12 · 위험회피", html)
 
+    def test_us_comparison_draws_current_and_faded_previous_gauges(self):
+        import us_market_signal_engine as us
+
+        current = self._result(us.UsMarketVerdict.RISK_ON_EARLY)
+        previous = self._result(us.UsMarketVerdict.MIXED)
+        html = ui._verdict_gauge_html(
+            current, ui._US_VERDICT_STYLE, ui.US_VERDICT_ORDER,
+            comparison_result=previous, comparison_label="전일 · 07.31",
+        )
+        self.assertIn("sig-gauge-pair", html)
+        self.assertIn("sig-gauge-previous", html)
+        self.assertIn(">당일<", html)
+        self.assertIn(">전일 · 07.31<", html)
+        self.assertEqual(html.count("class='fg-gauge'"), 2)
+        self.assertIn("sig-gauge-today", html)
+        self.assertEqual(html.count("<span class='fg-hist-label'>켜진 신호</span>"), 2)
+        self.assertEqual(html.count("<span class='fg-hist-label'>반대 신호</span>"), 2)
+
     def test_us_card_does_not_show_kr_position_score_by_default(self):
         """사용자가 요청한 위치값은 한국장 카드에만 붙이고 미국장에는 번지지 않는다."""
         import us_market_signal_engine as us
@@ -250,6 +270,17 @@ class VerdictGaugeTests(unittest.TestCase):
             previous = ui._previous_kr_flow_stage()
         self.assertEqual(previous["period_label"], "직전 저장")
 
+    def test_us_previous_quote_uses_session_before_current_display_date(self):
+        history = pd.DataFrame(
+            {"Open": [97, 99, 101, 104], "Close": [98, 100, 105, 103]},
+            index=pd.to_datetime(["2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"]),
+        )
+        with patch.object(ui.price_data, "get_price_history", return_value=history):
+            previous = ui._fetch_previous_us_quote("SPY", "2026-07-31")
+        self.assertTrue(previous["ok"])
+        self.assertEqual(previous["trade_date"], "2026-07-30")
+        self.assertAlmostEqual(previous["change_pct"], 5.0)
+
 
 class KrFlowAutoRefreshTests(unittest.TestCase):
     def test_first_load_and_new_day_are_due(self):
@@ -287,7 +318,7 @@ class CardHtmlTests(unittest.TestCase):
     잡아 '</div>'가 화면에 글자로 찍힌다(2026-07-24 실제 발생).
     """
 
-    def _render_and_capture(self, cause=None):
+    def _render_and_capture(self, cause=None, comparison=None):
         import market_signal_common as common
         import us_market_signal_engine as us
 
@@ -349,10 +380,12 @@ class CardHtmlTests(unittest.TestCase):
                 detail_title="t", detail_caption="c", table_key="k",
                 diagnosis_text=(lambda _r: cause) if cause else None,
                 verdict_order=ui.US_VERDICT_ORDER,
+                comparison_result=comparison,
+                comparison_label="전일 · 07.31",
             )
         finally:
             ui.st = original
-        return next(t for t in captured if 'class="sig-body"' in t)
+        return next(t for t in captured if 'class="sig-body' in t)
 
     def test_card_html_is_one_line_without_indentation(self):
         for cause in (None, "키가 없습니다"):
@@ -360,6 +393,30 @@ class CardHtmlTests(unittest.TestCase):
                 card = self._render_and_capture(cause)
                 self.assertNotIn("\n", card, "줄바꿈이 있으면 코드블록으로 잡힐 수 있다")
                 self.assertEqual(card.count("<div"), card.count("</div>"))
+
+    def test_current_and_previous_each_have_their_own_story_and_flow(self):
+        import us_market_signal_engine as us
+
+        previous = us.UsSignalResult(
+            verdict=us.UsMarketVerdict.RISK_OFF,
+            verdict_label="전일 판정",
+            headline="전일에는 선물과 반도체가 함께 밀렸습니다.",
+            flow_note="전일 먼저 움직인 신호는 2개였습니다.",
+            signals=[],
+            data_status="전일 자료",
+        )
+        card = self._render_and_capture(comparison=previous)
+        self.assertIn("sig-story-today", card)
+        self.assertIn("당일 설명", card)
+        self.assertIn("sig-story-previous", card)
+        self.assertIn("전일 · 07.31 설명", card)
+        self.assertIn(previous.headline, card)
+        self.assertIn(f"흐름: {previous.flow_note}", card)
+        self.assertIn('class="sig-body sig-body-comparison"', card)
+        self.assertIn(
+            'grid-template-areas:"today-gauge today-story previous-gauge previous-story"',
+            ui._SIGNAL_GAUGE_CSS,
+        )
 
 
 class SignedColorTests(unittest.TestCase):

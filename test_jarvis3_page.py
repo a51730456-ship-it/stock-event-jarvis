@@ -189,10 +189,57 @@ def _open_all_details(app):
     for panel in ("theme", "pullback", "top7", "mystock"):
         app.session_state[f"j3_detail_open_{panel}"] = True
         app.session_state[f"j3_buyform_open_{panel}"] = True
+    app.session_state["j3_theme_panel_open"] = True
     return app
 
 
 class Jarvis3PageTests(unittest.TestCase):
+    def test_theme_rank_click_opens_and_close_button_hides_whole_theme_panel(self):
+        """20개 순위의 테마 클릭으로 캡처 속 테마 종목 화면 전체를 여닫는다."""
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }), \
+             patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }), \
+             patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=60)
+            self.assertFalse(app.session_state.filtered_state.get("j3_theme_panel_open", False))
+            self.assertFalse([
+                node for node in app.button if str(node.key or "").startswith("j3lbtn_")
+            ])
+
+            theme_button = next(
+                node for node in app.button if str(node.key or "") == "j3tbtn_00"
+            )
+            theme_button.click().run(timeout=60)
+            self.assertTrue(app.session_state.filtered_state.get("j3_theme_panel_open"))
+            self.assertTrue([
+                node for node in app.button if str(node.key or "").startswith("j3lbtn_")
+            ])
+            close_button = next(
+                node for node in app.button
+                if str(node.key or "") == "close_j3_theme_panel_open_top"
+            )
+            close_button.click().run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertFalse(app.session_state.filtered_state.get("j3_theme_panel_open"))
+        self.assertFalse([
+            node for node in app.button if str(node.key or "").startswith("j3lbtn_")
+        ])
+
     def test_authenticated_page_renders_market_before_theme_and_records(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
@@ -274,6 +321,16 @@ class Jarvis3PageTests(unittest.TestCase):
         top_row = next(value for value in markdowns if "<div class='j3-top-row'>" in value)
         self.assertIn("fg-box", top_row)
         self.assertIn("공포·탐욕 지수", top_row)
+        self.assertIn("SPY (미국 대표주)", top_row)
+        self.assertIn("QQQ (미국 기술주)", top_row)
+        self.assertTrue(any("j3-ndd-key" in value for value in markdowns))
+        self.assertTrue(any("j3-theme-open-guide" in value for value in markdowns))
+        page_css = next(value for value in markdowns if "st-key-close_j3_theme_panel_open" in value)
+        self.assertIn("#c084fc", page_css)
+        self.assertIn("background: rgba(255,255,255,.025)", page_css)
+        self.assertIn("justify-content: center", page_css)
+        self.assertIn("#ef4b55", page_css)
+        self.assertIn("color: #ffffff", page_css)
         # <style>을 지표 줄 안에 넣으면 스트림릿이 그 덩어리를 HTML로 안 보고 글로
         # 흘려버려 CSS가 글자로 찍힌다(2026-07-24 실제 깨짐). 반드시 따로 내보낸다.
         self.assertNotIn("<style>", top_row)
@@ -450,11 +507,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(app.session_state.filtered_state.get("j3_theme_choice"), "양자컴퓨팅")
 
-    def test_leader_name_click_changes_the_detail(self):
-        """표의 종목 이름을 누르면 상세가 그 종목으로 바뀐다(2026-07-29 지시).
+    def test_current_leader_name_click_opens_the_detail(self):
+        """이미 선택된 첫 종목을 눌러도 닫혀 있던 상세가 즉시 열린다.
 
-        한국테마와 같은 방식이다. 예전에는 순수 HTML 표라 눌러도 아무 일이
-        없었다. '상세 종목 선택' 라디오는 그대로 남아 있어야 한다.
+        선택값이 같다는 이유로 클릭을 무시하면 첫 행은 눌러도 아무 일이 없었다.
+        '상세 종목 선택' 라디오는 그대로 남아 있어야 한다.
         """
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
@@ -475,10 +532,12 @@ class Jarvis3PageTests(unittest.TestCase):
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
+            app.session_state["j3_detail_open_theme"] = False
+            app.session_state["j3_leadercmp_open"] = False
             app.run(timeout=60)
             buttons = [node for node in app.button if str(node.key or "").startswith("j3lbtn_")]
             self.assertTrue(buttons, "종목 이름 버튼이 없다 — 표가 눌리지 않는다")
-            buttons[1].click().run(timeout=60)
+            buttons[0].click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
         state = app.session_state.filtered_state
@@ -487,6 +546,9 @@ class Jarvis3PageTests(unittest.TestCase):
             None,
         )
         self.assertIsNotNone(chosen, state)
+        self.assertTrue(state.get("j3_detail_open_theme"), state)
+        self.assertTrue(state.get("j3_leadercmp_open"), state)
+        self.assertTrue(any("j3-stock-name" in str(node.value) for node in app.markdown))
         # 라디오는 지우지 않았다(사용자 지시).
         self.assertTrue([node for node in app.radio if str(node.label) == "상세 종목 선택"])
 
@@ -608,6 +670,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("href='?j3t=", source)
         self.assertIn("상세 종목 선택", source)
         self.assertIn("j3_stock_choice_", source)
+        self.assertIn("j3-leader-head-gap", source)
+        self.assertIn("theme_box.markdown", source)
+        self.assertIn("if clicked_ticker:", source)
+        self.assertIn('st.session_state["j3_detail_open_theme"] = True', source)
+        self.assertIn('st.session_state["j3_leadercmp_open"] = True', source)
         self.assertIn("get_chart_bundle", source)
         self.assertIn('range=["#69bff8", "#ff4d4f", "#a855f7"]', source)
         # 색·메달 계약: 종목명 보라 / 라벨 코발트 / 점수 붉은 / 메달 80점 이상만
@@ -682,6 +749,10 @@ class Jarvis3PageTests(unittest.TestCase):
         header = next(value for value in markdowns if "보유일수" in value and "티커" in value)
         self.assertNotIn("눌림 점수", header)
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
+        self.assertTrue(any(
+            "상승장 (신고가 눌림매수) 닫기" in str(node.label)
+            for node in app.button
+        ))
 
     def test_crash_mode_shows_both_depth_buckets_and_holding_periods(self):
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
@@ -692,6 +763,10 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("60거래일 보유", joined)
         # 승률이 광고로 읽히지 않게 하는 경고가 반드시 함께 있어야 한다.
         self.assertIn("앞으로의 승률이 아닙니다", joined)
+        self.assertTrue(any(
+            "급락 후 반등장 (낙폭종목) 닫기" in str(node.label)
+            for node in app.button
+        ))
 
     def test_the_two_depth_buckets_get_different_colours(self):
         """2026-08-01 사용자 지시 — -30~-40과 -40~-50을 색으로 가른다.

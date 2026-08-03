@@ -174,7 +174,11 @@ st.markdown(
     .j3-ndd-mark { position: absolute; top: -3px; bottom: -3px; width: 2px;
         background: #ffffff; opacity: .85; }
     .j3-ndd-sub { color: #9aa0aa; font-size: .86rem; font-weight: 700; }
-    .j3-ndd-note { color: #9aa0aa; font-size: .82rem; margin-top: .25rem; line-height: 1.5; }
+    .j3-ndd-note { color: #aeb6c2; font-size: .92rem; margin-top: .3rem; line-height: 1.55; }
+    .j3-ndd-key { color: #4da6ff; font-weight: 850; }
+    .j3-theme-open-guide { color: #c084fc; font-size: 1.08rem; font-weight: 850;
+        margin: .15rem 0 .65rem; text-shadow: 0 0 8px rgba(192,132,252,.18); }
+    .j3-leader-head-gap { height: .55rem; }
     .j3-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
     .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
     .j3-top-sub { font-size: 0.95rem; font-weight: 700; }
@@ -282,6 +286,21 @@ st.markdown(
         white-space: nowrap !important;
     }
     div[class*="st-key-close_"] { margin: .1rem 0 .8rem; }
+    /* 테마 종목 화면 닫기 — 기존 작은 크기는 유지하고 경고형 붉은 옷만 입힌다. */
+    div[class*="st-key-close_j3_theme_panel_open"] button {
+        background: linear-gradient(90deg, #7f1d1d 0%, #b4232c 52%, #ef4b55 100%) !important;
+        border-color: transparent !important;
+        box-shadow: 0 0 0 1px rgba(239,75,85,.12) !important;
+    }
+    div[class*="st-key-close_j3_theme_panel_open"] button:hover {
+        background: linear-gradient(90deg, #991b1b 0%, #c72d36 52%, #ff5964 100%) !important;
+        border-color: transparent !important;
+    }
+    div[class*="st-key-close_j3_theme_panel_open"] button p {
+        color: #ffffff !important;
+        font-size: .82rem !important;
+        font-weight: 850 !important;
+    }
     /* 눌림목 찾기 버튼 — 순위 7 단추와 같은 모양(글자만큼만)에 진한 푸른색
        그라데이션(2026-07-30 사용자 지시). 한국테마와 같은 모양이다. */
     div[class*="st-key-j3_pullback_find"] button {
@@ -354,20 +373,23 @@ st.markdown(
         margin: 0 !important;
     }
     div[class*="st-key-j3tbtn_"] button {
-        background: transparent !important;
-        border: none !important;
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.24) !important;
         box-shadow: none !important;
-        padding: 0 !important;
-        min-height: 2.5rem !important;
+        padding: .2rem .7rem !important;
+        min-height: 2.7rem !important;
         width: 100% !important;
-        border-bottom: 1px solid rgba(255,255,255,0.06) !important;
-        border-radius: 0 !important;
+        border-radius: .55rem !important;
     }
-    div[class*="st-key-j3tbtn_"] button:hover { background: rgba(255,255,255,0.06) !important; }
-    /* 테마명은 좌측 정렬(제목만 가운데) — 2026-07-22 사용자 지시 */
-    div[class*="st-key-j3tbtn_"] button { justify-content: flex-start !important; padding-left: 0.9rem !important; }
+    div[class*="st-key-j3tbtn_"] button:hover {
+        background: rgba(192,132,252,.09) !important;
+        border-color: rgba(192,132,252,.55) !important;
+    }
+    /* 테마 종목표의 MPC·VLO 단추와 같은 네모 카드·가운데 정렬. */
+    div[class*="st-key-j3tbtn_"] button { justify-content: center !important; }
     div[class*="st-key-j3tbtn_"] button p {
-        font-weight: 800 !important; font-size: 0.95rem !important; margin: 0 !important; text-align: left !important;
+        font-weight: 800 !important; font-size: 0.95rem !important; margin: 0 !important;
+        text-align: center !important;
     }
     /* 상세 종목 선택: 라벨은 스카이블루·두 치수 크게, 보기 글자는 한 치수 크게 */
     div[class*="st-key-j3_stock_choice"] [data-testid="stWidgetLabel"] p {
@@ -663,7 +685,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026073030
+_REQUIRED_SIGNAL_UI_REVISION = 2026080304
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -792,6 +814,9 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
                                        "20일 상대강도", "구성종목 확산"], head=True),
         unsafe_allow_html=True,
     )
+    # 머리글 '테마'와 첫 행(석유·가스 등)이 붙어 보이지 않도록 대장주 표와
+    # 같은 간격을 둔다. 표 전체를 함께 밀어 열 정렬은 그대로 유지한다.
+    theme_box.markdown("<div class='j3-leader-head-gap'></div>", unsafe_allow_html=True)
 
     # 테마명 버튼 색을 상태색과 맞춘다(선택된 테마는 주황 배경으로 표시).
     # 키는 2자리 고정폭(j3tbtn_01)으로 만든다 — class*= 부분일치 선택자라서
@@ -1018,6 +1043,8 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
                                         "20일 수익률", "매수 상태"], head=True),
         unsafe_allow_html=True,
     )
+    # 머리글 '종목'과 첫 행 MPC가 붙어 보이지 않도록 한 줄만 띄운다.
+    box.markdown("<div class='j3-leader-head-gap'></div>", unsafe_allow_html=True)
 
     rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
     button_css = []
@@ -1506,10 +1533,13 @@ def _render_nasdaq_drawdown() -> None:
         f"<span class='j3-ndd-mark' style='left:{mark:.1f}%'></span></div>"
         f"<div class='j3-ndd-sub'>지금 {_price(state.get('current'))} · "
         f"1년 최고 {_price(state.get('high'))} · 문턱 {gates}</div>"
-        "<div class='j3-ndd-note'>55년치로 재 보니 <b>12% 넘게 빠졌을 때</b> 산 것이 "
-        "2년 뒤 100번 중 86번이었습니다(아무 날이나 샀으면 81번). "
-        "<b>8% 정도로는 기준선보다 못했습니다.</b> 12%냐 15%냐는 자료로 가릴 수 없어 "
-        "‘12% 넘게’까지만 봅니다. 다이버전스는 6개 설정 중 0개에서 져서 쓰지 않습니다."
+        "<div class='j3-ndd-note'><span class='j3-ndd-key'>55년치</span>로 재 보니 "
+        "<span class='j3-ndd-key'>12% 넘게 빠졌을 때</span> 산 것이 "
+        "<span class='j3-ndd-key'>2년 뒤 100번 중 86번</span>이었습니다"
+        "(아무 날이나 샀으면 81번). "
+        "<span class='j3-ndd-key'>8% 정도로는 기준선보다 못했습니다.</span> "
+        "12%냐 15%냐는 자료로 가릴 수 없어 <span class='j3-ndd-key'>‘12% 넘게’</span>까지만 봅니다. "
+        "다이버전스는 6개 설정 중 0개에서 져서 쓰지 않습니다."
         "</div></div>",
         unsafe_allow_html=True,
     )
@@ -1527,6 +1557,7 @@ def _us_etf_cells(overview: dict) -> list:
         charts = {}
     rows = overview.get("rows") or {}
     cells = []
+    display_name = {"SPY": "SPY (미국 대표주)", "QQQ": "QQQ (미국 기술주)"}
     for symbol in ("SPY", "QQQ"):
         row = rows.get(symbol) or {}
         change = row.get("change_pct")
@@ -1539,7 +1570,7 @@ def _us_etf_cells(overview: dict) -> list:
         chart_html = f"<div class='j3-idx-charts'>{''.join(blocks)}</div>" if blocks else ""
         cells.append(
             f"<div class='j3-top-cell j3-idx-wide'>"
-            f"<div class='j3-top-label j3-idx-label'>{symbol}</div>"
+            f"<div class='j3-top-label j3-idx-label'>{display_name[symbol]}</div>"
             f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>{_price(row.get('current'))}</div>"
             f"<div class='j3-top-sub j3-idx-sub {_sign_class(change)}'>{_pct(change)}</div>"
             + chart_html + "</div>"
@@ -2058,12 +2089,17 @@ def _render_radar_tab(market: dict) -> None:
         st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
 
     st.markdown("### 20개 테마 실시간 순위")
-    st.caption("표에서 테마 이름을 클릭하면 대장주·상세가 그 테마로 연결됩니다.")
+    st.markdown(
+        "<div class='j3-theme-open-guide'>표에서 테마 이름을 클릭하면 "
+        "그 테마의 종목 1~6위 화면이 열립니다.</div>",
+        unsafe_allow_html=True,
+    )
     names = [row["name"] for row in ranking["rows"] if row.get("ok")]
     clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
     if clicked_theme in names:
         st.session_state["j3_theme_choice"] = clicked_theme
         st.session_state["j3_theme_choice_widget"] = clicked_theme
+        st.session_state["j3_theme_panel_open"] = True
     st.caption(
         f"테마 계산 시각: {ranking.get('checked_at') or '—'} · ETF 상대강도와 구성종목 추세를 합산 · "
         "미국 휴장일에는 마지막 거래일 자료"
@@ -2071,6 +2107,24 @@ def _render_radar_tab(market: dict) -> None:
     if st.session_state.get("j3_theme_choice_widget") not in names:
         preferred_theme = st.session_state.get("j3_theme_choice")
         st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
+
+    # 선택 테마 설명·종목 1~6위·상세 종목 선택은 평소에는 닫아 둔다. 20개 순위표의
+    # 테마 이름을 눌렀을 때만 한 화면으로 열고, 아래 독립 영역들은 그대로 보여준다.
+    if not st.session_state.get("j3_theme_panel_open"):
+        st.caption("원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다.")
+        _render_pullback_finder(market, ranking)
+        _render_top7_section(market, ranking)
+        _render_my_stock_panel(market)
+        return
+
+    def _close_theme_panel_top():
+        st.session_state["j3_theme_panel_open"] = False
+
+    st.button(
+        "✕ 테마 종목 화면 닫기",
+        key="close_j3_theme_panel_open_top",
+        on_click=_close_theme_panel_top,
+    )
     # st.pills는 이 환경에서 클릭이 먹지 않아 검증된 radio로 교체한다(선택 동작만 교체).
     selected_theme = st.radio(
         "테마 선택",
@@ -2130,8 +2184,12 @@ def _render_radar_tab(market: dict) -> None:
     ticker_options = [leader["ticker"] for leader in top_candidates]
     stock_key = f"j3_stock_choice_{selected_theme}"
     clicked_ticker = _render_leader_table(leaders, st.session_state.get(stock_key))
-    if clicked_ticker and clicked_ticker != st.session_state.get(stock_key):
+    if clicked_ticker:
         st.session_state[stock_key] = clicked_ticker
+        # 이미 선택된 1위 종목을 다시 눌러도 상세가 열려야 한다. 이전에는 선택값과
+        # 같으면 이 블록을 건너뛰어, 첫 행(MPC 등)을 눌러도 아무 일도 일어나지 않았다.
+        st.session_state["j3_detail_open_theme"] = True
+        st.session_state["j3_leadercmp_open"] = True
         st.rerun()
 
     _render_leader_comparison(leaders)
@@ -2143,18 +2201,24 @@ def _render_radar_tab(market: dict) -> None:
         item = next((cand for cand in top_candidates if cand["ticker"] == ticker), None)
         return _stock_radio_label(item) if item else ticker
 
+    def _open_selected_theme_stock():
+        st.session_state["j3_detail_open_theme"] = True
+        st.session_state["j3_leadercmp_open"] = True
+
     selected_ticker = st.radio(
         "상세 종목 선택",
         ticker_options,
         format_func=_stock_label,
         horizontal=True,
         key=stock_key,
+        on_change=_open_selected_theme_stock,
     )
     selected_leader = next(
         (item for item in top_candidates if item["ticker"] == selected_ticker),
         top_candidates[0],
     )
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
+    _section_close("j3_theme_panel_open", "테마 종목 화면 닫기")
     _render_pullback_finder(market, ranking)
     # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
     _render_top7_section(market, ranking)
@@ -2805,6 +2869,14 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             "설명서 그대로 찾은 결과입니다."
         )
         return
+
+    # 결과 표 바로 위에 지금 보고 있는 갈래 이름을 다시 보여준다. 위의 세 선택
+    # 단추가 화면 밖으로 올라간 뒤에도 상승장/급락장을 구분하고 이 자리에서 닫는다.
+    mode_close_label = (
+        "상승장 (신고가 눌림매수) 닫기"
+        if breakout else "급락 후 반등장 (낙폭종목) 닫기"
+    )
+    _section_close("j3_pullback_open", mode_close_label)
 
     widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.2, 1.0, 1.15, 1.5, 1.75]
     row_widths = [widths[0], widths[1], sum(widths[2:])]

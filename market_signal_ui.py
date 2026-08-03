@@ -11,6 +11,7 @@ app.py를 import하면 자비스1 앱 전체가 실행되므로, 필요한 조�
 from __future__ import annotations
 
 import importlib
+import math
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
@@ -38,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026073030
+MODULE_REVISION = 2026080304
 
 
 def _now_seoul():
@@ -178,6 +179,64 @@ def _cached_quotes(tickers):
 @st.cache_data(ttl=8, show_spinner=False)
 def _short_cached_quotes(tickers):
     return _fetch_quotes(tickers)
+
+
+def _fetch_previous_us_quote(ticker, as_of_date):
+    """현재 표시 거래일 바로 전 미국 거래일의 종가 등락률을 읽는다.
+
+    현재 카드의 ``as_of_date``보다 앞선 행만 쓰므로 장중 오늘 행이 있든, 장 마감
+    뒤 오늘 행이 완성됐든 항상 화면의 '당일'보다 한 거래일 앞선 값을 고른다.
+    """
+    try:
+        target = datetime.strptime(str(as_of_date), "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "기준 거래일 없음"}
+
+    start = (target - timedelta(days=20)).isoformat()
+    end = (target + timedelta(days=1)).isoformat()
+    history = price_data.get_price_history(ticker, start, end)
+    if history is None or len(history) < 3 or "Close" not in history.columns:
+        return {"ok": False, "error": "전일 시세 없음"}
+    try:
+        prior = history[history.index.date < target]
+        closes = prior["Close"].dropna().astype(float)
+        if len(closes) < 2:
+            return {"ok": False, "error": "전일 비교 시세 부족"}
+        current = float(closes.iloc[-1])
+        prev_close = float(closes.iloc[-2])
+        trade_date = closes.index[-1].strftime("%Y-%m-%d")
+        if current <= 0 or prev_close <= 0:
+            return {"ok": False, "error": "전일 시세 비정상"}
+        return {
+            "ok": True,
+            "current": current,
+            "prev_close": prev_close,
+            "change_pct": _safe_pct_diff(current, prev_close),
+            "trade_date": trade_date,
+        }
+    except Exception:
+        return {"ok": False, "error": "전일 시세 해석 실패"}
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _cached_previous_us_quotes(ticker_dates):
+    """미국 전일 비교값은 완성된 일봉이라 15분 동안 재사용한다."""
+    pairs = tuple(ticker_dates)
+    if not pairs:
+        return {}
+    results = {}
+    with ThreadPoolExecutor(max_workers=min(16, len(pairs))) as executor:
+        futures = {
+            executor.submit(_fetch_previous_us_quote, ticker, as_of_date): ticker
+            for ticker, as_of_date in pairs
+        }
+        for future in as_completed(futures):
+            ticker = futures[future]
+            try:
+                results[ticker] = future.result()
+            except Exception:
+                results[ticker] = {"ok": False, "error": "전일 시세 조회 실패"}
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -625,13 +684,58 @@ _SIGNAL_GAUGE_CSS = """
 .sig-gauge { flex: 0 0 auto; }
 .sig-gauge .fg-gauge { width: 190px; height: 127px; }
 .sig-gauge .fg-zone { font-size: 21px; }
+.sig-gauge-pair { display:flex; flex-wrap:wrap; align-items:flex-start; gap:.65rem; }
+.sig-gauge-shell { padding:.35rem .55rem .55rem; border:1px solid rgba(255,255,255,.16);
+  border-radius:.75rem; background:rgba(5,9,16,.34); }
+.sig-gauge-shell .sig-gauge-title { text-align:center; color:#f3f4f6; font-size:.92rem;
+  font-weight:900; letter-spacing:.04em; }
+.sig-gauge-today { border-color:rgba(68,240,161,.34); }
+.sig-gauge-today .sig-gauge-title { color:#44f0a1; }
+.sig-gauge-previous { border-color:rgba(77,166,255,.34); }
+.sig-gauge-previous .sig-gauge-title { color:#4da6ff; }
+.sig-gauge-shell .sig-gauge .fg-gauge { width:235px; height:157px; }
+.sig-gauge-shell .sig-gauge .fg-zone { font-size:20px; }
+.sig-gauge-shell .sig-gauge .fg-tick { font-size:13px; }
+.sig-gauge-shell .sig-counts { width:100%; min-width:0; margin-top:-.2rem; }
+.sig-gauge-shell .sig-counts .fg-hist-row { padding:.1rem .15rem; }
+.sig-gauge-shell .fg-needle, .sig-gauge-shell .fg-hub { display:none; }
+.sig-speed-tick { stroke:rgba(245,247,250,.68); stroke-width:1.4; }
+.sig-speed-tick.mid { stroke:rgba(255,255,255,.82); stroke-width:2.2; }
+.sig-speed-tick.major { stroke:#f8fafc; stroke-width:3.2; }
+.sig-speed-arrow { fill:#f8fafc; stroke:#dbeafe; stroke-width:1.2;
+  filter:drop-shadow(0 0 5px rgba(255,255,255,.75)); }
+.sig-speed-hub-outer { fill:#f8fafc; stroke:#dbeafe; stroke-width:2; }
+.sig-speed-hub-inner { fill:#111827; }
+.sig-gauge-previous .sig-gauge { opacity:.48; filter:saturate(.72); }
+.sig-gauge-previous .sig-counts { opacity:.7; }
 .sig-current-score { margin-top: -0.35rem; text-align: center;
   font-size: 1.05rem; font-weight: 900; }
 .sig-prev-score { margin-top: 0.08rem; text-align: center;
   font-size: 0.83rem; font-weight: 800; }
 .sig-counts { flex: 0 0 auto; min-width: 168px; }
 .sig-text { flex: 1 1 320px; min-width: 260px; }
-@media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 160px; height: 107px; } }
+.sig-story-stack { display:grid; gap:.75rem; }
+.sig-story { border-left:3px solid rgba(255,255,255,.2); padding:.35rem .7rem .45rem; }
+.sig-story-title { font-size:.9rem; font-weight:900; margin-bottom:.32rem; }
+.sig-story-today { border-left-color:#44f0a1; }
+.sig-story-today .sig-story-title { color:#44f0a1; }
+.sig-story-previous { border-left-color:#4da6ff; background:rgba(5,9,16,.1); }
+.sig-story-previous .sig-story-title { color:#4da6ff; }
+.sig-story-previous .sig-story-body { opacity:.78; }
+.sig-body-comparison { display:grid; align-items:stretch; overflow-x:auto;
+  grid-template-areas:"today-gauge today-story previous-gauge previous-story";
+  grid-template-columns:minmax(255px,.9fr) minmax(230px,1.15fr)
+                        minmax(255px,.9fr) minmax(230px,1.15fr); }
+.sig-body-comparison .sig-gauge-pair,
+.sig-body-comparison .sig-text,
+.sig-body-comparison .sig-story-stack { display:contents; }
+.sig-body-comparison .sig-gauge-today { grid-area:today-gauge; }
+.sig-body-comparison .sig-story-today { grid-area:today-story; }
+.sig-body-comparison .sig-gauge-previous { grid-area:previous-gauge; }
+.sig-body-comparison .sig-story-previous { grid-area:previous-story; }
+@media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 160px; height: 107px; }
+  .sig-gauge-pair { width:100%; gap:.45rem; } .sig-gauge-shell { flex:1 1 145px; padding:.3rem .25rem .15rem; }
+  .sig-gauge-shell .sig-gauge .fg-gauge { width:100%; height:auto; } }
 """
 
 # 이 칸은 값이 올랐나 내렸나가 아니라 '반등 신호가 켜졌나'를 답한다.
@@ -865,8 +969,66 @@ def _previous_kr_flow_stage() -> dict | None:
         return None
 
 
+def _speedometer_gauge_svg(score, zones) -> str:
+    """첫 참고 캡처처럼 촘촘한 눈금과 굵은 화살표를 얹은 판정 계기판."""
+    svg = gauge_ui.gauge_svg(
+        score, zones, ticks=(0, 25, 50, 75, 100), show_score=False
+    )
+    center_x, center_y = 160.0, 132.0
+
+    marks = []
+    # 0~100을 2.5 간격으로 잘게 나눈다. 5 단위는 조금 길게, 25 단위는
+    # 구간 경계가 바로 보이도록 가장 굵게 그린다.
+    for index in range(41):
+        value = index * 2.5
+        angle = math.pi * (1 - value / 100)
+        major = index % 10 == 0
+        middle = index % 2 == 0
+        inner = 96 if major else 103 if middle else 108
+        outer = 116
+        x1 = center_x + inner * math.cos(angle)
+        y1 = center_y - inner * math.sin(angle)
+        x2 = center_x + outer * math.cos(angle)
+        y2 = center_y - outer * math.sin(angle)
+        tick_class = "sig-speed-tick major" if major else (
+            "sig-speed-tick mid" if middle else "sig-speed-tick"
+        )
+        marks.append(
+            f"<line x1='{x1:.2f}' y1='{y1:.2f}' x2='{x2:.2f}' y2='{y2:.2f}' "
+            f"class='{tick_class}'></line>"
+        )
+
+    arrow = ""
+    if score is not None:
+        value = max(0.0, min(100.0, float(score)))
+        angle = math.pi * (1 - value / 100)
+        tip_x = center_x + 101 * math.cos(angle)
+        tip_y = center_y - 101 * math.sin(angle)
+        dx, dy = tip_x - center_x, tip_y - center_y
+        length = math.hypot(dx, dy) or 1.0
+        ux, uy = dx / length, dy / length
+        px, py = -uy, ux
+        base_x, base_y = center_x - ux * 5, center_y - uy * 5
+        shoulder_x, shoulder_y = tip_x - ux * 18, tip_y - uy * 18
+        points = (
+            f"{base_x + px * 6:.2f},{base_y + py * 6:.2f} "
+            f"{shoulder_x + px * 3.2:.2f},{shoulder_y + py * 3.2:.2f} "
+            f"{tip_x:.2f},{tip_y:.2f} "
+            f"{shoulder_x - px * 3.2:.2f},{shoulder_y - py * 3.2:.2f} "
+            f"{base_x - px * 6:.2f},{base_y - py * 6:.2f}"
+        )
+        arrow = (
+            f"<polygon points='{points}' class='sig-speed-arrow'></polygon>"
+            f"<circle cx='{center_x}' cy='{center_y}' r='10' class='sig-speed-hub-outer'></circle>"
+            f"<circle cx='{center_x}' cy='{center_y}' r='4.2' class='sig-speed-hub-inner'></circle>"
+        )
+
+    return svg.replace("</svg>", "".join(marks) + arrow + "</svg>")
+
+
 def _verdict_gauge_html(
-    result, verdict_style, verdict_order, previous_stage=None, *, show_position_score=False
+    result, verdict_style, verdict_order, previous_stage=None, *, show_position_score=False,
+    comparison_result=None, comparison_label="전일",
 ) -> str:
     """판정을 반원 눈금 위에 올린다 (2026-07-24 사용자 요청).
 
@@ -885,25 +1047,28 @@ def _verdict_gauge_html(
 
     score = _verdict_needle_position(result.verdict, verdict_order)
 
-    counts = {
-        market_signal_common.SignalStatus.POSITIVE: 0,
-        market_signal_common.SignalStatus.NEGATIVE: 0,
-        market_signal_common.SignalStatus.NEUTRAL: 0,
-        market_signal_common.SignalStatus.UNKNOWN: 0,
-    }
-    # 하위 내역(금융투자·투신·사모·기금)과 반대 주체(개인)는 세지 않는다.
-    # 넷을 따로 세면 기관 순매수 한 건이 '켜진 신호 4개'로 부풀려진다(2026-07-29).
-    for signal in market_signal_common.counted_signals(result.signals):
-        if signal.status in counts:
-            counts[signal.status] += 1
-    rows = [
-        ("켜진 신호", "켜짐", counts[market_signal_common.SignalStatus.POSITIVE], "#22c55e"),
-        ("반대 신호", "아님", counts[market_signal_common.SignalStatus.NEGATIVE], "#ef4444"),
-        ("애매한 신호", "애매", counts[market_signal_common.SignalStatus.NEUTRAL], "#9ca3af"),
-        ("못 읽은 항목", "자료 없음", counts[market_signal_common.SignalStatus.UNKNOWN], "#71717a"),
-    ]
-    row_tuples = [(label, note, f"{value}개", color, value == 0)
-                  for label, note, value, color in rows]
+    def _count_row_tuples(target_result):
+        counts = {
+            market_signal_common.SignalStatus.POSITIVE: 0,
+            market_signal_common.SignalStatus.NEGATIVE: 0,
+            market_signal_common.SignalStatus.NEUTRAL: 0,
+            market_signal_common.SignalStatus.UNKNOWN: 0,
+        }
+        # 하위 내역(금융투자·투신·사모·기금)과 반대 주체(개인)는 세지 않는다.
+        # 넷을 따로 세면 기관 순매수 한 건이 '켜진 신호 4개'로 부풀려진다(2026-07-29).
+        for signal in market_signal_common.counted_signals(target_result.signals):
+            if signal.status in counts:
+                counts[signal.status] += 1
+        rows = [
+            ("켜진 신호", "켜짐", counts[market_signal_common.SignalStatus.POSITIVE], "#22c55e"),
+            ("반대 신호", "아님", counts[market_signal_common.SignalStatus.NEGATIVE], "#ef4444"),
+            ("애매한 신호", "애매", counts[market_signal_common.SignalStatus.NEUTRAL], "#9ca3af"),
+            ("못 읽은 항목", "자료 없음", counts[market_signal_common.SignalStatus.UNKNOWN], "#71717a"),
+        ]
+        return [(label, note, f"{value}개", color, value == 0)
+                for label, note, value, color in rows]
+
+    row_tuples = _count_row_tuples(result)
 
     score_html = ""
     if show_position_score and score is not None:
@@ -924,6 +1089,26 @@ def _verdict_gauge_html(
             f"{previous_stage.get('label') or '판정 확인'}</div>"
         )
 
+    if comparison_result is not None:
+        comparison_score = _verdict_needle_position(
+            comparison_result.verdict, verdict_order
+        )
+        comparison_rows = _count_row_tuples(comparison_result)
+        gauges_html = (
+            "<div class='sig-gauge-pair'>"
+            "<div class='sig-gauge-shell sig-gauge-today'>"
+            "<div class='sig-gauge-title'>당일</div>"
+            f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones)}</div>"
+            f"<div class='sig-counts'>{gauge_ui.rows_html(row_tuples)}</div>"
+            "</div>"
+            "<div class='sig-gauge-shell sig-gauge-previous'>"
+            f"<div class='sig-gauge-title'>{comparison_label}</div>"
+            f"<div class='sig-gauge'>{_speedometer_gauge_svg(comparison_score, zones)}</div>"
+            f"<div class='sig-counts'>{gauge_ui.rows_html(comparison_rows)}</div>"
+            "</div></div>"
+        )
+        return gauges_html
+
     return (
         "<div class='sig-gauge'>"
         f"{gauge_ui.gauge_svg(score, zones, ticks=(), show_score=False)}"
@@ -935,7 +1120,8 @@ def _verdict_gauge_html(
 def render_market_signal_card(
     result, *, verdict_style, core_display, table_keys, detail_title, detail_caption,
     table_key, diagnosis_text=None, verdict_order=(), previous_stage=None,
-    show_position_score=False, falling_market=None,
+    show_position_score=False, falling_market=None, comparison_result=None,
+    comparison_label="전일",
 ):
     """한국장·미국장이 함께 쓰는 카드 렌더러.
 
@@ -969,6 +1155,28 @@ def render_market_signal_card(
         )
     _cause_html = _falling_html + _cause_html
 
+    if comparison_result is not None:
+        _story_html = (
+            "<div class='sig-story-stack'>"
+            "<div class='sig-story sig-story-today'>"
+            "<div class='sig-story-title'>당일 설명</div>"
+            f"<div class='sig-story-body' style='font-size:1.0rem;color:{text};line-height:1.5;'>"
+            f"{result.headline}<div style='font-size:.9rem;opacity:.9;margin-top:8px;'>"
+            f"흐름: {result.flow_note}</div>{_cause_html}</div></div>"
+            "<div class='sig-story sig-story-previous'>"
+            f"<div class='sig-story-title'>{comparison_label} 설명</div>"
+            f"<div class='sig-story-body' style='font-size:1.0rem;color:{text};line-height:1.5;'>"
+            f"{comparison_result.headline}<div style='font-size:.9rem;opacity:.9;margin-top:8px;'>"
+            f"흐름: {comparison_result.flow_note}</div></div></div></div>"
+        )
+    else:
+        _story_html = (
+            f'<div style="font-size:1.0rem;color:{text};line-height:1.5;">{result.headline}</div>'
+            f'<div style="font-size:0.9rem;color:{text};opacity:0.9;margin-top:8px;">'
+            f'흐름: {result.flow_note}</div>{_cause_html}'
+        )
+    _body_class = "sig-body sig-body-comparison" if comparison_result is not None else "sig-body"
+
     # 판정을 눈금 위에 올려 지금이 어느 단계인지 한눈에 보이게 한다(2026-07-24).
     _gauge_html = (
         _verdict_gauge_html(
@@ -977,6 +1185,8 @@ def render_market_signal_card(
             tuple(verdict_order),
             previous_stage=previous_stage,
             show_position_score=show_position_score,
+            comparison_result=comparison_result,
+            comparison_label=comparison_label,
         )
         if verdict_order else ""
     )
@@ -990,11 +1200,8 @@ def render_market_signal_card(
         f'<div style="font-size:1.35rem;font-weight:800;color:{text};">{result.verdict_label}</div>'
         f'<div style="font-size:0.85rem;color:{text};opacity:0.85;margin-top:4px;">'
         f'{_as_of_label} · {result.data_status}</div>'
-        f'<div class="sig-body">{_gauge_html}<div class="sig-text">'
-        f'<div style="font-size:1.0rem;color:{text};line-height:1.5;">{result.headline}</div>'
-        f'<div style="font-size:0.9rem;color:{text};opacity:0.9;margin-top:8px;">'
-        f'흐름: {result.flow_note}</div>'
-        f'{_cause_html}</div></div></div>',
+        f'<div class="{_body_class}">{_gauge_html}<div class="sig-text">'
+        f'{_story_html}</div></div></div>',
         unsafe_allow_html=True,
     )
 
@@ -1235,7 +1442,41 @@ def run_us_market_signal_check(force_refresh=False):
         "vix3m_current": (results.get("^VIX3M") or {}).get("current"),
     }
     result = us_market_signal_engine.build_us_market_signal_result(quotes, extras=extras)
+
+    # 당일과 같은 판정 규칙으로 실제 직전 미국 거래일을 다시 계산한다. 현재 행보다
+    # 앞선 완성 일봉만 쓰므로 프리마켓·장중에도 '전일'이 당일과 겹치지 않는다.
+    ticker_dates = tuple(
+        (ticker, (results.get(ticker) or {}).get("as_of_date"))
+        for ticker in tickers
+        if (results.get(ticker) or {}).get("as_of_date")
+    )
+    previous_rows = _cached_previous_us_quotes(ticker_dates)
+    previous_quotes = {
+        ticker: {
+            "change_pct": row.get("change_pct"),
+            "as_of": _now_seoul(),
+            "source": "완료 일봉",
+        }
+        for ticker, row in previous_rows.items()
+        if row.get("ok")
+    }
+    previous_extras = {
+        "vix_current": (previous_rows.get("^VIX") or {}).get("current"),
+        "vix3m_current": (previous_rows.get("^VIX3M") or {}).get("current"),
+    }
+    previous_result = (
+        us_market_signal_engine.build_us_market_signal_result(
+            previous_quotes, extras=previous_extras
+        )
+        if previous_quotes else None
+    )
+    previous_dates = sorted({
+        row.get("trade_date") for row in previous_rows.values()
+        if row.get("ok") and row.get("trade_date")
+    })
     st.session_state["us_signal_result"] = result
+    st.session_state["us_signal_previous_result"] = previous_result
+    st.session_state["us_signal_previous_date"] = previous_dates[-1] if previous_dates else None
     st.session_state["us_signal_failures"] = failures
     return result
 
@@ -1258,6 +1499,12 @@ def render_us_market_signal_card():
         with st.spinner("미국장 신호 자동 확인 중..."):
             result = run_us_market_signal_check()
 
+    previous_result = st.session_state.get("us_signal_previous_result")
+    previous_date = str(st.session_state.get("us_signal_previous_date") or "")
+    previous_label = "전일"
+    if len(previous_date) >= 10:
+        previous_label += f" · {previous_date[5:].replace('-', '.')}"
+
     render_market_signal_card(
         result,
         verdict_style=_US_VERDICT_STYLE,
@@ -1270,6 +1517,8 @@ def render_us_market_signal_card():
         ),
         table_key="us_signal_detail_table",
         verdict_order=US_VERDICT_ORDER,
+        comparison_result=previous_result,
+        comparison_label=previous_label,
     )
     # 실패 목록 나열은 없앴다(2026-07-22 사용자 지시) — 못 가져온 값은 위 표에
     # '확인 필요'로 이미 표시되고, 사용자가 손쓸 수 없는 항목이라 나열해도 의미가 없다.
