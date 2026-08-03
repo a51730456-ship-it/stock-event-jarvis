@@ -2870,14 +2870,6 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         )
         return
 
-    # 결과 표 바로 위에 지금 보고 있는 갈래 이름을 다시 보여준다. 위의 세 선택
-    # 단추가 화면 밖으로 올라간 뒤에도 상승장/급락장을 구분하고 이 자리에서 닫는다.
-    mode_close_label = (
-        "상승장 (신고가 눌림매수) 닫기"
-        if breakout else "급락 후 반등장 (낙폭종목) 닫기"
-    )
-    _section_close("j3_pullback_open", mode_close_label)
-
     widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.2, 1.0, 1.15, 1.5, 1.75]
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
@@ -3099,6 +3091,26 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     result = st.session_state.get("j3_pullback_result")
     mode = st.session_state.get("j3_pullback_mode") or "기본"
     if mode in ("breakout", "crash") and isinstance(result, dict):
+        # 세 선택 단추 바로 아래, 결과 설명보다 먼저 현재 갈래 이름을 보여준다.
+        # 긴 설명과 통계 아래에 두면 결과가 열린 직후 화면에서는 보이지 않았다.
+        mode_close_label = (
+            "상승장 (신고가 눌림매수) 닫기"
+            if mode == "breakout" else "급락 후 반등장 (낙폭종목) 닫기"
+        )
+        close_background = (
+            "linear-gradient(90deg,#075d46,#18bf87)"
+            if mode == "breakout" else "linear-gradient(90deg,#6b2d05,#e67813)"
+        )
+        st.markdown(
+            "<style>div[class*='st-key-close_j3_pullback_open'] button {"
+            f"background:{close_background} !important; color:#fff !important;"
+            "border:1px solid rgba(255,255,255,.28) !important;"
+            "box-shadow:0 0 12px rgba(230,120,19,.20) !important;}"
+            "div[class*='st-key-close_j3_pullback_open'] button p {"
+            "color:#fff !important; font-weight:800 !important;}</style>",
+            unsafe_allow_html=True,
+        )
+        _section_close("j3_pullback_open", mode_close_label)
         _render_rulebook_finder(result, market, ranking, mode)
         return
     if result is None:
