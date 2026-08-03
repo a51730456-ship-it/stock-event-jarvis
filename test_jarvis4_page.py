@@ -356,9 +356,12 @@ class Jarvis4PageTests(unittest.TestCase):
         # 시장 국면·미국 시장국면·공포탐욕 세 가지 모두 같은 게이지로 보여준다.
         self.assertIn("시장 국면 (한국)", top_row)
         us_country = "<span style='color:#44f0a1'>(미국)</span>"
-        self.assertIn(f"시장 국면 {us_country}", top_row)
-        self.assertIn(f"공포·탐욕 지수 {us_country}", top_row)
+        self.assertIn(f"{us_country} 시장 국면", top_row)
+        self.assertIn(f"{us_country} 공포·탐욕 지수", top_row)
         self.assertEqual(top_row.count(us_country), 2)
+        self.assertTrue(any(
+            "j4-gauge-after-gap" in str(node.value) for node in app.markdown
+        ))
         # 선물 숫자와 차트는 같은 1분봉 응답을 쓰고 시각도 함께 보여준다.
         self.assertIn("28,149", top_row)
         self.assertIn("1분봉 기준 07.29 09:22", top_row)

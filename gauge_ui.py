@@ -133,8 +133,14 @@ def rows_html(rows) -> str:
 
 
 def _title_html(title: str) -> str:
-    """제목 본문은 기본색, 끝의 '(미국)'만 밝은 초록색으로 출력한다."""
+    """제목 본문은 기본색, 앞이나 끝의 '(미국)'만 밝은 초록색으로 출력한다."""
     country = "(미국)"
+    if title.startswith(country):
+        rest = title[len(country):]
+        return (
+            f"<span style='color:{TITLE_GREEN}'>{html.escape(country)}</span>"
+            f"{html.escape(rest)}"
+        )
     if title.endswith(country):
         base = title[:-len(country)]
         return (

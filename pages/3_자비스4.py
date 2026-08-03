@@ -1057,16 +1057,18 @@ def _render_market_overview() -> None:
         # 미국테마의 시장 국면 카드를 제목·문구·전일 행까지 그대로 복제한다.
         # 한국 화면용 제목이나 S&P/나스닥 별도 행을 덧붙이지 않는다.
         regime_gauge_ui.regime_box_html(
-            us_prev.get("market_overview"), title="시장 국면 (미국)", note_prefix=" : "
+            us_prev.get("market_overview"), title="(미국) 시장 국면", note_prefix=" : "
         ),
         fear_greed_ui.box_html(
-            us_prev.get("fear_greed_detail"), title="공포·탐욕 지수 (미국)"
+            us_prev.get("fear_greed_detail"), title="(미국) 공포·탐욕 지수"
         ),
     ]
     # 게이지 스타일은 지표 줄과 따로 내보낸다 — 줄 안에 <style>을 끼워 넣으면
     # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버린다(2026-07-24 실제 깨짐).
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j4-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
+    # 게이지 그림과 바로 아래 조건점수 설명 단추가 붙어 보이지 않게 한 줄 띄운다.
+    st.markdown("<div class='j4-gauge-after-gap' style='height:18px'></div>", unsafe_allow_html=True)
     # 긴 설명은 접어 둔다 — 폰·태블릿에서 이 글이 첫 화면을 다 먹었다
     # (2026-07-25 사용자 지시, 미국테마와 같은 방식). 값·판정은 그대로다.
     with st.expander("조건점수·시장 상태 설명 보기", expanded=False):
