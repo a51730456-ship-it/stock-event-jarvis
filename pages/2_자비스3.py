@@ -2863,6 +2863,26 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         f"(최대 {int(result.get('result_limit') or 0)}개) · {reuse_text}</div>",
         unsafe_allow_html=True,
     )
+    # 사용자가 지정한 정확한 자리: '대형주 → 일봉 확보 → 기준 통과' 통계 바로
+    # 아래이면서, '순위 · 종목 · 티커' 표 머리글 바로 위에 둔다.
+    mode_close_label = (
+        "상승장 (신고가 눌림매수) 닫기"
+        if breakout else "급락 후 반등장 (낙폭종목) 닫기"
+    )
+    close_background = (
+        "linear-gradient(90deg,#075d46,#18bf87)"
+        if breakout else "linear-gradient(90deg,#6b2d05,#e67813)"
+    )
+    st.markdown(
+        "<style>div[class*='st-key-close_j3_pullback_open'] button {"
+        f"background:{close_background} !important; color:#fff !important;"
+        "border:1px solid rgba(255,255,255,.28) !important;"
+        "box-shadow:0 0 12px rgba(230,120,19,.20) !important;}"
+        "div[class*='st-key-close_j3_pullback_open'] button p {"
+        "color:#fff !important; font-weight:800 !important;}</style>",
+        unsafe_allow_html=True,
+    )
+    _section_close("j3_pullback_open", mode_close_label)
     if not rows:
         st.info(
             "지금은 이 기준에 맞는 종목이 없습니다. 기준을 느슨하게 바꾸지 않습니다 — "
@@ -3091,26 +3111,6 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     result = st.session_state.get("j3_pullback_result")
     mode = st.session_state.get("j3_pullback_mode") or "기본"
     if mode in ("breakout", "crash") and isinstance(result, dict):
-        # 세 선택 단추 바로 아래, 결과 설명보다 먼저 현재 갈래 이름을 보여준다.
-        # 긴 설명과 통계 아래에 두면 결과가 열린 직후 화면에서는 보이지 않았다.
-        mode_close_label = (
-            "상승장 (신고가 눌림매수) 닫기"
-            if mode == "breakout" else "급락 후 반등장 (낙폭종목) 닫기"
-        )
-        close_background = (
-            "linear-gradient(90deg,#075d46,#18bf87)"
-            if mode == "breakout" else "linear-gradient(90deg,#6b2d05,#e67813)"
-        )
-        st.markdown(
-            "<style>div[class*='st-key-close_j3_pullback_open'] button {"
-            f"background:{close_background} !important; color:#fff !important;"
-            "border:1px solid rgba(255,255,255,.28) !important;"
-            "box-shadow:0 0 12px rgba(230,120,19,.20) !important;}"
-            "div[class*='st-key-close_j3_pullback_open'] button p {"
-            "color:#fff !important; font-weight:800 !important;}</style>",
-            unsafe_allow_html=True,
-        )
-        _section_close("j3_pullback_open", mode_close_label)
         _render_rulebook_finder(result, market, ranking, mode)
         return
     if result is None:

@@ -767,6 +767,10 @@ class Jarvis3PageTests(unittest.TestCase):
             "급락 후 반등장 (낙폭종목) 닫기" in str(node.label)
             for node in app.button
         ))
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        self.assertLess(block.index("j3-pull-stats"), block.index("mode_close_label"))
+        self.assertLess(block.index("mode_close_label"), block.index("widths ="))
 
     def test_the_two_depth_buckets_get_different_colours(self):
         """2026-08-01 사용자 지시 — -30~-40과 -40~-50을 색으로 가른다.
