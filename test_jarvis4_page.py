@@ -321,10 +321,80 @@ def _open_all_details(app):
     for panel in ("theme", "pullback", "top7", "mystock"):
         app.session_state[f"j4_detail_open_{panel}"] = True
         app.session_state[f"j4_buyform_open_{panel}"] = True
+    app.session_state["j4_theme_panel_open"] = True
     return app
 
 
 class Jarvis4PageTests(unittest.TestCase):
+    def test_theme_rank_click_opens_and_close_button_hides_whole_theme_panel(self):
+        """한국도 순위의 테마 클릭으로 종목 화면 전체를 열고 닫는다."""
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.run(timeout=90)
+            self.assertFalse(app.session_state.filtered_state.get("j4_theme_panel_open", False))
+            self.assertFalse([
+                node for node in app.button if str(node.key or "").startswith("j4lbtn_")
+            ])
+
+            theme_button = next(
+                node for node in app.button if str(node.key or "") == "j4tbtn_00"
+            )
+            theme_button.click().run(timeout=90)
+            self.assertTrue(app.session_state.filtered_state.get("j4_theme_panel_open"))
+            self.assertTrue([
+                node for node in app.button if str(node.key or "").startswith("j4lbtn_")
+            ])
+            close_button = next(
+                node for node in app.button
+                if str(node.key or "") == "close_j4_theme_panel_open_top"
+            )
+            close_button.click().run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertFalse(app.session_state.filtered_state.get("j4_theme_panel_open"))
+        self.assertFalse([
+            node for node in app.button if str(node.key or "").startswith("j4lbtn_")
+        ])
+
+    def test_current_leader_name_click_opens_comparison_and_detail(self):
+        """이미 선택된 1위 종목도 누르면 비교와 상세가 함께 열린다."""
+        started = []
+        try:
+            for item in _patches():
+                item.start()
+                started.append(item)
+            app = AppTest.from_file(str(PAGE), default_timeout=90)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            _open_all_details(app)
+            app.session_state["j4_detail_open_theme"] = False
+            app.session_state["j4_leadercmp_open"] = False
+            app.run(timeout=90)
+            buttons = [
+                node for node in app.button if str(node.key or "").startswith("j4lbtn_")
+            ]
+            self.assertTrue(buttons, "종목 이름 버튼이 없다")
+            buttons[0].click().run(timeout=90)
+        finally:
+            for item in reversed(started):
+                item.stop()
+
+        self.assertEqual(len(app.exception), 0)
+        state = app.session_state.filtered_state
+        self.assertTrue(state.get("j4_detail_open_theme"), state)
+        self.assertTrue(state.get("j4_leadercmp_open"), state)
+        self.assertTrue(any("j4-stock-name" in str(node.value) for node in app.markdown))
+        self.assertTrue([node for node in app.radio if str(node.label) == "상세 종목 선택"])
+
     def test_page_renders_market_then_flow_then_tabs(self):
         app = _run_page()
         self.assertEqual(len(app.exception), 0)

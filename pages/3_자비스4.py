@@ -261,6 +261,19 @@ st.markdown(
         color: #ffffff !important; font-size: 1.02rem !important;
         font-weight: 800 !important; letter-spacing: .01em !important; margin: 0 !important;
     }
+    /* 20개 테마 순위에서 연 테마 종목 화면의 위·아래 닫기 버튼. */
+    div[class*="st-key-close_j4_theme_panel_open"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        width: auto !important; min-height: 2.35rem !important;
+        box-shadow: 0 2px 10px rgba(224,71,79,.25) !important;
+    }
+    div[class*="st-key-close_j4_theme_panel_open"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+    }
+    div[class*="st-key-close_j4_theme_panel_open"] button p {
+        color: #ffffff !important; font-weight: 800 !important; margin: 0 !important;
+    }
     /* 낙폭 두 갈래 색 — 미국테마와 같다. 깊은 갈래 주황 · 얕은 갈래 하늘색.
        한국장 등락색(빨강·파랑)과 겹치지 않는 색이라 등락과 헷갈리지 않는다. */
     .j4-band-deep, .j4-band-mid {
@@ -2512,6 +2525,7 @@ def _render_radar_tab(market: dict) -> None:
     if clicked_theme in names:
         st.session_state["j4_theme_choice"] = clicked_theme
         st.session_state["j4_theme_choice_widget"] = clicked_theme
+        st.session_state["j4_theme_panel_open"] = True
     _render_theme_finder(forced)
 
     # 21위 밖으로 밀린 테마도 볼 수 있게 한다 — 찾던 테마가 왜 안 보이는지 확인용
@@ -2535,6 +2549,26 @@ def _render_radar_tab(market: dict) -> None:
     if st.session_state.get("j4_theme_choice_widget") not in names:
         preferred = st.session_state.get("j4_theme_choice")
         st.session_state["j4_theme_choice_widget"] = preferred if preferred in names else names[0]
+
+    # 미국 테마와 동일하게, 테마 설명·종목 1~6위·상세 선택은 순위표의 테마를
+    # 눌렀을 때만 한 덩이로 연다. 닫아도 아래 독립 영역은 계속 볼 수 있다.
+    if not st.session_state.get("j4_theme_panel_open"):
+        st.caption("원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다.")
+        _render_pullback_finder()
+        _render_pullback_detail(market)
+        _render_top_reviewed(market, ranking)
+        _render_top_reviewed_detail(market)
+        _render_my_stock_panel(market)
+        return
+
+    def _close_theme_panel_top():
+        st.session_state["j4_theme_panel_open"] = False
+
+    st.button(
+        "✕ 테마 종목 화면 닫기",
+        key="close_j4_theme_panel_open_top",
+        on_click=_close_theme_panel_top,
+    )
     selected_theme = st.radio("테마 선택", names, horizontal=True, key="j4_theme_choice_widget")
     st.session_state["j4_theme_choice"] = selected_theme
     theme_row = next((row for row in ranking["rows"] if row["name"] == selected_theme), None)
@@ -2589,8 +2623,11 @@ def _render_radar_tab(market: dict) -> None:
     # 표의 종목 이름을 눌러도 상세가 바뀌어야 한다(2026-07-29 지시). 눌림목 표는
     # 눌리는데 이 표만 안 눌려 고장으로 보였다. 라디오는 그대로 둔다.
     clicked_code = _render_leader_table(leaders, st.session_state.get(stock_key))
-    if clicked_code and clicked_code != st.session_state.get(stock_key):
+    if clicked_code:
         st.session_state[stock_key] = clicked_code
+        # 이미 선택된 1위 종목을 다시 눌러도 비교와 상세를 함께 연다.
+        st.session_state["j4_detail_open_theme"] = True
+        st.session_state["j4_leadercmp_open"] = True
         st.rerun()
 
     _render_leader_comparison(leaders)
@@ -2611,14 +2648,24 @@ def _render_radar_tab(market: dict) -> None:
         item = next((cand for cand in top_candidates if cand["code"] == code), None)
         return _stock_radio_label(item) if item else code
 
+    def _open_selected_theme_stock():
+        st.session_state["j4_detail_open_theme"] = True
+        st.session_state["j4_leadercmp_open"] = True
+
     selected_code = st.radio(
-        "상세 종목 선택", code_options, format_func=_label, horizontal=True, key=stock_key
+        "상세 종목 선택",
+        code_options,
+        format_func=_label,
+        horizontal=True,
+        key=stock_key,
+        on_change=_open_selected_theme_stock,
     )
     selected_leader = next((item for item in top_candidates if item["code"] == selected_code), top_candidates[0])
 
     # ① 테마 종목 상세 — 눌림목 위에 둔다.
     _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key,
                          panel="theme")
+    _section_close("j4_theme_panel_open", "테마 종목 화면 닫기")
 
     # 여러 테마를 가로질러 '지금 실제로 살 자리'만 모아 보여준다(2026-07-22 사용자 요청).
     _render_pullback_finder()
