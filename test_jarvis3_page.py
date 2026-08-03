@@ -324,6 +324,10 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("SPY (미국 대표주)", top_row)
         self.assertIn("QQQ (미국 기술주)", top_row)
         self.assertTrue(any("j3-ndd-key" in value for value in markdowns))
+        source = PAGE.read_text(encoding="utf-8")
+        self.assertIn("j3-ndd-title", source)
+        self.assertIn("color:{_sign_color(pct)}", source)
+        self.assertIn(".j3-ndd-sub { color: #9aa0aa; font-size: 1rem", source)
         self.assertTrue(any("j3-theme-open-guide" in value for value in markdowns))
         page_css = next(value for value in markdowns if "st-key-close_j3_theme_panel_open" in value)
         self.assertIn("#c084fc", page_css)
@@ -779,6 +783,10 @@ class Jarvis3PageTests(unittest.TestCase):
         block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
         self.assertLess(block.index("j3-pull-stats"), block.index("mode_close_label"))
         self.assertLess(block.index("mode_close_label"), block.index("widths ="))
+        self.assertNotIn("avg_text", block)
+        self.assertNotIn("together_label", block)
+        for hold_class in ("j3-hold-20", "j3-hold-60", "j3-hold-120"):
+            self.assertIn(hold_class, block)
 
     def test_the_two_depth_buckets_get_different_colours(self):
         """2026-08-01 사용자 지시 — -30~-40과 -40~-50을 색으로 가른다.

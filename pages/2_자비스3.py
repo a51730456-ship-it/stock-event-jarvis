@@ -165,6 +165,7 @@ st.markdown(
     .j3-ndd { border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
         padding: .5rem .8rem; margin: .1rem 0 .6rem; background: rgba(255,255,255,.03); }
     .j3-ndd-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+    .j3-ndd-title { color: #c084fc; font-weight: 850; }
     .j3-ndd-val { font-size: 1.45rem; font-weight: 900; }
     .j3-ndd-state { font-size: .95rem; font-weight: 800; }
     .j3-ndd-bar { position: relative; height: 8px; border-radius: 4px;
@@ -173,7 +174,7 @@ st.markdown(
         background: linear-gradient(90deg, #ffd166 0%, #44f0a1 100%); }
     .j3-ndd-mark { position: absolute; top: -3px; bottom: -3px; width: 2px;
         background: #ffffff; opacity: .85; }
-    .j3-ndd-sub { color: #9aa0aa; font-size: .86rem; font-weight: 700; }
+    .j3-ndd-sub { color: #9aa0aa; font-size: 1rem; font-weight: 700; }
     .j3-ndd-note { color: #aeb6c2; font-size: .92rem; margin-top: .3rem; line-height: 1.55; }
     .j3-ndd-key { color: #4da6ff; font-weight: 850; }
     .j3-theme-open-guide { color: #c084fc; font-size: 1.08rem; font-weight: 850;
@@ -351,6 +352,9 @@ st.markdown(
     .j3-card-deep .j3-reason-title { color: #ff9d3b !important; }
     .j3-card-mid { border-color: rgba(124,200,255,.5) !important; }
     .j3-card-mid .j3-reason-title { color: #7cc8ff !important; }
+    .j3-hold-20 { color: #ff9d3b; font-weight: 850; }
+    .j3-hold-60 { color: #7cc8ff; font-weight: 850; }
+    .j3-hold-120 { color: #44f0a1; font-weight: 850; }
     /* 설명서 두 갈래 표의 종목 단추 — 눌림목 표(j3pbf_)와 똑같은 모양으로 둔다.
        모양이 다르면 같은 자리에서 단추만 달라 보여 어색하다(2026-08-01). */
     div[class*="st-key-j3rbf_"] button {
@@ -1525,8 +1529,8 @@ def _render_nasdaq_drawdown() -> None:
     )
     st.markdown(
         "<div class='j3-ndd'>"
-        f"<div class='j3-ndd-head'><b>나스닥 고점 대비</b> "
-        f"<span class='j3-ndd-val' style='color:{state.get('color')}'>{pct:+.1f}%</span> "
+        f"<div class='j3-ndd-head'><b class='j3-ndd-title'>나스닥 고점 대비</b> "
+        f"<span class='j3-ndd-val' style='color:{_sign_color(pct)}'>{pct:+.1f}%</span> "
         f"<span class='j3-ndd-state' style='color:{state.get('color')}'>"
         f"{html.escape(str(state.get('state') or ''))}</span></div>"
         f"<div class='j3-ndd-bar'><span class='j3-ndd-fill' style='width:{fill:.1f}%'></span>"
@@ -2918,8 +2922,6 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     for index, row in enumerate(rows):
         metrics = row.get("metrics") or {}
         from_high = metrics.get("from_high_pct")
-        avg_value = metrics.get("avg_dollar_volume")
-        avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
         cols = table_box.columns(row_widths)
         cols[0].markdown(
             f"<div class='j3-td j3-muted'>{int(row.get('pullback_rank') or index + 1)}</div>",
@@ -2961,32 +2963,31 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         tier = int(row.get("together_tier") or 0)
         tier_class = ("j3-muted", "j3-pull-theme", "j3-pull-amber", "j3-green-strong")[tier]
         together_cell = (
-            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
-            f" line-height:1.12'><span class='{tier_class}' style='font-weight:800'>"
-            f"{int(row.get('together_count') or 0)}개</span>"
-            f"<span class='j3-muted' style='font-size:.78rem'"
+            f"<span class='{tier_class}' style='font-weight:850'"
             f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
-            f"{html.escape(str(row.get('together_label') or '—'))}</span></span>"
+            f"{int(row.get('together_count') or 0)}개</span>"
         )
-        # 거래대금은 액수만 보면 큰 회사가 늘 크다. 실제로 값을 한 것은 '평소(50일
-        # 평균) 위에 며칠 연속인가'라, 액수 아래에 그 날수를 같이 적는다(2026-08-01).
+        hold_days = int(row.get("hold_days") or 0)
+        hold_class = (
+            "j3-hold-20" if hold_days == 20
+            else "j3-hold-60" if hold_days == 60
+            else "j3-hold-120"
+        )
+        # 달러 거래대금은 숨기고 이 화면에서 실제 순위에 쓰는 값만 남긴다.
         streak = int(row.get("volume_streak") or 0)
         if breakout:
             # 상승장에서 값을 한 것은 거래대금 연속이 아니라 최근 60일 상승폭이다.
             ret60 = metrics.get("ret60")
             ret_class = "j3-green-strong" if (ret60 or 0) >= 40 else "j3-up"
             volume_cell = (
-                "<span style='display:inline-flex; flex-direction:column; align-items:center;"
-                f" line-height:1.12'><span class='{ret_class}' style='font-weight:800'>"
+                f"<span class='{ret_class}' style='font-weight:850'>"
                 f"{'—' if ret60 is None else f'{float(ret60):+.1f}%'}</span>"
-                f"<span class='j3-muted' style='font-size:.78rem'>{avg_text}</span></span>"
             )
         else:
             streak_class = "j3-up" if streak >= 11 else "j3-muted"
             volume_cell = (
-                "<span style='display:inline-flex; flex-direction:column; align-items:center;"
-                f" line-height:1.12'><span class='j3-green'>{avg_text}</span>"
-                f"<span class='{streak_class}' style='font-size:.82rem'>{streak}일 연속</span></span>"
+                f"<span class='{streak_class}' style='font-size:.88rem; font-weight:800'>"
+                f"{streak}일 연속</span>"
             )
         themes_all = [name for name in (row.get("themes") or []) if name]
         lead = str(row.get("together_theme") or "") or (themes_all[0] if themes_all else "")
@@ -3000,7 +3001,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 f"<span class='j3-rb-clip j3-pull-theme'"
                 f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
                 third_cell,
-                f"<span class='j3-green'>{int(row.get('hold_days') or 0)}거래일</span>",
+                f"<span class='{hold_class}'>{hold_days}거래일</span>",
                 together_cell,
                 volume_cell,
             ]),
