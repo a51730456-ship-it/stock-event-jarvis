@@ -423,7 +423,7 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("한국 전체시장 판단", subheaders)
         markdowns = " ".join(str(node.value) for node in app.markdown)
         # 시장판단의 한국장 기관 수급 반전 카드를 그대로 가져왔는지
-        self.assertIn("한국장 기관 수급 현황", markdowns)
+        self.assertIn("한국장 시장 상태", markdowns)
         # 동적 테마 선정 문구와 테마표
         self.assertIn("오늘의 강한 테마", markdowns)
         self.assertIn("자동 탈락", markdowns)

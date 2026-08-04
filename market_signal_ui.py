@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080305
+MODULE_REVISION = 2026080401
 
 
 def _now_seoul():
@@ -624,10 +624,11 @@ def run_kr_flow_check(*, force_refresh=False):
 
 
 _FLOW_VERDICT_STYLE = {
+    kr_intraday_flow.ReboundVerdict.VERY_BAD: ("#4c1d1d", "#ef4444", "#fca5a5"),
     kr_intraday_flow.ReboundVerdict.CONFIRMED: ("#14532d", "#22c55e", "#86efac"),
-    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: ("#1e3a5f", "#3b82f6", "#93c5fd"),
+    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: ("#134e4a", "#14b8a6", "#99f6e4"),
     kr_intraday_flow.ReboundVerdict.WATCHING: ("#4a2e05", "#eab308", "#fde047"),
-    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: ("#4c1d1d", "#ef4444", "#fca5a5"),
+    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: ("#431407", "#f97316", "#fdba74"),
     kr_intraday_flow.ReboundVerdict.INSUFFICIENT_DATA: ("#27272a", "#71717a", "#d4d4d8"),
 }
 
@@ -652,27 +653,30 @@ _FLOW_TABLE_KEYS = (
 # 상세 표의 값별 색 — 같은 값은 어느 시장 카드에서든 같은 색으로 보이게 한다.
 # 판정 칸은 마크만이 아니라 '표 읽는 법'과 똑같은 뜻 글자를 함께 쓴다
 # (2026-07-22 사용자 지시: "⭕ 긍정(신호 켜짐)"처럼 마크와 내용을 같이 넣을 것).
-# 눈금 안에 들어갈 짧은 단계 이름 — 카드 제목의 긴 문구(🟡 방향 혼조 …)는 반원
-# 안에 넣으면 넘친다. 뜻이 달라지지 않는 선에서 줄인 이름만 쓴다.
+# 눈금 안에 들어갈 짧은 단계 이름. 한국장·미국장이 같은 5단계 말을 쓴다.
 _VERDICT_SHORT = {
-    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: "반전 없음",
-    kr_intraday_flow.ReboundVerdict.WATCHING: "일부 켜짐",
-    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: "반등 유력",
-    kr_intraday_flow.ReboundVerdict.CONFIRMED: "반등 확인",
-    us_market_signal_engine.UsMarketVerdict.RISK_OFF: "위험회피",
-    us_market_signal_engine.UsMarketVerdict.MIXED: "방향 혼조",
-    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: "선호 초기",
-    us_market_signal_engine.UsMarketVerdict.RISK_ON: "위험선호",
+    kr_intraday_flow.ReboundVerdict.VERY_BAD: "매우 나쁨",
+    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: "나쁨",
+    kr_intraday_flow.ReboundVerdict.WATCHING: "엇갈림",
+    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: "좋음",
+    kr_intraday_flow.ReboundVerdict.CONFIRMED: "매우 좋음",
+    us_market_signal_engine.UsMarketVerdict.VERY_BAD: "매우 나쁨",
+    us_market_signal_engine.UsMarketVerdict.RISK_OFF: "나쁨",
+    us_market_signal_engine.UsMarketVerdict.MIXED: "엇갈림",
+    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: "좋음",
+    us_market_signal_engine.UsMarketVerdict.RISK_ON: "매우 좋음",
 }
 
 # 나쁜 쪽 → 좋은 쪽 순서. 눈금 왼쪽부터 이 차례로 놓인다.
 KR_VERDICT_ORDER = (
+    kr_intraday_flow.ReboundVerdict.VERY_BAD,
     kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED,
     kr_intraday_flow.ReboundVerdict.WATCHING,
     kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED,
     kr_intraday_flow.ReboundVerdict.CONFIRMED,
 )
 US_VERDICT_ORDER = (
+    us_market_signal_engine.UsMarketVerdict.VERY_BAD,
     us_market_signal_engine.UsMarketVerdict.RISK_OFF,
     us_market_signal_engine.UsMarketVerdict.MIXED,
     us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY,
@@ -885,7 +889,7 @@ def kr_flow_diagnosis(result) -> str | None:
 
 
 def _verdict_stage_number(verdict, verdict_order) -> int | None:
-    """판정이 전체 단계 중 몇 번째인지 돌려준다(예: 일부 켜짐 = 2/4단계)."""
+    """판정이 전체 단계 중 몇 번째인지 돌려준다."""
     verdict_order = tuple(verdict_order or ())
     if not verdict_order or verdict not in verdict_order:
         return None
@@ -893,7 +897,7 @@ def _verdict_stage_number(verdict, verdict_order) -> int | None:
 
 
 def _verdict_needle_position(verdict, verdict_order) -> float | None:
-    """네 단계 판정의 바늘을 해당 구간 중앙에 놓을 내부 위치값을 돌려준다."""
+    """판정 단계의 바늘을 해당 구간 중앙에 놓을 내부 위치값을 돌려준다."""
     stage = _verdict_stage_number(verdict, verdict_order)
     if stage is None:
         return None
@@ -952,6 +956,7 @@ def _previous_kr_flow_comparison() -> tuple[object | None, dict | None]:
             return None, None
         stage = {
             "score": score,
+            "stage_number": _verdict_stage_number(result.verdict, KR_VERDICT_ORDER),
             "label": _VERDICT_SHORT.get(result.verdict) or str(result.verdict),
             "color": _FLOW_VERDICT_STYLE.get(
                 result.verdict, ("", "#9ca3af", "")
@@ -1039,8 +1044,7 @@ def _verdict_gauge_html(
 ) -> str:
     """판정을 반원 눈금 위에 올린다 (2026-07-24 사용자 요청).
 
-    숫자는 승률이나 매수점수가 아니라 네 판정 구간의 중앙 위치값이다.
-    한국장 카드에서만 현재·전일을 같은 0~100 눈금(12·38·62·88)으로 표시한다.
+    바늘 위치값은 내부 계산용이며 화면에는 단계명만 표시한다.
 
     verdict_order는 나쁜 쪽 → 좋은 쪽 순서다. 목록에 없는 판정(데이터 부족)은
     바늘 없이 눈금만 그린다.
@@ -1080,9 +1084,11 @@ def _verdict_gauge_html(
     score_html = ""
     if show_position_score and score is not None:
         current_color = verdict_style.get(result.verdict, ("", "#9ca3af", ""))[1]
+        current_stage = _verdict_stage_number(result.verdict, verdict_order)
+        current_label = _VERDICT_SHORT.get(result.verdict) or "판정 확인"
         score_html = (
             f"<div class='sig-current-score' style='color:{current_color}'>"
-            f"{score:.0f}</div>"
+            f"{current_stage}단계 · {current_label}</div>"
         )
     if previous_stage and previous_stage.get("score") is not None:
         day = str(previous_stage.get("trade_date") or "")
@@ -1090,26 +1096,34 @@ def _verdict_gauge_html(
         day_text = f"({day})" if day else ""
         period_label = str(previous_stage.get("period_label") or "직전 저장")
         previous_color = str(previous_stage.get("color") or "#9ca3af")
+        previous_number = previous_stage.get("stage_number")
+        previous_text = (
+            f"{int(previous_number)}단계 · {previous_stage.get('label') or '판정 확인'}"
+            if previous_number is not None else (previous_stage.get("label") or "판정 확인")
+        )
         score_html += (
             f"<div class='sig-prev-score' style='color:{previous_color}'>"
-            f"{period_label}{day_text} {float(previous_stage['score']):.0f} · "
-            f"{previous_stage.get('label') or '판정 확인'}</div>"
+            f"{period_label}{day_text} {previous_text}</div>"
         )
 
     if comparison_result is not None:
         comparison_score = _verdict_needle_position(
             comparison_result.verdict, verdict_order
         )
+        current_stage = _verdict_stage_number(result.verdict, verdict_order)
+        previous_stage_number = _verdict_stage_number(comparison_result.verdict, verdict_order)
+        current_label = _VERDICT_SHORT.get(result.verdict) or "판정 확인"
+        comparison_stage_label = _VERDICT_SHORT.get(comparison_result.verdict) or "판정 확인"
         comparison_rows = _count_row_tuples(comparison_result)
         gauges_html = (
             "<div class='sig-gauge-pair'>"
             "<div class='sig-gauge-shell sig-gauge-today'>"
-            "<div class='sig-gauge-title'>당일</div>"
+            f"<div class='sig-gauge-title'>당일 · {current_stage}단계 · {current_label}</div>"
             f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones)}</div>"
             f"<div class='sig-counts'>{gauge_ui.rows_html(row_tuples)}</div>"
             "</div>"
             "<div class='sig-gauge-shell sig-gauge-previous'>"
-            f"<div class='sig-gauge-title'>{comparison_label}</div>"
+            f"<div class='sig-gauge-title'>{comparison_label} · {previous_stage_number}단계 · {comparison_stage_label}</div>"
             f"<div class='sig-gauge'>{_speedometer_gauge_svg(comparison_score, zones)}</div>"
             f"<div class='sig-counts'>{gauge_ui.rows_html(comparison_rows)}</div>"
             "</div></div>"
@@ -1355,10 +1369,10 @@ def _kr_flow_auto_due(result, last_attempt, now=None) -> bool:
 
 @st.fragment(run_every=60)
 def render_kr_flow_card():
-    """🎯 한국장 기관 수급 현황. 0단계 결과 바로 아래에 놓인다."""
-    st.markdown("### 🎯 한국장 기관 수급 현황")
+    """🎯 한국장 시장 상태. 수급 신호로 장중 흐름을 읽는다."""
+    st.markdown("### 🎯 한국장 시장 상태")
     st.caption(
-        "지금 기관이 들어오는 장인지, 무엇이 먼저 움직였는지를 읽어줍니다. "
+        "수급·반도체 신호가 지금 시장에 어떤 흐름을 만드는지 읽어줍니다. "
         "장중에는 1분마다 자동 확인하며, 버튼을 누르면 즉시 다시 조회합니다."
     )
 
@@ -1386,7 +1400,7 @@ def render_kr_flow_card():
         verdict_style=_FLOW_VERDICT_STYLE,
         core_display=_FLOW_CORE_DISPLAY,
         table_keys=_FLOW_TABLE_KEYS,
-        detail_title="한국장 전체 수급 상세",
+        detail_title="한국장 신호 상세",
         detail_caption=(
             "‘기금·연기금’은 KIS 원본 필드명이 기금입니다. 시장베이시스는 외국인 선물이 "
             "얼마나 사고팔았는지를 못 구했을 때 대신 보는 다른 지표이며, 수급값 자체가 "
@@ -1410,10 +1424,11 @@ def render_kr_flow_card():
 
 
 _US_VERDICT_STYLE = {
+    us_market_signal_engine.UsMarketVerdict.VERY_BAD: ("#4c1d1d", "#ef4444", "#fca5a5"),
     us_market_signal_engine.UsMarketVerdict.RISK_ON: ("#14532d", "#22c55e", "#86efac"),
-    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: ("#1e3a5f", "#3b82f6", "#93c5fd"),
+    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: ("#134e4a", "#14b8a6", "#99f6e4"),
     us_market_signal_engine.UsMarketVerdict.MIXED: ("#4a2e05", "#eab308", "#fde047"),
-    us_market_signal_engine.UsMarketVerdict.RISK_OFF: ("#4c1d1d", "#ef4444", "#fca5a5"),
+    us_market_signal_engine.UsMarketVerdict.RISK_OFF: ("#431407", "#f97316", "#fdba74"),
     us_market_signal_engine.UsMarketVerdict.INSUFFICIENT_DATA: ("#27272a", "#71717a", "#d4d4d8"),
 }
 
@@ -1499,8 +1514,8 @@ def run_us_market_signal_check(force_refresh=False):
 
 
 def render_us_market_signal_card():
-    """🌐 미국장 선행신호·시장 상태. 미국장 시장요약 바로 아래에 놓인다."""
-    st.markdown("### 🌐 미국장 선행신호·시장 상태")
+    """🌐 미국장 시장 상태. 선행·확인 신호로 흐름을 읽는다."""
+    st.markdown("### 🌐 미국장 시장 상태")
     st.caption(
         "선물·반도체 ETF·변동성·금리가 서로 같은 방향인지, 무엇이 먼저 움직였는지를 읽어줍니다. "
         "미국은 장중 수급 공개 데이터가 없어 한국장과 판정 방식이 다릅니다."
@@ -1527,7 +1542,7 @@ def render_us_market_signal_card():
         verdict_style=_US_VERDICT_STYLE,
         core_display=_US_CORE_DISPLAY,
         table_keys=_US_TABLE_KEYS,
-        detail_title="미국장 전체 신호 상세",
+        detail_title="미국장 신호 상세",
         detail_caption=(
             "VIX·미국 10년물·달러지수는 오르면 위험자산에 부담이라 ‘하락’이 긍정 판정입니다. "
             "선물·반도체 ETF는 본장보다 먼저 움직여 선행, 지수는 결과라서 확인 신호로 봅니다."

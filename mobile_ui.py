@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026080111
+MODULE_REVISION = 2026080401
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -144,6 +144,17 @@ TOP_ROW_CSS = """
 .fg-box-hist { min-width: 0; flex: 1 1 auto; }
 .fg-box-hist .fg-hist-row { padding: 0.07rem 0; }
 .fg-box-title { font-size: 0.86rem; }
+/* 시장 상태 카드의 당일·전일 비교는 태블릿에서는 두 줄로 정리한다. 네 칸을 한 줄에
+   억지로 넣으면 갤럭시탭 세로 화면에서 전일 카드가 화면 밖으로 밀린다. */
+.sig-body-comparison {
+    grid-template-areas:
+        "today-gauge today-story"
+        "previous-gauge previous-story" !important;
+    grid-template-columns: minmax(220px, .85fr) minmax(0, 1.15fr) !important;
+    overflow-x: visible !important;
+}
+.sig-gauge-shell .sig-gauge .fg-gauge { width: 100% !important; height: auto !important; }
+.sig-gauge-title { white-space: normal !important; }
 """
 
 # 한 줄에 몇 칸을 담을지는 '들고 있는 방향'을 따른다
@@ -214,6 +225,22 @@ h2 { font-size: 1.2rem !important; }
 .sig-gauge .fg-gauge { width: 132px; height: 88px; }
 .sig-counts { min-width: 0; flex: 1 1 auto; }
 .sig-text { flex: 1 1 100%; min-width: 0; }
+/* 폰에서는 당일과 전일을 위아래로 하나씩 놓는다. 5단계 이름·날짜가 잘리지 않고
+   카드 전체가 좌우로 밀리지 않는다. */
+.sig-body-comparison {
+    grid-template-areas:
+        "today-gauge"
+        "today-story"
+        "previous-gauge"
+        "previous-story" !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    overflow-x: visible !important;
+}
+.sig-gauge-shell { width: 100%; box-sizing: border-box; }
+.sig-gauge-shell .sig-gauge { display: flex; justify-content: center; }
+.sig-gauge-shell .sig-gauge .fg-gauge { width: min(100%, 250px) !important; height: auto !important; }
+.sig-gauge-title { white-space: normal !important; line-height: 1.35; }
+.sig-story { padding: .35rem .55rem .45rem; }
 """
 
 

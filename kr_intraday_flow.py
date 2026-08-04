@@ -76,6 +76,7 @@ def is_session_open(moment: datetime | None) -> bool:
 
 
 class ReboundVerdict(str, Enum):
+    VERY_BAD = "very_bad"
     CONFIRMED = "confirmed"
     PROXY_CONFIRMED = "proxy_confirmed"
     WATCHING = "watching"
@@ -83,17 +84,14 @@ class ReboundVerdict(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
-# '기관성'은 설명해야 아는 말이라 '외국인·기관'으로 바꿨다(2026-07-30 사용자 지시).
-# 나머지 이름은 그대로 둔다 — 같은 날 전부 바꿔 봤다가 "바꾸는 게 더 이상하다"는
-# 지시로 되돌렸다.
+# 계기판 단계명은 한국장·미국장이 같은 쉬운 말로 쓴다. 세부 근거는 headline에 남긴다.
 VERDICT_LABEL = {
-    ReboundVerdict.CONFIRMED: "🟢 외국인·기관 반등 확인",
-    ReboundVerdict.PROXY_CONFIRMED: "🔵 외국인·기관 반등 유력 — 대체신호",
-    # '확인 중'은 조회 중(로딩)으로 오해된다는 지적(2026-07-22)에 따라, 상태를
-    # 그대로 서술하는 이름으로 바꿨다 — 신호가 몇 개 켜졌는지가 곧 판정이다.
-    ReboundVerdict.WATCHING: "🟡 일부 신호만 켜짐",
-    ReboundVerdict.NOT_CONFIRMED: "🔴 반전 신호 없음",
-    ReboundVerdict.INSUFFICIENT_DATA: "⚪ 데이터 부족",
+    ReboundVerdict.VERY_BAD: "● 매우 나쁨",
+    ReboundVerdict.NOT_CONFIRMED: "● 나쁨",
+    ReboundVerdict.WATCHING: "● 엇갈림",
+    ReboundVerdict.PROXY_CONFIRMED: "● 좋음",
+    ReboundVerdict.CONFIRMED: "● 매우 좋음",
+    ReboundVerdict.INSUFFICIENT_DATA: "● 데이터 부족",
 }
 
 
@@ -759,7 +757,7 @@ def _decide_verdict(signals: list[FlowSignal], *, extras) -> FlowEngineResult:
             ),
         )
 
-    # --- 4. 아직 아님 (명백한 부정 조건 우선) ---------------------------------
+    # --- 1. 매우 나쁨 (명백한 부정 조건 우선) ---------------------------------
     hard_negative = any(
         s is not None and s.is_negative
         for s in (non_arb, basis, program)
@@ -772,14 +770,14 @@ def _decide_verdict(signals: list[FlowSignal], *, extras) -> FlowEngineResult:
 
     if hard_negative and positives <= 1:
         return _build_result(
-            ReboundVerdict.NOT_CONFIRMED,
+            ReboundVerdict.VERY_BAD,
             signals,
             core,
             warnings,
             headline="프로그램·베이시스·반도체 어느 쪽도 아직 방향을 돌리지 않았습니다.",
         )
 
-    # --- 3. 확인 중 -----------------------------------------------------------
+    # --- 3. 엇갈림 ------------------------------------------------------------
     if positives >= 2:
         return _build_result(
             ReboundVerdict.WATCHING,

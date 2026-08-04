@@ -45,6 +45,7 @@ VIX_TERM_STRESS_RATIO = 1.0
 
 
 class UsMarketVerdict(str, Enum):
+    VERY_BAD = "very_bad"
     RISK_ON = "risk_on"
     RISK_ON_EARLY = "risk_on_early"
     MIXED = "mixed"
@@ -52,14 +53,14 @@ class UsMarketVerdict(str, Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
-# 2026-07-30 이 이름들을 쉬운 말로 바꿨다가 사용자 지시로 되돌렸다
-# ("바꾸는 게 더 이상하다"). 미국장 이름은 이대로 둔다.
+# 계기판 단계명은 한국장·미국장이 같은 쉬운 말로 쓴다. 세부 근거는 headline에 남긴다.
 VERDICT_LABEL = {
-    UsMarketVerdict.RISK_ON: "🟢 위험선호 확산",
-    UsMarketVerdict.RISK_ON_EARLY: "🔵 위험선호 초기 — 선행신호만",
-    UsMarketVerdict.MIXED: "🟡 방향 혼조",
-    UsMarketVerdict.RISK_OFF: "🔴 위험회피 우세",
-    UsMarketVerdict.INSUFFICIENT_DATA: "⚪ 데이터 부족",
+    UsMarketVerdict.VERY_BAD: "● 매우 나쁨",
+    UsMarketVerdict.RISK_OFF: "● 나쁨",
+    UsMarketVerdict.MIXED: "● 엇갈림",
+    UsMarketVerdict.RISK_ON_EARLY: "● 좋음",
+    UsMarketVerdict.RISK_ON: "● 매우 좋음",
+    UsMarketVerdict.INSUFFICIENT_DATA: "● 데이터 부족",
 }
 
 
@@ -327,53 +328,53 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
     vix_ok = vix is not None and not vix.is_negative
     rate_ok = tnx is not None and not tnx.is_negative
 
-    # --- 위험회피 우세 -------------------------------------------------------
+    # --- 1. 매우 나쁨 / 2. 나쁨 ----------------------------------------------
     vix_spike = _is_spike(vix, VIX_SPIKE_PCT)
     rate_spike = _is_spike(tnx, RATE_SPIKE_PCT)
     futures_down = _any_negative(futures)
     if (vix_spike or rate_spike) and futures_down:
         driver = "VIX 급등" if vix_spike else "금리 급등"
         return _build(
-            UsMarketVerdict.RISK_OFF, signals, core, warnings,
-            headline=f"{driver}과 지수 선물 하락이 함께 나타났습니다. 위험회피가 우세한 상태입니다.",
+            UsMarketVerdict.VERY_BAD, signals, core, warnings,
+            headline=f"{driver}과 지수 선물 하락이 함께 나타났습니다. 시장 상태가 매우 나쁩니다.",
         )
     if futures_down and _any_negative(semis):
         return _build(
             UsMarketVerdict.RISK_OFF, signals, core, warnings,
-            headline="지수 선물과 반도체가 함께 밀리고 있습니다. 위험회피가 우세한 상태입니다.",
+            headline="지수 선물과 반도체가 함께 밀리고 있습니다. 시장 상태가 나쁩니다.",
         )
 
-    # --- 위험선호 확산 -------------------------------------------------------
+    # --- 5. 매우 좋음 --------------------------------------------------------
     if futures_up and semis_up and vix_ok and rate_ok:
         return _build(
             UsMarketVerdict.RISK_ON, signals, core, warnings,
             headline=(
                 "지수 선물과 반도체가 함께 오르고 VIX·금리도 부담을 주지 않습니다. "
-                "위험선호가 넓게 퍼진 상태입니다."
+                "시장 상태가 매우 좋습니다."
             ),
         )
 
-    # --- 위험선호 초기 (선행만 켜짐) ------------------------------------------
+    # --- 4. 좋음 --------------------------------------------------------------
     if futures_up and semis_up:
         blocker = "VIX" if not vix_ok else "금리"
         return _build(
             UsMarketVerdict.RISK_ON_EARLY, signals, core, warnings,
             headline=(
                 f"선물과 반도체는 함께 오르지만 {blocker} 쪽이 아직 부담을 주고 있습니다. "
-                "위험선호가 퍼지는 초기 단계입니다."
+                "시장 상태가 좋습니다."
             ),
         )
     if futures_up or semis_up:
         leader = "지수 선물" if futures_up else "반도체"
         return _build(
-            UsMarketVerdict.RISK_ON_EARLY, signals, core, warnings,
-            headline=f"{leader}만 먼저 움직였고 나머지는 아직 따라오지 않았습니다.",
+            UsMarketVerdict.MIXED, signals, core, warnings,
+            headline=f"{leader}만 먼저 움직였고 나머지는 아직 따라오지 않았습니다. 시장 신호가 엇갈립니다.",
         )
 
-    # --- 방향 혼조 -----------------------------------------------------------
+    # --- 3. 엇갈림 ------------------------------------------------------------
     return _build(
         UsMarketVerdict.MIXED, signals, core, warnings,
-        headline="선물·반도체·변동성이 서로 다른 방향을 가리키고 있습니다.",
+        headline="선물·반도체·변동성이 서로 다른 방향을 가리켜 시장 신호가 엇갈립니다.",
     )
 
 

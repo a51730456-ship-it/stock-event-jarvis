@@ -47,14 +47,14 @@ class VerdictTest(unittest.TestCase):
         result = us.build_us_market_signal_result(
             _risk_on_quotes(**{"ES=F": -0.5, "NQ=F": 0.0}), now=NOW
         )
-        self.assertIs(result.verdict, UsMarketVerdict.RISK_ON_EARLY)
+        self.assertIs(result.verdict, UsMarketVerdict.MIXED)
         self.assertIn("반도체", result.headline)
 
     def test_risk_off_on_vix_spike_with_futures_down(self):
         result = us.build_us_market_signal_result(
             _risk_on_quotes(**{"ES=F": -1.0, "NQ=F": -1.4, "^VIX": 9.0}), now=NOW
         )
-        self.assertIs(result.verdict, UsMarketVerdict.RISK_OFF)
+        self.assertIs(result.verdict, UsMarketVerdict.VERY_BAD)
         self.assertIn("VIX 급등", result.headline)
 
     def test_risk_off_when_futures_and_semis_fall_together(self):

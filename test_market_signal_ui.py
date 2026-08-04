@@ -139,8 +139,7 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions), "나쁜 쪽에서 좋은 쪽으로 가야 한다")
         self.assertLess(positions[0], positions[-1])
 
-    def test_position_score_is_shown_on_the_same_scale_as_previous(self):
-        """현재·전일은 같은 판정 위치값 눈금으로 비교한다."""
+    def test_current_stage_is_shown_without_internal_position_score(self):
         import us_market_signal_engine as us
 
         html = ui._verdict_gauge_html(
@@ -151,9 +150,8 @@ class VerdictGaugeTests(unittest.TestCase):
         )
         self.assertNotIn("fg-score", html)
         self.assertIn("sig-current-score", html)
-        self.assertIn(">38</div>", html)
-        self.assertNotIn("2/4단계", html)
-        self.assertIn("방향 혼조", html)
+        self.assertIn(">3단계 · 엇갈림</div>", html)
+        self.assertNotIn(">50</div>", html)
 
     def test_previous_score_keeps_its_own_verdict_color(self):
         import us_market_signal_engine as us
@@ -163,14 +161,14 @@ class VerdictGaugeTests(unittest.TestCase):
             ui._US_VERDICT_STYLE,
             ui.US_VERDICT_ORDER,
             previous_stage={
-                "score": 12.5, "label": "위험회피", "trade_date": "2026-07-28",
+                "score": 10.0, "stage_number": 1, "label": "매우 나쁨", "trade_date": "2026-07-28",
                 "period_label": "전일", "color": "#ef4444",
             },
             show_position_score=True,
         )
         self.assertIn("sig-prev-score", html)
         self.assertIn("color:#ef4444", html)
-        self.assertIn("전일(07.28) 12 · 위험회피", html)
+        self.assertIn("전일(07.28) 1단계 · 매우 나쁨", html)
 
     def test_us_comparison_draws_current_and_faded_previous_gauges(self):
         import us_market_signal_engine as us
@@ -183,8 +181,8 @@ class VerdictGaugeTests(unittest.TestCase):
         )
         self.assertIn("sig-gauge-pair", html)
         self.assertIn("sig-gauge-previous", html)
-        self.assertIn(">당일<", html)
-        self.assertIn(">전일 · 07.31<", html)
+        self.assertIn(">당일 · 4단계 · 좋음<", html)
+        self.assertIn(">전일 · 07.31 · 3단계 · 엇갈림<", html)
         self.assertEqual(html.count("class='fg-gauge'"), 2)
         self.assertIn("sig-gauge-today", html)
         self.assertEqual(html.count("<span class='fg-hist-label'>켜진 신호</span>"), 2)
@@ -224,9 +222,9 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertIn("2개", html)
         self.assertIn("못 읽은 항목", html)
 
-    def test_both_markets_have_four_ordered_steps(self):
-        self.assertEqual(len(ui.KR_VERDICT_ORDER), 4)
-        self.assertEqual(len(ui.US_VERDICT_ORDER), 4)
+    def test_both_markets_have_five_ordered_steps(self):
+        self.assertEqual(len(ui.KR_VERDICT_ORDER), 5)
+        self.assertEqual(len(ui.US_VERDICT_ORDER), 5)
         for verdict in ui.KR_VERDICT_ORDER + ui.US_VERDICT_ORDER:
             self.assertIn(verdict, ui._VERDICT_SHORT, "눈금에 쓸 짧은 이름이 없다")
 
@@ -248,8 +246,9 @@ class VerdictGaugeTests(unittest.TestCase):
             previous_result, previous = ui._previous_kr_flow_comparison()
         self.assertIs(previous_result, rebuilt)
         self.assertEqual(previous["trade_date"], "2026-07-28")
-        self.assertEqual(previous["score"], 37.5)
-        self.assertEqual(previous["label"], "일부 켜짐")
+        self.assertEqual(previous["score"], 50.0)
+        self.assertEqual(previous["stage_number"], 3)
+        self.assertEqual(previous["label"], "엇갈림")
         self.assertEqual(previous["color"], "#eab308")
         self.assertEqual(previous["period_label"], "전일")
 

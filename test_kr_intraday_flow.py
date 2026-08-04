@@ -261,9 +261,8 @@ class VerdictTest(unittest.TestCase):
             _rebound_snapshots(), foreign_futures=None, now=_ts(16)
         )
         self.assertIs(result.verdict, ReboundVerdict.PROXY_CONFIRMED)
-        self.assertIn("대체", result.verdict_label)
-        # 대체판정을 "확인"이라고 쓰면 안 된다.
-        self.assertNotIn("반등 확인", result.verdict_label)
+        self.assertEqual(result.verdict_label, "● 좋음")
+        self.assertIn("대체판정", result.headline)
 
     def test_watching_when_only_some_core_positive(self):
         rows = _rebound_snapshots()
@@ -275,7 +274,7 @@ class VerdictTest(unittest.TestCase):
         result = flow.build_result_from_snapshots(rows, now=_ts(16))
         self.assertIs(result.verdict, ReboundVerdict.WATCHING)
 
-    def test_not_confirmed_on_selling_expansion(self):
+    def test_very_bad_on_selling_expansion(self):
         rows = [
             _snapshot(
                 m,
@@ -292,7 +291,7 @@ class VerdictTest(unittest.TestCase):
             for i, m in enumerate((0, 5, 10, 15))
         ]
         result = flow.build_result_from_snapshots(rows, now=_ts(16))
-        self.assertIs(result.verdict, ReboundVerdict.NOT_CONFIRMED)
+        self.assertIs(result.verdict, ReboundVerdict.VERY_BAD)
 
     def test_insufficient_data_when_core_missing(self):
         rows = [_snapshot(0), _snapshot(5)]

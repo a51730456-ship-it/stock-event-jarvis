@@ -651,7 +651,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026080111
+_REQUIRED_MOBILE_REVISION = 2026080401
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -703,7 +703,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080305
+_REQUIRED_SIGNAL_UI_REVISION = 2026080401
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -2489,9 +2489,9 @@ def _us_signal_hint() -> str:
     """
     result = st.session_state.get("us_signal_result")
     if result is None:
-        return "선행신호 판정은 위 ‘미국장 선행신호·시장 상태’ 카드에서 확인하세요."
+        return "미국장 시장 상태는 위 ‘미국장 시장 상태’ 카드에서 확인하세요."
     return (
-        f"미국장 선행신호: <b>{html.escape(str(result.verdict_label))}</b> · "
+        f"미국장 시장 상태: <b>{html.escape(str(result.verdict_label))}</b> · "
         f"{html.escape(str(result.headline))}"
     )
 

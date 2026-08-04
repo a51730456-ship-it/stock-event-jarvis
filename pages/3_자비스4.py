@@ -582,7 +582,7 @@ if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026080111
+_REQUIRED_MOBILE_REVISION = 2026080401
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -638,7 +638,7 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080305
+_REQUIRED_SIGNAL_UI_REVISION = 2026080401
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1557,11 +1557,11 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
 
 
 def _kr_flow_hint() -> str:
-    """기관 수급 반전 카드 판정을 단타 참고 문구로 옮긴다(점수에는 반영하지 않는다)."""
+    """한국장 시장 상태를 단타 참고 문구로 옮긴다(점수에는 반영하지 않는다)."""
     result = st.session_state.get("kr_flow_result")
     if result is None:
-        return "기관 수급 반전 판정은 위 ‘한국장 기관 수급 현황’ 카드에서 확인하세요."
-    return f"기관 수급 반전: <b>{result.verdict_label}</b> · {result.headline}"
+        return "한국장 시장 상태는 위 ‘한국장 시장 상태’ 카드에서 확인하세요."
+    return f"한국장 시장 상태: <b>{result.verdict_label}</b> · {result.headline}"
 
 
 # 하루 수급 점 — 한국시장 색 규칙(매수 빨강 · 매도 파랑)을 그대로 쓴다.
