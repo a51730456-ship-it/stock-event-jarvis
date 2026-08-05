@@ -576,13 +576,13 @@ import fear_greed_ui
 import gauge_ui
 import mobile_ui
 
-_REQUIRED_GAUGE_UI_REVISION = 2026080301
+_REQUIRED_GAUGE_UI_REVISION = 2026080510
 if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
     gauge_ui = importlib.reload(gauge_ui)
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026080401
+_REQUIRED_MOBILE_REVISION = 2026080510
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -605,7 +605,7 @@ import jarvis4_store as j4store
 import market_signal_ui
 import us_index_data
 
-_REQUIRED_REGIME_GAUGE_REVISION = 2026072904
+_REQUIRED_REGIME_GAUGE_REVISION = 2026080510
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
     regime_gauge_ui = importlib.reload(regime_gauge_ui)
 
@@ -632,13 +632,13 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026080130
+_REQUIRED_J4_REVISION = 2026080510
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080401
+_REQUIRED_SIGNAL_UI_REVISION = 2026080402
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -902,7 +902,8 @@ def _intraday_market_flow_sub(flow: dict) -> str:
     )
 
 
-_REGIME_HEX = {"방어 우선": "#ff5b5b", "중립·선별": "#ff9d3b", "상승 우위": "#44f0a1"}
+# 색·이름·구간은 regime_gauge_ui가 원본이다. 여기서 따로 적으면 둘이 어긋난다.
+_REGIME_HEX = {name: color for _limit, name, color in regime_gauge_ui.ZONES}
 
 
 def _us_futures_cell() -> str:
@@ -985,7 +986,8 @@ def _regime_guide_html(overview: dict) -> str:
     """구간 안내를 위 '시장 국면'과 같은 색으로 칠해 지금 어디인지 바로 보이게 한다."""
     current = overview.get("regime")
     parts = []
-    for label, span in (("방어 우선", "0~49점"), ("중립·선별", "50~74점"), ("상승 우위", "75~100점")):
+    for _limit, label, _color in regime_gauge_ui.ZONES:
+        span = f"{regime_gauge_ui.RANGE_TEXT[label]}점"
         color = _REGIME_HEX.get(label, "#e6e6e6")
         mark = "◀ 지금" if label == current else ""
         weight = "800" if label == current else "600"

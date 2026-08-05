@@ -25,7 +25,7 @@ class Jarvis3StoreTests(unittest.TestCase):
             trade_style="스윙",
             entry_setup="눌림목 대기",
             recommendation_state="조건부 후보",
-            market_regime="상승 우위",
+            market_regime="상승 여건 양호",
             market_score=85,
             theme_score=91,
             stock_score=88,

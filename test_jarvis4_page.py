@@ -25,9 +25,9 @@ def _index_metrics(current=6641.52, change=0.87):
 
 def _market():
     return {
-        "ok": True, "score": 60, "regime": "중립·선별", "posture": "비중 축소·확인 후 진입",
+        "ok": True, "score": 60, "regime": "방향 엇갈림", "posture": "비중 축소·확인 후 진입",
         "previous_market": {
-            "ok": True, "score": 55, "regime": "중립·선별",
+            "ok": True, "score": 55, "regime": "방향 엇갈림",
             "posture": "비중 축소·확인 후 진입",
         },
         "reasons": ["KOSPI 50일선 위"],
@@ -47,12 +47,12 @@ def _market():
         },
         "us_prev": {
             "ok": True, "spy_change": 0.74, "qqq_change": 1.66,
-            "regime": "중립·선별", "score": 65, "fear_greed": 41.0, "fear_greed_label": "공포",
+            "regime": "방향 엇갈림", "score": 65, "fear_greed": 41.0, "fear_greed_label": "공포",
             "market_overview": {
-                "ok": True, "score": 65, "regime": "중립·선별",
+                "ok": True, "score": 65, "regime": "방향 엇갈림",
                 "posture": "비중 축소·확인 후 진입",
                 "previous_market": {
-                    "ok": True, "score": 60, "regime": "중립·선별",
+                    "ok": True, "score": 60, "regime": "방향 엇갈림",
                     "posture": "비중 축소·확인 후 진입",
                 },
             },
@@ -226,7 +226,7 @@ def _trades():
         "id": 1, "buy_date": "2026-07-20", "code": "000660", "stock_name": "SK하이닉스",
         "theme_name": "반도체/HBM", "trade_style": "단타", "buy_price": 1_950_000,
         "quantity": 1.0, "status": "보유", "sell_date": None, "sell_price": None,
-        "result_pct": None, "market_regime": "중립·선별", "market_score": 60,
+        "result_pct": None, "market_regime": "방향 엇갈림", "market_score": 60,
         "theme_score": 85, "stock_score": 88, "memo": None,
     }]
 

@@ -651,7 +651,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026080401
+_REQUIRED_MOBILE_REVISION = 2026080510
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -673,7 +673,7 @@ import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
 
-_REQUIRED_REGIME_GAUGE_REVISION = 2026072904
+_REQUIRED_REGIME_GAUGE_REVISION = 2026080510
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
     regime_gauge_ui = importlib.reload(regime_gauge_ui)
 
@@ -681,7 +681,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080140
+_REQUIRED_J3_REVISION = 2026080510
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -703,7 +703,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080401
+_REQUIRED_SIGNAL_UI_REVISION = 2026080402
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -942,6 +942,14 @@ def _market_flow_text(overview: dict) -> str:
     # 문장이 한 덩어리로 붙으면 너무 빽빽하다는 지적(2026-07-22 캡처 빗금 표시)에 따라
     # 문장마다 줄을 바꿔 보여준다.
     return ".<br>".join(sections) + "."
+
+
+def _regime_range_text() -> str:
+    """구간 안내 한 줄. 이름·점수는 regime_gauge_ui가 원본이라 여기서 따로 적지 않는다."""
+    return " · ".join(
+        f"{regime_gauge_ui.RANGE_TEXT[name]}점 {name}"
+        for _limit, name, _color in regime_gauge_ui.ZONES
+    )
 
 
 def _market_score_detail(overview: dict) -> str:
@@ -1371,7 +1379,7 @@ def _render_market_overview() -> None:
     )
     top_cells = [
         # 시장 국면도 공포·탐욕과 같은 반원 게이지로 통일한다 — 국면 이름만 크게
-        # 적으면 '방어 우선'이 25점인지 49점인지 알 수 없다(2026-07-24 사용자 지시).
+        # 적으면 '하락 압력 큼'이 5점인지 29점인지 알 수 없다(2026-07-24 사용자 지시).
         # 4대 지수를 게이지 앞에 둔다 — '시장 국면' 카드 위에 올려 달라는 요청
         # (2026-07-25). 폰에서는 숫자 칸이 앞, 게이지가 뒤로 가는 규칙 그대로다.
         *_us_index_cells(overview, phase),
@@ -1394,7 +1402,7 @@ def _render_market_overview() -> None:
             f"""
             <div class="j3-score-guide">
                 조건점수 {overview['score']}/100은 상승장 확인 조건에서 얻은 점수이며 승률이 아닙니다.<br>
-                0~49점 방어 우선 · 50~74점 중립·선별 · 75~100점 상승 우위<br>
+                {_regime_range_text()}<br>
                 {_market_score_detail(overview)}<br>
                 이 점수와 아래 <b>선행신호 카드는 서로 다른 것을 잽니다</b>(2026-07-30 질문).
                 이 점수는 <b>주가가 20·50일선 위에 있는지</b>를 보고, 선행신호는 <b>오늘 선물·반도체가

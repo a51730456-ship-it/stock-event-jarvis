@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import math
 
-MODULE_REVISION = 2026080301
+MODULE_REVISION = 2026080510
 
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"
@@ -121,9 +121,12 @@ def rows_html(rows) -> str:
     """게이지 오른쪽 줄 목록. rows는 (왼쪽 글, 가운데 글, 알약 글, 색, 흐리게) 묶음이다."""
     out = []
     for label, middle, pill, color, dim in rows:
+        # 흐린 줄에 이름표를 붙여 둔다 — 폰·태블릿에서 지금 칸만 남기고 접는 데 쓴다
+        # (2026-08-05). 글자색·투명도는 그대로라 노트북 화면은 달라지지 않는다.
         opacity = " style='opacity:.42'" if dim else ""
+        dim_class = " fg-hist-dim" if dim else ""
         out.append(
-            f"<div class='fg-hist-row'{opacity}>"
+            f"<div class='fg-hist-row{dim_class}'{opacity}>"
             f"<span class='fg-hist-label'>{html.escape(str(label))}</span>"
             f"<span class='fg-hist-zone' style='color:{color}'>{html.escape(str(middle))}</span>"
             f"<span class='fg-hist-value' style='background:{color}'>{html.escape(str(pill))}</span>"

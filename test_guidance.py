@@ -45,7 +45,7 @@ class BuildTests(unittest.TestCase):
     def test_weak_market_says_do_not_buy_today_with_the_number(self):
         guide = guidance.build(
             {"state": "관찰", "recommendation": "관찰",
-             "buy_reason": "시장 국면이 방어 우선이라 신규 매수를 보류합니다."},
+             "buy_reason": "시장 국면이 약세 구간이라 신규 매수를 보류합니다."},
             money=_won, market_score=15,
         )
         self.assertEqual(guidance.WAIT, guide["level"])

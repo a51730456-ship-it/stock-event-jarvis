@@ -658,7 +658,7 @@ class EntryPlanTests(unittest.TestCase):
         metrics = j4._series_metrics(_daily_frame())
         plan = j4._entry_plan(metrics, 95, market_score=30, theme_score=90)
         self.assertNotEqual(plan["recommendation"], "조건부 후보")
-        self.assertIn("방어", plan["buy_reason"])
+        self.assertIn("약세 구간", plan["buy_reason"])
 
 
 class ThemeGateOverrideTests(unittest.TestCase):
@@ -685,7 +685,7 @@ class ThemeGateOverrideTests(unittest.TestCase):
         """시장 게이트는 종목이 아무리 강해도 면제되지 않는다."""
         plan = self._plan(score=95, theme_score=22.1, market_score=30)
         self.assertNotEqual(plan["recommendation"], "조건부 후보")
-        self.assertIn("방어", plan["buy_reason"])
+        self.assertIn("약세 구간", plan["buy_reason"])
 
 class PullbackQualityTests(unittest.TestCase):
     """눌림목 베스트 — '올라가던 종목이 얼마나 좋은 자리까지 눌렸나'를 잰다."""
@@ -1096,7 +1096,7 @@ class UsPreviousSessionTests(unittest.TestCase):
 
     def _overview(self, spy_now, spy_session, qqq_now, qqq_session):
         return {
-            "ok": True, "score": 25, "regime": "방어 우선",
+            "ok": True, "score": 25, "regime": "하락 압력 큼",
             "rows": {
                 "SPY": {"change_pct": spy_now, "last_session_change_pct": spy_session},
                 "QQQ": {"change_pct": qqq_now, "last_session_change_pct": qqq_session},

@@ -19,7 +19,7 @@ def _chart(start=100):
 def _market():
     base = {"ok": True, "current": 100.0, "change_pct": 1.0, "sma20": 95, "sma50": 90}
     return {
-        "ok": True, "score": 85, "regime": "상승 우위", "posture": "조건 충족 종목만 매수 심사",
+        "ok": True, "score": 85, "regime": "상승 여건 양호", "posture": "조건 충족 종목만 매수 심사",
         "reasons": ["SPY 50일선 위"], "checked_at": "2026-07-19T13:00:00+09:00", "stale": False,
         "score_breakdown": [
             {"label": "SPY 50일선", "earned": 25, "max": 25, "state": "충족"},
@@ -64,7 +64,7 @@ def _sample_trades():
         "id": 1, "buy_date": "2026-07-20", "ticker": "NVDA", "stock_name": "NVIDIA",
         "theme_name": "반도체", "trade_style": "스윙", "buy_price": 150.0,
         "quantity": 1.0, "status": "보유", "sell_date": None, "sell_price": None,
-        "result_pct": None, "market_regime": "중립·선별", "market_score": 65,
+        "result_pct": None, "market_regime": "방향 엇갈림", "market_score": 65,
         "theme_score": 80, "stock_score": 85, "memo": None,
     }]
 

@@ -123,7 +123,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080140
+MODULE_REVISION = 2026080510
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -645,12 +645,17 @@ def _market_regime_from_rows(rows: dict) -> dict:
     score_breakdown.append({"label": "VIX 위험수준", "earned": vix_earned, "max": 15,
                             "state": vix_state})
 
-    if score >= 75:
-        regime, posture = "상승 우위", "조건 충족 종목만 매수 심사"
+    # 다섯 칸 — regime_gauge_ui.ZONES와 끊는 자리가 같아야 한다(2026-08-05 지시).
+    if score >= 80:
+        regime, posture = "상승 여건 양호", "조건 충족 종목만 매수 심사"
+    elif score >= 65:
+        regime, posture = "상승 신호 우세", "확인된 대장주만 분할 진입"
     elif score >= 50:
-        regime, posture = "중립·선별", "비중 축소·확인 후 진입"
+        regime, posture = "방향 엇갈림", "비중 축소·확인 후 진입"
+    elif score >= 30:
+        regime, posture = "약세 신호 우세", "신규 매수 보류"
     else:
-        regime, posture = "방어 우선", "신규 매수 보류"
+        regime, posture = "하락 압력 큼", "신규 매수 보류·손절 관리 먼저"
     return {"ok": True, "score": score, "regime": regime, "posture": posture,
             "reasons": reasons, "score_breakdown": score_breakdown}
 
@@ -1462,7 +1467,7 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
     gates_ok = market_score >= 50 and theme_score >= 70 and score >= 75
     recommendation = "조건부 후보" if gates_ok and state in {"돌파 확인", "눌림목 대기"} else "관찰" if state not in {"추격 금지", "제외"} else "추천 제외"
     if market_score < 50:
-        buy_reason = "시장 국면이 방어 우선이라 신규 매수를 보류합니다."
+        buy_reason = "시장 국면이 약세 구간이라 신규 매수를 보류합니다."
     elif theme_score < 70:
         buy_reason = "테마 강도가 기준 미달이라 종목 점수가 높아도 매수하지 않습니다."
     elif score < 75:

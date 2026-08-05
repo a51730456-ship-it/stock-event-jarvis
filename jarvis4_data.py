@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080130
+MODULE_REVISION = 2026080510
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1387,11 +1387,16 @@ def _previous_index_metrics(symbol: str) -> dict:
 
 
 def _market_regime_label(score: int) -> tuple[str, str]:
-    if score >= 75:
-        return "상승 우위", "조건 충족 종목만 매수 심사"
+    # 다섯 칸 — regime_gauge_ui.ZONES·jarvis3_data와 끊는 자리가 같아야 한다(2026-08-05 지시).
+    if score >= 80:
+        return "상승 여건 양호", "조건 충족 종목만 매수 심사"
+    if score >= 65:
+        return "상승 신호 우세", "확인된 대장주만 분할 진입"
     if score >= 50:
-        return "중립·선별", "비중 축소·확인 후 진입"
-    return "방어 우선", "신규 매수 보류"
+        return "방향 엇갈림", "비중 축소·확인 후 진입"
+    if score >= 30:
+        return "약세 신호 우세", "신규 매수 보류"
+    return "하락 압력 큼", "신규 매수 보류·손절 관리 먼저"
 
 
 def _us_session_change_before(offset: int = 1) -> dict:
@@ -1895,7 +1900,7 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
         recommendation = "관찰"
 
     if market_score < 50:
-        buy_reason = "시장 국면이 방어 우선이라 신규 매수를 보류합니다."
+        buy_reason = "시장 국면이 약세 구간이라 신규 매수를 보류합니다."
     elif not theme_ok:
         buy_reason = (
             f"테마 강도가 기준 미달입니다(종목 점수가 {STRONG_STOCK_OVERRIDE:.0f}점을 넘으면 "

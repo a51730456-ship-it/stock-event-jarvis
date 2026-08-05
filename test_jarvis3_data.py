@@ -268,7 +268,8 @@ class Jarvis3DataTests(unittest.TestCase):
             result = j3.get_market_overview()
         self.assertTrue(result["ok"])
         self.assertGreaterEqual(result["score"], 75)
-        self.assertEqual(result["regime"], "상승 우위")
+        # 5단계 기준(2026-08-05) — 75점대는 상승 신호 우세, 80점부터 상승 여건 양호.
+        self.assertIn(result["regime"], {"상승 신호 우세", "상승 여건 양호"})
         self.assertIn("SPY 50일선 위", result["reasons"])
         self.assertEqual(sum(item["max"] for item in result["score_breakdown"]), 100)
         self.assertEqual(sum(item["earned"] for item in result["score_breakdown"]), result["score"])
