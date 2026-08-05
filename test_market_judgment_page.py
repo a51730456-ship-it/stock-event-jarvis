@@ -97,8 +97,12 @@ class NoFabricatedVerdictTest(unittest.TestCase):
             at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
             at.session_state["authenticated"] = True
             at.run()
-        text = " ".join(m.value for m in at.markdown)
-        for verdict in ("매우 나쁨", "나쁨", "좋음", "매우 좋음"):
+        # '5단계 기준' 안내문에는 다섯 이름이 늘 적혀 있다(설명이지 판정이 아니다).
+        # 그 줄을 빼고 봐야 '자료도 없이 판정을 지어냈는지'를 제대로 잰다.
+        text = " ".join(
+            m.value for m in at.markdown if "5단계 기준" not in m.value
+        )
+        for verdict in ("하락 압력 큼", "약세 신호 우세", "상승 신호 우세", "상승 여건 양호"):
             self.assertNotIn(verdict, text, f"자료 없이 '{verdict}' 판정이 표시됐습니다")
 
     def test_manual_futures_value_is_scoped_to_today(self):

@@ -86,11 +86,11 @@ class ReboundVerdict(str, Enum):
 
 # 계기판 단계명은 한국장·미국장이 같은 쉬운 말로 쓴다. 세부 근거는 headline에 남긴다.
 VERDICT_LABEL = {
-    ReboundVerdict.VERY_BAD: "● 매우 나쁨",
-    ReboundVerdict.NOT_CONFIRMED: "● 나쁨",
-    ReboundVerdict.WATCHING: "● 엇갈림",
-    ReboundVerdict.PROXY_CONFIRMED: "● 좋음",
-    ReboundVerdict.CONFIRMED: "● 매우 좋음",
+    ReboundVerdict.VERY_BAD: "● 하락 압력 큼",
+    ReboundVerdict.NOT_CONFIRMED: "● 약세 신호 우세",
+    ReboundVerdict.WATCHING: "● 방향 엇갈림",
+    ReboundVerdict.PROXY_CONFIRMED: "● 상승 신호 우세",
+    ReboundVerdict.CONFIRMED: "● 상승 여건 양호",
     ReboundVerdict.INSUFFICIENT_DATA: "● 데이터 부족",
 }
 

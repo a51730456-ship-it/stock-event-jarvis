@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080401
+MODULE_REVISION = 2026080511
 
 
 def _now_seoul():
@@ -649,22 +649,33 @@ _FLOW_TABLE_KEYS = (
     "electronics_turnover", "electronics_institution", "samsung", "hynix",
 )
 
+_KR_STAGE_GUIDE = (
+    "<b>5단계 기준</b> 하락 압력 큼(프로그램·베이시스·반도체가 함께 약함) → "
+    "약세 신호 우세(반등 근거 부족) → 방향 엇갈림(긍정 신호 일부) → "
+    "상승 신호 우세(수급·반도체가 함께 개선) → "
+    "상승 여건 양호(외국인 선물·비차익·반도체가 모두 확인).<br>"
+    "<b>판정 구성</b> 외국인 선물, 비차익·프로그램, 시장베이시스, "
+    "삼성전자·SK하이닉스, 기관 수급을 함께 봅니다."
+)
+
 
 # 상세 표의 값별 색 — 같은 값은 어느 시장 카드에서든 같은 색으로 보이게 한다.
 # 판정 칸은 마크만이 아니라 '표 읽는 법'과 똑같은 뜻 글자를 함께 쓴다
 # (2026-07-22 사용자 지시: "⭕ 긍정(신호 켜짐)"처럼 마크와 내용을 같이 넣을 것).
 # 눈금 안에 들어갈 짧은 단계 이름. 한국장·미국장이 같은 5단계 말을 쓴다.
+# 2026-08-05 사용자 지시로 '좋음·나쁨' 대신 무엇이 우세한지를 적는 말로 바꿨다.
+# 미국테마·한국테마 화면(regime_gauge_ui.ZONES)과 같은 다섯 이름이다.
 _VERDICT_SHORT = {
-    kr_intraday_flow.ReboundVerdict.VERY_BAD: "매우 나쁨",
-    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: "나쁨",
-    kr_intraday_flow.ReboundVerdict.WATCHING: "엇갈림",
-    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: "좋음",
-    kr_intraday_flow.ReboundVerdict.CONFIRMED: "매우 좋음",
-    us_market_signal_engine.UsMarketVerdict.VERY_BAD: "매우 나쁨",
-    us_market_signal_engine.UsMarketVerdict.RISK_OFF: "나쁨",
-    us_market_signal_engine.UsMarketVerdict.MIXED: "엇갈림",
-    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: "좋음",
-    us_market_signal_engine.UsMarketVerdict.RISK_ON: "매우 좋음",
+    kr_intraday_flow.ReboundVerdict.VERY_BAD: "하락 압력 큼",
+    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: "약세 신호 우세",
+    kr_intraday_flow.ReboundVerdict.WATCHING: "방향 엇갈림",
+    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: "상승 신호 우세",
+    kr_intraday_flow.ReboundVerdict.CONFIRMED: "상승 여건 양호",
+    us_market_signal_engine.UsMarketVerdict.VERY_BAD: "하락 압력 큼",
+    us_market_signal_engine.UsMarketVerdict.RISK_OFF: "약세 신호 우세",
+    us_market_signal_engine.UsMarketVerdict.MIXED: "방향 엇갈림",
+    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: "상승 신호 우세",
+    us_market_signal_engine.UsMarketVerdict.RISK_ON: "상승 여건 양호",
 }
 
 # 나쁜 쪽 → 좋은 쪽 순서. 눈금 왼쪽부터 이 차례로 놓인다.
@@ -716,6 +727,8 @@ _SIGNAL_GAUGE_CSS = """
   font-size: 1.05rem; font-weight: 900; }
 .sig-prev-score { margin-top: 0.08rem; text-align: center;
   font-size: 0.83rem; font-weight: 800; }
+.sig-stage-guide { margin-top:.65rem; padding:.48rem .65rem; border-left:3px solid rgba(255,255,255,.36);
+  background:rgba(5,9,16,.16); color:#e6e6e6; font-size:.88rem; line-height:1.55; }
 .sig-counts { flex: 0 0 auto; min-width: 168px; }
 .sig-text { flex: 1 1 320px; min-width: 260px; }
 .sig-story-stack { display:grid; gap:.75rem; }
@@ -1142,7 +1155,7 @@ def render_market_signal_card(
     result, *, verdict_style, core_display, table_keys, detail_title, detail_caption,
     table_key, diagnosis_text=None, verdict_order=(), previous_stage=None,
     show_position_score=False, falling_market=None, comparison_result=None,
-    comparison_label="전일",
+    comparison_label="전일", stage_guide="",
 ):
     """한국장·미국장이 함께 쓰는 카드 렌더러.
 
@@ -1175,6 +1188,9 @@ def render_market_signal_card(
             f"켜진 '긍정'은 <b>지수가 빠지는 중에</b> 나온 순매수입니다.</div>"
         )
     _cause_html = _falling_html + _cause_html
+    _stage_guide_html = (
+        f"<div class='sig-stage-guide'>{stage_guide}</div>" if stage_guide else ""
+    )
 
     if comparison_result is not None:
         _story_html = (
@@ -1221,6 +1237,7 @@ def render_market_signal_card(
         f'<div style="font-size:1.35rem;font-weight:800;color:{text};">{result.verdict_label}</div>'
         f'<div style="font-size:0.85rem;color:{text};opacity:0.85;margin-top:4px;">'
         f'{_as_of_label} · {result.data_status}</div>'
+        f'{_stage_guide_html}'
         f'<div class="{_body_class}">{_gauge_html}<div class="sig-text">'
         f'{_story_html}</div></div></div>',
         unsafe_allow_html=True,
@@ -1416,6 +1433,7 @@ def render_kr_flow_card():
         show_position_score=True,
         comparison_result=previous_result,
         comparison_label=previous_label,
+        stage_guide=_KR_STAGE_GUIDE,
     )
 
     # 조회 실패 목록과 외국인 선물 수동 입력칸은 없앴다(2026-07-22 사용자 지시).
@@ -1440,6 +1458,15 @@ _US_CORE_DISPLAY = (
 )
 
 _US_TABLE_KEYS = tuple(spec[0] for spec in us_market_signal_engine.US_SIGNAL_SPECS) + ("US_VIX_TERM",)
+
+_US_STAGE_GUIDE = (
+    "<b>5단계 기준</b> 하락 압력 큼(VIX·금리 급등과 선물 하락) → "
+    "약세 신호 우세(선물·반도체 동반 하락) → 방향 엇갈림(한쪽만 움직이거나 서로 혼조) → "
+    "상승 신호 우세(선물·반도체 동반 상승, VIX·금리 부담 일부) → "
+    "상승 여건 양호(선물·반도체 상승, VIX·금리 부담 없음).<br>"
+    "<b>판정 구성</b> S&P500·나스닥 선물, SOXX·SMH, VIX, 미국 10년물, "
+    "달러지수, 하이일드 채권과 현물지수를 함께 봅니다."
+)
 
 
 def run_us_market_signal_check(force_refresh=False):
@@ -1551,6 +1578,7 @@ def render_us_market_signal_card():
         verdict_order=US_VERDICT_ORDER,
         comparison_result=previous_result,
         comparison_label=previous_label,
+        stage_guide=_US_STAGE_GUIDE,
     )
     # 실패 목록 나열은 없앴다(2026-07-22 사용자 지시) — 못 가져온 값은 위 표에
     # '확인 필요'로 이미 표시되고, 사용자가 손쓸 수 없는 항목이라 나열해도 의미가 없다.

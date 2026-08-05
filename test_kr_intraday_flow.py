@@ -261,7 +261,7 @@ class VerdictTest(unittest.TestCase):
             _rebound_snapshots(), foreign_futures=None, now=_ts(16)
         )
         self.assertIs(result.verdict, ReboundVerdict.PROXY_CONFIRMED)
-        self.assertEqual(result.verdict_label, "● 좋음")
+        self.assertEqual(result.verdict_label, "● 상승 신호 우세")
         self.assertIn("대체판정", result.headline)
 
     def test_watching_when_only_some_core_positive(self):

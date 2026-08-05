@@ -55,11 +55,11 @@ class UsMarketVerdict(str, Enum):
 
 # 계기판 단계명은 한국장·미국장이 같은 쉬운 말로 쓴다. 세부 근거는 headline에 남긴다.
 VERDICT_LABEL = {
-    UsMarketVerdict.VERY_BAD: "● 매우 나쁨",
-    UsMarketVerdict.RISK_OFF: "● 나쁨",
-    UsMarketVerdict.MIXED: "● 엇갈림",
-    UsMarketVerdict.RISK_ON_EARLY: "● 좋음",
-    UsMarketVerdict.RISK_ON: "● 매우 좋음",
+    UsMarketVerdict.VERY_BAD: "● 하락 압력 큼",
+    UsMarketVerdict.RISK_OFF: "● 약세 신호 우세",
+    UsMarketVerdict.MIXED: "● 방향 엇갈림",
+    UsMarketVerdict.RISK_ON_EARLY: "● 상승 신호 우세",
+    UsMarketVerdict.RISK_ON: "● 상승 여건 양호",
     UsMarketVerdict.INSUFFICIENT_DATA: "● 데이터 부족",
 }
 
@@ -336,12 +336,12 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
         driver = "VIX 급등" if vix_spike else "금리 급등"
         return _build(
             UsMarketVerdict.VERY_BAD, signals, core, warnings,
-            headline=f"{driver}과 지수 선물 하락이 함께 나타났습니다. 시장 상태가 매우 나쁩니다.",
+            headline=f"{driver}과 지수 선물 하락이 함께 나타났습니다. 하락 압력이 큽니다.",
         )
     if futures_down and _any_negative(semis):
         return _build(
             UsMarketVerdict.RISK_OFF, signals, core, warnings,
-            headline="지수 선물과 반도체가 함께 밀리고 있습니다. 시장 상태가 나쁩니다.",
+            headline="지수 선물과 반도체가 함께 밀리고 있습니다. 약세 신호가 우세합니다.",
         )
 
     # --- 5. 매우 좋음 --------------------------------------------------------
@@ -350,7 +350,7 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
             UsMarketVerdict.RISK_ON, signals, core, warnings,
             headline=(
                 "지수 선물과 반도체가 함께 오르고 VIX·금리도 부담을 주지 않습니다. "
-                "시장 상태가 매우 좋습니다."
+                "상승 여건이 양호합니다."
             ),
         )
 
@@ -361,7 +361,7 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
             UsMarketVerdict.RISK_ON_EARLY, signals, core, warnings,
             headline=(
                 f"선물과 반도체는 함께 오르지만 {blocker} 쪽이 아직 부담을 주고 있습니다. "
-                "시장 상태가 좋습니다."
+                "상승 신호가 우세합니다."
             ),
         )
     if futures_up or semis_up:

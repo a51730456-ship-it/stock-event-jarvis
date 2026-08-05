@@ -150,7 +150,7 @@ class VerdictGaugeTests(unittest.TestCase):
         )
         self.assertNotIn("fg-score", html)
         self.assertIn("sig-current-score", html)
-        self.assertIn(">3단계 · 엇갈림</div>", html)
+        self.assertIn(">3단계 · 방향 엇갈림</div>", html)
         self.assertNotIn(">50</div>", html)
 
     def test_previous_score_keeps_its_own_verdict_color(self):
@@ -161,14 +161,14 @@ class VerdictGaugeTests(unittest.TestCase):
             ui._US_VERDICT_STYLE,
             ui.US_VERDICT_ORDER,
             previous_stage={
-                "score": 10.0, "stage_number": 1, "label": "매우 나쁨", "trade_date": "2026-07-28",
+                "score": 10.0, "stage_number": 1, "label": "하락 압력 큼", "trade_date": "2026-07-28",
                 "period_label": "전일", "color": "#ef4444",
             },
             show_position_score=True,
         )
         self.assertIn("sig-prev-score", html)
         self.assertIn("color:#ef4444", html)
-        self.assertIn("전일(07.28) 1단계 · 매우 나쁨", html)
+        self.assertIn("전일(07.28) 1단계 · 하락 압력 큼", html)
 
     def test_us_comparison_draws_current_and_faded_previous_gauges(self):
         import us_market_signal_engine as us
@@ -181,8 +181,8 @@ class VerdictGaugeTests(unittest.TestCase):
         )
         self.assertIn("sig-gauge-pair", html)
         self.assertIn("sig-gauge-previous", html)
-        self.assertIn(">당일 · 4단계 · 좋음<", html)
-        self.assertIn(">전일 · 07.31 · 3단계 · 엇갈림<", html)
+        self.assertIn(">당일 · 4단계 · 상승 신호 우세<", html)
+        self.assertIn(">전일 · 07.31 · 3단계 · 방향 엇갈림<", html)
         self.assertEqual(html.count("class='fg-gauge'"), 2)
         self.assertIn("sig-gauge-today", html)
         self.assertEqual(html.count("<span class='fg-hist-label'>켜진 신호</span>"), 2)
@@ -248,7 +248,7 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertEqual(previous["trade_date"], "2026-07-28")
         self.assertEqual(previous["score"], 50.0)
         self.assertEqual(previous["stage_number"], 3)
-        self.assertEqual(previous["label"], "엇갈림")
+        self.assertEqual(previous["label"], "방향 엇갈림")
         self.assertEqual(previous["color"], "#eab308")
         self.assertEqual(previous["period_label"], "전일")
 
@@ -393,6 +393,43 @@ class CardHtmlTests(unittest.TestCase):
                 card = self._render_and_capture(cause)
                 self.assertNotIn("\n", card, "줄바꿈이 있으면 코드블록으로 잡힐 수 있다")
                 self.assertEqual(card.count("<div"), card.count("</div>"))
+
+    def test_stage_guide_is_rendered_inside_the_card(self):
+        import market_signal_common as common
+        import us_market_signal_engine as us
+
+        result = us.UsSignalResult(
+            verdict=us.UsMarketVerdict.MIXED,
+            verdict_label=us.VERDICT_LABEL[us.UsMarketVerdict.MIXED],
+            headline="신호가 엇갈립니다.", flow_note="흐름", signals=[], data_status="자료",
+        )
+        captured = []
+
+        class _FakeSt:
+            def markdown(self, text, **_kwargs): captured.append(text)
+            def caption(self, *args, **kwargs): pass
+            def warning(self, *args, **kwargs): pass
+            def columns(self, count): return [self] * count
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def table(self, *args, **kwargs): pass
+            def expander(self, *args, **kwargs): return self
+            def write(self, *args, **kwargs): pass
+
+        original = ui.st
+        ui.st = _FakeSt()
+        try:
+            ui.render_market_signal_card(
+                result, verdict_style=ui._US_VERDICT_STYLE,
+                core_display=ui._US_CORE_DISPLAY, table_keys=ui._US_TABLE_KEYS,
+                detail_title="t", detail_caption="c", table_key="k",
+                verdict_order=ui.US_VERDICT_ORDER, stage_guide="<b>5단계 기준</b> 설명",
+            )
+        finally:
+            ui.st = original
+        card = next(text for text in captured if 'class="sig-body' in text)
+        self.assertIn("sig-stage-guide", card)
+        self.assertIn("5단계 기준", card)
 
     def test_current_and_previous_each_have_their_own_story_and_flow(self):
         import us_market_signal_engine as us
