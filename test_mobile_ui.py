@@ -44,8 +44,14 @@ class MediaQueryTests(unittest.TestCase):
         phone_block = css[css.index(f"@media (max-width: {m.PHONE_MAX_WIDTH}px)"): css.rindex("}</style>")]
         self.assertIn(".j3-theme-table", phone_block)
         self.assertNotIn("stSidebarNav", phone_block)
-        # 상단 지표 줄은 태블릿까지 걸려야 하므로 폰 묶음 안에 있으면 안 된다.
-        self.assertNotIn(".fg-box", phone_block)
+        # 상단 지표 줄의 크기·순서 규칙은 태블릿까지 걸려야 하므로 폰 묶음에 있으면 안 된다.
+        self.assertNotIn(".fg-box { order:", phone_block)
+        self.assertNotIn(".fg-box-gauge", phone_block)
+        self.assertNotIn(".fg-box-title", phone_block)
+        # 국면 다섯 칸 접기만 예외로 폰 묶음에 둔다 — 태블릿에서까지 접혀 단계가
+        # 통째로 사라졌다(2026-08-06 사용자 지적). 규칙 12대로 폰에만 걸어야 한다.
+        self.assertIn("fg-hist-dim", phone_block)
+        self.assertNotIn("fg-hist-dim", m.TOP_ROW_CSS)
         tablet_block = css[css.index(f"@media (max-width: {m.SIDEBAR_MAX_WIDTH}px)", css.index("stSidebarNav")):]
         self.assertIn(".fg-box", tablet_block[: tablet_block.index("@media (max-width: 600px)")])
 
