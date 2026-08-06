@@ -2321,10 +2321,17 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 7</div>",
         unsafe_allow_html=True,
     )
+    # 재료가 무엇인지 이름을 그대로 적는다(2026-08-06 사용자 물음: "눌림목 찾기를
+    # 없애면 어디서 뭘 갖고 오냐"). 답 — ① 20개 테마의 대장주 ② 위에서 마지막으로
+    # 돌린 갈래(상승장 또는 급락)의 결과. 새로 검색하지 않는다.
     pull_rows = (st.session_state.get("j3_pullback_result") or {}).get("rows") or []
+    pull_label = {"breakout": "상승장", "crash": "급락 후 반등장"}.get(
+        str(st.session_state.get("j3_pullback_mode") or ""), "위 갈래"
+    )
     st.caption(
-        "지금 화면의 테마 대장주"
-        + (f"와 눌림목 {len(pull_rows)}개" if pull_rows else " (눌림목을 먼저 찾으면 함께 봅니다)")
+        "지금 화면의 **테마 대장주 20개**"
+        + (f"와 **{pull_label}**에서 찾은 {len(pull_rows)}개"
+           if pull_rows else " (위 두 단추 중 하나를 먼저 누르면 그 결과도 함께 봅니다)")
         + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
     )
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
@@ -3338,16 +3345,14 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
         (st.session_state.get("j3_pullback_mode") or "기본")
         if st.session_state.get("j3_pullback_open") else None
     )
+    # '눌림목 찾기'(옛 A 규칙)는 2026-08-06에 뺐다(사용자 지시).
+    # 목적이 '상승장(신고가 눌림매수)'과 같은데 10년치로 재 보니 기준선을 못 이겼다 —
+    # 평상시 100번 중 57번(기준선 57번), 급락장 54번(기준선 61번)으로 네 사건 모두 졌다.
+    # 상위 8개만 추려도 55번이라 순위가 거꾸로 매겨졌다(docs/US_THREE_RULES_COMPARE.md).
+    # 함수(find_pullback_stocks)는 지우지 않는다 — 한국테마(자비스4)가 아직 쓴다.
     mode_options = (
-        (
-            ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
-            ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
-        )
-        if guest_mode else (
-            ("기본", "눌림목 찾기", "j3_pullback_find"),
-            ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
-            ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
-        )
+        ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
+        ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
     )
     finder_cols = st.columns(len(mode_options))
     pressed = None
@@ -3381,20 +3386,15 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
                     st.session_state["j3_pullback_result"] = (
                         j3data.find_breakout_pullback_stocks()
                     )
-            elif pressed == "crash":
+            else:
                 with st.spinner("미국 대형주 200개에서 고점 대비 낙폭이 큰 종목을 찾는 중입니다…"):
                     st.session_state["j3_pullback_result"] = (
                         j3data.find_crash_rebound_stocks()
                     )
-            else:
-                with st.spinner("미국 20개 테마 전체에서 상승추세 조정 종목을 찾는 중입니다…"):
-                    st.session_state["j3_pullback_result"] = j3data.find_pullback_stocks(
-                        reuse_only=True
-                    )
     if not st.session_state.get("j3_pullback_open"):
         st.caption(
             "단추를 누르면 조회합니다. 열린 뒤 같은 단추를 다시 누르면 접힙니다. "
-            "옆 두 단추는 ‘이 테마 기법에 대한 설명’의 규칙 그대로 찾습니다."
+            "두 단추 모두 ‘이 테마 기법에 대한 설명’의 규칙 그대로 찾습니다."
         )
         return
     result = st.session_state.get("j3_pullback_result")

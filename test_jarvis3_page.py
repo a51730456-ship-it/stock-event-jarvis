@@ -146,11 +146,17 @@ def _pullbacks():
     }
 
 
-def _breakout_result():
-    """설명서 1번(상승장 신고가 눌림) 결과 모양."""
-    rows = [dict(row) for row in _pullbacks()["rows"][:1]]
-    rows[0]["wait_days"] = 4
-    rows[0]["hold_days"] = 120
+def _breakout_result(count=1):
+    """설명서 1번(상승장 신고가 눌림) 결과 모양.
+
+    '눌림목 찾기'를 뺀 2026-08-06부터 이 갈래가 기본 표라, 줄을 눌러 보는 시험도
+    여기로 온다. 그래서 줄 수를 골라 쓸 수 있게 했다.
+    """
+    rows = [dict(row) for row in _pullbacks()["rows"][:count]]
+    for index, row in enumerate(rows):
+        row["wait_days"] = 4
+        row["hold_days"] = 120
+        row["score"] = 80.0 - index
     return {
         "ok": True, "mode": "breakout", "rows": rows,
         # 2026-08-06 새 기준 — 거르는 것은 눌린 폭(10~15%) 하나이고,
@@ -304,6 +310,8 @@ class Jarvis3PageTests(unittest.TestCase):
              }), \
              patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
              patch("jarvis3_data.find_pullback_stocks", return_value=_pullbacks()), \
+             patch("jarvis3_data.find_breakout_pullback_stocks",
+                   return_value=_breakout_result(2)), \
              patch("jarvis3_store.ensure_tables"), \
              patch("jarvis3_store.trade_progress", return_value={
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
@@ -314,14 +322,15 @@ class Jarvis3PageTests(unittest.TestCase):
             app.session_state["authenticated"] = True
             _open_all_details(app)
             app.run(timeout=60)
-            # 눌림목 표는 버튼을 눌러야 나온다(2026-07-25 사용자 지시). 한국테마와 같다.
+            # 표는 버튼을 눌러야 나온다(2026-07-25 사용자 지시). 한국테마와 같다.
+            # '눌림목 찾기'는 2026-08-06에 뺐으므로 상승장 단추로 연다.
             next(
-                node for node in app.button if str(node.key or "") == "j3_pullback_find"
+                node for node in app.button
+                if str(node.key or "") == "j3_pullback_breakout"
             ).click().run(timeout=60)
-            pullback_button = next(
-                node for node in app.button if str(node.key or "") == "j3pbf_00"
-            )
-            pullback_button.click().run(timeout=60)
+            next(
+                node for node in app.button if str(node.key or "") == "j3rbf_00"
+            ).click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
         subheaders = [str(node.value) for node in app.subheader]
@@ -343,11 +352,14 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("눌림목 선택 종목" in value for value in markdowns))
         # 눌림목 상세는 자비스4와 같은 구성이다 — 선정 근거 점수표·매수 심사 결과까지
         # 함께 보여준다(2026-07-24 사용자 지시).
-        self.assertTrue(any("종목 선정 근거 (미국형 5개 항목)" in value for value in markdowns))
+        # 2026-08-06 — '눌림목 찾기'를 빼면서 이 시험도 상승장 갈래로 옮겼다.
+        # 그래서 점수표 이름이 갈래 전용 배점 이름이 된다.
+        self.assertTrue(any("종목 선정 근거 (신고가 눌림 전용 배점)" in value
+                            for value in markdowns))
         self.assertTrue(any("j3-factor-table" in value for value in markdowns))
         self.assertTrue(any("j3-holo-card" in value for value in markdowns))
-        self.assertTrue(any("가격 칸이 채워지는 기준" in value for value in markdowns))
-        self.assertTrue(any("j3-danta-box" in value for value in markdowns))
+        # 단타 참고 신호는 접어 뒀다(2026-08-06) — 여는 단추가 있어야 한다.
+        self.assertTrue(any("단타 참고 신호 보기" in str(node.label) for node in app.button))
         # 당일 가격 칸(자비스4와 같은 구성) — 시가·고가·저가·전일 종가
         self.assertTrue(any("당일 가격 · 시가/고가/저가 한눈에 보기" in value for value in markdowns))
         self.assertTrue(any("전일 종가" in value for value in markdowns))
@@ -441,10 +453,11 @@ class Jarvis3PageTests(unittest.TestCase):
         )
 
     def test_pullback_detail_opens_top_ranked_stock_without_click(self):
-        """눌림목을 찾고 나면 종목을 누르지 않아도 1순위 상세가 열려 있어야 한다.
+        """종목을 찾고 나면 누르지 않아도 1순위 상세가 열려 있어야 한다.
 
         2026-07-24 지시(1순위 자동 열림)는 그대로 두고, 2026-07-25 지시에 따라
-        표 자체는 '눌림목 찾기' 버튼을 누른 뒤에 나온다.
+        표 자체는 단추를 누른 뒤에 나온다. '눌림목 찾기'를 뺀 2026-08-06부터는
+        상승장 단추로 연다.
         """
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
@@ -457,6 +470,8 @@ class Jarvis3PageTests(unittest.TestCase):
              }), \
              patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
              patch("jarvis3_data.find_pullback_stocks", return_value=_pullbacks()), \
+             patch("jarvis3_data.find_breakout_pullback_stocks",
+                   return_value=_breakout_result(2)), \
              patch("jarvis3_store.ensure_tables"), \
              patch("jarvis3_store.trade_progress", return_value={
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
@@ -468,9 +483,10 @@ class Jarvis3PageTests(unittest.TestCase):
             _open_all_details(app)
             app.run(timeout=60)
             # 표는 버튼을 눌러야 나온다. 누르기 전에는 안내만 보인다.
-            self.assertFalse(any(str(node.key or "") == "j3pbf_00" for node in app.button))
+            self.assertFalse(any(str(node.key or "") == "j3rbf_00" for node in app.button))
             next(
-                node for node in app.button if str(node.key or "") == "j3_pullback_find"
+                node for node in app.button
+                if str(node.key or "") == "j3_pullback_breakout"
             ).click().run(timeout=60)
 
             names = [
@@ -483,7 +499,7 @@ class Jarvis3PageTests(unittest.TestCase):
 
             # 2순위를 누르면 그 종목으로 바뀐다
             next(
-                node for node in app.button if str(node.key or "") == "j3pbf_01"
+                node for node in app.button if str(node.key or "") == "j3rbf_01"
             ).click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
@@ -790,12 +806,18 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         return app
 
-    def test_the_two_rulebook_buttons_sit_next_to_the_pullback_button(self):
-        """설명서 두 갈래 단추가 눌림목 찾기 옆에 있어야 한다(2026-08-01 사용자 지시)."""
-        app = self._run_with_mode("기본", "find_pullback_stocks", _pullbacks())
+    def test_only_the_two_rulebook_buttons_remain(self):
+        """'눌림목 찾기'는 뺐다(2026-08-06 사용자 지시).
+
+        목적이 '상승장(신고가 눌림매수)'과 같은데 10년치로 재 보니 기준선을
+        못 이겼다 — 평상시 57번(기준선 57번), 급락장 54번(기준선 61번).
+        """
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                  _breakout_result())
         keys = [str(node.key or "") for node in app.button]
-        for key in ("j3_pullback_find", "j3_pullback_breakout", "j3_pullback_crash"):
+        for key in ("j3_pullback_breakout", "j3_pullback_crash"):
             self.assertIn(key, keys, f"{key} 단추가 없다")
+        self.assertNotIn("j3_pullback_find", keys, "눌림목 찾기가 되살아났다")
 
     def test_breakout_mode_shows_the_written_rule_and_its_own_columns(self):
         app = self._run_with_mode("breakout", "find_breakout_pullback_stocks", _breakout_result())

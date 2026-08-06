@@ -172,11 +172,17 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn(f'"매수심사결과 높은 순위 7", key="{prefix}_top7_find")', source,
                           f"{market} 순위 7 단추가 아직 화면을 가로지른다")
             # 2026-08-01에 눌림목 단추는 설명서 두 갈래 단추와 나란히 놓이면서
-            # 글자에 '●'를 붙이는 구조로 바뀌었다. 이름이 코드에 그대로 남아 있는지,
-            # 그리고 화면을 가로지르지 않는지만 본다.
-            self.assertIn(f'"{prefix}_pullback_find"', source,
-                          f"{market} 눌림목 단추가 없다")
-            self.assertIn("눌림목 찾기", source, f"{market} 눌림목 단추 이름이 없다")
+            # 글자에 '●'를 붙이는 구조로 바뀌었다.
+            # 2026-08-06에 **미국만** 눌림목 찾기를 뺐다(사용자 지시) — 목적이
+            # 상승장 갈래와 같은데 10년치로 재니 기준선을 못 이겼다. 한국은 그대로다
+            # (한국에서는 눌림목 점수가 제대로 작동한다, docs/KR_RULE_BACKTEST.md).
+            if prefix == "j3":
+                self.assertNotIn(f'("기본", "눌림목 찾기", "{prefix}_pullback_find")',
+                                 source, f"{market} 눌림목 단추가 되살아났다")
+            else:
+                self.assertIn(f'"{prefix}_pullback_find"', source,
+                              f"{market} 눌림목 단추가 없다")
+                self.assertIn("눌림목 찾기", source, f"{market} 눌림목 단추 이름이 없다")
             for key in (f"{prefix}_pullback_find", f"{prefix}_pullback_breakout",
                         f"{prefix}_pullback_crash"):
                 self.assertNotIn(f'key="{key}", width="stretch"', source,
