@@ -18,10 +18,10 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080660
+MODULE_REVISION = 2026080670
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
-CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
+CLOSE_HINT = "다 읽으셨으면 오른쪽 ‘✕ 창닫기’를 누르십시오. 위 단추를 다시 눌러도 닫힙니다."
 
 # 단추는 눌림목 찾기 단추와 같은 옷을 입힌다(밝은 스카이 블루 바탕·주황 글씨).
 # 다만 좌우로 늘리지 않고 글자 크기만큼만 차지하게 두고, 오른쪽 끝에 붙인다.
@@ -113,6 +113,26 @@ div[class*="st-key-jarvis_method_help"] button p {
     overflow-anchor: none !important;
 }
 [data-testid="stPopoverBody"] * { overflow-anchor: none !important; }
+
+/* ── 폰·태블릿에서는 화면 크기에 맞춘다(2026-08-07 상하님 지시) ──────────
+   기본값 680px은 노트북 기준이다. 태블릿을 **옆으로 눕히면** 세로가 짧아져
+   50vh로는 서너 줄밖에 안 보인다 — 그래서 눕혔을 때는 높이를 더 준다.
+   경계 1200px은 메뉴·상단줄 규칙(mobile_ui.SIDEBAR_MAX_WIDTH)과 같은 값이다.
+   노트북·PC는 손대지 않는다.
+   폰 전용 규칙이 아니라 태블릿까지 걸리는 규칙이라 mobile_ui.py가 아니라
+   여기 둔다(CLAUDE.md 12번은 '폰 전용' 규칙에 대한 것이다). */
+@media (max-width: 1200px) {
+    [data-testid="stPopoverBody"] {
+        width: calc(100vw - 1.2rem) !important;
+        max-width: calc(100vw - 1.2rem) !important;
+        max-height: 64vh !important;
+    }
+}
+@media (max-width: 1200px) and (orientation: landscape) {
+    [data-testid="stPopoverBody"] {
+        max-height: 82vh !important;
+    }
+}
 
 /* ── 글 색 구분(2026-07-30 사용자 지시) ──────────────────────────────
    큰 제목은 초록, 번호 항목(①②③)은 파랑, 강조는 붉은색.
@@ -442,30 +462,46 @@ KR_TEXT = """
 """
 
 
-def _close_button(st, market: str, *, where: str = "bottom") -> None:
-    """설명 창의 '창닫기' 단추 (2026-08-06 사용자 지시).
+def popover_key(market: str) -> str:
+    """설명 창의 열림/닫힘을 담아 두는 자리 이름."""
+    return f"jarvis_method_help_open_{str(market).upper()}"
 
-    오른쪽에 두되 화면 끝에 딱 붙이지는 않는다(사용자 지시 "너무 오른쪽 말고").
-    그래서 3:1로 나눈 오른쪽 칸에 놓는다.
 
-    **위·아래 둘 다 놓는다.** 아래에만 놓았더니 창이 열리자마자 맨 아래가 보였다
-    (2026-08-06 상하님 지적). 스트림릿이 창 안의 위젯 자리로 스크롤을 옮기는 탓인데,
-    맨 위에도 같은 단추를 두면 위쪽으로 붙잡힌다. 아래 단추는 글을 다 읽고 나서
-    바로 닫으라고 남겨 둔다.
+def _shut(st, market: str) -> None:
+    """'창닫기'를 누르면 설명 창을 닫는다.
+
+    **왜 이렇게 하나 — 세 번 헤맨 자리다(2026-08-06 ~ 08-07).**
+    처음에는 그냥 `st.button`만 놓고 '단추를 누르면 화면이 다시 그려지니 알아서
+    닫히겠지' 하고 기대했다. 그래서 될 때도 있고 안 될 때도 있었고, 단추를 위·아래
+    둘로 늘리자 **양쪽 다 안 닫혔다**(상하님 지적).
+
+    스트림릿 1.58의 `st.popover`는 `key`와 `on_change`를 주면 **열림 상태가
+    `session_state`에 담기는 정식 위젯**이 된다. 그래서 여기서 그 자리를 False로
+    바꿔 준다 — 단추가 몇 개든, 위에 있든 아래 있든 확실히 닫힌다.
     """
-    if where == "top":
-        left, right = st.columns([3, 1.15])
-        with right:
-            st.button("✕ 창닫기", key=f"jarvis_method_help_close_top_{market}",
-                      width="stretch")
-        return
-    st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+    st.session_state[popover_key(market)] = False
+
+
+def _close_button(st, market: str, *, where: str = "bottom") -> None:
+    """설명 창의 '창닫기' 단추 (2026-08-06).
+
+    화면 끝에 딱 붙이지 않는다(사용자 지시 "너무 오른쪽 말고") — 3:1로 나눈
+    오른쪽 칸에 놓는다.
+
+    위·아래 둘 다 둔다. 아래 것은 글을 다 읽고 바로 닫으라고, 위 것은 창이
+    맨 위에서 열리게 붙잡아 주려고 둔다(아래에만 두었더니 열자마자 맨 아래가
+    보였다 — 2026-08-06 상하님 지적).
+    """
+    market = str(market).upper()
+    if where != "top":
+        st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
     left, right = st.columns([3, 1.15])
     with right:
-        st.button("✕ 창닫기", key=f"jarvis_method_help_close_{market}",
-                  width="stretch")
-    with left:
-        st.caption(CLOSE_HINT)
+        st.button("✕ 창닫기", key=f"jarvis_method_help_close_{where}_{market}",
+                  width="stretch", on_click=_shut, args=(st, market))
+    if where != "top":
+        with left:
+            st.caption(CLOSE_HINT)
 
 
 def render(st, market: str) -> None:
@@ -473,9 +509,11 @@ def render(st, market: str) -> None:
     st.markdown(BUTTON_CSS, unsafe_allow_html=True)
     box = st.container(key="jarvis_method_help")
     with box:
-        with st.popover(BUTTON_LABEL):
+        # key·on_change를 줘야 열림 상태가 session_state에 담긴다 — '창닫기'가
+        # 그 자리를 False로 바꿔 닫는다(위 _shut 설명 참고).
+        with st.popover(BUTTON_LABEL, key=popover_key(market), on_change="rerun"):
             # 맨 위 단추는 **창이 위에서 열리게 붙잡는 구실**도 한다(위 설명 참고).
-            _close_button(st, str(market).upper(), where="top")
+            _close_button(st, market, where="top")
             if str(market).upper() != "US":
                 # 한국 설명은 색·기호·밑줄을 직접 입힌 HTML 그대로다(2026-08-01).
                 st.markdown(KR_TEXT, unsafe_allow_html=True)

@@ -81,13 +81,42 @@ class PanelTests(unittest.TestCase):
         """
         import inspect
 
-        self.assertIn("다시 누르", method_help.CLOSE_HINT)
+        # 안내문은 '창닫기 단추'를 가리켜야 한다 — 예전에는 여는 단추를 다시
+        # 누르라는 말뿐이었는데, 이제 창닫기가 확실히 닫히므로 그쪽을 먼저 알린다.
+        self.assertIn("창닫기", method_help.CLOSE_HINT)
         closer = inspect.getsource(method_help._close_button)
         self.assertIn("창닫기", closer)
         self.assertIn("CLOSE_HINT", closer)
         # 맨 위 하나(창이 위에서 열리게 붙잡는 구실) + 미국·한국 각 맨 아래 하나.
         self.assertEqual(3, inspect.getsource(method_help.render).count("_close_button("))
         self.assertIn('where="top"', inspect.getsource(method_help.render))
+
+    def test_closing_goes_through_the_popover_state(self):
+        """'창닫기'는 session_state를 꺼서 닫는다 — 되돌아가면 안 닫힌다.
+
+        2026-08-07 실측: 단추를 누르면 스트림릿 프런트가 40ms 안에 창을 지우지만,
+        서버가 '아직 열림'으로 다시 그리면 창이 도로 열린다. 그래서 단추만 놓고
+        '다시 그려지니 닫히겠지' 하면 안 닫힌다(단추를 둘로 늘렸을 때 실제로 그랬다).
+        `key`와 `on_change`를 준 팝오버라야 열림 상태가 session_state에 담긴다.
+        """
+        import inspect
+
+        render = inspect.getsource(method_help.render)
+        self.assertIn("key=popover_key(market)", render)
+        self.assertIn('on_change="rerun"', render)
+        self.assertIn("on_click=_shut", inspect.getsource(method_help._close_button))
+        self.assertIn("= False", inspect.getsource(method_help._shut))
+
+    def test_phone_and_tablet_get_the_window_sized_to_the_screen(self):
+        """2026-08-07 지시 — 폰·태블릿도 되게, 태블릿을 눕히면 화면 너비에 맞게."""
+        css = method_help.BUTTON_CSS
+        self.assertIn("@media (max-width: 1200px) {", css)
+        self.assertIn("@media (max-width: 1200px) and (orientation: landscape) {", css)
+        # 눕히면 세로가 짧아지므로 높이를 더 준다.
+        self.assertIn("max-height: 82vh !important", css)
+        # 폰에서 좌우 칸이 위아래로 쌓여 단추가 왼쪽으로 가는 것은 폰 규칙이라
+        # CLAUDE.md 12번에 따라 mobile_ui.py 폰 묶음에 둔다.
+        self.assertIn("st-key-jarvis_method_help_close", mobile_ui.CONTENT_CSS)
 
     def test_bold_runs_are_not_broken_by_korean_particles(self):
         """닫는 ** 앞이 %·)·' 이고 뒤에 한글이 붙으면 별표가 그대로 찍힌다."""

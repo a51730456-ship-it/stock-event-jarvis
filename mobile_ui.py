@@ -211,6 +211,11 @@ CONTENT_CSS = """
    단추 모양 자체는 method_help.py에 있고, 폰 규칙만 규칙 12에 따라 여기 둔다. */
 div[class*="st-key-jarvis_method_help"] button p { font-size: .86rem !important; }
 div[class*="st-key-jarvis_method_help"] button { padding: .3rem .7rem !important; }
+/* '창닫기'는 폰에서 왼쪽으로 간다 — 스트림릿이 좁은 화면에서 좌우 칸을 위아래로
+   쌓아 버려 오른쪽 칸이 화면 전체 너비가 되기 때문이다(2026-08-07 실측, 375px).
+   오른쪽으로 밀어 노트북에서 보이던 자리와 같게 맞춘다. */
+div[class*="st-key-jarvis_method_help_close"] { text-align: right !important; }
+div[class*="st-key-jarvis_method_help_close"] button { margin-left: auto !important; margin-right: .3rem !important; }
 h1 { font-size: 1.5rem !important; }
 h2 { font-size: 1.2rem !important; }
 .j3-stock-name, .j4-stock-name { font-size: 1.3rem; }
