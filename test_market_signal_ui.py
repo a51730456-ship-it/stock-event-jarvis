@@ -201,6 +201,10 @@ class VerdictGaugeTests(unittest.TestCase):
         # 아래 계기판 두 칸과 같은 모양의 **칸**으로 나눠야 한다(2026-08-06 지시).
         for token in ("sig-head-pair", "sig-head-today", "sig-head-previous"):
             self.assertIn(token, card, f"{token} 칸이 없다")
+        # 기준시각·읽은 항목 줄은 칸 **안에** 들어가야 한다. 밖에 혼자 두면
+        # 그게 당일 것인지 전일 것인지 알 수 없다(2026-08-06 지시).
+        self.assertEqual(2, card.count('class="sig-head-sub"'), "두 칸에 각각 없다")
+        self.assertIn("읽은 항목 12개", card)
 
     def test_same_stage_with_different_counts_moves_the_needle(self):
         """켜진 신호가 다르면 바늘도 달라야 한다(2026-08-06 상하님 지적).

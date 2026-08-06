@@ -712,6 +712,7 @@ _SIGNAL_GAUGE_CSS = """
 .sig-head-previous .sig-head-label { color:#4da6ff; }
 .sig-head-verdict { font-size:1.25rem; font-weight:800; margin-top:.12rem;
   line-height:1.25; }
+.sig-head-sub { font-size:.8rem; opacity:.82; margin-top:.2rem; line-height:1.35; }
 .sig-gauge-pair { display:flex; flex-wrap:wrap; align-items:flex-start; gap:.65rem; }
 .sig-gauge-shell { padding:.35rem .55rem .55rem; border:1px solid rgba(255,255,255,.16);
   border-radius:.75rem; background:rgba(5,9,16,.34); }
@@ -1279,18 +1280,36 @@ def render_market_signal_card(
         _prev_style = verdict_style.get(comparison_result.verdict)
         _prev_text = _prev_style[2] if _prev_style else text
         _prev_label = getattr(comparison_result, "verdict_label", "") or "판정 확인"
+        # 기준시각·읽은 항목 수도 **각 칸 안에** 넣는다(2026-08-06 상하님 지적) —
+        # 밖에 한 줄만 있으면 그게 당일 것인지 전일 것인지 알 수 없다.
+        # 전일은 시각을 안 적는다. 저장된 스냅숏의 시각이 오늘 것으로 남는 경우가 있어
+        # '전일 · 08.05 08.06'처럼 엉뚱한 날짜가 찍혔다.
+        _prev_status = getattr(comparison_result, "data_status", "") or ""
         _headline_html = (
             '<div class="sig-head-pair">'
             '<div class="sig-head-box sig-head-today">'
             '<div class="sig-head-label">당일</div>'
             f'<div class="sig-head-verdict" style="color:{text};">'
-            f'{result.verdict_label}</div></div>'
+            f'{result.verdict_label}</div>'
+            f'<div class="sig-head-sub" style="color:{text};">'
+            f'{_as_of_label} · {result.data_status}</div></div>'
             '<div class="sig-head-box sig-head-previous">'
             f'<div class="sig-head-label">{comparison_label}</div>'
             f'<div class="sig-head-verdict" style="color:{_prev_text};">'
-            f'{_prev_label}</div></div>'
+            f'{_prev_label}</div>'
+            f'<div class="sig-head-sub" style="color:{_prev_text};">'
+            f'{_prev_status or "그날 마감 기준"}</div></div>'
             '</div>'
         )
+
+    # 당일·전일을 칸으로 나눈 화면에서는 기준시각 줄이 **칸 안으로** 들어간다.
+    # 밖에 혼자 두면 그게 당일 것인지 전일 것인지 알 수 없다(2026-08-06 상하님 지적).
+    _as_of_html = (
+        ""
+        if comparison_result is not None else
+        f'<div style="font-size:0.85rem;color:{text};opacity:0.85;margin-top:4px;">'
+        f'{_as_of_label} · {result.data_status}</div>'
+    )
 
     # 판정을 눈금 위에 올려 지금이 어느 단계인지 한눈에 보이게 한다(2026-07-24).
     _gauge_html = (
@@ -1312,9 +1331,7 @@ def render_market_signal_card(
     st.markdown(
         f'<div style="background-color:{bg};border:2px solid {border};border-radius:10px;'
         f'padding:16px;margin-top:8px;">'
-        f'{_headline_html}'
-        f'<div style="font-size:0.85rem;color:{text};opacity:0.85;margin-top:4px;">'
-        f'{_as_of_label} · {result.data_status}</div>'
+        f'{_headline_html}{_as_of_html}'
         f'{_stage_guide_html}'
         f'<div class="{_body_class}">{_gauge_html}<div class="sig-text">'
         f'{_story_html}</div></div></div>',

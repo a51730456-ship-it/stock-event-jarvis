@@ -1924,6 +1924,9 @@ def _render_stock_detail(
 
     # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 당일 가격·차트 섹션을 시작한다.
     _render_day_price_row(metrics)
+    # 당일 차트가 이 상세에만 없었다(2026-08-06 상하님 지적) — 순위 7에서 테마
+    # 대장주를 고르면 여기로 오는데 당일 차트가 안 나왔다.
+    _render_intraday_section(ticker, panel=panel)
     # panel을 넘겨야 같은 종목을 위·아래 두 상세에서 열어도 단추 키가 안 겹친다.
     _render_price_chart_bundle(ticker, panel=panel)
 
@@ -2490,6 +2493,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             # 갈래에서 온 줄은 눌림목 상세(panel="pullback")가 그리고 대장주 줄은
             # 종목 상세(panel="top7")가 그리므로 양쪽 열쇠를 다 켠다.
             for opened in ("j3_detail_open_top7", "j3_bundle_open_top7",
+                           "j3_intraday_open_top7",
                            "j3_detail_open_pullback", "j3_bundle_open_pullback",
                            "j3_intraday_open_pullback"):
                 st.session_state[opened] = True
@@ -2659,6 +2663,44 @@ def _render_guest_pullback_intraday(ticker: str) -> None:
         else:
             st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
     _section_close("j3_intraday_open_pullback", "당일 차트 닫기")
+
+
+def _render_intraday_section(ticker: str, *, panel: str) -> None:
+    """당일 · 실시간 차트 한 벌. 어느 상세에서든 같은 모양으로 쓴다.
+
+    2026-08-06에 함수로 뺐다 — 눌림목/갈래 상세에만 있고 **순위 7에서 고른
+    테마 대장주 상세에는 없었다**(상하님 지적: "매수심사결과 높은... 클릭하면
+    당일 차트 안 나온다"). panel을 넘겨야 같은 종목을 두 상세에서 열어도
+    단추 키가 안 겹친다.
+
+    차트는 눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축).
+    """
+    key = f"j3_intraday_open_{panel}"
+    if not _section_toggle(
+        "📈 당일 · 실시간 차트 보기", key, close_label="당일 차트 닫기",
+    ):
+        return
+    intraday_error = ""
+    try:
+        intraday_payload = j3data.get_intraday_chart(ticker)
+    except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
+        intraday_payload = None
+        intraday_error = _safe_error_text(exc)
+    # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
+    # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 3분할의 첫 칸에만 그린다.
+    intraday_col, _, _ = st.columns(3)
+    with intraday_col:
+        if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+            st.altair_chart(
+                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
+                width="stretch", theme="streamlit",
+            )
+            st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
+        elif intraday_error:
+            st.info(f"당일 자료 없음 — {intraday_error}")
+        else:
+            st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
+    _section_close(key, "당일 차트 닫기")
 
 
 def _render_pullback_detail(row: dict, market: dict, ranking: dict,
@@ -2950,35 +2992,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
     _render_day_price_row(metrics)
-    # 당일 차트 — 테마 대장주 상세에는 있는데 눌림목 상세에만 없었다(2026-07-25 사용자
-    # 지적). 대장주와 같은 자료·같은 차트를 쓴다.
-    # 차트는 눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축).
-    if _section_toggle(
-        "📈 당일 · 실시간 차트 보기", "j3_intraday_open_pullback",
-        close_label="당일 차트 닫기",
-    ):
-        intraday_error = ""
-        try:
-            intraday_payload = j3data.get_intraday_chart(ticker)
-        except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
-            intraday_payload = None
-            intraday_error = _safe_error_text(exc)
-        # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
-        # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 아래와 같은 3분할의
-        # 첫 칸에만 그린다 — 폭이 같아지고 높이를 INTRADAY_CHART_HEIGHT로 맞춘다.
-        intraday_col, _, _ = st.columns(3)
-        with intraday_col:
-            if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-                st.altair_chart(
-                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
-                    width="stretch", theme="streamlit",
-                )
-                st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-            elif intraday_error:
-                st.info(f"당일 자료 없음 — {intraday_error}")
-            else:
-                st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
-        _section_close("j3_intraday_open_pullback", "당일 차트 닫기")
+    _render_intraday_section(ticker, panel="pullback")
     _render_price_chart_bundle(ticker, panel="pullback")
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
