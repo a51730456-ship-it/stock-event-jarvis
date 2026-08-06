@@ -138,6 +138,10 @@ BREAKOUT_PULLBACK_RULE = {
 BREAKOUT_BASE_WIN_RATE = 62.2      # 같은 날 아무 종목이나 샀을 때 100번 중
 BREAKOUT_BASE_MEDIAN = 6.3
 
+# 표 1(assets/us_method_uptrend.png)의 숫자를 **잰 날의 조건**이다.
+# 거르는 조건이 아니다 — 알려만 준다. 자세한 사연은 breakout_market_state() 참고.
+BREAKOUT_MARKET_MAX_DROP = -10.0   # 나스닥 고점 대비 이보다 나은 날
+
 # 급락 후 반등장 — 시장 낙폭은 **막지 않고 알려만 준다**(2026-08-06 사용자 결정).
 # -6~-12%가 가장 자주 오고(7개월에 한 번) 가장 좋았지만, 그 자리를 지나 시장이
 # 올라가도 종목은 여전히 볼 값어치가 있다는 판단이다.
@@ -159,7 +163,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080650
+MODULE_REVISION = 2026080660
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1406,6 +1410,8 @@ def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int
         "mode": "breakout",
         "rows": rows,
         "rule": BREAKOUT_PULLBACK_RULE,
+        # 표를 잰 자리인지 알려만 준다 — 막지 않는다(2026-08-06 사용자 결정).
+        "market": breakout_market_state(),
         "score_weights": BREAKOUT_SCORE_WEIGHTS,
         "base_win_rate": BREAKOUT_BASE_WIN_RATE,
         "base_median_return": BREAKOUT_BASE_MEDIAN,
@@ -1486,6 +1492,52 @@ def crash_reference_day(lookback_days: int = 30) -> dict:
                 "reason": ""}
     except Exception as exc:
         return {"ok": False, "reason": f"기준일을 찾지 못했습니다 ({exc})"}
+
+
+def breakout_market_state() -> dict:
+    """상승장 규칙의 표를 **잰 자리**인가 (2026-08-06 사용자 결정).
+
+    거르지 않는다 — 알려만 준다. 급락 갈래와 같은 방식이다.
+
+    왜 거르지 않나 — 이 조건은 설명서에 있던 규칙이 아니다. 2026-08-01에
+    '어느 규칙이 어느 장에서 통하나'를 재면서 **날을 둘로 가르려고 내가 정한
+    잣대**였고(commit 73e3605·8c3f8e3), 표 1의 숫자는 그 날들에서만 잰 값이라
+    표 맨 위 '장세' 칸에 적었다. 상하님이 2026-08-06에 그 표를 화면에 넣으시면서
+    '이렇게 쟀다'가 '이렇게 하라'처럼 읽히게 됐다.
+
+    상하님이 주신 원래 설명서(2026-08-01)에는 이동평균도 시장 낙폭도 없다.
+    거르는 조건으로 바꾸면 화면이 통째로 비는 날이 생긴다(급락 갈래에서 실제로
+    겪었다). 그래서 **표를 잰 자리인지만 알려주고 종목은 그대로 보여준다.**
+    """
+    try:
+        daily, _meta = _download_cached(
+            (CRASH_MARKET_SYMBOL,), period="1y", interval="1d", ttl_seconds=300
+        )
+        metrics = _series_metrics(daily.get(CRASH_MARKET_SYMBOL))
+        if not metrics.get("ok"):
+            raise RuntimeError("나스닥 일봉 없음")
+        drop = _finite(metrics.get("from_high_pct"))
+        current = _finite(metrics.get("current"))
+        sma200 = _finite(metrics.get("sma200"))
+    except Exception:
+        drop = current = sma200 = None
+    if drop is None or current is None or sma200 is None:
+        return {"ok": False, "armed": True, "drop_pct": drop, "above_200": None,
+                "reason": "나스닥을 못 읽어 표를 잰 자리인지 확인하지 못했습니다"}
+    above = current > sma200
+    limit = BREAKOUT_MARKET_MAX_DROP
+    armed = bool(above) and drop > limit
+    place = "위" if above else "아래"
+    if armed:
+        reason = (f"나스닥이 200일선 {place}이고 고점 대비 {drop:.1f}%입니다 — "
+                  "표를 잰 자리가 맞습니다")
+    else:
+        reason = (f"나스닥이 200일선 {place}이고 고점 대비 {drop:.1f}%입니다 — "
+                  f"**오늘은 표를 잰 자리가 아닙니다.** 위 표의 숫자는 200일선 위이고 "
+                  f"고점 대비 {abs(limit):.0f}% 안쪽이던 날에서만 잰 값입니다. "
+                  "종목은 그대로 보여드리니 참고만 하십시오.")
+    return {"ok": True, "armed": armed, "drop_pct": drop, "above_200": above,
+            "max_drop": limit, "reason": reason}
 
 
 def crash_market_state() -> dict:

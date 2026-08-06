@@ -699,7 +699,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080650
+_REQUIRED_J3_REVISION = 2026080660
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2938,6 +2938,15 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         rule = result.get("rule") or {}
         wait_min, wait_max = rule.get("wait_days", (1, 5))
         drop_low, drop_high = rule.get("drop_band", (-15.0, -4.0))
+        # 표를 잰 자리인지 먼저 알려준다(2026-08-06 사용자 결정). **막지 않는다** —
+        # 표 1의 '장세' 칸은 원래 설명서의 규칙이 아니라 그 숫자를 잰 범위였다.
+        # 급락 갈래와 같은 방식이다(막았더니 화면이 통째로 비었다).
+        breakout_market = result.get("market") or {}
+        if breakout_market.get("reason"):
+            if breakout_market.get("armed"):
+                st.success(breakout_market["reason"])
+            else:
+                st.error(breakout_market["reason"])
         st.markdown(
             "<div class='j3-pull-guide'>"
             f"<b>찾는 그물</b> — 52주 신고가 뒤 <b>{wait_min}~{wait_max}거래일</b> 안에 "

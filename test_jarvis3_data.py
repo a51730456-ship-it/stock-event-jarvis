@@ -150,6 +150,43 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(4, picked["MSFT"]["wait_days"])
         self.assertEqual(120, picked["AAPL"]["hold_days"])
 
+    def test_breakout_tells_the_market_state_but_never_filters_on_it(self):
+        """표를 잰 자리인지 알려만 준다(2026-08-06 사용자 결정).
+
+        표 1의 '장세' 칸(200일선 위 · 고점 대비 -10% 안)은 상하님이 주신 원래
+        설명서의 규칙이 아니라, 2026-08-01에 날을 가르려고 내가 정한 **잰 범위**다.
+        거르는 조건으로 바꾸면 화면이 통째로 비는 날이 생긴다.
+        """
+        frames = {"AAPL": _frame_with_high(2, -12.0)}
+        for above, drop, armed in ((True, -3.0, True), (False, -20.0, False)):
+            state = {"ok": True, "armed": armed, "drop_pct": drop, "above_200": above,
+                     "max_drop": j3.BREAKOUT_MARKET_MAX_DROP, "reason": "시험"}
+            with patch.object(j3, "breakout_market_state", return_value=state):
+                result = self._run(j3.find_breakout_pullback_stocks, frames)
+            self.assertTrue(result["ok"])
+            self.assertEqual(1, len(result["rows"]), f"200일선 {above}인데 막혔다")
+            self.assertEqual(armed, result["market"]["armed"], "시장 상태는 알려줘야 한다")
+
+    def test_breakout_market_state_reads_the_two_hundred_day_line(self):
+        index = pd.date_range("2025-01-01", periods=260, freq="D")
+        close = pd.Series([100.0] * 259 + [70.0], index=index)   # 200일선 아래·고점 -30%
+        frame = pd.DataFrame({"Open": close, "High": close, "Low": close,
+                              "Close": close, "Volume": [1e6] * 260}, index=index)
+        with patch.object(j3, "_download_cached",
+                          return_value=({j3.CRASH_MARKET_SYMBOL: frame}, {})):
+            state = j3.breakout_market_state()
+        self.assertTrue(state["ok"])
+        self.assertFalse(state["armed"])
+        self.assertFalse(state["above_200"])
+        self.assertIn("표를 잰 자리가 아닙니다", state["reason"])
+
+    def test_breakout_market_state_stays_quiet_when_data_is_missing(self):
+        """자료를 못 받으면 켜 둔다 — 자료 탓에 화면이 막히면 더 나쁘다."""
+        with patch.object(j3, "_download_cached", side_effect=RuntimeError("망")):
+            state = j3.breakout_market_state()
+        self.assertFalse(state["ok"])
+        self.assertTrue(state["armed"])
+
     def test_neither_screen_filters_on_a_moving_average(self):
         """설명서에 없는 이동평균 조건을 더하면 화면이 설명과 다른 것을 찾는다.
 

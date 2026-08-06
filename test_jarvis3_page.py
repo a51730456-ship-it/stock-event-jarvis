@@ -158,6 +158,11 @@ def _breakout_result():
         "rule": {"wait_days": (1, 5), "drop_band": (-15.0, -10.0), "hold_days": 120,
                  "win_rate": 71.0, "median_return": 12.5,
                  "base_win_rate": 64.4, "base_median_return": 7.1, "per_year": 30},
+        # 표를 잰 자리인지 알려만 준다 — 막지 않는다(2026-08-06).
+        "market": {"ok": True, "armed": False, "drop_pct": -20.0, "above_200": False,
+                   "max_drop": -10.0,
+                   "reason": "나스닥이 200일선 아래이고 고점 대비 -20.0%입니다 — "
+                             "오늘은 표를 잰 자리가 아닙니다."},
         "universe_count": 200, "data_count": 199, "window_count": 6,
         "result_limit": 20, "checked_at": "x", "stale": False, "reused_batch": False,
     }
@@ -809,6 +814,14 @@ class Jarvis3PageTests(unittest.TestCase):
             "상승장 (신고가 눌림매수) 닫기" in str(node.label)
             for node in app.button
         ))
+        # 표를 잰 자리가 아니면 빨간 줄로 알린다 — 그래도 종목은 그대로 나온다
+        # (2026-08-06 사용자 결정). 막으면 화면이 통째로 비는 날이 생긴다.
+        self.assertTrue(any(
+            "표를 잰 자리가 아닙니다" in str(node.value) for node in app.error
+        ), "표를 잰 자리가 아닌데 빨간 줄이 없다")
+        self.assertEqual(1, len([
+            node for node in app.button if str(node.key or "").startswith("j3rbf_")
+        ]), "알림만 해야 하는데 종목이 사라졌다")
 
     def test_crash_mode_shows_both_depth_buckets_and_holding_periods(self):
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
