@@ -756,8 +756,12 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("render_kr_flow_card", source)
         self.assertIn("j3tbtn_{index:02d}", source)
 
-    def _run_with_mode(self, mode, finder_name, finder_result):
-        """설명서 갈래 단추를 눌렀을 때의 화면을 그린다 (2026-08-01)."""
+    def _run_with_mode(self, mode, finder_name, finder_result, *, help_open=True):
+        """설명서 갈래 단추를 눌렀을 때의 화면을 그린다 (2026-08-01).
+
+        설명은 2026-08-06부터 접혀 있다(사용자 지시). 글을 확인하는 시험은
+        열어 둔 상태로 그리고, 접혀 있는지 자체는 help_open=False로 확인한다.
+        """
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("market_signal_ui._fetch_quotes", return_value={}), \
@@ -781,6 +785,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app.session_state["j3_pullback_open"] = True
             app.session_state["j3_pullback_mode"] = mode
             app.session_state["j3_pullback_result"] = finder_result
+            app.session_state["j3_rulebook_help_open"] = bool(help_open)
             app.run(timeout=60)
         self.assertEqual(len(app.exception), 0)
         return app
@@ -896,10 +901,53 @@ class Jarvis3PageTests(unittest.TestCase):
                                   _breakout_result())
         joined = " ".join(str(node.value) for node in app.markdown)
         self.assertIn("신고가 눌림 전용 배점", joined)
-        self.assertIn("최근 60일 상승폭", joined)
+        # 2026-08-06 — 60일 상승폭은 배점에서 뺐다(뒤 5년에 졌다). 그 자리를
+        # '최근 11일에 빠졌나'가 대신한다. 두 갈래가 같은 항목을 쓴다.
+        self.assertIn("최근 11일에 빠졌나", joined)
+        self.assertNotIn("최근 60일 상승폭</td>", joined)
         # 상승장에서는 거래대금 연속이 거꾸로였다 — 표 칸에서 빠져야 한다.
         self.assertNotIn("거래대금 (평소 위 연속)", joined)
         self.assertIn("이 규칙에는 없음", joined)
+
+    def test_the_long_explanation_is_folded_until_asked_for(self):
+        """설명은 눌러야 나온다(2026-08-06 사용자 지시 — 설명이 첫 화면을 다 먹었다).
+
+        접혀 있어도 **종목 표와 오늘 이야기 한 줄은 그대로 보여야** 한다.
+        """
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                  _breakout_result(), help_open=False)
+        joined = " ".join(str(node.value) for node in app.markdown)
+        self.assertNotIn("점수를 매기는 기준", joined, "설명이 접히지 않았다")
+        self.assertNotIn("찾는 그물", joined, "설명이 접히지 않았다")
+        self.assertTrue(any("이 화면 설명 보기" in str(node.label) for node in app.button),
+                        "설명을 펴는 단추가 없다")
+        # 접혀 있어도 표와 오늘 이야기는 남는다.
+        self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
+        self.assertTrue(any("표를 잰 자리가 아닙니다" in str(node.value) for node in app.error))
+        # 펴면 설명과 닫기 단추가 같이 나온다.
+        opened = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                     _breakout_result())
+        joined_open = " ".join(str(node.value) for node in opened.markdown)
+        self.assertIn("점수를 매기는 기준", joined_open)
+        self.assertTrue(any("설명 닫기" in str(node.label) for node in opened.button),
+                        "닫기 단추가 없다")
+
+    def test_the_score_has_its_own_column_next_to_the_rank(self):
+        """점수는 순위 칸이 아니라 **다음 칸**이다(2026-08-06 사용자 지시).
+
+        순위 칸에 같이 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다.
+        """
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                  _breakout_result())
+        header = next(
+            str(node.value) for node in app.markdown
+            if "j3-th-head" in str(node.value) and "점수" in str(node.value)
+        )
+        self.assertIn("점수", header)
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        self.assertLess(block.index("'j3-th-head'>순위"), block.index("'j3-th-head'>점수"))
+        self.assertLess(block.index("'j3-th-head'>점수"), block.index("'j3-th-head'>종목"))
 
     def test_each_section_can_also_be_closed_from_its_bottom(self):
         """구역마다 맨 아래에도 닫기 단추를 둔다(2026-08-01, 한국테마와 같은 장치)."""

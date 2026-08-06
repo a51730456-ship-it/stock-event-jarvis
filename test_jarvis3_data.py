@@ -311,6 +311,26 @@ class RulebookScreenTests(unittest.TestCase):
         # 60일 상승폭도 뺐다 — 가운데 값만 크고 이기는 횟수는 뒤 5년에 졌다.
         self.assertNotIn("ret60", j3.BREAKOUT_SCORE_WEIGHTS)
 
+    def test_theme_points_match_what_the_screen_says(self):
+        """화면 배점표('3개↑ 만점 · 1~2개 절반')와 계산이 같아야 한다.
+
+        2026-08-06 상하님 캡처에서 '같은 테마 동반 1개 함께 걸림 → 0.0(40.0)'으로
+        어긋난 것이 드러났다. 등급(THEME_TOGETHER_TIERS)은 4개부터 만점이라
+        배점에 그대로 쓰면 안 된다 — 등급은 순위를 가를 때만 쓴다.
+        """
+        self.assertEqual(40.0, j3.theme_together_points(3, 40.0))
+        self.assertEqual(40.0, j3.theme_together_points(7, 40.0))
+        self.assertEqual(20.0, j3.theme_together_points(1, 40.0))
+        self.assertEqual(20.0, j3.theme_together_points(2, 40.0))
+        self.assertEqual(0.0, j3.theme_together_points(0, 40.0))
+        # 두 갈래 점수 모두 이 자를 써야 한다.
+        for scorer in (j3.breakout_score, j3.crash_rebound_score):
+            row = {"metrics": {}, "together_count": 1, "together_tier": 0,
+                   "recent_gain_pct": 0.0, "bucket": "shallow"}
+            points = next(value for name, value, _m, _t in scorer(row)["parts"]
+                          if name == "같은 테마 동반")
+            self.assertEqual(20.0, points, f"{scorer.__name__}이 1개를 0점으로 준다")
+
     def test_recent_drop_scores_the_fall_not_the_rally(self):
         """낙폭(구덩이 깊이)과 다른 것을 잰다 — 방금 빠졌나 이미 올라왔나."""
         full = j3.recent_drop_points(-8.0, 25.0)

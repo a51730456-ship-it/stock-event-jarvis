@@ -163,7 +163,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080660
+MODULE_REVISION = 2026080670
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1035,6 +1035,27 @@ def theme_together_tier(count: int) -> tuple[int, str]:
     return 0, f"{max(int(count), 0)}개"
 
 
+def theme_together_points(count, points: float) -> float:
+    """같은 테마 동반 수 → 배점(2026-08-06 새로 만듦).
+
+    **THEME_TOGETHER_TIERS를 그대로 쓰면 안 된다.** 그 등급은 4개 이상이라야 만점이라
+    화면 배점표('3개 이상 만점 · 1~2개 절반')와 어긋났다 — 2026-08-06 상하님 캡처에서
+    '1개 함께 걸림 → 0.0(40.0)'으로 드러났다.
+
+    재 본 결과가 갈리는 지점은 **3개**다(상승장 3개 이상 67.3% · 기준 62.2%).
+    그래서 3개부터 만점, 1~2개 절반, 혼자면 0점이다.
+
+    등급(THEME_TOGETHER_TIERS)은 동점을 가르는 순위에만 계속 쓴다 — 4개와 3개를
+    가려 주므로 버리지 않는다.
+    """
+    number = max(int(count or 0), 0)
+    if number >= 3:
+        return float(points)
+    if number >= 1:
+        return float(points) * 0.5
+    return 0.0
+
+
 def volume_streak_days(frame) -> int:
     """거래대금이 50일 평균 위에 며칠 연속인지 센다. 오늘이 평균 아래면 0."""
     try:
@@ -1140,10 +1161,10 @@ def crash_rebound_score(row: dict) -> dict:
     weights = CRASH_SCORE_WEIGHTS
     parts = []
 
-    tier = int(row.get("together_tier") or 0)          # 0~3
-    together = weights["together"] * (tier / 3.0)
-    parts.append(("같은 테마 동반", together, weights["together"],
-                  f"{int(row.get('together_count') or 0)}개 함께 걸림"))
+    count = int(row.get("together_count") or 0)
+    parts.append(("같은 테마 동반", theme_together_points(count, weights["together"]),
+                  weights["together"],
+                  f"{count}개 함께 걸림 (3개↑ 만점 · 1~2개 절반)"))
 
     # 낙폭과 **다른 것**을 잰다 — 낙폭은 구덩이 깊이, 이것은 방금 빠졌나 여부.
     gain = row.get("recent_gain_pct")
@@ -1206,9 +1227,10 @@ def breakout_score(row: dict) -> dict:
     weights = BREAKOUT_SCORE_WEIGHTS
     parts = []
 
-    tier = int(row.get("together_tier") or 0)
-    parts.append(("같은 테마 동반", weights["together"] * (tier / 3.0), weights["together"],
-                  f"{int(row.get('together_count') or 0)}개 함께 걸림"))
+    count = int(row.get("together_count") or 0)
+    parts.append(("같은 테마 동반", theme_together_points(count, weights["together"]),
+                  weights["together"],
+                  f"{count}개 함께 걸림 (3개↑ 만점 · 1~2개 절반)"))
 
     gain = row.get("recent_gain_pct")
     parts.append(("최근 11일에 빠졌나", recent_drop_points(gain, weights["recent_drop"]),

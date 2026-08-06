@@ -208,7 +208,11 @@
   마지막 것은 **디스크 공책 때문**이다 — `cache/jarvis4/flow__000660.pkl`이 있으면
   시험이 일부러 낸 통신 실패를 캐시가 덮어 `ok=True`가 된다.
   `_disk_cache_read`를 막고 돌리면 통과한다(2026-08-06 확인).
-* PowerShell `Set-Content -Encoding utf8`은 BOM을 넣는다. 파이썬 파일은 `Write`/`Edit`로.
+* **PowerShell로 소스 파일을 고치지 않는다. `Write`/`Edit`만 쓴다.**
+  `Set-Content -Encoding utf8`은 BOM을 넣고, 그보다 나쁜 것은 **`Get-Content -Raw`가
+  BOM 없는 UTF-8 파일을 CP949로 읽어 한글을 전부 깨뜨린다**는 점이다.
+  2026-08-06에 `MODULE_REVISION` 숫자 하나 바꾸려다 `jarvis3_data.py`의 한글 주석이
+  통째로 깨졌다(diff 1,124줄). `git checkout -- 파일`로 되돌리고 `Edit`로 다시 했다.
 
 ---
 
