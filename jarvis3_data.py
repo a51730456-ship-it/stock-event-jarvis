@@ -163,7 +163,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080680
+MODULE_REVISION = 2026080690
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1098,10 +1098,21 @@ def volume_streak_days(frame) -> int:
 # 점수를 안 준다 — 그 시기에만 맞는 자리를 1등으로 올리기 때문이다.
 # 기준선은 그날 아무 종목이나 69.5%(앞 75.8 / 뒤 61.6).
 #
-#   40점 테마 동반   — 양쪽 다 이김(앞 +4.2 / 뒤 +1.8%p). 가장 세고 유일하게 안정적이다.
-#   25점 최근 11일에 빠졌나 — 양쪽 다 이김(앞 +2.4 / 뒤 +3.2%p). 낙폭과 **다른 것**을 잰다.
+# 2026-08-06에 테마와 11일의 무게를 **맞바꿨다.** 그전 숫자(테마 앞 +4.2 / 뒤 +1.8)는
+# -20~-30% **한 칸만** 잰 값이었다. 화면이 실제로 쓰는 그물(-20~-50% 합친 것, 16,504건)로
+# 다시 재니 달랐다(research/theme_size_bias.py).
+#     테마 동반 3개↑  10년 70.4%  앞 -2.8 / 뒤 +6.3 → **앞 5년에 진다**
+#     최근 11일 -5%↓  10년 69.9%  앞 +0.6 / 뒤 +1.8 → 양쪽 다 이긴다
+#     (기준선 69.5%)
+# 10년 전체만 보면 테마가 조금 낫지만, **한 시기에서만 통한 값은 다음 시기에 또 뒤집힌다.**
+# 이 프로젝트가 계속 써 온 잣대는 '앞뒤 양쪽에서 이겼나'이므로 그 잣대를 따른다.
+# 상승장은 테마가 앞 +8.6 / 뒤 +2.5로 뚜렷해서 **바꾸지 않는다** — 두 갈래가 다른 이유다.
+#
+#   40점 최근 11일에 빠졌나 — 이 갈래에서 앞뒤 양쪽을 이긴 **유일한** 값이다.
+#          낙폭과 **다른 것**을 잰다.
 #          낙폭은 '구덩이가 얼마나 깊나'(위치)이고 이것은 '방금 빠졌나 이미 올라왔나'
 #          (방향)다. 낙폭 -35%짜리 안에도 반년 전에 무너진 것과 이번에 빠진 것이 섞여 있다.
+#   25점 테마 동반   — 뒤 5년만 이겼다. 값은 하지만 앞세우지는 않는다.
 #   15점 낙폭 갈래   — 뒤 5년에서 진다(앞 +4.3 / 뒤 -1.6%p). 게다가 이미 **그물로 한 번**
 #          썼다(20~50%). 그물을 통과한 것들끼리는 거의 안 갈린다(20~30% 68.9% ·
 #          30~50% 68.3% · 기준선 69.5%). 두 번 세는 셈이라 낮게 준다.
@@ -1113,7 +1124,7 @@ def volume_streak_days(frame) -> int:
 #          (위 66.5% · 아래 69.6%). 테마가 살아나는지 미리 아는 방법은 못 찾았다.
 # 한국(jarvis4)은 외국인·기관 수급이 있어 배점이 다르다. 같은 자로 재면 안 된다.
 CRASH_SCORE_WEIGHTS = {
-    "together": 40.0, "recent_drop": 25.0, "bucket": 15.0,
+    "recent_drop": 40.0, "together": 25.0, "bucket": 15.0,
     "liquidity": 10.0, "volatility": 10.0,
 }
 
@@ -1177,16 +1188,18 @@ def crash_rebound_score(row: dict) -> dict:
     weights = CRASH_SCORE_WEIGHTS
     parts = []
 
-    count = int(row.get("together_count") or 0)
-    parts.append(("같은 테마 동반", theme_together_points(count, weights["together"]),
-                  weights["together"],
-                  f"{count}개 함께 걸림 (3개↑ 만점 · 1~2개 절반)"))
-
+    # 이 갈래에서 앞뒤 양쪽을 이긴 유일한 값이라 맨 앞에 둔다(2026-08-06).
     # 낙폭과 **다른 것**을 잰다 — 낙폭은 구덩이 깊이, 이것은 방금 빠졌나 여부.
     gain = row.get("recent_gain_pct")
     parts.append(("최근 11일에 빠졌나", recent_drop_points(gain, weights["recent_drop"]),
                   weights["recent_drop"],
                   "모름" if gain is None else f"{float(gain):+.1f}%"))
+
+    count = int(row.get("together_count") or 0)
+    theme = str(row.get("together_theme") or "같은 테마")
+    parts.append(("같은 테마 동반", theme_together_points(count, weights["together"]),
+                  weights["together"],
+                  f"{theme}에서 {count}종목 같이 걸림 (3개↑ 만점 · 1~2개 절반)"))
 
     # 20~30%가 만점, 30~50%는 절반 — 깊다고 더 좋지는 않았다(68.9% vs 68.3%).
     bucket = weights["bucket"] * (0.5 if row.get("bucket") == "deep" else 1.0)
@@ -1243,10 +1256,12 @@ def breakout_score(row: dict) -> dict:
     weights = BREAKOUT_SCORE_WEIGHTS
     parts = []
 
+    # '4개'가 테마 종류 4개로 읽힌다는 지적을 받아 테마 이름을 넣는다(2026-08-06).
     count = int(row.get("together_count") or 0)
+    theme = str(row.get("together_theme") or "같은 테마")
     parts.append(("같은 테마 동반", theme_together_points(count, weights["together"]),
                   weights["together"],
-                  f"{count}개 함께 걸림 (3개↑ 만점 · 1~2개 절반)"))
+                  f"{theme}에서 {count}종목 같이 걸림 (3개↑ 만점 · 1~2개 절반)"))
 
     gain = row.get("recent_gain_pct")
     parts.append(("최근 11일에 빠졌나", recent_drop_points(gain, weights["recent_drop"]),

@@ -1,14 +1,13 @@
-"""테마 동반 40점이 **테마 크기** 때문에 나온 결과인가 (2026-08-06 사용자 지적).
+"""테마가 **실제로 같이 움직였나**가 개수보다 나은가 (2026-08-06 사용자 지시).
 
-지금 배점은 '그날 같은 그물에 걸린 같은 테마 종목 수(개수)'로 준다. 그런데 빅테크10은
-10종목이라 4개가 걸리기 쉽고, 5종목짜리 테마에서 4개 걸리는 것과 무게가 다르다.
+지금 배점은 '그날 같은 그물에 걸린 같은 테마 종목 수'만 센다. 같이 올랐는지는 안 본다.
+그래서 '같이 움직였나'를 두 가지로 재서 개수와 견준다.
 
-세 가지를 잰다.
-  ① 개수(지금 방식)  — 3개 이상
-  ② 비율(새 방식)    — 같이 걸린 수 ÷ 그 테마 종목 수
-  ③ 테마 크기만      — 큰 테마 종목이라서 좋은 것인가
+  ① 개수                  — 지금 방식
+  ② 테마 형제들의 최근 5일 수익률 **가운데 값** (나를 뺀 나머지)
+  ③ 테마 형제들이 같은 방향으로 움직인 **비율** (5일 수익률 부호가 같은 비율)
 
-    python research/theme_size_bias.py
+    python research/theme_comove.py
 """
 import sys
 from pathlib import Path
@@ -20,9 +19,8 @@ import yfinance as yf
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from jarvis3_data import US_LARGE_CAP_UNIVERSE, US_THEMES
 
-MEMBER, SIZE = {}, {}
+MEMBER = {}
 for theme in US_THEMES:
-    SIZE[theme["name"]] = len(theme["stocks"])
     for s in theme["stocks"]:
         MEMBER.setdefault(s, []).append(theme["name"])
 
@@ -54,12 +52,14 @@ for t, df in data.items():
         lambda w: len(w) - 1 - int(np.argmax(w)), raw=True).values
     PRE[t] = {"idx": df.index, "dd": ((close / hi - 1.0) * 100).values, "days": days,
               "ret": (close.shift(-(1 + HOLD)) / df["Open"].shift(-1) - 1.0).values * 100,
-              "pos": {x: i for i, x in enumerate(df.index)},
-              # 배점 25점짜리 항목도 **합친 그물**에서 다시 확인한다 — 앞서 테마를
-              # 한 칸만 재고 전체인 줄 알았던 잘못을 되풀이하지 않으려는 것이다.
-              "gain11": ((close / close.shift(11) - 1.0) * 100).values,
-              # 이 종목이 든 테마 중 가장 큰 것 — '큰 테마 종목인가'를 보는 값
-              "big": max((SIZE[n] for n in MEMBER.get(t, [])), default=0)}
+              # 최근 5일 움직임 — '같이 움직였나'를 이 값으로 본다
+              "ret5": ((close / close.shift(5) - 1.0) * 100).values,
+              "pos": {x: i for i, x in enumerate(df.index)}}
+
+# 테마별 종목 목록(자료가 있는 것만)
+THEME_STOCKS = {}
+for theme in US_THEMES:
+    THEME_STOCKS[theme["name"]] = [s for s in theme["stocks"] if s in PRE]
 
 
 def gather(days_set, match):
@@ -68,21 +68,42 @@ def gather(days_set, match):
         picks = [(t, i) for t, p in PRE.items()
                  if (i := p["pos"].get(day)) is not None
                  and np.isfinite(p["dd"][i]) and match(p, i)]
+        if not picks:
+            continue
         cnt = {}
         for t, _i in picks:
             for nm in MEMBER.get(t, []):
                 cnt[nm] = cnt.get(nm, 0) + 1
+        # 테마마다 형제들의 5일 수익률을 미리 모은다(그날 그 테마 전체 종목)
+        theme_ret5 = {}
+        for name, members in THEME_STOCKS.items():
+            vals = {}
+            for s in members:
+                j = PRE[s]["pos"].get(day)
+                if j is not None and np.isfinite(PRE[s]["ret5"][j]):
+                    vals[s] = float(PRE[s]["ret5"][j])
+            theme_ret5[name] = vals
         for t, i in picks:
             p = PRE[t]
             r = p["ret"][i]
             if not np.isfinite(r):
                 continue
             names = MEMBER.get(t, [])
-            # 개수 = 나 말고 같이 걸린 수 · 비율 = 그 테마에서 걸린 비율
-            count = max((cnt.get(nm, 0) - 1 for nm in names), default=0)
-            ratio = max((cnt.get(nm, 0) / SIZE[nm] for nm in names), default=0.0)
-            out.append({"ret": r, "date": p["idx"][i], "count": max(count, 0),
-                        "ratio": ratio, "big": p["big"], "gain11": p["gain11"][i]})
+            count = max(max((cnt.get(nm, 0) - 1 for nm in names), default=0), 0)
+            # 가장 많이 같이 걸린 테마를 대표로 본다(배점이 쓰는 것과 같은 테마)
+            lead = max(names, key=lambda nm: cnt.get(nm, 0), default=None)
+            peers = dict(theme_ret5.get(lead, {})) if lead else {}
+            mine = peers.pop(t, None)
+            if peers:
+                vals = np.array(list(peers.values()))
+                peer_med = float(np.median(vals))
+                same = (float(np.mean(vals > 0)) if mine is not None and mine > 0
+                        else float(np.mean(vals < 0)) if mine is not None
+                        else float("nan"))
+            else:
+                peer_med, same = float("nan"), float("nan")
+            out.append({"ret": r, "date": p["idx"][i], "count": count,
+                        "peer_med": peer_med, "same": same})
     return out
 
 
@@ -97,48 +118,41 @@ def report(title, rows, base):
     ba = np.array([r for r, dt in base if dt < SPLIT])
     bb = np.array([r for r, dt in base if dt >= SPLIT])
     fa, fb = (ba > 0).mean() * 100, (bb > 0).mean() * 100
-    print("\n" + "=" * 78)
+    print("\n" + "=" * 76)
     print(f"{title} — 걸린 자리 {len(rows):,}개 · 기준선 앞 {fa:.1f}% / 뒤 {fb:.1f}%")
-    print(f"  {'조건':<26}{'잰 횟수':>8}{'승률':>8}{'앞':>8}{'뒤':>8}  판정")
+    print(f"  {'조건':<28}{'잰 횟수':>8}{'앞':>8}{'뒤':>8}  판정")
 
     def show(label, keep):
         sel = [x for x in rows if keep(x)]
         a = np.array([x["ret"] for x in sel if x["date"] < SPLIT])
         b = np.array([x["ret"] for x in sel if x["date"] >= SPLIT])
         if len(a) < 50 or len(b) < 50:
-            print(f"  {label:<27}{len(sel):>7,}   표본 부족")
+            print(f"  {label:<29}{len(sel):>7,}   표본 부족")
             return
-        v = np.array([x["ret"] for x in sel])
         da = (a > 0).mean() * 100 - fa
         db = (b > 0).mean() * 100 - fb
         mark = "양쪽 다 이김" if da > 0 and db > 0 else ("양쪽 다 짐" if da <= 0 and db <= 0
                                                         else "한쪽만")
-        print(f"  {label:<27}{len(v):>7,}{(v > 0).mean()*100:7.1f}%"
-              f"{da:+8.1f}{db:+8.1f}  {mark}")
+        print(f"  {label:<29}{len(a)+len(b):>7,}{da:+8.1f}{db:+8.1f}  {mark}")
 
+    ok = lambda x: np.isfinite(x["peer_med"])
     show("① 개수 3개 이상(지금)", lambda x: x["count"] >= 3)
-    show("① 개수 1~2개", lambda x: 1 <= x["count"] <= 2)
     print()
-    # 25점짜리 항목 — 합친 그물에서도 앞뒤 양쪽을 이기는지 확인한다.
-    show("◆ 최근 11일 -5%↓", lambda x: np.isfinite(x["gain11"]) and x["gain11"] < -5)
-    show("◆ 최근 11일 +5%↑", lambda x: np.isfinite(x["gain11"]) and x["gain11"] > 5)
-    show("◆ 11일-5%↓ + 개수 3개↑",
-         lambda x: np.isfinite(x["gain11"]) and x["gain11"] < -5 and x["count"] >= 3)
+    show("② 형제 5일 +3%↑ (같이 오름)", lambda x: ok(x) and x["peer_med"] >= 3)
+    show("② 형제 5일 0~+3%", lambda x: ok(x) and 0 <= x["peer_med"] < 3)
+    show("② 형제 5일 마이너스", lambda x: ok(x) and x["peer_med"] < 0)
+    show("② 형제 5일 -3%↓ (같이 빠짐)", lambda x: ok(x) and x["peer_med"] <= -3)
     print()
-    show("② 비율 30% 이상", lambda x: x["ratio"] >= 0.30)
-    show("② 비율 50% 이상", lambda x: x["ratio"] >= 0.50)
-    show("② 비율 30% 미만", lambda x: x["ratio"] < 0.30)
+    show("③ 같은 방향 70%↑", lambda x: np.isfinite(x["same"]) and x["same"] >= 0.7)
+    show("③ 같은 방향 40% 미만", lambda x: np.isfinite(x["same"]) and x["same"] < 0.4)
     print()
-    show("③ 큰 테마(8종목↑) 종목", lambda x: x["big"] >= 8)
-    show("③ 작은 테마(7종목↓) 종목", lambda x: x["big"] < 8)
-    print()
-    show("큰 테마 안에서 개수 3개↑", lambda x: x["big"] >= 8 and x["count"] >= 3)
-    show("작은 테마 안에서 개수 3개↑", lambda x: x["big"] < 8 and x["count"] >= 3)
-    show("큰 테마 안에서 비율 30%↑", lambda x: x["big"] >= 8 and x["ratio"] >= 0.30)
-    show("작은 테마 안에서 비율 30%↑", lambda x: x["big"] < 8 and x["ratio"] >= 0.30)
+    show("개수3↑ + 형제 같이 빠짐",
+         lambda x: x["count"] >= 3 and ok(x) and x["peer_med"] < 0)
+    show("개수3↑ + 형제 같이 오름",
+         lambda x: x["count"] >= 3 and ok(x) and x["peer_med"] >= 3)
 
 
-print(f"테마 명부 {len(PRE)}종목 · 테마 크기 {min(SIZE.values())}~{max(SIZE.values())}종목")
+print(f"테마 명부 {len(PRE)}종목")
 report("급락 후 반등장 (나스닥 -6~-12% · 종목 -20~-50%)",
        gather(CRASH, lambda p, i: -50.0 <= p["dd"][i] < -20.0), base_of(CRASH))
 report("정상 상승장 (신고가 1~5일 전 · 눌림 4~15%)",

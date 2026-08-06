@@ -1,14 +1,15 @@
-"""테마 동반 40점이 **테마 크기** 때문에 나온 결과인가 (2026-08-06 사용자 지적).
+"""테마를 여러 개 가진 종목이 유리한가 (2026-08-06 사용자 지적).
 
-지금 배점은 '그날 같은 그물에 걸린 같은 테마 종목 수(개수)'로 준다. 그런데 빅테크10은
-10종목이라 4개가 걸리기 쉽고, 5종목짜리 테마에서 4개 걸리는 것과 무게가 다르다.
+지금 배점은 그 종목이 속한 테마들 중 **가장 많이 걸린 테마 하나**만 본다(최댓값).
+메타처럼 테마가 4개면 그중 하나만 3개 이상이어도 40점 만점이다. 나머지 3개가
+0이어도 깎이지 않는다. 상하님 지적 — "테마 4개 중 2개만 오르면 깎는 게 정상 아니냐".
 
-세 가지를 잰다.
-  ① 개수(지금 방식)  — 3개 이상
-  ② 비율(새 방식)    — 같이 걸린 수 ÷ 그 테마 종목 수
-  ③ 테마 크기만      — 큰 테마 종목이라서 좋은 것인가
+세 가지를 견준다.
+  ① 최대   — 지금 방식 (가장 많이 걸린 테마 하나)
+  ② 평균   — 그 종목의 모든 테마 동반 수의 평균
+  ③ 덮은비율 — 그 종목의 테마 중 '3개 이상 걸린 테마'의 비율
 
-    python research/theme_size_bias.py
+    python research/theme_coverage.py
 """
 import sys
 from pathlib import Path
@@ -20,9 +21,8 @@ import yfinance as yf
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from jarvis3_data import US_LARGE_CAP_UNIVERSE, US_THEMES
 
-MEMBER, SIZE = {}, {}
+MEMBER = {}
 for theme in US_THEMES:
-    SIZE[theme["name"]] = len(theme["stocks"])
     for s in theme["stocks"]:
         MEMBER.setdefault(s, []).append(theme["name"])
 
@@ -55,11 +55,7 @@ for t, df in data.items():
     PRE[t] = {"idx": df.index, "dd": ((close / hi - 1.0) * 100).values, "days": days,
               "ret": (close.shift(-(1 + HOLD)) / df["Open"].shift(-1) - 1.0).values * 100,
               "pos": {x: i for i, x in enumerate(df.index)},
-              # 배점 25점짜리 항목도 **합친 그물**에서 다시 확인한다 — 앞서 테마를
-              # 한 칸만 재고 전체인 줄 알았던 잘못을 되풀이하지 않으려는 것이다.
-              "gain11": ((close / close.shift(11) - 1.0) * 100).values,
-              # 이 종목이 든 테마 중 가장 큰 것 — '큰 테마 종목인가'를 보는 값
-              "big": max((SIZE[n] for n in MEMBER.get(t, [])), default=0)}
+              "themes": len(MEMBER.get(t, []))}
 
 
 def gather(days_set, match):
@@ -78,11 +74,16 @@ def gather(days_set, match):
             if not np.isfinite(r):
                 continue
             names = MEMBER.get(t, [])
-            # 개수 = 나 말고 같이 걸린 수 · 비율 = 그 테마에서 걸린 비율
-            count = max((cnt.get(nm, 0) - 1 for nm in names), default=0)
-            ratio = max((cnt.get(nm, 0) / SIZE[nm] for nm in names), default=0.0)
-            out.append({"ret": r, "date": p["idx"][i], "count": max(count, 0),
-                        "ratio": ratio, "big": p["big"], "gain11": p["gain11"][i]})
+            if not names:
+                continue
+            each = [max(cnt.get(nm, 0) - 1, 0) for nm in names]
+            out.append({
+                "ret": r, "date": p["idx"][i],
+                "best": max(each),                       # ① 지금 방식
+                "mean": float(np.mean(each)),            # ② 평균
+                "cover": float(np.mean([e >= 3 for e in each])),  # ③ 3개↑ 테마 비율
+                "themes": len(names),
+            })
     return out
 
 
@@ -97,48 +98,41 @@ def report(title, rows, base):
     ba = np.array([r for r, dt in base if dt < SPLIT])
     bb = np.array([r for r, dt in base if dt >= SPLIT])
     fa, fb = (ba > 0).mean() * 100, (bb > 0).mean() * 100
-    print("\n" + "=" * 78)
+    print("\n" + "=" * 76)
     print(f"{title} — 걸린 자리 {len(rows):,}개 · 기준선 앞 {fa:.1f}% / 뒤 {fb:.1f}%")
-    print(f"  {'조건':<26}{'잰 횟수':>8}{'승률':>8}{'앞':>8}{'뒤':>8}  판정")
+    print(f"  {'조건':<30}{'잰 횟수':>8}{'앞':>8}{'뒤':>8}  판정")
 
     def show(label, keep):
         sel = [x for x in rows if keep(x)]
         a = np.array([x["ret"] for x in sel if x["date"] < SPLIT])
         b = np.array([x["ret"] for x in sel if x["date"] >= SPLIT])
         if len(a) < 50 or len(b) < 50:
-            print(f"  {label:<27}{len(sel):>7,}   표본 부족")
+            print(f"  {label:<31}{len(sel):>7,}   표본 부족")
             return
-        v = np.array([x["ret"] for x in sel])
         da = (a > 0).mean() * 100 - fa
         db = (b > 0).mean() * 100 - fb
         mark = "양쪽 다 이김" if da > 0 and db > 0 else ("양쪽 다 짐" if da <= 0 and db <= 0
                                                         else "한쪽만")
-        print(f"  {label:<27}{len(v):>7,}{(v > 0).mean()*100:7.1f}%"
-              f"{da:+8.1f}{db:+8.1f}  {mark}")
+        print(f"  {label:<31}{len(a)+len(b):>7,}{da:+8.1f}{db:+8.1f}  {mark}")
 
-    show("① 개수 3개 이상(지금)", lambda x: x["count"] >= 3)
-    show("① 개수 1~2개", lambda x: 1 <= x["count"] <= 2)
+    show("① 최대 3개↑ (지금 방식)", lambda x: x["best"] >= 3)
     print()
-    # 25점짜리 항목 — 합친 그물에서도 앞뒤 양쪽을 이기는지 확인한다.
-    show("◆ 최근 11일 -5%↓", lambda x: np.isfinite(x["gain11"]) and x["gain11"] < -5)
-    show("◆ 최근 11일 +5%↑", lambda x: np.isfinite(x["gain11"]) and x["gain11"] > 5)
-    show("◆ 11일-5%↓ + 개수 3개↑",
-         lambda x: np.isfinite(x["gain11"]) and x["gain11"] < -5 and x["count"] >= 3)
+    show("② 평균 3개↑", lambda x: x["mean"] >= 3)
+    show("② 평균 2개↑", lambda x: x["mean"] >= 2)
     print()
-    show("② 비율 30% 이상", lambda x: x["ratio"] >= 0.30)
-    show("② 비율 50% 이상", lambda x: x["ratio"] >= 0.50)
-    show("② 비율 30% 미만", lambda x: x["ratio"] < 0.30)
+    show("③ 테마 전부가 3개↑ (100%)", lambda x: x["cover"] >= 0.999)
+    show("③ 절반 이상 테마가 3개↑", lambda x: x["cover"] >= 0.5)
+    show("③ 한 테마만 3개↑ (나머지 미달)",
+         lambda x: x["best"] >= 3 and x["cover"] < 0.5)
     print()
-    show("③ 큰 테마(8종목↑) 종목", lambda x: x["big"] >= 8)
-    show("③ 작은 테마(7종목↓) 종목", lambda x: x["big"] < 8)
-    print()
-    show("큰 테마 안에서 개수 3개↑", lambda x: x["big"] >= 8 and x["count"] >= 3)
-    show("작은 테마 안에서 개수 3개↑", lambda x: x["big"] < 8 and x["count"] >= 3)
-    show("큰 테마 안에서 비율 30%↑", lambda x: x["big"] >= 8 and x["ratio"] >= 0.30)
-    show("작은 테마 안에서 비율 30%↑", lambda x: x["big"] < 8 and x["ratio"] >= 0.30)
+    show("테마 1개짜리 종목 · 최대 3개↑",
+         lambda x: x["themes"] == 1 and x["best"] >= 3)
+    show("테마 2개↑ 종목 · 최대 3개↑",
+         lambda x: x["themes"] >= 2 and x["best"] >= 3)
 
 
-print(f"테마 명부 {len(PRE)}종목 · 테마 크기 {min(SIZE.values())}~{max(SIZE.values())}종목")
+print(f"테마 명부 {len(PRE)}종목 · 한 종목이 든 테마 수 "
+      f"{min(p['themes'] for p in PRE.values())}~{max(p['themes'] for p in PRE.values())}개")
 report("급락 후 반등장 (나스닥 -6~-12% · 종목 -20~-50%)",
        gather(CRASH, lambda p, i: -50.0 <= p["dd"][i] < -20.0), base_of(CRASH))
 report("정상 상승장 (신고가 1~5일 전 · 눌림 4~15%)",

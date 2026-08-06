@@ -303,11 +303,16 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertNotEqual(j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS)
         for weights in (j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS):
             self.assertEqual(100.0, sum(weights.values()))
-            # 앞뒤 5년 양쪽에서 다 이긴 값 둘에 점수를 몰아준다(2026-08-06 재측정).
-            self.assertEqual(40.0, weights["together"])
-            self.assertEqual(25.0, weights["recent_drop"])
             # 거래대금 연속은 양쪽 갈래 다 거꾸로였다 — 배점에서 뺐다.
             self.assertNotIn("volume_streak", weights)
+        # 두 갈래에서 **1등이 다르다**(2026-08-06 합친 그물로 재측정).
+        #   상승장 테마 앞 +8.6 / 뒤 +2.5  → 테마가 1등
+        #   급락  테마 앞 -2.8 / 뒤 +6.3  → 앞 5년에 져서 11일이 1등
+        # 잣대는 '앞뒤 양쪽에서 이겼나' 하나다. 10년 전체 성적으로 바꾸지 않는다.
+        self.assertEqual(40.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
+        self.assertEqual(25.0, j3.BREAKOUT_SCORE_WEIGHTS["recent_drop"])
+        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["recent_drop"])
+        self.assertEqual(25.0, j3.CRASH_SCORE_WEIGHTS["together"])
         # 60일 상승폭도 뺐다 — 가운데 값만 크고 이기는 횟수는 뒤 5년에 졌다.
         self.assertNotIn("ret60", j3.BREAKOUT_SCORE_WEIGHTS)
 
@@ -324,12 +329,12 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(20.0, j3.theme_together_points(2, 40.0))
         self.assertEqual(0.0, j3.theme_together_points(0, 40.0))
         # 두 갈래 점수 모두 이 자를 써야 한다.
-        for scorer in (j3.breakout_score, j3.crash_rebound_score):
+        for scorer, full in ((j3.breakout_score, 40.0), (j3.crash_rebound_score, 25.0)):
             row = {"metrics": {}, "together_count": 1, "together_tier": 0,
                    "recent_gain_pct": 0.0, "bucket": "shallow"}
             points = next(value for name, value, _m, _t in scorer(row)["parts"]
                           if name == "같은 테마 동반")
-            self.assertEqual(20.0, points, f"{scorer.__name__}이 1개를 0점으로 준다")
+            self.assertEqual(full / 2, points, f"{scorer.__name__}이 1개를 0점으로 준다")
 
     def test_recent_drop_scores_the_fall_not_the_rally(self):
         """낙폭(구덩이 깊이)과 다른 것을 잰다 — 방금 빠졌나 이미 올라왔나."""
