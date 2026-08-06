@@ -745,8 +745,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3-leader-head-gap", source)
         self.assertIn("theme_box.markdown", source)
         self.assertIn("if clicked_ticker:", source)
-        self.assertIn('st.session_state["j3_detail_open_theme"] = True', source)
-        self.assertIn('st.session_state["j3_leadercmp_open"] = True', source)
+        # 2026-08-06 — 표에서 종목을 누르면 상세만 열리고 차트는 안 열려서
+        # 단추를 또 눌러야 했다. 이제 당일 차트와 일봉·주봉·월봉까지 한 번에 편다.
+        for opened in ("j3_detail_open_theme", "j3_intraday_open_theme",
+                       "j3_bundle_open_theme", "j3_leadercmp_open"):
+            self.assertIn(f'"{opened}"', source, f"{opened}를 안 연다")
         self.assertIn("get_chart_bundle", source)
         self.assertIn('range=["#69bff8", "#ff4d4f", "#a855f7"]', source)
         # 색·메달 계약: 종목명 보라 / 라벨 코발트 / 점수 붉은 / 메달 80점 이상만

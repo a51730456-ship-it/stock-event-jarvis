@@ -2255,8 +2255,11 @@ def _render_radar_tab(market: dict) -> None:
         st.session_state[stock_key] = clicked_ticker
         # 이미 선택된 1위 종목을 다시 눌러도 상세가 열려야 한다. 이전에는 선택값과
         # 같으면 이 블록을 건너뛰어, 첫 행(MPC 등)을 눌러도 아무 일도 일어나지 않았다.
-        st.session_state["j3_detail_open_theme"] = True
-        st.session_state["j3_leadercmp_open"] = True
+        # 상세만 열고 차트는 안 열려서 단추를 또 눌러야 했다(2026-08-06 상하님 지시).
+        # 상승장·급락·순위 7 표와 같이 당일 차트와 일봉·주봉·월봉까지 한 번에 편다.
+        for opened in ("j3_detail_open_theme", "j3_intraday_open_theme",
+                       "j3_bundle_open_theme", "j3_leadercmp_open"):
+            st.session_state[opened] = True
         st.rerun()
 
     _render_leader_comparison(leaders)
@@ -2270,8 +2273,10 @@ def _render_radar_tab(market: dict) -> None:
             return _stock_radio_label(item) if item else ticker
 
         def _open_selected_theme_stock():
-            st.session_state["j3_detail_open_theme"] = True
-            st.session_state["j3_leadercmp_open"] = True
+            # 아래 '상세 종목 선택'으로 골라도 표에서 누른 것과 똑같이 편다.
+            for opened in ("j3_detail_open_theme", "j3_intraday_open_theme",
+                           "j3_bundle_open_theme", "j3_leadercmp_open"):
+                st.session_state[opened] = True
 
         selected_ticker = st.radio(
             "상세 종목 선택",
