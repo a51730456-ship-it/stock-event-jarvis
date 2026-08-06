@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080610
+MODULE_REVISION = 2026080620
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -41,10 +41,19 @@ div[class*="st-key-jarvis_method_help"] button {
     padding: .35rem .9rem !important;
     min-height: 0 !important;
     width: auto !important;
+    /* 손을 올리면 살짝 뜬다(2026-08-06 사용자 지시). 이 단추는 팝오버라
+       페이지 쪽 '.stButton button' 규칙에 안 걸려 여기서 직접 준다. */
+    transition: transform .12s ease-out, filter .12s ease-out,
+                background .12s ease-out, border-color .12s ease-out !important;
 }
 div[class*="st-key-jarvis_method_help"] button:hover {
     background: #b9dfff !important;
     border-color: #6db6ee !important;
+    transform: translateY(-2px) !important;
+    filter: brightness(1.05) !important;
+}
+div[class*="st-key-jarvis_method_help"] button:active {
+    transform: translateY(0) scale(.985) !important;
 }
 div[class*="st-key-jarvis_method_help"] button p {
     color: #c15f3c !important;
