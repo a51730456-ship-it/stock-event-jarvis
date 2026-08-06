@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080640
+MODULE_REVISION = 2026080650
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -107,7 +107,12 @@ div[class*="st-key-jarvis_method_help"] button p {
        만들면 'max-height 50vh가 있나' 보는 시험이 새 블록을 먼저 집어 깨진다
        (2026-08-06 실제로 걸렸다). */
     animation: mh-drop .24s ease-out;
+    /* **창은 맨 위에서 열려야 한다**(2026-08-06 상하님 지적 — 열자마자 맨 아래가
+       보였다). 표 그림이 늦게 뜨면서 브라우저가 아래쪽을 붙잡는 '스크롤 앵커링'
+       때문이다. 꺼 두면 그림이 채워져도 보던 자리가 안 밀린다. */
+    overflow-anchor: none !important;
 }
+[data-testid="stPopoverBody"] * { overflow-anchor: none !important; }
 
 /* ── 글 색 구분(2026-07-30 사용자 지시) ──────────────────────────────
    큰 제목은 초록, 번호 항목(①②③)은 파랑, 강조는 붉은색.
