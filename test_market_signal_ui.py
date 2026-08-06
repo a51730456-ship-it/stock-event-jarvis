@@ -189,6 +189,18 @@ class VerdictGaugeTests(unittest.TestCase):
         # 전일 판정도 맨 윗줄에 이름과 함께 있어야 한다.
         self.assertIn("전일", card)
         self.assertIn("방향 엇갈림", card)
+        # **색으로도 갈려야 한다** — 두 줄을 같은 색으로 찍었더니 "저게 구분한
+        # 거냐"는 지적을 받았다(2026-08-06). 전일 줄은 전일 판정의 색을 쓴다.
+        today_color = ui._US_VERDICT_STYLE[us.UsMarketVerdict.RISK_OFF][2]
+        prev_color = ui._US_VERDICT_STYLE[us.UsMarketVerdict.MIXED][2]
+        self.assertNotEqual(today_color, prev_color)
+        head = card.split("방향 엇갈림")[0]
+        self.assertIn(prev_color, head, "전일 줄이 전일 색을 안 쓴다")
+        # 날짜를 두 번 찍지 않는다 — comparison_label에 이미 들어 있다.
+        self.assertNotIn("전일 08", card)
+        # 아래 계기판 두 칸과 같은 모양의 **칸**으로 나눠야 한다(2026-08-06 지시).
+        for token in ("sig-head-pair", "sig-head-today", "sig-head-previous"):
+            self.assertIn(token, card, f"{token} 칸이 없다")
 
     def test_same_stage_with_different_counts_moves_the_needle(self):
         """켜진 신호가 다르면 바늘도 달라야 한다(2026-08-06 상하님 지적).

@@ -699,6 +699,19 @@ _SIGNAL_GAUGE_CSS = """
 .sig-gauge { flex: 0 0 auto; }
 .sig-gauge .fg-gauge { width: 190px; height: 127px; }
 .sig-gauge .fg-zone { font-size: 21px; }
+/* 카드 맨 위 당일·전일 두 칸 — 아래 계기판 두 칸과 같은 모양·같은 테두리 색으로
+   맞춘다(2026-08-06 사용자 지시 "칸을 밑에 처럼 구분하라"). 두 줄을 그냥 쌓아
+   놓으면 "저게 구분한 거냐"는 말을 듣는다. */
+.sig-head-pair { display:flex; flex-wrap:wrap; gap:.6rem; margin-bottom:.5rem; }
+.sig-head-box { flex:1 1 210px; border:1px solid rgba(255,255,255,.16);
+  border-radius:.7rem; padding:.5rem .85rem; background:rgba(5,9,16,.3); }
+.sig-head-today { border-color:rgba(68,240,161,.45); }
+.sig-head-previous { border-color:rgba(77,166,255,.45); }
+.sig-head-label { font-size:.82rem; font-weight:900; letter-spacing:.04em; }
+.sig-head-today .sig-head-label { color:#44f0a1; }
+.sig-head-previous .sig-head-label { color:#4da6ff; }
+.sig-head-verdict { font-size:1.25rem; font-weight:800; margin-top:.12rem;
+  line-height:1.25; }
 .sig-gauge-pair { display:flex; flex-wrap:wrap; align-items:flex-start; gap:.65rem; }
 .sig-gauge-shell { padding:.35rem .55rem .55rem; border:1px solid rgba(255,255,255,.16);
   border-radius:.75rem; background:rgba(5,9,16,.34); }
@@ -1250,21 +1263,33 @@ def render_market_signal_card(
 
     # 카드 맨 위 글자는 **당일 판정**이다. 전일은 안쪽 계기판에만 있어서 "전일은?"이라는
     # 물음을 받았다(2026-08-06 상하님 캡처). 맨 윗줄에서 둘을 갈라 적는다.
-    _headline_html = (
-        f'<div style="font-size:1.35rem;font-weight:800;color:{text};">'
-        f'<span style="opacity:.72;font-size:.72em;">당일</span> {result.verdict_label}</div>'
-    )
-    if comparison_result is not None:
+    #
+    # **색으로 갈라야 한다.** 처음에는 두 줄 다 당일 색으로 찍어 "저게 구분한 거냐"는
+    # 지적을 받았다. 전일 줄은 **전일 판정의 색**을 쓰고 왼쪽에 그 색 띠를 세운다.
+    # 날짜도 comparison_label에 이미 들어 있다 — 따로 붙이면 '08.05 08.06'이 된다.
+    if comparison_result is None:
+        _headline_html = (
+            f'<div style="font-size:1.35rem;font-weight:800;color:{text};">'
+            f'{result.verdict_label}</div>'
+        )
+    else:
+        # 아래 계기판 두 칸과 **같은 모양**으로 나눈다 — 당일은 초록 테두리,
+        # 전일은 파랑 테두리(2026-08-06 사용자 지시 "칸을 밑에 처럼 구분하라").
+        # 판정 글자는 각자 자기 판정의 색을 쓴다.
+        _prev_style = verdict_style.get(comparison_result.verdict)
+        _prev_text = _prev_style[2] if _prev_style else text
         _prev_label = getattr(comparison_result, "verdict_label", "") or "판정 확인"
-        _prev_day = ""
-        _prev_as_of = next((s.as_of for s in comparison_result.signals if s.as_of), None)
-        if _prev_as_of is not None:
-            _prev_day = " " + _prev_as_of.strftime("%m.%d")
-        _headline_html += (
-            f'<div style="font-size:1.05rem;font-weight:800;color:{text};opacity:.78;'
-            f'margin-top:2px;">'
-            f'<span style="opacity:.72;font-size:.78em;">{comparison_label}{_prev_day}</span>'
-            f' {_prev_label}</div>'
+        _headline_html = (
+            '<div class="sig-head-pair">'
+            '<div class="sig-head-box sig-head-today">'
+            '<div class="sig-head-label">당일</div>'
+            f'<div class="sig-head-verdict" style="color:{text};">'
+            f'{result.verdict_label}</div></div>'
+            '<div class="sig-head-box sig-head-previous">'
+            f'<div class="sig-head-label">{comparison_label}</div>'
+            f'<div class="sig-head-verdict" style="color:{_prev_text};">'
+            f'{_prev_label}</div></div>'
+            '</div>'
         )
 
     # 판정을 눈금 위에 올려 지금이 어느 단계인지 한눈에 보이게 한다(2026-07-24).
