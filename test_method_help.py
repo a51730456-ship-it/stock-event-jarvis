@@ -74,10 +74,19 @@ class PanelTests(unittest.TestCase):
         self.assertIn("prefers-color-scheme: dark", css)
 
     def test_there_is_a_way_to_close_it(self):
+        """닫는 길은 맨 아래 '창닫기' 단추와 그 옆 안내문 둘 다다(2026-08-06).
+
+        예전에는 창 맨 위 안내문 한 줄뿐이었다. 글을 다 읽고 나면 여는 단추가
+        화면 위로 올라가 안 보인다는 지적을 받아 아래에 단추를 뒀다.
+        """
         import inspect
 
         self.assertIn("다시 누르", method_help.CLOSE_HINT)
-        self.assertIn("CLOSE_HINT", inspect.getsource(method_help.render))
+        closer = inspect.getsource(method_help._close_button)
+        self.assertIn("창닫기", closer)
+        self.assertIn("CLOSE_HINT", closer)
+        # 미국·한국 두 설명 모두 맨 아래에서 이 단추를 부른다.
+        self.assertEqual(2, inspect.getsource(method_help.render).count("_close_button("))
 
     def test_bold_runs_are_not_broken_by_korean_particles(self):
         """닫는 ** 앞이 %·)·' 이고 뒤에 한글이 붙으면 별표가 그대로 찍힌다."""

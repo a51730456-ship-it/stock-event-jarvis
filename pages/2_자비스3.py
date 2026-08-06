@@ -260,7 +260,7 @@ st.markdown(
     /* SPY·QQQ는 그림이 둘이라 칸을 조금 넓게 잡는다. */
     .j3-idx-wide { min-width: 240px; }
     .j3-idx-charts { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    /* 손을 올리면 '일봉 3개월'이 **오른쪽에서 밀려 들어와 같은 자리에서 바뀐다**
+    /* 손을 올리면 '일봉 6개월'이 **오른쪽에서 밀려 들어와 같은 자리에서 바뀐다**
        (2026-08-06 상하님 지시 "오른쪽으로 하되 겹치지 않게").
        여기까지 온 과정 — ① 칸 아래로 펼쳤더니 아래 화면이 통째로 밀려 어지러웠고,
        ② 옆에 띄웠더니 이웃 칸을 덮었다. 같은 자리에서 바꾸면 **밀리지도 덮지도**
@@ -273,6 +273,13 @@ st.markdown(
         position: absolute; inset: 0;
         opacity: 0; transform: translateX(26px); pointer-events: none;
     }
+    /* '일봉 6개월' 그림에는 스카이블루 테두리를 두른다(2026-08-06 사용자 지시) —
+       늘 보이는 '당일' 그림과 한눈에 갈린다. */
+    .j3-idx-more svg {
+        border: 2px solid #4da6ff !important;
+        border-radius: .5rem;
+        box-shadow: 0 0 10px rgba(77,166,255,.28);
+    }
     .j3-top-cell:hover .j3-idx-swap .j3-idx-now {
         opacity: 0; transform: translateX(-26px);
         transition: opacity .24s ease-out, transform .24s ease-out;
@@ -282,6 +289,9 @@ st.markdown(
         transition: opacity .24s ease-out, transform .24s ease-out;
     }
     .j3-idx-cap { color: #9aa0aa; font-size: 0.78rem; font-weight: 700; text-align: center; }
+    /* '일봉 6개월'은 손을 올려야 보이는 그림이라 이름을 스카이블루로 띄운다
+       (2026-08-06 사용자 지시) — 늘 보이는 '당일'과 구분된다. */
+    .j3-idx-cap-daily { color: #4da6ff; font-weight: 800; }
     .j3-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
     .j3-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
@@ -781,7 +791,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080630
+_REQUIRED_METHOD_HELP_REVISION = 2026080640
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
@@ -797,7 +807,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080700
+_REQUIRED_J3_REVISION = 2026080710
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1640,7 +1650,7 @@ def _us_index_cells(overview: dict, phase: str) -> list:
             f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j3-top-sub j3-idx-sub {_sign_class(change)}'>{_pct(change)} "
             f"<span class='j3-muted j3-idx-note'>· {note}</span></div>"
-            # 손을 올리면 같은 자리에서 '일봉 3개월'로 바뀐다(2026-08-06 사용자 지시).
+            # 손을 올리면 같은 자리에서 '일봉 6개월'로 바뀐다(2026-08-06 사용자 지시).
             # 클릭으로 안 하는 이유 — 스트림릿은 누르면 화면을 통째로 다시 그려서
             # 움직임이 버벅거린다.
             + _index_chart_swap(sparklines.get(symbol))
@@ -1651,7 +1661,7 @@ def _us_index_cells(overview: dict, phase: str) -> list:
 
 def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
                       height: int = 90) -> str:
-    """'당일' 그림과 '일봉 3개월' 그림을 같은 자리에 겹쳐 두고 손 올리면 바꾼다.
+    """'당일' 그림과 '일봉 6개월' 그림을 같은 자리에 겹쳐 두고 손 올리면 바꾼다.
 
     두 그림이 한 틀 안에 포개져 있어 **자리를 새로 만들지 않는다** — 그래서
     나타나고 사라져도 아래 화면이 밀리지 않고 옆 칸을 덮지도 않는다.
@@ -1671,7 +1681,7 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
         "<div class='j3-idx-swap'>"
         f"<div class='j3-idx-now'>{today}<div class='j3-idx-cap'>당일</div></div>"
         f"<div class='j3-idx-more'>{daily}"
-        "<div class='j3-idx-cap'>일봉 3개월</div></div>"
+        "<div class='j3-idx-cap j3-idx-cap-daily'>일봉 6개월</div></div>"
         "</div>"
     )
 
@@ -1735,7 +1745,7 @@ def _us_etf_cells(overview: dict) -> list:
         row = rows.get(symbol) or {}
         change = row.get("change_pct")
         pair = charts.get(symbol) or {}
-        # 위 지수 칸과 같게 — 손을 올리면 같은 자리에서 '일봉 3개월'로 바뀐다
+        # 위 지수 칸과 같게 — 손을 올리면 같은 자리에서 '일봉 6개월'로 바뀐다
         # (2026-08-06). 두 그림을 늘 펴 두니 칸이 넓어 화면 위쪽이 길었다.
         chart_html = _index_chart_swap(
             {**(pair.get("intraday") or {}),

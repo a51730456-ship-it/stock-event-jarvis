@@ -163,7 +163,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080700
+MODULE_REVISION = 2026080710
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -2339,10 +2339,10 @@ def get_index_sparklines(days: int = 30) -> dict:
     try:
         intraday, _m1 = _download_cached(
             US_INDEX_SYMBOLS, period="1d", interval="5m", ttl_seconds=300)
-        # 3개월치를 받는다 — 손을 올렸을 때 보여줄 '일봉 3개월' 그림에 쓴다
+        # 6개월치를 받는다 — 손을 올렸을 때 보여줄 '일봉 6개월' 그림에 쓴다
         # (2026-08-06). 조회 횟수는 그대로이고 기간만 늘어난다.
         daily, _m2 = _download_cached(
-            US_INDEX_SYMBOLS, period="3mo", interval="1d", ttl_seconds=600)
+            US_INDEX_SYMBOLS, period="6mo", interval="1d", ttl_seconds=600)
     except Exception:
         return {}
     result = {}
@@ -2354,8 +2354,8 @@ def get_index_sparklines(days: int = 30) -> dict:
         points = [float(v) for v in frame["Close"].dropna().tolist()]
         base = _prior_session_close(closes, pd.Timestamp(frame.index[-1]).date())
         if len(points) >= 2 and base:
-            # daily_* 는 손을 올렸을 때 펴 보이는 '일봉 3개월' 그림용이다.
-            # 기준선은 3개월 전 첫 종가 — 그 뒤로 올랐는지 내렸는지를 본다.
+            # daily_* 는 손을 올렸을 때 펴 보이는 '일봉 6개월' 그림용이다.
+            # 기준선은 6개월 전 첫 종가 — 그 뒤로 올랐는지 내렸는지를 본다.
             daily_points = [float(v) for v in closes["Close"].dropna().tolist()]
             result[symbol] = {
                 "points": points, "base": base,
@@ -2434,9 +2434,12 @@ def get_nasdaq_drawdown(ttl_seconds: float = 600) -> dict:
 
 
 def get_etf_sparklines(
-    symbols=("SPY", "QQQ"), *, daily_sessions: int = 60, max_points: int = 120
+    symbols=("SPY", "QQQ"), *, daily_sessions: int = 126, max_points: int = 120
 ) -> dict:
-    """SPY·QQQ의 '당일 분봉 그림'과 '일봉 석 달 그림' (2026-08-01 사용자 요청).
+    """SPY·QQQ의 '당일 분봉 그림'과 '일봉 여섯 달 그림'.
+
+    2026-08-06에 석 달(60거래일) → 여섯 달(126거래일)로 늘렸다(사용자 지시).
+    1년치를 이미 받아 두고 있어 조회는 늘지 않는다.
 
     야후를 새로 부르지 않는다 — 기간·간격을 시장 요약(get_market_overview)이 쓰는
     것과 똑같이 맞춰 두면 _download_cached가 이미 받아 둔 더 큰 묶음에서 잘라 준다.

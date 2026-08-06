@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080630
+MODULE_REVISION = 2026080640
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -437,19 +437,37 @@ KR_TEXT = """
 """
 
 
+def _close_button(st, market: str) -> None:
+    """설명 창 맨 아래 '창닫기' 단추 (2026-08-06 사용자 지시).
+
+    오른쪽 아래에 두되 화면 끝에 딱 붙이지는 않는다(사용자 지시 "너무 오른쪽 말고").
+    그래서 3:1로 나눈 오른쪽 칸에 놓는다.
+
+    **예전에는 안 통했다** — 2026-07-30에 눌러도 창이 열린 채 남았다. 스트림릿
+    판이 올라가며 동작이 바뀌었을 수 있어 다시 넣는다. 눌러도 안 닫히면 이 단추를
+    빼고 안내문(CLOSE_HINT)으로 되돌린다.
+    """
+    st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+    left, right = st.columns([3, 1.15])
+    with right:
+        st.button("✕ 창닫기", key=f"jarvis_method_help_close_{market}",
+                  width="stretch")
+    with left:
+        st.caption(CLOSE_HINT)
+
+
 def render(st, market: str) -> None:
     """최상단 오른쪽에 설명 단추를 놓는다. market은 'US' 또는 'KR'."""
     st.markdown(BUTTON_CSS, unsafe_allow_html=True)
     box = st.container(key="jarvis_method_help")
     with box:
         with st.popover(BUTTON_LABEL):
-            # 창 안에 닫기 단추를 두는 방법은 안 통한다 — 눌러도 팝오버가 열린 채
-            # 남는다(2026-07-30 실측). 여는 단추를 다시 누르는 것이 닫는 길이라
-            # 그 방법을 맨 위에 적어 준다.
-            st.caption(CLOSE_HINT)
+            # 닫는 방법은 맨 아래 '창닫기' 단추에 있다(2026-08-06) — 위에도 적으면
+            # 같은 말이 두 번이라 글만 길어진다.
             if str(market).upper() != "US":
                 # 한국 설명은 색·기호·밑줄을 직접 입힌 HTML 그대로다(2026-08-01).
                 st.markdown(KR_TEXT, unsafe_allow_html=True)
+                _close_button(st, "KR")
                 return
             # 미국은 사용자가 만든 표 그림 두 장을 그대로 보여준다(2026-08-06).
             # 순서는 '정상적인 상승일때'가 먼저다(사용자 지시).
@@ -470,7 +488,4 @@ def render(st, market: str) -> None:
                 if index == 0:
                     st.markdown(US_MID_TEXT, unsafe_allow_html=True)
             st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)
-            # 맨 아래에도 닫는 방법을 적어 준다(2026-08-06 사용자 요청). 글을 다 읽고
-            # 나면 여는 단추가 화면 위로 올라가 안 보이기 때문이다.
-            # **닫기 단추는 못 만든다** — 위 431줄 설명대로 눌러도 창이 안 닫힌다.
-            st.caption(CLOSE_HINT)
+            _close_button(st, "US")
