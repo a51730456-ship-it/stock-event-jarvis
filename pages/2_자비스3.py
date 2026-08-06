@@ -120,7 +120,10 @@ st.markdown(
     [data-testid="stMetricValue"] { font-size: 1.65rem !important; }
     /* 종목 상세 색 규칙: 종목명 밝은 보라, 라벨 코발트, +파랑/−빨강, 내용 초록 */
     .j3-stock-name { color: #c084fc; font-size: 1.7rem; font-weight: 800; line-height: 1.2; margin-top: 0.3rem; }
-    .j3-stock-sub { color: #9aa0aa; font-size: 0.95rem; margin: 0.1rem 0 0.7rem; }
+    /* 종목명 아래 테마 줄 — 흐린 회색이라 안 보였다(2026-08-06 사용자 지시).
+       밝은 초록에 굵게. 종목명(밝은 보라)과 색이 갈려 두 줄이 구분된다. */
+    .j3-stock-sub { color: #44f0a1; font-size: 0.95rem; font-weight: 800;
+        margin: 0.1rem 0 0.7rem; }
     .j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.2rem 0 0.4rem; }
     .j3-mc { min-width: 120px; }
     .j3-mc-label { color: #4da6ff; font-size: 0.92rem; font-weight: 800; }
