@@ -163,7 +163,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080690
+MODULE_REVISION = 2026080700
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1982,6 +1982,7 @@ def find_top_reviewed_stocks(
     *,
     market_score: float = 0,
     extra_rows=None,
+    benchmark_ret20: float | None = None,
     limit: int = TOP_REVIEW_LIMIT,
 ) -> dict:
     """'매수 심사 결과' 종목 조건점수 상위 N개 (2026-07-30 사용자 지시).
@@ -2033,14 +2034,27 @@ def find_top_reviewed_stocks(
     for row in extra_rows or []:
         if not row.get("metrics"):
             continue
-        # 눌림목 결과는 게이트를 열어 둔 채 계산돼 있다 — 오늘 시장 점수로 다시 판정한다.
         themes = row.get("themes") or []
         theme_score = max((theme_scores.get(str(t), 0.0) for t in themes), default=0.0)
         merged = dict(row)
-        merged["plan"] = _entry_plan(
-            row["metrics"], float(row.get("score") or 0), market_score, theme_score
+        # 갈래 표(상승장·급락)의 'score'는 **그 갈래 전용 배점**이라 대장주의
+        # 종목 조건점수와 자가 다르다. 섞어서 줄 세우면 다른 자로 잰 값을 견주는
+        # 셈이 되므로 여기서 **같은 자로 다시 잰다**(2026-08-06).
+        review = analyze_pullback_stock(
+            row,
+            benchmark_ret20=benchmark_ret20,
+            market_score=market_score,
+            theme_score=theme_score,
         )
-        _keep_better(picked, merged, source=(str(themes[0]) if themes else "눌림목"))
+        merged["score"] = review.get("score")
+        merged["plan"] = review.get("plan") or _entry_plan(
+            row["metrics"], float(review.get("score") or 0), market_score, theme_score
+        )
+        # 어느 갈래에서 왔는지 화면에 남긴다.
+        origin = ("급락 후 반등장" if row.get("bucket")
+                  else "상승장" if row.get("wait_days") is not None
+                  else "눌림목")
+        _keep_better(picked, merged, source=origin)
 
     ranked = sorted(
         picked.values(), key=lambda item: float(item.get("score") or 0), reverse=True

@@ -132,9 +132,18 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn("_render_top_reviewed(market, ranking)", source,
                           f"{market}에서 부르지 않는다")
             self.assertIn("find_top_reviewed_stocks(", source, f"{market}가 자료를 안 부른다")
-            # 눌림목 결과도 함께 넣어야 한다(사용자 지시).
+            # 눌림목/갈래 결과도 함께 넣어야 한다(사용자 지시).
             self.assertIn(f"{prefix}_pullback_result", source)
-            self.assertIn("extra_rows=pull_rows", source)
+            self.assertIn("extra_rows=", source)
+            if prefix == "j3":
+                # 2026-08-06 사용자 지시 — "누르든 안 누르든 둘 다 자동으로".
+                # 미국은 상승장·급락 두 갈래를 순위 7이 직접 돌려 모두 재료로 쓴다.
+                self.assertIn("find_breakout_pullback_stocks", source,
+                              "미국 순위 7이 상승장 갈래를 안 가져온다")
+                self.assertIn("find_crash_rebound_stocks", source,
+                              "미국 순위 7이 급락 갈래를 안 가져온다")
+            else:
+                self.assertIn("extra_rows=pull_rows", source)
 
     def test_clicking_a_row_opens_its_own_detail(self):
         import pathlib

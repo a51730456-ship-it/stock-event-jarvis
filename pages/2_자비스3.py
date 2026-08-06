@@ -700,7 +700,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080690
+_REQUIRED_J3_REVISION = 2026080700
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2321,18 +2321,16 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 7</div>",
         unsafe_allow_html=True,
     )
-    # 재료가 무엇인지 이름을 그대로 적는다(2026-08-06 사용자 물음: "눌림목 찾기를
-    # 없애면 어디서 뭘 갖고 오냐"). 답 — ① 20개 테마의 대장주 ② 위에서 마지막으로
-    # 돌린 갈래(상승장 또는 급락)의 결과. 새로 검색하지 않는다.
-    pull_rows = (st.session_state.get("j3_pullback_result") or {}).get("rows") or []
-    pull_label = {"breakout": "상승장", "crash": "급락 후 반등장"}.get(
-        str(st.session_state.get("j3_pullback_mode") or ""), "위 갈래"
-    )
+    # 재료는 셋이다(2026-08-06 사용자 지시 — "누르든 안 누르든 둘 다 자동으로").
+    #   ① 20개 테마의 대장주
+    #   ② 상승장(신고가 눌림매수) 결과
+    #   ③ 급락 후 반등장(낙폭종목) 결과
+    # 예전에는 ②·③ 중 **마지막에 누른 하나만** 썼다. 이제 단추를 안 눌러도 둘 다
+    # 자동으로 모은다. 두 갈래는 같은 일봉 묶음을 쓰므로 한 번만 받아 온다.
     st.caption(
-        "지금 화면의 **테마 대장주 20개**"
-        + (f"와 **{pull_label}**에서 찾은 {len(pull_rows)}개"
-           if pull_rows else " (위 두 단추 중 하나를 먼저 누르면 그 결과도 함께 봅니다)")
-        + "를 모아 종목 조건점수가 높은 순서로 7개만 남깁니다. 새로 전수 검색하지 않습니다."
+        "**테마 대장주 20개**와 **상승장·급락 후 반등장 두 갈래에서 찾은 종목**을 "
+        "모두 모아, 종목 조건점수가 높은 순서로 7개만 남깁니다. "
+        "두 단추를 누르지 않아도 자동으로 함께 봅니다."
     )
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
@@ -2352,11 +2350,32 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.session_state["j3_top7_open"] = True
         run_requested = False
     if run_requested:
-        with st.spinner("테마 대장주를 모아 매수 심사 결과를 줄 세우는 중입니다…"):
+        with st.spinner("테마 대장주와 두 갈래 종목을 모아 줄 세우는 중입니다…"):
+            # 두 갈래를 여기서 직접 돌린다. 이미 위에서 눌러 둔 것이 있으면 그 결과를
+            # 그대로 쓰고, 없으면 새로 찾는다. 두 함수가 같은 일봉 묶음을 쓰므로
+            # 자료는 한 번만 받아 온다.
+            extra_rows, seen = [], set()
+            opened = st.session_state.get("j3_pullback_result") or {}
+            opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
+            for mode, finder in (("breakout", j3data.find_breakout_pullback_stocks),
+                                 ("crash", j3data.find_crash_rebound_stocks)):
+                try:
+                    part = opened if opened_mode == mode and opened.get("ok") else finder()
+                except Exception as exc:      # 한 갈래가 실패해도 나머지는 살린다
+                    st.caption(f"{mode} 갈래를 못 받았습니다 — {_safe_error_text(exc)}")
+                    continue
+                for row in (part or {}).get("rows") or []:
+                    ticker = str(row.get("ticker") or "")
+                    if ticker and ticker not in seen:
+                        seen.add(ticker)
+                        extra_rows.append(row)
             found = j3data.find_top_reviewed_stocks(
                 ranking.get("rows") or [],
                 market_score=float(market.get("score") or 0),
-                extra_rows=pull_rows,
+                extra_rows=extra_rows,
+                # 갈래 종목을 대장주와 **같은 자**로 다시 재려면 SPY 20일 수익률이
+                # 있어야 한다. 안 넘기면 상대강도 25점이 통째로 0이 된다.
+                benchmark_ret20=((market.get("rows") or {}).get("SPY") or {}).get("ret20"),
             )
         st.session_state["j3_top7_result"] = found
         st.session_state["j3_top7_at"] = time.time()
