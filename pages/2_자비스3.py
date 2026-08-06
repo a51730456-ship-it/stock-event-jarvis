@@ -127,6 +127,16 @@ st.markdown(
     .stButton button:active, [data-testid="stExpander"] summary:active {
         transform: translateY(0) scale(.985) !important;
     }
+    /* 위쪽 지수·ETF 칸과 게이지 상자에도 같은 결을 준다(2026-08-06 사용자 지시).
+       손이 닿을 때만 도는 움직임이라 화면을 다시 그려도 재생되지 않는다. */
+    .j3-top-cell, .fg-box, .j3-ndd {
+        transition: transform .12s ease-out, filter .12s ease-out;
+        border-radius: .6rem;
+    }
+    .j3-top-cell:hover, .fg-box:hover, .j3-ndd:hover {
+        transform: translateY(-3px);
+        filter: brightness(1.1);
+    }
     /* 표 안의 종목 단추만 **옆으로** 민다 — 줄이 촘촘해 위아래로 뜨면 어지럽다.
        위 규칙보다 뒤에 둬야 이 규칙이 이긴다. */
     div[class*="st-key-j3rbf_"] button:hover,
