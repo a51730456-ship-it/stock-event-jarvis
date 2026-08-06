@@ -147,7 +147,7 @@ if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
 
 # 온라인 배포 갱신 때 페이지만 새로 읽히고 모듈은 옛것이 남는 경우 자가복구
 # (자비스3 페이지와 같은 이유·같은 방식, 2026-07-22).
-_REQUIRED_SIGNAL_UI_REVISION = 2026080630
+_REQUIRED_SIGNAL_UI_REVISION = 2026080640
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).

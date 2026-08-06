@@ -229,7 +229,7 @@ h2 { font-size: 1.2rem !important; }
 .fg-box-hist .fg-hist-row.fg-hist-dim { display: none; }
 /* 시장 신호 카드 */
 .sig-body { gap: 0.6rem; }
-.sig-gauge .fg-gauge { width: 132px; height: auto; }
+.sig-gauge .fg-gauge { width: 100%; max-width: 132px; height: auto; }
 .sig-counts { min-width: 0; flex: 1 1 auto; }
 .sig-text { flex: 1 1 100%; min-width: 0; }
 /* 폰에서는 당일과 전일을 위아래로 하나씩 놓는다. 5단계 이름·날짜가 잘리지 않고

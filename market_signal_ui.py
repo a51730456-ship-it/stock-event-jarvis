@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080630
+MODULE_REVISION = 2026080640
 
 
 def _now_seoul():
@@ -703,15 +703,30 @@ US_VERDICT_ORDER = (
 _SIGNAL_GAUGE_CSS = """
 .sig-body { display: flex; flex-wrap: wrap; align-items: center; gap: 1.1rem; margin-top: 10px; }
 .sig-gauge { flex: 0 0 auto; }
-/* 높이는 auto — 픽셀로 박으면 gauge_ui._HEIGHT를 고칠 때 반원이 찌그러진다. */
-.sig-gauge .fg-gauge { width: 190px; height: auto; }
+/* 높이는 auto — 픽셀로 박으면 gauge_ui._HEIGHT를 고칠 때 반원이 찌그러진다.
+   폭도 못박지 않는다 — 칸이 좁아지면 그림이 밖으로 삐져나온다(2026-08-06). */
+.sig-gauge .fg-gauge { width: 100%; max-width: 190px; height: auto; }
 .sig-gauge .fg-zone { font-size: 21px; }
 /* 카드 맨 위 당일·전일 두 칸 — 아래 계기판 두 칸과 같은 모양·같은 테두리 색으로
    맞춘다(2026-08-06 사용자 지시 "칸을 밑에 처럼 구분하라"). 두 줄을 그냥 쌓아
    놓으면 "저게 구분한 거냐"는 말을 듣는다. */
 .sig-head-pair { display:flex; flex-wrap:wrap; gap:.6rem; margin-bottom:.5rem; }
-.sig-head-box { flex:1 1 210px; border:1px solid rgba(255,255,255,.16);
+/* **min-width:0이 없으면 정확히 반으로 안 갈린다**(2026-08-06 상하님 지적).
+   flex 칸은 기본이 min-width:auto라 안의 글이 길면 그만큼 칸이 밀려 늘어난다.
+   당일 칸에는 기준시각까지 들어가 전일 칸보다 길어서 한쪽으로 치우쳤다. */
+.sig-head-box { flex:1 1 260px; min-width:0; border:1px solid rgba(255,255,255,.16);
   border-radius:.7rem; padding:.5rem .85rem; background:rgba(5,9,16,.3); }
+.sig-head-sub { overflow-wrap:anywhere; }
+/* 손을 올리면 살짝 뜬다(2026-08-06 사용자 지시) — 단추와 같은 결이다.
+   당일·전일 머리 칸, 계기판 상자, 설명 상자 셋 다. */
+.sig-head-box, .sig-gauge-shell, .sig-story {
+  transition: transform .12s ease-out, filter .12s ease-out,
+              border-color .12s ease-out;
+}
+.sig-head-box:hover, .sig-gauge-shell:hover, .sig-story:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.1);
+}
 .sig-head-today { border-color:rgba(68,240,161,.45); }
 .sig-head-previous { border-color:rgba(77,166,255,.45); }
 .sig-head-label { font-size:.82rem; font-weight:900; letter-spacing:.04em; }
@@ -729,7 +744,9 @@ _SIGNAL_GAUGE_CSS = """
 .sig-gauge-today .sig-gauge-title { color:#44f0a1; }
 .sig-gauge-previous { border-color:rgba(77,166,255,.34); }
 .sig-gauge-previous .sig-gauge-title { color:#4da6ff; }
-.sig-gauge-shell .sig-gauge .fg-gauge { width:235px; height:auto; }
+/* 폭을 235px로 못박으면 칸이 좁아질 때 그림이 상자 밖으로 삐져나온다
+   (2026-08-06 상하님 캡처). 상자에 맞춰 줄어들되 235px보다 커지지는 않게 한다. */
+.sig-gauge-shell .sig-gauge .fg-gauge { width:100%; max-width:235px; height:auto; }
 .sig-gauge-shell .sig-gauge .fg-zone { font-size:20px; }
 .sig-gauge-shell .sig-gauge .fg-tick { font-size:13px; }
 .sig-gauge-shell .sig-counts { width:100%; min-width:0; margin-top:-.2rem; }
@@ -776,10 +793,15 @@ _SIGNAL_GAUGE_CSS = """
 .sig-story-previous { border-left-color:#4da6ff; background:rgba(5,9,16,.1); }
 .sig-story-previous .sig-story-title { color:#4da6ff; }
 .sig-story-previous .sig-story-body { opacity:.78; }
+/* **최소폭(255px·230px)을 박아 두면 당일 쪽이 전일 쪽보다 넓어진다**
+   (2026-08-06 상하님 지적 "중간이 절반이 아니고 왼쪽으로 넘어간다").
+   화면이 좁아지면 왼쪽 두 칸이 최소폭을 먼저 차지하고 오른쪽 설명만 짓눌렸다.
+   minmax(0, ...)으로 두면 비율이 그대로 지켜져 **좌우가 정확히 반씩** 된다.
+   좁은 화면은 아래 @media가 따로 맡는다. */
 .sig-body-comparison { display:grid; align-items:stretch; overflow-x:auto;
   grid-template-areas:"today-gauge today-story previous-gauge previous-story";
-  grid-template-columns:minmax(255px,.9fr) minmax(230px,1.15fr)
-                        minmax(255px,.9fr) minmax(230px,1.15fr); }
+  grid-template-columns:minmax(0,.9fr) minmax(0,1.15fr)
+                        minmax(0,.9fr) minmax(0,1.15fr); }
 .sig-body-comparison .sig-gauge-pair,
 .sig-body-comparison .sig-text,
 .sig-body-comparison .sig-story-stack { display:contents; }
@@ -787,7 +809,7 @@ _SIGNAL_GAUGE_CSS = """
 .sig-body-comparison .sig-story-today { grid-area:today-story; }
 .sig-body-comparison .sig-gauge-previous { grid-area:previous-gauge; }
 .sig-body-comparison .sig-story-previous { grid-area:previous-story; }
-@media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 160px; height: auto; }
+@media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 100%; max-width: 160px; height: auto; }
   .sig-gauge-pair { width:100%; gap:.45rem; } .sig-gauge-shell { flex:1 1 145px; padding:.3rem .25rem .15rem; }
   .sig-gauge-shell .sig-gauge .fg-gauge { width:100%; height:auto; } }
 """
