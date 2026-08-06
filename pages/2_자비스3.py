@@ -425,18 +425,18 @@ st.markdown(
     div[class*="st-key-j3_stock_choice"] label span {
         font-size: 1.12rem !important;
     }
-    /* '매수심사결과 높은 순위 7' 단추 — 사용자가 붙여 준 초록 배너 견본 그대로.
-       왼쪽 짙은 초록에서 오른쪽 밝은 초록으로 흐르는 넓은 띠, 흰 글씨 가운데.
-       (2026-07-30 사용자 지시. 한국테마와 같은 모양이다.) */
+    /* '매수심사결과 높은 순위 7' 단추 — 2026-08-06 사용자 지시로 초록에서
+       스카이블루 그라데이션으로 바꿨다. 옆 두 단추(상승장 초록 · 급락 주황)와
+       색이 갈려야 세 갈래가 눈으로 구분된다. */
     div[class*="st-key-j3_top7_find"] button {
-        background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%) !important;
+        background: linear-gradient(90deg, #0a2740 0%, #12507f 38%, #4da6ff 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
         min-height: 3rem !important;
-        box-shadow: 0 2px 10px rgba(18,160,106,.25) !important;
+        box-shadow: 0 2px 10px rgba(77,166,255,.25) !important;
     }
     div[class*="st-key-j3_top7_find"] button:hover {
-        background: linear-gradient(90deg, #0a4a37 0%, #0d6244 38%, #16bd7e 100%) !important;
+        background: linear-gradient(90deg, #0e3455 0%, #17629b 38%, #7cc8ff 100%) !important;
     }
     div[class*="st-key-j3_top7_find"] button p {
         color: #ffffff !important;
@@ -449,6 +449,12 @@ st.markdown(
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         max-width: 100%;
     }
+    /* '어느 분야' 칸의 글자색은 그 갈래를 여는 **단추 색**을 따른다
+       (2026-08-06 사용자 지시). 테마 대장주=스카이블루(순위 7 단추),
+       상승장=초록, 급락 후 반등장=주황. */
+    .j3-top7-leader { color: #4da6ff; font-weight: 800; }
+    .j3-top7-up { color: #12a06a; font-weight: 800; }
+    .j3-top7-crash { color: #e67813; font-weight: 800; }
     /* '선택종목 세부사항 보기' — 눌림목 단추와 같은 모양에 진한 황금색
        (2026-07-30 사용자 지시, 한국테마와 같은 모양). */
     div[class*="st-key-btn_j3_detail_open_"] button {
@@ -2459,9 +2465,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
     )
 
-    st.caption("종목 이름을 누르면 아래에 그 종목 상세가 열립니다.")
+    st.caption("종목 이름을 누르면 아래에 그 종목 상세와 차트가 한꺼번에 열립니다.")
     widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]
-    titles = ["순위", "종목", "조건점수", "매수 상태", "현재가", "어느 분야"]
+    # '조건점수'는 갈래마다 다른 자로 잰 값이라 이름을 바꿨다(2026-08-06 사용자 물음).
+    titles = ["순위", "종목", "점수 (갈래 자)", "매수 상태", "현재가", "어느 분야"]
     box = st.container(key="j3_top7_table")
     for column, title in zip(box.columns(widths), titles):
         column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
@@ -2478,6 +2485,14 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
             # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
             st.session_state["j3_top7_pick_row"] = row
+            # 종목을 누르면 세부사항과 차트까지 한 번에 열린다(2026-08-06 사용자 지시,
+            # 상승장·급락 표와 같은 동작). 누르고 또 눌러야 보이던 것을 없앤다.
+            # 갈래에서 온 줄은 눌림목 상세(panel="pullback")가 그리고 대장주 줄은
+            # 종목 상세(panel="top7")가 그리므로 양쪽 열쇠를 다 켠다.
+            for opened in ("j3_detail_open_top7", "j3_bundle_open_top7",
+                           "j3_detail_open_pullback", "j3_bundle_open_pullback",
+                           "j3_intraday_open_pullback"):
+                st.session_state[opened] = True
         score = float(row.get("score") or 0)
         cols[2].markdown(
             "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
@@ -2496,8 +2511,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         themes = " · ".join(row.get("sources") or row.get("themes") or [])
         source_text = " · ".join(part for part in (origin, themes) if part) or "—"
         origin_class = {
-            "상승장": "j3-green-strong", "급락 후 반등장": "j3-pull-amber",
-        }.get(origin, "j3-muted")
+            "상승장": "j3-top7-up", "급락 후 반등장": "j3-top7-crash",
+        }.get(origin, "j3-top7-leader")
         cols[5].markdown(
             f"<div class='j3-td {origin_class} j3-top7-src'"
             f" title='{html.escape(source_text)}'>{html.escape(source_text)}</div>",
@@ -2513,6 +2528,9 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         "</style>",
         unsafe_allow_html=True,
     )
+    # 구역 맨 아래 닫기 단추 — 다른 구역에는 다 있는데 여기만 없었다
+    # (2026-08-06 사용자 지적). 폰에서 표 끝까지 내려가면 위 단추가 화면 밖으로 나간다.
+    _section_close("j3_top7_open", "매수심사결과 높은 순위 7 닫기")
 
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
@@ -2525,10 +2543,15 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
         f"{html.escape(str(picked.get('name') or picked.get('ticker') or ''))}</div>",
         unsafe_allow_html=True,
     )
-    # 눌림목에서 온 줄은 눌림목 상세가 그리고, 테마 대장주 줄은 종목 상세가 그린다
-    # ('pullback' 키가 있는 쪽이 눌림목 결과다).
-    if "pullback" in picked:
-        _render_pullback_detail(picked, market, ranking)
+    # 갈래에서 온 줄은 눌림목 상세가 그리고, 테마 대장주 줄은 종목 상세가 그린다.
+    # 어느 갈래에서 왔는지는 top7_origin에 적혀 있다 — 위 표에서 지금 무엇을 보고
+    # 있느냐(j3_pullback_mode)와 다를 수 있으므로 **줄에 적힌 갈래로** 잰다
+    # (2026-08-06). 안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
+    origin_mode = {"상승장": "breakout", "급락 후 반등장": "crash"}.get(
+        str(picked.get("top7_origin") or "")
+    )
+    if origin_mode or "pullback" in picked:
+        _render_pullback_detail(picked, market, ranking, mode=origin_mode)
         return
     theme_name = (picked.get("sources") or ["—"])[0]
     _render_stock_detail(
@@ -2638,11 +2661,16 @@ def _render_guest_pullback_intraday(ticker: str) -> None:
     _section_close("j3_intraday_open_pullback", "당일 차트 닫기")
 
 
-def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
+def _render_pullback_detail(row: dict, market: dict, ranking: dict,
+                            *, mode: str | None = None) -> None:
     """상단 테마 선택과 독립된 눌림목 종목 상세.
 
     자비스4(한국) 종목 상세와 같은 구성으로 맞춘다(2026-07-24 사용자 지시) —
     선정 근거 점수표 · 매수 심사 결과 · 일봉/주봉/월봉 차트를 함께 보여준다.
+
+    mode를 넘기면 그 갈래의 자로 잰다. 안 넘기면 위 표에서 지금 보고 있는 갈래를
+    쓴다. 순위 7에서 부를 때는 **줄에 적힌 갈래**를 넘겨야 한다(2026-08-06) —
+    안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
     """
     ticker = str(row.get("ticker") or "")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).

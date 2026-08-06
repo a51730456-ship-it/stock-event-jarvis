@@ -145,6 +145,15 @@ class PageWiringTests(unittest.TestCase):
                               "미국 순위 7이 급락 갈래를 안 가져온다")
                 self.assertIn("_TOP7_QUOTA", source, "미국 순위 7에 자리 배분이 없다")
                 self.assertIn("top7_origin", source, "어느 갈래에서 왔는지 안 적는다")
+                # 2026-08-06 사용자 지적 — 다른 구역에는 다 있는 맨 아래 닫기 단추가
+                # 순위 7에만 없었다.
+                self.assertIn('_section_close("j3_top7_open"', source,
+                              "순위 7에 맨 아래 닫기 단추가 없다")
+                # 종목을 누르면 상세와 차트가 한꺼번에 열려야 한다(상승장·급락과 같게).
+                block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
+                for key in ("j3_detail_open_top7", "j3_bundle_open_top7",
+                            "j3_bundle_open_pullback"):
+                    self.assertIn(key, block, f"종목을 눌러도 {key}가 안 열린다")
             else:
                 self.assertIn("extra_rows=pull_rows", source)
 
