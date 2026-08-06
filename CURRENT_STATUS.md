@@ -204,7 +204,10 @@
 * **원래 깨져 있는 시험 넷** — 이번 작업과 무관하다.
   `test_bookmaker_data.py::PolymarketEventGroupingTests`(2026-08-01 이전부터),
   `test_db_runtime`(불러오기 실패), `test_market_signal_separation::test_verdict_enums_are_distinct`,
-  `test_jarvis4_data::test_flow_failure_returns_not_ok`.
+  `test_jarvis4_data::test_flow_failure_returns_not_ok`,
+  `test_jarvis6::test_refuses_to_run_after_the_closing_auction`(**평일 한국시각
+  14:30~15:18에만 깨진다** — 시험이 진짜 시계를 본다. `jarvis6_autolog.main()`에
+  시각을 넣어 주면 고쳐진다).
   마지막 것은 **디스크 공책 때문**이다 — `cache/jarvis4/flow__000660.pkl`이 있으면
   시험이 일부러 낸 통신 실패를 캐시가 덮어 `ok=True`가 된다.
   `_disk_cache_read`를 막고 돌리면 통과한다(2026-08-06 확인).

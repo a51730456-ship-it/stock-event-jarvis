@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080511
+MODULE_REVISION = 2026080610
 
 
 def _now_seoul():
@@ -909,13 +909,45 @@ def _verdict_stage_number(verdict, verdict_order) -> int | None:
     return verdict_order.index(verdict) + 1
 
 
-def _verdict_needle_position(verdict, verdict_order) -> float | None:
-    """판정 단계의 바늘을 해당 구간 중앙에 놓을 내부 위치값을 돌려준다."""
+def _signal_balance(result) -> float | None:
+    """켜진 신호와 반대 신호 중 어느 쪽이 우세한가 (0~1). 없으면 None.
+
+    애매한 신호와 못 읽은 항목은 **방향이 없으므로 빼고 센다.**
+    """
+    if result is None:
+        return None
+    positive = negative = 0
+    for signal in market_signal_common.counted_signals(result.signals):
+        if signal.status is market_signal_common.SignalStatus.POSITIVE:
+            positive += 1
+        elif signal.status is market_signal_common.SignalStatus.NEGATIVE:
+            negative += 1
+    total = positive + negative
+    if total == 0:
+        return None
+    return positive / total
+
+
+def _verdict_needle_position(verdict, verdict_order, result=None) -> float | None:
+    """판정 단계 **안에서** 바늘 자리를 정한다.
+
+    예전에는 늘 그 단계의 한가운데였다. 그래서 켜진 신호가 2개인 날과 8개인 날의
+    바늘이 똑같은 자리를 가리켰다(2026-08-06 상하님 지적: "전일과 당일이 켜진 신호
+    자체가 다른데 왜 화살표는 똑같냐"). 이제 같은 단계 안에서 켜짐·반대 비율만큼
+    좌우로 옮긴다.
+
+    **단계 밖으로는 절대 나가지 않는다** — 나가면 눈금에 적힌 단계 이름과 바늘이
+    어긋나 화면이 거짓말을 한다. 구간 양 끝은 10%씩 비워 두어 경계에 붙지 않게 한다.
+    """
     stage = _verdict_stage_number(verdict, verdict_order)
     if stage is None:
         return None
     step = 100 / len(tuple(verdict_order))
-    return step * (stage - 0.5)
+    low = step * (stage - 1)
+    balance = _signal_balance(result)
+    if balance is None:
+        return low + step * 0.5
+    return low + step * (0.1 + 0.8 * float(balance))
 
 
 def _saved_foreign_futures(snapshots):
@@ -1069,7 +1101,7 @@ def _verdict_gauge_html(
         name = _VERDICT_SHORT.get(verdict) or str(verdict)
         zones.append((round(step * (index + 1)), name, color))
 
-    score = _verdict_needle_position(result.verdict, verdict_order)
+    score = _verdict_needle_position(result.verdict, verdict_order, result)
 
     def _count_row_tuples(target_result):
         counts = {
@@ -1121,7 +1153,7 @@ def _verdict_gauge_html(
 
     if comparison_result is not None:
         comparison_score = _verdict_needle_position(
-            comparison_result.verdict, verdict_order
+            comparison_result.verdict, verdict_order, comparison_result
         )
         current_stage = _verdict_stage_number(result.verdict, verdict_order)
         previous_stage_number = _verdict_stage_number(comparison_result.verdict, verdict_order)

@@ -139,6 +139,34 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions), "나쁜 쪽에서 좋은 쪽으로 가야 한다")
         self.assertLess(positions[0], positions[-1])
 
+    def test_same_stage_with_different_counts_moves_the_needle(self):
+        """켜진 신호가 다르면 바늘도 달라야 한다(2026-08-06 상하님 지적).
+
+        전일 켜짐 8·반대 2와 당일 켜짐 2·반대 4가 같은 3단계였는데 화살표가
+        똑같은 자리를 가리켰다. 단계 한가운데에 고정돼 있었기 때문이다.
+        """
+        import market_signal_common as common
+        import us_market_signal_engine as us
+
+        def spot(positive, negative):
+            statuses = ([common.SignalStatus.POSITIVE] * positive
+                        + [common.SignalStatus.NEGATIVE] * negative)
+            return ui._verdict_needle_position(
+                us.UsMarketVerdict.MIXED, ui.US_VERDICT_ORDER,
+                self._result(us.UsMarketVerdict.MIXED, statuses),
+            )
+
+        weak, strong = spot(2, 4), spot(8, 2)
+        self.assertLess(weak, strong, "켜진 신호가 많은 쪽이 더 오른쪽이어야 한다")
+        # **단계 밖으로 나가면 안 된다** — 눈금 이름과 바늘이 어긋난다.
+        step = 100 / len(ui.US_VERDICT_ORDER)
+        stage = ui.US_VERDICT_ORDER.index(us.UsMarketVerdict.MIXED) + 1
+        for value in (weak, strong, spot(0, 9), spot(9, 0)):
+            self.assertGreater(value, step * (stage - 1))
+            self.assertLess(value, step * stage)
+        # 방향 있는 신호가 하나도 없으면 예전처럼 한가운데.
+        self.assertAlmostEqual(step * (stage - 0.5), spot(0, 0))
+
     def test_current_stage_is_shown_without_internal_position_score(self):
         import us_market_signal_engine as us
 
