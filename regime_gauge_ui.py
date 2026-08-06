@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import gauge_ui
 
-MODULE_REVISION = 2026080510
+MODULE_REVISION = 2026080610
 
 # 조건점수 구간 — jarvis3_data·jarvis4_data의 판정 기준과 같아야 한다.
 # 세 칸이던 것을 다섯 칸으로 늘렸다(2026-08-05 사용자 지시). 시장판단 화면이 이미
@@ -77,9 +77,14 @@ def regime_box_html(overview: dict | None, *, title: str = "시장 국면",
         rows,
         label=regime,
         title_color=gauge_ui.TITLE_BLUE,
-        note=overview.get("posture") if ok else "",
+        # 제목에는 **국면 이름**을 적는다. 예전에는 여기에 '조건 충족 종목만 매수
+        # 심사' 같은 행동 지침이 들어가 무슨 상자인지 알 수 없었다(2026-08-06 지시).
+        note=regime if ok else "",
         note_color=color_of(score) if ok else None,
         note_prefix=note_prefix,
+        # '그래서 무엇을 하라'는 말은 상자 맨 아래 한 줄로 내린다.
+        footer=overview.get("posture") if ok else "",
+        footer_color=color_of(score) if ok else None,
     )
     # 구간명과 구별되도록 과거 비교 항목 이름도 제목과 같은 스카이블루로 표시한다.
     return box.replace(

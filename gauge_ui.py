@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import math
 
-MODULE_REVISION = 2026080510
+MODULE_REVISION = 2026080610
 
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"
@@ -164,11 +164,24 @@ def box_html(
     note: str = "",
     note_color: str | None = None,
     note_prefix: str = " · ",
+    footer: str = "",
+    footer_color: str | None = None,
 ) -> str:
-    """상단 지표 줄에 끼워 넣는 게이지 박스. 가로로 길어지지 않게 폭을 고정한다."""
+    """상단 지표 줄에 끼워 넣는 게이지 박스. 가로로 길어지지 않게 폭을 고정한다.
+
+    footer는 **상자 맨 아래 한 줄**이다. 제목에는 지금 상태 이름을 적고, '그래서
+    무엇을 하라'는 말은 아래로 내린다(2026-08-06 사용자 지시) — 제목이 행동 지침을
+    말하면 무슨 상자인지 알 수 없다.
+    """
     suffix = (
         f"{note_prefix}<span style='color:{note_color}'>{html.escape(note)}</span>"
         if note and note_color else f"{note_prefix}{html.escape(note)}" if note else ""
+    )
+    foot = (
+        f"<div class='fg-box-foot'"
+        + (f" style='color:{footer_color}'" if footer_color else "")
+        + f">{html.escape(footer)}</div>"
+        if footer else ""
     )
     return (
         "<div class='fg-box'>"
@@ -177,7 +190,7 @@ def box_html(
         "<div class='fg-box-body'>"
         f"<div class='fg-box-gauge'>{gauge_svg(score, zones, label=label)}</div>"
         f"<div class='fg-box-hist'>{rows_html(rows)}</div>"
-        "</div></div>"
+        f"</div>{foot}</div>"
     )
 
 
@@ -188,11 +201,17 @@ CSS = """
     background: rgba(255,255,255,0.03); padding: 0.45rem 0.6rem 0.4rem;
     display: inline-block; }
 .fg-box-title { font-size: 0.92rem; font-weight: 800; margin-bottom: 0.1rem; }
+/* 상자 맨 아래 한 줄 — '그래서 무엇을 하라'는 말이 들어간다(2026-08-06). */
+.fg-box-foot { font-size: 0.88rem; font-weight: 800; margin-top: 0.22rem;
+    padding-top: 0.22rem; border-top: 1px solid rgba(255,255,255,0.1); }
 .fg-box-body { display: flex; align-items: center; gap: 0.6rem; }
 .fg-box-gauge { flex: 0 0 auto; }
 .fg-box-gauge .fg-gauge { width: 124px; height: 83px; }
 .fg-box-gauge .fg-score { font-size: 46px; }
-.fg-box-gauge .fg-zone { font-size: 20px; }
+/* 점수 밑 구간 이름이 너무 작아 안 읽혔다(2026-08-06 사용자 지시). 20px → 26px.
+   **여기 주석에 판정 이름을 예로 적지 말 것** — 이 CSS는 화면에 글자로 나가므로
+   '자료도 없이 판정을 지어냈나'를 보는 시험(test_market_judgment_page)이 걸린다. */
+.fg-box-gauge .fg-zone { font-size: 26px; }
 .fg-box-gauge .fg-tick { font-size: 14px; }
 .fg-box-hist { min-width: 132px; }
 .fg-score { font-weight: 800; }

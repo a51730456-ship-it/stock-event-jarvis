@@ -576,7 +576,7 @@ import fear_greed_ui
 import gauge_ui
 import mobile_ui
 
-_REQUIRED_GAUGE_UI_REVISION = 2026080510
+_REQUIRED_GAUGE_UI_REVISION = 2026080610
 if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
     gauge_ui = importlib.reload(gauge_ui)
 
@@ -605,7 +605,7 @@ import jarvis4_store as j4store
 import market_signal_ui
 import us_index_data
 
-_REQUIRED_REGIME_GAUGE_REVISION = 2026080510
+_REQUIRED_REGIME_GAUGE_REVISION = 2026080610
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
     regime_gauge_ui = importlib.reload(regime_gauge_ui)
 

@@ -701,7 +701,7 @@ import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
 
-_REQUIRED_REGIME_GAUGE_REVISION = 2026080510
+_REQUIRED_REGIME_GAUGE_REVISION = 2026080610
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
     regime_gauge_ui = importlib.reload(regime_gauge_ui)
 
