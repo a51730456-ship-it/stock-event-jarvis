@@ -209,11 +209,13 @@ st.markdown(
     .j3-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 700; }
     .j3-chart-heading { margin-top: 1.6rem; font-size: 1.15rem; font-weight: 800; color: #e6e6e6; }
     .j3-theme-badge { display: inline-block; background: rgba(255,176,32,0.16); color: #ffb020; border: 1px solid #ffb020; border-radius: 0.5rem; padding: 0.15rem 0.7rem; font-weight: 800; font-size: 1.05rem; margin-right: 0.4rem; }
-    .j3-flow-label { color: #44f0a1; font-weight: 800; }
+    /* 제목은 한 줄로 세우고 내용은 그 아래에 둔다(2026-08-06 사용자 지시 — 제목
+       뒤에 ' : '를 붙여 한 줄로 이어 붙이던 것을 뺐다). */
+    .j3-flow-label { color: #44f0a1; font-weight: 800; margin-bottom: .25rem; }
     .j3-flow-body { color: #4da6ff; font-weight: 800; }
-    .j3-action-label { color: #4da6ff; font-weight: 800; }
+    .j3-action-label { color: #4da6ff; font-weight: 800; margin-bottom: .25rem; }
     .j3-action-posture { color: #ff5b5b; font-weight: 800; }
-    .j3-action-detail { color: #ff9d3b; font-weight: 800; }
+    .j3-action-detail { color: #ff9d3b; font-weight: 800; margin-top: .15rem; }
     .j3-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
         align-items: center; }
     .j3-top-cell { min-width: 150px; padding-left: 1.6rem; }
@@ -1516,11 +1518,13 @@ def _render_market_overview() -> None:
         st.markdown(
             f"""
             <div class="j3-market-flow">
-                <span class="j3-flow-label">시장 전체 흐름</span> : <span class="j3-flow-body">{_market_flow_text(overview)}</span>
+                <div class="j3-flow-label">시장 전체 흐름</div>
+                <div class="j3-flow-body">{_market_flow_text(overview)}</div>
             </div>
             <div class="j3-action-box">
-                <span class="j3-action-label">행동 기준</span> : <span class="j3-action-posture">{overview['posture']}</span><br>
-                <span class="j3-action-detail">{_market_action_detail(overview)}</span>
+                <div class="j3-action-label">행동 기준</div>
+                <div class="j3-action-posture">{overview['posture']}</div>
+                <div class="j3-action-detail">{_market_action_detail(overview)}</div>
             </div>
             """,
             unsafe_allow_html=True,
