@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080610
+MODULE_REVISION = 2026080620
 
 
 def _now_seoul():
@@ -721,8 +721,10 @@ _SIGNAL_GAUGE_CSS = """
   filter:drop-shadow(0 0 5px rgba(255,255,255,.75)); }
 .sig-speed-hub-outer { fill:#f8fafc; stroke:#dbeafe; stroke-width:2; }
 .sig-speed-hub-inner { fill:#111827; }
-.sig-gauge-previous .sig-gauge { opacity:.48; filter:saturate(.72); }
-.sig-gauge-previous .sig-counts { opacity:.7; }
+/* 전일은 흐리게 두되 **읽을 수 있어야** 한다. .48은 너무 흐려 전일이 어느 단계인지
+   눈에 안 들어왔다(2026-08-06 상하님 지적 "당일과 전일 완전 구분해야지"). */
+.sig-gauge-previous .sig-gauge { opacity:.82; filter:saturate(.88); }
+.sig-gauge-previous .sig-counts { opacity:.9; }
 .sig-current-score { margin-top: -0.35rem; text-align: center;
   font-size: 1.05rem; font-weight: 900; }
 .sig-prev-score { margin-top: 0.08rem; text-align: center;
@@ -1246,6 +1248,25 @@ def render_market_signal_card(
         )
     _body_class = "sig-body sig-body-comparison" if comparison_result is not None else "sig-body"
 
+    # 카드 맨 위 글자는 **당일 판정**이다. 전일은 안쪽 계기판에만 있어서 "전일은?"이라는
+    # 물음을 받았다(2026-08-06 상하님 캡처). 맨 윗줄에서 둘을 갈라 적는다.
+    _headline_html = (
+        f'<div style="font-size:1.35rem;font-weight:800;color:{text};">'
+        f'<span style="opacity:.72;font-size:.72em;">당일</span> {result.verdict_label}</div>'
+    )
+    if comparison_result is not None:
+        _prev_label = getattr(comparison_result, "verdict_label", "") or "판정 확인"
+        _prev_day = ""
+        _prev_as_of = next((s.as_of for s in comparison_result.signals if s.as_of), None)
+        if _prev_as_of is not None:
+            _prev_day = " " + _prev_as_of.strftime("%m.%d")
+        _headline_html += (
+            f'<div style="font-size:1.05rem;font-weight:800;color:{text};opacity:.78;'
+            f'margin-top:2px;">'
+            f'<span style="opacity:.72;font-size:.78em;">{comparison_label}{_prev_day}</span>'
+            f' {_prev_label}</div>'
+        )
+
     # 판정을 눈금 위에 올려 지금이 어느 단계인지 한눈에 보이게 한다(2026-07-24).
     _gauge_html = (
         _verdict_gauge_html(
@@ -1266,7 +1287,7 @@ def render_market_signal_card(
     st.markdown(
         f'<div style="background-color:{bg};border:2px solid {border};border-radius:10px;'
         f'padding:16px;margin-top:8px;">'
-        f'<div style="font-size:1.35rem;font-weight:800;color:{text};">{result.verdict_label}</div>'
+        f'{_headline_html}'
         f'<div style="font-size:0.85rem;color:{text};opacity:0.85;margin-top:4px;">'
         f'{_as_of_label} · {result.data_status}</div>'
         f'{_stage_guide_html}'

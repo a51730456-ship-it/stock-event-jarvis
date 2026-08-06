@@ -139,6 +139,57 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions), "나쁜 쪽에서 좋은 쪽으로 가야 한다")
         self.assertLess(positions[0], positions[-1])
 
+    def test_the_card_headline_names_both_today_and_yesterday(self):
+        """카드 맨 윗줄이 당일만 말해서 "전일은?"이라는 물음을 받았다(2026-08-06).
+
+        전일 판정이 당일과 다른 날에도 맨 위에는 당일 것만 크게 찍혀,
+        전일이 어느 단계인지 안쪽 계기판을 봐야 알 수 있었다.
+        """
+        import market_signal_common as common
+        import us_market_signal_engine as us
+
+        class _Result:
+            # 카드가 읽는 딸린 값이 많다 — 시험에 필요한 것만 채우고 나머지는 빈 값.
+            def __getattr__(self, name):
+                return []
+
+        def make(verdict, label, statuses):
+            result = _Result()
+            result.verdict = verdict
+            result.verdict_label = label
+            result.data_status = "읽은 항목 12개"
+            result.headline = "머리글"
+            result.flow_note = "흐름"
+            result.warnings = []
+            result.as_of = None
+            result.signals = [
+                common.MarketSignal(key=f"K{i}", label=f"신호{i}", status=s,
+                                    source="x", timing=common.SignalTiming.LEADING)
+                for i, s in enumerate(statuses)
+            ]
+            return result
+
+        today = make(us.UsMarketVerdict.RISK_OFF, "약세 신호 우세",
+                     [common.SignalStatus.NEGATIVE] * 6 + [common.SignalStatus.POSITIVE])
+        yesterday = make(us.UsMarketVerdict.MIXED, "방향 엇갈림",
+                         [common.SignalStatus.POSITIVE] * 9 + [common.SignalStatus.NEGATIVE])
+        shown = []
+        with patch.object(ui.st, "markdown", side_effect=lambda html, **k: shown.append(str(html))), \
+             patch.object(ui.st, "caption"), patch.object(ui.st, "expander"):
+            ui.render_market_signal_card(
+                today,
+                verdict_style=ui._US_VERDICT_STYLE,
+                core_display={}, table_keys=(), detail_title="t", detail_caption="c",
+                table_key="k", verdict_order=ui.US_VERDICT_ORDER,
+                comparison_result=yesterday, comparison_label="전일",
+            )
+        card = " ".join(shown)
+        self.assertIn("당일", card)
+        self.assertIn("약세 신호 우세", card)
+        # 전일 판정도 맨 윗줄에 이름과 함께 있어야 한다.
+        self.assertIn("전일", card)
+        self.assertIn("방향 엇갈림", card)
+
     def test_same_stage_with_different_counts_moves_the_needle(self):
         """켜진 신호가 다르면 바늘도 달라야 한다(2026-08-06 상하님 지적).
 
