@@ -1348,9 +1348,11 @@ def render_market_signal_card(
         f'<div style="background-color:{bg};border:2px solid {border};border-radius:10px;'
         f'padding:16px;margin-top:8px;">'
         f'{_headline_html}{_as_of_html}'
-        f'{_stage_guide_html}'
         f'<div class="{_body_class}">{_gauge_html}<div class="sig-text">'
-        f'{_story_html}</div></div></div>',
+        f'{_story_html}</div></div>'
+        # 5단계 기준·판정 구성은 **날마다 안 변하는 설명**이라 맨 아래로 내린다
+        # (2026-08-06 사용자 지시). 위에 두면 매번 읽어야 할 글처럼 보인다.
+        f'{_stage_guide_html}</div>',
         unsafe_allow_html=True,
     )
 

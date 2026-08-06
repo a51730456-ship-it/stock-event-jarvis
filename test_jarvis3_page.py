@@ -975,6 +975,28 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("설명 닫기" in str(node.label) for node in opened.button),
                         "닫기 단추가 없다")
 
+    def test_only_fifteen_rows_are_open_and_the_rest_are_folded(self):
+        """급락 표가 20줄이라 화면이 너무 길었다(2026-08-06 사용자 지시).
+
+        앞 15줄만 펴 두고 나머지는 '16위~20위 더 보기'로 접는다.
+        """
+        result = _crash_result()
+        rows = []
+        for index in range(20):
+            row = dict(result["rows"][0])
+            row["ticker"] = f"T{index:02d}"
+            row["name"] = f"종목{index:02d}"
+            rows.append(row)
+        result = {**result, "rows": rows}
+        app = self._run_with_mode("crash", "find_crash_rebound_stocks", result)
+        # 스무 줄이 다 그려지되(단추 키가 20개), 16번째부터는 접힌 자리에 있다.
+        keys = [str(node.key or "") for node in app.button]
+        self.assertIn("j3rbf_00", keys)
+        self.assertIn("j3rbf_19", keys)
+        self.assertTrue(
+            any("16위~20위 더 보기" in str(node.label) for node in app.expander),
+            "더 보기 접이가 없다")
+
     def test_the_score_has_its_own_column_next_to_the_rank(self):
         """점수는 순위 칸이 아니라 **다음 칸**이다(2026-08-06 사용자 지시).
 

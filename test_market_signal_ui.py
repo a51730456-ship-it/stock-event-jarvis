@@ -119,7 +119,9 @@ class VerdictGaugeTests(unittest.TestCase):
             signals.append(signal)
 
         class _R:
-            pass
+            # 카드가 읽는 딸린 값이 많다 — 시험에 필요한 것만 채우고 나머지는 빈 값.
+            def __getattr__(self, name):
+                return []
 
         result = _R()
         result.verdict = verdict
@@ -205,6 +207,32 @@ class VerdictGaugeTests(unittest.TestCase):
         # 그게 당일 것인지 전일 것인지 알 수 없다(2026-08-06 지시).
         self.assertEqual(2, card.count('class="sig-head-sub"'), "두 칸에 각각 없다")
         self.assertIn("읽은 항목 12개", card)
+
+    def test_the_fixed_stage_guide_sits_at_the_bottom(self):
+        """5단계 기준은 날마다 안 변하는 설명이라 맨 아래로 내린다(2026-08-06 지시)."""
+        import market_signal_common as common
+        import us_market_signal_engine as us
+
+        result = self._result(us.UsMarketVerdict.MIXED,
+                              [common.SignalStatus.POSITIVE] * 3)
+        result.verdict_label = "방향 엇갈림"
+        result.data_status = "읽은 항목 3개"
+        result.headline = "머리글"
+        result.flow_note = "흐름"
+        shown = []
+        with patch.object(ui.st, "markdown",
+                          side_effect=lambda html, **k: shown.append(str(html))), \
+             patch.object(ui.st, "caption"), patch.object(ui.st, "expander"):
+            ui.render_market_signal_card(
+                result,
+                verdict_style=ui._US_VERDICT_STYLE,
+                core_display={}, table_keys=(), detail_title="t", detail_caption="c",
+                table_key="k", verdict_order=ui.US_VERDICT_ORDER,
+                stage_guide="<b>5단계 기준</b> 시험용 설명",
+            )
+        card = next(html for html in shown if "5단계 기준" in html)
+        self.assertLess(card.index("sig-body"), card.index("5단계 기준"),
+                        "설명이 계기판보다 위에 있다")
 
     def test_each_side_names_what_it_could_not_read(self):
         """'판정 구성'은 두 날이 같아 보여도 못 읽은 항목이 다르면 본 것이 다르다.

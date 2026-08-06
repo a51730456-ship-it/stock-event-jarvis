@@ -2326,6 +2326,10 @@ def _kept_recently(key: str, seconds: float = 300) -> bool:
 # 그래서 섞어 재지 않고 **자리를 나눠 각자 자기 자로 뽑는다.**
 _TOP7_QUOTA = (("테마 대장주", 3), ("상승장", 2), ("급락 후 반등장", 2))
 
+# 상승장·급락 표에서 처음부터 펴 두는 줄 수. 나머지는 접어 둔다
+# (2026-08-06 사용자 지시 — 급락은 20줄이라 화면이 너무 길었다).
+_RULEBOOK_OPEN_ROWS = 15
+
 
 def _blend_top7(market: dict, ranking: dict) -> dict:
     """세 군데에서 각자 자기 자로 뽑아 7개를 만든다(2026-08-06).
@@ -3297,10 +3301,29 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     if selected_ticker not in tickers_now:
         selected_ticker = rows[0].get("ticker")
     selected_css = []
+    # 20줄을 다 펴 놓으면 화면이 길다(2026-08-06 사용자 지시). 앞 15줄만 펴 두고
+    # 나머지는 접는다 — 위 '11위~20위 테마 더 보기'와 같은 방식이다.
+    overflow_box = None
     for index, row in enumerate(rows):
+        if index == _RULEBOOK_OPEN_ROWS and len(rows) > _RULEBOOK_OPEN_ROWS:
+            overflow_box = st.expander(
+                f"{_RULEBOOK_OPEN_ROWS + 1}위~{len(rows)}위 더 보기"
+            )
+            # 접힌 쪽에도 머리글을 한 번 붙인다 — 없으면 어느 칸이 무엇인지 모른다.
+            over_head = overflow_box.columns(row_widths)
+            for column, title in zip(over_head, ("순위", "점수", "종목")):
+                column.markdown(f"<div class='j3-th-head'>{title}</div>",
+                                unsafe_allow_html=True)
+            over_head[3].markdown(
+                _flex_row(rest_widths, ["티커", "당일주가", from_high_head, "소속 테마",
+                                        third, "보유일수", "같이 걸린 종목", volume_head],
+                          head=True),
+                unsafe_allow_html=True,
+            )
+        row_box = table_box if index < _RULEBOOK_OPEN_ROWS else overflow_box
         metrics = row.get("metrics") or {}
         from_high = metrics.get("from_high_pct")
-        cols = table_box.columns(row_widths)
+        cols = row_box.columns(row_widths)
         # 점수는 순위 다음 **따로 칸**에 둔다(2026-08-06 사용자 지시).
         score = row.get("score")
         score_class = (
