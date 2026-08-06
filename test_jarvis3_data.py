@@ -366,6 +366,35 @@ class RulebookScreenTests(unittest.TestCase):
             self.assertIsNone(plan["target"])
             self.assertIn("손절가가 없습니다", plan["buy_reason"])
 
+    def test_crash_reason_tells_the_day_number_apart_from_todays(self):
+        """겨자색 상자가 표와 다른 숫자를 말하던 것을 고쳤다(2026-08-07 상하님 지적).
+
+        예전에는 '고점 대비 -12.7%까지 내려온 낙폭 종목입니다'만 적었는데, 이
+        -12.7%는 **오늘** 낙폭이다. 바로 옆 점수표는 '낙폭 갈래 -20~-30%'라고
+        적는데, 갈래는 **기준일** 낙폭(-21.8%)으로 가르기 때문이다. 두 숫자를
+        말 없이 섞어 놓아 서로 틀린 것처럼 보였다.
+        """
+        row = {"metrics": {"from_high_pct": -12.69, "current": 418.2},
+               "judged_from_high_pct": -21.78, "now_from_high_pct": -12.69,
+               "since_reference_pct": 11.63, "reference_date": "2026-07-14",
+               "together_tier": 3, "together_count": 8, "hold_days": 120,
+               "bucket": "shallow", "recent_gain_pct": -0.7}
+        reason = j3.crash_rebound_plan(row)["buy_reason"]
+        self.assertIn("2026-07-14", reason)
+        self.assertIn("-21.8%", reason)       # 갈래를 정한 그날 낙폭
+        self.assertIn("-12.7%", reason)       # 오늘 낙폭
+        self.assertIn("+11.6%", reason)       # 그 뒤 움직임
+        self.assertIn("그날 낙폭으로 정합니다", reason)
+
+    def test_crash_reason_falls_back_when_there_is_no_reference_day(self):
+        """기준일이 없으면(나스닥이 -6~-12%에 든 날이 없으면) 예전 문장 그대로."""
+        row = {"metrics": {"from_high_pct": -33.0}, "hold_days": 120,
+               "bucket": "deep", "together_tier": 0, "together_count": 0,
+               "recent_gain_pct": 0.0}
+        reason = j3.crash_rebound_plan(row)["buy_reason"]
+        self.assertIn("고점 대비 -33.0%까지 내려온", reason)
+        self.assertNotIn("기준일", reason)
+
     def test_nasdaq_drawdown_gate_matches_what_was_measured(self):
         """문턱 12%는 55년치로 재고 정했다 — 8%는 기준선보다 못했다.
 

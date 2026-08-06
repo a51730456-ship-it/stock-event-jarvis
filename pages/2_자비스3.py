@@ -196,6 +196,23 @@ st.markdown(
     .j3-reason-title { color: #4da6ff; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.25rem; }
     .j3-reason-body { color: #44f0a1; font-weight: 700; font-size: 0.9rem; line-height: 1.45; }
     .j3-chart-title { color: #e6e6e6; font-weight: 800; font-size: 1rem; margin-bottom: 0.1rem; }
+    /* 맨 위 큰 차트의 제목 — 아래 작은 셋과 구분되게 하늘색으로 조금 크게
+       (2026-08-07 상하님 지시 "일봉 클릭하면 화면 위에 크게"). */
+    .j3-chart-big-title { color: #7cc7ff; font-size: 1.14rem; margin: .1rem 0 .25rem; }
+    /* '일봉 크게 · 주봉 크게 · 월봉 크게' 고르는 단추. 지금 크게 보고 있는 것은
+       ● 를 앞에 붙이고 밝게 칠한다 — 어느 것을 보고 있는지 단추만 봐도 알게. */
+    div[class*="st-key-j3_bundle_pick_"] button {
+        background: rgba(255,255,255,.04) !important;
+        border: 1px solid rgba(255,255,255,.18) !important;
+        border-radius: .45rem !important;
+        min-height: 0 !important; padding: .2rem .6rem !important;
+    }
+    div[class*="st-key-j3_bundle_pick_"] button p {
+        font-size: .86rem !important; font-weight: 700 !important; color: #b9c0c8 !important;
+    }
+    div[class*="st-key-j3_bundle_pick_"] button:hover {
+        border-color: #7cc7ff !important; background: rgba(124,199,255,.10) !important;
+    }
     .j3-leader-name { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
     .j3-leader-live { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; margin-top: 0.35rem; }
     .j3-leader-live .j3-mc-sub { font-size: 1rem; }
@@ -362,6 +379,15 @@ st.markdown(
         display: block; max-width: 100%;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    /* 급락 표의 낙폭 칸 — '그날 / 지금 / 그 뒤'를 한 줄씩(2026-08-07 상하님 지적).
+       한 줄로 붙였더니 칸보다 길어 좁은 화면에서 양옆이 잘렸다. 줄마다 이름을
+       왼쪽에 붙여 숫자가 무엇인지 칸 안에서 바로 읽히게 한다. */
+    .j3-dd { display: flex; flex-direction: column; align-items: center;
+        line-height: 1.16; max-width: 100%; }
+    .j3-dd-line { display: inline-flex; align-items: baseline; gap: .28rem;
+        white-space: nowrap; }
+    .j3-dd-k { color: #8b9098; font-size: .72rem; font-weight: 700;
+        flex: 0 0 auto; }
     /* 구역 맨 아래 닫기 단추 — 위 여는 단추보다 작고 조용하게(2026-08-01 지시).
        폰에서 구역 끝까지 내려갔을 때 그 자리에서 접으라고 둔 것이라,
        눈에 띄어 화면을 어지럽히면 안 된다. */
@@ -807,7 +833,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080710
+_REQUIRED_J3_REVISION = 2026080720
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1393,6 +1419,17 @@ def _render_day_price_row(metrics: dict) -> None:
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
 
+# 맨 위 큰 차트의 높이(2026-08-07 상하님 지시 "화면 위에 크게"). 아래 작은 셋은
+# 3분할이라 315px인데, 큰 것은 화면 전폭이므로 그 비율에 맞춰 키운다.
+BIG_CHART_HEIGHT = 430
+_CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}
+
+
+def _pick_bundle_chart(state_key: str, timeframe: str) -> None:
+    """일봉·주봉·월봉 중 위에 크게 그릴 것을 고른다."""
+    st.session_state[state_key] = timeframe
+
+
 def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
     """선택 종목의 일봉·주봉·월봉을 한 번의 10년 일봉 조회로 그린다.
 
@@ -1406,18 +1443,48 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
         return
     st.caption(
         "주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
-        "일봉 거래량은 일봉 바로 아래에 표시됩니다."
+        "일봉 거래량은 일봉 바로 아래에 표시됩니다. "
+        "아래 ‘일봉 크게 · 주봉 크게 · 월봉 크게’를 누르면 맨 위 큰 차트가 바뀝니다."
     )
     chart_bundle = j3data.get_chart_bundle(ticker)
     if not chart_bundle.get("ok"):
         st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
         return
+    # 고른 하나를 **맨 위에 크게** 그린다(2026-08-07 상하님 지시). 아래 세 개는
+    # 그대로 두고, 그 위 단추를 누르면 큰 차트가 그것으로 바뀐다.
+    # 단추는 on_click으로 값을 바꾼다 — 큰 차트를 단추보다 먼저 그리므로, 눌린 값을
+    # 그 자리에서 읽으면 한 박자 늦게 바뀐다.
+    big_key = f"j3_bundle_big_{panel}"
+    big = st.session_state.get(big_key)
+    if big not in _CHART_KEY:
+        big = "일봉"
+    big_payload = chart_bundle["charts"].get(big, {})
+    st.markdown(
+        f"<div class='j3-chart-title j3-chart-big-title'>{big} — 크게 보기</div>",
+        unsafe_allow_html=True,
+    )
+    if big_payload.get("ok"):
+        st.altair_chart(
+            _price_chart(big_payload, big, include_volume=big == "일봉",
+                         height=BIG_CHART_HEIGHT),
+            width="stretch",
+            theme="streamlit",
+        )
+    else:
+        st.warning(f"{big} 자료 없음")
     daily_col, weekly_col, monthly_col = st.columns(3)
     chart_columns = {"일봉": daily_col, "주봉": weekly_col, "월봉": monthly_col}
     for timeframe, chart_column in chart_columns.items():
         payload = chart_bundle["charts"].get(timeframe, {})
         with chart_column:
-            st.markdown(f"<div class='j3-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
+            # 단추 키는 영문으로 짓는다 — 아래에서 지금 고른 단추만 CSS로 밝게
+            # 칠하는데, 한글 키가 클래스 이름에 그대로 남는지는 보장이 없다.
+            st.button(
+                ("● " if timeframe == big else "") + f"{timeframe} 크게",
+                key=f"j3_bundle_pick_{panel}_{_CHART_KEY[timeframe]}",
+                width="stretch",
+                on_click=_pick_bundle_chart, args=(big_key, timeframe),
+            )
             if payload.get("ok"):
                 st.altair_chart(
                     _price_chart(payload, timeframe, include_volume=timeframe == "일봉"),
@@ -1426,6 +1493,14 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
                 )
             else:
                 st.warning(f"{timeframe} 자료 없음")
+    # 지금 크게 보고 있는 단추만 밝게 칠한다.
+    st.markdown(
+        f"<style>div[class*='st-key-j3_bundle_pick_{panel}_{_CHART_KEY[big]}'] button "
+        "{border-color:#7cc7ff !important; background:rgba(124,199,255,.16) !important;}"
+        f"div[class*='st-key-j3_bundle_pick_{panel}_{_CHART_KEY[big]}'] button p "
+        "{color:#dff0ff !important;}</style>",
+        unsafe_allow_html=True,
+    )
     if chart_bundle.get("stale"):
         st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
     _section_close(f"j3_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
@@ -2467,7 +2542,9 @@ _TOP7_QUOTA = (("테마 대장주", 3), ("상승장", 2), ("급락 후 반등장
 
 # 상승장·급락 표에서 처음부터 펴 두는 줄 수. 나머지는 접어 둔다
 # (2026-08-06 사용자 지시 — 급락은 20줄이라 화면이 너무 길었다).
-_RULEBOOK_OPEN_ROWS = 15
+# 2026-08-07에 15 → 10으로 더 줄였다(상하님 지시). 아래 접는 칸 이름은 이 값에서
+# 자동으로 만든다 — '11위~20위 더 보기'.
+_RULEBOOK_OPEN_ROWS = 10
 
 
 def _blend_top7(market: dict, ranking: dict) -> dict:
@@ -3391,8 +3468,13 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
                 "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
                 "아래 갈래별 성적은 <u>갈래끼리 견준 것</u>이고, 순위는 배점표가 정합니다.<br>"
-                + (f"<b>기준일 {ref_date}</b>의 낙폭으로 갈래를 나눴습니다. "
-                   "표의 ‘그날 → 지금’ 칸에서 그 뒤 얼마나 움직였는지 보십시오.<br>"
+                # 표의 '고점 대비' 칸에 숫자가 셋 들어간다. 그 셋이 무엇인지 화면
+                # 어디에도 설명이 없었다(2026-08-07 상하님 지적). 여기서 밝힌다.
+                + (f"<b>‘고점 대비’ 칸의 숫자 셋</b> — <b>그날</b>은 기준일"
+                   f"({ref_date})에 고점에서 얼마나 빠져 있었나, <b>지금</b>은 오늘 "
+                   "얼마나 빠져 있나, <b>그 뒤</b>는 기준일 종가에서 지금까지 얼마나 "
+                   "움직였나입니다. <u>갈래와 점수는 ‘그날’로 정합니다</u> — 오늘 값으로 "
+                   "정하면 이미 반등한 종목이 목록에서 사라집니다.<br>"
                    if ref_date else "")
                 + "<b>아래 성적은 10년치(2016.8~2026.8)를 잰 것</b>이며 앞으로의 승률이 아닙니다."
                 "</div>"
@@ -3460,11 +3542,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 상승장에서 이 칸이 실제로 고르는 자리다 — 거르는 기준은 눌린 폭 하나이고,
     # 며칠 지났는지는 보여만 주고 사람이 판단한다(2026-08-06 사용자 지시).
     third = "고점 후 며칠" if breakout else "갈래"
-    # 급락 갈래는 기준일 낙폭으로 가른다 — 칸 이름이 그 뜻이어야 한다(2026-08-06).
-    from_high_head = (
-        "고점 대비" if breakout or not (result.get("reference") or {}).get("reference_date")
-        else "그날 고점 대비"
-    )
+    # 급락 갈래는 기준일 낙폭으로 가른다. 칸 이름을 '그날 고점 대비'로 뒀더니
+    # 아래 '지금'·'그 뒤' 줄과 어긋나 보였다(2026-08-07 상하님 지적) — 이제 줄마다
+    # 이름이 붙어 있으므로 칸 이름은 '고점 대비' 하나로 되돌린다.
+    from_high_head = "고점 대비"
     # 마지막 칸은 두 갈래가 같다(2026-08-06). 배점 25점짜리 '최근 11일에 빠졌나'를
     # 보여준다 — 예전에 여기 있던 '거래대금 연속'과 '최근 60일 상승폭'은 앞뒤로
     # 갈라 재니 뒤 5년에서 져서 배점이 0점이 됐다. 점수에 안 쓰는 값을 표에 두면
@@ -3595,14 +3676,28 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         judged = row.get("judged_from_high_pct")
         since = row.get("since_reference_pct")
         if not breakout and row.get("reference_date") and judged is not None:
-            from_high_cell = (
-                "<span style='display:inline-flex; flex-direction:column;"
-                " align-items:center; line-height:1.12'>"
+            # 세 숫자를 **각각 이름을 붙여 한 줄씩** 놓는다(2026-08-07 상하님 지적).
+            # 예전에는 '-21.78%' 아래에 '지금 -12.69% · +11.0%'를 한 줄로 붙였는데,
+            #   ① 그 +11.0%가 무엇인지 화면 어디에도 설명이 없었고
+            #   ② 칸보다 글이 길어 좁은 화면에서 양옆이 잘려 나갔다
+            #      (캡처에 '금 -12.69% · +11.'로 찍혔다).
+            # 줄마다 짧아지므로 잘리지 않고, 이름이 곧 설명이 된다.
+            rows_html = [
+                f"<span class='j3-dd-k'>그날</span>"
                 f"<span class='{_sign_class(judged)}' style='font-weight:800'>"
-                f"{_pct(judged)}</span>"
-                f"<span class='j3-muted' style='font-size:.78rem'>지금 {_pct(from_high)}"
-                + (f" · {since:+.1f}%" if since is not None else "")
-                + "</span></span>"
+                f"{_pct(judged)}</span>",
+                f"<span class='j3-dd-k'>지금</span>"
+                f"<span class='{_sign_class(from_high)}'>{_pct(from_high)}</span>",
+            ]
+            if since is not None:
+                rows_html.append(
+                    f"<span class='j3-dd-k'>그 뒤</span>"
+                    f"<span class='{_sign_class(since)}'>{float(since):+.1f}%</span>"
+                )
+            from_high_cell = (
+                "<span class='j3-dd'>"
+                + "".join(f"<span class='j3-dd-line'>{line}</span>" for line in rows_html)
+                + "</span>"
             )
         else:
             from_high_cell = (

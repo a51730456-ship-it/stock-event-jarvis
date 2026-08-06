@@ -163,7 +163,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080710
+MODULE_REVISION = 2026080720
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1332,6 +1332,41 @@ def breakout_plan(row: dict) -> dict:
     }
 
 
+def _crash_drop_story(row: dict, metrics: dict) -> str:
+    """급락 갈래의 낙폭을 '그날 → 지금 → 그 뒤' 세 숫자로 풀어 쓴다.
+
+    **왜 필요했나(2026-08-07 상하님 지적).** 여기에는 '고점 대비 -12.7%까지 내려온
+    낙폭 종목입니다'만 적혀 있었는데, 이 -12.7%는 **오늘** 낙폭이다. 그런데 바로 옆
+    점수표는 '낙폭 갈래 -20~-30%'라고 적는다 — 갈래는 **기준일 낙폭**(-21.8%)으로
+    가르기 때문이다. 같은 화면이 두 숫자를 말이 없이 섞어 놓아 서로 틀린 것처럼
+    보였다.
+
+    그래서 세 숫자를 다 적고 어느 것이 갈래를 정하는지 밝힌다. 표 맨 위 칸에도
+    같은 세 숫자가 있고, 그 뜻을 설명한 곳이 화면 어디에도 없었다.
+
+    기준일이 없으면(나스닥이 최근 -6~-12%에 든 날이 없을 때) 오늘 낙폭 하나로만
+    가르므로 예전 문장을 그대로 쓴다.
+    """
+    now_drop = row.get("now_from_high_pct")
+    if now_drop is None:
+        now_drop = metrics.get("from_high_pct")
+    judged = row.get("judged_from_high_pct")
+    ref_date = row.get("reference_date")
+    since = row.get("since_reference_pct")
+    if judged is None or not ref_date or now_drop is None:
+        return f"고점 대비 {float(now_drop or 0):.1f}%까지 내려온 낙폭 종목입니다."
+    moved = ""
+    if since is not None:
+        verb = "올라" if float(since) >= 0 else "더 빠져"
+        moved = f" 그 뒤 {float(since):+.1f}% {verb}"
+    return (
+        f"기준일({ref_date})에 고점 대비 {float(judged):.1f}%까지 빠졌던 종목입니다."
+        f"{moved} 지금은 고점 대비 {float(now_drop):.1f}%입니다. "
+        "갈래와 점수는 오늘이 아니라 그날 낙폭으로 정합니다 — 오늘 값으로 정하면 "
+        "이미 반등한 종목이 목록에서 사라져 정작 사야 할 자리를 놓칩니다."
+    )
+
+
 def crash_rebound_plan(row: dict) -> dict:
     """급락 후 반등장의 매수 심사 결과.
 
@@ -1358,8 +1393,8 @@ def crash_rebound_plan(row: dict) -> dict:
         "invalidation": None,     # 이 규칙에는 손절이 없다
         "target": None,           # 목표가도 없다 — 정해진 날에 판다
         "buy_reason": (
-            f"고점 대비 {metrics.get('from_high_pct', 0):.1f}%까지 내려온 낙폭 종목입니다. "
-            f"규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 사서 "
+            _crash_drop_story(row, metrics)
+            + f" 규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 사서 "
             f"{hold}거래일 뒤 종가에 팝니다. 이 규칙에는 손절가가 없습니다."
         ),
     }

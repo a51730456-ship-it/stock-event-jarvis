@@ -1003,10 +1003,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("설명 닫기" in str(node.label) for node in opened.button),
                         "닫기 단추가 없다")
 
-    def test_only_fifteen_rows_are_open_and_the_rest_are_folded(self):
+    def test_only_ten_rows_are_open_and_the_rest_are_folded(self):
         """급락 표가 20줄이라 화면이 너무 길었다(2026-08-06 사용자 지시).
 
-        앞 15줄만 펴 두고 나머지는 '16위~20위 더 보기'로 접는다.
+        처음에는 앞 15줄이었고, 2026-08-07에 **10줄**로 더 줄였다(상하님 지시).
+        나머지는 '11위~20위 더 보기'로 접는다.
         """
         result = _crash_result()
         rows = []
@@ -1017,13 +1018,40 @@ class Jarvis3PageTests(unittest.TestCase):
             rows.append(row)
         result = {**result, "rows": rows}
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", result)
-        # 스무 줄이 다 그려지되(단추 키가 20개), 16번째부터는 접힌 자리에 있다.
+        # 스무 줄이 다 그려지되(단추 키가 20개), 11번째부터는 접힌 자리에 있다.
         keys = [str(node.key or "") for node in app.button]
         self.assertIn("j3rbf_00", keys)
         self.assertIn("j3rbf_19", keys)
         self.assertTrue(
-            any("16위~20위 더 보기" in str(node.label) for node in app.expander),
+            any("11위~20위 더 보기" in str(node.label) for node in app.expander),
             "더 보기 접이가 없다")
+
+    def test_the_drawdown_cell_names_each_of_its_three_numbers(self):
+        """숫자 셋이 무엇인지 화면 어디에도 없었다(2026-08-07 상하님 지적).
+
+        '-21.78%' 아래에 '지금 -12.69% · +11.0%'를 한 줄로 붙여 뒀는데, 그
+        +11.0%가 무엇인지 설명이 없었고 칸보다 길어 좁은 화면에서 양옆이
+        잘렸다(캡처에 '금 -12.69% · +11.'로 찍혔다). 줄마다 이름을 붙인다.
+        """
+        result = _crash_result()
+        rows = [dict(result["rows"][0])]
+        rows[0].update({
+            "judged_from_high_pct": -21.78, "now_from_high_pct": -12.69,
+            "since_reference_pct": 11.63, "reference_date": "2026-07-14",
+        })
+        result = {**result, "rows": rows,
+                  "reference": {"armed": True, "reference_date": "2026-07-14"}}
+        app = self._run_with_mode("crash", "find_crash_rebound_stocks", result)
+        joined = " ".join(str(node.value) for node in app.markdown)
+        cell = next(part for part in joined.split("j3-dd-line")[1:2])
+        self.assertIn("그날", cell)
+        for label in ("그날", "지금", "그 뒤"):
+            self.assertIn(f"j3-dd-k'>{label}<", joined, f"‘{label}’ 이름이 없다")
+        # 칸 이름은 '그날 고점 대비'가 아니라 '고점 대비' 하나다 — 줄마다 이름이 있다.
+        self.assertNotIn("그날 고점 대비", joined)
+        # 셋이 무엇인지 설명하는 줄이 표 위에 있어야 한다.
+        self.assertIn("‘고점 대비’ 칸의 숫자 셋", joined)
+        self.assertIn("갈래와 점수는 ‘그날’로 정합니다", joined)
 
     def test_the_score_has_its_own_column_next_to_the_rank(self):
         """점수는 순위 칸이 아니라 **다음 칸**이다(2026-08-06 사용자 지시).
@@ -1091,6 +1119,23 @@ class Jarvis3PageTests(unittest.TestCase):
         for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
                        "j3_bundle_open_pullback"):
             self.assertIn(opened, block, f"{opened}를 열지 않는다")
+
+    def test_one_of_the_three_charts_is_drawn_big_on_top(self):
+        """2026-08-07 상하님 지시 — 일봉을 누르면 화면 위에 크게, 주봉을 누르면 주봉이.
+
+        고르는 단추는 on_click으로 값을 바꿔야 한다. 큰 차트를 단추보다 **먼저**
+        그리므로, 눌린 값을 그 자리에서 읽으면 한 박자 늦게 바뀐다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _render_price_chart_bundle(")[1].split("\ndef ")[0]
+        self.assertIn("BIG_CHART_HEIGHT", block)
+        self.assertIn("on_click=_pick_bundle_chart", block)
+        self.assertIn("j3_bundle_pick_", block)
+        # 큰 차트가 세 개짜리 줄보다 먼저 그려져야 '화면 위에' 온다.
+        self.assertLess(block.index("j3-chart-big-title"), block.index("st.columns(3)"))
+        # 단추 키는 영문이어야 지금 고른 단추만 CSS로 밝힐 수 있다.
+        self.assertIn('_CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}',
+                      source)
 
     def test_rulebook_table_slides_sideways_like_the_pullback_table(self):
         """폰에서 순위·종목이 따로 쌓이던 것을 눌림목 표와 같은 규칙으로 맞췄다.
