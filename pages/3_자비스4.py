@@ -576,7 +576,7 @@ import fear_greed_ui
 import gauge_ui
 import mobile_ui
 
-_REQUIRED_GAUGE_UI_REVISION = 2026080620
+_REQUIRED_GAUGE_UI_REVISION = 2026080630
 if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
     gauge_ui = importlib.reload(gauge_ui)
 

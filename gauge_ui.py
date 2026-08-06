@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import math
 
-MODULE_REVISION = 2026080620
+MODULE_REVISION = 2026080630
 
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"
@@ -243,7 +243,10 @@ CSS = """
 .fg-hub { fill: #e6e6e6; }
 .fg-hist-row { display: flex; align-items: center; gap: 0.45rem; padding: 0.14rem 0;
     border-bottom: 1px solid rgba(255,255,255,0.06); }
-.fg-hist-row:last-child { border-bottom: none; }
+/* 맨 아랫줄('전일 종가'·'전일 시장국면')은 위 묶음과 **떼어 놓는다**
+   (2026-08-06 사용자 지시 — 위 셋은 한 팀이고 전일은 성격이 다르다). */
+.fg-hist-row:last-child { border-bottom: none; margin-top: .3rem; padding-top: .34rem;
+    border-top: 1px solid rgba(255,255,255,0.16); }
 .fg-hist-label { color: #9aa0aa; font-size: 0.8rem; flex: 1 1 auto; }
 .fg-hist-zone { font-size: 0.8rem; font-weight: 800; }
 .fg-hist-value { color: #10141b; font-weight: 800; font-size: 0.76rem;
