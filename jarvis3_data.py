@@ -163,7 +163,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080670
+MODULE_REVISION = 2026080680
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -468,6 +468,8 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
 
     volume_ratio = None
     avg_dollar_volume = None
+    volume_vs_prev = None
+    volume_vs_week = None
     if "Volume" in daily.columns:
         volumes = daily["Volume"].dropna().astype(float)
         if not volumes.empty:
@@ -476,6 +478,18 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
             if avg_volume and latest_volume is not None:
                 volume_ratio = latest_volume / avg_volume
                 avg_dollar_volume = avg_volume * current
+            # 금액(억 달러)만 보면 큰 회사가 늘 크다 — 알 수가 없다는 지적을 받았다
+            # (2026-08-06). 그래서 **얼마나 늘었나**를 같이 낸다.
+            # 미국은 외국인·기관 수급을 종가 뒤에도 공개하지 않으므로, 돈이 몰리는지
+            # 볼 수 있는 값은 거래대금 변화뿐이다.
+            if len(volumes) >= 2 and latest_volume is not None:
+                prev_volume = _finite(volumes.iloc[-2])
+                if prev_volume:
+                    volume_vs_prev = (latest_volume / prev_volume - 1) * 100
+            if len(volumes) >= 6 and latest_volume is not None:
+                week_volume = _finite(volumes.iloc[-6:-1].mean())
+                if week_volume:
+                    volume_vs_week = (latest_volume / week_volume - 1) * 100
 
     atr_pct = None
     atr = None
@@ -505,6 +519,8 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
         "from_high_pct": ((current / high52 - 1) * 100) if high52 else None,
         "volume_ratio": volume_ratio,
         "avg_dollar_volume": avg_dollar_volume,
+        "volume_vs_prev": volume_vs_prev,     # 어제 거래량 대비 %
+        "volume_vs_week": volume_vs_week,     # 지난 5거래일 평균 대비 %
         "atr": atr,
         "atr_pct": atr_pct,
         "source_time": _source_time(intraday) or _source_time(daily),

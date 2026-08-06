@@ -700,7 +700,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080670
+_REQUIRED_J3_REVISION = 2026080680
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2644,22 +2644,37 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         f"{_pct(metrics.get('ret20'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
         f"<div class='j3-mc-val j3-up'>{_pct(metrics.get('atr_pct'))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>평균 거래대금</div>"
-        f"<div class='j3-mc-val j3-green'>"
-        f"{f'${float(avg_value) / 1e6:,.0f}M' if avg_value is not None else '—'}</div>"
-        "<div class='j3-mc-sub j3-muted'>미국은 장중 수급 공개 없음</div></div>",
-        # 갈래 화면에서는 이름을 '이 갈래 점수'로 둔다 — 위 테마 대장주 표의
-        # '종목 조건점수'와 이름이 같으면 다른 자로 잰 두 값이 같아 보인다(2026-08-06).
-        "<div class='j3-mc'><div class='j3-mc-label'>"
-        + ("이 갈래 점수" if mode in ("crash", "breakout") else "종목 조건점수")
-        + "</div>"
-        f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}/100</div>"
-        f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
-        f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div>"
-        f"<div class='j3-mc-sub {_sign_class(quality.get('gap_pct'))}'>"
-        f"20일선 이격 {_pct(quality.get('gap_pct'))}</div></div>",
+        # 금액만 보여주면 알 수가 없다는 지적(2026-08-06). 큰 회사는 늘 크기 때문이다.
+        # **얼마나 늘었나**로 바꾼다. 미국은 외국인·기관 수급을 종가 뒤에도 공개하지
+        # 않으므로(한국만 있는 제도), 돈이 몰리는지 볼 수 있는 값은 이것뿐이다.
+        "<div class='j3-mc'><div class='j3-mc-label'>거래량 (어제 대비)</div>"
+        f"<div class='j3-mc-val {_sign_class(metrics.get('volume_vs_prev'))}'>"
+        f"{_pct(metrics.get('volume_vs_prev'))}</div>"
+        "<div class='j3-mc-sub j3-muted'>지난 5일 평균 대비 "
+        f"{_pct(metrics.get('volume_vs_week'))}</div></div>",
     ]
+    if mode in ("crash", "breakout"):
+        # 점수는 **하나만** 둔다(2026-08-06 상하님 지적 "이 갈래 점수가 뭔말이냐").
+        # 예전에는 한 화면에 셋('이 갈래 점수'·'눌림 점수'·위 표의 '종목 조건점수')이
+        # 있었는데, 그중 '눌림 점수'는 이 화면에서 순위에 쓰지 않는 A 규칙 값이다.
+        cells.append(
+            f"<div class='j3-mc'><div class='j3-mc-label'>이 종목 점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.0f}점 "
+            "<span style='font-size:1rem; color:#9aa0aa'>/ 100</span></div>"
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
+            "</div></div>"
+        )
+    else:
+        cells.extend([
+            f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}/100</div>"
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
+            "</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div>"
+            f"<div class='j3-mc-sub {_sign_class(quality.get('gap_pct'))}'>"
+            f"20일선 이격 {_pct(quality.get('gap_pct'))}</div></div>",
+        ])
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
     def _fac_cell(part, maximum):
@@ -2710,10 +2725,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
             unsafe_allow_html=True,
         )
         st.caption(
-            "이 점수는 이 갈래 전용 배점입니다(2026-08-06, 10년을 앞 5년·뒤 5년으로 갈라 "
-            "다시 재고 정했습니다). 위쪽 테마 대장주 표의 ‘종목 조건점수’와는 다른 자로 잰 "
-            "값이라 숫자를 견주면 안 됩니다. 배점을 어떻게 나눴는지는 표 위 "
-            "‘이 화면 설명 보기’에 적어 두었습니다."
+            "배점을 왜 이렇게 나눴는지는 표 위 ‘이 화면 설명 보기’에 있습니다."
             if mode in ("crash", "breakout") else
             "이 점수는 위 표의 ‘종목 조건점수’와 같은 값이며, 표의 순위를 정하는 ‘눌림 점수’와는 "
             "다른 것을 잽니다 — 눌림 점수는 지금이 눌림 자리로 좋은지, 이 점수는 종목 자체가 "
@@ -2779,14 +2791,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
             unsafe_allow_html=True,
         )
         if mode in ("crash", "breakout"):
-            st.markdown(
-                "<div class='j3-plan-note'>※ <b>이 규칙에는 기준가도 손절가도 없습니다.</b> "
-                "종가를 확인하고 다음 거래일 시가에 사서 정해진 날 종가에 파는 규칙이라, "
-                "넘어야 할 가격이라는 것이 아예 없습니다. 없는 값을 참고가로 채우지 않습니다.<br>"
-                f"※ 위 점수는 <b>이 갈래 전용 배점</b>입니다 — 위쪽 테마 대장주 표의 "
-                "‘종목 조건점수’와는 다른 자로 잰 값이라 숫자를 견주면 안 됩니다.</div>",
-                unsafe_allow_html=True,
-            )
+            # 여기 있던 ※ 두 줄은 뺐다(2026-08-06 상하님 지적 "반복되는 내용 없애라").
+            # 첫 줄은 바로 위 카드의 '손절가 — 이 규칙에는 없음'이 이미 말하고,
+            # 둘째 줄은 왼쪽 점수표 아래 설명과 같은 말이었다.
+            pass
         else:
             st.markdown(
                 "<div class='j3-plan-note'>※ <b>가격 칸이 채워지는 기준</b> — ‘돌파 확인’이나 ‘눌림목 대기’처럼 "
@@ -2797,21 +2805,30 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
                 f"아닙니다(이 종목의 테마 점수 {theme_score:.1f}/100 · 시장 {market_score:.0f}/100).</div>",
                 unsafe_allow_html=True,
             )
-        st.markdown(
-            f"<div class='j3-danta-box'><span class='j3-danta-title'>⚡ 단타 참고 신호</span> — "
-            f"{_us_signal_hint()}<br>"
-            "<span class='j3-muted'>선행신호가 위험선호로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
-            "참고합니다 (점수·판정에는 반영하지 않습니다). 미국은 장중 투자자별 수급 공개 자료가 없어 "
-            "한국장의 ‘기관 수급 반전’ 대신 선물·반도체·변동성·금리 방향을 씁니다.</span></div>",
-            unsafe_allow_html=True,
-        )
-        st.write("")
-        if plan.get("recommendation") == "조건부 후보":
-            st.success(plan.get("buy_reason"))
-        elif plan.get("state") == "추격 금지":
-            st.error(plan.get("buy_reason"))
-        else:
-            st.warning(plan.get("buy_reason"))
+        # 단타 참고 신호는 접어 둔다 — 점수·판정에 안 쓰는 참고값인데 늘 펴 놓으니
+        # 화면이 길어졌다(2026-08-06 상하님 지적).
+        if _section_toggle(
+            "⚡ 단타 참고 신호 보기", "j3_danta_open_pullback",
+            close_label="단타 참고 신호 닫기",
+        ):
+            st.markdown(
+                f"<div class='j3-danta-box'>{_us_signal_hint()}<br>"
+                "<span class='j3-muted'>선행신호가 위험선호로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
+                "참고합니다 (점수·판정에는 반영하지 않습니다). 미국은 투자자별 수급을 "
+                "<b>종가 뒤에도 공개하지 않아</b> 한국장의 ‘기관 수급 반전’ 대신 "
+                "선물·반도체·변동성·금리 방향을 씁니다.</span></div>",
+                unsafe_allow_html=True,
+            )
+        # 갈래 화면에서는 이 상자를 뺀다 — 왼쪽 점수표 아래 겨자색 상자와 **똑같은
+        # 문장**이었다(2026-08-06 상하님 캡처).
+        if mode not in ("crash", "breakout"):
+            st.write("")
+            if plan.get("recommendation") == "조건부 후보":
+                st.success(plan.get("buy_reason"))
+            elif plan.get("state") == "추격 금지":
+                st.error(plan.get("buy_reason"))
+            else:
+                st.warning(plan.get("buy_reason"))
 
     st.caption(
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
@@ -2871,11 +2888,18 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     else:
         market_body = f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"
         stock_body = review.get("stock_reason") or "자료부족"
+    # 매수 근거는 갈래 화면에서 왼쪽 겨자색 상자와 **같은 문장**이었다(2026-08-06
+    # 상하님 지적). 여기서는 한 줄로 줄인다 — 언제 사고 언제 파는지만.
+    buy_body = (
+        f"다음 거래일 시가에 사서 {int(plan.get('hold_days') or 0)}거래일 뒤 종가에 팝니다. "
+        "손절가는 없습니다."
+        if mode in ("crash", "breakout") else plan.get("buy_reason", "자료부족")
+    )
     reason_cards = [
         ("시장 근거", market_body),
         ("테마 근거", f"{themes} · 최고 테마 점수 {theme_score:.1f}/100"),
         ("종목 근거", stock_body),
-        ("매수 근거", plan.get("buy_reason", "자료부족")),
+        ("매수 근거", buy_body),
     ]
     for column, (title, body) in zip(st.columns(4), reason_cards):
         column.markdown(

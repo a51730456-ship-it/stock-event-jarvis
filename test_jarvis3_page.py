@@ -891,7 +891,11 @@ class Jarvis3PageTests(unittest.TestCase):
         # (‘2R 목표’·‘조건 기준가’는 위쪽 테마 대장주 상세에도 나오므로, 이 갈래의
         #  칸이 그것으로 채워지지 않았는지는 아래 소스 검사로 함께 지킨다.)
         self.assertIn("이 규칙에는 없음", joined)
-        self.assertIn("이 규칙에는 기준가도 손절가도 없습니다", joined)
+        # 2026-08-06 — 같은 말이 한 화면에 여섯 번 나온다는 지적을 받고 ※ 두 줄을
+        # 뺐다. 손절이 없다는 사실은 위 카드('손절가 — 이 규칙에는 없음')와
+        # 왼쪽 겨자색 상자가 말한다. 그 둘은 남아 있어야 한다.
+        self.assertNotIn("이 규칙에는 기준가도 손절가도 없습니다", joined)
+        self.assertIn("이 규칙에는 손절가가 없습니다", joined)
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
@@ -948,6 +952,34 @@ class Jarvis3PageTests(unittest.TestCase):
         block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
         self.assertLess(block.index("'j3-th-head'>순위"), block.index("'j3-th-head'>점수"))
         self.assertLess(block.index("'j3-th-head'>점수"), block.index("'j3-th-head'>종목"))
+
+    def test_the_detail_says_each_thing_once(self):
+        """같은 말을 되풀이하지 않는다(2026-08-06 상하님 지적).
+
+        예전에는 '이 규칙에는 손절가가 없습니다'가 한 화면에 여섯 번,
+        '52주 신고가를 찍고…'가 세 번 나왔다.
+        """
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                  _breakout_result())
+        joined = " ".join(
+            [str(node.value) for node in app.markdown]
+            + [str(node.value) for node in app.success]
+            + [str(node.value) for node in app.warning]
+        )
+        self.assertLessEqual(joined.count("52주 신고가를 찍고"), 1,
+                             "종목 근거 문장이 여러 번 나온다")
+        # 금액만 보여주던 칸을 '얼마나 늘었나'로 바꿨다.
+        self.assertIn("거래량 (어제 대비)", joined)
+        self.assertNotIn("평균 거래대금", joined)
+        # 점수는 하나만 — '이 갈래 점수'·'눌림 점수'가 같이 있어 헷갈렸다.
+        # ('눌림 점수'는 이 페이지의 다른 표(A 규칙)에도 있으므로 이 여섯 칸 안에서만 본다.)
+        self.assertNotIn("이 갈래 점수", joined)
+        # 이 페이지에는 여섯 칸짜리 상자가 여럿이다(테마 대장주 상세에도 있다).
+        # 갈래 상세의 것만 '거래량 (어제 대비)' 칸을 가진다.
+        cards = next(str(node.value) for node in app.markdown
+                     if "거래량 (어제 대비)" in str(node.value))
+        self.assertIn("이 종목 점수", cards)
+        self.assertNotIn("눌림 점수", cards)
 
     def test_each_section_can_also_be_closed_from_its_bottom(self):
         """구역마다 맨 아래에도 닫기 단추를 둔다(2026-08-01, 한국테마와 같은 장치)."""
