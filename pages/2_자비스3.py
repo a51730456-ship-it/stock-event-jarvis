@@ -104,6 +104,48 @@ st.markdown(
         background: rgba(34, 197, 94, 0.08);
         border-radius: 0.4rem;
     }
+    /* ── 움직임 (2026-08-06 사용자 요청 "그냥 멋지게") ──────────────────────
+       Streamlit은 누를 때마다 화면을 통째로 다시 그린다. 그래서 애니메이션은
+       **짧게(0.2초)** 둔다 — 길면 클릭할 때마다 다시 재생돼 거슬린다.
+       닫히는 모습은 못 만든다. 접는 순간 그 자리가 아예 안 그려지기 때문이다.
+       거슬리면 이 블록만 통째로 지우면 원래대로 돌아간다. */
+    @keyframes j3-rise {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .st-key-j3_rulebook_table, .st-key-j3_top7_table,
+    .st-key-j3_leader_table, .j3-holo-card, .sig-head-pair {
+        animation: j3-rise .2s ease-out both;
+    }
+    /* 단추는 손을 올리면 살짝 떠오른다 — 이건 다시 그려도 재생되지 않는다. */
+    div[class*="st-key-j3_pullback_"] button,
+    div[class*="st-key-j3_top7_find"] button,
+    div[class*="st-key-btn_j3_"] button {
+        transition: transform .12s ease-out, filter .12s ease-out,
+                    box-shadow .12s ease-out !important;
+    }
+    div[class*="st-key-j3_pullback_"] button:hover,
+    div[class*="st-key-j3_top7_find"] button:hover,
+    div[class*="st-key-btn_j3_"] button:hover {
+        transform: translateY(-2px) !important;
+        filter: brightness(1.12) !important;
+    }
+    div[class*="st-key-j3_pullback_"] button:active,
+    div[class*="st-key-j3_top7_find"] button:active,
+    div[class*="st-key-btn_j3_"] button:active {
+        transform: translateY(0) scale(.985) !important;
+    }
+    /* 표의 종목 단추도 같은 결로 — 누를 곳이라는 게 손끝에 느껴져야 한다. */
+    div[class*="st-key-j3rbf_"] button, div[class*="st-key-j3top7_"] button,
+    div[class*="st-key-j3tbtn_"] button {
+        transition: transform .12s ease-out, border-color .12s ease-out,
+                    background .12s ease-out !important;
+    }
+    div[class*="st-key-j3rbf_"] button:hover,
+    div[class*="st-key-j3top7_"] button:hover {
+        transform: translateX(3px) !important;
+        border-color: rgba(192,132,252,.6) !important;
+    }
     .j3-action-box {
         color: #4da6ff;
         font-size: 1rem;

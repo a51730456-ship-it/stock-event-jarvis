@@ -140,7 +140,7 @@ TOP_ROW_CSS = """
    첫 화면 밖으로 밀려났다(2026-07-24 실측). 순서만 바꿀 뿐 값은 그대로다. */
 .fg-box { order: 10; box-sizing: border-box; }
 .fg-box-body { gap: 0.7rem; }
-.fg-box-gauge .fg-gauge { width: 104px; height: 70px; }
+.fg-box-gauge .fg-gauge { width: 104px; height: auto; }
 .fg-box-hist { min-width: 0; flex: 1 1 auto; }
 .fg-box-hist .fg-hist-row { padding: 0.07rem 0; }
 /* 국면 다섯 칸을 접는 규칙은 여기 두지 않는다 — 규칙 12를 어겨 갤럭시탭(1138px)까지
@@ -229,7 +229,7 @@ h2 { font-size: 1.2rem !important; }
 .fg-box-hist .fg-hist-row.fg-hist-dim { display: none; }
 /* 시장 신호 카드 */
 .sig-body { gap: 0.6rem; }
-.sig-gauge .fg-gauge { width: 132px; height: 88px; }
+.sig-gauge .fg-gauge { width: 132px; height: auto; }
 .sig-counts { min-width: 0; flex: 1 1 auto; }
 .sig-text { flex: 1 1 100%; min-width: 0; }
 /* 폰에서는 당일과 전일을 위아래로 하나씩 놓는다. 5단계 이름·날짜가 잘리지 않고

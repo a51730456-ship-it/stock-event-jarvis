@@ -23,7 +23,13 @@ TITLE_GREEN_DEEP = "#22c55e"
 
 _WIDTH = 320
 # 점수 글자는 바늘 아래에 둔다 — 반원 안에 넣으면 바늘이 숫자를 가로지른다.
-_HEIGHT = 214
+# 구간 이름을 26px로 키우니 숫자와 겹쳤다(2026-08-06 실측: 14단위 겹침).
+# 글자 자리를 아래로 내리면서 그림 높이도 214 → 256으로 늘린다.
+#
+# **주의** — CSS의 font-size는 화면 픽셀이라, 그림이 작게 그려질수록 viewBox 안에서는
+# 그만큼 커진다(124px 폭에서 26px 글자 = viewBox 67단위). 그래서 눈대중으로 8~10단위쯤
+# 띄우면 실제로는 겹친다. 고칠 때는 반드시 브라우저에서 재 볼 것.
+_HEIGHT = 256
 _CENTER_X = _WIDTH / 2
 _CENTER_Y = 132
 _OUTER = 118
@@ -104,8 +110,9 @@ def gauge_svg(
                 f"<text x='{_CENTER_X}' y='{_CENTER_Y + 44}' class='fg-score' "
                 f"text-anchor='middle' fill='{color}'>{value:.0f}</text>"
             )
+        # 숫자 아래 68 → 104. 위 _HEIGHT 주석 참고 — 여기 숫자를 줄이면 겹친다.
         parts.append(
-            f"<text x='{_CENTER_X}' y='{_CENTER_Y + (68 if show_score else 46)}' class='fg-zone' "
+            f"<text x='{_CENTER_X}' y='{_CENTER_Y + (104 if show_score else 46)}' class='fg-zone' "
             f"text-anchor='middle' fill='{color}'>{html.escape(label or name)}</text>"
         )
     else:
@@ -206,7 +213,9 @@ CSS = """
     padding-top: 0.22rem; border-top: 1px solid rgba(255,255,255,0.1); }
 .fg-box-body { display: flex; align-items: center; gap: 0.6rem; }
 .fg-box-gauge { flex: 0 0 auto; }
-.fg-box-gauge .fg-gauge { width: 124px; height: 83px; }
+/* 높이는 auto로 둔다 — 픽셀로 박아 두면 _HEIGHT를 고칠 때마다 반원이 찌그러진다
+   (2026-08-06). SVG가 viewBox 비율대로 알아서 잡는다. */
+.fg-box-gauge .fg-gauge { width: 124px; height: auto; }
 .fg-box-gauge .fg-score { font-size: 46px; }
 /* 점수 밑 구간 이름이 너무 작아 안 읽혔다(2026-08-06 사용자 지시). 20px → 26px.
    **여기 주석에 판정 이름을 예로 적지 말 것** — 이 CSS는 화면에 글자로 나가므로

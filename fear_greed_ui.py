@@ -109,11 +109,11 @@ CSS = gauge_ui.CSS + """
 .fg-title { color: #4da6ff; font-size: 1.2rem; font-weight: 800; margin-bottom: 0.3rem; }
 .fg-body { display: flex; flex-wrap: wrap; align-items: center; gap: 1.6rem; }
 .fg-gauge-wrap { flex: 0 0 auto; }
-.fg-gauge { width: 260px; height: 174px; }
+.fg-gauge { width: 260px; height: auto; }
 .fg-score { font-size: 34px; }
 .fg-zone { font-size: 15px; }
 .fg-tick { font-size: 11px; }
 .fg-hist { flex: 1 1 220px; min-width: 200px; }
 .fg-note { color: #9aa0aa; font-size: 0.88rem; line-height: 1.55; margin-top: 0.6rem; }
-@media (max-width: 720px) { .fg-body { gap: 0.8rem; } .fg-gauge { width: 220px; height: 147px; } }
+@media (max-width: 720px) { .fg-body { gap: 0.8rem; } .fg-gauge { width: 220px; height: auto; } }
 """

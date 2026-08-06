@@ -697,7 +697,8 @@ US_VERDICT_ORDER = (
 _SIGNAL_GAUGE_CSS = """
 .sig-body { display: flex; flex-wrap: wrap; align-items: center; gap: 1.1rem; margin-top: 10px; }
 .sig-gauge { flex: 0 0 auto; }
-.sig-gauge .fg-gauge { width: 190px; height: 127px; }
+/* 높이는 auto — 픽셀로 박으면 gauge_ui._HEIGHT를 고칠 때 반원이 찌그러진다. */
+.sig-gauge .fg-gauge { width: 190px; height: auto; }
 .sig-gauge .fg-zone { font-size: 21px; }
 /* 카드 맨 위 당일·전일 두 칸 — 아래 계기판 두 칸과 같은 모양·같은 테두리 색으로
    맞춘다(2026-08-06 사용자 지시 "칸을 밑에 처럼 구분하라"). 두 줄을 그냥 쌓아
@@ -722,7 +723,7 @@ _SIGNAL_GAUGE_CSS = """
 .sig-gauge-today .sig-gauge-title { color:#44f0a1; }
 .sig-gauge-previous { border-color:rgba(77,166,255,.34); }
 .sig-gauge-previous .sig-gauge-title { color:#4da6ff; }
-.sig-gauge-shell .sig-gauge .fg-gauge { width:235px; height:157px; }
+.sig-gauge-shell .sig-gauge .fg-gauge { width:235px; height:auto; }
 .sig-gauge-shell .sig-gauge .fg-zone { font-size:20px; }
 .sig-gauge-shell .sig-gauge .fg-tick { font-size:13px; }
 .sig-gauge-shell .sig-counts { width:100%; min-width:0; margin-top:-.2rem; }
@@ -766,7 +767,7 @@ _SIGNAL_GAUGE_CSS = """
 .sig-body-comparison .sig-story-today { grid-area:today-story; }
 .sig-body-comparison .sig-gauge-previous { grid-area:previous-gauge; }
 .sig-body-comparison .sig-story-previous { grid-area:previous-story; }
-@media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 160px; height: 107px; }
+@media (max-width: 720px) { .sig-body { gap: 0.7rem; } .sig-gauge .fg-gauge { width: 160px; height: auto; }
   .sig-gauge-pair { width:100%; gap:.45rem; } .sig-gauge-shell { flex:1 1 145px; padding:.3rem .25rem .15rem; }
   .sig-gauge-shell .sig-gauge .fg-gauge { width:100%; height:auto; } }
 """
