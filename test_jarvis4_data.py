@@ -1,7 +1,9 @@
 """자비스4(한국 테마) 엔진 테스트 — 네트워크 없이 순수 판정 로직만 검증한다."""
 
+import tempfile
 import unittest  # noqa: F401  (아래 클래스들이 쓴다)
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -10,6 +12,34 @@ import pandas as pd
 import jarvis4_data as j4
 
 SEOUL = ZoneInfo("Asia/Seoul")
+
+# ── 공책(파일) 캐시 격리 ────────────────────────────────────────────────────
+# 2026-08-06. `cache/jarvis4/flow__000660.pkl`이 남아 있으면
+# test_flow_failure_returns_not_ok가 깨졌다. 조회가 실패해도 _cached가 메모리에
+# 아무것도 없을 때 공책을 먼저 펴 보기 때문에(jarvis4_data._cached) 성공한 값이
+# 돌아온 것이다. 고칠 곳은 테스트지 앱이 아니다 — 공책은 앱이 잠들었다 깨어날 때
+# 다시 안 받으려고 일부러 넣은 것이다.
+#
+# conftest.py에도 같은 격리가 있지만 **그건 pytest로 돌릴 때만** 걸린다.
+# 이 저장소 안내는 `python -m unittest`(docs/JARVIS5_CLOUD_COLLECTION.md)라,
+# 그 길로 돌리면 conftest를 아예 안 읽어 실제 캐시를 그대로 본다.
+# 그래서 두 runner가 다 부르는 setUpModule에도 둔다.
+_disk_cache_temp = None
+_disk_cache_original = None
+
+
+def setUpModule():
+    global _disk_cache_temp, _disk_cache_original
+    _disk_cache_temp = tempfile.TemporaryDirectory(prefix="jarvis4-test-cache-")
+    _disk_cache_original = j4._DISK_CACHE_DIR
+    j4._DISK_CACHE_DIR = Path(_disk_cache_temp.name) / "jarvis4"
+
+
+def tearDownModule():
+    if _disk_cache_original is not None:
+        j4._DISK_CACHE_DIR = _disk_cache_original
+    if _disk_cache_temp is not None:
+        _disk_cache_temp.cleanup()
 
 
 def _daily_frame(start=100_000.0, slope=200.0, periods=260):
@@ -410,6 +440,15 @@ class NewlyListedThemeTests(unittest.TestCase):
     것이었다. '시세를 가져오지 못했습니다'는 틀린 설명이라 원인을 엉뚱한 데서
     찾게 된다.
     """
+
+    def setUp(self):
+        # get_theme_leaders는 종목마다 일봉과 **수급**을 함께 부른다(_analyze_stock).
+        # 일봉만 막아 두면 수급은 진짜로 네이버까지 나가고, 공책에 그 종목 수급이
+        # 적혀 있으면 그 값에 따라 결과가 달라진다. 여기서 재는 것은 상장 초기
+        # 종목이 목록에 남는지이지 수급이 아니다 (2026-08-06).
+        patcher = patch.object(j4, "get_stock_flow", return_value=_flow())
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _frame(self, bars):
         index = pd.date_range("2026-07-01", periods=bars, freq="D")
