@@ -913,6 +913,23 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("거래대금 (평소 위 연속)", joined)
         self.assertIn("이 규칙에는 없음", joined)
 
+    def test_only_the_crash_screen_warns_that_the_order_barely_matters(self):
+        """급락 화면에만 붙이는 경고다(2026-08-06).
+
+        점수가 96·95·92로 크게 찍혀 1등이 확실히 좋아 보이는데, 재 보면 1등과
+        10등 차이가 100번에 1~3번이다. 상승장은 테마 하나로 앞 +8.6 / 뒤 +2.5라
+        순위가 실제로 갈리므로 안 붙인다.
+        """
+        crash = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
+        self.assertTrue(
+            any("순위가 성적을 거의 못 가립니다" in str(node.value) for node in crash.caption),
+            "급락 화면에 경고가 없다")
+        up = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                 _breakout_result())
+        self.assertFalse(
+            any("순위가 성적을 거의 못 가립니다" in str(node.value) for node in up.caption),
+            "상승장 화면에까지 경고가 붙었다")
+
     def test_the_long_explanation_is_folded_until_asked_for(self):
         """설명은 눌러야 나온다(2026-08-06 사용자 지시 — 설명이 첫 화면을 다 먹었다).
 
