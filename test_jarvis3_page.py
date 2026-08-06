@@ -938,6 +938,26 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("거래대금 (평소 위 연속)", joined)
         self.assertIn("이 규칙에는 없음", joined)
 
+    def test_crash_detail_says_the_market_by_the_reference_day(self):
+        """기준일로 찾아 놓고 오늘 낙폭으로 판정하면 앞뒤가 안 맞는다(2026-08-06).
+
+        표는 7/29(-11.5%) 기준으로 찾아 놓고, 상세의 '시장 근거'만
+        "오늘 -4.1%라 이 규칙을 쓸 자리가 아닙니다"라고 말하고 있었다.
+        """
+        reference = {"ok": True, "armed": True, "reference_date": "2026-07-29",
+                     "reference_drop": -11.5, "today_drop": -4.1,
+                     "days_in_band": 10, "last_in_band": "2026-08-03", "reason": ""}
+        with patch("jarvis3_data.crash_reference_day", return_value=reference):
+            app = self._run_with_mode("crash", "find_crash_rebound_stocks",
+                                      _crash_result())
+        joined = " ".join(str(node.value) for node in app.markdown)
+        self.assertIn("2026-07-29 기준으로 찾았습니다", joined)
+        self.assertIn("-11.5%", joined)
+        # 오늘 낙폭으로 "쓸 자리가 아니다"라고 말하지 않는다.
+        self.assertNotIn("이 규칙은 6~12% 내려왔을 때 씁니다", joined)
+        # 하락폭은 붉은색 진하게(2026-08-06 지시).
+        self.assertIn("color:#ff5b5b; font-weight:900", joined)
+
     def test_only_the_crash_screen_warns_that_the_order_barely_matters(self):
         """급락 화면에만 붙이는 경고다(2026-08-06).
 

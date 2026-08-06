@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080620
+MODULE_REVISION = 2026080630
 
 
 def _now_seoul():
@@ -623,13 +623,19 @@ def run_kr_flow_check(*, force_refresh=False):
     return result
 
 
+# 카드 색 = (배경, 테두리, 글자).
+#
+# 배경은 **거의 검은 남색 계열**로 통일하고 판정 색은 테두리와 글자로만 낸다
+# (2026-08-06 사용자 지적 "배경이 너무 누렇다"). 예전에는 판정 색을 배경에 통째로
+# 깔아서(#4a2e05 같은 진한 갈색) 화면이 누렇게 떴다. 색은 아주 조금만 섞어
+# 어느 판정인지 눈치채게 하고, 판정은 테두리와 글자가 말한다.
 _FLOW_VERDICT_STYLE = {
-    kr_intraday_flow.ReboundVerdict.VERY_BAD: ("#4c1d1d", "#ef4444", "#fca5a5"),
-    kr_intraday_flow.ReboundVerdict.CONFIRMED: ("#14532d", "#22c55e", "#86efac"),
-    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: ("#134e4a", "#14b8a6", "#99f6e4"),
-    kr_intraday_flow.ReboundVerdict.WATCHING: ("#4a2e05", "#eab308", "#fde047"),
-    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: ("#431407", "#f97316", "#fdba74"),
-    kr_intraday_flow.ReboundVerdict.INSUFFICIENT_DATA: ("#27272a", "#71717a", "#d4d4d8"),
+    kr_intraday_flow.ReboundVerdict.VERY_BAD: ("#170f13", "#ef4444", "#fca5a5"),
+    kr_intraday_flow.ReboundVerdict.CONFIRMED: ("#0d1714", "#22c55e", "#86efac"),
+    kr_intraday_flow.ReboundVerdict.PROXY_CONFIRMED: ("#0d1717", "#14b8a6", "#99f6e4"),
+    kr_intraday_flow.ReboundVerdict.WATCHING: ("#15140f", "#eab308", "#fde047"),
+    kr_intraday_flow.ReboundVerdict.NOT_CONFIRMED: ("#16110d", "#f97316", "#fdba74"),
+    kr_intraday_flow.ReboundVerdict.INSUFFICIENT_DATA: ("#131316", "#71717a", "#d4d4d8"),
 }
 
 # 첫 화면에서 바로 보여야 하는 핵심 4개
@@ -734,6 +740,20 @@ _SIGNAL_GAUGE_CSS = """
 .sig-speed-tick.major { stroke:#f8fafc; stroke-width:3.2; }
 .sig-speed-arrow { fill:#f8fafc; stroke:#dbeafe; stroke-width:1.2;
   filter:drop-shadow(0 0 5px rgba(255,255,255,.75)); }
+/* 손을 올리면 바늘이 좌우로 살짝 흔들렸다 제자리로 온다(2026-08-06 사용자 요청).
+   회전 중심은 바늘이 꽂힌 축(160,132)이다 — 안 맞추면 바늘이 통째로 미끄러진다.
+   손이 닿을 때만 도는 움직임이라 화면을 다시 그려도 재생되지 않는다. */
+@keyframes sig-needle-wiggle {
+  0%   { transform: rotate(0deg); }
+  22%  { transform: rotate(-5deg); }
+  52%  { transform: rotate(3.5deg); }
+  78%  { transform: rotate(-1.5deg); }
+  100% { transform: rotate(0deg); }
+}
+.sig-gauge-shell:hover .sig-speed-arrow {
+  transform-origin: 160px 132px;
+  animation: sig-needle-wiggle .7s cubic-bezier(.3,.7,.4,1);
+}
 .sig-speed-hub-outer { fill:#f8fafc; stroke:#dbeafe; stroke-width:2; }
 .sig-speed-hub-inner { fill:#111827; }
 /* 전일은 흐리게 두되 **읽을 수 있어야** 한다. .48은 너무 흐려 전일이 어느 단계인지
@@ -1555,13 +1575,15 @@ def render_kr_flow_card():
     # '확인 필요'로 정확히 표시된다. 외국인 선물은 네이버에서 자동 조회한다.
 
 
+# 배경은 위 _FLOW_VERDICT_STYLE과 같은 뜻으로 맞춘다 — 두 시장 카드가 나란히 서므로
+# 배경이 다르면 한쪽만 누렇게 뜬다(2026-08-06).
 _US_VERDICT_STYLE = {
-    us_market_signal_engine.UsMarketVerdict.VERY_BAD: ("#4c1d1d", "#ef4444", "#fca5a5"),
-    us_market_signal_engine.UsMarketVerdict.RISK_ON: ("#14532d", "#22c55e", "#86efac"),
-    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: ("#134e4a", "#14b8a6", "#99f6e4"),
-    us_market_signal_engine.UsMarketVerdict.MIXED: ("#4a2e05", "#eab308", "#fde047"),
-    us_market_signal_engine.UsMarketVerdict.RISK_OFF: ("#431407", "#f97316", "#fdba74"),
-    us_market_signal_engine.UsMarketVerdict.INSUFFICIENT_DATA: ("#27272a", "#71717a", "#d4d4d8"),
+    us_market_signal_engine.UsMarketVerdict.VERY_BAD: ("#170f13", "#ef4444", "#fca5a5"),
+    us_market_signal_engine.UsMarketVerdict.RISK_ON: ("#0d1714", "#22c55e", "#86efac"),
+    us_market_signal_engine.UsMarketVerdict.RISK_ON_EARLY: ("#0d1717", "#14b8a6", "#99f6e4"),
+    us_market_signal_engine.UsMarketVerdict.MIXED: ("#15140f", "#eab308", "#fde047"),
+    us_market_signal_engine.UsMarketVerdict.RISK_OFF: ("#16110d", "#f97316", "#fdba74"),
+    us_market_signal_engine.UsMarketVerdict.INSUFFICIENT_DATA: ("#131316", "#71717a", "#d4d4d8"),
 }
 
 _US_CORE_DISPLAY = (

@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import math
 
-MODULE_REVISION = 2026080610
+MODULE_REVISION = 2026080620
 
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"
@@ -227,6 +227,19 @@ CSS = """
 .fg-zone { font-weight: 800; }
 .fg-tick { fill: #9aa0aa; font-weight: 700; }
 .fg-needle { stroke: #e6e6e6; stroke-width: 3.5; stroke-linecap: round; }
+/* 손을 올리면 바늘이 좌우로 살짝 흔들렸다 제자리로 온다(2026-08-06 사용자 요청).
+   회전 중심은 바늘이 꽂힌 축(_CENTER_X, _CENTER_Y = 160,132)이다. */
+@keyframes fg-needle-wiggle {
+  0%   { transform: rotate(0deg); }
+  22%  { transform: rotate(-5deg); }
+  52%  { transform: rotate(3.5deg); }
+  78%  { transform: rotate(-1.5deg); }
+  100% { transform: rotate(0deg); }
+}
+.fg-box:hover .fg-needle, .fg-gauge-wrap:hover .fg-needle {
+  transform-origin: 160px 132px;
+  animation: fg-needle-wiggle .7s cubic-bezier(.3,.7,.4,1);
+}
 .fg-hub { fill: #e6e6e6; }
 .fg-hist-row { display: flex; align-items: center; gap: 0.45rem; padding: 0.14rem 0;
     border-bottom: 1px solid rgba(255,255,255,0.06); }

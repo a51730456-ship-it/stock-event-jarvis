@@ -576,7 +576,7 @@ import fear_greed_ui
 import gauge_ui
 import mobile_ui
 
-_REQUIRED_GAUGE_UI_REVISION = 2026080610
+_REQUIRED_GAUGE_UI_REVISION = 2026080620
 if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
     gauge_ui = importlib.reload(gauge_ui)
 
@@ -638,7 +638,7 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080620
+_REQUIRED_SIGNAL_UI_REVISION = 2026080630
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).

@@ -423,6 +423,8 @@ st.markdown(
         text-align: right; }
     .j3-weight .j3-w-why { color: #9aa0a8; }
     .j3-weight.j3-w-zero b, .j3-weight.j3-w-zero .j3-w-pt { color: #7d838b; }
+    /* 하락폭 숫자는 붉은색 진하게(2026-08-06 사용자 지시) — 눈에 먼저 들어와야 한다. */
+    .j3-drop { color: #ff5b5b; font-weight: 900; }
     .j3-hold-20 { color: #ff9d3b; font-weight: 850; }
     .j3-hold-60 { color: #7cc8ff; font-weight: 850; }
     .j3-hold-120 { color: #44f0a1; font-weight: 850; }
@@ -780,7 +782,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080620
+_REQUIRED_SIGNAL_UI_REVISION = 2026080630
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -3057,13 +3059,49 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     _render_price_chart_bundle(ticker, panel="pullback")
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
+
+    def _red(text) -> str:
+        """하락폭은 붉은색 진하게(2026-08-06 사용자 지시) — 눈에 먼저 들어와야 한다."""
+        return (f"<span style='color:#ff5b5b; font-weight:900'>"
+                f"{html.escape(str(text))}</span>")
+
     if mode in ("crash", "breakout"):
         # 이 두 갈래는 **다른 자로 잰다**. 그런데 예전에는 네 칸 중 '시장 근거'가
         # 눌림목(A 규칙)의 조건점수를, '종목 근거'와 '매수 근거'가 **똑같은 문장**을
         # 보여줬다(2026-08-06 상하님 캡처). 셋 다 이 갈래의 값으로 바꾼다.
-        state = (j3data.breakout_market_state() if mode == "breakout"
-                 else j3data.crash_market_state())
-        market_body = str(state.get("reason") or "나스닥 상태를 못 읽었습니다")
+        if mode == "crash":
+            # **기준일로 찾아 놓고 오늘 낙폭으로 판정하면 앞뒤가 안 맞는다**
+            # (2026-08-06 상하님 지적). 표는 7/29(-11.5%) 기준으로 찾아 놓고
+            # 이 칸만 "오늘 -4.1%라 쓸 자리가 아닙니다"라고 말하고 있었다.
+            # 표와 **같은 기준일**로 말한다.
+            reference = j3data.crash_reference_day()
+            if reference.get("armed"):
+                ref_day = html.escape(str(reference.get("reference_date") or ""))
+                ref_drop = _red(f"{float(reference.get('reference_drop') or 0):.1f}%")
+                now_drop = _red(f"{float(reference.get('today_drop') or 0):.1f}%")
+                market_body = (
+                    f"{ref_day} 기준으로 찾았습니다 — 그날 나스닥이 고점에서 "
+                    f"{ref_drop}였습니다. 오늘은 {now_drop}입니다."
+                )
+            else:
+                # 기준일이 없으면 오늘 낙폭으로 찾은 것이다. 그 사실을 그대로 적는다.
+                state = j3data.crash_market_state()
+                drop_pct = state.get("drop_pct")
+                if drop_pct is None:
+                    market_body = html.escape(
+                        str(state.get("reason") or "나스닥 상태를 못 읽었습니다"))
+                else:
+                    low, high = getattr(j3data, "CRASH_MARKET_BAND", (-12.0, -6.0))
+                    band = _red(f"{abs(high):.0f}~{abs(low):.0f}%")
+                    market_body = (
+                        f"최근 한 달에 나스닥이 {band} 내려온 날이 없었습니다. "
+                        f"지금은 {_red(f'{float(drop_pct):.1f}%')}입니다. "
+                        "그래서 오늘 낙폭으로 찾은 결과입니다."
+                    )
+        else:
+            state = j3data.breakout_market_state()
+            market_body = html.escape(
+                str(state.get("reason") or "나스닥 상태를 못 읽었습니다"))
         earned = [(value, name) for name, value, maximum, _t in scored["parts"] if maximum]
         missed = [(maximum - value, name) for name, value, maximum, _t in scored["parts"]
                   if maximum]
@@ -3085,16 +3123,19 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "손절가는 없습니다."
         if mode in ("crash", "breakout") else plan.get("buy_reason", "자료부족")
     )
+    # 여기 담기는 글은 **이미 안전하게 만들어 둔 것**이다(붉은 숫자 span이 들어간다).
+    # 그래서 아래에서 다시 escape하지 않는다 — 새 글을 넣을 때는 html.escape를
+    # 거쳐서 넣어야 한다.
     reason_cards = [
         ("시장 근거", market_body),
-        ("테마 근거", f"{themes} · 최고 테마 점수 {theme_score:.1f}/100"),
-        ("종목 근거", stock_body),
-        ("매수 근거", buy_body),
+        ("테마 근거", html.escape(f"{themes} · 최고 테마 점수 {theme_score:.1f}/100")),
+        ("종목 근거", html.escape(str(stock_body))),
+        ("매수 근거", html.escape(str(buy_body))),
     ]
     for column, (title, body) in zip(st.columns(4), reason_cards):
         column.markdown(
             f"<div class='j3-reason-card'><div class='j3-reason-title'>{title}</div>"
-            f"<div class='j3-reason-body'>{html.escape(str(body))}</div></div>",
+            f"<div class='j3-reason-body'>{body}</div></div>",
             unsafe_allow_html=True,
         )
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
@@ -3133,8 +3174,9 @@ _SCORE_TABLE = {
         ("최근 11일에 빠졌나", 25, "앞 5년·뒤 5년을 <b>둘 다</b> 이겼습니다. 낙폭과 "
                                   "<u>다른 것</u>을 잽니다 — 낙폭은 구덩이가 얼마나 "
                                   "깊은가이고, 이것은 방금 빠졌나 이미 올라왔나입니다"),
-        ("낙폭 갈래", 15, "20~30%가 만점, 30~50%는 절반. 깊다고 더 좋지 않았고(69번·68번) "
-                          "그물로 이미 한 번 썼습니다"),
+        ("낙폭 갈래", 15, "<span class='j3-drop'>-20~-30%</span>가 만점, "
+                          "<span class='j3-drop'>-30~-50%</span>는 절반. 깊다고 더 좋지 "
+                          "않았고(69번·68번) 그물로 이미 한 번 썼습니다"),
         ("사고팔기 쉬운가", 10, "성적을 맞히는 값이 아니라 실제로 사고팔 수 있는가입니다"),
         ("많이 흔들리지 않나", 10, "감당할 크기인가입니다"),
         ("거래대금 평소 위 연속", 0, "앞뒤 <u>양쪽 다 거꾸로</u>였습니다. 확실히 뺐습니다"),
@@ -3199,16 +3241,18 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         reference = result.get("reference") or {}
         drop_now = crash_market.get("drop_pct")
         ref_date = reference.get("reference_date")
+        # 하락폭 숫자는 붉게(2026-08-06 사용자 지시). 스트림릿 글자색 표시를 쓴다.
         if ref_date and drop_now is not None:
             st.info(
                 f"**{ref_date} 기준으로 찾았습니다** — 그날 나스닥이 고점에서 "
-                f"{reference.get('reference_drop', 0):.1f}%였고 오늘은 {drop_now:.1f}%입니다. "
+                f":red[**{reference.get('reference_drop', 0):.1f}%**]였고 오늘은 "
+                f":red[**{drop_now:.1f}%**]입니다. "
                 "그날 걸렸던 종목을 그대로 보여드립니다."
             )
         elif drop_now is not None:
             st.info(
-                f"**최근 한 달에 나스닥이 6~12% 내려온 날이 없었습니다** — 지금은 "
-                f"{drop_now:.1f}%입니다. 그래서 오늘 낙폭으로 찾은 결과입니다."
+                "**최근 한 달에 나스닥이 :red[**-6~-12%**] 내려온 날이 없었습니다** — 지금은 "
+                f":red[**{drop_now:.1f}%**]입니다. 그래서 오늘 낙폭으로 찾은 결과입니다."
             )
         # 이 갈래만 붙이는 경고다(2026-08-06 사용자 승인). 점수가 96·95·92처럼 크게
         # 찍혀 1등이 확실히 좋아 보이는데, 재 보면 1등과 10등의 성적 차이가 100번에
@@ -3256,6 +3300,12 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                     f"{reference.get('last_in_band', '—')}). 오늘 기준으로 다시 재면 "
                     "이미 오른 종목이 목록에서 사라집니다."
                 )
+            st.markdown(
+                "<div class='j3-pull-guide'><b>찾는 그물</b> — 나스닥이 "
+                "<span class='j3-drop'>-6~-12%</span>였던 날을 기준으로, 고점에서 "
+                "<span class='j3-drop'>-20~-50%</span> 빠진 종목을 찾습니다.</div>",
+                unsafe_allow_html=True,
+            )
             st.markdown(
                 "<div class='j3-pull-guide'>"
                 "<b>찾는 그물</b> — 신고가가 언제였는지는 <u>보지 않고</u> "
