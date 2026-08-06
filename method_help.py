@@ -57,9 +57,10 @@ div[class*="st-key-jarvis_method_help"] button:active {
 }
 /* 창이 '팍' 뜨지 않고 **위에서 아래로 스르륵** 열리게 한다(2026-08-06 사용자 지시).
    0.22초 — 더 길면 글을 읽으려는데 기다리는 느낌이 난다. */
+/* 위에서 아래로 커튼처럼 펼친다. transform을 안 써야 창이 안 튄다(위 설명 참고). */
 @keyframes mh-drop {
-    from { opacity: 0; transform: translateY(-10px) scaleY(.985); }
-    to   { opacity: 1; transform: translateY(0) scaleY(1); }
+    from { opacity: .35; clip-path: inset(0 0 100% 0); }
+    to   { opacity: 1; clip-path: inset(0 0 0 0); }
 }
 div[class*="st-key-jarvis_method_help"] button p {
     color: #c15f3c !important;
@@ -99,12 +100,13 @@ div[class*="st-key-jarvis_method_help"] button p {
     overflow-y: auto !important;
     box-shadow: 0 10px 40px rgba(0, 0, 0, .55) !important;
     /* '팍' 뜨지 않고 **위에서 아래로 스르륵** 열린다(2026-08-06 사용자 지시).
-       0.22초 — 더 길면 글을 읽으려는데 기다리는 느낌이 난다.
+       **transform은 절대 건드리지 말 것** — 스트림릿이 팝오버 위치를 transform으로
+       잡는다. 처음에 translateY를 줬더니 창이 왼쪽으로 퍽 튀었다가 제자리로
+       돌아왔다(상하님 지적). 그래서 위치를 안 건드리는 clip-path로 펼친다.
        규칙을 따로 만들지 말고 **여기 안에** 둘 것: 같은 선택자로 블록을 하나 더
        만들면 'max-height 50vh가 있나' 보는 시험이 새 블록을 먼저 집어 깨진다
        (2026-08-06 실제로 걸렸다). */
-    animation: mh-drop .22s ease-out;
-    transform-origin: top center;
+    animation: mh-drop .24s ease-out;
 }
 
 /* ── 글 색 구분(2026-07-30 사용자 지시) ──────────────────────────────
