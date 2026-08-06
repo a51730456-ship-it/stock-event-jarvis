@@ -53,6 +53,24 @@
 **종목은 그대로 보여준다.** 급락 갈래와 같은 방식이다(막았더니 화면이 통째로 비었다).
 자료를 못 받으면 조용히 켜 둔다.
 
+### 자비스6 자동기록 시험이 진짜 시계를 안 보게 (같은 날)
+
+`test_jarvis6::test_refuses_to_run_after_the_closing_auction`이 **평일 15:05에 깨졌다.**
+시험이 `jarvis6_autolog.main()`을 시각 없이 불렀고, `main()`은 진짜 시계를 본다. 그래서
+14:30~15:18에는 '관찰 구간'이 되어 파일을 정말로 남겼다(덤으로 진짜 통신까지 했다).
+시험이 재려는 것은 '지금 몇 시인가'가 아니라 **'관찰 구간이 지났으면 안 남기는가'**다.
+
+`main(argv, *, now=None)`으로 시각을 밖에서 넣을 수 있게 했다. `collect(now=...)`가
+이미 쓰던 방식 그대로다. **안 넣으면 예전과 똑같이 진짜 시계를 보므로 매일 도는
+GitHub 예약 실행은 달라지는 것이 없다**(15:09에 실물로 확인 — '관찰 구간'을 잡고
+파일을 남겼다). 15:20이 지나면 안 남긴다는 규칙은 그대로다. 그건 일부러 그렇게
+만든 것이다.
+
+같은 파일에서 시계를 보는 시험을 전부 뒤졌다. `PhaseTests`와 나머지 `AutoLogTests`는
+이미 시각을 넣어 부르고, `StoreTests`는 날짜를 DB에서 다시 읽어 비교한다. 딱 하나,
+`test_same_day_same_stock_updates_instead_of_duplicating`만 저장을 두 번 하는데 그
+사이에 자정이 지나면 날짜가 갈려 두 줄이 남는다. 여기도 날짜를 고정했다.
+
 ---
 
 ## 1. 이번에 한 일 — 설명서 재검증 (2026-08-05)
@@ -204,10 +222,7 @@
 * **원래 깨져 있는 시험 넷** — 이번 작업과 무관하다.
   `test_bookmaker_data.py::PolymarketEventGroupingTests`(2026-08-01 이전부터),
   `test_db_runtime`(불러오기 실패), `test_market_signal_separation::test_verdict_enums_are_distinct`,
-  `test_jarvis4_data::test_flow_failure_returns_not_ok`,
-  `test_jarvis6::test_refuses_to_run_after_the_closing_auction`(**평일 한국시각
-  14:30~15:18에만 깨진다** — 시험이 진짜 시계를 본다. `jarvis6_autolog.main()`에
-  시각을 넣어 주면 고쳐진다).
+  `test_jarvis4_data::test_flow_failure_returns_not_ok`.
   마지막 것은 **디스크 공책 때문**이다 — `cache/jarvis4/flow__000660.pkl`이 있으면
   시험이 일부러 낸 통신 실패를 캐시가 덮어 `ok=True`가 된다.
   `_disk_cache_read`를 막고 돌리면 통과한다(2026-08-06 확인).

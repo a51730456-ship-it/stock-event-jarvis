@@ -143,8 +143,11 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(saved["passed"], 7)
 
     def test_same_day_same_stock_updates_instead_of_duplicating(self):
-        store.save_pick(self._row(), db_path=self.db)
-        store.save_pick(self._row(), action="skipped", db_path=self.db)
+        # 두 번의 저장이 같은 날이어야 갱신이 된다. 시계를 그대로 두면
+        # 자정을 사이에 두고 돌 때 날짜가 갈려 두 줄이 남는다.
+        when = datetime(2026, 7, 27, 15, 18, tzinfo=ZoneInfo("Asia/Seoul"))
+        store.save_pick(self._row(), db_path=self.db, at=when)
+        store.save_pick(self._row(), action="skipped", db_path=self.db, at=when)
         picks = store.list_picks(db_path=self.db)
         self.assertEqual(len(picks), 1)
         self.assertEqual(picks[0]["action"], "skipped")
@@ -263,8 +266,15 @@ class AutoLogTests(unittest.TestCase):
             store.import_auto_logs(source_dir=self.out, db_path=self.db)["rows"], 1)
 
     def test_refuses_to_run_after_the_closing_auction(self):
-        """15:20이 지난 뒤 남기면 종가를 보고 종가에 샀다고 적는 셈이다."""
-        code = self.autolog.main(["--export-dir", str(self.out)])
+        """15:20이 지난 뒤 남기면 종가를 보고 종가에 샀다고 적는 셈이다.
+
+        시각을 넣어서 부른다. 진짜 시계를 보게 두면 이 시험이 평일
+        14:30~15:18에만 깨졌다 — 그 시간에는 관찰 구간이라 파일을 남기는 게
+        맞기 때문이다(2026-08-06). 시험이 재려는 것은 '지금 몇 시인가'가
+        아니라 '관찰 구간이 지났으면 안 남기는가'다.
+        """
+        after_close = self.when.replace(hour=15, minute=25)   # 종가 단일가 (판단 마감)
+        code = self.autolog.main(["--export-dir", str(self.out)], now=after_close)
         self.assertEqual(code, 0)
         self.assertFalse(list(self.out.glob("*.json")) if self.out.exists() else [])
 

@@ -89,23 +89,30 @@ def collect(*, now: datetime | None = None, export_dir: Path | None = None,
             "phase": payload["phase"]}
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, now: datetime | None = None) -> int:
+    """명령줄 진입점.
+
+    ``now``: 시각을 밖에서 넣는다. ``collect(now=...)``와 같은 방식이다.
+    안 넣으면 예전 그대로 진짜 시계를 보므로 실제 실행은 달라지는 것이 없다.
+    시험이 진짜 시계를 보면 평일 14:30~15:18에만 결과가 뒤집혀 이유 없이
+    깨진다(2026-08-06 실측).
+    """
     parser = argparse.ArgumentParser(description="자비스6 자동 기록")
     parser.add_argument("--export-dir", default=str(EXPORT_DIR))
     parser.add_argument("--allow-any-time", action="store_true",
                         help="장 시간이 아니어도 돌린다 (손으로 시험할 때만)")
     args = parser.parse_args(argv)
 
-    now = datetime.now(_SEOUL)
-    phase = j6.market_phase(now)
+    stamp = now or datetime.now(_SEOUL)
+    phase = j6.market_phase(stamp)
     # 15:20이 지난 자료를 15:18로 쓰면 검증이 아니라 속임수가 된다.
     # 예약 실행이 늦어 관찰 구간을 놓치면 **남기지 않는 쪽**이 맞다.
     if not phase["watching"] and not args.allow_any_time:
         print(f"관찰 구간이 아니라 남기지 않습니다 ({phase['label']}, "
-              f"{now.strftime('%H:%M')}). 관찰 구간은 평일 14:30~15:18입니다.")
+              f"{stamp.strftime('%H:%M')}). 관찰 구간은 평일 14:30~15:18입니다.")
         return 0
 
-    result = collect(now=now, export_dir=Path(args.export_dir))
+    result = collect(now=stamp, export_dir=Path(args.export_dir))
     if not result["ok"]:
         print(f"후보를 못 냈습니다: {result.get('error')}")
         return 1
