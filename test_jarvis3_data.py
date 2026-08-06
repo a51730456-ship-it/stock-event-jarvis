@@ -305,14 +305,14 @@ class RulebookScreenTests(unittest.TestCase):
             self.assertEqual(100.0, sum(weights.values()))
             # 거래대금 연속은 양쪽 갈래 다 거꾸로였다 — 배점에서 뺐다.
             self.assertNotIn("volume_streak", weights)
-        # 두 갈래에서 **1등이 다르다**(2026-08-06 합친 그물로 재측정).
-        #   상승장 테마 앞 +8.6 / 뒤 +2.5  → 테마가 1등
-        #   급락  테마 앞 -2.8 / 뒤 +6.3  → 앞 5년에 져서 11일이 1등
-        # 잣대는 '앞뒤 양쪽에서 이겼나' 하나다. 10년 전체 성적으로 바꾸지 않는다.
-        self.assertEqual(40.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
-        self.assertEqual(25.0, j3.BREAKOUT_SCORE_WEIGHTS["recent_drop"])
-        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["recent_drop"])
-        self.assertEqual(25.0, j3.CRASH_SCORE_WEIGHTS["together"])
+        # 두 갈래 모두 테마가 1등이다(2026-08-06 상하님 판단 — "앞으로 5년도 테마가
+        # 주도한다"). 급락에서 테마는 뒤 5년만 이겼지만(앞 -2.8 / 뒤 +6.3), 테마
+        # 결속력이 앞 5년 0.186 → 뒤 5년 0.223으로 커지고 2026년이 10년 중 가장
+        # 높다는 자료가 뒷받침한다(research/theme_cohesion_by_year.py).
+        # **1년 뒤 다시 재서 성적이 안 따라왔으면 11일 40 / 테마 25로 바꾼다.**
+        for weights in (j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS):
+            self.assertEqual(40.0, weights["together"])
+            self.assertEqual(25.0, weights["recent_drop"])
         # 60일 상승폭도 뺐다 — 가운데 값만 크고 이기는 횟수는 뒤 5년에 졌다.
         self.assertNotIn("ret60", j3.BREAKOUT_SCORE_WEIGHTS)
 
@@ -329,7 +329,7 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(20.0, j3.theme_together_points(2, 40.0))
         self.assertEqual(0.0, j3.theme_together_points(0, 40.0))
         # 두 갈래 점수 모두 이 자를 써야 한다.
-        for scorer, full in ((j3.breakout_score, 40.0), (j3.crash_rebound_score, 25.0)):
+        for scorer, full in ((j3.breakout_score, 40.0), (j3.crash_rebound_score, 40.0)):
             row = {"metrics": {}, "together_count": 1, "together_tier": 0,
                    "recent_gain_pct": 0.0, "bucket": "shallow"}
             points = next(value for name, value, _m, _t in scorer(row)["parts"]
