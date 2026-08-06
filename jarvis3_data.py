@@ -2339,8 +2339,10 @@ def get_index_sparklines(days: int = 30) -> dict:
     try:
         intraday, _m1 = _download_cached(
             US_INDEX_SYMBOLS, period="1d", interval="5m", ttl_seconds=300)
+        # 3개월치를 받는다 — 손을 올렸을 때 보여줄 '일봉 3개월' 그림에 쓴다
+        # (2026-08-06). 조회 횟수는 그대로이고 기간만 늘어난다.
         daily, _m2 = _download_cached(
-            US_INDEX_SYMBOLS, period="1mo", interval="1d", ttl_seconds=600)
+            US_INDEX_SYMBOLS, period="3mo", interval="1d", ttl_seconds=600)
     except Exception:
         return {}
     result = {}
@@ -2352,7 +2354,14 @@ def get_index_sparklines(days: int = 30) -> dict:
         points = [float(v) for v in frame["Close"].dropna().tolist()]
         base = _prior_session_close(closes, pd.Timestamp(frame.index[-1]).date())
         if len(points) >= 2 and base:
-            result[symbol] = {"points": points, "base": base}
+            # daily_* 는 손을 올렸을 때 펴 보이는 '일봉 3개월' 그림용이다.
+            # 기준선은 3개월 전 첫 종가 — 그 뒤로 올랐는지 내렸는지를 본다.
+            daily_points = [float(v) for v in closes["Close"].dropna().tolist()]
+            result[symbol] = {
+                "points": points, "base": base,
+                "daily_points": daily_points if len(daily_points) >= 2 else [],
+                "daily_base": daily_points[0] if len(daily_points) >= 2 else None,
+            }
     return result
 
 

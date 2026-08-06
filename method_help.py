@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080620
+MODULE_REVISION = 2026080630
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -54,6 +54,12 @@ div[class*="st-key-jarvis_method_help"] button:hover {
 }
 div[class*="st-key-jarvis_method_help"] button:active {
     transform: translateY(0) scale(.985) !important;
+}
+/* 창이 '팍' 뜨지 않고 **위에서 아래로 스르륵** 열리게 한다(2026-08-06 사용자 지시).
+   0.22초 — 더 길면 글을 읽으려는데 기다리는 느낌이 난다. */
+@keyframes mh-drop {
+    from { opacity: 0; transform: translateY(-10px) scaleY(.985); }
+    to   { opacity: 1; transform: translateY(0) scaleY(1); }
 }
 div[class*="st-key-jarvis_method_help"] button p {
     color: #c15f3c !important;
@@ -92,6 +98,13 @@ div[class*="st-key-jarvis_method_help"] button p {
     max-height: 50vh !important;
     overflow-y: auto !important;
     box-shadow: 0 10px 40px rgba(0, 0, 0, .55) !important;
+    /* '팍' 뜨지 않고 **위에서 아래로 스르륵** 열린다(2026-08-06 사용자 지시).
+       0.22초 — 더 길면 글을 읽으려는데 기다리는 느낌이 난다.
+       규칙을 따로 만들지 말고 **여기 안에** 둘 것: 같은 선택자로 블록을 하나 더
+       만들면 'max-height 50vh가 있나' 보는 시험이 새 블록을 먼저 집어 깨진다
+       (2026-08-06 실제로 걸렸다). */
+    animation: mh-drop .22s ease-out;
+    transform-origin: top center;
 }
 
 /* ── 글 색 구분(2026-07-30 사용자 지시) ──────────────────────────────
@@ -455,3 +468,7 @@ def render(st, market: str) -> None:
                 if index == 0:
                     st.markdown(US_MID_TEXT, unsafe_allow_html=True)
             st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)
+            # 맨 아래에도 닫는 방법을 적어 준다(2026-08-06 사용자 요청). 글을 다 읽고
+            # 나면 여는 단추가 화면 위로 올라가 안 보이기 때문이다.
+            # **닫기 단추는 못 만든다** — 위 431줄 설명대로 눌러도 창이 안 닫힌다.
+            st.caption(CLOSE_HINT)

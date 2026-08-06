@@ -370,10 +370,13 @@ class Jarvis3PageTests(unittest.TestCase):
         # 눌림목 표에 당일주가 칸이 있고 값이 채워진다
         self.assertTrue(any("당일주가" in value for value in markdowns))
         self.assertTrue(any("$178.50" in value for value in markdowns))
-        # 순위 기준(눌림 점수)과 종목 자체 점수를 표에서 같이 본다 — 둘이 달라 보이는
-        # 이유를 화면에서 설명한다(2026-07-24 사용자 질문).
         self.assertTrue(any("종목 조건점수" in value for value in markdowns))
-        self.assertTrue(any("점수 두 개는 서로 다른 것을 잽니다" in value for value in markdowns))
+        # '점수 두 개는 서로 다른 것을 잽니다'는 없앤 눌림목 찾기 설명에 있던 말이다.
+        # 맨 위에서 세 갈래를 뭉뚱그려 설명하지 않는다(2026-08-06 상하님 지적) —
+        # 갈래마다 제 설명이 자기 안에 있다.
+        self.assertFalse(any("눌림목 종목 찾기 설명 보기" in str(node.label)
+                             for node in app.expander),
+                         "없앤 눌림목 찾기 설명이 되살아났다")
         # 상단 칸 이름은 '장 상태'가 아니라 '시장 상황'이고 VIX는 붉은색이다
         self.assertTrue(any("시장 상황" in value for value in markdowns))
         # 공포·탐욕 게이지(반원 그림)를 상단에 넣었다. 구간 이름은 한국어다.
@@ -759,8 +762,10 @@ class Jarvis3PageTests(unittest.TestCase):
         # 새 미국 눌림목 표도 기본 dataframe이 아니라 기존 색·정렬 계약을 따른다.
         self.assertIn("j3-pull-table", source)
         self.assertIn("j3-pull-guide", source)
-        self.assertIn("+ 상승은 파랑", source)
-        self.assertIn("− 하락은 빨강", source)
+        # '+ 상승은 파랑 · − 하락은 빨강' 줄은 없앤 눌림목 찾기 설명에 있었다.
+        # 그 설명을 통째로 뺐다(2026-08-06) — 색 규칙 자체는 아래 클래스가 지킨다.
+        self.assertIn(".j3-up { color: #4da6ff", source)
+        self.assertIn(".j3-down { color: #ff5b5b", source)
         self.assertNotIn("st.dataframe(view, hide_index=True", source)
         self.assertIn("🥇", source)
         self.assertIn('float(leader["score"]) >= 80', source)

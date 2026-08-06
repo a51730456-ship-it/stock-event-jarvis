@@ -218,7 +218,11 @@ st.markdown(
     .j3-action-detail { color: #ff9d3b; font-weight: 800; margin-top: .15rem; }
     .j3-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
         align-items: center; }
-    .j3-top-cell { min-width: 150px; padding-left: 1.6rem; }
+    .j3-top-cell { min-width: 150px; padding-left: 1.6rem; position: relative; }
+    /* **손을 올린 칸을 통째로 위로 올린다**(2026-08-06 상하님 지적 "화면이 겹쳐진다").
+       칸마다 position:relative라 뒤에 오는 칸이 앞 칸의 떠 있는 그림 위에 덮여
+       그려졌다. 팝업에만 z-index를 줘도 소용없다 — 칸 자체를 올려야 한다. */
+    .j3-top-cell:hover { z-index: 50; }
     /* 나스닥 고점 대비 낙폭 한 줄 — 위 지수 칸 바로 아래(2026-08-01).
        막대는 0%에서 25%까지이고, 세로 눈금이 12% 문턱 자리다. */
     .j3-ndd { border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
@@ -256,6 +260,27 @@ st.markdown(
     /* SPY·QQQ는 그림이 둘이라 칸을 조금 넓게 잡는다. */
     .j3-idx-wide { min-width: 240px; }
     .j3-idx-charts { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    /* 손을 올리면 '일봉 3개월'이 **오른쪽에서 밀려 들어와 같은 자리에서 바뀐다**
+       (2026-08-06 상하님 지시 "오른쪽으로 하되 겹치지 않게").
+       여기까지 온 과정 — ① 칸 아래로 펼쳤더니 아래 화면이 통째로 밀려 어지러웠고,
+       ② 옆에 띄웠더니 이웃 칸을 덮었다. 같은 자리에서 바꾸면 **밀리지도 덮지도**
+       않는다. 자리를 새로 만들지 않기 때문이다.
+       들어올 때는 빠르게(.24초), 나갈 때는 천천히(.5초). */
+    .j3-idx-swap { position: relative; overflow: hidden; border-radius: .5rem; }
+    .j3-idx-swap > div { transition: opacity .5s ease, transform .5s ease; }
+    .j3-idx-swap .j3-idx-now { opacity: 1; transform: translateX(0); }
+    .j3-idx-swap .j3-idx-more {
+        position: absolute; inset: 0;
+        opacity: 0; transform: translateX(26px); pointer-events: none;
+    }
+    .j3-top-cell:hover .j3-idx-swap .j3-idx-now {
+        opacity: 0; transform: translateX(-26px);
+        transition: opacity .24s ease-out, transform .24s ease-out;
+    }
+    .j3-top-cell:hover .j3-idx-swap .j3-idx-more {
+        opacity: 1; transform: translateX(0);
+        transition: opacity .24s ease-out, transform .24s ease-out;
+    }
     .j3-idx-cap { color: #9aa0aa; font-size: 0.78rem; font-weight: 700; text-align: center; }
     .j3-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
     .j3-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
@@ -756,7 +781,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080620
+_REQUIRED_METHOD_HELP_REVISION = 2026080630
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
@@ -1615,10 +1640,40 @@ def _us_index_cells(overview: dict, phase: str) -> list:
             f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j3-top-sub j3-idx-sub {_sign_class(change)}'>{_pct(change)} "
             f"<span class='j3-muted j3-idx-note'>· {note}</span></div>"
-            + _sparkline_svg(sparklines.get(symbol), "#4da6ff", "#ff5b5b")
+            # 손을 올리면 같은 자리에서 '일봉 3개월'로 바뀐다(2026-08-06 사용자 지시).
+            # 클릭으로 안 하는 이유 — 스트림릿은 누르면 화면을 통째로 다시 그려서
+            # 움직임이 버벅거린다.
+            + _index_chart_swap(sparklines.get(symbol))
             + "</div>"
         )
     return cells
+
+
+def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
+                      height: int = 90) -> str:
+    """'당일' 그림과 '일봉 3개월' 그림을 같은 자리에 겹쳐 두고 손 올리면 바꾼다.
+
+    두 그림이 한 틀 안에 포개져 있어 **자리를 새로 만들지 않는다** — 그래서
+    나타나고 사라져도 아래 화면이 밀리지 않고 옆 칸을 덮지도 않는다.
+    """
+    spark = spark or {}
+    today = _sparkline_svg(spark, "#4da6ff", "#ff5b5b", width=width, height=height)
+    if not today:
+        return ""
+    daily_points = spark.get("daily_points") or []
+    daily = _sparkline_svg(
+        {"points": daily_points, "base": spark.get("daily_base")},
+        "#4da6ff", "#ff5b5b", width=width, height=height,
+    ) if len(daily_points) >= 2 else ""
+    if not daily:
+        return today
+    return (
+        "<div class='j3-idx-swap'>"
+        f"<div class='j3-idx-now'>{today}<div class='j3-idx-cap'>당일</div></div>"
+        f"<div class='j3-idx-more'>{daily}"
+        "<div class='j3-idx-cap'>일봉 3개월</div></div>"
+        "</div>"
+    )
 
 
 def _render_nasdaq_drawdown() -> None:
@@ -1680,12 +1735,14 @@ def _us_etf_cells(overview: dict) -> list:
         row = rows.get(symbol) or {}
         change = row.get("change_pct")
         pair = charts.get(symbol) or {}
-        blocks = []
-        for key, caption in (("intraday", "당일"), ("daily", "일봉 3개월")):
-            svg = _sparkline_svg(pair.get(key), "#4da6ff", "#ff5b5b", width=104, height=78)
-            if svg:
-                blocks.append(f"<div>{svg}<div class='j3-idx-cap'>{caption}</div></div>")
-        chart_html = f"<div class='j3-idx-charts'>{''.join(blocks)}</div>" if blocks else ""
+        # 위 지수 칸과 같게 — 손을 올리면 같은 자리에서 '일봉 3개월'로 바뀐다
+        # (2026-08-06). 두 그림을 늘 펴 두니 칸이 넓어 화면 위쪽이 길었다.
+        chart_html = _index_chart_swap(
+            {**(pair.get("intraday") or {}),
+             "daily_points": ((pair.get("daily") or {}).get("points") or []),
+             "daily_base": (pair.get("daily") or {}).get("base")},
+            width=104, height=78,
+        )
         cells.append(
             f"<div class='j3-top-cell j3-idx-wide'>"
             f"<div class='j3-top-label j3-idx-label'>{display_name[symbol]}</div>"
@@ -2487,13 +2544,12 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     #   ③ 급락 후 반등장(낙폭종목) 결과
     # 예전에는 ②·③ 중 **마지막에 누른 하나만** 썼다. 이제 단추를 안 눌러도 둘 다
     # 자동으로 모은다. 두 갈래는 같은 일봉 묶음을 쓰므로 한 번만 받아 온다.
+    # 설명이 너무 길다는 지적(2026-08-06). 왜 섞지 않는지의 자세한 사연은
+    # _blend_top7() 주석에 있다 — 화면에는 핵심 두 줄만 남긴다.
     st.caption(
-        "세 군데에서 **자리를 나눠** 뽑습니다 — **테마 대장주 3개 · 상승장 2개 · "
-        "급락 후 반등장 2개**. 위 두 단추를 누르지 않아도 자동으로 함께 봅니다.<br>"
-        "**섞어서 한 줄로 세우지 않습니다** — 세 군데가 서로 다른 자로 재기 때문입니다. "
-        "급락 종목은 고점에서 20~50% 빠진 상태라 대장주의 자(‘52주 신고가에 가까운가’ "
-        "25점 + ‘이동평균 위인가’ 20점)로 재면 정의상 45점을 못 받습니다. "
-        "그래서 **점수 칸의 숫자는 갈래끼리만 견주십시오.**",
+        "**테마 대장주 3 · 상승장 2 · 급락 후 반등장 2**로 자리를 나눠 뽑습니다. "
+        "위 두 단추를 누르지 않아도 자동으로 함께 봅니다.<br>"
+        "**점수는 갈래마다 다른 자**로 잰 값이라 갈래끼리만 견주십시오.",
         unsafe_allow_html=True,
     )
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
@@ -3571,29 +3627,22 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
 
 def _render_pullback_finder(market: dict, ranking: dict) -> None:
     """20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""
-    st.divider()
+    # st.divider()는 뺐다(2026-08-06 상하님 지시 "제목을 위로 올려라") — 가로줄과
+    # 그 아래 빈 자리가 제목을 한참 밀어내렸다. 제목 자체가 구역을 갈라 준다.
+    # 제목과 맨 위 설명은 2026-08-06에 뺐다(상하님 지적).
+    #
+    # '눌림목 종목 찾기(상승추세 중 조정)'는 없앤 A 규칙의 이름이고, 그 아래 설명도
+    # A 규칙의 배점(눌림 점수 25+20+20+20+10+5)을 말하고 있었다. 단추만 빼고 제목·
+    # 설명을 안 지워서 화면이 없는 기능을 설명하고 있었다.
+    #
+    # **맨 위에서 통째로 설명하지 않는다.** 지금 이 자리에는 서로 다른 자를 쓰는
+    # 갈래가 둘(상승장·급락) 있고, 아래 순위 7은 또 다른 자다. 갈래마다 제 설명이
+    # 이미 자기 안에 있다 — 상승장·급락은 '이 화면 설명 보기', 순위 7은 제목 아래
+    # 문단이다. 맨 위 설명은 그 셋을 뭉뚱그려 오해를 만든다.
     st.markdown(
-        "<div class='j3-section-title'>📉 눌림목 종목 찾기 (상승추세 중 조정)</div>",
+        "<div class='j3-section-title'>📉 종목 찾기</div>",
         unsafe_allow_html=True,
     )
-    # 긴 안내는 접어 둔다 — 첫 화면을 다 먹었다(2026-07-25 사용자 지시).
-    with st.expander("눌림목 종목 찾기 설명 보기", expanded=False):
-        st.markdown(
-            "<div class='j3-pull-guide'><b>무엇을 찾나</b> — 50일선·200일선이 살아 있는 상승추세에서, "
-            "52주 신고가를 찍은 뒤 1~20거래일 동안 20일선 부근으로 조정받은 종목입니다.<br>"
-            "<b>표 읽는 법</b> — ‘고점 대비 <span class='j3-down'>−10%</span>’는 신고가에서 10% "
-            "내려왔다는 뜻이고, ‘20일선 이격 0%’에 가까울수록 20일선 근처입니다.<br>"
-            "<b>점수 두 개는 서로 다른 것을 잽니다</b> — <b>눌림 점수</b>는 <u>지금이 눌림 자리로 좋은가</u>"
-            "(신고가 최근성 25 + 20일선 근접 20 + 추세 20 + 조정 깊이 20 + 거래대금 10 + 테마 가산 5)이고, "
-            "<b>종목 조건점수</b>는 <u>종목 자체가 좋은가</u>"
-            "(SPY 대비 상대강도 25 + 52주 신고가 위치 25 + 추세 20 + 거래대금 15 + 변동성 안정 15)입니다. "
-            "<b>순위는 눌림 점수 기준</b>이라, 눌림 자리가 덜 좋아도 종목 자체 점수는 더 높을 수 있습니다 "
-            "(예: 20일선에서 멀리 떨어져 있으면 눌림 점수만 크게 깎입니다). "
-            "아래 상세의 점수는 이 표의 ‘종목 조건점수’와 같은 값입니다.<br>"
-            "<span class='j3-up'>+ 상승은 파랑</span> · <span class='j3-down'>− 하락은 빨강</span> "
-            "(미국시장 색 규칙) · 여러 테마 소속은 필수가 아니라 최대 5점 가산</div>",
-        unsafe_allow_html=True,
-        )
     # 한국테마(자비스4)와 같이 버튼을 눌러야 펼쳐진다(2026-07-25 사용자 지시).
     # 페이지를 여는 것만으로 20종목 표가 통째로 쏟아지면 폰에서 화면을 다 먹었다.
     # 제목은 '눌림목 찾기'만, 폭도 글자만큼만 둔다(2026-07-30 사용자 지시).
