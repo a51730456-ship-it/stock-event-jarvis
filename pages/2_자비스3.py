@@ -137,34 +137,30 @@ st.markdown(
     .st-key-j3_top7_table [data-testid="stHorizontalBlock"]:nth-child(5) {
         animation: j3-rise .38s cubic-bezier(.22,.9,.3,1) .16s both;
     }
-    /* 단추는 손을 올리면 살짝 떠오른다 — 이건 다시 그려도 재생되지 않는다. */
-    div[class*="st-key-j3_pullback_"] button,
-    div[class*="st-key-j3_top7_find"] button,
-    div[class*="st-key-btn_j3_"] button {
+    /* 이 화면의 **모든 단추와 접이 머리**에 같은 결을 준다(2026-08-06 사용자 지시).
+       손을 올리면 살짝 뜨고 밝아지며, 누르면 눌린다. 다시 그려도 재생되지 않는
+       움직임이라 클릭이 잦아도 거슬리지 않는다. */
+    .stButton button, [data-testid="stExpander"] summary {
         transition: transform .12s ease-out, filter .12s ease-out,
-                    box-shadow .12s ease-out !important;
+                    box-shadow .12s ease-out, border-color .12s ease-out !important;
     }
-    div[class*="st-key-j3_pullback_"] button:hover,
-    div[class*="st-key-j3_top7_find"] button:hover,
-    div[class*="st-key-btn_j3_"] button:hover {
+    .stButton button:hover, [data-testid="stExpander"] summary:hover {
         transform: translateY(-2px) !important;
         filter: brightness(1.12) !important;
     }
-    div[class*="st-key-j3_pullback_"] button:active,
-    div[class*="st-key-j3_top7_find"] button:active,
-    div[class*="st-key-btn_j3_"] button:active {
+    .stButton button:active, [data-testid="stExpander"] summary:active {
         transform: translateY(0) scale(.985) !important;
     }
-    /* 표의 종목 단추도 같은 결로 — 누를 곳이라는 게 손끝에 느껴져야 한다. */
-    div[class*="st-key-j3rbf_"] button, div[class*="st-key-j3top7_"] button,
-    div[class*="st-key-j3tbtn_"] button {
-        transition: transform .12s ease-out, border-color .12s ease-out,
-                    background .12s ease-out !important;
-    }
+    /* 표 안의 종목 단추만 **옆으로** 민다 — 줄이 촘촘해 위아래로 뜨면 어지럽다.
+       위 규칙보다 뒤에 둬야 이 규칙이 이긴다. */
     div[class*="st-key-j3rbf_"] button:hover,
-    div[class*="st-key-j3top7_"] button:hover {
+    div[class*="st-key-j3top7_"] button:hover,
+    div[class*="st-key-j3tbtn_"] button:hover,
+    div[class*="st-key-j3pbf_"] button:hover,
+    div[class*="st-key-j3lbtn_"] button:hover {
         transform: translateX(3px) !important;
         border-color: rgba(192,132,252,.6) !important;
+        filter: none !important;
     }
     .j3-action-box {
         color: #4da6ff;
