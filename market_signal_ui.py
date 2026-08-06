@@ -925,6 +925,22 @@ def _verdict_stage_number(verdict, verdict_order) -> int | None:
     return verdict_order.index(verdict) + 1
 
 
+def _unread_note(result) -> str:
+    """못 읽은 항목의 **이름**을 적는다 (2026-08-06 상하님 지적).
+
+    '판정 구성'은 두 날이 같아 보이지만, 못 읽은 항목이 다르면 그날 실제로 본 것이
+    다르다. 개수만으로는 그 차이를 알 수 없어 이름을 함께 적는다.
+    """
+    if result is None:
+        return ""
+    names = [
+        str(signal.label)
+        for signal in market_signal_common.counted_signals(result.signals)
+        if signal.status is market_signal_common.SignalStatus.UNKNOWN
+    ]
+    return f" · 못 읽음: {' · '.join(names)}" if names else ""
+
+
 def _signal_balance(result) -> float | None:
     """켜진 신호와 반대 신호 중 어느 쪽이 우세한가 (0~1). 없으면 None.
 
@@ -1292,13 +1308,13 @@ def render_market_signal_card(
             f'<div class="sig-head-verdict" style="color:{text};">'
             f'{result.verdict_label}</div>'
             f'<div class="sig-head-sub" style="color:{text};">'
-            f'{_as_of_label} · {result.data_status}</div></div>'
+            f'{_as_of_label} · {result.data_status}{_unread_note(result)}</div></div>'
             '<div class="sig-head-box sig-head-previous">'
             f'<div class="sig-head-label">{comparison_label}</div>'
             f'<div class="sig-head-verdict" style="color:{_prev_text};">'
             f'{_prev_label}</div>'
             f'<div class="sig-head-sub" style="color:{_prev_text};">'
-            f'{_prev_status or "그날 마감 기준"}</div></div>'
+            f'{_prev_status or "그날 마감 기준"}{_unread_note(comparison_result)}</div></div>'
             '</div>'
         )
 

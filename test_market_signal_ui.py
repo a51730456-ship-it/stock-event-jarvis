@@ -206,6 +206,27 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertEqual(2, card.count('class="sig-head-sub"'), "두 칸에 각각 없다")
         self.assertIn("읽은 항목 12개", card)
 
+    def test_each_side_names_what_it_could_not_read(self):
+        """'판정 구성'은 두 날이 같아 보여도 못 읽은 항목이 다르면 본 것이 다르다.
+
+        2026-08-06 상하님 지적 — "전날 당일 다를 수 있잖아". 개수만으로는 그 차이를
+        알 수 없어 못 읽은 항목의 이름을 각 칸에 적는다.
+        """
+        import market_signal_common as common
+        import us_market_signal_engine as us
+
+        today = self._result(us.UsMarketVerdict.MIXED,
+                             [common.SignalStatus.POSITIVE] * 3
+                             + [common.SignalStatus.UNKNOWN])
+        today.signals[-1] = common.MarketSignal(
+            key="VIX", label="VIX", status=common.SignalStatus.UNKNOWN,
+            source="x", timing=common.SignalTiming.LEADING,
+        )
+        self.assertIn("못 읽음: VIX", ui._unread_note(today))
+        # 다 읽었으면 아무 말도 붙이지 않는다.
+        clean = self._result(us.UsMarketVerdict.MIXED, [common.SignalStatus.POSITIVE] * 3)
+        self.assertEqual("", ui._unread_note(clean))
+
     def test_same_stage_with_different_counts_moves_the_needle(self):
         """켜진 신호가 다르면 바늘도 달라야 한다(2026-08-06 상하님 지적).
 
