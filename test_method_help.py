@@ -85,8 +85,9 @@ class PanelTests(unittest.TestCase):
         closer = inspect.getsource(method_help._close_button)
         self.assertIn("창닫기", closer)
         self.assertIn("CLOSE_HINT", closer)
-        # 미국·한국 두 설명 모두 맨 아래에서 이 단추를 부른다.
-        self.assertEqual(2, inspect.getsource(method_help.render).count("_close_button("))
+        # 맨 위 하나(창이 위에서 열리게 붙잡는 구실) + 미국·한국 각 맨 아래 하나.
+        self.assertEqual(3, inspect.getsource(method_help.render).count("_close_button("))
+        self.assertIn('where="top"', inspect.getsource(method_help.render))
 
     def test_bold_runs_are_not_broken_by_korean_particles(self):
         """닫는 ** 앞이 %·)·' 이고 뒤에 한글이 붙으면 별표가 그대로 찍힌다."""

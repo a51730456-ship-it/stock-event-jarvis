@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080650
+MODULE_REVISION = 2026080660
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -442,16 +442,23 @@ KR_TEXT = """
 """
 
 
-def _close_button(st, market: str) -> None:
-    """설명 창 맨 아래 '창닫기' 단추 (2026-08-06 사용자 지시).
+def _close_button(st, market: str, *, where: str = "bottom") -> None:
+    """설명 창의 '창닫기' 단추 (2026-08-06 사용자 지시).
 
-    오른쪽 아래에 두되 화면 끝에 딱 붙이지는 않는다(사용자 지시 "너무 오른쪽 말고").
+    오른쪽에 두되 화면 끝에 딱 붙이지는 않는다(사용자 지시 "너무 오른쪽 말고").
     그래서 3:1로 나눈 오른쪽 칸에 놓는다.
 
-    **예전에는 안 통했다** — 2026-07-30에 눌러도 창이 열린 채 남았다. 스트림릿
-    판이 올라가며 동작이 바뀌었을 수 있어 다시 넣는다. 눌러도 안 닫히면 이 단추를
-    빼고 안내문(CLOSE_HINT)으로 되돌린다.
+    **위·아래 둘 다 놓는다.** 아래에만 놓았더니 창이 열리자마자 맨 아래가 보였다
+    (2026-08-06 상하님 지적). 스트림릿이 창 안의 위젯 자리로 스크롤을 옮기는 탓인데,
+    맨 위에도 같은 단추를 두면 위쪽으로 붙잡힌다. 아래 단추는 글을 다 읽고 나서
+    바로 닫으라고 남겨 둔다.
     """
+    if where == "top":
+        left, right = st.columns([3, 1.15])
+        with right:
+            st.button("✕ 창닫기", key=f"jarvis_method_help_close_top_{market}",
+                      width="stretch")
+        return
     st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
     left, right = st.columns([3, 1.15])
     with right:
@@ -467,8 +474,8 @@ def render(st, market: str) -> None:
     box = st.container(key="jarvis_method_help")
     with box:
         with st.popover(BUTTON_LABEL):
-            # 닫는 방법은 맨 아래 '창닫기' 단추에 있다(2026-08-06) — 위에도 적으면
-            # 같은 말이 두 번이라 글만 길어진다.
+            # 맨 위 단추는 **창이 위에서 열리게 붙잡는 구실**도 한다(위 설명 참고).
+            _close_button(st, str(market).upper(), where="top")
             if str(market).upper() != "US":
                 # 한국 설명은 색·기호·밑줄을 직접 입힌 HTML 그대로다(2026-08-01).
                 st.markdown(KR_TEXT, unsafe_allow_html=True)
