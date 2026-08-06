@@ -120,46 +120,67 @@ class LengthTests(unittest.TestCase):
 
 
 class UsGuideTests(unittest.TestCase):
-    """2026-08-01 사용자가 준 '미국장 눌림목 매매 설명서'를 그대로 지킨다.
+    """2026-08-06 — 미국 설명은 사용자가 만든 **표 그림 두 장**이다.
 
-    숫자는 사용자가 준 검증값이다. 문구를 손보다 숫자가 슬쩍 바뀌면 화면이
-    거짓말을 하게 되므로 여기서 묶어 둔다.
+    그전에는 사용자가 준 검증값(승률 59.7%(119건)·100.0%(12건)·92.6%(27건)·
+    평균 +18.0%)을 글로 적어 두었다. 그 숫자는 표본이 119건·12건이고 급락 쪽은
+    2025년 4월 한 번을 잰 값이라, 10년으로 다시 재니 유지되지 않았다
+    (docs/REMEASURE_20260805.md). 그래서 표 그림으로 갈아 끼웠다.
     """
 
-    def test_it_is_the_pullback_guide(self):
-        us = method_help.US_TEXT
-        self.assertIn("미국장 눌림목 매매 설명서", us)
-        self.assertIn("정상 상승장", us)
-        self.assertIn("급락 후 반등장", us)
-        # 예전 조건점수·논문 이야기는 이 화면에서 뺐다.
-        self.assertNotIn("한 편의 논문에서 나온 기법이 아닙니다", us)
+    def test_the_two_tables_are_shown_as_images(self):
+        names = [name for name, _caption in method_help.US_IMAGES]
+        self.assertEqual(
+            ["us_method_uptrend.png", "us_method_drawdown.png"], names,
+            "'정상적인 상승일때'가 먼저 나와야 한다(2026-08-06 사용자 지시)",
+        )
+        for name, _caption in method_help.US_IMAGES:
+            self.assertIsNotNone(
+                method_help._image_path(name), f"assets/{name}이 없다",
+            )
 
-    def test_verification_note_names_who_checked_it(self):
-        us = method_help.US_TEXT
-        for token in ("GPT-5.6 SOL", "Claude 5.8 Opus", "200개",
-                      "학습 234건", "별도 검증 119건", "재검증 5,000회", "2025년 4월"):
-            self.assertIn(token, us, f"검증 안내에 {token}가 없다")
+    def test_the_renderer_actually_draws_them(self):
+        import inspect
 
-    def test_normal_uptrend_numbers(self):
-        us = method_help.US_TEXT
-        for token in ("52주", "3~5거래일", "4~6%", "120거래일",
-                      "59.7% (119건)", "+18.0%", "+8.9%",
-                      "48건 (40.3%)", "-11.9%", "-10.4%", "-40.7%"):
-            self.assertIn(token, us, f"정상 상승장 숫자에 {token}가 없다")
+        source = inspect.getsource(method_help.render)
+        self.assertIn("st.image", source)
+        self.assertIn("US_IMAGES", source)
+        # 그림이 빠져도 화면이 죽으면 안 된다(온라인 배포에서 실제로 생길 수 있다).
+        self.assertIn("st.warning", source)
 
-    def test_crash_rebound_numbers(self):
-        us = method_help.US_TEXT
-        for token in ("-40~-50%", "20거래일", "100.0% (12건)", "+11.2%", "+10.5%",
-                      "-30~-40%", "60거래일", "92.6% (27건)", "+24.9%", "+29.6%"):
-            self.assertIn(token, us, f"급락 반등장 숫자에 {token}가 없다")
+    def test_the_old_overstated_numbers_are_gone(self):
+        """표본 119건·12건짜리 숫자가 다시 기어들어오면 화면이 거짓말을 한다."""
+        whole = method_help.US_TEXT + method_help.US_MID_TEXT + method_help.US_TAIL_TEXT
+        for token in ("59.7%", "119건", "100.0% (12건)", "92.6% (27건)",
+                      "+18.0%", "+24.9%", "GPT-5.6 SOL", "재검증 5,000회"):
+            self.assertNotIn(token, whole, f"옛 검증값 {token}이 남아 있다")
+
+    def test_the_headline_says_only_when_to_buy_and_sell(self):
+        """그림에 있는 말을 글로 또 적지 않는다(2026-08-06 사용자 지시).
+
+        종목·기간·자료·지수는 두 그림 머리에 다 있고, 빨강·파랑과 색칠한 칸도
+        그림을 보면 안다. 글에는 그림이 말해 주지 않는 **사고파는 때** 한 줄만 둔다.
+        """
+        us = _visible(method_help.US_TEXT)
+        self.assertIn("다음 거래일 시가", us)
+        self.assertIn("종가", us)
+        for repeated in ("나스닥100 96종목", "Yahoo Finance", "QQQ", "2016년 8월",
+                         "수익율", "승률", "가운데 값"):
+            self.assertNotIn(repeated, us, f"그림이 이미 말하는 '{repeated}'를 또 적었다")
 
     def test_the_warnings_survive(self):
-        """높은 승률 옆의 경고가 사라지면 설명이 광고가 된다."""
-        us = method_help.US_TEXT
-        self.assertIn("당일에는 매수하지 않습니다", us)
-        self.assertIn("추격 매수하지 않습니다", us)
-        self.assertIn("손절", us)
-        self.assertIn("미래 승률이 아닙니다", us)
+        """숫자만 크게 보이면 설명이 광고가 된다. 한계를 반드시 같이 적는다.
+
+        다만 **표에 이미 있는 것은 적지 않는다** — 사건수는 표의 '얼마나 자주 오나'
+        칸에 25번·7번·4번·2번·1번으로 다 적혀 있어서 뺐다(2026-08-06 사용자 지시).
+        """
+        tail = _visible(method_help.US_MID_TEXT + method_help.US_TAIL_TEXT)
+        self.assertIn("해마다 20.9%씩 오른 기간", tail)
+        self.assertIn("손절 규칙은 없습니다", tail)
+        # 1~2개월 보유가 가장 나빴다는 것 — 표에는 3개월부터만 있어서 꼭 적어야 한다.
+        self.assertIn("1~2개월", tail)
+        # 표가 이미 말하는 것은 글로 또 적지 않는다.
+        self.assertNotIn("사건수", tail)
 
     def test_it_is_html_and_the_renderer_allows_html(self):
         """색·기호·밑줄을 직접 입힌 HTML이라 unsafe_allow_html이 꺼지면 태그가 글자로 찍힌다."""

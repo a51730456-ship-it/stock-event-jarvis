@@ -153,8 +153,16 @@ def _breakout_result():
     rows[0]["hold_days"] = 120
     return {
         "ok": True, "mode": "breakout", "rows": rows,
-        "rule": {"wait_days": (3, 5), "drop_band": (-6.0, -4.0), "hold_days": 120,
-                 "win_rate": 59.7, "sample": 119, "avg_return": 18.0},
+        # 2026-08-06 새 기준 — 거르는 것은 눌린 폭(10~15%) 하나이고,
+        # 날짜는 1~5일로 넓게 두고 표에 보여만 준다.
+        "rule": {"wait_days": (1, 5), "drop_band": (-15.0, -10.0), "hold_days": 120,
+                 "win_rate": 71.0, "median_return": 12.5,
+                 "base_win_rate": 64.4, "base_median_return": 7.1, "per_year": 30},
+        # 표를 잰 자리인지 알려만 준다 — 막지 않는다(2026-08-06).
+        "market": {"ok": True, "armed": False, "drop_pct": -20.0, "above_200": False,
+                   "max_drop": -10.0,
+                   "reason": "나스닥이 200일선 아래이고 고점 대비 -20.0%입니다 — "
+                             "오늘은 표를 잰 자리가 아닙니다."},
         "universe_count": 200, "data_count": 199, "window_count": 6,
         "result_limit": 20, "checked_at": "x", "stale": False, "reused_batch": False,
     }
@@ -164,16 +172,21 @@ def _crash_result():
     """설명서 2번(급락 후 반등장 낙폭 종목) 결과 모양."""
     rows = [dict(row) for row in _pullbacks()["rows"][:1]]
     rows[0].update({
-        "bucket": "deep", "bucket_label": "고점 대비 -40~-50%", "hold_days": 20,
-        "win_rate": 100.0, "sample": 12, "avg_return": 11.2,
+        "bucket": "deep", "bucket_label": "고점 대비 -30~-50%", "hold_days": 120,
+        "win_rate": 69.5, "median_return": 16.4, "base_win_rate": 65.4,
     })
     return {
         "ok": True, "mode": "crash", "rows": rows,
-        "rules": ({"key": "deep", "band": (-50.0, -40.0), "hold_days": 20, "win_rate": 100.0,
-                   "sample": 12, "avg_return": 11.2, "label": "고점 대비 -40~-50%"},
-                  {"key": "mid", "band": (-40.0, -30.0), "hold_days": 60, "win_rate": 92.6,
-                   "sample": 27, "avg_return": 24.9, "label": "고점 대비 -30~-40%"}),
-        "bucket_counts": {"deep": 1, "mid": 3},
+        "rules": ({"key": "shallow", "band": (-30.0, -20.0), "hold_days": 120,
+                   "win_rate": 74.6, "median_return": 16.9, "base_win_rate": 65.4,
+                   "label": "고점 대비 -20~-30%"},
+                  {"key": "deep", "band": (-50.0, -30.0), "hold_days": 120,
+                   "win_rate": 69.5, "median_return": 16.4, "base_win_rate": 65.4,
+                   "label": "고점 대비 -30~-50%"}),
+        "bucket_counts": {"shallow": 3, "deep": 1},
+        # 2026-08-06부터 나스닥이 -6~-12%일 때만 켜진다.
+        "market": {"ok": True, "armed": True, "drop_pct": -9.0,
+                   "band": (-12.0, -6.0), "reason": "시험"},
         "universe_count": 200, "data_count": 199,
         "result_limit": 20, "checked_at": "x", "stale": False, "reused_batch": False,
     }
@@ -743,8 +756,12 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("render_kr_flow_card", source)
         self.assertIn("j3tbtn_{index:02d}", source)
 
-    def _run_with_mode(self, mode, finder_name, finder_result):
-        """설명서 갈래 단추를 눌렀을 때의 화면을 그린다 (2026-08-01)."""
+    def _run_with_mode(self, mode, finder_name, finder_result, *, help_open=True):
+        """설명서 갈래 단추를 눌렀을 때의 화면을 그린다 (2026-08-01).
+
+        설명은 2026-08-06부터 접혀 있다(사용자 지시). 글을 확인하는 시험은
+        열어 둔 상태로 그리고, 접혀 있는지 자체는 help_open=False로 확인한다.
+        """
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
              patch("market_signal_ui._fetch_quotes", return_value={}), \
@@ -768,6 +785,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app.session_state["j3_pullback_open"] = True
             app.session_state["j3_pullback_mode"] = mode
             app.session_state["j3_pullback_result"] = finder_result
+            app.session_state["j3_rulebook_help_open"] = bool(help_open)
             app.run(timeout=60)
         self.assertEqual(len(app.exception), 0)
         return app
@@ -783,29 +801,47 @@ class Jarvis3PageTests(unittest.TestCase):
         app = self._run_with_mode("breakout", "find_breakout_pullback_stocks", _breakout_result())
         markdowns = [str(node.value) for node in app.markdown]
         joined = " ".join(markdowns)
-        # 설명서 숫자가 화면에 그대로 나와야 한다.
-        self.assertIn("3~5거래일", joined)
+        # 화면이 실제로 찾는 숫자가 그대로 나와야 한다(2026-08-06 새 기준).
+        self.assertIn("10~15%", joined)
+        self.assertIn("1~5거래일", joined)
         self.assertIn("120거래일", joined)
-        self.assertIn("59.7", joined)
+        # 성적 옆에는 늘 기준선이 붙어야 한다.
+        self.assertIn("아무 날 아무 종목이나", joined)
         # 눌림목 표가 아니라 이 갈래 전용 표다 — 머리글에 '보유일수'가 있고
         # '눌림 점수'는 없다(설명 글에는 그 말이 남아 있으므로 머리글만 본다).
         header = next(value for value in markdowns if "보유일수" in value and "티커" in value)
         self.assertNotIn("눌림 점수", header)
         self.assertLess(header.index("고점 대비"), header.index("소속 테마"))
-        self.assertLess(header.index("소속 테마"), header.index("신고가"))
+        # 며칠 지났는지는 거르지 않고 보여만 준다 — 칸 이름이 그 뜻이어야 한다.
+        self.assertLess(header.index("소속 테마"), header.index("고점 후 며칠"))
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
         self.assertTrue(any(
             "상승장 (신고가 눌림매수) 닫기" in str(node.label)
             for node in app.button
         ))
+        # 표를 잰 자리가 아니면 빨간 줄로 알린다 — 그래도 종목은 그대로 나온다
+        # (2026-08-06 사용자 결정). 막으면 화면이 통째로 비는 날이 생긴다.
+        self.assertTrue(any(
+            "표를 잰 자리가 아닙니다" in str(node.value) for node in app.error
+        ), "표를 잰 자리가 아닌데 빨간 줄이 없다")
+        self.assertEqual(1, len([
+            node for node in app.button if str(node.key or "").startswith("j3rbf_")
+        ]), "알림만 해야 하는데 종목이 사라졌다")
 
     def test_crash_mode_shows_both_depth_buckets_and_holding_periods(self):
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
         joined = " ".join(str(node.value) for node in app.markdown)
-        self.assertIn("고점 대비 -40~-50%", joined)
-        self.assertIn("고점 대비 -30~-40%", joined)
-        self.assertIn("20거래일 보유", joined)
-        self.assertIn("60거래일 보유", joined)
+        self.assertIn("고점 대비 -20~-30%", joined)
+        self.assertIn("고점 대비 -30~-50%", joined)
+        self.assertIn("120거래일 보유", joined)
+        # 2026-08-06 — 점수가 순위다(별점은 뺐다). 배점표를 화면에 그대로 뿌린다.
+        self.assertIn("점수가 곧 순위입니다", joined)
+        self.assertNotIn("★", joined, "별점이 되살아났다")
+        for item in ("같은 테마 동반", "40점", "최근 11일에 빠졌나", "25점", "낙폭 갈래"):
+            self.assertIn(item, joined, f"배점표에 {item}이 없다")
+        # 0점으로 뺀 항목도 왜 뺐는지 같이 보여야 같은 실수를 되풀이하지 않는다.
+        self.assertIn("거래대금 평소 위 연속", joined)
+        self.assertIn("0점", joined)
         header = next(
             str(node.value) for node in app.markdown
             if "갈래" in str(node.value) and "티커" in str(node.value)
@@ -828,16 +864,17 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertIn(hold_class, block)
 
     def test_the_two_depth_buckets_get_different_colours(self):
-        """2026-08-01 사용자 지시 — -30~-40과 -40~-50을 색으로 가른다.
+        """두 갈래를 색으로 가른다(2026-08-01 지시).
 
         설명 카드와 표의 같은 갈래가 같은 색이어야 카드를 보고 줄을 찾을 수 있다.
+        갈래는 2026-08-06에 -20~-30% / -30~-50%로 바뀌었다.
         """
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
         joined = " ".join(str(node.value) for node in app.markdown)
         for name in ("j3-band-deep", "j3-card-deep", "j3-card-mid"):
             self.assertIn(name, joined, f"{name} 색이 화면에 안 실렸다")
         # 표 칸에는 '고점 대비'를 빼고 숫자만 — 폰에서 옆 칸을 덮었다.
-        self.assertIn("j3-band-deep'>-40~-50%", joined)
+        self.assertIn("j3-band-deep'>-30~-50%", joined)
 
     def test_crash_detail_uses_the_crash_ruler_not_the_ordinary_one(self):
         """낙폭 종목을 누르면 낙폭 전용 배점이 나와야 한다(2026-08-01).
@@ -854,7 +891,11 @@ class Jarvis3PageTests(unittest.TestCase):
         # (‘2R 목표’·‘조건 기준가’는 위쪽 테마 대장주 상세에도 나오므로, 이 갈래의
         #  칸이 그것으로 채워지지 않았는지는 아래 소스 검사로 함께 지킨다.)
         self.assertIn("이 규칙에는 없음", joined)
-        self.assertIn("이 규칙에는 기준가도 손절가도 없습니다", joined)
+        # 2026-08-06 — 같은 말이 한 화면에 여섯 번 나온다는 지적을 받고 ※ 두 줄을
+        # 뺐다. 손절이 없다는 사실은 위 카드('손절가 — 이 규칙에는 없음')와
+        # 왼쪽 겨자색 상자가 말한다. 그 둘은 남아 있어야 한다.
+        self.assertNotIn("이 규칙에는 기준가도 손절가도 없습니다", joined)
+        self.assertIn("이 규칙에는 손절가가 없습니다", joined)
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
@@ -864,10 +905,81 @@ class Jarvis3PageTests(unittest.TestCase):
                                   _breakout_result())
         joined = " ".join(str(node.value) for node in app.markdown)
         self.assertIn("신고가 눌림 전용 배점", joined)
-        self.assertIn("최근 60일 상승폭", joined)
+        # 2026-08-06 — 60일 상승폭은 배점에서 뺐다(뒤 5년에 졌다). 그 자리를
+        # '최근 11일에 빠졌나'가 대신한다. 두 갈래가 같은 항목을 쓴다.
+        self.assertIn("최근 11일에 빠졌나", joined)
+        self.assertNotIn("최근 60일 상승폭</td>", joined)
         # 상승장에서는 거래대금 연속이 거꾸로였다 — 표 칸에서 빠져야 한다.
         self.assertNotIn("거래대금 (평소 위 연속)", joined)
         self.assertIn("이 규칙에는 없음", joined)
+
+    def test_the_long_explanation_is_folded_until_asked_for(self):
+        """설명은 눌러야 나온다(2026-08-06 사용자 지시 — 설명이 첫 화면을 다 먹었다).
+
+        접혀 있어도 **종목 표와 오늘 이야기 한 줄은 그대로 보여야** 한다.
+        """
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                  _breakout_result(), help_open=False)
+        joined = " ".join(str(node.value) for node in app.markdown)
+        self.assertNotIn("점수를 매기는 기준", joined, "설명이 접히지 않았다")
+        self.assertNotIn("찾는 그물", joined, "설명이 접히지 않았다")
+        self.assertTrue(any("이 화면 설명 보기" in str(node.label) for node in app.button),
+                        "설명을 펴는 단추가 없다")
+        # 접혀 있어도 표와 오늘 이야기는 남는다.
+        self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
+        self.assertTrue(any("표를 잰 자리가 아닙니다" in str(node.value) for node in app.error))
+        # 펴면 설명과 닫기 단추가 같이 나온다.
+        opened = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                     _breakout_result())
+        joined_open = " ".join(str(node.value) for node in opened.markdown)
+        self.assertIn("점수를 매기는 기준", joined_open)
+        self.assertTrue(any("설명 닫기" in str(node.label) for node in opened.button),
+                        "닫기 단추가 없다")
+
+    def test_the_score_has_its_own_column_next_to_the_rank(self):
+        """점수는 순위 칸이 아니라 **다음 칸**이다(2026-08-06 사용자 지시).
+
+        순위 칸에 같이 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다.
+        """
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                  _breakout_result())
+        header = next(
+            str(node.value) for node in app.markdown
+            if "j3-th-head" in str(node.value) and "점수" in str(node.value)
+        )
+        self.assertIn("점수", header)
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
+        self.assertLess(block.index("'j3-th-head'>순위"), block.index("'j3-th-head'>점수"))
+        self.assertLess(block.index("'j3-th-head'>점수"), block.index("'j3-th-head'>종목"))
+
+    def test_the_detail_says_each_thing_once(self):
+        """같은 말을 되풀이하지 않는다(2026-08-06 상하님 지적).
+
+        예전에는 '이 규칙에는 손절가가 없습니다'가 한 화면에 여섯 번,
+        '52주 신고가를 찍고…'가 세 번 나왔다.
+        """
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                  _breakout_result())
+        joined = " ".join(
+            [str(node.value) for node in app.markdown]
+            + [str(node.value) for node in app.success]
+            + [str(node.value) for node in app.warning]
+        )
+        self.assertLessEqual(joined.count("52주 신고가를 찍고"), 1,
+                             "종목 근거 문장이 여러 번 나온다")
+        # 금액만 보여주던 칸을 '얼마나 늘었나'로 바꿨다.
+        self.assertIn("거래량 (어제 대비)", joined)
+        self.assertNotIn("평균 거래대금", joined)
+        # 점수는 하나만 — '이 갈래 점수'·'눌림 점수'가 같이 있어 헷갈렸다.
+        # ('눌림 점수'는 이 페이지의 다른 표(A 규칙)에도 있으므로 이 여섯 칸 안에서만 본다.)
+        self.assertNotIn("이 갈래 점수", joined)
+        # 이 페이지에는 여섯 칸짜리 상자가 여럿이다(테마 대장주 상세에도 있다).
+        # 갈래 상세의 것만 '거래량 (어제 대비)' 칸을 가진다.
+        cards = next(str(node.value) for node in app.markdown
+                     if "거래량 (어제 대비)" in str(node.value))
+        self.assertIn("이 종목 점수", cards)
+        self.assertNotIn("눌림 점수", cards)
 
     def test_each_section_can_also_be_closed_from_its_bottom(self):
         """구역마다 맨 아래에도 닫기 단추를 둔다(2026-08-01, 한국테마와 같은 장치)."""

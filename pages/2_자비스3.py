@@ -352,6 +352,25 @@ st.markdown(
     .j3-card-deep .j3-reason-title { color: #ff9d3b !important; }
     .j3-card-mid { border-color: rgba(124,200,255,.5) !important; }
     .j3-card-mid .j3-reason-title { color: #7cc8ff !important; }
+    /* 점수 — 순위 다음 따로 칸에 적는다(2026-08-06 사용자 지시. 순위 칸에 같이
+       넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다).
+       70점 위가 노랑, 50점 위가 파랑, 그 아래는 흐리게. */
+    .j3-score { font-size: .95rem; line-height: 1; font-weight: 850; }
+    .j3-score-hi { color: #ffc740; }
+    .j3-score-mid { color: #7cc8ff; }
+    .j3-score-low { color: #8a8f98; }
+    .j3-reason-row { display: flex; flex-wrap: wrap; gap: .5rem; margin: .35rem 0 .6rem; }
+    .j3-reason-row .j3-reason-card { flex: 1 1 220px; }
+    /* 배점표 한 줄 — '무엇 / 몇 점 / 왜' 세 토막을 한 줄에 둔다. */
+    .j3-weight { display: flex; align-items: baseline; gap: .5rem; padding: .18rem 0;
+        border-bottom: 1px solid rgba(255,255,255,.05); font-size: .84rem; }
+    /* 이름 칸을 고정폭으로 둬야 점수가 세로로 줄을 맞춘다. 가장 긴 이름
+       ('테마 ETF가 오르는 중인가')이 들어갈 폭이다. */
+    .j3-weight b { color: #e6e6e6; min-width: 10.4rem; flex: 0 0 auto; }
+    .j3-weight .j3-w-pt { color: #ffc740; font-weight: 850; min-width: 2.6rem;
+        text-align: right; }
+    .j3-weight .j3-w-why { color: #9aa0a8; }
+    .j3-weight.j3-w-zero b, .j3-weight.j3-w-zero .j3-w-pt { color: #7d838b; }
     .j3-hold-20 { color: #ff9d3b; font-weight: 850; }
     .j3-hold-60 { color: #7cc8ff; font-weight: 850; }
     .j3-hold-120 { color: #44f0a1; font-weight: 850; }
@@ -651,7 +670,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026080510
+_REQUIRED_MOBILE_REVISION = 2026080610
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -665,7 +684,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080160
+_REQUIRED_METHOD_HELP_REVISION = 2026080610
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 import regime_gauge_ui
@@ -681,7 +700,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080510
+_REQUIRED_J3_REVISION = 2026080680
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2625,18 +2644,37 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
         f"{_pct(metrics.get('ret20'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
         f"<div class='j3-mc-val j3-up'>{_pct(metrics.get('atr_pct'))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>평균 거래대금</div>"
-        f"<div class='j3-mc-val j3-green'>"
-        f"{f'${float(avg_value) / 1e6:,.0f}M' if avg_value is not None else '—'}</div>"
-        "<div class='j3-mc-sub j3-muted'>미국은 장중 수급 공개 없음</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
-        f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}/100</div>"
-        f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
-        f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div>"
-        f"<div class='j3-mc-sub {_sign_class(quality.get('gap_pct'))}'>"
-        f"20일선 이격 {_pct(quality.get('gap_pct'))}</div></div>",
+        # 금액만 보여주면 알 수가 없다는 지적(2026-08-06). 큰 회사는 늘 크기 때문이다.
+        # **얼마나 늘었나**로 바꾼다. 미국은 외국인·기관 수급을 종가 뒤에도 공개하지
+        # 않으므로(한국만 있는 제도), 돈이 몰리는지 볼 수 있는 값은 이것뿐이다.
+        "<div class='j3-mc'><div class='j3-mc-label'>거래량 (어제 대비)</div>"
+        f"<div class='j3-mc-val {_sign_class(metrics.get('volume_vs_prev'))}'>"
+        f"{_pct(metrics.get('volume_vs_prev'))}</div>"
+        "<div class='j3-mc-sub j3-muted'>지난 5일 평균 대비 "
+        f"{_pct(metrics.get('volume_vs_week'))}</div></div>",
     ]
+    if mode in ("crash", "breakout"):
+        # 점수는 **하나만** 둔다(2026-08-06 상하님 지적 "이 갈래 점수가 뭔말이냐").
+        # 예전에는 한 화면에 셋('이 갈래 점수'·'눌림 점수'·위 표의 '종목 조건점수')이
+        # 있었는데, 그중 '눌림 점수'는 이 화면에서 순위에 쓰지 않는 A 규칙 값이다.
+        cells.append(
+            f"<div class='j3-mc'><div class='j3-mc-label'>이 종목 점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.0f}점 "
+            "<span style='font-size:1rem; color:#9aa0aa'>/ 100</span></div>"
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
+            "</div></div>"
+        )
+    else:
+        cells.extend([
+            f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}/100</div>"
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
+            "</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div>"
+            f"<div class='j3-mc-sub {_sign_class(quality.get('gap_pct'))}'>"
+            f"20일선 이격 {_pct(quality.get('gap_pct'))}</div></div>",
+        ])
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
     def _fac_cell(part, maximum):
@@ -2687,10 +2725,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
             unsafe_allow_html=True,
         )
         st.caption(
-            "이 점수는 이 갈래 전용 배점입니다(2026-08-01, 10년치로 재고 정했습니다). "
-            "위쪽 테마 대장주 표의 ‘종목 조건점수’와는 다른 자로 잰 값이라 숫자를 견주면 "
-            "안 됩니다. 낙폭 종목을 기존 자로 재면 ‘신고가에 가까운가’ 항목에서 정의상 "
-            "0점이 나와 전부 ‘제외’가 됩니다."
+            "배점을 왜 이렇게 나눴는지는 표 위 ‘이 화면 설명 보기’에 있습니다."
             if mode in ("crash", "breakout") else
             "이 점수는 위 표의 ‘종목 조건점수’와 같은 값이며, 표의 순위를 정하는 ‘눌림 점수’와는 "
             "다른 것을 잽니다 — 눌림 점수는 지금이 눌림 자리로 좋은지, 이 점수는 종목 자체가 "
@@ -2756,14 +2791,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
             unsafe_allow_html=True,
         )
         if mode in ("crash", "breakout"):
-            st.markdown(
-                "<div class='j3-plan-note'>※ <b>이 규칙에는 기준가도 손절가도 없습니다.</b> "
-                "종가를 확인하고 다음 거래일 시가에 사서 정해진 날 종가에 파는 규칙이라, "
-                "넘어야 할 가격이라는 것이 아예 없습니다. 없는 값을 참고가로 채우지 않습니다.<br>"
-                f"※ 위 점수는 <b>이 갈래 전용 배점</b>입니다 — 위쪽 테마 대장주 표의 "
-                "‘종목 조건점수’와는 다른 자로 잰 값이라 숫자를 견주면 안 됩니다.</div>",
-                unsafe_allow_html=True,
-            )
+            # 여기 있던 ※ 두 줄은 뺐다(2026-08-06 상하님 지적 "반복되는 내용 없애라").
+            # 첫 줄은 바로 위 카드의 '손절가 — 이 규칙에는 없음'이 이미 말하고,
+            # 둘째 줄은 왼쪽 점수표 아래 설명과 같은 말이었다.
+            pass
         else:
             st.markdown(
                 "<div class='j3-plan-note'>※ <b>가격 칸이 채워지는 기준</b> — ‘돌파 확인’이나 ‘눌림목 대기’처럼 "
@@ -2774,21 +2805,30 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
                 f"아닙니다(이 종목의 테마 점수 {theme_score:.1f}/100 · 시장 {market_score:.0f}/100).</div>",
                 unsafe_allow_html=True,
             )
-        st.markdown(
-            f"<div class='j3-danta-box'><span class='j3-danta-title'>⚡ 단타 참고 신호</span> — "
-            f"{_us_signal_hint()}<br>"
-            "<span class='j3-muted'>선행신호가 위험선호로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
-            "참고합니다 (점수·판정에는 반영하지 않습니다). 미국은 장중 투자자별 수급 공개 자료가 없어 "
-            "한국장의 ‘기관 수급 반전’ 대신 선물·반도체·변동성·금리 방향을 씁니다.</span></div>",
-            unsafe_allow_html=True,
-        )
-        st.write("")
-        if plan.get("recommendation") == "조건부 후보":
-            st.success(plan.get("buy_reason"))
-        elif plan.get("state") == "추격 금지":
-            st.error(plan.get("buy_reason"))
-        else:
-            st.warning(plan.get("buy_reason"))
+        # 단타 참고 신호는 접어 둔다 — 점수·판정에 안 쓰는 참고값인데 늘 펴 놓으니
+        # 화면이 길어졌다(2026-08-06 상하님 지적).
+        if _section_toggle(
+            "⚡ 단타 참고 신호 보기", "j3_danta_open_pullback",
+            close_label="단타 참고 신호 닫기",
+        ):
+            st.markdown(
+                f"<div class='j3-danta-box'>{_us_signal_hint()}<br>"
+                "<span class='j3-muted'>선행신호가 위험선호로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
+                "참고합니다 (점수·판정에는 반영하지 않습니다). 미국은 투자자별 수급을 "
+                "<b>종가 뒤에도 공개하지 않아</b> 한국장의 ‘기관 수급 반전’ 대신 "
+                "선물·반도체·변동성·금리 방향을 씁니다.</span></div>",
+                unsafe_allow_html=True,
+            )
+        # 갈래 화면에서는 이 상자를 뺀다 — 왼쪽 점수표 아래 겨자색 상자와 **똑같은
+        # 문장**이었다(2026-08-06 상하님 캡처).
+        if mode not in ("crash", "breakout"):
+            st.write("")
+            if plan.get("recommendation") == "조건부 후보":
+                st.success(plan.get("buy_reason"))
+            elif plan.get("state") == "추격 금지":
+                st.error(plan.get("buy_reason"))
+            else:
+                st.warning(plan.get("buy_reason"))
 
     st.caption(
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
@@ -2827,11 +2867,39 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
     _render_price_chart_bundle(ticker, panel="pullback")
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
+    if mode in ("crash", "breakout"):
+        # 이 두 갈래는 **다른 자로 잰다**. 그런데 예전에는 네 칸 중 '시장 근거'가
+        # 눌림목(A 규칙)의 조건점수를, '종목 근거'와 '매수 근거'가 **똑같은 문장**을
+        # 보여줬다(2026-08-06 상하님 캡처). 셋 다 이 갈래의 값으로 바꾼다.
+        state = (j3data.breakout_market_state() if mode == "breakout"
+                 else j3data.crash_market_state())
+        market_body = str(state.get("reason") or "나스닥 상태를 못 읽었습니다")
+        earned = [(value, name) for name, value, maximum, _t in scored["parts"] if maximum]
+        missed = [(maximum - value, name) for name, value, maximum, _t in scored["parts"]
+                  if maximum]
+        best = max(earned)[1] if earned else "—"
+        worst = max(missed)
+        stock_body = (
+            f"100점 중 {float(scored['score']):.0f}점입니다. "
+            f"가장 많이 받은 항목은 ‘{best}’이고, "
+            + (f"가장 많이 깎인 항목은 ‘{worst[1]}’입니다(−{worst[0]:.0f}점)."
+               if worst[0] >= 1 else "깎인 항목이 거의 없습니다.")
+        )
+    else:
+        market_body = f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"
+        stock_body = review.get("stock_reason") or "자료부족"
+    # 매수 근거는 갈래 화면에서 왼쪽 겨자색 상자와 **같은 문장**이었다(2026-08-06
+    # 상하님 지적). 여기서는 한 줄로 줄인다 — 언제 사고 언제 파는지만.
+    buy_body = (
+        f"다음 거래일 시가에 사서 {int(plan.get('hold_days') or 0)}거래일 뒤 종가에 팝니다. "
+        "손절가는 없습니다."
+        if mode in ("crash", "breakout") else plan.get("buy_reason", "자료부족")
+    )
     reason_cards = [
-        ("시장 근거", f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"),
+        ("시장 근거", market_body),
         ("테마 근거", f"{themes} · 최고 테마 점수 {theme_score:.1f}/100"),
-        ("종목 근거", review.get("stock_reason") or "자료부족"),
-        ("매수 근거", plan.get("buy_reason", "자료부족")),
+        ("종목 근거", stock_body),
+        ("매수 근거", buy_body),
     ]
     for column, (title, body) in zip(st.columns(4), reason_cards):
         column.markdown(
@@ -2845,8 +2913,63 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict) -> None:
 
 # 낙폭 두 갈래의 색 (2026-08-01 사용자 지시: "-30~-40과 -40~-50 색깔 구분하고").
 # 설명 카드와 표의 같은 갈래가 같은 색이라 카드를 보고 표에서 그 줄을 바로 찾는다.
-_BAND_CARD_CLASS = {"deep": "j3-card-deep", "mid": "j3-card-mid"}
-_BAND_CELL_CLASS = {"deep": "j3-band-deep", "mid": "j3-band-mid"}
+# 갈래 이름은 2026-08-06에 바뀌었다 — 옛 deep/mid(-40~-50 / -30~-40)에서
+# shallow/deep(-20~-30 / -30~-50)으로. 옛 이름도 남겨 둬야 저장해 둔 기록이 안 깨진다.
+_BAND_CARD_CLASS = {"shallow": "j3-card-mid", "deep": "j3-card-deep", "mid": "j3-card-mid"}
+_BAND_CELL_CLASS = {"shallow": "j3-band-mid", "deep": "j3-band-deep", "mid": "j3-band-mid"}
+
+# 배점표 — 화면에 그대로 뿌린다(2026-08-06 사용자 지시 "기준을 세부적으로 화면에").
+# 숫자는 jarvis3_data의 BREAKOUT_SCORE_WEIGHTS·CRASH_SCORE_WEIGHTS와 같아야 한다.
+# 한쪽만 고치면 화면이 실제 계산과 다른 배점을 설명하게 되므로 같이 고친다.
+# 0점 항목도 지우지 않고 남긴다 — 왜 뺐는지 모르면 나중에 다시 넣게 된다.
+_SCORE_TABLE = {
+    "breakout": (
+        ("같은 테마 동반", 40, "3개 이상이면 100번 중 67번. 앞 5년·뒤 5년 <b>둘 다</b> 이겼습니다"),
+        ("최근 11일에 빠졌나", 25, "5% 넘게 빠진 쪽이 66번. 이것도 <b>둘 다</b> 이겼습니다"),
+        ("눌린 폭", 15, "10~15%가 63번인데 <u>뒤 5년엔 졌습니다</u>. 그물로 이미 한 번 썼습니다"),
+        ("사고팔기 쉬운가", 10, "성적을 맞히는 값이 아니라 실제로 사고팔 수 있는가입니다"),
+        ("많이 흔들리지 않나", 10, "감당할 크기인가입니다"),
+        ("최근 60일 상승폭", 0, "많이 오른 쪽이 커 보이지만 이기는 횟수는 기준과 같고 "
+                                "<u>뒤 5년엔 졌습니다</u>. 예전에 30점을 준 것이 잘못이었습니다"),
+        ("거래대금 평소 위 연속", 0, "상승장에서는 <u>거꾸로</u>였습니다(61번). 이미 늦은 자리입니다"),
+        ("신고가 뒤 며칠", 0, "1~3일도 뒤 5년엔 졌습니다. 날짜는 <b>보여만</b> 드리고 "
+                             "고르시는 것은 상하님이 하십니다"),
+    ),
+    "crash": (
+        ("같은 테마 동반", 40, "3개 이상이 앞 5년·뒤 5년 <b>둘 다</b> 이겼습니다. 가장 셉니다"),
+        ("최근 11일에 빠졌나", 25, "이것도 <b>둘 다</b> 이겼습니다. 낙폭과 <u>다른 것</u>을 잽니다 — "
+                                  "낙폭은 구덩이가 얼마나 깊은가이고, 이것은 방금 빠졌나 "
+                                  "이미 올라왔나입니다"),
+        ("낙폭 갈래", 15, "20~30%가 만점, 30~50%는 절반. 깊다고 더 좋지 않았고(69번·68번) "
+                          "그물로 이미 한 번 썼습니다"),
+        ("사고팔기 쉬운가", 10, "성적을 맞히는 값이 아니라 실제로 사고팔 수 있는가입니다"),
+        ("많이 흔들리지 않나", 10, "감당할 크기인가입니다"),
+        ("거래대금 평소 위 연속", 0, "앞뒤 <u>양쪽 다 거꾸로</u>였습니다. 확실히 뺐습니다"),
+        ("테마 ETF가 오르는 중인가", 0, "20일선 위가 오히려 나빴습니다(위 67번 · 아래 70번). "
+                                       "테마가 되살아나는지 미리 아는 방법은 못 찾았습니다"),
+    ),
+}
+
+
+def _score_table_html(mode: str, base_win_rate=None) -> str:
+    """배점표를 그대로 화면에 뿌린다. 0점 항목은 흐리게 두고 이유를 남긴다."""
+    lines = "".join(
+        f"<div class='j3-weight{' j3-w-zero' if not points else ''}'>"
+        f"<b>{name}</b><span class='j3-w-pt'>{points}점</span>"
+        f"<span class='j3-w-why'>{why}</span></div>"
+        for name, points, why in _SCORE_TABLE.get(mode, ())
+    )
+    base = (
+        f" 기준은 <b>그날 아무 종목이나</b> 샀을 때 100번 중 {base_win_rate:.0f}번입니다."
+        if base_win_rate else ""
+    )
+    return (
+        "<div class='j3-pull-guide'><b>점수를 매기는 기준</b>(2026-08-06, 10년을 "
+        "<u>앞 5년·뒤 5년으로 갈라</u> 다시 재고 정했습니다) — 한쪽 시기에서만 통한 값은 "
+        "점수를 주지 않습니다. 그 시기에만 맞는 자리를 1등으로 올리기 때문입니다."
+        f"{base}</div>"
+        f"<div class='j3-pull-guide' style='padding-top:.2rem'>{lines}</div>"
+    )
 
 
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
@@ -2861,67 +2984,104 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         return
     rows = result.get("rows") or []
     breakout = mode == "breakout"
+    # 늘 보이는 것은 **오늘 이야기 한 줄**뿐이다. 설명은 전부 접는다
+    # (2026-08-06 사용자 지시 — 설명이 첫 화면을 다 먹었다).
+    wait_min, wait_max = 1, 5
     if breakout:
         rule = result.get("rule") or {}
-        wait_min, wait_max = rule.get("wait_days", (3, 5))
-        drop_low, drop_high = rule.get("drop_band", (-6.0, -4.0))
-        st.markdown(
-            "<div class='j3-pull-guide'>"
-            f"<b>찾는 기준</b> — 52주 신고가를 찍고 <b>{wait_min}~{wait_max}거래일</b>이 지난 뒤, "
-            f"그 고점에서 <b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 종목입니다. "
-            "이동평균은 보지 않습니다 — 설명서에 없는 조건이기 때문입니다.<br>"
-            f"<b>설명서의 검증값(참고)</b> — 승률 {rule.get('win_rate')}%"
-            f"({rule.get('sample')}건) · 평균수익 +{rule.get('avg_return')}% · "
-            f"<b>{rule.get('hold_days')}거래일 보유</b>(약 6개월). "
-            "이 숫자는 <u>설명서에 적힌 과거 검증 결과</u>이며 아래 종목의 성적이 아닙니다."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        wait_min, wait_max = rule.get("wait_days", (1, 5))
+        drop_low, drop_high = rule.get("drop_band", (-15.0, -4.0))
+        # 표를 잰 자리인지 먼저 알려준다(2026-08-06 사용자 결정). **막지 않는다** —
+        # 표 1의 '장세' 칸은 원래 설명서의 규칙이 아니라 그 숫자를 잰 범위였다.
+        breakout_market = result.get("market") or {}
+        if breakout_market.get("reason"):
+            if breakout_market.get("armed"):
+                st.success(breakout_market["reason"])
+            else:
+                st.error(breakout_market["reason"])
     else:
         counts = result.get("bucket_counts") or {}
-        cards = []
-        for rule in result.get("rules") or []:
-            # 카드와 표의 같은 갈래가 같은 색이어야 눈으로 이어진다(2026-08-01 지시).
-            cards.append(
-                f"<div class='j3-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
-                f"<div class='j3-reason-title'>{rule['label']} → {rule['hold_days']}거래일 보유</div>"
-                f"<div class='j3-reason-body'>승률 {rule['win_rate']}%({rule['sample']}건) · "
-                f"평균수익 +{rule['avg_return']}% · 지금 해당 종목 "
-                f"{counts.get(rule['key'], 0)}개</div></div>"
+        # 이름을 market으로 두면 이 함수의 인자(시장 조건점수)를 덮어쓴다.
+        crash_market = result.get("market") or {}
+        reference = result.get("reference") or {}
+        drop_now = crash_market.get("drop_pct")
+        ref_date = reference.get("reference_date")
+        if ref_date and drop_now is not None:
+            st.info(
+                f"**{ref_date} 기준으로 찾았습니다** — 그날 나스닥이 고점에서 "
+                f"{reference.get('reference_drop', 0):.1f}%였고 오늘은 {drop_now:.1f}%입니다. "
+                "그날 걸렸던 종목을 그대로 보여드립니다."
             )
+        elif drop_now is not None:
+            st.info(
+                f"**최근 한 달에 나스닥이 6~12% 내려온 날이 없었습니다** — 지금은 "
+                f"{drop_now:.1f}%입니다. 그래서 오늘 낙폭으로 찾은 결과입니다."
+            )
+    if _section_toggle(
+        "📘 이 화면 설명 보기 (찾는 그물 · 점수 매기는 기준)",
+        "j3_rulebook_help_open", close_label="설명 닫기",
+    ):
+        if breakout:
+            st.markdown(
+                "<div class='j3-pull-guide'>"
+                f"<b>찾는 그물</b> — 52주 신고가 뒤 <b>{wait_min}~{wait_max}거래일</b> 안에 "
+                f"그 고점에서 <b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 종목을 "
+                "<u>모두</u> 보여줍니다. 이동평균은 보지 않습니다.<br>"
+                "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
+                "점수가 낮은 줄도 <u>참고로</u> 올려 두니 보시고 판단하십시오.<br>"
+                f"같은 기간 <u>아무 날 아무 종목이나</u> 샀으면 6개월에 100번 중 "
+                f"{result.get('base_win_rate')}번 이익 · 가운데 값 "
+                f"+{result.get('base_median_return')}%였습니다. 아래 숫자는 "
+                "<u>과거를 잰 것</u>이며 이 종목들의 성적이 아닙니다.</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            cards = []
+            for rule in result.get("rules") or []:
+                # 카드와 표의 같은 갈래가 같은 색이어야 눈으로 이어진다(2026-08-01 지시).
+                cards.append(
+                    f"<div class='j3-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
+                    f"<div class='j3-reason-title'>"
+                    f"{rule['label']} → {rule['hold_days']}거래일 보유</div>"
+                    f"<div class='j3-reason-body'>100번 중 {rule['win_rate']}번 이익 · "
+                    f"가운데 값 +{rule['median_return']}% "
+                    f"(아무 종목이나 {rule['base_win_rate']}번) · 지금 해당 종목 "
+                    f"{counts.get(rule['key'], 0)}개</div></div>"
+                )
+            if ref_date:
+                st.caption(
+                    f"오늘이 아니라 {ref_date} 기준으로 갈래를 나눴습니다"
+                    f"(최근 {reference.get('days_in_band', 0)}일이 그 자리였고 마지막은 "
+                    f"{reference.get('last_in_band', '—')}). 오늘 기준으로 다시 재면 "
+                    "이미 오른 종목이 목록에서 사라집니다."
+                )
+            st.markdown(
+                "<div class='j3-pull-guide'>"
+                "<b>찾는 그물</b> — 신고가가 언제였는지는 <u>보지 않고</u> "
+                "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
+                "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
+                "아래 갈래별 성적은 <u>갈래끼리 견준 것</u>이고, 순위는 배점표가 정합니다.<br>"
+                + (f"<b>기준일 {ref_date}</b>의 낙폭으로 갈래를 나눴습니다. "
+                   "표의 ‘그날 → 지금’ 칸에서 그 뒤 얼마나 움직였는지 보십시오.<br>"
+                   if ref_date else "")
+                + "<b>아래 성적은 10년치(2016.8~2026.8)를 잰 것</b>이며 앞으로의 승률이 아닙니다."
+                "</div>"
+                f"<div class='j3-metric-row'>{''.join(cards)}</div>",
+                unsafe_allow_html=True,
+            )
+        # 배점표를 화면에 그대로 뿌린다(2026-08-06 사용자 지시). 0점 항목도 왜 뺐는지
+        # 같이 보여야 나중에 같은 실수를 되풀이하지 않는다.
+        base_rate = result.get("base_win_rate") if breakout else (
+            (result.get("rules") or [{}])[0].get("base_win_rate")
+        )
         st.markdown(
-            "<div class='j3-pull-guide'>"
-            "<b>찾는 기준</b> — 신고가가 언제였는지는 <u>보지 않고</u>, "
-            "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
-            "<b>아래 승률·평균수익은 2025년 4월 한 번의 반등을 분석한 결과</b>이며 "
-            "앞으로의 승률이 아닙니다.</div>"
-            f"<div class='j3-metric-row'>{''.join(cards)}</div>",
+            _score_table_html("breakout" if breakout else "crash", base_rate)
+            + "<div class='j3-pull-guide'>"
+            "<b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 여섯 가지를 "
+            "재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>",
             unsafe_allow_html=True,
         )
-    if breakout:
-        rank_text = (
-            "① <b>같은 테마에서 함께 걸린 종목 수</b>가 가장 큽니다 — 3개 이상이면 "
-            "100번 중 <b>78번</b> 이겼습니다(아무 날이나 샀으면 62번). "
-            "② 다음은 <b>최근 60일에 얼마나 올랐나</b>로, 40% 넘게 오른 쪽이 <b>70번</b>이었습니다. "
-            "강한 종목이 더 갑니다.<br>"
-            "<b class='j3-down'>거래대금이 평소 위에 며칠 연속인가는 여기서 쓰지 않습니다.</b> "
-            "낙폭 표에서는 좋았지만(67번) 상승장에서는 <b>거꾸로</b>였습니다(11일 이상 53번). "
-            "이미 신고가인데 거래대금까지 오래 실렸으면 늦은 자리라는 뜻입니다."
-        )
-    else:
-        rank_text = (
-            "① <b>같은 테마에서 함께 걸린 종목 수</b>가 가장 큽니다. 낙폭 구간에서 "
-            "<b>3개부터</b> 가운데 값이 +2.2% → <b>+4.2%</b>로 뛰고 승률도 54.9% → 59.8%였습니다. "
-            "② 다음은 <b>거래대금이 평소 위에 며칠 연속인가</b>인데, 차이가 작아 동점을 가를 때만 씁니다."
-        )
-    st.markdown(
-        "<div class='j3-pull-guide'>"
-        "<b>순위를 매기는 기준</b>(2026-08-01, 10년치로 재 보고 정했습니다) — "
-        f"{rank_text}<br>"
-        "<b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 여섯 가지를 "
-        "재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>",
-        unsafe_allow_html=True,
-    )
+        _section_close("j3_rulebook_help_open", "설명 닫기")
     reuse_text = "기존 일봉 배치 재사용" if result.get("reused_batch") else "일봉 1회 배치 조회"
     funnel = (
         f"신고가 {wait_min}~{wait_max}일 전 <b>{result.get('window_count', 0):,}개</b> → "
@@ -2963,20 +3123,30 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         return
 
     widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.75, 1.2, 1.0, 1.15, 1.5]
-    row_widths = [widths[0], widths[1], sum(widths[2:])]
+    # 점수는 순위 **다음 칸**에 따로 둔다(2026-08-06 사용자 지시). 순위 칸에 같이
+    # 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다(상하님 캡처).
+    row_widths = [widths[0], 0.7, widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
-    third = "신고가" if breakout else "갈래"
-    # 일곱째 칸은 갈래마다 다르다 — 재 본 결과가 정반대이기 때문이다(2026-08-01).
-    # 낙폭에서는 '거래대금이 평소 위에 며칠 연속'이 값을 하지만(100번 중 67번),
-    # 상승장에서는 거꾸로다(11일 이상 53번). 대신 상승장에서 값을 한 것은
-    # '최근 60일에 얼마나 올랐나'(40% 넘으면 70번)라 그 칸을 넣는다.
-    volume_head = "최근 60일 상승폭" if breakout else "거래대금 (평소 위 연속)"
+    # 상승장에서 이 칸이 실제로 고르는 자리다 — 거르는 기준은 눌린 폭 하나이고,
+    # 며칠 지났는지는 보여만 주고 사람이 판단한다(2026-08-06 사용자 지시).
+    third = "고점 후 며칠" if breakout else "갈래"
+    # 급락 갈래는 기준일 낙폭으로 가른다 — 칸 이름이 그 뜻이어야 한다(2026-08-06).
+    from_high_head = (
+        "고점 대비" if breakout or not (result.get("reference") or {}).get("reference_date")
+        else "그날 고점 대비"
+    )
+    # 마지막 칸은 두 갈래가 같다(2026-08-06). 배점 25점짜리 '최근 11일에 빠졌나'를
+    # 보여준다 — 예전에 여기 있던 '거래대금 연속'과 '최근 60일 상승폭'은 앞뒤로
+    # 갈라 재니 뒤 5년에서 져서 배점이 0점이 됐다. 점수에 안 쓰는 값을 표에 두면
+    # 화면이 순위와 다른 것을 설명하게 된다.
+    volume_head = "최근 11일"
     table_box = st.container(key="j3_rulebook_table")
     head = table_box.columns(row_widths)
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
-    head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
-    head[2].markdown(
-        _flex_row(rest_widths, ["티커", "당일주가", "고점 대비", "소속 테마", third,
+    head[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
+    head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+    head[3].markdown(
+        _flex_row(rest_widths, ["티커", "당일주가", from_high_head, "소속 테마", third,
                                 "보유일수", "같이 걸린 종목", volume_head],
                   head=True),
         unsafe_allow_html=True,
@@ -2991,11 +3161,24 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         metrics = row.get("metrics") or {}
         from_high = metrics.get("from_high_pct")
         cols = table_box.columns(row_widths)
+        # 점수는 순위 다음 **따로 칸**에 둔다(2026-08-06 사용자 지시).
+        score = row.get("score")
+        score_class = (
+            "j3-score-hi" if (score or 0) >= 70
+            else "j3-score-mid" if (score or 0) >= 50
+            else "j3-score-low"
+        )
         cols[0].markdown(
             f"<div class='j3-td j3-muted'>{int(row.get('pullback_rank') or index + 1)}</div>",
             unsafe_allow_html=True,
         )
-        if cols[1].button(
+        cols[1].markdown(
+            f"<div class='j3-td'><span class='j3-score {score_class}'>"
+            + (f"{float(score):.0f}점" if score is not None else "—")
+            + "</span></div>",
+            unsafe_allow_html=True,
+        )
+        if cols[2].button(
             str(row.get("name") or row.get("ticker") or "—"),
             key=f"j3rbf_{index:02d}",
             width="stretch",
@@ -3042,30 +3225,46 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             else "j3-hold-120"
         )
         # 달러 거래대금은 숨기고 이 화면에서 실제 순위에 쓰는 값만 남긴다.
-        streak = int(row.get("volume_streak") or 0)
-        if breakout:
-            # 상승장에서 값을 한 것은 거래대금 연속이 아니라 최근 60일 상승폭이다.
-            ret60 = metrics.get("ret60")
-            ret_class = "j3-green-strong" if (ret60 or 0) >= 40 else "j3-up"
-            volume_cell = (
-                f"<span class='{ret_class}' style='font-weight:850'>"
-                f"{'—' if ret60 is None else f'{float(ret60):+.1f}%'}</span>"
-            )
-        else:
-            streak_class = "j3-up" if streak >= 11 else "j3-muted"
-            volume_cell = (
-                f"<span class='{streak_class}' style='font-size:.88rem; font-weight:800'>"
-                f"{streak}일 연속</span>"
-            )
+        # 최근 11일에 빠진 쪽이 만점이므로, 빠진 것을 초록으로 둔다(값이 좋다는 뜻).
+        gain11 = row.get("recent_gain_pct")
+        gain_class = (
+            "j3-muted" if gain11 is None
+            else "j3-green-strong" if float(gain11) <= -5.0
+            else "j3-up" if float(gain11) <= 0.0
+            else "j3-muted"
+        )
+        volume_cell = (
+            f"<span class='{gain_class}' style='font-weight:850'>"
+            f"{'—' if gain11 is None else f'{float(gain11):+.1f}%'}</span>"
+        )
         themes_all = [name for name in (row.get("themes") or []) if name]
         lead = str(row.get("together_theme") or "") or (themes_all[0] if themes_all else "")
         rest_n = max(len(themes_all) - 1, 0)
         theme_text = (f"{lead} 외 {rest_n}" if rest_n else lead) or "—"
-        cols[2].markdown(
+        # 급락 갈래에서 기준일이 있으면 '그날 → 지금'을 한 칸에 같이 보여 준다.
+        # 오늘 숫자만 보면 이미 오른 종목이 왜 목록에 있는지 알 수 없다(2026-08-06).
+        judged = row.get("judged_from_high_pct")
+        since = row.get("since_reference_pct")
+        if not breakout and row.get("reference_date") and judged is not None:
+            from_high_cell = (
+                "<span style='display:inline-flex; flex-direction:column;"
+                " align-items:center; line-height:1.12'>"
+                f"<span class='{_sign_class(judged)}' style='font-weight:800'>"
+                f"{_pct(judged)}</span>"
+                f"<span class='j3-muted' style='font-size:.78rem'>지금 {_pct(from_high)}"
+                + (f" · {since:+.1f}%" if since is not None else "")
+                + "</span></span>"
+            )
+        else:
+            from_high_cell = (
+                f"<span class='{_sign_class(from_high)}'"
+                f" style='font-weight:800'>{_pct(from_high)}</span>"
+            )
+        cols[3].markdown(
             _flex_row(rest_widths, [
                 html.escape(str(row.get("ticker") or "—")),
                 price_cell,
-                f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+                from_high_cell,
                 f"<span class='j3-rb-clip j3-pull-theme'"
                 f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
                 third_cell,

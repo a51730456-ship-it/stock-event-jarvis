@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080160
+MODULE_REVISION = 2026080610
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 CLOSE_HINT = "닫으려면 위 ‘📘 이 테마 기법에 대한 설명’ 단추를 다시 누르십시오."
@@ -192,126 +192,67 @@ div[class*="st-key-jarvis_method_help"] button p {
 # 마크다운 꼬리말(_COMMON_TAIL)은 없앴다. 같은 글을 두 시장이 함께 쓰면 한쪽만
 # 고쳐야 할 때 다른 쪽까지 바뀌어서다. 그 내용은 한국 설명서 안으로 옮겼다.
 
-# 미국 설명은 2026-08-01 사용자가 준 '미국장 눌림목 매매 설명서'로 통째로 바꿨다.
-# 앞의 조건점수·논문 이야기는 이 화면에서 뺐다(사용자 지시: "기존 내용 지우고").
-# 숫자는 사용자가 준 검증값 그대로다 — 마음대로 반올림하거나 고치지 않는다.
+# 미국 설명은 2026-08-06에 **표 그림 두 장**으로 바꿨다(사용자 지시).
+#
+# 왜 그림인가 — 사용자가 직접 만든 표를 그대로 쓴다. 전에 있던 숫자
+# (승률 59.7%(119건)·100.0%(12건)·92.6%(27건)·평균 +18.0%)는 표본이 119건·12건이고
+# 급락 쪽은 2025년 4월 한 번을 잰 값이라, 10년으로 넓히면 유지되지 않았다.
+# 다시 잰 과정과 결과는 docs/REMEASURE_20260805.md, 표 숫자는 docs/US_METHOD_TABLES.md.
+#
+# 그림을 바꾸려면 assets/의 같은 이름 파일을 덮어쓰면 된다. 코드는 안 고쳐도 된다.
+# 다만 표 숫자가 바뀌면 docs/US_METHOD_TABLES.md도 같이 고친다.
+US_IMAGES = (
+    ("us_method_uptrend.png", "정상적인 상승일때"),
+    ("us_method_drawdown.png", "나스닥 하락율대비 상승수익률"),
+)
+
+
+def _image_path(name: str):
+    """assets 안의 그림 경로. 온라인에서 파일이 빠져도 화면이 죽지 않게 확인만 한다."""
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent / "assets" / name
+    return path if path.exists() else None
+
+
 # 줄 사이에 빈 줄을 넣지 않는다. 빈 줄이 있으면 스트림릿 마크다운이 그 사이를
 # 문단으로 갈라 <p>를 끼워 넣어 칸 간격이 어긋난다.
 US_TEXT = """
 <div class="mh-doc">
 <div class="mh-h1">미국장 눌림목 매매 설명서</div>
 <div class="mh-note">
-<div class="mh-note-h">※ 검증 안내</div>
-GPT-5.6 SOL이 미국 대형주 <b>200개</b>의 실제 주가를 계산하고, Claude 5.8 Opus가 설명과
-숫자를 검수한 뒤 GPT-5.6 SOL이 거래별 원자료로 다시 확인했습니다.
-정상 상승장은 <b>학습 234건 · 별도 검증 119건 · 재검증 5,000회</b>를 거쳤으며,
-급락 반등장은 <b>2025년 4월 한 번의 반등</b>을 분석한 결과입니다.
+언제 사고파나 — 신호가 난 날 <b>종가를 확인하고 다음 거래일 시가</b>에 사서 정해진
+거래일 뒤 <b>종가</b>에 팝니다.
 </div>
-<div class="mh-h2"><span class="mh-no">1</span><span>정상 상승장 — <u>신고가 눌림매수</u></span></div>
-<div class="mh-box mh-buy-box">
-<div class="mh-box-h">▸ 매수</div>
-<div class="mh-step">52주 <b>신고가 돌파</b></div>
-<div class="mh-arrow">▼</div>
-<div class="mh-step"><b>3~5거래일</b> 기다림</div>
-<div class="mh-arrow">▼</div>
-<div class="mh-step">돌파 후 고점에서 <b>4~6% 하락한 날</b> 종가 확인</div>
-<div class="mh-arrow">▼</div>
-<div class="mh-step mh-go">다음 거래일 <u>시가 매수</u></div>
 </div>
-<div class="mh-box mh-sell-box">
-<div class="mh-box-h">▸ 매도</div>
-<div class="mh-step"><b>120거래일</b> 보유 후 매도</div>
-<div class="mh-sub">※ 약 6개월</div>
-</div>
-<div class="mh-box mh-data-box">
-<div class="mh-box-h">▸ 검증 결과</div>
-<div class="mh-kv"><span class="mh-k">승률</span><span class="mh-v mh-pos">59.7% (119건)</span></div>
-<div class="mh-kv"><span class="mh-k">평균수익</span><span class="mh-v mh-pos">+18.0%</span></div>
-<div class="mh-kv"><span class="mh-k">수익을 순서대로 놓았을 때 가운데 값</span><span class="mh-v mh-pos">+8.9%</span></div>
-<div class="mh-kv"><span class="mh-k">손실 거래</span><span class="mh-v">48건 (40.3%)</span></div>
-<div class="mh-kv"><span class="mh-k">평균적으로 잃은 비율</span><span class="mh-v mh-neg">-11.9%</span></div>
-<div class="mh-kv"><span class="mh-k">손실 거래를 순서대로 놓았을 때 가운데 값</span><span class="mh-v mh-neg">-10.4%</span></div>
-<div class="mh-kv"><span class="mh-k">가장 크게 잃은 경우</span><span class="mh-v mh-neg">-40.7%</span></div>
-</div>
+"""
+
+# 그림 사이·아래에 붙는 짧은 글. 표에 없는 것만 적는다.
+US_MID_TEXT = """
+<div class="mh-doc">
 <div class="mh-box mh-warn-box">
-<div class="mh-box-h">⚠ 주의</div>
+<div class="mh-box-h">⚠ 1~2개월 만에 팔지 않습니다</div>
+<div class="mh-step">10~15% 눌린 종목은 <b>한두 달은 더 밀립니다.</b> 그 구간이 가장 나빴습니다.
+표에 3개월부터 있는 까닭입니다. 중간에 끊으면 가장 나쁜 자리에 걸립니다.</div>
+</div>
+</div>
+"""
+
+US_TAIL_TEXT = """
+<div class="mh-doc">
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 꼭 같이 기억할 것</div>
 <ul class="mh-list">
-<li>신고가 <b>당일에는 매수하지 않습니다.</b></li>
-<li>4~6% 눌리지 않고 올라가면 <b>추격 매수하지 않습니다.</b></li>
-<li><b>SPY가 계속 하락하는 장</b>에서는 사용하지 않습니다.</li>
-<li>별도 <b>손절 없이</b> 120거래일 보유한 결과입니다.</li>
+<li>이 10년은 나스닥이 <b>해마다 20.9%씩 오른 기간</b>입니다. 앞으로도 이렇다는 뜻이 아닙니다.</li>
+<li><b>손절 규칙은 없습니다.</b> 정해진 기간을 들고 있는 것이 전부입니다.</li>
+<li>지금 살아 있는 회사만 봤습니다. 망한 회사는 빼고 쟀습니다.</li>
 </ul>
-</div>
-<div class="mh-h2"><span class="mh-no">2</span><span>급락 후 반등장 — <u>낙폭 종목 매수</u></span></div>
-<div class="mh-box mh-buy-box">
-<div class="mh-box-h">▸ 매수</div>
-<div class="mh-step">시장 <b>급락</b></div>
-<div class="mh-arrow">▼</div>
-<div class="mh-step">SPY <b>종가 반등</b> 확인</div>
-<div class="mh-arrow">▼</div>
-<div class="mh-step">52주 고점 대비 <b>낙폭</b> 확인</div>
-<div class="mh-arrow">▼</div>
-<div class="mh-step mh-go">다음 거래일 <u>시가 매수</u></div>
-</div>
-<div class="mh-box mh-data-box">
-<div class="mh-box-h">▸ 종목과 보유기간</div>
-<div class="mh-hold">
-<div class="mh-hold-h">고점 대비 -40~-50% 종목 → <span class="mh-go">20거래일 보유</span></div>
-<div class="mh-kv"><span class="mh-k">승률</span><span class="mh-v mh-pos">100.0% (12건)</span></div>
-<div class="mh-kv"><span class="mh-k">평균수익</span><span class="mh-v mh-pos">+11.2%</span></div>
-<div class="mh-kv"><span class="mh-k">수익을 순서대로 놓았을 때 가운데 값</span><span class="mh-v mh-pos">+10.5%</span></div>
-</div>
-<div class="mh-hold">
-<div class="mh-hold-h">고점 대비 -30~-40% 종목 → <span class="mh-go">60거래일 보유</span></div>
-<div class="mh-kv"><span class="mh-k">승률</span><span class="mh-v mh-pos">92.6% (27건)</span></div>
-<div class="mh-kv"><span class="mh-k">평균수익</span><span class="mh-v mh-pos">+24.9%</span></div>
-<div class="mh-kv"><span class="mh-k">수익을 순서대로 놓았을 때 가운데 값</span><span class="mh-v mh-pos">+29.6%</span></div>
-</div>
-</div>
-<div class="mh-box mh-warn-box">
-<div class="mh-box-h">⚠ 주의</div>
-<ul class="mh-list">
-<li>신고가가 <b>언제 나왔는지는 보지 않습니다.</b></li>
-<li>고점 대비 <b>얼마나 하락했는지만</b> 봅니다.</li>
-<li>120일 성과는 <b>기술주 폭등 영향</b>이 커서 기본 규칙에서 제외합니다.</li>
-<li>높은 승률은 2025년 4월 <b>한 번의 반등 결과</b>이며 미래 승률이 아닙니다.</li>
-</ul>
-</div>
-<div class="mh-box mh-data-box">
-<div class="mh-box-h">▸ 순위와 점수 — <u>두 갈래가 다릅니다</u> (2026-08-01, 10년치로 재 봤습니다)</div>
-<div class="mh-hold">
-<div class="mh-hold-h">급락 후 반등장(낙폭 종목)</div>
-<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">40점</span></div>
-<div class="mh-kv"><span class="mh-k">낙폭 갈래(-40~-50%가 만점)</span><span class="mh-v">25점</span></div>
-<div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v">15점</span></div>
-<div class="mh-kv"><span class="mh-k">사고팔기 쉬운가 · 많이 흔들리지 않나</span><span class="mh-v">각 10점</span></div>
-</div>
-<div class="mh-hold">
-<div class="mh-hold-h">상승장(신고가 눌림매수)</div>
-<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">35점</span></div>
-<div class="mh-kv"><span class="mh-k">최근 60일에 얼마나 올랐나</span><span class="mh-v mh-pos">30점</span></div>
-<div class="mh-kv"><span class="mh-k">눌린 폭(-5~-5.5%가 만점)</span><span class="mh-v">15점</span></div>
-<div class="mh-kv"><span class="mh-k">사고팔기 쉬운가 · 많이 흔들리지 않나</span><span class="mh-v">각 10점</span></div>
-<div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v mh-neg">0점</span></div>
-</div>
-<div class="mh-sub"><b>거래대금 연속이 두 갈래에서 정반대입니다.</b> 낙폭에서는 100번 중 67번으로
-좋지만, 상승장에서는 11일 이상일 때 53번으로 <b>거꾸로</b>였습니다(기준 62번). 이미 신고가인데
-거래대금까지 오래 실렸으면 늦은 자리라는 뜻이라, 상승장에서는 점수도 표 칸도 뺐습니다.
-낙폭에서도 <b>이미 오른 종목이면 깎습니다</b> — 최근 11일에 15% 넘게 올랐으면 48번이었습니다.
-상승장에서 대신 쓰는 값은 최근 60일 상승폭입니다(40% 넘으면 70번).</div>
-</div>
-<div class="mh-box mh-warn-box">
-<div class="mh-box-h">⚠ 미국에는 외국인·기관 수급 자료가 없습니다</div>
-<div class="mh-step">한국 화면에 있는 ‘외국인+기관 동반’ 칸이 여기에는 없습니다. 미국은 그 자료를
-공개하지 않습니다. 대신 쓸 값 여섯 가지(담는 날·담기/털기·거래대금 급증·공매도 비중 등)를
-재 봤지만 <b>하나도 갈리지 않아 넣지 않았습니다.</b></div>
-<div class="mh-sub">자세한 것은 docs/US_RANK_BACKTEST.md</div>
 </div>
 <div class="mh-key">
 <div class="mh-key-h">핵심</div>
-<div>정상 상승장 = 신고가 후 <b>3~5일</b>과 <b>4~6% 눌림</b>을 본다.</div>
-<div>급락 반등장 = 신고가 날짜는 보지 않고 <b>고점 대비 낙폭</b>만 본다.</div>
-<div>매수는 항상 <b>종가 확인 후 다음 거래일 시가</b>에 한다.</div>
+<div>평소에는 <b>신고가 뒤 1~3일에 10~15% 눌린 종목</b>을 사서 <b>6개월</b>.</div>
+<div>나스닥이 <b>6~12% 빠졌을 때</b>가 가장 자주 오고(7개월에 한 번) 가장 좋았습니다.</div>
+<div>매수는 항상 <b>종가 확인 후 다음 거래일 시가</b>에 합니다.</div>
 </div>
 </div>
 """
@@ -482,8 +423,26 @@ def render(st, market: str) -> None:
             # 남는다(2026-07-30 실측). 여는 단추를 다시 누르는 것이 닫는 길이라
             # 그 방법을 맨 위에 적어 준다.
             st.caption(CLOSE_HINT)
-            # 두 설명서 모두 색·기호·밑줄을 직접 입힌 HTML이다(2026-08-01).
-            st.markdown(
-                US_TEXT if str(market).upper() == "US" else KR_TEXT,
-                unsafe_allow_html=True,
-            )
+            if str(market).upper() != "US":
+                # 한국 설명은 색·기호·밑줄을 직접 입힌 HTML 그대로다(2026-08-01).
+                st.markdown(KR_TEXT, unsafe_allow_html=True)
+                return
+            # 미국은 사용자가 만든 표 그림 두 장을 그대로 보여준다(2026-08-06).
+            # 순서는 '정상적인 상승일때'가 먼저다(사용자 지시).
+            st.markdown(US_TEXT, unsafe_allow_html=True)
+            for index, (name, caption) in enumerate(US_IMAGES):
+                path = _image_path(name)
+                if path is None:
+                    # 온라인에 그림이 안 올라갔을 때 화면이 죽지 않게 알려만 준다.
+                    st.warning(f"표 그림을 찾지 못했습니다 — assets/{name}")
+                    continue
+                st.markdown(
+                    f"<div class='mh-doc'><div class='mh-h2'>"
+                    f"<span class='mh-no'>{index + 1}</span><span>{caption}</span>"
+                    "</div></div>",
+                    unsafe_allow_html=True,
+                )
+                st.image(str(path), use_container_width=True)
+                if index == 0:
+                    st.markdown(US_MID_TEXT, unsafe_allow_html=True)
+            st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)

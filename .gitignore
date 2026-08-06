@@ -33,3 +33,6 @@ data/jarvis6/*.tmp
 data/stock_flow/*.tmp
 
 db/jarvis6_close.sqlite3
+
+# 측정용으로 받아 둔 시세 (다시 받으면 되고 용량이 크다)
+research/_data/

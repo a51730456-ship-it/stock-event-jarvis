@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026080510
+MODULE_REVISION = 2026080610
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -143,11 +143,8 @@ TOP_ROW_CSS = """
 .fg-box-gauge .fg-gauge { width: 104px; height: 70px; }
 .fg-box-hist { min-width: 0; flex: 1 1 auto; }
 .fg-box-hist .fg-hist-row { padding: 0.07rem 0; }
-/* 시장 국면이 세 칸에서 다섯 칸으로 늘면서(2026-08-05) 폰·태블릿에서 카드가
-   그만큼 길어진다. 지금 속한 칸만 남기고 나머지 네 줄은 접는다 — 값·판정은
-   그대로이고 보여주는 방식만 바꾼다. 공포·탐욕의 지난 값 줄과 전일 국면 줄은
-   흐리게 표시하지 않으므로 여기 걸리지 않는다. */
-.fg-box-hist .fg-hist-row.fg-hist-dim { display: none; }
+/* 국면 다섯 칸을 접는 규칙은 여기 두지 않는다 — 규칙 12를 어겨 갤럭시탭(1138px)까지
+   접혀 단계가 통째로 사라졌다(2026-08-06 사용자 지적). CONTENT_CSS(폰 600px)로 옮겼다. */
 .fg-box-title { font-size: 0.86rem; }
 /* 시장 상태 카드의 당일·전일 비교는 태블릿에서는 두 줄로 정리한다. 네 칸을 한 줄에
    억지로 넣으면 갤럭시탭 세로 화면에서 전일 카드가 화면 밖으로 밀린다. */
@@ -225,6 +222,11 @@ h2 { font-size: 1.2rem !important; }
 /* 가로로 긴 HTML 표는 글자를 줄여 옆으로 밀 거리를 줄인다 */
 .j5-table-wrap, .j3-pull-table-wrap { -webkit-overflow-scrolling: touch; }
 .j5-table, .j3-pull-table, .j3-theme-table, .j4-theme-table { font-size: 0.8rem; }
+/* 시장 국면이 세 칸에서 다섯 칸으로 늘면서(2026-08-05) 카드가 그만큼 길어진다.
+   **폰에서만** 지금 속한 칸만 남기고 나머지 네 줄을 접는다 — 값·판정은 그대로이고
+   보여주는 방식만 바꾼다. 태블릿·PC에서는 다섯 칸이 다 보여야 한다(규칙 12).
+   공포·탐욕의 지난 값 줄과 전일 국면 줄은 흐리게 표시하지 않으므로 여기 안 걸린다. */
+.fg-box-hist .fg-hist-row.fg-hist-dim { display: none; }
 /* 시장 신호 카드 */
 .sig-body { gap: 0.6rem; }
 .sig-gauge .fg-gauge { width: 132px; height: 88px; }
