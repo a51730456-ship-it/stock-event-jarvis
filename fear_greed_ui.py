@@ -44,11 +44,13 @@ def gauge_svg(score, *, label: str | None = None) -> str:
 
 def _history_rows(data: dict):
     """오른쪽에 붙는 지난 값 목록. CNN 화면의 previous close·1주 전 …과 같은 항목."""
+    # '전일 종가'는 **맨 아래**에 둔다(2026-08-06 사용자 지시). 위 셋은 오래된 것부터
+    # 훑는 참고값이고, 전일은 바로 어제라 성격이 달라 따로 떼어 놓는다.
     items = (
-        ("전일 종가", data.get("previous_close")),
         ("1주 전", data.get("previous_1_week")),
         ("1개월 전", data.get("previous_1_month")),
         ("1년 전", data.get("previous_1_year")),
+        ("전일 종가", data.get("previous_close")),
     )
     rows = []
     for title, value in items:
@@ -68,7 +70,7 @@ def box_html(data: dict | None, *, title: str = "공포·탐욕 지수") -> str:
     """
     data = data or {}
     ok = bool(data.get("ok"))
-    return gauge_ui.box_html(
+    box = gauge_ui.box_html(
         title,
         data.get("score") if ok else None,
         ZONES,
@@ -76,6 +78,13 @@ def box_html(data: dict | None, *, title: str = "공포·탐욕 지수") -> str:
         label=data.get("rating_kr") if ok else None,
         title_color=gauge_ui.TITLE_BLUE,
         note="마지막 정상값" if ok and data.get("stale") else "",
+    )
+    # '전일 종가'만 제목과 같은 스카이블루로(2026-08-06 사용자 지시).
+    # 시장 국면 상자의 '전일 시장국면'과 같은 처리다.
+    return box.replace(
+        "<span class='fg-hist-label'>전일 종가</span>",
+        f"<span class='fg-hist-label' style='color:{gauge_ui.TITLE_BLUE};"
+        " font-weight:800'>전일 종가</span>",
     )
 
 

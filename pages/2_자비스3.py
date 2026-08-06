@@ -90,13 +90,23 @@ st.markdown(
     div[class*="st-key-j3_theme_choice"] [data-baseweb="button-group"] {
         gap: 0.35rem;
     }
-    .j3-score-guide, .j3-market-flow {
+    .j3-market-flow {
         color: #44f0a1;
         font-size: 1rem;
         font-weight: 800;
         line-height: 1.65;
     }
-    .j3-score-guide { margin-top: 0.35rem; }
+    /* '조건점수·시장 상황 설명'은 글이 길다. 통째로 초록에 굵게 두니 읽기 힘들었다
+       (2026-08-06 사용자 지시). 본문은 흰색·보통 굵기로 두고, 중요한 곳만
+       <b>로 감싸 초록으로 띄운다. */
+    .j3-score-guide {
+        color: #e6e6e6;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.75;
+        margin-top: 0.35rem;
+    }
+    .j3-score-guide b { color: #44f0a1; font-weight: 800; }
     .j3-market-flow {
         margin: 1.9rem 0 0.8rem 0;
         padding: 0.75rem 1rem;
@@ -1039,7 +1049,8 @@ def _market_score_detail(overview: dict) -> str:
     missed = [item["label"] for item in breakdown if not item.get("earned")]
     earned_text = ", ".join(earned) if earned else "충족 신호 없음"
     missed_text = ", ".join(missed) if missed else "없음"
-    return f"현재 획득: {earned_text} · 미충족: {missed_text}"
+    # <b>는 이 설명 상자에서 초록으로 띄우는 표시다(위 .j3-score-guide b 참고).
+    return f"<b>현재 획득</b>: {earned_text} · <b>미충족</b>: {missed_text}"
 
 
 def _market_action_detail(overview: dict) -> str:
@@ -1480,7 +1491,8 @@ def _render_market_overview() -> None:
         st.markdown(
             f"""
             <div class="j3-score-guide">
-                조건점수 {overview['score']}/100은 상승장 확인 조건에서 얻은 점수이며 승률이 아닙니다.<br>
+                <b>조건점수 {overview['score']}/100</b>은 상승장 확인 조건에서 얻은 점수이며
+                <b>승률이 아닙니다</b>.<br>
                 {_regime_range_text()}<br>
                 {_market_score_detail(overview)}<br>
                 이 점수와 아래 <b>선행신호 카드는 서로 다른 것을 잽니다</b>(2026-07-30 질문).
@@ -1623,11 +1635,6 @@ def _render_nasdaq_drawdown() -> None:
     span = 25.0
     fill = max(0.0, min(100.0, abs(pct) / span * 100))
     mark = abs(entry) / span * 100
-    gates = " · ".join(
-        f"<span style='color:{'#44f0a1' if g['reached'] else '#9aa0aa'}'>"
-        f"{abs(g['pct']):.0f}% {_price(g['level'])}</span>"
-        for g in state.get("gates") or []
-    )
     st.markdown(
         "<div class='j3-ndd'>"
         f"<div class='j3-ndd-head'><b class='j3-ndd-title'>나스닥 고점 대비</b> "
@@ -1636,12 +1643,14 @@ def _render_nasdaq_drawdown() -> None:
         f"{html.escape(str(state.get('state') or ''))}</span></div>"
         f"<div class='j3-ndd-bar'><span class='j3-ndd-fill' style='width:{fill:.1f}%'></span>"
         f"<span class='j3-ndd-mark' style='left:{mark:.1f}%'></span></div>"
-        f"<div class='j3-ndd-sub'>지금 {_price(state.get('current'))} · "
-        f"1년 최고 {_price(state.get('high'))} · 문턱 {gates}</div>"
+        # '지금 · 1년 최고 · 문턱 …' 줄은 2026-08-06에 뺐다(사용자 지시). 막대와
+        # 위 % 숫자가 같은 말을 하고 있어 줄만 길었다.
+        # 예전에는 '100번 중 86번이었습니다'로 끝나 **무엇이 86번인지**가 빠져
+        # 있었다(2026-08-06 상하님 지적). '86번 이익'으로 채운다.
         "<div class='j3-ndd-note'><span class='j3-ndd-key'>55년치</span>로 재 보니 "
-        "<span class='j3-ndd-key'>12% 넘게 빠졌을 때</span> 산 것이 "
-        "<span class='j3-ndd-key'>2년 뒤 100번 중 86번</span>이었습니다"
-        "(아무 날이나 샀으면 81번). "
+        "<span class='j3-ndd-key'>12% 넘게 빠졌을 때</span> 사서 2년 뒤에 팔면 "
+        "<span class='j3-ndd-key'>100번 중 86번 이익</span>이었습니다"
+        "(아무 날이나 샀으면 81번 이익). "
         "<span class='j3-ndd-key'>8% 정도로는 기준선보다 못했습니다.</span> "
         "12%냐 15%냐는 자료로 가릴 수 없어 <span class='j3-ndd-key'>‘12% 넘게’</span>까지만 봅니다. "
         "다이버전스는 6개 설정 중 0개에서 져서 쓰지 않습니다."
