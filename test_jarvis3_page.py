@@ -153,8 +153,11 @@ def _breakout_result():
     rows[0]["hold_days"] = 120
     return {
         "ok": True, "mode": "breakout", "rows": rows,
-        "rule": {"wait_days": (3, 5), "drop_band": (-6.0, -4.0), "hold_days": 120,
-                 "win_rate": 59.7, "sample": 119, "avg_return": 18.0},
+        # 2026-08-06 새 기준 — 거르는 것은 눌린 폭(10~15%) 하나이고,
+        # 날짜는 1~5일로 넓게 두고 표에 보여만 준다.
+        "rule": {"wait_days": (1, 5), "drop_band": (-15.0, -10.0), "hold_days": 120,
+                 "win_rate": 71.0, "median_return": 12.5,
+                 "base_win_rate": 64.4, "base_median_return": 7.1, "per_year": 30},
         "universe_count": 200, "data_count": 199, "window_count": 6,
         "result_limit": 20, "checked_at": "x", "stale": False, "reused_batch": False,
     }
@@ -164,16 +167,21 @@ def _crash_result():
     """설명서 2번(급락 후 반등장 낙폭 종목) 결과 모양."""
     rows = [dict(row) for row in _pullbacks()["rows"][:1]]
     rows[0].update({
-        "bucket": "deep", "bucket_label": "고점 대비 -40~-50%", "hold_days": 20,
-        "win_rate": 100.0, "sample": 12, "avg_return": 11.2,
+        "bucket": "deep", "bucket_label": "고점 대비 -30~-50%", "hold_days": 120,
+        "win_rate": 69.5, "median_return": 16.4, "base_win_rate": 65.4,
     })
     return {
         "ok": True, "mode": "crash", "rows": rows,
-        "rules": ({"key": "deep", "band": (-50.0, -40.0), "hold_days": 20, "win_rate": 100.0,
-                   "sample": 12, "avg_return": 11.2, "label": "고점 대비 -40~-50%"},
-                  {"key": "mid", "band": (-40.0, -30.0), "hold_days": 60, "win_rate": 92.6,
-                   "sample": 27, "avg_return": 24.9, "label": "고점 대비 -30~-40%"}),
-        "bucket_counts": {"deep": 1, "mid": 3},
+        "rules": ({"key": "shallow", "band": (-30.0, -20.0), "hold_days": 120,
+                   "win_rate": 74.6, "median_return": 16.9, "base_win_rate": 65.4,
+                   "label": "고점 대비 -20~-30%"},
+                  {"key": "deep", "band": (-50.0, -30.0), "hold_days": 120,
+                   "win_rate": 69.5, "median_return": 16.4, "base_win_rate": 65.4,
+                   "label": "고점 대비 -30~-50%"}),
+        "bucket_counts": {"shallow": 3, "deep": 1},
+        # 2026-08-06부터 나스닥이 -6~-12%일 때만 켜진다.
+        "market": {"ok": True, "armed": True, "drop_pct": -9.0,
+                   "band": (-12.0, -6.0), "reason": "시험"},
         "universe_count": 200, "data_count": 199,
         "result_limit": 20, "checked_at": "x", "stale": False, "reused_batch": False,
     }
@@ -783,16 +791,19 @@ class Jarvis3PageTests(unittest.TestCase):
         app = self._run_with_mode("breakout", "find_breakout_pullback_stocks", _breakout_result())
         markdowns = [str(node.value) for node in app.markdown]
         joined = " ".join(markdowns)
-        # 설명서 숫자가 화면에 그대로 나와야 한다.
-        self.assertIn("3~5거래일", joined)
+        # 화면이 실제로 찾는 숫자가 그대로 나와야 한다(2026-08-06 새 기준).
+        self.assertIn("10~15%", joined)
+        self.assertIn("1~5거래일", joined)
         self.assertIn("120거래일", joined)
-        self.assertIn("59.7", joined)
+        # 성적 옆에는 늘 기준선이 붙어야 한다.
+        self.assertIn("아무 날 아무 종목이나", joined)
         # 눌림목 표가 아니라 이 갈래 전용 표다 — 머리글에 '보유일수'가 있고
         # '눌림 점수'는 없다(설명 글에는 그 말이 남아 있으므로 머리글만 본다).
         header = next(value for value in markdowns if "보유일수" in value and "티커" in value)
         self.assertNotIn("눌림 점수", header)
         self.assertLess(header.index("고점 대비"), header.index("소속 테마"))
-        self.assertLess(header.index("소속 테마"), header.index("신고가"))
+        # 며칠 지났는지는 거르지 않고 보여만 준다 — 칸 이름이 그 뜻이어야 한다.
+        self.assertLess(header.index("소속 테마"), header.index("고점 후 며칠"))
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
         self.assertTrue(any(
             "상승장 (신고가 눌림매수) 닫기" in str(node.label)
@@ -802,10 +813,17 @@ class Jarvis3PageTests(unittest.TestCase):
     def test_crash_mode_shows_both_depth_buckets_and_holding_periods(self):
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
         joined = " ".join(str(node.value) for node in app.markdown)
-        self.assertIn("고점 대비 -40~-50%", joined)
-        self.assertIn("고점 대비 -30~-40%", joined)
-        self.assertIn("20거래일 보유", joined)
-        self.assertIn("60거래일 보유", joined)
+        self.assertIn("고점 대비 -20~-30%", joined)
+        self.assertIn("고점 대비 -30~-50%", joined)
+        self.assertIn("120거래일 보유", joined)
+        # 2026-08-06 — 점수가 순위다(별점은 뺐다). 배점표를 화면에 그대로 뿌린다.
+        self.assertIn("점수가 곧 순위입니다", joined)
+        self.assertNotIn("★", joined, "별점이 되살아났다")
+        for item in ("같은 테마 동반", "40점", "최근 11일에 빠졌나", "25점", "낙폭 갈래"):
+            self.assertIn(item, joined, f"배점표에 {item}이 없다")
+        # 0점으로 뺀 항목도 왜 뺐는지 같이 보여야 같은 실수를 되풀이하지 않는다.
+        self.assertIn("거래대금 평소 위 연속", joined)
+        self.assertIn("0점", joined)
         header = next(
             str(node.value) for node in app.markdown
             if "갈래" in str(node.value) and "티커" in str(node.value)
@@ -828,16 +846,17 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertIn(hold_class, block)
 
     def test_the_two_depth_buckets_get_different_colours(self):
-        """2026-08-01 사용자 지시 — -30~-40과 -40~-50을 색으로 가른다.
+        """두 갈래를 색으로 가른다(2026-08-01 지시).
 
         설명 카드와 표의 같은 갈래가 같은 색이어야 카드를 보고 줄을 찾을 수 있다.
+        갈래는 2026-08-06에 -20~-30% / -30~-50%로 바뀌었다.
         """
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
         joined = " ".join(str(node.value) for node in app.markdown)
         for name in ("j3-band-deep", "j3-card-deep", "j3-card-mid"):
             self.assertIn(name, joined, f"{name} 색이 화면에 안 실렸다")
         # 표 칸에는 '고점 대비'를 빼고 숫자만 — 폰에서 옆 칸을 덮었다.
-        self.assertIn("j3-band-deep'>-40~-50%", joined)
+        self.assertIn("j3-band-deep'>-30~-50%", joined)
 
     def test_crash_detail_uses_the_crash_ruler_not_the_ordinary_one(self):
         """낙폭 종목을 누르면 낙폭 전용 배점이 나와야 한다(2026-08-01).

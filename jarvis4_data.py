@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080510
+MODULE_REVISION = 2026080610
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1175,10 +1175,29 @@ def get_fx_intraday(*, ttl_seconds: float = 60) -> dict:
     return {"ok": True, "stale": stale, **value}
 
 
+# 한국테마의 '미국 전일' 칸은 jarvis3_data의 계산을 그대로 쓴다(아래 함수).
+# 그 계산이 바뀌면 이 숫자를 jarvis3_data.MODULE_REVISION과 같게 올리고,
+# **재적재는 pages/3_자비스4.py가 한다**(규칙 11, 이 프로젝트 방식).
+# 여기서 importlib.reload를 부르면 시험이 갈아 끼운 가짜 모듈까지 날아간다
+# (2026-08-06 실제로 test_jarvis4_data 두 건이 깨졌다).
+_REQUIRED_J3_REVISION = 2026080650
+
+
 def _us_previous_session() -> dict:
     """미국 전일 결과 — 한국장은 미국 전일과 갭 상관이 높아 게이트에 넣는다."""
     try:
         import jarvis3_data as j3
+
+        # 옛 jarvis3_data가 프로세스에 남으면 이 칸만 옛 계산으로 돈다(규칙 11).
+        # 재적재는 보통 페이지가 하지만, 자비스4 페이지는 자비스3 모듈을 건드리지
+        # 않기로 되어 있어(test_jarvis4_page) 여기서 한다.
+        # **리비전이 진짜 숫자일 때만** 다시 읽는다 — 시험이 갈아 끼운 가짜 모듈에는
+        # 그 숫자가 없어서, 그냥 재적재하면 가짜가 날아간다(2026-08-06 실제로 겪었다).
+        revision = getattr(j3, "MODULE_REVISION", None)
+        if isinstance(revision, int) and revision < _REQUIRED_J3_REVISION:
+            import importlib
+
+            j3 = importlib.reload(j3)
 
         overview = j3.get_market_overview()
         if not overview.get("ok"):
