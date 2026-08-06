@@ -1075,7 +1075,10 @@ class Jarvis3PageTests(unittest.TestCase):
         """
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         self.assertIn(".st-key-j3_rulebook_table,", source)
-        self.assertIn('.st-key-j3_rulebook_table [data-testid="stHorizontalBlock"],', source)
+        # 2026-08-06 — '점수' 칸이 늘어 이 표만 min-width를 1000px로 따로 뒀다.
+        # 그래서 이 줄만 다른 표와 묶이지 않고 홀로 선다.
+        self.assertIn('.st-key-j3_rulebook_table [data-testid="stHorizontalBlock"] {', source)
+        self.assertIn("min-width: 1000px", source)
         self.assertIn('.st-key-j3_rulebook_table [data-testid="stColumn"],', source)
 
     def test_main_login_includes_jarvis3_destination(self):

@@ -292,9 +292,14 @@ st.markdown(
         }
         .st-key-j3_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j3_top7_table [data-testid="stHorizontalBlock"],
-        .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"],
         .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
+        }
+        /* 상승장·급락 표는 2026-08-06에 '점수' 칸이 하나 늘어 아홉 칸이 됐다.
+           900px로는 글자가 짓눌려 1000px로 넓힌다. 폰·태블릿에서는 어차피
+           옆으로 밀어서 본다. */
+        .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1000px;
         }
         .st-key-j3_pullback_table [data-testid="stColumn"],
         .st-key-j3_leader_table [data-testid="stColumn"],
