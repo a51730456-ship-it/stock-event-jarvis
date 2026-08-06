@@ -2309,11 +2309,86 @@ def _kept_recently(key: str, seconds: float = 300) -> bool:
         return False
 
 
+# 순위 7의 자리 배분 (2026-08-06 사용자 지시).
+# 세 군데에서 갖고 오는데 **자가 서로 다르다.** 하나의 자로 다시 재면 급락 종목이
+# 영원히 못 올라온다 — 종목 조건점수 100점 중 45점이 '52주 신고가에 가까운가'(25)와
+# '이동평균 위인가'(20)인데, 고점에서 20~50% 빠진 종목은 정의상 그 45점을 못 받는다.
+# 실제로 2026-08-06에 두 갈래 27종목을 넣고 돌려 보니 상위 7에 하나도 못 들었다.
+# 그래서 섞어 재지 않고 **자리를 나눠 각자 자기 자로 뽑는다.**
+_TOP7_QUOTA = (("테마 대장주", 3), ("상승장", 2), ("급락 후 반등장", 2))
+
+
+def _blend_top7(market: dict, ranking: dict) -> dict:
+    """세 군데에서 각자 자기 자로 뽑아 7개를 만든다(2026-08-06).
+
+    한 갈래가 자리를 못 채우면 남는 자리는 테마 대장주가 메운다.
+    """
+    market_score = float(market.get("score") or 0)
+    leaders = j3data.find_top_reviewed_stocks(
+        ranking.get("rows") or [], market_score=market_score, limit=12
+    )
+    buckets: dict[str, list[dict]] = {"테마 대장주": list(leaders.get("rows") or [])}
+    opened = st.session_state.get("j3_pullback_result") or {}
+    opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
+    for name, mode, finder, planner in (
+        ("상승장", "breakout", j3data.find_breakout_pullback_stocks,
+         j3data.breakout_plan),
+        ("급락 후 반등장", "crash", j3data.find_crash_rebound_stocks,
+         j3data.crash_rebound_plan),
+    ):
+        try:
+            part = opened if opened_mode == mode and opened.get("ok") else finder()
+        except Exception as exc:          # 한 갈래가 죽어도 나머지는 살린다
+            st.caption(f"{name}을 못 받았습니다 — {_safe_error_text(exc)}")
+            part = {}
+        rows = []
+        for row in (part or {}).get("rows") or []:
+            merged = dict(row)
+            merged["plan"] = planner(row)
+            rows.append(merged)
+        buckets[name] = rows
+
+    picked, seen = [], set()
+    for name, quota in _TOP7_QUOTA:
+        for row in buckets.get(name) or []:
+            if len(picked) >= 7 or quota <= 0:
+                break
+            ticker = str(row.get("ticker") or "")
+            if not ticker or ticker in seen:
+                continue
+            seen.add(ticker)
+            row = dict(row)
+            row["top7_origin"] = name
+            picked.append(row)
+            quota -= 1
+    # 남는 자리는 대장주가 메운다 — 갈래가 비는 날이 있다.
+    for row in buckets.get("테마 대장주") or []:
+        if len(picked) >= 7:
+            break
+        ticker = str(row.get("ticker") or "")
+        if not ticker or ticker in seen:
+            continue
+        seen.add(ticker)
+        row = dict(row)
+        row["top7_origin"] = "테마 대장주"
+        picked.append(row)
+    for index, row in enumerate(picked, 1):
+        row["pick_rank"] = index
+    return {
+        "ok": True,
+        "rows": picked,
+        "scanned_themes": leaders.get("scanned_themes", 0),
+        "candidate_count": sum(len(v) for v in buckets.values()),
+        "errors": leaders.get("errors") or [],
+        "bucket_counts": {name: len(buckets.get(name) or []) for name, _q in _TOP7_QUOTA},
+    }
+
+
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
     """매수심사결과 높은 순위 7 (2026-07-30 사용자 지시).
 
-    전수 검색을 새로 돌리지 않는다 — 지금 화면에 떠 있는 테마의 대장주와,
-    이미 돌려 둔 눌림목 결과만 모아 종목 조건점수로 줄 세운다.
+    세 군데에서 각자 자기 자로 뽑아 합친다(2026-08-06 사용자 지시) —
+    테마 대장주 3 · 상승장 2 · 급락 후 반등장 2.
     표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다 — 창을 또 눌러
     여는 방식은 없앴다(2026-07-30 사용자 지시).
     """
@@ -2328,9 +2403,13 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 예전에는 ②·③ 중 **마지막에 누른 하나만** 썼다. 이제 단추를 안 눌러도 둘 다
     # 자동으로 모은다. 두 갈래는 같은 일봉 묶음을 쓰므로 한 번만 받아 온다.
     st.caption(
-        "**테마 대장주 20개**와 **상승장·급락 후 반등장 두 갈래에서 찾은 종목**을 "
-        "모두 모아, 종목 조건점수가 높은 순서로 7개만 남깁니다. "
-        "두 단추를 누르지 않아도 자동으로 함께 봅니다."
+        "세 군데에서 **자리를 나눠** 뽑습니다 — **테마 대장주 3개 · 상승장 2개 · "
+        "급락 후 반등장 2개**. 위 두 단추를 누르지 않아도 자동으로 함께 봅니다.<br>"
+        "**섞어서 한 줄로 세우지 않습니다** — 세 군데가 서로 다른 자로 재기 때문입니다. "
+        "급락 종목은 고점에서 20~50% 빠진 상태라 대장주의 자(‘52주 신고가에 가까운가’ "
+        "25점 + ‘이동평균 위인가’ 20점)로 재면 정의상 45점을 못 받습니다. "
+        "그래서 **점수 칸의 숫자는 갈래끼리만 견주십시오.**",
+        unsafe_allow_html=True,
     )
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
@@ -2350,33 +2429,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.session_state["j3_top7_open"] = True
         run_requested = False
     if run_requested:
-        with st.spinner("테마 대장주와 두 갈래 종목을 모아 줄 세우는 중입니다…"):
-            # 두 갈래를 여기서 직접 돌린다. 이미 위에서 눌러 둔 것이 있으면 그 결과를
-            # 그대로 쓰고, 없으면 새로 찾는다. 두 함수가 같은 일봉 묶음을 쓰므로
-            # 자료는 한 번만 받아 온다.
-            extra_rows, seen = [], set()
-            opened = st.session_state.get("j3_pullback_result") or {}
-            opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
-            for mode, finder in (("breakout", j3data.find_breakout_pullback_stocks),
-                                 ("crash", j3data.find_crash_rebound_stocks)):
-                try:
-                    part = opened if opened_mode == mode and opened.get("ok") else finder()
-                except Exception as exc:      # 한 갈래가 실패해도 나머지는 살린다
-                    st.caption(f"{mode} 갈래를 못 받았습니다 — {_safe_error_text(exc)}")
-                    continue
-                for row in (part or {}).get("rows") or []:
-                    ticker = str(row.get("ticker") or "")
-                    if ticker and ticker not in seen:
-                        seen.add(ticker)
-                        extra_rows.append(row)
-            found = j3data.find_top_reviewed_stocks(
-                ranking.get("rows") or [],
-                market_score=float(market.get("score") or 0),
-                extra_rows=extra_rows,
-                # 갈래 종목을 대장주와 **같은 자**로 다시 재려면 SPY 20일 수익률이
-                # 있어야 한다. 안 넘기면 상대강도 25점이 통째로 0이 된다.
-                benchmark_ret20=((market.get("rows") or {}).get("SPY") or {}).get("ret20"),
-            )
+        with st.spinner("테마 대장주와 두 갈래 종목을 각각 줄 세우는 중입니다…"):
+            found = _blend_top7(market, ranking)
         st.session_state["j3_top7_result"] = found
         st.session_state["j3_top7_at"] = time.time()
         st.session_state["j3_top7_open"] = True
@@ -2436,10 +2490,17 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             f"<div class='j3-td' style='font-weight:700'>"
             f"{_price(row['metrics'].get('current'))}</div>", unsafe_allow_html=True)
         # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
-        source_text = " · ".join(row.get("sources") or []) or "—"
+        # 어느 갈래에서 왔는지를 **먼저** 적는다(2026-08-06 사용자 지시) — 점수가
+        # 갈래마다 다른 자로 잰 값이라, 어느 자로 잰 것인지 알아야 읽을 수 있다.
+        origin = str(row.get("top7_origin") or "")
+        themes = " · ".join(row.get("sources") or row.get("themes") or [])
+        source_text = " · ".join(part for part in (origin, themes) if part) or "—"
+        origin_class = {
+            "상승장": "j3-green-strong", "급락 후 반등장": "j3-pull-amber",
+        }.get(origin, "j3-muted")
         cols[5].markdown(
-            f"<div class='j3-td j3-muted j3-top7-src' title='{html.escape(source_text)}'>"
-            f"{html.escape(source_text)}</div>",
+            f"<div class='j3-td {origin_class} j3-top7-src'"
+            f" title='{html.escape(source_text)}'>{html.escape(source_text)}</div>",
             unsafe_allow_html=True)
     # 종목 이름 단추는 '테마 종목' 표와 같은 옷을 입힌다.
     st.markdown(

@@ -134,14 +134,17 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn("find_top_reviewed_stocks(", source, f"{market}가 자료를 안 부른다")
             # 눌림목/갈래 결과도 함께 넣어야 한다(사용자 지시).
             self.assertIn(f"{prefix}_pullback_result", source)
-            self.assertIn("extra_rows=", source)
             if prefix == "j3":
                 # 2026-08-06 사용자 지시 — "누르든 안 누르든 둘 다 자동으로".
-                # 미국은 상승장·급락 두 갈래를 순위 7이 직접 돌려 모두 재료로 쓴다.
+                # 다만 **섞어서 한 줄로 세우지 않는다.** 세 군데가 자가 달라
+                # 급락 종목이 대장주의 자로는 영원히 못 올라온다. 그래서 자리를
+                # 나눠 각자 자기 자로 뽑는다(대장주 3 · 상승장 2 · 급락 2).
                 self.assertIn("find_breakout_pullback_stocks", source,
                               "미국 순위 7이 상승장 갈래를 안 가져온다")
                 self.assertIn("find_crash_rebound_stocks", source,
                               "미국 순위 7이 급락 갈래를 안 가져온다")
+                self.assertIn("_TOP7_QUOTA", source, "미국 순위 7에 자리 배분이 없다")
+                self.assertIn("top7_origin", source, "어느 갈래에서 왔는지 안 적는다")
             else:
                 self.assertIn("extra_rows=pull_rows", source)
 
@@ -280,12 +283,12 @@ class PageWiringTests(unittest.TestCase):
             else:
                 close = block.split("if is_open:")[1].split("else:")[0]
                 run = block.split("else:")[1]
+            # 미국은 2026-08-06부터 _blend_top7()이 세 군데를 뽑아 합친다.
+            fetch = "_blend_top7(" if prefix == "j3" else "find_top_reviewed_stocks"
             self.assertNotIn("st.rerun()", close, f"{market}가 닫을 때 다시 그린다")
-            self.assertNotIn("find_top_reviewed_stocks", close,
-                             f"{market}가 닫을 때도 조회한다")
+            self.assertNotIn(fetch, close, f"{market}가 닫을 때도 조회한다")
             # 조회는 '뽑는 쪽' 갈래에만 있어야 한다.
-            self.assertIn("find_top_reviewed_stocks", run,
-                          f"{market}에서 뽑는 자리가 사라졌다")
+            self.assertIn(fetch, run, f"{market}에서 뽑는 자리가 사라졌다")
 
     def test_opening_does_not_preload_a_stock_detail(self):
         """1위 상세를 미리 펴면 분봉·일봉·주봉·월봉을 다 받아 오느라 느려진다."""
