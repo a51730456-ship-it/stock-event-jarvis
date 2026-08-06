@@ -109,34 +109,10 @@ st.markdown(
        **짧게(0.2초)** 둔다 — 길면 클릭할 때마다 다시 재생돼 거슬린다.
        닫히는 모습은 못 만든다. 접는 순간 그 자리가 아예 안 그려지기 때문이다.
        거슬리면 이 블록만 통째로 지우면 원래대로 돌아간다. */
-    @keyframes j3-rise {
-        from { opacity: 0; transform: translateY(18px) scale(.985); }
-        60%  { opacity: 1; }
-        to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    /* 0.2초는 눈에 안 띈다는 지적(2026-08-06). 0.38초에 18px로 키웠다.
-       더 늘리면 누를 때마다 기다리는 느낌이 난다. */
-    .st-key-j3_rulebook_table, .st-key-j3_top7_table,
-    .st-key-j3_leader_table, .j3-holo-card, .sig-head-pair {
-        animation: j3-rise .38s cubic-bezier(.22,.9,.3,1) both;
-    }
-    /* 표는 줄마다 조금씩 늦게 올라온다 — 위에서 아래로 흐르듯 보인다. */
-    .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"]:nth-child(2),
-    .st-key-j3_top7_table [data-testid="stHorizontalBlock"]:nth-child(2) {
-        animation: j3-rise .38s cubic-bezier(.22,.9,.3,1) .04s both;
-    }
-    .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"]:nth-child(3),
-    .st-key-j3_top7_table [data-testid="stHorizontalBlock"]:nth-child(3) {
-        animation: j3-rise .38s cubic-bezier(.22,.9,.3,1) .08s both;
-    }
-    .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"]:nth-child(4),
-    .st-key-j3_top7_table [data-testid="stHorizontalBlock"]:nth-child(4) {
-        animation: j3-rise .38s cubic-bezier(.22,.9,.3,1) .12s both;
-    }
-    .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"]:nth-child(5),
-    .st-key-j3_top7_table [data-testid="stHorizontalBlock"]:nth-child(5) {
-        animation: j3-rise .38s cubic-bezier(.22,.9,.3,1) .16s both;
-    }
+    /* 떠오르는 움직임(j3-rise)은 **넣었다가 뺐다**(2026-08-06). 스트림릿이 누를
+       때마다 화면을 통째로 다시 그리는 탓에 표와 카드가 매번 다시 떠올라
+       어지럽고 화면이 느려 보였다(상하님 실사용 지적). 다시 넣지 말 것.
+       손이 닿을 때만 도는 아래 움직임은 그 문제가 없어 남긴다. */
     /* 이 화면의 **모든 단추와 접이 머리**에 같은 결을 준다(2026-08-06 사용자 지시).
        손을 올리면 살짝 뜨고 밝아지며, 누르면 눌린다. 다시 그려도 재생되지 않는
        움직임이라 클릭이 잦아도 거슬리지 않는다. */
