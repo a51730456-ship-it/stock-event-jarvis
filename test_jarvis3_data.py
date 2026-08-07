@@ -90,14 +90,14 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertFalse(hasattr(j3, "breakout_stars"), "별점이 되살아났다")
         # 성적 옆에는 늘 기준선이 붙어야 한다. 기준선은 화면이 뒤지는 명부로 잰 값이다.
         self.assertEqual(62.2, j3.BREAKOUT_BASE_WIN_RATE)
-        shallow, deep = j3.CRASH_REBOUND_RULES
-        for rule in (shallow, deep):
-            self.assertIn("base_win_rate", rule)
-            self.assertNotIn("stars", rule)
-        self.assertEqual(((-30.0, -20.0), 120), (shallow["band"], shallow["hold_days"]))
-        self.assertEqual(((-50.0, -30.0), 120), (deep["band"], deep["hold_days"]))
-        # 급락 규칙은 시장 조건이 먼저다(2026-08-06).
-        self.assertEqual((-12.0, -6.0), j3.CRASH_MARKET_BAND)
+        # 2026-08-07 격자 재측정 — 깊은 갈래와 6개월 보유는 3년 창 검사를 통과하지
+        # 못했다. 얕은 낙폭을 1년 들고 있는 것 하나만 남았다(research/us_net_grid.py).
+        (shallow,) = j3.CRASH_REBOUND_RULES
+        self.assertIn("base_win_rate", shallow)
+        self.assertNotIn("stars", shallow)
+        self.assertEqual(((-30.0, -20.0), 250), (shallow["band"], shallow["hold_days"]))
+        # -6~-12%는 급락이 아니라 흔한 조정이었다(10년에 72번). 깊게 잡는다.
+        self.assertEqual((-20.0, -10.0), j3.CRASH_MARKET_BAND)
 
     def test_the_screen_shows_the_measured_tables(self):
         """설명 창은 다시 잰 표 그림을 보여준다(2026-08-06)."""
@@ -203,27 +203,29 @@ class RulebookScreenTests(unittest.TestCase):
                     f"{finder.__name__}에 {moving_average} 조건이 들어갔다",
                 )
 
-    def _run_crash(self, frames, drop_pct=-9.0):
+    def _run_crash(self, frames, drop_pct=-15.0):
         """급락 규칙은 나스닥 낙폭 조건을 먼저 통과해야 종목을 찾는다(2026-08-06)."""
-        state = {"ok": True, "armed": -12.0 <= drop_pct <= -6.0, "drop_pct": drop_pct,
+        low, high = j3.CRASH_MARKET_BAND
+        state = {"ok": True, "armed": low <= drop_pct <= high, "drop_pct": drop_pct,
                  "band": j3.CRASH_MARKET_BAND, "reason": "시험"}
         with patch.object(j3, "crash_market_state", return_value=state):
             return self._run(j3.find_crash_rebound_stocks, frames)
 
     def test_crash_splits_the_two_depth_buckets_and_ignores_the_high_date(self):
         frames = {
-            "AAPL": _frame_with_high(200, -40.0),   # 깊은 갈래(-30~-50%)
-            "MSFT": _frame_with_high(3, -25.0),     # 얕은 갈래 — 신고가 날짜는 안 본다
+            "AAPL": _frame_with_high(200, -25.0),   # 걸린다 — 신고가 날짜는 안 본다
+            "MSFT": _frame_with_high(3, -28.0),     # 걸린다
             "AMZN": _frame_with_high(50, -15.0),    # 덜 빠졌다
-            "GOOGL": _frame_with_high(50, -60.0),   # 너무 빠졌다
+            "GOOGL": _frame_with_high(50, -40.0),   # 너무 빠졌다(이제 갈래가 하나다)
         }
         result = self._run_crash(frames)
         self.assertTrue(result["ok"])
         picked = {row["ticker"]: row for row in result["rows"]}
         self.assertEqual({"AAPL", "MSFT"}, set(picked))
-        self.assertEqual((120, "deep"), (picked["AAPL"]["hold_days"], picked["AAPL"]["bucket"]))
-        self.assertEqual((120, "shallow"), (picked["MSFT"]["hold_days"], picked["MSFT"]["bucket"]))
-        self.assertEqual({"shallow": 1, "deep": 1}, result["bucket_counts"])
+        for ticker in ("AAPL", "MSFT"):
+            self.assertEqual((250, "shallow"),
+                             (picked[ticker]["hold_days"], picked[ticker]["bucket"]))
+        self.assertEqual({"shallow": 2}, result["bucket_counts"])
 
     def test_crash_tells_the_market_state_but_does_not_block(self):
         """시장 낙폭은 막지 않고 알려만 준다(2026-08-06 사용자 결정).
@@ -231,25 +233,30 @@ class RulebookScreenTests(unittest.TestCase):
         막았더니 화면이 통째로 비었다. 나스닥이 그 자리를 지나 올라가도 그때
         걸렸던 종목은 볼 값어치가 있다는 판단이다.
         """
-        frames = {"AAPL": _frame_with_high(200, -40.0)}
-        for drop in (-3.0, -20.0):
+        frames = {"AAPL": _frame_with_high(200, -25.0)}
+        for drop in (-3.0, -30.0):
             result = self._run_crash(frames, drop_pct=drop)
             self.assertTrue(result["ok"])
             self.assertEqual(1, len(result["rows"]), f"나스닥 {drop}%인데 막혔다")
             self.assertIsNotNone(result.get("market"), "시장 상태는 알려줘야 한다")
 
     def test_crash_rows_carry_the_reference_numbers(self):
-        """성적은 **화면이 실제로 뒤지는 명부**로 잰 값이어야 한다(2026-08-06).
+        """성적은 **화면이 실제로 뒤지는 명부**로 잰 값이어야 한다.
 
-        그전 숫자(69.5 · 기준선 65.4)는 나스닥100 96종목으로 잰 것이라 화면이
-        찾는 대상과 달랐다. 테마 198종목으로 다시 재니 낙폭은 기준선을 못 넘는다.
+        2026-08-06에 나스닥100 96종목 → 대형주 명부로 바꿔 다시 쟀고,
+        2026-08-07에 그물을 격자로 다시 잡으면서 또 다시 쟀다
+        (나스닥 -10~-20% 가장 깊은 날 · 종목 -20~-30% · 250거래일).
+        화면 숫자와 코드 숫자가 어긋나면 화면이 거짓말을 한다.
         """
-        frames = {"AAPL": _frame_with_high(200, -40.0)}
+        frames = {"AAPL": _frame_with_high(200, -25.0)}
         row = self._run_crash(frames)["rows"][0]
+        (shallow,) = j3.CRASH_REBOUND_RULES
         self.assertEqual(
-            (68.3, 16.3, 69.5),
+            (shallow["win_rate"], shallow["median_return"], shallow["base_win_rate"]),
             (row["win_rate"], row["median_return"], row["base_win_rate"]),
         )
+        # 기준선을 이겼는지가 숫자와 맞아야 한다.
+        self.assertGreater(shallow["win_rate"], shallow["base_win_rate"])
 
     def test_rank_uses_the_verified_signal_first(self):
         """순위 기준은 재 보고 정했다(2026-08-01) — docs/US_RANK_BACKTEST.md.
@@ -346,14 +353,16 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertAlmostEqual(12.5, half)
         self.assertAlmostEqual(12.5, j3.recent_drop_points(None, 25.0))
 
-    def test_crash_scores_the_shallow_bucket_higher_than_the_deep_one(self):
-        """깊다고 더 좋지 않았다 — 20~30% 68.9% · 30~50% 68.3%(기준 69.5%)."""
-        base = {"metrics": {}, "together_tier": 0, "together_count": 0,
-                "recent_gain_pct": 0.0}
-        shallow = j3.crash_rebound_score({**base, "bucket": "shallow"})["score"]
-        deep = j3.crash_rebound_score({**base, "bucket": "deep"})["score"]
-        self.assertGreater(shallow, deep)
-        self.assertAlmostEqual(7.5, shallow - deep)
+    def test_only_the_shallow_bucket_survived(self):
+        """2026-08-07 격자 — 깊은 갈래(-30~-50%)는 3년 창 검사를 통과하지 못했다.
+
+        얕은 낙폭(-20~-30%)을 **1년** 들고 있는 것 하나만 남았다. 깊은 갈래를
+        되살리면 검증이 부정한 자리를 목록에 올리게 된다.
+        """
+        (shallow,) = j3.CRASH_REBOUND_RULES
+        self.assertEqual("shallow", shallow["key"])
+        self.assertEqual(250, shallow["hold_days"])
+        self.assertGreater(shallow["win_rate"], shallow["base_win_rate"])
 
     def test_rulebook_plans_carry_no_stop_loss(self):
         row = {"metrics": {"from_high_pct": -5.0, "current": 100.0, "ret60": 20.0},

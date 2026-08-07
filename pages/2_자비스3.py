@@ -867,7 +867,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080720
+_REQUIRED_J3_REVISION = 2026080740
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -3548,7 +3548,17 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 f"같은 기간 <u>아무 날 아무 종목이나</u> 샀으면 6개월에 100번 중 "
                 f"{result.get('base_win_rate')}번 이익 · 가운데 값 "
                 f"+{result.get('base_median_return')}%였습니다. 아래 숫자는 "
-                "<u>과거를 잰 것</u>이며 이 종목들의 성적이 아닙니다.</div>",
+                "<u>과거를 잰 것</u>이며 이 종목들의 성적이 아닙니다.<br>"
+                # 2026-08-07 — 그물 자체를 격자로 다 재 보고 알게 된 것. 감추면 안 된다.
+                "<b class='j3-down'>⚠ 이 그물은 아직 검증되지 않았습니다.</b> "
+                "2026-08-07에 기다린 날·눌린 폭·보유기간·시장조건을 바꿔 가며 "
+                "<b>144가지</b>를 3년 창으로 다 재 봤는데 <b>하나도 기준선을 넘지 "
+                "못했습니다</b>(가장 나은 조합도 가운데 +2.1%p). 지난 10년 나스닥이 "
+                "해마다 20.9%씩 올라 <u>아무 대형주나 사도 6개월에 100번 중 65번</u> "
+                "벌던 시장이라, 골라내는 값이 표시가 안 납니다. "
+                "<b>순위는 참고로만 보시고, 목록으로 읽으십시오.</b> "
+                "같은 방법으로 한국은 192가지 중 41가지가 통과했습니다"
+                "(docs/KR_RULE_BACKTEST.md).</div>",
                 unsafe_allow_html=True,
             )
         else:
