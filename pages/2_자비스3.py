@@ -3686,10 +3686,17 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     volume_head = "최근 11일"
     head_cells = (["티커", "당일주가"] + drop_heads
                   + ["소속 테마", third, "보유일수", "같이 걸린 종목", volume_head])
+    # **상승장은 '순위'라고 부르지 않는다**(2026-08-07). 그물을 144가지로 다 재도
+    # 하나도 기준선을 못 넘었다 — 그 위에서 매긴 차례를 1위·2위로 보이면 화면이
+    # 검증되지 않은 것을 검증된 것처럼 말하게 된다. 그냥 번호다.
+    # 급락 후 반등장은 그물이 통과했으므로 '순위' 그대로 쓴다.
+    rank_head = "번호" if breakout else "순위"
     table_box = st.container(key="j3_rulebook_table")
     head = table_box.columns(row_widths)
-    head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
-    head[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
+    head[0].markdown(f"<div class='j3-th-head'>{rank_head}</div>", unsafe_allow_html=True)
+    head[1].markdown(
+        f"<div class='j3-th-head'>{'점수 (참고)' if breakout else '점수'}</div>",
+        unsafe_allow_html=True)
     head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[3].markdown(
         _flex_row(rest_widths, head_cells, head=True),
@@ -3711,7 +3718,9 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             )
             # 접힌 쪽에도 머리글을 한 번 붙인다 — 없으면 어느 칸이 무엇인지 모른다.
             over_head = overflow_box.columns(row_widths)
-            for column, title in zip(over_head, ("순위", "점수", "종목")):
+            for column, title in zip(
+                    over_head,
+                    (rank_head, "점수 (참고)" if breakout else "점수", "종목")):
                 column.markdown(f"<div class='j3-th-head'>{title}</div>",
                                 unsafe_allow_html=True)
             over_head[3].markdown(

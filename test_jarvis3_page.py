@@ -1081,10 +1081,15 @@ class Jarvis3PageTests(unittest.TestCase):
             if "j3-th-head" in str(node.value) and "점수" in str(node.value)
         )
         self.assertIn("점수", header)
+        # 2026-08-07 — 상승장은 그물이 144가지 중 하나도 기준선을 못 넘었다.
+        # 그래서 칸 이름이 '순위'가 아니라 '번호', 점수는 '점수 (참고)'다.
+        # 검증되지 않은 차례를 1위·2위처럼 보이면 화면이 거짓말을 한다.
+        self.assertIn("번호", header + " ".join(str(n.value) for n in app.markdown))
+        self.assertIn("점수 (참고)", " ".join(str(n.value) for n in app.markdown))
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
-        self.assertLess(block.index("'j3-th-head'>순위"), block.index("'j3-th-head'>점수"))
-        self.assertLess(block.index("'j3-th-head'>점수"), block.index("'j3-th-head'>종목"))
+        self.assertLess(block.index("{rank_head}"), block.index("점수 (참고)"))
+        self.assertLess(block.index("점수 (참고)"), block.index("'j3-th-head'>종목"))
 
     def test_the_detail_says_each_thing_once(self):
         """같은 말을 되풀이하지 않는다(2026-08-06 상하님 지적).
