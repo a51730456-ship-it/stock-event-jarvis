@@ -3180,6 +3180,10 @@ def _render_theme_finder(forced: list[str]) -> None:
                 st.rerun()
 
 
+# 표에서 펴 두는 줄 수. 나머지는 '더 보기'로 접는다(2026-08-07, 미국과 같다).
+_RULEBOOK_OPEN_ROWS = 15
+
+
 # 낙폭 두 갈래의 색 — 미국테마와 같은 규칙이다(2026-08-01).
 _BAND_CARD_CLASS = {"deep": "j4-card-deep", "mid": "j4-card-mid"}
 _BAND_CELL_CLASS = {"deep": "j4-band-deep", "mid": "j4-band-mid"}
@@ -3358,10 +3362,25 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     head[0].markdown("<div class='j4-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j4-th-head'>종목</div>", unsafe_allow_html=True)
     head[2].markdown(_flex_row(rest_widths, headers, head=True), unsafe_allow_html=True)
+    # 20줄을 다 펴 놓으면 화면이 길다(2026-08-07, 미국테마와 같은 방식).
+    # 앞 15줄만 펴 두고 나머지는 접는다. 접힌 쪽에도 머리글을 한 번 붙인다 —
+    # 없으면 어느 칸이 무엇인지 알 수 없다.
+    overflow_box = None
     for index, row in enumerate(rows):
+        if index == _RULEBOOK_OPEN_ROWS and len(rows) > _RULEBOOK_OPEN_ROWS:
+            overflow_box = st.expander(
+                f"{_RULEBOOK_OPEN_ROWS + 1}위~{len(rows)}위 더 보기")
+            over_head = overflow_box.columns(row_widths)
+            over_head[0].markdown("<div class='j4-th-head'>순위</div>",
+                                  unsafe_allow_html=True)
+            over_head[1].markdown("<div class='j4-th-head'>종목</div>",
+                                  unsafe_allow_html=True)
+            over_head[2].markdown(_flex_row(rest_widths, headers, head=True),
+                                  unsafe_allow_html=True)
+        box_for_row = table_box if index < _RULEBOOK_OPEN_ROWS else overflow_box
         metrics = row.get("metrics") or {}
         from_high = metrics.get("from_high_pct")
-        cols = table_box.columns(row_widths)
+        cols = box_for_row.columns(row_widths)
         cols[0].markdown(
             f"<div class='j4-td'>{int(row.get('pullback_rank') or index + 1)}</div>",
             unsafe_allow_html=True,
