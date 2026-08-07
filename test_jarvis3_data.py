@@ -312,14 +312,18 @@ class RulebookScreenTests(unittest.TestCase):
             self.assertEqual(100.0, sum(weights.values()))
             # 거래대금 연속은 양쪽 갈래 다 거꾸로였다 — 배점에서 뺐다.
             self.assertNotIn("volume_streak", weights)
-        # 두 갈래 모두 테마가 1등이다(2026-08-06 상하님 판단 — "앞으로 5년도 테마가
-        # 주도한다"). 급락에서 테마는 뒤 5년만 이겼지만(앞 -2.8 / 뒤 +6.3), 테마
-        # 결속력이 앞 5년 0.186 → 뒤 5년 0.223으로 커지고 2026년이 10년 중 가장
-        # 높다는 자료가 뒷받침한다(research/theme_cohesion_by_year.py).
-        # **1년 뒤 다시 재서 성적이 안 따라왔으면 11일 40 / 테마 25로 바꾼다.**
+        # 두 갈래 모두 테마가 1등이다. 2026-08-07에 그물을 격자로 다시 잡고
+        # 그 위에서 배점도 다시 쟀다(research/us_score_new.py).
         for weights in (j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS):
             self.assertEqual(40.0, weights["together"])
-            self.assertEqual(25.0, weights["recent_drop"])
+        # **급락 후 반등장에서 '최근 11일'은 거꾸로가 됐다.** 새 그물(250거래일
+        # 보유)에서 4/11 · 1/1 · 0/0으로 거의 모든 창에서 졌다. 1년을 들 거면
+        # 이미 돌아선 종목이 낫다는 뜻이다. 되살리면 검증이 부정한 값으로
+        # 순위를 매기게 된다.
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["recent_drop"])
+        self.assertEqual(25.0, j3.BREAKOUT_SCORE_WEIGHTS["recent_drop"])
+        # 낙폭 갈래도 0점이다 — 갈래가 하나뿐이라 모두 같은 점수를 받아 못 가른다.
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["bucket"])
         # 60일 상승폭도 뺐다 — 가운데 값만 크고 이기는 횟수는 뒤 5년에 졌다.
         self.assertNotIn("ret60", j3.BREAKOUT_SCORE_WEIGHTS)
 
@@ -335,13 +339,26 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(20.0, j3.theme_together_points(1, 40.0))
         self.assertEqual(20.0, j3.theme_together_points(2, 40.0))
         self.assertEqual(0.0, j3.theme_together_points(0, 40.0))
-        # 두 갈래 점수 모두 이 자를 써야 한다.
-        for scorer, full in ((j3.breakout_score, 40.0), (j3.crash_rebound_score, 40.0)):
-            row = {"metrics": {}, "together_count": 1, "together_tier": 0,
-                   "recent_gain_pct": 0.0, "bucket": "shallow"}
-            points = next(value for name, value, _m, _t in scorer(row)["parts"]
-                          if name == "같은 테마 동반")
-            self.assertEqual(full / 2, points, f"{scorer.__name__}이 1개를 0점으로 준다")
+        # 상승장은 이 자를 그대로 쓴다.
+        row = {"metrics": {}, "together_count": 1, "together_tier": 0,
+               "recent_gain_pct": 0.0}
+        points = next(value for name, value, _m, _t in j3.breakout_score(row)["parts"]
+                      if name == "같은 테마 동반")
+        self.assertEqual(20.0, points, "상승장이 1개를 0점으로 준다")
+        # **급락 후 반등장은 문턱이 4개다**(2026-08-07 새 그물 실측). 3개↑는
+        # 그물의 55%가 해당돼 못 가른다(75/46 · 85/64 · 99/88).
+        self.assertEqual(4, j3.CRASH_TOGETHER_FULL)
+
+        def crash_points(count):
+            return next(
+                value for name, value, _m, _t in j3.crash_rebound_score(
+                    {"metrics": {}, "together_count": count, "bucket": "shallow"}
+                )["parts"] if name == "같은 테마 동반")
+
+        self.assertEqual(40.0, crash_points(4))
+        self.assertEqual(20.0, crash_points(3))
+        self.assertEqual(20.0, crash_points(2))
+        self.assertEqual(0.0, crash_points(1))
 
     def test_recent_drop_scores_the_fall_not_the_rally(self):
         """낙폭(구덩이 깊이)과 다른 것을 잰다 — 방금 빠졌나 이미 올라왔나."""
