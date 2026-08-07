@@ -206,5 +206,66 @@ def together() -> None:
                     print(line(label, result))
 
 
+# ── ③ 해마다 갈라 보기 ─────────────────────────────────────────────────
+def yearly() -> None:
+    """**자르는 날 하나에 기대지 않는다** (2026-08-07 상하님 지적).
+
+    앞 6년·뒤 6년으로 가른 자리가 하필 코로나 폭락(2020-03) 바로 뒤였다. 바닥에서
+    자르면 뒤쪽은 뭘 해도 좋아 보인다. 그래서 **해마다** 다시 재서, 좋은 해에만
+    통한 것인지 12년 내내 통한 것인지 본다.
+
+    숫자는 그해 '규칙'과 '그날 같은 울타리에서 아무 종목이나'의 차이(%p)다.
+    """
+    wide = load_wide()
+    close = wide["close"]
+    dates = close.index
+    value = (close * wide["volume"]).rolling(50, min_periods=20).mean() / 1e8
+    up, down = _signals(wide)
+    columns = list(close.columns)
+
+    groups = _corr_groups(close)
+    ends = np.array(sorted(groups))
+    move_count = np.zeros(up.shape, dtype="int16")
+    array = (up & (value >= 50)).to_numpy()
+    for row in np.nonzero(array.any(axis=1))[0]:
+        picked = np.nonzero(array[row])[0]
+        if row + 1 < ends[0]:
+            continue
+        position = ends[np.searchsorted(ends, row + 1) - 1]
+        block = groups[position][np.ix_(picked, picked)]
+        move_count[row, picked] = np.nan_to_num(block).sum(axis=1)
+    moves = pd.DataFrame(move_count, index=dates, columns=close.columns)
+
+    cases = (
+        ("상승장 · 거래대금 500억↑", up & (value >= 500), value >= 500, 120),
+        ("상승장 · 같이 움직이는 무리 4개↑", up & (value >= 50) & (moves >= 4),
+         value >= 50, 120),
+        ("급락장 · -40~-50% 낙폭", down & (value >= 10), value >= 10, 60),
+    )
+    years = sorted({date.year for date in dates})
+    print(f"{'':34}" + "".join(f"{year:>7}" for year in years))
+    for title, mask, pool, hold in cases:
+        returns = forward_returns(wide, hold)
+        cells, wins, total = [], 0, 0
+        for year in years:
+            window = np.array([date.year == year for date in dates])
+            picked = returns[window].where(mask[window])
+            values = picked.to_numpy().ravel()
+            values = values[~np.isnan(values)]
+            if values.size < 20:
+                cells.append("     ·")
+                continue
+            active = mask[window].any(axis=1).to_numpy()
+            base = returns[window].where(pool[window])[active].to_numpy().ravel()
+            base = base[~np.isnan(base)]
+            edge = (values > 0).mean() * 100 - (base > 0).mean() * 100
+            cells.append(f"{edge:+7.1f}")
+            total += 1
+            wins += edge > 0
+        print(f"{title:<34}" + "".join(cells) + f"   → {wins}/{total}년 이김")
+    print("\n· = 그해 자리가 20개 미만이라 재지 않음")
+
+
 if __name__ == "__main__":
-    {"shares": fetch_shares, "cap": cap, "together": together}[sys.argv[1]]()
+    {"shares": fetch_shares, "cap": cap, "together": together,
+     "yearly": yearly}[sys.argv[1]]()
