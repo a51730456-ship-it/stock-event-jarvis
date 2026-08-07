@@ -1158,7 +1158,12 @@ def _render_market_overview() -> None:
     ]
     # 게이지 스타일은 지표 줄과 따로 내보낸다 — 줄 안에 <style>을 끼워 넣으면
     # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버린다(2026-07-24 실제 깨짐).
-    st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
+    # **gauge_ui.CSS를 같이 내보내야 한다**(2026-08-07 상하님 지적 "한국 시장국면은
+    # 마우스 대고 꼼짝을 안 하냐"). 게이지 바늘이 손 올렸을 때 살짝 흔들리는 규칙은
+    # gauge_ui.CSS에 있는데 자비스4는 fear_greed_ui.CSS만 내보내고 있었다.
+    # 미국테마(자비스3)는 둘 다 내보낸다.
+    st.markdown(f"<style>{gauge_ui.CSS}{fear_greed_ui.CSS}</style>",
+                unsafe_allow_html=True)
     st.markdown(f"<div class='j4-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     # 게이지 그림과 바로 아래 조건점수 설명 단추가 붙어 보이지 않게 한 줄 띄운다.
     st.markdown("<div class='j4-gauge-after-gap' style='height:18px'></div>", unsafe_allow_html=True)
