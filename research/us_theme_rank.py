@@ -41,9 +41,13 @@ def per_theme(frame: pd.DataFrame, themes: tuple, how: str = "mean") -> pd.DataF
 
 
 def top_rank(theme_values: pd.DataFrame, themes_of: dict[str, set],
-             columns, top: int) -> pd.DataFrame:
-    """그날 테마를 줄 세워 상위 top등 안에 드는 테마에 속하면 True."""
-    ranks = theme_values.rank(axis=1, ascending=False, method="min")
+             columns, top: int, *, bottom: bool = False) -> pd.DataFrame:
+    """그날 테마를 줄 세워 상위(또는 하위) top등 안에 드는 테마에 속하면 True.
+
+    bottom=True는 **뒤처진 테마**를 고른다 — 순환매라면 앞선 테마가 아니라
+    뒤따라오는 테마가 나을 수도 있어서 같이 잰다(2026-08-07 상하님 지시).
+    """
+    ranks = theme_values.rank(axis=1, ascending=bool(bottom), method="min")
     winners = ranks <= top
     out = {}
     for stock in columns:
@@ -116,17 +120,27 @@ def main() -> None:
     print("칸은 '승률로 이긴 창% / 수익률로 이긴 창%(창 개수)'")
     print("테마 20개를 그날 줄 세워 상위 몇 등 안에 드는 테마에 속하면 해당.\n")
 
-    for title, net in (("급락 후 반등장", crash), ("상승장", breakout)):
+    # **테마 없는 종목은 아예 뺀다**(2026-08-07). 명부 200개 중 63개가 어느 테마에도
+    # 안 속해, 넣어 두면 '테마 있는 종목 vs 없는 종목'을 재게 된다.
+    has_theme = pd.DataFrame(
+        np.repeat(np.array([[s in themes_of for s in close.columns]]), len(dates), axis=0),
+        index=dates, columns=close.columns)
+    print(f"명부 {len(stocks)}종목 중 테마 있는 것 {len(themes_of)}개만 쓴다.\n")
+
+    for title, raw_net in (("상승장", breakout), ("급락 후 반등장", crash)):
+        net = raw_net & has_theme
         in_net = net.to_numpy()
-        print(f"\n{'=' * 108}\n### 미국 {title} — 그물에 걸린 자리 {int(in_net.sum()):,}개"
+        print(f"\n{'=' * 108}\n### 미국 {title} — 테마 있는 종목 {int(in_net.sum()):,}자리"
               f"\n{'=' * 108}")
         print(f"  {'후보':<26}{'해당':>5}" + "".join(f"{y:>7}년       " for y in WINDOWS))
         for name, values in measures.items():
-            for top in (3, 5, 7):
-                factor = top_rank(values, themes_of, close.columns, top)
+            for top, bottom in ((3, False), (5, False), (7, False),
+                                (3, True), (5, True)):
+                factor = top_rank(values, themes_of, close.columns, top, bottom=bottom)
                 factor = factor.reindex(index=dates, columns=close.columns).fillna(False)
                 share = float(factor.to_numpy()[in_net].mean() * 100)
-                show(f"{name} 상위 {top}등", share, score(returns, net, factor))
+                label = f"{name} {'하위' if bottom else '상위'} {top}등"
+                show(label, share, score(returns, net, factor))
             print()
 
 
