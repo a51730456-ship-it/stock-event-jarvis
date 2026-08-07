@@ -2339,14 +2339,19 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
             st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
         _section_close(f"j4_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
 
-    st.markdown("<div class='j4-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
+    # **넷 중 둘은 바로 위를 소리 내어 다시 읽는 것이었다**(2026-08-07, 미국테마와
+    # 같은 정리). '종목 근거'는 배점표가, '매수 근거'는 매수 심사 카드가 이미
+    # 말한다. 시장·테마 둘만 이 상세에서 처음 나오는 이야기다.
+    st.markdown("<div class='j4-section-title'>이 종목을 찾은 배경</div>",
+                unsafe_allow_html=True)
     reason_cards = [
-        ("시장 근거", f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"),
-        ("테마 근거", theme_row.get("basis", "자료부족")),
-        ("종목 근거", leader["stock_reason"]),
-        ("매수 근거", plan.get("buy_reason", "자료부족")),
+        ("시장 상황", f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"),
+        ("테마 상황",
+         html.escape(str(theme_row.get("basis") or "자료부족"))
+         + "<div class='j4-reason-sub'>위 <b>테마 순위표</b>가 이 테마를 잰 값입니다. "
+           "왼쪽 배점표의 ‘같은 테마 동반’과는 <b>다른 자</b>입니다.</div>"),
     ]
-    for column, (title, body) in zip(st.columns(4), reason_cards):
+    for column, (title, body) in zip(st.columns(2), reason_cards):
         column.markdown(
             f"<div class='j4-reason-card'><div class='j4-reason-title'>{title}</div>"
             f"<div class='j4-reason-body'>{body}</div></div>",
