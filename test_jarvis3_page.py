@@ -991,7 +991,10 @@ class Jarvis3PageTests(unittest.TestCase):
         app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
                                   _breakout_result(), help_open=False)
         joined = " ".join(str(node.value) for node in app.markdown)
-        self.assertNotIn("점수를 매기는 기준", joined, "설명이 접히지 않았다")
+        # '점수를 매기는 기준'은 더 이상 여기서 못 본다 — 2026-08-07부터 종목 상세
+        # 안에도 접힌 채로 한 벌 들어간다(순위 7에서 열면 위에 설명 단추가 없어
+        # "없는데?"라는 지적을 받았다). AppTest는 접힌 것도 다 그려 놓으므로
+        # 이 문구로는 접혔는지 알 수 없다. 설명 구역에만 있는 '찾는 그물'로 본다.
         self.assertNotIn("찾는 그물", joined, "설명이 접히지 않았다")
         self.assertTrue(any("이 화면 설명 보기" in str(node.label) for node in app.button),
                         "설명을 펴는 단추가 없다")
@@ -1147,6 +1150,23 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3-reason-sub", block)
         # 예전 문구가 남아 있으면 무엇을 잰 점수인지 다시 알 수 없어진다.
         self.assertNotIn("최고 테마 점수", block)
+
+    def test_the_detail_does_not_point_at_a_button_that_is_not_there(self):
+        """"표 위 설명 보기에 있습니다"가 없는 곳을 가리켰다(2026-08-07 지적).
+
+        이 상세는 **순위 7에서도 열린다.** 거기에는 그 단추가 없어서 가리킨 곳에
+        아무것도 없었다. 상하님 지시("중요하지 않으면 빼라")대로 그 줄을 뺐다 —
+        배점표는 표 위 설명 구역에 그대로 있고, 무슨 항목에 몇 점인지는 바로 위
+        '종목 선정 근거' 표가 이미 다 보여준다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
+        self.assertNotIn("표 위 ‘이 화면 설명 보기’에 있습니다", block)
+        # 갈래가 아닌 화면(눌림 점수 표)의 안내는 그대로 남는다.
+        self.assertIn("눌림 점수는 지금이 눌림 자리로 좋은지", block)
+        # 순위 7도 이 상세를 쓴다 — 그래서 여기서 다른 구역을 가리키면 안 된다.
+        self.assertIn("_render_pullback_detail(picked, market, ranking, mode=origin_mode)",
+                      source)
 
     def test_the_backdrop_is_two_cards_above_the_score_table(self):
         """네 칸 중 둘은 바로 위 판을 소리 내어 다시 읽는 것이었다(2026-08-07).
