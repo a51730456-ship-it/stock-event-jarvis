@@ -178,6 +178,44 @@ st.markdown(
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .j4-theme-box { background: rgba(77,166,255,0.08); border: 1px solid rgba(77,166,255,0.3); border-radius: 0.55rem; padding: 0.7rem 0.9rem; font-size: 0.95rem; line-height: 1.7; margin-bottom: 0.6rem; }
+    /* ── 지수 칸: 당일 ↔ 일봉 6개월 (2026-08-07, 미국테마와 같은 방식) ────────
+       두 그림을 한 틀에 포개 둬서 **자리를 새로 만들지 않는다** — 바뀌어도 아래
+       화면이 밀리지 않고 옆 칸을 덮지도 않는다.
+       :hover는 **마우스가 주된 장치일 때만** 둔다. 안 그러면 손으로 눌러 붙잡힌
+       hover와 체크상자가 싸워 다시 안 돌아온다. */
+    .j4-idx-swap { position: relative; overflow: hidden; border-radius: .5rem; }
+    .j4-idx-swap > div { transition: opacity .5s ease, transform .5s ease; }
+    .j4-idx-swap .j4-idx-now { opacity: 1; transform: translateX(0); }
+    .j4-idx-swap .j4-idx-more {
+        position: absolute; inset: 0;
+        opacity: 0; transform: translateX(26px); pointer-events: none;
+    }
+    .j4-idx-more svg {
+        border: 2px solid #4da6ff !important; border-radius: .5rem;
+        box-shadow: 0 0 10px rgba(77,166,255,.28);
+    }
+    .j4-idx-tap { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+    .j4-idx-tapzone { position: absolute; inset: 0; z-index: 3; cursor: pointer; }
+    .j4-idx-swap .j4-idx-tap:checked ~ .j4-idx-now {
+        opacity: 0; transform: translateX(-26px);
+        transition: opacity .24s ease-out, transform .24s ease-out;
+    }
+    .j4-idx-swap .j4-idx-tap:checked ~ .j4-idx-more {
+        opacity: 1; transform: translateX(0);
+        transition: opacity .24s ease-out, transform .24s ease-out;
+    }
+    @media (hover: hover) and (pointer: fine) {
+        .j4-top-cell:hover .j4-idx-swap .j4-idx-now {
+            opacity: 0; transform: translateX(-26px);
+            transition: opacity .24s ease-out, transform .24s ease-out;
+        }
+        .j4-top-cell:hover .j4-idx-swap .j4-idx-more {
+            opacity: 1; transform: translateX(0);
+            transition: opacity .24s ease-out, transform .24s ease-out;
+        }
+    }
+    .j4-idx-cap { color: #9aa0aa; font-size: .78rem; font-weight: 700; text-align: center; }
+    .j4-idx-cap-daily { color: #4da6ff; font-weight: 800; }
     /* ── 손을 올리면 살짝 뜬다 (2026-08-07, 미국테마와 같은 결) ───────────────
        0.12초로 짧게 둔다 — 길면 누를 때마다 다시 재생돼 거슬린다.
        떠오르는 등장 애니메이션은 넣지 않는다(2026-08-06 미국에서 어지럽다고
@@ -654,7 +692,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026080730
+_REQUIRED_J4_REVISION = 2026080750
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -1088,13 +1126,15 @@ def _render_market_overview() -> None:
         _top_metric("코스피", _number(kospi.get("current"), 2), "#e6e6e6", kospi.get("change_pct"),
                     sub_signed=True).replace("<div class='j4-top-cell'",
             "<div class='j4-top-cell'", 1).replace("</div></div>", "</div>"
-            + _sparkline_svg(_kr_index_chart("KOSPI", kospi.get("as_of_date")),
-                             "#ff5b5b", "#4da6ff") + "</div>", 1),
+            + _index_chart_swap(_sparkline_svg(
+                _kr_index_chart("KOSPI", kospi.get("as_of_date")),
+                "#ff5b5b", "#4da6ff"), "KS11", "KOSPI") + "</div>", 1),
         _top_metric("코스닥", _number(kosdaq.get("current"), 2), "#e6e6e6", kosdaq.get("change_pct"),
                     sub_signed=True).replace("<div class='j4-top-cell'",
             "<div class='j4-top-cell'", 1).replace("</div></div>", "</div>"
-            + _sparkline_svg(_kr_index_chart("KOSDAQ", kosdaq.get("as_of_date")),
-                             "#ff5b5b", "#4da6ff") + "</div>", 1),
+            + _index_chart_swap(_sparkline_svg(
+                _kr_index_chart("KOSDAQ", kosdaq.get("as_of_date")),
+                "#ff5b5b", "#4da6ff"), "KQ11", "KOSDAQ") + "</div>", 1),
         _fx_cell(),
         # 미국 4대 지수 그림을 여기에도 붙인다(2026-07-25 사용자 지시). 값·기준선은
         # 그 분봉 자료에서 바로 뽑으므로 한국 화면이 미국 시세를 따로 조회하지 않는다.
@@ -1370,6 +1410,37 @@ _MUSTARD_KEYS = (
     "손절가가 없습니다",
     "손절가는 없습니다",
 )
+
+
+def _index_chart_swap(today_svg: str, symbol: str, key: str,
+                      *, width: float = 120.0, height: int = 90) -> str:
+    """'당일' 그림과 '일봉 6개월' 그림을 같은 자리에 겹쳐 두고 바꿔 보여 준다.
+
+    미국테마(자비스3)와 같은 방식이다. 마우스는 올리기만 하면 되고, **손가락은
+    눌렀다 다시 누르면 돌아온다** — 숨긴 체크상자가 그 몫을 한다. :hover만 두면
+    손으로 누른 자리를 브라우저가 붙잡아 둬서 두 번째 누름이 먹지 않는다.
+    """
+    if not today_svg:
+        return ""
+    spark = j4data.get_index_daily_spark(symbol)
+    points = spark.get("points") or []
+    if len(points) < 2:
+        return today_svg
+    daily_svg = _sparkline_svg({"points": points, "base": spark.get("base")},
+                               "#4da6ff", "#ff5b5b")
+    if not daily_svg:
+        return today_svg
+    tap = "j4idx_" + re.sub(r"[^0-9A-Za-z]+", "", str(key))
+    return (
+        "<div class='j4-idx-swap'>"
+        f"<input type='checkbox' id='{tap}' class='j4-idx-tap'>"
+        f"<label for='{tap}' class='j4-idx-tapzone'></label>"
+        f"<div class='j4-idx-now'>{today_svg}"
+        "<div class='j4-idx-cap'>당일</div></div>"
+        f"<div class='j4-idx-more'>{daily_svg}"
+        "<div class='j4-idx-cap j4-idx-cap-daily'>일봉 6개월</div></div>"
+        "</div>"
+    )
 
 
 def _mustard_html(text) -> str:

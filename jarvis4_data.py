@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080730
+MODULE_REVISION = 2026080750
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1009,6 +1009,36 @@ def _thin_points(points: list) -> list:
     if (len(points) - 1) % step:
         thinned.append(points[-1])
     return thinned
+
+
+def get_index_daily_spark(symbol: str, *, days: int = 126,
+                          ttl_seconds: float = 600) -> dict:
+    """지수의 **일봉 6개월** 종가 — 손톱그림에서 '당일'과 바꿔 보여 준다.
+
+    미국테마(자비스3)의 지수 칸은 손을 올리거나 손가락으로 누르면 '당일'에서
+    '일봉 6개월'로 바뀐다. 한국에도 같게 하려면 그 자료가 있어야 하는데 지금은
+    당일 분봉만 있었다(2026-08-07).
+
+    symbol은 야후 표기(^KS11 · ^KQ11 · ^GSPC …)나 _INDEX_DAILY의 값(KS11 …)
+    둘 다 받는다. 실패하면 빈 dict — 그러면 화면은 '당일' 그림만 그린다.
+    """
+    daily = _INDEX_DAILY.get(symbol, symbol).lstrip("^")
+
+    def _produce():
+        frame = _index_frame(daily)
+        if frame is None or getattr(frame, "empty", True) or "Close" not in frame:
+            raise RuntimeError("일봉 없음")
+        closes = [float(v) for v in frame["Close"].dropna().tolist()[-int(days):]]
+        if len(closes) < 2:
+            raise RuntimeError("일봉이 너무 짧다")
+        return {"points": closes, "base": closes[0]}
+
+    try:
+        value, _stale = _cached(("index_daily_spark", daily, int(days)),
+                                ttl_seconds, _produce)
+    except Exception:
+        return {}
+    return value
 
 
 def _index_metrics(symbol: str, live_price: float | None = None) -> dict:
