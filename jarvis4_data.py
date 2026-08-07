@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080610
+MODULE_REVISION = 2026080730
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -2599,27 +2599,44 @@ def score_at_past(
 # **baseline은 반드시 같이 보여 준다.** '아무 날이나 사서 같은 기간 들고 있었을 때'의
 # 성적이다. 규칙 성적만 적으면 좋아 보이지만, 기준선과 견줘야 규칙이 값을 했는지
 # 알 수 있다 — 실제로 낙폭 얕은 갈래는 기준선보다 못했다.
+# ── 2026-08-07 전면 재측정 ──────────────────────────────────────────────────
+# **그물과 배점을 통째로 다시 잡았다.** 그전 값은 두 가지가 어긋나 있었다.
+#   ① 시총 상위 197종목으로 쟀는데 화면이 실제로 뒤지는 것은 **테마 2,272종목**이다.
+#   ② 12년을 통째로 한 번만 쟀다. 이번에는 **3년짜리 창을 한 달씩 밀며 100번 넘게**
+#      재고, 창 2·3·4년 모두에서 승률·수익률 둘 다 이겨야 인정했다.
+#      (자르는 날 하나에 기대면 안 된다 — 2026-08-07 상하님 지적.)
+# 격자로 상승 192조합·급락 240조합을 다 재서 고른 것이다.
+# 측정 코드: research/kr_net_grid.py · research/kr_score_new.py
+#
+# **거래대금 50억 문턱이 새로 들어갔다.** 그 아래에서는 규칙이 앞 시기에 졌다.
+KR_LIQUIDITY_FLOOR = 50e8          # 그물에 넣을 최소 50일 평균 거래대금(50억)
+
 BREAKOUT_PULLBACK_RULE = {
-    "wait_days": (3, 5),        # 52주 신고가 돌파 뒤 기다리는 거래일
+    "wait_days": (3, 10),       # 52주 신고가 돌파 뒤 기다리는 거래일
     "drop_band": (-6.0, -4.0),  # 그 고점에서 눌린 폭
-    "hold_days": 120,
+    "hold_days": 250,           # 약 1년. 120일보다 세 창 모두에서 나았다.
+    "liquidity_floor": KR_LIQUIDITY_FLOOR,
     "verified_in_korea": True,
-    "win_rate": 56.3, "sample": 1816, "avg_return": 15.0, "median_return": 4.3,
-    "base_win_rate": 53.6, "base_avg_return": 11.5, "base_median_return": 2.1,
-    "years_better": 7, "years_total": 12,
+    # 테마 명부 2,272종목 3,000거래일. 자리 7,410건 · 신호 난 날 2,310일.
+    "win_rate": 43.4, "sample": 7410, "median_return": -6.6,
+    "base_win_rate": 35.1, "base_median_return": -14.0,
+    "years_better": 9, "years_total": 11,
+    # 창 2·3·4년 전부에서 이겼다(가운데 +8.7%p · 가장 나쁜 창 +0.0%p).
+    "windows_won": "321/321",
 }
 CRASH_REBOUND_RULES = (
-    {"key": "deep", "band": (-50.0, -40.0), "hold_days": 20, "label": "고점 대비 -40~-50%",
-     "win_rate": 68.6, "sample": 175, "avg_return": 7.8, "median_return": 7.5,
-     "base_win_rate": 59.0, "base_median_return": 2.5, "beats_baseline": True},
-    {"key": "mid", "band": (-40.0, -30.0), "hold_days": 60, "label": "고점 대비 -30~-40%",
-     "win_rate": 66.0, "sample": 215, "avg_return": 13.9, "median_return": 5.7,
-     "base_win_rate": 66.2, "base_median_return": 7.1, "beats_baseline": False},
+    {"key": "deep", "band": (-60.0, -40.0), "hold_days": 20, "label": "고점 대비 -40~-60%",
+     "win_rate": 66.6, "sample": 3739, "median_return": 6.1,
+     "base_win_rate": 62.1, "base_median_return": 4.1, "beats_baseline": True,
+     "windows_won": "306/306"},
 )
-# 12년 동안 코스피가 급락했다가 처음 반등한 날은 여덟 번뿐이다. 거래 수는 수백 건이지만
-# 사실상 **여덟 번의 사건**이라, 승률을 앞으로의 확률로 읽으면 안 된다.
-CRASH_REBOUND_EVENTS = 8
-KR_BACKTEST_SPAN = "2014-05 ~ 2026-07(12년) · 대형주 197종목"
+# 코스피가 고점 대비 -15% 아래로 내려간 국면에서 **가장 깊었던 날**이 신호다.
+# 12년에 스물아홉 번 났다(옛 규칙 '첫 반등일'은 여덟 번뿐이었다 — 기회가 세 배 넘게
+# 늘었고 성적은 더 좋았다). 그래도 사실상 스물아홉 번의 사건이라, 승률을 앞으로의
+# 확률로 읽으면 안 된다.
+CRASH_MARKET_DROP = -15.0
+CRASH_REBOUND_EVENTS = 29
+KR_BACKTEST_SPAN = "2014-05 ~ 2026-08(12년) · 테마 명부 2,272종목"
 
 # 낙폭 종목의 순위 기준 (2026-08-01 사용자 지시). 두 가지를 순서대로 본다.
 #
@@ -2676,9 +2693,42 @@ def _is_basket_theme(name: str) -> bool:
 #                        구간에서 더 뚜렷했다(3일 이상 53.0번 vs 1일 이하 54.9번).
 #                        둘이 사는 동안 값이 이미 올라 따라 들어가면 늦기 때문이다.
 #                        **표에는 그대로 보여 주되 점수와 순위에서는 뺀다.**
+#
+# ── 2026-08-07 다시 잼 — 위 주석의 옛 배점은 **버린다** ──────────────────────
+# 새 그물(코스피 -15% 국면 가장 깊은 날 · 거래대금 50억↑ · 종목 -40~-60% · 20거래일)
+# 위에서 후보 17개를 창 2·3·4년으로 다시 쟀다. 그물 안 3,907자리.
+# 칸은 '승률로 이긴 창% / 수익률로 이긴 창%'.
+#
+#   30점 최근 11일에 안 올랐나 — 100/100 · 99/99 · 99/99 (가운데 +16.0%p)
+#                              **+5% 넘게 오른 종목은 0/0 · 0/2 · 0/1로 최악**
+#                              (가운데 -20.9%p · 가장 나쁜 창 -43.7%p). 이미 반등을
+#                              시작한 종목을 사면 안 된다는 뜻이다.
+#   25점 60일에 안 올랐나     — 100/100 · 100/100 · 100/100, 가장 나쁜 창 +2.8%p.
+#   25점 같은 테마 동반       — 3개↑가 100/100 세 창 전부. **미국과 정반대다** —
+#                              미국 급락 후 반등장에서는 동반 개수가 안 붙었는데
+#                              (68%가 해당돼 못 가름) 한국은 붙는다. 한국 테마가
+#                              266개로 잘게 쪼개져 있어서로 보인다.
+#   20점 사고팔기 쉬운가      — 성적 예측이 아니라 '실제로 살 수 있는가'.
+#
+# **뺀 것** — 낙폭 갈래(그물로 이미 한 번 썼다) · 거래대금 연속(새 그물에서 안 붙음)
+#            · 외국인+기관 동반(2026-08-01에 거꾸로로 확인, 그대로 0점)
 CRASH_SCORE_WEIGHTS = {
-    "together": 40.0, "bucket": 25.0, "volume_streak": 20.0, "liquidity": 15.0,
+    "recent11": 30.0, "gain60": 25.0, "together": 25.0, "liquidity": 20.0,
 }
+# 최근 11일 / 60일 등락 → 점수. 빠졌으면 만점, 오를수록 깎고, 많이 올랐으면 0점.
+CRASH_RECENT_FULL, CRASH_RECENT_ZERO = -5.0, 5.0
+CRASH_GAIN60_FULL, CRASH_GAIN60_ZERO = 0.0, 40.0
+
+
+def _fade(value, full: float, zero: float, points: float) -> float:
+    """full이면 만점, zero면 0점, 그 사이는 비례. 모르면 절반."""
+    if value is None:
+        return points * 0.5
+    number = float(value)
+    if (zero - full) == 0:
+        return points
+    ratio = (zero - number) / (zero - full)
+    return float(points) * max(0.0, min(1.0, ratio))
 
 # 거래대금 연속을 그냥 주면 안 된다(2026-08-01 사용자 지적: "이미 오른 상황 아닌가?").
 # 한국 낙폭 구간에서 최근 11일 오름폭을 같게 맞춰 놓고 견준 결과
@@ -2764,25 +2814,25 @@ def crash_rebound_score(row: dict) -> dict:
     weights = CRASH_SCORE_WEIGHTS
     parts = []
 
-    tier = int(row.get("together_tier") or 0)
-    parts.append(("같은 테마 동반", weights["together"] * (tier / 3.0), weights["together"],
-                  f"{int(row.get('together_count') or 0)}개 함께 걸림"))
-
-    deep = row.get("bucket") == "deep"
-    parts.append(("낙폭 갈래", weights["bucket"] if deep else weights["bucket"] * 0.5,
-                  weights["bucket"], str(row.get("bucket_label") or "—")))
-
-    streak = min(int(row.get("volume_streak") or 0), VOLUME_STREAK_LOOKBACK)
     gain = row.get("recent_gain_pct")
-    factor = volume_streak_weight(gain)
-    gain_text = "최근 오름폭 모름" if gain is None else f"최근 11일 {gain:+.1f}%"
-    parts.append(("거래대금 평소 위 연속",
-                  weights["volume_streak"] * (streak / VOLUME_STREAK_LOOKBACK) * factor,
-                  weights["volume_streak"],
-                  f"{int(row.get('volume_streak') or 0)}일 · {gain_text}"))
+    parts.append(("최근 11일에 안 올랐나",
+                  _fade(gain, CRASH_RECENT_FULL, CRASH_RECENT_ZERO, weights["recent11"]),
+                  weights["recent11"],
+                  "모름" if gain is None else f"{float(gain):+.1f}% (5%↑ 오르면 0점)"))
+
+    ret60 = metrics.get("ret60")
+    parts.append(("60일에 안 올랐나",
+                  _fade(ret60, CRASH_GAIN60_FULL, CRASH_GAIN60_ZERO, weights["gain60"]),
+                  weights["gain60"],
+                  "모름" if ret60 is None else f"{float(ret60):+.1f}% (40%↑ 오르면 0점)"))
+
+    count = int(row.get("together_count") or 0)
+    parts.append(("같은 테마 동반",
+                  weights["together"] * min(count / 3.0, 1.0), weights["together"],
+                  f"{count}개 함께 걸림 (3개↑ 만점)"))
 
     value = float(row.get("liquidity_value") or 0)
-    parts.append(("유동성", _scale(value / 1e8, 200, 3000, weights["liquidity"]),
+    parts.append(("사고팔기 쉬운가", _scale(value / 1e8, 50, 1000, weights["liquidity"]),
                   weights["liquidity"], _eok_text(value)))
 
     return {"score": round(sum(v for _n, v, _m, _t in parts), 1), "parts": parts, "max": 100.0}
@@ -2818,9 +2868,30 @@ def _eok_text(value: float) -> str:
 #     종목에서는 나쁘다(44번). 조건에 따라 뒤집히는 값으로 점수를 주지 않는다.
 #   * 기다린 날(3일 57번·5일 56번) — 차이 없음.
 #   * 50·200일선 위 — 표본 1,779개가 **전부** 위였다. 신고가 종목은 정의상 그렇다.
+#
+# ── 2026-08-07 다시 잼 — 위 주석의 옛 배점은 **버린다** ──────────────────────
+# 새 그물(거래대금 50억↑ · 신고가 뒤 3~10일 · -4~-6% · 250거래일) 위에서 다시 쟀다.
+# 그물 안 8,415자리. 칸은 '승률로 이긴 창% / 수익률로 이긴 창%'.
+#
+#   30점 거래대금        — 500억↑가 100/90 · 100/100 · 100/100, 가장 나쁜 창 +4.9%p.
+#                        1,000억↑는 더 좋다(가운데 +14.7%p). 한국에서 가장 크게 갈린다.
+#   25점 같은 테마 동반   — 3개↑가 85/95 · 96/100 · 100/100.
+#   25점 많이 흔들리지 않나 — **6%가 넘으면 최악이다.** 7/0 · 2/1 · 0/0으로
+#                        295개 창 중 거의 전부에서 졌다(가운데 -9.9%p · 최악 -30.9%p).
+#                        2026-08-01에는 '한 방향이 아니다'라며 0점을 줬는데,
+#                        새 그물에서는 방향이 뚜렷하다.
+#   20점 60일에 너무 오르지 않았나 — **40%가 넘으면 거꾸로다.** 17/13 · 28/21 · 31/15
+#                        (가운데 -6.0%p). 2026-08-01에는 40%↑에 만점을 줬는데
+#                        **정반대였다.** 앞뒤로 갈라 재지 않아 놓친 것이다.
+#
+# **뺀 것** — 거래대금 평소 위 연속(새 그물에서 74/73 · 63/68 · 52/59로 안 붙음)
 BREAKOUT_SCORE_WEIGHTS = {
-    "liquidity": 30.0, "together": 30.0, "ret60": 25.0, "volume_streak": 15.0,
+    "liquidity": 30.0, "together": 25.0, "volatility": 25.0, "ret60": 20.0,
 }
+# 변동성(ATR/주가) — 4% 아래면 만점, 6%를 넘으면 0점.
+BREAKOUT_ATR_FULL, BREAKOUT_ATR_ZERO = 4.0, 6.0
+# 60일 상승폭 — 안 올랐으면 만점, 40% 넘게 올랐으면 0점.
+BREAKOUT_GAIN60_FULL, BREAKOUT_GAIN60_ZERO = 0.0, 40.0
 
 # 한국 상승장은 같은 날 같은 테마에서 함께 걸리는 일이 미국보다 드물다
 # (0개 1,395 / 1개 311 / 2개 56 / 3개 이상 17). 그래서 낙폭용 2·3·4개 등급을
@@ -2843,23 +2914,29 @@ def breakout_score(row: dict) -> dict:
     parts = []
 
     value = float(row.get("liquidity_value") or 0)
-    parts.append(("거래대금(유동성)", _scale(value / 1e8, 100, 500, weights["liquidity"]),
-                  weights["liquidity"], _eok_text(value)))
+    parts.append(("거래대금", _scale(value / 1e8, 50, 500, weights["liquidity"]),
+                  weights["liquidity"], f"{_eok_text(value)} (500억↑ 만점)"))
 
     count = int(row.get("together_count") or 0)
-    tier, tier_label = breakout_together_tier(count)
-    parts.append(("같은 테마 동반", weights["together"] * (tier / 3.0), weights["together"],
-                  f"{count}개 함께 걸림"))
+    parts.append(("같은 테마 동반",
+                  weights["together"] * min(count / 3.0, 1.0), weights["together"],
+                  f"{count}개 함께 걸림 (3개↑ 만점)"))
+
+    atr = metrics.get("atr")
+    ratio = None
+    current = metrics.get("current")
+    if atr is not None and current:
+        ratio = float(atr) / float(current) * 100
+    parts.append(("많이 흔들리지 않나",
+                  _fade(ratio, BREAKOUT_ATR_FULL, BREAKOUT_ATR_ZERO, weights["volatility"]),
+                  weights["volatility"],
+                  "모름" if ratio is None else f"하루 {ratio:.1f}% (6%↑면 0점)"))
 
     ret60 = metrics.get("ret60")
-    parts.append(("최근 60일 상승폭", _scale(ret60, 0.0, 40.0, weights["ret60"]),
-                  weights["ret60"], "—" if ret60 is None else f"{float(ret60):+.1f}%"))
-
-    # 낙폭과 달리 여기서는 깎지 않는다 — 한국 상승장은 이미 오른 종목에서 더 좋았다.
-    streak = min(int(row.get("volume_streak") or 0), VOLUME_STREAK_LOOKBACK)
-    parts.append(("거래대금 평소 위 연속",
-                  weights["volume_streak"] * (streak / VOLUME_STREAK_LOOKBACK),
-                  weights["volume_streak"], f"{int(row.get('volume_streak') or 0)}일"))
+    parts.append(("60일에 너무 오르지 않았나",
+                  _fade(ret60, BREAKOUT_GAIN60_FULL, BREAKOUT_GAIN60_ZERO, weights["ret60"]),
+                  weights["ret60"],
+                  "모름" if ret60 is None else f"{float(ret60):+.1f}% (40%↑면 0점)"))
 
     return {"score": round(sum(v for _n, v, _m, _t in parts), 1), "parts": parts, "max": 100.0}
 

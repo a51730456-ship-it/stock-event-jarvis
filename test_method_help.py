@@ -266,16 +266,17 @@ class UsGuideTests(unittest.TestCase):
         self.assertIn(f"승률 {rule['win_rate']}%", kr)
         self.assertIn(f"승률 {rule['base_win_rate']}%", kr)
         self.assertIn(f"{rule['years_total']}년 중 {rule['years_better']}년", kr)
-        deep, mid = j4.CRASH_REBOUND_RULES
-        for bucket in (deep, mid):
+        # 2026-08-07 재측정 — 기준선에 진 얕은 갈래는 그물에서 아예 뺐다.
+        # 그래서 갈래가 하나뿐이고, 그 하나는 기준선을 이긴다.
+        for bucket in j4.CRASH_REBOUND_RULES:
             self.assertIn(f"승률 {bucket['win_rate']}%", kr)
             self.assertIn(f"승률 {bucket['base_win_rate']}%", kr)
-        # 진 갈래는 졌다고 적어야 한다 — 이게 빠지면 화면이 광고가 된다.
-        self.assertFalse(mid["beats_baseline"])
-        self.assertIn("기준선보다 못했습니다", kr)
-        # 급락 국면이 몇 번뿐이었는지도 밝혀야 한다.
-        self.assertIn("여덟 번", kr)
-        self.assertIn("2014-05 ~ 2026-07", kr)
+            self.assertTrue(bucket["beats_baseline"])
+        # 절대로는 여전히 잃는다는 것을 감추면 안 된다(상승장 가운데 -6.6%).
+        self.assertIn("이기는 것과 버는 것은 다릅니다", kr)
+        # 급락 신호가 몇 번뿐이었는지도 밝혀야 한다.
+        self.assertIn("스물아홉 번", kr)
+        self.assertIn("2014-05 ~ 2026-08", kr)
 
     def test_korea_documents_the_two_rulebook_screens(self):
         """화면에 단추를 만들었으면 설명서에도 그 기준이 있어야 한다(2026-08-01)."""
@@ -289,10 +290,12 @@ class UsGuideTests(unittest.TestCase):
         self.assertIn(f"{wait_min}~{wait_max}거래일", kr)
         self.assertIn("4~6%", kr)
         self.assertIn(f"{j4.BREAKOUT_PULLBACK_RULE['hold_days']}거래일", kr)
-        deep, mid = j4.CRASH_REBOUND_RULES
-        self.assertIn(f"고점 대비 -40~-50%", kr)
-        self.assertIn(f"{deep['hold_days']}거래일 보유", kr)
-        self.assertIn(f"{mid['hold_days']}거래일 보유", kr)
+        # 2026-08-07 재측정 — 갈래가 하나(-40~-60%)로 줄었다.
+        (deep,) = j4.CRASH_REBOUND_RULES
+        self.assertIn("40~60% 빠진", kr)
+        self.assertIn(f"{deep['hold_days']}거래일", kr)
+        # 거래대금 문턱이 새로 들어갔다 — 그 아래는 아예 안 본다.
+        self.assertIn("50억 이상", kr)
         # 이동평균을 안 본다는 것도 적혀 있어야 한다.
         self.assertIn("보지 않습니다", kr)
 

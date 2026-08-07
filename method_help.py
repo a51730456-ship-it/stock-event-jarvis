@@ -315,18 +315,18 @@ KR_TEXT = """
 <div class="mh-doc">
 <div class="mh-h1">한국장 눌림목 매매 설명서</div>
 <div class="mh-note">
-<div class="mh-note-h">※ 검증 안내</div>
-규칙은 미국장 설명서의 것을 쓰되 <b>숫자는 한국 자료로 직접 쟀습니다</b> — 대형주 197종목의
-<b>2014-05 ~ 2026-07(12년)</b> 일봉, 다음 거래일 시가 매수·정해진 날 종가 매도.
-<b>지금 살아남은 종목</b>만 봤기에 성적 옆에 늘 ‘아무 날이나 샀으면’을 붙입니다 —
-그 치우침이 양쪽에 똑같이 걸려 상쇄되므로 <u>그 차이</u>로만 값을 했는지 알 수 있습니다.
+<div class="mh-note-h">※ 검증 안내 (2026-08-07 전면 재측정)</div>
+화면이 뒤지는 <b>테마 명부 2,272종목</b>의 <b>2014-05 ~ 2026-08</b> 일봉으로 다시 쟀습니다.
+<b>3년 창을 한 달씩 밀며</b> 100번 넘게 재고, 창 2·3·4년 <u>모두</u>에서 이긴 것만 점수를 줍니다.
 </div>
 <div class="mh-h2"><span class="mh-no">1</span><span>상승장 (<u>신고가 눌림매수</u>)</span></div>
 <div class="mh-box mh-buy-box">
 <div class="mh-box-h">▸ 매수</div>
+<div class="mh-step">하루 평균 거래대금 <b>50억 이상</b>인 종목만</div>
+<div class="mh-arrow">▼</div>
 <div class="mh-step">52주 <b>신고가 돌파</b></div>
 <div class="mh-arrow">▼</div>
-<div class="mh-step"><b>3~5거래일</b> 기다림</div>
+<div class="mh-step"><b>3~10거래일</b> 기다림</div>
 <div class="mh-arrow">▼</div>
 <div class="mh-step">그 고점에서 <b>4~6% 하락한 날</b> 종가 확인</div>
 <div class="mh-arrow">▼</div>
@@ -334,76 +334,72 @@ KR_TEXT = """
 </div>
 <div class="mh-box mh-sell-box">
 <div class="mh-box-h">▸ 매도</div>
-<div class="mh-step"><b>120거래일</b> 보유 후 매도</div>
-<div class="mh-sub">※ 약 6개월</div>
-</div>
-<div class="mh-box mh-warn-box">
-<div class="mh-box-h">⚠ 주의</div>
-<ul class="mh-list">
-<li>신고가 <b>당일에는 사지 않습니다.</b></li>
-<li>4~6% 눌리지 않고 올라가면 <b>추격 매수하지 않습니다.</b></li>
-</ul>
+<div class="mh-step"><b>250거래일</b> 보유 후 매도</div>
+<div class="mh-sub">※ 약 1년. 6개월(120거래일)보다 세 창 모두에서 나았습니다.</div>
 </div>
 <div class="mh-box mh-data-box">
 <div class="mh-box-h">▸ 한국에서 재 본 성적</div>
-<div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v mh-pos">승률 56.3%(1,816건) · 가운데 값 +4.3%</span></div>
-<div class="mh-kv"><span class="mh-k">아무 날이나 샀으면</span><span class="mh-v">승률 53.6% · 가운데 값 +2.1%</span></div>
-<div class="mh-kv"><span class="mh-k">기준선보다 나았던 해</span><span class="mh-v mh-neg">12년 중 7년</span></div>
-<div class="mh-sub">조금 나았지만 해마다 뒤집힙니다.</div>
+<div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v mh-pos">승률 43.4%(7,410건) · 가운데 값 -6.6%</span></div>
+<div class="mh-kv"><span class="mh-k">아무 종목이나 샀으면</span><span class="mh-v">승률 35.1% · 가운데 값 -14.0%</span></div>
+<div class="mh-kv"><span class="mh-k">기준선보다 나았던 해</span><span class="mh-v mh-pos">11년 중 9년</span></div>
+<div class="mh-kv"><span class="mh-k">기준선보다 나았던 창</span><span class="mh-v mh-pos">321개 중 321개</span></div>
+</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 이기는 것과 버는 것은 다릅니다</div>
+<div class="mh-step">가운데 값이 <b>-6.6%</b>입니다. 아무 종목이나 사면 -14.0%이니 <u>훨씬 덜 잃지만</u>
+그래도 <b>절반 넘게는 잃습니다.</b> 신고가 당일에는 사지 않고, 안 눌리면 추격하지 않습니다.</div>
 </div>
 <div class="mh-h2"><span class="mh-no">2</span><span>급락 후 반등장 (<u>낙폭종목</u>)</span></div>
 <div class="mh-box mh-buy-box">
 <div class="mh-box-h">▸ 매수</div>
-<div class="mh-step">시장 <b>급락</b> 뒤 코스피 <b>종가 반등</b> 확인</div>
+<div class="mh-step">코스피가 고점 대비 <b>15% 넘게</b> 빠진 국면</div>
 <div class="mh-arrow">▼</div>
-<div class="mh-step">52주 고점 대비 <b>낙폭</b> 확인</div>
+<div class="mh-step">그 국면에서 <b>가장 깊었던 날</b></div>
 <div class="mh-arrow">▼</div>
-<div class="mh-step mh-go">다음 거래일 <u>시가 매수</u></div>
+<div class="mh-step">그날 고점 대비 <b>40~60% 빠진</b> 종목 (거래대금 50억↑)</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step mh-go">다음 거래일 <u>시가 매수</u> → <b>20거래일</b> 뒤 종가 매도</div>
 </div>
 <div class="mh-box mh-data-box">
-<div class="mh-box-h">▸ 고점 대비 -40~-50% → 20거래일 보유</div>
-<div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v mh-pos">승률 68.6%(175건) · 가운데 값 +7.5%</span></div>
-<div class="mh-kv"><span class="mh-k">그날 아무 종목이나 샀으면</span><span class="mh-v">승률 59.0% · 가운데 값 +2.5%</span></div>
-<div class="mh-sub">두 갈래 중 이쪽이 값을 했습니다.</div>
-</div>
-<div class="mh-box mh-warn-box">
-<div class="mh-box-h">▸ 고점 대비 -30~-40% → 60거래일 보유</div>
-<div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v">승률 66.0%(215건) · 가운데 값 +5.7%</span></div>
-<div class="mh-kv"><span class="mh-k">그날 아무 종목이나 샀으면</span><span class="mh-v">승률 66.2% · 가운데 값 +7.1%</span></div>
-<div class="mh-sub"><b>기준선보다 못했습니다</b> — 낙폭을 골라 봐야 아무 대형주나 산 것과 같았습니다.</div>
+<div class="mh-box-h">▸ 한국에서 재 본 성적</div>
+<div class="mh-kv"><span class="mh-k">이 규칙</span><span class="mh-v mh-pos">승률 66.6%(3,739건) · 가운데 값 +6.1%</span></div>
+<div class="mh-kv"><span class="mh-k">그날 아무 종목이나 샀으면</span><span class="mh-v">승률 62.1% · 가운데 값 +4.1%</span></div>
+<div class="mh-kv"><span class="mh-k">기준선보다 나았던 해</span><span class="mh-v mh-pos">8년 중 7년</span></div>
+<div class="mh-kv"><span class="mh-k">기준선보다 나았던 창</span><span class="mh-v mh-pos">306개 중 306개</span></div>
 </div>
 <div class="mh-box mh-warn-box">
 <div class="mh-box-h">⚠ 주의</div>
 <ul class="mh-list">
-<li>신고가가 <b>언제 나왔는지는 보지 않습니다.</b></li>
-<li>고점 대비 <b>얼마나 하락했는지만</b> 봅니다.</li>
-<li>두 갈래 모두 <b>이동평균을 보지 않습니다</b> — 설명서에 없는 조건입니다.</li>
-<li>코스피가 급락했다가 처음 반등한 날은 12년 동안 <b>여덟 번</b>뿐이라, 승률을 앞으로의 확률로 읽으면 안 됩니다.</li>
+<li>신고가가 언제였는지도, 이동평균도 <b>보지 않습니다.</b> 고점 대비 낙폭만 봅니다.</li>
+<li>이 신호는 12년 동안 <b>스물아홉 번</b> 났습니다. 사실상 스물아홉 번의 사건이라, 승률을 앞으로의 확률로 읽으면 안 됩니다.</li>
 </ul>
 </div>
 <div class="mh-box mh-data-box">
-<div class="mh-box-h">▸ 순위와 점수 — <u>두 갈래가 다릅니다</u> (한국 자료로 쟀습니다)</div>
-<div class="mh-hold">
-<div class="mh-hold-h">급락 반등장</div>
-<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">40점</span></div>
-<div class="mh-kv"><span class="mh-k">낙폭 갈래(-40~-50%가 만점)</span><span class="mh-v">25점</span></div>
-<div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v">20점</span></div>
-<div class="mh-kv"><span class="mh-k">사고팔기 쉬운가</span><span class="mh-v">15점</span></div>
-<div class="mh-sub">테마 동반 0~1개 49번 → 4개 이상 55번. 거래대금 연속 11일 이상 61번, 단 <b>이미 오른 종목은 깎습니다</b>.</div>
-</div>
+<div class="mh-box-h">▸ 순위와 점수 — <u>두 갈래가 다릅니다</u> (2026-08-07 재측정)</div>
 <div class="mh-hold">
 <div class="mh-hold-h">상승장</div>
-<div class="mh-kv"><span class="mh-k">거래대금(500억 이상)</span><span class="mh-v mh-pos">30점</span></div>
-<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수</span><span class="mh-v mh-pos">30점</span></div>
-<div class="mh-kv"><span class="mh-k">최근 60일에 얼마나 올랐나</span><span class="mh-v">25점</span></div>
-<div class="mh-kv"><span class="mh-k">거래대금이 평소 위에 며칠 연속</span><span class="mh-v">15점</span></div>
-<div class="mh-sub">거래대금 500억 이상 100번 중 69~72번(미만 55번). 테마 동반 혼자 55번 → 2개 70번. 60일 상승폭 40% 넘으면 61번. 거래대금 연속 11일 이상 63번 — <b>미국에서는 거꾸로였습니다.</b></div>
+<div class="mh-kv"><span class="mh-k">거래대금 (500억 이상 만점)</span><span class="mh-v mh-pos">30점</span></div>
+<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수 (3개↑ 만점)</span><span class="mh-v mh-pos">25점</span></div>
+<div class="mh-kv"><span class="mh-k">많이 흔들리지 않나 (하루 6%↑면 0점)</span><span class="mh-v">25점</span></div>
+<div class="mh-kv"><span class="mh-k">60일에 너무 오르지 않았나 (40%↑면 0점)</span><span class="mh-v">20점</span></div>
+<div class="mh-sub"><b>60일 상승폭은 방향이 정반대였습니다.</b> 전에는 많이 오른 쪽에 만점을 줬는데,
+다시 재니 40% 넘게 오른 쪽이 졌습니다. 변동성도 하루 6%가 넘으면 거의 모든 창에서 졌습니다.</div>
+</div>
+<div class="mh-hold">
+<div class="mh-hold-h">급락 후 반등장</div>
+<div class="mh-kv"><span class="mh-k">최근 11일에 안 올랐나 (5%↑ 오르면 0점)</span><span class="mh-v mh-pos">30점</span></div>
+<div class="mh-kv"><span class="mh-k">60일에 안 올랐나 (40%↑ 오르면 0점)</span><span class="mh-v mh-pos">25점</span></div>
+<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수 (3개↑ 만점)</span><span class="mh-v">25점</span></div>
+<div class="mh-kv"><span class="mh-k">사고팔기 쉬운가</span><span class="mh-v">20점</span></div>
+<div class="mh-sub"><b>이미 반등을 시작한 종목은 사면 안 됩니다.</b> 최근 11일에 5% 넘게 오른 종목은
+창 306개 중 거의 전부에서 졌습니다(가장 나쁜 창 -43.7%p).</div>
 </div>
 </div>
 <div class="mh-box mh-warn-box">
-<div class="mh-box-h">⚠ 외국인+기관 동반은 점수에 넣지 않습니다</div>
-<div class="mh-step">12년치로 재 보니 <b>거꾸로였습니다.</b> 둘이 같이 산 날이 <u>많을수록</u> 나빴습니다 — 100번 중 안 산 종목 52번, 닷새 다 산 종목 46번.</div>
-<div class="mh-sub">표에는 보여 주되 순위·점수에서는 뺐습니다. docs/KR_RULE_BACKTEST.md</div>
+<div class="mh-box-h">⚠ 점수에서 뺀 것</div>
+<div class="mh-step"><b>낙폭 갈래</b>(그물로 이미 씀) · <b>거래대금 평소 위 연속</b>(새 그물에서 안 붙음)
+· <b>외국인+기관 동반</b>(거꾸로였습니다 — 같이 산 날이 많을수록 나빴습니다).</div>
+<div class="mh-sub">근거: docs/KR_RULE_BACKTEST.md · research/kr_net_grid.py</div>
 </div>
 <div class="mh-key">
 <div class="mh-key-h">핵심</div>

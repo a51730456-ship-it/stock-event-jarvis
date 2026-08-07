@@ -85,12 +85,14 @@ class RulebookScreenTests(unittest.TestCase):
 
     def test_rule_shape_matches_the_us_guide(self):
         rule = j4.BREAKOUT_PULLBACK_RULE
-        self.assertEqual((3, 5), rule["wait_days"])
+        # 2026-08-07 전면 재측정 — 격자로 다 재서 고른 값이다(research/kr_net_grid.py).
+        self.assertEqual((3, 10), rule["wait_days"])
         self.assertEqual((-6.0, -4.0), rule["drop_band"])
-        self.assertEqual(120, rule["hold_days"])
-        deep, mid = j4.CRASH_REBOUND_RULES
-        self.assertEqual(((-50.0, -40.0), 20), (deep["band"], deep["hold_days"]))
-        self.assertEqual(((-40.0, -30.0), 60), (mid["band"], mid["hold_days"]))
+        self.assertEqual(250, rule["hold_days"])
+        self.assertEqual(50e8, rule["liquidity_floor"])
+        # 기준선에 지던 얕은 갈래는 그물에서 아예 뺐다. 이제 하나뿐이다.
+        (deep,) = j4.CRASH_REBOUND_RULES
+        self.assertEqual(((-60.0, -40.0), 20), (deep["band"], deep["hold_days"]))
 
     def test_every_korean_score_carries_its_baseline(self):
         """2026-08-01에 한국 자료로 직접 쟀다.
@@ -101,9 +103,9 @@ class RulebookScreenTests(unittest.TestCase):
         """
         rule = j4.BREAKOUT_PULLBACK_RULE
         self.assertTrue(rule["verified_in_korea"])
-        for key in ("win_rate", "sample", "avg_return", "median_return",
-                    "base_win_rate", "base_avg_return", "base_median_return",
-                    "years_better", "years_total"):
+        for key in ("win_rate", "sample", "median_return",
+                    "base_win_rate", "base_median_return",
+                    "years_better", "years_total", "windows_won"):
             self.assertIn(key, rule, f"신고가 눌림 규칙에 {key}가 없다")
         # 기준선을 이긴 해가 전체 해보다 많을 수는 없다.
         self.assertLessEqual(rule["years_better"], rule["years_total"])
@@ -125,31 +127,34 @@ class RulebookScreenTests(unittest.TestCase):
         frames = {
             "000001": _frame_with_high(4, -5.0),    # 자리에 맞음
             "000002": _frame_with_high(1, -5.0),    # 너무 이르다
-            "000003": _frame_with_high(9, -5.0),    # 너무 늦다
+            "000003": _frame_with_high(9, -5.0),    # 3~10일 안이라 이제 걸린다
             "000004": _frame_with_high(4, -2.0),    # 덜 눌렸다
             "000005": _frame_with_high(4, -9.0),    # 너무 눌렸다
         }
         result = self._run(j4.find_breakout_pullback_stocks, frames)
         self.assertTrue(result["ok"], result.get("error"))
-        self.assertEqual(["000001"], [row["code"] for row in result["rows"]])
-        self.assertEqual(4, result["rows"][0]["wait_days"])
-        self.assertEqual(120, result["rows"][0]["hold_days"])
+        # 기다리는 창이 3~5일에서 3~10일로 넓어졌다(2026-08-07 재측정).
+        self.assertEqual(["000001", "000003"], sorted(row["code"] for row in result["rows"]))
+        picked = {row["code"]: row for row in result["rows"]}
+        self.assertEqual(4, picked["000001"]["wait_days"])
+        self.assertEqual(250, picked["000001"]["hold_days"])
 
     def test_crash_splits_two_buckets_and_ignores_the_high_date(self):
         frames = {
             "000001": _frame_with_high(200, -45.0),   # 깊은 갈래
-            "000002": _frame_with_high(3, -35.0),     # 얕은 갈래 — 신고가 날짜는 안 본다
+            "000002": _frame_with_high(3, -35.0),     # 덜 빠졌다 — 이제 안 걸린다
             "000003": _frame_with_high(50, -20.0),    # 덜 빠졌다
-            "000004": _frame_with_high(50, -60.0),    # 너무 빠졌다
+            "000004": _frame_with_high(50, -55.0),    # 깊은 갈래 — 신고가 날짜는 안 본다
         }
         result = self._run(j4.find_crash_rebound_stocks, frames)
         self.assertTrue(result["ok"], result.get("error"))
         picked = {row["code"]: row for row in result["rows"]}
-        self.assertEqual({"000001", "000002"}, set(picked))
-        self.assertEqual((20, "deep"), (picked["000001"]["hold_days"], picked["000001"]["bucket"]))
-        self.assertEqual((60, "mid"), (picked["000002"]["hold_days"], picked["000002"]["bucket"]))
+        # 갈래가 -40~-60% 하나로 줄었다(2026-08-07 재측정). -30~-40%는 기준선에 졌다.
+        self.assertEqual({"000001", "000004"}, set(picked))
+        for code in ("000001", "000004"):
+            self.assertEqual((20, "deep"), (picked[code]["hold_days"], picked[code]["bucket"]))
         self.assertEqual("000001", result["rows"][0]["code"])   # 깊은 갈래가 위
-        self.assertEqual({"deep": 1, "mid": 1}, result["bucket_counts"])
+        self.assertEqual({"deep": 2}, result["bucket_counts"])
 
     def test_neither_screen_filters_on_a_moving_average(self):
         """설명서에 없는 조건이다. 낙폭 종목은 50일선 위에 있을 리도 없다."""
@@ -247,13 +252,26 @@ class KrBreakoutScoreTests(unittest.TestCase):
         self.assertNotIn("눌린 폭", names)
         self.assertNotIn("변동성 안정", names)
 
-    def test_volume_streak_is_not_discounted_unlike_the_crash_rule(self):
-        """낙폭에서는 이미 오른 종목을 깎지만 상승장에서는 그대로 준다(63번)."""
-        streak_points = dict(
-            (name, value) for name, value, _m, _t in
-            j4.breakout_score(self._row(recent_gain_pct=40.0))["parts"]
-        )["거래대금 평소 위 연속"]
-        self.assertEqual(j4.BREAKOUT_SCORE_WEIGHTS["volume_streak"], streak_points)
+    def test_already_risen_is_now_a_penalty_not_a_bonus(self):
+        """**2026-08-07에 방향이 뒤집혔다.**
+
+        2026-08-01에는 '최근 60일에 많이 오른 쪽'에 만점을 줬다(40% 넘으면 61번).
+        창을 밀며 다시 재니 40% 넘게 오른 쪽이 17/13 · 28/21 · 31/15로 대부분의
+        창에서 졌다(가운데 -6.0%p). 앞뒤로 갈라 재지 않아 놓친 것이다.
+        되살리면 화면이 '이미 많이 오른 종목'을 1등으로 올리게 된다.
+        """
+        def points(gain):
+            row = self._row(metrics={"ret60": gain, "from_high_pct": -5.0})
+            return dict((name, value) for name, value, _m, _t in
+                        j4.breakout_score(row)["parts"]
+                        )["60일에 너무 오르지 않았나"]
+
+        self.assertEqual(j4.BREAKOUT_SCORE_WEIGHTS["ret60"], points(0.0))
+        self.assertEqual(0.0, points(45.0))
+        self.assertGreater(points(10.0), points(30.0))
+        # 거래대금 연속은 새 그물에서 안 붙어 배점에서 뺐다.
+        names = [name for name, _v, _m, _t in j4.breakout_score(self._row())["parts"]]
+        self.assertNotIn("거래대금 평소 위 연속", names)
 
     def test_together_tiers_are_one_and_two_not_the_crash_scale(self):
         self.assertEqual(3, j4.breakout_together_tier(2)[0])
