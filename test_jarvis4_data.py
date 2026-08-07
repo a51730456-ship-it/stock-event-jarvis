@@ -738,12 +738,33 @@ class PullbackQualityTests(unittest.TestCase):
         broken = j4._pullback_quality(self._metrics(101, 100, from_high=-45.0), _flow())
         self.assertGreater(healthy["score"], broken["score"])
 
-    def test_below_long_term_averages_scores_lower(self):
+    def test_long_term_averages_no_longer_move_the_score(self):
+        """2026-08-07: 50·200일선 위는 실측에서 거꾸로였다 → 배점 0점.
+
+        예전에는 이동평균 위면 점수가 높아야 한다고 못 박아 뒀는데, 그게 틀린
+        것으로 나왔다. 이제 **점수는 같아야** 하고, 위/아래 표시는 그대로 남아야
+        한다(화면이 그 깃발을 따로 보여준다).
+        """
         above = j4._pullback_quality(self._metrics(101, 100, sma50=95, sma200=90), _flow())
         below = j4._pullback_quality(self._metrics(101, 100, sma50=120, sma200=130), _flow())
-        self.assertGreater(above["score"], below["score"])
+        self.assertEqual(j4.PULLBACK_TREND_POINTS, 0.0)
+        self.assertEqual(above["score"], below["score"])
         self.assertTrue(above["above_sma200"])
         self.assertFalse(below["above_sma200"])
+
+    def test_stock_score_drops_the_two_inverted_items(self):
+        """조건점수 100점 배분이 실측 결과와 어긋나면 여기서 먼저 깨진다."""
+        self.assertEqual(sum(j4.SCORE_WEIGHTS.values()), 100.0)
+        self.assertEqual(j4.SCORE_WEIGHTS["trend"], 0.0)
+        self.assertEqual(j4.SCORE_WEIGHTS["relative"], 0.0)
+        self.assertEqual(j4.SCORE_WEIGHTS["high"], 35.0)
+        self.assertEqual(j4.SCORE_WEIGHTS["risk"], 25.0)
+        base = {"from_high_pct": -2.0, "atr_pct": 3.2, "avg_trading_value": 6e10,
+                "current": 100, "sma20": 95, "sma50": 90, "sma200": 80, "ret20": 5.0}
+        above, _ = j4._stock_score(base, {"ok": False}, 0.0)
+        below, _ = j4._stock_score(
+            dict(base, sma20=120, sma50=130, sma200=140), {"ok": False}, 0.0)
+        self.assertEqual(above, below)
 
     def test_supply_inflow_adds_score(self):
         with_flow = j4._pullback_quality(self._metrics(101, 100), _flow(net5_amount=50e8, streak=4))

@@ -75,6 +75,12 @@ SCORE_WEIGHTS = {
 }
 # 화면에 '검증됐다'고 적어도 되는 항목만 추린 것. 설명글이 이 목록을 읽는다.
 SCORE_VERIFIED_KEYS = ("high", "risk")
+
+# 눌림 점수(`pullback_score`)의 '장기 추세' 배점. 같은 날 같은 이유로 0이 됐다 —
+# 50일선 위·200일선 위는 `_stock_score`의 추세 항목과 같은 것을 재는데 거꾸로였다.
+# 이 값이 0이면 눌림 점수 만점은 110점이 아니라 90점이다.
+PULLBACK_TREND_POINTS = 0.0
+PULLBACK_SCORE_MAX = 25.0 + 25.0 + PULLBACK_TREND_POINTS + 25.0 + 15.0
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다.
 # 스트림릿은 페이지 파일만 다시 읽고 import된 모듈은 그대로 두는 경우가 있어,
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
@@ -2544,11 +2550,17 @@ def _pullback_quality(metrics: dict, flow: dict) -> dict | None:
     # 20일선에 붙을수록 만점(±2% 이내 25점 → ±8% 0점)
     proximity = max(0.0, 25.0 * (1 - max(0.0, abs(gap_pct) - 2.0) / 6.0))
 
+    # 2026-08-07: 이 20점도 뺐다. `_stock_score`의 추세 항목과 **같은 것을 재는데**
+    # (50일선 위·200일선 위) 실측에서 거꾸로로 나왔다 — 50일선 위는 창 107개 중
+    # 11개, 200일선 위는 3~31%에서만 이겼다. 한쪽만 고치면 같은 화면 안에서 같은
+    # 조건에 서로 다른 값을 매기게 된다. 계산은 남겨 둔다(되살릴 수 있게).
     trend = 0.0
-    if metrics.get("sma50") and current > metrics["sma50"]:
-        trend += 10.0
-    if metrics.get("sma200") and current > metrics["sma200"]:
-        trend += 10.0
+    if PULLBACK_TREND_POINTS:
+        half = PULLBACK_TREND_POINTS / 2.0
+        if metrics.get("sma50") and current > metrics["sma50"]:
+            trend += half
+        if metrics.get("sma200") and current > metrics["sma200"]:
+            trend += half
 
     # 고점 대비 -5~-20%를 건강한 눌림으로 본다.
     if from_high is None:
