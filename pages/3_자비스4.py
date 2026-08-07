@@ -996,7 +996,8 @@ def _us_futures_cell() -> str:
     if sp500.get("change_pct") is not None:
         sub += (f" · S&P500 선물 <span style='color:{_sign_color(sp500['change_pct'])}'>"
                 f"{sp500['change_pct']:+.2f}%</span>")
-    sub += f"<br><span class='j4-muted'>1분봉 기준 {nasdaq.get('as_of') or '—'}</span>"
+    # '1분봉 기준 …' 줄은 뺐다(2026-08-07 지시) — 이 칸만 한 줄이 더 있어 차트가
+    # 옆 칸들보다 한 줄만큼 내려가 키가 안 맞았다. 칸 이름에 이미 '(1분봉)'이 있다.
 
     cell = _top_metric(
         "나스닥100 선물 (1분봉)",
@@ -1020,8 +1021,10 @@ def _fx_cell() -> str:
     if not fx.get("ok"):
         return _top_metric("원/달러 환율 (1분봉)", "—", "#9aa0aa", "자료 부족")
     change = fx.get("change_pct")
-    sub = (f"<span style='color:{_sign_color(change)}'>{_pct(change)}</span>"
-           f"<br><span class='j4-muted'>1분봉 기준 {fx.get('as_of') or '—'}</span>")
+    # '1분봉 기준 …' 줄을 뺀다(2026-08-07 지시). 이 칸만 한 줄이 더 있어서
+    # 차트가 옆 칸들보다 한 줄만큼 내려가 키가 안 맞았다. 기준 시각은 칸 이름에
+    # 이미 '(1분봉)'이라고 적혀 있다.
+    sub = f"<span style='color:{_sign_color(change)}'>{_pct(change)}</span>"
     cell = _top_metric("원/달러 환율 (1분봉)", _number(fx.get("current"), 2),
                        _sign_color(change), sub, sub_color="#e6e6e6")
     # 다른 지수 칸과 같게 — 눌러서 '일봉 6개월'로 바꾼다(2026-08-07 지시).

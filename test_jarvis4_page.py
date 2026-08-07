@@ -453,10 +453,14 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertTrue(any(
             "j4-gauge-after-gap" in str(node.value) for node in app.markdown
         ))
-        # 선물 숫자와 차트는 같은 1분봉 응답을 쓰고 시각도 함께 보여준다.
+        # 선물 숫자와 차트는 같은 1분봉 응답을 쓴다.
         self.assertIn("28,149", top_row)
-        self.assertIn("1분봉 기준 07.29 09:22", top_row)
         self.assertIn("<svg", top_row)
+        # 2026-08-07 — '1분봉 기준 …' 줄은 뺐다. 이 칸(선물·환율)만 한 줄이 더
+        # 있어서 차트가 옆 칸들보다 한 줄만큼 내려가 키가 안 맞았다. 기준이
+        # 1분봉이라는 것은 칸 이름에 이미 적혀 있다.
+        self.assertNotIn("1분봉 기준", top_row)
+        self.assertIn("(1분봉)", top_row)
         # 미국 4대 지수 숫자는 차트 끝점으로 재계산하지 않고 미국테마 값을 쓴다.
         for value in ("7,428.78", "24,876.91", "52,747.32", "27,763.13"):
             self.assertIn(value, top_row)
