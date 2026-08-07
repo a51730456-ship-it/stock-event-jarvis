@@ -33,8 +33,11 @@ def fetch() -> dict[str, pd.DataFrame]:
 
     import jarvis3_data as j3
 
-    tickers = sorted({stock for theme in j3.US_THEMES for stock in theme["stocks"]})
-    print(f"테마 명부 {len(tickers)}종목을 받는다...", flush=True)
+    # **화면이 실제로 뒤지는 명부**다(find_breakout_pullback_stocks·find_crash_rebound_stocks
+    # 둘 다 이것을 돈다). 테마 명부(US_THEMES 137종목)는 이 안에 다 들어 있고 63종목이
+    # 더 있다. 처음에 테마 137종목으로만 쟀다가 화면과 어긋나 다시 받는다(2026-08-07).
+    tickers = sorted(set(j3.US_LARGE_CAP_UNIVERSE))
+    print(f"대형주 명부 {len(tickers)}종목을 받는다...", flush=True)
     raw = yf.download(tickers + ["QQQ"], period="10y", interval="1d",
                       auto_adjust=True, group_by="ticker", threads=8, progress=False)
     frames: dict[str, dict[str, pd.Series]] = {
@@ -152,25 +155,38 @@ def main() -> None:
             ("0점 · 거래대금 평소위 11일↑", signal & (streak >= 11)),
             ("0점 · 최근 60일 40% 넘게 오름", signal & (gain60 >= 40.0)),
         ]
-        print(f"\n{'=' * 110}\n### 미국 {title} — 해마다 (숫자는 그날 아무 종목이나 산 것보다 몇 %p 더 이겼나)\n{'=' * 110}")
-        print(f"{'':32}" + "".join(f"{year:>7}" for year in years))
+        print(f"\n{'=' * 132}\n### 미국 {title} — 해마다.  칸은 '승률차 / 자리 개수'"
+              f"  (승률차 = 그해 그날 아무 종목이나 산 것보다 몇 %p 더 이겼나)\n{'=' * 132}")
+        print(f"{'':30}" + "".join(f"{year:>11}" for year in years))
+        summary = []
         for name, mask in cases:
             cells, wins, total = [], 0, 0
+            medians = []
             for year in years:
                 window = np.array([date.year == year for date in dates])
                 values = returns[window].where(mask[window]).to_numpy().ravel()
                 values = values[~np.isnan(values)]
                 if values.size < 20:
-                    cells.append("     ·")
+                    cells.append("          ·")
+                    medians.append("          ·")
                     continue
                 active = mask[window].any(axis=1).to_numpy()
                 base = returns[window][active].to_numpy().ravel()
                 base = base[~np.isnan(base)]
                 edge = (values > 0).mean() * 100 - (base > 0).mean() * 100
-                cells.append(f"{edge:+7.1f}")
+                median_edge = float(np.median(values) - np.median(base))
+                cells.append(f"{edge:+6.1f}/{values.size:>4}")
+                medians.append(f"{median_edge:+11.1f}")
                 total += 1
                 wins += edge > 0
-            print(f"{name:<32}" + "".join(cells) + f"   → {wins}/{total}년")
+            print(f"{name:<30}" + "".join(cells) + f"   → {wins}/{total}년")
+            summary.append((name, medians, wins, total))
+        print(f"\n  같은 자리를 **수익률 가운데 값**의 차이로 보면")
+        print(f"{'':30}" + "".join(f"{year:>11}" for year in years))
+        for name, medians, wins, total in summary:
+            won = sum(1 for cell in medians if cell.strip() != "·" and float(cell) > 0)
+            counted = sum(1 for cell in medians if cell.strip() != "·")
+            print(f"{name:<30}" + "".join(medians) + f"   → {won}/{counted}년")
     print("\n· = 그해 자리가 20개 미만이라 재지 않음")
 
 
