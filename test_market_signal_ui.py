@@ -594,10 +594,24 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn(previous.headline, card)
         self.assertIn(f"흐름: {previous.flow_note}", card)
         self.assertIn('class="sig-body sig-body-comparison"', card)
+        # 2026-08-07 — 머리 칸도 같은 판에 넣었다. 예전에는 머리 칸 둘이 판 위에
+        # 따로 얹혀 있어, 화면이 좁아 판이 접히면 전일 머리 칸과 전일 계기판 사이에
+        # 당일 계기판·설명이 끼어들었다(상하님 태블릿·폰 캡처).
         self.assertIn(
-            'grid-template-areas:"today-gauge today-story previous-gauge previous-story"',
+            'grid-template-areas:"today-head today-head previous-head previous-head"',
             ui._SIGNAL_GAUGE_CSS,
         )
+        self.assertIn(
+            '"today-gauge today-story previous-gauge previous-story"',
+            ui._SIGNAL_GAUGE_CSS,
+        )
+        self.assertIn(".sig-body-comparison .sig-head-pair", ui._SIGNAL_GAUGE_CSS)
+        self.assertIn(".sig-body-comparison .sig-head-today { grid-area:today-head; }",
+                      ui._SIGNAL_GAUGE_CSS)
+        # 머리 칸은 판 **안에** 있어야 한다 — 판 앞에 남아 있으면 옛 배치 그대로다.
+        body_start = card.index('class="sig-body sig-body-comparison"')
+        self.assertGreater(card.index("sig-head-pair"), body_start,
+                           "머리 칸이 아직 판 밖에 있다")
 
 
 class SignedColorTests(unittest.TestCase):

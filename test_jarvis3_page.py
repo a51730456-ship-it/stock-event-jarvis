@@ -1029,12 +1029,12 @@ class Jarvis3PageTests(unittest.TestCase):
             any("11위~20위 더 보기" in str(node.label) for node in app.expander),
             "더 보기 접이가 없다")
 
-    def test_the_drawdown_cell_names_each_of_its_three_numbers(self):
-        """숫자 셋이 무엇인지 화면 어디에도 없었다(2026-08-07 상하님 지적).
+    def test_the_drawdown_is_split_into_three_columns(self):
+        """낙폭 숫자 셋을 **칸 셋**으로 나눈다(2026-08-07 상하님 지시).
 
-        '-21.78%' 아래에 '지금 -12.69% · +11.0%'를 한 줄로 붙여 뒀는데, 그
-        +11.0%가 무엇인지 설명이 없었고 칸보다 길어 좁은 화면에서 양옆이
-        잘렸다(캡처에 '금 -12.69% · +11.'로 찍혔다). 줄마다 이름을 붙인다.
+        처음에는 한 칸에 '-21.78% / 지금 -12.69% · +11.0%'로 붙여 뒀는데 칸보다
+        길어 잘렸고(캡처에 '금 -12.69% · +11.'로 찍혔다), 세 줄로 겹쳐 놓으니
+        이번에는 빽빽했다. 칸을 나누면 칸 이름이 곧 그 숫자의 뜻이 된다.
         """
         result = _crash_result()
         rows = [dict(result["rows"][0])]
@@ -1046,15 +1046,25 @@ class Jarvis3PageTests(unittest.TestCase):
                   "reference": {"armed": True, "reference_date": "2026-07-14"}}
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", result)
         joined = " ".join(str(node.value) for node in app.markdown)
-        cell = next(part for part in joined.split("j3-dd-line")[1:2])
-        self.assertIn("그날", cell)
-        for label in ("그날", "지금", "그 뒤"):
-            self.assertIn(f"j3-dd-k'>{label}<", joined, f"‘{label}’ 이름이 없다")
-        # 칸 이름은 '그날 고점 대비'가 아니라 '고점 대비' 하나다 — 줄마다 이름이 있다.
+        # 칸 이름 셋이 다 있어야 한다(상하님이 정한 그대로).
+        for title in ("고점 대비", "고점대비현재", "종목저점후"):
+            self.assertIn(f">{title}<", joined, f"‘{title}’ 칸이 없다")
+        # 세 숫자가 각각 제 칸에 들어간다.
+        for value in ("-21.78%", "-12.69%", "+11.6%"):
+            self.assertIn(value, joined, f"{value}가 표에 없다")
+        # 한 칸에 겹쳐 넣던 방식은 걷어냈다.
+        self.assertNotIn("j3-dd-line", joined)
         self.assertNotIn("그날 고점 대비", joined)
-        # 셋이 무엇인지 설명하는 줄이 표 위에 있어야 한다.
-        self.assertIn("‘고점 대비’ 칸의 숫자 셋", joined)
-        self.assertIn("갈래와 점수는 ‘그날’로 정합니다", joined)
+        # 셋이 무엇인지 설명하는 줄이 표 위에 있어야 한다. '종목저점후'는 그 종목
+        # 스스로의 저점이 아니라 기준일이 출발점이므로 그 사실을 밝혀 둔다.
+        self.assertIn("<b>낙폭 칸 셋</b>", joined)
+        self.assertIn("갈래와 점수는 ‘고점 대비’로 정합니다", joined)
+        self.assertIn("그 종목 스스로의 저점이 아니라", joined)
+        # 상승장은 칸이 하나 그대로다 — 기준일이라는 것이 없다.
+        up = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
+                                 _breakout_result())
+        up_joined = " ".join(str(node.value) for node in up.markdown)
+        self.assertNotIn("고점대비현재", up_joined)
 
     def test_the_score_has_its_own_column_next_to_the_rank(self):
         """점수는 순위 칸이 아니라 **다음 칸**이다(2026-08-06 사용자 지시).
@@ -1123,6 +1133,31 @@ class Jarvis3PageTests(unittest.TestCase):
                        "j3_bundle_open_pullback"):
             self.assertIn(opened, block, f"{opened}를 열지 않는다")
 
+    def test_the_index_chart_can_be_toggled_by_finger(self):
+        """폰에서 다시 눌러도 당일로 안 돌아왔다(2026-08-07 상하님 지적).
+
+        마우스 전용 규칙(:hover)만 있었다. 손으로 누른 자리는 브라우저가 hover를
+        붙잡아 둬서 두 번째 누름이 먹지 않고, 태블릿은 손으로는 아예 안 바뀌었다.
+        숨긴 체크상자 + 그림을 덮은 label로 누를 때마다 확실히 뒤집는다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _index_chart_swap(")[1].split("\ndef ")[0]
+        self.assertIn("type='checkbox'", block)
+        self.assertIn("j3-idx-tapzone", block)
+        # 자리마다 이름이 달라야 한 칸을 눌러도 옆 칸이 같이 안 바뀐다.
+        self.assertIn("tap_id", block)
+        self.assertIn("key=f\"idx{symbol}\"", source)
+        self.assertIn("key=f\"etf{symbol}\"", source)
+        # :hover는 **마우스가 주된 장치일 때만** — 손으로 눌러 붙잡힌 hover와
+        # 체크상자가 싸우면 다시 안 돌아온다.
+        self.assertIn("@media (hover: hover) and (pointer: fine) {", source)
+        hover_rules = source.count(".j3-top-cell:hover .j3-idx-swap")
+        media_block = source.split("@media (hover: hover) and (pointer: fine) {")[1]
+        self.assertEqual(hover_rules, media_block.count(".j3-top-cell:hover .j3-idx-swap"),
+                         ":hover 규칙이 미디어쿼리 밖에도 남아 있다")
+        self.assertIn(".j3-idx-swap .j3-idx-tap:checked ~ .j3-idx-now", source)
+        self.assertIn(".j3-idx-swap .j3-idx-tap:checked ~ .j3-idx-more", source)
+
     def test_the_mustard_box_bolds_only_what_matters(self):
         """전체를 진하게 하지 말고 중요한 것만(2026-08-07 상하님 지시).
 
@@ -1175,10 +1210,11 @@ class Jarvis3PageTests(unittest.TestCase):
         """
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         self.assertIn(".st-key-j3_rulebook_table,", source)
-        # 2026-08-06 — '점수' 칸이 늘어 이 표만 min-width를 1000px로 따로 뒀다.
-        # 그래서 이 줄만 다른 표와 묶이지 않고 홀로 선다.
+        # 2026-08-06 — '점수' 칸이 늘어 이 표만 min-width를 따로 뒀다. 그래서 이
+        # 줄만 다른 표와 묶이지 않고 홀로 선다. 2026-08-07에 급락 낙폭이 세 칸으로
+        # 갈리면서 열한 칸이 돼 1180px로 넓혔다.
         self.assertIn('.st-key-j3_rulebook_table [data-testid="stHorizontalBlock"] {', source)
-        self.assertIn("min-width: 1000px", source)
+        self.assertIn("min-width: 1180px", source)
         self.assertIn('.st-key-j3_rulebook_table [data-testid="stColumn"],', source)
 
     def test_main_login_includes_jarvis3_destination(self):

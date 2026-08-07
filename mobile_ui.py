@@ -147,10 +147,15 @@ TOP_ROW_CSS = """
    접혀 단계가 통째로 사라졌다(2026-08-06 사용자 지적). CONTENT_CSS(폰 600px)로 옮겼다. */
 .fg-box-title { font-size: 0.86rem; }
 /* 시장 상태 카드의 당일·전일 비교는 태블릿에서는 두 줄로 정리한다. 네 칸을 한 줄에
-   억지로 넣으면 갤럭시탭 세로 화면에서 전일 카드가 화면 밖으로 밀린다. */
+   억지로 넣으면 갤럭시탭 세로 화면에서 전일 카드가 화면 밖으로 밀린다.
+   **머리 칸도 제 짝 바로 위에 둔다**(2026-08-07 상하님 지적) — 예전에는 머리 칸
+   둘이 맨 위에 나란히 있어서 전일 머리 칸과 전일 계기판 사이에 당일 계기판·설명이
+   끼어 있었다. */
 .sig-body-comparison {
     grid-template-areas:
+        "today-head today-head"
         "today-gauge today-story"
+        "previous-head previous-head"
         "previous-gauge previous-story" !important;
     grid-template-columns: minmax(220px, .85fr) minmax(0, 1.15fr) !important;
     overflow-x: visible !important;
@@ -238,11 +243,15 @@ h2 { font-size: 1.2rem !important; }
 .sig-counts { min-width: 0; flex: 1 1 auto; }
 .sig-text { flex: 1 1 100%; min-width: 0; }
 /* 폰에서는 당일과 전일을 위아래로 하나씩 놓는다. 5단계 이름·날짜가 잘리지 않고
-   카드 전체가 좌우로 밀리지 않는다. */
+   카드 전체가 좌우로 밀리지 않는다.
+   머리 칸도 제 짝 바로 위에 둔다(2026-08-07) — 예전에는 머리 칸 둘이 위에 붙어
+   있어서 전일 머리 칸 다음에 당일 계기판이 나왔다. */
 .sig-body-comparison {
     grid-template-areas:
+        "today-head"
         "today-gauge"
         "today-story"
+        "previous-head"
         "previous-gauge"
         "previous-story" !important;
     grid-template-columns: minmax(0, 1fr) !important;

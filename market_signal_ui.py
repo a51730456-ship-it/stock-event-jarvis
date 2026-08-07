@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080640
+MODULE_REVISION = 2026080710
 
 
 def _now_seoul():
@@ -798,13 +798,22 @@ _SIGNAL_GAUGE_CSS = """
    화면이 좁아지면 왼쪽 두 칸이 최소폭을 먼저 차지하고 오른쪽 설명만 짓눌렸다.
    minmax(0, ...)으로 두면 비율이 그대로 지켜져 **좌우가 정확히 반씩** 된다.
    좁은 화면은 아래 @media가 따로 맡는다. */
+/* **머리 칸도 같은 판에 넣는다**(2026-08-07 상하님 지적 "전일이 당일 사이에
+   끼어 있다"). 예전에는 당일·전일 머리 칸 두 개가 판 위에 따로 얹혀 있어서,
+   화면이 좁아 판이 여러 줄로 접히면 전일 머리 칸과 전일 계기판 사이에 당일
+   계기판·설명이 끼어들었다. 한 판에 넣으면 줄이 어떻게 접히든 당일끼리·
+   전일끼리 붙어 다닌다. */
 .sig-body-comparison { display:grid; align-items:stretch; overflow-x:auto;
-  grid-template-areas:"today-gauge today-story previous-gauge previous-story";
+  grid-template-areas:"today-head today-head previous-head previous-head"
+                      "today-gauge today-story previous-gauge previous-story";
   grid-template-columns:minmax(0,.9fr) minmax(0,1.15fr)
                         minmax(0,.9fr) minmax(0,1.15fr); }
 .sig-body-comparison .sig-gauge-pair,
 .sig-body-comparison .sig-text,
+.sig-body-comparison .sig-head-pair,
 .sig-body-comparison .sig-story-stack { display:contents; }
+.sig-body-comparison .sig-head-today { grid-area:today-head; }
+.sig-body-comparison .sig-head-previous { grid-area:previous-head; }
 .sig-body-comparison .sig-gauge-today { grid-area:today-gauge; }
 .sig-body-comparison .sig-story-today { grid-area:today-story; }
 .sig-body-comparison .sig-gauge-previous { grid-area:previous-gauge; }
@@ -1387,11 +1396,16 @@ def render_market_signal_card(
     # 줄바꿈·들여쓰기 없이 한 줄로 만든다. 여러 줄에 걸쳐 들여쓰면 빈 부분(예: 원인
     # 문구가 없을 때)에서 마크다운이 다음 줄을 코드블록으로 잡아 '</div>'가 화면에
     # 글자로 찍힌다(2026-07-24 실제 발생).
+    # 당일·전일을 견주는 화면에서는 머리 칸을 **판 안에** 넣는다(2026-08-07 지적).
+    # 밖에 두면 화면이 좁아 판이 접힐 때 전일 머리 칸과 전일 계기판 사이에 당일
+    # 것이 끼어든다. 견주지 않는 화면은 판이 없으므로 예전처럼 위에 둔다.
+    _head_above = "" if comparison_result is not None else _headline_html
+    _body_inner = ("" if comparison_result is None else _headline_html)
     st.markdown(
         f'<div style="background-color:{bg};border:2px solid {border};border-radius:10px;'
         f'padding:16px;margin-top:8px;">'
-        f'{_headline_html}{_as_of_html}'
-        f'<div class="{_body_class}">{_gauge_html}<div class="sig-text">'
+        f'{_head_above}{_as_of_html}'
+        f'<div class="{_body_class}">{_body_inner}{_gauge_html}<div class="sig-text">'
         f'{_story_html}</div></div>'
         # 5단계 기준·판정 구성은 **날마다 안 변하는 설명**이라 맨 아래로 내린다
         # (2026-08-06 사용자 지시). 위에 두면 매번 읽어야 할 글처럼 보인다.

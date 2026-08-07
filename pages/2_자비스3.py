@@ -306,13 +306,35 @@ st.markdown(
         border-radius: .5rem;
         box-shadow: 0 0 10px rgba(77,166,255,.28);
     }
-    .j3-top-cell:hover .j3-idx-swap .j3-idx-now {
+    /* ── 손가락으로도 되게(2026-08-07 상하님 지적) ────────────────────────
+       폰에서 한 번 누르면 '일봉 6개월'이 나오는데 **다시 눌러도 당일로 안 돌아왔고**,
+       태블릿은 손으로는 아예 안 바뀌었다. 마우스 전용 규칙(:hover)만 있었기 때문이다.
+       손으로 누른 자리는 브라우저가 '계속 올려 둔 것'으로 붙잡아 둬서(sticky hover)
+       두 번째 누름이 먹지 않는다.
+
+       그래서 **숨긴 체크상자**를 하나 두고 그림 위를 덮은 label을 누르면 켜졌다
+       꺼졌다 하게 한다. 자바스크립트 없이 되고, 누를 때마다 확실히 뒤집힌다.
+       :hover 규칙은 **마우스가 주된 장치일 때만** 남긴다 — 안 그러면 손으로 눌러
+       붙잡힌 hover와 체크상자가 서로 싸워 다시 안 돌아온다. */
+    .j3-idx-tap { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+    .j3-idx-tapzone { position: absolute; inset: 0; z-index: 3; cursor: pointer; }
+    .j3-idx-swap .j3-idx-tap:checked ~ .j3-idx-now {
         opacity: 0; transform: translateX(-26px);
         transition: opacity .24s ease-out, transform .24s ease-out;
     }
-    .j3-top-cell:hover .j3-idx-swap .j3-idx-more {
+    .j3-idx-swap .j3-idx-tap:checked ~ .j3-idx-more {
         opacity: 1; transform: translateX(0);
         transition: opacity .24s ease-out, transform .24s ease-out;
+    }
+    @media (hover: hover) and (pointer: fine) {
+        .j3-top-cell:hover .j3-idx-swap .j3-idx-now {
+            opacity: 0; transform: translateX(-26px);
+            transition: opacity .24s ease-out, transform .24s ease-out;
+        }
+        .j3-top-cell:hover .j3-idx-swap .j3-idx-more {
+            opacity: 1; transform: translateX(0);
+            transition: opacity .24s ease-out, transform .24s ease-out;
+        }
     }
     .j3-idx-cap { color: #9aa0aa; font-size: 0.78rem; font-weight: 700; text-align: center; }
     /* '일봉 6개월'은 손을 올려야 보이는 그림이라 이름을 스카이블루로 띄운다
@@ -369,10 +391,11 @@ st.markdown(
             flex-wrap: nowrap !important; min-width: 900px;
         }
         /* 상승장·급락 표는 2026-08-06에 '점수' 칸이 하나 늘어 아홉 칸이 됐다.
-           900px로는 글자가 짓눌려 1000px로 넓힌다. 폰·태블릿에서는 어차피
-           옆으로 밀어서 본다. */
+           900px로는 글자가 짓눌려 1000px로 넓혔고, 2026-08-07에 급락 낙폭이
+           세 칸으로 갈리면서 열한 칸이 돼 1180px로 다시 넓힌다(상하님 지시
+           "칸을 두 개 더"). 폰·태블릿에서는 어차피 옆으로 밀어서 본다. */
         .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important; min-width: 1000px;
+            flex-wrap: nowrap !important; min-width: 1180px;
         }
         .st-key-j3_pullback_table [data-testid="stColumn"],
         .st-key-j3_leader_table [data-testid="stColumn"],
@@ -388,15 +411,12 @@ st.markdown(
         display: block; max-width: 100%;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    /* 급락 표의 낙폭 칸 — '그날 / 지금 / 그 뒤'를 한 줄씩(2026-08-07 상하님 지적).
-       한 줄로 붙였더니 칸보다 길어 좁은 화면에서 양옆이 잘렸다. 줄마다 이름을
-       왼쪽에 붙여 숫자가 무엇인지 칸 안에서 바로 읽히게 한다. */
-    .j3-dd { display: flex; flex-direction: column; align-items: center;
-        line-height: 1.16; max-width: 100%; }
-    .j3-dd-line { display: inline-flex; align-items: baseline; gap: .28rem;
-        white-space: nowrap; }
-    .j3-dd-k { color: #8b9098; font-size: .72rem; font-weight: 700;
-        flex: 0 0 auto; }
+    /* 급락 표의 낙폭은 **칸 셋**이다(2026-08-07 상하님 지시 "칸을 두 개 더").
+       처음에는 한 칸에 한 줄로 붙였다가 잘려서 세 줄로 겹쳐 놨는데, 그것도
+       빽빽하다고 해서 아예 칸을 나눴다. 칸 이름이 곧 그 숫자의 뜻이다.
+       (칸 이름 문자열은 여기 적지 않는다 — 이 CSS는 화면에 markdown으로
+        실려 나가서, 적어 두면 '그 이름이 화면에 있나' 보는 시험이 이 주석을
+        먼저 집는다. 2026-08-07 실제로 걸렸다. 이름은 drop_heads에 있다.) */
     /* 구역 맨 아래 닫기 단추 — 위 여는 단추보다 작고 조용하게(2026-08-01 지시).
        폰에서 구역 끝까지 내려갔을 때 그 자리에서 접으라고 둔 것이라,
        눈에 띄어 화면을 어지럽히면 안 된다. */
@@ -864,7 +884,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080640
+_REQUIRED_SIGNAL_UI_REVISION = 2026080710
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1790,18 +1810,22 @@ def _us_index_cells(overview: dict, phase: str) -> list:
             # 손을 올리면 같은 자리에서 '일봉 6개월'로 바뀐다(2026-08-06 사용자 지시).
             # 클릭으로 안 하는 이유 — 스트림릿은 누르면 화면을 통째로 다시 그려서
             # 움직임이 버벅거린다.
-            + _index_chart_swap(sparklines.get(symbol))
+            + _index_chart_swap(sparklines.get(symbol), key=f"idx{symbol}")
             + "</div>"
         )
     return cells
 
 
 def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
-                      height: int = 90) -> str:
-    """'당일' 그림과 '일봉 6개월' 그림을 같은 자리에 겹쳐 두고 손 올리면 바꾼다.
+                      height: int = 90, key: str = "") -> str:
+    """'당일' 그림과 '일봉 6개월' 그림을 같은 자리에 겹쳐 두고 바꿔 보여 준다.
 
     두 그림이 한 틀 안에 포개져 있어 **자리를 새로 만들지 않는다** — 그래서
     나타나고 사라져도 아래 화면이 밀리지 않고 옆 칸을 덮지도 않는다.
+
+    바꾸는 길이 둘이다 — 마우스는 올리기만 하면 되고, **손가락은 눌렀다 다시
+    누르면 돌아온다**(2026-08-07 상하님 지적). 손가락 쪽은 숨긴 체크상자가 맡는다.
+    자리마다 이름이 달라야 하나만 눌러도 옆 칸까지 같이 바뀌지 않는다.
     """
     spark = spark or {}
     today = _sparkline_svg(spark, "#4da6ff", "#ff5b5b", width=width, height=height)
@@ -1814,8 +1838,12 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
     ) if len(daily_points) >= 2 else ""
     if not daily:
         return today
+    # id에 쓸 수 없는 글자(^ 같은 것)를 걸러 낸다 — 지수 이름은 '^IXIC' 꼴이다.
+    tap_id = "j3idx_" + re.sub(r"[^0-9A-Za-z]+", "", str(key) or str(int(width)))
     return (
         "<div class='j3-idx-swap'>"
+        f"<input type='checkbox' id='{tap_id}' class='j3-idx-tap'>"
+        f"<label for='{tap_id}' class='j3-idx-tapzone'></label>"
         f"<div class='j3-idx-now'>{today}<div class='j3-idx-cap'>당일</div></div>"
         f"<div class='j3-idx-more'>{daily}"
         "<div class='j3-idx-cap j3-idx-cap-daily'>일봉 6개월</div></div>"
@@ -1888,7 +1916,7 @@ def _us_etf_cells(overview: dict) -> list:
             {**(pair.get("intraday") or {}),
              "daily_points": ((pair.get("daily") or {}).get("points") or []),
              "daily_base": (pair.get("daily") or {}).get("base")},
-            width=104, height=78,
+            width=104, height=78, key=f"etf{symbol}",
         )
         cells.append(
             f"<div class='j3-top-cell j3-idx-wide'>"
@@ -3530,13 +3558,13 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
                 "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
                 "아래 갈래별 성적은 <u>갈래끼리 견준 것</u>이고, 순위는 배점표가 정합니다.<br>"
-                # 표의 '고점 대비' 칸에 숫자가 셋 들어간다. 그 셋이 무엇인지 화면
-                # 어디에도 설명이 없었다(2026-08-07 상하님 지적). 여기서 밝힌다.
-                + (f"<b>‘고점 대비’ 칸의 숫자 셋</b> — <b>그날</b>은 기준일"
-                   f"({ref_date})에 고점에서 얼마나 빠져 있었나, <b>지금</b>은 오늘 "
-                   "얼마나 빠져 있나, <b>그 뒤</b>는 기준일 종가에서 지금까지 얼마나 "
-                   "움직였나입니다. <u>갈래와 점수는 ‘그날’로 정합니다</u> — 오늘 값으로 "
-                   "정하면 이미 반등한 종목이 목록에서 사라집니다.<br>"
+                # 낙폭 칸 셋이 무엇인지 화면 어디에도 설명이 없었다(2026-08-07 지적).
+                + (f"<b>낙폭 칸 셋</b> — <b>고점 대비</b>는 기준일({ref_date})에 "
+                   "고점에서 얼마나 빠져 있었나, <b>고점대비현재</b>는 오늘 얼마나 "
+                   "빠져 있나, <b>종목저점후</b>는 그 기준일 종가에서 지금까지 얼마나 "
+                   "움직였나입니다(그 종목 스스로의 저점이 아니라 <u>기준일</u>이 "
+                   "출발점입니다). <u>갈래와 점수는 ‘고점 대비’로 정합니다</u> — 오늘 "
+                   "값으로 정하면 이미 반등한 종목이 목록에서 사라집니다.<br>"
                    if ref_date else "")
                 + "<b>아래 성적은 10년치(2016.8~2026.8)를 잰 것</b>이며 앞으로의 승률이 아닙니다."
                 "</div>"
@@ -3596,7 +3624,13 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         )
         return
 
-    widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.75, 1.2, 1.0, 1.15, 1.5]
+    # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07 상하님
+    # 지시 "너무 촘촘하니 칸을 두 개 더"). 한 칸에 세 줄을 겹쳐 넣었더니 빽빽했다.
+    split_drop = bool(not breakout and (result.get("reference") or {}).get("reference_date"))
+    if split_drop:
+        widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.35, 1.25, 1.75, 1.2, 1.0, 1.15, 1.5]
+    else:
+        widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.75, 1.2, 1.0, 1.15, 1.5]
     # 점수는 순위 **다음 칸**에 따로 둔다(2026-08-06 사용자 지시). 순위 칸에 같이
     # 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다(상하님 캡처).
     row_widths = [widths[0], 0.7, widths[1], sum(widths[2:])]
@@ -3604,24 +3638,26 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 상승장에서 이 칸이 실제로 고르는 자리다 — 거르는 기준은 눌린 폭 하나이고,
     # 며칠 지났는지는 보여만 주고 사람이 판단한다(2026-08-06 사용자 지시).
     third = "고점 후 며칠" if breakout else "갈래"
-    # 급락 갈래는 기준일 낙폭으로 가른다. 칸 이름을 '그날 고점 대비'로 뒀더니
-    # 아래 '지금'·'그 뒤' 줄과 어긋나 보였다(2026-08-07 상하님 지적) — 이제 줄마다
-    # 이름이 붙어 있으므로 칸 이름은 '고점 대비' 하나로 되돌린다.
-    from_high_head = "고점 대비"
+    # 칸 이름은 상하님이 정한 그대로 쓴다(2026-08-07).
+    #   고점 대비     — 기준일 그날의 낙폭. **갈래와 15점을 정하는 값이다.**
+    #   고점대비현재  — 오늘 낙폭.
+    #   종목저점후    — 기준일 종가에서 지금까지의 변동.
+    drop_heads = (["고점 대비", "고점대비현재", "종목저점후"] if split_drop
+                  else ["고점 대비"])
     # 마지막 칸은 두 갈래가 같다(2026-08-06). 배점 25점짜리 '최근 11일에 빠졌나'를
     # 보여준다 — 예전에 여기 있던 '거래대금 연속'과 '최근 60일 상승폭'은 앞뒤로
     # 갈라 재니 뒤 5년에서 져서 배점이 0점이 됐다. 점수에 안 쓰는 값을 표에 두면
     # 화면이 순위와 다른 것을 설명하게 된다.
     volume_head = "최근 11일"
+    head_cells = (["티커", "당일주가"] + drop_heads
+                  + ["소속 테마", third, "보유일수", "같이 걸린 종목", volume_head])
     table_box = st.container(key="j3_rulebook_table")
     head = table_box.columns(row_widths)
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
     head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[3].markdown(
-        _flex_row(rest_widths, ["티커", "당일주가", from_high_head, "소속 테마", third,
-                                "보유일수", "같이 걸린 종목", volume_head],
-                  head=True),
+        _flex_row(rest_widths, head_cells, head=True),
         unsafe_allow_html=True,
     )
 
@@ -3644,9 +3680,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 column.markdown(f"<div class='j3-th-head'>{title}</div>",
                                 unsafe_allow_html=True)
             over_head[3].markdown(
-                _flex_row(rest_widths, ["티커", "당일주가", from_high_head, "소속 테마",
-                                        third, "보유일수", "같이 걸린 종목", volume_head],
-                          head=True),
+                _flex_row(rest_widths, head_cells, head=True),
                 unsafe_allow_html=True,
             )
         row_box = table_box if index < _RULEBOOK_OPEN_ROWS else overflow_box
@@ -3737,40 +3771,31 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         # 오늘 숫자만 보면 이미 오른 종목이 왜 목록에 있는지 알 수 없다(2026-08-06).
         judged = row.get("judged_from_high_pct")
         since = row.get("since_reference_pct")
-        if not breakout and row.get("reference_date") and judged is not None:
-            # 세 숫자를 **각각 이름을 붙여 한 줄씩** 놓는다(2026-08-07 상하님 지적).
-            # 예전에는 '-21.78%' 아래에 '지금 -12.69% · +11.0%'를 한 줄로 붙였는데,
-            #   ① 그 +11.0%가 무엇인지 화면 어디에도 설명이 없었고
-            #   ② 칸보다 글이 길어 좁은 화면에서 양옆이 잘려 나갔다
-            #      (캡처에 '금 -12.69% · +11.'로 찍혔다).
-            # 줄마다 짧아지므로 잘리지 않고, 이름이 곧 설명이 된다.
-            rows_html = [
-                f"<span class='j3-dd-k'>그날</span>"
-                f"<span class='{_sign_class(judged)}' style='font-weight:800'>"
-                f"{_pct(judged)}</span>",
-                f"<span class='j3-dd-k'>지금</span>"
-                f"<span class='{_sign_class(from_high)}'>{_pct(from_high)}</span>",
+        if split_drop:
+            # 한 칸에 세 줄을 겹쳐 넣었더니 빽빽했다(2026-08-07 상하님 지적).
+            # **칸을 셋으로 나눈다** — 칸 이름이 곧 그 숫자의 뜻이다.
+            # 오늘 낙폭은 jarvis3_data가 따로 적어 둔 값을 먼저 쓴다 — metrics의
+            # 값과 같아야 하지만, 적어 둔 쪽이 이 화면이 쓰라고 만든 값이다.
+            now_drop = row.get("now_from_high_pct")
+            if now_drop is None:
+                now_drop = from_high
+            drop_cells = [
+                f"<span class='{_sign_class(judged)}'"
+                f" style='font-weight:800'>{_pct(judged)}</span>",
+                f"<span class='{_sign_class(now_drop)}'>{_pct(now_drop)}</span>",
+                (f"<span class='{_sign_class(since)}'>{float(since):+.1f}%</span>"
+                 if since is not None else "<span class='j3-muted'>—</span>"),
             ]
-            if since is not None:
-                rows_html.append(
-                    f"<span class='j3-dd-k'>그 뒤</span>"
-                    f"<span class='{_sign_class(since)}'>{float(since):+.1f}%</span>"
-                )
-            from_high_cell = (
-                "<span class='j3-dd'>"
-                + "".join(f"<span class='j3-dd-line'>{line}</span>" for line in rows_html)
-                + "</span>"
-            )
         else:
-            from_high_cell = (
+            drop_cells = [
                 f"<span class='{_sign_class(from_high)}'"
                 f" style='font-weight:800'>{_pct(from_high)}</span>"
-            )
+            ]
         cols[3].markdown(
             _flex_row(rest_widths, [
                 html.escape(str(row.get("ticker") or "—")),
                 price_cell,
-                from_high_cell,
+                *drop_cells,
                 f"<span class='j3-rb-clip j3-pull-theme'"
                 f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
                 third_cell,
