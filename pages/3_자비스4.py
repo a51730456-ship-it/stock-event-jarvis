@@ -220,14 +220,22 @@ st.markdown(
        0.12초로 짧게 둔다 — 길면 누를 때마다 다시 재생돼 거슬린다.
        떠오르는 등장 애니메이션은 넣지 않는다(2026-08-06 미국에서 어지럽다고
        빼 달라고 하셨다). 손을 올렸을 때만 반응한다. */
-    .stButton button, .j4-top-cell, .j4-reason-card {
+    /* **게이지 카드(.fg-box)도 넣어야 한다**(2026-08-07 상하님 지적 — 시장국면·
+       미국 시장국면·공포탐욕은 바늘만 움직이고 카드는 꼼짝을 안 했다). 바늘이
+       흔들리는 규칙은 gauge_ui.CSS에 있고, **카드가 뜨는 규칙은 페이지에 있다.**
+       자비스3은 .fg-box를 넣어 뒀는데 자비스4는 빠져 있었다.
+       뜬 카드가 옆 칸에 가리지 않게 z-index도 같이 올린다. */
+    .stButton button, .j4-top-cell, .j4-reason-card, .fg-box,
+    [data-testid="stExpander"] summary {
         transition: transform .12s ease-out, filter .12s ease-out;
     }
     .stButton button:hover { transform: translateY(-2px); filter: brightness(1.08); }
     .stButton button:active { transform: translateY(0) scale(.985); }
-    .j4-top-cell:hover, .j4-reason-card:hover {
+    [data-testid="stExpander"] summary:hover { filter: brightness(1.12); }
+    .j4-top-cell:hover, .j4-reason-card:hover, .fg-box:hover {
         transform: translateY(-3px); filter: brightness(1.06);
     }
+    .j4-top-cell:hover, .fg-box:hover { z-index: 50; }
     /* 겨자색 상자 — **글 전체를 진하게 하지 않는다**(2026-08-07 상하님 지시,
        미국테마와 같은 처리). 전부 굵으면 어디가 중요한지 알 수 없다. */
     .j4-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 500; line-height: 1.62; }
