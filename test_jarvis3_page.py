@@ -1133,6 +1133,21 @@ class Jarvis3PageTests(unittest.TestCase):
                        "j3_bundle_open_pullback"):
             self.assertIn(opened, block, f"{opened}를 열지 않는다")
 
+    def test_the_theme_card_says_it_is_a_different_ruler(self):
+        """테마 자체 점수 70.7/100과 배점표의 테마 40점이 어긋나 보였다(2026-08-07).
+
+        둘 다 맞는 값인데 자가 다르다 — 하나는 테마 순위표가 테마를 100점으로
+        잰 값이고, 하나는 이 종목의 급락 배점 100점 중 테마 몫이다. 화면이 그
+        사실을 말하지 않으면 "이거 맞냐"는 물음을 다시 받는다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
+        self.assertIn("테마 자체 점수", block)
+        self.assertIn("다른 자", block)
+        self.assertIn("j3-reason-sub", block)
+        # 예전 문구가 남아 있으면 무엇을 잰 점수인지 다시 알 수 없어진다.
+        self.assertNotIn("최고 테마 점수", block)
+
     def test_the_index_chart_can_be_toggled_by_finger(self):
         """폰에서 다시 눌러도 당일로 안 돌아왔다(2026-08-07 상하님 지적).
 

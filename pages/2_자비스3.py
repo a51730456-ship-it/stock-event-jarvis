@@ -196,6 +196,11 @@ st.markdown(
     .j3-reason-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 0.55rem; padding: 0.6rem 0.75rem; height: 100%; }
     .j3-reason-title { color: #4da6ff; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.25rem; }
     .j3-reason-body { color: #44f0a1; font-weight: 700; font-size: 0.9rem; line-height: 1.45; }
+    /* 같은 카드 안의 '이건 다른 자다' 같은 곁글. 본문보다 작고 흐리게 둬서
+       숫자를 가리지 않게 한다(2026-08-07). */
+    .j3-reason-sub { color: #9aa0aa; font-weight: 600; font-size: 0.8rem;
+        line-height: 1.42; margin-top: 0.3rem; }
+    .j3-reason-sub b { color: #cfd4da; }
     .j3-chart-title { color: #e6e6e6; font-weight: 800; font-size: 1rem; margin-bottom: 0.1rem; }
     /* 맨 위 큰 차트의 제목 — 아래 작은 셋과 구분되게 하늘색으로 조금 크게
        (2026-08-07 상하님 지시 "일봉 클릭하면 화면 위에 크게"). */
@@ -3372,9 +3377,20 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     # 여기 담기는 글은 **이미 안전하게 만들어 둔 것**이다(붉은 숫자 span이 들어간다).
     # 그래서 아래에서 다시 escape하지 않는다 — 새 글을 넣을 때는 html.escape를
     # 거쳐서 넣어야 한다.
+    # 여기 70.7/100만 적어 뒀더니 왼쪽 배점표의 테마 40점과 어긋나 보였다
+    # (2026-08-07 상하님 지적 "이거 맞냐"). 둘 다 맞는 값인데 **자가 다르다** —
+    # 이쪽은 위 테마 순위표가 테마 자체를 100점으로 잰 값이고, 저쪽은 이 종목의
+    # 급락 배점 100점 중 테마 몫이다. 그 사실을 카드에 적어 둔다.
+    # (옛 문구를 주석에 그대로 옮겨 적지 않는다 — '그 말이 화면에 남아 있나' 보는
+    #  시험이 주석을 먼저 집는다. 2026-08-07 실제로 걸렸다.)
+    theme_body = (
+        html.escape(f"{themes} · 테마 자체 점수 {theme_score:.1f}/100")
+        + "<div class='j3-reason-sub'>위 <b>테마 순위표</b>가 이 테마를 100점으로 잰 "
+          "값입니다. 왼쪽 배점표의 ‘같은 테마 동반 40점’과는 <b>다른 자</b>입니다.</div>"
+    )
     reason_cards = [
         ("시장 근거", market_body),
-        ("테마 근거", html.escape(f"{themes} · 최고 테마 점수 {theme_score:.1f}/100")),
+        ("테마 근거", theme_body),
         ("종목 근거", html.escape(str(stock_body))),
         ("매수 근거", html.escape(str(buy_body))),
     ]
