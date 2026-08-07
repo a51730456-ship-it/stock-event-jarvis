@@ -60,12 +60,27 @@ THEME_STOCK_LIMIT = 8
 # 이 점수를 넘는 종목은 테마 점수가 낮아도 후보로 인정한다(테마 게이트 면제).
 STRONG_STOCK_OVERRIDE = 85.0
 THEME_DETAIL_PARSER_VERSION = 2
+
+# 종목 조건점수 100점의 배분 — 2026-08-07에 실측으로 다시 짰다.
+# 자세한 숫자와 이유는 `_stock_score`의 설명글에 있다. 한 줄로 줄이면:
+# 검증에 통과한 둘(신고가 근접·낮은 변동성)로 무게를 옮기고, 거꾸로였던
+# 둘(이동평균 추세·20일 상대강도)은 0점으로 뺐다.
+SCORE_WEIGHTS = {
+    "high": 35.0,        # 신고가에 가까운가 — 창 88 / 95 / 100% 합격
+    "risk": 25.0,        # 변동성이 낮은가 — 창 86 / 73 / 77% 합격
+    "liquidity": 20.0,   # 거래대금 — 합격선은 못 넘었지만 거꾸로도 아니다
+    "flow": 20.0,        # 외국인·기관 수급 — 아직 못 쟀다(과거 자료 없음)
+    "trend": 0.0,        # 이동평균 위 — 거꾸로였다
+    "relative": 0.0,     # 20일 상대강도 — 거꾸로였다
+}
+# 화면에 '검증됐다'고 적어도 되는 항목만 추린 것. 설명글이 이 목록을 읽는다.
+SCORE_VERIFIED_KEYS = ("high", "risk")
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다.
 # 스트림릿은 페이지 파일만 다시 읽고 import된 모듈은 그대로 두는 경우가 있어,
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080790
+MODULE_REVISION = 2026080800
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1843,51 +1858,73 @@ def _is_excluded(name: str, code: str) -> bool:
 
 
 def _stock_score(metrics: dict, flow: dict, theme_ret20: float | None) -> tuple[float, list[float]]:
-    """종목 조건점수 100점 = 상대강도20 + 신고가15 + 추세20 + 유동성15 + 변동성10 + 수급20.
+    """종목 조건점수 100점 = 상대강도0 + 신고가35 + 추세0 + 유동성20 + 변동성25 + 수급20.
 
-    미국판 배점을 그대로 쓰면 안 된다(2026-07-22 실측): 국내 대형주 상당수가 52주 고가
-    대비 -30~-45% 구간이라 미국 기준(-25%~0)에서는 전 종목이 0점이 돼 변별력이 없다.
-    신고가 항목은 범위를 -45~0으로 넓히고 배점을 15로 줄이는 대신, 국내에서 더 잘 듣는
-    추세(이동평균선) 배점을 20으로 올렸다.
+    **2026-08-07에 배점을 다시 짰다.** 상승장·급락 그물은 격자로 다 쟀는데 이 조건점수만
+    한 번도 같은 잣대로 재 본 적이 없었다. `research/kr_cond_check.py`로 12년치
+    2,272종목을 창 2·3·4년씩 한 달 간격으로 밀며 그물(거래대금 50억↑ ·
+    고점 대비 -45~0%) 안에서 재 봤더니 옛 배점 100점 중 40점이 **거꾸로**였다.
+
+      · 신고가에 가까운가  88 / 95 / 100%  ○  → 15점에서 **35점**으로 올림
+      · 변동성 4% 미만     86 / 73 /  77%  ○  → 10점에서 **25점**으로 올림
+      · 거래대금 500억↑    69 / 64 /  57%  △  → 합격선(65%)은 못 넘었지만 거꾸로도
+                                                아니라 15점에서 20점으로만 손봄
+      · 20일선 위          17 / 17 /   6%  ✗  ┐ 이동평균 위에 있다고 점수를 주면
+      · 50일선 위           9 / 11 /   0%  ✗  ├ 오히려 손해였다. 추세 20점 → **0점**
+      · 200일선 위         19 / 26 /  31%  ✗  ┘
+      · 20일 수익률 상위    5 / 10 /   0%  ✗    상대강도 20점 → **0점**
+
+    수급 20점은 오늘 재지 못했다 — 외국인·기관 순매수는 과거치를 12년어치 받아 둔 데가
+    없다. 재기 전까지 배점은 그대로 두되, 검증된 항목이 아니라는 것을 잊으면 안 된다.
+
+    **0점짜리 두 항목의 계산은 남겨 둔다.** 화면이 여섯 칸을 그리고 있고, 나중에 다시
+    재서 되살릴 수도 있어서다. 배점만 0으로 두면 점수에 섞이지 않는다.
+
+    (옛 주석) 미국판 배점을 그대로 쓰면 안 된다(2026-07-22 실측): 국내 대형주 상당수가
+    52주 고가 대비 -30~-45% 구간이라 미국 기준(-25%~0)에서는 전 종목이 0점이 된다.
+    그래서 신고가 항목의 범위는 지금도 -45~0이다.
     """
     relative = None
     if metrics.get("ret20") is not None and theme_ret20 is not None:
         relative = metrics["ret20"] - theme_ret20
-    rs_points = _scale(relative, -8, 8, 20)
+    rs_points = _scale(relative, -8, 8, SCORE_WEIGHTS["relative"])
 
-    high_points = _scale(metrics.get("from_high_pct"), -45, 0, 15)
+    high_points = _scale(metrics.get("from_high_pct"), -45, 0, SCORE_WEIGHTS["high"])
 
+    trend_full = SCORE_WEIGHTS["trend"]
     trend_points = 0.0
-    for average_key, points in (("sma20", 8), ("sma50", 7), ("sma200", 5)):
+    for average_key, share in (("sma20", 0.40), ("sma50", 0.35), ("sma200", 0.25)):
         value = metrics.get(average_key)
         if value and metrics.get("current") and metrics["current"] > value:
-            trend_points += points
+            trend_points += trend_full * share
 
+    liquidity_full = SCORE_WEIGHTS["liquidity"]
     trading_value = metrics.get("avg_trading_value")
     if trading_value is None:
         liquidity_points = 0.0
     elif trading_value >= 5e10:      # 500억 이상
-        liquidity_points = 15.0
+        liquidity_points = liquidity_full
     elif trading_value >= 2e10:      # 200억
-        liquidity_points = 13.0
+        liquidity_points = liquidity_full * 0.87
     elif trading_value >= 1e10:      # 100억
-        liquidity_points = 10.0
+        liquidity_points = liquidity_full * 0.67
     elif trading_value >= 3e9:       # 30억
-        liquidity_points = 6.0
+        liquidity_points = liquidity_full * 0.40
     else:
-        liquidity_points = 2.0
+        liquidity_points = liquidity_full * 0.13
 
+    risk_full = SCORE_WEIGHTS["risk"]
     atr_pct = metrics.get("atr_pct")
     if atr_pct is None:
         risk_points = 0.0
     elif atr_pct <= 4:
-        risk_points = 10.0
+        risk_points = risk_full
     elif atr_pct <= 6:
-        risk_points = 8.0
+        risk_points = risk_full * 0.80
     elif atr_pct <= 9:
-        risk_points = 5.0
+        risk_points = risk_full * 0.50
     elif atr_pct <= 13:
-        risk_points = 2.0
+        risk_points = risk_full * 0.20
     else:
         risk_points = 0.0
 
@@ -1902,12 +1939,15 @@ def _stock_score(metrics: dict, flow: dict, theme_ret20: float | None) -> tuple[
         net5 = flow.get("net5_amount") or 0
         base = (trading_value or 0) * 5
         flow_ratio = (net5 / base) if base > 0 else None
-        amount_points = _scale(flow_ratio, 0.0, 0.12, 14)  # 5일 거래대금의 12%면 만점
+        flow_full = SCORE_WEIGHTS["flow"]
+        amount_points = _scale(flow_ratio, 0.0, 0.12, flow_full * 0.70)  # 12%면 만점
         # 2026-07-25: '연속'(외국인+기관을 합쳐서 센 연속일)에서 '동반'(둘 다 순매수한
         # 날 수)으로 바꿨다. 합산은 외국인 +500억·기관 −480억을 순매수로 둔갑시켜
         # 화면에서 이미 버린 기준이라, 점수도 같은 자를 쓰게 맞췄다(사용자 지시).
         # 5일 중 3일이면 만점 6점. 동반이 더 엄격해 점수는 전보다 낮게 나온다.
-        partner_points = min(6.0, (flow.get("both_buy_days5") or 0) * 2.0)
+        partner_cap = flow_full * 0.30
+        partner_points = min(partner_cap, (flow.get("both_buy_days5") or 0)
+                             * partner_cap / 3.0)
         flow_points = amount_points + partner_points
     flow["net5_ratio"] = flow_ratio if flow.get("ok") else None
 
