@@ -362,7 +362,7 @@ def factors() -> None:
 
     for title, mask, pool, hold in (
         ("상승장 (신고가 눌림 · 거래대금 50억↑ · 120거래일)", up_mask, up_pool, 120),
-        ("급락장 (코스피 -10% 가장깊은날 · -40~-50% · 거래대금 10억↑ · 60거래일)",
+        ("급락 후 반등장 (코스피 -10% 가장깊은날 · -40~-50% · 거래대금 10억↑ · 60거래일)",
          down_mask, down_pool, 60),
     ):
         returns = forward_returns(wide, hold)

@@ -93,7 +93,7 @@ def cap() -> None:
 
     for title, signal, hold, floor in (
         ("상승장 (신고가 눌림 · 120거래일)", up, 120, 50),
-        ("급락장 (코스피 -10% 가장깊은날 · -40~-50% · 60거래일)", down, 60, 10),
+        ("급락 후 반등장 (코스피 -10% 가장깊은날 · -40~-50% · 60거래일)", down, 60, 10),
     ):
         returns = forward_returns(wide, hold)
         print(f"\n{'=' * 96}\n### {title}\n{'=' * 96}")
@@ -160,7 +160,7 @@ def together() -> None:
 
     for title, signal, hold, floor in (
         ("상승장 (신고가 눌림 · 거래대금 50억↑ · 120거래일)", up, 120, 50),
-        ("급락장 (코스피 -10% · -40~-50% · 거래대금 10억↑ · 60거래일)", down, 60, 10),
+        ("급락 후 반등장 (코스피 -10% · -40~-50% · 거래대금 10억↑ · 60거래일)", down, 60, 10),
     ):
         pool = value >= floor
         mask = signal & pool
@@ -240,7 +240,7 @@ def yearly() -> None:
         ("상승장 · 거래대금 500억↑", up & (value >= 500), value >= 500, 120),
         ("상승장 · 같이 움직이는 무리 4개↑", up & (value >= 50) & (moves >= 4),
          value >= 50, 120),
-        ("급락장 · -40~-50% 낙폭", down & (value >= 10), value >= 10, 60),
+        ("급락 후 반등장 · -40~-50% 낙폭", down & (value >= 10), value >= 10, 60),
     )
     years = sorted({date.year for date in dates})
     print(f"{'':34}" + "".join(f"{year:>7}" for year in years))
