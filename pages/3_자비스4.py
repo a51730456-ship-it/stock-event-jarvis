@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import html
+import re
 import time
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -177,7 +178,28 @@ st.markdown(
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .j4-theme-box { background: rgba(77,166,255,0.08); border: 1px solid rgba(77,166,255,0.3); border-radius: 0.55rem; padding: 0.7rem 0.9rem; font-size: 0.95rem; line-height: 1.7; margin-bottom: 0.6rem; }
-    .j4-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 700; }
+    /* ── 손을 올리면 살짝 뜬다 (2026-08-07, 미국테마와 같은 결) ───────────────
+       0.12초로 짧게 둔다 — 길면 누를 때마다 다시 재생돼 거슬린다.
+       떠오르는 등장 애니메이션은 넣지 않는다(2026-08-06 미국에서 어지럽다고
+       빼 달라고 하셨다). 손을 올렸을 때만 반응한다. */
+    .stButton button, .j4-top-cell, .j4-reason-card {
+        transition: transform .12s ease-out, filter .12s ease-out;
+    }
+    .stButton button:hover { transform: translateY(-2px); filter: brightness(1.08); }
+    .stButton button:active { transform: translateY(0) scale(.985); }
+    .j4-top-cell:hover, .j4-reason-card:hover {
+        transform: translateY(-3px); filter: brightness(1.06);
+    }
+    /* 겨자색 상자 — **글 전체를 진하게 하지 않는다**(2026-08-07 상하님 지시,
+       미국테마와 같은 처리). 전부 굵으면 어디가 중요한지 알 수 없다. */
+    .j4-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 500; line-height: 1.62; }
+    .j4-reason-mustard .j4-mn-up { color: #4fb8ff; font-weight: 900; }
+    .j4-reason-mustard .j4-mn-down { color: #ff4d4f; font-weight: 900; }
+    .j4-reason-mustard .j4-mn-key { color: #ffd479; font-weight: 900; }
+    /* 카드 안의 '이건 다른 자다' 같은 곁글 */
+    .j4-reason-sub { color: #9aa0aa; font-weight: 600; font-size: 0.8rem;
+        line-height: 1.42; margin-top: 0.3rem; }
+    .j4-reason-sub b { color: #cfd4da; }
     /* 차트 구역 제목은 초록(2026-07-29 지시) — '당일·실시간', '가격 차트 …' 등.
        상세 세 벌에 공통으로 먹는다. */
     .j4-chart-heading { margin-top: 1.6rem; font-size: 1.15rem; font-weight: 800; color: #44f0a1; }
@@ -1339,6 +1361,33 @@ BIG_CHART_HEIGHT = 430
 _CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}
 
 
+# 겨자색 상자에서 굵게 뽑을 말들(2026-08-07, 미국테마와 같은 규칙).
+# 여기 없는 말은 보통 굵기로 둔다 — 다 굵으면 아무것도 강조되지 않는다.
+_MUSTARD_NUMBER = re.compile(r"[+\-\u2212]\d+(?:[.,]\d+)?%")
+_MUSTARD_HOLD = re.compile(r"\d+거래일 뒤 종가")
+_MUSTARD_KEYS = (
+    "다음 거래일 시가",
+    "손절가가 없습니다",
+    "손절가는 없습니다",
+)
+
+
+def _mustard_html(text) -> str:
+    """겨자색 상자의 글 — 숫자와 중요한 말만 굵게·색으로 뽑는다.
+
+    오른 값(+)은 스카이블루, 빠진 값(\u2212)은 붉은색. 화면 다른 곳과 같은 약속이다.
+    **글은 먼저 escape한다** — 평문 위에 우리가 만든 태그만 얹는다.
+    """
+    safe = html.escape(str(text or ""))
+    safe = _MUSTARD_NUMBER.sub(
+        lambda m: (f"<span class='j4-mn-{'up' if m.group()[0] == '+' else 'down'}'>"
+                   f"{m.group()}</span>"), safe)
+    safe = _MUSTARD_HOLD.sub(lambda m: f"<span class='j4-mn-key'>{m.group()}</span>", safe)
+    for phrase in _MUSTARD_KEYS:
+        safe = safe.replace(phrase, f"<span class='j4-mn-key'>{phrase}</span>")
+    return safe
+
+
 def _price_chart(payload: dict, include_volume: bool = False, height: int | None = None,
                  compact: bool = False):
     """compact를 켜면 눈금과 범례를 빼고 선만 남긴다 — 손톱만 한 그림에서는
@@ -2072,7 +2121,7 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
             f"<tbody>{factor_rows}{total_row}</tbody></table>",
             unsafe_allow_html=True,
         )
-        st.markdown(f"<div class='j4-reason-mustard'>{leader['stock_reason']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='j4-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>", unsafe_allow_html=True)
     with plan_col:
         # 괄호 안내는 뺐다 — 제목은 짧게(2026-07-30 사용자 지시). 호가단위 반올림은
         # 계속 하고 있고, 설명은 '이 테마 기법에 대한 설명' 안에 적어 두었다.
