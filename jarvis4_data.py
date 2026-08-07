@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080780
+MODULE_REVISION = 2026080790
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -3175,7 +3175,12 @@ def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_l
         metrics = _series_metrics(daily, stock.get("price"))
         if not metrics.get("ok"):
             return None
-        matched = match(metrics)
+        # 일부 규칙은 **그날 값**을 봐야 해서 일봉도 같이 넘긴다(2026-08-07).
+        # 옛 방식대로 metrics 하나만 받는 규칙도 그대로 돈다.
+        try:
+            matched = match(metrics, daily)
+        except TypeError:
+            matched = match(metrics)
         if not matched:
             return None
         return {**stock, "metrics": metrics, "daily": daily, "rule": matched,
@@ -3306,16 +3311,29 @@ def find_crash_rebound_stocks(
     30~50% 빠진 종목이 50일선 위에 있을 리 없다.
     """
 
-    def _match(metrics):
-        from_high = metrics.get("from_high_pct")
-        if from_high is None:
+    # **갈래는 기준일 그날 낙폭으로 나눈다**(2026-08-07). 오늘 값으로 나누면 이미
+    # 반등해서 -40% 밖으로 올라온 종목이 목록에서 사라진다 — 정작 사야 할 자리를
+    # 놓친다. 미국테마가 같은 이유로 그날 값을 쓴다.
+    # 기준일이 없으면(국면이 아니면) 예전처럼 오늘 값으로 나눈다.
+    state = kr_crash_market_state()
+    reference_date = state.get("reference_date") if state.get("ok") else None
+
+    def _bucket_of(drop):
+        if drop is None:
             return None
         for order, rule in enumerate(CRASH_REBOUND_RULES):
             low, high = rule["band"]
-            if low <= from_high < high:
+            if low <= drop < high:
                 return {"bucket": rule["key"], "bucket_label": rule["label"],
                         "hold_days": rule["hold_days"], "_order": order}
         return None
+
+    def _match(metrics, daily=None):
+        judged = None
+        if reference_date is not None:
+            judged = reference_drawdown(daily, reference_date).get("judged_from_high_pct")
+        return _bucket_of(judged if judged is not None
+                          else metrics.get("from_high_pct"))
 
     def _produce():
         found = _rulebook_scan(
