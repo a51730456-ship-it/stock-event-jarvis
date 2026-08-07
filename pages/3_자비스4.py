@@ -3362,14 +3362,25 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     # 두 갈래가 같은 순위 기준을 쓰므로 표도 같은 칸을 쓴다(2026-08-01 사용자 지시).
     # 순위를 정하는 두 칸(동반 5일 · 같이 걸린 종목)을 앞쪽에 둬서, 순위를 왜 그렇게
     # 매겼는지 눈으로 바로 따라갈 수 있게 한다. 셋째 칸만 갈래에 따라 다르다.
-    widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5]
+    # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07,
+    # 미국테마와 같은 이름). 오늘 값만 두면 이미 반등한 종목인지 알 수 없다.
+    split_drop = bool(not breakout and rows and rows[0].get("judged_from_high_pct") is not None)
+    if split_drop:
+        widths = [0.55, 1.85, 1.75, 1.25, 1.15, 1.15, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5]
+    else:
+        widths = [0.55, 1.85, 1.75, 1.25, 1.2, 1.75, 1.05, 1.1, 1.0, 1.5]
     # 일곱째 칸은 갈래마다 다르다. 2026-08-07 재측정으로 **60일 상승폭의 뜻이
     # 뒤집혔다** — 예전에는 많이 오를수록 좋았는데(만점 25점) 창을 밀며 다시 재니
     # 40% 넘게 오른 쪽이 거의 모든 창에서 졌다. 그래서 칸 이름도 바꾼다.
     # '동반 5일(외국인+기관)'은 점수가 0이지만 표에는 그대로 보여 준다(2026-08-01).
-    headers = ["동반 5일 (외국인+기관)", "당일주가", "고점 대비", "소속 테마",
-               "신고가" if breakout else "갈래", "보유일수", "같이 걸린 종목",
-               "최근 60일 (40%↑면 0점)" if breakout else "거래대금 (평소 대비)"]
+    # 칸 이름은 미국테마와 같다 — 고점 대비(기준일 그날) · 고점대비현재(오늘) ·
+    # 종목저점후(기준일 종가에서 지금까지). 갈래는 그날 낙폭으로 정해야 한다.
+    drop_heads = (["고점 대비", "고점대비현재", "종목저점후"] if split_drop
+                  else ["고점 대비"])
+    headers = (["동반 5일 (외국인+기관)", "당일주가"] + drop_heads
+               + ["소속 테마", "신고가" if breakout else "갈래", "보유일수",
+                  "같이 걸린 종목",
+                  "최근 60일 (40%↑면 0점)" if breakout else "거래대금 (평소 대비)"])
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     table_box = st.container(key="j4_rulebook_table")
@@ -3466,9 +3477,24 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             else "j4-hold-60" if hold_days == 60
             else "j4-hold-120"
         )
+        if split_drop:
+            judged = row.get("judged_from_high_pct")
+            since = row.get("since_reference_pct")
+            drop_cells = [
+                f"<span class='{_sign_class(judged)}'"
+                f" style='font-weight:800'>{_pct(judged)}</span>",
+                f"<span class='{_sign_class(from_high)}'>{_pct(from_high)}</span>",
+                (f"<span class='{_sign_class(since)}'>{float(since):+.1f}%</span>"
+                 if since is not None else "<span class='j4-muted'>—</span>"),
+            ]
+        else:
+            drop_cells = [
+                f"<span class='{_sign_class(from_high)}'"
+                f" style='font-weight:800'>{_pct(from_high)}</span>"
+            ]
         price_and_high = [
             price_cell,
-            f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+            *drop_cells,
             f"<span class='j4-rb-clip j4-th-muted' title='{html.escape(themes)}'>"
             f"{html.escape(theme_text)}</span>",
             third_cell,

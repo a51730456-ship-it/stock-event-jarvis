@@ -663,9 +663,12 @@ class Jarvis4PageTests(unittest.TestCase):
         self.assertIn("소속 테마", block)
         self.assertIn("avg_trading_value", block)
         self.assertIn("배</span>", block)
-        headers = block.split("headers = [", 1)[1].split("]", 1)[0]
-        self.assertLess(headers.index("고점 대비"), headers.index("소속 테마"))
+        # 2026-08-07 — 급락 갈래에서 낙폭이 세 칸으로 갈렸다. 칸 순서는 그대로다.
+        headers = block.split("headers = (", 1)[1].split("])", 1)[0]
+        self.assertLess(headers.index("drop_heads"), headers.index("소속 테마"))
         self.assertLess(headers.index("소속 테마"), headers.index("갈래"))
+        for name in ("고점 대비", "고점대비현재", "종목저점후"):
+            self.assertIn(name, block)
         self.assertNotIn("together_label", block)
         for hold_class in ("j4-hold-20", "j4-hold-60", "j4-hold-120"):
             self.assertIn(hold_class, block)
