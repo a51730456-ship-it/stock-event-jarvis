@@ -1332,7 +1332,17 @@ def _leader_table_html(leaders: list[dict], selected_code: str | None) -> str:
     )
 
 
-def _price_chart(payload: dict, include_volume: bool = False, height: int | None = None):
+# 아래 손톱그림 셋의 높이와 위 큰 차트의 높이. 미국테마(자비스3)와 같은 값이다
+# (2026-08-07 상하님 지시로 미국에 넣은 것을 한국에도 맞춘다).
+THUMB_CHART_HEIGHT = 108
+BIG_CHART_HEIGHT = 430
+_CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}
+
+
+def _price_chart(payload: dict, include_volume: bool = False, height: int | None = None,
+                 compact: bool = False):
+    """compact를 켜면 눈금과 범례를 빼고 선만 남긴다 — 손톱만 한 그림에서는
+    눈금 글자가 그림보다 자리를 더 먹는다(2026-08-07, 미국테마와 같은 처리)."""
     price = payload["price"].reset_index()
     date_column = price.columns[0]
     price = price.rename(columns={date_column: "날짜", "Close": "주가", "MA20": "20일선", "MA50": "50일선"})
@@ -1341,14 +1351,17 @@ def _price_chart(payload: dict, include_volume: bool = False, height: int | None
     line_height = height if height is not None else (220 if include_volume else 315)
     line = (
         alt.Chart(long_price)
-        .mark_line(strokeWidth=2)
+        .mark_line(strokeWidth=1.4 if compact else 2)
         .encode(
-            x=alt.X("날짜:T", title=None, axis=alt.Axis(format="%y-%m", labelAngle=0, tickCount=5)),
-            y=alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(tickCount=5)),
+            x=alt.X("날짜:T", title=None,
+                    axis=None if compact
+                    else alt.Axis(format="%y-%m", labelAngle=0, tickCount=5)),
+            y=alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False),
+                    axis=None if compact else alt.Axis(tickCount=5)),
             color=alt.Color(
                 "구분:N", title=None,
                 scale=alt.Scale(domain=["주가", "20일선", "50일선"], range=["#69bff8", "#ff4d4f", "#a855f7"]),
-                legend=alt.Legend(orient="top", direction="horizontal"),
+                legend=None if compact else alt.Legend(orient="top", direction="horizontal"),
             ),
             tooltip=[alt.Tooltip("날짜:T", title="날짜"), alt.Tooltip("구분:N"), alt.Tooltip("가격:Q", format=",.0f")],
         )
@@ -1904,24 +1917,55 @@ def _render_guest_stock_charts(code: str, panel: str) -> None:
         close_label="일봉·주봉·월봉 닫기",
     ):
         return
-    st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
+    st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
+               "일봉 거래량은 위 큰 차트가 일봉일 때 그 아래에 표시됩니다. "
+               "아래 작은 그림 위의 ‘일봉 · 주봉 · 월봉’을 누르면 맨 위 큰 차트가 바뀝니다.")
     chart_bundle = j4data.get_chart_bundle(code)
     if chart_bundle.get("ok"):
-        daily_col, weekly_col, monthly_col = st.columns(3)
-        for timeframe, chart_column in (("일봉", daily_col), ("주봉", weekly_col), ("월봉", monthly_col)):
-            payload = chart_bundle["charts"].get(timeframe, {})
-            with chart_column:
-                st.markdown(f"<div class='j4-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
-                if payload.get("ok"):
-                    st.altair_chart(
-                        _price_chart(payload, include_volume=timeframe == "일봉"),
-                        width="stretch", theme="streamlit",
-                    )
-                else:
-                    st.warning(f"{timeframe} 자료 없음")
+        _render_chart_bundle_body(chart_bundle, panel)
     else:
         st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
     _section_close(f"j4_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
+
+
+def _pick_bundle_chart(state_key: str, timeframe: str) -> None:
+    st.session_state[state_key] = timeframe
+
+
+def _render_chart_bundle_body(chart_bundle: dict, panel: str) -> None:
+    """큰 차트 한 장을 위에, 고르는 손톱그림 셋을 아래에 (2026-08-07).
+
+    미국테마(자비스3)에 넣은 것을 한국에도 그대로 맞춘다. 셋을 나란히 크게 그리면
+    화면이 길고 정작 보고 싶은 하나가 작다. 폭은 셋이 고르게 나눠 갖고, 작게 보이는
+    것은 높이(108px)로만 만든다.
+    """
+    big_key = f"j4_bundle_big_{panel}"
+    big = st.session_state.get(big_key) or "일봉"
+    payload = chart_bundle["charts"].get(big, {})
+    st.markdown(f"<div class='j4-chart-title'>{big} — 크게 보기</div>",
+                unsafe_allow_html=True)
+    if payload.get("ok"):
+        st.altair_chart(
+            _price_chart(payload, include_volume=big == "일봉", height=BIG_CHART_HEIGHT),
+            width="stretch", theme="streamlit",
+        )
+    else:
+        st.warning(f"{big} 자료 없음")
+    for timeframe, chart_column in zip(("일봉", "주봉", "월봉"), st.columns(3)):
+        thumb = chart_bundle["charts"].get(timeframe, {})
+        with chart_column:
+            st.button(("● " if timeframe == big else "") + timeframe,
+                      key=f"j4_bundle_pick_{panel}_{_CHART_KEY[timeframe]}",
+                      width="stretch",
+                      on_click=_pick_bundle_chart, args=(big_key, timeframe))
+            if thumb.get("ok"):
+                st.altair_chart(
+                    _price_chart(thumb, include_volume=False,
+                                 height=THUMB_CHART_HEIGHT, compact=True),
+                    width="stretch", theme="streamlit",
+                )
+            else:
+                st.warning(f"{timeframe} 자료 없음")
 
 
 def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candidates: list[dict],
@@ -2154,21 +2198,12 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         "📊 일봉 · 주봉 · 월봉 보기", f"j4_bundle_open_{panel}",
         close_label="일봉·주봉·월봉 닫기",
     ):
-        st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. 일봉 거래량은 일봉 바로 아래에 표시됩니다.")
+        st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
+                   "일봉 거래량은 위 큰 차트가 일봉일 때 그 아래에 표시됩니다. "
+                   "아래 작은 그림 위의 ‘일봉 · 주봉 · 월봉’을 누르면 맨 위 큰 차트가 바뀝니다.")
         chart_bundle = j4data.get_chart_bundle(code)
         if chart_bundle.get("ok"):
-            daily_col, weekly_col, monthly_col = st.columns(3)
-            for timeframe, chart_column in (("일봉", daily_col), ("주봉", weekly_col), ("월봉", monthly_col)):
-                payload = chart_bundle["charts"].get(timeframe, {})
-                with chart_column:
-                    st.markdown(f"<div class='j4-chart-title'>{timeframe}</div>", unsafe_allow_html=True)
-                    if payload.get("ok"):
-                        st.altair_chart(
-                            _price_chart(payload, include_volume=timeframe == "일봉"),
-                            width="stretch", theme="streamlit",
-                        )
-                    else:
-                        st.warning(f"{timeframe} 자료 없음")
+            _render_chart_bundle_body(chart_bundle, panel)
         else:
             st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
         _section_close(f"j4_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
