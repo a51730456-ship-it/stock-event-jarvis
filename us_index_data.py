@@ -80,3 +80,24 @@ def futures_sparkline(symbol: str = "NQ=F") -> dict:
         return {"points": points, "base": base} if len(points) >= 2 and base else {}
     except Exception:
         return {}
+
+def daily_sparklines() -> dict:
+    """미국 지수의 **일봉 6개월** — 자비스4 지수 칸에서 '당일'과 바꿔 보여 준다.
+
+    미국테마(자비스3)가 이미 같은 자료를 만든다(get_index_sparklines의
+    daily_points·daily_base). 새로 받지 않고 그대로 가져다 쓴다 — 두 화면이
+    같은 숫자를 보게 하려는 것이다(2026-08-07).
+    """
+    try:
+        import jarvis3_data
+
+        spark = jarvis3_data.get_index_sparklines()
+    except Exception:
+        return {}
+    out = {}
+    for symbol, payload in (spark or {}).items():
+        points = (payload or {}).get("daily_points") or []
+        if len(points) >= 2:
+            out[symbol] = {"points": points,
+                           "base": (payload or {}).get("daily_base")}
+    return out

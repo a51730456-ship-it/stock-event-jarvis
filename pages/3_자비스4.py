@@ -1413,7 +1413,7 @@ _MUSTARD_KEYS = (
 
 
 def _index_chart_swap(today_svg: str, symbol: str, key: str,
-                      *, width: float = 120.0, height: int = 90) -> str:
+                      *, daily_spark: dict | None = None) -> str:
     """'당일' 그림과 '일봉 6개월' 그림을 같은 자리에 겹쳐 두고 바꿔 보여 준다.
 
     미국테마(자비스3)와 같은 방식이다. 마우스는 올리기만 하면 되고, **손가락은
@@ -1422,11 +1422,12 @@ def _index_chart_swap(today_svg: str, symbol: str, key: str,
     """
     if not today_svg:
         return ""
-    spark = j4data.get_index_daily_spark(symbol)
-    points = spark.get("points") or []
+    # 이미 받아 둔 자료가 있으면 그것을 쓴다(미국 지수는 자비스3이 만들어 둔다).
+    spark = daily_spark or (j4data.get_index_daily_spark(symbol) if symbol else {})
+    points = (spark or {}).get("points") or []
     if len(points) < 2:
         return today_svg
-    daily_svg = _sparkline_svg({"points": points, "base": spark.get("base")},
+    daily_svg = _sparkline_svg({"points": points, "base": (spark or {}).get("base")},
                                "#4da6ff", "#ff5b5b")
     if not daily_svg:
         return today_svg
@@ -1779,6 +1780,8 @@ def _us_index_cells() -> list:
     """미국테마의 4대 지수 값과 판정을 그대로 쓰고 그림만 함께 붙인다."""
     overview = us_index_data.market_overview()
     data = us_index_data.sparklines()
+    # 일봉 6개월은 자비스3이 이미 만들어 둔 것을 그대로 가져다 쓴다(2026-08-07).
+    daily = us_index_data.daily_sparklines()
     display = us_index_data.display()
     if not overview.get("ok") or not display:
         return []
@@ -1802,7 +1805,10 @@ def _us_index_cells() -> list:
             f"<div class='j4-top-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j4-top-sub' style='color:{'#4da6ff' if (change or 0) >= 0 else '#ff5b5b'}'>"
             f"{_pct(change)} <span class='j4-muted'>· {note}</span></div>"
-            + _sparkline_svg(data.get(symbol), "#4da6ff", "#ff5b5b") + "</div>"
+            + _index_chart_swap(
+                _sparkline_svg(data.get(symbol), "#4da6ff", "#ff5b5b"),
+                "", f"us{symbol}", daily_spark=daily.get(symbol),
+            ) + "</div>"
         )
     return cells
 
