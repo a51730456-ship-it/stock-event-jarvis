@@ -1246,11 +1246,14 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("j3_bundle_pick_", block)
         # 큰 차트가 세 개짜리 줄보다 먼저 그려져야 '화면 위에' 온다.
         self.assertLess(block.index("j3-chart-big-title"),
-                        block.index("st.columns([1, 1, 1, 4.5])"))
+                        block.index("st.columns(3)"))
         # 아래 셋은 손톱그림이다(2026-08-07 "캡쳐처럼 적게") — 눈금·범례를 빼고
-        # 높이를 108px로 줄인다. 마지막 빈 칸이 셋을 왼쪽으로 몰아 폭도 좁힌다.
+        # 높이를 108px로 줄인다. **작게 보이는 것은 높이로만** 만든다. 처음에는
+        # 뒤에 빈 칸을 붙여 왼쪽으로 몰았는데 "너무 왼쪽으로 너무 적게 차지한다"는
+        # 지적을 받았다 — 폭은 셋이 고르게 나눠 갖는다.
         self.assertIn("height=THUMB_CHART_HEIGHT, compact=True", block)
         self.assertIn("THUMB_CHART_HEIGHT = 108", source)
+        self.assertNotIn("st.columns([1, 1, 1,", block)
         # 단추 키는 영문이어야 지금 고른 단추만 CSS로 밝힐 수 있다.
         self.assertIn('_CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}',
                       source)

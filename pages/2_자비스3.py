@@ -1556,9 +1556,11 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
     else:
         st.warning(f"{big} 자료 없음")
     # 아래 셋은 **고르는 손톱그림**이다(2026-08-07 상하님 지시 "캡쳐처럼 적게").
-    # 큰 것이 위에 있으므로 여기서는 모양만 보이면 된다. 마지막 빈 칸이 셋을
-    # 왼쪽으로 몰아 실제 폭을 캡처만큼(넓은 화면에서 한 칸 130px쯤) 좁힌다.
-    daily_col, weekly_col, monthly_col, _rest = st.columns([1, 1, 1, 4.5])
+    # 큰 것이 위에 있으므로 여기서는 모양만 보이면 된다.
+    # 처음에는 뒤에 빈 칸을 붙여 셋을 왼쪽으로 몰았는데, 노트북·태블릿에서
+    # "너무 왼쪽으로 너무 적게 차지한다"는 지적을 받았다(같은 날). 폭은 셋이
+    # 고르게 나눠 갖고, **작게 보이는 것은 높이로만** 만든다(108px).
+    daily_col, weekly_col, monthly_col = st.columns(3)
     chart_columns = {"일봉": daily_col, "주봉": weekly_col, "월봉": monthly_col}
     for timeframe, chart_column in chart_columns.items():
         payload = chart_bundle["charts"].get(timeframe, {})
