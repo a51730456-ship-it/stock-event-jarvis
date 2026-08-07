@@ -807,7 +807,13 @@ _SIGNAL_GAUGE_CSS = """
   grid-template-areas:"today-head today-head previous-head previous-head"
                       "today-gauge today-story previous-gauge previous-story";
   grid-template-columns:minmax(0,.9fr) minmax(0,1.15fr)
-                        minmax(0,.9fr) minmax(0,1.15fr); }
+                        minmax(0,.9fr) minmax(0,1.15fr);
+  /* 안전장치 — 칸 이름(today-head 등)은 이 파일과 mobile_ui.py가 **나눠 갖고**
+     있다. 배포 도중 한쪽만 새것이면 이름을 못 찾은 칸이 제멋대로 자리를 만들어
+     글자가 세로로 한 자씩 서 버린다(2026-08-07 온라인 실발생 — 상하님 폰·태블릿
+     캡처). 그때라도 칸이 고르게 나뉘도록 해 둔다. 두 모듈을 같이 읽게 고쳐
+     뒀지만(페이지의 재읽기 목록), 다시 어긋나도 화면이 무너지지는 않게 한다. */
+  grid-auto-columns:minmax(0,1fr); }
 .sig-body-comparison .sig-gauge-pair,
 .sig-body-comparison .sig-text,
 .sig-body-comparison .sig-head-pair,
