@@ -274,7 +274,126 @@ def liquidity_split() -> None:
                 print(line(f"{label:<8}", result))
 
 
+# ── 6단계 · 배점 후보 ───────────────────────────────────────────────────
+def _together_counts(mask: pd.DataFrame) -> pd.DataFrame:
+    """같은 날 **같은 테마에서 몇 종목이 같이 걸렸나**.
+
+    한 종목이 여러 테마에 속하므로, 그 종목이 속한 테마들 중 **가장 많이 걸린
+    테마**의 수를 쓴다(미국 together_count와 같은 정의). 자기 자신을 포함한다.
+    """
+    roster = json.loads(ROSTER.read_text(encoding="utf-8"))["stocks"]
+    themes_of = {code: set(entry["themes"]) for code, entry in roster.items()}
+    out = pd.DataFrame(0, index=mask.index, columns=mask.columns, dtype="int16")
+    columns = list(mask.columns)
+    array = mask.to_numpy()
+    for row in np.nonzero(array.any(axis=1))[0]:
+        picked = [columns[i] for i in np.nonzero(array[row])[0]]
+        counts: dict[str, int] = {}
+        for code in picked:
+            for theme in themes_of.get(code, ()):
+                counts[theme] = counts.get(theme, 0) + 1
+        out.iloc[row, [columns.index(c) for c in picked]] = [
+            max((counts[t] for t in themes_of.get(code, ()) if t in counts), default=1)
+            for code in picked
+        ]
+    return out
+
+
+def _atr_ratio(wide: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """14일 변동성(ATR)을 주가로 나눈 값 — '얼마나 흔들리나'."""
+    prev_close = wide["close"].shift(1)
+    true_range = pd.concat([
+        (wide["high"] - wide["low"]).stack(),
+        (wide["high"] - prev_close).abs().stack(),
+        (wide["low"] - prev_close).abs().stack(),
+    ], axis=1).max(axis=1).unstack()
+    return true_range.rolling(14, min_periods=10).mean() / wide["close"] * 100.0
+
+
+def _streak(above: pd.DataFrame) -> pd.DataFrame:
+    """며칠 **연속** 참인가. 거짓이 나오면 0으로 되돌아간다."""
+    values = above.to_numpy(dtype="int16", na_value=0)
+    out = np.zeros_like(values)
+    for row in range(1, values.shape[0]):
+        out[row] = np.where(values[row] > 0, out[row - 1] + 1, 0)
+    return pd.DataFrame(out, index=above.index, columns=above.columns)
+
+
+def factors() -> None:
+    wide = load_wide()
+    close, high = wide["close"], wide["high"]
+    dates = close.index
+    split = len(dates) // 2
+    value = (close * wide["volume"]).rolling(50, min_periods=20).mean() / 1e8  # 억원
+
+    prior_max = high.rolling(252, min_periods=252).max().shift(1)
+    is_new_high = high >= prior_max
+    order = pd.DataFrame(np.arange(len(dates))[:, None].repeat(close.shape[1], axis=1),
+                         index=dates, columns=close.columns)
+    peak = high.where(is_new_high).ffill()
+    days_since = order - order.where(is_new_high).ffill()
+    from_peak = (close / peak - 1.0) * 100.0
+
+    index_table = pd.read_csv(DAILY / "KOSPI.csv")
+    index_table["date"] = pd.to_datetime(index_table["date"], format="%Y%m%d")
+    kospi = index_table.set_index("date")["close"].reindex(dates).ffill()
+    kospi_from_high = (kospi / kospi.rolling(252, min_periods=60).max() - 1.0) * 100.0
+    in_band = kospi_from_high <= -10.0
+    episode = (in_band & ~in_band.shift(1, fill_value=False)).cumsum().where(in_band)
+    deepest = pd.Series(False, index=dates)
+    for _, group in pd.DataFrame({"e": episode, "d": kospi_from_high}).dropna().groupby("e"):
+        deepest.loc[group["d"].idxmin()] = True
+    deep_wide = pd.DataFrame(np.repeat(deepest.to_numpy()[:, None], close.shape[1], axis=1),
+                             index=dates, columns=close.columns)
+    stock_from_high = (close / high.rolling(252, min_periods=60).max() - 1.0) * 100.0
+
+    # 배점은 **그물 안에서** 잰다. 화면이 안 보여줄 종목으로 배점을 정하면 안 된다.
+    up_pool = value >= 50
+    up_mask = ((days_since >= 1) & (days_since <= 10)
+               & (from_peak <= -4.0) & (from_peak >= -6.0) & up_pool)
+    down_pool = value >= 10
+    down_mask = (deep_wide & (stock_from_high <= -40.0) & (stock_from_high >= -50.0)
+                 & down_pool)
+
+    recent11 = (close / close.shift(11) - 1.0) * 100.0
+    gain60 = (close / close.shift(60) - 1.0) * 100.0
+    streak = _streak((close * wide["volume"]) > (close * wide["volume"]).rolling(50, min_periods=20).mean())
+    atr = _atr_ratio(wide)
+
+    for title, mask, pool, hold in (
+        ("상승장 (신고가 눌림 · 거래대금 50억↑ · 120거래일)", up_mask, up_pool, 120),
+        ("급락장 (코스피 -10% 가장깊은날 · -40~-50% · 거래대금 10억↑ · 60거래일)",
+         down_mask, down_pool, 60),
+    ):
+        returns = forward_returns(wide, hold)
+        print(f"\n\n{'=' * 100}\n### {title}\n{'=' * 100}")
+        whole = summarise(returns, mask, dates, split, pool=pool)
+        print(line("그물 전체", whole))
+        together = _together_counts(mask)
+        for factor_name, table, buckets in (
+            ("같은 테마 동반", together,
+             (("1개(혼자)", 0.5, 1.5), ("2개", 1.5, 2.5), ("3개", 2.5, 3.5), ("4개↑", 3.5, 99))),
+            ("최근 11일 등락", recent11,
+             ((">-5% 빠짐", -999, -5), ("-5~0%", -5, 0), ("0~+5%", 0, 5), ("+5%↑ 오름", 5, 999))),
+            ("거래대금 평소위 연속", streak,
+             (("0일", -0.5, 0.5), ("1~3일", 0.5, 3.5), ("4~10일", 3.5, 10.5), ("11일↑", 10.5, 999))),
+            ("최근 60일 상승폭", gain60,
+             (("0% 이하", -999, 0), ("0~15%", 0, 15), ("15~40%", 15, 40), ("40%↑", 40, 999))),
+            ("거래대금 크기", value,
+             (("50~100억", 0, 100), ("100~500억", 100, 500), ("500~2000억", 500, 2000),
+              ("2000억↑", 2000, 9e9))),
+            ("변동성(ATR/주가)", atr,
+             (("2% 미만", 0, 2), ("2~4%", 2, 4), ("4~6%", 4, 6), ("6%↑", 6, 999))),
+        ):
+            print(f"\n-- {factor_name} --")
+            for label, lo, hi in buckets:
+                picked = mask & (table > lo) & (table <= hi)
+                result = summarise(returns, picked, dates, split, pool=pool)
+                if result.get("전체") and result["전체"]["n"] >= 50:
+                    print(line(label, result))
+
+
 if __name__ == "__main__":
     stage = sys.argv[1] if len(sys.argv) > 1 else "load"
     {"load": build_wide, "breakout": breakout_grid, "crash": crash_grid,
-     "liquidity": liquidity_split}[stage]()
+     "liquidity": liquidity_split, "factors": factors}[stage]()
