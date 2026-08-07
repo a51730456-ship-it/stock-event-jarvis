@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080760
+MODULE_REVISION = 2026080770
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1034,9 +1034,30 @@ def kr_crash_market_state(*, ttl_seconds: float = 600) -> dict:
         peak = float(closes.tail(252).max())
         drop = (current / peak - 1.0) * 100.0 if peak else None
         armed = drop is not None and drop <= CRASH_MARKET_DROP
+        # 이번 국면에서 **가장 깊었던 날**이 신호일이다. 국면에 들어선 뒤부터
+        # 오늘까지 중 코스피 낙폭이 가장 컸던 날을 찾는다. 갈래와 점수는 원래
+        # 그날 낙폭으로 정해야 한다(오늘 값으로 정하면 이미 반등한 종목이
+        # 목록에서 사라진다). 지금 화면은 오늘 값을 쓰고 있어 그 사실을 밝혀 둔다.
+        reference_date = None
+        reference_drop = None
+        if armed:
+            window = closes.tail(252)
+            running = window.cummax()
+            series = (window / running - 1.0) * 100.0
+            inside = series[series <= CRASH_MARKET_DROP]
+            if len(inside):
+                # 마지막으로 국면에 들어선 뒤 구간만 본다.
+                start = inside.index[0]
+                for stamp in inside.index:
+                    if series.loc[:stamp].iloc[-2:].min() > CRASH_MARKET_DROP:
+                        start = stamp
+                episode = series.loc[start:]
+                reference_date = str(pd.Timestamp(episode.idxmin()).date())
+                reference_drop = float(episode.min())
         return {
             "current": current, "peak": peak, "drop_pct": drop, "armed": bool(armed),
             "threshold": CRASH_MARKET_DROP,
+            "reference_date": reference_date, "reference_drop": reference_drop,
             "reason": (
                 f"코스피가 52주 고점에서 {drop:.1f}% 내려와 있습니다 — "
                 f"이 규칙이 보는 국면({CRASH_MARKET_DROP:.0f}% 아래)입니다."

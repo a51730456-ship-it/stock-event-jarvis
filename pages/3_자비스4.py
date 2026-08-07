@@ -692,7 +692,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026080760
+_REQUIRED_J4_REVISION = 2026080770
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -3204,12 +3204,22 @@ def _kr_crash_state_html() -> str:
     if not state.get("ok"):
         return ""
     armed = bool(state.get("armed"))
+    day = state.get("reference_date")
+    deepest = ""
+    if armed and day:
+        deepest = (
+            f"<br>이번 국면에서 <b>가장 깊었던 날은 {html.escape(str(day))}</b>"
+            f"(코스피 {float(state.get('reference_drop') or 0):.1f}%)입니다. "
+            "<b class='j4-down'>다만 아래 목록의 낙폭은 그날이 아니라 오늘 값입니다</b> — "
+            "규칙대로라면 그날 낙폭으로 갈래를 정해야 하고, 그러면 이미 반등한 종목도 "
+            "목록에 남습니다. 그 계산은 아직 안 들어가 있습니다."
+        )
     return (
         f"<div class='j4-pull-guide' style='border-left:4px solid "
         f"{'#ff9d3b' if armed else '#6b7280'}; padding-left:.8rem'>"
         f"<b class=\"{'j4-down' if armed else 'j4-muted'}\">"
         f"{'🟠 지금 이 규칙의 국면입니다' if armed else '⚪ 지금은 이 규칙의 국면이 아닙니다'}"
-        f"</b> — {html.escape(str(state.get('reason') or ''))}</div>"
+        f"</b> — {html.escape(str(state.get('reason') or ''))}{deepest}</div>"
     )
 
 
