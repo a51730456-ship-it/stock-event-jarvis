@@ -1141,12 +1141,30 @@ class Jarvis3PageTests(unittest.TestCase):
         사실을 말하지 않으면 "이거 맞냐"는 물음을 다시 받는다.
         """
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
-        block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
+        block = source.split("def _pullback_backdrop_cards(")[1].split("\ndef ")[0]
         self.assertIn("테마 자체 점수", block)
         self.assertIn("다른 자", block)
         self.assertIn("j3-reason-sub", block)
         # 예전 문구가 남아 있으면 무엇을 잰 점수인지 다시 알 수 없어진다.
         self.assertNotIn("최고 테마 점수", block)
+
+    def test_the_backdrop_is_two_cards_above_the_score_table(self):
+        """네 칸 중 둘은 바로 위 판을 소리 내어 다시 읽는 것이었다(2026-08-07).
+
+        '종목' 칸은 배점표를, '매수' 칸은 매수 심사 카드·지금 할 일 상자·겨자색
+        상자에 이어 네 번째로 같은 말을 했다. 시장·테마 둘만 이 상세에서 처음
+        나오는 이야기라 둘만 남기고, 자리도 배점표 위로 올렸다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        cards = source.split("def _pullback_backdrop_cards(")[1].split("\ndef ")[0]
+        self.assertIn('return [("시장 상황", market_body), ("테마 상황", theme_body)]',
+                      cards)
+        block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
+        # 배점표보다 **위**에 그려야 시장 → 테마 → 종목 순으로 읽힌다.
+        self.assertLess(block.index("_pullback_backdrop_cards("),
+                        block.index("score_col, plan_col = st.columns"))
+        # 차트 뒤 맨 아래 있던 옛 자리는 비어 있어야 한다.
+        self.assertNotIn("추천 근거 요약", block)
 
     def test_the_index_chart_can_be_toggled_by_finger(self):
         """폰에서 다시 눌러도 당일로 안 돌아왔다(2026-08-07 상하님 지적).

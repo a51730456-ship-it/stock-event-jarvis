@@ -3175,6 +3175,23 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         f"<span style='color:#ff5b5b; font-weight:800'>{_number(review.get('score'))}</span> "
         "<span style='color:#ff5b5b'>(100)</span></td></tr>"
     )
+    # 시장·테마는 배점표 **위**에 둔다(2026-08-07). 차트 뒤 맨 아래 있던 것을
+    # 올렸다 — 종목 점수를 보기 전에 어떤 시장·어떤 테마인지부터 알아야 한다.
+    st.markdown("<div class='j3-section-title'>이 종목을 찾은 배경</div>",
+                unsafe_allow_html=True)
+    for column, (title, body) in zip(
+        st.columns(2),
+        _pullback_backdrop_cards(
+            mode=mode, market=market, themes=themes, theme_score=theme_score,
+            scored=scored, review=review, plan=plan,
+        ),
+    ):
+        column.markdown(
+            f"<div class='j3-reason-card'><div class='j3-reason-title'>{title}</div>"
+            f"<div class='j3-reason-body'>{body}</div></div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
         st.markdown(
@@ -3309,7 +3326,25 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     _render_intraday_section(ticker, panel="pullback")
     _render_price_chart_bundle(ticker, panel="pullback")
 
-    st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
+    # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
+    _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
+
+
+def _pullback_backdrop_cards(
+    *, mode: str, market: dict, themes: str, theme_score: float,
+    scored: dict | None, review: dict, plan: dict,
+) -> list[tuple[str, str]]:
+    """상세 맨 위에 놓을 '시장 · 테마' 두 칸을 만든다.
+
+    **왜 넷에서 둘로 줄였나(2026-08-07 상하님 물음 "이게 여기 있는 게 맞나").**
+    예전에는 시장·테마·종목·매수 네 칸이 차트 뒤 맨 아래 있었는데,
+      * '종목' 칸은 바로 위 배점표를 소리 내어 다시 읽는 것이었고,
+      * '매수' 칸은 매수 심사 카드·지금 할 일 상자·겨자색 상자에 이어 **네 번째**로
+        같은 말을 했다.
+    남은 시장·테마 둘만 이 상세에서 처음 나오는 이야기다. 그래서 둘만 남기고,
+    자리도 배점표 **위로** 올린다 — 시장 → 테마 → 종목 순으로 읽어야 배점이
+    무슨 뜻인지 알고 볼 수 있다.
+    """
 
     def _red(text) -> str:
         """하락폭은 붉은색 진하게(2026-08-06 사용자 지시) — 눈에 먼저 들어와야 한다."""
@@ -3353,27 +3388,8 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             state = j3data.breakout_market_state()
             market_body = html.escape(
                 str(state.get("reason") or "나스닥 상태를 못 읽었습니다"))
-        earned = [(value, name) for name, value, maximum, _t in scored["parts"] if maximum]
-        missed = [(maximum - value, name) for name, value, maximum, _t in scored["parts"]
-                  if maximum]
-        best = max(earned)[1] if earned else "—"
-        worst = max(missed)
-        stock_body = (
-            f"100점 중 {float(scored['score']):.0f}점입니다. "
-            f"가장 많이 받은 항목은 ‘{best}’이고, "
-            + (f"가장 많이 깎인 항목은 ‘{worst[1]}’입니다(−{worst[0]:.0f}점)."
-               if worst[0] >= 1 else "깎인 항목이 거의 없습니다.")
-        )
     else:
         market_body = f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"
-        stock_body = review.get("stock_reason") or "자료부족"
-    # 매수 근거는 갈래 화면에서 왼쪽 겨자색 상자와 **같은 문장**이었다(2026-08-06
-    # 상하님 지적). 여기서는 한 줄로 줄인다 — 언제 사고 언제 파는지만.
-    buy_body = (
-        f"다음 거래일 시가에 사서 {int(plan.get('hold_days') or 0)}거래일 뒤 종가에 팝니다. "
-        "손절가는 없습니다."
-        if mode in ("crash", "breakout") else plan.get("buy_reason", "자료부족")
-    )
     # 여기 담기는 글은 **이미 안전하게 만들어 둔 것**이다(붉은 숫자 span이 들어간다).
     # 그래서 아래에서 다시 escape하지 않는다 — 새 글을 넣을 때는 html.escape를
     # 거쳐서 넣어야 한다.
@@ -3388,20 +3404,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         + "<div class='j3-reason-sub'>위 <b>테마 순위표</b>가 이 테마를 100점으로 잰 "
           "값입니다. 왼쪽 배점표의 ‘같은 테마 동반 40점’과는 <b>다른 자</b>입니다.</div>"
     )
-    reason_cards = [
-        ("시장 근거", market_body),
-        ("테마 근거", theme_body),
-        ("종목 근거", html.escape(str(stock_body))),
-        ("매수 근거", html.escape(str(buy_body))),
-    ]
-    for column, (title, body) in zip(st.columns(4), reason_cards):
-        column.markdown(
-            f"<div class='j3-reason-card'><div class='j3-reason-title'>{title}</div>"
-            f"<div class='j3-reason-body'>{body}</div></div>",
-            unsafe_allow_html=True,
-        )
-    # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
-    _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
+    return [("시장 상황", market_body), ("테마 상황", theme_body)]
 
 
 # 낙폭 두 갈래의 색 (2026-08-01 사용자 지시: "-30~-40과 -40~-50 색깔 구분하고").
