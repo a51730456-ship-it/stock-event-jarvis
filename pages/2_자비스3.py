@@ -867,7 +867,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080790
+_REQUIRED_J3_REVISION = 2026080800
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -3086,8 +3086,15 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         plan = review.get("plan") or {}
         factor_names = ["SPY 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)",
                         "유동성(거래대금)", "변동성 안정"]
-        factor_max = [25, 25, 20, 15, 15]
-        factor_notes = [""] * 5
+        # 만점은 모듈에서 계산해 온다 — 숫자를 여기 박아 두면 배점을 고칠 때
+        # 표만 옛 숫자로 남는다(2026-08-07 한국 쪽에서 실제로 그럴 뻔했다).
+        rescale = getattr(j3data, "LEADER_RESCALE", 1.0)
+        trend_max = getattr(j3data, "LEADER_TREND_POINTS", 20.0)
+        factor_max = [round(25 * rescale, 1), round(25 * rescale, 1), round(trend_max, 1),
+                      round(15 * rescale, 1), round(15 * rescale, 1)]
+        factor_notes = ["창 32·43·61% 미달", "창 47·42·26% 미달",
+                        "창 5·12·42% 거꾸로 → 0점", "창 70·58·35% 미달",
+                        "창 55·45·43% 미달"]
 
     # 종목 이름·판정은 자비스4 종목 상세와 같은 형식으로 크게 보여준다.
     st.markdown(

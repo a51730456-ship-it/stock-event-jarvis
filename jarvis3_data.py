@@ -169,7 +169,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080790
+MODULE_REVISION = 2026080800
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1166,6 +1166,16 @@ CRASH_SCORE_WEIGHTS = {
 # 해당돼 못 가르고(75/46 · 85/64 · 99/88), 4개↑라야 붙는다.
 CRASH_TOGETHER_FULL = 4
 
+# 대장주 조건점수(`_leader_score`)의 이동평균 추세 배점. 2026-08-07에 0이 됐다 —
+# 20일선 위는 창 96개 중 5개, 50일선 위는 12개에서만 이겼다(거꾸로).
+# 되살리려면 이 값을 20.0으로, LEADER_RESCALE을 1.0으로 되돌리면 된다.
+LEADER_TREND_POINTS = 0.0
+# 뺀 20점을 나머지 네 항목에 비례해 나눈다(80점 → 100점). 새로 검증에 통과한
+# 항목이 없어 어디로 몰아 줄 근거가 없으므로, 비례 배분이 가장 덜 손대는 길이다.
+LEADER_RESCALE = 100.0 / (100.0 - 20.0 + LEADER_TREND_POINTS)
+# 이 점수는 어느 항목도 합격선을 넘지 못했다. 화면이 그 사실을 적을 때 읽는다.
+LEADER_SCORE_VERIFIED = False
+
 # 최근 11일에 얼마나 움직였나 → 점수. -5% 넘게 빠졌으면 만점, +5% 넘게 올랐으면 0점.
 # 두 갈래가 같은 자를 쓴다 — 상승장에서도 양쪽 다 이겼다(앞 +5.2 / 뒤 +1.3%p).
 RECENT_DROP_FULL = -5.0
@@ -1804,41 +1814,62 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
 
 
 def _leader_score(metrics: dict, theme_ret20: float | None) -> tuple[float, list[float]]:
+    """대장주 조건점수 100점. **어느 항목도 검증을 통과하지 못했다**(2026-08-07).
+
+    한국 조건점수를 재 보니 40점이 거꾸로였길래(`research/kr_cond_check.py`) 미국도
+    같은 잣대로 쟀다(`research/us_cond_check.py`, 그물 안 375,234자리, 창 2·3·4년).
+    결과는 한국보다 더 나빴다 — **합격선(65%)을 넘은 항목이 하나도 없다.**
+
+      · 20일선 위      창  5 /  4 /  0%  ✗ 거꾸로
+      · 50일선 위      창 12 / 10 /  4%  ✗ 거꾸로
+      · 200일선 위     창 42 / 42 / 33%  △ 미달
+      · 신고가 근접    창 47 / 42 / 26%  △ 미달
+      · 변동성 낮음    창 55 / 45 / 43%  △ 미달
+      · 20일 상대강도  창 32 / 43 / 61%  △ 미달
+      · 거래대금 상위  창 70 / 58 / 35%  △ 미달
+
+    미국 대형주는 애초에 고를 게 없다는 뜻이다 — 상승장 그물이 144가지 다 떨어진
+    것과 같은 결론이다. 그래서 **배점을 새로 짜지 않았다.** 옮길 데가 없다.
+    거꾸로였던 이동평균 추세 20점만 빼고, 그만큼을 나머지에 비례해 나눴다.
+    화면에는 이 점수가 검증되지 않았다고 적어 뒀다.
+    """
     relative = metrics.get("ret20") - theme_ret20 if theme_ret20 is not None else None
-    rs_points = _scale(relative, -8, 8, 25)
+    rs_points = _scale(relative, -8, 8, 25 * LEADER_RESCALE)
     from_high = metrics.get("from_high_pct")
-    high_points = _scale(from_high, -20, 0, 25)
+    high_points = _scale(from_high, -20, 0, 25 * LEADER_RESCALE)
+    # 20일선·50일선 위는 거꾸로, 200일선 위는 미달이었다 → 항목 전체를 0점으로.
+    # 계산은 남겨 둔다(LEADER_TREND_POINTS를 20으로 되돌리면 그대로 살아난다).
     trend_points = 0.0
-    for moving_average, points in (("sma20", 6), ("sma50", 7), ("sma200", 7)):
+    for moving_average, share in (("sma20", 0.30), ("sma50", 0.35), ("sma200", 0.35)):
         value = metrics.get(moving_average)
         if value and metrics.get("current") and metrics["current"] > value:
-            trend_points += points
+            trend_points += LEADER_TREND_POINTS * share
     dollar_volume = metrics.get("avg_dollar_volume")
     if dollar_volume is None:
         liquidity_points = 0.0
     elif dollar_volume >= 1_000_000_000:
-        liquidity_points = 15.0
+        liquidity_points = 15.0 * LEADER_RESCALE
     elif dollar_volume >= 300_000_000:
-        liquidity_points = 13.0
+        liquidity_points = 13.0 * LEADER_RESCALE
     elif dollar_volume >= 100_000_000:
-        liquidity_points = 10.0
+        liquidity_points = 10.0 * LEADER_RESCALE
     elif dollar_volume >= 50_000_000:
-        liquidity_points = 7.0
+        liquidity_points = 7.0 * LEADER_RESCALE
     elif dollar_volume >= 20_000_000:
-        liquidity_points = 4.0
+        liquidity_points = 4.0 * LEADER_RESCALE
     else:
-        liquidity_points = 1.0
+        liquidity_points = 1.0 * LEADER_RESCALE
     atr_pct = metrics.get("atr_pct")
     if atr_pct is None:
         risk_points = 0.0
     elif atr_pct <= 3:
-        risk_points = 15.0
+        risk_points = 15.0 * LEADER_RESCALE
     elif atr_pct <= 5:
-        risk_points = 12.0
+        risk_points = 12.0 * LEADER_RESCALE
     elif atr_pct <= 7:
-        risk_points = 8.0
+        risk_points = 8.0 * LEADER_RESCALE
     elif atr_pct <= 10:
-        risk_points = 4.0
+        risk_points = 4.0 * LEADER_RESCALE
     else:
         risk_points = 0.0
     score = rs_points + high_points + trend_points + liquidity_points + risk_points
