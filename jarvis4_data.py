@@ -3118,13 +3118,18 @@ def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_l
 
 
 def find_breakout_pullback_stocks(
-    *, min_trading_value: float = 2e10, scan_limit: int = RULEBOOK_SCAN_LIMIT,
+    *, min_trading_value: float = KR_LIQUIDITY_FLOOR,
+    scan_limit: int = RULEBOOK_SCAN_LIMIT,
     result_limit: int = 20, ttl_seconds: float = 600,
 ) -> dict:
     """설명서 1번의 한국판 — 정상 상승장의 '신고가 눌림매수' 자리.
 
-    52주 신고가 뒤 3~5거래일이 지나고 그 고점에서 4~6% 내려온 종목만 본다.
-    이동평균·테마 수는 보지 않는다 — 설명서에 없는 조건이다.
+    52주 신고가 뒤 3~10거래일이 지나고 그 고점에서 4~6% 내려온 종목만 본다.
+    이동평균은 보지 않는다 — 설명서에 없는 조건이다.
+
+    **거래대금 문턱이 200억에서 50억으로 내려왔다**(2026-08-07). 200억은 아무 근거
+    없이 잡아 둔 값이었고, 격자로 재 보니 값이 갈리는 자리는 50억이었다. 화면 설명도
+    50억이라고 적혀 있으므로 실제 문턱과 맞춘다.
     """
     wait_min, wait_max = BREAKOUT_PULLBACK_RULE["wait_days"]
     drop_low, drop_high = BREAKOUT_PULLBACK_RULE["drop_band"]
@@ -3166,7 +3171,8 @@ def find_breakout_pullback_stocks(
 
 
 def find_crash_rebound_stocks(
-    *, min_trading_value: float = 2e10, scan_limit: int = RULEBOOK_SCAN_LIMIT,
+    *, min_trading_value: float = KR_LIQUIDITY_FLOOR,
+    scan_limit: int = RULEBOOK_SCAN_LIMIT,
     result_limit: int = 20, ttl_seconds: float = 600,
 ) -> dict:
     """설명서 2번의 한국판 — 급락 후 반등장의 '낙폭 종목'.
