@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 import html
+import re
 
 import streamlit as st
 
@@ -223,7 +224,15 @@ st.markdown(
     .j3-green { color: #44f0a1; }
     .j3-green-strong { color: #22c55e; font-weight: 800; }
     .j3-theme-box { background: rgba(77,166,255,0.08); border: 1px solid rgba(77,166,255,0.3); border-radius: 0.55rem; padding: 0.7rem 0.9rem; font-size: 0.95rem; line-height: 1.7; margin-bottom: 0.6rem; }
-    .j3-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 700; }
+    /* 겨자색 상자 — **글 전체를 진하게 하지 않는다**(2026-08-07 상하님 지시).
+       전부 굵으면 어디가 중요한지 알 수 없다. 바탕글은 보통 굵기로 두고,
+       숫자와 꼭 봐야 할 말만 굵게·색으로 뽑는다. */
+    .j3-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 500; line-height: 1.62; }
+    /* 오른 값은 스카이블루, 빠진 값은 붉은색. 겨자색 바탕이라 흐린 색은 묻힌다 —
+       진한 색으로 뽑는다(2026-08-07 지시 "색깔 진하게"). */
+    .j3-reason-mustard .j3-mn-up { color: #4fb8ff; font-weight: 900; }
+    .j3-reason-mustard .j3-mn-down { color: #ff4d4f; font-weight: 900; }
+    .j3-reason-mustard .j3-mn-key { color: #ffd479; font-weight: 900; }
     .j3-chart-heading { margin-top: 1.6rem; font-size: 1.15rem; font-weight: 800; color: #e6e6e6; }
     .j3-theme-badge { display: inline-block; background: rgba(255,176,32,0.16); color: #ffb020; border: 1px solid #ffb020; border-radius: 0.5rem; padding: 0.15rem 0.7rem; font-weight: 800; font-size: 1.05rem; margin-right: 0.4rem; }
     /* 제목은 한 줄로 세우고 내용은 그 아래에 둔다(2026-08-06 사용자 지시 — 제목
@@ -878,6 +887,42 @@ if (
     regime_gauge_ui = sys.modules.get("regime_gauge_ui", regime_gauge_ui)
 
 
+# 겨자색 상자에서 굵게 뽑을 말들(2026-08-07 상하님 지시 "중요부분만 진하게").
+# 여기 없는 말은 보통 굵기로 둔다 — 다 굵으면 아무것도 강조되지 않는다.
+_MUSTARD_NUMBER = re.compile(r"[+\-−]\d+(?:[.,]\d+)?%")
+_MUSTARD_HOLD = re.compile(r"\d+거래일 뒤 종가")
+_MUSTARD_KEYS = (
+    "그날 낙폭으로 정합니다",
+    "다음 거래일 시가",
+    "손절가가 없습니다",
+    "손절가는 없습니다",
+)
+
+
+def _mustard_html(text) -> str:
+    """겨자색 상자의 글 — 숫자와 중요한 말만 굵게·색으로 뽑는다.
+
+    오른 값(+)은 스카이블루, 빠진 값(−)은 붉은색이다. 화면 다른 곳과 같은 약속이다.
+
+    **글은 먼저 escape한다** — 여기 들어오는 글은 jarvis3_data가 만든 평문이고,
+    그 뒤에 우리가 만든 태그만 얹는다. 순서를 바꾸면 우리가 얹은 태그까지
+    글자로 보이게 된다.
+    """
+    safe = html.escape(str(text or ""))
+    safe = _MUSTARD_NUMBER.sub(
+        lambda match: (
+            f"<span class='j3-mn-{'up' if match.group()[0] == '+' else 'down'}'>"
+            f"{match.group()}</span>"
+        ),
+        safe,
+    )
+    safe = _MUSTARD_HOLD.sub(
+        lambda match: f"<span class='j3-mn-key'>{match.group()}</span>", safe)
+    for phrase in _MUSTARD_KEYS:
+        safe = safe.replace(phrase, f"<span class='j3-mn-key'>{phrase}</span>")
+    return safe
+
+
 def _pct(value) -> str:
     return "—" if value is None else f"{float(value):+.2f}%"
 
@@ -1311,7 +1356,13 @@ def _leader_table_html(leaders: list[dict], selected_ticker: str | None) -> str:
     )
 
 
-def _price_chart(payload: dict, timeframe: str, include_volume: bool = False, height: int | None = None):
+def _price_chart(payload: dict, timeframe: str, include_volume: bool = False,
+                 height: int | None = None, compact: bool = False):
+    """주가·20일선·50일선 한 장.
+
+    compact를 켜면 눈금과 범례를 빼고 선만 남긴다 — 손톱만 한 그림에서는 눈금
+    글자가 그림보다 자리를 더 먹는다(2026-08-07 상하님 지시 "캡쳐처럼 적게").
+    """
     price = payload["price"].reset_index()
     date_column = price.columns[0]
     price = price.rename(columns={date_column: "날짜", "Close": "주가", "MA20": "20일선", "MA50": "50일선"})
@@ -1320,10 +1371,13 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False, he
     line_height = height if height is not None else (220 if include_volume else 315)
     line = (
         alt.Chart(long_price)
-        .mark_line(strokeWidth=2)
+        .mark_line(strokeWidth=1.4 if compact else 2)
         .encode(
-            x=alt.X("날짜:T", title=None, axis=alt.Axis(format="%y-%m", labelAngle=0, tickCount=5)),
-            y=alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(tickCount=5)),
+            x=alt.X("날짜:T", title=None,
+                    axis=None if compact
+                    else alt.Axis(format="%y-%m", labelAngle=0, tickCount=5)),
+            y=alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False),
+                    axis=None if compact else alt.Axis(tickCount=5)),
             color=alt.Color(
                 "구분:N",
                 title=None,
@@ -1331,7 +1385,8 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False, he
                     domain=["주가", "20일선", "50일선"],
                     range=["#69bff8", "#ff4d4f", "#a855f7"],
                 ),
-                legend=alt.Legend(orient="top", direction="horizontal"),
+                legend=None if compact
+                else alt.Legend(orient="top", direction="horizontal"),
             ),
             tooltip=[alt.Tooltip("날짜:T", title="날짜"), alt.Tooltip("구분:N"), alt.Tooltip("가격:Q", format=",.2f")],
         )
@@ -1422,6 +1477,9 @@ def _render_day_price_row(metrics: dict) -> None:
 # 맨 위 큰 차트의 높이(2026-08-07 상하님 지시 "화면 위에 크게"). 아래 작은 셋은
 # 3분할이라 315px인데, 큰 것은 화면 전폭이므로 그 비율에 맞춰 키운다.
 BIG_CHART_HEIGHT = 430
+# 아래 손톱그림 셋의 높이. 상하님이 보여 준 지수 카드의 작은 그림(124×117)에
+# 맞춘 값이다(2026-08-07). 이보다 키우면 '적게 해 달라'던 지적으로 돌아간다.
+THUMB_CHART_HEIGHT = 108
 _CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}
 
 
@@ -1443,8 +1501,8 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
         return
     st.caption(
         "주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
-        "일봉 거래량은 일봉 바로 아래에 표시됩니다. "
-        "아래 ‘일봉 크게 · 주봉 크게 · 월봉 크게’를 누르면 맨 위 큰 차트가 바뀝니다."
+        "일봉 거래량은 위 큰 차트가 일봉일 때 그 아래에 표시됩니다. "
+        "아래 작은 그림 위의 ‘일봉 · 주봉 · 월봉’을 누르면 맨 위 큰 차트가 바뀝니다."
     )
     chart_bundle = j3data.get_chart_bundle(ticker)
     if not chart_bundle.get("ok"):
@@ -1472,7 +1530,10 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
         )
     else:
         st.warning(f"{big} 자료 없음")
-    daily_col, weekly_col, monthly_col = st.columns(3)
+    # 아래 셋은 **고르는 손톱그림**이다(2026-08-07 상하님 지시 "캡쳐처럼 적게").
+    # 큰 것이 위에 있으므로 여기서는 모양만 보이면 된다. 마지막 빈 칸이 셋을
+    # 왼쪽으로 몰아 실제 폭을 캡처만큼(넓은 화면에서 한 칸 130px쯤) 좁힌다.
+    daily_col, weekly_col, monthly_col, _rest = st.columns([1, 1, 1, 4.5])
     chart_columns = {"일봉": daily_col, "주봉": weekly_col, "월봉": monthly_col}
     for timeframe, chart_column in chart_columns.items():
         payload = chart_bundle["charts"].get(timeframe, {})
@@ -1480,14 +1541,15 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
             # 단추 키는 영문으로 짓는다 — 아래에서 지금 고른 단추만 CSS로 밝게
             # 칠하는데, 한글 키가 클래스 이름에 그대로 남는지는 보장이 없다.
             st.button(
-                ("● " if timeframe == big else "") + f"{timeframe} 크게",
+                ("● " if timeframe == big else "") + timeframe,
                 key=f"j3_bundle_pick_{panel}_{_CHART_KEY[timeframe]}",
                 width="stretch",
                 on_click=_pick_bundle_chart, args=(big_key, timeframe),
             )
             if payload.get("ok"):
                 st.altair_chart(
-                    _price_chart(payload, timeframe, include_volume=timeframe == "일봉"),
+                    _price_chart(payload, timeframe, include_volume=False,
+                                 height=THUMB_CHART_HEIGHT, compact=True),
                     width="stretch",
                     theme="streamlit",
                 )
@@ -2055,7 +2117,7 @@ def _render_stock_detail(
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<div class='j3-reason-mustard'>{leader['stock_reason']}</div>",
+            f"<div class='j3-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>",
             unsafe_allow_html=True,
         )
     with plan_col:
@@ -3097,7 +3159,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<div class='j3-reason-mustard'>{html.escape(review.get('stock_reason') or '')}</div>",
+            f"<div class='j3-reason-mustard'>{_mustard_html(review.get('stock_reason'))}</div>",
             unsafe_allow_html=True,
         )
         st.caption(

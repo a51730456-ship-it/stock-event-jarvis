@@ -925,7 +925,10 @@ class Jarvis3PageTests(unittest.TestCase):
         # 뺐다. 손절이 없다는 사실은 위 카드('손절가 — 이 규칙에는 없음')와
         # 왼쪽 겨자색 상자가 말한다. 그 둘은 남아 있어야 한다.
         self.assertNotIn("이 규칙에는 기준가도 손절가도 없습니다", joined)
-        self.assertIn("이 규칙에는 손절가가 없습니다", joined)
+        # 2026-08-07부터 겨자색 상자는 중요한 말만 굵게 뽑는다. '손절가가 없습니다'가
+        # <span>으로 감싸이므로 앞말과 붙어 있지 않다 — 두 토막으로 나눠 본다.
+        self.assertIn("이 규칙에는 ", joined)
+        self.assertIn("j3-mn-key'>손절가가 없습니다", joined)
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
@@ -1120,6 +1123,28 @@ class Jarvis3PageTests(unittest.TestCase):
                        "j3_bundle_open_pullback"):
             self.assertIn(opened, block, f"{opened}를 열지 않는다")
 
+    def test_the_mustard_box_bolds_only_what_matters(self):
+        """전체를 진하게 하지 말고 중요한 것만(2026-08-07 상하님 지시).
+
+        + 는 스카이블루, − 는 붉은색으로 진하게. 다 굵으면 아무것도 강조되지 않는다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _mustard_html(")[1].split("\ndef ")[0]
+        # 평문을 먼저 escape하고 그 위에 우리 태그만 얹는다 — 순서가 바뀌면
+        # 우리가 얹은 태그까지 글자로 보인다.
+        self.assertLess(block.index("html.escape"), block.index("_MUSTARD_NUMBER.sub"))
+        self.assertIn("j3-mn-", block)
+        # 바탕글은 보통 굵기(500)여야 한다. 700이면 전체가 굵어 예전으로 돌아간다.
+        mustard_css = source.split(".j3-reason-mustard {")[1].split("}")[0]
+        self.assertIn("font-weight: 500", mustard_css)
+        # 오른 값 스카이블루 · 빠진 값 붉은색, 둘 다 진하게.
+        self.assertIn(".j3-reason-mustard .j3-mn-up { color: #4fb8ff; font-weight: 900; }",
+                      source)
+        self.assertIn(".j3-reason-mustard .j3-mn-down { color: #ff4d4f; font-weight: 900; }",
+                      source)
+        # 상자를 그리는 두 자리 모두 이 손질을 거쳐야 한다.
+        self.assertEqual(2, source.count("j3-reason-mustard'>{_mustard_html("))
+
     def test_one_of_the_three_charts_is_drawn_big_on_top(self):
         """2026-08-07 상하님 지시 — 일봉을 누르면 화면 위에 크게, 주봉을 누르면 주봉이.
 
@@ -1132,7 +1157,12 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("on_click=_pick_bundle_chart", block)
         self.assertIn("j3_bundle_pick_", block)
         # 큰 차트가 세 개짜리 줄보다 먼저 그려져야 '화면 위에' 온다.
-        self.assertLess(block.index("j3-chart-big-title"), block.index("st.columns(3)"))
+        self.assertLess(block.index("j3-chart-big-title"),
+                        block.index("st.columns([1, 1, 1, 4.5])"))
+        # 아래 셋은 손톱그림이다(2026-08-07 "캡쳐처럼 적게") — 눈금·범례를 빼고
+        # 높이를 108px로 줄인다. 마지막 빈 칸이 셋을 왼쪽으로 몰아 폭도 좁힌다.
+        self.assertIn("height=THUMB_CHART_HEIGHT, compact=True", block)
+        self.assertIn("THUMB_CHART_HEIGHT = 108", source)
         # 단추 키는 영문이어야 지금 고른 단추만 CSS로 밝힐 수 있다.
         self.assertIn('_CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}',
                       source)
