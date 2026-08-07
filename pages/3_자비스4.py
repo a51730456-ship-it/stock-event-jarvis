@@ -1024,7 +1024,10 @@ def _fx_cell() -> str:
            f"<br><span class='j4-muted'>1분봉 기준 {fx.get('as_of') or '—'}</span>")
     cell = _top_metric("원/달러 환율 (1분봉)", _number(fx.get("current"), 2),
                        _sign_color(change), sub, sub_color="#e6e6e6")
-    chart = _sparkline_svg(fx.get("chart") or {}, "#ff5b5b", "#4da6ff")
+    # 다른 지수 칸과 같게 — 눌러서 '일봉 6개월'로 바꾼다(2026-08-07 지시).
+    # 환율 일봉은 야후 KRW=X로 받는다(get_index_daily_spark가 ^ 없는 이름도 받는다).
+    chart = _index_chart_swap(
+        _sparkline_svg(fx.get("chart") or {}, "#ff5b5b", "#4da6ff"), "KRW=X", "fx")
     return cell.replace("</div></div>", "</div>" + chart + "</div>", 1) if chart else cell
 
 
