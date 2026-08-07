@@ -65,7 +65,7 @@ THEME_DETAIL_PARSER_VERSION = 2
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080750
+MODULE_REVISION = 2026080760
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1009,6 +1009,48 @@ def _thin_points(points: list) -> list:
     if (len(points) - 1) % step:
         thinned.append(points[-1])
     return thinned
+
+
+def kr_crash_market_state(*, ttl_seconds: float = 600) -> dict:
+    """코스피가 지금 '급락 후 반등장' 국면인가 (2026-08-07).
+
+    새 규칙의 핵심은 **코스피가 고점 대비 15% 넘게 빠진 국면**이다. 그런데 화면은
+    코스피를 전혀 안 보고 종목 낙폭만 보고 있었다 — '급락 후 반등장'이라고 써 놓고
+    실제로는 '많이 빠진 종목 목록'이었다(상하님 지적으로 확인).
+
+    **막지는 않고 알려만 준다.** 미국(jarvis3.crash_market_state)과 같은 결정이다 —
+    막았더니 화면이 통째로 비는 일이 있었고, 국면을 지나 올라가도 그때 걸렸던 종목은
+    볼 값어치가 있다는 판단이다.
+    """
+
+    def _produce():
+        frame = _index_frame("KS11")
+        if frame is None or getattr(frame, "empty", True) or "Close" not in frame:
+            raise RuntimeError("코스피 일봉 없음")
+        closes = frame["Close"].dropna()
+        if len(closes) < 60:
+            raise RuntimeError("코스피 일봉이 너무 짧다")
+        current = float(closes.iloc[-1])
+        peak = float(closes.tail(252).max())
+        drop = (current / peak - 1.0) * 100.0 if peak else None
+        armed = drop is not None and drop <= CRASH_MARKET_DROP
+        return {
+            "current": current, "peak": peak, "drop_pct": drop, "armed": bool(armed),
+            "threshold": CRASH_MARKET_DROP,
+            "reason": (
+                f"코스피가 52주 고점에서 {drop:.1f}% 내려와 있습니다 — "
+                f"이 규칙이 보는 국면({CRASH_MARKET_DROP:.0f}% 아래)입니다."
+                if armed else
+                f"코스피가 52주 고점에서 {drop:.1f}%입니다 — 이 규칙이 보는 국면"
+                f"({CRASH_MARKET_DROP:.0f}% 아래)이 아닙니다. 아래 목록은 참고로만 보십시오."
+            ) if drop is not None else "코스피 낙폭을 못 읽었습니다",
+        }
+
+    try:
+        value, stale = _cached("kr_crash_market_state", ttl_seconds, _produce)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "armed": False}
+    return {"ok": True, "stale": stale, **value}
 
 
 def get_index_daily_spark(symbol: str, *, days: int = 126,

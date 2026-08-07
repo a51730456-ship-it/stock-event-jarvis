@@ -692,7 +692,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026080750
+_REQUIRED_J4_REVISION = 2026080760
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -3185,6 +3185,25 @@ _BAND_CARD_CLASS = {"deep": "j4-card-deep", "mid": "j4-card-mid"}
 _BAND_CELL_CLASS = {"deep": "j4-band-deep", "mid": "j4-band-mid"}
 
 
+def _kr_crash_state_html() -> str:
+    """지금이 코스피 급락 국면인가를 맨 위에 알려 준다 (2026-08-07).
+
+    **막지 않고 알려만 준다** — 미국(자비스3)과 같은 결정이다. 그전에는 화면이
+    '급락 후 반등장'이라고 써 놓고 코스피를 아예 안 봤다.
+    """
+    state = j4data.kr_crash_market_state()
+    if not state.get("ok"):
+        return ""
+    armed = bool(state.get("armed"))
+    return (
+        f"<div class='j4-pull-guide' style='border-left:4px solid "
+        f"{'#ff9d3b' if armed else '#6b7280'}; padding-left:.8rem'>"
+        f"<b class=\"{'j4-down' if armed else 'j4-muted'}\">"
+        f"{'🟠 지금 이 규칙의 국면입니다' if armed else '⚪ 지금은 이 규칙의 국면이 아닙니다'}"
+        f"</b> — {html.escape(str(state.get('reason') or ''))}</div>"
+    )
+
+
 def _render_rulebook_finder(result: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 — 미국테마와 같은 모양이다(2026-08-01 사용자 지시).
 
@@ -3258,6 +3277,8 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
         events = getattr(j4data, "CRASH_REBOUND_EVENTS", 0)
         st.markdown(
             "<div class='j4-pull-guide'>"
+            + _kr_crash_state_html()
+            + "<div class='j4-pull-guide'>"
             "<b>찾는 기준</b> — 코스피가 고점 대비 <b>15% 넘게</b> 빠진 국면에서 "
             "<b>가장 깊었던 날</b>, 그날 고점 대비 <b>40~60% 빠진</b> 종목을 고릅니다"
             "(하루 평균 거래대금 50억 이상). 신고가가 언제였는지도 이동평균도 "
