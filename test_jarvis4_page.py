@@ -607,7 +607,7 @@ class Jarvis4PageTests(unittest.TestCase):
         """
         source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
         block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
-        self.assertIn("아무 날이나 사서 같은 기간 들고 있었으면", block)
+        self.assertIn("아무 종목이나 사서 같은 기간 들고 있었으면", block)
         self.assertIn("아무 종목이나 샀으면", block)
         self.assertIn("기준선보다 못했습니다", block)
         self.assertIn("기준선보다 나았습니다", block)
@@ -675,7 +675,7 @@ class Jarvis4PageTests(unittest.TestCase):
         """상승장에서 값을 한 것은 거래대금 비중이 아니라 최근 60일 상승폭이다."""
         source = Path("pages/3_자비스4.py").read_text(encoding="utf-8")
         block = source.split("def _render_rulebook_finder(")[1].split("\ndef ")[0]
-        self.assertIn("최근 60일 상승폭 (거래대금)", block)
+        self.assertIn("최근 60일 (40%↑면 0점)", block)
         self.assertIn('ret60 = metrics.get("ret60")', block)
 
     def test_rulebook_detail_uses_its_own_ruler(self):
