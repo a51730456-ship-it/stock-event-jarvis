@@ -56,6 +56,34 @@ def roll(returns: pd.DataFrame, mask: pd.DataFrame, pool: pd.DataFrame | None = 
     return np.array(win_edges), np.array(median_edges)
 
 
+def roll_within(returns: pd.DataFrame, net: pd.DataFrame, factor: pd.DataFrame):
+    """**그물 안에서** 비교한다 — 조건에 맞는 것 vs 같은 그물의 나머지.
+
+    배점은 '아무 종목보다 나은가'가 아니라 '이미 그물에 걸린 것들 중 어느 것을
+    위로 올릴까'를 정하는 값이다. 그러니 상대는 그물의 나머지여야 한다.
+
+    2026-08-07에 이걸 틀렸다. 상대를 '그날 아무 종목이나'로 잡았더니, 시장이
+    통째로 눌려 수십 종목이 한꺼번에 걸리는 날이 신호 쪽 평균을 지배했다.
+    '테마가 뭉쳤나'가 아니라 '그날이 어떤 날이었나'를 재고 있었다
+    (상하님 지적: "테마 동반이 전혀 상관없다는 건 믿을 수 없다").
+    """
+    length = int(WINDOW_YEARS * 252)
+    yes = returns.where(net & factor).to_numpy()
+    no = returns.where(net & ~factor).to_numpy()
+    win_edges, median_edges = [], []
+    for start in range(0, len(returns) - length + 1, STEP_DAYS):
+        stop = start + length
+        a = yes[start:stop].ravel()
+        a = a[~np.isnan(a)]
+        b = no[start:stop].ravel()
+        b = b[~np.isnan(b)]
+        if a.size < MIN_TRADES or b.size < MIN_TRADES:
+            continue
+        win_edges.append((a > 0).mean() * 100 - (b > 0).mean() * 100)
+        median_edges.append(float(np.median(a) - np.median(b)))
+    return np.array(win_edges), np.array(median_edges)
+
+
 def report(name: str, win_edges, median_edges) -> None:
     if win_edges.size == 0:
         print(f"{name:<32} 창이 없다 (자리가 너무 적음)")
@@ -153,18 +181,27 @@ def run_us() -> None:
     for title, signal in (("상승장", breakout), ("급락 후 반등장", crash)):
         together = _together(signal, themes_of)
         print(f"\n### 미국 {title}  (명부 {len(stocks)}종목 · 120거래일 보유)")
-        report("그물 전체", *roll(returns, signal))
-        for name, mask in (
-            ("40점 · 테마 동반 3개↑", signal & (together >= 3)),
-            ("25점 · 최근 11일 -5%↑ 빠짐", signal & (metric["recent11"] <= -5.0)),
-            ("15점 · 눌린 폭 10~15%" if title == "상승장" else "15점 · 낙폭 -30~-50%",
-             signal & (((metric["from_peak"] <= -10.0) & (metric["from_peak"] >= -15.0))
-                       if title == "상승장" else
-                       ((metric["from_high"] <= -30.0) & (metric["from_high"] >= -50.0)))),
-            ("0점 · 거래대금 연속 11일↑", signal & (metric["streak"] >= 11)),
-            ("0점 · 60일 40%↑ 오름", signal & (metric["gain60"] >= 40.0)),
+        report("그물 전체 (vs 아무 종목)", *roll(returns, signal))
+        # 그물에 걸린 것들이 어떻게 흩어져 있나 — 조건이 너무 헐거우면 고르는 값이 아니다
+        counts = together.to_numpy()[signal.to_numpy()]
+        total = counts.size
+        print(f"  그물에 걸린 자리 {total:,}개 중 테마 동반 "
+              f"1개 {np.mean(counts <= 1) * 100:.0f}% · 2개 {np.mean(counts == 2) * 100:.0f}% · "
+              f"3개↑ {np.mean(counts >= 3) * 100:.0f}% · 5개↑ {np.mean(counts >= 5) * 100:.0f}%")
+        print("  ── 그물 안에서 비교 (조건 맞는 것 vs 같은 그물의 나머지) ──")
+        for name, factor in (
+            ("테마 동반 3개↑", together >= 3),
+            ("테마 동반 5개↑", together >= 5),
+            ("최근 11일 -5%↑ 빠짐", metric["recent11"] <= -5.0),
+            ("최근 11일 안 올랐음(<=0)", metric["recent11"] <= 0.0),
+            ("눌린 폭 10~15%" if title == "상승장" else "낙폭 -30~-50%",
+             ((metric["from_peak"] <= -10.0) & (metric["from_peak"] >= -15.0))
+             if title == "상승장" else
+             ((metric["from_high"] <= -30.0) & (metric["from_high"] >= -50.0))),
+            ("거래대금 연속 11일↑", metric["streak"] >= 11),
+            ("60일 40%↑ 오름", metric["gain60"] >= 40.0),
         ):
-            report(name, *roll(returns, mask))
+            report(name, *roll_within(returns, signal, factor))
 
 
 def run_kr() -> None:
@@ -203,17 +240,23 @@ def run_kr() -> None:
         returns = (close.shift(-hold) / wide["open"].shift(-1) - 1.0) * 100.0
         together = _together(signal, themes_of)
         print(f"\n### 한국 {title} · {hold}거래일 보유")
-        report("그물 전체", *roll(returns, signal, pool))
-        for name, mask in (
-            ("거래대금 500억↑", signal & (value >= 500)),
-            ("최근 11일 -5%↑ 빠짐", signal & (metric["recent11"] <= -5.0)),
-            ("최근 11일 안 올랐음(<=0)", signal & (metric["recent11"] <= 0.0)),
-            ("테마 동반 3개↑", signal & (together >= 3)),
-            ("60일 안 올랐음(<=0)", signal & (metric["gain60"] <= 0.0)),
-            ("60일 40%↑ 오름", signal & (metric["gain60"] >= 40.0)),
-            ("거래대금 연속 11일↑", signal & (metric["streak"] >= 11)),
+        report("그물 전체 (vs 아무 종목)", *roll(returns, signal, pool))
+        counts = together.to_numpy()[signal.to_numpy()]
+        print(f"  그물에 걸린 자리 {counts.size:,}개 중 테마 동반 "
+              f"1개 {np.mean(counts <= 1) * 100:.0f}% · 2개 {np.mean(counts == 2) * 100:.0f}% · "
+              f"3개↑ {np.mean(counts >= 3) * 100:.0f}% · 5개↑ {np.mean(counts >= 5) * 100:.0f}%")
+        print("  ── 그물 안에서 비교 (조건 맞는 것 vs 같은 그물의 나머지) ──")
+        for name, factor in (
+            ("거래대금 500억↑", value >= 500),
+            ("테마 동반 3개↑", together >= 3),
+            ("테마 동반 5개↑", together >= 5),
+            ("최근 11일 -5%↑ 빠짐", metric["recent11"] <= -5.0),
+            ("최근 11일 안 올랐음(<=0)", metric["recent11"] <= 0.0),
+            ("60일 안 올랐음(<=0)", metric["gain60"] <= 0.0),
+            ("60일 40%↑ 오름", metric["gain60"] >= 40.0),
+            ("거래대금 연속 11일↑", metric["streak"] >= 11),
         ):
-            report(name, *roll(returns, mask, pool))
+            report(name, *roll_within(returns, signal, factor))
 
 
 if __name__ == "__main__":
