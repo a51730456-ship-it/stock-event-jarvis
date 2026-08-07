@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026080710
+MODULE_REVISION = 2026080810
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -188,6 +188,15 @@ TOP_ROW_LANDSCAPE_CSS = """
 # 칸을 감추지 않고, 글자를 줄이고 줄바꿈을 막은 뒤 넘치면 표만 옆으로 밀어서 본다.
 # 값은 하나도 바꾸지 않는다.
 THEME_TABLE_CSS = """
+/* 시장 신호 표(칸 7개)는 폰에서 화면 밖으로 나갔다 — 2026-08-07 실측: 표 오른쪽
+   끝 386px인데 화면은 375px이라 마지막 칸이 11px 잘렸다. 여기 테마 표와 같은
+   방식으로 고친다: **칸은 감추지 않고** 글자를 줄이고, 그래도 넘치면 표만
+   옆으로 밀어서 본다. 값·점수·판정은 건드리지 않는다(규칙 12). */
+.msig-table { font-size: 0.74rem !important; display: block; overflow-x: auto; }
+.msig-table thead, .msig-table tbody { display: table; width: 100%; }
+.msig-table th, .msig-table td { padding: 0.35rem 0.2rem !important; }
+.msig-table td.msig-reason { font-size: 0.72rem !important; }
+
 .j3-theme-table, .j4-theme-table { table-layout: auto !important; }
 .j3-theme-table col, .j4-theme-table col { width: auto !important; }
 /* 칸은 감추지 않는다 — 감췄더니 "다른 항목은 어디 갔나"라는 말이 나왔다
