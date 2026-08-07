@@ -169,7 +169,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080800
+MODULE_REVISION = 2026080810
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1158,8 +1158,11 @@ def volume_streak_days(frame) -> int:
 # 전부(가운데 +9.5%p · 최악 +3.2%p), 테마 20일 상위 5등이 90/96·99/94·100/97.
 # 화면이 테마별 낙폭·수익률 등수를 아직 계산하지 않아 이번에는 못 넣었다.
 # 낙폭 갈래는 0점이다 — 갈래가 하나뿐이라 모두 같은 점수를 받아 순위를 못 가른다.
+# 2026-08-07: '테마 등수' 25점을 새로 넣고 나머지를 비례해 줄였다(40/30/30 → 30/22.5/22.5).
+# 테마 60일 수익률 상위 5등은 창 80 / 95 / 100%로 통과했고 최악의 창에서도 -0.0p였다
+# — 통과한 후보 중 최악값이 가장 좋았다(`research/us_theme_rank.py`).
 CRASH_SCORE_WEIGHTS = {
-    "together": 40.0, "volatility": 30.0, "liquidity": 30.0,
+    "together": 30.0, "theme_rank": 25.0, "volatility": 22.5, "liquidity": 22.5,
     "recent_drop": 0.0, "bucket": 0.0,
 }
 # **문턱은 3개가 아니라 4개다**(2026-08-07 새 그물 실측). 3개↑는 그물의 55%가
@@ -1247,6 +1250,19 @@ def crash_rebound_score(row: dict) -> dict:
                   full,
                   f"{theme}에서 {count}종목 같이 걸림 "
                   f"({CRASH_TOGETHER_FULL}개↑ 만점 · 2~3개 절반)"))
+
+    # 테마 등수 — 종목이 아니라 **테마 자체**가 몇 등인가. 2026-08-07 실측에서
+    # 종목 항목 대부분이 거꾸로로 나온 반면 이것은 창 80 / 95 / 100%로 통과했다.
+    rank = row.get("theme_rank")
+    total = int(row.get("theme_rank_total") or 0)
+    rank_full = float(weights.get("theme_rank", 0.0))
+    parts.append((
+        f"테마 60일 등수 (상위 {THEME_RANK_TOP_N}등)",
+        rank_full if row.get("theme_rank_top") else 0.0,
+        rank_full,
+        "모름" if not rank else
+        f"{row.get('theme_rank_name') or '테마'} {int(rank)}등"
+        + (f" / {total}개" if total else "")))
 
     # 낙폭과 **다른 것**을 잰다 — 낙폭은 구덩이 깊이, 이것은 방금 빠졌나 여부.
     gain = row.get("recent_gain_pct")
@@ -1460,6 +1476,52 @@ def _attach_theme_together(rows: list, memberships: dict) -> None:
         row["together_count"], row["together_theme"] = max(best[0], 0), best[1]
         points, label = theme_together_tier(row["together_count"])
         row["together_tier"], row["together_label"] = points, label
+
+
+THEME_RANK_MIN_MEMBERS = 3
+THEME_RANK_TOP_N = 5
+
+
+def _attach_theme_rank(rows: list, memberships: dict, all_metrics: dict,
+                       metric_key: str = "ret60", top_n: int = THEME_RANK_TOP_N) -> None:
+    """이 종목이 속한 테마가 **오늘 몇 등인지** 각 줄에 적는다 (2026-08-07 도입).
+
+    왜 넣나 — 지금까지 배점은 종목 하나만 봤다. 그런데 실측에서 **테마 자체의
+    등수**가 종목 항목 대부분보다 잘 들었다. 미국 급락 그물에서 '테마 60일 수익률
+    상위 5등'은 창 80 / 95 / 100%로 통과했고 최악의 창에서도 손해가 0.0p였다
+    (`research/us_theme_rank.py`). 종목의 이동평균·상대강도가 전부 거꾸로로 나온
+    것과 대비된다 — **고를 게 있다면 종목이 아니라 테마 쪽**이라는 뜻이다.
+
+    등수는 **명부 전체**로 매긴다. 표에 걸린 종목만으로 매기면 그날 몇 종목이
+    걸렸느냐에 따라 등수가 출렁인다. 구성종목이 3개 미만인 테마는 평균이 한두
+    종목에 휘둘리므로 등수에서 뺀다.
+
+    `metric_key`는 무엇으로 줄 세울지다 — 미국 급락은 `ret60`(60일 수익률),
+    한국 급락은 `from_high_pct`('덜 빠졌나')를 쓴다. 시장마다 실측 결과가 갈렸다.
+    """
+    totals: dict[str, list] = {}
+    for ticker, metrics in (all_metrics or {}).items():
+        value = (metrics or {}).get(metric_key)
+        if value is None:
+            continue
+        for name in memberships.get(ticker) or []:
+            totals.setdefault(name, []).append(float(value))
+
+    averages = {name: sum(values) / len(values)
+                for name, values in totals.items()
+                if len(values) >= THEME_RANK_MIN_MEMBERS}
+    order = sorted(averages, key=lambda name: -averages[name])
+    place = {name: index + 1 for index, name in enumerate(order)}
+
+    for row in rows:
+        places = [place[name] for name in (row.get("themes") or []) if name in place]
+        best = min(places) if places else None
+        row["theme_rank"] = best
+        row["theme_rank_total"] = len(order)
+        row["theme_rank_top"] = bool(best is not None and best <= top_n)
+        row["theme_rank_name"] = (
+            next((name for name in (row.get("themes") or []) if place.get(name) == best), "")
+            if best else "")
 
 
 def _rank_key(row: dict):
@@ -1743,11 +1805,15 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
         )
 
     rows = []
+    # 테마 등수는 **명부 전체**로 매긴다 — 표에 걸린 종목만 쓰면 그날 몇 개가
+    # 걸렸느냐에 따라 등수가 출렁인다. 어차피 아래 반복문이 전 종목 지표를 낸다.
+    all_metrics: dict[str, dict] = {}
     counts = {rule["key"]: 0 for rule in CRASH_REBOUND_RULES}
     for ticker in US_LARGE_CAP_UNIVERSE:
         metrics = _series_metrics(daily.get(ticker))
         if not metrics.get("ok"):
             continue
+        all_metrics[ticker] = metrics
         now_from_high = metrics.get("from_high_pct")
         # 갈래를 가르는 값 — 기준일이 있으면 **그날** 낙폭으로, 없으면 오늘 낙폭으로.
         from_high, then_close = now_from_high, None
@@ -1782,8 +1848,9 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
                 row["_order"] = order
                 rows.append(row)
                 break
-    # 테마 동반이 배점의 40점이므로 점수를 내기 **전에** 세어 둬야 한다.
+    # 테마 동반·테마 등수가 배점의 55점이므로 점수를 내기 **전에** 붙여 둬야 한다.
     _attach_theme_together(rows, memberships)
+    _attach_theme_rank(rows, memberships, all_metrics, metric_key="ret60")
     # 점수가 곧 순위다(2026-08-06 사용자 결정 — 별점은 뺐다). 같은 점수 안에서는
     # 예전 순위 기준(테마 동반 → 갈래 → 거래대금)을 그대로 쓴다.
     for row in rows:

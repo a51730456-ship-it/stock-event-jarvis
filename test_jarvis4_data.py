@@ -241,10 +241,39 @@ class KrBreakoutScoreTests(unittest.TestCase):
         import jarvis3_data as j3
 
         self.assertNotEqual(j3.BREAKOUT_SCORE_WEIGHTS, j4.BREAKOUT_SCORE_WEIGHTS)
-        # 한국에서 가장 크게 갈린 것은 거래대금이다(500억 이상 100번 중 69~72번).
+        # **2026-08-07에 1등이 바뀌었다.** 거래대금(창 69·64·57%)보다 테마 60일
+        # 등수(창 100·100·100%, 최악 +5.3p)가 훨씬 잘 갈렸다.
         self.assertEqual(
-            "liquidity", max(j4.BREAKOUT_SCORE_WEIGHTS, key=j4.BREAKOUT_SCORE_WEIGHTS.get))
+            "theme_rank", max(j4.BREAKOUT_SCORE_WEIGHTS, key=j4.BREAKOUT_SCORE_WEIGHTS.get))
         self.assertEqual(100.0, sum(j4.BREAKOUT_SCORE_WEIGHTS.values()))
+        self.assertEqual(100.0, sum(j4.CRASH_SCORE_WEIGHTS.values()))
+        # 두 그물이 **다른 자**로 테마를 줄 세운다 — 실측이 그렇게 갈렸다.
+        self.assertEqual(25.0, j4.CRASH_SCORE_WEIGHTS["theme_rank"])
+        self.assertEqual(30.0, j4.BREAKOUT_SCORE_WEIGHTS["theme_rank"])
+
+    def test_theme_rank_uses_the_whole_universe_not_just_the_matches(self):
+        """등수를 걸린 종목만으로 매기면 그날 몇 개 걸렸느냐에 따라 출렁인다."""
+        universe = {
+            "A": {"metrics": {"ret60": 40.0}, "themes": ["센테마"]},
+            "B": {"metrics": {"ret60": 38.0}, "themes": ["센테마"]},
+            "C": {"metrics": {"ret60": 36.0}, "themes": ["센테마"]},
+            "D": {"metrics": {"ret60": -30.0}, "themes": ["약한테마"]},
+            "E": {"metrics": {"ret60": -28.0}, "themes": ["약한테마"]},
+            "F": {"metrics": {"ret60": -32.0}, "themes": ["약한테마"]},
+            "G": {"metrics": {"ret60": 5.0}, "themes": ["둘뿐"]},
+            "H": {"metrics": {"ret60": 5.0}, "themes": ["둘뿐"]},
+        }
+        items = [{"code": "A", "themes": ["센테마"]},
+                 {"code": "D", "themes": ["약한테마"]},
+                 {"code": "G", "themes": ["둘뿐"]}]
+        j4.attach_theme_rank(items, universe, "ret60")
+        self.assertEqual(1, items[0]["theme_rank"])
+        self.assertTrue(items[0]["theme_rank_top"])
+        self.assertEqual(2, items[1]["theme_rank"])
+        self.assertFalse(items[1]["theme_rank_top"])
+        # 구성종목 3개 미만인 테마는 등수에서 뺀다 — 한두 종목에 휘둘린다.
+        self.assertIsNone(items[2]["theme_rank"])
+        self.assertEqual(2, items[0]["theme_rank_total"])
 
     def test_measured_losers_get_no_points(self):
         """눌린 폭·변동성은 한국 상승장에서 안 갈렸다 — 배점에 있으면 안 된다."""

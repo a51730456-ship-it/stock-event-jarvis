@@ -86,7 +86,7 @@ PULLBACK_SCORE_MAX = 25.0 + 25.0 + PULLBACK_TREND_POINTS + 25.0 + 15.0
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080800
+MODULE_REVISION = 2026080810
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -1294,7 +1294,7 @@ def get_fx_intraday(*, ttl_seconds: float = 60) -> dict:
 # **재적재는 pages/3_자비스4.py가 한다**(규칙 11, 이 프로젝트 방식).
 # 여기서 importlib.reload를 부르면 시험이 갈아 끼운 가짜 모듈까지 날아간다
 # (2026-08-06 실제로 test_jarvis4_data 두 건이 깨졌다).
-_REQUIRED_J3_REVISION = 2026080800
+_REQUIRED_J3_REVISION = 2026080810
 
 
 def _us_previous_session() -> dict:
@@ -2858,8 +2858,13 @@ def _is_basket_theme(name: str) -> bool:
 #
 # **뺀 것** — 낙폭 갈래(그물로 이미 한 번 썼다) · 거래대금 연속(새 그물에서 안 붙음)
 #            · 외국인+기관 동반(2026-08-01에 거꾸로로 확인, 그대로 0점)
+# 2026-08-07: '테마 등수' 25점을 넣고 나머지를 비례해 줄였다(30/25/25/20 → 22.5/18.75/18.75/15).
+# 급락 그물에서는 **테마가 덜 빠졌나 상위 20%**가 통과했다(창 86 / 88 / 86%, 최악 -2.0p).
+# 같은 그물에서 테마 60일 수익률은 통과하지 못했다(49 / 60 / 67%) — 급하게 반등을
+# 노릴 때는 '이미 오르던 테마'가 아니라 '덜 다친 테마'였다(research/kr_score_new.py).
 CRASH_SCORE_WEIGHTS = {
-    "recent11": 30.0, "gain60": 25.0, "together": 25.0, "liquidity": 20.0,
+    "recent11": 22.5, "gain60": 18.75, "together": 18.75, "liquidity": 15.0,
+    "theme_rank": 25.0,
 }
 # 최근 11일 / 60일 등락 → 점수. 빠졌으면 만점, 오를수록 깎고, 많이 올랐으면 0점.
 CRASH_RECENT_FULL, CRASH_RECENT_ZERO = -5.0, 5.0
@@ -2954,6 +2959,23 @@ def _breakout_rank_key(row: dict):
     )
 
 
+def _theme_rank_part(row: dict, weights: dict, label: str) -> tuple:
+    """테마 등수 배점 한 줄. 두 그물이 같은 모양으로 쓴다."""
+    rank = row.get("theme_rank")
+    total = int(row.get("theme_rank_total") or 0)
+    cutoff = int(row.get("theme_rank_cutoff") or 0)
+    full = float(weights.get("theme_rank", 0.0))
+    if not rank:
+        note = "모름"
+    else:
+        note = f"{row.get('theme_rank_name') or '테마'} {int(rank)}등"
+        if total:
+            note += f" / {total}개"
+        if cutoff:
+            note += f" (상위 {cutoff}등까지 만점)"
+    return (label, full if row.get("theme_rank_top") else 0.0, full, note)
+
+
 def crash_rebound_score(row: dict) -> dict:
     """급락 후 반등장 후보의 점수(100점)와 근거."""
     metrics = row.get("metrics") or {}
@@ -2976,6 +2998,9 @@ def crash_rebound_score(row: dict) -> dict:
     parts.append(("같은 테마 동반",
                   weights["together"] * min(count / 3.0, 1.0), weights["together"],
                   f"{count}개 함께 걸림 (3개↑ 만점)"))
+
+    # 급락장에서는 '이미 오르던 테마'가 아니라 **덜 다친 테마**가 통했다.
+    parts.append(_theme_rank_part(row, weights, "테마가 덜 빠졌나 (상위 20%)"))
 
     value = float(row.get("liquidity_value") or 0)
     parts.append(("사고팔기 쉬운가", _scale(value / 1e8, 50, 1000, weights["liquidity"]),
@@ -3031,8 +3056,12 @@ def _eok_text(value: float) -> str:
 #                        **정반대였다.** 앞뒤로 갈라 재지 않아 놓친 것이다.
 #
 # **뺀 것** — 거래대금 평소 위 연속(새 그물에서 74/73 · 63/68 · 52/59로 안 붙음)
+# 2026-08-07: '테마 등수' 30점을 넣고 나머지를 비례해 줄였다(30/25/25/20 → 21/17.5/17.5/14).
+# **테마 60일 수익률 상위 20%는 오늘 잰 것 중 가장 강했다** — 창 100 / 100 / 100%,
+# 최악의 창에서도 +5.3p였다. 종목 항목 어느 것도 여기 못 미친다.
 BREAKOUT_SCORE_WEIGHTS = {
-    "liquidity": 30.0, "together": 25.0, "volatility": 25.0, "ret60": 20.0,
+    "liquidity": 21.0, "together": 17.5, "volatility": 17.5, "ret60": 14.0,
+    "theme_rank": 30.0,
 }
 # 변동성(ATR/주가) — 4% 아래면 만점, 6%를 넘으면 0점.
 BREAKOUT_ATR_FULL, BREAKOUT_ATR_ZERO = 4.0, 6.0
@@ -3067,6 +3096,9 @@ def breakout_score(row: dict) -> dict:
     parts.append(("같은 테마 동반",
                   weights["together"] * min(count / 3.0, 1.0), weights["together"],
                   f"{count}개 함께 걸림 (3개↑ 만점)"))
+
+    # 오늘 잰 것 중 가장 강했다 — 창 100 / 100 / 100%, 최악의 창에서도 +5.3p.
+    parts.append(_theme_rank_part(row, weights, "테마 60일 등수 (상위 20%)"))
 
     atr = metrics.get("atr")
     ratio = None
@@ -3148,6 +3180,56 @@ def crash_rebound_plan(row: dict) -> dict:
     }
 
 
+THEME_RANK_MIN_MEMBERS = 3
+# 한국은 테마가 262개라 '상위 몇 등'보다 '상위 몇 %'가 안정적이다. 실측도 20%로 했다.
+THEME_RANK_TOP_RATIO = 0.20
+
+
+def attach_theme_rank(items: list, universe_metrics: dict, metric_key: str) -> None:
+    """이 종목이 속한 테마가 **오늘 몇 등인지** 각 줄에 적는다 (2026-08-07 도입).
+
+    한국은 그물마다 답이 달랐다(`research/kr_score_new.py`).
+
+      · 상승장(250거래일) — **테마 60일 수익률 상위 20%**
+        창 100 / 100 / 100%, 최악의 창에서도 +5.3p. 오늘 잰 것 중 가장 강했다.
+      · 급락 후 반등장(20거래일) — **테마가 덜 빠졌나 상위 20%**
+        창 86 / 88 / 86%, 최악 -2.0p. 여기서는 60일 수익률이 안 통했다(49/60/67).
+
+    한 달 뒤에 볼 것과 1년 뒤에 볼 것이 다르다는 뜻이다. 급하게 반등을 노릴 때는
+    '덜 다친 테마', 길게 들 때는 '이미 오르고 있는 테마'였다.
+
+    `metric_key`는 종목 지표의 이름이고, 클수록 좋은 값이라야 한다
+    (`ret60`은 그대로, `from_high_pct`는 0에 가까울수록 크므로 그대로 쓴다).
+    """
+    totals: dict[str, list] = {}
+    for entry in (universe_metrics or {}).values():
+        value = (entry.get("metrics") or {}).get(metric_key)
+        if value is None:
+            continue
+        for name in entry.get("themes") or []:
+            if _is_basket_theme(name):
+                continue
+            totals.setdefault(name, []).append(float(value))
+
+    averages = {name: sum(values) / len(values)
+                for name, values in totals.items()
+                if len(values) >= THEME_RANK_MIN_MEMBERS}
+    order = sorted(averages, key=lambda name: -averages[name])
+    place = {name: index + 1 for index, name in enumerate(order)}
+    cutoff = max(1, int(round(len(order) * THEME_RANK_TOP_RATIO)))
+
+    for item in items:
+        places = [place[name] for name in (item.get("themes") or []) if name in place]
+        best = min(places) if places else None
+        item["theme_rank"] = best
+        item["theme_rank_total"] = len(order)
+        item["theme_rank_cutoff"] = cutoff
+        item["theme_rank_top"] = bool(best is not None and best <= cutoff)
+        item["theme_rank_name"] = (
+            next((name for name in (item.get("themes") or []) if place.get(name) == best), "")
+            if best else "")
+
+
 def _theme_together(matched: list) -> dict[str, int]:
     """테마마다 '같은 기준에 함께 걸린 종목이 몇 개인지' 센다.
 
@@ -3200,7 +3282,8 @@ def reference_drawdown(daily, reference_date: str | None) -> dict:
         return {}
 
 
-def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_limit: int) -> dict:
+def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int,
+                   result_limit: int, rule_key: str = "breakout") -> dict:
     """거래대금 상위 종목을 훑어 `match(metrics)`가 참인 것만 모은다.
 
     find_pullback_stocks와 같은 길을 쓴다 — 테마 구성종목 → 유동성 상위 → 일봉 →
@@ -3234,12 +3317,19 @@ def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_l
             matched = match(metrics, daily)
         except TypeError:
             matched = match(metrics)
+        # 테마 등수는 **명부 전체**로 매긴다 — 걸린 종목만으로 매기면 그날 몇 개가
+        # 걸렸느냐에 따라 등수가 출렁인다. 그래서 걸리지 않은 종목의 지표도 남긴다.
+        with _rank_lock:
+            universe_metrics[str(stock.get("code"))] = {
+                "metrics": metrics, "themes": stock.get("themes") or []}
         if not matched:
             return None
         return {**stock, "metrics": metrics, "daily": daily, "rule": matched,
                 "volume_streak": volume_streak_days(daily),
                 "recent_gain_pct": recent_gain_pct(daily)}
 
+    universe_metrics: dict[str, dict] = {}
+    _rank_lock = threading.Lock()
     screened = []
     with ThreadPoolExecutor(max_workers=8) as executor:
         for future in as_completed([executor.submit(_screen, s) for s in candidates]):
@@ -3285,6 +3375,11 @@ def _rulebook_scan(match, *, min_trading_value: float, scan_limit: int, result_l
         item["together_count"], item["together_theme"] = best[0], best[1]
         points, label = together_tier(best[0])
         item["together_tier"], item["together_label"] = points, label
+    # 그물마다 줄 세우는 자가 다르다 — 급락은 '덜 빠졌나', 상승장은 '60일 수익률'.
+    # 실측이 그렇게 갈렸다(`attach_theme_rank` 설명글).
+    attach_theme_rank(
+        final, universe_metrics,
+        "from_high_pct" if rule_key == "crash" else "ret60")
     final.sort(key=lambda item: (-(item.get("liquidity_value") or 0), str(item.get("code"))))
     for index, item in enumerate(final, 1):
         item["pullback_rank"] = index
@@ -3392,6 +3487,7 @@ def find_crash_rebound_stocks(
         found = _rulebook_scan(
             _match, min_trading_value=min_trading_value,
             scan_limit=scan_limit, result_limit=result_limit,
+            rule_key="crash",
         )
         counts = {rule["key"]: 0 for rule in CRASH_REBOUND_RULES}
         # **기준일 그날 낙폭**도 같이 싣는다(2026-08-07). 갈래는 아직 오늘 값으로

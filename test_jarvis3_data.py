@@ -314,8 +314,13 @@ class RulebookScreenTests(unittest.TestCase):
             self.assertNotIn("volume_streak", weights)
         # 두 갈래 모두 테마가 1등이다. 2026-08-07에 그물을 격자로 다시 잡고
         # 그 위에서 배점도 다시 쟀다(research/us_score_new.py).
-        for weights in (j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS):
-            self.assertEqual(40.0, weights["together"])
+        self.assertEqual(40.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
+        # 급락 갈래는 같은 날 '테마 등수' 25점이 들어오면서 비례해 줄었다.
+        # 테마 두 항목을 합치면 55점 — 여전히 배점의 절반 이상이 테마다.
+        self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["together"])
+        self.assertEqual(25.0, j3.CRASH_SCORE_WEIGHTS["theme_rank"])
+        self.assertEqual(55.0, j3.CRASH_SCORE_WEIGHTS["together"]
+                         + j3.CRASH_SCORE_WEIGHTS["theme_rank"])
         # **급락 후 반등장에서 '최근 11일'은 거꾸로가 됐다.** 새 그물(250거래일
         # 보유)에서 4/11 · 1/1 · 0/0으로 거의 모든 창에서 졌다. 1년을 들 거면
         # 이미 돌아선 종목이 낫다는 뜻이다. 되살리면 검증이 부정한 값으로
@@ -355,10 +360,49 @@ class RulebookScreenTests(unittest.TestCase):
                     {"metrics": {}, "together_count": count, "bucket": "shallow"}
                 )["parts"] if name == "같은 테마 동반")
 
-        self.assertEqual(40.0, crash_points(4))
-        self.assertEqual(20.0, crash_points(3))
-        self.assertEqual(20.0, crash_points(2))
+        # 만점은 30점이다 — 2026-08-07에 '테마 등수' 25점이 들어오면서 줄었다.
+        # 숫자를 박지 말고 배점표에서 읽는다. 배점을 또 고쳐도 이 시험은 살아 있다.
+        full = j3.CRASH_SCORE_WEIGHTS["together"]
+        self.assertEqual(full, crash_points(4))
+        self.assertEqual(full / 2, crash_points(3))
+        self.assertEqual(full / 2, crash_points(2))
         self.assertEqual(0.0, crash_points(1))
+
+    def test_theme_rank_is_scored_and_ranks_over_the_whole_universe(self):
+        """테마 등수 25점 — 2026-08-07 도입. 등수는 명부 전체로 매겨야 한다."""
+        memberships = {"AAA": ["강한테마"], "BBB": ["강한테마"], "CCC": ["강한테마"],
+                       "DDD": ["약한테마"], "EEE": ["약한테마"], "FFF": ["약한테마"]}
+        all_metrics = {"AAA": {"ret60": 30.0}, "BBB": {"ret60": 28.0},
+                       "CCC": {"ret60": 26.0}, "DDD": {"ret60": -20.0},
+                       "EEE": {"ret60": -18.0}, "FFF": {"ret60": -22.0}}
+        rows = [{"ticker": "AAA", "themes": ["강한테마"]},
+                {"ticker": "DDD", "themes": ["약한테마"]}]
+        j3._attach_theme_rank(rows, memberships, all_metrics, metric_key="ret60", top_n=1)
+        self.assertTrue(rows[0]["theme_rank_top"])
+        self.assertFalse(rows[1]["theme_rank_top"])
+        self.assertEqual(1, rows[0]["theme_rank"])
+        self.assertEqual(2, rows[1]["theme_rank"])
+
+        def rank_points(row):
+            row = dict(row, metrics={}, together_count=0, bucket="shallow")
+            return next(value for name, value, _m, _t
+                        in j3.crash_rebound_score(row)["parts"] if "테마" in name
+                        and "등수" in name)
+
+        self.assertEqual(j3.CRASH_SCORE_WEIGHTS["theme_rank"], rank_points(rows[0]))
+        self.assertEqual(0.0, rank_points(rows[1]))
+
+    def test_theme_rank_ignores_tiny_themes(self):
+        """구성종목 3개 미만인 테마는 한두 종목에 휘둘려 등수가 못 미덥다."""
+        memberships = {"AAA": ["둘뿐인테마"], "BBB": ["둘뿐인테마"],
+                       "CCC": ["멀쩡한테마"], "DDD": ["멀쩡한테마"], "EEE": ["멀쩡한테마"]}
+        all_metrics = {t: {"ret60": v} for t, v in
+                       (("AAA", 99.0), ("BBB", 99.0), ("CCC", 1.0), ("DDD", 1.0),
+                        ("EEE", 1.0))}
+        rows = [{"ticker": "AAA", "themes": ["둘뿐인테마"]}]
+        j3._attach_theme_rank(rows, memberships, all_metrics, metric_key="ret60", top_n=1)
+        self.assertIsNone(rows[0]["theme_rank"])
+        self.assertFalse(rows[0]["theme_rank_top"])
 
     def test_recent_drop_scores_the_fall_not_the_rally(self):
         """낙폭(구덩이 깊이)과 다른 것을 잰다 — 방금 빠졌나 이미 올라왔나."""
