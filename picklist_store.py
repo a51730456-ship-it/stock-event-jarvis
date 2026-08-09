@@ -42,7 +42,7 @@ from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
 # (CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080930
+MODULE_REVISION = 2026080940
 
 SCHEMA_VERSION = 2
 
@@ -337,6 +337,20 @@ def saved_kinds(trade_date: str, market: str,
 # 내려받기
 # ──────────────────────────────────────────────────────────────────────────
 
+# 화면에서 그때그때 재는 칸. 파일에는 안 들어 있지만 **내려받을 때는 같이 나간다**
+# (2026-08-09 상하님 지시) — 엑셀로 받아 놓고 손익을 못 보면 받을 값이 없다.
+COMPUTED_FIELDS = ("now_price", "profit_pct", "days_since")
+
+
+def download_fields(rows) -> tuple:
+    """내려받을 칸 목록. 수익률이 계산된 줄이 있으면 그 칸도 붙인다."""
+    extras = tuple(
+        field for field in COMPUTED_FIELDS
+        if any(row.get(field) not in (None, "") for row in rows)
+    )
+    return FIELDS + extras
+
+
 def _display_rows(rows) -> list[dict]:
     """엑셀·CSV에 넣을 때는 갈래를 화면에 쓰는 말로 바꿔 적는다."""
     out = []
@@ -349,11 +363,12 @@ def _display_rows(rows) -> list[dict]:
 
 def to_csv_bytes(rows) -> bytes:
     """엑셀이 바로 여는 CSV. **BOM을 붙인다** — 없으면 한글이 깨져 열린다."""
+    fields = download_fields(rows)
     buffer = io.StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=FIELDS, extrasaction="ignore")
+    writer = csv.DictWriter(buffer, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
     for row in _display_rows(rows):
-        writer.writerow({field: row.get(field, "") for field in FIELDS})
+        writer.writerow({field: row.get(field, "") for field in fields})
     return buffer.getvalue().encode("utf-8-sig")
 
 
@@ -368,7 +383,7 @@ def to_excel_bytes(rows):
     except Exception:
         return None
     try:
-        frame = pd.DataFrame(_display_rows(rows), columns=list(FIELDS))
+        frame = pd.DataFrame(_display_rows(rows), columns=list(download_fields(rows)))
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
             frame.to_excel(writer, index=False, sheet_name="목록")

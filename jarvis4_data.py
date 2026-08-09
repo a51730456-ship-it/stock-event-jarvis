@@ -86,7 +86,7 @@ PULLBACK_SCORE_MAX = 25.0 + 25.0 + PULLBACK_TREND_POINTS + 25.0 + 15.0
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080810
+MODULE_REVISION = 2026080910
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -3477,11 +3477,18 @@ def find_crash_rebound_stocks(
         return None
 
     def _match(metrics, daily=None):
-        judged = None
-        if reference_date is not None:
-            judged = reference_drawdown(daily, reference_date).get("judged_from_high_pct")
-        return _bucket_of(judged if judged is not None
-                          else metrics.get("from_high_pct"))
+        # **기준일 낙폭은 여기서 재서 같이 실어 보내야 한다**(2026-08-09 고침).
+        # `_rulebook_scan`은 줄을 돌려주기 전에 일봉(daily)을 떼어 낸다(무거워서).
+        # 그래서 나중에 다시 재려고 하면 자료가 이미 없어 늘 빈칸이었다 —
+        # 2026-08-07부터 화면의 '기준일 낙폭' 칸이 계속 비어 있던 까닭이다.
+        # 갈래(bucket)는 제대로 나뉘고 있었다. 여기서 이미 이 값으로 나눴기 때문이다.
+        ref = reference_drawdown(daily, reference_date) if reference_date else {}
+        judged = ref.get("judged_from_high_pct")
+        bucket = _bucket_of(judged if judged is not None
+                            else metrics.get("from_high_pct"))
+        if bucket is None:
+            return None
+        return {**bucket, **ref}
 
     def _produce():
         found = _rulebook_scan(
@@ -3490,16 +3497,13 @@ def find_crash_rebound_stocks(
             rule_key="crash",
         )
         counts = {rule["key"]: 0 for rule in CRASH_REBOUND_RULES}
-        # **기준일 그날 낙폭**도 같이 싣는다(2026-08-07). 갈래는 아직 오늘 값으로
-        # 나누지만, 화면이 그날 값도 보여줘야 이미 반등한 종목을 알아볼 수 있다.
-        state = kr_crash_market_state()
-        reference_date = state.get("reference_date") if state.get("ok") else None
+        # 기준일 낙폭은 위 `_match`가 이미 재서 rule에 실어 보냈다 — 여기서 다시
+        # 재려고 하면 일봉이 이미 떨어져 나가 늘 빈칸이 된다(2026-08-09 고침).
         for row in found["rows"]:
             row.update(row.pop("rule"))
             counts[row["bucket"]] = counts.get(row["bucket"], 0) + 1
             row["partner5"] = int((row.get("flow") or {}).get("both_buy_days5") or 0)
             row["reference_date"] = reference_date
-            row.update(reference_drawdown(row.get("daily"), reference_date))
             row["now_from_high_pct"] = (row.get("metrics") or {}).get("from_high_pct")
         # 순위 기준(2026-08-01, 12년치로 재 보고 정했다) — 위 배점 설명 참고.
         # 처음에는 외국인+기관 동반 순매수를 1순위로 뒀는데, 재 보니 **거꾸로**였다

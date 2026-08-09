@@ -1305,9 +1305,15 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.run(timeout=60)
-            app.radio[0].set_value("미국테마 (자비스3)")
+            # 로그인 화면에서는 갈 곳을 고르지 않는다(2026-08-09). 로그인만 하면
+            # '어디로 갈까요'가 나오고 거기서 **링크**로 미국테마에 간다 —
+            # st.switch_page가 브라우저 기록에 같은 주소를 하나 더 쌓아
+            # 뒤로가기가 맨홈을 두 번 지나게 만들었기 때문이다.
             app.text_input[0].set_value("test")
             next(node for node in app.button if node.key == "login_submit").click().run(timeout=60)
+            self.assertIn("자비스3", [node.page for node in app.get("page_link")])
+            app.switch_page("pages/2_자비스3.py")
+            app.run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
         self.assertTrue(app.session_state.filtered_state.get("authenticated"))
@@ -1332,8 +1338,13 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.run(timeout=60)
-            app.radio[0].set_value("미국테마 (자비스3)")
+            # 로그인 화면에서는 갈 곳을 고르지 않는다(2026-08-09) — 게스트로 들어가면
+            # '어디로 갈까요'가 나오고, 거기서 **링크**로 미국테마에 간다.
             next(node for node in app.button if node.key == "login_guest").click().run(timeout=60)
+            self.assertTrue(any("어디로 갈까요" in str(node.value) for node in app.markdown))
+            self.assertIn("자비스3", [node.page for node in app.get("page_link")])
+            app.switch_page("pages/2_자비스3.py")
+            app.run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
         state = app.session_state.filtered_state

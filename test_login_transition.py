@@ -146,12 +146,16 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertIsNone(app.session_state.filtered_state.get("authenticated"))
 
     def test_success_transition_plays_once_and_normal_rerun_does_not_replay(self):
+        """로그인 연출은 **'어디로 갈까요' 화면에서** 한 번만 돈다(2026-08-09).
+
+        예전에는 로그인이 곧바로 자비스1로 옮겨 가(st.switch_page) 그 본문에서
+        연출을 틀었다. 그 이동이 브라우저 기록에 같은 주소를 하나 더 쌓아
+        뒤로가기가 맨홈을 두 번 지나게 만들어서, 로그인은 로그인만 하고 갈 곳은
+        다음 화면에서 링크로 고르게 바꿨다. 연출도 그 화면으로 따라왔다.
+        """
         app = _new_app()
         with self._socket_block(), _offline_market_stubs():
             app.run()
-            # 멀티페이지가 2개 이상이면 AppTest도 실제 switch_page를 수행한다.
-            # 이 테스트는 자비스1 로그인 전환 자체를 검증하므로 목적지를 명시한다.
-            app.radio[0].set_value("자비스1 (기록장)")
             app.text_input[0].set_value(TEST_PASSWORD)
             next(node for node in app.button if node.key == "login_submit").click().run(timeout=60)
         self.assertEqual(len(app.exception), 0)
@@ -160,6 +164,8 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertEqual(_overlay_count(app), 1)
         self.assertTrue(any("ACCESS GRANTED" in str(node.value) for node in app.markdown))
         self.assertTrue(any("<audio autoplay" in str(node.value) for node in app.markdown))
+        # 로그인 뒤에는 '어디로 갈까요'가 나온다 — 무거운 자비스1을 바로 그리지 않는다.
+        self.assertTrue(any("어디로 갈까요" in str(node.value) for node in app.markdown))
 
         # The existing market auto-run is outside this feature; mark it complete so the
         # following rerun isolates the one-shot transition behavior.
@@ -178,10 +184,6 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertEqual(_overlay_count(app), 0)
         self.assertFalse(any("<audio autoplay" in str(node.value) for node in app.markdown))
         self.assertFalse(any("DuplicateWidgetID" in str(error.value) for error in app.exception))
-        # 자비스1을 고른 사람은 주소에 표식이 남아야 한다 — 이 표식이 있어야 아래
-        # '뒤로가기' 화면과 구별된다. (AppTest는 값을 목록으로 돌려준다.)
-        mark = app.query_params.get("page")
-        self.assertIn("jarvis1", mark if isinstance(mark, list) else [mark])
 
     def test_back_button_lands_on_the_chooser_not_on_jarvis1(self):
         """폰에서 뒤로가기를 여러 번 누르면 첫 주소로 돌아온다(2026-08-01 사용자 지시).
@@ -230,12 +232,10 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 기본 선택은 감추는 항목에 들어가면 안 된다.
         default = int(re.search(r"_DEST_DEFAULT_INDEX = (\d+)", SOURCE).group(1))
         self.assertIn(names[default], shown)
-        # 로그인 화면은 아직 동그라미로 고른다.
-        for rule in ("nth-child(-n+3)", "nth-child(n+6)"):
-            self.assertIn(
-                f'.st-key-login_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:{rule}',
-                SOURCE, f"login_dest_choice에 {rule} 규칙이 없다",
-            )
+        # 갈 곳을 고르는 자리는 **'어디로 갈까요' 한 곳뿐이다**(2026-08-09).
+        # 로그인 화면의 '로그인 후 이동' 목록은 그날 없앴다 — 그 목록의 이동이
+        # st.switch_page라 뒤로가기가 맨홈을 두 번 지나게 만들었다.
+        self.assertNotIn("login_dest_choice", SOURCE.replace("login_dest_choice 목록", ""))
         # '어디로 갈까요'는 2026-08-09부터 링크 목록이라 감추는 자리가 바뀌었다.
         # 링크는 목록 상자(entry_dest_links)의 자식이므로 그 자식 번호로 감춘다.
         for rule in ("nth-child(-n+3)", "nth-child(n+6)"):

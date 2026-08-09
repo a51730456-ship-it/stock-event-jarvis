@@ -668,18 +668,11 @@ if not st.session_state.get("authenticated"):
             iframe[data-testid="stIFrame"],
             div[data-testid="stIFrame"] iframe { height: 230px !important; }
         }
-        /* 폰·태블릿에서는 '로그인 후 이동'을 미국테마·한국테마 둘만 보이게 한다
-           (2026-08-01 사용자 지시. 그전에는 선행감지까지 셋이었다).
-           앞 3개(시장판단·자비스1·자비스2)와 뒤 2개(선행감지·종가관찰)를 숨기되
-           옵션 자체는 남겨 둔다 — 노트북/PC(1200px 초과)에서는 7개가 다 보이고
-           나중에 되살릴 수도 있다. 갤럭시탭 S8+(1138px)는 이 규칙에 걸린다.
-           목록 순서를 바꾸면 이 번호도 같이 고쳐야 한다(CLAUDE.md 12번). */
-        @media (max-width: 1200px) {
-            .st-key-login_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(-n+3),
-            .st-key-login_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(n+6) {
-                display: none !important;
-            }
-        }
+        /* 예전에는 여기에 '로그인 후 이동' 목록을 폰·태블릿에서 둘만 남기는
+           규칙이 있었다. 2026-08-09에 그 목록 자체를 없앴으므로(뒤로가기가 맨홈을
+           두 번 지나던 까닭) 규칙도 같이 뺐다. 같은 일을 하는 규칙은 바로 다음
+           화면인 '어디로 갈까요'에 st-key-entry_dest_links 이름으로 살아 있다
+           (CLAUDE.md 12번). */
         @media (prefers-reduced-motion: reduce) {
             [data-testid="stAppViewContainer"]::before,
             [data-testid="stAppViewContainer"]::after { animation: none !important; }
@@ -709,31 +702,22 @@ if not st.session_state.get("authenticated"):
             """,
             unsafe_allow_html=True,
         )
-        # 위에서 아래로 순서대로 입력하고 마지막에 누르는 흐름이 되도록
-        # '이동할 곳 → 비밀번호 → 로그인' 순으로 둔다(2026-07-23 사용자 지시).
-        # 자비스2/3 선택 시 자비스1 로딩을 건너뛰고 바로 진입해 대기 시간을 없앤다.
-        _login_dest = st.radio(
-            "로그인 후 이동",
-            _DEST_OPTIONS,
-            index=_DEST_DEFAULT_INDEX,
-            horizontal=True,
-            key="login_dest_choice",
-        )
+        # **여기서는 갈 곳을 고르지 않는다**(2026-08-09 상하님 지시로 뺐다).
+        # 예전에는 '이동할 곳 → 비밀번호 → 로그인' 순이었고 마지막에 st.switch_page로
+        # 옮겨 갔는데, 스트림릿이 그때 **같은 주소를 기록에 하나 더 쌓는다**
+        # (최소 예제로 재현 확인). 그래서 폰 뒤로가기를 눌러 맨홈에 간 뒤 또 눌러도
+        # 맨홈이 한 번 더 나왔다 — "자꾸 맨홈으로 돌아간다"의 정체다.
+        # 이제 로그인만 하고, 갈 곳은 바로 다음에 나오는 '어디로 갈까요'에서
+        # **진짜 링크**로 고른다. 누르는 횟수는 그대로다(고르기+비번+로그인 셋).
         if st.button("게스트로 보기 (비밀번호 없이)", key="login_guest", use_container_width=True):
-            if str(_login_dest).startswith(("미국테마", "한국테마")):
-                st.session_state["authenticated"] = True
-                st.session_state[_ACCESS_ROLE_KEY] = "guest"
-                _go_to(_login_dest)
-                st.rerun()
-            else:
-                st.error("게스트는 미국테마와 한국테마만 볼 수 있습니다.")
+            st.session_state["authenticated"] = True
+            st.session_state[_ACCESS_ROLE_KEY] = "guest"
+            st.rerun()
         _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
         if st.button("로그인", key="login_submit", use_container_width=True):
             if _login_password_input == _app_password:
                 st.session_state["authenticated"] = True
                 st.session_state[_ACCESS_ROLE_KEY] = "owner"
-                # 자비스1 말고는 여기서 페이지가 바뀌며 아래 줄까지 오지 않는다.
-                _go_to(_login_dest)
                 st.session_state["login_transition_pending"] = True
                 # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
                 # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.
@@ -812,6 +796,16 @@ if st.query_params.get("page") != _JARVIS1_URL_MARK:
         """,
         unsafe_allow_html=True,
     )
+    # 로그인 연출(ACCESS GRANTED)은 여기서 튼다(2026-08-09). 예전에는 로그인이
+    # 곧바로 자비스1로 옮겨 가서 그 본문에서 틀었는데, 이제 로그인 뒤 이 화면을
+    # 먼저 지나므로 여기서 틀지 않으면 아무도 안 튼 채 세션에 남는다.
+    if st.session_state.pop("login_transition_pending", None):
+        try:
+            import login_visual
+
+            login_visual.render_login_transition(st, _jarvis_earth_markup)
+        except Exception:
+            pass      # 연출이 안 돼도 화면은 그대로 돈다
     st.markdown(
         "<div class='jarvis-entry-title'>어디로 갈까요</div>"
         "<div class='jarvis-entry-sub'>이미 로그인되어 있습니다. 비밀번호를 다시 넣지 않아도 됩니다. "

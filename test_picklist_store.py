@@ -229,6 +229,22 @@ class DownloadTests(unittest.TestCase):
             self.skipTest("openpyxl이 없는 판 — CSV로 내려받는다")
         self.assertTrue(blob.startswith(b"PK"), "xlsx는 zip이라 PK로 시작한다")
 
+    def test_download_carries_the_profit_columns_when_measured(self):
+        """엑셀로 받아 놓고 손익을 못 보면 받을 값이 없다(2026-08-09 상하님 지시)."""
+        rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
+                                      trade_date="2026-08-09")
+        # 아직 안 쟀으면 없던 칸이 붙지 않는다 — 빈 칸만 늘어나면 표가 안 읽힌다.
+        self.assertEqual(store.download_fields(rows), store.FIELDS)
+
+        rows = store.set_buy_opens(rows, {"TSM": 214.0})
+        measured = store.with_profit(rows, {"TSM": 231.55})
+        fields = store.download_fields(measured)
+        for name in ("now_price", "profit_pct", "days_since"):
+            self.assertIn(name, fields)
+        text = store.to_csv_bytes(measured).decode("utf-8-sig")
+        self.assertIn("profit_pct", text.splitlines()[0])
+        self.assertIn("231.55", text)
+
     def test_summary_reads_in_screen_words(self):
         rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
                                       trade_date="2026-08-09")
