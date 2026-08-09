@@ -32,7 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 화면 구성이나 문구를 바꾸면 이 숫자를 올린다(CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080940
+MODULE_REVISION = 2026080950
 
 # 판을 누르면 이 표식을 달고 그 화면으로 간다. 받는 쪽(pages/*.py)이 이것을 보고
 # 비밀번호 없이 게스트로 들여보낸다. 게스트는 원래도 비밀번호 없이 들어갈 수 있으므로
@@ -130,15 +130,17 @@ _CHART_KR = (
     "<stop offset='1' stop-color='#fa3d1d' stop-opacity='0'/></linearGradient></defs>"
     "<g stroke='#ffbe6a' stroke-width='1' opacity='.15'>"
     "<path d='M0 60H400M0 110H400M0 160H400M0 210H400'/></g>"
-    "<path fill='url(#kg)' d='M0,120 L50,150 L100,195 L150,215 L200,196 L250,168"
-    " L300,140 L350,104 L400,86 L400,260 L0,260 Z'/>"
-    "<polyline fill='none' stroke='#ffd479' stroke-width='2.6' opacity='.85'"
-    " points='0,120 50,150 100,195 150,215 200,196 250,168 300,140 350,104 400,86'/>"
+    # **우상향**이다(2026-08-09 상하님 지시 "한국테마에 산도 우상향하게").
+    # 앞서는 크게 빠졌다 되올라오는 골짜기 모양이었다.
+    "<path fill='url(#kg)' d='M0,214 L50,196 L100,202 L150,168 L200,150"
+    " L250,158 L300,120 L350,92 L400,58 L400,260 L0,260 Z'/>"
+    "<polyline fill='none' stroke='#ffd479' stroke-width='2.8' opacity='.9'"
+    " points='0,214 50,196 100,202 150,168 200,150 250,158 300,120 350,92 400,58'/>"
     "<g fill='#fa3d1d' opacity='.42'>"
-    "<rect x='24' y='232' width='11' height='20'/><rect x='74' y='224' width='11' height='28'/>"
-    "<rect x='124' y='214' width='11' height='38'/><rect x='174' y='222' width='11' height='30'/>"
-    "<rect x='224' y='228' width='11' height='24'/><rect x='274' y='218' width='11' height='34'/>"
-    "<rect x='324' y='210' width='11' height='42'/><rect x='374' y='202' width='11' height='50'/></g>"
+    "<rect x='24' y='240' width='11' height='16'/><rect x='74' y='234' width='11' height='22'/>"
+    "<rect x='124' y='236' width='11' height='20'/><rect x='174' y='226' width='11' height='30'/>"
+    "<rect x='224' y='222' width='11' height='34'/><rect x='274' y='214' width='11' height='42'/>"
+    "<rect x='324' y='206' width='11' height='50'/><rect x='374' y='196' width='11' height='60'/></g>"
     "</svg>"
 )
 CHARTS = {"US": _CHART_US, "KR": _CHART_KR}
@@ -217,22 +219,24 @@ CSS = """
    밀어 준다. 그래서 굽이를 따라 빛이 흘러간다. */
 /* 줄기가 제목 글자를 가로지르지 않게 아래를 넉넉히 비운다. 처음에는 겹쳐서
    글자 위로 빛줄기가 지나갔다(2026-08-09 실측: 제목 y110~174, 줄기 y118~250). */
-.jp-stage { position: relative; padding: 1.2rem 0 7.4rem; overflow: hidden; }
+.jp-stage { position: relative; padding: 1.2rem 0 9.6rem; overflow: hidden; }
 .jp-wave {
-    position: absolute; left: -6%; right: -6%; bottom: .3rem;
-    width: 112%; height: 120px; pointer-events: none;
+    /* **크고 넓게**(2026-08-09 상하님 지시). 높이 120 → 190px, 폭도 더 벌린다. */
+    position: absolute; left: -10%; right: -10%; bottom: .2rem;
+    width: 120%; height: 190px; pointer-events: none;
 }
-.jp-wave-glow { filter: blur(16px); opacity: .5; }
-.jp-wave-base { filter: blur(5px); opacity: .85; }
+/* 세 겹이라 빛이 **퍼져** 보인다 — 넓은 번짐 · 중간 번짐 · 또렷한 심지. */
+.jp-wave-glow { filter: blur(26px); opacity: .55; }
+.jp-wave-base { filter: blur(9px); opacity: .8; }
 .jp-wave-prism {
-    filter: blur(4px); opacity: 1;
-    /* 색 있는 토막 320 + 빈칸 2200. 이 토막이 곡선을 따라 흘러간다. */
-    stroke-dasharray: 320 2200;
+    filter: blur(7px); opacity: 1;
+    /* 색 있는 토막 420 + 빈칸 2400. 이 토막이 곡선을 따라 흘러간다. */
+    stroke-dasharray: 420 2400;
     animation: jp-flow 14s linear infinite;
 }
 @keyframes jp-flow {
-    from { stroke-dashoffset: 320; }
-    to   { stroke-dashoffset: -2200; }
+    from { stroke-dashoffset: 420; }
+    to   { stroke-dashoffset: -2400; }
 }
 
 /* ── 두 판이 올라오는 모습 ────────────────────────────────────────────────
@@ -330,8 +334,8 @@ CSS = """
    퍼지는 방향도 위아래로 바꾼다 — 좌우로 밀면 화면 밖으로 나갔다 들어온다. */
 @media (max-width: 640px) {
     /* 폰에서는 빛줄기 자리를 줄인다 — 첫 화면에서 판이 밀려 내려가면 안 된다. */
-    .jp-stage { padding-bottom: 5.2rem; }
-    .jp-wave { height: 86px; }
+    .jp-stage { padding-bottom: 6.4rem; }
+    .jp-wave { height: 128px; }
     /* 폰에서는 판을 **위아래로 쌓는다.** 옆으로 두면 한 판이 156px이 되어 글자가
        잘렸다(2026-08-09 실측: 글자가 필요한 폭 216px). 스트림릿이 이 폭에서
        칸을 저절로 쌓아 주지 않으므로 여기서 직접 세운다. */
@@ -351,7 +355,10 @@ CSS = """
 # 눕힌 S자 빛줄기. 같은 굽이를 세 겹으로 겹친다 —
 #   ① 넓게 번지는 바탕 빛  ② 흰 줄기  ③ 그 위를 흘러가는 무지개 토막
 # 곡선 하나만 고치면 셋이 같이 따라온다.
-_WAVE_PATH = "M0,96 C180,34 330,18 520,58 C700,96 850,120 1010,84 C1120,60 1170,44 1200,36"
+# **우상향 S자**다(2026-08-09 상하님 지시). 왼쪽 아래(y=178)에서 시작해
+# 오른쪽 위(y=26)로 올라가면서 두 번 굽이친다. 앞서는 가운데가 아래로 처져
+# 우상향으로 안 보였다.
+_WAVE_PATH = ("M0,178 C150,150 260,86 430,96 C600,106 690,150 830,110 C960,74 1080,44 1200,26")
 
 WAVE_SVG = (
     "<svg class='jp-wave' viewBox='0 0 1200 132' preserveAspectRatio='none'"
@@ -371,11 +378,11 @@ WAVE_SVG = (
     "</linearGradient>"
     "</defs>"
     f"<path class='jp-wave-glow' d='{_WAVE_PATH}' fill='none'"
-    " stroke='url(#jpBeam)' stroke-width='16' stroke-linecap='round'/>"
+    " stroke='url(#jpBeam)' stroke-width='30' stroke-linecap='round'/>"
     f"<path class='jp-wave-base' d='{_WAVE_PATH}' fill='none'"
-    " stroke='url(#jpBeam)' stroke-width='4' stroke-linecap='round'/>"
+    " stroke='url(#jpBeam)' stroke-width='7' stroke-linecap='round'/>"
     f"<path class='jp-wave-prism' d='{_WAVE_PATH}' fill='none'"
-    " stroke='url(#jpPrism)' stroke-width='5' stroke-linecap='round'/>"
+    " stroke='url(#jpPrism)' stroke-width='9' stroke-linecap='round'/>"
     "</svg>"
 )
 
@@ -394,9 +401,11 @@ def panel_style(index: int, market: str) -> str:
         f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink']::before {{"
         f" background-image: url(\"{chart_url(market)}\");"
         "}"
-        # 국기는 글자 왼쪽에 붙인다. 글자(1.5rem)보다 조금 크게 1.85rem으로.
-        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] p,"
-        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] span {{"
+        # 국기는 글자 왼쪽에 **하나만** 붙인다. 스트림릿이 글자를
+        # <span><div><p>글자</p></div></span> 로 세 겹 싸는데, span과 p에 같이
+        # 걸어 놔서 국기가 두 개로 보였다(2026-08-09 상하님 지적).
+        # 맨 안쪽 p에만 걸고, 바깥 span은 그림을 끈다.
+        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] p {{"
         f" background-image: url(\"{flag_url(market)}\") !important;"
         " background-repeat: no-repeat !important;"
         " background-position: left center !important;"
@@ -404,7 +413,57 @@ def panel_style(index: int, market: str) -> str:
         " padding-left: 3.3rem !important;"
         " display: inline-block !important;"
         "}"
+        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] > span {{"
+        " background-image: none !important; padding-left: 0 !important;"
+        "}"
     )
+
+
+# ── 게스트 단추 바로 위에 놓는 작은 일직선 프리즘 (2026-08-09 상하님 지시) ──
+# 위의 큰 S자와 **둘**이다. 이건 처음에 만들었던 곧은 띠 그대로다 —
+# 넓은 번짐 위에 흰 심지를 놓고, 무지개 토막이 왼쪽에서 오른쪽으로 흘러간다.
+LINE_CSS = """
+<style>
+.jp-line { position: relative; height: 46px; margin: .2rem 0 .6rem; overflow: hidden; }
+.jp-line-glow, .jp-line-band, .jp-line-prism {
+    position: absolute; left: -8%; right: -8%; pointer-events: none;
+}
+.jp-line-glow {
+    top: 8px; height: 30px;
+    background: radial-gradient(58% 100% at 50% 50%, rgba(150,170,210,.30), transparent 74%);
+    filter: blur(12px);
+}
+.jp-line-band {
+    top: 21px; height: 4px;
+    background: linear-gradient(90deg, transparent 0%, rgba(190,202,224,.5) 20%,
+        rgba(255,255,255,.92) 44%, rgba(190,202,224,.5) 68%, transparent 90%);
+    filter: blur(5px); opacity: .9;
+}
+.jp-line-prism {
+    top: 21px; height: 4px;
+    background-image: linear-gradient(90deg, transparent 0%, #0358f7 14%, #e1e1fe 36%,
+        #ffb005 62%, #fa3d1d 86%, transparent 100%);
+    background-size: 38% 100%; background-repeat: no-repeat;
+    filter: blur(6px);
+    animation: jp-line-travel 11s linear infinite;
+}
+@keyframes jp-line-travel {
+    from { background-position: -42% 0; }
+    to   { background-position: 142% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .jp-line-prism { animation: none; }
+}
+</style>
+"""
+
+LINE_SVG = ("<div class='jp-line'><div class='jp-line-glow'></div>"
+            "<div class='jp-line-band'></div><div class='jp-line-prism'></div></div>")
+
+
+def render_line(st) -> None:
+    """게스트 단추 바로 위의 작은 일직선 프리즘. 위 큰 S자와 짝이다."""
+    st.markdown(LINE_CSS + LINE_SVG, unsafe_allow_html=True)
 
 
 def render(st) -> None:

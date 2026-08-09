@@ -699,6 +699,9 @@ if not st.session_state.get("authenticated"):
     # 맨홈이 한 번 더 나왔다 — "자꾸 맨홈으로 돌아간다"의 정체다.
     # 이제 로그인만 하고, 갈 곳은 바로 다음에 나오는 '어디로 갈까요'에서
     # **진짜 링크**로 고른다. 누르는 횟수는 그대로다(고르기+비번+로그인 셋).
+    # 게스트 단추 바로 위에 작은 일직선 프리즘 하나(2026-08-09 상하님 지시).
+    # 위의 큰 S자 줄기와 둘이다.
+    login_prism.render_line(st)
     if st.button("게스트로 보기 (비밀번호 없이)", key="login_guest", use_container_width=True):
         st.session_state["authenticated"] = True
         st.session_state[_ACCESS_ROLE_KEY] = "guest"
