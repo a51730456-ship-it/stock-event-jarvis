@@ -24,6 +24,17 @@ st.set_page_config(page_title="자비스3 — 미국 테마 레이더", layout="
 st.markdown(
     """
     <style>
+    /* ── 왼쪽 메뉴를 통째로 없앤다 (2026-08-09 상하님 선택) ────────────────────
+       미국테마↔한국테마는 맨 위 '가려면 클릭' 단추로 오간다. 나머지 다섯 화면은
+       뒤로가기로 '어디로 갈까요'에 가서 고른다.
+       화면이 넘어갈 때 왼쪽 바가 잠깐 번쩍이던 것도 같이 없어진다.
+       **되살리려면 이 블록만 지우면 된다** — 아래 폭·차례·이름표 규칙은 그대로
+       남겨 뒀다(지금은 안 걸리지만, 메뉴를 되살리면 그대로 다시 산다). */
+    [data-testid="stSidebar"],
+    [data-testid="stSidebarNav"],
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"] { display: none !important; }
     /* 왼쪽 메뉴는 좁게, 오른쪽 본문은 넓게 (2026-07-24 사용자 지시). j-narrow-sidebar */
     [data-testid="stSidebar"],
     section[data-testid="stSidebar"] {
