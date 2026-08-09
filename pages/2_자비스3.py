@@ -262,12 +262,34 @@ st.markdown(
     .j3-ndd-title { color: #c084fc; font-weight: 850; }
     .j3-ndd-val { font-size: 1.45rem; font-weight: 900; }
     .j3-ndd-state { font-size: .95rem; font-weight: 800; }
-    .j3-ndd-bar { position: relative; height: 8px; border-radius: 4px;
-        background: rgba(255,255,255,.10); margin: .35rem 0 .3rem; overflow: hidden; }
-    .j3-ndd-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px;
-        background: linear-gradient(90deg, #ffd166 0%, #44f0a1 100%); }
+    /* 막대 한가운데가 전고점이다(2026-08-09 상하님 지시). 왼쪽 끝은 고점에서
+       25% 아래, 오른쪽 끝은 고점 위 25%다. 채워진 길이가 길수록 고점에 가깝다 —
+       예전에는 길수록 많이 빠졌다는 뜻이라 거꾸로 읽혔다. */
+    .j3-ndd-bar { position: relative; height: 10px; border-radius: 5px;
+        background: rgba(255,255,255,.10); margin: .35rem 0 .2rem; overflow: hidden; }
+    .j3-ndd-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px;
+        background: linear-gradient(90deg, #ffd166 0%, #44f0a1 100%);
+        transform-origin: left center; }
+    /* 문턱(사는 자리) 눈금 */
     .j3-ndd-mark { position: absolute; top: -3px; bottom: -3px; width: 2px;
         background: #ffffff; opacity: .85; }
+    /* 한가운데 = 전고점. 문턱 눈금과 구별되게 굵고 밝게 세운다. */
+    .j3-ndd-center { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 3px;
+        margin-left: -1.5px; background: #c084fc; border-radius: 2px;
+        box-shadow: 0 0 6px rgba(192,132,252,.7); }
+    .j3-ndd-scale { display: flex; justify-content: space-between;
+        color: #8a9099; font-size: .78rem; font-weight: 700; margin-bottom: .25rem; }
+    .j3-ndd-scale-mid { color: #c084fc; }
+    /* 손을 대면 막대가 **왼쪽에서 오른쪽으로 다시 차오른다**(2026-08-09 지시).
+       길이(width)가 아니라 scaleX를 쓰므로 값이 얼마든 같은 규칙 하나로 된다.
+       손가락으로 눌렀을 때도 돌게 :active를 같이 둔다 — 폰은 hover가 없다. */
+    @keyframes j3-ndd-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .j3-ndd:hover .j3-ndd-fill, .j3-ndd:active .j3-ndd-fill {
+        animation: j3-ndd-grow .55s cubic-bezier(.22,1,.36,1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .j3-ndd:hover .j3-ndd-fill, .j3-ndd:active .j3-ndd-fill { animation: none; }
+    }
     .j3-ndd-sub { color: #9aa0aa; font-size: 1rem; font-weight: 700; }
     .j3-ndd-note { color: #aeb6c2; font-size: .92rem; margin-top: .3rem; line-height: 1.55; }
     .j3-ndd-key { color: #4da6ff; font-weight: 850; }
@@ -874,7 +896,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080920
+_REQUIRED_METHOD_HELP_REVISION = 2026080930
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -919,7 +941,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080710
+_REQUIRED_SIGNAL_UI_REVISION = 2026080910
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1905,18 +1927,30 @@ def _render_nasdaq_drawdown() -> None:
     pct = float(state.get("drawdown_pct") or 0)
     entry = float(state.get("entry_pct") or -12)
     reached = pct <= entry
-    # 막대는 0%(왼쪽)에서 25%(오른쪽)까지. 문턱 자리에 눈금을 하나 세워 둔다.
+    # **막대 한가운데가 전고점이다**(2026-08-09 상하님 지시).
+    #   왼쪽 끝 = 고점에서 25% 아래 · 한가운데 = 고점 그 자리 · 오른쪽 끝 = 고점 위 25%
+    # 그래서 지금 -1.5%면 막대가 한가운데에 조금 못 미치고, 전고점을 넘으면
+    # 한가운데를 지나 오른쪽으로 간다. 예전에는 왼쪽 0 ~ 오른쪽 25%(낙폭)이라
+    # 막대가 길수록 나쁜 뜻이어서 거꾸로 읽혔다.
     span = 25.0
-    fill = max(0.0, min(100.0, abs(pct) / span * 100))
-    mark = abs(entry) / span * 100
+    center = 50.0
+    fill = max(0.0, min(100.0, center + (pct / span) * center))
+    mark = max(0.0, min(100.0, center + (entry / span) * center))
+    # 한가운데를 넘었으면 '얼마나 넘었나'로 말이 바뀐다.
+    above = pct > 0
+    headline = "전고점 위" if above else "나스닥 고점 대비"
     st.markdown(
         "<div class='j3-ndd'>"
-        f"<div class='j3-ndd-head'><b class='j3-ndd-title'>나스닥 고점 대비</b> "
+        f"<div class='j3-ndd-head'><b class='j3-ndd-title'>{headline}</b> "
         f"<span class='j3-ndd-val' style='color:{_sign_color(pct)}'>{pct:+.1f}%</span> "
         f"<span class='j3-ndd-state' style='color:{state.get('color')}'>"
         f"{html.escape(str(state.get('state') or ''))}</span></div>"
+        # 막대 안에 한가운데 선(전고점)과 문턱 선(사는 자리)을 같이 세운다.
         f"<div class='j3-ndd-bar'><span class='j3-ndd-fill' style='width:{fill:.1f}%'></span>"
-        f"<span class='j3-ndd-mark' style='left:{mark:.1f}%'></span></div>"
+        f"<span class='j3-ndd-mark' style='left:{mark:.1f}%'></span>"
+        "<span class='j3-ndd-center'></span></div>"
+        "<div class='j3-ndd-scale'><span>고점 −25%</span>"
+        "<span class='j3-ndd-scale-mid'>전고점</span><span>고점 +25%</span></div>"
         # '지금 · 1년 최고 · 문턱 …' 줄은 2026-08-06에 뺐다(사용자 지시). 막대와
         # 위 % 숫자가 같은 말을 하고 있어 줄만 길었다.
         # 예전에는 '100번 중 86번이었습니다'로 끝나 **무엇이 86번인지**가 빠져

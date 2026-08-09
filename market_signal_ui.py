@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080710
+MODULE_REVISION = 2026080910
 
 
 def _now_seoul():
@@ -771,6 +771,24 @@ _SIGNAL_GAUGE_CSS = """
   transform-origin: 160px 132px;
   animation: sig-needle-wiggle .7s cubic-bezier(.3,.7,.4,1);
 }
+/* 화면에 뜰 때는 **왼쪽에서 제자리까지 쓸고 와서 살짝 흔들린 뒤** 멈춘다
+   (2026-08-09 상하님 지시). 시작 각도는 값마다 달라 SVG가 --fg-sweep로 적어 준다.
+   손을 올렸을 때는 위 흔들기만 돈다 — 그 규칙(.sig-gauge-shell:hover .sig-speed-arrow)이
+   더 좁아서 이긴다. 순서가 아니라 좁기로 정해지므로 이 블록을 옮겨도 안전하다. */
+@keyframes sig-needle-sweep {
+  0%   { transform: rotate(var(--fg-sweep, 0deg)); }
+  70%  { transform: rotate(0deg); }
+  80%  { transform: rotate(-3.5deg); }
+  90%  { transform: rotate(2deg); }
+  100% { transform: rotate(0deg); }
+}
+.sig-speed-arrow {
+  transform-origin: 160px 132px;
+  animation: sig-needle-sweep .9s cubic-bezier(.22,1,.36,1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sig-speed-arrow { animation: none; }
+}
 .sig-speed-hub-outer { fill:#f8fafc; stroke:#dbeafe; stroke-width:2; }
 .sig-speed-hub-inner { fill:#111827; }
 /* 전일은 흐리게 두되 **읽을 수 있어야** 한다. .48은 너무 흐려 전일이 어느 단계인지
@@ -1164,8 +1182,11 @@ def _speedometer_gauge_svg(score, zones) -> str:
             f"{shoulder_x - px * 3.2:.2f},{shoulder_y - py * 3.2:.2f} "
             f"{base_x - px * 6:.2f},{base_y - py * 6:.2f}"
         )
+        # 게이지와 같은 규칙으로 **왼쪽 끝에서 제자리까지 쓸고 온다**
+        # (2026-08-09 상하님 지시). 시작 각도만 여기서 적고 움직임은 CSS가 맡는다.
         arrow = (
-            f"<polygon points='{points}' class='sig-speed-arrow'></polygon>"
+            f"<polygon points='{points}' class='sig-speed-arrow' "
+            f"style='--fg-sweep:{-1.8 * value:.2f}deg'></polygon>"
             f"<circle cx='{center_x}' cy='{center_y}' r='10' class='sig-speed-hub-outer'></circle>"
             f"<circle cx='{center_x}' cy='{center_y}' r='4.2' class='sig-speed-hub-inner'></circle>"
         )

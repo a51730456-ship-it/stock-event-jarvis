@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import math
 
-MODULE_REVISION = 2026080630
+MODULE_REVISION = 2026080910
 
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"
@@ -99,9 +99,14 @@ def gauge_svg(
     if score is not None:
         value = max(0.0, min(100.0, float(score)))
         tip = _point(value / 100, _OUTER - 8)
+        # 바늘이 **왼쪽 끝(0)에서 제자리까지 쓸고 온다**(2026-08-09 상하님 지시).
+        # 반원은 왼쪽 0 ~ 오른쪽 100이므로 0에서 지금 값까지는 시계방향으로
+        # 1.8도씩이다(180도 ÷ 100). 그래서 그만큼 **거꾸로 돌려 놓고** 시작해
+        # 0도(=지금 그린 자리)로 돌아오게 한다. 값마다 각도가 다르니 그 각도만
+        # 이 자리에 적어 두고, 움직임 자체는 아래 CSS가 맡는다.
         parts.append(
             f"<line x1='{_CENTER_X}' y1='{_CENTER_Y}' x2='{tip[0]:.2f}' y2='{tip[1]:.2f}' "
-            "class='fg-needle'></line>"
+            f"class='fg-needle' style='--fg-sweep:{-1.8 * value:.2f}deg'></line>"
         )
         parts.append(f"<circle cx='{_CENTER_X}' cy='{_CENTER_Y}' r='7' class='fg-hub'></circle>")
         name, color = zone_of(value, zones)
@@ -227,6 +232,27 @@ CSS = """
 .fg-zone { font-weight: 800; }
 .fg-tick { fill: #9aa0aa; font-weight: 700; }
 .fg-needle { stroke: #e6e6e6; stroke-width: 3.5; stroke-linecap: round; }
+/* 화면에 뜰 때 바늘이 **왼쪽에서 제자리까지 쓸고 와서 살짝 흔들린 뒤** 멈춘다
+   (2026-08-09 상하님 지시). 시작 각도는 값마다 달라 SVG가 --fg-sweep로 적어 준다.
+   회전 중심은 바늘이 꽂힌 축(_CENTER_X, _CENTER_Y = 160,132)이다 — 안 맞추면
+   바늘이 통째로 미끄러진다.
+   0.9초로 짧게 둔다. 스트림릿은 무엇을 누르든 화면을 다시 그리므로 길면 매번
+   다시 재생돼 거슬린다(2026-08-06에 같은 이유로 카드 애니메이션을 뺐다). */
+@keyframes fg-needle-sweep {
+  0%   { transform: rotate(var(--fg-sweep, 0deg)); }
+  70%  { transform: rotate(0deg); }
+  80%  { transform: rotate(-3.5deg); }
+  90%  { transform: rotate(2deg); }
+  100% { transform: rotate(0deg); }
+}
+.fg-needle {
+  transform-origin: 160px 132px;
+  animation: fg-needle-sweep .9s cubic-bezier(.22,1,.36,1) both;
+}
+/* 움직임을 싫어하는 설정을 켜 둔 사람에게는 돌리지 않는다. */
+@media (prefers-reduced-motion: reduce) {
+  .fg-needle { animation: none; }
+}
 /* 손을 올리면 바늘이 좌우로 살짝 흔들렸다 제자리로 온다(2026-08-06 사용자 요청).
    회전 중심은 바늘이 꽂힌 축(_CENTER_X, _CENTER_Y = 160,132)이다. */
 @keyframes fg-needle-wiggle {

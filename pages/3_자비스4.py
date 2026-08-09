@@ -664,7 +664,7 @@ import fear_greed_ui
 import gauge_ui
 import mobile_ui
 
-_REQUIRED_GAUGE_UI_REVISION = 2026080630
+_REQUIRED_GAUGE_UI_REVISION = 2026080910
 if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
     gauge_ui = importlib.reload(gauge_ui)
 
@@ -684,7 +684,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080920
+_REQUIRED_METHOD_HELP_REVISION = 2026080930
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -733,7 +733,7 @@ if (
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
 ):
     j4data = importlib.reload(j4data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080710
+_REQUIRED_SIGNAL_UI_REVISION = 2026080910
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
