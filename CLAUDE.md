@@ -90,6 +90,18 @@ Claude Code는 코드 수정 전 반드시 이 파일을 먼저 확인한다.
 - 자비스5 스키마나 수집 계산을 바꾸면 `jarvis5_sync.py`의 필드 목록도 같이 고친다.
 - 자세한 이유와 구조: `docs/JARVIS5_CLOUD_COLLECTION.md`
 
+## 10-1. 날짜별 목록 저장 (2026-08-09 도입)
+- 네 갈래(눌림목 찾기·상승장·급락 후 반등장·순위 7)의 그날 목록은
+  `data/picklist/{날짜}.{US|KR}.csv`에 **찍은 그대로** 쌓인다. **지우지 않는다** —
+  지우면 "그때 목록이 맞았나"를 잴 근거가 사라진다.
+- 저장하는 쪽은 **값을 다시 계산하지 않는다.** 화면이 부르는 함수를 같은 인자로
+  부르고 결과를 그대로 옮긴다(`picklist_collector.py`). 여기에 점수 계산을 따로
+  쓰면 저장된 목록과 화면 목록이 조용히 갈라진다.
+- 못 잰 값은 **빈칸으로 둔다. 0으로 채우지 않는다.**
+- 자동 저장은 GitHub Actions(`.github/workflows/picklist_collect.yml`)가 한다 —
+  상하님이 로그인하지 않아도 쌓여야 한다는 것이 이 기능의 요구다.
+- 저장 칸을 바꾸면 `picklist_store.SCHEMA_VERSION`과 `MODULE_REVISION`을 같이 올린다.
+
 ## 11. 모듈 리비전 규칙 (2026-07-24 도입)
 - jarvis3_data·jarvis4_data의 **계산 결과나 반환 키를 바꾸면** 그 파일의
   `MODULE_REVISION`을 올리고, 페이지의 `_REQUIRED_J3_REVISION`/`_REQUIRED_J4_REVISION`도

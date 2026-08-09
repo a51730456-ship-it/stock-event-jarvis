@@ -288,6 +288,7 @@ st.markdown(
        순위·종목이 따로 쌓이고 값이 겹쳐 찍힌다(미국테마에서 실제로 그랬다). */
     .st-key-j4_pullback_table,
     .st-key-j4_theme_rest,
+    .st-key-j4_rulebook_rest,
     .st-key-j4_leader_table,
     .st-key-j4_top7_table,
     .st-key-j4_rulebook_table,
@@ -300,6 +301,11 @@ st.markdown(
         .st-key-j4_rulebook_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1150px;
         }
+        /* 그 표의 '16위~20위 더 보기'도 같은 폭을 받는다 — 빠뜨려서 접힌 쪽만
+           칸이 세로로 쌓였다(2026-08-09 상하님 지적, 폰·태블릿 둘 다). */
+        .st-key-j4_rulebook_rest [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1150px;
+        }
         .st-key-j4_theme_rest [data-testid="stHorizontalBlock"],
         .st-key-j4_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j4_top7_table [data-testid="stHorizontalBlock"],
@@ -308,6 +314,7 @@ st.markdown(
         }
         .st-key-j4_pullback_table [data-testid="stColumn"],
         .st-key-j4_theme_rest [data-testid="stColumn"],
+        .st-key-j4_rulebook_rest [data-testid="stColumn"],
         .st-key-j4_leader_table [data-testid="stColumn"],
         .st-key-j4_top7_table [data-testid="stColumn"],
         .st-key-j4_rulebook_table [data-testid="stColumn"],
@@ -359,13 +366,19 @@ st.markdown(
     .j4-hold-20 { color: #ff9d3b; font-weight: 850; }
     .j4-hold-60 { color: #7cc8ff; font-weight: 850; }
     .j4-hold-120 { color: #44f0a1; font-weight: 850; }
+    /* 종목 단추는 **테마 단추와 같은 네모 테두리**를 갖는다(2026-08-09 상하님 지시
+       "테두리에 손을 올리면 보라색이 되는 게 좋다, 모든 곳에 그렇게 해라").
+       테두리가 없으면 손을 올려도 보라색이 될 자리가 없다. 미국테마와 같은 모양이다. */
     div[class*="st-key-j4rbf_"] button {
-        background: transparent !important; border: none !important; box-shadow: none !important;
-        padding: 0 0 0 .8rem !important; min-height: 2.5rem !important; width: 100% !important;
-        justify-content: flex-start !important;
-        border-bottom: 1px solid rgba(255,255,255,.06) !important; border-radius: 0 !important;
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;
+        padding: .2rem .7rem !important; min-height: 2.5rem !important; width: 100% !important;
+        justify-content: flex-start !important; border-radius: .55rem !important;
     }
-    div[class*="st-key-j4rbf_"] button:hover { background: rgba(255,255,255,.06) !important; }
+    div[class*="st-key-j4rbf_"] button:hover {
+        background: rgba(192,132,252,.09) !important;
+        border-color: rgba(192,132,252,.55) !important;
+    }
     div[class*="st-key-j4rbf_"] button p {
         font-weight: 800 !important; font-size: .95rem !important;
         margin: 0 !important; text-align: left !important;
@@ -414,12 +427,19 @@ st.markdown(
     .j4-td { text-align: center; color: #e6e6e6; font-size: 0.92rem; padding: 0;
         border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 2.5rem;
         display: flex; align-items: center; justify-content: center; }
+    /* 테마 단추도 미국테마와 같은 네모 테두리 · 보라색 손닿음으로 맞춘다
+       (2026-08-09 상하님 지시). 두 화면이 같은 모양이라야 한쪽에서 익힌 대로
+       다른 쪽을 쓸 수 있다. */
     div[class*="st-key-j4tbtn_"] button {
-        background: transparent !important; border: none !important; box-shadow: none !important;
-        padding: 0 !important; min-height: 2.5rem !important; width: 100% !important;
-        border-bottom: 1px solid rgba(255,255,255,0.06) !important; border-radius: 0 !important;
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;
+        padding: .2rem .7rem !important; min-height: 2.7rem !important; width: 100% !important;
+        border-radius: .55rem !important;
     }
-    div[class*="st-key-j4tbtn_"] button:hover { background: rgba(255,255,255,0.06) !important; }
+    div[class*="st-key-j4tbtn_"] button:hover {
+        background: rgba(192,132,252,.09) !important;
+        border-color: rgba(192,132,252,.55) !important;
+    }
     /* 테마명은 좌측 정렬(제목만 가운데) — 2026-07-22 사용자 지시 */
     div[class*="st-key-j4tbtn_"] button { justify-content: flex-start !important; padding-left: 0.9rem !important; }
     div[class*="st-key-j4tbtn_"] button p {
@@ -664,9 +684,16 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080670
+_REQUIRED_METHOD_HELP_REVISION = 2026080910
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
+
+import picklist_ui
+
+# 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
+_REQUIRED_PICKLIST_REVISION = 2026080910
+if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
+    picklist_ui = importlib.reload(picklist_ui)
 import regime_gauge_ui
 import jarvis4_data as j4data
 import jarvis4_store as j4store
@@ -2840,6 +2867,7 @@ def _render_radar_tab(market: dict) -> None:
             _render_top_reviewed(market, ranking)
             _render_top_reviewed_detail(market)
         _render_my_stock_panel(market)
+        picklist_ui.render(st, "KR", toggle=_section_toggle)
         return
 
     def _close_theme_panel_top():
@@ -2907,8 +2935,10 @@ def _render_radar_tab(market: dict) -> None:
     if clicked_code:
         st.session_state[stock_key] = clicked_code
         # 이미 선택된 1위 종목을 다시 눌러도 비교와 상세를 함께 연다.
-        st.session_state["j4_detail_open_theme"] = True
-        st.session_state["j4_leadercmp_open"] = True
+        # 당일 차트·일봉/주봉/월봉까지 같이 연다(2026-08-09 상하님 "모든 곳에 적용").
+        for opened in ("j4_detail_open_theme", "j4_intraday_open_theme",
+                       "j4_bundle_open_theme", "j4_leadercmp_open"):
+            st.session_state[opened] = True
         st.rerun()
 
     _render_leader_comparison(leaders)
@@ -2927,8 +2957,11 @@ def _render_radar_tab(market: dict) -> None:
             return _stock_radio_label(item) if item else code
 
         def _open_selected_theme_stock():
-            st.session_state["j4_detail_open_theme"] = True
-            st.session_state["j4_leadercmp_open"] = True
+            # 아래 '상세 종목 선택'으로 골라도 표에서 누른 것과 똑같이 편다
+            # (2026-08-09, 미국테마와 같은 동작).
+            for opened in ("j4_detail_open_theme", "j4_intraday_open_theme",
+                           "j4_bundle_open_theme", "j4_leadercmp_open"):
+                st.session_state[opened] = True
 
         selected_code = st.radio(
             "상세 종목 선택",
@@ -2958,6 +2991,9 @@ def _render_radar_tab(market: dict) -> None:
 
     # ④ 내가 들고 있는 종목 상세 — 이름을 쳐서 직접 찾는다.
     _render_my_stock_panel(market)
+
+    # ⑤ 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다.
+    picklist_ui.render(st, "KR", toggle=_section_toggle)
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
@@ -2996,6 +3032,9 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
                 )
             st.session_state["j4_top7_result"] = found
             st.session_state["j4_top7_open"] = True
+            # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
+            # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
+            picklist_ui.autosave("KR", "top7", found)
             # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
             # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30). 표에서 종목을
             # 누를 때만 받는다.
@@ -3040,6 +3079,11 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         if cols[1].button(row["name"], key=f"j4top7_{index:02d}", width="stretch"):
             # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
             st.session_state["j4_top7_pick_row"] = row
+            # 종목을 누르면 세부사항·당일 차트·일봉/주봉/월봉까지 한 번에 열린다
+            # (2026-08-09 상하님 지시 "모든 곳에 적용"). 순위 7 상세는 panel="top7"이다.
+            for opened in ("j4_detail_open_top7", "j4_intraday_open_top7",
+                           "j4_bundle_open_top7"):
+                st.session_state[opened] = True
         score = float(row.get("score") or 0)
         cols[2].markdown(
             "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
@@ -3061,9 +3105,14 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 종목 이름 단추는 '테마 종목 1–6위' 표와 같은 옷을 입힌다.
     st.markdown(
         "<style>"
-        "div[class*='st-key-j4top7_'] button { background: transparent !important;"
-        " border: 1px solid rgba(255,255,255,.18) !important; box-shadow: none !important;"
+        "div[class*='st-key-j4top7_'] button { background: rgba(255,255,255,.025) !important;"
+        " border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;"
+        " border-radius: .55rem !important;"
         " min-height: 2.4rem !important; width: 100% !important; }"
+        # 손을 올리면 테두리가 보라색 — 테마 단추와 같은 결(2026-08-09 지시).
+        "div[class*='st-key-j4top7_'] button:hover {"
+        " background: rgba(192,132,252,.09) !important;"
+        " border-color: rgba(192,132,252,.55) !important; }"
         "div[class*='st-key-j4top7_'] button p { color: #e6e6e6 !important;"
         " font-weight: 700 !important; }"
         "</style>",
@@ -3274,7 +3323,19 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     rows = result.get("rows") or []
     breakout = mode == "breakout"
     span = getattr(j4data, "KR_BACKTEST_SPAN", "")
-    if breakout:
+    if not breakout:
+        # 지금이 이 규칙의 국면인지는 **설명을 펴지 않아도** 보여야 한다.
+        # 이건 설명이 아니라 오늘의 상태다(미국테마도 같은 자리에 둔다).
+        state_html = _kr_crash_state_html()
+        if state_html:
+            st.markdown(state_html, unsafe_allow_html=True)
+    # 설명은 눌러야 열린다(2026-08-09 상하님 지시 "설명이 너무 길다,
+    # 단추 클릭해야 열리도록"). 미국테마(j3_rulebook_help_open)와 같은 장치다.
+    show_help = _section_toggle(
+        "📘 이 화면 설명 보기 (찾는 기준 · 순위 매기는 기준)",
+        "j4_rulebook_help_open", close_label="설명 닫기",
+    )
+    if show_help and breakout:
         rule = result.get("rule") or {}
         wait_min, wait_max = rule.get("wait_days", (3, 5))
         drop_low, drop_high = rule.get("drop_band", (-6.0, -4.0))
@@ -3309,7 +3370,7 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             "안 갈렸습니다), 눌린 폭(그물로 이미 한 번 썼습니다).</div>",
             unsafe_allow_html=True,
         )
-    else:
+    elif show_help:
         counts = result.get("bucket_counts") or {}
         cards = []
         for rule in result.get("rules") or []:
@@ -3328,10 +3389,10 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
                 f"지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
             )
         events = getattr(j4data, "CRASH_REBOUND_EVENTS", 0)
+        # 국면 상자(_kr_crash_state_html)는 위에서 이미 그렸다 — 설명을 접어도
+        # 오늘 상태는 보여야 하기 때문이다.
         st.markdown(
             "<div class='j4-pull-guide'>"
-            + _kr_crash_state_html()
-            + "<div class='j4-pull-guide'>"
             "<b>찾는 기준</b> — 코스피가 고점 대비 <b>15% 넘게</b> 빠진 국면에서 "
             "<b>가장 깊었던 날</b>, 그날 고점 대비 <b>40~60% 빠진</b> 종목을 고릅니다"
             "(하루 평균 거래대금 50억 이상). 신고가가 언제였는지도 이동평균도 "
@@ -3428,7 +3489,9 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
     overflow_box = None
     for index, row in enumerate(rows):
         if index == _RULEBOOK_OPEN_ROWS and len(rows) > _RULEBOOK_OPEN_ROWS:
-            overflow_box = st.expander(
+            # 테마표(j4_theme_rest)와 같은 이유로 키를 가진 칸으로 감싼다 —
+            # 감싸지 않아 접힌 쪽만 칸이 세로로 쌓였다(2026-08-09 상하님 지적).
+            overflow_box = st.container(key="j4_rulebook_rest").expander(
                 f"{_RULEBOOK_OPEN_ROWS + 1}위~{len(rows)}위 더 보기")
             over_head = overflow_box.columns(row_widths)
             over_head[0].markdown("<div class='j4-th-head'>순위</div>",
@@ -3680,6 +3743,7 @@ def _render_pullback_finder() -> None:
             with st.spinner(spinner):
                 st.session_state["j4_pullback_result"] = getattr(j4data, finder)()
             st.session_state["j4_pullback_found_at"] = datetime.now(_PAGE_SEOUL)
+            picklist_ui.autosave("KR", mode, st.session_state.get("j4_pullback_result"))
         run_requested = False
         rerun_requested = False
     if breakout_requested or crash_requested:
@@ -3724,6 +3788,7 @@ def _render_pullback_finder() -> None:
             found = j4data.find_pullback_stocks()
         st.session_state["j4_pullback_result"] = found
         st.session_state["j4_pullback_found_at"] = datetime.now(_PAGE_SEOUL)
+        picklist_ui.autosave("KR", "pullback", found)
         # 조회하자마자 1순위 종목 상세가 아래에 펼쳐지게 한다 — 누르지 않아도 된다
         # (2026-07-24 사용자 지시). 그 지시는 그대로 두되, rerun은 뺐다 —
         # 눌림목 상세는 이 함수 다음에 그려지므로 지금 넣은 값이 그대로 쓰인다.
@@ -3834,6 +3899,11 @@ def _render_pullback_finder() -> None:
                 (themes[0] if themes else ""), row["code"]
             )
             st.session_state["j4_pullback_pick_row"] = row
+            # 종목을 누르면 세부사항·당일 차트·일봉/주봉/월봉이 함께 열린다
+            # (2026-08-09 상하님 지시 "모든 곳에 적용", 상승장·급락 표와 같은 동작).
+            for opened in ("j4_detail_open_pullback", "j4_intraday_open_pullback",
+                           "j4_bundle_open_pullback"):
+                st.session_state[opened] = True
             # rerun을 부르지 않는다 — 눌림목 상세는 이 함수 다음(_render_pullback_detail)에
             # 그려지므로 지금 넣은 값이 그대로 쓰인다. rerun을 부르면 화면을 통째로 한 번
             # 더 그려 종목 하나 고르는 데 시간이 두 배가 된다(2026-07-30, 순위7 표와 같은 이유).
@@ -3874,11 +3944,14 @@ def _render_pullback_finder() -> None:
         )
     st.markdown(
         "<style>"
-        "div[class*='st-key-j4pbf_'] button { background: transparent !important; border: none !important;"
-        " box-shadow: none !important; padding: 0 0 0 0.9rem !important; min-height: 2.5rem !important;"
+        "div[class*='st-key-j4pbf_'] button { background: rgba(255,255,255,.025) !important;"
+        " border: 1px solid rgba(255,255,255,.24) !important;"
+        " box-shadow: none !important; padding: .2rem .7rem !important; min-height: 2.5rem !important;"
         " width: 100% !important; justify-content: flex-start !important;"
-        " border-bottom: 1px solid rgba(255,255,255,0.06) !important; border-radius: 0 !important; }"
-        "div[class*='st-key-j4pbf_'] button:hover { background: rgba(255,255,255,0.06) !important; }"
+        " border-radius: .55rem !important; }"
+        "div[class*='st-key-j4pbf_'] button:hover {"
+        " background: rgba(192,132,252,.09) !important;"
+        " border-color: rgba(192,132,252,.55) !important; }"
         "div[class*='st-key-j4pbf_'] button p { font-weight: 800 !important; font-size: 0.95rem !important;"
         " margin: 0 !important; color: #7cc8ff !important; text-align: left !important; }"
         "</style>",

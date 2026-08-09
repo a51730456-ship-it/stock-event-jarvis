@@ -1,0 +1,82 @@
+# 네 갈래 목록을 하루 한 번 저장한다 (2026-08-09 상하님 지시).
+#
+# "매수 시점 리스트를 그대로 옮겨 놓아라 — 시간이 지나서 맞아떨어지는지 보게."
+# "내가 로그인하지 않아도 자동으로 저장되게 해라."
+#
+# 뒤쪽이 이 파일의 존재 이유다. 화면(Streamlit)은 사람이 들어와야 도니까, 상하님이
+# 안 들어온 날은 자료가 통째로 빈다. 자비스5 수집(jarvis5_collect.yml)과 같은 방식으로
+# GitHub 컴퓨터가 장 마감 뒤에 대신 돌려 저장소에 올린다.
+#
+# cron은 UTC다. 한국시각 = UTC + 9.
+#   한국장: 07:10 UTC = 16:10 KST — 코스피 마감(15:30) 뒤 넉넉히
+#   미국장: 21:30 UTC = 다음날 06:30 KST — 뉴욕 마감(16:00 ET) 뒤 30분
+# 미국 쪽은 뉴욕 날짜로 적히므로(picklist_store.trade_date_for) 서울 날짜가 넘어가도
+# 하루 밀리지 않는다.
+#
+# 예약 실행은 GitHub 사정으로 늦게 시작될 수 있다. 늦어도 그날 마감값이므로
+# 목록은 같다.
+name: 날짜별 목록 저장
+
+on:
+  schedule:
+    - cron: "10 7 * * 1-5"    # 월~금 16:10 KST — 한국장 마감 뒤
+    - cron: "30 21 * * 1-5"   # 월~금 06:30 KST(다음날) — 미국장 마감 뒤
+  workflow_dispatch:
+    inputs:
+      market:
+        description: "어느 시장을 찍을지 (US · KR · both)"
+        required: false
+        default: "both"
+
+concurrency:
+  # 두 판이 같은 파일을 동시에 밀면 한쪽이 사라진다. 뒤에 온 쪽을 기다리게 한다.
+  group: picklist-collect
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 필요한 것만 설치
+        # 목록을 만드는 데 필요한 것만 받는다 — streamlit은 화면용이라 안 받는다.
+        run: pip install -r requirements.txt
+
+      - name: 어느 시장인지 정하기
+        id: plan
+        run: |
+          if [ -n "${{ inputs.market }}" ]; then
+            MARKET="${{ inputs.market }}"
+          elif [ "$(date -u +%H)" -ge 20 ]; then
+            MARKET="US"
+          else
+            MARKET="KR"
+          fi
+          echo "market=$MARKET" >> "$GITHUB_OUTPUT"
+          echo "한국시각 $(TZ=Asia/Seoul date +'%m-%d %H:%M') · $MARKET 목록을 찍습니다"
+
+      - name: 목록 찍기
+        run: python picklist_collector.py --market "${{ steps.plan.outputs.market }}"
+
+      - name: 저장소에 올리기
+        if: always()
+        run: |
+          git config user.name "picklist-collector"
+          git config user.email "picklist-collector@users.noreply.github.com"
+          git add data/picklist || true
+          if ! git diff --cached --quiet; then
+            git commit -m "목록 저장 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') ${{ steps.plan.outputs.market }}"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          else
+            echo "바뀐 것이 없어 올리지 않습니다"
+          fi

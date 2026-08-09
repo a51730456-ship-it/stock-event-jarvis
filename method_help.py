@@ -18,9 +18,22 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080670
+MODULE_REVISION = 2026080910
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
+
+# 설명 단추 줄 **맨 왼쪽**에 두는 '건너가기' 단추 (2026-08-09 상하님 지시).
+# 미국테마에서는 한국테마로, 한국테마에서는 미국테마로 간다. 폰·태블릿에서는
+# 사이드바를 펴야만 화면을 옮길 수 있어 한 번에 못 갔다.
+#
+# **st.switch_page가 아니라 st.page_link(진짜 링크)를 쓴다.** 실측(2026-08-09):
+# switch_page는 브라우저 기록에 같은 주소를 하나 더 쌓아서, 폰 뒤로가기를 눌러도
+# 같은 화면이 한 번 더 나온다. 링크는 기록을 하나만 쌓아 뒤로가기가 바로 앞
+# 화면으로 간다.
+CROSS_PAGES = {
+    "US": ("pages/3_자비스4.py", "🇰🇷 한국테마"),
+    "KR": ("pages/2_자비스3.py", "🇺🇸 미국테마"),
+}
 CLOSE_HINT = "다 읽으셨으면 오른쪽 ‘✕ 창닫기’를 누르십시오. 위 단추를 다시 눌러도 닫힙니다."
 
 # 단추는 눌림목 찾기 단추와 같은 옷을 입힌다(밝은 스카이 블루 바탕·주황 글씨).
@@ -34,6 +47,41 @@ BUTTON_CSS = """
 .st-key-jarvis_method_help { margin: .1rem 0 .35rem; }
 .st-key-jarvis_method_help > div { margin-left: auto !important; width: auto !important; }
 .st-key-jarvis_method_help [data-testid="stPopover"] { width: auto !important; }
+/* ── 맨 왼쪽 '건너가기' 단추 (2026-08-09) ─────────────────────────────
+   진짜 링크(st.page_link)라서 뒤로가기가 바로 앞 화면으로 간다. 옆 설명 단추와
+   같은 크기·같은 모서리로 두되, 색만 갈라 두 단추가 하는 일이 다름을 보인다. */
+/* 두 단추는 **글자 크기만큼만** 차지한다. 스트림릿 기본값(flex:1 1 0)으로 두면
+   폰(375px)에서 칸이 반반으로 쪼개져 설명 단추 글자가 칸 밖으로 40px 삐져나갔다
+   (2026-08-09 실측). 자리가 모자라면 줄을 바꿔 아래로 내려간다 — 그러면 폰에서는
+   왼쪽 건너가기 단추 아래에 설명 단추가 오른쪽 끝으로 붙는다(예전 자리 그대로). */
+.st-key-jarvis_method_help_row { align-items: center; flex-wrap: wrap; }
+.st-key-jarvis_method_help_row > div { flex: 0 0 auto !important; width: auto !important; }
+/* 설명 단추는 오른쪽 끝에 붙인다. 스트림릿이 가로 칸의 자식마다 껍데기 div를 하나
+   더 씌우기 때문에(2026-08-09 실측) 안쪽이 아니라 **그 껍데기**를 밀어야 한다. */
+.st-key-jarvis_method_help_row > div:last-child { margin-left: auto !important; }
+.st-key-jarvis_cross_market { margin: .1rem 0 .35rem; }
+.st-key-jarvis_cross_market a[data-testid="stPageLink-NavLink"] {
+    background: #e9dcff !important;
+    border: 1px solid #c6a9f5 !important;
+    border-radius: .5rem !important;
+    padding: .35rem .9rem !important;
+    text-decoration: none !important;
+    transition: transform .12s ease-out, filter .12s ease-out,
+                background .12s ease-out, border-color .12s ease-out !important;
+}
+.st-key-jarvis_cross_market a[data-testid="stPageLink-NavLink"]:hover {
+    background: #dcc7ff !important;
+    border-color: #a06bff !important;
+    transform: translateY(-2px) !important;
+}
+.st-key-jarvis_cross_market a[data-testid="stPageLink-NavLink"] span,
+.st-key-jarvis_cross_market a[data-testid="stPageLink-NavLink"] p {
+    color: #4a2a86 !important;
+    font-size: .95rem !important;
+    font-weight: 800 !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+}
 div[class*="st-key-jarvis_method_help"] button {
     background: #cfe9ff !important;
     border: 1px solid #8ec9f5 !important;
@@ -500,10 +548,36 @@ def _close_button(st, market: str, *, where: str = "bottom") -> None:
             st.caption(CLOSE_HINT)
 
 
+def cross_link(st, market: str) -> None:
+    """줄 맨 왼쪽의 '건너가기' 단추 (2026-08-09 상하님 지시).
+
+    미국테마 ↔ 한국테마를 한 번에 오간다. 링크(st.page_link)여야 브라우저 기록이
+    하나만 쌓여 폰 뒤로가기가 바로 앞 화면으로 돌아온다(위 CROSS_PAGES 설명 참고).
+    """
+    target = CROSS_PAGES.get(str(market).upper())
+    if not target:
+        return
+    page, label = target
+    try:
+        with st.container(key="jarvis_cross_market"):
+            st.page_link(page, label=label)
+    except Exception:
+        # 페이지 목록이 없는 자리(시험용 AppTest 등)에서는 st.page_link가
+        # KeyError로 죽는다. 쿠키 로그인과 같은 원칙으로 **조용히 넘어간다** —
+        # 단추 하나가 없을 뿐 화면은 그대로 돌고, 사이드바로 옮겨 갈 수 있다.
+        pass
+
+
 def render(st, market: str) -> None:
-    """최상단 오른쪽에 설명 단추를 놓는다. market은 'US' 또는 'KR'."""
+    """맨 왼쪽에 건너가기 단추, 오른쪽에 설명 단추를 놓는다. market은 'US' 또는 'KR'."""
     st.markdown(BUTTON_CSS, unsafe_allow_html=True)
-    box = st.container(key="jarvis_method_help")
+    # 두 단추를 한 줄에 둔다. st.columns가 아니라 가로 칸을 쓰는 까닭은, 설명 창
+    # 안에서 다시 st.columns(창닫기 자리)를 쓰기 때문이다 — 칸 안의 칸은 깊이
+    # 제한에 걸릴 수 있다(2026-08-09 실물로 확인하고 이 방식으로 정했다).
+    row = st.container(horizontal=True, key="jarvis_method_help_row")
+    with row:
+        cross_link(st, market)
+        box = st.container(key="jarvis_method_help")
     with box:
         # key·on_change를 줘야 열림 상태가 session_state에 담긴다 — '창닫기'가
         # 그 자리를 False로 바꿔 닫는다(위 _shut 설명 참고).

@@ -31,6 +31,8 @@ backups/
 data/jarvis5/*.tmp
 data/jarvis6/*.tmp
 data/stock_flow/*.tmp
+# 날짜별 목록(data/picklist)도 저장소에 올린다 — 이게 쌓여야 나중에 성적을 잰다.
+data/picklist/*.tmp
 
 db/jarvis6_close.sqlite3
 

@@ -6,4 +6,7 @@ pykrx==1.2.8
 libsql==0.1.11
 requests
 streamlit-cookies-controller==0.0.4
+# 날짜별 목록을 엑셀(.xlsx)로 내려받는 데 쓴다(2026-08-09). 순수 파이썬이라 가볍고,
+# 없어도 화면은 CSV 단추만 남기고 그대로 돈다(picklist_store.to_excel_bytes).
+openpyxl==3.1.5
 # rebuild trigger 2026-07-16

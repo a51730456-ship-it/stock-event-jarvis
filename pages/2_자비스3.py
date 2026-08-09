@@ -381,7 +381,13 @@ st.markdown(
        설명서 두 갈래 표(j3_rulebook_table)도 같은 규칙에 얹는다 — 빠뜨렸더니
        폰에서 순위·종목이 따로 쌓이고 값이 서로 겹쳐 찍혔다(2026-08-01 캡처).
        **새 표를 만들면 반드시 이 세 목록에 다 넣는다.** */
+    /* '11위~20위 더 보기'로 접은 자리(j3_theme_rest·j3_rulebook_rest)도 같은 규칙을
+       받는다. 접이(st.expander) 자체는 이 상자들 밖에 있어서, 빠뜨리면 접힌 쪽만
+       칸이 세로로 쌓여 위 표와 딴판이 된다(2026-08-09 상하님 캡처).
+       한국테마는 테마표만 이미 이렇게 감싸 두었다 — 급락 표는 거기도 빠져 있었다. */
     .st-key-j3_pullback_table,
+    .st-key-j3_theme_rest,
+    .st-key-j3_rulebook_rest,
     .st-key-j3_leader_table,
     .st-key-j3_top7_table,
     .st-key-j3_rulebook_table,
@@ -390,6 +396,10 @@ st.markdown(
         .st-key-j3_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1150px;
         }
+        .st-key-j3_rulebook_rest [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1180px;
+        }
+        .st-key-j3_theme_rest [data-testid="stHorizontalBlock"],
         .st-key-j3_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j3_top7_table [data-testid="stHorizontalBlock"],
         .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
@@ -403,6 +413,8 @@ st.markdown(
             flex-wrap: nowrap !important; min-width: 1180px;
         }
         .st-key-j3_pullback_table [data-testid="stColumn"],
+        .st-key-j3_theme_rest [data-testid="stColumn"],
+        .st-key-j3_rulebook_rest [data-testid="stColumn"],
         .st-key-j3_leader_table [data-testid="stColumn"],
         .st-key-j3_top7_table [data-testid="stColumn"],
         .st-key-j3_rulebook_table [data-testid="stColumn"],
@@ -536,15 +548,21 @@ st.markdown(
     .j3-hold-60 { color: #7cc8ff; font-weight: 850; }
     .j3-hold-120 { color: #44f0a1; font-weight: 850; }
     /* 설명서 두 갈래 표의 종목 단추 — 눌림목 표(j3pbf_)와 똑같은 모양으로 둔다.
-       모양이 다르면 같은 자리에서 단추만 달라 보여 어색하다(2026-08-01). */
+       모양이 다르면 같은 자리에서 달라 보여 어색하다(2026-08-01).
+       2026-08-09 상하님 지시로 **테마 단추(j3tbtn_)와 같은 네모 테두리**를 준다 —
+       "테마 테두리에 손을 올리면 보라색이 되는 게 좋다, 표마다 다 그렇게 해라".
+       테두리가 없으면 손을 올려도 보라색이 될 자리가 없다. */
     div[class*="st-key-j3rbf_"] button {
-        background: transparent !important; border: none !important; box-shadow: none !important;
-        padding: 0 0 0 .8rem !important; min-height: 2.5rem !important; width: 100% !important;
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;
+        padding: .2rem .7rem !important; min-height: 2.5rem !important; width: 100% !important;
         justify-content: flex-start !important;
-        border-bottom: 1px solid rgba(255,255,255,.06) !important;
-        border-radius: 0 !important;
+        border-radius: .55rem !important;
     }
-    div[class*="st-key-j3rbf_"] button:hover { background: rgba(77,166,255,.09) !important; }
+    div[class*="st-key-j3rbf_"] button:hover {
+        background: rgba(192,132,252,.09) !important;
+        border-color: rgba(192,132,252,.55) !important;
+    }
     div[class*="st-key-j3rbf_"] button p {
         color: #c084fc !important; font-weight: 800 !important; font-size: .94rem !important;
         margin: 0 !important; text-align: left !important;
@@ -768,13 +786,18 @@ st.markdown(
         border-radius: .65rem; padding: .75rem 1rem; margin: 1rem 0 .4rem; }
     .j3-pull-detail-title { color: #c084fc; font-size: 1.35rem; font-weight: 800; }
     .j3-pull-detail-sub { color: #9dccff; font-size: .92rem; margin-top: .15rem; }
+    /* 눌림목 표의 종목 단추도 같은 네모 테두리로(2026-08-09 상하님 "모든 곳에"). */
     div[class*="st-key-j3pbf_"] button {
-        background: transparent !important; border: none !important; box-shadow: none !important;
-        padding: 0 0 0 .8rem !important; min-height: 2.5rem !important; width: 100% !important;
-        justify-content: flex-start !important; border-bottom: 1px solid rgba(255,255,255,.06) !important;
-        border-radius: 0 !important;
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;
+        padding: .2rem .7rem !important; min-height: 2.5rem !important; width: 100% !important;
+        justify-content: flex-start !important;
+        border-radius: .55rem !important;
     }
-    div[class*="st-key-j3pbf_"] button:hover { background: rgba(77,166,255,.09) !important; }
+    div[class*="st-key-j3pbf_"] button:hover {
+        background: rgba(192,132,252,.09) !important;
+        border-color: rgba(192,132,252,.55) !important;
+    }
     div[class*="st-key-j3pbf_"] button p {
         color: #c084fc !important; font-weight: 800 !important; font-size: .94rem !important;
         margin: 0 !important; text-align: left !important;
@@ -851,9 +874,16 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080670
+_REQUIRED_METHOD_HELP_REVISION = 2026080910
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
+
+import picklist_ui
+
+# 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
+_REQUIRED_PICKLIST_REVISION = 2026080910
+if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
+    picklist_ui = importlib.reload(picklist_ui)
 import regime_gauge_ui
 import jarvis3_data as j3data
 import jarvis3_store as j3store
@@ -1069,7 +1099,10 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     all_rows = list(ranking.get("rows", []))
     rest_box = None
     if len(all_rows) > _THEME_VISIBLE_COUNT:
-        rest_box = st.expander(
+        # 키를 가진 칸으로 한 번 감싼다 — 그래야 위 표와 같은 '옆으로 밀기' CSS가
+        # 이 안에도 걸린다(한국테마 j4_theme_rest와 같은 방식). 감싸지 않았더니
+        # 폰에서 접힌 쪽만 순위·테마·값이 세로로 쌓였다(2026-08-09 상하님 캡처).
+        rest_box = st.container(key="j3_theme_rest").expander(
             f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
         )
     for index, row in enumerate(all_rows):
@@ -2485,6 +2518,7 @@ def _render_radar_tab(market: dict) -> None:
         if not guest_mode:
             _render_top7_section(market, ranking)
         _render_my_stock_panel(market)
+        picklist_ui.render(st, "US", toggle=_section_toggle)
         return
 
     def _close_theme_panel_top():
@@ -2600,6 +2634,9 @@ def _render_radar_tab(market: dict) -> None:
     if not guest_mode:
         _render_top7_section(market, ranking)
     _render_my_stock_panel(market)
+    # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
+    # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
+    picklist_ui.render(st, "US", toggle=_section_toggle)
 
 
 @st.fragment
@@ -2653,6 +2690,7 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
     leaders = j3data.find_top_reviewed_stocks(
         ranking.get("rows") or [], market_score=market_score, limit=12
     )
+    picklist_ui.autosave("US", "top7", leaders)
     buckets: dict[str, list[dict]] = {"테마 대장주": list(leaders.get("rows") or [])}
     opened = st.session_state.get("j3_pullback_result") or {}
     opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
@@ -2840,9 +2878,14 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 종목 이름 단추는 '테마 종목' 표와 같은 옷을 입힌다.
     st.markdown(
         "<style>"
-        "div[class*='st-key-j3top7_'] button { background: transparent !important;"
-        " border: 1px solid rgba(255,255,255,.18) !important; box-shadow: none !important;"
+        "div[class*='st-key-j3top7_'] button { background: rgba(255,255,255,.025) !important;"
+        " border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;"
+        " border-radius: .55rem !important;"
         " min-height: 2.4rem !important; width: 100% !important; }"
+        # 손을 올리면 테두리가 보라색 — 테마 단추와 같은 결이다(2026-08-09 지시).
+        "div[class*='st-key-j3top7_'] button:hover {"
+        " background: rgba(192,132,252,.09) !important;"
+        " border-color: rgba(192,132,252,.55) !important; }"
         "div[class*='st-key-j3top7_'] button p { color: #e6e6e6 !important;"
         " font-weight: 700 !important; }"
         "</style>",
@@ -3720,7 +3763,9 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     overflow_box = None
     for index, row in enumerate(rows):
         if index == _RULEBOOK_OPEN_ROWS and len(rows) > _RULEBOOK_OPEN_ROWS:
-            overflow_box = st.expander(
+            # 테마표와 같은 이유로 키를 가진 칸으로 감싼다 — 접힌 쪽도 옆으로
+            # 밀어서 보게 한다(2026-08-09 상하님 지적, 폰·태블릿 둘 다 쌓였다).
+            overflow_box = st.container(key="j3_rulebook_rest").expander(
                 f"{_RULEBOOK_OPEN_ROWS + 1}위~{len(rows)}위 더 보기"
             )
             # 접힌 쪽에도 머리글을 한 번 붙인다 — 없으면 어느 칸이 무엇인지 모른다.
@@ -3948,6 +3993,9 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
                     st.session_state["j3_pullback_result"] = (
                         j3data.find_crash_rebound_stocks()
                     )
+            # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
+            # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
+            picklist_ui.autosave("US", pressed, st.session_state.get("j3_pullback_result"))
     if not st.session_state.get("j3_pullback_open"):
         st.caption(
             "단추를 누르면 조회합니다. 열린 뒤 같은 단추를 다시 누르면 접힙니다. "
@@ -4029,6 +4077,11 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
             width="stretch",
         ):
             st.session_state["j3_pullback_selected_ticker"] = row["ticker"]
+            # 종목을 누르면 상세와 차트까지 한 번에 열린다(2026-08-09 상하님 지시
+            # "모든 곳에 적용" — 상승장·급락 표는 이미 이렇게 돌고 있었다).
+            for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
+                           "j3_bundle_open_pullback"):
+                st.session_state[opened] = True
             st.rerun()
         if row.get("ticker") == selected_ticker:
             selected_css.append(
