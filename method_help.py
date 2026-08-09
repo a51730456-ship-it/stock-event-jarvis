@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080930
+MODULE_REVISION = 2026080940
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 
@@ -441,22 +441,19 @@ KR_TEXT = """
 <div class="mh-box mh-data-box">
 <div class="mh-box-h">▸ 순위와 점수 — <u>두 갈래가 다릅니다</u> (2026-08-07 재측정)</div>
 <div class="mh-hold">
-<div class="mh-hold-h">상승장</div>
-<div class="mh-kv"><span class="mh-k">거래대금 (500억 이상 만점)</span><span class="mh-v mh-pos">30점</span></div>
-<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수 (3개↑ 만점)</span><span class="mh-v mh-pos">25점</span></div>
-<div class="mh-kv"><span class="mh-k">많이 흔들리지 않나 (하루 6%↑면 0점)</span><span class="mh-v">25점</span></div>
-<div class="mh-kv"><span class="mh-k">60일에 너무 오르지 않았나 (40%↑면 0점)</span><span class="mh-v">20점</span></div>
-<div class="mh-sub"><b>60일 상승폭은 방향이 정반대였습니다.</b> 전에는 많이 오른 쪽에 만점을 줬는데,
-다시 재니 40% 넘게 오른 쪽이 졌습니다. 변동성도 하루 6%가 넘으면 거의 모든 창에서 졌습니다.</div>
+<div class="mh-hold-h">두 갈래 모두 — 배점은 화면에서 봅니다</div>
+<div class="mh-step"><b>몇 점씩 주는지는 여기 적지 않습니다.</b> 갈래 단추를 누르고
+<b>‘📘 이 화면 설명 보기’</b>를 열면 그 자리에 <u>지금 실제로 쓰는 배점</u>이 나옵니다.</div>
+<div class="mh-sub">여기에 숫자를 또 적어 두면 배점을 다시 잴 때 한쪽만 고쳐져 화면이 거짓말을
+합니다. 2026-08-07에 실제로 그런 일이 생겨(테마 등수를 넣었는데 글은 안 고쳤습니다),
+2026-08-09에 숫자를 <b>한 곳에서만 읽도록</b> 바꿨습니다.</div>
 </div>
 <div class="mh-hold">
-<div class="mh-hold-h">급락 후 반등장</div>
-<div class="mh-kv"><span class="mh-k">최근 11일에 안 올랐나 (5%↑ 오르면 0점)</span><span class="mh-v mh-pos">30점</span></div>
-<div class="mh-kv"><span class="mh-k">60일에 안 올랐나 (40%↑ 오르면 0점)</span><span class="mh-v mh-pos">25점</span></div>
-<div class="mh-kv"><span class="mh-k">같은 테마에서 함께 걸린 종목 수 (3개↑ 만점)</span><span class="mh-v">25점</span></div>
-<div class="mh-kv"><span class="mh-k">사고팔기 쉬운가</span><span class="mh-v">20점</span></div>
-<div class="mh-sub"><b>이미 반등을 시작한 종목은 사면 안 됩니다.</b> 최근 11일에 5% 넘게 오른 종목은
-창 306개 중 거의 전부에서 졌습니다(가장 나쁜 창 -43.7%p).</div>
+<div class="mh-hold-h">그때 알게 된 것 둘</div>
+<div class="mh-step"><b>테마 쪽이 종목보다 잘 들었습니다.</b> 테마 등수가 두 갈래 모두에서
+가장 크거나 두 번째로 큰 값이 됐습니다.</div>
+<div class="mh-step"><b>이미 반등을 시작한 종목은 사지 않습니다.</b> 급락 갈래에서 최근 11일에
+5% 넘게 오른 종목은 창 306개 중 거의 전부에서 졌습니다(가장 나쁜 창 -43.7%p).</div>
 </div>
 </div>
 <div class="mh-box mh-warn-box">

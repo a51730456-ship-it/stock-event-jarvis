@@ -716,7 +716,7 @@ if int(getattr(gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_GAUGE_UI_REVISION:
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026080810
+_REQUIRED_MOBILE_REVISION = 2026080910
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -730,7 +730,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080930
+_REQUIRED_METHOD_HELP_REVISION = 2026080940
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -780,7 +780,7 @@ _REQUIRED_J4_FUNCTIONS = (
 # 함수 이름만 보면 '이름은 그대로인데 내용이 옛것'인 모듈을 못 걸러낸다 —
 # 2026-07-24에 실제로 눌림목 깔때기 숫자(전체·유동성·수급 확인)가 0으로 나왔다.
 # 그래서 모듈 리비전 숫자까지 확인해 낮으면 다시 읽는다.
-_REQUIRED_J4_REVISION = 2026080910
+_REQUIRED_J4_REVISION = 2026080920
 if (
     any(not hasattr(j4data, name) for name in _REQUIRED_J4_FUNCTIONS)
     or int(getattr(j4data, "MODULE_REVISION", 0)) < _REQUIRED_J4_REVISION
@@ -3425,6 +3425,45 @@ def _kr_crash_state_html() -> str:
     )
 
 
+# 배점표 — **숫자는 여기 적지 않고 jarvis4_data에서 읽는다** (2026-08-09에 고쳤다).
+# 그전에는 숫자를 화면 글 안에 박아 뒀는데, 2026-08-07에 테마 등수를 넣으면서
+# 나머지가 비례로 줄었는데도 글은 안 고쳐 **화면이 이틀 동안 옛 배점을 설명했다**
+# (화면 '거래대금 30점' · 실제 21점, 가장 큰 '테마 등수 30점' 줄은 아예 없었다).
+# 이제 모듈 값을 읽으므로 다시 어긋나지 않는다.
+_KR_SCORE_TABLE = {
+    "breakout": (
+        ("theme_rank", "테마 등수 (60일 수익률 상위 20%)"),
+        ("liquidity", "거래대금 (500억 이상 만점)"),
+        ("together", "같은 테마에서 함께 걸린 종목 수 (3개↑ 만점)"),
+        ("volatility", "많이 흔들리지 않나 (하루 6%↑면 0점)"),
+        ("ret60", "60일에 너무 오르지 않았나 (40%↑면 0점)"),
+    ),
+    "crash": (
+        ("theme_rank", "테마가 덜 빠졌나 (상위 20%)"),
+        ("recent11", "최근 11일에 안 올랐나 (5%↑ 오르면 0점)"),
+        ("gain60", "60일에 안 올랐나 (40%↑ 오르면 0점)"),
+        ("together", "같은 테마에서 함께 걸린 종목 수 (3개↑ 만점)"),
+        ("liquidity", "사고팔기 쉬운가"),
+    ),
+}
+
+
+def _kr_score_table_html(mode: str) -> str:
+    """배점을 큰 것부터 한 줄씩. 숫자는 모듈에서 읽는다(위 설명 참고)."""
+    source = ("BREAKOUT_SCORE_WEIGHTS" if mode == "breakout" else "CRASH_SCORE_WEIGHTS")
+    weights = getattr(j4data, source, {}) or {}
+    items = [(float(weights.get(key) or 0), label)
+             for key, label in _KR_SCORE_TABLE.get(mode, ())]
+    items.sort(key=lambda pair: -pair[0])
+    lines = []
+    for points, label in items:
+        text = f"{points:.0f}" if abs(points - round(points)) < 0.05 else f"{points:.2f}".rstrip("0")
+        dim = " style='opacity:.55'" if not points else ""
+        lines.append(f"<div class='j4-kv'{dim}><span>{label}</span>"
+                     f"<b class='j4-green'>{text}점</b></div>")
+    return "".join(lines)
+
+
 def _render_rulebook_finder(result: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 — 미국테마와 같은 모양이다(2026-08-01 사용자 지시).
 
@@ -3478,10 +3517,9 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             f"{rule.get('base_median_return')}%인데 규칙대로 고르면 "
             f"{rule.get('median_return')}%입니다 — <u>덜 잃는 것</u>이지 버는 것이 아닙니다.<br>"
             "<b>순위를 매기는 기준</b>(2026-08-07 전면 재측정 — 3년 창을 한 달씩 밀며 "
-            "창 2·3·4년 <u>모두</u>에서 이긴 것만 점수를 줍니다) — "
-            "① <b>거래대금</b> 30점(500억 이상 만점) ② <b>같은 테마에서 함께 걸린 종목 수</b> "
-            "25점(3개 이상 만점) ③ <b>많이 흔들리지 않나</b> 25점(하루 6% 넘으면 0점) "
-            "④ <b>60일에 너무 오르지 않았나</b> 20점(40% 넘으면 0점)<br>"
+            "창 2·3·4년 <u>모두</u>에서 이긴 것만 점수를 줍니다). "
+            "<b>이 점수가 곧 표의 차례입니다</b>(2026-08-09부터).<br>"
+            + _kr_score_table_html("breakout") +
             "<b class='j4-down'>③④는 2026-08-01 판과 방향이 반대입니다.</b> 그때는 "
             "60일에 많이 오른 쪽에 만점을 주고 변동성은 0점이었는데, 창을 밀며 다시 재니 "
             "40% 넘게 오른 쪽과 하루 6% 넘게 흔들리는 쪽이 거의 모든 창에서 졌습니다.<br>"
@@ -3521,11 +3559,9 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             f"거래 수는 수천 건이지만 사실상 {events}번의 사건이라, "
             "승률을 앞으로의 확률로 읽으면 안 됩니다.<br>"
             "<b>순위를 매기는 기준</b>(2026-08-07 전면 재측정 — 3년 창을 한 달씩 밀며 "
-            "창 2·3·4년 <u>모두</u>에서 이긴 것만 점수를 줍니다) — "
-            "① <b>최근 11일에 안 올랐나</b> 30점(5% 넘게 올랐으면 0점) "
-            "② <b>60일에 안 올랐나</b> 25점(40% 넘게 올랐으면 0점) "
-            "③ <b>같은 테마에서 함께 걸린 종목 수</b> 25점(3개 이상 만점) "
-            "④ <b>사고팔기 쉬운가</b> 20점<br>"
+            "창 2·3·4년 <u>모두</u>에서 이긴 것만 점수를 줍니다). "
+            "<b>이 점수가 곧 표의 차례입니다</b>(2026-08-09부터).<br>"
+            + _kr_score_table_html("crash") +
             "<b class='j4-down'>가장 큰 값은 ‘이미 반등을 시작한 종목은 사지 마라’입니다.</b> "
             "최근 11일에 5% 넘게 오른 종목은 창 306개 중 거의 전부에서 졌습니다"
             "(가장 나쁜 창 -43.7%p).<br>"

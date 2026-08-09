@@ -86,7 +86,7 @@ PULLBACK_SCORE_MAX = 25.0 + 25.0 + PULLBACK_TREND_POINTS + 25.0 + 15.0
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080910
+MODULE_REVISION = 2026080920
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -3433,8 +3433,24 @@ def find_breakout_pullback_stocks(
             # (한국 상승장은 같이 걸리는 일이 드물다). 실측이 갈린 1·2개로 다시 매긴다.
             points, label = breakout_together_tier(int(row.get("together_count") or 0))
             row["together_tier"], row["together_label"] = points, label
-        # 순위는 낙폭 표와 **다르다** — 한국 상승장은 거래대금이 가장 크게 갈랐다.
-        found["rows"].sort(key=_breakout_rank_key)
+            # **갈래 점수가 곧 순위다** (2026-08-09 상하님 결정) — 아래 설명 참고.
+            row["stock_score"] = row.get("score")     # 눌림목 조건점수는 이름을 옮긴다
+            row["rule_score"] = float(breakout_score(row)["score"])
+        # **차례는 갈래 점수 순이다** (2026-08-09 상하님 결정).
+        #
+        # 왜 바꿨나 — 2026-08-01에는 배점과 차례를 같은 측정에서 같이 만들어 둘이
+        # 맞았다. 2026-08-07에 한국을 처음부터 다시 재면서 **배점만 갈아엎고**
+        # 차례 함수(_breakout_rank_key)는 그대로 뒀다. 그래서 8/7에 "쓰지 마라"고
+        # 결론 난 것들(낙폭 갈래·거래대금 연속)이 차례에는 계속 살아 있었고,
+        # 제일 잘 들었던 테마 등수는 차례에 아예 안 쓰였다.
+        # 점수와 차례가 코드에서 서로 다른 곳에 있어 한쪽만 고치기 쉬웠던 것이다.
+        # 미국테마는 처음부터 점수를 차례로 쓰므로 고칠 곳이 한 군데뿐이다 —
+        # 한국도 그렇게 맞춘다. 아래 _breakout_rank_key는 **동점 가르기**에만 쓴다.
+        #
+        # **성적이 좋아진다는 뜻은 아니다.** 8/7에 잰 것은 '항목 하나하나가 성적을
+        # 가르는가'였고 '이 점수로 줄 세우면 위쪽이 나은가'는 아직 안 쟀다.
+        found["rows"].sort(key=lambda row: (-float(row.get("rule_score") or 0.0),
+                                            _breakout_rank_key(row)))
         for index, row in enumerate(found["rows"], 1):
             row["pullback_rank"] = index
         return {**found, "mode": "breakout", "rule": BREAKOUT_PULLBACK_RULE,
@@ -3505,11 +3521,13 @@ def find_crash_rebound_stocks(
             row["partner5"] = int((row.get("flow") or {}).get("both_buy_days5") or 0)
             row["reference_date"] = reference_date
             row["now_from_high_pct"] = (row.get("metrics") or {}).get("from_high_pct")
-        # 순위 기준(2026-08-01, 12년치로 재 보고 정했다) — 위 배점 설명 참고.
-        # 처음에는 외국인+기관 동반 순매수를 1순위로 뒀는데, 재 보니 **거꾸로**였다
-        # (동반 일수가 많을수록 성적이 나빴다). 그래서 순위에서 뺐다.
-        # 표에는 그대로 보여 준다 — 지금 누가 사는지는 그 자체로 볼 값이 있다.
-        found["rows"].sort(key=_crash_rank_key)
+            row["stock_score"] = row.get("score")     # 눌림목 조건점수는 이름을 옮긴다
+            row["rule_score"] = float(crash_rebound_score(row)["score"])
+        # **차례는 갈래 점수 순이다** (2026-08-09 상하님 결정, 위 상승장과 같은 이유).
+        # 아래 _crash_rank_key는 동점 가르기에만 쓴다. 외국인+기관 동반은 재 보니
+        # 거꾸로라(동반 일수가 많을수록 나빴다) 점수에도 차례에도 안 쓴다.
+        found["rows"].sort(key=lambda row: (-float(row.get("rule_score") or 0.0),
+                                            _crash_rank_key(row)))
         for index, row in enumerate(found["rows"], 1):
             row["pullback_rank"] = index
             row.pop("_order", None)

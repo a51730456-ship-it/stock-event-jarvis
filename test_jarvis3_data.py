@@ -125,7 +125,7 @@ class RulebookScreenTests(unittest.TestCase):
         재 보니 1~3일도 뒤 5년에서 졌다.
         """
         frames = {
-            "AAPL": _frame_with_high(2, -12.0),   # 많이 눌렸다 — 눌린 폭 만점
+            "AAPL": _frame_with_high(2, -12.0),   # 많이 눌렸다
             "MSFT": _frame_with_high(4, -12.0),   # 같은 눌린 폭, 날짜만 다르다
             "AMZN": _frame_with_high(2, -5.0),    # 덜 눌렸다 — 그래도 보여준다
             "GOOGL": _frame_with_high(2, -20.0),  # 너무 눌렸다 — 그물 밖
@@ -141,8 +141,17 @@ class RulebookScreenTests(unittest.TestCase):
         # 점수가 높은 줄이 위에 온다.
         scores = [row["score"] for row in result["rows"]]
         self.assertEqual(sorted(scores, reverse=True), scores)
-        # 더 눌린 쪽이 눌린 폭 점수를 더 받는다.
-        self.assertGreater(picked["AAPL"]["score"], picked["AMZN"]["score"])
+        # **눌린 폭에는 점수를 주지 않는다**(2026-08-09 상하님 지적으로 0점이 됐다).
+        # 그물이 4~15%로 이미 골라 놓고 그 안에서 또 '더 눌린 쪽'에 점수를 주면
+        # 같은 것을 두 번 세는 것이고, 앞뒤 5년으로 갈라 재니 뒤 절반에서
+        # 거꾸로였다(+3.9 / -1.2%p). 그래서 -12%와 -5%가 그 항목에서 같은 점수다.
+        drop_points = {
+            ticker: next(v for n, v, _m, _t in j3.breakout_score(row)["parts"]
+                         if n.startswith("눌린 폭"))
+            for ticker, row in picked.items()
+        }
+        self.assertEqual({0.0}, set(drop_points.values()), drop_points)
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
         # 날짜만 다른 두 종목은 점수가 같아야 한다 — 날짜에는 점수를 주지 않는다.
         self.assertEqual(picked["AAPL"]["score"], picked["MSFT"]["score"])
         # 며칠 지났는지는 줄마다 그대로 실려야 한다 — 화면이 그걸 보여준다.
@@ -314,7 +323,13 @@ class RulebookScreenTests(unittest.TestCase):
             self.assertNotIn("volume_streak", weights)
         # 두 갈래 모두 테마가 1등이다. 2026-08-07에 그물을 격자로 다시 잡고
         # 그 위에서 배점도 다시 쟀다(research/us_score_new.py).
-        self.assertEqual(40.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
+        # 상승장은 2026-08-09에 눌린 폭 15점을 빼고 남은 넷에 비례로 나눴다
+        # (40 → 47.0). 테마가 배점의 절반에 가깝다.
+        self.assertEqual(47.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
+        # **눌린 폭은 0점이다** — 그물(4~15%)이 이미 쓴 값이라 두 번 세는 것이었고,
+        # 앞뒤 5년으로 갈라 재니 뒤 절반에서 거꾸로였다(+3.9 / -1.2%p).
+        # 급락 갈래는 같은 이유로 이미 0점이었다(아래 bucket).
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
         # 급락 갈래는 같은 날 '테마 등수' 25점이 들어오면서 비례해 줄었다.
         # 테마 두 항목을 합치면 55점 — 여전히 배점의 절반 이상이 테마다.
         self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["together"])
@@ -326,7 +341,10 @@ class RulebookScreenTests(unittest.TestCase):
         # 이미 돌아선 종목이 낫다는 뜻이다. 되살리면 검증이 부정한 값으로
         # 순위를 매기게 된다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["recent_drop"])
-        self.assertEqual(25.0, j3.BREAKOUT_SCORE_WEIGHTS["recent_drop"])
+        # 상승장에는 아직 남아 있다(25 → 29.4, 위 비례 나눔). 앞뒤로 갈라 재니
+        # 둘 다 이겼지만 뒤 절반이 얇다(+5.2 / +1.3%p). **다시 재 볼 자리다** —
+        # 신고가를 세게 찍고 올라온 종목이 이 항목에서 0점을 받는다.
+        self.assertEqual(29.4, j3.BREAKOUT_SCORE_WEIGHTS["recent_drop"])
         # 낙폭 갈래도 0점이다 — 갈래가 하나뿐이라 모두 같은 점수를 받아 못 가른다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["bucket"])
         # 60일 상승폭도 뺐다 — 가운데 값만 크고 이기는 횟수는 뒤 5년에 졌다.
@@ -349,7 +367,10 @@ class RulebookScreenTests(unittest.TestCase):
                "recent_gain_pct": 0.0}
         points = next(value for name, value, _m, _t in j3.breakout_score(row)["parts"]
                       if name == "같은 테마 동반")
-        self.assertEqual(20.0, points, "상승장이 1개를 0점으로 준다")
+        # 배점 숫자를 시험에 박아 두지 않는다 — 2026-08-09에 눌린 폭 15점을 빼면서
+        # 남은 넷에 비례로 나눴더니 이 자리가 20.0에서 바뀌었다. 만점의 절반인지만 본다.
+        half = j3.BREAKOUT_SCORE_WEIGHTS["together"] / 2
+        self.assertAlmostEqual(half, points, places=6, msg="상승장이 1개를 절반으로 준다")
         # **급락 후 반등장은 문턱이 4개다**(2026-08-07 새 그물 실측). 3개↑는
         # 그물의 55%가 해당돼 못 가른다(75/46 · 85/64 · 99/88).
         self.assertEqual(4, j3.CRASH_TOGETHER_FULL)

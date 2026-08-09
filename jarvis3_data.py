@@ -1318,10 +1318,34 @@ def crash_rebound_score(row: dict) -> dict:
 #   * 신고가 뒤 며칠: 1~3일 63.5%(앞 +3.2 / 뒤 -0.5%p)로 뒤 5년에 진다. 화면에는
 #     날짜를 **보여만 주고** 점수는 안 준다(2026-08-06 사용자 지시).
 #   * 50·200일선 위: 신고가 종목은 정의상 100% 위라 가르지 못한다.
+# **눌린 폭 15점을 0점으로 뺐다 (2026-08-09 상하님 지적).**
+# 상하님 말씀 — "고점 돌파 후 며칠 눌리고 몇 % 눌린 뒤 사는 게 기준인데, 그 눌린
+# 폭이 점수에 또 들어가는 게 맞나?" 맞지 않는다. 이유가 둘이다.
+#   ① **그물이 이미 쓴 값이다.** 4~15%로 걸러 놓고 그 안에서 다시 '더 눌린 쪽'에
+#      만점을 준다. 설명서 어디에도 "더 눌릴수록 좋다"는 말이 없다.
+#   ② **앞뒤 5년으로 갈라 재니 뒤 절반에서 거꾸로였다**(앞 +3.9 / 뒤 -1.2%p).
+#      같은 이유로 이미 0점 처리한 항목이 둘 있다(최근 60일 상승폭 +3.0/-0.5,
+#      거래대금 연속 -2.2/0.0). 눌린 폭이 그 둘보다 나쁜데 혼자 살아남아 있었다.
+# **미국 급락 배점에서는 같은 이유로 이미 뺐다**(CRASH_SCORE_WEIGHTS의 bucket 0.0).
+# 상승장만 2026-08-06판 그대로 남아 있었다.
+#
+# 뺀 15점은 **새 항목을 만들지 않고 남은 넷에 비례해 나눈다** — 2026-08-07에 미국
+# 조건점수에서 추세 20점을 뺄 때 쓴 방식 그대로다(LEADER_RESCALE). 옮길 데를
+# 지어내지 않기 위해서다. 테마 등수를 넣자는 생각이 먼저 들지만, 그건 미국 급락·
+# 한국 두 갈래에서만 쟀고 **미국 상승장에서는 아직 안 쟀다.**
+BREAKOUT_RESCALE = 100.0 / 85.0
+
+_BR = {name: round(base * BREAKOUT_RESCALE, 1)
+       for name, base in (("recent_drop", 25.0), ("liquidity", 10.0), ("volatility", 10.0))}
 BREAKOUT_SCORE_WEIGHTS = {
-    "together": 40.0, "recent_drop": 25.0, "drop": 15.0,
-    "liquidity": 10.0, "volatility": 10.0,
+    # 반올림 나머지는 가장 큰 항목이 받는다 — 합이 100.0이어야 한다.
+    "together": round(100.0 - sum(_BR.values()), 1),
+    "recent_drop": _BR["recent_drop"],
+    "drop": 0.0,
+    "liquidity": _BR["liquidity"],
+    "volatility": _BR["volatility"],
 }
+del _BR
 
 
 def breakout_score(row: dict) -> dict:
@@ -1342,14 +1366,15 @@ def breakout_score(row: dict) -> dict:
                   weights["recent_drop"],
                   "모름" if gain is None else f"{float(gain):+.1f}%"))
 
-    # 눌린 폭은 10~15%가 만점이다(63.2%). 4%에 가까울수록 깎는다 — 그물(4~15%)은
-    # 넓게 두고 점수로만 가른다. 15%보다 더 눌린 것은 그물 밖이라 여기 안 온다.
+    # 눌린 폭은 **0점이다**(2026-08-09, 위 BREAKOUT_SCORE_WEIGHTS 설명 참고).
+    # 계산은 지우지 않는다 — 화면이 다섯 칸을 그리고, 다시 재서 되살릴 수 있다
+    # (한국 배점에서 0점 항목을 다루는 방식과 같다).
     drop = metrics.get("from_high_pct")
     if drop is None:
         drop_points = weights["drop"] * 0.5
     else:
         drop_points = _scale(-float(drop), 4.0, 10.0, weights["drop"])
-    parts.append(("눌린 폭", drop_points, weights["drop"],
+    parts.append(("눌린 폭 (그물로 이미 씀)", drop_points, weights["drop"],
                   "—" if drop is None else f"{float(drop):+.1f}%"))
 
     dollar = metrics.get("avg_dollar_volume") or 0
