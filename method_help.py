@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080940
+MODULE_REVISION = 2026080950
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 
@@ -186,6 +186,12 @@ div[class*="st-key-jarvis_method_help"] button p {
    폰 전용 규칙이 아니라 태블릿까지 걸리는 규칙이라 mobile_ui.py가 아니라
    여기 둔다(CLAUDE.md 12번은 '폰 전용' 규칙에 대한 것이다). */
 @media (max-width: 1200px) {
+    /* 폰·태블릿은 위의 CSS 전용 블록 간격만으로도 도구막대와 충분히 떨어진다.
+       390px 실측: 8px이면 첫 단추 y=88px, 도구막대 아래 44px가 남는다. */
+    [data-testid="stMainBlockContainer"],
+    .block-container {
+        padding-top: .5rem !important;
+    }
     [data-testid="stPopoverBody"] {
         width: calc(100vw - 1.2rem) !important;
         max-width: calc(100vw - 1.2rem) !important;

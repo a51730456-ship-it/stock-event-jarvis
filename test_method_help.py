@@ -36,13 +36,15 @@ class ButtonTests(unittest.TestCase):
         """2026-07-30 사용자 지적 — 위 여백이 너무 많다, 전체를 위로 올려라.
 
         실측(폰 412px · PC 1280px) — 스트림릿 기본 여백 96px, 도구막대 60px.
-        64px로 줄이면 본문이 도구막대 바로 밑에서 시작하고(단추 top 179→98,
-        제목 238→156), 도구막대는 그대로 눌러 화면을 어둡게 바꿀 수 있다.
-        더 줄이면 단추가 도구막대를 덮어 ⋮ 메뉴를 못 누른다.
+        기본 64px은 PC에서 유지한다. 폰·태블릿은 CSS 전용 블록 사이 간격이
+        따로 80px 생기므로 8px로 줄인다. 390px 실측에서 첫 단추 top=88px,
+        도구막대 bottom=44px라 44px 안전거리가 남는다.
         """
         css = method_help.BUTTON_CSS
         self.assertIn('[data-testid="stMainBlockContainer"],', css)
         self.assertIn("padding-top: 4rem !important", css)
+        tablet_css = css.split("@media (max-width: 1200px) {", 1)[1]
+        self.assertIn("padding-top: .5rem !important", tablet_css)
         # 폰 전용이 아니라 모든 화면에 걸리는 규칙이다 — 폰 묶음에 있으면 안 된다.
         self.assertNotIn("st-key-jarvis_method_help", mobile_ui.TOP_ROW_CSS)
 
