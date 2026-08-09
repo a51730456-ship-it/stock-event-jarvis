@@ -299,6 +299,7 @@ st.markdown(
        **새 표를 만들면 반드시 이 세 목록에 다 넣는다** — 빠뜨리면 폰에서
        순위·종목이 따로 쌓이고 값이 겹쳐 찍힌다(미국테마에서 실제로 그랬다). */
     .st-key-j4_pullback_table,
+    .st-key-j4_pullback_rest,
     .st-key-j4_theme_rest,
     .st-key-j4_rulebook_rest,
     .st-key-j4_leader_table,
@@ -306,7 +307,8 @@ st.markdown(
     .st-key-j4_rulebook_table,
     .st-key-j4_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     @media (max-width: 1200px) {
-        .st-key-j4_pullback_table [data-testid="stHorizontalBlock"] {
+        .st-key-j4_pullback_table [data-testid="stHorizontalBlock"],
+        .st-key-j4_pullback_rest [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1180px;
         }
         /* 낙폭 표는 칸이 열 개라 900px로는 글자가 짓눌린다(2026-08-01). */
@@ -325,6 +327,7 @@ st.markdown(
             flex-wrap: nowrap !important; min-width: 900px;
         }
         .st-key-j4_pullback_table [data-testid="stColumn"],
+        .st-key-j4_pullback_rest [data-testid="stColumn"],
         .st-key-j4_theme_rest [data-testid="stColumn"],
         .st-key-j4_rulebook_rest [data-testid="stColumn"],
         .st-key-j4_leader_table [data-testid="stColumn"],
@@ -3399,7 +3402,10 @@ def _render_theme_finder(forced: list[str]) -> None:
 
 
 # 표에서 펴 두는 줄 수. 나머지는 '더 보기'로 접는다(2026-08-07, 미국과 같다).
-_RULEBOOK_OPEN_ROWS = 15
+# 앞 몇 줄만 펴 두고 나머지는 접는다. **10줄이다**(2026-08-09 상하님 지적
+# "1~10위 보이고 11~20위 클릭하라고 했는데 왜 또 16~20위로 바뀌었지?").
+# 미국테마는 2026-08-07에 10줄로 바꿨는데 한국테마만 15줄로 남아 있었다.
+_RULEBOOK_OPEN_ROWS = 10
 
 
 # 낙폭 두 갈래의 색 — 미국테마와 같은 규칙이다(2026-08-01).
@@ -4054,9 +4060,27 @@ def _render_pullback_finder() -> None:
         unsafe_allow_html=True,
     )
 
+    # 눌림목 표도 **10줄만 펴 두고 나머지는 접는다**(2026-08-09 상하님 지시
+    # "한국테마 관련 각 파트별 다 그렇게 해라"). 위 테마표·급락표와 같은 방식이다.
+    # 키를 가진 칸으로 감싸야 접힌 쪽도 옆으로 밀어서 볼 수 있다.
+    pull_rest = None
+    if len(rows) > _RULEBOOK_OPEN_ROWS:
+        pull_rest = st.container(key="j4_pullback_rest").expander(
+            f"{_RULEBOOK_OPEN_ROWS + 1}위~{len(rows)}위 더 보기")
+        over_head = pull_rest.columns(row_widths)
+        over_head[0].markdown("<div class='j4-th-head'>순위</div>", unsafe_allow_html=True)
+        over_head[1].markdown("<div class='j4-th-head'>종목</div>", unsafe_allow_html=True)
+        over_head[2].markdown(
+            _flex_row(rest_widths, ["눌림 점수", "신고가", "당일주가", "고점 대비", "20일선 이격",
+                                    "테마수", "수급(대금%)", "동반(최근 → 5일 전)",
+                                    "동반(매수/매도/20일)", "신고가 기술점수", "지금 종합점수"],
+                      head=True),
+            unsafe_allow_html=True,
+        )
     for index, row in enumerate(rows):
         quality, flow = row["pullback"], row.get("flow") or {}
-        cols = table_box.columns(row_widths)
+        target_box = table_box if index < _RULEBOOK_OPEN_ROWS or pull_rest is None else pull_rest
+        cols = target_box.columns(row_widths)
         cols[0].markdown(f"<div class='j4-td'>{row['pullback_rank']}</div>", unsafe_allow_html=True)
         # 종목을 누르면 **바로 아래** 눌림목 상세만 그 종목으로 바뀐다.
         # 위쪽 테마 선택과 테마 종목 상세는 건드리지 않는다(2026-07-29 지시:
