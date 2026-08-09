@@ -10,6 +10,7 @@ import re
 import streamlit as st
 
 import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
+import login_prism  # 첫 화면의 '판 누르고 왔나' 표식을 읽는다(2026-08-09).
 
 # 배포 갱신 중 옛 auth가 프로세스에 남으면 함수 모양이 안 맞아 화면이 죽는다
 # (2026-07-25 온라인 실발생). 리비전이 낮으면 다시 읽는다.
@@ -845,6 +846,16 @@ st.markdown(
 
 
 def _login_gate() -> None:
+    # 첫 화면의 큰 판(미국테마·한국테마)을 누르고 온 사람은 비밀번호를 묻지 않는다
+    # (2026-08-09 상하님 지시 "게스트 비번 필요 없는 것 기준"). 주소에 달려 오는
+    # 표식 하나로 가른다 — 게스트는 원래도 비밀번호 없이 들어올 수 있으므로
+    # 이 표식이 새로 여는 문은 없고, 누르는 횟수만 둘에서 하나로 준다.
+    # 이미 로그인한 사람은 건드리지 않는다(login_prism.wants_guest가 막는다).
+    try:
+        if login_prism.wants_guest(st):
+            auth.login_as_guest()
+    except Exception:
+        pass      # 표식을 못 읽어도 아래 예전 흐름으로 그대로 간다
     auth.sync_auth()  # 쿠키에 로그인이 남아 있으면 되살린다(폰 복귀 시 재로그인 방지).
     if st.session_state.get("authenticated"):
         return

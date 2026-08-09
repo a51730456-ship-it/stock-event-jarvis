@@ -56,9 +56,14 @@ class LoginVisualContractTests(unittest.TestCase):
         for marker in (
             'Path(__file__).parent / "assets" / "jarvis_earth.webp"',
             "data:image/webp;base64,",
-            "login_globe.render_login_globe(st, _jarvis_earth_src)",
+            # 첫 화면의 도는 지구는 2026-08-09에 **프리즘으로 바꿨다**(상하님 지시).
+            # 지구 그림은 그대로 남는다 — 로그인 성공 연출(ACCESS GRANTED)에서 쓴다.
+            # 그래서 그림 파일 조건은 그대로 두고, 첫 화면에 그리는 자리만 바꿔 본다.
+            "login_visual.render_login_transition(st, _jarvis_earth_markup)",
+            "login_prism.render(st)",
         ):
             self.assertIn(marker, SOURCE)
+        self.assertNotIn("login_globe.render_login_globe(st, _jarvis_earth_src)", SOURCE)
         self.assertNotIn("jarvis_earth.svg", SOURCE)
         # 평면 지도를 옆으로 밀던 옛 방식은 완전히 걷어냈다.
         self.assertNotIn("jarvis-waiting-earth", SOURCE)

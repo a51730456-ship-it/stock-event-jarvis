@@ -17,6 +17,8 @@ import streamlit as st
 # 로그인 화면 지구(WebGL). streamlit 외에 무거운 것을 끌어오지 않으므로
 # 인증 게이트 앞에서 불러도 첫 화면이 늦어지지 않는다.
 import login_globe
+# 첫 화면의 프리즘과 두 판 (2026-08-09). 가벼운 모듈이라 인증 게이트 앞에서 불러도 된다.
+import login_prism
 
 # 로그인 유지(쿠키). 가벼운 모듈이라 게이트 앞에서 불러도 된다. 쿠키가 안 되면
 # 조용히 세션 기반 동작으로 남는다. [[project_jarvis_persistent_login]]
@@ -682,59 +684,47 @@ if not st.session_state.get("authenticated"):
         """,
         unsafe_allow_html=True,
     )
-    _login_earth_col, _login_panel_col = st.columns([1.25, 1], gap="large", vertical_alignment="center")
-    with _login_earth_col:
-        st.markdown('<div class="jarvis-earth-stage" aria-hidden="true"></div>', unsafe_allow_html=True)
-        login_globe.render_login_globe(st, _jarvis_earth_src)
-    with _login_panel_col:
-        st.markdown(
-            """
-            <!-- 폰에서 네모칸이 너무 길어 아래가 잘렸다(2026-07-29 사용자 지적).
-                 큰 제목(h1)과 영어 상태줄을 없애고, 맨 위 작은 글씨 자리에
-                 Stock Event Jarvis를 넣어 높이를 줄였다. -->
-            <div class="jarvis-login-panel-heading">
-                <div class="jarvis-login-kicker">Stock Event Jarvis</div>
-                <div class="jarvis-login-subtitle">
-                    <span class="jarvis-login-owner">장상하</span>의 테마 주식 기록장 ·
-                    게스트 열람 또는 비밀번호 로그인을 선택할 수 있습니다.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        # **여기서는 갈 곳을 고르지 않는다**(2026-08-09 상하님 지시로 뺐다).
-        # 예전에는 '이동할 곳 → 비밀번호 → 로그인' 순이었고 마지막에 st.switch_page로
-        # 옮겨 갔는데, 스트림릿이 그때 **같은 주소를 기록에 하나 더 쌓는다**
-        # (최소 예제로 재현 확인). 그래서 폰 뒤로가기를 눌러 맨홈에 간 뒤 또 눌러도
-        # 맨홈이 한 번 더 나왔다 — "자꾸 맨홈으로 돌아간다"의 정체다.
-        # 이제 로그인만 하고, 갈 곳은 바로 다음에 나오는 '어디로 갈까요'에서
-        # **진짜 링크**로 고른다. 누르는 횟수는 그대로다(고르기+비번+로그인 셋).
-        if st.button("게스트로 보기 (비밀번호 없이)", key="login_guest", use_container_width=True):
+    # ── 첫 화면 (2026-08-09 상하님 지시로 통째로 바꿨다) ─────────────────────
+    # 돌던 지구를 **프리즘**으로 바꾸고, 그 아래에 큰 판 둘(미국테마·한국테마)을
+    # 뒀다. 판을 누르면 비밀번호 없이 바로 들어간다.
+    # 프리즘은 octolane.com, 판이 가운데서 퍼지는 것은 okaydev.co를 보고 만들었다 —
+    # 두 홈페이지의 움직임을 만드는 CSS를 직접 읽고 따랐다(login_prism.py 설명 참고).
+    # 지구 그림(jarvis_earth.webp)은 그대로 남는다 — 로그인 성공 연출에서 쓴다.
+    with st.container():
+        login_prism.render(st)
+    # **여기서는 갈 곳을 고르지 않는다**(2026-08-09 상하님 지시로 뺐다).
+    # 예전에는 '이동할 곳 → 비밀번호 → 로그인' 순이었고 마지막에 st.switch_page로
+    # 옮겨 갔는데, 스트림릿이 그때 **같은 주소를 기록에 하나 더 쌓는다**
+    # (최소 예제로 재현 확인). 그래서 폰 뒤로가기를 눌러 맨홈에 간 뒤 또 눌러도
+    # 맨홈이 한 번 더 나왔다 — "자꾸 맨홈으로 돌아간다"의 정체다.
+    # 이제 로그인만 하고, 갈 곳은 바로 다음에 나오는 '어디로 갈까요'에서
+    # **진짜 링크**로 고른다. 누르는 횟수는 그대로다(고르기+비번+로그인 셋).
+    if st.button("게스트로 보기 (비밀번호 없이)", key="login_guest", use_container_width=True):
+        st.session_state["authenticated"] = True
+        st.session_state[_ACCESS_ROLE_KEY] = "guest"
+        st.rerun()
+    _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
+    if st.button("로그인", key="login_submit", use_container_width=True):
+        if _login_password_input == _app_password:
             st.session_state["authenticated"] = True
-            st.session_state[_ACCESS_ROLE_KEY] = "guest"
+            st.session_state[_ACCESS_ROLE_KEY] = "owner"
+            st.session_state["login_transition_pending"] = True
+            # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
+            # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.
+            for _kr_auto_key in (
+                "kr_auto_run_version",
+                "kr_auto_run_stage1_done",
+                "kr_auto_run_stage2_done",
+                "kr_theme_auto_fetch_pending",
+                "kr_bookmaker_auto_fetch_pending",
+                "us_auto_run_version",
+                "us_auto_run_stage1_done",
+                "parallel_warmup_done",
+            ):
+                st.session_state.pop(_kr_auto_key, None)
             st.rerun()
-        _login_password_input = st.text_input("비밀번호", type="password", key="login_password_input")
-        if st.button("로그인", key="login_submit", use_container_width=True):
-            if _login_password_input == _app_password:
-                st.session_state["authenticated"] = True
-                st.session_state[_ACCESS_ROLE_KEY] = "owner"
-                st.session_state["login_transition_pending"] = True
-                # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
-                # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.
-                for _kr_auto_key in (
-                    "kr_auto_run_version",
-                    "kr_auto_run_stage1_done",
-                    "kr_auto_run_stage2_done",
-                    "kr_theme_auto_fetch_pending",
-                    "kr_bookmaker_auto_fetch_pending",
-                    "us_auto_run_version",
-                    "us_auto_run_stage1_done",
-                    "parallel_warmup_done",
-                ):
-                    st.session_state.pop(_kr_auto_key, None)
-                st.rerun()
-            else:
-                st.error("비밀번호가 올바르지 않습니다.")
+        else:
+            st.error("비밀번호가 올바르지 않습니다.")
     st.stop()
 
 # ── 뒤로가기로 첫 주소에 돌아왔을 때 (2026-08-01 사용자 지시) ────────────────────
