@@ -200,8 +200,16 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertTrue(any("비밀번호를 다시 넣지 않아도 됩니다" in value for value in markdowns))
         # 비밀번호 칸은 없어야 한다 — 다시 로그인시키지 않는다.
         self.assertEqual([], [node for node in app.text_input if node.key == "login_password_input"])
-        # 고르는 칸과 이동 단추가 있어야 한다.
-        self.assertEqual(["entry_dest_choice"], [node.key for node in app.radio])
+        # 갈 곳은 **누르면 바로 가는 링크**다(2026-08-09 상하님 승인).
+        # 예전에는 동그라미로 고른 뒤 '이동'을 눌렀는데, 그 방식(st.switch_page)은
+        # 스트림릿이 같은 주소를 기록에 하나 더 쌓아서 뒤로가기가 이 화면을 두 번
+        # 지나갔다. 링크는 기록을 하나만 쌓는다.
+        self.assertEqual([], [node.key for node in app.radio],
+                         "고르는 동그라미는 없어야 한다 — 링크를 바로 누른다")
+        targets = [node.page for node in app.get("page_link")]
+        self.assertIn("자비스3", targets)
+        self.assertIn("자비스4", targets)
+        # 자비스1만 단추로 남는다 — 옮겨 갈 페이지가 아니라 이 파일 자체라서다.
         self.assertIn("entry_go", [node.key for node in app.button])
         # 자비스1은 그려지지 않아야 한다 — 이게 그려지면 옛 동작으로 돌아간 것이다.
         self.assertFalse(any("① 한국장 판단" in value for value in markdowns))
@@ -222,24 +230,38 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 기본 선택은 감추는 항목에 들어가면 안 된다.
         default = int(re.search(r"_DEST_DEFAULT_INDEX = (\d+)", SOURCE).group(1))
         self.assertIn(names[default], shown)
-        for key in ("login_dest_choice", "entry_dest_choice"):
-            for rule in ("nth-child(-n+3)", "nth-child(n+6)"):
-                self.assertIn(
-                    f'.st-key-{key} [role="radiogroup"] > label[data-testid="stRadioOption"]:{rule}',
-                    SOURCE, f"{key}에 {rule} 규칙이 없다",
-                )
+        # 로그인 화면은 아직 동그라미로 고른다.
+        for rule in ("nth-child(-n+3)", "nth-child(n+6)"):
+            self.assertIn(
+                f'.st-key-login_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:{rule}',
+                SOURCE, f"login_dest_choice에 {rule} 규칙이 없다",
+            )
+        # '어디로 갈까요'는 2026-08-09부터 링크 목록이라 감추는 자리가 바뀌었다.
+        # 링크는 목록 상자(entry_dest_links)의 자식이므로 그 자식 번호로 감춘다.
+        for rule in ("nth-child(-n+3)", "nth-child(n+6)"):
+            self.assertIn(
+                f".st-key-entry_dest_links > div:{rule}",
+                SOURCE, f"entry_dest_links에 {rule} 규칙이 없다",
+            )
 
-    def test_the_chooser_moves_to_the_page_you_picked(self):
-        """고른 곳으로 실제로 옮겨 가는지. 옮기지 못하면 화면에 갇힌다."""
+    def test_the_chooser_offers_a_real_link_to_every_page(self):
+        """갈 곳마다 진짜 링크가 있어야 한다. 없으면 그 화면에 갇힌다.
+
+        링크여야 하는 까닭은 뒤로가기다 — st.switch_page는 같은 주소를 브라우저
+        기록에 하나 더 쌓아, 뒤로가기를 눌러도 같은 화면이 한 번 더 나왔다
+        (2026-08-09 최소 예제로 재현 확인).
+        """
         app = _new_app()
         app.session_state["authenticated"] = True
         with self._socket_block(), _offline_market_stubs():
             app.run(timeout=60)
-            app.radio[0].set_value("미국테마 (자비스3)")
-            next(node for node in app.button if node.key == "entry_go").click().run(timeout=60)
-        # switch_page가 실제로 일어나면 자비스3 페이지가 열린다(멀티페이지 AppTest).
         self.assertEqual(len(app.exception), 0)
-        self.assertNotIn("entry_go", [node.key for node in app.button])
+        links = app.get("page_link")
+        labels = [node.label for node in links]
+        # 자비스1은 옮겨 갈 페이지가 아니라 이 파일이라 단추로 남는다. 나머지 여섯은 링크다.
+        self.assertEqual(6, len(links), labels)
+        for name in ("미국테마 (자비스3)", "한국테마 (자비스4)"):
+            self.assertIn(name, labels)
 
 
 if __name__ == "__main__":

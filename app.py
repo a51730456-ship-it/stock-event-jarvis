@@ -772,20 +772,39 @@ if st.query_params.get("page") != _JARVIS1_URL_MARK:
         .jarvis-entry-title { color: #7cc8ff; font-size: 1.45rem; font-weight: 900;
             letter-spacing: -.01em; margin: .2rem 0 .1rem; }
         .jarvis-entry-sub { color: #9aa0aa; font-size: .95rem; margin-bottom: 1.1rem; }
+        /* 갈 곳은 **누르면 바로 가는 링크**다(2026-08-09 상하님 승인).
+           예전에는 동그라미로 고른 뒤 아래 '이동'을 눌렀는데, 그 방식은
+           st.switch_page로 옮겨 가고 **스트림릿이 같은 주소를 기록에 하나 더 쌓는다**
+           (2026-08-09 최소 예제로 재현 확인). 그래서 폰 뒤로가기를 눌러 이 화면에
+           온 뒤 또 눌러도 이 화면이 한 번 더 나왔다. 진짜 링크는 기록을 하나만
+           쌓아 뒤로가기가 바로 앞 화면으로 간다. 누르는 횟수도 둘에서 하나로 준다. */
+        .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"],
         div[class*="st-key-entry_go"] button {
             background: linear-gradient(90deg, #0b2a4a 0%, #123a63 38%, #1d6fc4 100%) !important;
             border: none !important; border-radius: .5rem !important;
             min-height: 3rem !important;
+            display: flex !important; align-items: center !important;
+            justify-content: center !important;
+            width: 100% !important; margin-bottom: .5rem !important;
+            text-decoration: none !important;
         }
+        .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"]:hover {
+            background: linear-gradient(90deg, #0e3559 0%, #164876 38%, #2a86e0 100%) !important;
+        }
+        .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"] span,
+        .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"] p,
         div[class*="st-key-entry_go"] button p {
             color: #ffffff !important; font-size: 1.05rem !important; font-weight: 800 !important;
         }
         /* 로그인 화면과 똑같이, 폰·태블릿에서는 미국테마·한국테마 둘만 보인다
            (2026-08-01 사용자 지시, CLAUDE.md 12번). 옵션 자체는 남겨 두어
-           노트북/PC에서는 7개가 다 보인다. */
+           노트북/PC에서는 7개가 다 보인다.
+           번호는 _DEST_OPTIONS 차례 그대로다 — 1 시장판단 · 2 자비스1 · 3 자비스2 ·
+           4 미국테마 · 5 한국테마 · 6 선행감지 · 7 종가관찰. 순서를 바꾸면 여기도 고친다.
+           게스트는 목록이 둘뿐이라 이 규칙이 안 걸리게 상자 이름을 따로 쓴다. */
         @media (max-width: 1200px) {
-            .st-key-entry_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(-n+3),
-            .st-key-entry_dest_choice [role="radiogroup"] > label[data-testid="stRadioOption"]:nth-child(n+6) {
+            .st-key-entry_dest_links > div:nth-child(-n+3),
+            .st-key-entry_dest_links > div:nth-child(n+6) {
                 display: none !important;
             }
         }
@@ -795,22 +814,29 @@ if st.query_params.get("page") != _JARVIS1_URL_MARK:
     )
     st.markdown(
         "<div class='jarvis-entry-title'>어디로 갈까요</div>"
-        "<div class='jarvis-entry-sub'>이미 로그인되어 있습니다. 비밀번호를 다시 넣지 않아도 됩니다.</div>",
+        "<div class='jarvis-entry-sub'>이미 로그인되어 있습니다. 비밀번호를 다시 넣지 않아도 됩니다. "
+        "가려는 곳을 누르면 바로 갑니다.</div>",
         unsafe_allow_html=True,
     )
-    _entry_options = _GUEST_DEST_OPTIONS if _is_guest_session() else _DEST_OPTIONS
-    _entry_default_index = 1 if _is_guest_session() else _DEST_DEFAULT_INDEX
-    _entry_dest = st.radio(
-        "갈 곳",
-        _entry_options,
-        index=_entry_default_index,
-        horizontal=True,
-        key="entry_dest_choice",
-        label_visibility="collapsed",
-    )
-    if st.button("이동", key="entry_go", use_container_width=True):
-        _go_to(_entry_dest)
-        st.rerun()
+    _entry_guest = _is_guest_session()
+    _entry_options = _GUEST_DEST_OPTIONS if _entry_guest else _DEST_OPTIONS
+    # 게스트 목록은 둘뿐이라 위 '앞 3개·뒤 2개 감추기'가 걸리면 안 된다 — 상자를 따로 쓴다.
+    _entry_box = st.container(key="entry_dest_guest" if _entry_guest else "entry_dest_links")
+    with _entry_box:
+        for _entry_name in _entry_options:
+            _entry_page = next(
+                (page for prefix, page in _DEST_PAGES.items() if _entry_name.startswith(prefix)),
+                None,
+            )
+            if _entry_page:
+                # 진짜 링크라 기록이 하나만 쌓인다(위 설명 참고).
+                st.page_link(_entry_page, label=_entry_name)
+                continue
+            # 자비스1은 옮겨 갈 페이지가 아니라 이 파일 자체라 링크가 없다.
+            # 예전처럼 단추로 두고, 주소에 표식만 남긴다.
+            if st.button(_entry_name, key="entry_go", use_container_width=True):
+                _go_to(_entry_name)
+                st.rerun()
     st.stop()
 
 # 로그인 화면에는 Streamlit과 정적 이미지밖에 필요하지 않다. 시세·뉴스·DB 모듈은

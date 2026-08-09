@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080910
+MODULE_REVISION = 2026080920
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 
@@ -30,9 +30,12 @@ BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 # switch_page는 브라우저 기록에 같은 주소를 하나 더 쌓아서, 폰 뒤로가기를 눌러도
 # 같은 화면이 한 번 더 나온다. 링크는 기록을 하나만 쌓아 뒤로가기가 바로 앞
 # 화면으로 간다.
+# 글자는 '지금 여기'가 아니라 '누르면 저기로 간다'라고 읽혀야 한다
+# (2026-08-09 상하님 지적 — 미국테마 맨 위에 '한국테마'라고만 있으니 지금 화면이
+# 한국테마인 줄 알았다). 그래서 '~로 가려면 클릭'까지 적는다.
 CROSS_PAGES = {
-    "US": ("pages/3_자비스4.py", "🇰🇷 한국테마"),
-    "KR": ("pages/2_자비스3.py", "🇺🇸 미국테마"),
+    "US": ("pages/3_자비스4.py", "🇰🇷 한국테마로 가려면 클릭"),
+    "KR": ("pages/2_자비스3.py", "🇺🇸 미국테마로 가려면 클릭"),
 }
 CLOSE_HINT = "다 읽으셨으면 오른쪽 ‘✕ 창닫기’를 누르십시오. 위 단추를 다시 눌러도 닫힙니다."
 
@@ -81,6 +84,14 @@ BUTTON_CSS = """
     font-weight: 800 !important;
     margin: 0 !important;
     white-space: nowrap !important;
+}
+/* 태극기·성조기만 조금 더 크게(2026-08-09 상하님 지시). 글자 전체를 키우면
+   단추가 길어져 폰에서 줄이 바뀌므로, 맨 앞 한 글자(깃발)만 키운다.
+   깃발 이모지는 두 글자가 붙어 한 글자로 그려지는데 ::first-letter는 그 덩어리를
+   통째로 잡는다. 안 먹는 브라우저에서는 그냥 지금 크기로 보일 뿐 깨지지 않는다. */
+.st-key-jarvis_cross_market a[data-testid="stPageLink-NavLink"] p::first-letter {
+    font-size: 1.5em;
+    line-height: 1;
 }
 div[class*="st-key-jarvis_method_help"] button {
     background: #cfe9ff !important;
