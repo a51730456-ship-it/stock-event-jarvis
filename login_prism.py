@@ -32,7 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 화면 구성이나 문구를 바꾸면 이 숫자를 올린다(CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080960
+MODULE_REVISION = 2026080970
 
 # 판을 누르면 이 표식을 달고 그 화면으로 간다. 받는 쪽(pages/*.py)이 이것을 보고
 # 비밀번호 없이 게스트로 들여보낸다. 게스트는 원래도 비밀번호 없이 들어갈 수 있으므로
@@ -232,7 +232,7 @@ CSS = """
    점선 토막을 밀면 토막의 앞뒤가 딱 끊겨서 뱀처럼 보인다. 아래 작은 띠와 같은
    방식으로 바꿨다 — **무지개 자체가 흐르고, 앞뒤는 투명으로 사라진다.**
    무지개 띠의 시작·끝을 오른쪽으로 밀어(x1·x2) 색이 통째로 흘러가게 한다. */
-.jp-wave-prism { filter: blur(9px); opacity: 1; }
+.jp-wave-prism { filter: blur(7px); opacity: 1; }
 
 
 /* ── 두 판이 올라오는 모습 ────────────────────────────────────────────────
@@ -326,12 +326,29 @@ CSS = """
     .st-key-jp_panels a[data-testid="stPageLink-NavLink"]::after { animation: none !important; }
 }
 
+/* 태블릿에서는 제목·빛줄기·판의 높이만 줄인다. 내용과 기능은 그대로 두고
+   아래 작은 프리즘이 첫 화면 안에 들어오도록 전체를 위로 당긴다. */
+@media (max-width: 1100px) {
+    .jp-stage { padding: .45rem 0 6.7rem; }
+    .jp-title {
+        font-size: clamp(1.6rem, 4.2vw, 2.25rem);
+        line-height: 1.12;
+        margin: 0 0 .25rem;
+    }
+    .jp-wave { height: 136px; }
+    .jp-sub { font-size: .9rem; margin-bottom: .9rem; }
+    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] { min-height: 13rem; }
+    .jp-hint { margin: .65rem 0 .8rem; }
+}
+
 /* 폰에서는 두 판을 위아래로 쌓는다. 옆으로 두면 한 판이 손가락 하나 폭이 된다.
-   퍼지는 방향도 위아래로 바꾼다 — 좌우로 밀면 화면 밖으로 나갔다 들어온다. */
-@media (max-width: 640px) {
-    /* 폰에서는 빛줄기 자리를 줄인다 — 첫 화면에서 판이 밀려 내려가면 안 된다. */
-    .jp-stage { padding-bottom: 6.4rem; }
-    .jp-wave { height: 128px; }
+   폰 전용 경계는 CLAUDE.md 규칙대로 600px이다. */
+@media (max-width: 600px) {
+    /* 제목과 빛줄기 자리를 함께 줄여 화면 전체를 위로 올린다. */
+    .jp-stage { padding: .2rem 0 4.8rem; }
+    .jp-title { font-size: 1.45rem; line-height: 1.1; margin: 0 0 .1rem; }
+    .jp-wave { height: 100px; }
+    .jp-sub { font-size: .84rem; margin-bottom: .65rem; }
     /* 폰에서는 판을 **위아래로 쌓는다.** 옆으로 두면 한 판이 156px이 되어 글자가
        잘렸다(2026-08-09 실측: 글자가 필요한 폭 216px). 스트림릿이 이 폭에서
        칸을 저절로 쌓아 주지 않으므로 여기서 직접 세운다. */
@@ -339,9 +356,11 @@ CSS = """
     .st-key-jp_panels [data-testid="stColumn"] {
         width: 100% !important; flex: 1 1 100% !important;
     }
-    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] { min-height: 9rem; }
+    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] { min-height: 8rem; }
     .st-key-jp_panels a[data-testid="stPageLink-NavLink"] p,
-    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] span { font-size: 1.3rem !important; }
+    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] span { font-size: 1.2rem !important; }
+    .jp-panel-note { font-size: .84rem; }
+    .jp-hint { font-size: .8rem; line-height: 1.45; margin: .55rem 0 .65rem; }
     /* 폰에서도 올라오는 방향은 같다 — 위아래로 쌓이므로 그대로 위로 밀려 올라온다. */
 }
 </style>
@@ -357,7 +376,7 @@ CSS = """
 _WAVE_PATH = ("M0,178 C150,150 260,86 430,96 C600,106 690,150 830,110 C960,74 1080,44 1200,26")
 
 WAVE_SVG = (
-    "<svg class='jp-wave' viewBox='0 0 1200 132' preserveAspectRatio='none'"
+    "<svg class='jp-wave' viewBox='0 0 1200 190' preserveAspectRatio='none'"
     " aria-hidden='true'>"
     "<defs>"
     # 흰 줄기도 **앞뒤가 투명**이라 양끝이 가늘게 사라진다.
@@ -369,18 +388,18 @@ WAVE_SVG = (
     "<stop offset='1' stop-color='#ffffff' stop-opacity='0'/>"
     "</linearGradient>"
     # 무지개 띠. **앞뒤가 투명**이라 양끝이 스르르 사라진다(뱀처럼 안 보인다).
-    # x1·x2를 왼쪽 밖에서 오른쪽 밖으로 밀어 **색이 통째로 흘러간다**.
+    # 화면 안에서 좌우로 천천히 왕복해, 처음과 주기 끝에도 무지개 일부가 보인다.
     "<linearGradient id='jpPrism' gradientUnits='userSpaceOnUse'"
-    " x1='-560' y1='0' x2='-60' y2='0'>"
+    " x1='-50' y1='0' x2='650' y2='0'>"
     "<stop offset='0' stop-color='#0358f7' stop-opacity='0'/>"
     "<stop offset='.14' stop-color='#0358f7' stop-opacity='.55'/>"
     "<stop offset='.34' stop-color='#e1e1fe' stop-opacity='1'/>"
     "<stop offset='.56' stop-color='#ffb005' stop-opacity='1'/>"
     "<stop offset='.80' stop-color='#fa3d1d' stop-opacity='.55'/>"
     "<stop offset='1' stop-color='#c679c4' stop-opacity='0'/>"
-    "<animate attributeName='x1' values='-560;1260' dur='14s'"
+    "<animate attributeName='x1' values='-50;550;-50' dur='20s'"
     " repeatCount='indefinite' calcMode='linear'/>"
-    "<animate attributeName='x2' values='-60;1760' dur='14s'"
+    "<animate attributeName='x2' values='650;1250;650' dur='20s'"
     " repeatCount='indefinite' calcMode='linear'/>"
     "</linearGradient>"
     "</defs>"
@@ -389,7 +408,7 @@ WAVE_SVG = (
     f"<path class='jp-wave-base' d='{_WAVE_PATH}' fill='none'"
     " stroke='url(#jpBeam)' stroke-width='7' stroke-linecap='round'/>"
     f"<path class='jp-wave-prism' d='{_WAVE_PATH}' fill='none'"
-    " stroke='url(#jpPrism)' stroke-width='7' stroke-linecap='round'/>"
+    " stroke='url(#jpPrism)' stroke-width='8' stroke-linecap='round'/>"
     "</svg>"
 )
 
@@ -475,9 +494,11 @@ def render_line(st) -> None:
 
 def render(st) -> None:
     """첫 화면의 프리즘 제목과 두 판. 누르면 비밀번호 없이 그 화면으로 간다."""
-    st.markdown(CSS, unsafe_allow_html=True)
+    # CSS와 제목을 한 번에 그린다. 따로 두 번 그리면 Streamlit이 빈 요소 간격을
+    # 하나 더 만들어 폰·태블릿에서 첫 화면 전체가 아래로 밀린다.
     st.markdown(
-        "<div class='jp-stage'>"
+        CSS
+        + "<div class='jp-stage'>"
         "<div class='jp-title'>Stock Event Jarvis</div>"
         + WAVE_SVG +
         "</div>"

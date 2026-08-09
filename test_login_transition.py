@@ -12,6 +12,7 @@ from streamlit.testing.v1 import AppTest
 ROOT = Path(__file__).parent
 SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
 VISUAL_SOURCE = (ROOT / "login_visual.py").read_text(encoding="utf-8")
+PRISM_SOURCE = (ROOT / "login_prism.py").read_text(encoding="utf-8")
 TRANSITION_SOURCE = SOURCE + VISUAL_SOURCE
 EARTH_PATH = ROOT / "assets" / "jarvis_earth.webp"
 TEST_PASSWORD = "jarvis-login-transition-test"
@@ -46,6 +47,22 @@ def _overlay_count(app):
 
 
 class LoginVisualContractTests(unittest.TestCase):
+    def test_prism_starts_colored_and_stays_compact_on_phone_and_tablet(self):
+        """첫 화면의 위 무지개와 작은 아래 프리즘이 한 화면 안에 보여야 한다."""
+        for marker in (
+            "@media (max-width: 1100px)",
+            "@media (max-width: 600px)",
+            ".jp-title { font-size: 1.45rem",
+            "viewBox='0 0 1200 190'",
+            "x1='-50' y1='0' x2='650'",
+            "values='-50;550;-50'",
+            "values='650;1250;650'",
+            "CSS\n        + \"<div class='jp-stage'>\"",
+        ):
+            self.assertIn(marker, PRISM_SOURCE)
+        self.assertNotIn("@media (max-width: 640px)", PRISM_SOURCE)
+        self.assertNotIn("viewBox='0 0 1200 132'", PRISM_SOURCE)
+
     def test_earth_is_1400px_local_webp_under_500kb(self):
         # 2026-07-23: 로그인 화면도 실사 지구(jarvis_earth.webp)를 쓰기로 해
         # 점 지구는 더 이상 앱에서 읽지 않는다. 텍스처는 한 장만 검사한다.
