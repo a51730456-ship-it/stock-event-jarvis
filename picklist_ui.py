@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026080910
+MODULE_REVISION = 2026080920
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -42,6 +42,7 @@ _COLUMNS = (
     ("price", "매수금액"),
     ("now_price", "지금 값"),
     ("profit_pct", "수익·손실"),
+    ("days_since", "지난 날수"),
     ("from_high_pct", "고점 대비"),
     ("judged_from_high_pct", "기준일 낙폭"),
     ("bucket_label", "낙폭 갈래"),
@@ -54,7 +55,7 @@ _COLUMNS = (
 # 매수일·매수금액·지금 값·수익률은 **네 갈래 모두** 앞쪽에 둔다(2026-08-09 상하님
 # 지시) — 그날 얼마에 샀고 그 뒤 얼마가 됐는지가 이 화면의 목적이다.
 _HEAD = ("rank", "trade_date", "name", "code", "score",
-         "price", "now_price", "profit_pct")
+         "price", "now_price", "profit_pct", "days_since")
 
 # 갈래마다 뜻이 없는 칸은 감춘다 — 빈 칸이 늘어서 있으면 표가 안 읽힌다.
 _KIND_COLUMNS = {
@@ -89,6 +90,7 @@ CSS = """
 /* 수익·손실은 이 표에서 가장 먼저 보여야 하는 칸이라 더 굵고 진하게 뽑는다.
    번 것은 초록, 잃은 것은 붉은색 — 위 '고점 대비'(파랑/빨강)와 색을 갈라
    두 칸이 서로 다른 것을 말한다는 것이 눈에 보이게 한다. */
+.pl-sameday { color: #9aa0aa; font-weight: 700; }
 .pl-profit-up { color: #22c55e; font-weight: 900; }
 .pl-profit-down { color: #ff4d4f; font-weight: 900; }
 .pl-table td.pl-c-profit_pct { font-size: .95rem; }
@@ -121,6 +123,11 @@ def _cell(row: dict, field: str) -> str:
         klass = "pl-up" if number >= 0 else "pl-down"
         return f"<span class='{klass}'>{number:+.2f}%</span>"
     if field == "profit_pct":
+        # 매수일 당일은 산 값과 지금 값이 같은 자리라 0%가 나온다. 그건 '본전'이
+        # 아니라 '아직 하루도 안 지났다'는 뜻이라 그렇게 적는다(2026-08-09 상하님
+        # 물음 "그다음날부터 수익률이 나와야 된다").
+        if row.get("days_since") == 0:
+            return "<span class='pl-sameday'>당일 (아직)</span>"
         number = float(value)
         klass = "pl-profit-up" if number >= 0 else "pl-profit-down"
         return f"<span class='{klass}'>{number:+.2f}%</span>"
@@ -128,6 +135,9 @@ def _cell(row: dict, field: str) -> str:
         return f"{float(value):.1f}"
     if field in ("price", "now_price"):
         return f"{float(value):,.2f}".rstrip("0").rstrip(".")
+    if field == "days_since":
+        days = int(float(value))
+        return "당일" if days == 0 else f"{days}일째"
     if field in ("rank", "wait_days", "hold_days"):
         return f"{int(float(value))}"
     if field == "name":
@@ -216,9 +226,12 @@ def render(st, market: str, *, toggle) -> None:
     st.markdown(
         "<div class='pl-note'>그날 화면에 떠 있던 목록을 <b>그대로</b> 옮겨 둔 것입니다. "
         "다시 계산하지 않으므로, 시간이 지난 뒤 그때 목록이 맞았는지 견줄 수 있습니다.<br>"
-        "<b>매수금액</b>은 그날 마감 뒤 찍은 값이고, <b>수익·손실</b>은 그 값과 "
+        "<b>매수금액</b>은 <b>그날 종가</b>이고, <b>수익·손실</b>은 그 값과 "
         "<b>지금 값</b>을 견준 것입니다. 실제로 사고팔았다는 뜻이 아니라 "
-        "<u>그날 목록이 그 뒤 어떻게 됐는지</u>를 보는 숫자입니다."
+        "<u>그날 목록이 그 뒤 어떻게 됐는지</u>를 보는 숫자입니다.<br>"
+        "매수일 당일은 잴 것이 없어 <b>‘당일 (아직)’</b>로 두고, "
+        "<b>다음 날부터</b> 숫자가 나옵니다. 날짜마다 매수금액이 따로 저장되므로 "
+        "같은 종목이 이튿날 또 나와도 <u>그날의 매수금액으로 따로 잽니다.</u>"
         "</div>",
         unsafe_allow_html=True,
     )

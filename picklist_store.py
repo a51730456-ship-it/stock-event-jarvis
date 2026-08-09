@@ -36,13 +36,13 @@ from __future__ import annotations
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
 # (CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080910
+MODULE_REVISION = 2026080920
 
 SCHEMA_VERSION = 1
 
@@ -388,8 +388,26 @@ def profit_pct(buy_price, now_price):
     return (now / buy - 1.0) * 100.0
 
 
-def with_profit(rows, prices) -> list[dict]:
-    """줄마다 '지금 값'과 '수익률'을 붙여 돌려준다. 원본은 안 바꾼다.
+def days_since(trade_date, today=None):
+    """매수일에서 며칠이 지났나. 못 세면 None.
+
+    **수익률은 다음 날부터 뜻이 생긴다.** 매수일 당일은 산 값과 지금 값이 같은
+    자리라 0%가 나오는데, 그게 '본전'이 아니라 '아직 하루도 안 지났다'는 뜻이다.
+    그 둘을 화면에서 가르려고 지난 날수를 같이 센다.
+    달력 날수다 — 거래일이 아니다. 주말이 끼면 그만큼 더 세어진다.
+    """
+    try:
+        start = date.fromisoformat(str(trade_date))
+    except (TypeError, ValueError):
+        return None
+    end = today or datetime.now(_SEOUL).date()
+    if isinstance(end, datetime):
+        end = end.date()
+    return (end - start).days
+
+
+def with_profit(rows, prices, *, today=None) -> list[dict]:
+    """줄마다 '지금 값'·'수익률'·'지난 날수'를 붙여 돌려준다. 원본은 안 바꾼다.
 
     prices : {종목코드: 지금 값}. 목록에 없는 종목은 빈칸으로 남는다
              (상장폐지·조회 실패 — 지어내지 않는다).
@@ -401,6 +419,7 @@ def with_profit(rows, prices) -> list[dict]:
         now = _num(prices.get(str(row.get("code") or "")))
         item["now_price"] = now
         item["profit_pct"] = profit_pct(row.get("price"), now)
+        item["days_since"] = days_since(row.get("trade_date"), today)
         out.append(item)
     return out
 

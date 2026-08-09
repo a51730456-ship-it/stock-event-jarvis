@@ -269,6 +269,69 @@ class ProfitTests(unittest.TestCase):
         self.assertIsNone(out[1]["now_price"])
 
 
+class DaysSinceTests(unittest.TestCase):
+    """수익률은 **다음 날부터** 뜻이 생긴다. 당일 0%는 '본전'이 아니다."""
+
+    def test_counts_calendar_days_from_the_buy_date(self):
+        from datetime import date as _date
+        self.assertEqual(store.days_since("2026-08-09", _date(2026, 8, 9)), 0)
+        self.assertEqual(store.days_since("2026-08-09", _date(2026, 8, 10)), 1)
+        self.assertEqual(store.days_since("2026-08-09", _date(2026, 8, 16)), 7)
+
+    def test_bad_date_is_none_not_zero(self):
+        self.assertIsNone(store.days_since("", None))
+        self.assertIsNone(store.days_since("어제", None))
+
+    def test_with_profit_marks_the_buy_day(self):
+        from datetime import date as _date
+        rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
+                                      trade_date="2026-08-09")
+        same = store.with_profit(rows, {"TSM": 210.5}, today=_date(2026, 8, 9))
+        later = store.with_profit(rows, {"TSM": 231.55}, today=_date(2026, 8, 16))
+        self.assertEqual(same[0]["days_since"], 0)
+        self.assertEqual(later[0]["days_since"], 7)
+        self.assertAlmostEqual(later[0]["profit_pct"], (231.55 / 210.5 - 1) * 100)
+
+
+class SeparateDaysTests(unittest.TestCase):
+    """날짜마다 매수금액이 따로 저장돼야 한다.
+
+    상하님 물음 — "그날 종가가 매번 매수 시점이니, 같은 종목이 이튿날 또 나와도
+    손익율만 달라지겠지." 그 말대로 되는지 굳혀 둔다.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_same_stock_on_two_days_keeps_two_buy_prices(self):
+        first = _crash_result()
+        second = {"ok": True, "rows": [dict(first["rows"][0])]}
+        second["rows"][0]["metrics"] = dict(second["rows"][0]["metrics"])
+        second["rows"][0]["metrics"]["current"] = 220.0   # 이튿날 종가
+
+        for day, result in (("2026-08-09", first), ("2026-08-10", second)):
+            rows = store.rows_from_result(result, market="US", list_kind="crash",
+                                          trade_date=day)
+            store.save_rows(rows, trade_date=day, market="US", out_dir=self.dir)
+
+        day1 = store.load_rows("2026-08-09", "US", out_dir=self.dir)
+        day2 = store.load_rows("2026-08-10", "US", out_dir=self.dir)
+        self.assertEqual(day1[0]["price"], 210.5)
+        self.assertEqual(day2[0]["price"], 220.0)
+
+        # 같은 지금 값(231.55)이라도 매수금액이 달라 손익률이 갈린다.
+        p1 = store.with_profit(day1, {"TSM": 231.55})[0]["profit_pct"]
+        p2 = store.with_profit(day2, {"TSM": 231.55})[0]["profit_pct"]
+        self.assertAlmostEqual(p1, (231.55 / 210.5 - 1) * 100)
+        self.assertAlmostEqual(p2, (231.55 / 220.0 - 1) * 100)
+        self.assertNotAlmostEqual(p1, p2)
+        # 두 날이 따로 남아 있어야 나중에 골라 볼 수 있다.
+        self.assertEqual(store.available_dates("US", out_dir=self.dir),
+                         ["2026-08-10", "2026-08-09"])
+
+
 class TradeDateTests(unittest.TestCase):
     def test_us_uses_the_new_york_date_not_the_seoul_one(self):
         """한국시각 새벽 6시에 미국장이 끝나면 서울 날짜는 이미 다음 날이다."""
