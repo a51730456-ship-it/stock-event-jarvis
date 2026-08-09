@@ -32,7 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 화면 구성이나 문구를 바꾸면 이 숫자를 올린다(CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080950
+MODULE_REVISION = 2026080960
 
 # 판을 누르면 이 표식을 달고 그 화면으로 간다. 받는 쪽(pages/*.py)이 이것을 보고
 # 비밀번호 없이 게스트로 들여보낸다. 게스트는 원래도 비밀번호 없이 들어갈 수 있으므로
@@ -228,16 +228,12 @@ CSS = """
 /* 세 겹이라 빛이 **퍼져** 보인다 — 넓은 번짐 · 중간 번짐 · 또렷한 심지. */
 .jp-wave-glow { filter: blur(26px); opacity: .55; }
 .jp-wave-base { filter: blur(9px); opacity: .8; }
-.jp-wave-prism {
-    filter: blur(7px); opacity: 1;
-    /* 색 있는 토막 420 + 빈칸 2400. 이 토막이 곡선을 따라 흘러간다. */
-    stroke-dasharray: 420 2400;
-    animation: jp-flow 14s linear infinite;
-}
-@keyframes jp-flow {
-    from { stroke-dashoffset: 420; }
-    to   { stroke-dashoffset: -2400; }
-}
+/* **점선을 밀지 않는다**(2026-08-09 상하님 지적 "뱀이 움직이는 것 같아 징그럽다").
+   점선 토막을 밀면 토막의 앞뒤가 딱 끊겨서 뱀처럼 보인다. 아래 작은 띠와 같은
+   방식으로 바꿨다 — **무지개 자체가 흐르고, 앞뒤는 투명으로 사라진다.**
+   무지개 띠의 시작·끝을 오른쪽으로 밀어(x1·x2) 색이 통째로 흘러가게 한다. */
+.jp-wave-prism { filter: blur(9px); opacity: 1; }
+
 
 /* ── 두 판이 올라오는 모습 ────────────────────────────────────────────────
    **왼쪽이 먼저 올라오고 오른쪽이 바로 뒤따라 올라온다**(2026-08-09 상하님 지시).
@@ -325,7 +321,7 @@ CSS = """
 
 /* 움직임을 싫어하는 설정을 켜 둔 사람에게는 돌리지 않는다. */
 @media (prefers-reduced-motion: reduce) {
-    .jp-title, .jp-wave-prism, .jp-wave,
+    .jp-title, .jp-wave,
     .st-key-jp_panels a[data-testid="stPageLink-NavLink"]::before,
     .st-key-jp_panels a[data-testid="stPageLink-NavLink"]::after { animation: none !important; }
 }
@@ -364,17 +360,28 @@ WAVE_SVG = (
     "<svg class='jp-wave' viewBox='0 0 1200 132' preserveAspectRatio='none'"
     " aria-hidden='true'>"
     "<defs>"
+    # 흰 줄기도 **앞뒤가 투명**이라 양끝이 가늘게 사라진다.
     "<linearGradient id='jpBeam' x1='0' y1='0' x2='1' y2='0'>"
     "<stop offset='0' stop-color='#ffffff' stop-opacity='0'/>"
-    "<stop offset='.28' stop-color='#dfe6f2' stop-opacity='.85'/>"
-    "<stop offset='.5' stop-color='#ffffff' stop-opacity='1'/>"
-    "<stop offset='.72' stop-color='#dfe6f2' stop-opacity='.85'/>"
+    "<stop offset='.16' stop-color='#dfe6f2' stop-opacity='.42'/>"
+    "<stop offset='.5' stop-color='#ffffff' stop-opacity='.92'/>"
+    "<stop offset='.84' stop-color='#dfe6f2' stop-opacity='.42'/>"
     "<stop offset='1' stop-color='#ffffff' stop-opacity='0'/>"
     "</linearGradient>"
-    "<linearGradient id='jpPrism' x1='0' y1='0' x2='1' y2='0'>"
-    "<stop offset='0' stop-color='#0358f7'/><stop offset='.28' stop-color='#e1e1fe'/>"
-    "<stop offset='.52' stop-color='#ffb005'/><stop offset='.76' stop-color='#fa3d1d'/>"
-    "<stop offset='1' stop-color='#c679c4'/>"
+    # 무지개 띠. **앞뒤가 투명**이라 양끝이 스르르 사라진다(뱀처럼 안 보인다).
+    # x1·x2를 왼쪽 밖에서 오른쪽 밖으로 밀어 **색이 통째로 흘러간다**.
+    "<linearGradient id='jpPrism' gradientUnits='userSpaceOnUse'"
+    " x1='-560' y1='0' x2='-60' y2='0'>"
+    "<stop offset='0' stop-color='#0358f7' stop-opacity='0'/>"
+    "<stop offset='.14' stop-color='#0358f7' stop-opacity='.55'/>"
+    "<stop offset='.34' stop-color='#e1e1fe' stop-opacity='1'/>"
+    "<stop offset='.56' stop-color='#ffb005' stop-opacity='1'/>"
+    "<stop offset='.80' stop-color='#fa3d1d' stop-opacity='.55'/>"
+    "<stop offset='1' stop-color='#c679c4' stop-opacity='0'/>"
+    "<animate attributeName='x1' values='-560;1260' dur='14s'"
+    " repeatCount='indefinite' calcMode='linear'/>"
+    "<animate attributeName='x2' values='-60;1760' dur='14s'"
+    " repeatCount='indefinite' calcMode='linear'/>"
     "</linearGradient>"
     "</defs>"
     f"<path class='jp-wave-glow' d='{_WAVE_PATH}' fill='none'"
@@ -382,7 +389,7 @@ WAVE_SVG = (
     f"<path class='jp-wave-base' d='{_WAVE_PATH}' fill='none'"
     " stroke='url(#jpBeam)' stroke-width='7' stroke-linecap='round'/>"
     f"<path class='jp-wave-prism' d='{_WAVE_PATH}' fill='none'"
-    " stroke='url(#jpPrism)' stroke-width='9' stroke-linecap='round'/>"
+    " stroke='url(#jpPrism)' stroke-width='7' stroke-linecap='round'/>"
     "</svg>"
 )
 
