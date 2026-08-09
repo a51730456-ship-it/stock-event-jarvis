@@ -432,6 +432,41 @@ st.markdown(
     .j4-fm-pair .j4-fm-stock:first-child .j4-fm-name { margin-top: 0; }
     /* 제목이 두 줄이 되면 한 줄짜리와 밑줄이 어긋났다(2026-07-25 사용자 지적).
        모두 같은 높이를 갖고 글자는 아래에 붙여 밑줄을 한 줄로 맞춘다. */
+    /* 코스피 고점 대비 한 줄 — 미국테마(j3-ndd)와 같은 모양이다(2026-08-09).
+       막대 한가운데가 전고점, 왼쪽 끝 고점 −25%, 오른쪽 끝 고점 +25%.
+       **글에 적히는 숫자는 코스피로 잰 값이다** — 나스닥 값을 옮겨 적지 않는다. */
+    .j4-ndd { border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
+        padding: .5rem .8rem; margin: .1rem 0 .6rem; background: rgba(255,255,255,.03);
+        transition: transform .12s ease-out, filter .12s ease-out; }
+    .j4-ndd:hover { transform: translateY(-3px); filter: brightness(1.1); }
+    .j4-ndd-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+    .j4-ndd-title { color: #c084fc; font-weight: 850; }
+    .j4-ndd-val { font-size: 1.45rem; font-weight: 900; }
+    .j4-ndd-state { font-size: .95rem; font-weight: 800; }
+    .j4-ndd-bar { position: relative; height: 10px; border-radius: 5px;
+        background: rgba(255,255,255,.10); margin: .35rem 0 .2rem; overflow: hidden; }
+    .j4-ndd-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px;
+        background: linear-gradient(90deg, #ffd166 0%, #44f0a1 100%);
+        transform-origin: left center; }
+    .j4-ndd-mark { position: absolute; top: -3px; bottom: -3px; width: 2px;
+        background: #ffffff; opacity: .85; }
+    .j4-ndd-center { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 3px;
+        margin-left: -1.5px; background: #c084fc; border-radius: 2px;
+        box-shadow: 0 0 6px rgba(192,132,252,.7); }
+    .j4-ndd-scale { display: flex; justify-content: space-between;
+        color: #8a9099; font-size: .78rem; font-weight: 700; margin-bottom: .25rem; }
+    .j4-ndd-scale-mid { color: #c084fc; }
+    .j4-ndd-note { color: #aeb6c2; font-size: .92rem; margin-top: .3rem; line-height: 1.55; }
+    .j4-ndd-key { color: #4da6ff; font-weight: 850; }
+    /* 손을 대면 막대가 왼쪽에서 다시 차오른다. 1.4초 — 0.55초는 너무 빨랐다
+       (2026-08-09 상하님 지적, 미국테마와 같은 값). */
+    @keyframes j4-ndd-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .j4-ndd:hover .j4-ndd-fill, .j4-ndd:active .j4-ndd-fill {
+        animation: j4-ndd-grow 1.4s cubic-bezier(.33,0,.2,1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .j4-ndd:hover .j4-ndd-fill, .j4-ndd:active .j4-ndd-fill { animation: none; }
+    }
     .j4-th-head { display: flex; align-items: flex-end; justify-content: center;
         min-height: 3.1rem; text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
         padding: 0.45rem 0 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.22); }
@@ -705,6 +740,13 @@ import picklist_ui
 _REQUIRED_PICKLIST_REVISION = 2026080910
 if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
     picklist_ui = importlib.reload(picklist_ui)
+
+import scroll_to
+
+# 종목을 누르면 상세 자리로 화면을 내려 주는 장치(2026-08-09).
+_REQUIRED_SCROLL_REVISION = 2026080910
+if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
+    scroll_to = importlib.reload(scroll_to)
 import regime_gauge_ui
 import jarvis4_data as j4data
 import jarvis4_store as j4store
@@ -1217,6 +1259,7 @@ def _render_market_overview() -> None:
     st.markdown(f"<style>{gauge_ui.CSS}{fear_greed_ui.CSS}</style>",
                 unsafe_allow_html=True)
     st.markdown(f"<div class='j4-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
+    _render_kospi_drawdown()
     # 게이지 그림과 바로 아래 조건점수 설명 단추가 붙어 보이지 않게 한 줄 띄운다.
     st.markdown("<div class='j4-gauge-after-gap' style='height:18px'></div>", unsafe_allow_html=True)
     # 긴 설명은 접어 둔다 — 폰·태블릿에서 이 글이 첫 화면을 다 먹었다
@@ -1258,6 +1301,64 @@ def _render_market_overview() -> None:
     st.caption(
         f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'} · 1분 자동 갱신 · "
         "네이버·FinanceDataReader 조회이므로 지연될 수 있음"
+    )
+
+
+def _render_kospi_drawdown() -> None:
+    """코스피가 고점에서 얼마나 내려와 있나 — 한 줄 (2026-08-09 상하님 지적).
+
+    미국테마에는 2026-08-01부터 나스닥용으로 있었는데 한국테마에는 없었다.
+    **나스닥 숫자를 그대로 옮겨 적지 않는다** — 다른 시장 자료라 화면이 거짓말을
+    하게 된다. 아래 글은 코스피 12년치로 잰 값이다(docs/KR_RULE_BACKTEST.md ·
+    CURRENT_STATUS 4장 ⓪-2).
+
+    막대 규칙은 미국테마와 같다 — **한가운데가 전고점**이고, 왼쪽 끝이 고점 −25%,
+    오른쪽 끝이 고점 +25%다. 문턱 눈금은 이 화면의 급락 갈래가 실제로 쓰는
+    −15%(jarvis4_data.CRASH_MARKET_DROP) 자리에 선다.
+    """
+    state = j4data.kr_crash_market_state()
+    if not state.get("ok"):
+        return
+    pct = state.get("drop_pct")
+    if pct is None:
+        return
+    pct = float(pct)
+    entry = float(state.get("threshold") or -15.0)
+    # **눈금 폭이 미국(25%)과 다르다.** 한국은 훨씬 깊게 빠진다 — 2026-08-09 실측으로
+    # 코스피가 고점 대비 −31.3%였는데, 25% 자로 재면 막대가 0이 돼 '자료 없음'처럼
+    # 보였다. 그래서 40%로 넓힌다. 그래도 넘치면 왼쪽 끝에 실 한 오라기는 남긴다.
+    span, center = 40.0, 50.0
+    fill = max(2.0, min(100.0, center + (pct / span) * center))
+    mark = max(0.0, min(100.0, center + (entry / span) * center))
+    armed = bool(state.get("armed"))
+    headline = "전고점 위" if pct > 0 else "코스피 고점 대비"
+    if armed:
+        label, color = "급락 국면", "#ff9d3b"
+    elif pct <= -8:
+        label, color = "조정 중", "#ffd166"
+    else:
+        label, color = "고점 근처", "#44f0a1"
+    st.markdown(
+        "<div class='j4-ndd'>"
+        f"<div class='j4-ndd-head'><b class='j4-ndd-title'>{headline}</b> "
+        f"<span class='j4-ndd-val' style='color:{_sign_color(pct)}'>{pct:+.1f}%</span> "
+        f"<span class='j4-ndd-state' style='color:{color}'>{label}</span></div>"
+        f"<div class='j4-ndd-bar'><span class='j4-ndd-fill' style='width:{fill:.1f}%'></span>"
+        f"<span class='j4-ndd-mark' style='left:{mark:.1f}%'></span>"
+        "<span class='j4-ndd-center'></span></div>"
+        "<div class='j4-ndd-scale'><span>고점 −40%</span>"
+        "<span class='j4-ndd-scale-mid'>전고점</span><span>고점 +40%</span></div>"
+        "<div class='j4-ndd-note'><span class='j4-ndd-key'>코스피 12년치</span>로 재 보니 "
+        "가장 나았던 자리는 <span class='j4-ndd-key'>고점 대비 −12~−18%</span>였습니다"
+        "(지수 100번 중 63번 · 앞 6년 55번 → 뒤 6년 77번). "
+        "<span class='j4-ndd-key'>미국의 주력인 −6~−12%는 한국에서 기준선보다 못했습니다</span>"
+        "(종목 49.6번, 아무 종목이나 사면 53.0번). "
+        f"이 화면의 급락 갈래는 <span class='j4-ndd-key'>{abs(entry):.0f}% 아래</span>부터 켜집니다 "
+        "— 눈금이 그 자리입니다. "
+        "얼마나 자주 오나 — −6~−12% 0.8년에 한 번 · −12~−18% 1.4년 · −18~−24% 2.1년 · "
+        "−24% 아래 4.2년."
+        "</div></div>",
+        unsafe_allow_html=True,
     )
 
 
@@ -2164,6 +2265,8 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
     metrics, plan, flow = leader["metrics"], leader["plan"], leader["flow"]
 
     st.divider()
+    # 종목을 누르면 화면이 여기로 내려온다(2026-08-09 상하님 지시).
+    scroll_to.anchor(st, f"detail_{panel}")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
     # 파트마다 따로 기억하므로 테마 상세만 열고 눌림목 상세는 닫아 둘 수 있다.
     if not _section_toggle(
@@ -2950,6 +3053,7 @@ def _render_radar_tab(market: dict) -> None:
         for opened in ("j4_detail_open_theme", "j4_intraday_open_theme",
                        "j4_bundle_open_theme", "j4_leadercmp_open"):
             st.session_state[opened] = True
+        scroll_to.request(st, "detail_theme")
         st.rerun()
 
     _render_leader_comparison(leaders)
@@ -2973,6 +3077,7 @@ def _render_radar_tab(market: dict) -> None:
             for opened in ("j4_detail_open_theme", "j4_intraday_open_theme",
                            "j4_bundle_open_theme", "j4_leadercmp_open"):
                 st.session_state[opened] = True
+            scroll_to.request(st, "detail_theme")
 
         selected_code = st.radio(
             "상세 종목 선택",
@@ -3095,6 +3200,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             for opened in ("j4_detail_open_top7", "j4_intraday_open_top7",
                            "j4_bundle_open_top7"):
                 st.session_state[opened] = True
+            scroll_to.request(st, "detail_top7")
         score = float(row.get("score") or 0)
         cols[2].markdown(
             "<div class='j4-td'><div class='j4-barwrap'><div class='j4-bar'>"
@@ -3142,6 +3248,8 @@ def _render_top_reviewed_detail(market: dict) -> None:
     if leader is None:
         return
     theme_name = (picked.get("sources") or picked.get("themes") or ["—"])[0]
+    # 순위 7은 제 이름의 자리를 따로 갖는다(자비스3와 같은 이유).
+    scroll_to.anchor(st, "detail_top7")
     st.markdown(
         f"<div class='j4-section-title'>순위 7에서 고른 종목 · {leader['name']}</div>",
         unsafe_allow_html=True,
@@ -3530,6 +3638,8 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             for opened in ("j4_detail_open_pullback", "j4_intraday_open_pullback",
                            "j4_bundle_open_pullback"):
                 st.session_state[opened] = True
+            # 열기만 하면 그 자리가 화면 한참 아래라 직접 굴려야 했다(2026-08-09).
+            scroll_to.request(st, "detail_pullback")
         price_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             " line-height:1.12; font-weight:800; color:#e6e6e6'>"
@@ -3915,6 +4025,7 @@ def _render_pullback_finder() -> None:
             for opened in ("j4_detail_open_pullback", "j4_intraday_open_pullback",
                            "j4_bundle_open_pullback"):
                 st.session_state[opened] = True
+            scroll_to.request(st, "detail_pullback")
             # rerun을 부르지 않는다 — 눌림목 상세는 이 함수 다음(_render_pullback_detail)에
             # 그려지므로 지금 넣은 값이 그대로 쓰인다. rerun을 부르면 화면을 통째로 한 번
             # 더 그려 종목 하나 고르는 데 시간이 두 배가 된다(2026-07-30, 순위7 표와 같은 이유).
@@ -4056,6 +4167,8 @@ def main() -> None:
         mobile_ui.page_css(),
         unsafe_allow_html=True,
     )
+    # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).
+    st.markdown(scroll_to.CSS, unsafe_allow_html=True)
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
     method_help.render(st, "KR")
     # 맨 위 제목은 뺐다(2026-07-30 사용자 지시) — 사이드바에 같은 이름이 있고
@@ -4093,3 +4206,5 @@ def main() -> None:
 
 
 main()
+# 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
+scroll_to.run(st)

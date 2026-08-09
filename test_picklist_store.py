@@ -235,6 +235,40 @@ class DownloadTests(unittest.TestCase):
         self.assertIn("급락 후 반등장 (낙폭종목) 2", store.summarize(rows))
 
 
+class ProfitTests(unittest.TestCase):
+    """산 값과 지금 값을 견주는 자리. 저장된 값은 절대 안 바뀐다."""
+
+    def test_plain_gain_and_loss(self):
+        self.assertAlmostEqual(store.profit_pct(100, 110), 10.0)
+        self.assertAlmostEqual(store.profit_pct(100, 90), -10.0)
+        self.assertAlmostEqual(store.profit_pct(200, 200), 0.0)
+
+    def test_unmeasurable_stays_empty_not_zero(self):
+        """0%는 '본전'이라는 뜻이다. 못 잰 것을 0으로 적으면 둘이 섞인다."""
+        self.assertIsNone(store.profit_pct(None, 100))
+        self.assertIsNone(store.profit_pct(100, None))
+        self.assertIsNone(store.profit_pct(0, 100))     # 0으로 나눌 수 없다
+        self.assertIsNone(store.profit_pct(-5, 100))    # 값이 음수일 리 없다
+
+    def test_with_profit_never_changes_the_saved_numbers(self):
+        rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
+                                      trade_date="2026-08-09")
+        before = store.to_json(rows)
+        out = store.with_profit(rows, {"TSM": 231.55})
+        # 원본은 그대로여야 한다 — 그날 목록이 나중에 바뀌면 견줄 것이 없어진다.
+        self.assertEqual(before, store.to_json(rows))
+        self.assertAlmostEqual(out[0]["profit_pct"], (231.55 / 210.5 - 1) * 100)
+        self.assertEqual(out[0]["now_price"], 231.55)
+
+    def test_missing_price_leaves_the_row_blank(self):
+        """상장폐지·조회 실패한 종목은 빈칸이다. 지어내지 않는다."""
+        rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
+                                      trade_date="2026-08-09")
+        out = store.with_profit(rows, {"TSM": 231.55})
+        self.assertIsNone(out[1]["profit_pct"])
+        self.assertIsNone(out[1]["now_price"])
+
+
 class TradeDateTests(unittest.TestCase):
     def test_us_uses_the_new_york_date_not_the_seoul_one(self):
         """한국시각 새벽 6시에 미국장이 끝나면 서울 날짜는 이미 다음 날이다."""

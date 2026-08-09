@@ -370,6 +370,41 @@ def to_excel_bytes(rows):
         return None
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# 그 뒤로 얼마나 됐나 — 저장된 값은 건드리지 않고 견주기만 한다
+# ──────────────────────────────────────────────────────────────────────────
+
+def profit_pct(buy_price, now_price):
+    """산 값 대비 지금 값이 몇 %인가. 못 재면 None.
+
+    **저장된 값을 고치지 않는다.** 매수금액은 그날 찍힌 그대로 두고, 지금 값과
+    견주기만 한다. 그래야 나중에 다시 봐도 그날 목록이 그대로다.
+    0으로 나누는 자리(값이 0이거나 없는 종목)는 None으로 둔다 — 0%로 적으면
+    '본전'이라는 뜻이 돼서 안 잰 것과 구별되지 않는다.
+    """
+    buy, now = _num(buy_price), _num(now_price)
+    if buy is None or now is None or buy <= 0:
+        return None
+    return (now / buy - 1.0) * 100.0
+
+
+def with_profit(rows, prices) -> list[dict]:
+    """줄마다 '지금 값'과 '수익률'을 붙여 돌려준다. 원본은 안 바꾼다.
+
+    prices : {종목코드: 지금 값}. 목록에 없는 종목은 빈칸으로 남는다
+             (상장폐지·조회 실패 — 지어내지 않는다).
+    """
+    prices = prices or {}
+    out = []
+    for row in rows:
+        item = dict(row)
+        now = _num(prices.get(str(row.get("code") or "")))
+        item["now_price"] = now
+        item["profit_pct"] = profit_pct(row.get("price"), now)
+        out.append(item)
+    return out
+
+
 def summarize(rows) -> str:
     """'눌림목 8 · 상승장 20' 처럼 그날 몇 줄이 남았는지 한 줄로."""
     counts: dict[str, int] = {}

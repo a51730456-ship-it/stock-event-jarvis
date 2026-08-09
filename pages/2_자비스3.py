@@ -293,10 +293,13 @@ st.markdown(
     .j3-ndd-scale-mid { color: #c084fc; }
     /* 손을 대면 막대가 **왼쪽에서 오른쪽으로 다시 차오른다**(2026-08-09 지시).
        길이(width)가 아니라 scaleX를 쓰므로 값이 얼마든 같은 규칙 하나로 된다.
-       손가락으로 눌렀을 때도 돌게 :active를 같이 둔다 — 폰은 hover가 없다. */
+       손가락으로 눌렀을 때도 돌게 :active를 같이 둔다 — 폰은 hover가 없다.
+       0.55초는 **너무 빨랐다**(2026-08-09 상하님 지적). 1.4초로 늦추고, 끝에서
+       급히 멈추지 않게 ease-in-out으로 바꿨다 — 차오르는 과정이 눈에 보여야
+       '어디까지 왔나'가 읽힌다. */
     @keyframes j3-ndd-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
     .j3-ndd:hover .j3-ndd-fill, .j3-ndd:active .j3-ndd-fill {
-        animation: j3-ndd-grow .55s cubic-bezier(.22,1,.36,1);
+        animation: j3-ndd-grow 1.4s cubic-bezier(.33,0,.2,1);
     }
     @media (prefers-reduced-motion: reduce) {
         .j3-ndd:hover .j3-ndd-fill, .j3-ndd:active .j3-ndd-fill { animation: none; }
@@ -917,6 +920,13 @@ import picklist_ui
 _REQUIRED_PICKLIST_REVISION = 2026080910
 if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
     picklist_ui = importlib.reload(picklist_ui)
+
+import scroll_to
+
+# 종목을 누르면 상세 자리로 화면을 내려 주는 장치(2026-08-09).
+_REQUIRED_SCROLL_REVISION = 2026080910
+if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
+    scroll_to = importlib.reload(scroll_to)
 import regime_gauge_ui
 import jarvis3_data as j3data
 import jarvis3_store as j3store
@@ -2166,6 +2176,8 @@ def _render_stock_detail(
     metrics, plan = leader["metrics"], leader["plan"]
 
     st.divider()
+    # 종목을 누르면 화면이 여기로 내려온다(2026-08-09 상하님 지시).
+    scroll_to.anchor(st, f"detail_{panel}")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시, 한국테마와 같다).
     if not _section_toggle(
         "🔎 선택종목 세부사항 보기", f"j3_detail_open_{panel}",
@@ -2642,6 +2654,7 @@ def _render_radar_tab(market: dict) -> None:
         for opened in ("j3_detail_open_theme", "j3_intraday_open_theme",
                        "j3_bundle_open_theme", "j3_leadercmp_open"):
             st.session_state[opened] = True
+        scroll_to.request(st, "detail_theme")
         st.rerun()
 
     _render_leader_comparison(leaders)
@@ -2659,6 +2672,7 @@ def _render_radar_tab(market: dict) -> None:
             for opened in ("j3_detail_open_theme", "j3_intraday_open_theme",
                            "j3_bundle_open_theme", "j3_leadercmp_open"):
                 st.session_state[opened] = True
+            scroll_to.request(st, "detail_theme")
 
         selected_ticker = st.radio(
             "상세 종목 선택",
@@ -2896,6 +2910,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
                            "j3_detail_open_pullback", "j3_bundle_open_pullback",
                            "j3_intraday_open_pullback"):
                 st.session_state[opened] = True
+            scroll_to.request(st, "detail_top7")
         score = float(row.get("score") or 0)
         cols[2].markdown(
             "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
@@ -2946,6 +2961,9 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
     picked = st.session_state.get("j3_top7_pick_row")
     if not picked:
         return
+    # 순위 7은 제 이름의 자리를 따로 갖는다 — 안에서 눌림목 상세를 다시 그릴 때
+    # 같은 이름이 두 번 생겨 위쪽(갈래 표 밑) 자리로 잘못 내려가는 것을 막는다.
+    scroll_to.anchor(st, "detail_top7")
     st.markdown(
         f"<div class='j3-section-title'>순위 7에서 고른 종목 · "
         f"{html.escape(str(picked.get('name') or picked.get('ticker') or ''))}</div>",
@@ -3119,6 +3137,8 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
     """
     ticker = str(row.get("ticker") or "")
+    # 종목을 누르면 화면이 여기로 내려온다(2026-08-09 상하님 지시).
+    scroll_to.anchor(st, "detail_pullback")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
     if not _section_toggle(
         "🔎 선택종목 세부사항 보기", "j3_detail_open_pullback",
@@ -3855,6 +3875,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
                            "j3_bundle_open_pullback"):
                 st.session_state[opened] = True
+            # 열기만 하면 그 자리가 화면 한참 아래라 직접 굴려야 했다(2026-08-09).
+            scroll_to.request(st, "detail_pullback")
             st.rerun()
         if row.get("ticker") == selected_ticker:
             selected_css.append(
@@ -4127,6 +4149,7 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
             for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
                            "j3_bundle_open_pullback"):
                 st.session_state[opened] = True
+            scroll_to.request(st, "detail_pullback")
             st.rerun()
         if row.get("ticker") == selected_ticker:
             selected_css.append(
@@ -4427,6 +4450,8 @@ def main() -> None:
         mobile_ui.page_css(),
         unsafe_allow_html=True,
     )
+    # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).
+    st.markdown(scroll_to.CSS, unsafe_allow_html=True)
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
     # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
     method_help.render(st, "US")
@@ -4461,3 +4486,5 @@ def main() -> None:
 
 
 main()
+# 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
+scroll_to.run(st)

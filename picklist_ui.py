@@ -13,8 +13,12 @@
 from __future__ import annotations
 
 import html
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import picklist_store as store
+
+_SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
 MODULE_REVISION = 2026080910
@@ -31,10 +35,13 @@ def open_key(market: str) -> str:
 # 화면에서는 눈으로 읽을 것만 남긴다 — 칸 이름이 곧 그 칸의 질문이다.
 _COLUMNS = (
     ("rank", "순위"),
+    ("trade_date", "매수일"),
     ("name", "종목명"),
     ("code", "티커·종목코드"),
     ("score", "점수"),
-    ("price", "그날 값"),
+    ("price", "매수금액"),
+    ("now_price", "지금 값"),
+    ("profit_pct", "수익·손실"),
     ("from_high_pct", "고점 대비"),
     ("judged_from_high_pct", "기준일 낙폭"),
     ("bucket_label", "낙폭 갈래"),
@@ -44,15 +51,18 @@ _COLUMNS = (
     ("themes", "테마"),
 )
 
+# 매수일·매수금액·지금 값·수익률은 **네 갈래 모두** 앞쪽에 둔다(2026-08-09 상하님
+# 지시) — 그날 얼마에 샀고 그 뒤 얼마가 됐는지가 이 화면의 목적이다.
+_HEAD = ("rank", "trade_date", "name", "code", "score",
+         "price", "now_price", "profit_pct")
+
 # 갈래마다 뜻이 없는 칸은 감춘다 — 빈 칸이 늘어서 있으면 표가 안 읽힌다.
 _KIND_COLUMNS = {
-    "pullback": ("rank", "name", "code", "score", "price", "from_high_pct",
-                 "wait_days", "state", "themes"),
-    "breakout": ("rank", "name", "code", "score", "price", "from_high_pct",
-                 "wait_days", "hold_days", "themes"),
-    "crash": ("rank", "name", "code", "score", "price", "judged_from_high_pct",
-              "from_high_pct", "bucket_label", "hold_days", "themes"),
-    "top7": ("rank", "name", "code", "score", "price", "state", "themes"),
+    "pullback": _HEAD + ("from_high_pct", "wait_days", "state", "themes"),
+    "breakout": _HEAD + ("from_high_pct", "wait_days", "hold_days", "themes"),
+    "crash": _HEAD + ("judged_from_high_pct", "from_high_pct", "bucket_label",
+                      "hold_days", "themes"),
+    "top7": _HEAD + ("state", "themes"),
 }
 
 CSS = """
@@ -76,6 +86,12 @@ CSS = """
 .pl-theme { color: #9dccff !important; }
 .pl-up { color: #4da6ff; font-weight: 700; }
 .pl-down { color: #ff5b5b; font-weight: 700; }
+/* 수익·손실은 이 표에서 가장 먼저 보여야 하는 칸이라 더 굵고 진하게 뽑는다.
+   번 것은 초록, 잃은 것은 붉은색 — 위 '고점 대비'(파랑/빨강)와 색을 갈라
+   두 칸이 서로 다른 것을 말한다는 것이 눈에 보이게 한다. */
+.pl-profit-up { color: #22c55e; font-weight: 900; }
+.pl-profit-down { color: #ff4d4f; font-weight: 900; }
+.pl-table td.pl-c-profit_pct { font-size: .95rem; }
 .pl-kind { color: #ffb020; font-weight: 800; font-size: 1.02rem; margin: 1rem 0 .35rem; }
 .pl-note { color: #9aa0aa; font-size: .88rem; line-height: 1.6; margin: .2rem 0 .8rem; }
 .pl-note b { color: #44f0a1; }
@@ -98,14 +114,19 @@ div[class*="st-key-btn_picklist_archive_open"] button p {
 def _cell(row: dict, field: str) -> str:
     value = row.get(field)
     if value in (None, ""):
+        # 수익률만은 왜 비었는지 알려 준다 — 아직 안 쟀는지, 못 쟀는지가 다르다.
         return "—"
     if field in ("from_high_pct", "judged_from_high_pct"):
         number = float(value)
         klass = "pl-up" if number >= 0 else "pl-down"
         return f"<span class='{klass}'>{number:+.2f}%</span>"
+    if field == "profit_pct":
+        number = float(value)
+        klass = "pl-profit-up" if number >= 0 else "pl-profit-down"
+        return f"<span class='{klass}'>{number:+.2f}%</span>"
     if field == "score":
         return f"{float(value):.1f}"
-    if field == "price":
+    if field in ("price", "now_price"):
         return f"{float(value):,.2f}".rstrip("0").rstrip(".")
     if field in ("rank", "wait_days", "hold_days"):
         return f"{int(float(value))}"
@@ -135,6 +156,43 @@ def table_html(rows, kind: str) -> str:
     )
 
 
+def fetch_prices(market: str, codes) -> dict:
+    """종목마다 '지금 값'을 모아 온다. 못 받은 종목은 목록에서 빠진다.
+
+    화면이 이미 쓰는 `get_live_quote`를 그대로 부른다 — 여기서 시세를 새로
+    계산하지 않는다. 한 종목이 실패해도 나머지는 그대로 온다.
+
+    종목이 마흔 개쯤이라 하나씩 부르면 오래 걸린다. 서로를 기다릴 필요가 없으므로
+    한꺼번에 부른다. 일꾼은 6개로 묶어 둔다 — 온라인은 코어가 한두 개뿐이라
+    무작정 늘리면 오히려 느려진다(2026-07-30에 겪은 자리).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    codes = [str(code) for code in dict.fromkeys(codes) if str(code).strip()]
+    if not codes:
+        return {}
+    if str(market).upper() == "US":
+        import jarvis3_data as data
+    else:
+        import jarvis4_data as data
+
+    def _one(code):
+        try:
+            quote = data.get_live_quote(code)
+        except Exception:
+            return code, None
+        if not isinstance(quote, dict) or not quote.get("ok"):
+            return code, None
+        return code, quote.get("current")
+
+    out = {}
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for code, price in pool.map(_one, codes):
+            if price is not None:
+                out[code] = price
+    return out
+
+
 def render(st, market: str, *, toggle) -> None:
     """'저장된 목록 보기' 구역 전체.
 
@@ -157,7 +215,10 @@ def render(st, market: str, *, toggle) -> None:
 
     st.markdown(
         "<div class='pl-note'>그날 화면에 떠 있던 목록을 <b>그대로</b> 옮겨 둔 것입니다. "
-        "다시 계산하지 않으므로, 시간이 지난 뒤 그때 목록이 맞았는지 견줄 수 있습니다."
+        "다시 계산하지 않으므로, 시간이 지난 뒤 그때 목록이 맞았는지 견줄 수 있습니다.<br>"
+        "<b>매수금액</b>은 그날 마감 뒤 찍은 값이고, <b>수익·손실</b>은 그 값과 "
+        "<b>지금 값</b>을 견준 것입니다. 실제로 사고팔았다는 뜻이 아니라 "
+        "<u>그날 목록이 그 뒤 어떻게 됐는지</u>를 보는 숫자입니다."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -169,7 +230,26 @@ def render(st, market: str, *, toggle) -> None:
         st.warning(f"{picked} 자료를 읽지 못했습니다.")
         return
 
-    st.caption(f"{picked} · {store.summarize(rows)}")
+    # 지금 값은 눌러야 받아 온다 — 목록 한 판이 마흔 종목이라 화면을 그릴 때마다
+    # 받아 오면 이 구역을 여는 데만 몇 초가 걸린다(2026-08-09). 한 번 받아 두면
+    # 그 날짜에 대해서는 이 자리에 남아, 다른 것을 눌러도 다시 받지 않는다.
+    cache_key = f"picklist_prices_{market}_{picked}"
+    fetched_at_key = f"{cache_key}_at"
+    if st.button("💰 지금 값으로 수익·손실 계산", key=f"picklist_calc_{market}"):
+        with st.spinner(f"{picked} 목록 {len({row.get('code') for row in rows})}종목의 지금 값을 받는 중입니다…"):
+            st.session_state[cache_key] = fetch_prices(
+                market, [row.get("code") for row in rows])
+        st.session_state[fetched_at_key] = datetime.now(_SEOUL).strftime("%H:%M")
+    prices = st.session_state.get(cache_key) or {}
+    if prices:
+        rows = store.with_profit(rows, prices)
+
+    fetched_at = st.session_state.get(fetched_at_key)
+    st.caption(
+        f"{picked} · {store.summarize(rows)}"
+        + (f" · 지금 값 {fetched_at} 기준({len(prices)}종목)" if fetched_at
+           else " · 수익·손실은 위 단추를 누르면 채워집니다")
+    )
 
     excel = store.to_excel_bytes(rows)
     columns = st.columns(2)
