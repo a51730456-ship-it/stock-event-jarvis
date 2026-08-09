@@ -65,7 +65,18 @@ jobs:
           echo "한국시각 $(TZ=Asia/Seoul date +'%m-%d %H:%M') · $MARKET 목록을 찍습니다"
 
       - name: 목록 찍기
-        run: python picklist_collector.py --market "${{ steps.plan.outputs.market }}"
+        # **한 번 실패하면 5분 뒤에 다시 한다.** 미국은 yfinance를 쓰는데 클라우드
+        # IP가 잠깐 거절당하는 일이 있다(이 저장소에서 겪은 적 있다). 잠깐 막힌 것
+        # 때문에 그날 목록이 통째로 비면 나중에 성적을 잴 자료에 구멍이 난다.
+        # 두 번째도 실패하면 작업이 빨갛게 뜬다 — 조용히 빈 날이 쌓이는 것보다 낫다.
+        run: |
+          MARKET="${{ steps.plan.outputs.market }}"
+          if python picklist_collector.py --market "$MARKET"; then
+            exit 0
+          fi
+          echo "첫 시도 실패 — 5분 뒤 한 번 더 합니다"
+          sleep 300
+          python picklist_collector.py --market "$MARKET"
 
       - name: 저장소에 올리기
         if: always()
