@@ -32,7 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 화면 구성이나 문구를 바꾸면 이 숫자를 올린다(CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080970
+MODULE_REVISION = 2026080980
 
 # 판을 누르면 이 표식을 달고 그 화면으로 간다. 받는 쪽(pages/*.py)이 이것을 보고
 # 비밀번호 없이 게스트로 들여보낸다. 게스트는 원래도 비밀번호 없이 들어갈 수 있으므로
@@ -341,27 +341,40 @@ CSS = """
     .jp-hint { margin: .65rem 0 .8rem; }
 }
 
-/* 폰에서는 두 판을 위아래로 쌓는다. 옆으로 두면 한 판이 손가락 하나 폭이 된다.
-   폰 전용 경계는 CLAUDE.md 규칙대로 600px이다. */
+/* 폰에서도 태블릿처럼 미국·한국 두 판을 왼쪽·오른쪽 한 줄로 둔다.
+   폭이 좁은 만큼 판·국기·글자만 함께 줄인다(2026-08-09 상하님 지시). */
 @media (max-width: 600px) {
     /* 제목과 빛줄기 자리를 함께 줄여 화면 전체를 위로 올린다. */
     .jp-stage { padding: .2rem 0 4.8rem; }
     .jp-title { font-size: 1.45rem; line-height: 1.1; margin: 0 0 .1rem; }
     .jp-wave { height: 100px; }
     .jp-sub { font-size: .84rem; margin-bottom: .65rem; }
-    /* 폰에서는 판을 **위아래로 쌓는다.** 옆으로 두면 한 판이 156px이 되어 글자가
-       잘렸다(2026-08-09 실측: 글자가 필요한 폭 216px). 스트림릿이 이 폭에서
-       칸을 저절로 쌓아 주지 않으므로 여기서 직접 세운다. */
-    .st-key-jp_panels [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
-    .st-key-jp_panels [data-testid="stColumn"] {
-        width: 100% !important; flex: 1 1 100% !important;
+    /* 두 판을 한 줄에 고정한다. 각 칸은 같은 폭으로 줄어들 수 있어야 한다. */
+    .st-key-jp_panels [data-testid="stHorizontalBlock"] {
+        flex-direction: row !important;
+        gap: .55rem !important;
     }
-    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] { min-height: 8rem; }
+    .st-key-jp_panels [data-testid="stColumn"] {
+        width: 0 !important; flex: 1 1 0 !important; min-width: 0 !important;
+    }
+    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] {
+        min-height: 7.4rem;
+        padding: .65rem .55rem !important;
+        border-radius: .8rem !important;
+    }
     .st-key-jp_panels a[data-testid="stPageLink-NavLink"] p,
-    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] span { font-size: 1.2rem !important; }
-    .jp-panel-note { font-size: .84rem; }
+    .st-key-jp_panels a[data-testid="stPageLink-NavLink"] span {
+        font-size: .98rem !important;
+    }
+    /* panel_style()이 뒤에서 국기 크기를 정하므로 더 구체적인 선택자로 덮는다. */
+    .st-key-jp_panels [class*="st-key-jp_panel_"]
+    a[data-testid="stPageLink-NavLink"] p {
+        background-size: auto 1.25rem !important;
+        padding-left: 2.15rem !important;
+    }
+    .jp-panel-note { font-size: .72rem; line-height: 1.35; margin-top: .2rem; }
     .jp-hint { font-size: .8rem; line-height: 1.45; margin: .55rem 0 .65rem; }
-    /* 폰에서도 올라오는 방향은 같다 — 위아래로 쌓이므로 그대로 위로 밀려 올라온다. */
+    /* 판이 올라오는 순서·차트 움직임·누르면 이동하는 기능은 그대로다. */
 }
 </style>
 """
