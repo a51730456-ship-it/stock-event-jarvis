@@ -42,9 +42,9 @@ from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
 # (CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080920
+MODULE_REVISION = 2026080930
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 _NEW_YORK = ZoneInfo("America/New_York")
@@ -74,7 +74,12 @@ FIELDS = (
     "themes",                # 소속 테마 (여럿이면 ' · '로 잇는다)
     "score",                 # 그 갈래가 순위를 매긴 점수
     "stock_score",           # 종목 조건점수 (순위 7이 쓰는 점수)
-    "price",                 # 그날 값 — 나중에 성적을 재는 출발점
+    "price",                 # 신호일 종가 — 신호가 난 그날의 값
+    # **실제로 사는 값은 다음 거래일 시가다**(설명서 규칙, 2026-08-09 상하님 지시).
+    # 신호가 난 날에는 아직 모르는 값이라 빈칸으로 저장되고, 다음 날 이후에
+    # 화면에서 '계산' 단추를 누를 때 그날 시가를 찾아 채운다. 한 번 채워지면
+    # 다시는 안 바뀐다 — 과거의 시가는 고정된 사실이다.
+    "buy_open",              # 다음 거래일 시가 — 진짜 매수금액
     "change_pct",            # 그날 등락
     "from_high_pct",         # 고점 대비 (상승장에서는 '눌린 하락율')
     "judged_from_high_pct",  # 기준일 낙폭 — 급락 갈래가 갈래를 정하는 값
@@ -90,7 +95,7 @@ FIELDS = (
 )
 
 _NUMBER_FIELDS = {
-    "rank", "score", "stock_score", "price", "change_pct", "from_high_pct",
+    "rank", "score", "stock_score", "price", "buy_open", "change_pct", "from_high_pct",
     "judged_from_high_pct", "wait_days", "hold_days", "together_count",
     "recent_gain_pct", "schema",
 }
@@ -165,6 +170,8 @@ def normalize_row(row: dict, *, market: str, list_kind: str,
         "score": _num(_first(row, "score", ("pullback", "score"))),
         "stock_score": _num(_first(row, "stock_score", ("plan", "score"))),
         "price": _num(_first(row, ("metrics", "current"), "current", "price")),
+        # 신호가 난 날에는 다음 거래일 시가를 알 수 없다. 나중에 채운다.
+        "buy_open": _num(_first(row, "buy_open")),
         "change_pct": _num(_first(row, ("metrics", "change_pct"), "change_pct")),
         "from_high_pct": _num(_first(
             row, ("metrics", "from_high_pct"), ("pullback", "from_high_pct"),
@@ -406,8 +413,30 @@ def days_since(trade_date, today=None):
     return (end - start).days
 
 
+def set_buy_opens(rows, opens) -> list[dict]:
+    """다음 거래일 시가를 채워 준다. **이미 채워진 줄은 건드리지 않는다.**
+
+    과거의 시가는 고정된 사실이다. 한 번 적힌 값을 다시 덮으면 자료원이 바뀔 때
+    옛 손익률이 조용히 달라진다.
+    """
+    opens = opens or {}
+    out = []
+    for row in rows:
+        item = dict(row)
+        if _num(item.get("buy_open")) is None:
+            item["buy_open"] = _num(opens.get(str(row.get("code") or "")))
+        out.append(item)
+    return out
+
+
 def with_profit(rows, prices, *, today=None) -> list[dict]:
     """줄마다 '지금 값'·'수익률'·'지난 날수'를 붙여 돌려준다. 원본은 안 바꾼다.
+
+    **무엇을 산 값으로 보나 — 다음 거래일 시가다.** 설명서의 규칙이 "종가를
+    확인하고 다음 거래일 시가에 산다"이므로, 신호일 종가가 아니라 그 다음 날
+    시가와 견뎌야 실제로 살 수 있었던 값이 된다(2026-08-09 상하님 지시).
+    시가를 아직 못 채운 줄은 **수익률을 내지 않는다** — 종가로 대신 재면 반나절
+    이른 값이라 실제보다 좋아 보이거나 나빠 보인다.
 
     prices : {종목코드: 지금 값}. 목록에 없는 종목은 빈칸으로 남는다
              (상장폐지·조회 실패 — 지어내지 않는다).
@@ -417,8 +446,9 @@ def with_profit(rows, prices, *, today=None) -> list[dict]:
     for row in rows:
         item = dict(row)
         now = _num(prices.get(str(row.get("code") or "")))
+        buy = _num(item.get("buy_open"))
         item["now_price"] = now
-        item["profit_pct"] = profit_pct(row.get("price"), now)
+        item["profit_pct"] = profit_pct(buy, now)
         item["days_since"] = days_since(row.get("trade_date"), today)
         out.append(item)
     return out

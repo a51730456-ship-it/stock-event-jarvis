@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026080920
+MODULE_REVISION = 2026080930
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -39,7 +39,8 @@ _COLUMNS = (
     ("name", "종목명"),
     ("code", "티커·종목코드"),
     ("score", "점수"),
-    ("price", "매수금액"),
+    ("price", "신호일 종가"),
+    ("buy_open", "매수금액 (다음날 시가)"),
     ("now_price", "지금 값"),
     ("profit_pct", "수익·손실"),
     ("days_since", "지난 날수"),
@@ -55,7 +56,7 @@ _COLUMNS = (
 # 매수일·매수금액·지금 값·수익률은 **네 갈래 모두** 앞쪽에 둔다(2026-08-09 상하님
 # 지시) — 그날 얼마에 샀고 그 뒤 얼마가 됐는지가 이 화면의 목적이다.
 _HEAD = ("rank", "trade_date", "name", "code", "score",
-         "price", "now_price", "profit_pct", "days_since")
+         "price", "buy_open", "now_price", "profit_pct", "days_since")
 
 # 갈래마다 뜻이 없는 칸은 감춘다 — 빈 칸이 늘어서 있으면 표가 안 읽힌다.
 _KIND_COLUMNS = {
@@ -115,25 +116,28 @@ div[class*="st-key-btn_picklist_archive_open"] button p {
 
 def _cell(row: dict, field: str) -> str:
     value = row.get(field)
+    # 수익·손실과 매수금액은 **왜 비었는지**를 알려 준다. 그냥 '—'로 두면
+    # '아직 살 때가 안 됐다'와 '못 받아 왔다'가 구별되지 않는다(2026-08-09).
+    if field in ("profit_pct", "buy_open") and value in (None, ""):
+        days = row.get("days_since")
+        if days == 0:
+            return "<span class='pl-sameday'>아직 안 삼</span>"
+        if row.get("now_price") in (None, "") and field == "profit_pct":
+            return "—"
+        return "<span class='pl-sameday'>못 받음</span>"
     if value in (None, ""):
-        # 수익률만은 왜 비었는지 알려 준다 — 아직 안 쟀는지, 못 쟀는지가 다르다.
         return "—"
     if field in ("from_high_pct", "judged_from_high_pct"):
         number = float(value)
         klass = "pl-up" if number >= 0 else "pl-down"
         return f"<span class='{klass}'>{number:+.2f}%</span>"
     if field == "profit_pct":
-        # 매수일 당일은 산 값과 지금 값이 같은 자리라 0%가 나온다. 그건 '본전'이
-        # 아니라 '아직 하루도 안 지났다'는 뜻이라 그렇게 적는다(2026-08-09 상하님
-        # 물음 "그다음날부터 수익률이 나와야 된다").
-        if row.get("days_since") == 0:
-            return "<span class='pl-sameday'>당일 (아직)</span>"
         number = float(value)
         klass = "pl-profit-up" if number >= 0 else "pl-profit-down"
         return f"<span class='{klass}'>{number:+.2f}%</span>"
     if field == "score":
         return f"{float(value):.1f}"
-    if field in ("price", "now_price"):
+    if field in ("price", "buy_open", "now_price"):
         return f"{float(value):,.2f}".rstrip("0").rstrip(".")
     if field == "days_since":
         days = int(float(value))
@@ -203,6 +207,63 @@ def fetch_prices(market: str, codes) -> dict:
     return out
 
 
+def fetch_buy_opens(market: str, rows) -> dict:
+    """줄마다 **다음 거래일 시가**를 찾아 온다. 못 찾으면 목록에서 빠진다.
+
+    설명서의 규칙이 "종가를 확인하고 다음 거래일 시가에 산다"이므로, 실제로 살 수
+    있었던 값은 신호일 다음 거래일의 시가다(2026-08-09 상하님 지시).
+
+    `price_data.get_ohlc_history_for_chart`는 **차트 전용 읽기 함수**다 — 점수
+    계산과 무관하고, 조회에 실패하면 예외 대신 None을 준다. 그래서 여기서 쓴다.
+    (price_data는 고치지 않는다. 읽기만 한다 — CLAUDE.md 2번.)
+
+    주말·공휴일이 끼면 다음 거래일이 며칠 뒤일 수 있어 2주치를 받아 그중
+    **신호일보다 뒤에 있는 첫 거래일**의 시가를 쓴다.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import date as _date, timedelta
+
+    import price_data
+
+    wanted = {}
+    for row in rows:
+        code = str(row.get("code") or "")
+        if not code or store._num(row.get("buy_open")) is not None:
+            continue     # 이미 채워진 줄은 다시 찾지 않는다
+        wanted[code] = str(row.get("trade_date") or "")
+    if not wanted:
+        return {}
+
+    def _one(item):
+        code, day = item
+        try:
+            start = _date.fromisoformat(day)
+        except (TypeError, ValueError):
+            return code, None
+        try:
+            frame = price_data.get_ohlc_history_for_chart(
+                code, start.isoformat(), (start + timedelta(days=16)).isoformat())
+        except Exception:
+            return code, None
+        if frame is None or getattr(frame, "empty", True) or "Open" not in frame:
+            return code, None
+        try:
+            for stamp, bar in frame.iterrows():
+                if getattr(stamp, "date", lambda: stamp)() > start:
+                    value = float(bar["Open"])
+                    return code, (value if value == value and value > 0 else None)
+        except Exception:
+            return code, None
+        return code, None      # 아직 다음 거래일이 오지 않았다
+
+    out = {}
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for code, value in pool.map(_one, wanted.items()):
+            if value is not None:
+                out[code] = value
+    return out
+
+
 def render(st, market: str, *, toggle) -> None:
     """'저장된 목록 보기' 구역 전체.
 
@@ -226,12 +287,14 @@ def render(st, market: str, *, toggle) -> None:
     st.markdown(
         "<div class='pl-note'>그날 화면에 떠 있던 목록을 <b>그대로</b> 옮겨 둔 것입니다. "
         "다시 계산하지 않으므로, 시간이 지난 뒤 그때 목록이 맞았는지 견줄 수 있습니다.<br>"
-        "<b>매수금액</b>은 <b>그날 종가</b>이고, <b>수익·손실</b>은 그 값과 "
-        "<b>지금 값</b>을 견준 것입니다. 실제로 사고팔았다는 뜻이 아니라 "
-        "<u>그날 목록이 그 뒤 어떻게 됐는지</u>를 보는 숫자입니다.<br>"
-        "매수일 당일은 잴 것이 없어 <b>‘당일 (아직)’</b>로 두고, "
-        "<b>다음 날부터</b> 숫자가 나옵니다. 날짜마다 매수금액이 따로 저장되므로 "
-        "같은 종목이 이튿날 또 나와도 <u>그날의 매수금액으로 따로 잽니다.</u>"
+        "<b>매수금액은 신호가 난 날의 <u>다음 거래일 시가</u></b>입니다 — 설명서의 "
+        "규칙이 ‘종가를 확인하고 다음 거래일 시가에 산다’이기 때문입니다. "
+        "<b>수익·손실</b>은 그 시가와 <b>지금 값</b>을 견준 것입니다.<br>"
+        "신호가 난 날에는 아직 살 수 없으므로 <b>‘아직 안 삼’</b>으로 두고, "
+        "<b>다음 거래일부터</b> 숫자가 나옵니다. 날짜마다 따로 저장되므로 같은 종목이 "
+        "이튿날 또 나와도 <u>그날의 매수금액으로 따로 잽니다.</u><br>"
+        "실제로 사고팔았다는 뜻이 아니라 <u>그날 목록이 그 뒤 어떻게 됐는지</u>를 "
+        "보는 숫자입니다."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -243,25 +306,37 @@ def render(st, market: str, *, toggle) -> None:
         st.warning(f"{picked} 자료를 읽지 못했습니다.")
         return
 
-    # 지금 값은 눌러야 받아 온다 — 목록 한 판이 마흔 종목이라 화면을 그릴 때마다
-    # 받아 오면 이 구역을 여는 데만 몇 초가 걸린다(2026-08-09). 한 번 받아 두면
-    # 그 날짜에 대해서는 이 자리에 남아, 다른 것을 눌러도 다시 받지 않는다.
+    # 눌러야 받아 온다 — 목록 한 판이 마흔 종목이라 화면을 그릴 때마다 받아 오면
+    # 이 구역을 여는 데만 몇 초가 걸린다(2026-08-09).
     cache_key = f"picklist_prices_{market}_{picked}"
     fetched_at_key = f"{cache_key}_at"
     if st.button("💰 지금 값으로 수익·손실 계산", key=f"picklist_calc_{market}"):
-        with st.spinner(f"{picked} 목록 {len({row.get('code') for row in rows})}종목의 지금 값을 받는 중입니다…"):
+        count = len({row.get("code") for row in rows})
+        with st.spinner(f"{picked} 목록 {count}종목의 매수 시가와 지금 값을 받는 중입니다…"):
+            # ① 아직 안 채운 줄의 **다음 거래일 시가**를 찾아 파일에 적어 둔다.
+            #    한 번 적히면 다시는 안 바뀐다 — 과거의 시가는 고정된 사실이다.
+            opens = fetch_buy_opens(market, rows)
+            if opens:
+                rows = store.set_buy_opens(rows, opens)
+                try:
+                    store.save_rows(rows, trade_date=picked, market=market)
+                except Exception:
+                    pass      # 못 적어도 화면 숫자는 그대로 나온다
+            # ② 지금 값
             st.session_state[cache_key] = fetch_prices(
                 market, [row.get("code") for row in rows])
         st.session_state[fetched_at_key] = datetime.now(_SEOUL).strftime("%H:%M")
+        rows = store.load_rows(picked, market)
     prices = st.session_state.get(cache_key) or {}
     if prices:
         rows = store.with_profit(rows, prices)
 
     fetched_at = st.session_state.get(fetched_at_key)
+    filled = sum(1 for row in rows if store._num(row.get("buy_open")) is not None)
     st.caption(
         f"{picked} · {store.summarize(rows)}"
-        + (f" · 지금 값 {fetched_at} 기준({len(prices)}종목)" if fetched_at
-           else " · 수익·손실은 위 단추를 누르면 채워집니다")
+        + (f" · 지금 값 {fetched_at} 기준({len(prices)}종목) · 매수 시가 {filled}줄"
+           if fetched_at else " · 수익·손실은 위 단추를 누르면 채워집니다")
     )
 
     excel = store.to_excel_bytes(rows)

@@ -250,20 +250,44 @@ class ProfitTests(unittest.TestCase):
         self.assertIsNone(store.profit_pct(0, 100))     # 0으로 나눌 수 없다
         self.assertIsNone(store.profit_pct(-5, 100))    # 값이 음수일 리 없다
 
-    def test_with_profit_never_changes_the_saved_numbers(self):
+    def test_profit_is_measured_from_the_next_day_open_not_the_close(self):
+        """설명서 규칙 — 종가를 보고 **다음 거래일 시가**에 산다(2026-08-09 지시).
+
+        신호일 종가로 재면 반나절 이른 값이라 실제로 살 수 없었던 자리가 된다.
+        """
         rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
                                       trade_date="2026-08-09")
         before = store.to_json(rows)
-        out = store.with_profit(rows, {"TSM": 231.55})
-        # 원본은 그대로여야 한다 — 그날 목록이 나중에 바뀌면 견줄 것이 없어진다.
+        filled = store.set_buy_opens(rows, {"TSM": 214.0})    # 다음날 시가
+        out = store.with_profit(filled, {"TSM": 231.55})
+        # 원본은 그대로여야 한다.
         self.assertEqual(before, store.to_json(rows))
-        self.assertAlmostEqual(out[0]["profit_pct"], (231.55 / 210.5 - 1) * 100)
+        # 종가(210.5)가 아니라 시가(214.0) 기준이다.
+        self.assertAlmostEqual(out[0]["profit_pct"], (231.55 / 214.0 - 1) * 100)
+        self.assertNotAlmostEqual(out[0]["profit_pct"], (231.55 / 210.5 - 1) * 100)
         self.assertEqual(out[0]["now_price"], 231.55)
+
+    def test_no_open_yet_means_no_profit_number(self):
+        """시가를 아직 모르면 수익률을 내지 않는다 — 종가로 대신 재지 않는다."""
+        rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
+                                      trade_date="2026-08-09")
+        out = store.with_profit(rows, {"TSM": 231.55})
+        self.assertIsNone(out[0]["profit_pct"])
+        self.assertEqual(out[0]["now_price"], 231.55)
+
+    def test_a_filled_open_is_never_overwritten(self):
+        """과거의 시가는 고정된 사실이다. 자료원이 바뀌어도 옛 손익률이 흔들리면 안 된다."""
+        rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
+                                      trade_date="2026-08-09")
+        once = store.set_buy_opens(rows, {"TSM": 214.0})
+        twice = store.set_buy_opens(once, {"TSM": 999.0})
+        self.assertEqual(twice[0]["buy_open"], 214.0)
 
     def test_missing_price_leaves_the_row_blank(self):
         """상장폐지·조회 실패한 종목은 빈칸이다. 지어내지 않는다."""
         rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
                                       trade_date="2026-08-09")
+        rows = store.set_buy_opens(rows, {"TSM": 214.0, "AMD": 152.0})
         out = store.with_profit(rows, {"TSM": 231.55})
         self.assertIsNone(out[1]["profit_pct"])
         self.assertIsNone(out[1]["now_price"])
@@ -286,11 +310,12 @@ class DaysSinceTests(unittest.TestCase):
         from datetime import date as _date
         rows = store.rows_from_result(_crash_result(), market="US", list_kind="crash",
                                       trade_date="2026-08-09")
+        rows = store.set_buy_opens(rows, {"TSM": 214.0})
         same = store.with_profit(rows, {"TSM": 210.5}, today=_date(2026, 8, 9))
         later = store.with_profit(rows, {"TSM": 231.55}, today=_date(2026, 8, 16))
         self.assertEqual(same[0]["days_since"], 0)
         self.assertEqual(later[0]["days_since"], 7)
-        self.assertAlmostEqual(later[0]["profit_pct"], (231.55 / 210.5 - 1) * 100)
+        self.assertAlmostEqual(later[0]["profit_pct"], (231.55 / 214.0 - 1) * 100)
 
 
 class SeparateDaysTests(unittest.TestCase):
@@ -321,11 +346,13 @@ class SeparateDaysTests(unittest.TestCase):
         self.assertEqual(day1[0]["price"], 210.5)
         self.assertEqual(day2[0]["price"], 220.0)
 
-        # 같은 지금 값(231.55)이라도 매수금액이 달라 손익률이 갈린다.
+        # 같은 지금 값(231.55)이라도 **그날의 다음날 시가**가 달라 손익률이 갈린다.
+        day1 = store.set_buy_opens(day1, {"TSM": 214.0})
+        day2 = store.set_buy_opens(day2, {"TSM": 222.5})
         p1 = store.with_profit(day1, {"TSM": 231.55})[0]["profit_pct"]
         p2 = store.with_profit(day2, {"TSM": 231.55})[0]["profit_pct"]
-        self.assertAlmostEqual(p1, (231.55 / 210.5 - 1) * 100)
-        self.assertAlmostEqual(p2, (231.55 / 220.0 - 1) * 100)
+        self.assertAlmostEqual(p1, (231.55 / 214.0 - 1) * 100)
+        self.assertAlmostEqual(p2, (231.55 / 222.5 - 1) * 100)
         self.assertNotAlmostEqual(p1, p2)
         # 두 날이 따로 남아 있어야 나중에 골라 볼 수 있다.
         self.assertEqual(store.available_dates("US", out_dir=self.dir),
