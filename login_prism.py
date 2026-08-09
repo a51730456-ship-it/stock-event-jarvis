@@ -32,7 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 화면 구성이나 문구를 바꾸면 이 숫자를 올린다(CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080930
+MODULE_REVISION = 2026080940
 
 # 판을 누르면 이 표식을 달고 그 화면으로 간다. 받는 쪽(pages/*.py)이 이것을 보고
 # 비밀번호 없이 게스트로 들여보낸다. 게스트는 원래도 비밀번호 없이 들어갈 수 있으므로
@@ -161,16 +161,14 @@ def _panel_background(market: str) -> str:
         kind = "png" if photo.suffix == ".png" else "jpeg"
         return ("linear-gradient(180deg, rgba(4,6,14,.30), rgba(4,6,14,.78)), "
                 "url('data:image/%s;base64,%s')" % (kind, data))
-    chart = 'url("%s")' % chart_url(market)
+    # 주식 그림은 여기 넣지 않는다 — ::before에 따로 넣어야 **그림만** 움직인다.
     if market == "US":
         # 미국은 파랑·보라 쪽. 프리즘의 차가운 절반이다.
-        return (chart + ","
-                "radial-gradient(120% 90% at 22% 18%, rgba(3,88,247,.42), transparent 60%),"
+        return ("radial-gradient(120% 90% at 22% 18%, rgba(3,88,247,.42), transparent 60%),"
                 "radial-gradient(110% 80% at 82% 78%, rgba(198,121,196,.34), transparent 62%),"
                 "linear-gradient(150deg, #070b18 0%, #0d1430 52%, #070a16 100%)")
     # 한국은 주홍·호박 쪽. 프리즘의 따뜻한 절반이다.
-    return (chart + ","
-            "radial-gradient(120% 90% at 24% 20%, rgba(250,61,29,.34), transparent 60%),"
+    return ("radial-gradient(120% 90% at 24% 20%, rgba(250,61,29,.34), transparent 60%),"
             "radial-gradient(110% 80% at 80% 76%, rgba(255,176,5,.32), transparent 62%),"
             "linear-gradient(150deg, #14070a 0%, #2a1108 52%, #120609 100%)")
 
@@ -209,52 +207,32 @@ CSS = """
 .jp-sub { text-align: center; color: #9aa0aa; font-size: .96rem; margin-bottom: 1.5rem; }
 .jp-sub b { color: #c9d1dc; font-weight: 800; }
 
-/* ── 빛 띠와 그 위를 흘러가는 프리즘 조각 ────────────────────────────────
-   상하님이 찍어 주신 영상을 프레임으로 뜯어 보고 만들었다(2026-08-09).
-   **띠는 흰빛이고, 무지개 조각 하나가 그 띠를 따라 천천히 흘러간다.**
+/* ── 눕힌 S자 빛줄기와 그 위를 흘러가는 프리즘 ───────────────────────────
+   곧은 막대였던 것을 **눕혀 놓은 S자 곡선**으로 바꿨다(2026-08-09 상하님 지시).
+   상하님이 보여 주신 octolane.com도 곧은 선이 아니라 굽이치는 줄기였다.
 
-   **처음 판은 아예 안 보였다**(상하님 태블릿 캡처). 굵기 3px에 흐림 9px이라
-   제목 글자 뒤에 묻혔다. 그래서 셋을 고쳤다 —
-     ① 제목 **아래**로 내렸다. 글자 뒤에 두면 글자가 가린다.
-     ② 굵기를 3px → 5px, 흐림을 9px → 7px로. 가늘고 많이 흐리면 사라진다.
-     ③ 띠 뒤에 **넓은 번짐(jp-glow)** 을 한 겹 깔았다. 빛이 번지는 자리가 있어야
-        띠가 '빛'으로 보인다. */
-.jp-stage { position: relative; padding: 1.2rem 0 3.6rem; overflow: hidden; }
-.jp-glow, .jp-band, .jp-prism {
-    position: absolute; left: -16%; right: -16%; pointer-events: none;
-    animation: jp-drift 18s ease-in-out infinite alternate;
+   움직이는 방법도 저쪽과 같게 했다 — 저쪽 코드의 `beam-life`가 선을 점선으로
+   만들어 그 **점선 자리를 밀어(stroke-dashoffset)** 빛이 흐르게 한다. 여기서도
+   무지개 줄기를 '색 있는 한 토막 + 긴 빈칸'으로 만들고 그 토막을 곡선을 따라
+   밀어 준다. 그래서 굽이를 따라 빛이 흘러간다. */
+/* 줄기가 제목 글자를 가로지르지 않게 아래를 넉넉히 비운다. 처음에는 겹쳐서
+   글자 위로 빛줄기가 지나갔다(2026-08-09 실측: 제목 y110~174, 줄기 y118~250). */
+.jp-stage { position: relative; padding: 1.2rem 0 7.4rem; overflow: hidden; }
+.jp-wave {
+    position: absolute; left: -6%; right: -6%; bottom: .3rem;
+    width: 112%; height: 120px; pointer-events: none;
 }
-/* 넓게 번지는 바탕 빛 */
-.jp-glow {
-    bottom: 1.1rem; height: 86px;
-    background: radial-gradient(60% 100% at 50% 50%, rgba(150,170,210,.30), transparent 72%);
-    filter: blur(20px);
+.jp-wave-glow { filter: blur(16px); opacity: .5; }
+.jp-wave-base { filter: blur(5px); opacity: .85; }
+.jp-wave-prism {
+    filter: blur(4px); opacity: 1;
+    /* 색 있는 토막 320 + 빈칸 2200. 이 토막이 곡선을 따라 흘러간다. */
+    stroke-dasharray: 320 2200;
+    animation: jp-flow 14s linear infinite;
 }
-/* 빛 띠 본체 */
-.jp-band {
-    bottom: 2.5rem; height: 5px;
-    background: linear-gradient(90deg, transparent 0%, rgba(190,202,224,.55) 18%,
-        rgba(255,255,255,.95) 42%, rgba(190,202,224,.55) 66%, transparent 88%);
-    filter: blur(7px); opacity: .95;
-}
-/* 무지개 조각. 띠 길이의 40%만 색이고 나머지는 투명이라, 이 조각이 왼쪽 밖에서
-   오른쪽 밖으로 흘러간다. 14초에 한 번 — 상하님 말씀대로 **은은하게**. */
-.jp-prism {
-    bottom: 2.5rem; height: 5px;
-    background-image: linear-gradient(90deg, transparent 0%, #0358f7 14%, #e1e1fe 36%,
-        #ffb005 62%, #fa3d1d 86%, transparent 100%);
-    background-size: 42% 100%; background-repeat: no-repeat;
-    filter: blur(8px); opacity: 1;
-    animation: jp-drift 18s ease-in-out infinite alternate,
-               jp-prism-travel 14s linear infinite;
-}
-@keyframes jp-prism-travel {
-    from { background-position: -46% 0; }
-    to   { background-position: 146% 0; }
-}
-@keyframes jp-drift {
-    from { transform: translateY(-7px) skewY(-.9deg) scaleX(1); }
-    to   { transform: translateY(9px) skewY(.9deg) scaleX(1.06); }
+@keyframes jp-flow {
+    from { stroke-dashoffset: 320; }
+    to   { stroke-dashoffset: -2200; }
 }
 
 /* ── 두 판이 올라오는 모습 ────────────────────────────────────────────────
@@ -293,9 +271,33 @@ CSS = """
                 border-color .18s ease-out !important;
 }
 .st-key-jp_panels a[data-testid="stPageLink-NavLink"]:hover {
-    transform: translateY(-4px);
-    border-color: rgba(255,255,255,.34) !important;
-    box-shadow: 0 16px 44px rgba(0,0,0,.55);
+    /* 손을 올리면 **판이 살짝 떠오른다**(2026-08-09 상하님 지시). 4px은 티가 안 나
+       9px로 키우고 그림자도 같이 깊게 준다. */
+    transform: translateY(-9px);
+    border-color: rgba(255,255,255,.42) !important;
+    box-shadow: 0 22px 54px rgba(0,0,0,.6);
+}
+/* 판 안의 주식 그림. 배경에 깔지 않고 따로 떼어 놓았다 — 그래야 **그림만**
+   위아래로 움직일 수 있다(2026-08-09 상하님 지시 "차트가 위로 움직이는 것처럼").
+   평소에는 9초에 걸쳐 아주 조금 떠올랐다 내려가고, 손을 올리면 더 크게 올라온다. */
+.st-key-jp_panels a[data-testid="stPageLink-NavLink"]::before {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -6%;
+    height: 78%;
+    background-repeat: no-repeat;
+    background-position: center bottom;
+    background-size: 118% auto;
+    opacity: .92; pointer-events: none;
+    animation: jp-chart-rise 9s ease-in-out infinite alternate;
+    transition: transform .25s ease-out, opacity .25s ease-out;
+}
+@keyframes jp-chart-rise {
+    from { transform: translateY(6px); }
+    to   { transform: translateY(-6px); }
+}
+.st-key-jp_panels a[data-testid="stPageLink-NavLink"]:hover::before {
+    animation: none;
+    transform: translateY(-16px) scale(1.04);
+    opacity: 1;
 }
 /* 판 위를 프리즘 한 줄이 천천히 지나간다 — 손을 안 올려도 살아 있게 보인다. */
 .st-key-jp_panels a[data-testid="stPageLink-NavLink"]::after {
@@ -319,13 +321,17 @@ CSS = """
 
 /* 움직임을 싫어하는 설정을 켜 둔 사람에게는 돌리지 않는다. */
 @media (prefers-reduced-motion: reduce) {
-    .jp-title, .jp-glow, .jp-band, .jp-prism,
+    .jp-title, .jp-wave-prism, .jp-wave,
+    .st-key-jp_panels a[data-testid="stPageLink-NavLink"]::before,
     .st-key-jp_panels a[data-testid="stPageLink-NavLink"]::after { animation: none !important; }
 }
 
 /* 폰에서는 두 판을 위아래로 쌓는다. 옆으로 두면 한 판이 손가락 하나 폭이 된다.
    퍼지는 방향도 위아래로 바꾼다 — 좌우로 밀면 화면 밖으로 나갔다 들어온다. */
 @media (max-width: 640px) {
+    /* 폰에서는 빛줄기 자리를 줄인다 — 첫 화면에서 판이 밀려 내려가면 안 된다. */
+    .jp-stage { padding-bottom: 5.2rem; }
+    .jp-wave { height: 86px; }
     /* 폰에서는 판을 **위아래로 쌓는다.** 옆으로 두면 한 판이 156px이 되어 글자가
        잘렸다(2026-08-09 실측: 글자가 필요한 폭 216px). 스트림릿이 이 폭에서
        칸을 저절로 쌓아 주지 않으므로 여기서 직접 세운다. */
@@ -342,6 +348,38 @@ CSS = """
 """
 
 
+# 눕힌 S자 빛줄기. 같은 굽이를 세 겹으로 겹친다 —
+#   ① 넓게 번지는 바탕 빛  ② 흰 줄기  ③ 그 위를 흘러가는 무지개 토막
+# 곡선 하나만 고치면 셋이 같이 따라온다.
+_WAVE_PATH = "M0,96 C180,34 330,18 520,58 C700,96 850,120 1010,84 C1120,60 1170,44 1200,36"
+
+WAVE_SVG = (
+    "<svg class='jp-wave' viewBox='0 0 1200 132' preserveAspectRatio='none'"
+    " aria-hidden='true'>"
+    "<defs>"
+    "<linearGradient id='jpBeam' x1='0' y1='0' x2='1' y2='0'>"
+    "<stop offset='0' stop-color='#ffffff' stop-opacity='0'/>"
+    "<stop offset='.28' stop-color='#dfe6f2' stop-opacity='.85'/>"
+    "<stop offset='.5' stop-color='#ffffff' stop-opacity='1'/>"
+    "<stop offset='.72' stop-color='#dfe6f2' stop-opacity='.85'/>"
+    "<stop offset='1' stop-color='#ffffff' stop-opacity='0'/>"
+    "</linearGradient>"
+    "<linearGradient id='jpPrism' x1='0' y1='0' x2='1' y2='0'>"
+    "<stop offset='0' stop-color='#0358f7'/><stop offset='.28' stop-color='#e1e1fe'/>"
+    "<stop offset='.52' stop-color='#ffb005'/><stop offset='.76' stop-color='#fa3d1d'/>"
+    "<stop offset='1' stop-color='#c679c4'/>"
+    "</linearGradient>"
+    "</defs>"
+    f"<path class='jp-wave-glow' d='{_WAVE_PATH}' fill='none'"
+    " stroke='url(#jpBeam)' stroke-width='16' stroke-linecap='round'/>"
+    f"<path class='jp-wave-base' d='{_WAVE_PATH}' fill='none'"
+    " stroke='url(#jpBeam)' stroke-width='4' stroke-linecap='round'/>"
+    f"<path class='jp-wave-prism' d='{_WAVE_PATH}' fill='none'"
+    " stroke='url(#jpPrism)' stroke-width='5' stroke-linecap='round'/>"
+    "</svg>"
+)
+
+
 def panel_style(index: int, market: str) -> str:
     """판 하나의 배경과 퍼지는 방향. 칸마다 달라서 따로 내보낸다."""
     burst = "jp-burst-left" if index == 0 else "jp-burst-right"
@@ -349,11 +387,12 @@ def panel_style(index: int, market: str) -> str:
     return (
         f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] {{"
         f" background-image: {_panel_background(market)} !important;"
-        # 첫 겹이 주식 그림이라 아래쪽에 눕히고, 나머지 색 겹은 판을 다 덮는다.
-        " background-size: 118% auto, cover, cover, cover !important;"
-        " background-position: center bottom, center, center, center !important;"
-        " background-repeat: no-repeat !important;"
+        " background-size: cover !important; background-position: center !important;"
         f" animation: {burst} .55s cubic-bezier(.16,1,.3,1) {delay:.2f}s both;"
+        "}"
+        # 주식 그림은 배경이 아니라 ::before에 넣는다 — 그림만 따로 움직이게.
+        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink']::before {{"
+        f" background-image: url(\"{chart_url(market)}\");"
         "}"
         # 국기는 글자 왼쪽에 붙인다. 글자(1.5rem)보다 조금 크게 1.85rem으로.
         f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] p,"
@@ -374,7 +413,7 @@ def render(st) -> None:
     st.markdown(
         "<div class='jp-stage'>"
         "<div class='jp-title'>Stock Event Jarvis</div>"
-        "<div class='jp-glow'></div><div class='jp-band'></div><div class='jp-prism'></div>"
+        + WAVE_SVG +
         "</div>"
         "<div class='jp-sub'><b>장상하</b>의 테마 주식 기록장</div>",
         unsafe_allow_html=True,
