@@ -514,6 +514,15 @@ class Jarvis3DataTests(unittest.TestCase):
         self.assertIn("양자컴퓨팅", names)
         self.assertIn("빅테크10", names)
 
+    def test_bigtech10_keeps_tesla_and_excludes_crowdstrike(self):
+        bigtech = next(theme for theme in j3.US_THEMES if theme["name"] == "빅테크10")
+        self.assertEqual(
+            ("AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "NFLX", "ORCL"),
+            bigtech["stocks"],
+        )
+        cyber = next(theme for theme in j3.US_THEMES if theme["name"] == "사이버보안")
+        self.assertIn("CRWD", cyber["stocks"])
+
     def test_series_metrics_calculates_high_trend_and_atr(self):
         metrics = j3._series_metrics(_daily_frame(), _intraday_frame(230))
         self.assertTrue(metrics["ok"])
