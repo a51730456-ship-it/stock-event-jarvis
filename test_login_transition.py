@@ -57,14 +57,15 @@ class LoginVisualContractTests(unittest.TestCase):
             "width: 0 !important; flex: 1 1 0 !important",
             "background-size: auto 1.25rem !important",
             "viewBox='0 0 1200 190'",
-            "x1='-50' y1='0' x2='650'",
-            "values='-50;550;-50'",
-            "values='650;1250;650'",
+            "x1='0' y1='0' x2='620' y2='0' spreadMethod='repeat'",
+            "<animateTransform attributeName='gradientTransform' type='translate'",
+            "from='-620 0' to='0 0' dur='6s'",
             "CSS\n        + \"<div class='jp-stage'>\"",
         ):
             self.assertIn(marker, PRISM_SOURCE)
         self.assertNotIn("@media (max-width: 640px)", PRISM_SOURCE)
         self.assertNotIn("viewBox='0 0 1200 132'", PRISM_SOURCE)
+        self.assertNotIn("dur='20s'", PRISM_SOURCE)
 
     def test_earth_is_1400px_local_webp_under_500kb(self):
         # 2026-07-23: 로그인 화면도 실사 지구(jarvis_earth.webp)를 쓰기로 해

@@ -32,7 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 화면 구성이나 문구를 바꾸면 이 숫자를 올린다(CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080980
+MODULE_REVISION = 2026080990
 
 # 판을 누르면 이 표식을 달고 그 화면으로 간다. 받는 쪽(pages/*.py)이 이것을 보고
 # 비밀번호 없이 게스트로 들여보낸다. 게스트는 원래도 비밀번호 없이 들어갈 수 있으므로
@@ -401,19 +401,19 @@ WAVE_SVG = (
     "<stop offset='1' stop-color='#ffffff' stop-opacity='0'/>"
     "</linearGradient>"
     # 무지개 띠. **앞뒤가 투명**이라 양끝이 스르르 사라진다(뱀처럼 안 보인다).
-    # 화면 안에서 좌우로 천천히 왕복해, 처음과 주기 끝에도 무지개 일부가 보인다.
+    # 같은 620칸 무늬를 되풀이하고 정확히 한 무늬만큼 한 방향으로 민다.
+    # 시작·끝 무늬가 같아서 반복 경계도 끊기지 않고, 중간 방향 전환도 없다.
     "<linearGradient id='jpPrism' gradientUnits='userSpaceOnUse'"
-    " x1='-50' y1='0' x2='650' y2='0'>"
+    " x1='0' y1='0' x2='620' y2='0' spreadMethod='repeat'>"
     "<stop offset='0' stop-color='#0358f7' stop-opacity='0'/>"
     "<stop offset='.14' stop-color='#0358f7' stop-opacity='.55'/>"
     "<stop offset='.34' stop-color='#e1e1fe' stop-opacity='1'/>"
     "<stop offset='.56' stop-color='#ffb005' stop-opacity='1'/>"
     "<stop offset='.80' stop-color='#fa3d1d' stop-opacity='.55'/>"
     "<stop offset='1' stop-color='#c679c4' stop-opacity='0'/>"
-    "<animate attributeName='x1' values='-50;550;-50' dur='20s'"
-    " repeatCount='indefinite' calcMode='linear'/>"
-    "<animate attributeName='x2' values='650;1250;650' dur='20s'"
-    " repeatCount='indefinite' calcMode='linear'/>"
+    "<animateTransform attributeName='gradientTransform' type='translate'"
+    " from='-620 0' to='0 0' dur='6s' repeatCount='indefinite'"
+    " calcMode='linear'/>"
     "</linearGradient>"
     "</defs>"
     f"<path class='jp-wave-glow' d='{_WAVE_PATH}' fill='none'"
