@@ -3823,6 +3823,21 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         base_rate = result.get("base_win_rate") if breakout else (
             (result.get("rules") or [{}])[0].get("base_win_rate")
         )
+        # **깊은 급락에서는 점수가 순위를 못 가른다**(2026-08-12 상하님 지적으로
+        # 갈라서 재 봤다 — research/us_crash_depth_check.py). 나스닥 -24% 아래에서는
+        # 세 항목이 전부 무너진다. 그럴 때는 감추지 말고 그렇다고 적는다.
+        if result.get("score_blind"):
+            drop = (result.get("market") or {}).get("drop_pct")
+            limit = getattr(j3data, "CRASH_SCORE_BLIND_BELOW", -24.0)
+            st.markdown(
+                "<div class='j3-pull-guide'><b class='j3-down'>⚠ 오늘은 점수로 "
+                "순위를 가를 수 없습니다.</b> 나스닥이 고점 대비 "
+                + (_red(f"{float(drop):.1f}%") if drop is not None else "크게")
+                + f"까지 빠져 있습니다. 이만큼(<b>{abs(limit):.0f}% 아래</b>) 깊은 "
+                "자리에서는 배점 세 항목이 <u>전부 무너집니다</u> — 10년치를 낙폭 칸별로 "
+                "갈라 재서 확인했습니다.<br><b>아래 목록은 순서 없이 보십시오.</b> "
+                "이런 날은 어느 자리를 사도 크게 올랐습니다(그물 전체 1년 가운데 +32%).</div>",
+                unsafe_allow_html=True)
         st.markdown(
             _score_table_html("breakout" if breakout else "crash", base_rate)
             + "<div class='j3-pull-guide'>"

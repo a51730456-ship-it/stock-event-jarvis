@@ -215,3 +215,36 @@ class ModuleRevisionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GaugeZoneRowsOnPhoneTests(unittest.TestCase):
+    """시장 국면 다섯 칸은 **폰에서도 다 보여야 한다** (2026-08-12 상하님 지시).
+
+    2026-08-05에 "카드가 길어진다"는 이유로 폰에서만 지금 속한 칸 하나만 남기고
+    네 줄을 숨겨 뒀다. 상하님이 태블릿과 폰을 나란히 놓고 보시고 —
+    "스마트폰은 안 나온다, 나오게 해라". 0~29 · 30~49 같은 수치 안내가 폰에서만
+    사라져 지금 점수가 어느 자리인지 알 수 없었다.
+    """
+
+    def test_the_dim_rows_are_not_hidden(self):
+        css = m.CONTENT_CSS
+        block = css.split(".fg-box-hist .fg-hist-row.fg-hist-dim")[1].split("}")[0]
+        self.assertNotIn("display: none", block, "폰에서 구간 줄이 다시 숨겨졌다")
+        self.assertNotIn("display:none", block, "폰에서 구간 줄이 다시 숨겨졌다")
+        # 숨기는 대신 얇게 만든다 — 카드가 길어지는 것은 그렇게 막는다.
+        self.assertIn("font-size", block)
+
+    def test_the_rule_stays_inside_the_phone_media_query(self):
+        """폰 규칙이 밖으로 새면 태블릿·PC까지 바뀐다(CLAUDE.md 12번).
+
+        CONTENT_CSS는 미디어쿼리 **안쪽 내용**이고 감싸는 것은 page_css()다.
+        그래서 완성된 CSS에서, 이 규칙 앞에 폰 미디어쿼리가 열려 있는지 본다.
+        """
+        css = m.page_css()
+        self.assertIn(".fg-box-hist .fg-hist-row.fg-hist-dim", css)
+        before = css.split(".fg-box-hist .fg-hist-row.fg-hist-dim")[0]
+        opened = before.rfind(f"@media (max-width: {m.PHONE_MAX_WIDTH}px)")
+        self.assertGreater(opened, -1, "폰 미디어쿼리 밖에 있다")
+        # 그 뒤로 닫히지 않았는지 — 여는 중괄호가 닫는 것보다 많아야 안에 있다.
+        tail = before[opened:]
+        self.assertGreater(tail.count("{"), tail.count("}"), "미디어쿼리가 이미 닫혔다")

@@ -1326,6 +1326,35 @@ CRASH_SCORE_WEIGHTS = {
     "bucket": 0.0,         # 그물이 이미 쓴 값 · 두 칸 다 미달
 }
 CRASH_SCORE_MAX = round(sum(CRASH_SCORE_WEIGHTS.values()), 1)
+
+# ── 깊은 급락에서는 **점수를 매기지 않는다** (2026-08-12 상하님 지적·결정) ────
+# 상하님 물음 — "나스닥이 -12% 가까이 빠지면 대부분 종목이 20일선 밑으로 가는데
+# 배점이 잘못된 것 같은데."
+#
+# 갈라서 재 보니(research/us_crash_depth_check.py) 짐작과 조금 달랐다. 값 자체는
+# 깊은 급락에서도 갈린다(20일선 위 비율이 0인 테마는 22%뿐, 1등과 꼴찌가 85%p 차이).
+# **진짜 문제는 깊이마다 답이 딴판이라는 것이었다.**
+#
+#   나스닥 칸        덜 빠졌나      같이 오르는가    20일선 위
+#   6~12%(그물 41%)  1년만 ○       ✗ 거꾸로 있음    셋 다 미달
+#   12~18%          3개월·1년 ○   6개월·1년 ○     셋 다 ○ 합격
+#   18~24%          3·6개월 ○     1년만 ○         셋 다 미달
+#   **24% 아래**      **전부 미달**  **전부 미달**    **전부 미달**
+#
+# 그물 전체를 한 덩어리로 재서 이게 안 보였다 — 41%를 차지하는 얕은 칸이 평균을
+# 끌어내리고 12~18%가 끌어올려 뭉개졌다.
+#
+# **24% 아래에서는 세 항목이 전부 무너진다.** 10년에 150일뿐이고 그때는 어차피
+# 뭘 골라도 다 올랐다(그물 전체 1년 +32%). 골라내는 시늉을 하느니 **"오늘은 가를 수
+# 없습니다"라고 적는 게 낫다** — 빈 자리를 감추지 않는 것과 같은 결이다(0-1 바).
+CRASH_SCORE_BLIND_BELOW = -24.0
+
+
+def crash_score_is_blind(market_drop_pct) -> bool:
+    """지금 나스닥 낙폭에서 배점이 순위를 가를 수 있나. 못 가르면 True."""
+    if market_drop_pct is None:
+        return False
+    return float(market_drop_pct) <= CRASH_SCORE_BLIND_BELOW
 # '덜 빠졌나'는 급락에서 상위 5등이라야 붙는다(상위 3등은 해당 7%로 못 가름).
 CRASH_LESS_DROP_TOP_N = 5
 CRASH_SPREAD_TOP_N = 5
@@ -2148,6 +2177,9 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
         "score_weights": CRASH_SCORE_WEIGHTS,
         "bucket_counts": counts,
         "market": market,
+        # **오늘 배점이 순위를 가를 수 있나**(2026-08-12). 나스닥이 -24% 아래로
+        # 빠지면 세 항목이 전부 무너진다 — 화면이 "가를 수 없습니다"라고 적는다.
+        "score_blind": crash_score_is_blind(market.get("drop_pct")),
         "reference": reference,
         "universe_count": len(US_LARGE_CAP_UNIVERSE),
         "data_count": len(daily),
