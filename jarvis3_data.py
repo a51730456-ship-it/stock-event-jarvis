@@ -171,7 +171,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080960
+MODULE_REVISION = 2026081210
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -608,13 +608,47 @@ def _fear_greed_request(url: str, *, timeout: float = 8):
         return json.loads(response.read().decode("utf-8"))
 
 
+def _freeze_fear_greed(value: dict, now=None) -> dict:
+    """장중에는 **전일 마감값**을 보여준다 (2026-08-12 상하님 지시).
+
+    상하님 지적 — "공포탐욕지수도 전날 종가에 마감되고 변동이 없어야 되는데
+    조금씩 변동이 생긴다." 맞다. **CNN은 이 지수를 장중 내내 계속 고친다.**
+    그 값을 그대로 쓰고 있었으니 화면 숫자가 하루 종일 움직였다.
+
+    CNN 응답에 **previous_close(전일 마감값)가 이미 같이 온다.** 미국장이 끝나기
+    전에는 그것을 쓰고, 뉴욕 16:00을 지나면 그날 값이 곧 종가이므로 그대로 쓴다.
+    그러면 값이 **하루에 한 번, 마감 때만** 바뀐다.
+
+    실시간 값은 지우지 않고 ``live_score``로 남긴다 — 화면이 참고로 보여줄 수 있고,
+    되돌리려면 이 함수만 빼면 된다.
+    """
+    if not value.get("ok"):
+        return value
+    live = _finite(value.get("score"))
+    frozen = live if us_session_closed(now) else _finite(value.get("previous_close"))
+    if frozen is None:                      # 전일값을 못 받았으면 있는 값을 그대로 쓴다
+        frozen = live
+    out = dict(value)
+    out["live_score"] = live
+    out["score"] = round(float(frozen), 1)
+    out["rating_kr"] = fear_greed_label(float(frozen))
+    out["frozen"] = frozen != live
+    out["as_of_label"] = "직전 완료 미국장 종가"
+    return out
+
+
 def get_fear_greed(request_json=None) -> dict:
-    """CNN 공포·탐욕 지수(0~100)를 조회한다. 실패하면 ok=False 또는 마지막 정상값."""
+    """CNN 공포·탐욕 지수(0~100)를 조회한다. 실패하면 ok=False 또는 마지막 정상값.
+
+    **돌려주는 score는 직전 완료 미국장의 종가값이다**(`_freeze_fear_greed` 참고).
+    얼리는 계산은 캐시 **밖**에서 한다 — 캐시에 넣어 두면 뉴욕 16:00을 지나도
+    캐시가 살아 있는 동안 옛 값이 남는다.
+    """
     now = time.time()
     with _FEAR_GREED_LOCK:
         cached = _FEAR_GREED_CACHE["value"]
         if cached and now - _FEAR_GREED_CACHE["at"] < _FEAR_GREED_TTL_SECONDS:
-            return dict(cached)
+            return _freeze_fear_greed(dict(cached))
     try:
         payload = (request_json or _fear_greed_request)(_FEAR_GREED_URL)
         block = payload.get("fear_and_greed") if isinstance(payload, dict) else None
@@ -639,13 +673,13 @@ def get_fear_greed(request_json=None) -> dict:
         }
         with _FEAR_GREED_LOCK:
             _FEAR_GREED_CACHE.update({"at": now, "value": dict(value)})
-        return value
+        return _freeze_fear_greed(value)
     except Exception as exc:
         _log.warning("jarvis3 fear&greed fetch failed: %s", exc)
         with _FEAR_GREED_LOCK:
             stale_value = _FEAR_GREED_CACHE["value"]
         if stale_value:
-            return {**stale_value, "stale": True, "error": str(exc)}
+            return _freeze_fear_greed({**stale_value, "stale": True, "error": str(exc)})
         return {"ok": False, "error": str(exc)}
 
 
@@ -722,6 +756,23 @@ def _market_regime_from_rows(rows: dict) -> dict:
         regime, posture = "하락 압력 큼", "신규 매수 보류·손절 관리 먼저"
     return {"ok": True, "score": score, "regime": regime, "posture": posture,
             "reasons": reasons, "score_breakdown": score_breakdown}
+
+
+def us_session_closed(now=None) -> bool:
+    """지금 보는 미국장이 **끝난 장**인가 (2026-08-12 상하님 지시).
+
+    상하님 요구 — "시장국면·공포탐욕지수·미국장 시장상태는 전날 종가에 마감되고
+    변동이 없어야 한다." 세 곳이 **같은 잣대**로 얼어야 화면이 서로 다른 말을 하지
+    않으므로, 판단을 여기 한 곳에 둔다.
+
+    **날짜가 아니라 '그 장이 끝났는가'로 본다.** 뉴욕 16:00을 지났으면 오늘 장은
+    끝난 것이고 그 종가가 '직전 완료 장'이다. 그 전이면 어제 종가가 직전이다.
+    이렇게 하면 값이 **하루에 한 번, 뉴욕 마감 때만** 바뀐다
+    (`_previous_market_regime`이 쓰던 규칙과 같다 — 날짜로 판단하면 뉴욕 자정,
+    즉 한국 오후 1~2시에 값이 바뀌어 한국장 한복판에서 흔들린다).
+    """
+    now_ny = (now or datetime.now(_NY)).astimezone(_NY)
+    return now_ny.time() >= dt_time(16, 0)
 
 
 def _previous_market_regime(daily: dict, now=None) -> dict | None:

@@ -943,7 +943,7 @@ import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
 
-_REQUIRED_REGIME_GAUGE_REVISION = 2026080610
+_REQUIRED_REGIME_GAUGE_REVISION = 2026081210
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
     regime_gauge_ui = importlib.reload(regime_gauge_ui)
 
@@ -951,7 +951,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080960
+_REQUIRED_J3_REVISION = 2026081210
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -973,7 +973,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080910
+_REQUIRED_SIGNAL_UI_REVISION = 2026081210
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1761,7 +1761,10 @@ def _render_market_overview() -> None:
         # 4대 지수를 게이지 앞에 둔다 — '시장 국면' 카드 위에 올려 달라는 요청
         # (2026-07-25). 폰에서는 숫자 칸이 앞, 게이지가 뒤로 가는 규칙 그대로다.
         *_us_index_cells(overview, phase),
-        regime_gauge_ui.regime_box_html(overview),
+        # 바늘은 **직전 완료 미국장**에 세운다(2026-08-12 상하님 지시) — 프리마켓·
+        # 장중 값으로 매번 다시 재면 하루 종일 조금씩 움직인다. 실시간 값은 상자
+        # 아래 '지금 (참고)' 줄로 남는다. 한국테마는 지금까지대로 실시간이다.
+        regime_gauge_ui.regime_box_html(overview, freeze=True),
         # SPY·QQQ도 지수 칸과 같은 옷에 그림(당일·일봉)을 넣는다(2026-08-01 지시).
         *_us_etf_cells(overview),
         _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b"),

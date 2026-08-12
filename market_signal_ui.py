@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080910
+MODULE_REVISION = 2026081210
 
 
 def _now_seoul():
@@ -1699,7 +1699,7 @@ def run_us_market_signal_check(force_refresh=False):
         "vix_current": (results.get("^VIX") or {}).get("current"),
         "vix3m_current": (results.get("^VIX3M") or {}).get("current"),
     }
-    result = us_market_signal_engine.build_us_market_signal_result(quotes, extras=extras)
+    live_result = us_market_signal_engine.build_us_market_signal_result(quotes, extras=extras)
 
     # 당일과 같은 판정 규칙으로 실제 직전 미국 거래일을 다시 계산한다. 현재 행보다
     # 앞선 완성 일봉만 쓰므로 프리마켓·장중에도 '전일'이 당일과 겹치지 않는다.
@@ -1732,7 +1732,26 @@ def run_us_market_signal_check(force_refresh=False):
         row.get("trade_date") for row in previous_rows.values()
         if row.get("ok") and row.get("trade_date")
     })
+
+    # **미국장이 끝나기 전에는 얼린 값(직전 완료 장)을 카드의 본값으로 쓴다**
+    # (2026-08-12 상하님 지시: "미국장 시장상태도 전날 종가에 마감되고 변동이
+    # 없어야 한다"). `current` 대비 판정은 프리마켓·장중 값이라 하루 종일 조금씩
+    # 움직였다. `previous_result`는 **완성 일봉**으로 잰 것이라 마감 전까지 안 변한다.
+    # 마감(뉴욕 16:00)을 지나면 그날 값이 곧 종가이므로 실시간 판정을 그대로 쓴다.
+    # 실시간 판정은 버리지 않고 세션에 남긴다 — 되돌리려면 이 블록만 빼면 된다.
+    import jarvis3_data as _j3
+
+    closed = _j3.us_session_closed()
+    if not closed and previous_result is not None:
+        result = previous_result
+        as_of_note = previous_dates[-1] if previous_dates else None
+    else:
+        result = live_result
+        as_of_note = None
     st.session_state["us_signal_result"] = result
+    st.session_state["us_signal_live_result"] = live_result
+    st.session_state["us_signal_frozen"] = bool(not closed and previous_result is not None)
+    st.session_state["us_signal_as_of_date"] = as_of_note
     st.session_state["us_signal_previous_result"] = previous_result
     st.session_state["us_signal_previous_date"] = previous_dates[-1] if previous_dates else None
     st.session_state["us_signal_failures"] = failures
@@ -1762,6 +1781,19 @@ def render_us_market_signal_card():
     previous_label = "전일"
     if len(previous_date) >= 10:
         previous_label += f" · {previous_date[5:].replace('-', '.')}"
+
+    # 마감 전에는 카드의 본값이 곧 '직전 완료 장'이라(run_us_market_signal_check),
+    # 옆에 같은 값을 '전일'로 또 놓으면 같은 숫자가 두 번 뜬다. 그 자리에는
+    # **실시간 값**을 놓아 "지금은 이렇게 움직이는 중"만 참고로 보여준다.
+    if st.session_state.get("us_signal_frozen"):
+        as_of = str(st.session_state.get("us_signal_as_of_date") or "")
+        st.caption(
+            "이 판정은 **직전 완료 미국장 종가**"
+            + (f"({as_of[5:].replace('-', '.')})" if len(as_of) >= 10 else "")
+            + " 기준입니다 — 장중에 값이 흔들리지 않게 마감값으로 고정합니다."
+        )
+        previous_result = st.session_state.get("us_signal_live_result")
+        previous_label = "지금 (참고)"
 
     render_market_signal_card(
         result,
