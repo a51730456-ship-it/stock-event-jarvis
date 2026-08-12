@@ -82,7 +82,10 @@ class RulebookScreenTests(unittest.TestCase):
         """
         rule = j3.BREAKOUT_PULLBACK_RULE
         # 그물은 넓게 — 옛 기준(4~6%)도 품는다(2026-08-06).
-        self.assertEqual((1, 5), rule["wait_days"])
+        # **2026-08-12 저녁 상하님이 3~10일로 정하셨다.** 1~5일로는 명부 198개 중
+        # 16개만 걸려 화면이 거의 비었다. 어느 날짜 칸도 성적을 가르지 못했으므로
+        # (research/us_breakout_window.py) 좁게 둘 근거가 없었다.
+        self.assertEqual((3, 10), rule["wait_days"])
         self.assertEqual((-15.0, -4.0), rule["drop_band"])
         self.assertEqual(120, rule["hold_days"])
         # 별점은 뺐다(2026-08-06) — 낙폭·날짜만 보고 달았는데 뒤 5년에서 졌다.
@@ -131,11 +134,11 @@ class RulebookScreenTests(unittest.TestCase):
         재 보니 1~3일도 뒤 5년에서 졌다.
         """
         frames = {
-            "AAPL": _frame_with_high(2, -12.0),   # 많이 눌렸다
-            "MSFT": _frame_with_high(4, -12.0),   # 같은 눌린 폭, 날짜만 다르다
-            "AMZN": _frame_with_high(2, -5.0),    # 덜 눌렸다 — 그래도 보여준다
-            "GOOGL": _frame_with_high(2, -20.0),  # 너무 눌렸다 — 그물 밖
-            "META": _frame_with_high(9, -12.0),   # 9일 전 — 그물 밖
+            "AAPL": _frame_with_high(4, -12.0),   # 많이 눌렸다
+            "MSFT": _frame_with_high(8, -12.0),   # 같은 눌린 폭, 날짜만 다르다
+            "AMZN": _frame_with_high(4, -5.0),    # 덜 눌렸다 — 그래도 보여준다
+            "GOOGL": _frame_with_high(4, -20.0),  # 너무 눌렸다 — 그물 밖
+            "META": _frame_with_high(2, -12.0),   # 2일 전 — 그물 밖(3일부터)
         }
         result = self._run(j3.find_breakout_pullback_stocks, frames)
         self.assertTrue(result["ok"])
@@ -169,8 +172,8 @@ class RulebookScreenTests(unittest.TestCase):
         # 날짜만 다른 두 종목은 점수가 같아야 한다 — 날짜에는 점수를 주지 않는다.
         self.assertEqual(picked["AAPL"]["score"], picked["MSFT"]["score"])
         # 며칠 지났는지는 줄마다 그대로 실려야 한다 — 화면이 그걸 보여준다.
-        self.assertEqual(2, picked["AAPL"]["wait_days"])
-        self.assertEqual(4, picked["MSFT"]["wait_days"])
+        self.assertEqual(4, picked["AAPL"]["wait_days"])
+        self.assertEqual(8, picked["MSFT"]["wait_days"])
         # **파는 날은 규칙에 없다**(2026-08-12 상하님 확정). 줄에는 며칠이 아니라
         # 3개월·6개월·1년 과거 성적이 실린다 — 화면이 셋을 나란히 보여준다.
         self.assertIsNone(picked["AAPL"]["hold_days"])
@@ -184,7 +187,7 @@ class RulebookScreenTests(unittest.TestCase):
         설명서의 규칙이 아니라, 2026-08-01에 날을 가르려고 내가 정한 **잰 범위**다.
         거르는 조건으로 바꾸면 화면이 통째로 비는 날이 생긴다.
         """
-        frames = {"AAPL": _frame_with_high(2, -12.0)}
+        frames = {"AAPL": _frame_with_high(4, -12.0)}
         for above, drop, armed in ((True, -3.0, True), (False, -20.0, False)):
             state = {"ok": True, "armed": armed, "drop_pct": drop, "above_200": above,
                      "max_drop": j3.BREAKOUT_MARKET_MAX_DROP, "reason": "시험"}
@@ -924,6 +927,23 @@ class LeaderScoreMaxTests(unittest.TestCase):
                 self.assertLessEqual(round(got, 1), top,
                                      f"{name}이 만점 {top}을 넘었다: {got}")
             self.assertLessEqual(round(total, 1), j3.LEADER_SCORE_MAX)
+
+    def test_every_item_says_what_it_measures(self):
+        """항목 이름만으로는 뭘 재는지 모른다 (2026-08-12 상하님 지적).
+
+        "유동성이 뭐에 대한 유동성인지 기준이 뭔지 설명이 불친절하다."
+        """
+        for name, _points in j3.LEADER_SCORE_PARTS:
+            note = j3.LEADER_SCORE_NOTES.get(name, "")
+            self.assertTrue(note.strip(), f"{name}에 설명이 없다")
+        # 문턱은 _leader_score의 값과 같아야 한다 — 글과 계산이 갈리면 거짓말이 된다.
+        self.assertIn("10억달러", j3.LEADER_SCORE_NOTES["유동성"])
+        self.assertIn("3%", j3.LEADER_SCORE_NOTES["변동성 안정"])
+
+    def test_surge_penalty_is_a_named_number(self):
+        """5일 15%↑ 급등 감점 10점 — 표에 안 적히는 값이라 이름을 붙여 둔다."""
+        self.assertEqual(10.0, j3.LEADER_SURGE_PENALTY)
+        self.assertEqual(15.0, j3.LEADER_SURGE_RET5)
 
     def test_medal_mark_follows_the_maximum(self):
         # 만점이 바뀌면 메달 문턱도 같은 비율로 움직여야 한다.

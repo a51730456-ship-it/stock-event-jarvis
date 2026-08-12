@@ -204,6 +204,10 @@ st.markdown(
     .j3-factor-table th { text-align: center; color: #4da6ff; font-weight: 800; padding: 0.45rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-factor-table td { color: #44f0a1; font-weight: 700; padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
     .j3-factor-table td.j3-fac-name { text-align: left; }
+    /* 항목 이름 밑에 붙는 한 줄 설명 — 이름보다 작고 흐리게 (2026-08-12 상하님 지시).
+       이름과 같은 크기면 표가 글로 꽉 차서 점수가 안 보인다. */
+    .j3-fac-note { font-size: .78rem; font-weight: 600; color: #9aa0aa;
+        line-height: 1.25; margin-top: .1rem; }
     .j3-factor-table td.j3-fac-val { text-align: center; }
     .j3-reason-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 0.55rem; padding: 0.6rem 0.75rem; height: 100%; }
     .j3-reason-title { color: #4da6ff; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.25rem; }
@@ -951,7 +955,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081300
+_REQUIRED_J3_REVISION = 2026081310
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2260,8 +2264,14 @@ def _render_stock_detail(
 
     # **0점 항목은 표에 넣지 않는다**(CLAUDE.md 0-1 마). 아무도 못 받는 점수를
     # 적어 두면 그런 기준이 있는 줄 알게 된다.
+    # **이름만으로는 뭘 재는지 모른다**(2026-08-12 상하님 지적 — "유동성이 뭐에 대한
+    # 유동성인지 기준이 뭔지 설명이 불친절하다"). 모듈에 적어 둔 한 줄을 옆에 붙인다.
+    notes = getattr(j3data, "LEADER_SCORE_NOTES", {})
     factor_rows = "".join(
-        f"<tr><td class='j3-fac-name'>{name}</td>{_gain_cell(part, _number(maximum))}</tr>"
+        f"<tr><td class='j3-fac-name'>{name}"
+        + (f"<div class='j3-fac-note'>{html.escape(notes[name])}</div>"
+           if notes.get(name) else "")
+        + f"</td>{_gain_cell(part, _number(maximum))}</tr>"
         for (name, maximum), part in zip(factor_spec, leader["score_parts"])
         if maximum > 0
     )
@@ -3255,9 +3265,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         spec = list(getattr(j3data, "LEADER_SCORE_PARTS", ()))
         long_names = ["SPY 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)",
                       "유동성(거래대금)", "변동성 안정"]
-        notes = ["창 32·43·61% 미달", "창 47·42·26% 미달",
-                 "창 5·12·42% 거꾸로 → 0점", "창 70·58·35% 미달",
-                 "창 55·45·43% 미달"]
+        # 검증 결과가 아니라 **무엇을 재는지**를 적는다 — 검증 결과는 위 배점표에
+        # 이미 있고, 여기서 알아야 할 것은 '유동성이 뭔데'다(2026-08-12 상하님).
+        note_map = getattr(j3data, "LEADER_SCORE_NOTES", {})
+        notes = [note_map.get(name, "") for name, _p in spec]
         # **0점 항목은 표에서 뺀다**(CLAUDE.md 0-1 마). '추세 0.0 (0.0)' 같은 줄은
         # 아무도 못 받는 기준이 있는 것처럼 보이게 한다.
         keep = [i for i, (_n, points) in enumerate(spec) if points > 0]
@@ -3431,7 +3442,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             )
             plan_cells = [
                 ("사는 때", str(plan.get("entry") or "—"), "#44f0a1"),
-                ("파는 때", "규칙에 없음 — 상하님이 정하십니다", "#ffd23f"),
+                ("파는 때", "규칙에 없음", "#ffd23f"),
                 ("이 자리 과거 성적", spans or "—", "#e6e6e6"),
                 ("손절가", "이 규칙에는 없음", "#ff5b5b"),
             ]
@@ -3455,10 +3466,14 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             f"<div class='val' style='color:{color}'>{value}</div></div>"
             for label, value, color in plan_cells
         ]
+        # 라벨과 만점을 갈래에 맞춘다 — 급락·상승은 그 갈래 배점(90점),
+        # 미국형 5개 항목은 대장주 조건점수(80점)다. /100은 어느 쪽도 아니었다.
+        score_label = ("이 종목 점수" if mode in ("crash", "breakout")
+                       else "종목 조건점수")
         score_box = (
             "<div class='j3-holo-cell j3-holo-score'>"
-            "<div class='label'>종목 조건점수</div>"
-            f"<div class='val'>{float(review.get('score') or 0):.1f}/100</div>"
+            f"<div class='label'>{score_label}</div>"
+            f"<div class='val'>{float(review.get('score') or 0):.1f}/{score_max:g}</div>"
             f"<div class='state'>{plan.get('state', '')}</div></div>"
         )
         plan_grid = (
@@ -3691,7 +3706,11 @@ _SCORE_WEIGHT_SOURCE = {
 # 아래 표를 안 읽어도 이 한 줄이면 무엇으로 순위를 매기는지 알 수 있어야 한다.
 _SCORE_TABLE_PLAIN = {
     "breakout": ("<b>쉽게 말해</b> — 신고가를 찍고 <b>10~15% 눌린</b> 종목을 위로 "
-                 "올립니다. 덜 눌린 것보다 그 자리가 1년 뒤 더 올랐습니다."),
+                 "올립니다. 덜 눌린 것보다 그 자리가 1년 뒤 더 올랐습니다.<br>"
+                 "<b>0점은 나쁜 종목이라는 뜻이 아닙니다</b> — 아래 세 자리 중 "
+                 "하나도 안 맞다는 뜻입니다. 세 자리가 각각 그물의 20~25%뿐이라 "
+                 "<u>절반쯤은 0점으로 나옵니다.</u> 점수는 <b>먼저 볼 순서</b>를 "
+                 "정할 뿐이고, 0점도 그물에 걸린 종목입니다."),
     "crash": ("<b>쉽게 말해</b> — 급락장에서 <b>덜 떨어졌고, 주봉으로 봐도 아직 "
               "오름세인</b> 테마를 위로 올립니다. 그런 테마가 <b>더 빨리, 더 많이</b> "
               "올랐습니다 — 20% 오르는 데 34~40일, 아무거나 산 것은 45일이었습니다."),
@@ -4147,7 +4166,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
     st.caption(
         "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
-        "그 자리에 와 있는 종목을 좁혀 준 목록이며, 사라는 신호가 아닙니다."
+        "그 자리에 와 있는 종목을 좁혀 준 목록이며, 사라는 신호가 아닙니다. "
+        "**0점**은 나쁘다는 뜻이 아니라 **점수 주는 세 자리 중 하나도 안 맞다**는 뜻입니다."
     )
     selected_row = next(
         (row for row in rows if row.get("ticker") == selected_ticker), rows[0]

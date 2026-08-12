@@ -120,8 +120,23 @@ US_LARGE_CAP_UNIVERSE = tuple(dict.fromkeys(
 # 화면이 매일 비었다. 신고가 뒤 5일 안에 10% 넘게 빠지는 일은 1년에 30번뿐이라
 # (96종목 전체에서) 여드레에 한 번쯤 한 종목 나오는 정도다. 그래서 사용자가
 # "넓게 찾고 좋은 자리에 별을 달아라. 고르는 것은 내가 한다"고 정했다.
+# ── 2026-08-12 저녁, 상하님이 **1~5일 → 3~10일**로 정하셨다 ──────────────────
+# 상하님 지적 — "S&P나 나스닥은 전고점을 뚫었는데 신고가 뚫었다가 며칠 몇 % 눌린
+# 종목이 저렇게 없다는 게 이상하다."
+#
+# 세어 보니 화면 숫자는 맞았다. 명부 198종목 중 52주 신고가를 1~5일 전에 찍은 것이
+# 16개뿐이다(오늘 6 · 6~20일 전 25 · 21~60일 전 50 · **61일 넘음 101**). 지수는
+# 전고점인데 개별 대형주 절반은 두 달 넘게 신고가를 못 찍었다.
+#
+# **그래도 1~5일을 고집할 근거가 실측에 없었다** — 1~5일·1~3일·6~10일·11~20일
+# 어느 칸도 합격이 아니다. 날짜는 성적을 못 가른다(`research/us_breakout_window.py`).
+# 그래서 상하님이 3~10일로 정하셨다. 자리가 8,614 → 12,232개(1.4배)로 늘어난다.
+#
+# **새 그물에서 배점을 다시 쟀다**(기준 7). 눌린 폭 10~15%는 3개월·6개월·1년
+# 셋 다 합격으로 살아남았다 — 40점 그대로다. 테마 항목 둘은 약해졌으나(같이
+# 오르는가 20일·6개월만 · 덜 빠졌나 20일만) **상하님께 여쭙기 전에는 안 바꾼다.**
 BREAKOUT_PULLBACK_RULE = {
-    "wait_days": (1, 5),         # 52주 신고가 뒤 며칠까지 볼까 (그물)
+    "wait_days": (3, 10),        # 52주 신고가 뒤 며칠까지 볼까 (그물)
     "drop_band": (-15.0, -4.0),  # 눌린 폭 (그물 — 옛 기준 4~6%도 품는다)
     "hold_days": 120,            # 6개월
 }
@@ -190,7 +205,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081300
+MODULE_REVISION = 2026081310
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1447,6 +1462,22 @@ LEADER_SCORE_PARTS = (
     ("유동성", 15.0 * LEADER_RESCALE),
     ("변동성 안정", 15.0 * LEADER_RESCALE),
 )
+# 항목 이름만 봐서는 **뭘 재는 건지 알 수 없다**(2026-08-12 상하님 지적 —
+# "유동성이 뭐에 대한 유동성인지 기준이 뭔지 설명이 불친절하다").
+# 이름 옆에 한 줄로 붙인다. 문턱은 아래 _leader_score의 값과 **같아야 한다.**
+LEADER_SCORE_NOTES = {
+    "테마 대비 상대강도": "이 종목 20일 수익률 − 테마 평균. +8%p면 만점",
+    "52주 신고가 위치": "1년 최고가에 얼마나 가까운가. 고점이면 만점, −20%면 0점",
+    "추세": "20·50·200일선 위인가",
+    "유동성": "하루 거래대금(20일 평균). 10억달러↑ 만점 · 3억 13 · 1억 10 · "
+           "5천만 7 · 2천만 4",
+    "변동성 안정": "하루 오르내림 폭(14일 ATR). 3% 이내 만점 · 5% 12 · 7% 8 · "
+              "10% 4 · 그 위 0",
+}
+# 5일에 15% 넘게 오른 종목은 **총점에서 10점을 뺀다**(추격 금지). 표에 안 적으면
+# 항목 합과 총점이 달라 보인다 — 화면이 이 값을 읽어 줄을 하나 더 그린다.
+LEADER_SURGE_PENALTY = 10.0
+LEADER_SURGE_RET5 = 15.0
 LEADER_SCORE_MAX = round(sum(points for _n, points in LEADER_SCORE_PARTS), 1)
 # 메달(🥇🥈🥉)을 붙이는 문턱. 예전에는 100점 만점 기준 80점이었다 — 만점이
 # 바뀌었으므로 **같은 비율**로 옮긴다. 안 옮기면 메달이 갑자기 흔해진다.
@@ -2360,9 +2391,9 @@ def _leader_score(metrics: dict, theme_ret20: float | None) -> tuple[float, list
     else:
         risk_points = 0.0
     score = rs_points + high_points + trend_points + liquidity_points + risk_points
-    if metrics.get("ret5") is not None and metrics["ret5"] >= 15:
-        score -= 10
-    return round(max(0.0, min(100.0, score)), 1), [
+    if metrics.get("ret5") is not None and metrics["ret5"] >= LEADER_SURGE_RET5:
+        score -= LEADER_SURGE_PENALTY
+    return round(max(0.0, min(LEADER_SCORE_MAX, score)), 1), [
         round(rs_points, 1), round(high_points, 1), round(trend_points, 1),
         round(liquidity_points, 1), round(risk_points, 1),
     ]
