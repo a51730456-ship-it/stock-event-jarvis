@@ -171,7 +171,11 @@ class RulebookScreenTests(unittest.TestCase):
         # 며칠 지났는지는 줄마다 그대로 실려야 한다 — 화면이 그걸 보여준다.
         self.assertEqual(2, picked["AAPL"]["wait_days"])
         self.assertEqual(4, picked["MSFT"]["wait_days"])
-        self.assertEqual(120, picked["AAPL"]["hold_days"])
+        # **파는 날은 규칙에 없다**(2026-08-12 상하님 확정). 줄에는 며칠이 아니라
+        # 3개월·6개월·1년 과거 성적이 실린다 — 화면이 셋을 나란히 보여준다.
+        self.assertIsNone(picked["AAPL"]["hold_days"])
+        self.assertEqual([60, 120, 250],
+                         [item["days"] for item in picked["AAPL"]["hold_results"]])
 
     def test_breakout_tells_the_market_state_but_never_filters_on_it(self):
         """표를 잰 자리인지 알려만 준다(2026-08-06 사용자 결정).

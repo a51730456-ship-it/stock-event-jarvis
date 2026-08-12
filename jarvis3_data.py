@@ -190,7 +190,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081260
+MODULE_REVISION = 2026081280
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1856,7 +1856,10 @@ def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int
             continue
         row = _universe_row(ticker, metrics, memberships)
         row["wait_days"] = int(days_ago)
-        row["hold_days"] = BREAKOUT_PULLBACK_RULE["hold_days"]
+        # 파는 날은 규칙에 없다(2026-08-12). 대신 이 자리의 3개월·6개월·1년 과거
+        # 성적을 줄마다 실어 화면이 셋을 나란히 보여주게 한다.
+        row["hold_days"] = None
+        row["hold_results"] = BREAKOUT_HOLD_RESULTS
         row["volume_streak"] = volume_streak_days(daily.get(ticker))
         row["recent_gain_pct"] = recent_gain_pct(daily.get(ticker))
         rows.append(row)
