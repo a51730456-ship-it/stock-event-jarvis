@@ -921,7 +921,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026080950
+_REQUIRED_METHOD_HELP_REVISION = 2026081210
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -951,7 +951,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081280
+_REQUIRED_J3_REVISION = 2026081290
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -3625,11 +3625,18 @@ _SCORE_TABLE = {
         ("테마가 덜 빠졌나", "less_drop",
          "보유 <b>3개월·6개월·1년 셋 다</b> 합격한 <u>유일한 항목</u>입니다"
          "(3등·3등·1등). 파는 시점을 정하지 않으므로 이것 하나만 믿을 수 있습니다"),
-        ("테마가 같이 오르는가", "spread5",
-         "그 테마 종목 중 몇 %가 최근 5일에 올랐나, 그 등수입니다. "
-         "6개월 보유에서 1등이었습니다"),
+        ("테마 주봉이 오름세인가", "aligned",
+         "그 테마 종목 중 몇 %가 <b>주봉 오름세</b>인가, 그 등수입니다"
+         "(종가가 50일선 위 · 50일선이 150일선 위 · 150일선이 200일선 위 · "
+         "200일선이 오르는 중). <b>가장 빨리 오릅니다</b> — 이걸로 고른 종목은 "
+         "20% 오르는 데 <b>34일</b> 걸렸고, 아무거나 산 것은 45일 걸렸습니다. "
+         "짧게 5일부터 1년까지 <u>여섯 기간 모두</u> 합격했습니다"),
         ("테마가 20일선 위에 있나", "above20",
          "그 테마 종목 중 몇 %가 20일선 위인가입니다. 6개월 보유에서 2등이었습니다"),
+        ("테마가 같이 오르는가", "spread5",
+         "<u>2026-08-12에 뺐습니다</u> — 이걸로 고른 종목은 20% 오르는 데 "
+         "<b>46일</b> 걸려 아무거나 산 것(45일)보다 <b>느렸습니다</b>. "
+         "짧은 보유(5일·10일)도 미달입니다"),
         ("같은 테마 동반", "together",
          "<u>2026-08-12에 뺐습니다</u> — 2026-08-09에 명부에서 종목 하나를 바꾼 뒤로 "
          "이미 불합격이었고(80/95 → 64/93), 새 그물에서는 1년 보유에만 걸리는 데다 "
@@ -3655,6 +3662,16 @@ _SCORE_WEIGHT_SOURCE = {
     "crash": "CRASH_SCORE_WEIGHTS",
 }
 
+# 배점표 맨 위 **한 줄 요약** (2026-08-12 상하님 지시 — "쉽게 알아먹게 한 줄 넣어라").
+# 아래 표를 안 읽어도 이 한 줄이면 무엇으로 순위를 매기는지 알 수 있어야 한다.
+_SCORE_TABLE_PLAIN = {
+    "breakout": ("<b>쉽게 말해</b> — 신고가를 찍고 <b>10~15% 눌린</b> 종목을 위로 "
+                 "올립니다. 덜 눌린 것보다 그 자리가 1년 뒤 더 올랐습니다."),
+    "crash": ("<b>쉽게 말해</b> — 급락장에서 <b>덜 떨어졌고, 주봉으로 봐도 아직 "
+              "오름세인</b> 테마를 위로 올립니다. 그런 테마가 <b>더 빨리, 더 많이</b> "
+              "올랐습니다 — 20% 오르는 데 34~40일, 아무거나 산 것은 45일이었습니다."),
+}
+
 
 def _score_table_rows(mode: str):
     """(이름, 점수, 왜) — 점수는 **모듈에서 읽는다**(위 설명 참고)."""
@@ -3678,10 +3695,14 @@ def _score_table_html(mode: str, base_win_rate=None) -> str:
         f" 기준은 <b>그날 아무 종목이나</b> 샀을 때 100번 중 {base_win_rate:.0f}번입니다."
         if base_win_rate else ""
     )
+    plain = _SCORE_TABLE_PLAIN.get(mode, "")
+    head = (f"<div class='j3-pull-guide' style='padding-bottom:.15rem'>{plain}</div>"
+            if plain else "")
     return (
-        "<div class='j3-pull-guide'><b>점수를 매기는 기준</b>(2026-08-06, 10년을 "
-        "<u>앞 5년·뒤 5년으로 갈라</u> 다시 재고 정했습니다) — 한쪽 시기에서만 통한 값은 "
-        "점수를 주지 않습니다. 그 시기에만 맞는 자리를 1등으로 올리기 때문입니다."
+        f"{head}"
+        "<div class='j3-pull-guide'><b>점수를 매기는 기준</b>(2026-08-12에 다시 쟀습니다) — "
+        "2년·3년·4년 창을 한 달씩 밀어 가며 재고, <u>어느 창에서나</u> 이겨야 점수를 "
+        "줍니다. 한 시기에서만 통한 값은 그 시기에만 맞는 자리를 1등으로 올립니다."
         f"{base}</div>"
         f"<div class='j3-pull-guide' style='padding-top:.2rem'>{lines}</div>"
     )

@@ -190,7 +190,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081280
+MODULE_REVISION = 2026081290
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -479,7 +479,12 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
     ret = lambda days: (current / float(closes.iloc[-min(days + 1, len(closes))]) - 1) * 100
     sma20 = _finite(closes.tail(20).mean())
     sma50 = _finite(closes.tail(50).mean()) if len(closes) >= 50 else None
+    # 150일선과 '20일 전의 200일선'은 **주봉이 오름세인가**(Minervini Trend Template)를
+    # 보려고 둔다. 급락 배점 30점이 여기에 걸려 있다(2026-08-12 실측).
+    sma150 = _finite(closes.tail(150).mean()) if len(closes) >= 150 else None
     sma200 = _finite(closes.tail(200).mean()) if len(closes) >= 200 else None
+    sma200_prev = (_finite(closes.iloc[-220:-20].mean())
+                   if len(closes) >= 220 else None)
     high52 = None
     high52_days_ago = None
     if "High" in daily.columns:
@@ -540,7 +545,9 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
         "ret60": ret(60) if len(closes) >= 61 else None,
         "sma20": sma20,
         "sma50": sma50,
+        "sma150": sma150,
         "sma200": sma200,
+        "sma200_prev": sma200_prev,   # 20일 전의 200일선 (오름세인지 보려고)
         "high52": high52,
         "high52_days_ago": high52_days_ago,
         "from_high_pct": ((current / high52 - 1) * 100) if high52 else None,
@@ -1314,10 +1321,39 @@ def volume_streak_days(frame) -> int:
 # 같은 테마 동반 30점은 뺀다 — 2026-08-09에 명부에서 종목 하나(CRWD→ORCL)를 바꾼
 # 뒤로 옛 그물에서도 이미 불합격이었고(80/95 → 64/93), 새 그물에서는 1년 보유에만
 # 걸리는 데다 해당이 67%라 못 가른다(기준 6).
+#
+# ── 2026-08-12 저녁, 상하님 지시로 **속도까지** 넣어 다시 쟀다 ────────────────
+# "반등은 어떤 종목들이 반등을 빨리하느냐, 어느 만큼 많이 오르냐가 기준이 되겠지."
+#
+# 맞는 말이고 **속도는 그때까지 한 번도 안 쟀다.** 위 측정은 전부 '3개월·6개월·1년
+# 뒤 수익률'뿐이라, 한 달 만에 올라 다섯 달을 놀린 것과 다섯 달 견디다 마지막에 오른
+# 것을 같은 것으로 셌다. 급락 후 반등에서는 그 차이가 곧 묶인 돈이다.
+#
+# 새로 잰 것 둘 — ① 5·10·20·40일 짧은 보유에서도 합격하나 ② +20%까지 며칠 걸리나.
+# 측정: research/us_rebound_speed.py (같은 그물 34,710자리)
+#
+#   무엇으로 고르나            짧은보유  +20%까지   고점회복   1년
+#   아무거나 (바탕)               —      45일      49%   +29.5%
+#   테마 덜 빠졌나               6/6     40일      66%   +37.2%   ← 많이 오르기 1등
+#   **테마 주봉 오름세**          6/6     34일      54%   +33.9%   ← **빠르기 1등**
+#   테마 20일선 위               4/6     43일      54%   +36.3%
+#   테마 같이 오르는가            4/6     46일      53%   +34.6%   ← **바탕보다 느리다**
+#
+# **'같이 오르는가' 30점을 '주봉 오름세'로 갈아끼운다.** 30점을 지고 있었는데
+# 아무거나 산 것보다 반등이 느렸고 짧은 보유(5·10일)도 미달이다.
+# 둘 다 갖춘 것(덜 빠졌고 + 주봉 오름세)이 35일·회복 65%·1년 +38.7%로 제일 좋았지만
+# 그물의 10%뿐이라 하나로 묶지 않는다. 따로 주면 겹칠 때 저절로 70점이 된다.
+#
+# 20일선 20점은 **그대로 둔다.** 같은 네 잣대로 테마 20개 순위 파트도 쟀는데
+# 거기서는 20일선이 두 국면 다 셋 다 합격으로 1등이었다(주봉 정배열은 미달).
+# 파트마다 답이 다르다 — 테마 순위는 '지금 달아오르는 테마'를 재는 자리라 짧은 선이,
+# 급락 그물은 하루 반짝 반등을 걸러야 해서 긴 선이 맞다.
+# 측정: research/us_size_and_weekly.py
 CRASH_SCORE_WEIGHTS = {
-    "less_drop": 40.0,     # 테마 덜 빠졌나 상위 5등 — 세 보유기간 모두 합격
-    "spread5": 30.0,       # 테마 5일 오른 종목 비율 상위 5등 (확산)
+    "less_drop": 40.0,     # 테마 덜 빠졌나 상위 5등 — 여섯 보유기간 모두 합격
+    "aligned": 30.0,       # 테마 주봉 오름세 비율 상위 5등 — 여섯 곳 다 합격 · 제일 빠르다
     "above20": 20.0,       # 테마 20일선 위 종목 비율 상위 5등 (확산)
+    "spread5": 0.0,        # 테마 5일 오른 비율 — 반등이 바탕보다 느렸다(46일 vs 45일)
     "together": 0.0,       # 명부 교체 뒤 불합격 · 새 그물에서 해당 67%라 못 가름
     "theme_rank": 0.0,     # 테마 60일 수익률 — 6개월에서만 합격
     "recent_drop": 0.0,    # 보유기간마다 뒤집힌다
@@ -1450,8 +1486,8 @@ def crash_rebound_score(row: dict) -> dict:
     parts = [
         _theme_rank_part(row, f"테마가 덜 빠졌나 (상위 {CRASH_LESS_DROP_TOP_N}등)",
                          "theme_less_drop", weights["less_drop"]),
-        _theme_rank_part(row, f"테마가 같이 오르는가 (상위 {CRASH_SPREAD_TOP_N}등)",
-                         "theme_spread5", weights["spread5"]),
+        _theme_rank_part(row, f"테마 주봉이 오름세인가 (상위 {CRASH_SPREAD_TOP_N}등)",
+                         "theme_aligned", weights["aligned"]),
         _theme_rank_part(row, f"테마가 20일선 위에 있나 (상위 {CRASH_SPREAD_TOP_N}등)",
                          "theme_above20", weights["above20"]),
     ]
@@ -1758,6 +1794,35 @@ def _above_sma20(metrics: dict) -> float | None:
     if not current or not sma20:
         return None
     return 100.0 if float(current) > float(sma20) else 0.0
+
+
+def _weekly_aligned(metrics: dict) -> float | None:
+    """이 종목의 **주봉이 오름세인가** — 맞으면 100, 아니면 0.
+
+    판정은 Minervini의 Trend Template 그대로다 —
+    **종가 > 50일선 > 150일선 > 200일선 이고 200일선이 20일 전보다 위.**
+    50·150·200일선은 주봉으로 10주·30주·40주선이다. Weinstein(1988)의 기준선인
+    30주선이 가운데 들어 있다. 출처는 `docs/METHOD_ORIGINS.md`.
+
+    **왜 20일선 대신 이것을 쓰나**(2026-08-12 상하님 지시 "반등은 빨리·많이가 기준").
+    급락장에는 하루 반짝 반등이 흔하고 그때 거의 모든 종목이 20일선을 넘어선다.
+    주봉 자리는 그 반짝을 걸러낸다. 급락 그물 34,710자리에서 이 잣대로 고른 테마는
+    **+20%까지 34일**(아무거나 산 것 45일), 짧은 보유 5·10·20·40일과 6개월·1년
+    **여섯 곳 모두 합격**했다. 밀려난 '같이 오르는가'는 46일로 바탕보다 느렸다.
+    근거: `research/us_rebound_speed.py`.
+
+    테마별로 평균 내면 '그 테마 구성종목 중 몇 %가 주봉 오름세인가'가 된다.
+    """
+    values = metrics or {}
+    current = values.get("current")
+    sma50 = values.get("sma50")
+    sma150 = values.get("sma150")
+    sma200 = values.get("sma200")
+    prev200 = values.get("sma200_prev")
+    if not all((current, sma50, sma150, sma200, prev200)):
+        return None
+    lined_up = float(current) > float(sma50) > float(sma150) > float(sma200)
+    return 100.0 if lined_up and float(sma200) > float(prev200) else 0.0
 
 
 def _attach_theme_rank(rows: list, memberships: dict, all_metrics: dict,
@@ -2154,8 +2219,8 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
     # 배점 셋이 전부 테마 등수다(2026-08-12 새 그물 실측 — 종목 항목은 전멸).
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_less_drop",
                        metric_key="from_high_pct", top_n=CRASH_LESS_DROP_TOP_N)
-    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_spread5",
-                       top_n=CRASH_SPREAD_TOP_N, derive=_rose_5d)
+    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_aligned",
+                       top_n=CRASH_SPREAD_TOP_N, derive=_weekly_aligned)
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_above20",
                        top_n=CRASH_SPREAD_TOP_N, derive=_above_sma20)
     # 점수가 곧 순위다(2026-08-06 사용자 결정 — 별점은 뺐다). 같은 점수 안에서는

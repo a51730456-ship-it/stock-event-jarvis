@@ -366,8 +366,18 @@ class RulebookScreenTests(unittest.TestCase):
         # **급락 배점 90점이 전부 테마 등수다**(2026-08-12 새 그물 실측).
         # 종목 항목 아홉 개가 세 보유 다 미달이었다 — 미국은 테마로만 고를 수 있다.
         theme_points = sum(j3.CRASH_SCORE_WEIGHTS[name]
-                           for name in ("less_drop", "spread5", "above20"))
+                           for name in ("less_drop", "aligned", "above20"))
         self.assertEqual(j3.CRASH_SCORE_MAX, theme_points)
+        # **'같이 오르는가' 30점은 '주봉 오름세'로 갈아끼웠다**(2026-08-12 저녁,
+        # 상하님 지시 "반등은 빨리·많이가 기준"). 속도를 넣고 재니 '같이 오르는가'로
+        # 고른 종목은 +20%까지 46일 — **아무거나 산 것(45일)보다 느렸다.**
+        # 주봉 오름세는 34일이고 5·10·20·40일·6개월·1년 여섯 곳 다 합격했다.
+        # 근거: research/us_rebound_speed.py
+        self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["aligned"])
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["spread5"])
+        # 상승장 쪽 '같이 오르는가'는 **그대로 30점**이다. 그물이 다르면 답도 다르다
+        # — 한 시장·한 파트를 고치면서 다른 파트를 같이 건드리지 않는다.
+        self.assertEqual(30.0, j3.BREAKOUT_SCORE_WEIGHTS["spread5"])
         # '테마 60일 수익률'은 6개월 보유에서만 합격했다 — 파는 시점을 안 정하므로 안 쓴다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["theme_rank"])
         # **'최근 11일'은 보유기간마다 뒤집힌다.** 3개월 1등(-5.8p)인데 1년에서는
@@ -781,8 +791,6 @@ class LastSessionChangeTests(unittest.TestCase):
         self.assertNotEqual(metrics["change_pct"], metrics["last_session_change_pct"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PriorSessionCloseTests(unittest.TestCase):
@@ -812,3 +820,46 @@ class PriorSessionCloseTests(unittest.TestCase):
     def test_returns_none_without_any_earlier_session(self):
         self.assertIsNone(
             j3._prior_session_close(self.DAILY, pd.Timestamp("2026-07-22").date()))
+class WeeklyAlignedTests(unittest.TestCase):
+    """'주봉이 오름세인가' 판정 — Minervini Trend Template 그대로 (2026-08-12)."""
+
+    def test_lined_up_and_rising_scores_100(self):
+        self.assertEqual(100.0, j3._weekly_aligned({
+            "current": 110, "sma50": 105, "sma150": 100, "sma200": 95,
+            "sma200_prev": 90}))
+
+    def test_out_of_order_scores_zero(self):
+        # 150일선이 200일선보다 아래면 정배열이 아니다.
+        self.assertEqual(0.0, j3._weekly_aligned({
+            "current": 110, "sma50": 105, "sma150": 90, "sma200": 95,
+            "sma200_prev": 90}))
+
+    def test_flat_200_scores_zero(self):
+        # 줄은 섰지만 200일선이 20일 전보다 위가 아니면 오름세가 아니다.
+        self.assertEqual(0.0, j3._weekly_aligned({
+            "current": 110, "sma50": 105, "sma150": 100, "sma200": 95,
+            "sma200_prev": 95}))
+
+    def test_missing_value_returns_none(self):
+        # 못 잰 값은 **0이 아니라 빈칸**이다. 0으로 채우면 그 테마가 조용히 깎인다.
+        self.assertIsNone(j3._weekly_aligned({
+            "current": 110, "sma50": 105, "sma150": 100, "sma200": 95}))
+        self.assertIsNone(j3._weekly_aligned({}))
+
+    def test_metrics_carry_the_two_new_lines(self):
+        """_series_metrics가 150일선과 '20일 전 200일선'을 실제로 내놓는가."""
+        import pandas as pd
+        days = pd.date_range("2024-01-01", periods=300, freq="B")
+        rising = pd.Series(range(100, 400), index=days, dtype=float)
+        daily = pd.DataFrame({"Open": rising, "High": rising * 1.01,
+                              "Low": rising * 0.99, "Close": rising,
+                              "Volume": 1_000_000.0}, index=days)
+        metrics = j3._series_metrics(daily, None)
+        self.assertTrue(metrics["ok"])
+        self.assertIsNotNone(metrics["sma150"])
+        self.assertIsNotNone(metrics["sma200_prev"])
+        # 죽 오르는 값이니 주봉 오름세여야 한다.
+        self.assertEqual(100.0, j3._weekly_aligned(metrics))
+
+if __name__ == "__main__":
+    unittest.main()

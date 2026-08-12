@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026080950
+MODULE_REVISION = 2026081210
 
 BUTTON_LABEL = "📘 이 테마 기법에 대한 설명"
 
@@ -325,6 +325,18 @@ US_IMAGES = (
     ("us_method_drawdown.png", "나스닥 하락율대비 상승수익률"),
 )
 
+# 그림 바로 밑에 붙는 **한 줄 요약** (2026-08-12 상하님 지시 — "캡쳐 사진 밑에
+# 한 줄 쉽게 알아먹게 넣어라. 장황하게 하지 말고"). 표를 안 뜯어봐도 이 한 줄이면
+# 그 표가 무슨 이야기인지 알 수 있어야 한다. **두 줄로 늘리지 않는다.**
+US_IMAGE_NOTES = (
+    "<b>쉽게 말해</b> — 신고가 찍고 <b>10~15% 눌렸을 때</b> 사는 것이 1년 뒤 "
+    "<b>27.8%</b>로 제일 나았습니다. 조금(4~6%) 눌린 자리는 14.7%로 아무거나 "
+    "산 것(14.1%)과 같습니다.",
+    "<b>쉽게 말해</b> — 나스닥이 6% 넘게 빠졌을 때는 <b>30~50% 빠진 종목</b>이 "
+    "1년 뒤 <b>32.2%</b>로 제일 나았고, 그중에서도 <b>덜 떨어졌고 주봉이 오름세인 "
+    "테마</b>가 더 빨리·더 많이 올랐습니다(20%까지 34~40일, 아무거나는 45일).",
+)
+
 
 def _image_path(name: str):
     """assets 안의 그림 경로. 온라인에서 파일이 빠져도 화면이 죽지 않게 확인만 한다."""
@@ -627,6 +639,12 @@ def render(st, market: str) -> None:
                     unsafe_allow_html=True,
                 )
                 st.image(str(path), use_container_width=True)
+                if index < len(US_IMAGE_NOTES):
+                    st.markdown(
+                        f"<div class='mh-doc'><div class='mh-note'>"
+                        f"{US_IMAGE_NOTES[index]}</div></div>",
+                        unsafe_allow_html=True,
+                    )
                 if index == 0:
                     st.markdown(US_MID_TEXT, unsafe_allow_html=True)
             st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)
