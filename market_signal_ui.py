@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026080910
+MODULE_REVISION = 2026081270
 
 
 def _now_seoul():
@@ -1196,7 +1196,7 @@ def _speedometer_gauge_svg(score, zones) -> str:
 
 def _verdict_gauge_html(
     result, verdict_style, verdict_order, previous_stage=None, *, show_position_score=False,
-    comparison_result=None, comparison_label="전일",
+    comparison_result=None, comparison_label="전일", current_label_text="당일",
 ) -> str:
     """판정을 반원 눈금 위에 올린다 (2026-07-24 사용자 요청).
 
@@ -1274,7 +1274,7 @@ def _verdict_gauge_html(
         gauges_html = (
             "<div class='sig-gauge-pair'>"
             "<div class='sig-gauge-shell sig-gauge-today'>"
-            f"<div class='sig-gauge-title'>당일 · {current_stage}단계 · {current_label}</div>"
+            f"<div class='sig-gauge-title'>{current_label_text} · {current_stage}단계 · {current_label}</div>"
             f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones)}</div>"
             f"<div class='sig-counts'>{gauge_ui.rows_html(row_tuples)}</div>"
             "</div>"
@@ -1294,11 +1294,25 @@ def _verdict_gauge_html(
     )
 
 
+def _level_text(result, key: str) -> str:
+    """지수의 **지금 수준**을 등락률 앞에 적는다 (2026-08-12 상하님 지시).
+
+    "VIX 지수의 수치를 넣어라. 하락율만 넣어져 있으니 그렇다."
+    −1.16%만 보면 지금 VIX가 15인지 35인지 알 수 없다. 15.28처럼 수준을 같이
+    적어야 '높은 건가 낮은 건가'를 안다. 수준을 못 받은 항목은 그냥 넘어간다.
+    """
+    level = (getattr(result, "levels", None) or {}).get(key)
+    if level is None:
+        return ""
+    return (f"<span style='color:#e6e6e6'>{float(level):,.2f}</span>"
+            "<span style='opacity:.5;margin:0 .35rem'>·</span>")
+
+
 def render_market_signal_card(
     result, *, verdict_style, core_display, table_keys, detail_title, detail_caption,
     table_key, diagnosis_text=None, verdict_order=(), previous_stage=None,
     show_position_score=False, falling_market=None, comparison_result=None,
-    comparison_label="전일", stage_guide="",
+    comparison_label="전일", stage_guide="", current_label_text="당일",
 ):
     """한국장·미국장이 함께 쓰는 카드 렌더러.
 
@@ -1339,7 +1353,7 @@ def render_market_signal_card(
         _story_html = (
             "<div class='sig-story-stack'>"
             "<div class='sig-story sig-story-today'>"
-            "<div class='sig-story-title'>당일 설명</div>"
+            f"<div class='sig-story-title'>{current_label_text} 설명</div>"
             f"<div class='sig-story-body' style='font-size:1.0rem;color:{text};line-height:1.5;'>"
             f"{result.headline}<div style='font-size:.9rem;opacity:.9;margin-top:8px;'>"
             f"흐름: {result.flow_note}</div>{_cause_html}</div></div>"
@@ -1383,7 +1397,7 @@ def render_market_signal_card(
         _headline_html = (
             '<div class="sig-head-pair">'
             '<div class="sig-head-box sig-head-today">'
-            '<div class="sig-head-label">당일</div>'
+            f'<div class="sig-head-label">{current_label_text}</div>'
             f'<div class="sig-head-verdict" style="color:{text};">'
             f'{result.verdict_label}</div>'
             f'<div class="sig-head-sub" style="color:{text};">'
@@ -1416,6 +1430,7 @@ def render_market_signal_card(
             show_position_score=show_position_score,
             comparison_result=comparison_result,
             comparison_label=comparison_label,
+            current_label_text=current_label_text,
         )
         if verdict_order else ""
     )
@@ -1465,7 +1480,7 @@ def render_market_signal_card(
                     background-color:rgba(255,255,255,0.03);border-radius:6px;">
                       <div style="font-size:0.85rem;opacity:0.75;">{label}</div>
                       <div style="font-size:1.05rem;font-weight:700;color:{_VALUE_COLOR};">
-                        {_colorize_signed(signal.display_value)}
+                        {_level_text(result, key)}{_colorize_signed(signal.display_value)}
                       </div>
                       <div style="font-size:0.8rem;opacity:0.8;">{signal.reason}</div>
                     </div>
@@ -1699,15 +1714,34 @@ def run_us_market_signal_check(force_refresh=False):
         "vix_current": (results.get("^VIX") or {}).get("current"),
         "vix3m_current": (results.get("^VIX3M") or {}).get("current"),
     }
-    result = us_market_signal_engine.build_us_market_signal_result(quotes, extras=extras)
+    live_result = us_market_signal_engine.build_us_market_signal_result(quotes, extras=extras)
 
-    # 당일과 같은 판정 규칙으로 실제 직전 미국 거래일을 다시 계산한다. 현재 행보다
-    # 앞선 완성 일봉만 쓰므로 프리마켓·장중에도 '전일'이 당일과 겹치지 않는다.
-    ticker_dates = tuple(
-        (ticker, (results.get(ticker) or {}).get("as_of_date"))
-        for ticker in tickers
-        if (results.get(ticker) or {}).get("as_of_date")
-    )
+    # ── 완성 일봉으로 두 판을 만든다 — **모든 티커가 같은 거래일을 본다** ────────
+    # 2026-08-12 상하님 지적 — "미국장 종료 후 11시간인데 켜진 신호가 5개나 생겼다고?"
+    #
+    # 원인이 둘이었다.
+    #   ① 본값이 실시간이었다. 선물은 24시간 도니까 프리마켓 값이고, SOXX·SMH 같은
+    #      ETF는 마지막 거래(어제 종가)라 **한 카드 안에 다른 날이 섞였다.**
+    #   ② '전일'을 티커마다 **자기 as_of_date** 기준으로 잡았다. 선물은 8/12,
+    #      ETF는 8/11이라 '전일'도 서로 다른 날이었다. 그래서 당일 6개 켜짐 /
+    #      전일 1개 켜짐처럼 두 칸이 어긋났다.
+    #
+    # 이제 **닻(anchor) 하나**로 두 판을 만든다. `_fetch_previous_us_quote`는
+    # 닻보다 **앞선** 마지막 완성 일봉을 주므로, 같은 닻을 주면 전부 같은 날이 된다.
+    #   마감 뒤면 닻 = 내일 → 오늘 종가가 '직전 완료 장'
+    #   장중·장전이면 닻 = 오늘 → 어제 종가가 '직전 완료 장'
+    import jarvis3_data as _j3
+
+    closed = _j3.us_session_closed()
+    today_ny = datetime.now(ZoneInfo("America/New_York")).date()
+    anchor = (today_ny + timedelta(days=1)) if closed else today_ny
+    frozen_rows = _cached_previous_us_quotes(
+        tuple((ticker, anchor.isoformat()) for ticker in tickers))
+    frozen_dates = sorted({row.get("trade_date") for row in frozen_rows.values()
+                           if row.get("ok") and row.get("trade_date")})
+    # '전일'은 그 직전 완료 장의 **하루 앞**이다. 여기도 닻 하나로 맞춘다.
+    previous_anchor = frozen_dates[-1] if frozen_dates else anchor.isoformat()
+    ticker_dates = tuple((ticker, previous_anchor) for ticker in tickers)
     previous_rows = _cached_previous_us_quotes(ticker_dates)
     previous_quotes = {
         ticker: {
@@ -1732,7 +1766,29 @@ def run_us_market_signal_check(force_refresh=False):
         row.get("trade_date") for row in previous_rows.values()
         if row.get("ok") and row.get("trade_date")
     })
+
+    # **카드의 본값은 언제나 '직전 완료 미국장'이다**(2026-08-12 상하님 지시:
+    # "전날 종가에 마감되고 변동이 없어야 한다"). 완성 일봉으로 잰 값이라 다음
+    # 마감까지 안 움직인다. 실시간 판정은 버리지 않고 비교 칸으로 남긴다.
+    frozen_quotes = {
+        ticker: {"change_pct": row.get("change_pct"), "as_of": _now_seoul(),
+                 "source": "완료 일봉"}
+        for ticker, row in frozen_rows.items() if row.get("ok")
+    }
+    frozen_result = (
+        us_market_signal_engine.build_us_market_signal_result(
+            frozen_quotes,
+            extras={"vix_current": (frozen_rows.get("^VIX") or {}).get("current"),
+                    "vix3m_current": (frozen_rows.get("^VIX3M") or {}).get("current")},
+        )
+        if frozen_quotes else None
+    )
+    result = frozen_result if frozen_result is not None else live_result
+    as_of_note = frozen_dates[-1] if frozen_dates else None
     st.session_state["us_signal_result"] = result
+    st.session_state["us_signal_live_result"] = live_result
+    st.session_state["us_signal_frozen"] = bool(frozen_result is not None)
+    st.session_state["us_signal_as_of_date"] = as_of_note
     st.session_state["us_signal_previous_result"] = previous_result
     st.session_state["us_signal_previous_date"] = previous_dates[-1] if previous_dates else None
     st.session_state["us_signal_failures"] = failures
@@ -1763,8 +1819,28 @@ def render_us_market_signal_card():
     if len(previous_date) >= 10:
         previous_label += f" · {previous_date[5:].replace('-', '.')}"
 
+    # 마감 전에는 카드의 본값이 곧 '직전 완료 장'이라(run_us_market_signal_check),
+    # 옆에 같은 값을 '전일'로 또 놓으면 같은 숫자가 두 번 뜬다. 그 자리에는
+    # **실시간 값**을 놓아 "지금은 이렇게 움직이는 중"만 참고로 보여준다.
+    current_label_text = "당일"
+    if st.session_state.get("us_signal_frozen"):
+        as_of = str(st.session_state.get("us_signal_as_of_date") or "")
+        day = as_of[5:].replace("-", ".") if len(as_of) >= 10 else ""
+        # **큰 글자부터 어느 날인지 밝힌다**(2026-08-12 상하님 지적 — 미국장이
+        # 끝난 지 열한 시간인데 '당일 켜진 신호 6개'로 보였다). 완성 일봉으로
+        # 잰 값이라 다음 마감까지 안 움직인다.
+        current_label_text = f"직전 미국장{' · ' + day if day else ''}"
+        st.caption(
+            f"이 판정은 **직전 완료 미국장 종가**{'(' + day + ')' if day else ''} 기준입니다 — "
+            "모든 항목을 **같은 거래일**의 완성 일봉으로 잽니다. 장중에 흔들리지 않습니다. "
+            "오른쪽 칸은 지금 움직이는 값이라 참고로만 보십시오."
+        )
+        previous_result = st.session_state.get("us_signal_live_result")
+        previous_label = "지금 (참고)"
+
     render_market_signal_card(
         result,
+        current_label_text=current_label_text,
         verdict_style=_US_VERDICT_STYLE,
         core_display=_US_CORE_DISPLAY,
         table_keys=_US_TABLE_KEYS,

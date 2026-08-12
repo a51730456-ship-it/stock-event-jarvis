@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import gauge_ui
 
-MODULE_REVISION = 2026080610
+MODULE_REVISION = 2026081210
 
 # 조건점수 구간 — jarvis3_data·jarvis4_data의 판정 기준과 같아야 한다.
 # 세 칸이던 것을 다섯 칸으로 늘렸다(2026-08-05 사용자 지시). 시장판단 화면이 이미
@@ -59,13 +59,65 @@ def _previous_regime_row(overview: dict) -> tuple | None:
     return ("전일 시장국면", regime, f"{score:.0f}점", color_of(score), False)
 
 
+def _paint(box: str) -> str:
+    """구간명과 구별되도록 과거·참고 줄의 이름을 제목과 같은 스카이블루로."""
+    for label in ("전일 시장국면", "지금 (참고)"):
+        box = box.replace(
+            f"<span class='fg-hist-label'>{label}</span>",
+            f"<span class='fg-hist-label' style='color:{gauge_ui.TITLE_BLUE}'>"
+            f"{label}</span>",
+        )
+    return box
+
+
+def _live_regime_row(overview: dict) -> tuple | None:
+    """얼린 게이지 아래에 붙는 '지금' 한 줄. 실시간 값을 버리지 않는다."""
+    if not overview.get("ok") or overview.get("score") is None:
+        return None
+    score = float(overview["score"])
+    regime = overview.get("regime") or gauge_ui.zone_of(score, ZONES)[0]
+    return ("지금 (참고)", regime, f"{score:.0f}점", color_of(score), True)
+
+
 def regime_box_html(overview: dict | None, *, title: str = "시장 국면",
-                    note_prefix: str = " · ") -> str:
-    """시장 국면 박스. 조건점수를 게이지로, 세 구간을 오른쪽에 보여준다."""
+                    note_prefix: str = " · ", freeze: bool = False) -> str:
+    """시장 국면 박스. 조건점수를 게이지로, 다섯 구간을 오른쪽에 보여준다.
+
+    ``freeze=True``면 **직전 완료 장의 값**으로 바늘을 세운다 (2026-08-12 상하님 지시:
+    "시장국면은 전날 종가에 마감되고 변동이 없어야 한다"). 실시간 값은 버리지 않고
+    상자 아래 '지금 (참고)' 한 줄로 남긴다.
+
+    **기본값은 False다** — 한국테마(자비스4)는 지금까지대로 실시간으로 둔다.
+    한 시장을 고치면서 다른 시장을 같이 건드리지 않는다(CLAUDE.md 0-1 다).
+    """
     overview = overview or {}
     ok = bool(overview.get("ok"))
     score = overview.get("score") if ok else None
     regime = overview.get("regime") if ok else None
+    posture = overview.get("posture") if ok else ""
+
+    frozen = overview.get("previous_market") or {}
+    use_frozen = bool(freeze and frozen.get("ok") and frozen.get("score") is not None)
+    if use_frozen:
+        live_row = _live_regime_row(overview)
+        score = float(frozen["score"])
+        regime = frozen.get("regime") or gauge_ui.zone_of(score, ZONES)[0]
+        posture = frozen.get("posture") or posture
+        ok = True
+        rows = _zone_rows(score)
+        if live_row:
+            rows.append(live_row)
+        return _paint(gauge_ui.box_html(
+            title, score, ZONES, rows,
+            label=regime,
+            title_color=gauge_ui.TITLE_BLUE,
+            note=regime,
+            note_color=color_of(score),
+            note_prefix=note_prefix,
+            footer=posture,
+            footer_color=color_of(score),
+        ))
+
     rows = _zone_rows(score)
     previous_row = _previous_regime_row(overview)
     if previous_row:
@@ -86,12 +138,7 @@ def regime_box_html(overview: dict | None, *, title: str = "시장 국면",
         footer=overview.get("posture") if ok else "",
         footer_color=color_of(score) if ok else None,
     )
-    # 구간명과 구별되도록 과거 비교 항목 이름도 제목과 같은 스카이블루로 표시한다.
-    return box.replace(
-        "<span class='fg-hist-label'>전일 시장국면</span>",
-        f"<span class='fg-hist-label' style='color:{gauge_ui.TITLE_BLUE}'>"
-        "전일 시장국면</span>",
-    )
+    return _paint(box)
 
 
 def _change_row(label: str, value) -> tuple:

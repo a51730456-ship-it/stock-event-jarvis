@@ -121,13 +121,18 @@ class PageWiringTests(unittest.TestCase):
         "US": ("pages/2_자비스3.py", "j3"),
         "KR": ("pages/3_자비스4.py", "j4"),
     }
+    # 2026-08-12에 미국만 7 → 9로 바꿨다(상하님 지시: 대장주 3 · 상승장 3 · 급락 3).
+    # 한국은 아직 그대로다 — 한 시장을 고치면서 다른 시장을 같이 건드리지 않는다
+    # (CLAUDE.md 0-1 다). 한국을 같은 기준으로 맞출 때 여기 숫자도 같이 고친다.
+    COUNTS = {"US": 9, "KR": 7}
 
     def test_both_pages_show_the_section(self):
         import pathlib
 
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
-            self.assertIn("매수심사결과 높은 순위 7", source, f"{market} 화면에 제목이 없다")
+            self.assertIn(f"매수심사결과 높은 순위 {self.COUNTS[market]}", source,
+                          f"{market} 화면에 제목이 없다")
             self.assertIn("def _render_top_reviewed(", source, f"{market}에 그리는 함수가 없다")
             self.assertIn("_render_top_reviewed(market, ranking)", source,
                           f"{market}에서 부르지 않는다")
@@ -190,8 +195,9 @@ class PageWiringTests(unittest.TestCase):
 
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
-            self.assertIn(f'"매수심사결과 높은 순위 7", key="{prefix}_top7_find")', source,
-                          f"{market} 순위 7 단추가 아직 화면을 가로지른다")
+            self.assertIn(
+                f'"매수심사결과 높은 순위 {self.COUNTS[market]}", key="{prefix}_top7_find")',
+                source, f"{market} 순위 단추가 아직 화면을 가로지른다")
             # 2026-08-01에 눌림목 단추는 설명서 두 갈래 단추와 나란히 놓이면서
             # 글자에 '●'를 붙이는 구조로 바뀌었다.
             # 2026-08-06에 **미국만** 눌림목 찾기를 뺐다(사용자 지시) — 목적이
@@ -248,8 +254,9 @@ class PageWiringTests(unittest.TestCase):
             block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
             self.assertNotIn('button("새로 뽑기"', block, f"{market}에 단추가 또 늘었다")
             self.assertNotIn(f"{prefix}_top7_refind", block)
-            self.assertEqual(1, block.count("st.button(\"매수심사결과 높은 순위 7\""),
-                             f"{market} 순위 7 단추가 하나가 아니다")
+            self.assertEqual(
+                1, block.count(f'st.button("매수심사결과 높은 순위 {self.COUNTS[market]}"'),
+                f"{market} 순위 단추가 하나가 아니다")
 
     def test_phone_slides_the_table_sideways(self):
         """폰에서 한 종목이 여섯 줄로 쌓이던 것을 옆으로 밀어 보게 바꿨다(2026-08-01).
@@ -476,9 +483,27 @@ class UnitedStatesTests(unittest.TestCase):
         # 1차는 종가로만 줄 세운다 — 157종목 분봉을 받던 것을 없앴다(2026-07-31).
         self.assertEqual([False, False], seen_live)
 
-    def test_limit_is_seven_by_default(self):
-        self.assertEqual(7, j3.TOP_REVIEW_LIMIT)
+    def test_slots_are_three_each_in_the_us(self):
+        """2026-08-12 상하님 지시 — 대장주 3 · 상승장 3 · 급락 3, 합쳐 아홉이다.
+
+        **빈 자리를 다른 갈래로 메우지 않는다.** 급락장에는 상승장 자리가 없고,
+        그 사실이 화면에 남아야 한다.
+        """
+        self.assertEqual({"leader": 3, "breakout": 3, "crash": 3}, j3.TOP_REVIEW_SLOTS)
+        self.assertEqual(9, j3.TOP_REVIEW_LIMIT)
+        # 한국은 아직 7이다 — 같은 기준으로 맞출 때 같이 고친다(CLAUDE.md 0-1 다).
         self.assertEqual(7, j4.TOP_REVIEW_LIMIT)
+
+    def test_the_us_page_does_not_backfill_empty_slots(self):
+        """예전에는 남는 자리를 대장주가 채웠다. 그러면 자리가 비었다는 사실이 사라진다."""
+        import pathlib
+
+        source = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("def _blend_top7(")[1].split("\ndef ")[0]
+        self.assertNotIn("남는 자리는 대장주가 메운다", block, "빈 자리 메우기가 되살아났다")
+        self.assertIn("empty_notes", block, "빈 자리를 왜 비웠는지 안 적는다")
+        self.assertIn('("상승장", 3)', source)
+        self.assertIn('("급락 후 반등장", 3)', source)
 
 
 if __name__ == "__main__":

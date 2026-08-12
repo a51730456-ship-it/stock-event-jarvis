@@ -943,7 +943,7 @@ import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
 
-_REQUIRED_REGIME_GAUGE_REVISION = 2026080610
+_REQUIRED_REGIME_GAUGE_REVISION = 2026081210
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
     regime_gauge_ui = importlib.reload(regime_gauge_ui)
 
@@ -951,7 +951,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026080960
+_REQUIRED_J3_REVISION = 2026081280
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -973,7 +973,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026080910
+_REQUIRED_SIGNAL_UI_REVISION = 2026081270
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1005,6 +1005,8 @@ _MUSTARD_KEYS = (
     "다음 거래일 시가",
     "손절가가 없습니다",
     "손절가는 없습니다",
+    # 2026-08-12 — 파는 시점을 앱이 정하지 않는다는 말이 눈에 띄어야 한다.
+    "파는 시점은 규칙에 없습니다",
 )
 
 
@@ -1746,13 +1748,22 @@ def _render_market_overview() -> None:
         phase_color = "#ff5b5b"
     vix_row = overview["rows"].get("^VIX", {})
     vix_value = vix_row.get("current")
-    vix_change = vix_row.get("change_pct")
-    # VIX는 '현재 수준(18.70)'과 '전일 대비 변동률(+12.38%)'이 서로 다른 값이다.
-    # 아래 선행신호 카드가 변동률만 보여줘 혼동이 생긴다는 지적(2026-07-24)에 따라
-    # 여기서 두 값을 한 줄에 같이 보여준다. VIX는 오르면 위험이라 색을 뒤집는다.
+    # **직전 완료 장의 등락률을 쓴다** (2026-08-12 상하님 지적 "지금은 왜 0.00이
+    # 되어 있나? 기준이 없냐?"). 원인은 야후다 — 미국장이 끝난 뒤 프리마켓 시간에
+    # 야후가 **오늘 일봉을 전일 종가와 같은 값으로 미리 넣어** 둔다. 그것을 그대로
+    # 쓰면 등락률이 0.00%가 된다. `last_session_change_pct`는 완성된 장만 보므로
+    # 마감 뒤부터 다음 마감까지 안 흔들린다(2026-07-24에 같은 이유로 만들어 둔 값).
+    vix_change = vix_row.get("last_session_change_pct")
+    if vix_change is None:
+        vix_change = vix_row.get("change_pct")
+    # VIX는 '지금 수준(15.28)'과 '전일 대비(-1.16%)'가 서로 다른 값이다. 둘 다
+    # 크게 적는다(2026-08-12 상하님 지시 "수치와 +− 글자 둘 다 크게").
+    # VIX는 오르면 위험이라 색을 뒤집는다.
     vix_sub = (
-        f"VIX {_number(vix_value, 2)} "
-        f"<span style='color:{_sign_color(None if vix_change is None else -float(vix_change))}'>"
+        f"<span style='font-size:1.25rem;font-weight:800;color:#e6e6e6'>"
+        f"VIX {_number(vix_value, 2)}</span> "
+        f"<span style='font-size:1.25rem;font-weight:800;"
+        f"color:{_sign_color(None if vix_change is None else -float(vix_change))}'>"
         f"{_pct(vix_change)}</span>"
     )
     top_cells = [
@@ -1761,7 +1772,10 @@ def _render_market_overview() -> None:
         # 4대 지수를 게이지 앞에 둔다 — '시장 국면' 카드 위에 올려 달라는 요청
         # (2026-07-25). 폰에서는 숫자 칸이 앞, 게이지가 뒤로 가는 규칙 그대로다.
         *_us_index_cells(overview, phase),
-        regime_gauge_ui.regime_box_html(overview),
+        # 바늘은 **직전 완료 미국장**에 세운다(2026-08-12 상하님 지시) — 프리마켓·
+        # 장중 값으로 매번 다시 재면 하루 종일 조금씩 움직인다. 실시간 값은 상자
+        # 아래 '지금 (참고)' 줄로 남는다. 한국테마는 지금까지대로 실시간이다.
+        regime_gauge_ui.regime_box_html(overview, freeze=True),
         # SPY·QQQ도 지수 칸과 같은 옷에 그림(당일·일봉)을 넣는다(2026-08-01 지시).
         *_us_etf_cells(overview),
         _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b"),
@@ -2742,7 +2756,11 @@ def _kept_recently(key: str, seconds: float = 300) -> bool:
 # '이동평균 위인가'(20)인데, 고점에서 20~50% 빠진 종목은 정의상 그 45점을 못 받는다.
 # 실제로 2026-08-06에 두 갈래 27종목을 넣고 돌려 보니 상위 7에 하나도 못 들었다.
 # 그래서 섞어 재지 않고 **자리를 나눠 각자 자기 자로 뽑는다.**
-_TOP7_QUOTA = (("테마 대장주", 3), ("상승장", 2), ("급락 후 반등장", 2))
+# 2026-08-12 상하님 지시로 3·3·3 아홉 자리가 됐다 — "대장주 3개 상승장 3개
+# 급락 3개씩 해라. 급락하는 시장에서는 상승장이 없잖아. 없으면 없는 대로 하면 돼.
+# 그 대신 설명을 해야겠지."
+_TOP7_QUOTA = (("테마 대장주", 3), ("상승장", 3), ("급락 후 반등장", 3))
+_TOP_TOTAL = sum(quota for _name, quota in _TOP7_QUOTA)
 
 # 상승장·급락 표에서 처음부터 펴 두는 줄 수. 나머지는 접어 둔다
 # (2026-08-06 사용자 지시 — 급락은 20줄이라 화면이 너무 길었다).
@@ -2782,10 +2800,11 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
             rows.append(merged)
         buckets[name] = rows
 
-    picked, seen = [], set()
+    picked, seen, empty_notes = [], set(), []
     for name, quota in _TOP7_QUOTA:
+        taken = 0
         for row in buckets.get(name) or []:
-            if len(picked) >= 7 or quota <= 0:
+            if quota <= 0:
                 break
             ticker = str(row.get("ticker") or "")
             if not ticker or ticker in seen:
@@ -2795,17 +2814,15 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
             row["top7_origin"] = name
             picked.append(row)
             quota -= 1
-    # 남는 자리는 대장주가 메운다 — 갈래가 비는 날이 있다.
-    for row in buckets.get("테마 대장주") or []:
-        if len(picked) >= 7:
-            break
-        ticker = str(row.get("ticker") or "")
-        if not ticker or ticker in seen:
-            continue
-        seen.add(ticker)
-        row = dict(row)
-        row["top7_origin"] = "테마 대장주"
-        picked.append(row)
+            taken += 1
+        # **빈 자리를 딴 갈래로 메우지 않는다**(2026-08-12 상하님 지시).
+        # 예전에는 남는 자리를 대장주가 채웠다. 그러면 급락장에 상승장 자리가
+        # 없다는 사실이 화면에서 사라진다 — 그게 알아야 할 정보다.
+        want = dict(_TOP7_QUOTA)[name]
+        if taken < want:
+            empty_notes.append(
+                f"오늘은 **{name}** 자리가 없습니다" if not taken
+                else f"**{name}**은 {want}자리 중 {taken}개만 찼습니다")
     for index, row in enumerate(picked, 1):
         row["pick_rank"] = index
     return {
@@ -2815,19 +2832,20 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
         "candidate_count": sum(len(v) for v in buckets.values()),
         "errors": leaders.get("errors") or [],
         "bucket_counts": {name: len(buckets.get(name) or []) for name, _q in _TOP7_QUOTA},
+        "empty_notes": empty_notes,
     }
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
-    """매수심사결과 높은 순위 7 (2026-07-30 사용자 지시).
+    """매수심사결과 높은 순위 9 (2026-08-12 상하님 지시로 7 → 9).
 
-    세 군데에서 각자 자기 자로 뽑아 합친다(2026-08-06 사용자 지시) —
-    테마 대장주 3 · 상승장 2 · 급락 후 반등장 2.
-    표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다 — 창을 또 눌러
-    여는 방식은 없앴다(2026-07-30 사용자 지시).
+    세 군데에서 각자 자기 자로 뽑아 합친다 — 테마 대장주 3 · 상승장 3 · 급락 3.
+    **점수를 다시 재지 않는다.** 각 목록이 제 자로 잰 값을 그대로 쓴다.
+    **빈 자리는 딴 갈래로 메우지 않고 왜 비었는지 적는다.**
+    표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다.
     """
     st.markdown(
-        "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 7</div>",
+        "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 9</div>",
         unsafe_allow_html=True,
     )
     # 재료는 셋이다(2026-08-06 사용자 지시 — "누르든 안 누르든 둘 다 자동으로").
@@ -2839,15 +2857,16 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 설명이 너무 길다는 지적(2026-08-06). 왜 섞지 않는지의 자세한 사연은
     # _blend_top7() 주석에 있다 — 화면에는 핵심 두 줄만 남긴다.
     st.caption(
-        "**테마 대장주 3 · 상승장 2 · 급락 후 반등장 2**로 자리를 나눠 뽑습니다. "
+        "**테마 대장주 3 · 상승장 3 · 급락 후 반등장 3**으로 자리를 나눠 뽑습니다. "
         "위 두 단추를 누르지 않아도 자동으로 함께 봅니다.<br>"
-        "**점수는 갈래마다 다른 자**로 잰 값이라 갈래끼리만 견주십시오.",
+        "**점수는 갈래마다 다른 자**로 잰 값이라 갈래끼리만 견주십시오. "
+        "**빈 자리는 다른 갈래로 채우지 않습니다** — 급락장에는 상승장 자리가 없습니다.",
         unsafe_allow_html=True,
     )
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
     is_open = bool(st.session_state.get("j3_top7_open"))
-    run_requested = st.button("매수심사결과 높은 순위 7", key="j3_top7_find")
+    run_requested = st.button("매수심사결과 높은 순위 9", key="j3_top7_find")
     if run_requested and is_open:
         # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다.
         st.session_state["j3_top7_open"] = False
@@ -2888,9 +2907,14 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
 
     errors = result.get("errors") or []
     st.caption(
-        f"테마 {result.get('scanned_themes', 0)}개 심사 · 후보 {result.get('candidate_count', 0)}개 → 상위 {len(rows)}개"
+        f"테마 {result.get('scanned_themes', 0)}개 심사 · 후보 {result.get('candidate_count', 0)}개 → "
+        f"{len(rows)}종목 (자리 {_TOP_TOTAL}개)"
         + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
     )
+    # **빈 자리는 감추지 않는다**(2026-08-12 상하님 지시). 자리를 못 채웠으면
+    # 왜 비었는지 적는다 — 급락장에 상승장 자리가 없는 것은 알아야 할 정보다.
+    for note in result.get("empty_notes") or []:
+        st.caption(f"🔸 {note} — 다른 갈래로 채우지 않습니다.")
 
     st.caption("종목 이름을 누르면 아래에 그 종목 상세와 차트가 한꺼번에 열립니다.")
     widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]
@@ -2964,7 +2988,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     )
     # 구역 맨 아래 닫기 단추 — 다른 구역에는 다 있는데 여기만 없었다
     # (2026-08-06 사용자 지적). 폰에서 표 끝까지 내려가면 위 단추가 화면 밖으로 나간다.
-    _section_close("j3_top7_open", "매수심사결과 높은 순위 7 닫기")
+    _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기")
 
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
@@ -3195,6 +3219,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         factor_names = [name for name, _v, _m, _t in scored["parts"]]
         factor_max = [maximum for _n, _v, maximum, _t in scored["parts"]]
         factor_notes = [note for _n, _v, _m, note in scored["parts"]]
+        # 만점은 **모듈이 정한다.** 갈래마다 다르다(상승장 90점 · 급락 100점) —
+        # 합격한 항목만 점수를 주고 남는 점수를 다른 항목에 나눠 주지 않기 때문이다
+        # (CLAUDE.md 0-1 마). 화면에 100을 박아 두면 90점 만점 갈래가 낮아 보인다.
+        score_max = float(scored.get("max") or 100.0)
     else:
         review = j3data.analyze_pullback_stock(
             row,
@@ -3214,6 +3242,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         factor_notes = ["창 32·43·61% 미달", "창 47·42·26% 미달",
                         "창 5·12·42% 거꾸로 → 0점", "창 70·58·35% 미달",
                         "창 55·45·43% 미달"]
+        score_max = round(sum(factor_max), 1) or 100.0
 
     # 종목 이름·판정은 자비스4 종목 상세와 같은 형식으로 크게 보여준다.
     st.markdown(
@@ -3259,14 +3288,15 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         cells.append(
             f"<div class='j3-mc'><div class='j3-mc-label'>이 종목 점수</div>"
             f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.0f}점 "
-            "<span style='font-size:1rem; color:#9aa0aa'>/ 100</span></div>"
+            f"<span style='font-size:1rem; color:#9aa0aa'>/ {score_max:g}</span></div>"
             f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
             "</div></div>"
         )
     else:
         cells.extend([
             f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
-            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}/100</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}"
+            f"/{score_max:g}</div>"
             f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
             "</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
@@ -3301,7 +3331,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
         f"<td class='j3-fac-val' style='{total_style}'>"
         f"<span style='color:#ff5b5b; font-weight:800'>{_number(review.get('score'))}</span> "
-        "<span style='color:#ff5b5b'>(100)</span></td></tr>"
+        f"<span style='color:#ff5b5b'>({score_max:g})</span></td></tr>"
     )
     # 시장·테마는 배점표 **위**에 둔다(2026-08-07). 차트 뒤 맨 아래 있던 것을
     # 올렸다 — 종목 점수를 보기 전에 어떤 시장·어떤 테마인지부터 알아야 한다.
@@ -3367,10 +3397,17 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         if mode in ("crash", "breakout"):
             # 이 규칙에는 넘어야 할 기준가도 손절도 없다. 없는 것을 있는 것처럼
             # 적지 않고, 규칙이 실제로 정한 것을 적는다.
+            # **파는 시점은 앱이 정하지 않는다**(2026-08-12 상하님 확정).
+            # 자리 하나에 3개월·6개월·1년 과거 성적을 나란히 놓고, 고르는 것은
+            # 상하님이 하신다. 상하님 표 1·2가 원래 그 모양이다.
+            spans = " · ".join(
+                f"{item['label']} {item['median_return']:+.1f}%"
+                for item in (plan.get("hold_results") or ())
+            )
             plan_cells = [
                 ("사는 때", str(plan.get("entry") or "—"), "#44f0a1"),
-                ("보유 기간", f"{int(plan.get('hold_days') or 0)}거래일", "#e6e6e6"),
-                ("파는 때", "그날 종가", "#e6e6e6"),
+                ("파는 때", "규칙에 없음 — 상하님이 정하십니다", "#ffd23f"),
+                ("이 자리 과거 성적", spans or "—", "#e6e6e6"),
                 ("손절가", "이 규칙에는 없음", "#ff5b5b"),
             ]
         elif plan.get("trigger") is not None:
@@ -3558,46 +3595,58 @@ _BAND_CELL_CLASS = {"shallow": "j3-band-mid", "deep": "j3-band-deep", "mid": "j3
 # (이름, 배점 열쇠 또는 None, 왜) — 열쇠가 None이면 배점에 아예 없는 항목이라 0점이다.
 _SCORE_TABLE = {
     "breakout": (
+        ("눌린 폭 10~15%", "drop",
+         "보유 <b>3개월·6개월·1년 셋 다</b> 합격한 <u>유일한 항목</u>입니다. "
+         "1년 기준 10~15% 칸 27.8% · 4~6% 칸 14.7% · 아무 종목이나 14.1%. "
+         "2026-08-09에 '그물이 이미 쓴 값'이라며 뺐다가, 앱 그물 안에서 다시 재니 "
+         "확실히 갈려서 되살렸습니다"),
+        ("테마가 같이 오르는가", "spread5",
+         "그 테마 종목 중 몇 %가 최근 5일에 올랐나, 그 등수입니다. "
+         "6개월·1년 보유에서 합격했습니다(6개월 최악 −0.4p로 전 항목 1등)"),
+        ("테마가 덜 빠졌나", "less_drop",
+         "3개월·6개월 보유에서 합격했습니다"),
         ("같은 테마 동반", "together",
-         "3개 이상이면 100번 중 67번. 앞 5년·뒤 5년 <b>둘 다</b> 이겼습니다"),
+         "<u>2026-08-12에 뺐습니다</u> — 4개↑는 <b>6개월 보유에서만</b> 합격했습니다. "
+         "앱이 파는 시점을 정하지 않으므로 한 기간에서만 통하는 값은 쓰지 않습니다"),
         ("최근 11일에 빠졌나", "recent_drop",
-         "5% 넘게 빠진 쪽이 66번. 이것도 <b>둘 다</b> 이겼지만 <u>뒤 5년이 얇습니다</u>"),
-        ("눌린 폭", "drop",
-         "<u>2026-08-09에 뺐습니다</u> — 그물(4~15%)이 이미 쓴 값이라 두 번 세는 것이었고, "
-         "뒤 5년엔 졌습니다. 급락 갈래는 같은 이유로 이미 0점이었습니다"),
+         "<u>2026-08-12에 뺐습니다</u> — 세 보유기간 전부 미달이었습니다"
+         "(수익률 쪽이 65%를 못 넘습니다). −5%↑ 빠진 자리는 그물의 6%뿐이라 "
+         "가르지도 못합니다"),
         ("사고팔기 쉬운가", "liquidity",
-         "성적을 맞히는 값이 아니라 실제로 사고팔 수 있는가입니다"),
-        ("많이 흔들리지 않나", "volatility", "감당할 크기인가입니다"),
-        ("최근 60일 상승폭", None,
-         "많이 오른 쪽이 커 보이지만 이기는 횟수는 기준과 같고 "
-         "<u>뒤 5년엔 졌습니다</u>. 예전에 30점을 준 것이 잘못이었습니다"),
-        ("거래대금 평소 위 연속", None,
-         "상승장에서는 <u>거꾸로</u>였습니다(61번). 이미 늦은 자리입니다"),
+         "<u>3개월 보유에서 거꾸로</u>였습니다. 큰 종목이 더 나은 게 아니었습니다"),
+        ("많이 흔들리지 않나", "volatility", "세 보유기간 전부 미달이었습니다"),
         ("신고가 뒤 며칠", None,
-         "1~3일도 뒤 5년엔 졌습니다. 날짜는 <b>보여만</b> 드리고 "
-         "고르시는 것은 상하님이 하십니다"),
+         "1~3일 27.8% · 3~5일 28.4%로 <u>갈리지 않습니다</u>. 날짜는 <b>보여만</b> "
+         "드리고 고르시는 것은 상하님이 하십니다"),
+        ("최근 60일 상승폭 · 거래대금 연속", None,
+         "예전에 점수를 줬다가 뺀 것들입니다. 앞뒤로 갈라 재니 뒤 절반에서 졌습니다"),
     ),
     "crash": (
+        ("테마가 덜 빠졌나", "less_drop",
+         "보유 <b>3개월·6개월·1년 셋 다</b> 합격한 <u>유일한 항목</u>입니다"
+         "(3등·3등·1등). 파는 시점을 정하지 않으므로 이것 하나만 믿을 수 있습니다"),
+        ("테마가 같이 오르는가", "spread5",
+         "그 테마 종목 중 몇 %가 최근 5일에 올랐나, 그 등수입니다. "
+         "6개월 보유에서 1등이었습니다"),
+        ("테마가 20일선 위에 있나", "above20",
+         "그 테마 종목 중 몇 %가 20일선 위인가입니다. 6개월 보유에서 2등이었습니다"),
         ("같은 테마 동반", "together",
-         "같은 테마에서 여럿이 같이 눌리면 만점입니다. 이 화면에서는 "
-         "<u>뒤 5년만 이겼지만</u>(앞 5년엔 졌습니다), 테마가 같이 움직이는 정도가 "
-         "해마다 커지고 있어 1등에 뒀습니다 — 2026년이 10년 중 가장 강합니다"),
-        ("테마 등수 (60일 수익률 상위)", "theme_rank",
-         "2026-08-07에 넣었습니다. 창 2·3·4년에서 80·95·100%로 <b>셋 다</b> 이겼습니다 — "
-         "종목보다 테마 쪽이 잘 들었습니다"),
-        ("많이 흔들리지 않나", "volatility", "감당할 크기인가입니다"),
-        ("사고팔기 쉬운가", "liquidity",
-         "성적을 맞히는 값이 아니라 실제로 사고팔 수 있는가입니다"),
+         "<u>2026-08-12에 뺐습니다</u> — 2026-08-09에 명부에서 종목 하나를 바꾼 뒤로 "
+         "이미 불합격이었고(80/95 → 64/93), 새 그물에서는 1년 보유에만 걸리는 데다 "
+         "<b>해당이 67%</b>라 순위를 못 가릅니다"),
+        ("테마 60일 수익률 등수", "theme_rank",
+         "<u>6개월 보유에서만</u> 합격했습니다. 파는 시점을 안 정하므로 안 씁니다"),
         ("최근 11일에 빠졌나", "recent_drop",
-         "<u>2026-08-07에 뺐습니다</u> — 새 그물(250거래일 보유)에서 거의 모든 창에 "
-         "졌습니다. 1년을 들 거면 이미 돌아선 종목이 낫다는 뜻입니다"),
+         "<u>보유기간마다 뒤집힙니다</u> — 3개월 1등(−5.8p)인데 1년에서는 거의 "
+         "거꾸로(−19.7p)입니다"),
+        ("많이 흔들리지 않나 · 사고팔기 쉬운가", "volatility",
+         "세 보유기간 전부 미달이었습니다"),
         ("낙폭 갈래", "bucket",
-         "갈래가 하나뿐이라 모두 같은 점수를 받아 못 가릅니다. 그물로 이미 한 번 썼습니다"),
-        ("거래대금 평소 위 연속", None,
-         "앞뒤 <u>양쪽 다 거꾸로</u>였습니다. 확실히 뺐습니다"),
-        ("테마 ETF가 오르는 중인가", None,
-         "20일선 위가 오히려 나빴습니다(위 67번 · 아래 70번). "
-         "테마가 되살아나는지 미리 아는 방법은 못 찾았습니다"),
+         "그물로 이미 한 번 썼고, 두 칸 다 미달이었습니다. 대신 칸마다 과거 성적을 "
+         "따로 보여 드립니다"),
+        ("종목으로 고르는 항목 전부", None,
+         "<b>변동성·거래대금·60일 등락·낙폭</b> 아홉 개가 세 보유기간 다 미달입니다. "
+         "<u>미국은 종목이 아니라 테마로만 고를 수 있습니다</u>"),
     ),
 }
 
@@ -3727,12 +3776,15 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 # 카드와 표의 같은 갈래가 같은 색이어야 눈으로 이어진다(2026-08-01 지시).
                 cards.append(
                     f"<div class='j3-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
-                    f"<div class='j3-reason-title'>"
-                    f"{rule['label']} → {rule['hold_days']}거래일 보유</div>"
-                    f"<div class='j3-reason-body'>100번 중 {rule['win_rate']}번 이익 · "
-                    f"가운데 값 +{rule['median_return']}% "
-                    f"(아무 종목이나 {rule['base_win_rate']}번) · 지금 해당 종목 "
-                    f"{counts.get(rule['key'], 0)}개</div></div>"
+                    f"<div class='j3-reason-title'>{rule['label']}</div>"
+                    # **파는 날을 적지 않는다**(2026-08-12 상하님 확정). 대신
+                    # 3개월·6개월·1년 과거 성적을 나란히 놓는다.
+                    f"<div class='j3-reason-body'>"
+                    + " · ".join(
+                        f"{item['label']} <b>{item['median_return']:+.1f}%</b>"
+                        f"(100번 중 {item['win_rate']:.0f}번)"
+                        for item in rule.get("results") or ())
+                    + f" · 지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
                 )
             if ref_date:
                 st.caption(
@@ -3845,7 +3897,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 화면이 순위와 다른 것을 설명하게 된다.
     volume_head = "최근 11일"
     head_cells = (["티커", "당일주가"] + drop_heads
-                  + ["소속 테마", third, "보유일수", "같이 걸린 종목", volume_head])
+                  + ["소속 테마", third, "1년 성적", "같이 걸린 종목", volume_head])
     # **상승장은 '순위'라고 부르지 않는다**(2026-08-07). 그물을 144가지로 다 재도
     # 하나도 기준선을 못 넘었다 — 그 위에서 매긴 차례를 1위·2위로 보이면 화면이
     # 검증되지 않은 것을 검증된 것처럼 말하게 된다. 그냥 번호다.
@@ -3952,12 +4004,12 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
             f"{int(row.get('together_count') or 0)}개</span>"
         )
-        hold_days = int(row.get("hold_days") or 0)
-        hold_class = (
-            "j3-hold-20" if hold_days == 20
-            else "j3-hold-60" if hold_days == 60
-            else "j3-hold-120"
-        )
+        # 2026-08-12부터 파는 날을 규칙으로 정하지 않는다. 그래서 이 칸에는
+        # 며칠이 아니라 **이 자리를 1년 들었을 때의 과거 성적**을 적는다.
+        year = next((item for item in (row.get("hold_results") or ())
+                     if item.get("days") == 250), None)
+        hold_cell = (f"<span class='j3-hold-120'>1년 {year['median_return']:+.0f}%</span>"
+                     if year else "<span class='j3-muted'>—</span>")
         # 달러 거래대금은 숨기고 이 화면에서 실제 순위에 쓰는 값만 남긴다.
         # 최근 11일에 빠진 쪽이 만점이므로, 빠진 것을 초록으로 둔다(값이 좋다는 뜻).
         gain11 = row.get("recent_gain_pct")
@@ -4007,7 +4059,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 f"<span class='j3-rb-clip j3-pull-theme'"
                 f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
                 third_cell,
-                f"<span class='{hold_class}'>{hold_days}거래일</span>",
+                hold_cell,
                 together_cell,
                 volume_cell,
             ]),

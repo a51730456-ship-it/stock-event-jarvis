@@ -44,6 +44,15 @@ def build(plan: dict | None, *, money, market_score=None) -> dict:
         pieces = [f"<b>{plan.get('entry') or '다음 거래일 시가'}</b>에 삽니다"]
         if hold:
             pieces.append(f"<b>{int(hold)}거래일</b> 뒤 종가에 팝니다")
+        else:
+            # **파는 시점은 앱이 정하지 않는다**(2026-08-12 상하님 확정:
+            # "파는 시점은 내가 정한다"). 대신 그 자리의 과거 성적을 나란히 적는다.
+            spans = " · ".join(
+                f"{item['label']} {item['median_return']:+.1f}%"
+                for item in (plan.get("hold_results") or ())
+            )
+            pieces.append("<b>파는 시점은 규칙에 없습니다</b>"
+                          + (f" (과거 성적 {spans})" if spans else ""))
         pieces.append("이 규칙에는 <b>손절가가 없습니다</b>")
         if recommendation == "조건부 후보":
             headline = "설명서 규칙에 맞는 자리입니다"

@@ -125,9 +125,32 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
         _log(f"{market} {trade_date} — 저장할 줄이 없어 파일을 건드리지 않았습니다")
     else:
         _log(f"{market} {trade_date} — {len(collected)}줄 저장 → {path}")
+
+    # ── 지난 날들의 **매수금액(다음 거래일 시가)**을 채운다 (2026-08-12) ──────
+    # 신호가 난 날에는 다음 거래일 시가를 알 수 없어 빈칸으로 저장된다. 그것을
+    # 다음 날 이후에 누군가 채워야 수익률이 나오는데, **아무도 하지 않아 232줄
+    # 전부 빈칸이었다**(2026-08-12 상하님 지적: "하나도 저장이 안 되어 있고").
+    # 화면 단추로만 채울 수 있었고, 온라인에서 채운 값은 저장소에 안 올라가
+    # 앱이 한 번 쉬면 사라졌다. 이제 여기서 같이 돈다 — 상하님이 로그인하지
+    # 않아도 채워진다. 한 번 채워진 값은 다시 안 건드린다.
+    #
+    # 목록 저장이 끝난 **뒤**에 한다. 여기서 막혀도 오늘 목록은 이미 파일에 있다.
+    filled = {}
+    try:
+        filled = store.backfill_buy_opens(market, out_dir=out_dir)
+    except Exception as exc:
+        errors.append(f"매수금액 채우기: {exc}")
+        _log(f"  매수금액 채우기 실패 — {exc}")
+    if filled:
+        for day, count in sorted(filled.items()):
+            _log(f"  {day} 매수금액 {count}줄 채움")
+    else:
+        _log("  채울 매수금액이 없습니다 (이미 다 찼거나 다음 거래일이 아직 안 왔습니다)")
+
     return {
         "market": market, "trade_date": trade_date, "path": str(path) if path else "",
         "rows": len(collected), "counts": counts, "errors": errors,
+        "buy_opens_filled": filled,
     }
 
 

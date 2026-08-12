@@ -834,12 +834,16 @@ class Jarvis3PageTests(unittest.TestCase):
         # 화면이 실제로 찾는 숫자가 그대로 나와야 한다(2026-08-06 새 기준).
         self.assertIn("10~15%", joined)
         self.assertIn("1~5거래일", joined)
-        self.assertIn("120거래일", joined)
+        # **파는 날은 규칙에 없다**(2026-08-12 상하님 확정). 그 자리에 3개월·6개월·
+        # 1년 과거 성적이 나란히 뜬다.
+        self.assertIn("파는 시점은 규칙에 없습니다", joined)
+        for label in ("3개월", "6개월", "1년"):
+            self.assertIn(label, joined, f"{label} 성적이 화면에 없다")
         # 성적 옆에는 늘 기준선이 붙어야 한다.
         self.assertIn("아무 날 아무 종목이나", joined)
         # 눌림목 표가 아니라 이 갈래 전용 표다 — 머리글에 '보유일수'가 있고
         # '눌림 점수'는 없다(설명 글에는 그 말이 남아 있으므로 머리글만 본다).
-        header = next(value for value in markdowns if "보유일수" in value and "티커" in value)
+        header = next(value for value in markdowns if "1년 성적" in value and "티커" in value)
         self.assertNotIn("눌림 점수", header)
         self.assertLess(header.index("고점 대비"), header.index("소속 테마"))
         # 며칠 지났는지는 거르지 않고 보여만 준다 — 칸 이름이 그 뜻이어야 한다.
@@ -863,14 +867,15 @@ class Jarvis3PageTests(unittest.TestCase):
         joined = " ".join(str(node.value) for node in app.markdown)
         self.assertIn("고점 대비 -20~-30%", joined)
         self.assertIn("고점 대비 -30~-50%", joined)
-        self.assertIn("120거래일 보유", joined)
+        # 파는 날 대신 세 기간 성적이 나란히 뜬다.
+        self.assertIn("파는 시점은 규칙에 없습니다", joined)
         # 2026-08-06 — 점수가 순위다(별점은 뺐다). 배점표를 화면에 그대로 뿌린다.
         self.assertIn("점수가 곧 순위입니다", joined)
         self.assertNotIn("★", joined, "별점이 되살아났다")
-        for item in ("같은 테마 동반", "40점", "최근 11일에 빠졌나", "25점", "낙폭 갈래"):
+        # 2026-08-12 새 그물 실측 — 배점 90점이 전부 테마 등수다.
+        for item in ("테마가 덜 빠졌나", "40점", "테마가 같이 오르는가", "30점"):
             self.assertIn(item, joined, f"배점표에 {item}이 없다")
         # 0점으로 뺀 항목도 왜 뺐는지 같이 보여야 같은 실수를 되풀이하지 않는다.
-        self.assertIn("거래대금 평소 위 연속", joined)
         self.assertIn("0점", joined)
         header = next(
             str(node.value) for node in app.markdown
@@ -890,8 +895,8 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertLess(block.index("mode_close_label"), block.index("widths ="))
         self.assertNotIn("avg_text", block)
         self.assertNotIn("together_label", block)
-        for hold_class in ("j3-hold-20", "j3-hold-60", "j3-hold-120"):
-            self.assertIn(hold_class, block)
+        # 파는 날 칸이 '1년 성적'으로 바뀌었다 — 며칠이라고 적지 않는다.
+        self.assertNotIn("거래일</span>", block, "파는 날이 표에 되살아났다")
 
     def test_the_two_depth_buckets_get_different_colours(self):
         """두 갈래를 색으로 가른다(2026-08-01 지시).
