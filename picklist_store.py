@@ -42,7 +42,7 @@ from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
 # (CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080940
+MODULE_REVISION = 2026081210
 
 SCHEMA_VERSION = 2
 
@@ -426,6 +426,101 @@ def days_since(trade_date, today=None):
     if isinstance(end, datetime):
         end = end.date()
     return (end - start).days
+
+
+def fetch_buy_opens(market: str, rows) -> dict:
+    """줄마다 **다음 거래일 시가**를 찾아 온다. 못 찾으면 목록에서 빠진다.
+
+    설명서의 규칙이 "종가를 확인하고 다음 거래일 시가에 산다"이므로, 실제로 살 수
+    있었던 값은 신호일 다음 거래일의 시가다(2026-08-09 상하님 지시).
+
+    **화면(picklist_ui)과 클라우드 수집기(picklist_collector)가 같이 쓴다.**
+    2026-08-12까지는 이 함수가 화면 쪽에만 있어서 상하님이 단추를 눌러야만 채워졌고,
+    온라인에서 눌러 채운 값은 저장소에 안 올라가 앱이 한 번 쉬면 사라졌다. 그래서
+    저장된 232줄 전부 매수금액이 빈칸이었다 — 수익률이 영원히 안 나왔다.
+    여기(streamlit을 안 쓰는 창고)로 옮겨 수집기도 부를 수 있게 한다.
+
+    `price_data.get_ohlc_history_for_chart`는 **차트 전용 읽기 함수**다 — 점수 계산과
+    무관하고, 조회에 실패하면 예외 대신 None을 준다. (price_data는 고치지 않는다.
+    읽기만 한다 — CLAUDE.md 2번.)
+
+    주말·공휴일이 끼면 다음 거래일이 며칠 뒤일 수 있어 2주치를 받아 그중
+    **신호일보다 뒤에 있는 첫 거래일**의 시가를 쓴다.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import timedelta
+
+    import price_data
+
+    wanted = {}
+    for row in rows:
+        code = str(row.get("code") or "")
+        if not code or _num(row.get("buy_open")) is not None:
+            continue     # 이미 채워진 줄은 다시 찾지 않는다
+        wanted[code] = str(row.get("trade_date") or "")
+    if not wanted:
+        return {}
+
+    def _one(item):
+        code, day = item
+        try:
+            start = date.fromisoformat(day)
+        except (TypeError, ValueError):
+            return code, None
+        try:
+            frame = price_data.get_ohlc_history_for_chart(
+                code, start.isoformat(), (start + timedelta(days=16)).isoformat())
+        except Exception:
+            return code, None
+        if frame is None or getattr(frame, "empty", True) or "Open" not in frame:
+            return code, None
+        try:
+            for stamp, bar in frame.iterrows():
+                if getattr(stamp, "date", lambda: stamp)() > start:
+                    value = float(bar["Open"])
+                    return code, (value if value == value and value > 0 else None)
+        except Exception:
+            return code, None
+        return code, None      # 아직 다음 거래일이 오지 않았다
+
+    out = {}
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for code, value in pool.map(_one, wanted.items()):
+            if value is not None:
+                out[code] = value
+    return out
+
+
+def backfill_buy_opens(market: str, *, out_dir=None, days: int = 10) -> dict:
+    """지난 며칠치 저장 목록에서 **빈 매수금액을 채운다** (2026-08-12).
+
+    신호가 난 날에는 다음 거래일 시가를 알 수 없어 빈칸으로 저장된다. 그것을
+    **다음 날 이후에 누군가 채워 넣어야** 수익률이 나오는데, 그 일을 아무도 하지
+    않아 232줄 전부 빈칸이었다. 이제 클라우드 수집기가 새 목록을 찍을 때 함께 돈다.
+
+    **한 번 채워진 값은 다시 안 건드린다** — 과거의 시가는 고정된 사실이다.
+    조회에 실패한 날은 그냥 넘어간다. 다음 날 다시 시도한다.
+
+    돌려주는 값: {날짜: 채운 줄 수}
+    """
+    filled: dict[str, int] = {}
+    for trade_date in available_dates(market, out_dir)[: max(0, int(days))]:
+        rows = load_rows(trade_date, market, out_dir)
+        missing = [row for row in rows if _num(row.get("buy_open")) is None]
+        if not missing:
+            continue
+        try:
+            opens = fetch_buy_opens(market, missing)
+        except Exception:
+            continue          # 하루가 막혀도 나머지 날은 계속한다
+        if not opens:
+            continue
+        merged = set_buy_opens(rows, opens)
+        if save_rows(merged, trade_date=trade_date, market=market, out_dir=out_dir):
+            filled[trade_date] = sum(
+                1 for row in merged if _num(row.get("buy_open")) is not None
+            ) - (len(rows) - len(missing))
+    return filled
 
 
 def set_buy_opens(rows, opens) -> list[dict]:

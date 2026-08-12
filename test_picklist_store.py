@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import pathlib
+import shutil
+from unittest.mock import patch
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -385,3 +388,72 @@ class TradeDateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BuyOpenBackfillTests(unittest.TestCase):
+    """**매수금액은 자동으로 채워져야 한다** (2026-08-12 상하님 지적).
+
+    "전날 종가에 저장하고 다음날 매수 하는 것으로 자동저장되게 해서 하기로 했는데
+    하나도 저장이 안 되어 있고" — 확인해 보니 저장된 232줄 전부 매수금액이
+    빈칸이었다. 목록은 잘 저장되고 있었는데, 신호일에는 알 수 없는 '다음 거래일
+    시가'를 나중에 채워 넣는 일을 **아무도 하지 않았다.** 화면 단추로만 채울 수
+    있었고 온라인에서 채운 값은 저장소에 안 올라갔다.
+    """
+
+    def setUp(self):
+        self._dir = tempfile.mkdtemp()
+        self.out = pathlib.Path(self._dir)
+
+    def tearDown(self):
+        shutil.rmtree(self._dir, ignore_errors=True)
+
+    def _save(self, trade_date, codes):
+        store.save_rows(
+            [store.normalize_row({"ticker": code, "name": code, "price": 100.0},
+                                 market="US", list_kind="breakout",
+                                 trade_date=trade_date, rank=index, saved_at="x")
+             for index, code in enumerate(codes, 1)],
+            trade_date=trade_date, market="US", out_dir=self.out)
+
+    def test_it_fills_yesterdays_blank_buy_price(self):
+        self._save("2026-08-10", ["AAA", "BBB"])
+        with patch.object(store, "fetch_buy_opens", return_value={"AAA": 11.0, "BBB": 22.0}):
+            filled = store.backfill_buy_opens("US", out_dir=self.out)
+        self.assertEqual({"2026-08-10": 2}, filled)
+        rows = store.load_rows("2026-08-10", "US", self.out)
+        self.assertEqual([11.0, 22.0], [row["buy_open"] for row in rows])
+
+    def test_a_filled_price_is_never_overwritten(self):
+        """과거의 시가는 고정된 사실이다. 자료원이 바뀌어도 옛 손익이 흔들리면 안 된다."""
+        self._save("2026-08-10", ["AAA"])
+        with patch.object(store, "fetch_buy_opens", return_value={"AAA": 11.0}):
+            store.backfill_buy_opens("US", out_dir=self.out)
+        with patch.object(store, "fetch_buy_opens", return_value={"AAA": 99.0}) as again:
+            store.backfill_buy_opens("US", out_dir=self.out)
+        # 이미 다 찼으면 조회조차 하지 않는다.
+        again.assert_not_called()
+        self.assertEqual(11.0, store.load_rows("2026-08-10", "US", self.out)[0]["buy_open"])
+
+    def test_one_bad_day_does_not_stop_the_others(self):
+        self._save("2026-08-10", ["AAA"])
+        self._save("2026-08-11", ["BBB"])
+        calls = []
+
+        def _flaky(market, rows):
+            calls.append(rows[0]["trade_date"])
+            if rows[0]["trade_date"] == "2026-08-11":
+                raise RuntimeError("조회 실패")
+            return {"AAA": 11.0}
+
+        with patch.object(store, "fetch_buy_opens", side_effect=_flaky):
+            filled = store.backfill_buy_opens("US", out_dir=self.out)
+        self.assertEqual({"2026-08-10": 1}, filled)
+        self.assertEqual(2, len(calls), "한 날이 막히면 나머지도 멈췄다")
+
+    def test_the_cloud_collector_calls_it(self):
+        """화면 단추가 아니라 **클라우드 수집기**가 채워야 한다 — 상하님이 로그인
+        하지 않아도 쌓여야 한다는 것이 이 기능의 요구다."""
+        source = pathlib.Path("picklist_collector.py").read_text(encoding="utf-8")
+        self.assertIn("backfill_buy_opens", source)
+        # 목록 저장 **뒤**에 해야 한다 — 여기서 막혀도 오늘 목록은 파일에 남는다.
+        self.assertLess(source.index("save_rows("), source.index("backfill_buy_opens"))

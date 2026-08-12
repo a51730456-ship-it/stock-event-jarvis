@@ -207,61 +207,10 @@ def fetch_prices(market: str, codes) -> dict:
     return out
 
 
-def fetch_buy_opens(market: str, rows) -> dict:
-    """줄마다 **다음 거래일 시가**를 찾아 온다. 못 찾으면 목록에서 빠진다.
-
-    설명서의 규칙이 "종가를 확인하고 다음 거래일 시가에 산다"이므로, 실제로 살 수
-    있었던 값은 신호일 다음 거래일의 시가다(2026-08-09 상하님 지시).
-
-    `price_data.get_ohlc_history_for_chart`는 **차트 전용 읽기 함수**다 — 점수
-    계산과 무관하고, 조회에 실패하면 예외 대신 None을 준다. 그래서 여기서 쓴다.
-    (price_data는 고치지 않는다. 읽기만 한다 — CLAUDE.md 2번.)
-
-    주말·공휴일이 끼면 다음 거래일이 며칠 뒤일 수 있어 2주치를 받아 그중
-    **신호일보다 뒤에 있는 첫 거래일**의 시가를 쓴다.
-    """
-    from concurrent.futures import ThreadPoolExecutor
-    from datetime import date as _date, timedelta
-
-    import price_data
-
-    wanted = {}
-    for row in rows:
-        code = str(row.get("code") or "")
-        if not code or store._num(row.get("buy_open")) is not None:
-            continue     # 이미 채워진 줄은 다시 찾지 않는다
-        wanted[code] = str(row.get("trade_date") or "")
-    if not wanted:
-        return {}
-
-    def _one(item):
-        code, day = item
-        try:
-            start = _date.fromisoformat(day)
-        except (TypeError, ValueError):
-            return code, None
-        try:
-            frame = price_data.get_ohlc_history_for_chart(
-                code, start.isoformat(), (start + timedelta(days=16)).isoformat())
-        except Exception:
-            return code, None
-        if frame is None or getattr(frame, "empty", True) or "Open" not in frame:
-            return code, None
-        try:
-            for stamp, bar in frame.iterrows():
-                if getattr(stamp, "date", lambda: stamp)() > start:
-                    value = float(bar["Open"])
-                    return code, (value if value == value and value > 0 else None)
-        except Exception:
-            return code, None
-        return code, None      # 아직 다음 거래일이 오지 않았다
-
-    out = {}
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for code, value in pool.map(_one, wanted.items()):
-            if value is not None:
-                out[code] = value
-    return out
+# 시가 조회는 **창고(picklist_store)로 옮겼다**(2026-08-12) — 화면만 부르면
+# 상하님이 단추를 눌러야 채워지고, 온라인에서 채운 값은 저장소에 안 올라가
+# 앱이 한 번 쉬면 사라진다. 이제 클라우드 수집기도 같은 함수를 부른다.
+fetch_buy_opens = store.fetch_buy_opens
 
 
 def render(st, market: str, *, toggle) -> None:
