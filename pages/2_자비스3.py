@@ -973,7 +973,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026081210
+_REQUIRED_SIGNAL_UI_REVISION = 2026081270
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1748,13 +1748,22 @@ def _render_market_overview() -> None:
         phase_color = "#ff5b5b"
     vix_row = overview["rows"].get("^VIX", {})
     vix_value = vix_row.get("current")
-    vix_change = vix_row.get("change_pct")
-    # VIX는 '현재 수준(18.70)'과 '전일 대비 변동률(+12.38%)'이 서로 다른 값이다.
-    # 아래 선행신호 카드가 변동률만 보여줘 혼동이 생긴다는 지적(2026-07-24)에 따라
-    # 여기서 두 값을 한 줄에 같이 보여준다. VIX는 오르면 위험이라 색을 뒤집는다.
+    # **직전 완료 장의 등락률을 쓴다** (2026-08-12 상하님 지적 "지금은 왜 0.00이
+    # 되어 있나? 기준이 없냐?"). 원인은 야후다 — 미국장이 끝난 뒤 프리마켓 시간에
+    # 야후가 **오늘 일봉을 전일 종가와 같은 값으로 미리 넣어** 둔다. 그것을 그대로
+    # 쓰면 등락률이 0.00%가 된다. `last_session_change_pct`는 완성된 장만 보므로
+    # 마감 뒤부터 다음 마감까지 안 흔들린다(2026-07-24에 같은 이유로 만들어 둔 값).
+    vix_change = vix_row.get("last_session_change_pct")
+    if vix_change is None:
+        vix_change = vix_row.get("change_pct")
+    # VIX는 '지금 수준(15.28)'과 '전일 대비(-1.16%)'가 서로 다른 값이다. 둘 다
+    # 크게 적는다(2026-08-12 상하님 지시 "수치와 +− 글자 둘 다 크게").
+    # VIX는 오르면 위험이라 색을 뒤집는다.
     vix_sub = (
-        f"VIX {_number(vix_value, 2)} "
-        f"<span style='color:{_sign_color(None if vix_change is None else -float(vix_change))}'>"
+        f"<span style='font-size:1.25rem;font-weight:800;color:#e6e6e6'>"
+        f"VIX {_number(vix_value, 2)}</span> "
+        f"<span style='font-size:1.25rem;font-weight:800;"
+        f"color:{_sign_color(None if vix_change is None else -float(vix_change))}'>"
         f"{_pct(vix_change)}</span>"
     )
     top_cells = [

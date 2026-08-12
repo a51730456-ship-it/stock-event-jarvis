@@ -76,6 +76,9 @@ class UsSignalResult:
     missing_reasons: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
     data_status: str = ""
+    # 지수의 **지금 수준** (VIX 15.28처럼). 등락률만 보여주면 "높은 건가 낮은 건가"를
+    # 알 수 없다는 지적(2026-08-12 상하님) — 화면이 수치를 같이 적을 수 있게 담는다.
+    levels: dict = field(default_factory=dict)
 
     def signal(self, key: str):
         return next((s for s in self.signals if s.key == key), None)
@@ -308,13 +311,17 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
     by_key = {s.key: s for s in signals}
     core = [by_key[k] for k in US_CORE_KEYS if k in by_key]
     warnings = detect_us_fake_signals(by_key, extras=extras)
+    levels = {key: value for key, value in (
+        ("US_VIX", extras.get("vix_current")),
+        ("US_VIX_TERM", extras.get("vix3m_current")),
+    ) if value is not None}
 
     # --- 데이터 부족 ---------------------------------------------------------
     core_unknown = sum(1 for s in core if s.is_unknown)
     stale_core = sum(1 for s in core if is_stale(s))
     if not core or core_unknown >= 2 or stale_core >= 2:
         return _build(
-            UsMarketVerdict.INSUFFICIENT_DATA, signals, core, warnings,
+            UsMarketVerdict.INSUFFICIENT_DATA, signals, core, warnings, levels=levels,
             headline="미국장 핵심 신호가 부족해 지금은 상태를 읽지 않습니다.",
         )
 
@@ -335,19 +342,19 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
     if (vix_spike or rate_spike) and futures_down:
         driver = "VIX 급등" if vix_spike else "금리 급등"
         return _build(
-            UsMarketVerdict.VERY_BAD, signals, core, warnings,
+            UsMarketVerdict.VERY_BAD, signals, core, warnings, levels=levels,
             headline=f"{driver}과 지수 선물 하락이 함께 나타났습니다. 하락 압력이 큽니다.",
         )
     if futures_down and _any_negative(semis):
         return _build(
-            UsMarketVerdict.RISK_OFF, signals, core, warnings,
+            UsMarketVerdict.RISK_OFF, signals, core, warnings, levels=levels,
             headline="지수 선물과 반도체가 함께 밀리고 있습니다. 약세 신호가 우세합니다.",
         )
 
     # --- 5. 매우 좋음 --------------------------------------------------------
     if futures_up and semis_up and vix_ok and rate_ok:
         return _build(
-            UsMarketVerdict.RISK_ON, signals, core, warnings,
+            UsMarketVerdict.RISK_ON, signals, core, warnings, levels=levels,
             headline=(
                 "지수 선물과 반도체가 함께 오르고 VIX·금리도 부담을 주지 않습니다. "
                 "상승 여건이 양호합니다."
@@ -358,7 +365,7 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
     if futures_up and semis_up:
         blocker = "VIX" if not vix_ok else "금리"
         return _build(
-            UsMarketVerdict.RISK_ON_EARLY, signals, core, warnings,
+            UsMarketVerdict.RISK_ON_EARLY, signals, core, warnings, levels=levels,
             headline=(
                 f"선물과 반도체는 함께 오르지만 {blocker} 쪽이 아직 부담을 주고 있습니다. "
                 "상승 신호가 우세합니다."
@@ -367,18 +374,18 @@ def build_us_market_signal_result(quotes, *, now=None, extras=None) -> UsSignalR
     if futures_up or semis_up:
         leader = "지수 선물" if futures_up else "반도체"
         return _build(
-            UsMarketVerdict.MIXED, signals, core, warnings,
+            UsMarketVerdict.MIXED, signals, core, warnings, levels=levels,
             headline=f"{leader}만 먼저 움직였고 나머지는 아직 따라오지 않았습니다. 시장 신호가 엇갈립니다.",
         )
 
     # --- 3. 엇갈림 ------------------------------------------------------------
     return _build(
-        UsMarketVerdict.MIXED, signals, core, warnings,
+        UsMarketVerdict.MIXED, signals, core, warnings, levels=levels,
         headline="선물·반도체·변동성이 서로 다른 방향을 가리켜 시장 신호가 엇갈립니다.",
     )
 
 
-def _build(verdict, signals, core, warnings, *, headline) -> UsSignalResult:
+def _build(verdict, signals, core, warnings, *, headline, levels=None) -> UsSignalResult:
     return UsSignalResult(
         verdict=verdict,
         verdict_label=VERDICT_LABEL[verdict],
@@ -390,4 +397,5 @@ def _build(verdict, signals, core, warnings, *, headline) -> UsSignalResult:
         missing_reasons=[s.reason for s in signals if s.is_negative or s.is_unknown][:4],
         warnings=warnings,
         data_status=data_status_text(signals),
+        levels=dict(levels or {}),
     )

@@ -14,7 +14,7 @@ from __future__ import annotations
 import html
 import math
 
-MODULE_REVISION = 2026080910
+MODULE_REVISION = 2026081270
 
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"
@@ -30,6 +30,12 @@ _WIDTH = 320
 # 그만큼 커진다(124px 폭에서 26px 글자 = viewBox 67단위). 그래서 눈대중으로 8~10단위쯤
 # 띄우면 실제로는 겹친다. 고칠 때는 반드시 브라우저에서 재 볼 것.
 _HEIGHT = 256
+# **숫자 없는 게이지는 그림이 더 짧아야 한다** (2026-08-12 상하님 지적 —
+# "바늘 밑에 글자 있고 그 밑에 켜진 신호와 사이에 공백이 너무 크다").
+# 숫자를 그리는 게이지는 구간 이름이 y=236에 오지만, 시장 신호 카드처럼 숫자가
+# 없으면 y=178에 온다. 그런데 그림 높이는 둘 다 256이라 **아래 78단위가 통째로
+# 빈 공간**이었다. 글자 아래 20단위만 남기고 자른다.
+_LABEL_ONLY_HEIGHT = 198
 _CENTER_X = _WIDTH / 2
 _CENTER_Y = 132
 _OUTER = 118
@@ -80,8 +86,9 @@ def gauge_svg(
     show_score=False는 숫자가 없는 판정에 쓴다 — 시장 신호 카드처럼 0~100 점수가
     아니라 '네 단계 중 어디인가'만 나타낼 때는 숫자를 지어내지 않는다.
     """
+    height = _HEIGHT if show_score else _LABEL_ONLY_HEIGHT
     parts = [
-        f"<svg class='fg-gauge' viewBox='0 0 {_WIDTH} {_HEIGHT}' role='img' "
+        f"<svg class='fg-gauge' viewBox='0 0 {_WIDTH} {height}' role='img' "
         f"aria-label='{'' if score is None else round(float(score))}'>"
     ]
     start = 0.0

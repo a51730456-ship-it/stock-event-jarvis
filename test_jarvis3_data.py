@@ -663,9 +663,24 @@ class Jarvis3DataTests(unittest.TestCase):
         }
         result = j3.get_fear_greed(request_json=lambda url: payload)
         self.assertTrue(result["ok"])
-        self.assertEqual(result["score"], 41.0)
-        self.assertEqual(result["rating_kr"], "공포")
+        # **화면에 뜨는 score는 얼린 값이다**(2026-08-12) — 장중에는 전일 마감값,
+        # 마감 뒤에는 그날 값. 시험을 지금 시각에 맡기면 아침엔 통과하고 오후엔
+        # 깨진다(실제로 그랬다). 그래서 CNN이 준 **날것**은 live_score로 본다.
+        self.assertEqual(result["live_score"], 41.0)
         self.assertEqual(result["previous_close"], 45.0)
+        self.assertIn(result["score"], (41.0, 45.0))
+        self.assertEqual(result["rating_kr"], j3.fear_greed_label(result["score"]))
+        # 얼림 자체는 시각을 넣어 못박는다.
+        ny = ZoneInfo("America/New_York")
+        raw = {"ok": True, "score": 41.0, "previous_close": 45.0}
+        self.assertEqual(
+            45.0, j3._freeze_fear_greed(dict(raw),
+                                        now=datetime(2026, 8, 12, 12, tzinfo=ny))["score"],
+            "장중에는 전일 마감값이어야 한다")
+        self.assertEqual(
+            41.0, j3._freeze_fear_greed(dict(raw),
+                                        now=datetime(2026, 8, 12, 17, tzinfo=ny))["score"],
+            "마감 뒤에는 그날 값이어야 한다")
 
     def test_fear_greed_bad_payload_returns_not_ok(self):
         result = j3.get_fear_greed(request_json=lambda url: {"unexpected": True})
