@@ -190,7 +190,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081240
+MODULE_REVISION = 2026081250
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -2305,11 +2305,19 @@ def _intraday_chart_payload(frame: pd.DataFrame | None, prev_close: float | None
     }
 
 
-TOP_REVIEW_LIMIT = 7
+# '매수심사결과 높은 순위 9' — **자리 배분**으로 뽑는다 (2026-08-12 상하님 지시).
+# "대장주 3개 상승장 3개 급락 3개씩 해라. 급락하는 시장에서는 상승장이 없잖아.
+#  없으면 없는 대로 하면 돼. 그 대신 설명을 해야겠지."
+#
+# 그전에는 셋을 섞어 조건점수 하나로 다시 재서 7개를 뽑았는데, 그 조건점수는
+# 일곱 항목이 전부 검증 실패였다(2026-08-07 · 375,234자리). 각 갈래가 제 자로
+# 잰 점수를 버리고 근거 없는 자로 다시 재는 구조였다.
+TOP_REVIEW_SLOTS = {"leader": 3, "breakout": 3, "crash": 3}
+TOP_REVIEW_LIMIT = sum(TOP_REVIEW_SLOTS.values())
 
-# 지금 시세로 다시 재 볼 후보 수. 종가 순위 30위 밖에서 최종 7위 안으로 들어오려면
-# 하루 만에 스물몇 계단을 올라와야 한다(2026-07-31 실측: 그날 진짜 상위 7은 종가
-# 순위에서도 1~7위였다). 157종목 전부 분봉을 받으면 3.7초, 종가만이면 0.3초였다.
+# 지금 시세로 다시 재 볼 후보 수. 종가 순위 30위 밖에서 최종 순위 안으로 들어오려면
+# 하루 만에 스물몇 계단을 올라와야 한다(2026-07-31 실측). 157종목 전부 분봉을
+# 받으면 3.7초, 종가만이면 0.3초였다.
 TOP_REVIEW_REFINE = 30
 
 
@@ -2473,37 +2481,34 @@ def find_top_reviewed_stocks(
     for row in extra_rows or []:
         if not row.get("metrics"):
             continue
-        themes = row.get("themes") or []
-        theme_score = max((theme_scores.get(str(t), 0.0) for t in themes), default=0.0)
+        # 갈래(상승장·급락)에서 온 줄은 **그 갈래 점수를 그대로 둔다**(2026-08-12).
+        # 예전에는 여기서 조건점수로 다시 쟀는데, 그 조건점수는 375,234자리로 재 보니
+        # 일곱 항목이 전부 검증 실패였다(20·50일선 위는 거꾸로). 각 갈래가 제 자로
+        # 잰 점수를 버리고 근거 없는 자로 다시 재는 구조였다.
         merged = dict(row)
-        # 갈래 표(상승장·급락)의 'score'는 **그 갈래 전용 배점**이라 대장주의
-        # 종목 조건점수와 자가 다르다. 섞어서 줄 세우면 다른 자로 잰 값을 견주는
-        # 셈이 되므로 여기서 **같은 자로 다시 잰다**(2026-08-06).
-        review = analyze_pullback_stock(
-            row,
-            benchmark_ret20=benchmark_ret20,
-            market_score=market_score,
-            theme_score=theme_score,
-        )
-        merged["score"] = review.get("score")
-        merged["plan"] = review.get("plan") or _entry_plan(
-            row["metrics"], float(review.get("score") or 0), market_score, theme_score
-        )
-        # 어느 갈래에서 왔는지 화면에 남긴다.
         origin = ("급락 후 반등장" if row.get("bucket")
                   else "상승장" if row.get("wait_days") is not None
                   else "눌림목")
         _keep_better(picked, merged, source=origin)
 
-    ranked = sorted(
-        picked.values(), key=lambda item: float(item.get("score") or 0), reverse=True
-    )
-    # 여기까지는 종가로만 줄 세운 것이다. 상위 후보 몇 개만 지금 시세로 다시 재고
-    # 그 안에서 최종 순위를 낸다 — 157종목 전부 분봉을 받던 것을 없앤다.
+    # **대장주는 종목 조건점수가 아니라 테마 순위로 줄 세운다**(2026-08-12).
+    # 조건점수는 합격 항목이 하나도 없고, 테마 등수는 세 그물에서 다 통과한
+    # 유일한 항목이다. 테마 1위의 대장주가 맨 위로 온다.
+    theme_place = {name: index for index, name in enumerate(
+        [str(r.get("name") or "") for r in sorted(
+            theme_rows or [], key=lambda r: float(r.get("score") or 0), reverse=True)])}
+
+    def _order(item):
+        places = [theme_place[name] for name in (item.get("sources") or [])
+                  if name in theme_place]
+        return (min(places) if places else len(theme_place),
+                -float(item.get("score") or 0))
+
+    ranked = sorted(picked.values(), key=_order)
+    # 상위 후보 몇 개만 지금 시세로 다시 재고 그 안에서 최종 차례를 낸다 —
+    # 157종목 전부 분봉을 받던 것을 없앤다.
     _refine_top_with_live(ranked[:TOP_REVIEW_REFINE], market_score=market_score)
-    rows = sorted(
-        ranked[:TOP_REVIEW_REFINE], key=lambda item: float(item.get("score") or 0), reverse=True
-    )[: max(1, int(limit))]
+    rows = sorted(ranked[:TOP_REVIEW_REFINE], key=_order)[: max(1, int(limit))]
     for index, row in enumerate(rows, 1):
         row["pick_rank"] = index
 

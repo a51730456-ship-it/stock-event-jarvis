@@ -951,7 +951,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081240
+_REQUIRED_J3_REVISION = 2026081250
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2745,7 +2745,11 @@ def _kept_recently(key: str, seconds: float = 300) -> bool:
 # '이동평균 위인가'(20)인데, 고점에서 20~50% 빠진 종목은 정의상 그 45점을 못 받는다.
 # 실제로 2026-08-06에 두 갈래 27종목을 넣고 돌려 보니 상위 7에 하나도 못 들었다.
 # 그래서 섞어 재지 않고 **자리를 나눠 각자 자기 자로 뽑는다.**
-_TOP7_QUOTA = (("테마 대장주", 3), ("상승장", 2), ("급락 후 반등장", 2))
+# 2026-08-12 상하님 지시로 3·3·3 아홉 자리가 됐다 — "대장주 3개 상승장 3개
+# 급락 3개씩 해라. 급락하는 시장에서는 상승장이 없잖아. 없으면 없는 대로 하면 돼.
+# 그 대신 설명을 해야겠지."
+_TOP7_QUOTA = (("테마 대장주", 3), ("상승장", 3), ("급락 후 반등장", 3))
+_TOP_TOTAL = sum(quota for _name, quota in _TOP7_QUOTA)
 
 # 상승장·급락 표에서 처음부터 펴 두는 줄 수. 나머지는 접어 둔다
 # (2026-08-06 사용자 지시 — 급락은 20줄이라 화면이 너무 길었다).
@@ -2785,10 +2789,11 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
             rows.append(merged)
         buckets[name] = rows
 
-    picked, seen = [], set()
+    picked, seen, empty_notes = [], set(), []
     for name, quota in _TOP7_QUOTA:
+        taken = 0
         for row in buckets.get(name) or []:
-            if len(picked) >= 7 or quota <= 0:
+            if quota <= 0:
                 break
             ticker = str(row.get("ticker") or "")
             if not ticker or ticker in seen:
@@ -2798,17 +2803,15 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
             row["top7_origin"] = name
             picked.append(row)
             quota -= 1
-    # 남는 자리는 대장주가 메운다 — 갈래가 비는 날이 있다.
-    for row in buckets.get("테마 대장주") or []:
-        if len(picked) >= 7:
-            break
-        ticker = str(row.get("ticker") or "")
-        if not ticker or ticker in seen:
-            continue
-        seen.add(ticker)
-        row = dict(row)
-        row["top7_origin"] = "테마 대장주"
-        picked.append(row)
+            taken += 1
+        # **빈 자리를 딴 갈래로 메우지 않는다**(2026-08-12 상하님 지시).
+        # 예전에는 남는 자리를 대장주가 채웠다. 그러면 급락장에 상승장 자리가
+        # 없다는 사실이 화면에서 사라진다 — 그게 알아야 할 정보다.
+        want = dict(_TOP7_QUOTA)[name]
+        if taken < want:
+            empty_notes.append(
+                f"오늘은 **{name}** 자리가 없습니다" if not taken
+                else f"**{name}**은 {want}자리 중 {taken}개만 찼습니다")
     for index, row in enumerate(picked, 1):
         row["pick_rank"] = index
     return {
@@ -2818,19 +2821,20 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
         "candidate_count": sum(len(v) for v in buckets.values()),
         "errors": leaders.get("errors") or [],
         "bucket_counts": {name: len(buckets.get(name) or []) for name, _q in _TOP7_QUOTA},
+        "empty_notes": empty_notes,
     }
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
-    """매수심사결과 높은 순위 7 (2026-07-30 사용자 지시).
+    """매수심사결과 높은 순위 9 (2026-08-12 상하님 지시로 7 → 9).
 
-    세 군데에서 각자 자기 자로 뽑아 합친다(2026-08-06 사용자 지시) —
-    테마 대장주 3 · 상승장 2 · 급락 후 반등장 2.
-    표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다 — 창을 또 눌러
-    여는 방식은 없앴다(2026-07-30 사용자 지시).
+    세 군데에서 각자 자기 자로 뽑아 합친다 — 테마 대장주 3 · 상승장 3 · 급락 3.
+    **점수를 다시 재지 않는다.** 각 목록이 제 자로 잰 값을 그대로 쓴다.
+    **빈 자리는 딴 갈래로 메우지 않고 왜 비었는지 적는다.**
+    표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다.
     """
     st.markdown(
-        "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 7</div>",
+        "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 9</div>",
         unsafe_allow_html=True,
     )
     # 재료는 셋이다(2026-08-06 사용자 지시 — "누르든 안 누르든 둘 다 자동으로").
@@ -2842,15 +2846,16 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 설명이 너무 길다는 지적(2026-08-06). 왜 섞지 않는지의 자세한 사연은
     # _blend_top7() 주석에 있다 — 화면에는 핵심 두 줄만 남긴다.
     st.caption(
-        "**테마 대장주 3 · 상승장 2 · 급락 후 반등장 2**로 자리를 나눠 뽑습니다. "
+        "**테마 대장주 3 · 상승장 3 · 급락 후 반등장 3**으로 자리를 나눠 뽑습니다. "
         "위 두 단추를 누르지 않아도 자동으로 함께 봅니다.<br>"
-        "**점수는 갈래마다 다른 자**로 잰 값이라 갈래끼리만 견주십시오.",
+        "**점수는 갈래마다 다른 자**로 잰 값이라 갈래끼리만 견주십시오. "
+        "**빈 자리는 다른 갈래로 채우지 않습니다** — 급락장에는 상승장 자리가 없습니다.",
         unsafe_allow_html=True,
     )
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
     is_open = bool(st.session_state.get("j3_top7_open"))
-    run_requested = st.button("매수심사결과 높은 순위 7", key="j3_top7_find")
+    run_requested = st.button("매수심사결과 높은 순위 9", key="j3_top7_find")
     if run_requested and is_open:
         # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다.
         st.session_state["j3_top7_open"] = False
@@ -2891,9 +2896,14 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
 
     errors = result.get("errors") or []
     st.caption(
-        f"테마 {result.get('scanned_themes', 0)}개 심사 · 후보 {result.get('candidate_count', 0)}개 → 상위 {len(rows)}개"
+        f"테마 {result.get('scanned_themes', 0)}개 심사 · 후보 {result.get('candidate_count', 0)}개 → "
+        f"{len(rows)}종목 (자리 {_TOP_TOTAL}개)"
         + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
     )
+    # **빈 자리는 감추지 않는다**(2026-08-12 상하님 지시). 자리를 못 채웠으면
+    # 왜 비었는지 적는다 — 급락장에 상승장 자리가 없는 것은 알아야 할 정보다.
+    for note in result.get("empty_notes") or []:
+        st.caption(f"🔸 {note} — 다른 갈래로 채우지 않습니다.")
 
     st.caption("종목 이름을 누르면 아래에 그 종목 상세와 차트가 한꺼번에 열립니다.")
     widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]
@@ -2967,7 +2977,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     )
     # 구역 맨 아래 닫기 단추 — 다른 구역에는 다 있는데 여기만 없었다
     # (2026-08-06 사용자 지적). 폰에서 표 끝까지 내려가면 위 단추가 화면 밖으로 나간다.
-    _section_close("j3_top7_open", "매수심사결과 높은 순위 7 닫기")
+    _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기")
 
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
