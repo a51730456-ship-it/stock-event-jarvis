@@ -443,6 +443,28 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(j3.CRASH_SCORE_WEIGHTS["less_drop"], less_drop_points(rows[0]))
         self.assertEqual(0.0, less_drop_points(rows[1]))
 
+    def test_theme_ranking_is_scored_by_spread_not_by_returns(self):
+        """테마 순위는 **확산**으로 매긴다 (2026-08-12 처음 쟀다).
+
+        상하님 지적 — "테마가 같이 상승하는 기준이 먼저이고 구성종목 확산이 먼저
+        기준이 되어야지. 테마 수익률이 하락장에는 의미가 없지."
+
+        국면을 갈라 재니 두 국면 모두 확산 계열이 1~4등이었고, 수익률 계열은
+        상승 국면에서 꼴찌(-9.5p) 하락 국면에서 탈락이었다(research/us_parts.py).
+        그전 배점은 상대강도 55점 · 이동평균 20점 · 확산 15점으로 정반대였다.
+        """
+        weights = j3.THEME_SCORE_WEIGHTS
+        # 계단은 40·30·20·10뿐이다(CLAUDE.md 0-1 마).
+        for name, points in weights.items():
+            self.assertIn(points, (0.0, 10.0, 20.0, 30.0, 40.0), f"{name} {points}점")
+        self.assertEqual(100.0, j3.THEME_SCORE_MAX)
+        # **확산 셋이 90점.** 되돌아가면 여기서 깨진다.
+        self.assertEqual(90.0, weights["above20"] + weights["rose5"] + weights["rose20"])
+        self.assertEqual(40.0, weights["above20"], "20일선 위 비율이 1등이다")
+        # 수익률(상대강도)과 ETF 이동평균은 0점이다.
+        self.assertEqual(0.0, weights["relative"])
+        self.assertEqual(0.0, weights["trend"])
+
     def test_theme_rank_ignores_tiny_themes(self):
         """구성종목 3개 미만인 테마는 한두 종목에 휘둘려 등수가 못 미덥다."""
         memberships = {"AAA": ["둘뿐인테마"], "BBB": ["둘뿐인테마"],

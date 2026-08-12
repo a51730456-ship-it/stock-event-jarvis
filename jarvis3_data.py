@@ -190,7 +190,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081230
+MODULE_REVISION = 2026081240
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -882,6 +882,43 @@ def _scale(value: float | None, low: float, high: float, points: float) -> float
     return max(0.0, min(points, (value - low) / (high - low) * points))
 
 
+# ── 테마 20개 순위 배점 (2026-08-12 처음 쟀다) ───────────────────────────────
+# 그동안 이 배점은 **한 번도 재지 않은 채** 상대강도 55점(20일 30 + 60일 25) ·
+# 이동평균 20점 · 확산 15점 · 오른 날 비율 10점으로 돌고 있었다.
+#
+# 상하님 지적 — "테마가 같이 상승하는 기준이 먼저이고 구성종목 확산이 먼저
+# 기준이 되어야지. 테마 수익률이 하락장에는 의미가 없지."
+#
+# 국면을 갈라 처음 쟀더니(research/us_parts.py) **그 말이 그대로 맞았다.**
+#
+#   나스닥 200일선 **위** (226,105자리)      나스닥 200일선 **아래** (49,830자리)
+#   1. 20일선 위 비율 상위3   최악 -0.5p    1. 5일 오른 비율 상위3   최악  -7.0p
+#   2. 20일선 위 비율 상위5        -0.6p    2. 5일 오른 비율 상위5        -8.7p
+#   3. 5일 오른 비율 상위5         -1.4p    3. 20일선 위 비율 상위5      -11.2p
+#   4. 20일 오른 비율 상위5        -1.6p    4. 20일선 위 비율 상위3      -12.7p
+#   …                                       …
+#   7. 60일 수익률 상위5  꼴찌    -9.5p    6. 20일 수익률 상위3        -19.9p
+#      20일 수익률        탈락                 60일 수익률              탈락
+#
+# **두 국면 모두 확산 계열이 1~4등을 독차지했고 수익률 계열은 꼴찌거나 탈락이었다.**
+# 그래서 상대강도 55점과 이동평균 20점을 0으로 빼고 확산으로 옮긴다.
+#
+# 여기서는 **등수 대신 그 등수를 만드는 값**에 점수를 준다. '상위 3등 안인가'로
+# 점수를 주면 순위를 매기려고 순위가 필요해진다(순환). 값이 높을수록 등수가
+# 높으므로 결과는 같다.
+THEME_SCORE_WEIGHTS = {
+    "above20": 40.0,     # 구성종목 중 20일선 위 비율
+    "rose5": 30.0,       # 구성종목 중 최근 5일에 오른 비율
+    "rose20": 20.0,      # 구성종목 중 최근 20일에 오른 비율
+    "less_drop": 10.0,   # 구성종목 평균 고점 대비 (덜 빠졌을수록 높다)
+    "relative": 0.0,     # 20·60일 상대강도 — 두 국면 다 꼴찌거나 탈락
+    "trend": 0.0,        # ETF 20·50일선 위 — 다른 파트에서 거꾸로
+}
+THEME_SCORE_MAX = round(sum(THEME_SCORE_WEIGHTS.values()), 1)
+THEME_STATUS_LEAD = round(THEME_SCORE_MAX * 0.75, 1)
+THEME_STATUS_WATCH = round(THEME_SCORE_MAX * 0.60, 1)
+
+
 def get_theme_rankings() -> dict:
     all_tickers = ["SPY"]
     live_tickers = ["SPY"]
@@ -908,33 +945,40 @@ def get_theme_rankings() -> dict:
         if not metrics.get("ok") or metrics.get("ret60") is None:
             rows.append({"name": theme["name"], "etf": etf_used, "ok": False, "error": "ETF 이력 부족"})
             continue
-        valid_breadth = []
+        # 구성종목을 하나씩 보고 **몇 %가 그런가**를 센다. 테마 점수의 90점이
+        # 여기서 나온다 — 실측에서 확산 계열이 두 국면 모두 1~4등이었다.
+        above20, rose5, rose20, from_highs = [], [], [], []
         for ticker in theme["stocks"]:
-            stock_metrics = _series_metrics(daily.get(ticker))
-            if stock_metrics.get("ok") and stock_metrics.get("sma20"):
-                valid_breadth.append(stock_metrics["current"] > stock_metrics["sma20"])
-        breadth = (sum(valid_breadth) / len(valid_breadth) * 100) if valid_breadth else None
+            stock = _series_metrics(daily.get(ticker))
+            if not stock.get("ok"):
+                continue
+            if stock.get("sma20"):
+                above20.append(stock["current"] > stock["sma20"])
+            if stock.get("ret5") is not None:
+                rose5.append(stock["ret5"] > 0)
+            if stock.get("ret20") is not None:
+                rose20.append(stock["ret20"] > 0)
+            if stock.get("from_high_pct") is not None:
+                from_highs.append(float(stock["from_high_pct"]))
+
+        def _share(flags):
+            return (sum(flags) / len(flags) * 100) if flags else None
+
+        breadth = _share(above20)
+        rose5_share = _share(rose5)
+        rose20_share = _share(rose20)
+        less_drop = (sum(from_highs) / len(from_highs)) if from_highs else None
         rs20 = metrics["ret20"] - spy["ret20"]
         rs60 = metrics["ret60"] - spy["ret60"] if spy.get("ret60") is not None else None
-        trend_points = 0
-        if metrics.get("sma20") and metrics["current"] > metrics["sma20"]:
-            trend_points += 10
-        if metrics.get("sma50") and metrics["current"] > metrics["sma50"]:
-            trend_points += 10
-        daily_frame = daily.get(etf_used)
-        up_ratio = None
-        if daily_frame is not None and len(daily_frame) >= 21:
-            changes = daily_frame["Close"].pct_change().dropna().tail(20)
-            up_ratio = float((changes > 0).mean() * 100) if not changes.empty else None
         score = round(
-            _scale(rs20, -10, 10, 30)
-            + _scale(rs60, -15, 15, 25)
-            + trend_points
-            + _scale(breadth, 25, 85, 15)
-            + _scale(up_ratio, 30, 70, 10),
+            _scale(breadth, 25, 85, THEME_SCORE_WEIGHTS["above20"])
+            + _scale(rose5_share, 20, 80, THEME_SCORE_WEIGHTS["rose5"])
+            + _scale(rose20_share, 25, 85, THEME_SCORE_WEIGHTS["rose20"])
+            + _scale(less_drop, -30.0, -2.0, THEME_SCORE_WEIGHTS["less_drop"]),
             1,
         )
-        status = "주도" if score >= 75 else "관찰" if score >= 60 else "약함"
+        status = ("주도" if score >= THEME_STATUS_LEAD
+                  else "관찰" if score >= THEME_STATUS_WATCH else "약함")
         rows.append({
             "name": theme["name"],
             "etf": etf_used,
@@ -943,11 +987,21 @@ def get_theme_rankings() -> dict:
             "score": score,
             "status": status,
             "change_pct": metrics.get("change_pct"),
+            # 상대강도는 **점수에 안 쓴다**(위 THEME_SCORE_WEIGHTS 참고). 다만
+            # 화면이 참고로 보여주고 있어 값 자체는 그대로 실어 보낸다.
             "rs20": rs20,
             "rs60": rs60,
             "breadth": breadth,
+            "rose5_share": rose5_share,
+            "rose20_share": rose20_share,
+            "theme_from_high": less_drop,
             "source_time": metrics.get("source_time"),
-            "basis": f"20일 상대강도 {rs20:+.1f}%p · 60일 {rs60:+.1f}%p · 20일선 위 {breadth:.0f}%" if breadth is not None and rs60 is not None else "자료 일부 부족",
+            # 점수의 근거를 그대로 적는다 — 화면 숫자와 배점이 어긋나면 안 된다.
+            "basis": (
+                f"20일선 위 {breadth:.0f}% · 5일 오른 종목 {rose5_share:.0f}% · "
+                f"20일 오른 종목 {rose20_share:.0f}% · 고점 대비 {less_drop:+.1f}%"
+                if None not in (breadth, rose5_share, rose20_share, less_drop)
+                else "자료 일부 부족"),
         })
 
     rows.sort(key=lambda row: (bool(row.get("ok")), row.get("score", -1)), reverse=True)
