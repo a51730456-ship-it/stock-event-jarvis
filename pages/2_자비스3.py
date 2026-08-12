@@ -951,7 +951,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081250
+_REQUIRED_J3_REVISION = 2026081260
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1005,6 +1005,8 @@ _MUSTARD_KEYS = (
     "다음 거래일 시가",
     "손절가가 없습니다",
     "손절가는 없습니다",
+    # 2026-08-12 — 파는 시점을 앱이 정하지 않는다는 말이 눈에 띄어야 한다.
+    "파는 시점은 규칙에 없습니다",
 )
 
 
@@ -3386,10 +3388,17 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         if mode in ("crash", "breakout"):
             # 이 규칙에는 넘어야 할 기준가도 손절도 없다. 없는 것을 있는 것처럼
             # 적지 않고, 규칙이 실제로 정한 것을 적는다.
+            # **파는 시점은 앱이 정하지 않는다**(2026-08-12 상하님 확정).
+            # 자리 하나에 3개월·6개월·1년 과거 성적을 나란히 놓고, 고르는 것은
+            # 상하님이 하신다. 상하님 표 1·2가 원래 그 모양이다.
+            spans = " · ".join(
+                f"{item['label']} {item['median_return']:+.1f}%"
+                for item in (plan.get("hold_results") or ())
+            )
             plan_cells = [
                 ("사는 때", str(plan.get("entry") or "—"), "#44f0a1"),
-                ("보유 기간", f"{int(plan.get('hold_days') or 0)}거래일", "#e6e6e6"),
-                ("파는 때", "그날 종가", "#e6e6e6"),
+                ("파는 때", "규칙에 없음 — 상하님이 정하십니다", "#ffd23f"),
+                ("이 자리 과거 성적", spans or "—", "#e6e6e6"),
                 ("손절가", "이 규칙에는 없음", "#ff5b5b"),
             ]
         elif plan.get("trigger") is not None:
@@ -3577,46 +3586,58 @@ _BAND_CELL_CLASS = {"shallow": "j3-band-mid", "deep": "j3-band-deep", "mid": "j3
 # (이름, 배점 열쇠 또는 None, 왜) — 열쇠가 None이면 배점에 아예 없는 항목이라 0점이다.
 _SCORE_TABLE = {
     "breakout": (
+        ("눌린 폭 10~15%", "drop",
+         "보유 <b>3개월·6개월·1년 셋 다</b> 합격한 <u>유일한 항목</u>입니다. "
+         "1년 기준 10~15% 칸 27.8% · 4~6% 칸 14.7% · 아무 종목이나 14.1%. "
+         "2026-08-09에 '그물이 이미 쓴 값'이라며 뺐다가, 앱 그물 안에서 다시 재니 "
+         "확실히 갈려서 되살렸습니다"),
+        ("테마가 같이 오르는가", "spread5",
+         "그 테마 종목 중 몇 %가 최근 5일에 올랐나, 그 등수입니다. "
+         "6개월·1년 보유에서 합격했습니다(6개월 최악 −0.4p로 전 항목 1등)"),
+        ("테마가 덜 빠졌나", "less_drop",
+         "3개월·6개월 보유에서 합격했습니다"),
         ("같은 테마 동반", "together",
-         "3개 이상이면 100번 중 67번. 앞 5년·뒤 5년 <b>둘 다</b> 이겼습니다"),
+         "<u>2026-08-12에 뺐습니다</u> — 4개↑는 <b>6개월 보유에서만</b> 합격했습니다. "
+         "앱이 파는 시점을 정하지 않으므로 한 기간에서만 통하는 값은 쓰지 않습니다"),
         ("최근 11일에 빠졌나", "recent_drop",
-         "5% 넘게 빠진 쪽이 66번. 이것도 <b>둘 다</b> 이겼지만 <u>뒤 5년이 얇습니다</u>"),
-        ("눌린 폭", "drop",
-         "<u>2026-08-09에 뺐습니다</u> — 그물(4~15%)이 이미 쓴 값이라 두 번 세는 것이었고, "
-         "뒤 5년엔 졌습니다. 급락 갈래는 같은 이유로 이미 0점이었습니다"),
+         "<u>2026-08-12에 뺐습니다</u> — 세 보유기간 전부 미달이었습니다"
+         "(수익률 쪽이 65%를 못 넘습니다). −5%↑ 빠진 자리는 그물의 6%뿐이라 "
+         "가르지도 못합니다"),
         ("사고팔기 쉬운가", "liquidity",
-         "성적을 맞히는 값이 아니라 실제로 사고팔 수 있는가입니다"),
-        ("많이 흔들리지 않나", "volatility", "감당할 크기인가입니다"),
-        ("최근 60일 상승폭", None,
-         "많이 오른 쪽이 커 보이지만 이기는 횟수는 기준과 같고 "
-         "<u>뒤 5년엔 졌습니다</u>. 예전에 30점을 준 것이 잘못이었습니다"),
-        ("거래대금 평소 위 연속", None,
-         "상승장에서는 <u>거꾸로</u>였습니다(61번). 이미 늦은 자리입니다"),
+         "<u>3개월 보유에서 거꾸로</u>였습니다. 큰 종목이 더 나은 게 아니었습니다"),
+        ("많이 흔들리지 않나", "volatility", "세 보유기간 전부 미달이었습니다"),
         ("신고가 뒤 며칠", None,
-         "1~3일도 뒤 5년엔 졌습니다. 날짜는 <b>보여만</b> 드리고 "
-         "고르시는 것은 상하님이 하십니다"),
+         "1~3일 27.8% · 3~5일 28.4%로 <u>갈리지 않습니다</u>. 날짜는 <b>보여만</b> "
+         "드리고 고르시는 것은 상하님이 하십니다"),
+        ("최근 60일 상승폭 · 거래대금 연속", None,
+         "예전에 점수를 줬다가 뺀 것들입니다. 앞뒤로 갈라 재니 뒤 절반에서 졌습니다"),
     ),
     "crash": (
+        ("테마가 덜 빠졌나", "less_drop",
+         "보유 <b>3개월·6개월·1년 셋 다</b> 합격한 <u>유일한 항목</u>입니다"
+         "(3등·3등·1등). 파는 시점을 정하지 않으므로 이것 하나만 믿을 수 있습니다"),
+        ("테마가 같이 오르는가", "spread5",
+         "그 테마 종목 중 몇 %가 최근 5일에 올랐나, 그 등수입니다. "
+         "6개월 보유에서 1등이었습니다"),
+        ("테마가 20일선 위에 있나", "above20",
+         "그 테마 종목 중 몇 %가 20일선 위인가입니다. 6개월 보유에서 2등이었습니다"),
         ("같은 테마 동반", "together",
-         "같은 테마에서 여럿이 같이 눌리면 만점입니다. 이 화면에서는 "
-         "<u>뒤 5년만 이겼지만</u>(앞 5년엔 졌습니다), 테마가 같이 움직이는 정도가 "
-         "해마다 커지고 있어 1등에 뒀습니다 — 2026년이 10년 중 가장 강합니다"),
-        ("테마 등수 (60일 수익률 상위)", "theme_rank",
-         "2026-08-07에 넣었습니다. 창 2·3·4년에서 80·95·100%로 <b>셋 다</b> 이겼습니다 — "
-         "종목보다 테마 쪽이 잘 들었습니다"),
-        ("많이 흔들리지 않나", "volatility", "감당할 크기인가입니다"),
-        ("사고팔기 쉬운가", "liquidity",
-         "성적을 맞히는 값이 아니라 실제로 사고팔 수 있는가입니다"),
+         "<u>2026-08-12에 뺐습니다</u> — 2026-08-09에 명부에서 종목 하나를 바꾼 뒤로 "
+         "이미 불합격이었고(80/95 → 64/93), 새 그물에서는 1년 보유에만 걸리는 데다 "
+         "<b>해당이 67%</b>라 순위를 못 가릅니다"),
+        ("테마 60일 수익률 등수", "theme_rank",
+         "<u>6개월 보유에서만</u> 합격했습니다. 파는 시점을 안 정하므로 안 씁니다"),
         ("최근 11일에 빠졌나", "recent_drop",
-         "<u>2026-08-07에 뺐습니다</u> — 새 그물(250거래일 보유)에서 거의 모든 창에 "
-         "졌습니다. 1년을 들 거면 이미 돌아선 종목이 낫다는 뜻입니다"),
+         "<u>보유기간마다 뒤집힙니다</u> — 3개월 1등(−5.8p)인데 1년에서는 거의 "
+         "거꾸로(−19.7p)입니다"),
+        ("많이 흔들리지 않나 · 사고팔기 쉬운가", "volatility",
+         "세 보유기간 전부 미달이었습니다"),
         ("낙폭 갈래", "bucket",
-         "갈래가 하나뿐이라 모두 같은 점수를 받아 못 가릅니다. 그물로 이미 한 번 썼습니다"),
-        ("거래대금 평소 위 연속", None,
-         "앞뒤 <u>양쪽 다 거꾸로</u>였습니다. 확실히 뺐습니다"),
-        ("테마 ETF가 오르는 중인가", None,
-         "20일선 위가 오히려 나빴습니다(위 67번 · 아래 70번). "
-         "테마가 되살아나는지 미리 아는 방법은 못 찾았습니다"),
+         "그물로 이미 한 번 썼고, 두 칸 다 미달이었습니다. 대신 칸마다 과거 성적을 "
+         "따로 보여 드립니다"),
+        ("종목으로 고르는 항목 전부", None,
+         "<b>변동성·거래대금·60일 등락·낙폭</b> 아홉 개가 세 보유기간 다 미달입니다. "
+         "<u>미국은 종목이 아니라 테마로만 고를 수 있습니다</u>"),
     ),
 }
 
@@ -3746,12 +3767,15 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 # 카드와 표의 같은 갈래가 같은 색이어야 눈으로 이어진다(2026-08-01 지시).
                 cards.append(
                     f"<div class='j3-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
-                    f"<div class='j3-reason-title'>"
-                    f"{rule['label']} → {rule['hold_days']}거래일 보유</div>"
-                    f"<div class='j3-reason-body'>100번 중 {rule['win_rate']}번 이익 · "
-                    f"가운데 값 +{rule['median_return']}% "
-                    f"(아무 종목이나 {rule['base_win_rate']}번) · 지금 해당 종목 "
-                    f"{counts.get(rule['key'], 0)}개</div></div>"
+                    f"<div class='j3-reason-title'>{rule['label']}</div>"
+                    # **파는 날을 적지 않는다**(2026-08-12 상하님 확정). 대신
+                    # 3개월·6개월·1년 과거 성적을 나란히 놓는다.
+                    f"<div class='j3-reason-body'>"
+                    + " · ".join(
+                        f"{item['label']} <b>{item['median_return']:+.1f}%</b>"
+                        f"(100번 중 {item['win_rate']:.0f}번)"
+                        for item in rule.get("results") or ())
+                    + f" · 지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
                 )
             if ref_date:
                 st.caption(
@@ -3864,7 +3888,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 화면이 순위와 다른 것을 설명하게 된다.
     volume_head = "최근 11일"
     head_cells = (["티커", "당일주가"] + drop_heads
-                  + ["소속 테마", third, "보유일수", "같이 걸린 종목", volume_head])
+                  + ["소속 테마", third, "1년 성적", "같이 걸린 종목", volume_head])
     # **상승장은 '순위'라고 부르지 않는다**(2026-08-07). 그물을 144가지로 다 재도
     # 하나도 기준선을 못 넘었다 — 그 위에서 매긴 차례를 1위·2위로 보이면 화면이
     # 검증되지 않은 것을 검증된 것처럼 말하게 된다. 그냥 번호다.
@@ -3971,12 +3995,12 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
             f"{int(row.get('together_count') or 0)}개</span>"
         )
-        hold_days = int(row.get("hold_days") or 0)
-        hold_class = (
-            "j3-hold-20" if hold_days == 20
-            else "j3-hold-60" if hold_days == 60
-            else "j3-hold-120"
-        )
+        # 2026-08-12부터 파는 날을 규칙으로 정하지 않는다. 그래서 이 칸에는
+        # 며칠이 아니라 **이 자리를 1년 들었을 때의 과거 성적**을 적는다.
+        year = next((item for item in (row.get("hold_results") or ())
+                     if item.get("days") == 250), None)
+        hold_cell = (f"<span class='j3-hold-120'>1년 {year['median_return']:+.0f}%</span>"
+                     if year else "<span class='j3-muted'>—</span>")
         # 달러 거래대금은 숨기고 이 화면에서 실제 순위에 쓰는 값만 남긴다.
         # 최근 11일에 빠진 쪽이 만점이므로, 빠진 것을 초록으로 둔다(값이 좋다는 뜻).
         gain11 = row.get("recent_gain_pct")
@@ -4026,7 +4050,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 f"<span class='j3-rb-clip j3-pull-theme'"
                 f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
                 third_cell,
-                f"<span class='{hold_class}'>{hold_days}거래일</span>",
+                hold_cell,
                 together_cell,
                 volume_cell,
             ]),
