@@ -171,7 +171,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081210
+MODULE_REVISION = 2026081220
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1386,92 +1386,148 @@ def crash_rebound_score(row: dict) -> dict:
 # 조건점수에서 추세 20점을 뺄 때 쓴 방식 그대로다(LEADER_RESCALE). 옮길 데를
 # 지어내지 않기 위해서다. 테마 등수를 넣자는 생각이 먼저 들지만, 그건 미국 급락·
 # 한국 두 갈래에서만 쟀고 **미국 상승장에서는 아직 안 쟀다.**
-BREAKOUT_RESCALE = 100.0 / 85.0
-
-_BR = {name: round(base * BREAKOUT_RESCALE, 1)
-       for name, base in (("recent_drop", 25.0), ("liquidity", 10.0), ("volatility", 10.0))}
+# ── 2026-08-12 전면 재측정 — 위 기록은 전부 **옛것**이다 ─────────────────────
+# 상하님 지시로 `research/us_breakout_ladder.py`를 새로 짜서 **앱 그물 그대로**
+# (신고가 뒤 1~5일 · −4~−15% · 시장 조건 안 봄) 다시 쟀다. 그전 측정은 그물에
+# 시장 조건까지 넣고 걸러서 앱과 다른 모집단을 잰 것이었다.
+#
+# **파는 시점을 앱이 정하지 않기로 했으므로**(상하님 확정) 보유 60·120·250일 셋 다
+# 재고, **세 기간 모두 합격한 항목만** 쓴다. 한 기간에서만 통하는 값은 보유가
+# 바뀌면 뒤집힌다 — 실제로 '같은 테마 동반 4개↑'는 6개월에서만, '테마 60일
+# 수익률'은 3개월에서만 합격했다. 그런 것은 안 쓴다.
+#
+#   후보                       3개월      6개월      1년      판정
+#   눌린 폭 10~15%              ○ −7.0    ○ −8.9    ○ −6.1   ← 셋 다 합격. 유일하다
+#   테마 5일 오른 비율 상위5등     △        ○ −0.4    ○ −4.7   ← 둘
+#   테마 덜 빠졌나 상위3등        ○ −7.5    ○ −6.7    △        ← 둘
+#   같은 테마 동반 4개↑          △        ○ −9.5    △        ← 하나. 안 쓴다
+#   테마 60일 수익률 상위5등      ○ −6.4    △        △        ← 하나. 안 쓴다
+#   눌린 폭 6~10%              ✗ 거꾸로   ✗ 거꾸로   △        ← 0점
+#   거래대금 5억달러↑            ✗ 거꾸로   △        △        ← 0점
+#   최근 11일·변동성·신고가 뒤 며칠   전부 △              ← 0점
+#
+# **최근 11일 29.4점과 테마 동반 47.0점은 뺀다.** 둘 다 이 그물에서 합격이 아니다.
+# 47.0은 2026-08-09에 눌린 폭 15점을 빼고 남은 넷에 비례로 나눈 뒤 반올림 잔돈까지
+# 얹은 값이었다 — 잰 값이 아니다(CLAUDE.md 0-1 마: 비례 배분 금지).
+#
+# **눌린 폭이 1등으로 돌아왔다.** 상하님이 2026-08-09에 "그물이 이미 쓴 값"이라고
+# 지적하셔서 0점으로 뺐던 항목인데, 앱 그물 안에서 다시 재니 확실히 갈렸다
+# (1년 기준 10~15% 칸 27.8% · 4~6% 칸 14.7% · 아무 종목이나 14.1%).
+# 그물이 쓴 값이라도 **그 안에서 다시 재서 갈리면 점수를 준다**(KR_THEME_SPEC 1부 부칙).
+#
+# 합이 100이 안 되므로 **90점 만점**이라고 화면에 적는다(CLAUDE.md 0-1 마).
 BREAKOUT_SCORE_WEIGHTS = {
-    # 반올림 나머지는 가장 큰 항목이 받는다 — 합이 100.0이어야 한다.
-    "together": round(100.0 - sum(_BR.values()), 1),
-    "recent_drop": _BR["recent_drop"],
-    "drop": 0.0,
-    "liquidity": _BR["liquidity"],
-    "volatility": _BR["volatility"],
+    "drop": 40.0,          # 눌린 폭 10~15% — 세 보유기간 모두 합격한 유일한 항목
+    "spread5": 30.0,       # 테마 5일 오른 종목 비율 상위 5등 (확산)
+    "less_drop": 20.0,     # 테마 덜 빠졌나 상위 3등
+    "together": 0.0,       # 이 그물에서 불합격 (4개↑는 6개월에서만)
+    "recent_drop": 0.0,    # 이 그물에서 불합격
+    "liquidity": 0.0,      # 3개월에서 거꾸로
+    "volatility": 0.0,     # 전부 미달
 }
-del _BR
+BREAKOUT_SCORE_MAX = round(sum(BREAKOUT_SCORE_WEIGHTS.values()), 1)
+# 눌린 폭은 **칸으로 가른다** — 실측이 10~15%만 합격이고 6~10%는 거꾸로였다.
+# 비례로 깎으면 거꾸로인 구간에도 점수가 붙는다.
+BREAKOUT_DROP_BAND = (-15.0, -10.0)
+# 이름표 문턱도 만점이 100 → 90으로 바뀐 만큼 같이 내린다(뜻은 그대로).
+BREAKOUT_STATE_GOOD = round(BREAKOUT_SCORE_MAX * 0.70, 1)
+BREAKOUT_STATE_FAIR = round(BREAKOUT_SCORE_MAX * 0.50, 1)
 
 
 def breakout_score(row: dict) -> dict:
-    """상승장(신고가 눌림매수) 후보의 점수(100점)와 근거."""
+    """상승장(신고가 눌림매수) 후보의 점수(90점 만점)와 근거.
+
+    **0점 항목은 parts에 넣지 않는다**(CLAUDE.md 0-1 마). 0점은 기준이 아니라서
+    화면 배점표에 "0.0 (0.0)" 줄로 뜨면 상하님이 읽을 것이 없다. 계산은 위
+    BREAKOUT_SCORE_WEIGHTS에 0으로 남아 있어 다시 재서 되살릴 수 있다.
+    """
     metrics = row.get("metrics") or {}
     weights = BREAKOUT_SCORE_WEIGHTS
     parts = []
 
-    # '4개'가 테마 종류 4개로 읽힌다는 지적을 받아 테마 이름을 넣는다(2026-08-06).
-    count = int(row.get("together_count") or 0)
-    theme = str(row.get("together_theme") or "같은 테마")
-    parts.append(("같은 테마 동반", theme_together_points(count, weights["together"]),
-                  weights["together"],
-                  f"{theme}에서 {count}종목 같이 걸림 (3개↑ 만점 · 1~2개 절반)"))
-
-    gain = row.get("recent_gain_pct")
-    parts.append(("최근 11일에 빠졌나", recent_drop_points(gain, weights["recent_drop"]),
-                  weights["recent_drop"],
-                  "모름" if gain is None else f"{float(gain):+.1f}%"))
-
-    # 눌린 폭은 **0점이다**(2026-08-09, 위 BREAKOUT_SCORE_WEIGHTS 설명 참고).
-    # 계산은 지우지 않는다 — 화면이 다섯 칸을 그리고, 다시 재서 되살릴 수 있다
-    # (한국 배점에서 0점 항목을 다루는 방식과 같다).
+    # ① 눌린 폭 — 세 보유기간 모두 합격한 유일한 항목. 칸으로 가른다.
+    low, high = BREAKOUT_DROP_BAND
     drop = metrics.get("from_high_pct")
-    if drop is None:
-        drop_points = weights["drop"] * 0.5
-    else:
-        drop_points = _scale(-float(drop), 4.0, 10.0, weights["drop"])
-    parts.append(("눌린 폭 (그물로 이미 씀)", drop_points, weights["drop"],
-                  "—" if drop is None else f"{float(drop):+.1f}%"))
+    inside = drop is not None and low <= float(drop) <= high
+    parts.append((
+        "눌린 폭 10~15%",
+        weights["drop"] if inside else 0.0,
+        weights["drop"],
+        "—" if drop is None else f"{float(drop):+.1f}%"
+        + ("" if inside else " (10~15%가 아님)")))
 
-    dollar = metrics.get("avg_dollar_volume") or 0
-    parts.append(("유동성", _scale(float(dollar) / 1e9, 0.05, 1.0, weights["liquidity"]),
-                  weights["liquidity"], f"${float(dollar)/1e6:,.0f}M" if dollar else "—"))
+    # ② 테마 확산 — 그 테마 종목 중 몇 %가 최근 5일에 올랐나, 그 등수.
+    spread_rank = row.get("theme_spread5")
+    parts.append((
+        f"테마가 같이 오르는가 (상위 {THEME_RANK_TOP_N}등)",
+        weights["spread5"] if row.get("theme_spread5_top") else 0.0,
+        weights["spread5"],
+        "모름" if not spread_rank else
+        f"{row.get('theme_spread5_name') or '테마'} {int(spread_rank)}등"
+        + (f" / {int(row['theme_spread5_total'])}개" if row.get("theme_spread5_total") else "")))
 
-    atr = metrics.get("atr_pct")
-    parts.append(("변동성 안정",
-                  weights["volatility"] if atr is None
-                  else _scale(-float(atr), -8.0, -2.0, weights["volatility"]),
-                  weights["volatility"], f"{float(atr):.1f}%" if atr is not None else "—"))
+    # ③ 테마가 덜 빠졌나 — 상위 3등. 급락 갈래에서도 가장 센 항목이다.
+    less_rank = row.get("theme_less_drop")
+    parts.append((
+        f"테마가 덜 빠졌나 (상위 {THEME_LESS_DROP_TOP_N}등)",
+        weights["less_drop"] if row.get("theme_less_drop_top") else 0.0,
+        weights["less_drop"],
+        "모름" if not less_rank else
+        f"{row.get('theme_less_drop_name') or '테마'} {int(less_rank)}등"
+        + (f" / {int(row['theme_less_drop_total'])}개" if row.get("theme_less_drop_total") else "")))
 
-    return {"score": round(sum(v for _n, v, _m, _t in parts), 1), "parts": parts, "max": 100.0}
+    return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
+            "parts": parts, "max": BREAKOUT_SCORE_MAX}
+
+
+# 상하님 표 1의 성적 — 신고가 뒤 1~5일 · 10~15% 눌림 자리를 보유기간별로 잰 값
+# (2026-08-12 `research/us_grid.py`, 앱 명부 198종목 10년). **앱은 파는 시점을
+# 정하지 않는다**(상하님 확정). 셋을 나란히 보여주고 고르는 것은 상하님이 하신다.
+BREAKOUT_HOLD_RESULTS = (
+    {"days": 60, "label": "3개월", "median_return": 3.0, "win_rate": 54.8},
+    {"days": 120, "label": "6개월", "median_return": 9.7, "win_rate": 62.8},
+    {"days": 250, "label": "1년", "median_return": 27.6, "win_rate": 68.3},
+)
 
 
 def breakout_plan(row: dict) -> dict:
     """상승장(신고가 눌림매수)의 매수 심사 결과.
 
-    낙폭 갈래와 마찬가지로 **넘어야 할 기준가도, 손절가도 없다.** 종가를 확인하고
-    다음 거래일 시가에 사서 120거래일 뒤에 판다.
+    **넘어야 할 기준가도, 손절가도, 파는 날도 규칙에 없다.** 종가를 확인하고 다음
+    거래일 시가에 산다. **파는 시점은 앱이 정하지 않는다**(2026-08-12 상하님 확정:
+    "파는 시점은 내가 정한다"). 대신 그 자리의 3개월·6개월·1년 과거 성적을 나란히
+    보여준다 — 상하님 표 1이 원래 그 모양이다.
     """
     metrics = row.get("metrics") or {}
-    hold = int(row.get("hold_days") or BREAKOUT_PULLBACK_RULE["hold_days"])
     score = float(breakout_score(row)["score"])
-    if score >= 70:
+    if score >= BREAKOUT_STATE_GOOD:
         state, recommendation = "규칙에 맞는 자리", "조건부 후보"
-    elif score >= 50:
+    elif score >= BREAKOUT_STATE_FAIR:
         state, recommendation = "자리는 맞으나 근거가 얇음", "관찰"
     else:
         state, recommendation = "규칙만 맞고 뒷받침이 없음", "관찰"
+    spans = " · ".join(
+        f"{item['label']} {item['median_return']:+.1f}%(100번 중 {item['win_rate']:.0f}번)"
+        for item in BREAKOUT_HOLD_RESULTS
+    )
     return {
         "state": state,
         "recommendation": recommendation,
         "rule_mode": "breakout",
         "entry": "다음 거래일 시가",
-        "hold_days": hold,
+        # 파는 날을 규칙으로 못박지 않는다. 화면이 '며칠 뒤에 판다'고 적으면
+        # 앱이 매매를 지시하는 것이 된다(CLAUDE.md 0-1 바).
+        "hold_days": None,
+        "hold_results": BREAKOUT_HOLD_RESULTS,
         "current": metrics.get("current"),
         "invalidation": None,
         "target": None,
         "buy_reason": (
             f"52주 신고가를 찍고 {int(row.get('wait_days') or 0)}거래일이 지나 "
             f"고점 대비 {metrics.get('from_high_pct', 0):.1f}%까지 눌린 자리입니다. "
-            f"규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 사서 "
-            f"{hold}거래일 뒤 종가에 팝니다. 이 규칙에는 손절가가 없습니다."
+            f"규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 삽니다. "
+            f"**파는 시점은 규칙에 없습니다** — 이 자리의 과거 성적은 {spans}였습니다. "
+            f"이 규칙에는 손절가가 없습니다."
         ),
     }
 
@@ -1563,10 +1619,24 @@ def _attach_theme_together(rows: list, memberships: dict) -> None:
 
 THEME_RANK_MIN_MEMBERS = 3
 THEME_RANK_TOP_N = 5
+# '테마가 덜 빠졌나'는 상위 3등이라야 붙는다(2026-08-12 실측 — 상위 5등은 미달).
+THEME_LESS_DROP_TOP_N = 3
+
+
+def _rose_5d(metrics: dict) -> float | None:
+    """이 종목이 최근 5일에 올랐나 — 오르면 100, 아니면 0.
+
+    테마별로 평균 내면 곧 **'그 테마 구성종목 중 몇 %가 5일간 올랐나'**(확산)가 된다.
+    2026-08-12 실측에서 미국 두 갈래·테마 순위 모두 이 확산이 가장 잘 갈랐다
+    (상승장 그물에서 최악 −0.4p로 전 항목 중 1등, `research/us_parts.py`).
+    """
+    value = (metrics or {}).get("ret5")
+    return None if value is None else (100.0 if float(value) > 0 else 0.0)
 
 
 def _attach_theme_rank(rows: list, memberships: dict, all_metrics: dict,
-                       metric_key: str = "ret60", top_n: int = THEME_RANK_TOP_N) -> None:
+                       metric_key: str = "ret60", top_n: int = THEME_RANK_TOP_N,
+                       *, prefix: str = "theme_rank", derive=None) -> None:
     """이 종목이 속한 테마가 **오늘 몇 등인지** 각 줄에 적는다 (2026-08-07 도입).
 
     왜 넣나 — 지금까지 배점은 종목 하나만 봤다. 그런데 실측에서 **테마 자체의
@@ -1581,10 +1651,14 @@ def _attach_theme_rank(rows: list, memberships: dict, all_metrics: dict,
 
     `metric_key`는 무엇으로 줄 세울지다 — 미국 급락은 `ret60`(60일 수익률),
     한국 급락은 `from_high_pct`('덜 빠졌나')를 쓴다. 시장마다 실측 결과가 갈렸다.
+
+    한 줄에 **등수를 여럿** 달 수 있다 — `prefix`를 바꿔 부르면 된다. 미국 상승장은
+    '5일간 오른 종목 비율'과 '덜 빠졌나' 두 등수를 같이 쓴다(2026-08-12 실측).
+    `derive`를 주면 metrics에서 그 함수로 값을 뽑는다(`_rose_5d`처럼 계산이 필요한 값).
     """
     totals: dict[str, list] = {}
     for ticker, metrics in (all_metrics or {}).items():
-        value = (metrics or {}).get(metric_key)
+        value = derive(metrics) if derive else (metrics or {}).get(metric_key)
         if value is None:
             continue
         for name in memberships.get(ticker) or []:
@@ -1599,10 +1673,10 @@ def _attach_theme_rank(rows: list, memberships: dict, all_metrics: dict,
     for row in rows:
         places = [place[name] for name in (row.get("themes") or []) if name in place]
         best = min(places) if places else None
-        row["theme_rank"] = best
-        row["theme_rank_total"] = len(order)
-        row["theme_rank_top"] = bool(best is not None and best <= top_n)
-        row["theme_rank_name"] = (
+        row[prefix] = best
+        row[f"{prefix}_total"] = len(order)
+        row[f"{prefix}_top"] = bool(best is not None and best <= top_n)
+        row[f"{prefix}_name"] = (
             next((name for name in (row.get("themes") or []) if place.get(name) == best), "")
             if best else "")
 
@@ -1664,10 +1738,14 @@ def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int
     wait_min, wait_max = BREAKOUT_PULLBACK_RULE["wait_days"]
     drop_low, drop_high = BREAKOUT_PULLBACK_RULE["drop_band"]
     rows, window_count = [], 0
+    # 테마 등수는 **명부 전체**로 매긴다(걸린 종목만 쓰면 그날 몇 개 걸렸느냐로
+    # 출렁인다). 새 자료를 받지 않는다 — 어차피 전 종목을 훑고 있으니 모아만 둔다.
+    all_metrics: dict[str, dict] = {}
     for ticker in US_LARGE_CAP_UNIVERSE:
         metrics = _series_metrics(daily.get(ticker))
         if not metrics.get("ok"):
             continue
+        all_metrics[ticker] = metrics
         days_ago = metrics.get("high52_days_ago")
         from_high = metrics.get("from_high_pct")
         if days_ago is None or not (wait_min <= days_ago <= wait_max):
@@ -1681,8 +1759,14 @@ def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int
         row["volume_streak"] = volume_streak_days(daily.get(ticker))
         row["recent_gain_pct"] = recent_gain_pct(daily.get(ticker))
         rows.append(row)
-    # 테마 동반이 배점의 40점이므로 점수를 내기 **전에** 세어 둬야 한다.
+    # 테마 동반은 배점에서 빠졌지만 **같은 점수 안의 차례**를 가르는 데 계속 쓴다
+    # (_breakout_rank_key). 그래서 여기서 세어 둔다.
     _attach_theme_together(rows, memberships)
+    # 배점의 30점·20점이 테마 등수다. 점수를 내기 **전에** 달아 둬야 한다.
+    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_spread5",
+                       top_n=THEME_RANK_TOP_N, derive=_rose_5d)
+    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_less_drop",
+                       metric_key="from_high_pct", top_n=THEME_LESS_DROP_TOP_N)
     # 점수가 곧 순위다(2026-08-06 사용자 결정 — 별점은 뺐다). 같은 점수 안에서는
     # 예전 순위 기준(테마 동반 → 60일 상승폭 → 거래대금)을 그대로 쓴다.
     for row in rows:

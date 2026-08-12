@@ -141,17 +141,25 @@ class RulebookScreenTests(unittest.TestCase):
         # 점수가 높은 줄이 위에 온다.
         scores = [row["score"] for row in result["rows"]]
         self.assertEqual(sorted(scores, reverse=True), scores)
-        # **눌린 폭에는 점수를 주지 않는다**(2026-08-09 상하님 지적으로 0점이 됐다).
-        # 그물이 4~15%로 이미 골라 놓고 그 안에서 또 '더 눌린 쪽'에 점수를 주면
-        # 같은 것을 두 번 세는 것이고, 앞뒤 5년으로 갈라 재니 뒤 절반에서
-        # 거꾸로였다(+3.9 / -1.2%p). 그래서 -12%와 -5%가 그 항목에서 같은 점수다.
+        # **눌린 폭은 10~15% 칸에만 점수를 준다**(2026-08-12 재측정).
+        # 2026-08-09에 "그물이 이미 쓴 값"이라며 0점으로 뺐던 항목인데, 앱 그물
+        # 그대로(시장 조건 없이) 다시 재니 보유 3개월·6개월·1년 **셋 다 합격한
+        # 유일한 항목**이었다(research/us_breakout_ladder.py).
+        # 비례로 깎지 않고 **칸으로 가른다** — 6~10%는 실측에서 거꾸로였다.
         drop_points = {
             ticker: next(v for n, v, _m, _t in j3.breakout_score(row)["parts"]
                          if n.startswith("눌린 폭"))
             for ticker, row in picked.items()
         }
-        self.assertEqual({0.0}, set(drop_points.values()), drop_points)
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
+        full = j3.BREAKOUT_SCORE_WEIGHTS["drop"]
+        self.assertEqual(40.0, full, "눌린 폭이 계단 1등(40점)이어야 한다")
+        self.assertEqual(full, drop_points["AAPL"], "-12%는 10~15% 칸이라 만점")
+        self.assertEqual(full, drop_points["MSFT"], "-12%는 10~15% 칸이라 만점")
+        self.assertEqual(0.0, drop_points["AMZN"], "-5%는 칸 밖이라 0점")
+        # **0점 항목은 표에 넣지 않는다**(CLAUDE.md 0-1 마).
+        for row in picked.values():
+            maxima = [m for _n, _v, m, _t in j3.breakout_score(row)["parts"]]
+            self.assertNotIn(0.0, maxima, "0점짜리 줄이 배점표에 남아 있다")
         # 날짜만 다른 두 종목은 점수가 같아야 한다 — 날짜에는 점수를 주지 않는다.
         self.assertEqual(picked["AAPL"]["score"], picked["MSFT"]["score"])
         # 며칠 지났는지는 줄마다 그대로 실려야 한다 — 화면이 그걸 보여준다.
@@ -318,18 +326,26 @@ class RulebookScreenTests(unittest.TestCase):
         """두 갈래에 같은 자를 쓰면 낙폭 종목이 정의상 전부 '제외'로 나온다."""
         self.assertNotEqual(j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS)
         for weights in (j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS):
-            self.assertEqual(100.0, sum(weights.values()))
             # 거래대금 연속은 양쪽 갈래 다 거꾸로였다 — 배점에서 뺐다.
             self.assertNotIn("volume_streak", weights)
-        # 두 갈래 모두 테마가 1등이다. 2026-08-07에 그물을 격자로 다시 잡고
-        # 그 위에서 배점도 다시 쟀다(research/us_score_new.py).
-        # 상승장은 2026-08-09에 눌린 폭 15점을 빼고 남은 넷에 비례로 나눴다
-        # (40 → 47.0). 테마가 배점의 절반에 가깝다.
-        self.assertEqual(47.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
-        # **눌린 폭은 0점이다** — 그물(4~15%)이 이미 쓴 값이라 두 번 세는 것이었고,
-        # 앞뒤 5년으로 갈라 재니 뒤 절반에서 거꾸로였다(+3.9 / -1.2%p).
-        # 급락 갈래는 같은 이유로 이미 0점이었다(아래 bucket).
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
+        # **계단은 40·30·20·10뿐이다**(CLAUDE.md 0-1 마). 47.0·22.5·18.75 같은
+        # 비례 나눗셈 값이 다시 들어오면 여기서 먼저 깨진다.
+        # 급락 갈래는 그물을 상하님 표 2로 되돌리는 중이라 아직 옛 배점이다
+        # (22.5·18.75가 남아 있다). 그물을 바꾼 뒤 새 그물에서 다시 재고
+        # 여기에도 같은 시험을 건다(기준 7 — 그물이 바뀌면 다시 잰다).
+        for name, points in j3.BREAKOUT_SCORE_WEIGHTS.items():
+            self.assertIn(points, (0.0, 10.0, 20.0, 30.0, 40.0),
+                          f"{name} {points}점은 계단 밖이다")
+        # **합이 100이 아니어도 된다.** 합격한 항목에만 점수를 주고 남는 점수를
+        # 다른 항목에 나눠 주지 않는다 — 만점이 곧 그 파트의 근거의 양이다.
+        self.assertEqual(90.0, j3.BREAKOUT_SCORE_MAX)
+        self.assertEqual(j3.BREAKOUT_SCORE_MAX, sum(j3.BREAKOUT_SCORE_WEIGHTS.values()))
+        # **상승장 1등은 눌린 폭이다**(2026-08-12 재측정 — 보유 셋 다 합격한 유일한 항목).
+        self.assertEqual(40.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
+        # 이 그물에서 합격 못 한 항목들 — 되살아나면 여기서 깨진다.
+        for name in ("together", "recent_drop", "liquidity", "volatility"):
+            self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS[name],
+                             f"{name}은 이 그물에서 합격이 아니다")
         # 급락 갈래는 같은 날 '테마 등수' 25점이 들어오면서 비례해 줄었다.
         # 테마 두 항목을 합치면 55점 — 여전히 배점의 절반 이상이 테마다.
         self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["together"])
@@ -341,10 +357,11 @@ class RulebookScreenTests(unittest.TestCase):
         # 이미 돌아선 종목이 낫다는 뜻이다. 되살리면 검증이 부정한 값으로
         # 순위를 매기게 된다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["recent_drop"])
-        # 상승장에는 아직 남아 있다(25 → 29.4, 위 비례 나눔). 앞뒤로 갈라 재니
-        # 둘 다 이겼지만 뒤 절반이 얇다(+5.2 / +1.3%p). **다시 재 볼 자리다** —
-        # 신고가를 세게 찍고 올라온 종목이 이 항목에서 0점을 받는다.
-        self.assertEqual(29.4, j3.BREAKOUT_SCORE_WEIGHTS["recent_drop"])
+        # **상승장에서도 0점이 됐다**(2026-08-12). "다시 재 볼 자리"라고 적어 뒀던
+        # 것을 앱 그물 그대로 다시 쟀더니 세 보유기간 전부 미달이었다
+        # (3개월 73/60 · 6개월 89/60 · 1년 100/76 — 수익률 쪽이 65%를 못 넘는다).
+        # 그리고 '-5%↑ 빠짐'은 그물의 6%뿐이라 못 가르기도 한다(기준 6).
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["recent_drop"])
         # 낙폭 갈래도 0점이다 — 갈래가 하나뿐이라 모두 같은 점수를 받아 못 가른다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["bucket"])
         # 60일 상승폭도 뺐다 — 가운데 값만 크고 이기는 횟수는 뒤 5년에 졌다.
@@ -362,15 +379,17 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(20.0, j3.theme_together_points(1, 40.0))
         self.assertEqual(20.0, j3.theme_together_points(2, 40.0))
         self.assertEqual(0.0, j3.theme_together_points(0, 40.0))
-        # 상승장은 이 자를 그대로 쓴다.
+        # **상승장은 2026-08-12부터 이 자를 안 쓴다.** 앱 그물 그대로 다시 재니
+        # '같은 테마 동반 4개↑'는 6개월 보유에서만 합격했고 3개월·1년에서는
+        # 미달이었다. 앱이 파는 시점을 정하지 않으므로 한 기간에서만 통하는 값은
+        # 쓰지 않는다(CLAUDE.md 0-1 마). 배점표에도 그 줄이 없어야 한다.
         row = {"metrics": {}, "together_count": 1, "together_tier": 0,
                "recent_gain_pct": 0.0}
-        points = next(value for name, value, _m, _t in j3.breakout_score(row)["parts"]
-                      if name == "같은 테마 동반")
-        # 배점 숫자를 시험에 박아 두지 않는다 — 2026-08-09에 눌린 폭 15점을 빼면서
-        # 남은 넷에 비례로 나눴더니 이 자리가 20.0에서 바뀌었다. 만점의 절반인지만 본다.
-        half = j3.BREAKOUT_SCORE_WEIGHTS["together"] / 2
-        self.assertAlmostEqual(half, points, places=6, msg="상승장이 1개를 절반으로 준다")
+        names = [name for name, _v, _m, _t in j3.breakout_score(row)["parts"]]
+        self.assertNotIn("같은 테마 동반", names)
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
+        # 다만 **같은 점수 안의 차례**를 가르는 데는 계속 쓴다(_breakout_rank_key).
+        self.assertEqual(40.0, j3.theme_together_points(3, 40.0))
         # **급락 후 반등장은 문턱이 4개다**(2026-08-07 새 그물 실측). 3개↑는
         # 그물의 55%가 해당돼 못 가른다(75/46 · 85/64 · 99/88).
         self.assertEqual(4, j3.CRASH_TOGETHER_FULL)

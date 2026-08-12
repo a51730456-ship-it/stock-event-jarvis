@@ -951,7 +951,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081210
+_REQUIRED_J3_REVISION = 2026081220
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -3198,6 +3198,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         factor_names = [name for name, _v, _m, _t in scored["parts"]]
         factor_max = [maximum for _n, _v, maximum, _t in scored["parts"]]
         factor_notes = [note for _n, _v, _m, note in scored["parts"]]
+        # 만점은 **모듈이 정한다.** 갈래마다 다르다(상승장 90점 · 급락 100점) —
+        # 합격한 항목만 점수를 주고 남는 점수를 다른 항목에 나눠 주지 않기 때문이다
+        # (CLAUDE.md 0-1 마). 화면에 100을 박아 두면 90점 만점 갈래가 낮아 보인다.
+        score_max = float(scored.get("max") or 100.0)
     else:
         review = j3data.analyze_pullback_stock(
             row,
@@ -3217,6 +3221,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         factor_notes = ["창 32·43·61% 미달", "창 47·42·26% 미달",
                         "창 5·12·42% 거꾸로 → 0점", "창 70·58·35% 미달",
                         "창 55·45·43% 미달"]
+        score_max = round(sum(factor_max), 1) or 100.0
 
     # 종목 이름·판정은 자비스4 종목 상세와 같은 형식으로 크게 보여준다.
     st.markdown(
@@ -3262,14 +3267,15 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         cells.append(
             f"<div class='j3-mc'><div class='j3-mc-label'>이 종목 점수</div>"
             f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.0f}점 "
-            "<span style='font-size:1rem; color:#9aa0aa'>/ 100</span></div>"
+            f"<span style='font-size:1rem; color:#9aa0aa'>/ {score_max:g}</span></div>"
             f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
             "</div></div>"
         )
     else:
         cells.extend([
             f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
-            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}/100</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}"
+            f"/{score_max:g}</div>"
             f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
             "</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
@@ -3304,7 +3310,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
         f"<td class='j3-fac-val' style='{total_style}'>"
         f"<span style='color:#ff5b5b; font-weight:800'>{_number(review.get('score'))}</span> "
-        "<span style='color:#ff5b5b'>(100)</span></td></tr>"
+        f"<span style='color:#ff5b5b'>({score_max:g})</span></td></tr>"
     )
     # 시장·테마는 배점표 **위**에 둔다(2026-08-07). 차트 뒤 맨 아래 있던 것을
     # 올렸다 — 종목 점수를 보기 전에 어떤 시장·어떤 테마인지부터 알아야 한다.
