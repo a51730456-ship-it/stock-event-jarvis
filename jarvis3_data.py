@@ -190,7 +190,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081290
+MODULE_REVISION = 2026081300
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1385,12 +1385,31 @@ CRASH_SCORE_MAX = round(sum(CRASH_SCORE_WEIGHTS.values()), 1)
 # 없습니다"라고 적는 게 낫다** — 빈 자리를 감추지 않는 것과 같은 결이다(0-1 바).
 CRASH_SCORE_BLIND_BELOW = -24.0
 
+# **얕은 칸(6~12%)에서도 못 가른다** — 위 표의 첫 줄이다. 그런데 여기가 급락
+# 목록이 뜨는 날의 **41%**, 제일 자주 오는 자리다. 2026-08-12에 24% 아래만
+# 막아 두고 이 칸은 그냥 뒀는데, 상하님이 "답이 없다는 말이 뭐냐"고 물으셔서
+# 다시 보니 **화면이 아무 말도 안 하고 있었다.**
+#
+# 두 칸은 성격이 다르므로 문구도 다르다.
+#   24% 아래 — 셋 다 무너진다. 순위를 아예 쓸 수 없다.
+#   6~12%   — 셋 중 '덜 빠졌나'만 1년 보유에서 걸린다. 순위가 **약하다.**
+# 그래서 여기는 "쓰지 마십시오"가 아니라 "약합니다"라고 적는다.
+CRASH_SCORE_WEAK_BAND = (-12.0, -6.0)
+
 
 def crash_score_is_blind(market_drop_pct) -> bool:
     """지금 나스닥 낙폭에서 배점이 순위를 가를 수 있나. 못 가르면 True."""
     if market_drop_pct is None:
         return False
     return float(market_drop_pct) <= CRASH_SCORE_BLIND_BELOW
+
+
+def crash_score_is_weak(market_drop_pct) -> bool:
+    """얕은 급락(6~12%)이라 순위가 약한가. 제일 자주 오는 칸이다."""
+    if market_drop_pct is None:
+        return False
+    low, high = CRASH_SCORE_WEAK_BAND
+    return low <= float(market_drop_pct) <= high
 # '덜 빠졌나'는 급락에서 상위 5등이라야 붙는다(상위 3등은 해당 7%로 못 가름).
 CRASH_LESS_DROP_TOP_N = 5
 CRASH_SPREAD_TOP_N = 5
@@ -1404,9 +1423,34 @@ CRASH_TOGETHER_FULL = 4
 # 20일선 위는 창 96개 중 5개, 50일선 위는 12개에서만 이겼다(거꾸로).
 # 되살리려면 이 값을 20.0으로, LEADER_RESCALE을 1.0으로 되돌리면 된다.
 LEADER_TREND_POINTS = 0.0
-# 뺀 20점을 나머지 네 항목에 비례해 나눈다(80점 → 100점). 새로 검증에 통과한
-# 항목이 없어 어디로 몰아 줄 근거가 없으므로, 비례 배분이 가장 덜 손대는 길이다.
-LEADER_RESCALE = 100.0 / (100.0 - 20.0 + LEADER_TREND_POINTS)
+# ── 2026-08-12 저녁, 상하님 지적으로 **비례 배분을 걷어냈다** ────────────────
+# 상하님 캡처 — 1등 종목 MPC의 '52주 신고가 위치'가 **31.1 (25)**, '유동성'이
+# **16.2 (15)**. 획득이 최대보다 크다. 뺀 20점을 나머지 넷에 1.25배로 나눠 놓고
+# **최대값 칸은 안 고쳤기** 때문이다. 화면이 거짓말을 하고 있었다.
+#
+# 그리고 더 나쁜 것 — '추세 0.0 **(20)**'. 아무 종목도 못 받는 20점을 있는 척
+# 적어 뒀다(상하님 물음: "그거 받는 기준은 뭐고 받은 종목은 있긴 있냐?").
+#
+# 진짜 원인은 비례 배분 자체다. CLAUDE.md 0-1 마에 **"뺀 점수를 남은 항목에
+# 비례로 나누지 않는다. 합이 100이 안 되면 ○○점 만점이라 적는다"**가 있다.
+# 이 코드(2026-08-07)가 그 규칙보다 먼저 쓰였다. 규칙대로 되돌린다.
+#
+# **순위는 바뀌지 않는다** — 모든 항목에 같은 배수를 곱했던 것이라 등수는 그대로다.
+# 화면에 적히는 숫자만 정직해진다(85.9/100 → 68.7/80).
+LEADER_RESCALE = 1.0
+# 항목별 만점. **화면은 이 값을 읽어 쓴다** — 여기와 화면에 따로 적어 두면
+# 한쪽만 고쳐져 위와 같은 사고가 또 난다(2026-08-09에 배점표에서 같은 일이 있었다).
+LEADER_SCORE_PARTS = (
+    ("테마 대비 상대강도", 25.0 * LEADER_RESCALE),
+    ("52주 신고가 위치", 25.0 * LEADER_RESCALE),
+    ("추세", LEADER_TREND_POINTS),          # 0점 — 화면 표에서 뺀다(0-1 마)
+    ("유동성", 15.0 * LEADER_RESCALE),
+    ("변동성 안정", 15.0 * LEADER_RESCALE),
+)
+LEADER_SCORE_MAX = round(sum(points for _n, points in LEADER_SCORE_PARTS), 1)
+# 메달(🥇🥈🥉)을 붙이는 문턱. 예전에는 100점 만점 기준 80점이었다 — 만점이
+# 바뀌었으므로 **같은 비율**로 옮긴다. 안 옮기면 메달이 갑자기 흔해진다.
+LEADER_MEDAL_MARK = round(LEADER_SCORE_MAX * 0.80, 1)
 # 이 점수는 어느 항목도 합격선을 넘지 못했다. 화면이 그 사실을 적을 때 읽는다.
 LEADER_SCORE_VERIFIED = False
 
@@ -2245,6 +2289,7 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
         # **오늘 배점이 순위를 가를 수 있나**(2026-08-12). 나스닥이 -24% 아래로
         # 빠지면 세 항목이 전부 무너진다 — 화면이 "가를 수 없습니다"라고 적는다.
         "score_blind": crash_score_is_blind(market.get("drop_pct")),
+        "score_weak": crash_score_is_weak(market.get("drop_pct")),
         "reference": reference,
         "universe_count": len(US_LARGE_CAP_UNIVERSE),
         "data_count": len(daily),

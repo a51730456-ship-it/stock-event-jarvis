@@ -951,7 +951,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081290
+_REQUIRED_J3_REVISION = 2026081300
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1196,7 +1196,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             _flex_row(_THEME_REST_WIDTHS, [
                 etf,
                 "<div class='j3-barwrap'><div class='j3-bar'>"
-                f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+                f"<div class='j3-bar-fill' style='width:{_leader_bar_pct(score):.0f}%'></div></div>"
                 f"<span class='j3-bar-num'>{score:.1f}</span></div>",
                 f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
                 f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
@@ -1408,7 +1408,7 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
             _flex_row(_LEADER_REST_WIDTHS, [
                 ticker,
                 "<div class='j3-barwrap'><div class='j3-bar'>"
-                f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+                f"<div class='j3-bar-fill' style='width:{_leader_bar_pct(score):.0f}%'></div></div>"
                 f"<span class='j3-bar-num'>{score:.1f}</span></div>",
                 *(
                     f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
@@ -1441,7 +1441,7 @@ def _leader_table_html(leaders: list[dict], selected_ticker: str | None) -> str:
         highlight = " j3-th-selected" if ticker == selected_ticker else ""
         score_bar = (
             "<div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill' style='width:{min(score, 100):.0f}%'></div></div>"
+            f"<div class='j3-bar-fill' style='width:{_leader_bar_pct(score):.0f}%'></div></div>"
             f"<span class='j3-bar-num'>{score:.1f}</span></div>"
         )
         change, from_high, ret20 = metrics.get("change_pct"), metrics.get("from_high_pct"), metrics.get("ret20")
@@ -2060,6 +2060,17 @@ def _fear_greed_box() -> str:
 
 
 @st.fragment(run_every=60)
+
+def _leader_max() -> float:
+    """대장주 조건점수 만점. **모듈에서 읽는다** — 화면에 박아 두면 어긋난다."""
+    return float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
+
+
+def _leader_bar_pct(score) -> float:
+    """점수 막대를 만점 기준으로 채운다. 100으로 나누면 80점 만점이 늘 짧아 보인다."""
+    return max(0.0, min(float(score or 0) / max(_leader_max(), 1.0) * 100.0, 100.0))
+
+
 def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
     ticker = st.session_state.get("j3_selected_ticker")
     if not ticker:
@@ -2230,8 +2241,13 @@ def _render_stock_detail(
     # 종목조건점수는 위로 빼지 않고 아래 한 줄 지표에 함께 표시한다.
     _render_selected_live_quote(leader.get("score"), plan.get("state"))
 
-    factor_names = ["테마 대비 상대강도", "52주 신고가 위치", "추세", "유동성", "변동성 안정"]
-    factor_max = [25, 25, 20, 15, 15]
+    # **이름도 만점도 모듈에서 읽는다**(2026-08-12 상하님 지적). 여기 박아 두었더니
+    # 모듈에서 점수를 1.25배로 키웠는데 최대값은 그대로여서 '31.1 (25)'가 나왔다.
+    # 그리고 아무도 못 받는 '추세 (20)'이 표에 남아 있었다.
+    factor_spec = list(getattr(j3data, "LEADER_SCORE_PARTS",
+                               (("테마 대비 상대강도", 25.0), ("52주 신고가 위치", 25.0),
+                                ("추세", 0.0), ("유동성", 15.0), ("변동성 안정", 15.0))))
+    leader_max = float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
 
     def _gain_cell(part, maximum, *, top_border=False):
         # 획득값과 (최대) 모두 붉은색, 사이 한 칸 띄운다. 총점 행은 위에 이중선.
@@ -2242,9 +2258,12 @@ def _render_stock_detail(
             f"<span style='color:#ff5b5b'>({maximum})</span></td>"
         )
 
+    # **0점 항목은 표에 넣지 않는다**(CLAUDE.md 0-1 마). 아무도 못 받는 점수를
+    # 적어 두면 그런 기준이 있는 줄 알게 된다.
     factor_rows = "".join(
-        f"<tr><td class='j3-fac-name'>{name}</td>{_gain_cell(part, maximum)}</tr>"
-        for name, part, maximum in zip(factor_names, leader["score_parts"], factor_max)
+        f"<tr><td class='j3-fac-name'>{name}</td>{_gain_cell(part, _number(maximum))}</tr>"
+        for (name, maximum), part in zip(factor_spec, leader["score_parts"])
+        if maximum > 0
     )
     # 총점 행: 글자 한 치수 크게 + 배경 밝은 초록
     total_style = (
@@ -2255,7 +2274,7 @@ def _render_stock_detail(
         f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
         f"<td class='j3-fac-val' style='{total_style}'>"
         f"<span style='color:#ff5b5b; font-weight:800'>{_number(leader.get('score'))}</span> "
-        "<span style='color:#ff5b5b'>(100)</span></td></tr>"
+        f"<span style='color:#ff5b5b'>({_number(leader_max)})</span></td></tr>"
     )
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
@@ -2306,7 +2325,7 @@ def _render_stock_detail(
         score_box = (
             "<div class='j3-holo-cell j3-holo-score'>"
             "<div class='label'>종목 조건점수</div>"
-            f"<div class='val'>{float(leader.get('score') or 0):.1f}/100</div>"
+            f"<div class='val'>{float(leader.get('score') or 0):.1f}/{_number(_leader_max())}</div>"
             f"<div class='state'>{plan.get('state', '')}</div></div>"
         )
         plan_grid = (
@@ -3231,18 +3250,24 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             theme_score=theme_score,
         )
         plan = review.get("plan") or {}
-        factor_names = ["SPY 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)",
-                        "유동성(거래대금)", "변동성 안정"]
-        # 만점은 모듈에서 계산해 온다 — 숫자를 여기 박아 두면 배점을 고칠 때
-        # 표만 옛 숫자로 남는다(2026-08-07 한국 쪽에서 실제로 그럴 뻔했다).
-        rescale = getattr(j3data, "LEADER_RESCALE", 1.0)
-        trend_max = getattr(j3data, "LEADER_TREND_POINTS", 20.0)
-        factor_max = [round(25 * rescale, 1), round(25 * rescale, 1), round(trend_max, 1),
-                      round(15 * rescale, 1), round(15 * rescale, 1)]
-        factor_notes = ["창 32·43·61% 미달", "창 47·42·26% 미달",
-                        "창 5·12·42% 거꾸로 → 0점", "창 70·58·35% 미달",
-                        "창 55·45·43% 미달"]
-        score_max = round(sum(factor_max), 1) or 100.0
+        # 만점은 모듈에서 읽어 온다 — 숫자를 여기 박아 두면 배점을 고칠 때
+        # 표만 옛 숫자로 남는다(2026-08-12에 실제로 그래서 '31.1 (25)'가 나왔다).
+        spec = list(getattr(j3data, "LEADER_SCORE_PARTS", ()))
+        long_names = ["SPY 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)",
+                      "유동성(거래대금)", "변동성 안정"]
+        notes = ["창 32·43·61% 미달", "창 47·42·26% 미달",
+                 "창 5·12·42% 거꾸로 → 0점", "창 70·58·35% 미달",
+                 "창 55·45·43% 미달"]
+        # **0점 항목은 표에서 뺀다**(CLAUDE.md 0-1 마). '추세 0.0 (0.0)' 같은 줄은
+        # 아무도 못 받는 기준이 있는 것처럼 보이게 한다.
+        keep = [i for i, (_n, points) in enumerate(spec) if points > 0]
+        factor_names = [long_names[i] for i in keep]
+        factor_max = [round(spec[i][1], 1) for i in keep]
+        factor_notes = [notes[i] for i in keep]
+        parts_all = list(review.get("score_parts") or [])
+        review = {**review, "score_parts": [parts_all[i] for i in keep
+                                            if i < len(parts_all)]}
+        score_max = float(getattr(j3data, "LEADER_SCORE_MAX", 80.0)) or 100.0
 
     # 종목 이름·판정은 자비스4 종목 상세와 같은 형식으로 크게 보여준다.
     st.markdown(
@@ -3858,6 +3883,23 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "자리에서는 배점 세 항목이 <u>전부 무너집니다</u> — 10년치를 낙폭 칸별로 "
                 "갈라 재서 확인했습니다.<br><b>아래 목록은 순서 없이 보십시오.</b> "
                 "이런 날은 어느 자리를 사도 크게 올랐습니다(그물 전체 1년 가운데 +32%).</div>",
+                unsafe_allow_html=True)
+        # **얕은 급락(6~12%)에서도 순위가 약하다.** 그런데 여기가 급락 목록이 뜨는
+        # 날의 41%, 제일 자주 오는 자리다. 2026-08-12 저녁 상하님 물음 —
+        # "답이 없다는 말이 뭐냐. 내보고 어쩌라고." 화면이 아무 말도 안 하고 있던
+        # 것이 문제였다. 깊은 급락과 달리 아주 못 쓰는 것은 아니라 문구를 달리한다.
+        elif result.get("score_weak"):
+            drop = (result.get("market") or {}).get("drop_pct")
+            low, high = getattr(j3data, "CRASH_SCORE_WEAK_BAND", (-12.0, -6.0))
+            st.markdown(
+                "<div class='j3-pull-guide'><b class='j3-down'>⚠ 오늘은 순위가 "
+                "약합니다.</b> 나스닥이 고점 대비 "
+                + (_red(f"{float(drop):.1f}%") if drop is not None else "조금")
+                + f" 빠져 있습니다. 이 정도(<b>{abs(high):.0f}~{abs(low):.0f}%</b>) "
+                "얕은 자리는 <u>급락 목록이 뜨는 날의 41%</u>로 제일 자주 오는데, "
+                "10년치로 재 보면 배점 세 항목 중 <b>‘테마가 덜 빠졌나’만 1년 보유에서 "
+                "걸립니다.</b><br><b>1등과 5등을 크게 다르게 보지 마십시오.</b> "
+                "짧게 들고 나오실 생각이면 특히 그렇습니다.</div>",
                 unsafe_allow_html=True)
         st.markdown(
             _score_table_html("breakout" if breakout else "crash", base_rate)

@@ -1294,7 +1294,7 @@ def get_fx_intraday(*, ttl_seconds: float = 60) -> dict:
 # **재적재는 pages/3_자비스4.py가 한다**(규칙 11, 이 프로젝트 방식).
 # 여기서 importlib.reload를 부르면 시험이 갈아 끼운 가짜 모듈까지 날아간다
 # (2026-08-06 실제로 test_jarvis4_data 두 건이 깨졌다).
-_REQUIRED_J3_REVISION = 2026081290
+_REQUIRED_J3_REVISION = 2026081300
 
 
 def _us_previous_session() -> dict:

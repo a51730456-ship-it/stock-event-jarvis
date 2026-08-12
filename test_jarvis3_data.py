@@ -861,5 +861,74 @@ class WeeklyAlignedTests(unittest.TestCase):
         # 죽 오르는 값이니 주봉 오름세여야 한다.
         self.assertEqual(100.0, j3._weekly_aligned(metrics))
 
+
+class CrashScoreWarningTests(unittest.TestCase):
+    """급락 배점이 순위를 못 가르는 자리를 화면에 알리는가 (2026-08-12)."""
+
+    def test_deep_crash_is_blind(self):
+        # -24% 아래면 배점 세 항목이 전부 무너진다.
+        self.assertTrue(j3.crash_score_is_blind(-24.0))
+        self.assertTrue(j3.crash_score_is_blind(-31.5))
+        self.assertFalse(j3.crash_score_is_blind(-23.9))
+        self.assertFalse(j3.crash_score_is_blind(None))
+
+    def test_shallow_crash_is_weak(self):
+        # -6~-12%는 급락 목록이 뜨는 날의 41%로 제일 자주 오는데, 셋 중
+        # '덜 빠졌나'만 1년 보유에서 걸린다. "약하다"고 적어야 한다.
+        self.assertTrue(j3.crash_score_is_weak(-6.0))
+        self.assertTrue(j3.crash_score_is_weak(-11.9))
+        self.assertTrue(j3.crash_score_is_weak(-12.0))
+        self.assertFalse(j3.crash_score_is_weak(-12.1))
+        self.assertFalse(j3.crash_score_is_weak(-5.9), "그물 밖이다")
+        self.assertFalse(j3.crash_score_is_weak(None))
+
+    def test_the_two_warnings_never_fire_together(self):
+        """한 날에 '못 가름'과 '약함'이 같이 뜨면 화면이 두 말을 한다."""
+        for drop in (-3.0, -6.0, -12.0, -18.0, -24.0, -40.0):
+            self.assertFalse(
+                j3.crash_score_is_blind(drop) and j3.crash_score_is_weak(drop),
+                f"나스닥 {drop}%에서 경고 두 개가 같이 뜬다")
+
+
+
+class LeaderScoreMaxTests(unittest.TestCase):
+    """대장주 조건점수 — **획득이 최대를 넘으면 안 된다** (2026-08-12 상하님 지적).
+
+    상하님 캡처: 1등 종목의 '52주 신고가 위치'가 31.1 (25), '유동성'이 16.2 (15).
+    뺀 20점을 나머지에 1.25배로 나눠 놓고 최대값 칸을 안 고쳐서 생긴 일이다.
+    """
+
+    def test_no_proportional_redistribution(self):
+        # CLAUDE.md 0-1 마 — 뺀 점수를 남은 항목에 비례로 나누지 않는다.
+        self.assertEqual(1.0, j3.LEADER_RESCALE)
+        self.assertEqual(0.0, j3.LEADER_TREND_POINTS, "추세는 검증에서 거꾸로였다")
+        self.assertEqual(80.0, j3.LEADER_SCORE_MAX, "합이 100이 아니면 그대로 적는다")
+
+    def test_parts_and_maxima_line_up(self):
+        names = [name for name, _p in j3.LEADER_SCORE_PARTS]
+        self.assertEqual(
+            ["테마 대비 상대강도", "52주 신고가 위치", "추세", "유동성", "변동성 안정"],
+            names, "이름 순서가 _leader_score의 반환 순서와 같아야 한다")
+        self.assertEqual(j3.LEADER_SCORE_MAX,
+                         round(sum(p for _n, p in j3.LEADER_SCORE_PARTS), 1))
+
+    def test_real_stock_never_exceeds_any_maximum(self):
+        """실제 종목을 넣어 항목마다 만점을 안 넘는지 본다."""
+        maxima = [points for _n, points in j3.LEADER_SCORE_PARTS]
+        for slope, theme_ret in ((0.9, -20.0), (0.1, 5.0), (-0.4, 0.0)):
+            metrics = j3._series_metrics(_daily_frame(slope=slope), None)
+            self.assertTrue(metrics["ok"])
+            total, parts = j3._leader_score(metrics, theme_ret)
+            self.assertEqual(len(maxima), len(parts))
+            for (name, top), got in zip(j3.LEADER_SCORE_PARTS, parts):
+                self.assertLessEqual(round(got, 1), top,
+                                     f"{name}이 만점 {top}을 넘었다: {got}")
+            self.assertLessEqual(round(total, 1), j3.LEADER_SCORE_MAX)
+
+    def test_medal_mark_follows_the_maximum(self):
+        # 만점이 바뀌면 메달 문턱도 같은 비율로 움직여야 한다.
+        self.assertEqual(round(j3.LEADER_SCORE_MAX * 0.8, 1), j3.LEADER_MEDAL_MARK)
+
+
 if __name__ == "__main__":
     unittest.main()

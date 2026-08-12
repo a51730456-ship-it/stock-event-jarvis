@@ -814,6 +814,42 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         return app
 
+    def test_no_earned_score_ever_exceeds_its_maximum(self):
+        """**획득이 최대보다 크면 안 된다** (2026-08-12 상하님 지적).
+
+        상하님 캡처 — 1등 종목의 '52주 신고가 위치'가 31.1 (25), '유동성'이
+        16.2 (15)였다. 뺀 20점을 나머지에 1.25배로 나눠 놓고 최대값 칸을 안
+        고쳐서 생긴 일이다. 화면에 그려진 모든 '획득(최대)' 표를 훑어 본다.
+        """
+        import re
+
+        for mode, finder, result in (
+            ("breakout", "find_breakout_pullback_stocks", _breakout_result()),
+            ("crash", "find_crash_rebound_stocks", _crash_result()),
+        ):
+            app = self._run_with_mode(mode, finder, result)
+            blob = "".join(str(node.value) for node in app.markdown)
+            # <span ...>23.5</span> <span ...>(25)</span> 꼴을 다 뽑는다.
+            # **총점 줄은 건너뛴다.** 여기 시험용 가짜 종목은 score를 손으로 박아
+            # 둔 값이라 항목 합과 다르다. 진짜 계산에서 총점이 만점을 안 넘는지는
+            # test_jarvis3_data.LeaderScoreMaxTests가 실제 종목으로 확인한다.
+            found = [
+                m for m in re.finditer(
+                    r">([-\d.]+)</span>\s*<span[^>]*>\(([-\d.]+)\)</span>", blob)
+                if "총점" not in blob[max(0, m.start() - 360):m.start()]
+                or "j3-fac-name" not in blob[max(0, m.start() - 360):m.start()]
+            ]
+            pairs = [(m.group(1), m.group(2)) for m in found
+                     if "총점</td>" not in blob[max(0, m.start() - 360):m.start()]]
+            self.assertTrue(pairs, f"{mode}: 획득(최대) 짝을 하나도 못 찾았다")
+            for got, top in pairs:
+                self.assertLessEqual(
+                    float(got), float(top) + 0.05,
+                    f"{mode}: 획득 {got}이 최대 {top}보다 크다")
+                self.assertGreater(
+                    float(top), 0.0,
+                    f"{mode}: 최대가 0인 줄이 표에 남아 있다 (0점은 빼야 한다)")
+
     def test_only_the_two_rulebook_buttons_remain(self):
         """'눌림목 찾기'는 뺐다(2026-08-06 사용자 지시).
 
