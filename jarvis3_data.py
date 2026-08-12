@@ -144,34 +144,53 @@ BREAKOUT_BASE_MEDIAN = 6.3
 # 거르는 조건이 아니다 — 알려만 준다. 자세한 사연은 breakout_market_state() 참고.
 BREAKOUT_MARKET_MAX_DROP = -10.0   # 나스닥 고점 대비 이보다 나은 날
 
-# 급락 후 반등장 — 시장 낙폭은 **막지 않고 알려만 준다**(2026-08-06 사용자 결정).
-# -6~-12%가 가장 자주 오고(7개월에 한 번) 가장 좋았지만, 그 자리를 지나 시장이
-# 올라가도 종목은 여전히 볼 값어치가 있다는 판단이다.
-# **2026-08-07 격자로 다시 잡았다.** -6~-12%는 급락이 아니라 흔한 조정이었다
-# (10년에 72번). 그 문턱에서는 어떤 조합도 3년 창 검사를 통과하지 못했다.
-# **-10~-20%(49번)** 로 깊게 잡으니 통과했다. 측정: research/us_net_grid.py
-CRASH_MARKET_BAND = (-20.0, -10.0)
-CRASH_MARKET_SYMBOL = "QQQ"
+# ── 급락 후 반등장 — 상하님 표 2 그대로 (2026-08-12 확정) ────────────────────
+# 원본: assets/us_method_drawdown.png · 숫자: docs/US_METHOD_TABLES.md 표 2
 #
-# 성적은 **화면이 실제로 뒤지는 명부(테마 198종목)**로 다시 쟀다(2026-08-06).
-# 그전 숫자(74.6 / 69.5, 기준선 65.4)는 나스닥100 96종목으로 잰 것이라 화면이
-# 찾는 대상과 달랐다. 다시 재 보니 **낙폭 자체는 기준선을 못 넘는다** — 그래서
-# 낙폭에는 15점만 준다(CRASH_SCORE_WEIGHTS 주석 참고).
-# **2026-08-07 격자로 다시 잡았다.** 얕은 낙폭을 **1년** 들고 있는 것이 답이었다.
-# 깊은 갈래(-30~-50%)와 6개월 보유는 3년 창 검사를 통과하지 못했다.
-#   나스닥 -10~-20% 가장 깊은 날 · 종목 -20~-30% · 250거래일
-#   창 2년 93/74% · 3년 100/86% · 4년 100/100% · 가운데 +3.5%p · 가장 나쁜 창 +0.8%p
+# **2026-08-07에 내가 -10~-20%로 좁혀 놓았던 것을 되돌린다.** 그때 나스닥 구간·
+# 종목 낙폭·보유기간 **세 가지를 한꺼번에 바꿔 놓고** "-6%는 급락이 아니라 흔한
+# 조정"이라고 적었다. 2026-08-12에 갈라서 다시 재 보니 진짜 원인은 **보유기간**
+# 이었다 — -6%도 1년 들면 가운데 +33.1%다(research/us_crash_timing.py).
+# 상하님 표가 맞았고 내가 엉뚱한 것을 범인으로 지목했다.
+#
+# 이제 **고점 대비 -6% 아래면 전부 본다.** 상하님 표처럼 다섯 칸으로 나눠 보여주되
+# 거르지는 않는다. 10년에 그런 날이 710일(전체의 28%)이다.
+CRASH_MARKET_BAND = (-100.0, -6.0)
+CRASH_MARKET_SYMBOL = "QQQ"
+
+# 상하님 표 2의 다섯 칸. **거르는 조건이 아니라 지금이 어느 칸인지 알려 주는 표**다.
+# median/win은 앱 명부 198종목·10년으로 다시 잰 값(1년 보유 · 종목 -30~-50% 기준).
+CRASH_MARKET_TIERS = (
+    {"band": (-12.0, -6.0), "label": "6~12%", "events": 72, "median_return": 33.1},
+    {"band": (-18.0, -12.0), "label": "12~18%", "events": 35, "median_return": 30.7},
+    {"band": (-24.0, -18.0), "label": "18~24%", "events": 22, "median_return": 24.6},
+    {"band": (-30.0, -24.0), "label": "24~30%", "events": 20, "median_return": 26.6},
+    {"band": (-100.0, -30.0), "label": "30% 아래", "events": 10, "median_return": 26.9},
+)
+
+# 종목 낙폭 두 칸 — **상하님 표 2에 있던 30~50%를 되살린다.** 2026-08-07에 내가
+# 통째로 지웠는데, 1년 보유에서 20~30%보다 5.6%p 더 벌던 자리다.
+#
+# **파는 날은 규칙에 없다**(2026-08-12 상하님 확정: "파는 시점은 내가 정한다").
+# 3개월·6개월·1년 성적을 나란히 적고 고르는 것은 상하님이 하신다.
+# 아래 숫자는 새 그물(나스닥 -6% 아래 전부 · 구간에 있는 동안 매일)에서 잰 값이다.
+CRASH_HOLD_SPANS = ((60, "3개월"), (120, "6개월"), (250, "1년"))
 CRASH_REBOUND_RULES = (
-    {"key": "shallow", "band": (-30.0, -20.0), "hold_days": 250,
-     "win_rate": 81.2, "median_return": 31.1, "base_win_rate": 76.1,
-     "base_median_return": 24.2, "sample": 1728, "events": 49,
-     "years_better": 5, "years_total": 8, "windows_won": "252/252",
-     "label": "고점 대비 -20~-30%"},
+    {"key": "shallow", "band": (-30.0, -20.0), "label": "고점 대비 -20~-30%",
+     "results": ({"days": 60, "label": "3개월", "median_return": 7.4, "win_rate": 65.8},
+                 {"days": 120, "label": "6개월", "median_return": 13.7, "win_rate": 69.6},
+                 {"days": 250, "label": "1년", "median_return": 26.6, "win_rate": 76.7}),
+     "sample": 15016},
+    {"key": "deep", "band": (-50.0, -30.0), "label": "고점 대비 -30~-50%",
+     "results": ({"days": 60, "label": "3개월", "median_return": 8.6, "win_rate": 65.1},
+                 {"days": 120, "label": "6개월", "median_return": 14.9, "win_rate": 66.5},
+                 {"days": 250, "label": "1년", "median_return": 32.2, "win_rate": 73.1}),
+     "sample": 18205},
 )
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081220
+MODULE_REVISION = 2026081230
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1219,10 +1238,45 @@ def volume_streak_days(frame) -> int:
 # 2026-08-07: '테마 등수' 25점을 새로 넣고 나머지를 비례해 줄였다(40/30/30 → 30/22.5/22.5).
 # 테마 60일 수익률 상위 5등은 창 80 / 95 / 100%로 통과했고 최악의 창에서도 -0.0p였다
 # — 통과한 후보 중 최악값이 가장 좋았다(`research/us_theme_rank.py`).
+# ── 2026-08-12 새 그물에서 다시 쟀다 — 위 기록은 전부 **옛것**이다 ────────────
+# 그물을 상하님 표 2로 되돌렸으므로(나스닥 -6% 아래 전부 · 구간에 있는 동안 매일 ·
+# 종목 -20~-30%와 -30~-50% 둘 다) 배점도 그 위에서 다시 잰다(기준 7).
+# 그물이 29배로 커졌다 — 옛 그물 1,202자리 → 새 그물 34,710자리.
+# 측정: research/us_crash_new_net.py
+#
+# **파는 시점을 앱이 정하지 않으므로** 보유 60·120·250일 셋 다 재고, **여러 기간에서
+# 살아남은 항목만** 쓴다. 보유가 바뀌면 뒤집히는 항목이 14개나 나왔다 —
+# '최근 11일 -10%↑ 빠짐'은 3개월 1등(-5.8p)인데 1년에서는 거의 거꾸로(-19.7p)다.
+#
+#   테마 덜 빠졌나 상위 5등     3개월 3등 · 6개월 3등 · 1년 1등  ← 셋 다. 유일하다
+#   테마 5일 오른 비율 상위 5등   6개월 1등 · 1년 6등             ← 둘
+#   테마 20일선 위 비율 상위 5등  6개월 2등 · 1년 8등             ← 둘
+#   최근 11일 -10%↑ 빠짐       3개월 1등 · 1년 △(거의 거꾸로)   ← 안 쓴다
+#   같은 테마 동반 4개↑ · 5개↑   1년만 · 해당 67%·47%           ← 안 쓴다
+#
+# **종목 항목은 전멸이다.** 변동성 3·4·6%, 거래대금 5억달러↑·상위 절반, 60일 등락,
+# 종목 낙폭 두 칸 — 아홉 개가 세 보유 다 미달이다. **미국은 테마로만 고를 수 있다.**
+#
+# 같은 테마 동반 30점은 뺀다 — 2026-08-09에 명부에서 종목 하나(CRWD→ORCL)를 바꾼
+# 뒤로 옛 그물에서도 이미 불합격이었고(80/95 → 64/93), 새 그물에서는 1년 보유에만
+# 걸리는 데다 해당이 67%라 못 가른다(기준 6).
 CRASH_SCORE_WEIGHTS = {
-    "together": 30.0, "theme_rank": 25.0, "volatility": 22.5, "liquidity": 22.5,
-    "recent_drop": 0.0, "bucket": 0.0,
+    "less_drop": 40.0,     # 테마 덜 빠졌나 상위 5등 — 세 보유기간 모두 합격
+    "spread5": 30.0,       # 테마 5일 오른 종목 비율 상위 5등 (확산)
+    "above20": 20.0,       # 테마 20일선 위 종목 비율 상위 5등 (확산)
+    "together": 0.0,       # 명부 교체 뒤 불합격 · 새 그물에서 해당 67%라 못 가름
+    "theme_rank": 0.0,     # 테마 60일 수익률 — 6개월에서만 합격
+    "recent_drop": 0.0,    # 보유기간마다 뒤집힌다
+    "volatility": 0.0,     # 세 보유 다 미달
+    "liquidity": 0.0,      # 세 보유 다 미달
+    "bucket": 0.0,         # 그물이 이미 쓴 값 · 두 칸 다 미달
 }
+CRASH_SCORE_MAX = round(sum(CRASH_SCORE_WEIGHTS.values()), 1)
+# '덜 빠졌나'는 급락에서 상위 5등이라야 붙는다(상위 3등은 해당 7%로 못 가름).
+CRASH_LESS_DROP_TOP_N = 5
+CRASH_SPREAD_TOP_N = 5
+CRASH_STATE_GOOD = round(CRASH_SCORE_MAX * 0.70, 1)
+CRASH_STATE_FAIR = round(CRASH_SCORE_MAX * 0.50, 1)
 # **문턱은 3개가 아니라 4개다**(2026-08-07 새 그물 실측). 3개↑는 그물의 55%가
 # 해당돼 못 가르고(75/46 · 85/64 · 99/88), 4개↑라야 붙는다.
 CRASH_TOGETHER_FULL = 4
@@ -1291,62 +1345,35 @@ def recent_gain_pct(frame, days: int = VOLUME_STREAK_LOOKBACK) -> float | None:
         return None
 
 
+def _theme_rank_part(row: dict, label: str, prefix: str, points: float) -> tuple:
+    """테마 등수 한 줄 — '어느 테마가 몇 등인가'를 사람 말로 적는다."""
+    rank = row.get(prefix)
+    total = int(row.get(f"{prefix}_total") or 0)
+    return (label,
+            points if row.get(f"{prefix}_top") else 0.0,
+            points,
+            "모름" if not rank else
+            f"{row.get(f'{prefix}_name') or '테마'} {int(rank)}등"
+            + (f" / {total}개" if total else ""))
+
+
 def crash_rebound_score(row: dict) -> dict:
-    """급락 후 반등장 후보의 점수(100점)와 근거를 낸다."""
-    metrics = row.get("metrics") or {}
+    """급락 후 반등장 후보의 점수(90점 만점)와 근거를 낸다.
+
+    **0점 항목은 parts에 넣지 않는다**(CLAUDE.md 0-1 마). 계산은 위
+    CRASH_SCORE_WEIGHTS에 0으로 남아 있어 다시 재서 되살릴 수 있다.
+    """
     weights = CRASH_SCORE_WEIGHTS
-    parts = []
-
-    count = int(row.get("together_count") or 0)
-    theme = str(row.get("together_theme") or "같은 테마")
-    # 급락 후 반등장은 **4개↑라야 만점**이다(2026-08-07 새 그물 실측). 3개↑는
-    # 그물의 55%가 해당돼 못 가른다. 상승장은 그대로 3개↑ 만점이다.
-    full = float(weights["together"])
-    parts.append(("같은 테마 동반",
-                  full if count >= CRASH_TOGETHER_FULL
-                  else full * 0.5 if count >= 2 else 0.0,
-                  full,
-                  f"{theme}에서 {count}종목 같이 걸림 "
-                  f"({CRASH_TOGETHER_FULL}개↑ 만점 · 2~3개 절반)"))
-
-    # 테마 등수 — 종목이 아니라 **테마 자체**가 몇 등인가. 2026-08-07 실측에서
-    # 종목 항목 대부분이 거꾸로로 나온 반면 이것은 창 80 / 95 / 100%로 통과했다.
-    rank = row.get("theme_rank")
-    total = int(row.get("theme_rank_total") or 0)
-    rank_full = float(weights.get("theme_rank", 0.0))
-    parts.append((
-        f"테마 60일 등수 (상위 {THEME_RANK_TOP_N}등)",
-        rank_full if row.get("theme_rank_top") else 0.0,
-        rank_full,
-        "모름" if not rank else
-        f"{row.get('theme_rank_name') or '테마'} {int(rank)}등"
-        + (f" / {total}개" if total else "")))
-
-    # 낙폭과 **다른 것**을 잰다 — 낙폭은 구덩이 깊이, 이것은 방금 빠졌나 여부.
-    gain = row.get("recent_gain_pct")
-    parts.append(("최근 11일에 빠졌나", recent_drop_points(gain, weights["recent_drop"]),
-                  weights["recent_drop"],
-                  "모름" if gain is None else f"{float(gain):+.1f}%"))
-
-    # 20~30%가 만점, 30~50%는 절반 — 깊다고 더 좋지는 않았다(68.9% vs 68.3%).
-    bucket = weights["bucket"] * (0.5 if row.get("bucket") == "deep" else 1.0)
-    parts.append(("낙폭 갈래", bucket, weights["bucket"],
-                  str(row.get("bucket_label") or "—")))
-
-    dollar = metrics.get("avg_dollar_volume") or 0
-    liquidity = _scale(float(dollar) / 1e9, 0.05, 1.0, weights["liquidity"])
-    parts.append(("유동성", liquidity, weights["liquidity"],
-                  f"${float(dollar)/1e6:,.0f}M" if dollar else "—"))
-
-    atr = metrics.get("atr_pct")
-    # 변동성은 낮을수록 좋다 — 8%가 넘으면 0점, 2% 이하면 만점.
-    volatility = weights["volatility"] if atr is None else _scale(-float(atr), -8.0, -2.0,
-                                                                 weights["volatility"])
-    parts.append(("변동성 안정", volatility, weights["volatility"],
-                  f"{float(atr):.1f}%" if atr is not None else "—"))
-
-    score = round(sum(value for _n, value, _m, _t in parts), 1)
-    return {"score": score, "parts": parts, "max": 100.0}
+    parts = [
+        _theme_rank_part(row, f"테마가 덜 빠졌나 (상위 {CRASH_LESS_DROP_TOP_N}등)",
+                         "theme_less_drop", weights["less_drop"]),
+        _theme_rank_part(row, f"테마가 같이 오르는가 (상위 {CRASH_SPREAD_TOP_N}등)",
+                         "theme_spread5", weights["spread5"]),
+        _theme_rank_part(row, f"테마가 20일선 위에 있나 (상위 {CRASH_SPREAD_TOP_N}등)",
+                         "theme_above20", weights["above20"]),
+    ]
+    return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
+            "parts": parts, "max": CRASH_SCORE_MAX}
 
 
 # ── 상승장(신고가 눌림매수) 전용 배점 (2026-08-06 재측정) ─────────────────────
@@ -1575,27 +1602,35 @@ def crash_rebound_plan(row: dict) -> dict:
     있는 것처럼 적으면 화면이 거짓말을 한다.
     """
     metrics = row.get("metrics") or {}
-    hold = int(row.get("hold_days") or 0)
     score = float(crash_rebound_score(row)["score"])
-    if score >= 70:
+    if score >= CRASH_STATE_GOOD:
         state, recommendation = "규칙에 맞는 자리", "조건부 후보"
-    elif score >= 50:
+    elif score >= CRASH_STATE_FAIR:
         state, recommendation = "자리는 맞으나 근거가 얇음", "관찰"
     else:
         state, recommendation = "규칙만 맞고 뒷받침이 없음", "관찰"
+    results = row.get("hold_results") or ()
+    spans = " · ".join(
+        f"{item['label']} {item['median_return']:+.1f}%(100번 중 {item['win_rate']:.0f}번)"
+        for item in results
+    )
     return {
         "state": state,
         "recommendation": recommendation,
         "rule_mode": "crash",
         "entry": "다음 거래일 시가",
-        "hold_days": hold,
+        # 파는 날을 규칙으로 못박지 않는다(2026-08-12 상하님 확정).
+        "hold_days": None,
+        "hold_results": results,
         "current": metrics.get("current"),
         "invalidation": None,     # 이 규칙에는 손절이 없다
-        "target": None,           # 목표가도 없다 — 정해진 날에 판다
+        "target": None,           # 목표가도 없다
         "buy_reason": (
             _crash_drop_story(row, metrics)
-            + f" 규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 사서 "
-            f"{hold}거래일 뒤 종가에 팝니다. 이 규칙에는 손절가가 없습니다."
+            + " 규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 삽니다."
+            + (f" **파는 시점은 규칙에 없습니다** — 이 자리의 과거 성적은 {spans}였습니다."
+               if spans else "")
+            + " 이 규칙에는 손절가가 없습니다."
         ),
     }
 
@@ -1632,6 +1667,14 @@ def _rose_5d(metrics: dict) -> float | None:
     """
     value = (metrics or {}).get("ret5")
     return None if value is None else (100.0 if float(value) > 0 else 0.0)
+
+
+def _above_sma20(metrics: dict) -> float | None:
+    """이 종목이 20일선 위인가 — 위면 100, 아니면 0. 테마별 평균이 곧 확산이다."""
+    current, sma20 = (metrics or {}).get("current"), (metrics or {}).get("sma20")
+    if not current or not sma20:
+        return None
+    return 100.0 if float(current) > float(sma20) else 0.0
 
 
 def _attach_theme_rank(rows: list, memberships: dict, all_metrics: dict,
@@ -2006,10 +2049,11 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
                 )
                 row["bucket"] = rule["key"]
                 row["bucket_label"] = rule["label"]
-                row["hold_days"] = rule["hold_days"]
-                row["win_rate"] = rule["win_rate"]
-                row["median_return"] = rule["median_return"]
-                row["base_win_rate"] = rule["base_win_rate"]
+                # 파는 날은 규칙에 없다(2026-08-12 상하님 확정). 대신 3개월·6개월·
+                # 1년 성적을 그대로 실어 화면이 셋을 나란히 보여준다.
+                row["hold_days"] = None
+                row["hold_results"] = rule["results"]
+                row["sample"] = rule["sample"]
                 row["volume_streak"] = volume_streak_days(daily.get(ticker))
                 row["recent_gain_pct"] = recent_gain_pct(daily.get(ticker))
                 row["_order"] = order
@@ -2017,7 +2061,13 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
                 break
     # 테마 동반·테마 등수가 배점의 55점이므로 점수를 내기 **전에** 붙여 둬야 한다.
     _attach_theme_together(rows, memberships)
-    _attach_theme_rank(rows, memberships, all_metrics, metric_key="ret60")
+    # 배점 셋이 전부 테마 등수다(2026-08-12 새 그물 실측 — 종목 항목은 전멸).
+    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_less_drop",
+                       metric_key="from_high_pct", top_n=CRASH_LESS_DROP_TOP_N)
+    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_spread5",
+                       top_n=CRASH_SPREAD_TOP_N, derive=_rose_5d)
+    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_above20",
+                       top_n=CRASH_SPREAD_TOP_N, derive=_above_sma20)
     # 점수가 곧 순위다(2026-08-06 사용자 결정 — 별점은 뺐다). 같은 점수 안에서는
     # 예전 순위 기준(테마 동반 → 갈래 → 거래대금)을 그대로 쓴다.
     for row in rows:

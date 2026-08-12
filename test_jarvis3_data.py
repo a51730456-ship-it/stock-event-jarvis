@@ -90,14 +90,20 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertFalse(hasattr(j3, "breakout_stars"), "별점이 되살아났다")
         # 성적 옆에는 늘 기준선이 붙어야 한다. 기준선은 화면이 뒤지는 명부로 잰 값이다.
         self.assertEqual(62.2, j3.BREAKOUT_BASE_WIN_RATE)
-        # 2026-08-07 격자 재측정 — 깊은 갈래와 6개월 보유는 3년 창 검사를 통과하지
-        # 못했다. 얕은 낙폭을 1년 들고 있는 것 하나만 남았다(research/us_net_grid.py).
-        (shallow,) = j3.CRASH_REBOUND_RULES
-        self.assertIn("base_win_rate", shallow)
-        self.assertNotIn("stars", shallow)
-        self.assertEqual(((-30.0, -20.0), 250), (shallow["band"], shallow["hold_days"]))
-        # -6~-12%는 급락이 아니라 흔한 조정이었다(10년에 72번). 깊게 잡는다.
-        self.assertEqual((-20.0, -10.0), j3.CRASH_MARKET_BAND)
+        # **2026-08-12에 상하님 표 2로 되돌렸다.** 2026-08-07에 내가 나스닥 구간·
+        # 종목 낙폭·보유기간 셋을 한꺼번에 바꿔 놓고 "-6%는 흔한 조정"이라고 적었는데,
+        # 갈라서 다시 재 보니 진짜 원인은 보유기간이었다(-6%도 1년 들면 +33.1%).
+        shallow, deep = j3.CRASH_REBOUND_RULES
+        self.assertEqual((-30.0, -20.0), shallow["band"])
+        # **30~50% 칸을 되살렸다** — 내가 지웠던, 1년 보유에서 제일 잘 벌던 자리다.
+        self.assertEqual((-50.0, -30.0), deep["band"])
+        # 고점 대비 -6% 아래면 전부 본다(다섯 칸으로 나눠 보여주되 거르지 않는다).
+        self.assertEqual((-100.0, -6.0), j3.CRASH_MARKET_BAND)
+        self.assertEqual(5, len(j3.CRASH_MARKET_TIERS))
+        # **파는 날은 규칙에 없다**(상하님 확정). 3개월·6개월·1년 성적을 나란히 준다.
+        for rule in j3.CRASH_REBOUND_RULES:
+            self.assertNotIn("hold_days", rule, "파는 날이 규칙으로 되살아났다")
+            self.assertEqual([60, 120, 250], [r["days"] for r in rule["results"]])
 
     def test_the_screen_shows_the_measured_tables(self):
         """설명 창은 다시 잰 표 그림을 보여준다(2026-08-06)."""
@@ -238,11 +244,16 @@ class RulebookScreenTests(unittest.TestCase):
         result = self._run_crash(frames)
         self.assertTrue(result["ok"])
         picked = {row["ticker"]: row for row in result["rows"]}
-        self.assertEqual({"AAPL", "MSFT"}, set(picked))
+        # GOOGL(-40%)도 걸린다 — 30~50% 칸을 2026-08-12에 되살렸다.
+        self.assertEqual({"AAPL", "MSFT", "GOOGL"}, set(picked))
         for ticker in ("AAPL", "MSFT"):
-            self.assertEqual((250, "shallow"),
-                             (picked[ticker]["hold_days"], picked[ticker]["bucket"]))
-        self.assertEqual({"shallow": 2}, result["bucket_counts"])
+            self.assertEqual("shallow", picked[ticker]["bucket"])
+        self.assertEqual("deep", picked["GOOGL"]["bucket"])
+        # 파는 날은 안 정한다. 대신 성적 셋이 줄마다 실려야 한다.
+        for row in picked.values():
+            self.assertIsNone(row["hold_days"])
+            self.assertEqual(3, len(row["hold_results"]))
+        self.assertEqual({"shallow": 2, "deep": 1}, result["bucket_counts"])
 
     def test_crash_tells_the_market_state_but_does_not_block(self):
         """시장 낙폭은 막지 않고 알려만 준다(2026-08-06 사용자 결정).
@@ -267,13 +278,12 @@ class RulebookScreenTests(unittest.TestCase):
         """
         frames = {"AAPL": _frame_with_high(200, -25.0)}
         row = self._run_crash(frames)["rows"][0]
-        (shallow,) = j3.CRASH_REBOUND_RULES
-        self.assertEqual(
-            (shallow["win_rate"], shallow["median_return"], shallow["base_win_rate"]),
-            (row["win_rate"], row["median_return"], row["base_win_rate"]),
-        )
-        # 기준선을 이겼는지가 숫자와 맞아야 한다.
-        self.assertGreater(shallow["win_rate"], shallow["base_win_rate"])
+        shallow = j3.CRASH_REBOUND_RULES[0]
+        # 성적은 **새 그물**(나스닥 -6% 아래 전부 · 구간에 있는 동안 매일)로 잰 값이다.
+        self.assertEqual(shallow["results"], row["hold_results"])
+        # 길게 들수록 좋아진다 — 이게 2026-08-07에 내가 놓친 것이다.
+        medians = [r["median_return"] for r in shallow["results"]]
+        self.assertEqual(sorted(medians), medians, "보유가 길수록 성적이 좋아야 한다")
 
     def test_rank_uses_the_verified_signal_first(self):
         """순위 기준은 재 보고 정했다(2026-08-01) — docs/US_RANK_BACKTEST.md.
@@ -328,34 +338,36 @@ class RulebookScreenTests(unittest.TestCase):
         for weights in (j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS):
             # 거래대금 연속은 양쪽 갈래 다 거꾸로였다 — 배점에서 뺐다.
             self.assertNotIn("volume_streak", weights)
-        # **계단은 40·30·20·10뿐이다**(CLAUDE.md 0-1 마). 47.0·22.5·18.75 같은
+        # **계단은 40·30·20·10뿐이다**(CLAUDE.md 0-1 마). 47.0·31.25·22.5·18.75 같은
         # 비례 나눗셈 값이 다시 들어오면 여기서 먼저 깨진다.
-        # 급락 갈래는 그물을 상하님 표 2로 되돌리는 중이라 아직 옛 배점이다
-        # (22.5·18.75가 남아 있다). 그물을 바꾼 뒤 새 그물에서 다시 재고
-        # 여기에도 같은 시험을 건다(기준 7 — 그물이 바뀌면 다시 잰다).
-        for name, points in j3.BREAKOUT_SCORE_WEIGHTS.items():
-            self.assertIn(points, (0.0, 10.0, 20.0, 30.0, 40.0),
-                          f"{name} {points}점은 계단 밖이다")
+        for label, weights in (("상승장", j3.BREAKOUT_SCORE_WEIGHTS),
+                               ("급락", j3.CRASH_SCORE_WEIGHTS)):
+            for name, points in weights.items():
+                self.assertIn(points, (0.0, 10.0, 20.0, 30.0, 40.0),
+                              f"{label} {name} {points}점은 계단 밖이다")
         # **합이 100이 아니어도 된다.** 합격한 항목에만 점수를 주고 남는 점수를
         # 다른 항목에 나눠 주지 않는다 — 만점이 곧 그 파트의 근거의 양이다.
         self.assertEqual(90.0, j3.BREAKOUT_SCORE_MAX)
+        self.assertEqual(90.0, j3.CRASH_SCORE_MAX)
         self.assertEqual(j3.BREAKOUT_SCORE_MAX, sum(j3.BREAKOUT_SCORE_WEIGHTS.values()))
-        # **상승장 1등은 눌린 폭이다**(2026-08-12 재측정 — 보유 셋 다 합격한 유일한 항목).
+        self.assertEqual(j3.CRASH_SCORE_MAX, sum(j3.CRASH_SCORE_WEIGHTS.values()))
+        # **상승장 1등은 눌린 폭, 급락 1등은 테마가 덜 빠졌나**(2026-08-12 재측정 —
+        # 둘 다 보유 세 기간 모두 합격한 유일한 항목이다).
         self.assertEqual(40.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
-        # 이 그물에서 합격 못 한 항목들 — 되살아나면 여기서 깨진다.
+        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["less_drop"])
+        # 그물마다 합격 못 한 항목들 — 되살아나면 여기서 깨진다.
         for name in ("together", "recent_drop", "liquidity", "volatility"):
-            self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS[name],
-                             f"{name}은 이 그물에서 합격이 아니다")
-        # 급락 갈래는 같은 날 '테마 등수' 25점이 들어오면서 비례해 줄었다.
-        # 테마 두 항목을 합치면 55점 — 여전히 배점의 절반 이상이 테마다.
-        self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["together"])
-        self.assertEqual(25.0, j3.CRASH_SCORE_WEIGHTS["theme_rank"])
-        self.assertEqual(55.0, j3.CRASH_SCORE_WEIGHTS["together"]
-                         + j3.CRASH_SCORE_WEIGHTS["theme_rank"])
-        # **급락 후 반등장에서 '최근 11일'은 거꾸로가 됐다.** 새 그물(250거래일
-        # 보유)에서 4/11 · 1/1 · 0/0으로 거의 모든 창에서 졌다. 1년을 들 거면
-        # 이미 돌아선 종목이 낫다는 뜻이다. 되살리면 검증이 부정한 값으로
-        # 순위를 매기게 된다.
+            self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS[name], f"상승장 {name}")
+            self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS[name], f"급락 {name}")
+        # **급락 배점 90점이 전부 테마 등수다**(2026-08-12 새 그물 실측).
+        # 종목 항목 아홉 개가 세 보유 다 미달이었다 — 미국은 테마로만 고를 수 있다.
+        theme_points = sum(j3.CRASH_SCORE_WEIGHTS[name]
+                           for name in ("less_drop", "spread5", "above20"))
+        self.assertEqual(j3.CRASH_SCORE_MAX, theme_points)
+        # '테마 60일 수익률'은 6개월 보유에서만 합격했다 — 파는 시점을 안 정하므로 안 쓴다.
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["theme_rank"])
+        # **'최근 11일'은 보유기간마다 뒤집힌다.** 3개월 1등(-5.8p)인데 1년에서는
+        # 거의 거꾸로(-19.7p)다. 앱이 파는 시점을 안 정하므로 쓸 수 없다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["recent_drop"])
         # **상승장에서도 0점이 됐다**(2026-08-12). "다시 재 볼 자리"라고 적어 뒀던
         # 것을 앱 그물 그대로 다시 쟀더니 세 보유기간 전부 미달이었다
@@ -390,23 +402,18 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
         # 다만 **같은 점수 안의 차례**를 가르는 데는 계속 쓴다(_breakout_rank_key).
         self.assertEqual(40.0, j3.theme_together_points(3, 40.0))
-        # **급락 후 반등장은 문턱이 4개다**(2026-08-07 새 그물 실측). 3개↑는
-        # 그물의 55%가 해당돼 못 가른다(75/46 · 85/64 · 99/88).
-        self.assertEqual(4, j3.CRASH_TOGETHER_FULL)
-
-        def crash_points(count):
-            return next(
-                value for name, value, _m, _t in j3.crash_rebound_score(
-                    {"metrics": {}, "together_count": count, "bucket": "shallow"}
-                )["parts"] if name == "같은 테마 동반")
-
-        # 만점은 30점이다 — 2026-08-07에 '테마 등수' 25점이 들어오면서 줄었다.
-        # 숫자를 박지 말고 배점표에서 읽는다. 배점을 또 고쳐도 이 시험은 살아 있다.
-        full = j3.CRASH_SCORE_WEIGHTS["together"]
-        self.assertEqual(full, crash_points(4))
-        self.assertEqual(full / 2, crash_points(3))
-        self.assertEqual(full / 2, crash_points(2))
-        self.assertEqual(0.0, crash_points(1))
+        # **급락에서도 2026-08-12에 뺐다.** 2026-08-09에 명부에서 종목 하나
+        # (CRWD→ORCL)를 바꾼 뒤로 옛 그물에서도 이미 불합격이었고(80/95 → 64/93),
+        # 상하님 표 2로 되돌린 새 그물에서는 1년 보유에만 걸리는 데다 해당이 67%라
+        # 못 가른다(기준 6). 배점표에도 그 줄이 없어야 한다.
+        crash_names = [name for name, _v, _m, _t in j3.crash_rebound_score(
+            {"metrics": {}, "together_count": 5, "bucket": "shallow"})["parts"]]
+        self.assertNotIn("같은 테마 동반", crash_names)
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["together"])
+        # **급락 배점 셋이 전부 테마 등수다.** 종목 항목은 아홉 개가 세 보유 다
+        # 미달이었다 — 미국은 테마로만 고를 수 있다(research/us_crash_new_net.py).
+        self.assertEqual(3, len(crash_names))
+        self.assertTrue(all("테마" in name for name in crash_names), crash_names)
 
     def test_theme_rank_is_scored_and_ranks_over_the_whole_universe(self):
         """테마 등수 25점 — 2026-08-07 도입. 등수는 명부 전체로 매겨야 한다."""
@@ -423,14 +430,18 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(1, rows[0]["theme_rank"])
         self.assertEqual(2, rows[1]["theme_rank"])
 
-        def rank_points(row):
-            row = dict(row, metrics={}, together_count=0, bucket="shallow")
-            return next(value for name, value, _m, _t
-                        in j3.crash_rebound_score(row)["parts"] if "테마" in name
-                        and "등수" in name)
+        # 급락 배점의 1등은 '테마가 덜 빠졌나'다(2026-08-12 새 그물 — 세 보유기간
+        # 모두 합격한 유일한 항목). 등수를 다는 자리와 점수를 읽는 자리가 맞물리는지 본다.
+        j3._attach_theme_rank(rows, memberships, all_metrics, prefix="theme_less_drop",
+                              metric_key="ret60", top_n=1)
 
-        self.assertEqual(j3.CRASH_SCORE_WEIGHTS["theme_rank"], rank_points(rows[0]))
-        self.assertEqual(0.0, rank_points(rows[1]))
+        def less_drop_points(row):
+            row = dict(row, metrics={})
+            return next(value for name, value, _m, _t
+                        in j3.crash_rebound_score(row)["parts"] if "덜 빠졌나" in name)
+
+        self.assertEqual(j3.CRASH_SCORE_WEIGHTS["less_drop"], less_drop_points(rows[0]))
+        self.assertEqual(0.0, less_drop_points(rows[1]))
 
     def test_theme_rank_ignores_tiny_themes(self):
         """구성종목 3개 미만인 테마는 한두 종목에 휘둘려 등수가 못 미덥다."""
@@ -454,16 +465,17 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertAlmostEqual(12.5, half)
         self.assertAlmostEqual(12.5, j3.recent_drop_points(None, 25.0))
 
-    def test_only_the_shallow_bucket_survived(self):
-        """2026-08-07 격자 — 깊은 갈래(-30~-50%)는 3년 창 검사를 통과하지 못했다.
+    def test_both_depth_buckets_are_back(self):
+        """2026-08-12 — 상하님 표 2의 두 칸을 다 본다.
 
-        얕은 낙폭(-20~-30%)을 **1년** 들고 있는 것 하나만 남았다. 깊은 갈래를
-        되살리면 검증이 부정한 자리를 목록에 올리게 된다.
+        2026-08-07에 내가 깊은 칸(-30~-50%)을 통째로 지웠는데, 1년 보유에서
+        얕은 칸보다 5.6%p 더 벌던 자리였다. 지우면 제일 좋은 자리를 놓친다.
         """
-        (shallow,) = j3.CRASH_REBOUND_RULES
-        self.assertEqual("shallow", shallow["key"])
-        self.assertEqual(250, shallow["hold_days"])
-        self.assertGreater(shallow["win_rate"], shallow["base_win_rate"])
+        shallow, deep = j3.CRASH_REBOUND_RULES
+        self.assertEqual(("shallow", "deep"), (shallow["key"], deep["key"]))
+        # 1년 보유에서 깊은 칸이 더 벌었다 — 그래서 되살렸다.
+        year = {r["key"]: r["results"][-1]["median_return"] for r in j3.CRASH_REBOUND_RULES}
+        self.assertGreater(year["deep"], year["shallow"])
 
     def test_rulebook_plans_carry_no_stop_loss(self):
         row = {"metrics": {"from_high_pct": -5.0, "current": 100.0, "ret60": 20.0},
