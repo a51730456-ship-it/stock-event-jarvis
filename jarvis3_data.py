@@ -7,6 +7,7 @@ Yahoo Finance의 최근 가용 시세를 읽기 전용으로 조회하며, 네�
 
 from __future__ import annotations
 
+import csv
 import logging
 import math
 import threading
@@ -205,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081320
+MODULE_REVISION = 2026081330
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1653,26 +1654,87 @@ def crash_rebound_score(row: dict) -> dict:
 # 그물이 쓴 값이라도 **그 안에서 다시 재서 갈리면 점수를 준다**(KR_THEME_SPEC 1부 부칙).
 #
 # 합이 100이 안 되므로 **90점 만점**이라고 화면에 적는다(CLAUDE.md 0-1 마).
+#   → 2026-08-13에 테마가 50점에서 70점으로 오르면서 **110점 만점**이 됐다.
+#     화면은 BREAKOUT_SCORE_MAX를 읽어 적으므로 저절로 따라간다.
+# ── 2026-08-13 테마 배점만 다시 정했다 — 상하님 지시 "테마 부분만 손대라" ─────
+# **눌린 폭 40점·그물·순위 규칙·급락 갈래는 손대지 않았다.** 테마 항목 둘
+# (확산 30 · 덜 빠짐 20)만 **테마 근접도 70점** 하나로 바꾼다. 근거는
+# docs/HANDOVER_20260813.md 5부와 docs/US_UPTREND_PULLBACK_GUIDE.md다.
+#
+# **제가 재는 자를 두 번 고쳤더니 테마 등수가 무너졌다.** 옛 자는 '그날 총점 1등이
+# 나머지 평균을 이겼나'라서 후보가 2개 이상 뜬 330일밖에 못 썼고 오차가 ±5.4%p였다.
+# 이제는 같은 날 뜬 후보를 **둘씩 모두 짝지어** 센다(3,683짝). 오차도 날짜가 아니라
+# **연도를 통째로** 다시 뽑아 낸다. 1년 수익률은 날마다 364일씩 겹치기 때문이다.
+#
+#   테마 재는 자              1개월    3개월    6개월    1년     네 번 중 통과
+#   근접도 · 칸 없이 그대로    51.4·   51.9▲   53.2▲   53.3▲   **3번**  ← 쓴다
+#   근접도 · 다섯 칸          51.5·   53.8·   51.7·   53.9·   0번
+#   근접도 · 세 칸(옛 코드)    50.6·   53.1·   49.1·   49.6·   0번
+#   그날 테마끼리 등수         51.2·   51.9·   53.2·   53.2·   0번  ← 옛 30·20점
+#
+# **칸으로 나누면 3번이 0번으로 죽는다.** 97%와 99%는 다른데 같은 칸에 넣으면 그
+# 차이가 사라진다. 그래서 이 항목만 계단을 안 쓴다 — CLAUDE.md 0-1 마의
+# 「계단은 40·30·20·10 넷뿐」과 어긋나는 것을 **2026-08-13 상하님이 "비례로 준다"고
+# 정하셨다.** 되돌리려면 먼저 여쭙는다.
+#
+# **방향이 옛 코드와 정반대다.** 옛 코드는 테마가 5~15% 쉰 자리(85~95%)에 만점을
+# 줬는데, 제가 다시 재니 **테마가 1년 최고에 붙어 있을수록** 좋았다.
+#
+# **가짜 테마 시험을 통과했다** — 종목을 제비뽑기로 20묶음 지어 100번 재니 가짜는
+# 100번 중 49~51번(반반)이었다. 6개월에서 가짜가 진짜를 이긴 것은 1번뿐이다.
+# **명부를 바꾸면 이 시험부터 다시 돌린다**(CLAUDE.md 0-1 라).
 BREAKOUT_SCORE_WEIGHTS = {
     "drop": 40.0,          # 눌린 폭 10~15% — 세 보유기간 모두 합격한 유일한 항목
-    "spread5": 30.0,       # 테마 5일 오른 종목 비율 상위 5등 (확산)
-    "less_drop": 20.0,     # 테마 덜 빠졌나 상위 3등
+    "theme_prox": 70.0,    # 테마 합산 시총이 1년 최고에 얼마나 붙어 있나 (칸 없이 비례)
+    "spread5": 0.0,        # 2026-08-13 뺐다 — 그날 테마 등수는 네 번 중 0번 통과
+    "less_drop": 0.0,      # 2026-08-13 뺐다 — 같은 이유
     "together": 0.0,       # 이 그물에서 불합격 (4개↑는 6개월에서만)
     "recent_drop": 0.0,    # 이 그물에서 불합격
     "liquidity": 0.0,      # 3개월에서 거꾸로
     "volatility": 0.0,     # 전부 미달
 }
+# 테마 근접도 = 테마 합산 시가총액 ÷ 그 합의 252일 최고 × 100.
+# 80%를 0점, 100%를 만점으로 놓고 그 사이를 곧게 잇는다(85%→17점 · 90%→35점 ·
+# 95%→52점 · 100%→70점). 80% 아래는 그물에 걸린 자리가 거의 없다.
+THEME_PROX_FLOOR = 80.0
+# 3종목 미만이면 합산 시총이 사실상 그 종목 하나가 되어 '테마'가 아니게 된다 —
+# StockTitan 명부(테마당 3~4종목)가 이래서 제비뽑기와 같은 성적으로 떨어졌다.
+THEME_PROX_MIN_MEMBERS = 3
+# 창이 이보다 짧으면 '1년 최고'라고 부를 수 없다(research의 min_periods=200과 같다).
+THEME_PROX_MIN_DAYS = 200
 BREAKOUT_SCORE_MAX = round(sum(BREAKOUT_SCORE_WEIGHTS.values()), 1)
 # 눌린 폭은 **칸으로 가른다** — 실측이 10~15%만 합격이고 6~10%는 거꾸로였다.
 # 비례로 깎으면 거꾸로인 구간에도 점수가 붙는다.
 BREAKOUT_DROP_BAND = (-15.0, -10.0)
-# 이름표 문턱도 만점이 100 → 90으로 바뀐 만큼 같이 내린다(뜻은 그대로).
+# 이름표 문턱은 **만점의 70%·50%**다. 만점이 90에서 110으로 바뀌어도 뜻은 그대로다.
 BREAKOUT_STATE_GOOD = round(BREAKOUT_SCORE_MAX * 0.70, 1)
 BREAKOUT_STATE_FAIR = round(BREAKOUT_SCORE_MAX * 0.50, 1)
 
 
+def theme_proximity_points(prox, points: float | None = None) -> float:
+    """테마 근접도(%) → 점수. **칸 없이 비례로 준다**(2026-08-13 상하님 결정).
+
+    앱은 80%에서 0점, 100%에서 만점이 되도록 곧게 잇는다
+    (85%→17점 · 90%→35점 · 95%→52점 · 100%→70점).
+
+    **제가 칸으로 나눠 보니 네 번 중 3번 통과가 0번으로 떨어졌다.** 97%와 99%는
+    다른데 제가 둘을 같은 칸에 넣으면 그 차이가 사라진다. 다섯 칸도 세 칸도 0번이다.
+    이 항목만 CLAUDE.md 0-1 마의 계단 규칙을 안 따르는 까닭이 이것이고,
+    **상하님이 2026-08-13에 "비례로 준다"고 정하셨다.**
+    """
+    full = BREAKOUT_SCORE_WEIGHTS["theme_prox"] if points is None else float(points)
+    if prox is None:
+        return 0.0
+    try:
+        value = float(prox)
+    except (TypeError, ValueError):
+        return 0.0
+    scaled = full * (value - THEME_PROX_FLOOR) / (100.0 - THEME_PROX_FLOOR)
+    return round(min(full, max(0.0, scaled)), 1)
+
+
 def breakout_score(row: dict) -> dict:
-    """상승장(신고가 눌림매수) 후보의 점수(90점 만점)와 근거.
+    """상승장(신고가 눌림매수) 후보의 점수(BREAKOUT_SCORE_MAX 만점)와 근거.
 
     **0점 항목은 parts에 넣지 않는다**(CLAUDE.md 0-1 마). 0점은 기준이 아니라서
     화면 배점표에 "0.0 (0.0)" 줄로 뜨면 상하님이 읽을 것이 없다. 계산은 위
@@ -1682,7 +1744,17 @@ def breakout_score(row: dict) -> dict:
     weights = BREAKOUT_SCORE_WEIGHTS
     parts = []
 
-    # ① 눌린 폭 — 세 보유기간 모두 합격한 유일한 항목. 칸으로 가른다.
+    # ① 테마 근접도 — 열여덟 항목 중 **제가 잰 시험을 통과한 하나**다(네 번 중 3번).
+    # 칸을 안 쓴다. 위 theme_proximity_points의 설명을 보라.
+    prox = row.get("theme_prox")
+    parts.append((
+        "테마가 1년 최고에 붙어 있나",
+        theme_proximity_points(prox, weights["theme_prox"]),
+        weights["theme_prox"],
+        "모름" if prox is None else
+        f"{row.get('theme_prox_name') or '테마'} {float(prox):.1f}%"))
+
+    # ② 눌린 폭 — 세 보유기간 모두 합격한 유일한 항목. 칸으로 가른다.
     low, high = BREAKOUT_DROP_BAND
     drop = metrics.get("from_high_pct")
     inside = drop is not None and low <= float(drop) <= high
@@ -1692,26 +1764,6 @@ def breakout_score(row: dict) -> dict:
         weights["drop"],
         "—" if drop is None else f"{float(drop):+.1f}%"
         + ("" if inside else " (10~15%가 아님)")))
-
-    # ② 테마 확산 — 그 테마 종목 중 몇 %가 최근 5일에 올랐나, 그 등수.
-    spread_rank = row.get("theme_spread5")
-    parts.append((
-        f"테마가 같이 오르는가 (상위 {THEME_RANK_TOP_N}등)",
-        weights["spread5"] if row.get("theme_spread5_top") else 0.0,
-        weights["spread5"],
-        "모름" if not spread_rank else
-        f"{row.get('theme_spread5_name') or '테마'} {int(spread_rank)}등"
-        + (f" / {int(row['theme_spread5_total'])}개" if row.get("theme_spread5_total") else "")))
-
-    # ③ 테마가 덜 빠졌나 — 상위 3등. 급락 갈래에서도 가장 센 항목이다.
-    less_rank = row.get("theme_less_drop")
-    parts.append((
-        f"테마가 덜 빠졌나 (상위 {THEME_LESS_DROP_TOP_N}등)",
-        weights["less_drop"] if row.get("theme_less_drop_top") else 0.0,
-        weights["less_drop"],
-        "모름" if not less_rank else
-        f"{row.get('theme_less_drop_name') or '테마'} {int(less_rank)}등"
-        + (f" / {int(row['theme_less_drop_total'])}개" if row.get("theme_less_drop_total") else "")))
 
     return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
             "parts": parts, "max": BREAKOUT_SCORE_MAX}
@@ -1916,6 +1968,113 @@ def _weekly_aligned(metrics: dict) -> float | None:
     return 100.0 if lined_up and float(sma200) > float(prev200) else 0.0
 
 
+US_SHARES_PATH = Path(__file__).resolve().parent / "data" / "us_shares.csv"
+_SHARES_CACHE: dict[str, float] | None = None
+
+
+def _us_shares() -> dict[str, float]:
+    """종목별 발행주식수 — **테마 합산 시가총액을 만드는 데만 쓴다.**
+
+    파일은 `data/us_shares.csv`다. `research/_data/`가 아니라 여기 두는 까닭은
+    **그쪽이 .gitignore에 있어 온라인 앱이 읽지 못하기** 때문이다.
+
+    앱은 오늘 주식수 하나로 1년 내내 잰다. 앱이 받는 종가는 분할이 반영된 값이고
+    (`auto_adjust=True`) 이 주식수도 분할 뒤 값이라 **둘의 기준이 맞는다** —
+    2026-08-13에 고친 계산 오류 ①(조정주가 × 조정 안 된 주식수)이 여기서 다시
+    나지 않게 하는 자리다. 그 사이의 자사주 매입·증자는 못 담는데, 1년이면 보통
+    몇 % 안쪽이고 테마마다 고르게 어긋나므로 순서를 뒤집지 않는다.
+
+    파일을 못 읽으면 테마 근접도가 **'모름'(0점)**이 된다. 조용히 옛 계산으로
+    돌아가지 않고 화면에 모름이라고 적히는 쪽이 안전하다.
+    """
+    global _SHARES_CACHE
+    if _SHARES_CACHE is None:
+        table: dict[str, float] = {}
+        try:
+            with US_SHARES_PATH.open(encoding="utf-8", newline="") as handle:
+                for line in csv.DictReader(handle):
+                    ticker = (line.get("ticker") or "").strip().upper()
+                    try:
+                        shares = float(line["shares"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    if ticker and shares > 0:
+                        table[ticker] = shares
+        except OSError as error:
+            _log.warning("us_shares.csv를 못 읽었다: %s", error)
+            table = {}
+        _SHARES_CACHE = table
+    return _SHARES_CACHE
+
+
+def _attach_theme_proximity(rows: list, daily: dict) -> None:
+    """그 테마가 **1년 최고에 얼마나 붙어 있는지** 각 줄에 적는다 (2026-08-13 도입).
+
+        테마 근접도 = 테마 합산 시가총액 ÷ 그 합의 252일 최고 × 100
+
+    **왜 이것을 보나** — 조지와 황(2004)은 지금 값이 1년 최고에 얼마나 가까운지가
+    과거 수익률보다 앞날을 잘 맞힌다는 것을 보였고, 모스코위츠와 그린블랫(1999)은
+    종목이 오르는 이유의 상당 부분이 업종 전체가 오르기 때문임을 보였다.
+    **앱은 이 둘을 합쳐, 종목이 아니라 테마의 근접도를 본다.**
+
+    **제가 재 보니 열여덟 항목 중 이것만 통과했다**(네 번 중 3번 —
+    1개월 51.4· / 3개월 51.9▲ / 6개월 53.2▲ / 1년 53.3▲).
+
+    **여러 테마에 걸치면 가장 센 쪽을 쓴다** — research/us_roster_compare.py의
+    `Board.prox()`가 `np.fmax`로 하는 것과 같다. 구성종목이 셋 미만인 테마는
+    합산 시총이 사실상 그 종목 하나가 되므로 아예 재지 않는다.
+
+    이 함수는 **점수를 내기 전에** 불러야 한다. 안 부르면 근접도가 없어 70점이
+    통째로 0점이 된다.
+    """
+    for row in rows:
+        row["theme_prox"] = None
+        row["theme_prox_name"] = ""
+
+    shares = _us_shares()
+    caps: dict[str, pd.Series] = {}
+    for ticker, frame in (daily or {}).items():
+        share = shares.get(ticker)
+        if not share or frame is None or getattr(frame, "empty", True):
+            continue
+        if "Close" not in frame.columns:
+            continue
+        closes = frame["Close"].dropna().astype(float)
+        if not closes.empty:
+            caps[ticker] = closes * share
+    if not caps:
+        return
+
+    table = pd.DataFrame(caps).tail(252)
+    values: dict[str, float] = {}
+    for theme in US_THEMES:
+        members = [ticker for ticker in theme["stocks"] if ticker in table.columns]
+        if len(members) < THEME_PROX_MIN_MEMBERS:
+            continue
+        # 자료가 짧은 종목은 뺀다 — 그 종목 하나 때문에 테마 전체가 잘려 나간다.
+        block = table[members].dropna(axis=1, thresh=THEME_PROX_MIN_DAYS)
+        if block.shape[1] < THEME_PROX_MIN_MEMBERS:
+            continue
+        # 구성종목이 하루라도 비면 그날 합계는 버린다 — 합계가 낮아져 근접도가
+        # 실제보다 나쁘게 나오기 때문이다.
+        total = block.sum(axis=1, min_count=block.shape[1]).dropna()
+        if len(total) < THEME_PROX_MIN_DAYS:
+            continue
+        peak = float(total.max())
+        if peak <= 0:
+            continue
+        values[theme["name"]] = float(total.iloc[-1]) / peak * 100.0
+
+    for row in rows:
+        mine = [(values[name], name)
+                for name in (row.get("themes") or []) if name in values]
+        if not mine:
+            continue
+        best, name = max(mine)
+        row["theme_prox"] = round(best, 1)
+        row["theme_prox_name"] = name
+
+
 def _attach_theme_rank(rows: list, memberships: dict, all_metrics: dict,
                        metric_key: str = "ret60", top_n: int = THEME_RANK_TOP_N,
                        *, prefix: str = "theme_rank", derive=None) -> None:
@@ -2012,7 +2171,7 @@ def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int
     **그물은 넓게 둔다**(2026-08-06 상하님 결정) — 표 1의 매수 자리(10~15%)만
     거르게 했더니 화면이 매일 비었다(1년에 30번). "넓게 찾고 좋은 자리에 별을
     달아라. 고르는 것은 내가 한다." 지금은 별 대신 배점이 그 일을 한다 —
-    눌린 폭 10~15%가 40점으로 1등이라 그 자리가 맨 위로 온다.
+    테마 근접도가 70점으로 1등이라 좋은 테마가 맨 위로 온다(2026-08-13).
 
     차례는 **점수 순**이다(BREAKOUT_SCORE_WEIGHTS). 같은 점수 안에서만
     _breakout_rank_key(테마 동반 → 60일 → 거래대금)로 가른다.
@@ -2051,7 +2210,11 @@ def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int
     # 테마 동반은 배점에서 빠졌지만 **같은 점수 안의 차례**를 가르는 데 계속 쓴다
     # (_breakout_rank_key). 그래서 여기서 세어 둔다.
     _attach_theme_together(rows, memberships)
-    # 배점의 30점·20점이 테마 등수다. 점수를 내기 **전에** 달아 둬야 한다.
+    # **배점의 70점이 테마 근접도다. 점수를 내기 전에 달아 둬야 한다**(2026-08-13).
+    _attach_theme_proximity(rows, daily)
+    # 아래 두 등수는 2026-08-13에 **0점이 됐다**(그날 등수는 네 번 중 0번 통과).
+    # 그래도 계속 달아 둔다 — 화면 상세와 나중 재측정이 이 값을 읽고, 다시 재서
+    # 되살릴 수 있어야 한다. 점수에는 안 들어간다(BREAKOUT_SCORE_WEIGHTS가 0.0).
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_spread5",
                        top_n=THEME_RANK_TOP_N, derive=_rose_5d)
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_less_drop",

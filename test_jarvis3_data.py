@@ -347,14 +347,22 @@ class RulebookScreenTests(unittest.TestCase):
             self.assertNotIn("volume_streak", weights)
         # **계단은 40·30·20·10뿐이다**(CLAUDE.md 0-1 마). 47.0·31.25·22.5·18.75 같은
         # 비례 나눗셈 값이 다시 들어오면 여기서 먼저 깨진다.
+        # **딱 하나 예외가 있다 — 상승장의 테마 근접도 70점이다.** 2026-08-13에
+        # 상하님이 "비례로 준다"고 정하셨다. 제가 칸으로 나눠 보니 네 번 중 3번
+        # 통과가 0번으로 떨어졌다(97%와 99%가 같은 칸에 들어가 차이가 사라진다).
+        # 예외를 **이름으로 못박아** 둔다 — 다른 항목이 계단을 벗어나면 여기서 깨진다.
         for label, weights in (("상승장", j3.BREAKOUT_SCORE_WEIGHTS),
                                ("급락", j3.CRASH_SCORE_WEIGHTS)):
             for name, points in weights.items():
+                if (label, name) == ("상승장", "theme_prox"):
+                    self.assertEqual(70.0, points, "테마 근접도는 비례 70점이다")
+                    continue
                 self.assertIn(points, (0.0, 10.0, 20.0, 30.0, 40.0),
                               f"{label} {name} {points}점은 계단 밖이다")
         # **합이 100이 아니어도 된다.** 합격한 항목에만 점수를 주고 남는 점수를
         # 다른 항목에 나눠 주지 않는다 — 만점이 곧 그 파트의 근거의 양이다.
-        self.assertEqual(90.0, j3.BREAKOUT_SCORE_MAX)
+        # 상승장은 테마 70 + 눌린 폭 40 = 110점이다(2026-08-13).
+        self.assertEqual(110.0, j3.BREAKOUT_SCORE_MAX)
         self.assertEqual(90.0, j3.CRASH_SCORE_MAX)
         self.assertEqual(j3.BREAKOUT_SCORE_MAX, sum(j3.BREAKOUT_SCORE_WEIGHTS.values()))
         self.assertEqual(j3.CRASH_SCORE_MAX, sum(j3.CRASH_SCORE_WEIGHTS.values()))
@@ -378,9 +386,13 @@ class RulebookScreenTests(unittest.TestCase):
         # 근거: research/us_rebound_speed.py
         self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["aligned"])
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["spread5"])
-        # 상승장 쪽 '같이 오르는가'는 **그대로 30점**이다. 그물이 다르면 답도 다르다
-        # — 한 시장·한 파트를 고치면서 다른 파트를 같이 건드리지 않는다.
-        self.assertEqual(30.0, j3.BREAKOUT_SCORE_WEIGHTS["spread5"])
+        # 상승장 쪽 '같이 오르는가'도 **2026-08-13에 0점이 됐다.** 제가 재는 자를
+        # 고쳐(짝 견주기 3,683짝 · 연 단위 오차) 다시 재니 테마를 **그날 등수**로
+        # 매기는 자가 전부 무너졌다 — 51.2 · 51.9 · 53.2 · 53.2로 네 번 중 0번이다.
+        # 살아남은 것은 **근접도를 칸 없이 그대로 쓰는 것** 하나뿐이다.
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["spread5"])
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["less_drop"])
+        self.assertEqual(70.0, j3.BREAKOUT_SCORE_WEIGHTS["theme_prox"])
         # '테마 60일 수익률'은 6개월 보유에서만 합격했다 — 파는 시점을 안 정하므로 안 쓴다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["theme_rank"])
         # **'최근 11일'은 보유기간마다 뒤집힌다.** 3개월 1등(-5.8p)인데 1년에서는
