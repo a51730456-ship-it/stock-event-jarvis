@@ -332,6 +332,31 @@ class RulebookScreenTests(unittest.TestCase):
         quiet = pd.DataFrame({"Close": close, "Volume": pd.Series([1000.0] * 80, index=index)})
         self.assertEqual(0, j3.volume_streak_days(quiet))
 
+    def test_breakout_keeps_stocks_that_belong_to_no_theme(self):
+        """**테마가 없어도 목록에 올린다** (2026-08-14 상하님 지시 "없더라도 넣어라").
+
+        테마 명부는 사람이 손으로 묶은 것이라, 테마에 없다는 것은 그 종목이
+        나쁘다는 뜻이 아니라 **명부가 아직 그 종목을 안 담았다**는 뜻이다.
+        감추지 않고 보여 주되 테마 70점을 못 받아 아래로 내려간다.
+        **이것을 '조건'으로 바꾸려면 그물을 바꾸는 것이므로 먼저 여쭌다.**
+        """
+        frames = {
+            "MSFT": _frame_with_high(4, -12.0),   # 빅테크10에 있다
+            "AAPL": _frame_with_high(4, -12.0),
+            "AMZN": _frame_with_high(4, -12.0),
+            "JPM": _frame_with_high(4, -12.0),    # 어느 테마에도 없다
+        }
+        picked = {row["ticker"]: row
+                  for row in self._run(j3.find_breakout_pullback_stocks, frames)["rows"]}
+        self.assertIn("JPM", picked, "테마 없는 종목이 목록에서 사라졌다")
+        self.assertEqual([], picked["JPM"]["themes"])
+        self.assertIsNone(picked["JPM"]["theme_prox"])
+        theme_points = next(v for n, v, _m, _t in j3.breakout_score(picked["JPM"])["parts"]
+                            if n.startswith("테마"))
+        self.assertEqual(0.0, theme_points, "테마가 없으면 테마 점수는 0점이다")
+        # 테마가 있는 종목보다 아래로 내려가야 한다.
+        self.assertLess(picked["JPM"]["score"], picked["MSFT"]["score"])
+
     def test_breakout_rank_looks_at_what_the_score_looks_at(self):
         """상승장 순위는 **배점이 보는 것과 같은 것**을 봐야 한다 (2026-08-13).
 
