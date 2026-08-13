@@ -205,7 +205,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081310
+MODULE_REVISION = 2026081320
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -816,7 +816,7 @@ def us_session_closed(now=None) -> bool:
     return now_ny.time() >= dt_time(16, 0)
 
 
-def _previous_market_regime(daily: dict, now=None) -> dict | None:
+def _previous_market_regime(daily: dict, now=None, back: int = 0) -> dict | None:
     """직전 완료 미국장의 같은 조건점수. 장중에는 오늘 일봉을 제외한다.
 
     **날짜가 아니라 '그 장이 끝났는가'로 판단한다**(2026-08-06 사용자 지적으로 고침).
@@ -842,6 +842,12 @@ def _previous_market_regime(daily: dict, now=None) -> dict | None:
         last_date = last_date.tz_convert(_NY).date() if last_date.tzinfo else last_date.date()
         done = last_date < today_ny or (last_date == today_ny and session_closed)
         completed = frame if done else frame.iloc[:-1]
+        # back=1이면 **그 하루 앞** 장을 본다 — 게이지 아래 '전일' 줄에 쓴다
+        # (2026-08-12 상하님 지적: "지금이 아니잖아 전날이어야 되잖아").
+        if back:
+            completed = completed.iloc[:-back] if len(completed) > back else completed.iloc[:0]
+        if completed.empty:
+            return None
         metrics = _series_metrics(completed)
         if not metrics.get("ok"):
             return None
@@ -850,7 +856,7 @@ def _previous_market_regime(daily: dict, now=None) -> dict | None:
             tail = pd.Timestamp(completed.index[-1])
             used_dates.append(tail.tz_convert(_NY).date() if tail.tzinfo else tail.date())
     result = _market_regime_from_rows(rows)
-    result["as_of"] = "직전 완료 미국장"
+    result["as_of"] = "그 하루 앞 미국장" if back else "직전 완료 미국장"
     # 어느 거래일을 썼는지 밝힌다 — 값이 언제 바뀌는지 화면·시험에서 확인할 수 있어야
     # 한다(2026-08-06). 종목마다 마지막 날이 다를 수 있어 가장 이른 날을 적는다.
     result["trade_date"] = str(min(used_dates)) if used_dates else None
@@ -882,12 +888,16 @@ def get_market_overview() -> dict:
 
     assessment = _market_regime_from_rows(rows)
     previous_market = _previous_market_regime(daily)
+    # 게이지 아래 줄에 쓸 **그 하루 앞** 장. 실시간 값을 '지금 (참고)'로 놓았더니
+    # 마감 뒤에도 움직여 상하님이 지적하셨다 — 견줄 상대는 전일이어야 한다.
+    before_previous_market = _previous_market_regime(daily, back=1)
 
     source_times = [row.get("source_time") for row in rows.values() if row.get("source_time")]
     return {
         "ok": True,
         **assessment,
         "previous_market": previous_market,
+        "before_previous_market": before_previous_market,
         "rows": rows,
         "phase": market_phase(),
         "checked_at": max(source_times) if source_times else live_meta.get("fetched_at"),
@@ -1482,6 +1492,12 @@ LEADER_SCORE_MAX = round(sum(points for _n, points in LEADER_SCORE_PARTS), 1)
 # 메달(🥇🥈🥉)을 붙이는 문턱. 예전에는 100점 만점 기준 80점이었다 — 만점이
 # 바뀌었으므로 **같은 비율**로 옮긴다. 안 옮기면 메달이 갑자기 흔해진다.
 LEADER_MEDAL_MARK = round(LEADER_SCORE_MAX * 0.80, 1)
+# 매수 심사에서 '이 종목은 후보로 본다'고 치는 문턱. 예전에는 **100점 만점 기준
+# 75점**이었다. 만점을 80으로 되돌리면서 이 숫자를 안 고쳐 두면 사실상 문턱이
+# 75/80 = 94%로 확 올라간다 — 2026-08-13 아침 상하님 캡처에서 실제로 그랬다
+# (VLO가 71.1/80, 만점의 89%인데 "품질 점수가 기준 미달"이라고 나왔다).
+# **같은 비율(75%)로 옮긴다.**
+LEADER_GATE_MARK = round(LEADER_SCORE_MAX * 0.75, 1)
 # 이 점수는 어느 항목도 합격선을 넘지 못했다. 화면이 그 사실을 적을 때 읽는다.
 LEADER_SCORE_VERIFIED = False
 
@@ -2424,21 +2440,26 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
         invalidation = current - max((atr or current * .03) * 2, current * .03)
         zone_low, zone_high = trigger, trigger * 1.007
         target = trigger + 2 * (trigger - invalidation)
-    elif score >= 75:
+    elif score >= LEADER_GATE_MARK:
         state = "관찰"
         trigger = zone_low = zone_high = invalidation = target = None
     else:
         state = "제외"
         trigger = zone_low = zone_high = invalidation = target = None
 
-    gates_ok = market_score >= 50 and theme_score >= 70 and score >= 75
+    gates_ok = (market_score >= 50 and theme_score >= 70
+                and score >= LEADER_GATE_MARK)
     recommendation = "조건부 후보" if gates_ok and state in {"돌파 확인", "눌림목 대기"} else "관찰" if state not in {"추격 금지", "제외"} else "추천 제외"
     if market_score < 50:
         buy_reason = "시장 국면이 약세 구간이라 신규 매수를 보류합니다."
     elif theme_score < 70:
         buy_reason = "테마 강도가 기준 미달이라 종목 점수가 높아도 매수하지 않습니다."
-    elif score < 75:
-        buy_reason = "대장주 품질 점수가 기준 미달입니다."
+    elif score < LEADER_GATE_MARK:
+        # 이름을 화면 다른 곳과 맞춘다 — 같은 값을 '대장주 품질 점수'라고도
+        # 부르고 있었다(2026-08-13 상하님 지적: "품질 점수가 뭔데?").
+        # 문턱이 몇 점인지도 같이 적는다. 안 적으면 왜 미달인지 알 수 없다.
+        buy_reason = (f"종목 조건점수가 {score:.1f}점으로 "
+                      f"기준({LEADER_GATE_MARK:g}점)에 못 미칩니다.")
     elif state == "돌파 확인":
         buy_reason = "52주 신고가 부근에서 거래량이 증가해 종가 돌파 확인 후 진입합니다."
     elif state == "눌림목 대기":

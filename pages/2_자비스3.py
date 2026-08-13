@@ -947,7 +947,7 @@ import jarvis3_data as j3data
 import jarvis3_store as j3store
 import market_signal_ui
 
-_REQUIRED_REGIME_GAUGE_REVISION = 2026081210
+_REQUIRED_REGIME_GAUGE_REVISION = 2026081310
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
     regime_gauge_ui = importlib.reload(regime_gauge_ui)
 
@@ -955,7 +955,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081310
+_REQUIRED_J3_REVISION = 2026081320
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -977,7 +977,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026081270
+_REQUIRED_SIGNAL_UI_REVISION = 2026081310
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
@@ -1285,7 +1285,8 @@ def _market_action_detail(overview: dict) -> str:
     if score >= 75:
         return (
             "시장 추세와 위험선호가 충분히 확인된 구간입니다.<br>"
-            "그래도 아무 종목이나 매수하지 않고, 주도 테마이면서 종목점수 75점 이상인 "
+            "그래도 아무 종목이나 매수하지 않고, 주도 테마이면서 "
+            f"종목 조건점수 {_number(getattr(j3data, 'LEADER_GATE_MARK', 60.0))}점 이상인 "
             "대장주가 기준가격을 통과할 때만 분할 진입합니다."
         )
     if score >= 50:
@@ -2086,7 +2087,10 @@ def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
         return
     # 최근가·52주대비·20일수익률·14일변동성·종목조건점수를 한 줄에 표시한다.
     # 라벨은 코발트, 증감 부호는 미국장 색(+파랑/−빨강), 종목조건점수는 우측 끝.
-    score_val = f"{float(stock_score):.1f}/100" if stock_score is not None else "—"
+    # 만점은 모듈에서 읽는다 — /100으로 박아 뒀더니 아래 매수심사 칸(/80)과
+    # 한 화면에서 서로 다른 값을 말했다(2026-08-13 상하님 캡처).
+    score_val = (f"{float(stock_score):.1f}/{_number(_leader_max())}"
+                 if stock_score is not None else "—")
     state_sub = f"<div class='j3-mc-sub j3-muted'>{entry_state}</div>" if entry_state else ""
     change_sub = f"<div class='j3-mc-sub {_sign_class(quote.get('change_pct'))}'>{_pct(quote.get('change_pct'))}</div>"
     cells = [

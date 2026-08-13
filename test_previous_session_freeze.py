@@ -157,7 +157,9 @@ class RegimeGaugeFreezeTests(unittest.TestCase):
     OVERVIEW = {
         "ok": True, "score": 72, "regime": "상승 신호 우세", "posture": "지금 지침",
         "previous_market": {"ok": True, "score": 55, "regime": "방향 엇갈림",
-                            "posture": "마감 지침", "trade_date": "2026-08-11"},
+                            "posture": "마감 지침", "trade_date": "2026-08-12"},
+        "before_previous_market": {"ok": True, "score": 33, "regime": "약세 신호 우세",
+                                   "trade_date": "2026-08-11"},
     }
 
     def test_freeze_puts_the_needle_on_the_last_completed_session(self):
@@ -166,7 +168,11 @@ class RegimeGaugeFreezeTests(unittest.TestCase):
         html = regime_gauge_ui.regime_box_html(self.OVERVIEW, freeze=True)
         head = html.split("fg-hist")[0]
         self.assertIn("55", head, "얼렸는데 바늘이 마감값에 안 서 있다")
-        self.assertIn("지금 (참고)", html, "실시간 값을 버리면 안 된다")
+        # **아래 줄은 '지금'이 아니라 '전일'이다**(2026-08-13 상하님 지적).
+        # 얼려 놓고 그 밑에 실시간을 두면 결국 한 줄이 계속 움직인다.
+        self.assertIn("전일 · 08.11", html)
+        self.assertIn("33점", html)
+        self.assertNotIn("지금 (참고)", html, "실시간 줄이 되살아났다")
         self.assertIn("마감 지침", html)
 
     def test_default_stays_live_so_korea_is_untouched(self):
@@ -175,6 +181,7 @@ class RegimeGaugeFreezeTests(unittest.TestCase):
         html = regime_gauge_ui.regime_box_html(self.OVERVIEW)
         self.assertIn("72", html.split("fg-hist")[0])
         self.assertNotIn("지금 (참고)", html)
+        self.assertNotIn("전일 · 08.11", html, "한국테마 쪽까지 바뀌면 안 된다")
 
     def test_it_falls_back_to_live_when_there_is_no_frozen_value(self):
         import regime_gauge_ui
@@ -198,6 +205,65 @@ class RevisionTests(unittest.TestCase):
             int(j3.MODULE_REVISION), int(j4._REQUIRED_J3_REVISION),
             "jarvis3 계산을 바꿨으면 jarvis4의 요구 리비전도 같이 올려야 한다",
         )
+
+
+
+class BeforePreviousRowTests(unittest.TestCase):
+    """얼린 게이지 아래 줄은 **전일**이어야 한다 (2026-08-13 상하님 지적).
+
+    "지금이 아니잖아 전날이어야 되잖아." 그전에는 그 자리에 실시간 값을
+    '지금 (참고)'로 놓았다 — 마감 뒤에도 계속 움직여, 게이지를 얼려 둔 뜻이
+    반쯤 무너졌다.
+    """
+
+    def _overview(self):
+        return {
+            "ok": True, "score": 88.0, "regime": "상승 여건 양호",
+            "previous_market": {"ok": True, "score": 100.0,
+                                "regime": "상승 여건 양호",
+                                "trade_date": "2026-08-12"},
+            "before_previous_market": {"ok": True, "score": 55.0,
+                                       "regime": "방향 엇갈림",
+                                       "trade_date": "2026-08-11"},
+        }
+
+    def test_frozen_box_shows_the_day_before_not_now(self):
+        import regime_gauge_ui
+
+        box = regime_gauge_ui.regime_box_html(self._overview(), freeze=True)
+        self.assertIn("전일 · 08.11", box)
+        self.assertIn("55점", box, "전일 점수가 그대로 실려야 한다")
+        self.assertNotIn("지금 (참고)", box, "실시간 줄이 되살아났다")
+        # 바늘은 여전히 직전 완료 장(8/12)에 있어야 한다.
+        self.assertIn("100", box)
+
+    def test_missing_day_before_just_drops_the_row(self):
+        """전일 자료가 없으면 조용히 그 줄만 뺀다 — 화면이 깨지면 안 된다."""
+        import regime_gauge_ui
+
+        overview = self._overview()
+        overview["before_previous_market"] = None
+        box = regime_gauge_ui.regime_box_html(overview, freeze=True)
+        self.assertNotIn("전일 ·", box)
+        self.assertIn("상승 여건 양호", box)
+
+    def test_market_overview_carries_the_day_before(self):
+        """jarvis3_data가 그 하루 앞 장을 실제로 만들어 주나."""
+        import pandas as pd
+
+        import jarvis3_data as j3
+
+        index = pd.bdate_range("2025-08-01", periods=260)
+        close = pd.Series([100.0 + i * 0.2 for i in range(260)], index=index)
+        frame = pd.DataFrame({"Open": close, "High": close, "Low": close,
+                              "Close": close, "Volume": 1_000_000.0}, index=index)
+        daily = {t: frame for t in ("SPY", "QQQ", "IWM", "^VIX")}
+        latest = j3._previous_market_regime(daily, back=0)
+        before = j3._previous_market_regime(daily, back=1)
+        self.assertIsNotNone(latest)
+        self.assertIsNotNone(before)
+        self.assertNotEqual(latest["trade_date"], before["trade_date"],
+                            "전일이 직전과 같은 날이면 견줄 수가 없다")
 
 
 if __name__ == "__main__":

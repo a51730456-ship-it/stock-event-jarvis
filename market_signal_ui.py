@@ -39,7 +39,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026081270
+MODULE_REVISION = 2026081310
 
 
 def _now_seoul():
@@ -1819,9 +1819,14 @@ def render_us_market_signal_card():
     if len(previous_date) >= 10:
         previous_label += f" · {previous_date[5:].replace('-', '.')}"
 
-    # 마감 전에는 카드의 본값이 곧 '직전 완료 장'이라(run_us_market_signal_check),
-    # 옆에 같은 값을 '전일'로 또 놓으면 같은 숫자가 두 번 뜬다. 그 자리에는
-    # **실시간 값**을 놓아 "지금은 이렇게 움직이는 중"만 참고로 보여준다.
+    # 옆 칸은 **전일**이다 — 직전 완료 장의 하루 앞. run_us_market_signal_check가
+    # 이미 그렇게 만들어 세션에 넣어 둔다(us_signal_previous_result).
+    #
+    # 2026-08-12 저녁까지는 여기서 그것을 **실시간 값으로 덮어써** '지금 (참고)'로
+    # 그렸다. 상하님 지적 — "지금이 아니잖아 전날이어야 되잖아."
+    # 맞는 말이다. 게다가 그 '지금'은 절반이 지금이 아니었다 — 마감 뒤에는
+    # 선물만 움직이고 ETF·지수는 직전 종가 그대로라, 한 카드에 두 날이 섞였다.
+    # 앞 카드에서 고쳐 놓고(닻 하나로 같은 거래일) 이 칸만 안 고친 셈이었다.
     current_label_text = "당일"
     if st.session_state.get("us_signal_frozen"):
         as_of = str(st.session_state.get("us_signal_as_of_date") or "")
@@ -1833,10 +1838,8 @@ def render_us_market_signal_card():
         st.caption(
             f"이 판정은 **직전 완료 미국장 종가**{'(' + day + ')' if day else ''} 기준입니다 — "
             "모든 항목을 **같은 거래일**의 완성 일봉으로 잽니다. 장중에 흔들리지 않습니다. "
-            "오른쪽 칸은 지금 움직이는 값이라 참고로만 보십시오."
+            "오른쪽 칸은 **그 하루 앞 장**이라 어제와 견줄 수 있습니다."
         )
-        previous_result = st.session_state.get("us_signal_live_result")
-        previous_label = "지금 (참고)"
 
     render_market_signal_card(
         result,

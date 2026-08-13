@@ -949,6 +949,26 @@ class LeaderScoreMaxTests(unittest.TestCase):
         # 만점이 바뀌면 메달 문턱도 같은 비율로 움직여야 한다.
         self.assertEqual(round(j3.LEADER_SCORE_MAX * 0.8, 1), j3.LEADER_MEDAL_MARK)
 
+    def test_candidate_gate_follows_the_maximum(self):
+        """**후보 문턱도 만점을 따라가야 한다** (2026-08-13 상하님 캡처).
+
+        만점을 100 → 80으로 되돌리면서 이 문턱만 75로 두었더니, 만점의 89%인
+        71.1점짜리가 "품질 점수가 기준 미달"로 빠졌다. 75/80 = 94%가 돼 버린 것이다.
+        """
+        self.assertEqual(round(j3.LEADER_SCORE_MAX * 0.75, 1), j3.LEADER_GATE_MARK)
+        self.assertEqual(60.0, j3.LEADER_GATE_MARK)
+        self.assertLess(j3.LEADER_GATE_MARK, j3.LEADER_MEDAL_MARK,
+                        "후보 문턱이 메달 문턱보다 높으면 안 된다")
+
+    def test_reason_names_the_score_the_way_the_screen_does(self):
+        """'대장주 품질 점수'라는 딴 이름을 쓰지 않는다 (상하님: "품질 점수가 뭔데?")."""
+        metrics = j3._series_metrics(_daily_frame(slope=0.02), None)
+        plan = j3._entry_plan(metrics, 10.0, 100.0, 100.0)
+        reason = plan.get("buy_reason") or ""
+        self.assertIn("종목 조건점수", reason)
+        self.assertNotIn("품질", reason)
+        self.assertIn("60", reason, "문턱이 몇 점인지 같이 적어야 한다")
+
 
 if __name__ == "__main__":
     unittest.main()

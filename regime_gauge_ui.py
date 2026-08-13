@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import gauge_ui
 
-MODULE_REVISION = 2026081210
+MODULE_REVISION = 2026081310
 
 # 조건점수 구간 — jarvis3_data·jarvis4_data의 판정 기준과 같아야 한다.
 # 세 칸이던 것을 다섯 칸으로 늘렸다(2026-08-05 사용자 지시). 시장판단 화면이 이미
@@ -59,9 +59,17 @@ def _previous_regime_row(overview: dict) -> tuple | None:
     return ("전일 시장국면", regime, f"{score:.0f}점", color_of(score), False)
 
 
+def _seen_labels(box: str) -> list:
+    """상자 안에 실제로 들어 있는 줄 이름들 — '전일 · 08.11'처럼 날짜가 붙는다."""
+    import re
+
+    return re.findall(r"<span class='fg-hist-label'>([^<]+)</span>", box)
+
+
 def _paint(box: str) -> str:
     """구간명과 구별되도록 과거·참고 줄의 이름을 제목과 같은 스카이블루로."""
-    for label in ("전일 시장국면", "지금 (참고)"):
+    for label in ("전일 시장국면", "지금 (참고)") + tuple(
+            m for m in _seen_labels(box) if m.startswith("전일 ·")):
         box = box.replace(
             f"<span class='fg-hist-label'>{label}</span>",
             f"<span class='fg-hist-label' style='color:{gauge_ui.TITLE_BLUE}'>"
@@ -70,13 +78,23 @@ def _paint(box: str) -> str:
     return box
 
 
-def _live_regime_row(overview: dict) -> tuple | None:
-    """얼린 게이지 아래에 붙는 '지금' 한 줄. 실시간 값을 버리지 않는다."""
-    if not overview.get("ok") or overview.get("score") is None:
+def _before_previous_row(overview: dict) -> tuple | None:
+    """얼린 게이지 아래에 붙는 **'전일'** 한 줄 — 직전 완료 장의 하루 앞.
+
+    2026-08-12 저녁까지는 여기에 **실시간 값**을 '지금 (참고)'로 놓았다.
+    상하님 지적 — *"지금이 아니잖아 전날이어야 되잖아."* 맞는 말이다.
+    게이지 자체가 직전 완료 장에 얼어 있는데 그 아래에 지금 값을 놓으면,
+    "마감 뒤에는 안 움직인다"고 해 놓고 한 줄이 계속 움직인다.
+    견줄 상대는 **그 하루 앞 장**이라야 어제와 오늘을 견주는 것이 된다.
+    """
+    before = (overview or {}).get("before_previous_market") or {}
+    if not before.get("ok") or before.get("score") is None:
         return None
-    score = float(overview["score"])
-    regime = overview.get("regime") or gauge_ui.zone_of(score, ZONES)[0]
-    return ("지금 (참고)", regime, f"{score:.0f}점", color_of(score), True)
+    score = float(before["score"])
+    regime = before.get("regime") or gauge_ui.zone_of(score, ZONES)[0]
+    date = str(before.get("trade_date") or "")
+    label = "전일" + (f" · {date[5:].replace('-', '.')}" if len(date) >= 10 else "")
+    return (label, regime, f"{score:.0f}점", color_of(score), False)
 
 
 def regime_box_html(overview: dict | None, *, title: str = "시장 국면",
@@ -85,7 +103,7 @@ def regime_box_html(overview: dict | None, *, title: str = "시장 국면",
 
     ``freeze=True``면 **직전 완료 장의 값**으로 바늘을 세운다 (2026-08-12 상하님 지시:
     "시장국면은 전날 종가에 마감되고 변동이 없어야 한다"). 실시간 값은 버리지 않고
-    상자 아래 '지금 (참고)' 한 줄로 남긴다.
+    상자 아래 **'전일'** 한 줄(그 하루 앞 장)로 견줄 상대를 남긴다.
 
     **기본값은 False다** — 한국테마(자비스4)는 지금까지대로 실시간으로 둔다.
     한 시장을 고치면서 다른 시장을 같이 건드리지 않는다(CLAUDE.md 0-1 다).
@@ -99,7 +117,7 @@ def regime_box_html(overview: dict | None, *, title: str = "시장 국면",
     frozen = overview.get("previous_market") or {}
     use_frozen = bool(freeze and frozen.get("ok") and frozen.get("score") is not None)
     if use_frozen:
-        live_row = _live_regime_row(overview)
+        live_row = _before_previous_row(overview)
         score = float(frozen["score"])
         regime = frozen.get("regime") or gauge_ui.zone_of(score, ZONES)[0]
         posture = frozen.get("posture") or posture
