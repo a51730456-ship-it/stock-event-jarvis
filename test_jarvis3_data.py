@@ -155,16 +155,23 @@ class RulebookScreenTests(unittest.TestCase):
         # 그대로(시장 조건 없이) 다시 재니 보유 3개월·6개월·1년 **셋 다 합격한
         # 유일한 항목**이었다(research/us_breakout_ladder.py).
         # 비례로 깎지 않고 **칸으로 가른다** — 6~10%는 실측에서 거꾸로였다.
-        drop_points = {
+        # → **2026-08-13에 0점이 됐다.** 제가 재는 자를 고쳐 다시 재니 네 기간 모두
+        # 반반이었다(52.1 · 51.5 · 51.1 · 49.9). 그물(4~15%)만 남고 점수는 없다.
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
+        for ticker, row in picked.items():
+            names = [n for n, _v, _m, _t in j3.breakout_score(row)["parts"]]
+            self.assertNotIn("눌린 폭 10~15%", names, ticker)
+        # **뚫기 전 60일 상승은 '뚫던 날' 기준이다** — 오늘 기준 ret60과 다르다.
+        # 세 종목 다 뚫던 날까지 43~45% 올라 35~50% 칸(15점)에 든다.
+        self.assertEqual(30.0, j3.BREAKOUT_SCORE_WEIGHTS["gain60"])
+        gain_points = {
             ticker: next(v for n, v, _m, _t in j3.breakout_score(row)["parts"]
-                         if n.startswith("눌린 폭"))
+                         if n.startswith("뚫기 전 60일"))
             for ticker, row in picked.items()
         }
-        full = j3.BREAKOUT_SCORE_WEIGHTS["drop"]
-        self.assertEqual(40.0, full, "눌린 폭이 계단 1등(40점)이어야 한다")
-        self.assertEqual(full, drop_points["AAPL"], "-12%는 10~15% 칸이라 만점")
-        self.assertEqual(full, drop_points["MSFT"], "-12%는 10~15% 칸이라 만점")
-        self.assertEqual(0.0, drop_points["AMZN"], "-5%는 칸 밖이라 0점")
+        for ticker, points in gain_points.items():
+            self.assertEqual(15.0, points, ticker)
+            self.assertGreater(picked[ticker]["gain60_at_breakout"], 40.0, ticker)
         # **0점 항목은 표에 넣지 않는다**(CLAUDE.md 0-1 마).
         for row in picked.values():
             maxima = [m for _n, _v, m, _t in j3.breakout_score(row)["parts"]]
@@ -325,19 +332,26 @@ class RulebookScreenTests(unittest.TestCase):
         quiet = pd.DataFrame({"Close": close, "Volume": pd.Series([1000.0] * 80, index=index)})
         self.assertEqual(0, j3.volume_streak_days(quiet))
 
-    def test_breakout_ranks_by_gain_not_by_volume_streak(self):
-        """상승장 순위는 낙폭과 **다르다** — 거래대금 연속은 여기서 거꾸로였다(53번)."""
+    def test_breakout_rank_looks_at_what_the_score_looks_at(self):
+        """상승장 순위는 **배점이 보는 것과 같은 것**을 봐야 한다 (2026-08-13).
+
+        2026-08-13 전까지 점수는 눌린 폭·테마 등수를 보는데 순위는 '같은 테마
+        동반 수'와 오늘 기준 ret60을 봤다 — **둘이 서로 다른 것을 보고 있었다.**
+        이제 총점 → 테마 근접도 → 뚫기 전 60일 상승 → 티커 차례다.
+        거래대금과 거래대금 연속은 상승장에서 거꾸로였다(53번, 기준선 62번).
+        """
         import inspect
 
-        self.assertNotIn("volume_streak", inspect.getsource(j3._breakout_rank_key))
+        source = inspect.getsource(j3._breakout_rank_key)
+        for gone in ("volume_streak", "together", "avg_dollar_volume"):
+            self.assertNotIn(gone, source, f"{gone}이 순위에 되살아났다")
         rows = [
-            {"metrics": {"ret60": 5.0, "avg_dollar_volume": 1e8}, "together_tier": 3,
-             "together_count": 4, "volume_streak": 20},
-            {"metrics": {"ret60": 60.0, "avg_dollar_volume": 1e8}, "together_tier": 3,
-             "together_count": 4, "volume_streak": 0},
+            {"ticker": "AAA", "theme_prox": 90.0, "gain60_at_breakout": 80.0},
+            {"ticker": "BBB", "theme_prox": 99.0, "gain60_at_breakout": 5.0},
+            {"ticker": "CCC", "theme_prox": 99.0, "gain60_at_breakout": 60.0},
         ]
-        ordered = sorted(rows, key=j3._breakout_rank_key)
-        self.assertEqual(60.0, ordered[0]["metrics"]["ret60"])
+        ordered = [row["ticker"] for row in sorted(rows, key=j3._breakout_rank_key)]
+        self.assertEqual(["CCC", "BBB", "AAA"], ordered)
 
     def test_breakout_and_crash_are_scored_with_different_rulers(self):
         """두 갈래에 같은 자를 쓰면 낙폭 종목이 정의상 전부 '제외'로 나온다."""
@@ -361,14 +375,16 @@ class RulebookScreenTests(unittest.TestCase):
                               f"{label} {name} {points}점은 계단 밖이다")
         # **합이 100이 아니어도 된다.** 합격한 항목에만 점수를 주고 남는 점수를
         # 다른 항목에 나눠 주지 않는다 — 만점이 곧 그 파트의 근거의 양이다.
-        # 상승장은 테마 70 + 눌린 폭 40 = 110점이다(2026-08-13).
-        self.assertEqual(110.0, j3.BREAKOUT_SCORE_MAX)
+        # 상승장은 테마 근접도 70 + 뚫기 전 60일 상승 30 = 100점이다(2026-08-13).
+        self.assertEqual(100.0, j3.BREAKOUT_SCORE_MAX)
         self.assertEqual(90.0, j3.CRASH_SCORE_MAX)
         self.assertEqual(j3.BREAKOUT_SCORE_MAX, sum(j3.BREAKOUT_SCORE_WEIGHTS.values()))
         self.assertEqual(j3.CRASH_SCORE_MAX, sum(j3.CRASH_SCORE_WEIGHTS.values()))
-        # **상승장 1등은 눌린 폭, 급락 1등은 테마가 덜 빠졌나**(2026-08-12 재측정 —
-        # 둘 다 보유 세 기간 모두 합격한 유일한 항목이다).
-        self.assertEqual(40.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
+        # **상승장 1등은 테마 근접도, 급락 1등은 테마가 덜 빠졌나**다.
+        # 상승장의 눌린 폭 40점은 2026-08-13에 0점이 됐다 — 네 번 중 0번 통과.
+        self.assertEqual(70.0, j3.BREAKOUT_SCORE_WEIGHTS["theme_prox"])
+        self.assertEqual(30.0, j3.BREAKOUT_SCORE_WEIGHTS["gain60"])
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
         self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["less_drop"])
         # 그물마다 합격 못 한 항목들 — 되살아나면 여기서 깨진다.
         for name in ("together", "recent_drop", "liquidity", "volatility"):
