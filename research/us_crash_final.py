@@ -63,6 +63,33 @@ def touch_days(index_close: pd.Series, step: float) -> list[pd.Timestamp]:
     return days
 
 
+def turn_days(index_close: pd.Series, step: float) -> list[pd.Timestamp]:
+    """그 하락 사건의 **최저일 다음 거래일** — 이 갈래의 이름 그대로 '급락 **후 반등**' 자리다.
+
+    2026-08-14 상하님 지적 — "급락장을 이야기하는 게 아니고 **급락 후 반등장**이야."
+    문턱에 닿은 날은 아직 떨어지는 중이다. 돌아선 자리와 답이 다를 수 있으므로
+    **둘 다** 재서 나란히 놓는다.
+    """
+    drop = (index_close / index_close.cummax() - 1.0) * 100.0
+    index = list(drop.index)
+    out, start = [], None
+    for i, value in enumerate(drop.to_numpy()):
+        if value <= step and start is None:
+            start = i
+        elif start is not None and value > -1.0:
+            seg = drop.iloc[start:i]
+            pos = index.index(seg.idxmin())
+            if pos + 1 < len(index):
+                out.append(index[pos + 1])
+            start = None
+    if start is not None:
+        seg = drop.iloc[start:]
+        pos = index.index(seg.idxmin())
+        if pos + 1 < len(index):
+            out.append(index[pos + 1])
+    return out
+
+
 def _sc(series, low, high, points):
     """jarvis3_data._scale과 같은 식(값 하나가 아니라 줄 전체에 쓴다)."""
     return np.clip((series - low) / (high - low) * points, 0.0, points)
@@ -173,56 +200,66 @@ def main() -> None:
         ("E  지금 급락 배점", "E"),
     )
 
-    total = {key: {label: [0, 0, []] for _h, label in HOLDS} for _n, key in GAUGES}
-    for index_name, series in (("나스닥 종합(IXIC)", ixic), ("나스닥100(QQQ)", qqq)):
-        for step in STEPS:
-            days = [d for d in touch_days(series, step) if d in at]
-            if not days:
-                continue
-            print(f"\n── {index_name} · {step:.0f}% — {len(days)}번 "
-                  f"({', '.join(str(d.date()) for d in days)}) ──")
-            head = "잣대".ljust(36) + "  ".join(l.rjust(15) for _h, l in HOLDS)
-            print(head); print("─" * len(head))
-            for title, key in GAUGES:
-                cells = []
-                for hold, label in HOLDS:
-                    plus = tried = 0
-                    corrs = []
-                    for day in days:
-                        board = board_at(at[day], hold)
-                        if board is None:
-                            continue
-                        gauge = gauge_of(board, key)
-                        corr = gauge.rank().corr(board["ret"].rank())
-                        if pd.isna(corr):
-                            continue
-                        tried += 1
-                        plus += 1 if corr > 0 else 0
-                        corrs.append(corr)
-                    if tried:
-                        total[key][label][0] += plus
-                        total[key][label][1] += tried
-                        total[key][label][2].extend(corrs)
-                    cells.append((f"{plus}/{tried} ({np.mean(corrs):+.2f})"
-                                  if tried else "—").rjust(15))
-                print(title.ljust(36) + "  ".join(cells))
+    # **두 자리를 다 잰다**(2026-08-14 상하님 지적 — "급락장을 이야기하는 게 아니고
+    # 급락 후 반등장이야"). 문턱에 닿은 날은 아직 떨어지는 중이고, 저점 다음 날이
+    # 이 갈래 이름 그대로 '급락 후 반등' 자리다. 답이 다를 수 있어 나란히 놓는다.
+    anchors = (("① 문턱에 닿은 날 — 아직 떨어지는 중", touch_days),
+               ("② 저점 다음 날 — 급락 후 반등 자리", turn_days))
+    summary = {}
+    for anchor_name, finder in anchors:
+        print("\n\n" + "#" * 92 + "\n" + anchor_name + "\n" + "#" * 92)
+        total = {key: {label: [0, 0, []] for _h, label in HOLDS} for _n, key in GAUGES}
+        summary[anchor_name] = total
+        for index_name, series in (("나스닥 종합(IXIC)", ixic), ("나스닥100(QQQ)", qqq)):
+            for step in STEPS:
+                days = [d for d in finder(series, step) if d in at]
+                if not days:
+                    continue
+                print(f"\n── {index_name} · {step:.0f}% — {len(days)}번 "
+                      f"({', '.join(str(d.date()) for d in days)}) ──")
+                head = "잣대".ljust(36) + "  ".join(l.rjust(15) for _h, l in HOLDS)
+                print(head); print("─" * len(head))
+                for title, key in GAUGES:
+                    cells = []
+                    for hold, label in HOLDS:
+                        plus = tried = 0
+                        corrs = []
+                        for day in days:
+                            board = board_at(at[day], hold)
+                            if board is None:
+                                continue
+                            gauge = gauge_of(board, key)
+                            corr = gauge.rank().corr(board["ret"].rank())
+                            if pd.isna(corr):
+                                continue
+                            tried += 1
+                            plus += 1 if corr > 0 else 0
+                            corrs.append(corr)
+                        if tried:
+                            total[key][label][0] += plus
+                            total[key][label][1] += tried
+                            total[key][label][2].extend(corrs)
+                        cells.append((f"{plus}/{tried} ({np.mean(corrs):+.2f})"
+                                      if tried else "—").rjust(15))
+                    print(title.ljust(36) + "  ".join(cells))
 
-    print(f"\n\n{'='*90}\n전부 합친 것 — 배점을 확정하는 자리\n{'='*90}")
-    head = "잣대".ljust(36) + "  ".join(l.rjust(17) for _h, l in HOLDS) + "     합계"
-    print(head); print("─" * len(head))
-    ranked = []
-    for title, key in GAUGES:
-        cells, hit, tot = [], 0, 0
-        for _h, label in HOLDS:
-            plus, tried, corrs = total[key][label]
-            hit += plus; tot += tried
-            cells.append((f"{plus}/{tried} ({np.mean(corrs):+.2f})"
-                          if tried else "—").rjust(17))
-        share = hit / tot * 100 if tot else 0
-        ranked.append((share, title))
-        print(title.ljust(36) + "  ".join(cells) + f"   {hit}/{tot} {share:5.1f}%")
-    print("\n차례 —", " · ".join(f"{t.split()[0]} {s:.0f}%"
-                                for s, t in sorted(ranked, reverse=True)))
+    for anchor_name, total in summary.items():
+        print("\n\n" + "=" * 92 + "\n전부 합친 것 — " + anchor_name + "\n" + "=" * 92)
+        head = "잣대".ljust(36) + "  ".join(l.rjust(17) for _h, l in HOLDS) + "     합계"
+        print(head); print("─" * len(head))
+        ranked = []
+        for title, key in GAUGES:
+            cells, hit, tot = [], 0, 0
+            for _h, label in HOLDS:
+                plus, tried, corrs = total[key][label]
+                hit += plus; tot += tried
+                cells.append((f"{plus}/{tried} ({np.mean(corrs):+.2f})"
+                              if tried else "—").rjust(17))
+            share = hit / tot * 100 if tot else 0
+            ranked.append((share, title))
+            print(title.ljust(36) + "  ".join(cells) + f"   {hit}/{tot} {share:5.1f}%")
+        print("차례 — " + " · ".join(f"{t.split()[0]} {v:.0f}%"
+                                    for v, t in sorted(ranked, reverse=True)))
     print("\n**사건이 몇 번뿐이다. 숫자 하나로 배점을 정하면 안 된다.**")
 
 
