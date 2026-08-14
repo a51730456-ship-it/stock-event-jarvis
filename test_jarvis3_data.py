@@ -522,6 +522,33 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(j3.CRASH_SCORE_WEIGHTS["above150"], above150_points(rows[0]))
         self.assertEqual(0.0, above150_points(rows[1]))
 
+    def test_same_score_rows_take_turns_by_theme(self):
+        """같은 점수 안에서는 **테마를 번갈아** 놓는다 (2026-08-14 상하님 지시).
+
+        상하님 — "반도체만 줄줄이 나오는 거 보기 불편하다."
+
+        급락 배점은 '테마 30주선 위 상위 3등'에 40점을 주므로 그 테마 종목이 전부
+        같은 점수가 된다. 구성종목이 많은 테마가 화면 위를 통째로 차지했다
+        (실측: 40점 11줄 중 9줄이 반도체).
+
+        **점수 차례는 건드리지 않는다** — 40점 줄이 언제나 0점 줄보다 위다.
+        """
+        rows = [
+            {"ticker": "A1", "score": 40.0, "theme_above150_name": "반도체"},
+            {"ticker": "A2", "score": 40.0, "theme_above150_name": "반도체"},
+            {"ticker": "A3", "score": 40.0, "theme_above150_name": "반도체"},
+            {"ticker": "B1", "score": 40.0, "theme_above150_name": "바이오"},
+            {"ticker": "C1", "score": 0.0, "theme_above150_name": "방산"},
+            {"ticker": "A4", "score": 0.0, "theme_above150_name": "반도체"},
+        ]
+        got = [row["ticker"] for row in j3._spread_by_theme(rows)]
+        # 40점 무리 안에서만 번갈아 놓는다 — 반도체·바이오·반도체·반도체.
+        self.assertEqual(["A1", "B1", "A2", "A3"], got[:4])
+        # **점수 차례는 그대로다** — 0점 줄은 40점 줄 뒤에 온다.
+        self.assertEqual({"C1", "A4"}, set(got[4:]))
+        # 줄이 사라지거나 늘어나지 않는다.
+        self.assertEqual(len(rows), len(got))
+
     def test_theme_ranking_is_scored_by_spread_not_by_returns(self):
         """테마 순위는 **확산**으로 매긴다 (2026-08-12 처음 쟀다).
 

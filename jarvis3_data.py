@@ -2126,6 +2126,40 @@ def _above_sma20(metrics: dict) -> float | None:
     return 100.0 if float(current) > float(sma20) else 0.0
 
 
+def _spread_by_theme(rows: list, key: str = "theme_above150_name") -> list:
+    """같은 점수 안에서 **테마를 번갈아** 놓는다 (2026-08-14 상하님 지시).
+
+    상하님 — "반도체만 줄줄이 나오는 거 보기 불편하다."
+
+    **배점도 그물도 안 건드린다.** 점수 차례는 그대로다 — 40점 줄이 언제나 0점 줄보다
+    위에 온다. **점수가 같은 무리 안에서만** 테마를 돌아가며 한 줄씩 뽑는다.
+
+    왜 필요한가 — 급락 배점은 '테마 30주선 위 상위 3등'에 40점을 주므로 그 테마에
+    걸린 종목이 **전부 같은 점수**가 된다. 반도체처럼 구성종목이 많은 테마는 화면
+    위쪽을 통째로 차지한다(2026-08-14 실측: 40점 11줄 중 9줄이 반도체였다).
+
+    테마 안의 차례는 **들어온 순서 그대로**다 — 이미 점수·동점 규칙으로 줄 세운 뒤라
+    그 안에서 다시 흔들면 안 된다.
+    """
+    order: list = []
+    buckets: dict = {}
+    for row in rows:
+        score = round(float(row.get("score") or 0.0), 4)
+        name = str(row.get(key) or row.get("ticker") or "")
+        if score not in buckets:
+            buckets[score] = {}
+            order.append(score)
+        buckets[score].setdefault(name, []).append(row)
+    out = []
+    for score in order:
+        queues = list(buckets[score].values())
+        while any(queues):
+            for queue in queues:
+                if queue:
+                    out.append(queue.pop(0))
+    return out
+
+
 def _above_sma150(metrics: dict) -> float | None:
     """이 종목이 **30주선(150일선) 위인가** — 위면 100, 아니면 0.
 
@@ -2711,6 +2745,9 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
                                int(row.get("theme_above20") or 99),
                                _rank_key(row)[0], _rank_key(row)[1],
                                row.get("_order", 9), *_rank_key(row)[2:]))
+    # 줄 세운 뒤 **같은 점수 안에서만** 테마를 번갈아 놓는다(2026-08-14 상하님 지시).
+    # 점수 차례는 그대로다 — 보여주는 차례만 바꾼다.
+    rows = _spread_by_theme(rows)
     rows = rows[: max(1, int(result_limit))]
     for index, row in enumerate(rows, 1):
         row["pullback_rank"] = index
