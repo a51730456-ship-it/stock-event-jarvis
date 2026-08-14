@@ -333,6 +333,10 @@ st.markdown(
        두셔도 이 한 줄은 보인다. 크기는 위 보라색 안내와 같게, 색만 초록이다. */
     .j3-theme-top5 { color: #44f0a1; font-size: 1.08rem; font-weight: 850;
         margin: .15rem 0 .5rem; text-shadow: 0 0 8px rgba(68,240,161,.18); }
+    /* 테마 이름만 연한 붉은색(2026-08-14 상하님 지시) — 초록 문장 안에서 이름이
+       바로 눈에 들어온다. 등락률의 붉은색(#ff5b5b)보다 연하게 해 헷갈리지 않는다. */
+    .j3-theme-top5 .j3-top5-names { color: #ff9d9d;
+        text-shadow: 0 0 8px rgba(255,157,157,.20); }
     .j3-leader-head-gap { height: .55rem; }
     .j3-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
     .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
@@ -562,18 +566,21 @@ st.markdown(
     /* 「20개 테마 실시간 순위 보기」 — 위 두 단추와 **같은 크기**에 붉은색
        그라데이션(2026-08-14 상하님 지시). 순위표를 닫아 두면 '종목 찾기' 바로
        위에 이 단추가 나온다. 붉은색은 대장주 1~3위 비교와 같은 결이다. */
-    div[class*="st-key-btn_j3_theme_rank_open"] button {
+    div[class*="st-key-btn_j3_theme_rank_open"] button,
+    div[class*="st-key-close_j3_theme_rank_open"] button {
         background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
         border: none !important; border-radius: .5rem !important;
         min-height: 3rem !important;
         box-shadow: 0 2px 10px rgba(224,71,79,.25) !important;
     }
-    div[class*="st-key-btn_j3_theme_rank_open"] button:hover {
+    div[class*="st-key-btn_j3_theme_rank_open"] button:hover,
+    div[class*="st-key-close_j3_theme_rank_open"] button:hover {
         background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
     }
     div[class*="st-key-j3_pullback_breakout"] button p,
     div[class*="st-key-j3_pullback_crash"] button p,
-    div[class*="st-key-btn_j3_theme_rank_open"] button p {
+    div[class*="st-key-btn_j3_theme_rank_open"] button p,
+    div[class*="st-key-close_j3_theme_rank_open"] button p {
         color: #ffffff !important;
         font-size: 1.02rem !important;
         font-weight: 800 !important;
@@ -2901,8 +2908,9 @@ def _render_radar_tab(market: dict) -> None:
     if names[:5]:
         st.markdown(
             "<div class='j3-theme-top5'>오늘 테마 종목 순위는 "
+            "<span class='j3-top5-names'>"
             + " · ".join(html.escape(name) for name in names[:5])
-            + " 순입니다.</div>",
+            + "</span> 순입니다.</div>",
             unsafe_allow_html=True,
         )
     if not rank_open:
