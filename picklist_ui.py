@@ -114,17 +114,25 @@ div[class*="st-key-btn_picklist_archive_open"] button p {
 """
 
 
-def _cell(row: dict, field: str) -> str:
+def _cell(row: dict, field: str, tried: bool = False) -> str:
     value = row.get(field)
     # 수익·손실과 매수금액은 **왜 비었는지**를 알려 준다. 그냥 '—'로 두면
     # '아직 살 때가 안 됐다'와 '못 받아 왔다'가 구별되지 않는다(2026-08-09).
+    #
+    # **'못 받음'만 쓰면 저장이 고장 난 줄 아신다**(2026-08-14 상하님 —
+    # "왜 며칠 전부터 저장이 안 되냐?"). 실제로는 저장이 멀쩡했고, ① 계산 단추를
+    # 아직 안 누르셨거나 ② 미국 장이 아직 안 열려 '다음날 시가'가 세상에 없는 것뿐이었다
+    # (그날 뉴욕 시각 2026-08-13 21:09 — 08-14 장은 다음날 09:30에 열린다).
+    # 그래서 **세 경우를 갈라 적는다.**
     if field in ("profit_pct", "buy_open") and value in (None, ""):
         days = row.get("days_since")
         if days == 0:
             return "<span class='pl-sameday'>아직 안 삼</span>"
         if row.get("now_price") in (None, "") and field == "profit_pct":
             return "—"
-        return "<span class='pl-sameday'>못 받음</span>"
+        if not tried:
+            return "<span class='pl-sameday'>단추 누르면 나옴</span>"
+        return "<span class='pl-sameday'>다음 장 아직</span>"
     if value in (None, ""):
         return "—"
     if field in ("from_high_pct", "judged_from_high_pct"):
@@ -152,15 +160,19 @@ def _cell(row: dict, field: str) -> str:
     return html.escape(str(value))
 
 
-def table_html(rows, kind: str) -> str:
-    """한 갈래의 표를 통째로 그린다. 값은 하나도 고치지 않는다."""
+def table_html(rows, kind: str, *, tried: bool = False) -> str:
+    """한 갈래의 표를 통째로 그린다. 값은 하나도 고치지 않는다.
+
+    `tried`는 **계산 단추를 눌러 값을 받아 봤나**다. 안 눌렀는데 '못 받음'이라
+    적으면 저장이 고장 난 줄 아신다(2026-08-14 상하님 지적).
+    """
     fields = _KIND_COLUMNS.get(kind, tuple(field for field, _ in _COLUMNS))
     titles = dict(_COLUMNS)
     head = "".join(f"<th>{titles.get(field, field)}</th>" for field in fields)
     body = []
     for row in rows:
         cells = "".join(
-            f"<td class='pl-c-{field}'>{_cell(row, field)}</td>" for field in fields
+            f"<td class='pl-c-{field}'>{_cell(row, field, tried)}</td>" for field in fields
         )
         body.append(f"<tr>{cells}</tr>")
     return (
@@ -281,12 +293,20 @@ def render(st, market: str, *, toggle) -> None:
         rows = store.with_profit(rows, prices)
 
     fetched_at = st.session_state.get(fetched_at_key)
+    tried = bool(fetched_at)
     filled = sum(1 for row in rows if store._num(row.get("buy_open")) is not None)
-    st.caption(
-        f"{picked} · {store.summarize(rows)}"
-        + (f" · 지금 값 {fetched_at} 기준({len(prices)}종목) · 매수 시가 {filled}줄"
-           if fetched_at else " · 수익·손실은 위 단추를 누르면 채워집니다")
-    )
+    # **목록 저장과 값 채우기는 다른 일이다**(2026-08-14 상하님 — "왜 며칠 전부터
+    # 저장이 안 되냐?"). 목록은 그날 그대로 저장돼 있고, 매수금액·지금 값은 위
+    # 단추를 눌러야 받아 온다. 그 말을 여기서 분명히 한다.
+    if tried and filled == 0:
+        tail = (f" · 지금 값 {fetched_at} 기준({len(prices)}종목) · "
+                "**매수 시가는 아직 없습니다** — 다음 미국 장이 열려야 시가가 생깁니다")
+    elif tried:
+        tail = f" · 지금 값 {fetched_at} 기준({len(prices)}종목) · 매수 시가 {filled}줄"
+    else:
+        tail = ("  \n**목록은 그날 그대로 저장돼 있습니다.** 매수금액·지금 값·"
+                "수익·손실은 위 **‘지금 값으로 수익·손실 계산’** 단추를 누르면 채워집니다.")
+    st.caption(f"{picked} · {store.summarize(rows)}" + tail)
 
     excel = store.to_excel_bytes(rows)
     columns = st.columns(2)
@@ -311,7 +331,7 @@ def render(st, market: str, *, toggle) -> None:
             f"<div class='pl-kind'>{store.LIST_KINDS[kind]} · {len(part)}종목</div>",
             unsafe_allow_html=True,
         )
-        st.markdown(table_html(part, kind), unsafe_allow_html=True)
+        st.markdown(table_html(part, kind, tried=tried), unsafe_allow_html=True)
 
 
 def autosave(market: str, list_kind: str, result) -> None:

@@ -200,11 +200,21 @@ st.markdown(
     .j3-down { color: #ff5b5b; }
     .j3-muted { color: #9aa0aa; }
     .j3-section-title { color: #4da6ff; font-size: 1.2rem; font-weight: 800; margin: 1rem 0 0.5rem; }
-    /* 제목 색은 **화면 안에서 하나로 통일한다**(2026-08-14 상하님 지시) —
-       「종목 선정 근거」와 「매수 심사 결과」가 같은 스카이블루(#4da6ff)다.
-       2026-08-14에 갈래마다 초록·주황 그라데이션을 넣어 봤다가 상하님이
-       "그라데이션 넣지 말고 매수심사결과처럼 같은 색으로"라고 하셔서 되돌렸다.
-       어느 갈래인지는 제목 뒤 괄호와 위 '종목 찾기' 단추가 이미 알려 준다. */
+    /* 제목 **앞말**은 어느 화면에서나 같은 스카이블루(#4da6ff)다 —
+       「종목 선정 근거」와 「매수 심사 결과」가 같은 색이어야 한다(상하님 지시).
+       **괄호 안 갈래 이름만** 위 '종목 찾기' 두 단추와 같은 색으로 칠한다
+       (2026-08-14 상하님 지시 — "(신고가 눌림 전용 배점) 이 글자 부분만
+       그라데이션 하라고"). 글을 보고 어느 갈래인지 눈으로 가리기 위한 것이다.
+       단추는 흰 글씨를 얹으려고 어두운 쪽(#075d46·#6b2d05)에서 시작하는데 글자에
+       그대로 쓰면 검은 바탕에 묻힌다. 그래서 **단추의 밝은 쪽에서 시작해 더 밝게** 간다. */
+    .j3-title-tag {
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+    }
+    .j3-title-breakout { background-image: linear-gradient(90deg, #18bf87 0%, #8ef7cd 100%); }
+    .j3-title-crash { background-image: linear-gradient(90deg, #e67813 0%, #ffd39a 100%); }
     .j3-factor-table { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; font-size: 0.95rem; }
     .j3-factor-table th { text-align: center; color: #4da6ff; font-weight: 800; padding: 0.45rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-factor-table td { color: #44f0a1; font-weight: 700; padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
@@ -3625,11 +3635,17 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
+        # 앞말은 스카이블루 그대로, **괄호 안 갈래 이름만** 갈래 색으로 칠한다
+        # (2026-08-14 상하님 지시). 순위 7의 '(미국형 5개 항목)'은 갈래가 아니라
+        # 색을 안 준다 — 초록이면 상승장, 주황이면 급락이라는 약속이 흐려진다.
+        tag, tone = (
+            ("(급락 반등 전용 배점)", "j3-title-tag j3-title-crash") if mode == "crash"
+            else ("(신고가 눌림 전용 배점)", "j3-title-tag j3-title-breakout")
+            if mode == "breakout" else ("(미국형 5개 항목)", "")
+        )
         st.markdown(
-            "<div class='j3-section-title'>종목 선정 근거"
-            + (" (급락 반등 전용 배점)" if mode == "crash"
-               else " (신고가 눌림 전용 배점)" if mode == "breakout"
-               else " (미국형 5개 항목)")
+            "<div class='j3-section-title'>종목 선정 근거 "
+            + (f"<span class='{tone}'>{tag}</span>" if tone else tag)
             + "</div>",
             unsafe_allow_html=True,
         )

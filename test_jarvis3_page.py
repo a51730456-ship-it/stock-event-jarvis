@@ -354,8 +354,13 @@ class Jarvis3PageTests(unittest.TestCase):
         # 함께 보여준다(2026-07-24 사용자 지시).
         # 2026-08-06 — '눌림목 찾기'를 빼면서 이 시험도 상승장 갈래로 옮겼다.
         # 그래서 점수표 이름이 갈래 전용 배점 이름이 된다.
-        self.assertTrue(any("종목 선정 근거 (신고가 눌림 전용 배점)" in value
-                            for value in markdowns))
+        # 2026-08-14 — 괄호 안 갈래 이름만 갈래 색으로 칠하느라 그 사이에 <span>이
+        # 들어갔다(상하님 지시). 앞말과 갈래 이름이 **한 markdown 안에** 있는지 본다.
+        title = next((value for value in markdowns
+                      if "종목 선정 근거" in value and "j3-section-title" in value), "")
+        self.assertIn("종목 선정 근거", title)
+        self.assertIn("(신고가 눌림 전용 배점)", title)
+        self.assertIn("j3-title-breakout", title, "갈래 색이 빠졌다")
         self.assertTrue(any("j3-factor-table" in value for value in markdowns))
         self.assertTrue(any("j3-holo-card" in value for value in markdowns))
         # 단타 참고 신호는 접어 뒀다(2026-08-06) — 여는 단추가 있어야 한다.
