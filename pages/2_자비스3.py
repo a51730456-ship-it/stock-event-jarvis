@@ -2294,18 +2294,14 @@ def _render_stock_detail(
     with score_col:
         st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
         # '설명'은 **제목 칸 「심사 항목」 옆**에 하나만 둔다(2026-08-14 상하님 지시).
-        _help_names = [name for name, maximum in factor_spec if maximum > 0]
-        _help_key = f"j3_factor_help_{panel}"
         st.markdown(
-            "<table class='j3-factor-table'><thead><tr>"
-            f"<th>심사 항목{_factor_help_chip(_help_names, _help_key)}</th>"
-            "<th>획득(최대)</th></tr></thead>"
-            f"<tbody>{factor_rows}{total_row}</tbody></table>",
+            _factor_table_html(
+                factor_rows, total_row,
+                [name for name, maximum in factor_spec if maximum > 0],
+                f"j3_factor_help_{panel}",
+            ),
             unsafe_allow_html=True,
         )
-        # 항목 이름만으로는 뭘 재는지 모른다(2026-08-14 상하님 지시). 표에 실제로
-        # 올라온 항목만 골라 설명한다.
-        _factor_help_block(_help_names, _help_key)
         st.markdown(
             f"<div class='j3-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>",
             unsafe_allow_html=True,
@@ -2477,30 +2473,40 @@ _FACTOR_HELP_CSS = """
    '이 테마 기법에 대한 설명' 단추와 같은 색이되 글자 크기만 작게 둔다. */
 .j3fh-chip {
     display: inline-block;
-    margin-left: .4rem;
+    /* 오른쪽으로 두 칸 떨어뜨린다(2026-08-14 상하님 지시). */
+    margin-left: 1.5rem;
     background: #cfe9ff;
     border: 1px solid #8ec9f5;
     border-radius: .45rem;
-    padding: .02rem .4rem;
+    padding: .12rem .6rem;
     color: #c15f3c !important;
-    font-size: .72rem;
+    /* 한 치수 크게(2026-08-14 상하님 지시). */
+    font-size: .84rem;
     font-weight: 800;
     text-decoration: none !important;
     vertical-align: middle;
     white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
     transition: background .12s ease-out, border-color .12s ease-out;
 }
 .j3fh-chip:hover { background: #b9dfff; border-color: #6db6ee; }
+.j3fh-chip:active { filter: brightness(.95); }
 /* 창은 **표 아래(총점 밑)**에 두고 평소에는 숨겨 둔다. 상하님이 '설명'을 누르면
    그 칸의 창만 열린다 — 브라우저가 혼자 하는 일이라 **화면을 다시 그리지 않는다.**
    st.button을 쓰면 표·차트·시세를 통째로 다시 그려 느리다
    (2026-08-14 상하님 지적 "열고 닫는데 로딩시간이 너무 많이 걸린다").
    장치는 이 화면이 이미 쓰고 있는 것과 같다(위 .j3-idx-tap — 지수 그림 바꾸기).
    숨긴 확인칸을 label이 켜고 끈다. 주소(#)를 안 건드리므로 화면이 튀지 않고
-   뒤로가기 기록도 안 쌓인다. */
+   뒤로가기 기록도 안 쌓인다.
+   **확인칸·표·창을 한 묶음(.j3fh-swap) 안에 넣는다.** 따로 넣으면 안 눌린다
+   (2026-08-14 상하님 "버튼 안눌린다"). 지수 그림 바꾸기도 한 묶음이라 된다. */
 .j3fh-cb { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
 .j3fh-p { display: none; }
-.j3fh-cb:checked + .j3fh-p { display: block; animation: j3fh-drop .24s ease-out; }
+.j3fh-swap .j3fh-cb:checked ~ .j3fh-p {
+    display: block;
+    animation: j3fh-drop .24s ease-out;
+}
 /* 닫기 — 같은 확인칸을 다시 꺼서 창을 접는다. 표의 '설명'을 다시 눌러도 접힌다. */
 .j3fh-x {
     display: inline-block;
@@ -2625,45 +2631,40 @@ def _factor_help_body(name) -> str:
     return ""
 
 
-def _factor_help_chip(names, key: str) -> str:
-    """표 **제목 칸 「심사 항목」 옆**에 붙일 작은 '설명' (2026-08-14 상하님 지시).
+def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str:
+    """배점표 한 벌 — 표 + 제목 옆 '설명' + 총점 아래 설명 창을 **한 덩어리로** 만든다.
 
-    상하님 — "제목 심사항목 옆에 넣으라고."
-    항목마다 하나씩이 아니라 **표에 하나**다. 누르면 총점 아래에서 그 표의 항목
-    설명이 한꺼번에 열린다.
+    상하님 — "제목 심사항목 옆에 넣으라고." · "버튼 안눌린다."
 
-    **스트림릿 단추가 아니다.** 표 아래 숨겨 둔 확인칸을 켜고 끄는 label이라
-    눌러도 화면을 다시 그리지 않는다. 다시 누르면 접힌다.
-    """
-    if not any(_factor_help_body(name) for name in names or ()):
-        return ""
-    return f" <label class='j3fh-chip' for='{key}'>설명</label>"
+    **한 덩어리여야 눌린다.** 확인칸·'설명'·창을 st.markdown 세 번에 나눠 넣으면
+    스트림릿이 각각 다른 묶음에 그려서 브라우저가 서로를 못 찾는다. 이 화면의
+    지수 그림 바꾸기(.j3-idx-swap)도 한 묶음이라 눌린다 — 같은 짜임으로 맞췄다.
 
-
-def _factor_help_block(names, key: str) -> None:
-    """심사항목 설명 창 — **표 아래(총점 밑)**에 숨겨 두고, 표 안 '설명'을 누르면 연다.
-
-    표에 실제로 있는 항목만 만든다. 표에 없는 항목까지 두면 상하님이 없는 기준을
-    찾게 된다 — 0점이라 표에서 빠진 항목은 여기에도 안 나온다.
-
-    창을 여닫는 것은 **브라우저가 :target으로 혼자** 한다. 세션에 아무것도 남기지
-    않으므로 눌러도 화면을 다시 그리지 않는다.
+    설명이 있는 항목이 하나도 없으면 표만 돌려준다 — 열 것이 없는데 '설명'만
+    보이면 상하님이 없는 것을 찾으시게 된다.
     """
     picked = [(str(name), _factor_help_body(name)) for name in names or ()]
     picked = [(name, body) for name, body in picked if body]
+    chip = f"<label class='j3fh-chip' for='{key}'>설명</label>" if picked else ""
+    table = (
+        "<table class='j3-factor-table'><thead><tr>"
+        f"<th>심사 항목{chip}</th><th>획득(최대)</th></tr></thead>"
+        f"<tbody>{factor_rows}{total_row}</tbody></table>"
+    )
     if not picked:
-        return
+        return table
     items = "".join(
         f"<div class='j3fh-item'><div class='j3fh-name'>{html.escape(name)}</div>"
         f"<div class='j3fh-txt'>{body}</div></div>"
         for name, body in picked
     )
-    st.markdown(
+    return (
         _FACTOR_HELP_CSS
+        + "<div class='j3fh-swap'>"
         + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
+        + table
         + f"<div class='j3fh-p'>{items}"
-        + f"<label class='j3fh-x' for='{key}'>✕ 설명 닫기</label></div>",
-        unsafe_allow_html=True,
+        + f"<label class='j3fh-x' for='{key}'>✕ 설명 닫기</label></div></div>"
     )
 
 
@@ -3629,15 +3630,11 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         )
         # '설명'은 **제목 칸 「심사 항목」 옆**에 하나만 둔다(2026-08-14 상하님 지시).
         # 갈래마다 열쇠를 갈라 둔다 — 상승장 상세와 급락 상세가 서로를 덮어쓰지 않게.
-        _help_key = f"j3_factor_help_pullback_{mode}"
         st.markdown(
-            "<table class='j3-factor-table'><thead><tr>"
-            f"<th>심사 항목{_factor_help_chip(factor_names, _help_key)}</th>"
-            "<th>획득(최대)</th></tr></thead>"
-            f"<tbody>{factor_rows}{total_row}</tbody></table>",
+            _factor_table_html(factor_rows, total_row, factor_names,
+                               f"j3_factor_help_pullback_{mode}"),
             unsafe_allow_html=True,
         )
-        _factor_help_block(factor_names, _help_key)
         st.markdown(
             f"<div class='j3-reason-mustard'>{_mustard_html(review.get('stock_reason'))}</div>",
             unsafe_allow_html=True,
