@@ -200,6 +200,21 @@ st.markdown(
     .j3-down { color: #ff5b5b; }
     .j3-muted { color: #9aa0aa; }
     .j3-section-title { color: #4da6ff; font-size: 1.2rem; font-weight: 800; margin: 1rem 0 0.5rem; }
+    /* 제목 글자에 갈래 색 그라데이션 (2026-08-14 상하님 지시) —
+       "글을 보고 상승장의 종목선정인지 급락 후 반등장의 것인지 눈으로 구분하기
+       위한 것이야." 위 '종목 찾기' 두 단추와 **같은 색**을 쓴다(아래 4213줄).
+       다만 단추는 흰 글씨를 얹으려고 어두운 쪽에서 시작하는데, 글자에 그대로 쓰면
+       검은 바탕에 묻혀 안 보인다. 그래서 **단추의 밝은 쪽에서 시작해 더 밝게** 간다.
+       색만 다르고 짜임은 같아서 초록이면 상승장, 주황이면 급락으로 바로 읽힌다. */
+    .j3-title-breakout, .j3-title-crash {
+        display: inline-block;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+    }
+    .j3-title-breakout { background-image: linear-gradient(90deg, #18bf87 0%, #8ef7cd 100%); }
+    .j3-title-crash { background-image: linear-gradient(90deg, #e67813 0%, #ffd39a 100%); }
     .j3-factor-table { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; font-size: 0.95rem; }
     .j3-factor-table th { text-align: center; color: #4da6ff; font-weight: 800; padding: 0.45rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-factor-table td { color: #44f0a1; font-weight: 700; padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
@@ -3620,8 +3635,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
+        # 제목 글자 색으로 어느 갈래인지 알아본다(2026-08-14 상하님 지시) —
+        # 위 '종목 찾기' 단추와 같은 색이다. 초록이면 상승장, 주황이면 급락.
+        title_tone = ("j3-title-crash" if mode == "crash"
+                      else "j3-title-breakout" if mode == "breakout" else "")
         st.markdown(
-            "<div class='j3-section-title'>종목 선정 근거"
+            f"<div class='j3-section-title {title_tone}'>종목 선정 근거"
             + (" (급락 반등 전용 배점)" if mode == "crash"
                else " (신고가 눌림 전용 배점)" if mode == "breakout"
                else " (미국형 5개 항목)")

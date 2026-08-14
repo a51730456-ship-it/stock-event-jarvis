@@ -1180,14 +1180,29 @@ def find_pullback_stocks(
 
 
 def _universe_daily(reuse_only: bool):
-    """설명서 두 갈래가 함께 쓰는 대형주 묶음의 1년 일봉과 소속 테마."""
+    """설명서 두 갈래가 함께 쓰는 대형주 묶음의 **2년** 일봉과 소속 테마.
+
+    **1년치가 아니라 2년치를 받는 까닭은 빨라서다**(2026-08-14 상하님 지적 —
+    "상승장이나 급락 후 반등장이나 버튼 클릭하면 로딩 시간 너무 길다").
+
+    급락 갈래는 기준일 계산에 200종목 **2년치**를 따로 받는다
+    (find_crash_rebound_stocks의 ref_frames). `_download_cached`는 **기간이 정확히
+    같아야** 캐시를 쓰므로, 여기가 1년치를 받으면 두 갈래가 같은 자료를 두 번
+    받는다. 실측(2026-08-14 · 노트북) — 1년치 4.2초 + 2년치 4.7초 = **8.9초**.
+    여기를 2년으로 맞추면 **한 번(4.7초)**만 받고 나머지 단추는 캐시를 쓴다.
+
+    **값은 하나도 안 바뀐다.** `_series_metrics`는 전부 끝에서부터 잘라 쓰고
+    (high52는 tail(252), 이동평균은 tail(n), 60일 상승은 뒤에서 센다), 테마 근접도도
+    tail(252)다. 2026-08-14에 두 갈래를 1년치·2년치로 각각 돌려 **점수·등수·낙폭이
+    모두 같은 것을 확인**했다. 이 창을 다시 줄이면 로딩이 두 배로 돌아간다.
+    """
     memberships: dict[str, list[str]] = {}
     for theme in US_THEMES:
         for ticker in theme["stocks"]:
             memberships.setdefault(ticker, []).append(theme["name"])
     loader = _download_cache_only if reuse_only else _download_cached
     daily, meta = loader(
-        US_LARGE_CAP_UNIVERSE, period="1y", interval="1d", ttl_seconds=300
+        US_LARGE_CAP_UNIVERSE, period="2y", interval="1d", ttl_seconds=300
     )
     return daily, meta, memberships
 
