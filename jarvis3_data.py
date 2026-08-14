@@ -961,8 +961,11 @@ def get_theme_rankings() -> dict:
     all_tickers = list(dict.fromkeys(all_tickers))
     live_tickers = list(dict.fromkeys(live_tickers))
 
+    # 일봉은 **화면 전체가 함께 쓰는 한 명단**으로 받는다(_us_batch_tickers).
+    # 여기만 따로 받으면 상승장·급락이 같은 종목을 한 번 더 내려받는다(2026-08-14).
+    # all_tickers는 이 명단에 다 들어 있다 — 아래 계산은 그대로다.
     daily, daily_meta = _download_cached(
-        all_tickers, period="1y", interval="1d", ttl_seconds=300
+        _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=300
     )
     intraday, live_meta = _download_cached(
         live_tickers, period="1d", interval="1m", ttl_seconds=45, prepost=True
@@ -1179,6 +1182,50 @@ def find_pullback_stocks(
     }
 
 
+_US_BATCH: tuple[str, ...] | None = None
+
+
+def _us_batch_tickers() -> tuple[str, ...]:
+    """이 화면이 쓰는 **모든** 미국 종목을 한 명단으로 모은다 (2026-08-14).
+
+    상하님 지적 — "20개 테마 실시간 순위, 상승장, 급락 후 반등장 전부 로딩시간이
+    너무 길다."
+
+    **원인은 계산이 아니라 자료를 세 번 받는 것이었다.** `_download_cached`는
+    **명단과 기간이 정확히 맞아야** 캐시를 쓴다(정확히는, 받아 둔 명단이 요청을
+    **품고 있고 기간이 같아야** 한다). 그런데 세 곳이 서로 다른 명단·기간을 썼다.
+        테마 실시간 순위 — SPY + 테마 ETF 40 + 종목 137, **1년**
+        상승장·급락      — 대형주 200, **1년**(2026-08-14 오전에 2년으로 바꿈)
+        급락 기준일      — 대형주 200, **2년**
+    그래서 겹치는 종목이 많은데도 5~6초짜리 내려받기가 두세 번 돌았다.
+
+    이제 **한 명단(248개) · 2년**으로 통일한다. 어느 단추를 먼저 누르셔도 처음
+    한 번만 받고 나머지는 캐시를 쓴다.
+
+        실측(노트북 · 2026-08-14)   전                      후
+        테마 실시간 순위            5.72초                  5.94초 (첫 조회)
+        상승장                      5.58초                  0.37초
+        급락 후 반등장              0.72초                  0.40초
+        합계                        **12.0초**              **6.7초**
+
+    **값은 하나도 안 바뀐다.** 셋을 옛 명단·새 명단으로 각각 돌려 테마 20줄·상승장
+    9줄·급락 20줄이 **모두 같은 것을 확인**했다. `_series_metrics`가 전부 끝에서부터
+    잘라 쓰기 때문이다.
+
+    **QQQ를 빠뜨리면 급락 갈래가 조용히 달라진다** — 기준일을 못 찾아 낙폭 갈래가
+    바뀐다. 2026-08-14에 실제로 그렇게 나왔다. 명단을 손대면 셋을 다 다시 돌려
+    값이 같은지 확인할 것.
+    """
+    global _US_BATCH
+    if _US_BATCH is None:
+        names = ["SPY", CRASH_MARKET_SYMBOL, *MARKET_SYMBOLS]
+        for theme in US_THEMES:
+            names.extend((theme["etf"], theme["alt_etf"], *theme["stocks"]))
+        names.extend(US_LARGE_CAP_UNIVERSE)
+        _US_BATCH = tuple(dict.fromkeys(name for name in names if name))
+    return _US_BATCH
+
+
 def _universe_daily(reuse_only: bool):
     """설명서 두 갈래가 함께 쓰는 대형주 묶음의 **2년** 일봉과 소속 테마.
 
@@ -1201,8 +1248,10 @@ def _universe_daily(reuse_only: bool):
         for ticker in theme["stocks"]:
             memberships.setdefault(ticker, []).append(theme["name"])
     loader = _download_cache_only if reuse_only else _download_cached
+    # **한 명단으로 받는다**(_us_batch_tickers). 테마 ETF·SPY·QQQ가 같이 들어오지만
+    # 아래 두 갈래는 US_LARGE_CAP_UNIVERSE만 훑으므로 후보에 섞이지 않는다.
     daily, meta = loader(
-        US_LARGE_CAP_UNIVERSE, period="2y", interval="1d", ttl_seconds=300
+        _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=300
     )
     return daily, meta, memberships
 
@@ -2331,7 +2380,9 @@ def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int
         "base_win_rate": BREAKOUT_BASE_WIN_RATE,
         "base_median_return": BREAKOUT_BASE_MEDIAN,
         "universe_count": len(US_LARGE_CAP_UNIVERSE),
-        "data_count": len(daily),
+        # 받아 온 묶음에는 테마 ETF·SPY·QQQ도 들어 있다(_us_batch_tickers).
+        # 화면이 말하는 '일봉 확보'는 **대형주 명부**에 대한 것이므로 그것만 센다.
+        "data_count": sum(1 for t in US_LARGE_CAP_UNIVERSE if t in daily),
         "window_count": window_count,
         "result_limit": int(result_limit),
         "checked_at": meta.get("fetched_at"),
@@ -2512,8 +2563,10 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
     ref_date = reference.get("reference_date") if reference.get("armed") else None
     ref_frames = {}
     if ref_date:
+        # 위 _universe_daily와 **같은 명단·같은 기간**이라 캐시를 그대로 쓴다.
+        # 예전에는 여기만 2년치를 따로 받아 5초가 더 걸렸다(2026-08-14).
         ref_frames, _ref_meta = _download_cached(
-            tuple(US_LARGE_CAP_UNIVERSE), period="2y", interval="1d", ttl_seconds=600
+            _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=600
         )
 
     rows = []
@@ -2595,7 +2648,9 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
         "score_weak": crash_score_is_weak(market.get("drop_pct")),
         "reference": reference,
         "universe_count": len(US_LARGE_CAP_UNIVERSE),
-        "data_count": len(daily),
+        # 받아 온 묶음에는 테마 ETF·SPY·QQQ도 들어 있다(_us_batch_tickers).
+        # 화면이 말하는 '일봉 확보'는 **대형주 명부**에 대한 것이므로 그것만 센다.
+        "data_count": sum(1 for t in US_LARGE_CAP_UNIVERSE if t in daily),
         "result_limit": int(result_limit),
         "checked_at": meta.get("fetched_at"),
         "stale": bool(meta.get("stale")),
