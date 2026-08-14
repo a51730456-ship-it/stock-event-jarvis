@@ -206,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081340
+MODULE_REVISION = 2026081350
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -3278,10 +3278,43 @@ def get_intraday_chart(ticker: str) -> dict | None:
     고른 뒤에야 알 수 있어 그때 한 종목만 따로 불러온다.
     """
     ticker = str(ticker).strip().upper()
-    daily, _ = _download_cached((ticker,), period="1y", interval="1d", ttl_seconds=300)
+    # 일봉은 **화면이 이미 받아 둔 2년치 묶음**과 기간을 맞춘다(2026-08-14).
+    # 여기만 1년치를 부르면 명부에 든 종목인데도 한 번 더 내려받는다. 쓰는 값은
+    # 전날 종가 하나뿐이고 _series_metrics가 끝에서부터 잘라 쓰므로 값은 같다.
+    daily, _ = _download_cached((ticker,), period="2y", interval="1d", ttl_seconds=300)
     live, _ = _download_cached((ticker,), period="1d", interval="1m", ttl_seconds=45, prepost=True)
     metrics = _series_metrics(daily.get(ticker), live.get(ticker))
     return _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"))
+
+
+def prefetch_charts(tickers) -> None:
+    """여러 종목의 차트 자료를 **한 번에 묶어** 받아 둔다 (2026-08-14 상하님 지시).
+
+    지금까지는 종목마다 따로 받았다. 테마를 누르면 대장주 셋의 당일 차트와
+    일봉·주봉·월봉을 **여섯 번 줄 서서** 기다렸다 — 실측 4.5초인데 그중 CPU는
+    0.2초뿐이었다. 나머지는 전부 네트워크 기다림이다.
+
+    묶어 받으면 200종목을 5초에 받는 것과 같은 속도가 된다(한 종목당 0.025초).
+
+    **받아만 둔다.** 값을 만들지 않는다 — `get_chart_bundle`·`get_intraday_chart`가
+    같은 기간의 묶음을 캐시에서 찾아 그대로 쓴다(`_download_cached`의 superset
+    재사용). 그래서 이 함수를 안 불러도 화면은 예전과 똑같이 나오고, 느려질 뿐이다.
+
+    못 받아도 조용히 넘어간다. 실패하면 예전처럼 종목마다 따로 받는다.
+    """
+    unique = tuple(dict.fromkeys(
+        str(ticker).strip().upper() for ticker in (tickers or ()) if ticker))
+    if len(unique) < 2:
+        return          # 한 종목이면 묶을 것이 없다
+    for period, interval, ttl, prepost in (
+        ("max", "1d", 300, False),      # 일봉·주봉·월봉 (get_chart_bundle)
+        ("1d", "1m", 45, True),         # 당일 1분봉 (get_intraday_chart)
+    ):
+        try:
+            _download_cached(unique, period=period, interval=interval,
+                             ttl_seconds=ttl, prepost=prepost)
+        except Exception as exc:
+            _log.warning("chart prefetch failed (%s/%s): %s", period, interval, exc)
 
 
 

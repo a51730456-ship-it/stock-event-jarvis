@@ -555,8 +555,21 @@ st.markdown(
         min-height: 3rem !important;
         box-shadow: 0 2px 10px rgba(224,127,31,.25) !important;
     }
+    /* 「20개 테마 실시간 순위 보기」 — 위 두 단추와 **같은 크기**에 붉은색
+       그라데이션(2026-08-14 상하님 지시). 순위표를 닫아 두면 '종목 찾기' 바로
+       위에 이 단추가 나온다. 붉은색은 대장주 1~3위 비교와 같은 결이다. */
+    div[class*="st-key-open_j3_theme_rank"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(224,71,79,.25) !important;
+    }
+    div[class*="st-key-open_j3_theme_rank"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+    }
     div[class*="st-key-j3_pullback_breakout"] button p,
-    div[class*="st-key-j3_pullback_crash"] button p {
+    div[class*="st-key-j3_pullback_crash"] button p,
+    div[class*="st-key-open_j3_theme_rank"] button p {
         color: #ffffff !important;
         font-size: 1.02rem !important;
         font-weight: 800 !important;
@@ -970,7 +983,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081340
+_REQUIRED_J3_REVISION = 2026081350
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2966,6 +2979,12 @@ def _render_radar_tab(market: dict) -> None:
     if leader_result.get("stale"):
         st.warning("일부 종목은 마지막 정상 시세로 계산했습니다.")
     leaders = leader_result["rows"]
+    # 테마를 누르면 대장주 셋의 차트가 함께 열린다(_THEME_PANEL_OPEN_KEYS).
+    # 그 자료를 **한 번에 묶어** 미리 받아 둔다 — 종목마다 따로 받으면 여섯 번을
+    # 줄 서서 기다린다(2026-08-14 실측 4.5초, 그중 CPU는 0.2초뿐이었다).
+    # 값은 안 만든다. 받아 두기만 하면 아래 차트들이 캐시를 그대로 쓴다.
+    if any(st.session_state.get(key) for key in _THEME_PANEL_OPEN_KEYS):
+        j3data.prefetch_charts([row.get("ticker") for row in leaders[:3]])
     st.markdown(
         f"<div class='j3-section-title'><span class='j3-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
         unsafe_allow_html=True,
