@@ -2422,6 +2422,21 @@ def _render_stock_detail(
 
 
 
+# 테마 화면에서 **한 번에 같이 펴는 네 구역** (2026-08-14 상하님 지시).
+# 테마 이름을 눌러도, 표에서 종목을 눌러도, 아래 '상세 종목 선택'으로 골라도
+# 이 넷이 함께 열린다. 셋이 따로 놀면 어떤 길로 들어왔느냐에 따라 화면이 달라진다.
+# 「20개 테마 실시간 순위」 표를 열어 둘까(2026-08-14 상하님 지시). **기본은 열림.**
+# 여닫는 단추는 '종목 찾기' 바로 위에 있다(_render_pullback_finder 맨 앞).
+_THEME_RANK_OPEN = "j3_theme_rank_open"
+
+_THEME_PANEL_OPEN_KEYS = (
+    "j3_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
+    "j3_detail_open_theme",     # 🔎 선택종목 세부사항 보기
+    "j3_intraday_open_theme",   # 📈 당일 · 실시간 차트 보기
+    "j3_bundle_open_theme",     # 📊 일봉 · 주봉 · 월봉 보기
+)
+
+
 def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
     """눌러야 열리는 구역. 열려 있으면 닫는 단추를 보여준다(2026-07-30 사용자 지시).
 
@@ -2848,22 +2863,38 @@ def _render_radar_tab(market: dict) -> None:
     if ranking.get("stale"):
         st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
 
-    st.markdown("### 20개 테마 실시간 순위")
-    st.markdown(
-        "<div class='j3-theme-open-guide'>표에서 테마 이름을 클릭하면 "
-        "그 테마의 종목 1~6위 화면이 열립니다.</div>",
-        unsafe_allow_html=True,
-    )
     names = [row["name"] for row in ranking["rows"] if row.get("ok")]
-    clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
+    # 순위표는 접을 수 있다(2026-08-14 상하님 지시 — "종목 찾기 위에 테마 실시간
+    # 순위 창을 닫을 수 있는 버튼을 만들어라"). 표가 열 줄이라 아래 구역을 보려면
+    # 매번 한참 굴려야 했다. **여는 단추와 닫는 단추는 '종목 찾기' 바로 위**에 둔다
+    # (_render_pullback_finder 맨 앞). 기본값은 **열림** — 화면을 처음 여시면
+    # 예전처럼 표가 보여야 한다.
+    if not st.session_state.get(_THEME_RANK_OPEN, True):
+        clicked_theme = None
+    else:
+        st.markdown("### 20개 테마 실시간 순위")
+        st.markdown(
+            "<div class='j3-theme-open-guide'>표에서 테마 이름을 클릭하면 "
+            "그 테마의 종목 1~6위 화면이 열립니다.</div>",
+            unsafe_allow_html=True,
+        )
+        clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
+        st.caption(
+            f"테마 계산 시각: {ranking.get('checked_at') or '—'} · "
+            "ETF 상대강도와 구성종목 추세를 합산 · 미국 휴장일에는 마지막 거래일 자료"
+        )
     if clicked_theme in names:
         st.session_state["j3_theme_choice"] = clicked_theme
         st.session_state["j3_theme_choice_widget"] = clicked_theme
         st.session_state["j3_theme_panel_open"] = True
-    st.caption(
-        f"테마 계산 시각: {ranking.get('checked_at') or '—'} · ETF 상대강도와 구성종목 추세를 합산 · "
-        "미국 휴장일에는 마지막 거래일 자료"
-    )
+        # 테마 하나를 누르면 **아래 네 구역까지 한 번에 편다**(2026-08-14 상하님 지시 —
+        # "대장주 1~3위까지 자동 클릭되게, 선택종목 세부사항 보기까지, 당일 실시간
+        # 차트 보기·일봉·주봉·월봉 보기까지"). 그전에는 단추를 네 번 더 눌러야 했다.
+        # 종목은 안 고르셨으면 그 테마 **1위**가 열린다(아래 라디오의 첫 값).
+        # 표에서 종목을 누를 때(아래 clicked_ticker)와 **같은 열쇠 묶음**이다 —
+        # 하나를 고치면 둘 다 고쳐야 한다.
+        for opened in _THEME_PANEL_OPEN_KEYS:
+            st.session_state[opened] = True
     if st.session_state.get("j3_theme_choice_widget") not in names:
         preferred_theme = st.session_state.get("j3_theme_choice")
         st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
@@ -2952,8 +2983,7 @@ def _render_radar_tab(market: dict) -> None:
         # 같으면 이 블록을 건너뛰어, 첫 행(MPC 등)을 눌러도 아무 일도 일어나지 않았다.
         # 상세만 열고 차트는 안 열려서 단추를 또 눌러야 했다(2026-08-06 상하님 지시).
         # 상승장·급락·순위 7 표와 같이 당일 차트와 일봉·주봉·월봉까지 한 번에 편다.
-        for opened in ("j3_detail_open_theme", "j3_intraday_open_theme",
-                       "j3_bundle_open_theme", "j3_leadercmp_open"):
+        for opened in _THEME_PANEL_OPEN_KEYS:
             st.session_state[opened] = True
         scroll_to.request(st, "detail_theme")
         st.rerun()
@@ -2970,8 +3000,7 @@ def _render_radar_tab(market: dict) -> None:
 
         def _open_selected_theme_stock():
             # 아래 '상세 종목 선택'으로 골라도 표에서 누른 것과 똑같이 편다.
-            for opened in ("j3_detail_open_theme", "j3_intraday_open_theme",
-                           "j3_bundle_open_theme", "j3_leadercmp_open"):
+            for opened in _THEME_PANEL_OPEN_KEYS:
                 st.session_state[opened] = True
             scroll_to.request(st, "detail_theme")
 
@@ -4478,6 +4507,18 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 갈래가 둘(상승장·급락) 있고, 아래 순위 7은 또 다른 자다. 갈래마다 제 설명이
     # 이미 자기 안에 있다 — 상승장·급락은 '이 화면 설명 보기', 순위 7은 제목 아래
     # 문단이다. 맨 위 설명은 그 셋을 뭉뚱그려 오해를 만든다.
+    #
+    # **「20개 테마 실시간 순위」 여닫이는 여기, '종목 찾기' 바로 위에 둔다**
+    # (2026-08-14 상하님 지시). 순위표가 열 줄이라 이 구역까지 오려면 매번 한참
+    # 굴려야 했다. 상승장·급락 닫기 단추와 같은 장치(_section_close)를 쓴다.
+    if st.session_state.get(_THEME_RANK_OPEN, True):
+        _section_close(_THEME_RANK_OPEN, "20개 테마 실시간 순위 닫기")
+    else:
+        def _open_theme_rank():
+            st.session_state[_THEME_RANK_OPEN] = True
+
+        st.button("📊 20개 테마 실시간 순위 보기", key="open_j3_theme_rank",
+                  on_click=_open_theme_rank)
     st.markdown(
         "<div class='j3-section-title'>📉 종목 찾기</div>",
         unsafe_allow_html=True,

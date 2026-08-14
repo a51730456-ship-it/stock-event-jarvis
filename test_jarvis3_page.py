@@ -341,6 +341,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("j3-stock-name" in value for value in markdowns))
         # 테마 순위표·대장주 1–6위표 모두 HTML(가운데 정렬), 선택은 pills·radio.
         self.assertTrue(any("j3-theme-table" in value for value in markdowns))
+        # 순위표는 **'종목 찾기' 바로 위 단추로 접을 수 있다**(2026-08-14 상하님 지시).
+        # 기본은 열림이므로 닫는 단추가 있어야 한다.
+        self.assertIn("close_j3_theme_rank_open",
+                      {str(node.key or "") for node in app.button},
+                      "테마 순위표 닫기 단추가 없다")
         self.assertTrue(any("52주 고가 대비" in value for value in markdowns))
         self.assertTrue(any("테마 종목 1–6위" in str(node.value) for node in app.markdown))
         # 일봉·주봉·월봉은 눌러야 받아 온다(2026-07-30) — 여는 단추가 있어야 한다.
