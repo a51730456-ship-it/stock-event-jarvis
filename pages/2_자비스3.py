@@ -1003,7 +1003,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081410
+_REQUIRED_J3_REVISION = 2026081420
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1133,7 +1133,10 @@ def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=Fa
     )
 
 
-_STATUS_HEX = {"주도": "#44f0a1", "관찰": "#ff9d3b", "약함": "#9aa0aa"}
+# 2026-08-14에 이름표를 '주도·관찰'에서 '강함·보통'으로 바꿨다(앞날을 말하지
+# 않는 말로). **옛 이름도 남겨 둔다** — 저장해 둔 기록에는 옛 이름이 들어 있다.
+_STATUS_HEX = {"강함": "#44f0a1", "보통": "#ff9d3b", "약함": "#9aa0aa",
+               "주도": "#44f0a1", "관찰": "#ff9d3b"}
 
 
 def _fear_greed_color(score) -> str:
@@ -2242,7 +2245,8 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
 
 _MEDAL_BY_RANK = {1: "🥇", 2: "🥈", 3: "🥉"}
 # 상태 색은 20개 테마 순위표의 상태색과 같은 규칙(주도 초록·관찰 주황·약함 회색)을 쓴다.
-_STATE_COLOR_WORD = {"주도": "green", "관찰": "orange", "약함": "gray"}
+_STATE_COLOR_WORD = {"강함": "green", "보통": "orange", "약함": "gray",
+                     "주도": "green", "관찰": "orange"}
 
 
 def _stock_radio_label(item: dict) -> str:
@@ -3114,9 +3118,24 @@ def _render_radar_tab(market: dict) -> None:
             unsafe_allow_html=True,
         )
         clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
+        # **이 점수가 무엇인지 정직하게 적는다**(2026-08-14). 재 보니 점수가 높은
+        # 테마가 그 뒤에 더 오르지 않았다 — 평상시 1,708일에서 5일부터 1년까지
+        # 여섯 기간 모두 오차가 0을 걸쳤다(research/us_theme_rank_check.py).
+        # 그래서 배점 숫자는 그대로 두되(바꿀 근거가 없다) **화면이 앞날을 말하지
+        # 않게** 한다. 갈래별 배점(상승장·급락)이 앞날을 재는 자리다.
         st.caption(
             f"테마 계산 시각: {ranking.get('checked_at') or '—'} · "
-            "ETF 상대강도와 구성종목 추세를 합산 · 미국 휴장일에는 마지막 거래일 자료"
+            "구성종목이 20일선 위인 비율 40 · 최근 5일 오른 비율 30 · "
+            "최근 20일 오른 비율 20 · 덜 빠졌나 10으로 매깁니다"
+        )
+        st.markdown(
+            "<div class='j3-pull-guide'><b>이 점수는 오늘 그 테마가 어떤 "
+            "상태인지를 요약한 것입니다. <u>앞날을 맞히는 점수가 아닙니다.</u></b> "
+            "제가 10년치로 재 보니, 이 점수가 높은 테마가 그 뒤에 더 오르지는 "
+            "않았습니다(5일 뒤부터 1년 뒤까지 여섯 기간 모두).<br>"
+            "<b>앞날을 재는 자리는 아래 ‘종목 찾기’입니다</b> — 상승장과 급락 후 "
+            "반등장은 각자 따로 잰 배점을 씁니다.</div>",
+            unsafe_allow_html=True,
         )
     if clicked_theme in names:
         st.session_state["j3_theme_choice"] = clicked_theme

@@ -42,7 +42,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "research"))
 
-HOLDS = ((60, "3개월"), (120, "6개월"), (250, "1년"))
+# **짧은 앞날부터 본다**(2026-08-14). 이 순위표는 "지금 달아오르는 테마"를 재는
+# 자리다. 3개월~1년으로만 채점하면 그 자리가 하는 일과 다른 것을 재게 된다.
+HOLDS = ((5, "5일"), (10, "10일"), (20, "20일"),
+         (60, "3개월"), (120, "6개월"), (250, "1년"))
 MIN_MEMBERS = 3
 DRAWS = 2000
 
@@ -96,10 +99,14 @@ def main() -> None:
     def by_theme(table: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame({n: table[m].mean(axis=1) for n, m in themes.items()})
 
+    ret5 = (close / close.shift(5) - 1.0) * 100.0
+    ret20d = (close / close.shift(20) - 1.0) * 100.0
+    ret60d = (close / close.shift(60) - 1.0) * 100.0
     board = {
         "above20": by_theme(above20), "rose5": by_theme(rose5),
         "rose20": by_theme(rose20), "drop": by_theme(from_high),
-        "above150": by_theme(above150),
+        "above150": by_theme(above150), "ret5": by_theme(ret5),
+        "ret20": by_theme(ret20d), "ret60": by_theme(ret60d),
     }
     ret_board = {hold: by_theme(rets[hold]) for hold, _l in HOLDS}
 
@@ -116,6 +123,10 @@ def main() -> None:
         "  ④ 덜 빠졌나 (10점)": board["drop"],
         "  참고 · 30주선 위 비율": board["above150"],
         "  참고 · 많이 빠졌나(④의 반대)": -board["drop"],
+        # 지금 화면이 보여만 주고 점수엔 안 쓰는 값들 — 쓸 만한지 같이 본다.
+        "  후보 · 테마 5일 수익률": board["ret5"],
+        "  후보 · 테마 20일 수익률": board["ret20"],
+        "  후보 · 테마 60일 수익률": board["ret60"],
     }
 
     drawdown = (qqq / qqq.cummax() - 1.0) * 100.0

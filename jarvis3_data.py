@@ -206,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081410
+MODULE_REVISION = 2026081420
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1013,8 +1013,13 @@ def get_theme_rankings() -> dict:
             + _scale(less_drop, -30.0, -2.0, THEME_SCORE_WEIGHTS["less_drop"]),
             1,
         )
-        status = ("주도" if score >= THEME_STATUS_LEAD
-                  else "관찰" if score >= THEME_STATUS_WATCH else "약함")
+        # 이름표는 **지금 상태**를 말한다(2026-08-14에 '주도·관찰'에서 바꿨다).
+        # '주도'는 **앞으로 이끈다**는 뜻으로 읽히는데, 재 보니 그렇지 않다 —
+        # 이 점수가 높은 테마가 그 뒤에 더 오르지 않았다(평상시 1,708일 · 5일부터
+        # 1년까지 여섯 기간 모두 오차가 0을 걸쳤다. research/us_theme_rank_check.py).
+        # 값 자체는 그대로다. **앞날을 말하지 않는 말로만 바꿨다.**
+        status = ("강함" if score >= THEME_STATUS_LEAD
+                  else "보통" if score >= THEME_STATUS_WATCH else "약함")
         rows.append({
             "name": theme["name"],
             "etf": etf_used,
