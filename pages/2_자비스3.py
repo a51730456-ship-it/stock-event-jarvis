@@ -570,8 +570,12 @@ st.markdown(
     div[class*="st-key-close_j3_theme_rank_open"] button {
         background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
         border: none !important; border-radius: .5rem !important;
-        min-height: 3rem !important;
         box-shadow: 0 2px 10px rgba(224,71,79,.25) !important;
+    }
+    /* 크게 세우는 것은 **맨 위 단추만**이다(2026-08-14 상하님 지시 "크기는 예전
+       크기로 하고"). 아래 닫기 단추는 색만 같고 크기는 다른 닫기 단추들과 같다. */
+    div[class*="st-key-btn_j3_theme_rank_open"] button {
+        min-height: 3rem !important;
     }
     div[class*="st-key-btn_j3_theme_rank_open"] button:hover,
     div[class*="st-key-close_j3_theme_rank_open"] button:hover {
@@ -579,13 +583,18 @@ st.markdown(
     }
     div[class*="st-key-j3_pullback_breakout"] button p,
     div[class*="st-key-j3_pullback_crash"] button p,
-    div[class*="st-key-btn_j3_theme_rank_open"] button p,
-    div[class*="st-key-close_j3_theme_rank_open"] button p {
+    div[class*="st-key-btn_j3_theme_rank_open"] button p {
         color: #ffffff !important;
         font-size: 1.02rem !important;
         font-weight: 800 !important;
         letter-spacing: .01em !important;
         margin: 0 !important;
+    }
+    /* 아래 닫기 단추 글자는 **예전 크기 그대로**다 — 위 '테마 종목 화면 닫기'와 같다. */
+    div[class*="st-key-close_j3_theme_rank_open"] button p {
+        color: #ffffff !important;
+        font-size: .82rem !important;
+        font-weight: 850 !important;
     }
     /* 낙폭 두 갈래는 색으로 가른다(2026-08-01 사용자 지시) — 위 설명 카드와 표의
        같은 갈래가 같은 색이라, 카드를 보고 표에서 그 줄을 바로 찾을 수 있다.
