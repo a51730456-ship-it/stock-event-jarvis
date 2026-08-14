@@ -229,17 +229,27 @@ def fetch_prices(market: str, codes) -> dict:
 fetch_buy_opens = store.fetch_buy_opens
 
 
-def render(st, market: str, *, toggle) -> None:
+def render(st, market: str, *, toggle, header=None) -> None:
     """'저장된 목록 보기' 구역 전체.
 
     toggle : 페이지의 ``_section_toggle``을 그대로 받는다. 여닫는 방식이 그 화면의
              다른 구역과 같아야 해서 새로 만들지 않고 빌려 쓴다.
+    header : 이 구역 **맨 위**에 그릴 것이 있으면 넘긴다(2026-08-14 상하님 지시 —
+             "날짜별로 저장해 둔 목록 보기에 제일 위에 자동 저장된 게 나오도록").
+             미국은 매수 기록을, 한국은 아직 아무것도 안 넘긴다. 이 모듈은 시장을
+             가리지 않아야 하므로 **여기서 매수 기록을 직접 읽지 않는다** —
+             무엇을 그릴지는 화면 쪽이 정한다.
     """
     market = str(market).upper()
     st.markdown(CSS, unsafe_allow_html=True)
     if not toggle("📁 날짜별로 저장해 둔 목록 보기", open_key(market),
                   close_label="저장해 둔 목록 닫기"):
         return
+    if header is not None:
+        try:
+            header()
+        except Exception as exc:      # 맨 위 한 칸 때문에 목록 전체가 막히면 안 된다
+            st.caption(f"매수 기록을 읽지 못했습니다: {exc}")
 
     dates = store.available_dates(market)
     if not dates:

@@ -2731,6 +2731,130 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str
     )
 
 
+def _render_saved_trades_header() -> None:
+    """저장해 둔 목록 구역 **맨 위**에 내가 남긴 매수 기록을 보여준다.
+
+    2026-08-14 상하님 지시 — "날짜별로 저장해 둔 목록 보기에 제일 위에 자동 저장된
+    게 나오도록 해 줘."
+
+    **주문 기록이 아니다.** 상하님이 '지금 값으로 바로 저장'을 누르셨을 때 남는
+    줄이다(_save_trade_now). 최근 것이 위로 온다.
+    """
+    try:
+        records = j3store.list_trades(limit=10)
+    except Exception as exc:
+        st.caption(f"매수 기록을 읽지 못했습니다: {_safe_error_text(exc)}")
+        return
+    st.markdown(
+        f"<div class='pl-kind'>🧾 내가 저장한 매수 기록 · 최근 {len(records)}건</div>",
+        unsafe_allow_html=True,
+    )
+    if not records:
+        st.caption(
+            "아직 저장한 매수 기록이 없습니다. 종목 상세에서 "
+            "‘🧾 지금 값으로 바로 저장’을 누르시면 여기 맨 위에 쌓입니다."
+        )
+        return
+
+    def _money(value):
+        try:
+            return f"{float(value):,.2f}"
+        except (TypeError, ValueError):
+            return "—"
+
+    head = "".join(
+        f"<th>{name}</th>"
+        for name in ("매수일", "종목", "티커", "매수가", "매매유형", "상태", "테마")
+    )
+    body = "".join(
+        "<tr>"
+        f"<td>{html.escape(str(row.get('buy_date') or '—'))}</td>"
+        f"<td><span class='pl-name'>{html.escape(str(row.get('stock_name') or ''))}</span></td>"
+        f"<td>{html.escape(str(row.get('ticker') or ''))}</td>"
+        f"<td>{_money(row.get('buy_price'))}</td>"
+        f"<td>{html.escape(str(row.get('trade_style') or '—'))}</td>"
+        f"<td>{html.escape(str(row.get('status') or '—'))}</td>"
+        f"<td><span class='pl-theme'>{html.escape(str(row.get('theme_name') or '—'))}</span></td>"
+        "</tr>"
+        for row in records
+    )
+    st.markdown(
+        f"<div class='pl-wrap'><table class='pl-table'><thead><tr>{head}</tr></thead>"
+        f"<tbody>{body}</tbody></table></div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "이 표는 **상하님이 눌러 남기신 기록**입니다. 아래 날짜별 목록은 그날 화면에 "
+        "떠 있던 후보를 그대로 옮겨 둔 것이라 서로 다른 것입니다."
+    )
+
+
+def _trade_snapshot(theme_row: dict, leader: dict, market: dict) -> dict:
+    """저장할 때 함께 남기는 **그때의 시장·테마·종목 상태**.
+
+    한 곳에 모아 둔다 — 예전에는 폼 안에만 있어서, 다른 자리에서 저장하면 남기는
+    내용이 조용히 달라질 수 있었다.
+    """
+    metrics = leader.get("metrics") or {}
+    return {
+        "captured_at": theme_row.get("source_time") or market.get("checked_at"),
+        "market": {"regime": market.get("regime"), "score": market.get("score")},
+        "theme": {
+            "name": theme_row.get("name"), "etf": theme_row.get("etf"),
+            "score": theme_row.get("score"), "rank": theme_row.get("rank"),
+            "rs20": theme_row.get("rs20"), "breadth": theme_row.get("breadth"),
+        },
+        "stock": {
+            "ticker": leader.get("ticker"), "rank": leader.get("rank"),
+            "score": leader.get("score"), "current": metrics.get("current"),
+            "from_high_pct": metrics.get("from_high_pct"),
+            "ret20": metrics.get("ret20"), "atr_pct": metrics.get("atr_pct"),
+        },
+    }
+
+
+def _save_trade_now(theme_row: dict, leader: dict, market: dict) -> tuple[bool, str]:
+    """**지금 화면 값 그대로** 매수 기록 한 줄을 남긴다 (2026-08-14 상하님 지시).
+
+    상하님 — "실제 매수 기록 부분은 클릭하면 그 시점에 자동매수 한 걸로 저장되게."
+
+    **주문은 내지 않는다.** 이 앱은 증권사에 아무것도 보내지 않고 기록만 한다
+    (CLAUDE.md 2번 — 자동매매·주문 API 금지). '자동매수'는 **그때 값으로 샀다고
+    치고 적어 둔다**는 뜻이다.
+
+    값은 지금 보고 계신 화면 그대로다 — 매수가는 현재가, 매수일은 오늘, 수량은
+    비워 둔다. 실제 체결가가 다르면 아래 '값을 직접 적어 저장'에서 고쳐 적으시면 된다.
+    """
+    metrics, plan = leader.get("metrics") or {}, leader.get("plan") or {}
+    price = metrics.get("current")
+    if not price:
+        return False, "지금 값을 못 읽어 저장하지 못했습니다. 잠시 뒤 다시 눌러 주십시오."
+    buy_date = date.today()
+    try:
+        j3store.save_trade(
+            ticker=leader["ticker"],
+            stock_name=leader.get("name") or leader["ticker"],
+            theme_name=theme_row.get("name") or "",
+            buy_date=buy_date,
+            buy_price=float(price),
+            quantity=None,
+            trade_style="스윙",
+            entry_setup=plan.get("state"),
+            recommendation_state=plan.get("recommendation"),
+            market_regime=market.get("regime"),
+            market_score=market.get("score"),
+            theme_score=theme_row.get("score"),
+            stock_score=leader.get("score"),
+            entry_plan=plan,
+            snapshot=_trade_snapshot(theme_row, leader, market),
+            memo="화면에서 바로 저장(그때 값 그대로)",
+        )
+    except Exception as exc:
+        return False, f"매수 기록 저장 실패: {_safe_error_text(exc)}"
+    return True, (f"{leader.get('name') or leader['ticker']} · {buy_date.isoformat()} · "
+                  f"${float(price):,.2f} 매수 기록을 저장했습니다.")
+
+
 def _render_buy_form(
     theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
     *, panel: str = "theme",
@@ -2746,6 +2870,25 @@ def _render_buy_form(
         close_label="매수기록 닫기",
     ):
         return
+
+    # **한 번 눌러 바로 저장**(2026-08-14 상하님 지시). 매수가는 지금 값, 매수일은
+    # 오늘이다. 아래 자세한 폼은 그대로 뒀다 — 실제 체결가가 화면 값과 다를 때
+    # 고쳐 적으실 자리다. **주문은 내지 않는다**(_save_trade_now 설명 참고).
+    quick_msg_key = f"j3_quick_buy_msg_{panel}"
+
+    def _quick_save():
+        st.session_state[quick_msg_key] = _save_trade_now(theme_row, leader, market)
+
+    price_now = (leader.get("metrics") or {}).get("current")
+    st.button(
+        f"🧾 지금 값으로 바로 저장 — {leader.get('name') or ticker}"
+        + (f" ${float(price_now):,.2f}" if price_now else "")
+        + f" · {date.today().isoformat()}",
+        key=f"j3_quick_buy_{panel}", on_click=_quick_save,
+    )
+    quick_msg = st.session_state.pop(quick_msg_key, None)
+    if quick_msg:
+        (st.success if quick_msg[0] else st.error)(quick_msg[1])
 
     # 상세 종목 선택(복제)은 네모칸 밖, '실제 매수 기록' 제목 위에 둔다
     # (2026-07-22 사용자 지시). 여기서 골라도 위 상세 전체가 같이 바뀐다.
@@ -2840,20 +2983,7 @@ def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict,
         if not confirmed:
             st.error("실제 체결 확인을 체크해야 저장할 수 있습니다.")
             return
-        snapshot = {
-            "captured_at": theme_row.get("source_time") or market.get("checked_at"),
-            "market": {"regime": market.get("regime"), "score": market.get("score")},
-            "theme": {
-                "name": theme_row.get("name"), "etf": theme_row.get("etf"),
-                "score": theme_row.get("score"), "rank": theme_row.get("rank"),
-                "rs20": theme_row.get("rs20"), "breadth": theme_row.get("breadth"),
-            },
-            "stock": {
-                "ticker": ticker, "rank": leader.get("rank"), "score": leader.get("score"),
-                "current": metrics.get("current"), "from_high_pct": metrics.get("from_high_pct"),
-                "ret20": metrics.get("ret20"), "atr_pct": metrics.get("atr_pct"),
-            },
-        }
+        snapshot = _trade_snapshot(theme_row, leader, market)
         try:
             j3store.save_trade(
                 ticker=ticker,
@@ -2959,7 +3089,8 @@ def _render_radar_tab(market: dict) -> None:
         if not guest_mode:
             _render_top7_section(market, ranking)
         _render_my_stock_panel(market)
-        picklist_ui.render(st, "US", toggle=_section_toggle)
+        picklist_ui.render(st, "US", toggle=_section_toggle,
+                           header=_render_saved_trades_header)
         return
 
     def _close_theme_panel_top():
@@ -3083,7 +3214,8 @@ def _render_radar_tab(market: dict) -> None:
     _render_my_stock_panel(market)
     # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
     # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
-    picklist_ui.render(st, "US", toggle=_section_toggle)
+    picklist_ui.render(st, "US", toggle=_section_toggle,
+                       header=_render_saved_trades_header)
 
 
 @st.fragment

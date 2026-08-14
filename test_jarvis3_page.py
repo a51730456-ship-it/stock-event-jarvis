@@ -212,6 +212,8 @@ def _open_all_details(app):
     # 20개 테마 순위표는 2026-08-14부터 **기본이 닫힘**이다(상하님 지시). 표를 보는
     # 시험들은 열어 둔 상태로 그린다. 닫힌 상태는 test_theme_rank_starts_closed가 본다.
     app.session_state["j3_theme_rank_open"] = True
+    # 저장해 둔 목록 구역도 펴 둔다 — 그 맨 위에 매수 기록이 나오는지 본다(2026-08-14).
+    app.session_state["picklist_archive_open_US"] = True
     return app
 
 
@@ -363,6 +365,14 @@ class Jarvis3PageTests(unittest.TestCase):
         rank_keys = {str(node.key or "") for node in app.button}
         self.assertIn("btn_j3_theme_rank_open", rank_keys, "맨 위 순위표 단추가 없다")
         self.assertIn("close_j3_theme_rank_open", rank_keys, "순위표 닫기 단추가 없다")
+        # **한 번 눌러 저장**하는 단추가 있어야 한다(2026-08-14 상하님 지시 —
+        # "클릭하면 그 시점에 자동매수 한 걸로 저장되게"). 주문은 안 낸다.
+        self.assertTrue(
+            [node for node in app.button if str(node.key or "").startswith("j3_quick_buy_")],
+            "지금 값으로 바로 저장 단추가 없다")
+        # 저장해 둔 목록 **맨 위**에 매수 기록 자리가 있어야 한다(같은 지시).
+        self.assertTrue(any("내가 저장한 매수 기록" in value for value in markdowns),
+                        "저장해 둔 목록 맨 위에 매수 기록이 없다")
         # 단추 밑에 **오늘 1~5위 한 줄**이 있어야 한다(2026-08-14 상하님 지시).
         # (CSS 묶음에도 이름이 나오므로 **실제로 그린 줄**만 고른다.)
         top5 = next((value for value in markdowns
