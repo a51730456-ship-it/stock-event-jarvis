@@ -2570,16 +2570,64 @@ _FACTOR_HELP_CSS = """
     display: block;
     animation: j3fh-drop .24s ease-out;
 }
-/* 닫기 — 같은 확인칸을 다시 꺼서 창을 접는다. 표의 '설명'을 다시 눌러도 접힌다. */
+/* ── 태블릿·스마트폰에서는 **화면 아래에서 위로 올라오며** 열린다 ─────────────
+   2026-08-14 상하님 지시 — "테블릿과 스마트폰에서 설명을 클릭하면 화면 위로
+   가면서 설명창이 열리도록 해 줘."
+   좁은 화면에서는 표 아래에 열어 봐야 화면 밖이라 손으로 굴려 내려야 했다.
+   자바스크립트로 굴리려면 스트림릿이 그 코드를 지우므로, **창을 화면에 띄우는**
+   쪽으로 푼다 — 누르는 즉시 눈앞에 있고, 굴릴 것이 없다.
+   경계 1200px은 이 앱의 다른 태블릿 규칙과 같은 값이다(method_help.py).
+   폰 전용이 아니라 태블릿까지 걸리는 규칙이라 mobile_ui.py가 아니라 여기 둔다
+   (CLAUDE.md 12번은 '폰 전용' 규칙에 대한 것이다). */
+@media (max-width: 1200px) {
+    @keyframes j3fh-up {
+        from { transform: translateY(100%); opacity: .4; }
+        to   { transform: translateY(0); opacity: 1; }
+    }
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        z-index: 1000;
+        margin: 0;
+        padding: .85rem .9rem .6rem;
+        max-height: 78vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        background: #12161f;
+        border-top: 3px solid #6ee7b7;
+        border-radius: 14px 14px 0 0;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, .6);
+        animation: j3fh-up .26s ease-out;
+    }
+    /* 창 안에서는 왼쪽 초록 띠를 뺀다 — 창 위쪽 띠가 이미 그 몫을 한다. */
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-item { border-left: none; }
+    /* 닫기 단추는 손가락으로 누르기 쉽게 넓게, **창 바닥에 붙여 둔다** —
+       글이 길어 창 안을 굴려야 하는데, 안 붙여 두면 닫으려고 끝까지 내려야 한다
+       (2026-08-14 실측: 375px에서 닫기가 화면 밖이었다). */
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-x {
+        display: block; text-align: center; margin: .6rem 0 0; padding: .5rem;
+        position: sticky; bottom: 0;
+    }
+}
+/* 닫기 — 같은 확인칸을 다시 꺼서 창을 접는다. 표의 '설명'을 다시 눌러도 접힌다.
+   **색은 그 파트의 갈래 색**이다(2026-08-14 상하님 지시 — "각 파트별 제목처럼
+   그라데이션 색깔을 넣고, 즉 상승장·급락 후 반등장 등 버튼의 그라데이션 색깔").
+   **크기는 그대로 둔다**(상하님 "크기는 그대로 하고").
+   아래 여백은 다음 칸과 붙어 보이지 않게 한 줄 띄운 것이다(같은 지시). */
 .j3fh-x {
     display: inline-block;
-    margin-top: .55rem;
-    color: #9aa4b2;
+    margin: .55rem 0 1.5rem;
+    padding: .18rem .7rem;
+    border-radius: .4rem;
+    color: #ffffff;
     font-size: .85rem;
-    font-weight: 700;
+    font-weight: 800;
     cursor: pointer;
+    background: linear-gradient(90deg, #3a3f4a 0%, #565d6b 38%, #8b94a5 100%);
 }
-.j3fh-x:hover { color: #e6e6e6; }
+.j3fh-x-breakout { background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%); }
+.j3fh-x-crash { background: linear-gradient(90deg, #4a2408 0%, #7a3c0d 38%, #e07f1f 100%); }
+.j3fh-x:hover { filter: brightness(1.12); }
 .j3fh-item {
     border-left: 3px solid #6ee7b7;
     background: rgba(110, 231, 183, .06);
@@ -2708,6 +2756,11 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str
     """
     picked = [(str(name), _factor_help_body(name)) for name in names or ()]
     picked = [(name, body) for name, body in picked if body]
+    # 닫기 단추 색은 **그 파트의 갈래 색**이다(2026-08-14 상하님 지시). 갈래는 열쇠
+    # 이름으로 안다 — j3_factor_help_pullback_breakout / …_crash. 테마 실시간·순위 7은
+    # 갈래가 아니라 회색 그대로다(초록=상승장, 주황=급락이라는 약속이 흐려진다).
+    close_tone = ("j3fh-x-breakout" if str(key).endswith("_breakout")
+                  else "j3fh-x-crash" if str(key).endswith("_crash") else "")
     chip = f"<label class='j3fh-chip' for='{key}'>설명</label>" if picked else ""
     table = (
         "<table class='j3-factor-table'><thead><tr>"
@@ -2727,7 +2780,7 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str
         + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
         + table
         + f"<div class='j3fh-p'>{items}"
-        + f"<label class='j3fh-x' for='{key}'>✕ 설명 닫기</label></div></div>"
+        + f"<label class='j3fh-x {close_tone}' for='{key}'>✕ 설명 닫기</label></div></div>"
     )
 
 
