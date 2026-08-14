@@ -3381,7 +3381,10 @@ def analyze_one_stock(ticker: str, *, market_score: float = 0,
 
 def get_live_quote(ticker: str) -> dict:
     ticker = str(ticker).strip().upper()
-    daily, daily_meta = _download_cached((ticker,), period="1y", interval="1d", ttl_seconds=300)
+    # 일봉은 **화면이 이미 받아 둔 2년치 묶음**과 기간을 맞춘다(2026-08-15).
+    # 여기만 1년치를 부르면 명부에 든 종목인데도 한 번 더 내려받는다.
+    # _series_metrics는 전부 끝에서부터 잘라 쓰므로 값은 같다.
+    daily, daily_meta = _download_cached((ticker,), period="2y", interval="1d", ttl_seconds=300)
     live, live_meta = _download_cached((ticker,), period="1d", interval="1m", ttl_seconds=45, prepost=True)
     metrics = _series_metrics(daily.get(ticker), live.get(ticker))
     if not metrics.get("ok"):

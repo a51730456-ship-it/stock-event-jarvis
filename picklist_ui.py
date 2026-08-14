@@ -203,6 +203,16 @@ def fetch_prices(market: str, codes) -> dict:
         return {}
     if str(market).upper() == "US":
         import jarvis3_data as data
+        # **한 번에 묶어 받아 둔다**(2026-08-15). 하나씩 부르면 41종목에 **25초**가
+        # 걸렸다(실측). 묶어 받으면 `get_live_quote`가 같은 기간을 캐시에서 찾아
+        # 그대로 쓰므로 한 번에 끝난다. 못 받아도 예전처럼 하나씩 받는다.
+        try:
+            batch = tuple(codes)
+            data._download_cached(batch, period="2y", interval="1d", ttl_seconds=300)
+            data._download_cached(batch, period="1d", interval="1m",
+                                  ttl_seconds=45, prepost=True)
+        except Exception:
+            pass
     else:
         import jarvis4_data as data
 
@@ -291,8 +301,6 @@ def render(st, market: str, *, toggle, header=None) -> None:
     #   ② 한 판에 **딱 한 번만** 시도한다. 다음 거래일이 아직 안 열린 날은 받아도
     #      빈칸이라, 안 그러면 화면을 그릴 때마다 헛되이 받아 온다.
     #
-    # **지금 값·수익·손실은 그대로 단추다.** 그건 1분마다 바뀌는 값이라 화면을 그릴
-    # 때마다 받으면 이 구역을 여는 데만 몇 초가 걸린다(2026-08-09에 그래서 단추로 뺐다).
     auto_key = f"picklist_open_tried_{market}_{picked}"
     if not st.session_state.get(auto_key) and any(
             store._num(row.get("buy_open")) is None for row in rows):
@@ -309,10 +317,28 @@ def render(st, market: str, *, toggle, header=None) -> None:
                 except Exception:
                     pass                        # 못 적어도 화면 숫자는 그대로 나온다
 
-    # 지금 값은 눌러야 받아 온다(위 설명).
+    # ── 지금 값·수익·손실도 **단추 없이 자동으로** 채운다 ──────────────────────
+    # 2026-08-15 상하님 지적 — "날 지나면 수익 손실이 없냐?"
+    #
+    # 2026-08-09에는 이것을 단추로 뺐다. 종목마다 따로 받느라 41종목에 **25초**가
+    # 걸렸기 때문이다. 2026-08-15에 **묶어 받게 고쳐 3.5초**가 됐다(실측).
+    # 그래서 자동으로 되돌린다.
+    #
+    # **한 판에 한 번만** 받는다 — 지금 값은 1분마다 바뀌지만, 화면을 그릴 때마다
+    # 받으면 다른 단추를 누를 때마다 다시 기다리게 된다. 새로 받고 싶으시면 아래
+    # '다시 받기' 단추를 누르시면 된다.
     cache_key = f"picklist_prices_{market}_{picked}"
     fetched_at_key = f"{cache_key}_at"
-    if st.button("💰 지금 값으로 수익·손실 계산", key=f"picklist_calc_{market}"):
+    if cache_key not in st.session_state:
+        count = len({row.get("code") for row in rows})
+        with st.spinner(f"{picked} 목록 {count}종목의 지금 값을 받는 중입니다…"):
+            try:
+                st.session_state[cache_key] = fetch_prices(
+                    market, [row.get("code") for row in rows])
+            except Exception:
+                st.session_state[cache_key] = {}
+        st.session_state[fetched_at_key] = datetime.now(_SEOUL).strftime("%H:%M")
+    if st.button("🔄 지금 값 다시 받기", key=f"picklist_calc_{market}"):
         count = len({row.get("code") for row in rows})
         with st.spinner(f"{picked} 목록 {count}종목의 지금 값을 받는 중입니다…"):
             # ① 자동으로 못 채운 줄이 남아 있으면 여기서 한 번 더 찾아본다.
@@ -336,15 +362,16 @@ def render(st, market: str, *, toggle, header=None) -> None:
     fetched_at = st.session_state.get(fetched_at_key)
     tried = bool(fetched_at)
     filled = sum(1 for row in rows if store._num(row.get("buy_open")) is not None)
-    # **매수금액은 자동, 지금 값·수익·손실만 단추**다(2026-08-14 상하님 지시).
-    # 어느 쪽이 왜 비었는지 여기서 분명히 적는다.
+    # **매수금액도 지금 값도 자동이다**(2026-08-14·15 상하님 지시). 여기서는 어느
+    # 쪽이 왜 비었는지만 밝힌다.
     if filled:
         head = f"  \n**매수금액(다음 거래일 시가) {filled}줄이 채워져 있습니다.**"
     else:
         head = ("  \n**매수금액은 아직 없습니다** — 다음 거래일이 열려야 그날 시가가 "
                 "생깁니다. 열리면 이 화면을 여실 때 저절로 채워집니다.")
-    tail = (f" 지금 값은 {fetched_at} 기준({len(prices)}종목)입니다." if tried
-            else " 수익·손실은 위 **‘지금 값으로 수익·손실 계산’** 단추를 누르면 나옵니다.")
+    tail = (f" 지금 값은 **{fetched_at} 기준**({len(prices)}종목)입니다 — "
+            "다시 받으시려면 위 **‘🔄 지금 값 다시 받기’**를 누르십시오."
+            if tried else " 지금 값을 못 받았습니다.")
     st.caption(f"{picked} · {store.summarize(rows)}" + head + tail)
 
     excel = store.to_excel_bytes(rows)
@@ -361,6 +388,41 @@ def render(st, market: str, *, toggle, header=None) -> None:
         file_name=f"목록_{market}_{picked}.csv", mime="text/csv",
         key=f"picklist_csv_{market}", width="stretch",
     )
+
+    # ── **저장해 둔 날을 한꺼번에** 받는다 (2026-08-15 상하님 지시) ──────────────
+    # 상하님 — "나중에 엑셀로 한꺼번에 받아서 정리해서 볼 수 있는 데이터 형식으로
+    # 하려면…" 날짜마다 따로 받으면 상하님이 엑셀에서 손으로 이어 붙이셔야 한다.
+    # 줄마다 **매수일 칸**이 이미 있으므로, 그대로 이어 붙이면 날짜별로 걸러 보실 수
+    # 있다. 지금 값·수익·손실은 **그날 화면에서 채운 것만** 들어간다 — 여기서 새로
+    # 받지 않는다(날마다 40종목씩 받으면 이 구역을 여는 데만 몇 분이 걸린다).
+    every = []
+    for day in dates:
+        try:
+            every.extend(store.load_rows(day, market) or [])
+        except Exception:
+            continue
+    if len(dates) > 1 and every:
+        st.markdown(
+            f"<div class='pl-note'><b>{len(dates)}일치 {len(every):,}줄을 한 파일로</b> "
+            "받으실 수 있습니다. 줄마다 <b>매수일</b> 칸이 있어 엑셀에서 날짜별로 "
+            "걸러 보실 수 있습니다.</div>",
+            unsafe_allow_html=True,
+        )
+        all_columns = st.columns(2)
+        all_excel = store.to_excel_bytes(every)
+        if all_excel:
+            all_columns[0].download_button(
+                f"⬇ 저장해 둔 {len(dates)}일치 전부 (.xlsx)", data=all_excel,
+                file_name=f"목록_{market}_전체_{dates[-1]}~{dates[0]}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"picklist_xlsx_all_{market}", width="stretch",
+            )
+        all_columns[1].download_button(
+            f"⬇ 저장해 둔 {len(dates)}일치 전부 (CSV)", data=store.to_csv_bytes(every),
+            file_name=f"목록_{market}_전체_{dates[-1]}~{dates[0]}.csv", mime="text/csv",
+            key=f"picklist_csv_all_{market}", width="stretch",
+        )
+
 
     for kind in store.KIND_ORDER:
         part = [row for row in rows if str(row.get("list_kind")) == kind]
