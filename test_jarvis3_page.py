@@ -209,6 +209,9 @@ def _open_all_details(app):
         app.session_state[f"j3_detail_open_{panel}"] = True
         app.session_state[f"j3_buyform_open_{panel}"] = True
     app.session_state["j3_theme_panel_open"] = True
+    # 20개 테마 순위표는 2026-08-14부터 **기본이 닫힘**이다(상하님 지시). 표를 보는
+    # 시험들은 열어 둔 상태로 그린다. 닫힌 상태는 test_theme_rank_starts_closed가 본다.
+    app.session_state["j3_theme_rank_open"] = True
     return app
 
 
@@ -277,6 +280,20 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertFalse([
                 node for node in app.button if str(node.key or "").startswith("j3lbtn_")
             ])
+            # **순위표는 처음에 닫혀 있다**(2026-08-14 상하님 지시 — "화면 처음 열릴 때
+            # 순위가 열려 있게 하지 말고 닫아라. 그거 클릭해야 열리지").
+            # 표가 안 그려지므로 테마 단추도 아직 없다. 대신 오늘 1~5위 한 줄은 보인다.
+            self.assertFalse([
+                node for node in app.button if str(node.key or "").startswith("j3tbtn_")
+            ], "순위표가 처음부터 열려 있다")
+            rank_button = next(
+                node for node in app.button
+                if str(node.key or "") == "btn_j3_theme_rank_open"
+            )
+            self.assertIn("열기", str(rank_button.label))
+            self.assertTrue(any("class='j3-theme-top5'" in str(node.value)
+                                for node in app.markdown), "오늘 1~5위 한 줄이 없다")
+            rank_button.click().run(timeout=60)
 
             theme_button = next(
                 node for node in app.button if str(node.key or "") == "j3tbtn_00"
@@ -346,6 +363,12 @@ class Jarvis3PageTests(unittest.TestCase):
         rank_keys = {str(node.key or "") for node in app.button}
         self.assertIn("btn_j3_theme_rank_open", rank_keys, "맨 위 순위표 단추가 없다")
         self.assertIn("close_j3_theme_rank_open", rank_keys, "순위표 닫기 단추가 없다")
+        # 단추 밑에 **오늘 1~5위 한 줄**이 있어야 한다(2026-08-14 상하님 지시).
+        # (CSS 묶음에도 이름이 나오므로 **실제로 그린 줄**만 고른다.)
+        top5 = next((value for value in markdowns
+                     if "class='j3-theme-top5'" in value), "")
+        self.assertIn("오늘 테마 종목 순위는", top5)
+        self.assertIn("순입니다", top5)
         self.assertTrue(any("52주 고가 대비" in value for value in markdowns))
         self.assertTrue(any("테마 종목 1–6위" in str(node.value) for node in app.markdown))
         # 일봉·주봉·월봉은 눌러야 받아 온다(2026-07-30) — 여는 단추가 있어야 한다.

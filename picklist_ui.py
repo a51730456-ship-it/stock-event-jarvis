@@ -128,11 +128,15 @@ def _cell(row: dict, field: str, tried: bool = False) -> str:
         days = row.get("days_since")
         if days == 0:
             return "<span class='pl-sameday'>아직 안 삼</span>"
-        if row.get("now_price") in (None, "") and field == "profit_pct":
-            return "—"
-        if not tried:
-            return "<span class='pl-sameday'>단추 누르면 나옴</span>"
-        return "<span class='pl-sameday'>다음 장 아직</span>"
+        if field == "buy_open":
+            # 매수금액은 **자동으로 받아 본 뒤**다(2026-08-14). 그래도 비었으면
+            # 다음 거래일이 아직 안 열린 것이다 — 세상에 그 시가가 없다.
+            return "<span class='pl-sameday'>다음 장 아직</span>"
+        if row.get("now_price") in (None, ""):
+            # 수익·손실만 아직 단추 몫이다.
+            return ("—" if tried
+                    else "<span class='pl-sameday'>단추 누르면 나옴</span>")
+        return "<span class='pl-sameday'>못 받음</span>"
     if value in (None, ""):
         return "—"
     if field in ("from_high_pct", "judged_from_high_pct"):
@@ -267,15 +271,42 @@ def render(st, market: str, *, toggle) -> None:
         st.warning(f"{picked} 자료를 읽지 못했습니다.")
         return
 
-    # 눌러야 받아 온다 — 목록 한 판이 마흔 종목이라 화면을 그릴 때마다 받아 오면
-    # 이 구역을 여는 데만 몇 초가 걸린다(2026-08-09).
+    # ── 매수금액(다음 거래일 시가)은 **단추 없이 자동으로** 채운다 ──────────────
+    # 2026-08-14 상하님 지시 — "매수금액이 다음날 시가 자동으로 기입되게 하라고.
+    # 단추 안 눌러도 자동 기입되어야지."
+    #
+    # 이래도 느려지지 않는 까닭이 둘이다.
+    #   ① **과거의 시가는 고정된 사실**이라 한 번 파일에 적히면 다시 안 받는다.
+    #      이미 다 채워진 날(08-11·08-12)은 여기서 아무것도 안 한다.
+    #   ② 한 판에 **딱 한 번만** 시도한다. 다음 거래일이 아직 안 열린 날은 받아도
+    #      빈칸이라, 안 그러면 화면을 그릴 때마다 헛되이 받아 온다.
+    #
+    # **지금 값·수익·손실은 그대로 단추다.** 그건 1분마다 바뀌는 값이라 화면을 그릴
+    # 때마다 받으면 이 구역을 여는 데만 몇 초가 걸린다(2026-08-09에 그래서 단추로 뺐다).
+    auto_key = f"picklist_open_tried_{market}_{picked}"
+    if not st.session_state.get(auto_key) and any(
+            store._num(row.get("buy_open")) is None for row in rows):
+        st.session_state[auto_key] = True
+        with st.spinner(f"{picked} 목록의 매수금액(다음 거래일 시가)을 채우는 중입니다…"):
+            try:
+                opens = fetch_buy_opens(market, rows)
+            except Exception as exc:            # 못 받아도 목록은 그대로 보여준다
+                opens, _ = {}, exc
+            if opens:
+                rows = store.set_buy_opens(rows, opens)
+                try:
+                    store.save_rows(rows, trade_date=picked, market=market)
+                except Exception:
+                    pass                        # 못 적어도 화면 숫자는 그대로 나온다
+
+    # 지금 값은 눌러야 받아 온다(위 설명).
     cache_key = f"picklist_prices_{market}_{picked}"
     fetched_at_key = f"{cache_key}_at"
     if st.button("💰 지금 값으로 수익·손실 계산", key=f"picklist_calc_{market}"):
         count = len({row.get("code") for row in rows})
-        with st.spinner(f"{picked} 목록 {count}종목의 매수 시가와 지금 값을 받는 중입니다…"):
-            # ① 아직 안 채운 줄의 **다음 거래일 시가**를 찾아 파일에 적어 둔다.
-            #    한 번 적히면 다시는 안 바뀐다 — 과거의 시가는 고정된 사실이다.
+        with st.spinner(f"{picked} 목록 {count}종목의 지금 값을 받는 중입니다…"):
+            # ① 자동으로 못 채운 줄이 남아 있으면 여기서 한 번 더 찾아본다.
+            #    (다음 거래일이 그사이에 열렸을 수 있다.)
             opens = fetch_buy_opens(market, rows)
             if opens:
                 rows = store.set_buy_opens(rows, opens)
@@ -295,18 +326,16 @@ def render(st, market: str, *, toggle) -> None:
     fetched_at = st.session_state.get(fetched_at_key)
     tried = bool(fetched_at)
     filled = sum(1 for row in rows if store._num(row.get("buy_open")) is not None)
-    # **목록 저장과 값 채우기는 다른 일이다**(2026-08-14 상하님 — "왜 며칠 전부터
-    # 저장이 안 되냐?"). 목록은 그날 그대로 저장돼 있고, 매수금액·지금 값은 위
-    # 단추를 눌러야 받아 온다. 그 말을 여기서 분명히 한다.
-    if tried and filled == 0:
-        tail = (f" · 지금 값 {fetched_at} 기준({len(prices)}종목) · "
-                "**매수 시가는 아직 없습니다** — 다음 미국 장이 열려야 시가가 생깁니다")
-    elif tried:
-        tail = f" · 지금 값 {fetched_at} 기준({len(prices)}종목) · 매수 시가 {filled}줄"
+    # **매수금액은 자동, 지금 값·수익·손실만 단추**다(2026-08-14 상하님 지시).
+    # 어느 쪽이 왜 비었는지 여기서 분명히 적는다.
+    if filled:
+        head = f"  \n**매수금액(다음 거래일 시가) {filled}줄이 채워져 있습니다.**"
     else:
-        tail = ("  \n**목록은 그날 그대로 저장돼 있습니다.** 매수금액·지금 값·"
-                "수익·손실은 위 **‘지금 값으로 수익·손실 계산’** 단추를 누르면 채워집니다.")
-    st.caption(f"{picked} · {store.summarize(rows)}" + tail)
+        head = ("  \n**매수금액은 아직 없습니다** — 다음 거래일이 열려야 그날 시가가 "
+                "생깁니다. 열리면 이 화면을 여실 때 저절로 채워집니다.")
+    tail = (f" 지금 값은 {fetched_at} 기준({len(prices)}종목)입니다." if tried
+            else " 수익·손실은 위 **‘지금 값으로 수익·손실 계산’** 단추를 누르면 나옵니다.")
+    st.caption(f"{picked} · {store.summarize(rows)}" + head + tail)
 
     excel = store.to_excel_bytes(rows)
     columns = st.columns(2)

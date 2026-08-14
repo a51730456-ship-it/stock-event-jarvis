@@ -238,6 +238,15 @@ h2 { font-size: 1.2rem !important; }
 .j3-metric-row, .j4-metric-row { gap: 0.6rem 0.9rem; }
 .j3-section-title, .j4-section-title { font-size: 1.02rem; }
 .j3-pull-guide, .j4-pull-guide, .j5-guide { font-size: 0.86rem; }
+/* 순위표 단추 밑 두 줄 — 보라색 '표에서 테마 이름을 클릭하면…'과 초록색
+   '오늘 테마 종목 순위는…'이다. **둘은 늘 같은 크기여야 한다**(2026-08-14 상하님
+   지시 "크기는 보라색 글자 그 크기로"). 폰에서는 한 치수 줄여 두 줄 다 한 줄에
+   들어가게 한다 — 1.08rem이면 375px에서 석 줄로 접힌다. */
+.j3-theme-open-guide, .j3-theme-top5 { font-size: 0.92rem; }
+/* 심사항목 설명 창(2026-08-14) — 글이 길어 폰에서 화면을 다 먹는다. 한 치수 줄인다.
+   값·점수는 건드리지 않는다(규칙 12). */
+.j3fh-txt { font-size: 0.86rem; }
+.j3fh-name { font-size: 0.92rem; }
 /* 가로로 긴 HTML 표는 글자를 줄여 옆으로 밀 거리를 줄인다 */
 .j5-table-wrap, .j3-pull-table-wrap { -webkit-overflow-scrolling: touch; }
 .j5-table, .j3-pull-table, .j3-theme-table, .j4-theme-table { font-size: 0.8rem; }

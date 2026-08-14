@@ -329,6 +329,10 @@ st.markdown(
     .j3-ndd-key { color: #4da6ff; font-weight: 850; }
     .j3-theme-open-guide { color: #c084fc; font-size: 1.08rem; font-weight: 850;
         margin: .15rem 0 .65rem; text-shadow: 0 0 8px rgba(192,132,252,.18); }
+    /* 오늘 1~5위 테마를 한 줄로 적는다(2026-08-14 상하님 지시) — 순위표를 닫아
+       두셔도 이 한 줄은 보인다. 크기는 위 보라색 안내와 같게, 색만 초록이다. */
+    .j3-theme-top5 { color: #44f0a1; font-size: 1.08rem; font-weight: 850;
+        margin: .15rem 0 .5rem; text-shadow: 0 0 8px rgba(68,240,161,.18); }
     .j3-leader-head-gap { height: .55rem; }
     .j3-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
     .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
@@ -2883,13 +2887,25 @@ def _render_radar_tab(market: dict) -> None:
     # 제목 대신 단추가 그 자리에 선다 — 상승장·급락 단추와 같은 크기·같은 장치다.
     # 닫는 단추는 '종목 찾기' 바로 위에도 하나 더 있다(_render_pullback_finder).
     #
-    # **기본은 열림.** 화면을 처음 여시면 예전처럼 표가 보여야 한다.
-    # _section_toggle은 없는 열쇠를 '닫힘'으로 보므로 여기서 미리 열어 둔다.
-    st.session_state.setdefault(_THEME_RANK_OPEN, True)
-    if not _section_toggle(
-        "📊 20개 테마 실시간 순위", _THEME_RANK_OPEN,
+    # **기본은 닫힘**(2026-08-14 상하님 지시 — "화면 처음 열릴 때 순위가 열려 있게
+    # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
+    # 아래 구역이 전부 밀려 내려갔다. 아래 초록 한 줄이 오늘 1~5위를 알려 주므로,
+    # 표를 안 여셔도 주도 테마는 바로 보인다.
+    rank_open = _section_toggle(
+        "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
         close_label="20개 테마 실시간 순위 닫기",
-    ):
+    )
+    # 단추 바로 밑에 **오늘 1~5위**를 한 줄로 적는다(2026-08-14 상하님 지시).
+    # 순위표를 닫아 두셔도 이 한 줄은 보이므로, 표를 안 여셔도 오늘 주도 테마를 아신다.
+    # 이름은 순위표가 정한 차례 그대로다 — 여기서 다시 줄 세우지 않는다.
+    if names[:5]:
+        st.markdown(
+            "<div class='j3-theme-top5'>오늘 테마 종목 순위는 "
+            + " · ".join(html.escape(name) for name in names[:5])
+            + " 순입니다.</div>",
+            unsafe_allow_html=True,
+        )
+    if not rank_open:
         clicked_theme = None
     else:
         st.markdown(
@@ -4538,7 +4554,7 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 굴려야 했다. 상승장·급락 닫기 단추와 같은 장치(_section_close)를 쓴다.
     # 여는 단추는 **맨 위**에 있다(순위표 자리). 여기에는 닫는 단추만 둔다 —
     # 상승장·급락과 같은 규칙이다(위에서 열고, 아래에서도 닫는다).
-    if st.session_state.get(_THEME_RANK_OPEN, True):
+    if st.session_state.get(_THEME_RANK_OPEN):
         _section_close(_THEME_RANK_OPEN, "20개 테마 실시간 순위 닫기")
     st.markdown(
         "<div class='j3-section-title'>📉 종목 찾기</div>",
