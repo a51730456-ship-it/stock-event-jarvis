@@ -2273,6 +2273,7 @@ def _render_stock_detail(
     notes = getattr(j3data, "LEADER_SCORE_NOTES", {})
     factor_rows = "".join(
         f"<tr><td class='j3-fac-name'>{name}"
+        + _factor_help_chip(name, f"j3_factor_help_{panel}")
         + (f"<div class='j3-fac-note'>{html.escape(notes[name])}</div>"
            if notes.get(name) else "")
         + f"</td>{_gain_cell(part, _number(maximum))}</tr>"
@@ -2472,33 +2473,44 @@ _FACTOR_HELP_CSS = """
     from { opacity: .35; clip-path: inset(0 0 100% 0); }
     to   { opacity: 1;   clip-path: inset(0 0 0 0); }
 }
-.j3fh { margin: .45rem 0 .25rem; }
-/* 단추 — '이 테마 기법에 대한 설명'과 같은 옷(하늘색 바탕 · 주황 글씨). */
-.j3fh > summary {
+/* 표 안 심사항목 이름 옆에 붙는 **작은 '설명'** (2026-08-14 상하님 지시).
+   '이 테마 기법에 대한 설명' 단추와 같은 색이되 글자 크기만 작게 둔다. */
+.j3fh-chip {
     display: inline-block;
-    list-style: none;
-    cursor: pointer;
+    margin-left: .4rem;
     background: #cfe9ff;
     border: 1px solid #8ec9f5;
-    border-radius: .5rem;
-    padding: .35rem .9rem;
-    color: #c15f3c;
-    font-size: .95rem;
+    border-radius: .45rem;
+    padding: .02rem .4rem;
+    color: #c15f3c !important;
+    font-size: .72rem;
     font-weight: 800;
+    text-decoration: none !important;
+    vertical-align: middle;
     white-space: nowrap;
-    transition: transform .12s ease-out, filter .12s ease-out,
-                background .12s ease-out, border-color .12s ease-out;
+    transition: background .12s ease-out, border-color .12s ease-out;
 }
-.j3fh > summary::-webkit-details-marker { display: none; }
-.j3fh > summary::marker { content: ""; }
-.j3fh > summary:hover {
-    background: #b9dfff;
-    border-color: #6db6ee;
-    transform: translateY(-2px);
-    filter: brightness(1.05);
+.j3fh-chip:hover { background: #b9dfff; border-color: #6db6ee; }
+/* 창은 **표 아래(총점 밑)**에 두고 평소에는 숨겨 둔다. 상하님이 '설명'을 누르면
+   그 칸의 창만 열린다 — 브라우저가 혼자 하는 일이라 **화면을 다시 그리지 않는다.**
+   st.button을 쓰면 표·차트·시세를 통째로 다시 그려 느리다
+   (2026-08-14 상하님 지적 "열고 닫는데 로딩시간이 너무 많이 걸린다").
+   장치는 이 화면이 이미 쓰고 있는 것과 같다(위 .j3-idx-tap — 지수 그림 바꾸기).
+   숨긴 확인칸을 label이 켜고 끈다. 주소(#)를 안 건드리므로 화면이 튀지 않고
+   뒤로가기 기록도 안 쌓인다. */
+.j3fh-cb { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+.j3fh-p { display: none; }
+.j3fh-cb:checked + .j3fh-p { display: block; animation: j3fh-drop .24s ease-out; }
+/* 닫기 — 같은 확인칸을 다시 꺼서 창을 접는다. 표의 '설명'을 다시 눌러도 접힌다. */
+.j3fh-x {
+    display: inline-block;
+    margin-top: .55rem;
+    color: #9aa4b2;
+    font-size: .85rem;
+    font-weight: 700;
+    cursor: pointer;
 }
-.j3fh > summary:active { transform: translateY(0) scale(.985); }
-.j3fh[open] > .j3fh-body { animation: j3fh-drop .24s ease-out; }
+.j3fh-x:hover { color: #e6e6e6; }
 .j3fh-item {
     border-left: 3px solid #6ee7b7;
     background: rgba(110, 231, 183, .06);
@@ -2513,7 +2525,6 @@ _FACTOR_HELP_CSS = """
 .j3fh-h { color: #93c5fd; font-weight: 800; }
 /* 꼭 짚을 한 마디 — 노랑. **항목당 한두 곳만.** 남발하면 아무것도 안 보인다. */
 .j3fh-k { color: #fbbf24; font-weight: 800; }
-.j3fh-hint { color: #9aa4b2; font-size: .85rem; margin: .5rem 0 .2rem; }
 </style>
 """
 
@@ -2606,37 +2617,62 @@ _FACTOR_HELP = (
 )
 
 
+def _factor_help_id(name, key: str) -> str:
+    """이 심사항목의 설명 창 이름표. 설명이 없는 항목이면 빈 글자.
+
+    번호는 _FACTOR_HELP 안의 자리를 쓴다 — 표를 그리는 쪽과 창을 그리는 쪽이
+    따로 세지 않아도 같은 이름이 나온다.
+    """
+    for index, (prefix, _body) in enumerate(_FACTOR_HELP):
+        if str(name).startswith(prefix):
+            return f"{key}__{index}"
+    return ""
+
+
+def _factor_help_chip(name, key: str) -> str:
+    """표의 심사항목 이름 옆에 붙일 작은 '설명' (2026-08-14 상하님 지시).
+
+    상하님 — "표 안에 심사항목 옆에 설명이라고 조그맣게 만들어 넣어라.
+    그러면 총점 밑으로 창이 열리도록 해라."
+
+    **스트림릿 단추가 아니다.** 표 아래 숨겨 둔 확인칸을 켜고 끄는 label이라
+    눌러도 화면을 다시 그리지 않는다. 다시 누르면 접힌다.
+    """
+    anchor = _factor_help_id(name, key)
+    return f" <label class='j3fh-chip' for='{anchor}'>설명</label>" if anchor else ""
+
+
 def _factor_help_block(names, key: str) -> None:
-    """'심사항목 기준' 여닫이 — **표에 실제로 있는 항목만** 설명한다.
+    """심사항목 설명 창 — **표 아래(총점 밑)**에 숨겨 두고, 표 안 '설명'을 누르면 연다.
 
-    표에 없는 항목까지 설명하면 상하님이 없는 기준을 찾게 된다. 0점이라 표에서
-    빠진 항목은 여기에도 안 나온다.
+    표에 실제로 있는 항목만 만든다. 표에 없는 항목까지 두면 상하님이 없는 기준을
+    찾게 된다 — 0점이라 표에서 빠진 항목은 여기에도 안 나온다.
 
-    `key`는 자리를 가르는 이름표(id)로만 쓴다. 여닫는 것은 브라우저가 하므로
-    세션에 아무것도 남기지 않는다 — 그래서 눌러도 화면을 다시 그리지 않는다.
+    창을 여닫는 것은 **브라우저가 :target으로 혼자** 한다. 세션에 아무것도 남기지
+    않으므로 눌러도 화면을 다시 그리지 않는다.
     """
     picked = []
     for name in names or ():
-        for prefix, body in _FACTOR_HELP:
-            if str(name).startswith(prefix):
-                picked.append((str(name), body))
-                break
+        anchor = _factor_help_id(name, key)
+        if not anchor:
+            continue
+        body = next(b for p, b in _FACTOR_HELP if str(name).startswith(p))
+        picked.append((anchor, str(name), body))
     if not picked:
         return
-    items = "".join(
-        f"<div class='j3fh-item'><div class='j3fh-name'>{html.escape(name)}</div>"
-        f"<div class='j3fh-txt'>{body}</div></div>"
-        for name, body in picked
-    )
     st.markdown(
         _FACTOR_HELP_CSS
-        + f"<details class='j3fh' id='{html.escape(str(key))}'>"
-        + "<summary>📗 심사항목 기준 — 이 말이 무슨 뜻인가</summary>"
-        + f"<div class='j3fh-body'>{items}"
-        + "<div class='j3fh-hint'>다 읽으셨으면 위 「📗 심사항목 기준」을 "
-          "다시 누르십시오.</div></div></details>",
+        + "".join(
+            f"<input type='checkbox' class='j3fh-cb' id='{anchor}'>"
+            f"<div class='j3fh-p j3fh-item'>"
+            f"<div class='j3fh-name'>{html.escape(name)}</div>"
+            f"<div class='j3fh-txt'>{body}</div>"
+            f"<label class='j3fh-x' for='{anchor}'>✕ 설명 닫기</label></div>"
+            for anchor, name, body in picked
+        ),
         unsafe_allow_html=True,
     )
+
 
 def _render_buy_form(
     theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
@@ -3553,7 +3589,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
 
     # 갈래 배점에는 '무엇을 보고 준 점수인지'가 함께 있다 — 이름 옆에 작게 적는다.
     factor_rows = "".join(
+        # '설명'은 **항목 이름 바로 옆**에 붙인다(2026-08-14 상하님 지시 —
+        # 값 뒤에 두면 글이 길어 아랫줄로 밀려 제목 밑에 있는 것처럼 보인다).
         f"<tr><td class='j3-fac-name'>{html.escape(name)}"
+        + _factor_help_chip(name, f"j3_factor_help_pullback_{mode}")
         + (f" <span class='j3-muted' style='font-weight:600'>{html.escape(note)}</span>"
            if note else "")
         + f"</td>{_fac_cell(part, maximum)}</tr>"
