@@ -2273,7 +2273,6 @@ def _render_stock_detail(
     notes = getattr(j3data, "LEADER_SCORE_NOTES", {})
     factor_rows = "".join(
         f"<tr><td class='j3-fac-name'>{name}"
-        + _factor_help_chip(name, f"j3_factor_help_{panel}")
         + (f"<div class='j3-fac-note'>{html.escape(notes[name])}</div>"
            if notes.get(name) else "")
         + f"</td>{_gain_cell(part, _number(maximum))}</tr>"
@@ -2294,18 +2293,19 @@ def _render_stock_detail(
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
         st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
+        # '설명'은 **제목 칸 「심사 항목」 옆**에 하나만 둔다(2026-08-14 상하님 지시).
+        _help_names = [name for name, maximum in factor_spec if maximum > 0]
+        _help_key = f"j3_factor_help_{panel}"
         st.markdown(
             "<table class='j3-factor-table'><thead><tr>"
-            "<th>심사 항목</th><th>획득(최대)</th></tr></thead>"
+            f"<th>심사 항목{_factor_help_chip(_help_names, _help_key)}</th>"
+            "<th>획득(최대)</th></tr></thead>"
             f"<tbody>{factor_rows}{total_row}</tbody></table>",
             unsafe_allow_html=True,
         )
         # 항목 이름만으로는 뭘 재는지 모른다(2026-08-14 상하님 지시). 표에 실제로
         # 올라온 항목만 골라 설명한다.
-        _factor_help_block(
-            [name for name, maximum in factor_spec if maximum > 0],
-            f"j3_factor_help_{panel}",
-        )
+        _factor_help_block(_help_names, _help_key)
         st.markdown(
             f"<div class='j3-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>",
             unsafe_allow_html=True,
@@ -2617,29 +2617,27 @@ _FACTOR_HELP = (
 )
 
 
-def _factor_help_id(name, key: str) -> str:
-    """이 심사항목의 설명 창 이름표. 설명이 없는 항목이면 빈 글자.
-
-    번호는 _FACTOR_HELP 안의 자리를 쓴다 — 표를 그리는 쪽과 창을 그리는 쪽이
-    따로 세지 않아도 같은 이름이 나온다.
-    """
-    for index, (prefix, _body) in enumerate(_FACTOR_HELP):
+def _factor_help_body(name) -> str:
+    """이 심사항목의 설명 글. 설명이 없는 항목이면 빈 글자."""
+    for prefix, body in _FACTOR_HELP:
         if str(name).startswith(prefix):
-            return f"{key}__{index}"
+            return body
     return ""
 
 
-def _factor_help_chip(name, key: str) -> str:
-    """표의 심사항목 이름 옆에 붙일 작은 '설명' (2026-08-14 상하님 지시).
+def _factor_help_chip(names, key: str) -> str:
+    """표 **제목 칸 「심사 항목」 옆**에 붙일 작은 '설명' (2026-08-14 상하님 지시).
 
-    상하님 — "표 안에 심사항목 옆에 설명이라고 조그맣게 만들어 넣어라.
-    그러면 총점 밑으로 창이 열리도록 해라."
+    상하님 — "제목 심사항목 옆에 넣으라고."
+    항목마다 하나씩이 아니라 **표에 하나**다. 누르면 총점 아래에서 그 표의 항목
+    설명이 한꺼번에 열린다.
 
     **스트림릿 단추가 아니다.** 표 아래 숨겨 둔 확인칸을 켜고 끄는 label이라
     눌러도 화면을 다시 그리지 않는다. 다시 누르면 접힌다.
     """
-    anchor = _factor_help_id(name, key)
-    return f" <label class='j3fh-chip' for='{anchor}'>설명</label>" if anchor else ""
+    if not any(_factor_help_body(name) for name in names or ()):
+        return ""
+    return f" <label class='j3fh-chip' for='{key}'>설명</label>"
 
 
 def _factor_help_block(names, key: str) -> None:
@@ -2651,25 +2649,20 @@ def _factor_help_block(names, key: str) -> None:
     창을 여닫는 것은 **브라우저가 :target으로 혼자** 한다. 세션에 아무것도 남기지
     않으므로 눌러도 화면을 다시 그리지 않는다.
     """
-    picked = []
-    for name in names or ():
-        anchor = _factor_help_id(name, key)
-        if not anchor:
-            continue
-        body = next(b for p, b in _FACTOR_HELP if str(name).startswith(p))
-        picked.append((anchor, str(name), body))
+    picked = [(str(name), _factor_help_body(name)) for name in names or ()]
+    picked = [(name, body) for name, body in picked if body]
     if not picked:
         return
+    items = "".join(
+        f"<div class='j3fh-item'><div class='j3fh-name'>{html.escape(name)}</div>"
+        f"<div class='j3fh-txt'>{body}</div></div>"
+        for name, body in picked
+    )
     st.markdown(
         _FACTOR_HELP_CSS
-        + "".join(
-            f"<input type='checkbox' class='j3fh-cb' id='{anchor}'>"
-            f"<div class='j3fh-p j3fh-item'>"
-            f"<div class='j3fh-name'>{html.escape(name)}</div>"
-            f"<div class='j3fh-txt'>{body}</div>"
-            f"<label class='j3fh-x' for='{anchor}'>✕ 설명 닫기</label></div>"
-            for anchor, name, body in picked
-        ),
+        + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
+        + f"<div class='j3fh-p'>{items}"
+        + f"<label class='j3fh-x' for='{key}'>✕ 설명 닫기</label></div>",
         unsafe_allow_html=True,
     )
 
@@ -3589,10 +3582,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
 
     # 갈래 배점에는 '무엇을 보고 준 점수인지'가 함께 있다 — 이름 옆에 작게 적는다.
     factor_rows = "".join(
-        # '설명'은 **항목 이름 바로 옆**에 붙인다(2026-08-14 상하님 지시 —
-        # 값 뒤에 두면 글이 길어 아랫줄로 밀려 제목 밑에 있는 것처럼 보인다).
         f"<tr><td class='j3-fac-name'>{html.escape(name)}"
-        + _factor_help_chip(name, f"j3_factor_help_pullback_{mode}")
         + (f" <span class='j3-muted' style='font-weight:600'>{html.escape(note)}</span>"
            if note else "")
         + f"</td>{_fac_cell(part, maximum)}</tr>"
@@ -3637,15 +3627,17 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             + "</div>",
             unsafe_allow_html=True,
         )
+        # '설명'은 **제목 칸 「심사 항목」 옆**에 하나만 둔다(2026-08-14 상하님 지시).
+        # 갈래마다 열쇠를 갈라 둔다 — 상승장 상세와 급락 상세가 서로를 덮어쓰지 않게.
+        _help_key = f"j3_factor_help_pullback_{mode}"
         st.markdown(
             "<table class='j3-factor-table'><thead><tr>"
-            "<th>심사 항목</th><th>획득(최대)</th></tr></thead>"
+            f"<th>심사 항목{_factor_help_chip(factor_names, _help_key)}</th>"
+            "<th>획득(최대)</th></tr></thead>"
             f"<tbody>{factor_rows}{total_row}</tbody></table>",
             unsafe_allow_html=True,
         )
-        # 항목 이름만으로는 뭘 재는지 모른다(2026-08-14 상하님 지시). 갈래마다
-        # 열쇠를 갈라 둔다 — 상승장 상세와 급락 상세가 서로를 덮어쓰지 않게 한다.
-        _factor_help_block(factor_names, f"j3_factor_help_pullback_{mode}")
+        _factor_help_block(factor_names, _help_key)
         st.markdown(
             f"<div class='j3-reason-mustard'>{_mustard_html(review.get('stock_reason'))}</div>",
             unsafe_allow_html=True,
