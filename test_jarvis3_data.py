@@ -402,7 +402,8 @@ class RulebookScreenTests(unittest.TestCase):
         # 다른 항목에 나눠 주지 않는다 — 만점이 곧 그 파트의 근거의 양이다.
         # 상승장은 테마 근접도 70 + 뚫기 전 60일 상승 30 = 100점이다(2026-08-13).
         self.assertEqual(100.0, j3.BREAKOUT_SCORE_MAX)
-        self.assertEqual(90.0, j3.CRASH_SCORE_MAX)
+        # 급락은 2026-08-14부터 **30주선 위 하나뿐**이라 40점 만점이다.
+        self.assertEqual(40.0, j3.CRASH_SCORE_MAX)
         self.assertEqual(j3.BREAKOUT_SCORE_MAX, sum(j3.BREAKOUT_SCORE_WEIGHTS.values()))
         self.assertEqual(j3.CRASH_SCORE_MAX, sum(j3.CRASH_SCORE_WEIGHTS.values()))
         # **상승장 1등은 테마 근접도, 급락 1등은 테마가 덜 빠졌나**다.
@@ -410,7 +411,9 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(70.0, j3.BREAKOUT_SCORE_WEIGHTS["theme_prox"])
         self.assertEqual(30.0, j3.BREAKOUT_SCORE_WEIGHTS["gain60"])
         self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
-        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["less_drop"])
+        # 급락 1등은 30주선 위다. 옛 1등 '덜 빠졌나'는 0점이 됐다(2026-08-14).
+        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["above150"])
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["less_drop"])
         # 그물마다 합격 못 한 항목들 — 되살아나면 여기서 깨진다.
         for name in ("together", "recent_drop", "liquidity", "volatility"):
             self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS[name], f"상승장 {name}")
@@ -418,14 +421,18 @@ class RulebookScreenTests(unittest.TestCase):
         # **급락 배점 90점이 전부 테마 등수다**(2026-08-12 새 그물 실측).
         # 종목 항목 아홉 개가 세 보유 다 미달이었다 — 미국은 테마로만 고를 수 있다.
         theme_points = sum(j3.CRASH_SCORE_WEIGHTS[name]
-                           for name in ("less_drop", "aligned", "above20"))
+                           for name in ("above150", "less_drop", "aligned", "above20"))
         self.assertEqual(j3.CRASH_SCORE_MAX, theme_points)
         # **'같이 오르는가' 30점은 '주봉 오름세'로 갈아끼웠다**(2026-08-12 저녁,
         # 상하님 지시 "반등은 빨리·많이가 기준"). 속도를 넣고 재니 '같이 오르는가'로
         # 고른 종목은 +20%까지 46일 — **아무거나 산 것(45일)보다 느렸다.**
         # 주봉 오름세는 34일이고 5·10·20·40일·6개월·1년 여섯 곳 다 합격했다.
         # 근거: research/us_rebound_speed.py
-        self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["aligned"])
+        # 주봉 오름세 30점은 2026-08-14에 0점이 됐다 — 급락 직후엔 맞는 테마가
+        # 거의 없어 잴 수 있는 사건이 한두 번뿐이었다. 30주선이 같은 것을 더 잘 잰다.
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["aligned"])
+        # 20일선은 점수에서 빠지고 **같은 점수를 가르는 데만** 쓴다(넣으면 나빠진다).
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["above20"])
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["spread5"])
         # 상승장 쪽 '같이 오르는가'도 **2026-08-13에 0점이 됐다.** 제가 재는 자를
         # 고쳐(짝 견주기 3,683짝 · 연 단위 오차) 다시 재니 테마를 **그날 등수**로
@@ -482,7 +489,8 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["together"])
         # **급락 배점 셋이 전부 테마 등수다.** 종목 항목은 아홉 개가 세 보유 다
         # 미달이었다 — 미국은 테마로만 고를 수 있다(research/us_crash_new_net.py).
-        self.assertEqual(3, len(crash_names))
+        # 2026-08-14부터 급락 배점표는 **한 줄뿐**이다(30주선 위).
+        self.assertEqual(1, len(crash_names))
         self.assertTrue(all("테마" in name for name in crash_names), crash_names)
 
     def test_theme_rank_is_scored_and_ranks_over_the_whole_universe(self):
@@ -500,18 +508,19 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(1, rows[0]["theme_rank"])
         self.assertEqual(2, rows[1]["theme_rank"])
 
-        # 급락 배점의 1등은 '테마가 덜 빠졌나'다(2026-08-12 새 그물 — 세 보유기간
-        # 모두 합격한 유일한 항목). 등수를 다는 자리와 점수를 읽는 자리가 맞물리는지 본다.
-        j3._attach_theme_rank(rows, memberships, all_metrics, prefix="theme_less_drop",
+        # 급락 배점의 **하나뿐인 항목은 '테마가 30주선 위에 있나'**다(2026-08-14 교체 —
+        # 상하님이 실제로 사시는 자리에서 다시 재니 옛 셋이 전부 거꾸로였다).
+        # 등수를 다는 자리와 점수를 읽는 자리가 맞물리는지 본다.
+        j3._attach_theme_rank(rows, memberships, all_metrics, prefix="theme_above150",
                               metric_key="ret60", top_n=1)
 
-        def less_drop_points(row):
+        def above150_points(row):
             row = dict(row, metrics={})
             return next(value for name, value, _m, _t
-                        in j3.crash_rebound_score(row)["parts"] if "덜 빠졌나" in name)
+                        in j3.crash_rebound_score(row)["parts"] if "30주선" in name)
 
-        self.assertEqual(j3.CRASH_SCORE_WEIGHTS["less_drop"], less_drop_points(rows[0]))
-        self.assertEqual(0.0, less_drop_points(rows[1]))
+        self.assertEqual(j3.CRASH_SCORE_WEIGHTS["above150"], above150_points(rows[0]))
+        self.assertEqual(0.0, above150_points(rows[1]))
 
     def test_theme_ranking_is_scored_by_spread_not_by_returns(self):
         """테마 순위는 **확산**으로 매긴다 (2026-08-12 처음 쟀다).

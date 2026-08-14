@@ -206,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081350
+MODULE_REVISION = 2026081410
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1439,10 +1439,52 @@ def volume_streak_days(frame) -> int:
 # 파트마다 답이 다르다 — 테마 순위는 '지금 달아오르는 테마'를 재는 자리라 짧은 선이,
 # 급락 그물은 하루 반짝 반등을 걸러야 해서 긴 선이 맞다.
 # 측정: research/us_size_and_weekly.py
+# ── 2026-08-14 전면 교체 — 위 기록은 전부 **옛것**이다 ──────────────────────
+# 상하님 지시로 **상하님이 실제로 사시는 자리**에서 다시 쟀다. 근거와 숫자는
+# docs/US_THEME_SPEC.md 0부에 있다. 여기 요약만 적는다.
+#
+# **옛 자가 틀린 자리를 재고 있었다.** 옛 측정은 "나스닥이 −6% 아래인 날 전부"
+# (710일 · 34,710자리)를 썼는데, 그 대부분은 **아직 내려가는 길목**이다.
+# 상하님은 나스닥이 **−12%·−18%·−24%에 닿았을 때** 나눠 사신다(표 2·나눠 사기).
+# 그 자리에서만 다시 재니 답이 뒤집혔다. 지수는 **나스닥 종합(IXIC)**과 QQQ 둘 다.
+#
+# 테마 값은 **명부 200종목 전체**로 낸다 — _attach_theme_rank가 하는 그대로다.
+# (후보 종목만으로 내면 다른 값이 나온다. 2026-08-14에 그것 때문에 한 번 거꾸로 갔다.)
+#
+#   잣대                        문턱에 닿은 날   저점 다음 날(반등 자리)
+#   **테마 30주선 위 비율**        60.3%          **87.7%**   ← 1등
+#   20일선 + 30주선                60.3%            79.5%
+#   테마 20일선 위 (옛 20점)        57.8%            60.3%
+#   테마 주봉 오름세 (옛 30점)       53.1%            59.4%
+#   테마가 덜 빠졌나 (옛 40점)       35.6%            46.6%
+#   **옛 배점 그대로**              34.2%            43.8%   ← 거꾸로였다
+#
+# **상위 3등까지만 준다.** 상위 3등은 여섯 자리(문턱·반등 × 3·6개월·1년) 모두
+# 가운데 수익이 앞섰다(+2.8 ~ +7.3%p, 반등 6개월은 23번 중 20번 이겼다).
+# 상위 5등으로 넓히면 문턱 3개월이 −3.2%p로 무너진다.
+#
+# **왜 30주선인가** — Weinstein Stage Analysis(1988)의 기준선이다. 바닥(1단계)에서
+# 30주선 위로 올라설 때가 2단계의 시작이고, 급락 후 반등이 바로 그 자리다.
+# 옛 30점이던 주봉 오름세(Minervini)는 종가>50>150>200에 200일선까지 올라야 해서
+# **급락 직후에는 맞는 테마가 거의 없다** — 잴 수 있는 사건이 한두 번뿐이었다.
+#
+# **왜 20일선을 점수에 안 넣나** — 넣으면 나빠진다(60.3/87.7 → 57.5/71.2).
+# 점수에는 안 넣고 **같은 점수를 가르는 데만** 쓴다.
+#
+# **왜 낙폭을 안 쓰나** — 자리에 따라 방향이 뒤집힌다. 한 방향으로 못 정하는 값은
+# 안 쓴다(CLAUDE.md 0-1 마).
+#
+# **상승장 배점을 그대로 가져오면 안 된다** — 1년 최고에 붙은 테마를 고르는 자인데
+# 급락 자리에서 문턱 38.4% · 반등 41.1%로 거꾸로다. Daniel & Moskowitz(2016)가
+# 말한 그대로다 — 약세장이 급반등할 때는 **어제의 패자가 오늘 가장 크게 오른다.**
+#
+# 합이 100이 아니므로 **40점 만점**이라고 화면에 적는다(CLAUDE.md 0-1 마).
+# 만점이 곧 이 파트의 근거의 양이다.
 CRASH_SCORE_WEIGHTS = {
-    "less_drop": 40.0,     # 테마 덜 빠졌나 상위 5등 — 여섯 보유기간 모두 합격
-    "aligned": 30.0,       # 테마 주봉 오름세 비율 상위 5등 — 여섯 곳 다 합격 · 제일 빠르다
-    "above20": 20.0,       # 테마 20일선 위 종목 비율 상위 5등 (확산)
+    "above150": 40.0,      # 테마 30주선(150일선) 위 비율 상위 3등 — 유일하게 남았다
+    "less_drop": 0.0,      # 2026-08-14 뺐다 — 자리에 따라 방향이 뒤집힌다
+    "aligned": 0.0,        # 2026-08-14 뺐다 — 급락 직후엔 맞는 테마가 거의 없다
+    "above20": 0.0,        # 2026-08-14 뺐다 — 점수에 넣으면 오히려 나빠진다(동점만 가른다)
     "spread5": 0.0,        # 테마 5일 오른 비율 — 반등이 바탕보다 느렸다(46일 vs 45일)
     "together": 0.0,       # 명부 교체 뒤 불합격 · 새 그물에서 해당 67%라 못 가름
     "theme_rank": 0.0,     # 테마 60일 수익률 — 6개월에서만 합격
@@ -1503,6 +1545,9 @@ def crash_score_is_weak(market_drop_pct) -> bool:
 # '덜 빠졌나'는 급락에서 상위 5등이라야 붙는다(상위 3등은 해당 7%로 못 가름).
 CRASH_LESS_DROP_TOP_N = 5
 CRASH_SPREAD_TOP_N = 5
+# **30주선은 상위 3등까지만 준다**(2026-08-14 실측). 5등으로 넓히면 문턱 3개월이
+# −3.2%p로 무너진다. 이 숫자를 바꾸면 여섯 자리를 다 다시 재야 한다.
+CRASH_ABOVE150_TOP_N = 3
 CRASH_STATE_GOOD = round(CRASH_SCORE_MAX * 0.70, 1)
 CRASH_STATE_FAIR = round(CRASH_SCORE_MAX * 0.50, 1)
 # **문턱은 3개가 아니라 4개다**(2026-08-07 새 그물 실측). 3개↑는 그물의 55%가
@@ -1640,6 +1685,10 @@ def crash_rebound_score(row: dict) -> dict:
     """
     weights = CRASH_SCORE_WEIGHTS
     parts = [
+        # **2026-08-14부터 이 하나다.** 옛 셋(덜 빠졌나·주봉 오름세·20일선 위)은
+        # 0점이 되어 여기서 빠진다 — 까닭은 CRASH_SCORE_WEIGHTS 위 설명에 있다.
+        _theme_rank_part(row, f"테마가 30주선 위에 있나 (상위 {CRASH_ABOVE150_TOP_N}등)",
+                         "theme_above150", weights["above150"]),
         _theme_rank_part(row, f"테마가 덜 빠졌나 (상위 {CRASH_LESS_DROP_TOP_N}등)",
                          "theme_less_drop", weights["less_drop"]),
         _theme_rank_part(row, f"테마 주봉이 오름세인가 (상위 {CRASH_SPREAD_TOP_N}등)",
@@ -1647,6 +1696,9 @@ def crash_rebound_score(row: dict) -> dict:
         _theme_rank_part(row, f"테마가 20일선 위에 있나 (상위 {CRASH_SPREAD_TOP_N}등)",
                          "theme_above20", weights["above20"]),
     ]
+    # **0점 항목은 화면 배점표에서 뺀다**(CLAUDE.md 0-1 마). 0점은 기준이 아니라서
+    # "0.0 (0.0)" 줄로 뜨면 상하님이 읽을 것이 없다. 계산은 위 표에 0으로 남아 있다.
+    parts = [part for part in parts if part[2] > 0]
     return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
             "parts": parts, "max": CRASH_SCORE_MAX}
 
@@ -2072,6 +2124,29 @@ def _above_sma20(metrics: dict) -> float | None:
     if not current or not sma20:
         return None
     return 100.0 if float(current) > float(sma20) else 0.0
+
+
+def _above_sma150(metrics: dict) -> float | None:
+    """이 종목이 **30주선(150일선) 위인가** — 위면 100, 아니면 0.
+
+    테마별로 평균 내면 '그 테마 구성종목 중 몇 %가 30주선 위인가'가 된다.
+
+    **급락 후 반등장 배점 40점이 여기 하나에 걸려 있다**(2026-08-14 확정).
+    Stan Weinstein의 Stage Analysis(1988)가 쓰는 기준선이다 — 바닥(1단계)에서
+    **30주선 위로 올라설 때**가 2단계의 시작이고, 급락 후 반등이 바로 그 자리다.
+
+    옛 30점이던 `_weekly_aligned`(Minervini)는 종가>50>150>200선에 200일선까지
+    올라야 해서 **급락 직후에는 맞는 테마가 거의 없다** — 잴 수 있는 사건이 한두
+    번뿐이었다. 30주선 하나는 훨씬 느슨해서 그 자리를 잡는다.
+
+    실측(2026-08-14 · docs/US_THEME_SPEC.md 0부) — 나스닥이 −12%·−18%·−24%에 닿은
+    날과 저점 다음 날에서, 상위 3등 테마의 종목이 나머지보다 여섯 자리 모두 앞섰다
+    (+2.8 ~ +7.3%p · 반등 6개월은 23번 중 20번). 근거: research/us_crash_appstyle.py
+    """
+    current, sma150 = (metrics or {}).get("current"), (metrics or {}).get("sma150")
+    if not current or not sma150:
+        return None
+    return 100.0 if float(current) > float(sma150) else 0.0
 
 
 def _weekly_aligned(metrics: dict) -> float | None:
@@ -2623,11 +2698,17 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
                        top_n=CRASH_SPREAD_TOP_N, derive=_weekly_aligned)
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_above20",
                        top_n=CRASH_SPREAD_TOP_N, derive=_above_sma20)
+    # **배점 40점이 여기 걸려 있다**(2026-08-14). 점수를 내기 전에 달아 둬야 한다.
+    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_above150",
+                       top_n=CRASH_ABOVE150_TOP_N, derive=_above_sma150)
     # 점수가 곧 순위다(2026-08-06 사용자 결정 — 별점은 뺐다). 같은 점수 안에서는
-    # 예전 순위 기준(테마 동반 → 갈래 → 거래대금)을 그대로 쓴다.
+    # **20일선 위 등수**로 먼저 가르고(2026-08-14), 그다음 예전 순위 기준을 쓴다.
+    # 20일선을 점수에 넣으면 오히려 나빠지지만(60.3/87.7 → 57.5/71.2) 동점을
+    # 가르는 데는 쓸 만하다 — 점수와 순위가 서로 다른 것을 보지 않게 한다.
     for row in rows:
         row["score"] = float(crash_rebound_score(row)["score"])
     rows.sort(key=lambda row: (-row.get("score", 0.0),
+                               int(row.get("theme_above20") or 99),
                                _rank_key(row)[0], _rank_key(row)[1],
                                row.get("_order", 9), *_rank_key(row)[2:]))
     rows = rows[: max(1, int(result_limit))]
