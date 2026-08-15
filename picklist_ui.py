@@ -448,9 +448,16 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
         )
 
 
+    hidden = 0
     for kind in store.KIND_ORDER:
         part = [row for row in rows if str(row.get("list_kind")) == kind]
         if not part:
+            continue
+        # 그 시장 화면에 없는 갈래는 **표로 보여 주지 않는다**(2026-08-15 상하님
+        # 지적 — "저거는 없앴는데 왜 나오냐"). 파일에는 그대로 있고 엑셀·CSV로
+        # 받으시면 다 들어 있다.
+        if not store.should_show(kind, market):
+            hidden += len(part)
             continue
         st.markdown(
             # 제목은 **그 시장 화면이 쓰는 말 그대로**다(2026-08-15 상하님 지시).
@@ -458,6 +465,23 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
             unsafe_allow_html=True,
         )
         st.markdown(table_html(part, kind, tried=tried), unsafe_allow_html=True)
+        # 「매수 파트」가 빈 줄은 2026-08-15 이전에 저장된 것이다. 그때는 세 파트로
+        # 나누기 전 목록을 저장해서 어디서 왔는지가 파일에 없다(되돌려 못 채운다).
+        if kind == "top7" and any(not str(row.get("origin") or "") for row in part):
+            st.markdown(
+                "<div class='pl-note'>「매수 파트」가 빈 줄은 <b>2026-08-15 이전</b>에 "
+                "저장된 것입니다. 그때는 세 파트(테마 대장주·상승장·급락 후 반등장)로 "
+                "나누기 <u>전</u> 목록을 저장해서 어디서 왔는지가 파일에 없습니다. "
+                "그날 것을 되돌려 채울 수는 없고, <b>2026-08-15 마감 뒤 저장분부터</b> "
+                "파트가 찍히고 순위도 파트마다 1·2·3으로 매겨집니다.</div>",
+                unsafe_allow_html=True,
+            )
+
+    if hidden:
+        st.caption(
+            f"이 날짜에는 지금 화면에 없는 옛 갈래 {hidden}줄이 더 저장돼 있습니다 — "
+            "표로는 보여 드리지 않고, 위 ‘엑셀로 받기·CSV로 받기’에는 그대로 들어갑니다."
+        )
 
     # 이 구역의 **맨 끝** — 여기서 바로 접을 수 있게 한다(2026-08-15 상하님 지시).
     if close is not None:

@@ -136,7 +136,11 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn("def _render_top_reviewed(", source, f"{market}에 그리는 함수가 없다")
             self.assertIn("_render_top_reviewed(market, ranking)", source,
                           f"{market}에서 부르지 않는다")
-            self.assertIn("find_top_reviewed_stocks(", source, f"{market}가 자료를 안 부른다")
+            # 미국은 2026-08-15부터 collect_top_picks(같은 모듈이 3·3·3까지 해 준다)를
+            # 부른다. 한국은 아직 옛 방식이다 — 한국은 이번에 건드리지 않았다.
+            self.assertTrue(
+                "find_top_reviewed_stocks(" in source or "collect_top_picks(" in source,
+                f"{market}가 자료를 안 부른다")
             # 눌림목/갈래 결과도 함께 넣어야 한다(사용자 지시).
             self.assertIn(f"{prefix}_pullback_result", source)
             if prefix == "j3":
@@ -144,12 +148,18 @@ class PageWiringTests(unittest.TestCase):
                 # 다만 **섞어서 한 줄로 세우지 않는다.** 세 군데가 자가 달라
                 # 급락 종목이 대장주의 자로는 영원히 못 올라온다. 그래서 자리를
                 # 나눠 각자 자기 자로 뽑는다(대장주 3 · 상승장 2 · 급락 2).
-                self.assertIn("find_breakout_pullback_stocks", source,
-                              "미국 순위 7이 상승장 갈래를 안 가져온다")
-                self.assertIn("find_crash_rebound_stocks", source,
-                              "미국 순위 7이 급락 갈래를 안 가져온다")
-                self.assertIn("_TOP7_QUOTA", source, "미국 순위 7에 자리 배분이 없다")
-                self.assertIn("top7_origin", source, "어느 갈래에서 왔는지 안 적는다")
+                # **뽑는 일은 2026-08-15에 jarvis3_data로 옮겼다** — 화면과 클라우드
+                # 수집기가 같은 함수를 불러야 저장 목록이 화면과 갈라지지 않는다.
+                module = pathlib.Path("jarvis3_data.py").read_text(encoding="utf-8")
+                self.assertIn("def collect_top_picks(", module,
+                              "순위 9를 만드는 함수가 모듈에 없다")
+                self.assertIn("find_breakout_pullback_stocks", module,
+                              "미국 순위 9가 상승장 갈래를 안 가져온다")
+                self.assertIn("find_crash_rebound_stocks", module,
+                              "미국 순위 9가 급락 갈래를 안 가져온다")
+                self.assertIn("collect_top_picks(", source, "미국 화면이 순위 9를 안 부른다")
+                self.assertIn("_TOP7_QUOTA", source, "미국 순위 9에 자리 배분이 없다")
+                self.assertIn("top7_origin", module, "어느 갈래에서 왔는지 안 적는다")
                 # 2026-08-06 사용자 지적 — 다른 구역에는 다 있는 맨 아래 닫기 단추가
                 # 순위 7에만 없었다.
                 self.assertIn('_section_close("j3_top7_open"', source,
@@ -498,12 +508,21 @@ class UnitedStatesTests(unittest.TestCase):
         """예전에는 남는 자리를 대장주가 채웠다. 그러면 자리가 비었다는 사실이 사라진다."""
         import pathlib
 
-        source = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
-        block = source.split("def _blend_top7(")[1].split("\ndef ")[0]
+        # 2026-08-15에 뽑는 일이 jarvis3_data.blend_top_picks로 옮겨 갔다 —
+        # 화면과 클라우드 수집기가 같은 함수를 불러야 저장 목록이 화면과 갈라지지
+        # 않는다(CLAUDE.md 10-1).
+        module = pathlib.Path("jarvis3_data.py").read_text(encoding="utf-8")
+        block = module.split("def blend_top_picks(")[1].split("\ndef ")[0]
         self.assertNotIn("남는 자리는 대장주가 메운다", block, "빈 자리 메우기가 되살아났다")
         self.assertIn("empty_notes", block, "빈 자리를 왜 비웠는지 안 적는다")
-        self.assertIn('("상승장", 3)', source)
-        self.assertIn('("급락 후 반등장", 3)', source)
+        self.assertIn('("상승장", 3)', module)
+        self.assertIn('("급락 후 반등장", 3)', module)
+        # 화면은 그 결과를 **그대로 저장한다.** 섞기 전 재료를 저장하면 저장 목록과
+        # 화면이 갈라진다(2026-08-15 상하님 지적으로 드러난 사고).
+        source = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
+        page_block = source.split("def _blend_top7(")[1].split("\ndef ")[0]
+        self.assertIn('picklist_ui.autosave("US", "top7", result)', page_block,
+                      "화면이 보여 주는 목록과 다른 것을 저장한다")
 
 
 if __name__ == "__main__":

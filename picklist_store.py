@@ -88,8 +88,11 @@ KIND_LABELS_BY_MARKET = {
     },
 }
 
-# 그 시장 화면에 **없는** 갈래는 새로 저장하지 않는다. 화면에 없는 제목이 저장
-# 목록에만 있으면 상하님이 화면과 목록을 맞춰 보실 수 없다.
+# 그 시장 화면에 **없는** 갈래는 새로 저장하지도, 화면에 보여 주지도 않는다.
+# 2026-08-15 상하님 지적 — "저거는 없앴는데 왜 나오냐." 미국 화면에서 2026-08-06에
+# 뺀 「눌림목 찾기」가 저장 목록에는 그대로 남아 있었다.
+# **파일은 그대로 둔다**(CLAUDE.md 10-1 — 지우면 그때 목록이 맞았나를 잴 근거가
+# 사라진다). 엑셀·CSV로 받으시면 그 줄도 다 들어 있다. 화면에서만 감춘다.
 SKIP_KINDS_BY_MARKET = {"US": ("pullback",)}
 
 
@@ -102,6 +105,11 @@ def kind_label(kind: str, market: str | None = None) -> str:
 def should_save(kind: str, market: str) -> bool:
     """그 시장에서 이 갈래를 새로 저장할지. 화면에 없는 갈래는 안 남긴다."""
     return kind not in SKIP_KINDS_BY_MARKET.get(str(market).upper(), ())
+
+
+def should_show(kind: str, market: str) -> bool:
+    """저장 목록 화면에 이 갈래를 보여 줄지. 파일에서 지우는 것이 아니다."""
+    return should_save(kind, market)
 
 
 def _origin_place(row) -> int:
