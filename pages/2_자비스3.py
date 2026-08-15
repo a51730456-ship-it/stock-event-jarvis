@@ -1003,7 +1003,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081420
+_REQUIRED_J3_REVISION = 2026081510
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2318,8 +2318,9 @@ def _render_stock_detail(
             f"<span style='color:#ff5b5b'>({maximum})</span></td>"
         )
 
-    # **0점 항목은 표에 넣지 않는다**(CLAUDE.md 0-1 마). 아무도 못 받는 점수를
-    # 적어 두면 그런 기준이 있는 줄 알게 된다.
+    # **0점 항목도 표에 넣는다**(2026-08-15 상하님 지시 — "각 배점에도 0점짜리도
+    # 표시하고 점수 미달인 이유 넣고"). 앱이 무엇무엇을 봤는지 상하님이 다 보셔야
+    # 하고, 만점이 0인 줄은 만점 칸에 '0점'이라 적어 왜 안 주는지 설명으로 잇는다.
     # **이름만으로는 뭘 재는지 모른다**(2026-08-12 상하님 지적 — "유동성이 뭐에 대한
     # 유동성인지 기준이 뭔지 설명이 불친절하다"). 모듈에 적어 둔 한 줄을 옆에 붙인다.
     notes = getattr(j3data, "LEADER_SCORE_NOTES", {})
@@ -2327,9 +2328,8 @@ def _render_stock_detail(
         f"<tr><td class='j3-fac-name'>{name}"
         + (f"<div class='j3-fac-note'>{html.escape(notes[name])}</div>"
            if notes.get(name) else "")
-        + f"</td>{_gain_cell(part, _number(maximum))}</tr>"
+        + f"</td>{_gain_cell(part, '0점' if not maximum else _number(maximum))}</tr>"
         for (name, maximum), part in zip(factor_spec, leader["score_parts"])
-        if maximum > 0
     )
     # 총점 행: 글자 한 치수 크게 + 배경 밝은 초록
     total_style = (
@@ -2349,7 +2349,7 @@ def _render_stock_detail(
         st.markdown(
             _factor_table_html(
                 factor_rows, total_row,
-                [name for name, maximum in factor_spec if maximum > 0],
+                [name for name, _maximum in factor_spec],
                 f"j3_factor_help_{panel}",
             ),
             unsafe_allow_html=True,
@@ -2497,17 +2497,23 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
     return is_open
 
 
-def _section_close(key: str, label: str) -> None:
+def _section_close(key: str, label: str, *, slot: str = "") -> None:
     """구역 **맨 아래**에 두는 작은 닫기 단추 (2026-08-01 사용자 지시).
 
     폰에서는 구역 하나가 화면 몇 장이라, 끝까지 내려가면 위에 있는 여는 단추가
     화면 밖으로 나간다. 닫으려고 다시 위로 올라가야 했다. 같은 값을 끄는 단추를
     아래에도 하나 둬서 그 자리에서 접을 수 있게 한다. 한국테마와 같은 장치다.
+
+    slot은 **같은 값을 끄는 단추를 한 화면에 둘 이상** 둘 때 쓴다(2026-08-15
+    상하님 지시 — 상승장·급락 갈래는 목록 위와 상세 아래 두 곳에 닫기가 있다).
+    스트림릿은 열쇠가 같은 단추를 두 번 그리면 오류를 낸다. 색을 입히는 CSS는
+    `class*='st-key-close_j3_pullback_open'`처럼 **앞부분만** 맞추므로 slot이
+    붙어도 같은 색이 그대로 간다.
     """
     def _close():
         st.session_state[key] = False
 
-    st.button(f"✕ {label}", key=f"close_{key}", on_click=_close)
+    st.button(f"✕ {label}", key=f"close_{key}{slot}", on_click=_close)
 
 
 # ── 「심사항목 기준」 여닫이 (2026-08-14 상하님 지시) ─────────────────────────
@@ -2646,6 +2652,22 @@ _FACTOR_HELP_CSS = """
 .j3fh-h { color: #93c5fd; font-weight: 800; }
 /* 꼭 짚을 한 마디 — 노랑. **항목당 한두 곳만.** 남발하면 아무것도 안 보인다. */
 .j3fh-k { color: #fbbf24; font-weight: 800; }
+/* '왜 0점인가' 소제목 — 주황. 통과한 항목의 소제목(파랑)과 눈으로 갈린다. */
+.j3fh-z { color: #fb923c; font-weight: 800; }
+/* 머리말 — 항목 설명 맨 위에 한 번. "왜 이렇게 배점했는지"를 먼저 읽으시게 한다
+   (2026-08-15 상하님 지시 — "왜 그렇게 했는지 나스닥 어떻게 조사했고 결과가
+   그렇다 이런 내용을 맨 위에 표시하고"). */
+.j3fh-head {
+    border-left: 3px solid #93c5fd;
+    background: rgba(147, 197, 253, .08);
+    padding: .7rem .9rem;
+    margin: .2rem 0 .9rem;
+    border-radius: 6px;
+    line-height: 1.8;
+    font-size: .92rem;
+}
+.j3fh-head-t { color: #93c5fd; font-weight: 800; font-size: 1.0rem; display: block;
+               margin-bottom: .35rem; }
 </style>
 """
 
@@ -2658,6 +2680,40 @@ _FACTOR_HELP_CSS = """
 # **'무리'라고 쓰지 않는다**(2026-08-14 상하님 지시). 화면 어디에도 없는 말이라
 # 상하님이 무엇을 가리키는지 되물으셔야 했다. 표에 있는 말 그대로 '관련 테마'라 쓴다.
 _FACTOR_HELP = (
+    ("지금 눌린 폭",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 1년 최고가에서 "
+     "<b class='j3fh-k'>지금 몇 % 내려와 있는지</b> 봅니다.<br>"
+     "<span class='j3fh-h'>왜 보는가</span> — 이 갈래는 ‘뚫고 나서 잠깐 쉬는 자리’를 "
+     "찾습니다. 안 눌렸으면 쉬는 자리가 아니고, 너무 눌렸으면 쉬는 게 아니라 "
+     "무너진 것입니다.<br>"
+     "<span class='j3fh-z'>왜 0점인가</span> — 앱이 재 보니 <b class='j3fh-k'>많이 "
+     "눌린 쪽과 덜 눌린 쪽의 성적 차이가 없었습니다</b>(3개월·6개월·1년 모두). "
+     "그래서 점수는 주지 않고 <b class='j3fh-k'>문턱으로만</b> 씁니다 — 앱은 "
+     "−10%~−15% 안에 든 종목만 후보로 올립니다. 이 표에 이 줄이 보인다는 것은 "
+     "이미 그 문턱을 통과했다는 뜻입니다."),
+    ("테마가 같이 오르는가",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마가 최근 "
+     "5일 동안 다른 테마보다 <b class='j3fh-k'>더 올랐는지</b> 보고, 테마 20개를 "
+     "줄 세워 위쪽 5등 안에 들면 점수를 주려 했습니다.<br>"
+     "<span class='j3fh-h'>왜 보려 했는가</span> — 테마가 지금 막 달아오르는 중이면 "
+     "그 안의 종목도 같이 밀려 올라간다고 보았습니다.<br>"
+     "<span class='j3fh-z'>왜 0점인가</span> — 상승장 자리에서 재 보니 "
+     "<b class='j3fh-k'>이 잣대로 고른 쪽이 더 벌지 않았습니다.</b> 최근 5일은 너무 "
+     "짧아 그날그날 오르내림에 휘둘립니다. 대신 앱은 같은 ‘테마를 본다’는 생각을 "
+     "훨씬 긴 잣대(테마가 1년 최고에 붙어 있나)로 바꿔 70점을 주고 있습니다."),
+    ("테마가 30주선 위에 있나",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마에 든 회사 "
+     "중 <b class='j3fh-k'>몇 %가 30주선(150일 평균) 위에 있는지</b> 세어, 테마 20개를 "
+     "줄 세웁니다. 위에서 <b class='j3fh-k'>3등 안</b>에 들면 40점, 아니면 0점입니다.<br>"
+     "<span class='j3fh-h'>왜 30주선인가</span> — 바닥에서 올라서는 자리를 보는 "
+     "오래된 기준선입니다(와인스타인 국면 분석). 값이 이 선 위로 올라오면 "
+     "‘바닥을 다지는 중’에서 ‘오르기 시작함’으로 넘어간 것으로 봅니다.<br>"
+     "<span class='j3fh-h'>재어 보니</span> — 나스닥이 −12%·−18%·−24%에 처음 닿은 날과 "
+     "바닥 다음 날에 서서 지난 10년을 되짚었더니, <b class='j3fh-k'>이 갈래에서 통과한 "
+     "유일한 잣대</b>였습니다. 그래서 이 갈래의 점수는 이것 하나, 40점 만점입니다.<br>"
+     "<span class='j3fh-h'>이렇게 읽으십시오</span> — 급락 뒤에는 다 같이 빠져 있어서 "
+     "‘얼마나 빠졌나’로는 못 가릅니다. 이 잣대는 빠진 폭이 아니라 "
+     "<b class='j3fh-k'>이미 몸을 일으킨 테마인가</b>를 봅니다."),
     ("테마가 1년 최고에 붙어 있나",
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목 하나가 아니라 "
      "<b class='j3fh-k'>이 종목이 속한 관련 테마 전체</b>를 봅니다. 앱은 그 테마에 든 "
@@ -2690,24 +2746,34 @@ _FACTOR_HELP = (
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 급락장에서 이 종목의 관련 테마가 "
      "다른 테마보다 <b class='j3fh-k'>덜 떨어졌는지</b> 봅니다. 앱은 테마 20개를 줄 세워 "
      "위쪽 몇 등 안에 들면 점수를 줍니다.<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 다 떨어지는 날에도 덜 떨어지는 테마가 있고, "
-     "되돌아올 때 그 테마가 먼저 올라옵니다.<br>"
-     "<span class='j3fh-h'>재어 보니</span> — 급락 갈래에서 보유 3개월·6개월·1년 "
-     "<b class='j3fh-k'>셋 다 통과한 유일한 항목</b>입니다."),
+     "<span class='j3fh-h'>왜 보려 했는가</span> — 다 떨어지는 날에도 덜 떨어지는 테마가 "
+     "있고, 되돌아올 때 그 테마가 먼저 올라온다고 보았습니다.<br>"
+     "<span class='j3fh-z'>왜 0점인가</span> — 앱은 2026-08-13까지 이 잣대에 점수를 주고 "
+     "있었습니다. 그런데 나스닥이 −12%·−18%·−24%에 처음 닿은 날 기준으로 다시 재 보니 "
+     "<b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. 오히려 <b class='j3fh-k'>많이 "
+     "빠진 테마가 더 크게 되돌아왔습니다.</b> 그래서 앱은 0점으로 내렸습니다. 상승장 "
+     "자리에서도 따로 재 봤지만 마찬가지로 통과하지 못했습니다."),
     ("테마 주봉이 오름세인가",
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 관련 테마 회사들 중 몇 %가 아직 "
      "<b class='j3fh-k'>오름세 모양</b>인지 봅니다. 오름세 모양이란 지금 값이 50일 평균 "
      "위 · 50일 평균이 150일 평균 위 · 150일 평균이 200일 평균 위이고, 200일 평균이 "
      "오르는 중인 것입니다.<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 급락장에는 하루 반짝 오르는 일이 흔합니다. "
-     "이 잣대는 그 반짝을 걸러냅니다.<br>"
-     "<span class='j3fh-h'>재어 보니</span> — 이걸로 고른 종목은 20% 오르는 데 "
-     "<b class='j3fh-k'>34일</b> 걸렸고, 아무거나 산 것은 45일 걸렸습니다."),
+     "<span class='j3fh-h'>왜 보려 했는가</span> — 급락장에는 하루 반짝 오르는 일이 "
+     "흔합니다. 이 잣대가 그 반짝을 걸러 준다고 보았습니다.<br>"
+     "<span class='j3fh-z'>왜 0점인가</span> — 나스닥이 −12%·−18%·−24%에 처음 닿은 날 "
+     "기준으로 다시 재 보니 <b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. "
+     "네 조건을 다 채우려면 이미 한참 오른 뒤여야 해서, <b class='j3fh-k'>급락 바로 "
+     "뒤에는 이 조건을 채우는 테마가 거의 없습니다.</b> 값은 그대로 적어 두니 참고로만 "
+     "보십시오."),
     ("테마가 20일선 위에 있나",
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 관련 테마 회사들 중 몇 %가 최근 "
-     "한 달 평균값 위에 있는지 봅니다.<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 그 테마가 "
-     "<b class='j3fh-k'>이미 돌아서기 시작했는지</b> 보는 잣대입니다."),
+     "한 달 평균값(20일선) 위에 있는지 세어 테마 20개를 줄 세웁니다.<br>"
+     "<span class='j3fh-h'>왜 보려 했는가</span> — 그 테마가 <b class='j3fh-k'>이미 "
+     "돌아서기 시작했는지</b> 보려 한 것입니다.<br>"
+     "<span class='j3fh-z'>왜 0점인가</span> — 20일선은 한 달짜리라 급락 뒤에는 "
+     "<b class='j3fh-k'>며칠 반등만으로도 금세 넘어섭니다.</b> 다시 재 보니 100번 중 "
+     "34~44번밖에 못 맞혔습니다. 앱은 같은 생각을 훨씬 긴 30주선(150일 평균)으로 "
+     "바꿔 40점을 주고 있습니다."),
     ("테마 대비 상대강도",
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 최근 20일 동안 "
      "<b class='j3fh-k'>자기 관련 테마 평균보다 더 올랐는지</b> 봅니다.<br>"
@@ -2724,7 +2790,13 @@ _FACTOR_HELP = (
      "높습니다."),
     ("추세",
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 짧은 평균선이 긴 평균선 위에 "
-     "있는지 봅니다(20일 · 50일 · 200일). 위에서부터 차례로 놓여 있으면 오르는 중입니다."),
+     "있는지 봅니다(20일 · 50일 · 200일). 위에서부터 차례로 놓여 있으면 오르는 "
+     "중입니다.<br>"
+     "<span class='j3fh-z'>왜 0점인가</span> — 앱이 지난 10년을 창 96개로 잘라 재 보니, "
+     "<b class='j3fh-k'>20일선 위는 96개 중 5개, 50일선 위는 12개</b>에서만 이겼습니다. "
+     "거의 거꾸로였습니다. 여기까지 올라온 종목은 대부분 이미 오름세라 "
+     "<b class='j3fh-k'>이 잣대로는 서로를 가려낼 수 없습니다.</b> 뺀 20점은 다른 항목에 "
+     "나눠 주지 않았습니다 — 그래서 이 표의 만점은 100점이 아니라 80점입니다."),
     ("유동성",
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 하루에 얼마나 많이 "
      "사고팔리는지 봅니다. 적으면 상하님이 사고팔 때 값이 크게 흔들립니다.<br>"
@@ -2736,6 +2808,97 @@ _FACTOR_HELP = (
      "<span class='j3fh-h'>짚어 둘 것</span> — 이것도 성적이 아니라 "
      "<b class='j3fh-k'>「상하님이 감당하실 크기인가」를 보는 잣대</b>입니다."),
 )
+
+
+# ── 설명 창 **머리말** ──────────────────────────────────────────────────────
+# 2026-08-15 상하님 지시 — "왜 그렇게 했는지 나스닥 어떻게 조사했고 결과가 그렇다
+# 이런 내용을 맨 위에 표시하고 그다음 세부항목별 간단한 이유 넣어라."
+#
+# 항목 설명만 늘어놓으면 **왜 어떤 항목은 40점이고 어떤 항목은 0점인지**를 알 수
+# 없다. 그 답은 항목 하나에 있지 않고 '어떻게 조사했나'에 있다. 그래서 파트마다
+# 조사 방법과 결과를 맨 위에 한 번 적는다.
+#
+# **여기 적힌 숫자는 실제로 돌려서 나온 값이다**(CLAUDE.md 0-1 가). 배점을 다시
+# 재면 이 글도 같이 고친다.
+_FACTOR_HELP_HEAD = (
+    ("_breakout",
+     "상승장 (신고가 눌림매수) — 앱은 이렇게 조사했습니다",
+     "<b>앱이 무엇을 했나</b> — 앱은 나스닥 명부 200종목의 지난 10년 일봉을 놓고, "
+     "<b class='j3fh-k'>1년 최고가를 뚫은 뒤 −10~−15% 눌린 날</b>을 전부 찾아냈습니다. "
+     "그리고 <b class='j3fh-k'>같은 날 뽑힌 종목끼리만</b> 견줬습니다 — 잘 오른 해에 "
+     "뽑힌 종목과 빠진 해에 뽑힌 종목을 섞으면, 시장이 좋았던 것을 종목이 좋았던 "
+     "것으로 착각하게 됩니다. 사고 나서 3개월·6개월·1년 들고 있었을 때를 각각 "
+     "봤습니다.<br>"
+     "<b>결과가 그렇습니다</b> — 종목 하나만 보는 잣대(지금 눌린 폭 · 거래대금 · "
+     "하루 오르내림 폭)는 <b class='j3fh-k'>세 보유기간 어디에서도 갈라내지 "
+     "못했습니다.</b> 갈린 것은 둘뿐이었습니다. 하나는 그 종목이 아니라 "
+     "<b class='j3fh-k'>관련 테마</b>가 1년 최고에 얼마나 붙어 있나(70점), 다른 하나는 "
+     "<b class='j3fh-k'>뚫던 날</b> 기준 앞 60일에 얼마나 올랐나(30점)입니다. "
+     "둘을 더해 100점 만점입니다.<br>"
+     "<b>0점 항목을 왜 남겨 뒀나</b> — 앱이 무엇을 보고 무엇을 버렸는지 상하님이 "
+     "아셔야 하기 때문입니다. 0점은 '안 쟀다'가 아니라 <b class='j3fh-k'>'재 봤는데 "
+     "통과하지 못했다'</b>는 뜻입니다."),
+    ("_crash",
+     "급락 후 반등장 (낙폭종목) — 앱은 이렇게 조사했습니다",
+     "<b>앱이 무엇을 했나</b> — 앱은 <b class='j3fh-k'>나스닥 종합지수</b>가 그 앞 1년 "
+     "최고에서 <b class='j3fh-k'>−12% · −18% · −24%에 처음 닿은 날</b>과, 바닥을 찍고 "
+     "올라서기 시작한 날에 서서 지난 10년을 되짚었습니다. 상하님이 나눠 들어가시겠다고 "
+     "정하신 그 자리들입니다. 그 자리마다 <b class='j3fh-k'>명부 200종목 전체</b>로 "
+     "테마 20개의 평균을 내어(앱 화면이 하는 것과 똑같이), 어느 테마를 골랐어야 "
+     "3개월·6개월·1년 뒤에 더 벌었는지 견줬습니다.<br>"
+     "<b>결과가 그렇습니다 — 예전 배점은 틀렸습니다</b>. 앱이 쓰던 세 잣대"
+     "(테마가 덜 빠졌나 · 테마 주봉이 오름세인가 · 테마가 20일선 위에 있나)는 "
+     "<b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. 반도 안 됩니다. "
+     "그래서 앱은 셋을 전부 <b class='j3fh-z'>0점</b>으로 내렸습니다.<br>"
+     "<b>남은 하나</b> — 테마에 든 회사들이 <b class='j3fh-k'>30주선(150일 평균) 위에 "
+     "얼마나 있나</b>로 테마 20개를 줄 세워, 위에서 3등 안에 든 테마. 이것만 "
+     "<b class='j3fh-k'>40점</b>입니다.<br>"
+     "<b>그래서 이 갈래는 40점 만점입니다</b> — 100점이 아닙니다. 남는 60점을 다른 "
+     "항목에 나눠 주지 않았습니다. 나눠 주면 근거가 없는 항목이 근거가 있는 것처럼 "
+     "보입니다. <b class='j3fh-k'>만점이 곧 근거의 양</b>입니다."),
+    ("_theme",
+     "테마 안에서 어느 종목을 볼까 — 앱은 이렇게 조사했습니다",
+     "<b>이 표가 하는 일</b> — 위 「20개 테마 실시간 순위」에서 테마를 고르셨으면, "
+     "이 표는 <b class='j3fh-k'>그 테마 안에서 어느 종목을 볼지</b>를 매깁니다.<br>"
+     "<b>앱이 무엇을 했나</b> — 앱은 나스닥 명부 종목의 지난 10년을 창(기간) "
+     "<b class='j3fh-k'>96개</b>로 잘라, 잣대마다 '이 잣대가 높은 쪽이 정말 더 "
+     "벌었나'를 창마다 따로 봤습니다. 한 기간에서만 통하는 값은 기간이 바뀌면 "
+     "뒤집히기 때문입니다.<br>"
+     "<b>결과가 그렇습니다</b> — 평균선 줄서기(추세)는 96개 창 중 "
+     "<b class='j3fh-k'>20일선은 5개, 50일선은 12개</b>에서만 이겼습니다. 거의 "
+     "거꾸로였습니다. 그래서 앱은 추세를 <b class='j3fh-z'>0점</b>으로 내렸습니다. "
+     "남은 넷을 더해 <b class='j3fh-k'>80점 만점</b>입니다. 뒤의 둘(유동성 · 변동성 "
+     "안정)은 더 벌 종목을 맞히는 잣대가 아니라 '상하님이 사고파실 수 있는 종목인가'를 "
+     "거르는 잣대입니다.<br>"
+     "<b>위 테마 점수(100점)에 대해</b> — 앱은 그 점수도 따로 재 봤습니다. 거래일 "
+     "2,500일 동안 날마다 테마 20개를 그 점수로 줄 세우고 5일·10일·20일·3개월·"
+     "6개월·1년 뒤 성적과 견줬는데, <b class='j3fh-k'>어느 기간에서도 앞날을 맞히지 "
+     "못했습니다.</b> 그래서 그 점수는 앞날이 아니라 <b class='j3fh-k'>지금 달아오른 "
+     "정도</b>로만 읽으십시오. 이름표를 '주도/관찰'에서 '강함/보통'으로 바꾼 것도 "
+     "그 때문입니다."),
+    ("",
+     "이 종목 배점 — 앱은 이렇게 조사했습니다",
+     "<b>앱이 무엇을 했나</b> — 앱은 나스닥 명부 종목의 지난 10년을 창(기간) "
+     "<b class='j3fh-k'>96개</b>로 잘라, 잣대마다 '이 잣대가 높은 쪽이 정말 더 "
+     "벌었나'를 창마다 따로 봤습니다.<br>"
+     "<b>결과가 그렇습니다</b> — 평균선 줄서기(추세)는 96개 창 중 "
+     "<b class='j3fh-k'>20일선은 5개, 50일선은 12개</b>에서만 이겼습니다. 거의 "
+     "거꾸로여서 앱은 <b class='j3fh-z'>0점</b>으로 내렸습니다. 남은 넷을 더해 "
+     "<b class='j3fh-k'>80점 만점</b>입니다. 뒤의 둘(유동성 · 변동성 안정)은 더 벌 "
+     "종목을 맞히는 잣대가 아니라 '상하님이 사고파실 수 있는 종목인가'를 거릅니다."),
+)
+
+
+def _factor_help_head(key: str) -> str:
+    """이 배점표가 붙은 파트의 머리말. 열쇠 이름 끝으로 파트를 가른다."""
+    text = str(key)
+    for suffix, title, body in _FACTOR_HELP_HEAD:
+        if suffix and text.endswith(suffix):
+            return (f"<div class='j3fh-head'><span class='j3fh-head-t'>{title}</span>"
+                    f"{body}</div>")
+    _suffix, title, body = _FACTOR_HELP_HEAD[-1]
+    return (f"<div class='j3fh-head'><span class='j3fh-head-t'>{title}</span>"
+            f"{body}</div>")
 
 
 def _factor_help_body(name) -> str:
@@ -2765,14 +2928,12 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str
     # 갈래가 아니라 회색 그대로다(초록=상승장, 주황=급락이라는 약속이 흐려진다).
     close_tone = ("j3fh-x-breakout" if str(key).endswith("_breakout")
                   else "j3fh-x-crash" if str(key).endswith("_crash") else "")
-    chip = f"<label class='j3fh-chip' for='{key}'>설명</label>" if picked else ""
+    chip = f"<label class='j3fh-chip' for='{key}'>설명</label>"
     table = (
         "<table class='j3-factor-table'><thead><tr>"
         f"<th>심사 항목{chip}</th><th>획득(최대)</th></tr></thead>"
         f"<tbody>{factor_rows}{total_row}</tbody></table>"
     )
-    if not picked:
-        return table
     items = "".join(
         f"<div class='j3fh-item'><div class='j3fh-name'>{html.escape(name)}</div>"
         f"<div class='j3fh-txt'>{body}</div></div>"
@@ -2783,7 +2944,7 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str
         + "<div class='j3fh-swap'>"
         + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
         + table
-        + f"<div class='j3fh-p'>{items}"
+        + f"<div class='j3fh-p'>{_factor_help_head(key)}{items}"
         + f"<label class='j3fh-x {close_tone}' for='{key}'>✕ 설명 닫기</label></div></div>"
     )
 
@@ -3807,9 +3968,9 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         # 이미 있고, 여기서 알아야 할 것은 '유동성이 뭔데'다(2026-08-12 상하님).
         note_map = getattr(j3data, "LEADER_SCORE_NOTES", {})
         notes = [note_map.get(name, "") for name, _p in spec]
-        # **0점 항목은 표에서 뺀다**(CLAUDE.md 0-1 마). '추세 0.0 (0.0)' 같은 줄은
-        # 아무도 못 받는 기준이 있는 것처럼 보이게 한다.
-        keep = [i for i, (_n, points) in enumerate(spec) if points > 0]
+        # **0점 항목도 남긴다**(2026-08-15 상하님 지시). 빼 버리면 앱이 무엇을
+        # 봤는지 상하님이 못 보시고, 기준이 두 개뿐인 것처럼 보인다.
+        keep = list(range(len(spec)))
         factor_names = [long_names[i] for i in keep]
         factor_max = [round(spec[i][1], 1) for i in keep]
         factor_notes = [notes[i] for i in keep]
@@ -3881,10 +4042,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
     def _fac_cell(part, maximum):
+        # 만점이 0인 줄은 숫자 대신 '0점'이라 적는다 — 왜 0점인지는 「설명」에 있다.
+        shown = "0점" if not maximum else maximum
         return (
             "<td class='j3-fac-val'>"
             f"<span style='color:#ff5b5b; font-weight:800'>{_number(part)}</span> "
-            f"<span style='color:#ff5b5b'>({maximum})</span></td>"
+            f"<span style='color:#ff5b5b'>({shown})</span></td>"
         )
 
     # 갈래 배점에는 '무엇을 보고 준 점수인지'가 함께 있다 — 이름 옆에 작게 적는다.
@@ -4787,6 +4950,11 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         (row for row in rows if row.get("ticker") == selected_ticker), rows[0]
     )
     _render_pullback_detail(selected_row, market, ranking)
+    # 이 갈래의 **맨 끝** 닫기 단추 (2026-08-15 상하님 지시 — "매수심사결과 높은
+    # 순위 9 위와 ✕ 선택종목 세부사항 닫기 밑, 두 개 사이에 하나 더 만들어라").
+    # 위쪽 닫기는 목록 머리글 바로 위에 있어서, 상세까지 다 내려보고 나면 화면
+    # 몇 장을 도로 올라가야 접을 수 있었다.
+    _section_close("j3_pullback_open", mode_close_label, slot="_bottom")
 
 
 def _render_pullback_finder(market: dict, ranking: dict) -> None:

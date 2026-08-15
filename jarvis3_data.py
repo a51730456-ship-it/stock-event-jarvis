@@ -206,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081420
+MODULE_REVISION = 2026081510
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1583,7 +1583,7 @@ LEADER_RESCALE = 1.0
 LEADER_SCORE_PARTS = (
     ("테마 대비 상대강도", 25.0 * LEADER_RESCALE),
     ("52주 신고가 위치", 25.0 * LEADER_RESCALE),
-    ("추세", LEADER_TREND_POINTS),          # 0점 — 화면 표에서 뺀다(0-1 마)
+    ("추세", LEADER_TREND_POINTS),          # 0점 — 표에는 남기고 왜 0인지 설명한다
     ("유동성", 15.0 * LEADER_RESCALE),
     ("변동성 안정", 15.0 * LEADER_RESCALE),
 )
@@ -1701,9 +1701,8 @@ def crash_rebound_score(row: dict) -> dict:
         _theme_rank_part(row, f"테마가 20일선 위에 있나 (상위 {CRASH_SPREAD_TOP_N}등)",
                          "theme_above20", weights["above20"]),
     ]
-    # **0점 항목은 화면 배점표에서 뺀다**(CLAUDE.md 0-1 마). 0점은 기준이 아니라서
-    # "0.0 (0.0)" 줄로 뜨면 상하님이 읽을 것이 없다. 계산은 위 표에 0으로 남아 있다.
-    parts = [part for part in parts if part[2] > 0]
+    # **0점 항목도 남긴다**(2026-08-15 상하님 지시). 종목 상세만 보고 기준이
+    # 하나뿐인 줄 아시게 되면 안 된다. 값과 등수는 그대로 적고 점수만 0이다.
     return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
             "parts": parts, "max": CRASH_SCORE_MAX}
 
@@ -1929,9 +1928,12 @@ def breakout_gain60(daily: "pd.DataFrame | None", days_ago) -> float | None:
 def breakout_score(row: dict) -> dict:
     """상승장(신고가 눌림매수) 후보의 점수(BREAKOUT_SCORE_MAX 만점)와 근거.
 
-    **0점 항목은 parts에 넣지 않는다**(CLAUDE.md 0-1 마). 0점은 기준이 아니라서
-    화면 배점표에 "0.0 (0.0)" 줄로 뜨면 상하님이 읽을 것이 없다. 계산은 위
-    BREAKOUT_SCORE_WEIGHTS에 0으로 남아 있어 다시 재서 되살릴 수 있다.
+    **0점 항목도 parts에 넣는다**(2026-08-15 상하님 지시 — "각 배점에도 0점짜리도
+    표시하고 점수 미달인 이유 넣고"). 2026-08-13까지는 뺐는데, 그러면 종목 상세만
+    보고 **기준이 둘뿐인 줄 아시게 된다.** 상하님이 실제로 그렇게 물으셨다.
+
+    0점 줄에도 **그 종목의 실제 값과 등수를 그대로 적는다.** 화면이 만점 0을
+    "0점"이라고 적고, 옆 '설명'이 왜 0점인지 알려 준다.
     """
     metrics = row.get("metrics") or {}
     weights = BREAKOUT_SCORE_WEIGHTS
@@ -1956,6 +1958,25 @@ def breakout_score(row: dict) -> dict:
         round(earned * weights["gain60"] / 30.0, 1) if weights["gain60"] else 0.0,
         weights["gain60"],
         "모름" if gain is None else f"{float(gain):+.1f}% ({label})"))
+
+    # ③ 눌린 폭 — **0점**이다. 그물(4~15%)로는 쓰고 점수는 안 준다.
+    low, high = BREAKOUT_DROP_BAND
+    drop = metrics.get("from_high_pct")
+    inside = drop is not None and low <= float(drop) <= high
+    parts.append((
+        "지금 눌린 폭",
+        weights["drop"] if inside else 0.0,
+        weights["drop"],
+        "—" if drop is None else f"{float(drop):+.1f}%"
+        + (" (10~15% 칸)" if inside else "")))
+
+    # ④⑤ 테마 등수 둘 — **0점**이다. 그날 등수로 매기는 자가 전부 무너졌다.
+    parts.append(_theme_rank_part(
+        row, f"테마가 같이 오르는가 (상위 {THEME_RANK_TOP_N}등)",
+        "theme_spread5", weights["spread5"]))
+    parts.append(_theme_rank_part(
+        row, f"테마가 덜 빠졌나 (상위 {THEME_LESS_DROP_TOP_N}등)",
+        "theme_less_drop", weights["less_drop"]))
 
     return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
             "parts": parts, "max": BREAKOUT_SCORE_MAX}

@@ -172,10 +172,16 @@ class RulebookScreenTests(unittest.TestCase):
         for ticker, points in gain_points.items():
             self.assertEqual(15.0, points, ticker)
             self.assertGreater(picked[ticker]["gain60_at_breakout"], 40.0, ticker)
-        # **0점 항목은 표에 넣지 않는다**(CLAUDE.md 0-1 마).
+        # **0점 항목도 표에 넣는다**(2026-08-15 상하님 지시 — "각 배점에도 0점짜리도
+        # 표시하고 점수 미달인 이유 넣고"). 앱이 무엇을 재고 무엇을 버렸는지가 화면에
+        # 남아야 한다. 다만 **점수는 0이어야 한다** — 표에 보인다고 점수가 붙으면
+        # 근거 없는 항목이 순위를 흔든다.
         for row in picked.values():
-            maxima = [m for _n, _v, m, _t in j3.breakout_score(row)["parts"]]
-            self.assertNotIn(0.0, maxima, "0점짜리 줄이 배점표에 남아 있다")
+            parts = j3.breakout_score(row)["parts"]
+            zeros = [(v, m) for _n, v, m, _t in parts if not m]
+            self.assertTrue(zeros, "0점짜리 줄이 배점표에서 사라졌다")
+            for value, _maximum in zeros:
+                self.assertEqual(0.0, value, "만점 0인 항목에 점수가 붙었다")
         # 날짜만 다른 두 종목은 점수가 같아야 한다 — 날짜에는 점수를 주지 않는다.
         self.assertEqual(picked["AAPL"]["score"], picked["MSFT"]["score"])
         # 며칠 지났는지는 줄마다 그대로 실려야 한다 — 화면이 그걸 보여준다.
@@ -487,10 +493,14 @@ class RulebookScreenTests(unittest.TestCase):
             {"metrics": {}, "together_count": 5, "bucket": "shallow"})["parts"]]
         self.assertNotIn("같은 테마 동반", crash_names)
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["together"])
-        # **급락 배점 셋이 전부 테마 등수다.** 종목 항목은 아홉 개가 세 보유 다
-        # 미달이었다 — 미국은 테마로만 고를 수 있다(research/us_crash_new_net.py).
-        # 2026-08-14부터 급락 배점표는 **한 줄뿐**이다(30주선 위).
-        self.assertEqual(1, len(crash_names))
+        # **점수를 주는 항목은 하나뿐이다**(30주선 위). 나머지는 재 봤지만 통과하지
+        # 못한 항목이라 0점으로 **표에 남긴다**(2026-08-15 상하님 지시).
+        crash_parts = j3.crash_rebound_score(
+            {"metrics": {}, "together_count": 5, "bucket": "shallow"})["parts"]
+        scored = [name for name, _v, maximum, _t in crash_parts if maximum]
+        self.assertEqual(1, len(scored), scored)
+        self.assertTrue(scored[0].startswith("테마가 30주선 위에 있나"), scored)
+        self.assertGreater(len(crash_names), 1, "0점 항목이 배점표에서 사라졌다")
         self.assertTrue(all("테마" in name for name in crash_names), crash_names)
 
     def test_theme_rank_is_scored_and_ranks_over_the_whole_universe(self):
