@@ -2995,7 +2995,7 @@ def _render_radar_tab(market: dict) -> None:
             _render_top_reviewed(market, ranking)
             _render_top_reviewed_detail(market)
         _render_my_stock_panel(market)
-        picklist_ui.render(st, "KR", toggle=_section_toggle)
+        picklist_ui.render(st, "KR", toggle=_section_toggle, close=_section_close)
         return
 
     def _close_theme_panel_top():
@@ -3123,7 +3123,7 @@ def _render_radar_tab(market: dict) -> None:
     _render_my_stock_panel(market)
 
     # ⑤ 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다.
-    picklist_ui.render(st, "KR", toggle=_section_toggle)
+    picklist_ui.render(st, "KR", toggle=_section_toggle, close=_section_close)
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:

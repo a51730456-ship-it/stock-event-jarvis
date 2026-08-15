@@ -114,6 +114,22 @@ div[class*="st-key-picklist_archive_open"] button p,
 div[class*="st-key-btn_picklist_archive_open"] button p {
     color: #ffffff !important; font-size: 1.02rem !important; font-weight: 800 !important;
 }
+/* **맨 아래 닫기 단추는 작게** (2026-08-15 상하님 지시 — "저장해 둔 목록 닫기
+   맨 밑 좌측 하단에도 작게 하나 만들어라"). 위 규칙이 이름 일부만 맞춰 잡으므로
+   (st-key-**close_**picklist_archive_open도 걸린다) 여기서 되돌린다. 이 규칙이
+   뒤에 있어 이긴다. 왼쪽에 붙는 것은 스트림릿 기본이라 따로 안 건드린다. */
+div[class*="st-key-close_picklist_archive_open"] button {
+    background: rgba(255,255,255,.06) !important;
+    border: 1px solid rgba(255,255,255,.18) !important;
+    border-radius: .4rem !important;
+    min-height: 0 !important;
+    padding: .15rem .6rem !important;
+    box-shadow: none !important;
+    margin-top: 1.2rem;
+}
+div[class*="st-key-close_picklist_archive_open"] button p {
+    color: #c9ced8 !important; font-size: .82rem !important; font-weight: 700 !important;
+}
 </style>
 """
 
@@ -243,11 +259,15 @@ def fetch_prices(market: str, codes) -> dict:
 fetch_buy_opens = store.fetch_buy_opens
 
 
-def render(st, market: str, *, toggle, header=None) -> None:
+def render(st, market: str, *, toggle, header=None, close=None) -> None:
     """'저장된 목록 보기' 구역 전체.
 
     toggle : 페이지의 ``_section_toggle``을 그대로 받는다. 여닫는 방식이 그 화면의
              다른 구역과 같아야 해서 새로 만들지 않고 빌려 쓴다.
+    close  : 페이지의 ``_section_close``. 넘기면 이 구역 **맨 아래 왼쪽**에 작은
+             닫기 단추를 하나 더 둔다(2026-08-15 상하님 지시). 이 구역은 날짜마다
+             표가 넷이라 화면 몇 장이고, 다 보고 나면 맨 위 닫기 단추가 화면 밖으로
+             나가 접으려고 한참 올라가야 했다. 안 넘기면 예전처럼 위에만 둔다.
     header : 이 구역 **맨 위**에 그릴 것이 있으면 넘긴다(2026-08-14 상하님 지시 —
              "날짜별로 저장해 둔 목록 보기에 제일 위에 자동 저장된 게 나오도록").
              미국은 매수 기록을, 한국은 아직 아무것도 안 넘긴다. 이 모듈은 시장을
@@ -437,6 +457,13 @@ def render(st, market: str, *, toggle, header=None) -> None:
             unsafe_allow_html=True,
         )
         st.markdown(table_html(part, kind, tried=tried), unsafe_allow_html=True)
+
+    # 이 구역의 **맨 끝** — 여기서 바로 접을 수 있게 한다(2026-08-15 상하님 지시).
+    if close is not None:
+        try:
+            close(open_key(market), "저장해 둔 목록 닫기")
+        except Exception:
+            pass          # 닫기 단추 하나 때문에 목록 전체가 막히면 안 된다
 
 
 def autosave(market: str, list_kind: str, result) -> None:

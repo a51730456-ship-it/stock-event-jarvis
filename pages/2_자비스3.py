@@ -3323,6 +3323,7 @@ def _render_radar_tab(market: dict) -> None:
             _render_top7_section(market, ranking)
         _render_my_stock_panel(market)
         picklist_ui.render(st, "US", toggle=_section_toggle,
+                           close=_section_close,
                            header=_render_saved_trades_header)
         return
 
@@ -3448,6 +3449,7 @@ def _render_radar_tab(market: dict) -> None:
     # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
     # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
     picklist_ui.render(st, "US", toggle=_section_toggle,
+                       close=_section_close,
                        header=_render_saved_trades_header)
 
 
