@@ -42,7 +42,7 @@ from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
 # (CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026081210
+MODULE_REVISION = 2026081510
 
 SCHEMA_VERSION = 2
 
@@ -59,9 +59,20 @@ LIST_KINDS = {
     "pullback": "눌림목 찾기",
     "breakout": "상승장 (신고가 눌림매수)",
     "crash": "급락 후 반등장 (낙폭종목)",
-    "top7": "매수심사결과 높은 순위 7",
+    "top7": "매수심사결과 높은 순위 9",
 }
 KIND_ORDER = ("pullback", "breakout", "crash", "top7")
+
+# 순위 9는 **파트 안에서** 1·2·3으로 번호가 매겨진다(2026-08-15 상하님 지시 —
+# "왜 순위가 123 123 123 이렇게 되어야지 1~9위가 나오냐"). 그래서 번호만으로 줄을
+# 세우면 세 파트가 서로 섞인다. 파트 차례를 먼저 보고 그 다음에 번호를 본다.
+# 이름은 jarvis3_data.TOP_PICK_QUOTA와 **같아야 한다.**
+ORIGIN_ORDER = ("테마 대장주", "상승장", "급락 후 반등장")
+
+
+def _origin_place(row) -> int:
+    origin = str(row.get("origin") or "")
+    return ORIGIN_ORDER.index(origin) if origin in ORIGIN_ORDER else len(ORIGIN_ORDER)
 
 # 칸 순서가 곧 CSV·엑셀의 칸 순서다. 상하님이 부르신 이름을 그대로 쓴다.
 FIELDS = (
@@ -283,6 +294,7 @@ def save_rows(rows, *, trade_date: str, market: str,
     merged.sort(key=lambda row: (
         KIND_ORDER.index(str(row.get("list_kind")))
         if str(row.get("list_kind")) in KIND_ORDER else len(KIND_ORDER),
+        _origin_place(row),
         _num(row.get("rank")) or 0,
     ))
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -319,6 +331,7 @@ def load_rows(trade_date: str, market: str,
     rows.sort(key=lambda row: (
         KIND_ORDER.index(str(row.get("list_kind")))
         if str(row.get("list_kind")) in KIND_ORDER else len(KIND_ORDER),
+        _origin_place(row),
         row.get("rank") or 0,
     ))
     return rows

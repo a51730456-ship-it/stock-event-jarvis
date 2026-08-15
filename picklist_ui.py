@@ -50,6 +50,7 @@ _COLUMNS = (
     ("wait_days", "고점 뒤 며칠"),
     ("hold_days", "보유일수"),
     ("state", "매수 상태"),
+    ("origin", "매수 파트"),
     ("themes", "테마"),
 )
 
@@ -64,7 +65,10 @@ _KIND_COLUMNS = {
     "breakout": _HEAD + ("from_high_pct", "wait_days", "hold_days", "themes"),
     "crash": _HEAD + ("judged_from_high_pct", "from_high_pct", "bucket_label",
                       "hold_days", "themes"),
-    "top7": _HEAD + ("state", "themes"),
+    # 순위 9는 세 파트에서 3개씩 뽑은 것이라 **어느 파트에서 왔는지**가 없으면
+    # 번호가 1·2·3으로 되풀이되는 까닭을 알 수 없다(2026-08-15 상하님 지시 —
+    # "매수 파트 ... 부분이 들어가야 알 수 있잖아"). 번호 바로 옆에 둔다.
+    "top7": ("rank", "origin") + _HEAD[1:] + ("state", "themes"),
 }
 
 CSS = """

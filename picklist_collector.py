@@ -107,17 +107,21 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
     pullback = _run("pullback", data.find_pullback_stocks)
 
     # ③·④ 설명서 두 갈래
-    _run("breakout", data.find_breakout_pullback_stocks)
-    _run("crash", data.find_crash_rebound_stocks)
+    breakout = _run("breakout", data.find_breakout_pullback_stocks)
+    crash = _run("crash", data.find_crash_rebound_stocks)
 
-    # ⑤ 매수심사결과 높은 순위 7 — 테마 대장주와 눌림목 결과를 재료로 쓴다.
-    #    화면과 같은 재료를 넣어야 같은 목록이 나온다.
-    if theme_rows:
-        extra_rows = list((pullback or {}).get("rows") or [])
-        _run("top7", lambda: data.find_top_reviewed_stocks(
+    # ⑤ 매수심사결과 높은 순위 9 — **화면이 부르는 함수를 그대로 부른다**(CLAUDE.md 10-1).
+    #    2026-08-15까지는 여기서 find_top_reviewed_stocks를 불렀다. 그것은 화면이
+    #    3·3·3으로 나누기 **전의 재료**여서, 저장된 목록에는 한 테마 종목이 1~9위를
+    #    줄줄이 차지했다(상하님 지적 — "왜 순위가 123 123 123 이렇게 되어야지
+    #    1~9위가 나오냐"). 이제 화면과 같은 collect_top_picks를 부른다.
+    #    방금 찍은 두 갈래 결과를 넘겨 같은 조회를 두 번 하지 않는다.
+    if theme_rows and hasattr(data, "collect_top_picks"):
+        _run("top7", lambda: data.collect_top_picks(
             theme_rows,
             market_score=float(market_overview.get("score") or 0),
-            extra_rows=extra_rows,
+            breakout=breakout,
+            crash=crash,
         ))
 
     path = store.save_rows(collected, trade_date=trade_date, market=market, out_dir=out_dir)

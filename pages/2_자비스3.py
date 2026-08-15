@@ -3487,8 +3487,11 @@ def _kept_recently(key: str, seconds: float = 300) -> bool:
 # 2026-08-12 상하님 지시로 3·3·3 아홉 자리가 됐다 — "대장주 3개 상승장 3개
 # 급락 3개씩 해라. 급락하는 시장에서는 상승장이 없잖아. 없으면 없는 대로 하면 돼.
 # 그 대신 설명을 해야겠지."
-_TOP7_QUOTA = (("테마 대장주", 3), ("상승장", 3), ("급락 후 반등장", 3))
-_TOP_TOTAL = sum(quota for _name, quota in _TOP7_QUOTA)
+# 자리 배분은 **모듈이 정한다** — 화면과 클라우드 수집기가 같은 값을 봐야 한다.
+_TOP7_QUOTA = tuple(getattr(j3data, "TOP_PICK_QUOTA",
+                            (("테마 대장주", 3), ("상승장", 3), ("급락 후 반등장", 3))))
+_TOP_TOTAL = int(getattr(j3data, "TOP_PICK_TOTAL",
+                         sum(quota for _name, quota in _TOP7_QUOTA)))
 
 # 상승장·급락 표에서 처음부터 펴 두는 줄 수. 나머지는 접어 둔다
 # (2026-08-06 사용자 지시 — 급락은 20줄이라 화면이 너무 길었다).
@@ -3498,70 +3501,28 @@ _RULEBOOK_OPEN_ROWS = 10
 
 
 def _blend_top7(market: dict, ranking: dict) -> dict:
-    """세 군데에서 각자 자기 자로 뽑아 7개를 만든다(2026-08-06).
+    """세 파트에서 각자 자기 자로 3개씩 뽑아 아홉 개를 만든다(2026-08-06).
 
-    한 갈래가 자리를 못 채우면 남는 자리는 테마 대장주가 메운다.
+    **뽑는 일은 jarvis3_data.collect_top_picks가 한다** — 2026-08-15에 여기서 그리로
+    옮겼다. 여기 있는 동안에는 클라우드 수집기가 같은 것을 부를 수 없어서, 화면은
+    3·3·3을 보여 주는데 **저장은 한 통에서 위에서 아홉을 뽑은 딴 목록**을 남겼다
+    (상하님 지적 — "왜 순위가 123 123 123 이렇게 되어야지 1~9위가 나오냐").
+    이 함수가 하는 일은 이제 **화면에서만 아는 것을 넘겨 주는 것**뿐이다 —
+    상하님이 이미 열어 두신 갈래 결과를 넘겨 같은 조회를 두 번 하지 않게 한다.
     """
     market_score = float(market.get("score") or 0)
-    leaders = j3data.find_top_reviewed_stocks(
-        ranking.get("rows") or [], market_score=market_score, limit=12
-    )
-    picklist_ui.autosave("US", "top7", leaders)
-    buckets: dict[str, list[dict]] = {"테마 대장주": list(leaders.get("rows") or [])}
     opened = st.session_state.get("j3_pullback_result") or {}
     opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
-    for name, mode, finder, planner in (
-        ("상승장", "breakout", j3data.find_breakout_pullback_stocks,
-         j3data.breakout_plan),
-        ("급락 후 반등장", "crash", j3data.find_crash_rebound_stocks,
-         j3data.crash_rebound_plan),
-    ):
-        try:
-            part = opened if opened_mode == mode and opened.get("ok") else finder()
-        except Exception as exc:          # 한 갈래가 죽어도 나머지는 살린다
-            st.caption(f"{name}을 못 받았습니다 — {_safe_error_text(exc)}")
-            part = {}
-        rows = []
-        for row in (part or {}).get("rows") or []:
-            merged = dict(row)
-            merged["plan"] = planner(row)
-            rows.append(merged)
-        buckets[name] = rows
-
-    picked, seen, empty_notes = [], set(), []
-    for name, quota in _TOP7_QUOTA:
-        taken = 0
-        for row in buckets.get(name) or []:
-            if quota <= 0:
-                break
-            ticker = str(row.get("ticker") or "")
-            if not ticker or ticker in seen:
-                continue
-            seen.add(ticker)
-            row = dict(row)
-            row["top7_origin"] = name
-            picked.append(row)
-            quota -= 1
-            taken += 1
-        # **빈 자리를 딴 갈래로 메우지 않는다**(2026-08-12 상하님 지시).
-        # 예전에는 남는 자리를 대장주가 채웠다. 그러면 급락장에 상승장 자리가
-        # 없다는 사실이 화면에서 사라진다 — 그게 알아야 할 정보다.
-        want = dict(_TOP7_QUOTA)[name]
-        if taken < want:
-            empty_notes.append(
-                f"오늘은 **{name}** 자리가 없습니다" if not taken
-                else f"**{name}**은 {want}자리 중 {taken}개만 찼습니다")
-    for index, row in enumerate(picked, 1):
-        row["pick_rank"] = index
-    return {
-        "ok": True,
-        "rows": picked,
-        "scanned_themes": leaders.get("scanned_themes", 0),
-        "candidate_count": sum(len(v) for v in buckets.values()),
-        "errors": leaders.get("errors") or [],
-        "bucket_counts": {name: len(buckets.get(name) or []) for name, _q in _TOP7_QUOTA},
-        "empty_notes": empty_notes,
-    }
+    result = j3data.collect_top_picks(
+        ranking.get("rows") or [],
+        market_score=market_score,
+        breakout=opened if opened_mode == "breakout" else None,
+        crash=opened if opened_mode == "crash" else None,
+    )
+    # **저장은 화면이 보여 주는 그 목록이다**(CLAUDE.md 10-1). 예전에는 섞기 전
+    # 재료(find_top_reviewed_stocks)를 저장해서 저장 목록과 화면이 갈라져 있었다.
+    picklist_ui.autosave("US", "top7", result)
+    return result
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:

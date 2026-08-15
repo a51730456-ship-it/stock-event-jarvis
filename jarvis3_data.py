@@ -206,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081510
+MODULE_REVISION = 2026081520
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -3176,6 +3176,113 @@ def find_top_reviewed_stocks(
         "errors": errors,
         "checked_at": datetime.now(_NY).isoformat(timespec="seconds"),
     }
+
+
+# ── 매수심사결과 높은 순위 9 — 세 파트에서 각자 자기 자로 3개씩 ─────────────
+# 2026-08-06 상하님 지시로 자리를 나눴고, 2026-08-12 지시로 3·3·3 아홉 자리가 됐다
+# ("대장주 3개 상승장 3개 급락 3개씩 해라. 급락하는 시장에서는 상승장이 없잖아.
+#  없으면 없는 대로 하면 돼. 그 대신 설명을 해야겠지").
+#
+# **이 함수는 2026-08-15에 화면(pages/2_자비스3.py)에서 여기로 옮겨 왔다.**
+# 옮긴 까닭 — 화면은 3·3·3으로 뽑아 보여 주는데 **저장은 그 결과를 저장하지
+# 않았다.** 화면도 클라우드 수집기도 `find_top_reviewed_stocks`(한 통에 넣고 위에서
+# 아홉)를 그대로 저장하고 있어서, 저장해 둔 목록에는 1~9위가 한 테마에서 줄줄이
+# 나왔다(2026-08-15 상하님 지적 — "왜 순위가 123 123 123 이렇게 되어야지 1~9위가
+# 나오냐"). CLAUDE.md 10-1 — 저장하는 쪽은 값을 다시 계산하지 않고 **화면이 부르는
+# 함수를 같은 인자로** 부른다. 그러려면 함수가 화면 밖에 있어야 한다.
+TOP_PICK_QUOTA = (("테마 대장주", 3), ("상승장", 3), ("급락 후 반등장", 3))
+TOP_PICK_TOTAL = sum(quota for _name, quota in TOP_PICK_QUOTA)
+TOP_PICK_ORDER = tuple(name for name, _quota in TOP_PICK_QUOTA)
+
+
+def blend_top_picks(buckets: dict, *, quota=TOP_PICK_QUOTA) -> dict:
+    """세 파트의 목록을 받아 파트마다 위에서 몇 개씩 뽑아 하나로 잇는다.
+
+    **점수를 다시 재지 않는다.** 파트마다 자가 다르므로(대장주는 80점 만점 조건점수,
+    상승장은 100점, 급락은 40점) 하나의 자로 다시 재면 급락 종목이 영원히 못
+    올라온다. 각 목록이 제 자로 잰 값을 그대로 쓰고, 어느 파트에서 왔는지를
+    ``top7_origin``에 적는다.
+
+    **빈 자리를 딴 파트로 메우지 않는다**(2026-08-12 상하님 지시). 급락장에 상승장
+    자리가 없다는 것은 감출 일이 아니라 알아야 할 정보다. 왜 비었는지 ``empty_notes``에
+    적어 화면이 그대로 보여준다.
+
+    순위(``pick_rank``)는 **파트 안에서** 1·2·3으로 매긴다(2026-08-15 상하님 지시).
+    1~9로 통으로 매기면 저장한 목록만 봐서는 어느 파트 몇 등인지 알 수 없다.
+    """
+    picked: list[dict] = []
+    seen: set[str] = set()
+    empty_notes: list[str] = []
+    for name, want in quota:
+        taken = 0
+        for row in buckets.get(name) or []:
+            if taken >= want:
+                break
+            ticker = str(row.get("ticker") or "").strip()
+            if not ticker or ticker in seen:
+                continue
+            seen.add(ticker)
+            row = dict(row)
+            row["top7_origin"] = name
+            taken += 1
+            row["pick_rank"] = taken
+            picked.append(row)
+        if taken < want:
+            empty_notes.append(
+                f"오늘은 **{name}** 자리가 없습니다" if not taken
+                else f"**{name}**은 {want}자리 중 {taken}개만 찼습니다"
+            )
+    return {
+        "ok": bool(picked),
+        "rows": picked,
+        "candidate_count": sum(len(buckets.get(name) or []) for name, _q in quota),
+        "bucket_counts": {name: len(buckets.get(name) or []) for name, _q in quota},
+        "empty_notes": empty_notes,
+    }
+
+
+def collect_top_picks(theme_rows, *, market_score: float = 0,
+                      leaders: dict | None = None,
+                      breakout: dict | None = None,
+                      crash: dict | None = None) -> dict:
+    """순위 9 한 벌을 통째로 만든다 — 화면과 클라우드 수집기가 **같이 부른다.**
+
+    이미 돌려 둔 결과가 있으면 그것을 넘겨 다시 돌지 않게 한다(화면은 상하님이
+    열어 두신 갈래 결과를 그대로 넘긴다). 한 파트가 실패해도 나머지는 살린다.
+    """
+    errors: list[str] = []
+    if leaders is None:
+        try:
+            leaders = find_top_reviewed_stocks(
+                theme_rows or [], market_score=market_score, limit=12)
+        except Exception as exc:                     # 한 파트가 죽어도 나머지는 산다
+            errors.append(f"테마 대장주: {exc}")
+            leaders = {}
+    buckets = {"테마 대장주": list((leaders or {}).get("rows") or [])}
+    for name, given, finder, planner in (
+        ("상승장", breakout, find_breakout_pullback_stocks, breakout_plan),
+        ("급락 후 반등장", crash, find_crash_rebound_stocks, crash_rebound_plan),
+    ):
+        part = given
+        if not (isinstance(part, dict) and part.get("ok")):
+            try:
+                part = finder()
+            except Exception as exc:
+                errors.append(f"{name}: {exc}")
+                part = {}
+        rows = []
+        for row in (part or {}).get("rows") or []:
+            merged = dict(row)
+            merged["plan"] = planner(row)
+            rows.append(merged)
+        buckets[name] = rows
+
+    blended = blend_top_picks(buckets)
+    blended["scanned_themes"] = (leaders or {}).get("scanned_themes", 0)
+    blended["errors"] = list((leaders or {}).get("errors") or []) + errors
+    blended["checked_at"] = datetime.now(_NY).isoformat(timespec="seconds")
+    return blended
+
 
 
 def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: float = 0,
