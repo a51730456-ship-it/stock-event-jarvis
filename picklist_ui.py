@@ -453,7 +453,8 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
         if not part:
             continue
         st.markdown(
-            f"<div class='pl-kind'>{store.LIST_KINDS[kind]} · {len(part)}종목</div>",
+            # 제목은 **그 시장 화면이 쓰는 말 그대로**다(2026-08-15 상하님 지시).
+            f"<div class='pl-kind'>{store.kind_label(kind, market)} · {len(part)}종목</div>",
             unsafe_allow_html=True,
         )
         st.markdown(table_html(part, kind, tried=tried), unsafe_allow_html=True)
@@ -475,6 +476,9 @@ def autosave(market: str, list_kind: str, result) -> None:
     무슨 일이 있어도 화면을 죽이지 않는다(조용한 실패).
     """
     try:
+        # 그 시장 화면에 없는 갈래는 안 남긴다(2026-08-15). 수집기와 같은 규칙이다.
+        if not store.should_save(list_kind, market):
+            return
         trade_date = store.trade_date_for(market)
         if list_kind in store.saved_kinds(trade_date, market):
             return

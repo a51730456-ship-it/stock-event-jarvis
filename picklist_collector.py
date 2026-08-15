@@ -70,6 +70,12 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
     counts: dict[str, int] = {}
 
     def _run(kind: str, call):
+        # 그 시장 화면에 없는 갈래는 새로 저장하지 않는다(2026-08-15 상하님 지시 —
+        # "첫 번째 캡처 화면의 제목대로 저장해 둔 목록이 나와야지"). 미국은
+        # '눌림목 찾기'를 2026-08-06에 화면에서 뺐는데 저장은 계속하고 있었다.
+        if hasattr(store, "should_save") and not store.should_save(kind, market):
+            _log(f"  {kind} 건너뜀 — {market} 화면에 없는 갈래입니다")
+            return None
         try:
             result = call()
         except Exception as exc:  # 한 갈래의 실패가 나머지를 막지 않는다
@@ -103,7 +109,8 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
         errors.append(f"테마 순위: {exc}")
         _log(f"  테마 순위 실패 — {exc}")
 
-    # ② 눌림목 찾기
+    # ② 눌림목 찾기 — 한국 화면에만 있다. 미국은 _run이 알아서 건너뛴다.
+    #    미국 순위 9는 이것을 재료로 쓰지 않는다(collect_top_picks가 제 재료를 쓴다).
     pullback = _run("pullback", data.find_pullback_stocks)
 
     # ③·④ 설명서 두 갈래
@@ -116,13 +123,23 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
     #    줄줄이 차지했다(상하님 지적 — "왜 순위가 123 123 123 이렇게 되어야지
     #    1~9위가 나오냐"). 이제 화면과 같은 collect_top_picks를 부른다.
     #    방금 찍은 두 갈래 결과를 넘겨 같은 조회를 두 번 하지 않는다.
-    if theme_rows and hasattr(data, "collect_top_picks"):
-        _run("top7", lambda: data.collect_top_picks(
-            theme_rows,
-            market_score=float(market_overview.get("score") or 0),
-            breakout=breakout,
-            crash=crash,
-        ))
+    #    **한국은 아직 옛 방식이다** — jarvis4_data에는 collect_top_picks가 없다.
+    #    그쪽까지 같이 고치지 않는다(CLAUDE.md 0-1 다). 한국은 예전 그대로 저장한다.
+    if theme_rows:
+        if hasattr(data, "collect_top_picks"):
+            _run("top7", lambda: data.collect_top_picks(
+                theme_rows,
+                market_score=float(market_overview.get("score") or 0),
+                breakout=breakout,
+                crash=crash,
+            ))
+        else:
+            extra_rows = list((pullback or {}).get("rows") or [])
+            _run("top7", lambda: data.find_top_reviewed_stocks(
+                theme_rows,
+                market_score=float(market_overview.get("score") or 0),
+                extra_rows=extra_rows,
+            ))
 
     path = store.save_rows(collected, trade_date=trade_date, market=market, out_dir=out_dir)
     if path is None:

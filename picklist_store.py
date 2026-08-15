@@ -69,6 +69,40 @@ KIND_ORDER = ("pullback", "breakout", "crash", "top7")
 # 이름은 jarvis3_data.TOP_PICK_QUOTA와 **같아야 한다.**
 ORIGIN_ORDER = ("테마 대장주", "상승장", "급락 후 반등장")
 
+# **저장 목록의 제목은 그 시장 화면의 제목과 같아야 한다**(2026-08-15 상하님 지시 —
+# "첫 번째 캡처 화면의 제목대로 저장해 둔 목록이 나와야지. 제목들이 다른 것은 왜
+# 그렇게 했나. 맞춰라"). 두 화면이 같은 갈래를 다른 이름으로 부르는 데가 둘이다.
+#   · 순위 — 미국은 자리가 아홉(3·3·3), 한국은 아직 일곱이다.
+#   · 눌림목 — 한국 화면은 「눌림목 종목 찾기 (상승추세 중 조정)」라 적는다.
+#     미국 화면에는 2026-08-06에 뺐다(10년치로 재 보니 기준선을 못 이겼다).
+#     그래서 미국은 **이제 저장하지 않는다.** 그전에 쌓인 날에는 남아 있으므로,
+#     그 줄에는 화면에서 뺀 옛 갈래라고 적어 준다 — 지우지 않는다(CLAUDE.md 10-1).
+KIND_LABELS_BY_MARKET = {
+    "US": {
+        "pullback": "눌림목 찾기 (2026-08-06에 화면에서 뺀 옛 갈래)",
+        "top7": "매수심사결과 높은 순위 9",
+    },
+    "KR": {
+        "pullback": "눌림목 종목 찾기 (상승추세 중 조정)",
+        "top7": "매수심사결과 높은 순위 7",
+    },
+}
+
+# 그 시장 화면에 **없는** 갈래는 새로 저장하지 않는다. 화면에 없는 제목이 저장
+# 목록에만 있으면 상하님이 화면과 목록을 맞춰 보실 수 없다.
+SKIP_KINDS_BY_MARKET = {"US": ("pullback",)}
+
+
+def kind_label(kind: str, market: str | None = None) -> str:
+    """그 시장 화면이 쓰는 제목. 시장을 안 넘기면 갈래의 기본 이름."""
+    per_market = KIND_LABELS_BY_MARKET.get(str(market or "").upper(), {})
+    return per_market.get(kind) or LIST_KINDS.get(kind, kind)
+
+
+def should_save(kind: str, market: str) -> bool:
+    """그 시장에서 이 갈래를 새로 저장할지. 화면에 없는 갈래는 안 남긴다."""
+    return kind not in SKIP_KINDS_BY_MARKET.get(str(market).upper(), ())
+
 
 def _origin_place(row) -> int:
     origin = str(row.get("origin") or "")
