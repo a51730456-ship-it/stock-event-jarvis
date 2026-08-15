@@ -1,3 +1,0 @@
-trade_date,market,list_kind,rank,code,name,themes,score,stock_score,price,buy_open,change_pct,from_high_pct,judged_from_high_pct,bucket_label,wait_days,hold_days,together_count,recent_gain_pct,state,origin,theme_place,saved_at,schema
-2026-08-15,KR,pullback,1,086790,하나금융지주,반도체/HBM · 조선/해운,90.5,,60000.0,,0.5,-9.0,,,3.0,,,,눌림목 대기,반도체/HBM,,2026-08-15T10:23:50+09:00,3
-2026-08-15,KR,pullback,2,055550,신한지주,조선/해운 · 방산,85.5,,60000.0,,0.5,-9.0,,,6.0,,,,눌림목 대기,조선/해운,,2026-08-15T10:23:50+09:00,3
