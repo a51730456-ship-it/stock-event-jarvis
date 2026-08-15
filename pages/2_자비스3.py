@@ -1003,7 +1003,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081520
+_REQUIRED_J3_REVISION = 2026081530
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2465,6 +2465,9 @@ def _render_stock_detail(
 # 「20개 테마 실시간 순위」 표를 열어 둘까(2026-08-14 상하님 지시). **기본은 열림.**
 # 여닫는 단추는 '종목 찾기' 바로 위에 있다(_render_pullback_finder 맨 앞).
 _THEME_RANK_OPEN = "j3_theme_rank_open"
+# 상위 테마 5개 × 각 1~3위 여닫이 (2026-08-15 상하님 지시). 평소에는 닫아 둔다 —
+# 열면 테마 다섯의 종목 시세를 받으므로 페이지 여는 시간에 얹히면 안 된다.
+_THEME_TOP15_OPEN = "j3_theme_top15_open"
 
 _THEME_PANEL_OPEN_KEYS = (
     "j3_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
@@ -4922,6 +4925,88 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     _section_close("j3_pullback_open", mode_close_label, slot="_bottom")
 
 
+
+def _render_theme_top15(market: dict, ranking: dict) -> None:
+    """상위 테마 5개 × 각 종목 1~3위 = 15종목 (2026-08-15 상하님 지시).
+
+    상하님 — "20개 테마 중 상위 테마 5위, 각 테마 중 1~3위, 그렇게 하면 15종목이
+    나오겠지?"
+
+    **점수를 새로 만들지 않는다.** 테마를 눌렀을 때 나오는 「테마 종목 1–6위」와
+    같은 조건점수·같은 차례다(jarvis3_data.find_theme_top_picks). 여기서 따로 재면
+    같은 종목이 두 화면에서 다른 등수로 나온다.
+
+    **자리는 「20개 테마 실시간 순위」 바로 아래**다 — 그 순위표에서 위 다섯 테마를
+    보시고, 바로 이어서 그 안의 앞자리 종목을 보시게 하려는 것이다.
+    """
+    st.markdown(
+        f"<div class='j3-section-title'>🏅 상위 테마 "
+        f"{int(getattr(j3data, 'THEME_TOP_THEMES', 5))}개 · 각 종목 1~"
+        f"{int(getattr(j3data, 'THEME_TOP_PER_THEME', 3))}위</div>",
+        unsafe_allow_html=True,
+    )
+    if not _section_toggle("🏅 상위 테마 5개 종목 보기", _THEME_TOP15_OPEN,
+                           close_label="상위 테마 5개 종목 닫기"):
+        st.caption(
+            "단추를 누르면 20개 테마 중 위 다섯 테마에서 각각 앞자리 세 종목씩, "
+            "모두 15종목을 한 화면에 폅니다. 테마마다 따로 들어가지 않으셔도 됩니다."
+        )
+        return
+
+    themes = list(ranking.get("rows") or [])
+    if not themes:
+        st.info("테마 순위를 아직 못 받았습니다. 맨 위 「20개 테마 실시간 순위」를 먼저 여십시오.")
+        return
+    with st.spinner("위 다섯 테마의 종목을 받는 중입니다…"):
+        result = j3data.find_theme_top_picks(
+            themes, market_score=float(market.get("score") or 0))
+    picklist_ui.autosave("US", "theme15", result)
+    rows = result.get("rows") or []
+    if not rows:
+        st.warning("종목을 못 받았습니다 — " + (", ".join(result.get("errors") or []) or "까닭 미상"))
+        return
+
+    st.markdown(
+        "<div class='j3-pull-stats'>테마 "
+        f"<b>{result.get('top_themes', 0)}개</b> × 각 "
+        f"<b>{result.get('per_theme', 0)}종목</b> → "
+        f"<b class='j3-green'>{len(rows)}종목</b> · 차례는 테마를 눌렀을 때 나오는 "
+        "「테마 종목 1–6위」와 **같은 조건점수**입니다(80점 만점).</div>",
+        unsafe_allow_html=True,
+    )
+    widths = [0.7, 1.7, 0.6, 2.0, 1.2, 1.2, 1.2]
+    titles = ["테마 등수", "테마", "순위", "종목", "점수", "현재가", "매수 상태"]
+    box = st.container(key="j3_theme15_table")
+    for column, title in zip(box.columns(widths), titles):
+        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+    for row in rows:
+        plan = row.get("plan") or {}
+        cols = box.columns(widths)
+        cols[0].markdown(f"<div class='j3-td'>{int(row.get('theme_place') or 0)}등</div>",
+                         unsafe_allow_html=True)
+        cols[1].markdown(
+            f"<div class='j3-td j3-top7-leader j3-top7-src'>"
+            f"{html.escape(str(row.get('theme_name') or ''))}</div>", unsafe_allow_html=True)
+        cols[2].markdown(f"<div class='j3-td'>{int(row.get('rank') or 0)}위</div>",
+                         unsafe_allow_html=True)
+        cols[3].markdown(
+            f"<div class='j3-td' style='font-weight:700'>"
+            f"{html.escape(str(row.get('name') or row['ticker']))} "
+            f"({html.escape(row['ticker'])})</div>", unsafe_allow_html=True)
+        score = float(row.get("score") or 0)
+        cols[4].markdown(
+            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(score, 100):.0f}%'></div>"
+            f"</div><span class='j3-bar-num'>{score:.1f}</span></div></div>",
+            unsafe_allow_html=True)
+        cols[5].markdown(
+            f"<div class='j3-td' style='font-weight:700'>"
+            f"{_price((row.get('metrics') or {}).get('current'))}</div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div class='j3-td'>{plan.get('state', '—')}</div>",
+                         unsafe_allow_html=True)
+    _section_close(_THEME_TOP15_OPEN, "상위 테마 5개 종목 닫기")
+
+
 def _render_pullback_finder(market: dict, ranking: dict) -> None:
     """20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""
     # st.divider()는 뺐다(2026-08-06 상하님 지시 "제목을 위로 올려라") — 가로줄과
@@ -4944,6 +5029,9 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 상승장·급락과 같은 규칙이다(위에서 열고, 아래에서도 닫는다).
     if st.session_state.get(_THEME_RANK_OPEN):
         _section_close(_THEME_RANK_OPEN, "20개 테마 실시간 순위 닫기")
+    # **상위 테마 5개 × 각 1~3위는 순위표 바로 아래**다(2026-08-15 상하님 지시).
+    # 위에서 다섯 테마를 보시고 바로 이어서 그 안의 앞자리 종목을 보시게 한다.
+    _render_theme_top15(market, ranking)
     st.markdown(
         "<div class='j3-section-title'>📉 종목 찾기</div>",
         unsafe_allow_html=True,

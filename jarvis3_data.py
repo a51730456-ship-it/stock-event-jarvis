@@ -206,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081520
+MODULE_REVISION = 2026081530
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -3288,6 +3288,79 @@ def collect_top_picks(theme_rows, *, market_score: float = 0,
     blended["errors"] = list((leaders or {}).get("errors") or []) + errors
     blended["checked_at"] = datetime.now(_NY).isoformat(timespec="seconds")
     return blended
+
+
+
+# ── 상위 테마 5개 × 각 1~3위 = 15종목 ────────────────────────────────────────
+# 2026-08-15 상하님 지시 — "20개 테마 중 상위 테마 5위, 각 테마 중 1~3위,
+# 그렇게 하면 15종목이 나오겠지?"
+#
+# 이 자리는 **테마 하나를 골라 들어가지 않아도** 위에서 다섯 테마의 앞자리 종목을
+# 한 화면에서 보게 한다. 지금까지는 테마를 눌러 들어가야 1~6위가 보였고, 다섯
+# 테마를 보려면 다섯 번 들어갔다 나와야 했다.
+#
+# **점수를 새로 만들지 않는다.** 테마를 눌렀을 때 나오는 「테마 종목 1–6위」와
+# **같은 조건점수·같은 차례**다(get_theme_leaders). 여기서 따로 재면 같은 종목이
+# 두 화면에서 다른 등수로 나온다.
+THEME_TOP_THEMES = 5          # 위에서 몇 테마까지
+THEME_TOP_PER_THEME = 3       # 테마마다 몇 종목까지
+
+
+def find_theme_top_picks(theme_rows, *, market_score: float = 0,
+                         top_themes: int = THEME_TOP_THEMES,
+                         per_theme: int = THEME_TOP_PER_THEME) -> dict:
+    """상위 테마 몇 개에서 각 앞자리 종목 몇 개씩. 기본은 5테마 × 3종목 = 15종목.
+
+    줄에는 **테마 등수(theme_place)와 테마 안 등수(rank)**가 함께 실린다. 화면과
+    저장 목록이 "어느 테마 몇 등"으로 읽히게 하려는 것이다.
+    """
+    ordered = sorted(theme_rows or [],
+                     key=lambda row: float(row.get("score") or 0), reverse=True)
+    ordered = ordered[: max(1, int(top_themes))]
+    errors: list[str] = []
+
+    def _one(place_and_row):
+        place, theme_row = place_and_row
+        name = str(theme_row.get("name") or "")
+        try:
+            return place, name, theme_row, get_theme_leaders(
+                name,
+                market_score=market_score,
+                theme_score=float(theme_row.get("score") or 0),
+                with_charts=False,     # 표만 그린다 — 차트를 만들면 다 버려진다
+                with_live=False,
+            )
+        except Exception as exc:
+            return place, name, theme_row, {"ok": False, "error": str(exc), "rows": []}
+
+    picked: list[dict] = []
+    if ordered:
+        _prefetch_leader_quotes(ordered)
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            done = [future.result() for future in
+                    [executor.submit(_one, pair) for pair in enumerate(ordered, 1)]]
+        for place, name, theme_row, result in sorted(done, key=lambda item: item[0]):
+            if not result.get("ok"):
+                errors.append(f"{name}: {result.get('error') or '조회 실패'}")
+                continue
+            for row in list(result["rows"])[: max(1, int(per_theme))]:
+                row = dict(row)
+                row["sources"] = [name]
+                row["theme_place"] = place
+                row["theme_name"] = name
+                row["theme_score"] = float(theme_row.get("score") or 0)
+                # rank는 get_theme_leaders가 매긴 **테마 안 등수** 그대로다.
+                # 저장 창고가 이 번호를 쓴다 — 1·2·3이 테마마다 되풀이된다.
+                picked.append(row)
+    return {
+        "ok": bool(picked),
+        "rows": picked,
+        "themes": [str(row.get("name") or "") for row in ordered],
+        "top_themes": len(ordered),
+        "per_theme": int(per_theme),
+        "errors": errors,
+        "checked_at": datetime.now(_NY).isoformat(timespec="seconds"),
+    }
 
 
 

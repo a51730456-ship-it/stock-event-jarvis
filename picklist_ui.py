@@ -51,6 +51,7 @@ _COLUMNS = (
     ("hold_days", "보유일수"),
     ("state", "매수 상태"),
     ("origin", "매수 파트"),
+    ("theme_place", "테마 등수"),
     ("themes", "테마"),
 )
 
@@ -69,6 +70,8 @@ _KIND_COLUMNS = {
     # 번호가 1·2·3으로 되풀이되는 까닭을 알 수 없다(2026-08-15 상하님 지시 —
     # "매수 파트 ... 부분이 들어가야 알 수 있잖아"). 번호 바로 옆에 둔다.
     "top7": ("rank", "origin") + _HEAD[1:] + ("state", "themes"),
+    # 상위 테마 15 — 「테마 등수」와 「테마」를 앞에 둬야 '몇 등 테마의 몇 위'로 읽힌다.
+    "theme15": ("theme_place", "origin", "rank") + _HEAD[1:] + ("from_high_pct", "state"),
 }
 
 CSS = """

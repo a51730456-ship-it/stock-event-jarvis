@@ -109,6 +109,12 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
         errors.append(f"테마 순위: {exc}")
         _log(f"  테마 순위 실패 — {exc}")
 
+    # ①-2 상위 테마 5개 × 각 1~3위 = 15종목 (2026-08-15 상하님 지시).
+    #     테마 순위를 재료로 쓰므로 바로 뒤에 둔다. 한국 화면에는 없어 건너뛴다.
+    if theme_rows and hasattr(data, "find_theme_top_picks"):
+        _run("theme15", lambda: data.find_theme_top_picks(
+            theme_rows, market_score=float(market_overview.get("score") or 0)))
+
     # ② 눌림목 찾기 — 한국 화면에만 있다. 미국은 _run이 알아서 건너뛴다.
     #    미국 순위 9는 이것을 재료로 쓰지 않는다(collect_top_picks가 제 재료를 쓴다).
     pullback = _run("pullback", data.find_pullback_stocks)

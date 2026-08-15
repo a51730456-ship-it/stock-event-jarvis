@@ -42,9 +42,9 @@ from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
 # (CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026081510
+MODULE_REVISION = 2026081530
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 _NEW_YORK = ZoneInfo("America/New_York")
@@ -60,8 +60,10 @@ LIST_KINDS = {
     "breakout": "상승장 (신고가 눌림매수)",
     "crash": "급락 후 반등장 (낙폭종목)",
     "top7": "매수심사결과 높은 순위 9",
+    # 2026-08-15 상하님 지시 — "20개 테마 중 상위 테마 5위, 각 테마 중 1~3위."
+    "theme15": "상위 테마 5개 · 각 종목 1~3위",
 }
-KIND_ORDER = ("pullback", "breakout", "crash", "top7")
+KIND_ORDER = ("theme15", "pullback", "breakout", "crash", "top7")
 
 # 순위 9는 **파트 안에서** 1·2·3으로 번호가 매겨진다(2026-08-15 상하님 지시 —
 # "왜 순위가 123 123 123 이렇게 되어야지 1~9위가 나오냐"). 그래서 번호만으로 줄을
@@ -93,7 +95,7 @@ KIND_LABELS_BY_MARKET = {
 # 뺀 「눌림목 찾기」가 저장 목록에는 그대로 남아 있었다.
 # **파일은 그대로 둔다**(CLAUDE.md 10-1 — 지우면 그때 목록이 맞았나를 잴 근거가
 # 사라진다). 엑셀·CSV로 받으시면 그 줄도 다 들어 있다. 화면에서만 감춘다.
-SKIP_KINDS_BY_MARKET = {"US": ("pullback",)}
+SKIP_KINDS_BY_MARKET = {"US": ("pullback",), "KR": ("theme15",)}
 
 
 def kind_label(kind: str, market: str | None = None) -> str:
@@ -113,6 +115,10 @@ def should_show(kind: str, market: str) -> bool:
 
 
 def _origin_place(row) -> int:
+    """같은 갈래 안에서 파트끼리의 차례. 상위 테마 15는 테마 등수를 쓴다."""
+    if str(row.get("list_kind")) == "theme15":
+        place = _num(row.get("theme_place"))
+        return int(place) if place is not None else 99
     origin = str(row.get("origin") or "")
     return ORIGIN_ORDER.index(origin) if origin in ORIGIN_ORDER else len(ORIGIN_ORDER)
 
@@ -142,7 +148,8 @@ FIELDS = (
     "together_count",        # 같은 테마에서 함께 걸린 종목 수
     "recent_gain_pct",       # 최근 11일 등락
     "state",                 # 매수 상태
-    "origin",                # 순위 7이 어느 갈래에서 데려온 줄인가
+    "origin",                # 순위 7이 어느 갈래에서 데려온 줄인가 · 상위 테마 15는 테마 이름
+    "theme_place",           # 그 테마가 20개 중 몇 등인가 (상위 테마 15)
     "saved_at",              # 적은 시각
     "schema",                # 칸 판 번호
 )
@@ -150,7 +157,7 @@ FIELDS = (
 _NUMBER_FIELDS = {
     "rank", "score", "stock_score", "price", "buy_open", "change_pct", "from_high_pct",
     "judged_from_high_pct", "wait_days", "hold_days", "together_count",
-    "recent_gain_pct", "schema",
+    "recent_gain_pct", "theme_place", "schema",
 }
 
 
@@ -237,7 +244,9 @@ def normalize_row(row: dict, *, market: str, list_kind: str,
         "together_count": _num(_first(row, "together_count")),
         "recent_gain_pct": _num(_first(row, "recent_gain_pct")),
         "state": str(_first(row, ("plan", "state"), "state") or ""),
-        "origin": str(_first(row, "top7_origin", "origin") or ""),
+        # 상위 테마 15는 '어느 테마에서 왔나'가 곧 파트다 — 같은 칸에 담는다.
+        "origin": str(_first(row, "top7_origin", "origin", "theme_name") or ""),
+        "theme_place": _num(_first(row, "theme_place")),
         "saved_at": saved_at,
         "schema": SCHEMA_VERSION,
     }
@@ -259,7 +268,9 @@ def rows_from_result(result, *, market: str, list_kind: str,
     # **순위 7은 자기 번호(pick_rank)를 먼저 본다.** 순위 7의 줄은 눌림목 결과에서
     # 데려온 것이라 눌림목 때의 번호(pullback_rank)를 그대로 달고 있다. 그것을 먼저
     # 보면 순위 7 표에 같은 번호가 두 번 찍힌다(2026-08-09 실제 자료에서 2위가 둘).
+    # **상위 테마 15는 테마 안 등수를 그대로 쓴다** — 1·2·3이 테마마다 되풀이된다.
     rank_keys = (("pick_rank", "rank", "pullback_rank") if list_kind == "top7"
+                 else ("rank", "pick_rank", "pullback_rank") if list_kind == "theme15"
                  else ("pullback_rank", "pick_rank", "rank"))
     out = []
     for index, row in enumerate(list(result.get("rows") or [])[: max(0, int(limit))], 1):
