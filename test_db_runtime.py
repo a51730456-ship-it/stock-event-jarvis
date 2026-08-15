@@ -7,7 +7,18 @@ from unittest import mock
 
 import database
 import db_runtime
-import libsql
+
+# **libsql이 없으면 이 파일은 통째로 건너뛴다.** 이 모듈은 온라인(Turso) 전용이고,
+# db_runtime도 필요할 때만 늦게 불러 쓴다(db_runtime.py의 `import libsql`은 함수
+# 안에 있다). 노트북에는 안 깔려 있을 수 있는데, 그때 시험이 **깨지면** 진짜
+# 고장과 구별이 안 된다(2026-08-15에 실제로 그래서 여섯 시험이 깨져 보였다).
+try:
+    import libsql
+except ModuleNotFoundError:                     # pragma: no cover - 노트북에 없을 때
+    raise unittest.SkipTest(
+        "libsql이 안 깔려 있어 건너뜁니다. 온라인 DB 시험입니다 — "
+        "돌려 보시려면 pip install -r requirements.txt"
+    )
 
 
 class _ExpiredStreamConnection:

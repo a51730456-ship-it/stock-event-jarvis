@@ -1,8 +1,28 @@
 import unittest
+from datetime import datetime, timedelta, timezone
 from threading import Barrier
 from unittest.mock import patch, MagicMock
 
 import bookmaker_data as bd
+
+
+# **시험 자료의 날짜를 박아 두지 않는다** (2026-08-15).
+# 이 시험은 "마감일이 지난 시장은 뺀다"를 확인하는데, 살아 있어야 할 시장의
+# 마감일을 2026-07-29로 박아 뒀다. 그날이 지나자 그 시장까지 걸러져 시험이
+# 저절로 깨졌다 — 코드는 멀쩡한데 시험만 터지면 진짜 고장과 구별이 안 된다.
+# 이제 오늘을 기준으로 앞뒤 날짜를 만든다.
+_TODAY = datetime.now(timezone.utc).date()
+
+
+def _day(offset_days: int) -> str:
+    """오늘에서 며칠 뒤(앞)의 날짜. 마감일 칸에 넣는 모양 그대로."""
+    return (_TODAY + timedelta(days=offset_days)).isoformat() + "T00:00:00Z"
+
+
+def _recent() -> str:
+    """'최근에 값이 움직였다'고 적을 시각."""
+    return (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(
+        timespec="seconds").replace("+00:00", "Z")
 
 
 def _response(json_payload, status_code=200):
@@ -99,36 +119,36 @@ class PolymarketEventGroupingTests(unittest.TestCase):
         markets = [
             {
                 "question": "Will the Fed decrease interest rates by 25 bps after the July 2026 meeting?",
-                "endDate": "2026-07-29T00:00:00Z",
+                "endDate": _day(14),
                 "lastTradePrice": 0.006,
                 "volume24hr": 187958.36,
                 "liquidity": 601192.7,
                 "events": [{"id": "287395", "title": "Fed Decision in July?"}],
                 "groupItemTitle": "25 bps decrease",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": _recent(),
                 "id": "1654957",
             },
             {
                 "question": "Will there be no change in Fed interest rates after the July 2026 meeting?",
-                "endDate": "2026-07-29T00:00:00Z",
+                "endDate": _day(14),
                 "lastTradePrice": 0.77,
                 "volume24hr": 219424.86,
                 "liquidity": 553073.4,
                 "events": [{"id": "287395", "title": "Fed Decision in July?"}],
                 "groupItemTitle": "No change",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": _recent(),
                 "id": "1654958",
             },
             {
                 # 같은 사건 안에서도 거래량이 숫자 0인 개별 계약은 제외한다.
                 "question": "Will the Fed increase interest rates after the July 2026 meeting?",
-                "endDate": "2026-07-29T00:00:00Z",
+                "endDate": _day(14),
                 "lastTradePrice": 0.01,
                 "volume24hr": 0,
                 "liquidity": 100,
                 "events": [{"id": "287395", "title": "Fed Decision in July?"}],
                 "groupItemTitle": "25 bps increase",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": _recent(),
                 "id": "1654959",
             },
             {
@@ -140,19 +160,19 @@ class PolymarketEventGroupingTests(unittest.TestCase):
                 "liquidity": 0,
                 "events": [{"id": "999999", "title": "Ghost event"}],
                 "groupItemTitle": "Yes",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": _recent(),
                 "id": "1",
             },
             {
                 # 마감일이 과거인 시장은 이미 끝난 시장이므로 제외되어야 함
                 "question": "Will something already resolved happen?",
-                "endDate": "2020-01-01T00:00:00Z",
+                "endDate": _day(-30),
                 "lastTradePrice": 0.5,
                 "volume24hr": 5000,
                 "liquidity": 1000,
                 "events": [{"id": "888888", "title": "Resolved event"}],
                 "groupItemTitle": "Yes",
-                "updatedAt": "2020-01-02T00:00:00Z",
+                "updatedAt": _day(-30),
                 "id": "2",
             },
             {
@@ -164,7 +184,7 @@ class PolymarketEventGroupingTests(unittest.TestCase):
                 "liquidity": 1000,
                 "events": [{"id": "777777", "title": "NBA championship"}],
                 "groupItemTitle": "Yes",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": _recent(),
                 "id": "3",
             },
         ]
@@ -197,7 +217,7 @@ class PolymarketEventGroupingTests(unittest.TestCase):
                 "liquidity": 100,
                 "events": [{"id": "111", "title": "US CPI this year"}],
                 "groupItemTitle": "4%",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": _recent(),
                 "id": "a1",
                 "url": "https://example.test/markets/a1",
             },
@@ -210,7 +230,7 @@ class PolymarketEventGroupingTests(unittest.TestCase):
                 "liquidity": 100,
                 "events": [{"id": "111", "title": "US CPI this year"}],
                 "groupItemTitle": "4%",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": _recent(),
                 "id": "a1",
                 "url": "https://example.test/markets/a1",
             },
@@ -223,7 +243,7 @@ class PolymarketEventGroupingTests(unittest.TestCase):
                 "liquidity": 90,
                 "events": [{"id": "111", "title": "US CPI this year"}],
                 "groupItemTitle": "5%",
-                "updatedAt": "2026-07-13T12:00:00Z",
+                "updatedAt": _recent(),
                 "id": "a2",
                 "url": "https://example.test/markets/a2",
             },

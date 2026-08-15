@@ -8,7 +8,8 @@
      같은 조건점수·같은 차례여야 한다. 여기서 따로 재면 같은 종목이 두 화면에서
      다른 등수로 나온다.
   ② 순위는 **테마 안 등수**다. 1·2·3이 테마마다 되풀이된다.
-  ③ 화면과 저장 목록이 **같은 함수**를 부른다(CLAUDE.md 10-1).
+  ③ **자비스3 본 화면에는 이 구역을 두지 않는다.** 「날짜별로 저장해 둔 목록
+     보기」 안에만 있다(2026-08-15 상하님 지시). 클라우드 수집기가 날마다 찍는다.
 """
 
 from __future__ import annotations
@@ -112,38 +113,39 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(5.0, rows[-1]["theme_place"])
 
     def test_it_is_a_united_states_list_only(self):
-        """미국 화면에만 있는 갈래다 — 한국에는 없으니 저장하지 않는다."""
+        """미국 전용 갈래다 — 한국 저장 목록에는 넣지 않는다."""
         self.assertTrue(store.should_save("theme15", "US"))
         self.assertFalse(store.should_save("theme15", "KR"))
         self.assertFalse(store.should_show("theme15", "KR"))
 
     def test_it_comes_first_in_the_saved_list(self):
-        """화면 차례와 같아야 한다 — 순위표 바로 아래가 이 목록이다."""
+        """저장 목록에서 맨 위에 온다 — 없앤 「눌림목 찾기」가 있던 자리다."""
         self.assertEqual("theme15", store.KIND_ORDER[0])
 
 
-class PageWiringTests(unittest.TestCase):
-    def test_screen_and_collector_call_the_same_function(self):
-        """화면과 클라우드 수집기가 **같은 함수**를 부른다(CLAUDE.md 10-1)."""
-        page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
+class CollectorWiringTests(unittest.TestCase):
+    """**이 목록은 「날짜별로 저장해 둔 목록 보기」 안에만 있다**(2026-08-15 상하님).
+
+    상하님 — "이걸 왜 만드냐? 저걸 날짜별로 저장해 둔 목록 보기에 넣으라고 한 것이야."
+    자비스3 본 화면에는 이 구역을 두지 않는다. 클라우드 수집기가 날마다 찍고,
+    상하님은 저장 목록에서 날짜를 골라 보신다.
+    """
+
+    def test_the_collector_saves_it_every_day(self):
         collector = pathlib.Path("picklist_collector.py").read_text(encoding="utf-8")
-        self.assertIn("find_theme_top_picks(", page, "화면이 안 부른다")
-        self.assertIn("find_theme_top_picks(", collector, "수집기가 안 부른다")
-        self.assertIn('picklist_ui.autosave("US", "theme15"', page,
-                      "화면이 보여 준 목록을 저장하지 않는다")
+        self.assertIn("find_theme_top_picks(", collector, "수집기가 안 찍는다")
+        self.assertIn('_run("theme15"', collector, "theme15 갈래로 안 남긴다")
 
-    def test_it_sits_right_under_the_theme_ranking(self):
-        """자리는 「20개 테마 실시간 순위」와 「종목 찾기」 사이다(상하님 지시)."""
+    def test_the_main_screen_does_not_show_it(self):
+        """본 화면에는 이 구역이 없어야 한다 — 저장 목록 전용이다."""
         page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
-        after_rank = page.split('_section_close(_THEME_RANK_OPEN')[1]
-        head = after_rank.split("📉 종목 찾기")[0]
-        self.assertIn("_render_theme_top15(market, ranking)", head,
-                      "순위표와 '종목 찾기' 사이에 없다")
+        self.assertNotIn("_render_theme_top15", page, "본 화면에 구역이 남아 있다")
+        self.assertNotIn("find_theme_top_picks", page, "본 화면이 이 목록을 만든다")
 
-    def test_it_has_a_close_button_at_the_bottom(self):
-        page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
-        block = page.split("def _render_theme_top15(")[1].split("\ndef ")[0]
-        self.assertIn("_section_close(_THEME_TOP15_OPEN", block, "맨 아래 닫기가 없다")
+    def test_the_saved_list_shows_it_for_the_united_states(self):
+        ui = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")
+        self.assertIn('"theme15"', ui, "저장 목록 화면에 칸 짜임이 없다")
+        self.assertTrue(store.should_show("theme15", "US"))
 
 
 if __name__ == "__main__":

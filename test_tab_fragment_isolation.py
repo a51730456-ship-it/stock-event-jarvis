@@ -9,7 +9,12 @@ TEST_PASSWORD = "jarvis-fragment-isolation-test"
 
 SOURCE = (ROOT / "app.py").read_text(encoding="utf-8")
 
-
+# **로그인 화면에는 갈 곳 고르기가 없다**(2026-08-09 상하님 지시로 뺐다).
+# 예전에는 라디오로 갈 곳을 고르고 로그인했는데, 그때 st.switch_page가 주소를
+# 기록에 하나 더 쌓아 폰 뒤로가기가 맨홈을 두 번 보여 줬다. 지금은
+#   ① 비밀번호 → 로그인  ② '어디로 갈까요' 화면에서 갈 곳을 누른다
+# 이고, 자비스1만 링크가 아니라 단추(key="entry_go")다 — 옮겨 갈 페이지가 아니라
+# app.py 자신이기 때문이다. 시험도 그 순서를 그대로 따라간다.
 def _new_app():
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=90)
     app.secrets["APP_PASSWORD"] = TEST_PASSWORD
@@ -51,9 +56,10 @@ class TabFragmentIsolationRuntimeTests(unittest.TestCase):
 
             app = _new_app()
             app.run(timeout=90)
-            app.radio[0].set_value("자비스1 (기록장)")
             app.text_input[0].set_value(TEST_PASSWORD)
             next(node for node in app.button if node.key == "login_submit").click().run(timeout=90)
+            # 로그인 뒤 나오는 '어디로 갈까요'에서 자비스1로 들어간다.
+            next(node for node in app.button if node.key == "entry_go").click().run(timeout=90)
             self.assertEqual(len(app.exception), 0)
 
             us_sector_calls_before = mock_us_sector.call_count

@@ -37,13 +37,27 @@ class CommonLayerTest(unittest.TestCase):
 
 
 class VerdictSeparationTest(unittest.TestCase):
+    # 두 시장이 **일부러 같이 쓰는** 판정값. 여기 없는 값이 겹치면 조건이 섞인 것이다.
+    #   · insufficient_data — 처음부터 공통 개념이었다.
+    #   · very_bad — 2026-08-04 「시장 상태 5단계」에서 상하님이 두 시장에 같이 넣으셨다.
+    #     이름표도 둘 다 "● 하락 압력 큼"이다("계기판 단계명은 한국장·미국장이 같은
+    #     쉬운 말로 쓴다", us_market_signal_engine.py 주석).
+    # **판정값을 새로 같이 쓰기로 하면 여기에 적는다.** 안 적으면 이 시험이 막는다 —
+    # 그것이 이 시험이 하는 일이다(2026-08-15에 very_bad가 안 적혀 있어 깨져 있었다).
+    SHARED_VERDICTS = {"insufficient_data", "very_bad"}
+
     def test_verdict_enums_are_distinct(self):
-        # 두 시장의 판정명이 같은 enum이면 조건이 섞인다.
+        # 두 시장의 판정을 **같은 enum 하나로** 쓰면 조건이 섞인다. 값이 몇 개
+        # 겹치는 것과 클래스가 하나인 것은 다른 이야기다.
         self.assertIsNot(kr.ReboundVerdict, us.UsMarketVerdict)
         kr_values = {v.value for v in kr.ReboundVerdict}
         us_values = {v.value for v in us.UsMarketVerdict}
-        # insufficient_data만 겹치는 건 의도된 공통 개념이다.
-        self.assertEqual(kr_values & us_values, {"insufficient_data"})
+        self.assertEqual(kr_values & us_values, self.SHARED_VERDICTS)
+        # 같이 쓰기로 한 값은 **이름표도 같아야 한다** — 같은 말이 두 화면에서
+        # 다르게 읽히면 같이 쓰는 뜻이 없다.
+        for value in self.SHARED_VERDICTS:
+            self.assertEqual(kr.VERDICT_LABEL[kr.ReboundVerdict(value)],
+                             us.VERDICT_LABEL[us.UsMarketVerdict(value)], value)
 
     def test_verdict_labels_do_not_mix_market_vocabulary(self):
         kr_labels = " ".join(kr.VERDICT_LABEL.values())
