@@ -3150,6 +3150,12 @@ def find_top_reviewed_stocks(
     # **대장주는 종목 조건점수가 아니라 테마 순위로 줄 세운다**(2026-08-12).
     # 조건점수는 합격 항목이 하나도 없고, 테마 등수는 세 그물에서 다 통과한
     # 유일한 항목이다. 테마 1위의 대장주가 맨 위로 온다.
+    #
+    # **2026-08-15에 상하님께 다시 여쭙고 이대로 두기로 했다.** 그날 실측을 보여
+    # 드렸다 — 조건점수는 REGN 75.6 · AMGN 75.0이 VLO 66.9보다 높은데도 바이오가
+    # 테마 2등이라 아래로 밀렸다. 조건점수 순으로 바꾸는 것과 테마를 번갈아 놓는
+    # 것을 나란히 보여 드렸고, 상하님이 **'지금 그대로'**를 고르셨다.
+    # 바꾸려면 먼저 여쭙는다(CLAUDE.md 0-1 나).
     theme_place = {name: index for index, name in enumerate(
         [str(r.get("name") or "") for r in sorted(
             theme_rows or [], key=lambda r: float(r.get("score") or 0), reverse=True)])}
