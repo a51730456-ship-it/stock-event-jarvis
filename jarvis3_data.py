@@ -1798,63 +1798,88 @@ def _theme_rank_part(row: dict, label: str, prefix: str, points: float) -> tuple
             + (f" / {total}개" if total else ""))
 
 
-# ── 배점표 「설명」 칸은 **판정까지 적는다** (2026-08-19 상하님 지적) ──────────
-# 상하님 말씀 — "오늘 목록에서 위 45%, 반도체 8개 함께 걸림, 반도체 4등 / 20개 …
-# 전부 무슨 말인지 못 알아먹겠다. 지만 아는 전문 용어만 쓰고 있다."
+# ── 배점표 「설명」 칸은 **문턱까지 적는다** (2026-08-19 상하님 지적 두 번) ────
+# 첫 지적 — "오늘 목록에서 위 45%, 반도체 8개 함께 걸림, 반도체 4등 / 20개 …
+# 전부 무슨 말인지 못 알아먹겠다."  → 판정('점수를 받습니다')을 붙였다.
 #
-# 맞는 지적이다. 그 칸은 숫자만 던지고 **"그래서 점수를 받았다는 거냐"**에
-# 답하지 않았다. 이제 세 토막으로 적는다 — **사실 → 화살표 → 판정**.
-#     반도체가 테마 20개 중 3등입니다 → 3등 안이라 점수를 받습니다
-#     반도체가 테마 20개 중 4등입니다 → 3등 안에 못 들어 점수가 없습니다
+# 그래도 못 알아보셨다. 두 번째 지적 —
+#   "위쪽 절반이라 점수를 받습니다, 이게 무슨 말인지 모르겠다. 이 종목이 변동폭이
+#    위아래 크게 움직여야 점수를 더 준다는 말인지 뭔지."
+#   "반도체에서 8개가 같이 떨어졌습니다, 이건 많이 떨어지면 점수를 더 준다는
+#    거냐 적게 준다는 거냐."
+#   "20개 중 3등 안에 들어야 점수 받나?"
+#
+# **빠진 것은 문턱이다.** '위쪽 절반'이라고만 적고 그게 몇 등까지인지, 왜 그쪽이
+# 점수를 받는지를 안 적었다. 이제 세 토막으로 적는다 —
+#     ① 이 종목·테마의 값이 얼마이고 몇 등인가
+#     ② **점수를 주는 문턱이 무엇인가**
+#     ③ → 그래서 받는가 못 받는가
+#
+# 보기 —
+#   크게 움직일수록 점수를 줍니다 · 하루 평균 5.0%씩 · 58개 중 10등(29등 안이면
+#   점수) → 점수를 받습니다
 #
 # 상승장 갈래(_theme_rank_part)는 건드리지 않는다. 급락만 고치라는 지시다.
-def _crash_verdict(passed: bool, why_yes: str, why_no: str) -> str:
-    return f" → {why_yes if passed else why_no}"
+def _crash_verdict(passed: bool) -> str:
+    return " → 점수를 받습니다" if passed else " → 점수가 없습니다"
+
+
+def _subject_particle(word: str) -> str:
+    """받침이 있으면 '이', 없으면 '가'. '양자컴퓨팅가'가 나와서 넣었다(2026-08-19).
+
+    한글이 아닌 이름(ETF 티커 등)에는 '가'를 쓴다 — 테마 이름은 모두 한글이지만
+    명부가 바뀌어 영문 이름이 들어와도 문장이 깨지지 않게 둔다.
+    """
+    last = (str(word) or " ")[-1]
+    if not ("가" <= last <= "힣"):
+        return "가"
+    return "이" if (ord(last) - 0xAC00) % 28 else "가"
 
 
 def _crash_theme_rank_part(row: dict, label: str, prefix: str,
-                           points: float, top_n: int) -> tuple:
-    """테마 등수 한 줄 — 몇 등인지와 **점수를 받았는지**를 같이 적는다."""
+                           points: float, top_n: int, lead: str) -> tuple:
+    """테마 등수 한 줄 — **어느 쪽이 좋은지** · 몇 등인지 · 문턱 · 판정을 적는다.
+
+    `lead`가 '어느 쪽이 좋은가'다. 이게 없으면 등수만 보고 높은 게 좋은지
+    낮은 게 좋은지 알 수 없다(2026-08-19 상하님 지적).
+    """
     rank = row.get(prefix)
     total = int(row.get(f"{prefix}_total") or 0)
     name = row.get(f"{prefix}_name") or "이 테마"
     passed = bool(row.get(f"{prefix}_top"))
     if not rank:
-        note = "이 종목은 테마가 없어 등수를 매길 수 없습니다 → 점수가 없습니다"
-    else:
-        note = (f"{name}가 테마 {total}개 중 {int(rank)}등입니다" if total
-                else f"{name}가 {int(rank)}등입니다")
-        note += _crash_verdict(passed,
-                               f"{top_n}등 안이라 점수를 받습니다",
-                               f"{top_n}등 안에 못 들어 점수가 없습니다")
+        return (label, 0.0, points,
+                "이 종목은 테마가 없어 등수를 매길 수 없습니다 → 점수가 없습니다")
+    josa = _subject_particle(name)
+    where = (f"{name}{josa} 테마 {total}개 중 {int(rank)}등" if total
+             else f"{name}{josa} {int(rank)}등")
+    note = f"{lead} · {where}({top_n}등 안에 들어야 점수)" + _crash_verdict(passed)
     return (label, points if passed else 0.0, points, note)
 
 
 def _crash_volatility_part(row: dict, points: float) -> tuple:
-    """변동성 한 줄 — 하루 몇 %씩 움직이고 오늘 목록에서 몇 등인지 적는다."""
+    """변동성 한 줄 — **크게 움직일수록 점수**라는 것을 맨 앞에 밝힌다."""
     vol = _finite(row.get("vol60"))
     place, total = row.get("vol_place"), row.get("vol_total")
     passed = bool(row.get("vol_top"))
     if vol is None or not place or not total:
-        note = "이 종목은 자료가 짧아 못 쟀습니다 → 점수가 없습니다"
-    else:
-        note = (f"하루 평균 {vol:.1f}%씩 움직입니다 · "
-                f"오늘 목록 {int(total)}개 중 {int(place)}등")
-        note += _crash_verdict(passed,
-                               "위쪽 절반이라 점수를 받습니다",
-                               "아래쪽 절반이라 점수가 없습니다")
+        return ("이 종목이 평소 크게 움직이나", 0.0, points,
+                "이 종목은 자료가 짧아 못 쟀습니다 → 점수가 없습니다")
+    half = max(1, int(total) // 2)
+    note = (f"크게 움직일수록 점수를 줍니다 · 하루 평균 {vol:.1f}%씩 · "
+            f"오늘 목록 {int(total)}개 중 {int(place)}등({half}등 안이면 점수)"
+            + _crash_verdict(passed))
     return ("이 종목이 평소 크게 움직이나", points if passed else 0.0, points, note)
 
 
 def _crash_together_part(row: dict, points: float) -> tuple:
-    """같은 테마 동시 하락 한 줄 — 몇 개가 같이 떨어졌고 점수를 받는지 적는다."""
+    """동시 하락 한 줄 — **많이 떨어질수록 점수**라는 것을 맨 앞에 밝힌다."""
     together = int(row.get("together_count") or 0)
     name = row.get("together_theme") or "이 테마"
     passed = together >= CRASH_TOGETHER_FULL
-    note = f"{name}에서 {together}개가 같이 떨어졌습니다"
-    note += _crash_verdict(passed,
-                           f"{CRASH_TOGETHER_FULL}개가 넘어 점수를 받습니다",
-                           f"{CRASH_TOGETHER_FULL}개에 못 미쳐 점수가 없습니다")
+    note = (f"같은 테마가 많이 떨어질수록 점수를 줍니다 · "
+            f"{name}에서 {together}개가 같이 떨어졌습니다"
+            f"({CRASH_TOGETHER_FULL}개가 넘어야 점수)" + _crash_verdict(passed))
     return ("이 테마가 통째로 떨어졌나", points if passed else 0.0, points, note)
 
 
@@ -1880,11 +1905,13 @@ def crash_rebound_score(row: dict) -> dict:
         _crash_volatility_part(row, weights["volatility"]),
         _crash_theme_rank_part(row, "이 테마가 이미 오름세로 돌아섰나",
                                "theme_above150", weights["above150"],
-                               CRASH_ABOVE150_TOP_N),
+                               CRASH_ABOVE150_TOP_N,
+                               "이미 올라온 테마일수록 점수를 줍니다"),
         _crash_together_part(row, weights["together"]),
         _crash_theme_rank_part(row, "이 테마가 지난 반년에 많이 올랐나",
                                "theme_ret120", weights["theme_ret120"],
-                               CRASH_RET120_TOP_N),
+                               CRASH_RET120_TOP_N,
+                               "반년에 많이 오른 테마일수록 점수를 줍니다"),
     ]
     return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
             "parts": parts, "max": CRASH_SCORE_MAX}

@@ -542,10 +542,26 @@ class RulebookScreenTests(unittest.TestCase):
         # "테마 6개월 수익률 상위 3등, 이 말은 수익률이 좋다는 말이냐 뭐냐").
         for name in crash_names:
             self.assertTrue(name.startswith("이 "), f"{name}은 질문 꼴이 아니다")
-        # 「설명」 칸은 **판정까지** 적어야 한다 — 숫자만 던지면 못 알아보신다.
+        # 「설명」 칸은 **어느 쪽이 좋은지 · 문턱 · 판정**을 다 적어야 한다.
+        # 2026-08-19에 상하님이 두 번 지적하셨다 — "위쪽 절반이라 점수를 받습니다,
+        # 이게 무슨 말인지 모르겠다", "많이 떨어지면 점수를 더 준다는 거냐".
         for _n, _v, _m, note in crash_parts:
             self.assertIn("→", note, note)
             self.assertTrue("점수를 받습니다" in note or "점수가 없습니다" in note, note)
+            if "못 쟀습니다" in note or "매길 수 없습니다" in note:
+                continue          # 아예 못 잰 줄에는 문턱을 적을 것이 없다
+            self.assertIn("점수를 줍니다", note, f"어느 쪽이 좋은지가 없다: {note}")
+            self.assertIn("야 점수)", note.replace("이면 점수)", "야 점수)"),
+                          f"문턱이 없다: {note}")
+        # 값이 다 있는 줄로도 한 번 더 본다 — 위는 metrics가 비어 있어 변동성 줄이
+        # '못 쟀습니다'로 빠진다.
+        full = [{"ticker": "AAA", "metrics": {"vol60": 5.0}, "together_count": 8,
+                 "together_theme": "반도체"},
+                {"ticker": "BBB", "metrics": {"vol60": 1.0}}]
+        j3._attach_crash_volatility(full)
+        for _n, _v, _m, note in j3.crash_rebound_score(full[0])["parts"][:1]:
+            self.assertIn("크게 움직일수록 점수를 줍니다", note, note)
+            self.assertIn("등 안이면 점수)", note, f"몇 등까지인지가 없다: {note}")
 
     def test_theme_rank_is_scored_and_ranks_over_the_whole_universe(self):
         """테마 등수 25점 — 2026-08-07 도입. 등수는 명부 전체로 매겨야 한다."""
@@ -576,6 +592,20 @@ class RulebookScreenTests(unittest.TestCase):
 
         self.assertEqual(j3.CRASH_SCORE_WEIGHTS["above150"], above150_points(rows[0]))
         self.assertEqual(0.0, above150_points(rows[1]))
+
+    def test_score_notes_pick_the_right_korean_particle(self):
+        """'양자컴퓨팅가'가 아니라 '양자컴퓨팅이'라고 적어야 한다 (2026-08-19)."""
+        self.assertEqual("이", j3._subject_particle("양자컴퓨팅"))
+        self.assertEqual("가", j3._subject_particle("반도체"))
+        self.assertEqual("이", j3._subject_particle("우주·위성"))
+        self.assertEqual("가", j3._subject_particle("주택·홈빌더"))
+        self.assertEqual("가", j3._subject_particle("SPY"))   # 한글이 아니면 '가'
+        row = {"metrics": {}, "theme_above150": 13, "theme_above150_total": 20,
+               "theme_above150_name": "양자컴퓨팅", "theme_above150_top": False}
+        note = next(n for name, _v, _m, n in j3.crash_rebound_score(row)["parts"]
+                    if name.startswith("이 테마가 이미 오름세"))
+        self.assertIn("양자컴퓨팅이", note)
+        self.assertNotIn("양자컴퓨팅가", note)
 
     def test_volatility_is_scored_in_the_crash_part(self):
         """주가 변동성은 급락 배점 **1등 40점**이다 (2026-08-19 상하님 새 지시문).
