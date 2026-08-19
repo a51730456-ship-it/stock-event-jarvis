@@ -386,6 +386,54 @@ class TradeDateTests(unittest.TestCase):
         self.assertEqual(store.trade_date_for("KR", seoul_dawn), "2026-08-08")
 
 
+
+class UsSessionGateTests(unittest.TestCase):
+    """미국은 **장이 끝난 뒤에만** 화면이 목록을 남긴다 (2026-08-19 상하님 지적).
+
+    그전에는 시간을 아예 안 봤다. 한국 오후 5시 반(뉴욕 새벽 4시 반, 장 열리기
+    전)에 화면을 열었더니 파일 이름은 그날 뉴욕 날짜인데 안에 든 값은 전날
+    마감가인 목록이 저장됐다.
+
+    **서머타임은 저절로 맞아야 한다** — 시각을 UTC로 못박지 않고 뉴욕
+    시간대로 재기 때문이다. 여름·겨울 둘 다 확인한다.
+    """
+
+    def _seoul(self, iso: str):
+        return datetime.fromisoformat(iso).replace(tzinfo=ZoneInfo("Asia/Seoul"))
+
+    def test_before_the_bell_is_not_saved(self):
+        # 한국 오후 5시 32분 = 뉴욕 새벽 4시 32분. 장이 아직 안 열렸다.
+        self.assertFalse(store.us_session_is_over(self._seoul("2026-08-19T17:32:00")))
+
+    def test_during_the_session_is_not_saved(self):
+        # 한국 밤 11시 = 뉴욕 오전 10시. 장중이라 아직 마감값이 아니다.
+        self.assertFalse(store.us_session_is_over(self._seoul("2026-08-19T23:00:00")))
+
+    def test_after_the_close_is_saved(self):
+        # 한국 다음날 새벽 6시 40분 = 뉴욕 오후 5시 40분. 마감 뒤다.
+        self.assertTrue(store.us_session_is_over(self._seoul("2026-08-20T06:40:00")))
+
+    def test_weekend_is_never_saved(self):
+        self.assertFalse(store.us_session_is_over(self._seoul("2026-08-22T14:00:00")))
+        self.assertFalse(store.us_session_is_over(self._seoul("2026-08-23T14:00:00")))
+
+    def test_summer_and_winter_use_the_same_new_york_clock(self):
+        """서머타임이 바뀌어도 **뉴욕 오후 4시**가 기준이어야 한다."""
+        ny = ZoneInfo("America/New_York")
+        for day in ("2026-07-15", "2026-12-15"):        # 여름 · 겨울
+            before = datetime.fromisoformat(f"{day}T15:59:00").replace(tzinfo=ny)
+            after = datetime.fromisoformat(f"{day}T16:01:00").replace(tzinfo=ny)
+            self.assertFalse(store.us_session_is_over(before), day)
+            self.assertTrue(store.us_session_is_over(after), day)
+
+    def test_the_screen_autosave_checks_the_gate(self):
+        """화면 자동 저장이 이 판정을 실제로 부르는지 본다."""
+        source = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")
+        block = source.split("def autosave(")[1].split(chr(10) + "def ")[0]
+        self.assertIn("us_session_is_over", block,
+                      "화면 자동 저장이 장 마감을 안 본다")
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026080940
+MODULE_REVISION = 2026081930
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -501,10 +501,25 @@ def autosave(market: str, list_kind: str, result) -> None:
     날을 메우는 보조 장치라, **이미 그날 그 갈래가 저장돼 있으면 아무것도 하지
     않는다** — 장중에 눌러 볼 때마다 파일을 새로 쓰면 마감값이 장중값으로 덮인다.
     무슨 일이 있어도 화면을 죽이지 않는다(조용한 실패).
+
+    **미국은 장이 끝나기 전에는 저장하지 않는다** (2026-08-19 상하님 지적 —
+    "미국 시장 종료 시간을 서머타임까지 고려해서 자동 저장해야 하는데 그걸
+    안 하고 있었나"). 그전에는 시간을 아예 안 봤다. 그래서 한국 오후 5시 반
+    (뉴욕 새벽 4시 반, 장 열리기 전)에 화면을 열었더니 파일 이름은 그날
+    뉴욕 날짜인데 **안에 든 값은 전날 마감가**인 목록이 저장됐다.
+
+    서머타임은 store.us_session_is_over가 알아서 맞춘다 — 시각을 UTC로
+    못박지 않고 뉴욕 시간대로 재기 때문이다.
+
+    **한국은 그대로 둔다**(2026-08-19 상하님 지시 — 미국테마만 손댄다).
+    한국도 같은 구멍이 있다: 서울 오전에 화면을 열면 전날 종가가 오늘 날짜로
+    저장된다. 고치려면 여기에 한 줄을 더하면 된다.
     """
     try:
         # 그 시장 화면에 없는 갈래는 안 남긴다(2026-08-15). 수집기와 같은 규칙이다.
         if not store.should_save(list_kind, market):
+            return
+        if str(market).upper() == "US" and not store.us_session_is_over():
             return
         trade_date = store.trade_date_for(market)
         if list_kind in store.saved_kinds(trade_date, market):

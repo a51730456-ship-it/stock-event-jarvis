@@ -42,7 +42,7 @@ from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
 # (CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026081530
+MODULE_REVISION = 2026081930
 
 SCHEMA_VERSION = 3
 
@@ -297,6 +297,33 @@ def trade_date_for(market: str, now: datetime | None = None) -> str:
     stamp = now or datetime.now(_SEOUL)
     zone = _NEW_YORK if str(market).upper() == "US" else _SEOUL
     return stamp.astimezone(zone).date().isoformat()
+
+
+# 미국 정규장 마감 — 뉴욕 오후 4시. **서머타임은 저절로 맞는다** — 시각을
+# UTC로 못박지 않고 ZoneInfo("America/New_York")로 재기 때문이다. 여름에는
+# UTC-4, 겨울에는 UTC-5로 파이썬이 알아서 바꿔 준다.
+US_MARKET_CLOSE_HOUR = 16
+
+
+def us_session_is_over(now: datetime | None = None) -> bool:
+    """오늘 뉴욕 정규장이 **이미 끝났나**. 안 끝났으면 저장하면 안 된다.
+
+    **왜 필요한가 (2026-08-19 상하님 지적).** 화면의 자동 저장은 시간을 아예
+    안 봤다. 그래서 한국 오후 5시 반(뉴욕 새벽 4시 반, 장 열리기 전)에 화면을
+    열었더니 파일 이름은 그날 뉴욕 날짜인데 **안에 든 값은 전날 마감가**인
+    목록이 저장됐다.
+
+    GitHub 자동 저장(.github/workflows/picklist_collect.yml)은 마감 뒤에만
+    돌아서 이 문제가 없다. 화면 쪽에만 막이 없었다.
+
+    주말은 장이 없으므로 False다. **공휴일은 못 가린다** — 공휴일 표가 없다.
+    그날 화면을 열면 전날 값이 그 공휴일 날짜로 저장될 수 있다. 다만 그날 밤
+    GitHub 저장이 같은 값으로 덮으므로 두 곳이 어긋나지는 않는다.
+    """
+    stamp = (now or datetime.now(_SEOUL)).astimezone(_NEW_YORK)
+    if stamp.weekday() >= 5:            # 토·일은 장이 없다
+        return False
+    return stamp.hour >= US_MARKET_CLOSE_HOUR
 
 
 def archive_path(trade_date: str, market: str, out_dir: Path | str | None = None) -> Path:
