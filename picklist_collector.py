@@ -64,6 +64,15 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
         raise ValueError(f"시장은 US 또는 KR입니다: {market}")
 
     trade_date = store.trade_date_for(market)
+    # **미국 휴장일에는 아예 찍지 않는다** (2026-08-19 상하님 지시로 넣었다).
+    # 예약 실행은 월~금에 도는데, 그중에는 성탄절·추수감사절처럼 장이 안 열린
+    # 날이 섞여 있다. 그날 찍으면 **전날 마감값이 그 휴장일 날짜로** 저장된다.
+    # 휴장일은 picklist_store.us_market_holidays가 규칙으로 센다.
+    if market == "US" and not store.us_market_is_open(datetime.fromisoformat(trade_date).date()):
+        _log(f"US {trade_date} — 미국 증시가 쉬는 날이라 찍지 않습니다")
+        return {"ok": True, "skipped": "휴장일",
+                "market": market, "trade_date": trade_date, "path": "",
+                "counts": {}, "errors": []}
     saved_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
     collected: list[dict] = []
     errors: list[str] = []

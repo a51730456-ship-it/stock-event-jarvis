@@ -36,8 +36,10 @@ from __future__ import annotations
 import csv
 import io
 import json
-from datetime import date, datetime
+import calendar
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
@@ -303,6 +305,110 @@ def trade_date_for(market: str, now: datetime | None = None) -> str:
 # UTC로 못박지 않고 ZoneInfo("America/New_York")로 재기 때문이다. 여름에는
 # UTC-4, 겨울에는 UTC-5로 파이썬이 알아서 바꿔 준다.
 US_MARKET_CLOSE_HOUR = 16
+# 반휴장일(추수감사절 다음 날 등)은 뉴욕 **오후 1시**에 닫는다.
+US_HALF_DAY_CLOSE_HOUR = 13
+
+
+def _easter(year: int) -> date:
+    """그해 부활절(그레고리력). 성금요일을 구하려고 쓴다.
+
+    미국 증시 휴장일 열 개 중 아홉은 날짜가 정해져 있거나 '몇째 주 무슨 요일'이라
+    바로 셀 수 있는데, **성금요일 하나만 부활절에 매달려 있다.** 부활절은 해마다
+    3월 22일에서 4월 25일 사이를 오간다.
+    """
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    g = (8 * b + 13) // 25
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    m = (a + 11 * h) // 319
+    r = (2 * e + 2 * i - h + m - k + 32) % 7
+    month = (h - m + r + 90) // 25
+    day = (h - m + r + month + 19) % 32
+    return date(year, month, day)
+
+
+def _nth_weekday(year: int, month: int, weekday: int, nth: int) -> date:
+    """그달 n번째 무슨 요일. nth가 -1이면 **마지막** 그 요일(메모리얼데이)."""
+    if nth < 0:
+        last = date(year, month, calendar.monthrange(year, month)[1])
+        return last - timedelta(days=(last.weekday() - weekday) % 7)
+    first = date(year, month, 1)
+    first_hit = first + timedelta(days=(weekday - first.weekday()) % 7)
+    return first_hit + timedelta(days=7 * (nth - 1))
+
+
+def _observed(day: date) -> date:
+    """토요일에 걸리면 앞 금요일, 일요일이면 다음 월요일에 쉰다(뉴욕증권거래소 규칙)."""
+    if day.weekday() == 5:
+        return day - timedelta(days=1)
+    if day.weekday() == 6:
+        return day + timedelta(days=1)
+    return day
+
+
+@lru_cache(maxsize=32)
+def us_market_holidays(year: int) -> frozenset:
+    """그해 미국 증시가 **하루 종일 쉬는 날** (2026-08-19 상하님 지시로 넣었다).
+
+    상하님 — "미국 공휴일표 찾아서 넣으면 되지."
+
+    **날짜를 손으로 박지 않고 규칙으로 센다.** 표로 박아 두면 해가 바뀔 때마다
+    누군가 고쳐 넣어야 하고, 잊으면 그해부터 조용히 틀린다.
+
+    뉴욕증권거래소·나스닥이 쉬는 날 열 개다 —
+      새해 첫날 · 마틴루터킹의 날(1월 셋째 월) · 대통령의 날(2월 셋째 월) ·
+      성금요일(부활절 앞 금요일) · 메모리얼데이(5월 마지막 월) ·
+      준틴스(6월 19일 · 2022년부터) · 독립기념일(7월 4일) ·
+      노동절(9월 첫 월) · 추수감사절(11월 넷째 목) · 성탄절(12월 25일)
+
+    토·일에 걸리는 날은 앞 금요일이나 다음 월요일로 옮겨 쉰다. **다만 새해
+    첫날이 토요일이면 앞 금요일(12월 31일)에 쉬지 않는다** — 거래소 규칙이
+    그렇다. 그 하루만 예외다.
+    """
+    days = {
+        _nth_weekday(year, 1, 0, 3),      # 마틴루터킹의 날 — 1월 셋째 월요일
+        _nth_weekday(year, 2, 0, 3),      # 대통령의 날 — 2월 셋째 월요일
+        _easter(year) - timedelta(days=2),          # 성금요일
+        _nth_weekday(year, 5, 0, -1),     # 메모리얼데이 — 5월 마지막 월요일
+        _nth_weekday(year, 9, 0, 1),      # 노동절 — 9월 첫째 월요일
+        _nth_weekday(year, 11, 3, 4),     # 추수감사절 — 11월 넷째 목요일
+    }
+    for fixed in (date(year, 7, 4), date(year, 12, 25)):
+        days.add(_observed(fixed))
+    if year >= 2022:                      # 준틴스는 2022년부터 휴장일이다
+        days.add(_observed(date(year, 6, 19)))
+    # 새해 첫날 — 토요일이면 12월 31일에 안 쉰다(위 설명). 일요일이면 1월 2일.
+    new_year = date(year, 1, 1)
+    if new_year.weekday() != 5:
+        days.add(_observed(new_year))
+    return frozenset(d for d in days if d.year == year)
+
+
+@lru_cache(maxsize=32)
+def us_half_days(year: int) -> frozenset:
+    """그해 미국 증시가 **뉴욕 오후 1시에 일찍 닫는 날**.
+
+    추수감사절 다음 날 · 성탄절 앞날 · 독립기념일 앞날 셋이다. 앞뒤가 주말이거나
+    그 자체가 휴장일이면 반휴장도 없다.
+    """
+    holidays = us_market_holidays(year)
+    out = set()
+    candidates = (
+        _nth_weekday(year, 11, 3, 4) + timedelta(days=1),   # 추수감사절 다음 날
+        date(year, 12, 24),
+        date(year, 7, 3),
+    )
+    for day in candidates:
+        if day.weekday() < 5 and day not in holidays:
+            out.add(day)
+    return frozenset(out)
+
+
+def us_market_is_open(day: date) -> bool:
+    """그날 미국 정규장이 열리나. 주말·휴장일이면 False."""
+    return day.weekday() < 5 and day not in us_market_holidays(day.year)
 
 
 def us_session_is_over(now: datetime | None = None) -> bool:
@@ -316,14 +422,19 @@ def us_session_is_over(now: datetime | None = None) -> bool:
     GitHub 자동 저장(.github/workflows/picklist_collect.yml)은 마감 뒤에만
     돌아서 이 문제가 없다. 화면 쪽에만 막이 없었다.
 
-    주말은 장이 없으므로 False다. **공휴일은 못 가린다** — 공휴일 표가 없다.
-    그날 화면을 열면 전날 값이 그 공휴일 날짜로 저장될 수 있다. 다만 그날 밤
-    GitHub 저장이 같은 값으로 덮으므로 두 곳이 어긋나지는 않는다.
+    **주말·공휴일에는 저장하지 않는다.** 휴장일은 us_market_holidays가 규칙으로
+    센다(2026-08-19 상하님 지시 — "미국 공휴일표 찾아서 넣으면 되지").
+
+    **반휴장일은 오후 1시가 마감이다** — 추수감사절 다음 날처럼 일찍 닫는 날에
+    오후 4시를 기다리면 그날 목록이 통째로 빈다.
     """
     stamp = (now or datetime.now(_SEOUL)).astimezone(_NEW_YORK)
-    if stamp.weekday() >= 5:            # 토·일은 장이 없다
+    today = stamp.date()
+    if not us_market_is_open(today):    # 토·일·휴장일
         return False
-    return stamp.hour >= US_MARKET_CLOSE_HOUR
+    closing = (US_HALF_DAY_CLOSE_HOUR if today in us_half_days(today.year)
+               else US_MARKET_CLOSE_HOUR)
+    return stamp.hour >= closing
 
 
 def archive_path(trade_date: str, market: str, out_dir: Path | str | None = None) -> Path:

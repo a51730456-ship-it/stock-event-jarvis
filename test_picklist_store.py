@@ -13,7 +13,7 @@ import unittest
 import pathlib
 import shutil
 from unittest.mock import patch
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -412,6 +412,48 @@ class UsSessionGateTests(unittest.TestCase):
     def test_after_the_close_is_saved(self):
         # 한국 다음날 새벽 6시 40분 = 뉴욕 오후 5시 40분. 마감 뒤다.
         self.assertTrue(store.us_session_is_over(self._seoul("2026-08-20T06:40:00")))
+
+    def test_holidays_are_not_saved(self):
+        """휴장일에는 저장하지 않는다 (2026-08-19 상하님 지시로 넣은 공휴일표)."""
+        ny = ZoneInfo("America/New_York")
+        for day in ("2026-01-01", "2026-04-03", "2026-07-03", "2026-11-26",
+                    "2026-12-25", "2025-06-19"):
+            stamp = datetime.fromisoformat(f"{day}T17:00:00").replace(tzinfo=ny)
+            self.assertFalse(store.us_session_is_over(stamp), day)
+
+    def test_half_days_close_at_one(self):
+        """반휴장일은 뉴욕 오후 1시가 마감이다 — 4시를 기다리면 그날이 빈다."""
+        ny = ZoneInfo("America/New_York")
+        for day in ("2026-11-27", "2026-12-24"):       # 추수감사절 다음 날 · 성탄 전날
+            self.assertIn(datetime.fromisoformat(day).date(),
+                          store.us_half_days(2026), day)
+            before = datetime.fromisoformat(f"{day}T12:59:00").replace(tzinfo=ny)
+            after = datetime.fromisoformat(f"{day}T13:01:00").replace(tzinfo=ny)
+            self.assertFalse(store.us_session_is_over(before), day)
+            self.assertTrue(store.us_session_is_over(after), day)
+
+    def test_the_holiday_table_matches_the_real_calendar(self):
+        """실제 뉴욕증권거래소 달력과 맞아야 한다 — 표가 아니라 규칙으로 센다."""
+        self.assertEqual(
+            ["2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18", "2025-05-26",
+             "2025-06-19", "2025-07-04", "2025-09-01", "2025-11-27", "2025-12-25"],
+            sorted(d.isoformat() for d in store.us_market_holidays(2025)))
+        # 2026: 독립기념일이 토요일이라 **7월 3일 금요일**에 쉰다.
+        self.assertIn(date(2026, 7, 3), store.us_market_holidays(2026))
+        self.assertNotIn(date(2026, 7, 4), store.us_market_holidays(2026))
+        # 2027: 성탄절이 토요일이라 12월 24일에 쉬고, 그러면 반휴장은 없다.
+        self.assertIn(date(2027, 12, 24), store.us_market_holidays(2027))
+        self.assertNotIn(date(2027, 12, 24), store.us_half_days(2027))
+        # 새해 첫날이 토요일인 해는 **12월 31일에 쉬지 않는다**(거래소 규칙).
+        year = next(y for y in range(2026, 2040) if date(y, 1, 1).weekday() == 5)
+        self.assertNotIn(date(year - 1, 12, 31), store.us_market_holidays(year - 1))
+        self.assertNotIn(date(year, 1, 1), store.us_market_holidays(year))
+
+    def test_the_cloud_collector_skips_holidays(self):
+        """GitHub 자동 저장도 휴장일에는 안 찍는다."""
+        source = pathlib.Path("picklist_collector.py").read_text(encoding="utf-8")
+        self.assertIn("us_market_is_open", source,
+                      "클라우드 수집기가 휴장일을 안 본다")
 
     def test_weekend_is_never_saved(self):
         self.assertFalse(store.us_session_is_over(self._seoul("2026-08-22T14:00:00")))
