@@ -408,8 +408,9 @@ class RulebookScreenTests(unittest.TestCase):
         # 다른 항목에 나눠 주지 않는다 — 만점이 곧 그 파트의 근거의 양이다.
         # 상승장은 테마 근접도 70 + 뚫기 전 60일 상승 30 = 100점이다(2026-08-13).
         self.assertEqual(100.0, j3.BREAKOUT_SCORE_MAX)
-        # 급락은 2026-08-14부터 **30주선 위 하나뿐**이라 40점 만점이다.
-        self.assertEqual(40.0, j3.CRASH_SCORE_MAX)
+        # 급락은 2026-08-19부터 **넷**이다 — 상하님 새 지시문을 앱 명부로 다시 쟀다.
+        # 주가 변동성 40 + 30주선 30 + 동시 하락 20 + 6개월 수익률 10 = 100점.
+        self.assertEqual(100.0, j3.CRASH_SCORE_MAX)
         self.assertEqual(j3.BREAKOUT_SCORE_MAX, sum(j3.BREAKOUT_SCORE_WEIGHTS.values()))
         self.assertEqual(j3.CRASH_SCORE_MAX, sum(j3.CRASH_SCORE_WEIGHTS.values()))
         # **상승장 1등은 테마 근접도, 급락 1등은 테마가 덜 빠졌나**다.
@@ -417,18 +418,39 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(70.0, j3.BREAKOUT_SCORE_WEIGHTS["theme_prox"])
         self.assertEqual(30.0, j3.BREAKOUT_SCORE_WEIGHTS["gain60"])
         self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
-        # 급락 1등은 30주선 위다. 옛 1등 '덜 빠졌나'는 0점이 됐다(2026-08-14).
-        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["above150"])
+        # 급락 1등은 **주가 변동성**이다(2026-08-19 실측 — 바닥 9번에서 3개월 9/9 ·
+        # 6개월 7/8 · 1년 8/8). 이 파트에서 종목 항목이 점수를 받는 것은 처음이다.
+        # 30주선이 2등 30점, 동시 하락이 3등 20점, 6개월 수익률이 4등 10점이다.
+        # 옛 1등 '덜 빠졌나'는 그대로 0점이다.
+        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["volatility"])
+        self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["above150"])
+        self.assertEqual(20.0, j3.CRASH_SCORE_WEIGHTS["together"])
+        self.assertEqual(10.0, j3.CRASH_SCORE_WEIGHTS["theme_ret120"])
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["less_drop"])
+        # **20일선과 낙폭은 0점이다.** 20일선은 거꾸로였고(1년 -23.3%), 낙폭은
+        # 그물이 이미 쓴 값인 데다 변동성과 71%가 같은 종목이다(2026-08-19).
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["above20"])
+        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["bucket"])
         # 그물마다 합격 못 한 항목들 — 되살아나면 여기서 깨진다.
-        for name in ("together", "recent_drop", "liquidity", "volatility"):
+        for name in ("recent_drop", "liquidity"):
             self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS[name], f"상승장 {name}")
             self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS[name], f"급락 {name}")
-        # **급락 배점 90점이 전부 테마 등수다**(2026-08-12 새 그물 실측).
-        # 종목 항목 아홉 개가 세 보유 다 미달이었다 — 미국은 테마로만 고를 수 있다.
+        # 변동성은 **상승장에서는 여전히 0점**이고 급락에서만 40점이다. 두 갈래가
+        # 서로 다른 자를 쓴다는 것을 여기서 못박는다(2026-08-19).
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["volatility"])
+        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["volatility"])
+        # '같은 테마 동반'은 **상승장에서는 여전히 0점**이다. 급락에서만 되살아났다
+        # (2026-08-16 저녁 · 바닥 자리에서 다시 재니 1등이었다).
+        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
+        # **급락 배점 100점 가운데 60점이 테마 등수, 40점이 종목이다**(2026-08-19).
+        # 2026-08-12에는 종목 항목 아홉 개가 세 보유 다 미달이라 100%가 테마였는데,
+        # 상하님 새 지시문의 '주가 변동성'을 앱 명부로 다시 재니 1등으로 붙었다.
         theme_points = sum(j3.CRASH_SCORE_WEIGHTS[name]
-                           for name in ("above150", "less_drop", "aligned", "above20"))
-        self.assertEqual(j3.CRASH_SCORE_MAX, theme_points)
+                           for name in ("together", "theme_ret120", "above150",
+                                        "less_drop", "aligned", "above20"))
+        self.assertEqual(60.0, theme_points)
+        self.assertEqual(j3.CRASH_SCORE_MAX,
+                         theme_points + j3.CRASH_SCORE_WEIGHTS["volatility"])
         # **'같이 오르는가' 30점은 '주봉 오름세'로 갈아끼웠다**(2026-08-12 저녁,
         # 상하님 지시 "반등은 빨리·많이가 기준"). 속도를 넣고 재니 '같이 오르는가'로
         # 고른 종목은 +20%까지 46일 — **아무거나 산 것(45일)보다 느렸다.**
@@ -491,17 +513,39 @@ class RulebookScreenTests(unittest.TestCase):
         # 못 가른다(기준 6). 배점표에도 그 줄이 없어야 한다.
         crash_names = [name for name, _v, _m, _t in j3.crash_rebound_score(
             {"metrics": {}, "together_count": 5, "bucket": "shallow"})["parts"]]
-        self.assertNotIn("같은 테마 동반", crash_names)
-        self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["together"])
-        # **점수를 주는 항목은 하나뿐이다**(30주선 위). 나머지는 재 봤지만 통과하지
-        # 못한 항목이라 0점으로 **표에 남긴다**(2026-08-15 상하님 지시).
+        # **점수를 주는 항목은 넷이다**(2026-08-19, 상하님 새 지시문 재측정) —
+        # 주가 변동성 40 · 30주선 30 · 동시 하락 20 · 6개월 수익률 10.
+        # **0점 항목은 배점표에 없다.** 2026-08-15에 되살렸다가 08-19에 상하님이
+        # 바로잡아 주셨다 — 0점짜리는 배점표가 아니라 「설명」 창에 적는다.
         crash_parts = j3.crash_rebound_score(
             {"metrics": {}, "together_count": 5, "bucket": "shallow"})["parts"]
-        scored = [name for name, _v, maximum, _t in crash_parts if maximum]
-        self.assertEqual(1, len(scored), scored)
-        self.assertTrue(scored[0].startswith("테마가 30주선 위에 있나"), scored)
-        self.assertGreater(len(crash_names), 1, "0점 항목이 배점표에서 사라졌다")
-        self.assertTrue(all("테마" in name for name in crash_names), crash_names)
+        scored = [(name, maximum) for name, _v, maximum, _t in crash_parts if maximum]
+        self.assertEqual(4, len(scored), scored)
+        self.assertEqual(len(crash_parts), len(scored), "0점 줄이 배점표에 섞였다")
+        self.assertTrue(scored[0][0].startswith("이 종목이 평소 크게"), scored)
+        self.assertEqual(40.0, scored[0][1], "1등은 40점이다")
+        self.assertTrue(scored[1][0].startswith("이 테마가 이미 오름세"), scored)
+        self.assertEqual(30.0, scored[1][1], "2등은 30점이다")
+        self.assertTrue(scored[2][0].startswith("이 테마가 통째로 떨어졌나"), scored)
+        self.assertEqual(20.0, scored[2][1], "3등은 20점이다")
+        self.assertTrue(scored[3][0].startswith("이 테마가 지난 반년에"), scored)
+        self.assertEqual(10.0, scored[3][1], "4등은 10점이다")
+        # 문턱은 4개다 — 3개면 점수가 없다(절반 점수를 두지 않는다).
+        three = j3.crash_rebound_score({"metrics": {}, "together_count": 3})["parts"]
+        together_value = next(value for name, value, _m, _t in three
+                              if name.startswith("이 테마가 통째로"))
+        self.assertEqual(0.0, together_value, "3개에는 점수를 주지 않는다")
+        # 넷 중 하나(변동성)만 종목을 보고 셋은 테마를 본다.
+        self.assertEqual(1, sum(1 for name in crash_names if "테마" not in name),
+                         crash_names)
+        # **이름은 그 항목이 던지는 질문이어야 한다**(2026-08-19 상하님 지적 —
+        # "테마 6개월 수익률 상위 3등, 이 말은 수익률이 좋다는 말이냐 뭐냐").
+        for name in crash_names:
+            self.assertTrue(name.startswith("이 "), f"{name}은 질문 꼴이 아니다")
+        # 「설명」 칸은 **판정까지** 적어야 한다 — 숫자만 던지면 못 알아보신다.
+        for _n, _v, _m, note in crash_parts:
+            self.assertIn("→", note, note)
+            self.assertTrue("점수를 받습니다" in note or "점수가 없습니다" in note, note)
 
     def test_theme_rank_is_scored_and_ranks_over_the_whole_universe(self):
         """테마 등수 25점 — 2026-08-07 도입. 등수는 명부 전체로 매겨야 한다."""
@@ -527,10 +571,101 @@ class RulebookScreenTests(unittest.TestCase):
         def above150_points(row):
             row = dict(row, metrics={})
             return next(value for name, value, _m, _t
-                        in j3.crash_rebound_score(row)["parts"] if "30주선" in name)
+                        in j3.crash_rebound_score(row)["parts"]
+                        if "이미 오름세" in name)
 
         self.assertEqual(j3.CRASH_SCORE_WEIGHTS["above150"], above150_points(rows[0]))
         self.assertEqual(0.0, above150_points(rows[1]))
+
+    def test_volatility_is_scored_in_the_crash_part(self):
+        """주가 변동성은 급락 배점 **1등 40점**이다 (2026-08-19 상하님 새 지시문).
+
+        이 파트에서 종목 자체를 보는 항목이 점수를 받는 것은 이것이 처음이다.
+        값 자체로 점수를 주지 않고 **그날 목록에 걸린 종목끼리** 줄을 세워
+        위쪽 절반에만 준다(research/us_crash_newscore.py).
+        """
+        # ① 60일 변동성이 metrics에 실려야 한다 — 없으면 줄을 못 세운다.
+        closes = [100.0 * (1.01 if i % 2 else 0.995) ** i for i in range(200)]
+        frame = pd.DataFrame({
+            "Open": closes, "High": [c + 1 for c in closes],
+            "Low": [c - 1 for c in closes], "Close": closes,
+            "Volume": [1_000_000] * len(closes)},
+            index=pd.date_range("2025-01-01", periods=len(closes), freq="B"))
+        metrics = j3._series_metrics(frame)
+        self.assertTrue(metrics["ok"])
+        self.assertIsNotNone(metrics["vol60"], "60일 변동성이 안 실렸다")
+        self.assertGreater(metrics["vol60"], 0.0)
+
+        # ② 걸린 종목끼리 줄을 세워 **위쪽 절반**에만 붙는다.
+        rows = [{"ticker": f"T{i}", "metrics": {"vol60": float(i)}} for i in range(1, 11)]
+        j3._attach_crash_volatility(rows)
+        top = [row["ticker"] for row in rows if row["vol_top"]]
+        self.assertEqual(["T6", "T7", "T8", "T9", "T10"], top, top)
+
+        # ③ 못 잰 종목은 **0으로 채우지 않는다** — 모르는 것과 낮은 것은 다르다.
+        rows = [{"ticker": "AAA", "metrics": {"vol60": 5.0}},
+                {"ticker": "BBB", "metrics": {"vol60": 1.0}},
+                {"ticker": "CCC", "metrics": {}}]
+        j3._attach_crash_volatility(rows)
+        self.assertIsNone(rows[2]["vol_pct"])
+        self.assertFalse(rows[2]["vol_top"])
+        self.assertTrue(rows[0]["vol_top"])
+
+        # ④ 점수는 40점이고, 못 잰 종목은 0점이다.
+        def volatility_points(row):
+            return next(value for name, value, _m, _t
+                        in j3.crash_rebound_score(row)["parts"]
+                        if name.startswith("이 종목이 평소"))
+
+        self.assertEqual(40.0, volatility_points(rows[0]))
+        self.assertEqual(0.0, volatility_points(rows[1]))
+        self.assertEqual(0.0, volatility_points(rows[2]))
+        self.assertEqual(0.50, j3.CRASH_VOL_TOP_SHARE, "절반으로 자른다")
+
+    def test_six_month_theme_return_is_scored_in_the_crash_part(self):
+        """테마 6개월 수익률은 급락 배점 **4등 10점**이다 (2026-08-19).
+
+        1년 보유로 보면 바닥 6번 중 6번을 맞혀 넷 중 가장 잘 맞히는데, 3개월로
+        보면 7번 중 4번뿐이다. 앱이 파는 시점을 정하지 않으므로 짧은 기간에
+        약한 항목에는 큰 점수를 못 준다(research/us_crash_newscore.py).
+        """
+        # ① 6개월 수익률이 metrics에 실려야 한다 — 없으면 등수를 못 매긴다.
+        closes = [100.0 + i for i in range(200)]
+        frame = pd.DataFrame({
+            "Open": closes, "High": [c + 1 for c in closes],
+            "Low": [c - 1 for c in closes], "Close": closes,
+            "Volume": [1_000_000] * len(closes)},
+            index=pd.date_range("2025-01-01", periods=len(closes), freq="B"))
+        metrics = j3._series_metrics(frame)
+        self.assertTrue(metrics["ok"])
+        self.assertIsNotNone(metrics["ret120"], "6개월 수익률이 안 실렸다")
+        self.assertAlmostEqual((closes[-1] / closes[-121] - 1) * 100,
+                               metrics["ret120"], places=6)
+
+        # ② 그 값으로 테마 등수를 매기고, 상위 3등에만 40점이 붙어야 한다.
+        memberships = {"AAA": ["빠른테마"], "BBB": ["빠른테마"], "CCC": ["빠른테마"],
+                       "DDD": ["느린테마"], "EEE": ["느린테마"], "FFF": ["느린테마"]}
+        all_metrics = {"AAA": {"ret120": 40.0}, "BBB": {"ret120": 35.0},
+                       "CCC": {"ret120": 30.0}, "DDD": {"ret120": -10.0},
+                       "EEE": {"ret120": -12.0}, "FFF": {"ret120": -14.0}}
+        rows = [{"ticker": "AAA", "themes": ["빠른테마"]},
+                {"ticker": "DDD", "themes": ["느린테마"]}]
+        j3._attach_theme_rank(rows, memberships, all_metrics, prefix="theme_ret120",
+                              metric_key="ret120", top_n=1)
+
+        def ret120_points(row):
+            return next(value for name, value, _m, _t
+                        in j3.crash_rebound_score(dict(row, metrics={}))["parts"]
+                        if "지난 반년" in name)
+
+        self.assertEqual(10.0, ret120_points(rows[0]))
+        self.assertEqual(0.0, ret120_points(rows[1]))
+        # ③ 1등 40 · 2등 30 · 3등 20 · 4등 10 — 계단을 지킨다.
+        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["volatility"])
+        self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["above150"])
+        self.assertEqual(20.0, j3.CRASH_SCORE_WEIGHTS["together"])
+        self.assertEqual(10.0, j3.CRASH_SCORE_WEIGHTS["theme_ret120"])
+        self.assertEqual(3, j3.CRASH_RET120_TOP_N, "상위 3등까지만 준다")
 
     def test_same_score_rows_take_turns_by_theme(self):
         """같은 점수 안에서는 **테마를 번갈아** 놓는다 (2026-08-14 상하님 지시).

@@ -206,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081530
+MODULE_REVISION = 2026081930
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -496,7 +496,7 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
     sma20 = _finite(closes.tail(20).mean())
     sma50 = _finite(closes.tail(50).mean()) if len(closes) >= 50 else None
     # 150일선과 '20일 전의 200일선'은 **주봉이 오름세인가**(Minervini Trend Template)를
-    # 보려고 둔다. 급락 배점 30점이 여기에 걸려 있다(2026-08-12 실측).
+    # 보려고 둔다. 급락 배점 30점(테마가 30주선 위인가)이 여기에 걸려 있다.
     sma150 = _finite(closes.tail(150).mean()) if len(closes) >= 150 else None
     sma200 = _finite(closes.tail(200).mean()) if len(closes) >= 200 else None
     sma200_prev = (_finite(closes.iloc[-220:-20].mean())
@@ -559,6 +559,16 @@ def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = 
         "ret5": ret(5),
         "ret20": ret(20),
         "ret60": ret(60) if len(closes) >= 61 else None,
+        # 6개월(120거래일) 수익률 — **급락 배점 40점이 여기 걸려 있다**(2026-08-16).
+        # 자료는 2년치를 받으므로 창이 찬다. 모자라면 None이고 그 테마는 등수에서 빠진다.
+        "ret120": ret(120) if len(closes) >= 121 else None,
+        # 60거래일 동안 하루하루 몇 % 씩 움직였나 — **급락 배점 40점이 여기 걸려 있다**
+        # (2026-08-19). 이 값 자체로 점수를 주지 않는다. 그날 목록에 걸린 종목끼리
+        # 줄을 세워 위쪽 절반이면 만점이다(find_crash_rebound_stocks).
+        # atr_pct와 다른 값이다 — atr는 하루 안의 고가·저가 폭이고, 이것은
+        # 종가에서 종가로 얼마나 튀었나다. 잰 것은 이쪽이다.
+        "vol60": _finite(closes.pct_change().tail(60).std() * 100)
+                 if len(closes) >= 61 else None,
         "sma20": sma20,
         "sma50": sma50,
         "sma150": sma150,
@@ -1483,21 +1493,123 @@ def volume_streak_days(frame) -> int:
 # 급락 자리에서 문턱 38.4% · 반등 41.1%로 거꾸로다. Daniel & Moskowitz(2016)가
 # 말한 그대로다 — 약세장이 급반등할 때는 **어제의 패자가 오늘 가장 크게 오른다.**
 #
-# 합이 100이 아니므로 **40점 만점**이라고 화면에 적는다(CLAUDE.md 0-1 마).
+# ── 2026-08-16 「테마 6개월 수익률」을 1등으로 넣었다 ─────────────────────────
+# 근거와 숫자는 docs/US_THEME_SPEC.md **0부**에 있다. 여기 요약만 적는다.
+#
+# **상하님이 손대라고 하신 자리다.** 30주선 40점은 상하님이 2026-08-14에 정하신
+# 것이라 기준 9(정하신 것은 실측과 달라도 안 바꾼다)에 걸린다. 2026-08-16에
+# 상하님이 "내가 정한 것이라도 타당하면 바꿔야지"라고 하셔서 자리를 바꿨다.
+# **기준 9는 그대로다** — 다음에도 먼저 여쭈어 이런 말씀을 받아야 바꾼다.
+#
+# 실마리는 상하님이 주신 GPT 월간 순환 엑셀이지만 **엑셀 숫자는 하나도 안 썼다.**
+# 엑셀 제안은 이 집 합격선으로 재니 전부 떨어졌고(research/us_theme_rotation_audit.py
+# — 고정 순환순서 M1~M12 전부 미달 · 리더 피로는 거꾸로 · ETF가 앱 명부와 0.72),
+# 거기서 '6개월 강도'라는 실마리만 가져와 **앱 명부 200종목·앱 그물로** 다시 쟀다.
+#
+# 자리·그물·보유는 2026-08-14 확정 때와 같다. 숫자는 상위 3등이 나머지보다 더 번
+# 중앙값 차이다(research/us_theme_6m_check.py).
+#
+#   잣대                    문턱 3·6개월·1년        반등 3·6개월·1년
+#   테마 6개월 수익률        +7.6 · +18.3 · +10.9   +12.0 · +21.4 · +27.0  ← 1등
+#   테마 30주선 위 비율      +2.6 · +26.0 ·  +4.8    +6.7 ·  +4.9 · +15.4  ← 2등
+#   테마 3개월 수익률       -5.6 ·  +6.0 · +10.6    +5.3 · +11.6 ·  +1.1   ✗
+#   테마 1년 수익률        +14.0 · +30.5 · +20.4    +2.1 · +19.8 · -12.8   ✗
+#   테마가 덜 빠졌나        -2.4 ·  -6.2 · -11.3    -0.2 ·  +2.1 · -11.7   ✗ 거꾸로
+#
+# **둘 다 여섯 자리를 통과했다.** 순서를 가른 것은 셋이다 —
+#   ① 최악의 자리가 낫다(+7.6 vs +2.6%p).
+#   ② 상위 5등으로 넓혀도 안 무너진다(30주선은 한 자리가 -3.5%p로 무너진다).
+#   ③ 동점이 적다 — 30주선 '위 비율'은 같은 값 테마가 많아 상위 3등을 못 가르는
+#      날이 있었다(문턱 15자리 중 3자리). 수익률은 그 일이 없다.
+#
+# **둘은 겹친다** — 상위 3등이 3개 중 평균 1.9개(63%) 같다. 겹치는 테마는 저절로
+# 70점이 된다. 하나로 묶지 않는 까닭은 겹치지 않는 37%에서 서로 다른 것을 잡아서다.
+#
+# **한계** — 자리가 적다. 문턱 11~15번, 저점 다음 날은 5~8번뿐이다.
+# 명부나 그물이 바뀌면 위 두 스크립트를 다시 돌린다(기준 7).
+#
+# 합이 100이 아니므로 **70점 만점**이라고 화면에 적는다(CLAUDE.md 0-1 마).
 # 만점이 곧 이 파트의 근거의 양이다.
+# ── 2026-08-16 저녁 · **바닥 자리만** 놓고 다시 재서 셋으로 바꿨다 ───────────
+# 상하님 지적 — "칼이 떨어진다고 기준을 잡으면 이 테마를 쓸 수가 없지."
+# 맞는 말씀이다. 위 2026-08-14·08-16 측정은 '문턱에 닿은 날'(아직 떨어지는 중)을
+# 합격 조건에 넣고 있었다. 이 파트 이름이 「급락 **후 반등**장」이므로
+# **바닥 다음 거래일 하나만** 놓고 다시 쟀다(research/us_rebound_shape.py).
+#
+# 바닥 9번(2018-12 · 2020-03 두 번 · 2020-09 · 2022-11 · 2022-12 · 2024-08 ·
+# 2025-04 · 2026-03)에서 잰 성적이다. '몇 번 중 몇 번'은 그 잣대로 고른 무리가
+# 나머지보다 가운데 수익이 높았던 바닥의 수다.
+#
+#   잣대                        3개월      6개월      1년      걸리는 비율
+#   같은 테마 4개↑ 동시 하락      9/9       8/8      7/8         60%   ← 1등
+#   테마 6개월 수익률 상위 3등     5/8       5/7      5/7          —    ← 2등
+#   테마 30주선 위 상위 3등       6/6       3/5      3/5          —    ← 3등
+#
+# 문턱이 4개인 까닭 — 3개는 걸리는 비율이 67%로 넓고, 5개는 48%로 좁은데 성적은
+# 4개가 가장 좋다(3개월 9/9 · 가운데 +10.4%p). 6개 이상은 34%라 못 가른다.
+#
+# **`theme_together_points`를 쓰지 않는다.** 그것은 상승장용이라 3개부터 만점이고
+# 1~2개에 절반을 준다. 여기서 잰 것은 **4개 이상이냐 아니냐** 하나뿐이라 절반이 없다.
+#
+# **한계** — 바닥이 9번뿐이다. 명부가 바뀌면 위 스크립트를 다시 돌린다(기준 7).
+# ── 2026-08-19 · 상하님 새 지시문을 앱 명부로 다시 재서 **새판을 짰다** ──────
+# 근거와 숫자는 docs/US_THEME_SPEC.md **0부**에 있다. 여기 요약만 적는다.
+#
+# 상하님이 주신 지시문은 나스닥 저점 16회·96종목을 놓고 "주가 변동성 50 · 고점
+# 대비 낙폭 30 · 20일선 위 20"이라 정해 두었다. **그 숫자는 하나도 쓰지 않았다** —
+# 명부가 다르면 같은 잣대라도 뒤집히기 때문이다(기준 7). 항목만 가져와
+# 앱 명부 198종목·앱 그물·바닥 다음 거래일 9번에서 다시 쟀다.
+# 측정: research/us_crash_newscore.py · us_crash_newscore2.py · us_crash_newscore3.py
+#
+#   잣대                        3개월    6개월    1년     걸리는 비율   수익차(1년)
+#   주가 변동성 큰 쪽 절반         9/9     7/8     8/8        50%      +31.1%  ← 1등
+#   테마 30주선 위 상위 3등        7/8     5/7     7/7         9%      +38.0%  ← 2등
+#   같은 테마 4개↑ 동시 하락       9/9     6/8     6/8        50%       +8.8%  ← 3등
+#   테마 6개월 수익률 상위 3등      4/7     5/6     6/6         8%      +46.5%  ← 4등
+#   ─ 아래는 재 보고 뺀 것 ─
+#   고점 대비 낙폭 큰 쪽 1/3       7/9     6/8     7/8        34%      +15.3%
+#   20일선 위                   4/9     4/8     4/8        19%      -23.3%  ← 거꾸로
+#   화면 20개 테마 순위 상위 5등    8/9     3/8     6/8        18%       +9.7%
+#
+# **변동성이 1등인 까닭** — 세 보유기간 모두 가장 꾸준했다. 파는 시점을 정하지
+# 않는 파트는 여러 보유기간에서 모두 합격한 항목만 쓴다(CLAUDE.md 0-1 마).
+# 6개월 수익률은 1년이 6/6으로 완벽한데 3개월이 4/7이라 제일 낮게 준다.
+#
+# **테마 셋을 안 버린 까닭 — 변동성과 겹치지 않는다.** 변동성 큰 종목 가운데
+# 「테마 6개월 상위 3」에도 드는 것은 11%뿐이다. 둘 다 걸린 39종목은 1년 뒤
+# 가운데 +129.2% · 100번 중 97번 올랐고, 변동성만 걸린 331종목은 +67.3%였다.
+#
+# **낙폭에 점수를 안 주는 까닭** — 그물(-20~-50%)이 이미 쓴 값이고, 낙폭 상위
+# 종목의 71%가 변동성 상위와 같은 종목이다. 한 가지를 두 번 세게 된다.
+#
+# **20일선을 안 쓰는 까닭** — 거꾸로다. 2026-08-14에도 같은 이유로 뺐으니
+# 두 번 재서 두 번 다 거꾸로였다. 변동성을 같게 맞춰 놓고 봐도 같았다
+# (변동성 큰 쪽 안에서 20일선 위 +52.7% vs 아래 +76.0%).
+#
+# **화면 20개 테마 순위를 안 쓰는 까닭** — 6개월에서 7번 중 3번으로 무너진다.
+# 그 점수 안에 20일선 위 비율이 40점으로 가장 크게 들어 있어서다(THEME_SCORE_WEIGHTS).
+#
+# **한계** — 바닥이 9번뿐이다. 명부나 그물이 바뀌면 위 세 스크립트를 다시 돌린다.
+#
+# 넷을 더해 **100점 만점**이다. 위 옛 기록에 적힌 70점·90점은 그때의 만점이다.
+# 화면은 CRASH_SCORE_MAX를 읽어 적으므로 저절로 따라간다.
 CRASH_SCORE_WEIGHTS = {
-    "above150": 40.0,      # 테마 30주선(150일선) 위 비율 상위 3등 — 유일하게 남았다
+    "volatility": 40.0,    # 주가 변동성 큰 쪽 절반 — 2026-08-19 실측 1등 (종목 항목)
+    "above150": 30.0,      # 테마 30주선(150일선) 위 비율 상위 3등 — 2등
+    "together": 20.0,      # 같은 테마 4개 이상 동시 하락 — 3등
+    "theme_ret120": 10.0,  # 테마 6개월 수익률 상위 3등 — 4등 (3개월에 약하다)
     "less_drop": 0.0,      # 2026-08-14 뺐다 — 자리에 따라 방향이 뒤집힌다
     "aligned": 0.0,        # 2026-08-14 뺐다 — 급락 직후엔 맞는 테마가 거의 없다
-    "above20": 0.0,        # 2026-08-14 뺐다 — 점수에 넣으면 오히려 나빠진다(동점만 가른다)
+    "above20": 0.0,        # 거꾸로다(1년 -23.3%). 점수는 안 주고 동점만 가른다
     "spread5": 0.0,        # 테마 5일 오른 비율 — 반등이 바탕보다 느렸다(46일 vs 45일)
-    "together": 0.0,       # 명부 교체 뒤 불합격 · 새 그물에서 해당 67%라 못 가름
-    "theme_rank": 0.0,     # 테마 60일 수익률 — 6개월에서만 합격
+    "theme_rank": 0.0,     # 화면 20개 테마 순위 — 6개월에 7번 중 3번으로 무너진다
     "recent_drop": 0.0,    # 보유기간마다 뒤집힌다
-    "volatility": 0.0,     # 세 보유 다 미달
     "liquidity": 0.0,      # 세 보유 다 미달
-    "bucket": 0.0,         # 그물이 이미 쓴 값 · 두 칸 다 미달
+    "bucket": 0.0,         # 그물이 이미 쓴 값 · 변동성과 71% 겹친다
 }
+# 그날 목록에 걸린 종목끼리 줄을 세웠을 때 **위쪽 절반**이면 변동성 점수를 준다.
+# 이 숫자를 바꾸면 배점을 다시 재야 한다(위쪽 25%는 3개월 9번 중 7번이었다).
+CRASH_VOL_TOP_SHARE = 0.50
 CRASH_SCORE_MAX = round(sum(CRASH_SCORE_WEIGHTS.values()), 1)
 
 # ── 깊은 급락에서는 **점수를 매기지 않는다** (2026-08-12 상하님 지적·결정) ────
@@ -1553,6 +1665,10 @@ CRASH_SPREAD_TOP_N = 5
 # **30주선은 상위 3등까지만 준다**(2026-08-14 실측). 5등으로 넓히면 문턱 3개월이
 # −3.2%p로 무너진다. 이 숫자를 바꾸면 여섯 자리를 다 다시 재야 한다.
 CRASH_ABOVE150_TOP_N = 3
+# **6개월 수익률도 상위 3등**이다(2026-08-16 실측). 5등까지 넓혀도 여섯 자리가
+# 다 양수였지만(+1.3 ~ +15.4%p) 30주선과 칸을 맞춰 3등으로 둔다 — 두 항목이
+# 서로 다른 등수를 쓰면 화면이 '상위 몇 등'을 두 가지로 말하게 된다.
+CRASH_RET120_TOP_N = 3
 CRASH_STATE_GOOD = round(CRASH_SCORE_MAX * 0.70, 1)
 CRASH_STATE_FAIR = round(CRASH_SCORE_MAX * 0.50, 1)
 # **문턱은 3개가 아니라 4개다**(2026-08-07 새 그물 실측). 3개↑는 그물의 55%가
@@ -1682,29 +1798,97 @@ def _theme_rank_part(row: dict, label: str, prefix: str, points: float) -> tuple
             + (f" / {total}개" if total else ""))
 
 
-def crash_rebound_score(row: dict) -> dict:
-    """급락 후 반등장 후보의 점수(90점 만점)와 근거를 낸다.
+# ── 배점표 「설명」 칸은 **판정까지 적는다** (2026-08-19 상하님 지적) ──────────
+# 상하님 말씀 — "오늘 목록에서 위 45%, 반도체 8개 함께 걸림, 반도체 4등 / 20개 …
+# 전부 무슨 말인지 못 알아먹겠다. 지만 아는 전문 용어만 쓰고 있다."
+#
+# 맞는 지적이다. 그 칸은 숫자만 던지고 **"그래서 점수를 받았다는 거냐"**에
+# 답하지 않았다. 이제 세 토막으로 적는다 — **사실 → 화살표 → 판정**.
+#     반도체가 테마 20개 중 3등입니다 → 3등 안이라 점수를 받습니다
+#     반도체가 테마 20개 중 4등입니다 → 3등 안에 못 들어 점수가 없습니다
+#
+# 상승장 갈래(_theme_rank_part)는 건드리지 않는다. 급락만 고치라는 지시다.
+def _crash_verdict(passed: bool, why_yes: str, why_no: str) -> str:
+    return f" → {why_yes if passed else why_no}"
 
-    **0점 항목은 parts에 넣지 않는다**(CLAUDE.md 0-1 마). 계산은 위
-    CRASH_SCORE_WEIGHTS에 0으로 남아 있어 다시 재서 되살릴 수 있다.
+
+def _crash_theme_rank_part(row: dict, label: str, prefix: str,
+                           points: float, top_n: int) -> tuple:
+    """테마 등수 한 줄 — 몇 등인지와 **점수를 받았는지**를 같이 적는다."""
+    rank = row.get(prefix)
+    total = int(row.get(f"{prefix}_total") or 0)
+    name = row.get(f"{prefix}_name") or "이 테마"
+    passed = bool(row.get(f"{prefix}_top"))
+    if not rank:
+        note = "이 종목은 테마가 없어 등수를 매길 수 없습니다 → 점수가 없습니다"
+    else:
+        note = (f"{name}가 테마 {total}개 중 {int(rank)}등입니다" if total
+                else f"{name}가 {int(rank)}등입니다")
+        note += _crash_verdict(passed,
+                               f"{top_n}등 안이라 점수를 받습니다",
+                               f"{top_n}등 안에 못 들어 점수가 없습니다")
+    return (label, points if passed else 0.0, points, note)
+
+
+def _crash_volatility_part(row: dict, points: float) -> tuple:
+    """변동성 한 줄 — 하루 몇 %씩 움직이고 오늘 목록에서 몇 등인지 적는다."""
+    vol = _finite(row.get("vol60"))
+    place, total = row.get("vol_place"), row.get("vol_total")
+    passed = bool(row.get("vol_top"))
+    if vol is None or not place or not total:
+        note = "이 종목은 자료가 짧아 못 쟀습니다 → 점수가 없습니다"
+    else:
+        note = (f"하루 평균 {vol:.1f}%씩 움직입니다 · "
+                f"오늘 목록 {int(total)}개 중 {int(place)}등")
+        note += _crash_verdict(passed,
+                               "위쪽 절반이라 점수를 받습니다",
+                               "아래쪽 절반이라 점수가 없습니다")
+    return ("이 종목이 평소 크게 움직이나", points if passed else 0.0, points, note)
+
+
+def _crash_together_part(row: dict, points: float) -> tuple:
+    """같은 테마 동시 하락 한 줄 — 몇 개가 같이 떨어졌고 점수를 받는지 적는다."""
+    together = int(row.get("together_count") or 0)
+    name = row.get("together_theme") or "이 테마"
+    passed = together >= CRASH_TOGETHER_FULL
+    note = f"{name}에서 {together}개가 같이 떨어졌습니다"
+    note += _crash_verdict(passed,
+                           f"{CRASH_TOGETHER_FULL}개가 넘어 점수를 받습니다",
+                           f"{CRASH_TOGETHER_FULL}개에 못 미쳐 점수가 없습니다")
+    return ("이 테마가 통째로 떨어졌나", points if passed else 0.0, points, note)
+
+
+def crash_rebound_score(row: dict) -> dict:
+    """급락 후 반등장 후보의 점수(100점 만점)와 근거를 낸다.
+
+    **0점 항목은 parts에 넣지 않는다**(CLAUDE.md 0-1 마 · docs 기준 5). 계산은
+    위 CRASH_SCORE_WEIGHTS에 0으로 남아 있어 다시 재서 되살릴 수 있고,
+    무엇을 재 보고 버렸는지는 **화면 「설명」 창**에 적는다.
+    2026-08-15에 0점 줄을 배점표에 되살렸다가 2026-08-19에 상하님이 바로잡아
+    주셨다 — *"의미 없는 답인데 넣는 게 문제 아니냐. 0점이라도 **설명**을
+    넣으라는 의미였다."* 적을 자리가 배점표가 아니라 설명이라는 뜻이었다.
+
+    **항목 이름은 그 항목이 던지는 질문 그대로 쓴다**(2026-08-19). '테마 6개월
+    수익률 (상위 3등)'은 수익률이 좋다는 말인지 나쁘다는 말인지 화면만 봐서는
+    알 수 없다 — 상하님이 그렇게 물으셨다.
     """
     weights = CRASH_SCORE_WEIGHTS
     parts = [
-        # **2026-08-14부터 이 하나다.** 옛 셋(덜 빠졌나·주봉 오름세·20일선 위)은
-        # 0점이 되어 여기서 빠진다 — 까닭은 CRASH_SCORE_WEIGHTS 위 설명에 있다.
-        _theme_rank_part(row, f"테마가 30주선 위에 있나 (상위 {CRASH_ABOVE150_TOP_N}등)",
-                         "theme_above150", weights["above150"]),
-        _theme_rank_part(row, f"테마가 덜 빠졌나 (상위 {CRASH_LESS_DROP_TOP_N}등)",
-                         "theme_less_drop", weights["less_drop"]),
-        _theme_rank_part(row, f"테마 주봉이 오름세인가 (상위 {CRASH_SPREAD_TOP_N}등)",
-                         "theme_aligned", weights["aligned"]),
-        _theme_rank_part(row, f"테마가 20일선 위에 있나 (상위 {CRASH_SPREAD_TOP_N}등)",
-                         "theme_above20", weights["above20"]),
+        # **2026-08-19부터 넷이다.** 변동성 40 + 30주선 30 + 동시 하락 20 +
+        # 6개월 수익률 10 = 100점 만점. 이 파트에서 종목 항목이 점수를 받는
+        # 것은 변동성이 처음이다.
+        _crash_volatility_part(row, weights["volatility"]),
+        _crash_theme_rank_part(row, "이 테마가 이미 오름세로 돌아섰나",
+                               "theme_above150", weights["above150"],
+                               CRASH_ABOVE150_TOP_N),
+        _crash_together_part(row, weights["together"]),
+        _crash_theme_rank_part(row, "이 테마가 지난 반년에 많이 올랐나",
+                               "theme_ret120", weights["theme_ret120"],
+                               CRASH_RET120_TOP_N),
     ]
-    # **0점 항목도 남긴다**(2026-08-15 상하님 지시). 종목 상세만 보고 기준이
-    # 하나뿐인 줄 아시게 되면 안 된다. 값과 등수는 그대로 적고 점수만 0이다.
     return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
             "parts": parts, "max": CRASH_SCORE_MAX}
+
 
 
 # ── 상승장(신고가 눌림매수) 전용 배점 (2026-08-06 재측정) ─────────────────────
@@ -2103,7 +2287,10 @@ def crash_rebound_plan(row: dict) -> dict:
         "buy_reason": (
             _crash_drop_story(row, metrics)
             + " 규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 삽니다."
-            + (f" **파는 시점은 규칙에 없습니다** — 이 자리의 과거 성적은 {spans}였습니다."
+            # 별표를 쓰지 않는다 — 이 글은 HTML로 그려지므로 별표가 **글자 그대로**
+            # 보인다(2026-08-19 상하님 캡처). '파는 시점은 규칙에 없습니다'는
+            # 화면이 알아서 굵게 칠한다(pages/2_자비스3.py의 _MUSTARD_KEYS).
+            + (f" 파는 시점은 규칙에 없습니다 — 이 자리의 과거 성적은 {spans}였습니다."
                if spans else "")
             + " 이 규칙에는 손절가가 없습니다."
         ),
@@ -2125,6 +2312,82 @@ def _attach_theme_together(rows: list, memberships: dict) -> None:
         row["together_count"], row["together_theme"] = max(best[0], 0), best[1]
         points, label = theme_together_tier(row["together_count"])
         row["together_tier"], row["together_label"] = points, label
+
+
+def _attach_crash_volatility(rows: list) -> None:
+    """급락 목록에 걸린 종목끼리 **주가 변동성**으로 줄을 세워 위쪽 절반을 표시한다.
+
+    2026-08-19 상하님이 주신 새 지시문을 앱 명부로 다시 재서 넣은 항목이다.
+    **급락 배점 40점이 여기 걸려 있다** — 이 파트에서 종목 항목이 점수를 받는
+    것은 이것이 처음이다(그전에는 셋 다 테마 항목이었다).
+
+    **값 자체로 점수를 주지 않는다.** 그날 걸린 종목들 안에서 위쪽 절반이냐
+    아니냐만 본다. 절대값으로 문턱을 두면 조용한 장에서는 아무도 못 받고
+    시끄러운 장에서는 모두가 받는다.
+
+    왜 절반인가 — 바닥 다음 거래일 9번에서 재 보니 위쪽 25%는 3개월 9번 중
+    7번, 위쪽 절반은 9번 다 이겼다(research/us_crash_newscore.py). 지시문은
+    상위 25%였지만 앱 명부에서는 넓은 쪽이 더 꾸준했다.
+
+    값이 없는 종목(상장한 지 얼마 안 돼 60일이 안 찬 종목)은 **점수를 못 받는다.**
+    0으로 채우지 않는다 — 모르는 것과 낮은 것은 다르다.
+    """
+    values = [(row, _finite((row.get("metrics") or {}).get("vol60"))) for row in rows]
+    known = sorted(v for _row, v in values if v is not None)
+    for row, value in values:
+        row["vol60"] = value
+        if value is None or not known:
+            row["vol_pct"] = None
+            row["vol_top"] = False
+            row["vol_place"] = row["vol_total"] = None
+            continue
+        # 나보다 작거나 같은 값이 몇 개인가 → 0~1. pandas rank(pct=True)와 같다.
+        below = sum(1 for other in known if other <= value)
+        rank = below / len(known)
+        row["vol_pct"] = rank
+        row["vol_top"] = rank > CRASH_VOL_TOP_SHARE
+        # 화면이 '몇 개 중 몇 등'으로 적을 수 있게 자리도 남긴다(2026-08-19).
+        # 상하님 지적 — "위 45%가 무슨 말인지 못 알아먹겠다."
+        row["vol_place"] = len(known) - below + 1
+        row["vol_total"] = len(known)
+
+
+def _attach_theme_rebound_spread(rows: list, memberships: dict,
+                                 since_reference: dict) -> None:
+    """기준일 이후 **이 테마 명부 종목 몇 개 중 몇 개가 올라 있나**를 각 줄에 적는다.
+
+    2026-08-16 상하님 지시로 넣었다. **점수가 아니라 표시다** — 순위에도 배점에도
+    쓰지 않는다(CRASH_SCORE_WEIGHTS는 그대로다).
+
+    왜 넣나 — 첨부 엑셀(나스닥 저점 16회 · 1,362행)을 이 집 합격선으로 다시 재니,
+    '저점 뒤 테마 5종목 중 4개 넘게 올랐나'가 6개월 82/100 · 9개월 82/91 ·
+    12개월 73/91로 세 기간 모두 합격했다(research/us_crash_xlsx_audit.py).
+    걸리는 비율도 64%로 10~85% 안이다.
+
+    **그런데 점수는 안 준다.** 합격한 값은 저점에서 **3개월 지난 뒤**에 잰 것이고,
+    같은 개념을 5일에서 재면 이 앱 그물에서는 값이 없었다(spread5, 지금 0점).
+    며칠째부터 값이 생기는지 아직 안 쟀으므로 점수 자리에 못 올린다.
+    상하님 말씀대로 **지금 그 상황을 보여주기만** 한다 — 저점에서 며칠이 지났든,
+    몇 달 뒤에 보시든, 그 시점의 사실 하나다.
+
+    세는 테마는 화면 '소속 테마' 칸에 적히는 그 테마다(together_theme). 다른 테마로
+    세면 화면이 한 줄 안에서 서로 다른 테마를 말하게 된다.
+    """
+    up: dict[str, int] = {}
+    total: dict[str, int] = {}
+    for ticker, change in (since_reference or {}).items():
+        if change is None:
+            continue
+        for name in memberships.get(ticker) or []:
+            total[name] = total.get(name, 0) + 1
+            if change > 0:
+                up[name] = up.get(name, 0) + 1
+    for row in rows:
+        names = row.get("themes") or []
+        name = str(row.get("together_theme") or "") or (names[0] if names else "")
+        row["theme_up_total"] = int(total.get(name, 0))
+        row["theme_up_count"] = int(up.get(name, 0))
+        row["theme_up_name"] = name
 
 
 THEME_RANK_MIN_MEMBERS = 3
@@ -2551,6 +2814,24 @@ def _from_high_on(frame, as_of_date: str):
         return None
 
 
+def _trading_days_since(frames: dict, as_of_date: str | None) -> int | None:
+    """기준일 **다음 날부터 오늘까지** 장이 열린 날 수. 못 세면 None."""
+    if not as_of_date or not frames:
+        return None
+    try:
+        frame = next((f for f in frames.values()
+                      if f is not None and not getattr(f, "empty", True)), None)
+        if frame is None:
+            return None
+        target = pd.Timestamp(as_of_date)
+        index = frame.index
+        if getattr(index, "tz", None) is not None:
+            target = target.tz_localize(index.tz)
+        return int((index > target).sum())
+    except Exception:
+        return None
+
+
 def crash_reference_day(lookback_days: int = 30) -> dict:
     """급락 후 반등장의 **기준일**을 찾는다 (2026-08-06 사용자 지시).
 
@@ -2708,6 +2989,9 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
     # 테마 등수는 **명부 전체**로 매긴다 — 표에 걸린 종목만 쓰면 그날 몇 개가
     # 걸렸느냐에 따라 등수가 출렁인다. 어차피 아래 반복문이 전 종목 지표를 낸다.
     all_metrics: dict[str, dict] = {}
+    # 기준일 이후 각 종목이 얼마나 움직였나 — **명부 전체**를 모은다. 표에 걸린
+    # 종목만 모으면 '이 테마 몇 개 중 몇 개가 올랐나'를 셀 수 없다(2026-08-16).
+    since_reference: dict[str, float] = {}
     counts = {rule["key"]: 0 for rule in CRASH_REBOUND_RULES}
     for ticker in US_LARGE_CAP_UNIVERSE:
         metrics = _series_metrics(daily.get(ticker))
@@ -2721,6 +3005,9 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
             judged = _from_high_on(ref_frames.get(ticker), ref_date)
             if judged is not None:
                 from_high, then_close = judged
+                current_now = _finite(metrics.get("current"))
+                if current_now and then_close:
+                    since_reference[ticker] = (current_now / float(then_close) - 1.0) * 100
         if from_high is None:
             continue
         for order, rule in enumerate(CRASH_REBOUND_RULES):
@@ -2749,18 +3036,33 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
                 row["_order"] = order
                 rows.append(row)
                 break
-    # 테마 동반·테마 등수가 배점의 55점이므로 점수를 내기 **전에** 붙여 둬야 한다.
+    # **배점 40점이 여기 걸려 있다**(2026-08-19). 그날 목록에 걸린 종목끼리
+    # 변동성으로 줄을 세운다 — 아래에서 rows를 자르기 **전에** 해야 한다.
+    # 20개로 자른 뒤에 세우면 스무 개 안에서의 절반이 되어 뜻이 달라진다.
+    _attach_crash_volatility(rows)
+    # 테마 동반·테마 등수도 점수를 내기 **전에** 붙여 둬야 한다.
     _attach_theme_together(rows, memberships)
-    # 배점 셋이 전부 테마 등수다(2026-08-12 새 그물 실측 — 종목 항목은 전멸).
+    # 기준일 이후 테마가 몇 개나 올라 있나 — **표시 전용**이다(2026-08-16).
+    # together_theme를 쓰므로 _attach_theme_together **뒤에** 불러야 한다.
+    _attach_theme_rebound_spread(rows, memberships, since_reference)
+    # 테마 등수 넷. 이 가운데 점수를 받는 것은 30주선(30점)과 6개월 수익률(10점)
+    # 둘이다. 나머지 둘은 0점이지만 계산은 남긴다 — 화면이 동점을 가를 때 쓰고,
+    # 다시 재서 되살릴 수 있어야 한다(CRASH_SCORE_WEIGHTS 위 설명).
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_less_drop",
                        metric_key="from_high_pct", top_n=CRASH_LESS_DROP_TOP_N)
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_aligned",
                        top_n=CRASH_SPREAD_TOP_N, derive=_weekly_aligned)
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_above20",
                        top_n=CRASH_SPREAD_TOP_N, derive=_above_sma20)
-    # **배점 40점이 여기 걸려 있다**(2026-08-14). 점수를 내기 전에 달아 둬야 한다.
+    # **배점 30점이 여기 걸려 있다**(2026-08-14 40 → 08-16 20 → 08-19 30).
+    # 점수를 내기 전에 달아 둬야 한다.
     _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_above150",
                        top_n=CRASH_ABOVE150_TOP_N, derive=_above_sma150)
+    # **배점 10점이 여기 걸려 있다**(2026-08-16에 30점 → 08-19에 10점).
+    # 테마 구성종목의 6개월(120거래일) 수익률 평균으로 테마를 줄 세운다.
+    # 1년 보유는 6번 중 6번 맞혔는데 3개월은 7번 중 4번이라 제일 낮게 준다.
+    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_ret120",
+                       metric_key="ret120", top_n=CRASH_RET120_TOP_N)
     # 점수가 곧 순위다(2026-08-06 사용자 결정 — 별점은 뺐다). 같은 점수 안에서는
     # **20일선 위 등수**로 먼저 가르고(2026-08-14), 그다음 예전 순위 기준을 쓴다.
     # 20일선을 점수에 넣으면 오히려 나빠지지만(60.3/87.7 → 57.5/71.2) 동점을
@@ -2791,6 +3093,9 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
         "score_blind": crash_score_is_blind(market.get("drop_pct")),
         "score_weak": crash_score_is_weak(market.get("drop_pct")),
         "reference": reference,
+        # 기준일에서 며칠(거래일) 지났나 — 위 '테마 반등' 칸을 언제부터 믿을지
+        # 상하님이 아셔야 한다(2026-08-16). 기준일이 없으면 None이다.
+        "days_since_reference": _trading_days_since(ref_frames, ref_date),
         "universe_count": len(US_LARGE_CAP_UNIVERSE),
         # 받아 온 묶음에는 테마 ETF·SPY·QQQ도 들어 있다(_us_batch_tickers).
         # 화면이 말하는 '일봉 확보'는 **대형주 명부**에 대한 것이므로 그것만 센다.

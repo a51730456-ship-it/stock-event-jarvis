@@ -951,10 +951,12 @@ class Jarvis3PageTests(unittest.TestCase):
         # 2026-08-06 — 점수가 순위다(별점은 뺐다). 배점표를 화면에 그대로 뿌린다.
         self.assertIn("점수가 곧 순위입니다", joined)
         self.assertNotIn("★", joined, "별점이 되살아났다")
-        # 2026-08-14 교체 — 급락 배점은 **'테마가 30주선 위에 있나' 40점 하나**다.
-        # 옛 셋(덜 빠졌나·주봉 오름세·20일선 위)은 0점이 됐고, 왜 뺐는지도 화면에 남는다.
-        for item in ("테마가 30주선 위에 있나", "40점", "테마가 덜 빠졌나",
-                     "테마 주봉이 오름세인가"):
+        # 2026-08-19 새판 — 배점 넷과 0점으로 뺀 항목이 설명 표에 다 보여야 한다.
+        # **이름은 그 항목이 던지는 질문 꼴이다**(상하님 지적 — "무슨 말인지
+        # 못 알아먹겠다"). 옛 이름('테마 6개월 수익률' 같은 것)으로 돌아가면 깨진다.
+        for item in ("이 종목이 평소 크게 움직이나", "이 테마가 이미 오름세로 돌아섰나",
+                     "이 테마가 통째로 떨어졌나", "이 테마가 지난 반년에 많이 올랐나",
+                     "40점", "테마가 덜 빠졌나", "테마 주봉이 오름세인가"):
             self.assertIn(item, joined, f"배점표에 {item}이 없다")
         # 급락 화면은 **위 순위표가 상승장 기준**이라고 밝혀야 한다(2026-08-14).
         self.assertIn("위 테마 순위표 점수는 상승장 기준입니다", joined)
@@ -981,6 +983,45 @@ class Jarvis3PageTests(unittest.TestCase):
         # 파는 날 칸이 '1년 성적'으로 바뀌었다 — 며칠이라고 적지 않는다.
         self.assertNotIn("거래일</span>", block, "파는 날이 표에 되살아났다")
 
+    def test_crash_table_shows_the_theme_rebound_spread_without_scoring_it(self):
+        """기준일이 있으면 '테마 반등' 칸이 뜬다 (2026-08-16 상하님 지시).
+
+        첨부 엑셀(나스닥 저점 16회)을 이 집 합격선으로 재니 '저점 뒤 테마 5종목 중
+        4개 넘게 올랐나'가 6·9·12개월 모두 합격했다. 다만 그 값은 저점에서 3개월
+        지난 뒤에 잰 것이라 **점수로는 못 쓴다** — 보여주기만 한다.
+        """
+        result = _crash_result()
+        result["reference"] = {"ok": True, "armed": True,
+                               "reference_date": "2026-07-29",
+                               "reference_drop": -11.5, "today_drop": -4.1}
+        result["days_since_reference"] = 12
+        result["rows"][0].update({"judged_from_high_pct": -34.0,
+                                  "now_from_high_pct": -21.0,
+                                  "since_reference_pct": 19.7,
+                                  "theme_up_total": 5, "theme_up_count": 3,
+                                  "theme_up_name": "반도체"})
+        app = self._run_with_mode("crash", "find_crash_rebound_stocks", result)
+        joined = " ".join(str(node.value) for node in app.markdown)
+        header = next(
+            str(node.value) for node in app.markdown
+            if "갈래" in str(node.value) and "티커" in str(node.value)
+        )
+        # 칸 차례 — 기준일에서 잰 값 둘이 나란히 있어야 읽힌다.
+        self.assertIn("테마 반등", header)
+        self.assertLess(header.index("종목저점후"), header.index("테마 반등"))
+        self.assertLess(header.index("테마 반등"), header.index("소속 테마"))
+        self.assertIn("5개 중 3개", joined, "테마 반등 숫자가 표에 안 실렸다")
+        # 며칠 지났는지 없으면 이 숫자를 언제부터 믿을지 알 수 없다.
+        self.assertTrue(any("12거래일" in str(node.value) for node in app.info),
+                        "기준일에서 며칠 지났는지가 화면에 없다")
+        # **점수가 아니라는 것**이 화면에 적혀 있어야 한다(표 아래 작은 글씨).
+        captions = " ".join(str(node.value) for node in app.caption)
+        self.assertIn("「테마 반등」 칸은 점수에 안 들어갑니다", captions)
+        # 이 칸 때문에 점수가 늘면 안 된다 — 만점은 배점 항목만으로 정해진다
+        # (2026-08-19에 변동성 40 + 30주선 30 + 동시 하락 20 + 6개월 10 = 100점).
+        import jarvis3_data
+        self.assertEqual(100.0, jarvis3_data.CRASH_SCORE_MAX)
+
     def test_the_two_depth_buckets_get_different_colours(self):
         """두 갈래를 색으로 가른다(2026-08-01 지시).
 
@@ -1004,7 +1045,11 @@ class Jarvis3PageTests(unittest.TestCase):
         app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
         joined = " ".join(str(node.value) for node in app.markdown)
         self.assertIn("급락 반등 전용 배점", joined)
-        self.assertIn("낙폭 갈래", joined)
+        # 2026-08-19에 항목 이름을 「낙폭 갈래」에서 「고점 대비 낙폭」으로 바꿨다 —
+        # '갈래'는 상하님이 화면에서 알아보기 어렵다고 하신 말이다.
+        self.assertIn("고점 대비 낙폭", joined)
+        # 새 1등 항목(주가 변동성 40점)이 설명 표에 있어야 한다(2026-08-19).
+        self.assertIn("이 종목이 평소 크게 움직이나", joined)
         # 이 규칙에는 기준가도 손절도 없다 — 없는 것을 있는 것처럼 적으면 안 된다.
         # (‘2R 목표’·‘조건 기준가’는 위쪽 테마 대장주 상세에도 나오므로, 이 갈래의
         #  칸이 그것으로 채워지지 않았는지는 아래 소스 검사로 함께 지킨다.)
@@ -1020,6 +1065,24 @@ class Jarvis3PageTests(unittest.TestCase):
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
+
+    def test_crash_help_carries_the_holding_period_reference_table(self):
+        """설명 창 안에 '얼마나 들고 있었을 때 어땠나' 참고표가 있어야 한다.
+
+        2026-08-19 상하님 지시 — "설명 창에 참고표로 넣어라."
+        **배점표가 아니라 설명 창이다.** 앱은 파는 시점을 정하지 않으므로
+        (CLAUDE.md 0-1 바) 점수 자리에 두면 앱이 정하는 것처럼 보인다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        head = source.split('("_crash",')[1].split('("_theme",')[0]
+        self.assertIn("참고 — 얼마나 들고 있었을 때 어땠나", head)
+        self.assertIn("앱은 파는 시점을 정하지 않습니다", head)
+        self.assertIn("j3fh-ref", head, "참고표가 배점표 모양을 쓰고 있다")
+        for span in ("3개월", "6개월", "1년", "1년 반"):
+            self.assertIn(f">{span}</td>", head, f"참고표에 {span}이 없다")
+        # 참고표 모양은 **배점표와 달라야** 한다 — 점수 표로 오해하면 안 된다.
+        self.assertIn(".j3fh-ref {", source)
+        self.assertNotIn("j3fh-ref", source.split("_SCORE_TABLE =")[-1].split("}")[0])
 
     def test_breakout_detail_uses_the_breakout_ruler(self):
         app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
