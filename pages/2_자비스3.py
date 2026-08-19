@@ -456,6 +456,74 @@ st.markdown(
     .st-key-j3_top7_table,
     .st-key-j3_rulebook_table,
     .st-key-j3_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    /* ── 접은 자리(11위~20위)가 옆으로 안 밀리던 것 (2026-08-19 상하님 지적) ──
+       상하님 — "첫 번째 캡처에서 옆으로 옮기면 두 번째 캡처처럼 오류난다."
+
+       **원인** — 스트림릿이 접이(st.expander) 안쪽 <details>에 `overflow: hidden`을
+       걸어 둔다. 표는 1180px인데 그 상자가 968px에서 **잘라 버려서**, 우리가
+       바깥에 걸어 둔 `overflow-x: auto`까지 넓이가 전해지지 않는다. 그래서 상자는
+       "밀 것이 없다"고 여기고(scrollWidth 968 = clientWidth 968) 표만 삐져나온다.
+       1~10위 표는 접이가 아니라서 멀쩡했다 — 접은 쪽만 깨져 있었다.
+
+       **고침** — 자르던 그 <details>를 **미는 상자로 바꾼다.** 접이 테두리는
+       제자리에 있고 표만 그 안에서 옆으로 움직인다.
+       클래스 이름(st-emotion-cache-…)은 스트림릿 판이 바뀌면 달라지므로 쓰지 않는다
+       (2026-07-18에 판 차이로 한 번 데었다). 지금 판은 <details>인데 판이 바뀌면
+       <div>일 수 있어 **둘 다** 짚어 둔다. */
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details,
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > div,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > div {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* ── 표 밑 미는 막대를 **두껍고 눈에 띄게** (2026-08-19 상하님 지시) ────
+       상하님 — "밑에 바 두껍게 해야 마우스로 찍어 옆으로 보내지."
+
+       **`::-webkit-scrollbar`로는 안 된다.** 요즘 크롬은 표준 속성
+       (`scrollbar-width`·`scrollbar-color`)이 있으면 웹킷 쪽을 **무시한다.**
+       실제로 넣어 보니 두께가 10px 그대로였다(2026-08-19 실측).
+       표준 속성으로 바꾸니 **10px → 15px**이 되고 색도 들어간다.
+
+       옛 사파리를 위해 웹킷 쪽도 남겨 둔다 — 표준을 아는 브라우저는 이쪽을
+       거들떠보지 않으므로 같이 있어도 탈이 없다. */
+    .st-key-j3_pullback_table,
+    .st-key-j3_theme_rest,
+    .st-key-j3_rulebook_rest,
+    .st-key-j3_leader_table,
+    .st-key-j3_top7_table,
+    .st-key-j3_rulebook_table,
+    .st-key-j3_theme_table,
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details {
+        scrollbar-width: auto;
+        scrollbar-color: rgba(124, 200, 255, .70) rgba(255, 255, 255, .08);
+    }
+    .st-key-j3_pullback_table::-webkit-scrollbar,
+    .st-key-j3_theme_rest::-webkit-scrollbar,
+    .st-key-j3_rulebook_rest::-webkit-scrollbar,
+    .st-key-j3_leader_table::-webkit-scrollbar,
+    .st-key-j3_top7_table::-webkit-scrollbar,
+    .st-key-j3_rulebook_table::-webkit-scrollbar,
+    .st-key-j3_theme_table::-webkit-scrollbar,
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar {
+        height: 15px;
+        background: rgba(255, 255, 255, .08);
+    }
+    .st-key-j3_pullback_table::-webkit-scrollbar-thumb,
+    .st-key-j3_theme_rest::-webkit-scrollbar-thumb,
+    .st-key-j3_rulebook_rest::-webkit-scrollbar-thumb,
+    .st-key-j3_leader_table::-webkit-scrollbar-thumb,
+    .st-key-j3_top7_table::-webkit-scrollbar-thumb,
+    .st-key-j3_rulebook_table::-webkit-scrollbar-thumb,
+    .st-key-j3_theme_table::-webkit-scrollbar-thumb,
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb {
+        background: rgba(124, 200, 255, .70);
+        border-radius: 8px;
+        min-width: 60px;
+    }
     @media (max-width: 1200px) {
         .st-key-j3_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1150px;

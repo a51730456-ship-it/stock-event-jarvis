@@ -1066,6 +1066,50 @@ class Jarvis3PageTests(unittest.TestCase):
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
 
+    def test_expander_tables_can_be_scrolled_sideways(self):
+        """접은 자리(11위~20위)도 옆으로 밀려야 한다 (2026-08-19 상하님 지적).
+
+        스트림릿이 접이 안쪽 <details>에 overflow:hidden을 걸어 둬서, 표는
+        1180px인데 상자가 968px에서 잘라 버렸다. 그래서 밀리지도 않고 표만
+        삐져나왔다. 1~10위 표는 접이가 아니라 멀쩡했다.
+
+        자르던 그 상자를 미는 상자로 바꿨다. 클래스 이름(st-emotion-cache-…)은
+        스트림릿 판이 바뀌면 달라지므로 쓰지 않는다 — 지금 판은 <details>이고
+        판이 바뀌면 <div>일 수 있어 둘 다 짚어 둔다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        for key in ("j3_rulebook_rest", "j3_theme_rest"):
+            self.assertIn(
+                f'.st-key-{key} [data-testid="stExpander"] > details',
+                source, f"{key} 접이가 옆으로 안 밀린다")
+            self.assertIn(
+                f'.st-key-{key} [data-testid="stExpander"] > div',
+                source, f"{key} — 스트림릿 판이 바뀔 때 쓸 자리가 없다")
+        # 판마다 달라지는 클래스 이름을 **선택자로** 쓰면 안 된다.
+        # 주석에 그 이름이 나오는 것은 괜찮다 — 왜 안 쓰는지 적어 둔 것이다.
+        for line in source.splitlines():
+            stripped = line.strip()
+            if stripped.startswith(("#", "*", "//")) or "쓰지 않는다" in stripped:
+                continue
+            self.assertNotIn(".st-emotion-cache", stripped,
+                             "판마다 달라지는 클래스 이름에 기대면 안 된다")
+
+    def test_table_scrollbar_is_thick_enough_to_grab(self):
+        """표 밑 미는 막대가 마우스로 집을 만큼 두꺼워야 한다 (2026-08-19 지시).
+
+        **웹킷 쪽만 쓰면 안 된다** — 요즘 크롬은 표준 속성(scrollbar-width·
+        scrollbar-color)이 있으면 ::-webkit-scrollbar를 무시한다. 실측으로
+        확인했다(웹킷만 넣었을 때 10px 그대로, 표준으로 바꾸니 15px).
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("표 밑 미는 막대를")[1].split("@media")[0]
+        self.assertIn("scrollbar-color", block, "표준 속성이 없다")
+        self.assertIn("scrollbar-width: auto", block)
+        # 옛 브라우저용 웹킷 쪽도 남아 있어야 한다.
+        self.assertIn("::-webkit-scrollbar", block)
+        for key in ("j3_rulebook_table", "j3_rulebook_rest", "j3_pullback_table"):
+            self.assertIn(f".st-key-{key},", block, f"{key} 막대가 얇은 채로 남았다")
+
     def test_us_futures_card_is_first_on_the_top_row(self):
         """나스닥100 선물 칸이 **맨 앞**에 있어야 한다 (2026-08-19 상하님 지시).
 
