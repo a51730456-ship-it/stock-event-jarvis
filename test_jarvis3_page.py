@@ -1066,6 +1066,28 @@ class Jarvis3PageTests(unittest.TestCase):
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
 
+    def test_us_futures_card_is_first_on_the_top_row(self):
+        """나스닥100 선물 칸이 **맨 앞**에 있어야 한다 (2026-08-19 상하님 지시).
+
+        상하님 — "한국테마에 있는 미국 나스닥100 선물 미국테마에도 넣어라 가장 위에."
+
+        4대 지수는 정규장이 끝나면 멈추는데 선물은 밤새 움직인다. 장 열리기 전에
+        미국이 어느 쪽으로 갈지 먼저 알려 주는 칸이라 맨 앞이다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source.split("top_cells = [")[1].split("]", 1)[0]
+        self.assertIn("_us_futures_cell()", block, "선물 칸이 윗줄에 없다")
+        self.assertLess(block.index("_us_futures_cell()"),
+                        block.index("_us_index_cells"),
+                        "선물 칸이 4대 지수보다 뒤에 있다")
+        # **한국 파일을 고치지 않고 읽기만 한다** — 같은 것을 여기 새로 쓰면
+        # 야후에 같은 요청을 두 번 보내고 두 화면 숫자가 갈라진다.
+        fn = source.split("def _us_futures_cell(")[1].split(chr(10) + "def ")[0]
+        self.assertIn("jarvis4_data", fn)
+        self.assertIn("get_us_futures_live", fn)
+        # 모듈이 없거나 조회가 실패해도 화면을 죽이지 않는다.
+        self.assertIn("except Exception", fn)
+
     def test_crash_help_carries_the_holding_period_reference_table(self):
         """설명 창 안에 '얼마나 들고 있었을 때 어땠나' 참고표가 있어야 한다.
 

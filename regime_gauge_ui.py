@@ -41,13 +41,27 @@ def color_of(score) -> str:
     return gauge_ui.zone_of(score, ZONES)[1] if score is not None else "#e6e6e6"
 
 
-def _zone_rows(score) -> list[tuple]:
-    """오른쪽 줄 — 세 구간을 늘어놓고 지금 속한 칸만 진하게 둔다."""
+def _zone_rows(score, mark: str = "지금") -> list[tuple]:
+    """오른쪽 줄 — 다섯 구간을 늘어놓고 바늘이 선 칸만 진하게 둔다.
+
+    ``mark``는 그 칸에 붙는 딱지다. 얼린 게이지에서는 **'지금'이 아니라
+    '08.18 마감'처럼 날짜**를 넣는다(2026-08-19 상하님 지시).
+
+    왜 — 바늘은 직전 완료 장(예 8/18)에 서 있는데 딱지가 '지금'이면 오늘 값으로
+    읽힌다. 그 아래 줄이 '전일 · 08.17'이라 **8월 18일이 통째로 사라진 것처럼
+    보였다**(상하님 물음: "이거 전일 종가 당일 시장변동 되고 있는 것 맞냐").
+    """
     current = gauge_ui.zone_of(score, ZONES)[0] if score is not None else None
     return [
-        (name, RANGE_TEXT[name], "지금" if name == current else "", color, name != current)
+        (name, RANGE_TEXT[name], mark if name == current else "", color, name != current)
         for _limit, name, color in ZONES
     ]
+
+
+def _closed_mark(frozen: dict) -> str:
+    """얼린 게이지 딱지 — '08.18 마감'. 날짜를 모르면 예전처럼 '마감'만 적는다."""
+    day = str((frozen or {}).get("trade_date") or "")
+    return f"{day[5:].replace('-', '.')} 마감" if len(day) >= 10 else "마감"
 
 
 def _previous_regime_row(overview: dict) -> tuple | None:
@@ -122,7 +136,7 @@ def regime_box_html(overview: dict | None, *, title: str = "시장 국면",
         regime = frozen.get("regime") or gauge_ui.zone_of(score, ZONES)[0]
         posture = frozen.get("posture") or posture
         ok = True
-        rows = _zone_rows(score)
+        rows = _zone_rows(score, _closed_mark(frozen))
         if live_row:
             rows.append(live_row)
         return _paint(gauge_ui.box_html(

@@ -1827,6 +1827,9 @@ def _render_market_overview() -> None:
         # 적으면 '하락 압력 큼'이 5점인지 29점인지 알 수 없다(2026-07-24 사용자 지시).
         # 4대 지수를 게이지 앞에 둔다 — '시장 국면' 카드 위에 올려 달라는 요청
         # (2026-07-25). 폰에서는 숫자 칸이 앞, 게이지가 뒤로 가는 규칙 그대로다.
+        # 선물이 **맨 앞**이다(2026-08-19 상하님 지시). 4대 지수는 정규장이 끝나면
+        # 멈추는데 선물은 밤새 움직여, 장 열리기 전 방향을 먼저 알려 준다.
+        _us_futures_cell(),
         *_us_index_cells(overview, phase),
         # 바늘은 **직전 완료 미국장**에 세운다(2026-08-12 상하님 지시) — 프리마켓·
         # 장중 값으로 매번 다시 재면 하루 종일 조금씩 움직인다. 실시간 값은 상자
@@ -1938,6 +1941,60 @@ def _sparkline_svg(payload, up_color: str, down_color: str,
         f"<line x1='0' y1='{base_y:.1f}' x2='{width:.0f}' y2='{base_y:.1f}' "
         f"stroke='rgba(255,255,255,.38)' stroke-width='1' stroke-dasharray='4 4'/>"
         + "".join(segments) + "</svg>"
+    )
+
+
+def _us_futures_cell() -> str:
+    """나스닥100 선물 최신 1분봉 — **미국 화면 맨 앞 칸** (2026-08-19 상하님 지시).
+
+    상하님 — "한국테마에 있는 미국 나스닥100 선물 미국테마에도 넣어라 가장 위에."
+
+    **왜 맨 앞인가** — 4대 지수는 정규장이 끝나면 멈춘다. 선물은 밤새 움직이므로
+    장 열리기 전에 미국이 어느 쪽으로 갈지 먼저 보여주는 칸이다.
+
+    **자료는 한국테마 모듈에서 읽어 온다**(jarvis4_data.get_us_futures_live).
+    한국 파일을 고치지 않는다 — 읽기만 한다(2026-08-19 상하님 지시 "한국테마는
+    하지 말라"). 같은 것을 여기 새로 쓰면 야후에 같은 요청을 두 번 보내게 되고,
+    두 화면의 숫자가 조용히 갈라진다.
+
+    모듈이 없거나 조회가 실패해도 **화면을 죽이지 않는다** — 칸만 '—'로 둔다.
+    """
+    label = "나스닥100 선물 (1분봉)"
+    try:
+        import jarvis4_data as j4data
+    except Exception:
+        return _top_metric(label, "—", "#9aa0aa", "자료 없음")
+    fetcher = getattr(j4data, "get_us_futures_live", None)
+    if fetcher is None:
+        return _top_metric(label, "—", "#9aa0aa", "모듈 갱신 대기")
+    try:
+        futures = fetcher()
+    except Exception:
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족")
+    if not futures.get("ok"):
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족")
+    values = futures.get("values") or {}
+    nasdaq = values.get("NQ=F") or {}
+    sp500 = values.get("ES=F") or {}
+    if not nasdaq.get("current"):
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족")
+    change = nasdaq.get("change_pct")
+    # **미국은 오르면 파랑**이다(이 화면의 약속). 한국 화면과 색이 반대다 —
+    # _sign_class가 그 규칙을 갖고 있으므로 그것을 쓴다.
+    sub = f"<span class='{_sign_class(change)}'>{_pct(change)}</span>"
+    if sp500.get("change_pct") is not None:
+        sub += (f" <span class='j3-muted'>· S&P500 선물</span> "
+                f"<span class='{_sign_class(sp500['change_pct'])}'>"
+                f"{float(sp500['change_pct']):+.2f}%</span>")
+    chart = _sparkline_svg(nasdaq.get("chart") or {}, "#4da6ff", "#ff5b5b")
+    return (
+        "<div class='j3-top-cell'>"
+        f"<div class='j3-top-label j3-idx-label'>{label}</div>"
+        f"<div class='j3-top-val j3-idx-val {_sign_class(change)}'>"
+        f"{float(nasdaq['current']):,.0f}</div>"
+        f"<div class='j3-top-sub j3-idx-sub'>{sub}</div>"
+        + chart
+        + "</div>"
     )
 
 

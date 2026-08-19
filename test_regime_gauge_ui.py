@@ -168,3 +168,42 @@ class UsPrevBoxTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class FrozenGaugeDateMarkTests(unittest.TestCase):
+    """얼린 게이지 딱지는 '지금'이 아니라 **날짜**여야 한다 (2026-08-19 상하님 지시).
+
+    상하님 물음 — "이거 전일 종가 당일 시장변동 되고 있는 것 맞냐?"
+    바늘은 직전 완료 장(8/18)에 서 있는데 딱지가 '지금'이라 오늘 값으로 읽혔고,
+    그 아래 줄이 '전일 · 08.17'이라 **8월 18일이 사라진 것처럼** 보였다.
+    """
+
+    def _overview(self):
+        return {
+            "ok": True, "score": 72, "regime": "상승 신호 우세", "posture": "",
+            "previous_market": {"ok": True, "score": 100,
+                                "regime": "상승 여건 양호",
+                                "trade_date": "2026-08-18"},
+            "before_previous_market": {"ok": True, "score": 100,
+                                       "regime": "상승 여건 양호",
+                                       "trade_date": "2026-08-17"},
+        }
+
+    def test_frozen_box_marks_the_closing_date(self):
+        html = rg.regime_box_html(self._overview(), freeze=True)
+        self.assertIn("08.18 마감", html)
+        self.assertNotIn(">지금<", html)
+        # 아래 줄은 그대로 '전일 · 08.17'이어야 한다.
+        self.assertIn("전일 · 08.17", html)
+
+    def test_live_box_still_says_now(self):
+        """한국테마는 실시간이라 '지금'이 맞다 — 같이 바뀌면 안 된다."""
+        html = rg.regime_box_html(self._overview(), freeze=False)
+        self.assertIn("지금", html)
+        self.assertNotIn("08.18 마감", html)
+
+    def test_missing_date_falls_back_to_plain_word(self):
+        overview = self._overview()
+        overview["previous_market"].pop("trade_date")
+        html = rg.regime_box_html(overview, freeze=True)
+        self.assertIn("마감", html)
+
