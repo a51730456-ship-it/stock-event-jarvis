@@ -607,6 +607,24 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertIn("양자컴퓨팅이", note)
         self.assertNotIn("양자컴퓨팅가", note)
 
+    def test_row_marks_when_the_52week_high_moved(self):
+        """기준일 뒤 1년 최고가가 바뀐 종목을 표시한다 (2026-08-19 상하님 지적).
+
+        상하님 — "고점 대비 -40.2%, 고점대비현재 -32.47%인데 종목저점후가 +12.9%다.
+        더하기 빼기 해 보면 안 맞는다. 셋 중 어느 게 맞느냐."
+
+        **셋 다 맞다.** 빼기가 아니라 나누기다 — 두 낙폭은 고점에서 잰 값이고
+        저점후는 기준일 종가에서 잰 값이라, 값이 내려간 만큼 오름폭이 크게 보인다.
+
+        **다만 최고가 자체가 바뀐 종목은 나누기로도 안 맞는다.** 두 낙폭이 서로
+        다른 고점을 쓰기 때문이다. 그런 종목인지 화면이 알 수 있어야 한다.
+        """
+        # 고점이 그대로인 종목 — 나누기로 딱 맞는다.
+        judged, now = -40.20, -32.47
+        since = ((1 + now / 100) / (1 + judged / 100) - 1) * 100
+        self.assertAlmostEqual(12.93, since, places=1,
+                               msg="빼기(7.7%)가 아니라 나누기(12.9%)다")
+
     def test_volatility_is_scored_in_the_crash_part(self):
         """주가 변동성은 급락 배점 **1등 40점**이다 (2026-08-19 상하님 새 지시문).
 

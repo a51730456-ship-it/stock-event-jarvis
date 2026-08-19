@@ -1066,6 +1066,15 @@ class Jarvis3PageTests(unittest.TestCase):
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
 
+    def test_moved_high_is_marked_and_explained(self):
+        """1년 최고가가 바뀐 종목에 표시가 붙고, 표 밑에 무슨 뜻인지 적힌다."""
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn("high52_moved", source, "최고가가 바뀐 종목을 안 가린다")
+        self.assertIn("1년 최고가가 바뀌었습니다", source, "손 올렸을 때 설명이 없다")
+        # 표 밑 설명 — 왜 세 숫자가 빼기로 안 맞는지 한 번 적어 둔다.
+        self.assertIn("두 낙폭을 빼도", source)
+        self.assertIn("기준일 종가에서 잰 값", source)
+
     def test_expander_tables_can_be_scrolled_sideways(self):
         """접은 자리(11위~20위)도 옆으로 밀려야 한다 (2026-08-19 상하님 지적).
 

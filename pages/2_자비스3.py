@@ -1071,7 +1071,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081930
+_REQUIRED_J3_REVISION = 2026081940
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -5152,10 +5152,25 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 )
             else:
                 spread_cell = "<span class='j3-muted'>—</span>"
+            # ── 1년 최고가가 바뀐 종목은 표시한다 (2026-08-19 상하님 지적) ──
+            # 「고점 대비」와 「고점대비현재」가 **서로 다른 고점**을 쓰게 되면
+            # 두 값을 견줄 수 없다. 20종목 중 셋이 그랬다(MDB·DELL·NOW).
+            # 값은 그대로 두고 ˟표만 붙인다 — 각 숫자는 제 뜻대로 맞다.
+            moved_mark = ""
+            if row.get("high52_moved"):
+                then_high = row.get("high52_then")
+                now_high = row.get("high52_now")
+                moved_mark = (
+                    "<span class='j3-pull-amber' style='font-size:.8rem'"
+                    f" title='기준일 뒤 1년 최고가가 바뀌었습니다"
+                    f" ({float(then_high):,.2f} → {float(now_high):,.2f}).'"
+                    " '>˟</span>"
+                )
             drop_cells = [
                 f"<span class='{_sign_class(judged)}'"
                 f" style='font-weight:800'>{_pct(judged)}</span>",
-                f"<span class='{_sign_class(now_drop)}'>{_pct(now_drop)}</span>",
+                f"<span class='{_sign_class(now_drop)}'>{_pct(now_drop)}</span>"
+                + moved_mark,
                 (f"<span class='{_sign_class(since)}'>{float(since):+.1f}%</span>"
                  if since is not None else "<span class='j3-muted'>—</span>"),
                 spread_cell,
@@ -5192,7 +5207,15 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
            "**0점**은 나쁘다는 뜻이 아니라 "
            "**점수 주는 세 자리 중 하나도 안 맞다**는 뜻입니다. "
            "**「테마 반등」 칸은 점수에 안 들어갑니다** — 기준일 이후 그 테마에서 "
-           "몇 종목이 올라 있는지 보여드릴 뿐이고, 순위를 바꾸지 않습니다.")
+           "몇 종목이 올라 있는지 보여드릴 뿐이고, 순위를 바꾸지 않습니다. "
+           # 2026-08-19 상하님 지적 — 세 숫자가 빼기로 안 맞는다는 물음.
+           # 셋 다 맞는데 재는 자리가 다르다. 그 말을 표 밑에 한 번 적어 둔다.
+           "**「고점 대비」와 「고점대비현재」는 1년 최고가에서 잰 값**이고, "
+           "**「종목저점후」는 기준일 종가에서 잰 값**입니다. 기준이 서로 달라 "
+           "두 낙폭을 빼도 「종목저점후」가 나오지 않습니다 — 값이 내려간 만큼 "
+           "나중에 오른 폭은 더 크게 보입니다. "
+           "**˟ 표가 붙은 종목**은 기준일 뒤 1년 최고가가 바뀌어 두 낙폭이 "
+           "서로 다른 고점을 쓴 종목입니다(표에 손을 올리면 그 값이 보입니다).")
     )
     selected_row = next(
         (row for row in rows if row.get("ticker") == selected_ticker), rows[0]

@@ -206,7 +206,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081930
+MODULE_REVISION = 2026081940
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -3051,6 +3051,29 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
                     (float(current) / float(then_close) - 1.0) * 100
                     if then_close and current else None
                 )
+                # ── 두 낙폭이 **같은 고점**을 쓰는지 (2026-08-19 상하님 지적) ──
+                # 상하님 — "고점 대비 -40.2%, 고점대비현재 -32.47%인데 종목저점후가
+                # +12.9%다. 더하기 빼기 해 보면 안 맞는다. 셋 중 어느 게 맞느냐."
+                #
+                # 셋 다 맞았다. 빼기가 아니라 나누기이기 때문이다 — 두 낙폭은
+                # **고점**을 기준으로 잰 값이고, 저점후는 **기준일 종가**에서 잰
+                # 값이다. 작아진 값에서 오르니 오름폭이 더 크게 보인다.
+                #
+                # **그런데 20종목 중 3개는 나누기로도 안 맞았다.** 기준일 뒤에
+                # 1년 최고가가 바뀐 종목들이다(MDB 444.72 → 473.10 · DELL 468.70
+                # → 514.00 · NOW 201.15 → 194.73 ← 1년 창이 굴러 옛 고점이 빠짐).
+                # 자를 재는 막대가 중간에 바뀌었으니 두 낙폭을 견줄 수 없다.
+                #
+                # **값은 그대로 둔다** — 각 숫자는 제 뜻대로 맞다. 대신 그런
+                # 종목인지를 화면이 알 수 있게 표시만 남긴다.
+                high_now = _finite(metrics.get("high52"))
+                high_then = (float(then_close) / (1.0 + from_high / 100.0)
+                             if then_close and from_high is not None
+                             and from_high > -100.0 else None)
+                row["high52_then"] = high_then
+                row["high52_now"] = high_now
+                row["high52_moved"] = bool(
+                    high_then and high_now and abs(high_then - high_now) > 0.01)
                 row["bucket"] = rule["key"]
                 row["bucket_label"] = rule["label"]
                 # 파는 날은 규칙에 없다(2026-08-12 상하님 확정). 대신 3개월·6개월·
