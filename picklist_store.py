@@ -44,7 +44,7 @@ from zoneinfo import ZoneInfo
 
 # 계산 결과나 저장 칸을 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 올린다
 # (CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026081930
+MODULE_REVISION = 2026081940
 
 SCHEMA_VERSION = 3
 
@@ -409,6 +409,38 @@ def us_half_days(year: int) -> frozenset:
 def us_market_is_open(day: date) -> bool:
     """그날 미국 정규장이 열리나. 주말·휴장일이면 False."""
     return day.weekday() < 5 and day not in us_market_holidays(day.year)
+
+
+# 한국 정규장 마감 — 서울 15시 30분(마감 동시호가 끝). jarvis4_data.market_phase가
+# 쓰는 시각과 같다. 한쪽만 고치면 화면과 저장이 서로 다른 말을 한다.
+KR_MARKET_CLOSE_HOUR = 15
+KR_MARKET_CLOSE_MINUTE = 30
+
+
+def kr_session_is_over(now: datetime | None = None) -> bool:
+    """오늘 한국 정규장이 **이미 끝났나** (2026-08-19 상하님 지시로 넣었다).
+
+    미국과 같은 구멍이 한국에도 있었다 — 화면의 자동 저장이 시간을 안 봐서,
+    서울 오전에 화면을 열면 **전날 종가가 오늘 날짜로** 저장됐다.
+
+    **공휴일은 여기서 못 가린다.** 설·추석이 음력이라 규칙으로 셀 수 없고
+    이 집에 음력 달력이 없다(미국은 규칙으로 세어 us_market_holidays에 넣었다).
+    대신 **코스피 일봉에 오늘 것이 있나**로 가린다 —
+    `jarvis4_data.kr_market_traded_today()`가 그 일을 한다. 휴장이면 오늘 봉이
+    없으므로 자료 자체가 답을 준다. 달력을 손으로 채우지 않아도 된다.
+    """
+    stamp = (now or datetime.now(_SEOUL)).astimezone(_SEOUL)
+    if stamp.weekday() >= 5:            # 토·일은 장이 없다
+        return False
+    return (stamp.hour, stamp.minute) >= (KR_MARKET_CLOSE_HOUR,
+                                          KR_MARKET_CLOSE_MINUTE)
+
+
+def session_is_over(market: str, now: datetime | None = None) -> bool:
+    """그 시장의 오늘 정규장이 끝났나. 화면 자동 저장이 이걸 먼저 본다."""
+    if str(market).upper() == "US":
+        return us_session_is_over(now)
+    return kr_session_is_over(now)
 
 
 def us_session_is_over(now: datetime | None = None) -> bool:

@@ -1066,6 +1066,22 @@ class Jarvis3PageTests(unittest.TestCase):
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
 
+    def test_limits_are_measured_not_just_stated(self):
+        """한계를 적어만 두지 않고 **얼마나 위험한지 잰 결과**를 적는다.
+
+        2026-08-19 상하님 지시로 두 한계를 쟀다
+        (research/us_crash_leaveout.py) —
+          · 바닥 아홉 번을 하나씩 빼도 네 항목이 다 절반을 넘겼다
+          · 10년 내내 있던 종목 +51.6% vs 새로 들어온 종목 +74.6% (새 쪽 12%)
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        head = source.split('("_crash",')[1].split('("_theme",')[0]
+        self.assertIn("한 번씩 빼고", head, "바닥을 빼고 다시 잰 결과가 없다")
+        # 글이 줄바꿈으로 토막 나 있어 한 낱말씩 본다.
+        self.assertIn("넘겼습니다", head)
+        self.assertIn("+51.6%", head, "생존편향 크기가 없다")
+        self.assertIn("+74.6%", head)
+
     def test_moved_high_is_marked_and_explained(self):
         """1년 최고가가 바뀐 종목에 표시가 붙고, 표 밑에 무슨 뜻인지 적힌다."""
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")

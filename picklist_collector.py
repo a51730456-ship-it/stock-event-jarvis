@@ -73,6 +73,16 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
         return {"ok": True, "skipped": "휴장일",
                 "market": market, "trade_date": trade_date, "path": "",
                 "counts": {}, "errors": []}
+    # **한국도 휴장일에는 안 찍는다**(2026-08-19 저녁). 설·추석이 음력이라 달력을
+    # 못 만드니 **코스피 일봉에 오늘 봉이 있나**로 가린다. 조회가 안 되면(None)
+    # 막지 않는다 — 인터넷이 잠깐 끊겼다고 그날 목록이 통째로 비면 안 된다.
+    if market == "KR":
+        traded = getattr(data, "kr_market_traded_today", lambda: None)()
+        if traded is False:
+            _log(f"KR {trade_date} — 한국 증시가 쉬는 날이라 찍지 않습니다")
+            return {"ok": True, "skipped": "휴장일",
+                    "market": market, "trade_date": trade_date, "path": "",
+                    "counts": {}, "errors": []}
     saved_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
     collected: list[dict] = []
     errors: list[str] = []

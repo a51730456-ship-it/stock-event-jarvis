@@ -1095,6 +1095,39 @@ def kr_crash_market_state(*, ttl_seconds: float = 600) -> dict:
     return {"ok": True, "stale": stale, **value}
 
 
+def kr_market_traded_today(now: datetime | None = None,
+                           *, ttl_seconds: float = 600) -> bool | None:
+    """오늘 한국장이 **열렸나**. 모르면 None (2026-08-19 상하님 지시로 넣었다).
+
+    **왜 달력을 안 쓰나** — 설·추석이 음력이라 규칙으로 셀 수 없다. 미국 휴장일은
+    규칙으로 세어 `picklist_store.us_market_holidays`에 넣었지만 한국은 그 방법이
+    안 통한다. 달력을 손으로 채워 두면 해마다 누가 고쳐 넣어야 하고, 잊으면
+    그해부터 조용히 틀린다.
+
+    **그래서 자료에 물어본다** — 코스피 일봉에 오늘 날짜 봉이 있으면 장이 열린
+    것이고, 없으면 휴장이다. 달력을 채울 필요가 없다.
+
+    **조회에 실패하면 None을 준다.** 부르는 쪽은 None일 때 막지 않는다 —
+    인터넷이 잠깐 끊겼다고 그날 목록이 통째로 비면 안 된다.
+    """
+    today = (now or datetime.now(_SEOUL)).astimezone(_SEOUL).date()
+    if today.weekday() >= 5:
+        return False
+
+    def _produce():
+        frame = _index_frame("KS11")
+        if frame is None or getattr(frame, "empty", True):
+            raise RuntimeError("코스피 일봉 없음")
+        last = pd.Timestamp(frame.index[-1])
+        return last.date().isoformat()
+
+    try:
+        last_date, _stale = _cached("kr_last_trade_date", ttl_seconds, _produce)
+    except Exception:
+        return None
+    return str(last_date) == today.isoformat()
+
+
 def get_index_daily_spark(symbol: str, *, days: int = 126,
                           ttl_seconds: float = 600) -> dict:
     """지수의 **일봉 6개월** 종가 — 손톱그림에서 '당일'과 바꿔 보여 준다.

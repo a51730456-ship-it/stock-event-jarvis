@@ -468,6 +468,43 @@ class UsSessionGateTests(unittest.TestCase):
             self.assertFalse(store.us_session_is_over(before), day)
             self.assertTrue(store.us_session_is_over(after), day)
 
+    def test_korea_waits_for_the_close_too(self):
+        """한국도 서울 15시 30분이 지나야 저장한다 (2026-08-19 저녁 상하님 지시).
+
+        미국과 같은 구멍이 한국에도 있었다 — 서울 오전에 화면을 열면 전날 종가가
+        오늘 날짜로 저장됐다.
+        """
+        seoul = ZoneInfo("Asia/Seoul")
+
+        def at(iso):
+            return datetime.fromisoformat(iso).replace(tzinfo=seoul)
+
+        self.assertFalse(store.kr_session_is_over(at("2026-08-19T10:00:00")))
+        self.assertFalse(store.kr_session_is_over(at("2026-08-19T15:29:00")))
+        self.assertTrue(store.kr_session_is_over(at("2026-08-19T15:30:00")))
+        self.assertTrue(store.kr_session_is_over(at("2026-08-19T16:10:00")))
+        # 주말은 장이 없다.
+        self.assertFalse(store.kr_session_is_over(at("2026-08-22T16:00:00")))
+        # 한 창구로 두 시장을 다 본다.
+        self.assertTrue(store.session_is_over("KR", at("2026-08-19T16:10:00")))
+        self.assertFalse(store.session_is_over("KR", at("2026-08-19T10:00:00")))
+
+    def test_korea_holidays_are_asked_of_the_data_not_a_calendar(self):
+        """한국 휴장일은 **코스피 일봉에 오늘 봉이 있나**로 가린다.
+
+        설·추석이 음력이라 규칙으로 셀 수 없다. 달력을 손으로 채워 두면 해마다
+        고쳐 넣어야 하고 잊으면 그해부터 조용히 틀린다.
+        """
+        source = pathlib.Path("jarvis4_data.py").read_text(encoding="utf-8")
+        self.assertIn("def kr_market_traded_today", source)
+        for where in ("picklist_ui.py", "picklist_collector.py"):
+            text = pathlib.Path(where).read_text(encoding="utf-8")
+            self.assertIn("kr_market_traded_today", text, f"{where}가 휴장일을 안 본다")
+        # 조회가 안 될 때(None) **막지 않아야** 한다 — 그날 목록이 통째로 비면 안 된다.
+        ui = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")
+        block = ui.split("def _kr_market_open_today(")[1].split(chr(10) + "def ")[0]
+        self.assertIn("traded is None", block, "못 읽었을 때 막아 버린다")
+
     def test_the_screen_autosave_checks_the_gate(self):
         """화면 자동 저장이 이 판정을 실제로 부르는지 본다."""
         source = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")

@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026081930
+MODULE_REVISION = 2026081940
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -494,6 +494,27 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
             pass          # 닫기 단추 하나 때문에 목록 전체가 막히면 안 된다
 
 
+def _kr_market_open_today() -> bool:
+    """오늘 한국장이 열렸나. **모르면 True로 본다** — 막는 쪽이 아니라 통과다.
+
+    한국 공휴일 달력이 이 집에 없다(음력이라 규칙으로 못 센다). 대신 코스피
+    일봉에 오늘 봉이 있는지로 가린다. 조회가 안 되면 막지 않는다 — 인터넷이
+    잠깐 끊겼다고 그날 목록이 통째로 비면 안 된다(조용한 실패).
+    """
+    try:
+        import jarvis4_data as j4data
+    except Exception:
+        return True
+    checker = getattr(j4data, "kr_market_traded_today", None)
+    if checker is None:
+        return True
+    try:
+        traded = checker()
+    except Exception:
+        return True
+    return True if traded is None else bool(traded)
+
+
 def autosave(market: str, list_kind: str, result) -> None:
     """화면이 목록을 그릴 때 그날 것이 없으면 조용히 한 판 남긴다.
 
@@ -511,15 +532,22 @@ def autosave(market: str, list_kind: str, result) -> None:
     서머타임은 store.us_session_is_over가 알아서 맞춘다 — 시각을 UTC로
     못박지 않고 뉴욕 시간대로 재기 때문이다.
 
-    **한국은 그대로 둔다**(2026-08-19 상하님 지시 — 미국테마만 손댄다).
-    한국도 같은 구멍이 있다: 서울 오전에 화면을 열면 전날 종가가 오늘 날짜로
-    저장된다. 고치려면 여기에 한 줄을 더하면 된다.
+    **한국도 같이 막았다**(2026-08-19 저녁 상하님 지시). 서울 15시 30분(마감
+    동시호가 끝)이 지나야 저장한다. 한국 공휴일은 설·추석이 음력이라 규칙으로
+    셀 수 없어, **코스피 일봉에 오늘 봉이 있나**로 가린다
+    (`jarvis4_data.kr_market_traded_today`). 휴장이면 오늘 봉이 없다.
+    조회가 안 되면(None) 막지 않는다 — 인터넷이 잠깐 끊겼다고 그날 목록이
+    통째로 비면 안 된다.
     """
     try:
         # 그 시장 화면에 없는 갈래는 안 남긴다(2026-08-15). 수집기와 같은 규칙이다.
         if not store.should_save(list_kind, market):
             return
-        if str(market).upper() == "US" and not store.us_session_is_over():
+        # **장이 끝나기 전에는 저장하지 않는다**(2026-08-19). 미국은 뉴욕 16시,
+        # 한국은 서울 15시 30분. 서머타임은 store가 알아서 맞춘다.
+        if not store.session_is_over(market):
+            return
+        if str(market).upper() == "KR" and not _kr_market_open_today():
             return
         trade_date = store.trade_date_for(market)
         if list_kind in store.saved_kinds(trade_date, market):
