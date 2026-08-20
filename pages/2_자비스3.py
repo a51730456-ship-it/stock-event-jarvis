@@ -1071,7 +1071,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026081940
+_REQUIRED_J3_REVISION = 2026082020
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -3182,6 +3182,54 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str
     )
 
 
+def _swing_factor_table_html(
+    factor_rows: str, total_row: str, explanations: dict, key: str,
+) -> str:
+    """US_SWING_V1 표와 selector 중앙 설명 payload를 한 덩어리로 표시한다."""
+
+    order = ("market", "rs60", "rs120", "breakout", "pullback",
+             "theme", "volume", "breadth", "rebound")
+    items = []
+    for metric in order:
+        payload = (explanations or {}).get(metric) or {}
+        if not payload:
+            continue
+        title = html.escape(str(payload.get("title") or metric))
+        current = html.escape(str(payload.get("display_value") or "자료부족"))
+        one_line = html.escape(str(payload.get("one_line_explanation") or ""))
+        detail = html.escape(str(payload.get("detail_explanation") or ""))
+        status = html.escape(str(payload.get("status") or ""))
+        confidence = html.escape(str(payload.get("confidence") or ""))
+        items.append(
+            "<div class='j3fh-item'>"
+            f"<div class='j3fh-name'>{title} · {current}</div>"
+            f"<div class='j3fh-txt'><b>{one_line}</b><br>{detail}<br>"
+            f"<span class='j3-muted'>상태 {status or '—'} · 연구 신뢰도 {confidence or '—'}</span>"
+            "</div></div>"
+        )
+    chip = f"<label class='j3fh-chip' for='{key}'>설명</label>"
+    table = (
+        "<table class='j3-factor-table'><thead><tr>"
+        f"<th>심사 항목{chip}</th><th>획득(최대)</th></tr></thead>"
+        f"<tbody>{factor_rows}{total_row}</tbody></table>"
+    )
+    head = (
+        "<div class='j3fh-head'><span class='j3fh-head-t'>"
+        "상승장 (신고가 눌림매수) — 항목별 실제값과 설명</span>"
+        "점수보다 HARD GATE가 먼저입니다. 핵심조건을 통과하지 못하면 보조점수가 "
+        "높아도 BUY 등급을 붙이지 않습니다. 총점은 승률이 아닙니다.</div>"
+    )
+    return (
+        _FACTOR_HELP_CSS
+        + "<div class='j3fh-swap'>"
+        + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
+        + table
+        + f"<div class='j3fh-p'>{head}{''.join(items)}"
+        + f"<label class='j3fh-x j3fh-x-breakout' for='{key}'>✕ 설명 닫기</label>"
+          "</div></div>"
+    )
+
+
 def _render_saved_trades_header() -> None:
     """저장해 둔 목록 구역 **맨 위**에 내가 남긴 매수 기록을 보여준다.
 
@@ -3258,6 +3306,10 @@ def _trade_snapshot(theme_row: dict, leader: dict, market: dict) -> dict:
         "stock": {
             "ticker": leader.get("ticker"), "rank": leader.get("rank"),
             "score": leader.get("score"), "current": metrics.get("current"),
+            "score_model_version": leader.get("score_model_version"),
+            "core_score": leader.get("core_score"),
+            "support_score": leader.get("support_score"),
+            "primary_status": leader.get("primary_status"),
             "from_high_pct": metrics.get("from_high_pct"),
             "ret20": metrics.get("ret20"), "atr_pct": metrics.get("atr_pct"),
         },
@@ -3296,6 +3348,7 @@ def _save_trade_now(theme_row: dict, leader: dict, market: dict) -> tuple[bool, 
             market_score=market.get("score"),
             theme_score=theme_row.get("score"),
             stock_score=leader.get("score"),
+            score_model_version=leader.get("score_model_version"),
             entry_plan=plan,
             snapshot=_trade_snapshot(theme_row, leader, market),
             memo="화면에서 바로 저장(그때 값 그대로)",
@@ -3450,6 +3503,7 @@ def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict,
                 market_score=market.get("score"),
                 theme_score=theme_row.get("score"),
                 stock_score=leader.get("score"),
+                score_model_version=leader.get("score_model_version"),
                 entry_plan=plan,
                 snapshot=snapshot,
                 memo=memo,
@@ -4124,7 +4178,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     # 기존 조건점수는 '신고가에 가까운가·이동평균 위인가'로 절반을 주는데, 낙폭 종목은
     # 그 조건을 정의상 하나도 못 맞춰 전부 14~26점 '제외'로 나왔다(실측). 찾아 놓고
     # 사지 말라는 화면이 되므로 갈래마다 전용 배점·전용 심사를 쓴다.
-    mode = st.session_state.get("j3_pullback_mode") or "기본"
+    mode = mode or st.session_state.get("j3_pullback_mode") or "기본"
     if mode == "crash":
         scored = j3data.crash_rebound_score(row)
         plan = j3data.crash_rebound_plan(row)
@@ -4212,7 +4266,33 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "<div class='j3-mc-sub j3-muted'>지난 5일 평균 대비 "
         f"{_pct(metrics.get('volume_vs_week'))}</div></div>",
     ]
-    if mode in ("crash", "breakout"):
+    if mode == "breakout":
+        # US_SWING_V1은 핵심 70·보조 30을 숨기지 않고 실제 RS/눌림과 나란히 둔다.
+        rs60 = row.get("rs60_percentile")
+        rs120 = row.get("rs120_percentile")
+        pullback_pct = row.get("pullback_pct_close")
+        cells = [
+            f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
+            f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>RS60(3개월)</div>"
+            f"<div class='j3-mc-val j3-green'>{'—' if rs60 is None else f'{float(rs60):.1f}'}</div>"
+            "<div class='j3-mc-sub j3-muted'>percentile</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>RS120(6개월)</div>"
+            f"<div class='j3-mc-val j3-green'>{'—' if rs120 is None else f'{float(rs120):.1f}'}</div>"
+            "<div class='j3-mc-sub j3-muted'>percentile</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>신고가 후 눌림</div>"
+            f"<div class='j3-mc-val j3-up'>{'—' if pullback_pct is None else f'-{float(pullback_pct):.1f}%'}</div>"
+            f"<div class='j3-mc-sub j3-muted'>{int(row.get('days_since_anchor') or 0)}거래일째</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>핵심점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(row.get('core_score') or 0):.0f}/70</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>보조점수</div>"
+            f"<div class='j3-mc-val'>{float(row.get('support_score') or 0):.0f}/30</div>"
+            "<div class='j3-mc-sub j3-muted'>추가검증 중</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>총점</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.0f}/100</div>"
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(row.get('primary_status') or ''))}</div></div>",
+        ]
+    elif mode == "crash":
         # 점수는 **하나만** 둔다(2026-08-06 상하님 지적 "이 갈래 점수가 뭔말이냐").
         # 예전에는 한 화면에 셋('이 갈래 점수'·'눌림 점수'·위 표의 '종목 조건점수')이
         # 있었는데, 그중 '눌림 점수'는 이 화면에서 순위에 쓰지 않는 A 규칙 값이다.
@@ -4274,7 +4354,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         st.columns(2),
         _pullback_backdrop_cards(
             mode=mode, market=market, themes=themes, theme_score=theme_score,
-            scored=scored, review=review, plan=plan,
+            scored=scored, review=review, plan=plan, row=row,
         ),
     ):
         column.markdown(
@@ -4301,11 +4381,18 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         )
         # '설명'은 **제목 칸 「심사 항목」 옆**에 하나만 둔다(2026-08-14 상하님 지시).
         # 갈래마다 열쇠를 갈라 둔다 — 상승장 상세와 급락 상세가 서로를 덮어쓰지 않게.
-        st.markdown(
-            _factor_table_html(factor_rows, total_row, factor_names,
-                               f"j3_factor_help_pullback_{mode}"),
-            unsafe_allow_html=True,
+        factor_html = (
+            _swing_factor_table_html(
+                factor_rows, total_row, row.get("explanations") or {},
+                "j3_factor_help_pullback_breakout",
+            )
+            if mode == "breakout" else
+            _factor_table_html(
+                factor_rows, total_row, factor_names,
+                f"j3_factor_help_pullback_{mode}",
+            )
         )
+        st.markdown(factor_html, unsafe_allow_html=True)
         st.markdown(
             f"<div class='j3-reason-mustard'>{_mustard_html(review.get('stock_reason'))}</div>",
             unsafe_allow_html=True,
@@ -4334,7 +4421,17 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             ),
             unsafe_allow_html=True,
         )
-        if mode in ("crash", "breakout"):
+        if mode == "breakout":
+            anchor = row.get("anchor_date") or "—"
+            pullback = row.get("pullback_pct_close")
+            pullback_text = "—" if pullback is None else f"{float(pullback):.1f}%"
+            plan_cells = [
+                ("진입 관찰", str(plan.get("entry") or "—"), "#44f0a1"),
+                ("Anchor / 관찰일", f"{anchor} · day {int(row.get('days_since_anchor') or 0)}", "#e6e6e6"),
+                ("핵심 / 보조", f"{float(row.get('core_score') or 0):.0f}/70 · {float(row.get('support_score') or 0):.0f}/30", "#e6e6e6"),
+                ("눌림 / 손절·청산", f"{pullback_text} · 연구 중", "#ffd23f"),
+            ]
+        elif mode == "crash":
             # 이 규칙에는 넘어야 할 기준가도 손절도 없다. 없는 것을 있는 것처럼
             # 적지 않고, 규칙이 실제로 정한 것을 적는다.
             # **파는 시점은 앱이 정하지 않는다**(2026-08-12 상하님 확정).
@@ -4445,7 +4542,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
 
 def _pullback_backdrop_cards(
     *, mode: str, market: dict, themes: str, theme_score: float,
-    scored: dict | None, review: dict, plan: dict,
+    scored: dict | None, review: dict, plan: dict, row: dict | None = None,
 ) -> list[tuple[str, str]]:
     """상세 맨 위에 놓을 '시장 · 테마' 두 칸을 만든다.
 
@@ -4498,9 +4595,21 @@ def _pullback_backdrop_cards(
                         "그래서 오늘 낙폭으로 찾은 결과입니다."
                     )
         else:
-            state = j3data.breakout_market_state()
+            # 목록을 계산한 같은 EOD snapshot을 쓴다. 상세을 열 때 시장을 재조회하면
+            # 목록의 Gate와 상세 설명이 서로 다른 시각을 말할 수 있다.
+            state = row or {}
             market_body = html.escape(
-                str(state.get("reason") or "나스닥 상태를 못 읽었습니다"))
+                str(
+                    (state.get("explanations") or {}).get("market", {}).get("one_line_explanation")
+                    or state.get("status_text")
+                    or "나스닥 시장 Gate 상태를 확인합니다."
+                )
+            )
+            market_body += (
+                "<div class='j3-reason-sub'>"
+                f"현재 상태 <b>{html.escape(str(state.get('market_status') or '자료부족'))}</b>"
+                " · PRIMARY는 MARKET_ON에서만 허용합니다.</div>"
+            )
     else:
         market_body = f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"
     # 여기 담기는 글은 **이미 안전하게 만들어 둔 것**이다(붉은 숫자 span이 들어간다).
@@ -4512,14 +4621,29 @@ def _pullback_backdrop_cards(
     # 급락 배점 100점 중 테마 몫이다. 그 사실을 카드에 적어 둔다.
     # (옛 문구를 주석에 그대로 옮겨 적지 않는다 — '그 말이 화면에 남아 있나' 보는
     #  시험이 주석을 먼저 집는다. 2026-08-07 실제로 걸렸다.)
-    theme_body = (
-        html.escape(f"{themes} · 테마 자체 점수 {theme_score:.1f}/100")
+    if mode == "breakout":
+        swing_row = row or {}
+        theme_percentile = swing_row.get("theme_percentile")
+        breadth = swing_row.get("breadth_pct")
+        theme_body = html.escape(
+            f"{swing_row.get('theme_id') or themes} · 테마 보조점수 "
+            f"{float(swing_row.get('theme_score') or 0):.0f}/10"
+        )
+        theme_body += (
+            "<div class='j3-reason-sub'>대상 종목을 뺀 다른 구성종목으로 계산 · "
+            f"테마 percentile {'—' if theme_percentile is None else f'{float(theme_percentile):.1f}'}"
+            f" · 50일선 위 {'—' if breadth is None else f'{float(breadth):.1f}%'}"
+            "</div>"
+        )
+    else:
+        theme_body = (
+            html.escape(f"{themes} · 테마 자체 점수 {theme_score:.1f}/100")
         # 여기에 배점 항목 이름이나 점수를 **적지 않는다.** 적어 두면 배점을 고칠 때마다
         # 이 줄이 조용히 옛말을 하게 된다(2026-08-14에 실제로 그랬다 — 배점에서
         # 사라진 항목을 이 줄이 계속 가리키고 있었다).
-        + "<div class='j3-reason-sub'>위 <b>테마 순위표</b>가 이 테마를 100점으로 잰 "
+            + "<div class='j3-reason-sub'>위 <b>테마 순위표</b>가 이 테마를 100점으로 잰 "
           "값입니다. 왼쪽 배점표의 <b>테마 점수</b>와는 <b>다른 자</b>입니다.</div>"
-    )
+        )
     return [("시장 상황", market_body), ("테마 상황", theme_body)]
 
 
@@ -4748,6 +4872,189 @@ def _score_table_html(mode: str, base_win_rate=None) -> str:
     )
 
 
+def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
+    """US_SWING_V1 전용 PRIMARY/WATCH 목록. 기존 급락 렌더와 완전히 분리한다."""
+
+    primary = list(result.get("primary_rows") or result.get("rows") or [])
+    watch = list(result.get("watch_rows") or [])
+    market_state = result.get("market") or {}
+    market_status = str(market_state.get("market_status") or "자료부족")
+    ixic = market_state.get("ixic_close")
+    drawdown = market_state.get("market_drawdown")
+
+    for warning in (result.get("universe_warning"), result.get("market_history_warning")):
+        if warning:
+            st.warning(str(warning))
+    market_line = (
+        f"Nasdaq Composite {market_status}"
+        + (f" · IXIC {float(ixic):,.2f}" if ixic is not None else "")
+        + (f" · 진행 ATH 대비 {float(drawdown) * 100:+.1f}%" if drawdown is not None else "")
+    )
+    if market_status == "MARKET_ON" and market_state.get("valid"):
+        st.success(market_line + " — 신규 PRIMARY 후보를 허용합니다.")
+    else:
+        st.error(market_line + " — 점수가 높아도 신규 PRIMARY 후보를 허용하지 않습니다.")
+
+    if result.get("snapshot_saved"):
+        st.caption(
+            f"EOD 원자료 저장 완료 · run {result.get('snapshot_run_id')} · "
+            f"점수버전 {result.get('score_model_version') or 'US_SWING_V1'}"
+        )
+    elif result.get("snapshot_saved") is False:
+        st.warning(f"후보 계산은 완료했지만 EOD 원자료 저장 실패: {result.get('snapshot_error') or '원인 확인 필요'}")
+
+    st.markdown(
+        "<div class='j3-pull-stats'>"
+        f"기준일 <b>{html.escape(str(result.get('date') or '—'))}</b> · "
+        f"실제 Universe <b>{html.escape(str(result.get('universe_mode') or '—'))}</b> · "
+        f"전체 <b>{int(result.get('universe_count') or 0):,}개</b> → "
+        f"EOD 일봉 일치 <b>{int(result.get('data_count') or 0):,}개</b> · "
+        f"RS60/120 횡단면 <b>{int(result.get('rs_cross_section_60') or 0):,}/"
+        f"{int(result.get('rs_cross_section_120') or 0):,}개</b> → "
+        f"정식 후보 <b class='j3-green'>{len(primary):,}개</b> · "
+        f"WATCH <b>{len(watch):,}개</b>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    if _section_toggle(
+        "📘 이 화면 설명 보기 (HARD GATE · 핵심 70 · 보조 30)",
+        "j3_rulebook_help_open", close_label="설명 닫기",
+    ):
+        config = result.get("config") or {}
+        rs_cfg = config.get("rs") or {}
+        entry_cfg = config.get("entry") or {}
+        st.markdown(
+            "<div class='j3-pull-guide'><b>먼저 자격, 그다음 순위</b> — "
+            "MARKET_ON · RS60/RS120 기준 · 종가 신고가 · anchor 뒤 day 1~3 · "
+            "종가 눌림 3~10%를 모두 통과해야 정식 후보가 됩니다. "
+            "보조점수로 이 조건을 우회할 수 없습니다.<br>"
+            f"현재 설정: RS60 ≥ {float(rs_cfg.get('rs60_min_percentile', 80)):.0f}, "
+            f"RS120 ≥ {float(rs_cfg.get('rs120_min_percentile', 80)):.0f} · "
+            f"day {int(entry_cfg.get('watch_start_day', 1))}~{int(entry_cfg.get('watch_end_day', 3))} · "
+            f"눌림 {float(entry_cfg.get('pullback_min', .03)) * 100:.0f}~"
+            f"{float(entry_cfg.get('pullback_max', .10)) * 100:.0f}%<br>"
+            "<b>점수</b> — RS60 25 + RS120 25 + 눌림 20 = 핵심 70, "
+            "테마 10 + 돌파 거래량 8 + 확산도 5 + 반등 7 = 보조 30입니다. "
+            "총점은 승률이나 보장수익이 아닙니다.</div>",
+            unsafe_allow_html=True,
+        )
+        catalog = result.get("explanation_catalog") or {}
+        for metric in ("market", "rs60", "rs120", "breakout", "pullback",
+                       "theme", "volume", "breadth", "rebound"):
+            payload = catalog.get(metric) or {}
+            if not payload:
+                continue
+            st.markdown(
+                "<div class='j3-reason-card'>"
+                f"<div class='j3-reason-title'>{html.escape(str(payload.get('title') or metric))} "
+                f"<span class='j3-muted'>· {html.escape(str(payload.get('confidence') or ''))}</span></div>"
+                f"<div class='j3-reason-body'><b>{html.escape(str(payload.get('one_line') or ''))}</b><br>"
+                f"{html.escape(str(payload.get('detail') or ''))}</div></div>",
+                unsafe_allow_html=True,
+            )
+        _section_close("j3_rulebook_help_open", "설명 닫기")
+
+    st.markdown(
+        "<style>div[class*='st-key-close_j3_pullback_open'] button {"
+        "background:linear-gradient(90deg,#075d46,#18bf87) !important;color:#fff !important;"
+        "border:1px solid rgba(255,255,255,.28) !important;}"
+        "div[class*='st-key-close_j3_pullback_open'] button p {color:#fff !important;font-weight:800 !important;}"
+        "</style>", unsafe_allow_html=True,
+    )
+    _section_close("j3_pullback_open", "상승장 (신고가 눌림매수) 닫기")
+
+    all_selectable = primary + watch
+    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    tickers = [str(row.get("ticker") or "") for row in all_selectable]
+    if selected_ticker not in tickers:
+        selected_ticker = tickers[0] if tickers else None
+    selected_css = []
+
+    widths = [0.55, 0.8, 1.75, 0.8, 1.55, 1.05, 1.05, 1.25, 1.0, 1.0, 1.4]
+    row_widths = [widths[0], widths[1], widths[2], sum(widths[3:])]
+    rest_widths = widths[3:]
+    heads = ["티커", "등급 / 상태", "RS60", "RS120", "눌림 / day", "핵심", "보조", "테마"]
+
+    def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
+        prefix = "j3rbw" if watch_mode else "j3rbf"
+        head = box.columns(row_widths)
+        head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
+        head[1].markdown("<div class='j3-th-head'>총점</div>", unsafe_allow_html=True)
+        head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+        head[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
+        for index, row in enumerate(rows):
+            cols = box.columns(row_widths)
+            rank = f"W{index + 1}" if watch_mode else str(int(row.get("primary_rank") or index + 1))
+            cols[0].markdown(f"<div class='j3-td j3-muted'>{rank}</div>", unsafe_allow_html=True)
+            cols[1].markdown(
+                f"<div class='j3-td'><span class='j3-score j3-score-hi'>"
+                f"{float(row.get('total_score') or 0):.0f}</span></div>", unsafe_allow_html=True,
+            )
+            key = f"{prefix}_{index:02d}"
+            if cols[2].button(str(row.get("name") or row.get("ticker") or "—"), key=key, width="stretch"):
+                st.session_state["j3_pullback_selected_ticker"] = row.get("ticker")
+                for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback", "j3_bundle_open_pullback"):
+                    st.session_state[opened] = True
+                scroll_to.request(st, "detail_pullback")
+                st.rerun()
+            if row.get("ticker") == selected_ticker:
+                selected_css.append(
+                    f"div[class*='st-key-{key}'] button {{background:rgba(24,191,135,.16) !important;"
+                    "border-left:3px solid #18bf87 !important;}"
+                )
+            explanations = row.get("explanations") or {}
+            rs60 = (explanations.get("rs60") or {}).get("display_value") or "자료부족"
+            rs120 = (explanations.get("rs120") or {}).get("display_value") or "자료부족"
+            pullback = row.get("pullback_pct_close")
+            pullback_text = "—" if pullback is None else f"-{float(pullback):.1f}%"
+            label = (
+                f"WATCH · {row.get('status_text') or row.get('primary_status') or '조건 미충족'}"
+                if watch_mode else
+                f"{row.get('grade') or '—'} · {row.get('grade_text') or '정식 후보'}"
+            )
+            theme_text = str(row.get("theme_id") or "자료부족")
+            cols[3].markdown(
+                _flex_row(rest_widths, [
+                    html.escape(str(row.get("ticker") or "—")),
+                    f"<span title='{html.escape(label)}'>{html.escape(label)}</span>",
+                    html.escape(str(rs60)), html.escape(str(rs120)),
+                    f"{html.escape(pullback_text)} · day {int(row.get('days_since_anchor') or 0)}",
+                    f"{float(row.get('core_score') or 0):.0f}/70",
+                    f"{float(row.get('support_score') or 0):.0f}/30",
+                    html.escape(theme_text),
+                ]), unsafe_allow_html=True,
+            )
+
+    if primary:
+        st.markdown("<div class='j3-section-title'>정식 후보</div>", unsafe_allow_html=True)
+        draw_rows(primary, st.container(key="j3_rulebook_table"), watch_mode=False)
+    else:
+        st.info("현재 HARD GATE를 모두 통과한 정식 후보가 없습니다. 기준을 느슨하게 바꾸지 않습니다.")
+
+    if watch:
+        watch_box = st.container(key="j3_rulebook_watch").expander(
+            f"WATCH · Gate 미통과 {len(watch)}개 보기"
+        )
+        draw_rows(watch, watch_box, watch_mode=True)
+    if selected_css:
+        st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+
+    st.caption(
+        "정식 후보만 BUY 등급을 받습니다. WATCH는 실제 총점을 보여도 Gate 탈락 상태가 "
+        "우선입니다. 핵심·보조·총점을 따로 보며, 점수는 승률이 아닙니다."
+    )
+    if all_selectable and selected_ticker:
+        selected = next(
+            (row for row in all_selectable if row.get("ticker") == selected_ticker),
+            all_selectable[0],
+        )
+        _render_pullback_detail(selected, market, ranking, mode="breakout")
+    _section_close(
+        "j3_pullback_open", "상승장 (신고가 눌림매수) 닫기", slot="_bottom"
+    )
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -4757,6 +5064,9 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     """
     if not result.get("ok"):
         st.error(f"조회 실패: {_safe_error_text(result.get('error'))}")
+        return
+    if mode == "breakout":
+        _render_us_swing_finder(result, market, ranking)
         return
     rows = result.get("rows") or []
     breakout = mode == "breakout"
@@ -5317,7 +5627,7 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
             if pressed == "breakout":
                 with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
                     st.session_state["j3_pullback_result"] = (
-                        j3data.find_breakout_pullback_stocks()
+                        j3data.find_breakout_pullback_stocks(persist=True)
                     )
             else:
                 with st.spinner("미국 대형주 200개에서 고점 대비 낙폭이 큰 종목을 찾는 중입니다…"):

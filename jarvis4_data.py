@@ -1327,7 +1327,10 @@ def get_fx_intraday(*, ttl_seconds: float = 60) -> dict:
 # **재적재는 pages/3_자비스4.py가 한다**(규칙 11, 이 프로젝트 방식).
 # 여기서 importlib.reload를 부르면 시험이 갈아 끼운 가짜 모듈까지 날아간다
 # (2026-08-06 실제로 test_jarvis4_data 두 건이 깨졌다).
-_REQUIRED_J3_REVISION = 2026081940
+# 2026-08-20 — 상승장(신고가 눌림매수)이 US_SWING_V1으로 바뀌면서 jarvis3_data의
+# MODULE_REVISION이 올라갔다. **여기 계산은 하나도 안 바뀌었다** — 이 숫자는
+# 옛 모듈이 프로세스에 남았는지 알아채는 표식일 뿐이라, 규칙 11대로 같이 올린다.
+_REQUIRED_J3_REVISION = 2026082020
 
 
 def _us_previous_session() -> dict:

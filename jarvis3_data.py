@@ -8,6 +8,7 @@ Yahoo Finance의 최근 가용 시세를 읽기 전용으로 조회하며, 네�
 from __future__ import annotations
 
 import csv
+import importlib
 import logging
 import math
 import threading
@@ -19,6 +20,12 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+
+import us_swing_selector as us_swing
+
+_REQUIRED_US_SWING_REVISION = 2026082020
+if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
+    us_swing = importlib.reload(us_swing)
 
 _log = logging.getLogger(__name__)
 _NY = ZoneInfo("America/New_York")
@@ -137,9 +144,11 @@ US_LARGE_CAP_UNIVERSE = tuple(dict.fromkeys(
 # 셋 다 합격으로 살아남았다 — 40점 그대로다. 테마 항목 둘은 약해졌으나(같이
 # 오르는가 20일·6개월만 · 덜 빠졌나 20일만) **상하님께 여쭙기 전에는 안 바꾼다.**
 BREAKOUT_PULLBACK_RULE = {
-    "wait_days": (3, 10),        # 52주 신고가 뒤 며칠까지 볼까 (그물)
-    "drop_band": (-15.0, -4.0),  # 눌린 폭 (그물 — 옛 기준 4~6%도 품는다)
-    "hold_days": 120,            # 6개월
+    # US_SWING_V1: 신고가 당일(day0)은 추격하지 않고 1~3거래일만 본다.
+    "wait_days": (1, 3),
+    # 화면 호환을 위해 고점 대비 부호(-)로 두지만 계산은 anchor 종가 대비 +3~10%다.
+    "drop_band": (-10.0, -3.0),
+    "hold_days": None,
 }
 
 # 순위는 **별점이 아니라 100점 배점**으로 매긴다(2026-08-06 사용자 결정).
@@ -206,7 +215,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026081940
+MODULE_REVISION = 2026082020
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -2014,17 +2023,7 @@ def crash_rebound_score(row: dict) -> dict:
 # **가짜 테마 시험을 통과했다** — 종목을 제비뽑기로 20묶음 지어 100번 재니 가짜는
 # 100번 중 49~51번(반반)이었다. 6개월에서 가짜가 진짜를 이긴 것은 1번뿐이다.
 # **명부를 바꾸면 이 시험부터 다시 돌린다**(CLAUDE.md 0-1 라).
-BREAKOUT_SCORE_WEIGHTS = {
-    "theme_prox": 70.0,    # 테마 합산 시총이 1년 최고에 얼마나 붙어 있나 (칸 없이 비례)
-    "gain60": 30.0,        # **뚫던 날 기준** 직전 60거래일 상승률 (계단)
-    "drop": 0.0,           # 2026-08-13 뺐다 — 네 번 중 0번 통과 (아래 설명)
-    "spread5": 0.0,        # 2026-08-13 뺐다 — 그날 테마 등수는 네 번 중 0번 통과
-    "less_drop": 0.0,      # 2026-08-13 뺐다 — 같은 이유
-    "together": 0.0,       # 이 그물에서 불합격 (4개↑는 6개월에서만)
-    "recent_drop": 0.0,    # 이 그물에서 불합격
-    "liquidity": 0.0,      # 3개월에서 거꾸로
-    "volatility": 0.0,     # 전부 미달
-}
+BREAKOUT_SCORE_WEIGHTS = dict(us_swing.DEFAULT_CONFIG["weights"])
 # ── 눌린 폭 40점을 0점으로 뺐다 (2026-08-13, 상하님 "나머지 진행해라") ────────
 # 2026-08-12에 40점으로 되살렸던 항목인데, **제가 재는 자를 고치니 무너졌다** —
 # 1개월 52.1· / 3개월 51.5· / 6개월 51.1· / 1년 49.9·로 **네 번 중 0번**이다.
@@ -2085,7 +2084,9 @@ def theme_proximity_points(prox, points: float | None = None) -> float:
     이 항목만 CLAUDE.md 0-1 마의 계단 규칙을 안 따르는 까닭이 이것이고,
     **상하님이 2026-08-13에 "비례로 준다"고 정하셨다.**
     """
-    full = BREAKOUT_SCORE_WEIGHTS["theme_prox"] if points is None else float(points)
+    # US_SWING_V1에서는 이 옛 점수함수를 실제 순위에 쓰지 않는다. 과거 보고서/테스트가
+    # 직접 호출해도 깨지지 않도록 당시 만점 70만 호환값으로 남긴다.
+    full = BREAKOUT_SCORE_WEIGHTS.get("theme_prox", 70.0) if points is None else float(points)
     if prox is None:
         return 0.0
     try:
@@ -2137,60 +2138,51 @@ def breakout_gain60(daily: "pd.DataFrame | None", days_ago) -> float | None:
 
 
 def breakout_score(row: dict) -> dict:
-    """상승장(신고가 눌림매수) 후보의 점수(BREAKOUT_SCORE_MAX 만점)와 근거.
+    """US_SWING_V1의 이미 계산된 7개 항목을 화면 호환 형식으로 돌려준다."""
 
-    **0점 항목도 parts에 넣는다**(2026-08-15 상하님 지시 — "각 배점에도 0점짜리도
-    표시하고 점수 미달인 이유 넣고"). 2026-08-13까지는 뺐는데, 그러면 종목 상세만
-    보고 **기준이 둘뿐인 줄 아시게 된다.** 상하님이 실제로 그렇게 물으셨다.
-
-    0점 줄에도 **그 종목의 실제 값과 등수를 그대로 적는다.** 화면이 만점 0을
-    "0점"이라고 적고, 옆 '설명'이 왜 0점인지 알려 준다.
-    """
-    metrics = row.get("metrics") or {}
-    weights = BREAKOUT_SCORE_WEIGHTS
-    parts = []
-
-    # ① 테마 근접도 — 열여덟 항목 중 **제가 잰 시험을 통과한 하나**다(네 번 중 3번).
-    # 칸을 안 쓴다. 위 theme_proximity_points의 설명을 보라.
-    prox = row.get("theme_prox")
-    parts.append((
-        "테마가 1년 최고에 붙어 있나",
-        theme_proximity_points(prox, weights["theme_prox"]),
-        weights["theme_prox"],
-        "모름" if prox is None else
-        f"{row.get('theme_prox_name') or '테마'} {float(prox):.1f}%"))
-
-    # ② 뚫기 전 60일 상승 — **뚫던 날 기준**이다(오늘 기준 ret60이 아니다).
-    # 같은 테마 안에서는 순서를 못 가리고, 다른 테마끼리 견줄 때만 보탠다.
-    gain = row.get("gain60_at_breakout")
-    earned, label = breakout_gain60_points(gain)
-    parts.append((
-        "뚫기 전 60일에 얼마나 올랐나",
-        round(earned * weights["gain60"] / 30.0, 1) if weights["gain60"] else 0.0,
-        weights["gain60"],
-        "모름" if gain is None else f"{float(gain):+.1f}% ({label})"))
-
-    # ③ 눌린 폭 — **0점**이다. 그물(4~15%)로는 쓰고 점수는 안 준다.
-    low, high = BREAKOUT_DROP_BAND
-    drop = metrics.get("from_high_pct")
-    inside = drop is not None and low <= float(drop) <= high
-    parts.append((
-        "지금 눌린 폭",
-        weights["drop"] if inside else 0.0,
-        weights["drop"],
-        "—" if drop is None else f"{float(drop):+.1f}%"
-        + (" (10~15% 칸)" if inside else "")))
-
-    # ④⑤ 테마 등수 둘 — **0점**이다. 그날 등수로 매기는 자가 전부 무너졌다.
-    parts.append(_theme_rank_part(
-        row, f"테마가 같이 오르는가 (상위 {THEME_RANK_TOP_N}등)",
-        "theme_spread5", weights["spread5"]))
-    parts.append(_theme_rank_part(
-        row, f"테마가 덜 빠졌나 (상위 {THEME_LESS_DROP_TOP_N}등)",
-        "theme_less_drop", weights["less_drop"]))
-
-    return {"score": round(sum(v for _n, v, _m, _t in parts), 1),
-            "parts": parts, "max": BREAKOUT_SCORE_MAX}
+    parts = list(row.get("score_parts") or [])
+    if not parts:
+        weights = BREAKOUT_SCORE_WEIGHTS
+        parts = [
+            ("RS60(3개월 상대강도)",
+             us_swing.rs_points(row.get("rs60_percentile"), max_points=weights["rs60"]),
+             weights["rs60"], "—"),
+            ("RS120(6개월 상대강도)",
+             us_swing.rs_points(row.get("rs120_percentile"), max_points=weights["rs120"]),
+             weights["rs120"], "—"),
+            ("신고가 후 눌림",
+             us_swing.pullback_points(row.get("pullback_pct_close"),
+                                      max_points=weights["pullback"]),
+             weights["pullback"], "—"),
+            ("테마 강도(보조·추가검증 중)",
+             us_swing.theme_points(row.get("theme_percentile"), max_points=weights["theme"])
+             if row.get("theme_valid", True) else 0.0,
+             weights["theme"], "—"),
+            ("돌파 거래량(보조·추가검증 중)",
+             us_swing.volume_points(row.get("breakout_rvol"), max_points=weights["volume"])
+             if row.get("volume_valid", True) else 0.0,
+             weights["volume"], "—"),
+            ("테마 확산도(보조·추가검증 중)",
+             us_swing.breadth_points(row.get("breadth_pct"), max_points=weights["breadth"])
+             if row.get("breadth_valid", True) else 0.0,
+             weights["breadth"], "—"),
+            ("반등 상태(보조·추가검증 중)",
+             us_swing.rebound_points(str(row.get("rebound_status") or ""),
+                                     max_points=weights["rebound"]),
+             weights["rebound"], "—"),
+        ]
+    score = row.get("total_score")
+    if score is None:
+        score = sum(float(value) for _name, value, _maximum, _note in parts)
+    return {
+        "score": round(float(score), 1),
+        "core_score": round(float(row.get("core_score") or sum(
+            float(value) for _name, value, _maximum, _note in parts[:3])), 1),
+        "support_score": round(float(row.get("support_score") or sum(
+            float(value) for _name, value, _maximum, _note in parts[3:])), 1),
+        "parts": parts,
+        "max": BREAKOUT_SCORE_MAX,
+    }
 
 
 # 상하님 표 1의 성적 — 신고가 뒤 1~5일 · 10~15% 눌림 자리를 보유기간별로 잰 값
@@ -2204,43 +2196,32 @@ BREAKOUT_HOLD_RESULTS = (
 
 
 def breakout_plan(row: dict) -> dict:
-    """상승장(신고가 눌림매수)의 매수 심사 결과.
+    """HARD GATE 상태를 점수와 분리해 사람이 읽는 심사 결과로 바꾼다."""
 
-    **넘어야 할 기준가도, 손절가도, 파는 날도 규칙에 없다.** 종가를 확인하고 다음
-    거래일 시가에 산다. **파는 시점은 앱이 정하지 않는다**(2026-08-12 상하님 확정:
-    "파는 시점은 내가 정한다"). 대신 그 자리의 3개월·6개월·1년 과거 성적을 나란히
-    보여준다 — 상하님 표 1이 원래 그 모양이다.
-    """
-    metrics = row.get("metrics") or {}
-    score = float(breakout_score(row)["score"])
-    if score >= BREAKOUT_STATE_GOOD:
-        state, recommendation = "규칙에 맞는 자리", "조건부 후보"
-    elif score >= BREAKOUT_STATE_FAIR:
-        state, recommendation = "자리는 맞으나 근거가 얇음", "관찰"
-    else:
-        state, recommendation = "규칙만 맞고 뒷받침이 없음", "관찰"
-    spans = " · ".join(
-        f"{item['label']} {item['median_return']:+.1f}%(100번 중 {item['win_rate']:.0f}번)"
-        for item in BREAKOUT_HOLD_RESULTS
-    )
+    status = str(row.get("primary_status") or "INSUFFICIENT_DATA")
+    eligible = bool(row.get("eligible_primary"))
+    grade = row.get("grade")
+    state = row.get("status_text") or us_swing.STATUS_TEXT.get(status, status)
+    recommendation = f"{grade}등급 관찰후보" if eligible and grade else f"WATCH — {state}"
+    days = row.get("days_since_anchor")
+    pullback = row.get("pullback_pct_close")
+    core = float(row.get("core_score") or 0.0)
+    support = float(row.get("support_score") or 0.0)
     return {
         "state": state,
         "recommendation": recommendation,
         "rule_mode": "breakout",
-        "entry": "다음 거래일 시가",
-        # 파는 날을 규칙으로 못박지 않는다. 화면이 '며칠 뒤에 판다'고 적으면
-        # 앱이 매매를 지시하는 것이 된다(CLAUDE.md 0-1 바).
+        "entry": "미국장 종가 확정 뒤 신규매수 관찰",
         "hold_days": None,
-        "hold_results": BREAKOUT_HOLD_RESULTS,
-        "current": metrics.get("current"),
+        "hold_results": (),
+        "current": (row.get("metrics") or {}).get("current"),
         "invalidation": None,
         "target": None,
         "buy_reason": (
-            f"52주 신고가를 찍고 {int(row.get('wait_days') or 0)}거래일이 지나 "
-            f"고점 대비 {metrics.get('from_high_pct', 0):.1f}%까지 눌린 자리입니다. "
-            f"규칙대로라면 오늘 종가를 확인하고 다음 거래일 시가에 삽니다. "
-            f"**파는 시점은 규칙에 없습니다** — 이 자리의 과거 성적은 {spans}였습니다. "
-            f"이 규칙에는 손절가가 없습니다."
+            f"52주 신고가 anchor 뒤 {int(days or 0)}거래일째, 종가 기준 "
+            f"{float(pullback or 0.0):.1f}% 눌림입니다. 핵심점수 {core:.1f}/70, "
+            f"보조점수 {support:.1f}/30입니다. 총점은 승률이 아니며, 손절과 최종청산은 "
+            "현재 연구 중이라 이 종목점수에 넣지 않았습니다."
         ),
     }
 
@@ -2694,23 +2675,9 @@ def _rank_key(row: dict):
 
 
 def _breakout_rank_key(row: dict):
-    """상승장에서 **점수가 같을 때**의 차례 (2026-08-13에 다시 정했다).
+    """US_SWING_V1 동점 규칙(Core→RS120→RS60→눌림→유동성→티커)."""
 
-        총점 → 테마 근접도 → 뚫기 전 60일 상승률 → 티커 이름
-
-    **점수가 보는 것과 같은 것을 봐야 한다.** 2026-08-13 전까지는 점수는 눌린
-    폭·테마 등수를 보는데 순위는 '같은 테마 동반 수'와 오늘 기준 ret60을 봐서
-    **둘이 서로 다른 것을 보고 있었다.** 이제 배점에 쓴 두 값을 그대로 쓴다.
-
-    마지막에 티커 이름을 넣는 까닭은, 여기까지 같으면 차례가 그날그날
-    뒤죽박죽이 되기 때문이다. **거래대금과 거래대금 연속은 안 쓴다** —
-    상승장에서 거꾸로였다(11일 이상 53번, 기준선 62번).
-    """
-    return (
-        -float(row.get("theme_prox") or 0.0),
-        -float(row.get("gain60_at_breakout") or 0.0),
-        str(row.get("ticker") or ""),
-    )
+    return us_swing.candidate_sort_key(row)[2:]
 
 
 def _universe_row(ticker: str, metrics: dict, memberships: dict) -> dict:
@@ -2726,94 +2693,172 @@ def _universe_row(ticker: str, metrics: dict, memberships: dict) -> dict:
     }
 
 
-def find_breakout_pullback_stocks(*, reuse_only: bool = False, result_limit: int = 20) -> dict:
-    """설명서 1번 — 정상 상승장의 '신고가 눌림매수' 자리를 찾는다.
+_KNOWN_US_ADRS = {
+    "ABBNY", "ASML", "BEP", "BIIB", "CHKP", "CRSP", "ILMN", "NVS",
+    "RIO", "SQM", "STLA", "TSM",
+}
 
-    **50일선·200일선은 보지 않는다** — 상하님 표 1의 규칙은 '52주 신고가 돌파 →
-    며칠 기다림 → 그 고점에서 얼마나 눌린 날 종가 확인'뿐이고 이동평균 조건은
-    없다. 여기에 없는 조건을 더하면 화면이 설명과 다른 것을 찾게 된다.
 
-    **그물은 넓게 둔다**(2026-08-06 상하님 결정) — 표 1의 매수 자리(10~15%)만
-    거르게 했더니 화면이 매일 비었다(1년에 30번). "넓게 찾고 좋은 자리에 별을
-    달아라. 고르는 것은 내가 한다." 지금은 별 대신 배점이 그 일을 한다 —
-    테마 근접도가 70점으로 1등이라 좋은 테마가 맨 위로 온다(2026-08-13).
+def _swing_universe_records() -> list[dict]:
+    """현행 연구 200명부를 자산유형이 명시된 selector 입력으로 바꾼다."""
 
-    차례는 **점수 순**이다(BREAKOUT_SCORE_WEIGHTS). 같은 점수 안에서만
-    _breakout_rank_key(테마 근접도 → 뚫기 전 60일 상승 → 티커)로 가른다.
-    """
+    return [
+        {
+            "ticker": ticker,
+            "name": STOCK_NAMES.get(ticker, ticker),
+            "asset_type": (
+                us_swing.AssetType.ADR.value
+                if ticker in _KNOWN_US_ADRS else us_swing.AssetType.COMMON_STOCK.value
+            ),
+        }
+        for ticker in US_LARGE_CAP_UNIVERSE
+    ]
+
+
+def _last_completed_us_date(frame, now=None):
+    """장중 진행봉을 제외한 공통 EOD 날짜를 고른다."""
+
+    if frame is None or getattr(frame, "empty", True):
+        return None
+    index = pd.DatetimeIndex(frame.index)
+    # 일봉 index는 거래소 날짜 라벨이다. UTC 자정으로 받은 값을 다시 NY로 변환하면
+    # 날짜가 하루 전으로 밀릴 수 있으므로 timezone 표지만 제거하고 라벨을 보존한다.
+    if index.tz is not None:
+        index = index.tz_localize(None)
+    local_dates = [stamp.date() for stamp in index]
+    now_ny = (now or datetime.now(_NY)).astimezone(_NY)
+    last = local_dates[-1]
+    if last == now_ny.date() and now_ny.time() < dt_time(16, 0):
+        return local_dates[-2] if len(local_dates) >= 2 else None
+    return last
+
+
+def find_breakout_pullback_stocks(
+    *,
+    reuse_only: bool = False,
+    result_limit: int = 20,
+    persist: bool = False,
+    universe_mode: str | None = None,
+    as_of=None,
+) -> dict:
+    """US_SWING_V1 — HARD GATE와 100점 순위를 분리한 상승장 후보 스캔."""
+
+    requested_mode = (
+        universe_mode.value if isinstance(universe_mode, us_swing.UniverseMode)
+        else str(universe_mode or us_swing.DEFAULT_CONFIG["universe"]["mode"])
+    )
+    valid_modes = {item.value for item in us_swing.UniverseMode}
+    if requested_mode not in valid_modes:
+        return {"ok": False, "error": f"지원하지 않는 Universe입니다: {requested_mode}", "rows": []}
+    if requested_mode == us_swing.UniverseMode.PIT_NASDAQ_TOP200.value:
+        return {
+            "ok": False,
+            "error": "PIT_NASDAQ_TOP200 point-in-time 명부가 아직 준비되지 않았습니다",
+            "rows": [],
+            "universe_mode": requested_mode,
+        }
+    try:
+        explicit_as_of = pd.Timestamp(as_of).date() if as_of is not None else None
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "as_of 날짜를 해석하지 못했습니다", "rows": []}
+
     daily, meta, memberships = _universe_daily(reuse_only)
     if not daily:
         return {"ok": False, "error": meta.get("error") or "미국 종목 일봉 조회 실패", "rows": []}
 
-    wait_min, wait_max = BREAKOUT_PULLBACK_RULE["wait_days"]
-    drop_low, drop_high = BREAKOUT_PULLBACK_RULE["drop_band"]
-    rows, window_count = [], 0
-    # 테마 등수는 **명부 전체**로 매긴다(걸린 종목만 쓰면 그날 몇 개 걸렸느냐로
-    # 출렁인다). 새 자료를 받지 않는다 — 어차피 전 종목을 훑고 있으니 모아만 둔다.
-    all_metrics: dict[str, dict] = {}
-    for ticker in US_LARGE_CAP_UNIVERSE:
-        metrics = _series_metrics(daily.get(ticker))
-        if not metrics.get("ok"):
-            continue
-        all_metrics[ticker] = metrics
-        days_ago = metrics.get("high52_days_ago")
-        from_high = metrics.get("from_high_pct")
-        if days_ago is None or not (wait_min <= days_ago <= wait_max):
-            continue
-        window_count += 1
-        if from_high is None or not (drop_low <= from_high <= drop_high):
-            continue
-        row = _universe_row(ticker, metrics, memberships)
-        row["wait_days"] = int(days_ago)
-        # **뚫던 날 기준** 60일 상승률. metrics의 ret60(오늘 기준)과 다르다.
-        row["gain60_at_breakout"] = breakout_gain60(daily.get(ticker), days_ago)
-        # 파는 날은 규칙에 없다(2026-08-12). 대신 이 자리의 3개월·6개월·1년 과거
-        # 성적을 줄마다 실어 화면이 셋을 나란히 보여주게 한다.
+    # 시장 사이클은 10% 조정 전 ATH까지 거슬러야 하므로 종목용 2년 배치와 별도로
+    # IXIC 전체 이력 한 종목만 읽는다. 시작점 이전 ATH를 모르면 조정→회복 사이클을
+    # MARKET_RISK로 잘못 볼 수 있으므로 10년으로 임의 절단하지 않는다.
+    loader = _download_cache_only if reuse_only else _download_cached
+    market_frames, market_meta = loader(
+        ("^IXIC",), period="max", interval="1d", ttl_seconds=600
+    )
+    ixic = market_frames.get("^IXIC")
+    if ixic is None or getattr(ixic, "empty", True):
+        return {
+            "ok": False,
+            "error": "Nasdaq Composite 전체 일봉이 없어 시장 사이클을 안전하게 계산하지 못했습니다",
+            "rows": [],
+        }
+    completed = explicit_as_of or _last_completed_us_date(ixic)
+    if completed is None:
+        return {"ok": False, "error": "완료된 미국 거래일을 확인하지 못했습니다", "rows": []}
+
+    # 현재 저장소에는 자산유형이 붙은 Nasdaq 전체 명부가 없다. 조용히 가장하지 않고
+    # 실제 사용한 연구 200명부와 요청값을 둘 다 결과에 남긴다.
+    actual_mode = us_swing.UniverseMode.LEGACY_RESEARCH_200.value
+    universe_warning = None
+    if requested_mode != actual_mode:
+        universe_warning = (
+            "LIVE_NASDAQ_COMMON 전체 자산유형 명부가 없어 현재는 기존 연구 200명부로 "
+            "계산했습니다. ETF·ETN·우선주·워런트·펀드는 후보 명부에 없습니다."
+        )
+
+    config = us_swing.merged_config({"universe": {"include_adr": True}})
+    scan = us_swing.scan_eod(
+        daily,
+        ixic,
+        memberships,
+        universe_records=_swing_universe_records(),
+        universe_mode=actual_mode,
+        as_of=completed,
+        config=config,
+    )
+    if not scan.get("ok"):
+        return {**scan, "error": scan.get("error") or "미국 스윙 후보 계산 실패"}
+    scan_completed = pd.Timestamp(scan.get("date") or completed).date()
+
+    # 기존 상세의 ATR·당일 거래량 등 표시값은 재사용하되 새 canonical 값이 이긴다.
+    for row in scan.get("all_rows") or []:
+        frame = daily.get(row.get("ticker"))
+        if frame is not None:
+            target = pd.Timestamp(scan_completed)
+            index = pd.DatetimeIndex(frame.index)
+            if index.tz is not None:
+                target = target.tz_localize(index.tz)
+            frame = frame[index <= target]
+        legacy_metrics = _series_metrics(frame)
+        row["metrics"] = {**legacy_metrics, **(row.get("metrics") or {})}
+        row["plan"] = breakout_plan(row)
         row["hold_days"] = None
-        row["hold_results"] = BREAKOUT_HOLD_RESULTS
-        row["volume_streak"] = volume_streak_days(daily.get(ticker))
-        row["recent_gain_pct"] = recent_gain_pct(daily.get(ticker))
-        rows.append(row)
-    # 테마 동반은 배점에서도 순위에서도 빠졌다(2026-08-13). 그래도 세어 두는 까닭은
-    # **화면이 '같은 테마에서 몇 개나 함께 걸렸나'를 보여주기** 때문이다.
-    _attach_theme_together(rows, memberships)
-    # **배점의 70점이 테마 근접도다. 점수를 내기 전에 달아 둬야 한다**(2026-08-13).
-    _attach_theme_proximity(rows, daily)
-    # 아래 두 등수는 2026-08-13에 **0점이 됐다**(그날 등수는 네 번 중 0번 통과).
-    # 그래도 계속 달아 둔다 — 화면 상세와 나중 재측정이 이 값을 읽고, 다시 재서
-    # 되살릴 수 있어야 한다. 점수에는 안 들어간다(BREAKOUT_SCORE_WEIGHTS가 0.0).
-    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_spread5",
-                       top_n=THEME_RANK_TOP_N, derive=_rose_5d)
-    _attach_theme_rank(rows, memberships, all_metrics, prefix="theme_less_drop",
-                       metric_key="from_high_pct", top_n=THEME_LESS_DROP_TOP_N)
-    # 점수가 곧 순위다(2026-08-06 사용자 결정 — 별점은 뺐다). 같은 점수 안에서는
-    # 배점에 쓴 값 그대로 가른다(테마 근접도 → 뚫기 전 60일 상승 → 티커).
-    for row in rows:
-        row["score"] = float(breakout_score(row)["score"])
-    rows.sort(key=lambda row: (-row.get("score", 0.0), *_breakout_rank_key(row)))
-    rows = rows[: max(1, int(result_limit))]
-    for index, row in enumerate(rows, 1):
-        row["pullback_rank"] = index
-    return {
-        "ok": True,
-        "mode": "breakout",
-        "rows": rows,
+        row["hold_results"] = ()
+
+    limit = max(1, int(result_limit))
+    primary_all = list(scan.get("primary_rows") or [])
+    watch_all = list(scan.get("watch_rows") or [])
+    scan["rows"] = primary_all[:limit]
+    scan["primary_rows"] = primary_all[:limit]
+    scan["watch_rows"] = watch_all[:limit]
+    scan.update({
         "rule": BREAKOUT_PULLBACK_RULE,
-        # 표를 잰 자리인지 알려만 준다 — 막지 않는다(2026-08-06 사용자 결정).
-        "market": breakout_market_state(),
-        "score_weights": BREAKOUT_SCORE_WEIGHTS,
-        "base_win_rate": BREAKOUT_BASE_WIN_RATE,
-        "base_median_return": BREAKOUT_BASE_MEDIAN,
-        "universe_count": len(US_LARGE_CAP_UNIVERSE),
-        # 받아 온 묶음에는 테마 ETF·SPY·QQQ도 들어 있다(_us_batch_tickers).
-        # 화면이 말하는 '일봉 확보'는 **대형주 명부**에 대한 것이므로 그것만 센다.
-        "data_count": sum(1 for t in US_LARGE_CAP_UNIVERSE if t in daily),
-        "window_count": window_count,
-        "result_limit": int(result_limit),
-        "checked_at": meta.get("fetched_at"),
-        "stale": bool(meta.get("stale")),
+        "requested_universe_mode": requested_mode,
+        "universe_mode": actual_mode,
+        "universe_warning": universe_warning,
+        "market_history_warning": None,
+        "data_count": int(scan.get("data_count") or 0),
+        "window_count": sum(
+            1 for row in scan.get("all_rows") or []
+            if row.get("has_valid_52w_breakout")
+            and 1 <= int(row.get("days_since_anchor") or 0) <= 3
+        ),
+        "result_limit": limit,
+        "checked_at": meta.get("fetched_at") or market_meta.get("fetched_at"),
+        "stale": bool(meta.get("stale") or market_meta.get("stale")),
         "reused_batch": bool(meta.get("reused_superset")),
-    }
+        "score_weights": BREAKOUT_SCORE_WEIGHTS,
+        "score_model_version": us_swing.SCORE_MODEL_VERSION,
+    })
+    if persist:
+        try:
+            import jarvis3_store
+
+            scan["snapshot_run_id"] = jarvis3_store.save_swing_scan(scan)
+            scan["snapshot_saved"] = True
+        except Exception as exc:
+            _log.warning("US swing snapshot save failed: %s", exc)
+            scan["snapshot_saved"] = False
+            scan["snapshot_error"] = str(exc)
+    return scan
 
 
 def _from_high_on(frame, as_of_date: str):
@@ -2904,49 +2949,30 @@ def crash_reference_day(lookback_days: int = 30) -> dict:
 
 
 def breakout_market_state() -> dict:
-    """상승장 규칙의 표를 **잰 자리**인가 (2026-08-06 사용자 결정).
-
-    거르지 않는다 — 알려만 준다. 급락 갈래와 같은 방식이다.
-
-    왜 거르지 않나 — 이 조건은 설명서에 있던 규칙이 아니다. 2026-08-01에
-    '어느 규칙이 어느 장에서 통하나'를 재면서 **날을 둘로 가르려고 내가 정한
-    잣대**였고(commit 73e3605·8c3f8e3), 표 1의 숫자는 그 날들에서만 잰 값이라
-    표 맨 위 '장세' 칸에 적었다. 상하님이 2026-08-06에 그 표를 화면에 넣으시면서
-    '이렇게 쟀다'가 '이렇게 하라'처럼 읽히게 됐다.
-
-    상하님이 주신 원래 설명서(2026-08-01)에는 이동평균도 시장 낙폭도 없다.
-    거르는 조건으로 바꾸면 화면이 통째로 비는 날이 생긴다(급락 갈래에서 실제로
-    겪었다). 그래서 **표를 잰 자리인지만 알려주고 종목은 그대로 보여준다.**
-    """
+    """US_SWING_V1의 IXIC 조정→이전 ATH 회복 MARKET GATE."""
     try:
         daily, _meta = _download_cached(
-            (CRASH_MARKET_SYMBOL,), period="1y", interval="1d", ttl_seconds=300
+            ("^IXIC",), period="max", interval="1d", ttl_seconds=600
         )
-        metrics = _series_metrics(daily.get(CRASH_MARKET_SYMBOL))
-        if not metrics.get("ok"):
-            raise RuntimeError("나스닥 일봉 없음")
-        drop = _finite(metrics.get("from_high_pct"))
-        current = _finite(metrics.get("current"))
-        sma200 = _finite(metrics.get("sma200"))
-    except Exception:
-        drop = current = sma200 = None
-    if drop is None or current is None or sma200 is None:
-        return {"ok": False, "armed": True, "drop_pct": drop, "above_200": None,
-                "reason": "나스닥을 못 읽어 표를 잰 자리인지 확인하지 못했습니다"}
-    above = current > sma200
-    limit = BREAKOUT_MARKET_MAX_DROP
-    armed = bool(above) and drop > limit
-    place = "위" if above else "아래"
-    if armed:
-        reason = (f"나스닥이 200일선 {place}이고 고점 대비 {drop:.1f}%입니다 — "
-                  "표를 잰 자리가 맞습니다")
-    else:
-        reason = (f"나스닥이 200일선 {place}이고 고점 대비 {drop:.1f}%입니다 — "
-                  f"**오늘은 표를 잰 자리가 아닙니다.** 위 표의 숫자는 200일선 위이고 "
-                  f"고점 대비 {abs(limit):.0f}% 안쪽이던 날에서만 잰 값입니다. "
-                  "종목은 그대로 보여드리니 참고만 하십시오.")
-    return {"ok": True, "armed": armed, "drop_pct": drop, "above_200": above,
-            "max_drop": limit, "reason": reason}
+        frame = daily.get("^IXIC")
+        completed = _last_completed_us_date(frame)
+        state = us_swing.market_gate(frame, as_of=completed)
+    except Exception as exc:
+        return {"ok": False, "armed": False, "market_status": "MARKET_RISK",
+                "reason": f"Nasdaq 시장 Gate를 계산하지 못했습니다 ({exc})"}
+    status = state.get("market_status")
+    armed = bool(state.get("valid") and status == "MARKET_ON")
+    drawdown = state.get("market_drawdown")
+    state["ok"] = bool(state.get("valid"))
+    state["armed"] = armed
+    state["drop_pct"] = float(drawdown) * 100.0 if drawdown is not None else None
+    state["above_200"] = state.get("ixic_above_sma200")
+    state["reason"] = (
+        "Nasdaq가 10% 이상 조정을 끝내고 이전 종가 ATH를 회복한 MARKET_ON입니다."
+        if armed else
+        f"Nasdaq 상태는 {status or '자료부족'}입니다 — 신규 PRIMARY 후보를 막습니다."
+    )
+    return state
 
 
 def crash_market_state() -> dict:
