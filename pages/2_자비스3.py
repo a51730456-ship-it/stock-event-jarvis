@@ -4913,8 +4913,12 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
         prefix = "j3rbw" if watch_mode else "j3rbf"
         head = box.columns(row_widths)
-        head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
-        head[1].markdown("<div class='j3-th-head'>총점</div>", unsafe_allow_html=True)
+        # **「번호 · 점수 (참고)」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
+        # 2026-08-20에 다시 확인하심). 검증되지 않은 차례를 1위·2위처럼 보이면
+        # 화면이 거짓말을 한다. 이 배점은 상하님 지시문이 정해 준 것이지 제가
+        # 과거차트로 "이 차례가 맞다"를 확인한 것이 아니다. 그냥 번호다.
+        head[0].markdown("<div class='j3-th-head'>번호</div>", unsafe_allow_html=True)
+        head[1].markdown("<div class='j3-th-head'>점수 (참고)</div>", unsafe_allow_html=True)
         head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
         head[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
         for index, row in enumerate(rows):

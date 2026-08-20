@@ -1353,26 +1353,32 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("고점대비현재", up_joined)
 
     def test_the_score_has_its_own_column_next_to_the_rank(self):
-        """점수는 순위 칸이 아니라 **다음 칸**이다(2026-08-06 사용자 지시).
+        """점수는 번호 칸이 아니라 **다음 칸**이다(2026-08-06 사용자 지시).
 
-        순위 칸에 같이 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다.
+        번호 칸에 같이 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다.
 
-        2026-08-20 — 새 지시문이 자격(HARD GATE)을 통과한 종목에만 등급을 주게
-        하면서 칸 이름이 '번호 · 점수 (참고)'에서 '순위 · 총점'으로 바뀌었다.
-        대신 **총점을 승률로 부르지 않는다**는 것을 화면 글과 캡션이 지킨다.
+        **칸 이름은 「번호 · 점수 (참고)」다**(2026-08-07 상하님 지시, 2026-08-20에
+        다시 확인하심). 「순위 · 총점」으로 적으면 검증되지 않은 차례를 1위·2위처럼
+        보이게 해서 화면이 거짓말을 한다. 이 배점은 상하님 지시문이 정해 준 것이지
+        제가 과거차트로 "이 차례가 맞다"를 확인한 것이 아니다.
         """
         app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
                                   _breakout_result())
         markdowns = [str(node.value) for node in app.markdown]
         joined = " ".join(markdowns)
         header = next(value for value in markdowns
-                      if "j3-th-head" in value and "총점" in value)
-        self.assertIn("총점", header)
+                      if "j3-th-head" in value and "점수 (참고)" in value)
+        self.assertIn("점수 (참고)", header)
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = source.split("def _render_us_swing_finder(")[1].split("\ndef ")[0]
-        self.assertLess(block.index("j3-th-head'>순위"), block.index("j3-th-head'>총점"))
-        self.assertLess(block.index("j3-th-head'>총점"), block.index("j3-th-head'>종목"))
-        # 총점 옆에는 핵심·보조가 따로 보여야 한다(지시문 33번).
+        self.assertLess(block.index("j3-th-head'>번호"),
+                        block.index("j3-th-head'>점수 (참고)"))
+        self.assertLess(block.index("j3-th-head'>점수 (참고)"),
+                        block.index("j3-th-head'>종목"))
+        # 「순위」·「총점」이 되살아나면 여기서 깨진다.
+        for gone in ("j3-th-head'>순위", "j3-th-head'>총점"):
+            self.assertNotIn(gone, block, f"{gone}이 되살아났다")
+        # 점수 옆에는 핵심·보조가 따로 보여야 한다(지시문 33번).
         self.assertIn("핵심", joined)
         self.assertIn("보조", joined)
         self.assertTrue(any("점수는 승률이 아닙니다" in str(node.value)
