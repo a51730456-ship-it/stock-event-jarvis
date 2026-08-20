@@ -1072,7 +1072,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082050
+_REQUIRED_J3_REVISION = 2026082060
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -3162,11 +3162,7 @@ def _swing_factor_table_html(
         detail = html.escape(str(payload.get("detail_explanation") or ""))
         status = html.escape(str(payload.get("status") or ""))
         confidence = html.escape(str(payload.get("confidence") or ""))
-        sureness = {"HIGH": "여러 번 다시 재도 살아남은 조건",
-                    "MEDIUM_HIGH": "꽤 여러 번 확인한 조건",
-                    "MEDIUM": "확인은 했지만 더 재 봐야 하는 조건",
-                    "EXPERIMENTAL": "아직 더 재 봐야 하는 조건"}.get(
-                        str(payload.get("confidence") or ""), "")
+        sureness = us_swing.plain_confidence(payload.get("confidence"))
         items.append(
             "<div class='j3fh-item'>"
             f"<div class='j3fh-name'>{title} · {current}</div>"
@@ -4250,7 +4246,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             "<div class='j3-mc-sub j3-muted'>명부 안에서 이만큼</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>신고가 후 눌림</div>"
             f"<div class='j3-mc-val j3-up'>{'—' if pullback_pct is None else f'-{float(pullback_pct):.1f}%'}</div>"
-            f"<div class='j3-mc-sub j3-muted'>{int(row.get('days_since_anchor') or 0)}거래일째</div></div>",
+            f"<div class='j3-mc-sub j3-muted'>최고가 넘고 {int(row.get('days_since_anchor') or 0)}거래일째</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>핵심점수</div>"
             f"<div class='j3-mc-val j3-green'>{float(row.get('core_score') or 0):.0f}/70</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>보조점수</div>"
@@ -4415,7 +4411,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             pullback_text = "—" if pullback is None else f"{float(pullback):.1f}%"
             plan_cells = [
                 ("진입 관찰", str(plan.get("entry") or "—"), "#44f0a1"),
-                ("Anchor / 관찰일", f"{anchor} · day {int(row.get('days_since_anchor') or 0)}", "#e6e6e6"),
+                ("최고가 넘은 날 / 그 뒤", f"{anchor} · {int(row.get('days_since_anchor') or 0)}거래일째", "#e6e6e6"),
                 ("핵심 / 보조", f"{float(row.get('core_score') or 0):.0f}/70 · {float(row.get('support_score') or 0):.0f}/30", "#e6e6e6"),
                 ("눌림 / 손절·청산", f"{pullback_text} · 연구 중", "#ffd23f"),
             ]
@@ -4801,6 +4797,14 @@ def _score_table_html(mode: str, base_win_rate=None) -> str:
     )
 
 
+# 명부 이름도 화면에는 사람 말로 적는다(2026-08-20 상하님 지시).
+_UNIVERSE_TEXT = {
+    "LEGACY_RESEARCH_200": "미국 대형주 200",
+    "LIVE_NASDAQ_COMMON": "나스닥 보통주 전체",
+    "PIT_NASDAQ_TOP200": "그때그때 나스닥 200",
+}
+
+
 def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     """US_SWING_V1 전용 PRIMARY/WATCH 목록. 기존 급락 렌더와 완전히 분리한다."""
 
@@ -4837,7 +4841,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     st.markdown(
         "<div class='j3-pull-stats'>"
         f"기준일 <b>{html.escape(str(result.get('date') or '—'))}</b> · "
-        f"명부 <b>{html.escape(str(result.get('universe_mode') or '—'))}</b> · "
+        f"명부 <b>{html.escape(_UNIVERSE_TEXT.get(str(result.get('universe_mode') or ''), str(result.get('universe_mode') or '—')))}</b> · "
         f"전체 <b>{int(result.get('universe_count') or 0):,}개</b> → "
         f"그날 일봉이 있는 <b>{int(result.get('data_count') or 0):,}개</b> · "
         f"강함을 잰 종목 <b>{int(result.get('rs_cross_section_60') or 0):,}/"
@@ -4864,7 +4868,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             f"지금 기준: 최근 3개월 상위 "
             f"{100 - float(rs_cfg.get('rs60_min_percentile', 80)):.0f}% · 최근 6개월 상위 "
             f"{100 - float(rs_cfg.get('rs120_min_percentile', 80)):.0f}% · "
-            f"day {int(entry_cfg.get('watch_start_day', 1))}~{int(entry_cfg.get('watch_end_day', 3))} · "
+            f"신고가 뒤 {int(entry_cfg.get('watch_start_day', 1))}~"
+            f"{int(entry_cfg.get('watch_end_day', 3))}거래일 · "
             f"눌림 {float(entry_cfg.get('pullback_min', .03)) * 100:.0f}~"
             f"{float(entry_cfg.get('pullback_max', .10)) * 100:.0f}%<br>"
             "<b>점수</b> — 최근 3개월 25 + 최근 6개월 25 + 눌림 20 = <b>핵심 70</b>, "
@@ -4881,7 +4886,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             st.markdown(
                 "<div class='j3-reason-card'>"
                 f"<div class='j3-reason-title'>{html.escape(str(payload.get('title') or metric))} "
-                f"<span class='j3-muted'>· {html.escape(str(payload.get('confidence') or ''))}</span></div>"
+                f"<span class='j3-muted'>· "
+                f"{html.escape(us_swing.plain_confidence(payload.get('confidence')))}</span></div>"
                 f"<div class='j3-reason-body'><b>{html.escape(str(payload.get('one_line') or ''))}</b><br>"
                 f"{html.escape(str(payload.get('detail') or ''))}</div></div>",
                 unsafe_allow_html=True,
@@ -4957,7 +4963,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                     html.escape(str(row.get("ticker") or "—")),
                     f"<span title='{html.escape(label)}'>{html.escape(label)}</span>",
                     html.escape(str(rs60)), html.escape(str(rs120)),
-                    f"{html.escape(pullback_text)} · day {int(row.get('days_since_anchor') or 0)}",
+                    f"{html.escape(pullback_text)} · {int(row.get('days_since_anchor') or 0)}일째",
                     f"{float(row.get('core_score') or 0):.0f}/70",
                     f"{float(row.get('support_score') or 0):.0f}/30",
                     html.escape(theme_text),

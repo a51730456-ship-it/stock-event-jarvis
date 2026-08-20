@@ -17,7 +17,7 @@ from typing import Iterable, Mapping
 import pandas as pd
 
 
-MODULE_REVISION = 2026082050
+MODULE_REVISION = 2026082060
 SCORE_MODEL_VERSION = "US_SWING_V1"
 
 
@@ -299,6 +299,20 @@ PLAIN_STATE = {
     "INSUFFICIENT_INDEX_HISTORY": "나스닥 이력이 모자람",
     "RS_RANK_UNRELIABLE": "견줄 종목이 30개가 안 됨",
 }
+
+
+# 「얼마나 믿을 만한 항목인가」도 화면에는 사람 말로 적는다.
+CONFIDENCE_TEXT = {
+    "HIGH": "여러 번 다시 재도 살아남은 조건",
+    "MEDIUM_HIGH": "꽤 여러 번 확인한 조건",
+    "MEDIUM": "확인은 했지만 더 재 봐야 하는 조건",
+    "EXPERIMENTAL": "아직 더 재 봐야 하는 조건",
+}
+
+
+def plain_confidence(code) -> str:
+    """연구 신뢰도 코드 → 화면에 적을 말."""
+    return CONFIDENCE_TEXT.get(str(code or "").strip(), "")
 
 
 def plain_state(code) -> str:

@@ -23,7 +23,7 @@ import pandas as pd
 
 import us_swing_selector as us_swing
 
-_REQUIRED_US_SWING_REVISION = 2026082050
+_REQUIRED_US_SWING_REVISION = 2026082060
 if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
     us_swing = importlib.reload(us_swing)
 
@@ -186,7 +186,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026082050
+MODULE_REVISION = 2026082060
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -2445,8 +2445,8 @@ def find_breakout_pullback_stocks(
     universe_warning = None
     if requested_mode != actual_mode:
         universe_warning = (
-            "LIVE_NASDAQ_COMMON 전체 자산유형 명부가 없어 현재는 기존 연구 200명부로 "
-            "계산했습니다. ETF·ETN·우선주·워런트·펀드는 후보 명부에 없습니다."
+            "나스닥 보통주 전체 명부를 아직 못 갖춰서, 지금은 미국 대형주 200개로 "
+            "찾았습니다. ETF와 우선주 같은 것은 후보에 넣지 않습니다."
         )
 
     config = us_swing.merged_config({"universe": {"include_adr": True}})
