@@ -23,7 +23,7 @@ import pandas as pd
 
 import us_swing_selector as us_swing
 
-_REQUIRED_US_SWING_REVISION = 2026082060
+_REQUIRED_US_SWING_REVISION = 2026082110
 if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
     us_swing = importlib.reload(us_swing)
 
@@ -186,7 +186,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026082060
+MODULE_REVISION = 2026082110
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -2425,8 +2425,10 @@ def find_breakout_pullback_stocks(
     # IXIC 전체 이력 한 종목만 읽는다. 시작점 이전 ATH를 모르면 조정→회복 사이클을
     # MARKET_RISK로 잘못 볼 수 있으므로 10년으로 임의 절단하지 않는다.
     loader = _download_cache_only if reuse_only else _download_cached
+    # 일봉 전체 이력은 하루에 한 번만 늘어난다. 10분마다 다시 받던 것을 여섯
+    # 시간으로 늘린다(2026-08-21) — 같은 날 두 번째 조회부터는 그냥 캐시를 쓴다.
     market_frames, market_meta = loader(
-        ("^IXIC",), period="max", interval="1d", ttl_seconds=600
+        ("^IXIC",), period="max", interval="1d", ttl_seconds=21600
     )
     ixic = market_frames.get("^IXIC")
     if ixic is None or getattr(ixic, "empty", True):
@@ -2463,8 +2465,23 @@ def find_breakout_pullback_stocks(
         return {**scan, "error": scan.get("error") or "미국 스윙 후보 계산 실패"}
     scan_completed = pd.Timestamp(scan.get("date") or completed).date()
 
-    # 기존 상세의 ATR·당일 거래량 등 표시값은 재사용하되 새 canonical 값이 이긴다.
+    limit = max(1, int(result_limit))
+    primary_all = list(scan.get("primary_rows") or [])
+    watch_all = list(scan.get("watch_rows") or [])
+    scan["rows"] = primary_all[:limit]
+    scan["primary_rows"] = primary_all[:limit]
+    scan["watch_rows"] = watch_all[:limit]
+
+    # ATR·당일 거래량 같은 **화면 전용 표시값**은 실제로 보여줄 줄에만 붙인다
+    # (2026-08-21 상하님 지시 "줄이는 방법 찾아봐라"). 200줄 전부에 붙이면 그만큼
+    # 기다리는데, 화면에 뜨는 것은 정식 후보와 관찰 목록뿐이다. 나머지 줄은
+    # selector가 만든 canonical 값을 그대로 갖고 있어 저장에는 아무 영향이 없다.
+    shown = scan["primary_rows"] + scan["watch_rows"]
     for row in scan.get("all_rows") or []:
+        row["plan"] = breakout_plan(row)
+        row["hold_days"] = None
+        row["hold_results"] = ()
+    for row in shown:
         frame = daily.get(row.get("ticker"))
         if frame is not None:
             target = pd.Timestamp(scan_completed)
@@ -2474,16 +2491,6 @@ def find_breakout_pullback_stocks(
             frame = frame[index <= target]
         legacy_metrics = _series_metrics(frame)
         row["metrics"] = {**legacy_metrics, **(row.get("metrics") or {})}
-        row["plan"] = breakout_plan(row)
-        row["hold_days"] = None
-        row["hold_results"] = ()
-
-    limit = max(1, int(result_limit))
-    primary_all = list(scan.get("primary_rows") or [])
-    watch_all = list(scan.get("watch_rows") or [])
-    scan["rows"] = primary_all[:limit]
-    scan["primary_rows"] = primary_all[:limit]
-    scan["watch_rows"] = watch_all[:limit]
     scan.update({
         "rule": BREAKOUT_PULLBACK_RULE,
         "requested_universe_mode": requested_mode,
@@ -3694,17 +3701,20 @@ def get_index_sparklines(days: int = 30) -> dict:
     기준선은 전일 종가여야 한다(2026-07-25 사용자 지적 — 이전 구현이 틀렸다).
     분봉을 못 받으면 그 지수는 빼고 숫자만 보여준다.
     """
+    # **VIX도 함께 받는다**(2026-08-21 상하님 지시 — "시장 상황 VIX도 나스닥
+    # 종합처럼 그래프 넣어라"). 같은 묶음에 하나 더 얹는 것이라 조회 횟수는 그대로다.
+    symbols = US_INDEX_SYMBOLS + ("^VIX",)
     try:
         intraday, _m1 = _download_cached(
-            US_INDEX_SYMBOLS, period="1d", interval="5m", ttl_seconds=300)
+            symbols, period="1d", interval="5m", ttl_seconds=300)
         # 6개월치를 받는다 — 손을 올렸을 때 보여줄 '일봉 6개월' 그림에 쓴다
         # (2026-08-06). 조회 횟수는 그대로이고 기간만 늘어난다.
         daily, _m2 = _download_cached(
-            US_INDEX_SYMBOLS, period="6mo", interval="1d", ttl_seconds=600)
+            symbols, period="6mo", interval="1d", ttl_seconds=600)
     except Exception:
         return {}
     result = {}
-    for symbol in US_INDEX_SYMBOLS:
+    for symbol in symbols:
         frame = intraday.get(symbol)
         closes = daily.get(symbol)
         if frame is None or frame.empty or closes is None or len(closes) < 2:

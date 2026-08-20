@@ -353,10 +353,12 @@ class Jarvis3PageTests(unittest.TestCase):
             ).click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
-        subheaders = [str(node.value) for node in app.subheader]
-        self.assertIn("미국 전체시장 판단", subheaders)
-        # 종목명은 밝은 보라 커스텀 HTML(markdown)로 렌더링된다.
         markdowns = [str(node.value) for node in app.markdown]
+        # 제목은 2026-08-21부터 st.subheader가 아니라 **절반 크기 글**이다
+        # (상하님 지시 — 28px는 너무 컸다). 글이 화면에 있는지로 본다.
+        self.assertTrue(any("미국 전체시장 판단" in value for value in markdowns),
+                        "화면 맨 위 제목이 없다")
+        # 종목명은 밝은 보라 커스텀 HTML(markdown)로 렌더링된다.
         self.assertTrue(any("NVDA" in value for value in markdowns))
         self.assertTrue(any("j3-stock-name" in value for value in markdowns))
         # 테마 순위표·대장주 1–6위표 모두 HTML(가운데 정렬), 선택은 pills·radio.
@@ -1608,7 +1610,8 @@ class Jarvis3PageTests(unittest.TestCase):
 
         self.assertEqual(len(app.exception), 0)
         self.assertTrue(app.session_state.filtered_state.get("authenticated"))
-        self.assertIn("미국 전체시장 판단", [str(node.value) for node in app.subheader])
+        self.assertTrue(any("미국 전체시장 판단" in str(node.value)
+                            for node in app.markdown), "화면 맨 위 제목이 없다")
 
     def test_guest_button_switches_without_password_and_keeps_restrictions(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \

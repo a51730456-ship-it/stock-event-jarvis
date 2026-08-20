@@ -17,7 +17,7 @@ from typing import Iterable, Mapping
 import pandas as pd
 
 
-MODULE_REVISION = 2026082060
+MODULE_REVISION = 2026082110
 SCORE_MODEL_VERSION = "US_SWING_V1"
 
 
@@ -308,6 +308,29 @@ CONFIDENCE_TEXT = {
     "MEDIUM": "확인은 했지만 더 재 봐야 하는 조건",
     "EXPERIMENTAL": "아직 더 재 봐야 하는 조건",
 }
+
+
+# 표 칸에 넣을 **짧은 말**. 긴 설명(STATUS_TEXT)은 손을 올리면 뜬다.
+# 칸에 긴 문장을 그대로 넣으면 옆 칸 글자를 덮는다(2026-08-21 상하님 지적).
+SHORT_STATUS = {
+    "INSUFFICIENT_DATA": "자료 부족",
+    "MARKET_BLOCKED": "장이 아님",
+    "RS60_WEAK": "3개월 약함",
+    "RS120_WEAK": "6개월 약함",
+    "RS_BOTH_WEAK": "3·6개월 약함",
+    "BREAKOUT_WAIT": "최고가 못 넘음",
+    "ENTRY_WINDOW_NOT_STARTED": "오늘 넘음",
+    "PULLBACK_WAIT": "덜 내려옴",
+    "TOO_DEEP": "너무 깊음",
+    "ENTRY_WINDOW_EXPIRED": "때 지남",
+    "PRIMARY_CANDIDATE": "정식 후보",
+}
+
+
+def short_status(code) -> str:
+    """상태코드 → 표 칸에 넣을 짧은 말."""
+    text = str(code or "").strip()
+    return SHORT_STATUS.get(text, text or "—")
 
 
 def plain_confidence(code) -> str:

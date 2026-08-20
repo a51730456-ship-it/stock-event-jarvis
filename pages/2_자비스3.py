@@ -1072,7 +1072,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082060
+_REQUIRED_J3_REVISION = 2026082110
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1858,7 +1858,13 @@ def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
     overview = j3data.get_market_overview()
     st.session_state["j3_market_overview"] = overview
-    st.subheader("미국 전체시장 판단")
+    # 제목은 **절반 크기**다(2026-08-21 상하님 지시). st.subheader는 28px인데
+    # 그만한 글씨가 필요한 자리가 아니다 — 아래 칸들이 주인공이다.
+    st.markdown(
+        "<div style='font-size:14px; font-weight:800; color:#e6e6e6; "
+        "margin:.2rem 0 .35rem'>미국 전체시장 판단</div>",
+        unsafe_allow_html=True,
+    )
     if not overview.get("ok"):
         st.error(f"시장 자료 조회 실패: {_safe_error_text(overview.get('error'))}")
         st.caption("네트워크가 복구되면 1분 자동 갱신에서 다시 시도합니다.")
@@ -1884,8 +1890,10 @@ def _render_market_overview() -> None:
     # VIX는 '지금 수준(15.28)'과 '전일 대비(-1.16%)'가 서로 다른 값이다. 둘 다
     # 크게 적는다(2026-08-12 상하님 지시 "수치와 +− 글자 둘 다 크게").
     # VIX는 오르면 위험이라 색을 뒤집는다.
+    # **VIX 글자와 숫자는 보라색**이다(2026-08-21 상하님 지시). 오르내림 표시는
+    # 지금까지대로 둔다 — VIX는 오르면 위험이라 색이 뒤집혀 있다.
     vix_sub = (
-        f"<span style='font-size:1.25rem;font-weight:800;color:#e6e6e6'>"
+        f"<span style='font-size:1.25rem;font-weight:800;color:#b98cff'>"
         f"VIX {_number(vix_value, 2)}</span> "
         f"<span style='font-size:1.25rem;font-weight:800;"
         f"color:{_sign_color(None if vix_change is None else -float(vix_change))}'>"
@@ -1906,7 +1914,7 @@ def _render_market_overview() -> None:
         regime_gauge_ui.regime_box_html(overview, freeze=True),
         # SPY·QQQ도 지수 칸과 같은 옷에 그림(당일·일봉)을 넣는다(2026-08-01 지시).
         *_us_etf_cells(overview),
-        _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b"),
+        _market_phase_cell(phase, phase_color, vix_sub),
         _fear_greed_box(),
     ]
     # 게이지 스타일은 지표 줄과 따로 내보낸다. 줄 안에 <style>을 끼워 넣으면
@@ -2055,7 +2063,8 @@ def _us_futures_cell() -> str:
         sub += (f" <span class='j3-muted'>· S&P500 선물</span> "
                 f"<span class='{_sign_class(sp500['change_pct'])}'>"
                 f"{float(sp500['change_pct']):+.2f}%</span>")
-    chart = _sparkline_svg(nasdaq.get("chart") or {}, "#4da6ff", "#ff5b5b")
+    # 지수 칸과 **같은 틀·같은 크기**를 쓴다 — 그래야 밑선이 맞는다(2026-08-21).
+    chart = _index_chart_swap(nasdaq.get("chart") or {}, key="nqfutures")
     return (
         "<div class='j3-top-cell'>"
         f"<div class='j3-top-label j3-idx-label'>{label}</div>"
@@ -2126,10 +2135,17 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
         {"points": daily_points, "base": spark.get("daily_base")},
         "#4da6ff", "#ff5b5b", width=width, height=height,
     ) if len(daily_points) >= 2 else ""
-    if not daily:
-        return today
     # id에 쓸 수 없는 글자(^ 같은 것)를 걸러 낸다 — 지수 이름은 '^IXIC' 꼴이다.
     tap_id = "j3idx_" + re.sub(r"[^0-9A-Za-z]+", "", str(key) or str(int(width)))
+    if not daily:
+        # **일봉 그림이 없어도 같은 틀에 넣는다**(2026-08-21 상하님 지적 —
+        # "나스닥100 선물과 S&P 500 키맞춤이 안 맞다"). 그림만 덜렁 돌려주면
+        # 그 칸만 '당일' 글자 높이만큼 짧아져 옆 칸과 밑선이 어긋난다.
+        return (
+            "<div class='j3-idx-swap'>"
+            f"<div class='j3-idx-now'>{today}<div class='j3-idx-cap'>당일</div></div>"
+            "</div>"
+        )
     return (
         "<div class='j3-idx-swap'>"
         f"<input type='checkbox' id='{tap_id}' class='j3-idx-tap'>"
@@ -2228,6 +2244,30 @@ def _us_etf_cells(overview: dict) -> list:
             + chart_html + "</div>"
         )
     return cells
+
+
+def _market_phase_cell(phase: str, phase_color: str, vix_sub: str) -> str:
+    """시장 상황 칸 — VIX 그림을 지수 칸과 같은 모양으로 붙인다(2026-08-21 지시).
+
+    상하님 — "시장상황 vix지수 이것도 나스닥 종합처럼 그래프 넣어라. 당일 그래프
+    그리고 클릭하면 일봉 6개월 나오게 하고 … 옆에 QQQ 지수와 키높이하고."
+
+    그림이 없으면 지금까지처럼 숫자만 보여준다 — 자료 탓에 칸이 사라지면 안 된다.
+    """
+    try:
+        spark = (j3data.get_index_sparklines() or {}).get("^VIX")
+    except Exception:
+        spark = None
+    chart = _index_chart_swap(spark, width=104, height=78, key="vix") if spark else ""
+    if not chart:
+        return _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b")
+    return (
+        "<div class='j3-top-cell j3-idx-wide'>"
+        "<div class='j3-top-label j3-idx-label'>시장 상황</div>"
+        f"<div class='j3-top-val j3-idx-val' style='color:{phase_color}'>{phase}</div>"
+        f"<div class='j3-top-sub j3-idx-sub'>{vix_sub}</div>"
+        + chart + "</div>"
+    )
 
 
 def _fear_greed_box() -> str:
@@ -3978,12 +4018,21 @@ def _render_my_stock_panel(market: dict) -> None:
         "티커나 회사 이름을 치면 비슷한 이름까지 찾아 줍니다. "
         "**한글로 쳐도 됩니다**(엔비디아·애플·테슬라 등). 테마 목록에 없는 종목도 됩니다."
     )
-    query = st.text_input(
-        # 무엇을 어디에 넣어야 하는지 칸 이름이 직접 말하게 한다(2026-08-01 지시).
-        "종목이름 또는 티커 (아래에 종목이름을 넣어보세요)", key="j3_my_stock_query",
-        placeholder="예: 엔비디아, NVDA, apple, 팔란티어",
-    )
-    if not str(query or "").strip():
+    # **누를 단추를 둔다**(2026-08-21 상하님 지시 — "종목이름 치고 검색 누르는
+    # 단추가 없다"). 글자만 치면 한 글자마다 화면을 다시 그려 느리기도 했다.
+    # 칸 안에서 엔터를 쳐도 같이 눌린다.
+    with st.form("j3_my_stock_form", clear_on_submit=False, border=False):
+        typed = st.text_input(
+            # 무엇을 어디에 넣어야 하는지 칸 이름이 직접 말하게 한다(2026-08-01 지시).
+            "종목이름 또는 티커 (아래에 종목이름을 넣어보세요)", key="j3_my_stock_query",
+            placeholder="예: 엔비디아, NVDA, apple, 팔란티어",
+        )
+        searched = st.form_submit_button("🔎 검색", type="primary")
+    if searched:
+        st.session_state["j3_my_stock_asked"] = str(typed or "").strip()
+    query = str(st.session_state.get("j3_my_stock_asked") or "")
+    if not query.strip():
+        st.caption("종목 이름을 넣고 **🔎 검색**을 누르십시오.")
         return
 
     found = j3data.search_stocks(query)
@@ -4815,9 +4864,11 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     ixic = market_state.get("ixic_close")
     drawdown = market_state.get("market_drawdown")
 
-    for warning in (result.get("universe_warning"), result.get("market_history_warning")):
-        if warning:
-            st.warning(str(warning))
+    # **노란 경고 상자로 두지 않는다**(2026-08-21 상하님 물음 — "저거는 무슨 말인지
+    # 모르겠다, 지금 찾을 수 없다는 말인가?"). 문제가 난 것이 아니라 어느 명부로
+    # 찾았는지 알려 주는 곁글이라, 아래 기준일 줄 옆에 조용히 붙인다.
+    notes = [str(w) for w in (result.get("universe_warning"),
+                              result.get("market_history_warning")) if w]
     market_line = (
         f"나스닥 지수 — {us_swing.plain_state(market_status)}"
         + (f" · 지금 {float(ixic):,.2f}" if ixic is not None else "")
@@ -4830,10 +4881,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         st.error(market_line + " — 점수가 높아도 오늘은 새로 살 후보를 내지 않습니다.")
 
     if result.get("snapshot_saved"):
-        st.caption(
-            f"그날 잰 값을 그대로 저장했습니다 · {result.get('snapshot_run_id')}번 · "
-            f"배점 {result.get('score_model_version') or 'US_SWING_V1'}"
-        )
+        st.caption("오늘 찾은 값을 그대로 저장해 두었습니다 — 나중에 맞았는지 다시 봅니다.")
     elif result.get("snapshot_saved") is False:
         st.warning("후보는 다 찾았는데 그날 값을 저장하지 못했습니다: "
                    f"{result.get('snapshot_error') or '원인을 확인해야 합니다'}")
@@ -4848,7 +4896,9 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         f"{int(result.get('rs_cross_section_120') or 0):,}개</b> → "
         f"정식 후보 <b class='j3-green'>{len(primary):,}개</b> · "
         f"관찰만 <b>{len(watch):,}개</b>"
-        "</div>",
+        + ("".join(f"<div class='j3-reason-sub'>{html.escape(note)}</div>"
+                   for note in notes) if notes else "")
+        + "</div>",
         unsafe_allow_html=True,
     )
 
@@ -4952,21 +5002,30 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             rs120 = (explanations.get("rs120") or {}).get("display_value") or "자료부족"
             pullback = row.get("pullback_pct_close")
             pullback_text = "—" if pullback is None else f"-{float(pullback):.1f}%"
-            label = (
-                f"관찰 · {row.get('status_text') or '조건을 다 넘지 못했습니다'}"
+            # 칸에는 **짧은 말**만 넣는다(2026-08-21). 긴 설명은 손을 올리면 뜨게
+            # 두고, 칸 안에서는 잘라 준다 — 안 자르면 옆 칸 글자를 덮는다.
+            long_label = (
+                str(row.get("status_text") or "조건을 다 넘지 못했습니다")
                 if watch_mode else
-                f"{row.get('grade') or '—'}등급 · {row.get('grade_text') or '정식 후보'}"
+                str(row.get("grade_text") or "정식 후보")
             )
+            short_label = (
+                us_swing.short_status(row.get("primary_status")) if watch_mode
+                else f"{row.get('grade') or '—'}등급"
+            )
+            label = (f"<span class='j3-rb-clip' title='{html.escape(long_label)}'>"
+                     f"{html.escape(short_label)}</span>")
             theme_text = str(row.get("theme_id") or "자료부족")
             cols[3].markdown(
                 _flex_row(rest_widths, [
                     html.escape(str(row.get("ticker") or "—")),
-                    f"<span title='{html.escape(label)}'>{html.escape(label)}</span>",
+                    label,
                     html.escape(str(rs60)), html.escape(str(rs120)),
                     f"{html.escape(pullback_text)} · {int(row.get('days_since_anchor') or 0)}일째",
                     f"{float(row.get('core_score') or 0):.0f}/70",
                     f"{float(row.get('support_score') or 0):.0f}/30",
-                    html.escape(theme_text),
+                    f"<span class='j3-rb-clip' title='{html.escape(theme_text)}'>"
+                    f"{html.escape(theme_text)}</span>",
                 ]), unsafe_allow_html=True,
             )
 
@@ -4978,7 +5037,11 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 "자리를 채우려고 기준을 느슨하게 바꾸지 않습니다.")
 
     if watch:
-        watch_box = st.container(key="j3_rulebook_watch").expander(
+        # **급락 표의 '11위~20위 더 보기'와 같은 열쇠를 쓴다**(2026-08-21 상하님
+        # 지적 — 관찰 목록이 글자끼리 겹쳐 보였다). 그 열쇠에는 칸을 제 폭 안에
+        # 가두고 표를 옆으로 미는 규칙이 이미 붙어 있다. 두 갈래는 한 번에 하나만
+        # 그려지므로 열쇠가 겹치지 않는다.
+        watch_box = st.container(key="j3_rulebook_rest").expander(
             f"관찰만 · 조건을 다 못 넘은 {len(watch)}개 보기"
         )
         draw_rows(watch, watch_box, watch_mode=True)
