@@ -161,7 +161,13 @@ class LengthTests(unittest.TestCase):
 
 
 class UsGuideTests(unittest.TestCase):
-    """2026-08-06 — 미국 설명은 사용자가 만든 **표 그림 두 장**이다.
+    """미국 설명 — 상승장은 글, 급락은 상하님이 만든 표 그림이다.
+
+    **2026-08-20에 상승장이 통째로 바뀌었다.** 상하님 새 지시문(US_SWING_V1)대로
+    찾는 자리와 배점을 갈아 끼우면서, 옛 그물을 잰 표 그림(us_method_uptrend.png)은
+    화면에서 뺐다 — 그 표는 신고가 뒤 1~5일 · 10~15% 눌린 자리를 잰 것이라
+    지금 화면이 찾는 자리와 다르다. **파일은 assets/에 그대로 있다.**
+
 
     그전에는 사용자가 준 검증값(승률 59.7%(119건)·100.0%(12건)·92.6%(27건)·
     평균 +18.0%)을 글로 적어 두었다. 그 숫자는 표본이 119건·12건이고 급락 쪽은
@@ -169,12 +175,11 @@ class UsGuideTests(unittest.TestCase):
     (docs/REMEASURE_20260805.md). 그래서 표 그림으로 갈아 끼웠다.
     """
 
-    def test_the_two_tables_are_shown_as_images(self):
+    def test_only_the_crash_table_is_shown_as_an_image(self):
+        """상승장 표 그림은 뺐다 — 급락 표만 남는다(2026-08-20)."""
         names = [name for name, _caption in method_help.US_IMAGES]
-        self.assertEqual(
-            ["us_method_uptrend.png", "us_method_drawdown.png"], names,
-            "'정상적인 상승일때'가 먼저 나와야 한다(2026-08-06 사용자 지시)",
-        )
+        self.assertEqual(["us_method_drawdown.png"], names)
+        self.assertEqual(len(method_help.US_IMAGES), len(method_help.US_IMAGE_NOTES))
         for name, _caption in method_help.US_IMAGES:
             self.assertIsNotNone(
                 method_help._image_path(name), f"assets/{name}이 없다",
@@ -191,10 +196,13 @@ class UsGuideTests(unittest.TestCase):
 
     def test_the_old_overstated_numbers_are_gone(self):
         """표본 119건·12건짜리 숫자가 다시 기어들어오면 화면이 거짓말을 한다."""
-        whole = method_help.US_TEXT + method_help.US_MID_TEXT + method_help.US_TAIL_TEXT
+        whole = method_help.US_TEXT + method_help.US_TAIL_TEXT
         for token in ("59.7%", "119건", "100.0% (12건)", "92.6% (27건)",
                       "+18.0%", "+24.9%", "GPT-5.6 SOL", "재검증 5,000회"):
             self.assertNotIn(token, whole, f"옛 검증값 {token}이 남아 있다")
+        # **옛 상승장 그물도 되살아나면 안 된다**(2026-08-20).
+        for token in ("1~5일", "10~15%", "27.8%", "4~6%"):
+            self.assertNotIn(token, whole, f"옛 상승장 숫자 {token}이 남아 있다")
 
     def test_the_headline_says_only_when_to_buy_and_sell(self):
         """그림에 있는 말을 글로 또 적지 않는다(2026-08-06 사용자 지시).
@@ -206,8 +214,11 @@ class UsGuideTests(unittest.TestCase):
         self.assertIn("다음 거래일 시가", us)
         self.assertIn("종가", us)
         for repeated in ("나스닥100 96종목", "Yahoo Finance", "QQQ", "2016년 8월",
-                         "수익율", "승률", "가운데 값"):
+                         "수익율", "가운데 값"):
             self.assertNotIn(repeated, us, f"그림이 이미 말하는 '{repeated}'를 또 적었다")
+        # **'승률'은 2026-08-20부터 여기 있어도 된다** — 상승장 표 그림을 뺐고,
+        # 상하님 지시문이 "총점 90점이 승률 90%라는 뜻이 아니다"를 적으라고 했다.
+        self.assertIn("승률 90%라는 뜻이 아닙니다", us)
 
     def test_the_warnings_survive(self):
         """숫자만 크게 보이면 설명이 광고가 된다. 한계를 반드시 같이 적는다.
@@ -215,11 +226,13 @@ class UsGuideTests(unittest.TestCase):
         다만 **표에 이미 있는 것은 적지 않는다** — 사건수는 표의 '얼마나 자주 오나'
         칸에 25번·7번·4번·2번·1번으로 다 적혀 있어서 뺐다(2026-08-06 사용자 지시).
         """
-        tail = _visible(method_help.US_MID_TEXT + method_help.US_TAIL_TEXT)
+        tail = _visible(method_help.US_TAIL_TEXT)
         self.assertIn("해마다 20.9%씩 오른 기간", tail)
         self.assertIn("손절 규칙은 없습니다", tail)
-        # 1~2개월 보유가 가장 나빴다는 것 — 표에는 3개월부터만 있어서 꼭 적어야 한다.
-        self.assertIn("1~2개월", tail)
+        # **손절·최종청산이 아직 연구 중이라는 것을 적어야 한다**(2026-08-20 지시문 59번).
+        self.assertIn("연구 중", tail)
+        # 상승장 쪽 한계도 본문에 있어야 한다 — 자리를 채우려고 기준을 낮추지 않는다.
+        self.assertIn("느슨하게 바꾸지 않습니다", _visible(method_help.US_TEXT))
         # 표가 이미 말하는 것은 글로 또 적지 않는다.
         self.assertNotIn("사건수", tail)
 

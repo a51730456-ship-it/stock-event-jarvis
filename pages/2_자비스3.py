@@ -1060,6 +1060,7 @@ if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
     scroll_to = importlib.reload(scroll_to)
 import regime_gauge_ui
 import jarvis3_data as j3data
+import us_swing_selector as us_swing
 import jarvis3_store as j3store
 import market_signal_ui
 
@@ -1071,7 +1072,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082020
+_REQUIRED_J3_REVISION = 2026082050
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2837,17 +2838,6 @@ _FACTOR_HELP = (
      "<b class='j3fh-k'>그 종목 자체</b>를 보고, 나머지 세 항목은 그 종목이 속한 "
      "<b class='j3fh-k'>분야</b>를 봅니다. 둘은 거의 겹치지 않아서 "
      "<u>둘 다 점수를 받은 종목</u>이 특히 좋았습니다."),
-    ("지금 눌린 폭",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 1년 최고가에서 "
-     "<b class='j3fh-k'>지금 몇 % 내려와 있는지</b> 봅니다.<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 이 갈래는 ‘뚫고 나서 잠깐 쉬는 자리’를 "
-     "찾습니다. 안 눌렸으면 쉬는 자리가 아니고, 너무 눌렸으면 쉬는 게 아니라 "
-     "무너진 것입니다.<br>"
-     "<span class='j3fh-z'>왜 0점인가</span> — 앱이 재 보니 <b class='j3fh-k'>많이 "
-     "눌린 쪽과 덜 눌린 쪽의 성적 차이가 없었습니다</b>(3개월·6개월·1년 모두). "
-     "그래서 점수는 주지 않고 <b class='j3fh-k'>문턱으로만</b> 씁니다 — 앱은 "
-     "−10%~−15% 안에 든 종목만 후보로 올립니다. 이 표에 이 줄이 보인다는 것은 "
-     "이미 그 문턱을 통과했다는 뜻입니다."),
     ("테마가 같이 오르는가",
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마가 최근 "
      "5일 동안 다른 테마보다 <b class='j3fh-k'>더 올랐는지</b> 보고, 테마 20개를 "
@@ -2857,7 +2847,7 @@ _FACTOR_HELP = (
      "<span class='j3fh-z'>왜 0점인가</span> — 상승장 자리에서 재 보니 "
      "<b class='j3fh-k'>이 잣대로 고른 쪽이 더 벌지 않았습니다.</b> 최근 5일은 너무 "
      "짧아 그날그날 오르내림에 휘둘립니다. 대신 앱은 같은 ‘테마를 본다’는 생각을 "
-     "훨씬 긴 잣대(테마가 1년 최고에 붙어 있나)로 바꿔 70점을 주고 있습니다."),
+     "훨씬 긴 잣대(반년 수익률·30주선)로 바꿔 급락 갈래에서만 점수를 줍니다."),
     ("이 테마가 이미 오름세로 돌아섰나",
      "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 속한 테마 회사들 중 "
      "<b class='j3fh-k'>몇 %가 30주선(150일 평균) 위에 있는지</b> 세어, 테마 20개를 "
@@ -2907,34 +2897,6 @@ _FACTOR_HELP = (
      "<span class='j3fh-h'>이렇게 읽으십시오</span> — 급락 뒤에는 다 같이 빠져 있어서 "
      "‘얼마나 빠졌나’로는 못 가릅니다. 이 잣대는 빠진 폭이 아니라 "
      "<b class='j3fh-k'>이미 몸을 일으킨 테마인가</b>를 봅니다."),
-    ("테마가 1년 최고에 붙어 있나",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목 하나가 아니라 "
-     "<b class='j3fh-k'>이 종목이 속한 관련 테마 전체</b>를 봅니다. 앱은 그 테마에 든 "
-     "회사들의 몸값(시가총액)을 전부 더한 뒤, 그 합계가 지난 1년 동안 가장 컸을 때의 "
-     "몇 %인지 잽니다.<br>"
-     "<span class='j3fh-h'>배점</span> — 100% → 70점 · 95% → 52점 · 90% → 35점 · "
-     "85% → 17점 · 80% 아래 → 0점<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 종목 하나가 혼자 오르면 그 하나가 지치면 "
-     "끝입니다. 관련 테마가 함께 오르고 있으면 뒤에서 밀어 주는 힘이 남아 있습니다.<br>"
-     "<span class='j3fh-h'>이렇게 읽으십시오</span> — 이 종목은 고점에서 눌렸는데 관련 "
-     "테마는 1년 최고에 붙어 있다면, <b class='j3fh-k'>테마는 멀쩡한데 이 종목만 잠깐 "
-     "쉬는 자리</b>입니다. 거꾸로 관련 테마가 식는 중에 이 종목만 튀었다면 혼자 튄 "
-     "것입니다.<br>"
-     "<span class='j3fh-h'>헷갈리기 쉬운 것</span> — 오른쪽 「테마 상황」의 "
-     "‘테마 자체 점수 ○○/100’과는 다른 숫자입니다. 그건 테마 20개를 여러 잣대로 줄 세운 "
-     "점수이고, 여기 %는 몸값이 1년 최고에 얼마나 가까운가 하나만 본 값입니다."),
-    ("뚫기 전 60일에 얼마나 올랐나",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 "
-     "<b class='j3fh-k'>1년 최고가를 뚫던 날</b>에 서서, 그 앞 60거래일(약 석 달) 동안 "
-     "몇 % 올랐는지 봅니다. 오늘 기준이 아닙니다 — 뚫고 나서 눌린 만큼 깎이면 그 힘이 "
-     "가려집니다.<br>"
-     "<span class='j3fh-h'>배점</span> — 75% 이상 30점 · 50~75% 19점 · 35~50% 15점 · "
-     "20~35% 11점 · 20% 미만 4점<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 석 달에 크게 오르려면 까닭이 있고, 그 까닭은 "
-     "하루아침에 사라지지 않습니다.<br>"
-     "<span class='j3fh-h'>짚어 둘 것</span> — 많이 오른 쪽이 더 자주 이기지는 않습니다"
-     "(100번 중 61번 → 69번). 대신 <b class='j3fh-k'>이길 때 크게 법니다</b>"
-     "(+8% → +43%)."),
     ("테마가 덜 빠졌나",
      # 이 항목은 **상승장 표와 급락 표에 다 나온다.** 그래서 어느 한쪽 자리를
      # 가리키는 말('급락장에서')을 쓰지 않는다 — 상승장 표에서 읽으면 어긋난다.
@@ -3200,14 +3162,20 @@ def _swing_factor_table_html(
         detail = html.escape(str(payload.get("detail_explanation") or ""))
         status = html.escape(str(payload.get("status") or ""))
         confidence = html.escape(str(payload.get("confidence") or ""))
+        sureness = {"HIGH": "여러 번 다시 재도 살아남은 조건",
+                    "MEDIUM_HIGH": "꽤 여러 번 확인한 조건",
+                    "MEDIUM": "확인은 했지만 더 재 봐야 하는 조건",
+                    "EXPERIMENTAL": "아직 더 재 봐야 하는 조건"}.get(
+                        str(payload.get("confidence") or ""), "")
         items.append(
             "<div class='j3fh-item'>"
             f"<div class='j3fh-name'>{title} · {current}</div>"
             f"<div class='j3fh-txt'><b>{one_line}</b><br>{detail}<br>"
-            f"<span class='j3-muted'>상태 {status or '—'} · 연구 신뢰도 {confidence or '—'}</span>"
-            "</div></div>"
+            f"<span class='j3-muted'>지금 {status or '—'}"
+            + (f" · {html.escape(sureness)}" if sureness else "")
+            + "</span></div></div>"
         )
-    chip = f"<label class='j3fh-chip' for='{key}'>설명</label>"
+    chip = f"<label class='j3fh-chip' for='{key}'>자세히</label>"
     table = (
         "<table class='j3-factor-table'><thead><tr>"
         f"<th>심사 항목{chip}</th><th>획득(최대)</th></tr></thead>"
@@ -3215,9 +3183,9 @@ def _swing_factor_table_html(
     )
     head = (
         "<div class='j3fh-head'><span class='j3fh-head-t'>"
-        "상승장 (신고가 눌림매수) — 항목별 실제값과 설명</span>"
-        "점수보다 HARD GATE가 먼저입니다. 핵심조건을 통과하지 못하면 보조점수가 "
-        "높아도 BUY 등급을 붙이지 않습니다. 총점은 승률이 아닙니다.</div>"
+        "상승장 (신고가 눌림매수) — 항목마다 무엇을 보고 준 점수인가</span>"
+        "점수보다 **통과조건**이 먼저입니다. 여섯 가지를 다 넘지 못하면 뒤쪽 네 항목이 "
+        "아무리 좋아도 등급을 붙이지 않습니다. 총점은 승률이 아닙니다.</div>"
     )
     return (
         _FACTOR_HELP_CSS
@@ -3225,7 +3193,7 @@ def _swing_factor_table_html(
         + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
         + table
         + f"<div class='j3fh-p'>{head}{''.join(items)}"
-        + f"<label class='j3fh-x j3fh-x-breakout' for='{key}'>✕ 설명 닫기</label>"
+        + f"<label class='j3fh-x j3fh-x-breakout' for='{key}'>✕ 닫기</label>"
           "</div></div>"
     )
 
@@ -4274,12 +4242,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         cells = [
             f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
             f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div></div>",
-            f"<div class='j3-mc'><div class='j3-mc-label'>RS60(3개월)</div>"
+            f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 강함</div>"
             f"<div class='j3-mc-val j3-green'>{'—' if rs60 is None else f'{float(rs60):.1f}'}</div>"
-            "<div class='j3-mc-sub j3-muted'>percentile</div></div>",
-            f"<div class='j3-mc'><div class='j3-mc-label'>RS120(6개월)</div>"
+            "<div class='j3-mc-sub j3-muted'>명부 안에서 이만큼</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>최근 6개월 강함</div>"
             f"<div class='j3-mc-val j3-green'>{'—' if rs120 is None else f'{float(rs120):.1f}'}</div>"
-            "<div class='j3-mc-sub j3-muted'>percentile</div></div>",
+            "<div class='j3-mc-sub j3-muted'>명부 안에서 이만큼</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>신고가 후 눌림</div>"
             f"<div class='j3-mc-val j3-up'>{'—' if pullback_pct is None else f'-{float(pullback_pct):.1f}%'}</div>"
             f"<div class='j3-mc-sub j3-muted'>{int(row.get('days_since_anchor') or 0)}거래일째</div></div>",
@@ -4290,7 +4258,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             "<div class='j3-mc-sub j3-muted'>추가검증 중</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>총점</div>"
             f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.0f}/100</div>"
-            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(row.get('primary_status') or ''))}</div></div>",
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(row.get('status_text') or ''))}</div></div>",
         ]
     elif mode == "crash":
         # 점수는 **하나만** 둔다(2026-08-06 상하님 지적 "이 갈래 점수가 뭔말이냐").
@@ -4327,14 +4295,34 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         )
 
     # 갈래 배점에는 '무엇을 보고 준 점수인지'가 함께 있다 — 이름 옆에 작게 적는다.
+    # **상승장은 그 밑에 한 줄 설명을 늘 보이게 둔다**(2026-08-20 상하님 지시 —
+    # "각 배점 설명서 한줄평 화면에 뿌려라"). 더 긴 설명은 「자세히」에 있다.
+    swing_lines = []
+    if mode == "breakout":
+        payload = row.get("explanations") or {}
+        swing_lines = [
+            str((payload.get(metric) or {}).get("one_line_explanation") or "")
+            for metric in ("rs60", "rs120", "pullback",
+                           "theme", "volume", "breadth", "rebound")
+        ]
+    swing_lines += [""] * len(factor_names)
+    parts_values = review.get("score_parts") or []
+    notes_padded = factor_notes + [""] * len(factor_names)
+
+    def _fac_row(index, name, part, maximum, note):
+        one_line = swing_lines[index]
+        return (
+            f"<tr><td class='j3-fac-name'>{html.escape(name)}"
+            + (f" <span class='j3-muted' style='font-weight:600'>· {html.escape(note)}</span>"
+               if note else "")
+            + (f"<div class='j3-fac-note'>{html.escape(one_line)}</div>" if one_line else "")
+            + f"</td>{_fac_cell(part, maximum)}</tr>"
+        )
+
     factor_rows = "".join(
-        f"<tr><td class='j3-fac-name'>{html.escape(name)}"
-        + (f" <span class='j3-muted' style='font-weight:600'>{html.escape(note)}</span>"
-           if note else "")
-        + f"</td>{_fac_cell(part, maximum)}</tr>"
-        for name, part, maximum, note in zip(
-            factor_names, review.get("score_parts") or [], factor_max,
-            factor_notes + [""] * len(factor_names))
+        _fac_row(index, name, part, maximum, note)
+        for index, (name, part, maximum, note) in enumerate(
+            zip(factor_names, parts_values, factor_max, notes_padded))
     )
     total_style = (
         "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
@@ -4607,8 +4595,8 @@ def _pullback_backdrop_cards(
             )
             market_body += (
                 "<div class='j3-reason-sub'>"
-                f"현재 상태 <b>{html.escape(str(state.get('market_status') or '자료부족'))}</b>"
-                " · PRIMARY는 MARKET_ON에서만 허용합니다.</div>"
+                f"지금 <b>{html.escape(us_swing.plain_state(state.get('market_status')) or '자료부족')}</b>"
+                " · 나스닥이 이 상태일 때만 새로 살 후보를 냅니다.</div>"
             )
     else:
         market_body = f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"
@@ -4631,7 +4619,7 @@ def _pullback_backdrop_cards(
         )
         theme_body += (
             "<div class='j3-reason-sub'>대상 종목을 뺀 다른 구성종목으로 계산 · "
-            f"테마 percentile {'—' if theme_percentile is None else f'{float(theme_percentile):.1f}'}"
+            f"테마 등수 상위 {'—' if theme_percentile is None else f'{max(0.0, 100.0 - float(theme_percentile)):.0f}%'}"
             f" · 50일선 위 {'—' if breadth is None else f'{float(breadth):.1f}%'}"
             "</div>"
         )
@@ -4665,56 +4653,6 @@ _BAND_CELL_CLASS = {"shallow": "j3-band-mid", "deep": "j3-band-deep", "mid": "j3
 #
 # (이름, 배점 열쇠 또는 None, 왜) — 열쇠가 None이면 배점에 아예 없는 항목이라 0점이다.
 _SCORE_TABLE = {
-    "breakout": (
-        ("테마가 1년 최고에 붙어 있나", "theme_prox",
-         "그 테마 회사들의 <b>시가총액을 다 더한 값</b>이, 그 합의 <b>1년 최고</b>에 "
-         "몇 %까지 와 있는지입니다. 제가 열여덟 항목을 쟀는데 <u>이것 하나만</u> "
-         "시험을 통과했습니다(보유 네 기간 중 <b>세 기간</b>). "
-         "80%에서 0점, 100%에서 70점까지 <b>칸 없이 곧게</b> 줍니다 — "
-         "제가 칸으로 나눠 보니 세 기간 통과가 <u>0기간으로 떨어졌습니다.</u> "
-         "97%와 99%는 다른데 같은 칸에 넣으면 그 차이가 사라집니다. "
-         "<b>방향도 예전과 반대입니다</b> — 예전에는 테마가 5~15% 쉰 자리에 만점을 "
-         "줬는데, 제가 다시 재니 테마가 1년 최고에 <b>붙어 있을수록</b> 좋았습니다"),
-        ("뚫기 전 60일에 얼마나 올랐나", "gain60",
-         "그 종목이 52주 전고점을 <b>뚫던 날</b>을 기준으로, 그 <b>직전 60거래일</b>에 "
-         "주가가 몇 % 올랐는지입니다. <u>오늘 기준이 아닙니다</u> — 뚫고 나서 눌린 "
-         "만큼 깎이면 그 힘이 가려집니다. "
-         "제가 재 보니 <b>6개월 보유에서만</b> 통과했고(네 기간 중 한 기간), "
-         "<u>같은 테마 안에서는 순서를 못 가립니다.</u> 그래서 70점이 아니라 30점입니다.<br>"
-         "칸은 <b>이긴 횟수가 아니라 수익률</b>이 갈리는 자리에 맞췄습니다 — "
-         "이긴 횟수는 61→69번으로 조금 오르는데 수익률은 <b>8.2% → 43.4%</b>로 "
-         "다섯 배가 됩니다. 75%↑ 30점 · 50~75% 19점 · 35~50% 15점 · "
-         "20~35% 11점 · 20% 미만 4점"),
-        ("눌린 폭 10~15%", "drop",
-         "<u>2026-08-13에 뺐습니다</u> — 제가 재는 자를 고쳐 다시 재니 "
-         "<b>네 기간 모두</b> 반반이었습니다(52.1 · 51.5 · 51.1 · 49.9). "
-         "제가 전에 '10~15% 칸 27.8%'라고 적었던 것은 10년을 뭉뚱그려 본 숫자였고, "
-         "<b>같은 날 뜬 후보끼리 짝지어 견주면 갈리지 않습니다.</b> "
-         "<b>4~15%라는 그물은 그대로입니다</b> — 후보를 고르는 조건으로만 쓰고 "
-         "점수는 주지 않습니다"),
-        ("테마가 같이 오르는가", "spread5",
-         "<u>2026-08-13에 뺐습니다</u> — 그 테마 종목 중 몇 %가 최근 5일에 올랐나, "
-         "그 등수입니다. 제가 재는 자를 고쳐 다시 재니 <b>네 기간 모두</b> "
-         "반반이었습니다(51.2 · 51.9 · 53.2 · 53.2 — 오차가 전부 50%를 걸칩니다)"),
-        ("테마가 덜 빠졌나", "less_drop",
-         "<u>2026-08-13에 뺐습니다</u> — 위와 같은 이유입니다. "
-         "테마를 <b>그날 등수</b>로 매기는 자가 전부 무너졌습니다"),
-        ("같은 테마 동반", "together",
-         "<u>2026-08-12에 뺐습니다</u> — 4개↑는 <b>6개월 보유에서만</b> 합격했습니다. "
-         "앱이 파는 시점을 정하지 않으므로 한 기간에서만 통하는 값은 쓰지 않습니다"),
-        ("최근 11일에 빠졌나", "recent_drop",
-         "<u>2026-08-12에 뺐습니다</u> — 세 보유기간 전부 미달이었습니다"
-         "(수익률 쪽이 65%를 못 넘습니다). −5%↑ 빠진 자리는 그물의 6%뿐이라 "
-         "가르지도 못합니다"),
-        ("사고팔기 쉬운가", "liquidity",
-         "<u>3개월 보유에서 거꾸로</u>였습니다. 큰 종목이 더 나은 게 아니었습니다"),
-        ("많이 흔들리지 않나", "volatility", "세 보유기간 전부 미달이었습니다"),
-        ("신고가 뒤 며칠", None,
-         "1~3일 27.8% · 3~5일 28.4%로 <u>갈리지 않습니다</u>. 날짜는 <b>보여만</b> "
-         "드리고 고르시는 것은 상하님이 하십니다"),
-        ("최근 60일 상승폭 · 거래대금 연속", None,
-         "예전에 점수를 줬다가 뺀 것들입니다. 앞뒤로 갈라 재니 뒤 절반에서 졌습니다"),
-    ),
     "crash": (
         ("이 종목이 평소 크게 움직이나", "volatility",
          "<b>무엇을 보나</b> — 이 회사 주가가 <b>최근 3개월 동안 하루에 몇 %씩 "
@@ -4814,15 +4752,6 @@ _SCORE_WEIGHT_SOURCE = {
 # 배점표 맨 위 **한 줄 요약** (2026-08-12 상하님 지시 — "쉽게 알아먹게 한 줄 넣어라").
 # 아래 표를 안 읽어도 이 한 줄이면 무엇으로 순위를 매기는지 알 수 있어야 한다.
 _SCORE_TABLE_PLAIN = {
-    "breakout": ("<b>쉽게 말해</b> — <b>테마가 1년 최고에 붙어 있는</b> 종목을 위로 "
-                 "올립니다. 점수의 <b>70점이 테마</b>이고, 그 종목이 "
-                 "<b>뚫기 전 60일에 얼마나 올랐는지</b>가 나머지 30점입니다.<br>"
-                 "<b>같은 테마 안에서 어느 종목을 고를지는 제가 정해 드릴 수 "
-                 "없습니다.</b> 제가 10년을 재 보니 같은 테마끼리는 60일 상승도 "
-                 "눌린 폭도 회사 크기도 <u>전부 반반</u>이었습니다. "
-                 "<b>그 자리는 상하님이 판단하실 자리입니다.</b><br>"
-                 "<b>0점은 나쁜 종목이라는 뜻이 아닙니다</b> — 점수는 "
-                 "<b>먼저 볼 순서</b>를 정할 뿐이고, 0점도 그물에 걸린 종목입니다."),
     "crash": ("<b>쉽게 말해</b> — 크게 빠진 종목 중에서 <b>평소 크게 출렁이던 종목</b>과 "
               "<b>그 종목이 속한 분야가 이미 몸을 일으킨 종목</b>을 위로 올립니다. "
               "<b>40점이 그 종목의 출렁임</b>, <b>60점이 분야</b>, 더해서 100점입니다.<br>"
@@ -4886,39 +4815,41 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         if warning:
             st.warning(str(warning))
     market_line = (
-        f"Nasdaq Composite {market_status}"
-        + (f" · IXIC {float(ixic):,.2f}" if ixic is not None else "")
-        + (f" · 진행 ATH 대비 {float(drawdown) * 100:+.1f}%" if drawdown is not None else "")
+        f"나스닥 지수 — {us_swing.plain_state(market_status)}"
+        + (f" · 지금 {float(ixic):,.2f}" if ixic is not None else "")
+        + (f" · 지금까지의 최고 대비 {float(drawdown) * 100:+.1f}%"
+           if drawdown is not None else "")
     )
     if market_status == "MARKET_ON" and market_state.get("valid"):
-        st.success(market_line + " — 신규 PRIMARY 후보를 허용합니다.")
+        st.success(market_line + " — 오늘은 새로 살 후보를 낼 수 있는 장입니다.")
     else:
-        st.error(market_line + " — 점수가 높아도 신규 PRIMARY 후보를 허용하지 않습니다.")
+        st.error(market_line + " — 점수가 높아도 오늘은 새로 살 후보를 내지 않습니다.")
 
     if result.get("snapshot_saved"):
         st.caption(
-            f"EOD 원자료 저장 완료 · run {result.get('snapshot_run_id')} · "
-            f"점수버전 {result.get('score_model_version') or 'US_SWING_V1'}"
+            f"그날 잰 값을 그대로 저장했습니다 · {result.get('snapshot_run_id')}번 · "
+            f"배점 {result.get('score_model_version') or 'US_SWING_V1'}"
         )
     elif result.get("snapshot_saved") is False:
-        st.warning(f"후보 계산은 완료했지만 EOD 원자료 저장 실패: {result.get('snapshot_error') or '원인 확인 필요'}")
+        st.warning("후보는 다 찾았는데 그날 값을 저장하지 못했습니다: "
+                   f"{result.get('snapshot_error') or '원인을 확인해야 합니다'}")
 
     st.markdown(
         "<div class='j3-pull-stats'>"
         f"기준일 <b>{html.escape(str(result.get('date') or '—'))}</b> · "
-        f"실제 Universe <b>{html.escape(str(result.get('universe_mode') or '—'))}</b> · "
+        f"명부 <b>{html.escape(str(result.get('universe_mode') or '—'))}</b> · "
         f"전체 <b>{int(result.get('universe_count') or 0):,}개</b> → "
-        f"EOD 일봉 일치 <b>{int(result.get('data_count') or 0):,}개</b> · "
-        f"RS60/120 횡단면 <b>{int(result.get('rs_cross_section_60') or 0):,}/"
+        f"그날 일봉이 있는 <b>{int(result.get('data_count') or 0):,}개</b> · "
+        f"강함을 잰 종목 <b>{int(result.get('rs_cross_section_60') or 0):,}/"
         f"{int(result.get('rs_cross_section_120') or 0):,}개</b> → "
         f"정식 후보 <b class='j3-green'>{len(primary):,}개</b> · "
-        f"WATCH <b>{len(watch):,}개</b>"
+        f"관찰만 <b>{len(watch):,}개</b>"
         "</div>",
         unsafe_allow_html=True,
     )
 
     if _section_toggle(
-        "📘 이 화면 설명 보기 (HARD GATE · 핵심 70 · 보조 30)",
+        "📘 이 화면 설명 보기 (통과조건 여섯 · 핵심 70 · 보조 30)",
         "j3_rulebook_help_open", close_label="설명 닫기",
     ):
         config = result.get("config") or {}
@@ -4926,16 +4857,18 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         entry_cfg = config.get("entry") or {}
         st.markdown(
             "<div class='j3-pull-guide'><b>먼저 자격, 그다음 순위</b> — "
-            "MARKET_ON · RS60/RS120 기준 · 종가 신고가 · anchor 뒤 day 1~3 · "
-            "종가 눌림 3~10%를 모두 통과해야 정식 후보가 됩니다. "
-            "보조점수로 이 조건을 우회할 수 없습니다.<br>"
-            f"현재 설정: RS60 ≥ {float(rs_cfg.get('rs60_min_percentile', 80)):.0f}, "
-            f"RS120 ≥ {float(rs_cfg.get('rs120_min_percentile', 80)):.0f} · "
+            "나스닥이 살 만한 장인가 · 최근 3개월 강했나 · 최근 6개월 강했나 · "
+            "종가로 지난 1년 최고가를 넘었나 · 그 뒤 1~3거래일인가 · "
+            "종가가 3~10% 내려왔나 — <b>여섯 가지를 다 넘어야</b> 정식 후보가 됩니다. "
+            "뒤쪽 네 항목이 아무리 좋아도 이 여섯을 대신하지 못합니다.<br>"
+            f"지금 기준: 최근 3개월 상위 "
+            f"{100 - float(rs_cfg.get('rs60_min_percentile', 80)):.0f}% · 최근 6개월 상위 "
+            f"{100 - float(rs_cfg.get('rs120_min_percentile', 80)):.0f}% · "
             f"day {int(entry_cfg.get('watch_start_day', 1))}~{int(entry_cfg.get('watch_end_day', 3))} · "
             f"눌림 {float(entry_cfg.get('pullback_min', .03)) * 100:.0f}~"
             f"{float(entry_cfg.get('pullback_max', .10)) * 100:.0f}%<br>"
-            "<b>점수</b> — RS60 25 + RS120 25 + 눌림 20 = 핵심 70, "
-            "테마 10 + 돌파 거래량 8 + 확산도 5 + 반등 7 = 보조 30입니다. "
+            "<b>점수</b> — 최근 3개월 25 + 최근 6개월 25 + 눌림 20 = <b>핵심 70</b>, "
+            "테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7 = <b>보조 30</b>입니다. "
             "총점은 승률이나 보장수익이 아닙니다.</div>",
             unsafe_allow_html=True,
         )
@@ -4974,7 +4907,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     widths = [0.55, 0.8, 1.75, 0.8, 1.55, 1.05, 1.05, 1.25, 1.0, 1.0, 1.4]
     row_widths = [widths[0], widths[1], widths[2], sum(widths[3:])]
     rest_widths = widths[3:]
-    heads = ["티커", "등급 / 상태", "RS60", "RS120", "눌림 / day", "핵심", "보조", "테마"]
+    heads = ["티커", "등급 / 상태", "3개월 상위", "6개월 상위", "눌림 / 며칠째",
+             "핵심", "보조", "테마"]
 
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
         prefix = "j3rbw" if watch_mode else "j3rbf"
@@ -5009,9 +4943,9 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             pullback = row.get("pullback_pct_close")
             pullback_text = "—" if pullback is None else f"-{float(pullback):.1f}%"
             label = (
-                f"WATCH · {row.get('status_text') or row.get('primary_status') or '조건 미충족'}"
+                f"관찰 · {row.get('status_text') or '조건을 다 넘지 못했습니다'}"
                 if watch_mode else
-                f"{row.get('grade') or '—'} · {row.get('grade_text') or '정식 후보'}"
+                f"{row.get('grade') or '—'}등급 · {row.get('grade_text') or '정식 후보'}"
             )
             theme_text = str(row.get("theme_id") or "자료부족")
             cols[3].markdown(
@@ -5030,19 +4964,20 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         st.markdown("<div class='j3-section-title'>정식 후보</div>", unsafe_allow_html=True)
         draw_rows(primary, st.container(key="j3_rulebook_table"), watch_mode=False)
     else:
-        st.info("현재 HARD GATE를 모두 통과한 정식 후보가 없습니다. 기준을 느슨하게 바꾸지 않습니다.")
+        st.info("오늘은 여섯 가지를 다 넘은 정식 후보가 없습니다. "
+                "자리를 채우려고 기준을 느슨하게 바꾸지 않습니다.")
 
     if watch:
         watch_box = st.container(key="j3_rulebook_watch").expander(
-            f"WATCH · Gate 미통과 {len(watch)}개 보기"
+            f"관찰만 · 조건을 다 못 넘은 {len(watch)}개 보기"
         )
         draw_rows(watch, watch_box, watch_mode=True)
     if selected_css:
         st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
 
     st.caption(
-        "정식 후보만 BUY 등급을 받습니다. WATCH는 실제 총점을 보여도 Gate 탈락 상태가 "
-        "우선입니다. 핵심·보조·총점을 따로 보며, 점수는 승률이 아닙니다."
+        "정식 후보에만 등급을 붙입니다. 관찰 줄은 총점이 높아도 '무엇이 모자란가'가 "
+        "먼저입니다. 핵심·보조·총점을 따로 보시고, 점수는 승률이 아닙니다."
     )
     if all_selectable and selected_ticker:
         selected = next(
@@ -5516,12 +5451,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     st.caption(
         "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
         "그 자리에 와 있는 종목을 좁혀 준 목록이며, 사라는 신호가 아닙니다. "
-        + ("점수는 **먼저 볼 순서**를 정할 뿐입니다 — **70점이 테마**이고 30점이 "
-           "뚫기 전 60일 상승입니다. **소속 테마가 「—」인 종목**은 나쁘다는 뜻이 "
-           "아니라 앱의 테마 명부가 아직 그 종목을 안 담았다는 뜻입니다. "
-           "감추지 않고 보여 드리되 테마 점수를 못 받아 아래로 내려갑니다."
-           if breakout else
-           "**0점**은 나쁘다는 뜻이 아니라 "
+        + ("**0점**은 나쁘다는 뜻이 아니라 "
            "**점수 주는 세 자리 중 하나도 안 맞다**는 뜻입니다. "
            "**「테마 반등」 칸은 점수에 안 들어갑니다** — 기준일 이후 그 테마에서 "
            "몇 종목이 올라 있는지 보여드릴 뿐이고, 순위를 바꾸지 않습니다. "

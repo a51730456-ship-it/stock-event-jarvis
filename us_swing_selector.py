@@ -17,7 +17,7 @@ from typing import Iterable, Mapping
 import pandas as pd
 
 
-MODULE_REVISION = 2026082020
+MODULE_REVISION = 2026082050
 SCORE_MODEL_VERSION = "US_SWING_V1"
 
 
@@ -130,113 +130,181 @@ DEFAULT_CONFIG = {
 }
 
 
+# 화면에 그대로 나가는 글이다. **설명해야 아는 말은 여기 쓰지 않는다.**
+# 칸 이름은 그 칸이 던지는 질문 꼴로 적는다(급락 갈래와 같은 방식).
+# `one_line`은 늘 보이고, `detail`은 「자세히」를 눌러야 열린다
+# (2026-08-20 상하님 지시 — "각 배점 설명서 한줄평 화면에 뿌려라").
 SCORE_EXPLANATIONS = {
     "market": {
-        "title": "시장상태",
+        "title": "지금 사도 되는 장인가",
         "one_line": "지금이 강한 종목을 사도 되는 나스닥 상승환경인지 확인합니다.",
         "detail": (
-            "좋은 종목도 시장 전체가 약하면 성공하기 어렵습니다. Nasdaq가 큰 조정을 "
+            "좋은 종목도 시장 전체가 약하면 성공하기 어렵습니다. 나스닥이 큰 조정을 "
             "끝내고 이전 고점을 다시 회복한 상승환경인지 먼저 확인한 뒤, 그 안에서만 "
-            "신규매수 후보를 찾습니다."
+            "새로 살 후보를 찾습니다."
         ),
         "confidence": "HIGH",
     },
     "rs60": {
-        "title": "3개월 상대강도",
-        "one_line": "최근 3개월 동안 시장에서 얼마나 강하게 오른 종목인지 평가합니다.",
+        "title": "최근 3개월, 시장보다 강했나",
+        "one_line": "최근 3개월 동안 나스닥보다 얼마나 강하게 오른 종목인지 평가합니다.",
         "detail": (
-            "최근 약 60거래일 동안 이 종목의 상승률을 Nasdaq 상승률과 비교합니다. "
-            "Nasdaq보다 훨씬 강했던 종목일수록 높은 점수를 받으며, 현재 반복검증에서 "
-            "가장 중요하게 살아남은 조건 중 하나입니다."
+            "최근 3개월 동안 이 종목이 오른 폭에서 같은 기간 나스닥이 오른 폭을 뺍니다. "
+            "나스닥보다 훨씬 많이 오른 종목일수록 높은 점수를 받습니다. "
+            "지금까지 여러 번 다시 재도 가장 잘 살아남은 조건입니다."
         ),
         "confidence": "HIGH",
     },
     "rs120": {
-        "title": "6개월 상대강도",
-        "one_line": "최근 6개월 동안 꾸준히 시장보다 강했던 종목인지 평가합니다.",
+        "title": "최근 6개월, 꾸준히 강했나",
+        "one_line": "최근 6개월 동안 꾸준히 나스닥보다 강했던 종목인지 평가합니다.",
         "detail": (
-            "최근 약 120거래일 동안 종목이 Nasdaq보다 얼마나 강했는지 비교합니다. "
-            "3개월 RS와 6개월 RS가 모두 높으면 잠깐 급등한 종목보다 중기적으로 계속 "
-            "강했던 시장 리더일 가능성이 높다고 봅니다."
+            "최근 6개월도 같은 방식으로 나스닥과 견줍니다. "
+            "3개월과 6개월이 함께 높으면 잠깐 급등한 종목이 아니라 "
+            "한동안 계속 앞서 온 종목일 가능성이 높다고 봅니다."
         ),
         "confidence": "HIGH",
     },
     "breakout": {
-        "title": "52주 신고가",
+        "title": "지난 1년 최고가를 넘었나",
         "one_line": "지난 1년 최고가격을 다시 넘어선 강한 종목인지 확인합니다.",
         "detail": (
-            "오늘 종가가 오늘을 제외한 이전 252거래일의 최고 종가를 넘었는지 확인합니다. "
-            "지난 1년 동안 막혀 있던 가격을 넘어섰다는 것은 현재 종목의 매수세와 추세가 "
-            "강하다는 신호로 사용합니다."
+            "오늘 종가가 오늘을 뺀 지난 1년의 가장 높은 종가를 넘었는지 봅니다. "
+            "1년 동안 막혀 있던 가격을 넘어섰다는 것은 사려는 힘이 세다는 신호로 씁니다. "
+            "장중 고가가 아니라 종가로만 봅니다."
         ),
         "confidence": "MEDIUM_HIGH",
     },
     "pullback": {
-        "title": "신고가 후 눌림",
-        "one_line": "신고가 후 너무 무너지지 않고 좋은 가격까지 정상적으로 쉬었는지 봅니다.",
+        "title": "신고가 뒤 알맞게 쉬었나",
+        "one_line": (
+            "52주 신고가 후 너무 무너지지 않고 좋은 가격까지 정상적으로 눌렸는지 "
+            "평가합니다."
+        ),
         "detail": (
-            "신고가를 돌파한 뒤 바로 추격하지 않고 1~3거래일 안에 나오는 조정을 기다립니다. "
-            "현재 연구에서는 3~10%를 정상 눌림으로 보고, 그중 6~10%를 조금 더 우선적인 "
-            "매수관찰 구간으로 평가합니다."
+            "신고가를 넘은 날 바로 쫓아사지 않고 1~3거래일 안에 나오는 조정을 기다립니다. "
+            "3~10% 내려온 자리를 정상으로 보고, 그중 6~10%를 조금 더 좋은 자리로 봅니다. "
+            "10%보다 깊으면 정상 조정으로 보지 않습니다."
         ),
         "confidence": "MEDIUM",
     },
     "theme": {
-        "title": "테마 강도",
-        "one_line": "이 종목뿐 아니라 같은 테마의 다른 종목들도 강한지 확인합니다.",
+        "title": "같은 테마 다른 종목도 강한가",
+        "one_line": (
+            "이 종목 혼자만 오르는 것이 아니라 같은 테마의 다른 종목들도 강한지 "
+            "확인합니다."
+        ),
         "detail": (
-            "같은 테마의 다른 종목들도 함께 강하면 테마 전체로 돈이 들어오는 상황일 수 "
-            "있습니다. 대상 종목 자신의 상승이 테마점수를 부풀리지 않도록 그 종목은 "
-            "계산에서 제외합니다."
+            "같은 테마 종목들이 함께 강하면 그 테마 전체로 돈이 들어오는 중일 수 있습니다. "
+            "이 종목 자신의 상승이 제 테마 점수를 부풀리지 않도록 "
+            "계산에서 자기 자신은 뺍니다."
         ),
         "confidence": "EXPERIMENTAL",
     },
     "volume": {
-        "title": "돌파 거래량",
-        "one_line": "신고가를 돌파할 때 평소보다 많은 매수 참여가 있었는지 봅니다.",
+        "title": "신고가 뚫던 날 거래가 늘었나",
+        "one_line": (
+            "52주 신고가를 돌파할 때 평소보다 많은 거래와 매수 참여가 있었는지 "
+            "확인합니다."
+        ),
         "detail": (
-            "신고가 돌파일 거래량을 돌파일 자신을 제외한 직전 20거래일 평균과 비교합니다. "
-            "평소보다 거래량이 많으면 돌파에 더 많은 시장 참여가 있었다는 의미일 수 있지만, "
-            "현재 검증에서는 RS보다 약해 보조점수로 사용합니다."
+            "신고가를 넘던 날의 거래량을 그 전 20거래일 평균과 견줍니다(그날은 평균에서 뺍니다). "
+            "평소보다 거래가 많았다면 넘어설 때 사람이 더 많이 붙었다는 뜻일 수 있습니다. "
+            "다만 앞의 두 항목보다 근거가 약해 보조로만 씁니다."
         ),
         "confidence": "EXPERIMENTAL",
     },
     "breadth": {
-        "title": "테마 확산도",
-        "one_line": "같은 테마에서 여러 종목이 함께 강하게 움직이는지 확인합니다.",
+        "title": "같은 테마에서 여럿이 함께 오르나",
+        "one_line": "같은 테마에서 여러 종목이 함께 강하게 움직이고 있는지 확인합니다.",
         "detail": (
-            "같은 테마 구성종목 중 얼마나 많은 종목이 50일선 위에 있는지 확인합니다. "
-            "테마 전체가 동시에 움직이는지 보는 지표이지만 아직 충분한 point-in-time "
-            "검증이 끝나지 않아 낮은 비중만 줍니다."
+            "같은 테마 종목 가운데 몇 %가 50일선 위에 있는지 셉니다. "
+            "한 종목만 우연히 오른 것인지 테마가 통째로 움직이는 것인지를 가릅니다. "
+            "아직 더 재 봐야 해서 낮은 몫만 줍니다."
         ),
         "confidence": "EXPERIMENTAL",
     },
     "rebound": {
-        "title": "반등 상태",
+        "title": "다시 위로 움직이기 시작했나",
         "one_line": "눌림이 끝나고 주가가 다시 위로 움직이기 시작했는지 확인합니다.",
         "detail": (
-            "눌림가격에 도달한 뒤 바로 매수할 수도 있고 다시 상승하는 것을 확인하고 매수할 "
-            "수도 있습니다. 반등확인은 진입가격이 높아지는 단점도 있어 현재는 필수조건이 "
-            "아니라 선택형 보조점수로 사용합니다."
+            "내려온 자리에서 바로 살 수도 있고, 다시 오르는 것을 보고 살 수도 있습니다. "
+            "확인하고 사면 더 안전하지만 그만큼 비싸게 사게 됩니다. "
+            "그래서 꼭 있어야 하는 조건이 아니라 있으면 더 주는 점수입니다."
         ),
         "confidence": "EXPERIMENTAL",
     },
 }
 
 
+# 배점표 일곱 줄의 차례. 이름은 위 카탈로그 한 군데서만 읽는다 — 두 군데 적어 두면
+# 한쪽만 고쳐 화면과 설명이 서로 다른 말을 하게 된다.
+SCORE_PART_METRICS = ("rs60", "rs120", "pullback", "theme", "volume", "breadth", "rebound")
+
+
+def score_part_titles() -> tuple:
+    """배점표에 적을 일곱 줄 이름."""
+    return tuple(SCORE_EXPLANATIONS[metric]["title"] for metric in SCORE_PART_METRICS)
+
+
 STATUS_TEXT = {
-    "INSUFFICIENT_DATA": "계산에 필요한 데이터가 부족합니다.",
-    "MARKET_BLOCKED": "현재 Nasdaq가 신규매수 허용 상승환경이 아닙니다.",
-    "RS60_WEAK": "3개월 상대강도가 상위 20% 기준에 못 미칩니다.",
-    "RS120_WEAK": "6개월 상대강도가 상위 20% 기준에 못 미칩니다.",
-    "RS_BOTH_WEAK": "3개월과 6개월 상대강도가 모두 부족합니다.",
-    "BREAKOUT_WAIT": "아직 종가 기준 52주 신고가 돌파가 없습니다.",
-    "ENTRY_WINDOW_NOT_STARTED": "신고가 당일이라 바로 추격하지 않고 다음 거래일부터 봅니다.",
-    "PULLBACK_WAIT": "강한 종목이지만 아직 3% 정상 눌림구간까지 오지 않았습니다.",
-    "TOO_DEEP": "강한 종목이지만 조정폭이 기본 정상 눌림 범위를 넘어섰습니다.",
-    "ENTRY_WINDOW_EXPIRED": "신고가 뒤 3거래일의 기본 진입 관찰기간이 지났습니다.",
-    "PRIMARY_CANDIDATE": "핵심 통과조건을 모두 만족한 신규매수 관찰후보입니다.",
+    "INSUFFICIENT_DATA": "계산에 필요한 자료가 모자랍니다.",
+    "MARKET_BLOCKED": "지금 나스닥이 새로 살 만한 상승환경이 아닙니다.",
+    "RS60_WEAK": "최근 3개월에 시장보다 강한 상위 20%에 못 듭니다.",
+    "RS120_WEAK": "최근 6개월에 시장보다 강한 상위 20%에 못 듭니다.",
+    "RS_BOTH_WEAK": "최근 3개월도 6개월도 시장보다 강한 편이 아닙니다.",
+    "BREAKOUT_WAIT": "아직 종가로 지난 1년 최고가를 넘지 못했습니다.",
+    "ENTRY_WINDOW_NOT_STARTED": "오늘 최고가를 넘었습니다 — 바로 쫓아사지 않고 다음 거래일부터 봅니다.",
+    "PULLBACK_WAIT": "강한 종목이지만 아직 3%까지 내려오지 않았습니다.",
+    "TOO_DEEP": "강한 종목이지만 10%보다 깊게 내려와 정상 조정으로 보지 않습니다.",
+    "ENTRY_WINDOW_EXPIRED": "최고가를 넘은 지 3거래일이 지나 이번 자리는 지났습니다.",
+    "PRIMARY_CANDIDATE": "여섯 가지 통과조건을 모두 넘은 신규매수 관찰후보입니다.",
 }
+
+
+# 화면에 나가는 상태 이름을 **사람 말로** 바꾼다 (2026-08-20 상하님 지시 —
+# "rs60 뭐 이런거 용어 쓰지말고 일반인이 알기 쉽게 해라").
+# 저장하는 값은 영문 상태코드 그대로 두고, **보여줄 때만** 이 표를 거친다 —
+# 나중에 다시 재려면 저장된 코드가 그대로 있어야 한다.
+PLAIN_STATE = {
+    # 시장
+    "MARKET_ON": "살 만한 상승환경",
+    "MARKET_OFF": "큰 조정 중",
+    "MARKET_RECOVERY": "조정에서 되돌아오는 중",
+    "MARKET_RISK": "아직 확인하지 못함",
+    # 신고가 뒤 눌림
+    "NEW_HIGH": "오늘 새 최고가",
+    "WAIT_SHALLOW": "아직 얕게 내려옴",
+    "VALID_PULLBACK": "3~6% 내려옴",
+    "PRIORITY_PULLBACK": "6~10% 내려옴 (더 좋은 자리)",
+    "TOO_DEEP": "10%보다 깊게 내려옴",
+    # 다시 오르기 시작했나
+    "PRIOR_DAY_HIGH_RECLAIM": "어제 고가를 되찾음",
+    "FIRST_GREEN": "오늘 처음 올랐음",
+    "PULLBACK_TOUCH": "눌림 자리에 막 닿음",
+    "NONE": "아직 위로 안 움직임",
+    # 3개월·6개월 강함
+    "ELITE": "3개월·6개월 모두 최상위",
+    "STRONG": "3개월·6개월 모두 상위 20%",
+    "MIXED": "한쪽만 강함",
+    "WEAK": "3개월도 6개월도 약함",
+    # 못 잰 까닭
+    "OK": "잘 쟀음",
+    "NO_THEME_MEMBERSHIP": "테마 명부에 아직 없는 종목",
+    "THEME_DATA_INSUFFICIENT": "견줄 테마가 모자람",
+    "THEME_MEMBER_DATA_INSUFFICIENT": "같은 테마 다른 종목이 모자람",
+    "BREADTH_DATA_INSUFFICIENT": "같은 테마 다른 종목이 모자람",
+    "VOLUME_DATA_INSUFFICIENT": "돌파일 앞 20일 거래량이 모자람",
+    "INSUFFICIENT_DATA": "자료가 모자람",
+    "INSUFFICIENT_INDEX_HISTORY": "나스닥 이력이 모자람",
+    "RS_RANK_UNRELIABLE": "견줄 종목이 30개가 안 됨",
+}
+
+
+def plain_state(code) -> str:
+    """상태코드 → 화면에 적을 말. 모르는 코드는 그대로 돌려준다."""
+    text = str(code or "").strip()
+    return PLAIN_STATE.get(text, text)
 
 
 GRADE_TEXT = {
@@ -821,10 +889,14 @@ def candidate_sort_key(row: Mapping) -> tuple:
 
 def _display_value(metric: str, row: Mapping) -> str:
     if metric == "market":
-        return str(row.get("market_status") or "자료부족")
+        return plain_state(row.get("market_status")) or "자료부족"
     if metric in {"rs60", "rs120"}:
         value = _finite(row.get(f"{metric}_percentile"))
-        return "자료부족" if value is None else f"상위 {max(0.0, 100.0 - value):.1f}%"
+        if value is None:
+            return "자료부족"
+        top = max(0.0, 100.0 - value)
+        # '상위 0.0%'는 읽어도 무슨 말인지 모른다. 맨 위는 그냥 그렇게 적는다.
+        return "명부에서 가장 강함" if top < 0.05 else f"상위 {top:.1f}%"
     if metric == "breakout":
         return str(row.get("breakout_date") or "신고가 대기")
     if metric == "pullback":
@@ -832,7 +904,11 @@ def _display_value(metric: str, row: Mapping) -> str:
         return "자료부족" if value is None else f"-{value:.1f}%"
     if metric == "theme":
         value = _finite(row.get("theme_percentile"))
-        return "자료부족" if value is None else f"{row.get('theme_id') or '테마'} 상위 {100-value:.1f}%"
+        if value is None:
+            return "자료부족"
+        name = row.get("theme_id") or "테마"
+        top = max(0.0, 100.0 - value)
+        return f"{name} 테마가 가장 강함" if top < 0.05 else f"{name} 상위 {top:.1f}%"
     if metric == "volume":
         value = _finite(row.get("breakout_rvol"))
         return "자료부족" if value is None else f"평균의 {value:.2f}배"
@@ -840,7 +916,7 @@ def _display_value(metric: str, row: Mapping) -> str:
         value = _finite(row.get("breadth_pct"))
         return "자료부족" if value is None else f"{value:.1f}%"
     if metric == "rebound":
-        return str(row.get("rebound_status") or "NONE")
+        return plain_state(row.get("rebound_status") or "NONE")
     return "—"
 
 
@@ -876,7 +952,14 @@ def explanation_payload(row: Mapping, config: Mapping | None = None) -> dict[str
             "display_value": _display_value(metric, row),
             "one_line_explanation": source["one_line"],
             "detail_explanation": source["detail"],
-            "status": row.get({
+            # 저장은 영문 코드로 하고 **보여줄 때만** 사람 말로 바꾼다.
+            "status": plain_state(row.get({
+                "market": "market_status", "breakout": "primary_status", "pullback": "pullback_status",
+                "theme": "theme_reason", "volume": "volume_reason", "breadth": "breadth_reason",
+                "rebound": "rebound_status", "rs60": "rs_core_status", "rs120": "rs_core_status",
+            }[metric]) if metric != "breakout" else
+            STATUS_TEXT.get(str(row.get("primary_status") or ""), row.get("primary_status"))),
+            "status_code": row.get({
                 "market": "market_status", "breakout": "primary_status", "pullback": "pullback_status",
                 "theme": "theme_reason", "volume": "volume_reason", "breadth": "breadth_reason",
                 "rebound": "rebound_status", "rs60": "rs_core_status", "rs120": "rs_core_status",
@@ -1124,14 +1207,15 @@ def scan_eod(
         row["grade_text"] = GRADE_TEXT.get(row["grade"] or "")
         row["status_text"] = STATUS_TEXT.get(status, status)
         row["explanations"] = explanation_payload(row, cfg)
+        titles = score_part_titles()
         row["score_parts"] = [
-            ("RS60(3개월 상대강도)", row["rs60_score"], weights["rs60"], _display_value("rs60", row)),
-            ("RS120(6개월 상대강도)", row["rs120_score"], weights["rs120"], _display_value("rs120", row)),
-            ("신고가 후 눌림", row["pullback_score"], weights["pullback"], _display_value("pullback", row)),
-            ("테마 강도(보조·추가검증 중)", row["theme_score"], weights["theme"], _display_value("theme", row)),
-            ("돌파 거래량(보조·추가검증 중)", row["volume_score"], weights["volume"], _display_value("volume", row)),
-            ("테마 확산도(보조·추가검증 중)", row["breadth_score"], weights["breadth"], _display_value("breadth", row)),
-            ("반등 상태(보조·추가검증 중)", row["rebound_score"], weights["rebound"], _display_value("rebound", row)),
+            (titles[0], row["rs60_score"], weights["rs60"], _display_value("rs60", row)),
+            (titles[1], row["rs120_score"], weights["rs120"], _display_value("rs120", row)),
+            (titles[2], row["pullback_score"], weights["pullback"], _display_value("pullback", row)),
+            (titles[3], row["theme_score"], weights["theme"], _display_value("theme", row)),
+            (titles[4], row["volume_score"], weights["volume"], _display_value("volume", row)),
+            (titles[5], row["breadth_score"], weights["breadth"], _display_value("breadth", row)),
+            (titles[6], row["rebound_score"], weights["rebound"], _display_value("rebound", row)),
         ]
         current = _finite(frame["Close"].iloc[-1]) if not frame.empty else None
         previous = _finite(frame["Close"].iloc[-2]) if len(frame) >= 2 else None
