@@ -6,6 +6,28 @@
 
 이 파일은 "지금 어디까지 와 있나"만 적는다. 자세한 근거는 `docs/` 아래 문서에 있다.
 
+덧 — 같은 날 자비스6 자동기록 시험 하나(시계를 보던 것)도 고쳤다(0-W).
+상승장 작업과는 아무 관계가 없다.
+
+---
+
+## 0-W. 자비스6 자동기록 시험이 진짜 시계를 보던 것을 고쳤다 (2026-08-20)
+
+`test_jarvis6::test_refuses_to_run_after_the_closing_auction`이 **평일 한국시각
+14:30~15:18에 돌리면 깨졌다.** 시험이 `jarvis6_autolog.main()`을 그냥 불렀고,
+`main()`은 진짜 시계를 봤다. 그 시간에는 정말 관찰 구간이라 자동기록이 제 할 일을
+했고 — 진짜 시세까지 받아 와서 — 파일이 남았다. 시험은 "안 남아야 한다"고 보고
+있었으니 깨진다(2026-08-20 15:05에 재현, 한 건에 14초).
+
+- `jarvis6_autolog.main()`에 `now`·`builder` 자리를 열었다. `collect()`가 이미
+  같은 자리를 열어 두었고 그것을 그대로 따랐다. **명령줄로 부를 때는 예전과
+  똑같다** — 아무것도 안 넘기면 진짜 시계와 진짜 시세를 쓴다. GitHub Actions가
+  부르는 방식(`python jarvis6_autolog.py --export-dir data/jarvis6`)도 그대로다.
+- 시험을 **두 갈래로 나눴다**. 관찰 구간(월 15:18)에는 남기고, 종가 단일가가
+  시작된 뒤(월 15:25)에는 안 남긴다. 예전에는 '안 남긴다' 한쪽만 봤다.
+- 자비스6의 **수집·판정 계산은 한 줄도 안 건드렸다.**
+- 자비스6 시험 27개 전부 통과. 시험 시간은 14초 → 0.6초.
+
 ---
 
 ## 0-V. 자비스3 미국 상승장 US_SWING_V1 (2026-08-20) ⭐⭐
@@ -1164,13 +1186,12 @@ DOM에서 지운다. 그런데 서버가 다시 그릴 때 창을 '아직 열림
 * **원래 깨져 있는 시험 넷** — 이번 작업과 무관하다.
   `test_bookmaker_data.py::PolymarketEventGroupingTests`(2026-08-01 이전부터),
   `test_db_runtime`(불러오기 실패), `test_market_signal_separation::test_verdict_enums_are_distinct`,
-  `test_jarvis4_data::test_flow_failure_returns_not_ok`,
-  `test_jarvis6::test_refuses_to_run_after_the_closing_auction`(**평일 한국시각
-  14:30~15:18에만 깨진다** — 시험이 진짜 시계를 본다. `jarvis6_autolog.main()`에
-  시각을 넣어 주면 고쳐진다).
+  `test_jarvis4_data::test_flow_failure_returns_not_ok`.
   마지막 것은 **디스크 공책 때문**이다 — `cache/jarvis4/flow__000660.pkl`이 있으면
   시험이 일부러 낸 통신 실패를 캐시가 덮어 `ok=True`가 된다.
   `_disk_cache_read`를 막고 돌리면 통과한다(2026-08-06 확인).
+  다섯째였던 `test_jarvis6::test_refuses_to_run_after_the_closing_auction`은
+  **2026-08-20에 고쳤다**(0-W 참고).
 * **PowerShell로 소스 파일을 고치지 않는다. `Write`/`Edit`만 쓴다.**
   `Set-Content -Encoding utf8`은 BOM을 넣고, 그보다 나쁜 것은 **`Get-Content -Raw`가
   BOM 없는 UTF-8 파일을 CP949로 읽어 한글을 전부 깨뜨린다**는 점이다.

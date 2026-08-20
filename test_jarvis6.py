@@ -8,8 +8,10 @@
 5) 경고가 있어도 막지 않는다
 """
 
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -262,11 +264,35 @@ class AutoLogTests(unittest.TestCase):
         self.assertEqual(
             store.import_auto_logs(source_dir=self.out, db_path=self.db)["rows"], 1)
 
+    def _run_main(self, when: datetime):
+        """시각을 시험이 쥐고 부른다.
+
+        예전에는 `main()`이 진짜 시계를 봤다. 그래서 평일 한국시각
+        14:30~15:18에 시험을 돌리면 정말 관찰 구간이라 파일이 남고 이 시험이
+        깨졌다(2026-08-20 재현). 종목도 시험이 준다 — 진짜 시세를 받으러
+        나가면 시험 한 건에 14초가 걸렸다.
+        """
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = self.autolog.main(["--export-dir", str(self.out)],
+                                     now=when, builder=self._build)
+        return code, buf.getvalue()
+
+    def test_writes_during_the_watch_window(self):
+        """관찰 구간에는 사람이 안 눌러도 그날 것이 남아야 한다."""
+        code, out = self._run_main(self.when)   # 2026-07-27(월) 15:18
+        self.assertEqual(code, 0)
+        self.assertEqual([p.name for p in self.out.glob("*.json")],
+                         ["2026-07-27.json"])
+        self.assertIn("관찰 구간", out)
+
     def test_refuses_to_run_after_the_closing_auction(self):
         """15:20이 지난 뒤 남기면 종가를 보고 종가에 샀다고 적는 셈이다."""
-        code = self.autolog.main(["--export-dir", str(self.out)])
+        after = datetime(2026, 7, 27, 15, 25, tzinfo=ZoneInfo("Asia/Seoul"))
+        code, out = self._run_main(after)
         self.assertEqual(code, 0)
         self.assertFalse(list(self.out.glob("*.json")) if self.out.exists() else [])
+        self.assertIn("남기지 않습니다", out)
 
     def test_headline_hides_the_score_until_enough(self):
         head = store.headline(db_path=self.db)

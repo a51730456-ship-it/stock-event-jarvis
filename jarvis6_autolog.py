@@ -89,14 +89,21 @@ def collect(*, now: datetime | None = None, export_dir: Path | None = None,
             "phase": payload["phase"]}
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, now: datetime | None = None, builder=None) -> int:
+    """명령줄 입구. ``now``·``builder``는 시험이 쥐라고 열어 둔 자리다.
+
+    시험이 진짜 시계를 보면 평일 한국시각 14:30~15:18에만 깨진다. 그때는
+    정말로 관찰 구간이라 이 함수가 파일을 남기기 때문이다(2026-08-20 재현).
+    시각을 밖에서 넣어 주면 '남기는 쪽'과 '거르는 쪽'을 둘 다 확인할 수 있다.
+    ``collect()``가 이미 같은 자리를 열어 두었고, 여기도 그것을 따른다.
+    """
     parser = argparse.ArgumentParser(description="자비스6 자동 기록")
     parser.add_argument("--export-dir", default=str(EXPORT_DIR))
     parser.add_argument("--allow-any-time", action="store_true",
                         help="장 시간이 아니어도 돌린다 (손으로 시험할 때만)")
     args = parser.parse_args(argv)
 
-    now = datetime.now(_SEOUL)
+    now = now or datetime.now(_SEOUL)
     phase = j6.market_phase(now)
     # 15:20이 지난 자료를 15:18로 쓰면 검증이 아니라 속임수가 된다.
     # 예약 실행이 늦어 관찰 구간을 놓치면 **남기지 않는 쪽**이 맞다.
@@ -105,7 +112,7 @@ def main(argv=None) -> int:
               f"{now.strftime('%H:%M')}). 관찰 구간은 평일 14:30~15:18입니다.")
         return 0
 
-    result = collect(now=now, export_dir=Path(args.export_dir))
+    result = collect(now=now, export_dir=Path(args.export_dir), builder=builder)
     if not result["ok"]:
         print(f"후보를 못 냈습니다: {result.get('error')}")
         return 1
