@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 import jarvis3_data as j3
+import us_swing_selector as us_swing
+import us_swing_testdata
 
 
 def _daily_frame(start=100.0, slope=0.5, periods=260):
@@ -52,6 +54,16 @@ def _frame_with_high(peak_days_ago: int, from_high_pct: float, periods: int = 26
     )
 
 
+# ── US_SWING_V1 합성 일봉 (2026-08-20) ───────────────────────────────────────
+# 상승장 갈래가 새 지시문으로 바뀌면서 그물이 여섯 겹이 됐다(시장 Gate · RS60 ·
+# RS120 · 종가 신고가 · 1~3거래일 · 3~10% 눌림). 그 가짜 일봉을 만드는 곳은
+# **us_swing_testdata 한 군데**다 — 화면 시험(test_jarvis3_page)도 같은 것을
+# 봐야 표와 계산이 서로 다른 것을 굳히지 않는다.
+_swing_market_frame = us_swing_testdata.market_frame
+_swing_stock_frame = us_swing_testdata.stock_frame
+_swing_fixture = us_swing_testdata.fixture
+
+
 class RulebookScreenTests(unittest.TestCase):
     """설명서 두 갈래(2026-08-01 사용자 지시)가 설명서 숫자 그대로 거르는지.
 
@@ -72,27 +84,26 @@ class RulebookScreenTests(unittest.TestCase):
     def test_rule_numbers_are_what_the_screen_searches_for(self):
         """화면이 실제로 찾는 숫자. 손대면 찾는 종목이 달라진다.
 
-        2026-08-06까지는 이 숫자가 method_help.US_TEXT에도 글로 적혀 있어서 둘을
-        묶어 두었다. 설명 창이 표 그림으로 바뀌면서 글에서는 빠졌고, 표 숫자는
-        docs/US_METHOD_TABLES.md가 지킨다(그림은 자동으로 못 읽는다).
-
-        2026-08-06에 표와 같은 값으로 맞췄다(사용자 결정). 그전 값
-        (3~5일 · 4~6% · -40~-50%)은 2026-08-01 설명서였는데, 다시 재니 앞 5년
-        -0.2%p · 뒤 5년 -3.8%p로 양쪽 다 아무 종목이나 산 것보다 못했다.
+        **2026-08-20에 상승장(신고가 눌림매수)이 US_SWING_V1으로 바뀌었다.**
+        상하님이 주신 새 지시문이 그물과 배점을 함께 정하셨다 — 나스닥이 조정을
+        끝내고 이전 최고를 되찾은 자리에서, 최근 3개월과 6개월 모두 상위 20%인
+        종목이 종가로 52주 신고가를 넘고, 그 뒤 1~3거래일 안에 3~10% 눌린 자리다.
+        옛 그물(3~10일 · -15~-4%)과 옛 배점(테마 근접도 70 + 뚫기 전 60일 30)은
+        여기서 함께 사라졌다. **급락 갈래는 손대지 않았다.**
         """
         rule = j3.BREAKOUT_PULLBACK_RULE
-        # 그물은 넓게 — 옛 기준(4~6%)도 품는다(2026-08-06).
-        # **2026-08-12 저녁 상하님이 3~10일로 정하셨다.** 1~5일로는 명부 198개 중
-        # 16개만 걸려 화면이 거의 비었다. 어느 날짜 칸도 성적을 가르지 못했으므로
-        # (research/us_breakout_window.py) 좁게 둘 근거가 없었다.
-        self.assertEqual((3, 10), rule["wait_days"])
-        self.assertEqual((-15.0, -4.0), rule["drop_band"])
-        self.assertEqual(120, rule["hold_days"])
+        # 신고가 당일(day0)은 쫓아사지 않는다 — 1~3거래일 안의 첫 눌림만 본다.
+        self.assertEqual((1, 3), rule["wait_days"])
+        # 화면 호환을 위해 부호(-)로 두지만 뜻은 anchor 종가 대비 3~10% 눌림이다.
+        self.assertEqual((-10.0, -3.0), rule["drop_band"])
+        # **파는 날은 규칙에 없다** — 상승장도 급락과 같다(CLAUDE.md 0-1 바).
+        self.assertIsNone(rule["hold_days"], "파는 날이 규칙으로 되살아났다")
         # 별점은 뺐다(2026-08-06) — 낙폭·날짜만 보고 달았는데 뒤 5년에서 졌다.
         self.assertFalse(hasattr(j3, "BREAKOUT_STAR_RULES"), "별점이 되살아났다")
         self.assertFalse(hasattr(j3, "breakout_stars"), "별점이 되살아났다")
-        # 성적 옆에는 늘 기준선이 붙어야 한다. 기준선은 화면이 뒤지는 명부로 잰 값이다.
-        self.assertEqual(62.2, j3.BREAKOUT_BASE_WIN_RATE)
+        # 점수 버전을 줄마다 남긴다 — 옛 추천을 새 가중치로 덮어쓰지 않기 위한 것이다.
+        self.assertEqual("US_SWING_V1", us_swing.SCORE_MODEL_VERSION)
+        self.assertEqual(j3.MODULE_REVISION, us_swing.MODULE_REVISION)
         # **2026-08-12에 상하님 표 2로 되돌렸다.** 2026-08-07에 내가 나스닥 구간·
         # 종목 낙폭·보유기간 셋을 한꺼번에 바꿔 놓고 "-6%는 흔한 조정"이라고 적었는데,
         # 갈라서 다시 재 보니 진짜 원인은 보유기간이었다(-6%도 1년 들면 +33.1%).
@@ -123,112 +134,153 @@ class RulebookScreenTests(unittest.TestCase):
         with patch.object(j3, "_download_cached", return_value=(frames, {"fetched_at": "x"})):
             return finder()
 
-    def test_breakout_casts_a_wide_net_and_ranks_by_score(self):
-        """그물은 넓게, 순위는 100점 배점으로(2026-08-06 사용자 결정).
-
-        재측정 결과(1~5일 · 10~15%)를 그대로 거르는 조건으로 썼더니 화면이 매일
-        비었다 — 그 자리는 1년에 30번뿐이다. 그래서 넓게 찾고 점수로 차례를 매긴다.
-        고르는 것은 사람이 한다.
-
-        **날짜는 점수에 넣지 않는다**(2026-08-06 사용자 지시 "날짜만 보여주면 된다").
-        재 보니 1~3일도 뒤 5년에서 졌다.
-        """
-        frames = {
-            "AAPL": _frame_with_high(4, -12.0),   # 많이 눌렸다
-            "MSFT": _frame_with_high(8, -12.0),   # 같은 눌린 폭, 날짜만 다르다
-            "AMZN": _frame_with_high(4, -5.0),    # 덜 눌렸다 — 그래도 보여준다
-            "GOOGL": _frame_with_high(4, -20.0),  # 너무 눌렸다 — 그물 밖
-            "META": _frame_with_high(2, -12.0),   # 2일 전 — 그물 밖(3일부터)
-        }
-        result = self._run(j3.find_breakout_pullback_stocks, frames)
-        self.assertTrue(result["ok"])
-        picked = {row["ticker"]: row for row in result["rows"]}
-        self.assertEqual({"AAPL", "MSFT", "AMZN"}, set(picked))
-        for row in picked.values():
-            self.assertIsInstance(row["score"], float)
-            self.assertNotIn("stars", row)
-        # 점수가 높은 줄이 위에 온다.
-        scores = [row["score"] for row in result["rows"]]
-        self.assertEqual(sorted(scores, reverse=True), scores)
-        # **눌린 폭은 10~15% 칸에만 점수를 준다**(2026-08-12 재측정).
-        # 2026-08-09에 "그물이 이미 쓴 값"이라며 0점으로 뺐던 항목인데, 앱 그물
-        # 그대로(시장 조건 없이) 다시 재니 보유 3개월·6개월·1년 **셋 다 합격한
-        # 유일한 항목**이었다(research/us_breakout_ladder.py).
-        # 비례로 깎지 않고 **칸으로 가른다** — 6~10%는 실측에서 거꾸로였다.
-        # → **2026-08-13에 0점이 됐다.** 제가 재는 자를 고쳐 다시 재니 네 기간 모두
-        # 반반이었다(52.1 · 51.5 · 51.1 · 49.9). 그물(4~15%)만 남고 점수는 없다.
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
-        for ticker, row in picked.items():
-            names = [n for n, _v, _m, _t in j3.breakout_score(row)["parts"]]
-            self.assertNotIn("눌린 폭 10~15%", names, ticker)
-        # **뚫기 전 60일 상승은 '뚫던 날' 기준이다** — 오늘 기준 ret60과 다르다.
-        # 세 종목 다 뚫던 날까지 43~45% 올라 35~50% 칸(15점)에 든다.
-        self.assertEqual(30.0, j3.BREAKOUT_SCORE_WEIGHTS["gain60"])
-        gain_points = {
-            ticker: next(v for n, v, _m, _t in j3.breakout_score(row)["parts"]
-                         if n.startswith("뚫기 전 60일"))
-            for ticker, row in picked.items()
-        }
-        for ticker, points in gain_points.items():
-            self.assertEqual(15.0, points, ticker)
-            self.assertGreater(picked[ticker]["gain60_at_breakout"], 40.0, ticker)
-        # **0점 항목도 표에 넣는다**(2026-08-15 상하님 지시 — "각 배점에도 0점짜리도
-        # 표시하고 점수 미달인 이유 넣고"). 앱이 무엇을 재고 무엇을 버렸는지가 화면에
-        # 남아야 한다. 다만 **점수는 0이어야 한다** — 표에 보인다고 점수가 붙으면
-        # 근거 없는 항목이 순위를 흔든다.
-        for row in picked.values():
-            parts = j3.breakout_score(row)["parts"]
-            zeros = [(v, m) for _n, v, m, _t in parts if not m]
-            self.assertTrue(zeros, "0점짜리 줄이 배점표에서 사라졌다")
-            for value, _maximum in zeros:
-                self.assertEqual(0.0, value, "만점 0인 항목에 점수가 붙었다")
-        # 날짜만 다른 두 종목은 점수가 같아야 한다 — 날짜에는 점수를 주지 않는다.
-        self.assertEqual(picked["AAPL"]["score"], picked["MSFT"]["score"])
-        # 며칠 지났는지는 줄마다 그대로 실려야 한다 — 화면이 그걸 보여준다.
-        self.assertEqual(4, picked["AAPL"]["wait_days"])
-        self.assertEqual(8, picked["MSFT"]["wait_days"])
-        # **파는 날은 규칙에 없다**(2026-08-12 상하님 확정). 줄에는 며칠이 아니라
-        # 3개월·6개월·1년 과거 성적이 실린다 — 화면이 셋을 나란히 보여준다.
-        self.assertIsNone(picked["AAPL"]["hold_days"])
-        self.assertEqual([60, 120, 250],
-                         [item["days"] for item in picked["AAPL"]["hold_results"]])
-
-    def test_breakout_tells_the_market_state_but_never_filters_on_it(self):
-        """표를 잰 자리인지 알려만 준다(2026-08-06 사용자 결정).
-
-        표 1의 '장세' 칸(200일선 위 · 고점 대비 -10% 안)은 상하님이 주신 원래
-        설명서의 규칙이 아니라, 2026-08-01에 날을 가르려고 내가 정한 **잰 범위**다.
-        거르는 조건으로 바꾸면 화면이 통째로 비는 날이 생긴다.
-        """
-        frames = {"AAPL": _frame_with_high(4, -12.0)}
-        for above, drop, armed in ((True, -3.0, True), (False, -20.0, False)):
-            state = {"ok": True, "armed": armed, "drop_pct": drop, "above_200": above,
-                     "max_drop": j3.BREAKOUT_MARKET_MAX_DROP, "reason": "시험"}
-            with patch.object(j3, "breakout_market_state", return_value=state):
-                result = self._run(j3.find_breakout_pullback_stocks, frames)
-            self.assertTrue(result["ok"])
-            self.assertEqual(1, len(result["rows"]), f"200일선 {above}인데 막혔다")
-            self.assertEqual(armed, result["market"]["armed"], "시장 상태는 알려줘야 한다")
-
-    def test_breakout_market_state_reads_the_two_hundred_day_line(self):
-        index = pd.date_range("2025-01-01", periods=260, freq="D")
-        close = pd.Series([100.0] * 259 + [70.0], index=index)   # 200일선 아래·고점 -30%
-        frame = pd.DataFrame({"Open": close, "High": close, "Low": close,
-                              "Close": close, "Volume": [1e6] * 260}, index=index)
+    def _run_swing(self, frames, ixic):
+        """상승장 스캔은 종목 일봉과 나스닥 전체 일봉을 따로 받는다."""
+        payload = dict(frames)
+        payload["^IXIC"] = ixic
         with patch.object(j3, "_download_cached",
-                          return_value=({j3.CRASH_MARKET_SYMBOL: frame}, {})):
+                          return_value=(payload, {"fetched_at": "x"})):
+            return j3.find_breakout_pullback_stocks()
+
+    def test_breakout_gate_comes_first_and_score_only_sets_the_order(self):
+        """**자격이 먼저, 점수는 그다음이다** (2026-08-20 지시문 3·36번).
+
+        옛 상승장은 그물은 넓게 두고 순위만 점수로 매겼다. 새 규칙은 순서가
+        반대다 — 시장 · RS60 · RS120 · 종가 신고가 · 신고가 뒤 1~3거래일 ·
+        종가 눌림 3~10%를 **모두** 통과한 종목만 정식 후보가 되고, 점수는
+        통과한 것들의 차례만 정한다. 보조점수가 아무리 높아도 이 자격을
+        대신하지 못한다.
+        """
+        _tickers, frames, ixic = _swing_fixture()
+        result = self._run_swing(frames, ixic)
+        self.assertTrue(result["ok"], result.get("error"))
+        self.assertEqual("US_SWING_V1", result["score_model_version"])
+        self.assertEqual("MARKET_ON", result["market"]["market_status"])
+
+        primary = result["primary_rows"]
+        watch = result["watch_rows"]
+        self.assertTrue(primary, "정식 후보가 하나도 안 나왔다")
+        for row in primary:
+            self.assertTrue(row["eligible_primary"])
+            self.assertEqual("PRIMARY_CANDIDATE", row["primary_status"])
+            self.assertGreaterEqual(row["rs60_percentile"], 80.0)
+            self.assertGreaterEqual(row["rs120_percentile"], 80.0)
+            self.assertTrue(3.0 <= row["pullback_pct_close"] <= 10.0, row["ticker"])
+            self.assertTrue(1 <= row["days_since_anchor"] <= 3, row["ticker"])
+            self.assertIsNotNone(row["grade"])
+        # 떨어진 줄에는 등급을 붙이지 않는다(35번) — 상태가 먼저고 점수는 참고다.
+        for row in watch:
+            self.assertFalse(row["eligible_primary"])
+            self.assertIsNone(row["grade"])
+        # 점수는 통과한 것들의 차례만 정한다.
+        scores = [row["total_score"] for row in primary]
+        self.assertEqual(sorted(scores, reverse=True), scores)
+        self.assertEqual(list(range(1, len(primary) + 1)),
+                         [row["primary_rank"] for row in primary])
+
+    def test_breakout_support_score_can_never_bypass_the_rs_gate(self):
+        """**보조점수로 RS 자격을 살 수 없다** (지시문 3·49번).
+
+        RS60이 아무리 높아도 RS120이 상위 20% 밖이면 정식 후보가 아니다.
+        총점이 높게 나와도 화면은 등급 대신 "RS120 부족"을 먼저 말한다.
+        """
+        self.assertEqual(25.0, us_swing.rs_points(97.0))
+        self.assertEqual(12.0, us_swing.rs_points(74.0))
+        self.assertEqual(20.0, us_swing.pullback_points(7.0))
+        # 자격을 못 넘었으면 등급 자체가 없다.
+        self.assertIsNone(us_swing.grade_for(90.0, False))
+        self.assertEqual("S", us_swing.grade_for(90.0, True))
+
+    def test_breakout_core_and_support_are_never_mixed_into_one_number(self):
+        """핵심 70과 보조 30을 하나로 뭉쳐 감추지 않는다 (지시문 33·57번)."""
+        _tickers, frames, ixic = _swing_fixture()
+        row = self._run_swing(frames, ixic)["primary_rows"][0]
+        self.assertAlmostEqual(
+            row["rs60_score"] + row["rs120_score"] + row["pullback_score"],
+            row["core_score"], places=6)
+        self.assertAlmostEqual(
+            row["theme_score"] + row["volume_score"]
+            + row["breadth_score"] + row["rebound_score"],
+            row["support_score"], places=6)
+        self.assertAlmostEqual(row["core_score"] + row["support_score"],
+                               row["total_score"], places=6)
+        self.assertLessEqual(row["core_score"], 70.0)
+        self.assertLessEqual(row["support_score"], 30.0)
+        # 화면 배점표도 같은 일곱 줄을 쓰고, 줄마다 그 종목의 실제 값이 실린다.
+        scored = j3.breakout_score(row)
+        self.assertEqual(100.0, scored["max"])
+        self.assertEqual(7, len(scored["parts"]))
+        self.assertEqual(round(row["total_score"], 1), scored["score"])
+        for name, value, maximum, note in scored["parts"]:
+            self.assertLessEqual(value, maximum, name)
+            self.assertTrue(str(note).strip(), f"{name} 줄에 실제 값이 없다")
+
+    def test_breakout_every_item_carries_a_plain_word_explanation(self):
+        """항목마다 **쉬운 한 줄 설명과 자세한 설명**이 붙는다 (지시문 46·47번)."""
+        _tickers, frames, ixic = _swing_fixture()
+        row = self._run_swing(frames, ixic)["primary_rows"][0]
+        payload = row["explanations"]
+        for metric in ("market", "rs60", "rs120", "breakout", "pullback",
+                       "theme", "volume", "breadth", "rebound"):
+            item = payload[metric]
+            for field in ("title", "display_value", "one_line_explanation",
+                          "detail_explanation", "status", "confidence"):
+                self.assertTrue(str(item.get(field) or "").strip(),
+                                f"{metric}의 {field}가 비었다")
+            self.assertLessEqual(item["score"], item["max_score"], metric)
+
+    def test_breakout_market_gate_blocks_every_new_primary_candidate(self):
+        """**시장이 아니면 아무도 정식 후보가 못 된다** (2026-08-20 지시문 6·36번).
+
+        옛 상승장은 나스닥 상태를 알려만 주고 막지 않았다. 새 규칙은 그 반대다 —
+        좋은 종목도 시장 전체가 약하면 성공하기 어렵다는 것이 그 까닭이고,
+        MARKET_ON이 HARD GATE의 첫 조건이다.
+        **자리를 채우려고 기준을 낮추지 않는다**(CLAUDE.md 0-1 바).
+        """
+        _tickers, frames, ixic = _swing_fixture(market_on=False)
+        result = self._run_swing(frames, ixic)
+        self.assertTrue(result["ok"], result.get("error"))
+        self.assertNotEqual("MARKET_ON", result["market"]["market_status"])
+        self.assertEqual([], result["primary_rows"], "시장이 막혔는데 후보가 나왔다")
+        self.assertTrue(result["watch_rows"], "관찰목록까지 사라지면 안 된다")
+        self.assertIn("MARKET_BLOCKED",
+                      {row["primary_status"] for row in result["watch_rows"]})
+        for row in result["watch_rows"]:
+            self.assertIsNone(row["grade"], "Gate를 못 넘었는데 등급이 붙었다")
+
+    def test_breakout_market_state_follows_the_correction_and_reclaim_cycle(self):
+        """시장 상태는 200일선이 아니라 **조정 → 이전 최고 회복** 사이클로 본다.
+
+        2026-08-20 지시문 6번 — 나스닥 종가가 이전 최고에서 10% 넘게 밀렸다가
+        그 최고를 다시 넘으면 새 상승 사이클(MARKET_ON)로 본다. 200일선과
+        고점 대비 낙폭은 계속 재서 저장하지만 **점수에는 넣지 않는다.**
+        """
+        with patch.object(j3, "_download_cached",
+                          return_value=({"^IXIC": _swing_market_frame()}, {})):
             state = j3.breakout_market_state()
         self.assertTrue(state["ok"])
-        self.assertFalse(state["armed"])
-        self.assertFalse(state["above_200"])
-        self.assertIn("표를 잰 자리가 아닙니다", state["reason"])
+        self.assertTrue(state["armed"])
+        self.assertEqual("MARKET_ON", state["market_status"])
+        self.assertEqual(0.10, state["correction_threshold"])
+        self.assertIsNotNone(state["ixic_sma200"])
+        with patch.object(j3, "_download_cached",
+                          return_value=({"^IXIC": _swing_market_frame(market_on=False)}, {})):
+            weak = j3.breakout_market_state()
+        self.assertNotEqual("MARKET_ON", weak["market_status"])
+        self.assertFalse(weak["armed"])
 
-    def test_breakout_market_state_stays_quiet_when_data_is_missing(self):
-        """자료를 못 받으면 켜 둔다 — 자료 탓에 화면이 막히면 더 나쁘다."""
+    def test_breakout_market_state_blocks_when_the_index_cannot_be_read(self):
+        """**나스닥을 못 읽으면 새 후보를 막는다** (2026-08-20에 뒤집혔다).
+
+        옛 규칙은 자료 탓에 화면이 막히면 더 나쁘다며 켜 뒀다. 새 지시문 43번은
+        모르는 것을 통과나 0점으로 조용히 바꾸지 말라고 못박았다 — 시장을 못 읽은
+        날 신규매수를 허용하면 그 근거가 어디에도 남지 않는다.
+        """
         with patch.object(j3, "_download_cached", side_effect=RuntimeError("망")):
             state = j3.breakout_market_state()
         self.assertFalse(state["ok"])
-        self.assertTrue(state["armed"])
+        self.assertFalse(state["armed"], "시장을 못 읽었는데 새 후보를 허용했다")
+        self.assertEqual("MARKET_RISK", state["market_status"])
 
     def test_neither_screen_filters_on_a_moving_average(self):
         """설명서에 없는 이동평균 조건을 더하면 화면이 설명과 다른 것을 찾는다.
@@ -343,85 +395,106 @@ class RulebookScreenTests(unittest.TestCase):
 
         테마 명부는 사람이 손으로 묶은 것이라, 테마에 없다는 것은 그 종목이
         나쁘다는 뜻이 아니라 **명부가 아직 그 종목을 안 담았다**는 뜻이다.
-        감추지 않고 보여 주되 테마 70점을 못 받아 아래로 내려간다.
-        **이것을 '조건'으로 바꾸려면 그물을 바꾸는 것이므로 먼저 여쭌다.**
+        2026-08-20 새 지시문도 같은 편이다(25·43번) — 테마는 보조점수라서
+        못 쟀다고 종목을 탈락시키지 않는다. 대신 테마 10점과 확산도 5점을
+        못 받아 아래로 내려간다.
+        **이것을 조건으로 바꾸려면 그물을 바꾸는 것이므로 먼저 여쭌다.**
         """
-        frames = {
-            "MSFT": _frame_with_high(4, -12.0),   # 빅테크10에 있다
-            "AAPL": _frame_with_high(4, -12.0),
-            "AMZN": _frame_with_high(4, -12.0),
-            "JPM": _frame_with_high(4, -12.0),    # 어느 테마에도 없다
-        }
-        picked = {row["ticker"]: row
-                  for row in self._run(j3.find_breakout_pullback_stocks, frames)["rows"]}
-        self.assertIn("JPM", picked, "테마 없는 종목이 목록에서 사라졌다")
-        self.assertEqual([], picked["JPM"]["themes"])
-        self.assertIsNone(picked["JPM"]["theme_prox"])
-        theme_points = next(v for n, v, _m, _t in j3.breakout_score(picked["JPM"])["parts"]
-                            if n.startswith("테마"))
-        self.assertEqual(0.0, theme_points, "테마가 없으면 테마 점수는 0점이다")
-        # 테마가 있는 종목보다 아래로 내려가야 한다.
-        self.assertLess(picked["JPM"]["score"], picked["MSFT"]["score"])
+        tickers, frames, ixic = _swing_fixture(loner_first=True)
+        loner = tickers[0]
+        self.assertNotIn(loner, {t for theme in j3.US_THEMES for t in theme["stocks"]})
+        result = self._run_swing(frames, ixic)
+        rows = {row["ticker"]: row for row in result["all_rows"]}
+        self.assertIn(loner, rows, "테마 없는 종목이 목록에서 사라졌다")
+        self.assertFalse(rows[loner]["theme_valid"])
+        self.assertEqual(0.0, rows[loner]["theme_score"], "테마가 없으면 테마 점수는 0점이다")
+        self.assertEqual(0.0, rows[loner]["breadth_score"])
+        # **테마를 못 쟀다고 정식 후보에서 떨어뜨리지 않는다.**
+        self.assertTrue(rows[loner]["eligible_primary"],
+                        f"테마가 없다고 후보에서 빠졌다: {rows[loner]['primary_status']}")
+        self.assertIn(loner, [row["ticker"] for row in result["primary_rows"]])
+        # 대신 보조점수가 깎여 만점을 못 받는다.
+        self.assertLessEqual(rows[loner]["support_score"], 30.0 - 10.0 - 5.0)
 
     def test_breakout_rank_looks_at_what_the_score_looks_at(self):
-        """상승장 순위는 **배점이 보는 것과 같은 것**을 봐야 한다 (2026-08-13).
+        """상승장 순위는 **배점이 보는 것과 같은 것**을 봐야 한다.
 
-        2026-08-13 전까지 점수는 눌린 폭·테마 등수를 보는데 순위는 '같은 테마
-        동반 수'와 오늘 기준 ret60을 봤다 — **둘이 서로 다른 것을 보고 있었다.**
-        이제 총점 → 테마 근접도 → 뚫기 전 60일 상승 → 티커 차례다.
-        거래대금과 거래대금 연속은 상승장에서 거꾸로였다(53번, 기준선 62번).
+        2026-08-20 새 지시문 41·58번이 차례를 다시 정했다 —
+        총점 → 핵심점수 → RS120 → RS60 → 눌림 점수 → 20일 평균 거래대금 → 티커다.
+        **지금 시가총액은 쓰지 않는다.** 과거 차례를 지금 시총으로 매기면
+        그날 알 수 없던 것을 쓰는 셈이 된다(39번).
         """
         import inspect
 
         source = inspect.getsource(j3._breakout_rank_key)
-        for gone in ("volume_streak", "together", "avg_dollar_volume"):
+        for gone in ("volume_streak", "together", "market_cap", "theme_prox"):
             self.assertNotIn(gone, source, f"{gone}이 순위에 되살아났다")
+        base = {"eligible_primary": True, "total_score": 80.0, "core_score": 60.0,
+                "rs120_percentile": 90.0, "rs60_percentile": 90.0,
+                "pullback_score": 20.0, "avg_dollar_volume_20": 1e9}
         rows = [
-            {"ticker": "AAA", "theme_prox": 90.0, "gain60_at_breakout": 80.0},
-            {"ticker": "BBB", "theme_prox": 99.0, "gain60_at_breakout": 5.0},
-            {"ticker": "CCC", "theme_prox": 99.0, "gain60_at_breakout": 60.0},
+            {**base, "ticker": "AAA", "core_score": 55.0},   # 핵심점수가 낮다
+            {**base, "ticker": "BBB", "rs120_percentile": 95.0},
+            {**base, "ticker": "CCC", "rs120_percentile": 95.0, "rs60_percentile": 99.0},
         ]
         ordered = [row["ticker"] for row in sorted(rows, key=j3._breakout_rank_key)]
         self.assertEqual(["CCC", "BBB", "AAA"], ordered)
+        # 총점이 같아도 **핵심점수가 높은 쪽이 먼저다**(33번). 보조점수로 채운
+        # 총점과 핵심으로 채운 총점은 같은 종목이 아니다.
+        mixed = [{**base, "ticker": "CORE", "core_score": 68.0, "support_score": 12.0},
+                 {**base, "ticker": "SUPP", "core_score": 50.0, "support_score": 30.0}]
+        self.assertEqual(["CORE", "SUPP"],
+                         [row["ticker"] for row in sorted(mixed, key=j3._breakout_rank_key)])
 
     def test_breakout_and_crash_are_scored_with_different_rulers(self):
-        """두 갈래에 같은 자를 쓰면 낙폭 종목이 정의상 전부 '제외'로 나온다."""
+        """두 갈래에 같은 자를 쓰면 낙폭 종목이 정의상 전부 "제외"로 나온다."""
         self.assertNotEqual(j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS)
         for weights in (j3.BREAKOUT_SCORE_WEIGHTS, j3.CRASH_SCORE_WEIGHTS):
             # 거래대금 연속은 양쪽 갈래 다 거꾸로였다 — 배점에서 뺐다.
             self.assertNotIn("volume_streak", weights)
         # **계단은 40·30·20·10뿐이다**(CLAUDE.md 0-1 마). 47.0·31.25·22.5·18.75 같은
         # 비례 나눗셈 값이 다시 들어오면 여기서 먼저 깨진다.
-        # **딱 하나 예외가 있다 — 상승장의 테마 근접도 70점이다.** 2026-08-13에
-        # 상하님이 "비례로 준다"고 정하셨다. 제가 칸으로 나눠 보니 네 번 중 3번
-        # 통과가 0번으로 떨어졌다(97%와 99%가 같은 칸에 들어가 차이가 사라진다).
-        # 예외를 **이름으로 못박아** 둔다 — 다른 항목이 계단을 벗어나면 여기서 깨진다.
-        for label, weights in (("상승장", j3.BREAKOUT_SCORE_WEIGHTS),
-                               ("급락", j3.CRASH_SCORE_WEIGHTS)):
-            for name, points in weights.items():
-                if (label, name) == ("상승장", "theme_prox"):
-                    self.assertEqual(70.0, points, "테마 근접도는 비례 70점이다")
-                    continue
-                self.assertIn(points, (0.0, 10.0, 20.0, 30.0, 40.0),
-                              f"{label} {name} {points}점은 계단 밖이다")
-        # **합이 100이 아니어도 된다.** 합격한 항목에만 점수를 주고 남는 점수를
-        # 다른 항목에 나눠 주지 않는다 — 만점이 곧 그 파트의 근거의 양이다.
-        # 상승장은 테마 근접도 70 + 뚫기 전 60일 상승 30 = 100점이다(2026-08-13).
+        # **2026-08-20부터 이 계단은 급락 갈래만의 규칙이다.** 계단은 제가 항목을
+        # 하나씩 과거차트로 재서 순위를 매길 때 쓰던 규칙인데, 상승장은 상하님이
+        # 주신 새 지시문이 항목마다 만점을 직접 정해 내려왔다(25·25·20·10·8·5·7).
+        for name, points in j3.CRASH_SCORE_WEIGHTS.items():
+            self.assertIn(points, (0.0, 10.0, 20.0, 30.0, 40.0),
+                          f"급락 {name} {points}점은 계단 밖이다")
+        # **상승장 배점은 핵심 70 + 보조 30 = 100점이다**(2026-08-20 지시문 32번).
+        # 핵심은 RS60 25 + RS120 25 + 신고가 후 눌림 20,
+        # 보조는 테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7이다.
+        self.assertEqual({"rs60": 25.0, "rs120": 25.0, "pullback": 20.0,
+                          "theme": 10.0, "volume": 8.0, "breadth": 5.0,
+                          "rebound": 7.0}, dict(j3.BREAKOUT_SCORE_WEIGHTS))
+        core = sum(j3.BREAKOUT_SCORE_WEIGHTS[name]
+                   for name in ("rs60", "rs120", "pullback"))
+        support = sum(j3.BREAKOUT_SCORE_WEIGHTS[name]
+                      for name in ("theme", "volume", "breadth", "rebound"))
+        self.assertEqual((70.0, 30.0), (core, support), "핵심 70·보조 30이 어긋났다")
         self.assertEqual(100.0, j3.BREAKOUT_SCORE_MAX)
         # 급락은 2026-08-19부터 **넷**이다 — 상하님 새 지시문을 앱 명부로 다시 쟀다.
         # 주가 변동성 40 + 30주선 30 + 동시 하락 20 + 6개월 수익률 10 = 100점.
         self.assertEqual(100.0, j3.CRASH_SCORE_MAX)
         self.assertEqual(j3.BREAKOUT_SCORE_MAX, sum(j3.BREAKOUT_SCORE_WEIGHTS.values()))
         self.assertEqual(j3.CRASH_SCORE_MAX, sum(j3.CRASH_SCORE_WEIGHTS.values()))
-        # **상승장 1등은 테마 근접도, 급락 1등은 테마가 덜 빠졌나**다.
-        # 상승장의 눌린 폭 40점은 2026-08-13에 0점이 됐다 — 네 번 중 0번 통과.
-        self.assertEqual(70.0, j3.BREAKOUT_SCORE_WEIGHTS["theme_prox"])
-        self.assertEqual(30.0, j3.BREAKOUT_SCORE_WEIGHTS["gain60"])
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["drop"])
+        # **상승장 1등은 RS(상대강도)다.** 지시문은 이것을 RSI와 혼동하지 말라고
+        # 못박았다 — 여기서 RS는 나스닥보다 얼마나 더 올랐나이지 과열도가 아니다.
+        # 3개월과 6개월이 나란히 1등(25점씩)이고, 눌림이 3등(20점)이다.
+        self.assertEqual(25.0, j3.BREAKOUT_SCORE_WEIGHTS["rs60"])
+        self.assertEqual(25.0, j3.BREAKOUT_SCORE_WEIGHTS["rs120"])
+        self.assertEqual(20.0, j3.BREAKOUT_SCORE_WEIGHTS["pullback"])
+        # 보조 넷은 아직 더 재 봐야 하는 항목이라 낮은 몫만 준다.
+        for name, points in (("theme", 10.0), ("volume", 8.0),
+                             ("breadth", 5.0), ("rebound", 7.0)):
+            self.assertEqual(points, j3.BREAKOUT_SCORE_WEIGHTS[name], name)
+        # 옛 상승장 항목 이름이 되살아나면 여기서 깨진다.
+        for gone in ("theme_prox", "gain60", "drop", "spread5", "less_drop",
+                     "together", "recent_drop", "liquidity", "volatility", "ret60"):
+            self.assertNotIn(gone, j3.BREAKOUT_SCORE_WEIGHTS, f"옛 상승장 {gone}")
         # 급락 1등은 **주가 변동성**이다(2026-08-19 실측 — 바닥 9번에서 3개월 9/9 ·
         # 6개월 7/8 · 1년 8/8). 이 파트에서 종목 항목이 점수를 받는 것은 처음이다.
         # 30주선이 2등 30점, 동시 하락이 3등 20점, 6개월 수익률이 4등 10점이다.
-        # 옛 1등 '덜 빠졌나'는 그대로 0점이다.
+        # 옛 1등 "덜 빠졌나"는 그대로 0점이다.
         self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["volatility"])
         self.assertEqual(30.0, j3.CRASH_SCORE_WEIGHTS["above150"])
         self.assertEqual(20.0, j3.CRASH_SCORE_WEIGHTS["together"])
@@ -431,28 +504,20 @@ class RulebookScreenTests(unittest.TestCase):
         # 그물이 이미 쓴 값인 데다 변동성과 71%가 같은 종목이다(2026-08-19).
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["above20"])
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["bucket"])
-        # 그물마다 합격 못 한 항목들 — 되살아나면 여기서 깨진다.
+        # 급락 그물에서 합격 못 한 항목들 — 되살아나면 여기서 깨진다.
         for name in ("recent_drop", "liquidity"):
-            self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS[name], f"상승장 {name}")
             self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS[name], f"급락 {name}")
-        # 변동성은 **상승장에서는 여전히 0점**이고 급락에서만 40점이다. 두 갈래가
-        # 서로 다른 자를 쓴다는 것을 여기서 못박는다(2026-08-19).
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["volatility"])
-        self.assertEqual(40.0, j3.CRASH_SCORE_WEIGHTS["volatility"])
-        # '같은 테마 동반'은 **상승장에서는 여전히 0점**이다. 급락에서만 되살아났다
-        # (2026-08-16 저녁 · 바닥 자리에서 다시 재니 1등이었다).
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
         # **급락 배점 100점 가운데 60점이 테마 등수, 40점이 종목이다**(2026-08-19).
         # 2026-08-12에는 종목 항목 아홉 개가 세 보유 다 미달이라 100%가 테마였는데,
-        # 상하님 새 지시문의 '주가 변동성'을 앱 명부로 다시 재니 1등으로 붙었다.
+        # 상하님 새 지시문의 "주가 변동성"을 앱 명부로 다시 재니 1등으로 붙었다.
         theme_points = sum(j3.CRASH_SCORE_WEIGHTS[name]
                            for name in ("together", "theme_ret120", "above150",
                                         "less_drop", "aligned", "above20"))
         self.assertEqual(60.0, theme_points)
         self.assertEqual(j3.CRASH_SCORE_MAX,
                          theme_points + j3.CRASH_SCORE_WEIGHTS["volatility"])
-        # **'같이 오르는가' 30점은 '주봉 오름세'로 갈아끼웠다**(2026-08-12 저녁,
-        # 상하님 지시 "반등은 빨리·많이가 기준"). 속도를 넣고 재니 '같이 오르는가'로
+        # **"같이 오르는가" 30점은 "주봉 오름세"로 갈아끼웠다**(2026-08-12 저녁,
+        # 상하님 지시 "반등은 빨리·많이가 기준"). 속도를 넣고 재니 "같이 오르는가"로
         # 고른 종목은 +20%까지 46일 — **아무거나 산 것(45일)보다 느렸다.**
         # 주봉 오름세는 34일이고 5·10·20·40일·6개월·1년 여섯 곳 다 합격했다.
         # 근거: research/us_rebound_speed.py
@@ -462,27 +527,13 @@ class RulebookScreenTests(unittest.TestCase):
         # 20일선은 점수에서 빠지고 **같은 점수를 가르는 데만** 쓴다(넣으면 나빠진다).
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["above20"])
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["spread5"])
-        # 상승장 쪽 '같이 오르는가'도 **2026-08-13에 0점이 됐다.** 제가 재는 자를
-        # 고쳐(짝 견주기 3,683짝 · 연 단위 오차) 다시 재니 테마를 **그날 등수**로
-        # 매기는 자가 전부 무너졌다 — 51.2 · 51.9 · 53.2 · 53.2로 네 번 중 0번이다.
-        # 살아남은 것은 **근접도를 칸 없이 그대로 쓰는 것** 하나뿐이다.
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["spread5"])
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["less_drop"])
-        self.assertEqual(70.0, j3.BREAKOUT_SCORE_WEIGHTS["theme_prox"])
-        # '테마 60일 수익률'은 6개월 보유에서만 합격했다 — 파는 시점을 안 정하므로 안 쓴다.
+        # "테마 60일 수익률"은 6개월 보유에서만 합격했다 — 파는 시점을 안 정하므로 안 쓴다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["theme_rank"])
-        # **'최근 11일'은 보유기간마다 뒤집힌다.** 3개월 1등(-5.8p)인데 1년에서는
+        # **"최근 11일"은 보유기간마다 뒤집힌다.** 3개월 1등(-5.8p)인데 1년에서는
         # 거의 거꾸로(-19.7p)다. 앱이 파는 시점을 안 정하므로 쓸 수 없다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["recent_drop"])
-        # **상승장에서도 0점이 됐다**(2026-08-12). "다시 재 볼 자리"라고 적어 뒀던
-        # 것을 앱 그물 그대로 다시 쟀더니 세 보유기간 전부 미달이었다
-        # (3개월 73/60 · 6개월 89/60 · 1년 100/76 — 수익률 쪽이 65%를 못 넘는다).
-        # 그리고 '-5%↑ 빠짐'은 그물의 6%뿐이라 못 가르기도 한다(기준 6).
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["recent_drop"])
         # 낙폭 갈래도 0점이다 — 갈래가 하나뿐이라 모두 같은 점수를 받아 못 가른다.
         self.assertEqual(0.0, j3.CRASH_SCORE_WEIGHTS["bucket"])
-        # 60일 상승폭도 뺐다 — 가운데 값만 크고 이기는 횟수는 뒤 5년에 졌다.
-        self.assertNotIn("ret60", j3.BREAKOUT_SCORE_WEIGHTS)
 
     def test_theme_points_match_what_the_screen_says(self):
         """화면 배점표('3개↑ 만점 · 1~2개 절반')와 계산이 같아야 한다.
@@ -496,16 +547,19 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual(20.0, j3.theme_together_points(1, 40.0))
         self.assertEqual(20.0, j3.theme_together_points(2, 40.0))
         self.assertEqual(0.0, j3.theme_together_points(0, 40.0))
-        # **상승장은 2026-08-12부터 이 자를 안 쓴다.** 앱 그물 그대로 다시 재니
-        # '같은 테마 동반 4개↑'는 6개월 보유에서만 합격했고 3개월·1년에서는
-        # 미달이었다. 앱이 파는 시점을 정하지 않으므로 한 기간에서만 통하는 값은
-        # 쓰지 않는다(CLAUDE.md 0-1 마). 배점표에도 그 줄이 없어야 한다.
+        # **상승장은 2026-08-12부터 이 자를 안 썼고, 2026-08-20에는 아예 다른 자로
+        # 갈아탔다.** 새 지시문은 같은 테마 다른 종목들이 얼마나 강한가를
+        # **대상 종목을 빼고**(Leave-One-Out) 재서 보조 10점만 준다.
+        # 배점표에 "같은 테마 동반" 줄이 다시 나오면 안 된다.
         row = {"metrics": {}, "together_count": 1, "together_tier": 0,
                "recent_gain_pct": 0.0}
-        names = [name for name, _v, _m, _t in j3.breakout_score(row)["parts"]]
-        self.assertNotIn("같은 테마 동반", names)
-        self.assertEqual(0.0, j3.BREAKOUT_SCORE_WEIGHTS["together"])
-        # 다만 **같은 점수 안의 차례**를 가르는 데는 계속 쓴다(_breakout_rank_key).
+        parts = j3.breakout_score(row)["parts"]
+        self.assertNotIn("같은 테마 동반", [name for name, _v, _m, _t in parts])
+        self.assertNotIn("together", j3.BREAKOUT_SCORE_WEIGHTS)
+        # 상승장 배점표는 일곱 줄이고 만점은 25·25·20·10·8·5·7이다.
+        self.assertEqual([25.0, 25.0, 20.0, 10.0, 8.0, 5.0, 7.0],
+                         [maximum for _n, _v, maximum, _t in parts])
+        # 급락은 이 자를 계속 쓴다 — 두 갈래가 서로 다른 자를 쓴다는 뜻이다.
         self.assertEqual(40.0, j3.theme_together_points(3, 40.0))
         # **급락에서도 2026-08-12에 뺐다.** 2026-08-09에 명부에서 종목 하나
         # (CRWD→ORCL)를 바꾼 뒤로 옛 그물에서도 이미 불합격이었고(80/95 → 64/93),
@@ -799,15 +853,27 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertGreater(year["deep"], year["shallow"])
 
     def test_rulebook_plans_carry_no_stop_loss(self):
+        """두 갈래 다 **손절가를 만들어 붙이지 않는다**.
+
+        2026-08-20 새 지시문 59번이 상승장 쪽 근거를 새로 적었다 — 고정 손절
+        (-8·-12·-15·-20%)은 과거 성적을 오히려 나쁘게 한 경우가 많았고, 시장이
+        약해지면 무조건 파는 방식도 좋지 않았다. 그래서 손절과 최종청산은
+        종목점수에 넣지 않고 "연구 중"이라고 적는다.
+        """
         row = {"metrics": {"from_high_pct": -5.0, "current": 100.0, "ret60": 20.0},
                "together_tier": 2, "together_count": 3, "hold_days": 120, "wait_days": 4,
+               "eligible_primary": True, "grade": "A", "primary_status": "PRIMARY_CANDIDATE",
+               "core_score": 60.0, "support_score": 20.0,
+               "days_since_anchor": 2, "pullback_pct_close": 7.0,
                "bucket": "deep", "bucket_label": "고점 대비 -40~-50%"}
         for plan, mode in ((j3.breakout_plan(row), "breakout"),
                            (j3.crash_rebound_plan(row), "crash")):
             self.assertEqual(mode, plan["rule_mode"])
-            self.assertIsNone(plan["invalidation"])
-            self.assertIsNone(plan["target"])
-            self.assertIn("손절가가 없습니다", plan["buy_reason"])
+            self.assertIsNone(plan["invalidation"], "넘어야 할 기준가가 되살아났다")
+            self.assertIsNone(plan["target"], "목표가가 되살아났다")
+            self.assertIsNone(plan["hold_days"], "파는 날이 규칙으로 되살아났다")
+        self.assertIn("손절가가 없습니다", j3.crash_rebound_plan(row)["buy_reason"])
+        self.assertIn("연구 중", j3.breakout_plan(row)["buy_reason"])
 
     def test_crash_reason_tells_the_day_number_apart_from_todays(self):
         """겨자색 상자가 표와 다른 숫자를 말하던 것을 고쳤다(2026-08-07 상하님 지적).
@@ -851,8 +917,23 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertEqual("자료 없음", j3.nasdaq_drawdown_state(None)[0])
 
     def test_no_match_returns_an_empty_list_not_a_loosened_rule(self):
-        frames = {"AAPL": _frame_with_high(4, -20.0)}
-        self.assertEqual([], self._run(j3.find_breakout_pullback_stocks, frames)["rows"])
+        """**빈 자리를 감추거나 딴 것으로 채우지 않는다**(CLAUDE.md 0-1 바).
+
+        눌림이 12%까지 깊어지면 정식 후보는 없는 날이다. 그날 기준을 슬쩍
+        넓혀 자리를 채우면 화면이 규칙과 다른 종목을 사라고 말하게 된다.
+        """
+        _tickers, frames, ixic = _swing_fixture()
+        deep = {
+            ticker: _swing_stock_frame(ixic.index[-300:], .60 - position * .012,
+                                       1.00 - position * .022, pullback=12.0)
+            for position, ticker in enumerate(frames)
+        }
+        result = self._run_swing(deep, ixic)
+        self.assertTrue(result["ok"], result.get("error"))
+        self.assertEqual([], result["primary_rows"])
+        self.assertEqual([], result["rows"])
+        # 그래도 왜 없는지는 남긴다 — 관찰목록에 "너무 깊다"가 그대로 실린다.
+        self.assertIn("TOO_DEEP", {row["primary_status"] for row in result["watch_rows"]})
 
 
 class Jarvis3DataTests(unittest.TestCase):
