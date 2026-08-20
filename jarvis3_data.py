@@ -23,7 +23,7 @@ import pandas as pd
 
 import us_swing_selector as us_swing
 
-_REQUIRED_US_SWING_REVISION = 2026082020
+_REQUIRED_US_SWING_REVISION = 2026082050
 if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
     us_swing = importlib.reload(us_swing)
 
@@ -114,35 +114,15 @@ US_LARGE_CAP_UNIVERSE = tuple(dict.fromkeys(
     [ticker for theme in US_THEMES for ticker in theme["stocks"]] + list(_US_LARGE_CAP_EXTRA)
 ))
 
-# 화면이 찾는 숫자를 여기 한 곳에 둔다. 설명 창의 표 그림(assets/us_method_*.png)과
-# 이 값이 어긋나면 화면이 설명과 다른 것을 찾게 되므로 같이 고친다.
-# 표 숫자 원본: docs/US_METHOD_TABLES.md · 재는 방법: docs/REMEASURE_20260805.md
+# 화면이 찾는 숫자를 여기 한 곳에 둔다. 설명 창(method_help)의 글과 이 값이
+# 어긋나면 화면이 설명과 다른 것을 찾게 되므로 반드시 같이 고친다.
 #
-# 2026-08-06에 10년치 재측정 결과로 바꿨다(사용자 결정).
-# 그전 값(3~5일 · 4~6% · 승률 59.7%(119건))은 사용자가 2026-08-01에 준 설명서였는데,
-# 표본이 119건이었고 다시 재니 앞 5년 -0.2%p · 뒤 5년 -3.8%p로 **양쪽 다 아무 종목이나
-# 산 것보다 못했다.** 10~15%만 앞뒤 양쪽에서 이겼다(+8.0 / +1.4%p).
-# 찾는 그물은 **넓게**, 순위는 **별점으로** 매긴다(2026-08-06 사용자 결정).
-#
-# 왜 이렇게 바꿨나 — 재측정 결과(1~5일 · 10~15%)를 그대로 거르는 조건으로 썼더니
-# 화면이 매일 비었다. 신고가 뒤 5일 안에 10% 넘게 빠지는 일은 1년에 30번뿐이라
-# (96종목 전체에서) 여드레에 한 번쯤 한 종목 나오는 정도다. 그래서 사용자가
-# "넓게 찾고 좋은 자리에 별을 달아라. 고르는 것은 내가 한다"고 정했다.
-# ── 2026-08-12 저녁, 상하님이 **1~5일 → 3~10일**로 정하셨다 ──────────────────
-# 상하님 지적 — "S&P나 나스닥은 전고점을 뚫었는데 신고가 뚫었다가 며칠 몇 % 눌린
-# 종목이 저렇게 없다는 게 이상하다."
-#
-# 세어 보니 화면 숫자는 맞았다. 명부 198종목 중 52주 신고가를 1~5일 전에 찍은 것이
-# 16개뿐이다(오늘 6 · 6~20일 전 25 · 21~60일 전 50 · **61일 넘음 101**). 지수는
-# 전고점인데 개별 대형주 절반은 두 달 넘게 신고가를 못 찍었다.
-#
-# **그래도 1~5일을 고집할 근거가 실측에 없었다** — 1~5일·1~3일·6~10일·11~20일
-# 어느 칸도 합격이 아니다. 날짜는 성적을 못 가른다(`research/us_breakout_window.py`).
-# 그래서 상하님이 3~10일로 정하셨다. 자리가 8,614 → 12,232개(1.4배)로 늘어난다.
-#
-# **새 그물에서 배점을 다시 쟀다**(기준 7). 눌린 폭 10~15%는 3개월·6개월·1년
-# 셋 다 합격으로 살아남았다 — 40점 그대로다. 테마 항목 둘은 약해졌으나(같이
-# 오르는가 20일·6개월만 · 덜 빠졌나 20일만) **상하님께 여쭙기 전에는 안 바꾼다.**
+# ── US_SWING_V1 (2026-08-20 상하님 새 지시문) ─────────────────────────────────
+# **옛 그물은 걷어냈다** — 신고가 뒤 3~10거래일 · 고점 대비 −4~−15%로 찾던 것이
+# 여기서 끝났다. 지금은 나스닥이 조정을 끝내고 이전 최고를 되찾은 자리에서,
+# 최근 3개월과 6개월 모두 상위 20%인 종목이 **종가로** 52주 신고가를 넘은 뒤
+# 1~3거래일 안에 3~10% 눌린 자리만 본다.
+# 자세한 것은 docs/US_THEME_SPEC.md 3-2와 us_swing_selector.DEFAULT_CONFIG.
 BREAKOUT_PULLBACK_RULE = {
     # US_SWING_V1: 신고가 당일(day0)은 추격하지 않고 1~3거래일만 본다.
     "wait_days": (1, 3),
@@ -151,23 +131,14 @@ BREAKOUT_PULLBACK_RULE = {
     "hold_days": None,
 }
 
-# 순위는 **별점이 아니라 100점 배점**으로 매긴다(2026-08-06 사용자 결정).
+# ── 옛 상승장 잣대는 전부 걷어냈다 (2026-08-20) ───────────────────────────────
+# 별점 · 기준선(그날 아무 종목이나 샀을 때) · 옛 배점 항목은 US_SWING_V1으로
+# 갈아 끼우면서 함께 지웠다. 지금 화면은 자격(HARD GATE)을 넘은 종목에만
+# 등급을 붙이고, 총점을 승률로 부르지 않는다.
 #
-# 별점을 뺀 이유 — 별점은 '눌린 폭'과 '신고가 뒤 며칠'만 보고 달았는데, 10년을
-# 앞 5년·뒤 5년으로 갈라 다시 재니 **둘 다 뒤 5년에서 졌다**.
-#   눌림 10~15%   앞 +3.9%p / 뒤 -1.2%p
-#   신고가 1~3일 전 앞 +3.2%p / 뒤 -0.5%p
-# 한쪽 시기에서만 통하는 값을 순위 맨 앞에 두면, 화면이 그 시기에만 맞는 자리를
-# 1등으로 올린다. 그래서 **앞뒤 양쪽에서 다 이긴 값**에 점수를 몰아준다.
-# 배점 근거는 BREAKOUT_SCORE_WEIGHTS·CRASH_SCORE_WEIGHTS 위 주석에 적었다.
-#
-# 기준선 — 테마 명부 198종목 10년치, 상승장으로 판정된 1,755일 · 294,686번.
-BREAKOUT_BASE_WIN_RATE = 62.2      # 같은 날 아무 종목이나 샀을 때 100번 중
-BREAKOUT_BASE_MEDIAN = 6.3
-
-# 표 1(assets/us_method_uptrend.png)의 숫자를 **잰 날의 조건**이다.
-# 거르는 조건이 아니다 — 알려만 준다. 자세한 사연은 breakout_market_state() 참고.
-BREAKOUT_MARKET_MAX_DROP = -10.0   # 나스닥 고점 대비 이보다 나은 날
+# 아래 값은 **화면도 계산도 안 쓴다.** research/의 옛 그물 스크립트가 아직 읽고
+# 있어서 남겨 둔 것뿐이다.
+BREAKOUT_MARKET_MAX_DROP = -10.0
 
 # ── 급락 후 반등장 — 상하님 표 2 그대로 (2026-08-12 확정) ────────────────────
 # 원본: assets/us_method_drawdown.png · 숫자: docs/US_METHOD_TABLES.md 표 2
@@ -215,7 +186,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026082020
+MODULE_REVISION = 2026082050
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1795,18 +1766,6 @@ def recent_gain_pct(frame, days: int = VOLUME_STREAK_LOOKBACK) -> float | None:
         return None
 
 
-def _theme_rank_part(row: dict, label: str, prefix: str, points: float) -> tuple:
-    """테마 등수 한 줄 — '어느 테마가 몇 등인가'를 사람 말로 적는다."""
-    rank = row.get(prefix)
-    total = int(row.get(f"{prefix}_total") or 0)
-    return (label,
-            points if row.get(f"{prefix}_top") else 0.0,
-            points,
-            "모름" if not rank else
-            f"{row.get(f'{prefix}_name') or '테마'} {int(rank)}등"
-            + (f" / {total}개" if total else ""))
-
-
 # ── 배점표 「설명」 칸은 **문턱까지 적는다** (2026-08-19 상하님 지적 두 번) ────
 # 첫 지적 — "오늘 목록에서 위 45%, 반도체 8개 함께 걸림, 반도체 4등 / 20개 …
 # 전부 무슨 말인지 못 알아먹겠다."  → 판정('점수를 받습니다')을 붙였다.
@@ -1926,215 +1885,27 @@ def crash_rebound_score(row: dict) -> dict:
             "parts": parts, "max": CRASH_SCORE_MAX}
 
 
-
-# ── 상승장(신고가 눌림매수) 전용 배점 (2026-08-06 재측정) ─────────────────────
-# 그물이 다르므로 **낙폭 배점을 그대로 쓰면 안 된다.** 다만 어느 값이 값을 하는지는
-# 두 갈래가 같았다 — 테마 동반과 최근 11일, 둘뿐이다.
+# ── 상승장(신고가 눌림매수) 배점 — US_SWING_V1 (2026-08-20 상하님 새 지시문) ──
+# **옛 배점은 코드에서 전부 걷어냈다**(상하님 지시 — "상승장 관련만 새걸로 다
+# 교체하는 거야, 과거는 다 필요없다"). 옛 항목(같은 테마 동반 · 최근 11일 ·
+# 눌린 폭 칸 · 테마 근접도 70 · 뚫기 전 60일 상승 30)과 그 계산함수를 지웠다.
+# **급락 갈래는 한 줄도 안 건드렸다** — 두 갈래는 항목을 하나도 나눠 쓰지 않는다.
 #
-# 테마 명부 198종목 10년치, 상승장 1,755일 · 그물에 걸린 자리 9,875개.
-# 기준선은 그날 아무 종목이나 62.2%(앞 65.7 / 뒤 58.8) · 가운데 +6.3%.
+# 지금 배점은 제가 과거차트로 항목을 하나씩 재서 만든 것이 아니라 **상하님 지시문이
+# 항목마다 만점을 직접 정해 내려온 것**이다. 그래서 CLAUDE.md 0-1 마의 계단
+# (40·30·20·10)은 여기에 적용하지 않는다 — 급락 갈래는 계단 그대로다.
 #
-#   40점 같은 테마 동반 — 3개 이상 67.3%(앞 +8.6 / 뒤 +2.6%p). **양쪽 다 이김.** 가장 세다.
-#   25점 최근 11일에 빠졌나 — -5% 넘게 빠짐 65.7%(앞 +5.2 / 뒤 +1.3%p). **양쪽 다 이김.**
-#   15점 눌린 폭 — 10~15%가 63.2%인데 앞 +3.9 / 뒤 **-1.2%p**로 뒤 5년에 진다.
-#          게다가 그물(4~15%)로 이미 한 번 썼다. 그래서 낮게 준다.
-#   10점 유동성 / 10점 변동성 — 성적 예측이 아니라 살 수 있는가·감당할 크기인가.
+#   핵심 70 = 최근 3개월 25 + 최근 6개월 25 + 신고가 뒤 눌림 20
+#   보조 30 = 테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7
 #
-# **0점으로 뺀 것 — 실수하기 쉬우니 반드시 읽을 것**
-#   * 최근 60일 상승폭: 예전에 30점을 줬는데(가운데 +14.1%로 커 보인다) 승률로 보면
-#     62.9%로 기준선과 같고 **뒤 5년에 진다**(앞 +3.0 / 뒤 -0.5%p). 가운데 값만 보고
-#     점수를 준 것이 잘못이었다. 2026-08-06에 뺐다.
-#   * 거래대금 평소 위 연속: 상승장에서 60.8%로 **거꾸로**다(앞 -2.2 / 뒤 0.0%p).
-#     이미 신고가인데 거래대금까지 오래 실렸으면 늦은 자리다.
-#   * 신고가 뒤 며칠: 1~3일 63.5%(앞 +3.2 / 뒤 -0.5%p)로 뒤 5년에 진다. 화면에는
-#     날짜를 **보여만 주고** 점수는 안 준다(2026-08-06 사용자 지시).
-#   * 50·200일선 위: 신고가 종목은 정의상 100% 위라 가르지 못한다.
-# **눌린 폭 15점을 0점으로 뺐다 (2026-08-09 상하님 지적).**
-# 상하님 말씀 — "고점 돌파 후 며칠 눌리고 몇 % 눌린 뒤 사는 게 기준인데, 그 눌린
-# 폭이 점수에 또 들어가는 게 맞나?" 맞지 않는다. 이유가 둘이다.
-#   ① **그물이 이미 쓴 값이다.** 4~15%로 걸러 놓고 그 안에서 다시 '더 눌린 쪽'에
-#      만점을 준다. 설명서 어디에도 "더 눌릴수록 좋다"는 말이 없다.
-#   ② **앞뒤 5년으로 갈라 재니 뒤 절반에서 거꾸로였다**(앞 +3.9 / 뒤 -1.2%p).
-#      같은 이유로 이미 0점 처리한 항목이 둘 있다(최근 60일 상승폭 +3.0/-0.5,
-#      거래대금 연속 -2.2/0.0). 눌린 폭이 그 둘보다 나쁜데 혼자 살아남아 있었다.
-# **미국 급락 배점에서는 같은 이유로 이미 뺐다**(CRASH_SCORE_WEIGHTS의 bucket 0.0).
-# 상승장만 2026-08-06판 그대로 남아 있었다.
-#
-# 뺀 15점은 **새 항목을 만들지 않고 남은 넷에 비례해 나눈다** — 2026-08-07에 미국
-# 조건점수에서 추세 20점을 뺄 때 쓴 방식 그대로다(LEADER_RESCALE). 옮길 데를
-# 지어내지 않기 위해서다. 테마 등수를 넣자는 생각이 먼저 들지만, 그건 미국 급락·
-# 한국 두 갈래에서만 쟀고 **미국 상승장에서는 아직 안 쟀다.**
-# ── 2026-08-12 전면 재측정 — 위 기록은 전부 **옛것**이다 ─────────────────────
-# 상하님 지시로 `research/us_breakout_ladder.py`를 새로 짜서 **앱 그물 그대로**
-# (신고가 뒤 1~5일 · −4~−15% · 시장 조건 안 봄) 다시 쟀다. 그전 측정은 그물에
-# 시장 조건까지 넣고 걸러서 앱과 다른 모집단을 잰 것이었다.
-#
-# **파는 시점을 앱이 정하지 않기로 했으므로**(상하님 확정) 보유 60·120·250일 셋 다
-# 재고, **세 기간 모두 합격한 항목만** 쓴다. 한 기간에서만 통하는 값은 보유가
-# 바뀌면 뒤집힌다 — 실제로 '같은 테마 동반 4개↑'는 6개월에서만, '테마 60일
-# 수익률'은 3개월에서만 합격했다. 그런 것은 안 쓴다.
-#
-#   후보                       3개월      6개월      1년      판정
-#   눌린 폭 10~15%              ○ −7.0    ○ −8.9    ○ −6.1   ← 셋 다 합격. 유일하다
-#   테마 5일 오른 비율 상위5등     △        ○ −0.4    ○ −4.7   ← 둘
-#   테마 덜 빠졌나 상위3등        ○ −7.5    ○ −6.7    △        ← 둘
-#   같은 테마 동반 4개↑          △        ○ −9.5    △        ← 하나. 안 쓴다
-#   테마 60일 수익률 상위5등      ○ −6.4    △        △        ← 하나. 안 쓴다
-#   눌린 폭 6~10%              ✗ 거꾸로   ✗ 거꾸로   △        ← 0점
-#   거래대금 5억달러↑            ✗ 거꾸로   △        △        ← 0점
-#   최근 11일·변동성·신고가 뒤 며칠   전부 △              ← 0점
-#
-# **최근 11일 29.4점과 테마 동반 47.0점은 뺀다.** 둘 다 이 그물에서 합격이 아니다.
-# 47.0은 2026-08-09에 눌린 폭 15점을 빼고 남은 넷에 비례로 나눈 뒤 반올림 잔돈까지
-# 얹은 값이었다 — 잰 값이 아니다(CLAUDE.md 0-1 마: 비례 배분 금지).
-#
-# **눌린 폭이 1등으로 돌아왔다.** 상하님이 2026-08-09에 "그물이 이미 쓴 값"이라고
-# 지적하셔서 0점으로 뺐던 항목인데, 앱 그물 안에서 다시 재니 확실히 갈렸다
-# (1년 기준 10~15% 칸 27.8% · 4~6% 칸 14.7% · 아무 종목이나 14.1%).
-# 그물이 쓴 값이라도 **그 안에서 다시 재서 갈리면 점수를 준다**(KR_THEME_SPEC 1부 부칙).
-#
-# 합이 100이 안 되므로 **90점 만점**이라고 화면에 적는다(CLAUDE.md 0-1 마).
-#   → 2026-08-13에 테마 근접도 70 + 뚫기 전 60일 상승 30으로 **100점 만점**이 됐다.
-#     화면은 BREAKOUT_SCORE_MAX를 읽어 적으므로 저절로 따라간다.
-# ── 2026-08-13 테마 배점만 다시 정했다 — 상하님 지시 "테마 부분만 손대라" ─────
-# **눌린 폭 40점·그물·순위 규칙·급락 갈래는 손대지 않았다.** 테마 항목 둘
-# (확산 30 · 덜 빠짐 20)만 **테마 근접도 70점** 하나로 바꾼다. 근거는
-# docs/HANDOVER_20260813.md 5부와 docs/US_UPTREND_PULLBACK_GUIDE.md다.
-#
-# **제가 재는 자를 두 번 고쳤더니 테마 등수가 무너졌다.** 옛 자는 '그날 총점 1등이
-# 나머지 평균을 이겼나'라서 후보가 2개 이상 뜬 330일밖에 못 썼고 오차가 ±5.4%p였다.
-# 이제는 같은 날 뜬 후보를 **둘씩 모두 짝지어** 센다(3,683짝). 오차도 날짜가 아니라
-# **연도를 통째로** 다시 뽑아 낸다. 1년 수익률은 날마다 364일씩 겹치기 때문이다.
-#
-#   테마 재는 자              1개월    3개월    6개월    1년     네 번 중 통과
-#   근접도 · 칸 없이 그대로    51.4·   51.9▲   53.2▲   53.3▲   **3번**  ← 쓴다
-#   근접도 · 다섯 칸          51.5·   53.8·   51.7·   53.9·   0번
-#   근접도 · 세 칸(옛 코드)    50.6·   53.1·   49.1·   49.6·   0번
-#   그날 테마끼리 등수         51.2·   51.9·   53.2·   53.2·   0번  ← 옛 30·20점
-#
-# **칸으로 나누면 3번이 0번으로 죽는다.** 97%와 99%는 다른데 같은 칸에 넣으면 그
-# 차이가 사라진다. 그래서 이 항목만 계단을 안 쓴다 — CLAUDE.md 0-1 마의
-# 「계단은 40·30·20·10 넷뿐」과 어긋나는 것을 **2026-08-13 상하님이 "비례로 준다"고
-# 정하셨다.** 되돌리려면 먼저 여쭙는다.
-#
-# **방향이 옛 코드와 정반대다.** 옛 코드는 테마가 5~15% 쉰 자리(85~95%)에 만점을
-# 줬는데, 제가 다시 재니 **테마가 1년 최고에 붙어 있을수록** 좋았다.
-#
-# **가짜 테마 시험을 통과했다** — 종목을 제비뽑기로 20묶음 지어 100번 재니 가짜는
-# 100번 중 49~51번(반반)이었다. 6개월에서 가짜가 진짜를 이긴 것은 1번뿐이다.
-# **명부를 바꾸면 이 시험부터 다시 돌린다**(CLAUDE.md 0-1 라).
+# **숫자는 us_swing_selector.DEFAULT_CONFIG 한 곳에만 있다.** 여기 다시 적지 않는다 —
+# 두 군데 적어 두면 한쪽만 고쳐 화면과 계산이 갈라진다(2026-08-07에 실제로 그랬다).
 BREAKOUT_SCORE_WEIGHTS = dict(us_swing.DEFAULT_CONFIG["weights"])
-# ── 눌린 폭 40점을 0점으로 뺐다 (2026-08-13, 상하님 "나머지 진행해라") ────────
-# 2026-08-12에 40점으로 되살렸던 항목인데, **제가 재는 자를 고치니 무너졌다** —
-# 1개월 52.1· / 3개월 51.5· / 6개월 51.1· / 1년 49.9·로 **네 번 중 0번**이다.
-# 제가 전에 "10~15% 칸 27.8%"라고 적었던 것은 10년을 뭉뚱그려 본 숫자였고,
-# 같은 날 뜬 후보끼리 짝지어 견주면 갈리지 않는다.
-# **그물(BREAKOUT_PULLBACK_RULE의 4~15%)은 그대로 둔다.** 점수만 없앤다.
-#
-# ── 뚫기 전 60일 상승 30점을 새로 넣었다 ─────────────────────────────────
-# **오늘 기준 ret60이 아니라 그 종목이 52주 전고점을 뚫던 날 기준**이다. 둘은
-# 다른 값이다. 뚫고 나서 며칠 눌린 뒤라 오늘 기준으로 재면 그 힘이 가려진다.
-# 제가 재 보니 6개월에서만 통과했다(52.2· / 52.0· / 53.2▲ / 54.7·, 네 번 중 1번).
-# **같은 테마 안에서는 순서를 못 가린다**(100번 중 47~53번). 이 항목이 하는 일은
-# 다른 테마끼리 견줄 때 조금 보태는 것과 같은 테마 안 동점을 푸는 것 둘뿐이라
-# 70점이 아니라 30점이다.
-#
-#   비중을 여러 가지로 재 봤다 (종목상승 / 눌림 / 테마)
-#     70 / 20 / 10 (옛 설명서)  1/4      0 / 0 / 100 (테마만)   3/4  ← 동점 생김
-#     50 / 10 / 40              1/4      100 / 0 / 0 (종목만)   1/4
-#     **30 / 0 / 70 (정한 것)   2/4**  ← 테마만 다음으로 좋고 동점을 풀 수 있다
-#
-# 계단은 이긴 횟수가 아니라 **수익률**이 갈리는 자리에 맞췄다 — 이긴 횟수는
-# 61→69번으로 조금 오르는데 수익률은 8.2→43.4%로 다섯 배가 된다.
-# (칸, 점수, 화면에 적을 말) — 위에서부터 맞는 첫 칸을 쓴다.
-BREAKOUT_GAIN60_TIERS = (
-    (75.0, 30.0, "75% 이상"),
-    (50.0, 19.0, "50~75%"),
-    (35.0, 15.0, "35~50%"),
-    (20.0, 11.0, "20~35%"),
-    (-1e9, 4.0, "20% 미만"),
-)
-# 테마 근접도 = 테마 합산 시가총액 ÷ 그 합의 252일 최고 × 100.
-# 80%를 0점, 100%를 만점으로 놓고 그 사이를 곧게 잇는다(85%→17점 · 90%→35점 ·
-# 95%→52점 · 100%→70점). 80% 아래는 그물에 걸린 자리가 거의 없다.
-THEME_PROX_FLOOR = 80.0
-# 3종목 미만이면 합산 시총이 사실상 그 종목 하나가 되어 '테마'가 아니게 된다 —
-# StockTitan 명부(테마당 3~4종목)가 이래서 제비뽑기와 같은 성적으로 떨어졌다.
-THEME_PROX_MIN_MEMBERS = 3
-# 창이 이보다 짧으면 '1년 최고'라고 부를 수 없다(research의 min_periods=200과 같다).
-THEME_PROX_MIN_DAYS = 200
 BREAKOUT_SCORE_MAX = round(sum(BREAKOUT_SCORE_WEIGHTS.values()), 1)
-# 눌린 폭의 '좋은 칸'. **2026-08-13부터 점수에는 안 쓴다**(위 설명 참고).
-# 화면이 값을 보여줄 때 이 칸 안인지 알려 주는 데만 남긴다. 지우지 않는 까닭은
-# 다시 재서 되살릴 자리를 없애지 않기 위해서다.
+
+# **화면도 계산도 이 값을 안 쓴다.** research/의 옛 그물 스크립트가 아직 읽고
+# 있어서 남겨 둔 것뿐이다(us_breakout_speed · us_breakout_window).
 BREAKOUT_DROP_BAND = (-15.0, -10.0)
-# 이름표 문턱은 **만점의 70%·50%**다. 만점이 90에서 110으로 바뀌어도 뜻은 그대로다.
-BREAKOUT_STATE_GOOD = round(BREAKOUT_SCORE_MAX * 0.70, 1)
-BREAKOUT_STATE_FAIR = round(BREAKOUT_SCORE_MAX * 0.50, 1)
-
-
-def theme_proximity_points(prox, points: float | None = None) -> float:
-    """테마 근접도(%) → 점수. **칸 없이 비례로 준다**(2026-08-13 상하님 결정).
-
-    앱은 80%에서 0점, 100%에서 만점이 되도록 곧게 잇는다
-    (85%→17점 · 90%→35점 · 95%→52점 · 100%→70점).
-
-    **제가 칸으로 나눠 보니 네 번 중 3번 통과가 0번으로 떨어졌다.** 97%와 99%는
-    다른데 제가 둘을 같은 칸에 넣으면 그 차이가 사라진다. 다섯 칸도 세 칸도 0번이다.
-    이 항목만 CLAUDE.md 0-1 마의 계단 규칙을 안 따르는 까닭이 이것이고,
-    **상하님이 2026-08-13에 "비례로 준다"고 정하셨다.**
-    """
-    # US_SWING_V1에서는 이 옛 점수함수를 실제 순위에 쓰지 않는다. 과거 보고서/테스트가
-    # 직접 호출해도 깨지지 않도록 당시 만점 70만 호환값으로 남긴다.
-    full = BREAKOUT_SCORE_WEIGHTS.get("theme_prox", 70.0) if points is None else float(points)
-    if prox is None:
-        return 0.0
-    try:
-        value = float(prox)
-    except (TypeError, ValueError):
-        return 0.0
-    scaled = full * (value - THEME_PROX_FLOOR) / (100.0 - THEME_PROX_FLOOR)
-    return round(min(full, max(0.0, scaled)), 1)
-
-
-def breakout_gain60_points(gain) -> tuple[float, str]:
-    """뚫기 전 60일 상승률(%) → (점수, 화면에 적을 칸 이름). 못 재면 (0.0, "").
-
-    앱은 위에서부터 맞는 첫 칸을 쓴다(BREAKOUT_GAIN60_TIERS).
-    """
-    if gain is None:
-        return 0.0, ""
-    try:
-        value = float(gain)
-    except (TypeError, ValueError):
-        return 0.0, ""
-    for least, points, label in BREAKOUT_GAIN60_TIERS:
-        if value >= least:
-            return points, label
-    return 0.0, ""
-
-
-def breakout_gain60(daily: "pd.DataFrame | None", days_ago) -> float | None:
-    """그 종목이 **52주 전고점을 뚫던 날** 기준, 직전 60거래일 상승률(%).
-
-    **metrics의 `ret60`과 다르다.** `ret60`은 오늘 기준이라 뚫고 나서 눌린 만큼
-    깎여 있다. 이 매매가 보려는 것은 '뚫을 때 얼마나 세게 올라왔나'이므로
-    **뚫던 날에 서서** 그 앞 60일을 봐야 한다.
-
-    research/us_roster_compare.py의
-    `((close / close.shift(60) - 1) * 100).where(is_high).ffill()`과 같은 값이다.
-    `days_ago`는 `_series_metrics`의 `high52_days_ago`(고점이 며칠 전인가)다.
-    """
-    if daily is None or days_ago is None or "Close" not in getattr(daily, "columns", []):
-        return None
-    closes = daily["Close"].dropna().astype(float)
-    breakout = len(closes) - 1 - int(days_ago)
-    if breakout - 60 < 0 or breakout >= len(closes):
-        return None
-    before = float(closes.iloc[breakout - 60])
-    if before <= 0:
-        return None
-    return (float(closes.iloc[breakout]) / before - 1.0) * 100.0
 
 
 def breakout_score(row: dict) -> dict:
@@ -2143,30 +1914,31 @@ def breakout_score(row: dict) -> dict:
     parts = list(row.get("score_parts") or [])
     if not parts:
         weights = BREAKOUT_SCORE_WEIGHTS
+        titles = us_swing.score_part_titles()
         parts = [
-            ("RS60(3개월 상대강도)",
+            (titles[0],
              us_swing.rs_points(row.get("rs60_percentile"), max_points=weights["rs60"]),
              weights["rs60"], "—"),
-            ("RS120(6개월 상대강도)",
+            (titles[1],
              us_swing.rs_points(row.get("rs120_percentile"), max_points=weights["rs120"]),
              weights["rs120"], "—"),
-            ("신고가 후 눌림",
+            (titles[2],
              us_swing.pullback_points(row.get("pullback_pct_close"),
                                       max_points=weights["pullback"]),
              weights["pullback"], "—"),
-            ("테마 강도(보조·추가검증 중)",
+            (titles[3],
              us_swing.theme_points(row.get("theme_percentile"), max_points=weights["theme"])
              if row.get("theme_valid", True) else 0.0,
              weights["theme"], "—"),
-            ("돌파 거래량(보조·추가검증 중)",
+            (titles[4],
              us_swing.volume_points(row.get("breakout_rvol"), max_points=weights["volume"])
              if row.get("volume_valid", True) else 0.0,
              weights["volume"], "—"),
-            ("테마 확산도(보조·추가검증 중)",
+            (titles[5],
              us_swing.breadth_points(row.get("breadth_pct"), max_points=weights["breadth"])
              if row.get("breadth_valid", True) else 0.0,
              weights["breadth"], "—"),
-            ("반등 상태(보조·추가검증 중)",
+            (titles[6],
              us_swing.rebound_points(str(row.get("rebound_status") or ""),
                                      max_points=weights["rebound"]),
              weights["rebound"], "—"),
@@ -2183,16 +1955,6 @@ def breakout_score(row: dict) -> dict:
         "parts": parts,
         "max": BREAKOUT_SCORE_MAX,
     }
-
-
-# 상하님 표 1의 성적 — 신고가 뒤 1~5일 · 10~15% 눌림 자리를 보유기간별로 잰 값
-# (2026-08-12 `research/us_grid.py`, 앱 명부 198종목 10년). **앱은 파는 시점을
-# 정하지 않는다**(상하님 확정). 셋을 나란히 보여주고 고르는 것은 상하님이 하신다.
-BREAKOUT_HOLD_RESULTS = (
-    {"days": 60, "label": "3개월", "median_return": 3.0, "win_rate": 54.8},
-    {"days": 120, "label": "6개월", "median_return": 9.7, "win_rate": 62.8},
-    {"days": 250, "label": "1년", "median_return": 27.6, "win_rate": 68.3},
-)
 
 
 def breakout_plan(row: dict) -> dict:
@@ -2507,113 +2269,6 @@ def _weekly_aligned(metrics: dict) -> float | None:
         return None
     lined_up = float(current) > float(sma50) > float(sma150) > float(sma200)
     return 100.0 if lined_up and float(sma200) > float(prev200) else 0.0
-
-
-US_SHARES_PATH = Path(__file__).resolve().parent / "data" / "us_shares.csv"
-_SHARES_CACHE: dict[str, float] | None = None
-
-
-def _us_shares() -> dict[str, float]:
-    """종목별 발행주식수 — **테마 합산 시가총액을 만드는 데만 쓴다.**
-
-    파일은 `data/us_shares.csv`다. `research/_data/`가 아니라 여기 두는 까닭은
-    **그쪽이 .gitignore에 있어 온라인 앱이 읽지 못하기** 때문이다.
-
-    앱은 오늘 주식수 하나로 1년 내내 잰다. 앱이 받는 종가는 분할이 반영된 값이고
-    (`auto_adjust=True`) 이 주식수도 분할 뒤 값이라 **둘의 기준이 맞는다** —
-    2026-08-13에 고친 계산 오류 ①(조정주가 × 조정 안 된 주식수)이 여기서 다시
-    나지 않게 하는 자리다. 그 사이의 자사주 매입·증자는 못 담는데, 1년이면 보통
-    몇 % 안쪽이고 테마마다 고르게 어긋나므로 순서를 뒤집지 않는다.
-
-    파일을 못 읽으면 테마 근접도가 **'모름'(0점)**이 된다. 조용히 옛 계산으로
-    돌아가지 않고 화면에 모름이라고 적히는 쪽이 안전하다.
-    """
-    global _SHARES_CACHE
-    if _SHARES_CACHE is None:
-        table: dict[str, float] = {}
-        try:
-            with US_SHARES_PATH.open(encoding="utf-8", newline="") as handle:
-                for line in csv.DictReader(handle):
-                    ticker = (line.get("ticker") or "").strip().upper()
-                    try:
-                        shares = float(line["shares"])
-                    except (KeyError, TypeError, ValueError):
-                        continue
-                    if ticker and shares > 0:
-                        table[ticker] = shares
-        except OSError as error:
-            _log.warning("us_shares.csv를 못 읽었다: %s", error)
-            table = {}
-        _SHARES_CACHE = table
-    return _SHARES_CACHE
-
-
-def _attach_theme_proximity(rows: list, daily: dict) -> None:
-    """그 테마가 **1년 최고에 얼마나 붙어 있는지** 각 줄에 적는다 (2026-08-13 도입).
-
-        테마 근접도 = 테마 합산 시가총액 ÷ 그 합의 252일 최고 × 100
-
-    **왜 이것을 보나** — 조지와 황(2004)은 지금 값이 1년 최고에 얼마나 가까운지가
-    과거 수익률보다 앞날을 잘 맞힌다는 것을 보였고, 모스코위츠와 그린블랫(1999)은
-    종목이 오르는 이유의 상당 부분이 업종 전체가 오르기 때문임을 보였다.
-    **앱은 이 둘을 합쳐, 종목이 아니라 테마의 근접도를 본다.**
-
-    **제가 재 보니 열여덟 항목 중 이것만 통과했다**(네 번 중 3번 —
-    1개월 51.4· / 3개월 51.9▲ / 6개월 53.2▲ / 1년 53.3▲).
-
-    **여러 테마에 걸치면 가장 센 쪽을 쓴다** — research/us_roster_compare.py의
-    `Board.prox()`가 `np.fmax`로 하는 것과 같다. 구성종목이 셋 미만인 테마는
-    합산 시총이 사실상 그 종목 하나가 되므로 아예 재지 않는다.
-
-    이 함수는 **점수를 내기 전에** 불러야 한다. 안 부르면 근접도가 없어 70점이
-    통째로 0점이 된다.
-    """
-    for row in rows:
-        row["theme_prox"] = None
-        row["theme_prox_name"] = ""
-
-    shares = _us_shares()
-    caps: dict[str, pd.Series] = {}
-    for ticker, frame in (daily or {}).items():
-        share = shares.get(ticker)
-        if not share or frame is None or getattr(frame, "empty", True):
-            continue
-        if "Close" not in frame.columns:
-            continue
-        closes = frame["Close"].dropna().astype(float)
-        if not closes.empty:
-            caps[ticker] = closes * share
-    if not caps:
-        return
-
-    table = pd.DataFrame(caps).tail(252)
-    values: dict[str, float] = {}
-    for theme in US_THEMES:
-        members = [ticker for ticker in theme["stocks"] if ticker in table.columns]
-        if len(members) < THEME_PROX_MIN_MEMBERS:
-            continue
-        # 자료가 짧은 종목은 뺀다 — 그 종목 하나 때문에 테마 전체가 잘려 나간다.
-        block = table[members].dropna(axis=1, thresh=THEME_PROX_MIN_DAYS)
-        if block.shape[1] < THEME_PROX_MIN_MEMBERS:
-            continue
-        # 구성종목이 하루라도 비면 그날 합계는 버린다 — 합계가 낮아져 근접도가
-        # 실제보다 나쁘게 나오기 때문이다.
-        total = block.sum(axis=1, min_count=block.shape[1]).dropna()
-        if len(total) < THEME_PROX_MIN_DAYS:
-            continue
-        peak = float(total.max())
-        if peak <= 0:
-            continue
-        values[theme["name"]] = float(total.iloc[-1]) / peak * 100.0
-
-    for row in rows:
-        mine = [(values[name], name)
-                for name in (row.get("themes") or []) if name in values]
-        if not mine:
-            continue
-        best, name = max(mine)
-        row["theme_prox"] = round(best, 1)
-        row["theme_prox_name"] = name
 
 
 def _attach_theme_rank(rows: list, memberships: dict, all_metrics: dict,

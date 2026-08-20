@@ -1,9 +1,28 @@
 # 자비스3 미국 상승장(신고가 눌림매수) 인수인계서
 
 작성일: 2026-08-20 (Codex 작성) · **2026-08-20 오후 Claude가 P0를 마무리하고 갱신**  
-상태: **P0 완료 — 전체 시험 1,039개 통과 · 실제 자료 스캔 완료.**
-화면 설명서(`method_help.py`)와 라이브 명부가 남아 있어 아직 '전부 끝'은 아니다.  
+상태: **옛 상승장을 전부 걷어내고 새 배점으로 교체 완료.** 전체 시험 통과 ·
+실제 자료 스캔 완료 · 화면 설명서와 용어까지 새 판. 남은 것은 라이브 명부와
+자동 EOD 저장뿐이다.  
 후속 담당: 다음 작업자
+
+> **2026-08-20 저녁 — 옛 상승장을 전부 걷어냈다 (상하님 지시)**
+> - *"배점관련은 상승장(신고가 눌림매수)관련만 새걸로 다 교체하는거야 과거는 다 필요없다"*
+> - *"rs60 뭐 이런거 용어 쓰지말고 일반인이 알기 쉽게 해라"*
+> - *"각 배점 설명서 한줄평 화면에 뿌려라"*
+>
+> 지운 것 — `theme_proximity_points` · `breakout_gain60` · `breakout_gain60_points` ·
+> `_attach_theme_proximity` · `_us_shares` · `_theme_rank_part` · `BREAKOUT_HOLD_RESULTS` ·
+> `BREAKOUT_BASE_WIN_RATE/MEDIAN` · `BREAKOUT_STATE_GOOD/FAIR` · `BREAKOUT_GAIN60_TIERS` ·
+> `THEME_PROX_*` · 페이지의 옛 상승장 배점 설명표(`_SCORE_TABLE["breakout"]`) ·
+> `method_help.US_MID_TEXT`와 옛 상승장 표 그림.
+> 남긴 것 — `BREAKOUT_MARKET_MAX_DROP` · `BREAKOUT_DROP_BAND`는 research/의 옛 그물
+> 스크립트가 아직 읽어서 남겼다. **화면도 계산도 안 쓴다.**
+>
+> 새로 한 것 — 항목 이름을 질문 꼴 쉬운 말로, 상태코드를 `plain_state()`로 사람 말로,
+> 한 줄 설명을 배점표에 늘 보이게(「자세히」에 자세한 설명). 리비전 `2026082050`.
+>
+> **급락 갈래는 한 줄도 안 건드렸다.**
 
 > **2026-08-20 오후 갱신 요약 (Claude)**
 > - 7절 「아직 통과하지 않음」은 **모두 해결됐다.** 아래 11절 P0 앞에 결과를 적었다.

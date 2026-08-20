@@ -416,7 +416,8 @@ class Jarvis3PageTests(unittest.TestCase):
                             f"{key} 값이 화면에 없다")
         self.assertTrue(any("14일 변동성(ATR)" in value for value in markdowns))
         # 상승장 표는 당일주가 칸 대신 자격을 판단한 값(RS·눌림·핵심·보조)을 쓴다.
-        self.assertTrue(any("RS60" in value and "핵심" in value for value in markdowns))
+        self.assertTrue(any("3개월 상위" in value and "핵심" in value
+                            for value in markdowns))
         self.assertTrue(any("종목 조건점수" in value for value in markdowns))
         # '점수 두 개는 서로 다른 것을 잽니다'는 없앤 눌림목 찾기 설명에 있던 말이다.
         # 맨 위에서 세 갈래를 뭉뚱그려 설명하지 않는다(2026-08-06 상하님 지적) —
@@ -921,22 +922,25 @@ class Jarvis3PageTests(unittest.TestCase):
         markdowns = [str(node.value) for node in app.markdown]
         joined = " ".join(markdowns)
         # 화면이 실제로 찾는 숫자가 그대로 나와야 한다.
-        self.assertIn("눌림 3~10%", joined)
-        self.assertIn("day 1~3", joined)
-        self.assertIn("RS60 ≥ 80", joined)
-        self.assertIn("RS120 ≥ 80", joined)
+        self.assertIn("3~10%", joined)
+        self.assertIn("1~3거래일", joined)
+        self.assertIn("최근 3개월 상위 20%", joined)
+        self.assertIn("최근 6개월 상위 20%", joined)
+        # **화면에 개발자 말이 남아 있으면 안 된다**(2026-08-20 상하님 지시).
+        for jargon in ("RS60", "RS120", "HARD GATE", "PRIMARY", "WATCH", "percentile"):
+            self.assertNotIn(jargon, joined, f"화면에 '{jargon}'이 남아 있다")
         # **총점을 승률처럼 말하지 않는다**(지시문 6·9·10번).
         self.assertIn("총점은 승률이나 보장수익이 아닙니다", joined)
         # 배점 구성이 화면에 그대로 적혀야 한다.
-        self.assertIn("RS60 25 + RS120 25 + 눌림 20 = 핵심 70", joined)
-        self.assertIn("테마 10 + 돌파 거래량 8 + 확산도 5 + 반등 7 = 보조 30", joined)
+        self.assertIn("최근 3개월 25 + 최근 6개월 25 + 눌림 20", joined)
+        self.assertIn("테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7", joined)
         # 표 머리글은 갈래 전용이다 — 옛 칸 이름이 남아 있으면 안 된다.
         header = next(value for value in markdowns
-                      if "RS60" in value and "티커" in value and "핵심" in value)
+                      if "3개월 상위" in value and "티커" in value and "핵심" in value)
         for gone in ("고점 후 며칠", "보유일수", "1년 성적", "눌림 점수"):
             self.assertNotIn(gone, header, f"옛 칸 {gone}이 남아 있다")
-        self.assertLess(header.index("RS60"), header.index("RS120"))
-        self.assertLess(header.index("RS120"), header.index("핵심"))
+        self.assertLess(header.index("3개월 상위"), header.index("6개월 상위"))
+        self.assertLess(header.index("6개월 상위"), header.index("핵심"))
         self.assertLess(header.index("핵심"), header.index("보조"))
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
         self.assertTrue(any(
@@ -944,8 +948,8 @@ class Jarvis3PageTests(unittest.TestCase):
             for node in app.button
         ))
         # 시장이 켜진 날은 초록 줄로 알린다.
-        self.assertTrue(any("신규 PRIMARY 후보를 허용합니다" in str(node.value)
-                            for node in app.success), "MARKET_ON 알림이 없다")
+        self.assertTrue(any("새로 살 후보를 낼 수 있는 장입니다" in str(node.value)
+                            for node in app.success), "장이 켜졌다는 알림이 없다")
 
     def test_breakout_market_off_shows_no_primary_row_at_all(self):
         """**시장이 막힌 날은 정식 후보를 한 줄도 안 만든다** (지시문 6·36번).
@@ -956,7 +960,7 @@ class Jarvis3PageTests(unittest.TestCase):
         """
         app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
                                   _breakout_result(market_on=False))
-        self.assertTrue(any("신규 PRIMARY 후보를 허용하지 않습니다" in str(node.value)
+        self.assertTrue(any("새로 살 후보를 내지 않습니다" in str(node.value)
                             for node in app.error), "막혔다는 빨간 줄이 없다")
         self.assertEqual(0, len([
             node for node in app.button if str(node.key or "").startswith("j3rbf_")
@@ -1204,9 +1208,21 @@ class Jarvis3PageTests(unittest.TestCase):
         joined = " ".join(str(node.value) for node in app.markdown)
         self.assertIn("신고가 눌림 전용 배점", joined)
         # 새 배점 일곱 줄이 이름 그대로 표에 있어야 한다.
-        for item in ("RS60(3개월 상대강도)", "RS120(6개월 상대강도)", "신고가 후 눌림",
-                     "테마 강도", "돌파 거래량", "테마 확산도", "반등 상태"):
+        for item in ("최근 3개월, 시장보다 강했나", "최근 6개월, 꾸준히 강했나",
+                     "신고가 뒤 알맞게 쉬었나", "같은 테마 다른 종목도 강한가",
+                     "신고가 뚫던 날 거래가 늘었나", "같은 테마에서 여럿이 함께 오르나",
+                     "다시 위로 움직이기 시작했나"):
             self.assertIn(item, joined, f"배점표에 {item}이 없다")
+        # **한 줄 설명이 배점표에 늘 보여야 한다**(2026-08-20 상하님 지시 —
+        # "각 배점 설명서 한줄평 화면에 뿌려라"). 자세한 설명은 「자세히」에 있다.
+        for one_line in ("최근 3개월 동안 나스닥보다 얼마나 강하게 오른 종목인지",
+                         "52주 신고가 후 너무 무너지지 않고",
+                         "이 종목 혼자만 오르는 것이 아니라",
+                         "눌림이 끝나고 주가가 다시 위로 움직이기 시작했는지"):
+            self.assertIn(one_line, joined, f"한 줄 설명이 없다: {one_line}")
+        self.assertTrue(any("j3-fac-note" in value for value in
+                            [str(node.value) for node in app.markdown]),
+                        "한 줄 설명 자리가 표에 없다")
         # 급락 갈래의 항목 이름이 상승장 표에 섞이면 안 된다.
         for gone in ("최근 11일에 빠졌나", "뚫기 전 60일", "테마가 1년 최고에 붙어 있나"):
             self.assertNotIn(gone, joined, f"옛 상승장/급락 항목 {gone}이 섞였다")
@@ -1381,7 +1397,8 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("이 갈래 점수", joined)
         # 상승장 여섯 칸 상자는 자격을 판단한 값을 보여준다(옛 거래량 칸이 아니다).
         cards = next(str(node.value) for node in app.markdown
-                     if "RS60(3개월)" in str(node.value) and "j3-mc-label" in str(node.value))
+                     if "최근 3개월 강함" in str(node.value)
+                     and "j3-mc-label" in str(node.value))
         self.assertIn("신고가 후 눌림", cards)
         self.assertIn("핵심점수", cards)
         self.assertIn("보조점수", cards)

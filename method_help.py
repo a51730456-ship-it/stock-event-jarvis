@@ -320,18 +320,17 @@ div[class*="st-key-jarvis_method_help"] button p {
 #
 # 그림을 바꾸려면 assets/의 같은 이름 파일을 덮어쓰면 된다. 코드는 안 고쳐도 된다.
 # 다만 표 숫자가 바뀌면 docs/US_METHOD_TABLES.md도 같이 고친다.
+# **상승장 표(us_method_uptrend.png)는 2026-08-20에 화면에서 뺐다.** 그 표는 옛
+# 그물(신고가 뒤 1~5일 · 10~15% 눌림)을 잰 것이라 지금 화면이 찾는 자리와 다르다.
+# 파일은 assets/에 그대로 두었다 — 지우지는 않는다.
 US_IMAGES = (
-    ("us_method_uptrend.png", "정상적인 상승일때"),
-    ("us_method_drawdown.png", "나스닥 하락율대비 상승수익률"),
+    ("us_method_drawdown.png", "급락 후 반등장 (낙폭종목)"),
 )
 
 # 그림 바로 밑에 붙는 **한 줄 요약** (2026-08-12 상하님 지시 — "캡쳐 사진 밑에
 # 한 줄 쉽게 알아먹게 넣어라. 장황하게 하지 말고"). 표를 안 뜯어봐도 이 한 줄이면
 # 그 표가 무슨 이야기인지 알 수 있어야 한다. **두 줄로 늘리지 않는다.**
 US_IMAGE_NOTES = (
-    "<b>쉽게 말해</b> — 신고가 찍고 <b>10~15% 눌렸을 때</b> 사는 것이 1년 뒤 "
-    "<b>27.8%</b>로 제일 나았습니다. 조금(4~6%) 눌린 자리는 14.7%로 아무거나 "
-    "산 것(14.1%)과 같습니다.",
     "<b>쉽게 말해</b> — 나스닥이 6% 넘게 빠졌을 때는 <b>30~50% 빠진 종목</b>이 "
     "1년 뒤 <b>32.2%</b>로 제일 나았고, 그중에서도 <b>덜 떨어졌고 주봉이 오름세인 "
     "테마</b>가 더 빨리·더 많이 올랐습니다(20%까지 34~40일, 아무거나는 45일).",
@@ -350,25 +349,61 @@ def _image_path(name: str):
 # 문단으로 갈라 <p>를 끼워 넣어 칸 간격이 어긋난다.
 US_TEXT = """
 <div class="mh-doc">
-<div class="mh-h1">미국장 눌림목 매매 설명서</div>
+<div class="mh-h1">미국장 매매 설명서</div>
+<div class="mh-note">
+<div class="mh-note-h">※ 상승장은 2026-08-20에 통째로 새로 짰습니다</div>
+상하님이 주신 새 지시문대로 <b>찾는 자리와 배점을 전부 갈아 끼웠습니다.</b>
+아래 <b>2번 급락 후 반등장</b>은 그대로입니다.
+</div>
+<div class="mh-h2"><span class="mh-no">1</span><span>상승장 (<u>신고가 눌림매수</u>)</span></div>
+<div class="mh-box mh-buy-box">
+<div class="mh-box-h">▸ 여섯 가지를 <u>다 넘어야</u> 후보가 됩니다</div>
+<div class="mh-step">나스닥이 <b>크게 밀렸다가 이전 최고를 다시 넘은</b> 상승환경일 것</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step">최근 <b>3개월</b>에 나스닥보다 강했던 <b>상위 20%</b></div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step">최근 <b>6개월</b>도 <b>상위 20%</b></div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step"><b>종가</b>로 지난 1년 최고가를 넘을 것 (장중 고가는 안 봅니다)</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step">그 뒤 <b>1~3거래일</b> 안 — 넘은 날 바로 쫓아사지 않습니다</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step">종가가 그 최고가에서 <b>3~10%</b> 내려온 날 (6~10%가 조금 더 좋은 자리)</div>
+<div class="mh-arrow">▼</div>
+<div class="mh-step mh-go">다음 거래일 <u>시가 매수</u></div>
+</div>
+<div class="mh-box mh-data-box">
+<div class="mh-box-h">▸ 점수 100점 — 자격을 넘은 종목끼리 <u>차례만</u> 정합니다</div>
+<div class="mh-kv"><span class="mh-k">최근 3개월, 시장보다 강했나</span><span class="mh-v">25점</span></div>
+<div class="mh-kv"><span class="mh-k">최근 6개월, 꾸준히 강했나</span><span class="mh-v">25점</span></div>
+<div class="mh-kv"><span class="mh-k">신고가 뒤 알맞게 쉬었나</span><span class="mh-v">20점</span></div>
+<div class="mh-kv"><span class="mh-k">같은 테마 다른 종목도 강한가</span><span class="mh-v">10점</span></div>
+<div class="mh-kv"><span class="mh-k">신고가 뚫던 날 거래가 늘었나</span><span class="mh-v">8점</span></div>
+<div class="mh-kv"><span class="mh-k">같은 테마에서 여럿이 함께 오르나</span><span class="mh-v">5점</span></div>
+<div class="mh-kv"><span class="mh-k">다시 위로 움직이기 시작했나</span><span class="mh-v">7점</span></div>
+<div class="mh-step">앞의 셋이 <b>핵심 70점</b>, 뒤의 넷이 <b>보조 30점</b>입니다.
+둘을 <u>따로</u> 보여드립니다 — 핵심 68 + 보조 10 = 78과 핵심 50 + 보조 28 = 78은
+<b>같은 종목이 아닙니다.</b> 같은 총점이면 <b>핵심이 높은 쪽이 먼저</b>입니다.</div>
+</div>
+<div class="mh-box mh-warn-box">
+<div class="mh-box-h">⚠ 점수보다 자격이 먼저입니다</div>
+<div class="mh-step">여섯 가지를 다 넘지 못하면 <b>뒤의 네 항목이 아무리 좋아도</b>
+등급을 붙이지 않습니다. 화면은 등급 대신 <b>무엇이 모자란지</b>를 먼저 적습니다.</div>
+<div class="mh-step"><b>총점 90점은 승률 90%라는 뜻이 아닙니다.</b>
+지금 배점도 "이 비율이 제일 낫다"고 증명된 값이 아니라, 여러 번 다시 재도 잘
+살아남은 항목에 몫을 크게 준 것입니다.</div>
+<div class="mh-step">여섯 가지를 다 넘은 종목이 <b>없는 날은 없다고 적습니다.</b>
+자리를 채우려고 기준을 느슨하게 바꾸지 않습니다.</div>
+</div>
 <div class="mh-note">
 언제 사나 — 신호가 난 날 <b>종가를 확인하고 다음 거래일 시가</b>에 삽니다.<br>
-언제 파나 — <b>앱이 정하지 않습니다.</b> 아래 표의 3개월·6개월·1년 성적을 보시고
-<u>상하님이 정하십니다</u>(2026-08-12 결정). 손절 규칙도 없습니다.
+언제 파나 — <b>앱이 정하지 않습니다.</b> <u>상하님이 정하십니다.</u><br>
+<b>손절 규칙도 없습니다</b> — 고정 손절(−8 · −12 · −15 · −20%)은 다시 재 보니
+성적을 오히려 나쁘게 한 경우가 많았습니다. 손절과 최종청산은 <b>아직 연구 중</b>입니다.
 </div>
 </div>
 """
 
-# 그림 사이·아래에 붙는 짧은 글. 표에 없는 것만 적는다.
-US_MID_TEXT = """
-<div class="mh-doc">
-<div class="mh-box mh-warn-box">
-<div class="mh-box-h">⚠ 1~2개월 만에 팔지 않습니다</div>
-<div class="mh-step">10~15% 눌린 종목은 <b>한두 달은 더 밀립니다.</b> 그 구간이 가장 나빴습니다.
-표에 3개월부터 있는 까닭입니다. 중간에 끊으면 가장 나쁜 자리에 걸립니다.</div>
-</div>
-</div>
-"""
 
 US_TAIL_TEXT = """
 <div class="mh-doc">
@@ -376,14 +411,14 @@ US_TAIL_TEXT = """
 <div class="mh-box-h">⚠ 꼭 같이 기억할 것</div>
 <ul class="mh-list">
 <li>이 10년은 나스닥이 <b>해마다 20.9%씩 오른 기간</b>입니다. 앞으로도 이렇다는 뜻이 아닙니다.</li>
-<li><b>손절 규칙은 없습니다.</b> 정해진 기간을 들고 있는 것이 전부입니다.</li>
+<li><b>손절 규칙은 없습니다.</b> 손절과 최종청산은 아직 연구 중입니다.</li>
 <li>지금 살아 있는 회사만 봤습니다. 망한 회사는 빼고 쟀습니다.</li>
 </ul>
 </div>
 <div class="mh-key">
 <div class="mh-key-h">핵심</div>
-<div>평소에는 <b>신고가 뒤 1~5일에 10~15% 눌린 종목</b>입니다 —
-1년 기준 <b>27.8%</b>, 4~6% 눌린 자리는 14.7%로 <u>아무 종목이나 산 것(14.1%)과 같습니다.</u></div>
+<div>평소에는 <b>나스닥이 이전 최고를 되찾은 장에서, 3개월·6개월 모두 상위 20%인
+종목이 종가로 1년 최고가를 넘은 뒤 1~3거래일 안에 3~10% 쉰 자리</b>입니다.</div>
 <div>나스닥이 <b>6% 아래로 빠졌을 때</b>는 <b>30~50% 빠진 종목</b>까지 봅니다 —
 1년 기준 32.2%로 20~30%(26.6%)보다 낫습니다.</div>
 <div>매수는 항상 <b>종가 확인 후 다음 거래일 시가</b>. <b>파는 시점은 상하님이 정하십니다.</b></div>
@@ -634,7 +669,7 @@ def render(st, market: str) -> None:
                     continue
                 st.markdown(
                     f"<div class='mh-doc'><div class='mh-h2'>"
-                    f"<span class='mh-no'>{index + 1}</span><span>{caption}</span>"
+                    f"<span class='mh-no'>{index + 2}</span><span>{caption}</span>"
                     "</div></div>",
                     unsafe_allow_html=True,
                 )
@@ -645,7 +680,5 @@ def render(st, market: str) -> None:
                         f"{US_IMAGE_NOTES[index]}</div></div>",
                         unsafe_allow_html=True,
                     )
-                if index == 0:
-                    st.markdown(US_MID_TEXT, unsafe_allow_html=True)
             st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)
             _close_button(st, "US")
