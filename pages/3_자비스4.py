@@ -1775,10 +1775,12 @@ def _pullback_as_candidate(row: dict, leaders: list[dict], *, mode: str | None =
 # 이 높이가 곧 가로세로 비율을 정한다(2026-07-30 사용자 지시: 4:3).
 # 실측 — 넓은 화면(1280px)에서 한 칸이 359px이라 4:3이면 269px다.
 # 화면이 좁아지면 칸도 좁아져 세로가 상대적으로 길어진다(픽셀 높이는 고정이므로).
-INTRADAY_CHART_HEIGHT = 269
+# **위 지수 카드의 그림과 같은 크기**다(2026-08-21 상하님 지시 — "당일차트 크기
+# 두번째 캡쳐 크기로 바꿔라"). 미국테마와 같은 값으로 맞춘다.
+INTRADAY_CHART_HEIGHT = 90
 
 
-def _intraday_chart(payload: dict, height: int = 210):
+def _intraday_chart(payload: dict, height: int = 210, *, small: bool = False):
     """당일 분봉 차트 — 전일 종가를 점선 기준선으로 그린다(한국장 색: 상승 빨강)."""
     frame = payload["price"].reset_index()
     frame.columns = ["시각", "가격"]
@@ -1788,16 +1790,27 @@ def _intraday_chart(payload: dict, height: int = 210):
         line_color = "#ff5b5b" if last_price >= float(prev_close) else "#4da6ff"
     else:
         line_color = "#69bff8"
+    # 작게 그릴 때는 눈금을 뺀다 — 120×90에 축 글자까지 넣으면 그림이 안 보인다.
+    if small:
+        x_axis = alt.X("시각:T", title=None, axis=None)
+        y_axis = alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False), axis=None)
+        shape = {"width": 120, "height": height}
+    else:
+        x_axis = alt.X("시각:T", title=None,
+                       axis=alt.Axis(format="%H:%M", labelAngle=0, tickCount=5))
+        y_axis = alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False),
+                       axis=alt.Axis(tickCount=5))
+        shape = {"height": height}
     line = (
         alt.Chart(frame)
         .mark_line(strokeWidth=2, color=line_color)
         .encode(
-            x=alt.X("시각:T", title=None, axis=alt.Axis(format="%H:%M", labelAngle=0, tickCount=5)),
-            y=alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(tickCount=5)),
+            x=x_axis,
+            y=y_axis,
             tooltip=[alt.Tooltip("시각:T", title="시각", format="%H:%M"),
                      alt.Tooltip("가격:Q", format=",.0f")],
         )
-        .properties(height=height)
+        .properties(**shape)
     )
     if prev_close:
         baseline = (
@@ -2206,8 +2219,9 @@ def _render_guest_stock_charts(code: str, panel: str) -> None:
         with intraday_col:
             if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
                 st.altair_chart(
-                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
-                    width="stretch", theme="streamlit",
+                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT,
+                                    small=True),
+                    width="content", theme="streamlit",
                 )
                 st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
             elif intraday_error:
@@ -2495,8 +2509,9 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         with intraday_col:
             if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
                 st.altair_chart(
-                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
-                    width="stretch", theme="streamlit",
+                    _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT,
+                                    small=True),
+                    width="content", theme="streamlit",
                 )
                 st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
             elif intraday_error:

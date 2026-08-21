@@ -1849,10 +1849,12 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
 # 이 높이가 곧 가로세로 비율을 정한다(2026-07-30 사용자 지시: 4:3).
 # 실측 — 넓은 화면(1280px)에서 한 칸이 359px이라 4:3이면 269px다.
 # 화면이 좁아지면 칸도 좁아져 세로가 상대적으로 길어진다(픽셀 높이는 고정이므로).
-INTRADAY_CHART_HEIGHT = 269
+# **위 지수 카드의 그림과 같은 크기**다(2026-08-21 상하님 지시 — "당일차트 크기
+# 두번째 캡쳐 크기로 바꿔라"). 20개 테마·상승장·급락 세 군데가 이 한 값을 쓴다.
+INTRADAY_CHART_HEIGHT = 90
 
 
-def _intraday_chart(payload: dict, height: int = 200):
+def _intraday_chart(payload: dict, height: int = 200, *, small: bool = False):
     """당일 1분봉 흐름 차트 — 자비스1 코스피/코스닥 당일 차트와 같은 단순 라인.
 
     전일 종가는 회색 점선 기준선으로 그리고, 선 색은 전일 종가 대비
@@ -1866,18 +1868,30 @@ def _intraday_chart(payload: dict, height: int = 200):
         line_color = "#4da6ff" if last_price >= float(prev_close) else "#ff5b5b"
     else:
         line_color = "#69bff8"
+    # **작게 그릴 때는 눈금을 뺀다**(2026-08-21 상하님 지시 — 당일 차트를 위
+    # 지수 카드 그림 크기로). 120×90에 축 글자까지 넣으면 그림이 안 보인다.
+    if small:
+        x_axis = alt.X("시각:T", title=None, axis=None)
+        y_axis = alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False), axis=None)
+        shape = {"width": 120, "height": height}
+    else:
+        x_axis = alt.X("시각:T", title=None,
+                       axis=alt.Axis(format="%H:%M", labelAngle=0, tickCount=5))
+        y_axis = alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False),
+                       axis=alt.Axis(tickCount=5))
+        shape = {"height": height}
     line = (
         alt.Chart(frame)
         .mark_line(strokeWidth=2, color=line_color)
         .encode(
-            x=alt.X("시각:T", title=None, axis=alt.Axis(format="%H:%M", labelAngle=0, tickCount=5)),
-            y=alt.Y("가격:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(tickCount=5)),
+            x=x_axis,
+            y=y_axis,
             tooltip=[
                 alt.Tooltip("시각:T", title="시각(뉴욕)", format="%H:%M"),
                 alt.Tooltip("가격:Q", format=",.2f"),
             ],
         )
-        .properties(height=height)
+        .properties(**shape)
     )
     if prev_close:
         baseline = (
@@ -4135,14 +4149,15 @@ def _render_intraday_section(ticker: str, *, panel: str) -> None:
     except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
         intraday_payload = None
         intraday_error = _safe_error_text(exc)
-    # 화면 폭을 다 쓰면 당일 차트만 길쭉해 아래 일봉·주봉·월봉과 안 맞는다
-    # (2026-07-30 사용자 지시: 일봉 크기로, 4:3). 그래서 3분할의 첫 칸에만 그린다.
+    # 위 지수 카드 그림과 같은 크기로 둔다(2026-08-21). 폭을 늘리지 않으려고
+    # width="content"를 쓴다 — 안 그러면 칸 폭만큼 늘어나 그림만 길쭉해진다.
     intraday_col, _, _ = st.columns(3)
     with intraday_col:
         if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
             st.altair_chart(
-                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
-                width="stretch", theme="streamlit",
+                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT,
+                                small=True),
+                width="content", theme="streamlit",
             )
             st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
         elif intraday_error:

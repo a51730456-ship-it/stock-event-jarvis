@@ -1975,14 +1975,19 @@ def breakout_plan(row: dict) -> dict:
     status = str(row.get("primary_status") or "INSUFFICIENT_DATA")
     eligible = bool(row.get("eligible_primary"))
     grade = row.get("grade")
-    state = row.get("status_text") or us_swing.STATUS_TEXT.get(status, status)
-    recommendation = f"{grade}등급 관찰후보" if eligible and grade else f"WATCH — {state}"
+    # **표의 「매수 상태」 칸에 들어갈 짧은 말**이다(2026-08-21 상하님 지적 —
+    # 순위 9 표에서 긴 문장이 옆 칸을 덮었다). 긴 설명은 아래 buy_reason과
+    # 화면의 「상태」 칸이 따로 적는다.
+    state = us_swing.short_status(status)
+    long_state = row.get("status_text") or us_swing.STATUS_TEXT.get(status, status)
+    recommendation = f"{grade}등급 관찰후보" if eligible and grade else f"관찰 — {state}"
     days = row.get("days_since_anchor")
     pullback = row.get("pullback_pct_close")
     core = float(row.get("core_score") or 0.0)
     support = float(row.get("support_score") or 0.0)
     return {
         "state": state,
+        "state_detail": long_state,
         "recommendation": recommendation,
         "rule_mode": "breakout",
         "entry": "미국장 종가 확정 뒤 신규매수 관찰",
