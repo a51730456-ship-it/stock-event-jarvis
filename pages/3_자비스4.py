@@ -3932,6 +3932,8 @@ def _render_pullback_finder() -> None:
             st.session_state["j4_pullback_mode"] = mode
             st.session_state.pop("j4_pullback_pick", None)
             st.session_state.pop("j4_pullback_pick_row", None)
+            # 폰·태블릿 뒤로가기 — 이 단추는 _section_toggle을 안 거치므로 따로 알린다.
+            back_nav.opened(st, "j4_pullback_open")
             with st.spinner(spinner):
                 st.session_state["j4_pullback_result"] = getattr(j4data, finder)()
             st.session_state["j4_pullback_found_at"] = datetime.now(_PAGE_SEOUL)
@@ -3969,9 +3971,11 @@ def _render_pullback_finder() -> None:
     if run_requested and st.session_state.get("j4_pullback_result") is not None:
         # 찾아 둔 것이 있으면 조회 없이 그대로 편다. 여기가 5초를 없애는 자리다.
         st.session_state["j4_pullback_open"] = True
+        back_nav.opened(st, "j4_pullback_open")
         run_requested = False
     if run_requested:
         st.session_state["j4_pullback_open"] = True
+        back_nav.opened(st, "j4_pullback_open")
         j4data.clear_pullback_cache()
         # 이전 검색에서 고른 종목 자료는 여기서 버린다 — 새 결과와 섞이면 옛 점수가 남는다.
         st.session_state.pop("j4_pullback_pick", None)

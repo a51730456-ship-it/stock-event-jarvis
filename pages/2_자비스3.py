@@ -5622,6 +5622,9 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
             st.session_state["j3_pullback_open"] = True
             st.session_state["j3_pullback_mode"] = pressed
             st.session_state.pop("j3_pullback_selected_ticker", None)
+            # 폰·태블릿 뒤로가기 — 이 목록이 열린 것을 방문기록에 한 칸 쌓는다.
+            # 이 단추는 _section_toggle을 안 거치므로 여기서 따로 알려야 한다.
+            back_nav.opened(st, "j3_pullback_open")
             if pressed == "breakout":
                 with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
                     st.session_state["j3_pullback_result"] = (
