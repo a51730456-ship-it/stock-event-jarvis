@@ -10,8 +10,15 @@ from streamlit.testing.v1 import AppTest
 @contextlib.contextmanager
 def _no_network_signal_patches():
     """2026-07-22부터 두 카드가 첫 화면에서 자동 조회하므로, 테스트에서는
-    네트워크·DB 접근을 막고 '자료 없음' 상태로 렌더되게 한다."""
+    네트워크·DB 접근을 막고 '자료 없음' 상태로 렌더되게 한다.
+
+    **_cached_previous_us_quotes도 막는다**(2026-08-21). 미국장 카드의 본값은
+    실시간 시세가 아니라 **완성 일봉**이라 _fetch_quotes만 막아서는 야후에
+    그대로 다녀왔다. 그렇게 만들어진 진짜 판정이 아래 '판정을 지어내지
+    않는다' 시험에는 '5단계 기준' 거르개에 가려 안 보였을 뿐이다.
+    """
     with patch("market_signal_ui._fetch_quotes", return_value={}), \
+         patch("market_signal_ui._cached_previous_us_quotes", return_value={}), \
          patch("market_signal_ui.collect_kr_flow_snapshot", return_value=({}, ["KIS API 키 미설정"])), \
          patch("database.save_kr_flow_snapshot"), \
          patch("database.list_kr_flow_snapshots", return_value=[{}]):

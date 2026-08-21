@@ -1673,14 +1673,13 @@ _US_CORE_DISPLAY = (
 
 _US_TABLE_KEYS = tuple(spec[0] for spec in us_market_signal_engine.US_SIGNAL_SPECS) + ("US_VIX_TERM",)
 
-_US_STAGE_GUIDE = (
-    "<b>5단계 기준</b> 하락 압력 큼(VIX·금리 급등과 선물 하락) → "
-    "약세 신호 우세(선물·반도체 동반 하락) → 방향 엇갈림(한쪽만 움직이거나 서로 혼조) → "
-    "상승 신호 우세(선물·반도체 동반 상승, VIX·금리 부담 일부) → "
-    "상승 여건 양호(선물·반도체 상승, VIX·금리 부담 없음).<br>"
-    "<b>판정 구성</b> S&P500·나스닥 선물, SOXX·SMH, VIX, 미국 10년물, "
-    "달러지수, 하이일드 채권과 현물지수를 함께 봅니다."
-)
+# 미국장 카드의 '5단계 기준 · 판정 구성' 안내는 **뺐다**(2026-08-21 상하님 지시).
+# 상하님 물음 — "전일 맨 밑에는 5단계 기준… 내용이 나오는데 직전 미국장 08.20의
+# 맨 밑에는 왜 없지? 중요하면 넣고 아니면 둘 다 빼라" → **둘 다 뺀다.**
+# 카드 하나에 두 날(직전 미국장·전일)이 들어 있는데 이 안내는 카드 맨 아래에
+# 한 번만 붙어서, 아랫날에만 딸린 설명처럼 보였다. 두 날에 각각 넣으면 같은
+# 글이 두 번 나온다. 날마다 안 변하는 설명이라 없어도 판정은 그대로다.
+# 되살리려면 이 자리에 글을 되돌리고 아래 stage_guide= 인자를 다시 넘기면 된다.
 
 
 def run_us_market_signal_check(force_refresh=False):
@@ -1858,7 +1857,6 @@ def render_us_market_signal_card():
         verdict_order=US_VERDICT_ORDER,
         comparison_result=previous_result,
         comparison_label=previous_label,
-        stage_guide=_US_STAGE_GUIDE,
     )
     # 실패 목록 나열은 없앴다(2026-07-22 사용자 지시) — 못 가져온 값은 위 표에
     # '확인 필요'로 이미 표시되고, 사용자가 손쓸 수 없는 항목이라 나열해도 의미가 없다.

@@ -426,6 +426,32 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertAlmostEqual(previous["change_pct"], 5.0)
 
 
+class UsStageGuideRemovedTests(unittest.TestCase):
+    """미국장 카드에서 '5단계 기준 · 판정 구성' 안내를 뺐다 (2026-08-21 상하님 지시).
+
+    상하님 물음 — "전일 맨 밑에는 5단계 기준… 내용이 나오는데 직전 미국장
+    08.20의 맨 밑에는 왜 없지? 중요하면 넣고 아니면 둘 다 빼라." → 둘 다 뺐다.
+    카드 하나에 두 날이 들어 있는데 안내가 맨 아래 한 번만 붙어서 아랫날에만
+    딸린 설명처럼 보였다.
+    """
+
+    def test_us_guide_is_gone(self):
+        self.assertFalse(hasattr(ui, "_US_STAGE_GUIDE"),
+                         "미국장 5단계 기준 안내가 되살아났다")
+
+    def test_korea_keeps_its_guide(self):
+        """한국장은 그대로다 — 한 시장을 고치며 다른 시장을 같이 건드리지 않는다."""
+        self.assertTrue(hasattr(ui, "_KR_STAGE_GUIDE"))
+        self.assertIn("5단계 기준", ui._KR_STAGE_GUIDE)
+
+    def test_renderer_still_supports_the_argument(self):
+        """인자 자체는 남겨 둔다 — 되살리려면 다시 넘기기만 하면 된다."""
+        import inspect
+
+        self.assertIn("stage_guide",
+                      inspect.signature(ui.render_market_signal_card).parameters)
+
+
 class KrFlowAutoRefreshTests(unittest.TestCase):
     def test_first_load_and_new_day_are_due(self):
         now = datetime(2026, 7, 29, 10, 30, tzinfo=ui._SEOUL_TZ)
