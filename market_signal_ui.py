@@ -1797,7 +1797,13 @@ def run_us_market_signal_check(force_refresh=False):
 
 def render_us_market_signal_card():
     """🌐 미국장 시장 상태. 선행·확인 신호로 흐름을 읽는다."""
-    st.markdown("### 🌐 미국장 시장 상태")
+    # **「미국 전체시장 판단」과 같은 크기·같은 보라색**이다(2026-08-21 상하님 지시).
+    # 두 제목이 나란히 놓이는 화면이라 크기가 다르면 어느 쪽이 위인지 헷갈린다.
+    st.markdown(
+        "<div style='font-size:16px; font-weight:800; color:#c084fc; "
+        "margin:.25rem 0 .4rem; letter-spacing:-.01em'>🌐 미국장 시장 상태</div>",
+        unsafe_allow_html=True,
+    )
     st.caption(
         "선물·반도체 ETF·변동성·금리가 서로 같은 방향인지, 무엇이 먼저 움직였는지를 읽어줍니다. "
         "미국은 장중 수급 공개 데이터가 없어 한국장과 판정 방식이 다릅니다."

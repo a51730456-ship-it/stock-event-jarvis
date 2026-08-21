@@ -1245,8 +1245,13 @@ def _universe_daily(reuse_only: bool):
     loader = _download_cache_only if reuse_only else _download_cached
     # **한 명단으로 받는다**(_us_batch_tickers). 테마 ETF·SPY·QQQ가 같이 들어오지만
     # 아래 두 갈래는 US_LARGE_CAP_UNIVERSE만 훑으므로 후보에 섞이지 않는다.
+    # **5분마다 다시 받지 않는다**(2026-08-21 상하님 "로딩 시간 너무 오래 걸린다").
+    # 이 묶음은 200종목 2년치라 온라인에서 제일 오래 걸리는 조회인데, 일봉은
+    # 하루에 한 번만 늘어난다. 30분으로 늘리면 한 번 받은 뒤로는 같은 자료를 쓴다.
+    # 장중 최신값이 필요한 곳은 따로 분봉을 받으므로 이 창과 상관없고, 화면의
+    # '온라인 자료 새로고침' 단추는 언제든 이 공책을 비운다.
     daily, meta = loader(
-        _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=300
+        _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=1800
     )
     return daily, meta, memberships
 

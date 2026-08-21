@@ -1191,6 +1191,16 @@ def _sign_color(value) -> str:
         return "#9aa0aa"
 
 
+# 화면 큰 제목 두 개(「미국 전체시장 판단」·「미국장 시장 상태」)가 쓰는 옷.
+# **한 곳에서만 정한다** — 두 군데 적어 두면 한쪽만 고쳐 크기가 어긋난다
+# (2026-08-21 상하님 지시 "동일하게 할 것").
+_SECTION_TITLE_CLASS = "j3-page-title"
+_SECTION_TITLE_CSS = (
+    "<style>.j3-page-title{font-size:16px; font-weight:800; color:#c084fc;"
+    " margin:.25rem 0 .4rem; letter-spacing:-.01em;}</style>"
+)
+
+
 def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=False) -> str:
     if sub_signed:
         sub_html = f"<div class='j3-top-sub {_sign_class(sub)}'>{_pct(sub)}</div>"
@@ -1861,8 +1871,7 @@ def _render_market_overview() -> None:
     # 제목은 **절반 크기**다(2026-08-21 상하님 지시). st.subheader는 28px인데
     # 그만한 글씨가 필요한 자리가 아니다 — 아래 칸들이 주인공이다.
     st.markdown(
-        "<div style='font-size:14px; font-weight:800; color:#e6e6e6; "
-        "margin:.2rem 0 .35rem'>미국 전체시장 판단</div>",
+        f"<div class='{_SECTION_TITLE_CLASS}'>미국 전체시장 판단</div>",
         unsafe_allow_html=True,
     )
     if not overview.get("ok"):
@@ -1920,6 +1929,7 @@ def _render_market_overview() -> None:
     # 게이지 스타일은 지표 줄과 따로 내보낸다. 줄 안에 <style>을 끼워 넣으면
     # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버려서, CSS가 글자로
     # 찍히고 SPY·QQQ의 '$' 두 개가 수식으로 잡혔다(2026-07-24 실제 깨짐).
+    st.markdown(_SECTION_TITLE_CSS, unsafe_allow_html=True)
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
     _render_nasdaq_drawdown()
@@ -2491,12 +2501,12 @@ def _render_stock_detail(
     # 하고, 만점이 0인 줄은 만점 칸에 '0점'이라 적어 왜 안 주는지 설명으로 잇는다.
     # **이름만으로는 뭘 재는지 모른다**(2026-08-12 상하님 지적 — "유동성이 뭐에 대한
     # 유동성인지 기준이 뭔지 설명이 불친절하다"). 모듈에 적어 둔 한 줄을 옆에 붙인다.
-    notes = getattr(j3data, "LEADER_SCORE_NOTES", {})
+    # **이름만 초록 글씨로 둔다**(2026-08-21 상하님 지시 — "심사항목 밑에 하얀색
+    # 설명 빼라, 심사항목에 초록색 글자만 나타내라"). 무엇을 보는 값인지는
+    # 제목 옆 「설명」을 누르면 나온다(_FACTOR_HELP).
     factor_rows = "".join(
-        f"<tr><td class='j3-fac-name'>{name}"
-        + (f"<div class='j3-fac-note'>{html.escape(notes[name])}</div>"
-           if notes.get(name) else "")
-        + f"</td>{_gain_cell(part, '0점' if not maximum else _number(maximum))}</tr>"
+        f"<tr><td class='j3-fac-name'>{name}</td>"
+        + f"{_gain_cell(part, '0점' if not maximum else _number(maximum))}</tr>"
         for (name, maximum), part in zip(factor_spec, leader["score_parts"])
     )
     # 총점 행: 글자 한 치수 크게 + 배경 밝은 초록
@@ -2860,152 +2870,77 @@ _FACTOR_HELP_CSS = """
 #
 # **'무리'라고 쓰지 않는다**(2026-08-14 상하님 지시). 화면 어디에도 없는 말이라
 # 상하님이 무엇을 가리키는지 되물으셔야 했다. 표에 있는 말 그대로 '관련 테마'라 쓴다.
+# 「설명」 창에 들어가는 글. **핵심만 적는다**(2026-08-21 상하님 지시 —
+# "설명란 내용이 너무 많다 핵심만 넣어라"). 남기는 것은 세 가지뿐이다 —
+#   무엇을 보는가 · 배점(문턱) · 0점이면 왜 0점인가.
+# 「왜 보는가」·「재어 보니」·「이렇게 읽으십시오」 같은 뒷이야기는 뺐다.
+# 그 내력은 docs/US_THEME_SPEC.md와 git 기록에 남아 있다.
+#
+# **표에는 이 글을 안 붙인다**(같은 지시 — "심사항목에 초록색 글자만 나타내라").
+# 항목 이름 밑에 흰 글씨로 붙이던 것을 걷어냈고, 여기 「설명」에서만 본다.
 _FACTOR_HELP = (
     ("이 종목이 평소 크게 움직이나",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목 주가가 "
-     "<b class='j3fh-k'>최근 3개월(60거래일) 동안 하루에 몇 %씩 움직였는지</b> 봅니다. "
-     "어떤 종목은 하루에 1%씩 움직이고, 어떤 종목은 5%씩 움직입니다.<br>"
-     "<span class='j3fh-h'>배점</span> — 오늘 이 목록에 오른 종목끼리 줄을 세워 "
-     "<b class='j3fh-k'>위쪽 절반</b>이면 40점, 아래쪽 절반이면 0점입니다. "
-     "절대값으로 문턱을 두지 않는 것은 조용한 장에서는 아무도 못 받고 시끄러운 "
-     "장에서는 모두가 받기 때문입니다.<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 평소 크게 출렁이던 종목이 바닥에서도 "
-     "크게 튑니다. 얌전한 종목은 올라올 때도 얌전하게 올라옵니다. "
-     "<b class='j3fh-k'>상식과 반대로 들리지만 재 보니 그랬습니다.</b><br>"
-     "<span class='j3fh-h'>재어 보니</span> — 나스닥이 바닥을 찍고 돌아선 날 아홉 번 중 "
-     "3개월로는 <b class='j3fh-k'>아홉 번 다</b>, 1년으로는 <b class='j3fh-k'>여덟 번 "
-     "다</b> 이렇게 고른 쪽이 나머지보다 더 벌었습니다. 네 항목 중 가장 꾸준해서 "
-     "1등(40점)입니다.<br>"
-     "<span class='j3fh-h'>이렇게 읽으십시오</span> — 이 항목은 "
-     "<b class='j3fh-k'>그 종목 자체</b>를 보고, 나머지 세 항목은 그 종목이 속한 "
-     "<b class='j3fh-k'>분야</b>를 봅니다. 둘은 거의 겹치지 않아서 "
-     "<u>둘 다 점수를 받은 종목</u>이 특히 좋았습니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목 주가가 <b class='j3fh-k'>최근 3개월(60거래일) 동안 "
+     "하루에 몇 %씩 움직였는지</b> 봅니다. 어떤 종목은 하루에 1%씩 움직이고, 어떤 종목은 5%씩 움직입니다.<br><span "
+     "class='j3fh-h'>배점</span> — 오늘 이 목록에 오른 종목끼리 줄을 세워 <b class='j3fh-k'>위쪽 절반</b>이면 40점, "
+     "아래쪽 절반이면 0점입니다. 절대값으로 문턱을 두지 않는 것은 조용한 장에서는 아무도 못 받고 시끄러운 장에서는 모두가 받기 때문입니다."),
     ("테마가 같이 오르는가",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마가 최근 "
-     "5일 동안 다른 테마보다 <b class='j3fh-k'>더 올랐는지</b> 보고, 테마 20개를 "
-     "줄 세워 위쪽 5등 안에 들면 점수를 주려 했습니다.<br>"
-     "<span class='j3fh-h'>왜 보려 했는가</span> — 테마가 지금 막 달아오르는 중이면 "
-     "그 안의 종목도 같이 밀려 올라간다고 보았습니다.<br>"
-     "<span class='j3fh-z'>왜 0점인가</span> — 상승장 자리에서 재 보니 "
-     "<b class='j3fh-k'>이 잣대로 고른 쪽이 더 벌지 않았습니다.</b> 최근 5일은 너무 "
-     "짧아 그날그날 오르내림에 휘둘립니다. 대신 앱은 같은 ‘테마를 본다’는 생각을 "
-     "훨씬 긴 잣대(반년 수익률·30주선)로 바꿔 급락 갈래에서만 점수를 줍니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마가 최근 5일 동안 다른 테마보다 <b "
+     "class='j3fh-k'>더 올랐는지</b> 보고, 테마 20개를 줄 세워 위쪽 5등 안에 들면 점수를 주려 했습니다.<br><span "
+     "class='j3fh-z'>왜 0점인가</span> — 상승장 자리에서 재 보니 <b class='j3fh-k'>이 잣대로 고른 쪽이 더 벌지 "
+     "않았습니다.</b> 최근 5일은 너무 짧아 그날그날 오르내림에 휘둘립니다. 대신 앱은 같은 ‘테마를 본다’는 생각을 훨씬 긴 잣대(반년 수익률·30주선)로 "
+     "바꿔 급락 갈래에서만 점수를 줍니다."),
     ("이 테마가 이미 오름세로 돌아섰나",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 속한 테마 회사들 중 "
-     "<b class='j3fh-k'>몇 %가 30주선(150일 평균) 위에 있는지</b> 세어, 테마 20개를 "
-     "줄 세웁니다. 위에서 <b class='j3fh-k'>3등 안</b>이면 30점, 아니면 0점입니다.<br>"
-     "<span class='j3fh-h'>30주선이 뭔가</span> — 최근 30주(약 150거래일) 평균값을 "
-     "이어 그린 선입니다. 주가가 그 위에 있으면 반년 평균보다 지금이 비싸다는 "
-     "뜻이라, 이미 올라오기 시작한 것으로 봅니다.<br>"
-     "<span class='j3fh-h'>재어 보니</span> — 나스닥이 바닥을 찍고 돌아선 날 아홉 "
-     "번에서 <b class='j3fh-k'>1년으로는 일곱 번 다</b> 이겼습니다. 네 항목 중 "
-     "2등이라 30점입니다.<br>"
-     "<span class='j3fh-h'>이렇게 읽으십시오</span> — 급락 뒤에는 다 같이 빠져 있어서 "
-     "‘얼마나 빠졌나’로는 못 가릅니다. 이 잣대는 빠진 폭이 아니라 "
-     "<b class='j3fh-k'>이미 몸을 일으킨 테마인가</b>를 봅니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 속한 테마 회사들 중 <b class='j3fh-k'>몇 %가 "
+     "30주선(150일 평균) 위에 있는지</b> 세어, 테마 20개를 줄 세웁니다. 위에서 <b class='j3fh-k'>3등 안</b>이면 30점, 아니면 "
+     "0점입니다."),
     ("이 테마가 통째로 떨어졌나",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 이 회사와 <b class='j3fh-k'>같은 "
-     "테마 회사가 네 개 이상</b> 오늘 이 목록에 같이 올라왔는지 셉니다. 네 개가 "
-     "넘으면 20점, 아니면 0점입니다. 중간 점수는 없습니다.<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 한두 개만 떨어졌으면 그 회사 사정이지만, "
-     "네 개가 같이 떨어졌으면 <b class='j3fh-k'>그 업종이 통째로 밀린 것</b>입니다. "
-     "업종째 밀린 것은 돌아올 때도 업종째 돌아옵니다.<br>"
-     "<span class='j3fh-h'>왜 네 개인가</span> — 세 개로 낮추면 목록의 3분의 2가 "
-     "걸려서 고르는 뜻이 없어지고, 여섯 개로 올리면 너무 적게 걸립니다.<br>"
-     "<span class='j3fh-h'>재어 보니</span> — 3개월로는 아홉 번 다 이겼는데 1년으로는 "
-     "여덟 번 중 여섯 번입니다. <b class='j3fh-k'>짧게 볼 때 강하고 길게 가면 "
-     "약해집니다.</b>"),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 이 회사와 <b class='j3fh-k'>같은 테마 회사가 네 개 이상</b> 오늘 "
+     "이 목록에 같이 올라왔는지 셉니다. 네 개가 넘으면 20점, 아니면 0점입니다. 중간 점수는 없습니다."),
     ("이 테마가 지난 반년에 많이 올랐나",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 이 종목이 속한 테마 회사들이 "
-     "<b class='j3fh-k'>지난 반년에 평균 몇 % 올랐는지</b>로 테마 20개를 줄 세웁니다. "
-     "위에서 <b class='j3fh-k'>3등 안</b>이면 10점, 아니면 0점입니다.<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 급락 전부터 힘이 있던 테마인지 봅니다. "
-     "반년 내내 밀리던 테마는 바닥에서도 잘 못 올라옵니다.<br>"
-     "<span class='j3fh-h'>왜 10점뿐인가</span> — 1년으로 보면 여섯 번 중 여섯 번을 "
-     "맞혀 네 항목 중 <b class='j3fh-k'>가장 잘 맞힙니다.</b> 그런데 3개월로 보면 "
-     "일곱 번 중 네 번뿐입니다. 상하님이 언제 파실지 앱이 정하지 않으므로, "
-     "<b class='j3fh-k'>짧게 볼 때 약한 항목에는 큰 점수를 못 줍니다.</b>"),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 이 종목이 속한 테마 회사들이 <b class='j3fh-k'>지난 반년에 평균 몇 % "
+     "올랐는지</b>로 테마 20개를 줄 세웁니다. 위에서 <b class='j3fh-k'>3등 안</b>이면 10점, 아니면 0점입니다."),
     ("테마가 30주선 위에 있나",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마에 든 회사 "
-     "중 <b class='j3fh-k'>몇 %가 30주선(150일 평균) 위에 있는지</b> 세어, 테마 20개를 "
-     "줄 세웁니다. 위에서 <b class='j3fh-k'>3등 안</b>에 들면 30점, 아니면 0점입니다.<br>"
-     "<span class='j3fh-h'>왜 30주선인가</span> — 바닥에서 올라서는 자리를 보는 "
-     "오래된 기준선입니다(와인스타인 국면 분석). 값이 이 선 위로 올라오면 "
-     "‘바닥을 다지는 중’에서 ‘오르기 시작함’으로 넘어간 것으로 봅니다.<br>"
-     "<span class='j3fh-h'>재어 보니</span> — 나스닥이 바닥을 찍고 돌아선 날 아홉 번에 "
-     "서서 보니 <b class='j3fh-k'>1년으로는 일곱 번 중 일곱 번</b> 다 이겼습니다. "
-     "3개월은 여덟 번 중 일곱 번입니다. 네 항목 중 <b class='j3fh-k'>2등</b>이라 "
-     "30점입니다.<br>"
-     "<span class='j3fh-h'>이렇게 읽으십시오</span> — 급락 뒤에는 다 같이 빠져 있어서 "
-     "‘얼마나 빠졌나’로는 못 가릅니다. 이 잣대는 빠진 폭이 아니라 "
-     "<b class='j3fh-k'>이미 몸을 일으킨 테마인가</b>를 봅니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마에 든 회사 중 <b class='j3fh-k'>몇 %가 "
+     "30주선(150일 평균) 위에 있는지</b> 세어, 테마 20개를 줄 세웁니다. 위에서 <b class='j3fh-k'>3등 안</b>에 들면 30점, "
+     "아니면 0점입니다."),
     ("테마가 덜 빠졌나",
-     # 이 항목은 **상승장 표와 급락 표에 다 나온다.** 그래서 어느 한쪽 자리를
-     # 가리키는 말('급락장에서')을 쓰지 않는다 — 상승장 표에서 읽으면 어긋난다.
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마가 다른 "
-     "테마보다 <b class='j3fh-k'>덜 떨어졌는지</b> 보고, 테마 20개를 줄 세워 위쪽 몇 등 "
-     "안에 들면 점수를 주려 했습니다.<br>"
-     "<span class='j3fh-h'>왜 보려 했는가</span> — 다 떨어지는 날에도 덜 떨어지는 테마가 "
-     "있고, 되돌아올 때 그 테마가 먼저 올라온다고 보았습니다.<br>"
-     "<span class='j3fh-z'>왜 0점인가</span> — 앱은 2026-08-13까지 이 잣대에 점수를 주고 "
-     "있었습니다. 그런데 나스닥이 −12%·−18%·−24%에 처음 닿은 날 기준으로 다시 재 보니 "
-     "<b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. 오히려 <b class='j3fh-k'>많이 "
-     "빠진 테마가 더 크게 되돌아왔습니다.</b> 그래서 앱은 0점으로 내렸습니다. 상승장 "
-     "자리에서도 따로 재 봤지만 마찬가지로 통과하지 못했습니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마가 다른 테마보다 <b class='j3fh-k'>덜 "
+     "떨어졌는지</b> 보고, 테마 20개를 줄 세워 위쪽 몇 등 안에 들면 점수를 주려 했습니다.<br><span class='j3fh-z'>왜 "
+     "0점인가</span> — 앱은 2026-08-13까지 이 잣대에 점수를 주고 있었습니다. 그런데 나스닥이 −12%·−18%·−24%에 처음 닿은 날 "
+     "기준으로 다시 재 보니 <b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. 오히려 <b class='j3fh-k'>많이 "
+     "빠진 테마가 더 크게 되돌아왔습니다.</b> 그래서 앱은 0점으로 내렸습니다. 상승장 자리에서도 따로 재 봤지만 마찬가지로 통과하지 못했습니다."),
     ("테마 주봉이 오름세인가",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 관련 테마 회사들 중 몇 %가 아직 "
-     "<b class='j3fh-k'>오름세 모양</b>인지 봅니다. 오름세 모양이란 지금 값이 50일 평균 "
-     "위 · 50일 평균이 150일 평균 위 · 150일 평균이 200일 평균 위이고, 200일 평균이 "
-     "오르는 중인 것입니다.<br>"
-     "<span class='j3fh-h'>왜 보려 했는가</span> — 급락장에는 하루 반짝 오르는 일이 "
-     "흔합니다. 이 잣대가 그 반짝을 걸러 준다고 보았습니다.<br>"
-     "<span class='j3fh-z'>왜 0점인가</span> — 나스닥이 −12%·−18%·−24%에 처음 닿은 날 "
-     "기준으로 다시 재 보니 <b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. "
-     "네 조건을 다 채우려면 이미 한참 오른 뒤여야 해서, <b class='j3fh-k'>급락 바로 "
-     "뒤에는 이 조건을 채우는 테마가 거의 없습니다.</b> 값은 그대로 적어 두니 참고로만 "
-     "보십시오."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 관련 테마 회사들 중 몇 %가 아직 <b class='j3fh-k'>오름세 "
+     "모양</b>인지 봅니다. 오름세 모양이란 지금 값이 50일 평균 위 · 50일 평균이 150일 평균 위 · 150일 평균이 200일 평균 위이고, 200일 "
+     "평균이 오르는 중인 것입니다.<br><span class='j3fh-z'>왜 0점인가</span> — 나스닥이 −12%·−18%·−24%에 처음 닿은 날 "
+     "기준으로 다시 재 보니 <b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. 네 조건을 다 채우려면 이미 한참 오른 뒤여야 "
+     "해서, <b class='j3fh-k'>급락 바로 뒤에는 이 조건을 채우는 테마가 거의 없습니다.</b> 값은 그대로 적어 두니 참고로만 보십시오."),
     ("테마가 20일선 위에 있나",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 관련 테마 회사들 중 몇 %가 최근 "
-     "한 달 평균값(20일선) 위에 있는지 세어 테마 20개를 줄 세웁니다.<br>"
-     "<span class='j3fh-h'>왜 보려 했는가</span> — 그 테마가 <b class='j3fh-k'>이미 "
-     "돌아서기 시작했는지</b> 보려 한 것입니다.<br>"
-     "<span class='j3fh-z'>왜 0점인가</span> — 20일선은 한 달짜리라 급락 뒤에는 "
-     "<b class='j3fh-k'>며칠 반등만으로도 금세 넘어섭니다.</b> 다시 재 보니 20일선 위에 "
-     "있던 종목이 1년 뒤 오히려 <b class='j3fh-k'>23% 덜 올랐습니다.</b> 앱은 같은 "
-     "생각을 훨씬 긴 잣대(30주선 30점)로 바꿔 주고 있습니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 관련 테마 회사들 중 몇 %가 최근 한 달 평균값(20일선) 위에 있는지 세어 "
+     "테마 20개를 줄 세웁니다.<br><span class='j3fh-z'>왜 0점인가</span> — 20일선은 한 달짜리라 급락 뒤에는 <b "
+     "class='j3fh-k'>며칠 반등만으로도 금세 넘어섭니다.</b> 다시 재 보니 20일선 위에 있던 종목이 1년 뒤 오히려 <b "
+     "class='j3fh-k'>23% 덜 올랐습니다.</b> 앱은 같은 생각을 훨씬 긴 잣대(30주선 30점)로 바꿔 주고 있습니다."),
     ("테마 대비 상대강도",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 최근 20일 동안 "
-     "<b class='j3fh-k'>자기 관련 테마 평균보다 더 올랐는지</b> 봅니다.<br>"
-     "<span class='j3fh-h'>왜 보는가</span> — 같은 테마 안에서 앞서가는 종목인지 "
-     "보는 것입니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 최근 20일 동안 <b class='j3fh-k'>자기 관련 테마 "
+     "평균보다 더 올랐는지</b> 봅니다."),
     ("SPY 대비 상대강도",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 최근 20일 동안 "
-     "<b class='j3fh-k'>미국 시장 전체(SPY)보다 더 올랐는지</b> 봅니다.<br>"
-     "<span class='j3fh-h'>왜 이것과 견주는가</span> — 이 자리는 여러 테마를 가로질러 "
-     "찾은 종목이라 견줄 테마가 없습니다. 그래서 시장 전체와 견줍니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 최근 20일 동안 <b class='j3fh-k'>미국 시장 "
+     "전체(SPY)보다 더 올랐는지</b> 봅니다."),
     ("52주 신고가 위치",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 지금 값이 "
-     "<b class='j3fh-k'>지난 1년 최고가에 얼마나 가까운지</b> 봅니다. 가까울수록 점수가 "
-     "높습니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 지금 값이 <b class='j3fh-k'>지난 1년 최고가에 얼마나 "
+     "가까운지</b> 봅니다. 가까울수록 점수가 높습니다."),
     ("추세",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 짧은 평균선이 긴 평균선 위에 "
-     "있는지 봅니다(20일 · 50일 · 200일). 위에서부터 차례로 놓여 있으면 오르는 "
-     "중입니다.<br>"
-     "<span class='j3fh-z'>왜 0점인가</span> — 앱이 지난 10년을 창 96개로 잘라 재 보니, "
-     "<b class='j3fh-k'>20일선 위는 96개 중 5개, 50일선 위는 12개</b>에서만 이겼습니다. "
-     "거의 거꾸로였습니다. 여기까지 올라온 종목은 대부분 이미 오름세라 "
-     "<b class='j3fh-k'>이 잣대로는 서로를 가려낼 수 없습니다.</b> 뺀 20점은 다른 항목에 "
-     "나눠 주지 않았습니다 — 그래서 이 표의 만점은 100점이 아니라 80점입니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 짧은 평균선이 긴 평균선 위에 있는지 봅니다(20일 · 50일 · 200일). "
+     "위에서부터 차례로 놓여 있으면 오르는 중입니다.<br><span class='j3fh-z'>왜 0점인가</span> — 앱이 지난 10년을 창 96개로 "
+     "잘라 재 보니, <b class='j3fh-k'>20일선 위는 96개 중 5개, 50일선 위는 12개</b>에서만 이겼습니다. 거의 거꾸로였습니다. "
+     "여기까지 올라온 종목은 대부분 이미 오름세라 <b class='j3fh-k'>이 잣대로는 서로를 가려낼 수 없습니다.</b> 뺀 20점은 다른 항목에 나눠 "
+     "주지 않았습니다 — 그래서 이 표의 만점은 100점이 아니라 80점입니다."),
     ("유동성",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 하루에 얼마나 많이 "
-     "사고팔리는지 봅니다. 적으면 상하님이 사고팔 때 값이 크게 흔들립니다.<br>"
-     "<span class='j3fh-h'>짚어 둘 것</span> — 이것은 성적을 맞히는 잣대가 아니라 "
-     "<b class='j3fh-k'>「살 수 있는 종목인가」를 보는 잣대</b>입니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 하루에 얼마나 많이 사고팔리는지 봅니다. 적으면 상하님이 사고팔 때 "
+     "값이 크게 흔들립니다."),
     ("변동성 안정",
-     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 값이 하루에 얼마나 크게 "
-     "흔들리는지 봅니다.<br>"
-     "<span class='j3fh-h'>짚어 둘 것</span> — 이것도 성적이 아니라 "
-     "<b class='j3fh-k'>「상하님이 감당하실 크기인가」를 보는 잣대</b>입니다."),
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 값이 하루에 얼마나 크게 흔들리는지 봅니다."),
 )
 
 
@@ -4023,6 +3958,14 @@ def _render_my_stock_panel(market: dict) -> None:
     # **누를 단추를 둔다**(2026-08-21 상하님 지시 — "종목이름 치고 검색 누르는
     # 단추가 없다"). 글자만 치면 한 글자마다 화면을 다시 그려 느리기도 했다.
     # 칸 안에서 엔터를 쳐도 같이 눌린다.
+    # 입력칸과 글자를 키운다(2026-08-21 상하님 지시).
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j3_my_stock_query'] input{font-size:1.15rem !important;"
+        " padding:.85rem .9rem !important; font-weight:700 !important;}"
+        "div[class*='st-key-j3_my_stock_query'] label p{font-size:1.02rem !important;}"
+        "</style>", unsafe_allow_html=True,
+    )
     with st.form("j3_my_stock_form", clear_on_submit=False, border=False):
         typed = st.text_input(
             # 무엇을 어디에 넣어야 하는지 칸 이름이 직접 말하게 한다(2026-08-01 지시).
@@ -4055,6 +3998,14 @@ def _render_my_stock_panel(market: dict) -> None:
         horizontal=True,
         key="j3_my_stock_pick",
     )
+    # **고른 종목이 바뀌면 차트가 저절로 열린다**(2026-08-21 상하님 지시).
+    # 눌림목 표에서 종목을 누를 때와 같은 동작이다 — 거기서는 이미 그렇게 한다.
+    # 열어 둔 뒤 상하님이 닫으시면 그대로 닫혀 있고, 다른 종목을 고르면 다시 열린다.
+    if st.session_state.get("j3_my_stock_shown") != chosen:
+        st.session_state["j3_my_stock_shown"] = chosen
+        for opened in ("j3_detail_open_mystock", "j3_intraday_open_mystock",
+                       "j3_bundle_open_mystock"):
+            st.session_state[opened] = True
     with st.spinner(f"{by_ticker[chosen]['name']} 심사 중입니다…"):
         result = j3data.analyze_one_stock(
             chosen, market_score=float(market.get("score") or 0))
@@ -4298,9 +4249,9 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             f"<div class='j3-mc'><div class='j3-mc-label'>신고가 후 눌림</div>"
             f"<div class='j3-mc-val j3-up'>{'—' if pullback_pct is None else f'-{float(pullback_pct):.1f}%'}</div>"
             f"<div class='j3-mc-sub j3-muted'>최고가 넘고 {int(row.get('days_since_anchor') or 0)}거래일째</div></div>",
-            f"<div class='j3-mc'><div class='j3-mc-label'>핵심점수</div>"
+            f"<div class='j3-mc'><div class='j3-mc-label'>중요 점수</div>"
             f"<div class='j3-mc-val j3-green'>{float(row.get('core_score') or 0):.0f}/70</div></div>",
-            f"<div class='j3-mc'><div class='j3-mc-label'>보조점수</div>"
+            f"<div class='j3-mc'><div class='j3-mc-label'>거드는 점수</div>"
             f"<div class='j3-mc-val'>{float(row.get('support_score') or 0):.0f}/30</div>"
             "<div class='j3-mc-sub j3-muted'>추가검증 중</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>총점</div>"
@@ -4463,7 +4414,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             plan_cells = [
                 ("진입 관찰", str(plan.get("entry") or "—"), "#44f0a1"),
                 ("최고가 넘은 날 / 그 뒤", f"{anchor} · {int(row.get('days_since_anchor') or 0)}거래일째", "#e6e6e6"),
-                ("핵심 / 보조", f"{float(row.get('core_score') or 0):.0f}/70 · {float(row.get('support_score') or 0):.0f}/30", "#e6e6e6"),
+                ("중요 / 거드는 점수", f"{float(row.get('core_score') or 0):.0f}/70 · {float(row.get('support_score') or 0):.0f}/30", "#e6e6e6"),
                 ("눌림 / 손절·청산", f"{pullback_text} · 연구 중", "#ffd23f"),
             ]
         elif mode == "crash":
@@ -4905,7 +4856,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     )
 
     if _section_toggle(
-        "📘 이 화면 설명 보기 (통과조건 여섯 · 핵심 70 · 보조 30)",
+        "📘 이 화면 설명 보기 (통과조건 여섯 · 중요 70점 · 거드는 30점)",
         "j3_rulebook_help_open", close_label="설명 닫기",
     ):
         config = result.get("config") or {}
@@ -4924,8 +4875,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             f"{int(entry_cfg.get('watch_end_day', 3))}거래일 · "
             f"눌림 {float(entry_cfg.get('pullback_min', .03)) * 100:.0f}~"
             f"{float(entry_cfg.get('pullback_max', .10)) * 100:.0f}%<br>"
-            "<b>점수</b> — 최근 3개월 25 + 최근 6개월 25 + 눌림 20 = <b>핵심 70</b>, "
-            "테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7 = <b>보조 30</b>입니다. "
+            "<b>점수</b> — 최근 3개월 25 + 최근 6개월 25 + 눌림 20 = <b>중요 점수 70</b>, "
+            "테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7 = <b>거드는 점수 30</b>입니다. "
             "총점은 승률이나 보장수익이 아닙니다.</div>",
             unsafe_allow_html=True,
         )
@@ -4965,8 +4916,10 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     widths = [0.55, 0.8, 1.75, 0.8, 1.55, 1.05, 1.05, 1.25, 1.0, 1.0, 1.4]
     row_widths = [widths[0], widths[1], widths[2], sum(widths[3:])]
     rest_widths = widths[3:]
+    # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님). 둘 다 점수인데
+    # 이름만 봐서는 알 수 없었다. 무엇을 재는 점수인지 이름이 직접 말하게 한다.
     heads = ["티커", "등급 / 상태", "3개월 상위", "6개월 상위", "눌림 / 며칠째",
-             "핵심", "보조", "테마"]
+             "중요 점수", "거드는 점수", "테마"]
 
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
         prefix = "j3rbw" if watch_mode else "j3rbf"
@@ -4983,9 +4936,13 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             cols = box.columns(row_widths)
             rank = f"W{index + 1}" if watch_mode else str(int(row.get("primary_rank") or index + 1))
             cols[0].markdown(f"<div class='j3-td j3-muted'>{rank}</div>", unsafe_allow_html=True)
+            # 점수 색은 급락 표와 같은 자를 쓴다 — 70↑ 금색, 50↑ 하늘색, 그 아래 회색.
+            total = float(row.get("total_score") or 0)
+            score_class = ("j3-score-hi" if total >= 70 else
+                           "j3-score-mid" if total >= 50 else "j3-score-low")
             cols[1].markdown(
-                f"<div class='j3-td'><span class='j3-score j3-score-hi'>"
-                f"{float(row.get('total_score') or 0):.0f}</span></div>", unsafe_allow_html=True,
+                f"<div class='j3-td'><span class='j3-score {score_class}'>"
+                f"{total:.0f}점</span></div>", unsafe_allow_html=True,
             )
             key = f"{prefix}_{index:02d}"
             if cols[2].button(str(row.get("name") or row.get("ticker") or "—"), key=key, width="stretch"):
@@ -5000,10 +4957,33 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                     "border-left:3px solid #18bf87 !important;}"
                 )
             explanations = row.get("explanations") or {}
-            rs60 = (explanations.get("rs60") or {}).get("display_value") or "자료부족"
-            rs120 = (explanations.get("rs120") or {}).get("display_value") or "자료부족"
+
+            def _rs_cell(metric, percentile):
+                """상위 몇 %인가 — 위쪽일수록 밝은 초록(급락 표와 같은 무늬)."""
+                text = (explanations.get(metric) or {}).get("display_value") or "자료부족"
+                value = row.get(percentile)
+                tone = ("j3-muted" if value is None
+                        else "j3-green-strong" if float(value) >= 95
+                        else "j3-green" if float(value) >= 80
+                        else "j3-pull-theme" if float(value) >= 60
+                        else "j3-muted")
+                return (f"<span class='{tone} j3-rb-clip' title='{html.escape(str(text))}'>"
+                        f"{html.escape(str(text))}</span>")
+
+            rs60 = _rs_cell("rs60", "rs60_percentile")
+            rs120 = _rs_cell("rs120", "rs120_percentile")
             pullback = row.get("pullback_pct_close")
             pullback_text = "—" if pullback is None else f"-{float(pullback):.1f}%"
+            # 눌림은 3~10%가 **좋은 자리**다. 좋으면 초록, 너무 깊으면 붉게.
+            pullback_tone = (
+                "j3-muted" if pullback is None
+                else "j3-green-strong" if 6.0 <= float(pullback) <= 10.0
+                else "j3-green" if 3.0 <= float(pullback) < 6.0
+                else "j3-down" if float(pullback) > 10.0
+                else "j3-muted"
+            )
+            core = float(row.get("core_score") or 0)
+            support = float(row.get("support_score") or 0)
             # 칸에는 **짧은 말**만 넣는다(2026-08-21). 긴 설명은 손을 올리면 뜨게
             # 두고, 칸 안에서는 잘라 준다 — 안 자르면 옆 칸 글자를 덮는다.
             long_label = (
@@ -5015,18 +4995,27 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 us_swing.short_status(row.get("primary_status")) if watch_mode
                 else f"{row.get('grade') or '—'}등급"
             )
-            label = (f"<span class='j3-rb-clip' title='{html.escape(long_label)}'>"
+            grade_tone = ("j3-muted" if watch_mode else
+                          {"S": "j3-green-strong", "A": "j3-green",
+                           "B": "j3-pull-amber", "C": "j3-pull-theme"}.get(
+                              str(row.get("grade") or ""), "j3-muted"))
+            label = (f"<span class='{grade_tone} j3-rb-clip' style='font-weight:800'"
+                     f" title='{html.escape(long_label)}'>"
                      f"{html.escape(short_label)}</span>")
             theme_text = str(row.get("theme_id") or "자료부족")
             cols[3].markdown(
                 _flex_row(rest_widths, [
-                    html.escape(str(row.get("ticker") or "—")),
+                    f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
                     label,
-                    html.escape(str(rs60)), html.escape(str(rs120)),
-                    f"{html.escape(pullback_text)} · {int(row.get('days_since_anchor') or 0)}일째",
-                    f"{float(row.get('core_score') or 0):.0f}/70",
-                    f"{float(row.get('support_score') or 0):.0f}/30",
-                    f"<span class='j3-rb-clip' title='{html.escape(theme_text)}'>"
+                    rs60, rs120,
+                    f"<span class='{pullback_tone}' style='font-weight:800'>"
+                    f"{html.escape(pullback_text)}</span>"
+                    f" <span class='j3-muted'>· {int(row.get('days_since_anchor') or 0)}일째</span>",
+                    f"<span class='{'j3-green-strong' if core >= 56 else 'j3-green' if core >= 42 else 'j3-muted'}'"
+                    f" style='font-weight:850'>{core:.0f}<span class='j3-muted'>/70</span></span>",
+                    f"<span class='{'j3-pull-amber' if support >= 18 else 'j3-pull-theme' if support >= 9 else 'j3-muted'}'"
+                    f">{support:.0f}<span class='j3-muted'>/30</span></span>",
+                    f"<span class='j3-pull-theme j3-rb-clip' title='{html.escape(theme_text)}'>"
                     f"{html.escape(theme_text)}</span>",
                 ]), unsafe_allow_html=True,
             )
@@ -5051,8 +5040,11 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
 
     st.caption(
-        "정식 후보에만 등급을 붙입니다. 관찰 줄은 총점이 높아도 '무엇이 모자란가'가 "
-        "먼저입니다. 핵심·보조·총점을 따로 보시고, 점수는 승률이 아닙니다."
+        "**중요 점수(70점)** 는 최근 3개월·6개월에 시장보다 강했나와 신고가 뒤 알맞게 "
+        "쉬었나 셋을 더한 것이고, **거드는 점수(30점)** 는 테마·돌파 거래량·테마 "
+        "확산도·반등 넷을 더한 것입니다. 둘을 더하면 왼쪽 「점수 (참고)」입니다. "
+        "정식 후보에만 등급을 붙이고, 관찰 줄은 무엇이 모자란가를 먼저 적습니다. "
+        "점수는 승률이 아닙니다."
     )
     if all_selectable and selected_ticker:
         selected = next(

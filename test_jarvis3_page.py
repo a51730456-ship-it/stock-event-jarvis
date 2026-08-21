@@ -417,8 +417,8 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertTrue(any(f"${float(top[key]):,.2f}" in value for value in markdowns),
                             f"{key} 값이 화면에 없다")
         self.assertTrue(any("14일 변동성(ATR)" in value for value in markdowns))
-        # 상승장 표는 당일주가 칸 대신 자격을 판단한 값(RS·눌림·핵심·보조)을 쓴다.
-        self.assertTrue(any("3개월 상위" in value and "핵심" in value
+        # 상승장 표는 당일주가 칸 대신 자격을 판단한 값을 쓴다.
+        self.assertTrue(any("3개월 상위" in value and "중요 점수" in value
                             for value in markdowns))
         self.assertTrue(any("종목 조건점수" in value for value in markdowns))
         # '점수 두 개는 서로 다른 것을 잽니다'는 없앤 눌림목 찾기 설명에 있던 말이다.
@@ -938,12 +938,12 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7", joined)
         # 표 머리글은 갈래 전용이다 — 옛 칸 이름이 남아 있으면 안 된다.
         header = next(value for value in markdowns
-                      if "3개월 상위" in value and "티커" in value and "핵심" in value)
+                      if "3개월 상위" in value and "티커" in value and "중요 점수" in value)
         for gone in ("고점 후 며칠", "보유일수", "1년 성적", "눌림 점수"):
             self.assertNotIn(gone, header, f"옛 칸 {gone}이 남아 있다")
         self.assertLess(header.index("3개월 상위"), header.index("6개월 상위"))
-        self.assertLess(header.index("6개월 상위"), header.index("핵심"))
-        self.assertLess(header.index("핵심"), header.index("보조"))
+        self.assertLess(header.index("6개월 상위"), header.index("중요 점수"))
+        self.assertLess(header.index("중요 점수"), header.index("거드는 점수"))
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
         self.assertTrue(any(
             "상승장 (신고가 눌림매수) 닫기" in str(node.label)
@@ -1228,9 +1228,9 @@ class Jarvis3PageTests(unittest.TestCase):
         # 급락 갈래의 항목 이름이 상승장 표에 섞이면 안 된다.
         for gone in ("최근 11일에 빠졌나", "뚫기 전 60일", "테마가 1년 최고에 붙어 있나"):
             self.assertNotIn(gone, joined, f"옛 상승장/급락 항목 {gone}이 섞였다")
-        # **핵심과 보조를 따로 보여준다**(지시문 33번).
-        self.assertIn("핵심점수", joined)
-        self.assertIn("보조점수", joined)
+        # **두 점수를 따로 보여준다**(지시문 33번).
+        self.assertIn("중요 점수", joined)
+        self.assertIn("거드는 점수", joined)
         # **손절·최종청산은 연구 중이라고 적는다**(지시문 59번).
         self.assertIn("연구 중", joined)
 
@@ -1380,9 +1380,9 @@ class Jarvis3PageTests(unittest.TestCase):
         # 「순위」·「총점」이 되살아나면 여기서 깨진다.
         for gone in ("j3-th-head'>순위", "j3-th-head'>총점"):
             self.assertNotIn(gone, block, f"{gone}이 되살아났다")
-        # 점수 옆에는 핵심·보조가 따로 보여야 한다(지시문 33번).
-        self.assertIn("핵심", joined)
-        self.assertIn("보조", joined)
+        # 점수 옆에는 두 점수가 따로 보여야 한다(지시문 33번).
+        self.assertIn("중요 점수", joined)
+        self.assertIn("거드는 점수", joined)
         self.assertTrue(any("점수는 승률이 아닙니다" in str(node.value)
                             for node in app.caption), "총점을 승률로 읽지 말라는 말이 없다")
 
@@ -1408,8 +1408,11 @@ class Jarvis3PageTests(unittest.TestCase):
                      if "최근 3개월 강함" in str(node.value)
                      and "j3-mc-label" in str(node.value))
         self.assertIn("신고가 후 눌림", cards)
-        self.assertIn("핵심점수", cards)
-        self.assertIn("보조점수", cards)
+        # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님).
+        # 둘 다 점수이므로 이름이 그렇게 말하게 바꿨다.
+        self.assertIn("중요 점수", cards)
+        self.assertIn("거드는 점수", cards)
+        self.assertNotIn("핵심점수", cards)
         self.assertNotIn("눌림 점수", cards)
 
     def test_each_section_can_also_be_closed_from_its_bottom(self):
