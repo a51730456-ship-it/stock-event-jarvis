@@ -1016,7 +1016,58 @@ def get_theme_rankings() -> dict:
     return copy.deepcopy(value)
 
 
+_IXIC_WARM_LOCK = threading.Lock()
+_IXIC_WARMING = {"on": False}
+
+
+def warm_market_history() -> None:
+    """나스닥 전체 일봉을 **화면 여는 동안 뒤에서 미리** 받아 둔다 (2026-08-21).
+
+    상하님 지적 — "노트북은 3초, 스마트폰은 43초다."
+
+    상승장 단추는 종목 일봉 말고 **나스닥 25년치 한 종목**을 따로 받는다. 시장이
+    고점에서 얼마나 내려왔는지를 재는 데 쓴다. 급락 단추는 그것을 안 받는다 —
+    두 단추의 속도가 갈린 자리가 여기다.
+
+    이 조회는 6시간에 한 번이라, 노트북으로 이미 받아 둔 뒤에 누르면 3초로
+    끝나고, 그 6시간이 지난 뒤 폰으로 처음 누르면 그 기다림을 폰이 다 받는다.
+
+    그래서 **누르기 전에** 받아 둔다. 화면을 여는 순간 뒤 일꾼이 받아 오므로
+    상하님이 단추를 누를 때쯤이면 이미 공책에 들어 있다. 못 받아도 조용히
+    넘어간다 — 그때는 예전처럼 단추가 그 자리에서 받는다. 값은 안 바뀐다.
+    """
+    with _IXIC_WARM_LOCK:
+        if _IXIC_WARMING["on"]:
+            return
+        frames, _meta = _download_cache_only(
+            ("^IXIC",), period=IXIC_HISTORY_PERIOD, interval="1d",
+            ttl_seconds=IXIC_HISTORY_TTL,
+        )
+        if frames.get("^IXIC") is not None:
+            return                      # 이미 공책에 있다
+        _IXIC_WARMING["on"] = True
+
+    def _run():
+        try:
+            _download_cached(("^IXIC",), period=IXIC_HISTORY_PERIOD,
+                             interval="1d", ttl_seconds=IXIC_HISTORY_TTL)
+        except Exception as exc:
+            _log.warning("IXIC warm-up failed: %s", exc)
+        finally:
+            with _IXIC_WARM_LOCK:
+                _IXIC_WARMING["on"] = False
+
+    try:
+        threading.Thread(target=_run, name="ixic-warm", daemon=True).start()
+    except Exception as exc:
+        _log.warning("IXIC warm-up thread failed: %s", exc)
+        with _IXIC_WARM_LOCK:
+            _IXIC_WARMING["on"] = False
+
+
 def _compute_theme_rankings() -> dict:
+    # 화면을 여는 김에 상승장이 쓸 나스닥 이력도 뒤에서 받아 둔다.
+    warm_market_history()
     all_tickers = ["SPY"]
     live_tickers = ["SPY"]
     for theme in US_THEMES:
