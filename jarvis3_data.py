@@ -2607,16 +2607,51 @@ def find_breakout_pullback_stocks(
         "score_model_version": us_swing.SCORE_MODEL_VERSION,
     })
     if persist:
+        _save_swing_scan_in_background(scan)
+    return scan
+
+
+def _save_swing_scan_in_background(scan: dict) -> None:
+    """오늘 찾은 것을 공책에 적어 둔다 — **화면을 붙잡지 않고 뒤에서 한다.**
+
+    2026-08-21 상하님 지적 — "태블릿 스마트폰에서만 상승장 클릭하면 45초 걸린다."
+    급락 단추는 빠른데 상승장만 느린 까닭이 여기 있었다. 급락은 저장을 안 하고,
+    상승장만 정식후보 20줄 + 관찰 15줄을 **한 줄씩** DB에 적는다. 온라인 DB는
+    노트북 안에 있는 파일이 아니라 **인터넷 건너편**에 있어서, 한 줄 적을 때마다
+    오갔다. 서른다섯 줄이면 오가는 횟수가 백 번 가까이 된다.
+
+    적는 일 자체는 그대로 다 한다. **다만 화면이 그것을 기다리지 않는다.**
+    상하님은 목록을 바로 보시고, 저장은 뒤에서 끝난다.
+
+    담아 두는 값(scan)은 이 함수가 **복사해서** 들고 간다. 화면이 그 사이에
+    scan을 만지더라도 저장되는 내용이 흔들리지 않게 하려는 것이다.
+    """
+    try:
+        import copy as _copy
+        import threading
+
+        payload = _copy.deepcopy(scan)
+    except Exception as exc:            # 복사조차 안 되면 예전처럼 그 자리에서 적는다
+        _log.warning("US swing snapshot copy failed: %s", exc)
+        payload = scan
+
+    def _run():
         try:
             import jarvis3_store
 
-            scan["snapshot_run_id"] = jarvis3_store.save_swing_scan(scan)
-            scan["snapshot_saved"] = True
+            jarvis3_store.save_swing_scan(payload)
         except Exception as exc:
+            # 조용히 넘어간다. 이 저장은 나중에 되돌아보려고 쌓는 것이라,
+            # 실패해도 상하님이 보시는 목록은 그대로다(쿠키 로그인과 같은 원칙).
             _log.warning("US swing snapshot save failed: %s", exc)
-            scan["snapshot_saved"] = False
-            scan["snapshot_error"] = str(exc)
-    return scan
+
+    try:
+        threading.Thread(target=_run, name="swing-snapshot", daemon=True).start()
+        scan["snapshot_saved"] = None       # 아직 모른다 — 화면은 아무 말도 안 한다
+    except Exception as exc:
+        _log.warning("US swing snapshot thread failed: %s", exc)
+        _run()
+        scan["snapshot_saved"] = None
 
 
 def _from_high_on(frame, as_of_date: str):

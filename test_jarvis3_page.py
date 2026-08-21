@@ -1038,17 +1038,20 @@ class Jarvis3PageTests(unittest.TestCase):
         # 2026-08-06 — 점수가 순위다(별점은 뺐다). 배점표를 화면에 그대로 뿌린다.
         self.assertIn("점수가 곧 순위입니다", joined)
         self.assertNotIn("★", joined, "별점이 되살아났다")
-        # 2026-08-19 새판 — 배점 넷과 0점으로 뺀 항목이 설명 표에 다 보여야 한다.
+        # 2026-08-19 새판 — 점수를 주는 넷이 설명 표에 다 보여야 한다.
         # **이름은 그 항목이 던지는 질문 꼴이다**(상하님 지적 — "무슨 말인지
         # 못 알아먹겠다"). 옛 이름('테마 6개월 수익률' 같은 것)으로 돌아가면 깨진다.
         for item in ("이 종목이 평소 크게 움직이나", "이 테마가 이미 오름세로 돌아섰나",
                      "이 테마가 통째로 떨어졌나", "이 테마가 지난 반년에 많이 올랐나",
-                     "40점", "테마가 덜 빠졌나", "테마 주봉이 오름세인가"):
+                     "40점"):
             self.assertIn(item, joined, f"배점표에 {item}이 없다")
+        # **0점 항목은 뺐다**(2026-08-21 상하님 지시 "빼라"). 열한 줄 중 일곱이
+        # 0점이라 표가 그 일곱에 묻혔다. 무엇을 재 보고 버렸는지는
+        # docs/US_THEME_SPEC.md 3-3에 남아 있다.
+        for gone in ("테마가 덜 빠졌나", "테마 주봉이 오름세인가", "테마가 같이 오르는가"):
+            self.assertNotIn(gone, joined, f"0점 항목 {gone}이 배점표에 남았다")
         # 급락 화면은 **위 순위표가 상승장 기준**이라고 밝혀야 한다(2026-08-14).
         self.assertIn("위 테마 순위표 점수는 상승장 기준입니다", joined)
-        # 0점으로 뺀 항목도 왜 뺐는지 같이 보여야 같은 실수를 되풀이하지 않는다.
-        self.assertIn("0점", joined)
         header = next(
             str(node.value) for node in app.markdown
             if "갈래" in str(node.value) and "티커" in str(node.value)

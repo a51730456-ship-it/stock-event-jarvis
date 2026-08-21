@@ -4855,12 +4855,21 @@ def _score_table_rows(mode: str):
 
 
 def _score_table_html(mode: str, base_win_rate=None) -> str:
-    """배점표를 그대로 화면에 뿌린다. 0점 항목은 흐리게 두고 이유를 남긴다."""
+    """배점표를 화면에 뿌린다. **점수를 주는 항목만** 적는다.
+
+    2026-08-15에 상하님이 "0점짜리도 표시하고 점수 미달인 이유 넣고"라고 하셔서
+    재 보고 버린 항목까지 다 적어 두었다. **2026-08-21에 상하님이 빼라고 하셨다** —
+    급락 배점표의 열한 줄 중 일곱이 0점이라 표가 그 일곱에 묻혔다.
+
+    버린 항목이 무엇이었는지는 `docs/US_THEME_SPEC.md` 3-3에 그대로 남아 있다.
+    되살리려면 아래 한 줄(points를 거르는 곳)만 지우면 된다.
+    """
     lines = "".join(
-        f"<div class='j3-weight{' j3-w-zero' if not points else ''}'>"
+        f"<div class='j3-weight'>"
         f"<b>{name}</b><span class='j3-w-pt'>{text}점</span>"
         f"<span class='j3-w-why'>{why}</span></div>"
         for name, points, text, why in _score_table_rows(mode)
+        if points
     )
     base = (
         f" 기준은 <b>그날 아무 종목이나</b> 샀을 때 100번 중 {base_win_rate:.0f}번입니다."
