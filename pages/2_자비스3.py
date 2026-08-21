@@ -1776,70 +1776,36 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
         return
     st.caption(
         "주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
-        "일봉 거래량은 위 큰 차트가 일봉일 때 그 아래에 표시됩니다. "
-        "아래 작은 그림 위의 ‘일봉 · 주봉 · 월봉’을 누르면 맨 위 큰 차트가 바뀝니다."
+        "거래량은 일봉 아래에 함께 표시됩니다."
     )
     chart_bundle = j3data.get_chart_bundle(ticker)
     if not chart_bundle.get("ok"):
         st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
         return
-    # 고른 하나를 **맨 위에 크게** 그린다(2026-08-07 상하님 지시). 아래 세 개는
-    # 그대로 두고, 그 위 단추를 누르면 큰 차트가 그것으로 바뀐다.
-    # 단추는 on_click으로 값을 바꾼다 — 큰 차트를 단추보다 먼저 그리므로, 눌린 값을
-    # 그 자리에서 읽으면 한 박자 늦게 바뀐다.
-    big_key = f"j3_bundle_big_{panel}"
-    big = st.session_state.get(big_key)
-    if big not in _CHART_KEY:
-        big = "일봉"
-    big_payload = chart_bundle["charts"].get(big, {})
-    st.markdown(
-        f"<div class='j3-chart-title j3-chart-big-title'>{big} — 크게 보기</div>",
-        unsafe_allow_html=True,
-    )
-    if big_payload.get("ok"):
-        st.altair_chart(
-            _price_chart(big_payload, big, include_volume=big == "일봉",
-                         height=BIG_CHART_HEIGHT),
-            width="stretch",
-            theme="streamlit",
-        )
-    else:
-        st.warning(f"{big} 자료 없음")
-    # 아래 셋은 **고르는 손톱그림**이다(2026-08-07 상하님 지시 "캡쳐처럼 적게").
-    # 큰 것이 위에 있으므로 여기서는 모양만 보이면 된다.
-    # 처음에는 뒤에 빈 칸을 붙여 셋을 왼쪽으로 몰았는데, 노트북·태블릿에서
-    # "너무 왼쪽으로 너무 적게 차지한다"는 지적을 받았다(같은 날). 폭은 셋이
-    # 고르게 나눠 갖고, **작게 보이는 것은 높이로만** 만든다(108px).
+    # **맨 위 「크게 보기」는 뺐다**(2026-08-21 상하님 지시 — "일봉 크게 보기를
+    # 없애라, 밑에 보면 일봉이 또 있으니"). 같은 그림이 한 화면에 두 번 있었다.
+    # 큰 그림이 없어졌으므로 그것을 바꾸던 「일봉·주봉·월봉」 단추도 함께 뺐다 —
+    # 누를 데는 있는데 바뀌는 것이 없으면 화면이 거짓말을 한다.
+    # 거래량은 일봉 그림 아래에 그대로 붙인다.
     daily_col, weekly_col, monthly_col = st.columns(3)
     chart_columns = {"일봉": daily_col, "주봉": weekly_col, "월봉": monthly_col}
     for timeframe, chart_column in chart_columns.items():
         payload = chart_bundle["charts"].get(timeframe, {})
         with chart_column:
-            # 단추 키는 영문으로 짓는다 — 아래에서 지금 고른 단추만 CSS로 밝게
-            # 칠하는데, 한글 키가 클래스 이름에 그대로 남는지는 보장이 없다.
-            st.button(
-                ("● " if timeframe == big else "") + timeframe,
-                key=f"j3_bundle_pick_{panel}_{_CHART_KEY[timeframe]}",
-                width="stretch",
-                on_click=_pick_bundle_chart, args=(big_key, timeframe),
+            st.markdown(
+                f"<div class='j3-chart-title'>{timeframe}</div>",
+                unsafe_allow_html=True,
             )
             if payload.get("ok"):
                 st.altair_chart(
-                    _price_chart(payload, timeframe, include_volume=False,
+                    _price_chart(payload, timeframe,
+                                 include_volume=timeframe == "일봉",
                                  height=THUMB_CHART_HEIGHT, compact=True),
                     width="stretch",
                     theme="streamlit",
                 )
             else:
                 st.warning(f"{timeframe} 자료 없음")
-    # 지금 크게 보고 있는 단추만 밝게 칠한다.
-    st.markdown(
-        f"<style>div[class*='st-key-j3_bundle_pick_{panel}_{_CHART_KEY[big]}'] button "
-        "{border-color:#7cc7ff !important; background:rgba(124,199,255,.16) !important;}"
-        f"div[class*='st-key-j3_bundle_pick_{panel}_{_CHART_KEY[big]}'] button p "
-        "{color:#dff0ff !important;}</style>",
-        unsafe_allow_html=True,
-    )
     if chart_bundle.get("stale"):
         st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
     _section_close(f"j3_bundle_open_{panel}", "일봉·주봉·월봉 닫기")

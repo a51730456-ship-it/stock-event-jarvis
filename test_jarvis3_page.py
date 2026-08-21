@@ -1548,30 +1548,27 @@ class Jarvis3PageTests(unittest.TestCase):
         # 상자를 그리는 두 자리 모두 이 손질을 거쳐야 한다.
         self.assertEqual(2, source.count("j3-reason-mustard'>{_mustard_html("))
 
-    def test_one_of_the_three_charts_is_drawn_big_on_top(self):
-        """2026-08-07 상하님 지시 — 일봉을 누르면 화면 위에 크게, 주봉을 누르면 주봉이.
+    def test_the_three_charts_stand_side_by_side_without_a_big_copy(self):
+        """**맨 위 「크게 보기」는 뺐다**(2026-08-21 상하님 지시).
 
-        고르는 단추는 on_click으로 값을 바꿔야 한다. 큰 차트를 단추보다 **먼저**
-        그리므로, 눌린 값을 그 자리에서 읽으면 한 박자 늦게 바뀐다.
+        상하님 — "일봉 크게 보기를 없애라, 밑에 보면 일봉이 또 있으니."
+        같은 그림이 한 화면에 두 번 있었다. 큰 것을 없앴으므로 그것을 바꾸던
+        「일봉·주봉·월봉」 단추도 함께 뺐다 — 누를 데는 있는데 바뀌는 것이
+        없으면 화면이 거짓말을 한다.
         """
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = source.split("def _render_price_chart_bundle(")[1].split("\ndef ")[0]
-        self.assertIn("BIG_CHART_HEIGHT", block)
-        self.assertIn("on_click=_pick_bundle_chart", block)
-        self.assertIn("j3_bundle_pick_", block)
-        # 큰 차트가 세 개짜리 줄보다 먼저 그려져야 '화면 위에' 온다.
-        self.assertLess(block.index("j3-chart-big-title"),
-                        block.index("st.columns(3)"))
-        # 아래 셋은 손톱그림이다(2026-08-07 "캡쳐처럼 적게") — 눈금·범례를 빼고
-        # 높이를 108px로 줄인다. **작게 보이는 것은 높이로만** 만든다. 처음에는
-        # 뒤에 빈 칸을 붙여 왼쪽으로 몰았는데 "너무 왼쪽으로 너무 적게 차지한다"는
-        # 지적을 받았다 — 폭은 셋이 고르게 나눠 갖는다.
+        for gone in ("BIG_CHART_HEIGHT", "j3-chart-big-title",
+                     "on_click=_pick_bundle_chart", "j3_bundle_pick_"):
+            self.assertNotIn(gone, block, f"{gone}이 되살아났다")
+        # 셋이 폭을 고르게 나눠 갖는다("너무 왼쪽으로 너무 적게 차지한다" 지적).
+        self.assertIn("st.columns(3)", block)
+        self.assertNotIn("st.columns([1, 1, 1,", block)
+        # 손톱그림 높이는 그대로 108px다 — 눈금·범례를 뺀 작은 그림이다.
         self.assertIn("height=THUMB_CHART_HEIGHT, compact=True", block)
         self.assertIn("THUMB_CHART_HEIGHT = 108", source)
-        self.assertNotIn("st.columns([1, 1, 1,", block)
-        # 단추 키는 영문이어야 지금 고른 단추만 CSS로 밝힐 수 있다.
-        self.assertIn('_CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}',
-                      source)
+        # **거래량은 일봉 아래에 남는다** — 큰 그림이 그리던 것을 옮겨 왔다.
+        self.assertIn('include_volume=timeframe == "일봉"', block)
 
     def test_rulebook_table_slides_sideways_like_the_pullback_table(self):
         """폰에서 순위·종목이 따로 쌓이던 것을 눌림목 표와 같은 규칙으로 맞췄다.
