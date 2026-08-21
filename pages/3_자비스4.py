@@ -630,6 +630,11 @@ st.markdown(
     .j4-plan-note b { color: #44f0a1; font-size: 1.1rem; font-weight: 800; }
     .j4-holo-cell .label { color: #9aa0aa; font-size: 0.85rem; }
     .j4-holo-cell .val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.2; text-shadow: 0 0 8px rgba(77,166,255,0.45); }
+    /* 숫자가 아니라 **말**이 들어가는 칸은 두 치수 낮춘다(2026-08-21 상하님 지시 ·
+       미국테마와 같은 크기). 1.5rem으로 그리면 "다음 거 래일 시 가"처럼 한
+       글자씩 줄바꿈되어 칸이 세로로 늘어난다. */
+    .j4-holo-cell .val .j4-holo-words { font-size: 1.05rem; line-height: 1.45;
+        font-weight: 800; }
     .j4-danta-box { border: 1px solid rgba(234,179,8,0.5); background: rgba(234,179,8,0.07);
         border-radius: 0.55rem; padding: 0.7rem 0.9rem; margin-top: 0.9rem; line-height: 1.7; }
     .j4-danta-title { color: #ff9d3b; font-weight: 800; }
@@ -2397,11 +2402,14 @@ def _render_stock_detail(theme_row: dict, leader: dict, market: dict, top_candid
         if plan.get("rule_mode"):
             # 이 규칙에는 넘어야 할 기준가도 손절도 없다. 없는 것을 있는 것처럼
             # 적지 않고, 규칙이 실제로 정한 것을 적는다.
+            def _words(text):
+                return f"<span class='j4-holo-words'>{html.escape(str(text))}</span>"
+
             plan_cells = [
-                ("사는 때", str(plan.get("entry") or "—"), "#44f0a1"),
-                ("보유 기간", f"{int(plan.get('hold_days') or 0)}거래일", "#e6e6e6"),
-                ("파는 때", "그날 종가", "#e6e6e6"),
-                ("손절가", "이 규칙에는 없음", "#4da6ff"),
+                ("사는 때", _words(plan.get("entry") or "—"), "#44f0a1"),
+                ("보유 기간", _words(f"{int(plan.get('hold_days') or 0)}거래일"), "#e6e6e6"),
+                ("파는 때", _words("그날 종가"), "#e6e6e6"),
+                ("손절가", _words("이 규칙에는 없음"), "#4da6ff"),
             ]
         else:
             plan_cells = [

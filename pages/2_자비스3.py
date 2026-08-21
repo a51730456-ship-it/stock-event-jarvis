@@ -4476,11 +4476,17 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
                 f"{item['label']} {item['median_return']:+.1f}%"
                 for item in (plan.get("hold_results") or ())
             )
+            # 네 칸 다 **숫자가 아니라 말**이다. 1.5rem으로 그리면 "다음 거 래일
+            # 시 가"처럼 한 글자씩 줄바꿈된다(2026-08-21 상하님 지적). 상승장
+            # 카드와 같은 j3-holo-words(1.05rem)로 맞춘다.
+            def _words(text):
+                return f"<span class='j3-holo-words'>{html.escape(str(text))}</span>"
+
             plan_cells = [
-                ("사는 때", str(plan.get("entry") or "—"), "#44f0a1"),
-                ("파는 때", "규칙에 없음", "#ffd23f"),
-                ("이 자리 과거 성적", spans or "—", "#e6e6e6"),
-                ("손절가", "이 규칙에는 없음", "#ff5b5b"),
+                ("사는 때", _words(plan.get("entry") or "—"), "#44f0a1"),
+                ("파는 때", _words("규칙에 없음"), "#ffd23f"),
+                ("이 자리 과거 성적", _words(spans or "—"), "#e6e6e6"),
+                ("손절가", _words("이 규칙에는 없음"), "#ff5b5b"),
             ]
         elif plan.get("trigger") is not None:
             plan_cells = [
