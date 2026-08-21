@@ -3561,6 +3561,9 @@ def _render_radar_tab(market: dict) -> None:
         # 하나를 고치면 둘 다 고쳐야 한다.
         for opened in _THEME_PANEL_OPEN_KEYS:
             st.session_state[opened] = True
+        # 연 자리가 표 아래 두 화면 밑이라 직접 굴려 내려가야 했다. 열면서 같이
+        # 내려간다(2026-08-21 상하님 지시).
+        scroll_to.request(st, "theme_stocks")
     if st.session_state.get("j3_theme_choice_widget") not in names:
         preferred_theme = st.session_state.get("j3_theme_choice")
         st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
@@ -3609,6 +3612,11 @@ def _render_radar_tab(market: dict) -> None:
     # 상태 단어(주도/관찰/약함)는 20개 테마 순위표와 같은 상태색을 쓴다
     # (2026-07-22 사용자 지시: "실시간 순위 상태와 같은 색으로").
     status_hex = _STATUS_HEX.get(theme_row.get("status", ""), "#e6e6e6")
+    # 20개 순위표에서 테마 이름을 누르면 화면이 **여기까지 내려온다**
+    # (2026-08-21 상하님 지시 — "석유·가스 테마를 클릭하면 두 번째 화면으로
+    # 자동 내려가도록"). 표가 20줄이라 그 아래에 열리는 테마 종목 화면이
+    # 두 화면 밑에 있었다.
+    scroll_to.anchor(st, "theme_stocks")
     st.markdown(
         "<div class='j3-theme-box'>"
         f"<span class='j3-green-strong'>{selected_theme}</span> · "

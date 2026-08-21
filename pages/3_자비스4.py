@@ -2969,6 +2969,8 @@ def _render_radar_tab(market: dict) -> None:
         st.session_state["j4_theme_choice"] = clicked_theme
         st.session_state["j4_theme_choice_widget"] = clicked_theme
         st.session_state["j4_theme_panel_open"] = True
+        # 연 자리가 표 아래라 직접 굴려 내려가야 했다. 열면서 같이 내려간다.
+        scroll_to.request(st, "theme_stocks")
     _render_theme_finder(forced)
 
     # 21위 밖으로 밀린 테마도 볼 수 있게 한다 — 찾던 테마가 왜 안 보이는지 확인용
@@ -3022,6 +3024,9 @@ def _render_radar_tab(market: dict) -> None:
         return
 
     status_hex = _STATUS_HEX.get(theme_row.get("status", ""), "#e6e6e6")
+    # 순위표에서 테마 이름을 누르면 화면이 **여기까지 내려온다**
+    # (2026-08-21 상하님 지시 · 미국테마와 같은 자리).
+    scroll_to.anchor(st, "theme_stocks")
     st.markdown(
         "<div class='j4-theme-box'>"
         f"<span class='j4-green-strong'>{selected_theme}</span> · "
