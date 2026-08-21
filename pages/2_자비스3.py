@@ -2258,7 +2258,9 @@ def _market_phase_cell(phase: str, phase_color: str, vix_sub: str) -> str:
         spark = (j3data.get_index_sparklines() or {}).get("^VIX")
     except Exception:
         spark = None
-    chart = _index_chart_swap(spark, width=104, height=78, key="vix") if spark else ""
+    # 그림 높이를 QQQ 칸보다 4px 낮춘다 — VIX 숫자 줄이 1.25rem이라 그만큼 높아서,
+    # 그냥 두면 이 칸만 196px가 되어 옆 칸과 밑선이 어긋난다(2026-08-21 실측).
+    chart = _index_chart_swap(spark, width=104, height=74, key="vix") if spark else ""
     if not chart:
         return _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b")
     return (
