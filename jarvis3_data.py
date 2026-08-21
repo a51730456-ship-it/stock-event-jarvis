@@ -870,7 +870,8 @@ def get_market_overview() -> dict:
     # 돌아온다. 지수는 일봉만 쓰고, 실시간이 있는 것만 1분봉을 받는다(2026-07-24).
     _INTRADAY_SYMBOLS = tuple(s for s in MARKET_SYMBOLS if s not in US_INDEX_SYMBOLS)
     intraday, live_meta = _download_cached(
-        _INTRADAY_SYMBOLS, period="1d", interval="1m", ttl_seconds=45, prepost=True
+        _INTRADAY_SYMBOLS, period="1d", interval="1m",
+        ttl_seconds=THEME_LIVE_TTL, prepost=True
     )
     rows = {}
     for ticker in MARKET_SYMBOLS:
@@ -1004,6 +1005,11 @@ IXIC_HISTORY_PERIOD = "25y"
 # 일봉으로 재므로 이 창과 상관없다. 종목 상세와 대장주의 현재가는 여기가 아니라
 # 자기 분봉을 따로 받으므로 그대로다.
 THEME_LIVE_TTL = 180.0
+
+# 지수(SPY·QQQ·IWM·VIX) 1분봉도 같은 창을 쓴다 (2026-08-21 상하님 지적 —
+# "20개 테마 열기도 급락도 4초 걸린다"). 이 조회는 **무엇을 누르든** 판마다
+# 돌아서, 45초가 지난 뒤 아무 단추나 누르면 그 값이 그대로 붙었다.
+# 늦어지는 것은 맨 위 지수 카드의 '지금' 값뿐이고, 판정은 완성된 일봉으로 한다.
 
 
 def get_theme_rankings() -> dict:

@@ -171,7 +171,12 @@ def _fetch_quotes(tickers):
     return results
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+# 3분. 예전에는 60초였다(2026-08-21 상하님 지적 — 단추마다 4초).
+# **카드의 본값은 이 값이 아니다** — 직전 완료 장의 일봉으로 얼려 두고, 이 실시간
+# 값은 그 아래 비교 칸에만 쓴다. 그래서 1분마다 다시 받을 까닭이 없다.
+# '미국장 신호 다시 확인' 단추는 아래 _short_cached_quotes(8초)를 쓰므로,
+# 지금 값이 꼭 필요할 때는 그 단추로 언제든 새로 받는다.
+@st.cache_data(ttl=180, show_spinner=False)
 def _cached_quotes(tickers):
     return _fetch_quotes(tickers)
 
