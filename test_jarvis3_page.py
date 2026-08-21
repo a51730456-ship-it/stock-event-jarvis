@@ -1215,16 +1215,21 @@ class Jarvis3PageTests(unittest.TestCase):
                      "신고가 뚫던 날 거래가 늘었나", "같은 테마에서 여럿이 함께 오르나",
                      "다시 위로 움직이기 시작했나"):
             self.assertIn(item, joined, f"배점표에 {item}이 없다")
-        # **한 줄 설명이 배점표에 늘 보여야 한다**(2026-08-20 상하님 지시 —
-        # "각 배점 설명서 한줄평 화면에 뿌려라"). 자세한 설명은 「자세히」에 있다.
+        # **심사 항목 칸에는 초록 이름만 둔다**(2026-08-21 상하님 지시 —
+        # "심사항목 밑에 하얀색 설명 빼라, 초록색 글자만 둬라는 말이다").
+        # 한 줄 설명은 「자세히」 창에 그대로 있다.
         for one_line in ("최근 3개월 동안 나스닥보다 얼마나 강하게 오른 종목인지",
                          "52주 신고가 후 너무 무너지지 않고",
                          "이 종목 혼자만 오르는 것이 아니라",
                          "눌림이 끝나고 주가가 다시 위로 움직이기 시작했는지"):
             self.assertIn(one_line, joined, f"한 줄 설명이 없다: {one_line}")
-        self.assertTrue(any("j3-fac-note" in value for value in
-                            [str(node.value) for node in app.markdown]),
-                        "한 줄 설명 자리가 표에 없다")
+        self.assertFalse(any("j3-fac-note" in str(node.value) for node in app.markdown),
+                         "항목 이름 밑에 붙던 글이 되살아났다")
+        # 이름 옆의 **실제 값**은 남는다 — 설명이 아니라 왜 이 점수인지 보여 주는
+        # 숫자다(지시문 57번).
+        self.assertTrue(any("평균의" in value and "j3-fac-name" in value
+                            for value in [str(n.value) for n in app.markdown]),
+                        "항목 옆 실제 값이 사라졌다")
         # 급락 갈래의 항목 이름이 상승장 표에 섞이면 안 된다.
         for gone in ("최근 11일에 빠졌나", "뚫기 전 60일", "테마가 1년 최고에 붙어 있나"):
             self.assertNotIn(gone, joined, f"옛 상승장/급락 항목 {gone}이 섞였다")

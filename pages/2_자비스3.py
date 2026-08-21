@@ -219,10 +219,9 @@ st.markdown(
     .j3-factor-table th { text-align: center; color: #4da6ff; font-weight: 800; padding: 0.45rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-factor-table td { color: #44f0a1; font-weight: 700; padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
     .j3-factor-table td.j3-fac-name { text-align: left; }
-    /* 항목 이름 밑에 붙는 한 줄 설명 — 이름보다 작고 흐리게 (2026-08-12 상하님 지시).
-       이름과 같은 크기면 표가 글로 꽉 차서 점수가 안 보인다. */
-    .j3-fac-note { font-size: .78rem; font-weight: 600; color: #9aa0aa;
-        line-height: 1.25; margin-top: .1rem; }
+    /* 항목 이름 밑에 글을 붙이던 자리. **2026-08-21에 걷어냈다** — 상하님 지시
+       "심사항목 밑에 하얀색 설명 빼라, 초록색 글자만 둬라". 설명은 「설명」·
+       「자세히」 창에만 둔다. 규칙을 되살리려면 여기 다시 넣으면 된다. */
     .j3-factor-table td.j3-fac-val { text-align: center; }
     .j3-reason-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 0.55rem; padding: 0.6rem 0.75rem; height: 100%; }
     .j3-reason-title { color: #4da6ff; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.25rem; }
@@ -4292,35 +4291,21 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             f"<span style='color:#ff5b5b'>({shown})</span></td>"
         )
 
-    # 갈래 배점에는 '무엇을 보고 준 점수인지'가 함께 있다 — 이름 옆에 작게 적는다.
-    # **상승장은 그 밑에 한 줄 설명을 늘 보이게 둔다**(2026-08-20 상하님 지시 —
-    # "각 배점 설명서 한줄평 화면에 뿌려라"). 더 긴 설명은 「자세히」에 있다.
-    swing_lines = []
-    if mode == "breakout":
-        payload = row.get("explanations") or {}
-        swing_lines = [
-            str((payload.get(metric) or {}).get("one_line_explanation") or "")
-            for metric in ("rs60", "rs120", "pullback",
-                           "theme", "volume", "breadth", "rebound")
-        ]
-    swing_lines += [""] * len(factor_names)
+    # **심사 항목 칸에는 초록 이름만 둔다**(2026-08-21 상하님 지시 — "심사항목 밑에
+    # 하얀색 설명 빼라, 초록색 글자만 둬라는 말이다"). 이름 밑에 한 줄 설명을
+    # 붙이던 것을 걷어냈다 — 그 글은 제목 옆 「자세히」를 누르면 그대로 나온다.
+    #
+    # 이름 **옆**의 작은 글은 남긴다. 그것은 설명이 아니라 그 종목의 실제 값이라
+    # (상위 6.1% · -7.0% · 평균의 2.00배) 왜 이 점수인지가 그 숫자로 보인다.
     parts_values = review.get("score_parts") or []
     notes_padded = factor_notes + [""] * len(factor_names)
-
-    def _fac_row(index, name, part, maximum, note):
-        one_line = swing_lines[index]
-        return (
-            f"<tr><td class='j3-fac-name'>{html.escape(name)}"
-            + (f" <span class='j3-muted' style='font-weight:600'>· {html.escape(note)}</span>"
-               if note else "")
-            + (f"<div class='j3-fac-note'>{html.escape(one_line)}</div>" if one_line else "")
-            + f"</td>{_fac_cell(part, maximum)}</tr>"
-        )
-
     factor_rows = "".join(
-        _fac_row(index, name, part, maximum, note)
-        for index, (name, part, maximum, note) in enumerate(
-            zip(factor_names, parts_values, factor_max, notes_padded))
+        f"<tr><td class='j3-fac-name'>{html.escape(name)}"
+        + (f" <span class='j3-muted' style='font-weight:600'>· {html.escape(note)}</span>"
+           if note else "")
+        + f"</td>{_fac_cell(part, maximum)}</tr>"
+        for name, part, maximum, note in zip(
+            factor_names, parts_values, factor_max, notes_padded)
     )
     total_style = (
         "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
