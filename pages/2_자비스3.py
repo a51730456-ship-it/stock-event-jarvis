@@ -5050,7 +5050,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback", "j3_bundle_open_pullback"):
                     st.session_state[opened] = True
                 scroll_to.request(st, "detail_pullback")
-                st.rerun()
+                # **이 덩이만 다시 그린다.** scope를 안 주면 판 전체가 돈다.
+                _rerun_here()
             if row.get("ticker") == selected_ticker:
                 # 고른 줄은 **보라색**이다 — 테마표·급락표와 같은 약속
                 # (2026-08-21 상하님 지시 "다른 테마나 급락 후처럼 보라색으로").
@@ -5477,7 +5478,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                             "j3_intraday_open_pullback", "j3_bundle_open_pullback")
             # 열기만 하면 그 자리가 화면 한참 아래라 직접 굴려야 했다(2026-08-09).
             scroll_to.request(st, "detail_pullback")
-            st.rerun()
+            # **이 덩이만 다시 그린다.** scope를 안 주면 판 전체가 돈다.
+            _rerun_here()
         if row.get("ticker") == selected_ticker:
             selected_css.append(
                 f"div[class*='st-key-j3rbf_{index:02d}'] button "
@@ -5630,7 +5632,31 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
 
 
 
+def _rerun_here() -> None:
+    """지금 덩이(프래그먼트)만 다시 그린다. 안 되는 판이면 예전처럼 판 전체를.
+
+    scope="fragment"는 프래그먼트 밖에서 부르면 예외가 난다. 그때는 조용히
+    예전 방식으로 넘어간다 — 화면이 죽으면 안 된다.
+    """
+    try:
+        st.rerun(scope="fragment")
+    except Exception:
+        st.rerun()
+
+
+@st.fragment
 def _render_pullback_finder(market: dict, ranking: dict) -> None:
+    """상승장·급락 두 갈래와 그 상세를 **한 덩이로 묶는다** (2026-08-21).
+
+    상하님 지적 — "상승장은 닫는 데도 8초 걸리는데 순위 9는 닫는 게 금방이다."
+    맞는 관찰이다. 순위 9는 이미 프래그먼트라 그 덩이만 다시 그리는데, 여기는
+    안 묶여 있어서 단추 한 번에 **판 전체**를 다시 그렸다 — 지수 카드·게이지·
+    미국장 신호·테마 20줄까지. 자료를 하나도 안 가져오는 '닫기'가 8초 걸린
+    까닭이 그것이다.
+
+    상세도 이 안에 들어 있어야 한다. 표만 묶으면 종목을 눌러도 덩이 밖 상세가
+    다시 안 그려져 아무 일도 안 일어난 것처럼 보인다(순위 9에 적힌 그대로다).
+    """
     """20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""
     # st.divider()는 뺐다(2026-08-06 상하님 지시 "제목을 위로 올려라") — 가로줄과
     # 그 아래 빈 자리가 제목을 한참 밀어내렸다. 제목 자체가 구역을 갈라 준다.
@@ -5813,7 +5839,8 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
             back_nav.opened(st, "j3_detail_open_pullback",
                             "j3_intraday_open_pullback", "j3_bundle_open_pullback")
             scroll_to.request(st, "detail_pullback")
-            st.rerun()
+            # **이 덩이만 다시 그린다.** scope를 안 주면 판 전체가 돈다.
+            _rerun_here()
         if row.get("ticker") == selected_ticker:
             selected_css.append(
                 f"div[class*='st-key-j3pbf_{index:02d}'] button "
