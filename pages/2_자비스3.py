@@ -1904,9 +1904,20 @@ def _render_market_overview() -> None:
     # 야후가 **오늘 일봉을 전일 종가와 같은 값으로 미리 넣어** 둔다. 그것을 그대로
     # 쓰면 등락률이 0.00%가 된다. `last_session_change_pct`는 완성된 장만 보므로
     # 마감 뒤부터 다음 마감까지 안 흔들린다(2026-07-24에 같은 이유로 만들어 둔 값).
-    vix_change = vix_row.get("last_session_change_pct")
+    # **장이 열려 있는 동안에는 오늘 값으로 움직인다** (2026-08-22 상하님 지적 —
+    # "오늘 장중인데도 오늘값이 어제값 그대로다. 장이 끝나야 바뀐다").
+    # 여기만 지수 카드와 달리 언제나 '직전 완료 장'을 쓰고 있어서, 정규장이
+    # 돌아가는 내내 어제 등락률이 붙어 있었다. 지수 카드가 하는 대로 맞춘다.
+    #
+    # 정규장이 아닐 때 완료 장을 쓰는 까닭은 그대로다 — 야후가 프리마켓 시간에
+    # **오늘 일봉을 전일 종가와 같은 값으로 미리 넣어** 둬서, 그것을 쓰면
+    # 등락률이 0.00%가 된다(2026-08-12 상하님 지적 "지금은 왜 0.00이냐").
+    vix_live = phase == "정규장 시간"
+    vix_change = (vix_row.get("change_pct") if vix_live
+                  else vix_row.get("last_session_change_pct"))
     if vix_change is None:
-        vix_change = vix_row.get("change_pct")
+        vix_change = (vix_row.get("last_session_change_pct") if vix_live
+                      else vix_row.get("change_pct"))
     # VIX는 '지금 수준(15.28)'과 '전일 대비(-1.16%)'가 서로 다른 값이다. 둘 다
     # 크게 적는다(2026-08-12 상하님 지시 "수치와 +− 글자 둘 다 크게").
     # VIX는 오르면 위험이라 색을 뒤집는다.

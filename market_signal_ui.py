@@ -1687,6 +1687,22 @@ _US_TABLE_KEYS = tuple(spec[0] for spec in us_market_signal_engine.US_SIGNAL_SPE
 # 되살리려면 이 자리에 글을 되돌리고 아래 stage_guide= 인자를 다시 넘기면 된다.
 
 
+def _running_session_note() -> str:
+    """지금 미국 정규장이 돌고 있으면 ' · 08.22 장 진행 중(판정은 마감 뒤)'.
+
+    안 돌고 있거나 알 수 없으면 빈 글자다 — 못 알아냈다고 화면이 깨지면 안 된다.
+    """
+    try:
+        import jarvis3_data as _j3
+
+        if _j3.market_phase() != "정규장 시간":
+            return ""
+        today = datetime.now(ZoneInfo("America/New_York")).strftime("%m.%d")
+        return f" · {today} 장 진행 중(판정은 마감 뒤)"
+    except Exception:
+        return ""
+
+
 def run_us_market_signal_check(force_refresh=False):
     """미국장 신호 티커를 한 번에 조회해 판정을 만든다. DB 저장은 하지 않는다.
 
@@ -1846,6 +1862,16 @@ def render_us_market_signal_card():
         # "직전 미국장 · 08.20"). 그 밑에 같은 말을 세 줄로 또 적던 것을
         # 2026-08-21에 뺐다(상하님 지시).
         current_label_text = f"직전 미국장{' · ' + day if day else ''}"
+        # **지금 장이 돌고 있으면 그렇다고 적는다** (2026-08-22 상하님 지적 —
+        # "새벽 4시에 미국장을 보면 어제 시장 그대로고 변동이 없다. 결국 새벽
+        # 5시에 장이 끝나야 오늘 장에 반영되더라").
+        #
+        # 판정은 완성된 일봉으로만 낸다 — 끝나지 않은 장으로 판정을 내면 판정이
+        # 하루 종일 흔들린다(2026-08-12 상하님 확정). 그건 그대로 둔다.
+        # 다만 **화면이 지금 장을 아예 말하지 않는 것**이 문제였다. 새벽 4시에는
+        # 미국장이 다섯 시간째 돌고 있는데 화면에는 그 사실이 없었다.
+        # 판정은 안 건드리고 사실 한 줄만 붙인다.
+        current_label_text += _running_session_note()
 
     render_market_signal_card(
         result,
