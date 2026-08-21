@@ -229,8 +229,10 @@ class UsGuideTests(unittest.TestCase):
         tail = _visible(method_help.US_TAIL_TEXT)
         self.assertIn("해마다 20.9%씩 오른 기간", tail)
         self.assertIn("손절 규칙은 없습니다", tail)
-        # **손절·최종청산이 아직 연구 중이라는 것을 적어야 한다**(2026-08-20 지시문 59번).
-        self.assertIn("연구 중", tail)
+        # **손절과 파는 시점을 앱이 안 정한다는 것을 적어야 한다**(지시문 59번).
+        # "연구 중"이라고는 안 적는다 — 제가 돌리고 있다는 말로 읽힌다(2026-08-21).
+        self.assertIn("손절과 파는 시점은 상하님이 정하십니다", tail)
+        self.assertNotIn("연구 중", tail)
         # 상승장 쪽 한계도 본문에 있어야 한다 — 자리를 채우려고 기준을 낮추지 않는다.
         self.assertIn("느슨하게 바꾸지 않습니다", _visible(method_help.US_TEXT))
         # 표가 이미 말하는 것은 글로 또 적지 않는다.

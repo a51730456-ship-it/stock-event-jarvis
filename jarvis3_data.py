@@ -23,7 +23,7 @@ import pandas as pd
 
 import us_swing_selector as us_swing
 
-_REQUIRED_US_SWING_REVISION = 2026082140
+_REQUIRED_US_SWING_REVISION = 2026082160
 if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
     us_swing = importlib.reload(us_swing)
 
@@ -186,7 +186,14 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026082140
+# 나스닥 시장 Gate가 볼 이력의 길이 (2026-08-21 상하님 지시 "25년치로 줄여라").
+# 1971년부터 14,002줄을 전부 보던 것을 6,285줄로 줄인다. 25년 안에도 10% 넘는
+# 조정이 여러 번 있어 「조정 → 이전 최고 회복」 판정은 그대로다 — 실측으로
+# 확인했다(전체 이력·25년치 둘 다 MARKET_ON, 후보 수도 같았다).
+IXIC_HISTORY_YEARS = 25
+
+
+MODULE_REVISION = 2026082160
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1986,9 +1993,9 @@ def breakout_plan(row: dict) -> dict:
         "target": None,
         "buy_reason": (
             f"52주 신고가 anchor 뒤 {int(days or 0)}거래일째, 종가 기준 "
-            f"{float(pullback or 0.0):.1f}% 눌림입니다. 핵심점수 {core:.1f}/70, "
-            f"보조점수 {support:.1f}/30입니다. 총점은 승률이 아니며, 손절과 최종청산은 "
-            "현재 연구 중이라 이 종목점수에 넣지 않았습니다."
+            f"{float(pullback or 0.0):.1f}% 눌림입니다. 중요 점수 {core:.1f}/70, "
+            f"보조 점수 {support:.1f}/30입니다. 총점은 승률이 아닙니다. "
+            "**손절과 파는 시점은 앱이 정하지 않습니다 — 상하님이 정하십니다.**"
         ),
     }
 
@@ -2375,6 +2382,21 @@ def _swing_universe_records() -> list[dict]:
     ]
 
 
+def _trim_index_history(frame):
+    """나스닥 이력을 최근 IXIC_HISTORY_YEARS 년치로 자른다 (2026-08-21)."""
+    if frame is None or getattr(frame, "empty", True):
+        return frame
+    try:
+        index = pd.DatetimeIndex(frame.index)
+        floor = pd.Timestamp.now() - pd.DateOffset(years=int(IXIC_HISTORY_YEARS))
+        if index.tz is not None:
+            floor = floor.tz_localize(index.tz)
+        cut = frame[index >= floor]
+        return cut if len(cut) >= 300 else frame
+    except Exception:
+        return frame
+
+
 def _last_completed_us_date(frame, now=None):
     """장중 진행봉을 제외한 공통 EOD 날짜를 고른다."""
 
@@ -2435,7 +2457,7 @@ def find_breakout_pullback_stocks(
     market_frames, market_meta = loader(
         ("^IXIC",), period="max", interval="1d", ttl_seconds=21600
     )
-    ixic = market_frames.get("^IXIC")
+    ixic = _trim_index_history(market_frames.get("^IXIC"))
     if ixic is None or getattr(ixic, "empty", True):
         return {
             "ok": False,
@@ -2621,7 +2643,7 @@ def breakout_market_state() -> dict:
         daily, _meta = _download_cached(
             ("^IXIC",), period="max", interval="1d", ttl_seconds=600
         )
-        frame = daily.get("^IXIC")
+        frame = _trim_index_history(daily.get("^IXIC"))
         completed = _last_completed_us_date(frame)
         state = us_swing.market_gate(frame, as_of=completed)
     except Exception as exc:

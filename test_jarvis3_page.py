@@ -417,8 +417,9 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertTrue(any(f"${float(top[key]):,.2f}" in value for value in markdowns),
                             f"{key} 값이 화면에 없다")
         self.assertTrue(any("14일 변동성(ATR)" in value for value in markdowns))
-        # 상승장 표는 당일주가 칸 대신 자격을 판단한 값을 쓴다.
-        self.assertTrue(any("3개월 등수" in value and "중요 점수" in value
+        # 상승장 표는 당일주가 칸 대신 **고를 때 필요한 것만** 쓴다
+        # (2026-08-21 상하님 지시 — 등수·점수 칸은 선택종목 세부사항에서 본다).
+        self.assertTrue(any("등급 / 상태" in value and "눌림 / 며칠째" in value
                             for value in markdowns))
         self.assertTrue(any("종목 조건점수" in value for value in markdowns))
         # '점수 두 개는 서로 다른 것을 잽니다'는 없앤 눌림목 찾기 설명에 있던 말이다.
@@ -938,12 +939,13 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7", joined)
         # 표 머리글은 갈래 전용이다 — 옛 칸 이름이 남아 있으면 안 된다.
         header = next(value for value in markdowns
-                      if "3개월 등수" in value and "티커" in value and "중요 점수" in value)
-        for gone in ("고점 후 며칠", "보유일수", "1년 성적", "눌림 점수"):
-            self.assertNotIn(gone, header, f"옛 칸 {gone}이 남아 있다")
-        self.assertLess(header.index("3개월 등수"), header.index("6개월 등수"))
-        self.assertLess(header.index("6개월 등수"), header.index("중요 점수"))
-        self.assertLess(header.index("중요 점수"), header.index("보조 점수"))
+                      if "티커" in value and "등급 / 상태" in value and "테마" in value)
+        for gone in ("고점 후 며칠", "보유일수", "1년 성적", "눌림 점수",
+                     "3개월 등수", "6개월 등수", "중요 점수", "보조 점수"):
+            self.assertNotIn(gone, header, f"표에서 뺀 칸 {gone}이 남아 있다")
+        self.assertLess(header.index("티커"), header.index("등급 / 상태"))
+        self.assertLess(header.index("등급 / 상태"), header.index("눌림 / 며칠째"))
+        self.assertLess(header.index("눌림 / 며칠째"), header.index("테마"))
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
         self.assertTrue(any(
             "상승장 (신고가 눌림매수) 닫기" in str(node.label)
@@ -1236,8 +1238,11 @@ class Jarvis3PageTests(unittest.TestCase):
         # **두 점수를 따로 보여준다**(지시문 33번).
         self.assertIn("중요 점수", joined)
         self.assertIn("보조 점수", joined)
-        # **손절·최종청산은 연구 중이라고 적는다**(지시문 59번).
-        self.assertIn("연구 중", joined)
+        # **손절과 파는 시점은 앱이 안 정한다고 적는다**(지시문 59번).
+        # "연구 중"이라고는 안 적는다 — 제가 지금 돌리고 있다는 말로 읽힌다
+        # (2026-08-21 상하님 물음 "너가 연구중인가?").
+        self.assertIn("앱이 안 정함", joined)
+        self.assertNotIn("연구 중", joined, "'연구 중'이 되살아났다")
 
     def test_crash_detail_says_the_market_by_the_reference_day(self):
         """기준일로 찾아 놓고 오늘 낙폭으로 판정하면 앞뒤가 안 맞는다(2026-08-06).
@@ -1389,7 +1394,7 @@ class Jarvis3PageTests(unittest.TestCase):
         # 「순위」·「총점」이 되살아나면 여기서 깨진다.
         for gone in ("j3-th-head'>순위", "j3-th-head'>총점"):
             self.assertNotIn(gone, block, f"{gone}이 되살아났다")
-        # 점수 옆에는 두 점수가 따로 보여야 한다(지시문 33번).
+        # 중요·보조 점수는 표가 아니라 **선택종목 세부사항**에서 본다(2026-08-21).
         self.assertIn("중요 점수", joined)
         self.assertIn("보조 점수", joined)
         self.assertTrue(any("점수는 승률이 아닙니다" in str(node.value)

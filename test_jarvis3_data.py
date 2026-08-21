@@ -857,8 +857,12 @@ class RulebookScreenTests(unittest.TestCase):
 
         2026-08-20 새 지시문 59번이 상승장 쪽 근거를 새로 적었다 — 고정 손절
         (-8·-12·-15·-20%)은 과거 성적을 오히려 나쁘게 한 경우가 많았고, 시장이
-        약해지면 무조건 파는 방식도 좋지 않았다. 그래서 손절과 최종청산은
-        종목점수에 넣지 않고 "연구 중"이라고 적는다.
+        약해지면 무조건 파는 방식도 좋지 않았다. 그래서 손절과 파는 시점을
+        종목점수에 넣지 않는다.
+
+        **화면에 "연구 중"이라고 적지 않는다**(2026-08-21 상하님 물음 —
+        "너가 연구중인가?"). 제가 지금 무언가를 돌리고 있다는 말로 읽힌다.
+        앱이 정하지 않고 상하님이 정하신다고 곧게 적는다.
         """
         row = {"metrics": {"from_high_pct": -5.0, "current": 100.0, "ret60": 20.0},
                "together_tier": 2, "together_count": 3, "hold_days": 120, "wait_days": 4,
@@ -873,7 +877,9 @@ class RulebookScreenTests(unittest.TestCase):
             self.assertIsNone(plan["target"], "목표가가 되살아났다")
             self.assertIsNone(plan["hold_days"], "파는 날이 규칙으로 되살아났다")
         self.assertIn("손절가가 없습니다", j3.crash_rebound_plan(row)["buy_reason"])
-        self.assertIn("연구 중", j3.breakout_plan(row)["buy_reason"])
+        reason = j3.breakout_plan(row)["buy_reason"]
+        self.assertIn("손절과 파는 시점은 앱이 정하지 않습니다", reason)
+        self.assertNotIn("연구 중", reason, "'연구 중'이 되살아났다")
 
     def test_crash_reason_tells_the_day_number_apart_from_todays(self):
         """겨자색 상자가 표와 다른 숫자를 말하던 것을 고쳤다(2026-08-07 상하님 지적).

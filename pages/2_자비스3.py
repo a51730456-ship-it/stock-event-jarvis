@@ -227,6 +227,14 @@ st.markdown(
     .j3-reason-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 0.55rem; padding: 0.6rem 0.75rem; height: 100%; }
     .j3-reason-title { color: #4da6ff; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.25rem; }
     .j3-reason-body { color: #44f0a1; font-weight: 700; font-size: 0.9rem; line-height: 1.45; }
+    /* 「이 화면 설명 보기」의 항목 카드. **중요한 한 줄만 진하게 초록**이고 나머지
+       설명은 옅은 회색 보통 굵기다(2026-08-21 상하님 지적 — 초록 글이 통째로
+       굵으니 가독성이 떨어진다). 맨 위 파란 상자와 같은 방식이다. */
+    .j3-help-line { display: block; color: #44f0a1; font-weight: 800;
+        font-size: .93rem; line-height: 1.5; margin-bottom: .2rem; }
+    .j3-help-detail { display: block; color: #b9c0cb; font-weight: 400;
+        font-size: .89rem; line-height: 1.62; }
+    .j3-help-detail b { color: #e6e6e6; font-weight: 800; }
     /* 같은 카드 안의 '이건 다른 자다' 같은 곁글. 본문보다 작고 흐리게 둬서
        숫자를 가리지 않게 한다(2026-08-07). */
     .j3-reason-sub { color: #9aa0aa; font-weight: 600; font-size: 0.8rem;
@@ -1073,7 +1081,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082140
+_REQUIRED_J3_REVISION = 2026082160
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2092,8 +2100,13 @@ def _us_futures_cell() -> str:
         sub += (f" <span class='j3-muted'>· S&P500 선물</span> "
                 f"<span class='{_sign_class(sp500['change_pct'])}'>"
                 f"{float(sp500['change_pct']):+.2f}%</span>")
-    # 지수 칸과 **같은 틀·같은 크기**를 쓴다 — 그래야 밑선이 맞는다(2026-08-21).
-    chart = _index_chart_swap(nasdaq.get("chart") or {}, key="nqfutures")
+    # **바꿔 보여주는 틀을 쓰지 않는다**(2026-08-21 상하님 지적 — 눌렀더니 그림이
+    # 사라졌다). 선물에는 '일봉 6개월' 그림이 없어서, 틀에 넣으면 손을 올렸을 때
+    # 당일 그림만 감추고 보여줄 것이 없다. 그림은 그대로 두고 지수 칸과 밑선을
+    # 맞추는 '당일' 글자만 붙인다.
+    chart = _sparkline_svg(nasdaq.get("chart") or {}, "#4da6ff", "#ff5b5b")
+    if chart:
+        chart += "<div class='j3-idx-cap'>당일</div>"
     return (
         "<div class='j3-top-cell'>"
         f"<div class='j3-top-label j3-idx-label'>{label}</div>"
@@ -2167,14 +2180,10 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
     # id에 쓸 수 없는 글자(^ 같은 것)를 걸러 낸다 — 지수 이름은 '^IXIC' 꼴이다.
     tap_id = "j3idx_" + re.sub(r"[^0-9A-Za-z]+", "", str(key) or str(int(width)))
     if not daily:
-        # **일봉 그림이 없어도 같은 틀에 넣는다**(2026-08-21 상하님 지적 —
-        # "나스닥100 선물과 S&P 500 키맞춤이 안 맞다"). 그림만 덜렁 돌려주면
-        # 그 칸만 '당일' 글자 높이만큼 짧아져 옆 칸과 밑선이 어긋난다.
-        return (
-            "<div class='j3-idx-swap'>"
-            f"<div class='j3-idx-now'>{today}<div class='j3-idx-cap'>당일</div></div>"
-            "</div>"
-        )
+        # 바꿔 보여줄 두 번째 그림이 없으면 **틀을 씌우지 않는다.** 씌우면 손을
+        # 올렸을 때 당일 그림만 감추고 보여줄 것이 없어 칸이 비어 버린다
+        # (2026-08-21 상하님 지적). 키를 맞출 자리는 부르는 쪽이 붙인다.
+        return today
     return (
         "<div class='j3-idx-swap'>"
         f"<input type='checkbox' id='{tap_id}' class='j3-idx-tap'>"
@@ -3167,7 +3176,9 @@ def _swing_factor_table_html(
         items.append(
             "<div class='j3fh-item'>"
             f"<div class='j3fh-name'>{title} · {current}</div>"
-            f"<div class='j3fh-txt'><b>{one_line}</b><br>{detail}<br>"
+            "<div class='j3fh-txt'>"
+            f"<span class='j3-help-line'>{one_line}</span>"
+            f"<span class='j3-help-detail'>{detail}</span>"
             f"<span class='j3-muted'>지금 {status or '—'}"
             + (f" · {html.escape(sureness)}" if sureness else "")
             + "</span></div></div>"
@@ -4430,11 +4441,27 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             anchor = row.get("anchor_date") or "—"
             pullback = row.get("pullback_pct_close")
             pullback_text = "—" if pullback is None else f"{float(pullback):.1f}%"
+            # **두 값이 한 칸에 들어가는 자리는 색으로 가른다**(2026-08-21 상하님
+            # 지적 — "26년8.19 / 1거래일 숫자 구분이 안 되어 있다"). 앞뒤 색을
+            # 다르게 주고 가운데 빗금은 흐리게 둬서 어디까지가 앞값인지 보이게 한다.
+            def _pair(left, left_color, right, right_color):
+                return (f"<span style='color:{left_color}'>{left}</span>"
+                        "<span style='color:#6f757e; font-weight:600'> / </span>"
+                        f"<span style='color:{right_color}'>{right}</span>")
+
             plan_cells = [
                 ("진입 관찰", str(plan.get("entry") or "—"), "#44f0a1"),
-                ("최고가 넘은 날 / 그 뒤", f"{anchor} · {int(row.get('days_since_anchor') or 0)}거래일째", "#e6e6e6"),
-                ("중요 / 보조 점수", f"{float(row.get('core_score') or 0):.0f}/70 · {float(row.get('support_score') or 0):.0f}/30", "#e6e6e6"),
-                ("눌림 / 손절·청산", f"{pullback_text} · 연구 중", "#ffd23f"),
+                ("최고가 넘은 날 / 그 뒤",
+                 _pair(anchor, "#9dccff",
+                       f"{int(row.get('days_since_anchor') or 0)}거래일째", "#44f0a1"),
+                 "#e6e6e6"),
+                ("중요 / 보조 점수",
+                 _pair(f"{float(row.get('core_score') or 0):.0f}/70", "#44f0a1",
+                       f"{float(row.get('support_score') or 0):.0f}/30", "#ffb020"),
+                 "#e6e6e6"),
+                ("눌림 / 손절",
+                 _pair(pullback_text, "#ffd23f", "앱이 안 정함", "#9aa0aa"),
+                 "#ffd23f"),
             ]
         elif mode == "crash":
             # 이 규칙에는 넘어야 할 기준가도 손절도 없다. 없는 것을 있는 것처럼
@@ -4918,8 +4945,9 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 f"<div class='j3-reason-title'>{html.escape(str(payload.get('title') or metric))} "
                 f"<span class='j3-muted'>· "
                 f"{html.escape(us_swing.plain_confidence(payload.get('confidence')))}</span></div>"
-                f"<div class='j3-reason-body'><b>{html.escape(str(payload.get('one_line') or ''))}</b><br>"
-                f"{html.escape(str(payload.get('detail') or ''))}</div></div>",
+                f"<span class='j3-help-line'>{html.escape(str(payload.get('one_line') or ''))}</span>"
+                f"<span class='j3-help-detail'>{html.escape(str(payload.get('detail') or ''))}</span>"
+                "</div>",
                 unsafe_allow_html=True,
             )
         _section_close("j3_rulebook_help_open", "설명 닫기")
@@ -4940,15 +4968,15 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         selected_ticker = tickers[0] if tickers else None
     selected_css = []
 
-    widths = [0.55, 0.8, 1.75, 0.8, 1.55, 1.05, 1.05, 1.25, 1.0, 1.0, 1.4]
+    # **3개월·6개월 등수와 중요·보조 점수 칸은 뺐다**(2026-08-21 상하님 지시 —
+    # "선택종목 세부사항에 보면 나온다"). 표에는 고를 때 필요한 것만 남긴다 —
+    # 번호·점수·종목·티커·등급/상태·눌림·테마. 옆으로 밀리던 것도 사라진다.
+    widths = [0.55, 0.8, 1.75, 0.9, 2.2, 1.5, 1.9]
     row_widths = [widths[0], widths[1], widths[2], sum(widths[3:])]
     rest_widths = widths[3:]
     # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님). 둘 다 점수인데
     # 이름만 봐서는 알 수 없었다. 무엇을 재는 점수인지 이름이 직접 말하게 한다.
-    # **「3개월 등수」다**(2026-08-21 상하님 — "3개월 상위라고 해놓으니 무슨 말인지
-    # 모르겠다"). 명부 몇 개 중 몇 등인지를 칸 값이 그대로 적는다(2등 / 199).
-    heads = ["티커", "등급 / 상태", "3개월 등수", "6개월 등수", "눌림 / 며칠째",
-             "중요 점수", "보조 점수", "테마"]
+    heads = ["티커", "등급 / 상태", "눌림 / 며칠째", "테마"]
 
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
         prefix = "j3rbw" if watch_mode else "j3rbf"
@@ -4988,22 +5016,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                     "{ background: rgba(192,132,252,.16) !important; "
                     "border-left: 3px solid #c084fc !important; }"
                 )
-            explanations = row.get("explanations") or {}
-
-            def _rs_cell(metric, percentile):
-                """상위 몇 %인가 — 위쪽일수록 밝은 초록(급락 표와 같은 무늬)."""
-                text = (explanations.get(metric) or {}).get("display_value") or "자료부족"
-                value = row.get(percentile)
-                tone = ("j3-muted" if value is None
-                        else "j3-green-strong" if float(value) >= 95
-                        else "j3-green" if float(value) >= 80
-                        else "j3-pull-theme" if float(value) >= 60
-                        else "j3-muted")
-                return (f"<span class='{tone} j3-rb-clip' title='{html.escape(str(text))}'>"
-                        f"{html.escape(str(text))}</span>")
-
-            rs60 = _rs_cell("rs60", "rs60_percentile")
-            rs120 = _rs_cell("rs120", "rs120_percentile")
+            # 3개월·6개월 등수는 이 표에 안 적는다 — 종목을 누르면 「선택종목
+            # 세부사항」에 그대로 나온다(2026-08-21 상하님 지시).
             pullback = row.get("pullback_pct_close")
             pullback_text = "—" if pullback is None else f"-{float(pullback):.1f}%"
             # 눌림은 3~10%가 **좋은 자리**다. 좋으면 초록, 너무 깊으면 붉게.
@@ -5014,8 +5028,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 else "j3-down" if float(pullback) > 10.0
                 else "j3-muted"
             )
-            core = float(row.get("core_score") or 0)
-            support = float(row.get("support_score") or 0)
+
             # 칸에는 **짧은 말**만 넣는다(2026-08-21). 긴 설명은 손을 올리면 뜨게
             # 두고, 칸 안에서는 잘라 준다 — 안 자르면 옆 칸 글자를 덮는다.
             long_label = (
@@ -5040,14 +5053,9 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 _flex_row(rest_widths, [
                     f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
                     label,
-                    rs60, rs120,
                     f"<span class='{pullback_tone}' style='font-weight:800'>"
                     f"{html.escape(pullback_text)}</span>"
                     f" <span class='j3-muted'>· {int(row.get('days_since_anchor') or 0)}일째</span>",
-                    f"<span class='{'j3-green-strong' if core >= 56 else 'j3-green' if core >= 42 else 'j3-muted'}'"
-                    f" style='font-weight:850'>{core:.0f}<span class='j3-muted'>/70</span></span>",
-                    f"<span class='{'j3-pull-amber' if support >= 18 else 'j3-pull-theme' if support >= 9 else 'j3-muted'}'"
-                    f">{support:.0f}<span class='j3-muted'>/30</span></span>",
                     f"<span class='j3-pull-theme j3-rb-clip' title='{html.escape(theme_text)}'>"
                     f"{html.escape(theme_text)}</span>",
                 ]), unsafe_allow_html=True,
