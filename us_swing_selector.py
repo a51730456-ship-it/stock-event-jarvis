@@ -17,7 +17,7 @@ from typing import Iterable, Mapping
 import pandas as pd
 
 
-MODULE_REVISION = 2026082110
+MODULE_REVISION = 2026082140
 SCORE_MODEL_VERSION = "US_SWING_V1"
 
 
@@ -495,6 +495,31 @@ def percentile_ranks(values: Mapping[str, float | None]) -> dict[str, float]:
     return result
 
 
+def rank_positions(values: Mapping[str, float | None]) -> dict[str, int]:
+    """내림차순 등수. 가장 강한 것이 1등, 동률은 같은 등수 (2026-08-21).
+
+    상하님 — *"3개월 상위, 6개월 상위라고 해놓으니 무슨 말인지 모르겠다."*
+    「상위 1.0%」보다 「2등 / 199」가 한눈에 읽힌다. percentile은 점수 계산에
+    그대로 쓰고, **화면에 적을 때만** 이 등수를 쓴다.
+    """
+    valid = [(str(key), _finite(value)) for key, value in values.items()]
+    valid = [(key, value) for key, value in valid if value is not None]
+    if not valid:
+        return {}
+    valid.sort(key=lambda item: (-item[1], item[0]))
+    result: dict[str, int] = {}
+    cursor = 0
+    count = len(valid)
+    while cursor < count:
+        end = cursor + 1
+        while end < count and math.isclose(valid[end][1], valid[cursor][1], rel_tol=0, abs_tol=1e-12):
+            end += 1
+        for key, _value in valid[cursor:end]:
+            result[key] = cursor + 1
+        cursor = end
+    return result
+
+
 def rs_points(percentile, *, max_points: float = 25.0, config: Mapping | None = None) -> float:
     value = _finite(percentile)
     if value is None:
@@ -928,12 +953,16 @@ def _display_value(metric: str, row: Mapping) -> str:
     if metric == "market":
         return plain_state(row.get("market_status")) or "자료부족"
     if metric in {"rs60", "rs120"}:
+        # **「상위 몇 %」 대신 「몇 등」이다**(2026-08-21 상하님 — "무슨 말인지
+        # 모르겠다"). 명부 몇 개 중 몇 등인지가 한눈에 읽힌다.
+        rank = row.get(f"{metric}_rank")
+        total = row.get("rs_ranked_count")
+        if rank and total:
+            return f"{int(rank)}등 / {int(total)}"
         value = _finite(row.get(f"{metric}_percentile"))
         if value is None:
             return "자료부족"
-        top = max(0.0, 100.0 - value)
-        # '상위 0.0%'는 읽어도 무슨 말인지 모른다. 맨 위는 그냥 그렇게 적는다.
-        return "명부에서 가장 강함" if top < 0.05 else f"상위 {top:.1f}%"
+        return f"상위 {max(0.0, 100.0 - value):.1f}%"
     if metric == "breakout":
         return str(row.get("breakout_date") or "신고가 대기")
     if metric == "pullback":
@@ -1147,6 +1176,9 @@ def scan_eod(
 
     percent60 = percentile_ranks(raw60)
     percent120 = percentile_ranks(raw120)
+    # 화면에 적을 등수. 점수는 위 percentile로 그대로 매긴다(2026-08-21).
+    rank60 = rank_positions(raw60)
+    rank120 = rank_positions(raw120)
     cross60_ok = len(percent60) >= int(cfg["rs"]["min_cross_section"])
     cross120_ok = len(percent120) >= int(cfg["rs"]["min_cross_section"])
 
@@ -1175,6 +1207,9 @@ def scan_eod(
             **market,
             "rs60_raw": raw60.get(ticker),
             "rs60_percentile": rs60_pct,
+            "rs60_rank": rank60.get(ticker),
+            "rs120_rank": rank120.get(ticker),
+            "rs_ranked_count": len(percent60),
             "rs60_valid": raw60.get(ticker) is not None and cross60_ok,
             "rs60_reason": (
                 "OK" if raw60.get(ticker) is not None and cross60_ok

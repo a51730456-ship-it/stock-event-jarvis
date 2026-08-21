@@ -23,7 +23,7 @@ import pandas as pd
 
 import us_swing_selector as us_swing
 
-_REQUIRED_US_SWING_REVISION = 2026082110
+_REQUIRED_US_SWING_REVISION = 2026082140
 if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
     us_swing = importlib.reload(us_swing)
 
@@ -186,7 +186,7 @@ CRASH_REBOUND_RULES = (
 
 # 실행 중인 프로세스에 옛 모듈이 남아 있는지 화면이 스스로 알아채기 위한 표식이다
 # (자비스4와 같은 장치). 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026082110
+MODULE_REVISION = 2026082140
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()

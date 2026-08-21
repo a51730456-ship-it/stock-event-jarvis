@@ -418,7 +418,7 @@ class Jarvis3PageTests(unittest.TestCase):
                             f"{key} 값이 화면에 없다")
         self.assertTrue(any("14일 변동성(ATR)" in value for value in markdowns))
         # 상승장 표는 당일주가 칸 대신 자격을 판단한 값을 쓴다.
-        self.assertTrue(any("3개월 상위" in value and "중요 점수" in value
+        self.assertTrue(any("3개월 등수" in value and "중요 점수" in value
                             for value in markdowns))
         self.assertTrue(any("종목 조건점수" in value for value in markdowns))
         # '점수 두 개는 서로 다른 것을 잽니다'는 없앤 눌림목 찾기 설명에 있던 말이다.
@@ -938,12 +938,12 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7", joined)
         # 표 머리글은 갈래 전용이다 — 옛 칸 이름이 남아 있으면 안 된다.
         header = next(value for value in markdowns
-                      if "3개월 상위" in value and "티커" in value and "중요 점수" in value)
+                      if "3개월 등수" in value and "티커" in value and "중요 점수" in value)
         for gone in ("고점 후 며칠", "보유일수", "1년 성적", "눌림 점수"):
             self.assertNotIn(gone, header, f"옛 칸 {gone}이 남아 있다")
-        self.assertLess(header.index("3개월 상위"), header.index("6개월 상위"))
-        self.assertLess(header.index("6개월 상위"), header.index("중요 점수"))
-        self.assertLess(header.index("중요 점수"), header.index("거드는 점수"))
+        self.assertLess(header.index("3개월 등수"), header.index("6개월 등수"))
+        self.assertLess(header.index("6개월 등수"), header.index("중요 점수"))
+        self.assertLess(header.index("중요 점수"), header.index("보조 점수"))
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
         self.assertTrue(any(
             "상승장 (신고가 눌림매수) 닫기" in str(node.label)
@@ -1235,7 +1235,7 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertNotIn(gone, joined, f"옛 상승장/급락 항목 {gone}이 섞였다")
         # **두 점수를 따로 보여준다**(지시문 33번).
         self.assertIn("중요 점수", joined)
-        self.assertIn("거드는 점수", joined)
+        self.assertIn("보조 점수", joined)
         # **손절·최종청산은 연구 중이라고 적는다**(지시문 59번).
         self.assertIn("연구 중", joined)
 
@@ -1373,21 +1373,25 @@ class Jarvis3PageTests(unittest.TestCase):
                                   _breakout_result())
         markdowns = [str(node.value) for node in app.markdown]
         joined = " ".join(markdowns)
-        header = next(value for value in markdowns
-                      if "j3-th-head" in value and "점수 (참고)" in value)
-        self.assertIn("점수 (참고)", header)
+        # 번호·점수·종목은 각각 다른 칸이라 markdown도 따로 나간다.
+        # **실제로 그린 머리글만** 고른다 — CSS 묶음에도 j3-th-head라는 글자가 있다.
+        heads = [value for value in markdowns if "j3-th-head'>" in value]
+        self.assertTrue(any("j3-th-head'>번호<" in value for value in heads), "번호 칸이 없다")
+        self.assertTrue(any("j3-th-head'>점수<" in value for value in heads), "점수 칸이 없다")
+        # **(참고)는 뺐다**(2026-08-21 상하님 지시).
+        self.assertFalse(any("(참고)" in value for value in heads), "(참고)가 남아 있다")
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = source.split("def _render_us_swing_finder(")[1].split("\ndef ")[0]
         self.assertLess(block.index("j3-th-head'>번호"),
-                        block.index("j3-th-head'>점수 (참고)"))
-        self.assertLess(block.index("j3-th-head'>점수 (참고)"),
+                        block.index("j3-th-head'>점수"))
+        self.assertLess(block.index("j3-th-head'>점수"),
                         block.index("j3-th-head'>종목"))
         # 「순위」·「총점」이 되살아나면 여기서 깨진다.
         for gone in ("j3-th-head'>순위", "j3-th-head'>총점"):
             self.assertNotIn(gone, block, f"{gone}이 되살아났다")
         # 점수 옆에는 두 점수가 따로 보여야 한다(지시문 33번).
         self.assertIn("중요 점수", joined)
-        self.assertIn("거드는 점수", joined)
+        self.assertIn("보조 점수", joined)
         self.assertTrue(any("점수는 승률이 아닙니다" in str(node.value)
                             for node in app.caption), "총점을 승률로 읽지 말라는 말이 없다")
 
@@ -1410,13 +1414,13 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("이 갈래 점수", joined)
         # 상승장 여섯 칸 상자는 자격을 판단한 값을 보여준다(옛 거래량 칸이 아니다).
         cards = next(str(node.value) for node in app.markdown
-                     if "최근 3개월 강함" in str(node.value)
+                     if "최근 3개월 등수" in str(node.value)
                      and "j3-mc-label" in str(node.value))
         self.assertIn("신고가 후 눌림", cards)
         # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님).
         # 둘 다 점수이므로 이름이 그렇게 말하게 바꿨다.
         self.assertIn("중요 점수", cards)
-        self.assertIn("거드는 점수", cards)
+        self.assertIn("보조 점수", cards)
         self.assertNotIn("핵심점수", cards)
         self.assertNotIn("눌림 점수", cards)
 

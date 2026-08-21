@@ -163,6 +163,7 @@ st.markdown(
     /* 표 안의 종목 단추만 **옆으로** 민다 — 줄이 촘촘해 위아래로 뜨면 어지럽다.
        위 규칙보다 뒤에 둬야 이 규칙이 이긴다. */
     div[class*="st-key-j3rbf_"] button:hover,
+    div[class*="st-key-j3rbw_"] button:hover,
     div[class*="st-key-j3top7_"] button:hover,
     div[class*="st-key-j3tbtn_"] button:hover,
     div[class*="st-key-j3pbf_"] button:hover,
@@ -1072,7 +1073,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082110
+_REQUIRED_J3_REVISION = 2026082140
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -4258,25 +4259,32 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         f"{_pct(metrics.get('volume_vs_week'))}</div></div>",
     ]
     if mode == "breakout":
-        # US_SWING_V1은 핵심 70·보조 30을 숨기지 않고 실제 RS/눌림과 나란히 둔다.
-        rs60 = row.get("rs60_percentile")
-        rs120 = row.get("rs120_percentile")
+        # US_SWING_V1은 중요 70·보조 30을 숨기지 않고 실제 등수·눌림과 나란히 둔다.
+        # 등수는 selector가 적어 둔 값을 그대로 쓴다 — 화면이 다시 세지 않는다.
+        total_ranked = row.get("rs_ranked_count")
+
+        def _rank_text(key):
+            rank = row.get(key)
+            if not rank:
+                return "—"
+            return f"{int(rank)}등" + (f" / {int(total_ranked)}" if total_ranked else "")
+
         pullback_pct = row.get("pullback_pct_close")
         cells = [
             f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
             f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div></div>",
-            f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 강함</div>"
-            f"<div class='j3-mc-val j3-green'>{'—' if rs60 is None else f'{float(rs60):.1f}'}</div>"
-            "<div class='j3-mc-sub j3-muted'>명부 안에서 이만큼</div></div>",
-            f"<div class='j3-mc'><div class='j3-mc-label'>최근 6개월 강함</div>"
-            f"<div class='j3-mc-val j3-green'>{'—' if rs120 is None else f'{float(rs120):.1f}'}</div>"
-            "<div class='j3-mc-sub j3-muted'>명부 안에서 이만큼</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 등수</div>"
+            f"<div class='j3-mc-val j3-green'>{_rank_text('rs60_rank')}</div>"
+            "<div class='j3-mc-sub j3-muted'>나스닥보다 강한 차례</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>최근 6개월 등수</div>"
+            f"<div class='j3-mc-val j3-green'>{_rank_text('rs120_rank')}</div>"
+            "<div class='j3-mc-sub j3-muted'>나스닥보다 강한 차례</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>신고가 후 눌림</div>"
             f"<div class='j3-mc-val j3-up'>{'—' if pullback_pct is None else f'-{float(pullback_pct):.1f}%'}</div>"
             f"<div class='j3-mc-sub j3-muted'>최고가 넘고 {int(row.get('days_since_anchor') or 0)}거래일째</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>중요 점수</div>"
             f"<div class='j3-mc-val j3-green'>{float(row.get('core_score') or 0):.0f}/70</div></div>",
-            f"<div class='j3-mc'><div class='j3-mc-label'>거드는 점수</div>"
+            f"<div class='j3-mc'><div class='j3-mc-label'>보조 점수</div>"
             f"<div class='j3-mc-val'>{float(row.get('support_score') or 0):.0f}/30</div>"
             "<div class='j3-mc-sub j3-muted'>추가검증 중</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>총점</div>"
@@ -4425,7 +4433,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             plan_cells = [
                 ("진입 관찰", str(plan.get("entry") or "—"), "#44f0a1"),
                 ("최고가 넘은 날 / 그 뒤", f"{anchor} · {int(row.get('days_since_anchor') or 0)}거래일째", "#e6e6e6"),
-                ("중요 / 거드는 점수", f"{float(row.get('core_score') or 0):.0f}/70 · {float(row.get('support_score') or 0):.0f}/30", "#e6e6e6"),
+                ("중요 / 보조 점수", f"{float(row.get('core_score') or 0):.0f}/70 · {float(row.get('support_score') or 0):.0f}/30", "#e6e6e6"),
                 ("눌림 / 손절·청산", f"{pullback_text} · 연구 중", "#ffd23f"),
             ]
         elif mode == "crash":
@@ -4818,6 +4826,28 @@ _UNIVERSE_TEXT = {
 }
 
 
+# 관찰 목록에 펴 두는 줄 수. **20개는 너무 많다**(2026-08-21 상하님 지시).
+_SWING_WATCH_ROWS = 15
+
+# 「등급 / 상태」 칸의 색. **종류별로 갈라 놓는다**(2026-08-21 상하님 지시).
+#   초록 — 통과했다 · 주황 — 거의 다 왔다 · 하늘 — 오늘 막 넘었다
+#   붉음 — 이 자리가 아니다 · 보라 — 아직 최고가를 못 넘었다 · 회색 — 힘이 모자라다
+_SWING_STATUS_TONE = {
+    "PRIMARY_CANDIDATE": "#22c55e",
+    "PULLBACK_WAIT": "#ffb020",
+    "ENTRY_WINDOW_NOT_STARTED": "#9dccff",
+    "TOO_DEEP": "#ff5b5b",
+    "MARKET_BLOCKED": "#ff5b5b",
+    "BREAKOUT_WAIT": "#b98cff",
+    "ENTRY_WINDOW_EXPIRED": "#8a8f98",
+    "RS60_WEAK": "#9aa0aa",
+    "RS120_WEAK": "#9aa0aa",
+    "RS_BOTH_WEAK": "#6f757e",
+    "INSUFFICIENT_DATA": "#6f757e",
+}
+_SWING_GRADE_TONE = {"S": "#22c55e", "A": "#44f0a1", "B": "#ffb020", "C": "#9dccff"}
+
+
 def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     """US_SWING_V1 전용 PRIMARY/WATCH 목록. 기존 급락 렌더와 완전히 분리한다."""
 
@@ -4873,7 +4903,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             f"눌림 {float(entry_cfg.get('pullback_min', .03)) * 100:.0f}~"
             f"{float(entry_cfg.get('pullback_max', .10)) * 100:.0f}%<br>"
             "<b>점수</b> — 최근 3개월 25 + 최근 6개월 25 + 눌림 20 = <b>중요 점수 70</b>, "
-            "테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7 = <b>거드는 점수 30</b>입니다. "
+            "테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7 = <b>보조 점수 30</b>입니다. "
             "총점은 승률이나 보장수익이 아닙니다.</div>",
             unsafe_allow_html=True,
         )
@@ -4915,18 +4945,20 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     rest_widths = widths[3:]
     # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님). 둘 다 점수인데
     # 이름만 봐서는 알 수 없었다. 무엇을 재는 점수인지 이름이 직접 말하게 한다.
-    heads = ["티커", "등급 / 상태", "3개월 상위", "6개월 상위", "눌림 / 며칠째",
-             "중요 점수", "거드는 점수", "테마"]
+    # **「3개월 등수」다**(2026-08-21 상하님 — "3개월 상위라고 해놓으니 무슨 말인지
+    # 모르겠다"). 명부 몇 개 중 몇 등인지를 칸 값이 그대로 적는다(2등 / 199).
+    heads = ["티커", "등급 / 상태", "3개월 등수", "6개월 등수", "눌림 / 며칠째",
+             "중요 점수", "보조 점수", "테마"]
 
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
         prefix = "j3rbw" if watch_mode else "j3rbf"
         head = box.columns(row_widths)
-        # **「번호 · 점수 (참고)」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
+        # **「번호 · 점수」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
         # 2026-08-20에 다시 확인하심). 검증되지 않은 차례를 1위·2위처럼 보이면
         # 화면이 거짓말을 한다. 이 배점은 상하님 지시문이 정해 준 것이지 제가
         # 과거차트로 "이 차례가 맞다"를 확인한 것이 아니다. 그냥 번호다.
         head[0].markdown("<div class='j3-th-head'>번호</div>", unsafe_allow_html=True)
-        head[1].markdown("<div class='j3-th-head'>점수 (참고)</div>", unsafe_allow_html=True)
+        head[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
         head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
         head[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
         for index, row in enumerate(rows):
@@ -4949,9 +4981,12 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 scroll_to.request(st, "detail_pullback")
                 st.rerun()
             if row.get("ticker") == selected_ticker:
+                # 고른 줄은 **보라색**이다 — 테마표·급락표와 같은 약속
+                # (2026-08-21 상하님 지시 "다른 테마나 급락 후처럼 보라색으로").
                 selected_css.append(
-                    f"div[class*='st-key-{key}'] button {{background:rgba(24,191,135,.16) !important;"
-                    "border-left:3px solid #18bf87 !important;}"
+                    f"div[class*='st-key-{key}'] button "
+                    "{ background: rgba(192,132,252,.16) !important; "
+                    "border-left: 3px solid #c084fc !important; }"
                 )
             explanations = row.get("explanations") or {}
 
@@ -4992,11 +5027,12 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 us_swing.short_status(row.get("primary_status")) if watch_mode
                 else f"{row.get('grade') or '—'}등급"
             )
-            grade_tone = ("j3-muted" if watch_mode else
-                          {"S": "j3-green-strong", "A": "j3-green",
-                           "B": "j3-pull-amber", "C": "j3-pull-theme"}.get(
-                              str(row.get("grade") or ""), "j3-muted"))
-            label = (f"<span class='{grade_tone} j3-rb-clip' style='font-weight:800'"
+            tone = (
+                _SWING_STATUS_TONE.get(str(row.get("primary_status") or ""), "#9aa0aa")
+                if watch_mode else
+                _SWING_GRADE_TONE.get(str(row.get("grade") or ""), "#9aa0aa")
+            )
+            label = (f"<span class='j3-rb-clip' style='font-weight:800; color:{tone}'"
                      f" title='{html.escape(long_label)}'>"
                      f"{html.escape(short_label)}</span>")
             theme_text = str(row.get("theme_id") or "자료부족")
@@ -5029,6 +5065,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         # 지적 — 관찰 목록이 글자끼리 겹쳐 보였다). 그 열쇠에는 칸을 제 폭 안에
         # 가두고 표를 옆으로 미는 규칙이 이미 붙어 있다. 두 갈래는 한 번에 하나만
         # 그려지므로 열쇠가 겹치지 않는다.
+        watch = watch[:_SWING_WATCH_ROWS]
         watch_box = st.container(key="j3_rulebook_rest").expander(
             f"관찰만 · 조건을 다 못 넘은 {len(watch)}개 보기"
         )
@@ -5038,8 +5075,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
 
     st.caption(
         "**중요 점수(70점)** 는 최근 3개월·6개월에 시장보다 강했나와 신고가 뒤 알맞게 "
-        "쉬었나 셋을 더한 것이고, **거드는 점수(30점)** 는 테마·돌파 거래량·테마 "
-        "확산도·반등 넷을 더한 것입니다. 둘을 더하면 왼쪽 「점수 (참고)」입니다. "
+        "쉬었나 셋을 더한 것이고, **보조 점수(30점)** 는 테마·돌파 거래량·테마 "
+        "확산도·반등 넷을 더한 것입니다. 둘을 더하면 왼쪽 「점수」입니다. "
         "정식 후보에만 등급을 붙이고, 관찰 줄은 무엇이 모자란가를 먼저 적습니다. "
         "점수는 승률이 아닙니다."
     )
@@ -5320,7 +5357,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     head = table_box.columns(row_widths)
     head[0].markdown(f"<div class='j3-th-head'>{rank_head}</div>", unsafe_allow_html=True)
     head[1].markdown(
-        f"<div class='j3-th-head'>{'점수 (참고)' if breakout else '점수'}</div>",
+        f"<div class='j3-th-head'>점수</div>",
         unsafe_allow_html=True)
     head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[3].markdown(
@@ -5347,7 +5384,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             over_head = overflow_box.columns(row_widths)
             for column, title in zip(
                     over_head,
-                    (rank_head, "점수 (참고)" if breakout else "점수", "종목")):
+                    (rank_head, "점수", "종목")):
                 column.markdown(f"<div class='j3-th-head'>{title}</div>",
                                 unsafe_allow_html=True)
             over_head[3].markdown(
