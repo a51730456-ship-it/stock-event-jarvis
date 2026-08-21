@@ -1031,6 +1031,7 @@ if auth.is_guest():
     )
 
 import importlib
+import threading
 import time
 
 _PAGE_SEOUL = ZoneInfo("Asia/Seoul")
@@ -5647,6 +5648,54 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
 
 
 
+# 목록에서 종목을 누를 때 차트를 미리 받아 둘 줄 수. 앞쪽 줄부터 누르시므로
+# 그만큼만 받는다 — 35줄을 다 받으면 미리 받는 것이 더 오래 걸린다.
+_PREFETCH_ROWS = 10
+
+
+def _prefetch_list_charts(result) -> None:
+    """목록에 뜬 종목들의 차트 자료를 **한 묶음으로, 뒤에서** 받아 둔다.
+
+    상하님 지적(2026-08-21) — "상승장 목록에서 종목 클릭하면 25초 걸린다.
+    이거 황당하다."
+
+    까닭은 이렇다. 목록을 그릴 때는 차트를 안 받는다(그때 다 받으면 목록이
+    늦게 뜬다). 그래서 종목을 누르는 그 순간에 **그 한 종목의** 일봉 전체
+    이력과 당일 분봉을 새로 받는다. 한 종목씩 따로 받는 것이 제일 느리다 —
+    테마 대장주 쪽에서 이미 겪었고(2026-08-14 실측 4.5초, 그중 CPU는 0.2초),
+    묶어 받으면 한 종목당 0.025초로 떨어진다.
+
+    그래서 목록이 뜨는 동안 **앞 열 줄을 한 묶음으로 미리** 받아 둔다.
+    누를 때쯤이면 공책에 들어 있어 그리기만 하면 된다.
+
+    받아만 둔다. 값은 안 만든다 — get_chart_bundle·get_intraday_chart가 같은
+    묶음을 캐시에서 찾아 그대로 쓴다. 못 받아도 조용히 넘어간다(그때는 예전처럼
+    누를 때 받는다). 화면은 이것을 기다리지 않는다.
+    """
+    if not isinstance(result, dict):
+        return
+    tickers = []
+    for key in ("rows", "watch_rows"):
+        for row in (result.get(key) or ()):
+            ticker = str((row or {}).get("ticker") or "").strip().upper()
+            if ticker and ticker not in tickers:
+                tickers.append(ticker)
+    tickers = tickers[:_PREFETCH_ROWS]
+    if len(tickers) < 2:
+        return
+
+    def _run():
+        try:
+            j3data.prefetch_charts(tickers)
+        except Exception:
+            pass            # 못 받으면 예전처럼 누를 때 받는다
+
+    try:
+        threading.Thread(target=_run, name="list-charts", daemon=True).start()
+    except Exception:
+        pass
+
+
 def _rerun_here() -> None:
     """지금 덩이(프래그먼트)만 다시 그린다. 안 되는 판이면 예전처럼 판 전체를.
 
@@ -5783,6 +5832,8 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
             # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
             picklist_ui.autosave("US", pressed, st.session_state.get("j3_pullback_result"))
+            # 목록이 뜨는 동안 그 종목들 차트를 **뒤에서 미리** 받아 둔다.
+            _prefetch_list_charts(st.session_state.get("j3_pullback_result"))
     if not st.session_state.get("j3_pullback_open"):
         st.caption(
             "단추를 누르면 조회합니다. 열린 뒤 같은 단추를 다시 누르면 접힙니다. "
