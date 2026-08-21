@@ -962,6 +962,30 @@ THEME_STATUS_WATCH = round(THEME_SCORE_MAX * 0.60, 1)
 # 화면의 '테마 계산 시각'도 함께 담아 두므로 언제 잰 값인지 그대로 보인다.
 THEME_RANKING_TTL = 20.0
 
+# 248종목 2년치 **한 묶음**을 몇 초 동안 다시 안 받나 (2026-08-21).
+#
+# 상하님 지적 — "스마트폰에서 상승장 클릭하면 첫 로딩에 45초 걸린다 ·
+# 닫기 눌러도 10초 걸린다."
+#
+# 원인은 **창이 세 개였던 것**이다. `_download_cached`는 공책을 꺼낼 때 부르는
+# 쪽이 준 창으로 낡았는지 따진다. 같은 묶음을 테마 순위표는 300초, 상승장·급락은
+# 1800초, 급락 기준일은 600초로 부르고 있었다. 테마 순위표는 **판마다** 도니까
+# 결국 **5분마다 248종목을 통째로 다시 받았다.** 노트북에서 재니 그 한 번이
+# 벽시계 7.3초에 CPU 8.6초다 — 온라인은 코어가 한둘이라 이것이 그대로 늘어난다.
+#
+# 그래서 창을 하나로 모은다. 일봉은 하루에 한 칸씩만 늘어나므로 30분이면 넉넉하다.
+# 장중 최신값이 필요한 자리는 따로 1분봉을 받는다(테마 ETF 당일 등락률은 45초
+# 창이라 그대로다). 화면의 '온라인 자료 새로고침' 단추는 언제든 공책을 비운다.
+#
+# **바꾸려면 여기 한 곳만 고친다.** 부르는 쪽마다 숫자를 적어 두면 제일 자주 도는
+# 쪽의 숫자가 이기고 나머지는 있으나 마나가 된다 — 그래서 이 사고가 났다.
+US_BATCH_TTL = 1800.0
+
+# 나스닥 종합 전체 일봉도 같은 이유로 창을 하나로 둔다 — 상승장은 21600초,
+# 급락은 600초로 부르고 있어서 급락을 한 번 열면 25년치를 10분마다 다시 받았다.
+# 일봉 전체 이력은 하루에 한 번만 늘어난다. 여섯 시간이면 넉넉하다.
+IXIC_HISTORY_TTL = 21600.0
+
 
 def get_theme_rankings() -> dict:
     """테마 20개 순위. 20초 안에 또 부르면 방금 센 것을 그대로 돌려준다.
@@ -986,7 +1010,7 @@ def _compute_theme_rankings() -> dict:
     # 여기만 따로 받으면 상승장·급락이 같은 종목을 한 번 더 내려받는다(2026-08-14).
     # all_tickers는 이 명단에 다 들어 있다 — 아래 계산은 그대로다.
     daily, daily_meta = _download_cached(
-        _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=300
+        _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=US_BATCH_TTL
     )
     intraday, live_meta = _download_cached(
         live_tickers, period="1d", interval="1m", ttl_seconds=45, prepost=True
@@ -1282,7 +1306,7 @@ def _universe_daily(reuse_only: bool):
     # 장중 최신값이 필요한 곳은 따로 분봉을 받으므로 이 창과 상관없고, 화면의
     # '온라인 자료 새로고침' 단추는 언제든 이 공책을 비운다.
     daily, meta = loader(
-        _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=1800
+        _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=US_BATCH_TTL
     )
     return daily, meta, memberships
 
@@ -2487,7 +2511,7 @@ def find_breakout_pullback_stocks(
     # 일봉 전체 이력은 하루에 한 번만 늘어난다. 10분마다 다시 받던 것을 여섯
     # 시간으로 늘린다(2026-08-21) — 같은 날 두 번째 조회부터는 그냥 캐시를 쓴다.
     market_frames, market_meta = loader(
-        ("^IXIC",), period="max", interval="1d", ttl_seconds=21600
+        ("^IXIC",), period="max", interval="1d", ttl_seconds=IXIC_HISTORY_TTL
     )
     ixic = _trim_index_history(market_frames.get("^IXIC"))
     if ixic is None or getattr(ixic, "empty", True):
@@ -2640,7 +2664,7 @@ def crash_reference_day(lookback_days: int = 30) -> dict:
     try:
         # 과거 시점의 52주 고점을 계산하려면 2년치가 필요하다(1년치면 창이 안 찬다).
         daily, _meta = _download_cached(
-            (CRASH_MARKET_SYMBOL,), period="2y", interval="1d", ttl_seconds=600
+            (CRASH_MARKET_SYMBOL,), period="2y", interval="1d", ttl_seconds=US_BATCH_TTL
         )
         frame = daily.get(CRASH_MARKET_SYMBOL)
         if frame is None or frame.empty:
@@ -2673,7 +2697,7 @@ def breakout_market_state() -> dict:
     """US_SWING_V1의 IXIC 조정→이전 ATH 회복 MARKET GATE."""
     try:
         daily, _meta = _download_cached(
-            ("^IXIC",), period="max", interval="1d", ttl_seconds=600
+            ("^IXIC",), period="max", interval="1d", ttl_seconds=IXIC_HISTORY_TTL
         )
         frame = _trim_index_history(daily.get("^IXIC"))
         completed = _last_completed_us_date(frame)
@@ -2756,7 +2780,7 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
         # 위 _universe_daily와 **같은 명단·같은 기간**이라 캐시를 그대로 쓴다.
         # 예전에는 여기만 2년치를 따로 받아 5초가 더 걸렸다(2026-08-14).
         ref_frames, _ref_meta = _download_cached(
-            _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=600
+            _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=US_BATCH_TTL
         )
 
     rows = []
