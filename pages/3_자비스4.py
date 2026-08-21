@@ -762,10 +762,16 @@ _REQUIRED_SCROLL_REVISION = 2026080910
 if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
     scroll_to = importlib.reload(scroll_to)
 import regime_gauge_ui
+import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용히 예전처럼 돈다.
 import jarvis4_data as j4data
 import jarvis4_store as j4store
 import market_signal_ui
 import us_index_data
+
+# ── 폰·태블릿 뒤로가기 (2026-08-21 상하님 지시) ─────────────────────────────
+# 상하님 — "한번 누르면 방금 화면 전으로 가게 하고 두번 누르면 메인메뉴로."
+# 구역을 그리기 **전에** 불러야 한다 — 아래 화면들이 열림/닫힘 값을 읽기 때문이다.
+back_nav.sync(st)
 
 _REQUIRED_REGIME_GAUGE_REVISION = 2026081210
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
@@ -2719,7 +2725,11 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
     글자와 속내용이 같은 판에서 맞는다.
     """
     def _flip():
-        st.session_state[key] = not bool(st.session_state.get(key))
+        now_open = not bool(st.session_state.get(key))
+        st.session_state[key] = now_open
+        # 열 때만 쌓는다 — 닫을 때 주소를 되돌리면 뒤로가기가 도로 연다(back_nav).
+        if now_open:
+            back_nav.opened(st, key)
 
     is_open = bool(st.session_state.get(key))
     st.button(
@@ -3067,6 +3077,8 @@ def _render_radar_tab(market: dict) -> None:
         for opened in ("j4_detail_open_theme", "j4_intraday_open_theme",
                        "j4_bundle_open_theme", "j4_leadercmp_open"):
             st.session_state[opened] = True
+        back_nav.opened(st, "j4_detail_open_theme", "j4_intraday_open_theme",
+                            "j4_bundle_open_theme", "j4_leadercmp_open")
         scroll_to.request(st, "detail_theme")
         st.rerun()
 
@@ -3091,6 +3103,8 @@ def _render_radar_tab(market: dict) -> None:
             for opened in ("j4_detail_open_theme", "j4_intraday_open_theme",
                            "j4_bundle_open_theme", "j4_leadercmp_open"):
                 st.session_state[opened] = True
+            back_nav.opened(st, "j4_detail_open_theme", "j4_intraday_open_theme",
+                            "j4_bundle_open_theme", "j4_leadercmp_open")
             scroll_to.request(st, "detail_theme")
 
         selected_code = st.radio(
@@ -3214,6 +3228,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             for opened in ("j4_detail_open_top7", "j4_intraday_open_top7",
                            "j4_bundle_open_top7"):
                 st.session_state[opened] = True
+            back_nav.opened(st, "j4_detail_open_top7", "j4_intraday_open_top7",
+                            "j4_bundle_open_top7")
             scroll_to.request(st, "detail_top7")
         score = float(row.get("score") or 0)
         cols[2].markdown(
@@ -3691,6 +3707,8 @@ def _render_rulebook_finder(result: dict, mode: str) -> None:
             for opened in ("j4_detail_open_pullback", "j4_intraday_open_pullback",
                            "j4_bundle_open_pullback"):
                 st.session_state[opened] = True
+            back_nav.opened(st, "j4_detail_open_pullback", "j4_intraday_open_pullback",
+                            "j4_bundle_open_pullback")
             # 열기만 하면 그 자리가 화면 한참 아래라 직접 굴려야 했다(2026-08-09).
             scroll_to.request(st, "detail_pullback")
         price_cell = (
@@ -4096,6 +4114,8 @@ def _render_pullback_finder() -> None:
             for opened in ("j4_detail_open_pullback", "j4_intraday_open_pullback",
                            "j4_bundle_open_pullback"):
                 st.session_state[opened] = True
+            back_nav.opened(st, "j4_detail_open_pullback", "j4_intraday_open_pullback",
+                            "j4_bundle_open_pullback")
             scroll_to.request(st, "detail_pullback")
             # rerun을 부르지 않는다 — 눌림목 상세는 이 함수 다음(_render_pullback_detail)에
             # 그려지므로 지금 넣은 값이 그대로 쓰인다. rerun을 부르면 화면을 통째로 한 번

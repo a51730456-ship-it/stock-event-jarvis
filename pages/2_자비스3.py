@@ -1058,6 +1058,7 @@ _REQUIRED_SCROLL_REVISION = 2026080910
 if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
     scroll_to = importlib.reload(scroll_to)
 import regime_gauge_ui
+import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용히 예전처럼 돈다.
 import jarvis3_data as j3data
 import us_swing_selector as us_swing
 import jarvis3_store as j3store
@@ -1114,6 +1115,12 @@ if (
     market_signal_ui = importlib.reload(market_signal_ui)
     fear_greed_ui = sys.modules.get("fear_greed_ui", fear_greed_ui)
     regime_gauge_ui = sys.modules.get("regime_gauge_ui", regime_gauge_ui)
+
+
+# ── 폰·태블릿 뒤로가기 (2026-08-21 상하님 지시) ─────────────────────────────
+# 상하님 — "한번 누르면 방금 화면 전으로 가게 하고 두번 누르면 메인메뉴로."
+# 구역을 그리기 **전에** 불러야 한다 — 아래 화면들이 열림/닫힘 값을 읽기 때문이다.
+back_nav.sync(st)
 
 
 # 겨자색 상자에서 굵게 뽑을 말들(2026-08-07 상하님 지시 "중요부분만 진하게").
@@ -2664,7 +2671,12 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
     글자와 속내용이 같은 판에서 맞는다.
     """
     def _flip():
-        st.session_state[key] = not bool(st.session_state.get(key))
+        now_open = not bool(st.session_state.get(key))
+        st.session_state[key] = now_open
+        # 열 때만 방문기록을 쌓는다 — 닫을 때 주소를 되돌리면 그것이 또 기록에
+        # 쌓여서 뒤로가기가 도로 열어 버린다(back_nav 설명 참고).
+        if now_open:
+            back_nav.opened(st, key)
 
     is_open = bool(st.session_state.get(key))
     st.button(
@@ -4005,6 +4017,8 @@ def _render_my_stock_panel(market: dict) -> None:
         for opened in ("j3_detail_open_mystock", "j3_intraday_open_mystock",
                        "j3_bundle_open_mystock"):
             st.session_state[opened] = True
+        back_nav.opened(st, "j3_detail_open_mystock",
+                        "j3_intraday_open_mystock", "j3_bundle_open_mystock")
     with st.spinner(f"{by_ticker[chosen]['name']} 심사 중입니다…"):
         result = j3data.analyze_one_stock(
             chosen, market_score=float(market.get("score") or 0))
@@ -5373,6 +5387,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
                            "j3_bundle_open_pullback"):
                 st.session_state[opened] = True
+            back_nav.opened(st, "j3_detail_open_pullback",
+                            "j3_intraday_open_pullback", "j3_bundle_open_pullback")
             # 열기만 하면 그 자리가 화면 한참 아래라 직접 굴려야 했다(2026-08-09).
             scroll_to.request(st, "detail_pullback")
             st.rerun()
@@ -5705,6 +5721,8 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
             for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
                            "j3_bundle_open_pullback"):
                 st.session_state[opened] = True
+            back_nav.opened(st, "j3_detail_open_pullback",
+                            "j3_intraday_open_pullback", "j3_bundle_open_pullback")
             scroll_to.request(st, "detail_pullback")
             st.rerun()
         if row.get("ticker") == selected_ticker:
