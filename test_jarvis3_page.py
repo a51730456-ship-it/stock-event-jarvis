@@ -678,6 +678,45 @@ class Jarvis3PageTests(unittest.TestCase):
         # 라디오는 지우지 않았다(사용자 지시).
         self.assertTrue([node for node in app.radio if str(node.label) == "상세 종목 선택"])
 
+    def test_clicking_another_leader_switches_detail_in_the_same_run(self):
+        """다른 종목을 눌러도 **한 판 안에서** 상세가 그 종목으로 바뀐다.
+
+        2026-08-21에 st.rerun()을 뺐다(상하님 지적 — "종목 클릭 후 5초 걸린다").
+        빼도 되는 까닭은 '상세 종목 선택' 라디오가 이 줄보다 뒤에 만들어져서
+        방금 넣은 값을 그대로 집어 들기 때문이다. 그 전제가 깨지면 여기가 먼저
+        깨진다. 표의 주황 표시도 같은 판에서 옮겨져 있어야 한다.
+        """
+        with patch("jarvis3_data.get_market_overview", return_value=_market()),              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()),              patch("market_signal_ui._fetch_quotes", return_value={}),              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()),              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()),              patch("jarvis3_data.prefetch_charts"),              patch("jarvis3_data.get_live_quote", return_value={
+                 "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
+                 "ret20": 7.0, "atr_pct": 3.0, "source_time": "x", "stale": False,
+             }),              patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()),              patch("jarvis3_store.ensure_tables"),              patch("jarvis3_store.trade_progress", return_value={
+                 "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
+             }),              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            _open_all_details(app)
+            app.run(timeout=60)
+            buttons = [node for node in app.button if str(node.key or "").startswith("j3lbtn_")]
+            self.assertGreaterEqual(len(buttons), 2, "종목 줄이 두 개도 안 그려졌다")
+            buttons[1].click().run(timeout=60)
+
+        self.assertEqual(len(app.exception), 0)
+        state = app.session_state.filtered_state
+        chosen = next(
+            (value for key, value in state.items() if str(key).startswith("j3_stock_choice_")),
+            None,
+        )
+        self.assertEqual("AVGO", chosen, state)
+        radio = [node for node in app.radio if str(node.label) == "상세 종목 선택"]
+        self.assertTrue(radio, "상세 종목 선택 라디오가 사라졌다")
+        self.assertEqual("AVGO", radio[0].value, "라디오가 옛 종목에 머물러 있다")
+        markdowns = " ".join(str(node.value) for node in app.markdown)
+        self.assertIn("st-key-j3lbtn_01", markdowns,
+                      "누른 줄에 주황 표시가 안 옮겨졌다")
+        self.assertNotIn("st-key-j3lbtn_00", markdowns,
+                         "옛 줄에 주황 표시가 남았다")
+
     def test_my_stock_panel_searches_and_opens_detail(self):
         """맨 아래 '내 종목 현재상황'에서 이름을 치면 종목이 뜨고 상세가 열린다."""
         found = {"ok": True, "rows": [

@@ -7,6 +7,7 @@ Yahoo Finance의 최근 가용 시세를 읽기 전용으로 조회하며, 네�
 
 from __future__ import annotations
 
+import copy
 import csv
 import importlib
 import logging
@@ -23,7 +24,7 @@ import pandas as pd
 
 import us_swing_selector as us_swing
 
-_REQUIRED_US_SWING_REVISION = 2026082180
+_REQUIRED_US_SWING_REVISION = 2026082181
 if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
     us_swing = importlib.reload(us_swing)
 
@@ -193,7 +194,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082180
+MODULE_REVISION = 2026082181
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -949,7 +950,30 @@ THEME_STATUS_LEAD = round(THEME_SCORE_MAX * 0.75, 1)
 THEME_STATUS_WATCH = round(THEME_SCORE_MAX * 0.60, 1)
 
 
+# 테마 20줄을 **다시 세지 않고 잠깐 쓰는 시간**(2026-08-21 상하님 지적 —
+# "테마 클릭 후 5초, 종목 클릭 후 5초 걸린다").
+#
+# 시세는 이미 캐시에 다 들어 있는데도, 화면이 한 판 돌 때마다 248종목을 처음부터
+# 다시 셌다 — 노트북에서 재니 **한 판에 0.35초, 그게 전부 CPU다**(온라인은 코어가
+# 적어 더 걸린다). 단추를 하나 누를 때마다 그 값이 그대로 붙었다.
+#
+# 20초로 둔다. 이 표를 만드는 1분봉 자체가 45초짜리 캐시라 그 안에서는 몇 번을
+# 다시 세도 **같은 숫자가 나온다.** 다시 세지 않을 뿐, 보이는 값은 그대로다.
+# 화면의 '테마 계산 시각'도 함께 담아 두므로 언제 잰 값인지 그대로 보인다.
+THEME_RANKING_TTL = 20.0
+
+
 def get_theme_rankings() -> dict:
+    """테마 20개 순위. 20초 안에 또 부르면 방금 센 것을 그대로 돌려준다.
+
+    돌려주는 것은 **복사본**이다. 부르는 쪽이 줄에 무엇을 적어 넣어도 다음 사람이
+    받는 값이 더러워지지 않는다.
+    """
+    value, _ = _cached_value("us_theme_rankings", THEME_RANKING_TTL, _compute_theme_rankings)
+    return copy.deepcopy(value)
+
+
+def _compute_theme_rankings() -> dict:
     all_tickers = ["SPY"]
     live_tickers = ["SPY"]
     for theme in US_THEMES:
@@ -3455,7 +3479,14 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
     if theme is None:
         return {"ok": False, "error": "등록되지 않은 테마입니다", "rows": []}
     tickers = (theme["etf"], theme["alt_etf"], *theme["stocks"])
-    daily, daily_meta = _download_cached(tickers, period="1y", interval="1d", ttl_seconds=300)
+    # **2년치를 부른다. 1년치가 아니다**(2026-08-21). 화면은 테마 순위표를 그리며
+    # 이미 248종목 2년치를 한 묶음으로 받아 뒀는데, 여기서 1년치를 부르면 캐시
+    # 열쇠(티커·기간·간격·프리포스트)의 '기간'이 달라 그 묶음을 못 쓴다. 그래서
+    # 테마를 누를 때마다 10종목을 **한 번 더 내려받고 있었다**(실측 0.83초 →
+    # 0.09초, 아홉 배). 여기서 쓰는 값은 전부 뒤에서 세는 것이라(tail·최근 N일)
+    # 자료가 길어도 결과가 같다 — 석유·가스 8종목의 순위·점수·항목별 점수·매수
+    # 심사 결과가 하나도 안 달라지는 것을 확인했다.
+    daily, daily_meta = _download_cached(tickers, period="2y", interval="1d", ttl_seconds=300)
     # with_live=False면 분봉을 아예 안 받는다. 순위 7이 1차로 줄만 세울 때 쓴다 —
     # 157종목 분봉을 받는 데 시간 대부분이 갔다(2026-07-31 실측 3.7초 → 0.3초).
     if with_live:

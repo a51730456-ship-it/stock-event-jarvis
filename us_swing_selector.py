@@ -17,7 +17,7 @@ from typing import Iterable, Mapping
 import pandas as pd
 
 
-MODULE_REVISION = 2026082180
+MODULE_REVISION = 2026082181
 SCORE_MODEL_VERSION = "US_SWING_V1"
 
 

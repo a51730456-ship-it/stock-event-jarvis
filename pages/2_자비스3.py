@@ -1089,7 +1089,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082180
+_REQUIRED_J3_REVISION = 2026082181
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1551,7 +1551,7 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     box.markdown("<div class='j3-leader-head-gap'></div>", unsafe_allow_html=True)
 
     rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
-    button_css = []
+    button_keys = []
     clicked = None
     for index, leader in enumerate(leaders[:6]):
         metrics, plan = leader["metrics"], leader["plan"]
@@ -1559,11 +1559,7 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
         ticker = leader["ticker"]
         score = float(leader.get("score") or 0)
         button_key = f"j3lbtn_{index:02d}"
-        if ticker == selected_ticker:
-            button_css.append(
-                f"div[class*='st-key-{button_key}'] button "
-                "{ background: rgba(255,176,32,0.16) !important; }"
-            )
+        button_keys.append((button_key, ticker))
         cols = box.columns(_LEADER_ROW_WIDTHS)
         cols[0].markdown(
             f"<div class='j3-td'>{rank_mark.get(rank, f'{rank}위')}</div>", unsafe_allow_html=True)
@@ -1586,6 +1582,15 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
             unsafe_allow_html=True,
         )
 
+    # 주황 표시는 **줄을 다 그린 뒤에** 한 번에 붙인다. 그래서 이 판에서 방금 누른
+    # 줄도 곧바로 표시할 수 있다 — 예전에는 표를 그리기 전의 선택만 알고 있어서
+    # 화면을 통째로 다시 돌려야(st.rerun) 표시가 옮겨졌다(2026-08-21).
+    highlight = clicked or selected_ticker
+    button_css = [
+        f"div[class*='st-key-{key}'] button "
+        "{ background: rgba(255,176,32,0.16) !important; }"
+        for key, ticker in button_keys if ticker == highlight
+    ]
     if button_css:
         st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
     return clicked
@@ -3668,7 +3673,12 @@ def _render_radar_tab(market: dict) -> None:
         for opened in _THEME_PANEL_OPEN_KEYS:
             st.session_state[opened] = True
         scroll_to.request(st, "detail_theme")
-        st.rerun()
+        # **st.rerun()을 부르지 않는다**(2026-08-21 상하님 지적 — "종목 클릭 후
+        # 5초 걸린다"). 부르면 화면 한 판을 통째로 더 그린다(실측 1.8초, 그중
+        # CPU 0.9초 — 온라인은 코어가 적어 더 걸린다). 안 불러도 결과는 같다 —
+        # 아래 '상세 종목 선택'(key=stock_key)은 **이 줄보다 뒤에** 만들어지므로
+        # 방금 넣은 값을 그대로 집어 들고, 상세도 그 종목으로 그려진다.
+        # 표의 주황 표시는 _render_leader_table이 이 판에서 스스로 옮긴다.
 
     _render_leader_comparison(leaders)
     if leaders:
