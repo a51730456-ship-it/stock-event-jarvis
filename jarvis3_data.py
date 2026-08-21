@@ -986,6 +986,12 @@ US_BATCH_TTL = 1800.0
 # 일봉 전체 이력은 하루에 한 번만 늘어난다. 여섯 시간이면 넉넉하다.
 IXIC_HISTORY_TTL = 21600.0
 
+# 나스닥을 **몇 년치** 받나. 'max'로 받으면 1971년부터 1만4천 줄이 오는데,
+# 바로 아래 _trim_index_history가 최근 25년만 남기고 다 버린다. 버릴 것을
+# 받아 놓고 파싱까지 하고 있었다 — 온라인에서는 그 줄 수만큼 그대로 시간이다.
+# 남기는 햇수(IXIC_HISTORY_YEARS)와 **같은 값**이어야 한다.
+IXIC_HISTORY_PERIOD = "25y"
+
 # 테마 ETF 41개 **1분봉**을 몇 초 동안 다시 안 받나 (2026-08-21 상하님 지시 —
 # "테마 ETF 1분봉도 줄여라").
 #
@@ -2524,7 +2530,8 @@ def find_breakout_pullback_stocks(
     # 일봉 전체 이력은 하루에 한 번만 늘어난다. 10분마다 다시 받던 것을 여섯
     # 시간으로 늘린다(2026-08-21) — 같은 날 두 번째 조회부터는 그냥 캐시를 쓴다.
     market_frames, market_meta = loader(
-        ("^IXIC",), period="max", interval="1d", ttl_seconds=IXIC_HISTORY_TTL
+        ("^IXIC",), period=IXIC_HISTORY_PERIOD, interval="1d",
+        ttl_seconds=IXIC_HISTORY_TTL
     )
     ixic = _trim_index_history(market_frames.get("^IXIC"))
     if ixic is None or getattr(ixic, "empty", True):
@@ -2745,7 +2752,8 @@ def breakout_market_state() -> dict:
     """US_SWING_V1의 IXIC 조정→이전 ATH 회복 MARKET GATE."""
     try:
         daily, _meta = _download_cached(
-            ("^IXIC",), period="max", interval="1d", ttl_seconds=IXIC_HISTORY_TTL
+            ("^IXIC",), period=IXIC_HISTORY_PERIOD, interval="1d",
+            ttl_seconds=IXIC_HISTORY_TTL
         )
         frame = _trim_index_history(daily.get("^IXIC"))
         completed = _last_completed_us_date(frame)
