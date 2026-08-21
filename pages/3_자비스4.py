@@ -1575,8 +1575,6 @@ def _leader_table_html(leaders: list[dict], selected_code: str | None) -> str:
 # 아래 손톱그림 셋의 높이와 위 큰 차트의 높이. 미국테마(자비스3)와 같은 값이다
 # (2026-08-07 상하님 지시로 미국에 넣은 것을 한국에도 맞춘다).
 THUMB_CHART_HEIGHT = 108
-BIG_CHART_HEIGHT = 430
-_CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}
 
 
 # 겨자색 상자에서 굵게 뽑을 말들(2026-08-07, 미국테마와 같은 규칙).
@@ -2236,8 +2234,7 @@ def _render_guest_stock_charts(code: str, panel: str) -> None:
     ):
         return
     st.caption("주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
-               "일봉 거래량은 위 큰 차트가 일봉일 때 그 아래에 표시됩니다. "
-               "아래 작은 그림 위의 ‘일봉 · 주봉 · 월봉’을 누르면 맨 위 큰 차트가 바뀝니다.")
+               "거래량은 일봉 아래에 함께 표시됩니다.")
     chart_bundle = j4data.get_chart_bundle(code)
     if chart_bundle.get("ok"):
         _render_chart_bundle_body(chart_bundle, panel)
@@ -2246,39 +2243,25 @@ def _render_guest_stock_charts(code: str, panel: str) -> None:
     _section_close(f"j4_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
 
 
-def _pick_bundle_chart(state_key: str, timeframe: str) -> None:
-    st.session_state[state_key] = timeframe
-
-
 def _render_chart_bundle_body(chart_bundle: dict, panel: str) -> None:
-    """큰 차트 한 장을 위에, 고르는 손톱그림 셋을 아래에 (2026-08-07).
+    """일봉·주봉·월봉 셋을 나란히 그린다.
 
-    미국테마(자비스3)에 넣은 것을 한국에도 그대로 맞춘다. 셋을 나란히 크게 그리면
-    화면이 길고 정작 보고 싶은 하나가 작다. 폭은 셋이 고르게 나눠 갖고, 작게 보이는
-    것은 높이(108px)로만 만든다.
+    **맨 위 「크게 보기」는 2026-08-21에 뺐다**(상하님 지시 — "일봉 크게 보기를
+    없애라, 밑에 보면 일봉이 또 있으니"). 같은 그림이 한 화면에 두 번 있었다.
+    큰 그림을 바꾸던 「일봉·주봉·월봉」 단추도 함께 뺐다 — 누를 데는 있는데
+    바뀌는 것이 없으면 화면이 거짓말을 한다. 미국테마와 같은 모양이다.
+
+    거래량은 큰 그림이 그리던 것을 **일봉 손톱그림 아래로 옮겼다.** 없애지 않는다.
+    폭은 셋이 고르게 나눠 갖고, 작게 보이는 것은 높이(108px)로만 만든다.
     """
-    big_key = f"j4_bundle_big_{panel}"
-    big = st.session_state.get(big_key) or "일봉"
-    payload = chart_bundle["charts"].get(big, {})
-    st.markdown(f"<div class='j4-chart-title'>{big} — 크게 보기</div>",
-                unsafe_allow_html=True)
-    if payload.get("ok"):
-        st.altair_chart(
-            _price_chart(payload, include_volume=big == "일봉", height=BIG_CHART_HEIGHT),
-            width="stretch", theme="streamlit",
-        )
-    else:
-        st.warning(f"{big} 자료 없음")
     for timeframe, chart_column in zip(("일봉", "주봉", "월봉"), st.columns(3)):
         thumb = chart_bundle["charts"].get(timeframe, {})
         with chart_column:
-            st.button(("● " if timeframe == big else "") + timeframe,
-                      key=f"j4_bundle_pick_{panel}_{_CHART_KEY[timeframe]}",
-                      width="stretch",
-                      on_click=_pick_bundle_chart, args=(big_key, timeframe))
+            st.markdown(f"<div class='j4-chart-title'>{timeframe}</div>",
+                        unsafe_allow_html=True)
             if thumb.get("ok"):
                 st.altair_chart(
-                    _price_chart(thumb, include_volume=False,
+                    _price_chart(thumb, include_volume=timeframe == "일봉",
                                  height=THUMB_CHART_HEIGHT, compact=True),
                     width="stretch", theme="streamlit",
                 )

@@ -923,6 +923,11 @@ st.markdown(
     .j3-danta-title { color: #ff9d3b; font-weight: 800; }
     .j3-holo-cell .label { color: #9aa0aa; font-size: 0.85rem; }
     .j3-holo-cell .val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.2; text-shadow: 0 0 8px rgba(77,166,255,0.45); }
+    /* 숫자가 아니라 **말**이 들어가는 칸은 두 치수 낮춘다(2026-08-21 상하님 지시 —
+       "미국장 종가 확정 뒤 신규매수 관찰 글자 너무 크다"). 1.5rem으로 그리면
+       긴 말이 한 글자씩 줄바꿈되어 칸이 세로로 늘어난다. */
+    .j3-holo-cell .val .j3-holo-words { font-size: 1.05rem; line-height: 1.45;
+        font-weight: 800; }
     .j3-holo-corner { position: absolute; width: 14px; height: 14px; border-color: #4da6ff; }
     .j3-holo-corner.tl { top: 6px; left: 6px; border-top: 2px solid #4da6ff; border-left: 2px solid #4da6ff; }
     .j3-holo-corner.tr { top: 6px; right: 6px; border-top: 2px solid #4da6ff; border-right: 2px solid #4da6ff; }
@@ -1749,18 +1754,10 @@ def _render_day_price_row(metrics: dict) -> None:
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
 
-# 맨 위 큰 차트의 높이(2026-08-07 상하님 지시 "화면 위에 크게"). 아래 작은 셋은
-# 3분할이라 315px인데, 큰 것은 화면 전폭이므로 그 비율에 맞춰 키운다.
-BIG_CHART_HEIGHT = 430
-# 아래 손톱그림 셋의 높이. 상하님이 보여 준 지수 카드의 작은 그림(124×117)에
+# 일봉·주봉·월봉 셋의 높이. 상하님이 보여 준 지수 카드의 작은 그림(124×117)에
 # 맞춘 값이다(2026-08-07). 이보다 키우면 '적게 해 달라'던 지적으로 돌아간다.
+# **맨 위 큰 그림은 2026-08-21에 뺐다** — 같은 일봉이 한 화면에 두 번 있었다.
 THUMB_CHART_HEIGHT = 108
-_CHART_KEY = {"일봉": "daily", "주봉": "weekly", "월봉": "monthly"}
-
-
-def _pick_bundle_chart(state_key: str, timeframe: str) -> None:
-    """일봉·주봉·월봉 중 위에 크게 그릴 것을 고른다."""
-    st.session_state[state_key] = timeframe
 
 
 def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
@@ -4436,23 +4433,29 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             # **두 값이 한 칸에 들어가는 자리는 색으로 가른다**(2026-08-21 상하님
             # 지적 — "26년8.19 / 1거래일 숫자 구분이 안 되어 있다"). 앞뒤 색을
             # 다르게 주고 가운데 빗금은 흐리게 둬서 어디까지가 앞값인지 보이게 한다.
-            def _pair(left, left_color, right, right_color):
+            def _pair(left, left_color, right, right_color, right_words=False):
+                right_class = " class='j3-holo-words'" if right_words else ""
                 return (f"<span style='color:{left_color}'>{left}</span>"
                         "<span style='color:#6f757e; font-weight:600'> / </span>"
-                        f"<span style='color:{right_color}'>{right}</span>")
+                        f"<span{right_class} style='color:{right_color}'>{right}</span>")
 
             plan_cells = [
-                ("진입 관찰", str(plan.get("entry") or "—"), "#44f0a1"),
+                ("진입 관찰",
+                 f"<span class='j3-holo-words'>"
+                 f"{html.escape(str(plan.get('entry') or '—'))}</span>",
+                 "#44f0a1"),
                 ("최고가 넘은 날 / 그 뒤",
                  _pair(anchor, "#9dccff",
-                       f"{int(row.get('days_since_anchor') or 0)}거래일째", "#44f0a1"),
+                       f"{int(row.get('days_since_anchor') or 0)}거래일째", "#44f0a1",
+                       right_words=True),
                  "#e6e6e6"),
                 ("중요 / 보조 점수",
                  _pair(f"{float(row.get('core_score') or 0):.0f}/70", "#44f0a1",
                        f"{float(row.get('support_score') or 0):.0f}/30", "#ffb020"),
                  "#e6e6e6"),
                 ("눌림 / 손절",
-                 _pair(pullback_text, "#ffd23f", "앱이 안 정함", "#9aa0aa"),
+                 _pair(pullback_text, "#ffd23f", "앱이 안 정함", "#9aa0aa",
+                       right_words=True),
                  "#ffd23f"),
             ]
         elif mode == "crash":
