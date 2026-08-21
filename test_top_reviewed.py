@@ -332,7 +332,10 @@ class PageWiringTests(unittest.TestCase):
 
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
-            block = source.split("def _render_pullback_finder(")[1].split("\ndef ")[0]
+            marker = ("def _render_pullback_finder_body("
+                  if "def _render_pullback_finder_body(" in source
+                  else "def _render_pullback_finder(")
+            block = source.split(marker)[1].split("\ndef ")[0]
             self.assertIn(f'"{prefix}_pullback_open"', block,
                           f"{market} 눌림목이 다시 눌러도 안 접힌다")
 

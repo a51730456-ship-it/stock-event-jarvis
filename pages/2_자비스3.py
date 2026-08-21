@@ -3748,8 +3748,12 @@ def _render_top7_section(market: dict, ranking: dict) -> None:
     상세도 같이 넣어야 한다. 표만 묶으면 종목 이름을 눌러도 덩이 밖에 있는 상세가
     다시 안 그려져 아무 일도 안 일어난 것처럼 보인다.
     """
-    _render_top_reviewed(market, ranking)
-    _render_top_reviewed_detail(market, ranking)
+    try:
+        _render_top_reviewed(market, ranking)
+        _render_top_reviewed_detail(market, ranking)
+    finally:
+        # 이 덩이도 프래그먼트라 페이지 끝이 안 돌아간다 — 여기서 내려 준다.
+        scroll_to.run(st)
 
 
 def _kept_recently(key: str, seconds: float = 300) -> bool:
@@ -5646,6 +5650,24 @@ def _rerun_here() -> None:
 
 @st.fragment
 def _render_pullback_finder(market: dict, ranking: dict) -> None:
+    """상승장·급락 덩이. 그리고 **덩이 안에서 화면을 내려 준다.**
+
+    2026-08-21에 이 덩이를 프래그먼트로 묶으면서 종목을 눌러도 화면이 안
+    내려가게 만들었다(상하님 지적 — "선택종목 세부사항으로 자동으로 내려가야
+    되는데 또 변동 없다"). 화면 내려가기는 페이지 **맨 끝**에서 도는데,
+    프래그먼트만 다시 그리면 그 끝이 안 돌아간다.
+
+    그래서 덩이가 끝날 때 여기서 한 번 더 부른다. 자리 표시(anchor)는 이 안에서
+    이미 그려졌으므로 브라우저가 찾을 수 있다. 먼저 부르는 쪽이 표시를 지우므로
+    페이지 끝의 것과 두 번 내려가지 않는다.
+    """
+    try:
+        _render_pullback_finder_body(market, ranking)
+    finally:
+        scroll_to.run(st)
+
+
+def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     """상승장·급락 두 갈래와 그 상세를 **한 덩이로 묶는다** (2026-08-21).
 
     상하님 지적 — "상승장은 닫는 데도 8초 걸리는데 순위 9는 닫는 게 금방이다."

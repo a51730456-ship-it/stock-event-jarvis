@@ -55,7 +55,10 @@ class RowWidthTests(unittest.TestCase):
         """눌림목 표가 제일 컸다 — 13칸 × 15줄(2026-07-30 사용자 지시로 같이 줄임)."""
         for market, (path, _prefix) in PAGES.items():
             source = self._source(path)
-            block = source.split("def _render_pullback_finder(")[1].split("\ndef ")[0]
+            marker = ("def _render_pullback_finder_body("
+                  if "def _render_pullback_finder_body(" in source
+                  else "def _render_pullback_finder(")
+            block = source.split(marker)[1].split("\ndef ")[0]
             self.assertIn("row_widths = [widths[0], widths[1], sum(widths[2:])]", block,
                           f"{market} 눌림목 표가 아직 칸마다 요소를 만든다")
             self.assertIn("rest_widths = widths[2:]", block)
