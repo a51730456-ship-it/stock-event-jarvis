@@ -2852,6 +2852,12 @@ _FACTOR_HELP_CSS = """
 /* 항목 이름 — 민트. 표의 '심사 항목' 이름과 같은 글자다. */
 .j3fh-name { font-weight: 800; color: #6ee7b7; margin-bottom: .4rem; font-size: .97rem; }
 .j3fh-txt { line-height: 1.75; font-size: .92rem; }
+/* 배점표에서 내려온 '이 종목의 값' 한 줄 (2026-08-21 상하님 지시 —
+   "심사항목에 초록색 제목만 두고 나머지 흰색 내용 다 빼라").
+   표에서는 뺐지만 값 자체는 버리지 않는다 — 여기로 옮긴다. */
+.j3fh-now { line-height: 1.7; font-size: .92rem; color: #9aa0aa;
+    margin-top: .35rem; padding-top: .35rem;
+    border-top: 1px dashed rgba(255,255,255,0.14); }
 /* 소제목 — 연한 파랑. 항목마다 서너 개뿐이다. */
 .j3fh-h { color: #93c5fd; font-weight: 800; }
 /* 꼭 짚을 한 마디 — 노랑. **항목당 한두 곳만.** 남발하면 아무것도 안 보인다. */
@@ -3107,7 +3113,8 @@ def _factor_help_body(name) -> str:
     return ""
 
 
-def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str:
+def _factor_table_html(factor_rows: str, total_row: str, names, key: str,
+                       notes=None) -> str:
     """배점표 한 벌 — 표 + 제목 옆 '설명' + 총점 아래 설명 창을 **한 덩어리로** 만든다.
 
     상하님 — "제목 심사항목 옆에 넣으라고." · "버튼 안눌린다."
@@ -3119,8 +3126,15 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str
     설명이 있는 항목이 하나도 없으면 표만 돌려준다 — 열 것이 없는데 '설명'만
     보이면 상하님이 없는 것을 찾으시게 된다.
     """
-    picked = [(str(name), _factor_help_body(name)) for name in names or ()]
-    picked = [(name, body) for name, body in picked if body]
+    # ``notes``는 배점표에 붙어 있던 '이 종목의 값' 줄이다. 표에서는 뺐고
+    # (2026-08-21 상하님 지시 — "초록색 제목만 두고 나머지 흰색 내용 다 빼라")
+    # 값은 여기 설명 창으로 내린다. 버리면 왜 이 점수인지가 화면에서 사라진다.
+    names = [str(name) for name in (names or ())]
+    note_list = [str(note or "").strip() for note in (notes or ())]
+    note_list += [""] * (len(names) - len(note_list))
+    picked = [(name, _factor_help_body(name), note)
+              for name, note in zip(names, note_list)]
+    picked = [item for item in picked if item[1] or item[2]]
     # 닫기 단추 색은 **그 파트의 갈래 색**이다(2026-08-14 상하님 지시). 갈래는 열쇠
     # 이름으로 안다 — j3_factor_help_pullback_breakout / …_crash. 테마 실시간·순위 7은
     # 갈래가 아니라 회색 그대로다(초록=상승장, 주황=급락이라는 약속이 흐려진다).
@@ -3134,8 +3148,10 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str) -> str
     )
     items = "".join(
         f"<div class='j3fh-item'><div class='j3fh-name'>{html.escape(name)}</div>"
-        f"<div class='j3fh-txt'>{body}</div></div>"
-        for name, body in picked
+        + (f"<div class='j3fh-txt'>{body}</div>" if body else "")
+        + (f"<div class='j3fh-now'>{html.escape(note)}</div>" if note else "")
+        + "</div>"
+        for name, body, note in picked
     )
     return (
         _FACTOR_HELP_CSS
@@ -4343,21 +4359,19 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             f"<span style='color:#ff5b5b'>({shown})</span></td>"
         )
 
-    # **심사 항목 칸에는 초록 이름만 둔다**(2026-08-21 상하님 지시 — "심사항목 밑에
-    # 하얀색 설명 빼라, 초록색 글자만 둬라는 말이다"). 이름 밑에 한 줄 설명을
-    # 붙이던 것을 걷어냈다 — 그 글은 제목 옆 「자세히」를 누르면 그대로 나온다.
+    # **심사 항목 칸에는 초록 이름만 둔다**(2026-08-21 상하님 지시 — 처음에는
+    # "심사항목 밑에 하얀색 설명 빼라", 그다음 급락 표를 보시고 "초록색 제목만
+    # 두고 나머지 흰색 내용 다 빼라"). 이름 옆에 붙던 값 줄까지 걷어냈다.
     #
-    # 이름 **옆**의 작은 글은 남긴다. 그것은 설명이 아니라 그 종목의 실제 값이라
-    # (상위 6.1% · -7.0% · 평균의 2.00배) 왜 이 점수인지가 그 숫자로 보인다.
+    # **값을 버리지는 않는다.** 그 줄(하루 평균 3.7%씩 · 오늘 목록 58개 중 26등
+    # 같은 것)은 제목 옆 「설명」 창으로 내린다. 없애 버리면 왜 이 점수인지가
+    # 화면 어디에도 안 남는다(CLAUDE.md 0-1 마 — 버린 것은 「설명」에 남긴다).
     parts_values = review.get("score_parts") or []
     notes_padded = factor_notes + [""] * len(factor_names)
     factor_rows = "".join(
-        f"<tr><td class='j3-fac-name'>{html.escape(name)}"
-        + (f" <span class='j3-muted' style='font-weight:600'>· {html.escape(note)}</span>"
-           if note else "")
-        + f"</td>{_fac_cell(part, maximum)}</tr>"
-        for name, part, maximum, note in zip(
-            factor_names, parts_values, factor_max, notes_padded)
+        f"<tr><td class='j3-fac-name'>{html.escape(name)}</td>"
+        f"{_fac_cell(part, maximum)}</tr>"
+        for name, part, maximum in zip(factor_names, parts_values, factor_max)
     )
     total_style = (
         "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
@@ -4413,6 +4427,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             _factor_table_html(
                 factor_rows, total_row, factor_names,
                 f"j3_factor_help_pullback_{mode}",
+                notes=notes_padded[:len(factor_names)],
             )
         )
         st.markdown(factor_html, unsafe_allow_html=True)

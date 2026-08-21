@@ -717,6 +717,23 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("st-key-j3lbtn_00", markdowns,
                          "옛 줄에 주황 표시가 남았다")
 
+    def test_crash_factor_table_keeps_only_the_green_name(self):
+        """배점표 「심사 항목」 칸에는 **초록 이름만** 둔다 (2026-08-21 상하님 지시).
+
+        상하님 — "급락 후 반등장 심사항목에 밑에 초록색 제목만 두고 나머지 흰색
+        내용 다 빼라." 값 줄은 버리지 않고 제목 옆 「설명」 창으로 내린다
+        (CLAUDE.md 0-1 마 — 버린 것은 「설명」에 남긴다).
+        """
+        app = self._run_with_mode("crash", "find_crash_rebound_stocks", _crash_result())
+        tables = [str(node.value) for node in app.markdown
+                  if "j3_factor_help_pullback_crash" in str(node.value)]
+        self.assertTrue(tables, "급락 배점표가 안 그려졌다")
+        for table in tables:
+            head, _, panel = table.partition("<div class='j3fh-p'>")
+            rows = head[head.find("<tbody>"):]
+            self.assertNotIn("j3-muted", rows, "배점표 줄에 회색 값 글이 남았다")
+            self.assertIn("j3fh-now", panel, "값 줄이 「설명」 창에서도 사라졌다")
+
     def test_my_stock_panel_searches_and_opens_detail(self):
         """맨 아래 '내 종목 현재상황'에서 이름을 치면 종목이 뜨고 상세가 열린다."""
         found = {"ok": True, "rows": [
