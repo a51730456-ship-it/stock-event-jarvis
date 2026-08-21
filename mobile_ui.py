@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026080910
+MODULE_REVISION = 2026082110
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -221,6 +221,15 @@ THEME_TABLE_CSS = """
 
 # 종목 상세·신호 카드 등 나머지 자리.
 CONTENT_CSS = """
+/* 「이 화면 설명 보기」의 배점 줄 — 폰에서 이름 칸이 10.4rem으로 못박혀 있어
+   설명 글이 들어갈 자리가 70px밖에 안 남았다. 그래서 "무엇을 / 보나 / — 이 /
+   회사 주"처럼 한두 글자씩 끊겨 내려갔다(2026-08-21 상하님 캡처).
+   폰에서는 줄을 접어, 첫 줄에 이름과 점수를 놓고 설명은 아랫줄 전체 폭으로 쓴다.
+   노트북·태블릿은 지금 그대로다 — 이 규칙은 600px 아래에서만 돈다. */
+.j3-weight { flex-wrap: wrap !important; row-gap: .1rem !important; }
+.j3-weight b { min-width: 0 !important; flex: 1 1 auto !important; }
+.j3-weight .j3-w-pt { flex: 0 0 auto !important; }
+.j3-weight .j3-w-why { flex: 1 1 100% !important; line-height: 1.55 !important; }
 /* '이 테마 기법에 대한 설명' 단추 — 폰에서 글자만 줄여 화면 밖으로 안 밀리게 한다.
    단추 모양 자체는 method_help.py에 있고, 폰 규칙만 규칙 12에 따라 여기 둔다. */
 div[class*="st-key-jarvis_method_help"] button p { font-size: .86rem !important; }
