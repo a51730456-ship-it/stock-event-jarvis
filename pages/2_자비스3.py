@@ -277,6 +277,9 @@ st.markdown(
     .j3-reason-mustard .j3-mn-up { color: #4fb8ff; font-weight: 900; }
     .j3-reason-mustard .j3-mn-down { color: #ff4d4f; font-weight: 900; }
     .j3-reason-mustard .j3-mn-key { color: #ffd479; font-weight: 900; }
+    /* 점수(66.0/70)는 **초록**이다 — 오르내림(파랑·빨강)·중요한 말(노랑)과
+       한눈에 갈라진다(2026-08-21 상하님 지시). */
+    .j3-reason-mustard .j3-mn-score { color: #44f0a1; font-weight: 900; }
     .j3-chart-heading { margin-top: 1.6rem; font-size: 1.15rem; font-weight: 800; color: #e6e6e6; }
     .j3-theme-badge { display: inline-block; background: rgba(255,176,32,0.16); color: #ffb020; border: 1px solid #ffb020; border-radius: 0.5rem; padding: 0.15rem 0.7rem; font-weight: 800; font-size: 1.05rem; margin-right: 0.4rem; }
     /* 제목은 한 줄로 세우고 내용은 그 아래에 둔다(2026-08-06 사용자 지시 — 제목
@@ -1081,7 +1084,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082160
+_REQUIRED_J3_REVISION = 2026082180
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1136,6 +1139,9 @@ _backnav_closed = back_nav.sync(st)
 # 여기 없는 말은 보통 굵기로 둔다 — 다 굵으면 아무것도 강조되지 않는다.
 _MUSTARD_NUMBER = re.compile(r"[+\-−]\d+(?:[.,]\d+)?%")
 _MUSTARD_HOLD = re.compile(r"\d+거래일 뒤 종가")
+# **점수도 뽑아 준다**(2026-08-21 상하님 지시 "점수와 프로테이지 색깔 구분").
+# 66.0/70 · 17.0/30 · 83.0/100 꼴을 초록으로 굵게 칠한다.
+_MUSTARD_SCORE = re.compile(r"\d+(?:\.\d+)?/\d+")
 _MUSTARD_KEYS = (
     "그날 낙폭으로 정합니다",
     "다음 거래일 시가",
@@ -1143,6 +1149,9 @@ _MUSTARD_KEYS = (
     "손절가는 없습니다",
     # 2026-08-12 — 파는 시점을 앱이 정하지 않는다는 말이 눈에 띄어야 한다.
     "파는 시점은 규칙에 없습니다",
+    # 2026-08-21 — 상승장 갈래에서 꼭 읽어야 하는 두 마디.
+    "지난 1년 최고가를 넘은 날",
+    "손절과 파는 시점은 앱이 정하지 않습니다",
 )
 
 
@@ -1165,6 +1174,8 @@ def _mustard_html(text) -> str:
     )
     safe = _MUSTARD_HOLD.sub(
         lambda match: f"<span class='j3-mn-key'>{match.group()}</span>", safe)
+    safe = _MUSTARD_SCORE.sub(
+        lambda match: f"<span class='j3-mn-score'>{match.group()}</span>", safe)
     for phrase in _MUSTARD_KEYS:
         safe = safe.replace(phrase, f"<span class='j3-mn-key'>{phrase}</span>")
     return safe

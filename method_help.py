@@ -376,7 +376,7 @@ US_TEXT = """
 <div class="mh-box-h">▸ 점수 100점 — 자격을 넘은 종목끼리 <u>차례만</u> 정합니다</div>
 <div class="mh-kv"><span class="mh-k">최근 3개월, 시장보다 강했나</span><span class="mh-v">25점</span></div>
 <div class="mh-kv"><span class="mh-k">최근 6개월, 꾸준히 강했나</span><span class="mh-v">25점</span></div>
-<div class="mh-kv"><span class="mh-k">신고가 뒤 알맞게 쉬었나</span><span class="mh-v">20점</span></div>
+<div class="mh-kv"><span class="mh-k">최고가에서 알맞게 내려왔나</span><span class="mh-v">20점</span></div>
 <div class="mh-kv"><span class="mh-k">같은 테마 다른 종목도 강한가</span><span class="mh-v">10점</span></div>
 <div class="mh-kv"><span class="mh-k">신고가 뚫던 날 거래가 늘었나</span><span class="mh-v">8점</span></div>
 <div class="mh-kv"><span class="mh-k">같은 테마에서 여럿이 함께 오르나</span><span class="mh-v">5점</span></div>

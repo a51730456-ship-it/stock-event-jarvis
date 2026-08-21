@@ -17,7 +17,7 @@ from typing import Iterable, Mapping
 import pandas as pd
 
 
-MODULE_REVISION = 2026082160
+MODULE_REVISION = 2026082180
 SCORE_MODEL_VERSION = "US_SWING_V1"
 
 
@@ -176,7 +176,9 @@ SCORE_EXPLANATIONS = {
         "confidence": "MEDIUM_HIGH",
     },
     "pullback": {
-        "title": "신고가 뒤 알맞게 쉬었나",
+        # **「쉬었나」가 아니라 「내려왔나」다**(2026-08-21 상하님). 이 항목이 재는
+        # 것은 값이 3~10% **떨어진 것**이다 — 옆으로 기는 기간조정이 아니다.
+        "title": "최고가에서 알맞게 내려왔나",
         "one_line": (
             "52주 신고가 후 너무 무너지지 않고 좋은 가격까지 정상적으로 눌렸는지 "
             "평가합니다."
@@ -419,9 +421,21 @@ def _as_timestamp(value) -> pd.Timestamp | None:
     return stamp.normalize()
 
 
+# 다듬어 놓은 표에 붙이는 표식. **한 번 다듬은 표를 또 다듬지 않기 위한 것**이다.
+# 2026-08-21 실측 — 스캔 한 번에 _clean_frame이 436번 불렸다(종목 200개인데).
+# 종목마다 본 계산에서 한 번, 신고가 계산에서 또 한 번 같은 표를 다듬고 있었다.
+# 그 두 번째가 스캔 시간의 절반이었다. 표식이 있으면 그대로 돌려준다.
+_CLEAN_FLAG = "_swing_clean"
+
+
 def _clean_frame(frame: pd.DataFrame | None, as_of=None) -> pd.DataFrame:
     if frame is None or not isinstance(frame, pd.DataFrame) or frame.empty:
         return pd.DataFrame()
+    if frame.attrs.get(_CLEAN_FLAG):
+        # 이미 다듬은 표다. 자를 날짜가 없거나 이미 그 날짜까지만 있으면 그대로 쓴다.
+        target = _as_timestamp(as_of)
+        if target is None or frame.index[-1] <= target:
+            return frame
     out = frame.copy()
     if isinstance(out.columns, pd.MultiIndex):
         out.columns = out.columns.get_level_values(-1)
@@ -440,6 +454,7 @@ def _clean_frame(frame: pd.DataFrame | None, as_of=None) -> pd.DataFrame:
     target = _as_timestamp(as_of)
     if target is not None:
         out = out[out.index <= target]
+    out.attrs[_CLEAN_FLAG] = True
     return out
 
 

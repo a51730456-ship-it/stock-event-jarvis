@@ -23,7 +23,7 @@ import pandas as pd
 
 import us_swing_selector as us_swing
 
-_REQUIRED_US_SWING_REVISION = 2026082160
+_REQUIRED_US_SWING_REVISION = 2026082180
 if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
     us_swing = importlib.reload(us_swing)
 
@@ -193,7 +193,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082160
+MODULE_REVISION = 2026082180
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1992,10 +1992,13 @@ def breakout_plan(row: dict) -> dict:
         "invalidation": None,
         "target": None,
         "buy_reason": (
-            f"52주 신고가 anchor 뒤 {int(days or 0)}거래일째, 종가 기준 "
-            f"{float(pullback or 0.0):.1f}% 눌림입니다. 중요 점수 {core:.1f}/70, "
-            f"보조 점수 {support:.1f}/30입니다. 총점은 승률이 아닙니다. "
-            "**손절과 파는 시점은 앱이 정하지 않습니다 — 상하님이 정하십니다.**"
+            # **「anchor」는 화면에 쓰지 않는다**(2026-08-21 상하님 물음 "anchor가 뭐냐").
+            # 눌림에는 −부호를 붙인다 — 그래야 화면이 붉은색으로 칠해 준다.
+            f"지난 1년 최고가를 넘은 날부터 {int(days or 0)}거래일째이고, "
+            f"종가가 그 최고가에서 -{float(pullback or 0.0):.1f}% 내려왔습니다. "
+            f"중요 점수 {core:.1f}/70 · 보조 점수 {support:.1f}/30입니다. "
+            "총점은 승률이 아닙니다. "
+            "손절과 파는 시점은 앱이 정하지 않습니다 — 상하님이 정하십니다."
         ),
     }
 
