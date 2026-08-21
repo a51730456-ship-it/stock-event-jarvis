@@ -986,6 +986,19 @@ US_BATCH_TTL = 1800.0
 # 일봉 전체 이력은 하루에 한 번만 늘어난다. 여섯 시간이면 넉넉하다.
 IXIC_HISTORY_TTL = 21600.0
 
+# 테마 ETF 41개 **1분봉**을 몇 초 동안 다시 안 받나 (2026-08-21 상하님 지시 —
+# "테마 ETF 1분봉도 줄여라").
+#
+# 이것이 단추를 누를 때마다 남던 마지막 기다림이다. 45초로 두었더니 45초가
+# 지난 뒤 아무 단추나 누르면 41종목 분봉을 다시 받았다(노트북 0.9초, 온라인은
+# 코어가 적어 3~4초). 3분으로 늘린다.
+#
+# **무엇이 늦어지나** — 테마 순위표의 '당일' 등락률과 계산 시각이 최대 3분 전
+# 값이 된다. 순위를 만드는 네 항목(20일선 위·5일 오른·20일 오른·고점 대비)은
+# 일봉으로 재므로 이 창과 상관없다. 종목 상세와 대장주의 현재가는 여기가 아니라
+# 자기 분봉을 따로 받으므로 그대로다.
+THEME_LIVE_TTL = 180.0
+
 
 def get_theme_rankings() -> dict:
     """테마 20개 순위. 20초 안에 또 부르면 방금 센 것을 그대로 돌려준다.
@@ -1013,7 +1026,7 @@ def _compute_theme_rankings() -> dict:
         _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=US_BATCH_TTL
     )
     intraday, live_meta = _download_cached(
-        live_tickers, period="1d", interval="1m", ttl_seconds=45, prepost=True
+        live_tickers, period="1d", interval="1m", ttl_seconds=THEME_LIVE_TTL, prepost=True
     )
     spy = _series_metrics(daily.get("SPY"), intraday.get("SPY"))
     if not spy.get("ok"):
