@@ -81,7 +81,17 @@ def _seen_labels(box: str) -> list:
 
 
 def _paint(box: str) -> str:
-    """구간명과 구별되도록 과거·참고 줄의 이름을 제목과 같은 스카이블루로."""
+    """구간명과 구별되도록 과거·참고 줄의 이름에 색을 준다.
+
+    **'전일 종가'만 보라색 굵게**다(2026-08-21 상하님 지시). 나머지 과거·참고
+    줄은 지금까지대로 제목과 같은 스카이블루다.
+    """
+    for label in tuple(m for m in _seen_labels(box) if m.startswith("전일 종가")):
+        box = box.replace(
+            f"<span class='fg-hist-label'>{label}</span>",
+            f"<span class='fg-hist-label' style='color:{gauge_ui.PREV_PURPLE};"
+            f" font-weight:800'>{label}</span>",
+        )
     for label in ("전일 시장국면", "지금 (참고)") + tuple(
             m for m in _seen_labels(box) if m.startswith("전일 ·")):
         box = box.replace(
@@ -107,8 +117,12 @@ def _before_previous_row(overview: dict) -> tuple | None:
     score = float(before["score"])
     regime = before.get("regime") or gauge_ui.zone_of(score, ZONES)[0]
     date = str(before.get("trade_date") or "")
-    label = "전일" + (f" · {date[5:].replace('-', '.')}" if len(date) >= 10 else "")
-    return (label, regime, f"{score:.0f}점", color_of(score), False)
+    # 이름을 공포·탐욕 상자와 **같은 말**로 맞춘다(2026-08-21 상하님 지시 —
+    # "전일·08.19를 전일 종가"). 날짜는 남긴다 — 2026-08-19에 날짜가 없어서
+    # 하루가 통째로 사라진 것처럼 보인다고 지적하신 자리다.
+    label = "전일 종가" + (f" · {date[5:].replace('-', '.')}" if len(date) >= 10 else "")
+    # 이 줄만 보라색이다. 위 다섯 줄은 구간 색(빨강~초록)을 그대로 쓴다.
+    return (label, regime, f"{score:.0f}점", gauge_ui.PREV_PURPLE, False)
 
 
 def regime_box_html(overview: dict | None, *, title: str = "시장 국면",

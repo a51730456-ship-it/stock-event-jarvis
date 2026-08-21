@@ -192,8 +192,9 @@ class FrozenGaugeDateMarkTests(unittest.TestCase):
         html = rg.regime_box_html(self._overview(), freeze=True)
         self.assertIn("08.18 마감", html)
         self.assertNotIn(">지금<", html)
-        # 아래 줄은 그대로 '전일 · 08.17'이어야 한다.
-        self.assertIn("전일 · 08.17", html)
+        # 아래 줄은 그대로 날짜를 달고 있어야 한다. 이름은 2026-08-21에
+        # 공포·탐욕 상자와 같은 '전일 종가'로 맞췄다.
+        self.assertIn("전일 종가 · 08.17", html)
 
     def test_live_box_still_says_now(self):
         """한국테마는 실시간이라 '지금'이 맞다 — 같이 바뀌면 안 된다."""

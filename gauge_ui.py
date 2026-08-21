@@ -14,12 +14,17 @@ from __future__ import annotations
 import html
 import math
 
-MODULE_REVISION = 2026081270
+MODULE_REVISION = 2026082110
 
 # 제목 색 — 세 박스를 눈으로 구별하기 위한 것.
 TITLE_BLUE = "#4da6ff"
 TITLE_GREEN = "#44f0a1"
 TITLE_GREEN_DEEP = "#22c55e"
+# 게이지 오른쪽 **맨 아랫줄('전일 종가')** 전용 보라색 (2026-08-21 상하님 지시 —
+# "전일 부분, 즉 맨 밑에 보라색으로"). 이 줄은 위 다섯 구간과 성격이 달라
+# (구간이 아니라 어제 값이라) 색으로 갈라 둔다. 알약 글자는 어두운 색이라
+# 이 보라 위에서도 읽힌다.
+PREV_PURPLE = "#c084fc"
 
 _WIDTH = 320
 # 점수 글자는 바늘 아래에 둔다 — 반원 안에 넣으면 바늘이 숫자를 가로지른다.

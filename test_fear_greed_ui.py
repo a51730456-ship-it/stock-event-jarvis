@@ -69,6 +69,17 @@ class CardTests(unittest.TestCase):
         self.assertIn("1주 전", html)
         self.assertIn("1년 전", html)
 
+    def test_previous_close_row_is_purple(self):
+        """맨 아랫줄('전일 종가')만 보라색이다 (2026-08-21 상하님 지시).
+
+        위 셋(1주·1개월·1년 전)은 지금까지대로 구간 색을 쓴다.
+        """
+        html = fg.card_html(self._data())
+        self.assertIn("color:#c084fc; font-weight:800'>전일 종가", html)
+        self.assertIn("<span class='fg-hist-value' style='background:#c084fc'>45", html)
+        # 1주 전(55 = 탐욕 구간)은 보라가 아니어야 한다.
+        self.assertIn("<span class='fg-hist-label'>1주 전</span>", html)
+
     def test_card_says_it_is_not_used_for_judgement(self):
         """점수·판정에 반영하지 않는다는 사실이 화면에 남아 있어야 한다."""
         self.assertIn("판정에는 반영하지 않습니다", fg.card_html(self._data()))

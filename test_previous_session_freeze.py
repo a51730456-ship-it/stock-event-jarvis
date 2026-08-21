@@ -170,7 +170,9 @@ class RegimeGaugeFreezeTests(unittest.TestCase):
         self.assertIn("55", head, "얼렸는데 바늘이 마감값에 안 서 있다")
         # **아래 줄은 '지금'이 아니라 '전일'이다**(2026-08-13 상하님 지적).
         # 얼려 놓고 그 밑에 실시간을 두면 결국 한 줄이 계속 움직인다.
-        self.assertIn("전일 · 08.11", html)
+        # 2026-08-21에 이름을 '전일 종가'로 맞췄다(공포·탐욕 상자와 같은 말).
+        # 날짜는 그대로 붙어 있어야 한다.
+        self.assertIn("전일 종가 · 08.11", html)
         self.assertIn("33점", html)
         self.assertNotIn("지금 (참고)", html, "실시간 줄이 되살아났다")
         self.assertIn("마감 지침", html)
@@ -231,8 +233,12 @@ class BeforePreviousRowTests(unittest.TestCase):
         import regime_gauge_ui
 
         box = regime_gauge_ui.regime_box_html(self._overview(), freeze=True)
-        self.assertIn("전일 · 08.11", box)
+        self.assertIn("전일 종가 · 08.11", box)
         self.assertIn("55점", box, "전일 점수가 그대로 실려야 한다")
+        # 이 줄만 보라색이다(2026-08-21 상하님 지시). 이름·가운데 글·알약 셋 다.
+        self.assertIn("color:#c084fc; font-weight:800'>전일 종가 · 08.11", box)
+        self.assertIn("<span class='fg-hist-zone' style='color:#c084fc'>", box)
+        self.assertIn("<span class='fg-hist-value' style='background:#c084fc'>55점", box)
         self.assertNotIn("지금 (참고)", box, "실시간 줄이 되살아났다")
         # 바늘은 여전히 직전 완료 장(8/12)에 있어야 한다.
         self.assertIn("100", box)
@@ -244,7 +250,7 @@ class BeforePreviousRowTests(unittest.TestCase):
         overview = self._overview()
         overview["before_previous_market"] = None
         box = regime_gauge_ui.regime_box_html(overview, freeze=True)
-        self.assertNotIn("전일 ·", box)
+        self.assertNotIn("전일 종가", box)
         self.assertIn("상승 여건 양호", box)
 
     def test_market_overview_carries_the_day_before(self):

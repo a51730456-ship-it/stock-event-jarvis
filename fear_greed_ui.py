@@ -57,6 +57,10 @@ def _history_rows(data: dict):
         if value is None:
             continue
         name, color = zone_of(value)
+        # 맨 아랫줄('전일 종가')만 보라색이다(2026-08-21 상하님 지시 — "전일
+        # 부분, 즉 맨 밑에 보라색으로"). 시장 국면 상자와 같은 처리다.
+        if title == "전일 종가":
+            color = gauge_ui.PREV_PURPLE
         rows.append((title, name, f"{float(value):.0f}", color, False))
     return rows
 
@@ -79,11 +83,18 @@ def box_html(data: dict | None, *, title: str = "공포·탐욕 지수") -> str:
         title_color=gauge_ui.TITLE_BLUE,
         note="마지막 정상값" if ok and data.get("stale") else "",
     )
-    # '전일 종가'만 제목과 같은 스카이블루로(2026-08-06 사용자 지시).
-    # 시장 국면 상자의 '전일 시장국면'과 같은 처리다.
+    return _paint_previous(box)
+
+
+def _paint_previous(box: str) -> str:
+    """'전일 종가' 이름만 보라색 굵게로(2026-08-21 상하님 지시).
+
+    2026-08-06에는 스카이블루였다. 시장 국면 상자의 '전일 종가'와 같은 색이다.
+    작은 상자와 큰 카드가 **같은 색**이어야 해서 여기 한 곳에 둔다.
+    """
     return box.replace(
         "<span class='fg-hist-label'>전일 종가</span>",
-        f"<span class='fg-hist-label' style='color:{gauge_ui.TITLE_BLUE};"
+        f"<span class='fg-hist-label' style='color:{gauge_ui.PREV_PURPLE};"
         " font-weight:800'>전일 종가</span>",
     )
 
@@ -99,7 +110,7 @@ def card_html(data: dict | None, *, title: str = "공포·탐욕 지수") -> str
         note = "지금은 값을 받아오지 못했습니다. 잠시 뒤 다시 조회됩니다."
     elif data.get("stale"):
         note += " 지금은 마지막 정상값을 보여주고 있습니다."
-    return (
+    return _paint_previous(
         "<div class='fg-card'>"
         f"<div class='fg-title'>{html.escape(title)}</div>"
         "<div class='fg-body'>"
