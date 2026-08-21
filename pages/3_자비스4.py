@@ -771,7 +771,7 @@ import us_index_data
 # ── 폰·태블릿 뒤로가기 (2026-08-21 상하님 지시) ─────────────────────────────
 # 상하님 — "한번 누르면 방금 화면 전으로 가게 하고 두번 누르면 메인메뉴로."
 # 구역을 그리기 **전에** 불러야 한다 — 아래 화면들이 열림/닫힘 값을 읽기 때문이다.
-back_nav.sync(st)
+_backnav_closed = back_nav.sync(st)
 
 _REQUIRED_REGIME_GAUGE_REVISION = 2026081210
 if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
@@ -4264,6 +4264,9 @@ def main() -> None:
     )
     # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).
     st.markdown(scroll_to.CSS, unsafe_allow_html=True)
+    # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
+    # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
+    scroll_to.anchor(st, "top")
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
     method_help.render(st, "KR")
     # 맨 위 제목은 뺐다(2026-07-30 사용자 지시) — 사이드바에 같은 이름이 있고
@@ -4273,6 +4276,10 @@ def main() -> None:
     except Exception as exc:
         st.error(f"자비스4 기록 테이블 준비 실패: {_safe_error_text(exc)}")
 
+    # 뒤로가기로 무언가 닫혔으면 화면을 맨 위로 올린다 — 상하님이 아래까지
+    # 내려가 보시던 자리에 그대로 서 있으면 아무 일도 안 일어난 것처럼 보인다.
+    if _backnav_closed:
+        scroll_to.request(st, "top")
     _render_market_overview()
     market = st.session_state.get("j4_market_overview") or {"ok": False, "score": 0, "regime": "자료부족"}
     st.divider()

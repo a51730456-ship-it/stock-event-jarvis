@@ -1263,8 +1263,12 @@ def _parse_yahoo_1m_chart(payload: dict, *, symbol: str, label: str) -> dict:
     }
 
 
-def _fetch_yahoo_1m_chart(symbol: str, label: str) -> dict:
-    """Yahoo Chart API의 단일 1분봉 응답을 가져온다."""
+def _fetch_yahoo_1m_chart(symbol: str, label: str, interval: str = "1m") -> dict:
+    """Yahoo Chart API의 단일 분봉 응답을 가져온다.
+
+    `interval`은 2026-08-21에 붙였다(상하님 지시 — 미국테마의 나스닥100 선물을
+    5분봉으로). **기본값은 1분봉 그대로**라 한국테마 화면은 하나도 안 바뀐다.
+    """
     encoded_symbol = requests.utils.quote(symbol, safe="")
     url = _YAHOO_CHART_URL.format(symbol=encoded_symbol)
     last_error = None
@@ -1273,7 +1277,7 @@ def _fetch_yahoo_1m_chart(symbol: str, label: str) -> dict:
             response = _http_session().get(
                 url,
                 params={
-                    "interval": "1m",
+                    "interval": str(interval or "1m"),
                     # 1d로 받으면 뉴욕 자정 이후만 온다. 세션 전체를 그리려면
                     # 이틀치를 받아 위 _session_start_stamp로 잘라야 한다.
                     "range": "2d",
@@ -1292,17 +1296,22 @@ def _fetch_yahoo_1m_chart(symbol: str, label: str) -> dict:
     raise RuntimeError(f"{label} 1분봉 조회 실패: {last_error}")
 
 
-def get_us_futures_live(*, ttl_seconds: float = 60) -> dict:
-    """나스닥100·S&P500 선물의 동일 응답 기반 최신 1분봉 값과 당일 차트."""
+def get_us_futures_live(*, ttl_seconds: float = 60, interval: str = "1m") -> dict:
+    """나스닥100·S&P500 선물의 동일 응답 기반 최신 분봉 값과 당일 차트.
+
+    `interval`과 `ttl_seconds`는 부르는 쪽이 정한다. **기본값은 1분봉·60초라
+    한국테마는 지금까지와 똑같다.** 미국테마는 2026-08-21부터 5분봉으로 부른다
+    (상하님 — "1분마다 로딩하니 너무 자주 로딩하는듯하다").
+    """
 
     def _produce():
         out = {}
         for symbol, label in (("NQ=F", "나스닥100 선물"), ("ES=F", "S&P500 선물")):
-            out[symbol] = _fetch_yahoo_1m_chart(symbol, label)
+            out[symbol] = _fetch_yahoo_1m_chart(symbol, label, interval=interval)
         return out
 
     try:
-        values, stale = _cached("us_futures", ttl_seconds, _produce)
+        values, stale = _cached(f"us_futures_{interval}", ttl_seconds, _produce)
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
     return {"ok": True, "stale": stale, "values": values}

@@ -1120,7 +1120,7 @@ if (
 # ── 폰·태블릿 뒤로가기 (2026-08-21 상하님 지시) ─────────────────────────────
 # 상하님 — "한번 누르면 방금 화면 전으로 가게 하고 두번 누르면 메인메뉴로."
 # 구역을 그리기 **전에** 불러야 한다 — 아래 화면들이 열림/닫힘 값을 읽기 때문이다.
-back_nav.sync(st)
+_backnav_closed = back_nav.sync(st)
 
 
 # 겨자색 상자에서 굵게 뽑을 말들(2026-08-07 상하님 지시 "중요부분만 진하게").
@@ -1869,9 +1869,12 @@ def _intraday_chart(payload: dict, height: int = 200):
     return line
 
 
-@st.fragment(run_every=60)
+# **5분마다 갱신한다**(2026-08-21 상하님 지시). 1분마다 돌면 화면이 쉴 새 없이
+# 다시 그려지고, 그때마다 지수·선물·공포탐욕을 다시 받는다. 선물도 5분봉이라
+# 1분 간격으로 볼 새 값이 없다.
+@st.fragment(run_every=300)
 def _render_market_overview() -> None:
-    """시장판단은 페이지 최상단에서 1분마다 독립 갱신한다."""
+    """시장판단은 페이지 최상단에서 5분마다 독립 갱신한다."""
     overview = j3data.get_market_overview()
     st.session_state["j3_market_overview"] = overview
     # 제목은 **절반 크기**다(2026-08-21 상하님 지시). st.subheader는 28px인데
@@ -1882,7 +1885,7 @@ def _render_market_overview() -> None:
     )
     if not overview.get("ok"):
         st.error(f"시장 자료 조회 실패: {_safe_error_text(overview.get('error'))}")
-        st.caption("네트워크가 복구되면 1분 자동 갱신에서 다시 시도합니다.")
+        st.caption("네트워크가 복구되면 5분 자동 갱신에서 다시 시도합니다.")
         return
 
     phase = overview.get("phase", {}).get("label", "—")
@@ -1984,7 +1987,7 @@ def _render_market_overview() -> None:
     stale_text = " · 마지막 정상 자료 표시 중" if overview.get("stale") else ""
     st.caption(
         f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'}{stale_text} · "
-        "1분 자동 갱신 · 거래소 정식 실시간 피드가 아니므로 지연될 수 있음"
+        "5분 자동 갱신 · 거래소 정식 실시간 피드가 아니므로 지연될 수 있음"
     )
 
 
@@ -2052,7 +2055,9 @@ def _us_futures_cell() -> str:
 
     모듈이 없거나 조회가 실패해도 **화면을 죽이지 않는다** — 칸만 '—'로 둔다.
     """
-    label = "나스닥100 선물 (1분봉)"
+    # **5분봉이다**(2026-08-21 상하님 지시 — "1분마다 로딩하니 너무 자주 로딩하는
+    # 듯하다"). 한국테마는 1분봉 그대로다 — 부르는 쪽이 정하게 해 두었다.
+    label = "나스닥100 선물 (5분봉)"
     try:
         import jarvis4_data as j4data
     except Exception:
@@ -2061,7 +2066,14 @@ def _us_futures_cell() -> str:
     if fetcher is None:
         return _top_metric(label, "—", "#9aa0aa", "모듈 갱신 대기")
     try:
-        futures = fetcher()
+        # 5분봉이므로 공책도 5분 동안 쓴다 — 1분마다 다시 받을 까닭이 없다.
+        futures = fetcher(ttl_seconds=300, interval="5m")
+    except TypeError:
+        # 옛 모듈이 프로세스에 남아 있으면 인자를 모른다 — 그때는 예전처럼 부른다.
+        try:
+            futures = fetcher()
+        except Exception:
+            return _top_metric(label, "—", "#9aa0aa", "자료 부족")
     except Exception:
         return _top_metric(label, "—", "#9aa0aa", "자료 부족")
     if not futures.get("ok"):
@@ -4832,27 +4844,13 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     else:
         st.error(market_line + " — 점수가 높아도 오늘은 새로 살 후보를 내지 않습니다.")
 
-    if result.get("snapshot_saved"):
-        st.caption("오늘 찾은 값을 그대로 저장해 두었습니다 — 나중에 맞았는지 다시 봅니다.")
-    elif result.get("snapshot_saved") is False:
+    # 저장 알림과 기준일·명부 줄은 2026-08-21에 뺐다(상하님 지시 — "설명 없애라").
+    # 그 값들은 아래 표가 이미 보여준다(정식 후보 수 · 관찰 수 · 종목별 기준일).
+    # **빈 자리를 남기지 않는다** — 그리는 코드를 통째로 지워 아래 칸이 위로 붙는다.
+    # 저장이 **실패**했을 때만 알린다. 조용히 넘어가면 그날 자료가 빈 줄로 남는다.
+    if result.get("snapshot_saved") is False:
         st.warning("후보는 다 찾았는데 그날 값을 저장하지 못했습니다: "
                    f"{result.get('snapshot_error') or '원인을 확인해야 합니다'}")
-
-    st.markdown(
-        "<div class='j3-pull-stats'>"
-        f"기준일 <b>{html.escape(str(result.get('date') or '—'))}</b> · "
-        f"명부 <b>{html.escape(_UNIVERSE_TEXT.get(str(result.get('universe_mode') or ''), str(result.get('universe_mode') or '—')))}</b> · "
-        f"전체 <b>{int(result.get('universe_count') or 0):,}개</b> → "
-        f"그날 일봉이 있는 <b>{int(result.get('data_count') or 0):,}개</b> · "
-        f"강함을 잰 종목 <b>{int(result.get('rs_cross_section_60') or 0):,}/"
-        f"{int(result.get('rs_cross_section_120') or 0):,}개</b> → "
-        f"정식 후보 <b class='j3-green'>{len(primary):,}개</b> · "
-        f"관찰만 <b>{len(watch):,}개</b>"
-        + ("".join(f"<div class='j3-reason-sub'>{html.escape(note)}</div>"
-                   for note in notes) if notes else "")
-        + "</div>",
-        unsafe_allow_html=True,
-    )
 
     if _section_toggle(
         "📘 이 화면 설명 보기 (통과조건 여섯 · 중요 70점 · 거드는 30점)",
@@ -6029,6 +6027,9 @@ def main() -> None:
     )
     # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).
     st.markdown(scroll_to.CSS, unsafe_allow_html=True)
+    # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
+    # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
+    scroll_to.anchor(st, "top")
     # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
     # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
     method_help.render(st, "US")
@@ -6039,6 +6040,10 @@ def main() -> None:
     except Exception as exc:
         st.error(f"자비스3 기록 테이블 준비 실패: {_safe_error_text(exc)}")
 
+    # 뒤로가기로 무언가 닫혔으면 화면을 맨 위로 올린다 — 상하님이 아래까지
+    # 내려가 보시던 자리에 그대로 서 있으면 아무 일도 안 일어난 것처럼 보인다.
+    if _backnav_closed:
+        scroll_to.request(st, "top")
     _render_market_overview()
     market = st.session_state.get("j3_market_overview") or {"ok": False, "score": 0, "regime": "자료부족"}
     st.divider()

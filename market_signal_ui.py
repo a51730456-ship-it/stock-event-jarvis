@@ -1804,11 +1804,9 @@ def render_us_market_signal_card():
         "margin:.25rem 0 .4rem; letter-spacing:-.01em'>🌐 미국장 시장 상태</div>",
         unsafe_allow_html=True,
     )
-    st.caption(
-        "선물·반도체 ETF·변동성·금리가 서로 같은 방향인지, 무엇이 먼저 움직였는지를 읽어줍니다. "
-        "미국은 장중 수급 공개 데이터가 없어 한국장과 판정 방식이 다릅니다."
-    )
-
+    # 제목 밑 설명 두 줄은 2026-08-21에 뺐다(상하님 지시). 아래 카드가 판정과
+    # 근거를 이미 다 적고 있어서, 그 위에 같은 말을 또 두면 화면만 길어졌다.
+    # **빈 자리를 남기지 않는다** — st.caption을 통째로 지워 칸이 위로 붙는다.
     if st.button("미국장 신호 다시 확인", key="us_signal_refresh"):
         with st.spinner("미국장 신호 확인 중..."):
             run_us_market_signal_check(force_refresh=True)
@@ -1840,12 +1838,10 @@ def render_us_market_signal_card():
         # **큰 글자부터 어느 날인지 밝힌다**(2026-08-12 상하님 지적 — 미국장이
         # 끝난 지 열한 시간인데 '당일 켜진 신호 6개'로 보였다). 완성 일봉으로
         # 잰 값이라 다음 마감까지 안 움직인다.
+        # 어느 날 값인지는 **카드 제목**이 그대로 말한다(아래 current_label_text —
+        # "직전 미국장 · 08.20"). 그 밑에 같은 말을 세 줄로 또 적던 것을
+        # 2026-08-21에 뺐다(상하님 지시).
         current_label_text = f"직전 미국장{' · ' + day if day else ''}"
-        st.caption(
-            f"이 판정은 **직전 완료 미국장 종가**{'(' + day + ')' if day else ''} 기준입니다 — "
-            "모든 항목을 **같은 거래일**의 완성 일봉으로 잽니다. 장중에 흔들리지 않습니다. "
-            "오른쪽 칸은 **그 하루 앞 장**이라 어제와 견줄 수 있습니다."
-        )
 
     render_market_signal_card(
         result,

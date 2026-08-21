@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """폰·태블릿 뒤로가기 (2026-08-21 상하님 지시).
 
-상하님 — "한번 누르면 방금 화면 전으로 가게 하고 두번 누르면 메인메뉴로."
+상하님 — "한번 누르면 밑으로 화면 내린 부분에서 바로 위로 가고,
+두번 누르면 앞에 메뉴로."
 
-진짜 브라우저 없이도 규칙을 굳혀 둔다. 주소와 세션 두 곳의 깊이가 어긋날 때
-무엇을 닫는지가 이 파일이 지키는 전부다.
+진짜 브라우저 없이도 규칙을 굳혀 둔다. **몇 번을 눌러야 앞 메뉴로 나가는지가
+언제나 같아야 한다**는 것이 이 파일이 지키는 전부다 — 상하님이 "어떨 때는 한 번만
+눌러도 메인 메뉴로 간다"고 하신 것이 그 어긋남이었다.
 """
 
 import unittest
@@ -21,75 +23,77 @@ class _FakeSt:
         self.session_state = {}
         self.query_params = _FakeQueryParams(query or {})
 
+    def go_back(self):
+        """브라우저 뒤로가기 — 주소가 한 칸 앞으로 돌아간다."""
+        self.query_params.pop("b", None)
+
 
 class BackNavTests(unittest.TestCase):
-    def test_first_screen_has_no_depth(self):
+    def test_first_screen_does_nothing(self):
         st = _FakeSt()
         self.assertEqual([], back_nav.sync(st))
-        self.assertEqual([], back_nav.stack(st))
+        self.assertNotIn("b", st.query_params)
 
-    def test_opening_a_section_writes_the_depth(self):
+    def test_opening_something_leaves_one_mark(self):
         st = _FakeSt()
         back_nav.opened(st, "j3_pullback_open")
         self.assertEqual("1", st.query_params["b"])
-        back_nav.opened(st, "j3_detail_open_pullback")
-        self.assertEqual("2", st.query_params["b"])
 
-    def test_opening_the_same_section_twice_does_not_stack(self):
-        """같은 구역을 여닫을 때마다 기록이 늘면 뒤로가기를 여러 번 눌러야 한다."""
+    def test_opening_more_does_not_add_another_mark(self):
+        """**칸은 하나만 쌓는다** — 안 그러면 몇 번 눌러야 나가는지 알 수 없다."""
         st = _FakeSt()
         back_nav.opened(st, "j3_pullback_open")
-        back_nav.opened(st, "j3_pullback_open")
-        self.assertEqual([["j3_pullback_open"]], back_nav.stack(st))
-        self.assertEqual("1", st.query_params["b"])
+        back_nav.opened(st, "j3_detail_open_pullback",
+                        "j3_intraday_open_pullback", "j3_bundle_open_pullback")
+        back_nav.opened(st, "j3_theme_rank_open")
+        self.assertEqual("1", st.query_params["b"], "기록이 여러 칸 쌓였다")
+        self.assertEqual(5, len(back_nav.open_keys(st)))
 
-    def test_one_press_closes_only_the_last_section(self):
-        """**한 번 누르면 방금 연 것만 닫힌다.**"""
+    def test_one_press_closes_everything_that_was_opened(self):
+        """**한 번 누르면** 열어 둔 것이 다 닫힌다 → 부르는 쪽이 화면을 맨 위로 올린다."""
         st = _FakeSt()
         back_nav.opened(st, "j3_pullback_open")
-        back_nav.opened(st, "j3_detail_open_pullback")
-        st.session_state["j3_pullback_open"] = True
-        st.session_state["j3_detail_open_pullback"] = True
-        # 뒤로가기 — 브라우저가 주소를 한 칸 얕게 되돌린다.
-        st.query_params["b"] = "1"
-        self.assertEqual(["j3_detail_open_pullback"], back_nav.sync(st))
-        self.assertFalse(st.session_state["j3_detail_open_pullback"])
-        self.assertTrue(st.session_state["j3_pullback_open"], "위 구역까지 닫혔다")
+        back_nav.opened(st, "j3_detail_open_pullback", "j3_bundle_open_pullback")
+        for key in back_nav.open_keys(st):
+            st.session_state[key] = True
 
-    def test_two_presses_leave_the_first_screen(self):
-        """**두 번 누르면 아무것도 안 열린 첫 화면**이 되고, 그다음이 메인이다."""
-        st = _FakeSt()
-        back_nav.opened(st, "j3_pullback_open")
-        back_nav.opened(st, "j3_detail_open_pullback")
-        st.session_state["j3_pullback_open"] = True
-        st.session_state["j3_detail_open_pullback"] = True
-        st.query_params["b"] = "1"
-        back_nav.sync(st)
-        st.query_params.pop("b")          # 주소가 …/자비스3으로 돌아왔다
-        self.assertEqual(["j3_pullback_open"], back_nav.sync(st))
-        self.assertFalse(st.session_state["j3_pullback_open"])
-        self.assertEqual([], back_nav.stack(st))
+        st.go_back()
+        closed = back_nav.sync(st)
+        self.assertEqual({"j3_pullback_open", "j3_detail_open_pullback",
+                          "j3_bundle_open_pullback"}, set(closed))
+        for key in closed:
+            self.assertFalse(st.session_state[key], key)
 
-    def test_sync_does_not_touch_the_address(self):
-        """뒤로가기로 닫을 때 주소를 또 쓰면 방문기록이 한 칸 더 쌓인다."""
+    def test_two_presses_always_reach_the_menu(self):
+        """뒤로 한 번은 이 화면 안에서 쓰이고, **두 번째는 언제나 앞 메뉴**다."""
         st = _FakeSt()
         back_nav.opened(st, "a")
         back_nav.opened(st, "b2")
-        st.query_params["b"] = "1"
-        back_nav.sync(st)
-        self.assertEqual("1", st.query_params["b"], "sync가 주소를 건드렸다")
+        back_nav.opened(st, "c")
+        st.go_back()
+        self.assertTrue(back_nav.sync(st), "첫 번째 누름이 이 화면에서 안 쓰였다")
+        # 두 번째 누름은 여기서 할 일이 없다 = 브라우저가 앞 페이지로 나간다.
+        self.assertEqual([], back_nav.sync(st))
+        self.assertEqual([], back_nav.open_keys(st))
 
-    def test_forward_or_same_depth_changes_nothing(self):
+    def test_sync_does_not_touch_the_address(self):
+        """뒤로가기로 닫을 때 주소를 또 쓰면 기록이 한 칸 더 쌓인다."""
+        st = _FakeSt()
+        back_nav.opened(st, "a")
+        st.go_back()
+        back_nav.sync(st)
+        self.assertNotIn("b", st.query_params, "sync가 주소를 건드렸다")
+
+    def test_nothing_happens_while_the_mark_is_still_there(self):
         st = _FakeSt()
         back_nav.opened(st, "a")
         st.session_state["a"] = True
-        st.query_params["b"] = "5"        # 앞으로 가기·이상한 값
         self.assertEqual([], back_nav.sync(st))
         self.assertTrue(st.session_state["a"])
 
     def test_broken_address_is_ignored(self):
         """주소를 못 읽어도 화면이 막히면 안 된다(CLAUDE.md 13번과 같은 뜻)."""
-        st = _FakeSt({"b": "뒤로"})
+        st = _FakeSt()
         back_nav.opened(st, "a")
         st.session_state["a"] = True
         st.query_params["b"] = "뒤로"
@@ -112,26 +116,20 @@ class BackNavTests(unittest.TestCase):
         back_nav.opened(st, "a")          # 터지면 안 된다
         self.assertEqual([], back_nav.sync(st))
 
-    def test_one_click_that_opens_three_places_is_one_step_back(self):
-        """종목을 누르면 상세·당일차트·일봉묶음이 같이 열린다 — **한 칸**이다."""
+    def test_reopening_after_a_back_press_marks_again(self):
+        """뒤로 눌러 나갔다가 다시 열면, 그 화면에서 또 한 번은 위로 가야 한다."""
         st = _FakeSt()
-        back_nav.opened(st, "j3_detail_open_pullback",
-                        "j3_intraday_open_pullback", "j3_bundle_open_pullback")
-        for key in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
-                    "j3_bundle_open_pullback"):
-            st.session_state[key] = True
+        back_nav.opened(st, "a")
+        st.go_back()
+        back_nav.sync(st)
+        back_nav.opened(st, "a")
         self.assertEqual("1", st.query_params["b"])
-        st.query_params.pop("b")
-        self.assertEqual(["j3_detail_open_pullback"], back_nav.sync(st))
-        for key in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
-                    "j3_bundle_open_pullback"):
-            self.assertFalse(st.session_state[key], key)
 
-    def test_reset_empties_the_record(self):
+    def test_reset_clears_the_mark(self):
         st = _FakeSt()
         back_nav.opened(st, "a")
         back_nav.reset(st)
-        self.assertEqual([], back_nav.stack(st))
+        self.assertEqual([], back_nav.open_keys(st))
         self.assertNotIn("b", st.query_params)
 
 
