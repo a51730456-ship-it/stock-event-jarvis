@@ -2756,6 +2756,30 @@ def find_breakout_pullback_stocks(
     return scan
 
 
+#
+
+# 이미 적어 둔 결과의 표식. 같은 것을 다시 적지 않으려고 든다.
+_SWING_SAVED: set = set()
+_SWING_SAVED_LOCK = threading.Lock()
+
+
+def _swing_snapshot_stamp(scan: dict):
+    """이 결과가 아까 적은 것과 같은지 알아보는 표식. 못 만들면 None(그때는 적는다)."""
+    try:
+        rows = list(scan.get("all_rows") or scan.get("rows") or ())
+        return (
+            str(scan.get("date") or ""),
+            str(scan.get("universe_mode") or ""),
+            str(scan.get("score_model_version") or ""),
+            tuple(sorted(
+                (str(r.get("ticker") or ""), round(float(r.get("total_score") or 0), 3))
+                for r in rows
+            )),
+        )
+    except Exception:
+        return None
+
+
 def _save_swing_scan_in_background(scan: dict) -> None:
     """오늘 찾은 것을 공책에 적어 둔다 — **화면을 붙잡지 않고 뒤에서 한다.**
 
@@ -2779,6 +2803,19 @@ def _save_swing_scan_in_background(scan: dict) -> None:
     except Exception as exc:            # 복사조차 안 되면 예전처럼 그 자리에서 적는다
         _log.warning("US swing snapshot copy failed: %s", exc)
         payload = scan
+
+    # **같은 결과를 두 번 적지 않는다** (2026-08-22 상하님 지적 — "상승장 클릭
+    # 11초"). 단추를 누를 때마다 정식후보 20줄 + 관찰 15줄을 인터넷 건너편 DB에
+    # 다시 적고 있었다. 뒤 일꾼이 하니 화면이 기다리지는 않지만, 온라인은 코어가
+    # 한둘이라 그 일꾼이 화면 그리는 몫을 나눠 가진다. 결과가 그대로면 적을
+    # 것도 없다 — 그날 첫 한 번만 적는다.
+    stamp = _swing_snapshot_stamp(payload)
+    if stamp is not None:
+        with _SWING_SAVED_LOCK:
+            if stamp in _SWING_SAVED:
+                scan["snapshot_saved"] = None
+                return
+            _SWING_SAVED.add(stamp)
 
     def _run():
         try:
