@@ -5029,6 +5029,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     if selected_ticker not in tickers:
         selected_ticker = tickers[0] if tickers else None
     selected_css = []
+    button_keys = []          # (단추 열쇠, 티커) — 보라색 표시를 나중에 붙인다
 
     # **3개월·6개월 등수와 중요·보조 점수 칸은 뺐다**(2026-08-21 상하님 지시 —
     # "선택종목 세부사항에 보면 나온다"). 표에는 고를 때 필요한 것만 남긴다 —
@@ -5041,6 +5042,9 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     heads = ["티커", "등급 / 상태", "눌림 / 며칠째", "테마"]
 
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
+        # 줄을 누르면 바깥의 selected_ticker를 그 자리에서 바꾼다 — 그래야
+        # 아래 상세가 **같은 판에서** 그 종목으로 그려진다(다시 그리기 없이).
+        nonlocal selected_ticker
         prefix = "j3rbw" if watch_mode else "j3rbf"
         head = box.columns(row_widths)
         # **「번호 · 점수」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
@@ -5064,21 +5068,18 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 f"{total:.0f}점</span></div>", unsafe_allow_html=True,
             )
             key = f"{prefix}_{index:02d}"
+            button_keys.append((key, row.get("ticker")))
             if cols[2].button(str(row.get("name") or row.get("ticker") or "—"), key=key, width="stretch"):
-                st.session_state["j3_pullback_selected_ticker"] = row.get("ticker")
+                selected_ticker = row.get("ticker")
+                st.session_state["j3_pullback_selected_ticker"] = selected_ticker
                 for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback", "j3_bundle_open_pullback"):
                     st.session_state[opened] = True
                 scroll_to.request(st, "detail_pullback")
-                # **이 덩이만 다시 그린다.** scope를 안 주면 판 전체가 돈다.
-                _rerun_here()
-            if row.get("ticker") == selected_ticker:
-                # 고른 줄은 **보라색**이다 — 테마표·급락표와 같은 약속
-                # (2026-08-21 상하님 지시 "다른 테마나 급락 후처럼 보라색으로").
-                selected_css.append(
-                    f"div[class*='st-key-{key}'] button "
-                    "{ background: rgba(192,132,252,.16) !important; "
-                    "border-left: 3px solid #c084fc !important; }"
-                )
+                # **다시 그리지 않는다**(2026-08-22 상하님 지적 — "종목 클릭하면
+                # 18초"). 부르면 이 덩이를 **한 번 더** 그린다 — 표 서른다섯 줄과
+                # 상세를 두 번씩 그리는 셈이다. 안 불러도 결과는 같다: 아래 상세는
+                # 이 줄보다 **뒤에서** selected_ticker를 읽고, 보라색 표시는 줄을
+                # 다 그린 뒤에 붙인다. 테마 대장주 표에서 이미 같은 방식으로 뺐다.
             # 3개월·6개월 등수는 이 표에 안 적는다 — 종목을 누르면 「선택종목
             # 세부사항」에 그대로 나온다(2026-08-21 상하님 지시).
             pullback = row.get("pullback_pct_close")
@@ -5141,6 +5142,14 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             f"관찰만 · 조건을 다 못 넘은 {len(watch)}개 보기"
         )
         draw_rows(watch, watch_box, watch_mode=True)
+    # 고른 줄은 **보라색**이다 — 테마표·급락표와 같은 약속(2026-08-21 상하님 지시).
+    # 줄을 다 그린 **뒤에** 붙이므로, 이 판에서 방금 누른 줄도 곧바로 표시된다.
+    selected_css += [
+        f"div[class*='st-key-{key}'] button "
+        "{ background: rgba(192,132,252,.16) !important; "
+        "border-left: 3px solid #c084fc !important; }"
+        for key, ticker in button_keys if ticker and ticker == selected_ticker
+    ]
     if selected_css:
         st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
 
