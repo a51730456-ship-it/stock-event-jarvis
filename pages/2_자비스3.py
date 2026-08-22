@@ -5655,55 +5655,18 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
 
 
 
-# 목록에서 종목을 누를 때 차트를 미리 받아 둘 줄 수. 앞쪽 줄부터 누르시므로
-# 그만큼만 받는다 — 35줄을 다 받으면 미리 받는 것이 더 오래 걸린다.
-# 2026-08-22에 열에서 **셋**으로 줄였다. 상하님 지적 — "상승장 클릭하면 10초".
-# 열 종목의 일봉 전체 이력을 뒤에서 받는 동안 화면이 쓸 자료도 같은 줄에 서서
-# (내려받기는 한 번에 하나씩 돈다) 여는 것이 도로 느려졌다. 테마 대장주 쪽도
-# 셋만 미리 받는다 — 처음 열리는 줄이 1번이라 그 셋이면 대개 맞는다.
-_PREFETCH_ROWS = 3
-
-
-def _prefetch_list_charts(result) -> None:
-    """목록에 뜬 종목들의 차트 자료를 **한 묶음으로, 뒤에서** 받아 둔다.
-
-    상하님 지적(2026-08-21) — "상승장 목록에서 종목 클릭하면 25초 걸린다.
-    이거 황당하다."
-
-    까닭은 이렇다. 목록을 그릴 때는 차트를 안 받는다(그때 다 받으면 목록이
-    늦게 뜬다). 그래서 종목을 누르는 그 순간에 **그 한 종목의** 일봉 전체
-    이력과 당일 분봉을 새로 받는다. 한 종목씩 따로 받는 것이 제일 느리다 —
-    테마 대장주 쪽에서 이미 겪었고(2026-08-14 실측 4.5초, 그중 CPU는 0.2초),
-    묶어 받으면 한 종목당 0.025초로 떨어진다.
-
-    그래서 목록이 뜨는 동안 **앞 열 줄을 한 묶음으로 미리** 받아 둔다.
-    누를 때쯤이면 공책에 들어 있어 그리기만 하면 된다.
-
-    받아만 둔다. 값은 안 만든다 — get_chart_bundle·get_intraday_chart가 같은
-    묶음을 캐시에서 찾아 그대로 쓴다. 못 받아도 조용히 넘어간다(그때는 예전처럼
-    누를 때 받는다). 화면은 이것을 기다리지 않는다.
-    """
-    if not isinstance(result, dict):
-        return
-    tickers = []
-    for key in ("rows", "watch_rows"):
-        for row in (result.get(key) or ()):
-            ticker = str((row or {}).get("ticker") or "").strip().upper()
-            if ticker and ticker not in tickers:
-                tickers.append(ticker)
-    tickers = tickers[:_PREFETCH_ROWS]
-    if len(tickers) < 2:
-        return
-    # **뒤 일꾼에게 안 넘긴다**(2026-08-22 상하님 지적 — "상승장 클릭하면 10초").
-    # 처음에는 뒤로 넘겼는데 도로 느려졌다. 내려받기는 한 줄로 서서 돌기 때문에,
-    # 뒤 일꾼이 먼저 줄을 잡으면 **화면이 지금 쓸 자료가 그 뒤에 선다.**
-    # 여기서 바로 받는다 — 세 종목을 한 묶음으로 받는 값은 한 종목을 따로 받는
-    # 값과 비슷하고(묶어 받는 것이 원래 그렇다), 바로 아래 상세가 그 묶음을
-    # 그대로 쓴다. 결국 받는 횟수가 둘에서 하나로 준다.
-    try:
-        j3data.prefetch_charts(tickers)
-    except Exception:
-        pass                # 못 받으면 예전처럼 누를 때 받는다
+# **'차트 미리 받기'는 걷어냈다** (2026-08-22).
+#
+# 상하님 지적 — "상승장 클릭하면 또 35초." 제가 오늘 넣었다가 두 번 다 더
+# 느리게 만든 것이다.
+#   · 뒤 일꾼에게 넘겼더니 → 내려받기가 한 줄로 서서 돌기 때문에, 화면이 지금
+#     쓸 자료가 그 뒤에 섰다(10초).
+#   · 그 자리에서 받게 했더니 → 세 종목의 **전체 이력**을 목록 뜨기 전에
+#     받느라 35초가 됐다.
+#
+# 목록은 목록만 그리고, 차트는 종목을 누를 때 그 한 종목만 받는다 —
+# 2026-08-21 저녁 상태(상승장 열기 4초)로 되돌린 것이다.
+# 누른 뒤가 느린 것은 따로 재서 잡는다. 여는 것이 먼저다.
 
 
 def _rerun_here() -> None:
@@ -5845,8 +5808,6 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
             # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
             picklist_ui.autosave("US", pressed, st.session_state.get("j3_pullback_result"))
-            # 목록이 뜨는 동안 그 종목들 차트를 **뒤에서 미리** 받아 둔다.
-            _prefetch_list_charts(st.session_state.get("j3_pullback_result"))
     if not st.session_state.get("j3_pullback_open"):
         st.caption(
             "단추를 누르면 조회합니다. 열린 뒤 같은 단추를 다시 누르면 접힙니다. "
