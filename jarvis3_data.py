@@ -1398,7 +1398,74 @@ def _universe_daily(reuse_only: bool):
     daily, meta = loader(
         _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=US_BATCH_TTL
     )
-    return daily, meta, memberships
+    return _swing_ready(daily), meta, memberships
+
+
+# 다듬어 둔 일봉 — 종목마다 (줄 수, 마지막 날짜, 마지막 종가)로 알아본다.
+_SWING_READY: dict = {}
+_SWING_READY_LOCK = threading.Lock()
+
+
+def _swing_ready(daily: dict) -> dict:
+    """상승장 계산이 쓰는 꼴로 **하루에 한 번만** 다듬어 둔다 (2026-08-22).
+
+    상하님 지적 — "상승장 신고가 눌림 클릭 11초."
+
+    자료가 다 있는데도 찾기 한 번에 0.96초가 든다(노트북·CPU 0.94초). 그중
+    제일 큰 것이 **200종목 일봉 다듬기 0.665초**다 — 열 이름 맞추기 · 시간대
+    떼기 · 날짜 맞추기 · 숫자로 바꾸기 · 빈 줄 버리기. 같은 자료를 **누를 때마다
+    처음부터 다시** 하고 있었다. 온라인은 코어가 한둘이라 그대로 늘어난다.
+
+    한 번 다듬어 두고 자료가 그대로면 그것을 준다. 다듬는 일은
+    us_swing._clean_frame이 그대로 하므로 **나오는 값은 한 글자도 안 바뀐다.**
+
+    **자료가 그대로인지는 종목마다 따로 본다** — 줄 수 · 마지막 날짜 · 마지막
+    종가 셋이 같아야 같은 것으로 친다. 8월 21일에 한 번 이것을 '받은 시각'
+    하나로만 알아보게 했다가 **다른 자료를 같은 것으로 잘못 보아** 시험 셋이
+    깨졌다. 장중에는 마지막 종가가 계속 바뀌므로 그때마다 다시 다듬는다.
+    """
+    if not daily:
+        return daily
+    ready = {}
+    with _SWING_READY_LOCK:
+        for ticker, frame in daily.items():
+            stamp = _swing_stamp(frame)
+            if stamp is None:
+                ready[ticker] = frame
+                continue
+            kept = _SWING_READY.get(ticker)
+            if kept is not None and kept[0] == stamp:
+                ready[ticker] = kept[1]
+                continue
+            try:
+                cleaned = us_swing._clean_frame(frame)
+            except Exception:
+                ready[ticker] = frame
+                continue
+            if cleaned is None or getattr(cleaned, "empty", True):
+                ready[ticker] = frame
+                continue
+            _SWING_READY[ticker] = (stamp, cleaned)
+            ready[ticker] = cleaned
+    return ready
+
+
+def _swing_stamp(frame):
+    """이 표가 그대로인지 알아보는 표식. 못 만들면 None(그때는 늘 다시 다듬는다).
+
+    **종가를 다 더한 값까지 넣는다.** 줄 수·마지막 날짜·마지막 종가만 보면 앞쪽이
+    다른 표를 같은 것으로 볼 수 있다 — 2026-08-22에 시험 둘이 실제로 그렇게
+    깨졌다. 다 더하는 값은 200종목을 해도 눈에 안 띄게 싸다.
+    """
+    try:
+        if frame is None or getattr(frame, "empty", True):
+            return None
+        close = frame["Close"]
+        return (len(frame), str(frame.index[-1]),
+                float(close.iloc[-1]), float(close.iloc[0]),
+                round(float(close.sum()), 6))
+    except Exception:
+        return None
 
 
 # ── 순위를 정하는 값 (2026-08-01, 실제로 재 보고 정했다) ─────────────────────
