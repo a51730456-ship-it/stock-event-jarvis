@@ -1687,20 +1687,14 @@ _US_TABLE_KEYS = tuple(spec[0] for spec in us_market_signal_engine.US_SIGNAL_SPE
 # 되살리려면 이 자리에 글을 되돌리고 아래 stage_guide= 인자를 다시 넘기면 된다.
 
 
-def _running_session_note() -> str:
-    """지금 미국 정규장이 돌고 있으면 ' · 08.22 장 진행 중(판정은 마감 뒤)'.
-
-    안 돌고 있거나 알 수 없으면 빈 글자다 — 못 알아냈다고 화면이 깨지면 안 된다.
-    """
+def _us_regular_session_open() -> bool:
+    """지금 미국 정규장이 열려 있나. 못 알아내면 False — 예전 방식으로 둔다."""
     try:
         import jarvis3_data as _j3
 
-        if _j3.market_phase() != "정규장 시간":
-            return ""
-        today = datetime.now(ZoneInfo("America/New_York")).strftime("%m.%d")
-        return f" · {today} 장 진행 중(판정은 마감 뒤)"
+        return _j3.market_phase() == "정규장 시간"
     except Exception:
-        return ""
+        return False
 
 
 def run_us_market_signal_check(force_refresh=False):
@@ -1803,14 +1797,43 @@ def run_us_market_signal_check(force_refresh=False):
         )
         if frozen_quotes else None
     )
-    result = frozen_result if frozen_result is not None else live_result
-    as_of_note = frozen_dates[-1] if frozen_dates else None
+    # ── 야후 파이낸스와 같은 방식으로 둔다 (2026-08-22 상하님 지시) ─────────
+    #
+    # 상하님 지적 — "새벽 4시에 미국장을 보면 어제 시장 그대로고 변동이 없다.
+    # 결국 새벽 5시에 장이 끝나야 오늘 장에 반영되더라. 야후 파이낸스 기준으로
+    # 해라."
+    #
+    # 그래서 **장이 열려 있는 동안에는 '당일'이 오늘 장**이다. 야후가 정규장
+    # 중에 오늘 값을 실시간으로 보여주는 것과 같다. 마감 뒤에는 지금까지대로
+    # 그날 종가로 굳는다(야후의 'At close'와 같다).
+    #
+    # 2026-08-12의 "전날 종가에 마감되고 변동이 없어야 한다"는 **전일 칸**을
+    # 두고 하신 말씀이라고 2026-08-22에 상하님이 짚어 주셨다. 전일 칸은 그대로
+    # 직전 완료 장의 종가로 고정이다 — 거기는 안 흔들린다.
+    #
+    # **장중에는 위 칸이 움직인다.** 그것이 이 방식의 성질이다.
+    session_open = _us_regular_session_open()
+    live_usable = live_result is not None and getattr(live_result, "stage", None)
+    if session_open and live_usable and frozen_result is not None:
+        # 위 칸 = 지금 돌고 있는 오늘 장, 아래 칸 = 직전 완료 장(=어제)
+        result = live_result
+        as_of_note = None
+        is_frozen = False
+        card_previous = frozen_result
+        card_previous_date = frozen_dates[-1] if frozen_dates else None
+    else:
+        result = frozen_result if frozen_result is not None else live_result
+        as_of_note = frozen_dates[-1] if frozen_dates else None
+        is_frozen = bool(frozen_result is not None)
+        card_previous = previous_result
+        card_previous_date = previous_dates[-1] if previous_dates else None
     st.session_state["us_signal_result"] = result
     st.session_state["us_signal_live_result"] = live_result
-    st.session_state["us_signal_frozen"] = bool(frozen_result is not None)
+    st.session_state["us_signal_frozen"] = is_frozen
+    st.session_state["us_signal_session_open"] = bool(session_open and not is_frozen)
     st.session_state["us_signal_as_of_date"] = as_of_note
-    st.session_state["us_signal_previous_result"] = previous_result
-    st.session_state["us_signal_previous_date"] = previous_dates[-1] if previous_dates else None
+    st.session_state["us_signal_previous_result"] = card_previous
+    st.session_state["us_signal_previous_date"] = card_previous_date
     st.session_state["us_signal_failures"] = failures
     return result
 
@@ -1852,7 +1875,15 @@ def render_us_market_signal_card():
     # 선물만 움직이고 ETF·지수는 직전 종가 그대로라, 한 카드에 두 날이 섞였다.
     # 앞 카드에서 고쳐 놓고(닻 하나로 같은 거래일) 이 칸만 안 고친 셈이었다.
     current_label_text = "당일"
-    if st.session_state.get("us_signal_frozen"):
+    if st.session_state.get("us_signal_session_open"):
+        # **장이 돌고 있는 동안**은 위 칸이 오늘 장이다(야후 방식, 2026-08-22).
+        # 어느 날인지와 '장중'이라는 것을 제목에 밝힌다 — 이 값은 움직인다.
+        try:
+            _today_ny = datetime.now(ZoneInfo("America/New_York")).strftime("%m.%d")
+            current_label_text = f"당일 · {_today_ny} (장중)"
+        except Exception:
+            current_label_text = "당일 (장중)"
+    elif st.session_state.get("us_signal_frozen"):
         as_of = str(st.session_state.get("us_signal_as_of_date") or "")
         day = as_of[5:].replace("-", ".") if len(as_of) >= 10 else ""
         # **큰 글자부터 어느 날인지 밝힌다**(2026-08-12 상하님 지적 — 미국장이
@@ -1871,7 +1902,6 @@ def render_us_market_signal_card():
         # 다만 **화면이 지금 장을 아예 말하지 않는 것**이 문제였다. 새벽 4시에는
         # 미국장이 다섯 시간째 돌고 있는데 화면에는 그 사실이 없었다.
         # 판정은 안 건드리고 사실 한 줄만 붙인다.
-        current_label_text += _running_session_note()
 
     render_market_signal_card(
         result,
