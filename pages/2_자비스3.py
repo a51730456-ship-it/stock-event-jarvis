@@ -4967,9 +4967,14 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         st.warning("후보는 다 찾았는데 그날 값을 저장하지 못했습니다: "
                    f"{result.get('snapshot_error') or '원인을 확인해야 합니다'}")
 
-    if _section_toggle(
+    # **접이칸이다. 단추가 아니다**(2026-08-22 상하님 지적 — "이 화면 설명
+    # 보기를 클릭하는데도 25초 걸린다"). 단추는 누를 때마다 서버가 화면을
+    # 다시 그린다. 이 칸은 글자뿐이라(시세도 그림도 없다) 미리 만들어 두고
+    # 접어 두면 여닫는 데 **서버를 안 거친다** — 브라우저가 바로 편다.
+    # 다른 구역이 아직 단추인 까닭은 그 안에 시세·차트가 들어 있어서다.
+    with st.expander(
         "📘 이 화면 설명 보기 (통과조건 여섯 · 중요 70점 · 거드는 30점)",
-        "j3_rulebook_help_open", close_label="설명 닫기",
+        expanded=False,
     ):
         config = result.get("config") or {}
         rs_cfg = config.get("rs") or {}
@@ -5008,7 +5013,6 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 "</div>",
                 unsafe_allow_html=True,
             )
-        _section_close("j3_rulebook_help_open", "설명 닫기")
 
     st.markdown(
         "<style>div[class*='st-key-close_j3_pullback_open'] button {"
@@ -5222,9 +5226,14 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             "아닙니다 — 10년치로 재 보면 1등과 10등의 차이가 100번에 1~3번입니다. "
             "목록으로 보시고 고르시는 것은 상하님이 하십시오."
         )
-    if _section_toggle(
+    # **접이칸이다. 단추가 아니다**(2026-08-22 상하님 지적 — "이 화면 설명
+    # 보기를 클릭하는데도 25초 걸린다"). 단추는 누를 때마다 서버가 화면을
+    # 다시 그린다. 이 칸은 글자뿐이라(시세도 그림도 없다) 미리 만들어 두고
+    # 접어 두면 여닫는 데 **서버를 안 거친다** — 브라우저가 바로 편다.
+    # 다른 구역이 아직 단추인 까닭은 그 안에 시세·차트가 들어 있어서다.
+    with st.expander(
         "📘 이 화면 설명 보기 (찾는 그물 · 점수 매기는 기준)",
-        "j3_rulebook_help_open", close_label="설명 닫기",
+        expanded=False,
     ):
         if breakout:
             st.markdown(
@@ -5342,7 +5351,6 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             "재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>",
             unsafe_allow_html=True,
         )
-        _section_close("j3_rulebook_help_open", "설명 닫기")
     reuse_text = "기존 일봉 배치 재사용" if result.get("reused_batch") else "일봉 1회 배치 조회"
     funnel = (
         f"신고가 {wait_min}~{wait_max}일 전 <b>{result.get('window_count', 0):,}개</b> → "

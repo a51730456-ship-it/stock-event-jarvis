@@ -1341,27 +1341,33 @@ class Jarvis3PageTests(unittest.TestCase):
             "상승장 화면에까지 경고가 붙었다")
 
     def test_the_long_explanation_is_folded_until_asked_for(self):
-        """설명은 눌러야 나온다(2026-08-06 사용자 지시 — 설명이 첫 화면을 다 먹었다).
+        """설명은 접혀 있다(2026-08-06 사용자 지시 — 설명이 첫 화면을 다 먹었다).
+
+        **2026-08-22에 단추에서 접이칸으로 바꿨다**(상하님 지적 — "이 화면 설명
+        보기를 클릭하는데도 25초 걸린다"). 단추는 누를 때마다 서버가 화면을 다시
+        그린다. 이 칸은 글자뿐이라 미리 만들어 두고 접어 두면 여닫는 데 서버를
+        안 거친다. 화면에서 접혀 보이는 것은 그대로다.
 
         접혀 있어도 **종목 표와 오늘 이야기 한 줄은 그대로 보여야** 한다.
         """
         app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
                                   _breakout_result(), help_open=False)
         joined = " ".join(str(node.value) for node in app.markdown)
-        # 설명 구역에만 있는 말로 접혔는지 본다.
-        self.assertNotIn("먼저 자격, 그다음 순위", joined, "설명이 접히지 않았다")
-        self.assertTrue(any("이 화면 설명 보기" in str(node.label) for node in app.button),
-                        "설명을 펴는 단추가 없다")
+        labels = [str(node.label) for node in app.expander]
+        self.assertTrue(any("이 화면 설명 보기" in label for label in labels),
+                        f"설명 접이칸이 없다: {labels}")
+        # 접이칸은 **접혀 있어야** 한다 — 펴진 채로 나오면 첫 화면을 다 먹는다.
+        for node in app.expander:
+            if "이 화면 설명 보기" in str(node.label):
+                self.assertFalse(bool(node.proto.expanded), "설명이 펴진 채로 나온다")
         # 접혀 있어도 표와 기준일 한 줄은 남는다.
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
         self.assertIn("정식 후보", joined)
-        # 펴면 설명과 닫기 단추가 같이 나온다.
-        opened = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
-                                     _breakout_result())
-        joined_open = " ".join(str(node.value) for node in opened.markdown)
-        self.assertIn("먼저 자격, 그다음 순위", joined_open)
-        self.assertTrue(any("설명 닫기" in str(node.label) for node in opened.button),
-                        "닫기 단추가 없다")
+        # 설명 글은 접이칸 안에 들어 있다(브라우저가 접어서 보여준다).
+        self.assertIn("먼저 자격, 그다음 순위", joined)
+        # 접이칸 머리글이 곧 닫기라 안쪽 '설명 닫기' 단추는 뺐다.
+        self.assertFalse(any("설명 닫기" in str(node.label) for node in app.button),
+                         "안 쓰는 닫기 단추가 남았다")
 
     def test_only_ten_rows_are_open_and_the_rest_are_folded(self):
         """급락 표가 20줄이라 화면이 너무 길었다(2026-08-06 사용자 지시).
