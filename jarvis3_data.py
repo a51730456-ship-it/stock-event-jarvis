@@ -993,6 +993,20 @@ IXIC_HISTORY_TTL = 21600.0
 # 남기는 햇수(IXIC_HISTORY_YEARS)와 **같은 값**이어야 한다.
 IXIC_HISTORY_PERIOD = "25y"
 
+# 종목 차트(일봉·주봉·월봉)를 **몇 년치** 받나 (2026-08-22 상하님 지적 —
+# "관찰 목록에서 종목 클릭하면 18초").
+#
+# 'max'로 받으면 상장 이후를 다 준다 — AAPL은 1980년부터 11,515줄이다. 그런데
+# 이 화면이 실제로 쓰는 것은 **월봉 120개월과 그 50개월선**뿐이라 14년 남짓이면
+# 찬다. 나머지는 받아서 버린다. 20년으로 두면 넉넉하면서 줄 수가 3분의 1이다
+# (노트북 실측 1.90초 → 0.70초, 11,515줄 → 5천 줄 남짓).
+#
+# **월봉 값이 소수점 다섯째 자리에서 달라진다**(0.00006 수준). 야후가 액면분할·
+# 배당을 맞추는 기준 구간이 달라져서다. 화면에서는 보이지 않는 차이지만,
+# '값이 똑같다'가 아니라 '눈에 안 보이는 만큼 다르다'가 맞는 말이라 적어 둔다.
+# 다시 늘리려면 이 값만 "max"로 되돌리면 된다.
+CHART_HISTORY_PERIOD = "20y"
+
 # 테마 ETF 41개 **1분봉**을 몇 초 동안 다시 안 받나 (2026-08-21 상하님 지시 —
 # "테마 ETF 1분봉도 줄여라").
 #
@@ -3886,7 +3900,7 @@ def prefetch_charts(tickers) -> None:
     if len(unique) < 2:
         return          # 한 종목이면 묶을 것이 없다
     for period, interval, ttl, prepost in (
-        ("max", "1d", 300, False),      # 일봉·주봉·월봉 (get_chart_bundle)
+        (CHART_HISTORY_PERIOD, "1d", 300, False),   # 일봉·주봉·월봉 (get_chart_bundle)
         ("1d", "1m", 45, True),         # 당일 1분봉 (get_intraday_chart)
     ):
         try:
@@ -4162,7 +4176,8 @@ def get_chart_bundle(ticker: str) -> dict:
     그건 지어낼 수 없다.
     """
     ticker = str(ticker).strip().upper()
-    frames, meta = _download_cached((ticker,), period="max", interval="1d", ttl_seconds=300)
+    frames, meta = _download_cached(
+        (ticker,), period=CHART_HISTORY_PERIOD, interval="1d", ttl_seconds=300)
     frame = frames.get(ticker)
     if frame is None or frame.empty:
         return {"ok": False, "error": meta.get("error") or "차트 자료가 없습니다", "charts": {}}

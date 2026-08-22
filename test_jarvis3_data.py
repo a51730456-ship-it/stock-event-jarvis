@@ -1025,8 +1025,12 @@ class Jarvis3DataTests(unittest.TestCase):
         self.assertIsNotNone(result["charts"]["일봉"]["volume"])
         self.assertLessEqual(len(result["charts"]["일봉"]["price"]), 180)
         # 10년치로는 월봉 120개를 그릴 때 50개월선의 앞 49개월이 비어 선이
-        # 토막났다(2026-07-29 실측: NVDA 월봉 50선 72/120). 상장 이후 전체를 받는다.
-        download.assert_called_once_with(("NVDA",), period="max", interval="1d", ttl_seconds=300)
+        # 토막났다(2026-07-29 실측: NVDA 월봉 50선 72/120). 월봉 120개월 + 그
+        # 50개월선이면 14년 남짓이라 20년으로 둔다 — 'max'로 받으면 상장 이후를
+        # 다 주는데(AAPL 1980년~ 11,515줄) 나머지는 받아서 버린다(2026-08-22).
+        download.assert_called_once_with(
+            ("NVDA",), period=j3.CHART_HISTORY_PERIOD, interval="1d", ttl_seconds=300)
+        self.assertEqual("20y", j3.CHART_HISTORY_PERIOD)
 
     def test_chart_history_fills_the_monthly_moving_averages(self):
         """월봉 120개를 그리려면 20·50개월선이 채워질 만큼 자료가 있어야 한다."""
