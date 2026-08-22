@@ -4914,6 +4914,11 @@ _UNIVERSE_TEXT = {
 # 관찰 목록에 펴 두는 줄 수. **20개는 너무 많다**(2026-08-21 상하님 지시).
 _SWING_WATCH_ROWS = 15
 
+# 관찰 표의 칸 나눔 — **둘뿐이다**(2026-08-22). 번호·점수를 단추 이름 안에 넣어
+# 줄 하나가 만드는 스트림릿 요소를 아홉에서 다섯으로 줄였다. 열다섯 줄이면
+# 135개가 75개가 된다. 정식 후보 표는 줄이 적어 지금 칸 넷을 그대로 쓴다.
+_WATCH_ROW_WIDTHS = [2.5, 4.5]
+
 # 「등급 / 상태」 칸의 색. **종류별로 갈라 놓는다**(2026-08-21 상하님 지시).
 #   초록 — 통과했다 · 주황 — 거의 다 왔다 · 하늘 — 오늘 막 넘었다
 #   붉음 — 이 자리가 아니다 · 보라 — 아직 최고가를 못 넘었다 · 회색 — 힘이 모자라다
@@ -5055,30 +5060,56 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         # 아래 상세가 **같은 판에서** 그 종목으로 그려진다(다시 그리기 없이).
         nonlocal selected_ticker
         prefix = "j3rbw" if watch_mode else "j3rbf"
-        head = box.columns(row_widths)
-        # **「번호 · 점수」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
-        # 2026-08-20에 다시 확인하심). 검증되지 않은 차례를 1위·2위처럼 보이면
-        # 화면이 거짓말을 한다. 이 배점은 상하님 지시문이 정해 준 것이지 제가
-        # 과거차트로 "이 차례가 맞다"를 확인한 것이 아니다. 그냥 번호다.
-        head[0].markdown("<div class='j3-th-head'>번호</div>", unsafe_allow_html=True)
-        head[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
-        head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
-        head[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
+        if watch_mode:
+            # 관찰 표는 칸이 둘이라 머리글도 둘이다(번호·점수는 단추 이름 안에).
+            wh = box.columns(_WATCH_ROW_WIDTHS)
+            wh[0].markdown("<div class='j3-th-head'>번호 · 점수 · 종목</div>",
+                           unsafe_allow_html=True)
+            wh[1].markdown(_flex_row(rest_widths, heads, head=True),
+                           unsafe_allow_html=True)
+        else:
+            # **「번호 · 점수」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
+            # 2026-08-20에 다시 확인하심). 검증되지 않은 차례를 1위·2위처럼 보이면
+            # 화면이 거짓말을 한다. 이 배점은 상하님 지시문이 정해 준 것이지 제가
+            # 과거차트로 "이 차례가 맞다"를 확인한 것이 아니다. 그냥 번호다.
+            head = box.columns(row_widths)
+            head[0].markdown("<div class='j3-th-head'>번호</div>", unsafe_allow_html=True)
+            head[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
+            head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+            head[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
         for index, row in enumerate(rows):
-            cols = box.columns(row_widths)
+            # **관찰 표는 칸을 둘만 쓴다** (2026-08-22 상하님 지적 — "관찰만 조건
+            # 클릭하면 종목 15개 리스트 다 나오는데 20초 걸린다").
+            #
+            # 온라인에서 재 보니 줄이 하나씩 나타났다 — 22초에 15줄 중 10줄이었다.
+            # 줄 하나가 스트림릿 요소 아홉 개(가로칸 묶음 하나 + 칸 넷 + 글자 셋 +
+            # 단추 하나)로 만들어지고 있었다. 열다섯 줄이면 135개다.
+            #
+            # 번호와 점수를 **단추 이름 안에** 넣어 칸을 넷에서 둘로 줄인다.
+            # 요소가 아홉에서 다섯으로 준다. 보이는 차례(번호 → 점수 → 종목 →
+            # 나머지)는 그대로다. 정식 후보 표는 안 건드린다 — 거기는 줄이 적다.
+            cols = box.columns(_WATCH_ROW_WIDTHS if watch_mode else row_widths)
             rank = f"W{index + 1}" if watch_mode else str(int(row.get("primary_rank") or index + 1))
-            cols[0].markdown(f"<div class='j3-td j3-muted'>{rank}</div>", unsafe_allow_html=True)
             # 점수 색은 급락 표와 같은 자를 쓴다 — 70↑ 금색, 50↑ 하늘색, 그 아래 회색.
             total = float(row.get("total_score") or 0)
             score_class = ("j3-score-hi" if total >= 70 else
                            "j3-score-mid" if total >= 50 else "j3-score-low")
-            cols[1].markdown(
-                f"<div class='j3-td'><span class='j3-score {score_class}'>"
-                f"{total:.0f}점</span></div>", unsafe_allow_html=True,
-            )
+            if watch_mode:
+                name_col, rest_col = cols[0], cols[1]
+                label_text = (f"{rank} · {total:.0f}점 · "
+                              f"{row.get('name') or row.get('ticker') or '—'}")
+            else:
+                name_col, rest_col = cols[2], cols[3]
+                label_text = str(row.get("name") or row.get("ticker") or "—")
+                cols[0].markdown(f"<div class='j3-td j3-muted'>{rank}</div>",
+                                 unsafe_allow_html=True)
+                cols[1].markdown(
+                    f"<div class='j3-td'><span class='j3-score {score_class}'>"
+                    f"{total:.0f}점</span></div>", unsafe_allow_html=True,
+                )
             key = f"{prefix}_{index:02d}"
             button_keys.append((key, row.get("ticker")))
-            if cols[2].button(str(row.get("name") or row.get("ticker") or "—"), key=key, width="stretch"):
+            if name_col.button(label_text, key=key, width="stretch"):
                 selected_ticker = row.get("ticker")
                 st.session_state["j3_pullback_selected_ticker"] = selected_ticker
                 for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback", "j3_bundle_open_pullback"):
@@ -5122,7 +5153,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                      f" title='{html.escape(long_label)}'>"
                      f"{html.escape(short_label)}</span>")
             theme_text = str(row.get("theme_id") or "자료부족")
-            cols[3].markdown(
+            rest_col.markdown(
                 _flex_row(rest_widths, [
                     f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
                     label,
