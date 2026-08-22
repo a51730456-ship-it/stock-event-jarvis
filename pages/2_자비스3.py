@@ -5822,7 +5822,22 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             # 폰·태블릿 뒤로가기 — 이 목록이 열린 것을 방문기록에 한 칸 쌓는다.
             # 이 단추는 _section_toggle을 안 거치므로 여기서 따로 알려야 한다.
             back_nav.opened(st, "j3_pullback_open")
-            if pressed == "breakout":
+            # **방금 찾아 둔 것이 있으면 다시 안 찾는다** (2026-08-22 상하님 지적
+            # — "상승장 클릭도 조금 줄었지만 여전히 느리다").
+            #
+            # 닫았다 다시 열 때마다 200종목을 처음부터 다시 찾고 있었다. 5분 안에
+            # 다시 열면 결과가 어차피 같다 — 이 화면의 순위 9는 2026-07-31부터
+            # 이미 그렇게 돌고 있다(_kept_recently). 같은 장치를 여기에도 둔다.
+            # 5분이 지나면 알아서 새로 찾는다.
+            kept = (
+                _kept_recently(f"j3_pullback_at_{pressed}")
+                and isinstance(st.session_state.get(f"j3_pullback_kept_{pressed}"), dict)
+            )
+            if kept:
+                st.session_state["j3_pullback_result"] = (
+                    st.session_state[f"j3_pullback_kept_{pressed}"]
+                )
+            elif pressed == "breakout":
                 with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
                     st.session_state["j3_pullback_result"] = (
                         j3data.find_breakout_pullback_stocks(persist=True)
@@ -5832,9 +5847,14 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                     st.session_state["j3_pullback_result"] = (
                         j3data.find_crash_rebound_stocks()
                     )
-            # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
-            # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
-            picklist_ui.autosave("US", pressed, st.session_state.get("j3_pullback_result"))
+            if not kept:
+                found = st.session_state.get("j3_pullback_result")
+                if isinstance(found, dict) and found.get("ok"):
+                    st.session_state[f"j3_pullback_kept_{pressed}"] = found
+                    st.session_state[f"j3_pullback_at_{pressed}"] = time.time()
+                # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
+                # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
+                picklist_ui.autosave("US", pressed, found)
     if not st.session_state.get("j3_pullback_open"):
         st.caption(
             "단추를 누르면 조회합니다. 열린 뒤 같은 단추를 다시 누르면 접힙니다. "
