@@ -887,7 +887,8 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("render_kr_flow_card", source)
         self.assertIn("j3tbtn_{index:02d}", source)
 
-    def _run_with_mode(self, mode, finder_name, finder_result, *, help_open=True):
+    def _run_with_mode(self, mode, finder_name, finder_result, *, help_open=True,
+                       pick=None):
         """설명서 갈래 단추를 눌렀을 때의 화면을 그린다 (2026-08-01).
 
         설명은 2026-08-06부터 접혀 있다(사용자 지시). 글을 확인하는 시험은
@@ -917,6 +918,11 @@ class Jarvis3PageTests(unittest.TestCase):
             app.session_state["j3_pullback_mode"] = mode
             app.session_state["j3_pullback_result"] = finder_result
             app.session_state["j3_rulebook_help_open"] = bool(help_open)
+            # 2026-08-22부터 목록은 목록만 그린다 — 상세는 종목을 눌러야
+            # 열린다(상하님 지적 "그건 내가 한 적 없다"). 상세를 보는
+            # 시험은 여기서 누른 것으로 친다.
+            if pick:
+                app.session_state["j3_pullback_selected_ticker"] = pick
             app.run(timeout=60)
         self.assertEqual(len(app.exception), 0)
         return app
@@ -1266,8 +1272,9 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("j3fh-ref", source.split("_SCORE_TABLE =")[-1].split("}")[0])
 
     def test_breakout_detail_uses_the_breakout_ruler(self):
-        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
-                                  _breakout_result())
+        result = _breakout_result()
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks", result,
+                                  pick=result["rows"][0]["ticker"])
         joined = " ".join(str(node.value) for node in app.markdown)
         self.assertIn("신고가 눌림 전용 배점", joined)
         # 새 배점 일곱 줄이 이름 그대로 표에 있어야 한다.
@@ -1471,8 +1478,9 @@ class Jarvis3PageTests(unittest.TestCase):
         예전에는 '이 규칙에는 손절가가 없습니다'가 한 화면에 여섯 번,
         '52주 신고가를 찍고…'가 세 번 나왔다.
         """
-        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks",
-                                  _breakout_result())
+        result = _breakout_result()
+        app = self._run_with_mode("breakout", "find_breakout_pullback_stocks", result,
+                                  pick=result["rows"][0]["ticker"])
         joined = " ".join(
             [str(node.value) for node in app.markdown]
             + [str(node.value) for node in app.success]

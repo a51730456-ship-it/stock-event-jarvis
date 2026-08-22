@@ -5024,10 +5024,19 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     _section_close("j3_pullback_open", "상승장 (신고가 눌림매수) 닫기")
 
     all_selectable = primary + watch
+    # **목록을 열 때 아무 종목도 고르지 않는다** (2026-08-22 상하님 지적 —
+    # "그건 내가 한 적 없다. 그냥 종목 클릭하면 열리도록 하라고 했지").
+    #
+    # 지금까지는 목록이 뜨면 1등 종목을 저절로 골라 **상세와 차트 넷까지 같이**
+    # 그렸다. 재 보니 그것이 5배였다 — 목록만 그리면 0.36초, 상세·차트까지
+    # 그리면 1.75초다(노트북·자료 없이 그리기만). 폰에서는 차트가 더 비싸다.
+    # 20개 테마 순위표가 빠른 까닭도 같다 — 거기는 목록만 그린다.
+    #
+    # 목록은 목록만 그리고, 상세와 차트는 **종목을 누를 때** 열린다.
     selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
     tickers = [str(row.get("ticker") or "") for row in all_selectable]
     if selected_ticker not in tickers:
-        selected_ticker = tickers[0] if tickers else None
+        selected_ticker = None
     selected_css = []
     button_keys = []          # (단추 열쇠, 티커) — 보라색 표시를 나중에 붙인다
 
