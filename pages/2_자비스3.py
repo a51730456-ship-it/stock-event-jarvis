@@ -3760,12 +3760,11 @@ def _render_top7_section(market: dict, ranking: dict) -> None:
     상세도 같이 넣어야 한다. 표만 묶으면 종목 이름을 눌러도 덩이 밖에 있는 상세가
     다시 안 그려져 아무 일도 안 일어난 것처럼 보인다.
     """
-    try:
-        _render_top_reviewed(market, ranking)
-        _render_top_reviewed_detail(market, ranking)
-    finally:
-        # 이 덩이도 프래그먼트라 페이지 끝이 안 돌아간다 — 여기서 내려 준다.
-        scroll_to.run(st)
+    _render_top_reviewed(market, ranking)
+    _render_top_reviewed_detail(market, ranking)
+    # 이 덩이도 프래그먼트라 페이지 끝이 안 돌아간다 — 여기서 내려 준다.
+    # finally로 감싸지 않는다(위 _render_pullback_finder의 주석 참고).
+    scroll_to.run(st)
 
 
 def _kept_recently(key: str, seconds: float = 300) -> bool:
@@ -5650,7 +5649,11 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
 
 # 목록에서 종목을 누를 때 차트를 미리 받아 둘 줄 수. 앞쪽 줄부터 누르시므로
 # 그만큼만 받는다 — 35줄을 다 받으면 미리 받는 것이 더 오래 걸린다.
-_PREFETCH_ROWS = 10
+# 2026-08-22에 열에서 **셋**으로 줄였다. 상하님 지적 — "상승장 클릭하면 10초".
+# 열 종목의 일봉 전체 이력을 뒤에서 받는 동안 화면이 쓸 자료도 같은 줄에 서서
+# (내려받기는 한 번에 하나씩 돈다) 여는 것이 도로 느려졌다. 테마 대장주 쪽도
+# 셋만 미리 받는다 — 처음 열리는 줄이 1번이라 그 셋이면 대개 맞는다.
+_PREFETCH_ROWS = 3
 
 
 def _prefetch_list_charts(result) -> None:
@@ -5721,10 +5724,13 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     이미 그려졌으므로 브라우저가 찾을 수 있다. 먼저 부르는 쪽이 표시를 지우므로
     페이지 끝의 것과 두 번 내려가지 않는다.
     """
-    try:
-        _render_pullback_finder_body(market, ranking)
-    finally:
-        scroll_to.run(st)
+    _render_pullback_finder_body(market, ranking)
+    # **try/finally로 감싸면 안 된다**(2026-08-22 상하님 지적 — "관찰 15개에서
+    # 종목을 눌러도 세부사항으로 안 간다"). _rerun_here()는 예외를 던져 이 판을
+    # 멈추는데, finally는 그 예외가 지나갈 때도 실행된다. 그러면 **버려질 판에서**
+    # 내려가라는 표시를 지워 버려서, 정작 다시 그린 판에는 표시가 없다.
+    # 그냥 뒤에 둔다 — 다시 그리기로 멈춘 판은 여기까지 안 오고, 다음 판에서 돈다.
+    scroll_to.run(st)
 
 
 def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
