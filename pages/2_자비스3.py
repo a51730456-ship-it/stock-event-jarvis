@@ -5138,10 +5138,22 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         # 가두고 표를 옆으로 미는 규칙이 이미 붙어 있다. 두 갈래는 한 번에 하나만
         # 그려지므로 열쇠가 겹치지 않는다.
         watch = watch[:_SWING_WATCH_ROWS]
-        watch_box = st.container(key="j3_rulebook_rest").expander(
-            f"관찰만 · 조건을 다 못 넘은 {len(watch)}개 보기"
+        # **접이칸을 뺐다** (2026-08-22 상하님 지적 — "관찰만 조건을… 클릭하면
+        # 목록이 천천히 열린다").
+        #
+        # 온라인에서 재 보니 접이칸은 **눌러야 그때 15줄을 그린다** — 단추 15개가
+        # 누른 뒤에야 생겼고, 그 사이 10~20초가 갔다. 스트림릿이 접힌 칸의 속을
+        # 미리 안 만들어 두기 때문이다. 즉 '접어 두면 가볍다'가 아니라 '펼 때
+        # 서버를 한 번 더 다녀온다'였다.
+        #
+        # 그래서 처음부터 같이 그린다. 상승장을 열 때 한 번에 다 그려지므로
+        # 기다림이 없다. 화면이 그만큼 길어지는 것은 사실이다 — 접어 두는 편이
+        # 나으시면 되돌리겠다.
+        st.markdown(
+            f"<div class='j3-section-title'>관찰만 · 조건을 다 못 넘은 "
+            f"{len(watch)}개</div>", unsafe_allow_html=True,
         )
-        draw_rows(watch, watch_box, watch_mode=True)
+        draw_rows(watch, st.container(key="j3_rulebook_rest"), watch_mode=True)
     # 고른 줄은 **보라색**이다 — 테마표·급락표와 같은 약속(2026-08-21 상하님 지시).
     # 줄을 다 그린 **뒤에** 붙이므로, 이 판에서 방금 누른 줄도 곧바로 표시된다.
     selected_css += [
