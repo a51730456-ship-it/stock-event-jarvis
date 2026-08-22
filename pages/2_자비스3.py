@@ -5694,17 +5694,16 @@ def _prefetch_list_charts(result) -> None:
     tickers = tickers[:_PREFETCH_ROWS]
     if len(tickers) < 2:
         return
-
-    def _run():
-        try:
-            j3data.prefetch_charts(tickers)
-        except Exception:
-            pass            # 못 받으면 예전처럼 누를 때 받는다
-
+    # **뒤 일꾼에게 안 넘긴다**(2026-08-22 상하님 지적 — "상승장 클릭하면 10초").
+    # 처음에는 뒤로 넘겼는데 도로 느려졌다. 내려받기는 한 줄로 서서 돌기 때문에,
+    # 뒤 일꾼이 먼저 줄을 잡으면 **화면이 지금 쓸 자료가 그 뒤에 선다.**
+    # 여기서 바로 받는다 — 세 종목을 한 묶음으로 받는 값은 한 종목을 따로 받는
+    # 값과 비슷하고(묶어 받는 것이 원래 그렇다), 바로 아래 상세가 그 묶음을
+    # 그대로 쓴다. 결국 받는 횟수가 둘에서 하나로 준다.
     try:
-        threading.Thread(target=_run, name="list-charts", daemon=True).start()
+        j3data.prefetch_charts(tickers)
     except Exception:
-        pass
+        pass                # 못 받으면 예전처럼 누를 때 받는다
 
 
 def _rerun_here() -> None:
