@@ -6473,6 +6473,110 @@ def _render_method_tab() -> None:
     )
 
 
+def _render_mobile_exit_and_back_guard() -> None:
+    """미국테마 폰·태블릿 하단 종료와 뒤로가기 보호 — 화면 이동만 한다.
+
+    웹페이지는 사용자가 직접 연 브라우저/앱 창을 강제로 닫을 수 없는 경우가 있다.
+    그래서 먼저 창 닫기를 시도하고, 막힌 환경에서는 빈 화면으로 바꿔 미국테마에서
+    완전히 빠져나간다. 뒤로가기는 이 페이지에서만 가로채 화면 맨 위로 돌린다.
+    """
+    button_id = "j3-mobile-window-close"
+    st.markdown(
+        """
+        <style>
+        .j3-mobile-exit-wrap { display: none; }
+        @media (max-width: 1200px) {
+            .j3-mobile-exit-wrap {
+                display: flex; justify-content: center; margin: 2rem 0 .8rem;
+            }
+            .j3-mobile-exit {
+                appearance: none; border: 1px solid rgba(255,255,255,.24);
+                border-radius: .4rem; background: #3a3f4a; color: #ffffff;
+                padding: .24rem .58rem; font: inherit; font-size: .76rem;
+                font-weight: 800; cursor: pointer;
+            }
+            .j3-mobile-exit:active { filter: brightness(1.18); }
+        }
+        </style>
+        <div class="j3-mobile-exit-wrap">
+          <button type="button" class="j3-mobile-exit" id="j3-mobile-window-close">✕ 창 닫기</button>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    # Streamlit markdown은 script를 없앤다. 기존 scroll_to.py와 같은 0px iframe에서
+    # 부모 문서의 버튼과 방문기록만 다룬다. 데이터·점수·API 호출은 전혀 없다.
+    script = f"""
+    <script>
+    (function () {{
+      var tries = 0;
+      function compact(win) {{
+        try {{ return !!win.matchMedia && win.matchMedia("(max-width: 1200px)").matches; }}
+        catch (e) {{ return false; }}
+      }}
+      function goTop(win) {{
+        try {{ win.scrollTo({{ top: 0, behavior: "smooth" }}); }} catch (e) {{
+          try {{ win.scrollTo(0, 0); }} catch (e2) {{}}
+        }}
+      }}
+      function bind() {{
+        tries += 1;
+        var win;
+        try {{ win = window.parent; }} catch (e) {{ return; }}
+        var doc = win && win.document;
+        var button = doc && doc.getElementById({button_id!r});
+        if (!win || !doc || !button) {{
+          if (tries < 40) {{ setTimeout(bind, 50); }}
+          return;
+        }}
+        if (button.dataset.j3ExitBound !== "1") {{
+          button.dataset.j3ExitBound = "1";
+          button.addEventListener("click", function (event) {{
+            event.preventDefault();
+            try {{ win.close(); }} catch (e) {{}}
+            // 모바일 브라우저는 사용자가 연 창의 close()를 막는다. 그때는 다른
+            // 앱 화면으로 가지 않고 빈 화면으로 바꿔 명시적인 종료가 되게 한다.
+            setTimeout(function () {{
+              try {{ if (!win.closed) {{ win.location.replace("about:blank"); }} }} catch (e) {{}}
+            }}, 250);
+          }});
+        }}
+        if (!compact(win) || win.__jarvisUsThemeBackGuard) {{ return; }}
+        win.__jarvisUsThemeBackGuard = true;
+        var marker = "__jarvis_us_theme_back_guard";
+        try {{
+          var home = Object.assign({{}}, win.history.state || {{}});
+          home[marker] = "home";
+          win.history.replaceState(home, "", win.location.href);
+          var guard = Object.assign({{}}, home);
+          guard[marker] = "guard";
+          win.history.pushState(guard, "", win.location.href);
+          win.addEventListener("popstate", function () {{
+            // 이 리스너는 부모 창에 붙는다. 다른 페이지로 옮긴 뒤에는 미국테마
+            // 하단 단추가 없으므로 즉시 빠져나가 다른 화면의 뒤로가기를 막지 않는다.
+            if (!compact(win) || !doc.getElementById({button_id!r})) {{ return; }}
+            goTop(win);
+            try {{
+              var next = Object.assign({{}}, win.history.state || {{}});
+              next[marker] = "guard";
+              win.history.pushState(next, "", win.location.href);
+            }} catch (e) {{}}
+          }});
+        }} catch (e) {{}}
+      }}
+      bind();
+    }})();
+    </script>
+    """
+    try:
+        import streamlit.components.v1 as components
+
+        components.html(script, height=0)
+    except Exception:
+        # 브라우저 연결이 막혀도 미국테마 본문은 기존처럼 정상 표시한다.
+        pass
+
+
 def main() -> None:
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
@@ -6527,5 +6631,7 @@ def main() -> None:
 
 
 main()
+# 미국테마 맨 아래의 모바일·태블릿 전용 종료 단추와 뒤로가기 보호.
+_render_mobile_exit_and_back_guard()
 # 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
 scroll_to.run(st)

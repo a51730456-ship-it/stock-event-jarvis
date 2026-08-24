@@ -389,6 +389,13 @@ class Jarvis3PageTests(unittest.TestCase):
         page_source = PAGE.read_text(encoding="utf-8")
         self.assertIn('panel.classList.add("j3fh-open")', page_source)
         self.assertIn("panel.scrollIntoView", page_source)
+        # 폰·태블릿은 미국테마 맨 아래에서 명시적으로 창을 닫을 수 있고,
+        # 뒤로가기는 다른 페이지로 빠지지 않고 이 페이지 맨 위로 돌아와야 한다.
+        self.assertIn("j3-mobile-window-close", page_source)
+        self.assertIn("win.close()", page_source)
+        self.assertIn('win.location.replace("about:blank")', page_source)
+        self.assertIn("win.history.pushState", page_source)
+        self.assertIn("goTop(win)", page_source)
         self.assertTrue(any("좋은 후보입니다. 아직 매수 신호는 아닙니다." in value
                             for value in markdowns))
         self.assertTrue(any("현재는 눌림 구간에 있습니다." in value
