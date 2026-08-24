@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 import hashlib
 import json
 import re
@@ -15,6 +16,7 @@ import threading
 import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from xml.etree import ElementTree
 
 
 CACHE_SECONDS = 600
@@ -40,6 +42,12 @@ def _request(url: str, headers: dict | None = None) -> dict | list:
     request = Request(url, headers=headers or {"Accept": "application/json"})
     with urlopen(request, timeout=8) as response:  # nosec B310 - fixed HTTPS endpoints below
         return json.loads(response.read().decode("utf-8"))
+
+
+def _request_text(url: str) -> str:
+    request = Request(url, headers={"Accept": "application/rss+xml, application/xml, text/xml"})
+    with urlopen(request, timeout=8) as response:  # nosec B310 - fixed Google News RSS endpoint below
+        return response.read().decode("utf-8", errors="replace")
 
 
 def _dedupe(rows: list[dict]) -> list[dict]:
@@ -79,6 +87,37 @@ def _finnhub(kind: str, ticker: str | None, key: str) -> list[dict]:
         rows.append({
             "headline": _text(raw.get("headline"), 300), "summary": _text(raw.get("summary"), 650),
             "source": _text(raw.get("source"), 80), "url": _text(raw.get("url"), 600),
+            "published_at": published.isoformat(),
+        })
+    recent = [row for row in rows if _time(row["published_at"]) >= now - timedelta(hours=24)]
+    return _dedupe(recent if recent else rows)[:10]
+
+
+def _google_news_rss(kind: str, ticker: str | None) -> list[dict]:
+    """키가 없을 때만 쓰는 공개 RSS 보조 뉴스원.
+
+    첫 화면을 API 키 미설정 상태에서 영구적인 '불러오는 중'으로 남기지 않는다.
+    RSS 원문·시간·출처를 그대로 보관하므로 사용자는 카드의 원문 확인에서 검증할 수 있다.
+    """
+    query = "미국 증시" if kind == "market" else f"{str(ticker or '').upper()} 주식"
+    params = {"q": f"{query} when:3d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+    endpoint = "https://news.google.com/rss/search?" + urlencode(params)
+    root = ElementTree.fromstring(_request_text(endpoint))
+    now = datetime.now(timezone.utc)
+    rows = []
+    for item in root.findall("./channel/item"):
+        title = _text(item.findtext("title"), 300)
+        link = _text(item.findtext("link"), 600)
+        try:
+            published = parsedate_to_datetime(str(item.findtext("pubDate") or "")).astimezone(timezone.utc)
+        except (TypeError, ValueError, IndexError, OverflowError):
+            continue
+        if not title or published < now - timedelta(hours=72):
+            continue
+        source_node = item.find("source")
+        source = _text(source_node.text if source_node is not None else "Google News", 80)
+        rows.append({
+            "headline": title, "summary": "", "source": source or "Google News", "url": link,
             "published_at": published.isoformat(),
         })
     recent = [row for row in rows if _time(row["published_at"]) >= now - timedelta(hours=24)]
@@ -130,7 +169,7 @@ def _groq(rows: list[dict], label: str, key: str) -> list[dict]:
 
 def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_key: str) -> dict:
     try:
-        rows = _finnhub(kind, ticker, finnhub_key) if finnhub_key else []
+        rows = _finnhub(kind, ticker, finnhub_key) if finnhub_key else _google_news_rss(kind, ticker)
         return {"ok": True, "items": _groq(rows, ticker or "미국시장", groq_key), "updated_at": time.time()}
     except Exception:
         return {"ok": False, "items": [], "message": "뉴스 브리핑 일시 사용 불가", "updated_at": time.time()}
@@ -142,8 +181,6 @@ def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = 
     now = time.time()
     with _LOCK:
         current = _CACHE.get(cache_key)
-        if current and now - current.get("updated_at", 0) < CACHE_SECONDS:
-            return current.get("result", {"ok": True, "items": []})
         if current and current.get("future"):
             future = current["future"]
             if future.done():
@@ -151,7 +188,9 @@ def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = 
                 current["updated_at"] = now
                 current.pop("future", None)
                 return current["result"]
+            return {**current.get("result", {"ok": True, "items": []}), "pending": True}
+        if current and now - current.get("updated_at", 0) < CACHE_SECONDS:
             return current.get("result", {"ok": True, "items": []})
         future = _POOL.submit(_load, cache_key, kind, ticker, finnhub_key, groq_key)
         _CACHE[cache_key] = {"future": future, "updated_at": now, "result": current.get("result", {"ok": True, "items": []}) if current else {"ok": True, "items": []}}
-        return _CACHE[cache_key]["result"]
+        return {**_CACHE[cache_key]["result"], "pending": True}

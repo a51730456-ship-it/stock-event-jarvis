@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -57,6 +58,18 @@ def test_news_dedupes_same_url_and_keeps_actual_count():
     ])
     assert len(rows) == 2
     assert len(news._fallback(rows)) == 2
+
+
+def test_rss_fallback_keeps_verifiable_actual_rows(monkeypatch):
+    stamp = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
+    monkeypatch.setattr(news, "_request_text", lambda _url: f"""
+        <rss><channel><item><title>미국 증시 관련 실제 뉴스</title><link>https://example.test/news</link>
+        <pubDate>{stamp}</pubDate><source url="https://example.test">테스트 출처</source></item></channel></rss>
+    """)
+    rows = news._google_news_rss("market", None)
+    assert len(rows) == 1
+    assert rows[0]["headline"] == "미국 증시 관련 실제 뉴스"
+    assert rows[0]["url"] == "https://example.test/news"
 
 
 def test_first_page_renders_four_slots_and_next_page_button():
