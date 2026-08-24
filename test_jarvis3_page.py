@@ -376,6 +376,12 @@ class Jarvis3PageTests(unittest.TestCase):
         # 브라우저에서 설명 첫 줄로 이동하는 전용 연결을 써야 한다.
         self.assertIn("j3fh-general-open", general_table)
         self.assertIn("j3fh-general-close", general_table)
+        # 급락 반등 설명과 같은 상단 요약 + 항목별 카드 형식이어야 한다. 긴 본문을
+        # 하나의 줄글로 다시 붙이면 폰·태블릿에서 읽기 어려워진다.
+        self.assertIn("<div class='j3fh-head'>", general_table)
+        self.assertGreaterEqual(general_table.count("<div class='j3fh-item'>"), 8)
+        for label in ("종목 · 최근 3개월 강도", "테마 · 강한 종목 수", "최종점수 —"):
+            self.assertIn(label, general_table)
         self.assertNotIn(
             "<input type='checkbox' class='j3fh-cb' id='j3_general_theme_help_theme'>",
             general_table,
