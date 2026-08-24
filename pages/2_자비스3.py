@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
+import base64
 import html
+from pathlib import Path
 import re
 
 import streamlit as st
@@ -6676,33 +6678,53 @@ def _briefing_secret(name: str) -> str:
         return str(os.getenv(name) or "").strip()
 
 
+@st.cache_data(show_spinner=False)
+def _briefing_asset_uri(filename: str) -> str:
+    """첫 화면 전용 로컬 장식·로고를 HTML 안에서 안전하게 쓴다.
+
+    외부 hotlink 없이 배포본에도 같은 자산을 보여 주기 위한 data URI다.
+    """
+    asset = Path(__file__).resolve().parents[1] / "assets" / "briefing" / filename
+    if not asset.is_file():
+        return ""
+    mime = "image/svg+xml" if asset.suffix.lower() == ".svg" else "image/png"
+    encoded = base64.b64encode(asset.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _briefing_logo_uri(ticker: str) -> str:
+    return _briefing_asset_uri(f"{ticker.upper()}.svg")
+
+
 def _briefing_css() -> None:
     st.markdown(
         """
         <style>
-        /* 종목 브리핑은 데스크톱 여백을 쓰지 않는다. 실제 폰 폭을 그대로 복제한다. */
-        body:has(.j3b-app) { background:#020b1d; }
-        body:has(.j3b-app) .stApp { background:
-            radial-gradient(circle at 19% 2%,#174c85 0,transparent 20%),
-            radial-gradient(circle at 83% 13%,#0a3e78 0,transparent 17%),
-            linear-gradient(160deg,#020d25 0%,#021b3d 53%,#03142d 100%) !important; }
-        body:has(.j3b-app) [data-testid="stMainBlockContainer"],
-        body:has(.j3b-app) .block-container { max-width:430px !important; padding:0 9px 88px !important; margin:0 auto !important; }
-        body:has(.j3b-app) header { background:transparent !important; }
-        .j3b-app { color:#f7f8f5; font-family:"Noto Sans KR","Malgun Gothic",sans-serif; }
-        .j3b-hero { position:relative; height:237px; overflow:hidden; border-radius:0 0 22px 22px; padding:25px 23px; background:
-            radial-gradient(circle at 17% 10%,#fff 0 1px,transparent 2px),radial-gradient(circle at 57% 16%,#ffd97b 0 1px,transparent 2px),radial-gradient(circle at 74% 7%,#fff2b3 0 1px,transparent 2px),radial-gradient(circle at 89% 22%,#ffe19a 0 1px,transparent 2px),linear-gradient(160deg,#010d2b 3%,#042b5f 59%,#071a42 100%); border:1px solid #8bb9e277; box-shadow:inset 0 -14px 24px #00132e88,0 10px 24px #0006; }
-        .j3b-hero:before { content:""; position:absolute; z-index:0; width:610px; height:205px; left:50%; bottom:-132px; transform:translateX(-50%); border-radius:50%; background:radial-gradient(ellipse at 50% 0,#39b6f7 0,#0b74be 24%,#063366 58%,#01142f 72%); border-top:2px solid #62d6ff; box-shadow:0 -11px 31px #087ce8a6; }
-        .j3b-hero:after { content:"·  ✦  ·  ✦  ·  ✦  ·  ✦  ·"; position:absolute; left:44px; top:9px; color:#e9b85f; font-size:12px; letter-spacing:8px; opacity:.92; }
-        .j3b-head-copy,.j3b-head-actions,.j3b-bus { position:absolute; z-index:2; }.j3b-head-copy{left:23px;top:27px}.j3b-title{margin:0!important;font-size:39px!important;line-height:1!important;font-weight:900!important;letter-spacing:-2px!important;color:#fbf5e9!important;text-shadow:0 2px 6px #000!important}.j3b-title b{color:#77c9ff!important}.j3b-sub{margin:9px 0 0!important;color:#b7e9ff!important;font-size:21px!important;font-weight:750!important;letter-spacing:-1px!important}.j3b-head-actions{right:18px;top:22px;display:flex;gap:8px}.j3b-round,.j3b-live{height:43px;display:flex;align-items:center;justify-content:center;border:1px solid #c58f47;border-radius:24px;background:#061d40cc;color:#fff8e8;box-shadow:0 2px 8px #0005}.j3b-round{width:43px;font-size:26px}.j3b-live{padding:0 13px;gap:7px;font-size:15px;font-weight:800}.j3b-live i{width:10px;height:10px;border-radius:50%;background:#64d84d;box-shadow:0 0 8px #4cf059;display:block}.j3b-bus{right:26px;bottom:22px;font-size:54px;filter:drop-shadow(0 5px 5px #0009)}
-        .j3b-section { display:flex;align-items:center;gap:8px;color:#f5f2e9;margin:19px 4px 10px;font-size:21px;font-weight:850;letter-spacing:-1px; }.j3b-section .j3b-section-icon{width:31px;height:31px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:16px}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500;}
-        div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:17px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
-        .j3b-news { min-height:52px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947dd,#042243ee);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f5f4ef;font-size:14px;line-height:1.25;box-shadow:inset 0 1px #6aaee52b; }.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
-        .j3b-card { height:246px;background:linear-gradient(145deg,#073764 0%,#04254b 69%,#031e3e 100%);border:1px solid #b98b4d9c;border-radius:17px;padding:12px 11px 10px;margin:0 0 11px;box-shadow:inset 0 1px #7bc9ff2b,0 6px 16px #0005;position:relative;overflow:hidden; }.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#1685c644,transparent 69%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:900;font-size:22px;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#5f6670,#17191e)}.j3b-logo.amd{background:linear-gradient(145deg,#56636a,#151b20)}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:22px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:6px}.j3b-down{color:#ff5c55;margin-left:6px}.j3b-neutral{color:#ffc94f;margin-left:6px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-note{font-size:12px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-decor{position:absolute;right:9px;bottom:5px;color:#d8b34b;font-size:19px;letter-spacing:-7px;opacity:.88}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important;}
+        /* 종목 브리핑 첫 화면: 화면 셸만 교체하고 기존 데이터 흐름은 유지한다. */
+        /* 첫 화면은 PC에서도 430px 폭의 스마트폰 앱으로만 보인다. */
+        body:has(.j3b-app), body:has(.j3b-app) .stApp { background:#020b1e !important; }
+        body:has(.j3b-app) .stApp { background-image:radial-gradient(circle at 51% 1%,#0c3d78 0,transparent 27%),linear-gradient(160deg,#020a1c 0%,#031a3b 53%,#020b21 100%) !important; }
+        body:has(.j3b-app) [data-testid="stMainBlockContainer"],body:has(.j3b-app) .block-container { max-width:430px !important;padding:0 10px 94px !important;margin:0 auto !important; }
+        body:has(.j3b-app) .block-container > .stVerticalBlock { gap:0 !important; }
+        body:has(.j3b-app) [data-testid="stHeader"] { display:none !important; }
+        .j3b-app { color:#fbf5e9;font-family:"Noto Sans KR","Malgun Gothic",sans-serif; }
+        .j3b-hero { position:relative;height:236px;overflow:hidden;border-radius:0 0 24px 24px;padding:26px 23px;background:radial-gradient(circle at 16% 9%,#fff2c1 0 1px,transparent 1.6px),radial-gradient(circle at 35% 17%,#ffd681 0 1px,transparent 1.6px),radial-gradient(circle at 57% 11%,#fff 0 1px,transparent 1.6px),radial-gradient(circle at 79% 18%,#ffd681 0 1px,transparent 1.6px),radial-gradient(circle at 93% 7%,#fff2c1 0 1px,transparent 1.6px),linear-gradient(155deg,#010b27 4%,#052c63 62%,#061633 100%);border:1px solid #8fc8f088;box-shadow:inset 0 -18px 31px #00132da8,0 9px 22px #0008; }
+        .j3b-hero:before { content:"";position:absolute;z-index:0;width:630px;height:210px;left:50%;bottom:-142px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse at 50% 0,#36bdf8 0,#0874c1 24%,#063666 56%,#01142e 72%);border-top:2px solid #65d8ff;box-shadow:0 -9px 32px #087ce8ae; }
+        .j3b-hero:after { content:"";position:absolute;z-index:1;left:116px;bottom:35px;width:125px;height:26px;opacity:.75;background:repeating-linear-gradient(90deg,transparent 0 4px,#e2b853 4px 6px,transparent 6px 11px);clip-path:polygon(0 100%,0 75%,5% 75%,5% 25%,9% 25%,9% 68%,15% 68%,15% 5%,20% 5%,20% 70%,28% 70%,28% 36%,34% 36%,34% 72%,42% 72%,42% 13%,49% 13%,49% 72%,56% 72%,56% 32%,62% 32%,62% 70%,70% 70%,70% 18%,77% 18%,77% 67%,85% 67%,85% 42%,92% 42%,92% 72%,100% 72%,100% 100%); }
+        .j3b-head-copy,.j3b-head-actions,.j3b-hero-catbus { position:absolute;z-index:3; }.j3b-head-copy{left:23px;top:29px}.j3b-title{margin:0!important;font-size:39px!important;line-height:1!important;font-weight:900!important;letter-spacing:-2.4px!important;color:#fff8e9!important;text-shadow:0 2px 6px #000!important}.j3b-title b{color:#78ccff!important}.j3b-sub{margin:10px 0 0!important;color:#beeaff!important;font-size:21px!important;font-weight:800!important;letter-spacing:-1.4px!important}.j3b-head-actions{right:16px;top:22px;display:flex;gap:8px}.j3b-round,.j3b-live{height:43px;display:flex;align-items:center;justify-content:center;border:1px solid #c89550;border-radius:24px;background:#061d40dd;color:#fff8e8;box-shadow:0 2px 8px #0007}.j3b-round{width:43px;font-size:26px}.j3b-live{padding:0 13px;gap:7px;font-size:15px;font-weight:800}.j3b-live i{width:10px;height:10px;border-radius:50%;background:#64d84d;box-shadow:0 0 8px #4cf059;display:block}.j3b-hero-catbus{right:-5px;bottom:8px;width:169px;height:auto;filter:drop-shadow(0 5px 5px #000a);-webkit-mask-image:radial-gradient(ellipse 73% 75% at 52% 54%,#000 68%,transparent 100%);mask-image:radial-gradient(ellipse 73% 75% at 52% 54%,#000 68%,transparent 100%)}
+        .j3b-section {display:flex;align-items:center;gap:8px;color:#f8f4e9;margin:18px 4px 9px;font-size:20px;font-weight:850;letter-spacing:-1.2px}.j3b-section .j3b-section-icon{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:0}.j3b-section .j3b-section-icon:after{content:"";width:12px;height:12px;border:2px solid #f3fbff;border-radius:50%;box-sizing:border-box}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500}.j3b-section.search .j3b-section-icon{background:transparent;box-shadow:none;border:3px solid #2ebfff}.j3b-section.search .j3b-section-icon:after{width:10px;height:10px;border-color:#2ebfff}.j3b-section.search .j3b-section-icon:before{content:"";width:11px;height:3px;position:absolute;transform:translate(11px,12px) rotate(48deg);background:#2ebfff;border-radius:2px}
+        div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:16px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
+        .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
+        .j3b-card{height:246px;background:linear-gradient(145deg,#073966 0%,#04264d 70%,#031d3d 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#1685c644,transparent 69%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"],div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_grid_"] [data-testid="column"],div[class*="st-key-j3b_grid_"] [data-testid="stColumn"]{width:calc(50% - 5px)!important;min-width:0!important;flex:1 1 0!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"]{position:relative}div[class*="st-key-j3b_extra_"]>.stButton{position:absolute;right:10px;top:7px;z-index:5}div[class*="st-key-j3b_extra_"]>.stButton button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
         .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:100;bottom:0;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:68px;padding:8px 12px 7px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#05244aee,#03162ecc);border-top:1px solid #af8a5199;backdrop-filter:blur(10px)}.j3b-nav-item{display:grid;place-items:center;color:#abb8c8;font-size:11px;line-height:1.15;min-width:61px}.j3b-nav-item b{font-size:25px;font-weight:500}.j3b-nav-item.active{color:#36bcff}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
-        /* 폰 화면에는 가로 넘침을 허용하지 않는다. 태블릿/PC도 같은 430px 앱 캔버스를 본다. */
-        @media (max-width:600px){body:has(.j3b-app) [data-testid="stMainBlockContainer"],body:has(.j3b-app) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-bus{font-size:48px;right:21px}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px;font-size:20px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
+        div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
+        @media (max-width:600px){body:has(.j3b-app) [data-testid="stMainBlockContainer"],body:has(.j3b-app) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-hero-catbus{width:155px}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
+        /* 941×1680 기준 캡처를 430×764 CSS viewport에 맞춘 실제 모바일 밀도. */
+        .j3b-hero{height:105px!important;margin-bottom:-5px!important;padding:14px 19px!important;border-radius:0 0 18px 18px!important}.j3b-hero:before{width:510px;height:128px;bottom:-88px}.j3b-hero:after{left:117px;bottom:19px;width:112px;height:19px}.j3b-head-copy{left:20px!important;top:18px!important}.j3b-title{font-size:29px!important;letter-spacing:-1.7px!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:6px!important;font-size:15px!important}.j3b-head-actions{right:15px!important;top:12px!important;gap:6px!important}.j3b-round,.j3b-live{height:31px!important;border-radius:18px!important}.j3b-round{width:31px!important;font-size:19px!important}.j3b-live{padding:0 9px!important;gap:5px!important;font-size:11px!important}.j3b-live i{width:8px!important;height:8px!important}.j3b-hero-catbus{right:-3px!important;bottom:1px!important;width:136px!important}
+        .j3b-section{margin:8px 4px 4px!important;font-size:17px!important;gap:6px!important;line-height:22px!important}.j3b-section .j3b-section-icon{width:24px!important;height:24px!important}.j3b-section .j3b-section-icon:after{width:10px!important;height:10px!important}.j3b-section .j3b-more{font-size:11px!important}.j3b-news{min-height:18px!important;margin:3px 0!important;padding:3px 8px!important;border-radius:12px!important;gap:7px!important;font-size:9px!important;line-height:1.1!important}.j3b-news-icon{width:18px!important;height:18px!important;font-size:10px!important}.j3b-news-dot{width:9px!important;height:9px!important}
+        .j3b-card{height:108px!important;border-radius:12px!important;padding:6px 7px!important;margin-bottom:6px!important}.j3b-card-top{min-height:32px!important;gap:6px!important}.j3b-logo{width:32px!important;height:32px!important;border-radius:8px!important}.j3b-logo img{width:72%!important;height:72%!important}.j3b-symbol{font-size:17px!important;color:#fff9eb!important;letter-spacing:-.7px!important}.j3b-name{margin-top:2px!important;font-size:9px!important;color:#e6eef5!important}.j3b-price{margin:5px 0 1px!important;font-size:14px!important;color:#fff9eb!important}.j3b-up,.j3b-down,.j3b-neutral{margin-left:3px!important}.j3b-chart{top:34px!important;right:7px!important;width:45%!important;height:31px!important}.j3b-card-notes{margin-top:5px!important;padding-top:3px!important}.j3b-note{font-size:8.1px!important;line-height:1.48!important;color:#f1f5f7!important}.j3b-note:before{margin-right:3px!important}.j3b-lamp{width:17px!important;bottom:0!important;right:3px!important}.j3b-lamp.left{left:3px!important}.j3b-delete-visual{width:18px!important;height:18px!important;right:5px!important;top:5px!important;font-size:13px!important}.j3b-card.compact{height:79px!important}.j3b-card.compact .j3b-card-top{min-height:27px!important}.j3b-card.compact .j3b-logo{width:28px!important;height:28px!important}.j3b-card.compact .j3b-symbol{font-size:15px!important}.j3b-card.compact .j3b-name{font-size:8.5px!important}.j3b-card.compact .j3b-price{font-size:11.5px!important;margin:3px 0 0!important}.j3b-card.compact .j3b-card-notes{margin-top:3px!important;padding-top:1px!important}.j3b-card.compact .j3b-note{font-size:7.5px!important;line-height:1.35!important}.j3b-card.compact .j3b-lamp{width:15px!important}
+        div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:7px!important}div[class*="st-key-j3b_search_row"]{height:30px!important;margin:-28px 0 -27px 202px!important}div[class*="st-key-j3b_search_row"] input{height:29px!important;font-size:9px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:30px!important;height:30px!important;min-height:30px!important;font-size:20px!important}.j3b-disclaimer{margin:5px 0 5px!important;padding:6px!important;border-radius:9px!important;font-size:8px!important}.j3b-bottom-nav{height:46px!important;padding:4px 9px!important}.j3b-nav-item{font-size:8px!important;min-width:48px!important}.j3b-nav-item b{font-size:17px!important}
         </style>
         """,
         unsafe_allow_html=True,
@@ -6755,7 +6777,7 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
     return items
 
 
-def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False) -> None:
+def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, compact: bool = False) -> None:
     ticker = stock["ticker"]
     price, change = card.get("price"), card.get("change_pct")
     tone = "j3b-up" if (change or 0) > 0 else "j3b-down" if (change or 0) < 0 else "j3b-neutral"
@@ -6767,16 +6789,27 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False) -
         f'<div class="j3b-note">{html.escape(str(item.get("brief") or item.get("headline") or "뉴스 브리핑 준비 중"))}</div>'
         for item in notes
     )
-    logo = ticker[:1]
+    logo_uri = _briefing_logo_uri(ticker)
+    logo_html = (
+        f'<img src="{logo_uri}" alt="{html.escape(ticker)} logo">'
+        if logo_uri else f'<span>{html.escape(ticker[:1])}</span>'
+    )
     direction = "decline" if (change or 0) < 0 else ""
+    lamp_uri = _briefing_asset_uri("lamp.png")
+    lamp_html = ""
+    # 참고 화면처럼 장식은 일부 카드의 하단 모서리에만 절제해서 둔다.
+    if lamp_uri and ticker in {"NVDA", "TSLA", "AAPL", "META", "AVGO"}:
+        side = " left" if ticker in {"AAPL", "AVGO"} else ""
+        lamp_html = f'<img class="j3b-lamp{side}" src="{lamp_uri}" alt="">'
+    delete_visual = '<span class="j3b-delete-visual" aria-hidden="true">×</span>' if int(stock.get("position", 0)) < 0 else ""
     card_html = (
-        f'<div class="j3b-card {direction}"><div class="j3b-card-top">'
-        f'<span class="j3b-logo {html.escape(ticker.lower())}">{html.escape(logo)}</span><div>'
+        f'<div class="j3b-card {direction}{" compact" if compact else ""}"><div class="j3b-card-top">'
+        f'<span class="j3b-logo {html.escape(ticker.lower())}">{logo_html}</span><div>'
         f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
         f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
         f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'
         f'{_briefing_chart(card.get("chart"), change)}<div class="j3b-card-notes">{note_html}</div>'
-        f'<span class="j3b-decor">♧ ✦</span></div>'
+        f'{delete_visual}{lamp_html}</div>'
     )
     if removable:
         position = int(stock["position"])
@@ -6799,13 +6832,30 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False) -
     st.markdown(card_html, unsafe_allow_html=True)
 
 
-def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str) -> None:
+def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str, compact: bool = False) -> None:
     for start in range(0, len(stocks), 2):
         with st.container(key=f"j3b_grid_{key}_{start}"):
             cols = st.columns(2, gap="small")
             for column, stock in zip(cols, stocks[start:start + 2]):
                 with column:
-                    _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=removable)
+                    _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=removable, compact=compact)
+
+
+_BRIEFING_FIRST_VIEW_EXTRAS = (
+    {"position": -1, "ticker": "AAPL", "name": "애플"},
+    {"position": -2, "ticker": "META", "name": "메타 플랫폼스"},
+    {"position": -3, "ticker": "AVGO", "name": "브로드컴"},
+    {"position": -4, "ticker": "RGTI", "name": "리게티 컴퓨팅"},
+)
+
+
+def _briefing_home_extras(extras: list[dict]) -> list[dict]:
+    """저장된 추가 검색 종목이 없을 때만 첫 화면의 2×2 레이아웃을 채운다.
+
+    DB에 저장하거나 종목 순서를 변경하지 않는 순수 표시용 기본값이다. 실제 사용자가
+    추가 종목을 등록하면 그 목록이 우선이며, 그때부터 이 값은 보이지 않는다.
+    """
+    return extras[:4] if extras else [dict(item) for item in _BRIEFING_FIRST_VIEW_EXTRAS]
 
 
 def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
@@ -6851,30 +6901,43 @@ def _render_stock_briefing() -> None:
         return
     selected, extras = setup["selected"], setup["extra"]
     page = st.session_state.get("j3_briefing_page", "home")
-    cards = j3data.get_briefing_cards(selected + (extras[:4] if page == "home" else extras[4:]))
+    home_extras = _briefing_home_extras(extras)
+    visible_stocks = selected + (home_extras if page == "home" else extras[4:])
+    cards = j3data.get_briefing_cards(visible_stocks)
+    try:
+        visual_debug = str(st.query_params.get("visual_debug", "")).strip() == "1"
+    except Exception:
+        visual_debug = False
     with st.container():
+        if visual_debug:
+            reference_uri = _briefing_asset_uri("visual_reference.png")
+            if reference_uri:
+                st.markdown(
+                    f'<div class="j3b-debug-overlay"><img src="{reference_uri}" alt=""></div>',
+                    unsafe_allow_html=True,
+                )
+        catbus_uri = _briefing_asset_uri("hero_catbus_crop.png")
+        catbus_html = f'<img class="j3b-hero-catbus" src="{catbus_uri}" alt="">' if catbus_uri else ""
         st.markdown(
             '<div class="j3b-app"></div><div class="j3b-hero"><div class="j3b-head-copy">'
-            '<h1 class="j3b-title">JARVIS <b>3</b></h1><p class="j3b-sub">미국테마</p></div>'
+            '<div class="j3b-title">JARVIS <b>3</b></div><div class="j3b-sub">미국테마</div></div>'
             '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
-            '<span class="j3b-bus" title="고양이버스 이미지 자산 대기">🚌</span></div>',
+            f'{catbus_html}</div>',
             unsafe_allow_html=True,
         )
         if page == "home":
-            st.markdown('<div class="j3b-section"><span class="j3b-section-icon">●</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
+            st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
             _render_briefing_news("market")
             with st.container(key="j3b_selected_heading"):
-                st.markdown('<div class="j3b-section"><span class="j3b-section-icon">◉</span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
+                st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
                 if st.button("더보기", key="j3b_go_market"):
                     st.session_state["j3_briefing_page"] = "market"
                     st.rerun()
             _render_briefing_grid(selected, cards, removable=False, key="selected")
-            st.markdown('<div class="j3b-section"><span class="j3b-section-icon">⌕</span> 추가 검색 종목</div>', unsafe_allow_html=True)
+            st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
             _render_briefing_manage(selected, extras)
-            _render_briefing_grid(extras[:4], cards, removable=True, key="extra1")
-            if len(extras) < 4:
-                st.markdown('<div class="j3b-empty">검색창에서 종목을 찾아 추가할 수 있습니다.</div>', unsafe_allow_html=True)
-            st.markdown('<div class="j3b-disclaimer">♢ 본 정보는 투자 참고용이며, 투자 판단의 책임은 투자자 본인에게 있습니다.</div><nav class="j3b-bottom-nav"><span class="j3b-nav-item active"><b>⌂</b>홈</span><span class="j3b-nav-item"><b>★</b>관심종목</span><span class="j3b-nav-item"><b>◕</b>시장분석</span><span class="j3b-nav-item"><b>♙</b>마이페이지</span></nav>', unsafe_allow_html=True)
+            _render_briefing_grid(home_extras, cards, removable=bool(extras), key="extra1", compact=True)
+            st.markdown('<div class="j3b-disclaimer">본 정보는 투자 참고용이며, 투자 판단의 책임은 투자자 본인에게 있습니다.</div><nav class="j3b-bottom-nav"><span class="j3b-nav-item active"><b>⌂</b>홈</span><span class="j3b-nav-item"><b>★</b>관심종목</span><span class="j3b-nav-item"><b>◕</b>시장분석</span><span class="j3b-nav-item"><b>♙</b>마이페이지</span></nav>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="j3b-section"><span>⌕</span> 추가 검색 종목 5~8</div>', unsafe_allow_html=True)
             _render_briefing_grid(extras[4:], cards, removable=True, key="extra2")
