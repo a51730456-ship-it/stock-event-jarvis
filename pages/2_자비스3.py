@@ -20,7 +20,7 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
 
     auth = _importlib.reload(auth)
 
-st.set_page_config(page_title="자비스3 — 미국 테마 레이더", layout="wide")
+st.set_page_config(page_title="자비스3 — 종목 브리핑", layout="wide")
 
 st.markdown(
     """
@@ -1031,6 +1031,7 @@ if auth.is_guest():
     )
 
 import importlib
+import os
 import threading
 import time
 
@@ -1078,6 +1079,8 @@ if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
 import regime_gauge_ui
 import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용히 예전처럼 돈다.
 import jarvis3_data as j3data
+import jarvis3_briefing_news as briefing_news
+import jarvis3_briefing_store as briefing_store
 import us_swing_selector as us_swing
 import jarvis3_store as j3store
 import market_signal_ui
@@ -1090,7 +1093,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082402
+_REQUIRED_J3_REVISION = 2026082403
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1105,6 +1108,7 @@ if (
     or not hasattr(j3data, "get_index_sparklines")
     # 2026-07-29 '내 종목 현재상황'에서 쓴다. 빠뜨리면 온라인에서 AttributeError가 난다.
     or not hasattr(j3data, "search_stocks")
+    or not hasattr(j3data, "get_briefing_cards")
     or not hasattr(j3data, "analyze_one_stock")
     # 2026-07-30 '매수심사결과 높은 순위 7'에서 쓴다.
     or not hasattr(j3data, "find_top_reviewed_stocks")
@@ -6611,7 +6615,7 @@ def _render_mobile_exit_and_back_guard() -> None:
         pass
 
 
-def main() -> None:
+def _render_existing_theme_content() -> None:
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
         # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
@@ -6662,6 +6666,180 @@ def main() -> None:
         _render_records_tab()
     else:
         _render_method_tab()
+
+
+def _briefing_secret(name: str) -> str:
+    """키가 없거나 secrets 접근이 막혀도 화면은 정상 표시한다."""
+    try:
+        return str(st.secrets.get(name) or os.getenv(name) or "").strip()
+    except Exception:
+        return str(os.getenv(name) or "").strip()
+
+
+def _briefing_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .j3b-shell { color:#f8fbff; background:radial-gradient(circle at 70% 0,#0b4f91 0,transparent 27%),linear-gradient(160deg,#010e28,#022b57 62%,#03122c); border:1px solid #275e92; border-radius:22px; padding:1rem; box-shadow:0 10px 28px #0008; }
+        .j3b-hero { position:relative; overflow:hidden; border-radius:18px; padding:1.1rem 1.15rem 1.3rem; background:linear-gradient(160deg,#051a41,#042c60); border:1px solid #c18a3d88; }
+        .j3b-hero:after { content:""; position:absolute; width:135%; height:120px; left:-18%; bottom:-88px; border-radius:50%; background:radial-gradient(ellipse at 50% 0,#1790e8,#073d78 54%,#02112a 71%); border-top:2px solid #68d5ff; box-shadow:0 -10px 35px #087cd5aa; }
+        .j3b-kicker { color:#9edcff; font-size:.9rem; letter-spacing:.06em; margin:0; }.j3b-title { margin:0; font-size:clamp(2rem,6vw,3rem); letter-spacing:.04em; }.j3b-sub { color:#aeeaff; margin:.2rem 0 0; font-weight:700; }.j3b-bus { position:absolute; right:1rem; bottom:.7rem; font-size:2.4rem; z-index:1; filter:drop-shadow(0 4px 5px #000); }
+        .j3b-section { display:flex; align-items:center; gap:.45rem; color:#fff; margin:1.2rem .1rem .55rem; font-size:1.15rem; font-weight:800; }.j3b-section span { color:#43b8ff; font-size:1.5rem; }
+        .j3b-news { background:#04264acc; border:1px solid #bd8b4388; border-radius:13px; margin:.38rem 0; padding:.72rem .85rem; color:#edf6ff; }.j3b-news small { color:#a9c7e8; }
+        .j3b-card { min-height:225px; background:linear-gradient(150deg,#073662,#032246); border:1px solid #c18a3d99; border-radius:16px; padding:.85rem; margin-bottom:.65rem; box-shadow:inset 0 1px #6bc8ff22,0 7px 15px #0004; position:relative; overflow:hidden; }.j3b-card:after { content:"✦"; position:absolute; right:.65rem; bottom:.35rem; color:#e6b852; opacity:.55; }
+        .j3b-symbol { font-size:1.35rem; font-weight:900; }.j3b-name { color:#c2d9ed; margin-left:.4rem; }.j3b-price { font-size:1.25rem; font-weight:800; margin:.4rem 0; }.j3b-up { color:#70e64a; }.j3b-down { color:#ff5b5b; }.j3b-neutral { color:#ffd35a; }.j3b-chart { width:100%; height:45px; display:block; }.j3b-note { font-size:.82rem; color:#e3effb; padding-top:.33rem; border-top:1px solid #b8955144; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.j3b-note:before { content:"•"; color:#70e64a; margin-right:.35rem; }.j3b-empty { color:#aecbe3; padding:.8rem 0; }
+        @media (max-width:600px) { .block-container { padding-left:.55rem !important; padding-right:.55rem !important; }.j3b-shell{padding:.55rem;border-radius:14px}.j3b-hero{padding:.85rem}.j3b-card{min-height:205px;padding:.65rem}.j3b-symbol{font-size:1.12rem}.j3b-name{font-size:.82rem;display:block;margin-left:0}.j3b-price{font-size:1.02rem}.j3b-note{font-size:.72rem}.j3b-bus{font-size:1.9rem}.j3b-title{font-size:1.85rem} }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _briefing_chart(values, change) -> str:
+    values = [float(item) for item in (values or []) if item is not None]
+    if len(values) < 2:
+        return ""
+    low, high = min(values), max(values)
+    span = high - low or 1
+    points = " ".join(f"{index * 100 / (len(values)-1):.1f},{42 - (value-low) * 38/span:.1f}" for index, value in enumerate(values))
+    stroke = "#70e64a" if (change or 0) >= 0 else "#ff5b5b"
+    return f'<svg class="j3b-chart" viewBox="0 0 100 45" preserveAspectRatio="none"><polyline points="{points}" fill="none" stroke="{stroke}" stroke-width="2.1"/></svg>'
+
+
+def _briefing_items(kind: str, ticker: str | None = None) -> dict:
+    return briefing_news.get_or_schedule(
+        kind, ticker, finnhub_key=_briefing_secret("FINNHUB_API_KEY"),
+        groq_key=_briefing_secret("GROQ_API_KEY"),
+    )
+
+
+def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
+    result = _briefing_items(kind, ticker)
+    items = result.get("items") or []
+    if not items:
+        st.markdown('<div class="j3b-news">🟡 뉴스 브리핑 일시 사용 불가</div>', unsafe_allow_html=True)
+        return []
+    icons = {"positive": "🟢", "negative": "🔴", "neutral": "🟡"}
+    for index, item in enumerate(items[:3]):
+        icon = icons.get(item.get("sentiment"), "🟡")
+        brief = html.escape(str(item.get("brief") or item.get("headline") or ""))
+        source = html.escape(str(item.get("source") or "원문"))
+        st.markdown(f'<div class="j3b-news">{icon} {brief}<br><small>{source}</small></div>', unsafe_allow_html=True)
+        with st.expander("원문 확인", expanded=False):
+            st.write(item.get("headline") or "제목 없음")
+            st.caption(f"{item.get('source') or '출처 미상'} · {item.get('published_at') or '시간 미상'}")
+            if item.get("url"):
+                st.link_button("원문 열기", item["url"], key=f"j3b_source_{kind}_{ticker or 'market'}_{index}")
+    return items
+
+
+def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False) -> None:
+    ticker = stock["ticker"]
+    price, change = card.get("price"), card.get("change_pct")
+    tone = "j3b-up" if (change or 0) > 0 else "j3b-down" if (change or 0) < 0 else "j3b-neutral"
+    price_text = f"{price:,.2f}" if isinstance(price, (float, int)) else "시세 준비 중"
+    change_text = f"{change:+.2f}%" if isinstance(change, (float, int)) else "—"
+    st.markdown(
+        f'<div class="j3b-card"><div><span class="j3b-symbol">{html.escape(ticker)}</span><span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div><div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>{_briefing_chart(card.get("chart"), change)}</div>',
+        unsafe_allow_html=True,
+    )
+    items = _briefing_items("company", ticker).get("items") or []
+    if items:
+        for item in items[:3]:
+            st.markdown(f'<div class="j3b-note">{html.escape(str(item.get("brief") or item.get("headline")))}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="j3b-note">뉴스 브리핑 준비 중</div>', unsafe_allow_html=True)
+    if removable:
+        position = int(stock["position"])
+        confirm = st.session_state.get("j3b_delete_confirm") == position
+        if confirm:
+            left, right = st.columns(2)
+            if left.button("삭제 확인", key=f"j3b_del_yes_{position}"):
+                briefing_store.remove_extra(position)
+                st.session_state.pop("j3b_delete_confirm", None)
+                st.rerun()
+            if right.button("취소", key=f"j3b_del_no_{position}"):
+                st.session_state.pop("j3b_delete_confirm", None)
+                st.rerun()
+        elif st.button("× 삭제", key=f"j3b_del_{position}"):
+            st.session_state["j3b_delete_confirm"] = position
+            st.rerun()
+
+
+def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str) -> None:
+    for start in range(0, len(stocks), 2):
+        cols = st.columns(2, gap="small")
+        for column, stock in zip(cols, stocks[start:start + 2]):
+            with column:
+                _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=removable)
+
+
+def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
+    with st.expander("종목 추가 · 교체", expanded=False):
+        query = st.text_input("티커 또는 영문 회사명", placeholder="예: NVDA 또는 NVIDIA", key="j3b_search")
+        found = j3data.search_stocks(query) if query.strip() else {"ok": True, "rows": []}
+        rows = found.get("rows") or []
+        if query.strip() and not rows:
+            st.caption("확인된 미국 티커를 찾지 못했습니다.")
+        if rows:
+            labels = [f'{row["ticker"]} · {row["name"]}' for row in rows]
+            chosen = rows[labels.index(st.selectbox("확인된 종목", labels, key="j3b_candidate"))]
+            targets = ["추가 검색 종목으로 등록"] + [f"사용자 선정 {stock['position']}번 교체" for stock in selected]
+            target = st.radio("등록 위치", targets, horizontal=False, key="j3b_target")
+            if st.button("선택한 종목 저장", key="j3b_save_stock"):
+                try:
+                    if target.startswith("추가"):
+                        briefing_store.add_extra(chosen["ticker"], chosen["name"])
+                    else:
+                        slot = int(target.split()[2][0])
+                        briefing_store.replace_selected(slot, chosen["ticker"], chosen["name"])
+                    st.success("저장했습니다.")
+                    st.rerun()
+                except ValueError as exc:
+                    st.warning(str(exc))
+        st.caption(f"추가 검색 종목: {len(extras)}/8 · 순서는 등록 순서대로 유지됩니다.")
+
+
+def _render_stock_briefing() -> None:
+    _briefing_css()
+    try:
+        briefing_store.ensure_tables()
+        setup = briefing_store.all_stocks()
+    except Exception:
+        st.error("종목 브리핑 설정을 불러오지 못했습니다. 기존 미국테마 기능은 계속 사용할 수 있습니다.")
+        _render_existing_theme_content()
+        return
+    selected, extras = setup["selected"], setup["extra"]
+    page = st.session_state.get("j3_briefing_page", "home")
+    cards = j3data.get_briefing_cards(selected + (extras[:4] if page == "home" else extras[4:]))
+    with st.container():
+        st.markdown('<div class="j3b-shell"><div class="j3b-hero"><p class="j3b-kicker">JARVIS 3</p><h1 class="j3b-title">종목 브리핑</h1><p class="j3b-sub">미국테마 · 빠르게 보는 내 종목</p><span class="j3b-bus" title="캐릭터 이미지 자산 대기">🚌</span></div></div>', unsafe_allow_html=True)
+        if page == "home":
+            st.markdown('<div class="j3b-section"><span>◉</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
+            _render_briefing_news("market")
+            st.markdown('<div class="j3b-section"><span>◉</span> 사용자 선정 종목</div>', unsafe_allow_html=True)
+            _render_briefing_grid(selected, cards, removable=False, key="selected")
+            st.markdown('<div class="j3b-section"><span>⌕</span> 추가 검색 종목</div>', unsafe_allow_html=True)
+            _render_briefing_grid(extras[:4], cards, removable=True, key="extra1")
+            if len(extras) < 4:
+                st.markdown('<div class="j3b-empty">+ 종목 추가는 아래 「종목 추가 · 교체」에서 할 수 있습니다.</div>', unsafe_allow_html=True)
+            _render_briefing_manage(selected, extras)
+            if st.button("추가 종목 · 미국시장 판단 →", key="j3b_go_market", use_container_width=True):
+                st.session_state["j3_briefing_page"] = "market"
+                st.rerun()
+        else:
+            st.markdown('<div class="j3b-section"><span>⌕</span> 추가 검색 종목 5~8</div>', unsafe_allow_html=True)
+            _render_briefing_grid(extras[4:], cards, removable=True, key="extra2")
+            _render_briefing_manage(selected, extras)
+            if st.button("← 종목 브리핑", key="j3b_go_home"):
+                st.session_state["j3_briefing_page"] = "home"
+                st.rerun()
+            st.divider()
+            _render_existing_theme_content()
+
+
+def main() -> None:
+    _render_stock_briefing()
 
 
 main()

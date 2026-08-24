@@ -198,11 +198,12 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082402
+MODULE_REVISION = 2026082403
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict[tuple, dict] = {}
+_BRIEFING_CARD_CACHE: dict[str, dict] = {}
 _YF_CACHE_READY = False
 
 
@@ -221,6 +222,7 @@ def clear_runtime_cache() -> None:
     """사용자가 새로고침을 눌렀을 때 자비스3 메모리 캐시만 비운다."""
     with _CACHE_LOCK:
         _CACHE.clear()
+        _BRIEFING_CARD_CACHE.clear()
     with _FEAR_GREED_LOCK:
         _FEAR_GREED_CACHE.update({"at": 0.0, "value": None})
 
@@ -4124,6 +4126,40 @@ def get_live_quote(ticker: str) -> dict:
         "ticker": ticker,
         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
     }
+
+
+def get_briefing_cards(stocks) -> dict[str, dict]:
+    """종목 브리핑 카드용 가격·30개 종가. 기존 시장 계산과 분리된 읽기 전용 경로다."""
+    tickers = tuple(dict.fromkeys(
+        str((item or {}).get("ticker", item) if isinstance(item, dict) else item).strip().upper()
+        for item in (stocks or ()) if str((item or {}).get("ticker", item) if isinstance(item, dict) else item).strip()
+    ))
+    if not tickers:
+        return {}
+    now = time.time()
+    with _CACHE_LOCK:
+        cached = {ticker: _BRIEFING_CARD_CACHE.get(ticker) for ticker in tickers}
+        missing = tuple(ticker for ticker, card in cached.items() if not card or now - card["at"] >= 45)
+    if missing:
+        daily, daily_meta = _download_cached(missing, period="3mo", interval="1d", ttl_seconds=300)
+        live, live_meta = _download_cached(missing, period="1d", interval="1m", ttl_seconds=45, prepost=True)
+        with _CACHE_LOCK:
+            for ticker in missing:
+                metrics = _series_metrics(daily.get(ticker), live.get(ticker))
+                if metrics.get("ok"):
+                    closes = daily[ticker]["Close"].dropna().astype(float).tail(30).tolist()
+                    _BRIEFING_CARD_CACHE[ticker] = {
+                        "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
+                        "price": metrics.get("current"), "change_pct": metrics.get("change_pct"),
+                        "chart": closes, "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
+                    }
+                else:
+                    _BRIEFING_CARD_CACHE[ticker] = {
+                        "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
+                        "price": None, "change_pct": None, "chart": [], "stale": True,
+                    }
+    with _CACHE_LOCK:
+        return {ticker: dict(_BRIEFING_CARD_CACHE[ticker]) for ticker in tickers if ticker in _BRIEFING_CARD_CACHE}
 
 
 def get_intraday_chart(ticker: str) -> dict | None:
