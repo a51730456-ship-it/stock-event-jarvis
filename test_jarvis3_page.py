@@ -382,6 +382,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertGreaterEqual(general_table.count("<div class='j3fh-item'>"), 8)
         for label in ("종목 · 최근 3개월 강도", "테마 · 강한 종목 수", "최종점수 —"):
             self.assertIn(label, general_table)
+        # 폰·태블릿은 표 보조문장을 접고 8개 항목을 세 묶음 카드로 압축한다.
+        self.assertIn("j3-general-factor-note", general_table)
+        self.assertIn("j3fh-general-compact", general_table)
+        for label in ("종목점수 —", "테마점수 —", "최근 힘 증가 10점"):
+            self.assertIn(label, general_table)
         self.assertNotIn(
             "<input type='checkbox' class='j3fh-cb' id='j3_general_theme_help_theme'>",
             general_table,
@@ -396,6 +401,8 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn('win.location.replace("about:blank")', page_source)
         self.assertIn("win.history.pushState", page_source)
         self.assertIn("goTop(win)", page_source)
+        self.assertIn("j3-general-factor-note", page_source)
+        self.assertIn("j3fh-general-compact", page_source)
         self.assertTrue(any("좋은 후보입니다. 아직 매수 신호는 아닙니다." in value
                             for value in markdowns))
         self.assertTrue(any("현재는 눌림 구간에 있습니다." in value

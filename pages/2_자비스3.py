@@ -2553,7 +2553,7 @@ def _render_stock_detail(
         def _general_factor_rows(spec, values):
             return "".join(
                 f"<tr><td class='j3-fac-name'>{name}"
-                f"<div style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
+                f"<div class='j3-general-factor-note' style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
                 f"{general_factor_notes[name]}</div></td>"
                 "<td class='j3-fac-val'><span style='color:#ff5b5b; font-weight:800'>"
                 f"{_number(part)}</span> <span style='color:#ff5b5b'>/ {_number(maximum)}</span></td></tr>"
@@ -2568,7 +2568,7 @@ def _render_stock_detail(
         )
         total_row = _general_group_row("최종점수", leader.get("score") or 0, "#44f0a1").replace(
             "</td></tr>",
-            "<div style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
+            "<div class='j3-general-total-note' style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
             "종목 60% + 테마 40%</div></td></tr>",
             1,
         )
@@ -2915,6 +2915,8 @@ _FACTOR_HELP_CSS = """
     animation: j3fh-drop .24s ease-out;
     scroll-margin-top: 1rem;
 }
+/* 데스크톱은 항목별 카드, 폰·태블릿은 아래 @media의 세 묶음 카드다. */
+.j3fh-general-compact { display: none; }
 /* ── 태블릿·스마트폰에서는 **화면 아래에서 위로 올라오며** 열린다 ─────────────
    2026-08-14 상하님 지시 — "테블릿과 스마트폰에서 설명을 클릭하면 화면 위로
    가면서 설명창이 열리도록 해 줘."
@@ -2959,6 +2961,18 @@ _FACTOR_HELP_CSS = """
         box-shadow: none;
         animation: j3fh-drop .24s ease-out;
     }
+    /* 7개 배점 설명을 표와 설명 창에서 두 번 읽으면 폰·태블릿에서 두 페이지를
+       넘긴다. 표에는 이름·점수만 남기고, 설명 창은 종목·테마·최종 세 묶음으로
+       압축한다. PC의 항목별 카드와 표 설명은 그대로 둔다. */
+    .j3fh-swap.j3fh-general .j3-general-factor-note,
+    .j3fh-swap.j3fh-general .j3-general-total-note { display: none !important; }
+    .j3fh-swap.j3fh-general .j3fh-general-full { display: none; }
+    .j3fh-swap.j3fh-general .j3fh-general-compact { display: block; }
+    .j3fh-swap.j3fh-general .j3fh-general-compact .j3fh-item {
+        padding: .48rem .68rem;
+        margin: .4rem 0;
+    }
+    .j3fh-swap.j3fh-general .j3fh-general-compact .j3fh-name { margin-bottom: .22rem; }
     /* 창 안에서는 왼쪽 초록 띠를 뺀다 — 창 위쪽 띠가 이미 그 몫을 한다. */
     .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-item { border-left: none; }
     /* 일반 테마는 하단 팝업이 아니라 표 아래 카드다. 폰·태블릿에서도 기존
@@ -3328,13 +3342,33 @@ def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -
         "예: 종목점수 90점, 테마점수 80점이면 <span class='j3fh-k'>최종점수는 86점</span>입니다.<br>"
         "이 점수는 무엇을 살지 찾는 점수이며, 실제 매수 여부는 시장상태와 현재 가격자리를 따로 확인합니다.</div></div>",
     ))
+    # 폰·태블릿은 위의 8개 카드를 그대로 세우지 않는다. 같은 내용을 세 묶음으로
+    # 보여 주되, 제목·배점·판단 의미는 빠뜨리지 않는다.
+    compact_items = "".join((
+        "<div class='j3fh-item'><div class='j3fh-name'>종목점수 — "
+        "<span class='j3fh-k'>100점</span></div><div class='j3fh-txt'>"
+        "<span class='j3fh-h'>최근 3개월 40점</span> — 최근 시장보다 강했는지 · "
+        "<span class='j3fh-h'>최근 6개월 40점</span> — 반년 동안 꾸준히 강했는지<br>"
+        "<span class='j3fh-h'>1년 최고가 근접 20점</span> — 높은 가격대 가까이에 있는지 봅니다.</div></div>",
+        "<div class='j3fh-item'><div class='j3fh-name'>테마점수 — "
+        "<span class='j3fh-k'>100점</span></div><div class='j3fh-txt'>"
+        "<span class='j3fh-h'>6개월 강도 35점</span> · <span class='j3fh-h'>3개월 강도 30점</span> — "
+        "테마의 중기·최근 힘을 봅니다.<br>"
+        "<span class='j3fh-h'>강한 종목 수 25점</span> · <span class='j3fh-h'>최근 힘 증가 10점</span> — "
+        "여러 종목이 함께 강하고 최근 힘이 붙는지 봅니다.</div></div>",
+        "<div class='j3fh-item'><div class='j3fh-name'>최종점수 — "
+        "<span class='j3fh-h'>종목 60%</span> + <span class='j3fh-k'>테마 40%</span></div><div class='j3fh-txt'>"
+        "예: 종목 90점, 테마 80점이면 <span class='j3fh-k'>최종점수는 86점</span>입니다.<br>"
+        "후보를 고르는 점수이며, 실제 매수는 시장상태와 현재 가격자리를 따로 확인합니다.</div></div>",
+    ))
     return (
         _FACTOR_HELP_CSS
         + "<div class='j3fh-swap j3fh-general'>"
         + table
         + f"<div class='j3fh-p j3fh-general-panel' id='{panel_id}' style='color:#e6e6e6; line-height:1.75; font-size:.92rem; margin-top:.7rem'>"
         + head
-        + items
+        + f"<div class='j3fh-general-full'>{items}</div>"
+        + f"<div class='j3fh-general-compact'>{compact_items}</div>"
         + f"<button type='button' class='j3fh-x j3fh-general-close' id='{close_id}'>✕ 설명 닫기</button></div></div>"
     )
 
