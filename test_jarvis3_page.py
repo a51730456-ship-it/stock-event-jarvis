@@ -372,6 +372,17 @@ class Jarvis3PageTests(unittest.TestCase):
         for label in ("종목점수", "테마점수", "최종점수", "종목 60% + 테마 40%"):
             self.assertIn(label, general_table)
         self.assertNotIn(">총점<", general_table)
+        # 일반 테마 「설명 보기」는 체크박스 토글이 아니다. 다시 눌러도 닫히지 않고,
+        # 브라우저에서 설명 첫 줄로 이동하는 전용 연결을 써야 한다.
+        self.assertIn("j3fh-general-open", general_table)
+        self.assertIn("j3fh-general-close", general_table)
+        self.assertNotIn(
+            "<input type='checkbox' class='j3fh-cb' id='j3_general_theme_help_theme'>",
+            general_table,
+        )
+        page_source = PAGE.read_text(encoding="utf-8")
+        self.assertIn('panel.classList.add("j3fh-open")', page_source)
+        self.assertIn("panel.scrollIntoView", page_source)
         self.assertTrue(any("좋은 후보입니다. 아직 매수 신호는 아닙니다." in value
                             for value in markdowns))
         self.assertTrue(any("현재는 눌림 구간에 있습니다." in value
