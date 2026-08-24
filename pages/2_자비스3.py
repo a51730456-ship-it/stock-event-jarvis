@@ -6680,15 +6680,29 @@ def _briefing_css() -> None:
     st.markdown(
         """
         <style>
-        .j3b-shell { color:#f8fbff; background:radial-gradient(circle at 70% 0,#0b4f91 0,transparent 27%),linear-gradient(160deg,#010e28,#022b57 62%,#03122c); border:1px solid #275e92; border-radius:22px; padding:1rem; box-shadow:0 10px 28px #0008; }
-        .j3b-hero { position:relative; overflow:hidden; border-radius:18px; padding:1.1rem 1.15rem 1.3rem; background:linear-gradient(160deg,#051a41,#042c60); border:1px solid #c18a3d88; }
-        .j3b-hero:after { content:""; position:absolute; width:135%; height:120px; left:-18%; bottom:-88px; border-radius:50%; background:radial-gradient(ellipse at 50% 0,#1790e8,#073d78 54%,#02112a 71%); border-top:2px solid #68d5ff; box-shadow:0 -10px 35px #087cd5aa; }
-        .j3b-kicker { color:#9edcff; font-size:.9rem; letter-spacing:.06em; margin:0; }.j3b-title { margin:0; font-size:clamp(2rem,6vw,3rem); letter-spacing:.04em; }.j3b-sub { color:#aeeaff; margin:.2rem 0 0; font-weight:700; }.j3b-bus { position:absolute; right:1rem; bottom:.7rem; font-size:2.4rem; z-index:1; filter:drop-shadow(0 4px 5px #000); }
-        .j3b-section { display:flex; align-items:center; gap:.45rem; color:#fff; margin:1.2rem .1rem .55rem; font-size:1.15rem; font-weight:800; }.j3b-section span { color:#43b8ff; font-size:1.5rem; }
-        .j3b-news { background:#04264acc; border:1px solid #bd8b4388; border-radius:13px; margin:.38rem 0; padding:.72rem .85rem; color:#edf6ff; }.j3b-news small { color:#a9c7e8; }
-        .j3b-card { min-height:225px; background:linear-gradient(150deg,#073662,#032246); border:1px solid #c18a3d99; border-radius:16px; padding:.85rem; margin-bottom:.65rem; box-shadow:inset 0 1px #6bc8ff22,0 7px 15px #0004; position:relative; overflow:hidden; }.j3b-card:after { content:"✦"; position:absolute; right:.65rem; bottom:.35rem; color:#e6b852; opacity:.55; }
-        .j3b-symbol { font-size:1.35rem; font-weight:900; }.j3b-name { color:#c2d9ed; margin-left:.4rem; }.j3b-price { font-size:1.25rem; font-weight:800; margin:.4rem 0; }.j3b-up { color:#70e64a; }.j3b-down { color:#ff5b5b; }.j3b-neutral { color:#ffd35a; }.j3b-chart { width:100%; height:45px; display:block; }.j3b-note { font-size:.82rem; color:#e3effb; padding-top:.33rem; border-top:1px solid #b8955144; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.j3b-note:before { content:"•"; color:#70e64a; margin-right:.35rem; }.j3b-empty { color:#aecbe3; padding:.8rem 0; }
-        @media (max-width:600px) { .block-container { padding-left:.55rem !important; padding-right:.55rem !important; }.j3b-shell{padding:.55rem;border-radius:14px}.j3b-hero{padding:.85rem}.j3b-card{min-height:205px;padding:.65rem}.j3b-symbol{font-size:1.12rem}.j3b-name{font-size:.82rem;display:block;margin-left:0}.j3b-price{font-size:1.02rem}.j3b-note{font-size:.72rem}.j3b-bus{font-size:1.9rem}.j3b-title{font-size:1.85rem} }
+        /* 종목 브리핑은 데스크톱 여백을 쓰지 않는다. 실제 폰 폭을 그대로 복제한다. */
+        body:has(.j3b-app) { background:#020b1d; }
+        body:has(.j3b-app) .stApp { background:
+            radial-gradient(circle at 19% 2%,#174c85 0,transparent 20%),
+            radial-gradient(circle at 83% 13%,#0a3e78 0,transparent 17%),
+            linear-gradient(160deg,#020d25 0%,#021b3d 53%,#03142d 100%) !important; }
+        body:has(.j3b-app) [data-testid="stMainBlockContainer"],
+        body:has(.j3b-app) .block-container { max-width:430px !important; padding:0 9px 88px !important; margin:0 auto !important; }
+        body:has(.j3b-app) header { background:transparent !important; }
+        .j3b-app { color:#f7f8f5; font-family:"Noto Sans KR","Malgun Gothic",sans-serif; }
+        .j3b-hero { position:relative; height:237px; overflow:hidden; border-radius:0 0 22px 22px; padding:25px 23px; background:
+            radial-gradient(circle at 17% 10%,#fff 0 1px,transparent 2px),radial-gradient(circle at 57% 16%,#ffd97b 0 1px,transparent 2px),radial-gradient(circle at 74% 7%,#fff2b3 0 1px,transparent 2px),radial-gradient(circle at 89% 22%,#ffe19a 0 1px,transparent 2px),linear-gradient(160deg,#010d2b 3%,#042b5f 59%,#071a42 100%); border:1px solid #8bb9e277; box-shadow:inset 0 -14px 24px #00132e88,0 10px 24px #0006; }
+        .j3b-hero:before { content:""; position:absolute; z-index:0; width:610px; height:205px; left:50%; bottom:-132px; transform:translateX(-50%); border-radius:50%; background:radial-gradient(ellipse at 50% 0,#39b6f7 0,#0b74be 24%,#063366 58%,#01142f 72%); border-top:2px solid #62d6ff; box-shadow:0 -11px 31px #087ce8a6; }
+        .j3b-hero:after { content:"·  ✦  ·  ✦  ·  ✦  ·  ✦  ·"; position:absolute; left:44px; top:9px; color:#e9b85f; font-size:12px; letter-spacing:8px; opacity:.92; }
+        .j3b-head-copy,.j3b-head-actions,.j3b-bus { position:absolute; z-index:2; }.j3b-head-copy{left:23px;top:27px}.j3b-title{margin:0!important;font-size:39px!important;line-height:1!important;font-weight:900!important;letter-spacing:-2px!important;color:#fbf5e9!important;text-shadow:0 2px 6px #000!important}.j3b-title b{color:#77c9ff!important}.j3b-sub{margin:9px 0 0!important;color:#b7e9ff!important;font-size:21px!important;font-weight:750!important;letter-spacing:-1px!important}.j3b-head-actions{right:18px;top:22px;display:flex;gap:8px}.j3b-round,.j3b-live{height:43px;display:flex;align-items:center;justify-content:center;border:1px solid #c58f47;border-radius:24px;background:#061d40cc;color:#fff8e8;box-shadow:0 2px 8px #0005}.j3b-round{width:43px;font-size:26px}.j3b-live{padding:0 13px;gap:7px;font-size:15px;font-weight:800}.j3b-live i{width:10px;height:10px;border-radius:50%;background:#64d84d;box-shadow:0 0 8px #4cf059;display:block}.j3b-bus{right:26px;bottom:22px;font-size:54px;filter:drop-shadow(0 5px 5px #0009)}
+        .j3b-section { display:flex;align-items:center;gap:8px;color:#f5f2e9;margin:19px 4px 10px;font-size:21px;font-weight:850;letter-spacing:-1px; }.j3b-section .j3b-section-icon{width:31px;height:31px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:16px}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500;}
+        div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:17px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
+        .j3b-news { min-height:52px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947dd,#042243ee);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f5f4ef;font-size:14px;line-height:1.25;box-shadow:inset 0 1px #6aaee52b; }.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
+        .j3b-card { height:246px;background:linear-gradient(145deg,#073764 0%,#04254b 69%,#031e3e 100%);border:1px solid #b98b4d9c;border-radius:17px;padding:12px 11px 10px;margin:0 0 11px;box-shadow:inset 0 1px #7bc9ff2b,0 6px 16px #0005;position:relative;overflow:hidden; }.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#1685c644,transparent 69%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:900;font-size:22px;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#5f6670,#17191e)}.j3b-logo.amd{background:linear-gradient(145deg,#56636a,#151b20)}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:22px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:6px}.j3b-down{color:#ff5c55;margin-left:6px}.j3b-neutral{color:#ffc94f;margin-left:6px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-note{font-size:12px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-decor{position:absolute;right:9px;bottom:5px;color:#d8b34b;font-size:19px;letter-spacing:-7px;opacity:.88}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important;}
+        div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"],div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_grid_"] [data-testid="column"],div[class*="st-key-j3b_grid_"] [data-testid="stColumn"]{width:calc(50% - 5px)!important;min-width:0!important;flex:1 1 0!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"]{position:relative}div[class*="st-key-j3b_extra_"]>.stButton{position:absolute;right:10px;top:7px;z-index:5}div[class*="st-key-j3b_extra_"]>.stButton button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
+        .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:100;bottom:0;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:68px;padding:8px 12px 7px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#05244aee,#03162ecc);border-top:1px solid #af8a5199;backdrop-filter:blur(10px)}.j3b-nav-item{display:grid;place-items:center;color:#abb8c8;font-size:11px;line-height:1.15;min-width:61px}.j3b-nav-item b{font-size:25px;font-weight:500}.j3b-nav-item.active{color:#36bcff}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
+        /* 폰 화면에는 가로 넘침을 허용하지 않는다. 태블릿/PC도 같은 430px 앱 캔버스를 본다. */
+        @media (max-width:600px){body:has(.j3b-app) [data-testid="stMainBlockContainer"],body:has(.j3b-app) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-bus{font-size:48px;right:21px}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px;font-size:20px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -6716,19 +6730,27 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
 def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
     result = _briefing_items(kind, ticker)
     items = result.get("items") or []
+    # 뉴스가 아직 없을 때도 세 줄의 자리를 유지한다. 시장 사실을 지어내지는 않는다.
     if not items:
-        st.markdown('<div class="j3b-news">🟡 뉴스 브리핑 일시 사용 불가</div>', unsafe_allow_html=True)
-        return []
-    icons = {"positive": "🟢", "negative": "🔴", "neutral": "🟡"}
+        items = [
+            {"sentiment": "neutral", "brief": "뉴스 브리핑을 불러오는 중입니다"},
+            {"sentiment": "neutral", "brief": "새 뉴스가 확인되면 이 자리에 표시됩니다"},
+            {"sentiment": "neutral", "brief": "원문은 각 브리핑 항목에서 확인할 수 있습니다"},
+        ]
+    marks = {"positive": "↗", "negative": "▥", "neutral": "○"}
     for index, item in enumerate(items[:3]):
-        icon = icons.get(item.get("sentiment"), "🟡")
+        sentiment = item.get("sentiment") if item.get("sentiment") in {"positive", "negative", "neutral"} else "neutral"
         brief = html.escape(str(item.get("brief") or item.get("headline") or ""))
-        source = html.escape(str(item.get("source") or "원문"))
-        st.markdown(f'<div class="j3b-news">{icon} {brief}<br><small>{source}</small></div>', unsafe_allow_html=True)
-        with st.expander("원문 확인", expanded=False):
-            st.write(item.get("headline") or "제목 없음")
-            st.caption(f"{item.get('source') or '출처 미상'} · {item.get('published_at') or '시간 미상'}")
-            if item.get("url"):
+        st.markdown(
+            f'<div class="j3b-news"><span class="j3b-news-icon">{marks[sentiment]}</span>'
+            f'<span>{brief}</span><span class="j3b-news-dot {sentiment}"></span></div>',
+            unsafe_allow_html=True,
+        )
+        # 원문이 있는 실제 뉴스만 확인 UI를 만든다.
+        if item.get("url"):
+            with st.expander("원문 확인", expanded=False):
+                st.write(item.get("headline") or "제목 없음")
+                st.caption(f"{item.get('source') or '출처 미상'} · {item.get('published_at') or '시간 미상'}")
                 st.link_button("원문 열기", item["url"], key=f"j3b_source_{kind}_{ticker or 'market'}_{index}")
     return items
 
@@ -6739,44 +6761,62 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False) -
     tone = "j3b-up" if (change or 0) > 0 else "j3b-down" if (change or 0) < 0 else "j3b-neutral"
     price_text = f"{price:,.2f}" if isinstance(price, (float, int)) else "시세 준비 중"
     change_text = f"{change:+.2f}%" if isinstance(change, (float, int)) else "—"
-    st.markdown(
-        f'<div class="j3b-card"><div><span class="j3b-symbol">{html.escape(ticker)}</span><span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div><div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>{_briefing_chart(card.get("chart"), change)}</div>',
-        unsafe_allow_html=True,
-    )
     items = _briefing_items("company", ticker).get("items") or []
-    if items:
-        for item in items[:3]:
-            st.markdown(f'<div class="j3b-note">{html.escape(str(item.get("brief") or item.get("headline")))}</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="j3b-note">뉴스 브리핑 준비 중</div>', unsafe_allow_html=True)
+    notes = items[:3] or [{"brief": "뉴스 브리핑 준비 중"}] * 3
+    note_html = "".join(
+        f'<div class="j3b-note">{html.escape(str(item.get("brief") or item.get("headline") or "뉴스 브리핑 준비 중"))}</div>'
+        for item in notes
+    )
+    logo = ticker[:1]
+    direction = "decline" if (change or 0) < 0 else ""
+    card_html = (
+        f'<div class="j3b-card {direction}"><div class="j3b-card-top">'
+        f'<span class="j3b-logo {html.escape(ticker.lower())}">{html.escape(logo)}</span><div>'
+        f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
+        f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
+        f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'
+        f'{_briefing_chart(card.get("chart"), change)}<div class="j3b-card-notes">{note_html}</div>'
+        f'<span class="j3b-decor">♧ ✦</span></div>'
+    )
     if removable:
         position = int(stock["position"])
-        confirm = st.session_state.get("j3b_delete_confirm") == position
-        if confirm:
-            left, right = st.columns(2)
-            if left.button("삭제 확인", key=f"j3b_del_yes_{position}"):
-                briefing_store.remove_extra(position)
-                st.session_state.pop("j3b_delete_confirm", None)
+        with st.container(key=f"j3b_extra_{position}"):
+            st.markdown(card_html, unsafe_allow_html=True)
+            confirm = st.session_state.get("j3b_delete_confirm") == position
+            if confirm:
+                left, right = st.columns(2)
+                if left.button("삭제 확인", key=f"j3b_del_yes_{position}"):
+                    briefing_store.remove_extra(position)
+                    st.session_state.pop("j3b_delete_confirm", None)
+                    st.rerun()
+                if right.button("취소", key=f"j3b_del_no_{position}"):
+                    st.session_state.pop("j3b_delete_confirm", None)
+                    st.rerun()
+            elif st.button("×", key=f"j3b_del_{position}"):
+                st.session_state["j3b_delete_confirm"] = position
                 st.rerun()
-            if right.button("취소", key=f"j3b_del_no_{position}"):
-                st.session_state.pop("j3b_delete_confirm", None)
-                st.rerun()
-        elif st.button("× 삭제", key=f"j3b_del_{position}"):
-            st.session_state["j3b_delete_confirm"] = position
-            st.rerun()
+        return
+    st.markdown(card_html, unsafe_allow_html=True)
 
 
 def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str) -> None:
     for start in range(0, len(stocks), 2):
-        cols = st.columns(2, gap="small")
-        for column, stock in zip(cols, stocks[start:start + 2]):
-            with column:
-                _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=removable)
+        with st.container(key=f"j3b_grid_{key}_{start}"):
+            cols = st.columns(2, gap="small")
+            for column, stock in zip(cols, stocks[start:start + 2]):
+                with column:
+                    _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=removable)
 
 
 def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
-    with st.expander("종목 추가 · 교체", expanded=False):
-        query = st.text_input("티커 또는 영문 회사명", placeholder="예: NVDA 또는 NVIDIA", key="j3b_search")
+    with st.container(key="j3b_search_row"):
+        query_col, plus_col = st.columns([7, 1])
+        with query_col:
+            query = st.text_input("종목 검색", placeholder="종목 검색 후 추가", key="j3b_search", label_visibility="collapsed")
+        with plus_col:
+            if st.button("+", key="j3b_manage_toggle"):
+                st.session_state["j3b_manage_open"] = not st.session_state.get("j3b_manage_open", False)
+    if st.session_state.get("j3b_manage_open"):
         found = j3data.search_stocks(query) if query.strip() else {"ok": True, "rows": []}
         rows = found.get("rows") or []
         if query.strip() and not rows:
@@ -6813,20 +6853,28 @@ def _render_stock_briefing() -> None:
     page = st.session_state.get("j3_briefing_page", "home")
     cards = j3data.get_briefing_cards(selected + (extras[:4] if page == "home" else extras[4:]))
     with st.container():
-        st.markdown('<div class="j3b-shell"><div class="j3b-hero"><p class="j3b-kicker">JARVIS 3</p><h1 class="j3b-title">종목 브리핑</h1><p class="j3b-sub">미국테마 · 빠르게 보는 내 종목</p><span class="j3b-bus" title="캐릭터 이미지 자산 대기">🚌</span></div></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="j3b-app"></div><div class="j3b-hero"><div class="j3b-head-copy">'
+            '<h1 class="j3b-title">JARVIS <b>3</b></h1><p class="j3b-sub">미국테마</p></div>'
+            '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
+            '<span class="j3b-bus" title="고양이버스 이미지 자산 대기">🚌</span></div>',
+            unsafe_allow_html=True,
+        )
         if page == "home":
-            st.markdown('<div class="j3b-section"><span>◉</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
+            st.markdown('<div class="j3b-section"><span class="j3b-section-icon">●</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
             _render_briefing_news("market")
-            st.markdown('<div class="j3b-section"><span>◉</span> 사용자 선정 종목</div>', unsafe_allow_html=True)
+            with st.container(key="j3b_selected_heading"):
+                st.markdown('<div class="j3b-section"><span class="j3b-section-icon">◉</span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
+                if st.button("더보기", key="j3b_go_market"):
+                    st.session_state["j3_briefing_page"] = "market"
+                    st.rerun()
             _render_briefing_grid(selected, cards, removable=False, key="selected")
-            st.markdown('<div class="j3b-section"><span>⌕</span> 추가 검색 종목</div>', unsafe_allow_html=True)
+            st.markdown('<div class="j3b-section"><span class="j3b-section-icon">⌕</span> 추가 검색 종목</div>', unsafe_allow_html=True)
+            _render_briefing_manage(selected, extras)
             _render_briefing_grid(extras[:4], cards, removable=True, key="extra1")
             if len(extras) < 4:
-                st.markdown('<div class="j3b-empty">+ 종목 추가는 아래 「종목 추가 · 교체」에서 할 수 있습니다.</div>', unsafe_allow_html=True)
-            _render_briefing_manage(selected, extras)
-            if st.button("추가 종목 · 미국시장 판단 →", key="j3b_go_market", use_container_width=True):
-                st.session_state["j3_briefing_page"] = "market"
-                st.rerun()
+                st.markdown('<div class="j3b-empty">검색창에서 종목을 찾아 추가할 수 있습니다.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="j3b-disclaimer">♢ 본 정보는 투자 참고용이며, 투자 판단의 책임은 투자자 본인에게 있습니다.</div><nav class="j3b-bottom-nav"><span class="j3b-nav-item active"><b>⌂</b>홈</span><span class="j3b-nav-item"><b>★</b>관심종목</span><span class="j3b-nav-item"><b>◕</b>시장분석</span><span class="j3b-nav-item"><b>♙</b>마이페이지</span></nav>', unsafe_allow_html=True)
         else:
             st.markdown('<div class="j3b-section"><span>⌕</span> 추가 검색 종목 5~8</div>', unsafe_allow_html=True)
             _render_briefing_grid(extras[4:], cards, removable=True, key="extra2")
