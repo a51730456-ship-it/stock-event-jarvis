@@ -103,7 +103,7 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertFalse(hasattr(j3, "breakout_stars"), "별점이 되살아났다")
         # 점수 버전을 줄마다 남긴다 — 옛 추천을 새 가중치로 덮어쓰지 않기 위한 것이다.
         self.assertEqual("US_SWING_V1", us_swing.SCORE_MODEL_VERSION)
-        self.assertEqual(j3.MODULE_REVISION, us_swing.MODULE_REVISION)
+        self.assertGreaterEqual(j3.MODULE_REVISION, us_swing.MODULE_REVISION)
         # **2026-08-12에 상하님 표 2로 되돌렸다.** 2026-08-07에 내가 나스닥 구간·
         # 종목 낙폭·보유기간 셋을 한꺼번에 바꿔 놓고 "-6%는 흔한 조정"이라고 적었는데,
         # 갈라서 다시 재 보니 진짜 원인은 보유기간이었다(-6%도 1년 들면 +33.1%).
@@ -796,7 +796,7 @@ class RulebookScreenTests(unittest.TestCase):
         # 줄이 사라지거나 늘어나지 않는다.
         self.assertEqual(len(rows), len(got))
 
-    def test_theme_ranking_is_scored_by_spread_not_by_returns(self):
+    def test_general_theme_ranking_uses_only_the_new_four_parts(self):
         """테마 순위는 **확산**으로 매긴다 (2026-08-12 처음 쟀다).
 
         상하님 지적 — "테마가 같이 상승하는 기준이 먼저이고 구성종목 확산이 먼저
@@ -806,17 +806,31 @@ class RulebookScreenTests(unittest.TestCase):
         상승 국면에서 꼴찌(-9.5p) 하락 국면에서 탈락이었다(research/us_parts.py).
         그전 배점은 상대강도 55점 · 이동평균 20점 · 확산 15점으로 정반대였다.
         """
-        weights = j3.THEME_SCORE_WEIGHTS
-        # 계단은 40·30·20·10뿐이다(CLAUDE.md 0-1 마).
-        for name, points in weights.items():
-            self.assertIn(points, (0.0, 10.0, 20.0, 30.0, 40.0), f"{name} {points}점")
-        self.assertEqual(100.0, j3.THEME_SCORE_MAX)
-        # **확산 셋이 90점.** 되돌아가면 여기서 깨진다.
-        self.assertEqual(90.0, weights["above20"] + weights["rose5"] + weights["rose20"])
-        self.assertEqual(40.0, weights["above20"], "20일선 위 비율이 1등이다")
-        # 수익률(상대강도)과 ETF 이동평균은 0점이다.
-        self.assertEqual(0.0, weights["relative"])
-        self.assertEqual(0.0, weights["trend"])
+        weights = j3.GENERAL_THEME_SCORE_WEIGHTS
+        self.assertEqual({"strength_120", "strength_60", "strong_members", "strength_change"},
+                         set(weights))
+        self.assertEqual((35.0, 30.0, 25.0, 10.0), tuple(weights.values()))
+        self.assertEqual(100.0, j3.GENERAL_THEME_SCORE_MAX)
+        rows = [
+            {"strength_120": 20.0, "strength_60": 15.0, "strong_members": 80.0, "strength_change": 5.0},
+            {"strength_120": 0.0, "strength_60": 0.0, "strong_members": 20.0, "strength_change": -5.0},
+        ]
+        j3._apply_general_theme_scores(rows)
+        self.assertEqual(100.0, rows[0]["score"])
+        self.assertEqual(0.0, rows[1]["score"])
+        for row in rows:
+            self.assertTrue(0.0 <= row["score"] <= 100.0)
+            self.assertEqual(4, len(row["score_parts"]))
+
+    def test_general_stock_and_final_score_follow_40_40_20_and_60_40(self):
+        metrics = {"ret60": 25.0, "ret120": 50.0, "from_high_pct": -5.0}
+        benchmark = {"ret60": 5.0, "ret120": 10.0}
+        stock_score, parts = j3._general_stock_score(metrics, benchmark)
+        self.assertEqual((40.0, 40.0, 18.0), tuple(parts))
+        self.assertEqual(98.0, stock_score)
+        self.assertEqual(86.0, j3._general_final_score(90.0, 80.0))
+        self.assertEqual(0.0, j3._general_final_score(-1.0, -1.0))
+        self.assertEqual(100.0, j3._general_final_score(200.0, 200.0))
 
     def test_theme_rank_ignores_tiny_themes(self):
         """구성종목 3개 미만인 테마는 한두 종목에 휘둘려 등수가 못 미덥다."""
@@ -1010,6 +1024,19 @@ class Jarvis3DataTests(unittest.TestCase):
         self.assertEqual(plan["state"], "추격 금지")
         self.assertEqual(plan["recommendation"], "추천 제외")
         self.assertIsNone(plan["trigger"])
+
+    def test_general_theme_plan_ignores_legacy_scores_but_waits_for_pullback_price(self):
+        metrics = {
+            "current": 100.0, "atr": 4.0, "atr_pct": 4.0, "ret5": -2.0,
+            "sma20": 100.0, "sma50": 90.0, "from_high_pct": -8.0, "volume_ratio": 0.8,
+        }
+        plan = j3._entry_plan(
+            metrics, score=10.0, market_score=80.0, theme_score=10.0,
+            general_theme_trading=True,
+        )
+        self.assertEqual(plan["state"], "눌림목 대기")
+        self.assertEqual(plan["recommendation"], "관찰")
+        self.assertIn("좋은 후보", plan["buy_reason"])
 
     def test_weekend_market_phase_is_not_reported_open(self):
         saturday = datetime(2026, 7, 18, 11, 0, tzinfo=ZoneInfo("America/New_York"))

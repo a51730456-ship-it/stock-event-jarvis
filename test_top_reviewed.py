@@ -6,7 +6,7 @@
 """
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import jarvis3_data as j3
 import jarvis4_data as j4
@@ -131,7 +131,9 @@ class PageWiringTests(unittest.TestCase):
 
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
-            self.assertIn(f"매수심사결과 높은 순위 {self.COUNTS[market]}", source,
+            title = ("전략별 매수심사 후보 — 최대 9종목" if prefix == "j3"
+                     else f"매수심사결과 높은 순위 {self.COUNTS[market]}")
+            self.assertIn(title, source,
                           f"{market} 화면에 제목이 없다")
             self.assertIn("def _render_top_reviewed(", source, f"{market}에 그리는 함수가 없다")
             self.assertIn("_render_top_reviewed(market, ranking)", source,
@@ -205,8 +207,10 @@ class PageWiringTests(unittest.TestCase):
 
         for market, (path, prefix) in self.PAGES.items():
             source = pathlib.Path(path).read_text(encoding="utf-8")
+            button_label = ("전략별 매수심사 후보 — 최대 9종목" if prefix == "j3"
+                            else f"매수심사결과 높은 순위 {self.COUNTS[market]}")
             self.assertIn(
-                f'"매수심사결과 높은 순위 {self.COUNTS[market]}", key="{prefix}_top7_find")',
+                f'"{button_label}", key="{prefix}_top7_find")',
                 source, f"{market} 순위 단추가 아직 화면을 가로지른다")
             # 2026-08-01에 눌림목 단추는 설명서 두 갈래 단추와 나란히 놓이면서
             # 글자에 '●'를 붙이는 구조로 바뀌었다.
@@ -264,8 +268,10 @@ class PageWiringTests(unittest.TestCase):
             block = source.split("def _render_top_reviewed(")[1].split("\ndef ")[0]
             self.assertNotIn('button("새로 뽑기"', block, f"{market}에 단추가 또 늘었다")
             self.assertNotIn(f"{prefix}_top7_refind", block)
+            button_label = ("전략별 매수심사 후보 — 최대 9종목" if prefix == "j3"
+                            else f"매수심사결과 높은 순위 {self.COUNTS[market]}")
             self.assertEqual(
-                1, block.count(f'st.button("매수심사결과 높은 순위 {self.COUNTS[market]}"'),
+                1, block.count(f'st.button("{button_label}"'),
                 f"{market} 순위 단추가 하나가 아니다")
 
     def test_phone_slides_the_table_sideways(self):
@@ -472,6 +478,45 @@ class HttpSessionTests(unittest.TestCase):
 
 
 class UnitedStatesTests(unittest.TestCase):
+    def test_general_candidates_rank_by_final_score_not_theme_or_legacy_score(self):
+        """GENERAL 후보의 마지막 순서는 새 final_score 하나만 쓴다."""
+        themes = [{"name": "옛테마1위", "score": 90}, {"name": "옛테마2위", "score": 80}]
+
+        def fake_leaders(name, **_kwargs):
+            if name == "옛테마1위":
+                return {"ok": True, "rows": [
+                    _us_leader("LOW_FINAL", 80.0, final_score=80.0, condition_score=79.0),
+                ]}
+            return {"ok": True, "rows": [
+                _us_leader("HIGH_FINAL", 95.0, final_score=95.0, condition_score=20.0),
+            ]}
+
+        with patch.object(j3, "get_theme_leaders", side_effect=fake_leaders), \
+             patch.object(j3, "_download_cached", return_value=({}, {})):
+            result = j3.find_top_reviewed_stocks(themes, market_score=60)
+
+        self.assertEqual(["HIGH_FINAL", "LOW_FINAL"],
+                         [row["ticker"] for row in result["rows"]])
+        self.assertEqual([95.0, 80.0], [row["score"] for row in result["rows"]])
+
+    def test_live_refresh_keeps_general_final_score(self):
+        """현재가 갱신은 GENERAL의 새 final_score를 옛 조건점수로 바꾸지 않는다."""
+        frame = MagicMock()
+        frame.empty = False
+        row = _us_leader(
+            "PANW", 94.4, final_score=94.4, condition_score=57.1,
+            theme_score=92.1, plan={"general_theme_trading": True},
+        )
+        with patch.object(j3, "_download_cached", side_effect=[({"PANW": frame}, {}), ({"PANW": frame}, {})]), \
+             patch.object(j3, "_series_metrics", return_value=_metrics()), \
+             patch.object(j3, "_leader_score", side_effect=AssertionError("GENERAL에 옛 점수를 다시 계산했다")), \
+             patch.object(j3, "_entry_plan", return_value={"state": "눌림목 대기"}) as entry_plan:
+            j3._refine_top_with_live([row], market_score=80)
+
+        self.assertEqual(94.4, row["score"])
+        self.assertEqual(94.4, row["final_score"])
+        self.assertEqual(57.1, entry_plan.call_args.args[1])
+
     def test_ranks_by_score_and_dedups_by_ticker(self):
         themes = [{"name": "반도체", "score": 80}, {"name": "AI", "score": 75}]
 

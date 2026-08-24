@@ -45,9 +45,9 @@ def _ranking():
     for index, name in enumerate(("반도체", "양자컴퓨팅", "빅테크10"), 1):
         rows.append({
             "rank": index, "name": name, "etf": "SMH", "ok": True,
-            "score": 90-index, "status": "주도", "change_pct": 1.2,
-            "rs20": 4.0, "rs60": 8.0, "breadth": 75.0,
-            "basis": "20일 상대강도 +4.0%p · 구성종목 확산 75%", "source_time": "x",
+            "score": 90-index, "score_parts": [31, 27, 20, 8], "status": "강함", "change_pct": 1.2,
+            "strength_120": 8.0, "strength_60": 4.0, "strong_members": 75.0,
+            "basis": "6개월 강도 31/35 · 3개월 강도 27/30 · 강한 종목 20/25 · 최근 힘 증가 8/10", "source_time": "x",
         })
     return {"ok": True, "rows": rows, "stale": False, "checked_at": "x"}
 
@@ -97,6 +97,7 @@ def _leaders():
         }
         rows.append({
             "rank": index, "ticker": ticker, "name": ticker, "score": 90-index,
+            "stock_score": 85-index, "stock_score_parts": [34, 34, 17],
             "score_parts": [22, 22, 18, 14, 13], "metrics": metrics, "plan": plan,
             "stock_reason": f"테마 내 종합 {index}위",
             # 1위는 당일 차트가 있고 2위부터는 없는 상황(자료 없음 분기)을 함께 검증한다.
@@ -363,6 +364,26 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("j3-stock-name" in value for value in markdowns))
         # 테마 순위표·대장주 1–6위표 모두 HTML(가운데 정렬), 선택은 pills·radio.
         self.assertTrue(any("j3-theme-table" in value for value in markdowns))
+        # 일반 테마 상세 배점은 종목·테마를 각각 100점으로 보여준 뒤, 기존 final_score를
+        # 최종점수로만 보여야 한다. 7개 항목을 더한 '총점'처럼 보이면 안 된다.
+        general_table = next(
+            value for value in markdowns if "j3_general_theme_help_theme" in value
+        )
+        for label in ("종목점수", "테마점수", "최종점수", "종목 60% + 테마 40%"):
+            self.assertIn(label, general_table)
+        self.assertNotIn(">총점<", general_table)
+        self.assertTrue(any("좋은 후보입니다. 아직 매수 신호는 아닙니다." in value
+                            for value in markdowns))
+        self.assertTrue(any("현재는 눌림 구간에 있습니다." in value
+                            for value in markdowns))
+        general_plan = next(
+            value for value in markdowns
+            if "일반 테마 최종점수" in value and "매수 계획 취소 참고가격" in value
+        )
+        for label in ("현재가", "가격자리", "매수 계획 취소 참고가격", "수익 목표 참고가격"):
+            self.assertIn(label, general_plan)
+        self.assertNotIn("조건 기준가", general_plan)
+        self.assertNotIn("매수 허용 상단", general_plan)
         # 순위표는 **맨 위 단추로 여닫는다**(2026-08-14 상하님 지시). 기본은 열림이라
         # 위에는 닫는 글이 뜨고, '종목 찾기' 위에도 닫는 단추가 하나 더 있다.
         rank_keys = {str(node.key or "") for node in app.button}
@@ -468,7 +489,7 @@ class Jarvis3PageTests(unittest.TestCase):
         """
         found = {
             "ok": True,
-            "rows": [{**row, "pick_rank": index, "sources": ["반도체"]}
+            "rows": [{**row, "final_score": row["score"], "pick_rank": index, "sources": ["반도체"]}
                      for index, row in enumerate(_leaders()["rows"][:2], 1)],
             "scanned_themes": 3, "candidate_count": 2, "errors": [],
         }
@@ -478,6 +499,8 @@ class Jarvis3PageTests(unittest.TestCase):
              patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_data.find_top_reviewed_stocks", return_value=found), \
+             patch("jarvis3_data.find_breakout_pullback_stocks", return_value={"ok": True, "rows": []}), \
+             patch("jarvis3_data.find_crash_rebound_stocks", return_value={"ok": True, "rows": []}), \
              patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()), \
              patch("jarvis3_data.get_live_quote", return_value={
                  "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
@@ -496,6 +519,17 @@ class Jarvis3PageTests(unittest.TestCase):
             next(
                 node for node in app.button if str(node.key or "") == "j3_top7_find"
             ).click().run(timeout=60)
+            top7_view = " ".join(
+                [str(node.value) for node in app.markdown]
+                + [str(node.value) for node in app.caption]
+            )
+            self.assertIn("전략별 매수심사 후보 — 최대 9종목", top7_view)
+            self.assertIn("일반 테마매매 · 최대 3종목", top7_view)
+            self.assertIn("일반 테마 최종점수", top7_view)
+            self.assertIn(f"{float(found['rows'][0]['final_score']):.1f}/100", top7_view)
+            self.assertIn("상승장 신고가 눌림 · 최대 3종목", top7_view)
+            self.assertIn("급락 후 반등장 · 최대 3종목", top7_view)
+            self.assertGreaterEqual(top7_view.count("현재 조건을 충족한 후보 없음"), 2)
             next(
                 node for node in app.button if str(node.key or "") == "j3top7_00"
             ).click().run(timeout=60)
@@ -505,6 +539,10 @@ class Jarvis3PageTests(unittest.TestCase):
             any("순위 7에서 고른 종목" in str(node.value) for node in app.markdown),
             "종목을 눌렀는데 상세가 안 열렸다",
         )
+        top7_detail = " ".join(str(node.value) for node in app.markdown)
+        for label in ("종목점수", "테마점수", "최종점수", "최근 3개월 강도",
+                      "테마 6개월 강도", "종목 60% + 테마 40%"):
+            self.assertIn(label, top7_detail, f"순위9 GENERAL 상세에 {label} 배점이 없다")
 
     def test_pullback_detail_opens_top_ranked_stock_without_click(self):
         """종목을 찾고 나면 누르지 않아도 1순위 상세가 열려 있어야 한다.

@@ -1090,7 +1090,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082181
+_REQUIRED_J3_REVISION = 2026082402
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1302,8 +1302,8 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>테마</div>", unsafe_allow_html=True)
     head[2].markdown(
-        _flex_row(_THEME_REST_WIDTHS, ["ETF", "조건점수", "상태", "당일",
-                                       "20일 상대강도", "구성종목 확산"], head=True),
+        _flex_row(_THEME_REST_WIDTHS, ["ETF", "테마점수", "상태", "당일",
+                                       "6개월 시장 대비", "강한 종목 비율"], head=True),
         unsafe_allow_html=True,
     )
     # 머리글 '테마'와 첫 행(석유·가스 등)이 붙어 보이지 않도록 대장주 표와
@@ -1351,12 +1351,13 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             )
             continue
         score = float(row.get("score") or 0)
-        breadth, change, rs20 = row.get("breadth"), row.get("change_pct"), row.get("rs20")
-        rs_text = "—" if rs20 is None else f"{float(rs20):+.1f}%p"
-        breadth_cell = "—" if breadth is None else (
+        strong_share, change, strength_120 = (row.get("strong_members"), row.get("change_pct"),
+                                               row.get("strength_120"))
+        strength_text = "—" if strength_120 is None else f"{float(strength_120):+.1f}%p"
+        strong_share_cell = "—" if strong_share is None else (
             "<div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(breadth), 100):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{float(breadth):.0f}%</span></div>"
+            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(strong_share), 100):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{float(strong_share):.0f}%</span></div>"
         )
         cols[2].markdown(
             _flex_row(_THEME_REST_WIDTHS, [
@@ -1366,8 +1367,8 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
                 f"<span class='j3-bar-num'>{score:.1f}</span></div>",
                 f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
                 f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
-                f"<span style='color:{_sign_color(rs20)}; font-weight:700'>{rs_text}</span>",
-                breadth_cell,
+                f"<span style='color:{_sign_color(strength_120)}; font-weight:700'>{strength_text}</span>",
+                strong_share_cell,
             ]),
             unsafe_allow_html=True,
         )
@@ -1544,8 +1545,8 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[2].markdown(
-        _flex_row(_LEADER_REST_WIDTHS, ["티커", "조건점수", "당일", "52주 고가 대비",
-                                        "20일 수익률", "매수 상태"], head=True),
+        _flex_row(_LEADER_REST_WIDTHS, ["티커", "최종점수", "당일", "52주 고가 대비",
+                                        "종목점수", "매수 상태"], head=True),
         unsafe_allow_html=True,
     )
     # 머리글 '종목'과 첫 행 MPC가 붙어 보이지 않도록 한 줄만 띄운다.
@@ -1571,13 +1572,11 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
             _flex_row(_LEADER_REST_WIDTHS, [
                 ticker,
                 "<div class='j3-barwrap'><div class='j3-bar'>"
-                f"<div class='j3-bar-fill' style='width:{_leader_bar_pct(score):.0f}%'></div></div>"
+                f"<div class='j3-bar-fill' style='width:{max(0, min(score, 100)):.0f}%'></div></div>"
                 f"<span class='j3-bar-num'>{score:.1f}</span></div>",
-                *(
-                    f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
-                    for value in (metrics.get("change_pct"), metrics.get("from_high_pct"),
-                                  metrics.get("ret20"))
-                ),
+                f"<span style='color:{_sign_color(metrics.get('change_pct'))}; font-weight:700'>{_pct(metrics.get('change_pct'))}</span>",
+                f"<span style='color:{_sign_color(metrics.get('from_high_pct'))}; font-weight:700'>{_pct(metrics.get('from_high_pct'))}</span>",
+                f"<span class='j3-green' style='font-weight:700'>{float(leader.get('stock_score') or 0):.1f}/100</span>",
                 str(plan.get("state", "")),
             ]),
             unsafe_allow_html=True,
@@ -2347,11 +2346,8 @@ def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
     if not quote.get("ok"):
         st.warning(f"{ticker} 실시간 시세 갱신 실패: {_safe_error_text(quote.get('error'))}")
         return
-    # 최근가·52주대비·20일수익률·14일변동성·종목조건점수를 한 줄에 표시한다.
-    # 라벨은 코발트, 증감 부호는 미국장 색(+파랑/−빨강), 종목조건점수는 우측 끝.
-    # 만점은 모듈에서 읽는다 — /100으로 박아 뒀더니 아래 매수심사 칸(/80)과
-    # 한 화면에서 서로 다른 값을 말했다(2026-08-13 상하님 캡처).
-    score_val = (f"{float(stock_score):.1f}/{_number(_leader_max())}"
+    # 일반 테마 후보의 최종점수만 보여 준다. 매수심사 점수와 섞지 않는다.
+    score_val = (f"{float(stock_score):.1f}/100"
                  if stock_score is not None else "—")
     state_sub = f"<div class='j3-mc-sub j3-muted'>{entry_state}</div>" if entry_state else ""
     change_sub = f"<div class='j3-mc-sub {_sign_class(quote.get('change_pct'))}'>{_pct(quote.get('change_pct'))}</div>"
@@ -2364,7 +2360,7 @@ def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
         f"<div class='j3-mc-val {_sign_class(quote.get('ret20'))}'>{_pct(quote.get('ret20'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
         f"<div class='j3-mc-val {_sign_class(quote.get('atr_pct'))}'>{_pct(quote.get('atr_pct'))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
+        f"<div class='j3-mc'><div class='j3-mc-label'>일반 테마 최종점수</div>"
         f"<div class='j3-mc-val j3-green'>{score_val}</div>{state_sub}</div>",
     ]
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
@@ -2401,7 +2397,7 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     unsafe_allow_html=True,
                 )
                 st.code(leader["ticker"])
-                # 당일 주가와 등락률 — 제목은 '종목 조건점수' 라벨과 같은 크기·색
+                # 당일 주가와 등락률 — 제목은 일반 테마 최종점수 라벨과 같은 크기·색
                 # (2026-07-22 사용자 지시).
                 change_pct = metrics.get("change_pct")
                 st.markdown(
@@ -2411,7 +2407,7 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                     unsafe_allow_html=True,
                 )
                 st.markdown(
-                    "<div class='j3-leader-score-label'>종목 조건점수</div>"
+                    "<div class='j3-leader-score-label'>일반 테마 최종점수</div>"
                     f"<div class='j3-leader-score'>{float(leader['score']):.1f}</div>"
                     f"<div class='j3-leader-state'>{plan.get('state')}</div>",
                     unsafe_allow_html=True,
@@ -2512,13 +2508,19 @@ def _render_stock_detail(
     # 종목조건점수는 위로 빼지 않고 아래 한 줄 지표에 함께 표시한다.
     _render_selected_live_quote(leader.get("score"), plan.get("state"))
 
-    # **이름도 만점도 모듈에서 읽는다**(2026-08-12 상하님 지적). 여기 박아 두었더니
-    # 모듈에서 점수를 1.25배로 키웠는데 최대값은 그대로여서 '31.1 (25)'가 나왔다.
-    # 그리고 아무도 못 받는 '추세 (20)'이 표에 남아 있었다.
-    factor_spec = list(getattr(j3data, "LEADER_SCORE_PARTS",
-                               (("테마 대비 상대강도", 25.0), ("52주 신고가 위치", 25.0),
-                                ("추세", 0.0), ("유동성", 15.0), ("변동성 안정", 15.0))))
-    leader_max = float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
+    general_stock_parts = leader.get("stock_score_parts")
+    general_theme_parts = theme_row.get("score_parts")
+    is_general_score = isinstance(general_stock_parts, (list, tuple)) and isinstance(general_theme_parts, (list, tuple))
+    if is_general_score:
+        stock_factor_spec = list(getattr(j3data, "GENERAL_STOCK_SCORE_PARTS", ()))
+        theme_factor_spec = list(getattr(j3data, "GENERAL_THEME_SCORE_PARTS", ()))
+    else:
+        # 기존 저장 화면 fixture와의 호환용 경로. 실제 일반 테마 화면은 위 전용 경로를 쓴다.
+        factor_spec = list(getattr(j3data, "LEADER_SCORE_PARTS",
+                                   (("테마 대비 상대강도", 25.0), ("52주 신고가 위치", 25.0),
+                                    ("추세", 0.0), ("유동성", 15.0), ("변동성 안정", 15.0))))
+        factor_values = list(leader.get("score_parts") or ())
+        score_max = float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
 
     def _gain_cell(part, maximum, *, top_border=False):
         # 획득값과 (최대) 모두 붉은색, 사이 한 칸 띄운다. 총점 행은 위에 이중선.
@@ -2529,58 +2531,147 @@ def _render_stock_detail(
             f"<span style='color:#ff5b5b'>({maximum})</span></td>"
         )
 
-    # **0점 항목도 표에 넣는다**(2026-08-15 상하님 지시 — "각 배점에도 0점짜리도
-    # 표시하고 점수 미달인 이유 넣고"). 앱이 무엇무엇을 봤는지 상하님이 다 보셔야
-    # 하고, 만점이 0인 줄은 만점 칸에 '0점'이라 적어 왜 안 주는지 설명으로 잇는다.
-    # **이름만으로는 뭘 재는지 모른다**(2026-08-12 상하님 지적 — "유동성이 뭐에 대한
-    # 유동성인지 기준이 뭔지 설명이 불친절하다"). 모듈에 적어 둔 한 줄을 옆에 붙인다.
-    # **이름만 초록 글씨로 둔다**(2026-08-21 상하님 지시 — "심사항목 밑에 하얀색
-    # 설명 빼라, 심사항목에 초록색 글자만 나타내라"). 무엇을 보는 값인지는
-    # 제목 옆 「설명」을 누르면 나온다(_FACTOR_HELP).
-    factor_rows = "".join(
-        f"<tr><td class='j3-fac-name'>{name}</td>"
-        + f"{_gain_cell(part, '0점' if not maximum else _number(maximum))}</tr>"
-        for (name, maximum), part in zip(factor_spec, leader["score_parts"])
-    )
-    # 총점 행: 글자 한 치수 크게 + 배경 밝은 초록
-    total_style = (
-        "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
-        "border-top:4px double rgba(255,255,255,0.55)"
-    )
-    total_row = (
-        f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
-        f"<td class='j3-fac-val' style='{total_style}'>"
-        f"<span style='color:#ff5b5b; font-weight:800'>{_number(leader.get('score'))}</span> "
-        f"<span style='color:#ff5b5b'>({_number(leader_max)})</span></td></tr>"
-    )
+    general_factor_notes = {
+        "최근 3개월 강도": "최근 3개월 동안 시장보다 강했는지 봅니다.",
+        "최근 6개월 강도": "반년 동안 꾸준히 시장보다 강했는지 봅니다.",
+        "1년 최고가 근접": "최근 1년 최고가 가까이에 있는지 봅니다.",
+        "테마 6개월 강도": "반년 동안 강한 테마인지 봅니다.",
+        "테마 3개월 강도": "최근에도 테마 힘이 살아 있는지 봅니다.",
+        "강한 종목 수": "같은 테마의 여러 종목이 함께 강한지 봅니다.",
+        "최근 힘 증가": "최근 들어 테마 힘이 더 좋아지는지 봅니다.",
+    }
+    if is_general_score:
+        def _general_group_row(label, score, color):
+            return (
+                "<tr><td class='j3-fac-name' style='font-weight:800; border-top:2px solid "
+                "rgba(255,255,255,0.35)'>"
+                f"<span style='color:{color}'>{label}</span></td>"
+                "<td class='j3-fac-val' style='font-weight:800; border-top:2px solid "
+                f"rgba(255,255,255,0.35)'><span style='color:{color}'>{float(score):.1f}/100</span></td></tr>"
+            )
+
+        def _general_factor_rows(spec, values):
+            return "".join(
+                f"<tr><td class='j3-fac-name'>{name}"
+                f"<div style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
+                f"{general_factor_notes[name]}</div></td>"
+                "<td class='j3-fac-val'><span style='color:#ff5b5b; font-weight:800'>"
+                f"{_number(part)}</span> <span style='color:#ff5b5b'>/ {_number(maximum)}</span></td></tr>"
+                for (name, maximum), part in zip(spec, values)
+            )
+
+        factor_rows = (
+            _general_group_row("종목점수", leader.get("stock_score") or 0, "#4da6ff")
+            + _general_factor_rows(stock_factor_spec, general_stock_parts)
+            + _general_group_row("테마점수", theme_row.get("score") or 0, "#44f0a1")
+            + _general_factor_rows(theme_factor_spec, general_theme_parts)
+        )
+        total_row = _general_group_row("최종점수", leader.get("score") or 0, "#44f0a1").replace(
+            "</td></tr>",
+            "<div style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
+            "종목 60% + 테마 40%</div></td></tr>",
+            1,
+        )
+    else:
+        factor_rows = "".join(
+            f"<tr><td class='j3-fac-name'>{name}</td>"
+            + f"{_gain_cell(part, '0점' if not maximum else _number(maximum))}</tr>"
+            for (name, maximum), part in zip(factor_spec, factor_values)
+        )
+        # 기존 갈래의 총점 표시는 바꾸지 않는다.
+        total_style = (
+            "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
+            "border-top:4px double rgba(255,255,255,0.55)"
+        )
+        total_row = (
+            f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
+            f"<td class='j3-fac-val' style='{total_style}'>"
+            f"<span style='color:#ff5b5b; font-weight:800'>{_number(leader.get('score'))}</span> "
+            f"<span style='color:#ff5b5b'>({_number(score_max)})</span></td></tr>"
+        )
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
-        st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
-        # '설명'은 **제목 칸 「심사 항목」 옆**에 하나만 둔다(2026-08-14 상하님 지시).
-        st.markdown(
-            _factor_table_html(
-                factor_rows, total_row,
-                [name for name, _maximum in factor_spec],
-                f"j3_factor_help_{panel}",
-            ),
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f"<div class='j3-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>",
-            unsafe_allow_html=True,
-        )
+        if is_general_score:
+            st.markdown(
+                _general_theme_score_help_html(
+                    factor_rows, total_row, f"j3_general_theme_help_{panel}",
+                ),
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown("<div class='j3-section-title'>일반 테마매매 점수</div>", unsafe_allow_html=True)
+            st.markdown(
+                _factor_table_html(
+                    factor_rows, total_row,
+                    [name for name, _maximum in factor_spec],
+                    f"j3_factor_help_{panel}",
+                ),
+                unsafe_allow_html=True,
+            )
+        if is_general_score:
+            score_summary = (
+                f"테마 내 일반 점수 {leader['rank']}위 · 종목점수 {float(leader.get('stock_score') or 0):.1f}/100 · "
+                f"테마점수 {float(theme_row.get('score') or 0):.1f}/100 · "
+                f"최종점수 {float(leader.get('score') or 0):.1f}/100"
+            )
+            st.markdown(
+                f"<div class='j3-reason-mustard'>{_mustard_html(score_summary)}</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"<div class='j3-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>",
+                unsafe_allow_html=True,
+            )
     with plan_col:
         st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
         # 점수·상태만 있고 '뭘 하라는 건지'가 없다는 지적(2026-07-30). 판정을 사람
         # 말로 다시 쓴 한 줄을 표 위에 얹는다 — 새 판정을 만들지는 않는다.
+        guide = guidance.build(plan, money=_price, market_score=market.get("score"))
+        if is_general_score and plan.get("state") == "눌림목 대기":
+            guide = {
+                **guide,
+                "headline": "좋은 후보입니다. 아직 매수 신호는 아닙니다.",
+                "detail": "현재는 눌림 구간에 있습니다. 종목과 테마 점수는 높지만, 현재 매수 조건은 아직 충족하지 않았습니다.",
+            }
+        elif is_general_score and plan.get("state") == "돌파 확인":
+            guide = {
+                **guide,
+                "headline": "매수 조건이 충족되었습니다.",
+                "detail": "시장상태와 기존 돌파 확인 조건을 통과했습니다.",
+            }
         st.markdown(
             guidance.html(
-                guidance.build(plan, money=_price, market_score=market.get("score")),
+                guide,
                 css_class="j3-guide",
             ),
             unsafe_allow_html=True,
         )
-        if plan.get("trigger") is not None:
+        if is_general_score:
+            market_ok = float(market.get("score") or 0) >= 50.0
+            price_state = (
+                "눌림 구간" if plan.get("state") == "눌림목 대기"
+                else str(plan.get("state") or "자료 부족")
+            )
+            conclusion = (
+                "아직 매수 신호 아님" if plan.get("state") == "눌림목 대기"
+                else "매수 조건 충족" if plan.get("state") == "돌파 확인"
+                else str(plan.get("recommendation") or "관찰")
+            )
+            st.caption(
+                f"종목선정: 통과 · 시장상태: {'통과' if market_ok else '대기'} · "
+                f"가격자리: {price_state} · 결론: {conclusion}"
+            )
+        if is_general_score:
+            # GENERAL의 trigger·zone_high는 현재 매수 판정에 쓰이지 않는다. 계산값은
+            # 보존하되, 실제 매수조건처럼 보이는 가격표에는 넣지 않는다.
+            plan_cells = [
+                ("현재가", _price(metrics.get("current")), "#e6e6e6"),
+                ("가격자리", price_state, "#e6e6e6"),
+                ("매수 계획 취소 참고가격", _price(plan.get("invalidation")), "#ff5b5b"),
+                ("수익 목표 참고가격", _price(plan.get("target")), "#44f0a1"),
+            ]
+        elif plan.get("trigger") is not None:
             plan_cells = [
                 ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
                 ("매수 허용 상단", _price(plan.get("zone_high")), "#e6e6e6"),
@@ -2598,15 +2689,16 @@ def _render_stock_detail(
             ]
         plan_boxes = [
             f"<div class='j3-holo-cell'><div class='label'>{label}</div>"
-            f"<div class='val' style='color:{color}'>{value}</div></div>"
+            f"<div class='val{' j3-holo-words' if label == '가격자리' else ''}' style='color:{color}'>{value}</div></div>"
             for label, value, color in plan_cells
         ]
-        # 3열 배치: [기준가][허용상단][종목 조건점수] / [무효화][2R 목표][빈칸]
+        # GENERAL은 실제 판정에 쓰는 현재 가격상태와 참고가격만 보인다. 다른 경로의
+        # 기존 기준가·상단 카드 배치는 그대로 둔다.
         score_box = (
             "<div class='j3-holo-cell j3-holo-score'>"
-            "<div class='label'>종목 조건점수</div>"
-            f"<div class='val'>{float(leader.get('score') or 0):.1f}/{_number(_leader_max())}</div>"
-            f"<div class='state'>{plan.get('state', '')}</div></div>"
+            "<div class='label'>일반 테마 최종점수</div>"
+            f"<div class='val'>{float(leader.get('score') or 0):.1f}/100</div>"
+            f"<div class='state'>{price_state if is_general_score else plan.get('state', '')}</div></div>"
         )
         plan_grid = (
             plan_boxes[0] + plan_boxes[1] + score_box
@@ -2619,8 +2711,14 @@ def _render_stock_detail(
             f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
             unsafe_allow_html=True,
         )
+        if is_general_score:
+            st.markdown(
+                "<div class='j3-plan-note'>※ 참고 가격 — 매수 계획 취소 참고가격은 주가가 크게 "
+                "무너졌는지 판단할 때, 수익 목표 참고가격은 매수했을 경우 목표를 잡을 때 참고합니다.</div>",
+                unsafe_allow_html=True,
+            )
         # 가격이 '—'인 이유와 함께, 어느 가격이 되면 조건이 성립하는지 참고가를 보여준다.
-        if plan.get("trigger") is None:
+        if not is_general_score and plan.get("trigger") is None:
             hints = []
             high52, sma20 = metrics.get("high52"), metrics.get("sma20")
             if high52:
@@ -2635,12 +2733,20 @@ def _render_stock_detail(
                 unsafe_allow_html=True,
             )
         st.write("")
+        displayed_reason = plan.get("buy_reason")
+        if is_general_score and plan.get("state") == "눌림목 대기":
+            displayed_reason = (
+                "현재는 눌림 구간에 있습니다. 종목과 테마 점수는 높지만, "
+                "현재 매수 조건은 아직 충족하지 않았습니다."
+            )
+        elif is_general_score and plan.get("state") == "돌파 확인":
+            displayed_reason = "시장상태와 기존 돌파 확인 조건을 통과했습니다."
         if plan.get("recommendation") == "조건부 후보":
-            st.success(plan.get("buy_reason"))
+            st.success(displayed_reason)
         elif plan.get("state") == "추격 금지":
-            st.error(plan.get("buy_reason"))
+            st.error(displayed_reason)
         else:
-            st.warning(plan.get("buy_reason"))
+            st.warning(displayed_reason)
 
     # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 당일 가격·차트 섹션을 시작한다.
     _render_day_price_row(metrics)
@@ -2796,6 +2902,13 @@ _FACTOR_HELP_CSS = """
     display: block;
     animation: j3fh-drop .24s ease-out;
 }
+/* 일반 테마매매 설명은 같은 확인칸으로 열고 닫되, 링크는 설명 시작점까지 바로
+   이동한다. 서버를 다시 실행하지 않아 점수·시세를 다시 읽지 않는다. */
+.j3fh-scroll-target {
+    display: block;
+    height: 0;
+    scroll-margin-top: 1rem;
+}
 /* ── 태블릿·스마트폰에서는 **화면 아래에서 위로 올라오며** 열린다 ─────────────
    2026-08-14 상하님 지시 — "테블릿과 스마트폰에서 설명을 클릭하면 화면 위로
    가면서 설명창이 열리도록 해 줘."
@@ -2824,6 +2937,21 @@ _FACTOR_HELP_CSS = """
         border-radius: 14px 14px 0 0;
         box-shadow: 0 -10px 40px rgba(0, 0, 0, .6);
         animation: j3fh-up .26s ease-out;
+    }
+    /* 일반 테마매매 설명은 표 아래에서 읽는 구조다. 이 한 설명만은 하단 팝업으로
+       바꾸지 않아, 「설명 보기」를 누르면 설명 첫 줄까지 자연스럽게 내려간다. */
+    .j3fh-swap.j3fh-general .j3fh-cb:checked ~ .j3fh-p {
+        position: static;
+        left: auto; right: auto; bottom: auto;
+        margin-top: .7rem;
+        padding: 0;
+        max-height: none;
+        overflow: visible;
+        background: transparent;
+        border-top: 0;
+        border-radius: 0;
+        box-shadow: none;
+        animation: j3fh-drop .24s ease-out;
     }
     /* 창 안에서는 왼쪽 초록 띠를 뺀다 — 창 위쪽 띠가 이미 그 몫을 한다. */
     .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-item { border-left: none; }
@@ -3018,60 +3146,18 @@ _FACTOR_HELP_HEAD = (
      "통과하지 못했다'</b>는 뜻입니다."),
     ("_crash",
      "급락 후 반등장 (낙폭종목) — 앱은 이렇게 조사했습니다",
-     "<b>어떻게 쟀나</b> — 지난 10년 동안 <b class='j3fh-k'>나스닥이 바닥을 찍고 "
-     "돌아선 날 아홉 번</b>에 서서, 그날 이 목록에 걸렸을 종목 739개를 다음 날 "
-     "아침에 샀다고 치고 3개월·6개월·1년 뒤를 봤습니다. 명부 198종목 전부입니다.<br>"
+     "<b>어떻게 쟀나</b> — 지난 10년 나스닥이 바닥을 찍고 돌아선 <b class='j3fh-k'>9번</b>에서, "
+     "당시 목록에 걸린 739개 종목을 다음 날 샀다고 가정해 3개월·6개월·1년 뒤를 비교했습니다. "
+     "명부 198종목을 사용했습니다.<br>"
      "<b>점수를 주는 넷 (100점)</b><br>"
-     "· <b class='j3fh-k'>주가 변동성 40점</b> — 평소 크게 출렁이던 종목이 바닥에서도 "
-     "크게 튑니다. 아홉 번 중 3개월은 아홉 번 다 이겼습니다.<br>"
-     "· <b class='j3fh-k'>테마가 30주선 위 30점</b> — 업종이 반년째 흐름을 지키면 "
-     "회복도 빠릅니다. 1년으로는 일곱 번 다 이겼습니다.<br>"
-     "· <b class='j3fh-k'>같은 테마 4개 동시 하락 20점</b> — 업종째 밀려야 업종째 "
-     "돌아옵니다. 3개월은 아홉 번 다인데 길게 가면 약해집니다.<br>"
-     "· <b class='j3fh-k'>테마 6개월 수익률 10점</b> — 1년으로는 여섯 번 다 맞히는데 "
-     "3개월로는 일곱 번 중 네 번뿐이라 낮게 줍니다.<br>"
-     "<b>안 쓰는 것</b> — <b class='j3fh-z'>20일선 위</b>는 반대였고(1년 뒤 23% 덜 "
-     "올랐습니다), <b class='j3fh-z'>고점 대비 낙폭</b>은 목록에 올릴 때 이미 쓴 값인 "
-     "데다 변동성과 71%가 같은 종목입니다. <b class='j3fh-z'>위 테마 순위표</b>는 "
-     "6개월에 무너지고, <b class='j3fh-z'>대형기술주 감점</b>은 오히려 반대였습니다.<br>"
-     "<b>변동성만 종목을 보고 나머지 셋은 테마를 봅니다.</b> 거의 겹치지 않아서 "
-     "<b class='j3fh-k'>둘 다 점수를 받은 종목</b>이 특히 좋았습니다 — 1년 뒤 가운데 "
-     "+129%로 100번 중 97번 올랐습니다.<br>"
-     "<b>한계 — 재 봤습니다</b><br>"
-     "· <b>바닥이 아홉 번뿐입니다.</b> 그래서 <b class='j3fh-k'>한 번씩 빼고 "
-     "다시 재 봤습니다.</b> 어느 바닥 하나를 빼도 네 항목이 다 절반을 "
-     "넘겼습니다 — 한 번 잘 맞은 것에 매달린 결론은 아닙니다.<br>"
-     "· <b>명부 198종목은 지금 살아남은 종목입니다.</b> 망한 회사가 빠져 있어 "
-     "과거 성적이 실제보다 좋게 나옵니다. 크기를 재 보니 10년 내내 있던 종목은 "
-     "1년 뒤 <b class='j3fh-k'>+51.6%</b>, 그 사이 새로 들어온 종목은 "
-     "<b class='j3fh-k'>+74.6%</b>였습니다. 다만 새로 들어온 종목은 "
-     "<b>12%</b>뿐이라 전체를 크게 흔들지는 않습니다.<br>"
-     # ── 참고표 (2026-08-19 상하님 지시) ───────────────────────────────
-     # **앱은 파는 시점을 정하지 않는다**(CLAUDE.md 0-1 바 · 2026-08-12 상하님
-     # 확정). 그래서 배점표가 아니라 이 설명 창 안에 참고로만 둔다.
-     # 숫자는 research/us_crash_holding.py에서 잰 값이다. 바닥 9번 · 739종목.
-     "<b>참고 — 얼마나 들고 있었을 때 어땠나</b><br>"
-     "<span class='j3fh-h'>앱은 파는 시점을 정하지 않습니다.</span> 지난 10년에 "
-     "어땠는지만 적습니다.<br>"
-     "<table class='j3fh-ref'>"
-     "<tr><th>들고 있은 기간</th><th>걸린 종목 전부</th><th>배점 70점 이상</th></tr>"
-     "<tr><td>3개월</td><td>+23.0% (90번)</td><td>+46.4% (100번)</td></tr>"
-     "<tr><td>6개월</td><td>+30.8% (88번)</td><td>+85.8% (98번)</td></tr>"
-     "<tr><td>1년</td><td>+52.8% (89번)</td>"
-     "<td class='j3fh-ref-hi'>+119.4% (100번)</td></tr>"
-     "<tr><td>1년 반</td><td>+70.1% (89번)</td>"
-     "<td class='j3fh-ref-hi'>+149.8% (100번)</td></tr>"
-     "</table>"
-     "가운데 수익과 100번 중 오른 횟수입니다. "
-     "<b class='j3fh-k'>끊어야 할 자리가 안 보입니다</b> — 어느 지점에서도 "
-     "꺾이지 않고 계속 늘어납니다. 오를 확률은 3개월이나 1년 반이나 거의 "
-     "같습니다.<br>"
-     "<b>배점 높은 종목이 어느 기간에서나 낫습니다</b> — 70점 이상은 40점 미만보다 "
-     "<b class='j3fh-k'>어느 기간에서나 세 배 가까이</b> 벌었습니다(3개월 2.8배 · "
-     "1년 반 2.9배). 비율은 거의 그대로인데 오래 들수록 <b>금액 차이</b>가 "
-     "커집니다.<br>"
-     "<span class='j3fh-z'>주의</span> — 1년 반까지 잴 수 있는 바닥은 여덟 "
-     "번뿐이고, 70점 이상은 아홉 번을 통틀어 51종목(한 번에 대여섯 개꼴)입니다."),
+     "· <b class='j3fh-k'>주가 변동성 40점</b> — 바닥에서 반등폭이 큰 종목인지 봅니다.<br>"
+     "· <b class='j3fh-k'>테마 30주선 위 30점</b> — 테마가 반년 흐름을 지키는지 봅니다.<br>"
+     "· <b class='j3fh-k'>같은 테마 동시 하락 20점</b> — 한 종목이 아니라 테마 전체가 밀렸는지 봅니다.<br>"
+     "· <b class='j3fh-k'>테마 6개월 수익률 10점</b> — 테마의 중기 흐름을 봅니다.<br>"
+     "<b>읽는 법</b> — 변동성은 종목을, 나머지 셋은 테마를 봅니다. "
+     "점수가 높을수록 반등 후보에 가깝지만 <b class='j3fh-z'>바로 매수하라는 뜻은 아닙니다.</b><br>"
+     "<b>한계</b> — 바닥 사례가 9번뿐이고 현재 살아남은 198종목 기준이라 과거 성적이 좋게 보일 수 있습니다. "
+     "따라서 이 결과는 후보를 고르는 참고자료로만 봅니다."),
     ("_theme",
      "테마 안에서 어느 종목을 볼까 — 앱은 이렇게 조사했습니다",
      "<b>이 표가 하는 일</b> — 위 「20개 테마 실시간 순위」에서 테마를 고르셨으면, "
@@ -3172,6 +3258,49 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str,
         + table
         + f"<div class='j3fh-p'>{_factor_help_head(key)}{items}"
         + f"<label class='j3fh-x {close_tone}' for='{key}'>✕ 설명 닫기</label></div></div>"
+    )
+
+
+def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -> str:
+    """일반 테마매매 표와 글 설명. 브라우저만 여닫아 API를 다시 부르지 않는다."""
+    anchor = f"j3fh-help-{key}"
+    # 링크 대상은 표 아래 설명의 첫 줄이다. label은 기존처럼 확인칸을 열고 닫고,
+    # 바깥 링크는 브라우저만 아래로 이동한다. 서버 rerun·API 호출은 없다.
+    chip = (f"<a class='j3fh-chip' href='#{anchor}'>"
+            f"<label for='{key}'>설명 보기</label></a>")
+    table = (
+        "<table class='j3-factor-table'><thead><tr>"
+        f"<th>상세 배점{chip}</th><th>획득(최대)</th></tr></thead>"
+        f"<tbody>{factor_rows}{total_row}</tbody></table>"
+    )
+    return (
+        _FACTOR_HELP_CSS
+        + "<div class='j3fh-swap j3fh-general'>"
+        + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
+        + table
+        + f"<span id='{anchor}' class='j3fh-scroll-target'></span>"
+        + "<div class='j3fh-p' style='color:#e6e6e6; line-height:1.75; font-size:.92rem; margin-top:.7rem'>"
+        + "<div style='color:#93c5fd; font-weight:800; font-size:1.05rem; margin-bottom:.4rem'>"
+        + "📘 일반 테마매매 — 앱은 이렇게 종목을 고릅니다</div>"
+        + "<div>좋은 종목 하나만 보는 것이 아니라 <span style='color:#6ee7b7; font-weight:800'>좋은 테마 안에 있는 좋은 종목</span>을 찾습니다.<br>"
+        + "<span style='color:#93c5fd; font-weight:800'>종목 60%</span>, <span style='color:#6ee7b7; font-weight:800'>테마 40%</span>를 반영해 최종점수를 만듭니다.<br>"
+        + "점수가 높을수록 관심 종목에 가깝다는 뜻이며, <span style='color:#fb923c; font-weight:800'>점수가 높다고 바로 매수하라는 뜻은 아닙니다.</span></div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 종목 자체는 3가지를 봅니다</div>"
+        + "<div style='margin-top:.35rem'><span style='color:#93c5fd; font-weight:800'>① 최근 3개월 강도</span> — <span style='color:#fbbf24; font-weight:800'>40점</span><br>최근 3개월 동안 시장보다 강하게 움직였는지 봅니다.<br>잠깐 오른 종목보다 최근에도 계속 강한 종목을 찾기 위한 점수입니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>② 최근 6개월 강도</span> — <span style='color:#fbbf24; font-weight:800'>40점</span><br>반년 동안 시장보다 꾸준히 강했는지 봅니다.<br>며칠 반짝 오른 종목보다 오래 강한 종목을 높게 봅니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>③ 1년 최고가 근접</span> — <span style='color:#fbbf24; font-weight:800'>20점</span><br>현재 주가가 최근 1년 최고가에 얼마나 가까운지 봅니다.<br>강한 종목은 높은 가격대에서 계속 움직이는 경우가 많기 때문입니다.</div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 테마는 4가지를 봅니다</div>"
+        + "<div style='margin-top:.35rem'><span style='color:#93c5fd; font-weight:800'>① 테마 최근 6개월 강도</span> — <span style='color:#fbbf24; font-weight:800'>35점</span><br>이 종목이 속한 테마가 반년 동안 시장보다 강했는지 봅니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>② 테마 최근 3개월 강도</span> — <span style='color:#fbbf24; font-weight:800'>30점</span><br>최근에도 그 테마의 힘이 계속 살아 있는지 봅니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>③ 강한 종목 수</span> — <span style='color:#fbbf24; font-weight:800'>25점</span><br>한 종목만 혼자 오르는지, 같은 테마의 <span style='color:#6ee7b7; font-weight:800'>여러 종목이 함께 강한</span>지 봅니다.<br>여러 종목이 같이 강할수록 테마 전체의 힘일 가능성이 높다고 봅니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>④ 최근 힘 증가</span> — <span style='color:#fbbf24; font-weight:800'>10점</span><br>이 테마가 최근 들어 이전보다 더 강해지고 있는지 봅니다.<br>힘이 빠지는 테마보다 힘이 붙는 테마를 찾기 위한 점수입니다.</div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 최종점수는 이렇게 만듭니다</div>"
+        + "<div style='margin-top:.35rem'><span style='color:#93c5fd; font-weight:800'>종목점수 60%</span><br>+<br><span style='color:#6ee7b7; font-weight:800'>테마점수 40%</span><br><br>예: 종목점수 <span style='color:#fbbf24; font-weight:800'>90점</span> · 테마점수 <span style='color:#fbbf24; font-weight:800'>80점</span><br>→ <span style='color:#fbbf24; font-weight:800'>최종점수 86점</span></div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 쉽게 말하면</div>"
+        + "<div style='margin-top:.35rem'>축구로 비유하면<br><span style='color:#6ee7b7; font-weight:800'>테마 = 팀</span><br><span style='color:#93c5fd; font-weight:800'>종목 = 선수</span><br>좋은 팀에 있는 좋은 선수를 찾는 방식입니다.<br>팀만 좋고 선수가 약한 종목도 피하고, 선수 혼자 강하고 팀 전체가 약한 경우도 한 번 더 확인합니다.</div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 이 점수를 어떻게 보면 되나</div>"
+        + "<div style='margin-top:.35rem'>점수가 높은 종목부터 관심 종목으로 봅니다.<br>하지만 최종점수는 ‘무엇을 살지 찾는 점수’입니다.<br><span style='color:#fb923c; font-weight:800'>점수가 높다고 바로 매수하라는 뜻은 아닙니다.</span><br>실제 매수 여부는 시장상태와 현재 가격자리를 따로 확인합니다.</div>"
+        + f"<label class='j3fh-x' for='{key}'>✕ 설명 닫기</label></div></div>"
     )
 
 
@@ -3563,25 +3692,19 @@ def _render_radar_tab(market: dict) -> None:
             unsafe_allow_html=True,
         )
         clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
-        # **이 점수가 무엇인지 정직하게 적는다**(2026-08-14). 재 보니 점수가 높은
-        # 테마가 그 뒤에 더 오르지 않았다 — 평상시 1,708일에서 5일부터 1년까지
-        # 여섯 기간 모두 오차가 0을 걸쳤다(research/us_theme_rank_check.py).
-        # 그래서 배점 숫자는 그대로 두되(바꿀 근거가 없다) **화면이 앞날을 말하지
-        # 않게** 한다. 갈래별 배점(상승장·급락)이 앞날을 재는 자리다.
         st.caption(
             f"테마 계산 시각: {ranking.get('checked_at') or '—'} · "
-            "구성종목이 20일선 위인 비율 40 · 최근 5일 오른 비율 30 · "
-            "최근 20일 오른 비율 20 · 덜 빠졌나 10으로 매깁니다"
+            "최근 6개월 강도 35 · 최근 3개월 강도 30 · 강한 종목 수 25 · 최근 힘 증가 10"
         )
-        st.markdown(
-            "<div class='j3-pull-guide'><b>이 점수는 오늘 그 테마가 어떤 "
-            "상태인지를 요약한 것입니다. <u>앞날을 맞히는 점수가 아닙니다.</u></b> "
-            "제가 10년치로 재 보니, 이 점수가 높은 테마가 그 뒤에 더 오르지는 "
-            "않았습니다(5일 뒤부터 1년 뒤까지 여섯 기간 모두).<br>"
-            "<b>앞날을 재는 자리는 아래 ‘종목 찾기’입니다</b> — 상승장과 급락 후 "
-            "반등장은 각자 따로 잰 배점을 씁니다.</div>",
-            unsafe_allow_html=True,
-        )
+        with st.expander("이 점수는 무엇인가?", expanded=False):
+            st.markdown(
+                "좋은 테마 안에서 좋은 종목을 찾기 위한 점수입니다. 종목 자체의 힘을 60%, "
+                "그 종목이 속한 테마의 힘을 40% 봅니다. 점수가 높다고 바로 사라는 뜻은 아닙니다.\n\n"
+                "**테마점수** — 최근 6개월 강도 35점, 최근 3개월 강도 30점, 강한 종목 수 25점, "
+                "최근 힘 증가 10점입니다.\n\n"
+                "**종목점수** — 최근 3개월 강도 40점, 최근 6개월 강도 40점, 1년 최고가 근접 20점입니다.\n\n"
+                "**최종점수** — 종목점수 60% + 테마점수 40%입니다."
+            )
     if clicked_theme in names:
         st.session_state["j3_theme_choice"] = clicked_theme
         st.session_state["j3_theme_choice_widget"] = clicked_theme
@@ -3634,11 +3757,12 @@ def _render_radar_tab(market: dict) -> None:
     if theme_row is None:
         st.warning("선택한 테마 자료를 찾지 못했습니다. 다른 테마를 선택하세요.")
         return
-    rs_level, rs_meaning = _relative_strength_guide(theme_row.get("rs20"))
-    if theme_row.get("rs60") is not None and theme_row.get("breadth") is not None:
+    if (theme_row.get("strength_120") is not None
+            and theme_row.get("strength_60") is not None
+            and theme_row.get("strong_members") is not None):
         basis_html = (
-            f"<span class='j3-green-strong'>20일 상대강도</span> {theme_row['rs20']:+.1f}%p · "
-            f"60일 {theme_row['rs60']:+.1f}%p · 20일선 위 {theme_row['breadth']:.0f}%"
+            f"<span class='j3-green-strong'>6개월 시장 대비</span> {theme_row['strength_120']:+.1f}%p · "
+            f"3개월 {theme_row['strength_60']:+.1f}%p · 강한 종목 {theme_row['strong_members']:.0f}%"
         )
     else:
         basis_html = theme_row.get("basis", "근거 자료 부족")
@@ -3656,9 +3780,7 @@ def _render_radar_tab(market: dict) -> None:
         f"<span style='color:{status_hex}; font-weight:800'>{theme_row['status']}</span> : "
         f"<span class='j3-green'>{theme_row['score']:.1f}/100</span><br>"
         f"{basis_html}<br>"
-        f"<span class='j3-green-strong'>20일 상대강도 해석</span> : {rs_level} — {rs_meaning}<br>"
-        "<span class='j3-green-strong'>기준</span> : +10%p 이상 매우 강함 · +5–10%p 강함 · "
-        "0–5%p 시장 대비 우위 · 음수는 시장 대비 약세"
+        "<span class='j3-green-strong'>최근 힘 증가</span> : 최근 3개월 힘이 반년 평균보다 좋아졌는지 봅니다."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -3828,7 +3950,7 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
 
 
 def _render_top_reviewed(market: dict, ranking: dict) -> None:
-    """매수심사결과 높은 순위 9 (2026-08-12 상하님 지시로 7 → 9).
+    """전략별 매수심사 후보를 전략 안의 점수 순서로 보여 준다.
 
     세 군데에서 각자 자기 자로 뽑아 합친다 — 테마 대장주 3 · 상승장 3 · 급락 3.
     **점수를 다시 재지 않는다.** 각 목록이 제 자로 잰 값을 그대로 쓴다.
@@ -3836,7 +3958,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다.
     """
     st.markdown(
-        "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 9</div>",
+        "<div class='j3-section-title'>🏆 전략별 매수심사 후보 — 최대 9종목</div>",
         unsafe_allow_html=True,
     )
     # 재료는 셋이다(2026-08-06 사용자 지시 — "누르든 안 누르든 둘 다 자동으로").
@@ -3848,16 +3970,14 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 설명이 너무 길다는 지적(2026-08-06). 왜 섞지 않는지의 자세한 사연은
     # _blend_top7() 주석에 있다 — 화면에는 핵심 두 줄만 남긴다.
     st.caption(
-        "**테마 대장주 3 · 상승장 3 · 급락 후 반등장 3**으로 자리를 나눠 뽑습니다. "
-        "위 두 단추를 누르지 않아도 자동으로 함께 봅니다.<br>"
-        "**점수는 갈래마다 다른 자**로 잰 값이라 갈래끼리만 견주십시오. "
-        "**빈 자리는 다른 갈래로 채우지 않습니다** — 급락장에는 상승장 자리가 없습니다.",
+        "각 전략 안에서 최대 3종목을 보여줍니다. 전략별 점수는 서로 직접 비교하지 않습니다.<br>"
+        "빈 자리는 다른 전략 후보로 채우지 않습니다.",
         unsafe_allow_html=True,
     )
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
     is_open = bool(st.session_state.get("j3_top7_open"))
-    run_requested = st.button("매수심사결과 높은 순위 9", key="j3_top7_find")
+    run_requested = st.button("전략별 매수심사 후보 — 최대 9종목", key="j3_top7_find")
     if run_requested and is_open:
         # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다.
         st.session_state["j3_top7_open"] = False
@@ -3872,7 +3992,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.session_state["j3_top7_open"] = True
         run_requested = False
     if run_requested:
-        with st.spinner("테마 대장주와 두 갈래 종목을 각각 줄 세우는 중입니다…"):
+        with st.spinner("일반 테마와 두 전략 후보를 각각 줄 세우는 중입니다…"):
             found = _blend_top7(market, ranking)
         st.session_state["j3_top7_result"] = found
         st.session_state["j3_top7_at"] = time.time()
@@ -3902,65 +4022,78 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         f"{len(rows)}종목 (자리 {_TOP_TOTAL}개)"
         + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
     )
-    # **빈 자리는 감추지 않는다**(2026-08-12 상하님 지시). 자리를 못 채웠으면
-    # 왜 비었는지 적는다 — 급락장에 상승장 자리가 없는 것은 알아야 할 정보다.
-    for note in result.get("empty_notes") or []:
-        st.caption(f"🔸 {note} — 다른 갈래로 채우지 않습니다.")
-
     st.caption("종목 이름을 누르면 아래에 그 종목 상세와 차트가 한꺼번에 열립니다.")
     widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]
-    # '조건점수'는 갈래마다 다른 자로 잰 값이라 이름을 바꿨다(2026-08-06 사용자 물음).
-    titles = ["순위", "종목", "점수 (갈래 자)", "매수 상태", "현재가", "어느 분야"]
     box = st.container(key="j3_top7_table")
-    for column, title in zip(box.columns(widths), titles):
-        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
-    for index, row in enumerate(rows):
-        plan = row.get("plan") or {}
-        guide = guidance.build(plan, money=_price, market_score=market.get("score"))
-        dot = {"go": "🟩", "wait": "🟨", "stop": "🟥"}.get(guide["level"], "🟨")
-        cols = box.columns(widths)
-        cols[0].markdown(
-            f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}위</div>",
-            unsafe_allow_html=True,
-        )
-        label = f"{row.get('name') or row['ticker']} ({row['ticker']})"
-        if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
-            # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
-            st.session_state["j3_top7_pick_row"] = row
-            # 종목을 누르면 세부사항과 차트까지 한 번에 열린다(2026-08-06 사용자 지시,
-            # 상승장·급락 표와 같은 동작). 누르고 또 눌러야 보이던 것을 없앤다.
-            # 갈래에서 온 줄은 눌림목 상세(panel="pullback")가 그리고 대장주 줄은
-            # 종목 상세(panel="top7")가 그리므로 양쪽 열쇠를 다 켠다.
-            for opened in ("j3_detail_open_top7", "j3_bundle_open_top7",
-                           "j3_intraday_open_top7",
-                           "j3_detail_open_pullback", "j3_bundle_open_pullback",
-                           "j3_intraday_open_pullback"):
-                st.session_state[opened] = True
-            scroll_to.request(st, "detail_top7")
-        score = float(row.get("score") or 0)
-        cols[2].markdown(
-            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(score, 100):.0f}%'></div>"
-            f"</div><span class='j3-bar-num'>{score:.1f}</span></div></div>",
-            unsafe_allow_html=True)
-        cols[3].markdown(
-            f"<div class='j3-td'>{plan.get('state', '—')}</div>", unsafe_allow_html=True)
-        cols[4].markdown(
-            f"<div class='j3-td' style='font-weight:700'>"
-            f"{_price(row['metrics'].get('current'))}</div>", unsafe_allow_html=True)
-        # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
-        # 어느 갈래에서 왔는지를 **먼저** 적는다(2026-08-06 사용자 지시) — 점수가
-        # 갈래마다 다른 자로 잰 값이라, 어느 자로 잰 것인지 알아야 읽을 수 있다.
-        origin = str(row.get("top7_origin") or "")
-        themes = " · ".join(row.get("sources") or row.get("themes") or [])
-        source_text = " · ".join(part for part in (origin, themes) if part) or "—"
+    group_labels = {
+        "테마 대장주": "일반 테마매매",
+        "상승장": "상승장 신고가 눌림",
+        "급락 후 반등장": "급락 후 반등장",
+    }
+    score_labels = {
+        "테마 대장주": "일반 테마 최종점수",
+        "상승장": "상승장 점수",
+        "급락 후 반등장": "급락 후 반등 점수",
+    }
+    row_index = 0
+    for origin, _quota in _TOP7_QUOTA:
+        group_rows = [row for row in rows if row.get("top7_origin") == origin]
+        group_label = group_labels.get(origin, origin)
         origin_class = {
             "상승장": "j3-top7-up", "급락 후 반등장": "j3-top7-crash",
         }.get(origin, "j3-top7-leader")
-        cols[5].markdown(
-            f"<div class='j3-td {origin_class} j3-top7-src'"
-            f" title='{html.escape(source_text)}'>{html.escape(source_text)}</div>",
-            unsafe_allow_html=True)
+        box.markdown(
+            f"<div class='j3-th-head {origin_class}' style='text-align:left; margin-top:.8rem'>"
+            f"{group_label} · 최대 3종목</div>",
+            unsafe_allow_html=True,
+        )
+        if not group_rows:
+            box.caption("현재 조건을 충족한 후보 없음")
+            continue
+        titles = ["순위", "종목", score_labels.get(origin, "전략 점수"), "매수 상태", "현재가", "어느 분야"]
+        for column, title in zip(box.columns(widths), titles):
+            column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+        for row in group_rows:
+            plan = row.get("plan") or {}
+            guide = guidance.build(plan, money=_price, market_score=market.get("score"))
+            dot = {"go": "🟩", "wait": "🟨", "stop": "🟥"}.get(guide["level"], "🟨")
+            cols = box.columns(widths)
+            cols[0].markdown(
+                f"<div class='j3-td'>{dot} {row.get('pick_rank', row_index + 1)}위</div>",
+                unsafe_allow_html=True,
+            )
+            label = f"{row.get('name') or row['ticker']} ({row['ticker']})"
+            if cols[1].button(label, key=f"j3top7_{row_index:02d}", width="stretch"):
+                # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
+                st.session_state["j3_top7_pick_row"] = row
+                for opened in ("j3_detail_open_top7", "j3_bundle_open_top7",
+                               "j3_intraday_open_top7",
+                               "j3_detail_open_pullback", "j3_bundle_open_pullback",
+                               "j3_intraday_open_pullback"):
+                    st.session_state[opened] = True
+                scroll_to.request(st, "detail_top7")
+            score = float(
+                row.get("final_score") if origin == "테마 대장주" and row.get("final_score") is not None
+                else row.get("score") or 0
+            )
+            score_text = f"{score:.1f}/100" if origin == "테마 대장주" else f"{score:.1f}"
+            cols[2].markdown(
+                "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
+                f"<div class='j3-bar-fill j3-bar-green' style='width:{min(score, 100):.0f}%'></div>"
+                f"</div><span class='j3-bar-num'>{score_text}</span></div></div>",
+                unsafe_allow_html=True)
+            cols[3].markdown(
+                f"<div class='j3-td'>{plan.get('state', '—')}</div>", unsafe_allow_html=True)
+            cols[4].markdown(
+                f"<div class='j3-td' style='font-weight:700'>"
+                f"{_price(row['metrics'].get('current'))}</div>", unsafe_allow_html=True)
+            themes = " · ".join(row.get("sources") or row.get("themes") or [])
+            source_text = " · ".join(part for part in (group_label, themes) if part) or "—"
+            cols[5].markdown(
+                f"<div class='j3-td {origin_class} j3-top7-src'"
+                f" title='{html.escape(source_text)}'>{html.escape(source_text)}</div>",
+                unsafe_allow_html=True)
+            row_index += 1
     # 종목 이름 단추는 '테마 종목' 표와 같은 옷을 입힌다.
     st.markdown(
         "<style>"
@@ -3979,7 +4112,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     )
     # 구역 맨 아래 닫기 단추 — 다른 구역에는 다 있는데 여기만 없었다
     # (2026-08-06 사용자 지적). 폰에서 표 끝까지 내려가면 위 단추가 화면 밖으로 나간다.
-    _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기")
+    _section_close("j3_top7_open", "전략별 매수심사 후보 닫기")
 
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
@@ -4006,8 +4139,20 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
         _render_pullback_detail(picked, market, ranking, mode=origin_mode)
         return
     theme_name = (picked.get("sources") or ["—"])[0]
+    # 순위9 GENERAL 행에는 종목 배점은 담겨 있지만, 예전에는 여기서 테마명을
+    # 새 dict로 만들어 테마 배점(score_parts)을 버렸다. 이미 계산·표시 중인 테마
+    # 순위 행을 그대로 넘겨야 일반 테마 상세와 같은 3+4개 배점표가 나온다.
+    ranking_theme = next(
+        (row for row in (ranking.get("rows") or []) if row.get("name") == theme_name),
+        {},
+    )
+    theme_row = {
+        "name": theme_name,
+        "score": picked.get("theme_score", ranking_theme.get("score")),
+        "score_parts": ranking_theme.get("score_parts"),
+    }
     _render_stock_detail(
-        {"name": theme_name}, picked, market, [picked],
+        theme_row, picked, market, [picked],
         "j3_top7_detail_choice", panel="top7",
     )
 
@@ -6218,8 +6363,8 @@ def _render_method_tab() -> None:
     st.markdown(
         """
         1. **시장 게이트** — SPY·QQQ의 20/50일선, IWM 동행, VIX로 신규 매수 가능 국면을 먼저 판단합니다.
-        2. **테마 강도** — ETF의 SPY 대비 20·60일 상대강도, 추세, 구성종목 확산도를 합산합니다.
-        3. **대장주 품질** — 테마 대비 상대강도, 52주 신고가 위치, 추세, 유동성, 변동성을 평가합니다.
+        2. **일반 테마점수** — 최근 6개월 강도 35, 최근 3개월 강도 30, 강한 종목 수 25, 최근 힘 증가 10을 봅니다.
+        3. **일반 종목점수** — 최근 3개월 강도 40, 최근 6개월 강도 40, 1년 최고가 근접 20을 봅니다. 최종점수는 종목 60%와 테마 40%입니다.
         4. **매수 타이밍** — 신고가 거래량 돌파 또는 상승추세 내 20일선 눌림만 조건부 후보로 봅니다.
         5. **위험 우선** — 5일 급등과 고변동 종목은 점수가 높아도 추격 금지합니다.
         """
