@@ -18,8 +18,11 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
+import news_data
+
 
 CACHE_SECONDS = 600
+ERROR_CACHE_SECONDS = 30
 _POOL = ThreadPoolExecutor(max_workers=3, thread_name_prefix="j3-brief-news")
 _LOCK = threading.Lock()
 _CACHE: dict[str, dict] = {}
@@ -45,7 +48,10 @@ def _request(url: str, headers: dict | None = None) -> dict | list:
 
 
 def _request_text(url: str) -> str:
-    request = Request(url, headers={"Accept": "application/rss+xml, application/xml, text/xml"})
+    request = Request(url, headers={
+        "Accept": "application/rss+xml, application/xml, text/xml",
+        "User-Agent": "Mozilla/5.0 (compatible; Jarvis3News/1.0)",
+    })
     with urlopen(request, timeout=8) as response:  # nosec B310 - fixed Google News RSS endpoint below
         return response.read().decode("utf-8", errors="replace")
 
@@ -124,6 +130,34 @@ def _google_news_rss(kind: str, ticker: str | None) -> list[dict]:
     return _dedupe(recent if recent else rows)[:10]
 
 
+def _naver_news(kind: str, ticker: str | None, client_id: str, client_secret: str) -> list[dict]:
+    """기존 앱이 쓰는 Naver 뉴스 키가 있으면 우선 재사용한다."""
+    if not client_id or not client_secret:
+        return []
+    result = news_data.fetch_naver_news(
+        client_id, client_secret, "미국 증시" if kind == "market" else str(ticker or "").upper(), display=10, sort="date",
+    )
+    if result.get("status") not in {"정상", "데이터 없음"}:
+        return []
+    now = datetime.now(timezone.utc)
+    rows = []
+    for raw in result.get("data") or []:
+        try:
+            published = datetime.fromisoformat(str(raw.get("pub_date") or "").replace(" ", "T"))
+            published = published.replace(tzinfo=timezone(timedelta(hours=9))).astimezone(timezone.utc)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if published < now - timedelta(hours=72):
+            continue
+        rows.append({
+            "headline": _text(raw.get("title"), 300), "summary": _text(raw.get("description"), 650),
+            "source": "Naver News", "url": _text(raw.get("originallink") or raw.get("link"), 600),
+            "published_at": published.isoformat(),
+        })
+    recent = [row for row in rows if _time(row["published_at"]) >= now - timedelta(hours=24)]
+    return _dedupe(recent if recent else rows)[:10]
+
+
 def _fallback(rows: list[dict]) -> list[dict]:
     return [{
         **row, "sentiment": "neutral", "brief": _text(row["headline"], 110),
@@ -167,15 +201,27 @@ def _groq(rows: list[dict], label: str, key: str) -> list[dict]:
     return result or _fallback(rows)
 
 
-def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_key: str) -> dict:
-    try:
-        rows = _finnhub(kind, ticker, finnhub_key) if finnhub_key else _google_news_rss(kind, ticker)
-        return {"ok": True, "items": _groq(rows, ticker or "미국시장", groq_key), "updated_at": time.time()}
-    except Exception:
-        return {"ok": False, "items": [], "message": "뉴스 브리핑 일시 사용 불가", "updated_at": time.time()}
+def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_key: str,
+          naver_client_id: str = "", naver_client_secret: str = "") -> dict:
+    rows = []
+    loaders = []
+    if finnhub_key:
+        loaders.append(lambda: _finnhub(kind, ticker, finnhub_key))
+    if naver_client_id and naver_client_secret:
+        loaders.append(lambda: _naver_news(kind, ticker, naver_client_id, naver_client_secret))
+    loaders.append(lambda: _google_news_rss(kind, ticker))
+    for loader in loaders:
+        try:
+            rows = loader()
+        except Exception:
+            rows = []
+        if rows:
+            break
+    return {"ok": True, "items": _groq(rows, ticker or "미국시장", groq_key), "updated_at": time.time()}
 
 
-def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = "", groq_key: str = "") -> dict:
+def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = "", groq_key: str = "",
+                    naver_client_id: str = "", naver_client_secret: str = "") -> dict:
     """기존 캐시를 즉시 반환하고, 만료분만 백그라운드에서 새로 만든다."""
     cache_key = f"{kind}:{str(ticker or '').upper()}"
     now = time.time()
@@ -189,8 +235,9 @@ def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = 
                 current.pop("future", None)
                 return current["result"]
             return {**current.get("result", {"ok": True, "items": []}), "pending": True}
-        if current and now - current.get("updated_at", 0) < CACHE_SECONDS:
+        ttl = CACHE_SECONDS if current and current.get("result", {}).get("items") else ERROR_CACHE_SECONDS
+        if current and now - current.get("updated_at", 0) < ttl:
             return current.get("result", {"ok": True, "items": []})
-        future = _POOL.submit(_load, cache_key, kind, ticker, finnhub_key, groq_key)
+        future = _POOL.submit(_load, cache_key, kind, ticker, finnhub_key, groq_key, naver_client_id, naver_client_secret)
         _CACHE[cache_key] = {"future": future, "updated_at": now, "result": current.get("result", {"ok": True, "items": []}) if current else {"ok": True, "items": []}}
         return {**_CACHE[cache_key]["result"], "pending": True}

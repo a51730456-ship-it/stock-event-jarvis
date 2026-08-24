@@ -6767,6 +6767,8 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
     result = briefing_news.get_or_schedule(
         kind, ticker, finnhub_key=_briefing_secret("FINNHUB_API_KEY"),
         groq_key=_briefing_secret("GROQ_API_KEY"),
+        naver_client_id=_briefing_secret("NAVER_CLIENT_ID"),
+        naver_client_secret=_briefing_secret("NAVER_CLIENT_SECRET"),
     )
     if result.get("pending"):
         st.session_state["j3b_news_pending"] = True
