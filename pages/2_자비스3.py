@@ -6469,15 +6469,13 @@ def _render_existing_theme_content() -> None:
         """
         <div class="j3-market-top"></div>
         <style>
-        @media (max-width:1200px) {
-          body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
-          body:has(.j3-market-top) .block-container { padding-top:0!important; }
-          body:has(.j3-market-top) .st-key-jarvis_method_help_row {
-            gap:.35rem!important;
-            row-gap:.35rem!important;
-            margin-top:-1.75rem!important;
-            margin-bottom:0!important;
-          }
+        body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
+        body:has(.j3-market-top) .block-container { padding-top:0!important; }
+        body:has(.j3-market-top) .st-key-jarvis_method_help_row {
+          gap:.35rem!important;
+          row-gap:.35rem!important;
+          margin-top:-1.75rem!important;
+          margin-bottom:0!important;
         }
         </style>
         """,
