@@ -1771,9 +1771,9 @@ def test_long_section_close_buttons_return_to_radar_main():
     assert "scroll_to.request(st, return_to)" in helper
 
 
-def test_mobile_briefing_hides_cloud_overlays_and_marked_helper_text():
+def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     source = PAGE.read_text(encoding="utf-8")
-    assert '@media (max-width:600px){body:has(.j3b-bottom-nav)' in source
+    assert '@media (max-width:1200px){[data-testid="stStatusWidget"]' in source
     assert '[data-testid="stStatusWidget"]' in source
     assert '[data-testid="stAppDeployButton"]' in source
     reviewed = source[source.index("def _render_top_reviewed"):source.index("def _render_my_stock_panel")]
@@ -1781,6 +1781,14 @@ def test_mobile_briefing_hides_cloud_overlays_and_marked_helper_text():
     assert "<div class='j3-theme-top5'>오늘 테마 종목 순위는" not in source
     assert "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 9</div>" not in reviewed
     assert "티커나 회사 이름을 치면 비슷한 이름까지 찾아 줍니다." not in search
+    assert "테마 순위는 5분 캐시, 선택 종목 최근가는 1분 자동 갱신됩니다." not in source
+    assert "표에서 테마 이름을 클릭하면 그 테마의 종목 1~6위 화면이 열립니다." not in source
+    assert "위 단추를 누르면 순위를 뽑습니다." not in source
+    assert "위 버튼을 누르면 조회합니다." not in source
+    assert "padding-bottom:96px!important" in source
+    assert 'div[class*="st-key-j3b_grid_"]{overflow:visible!important' in source
+    assert "div.st-key-j3b_grid_selected_0{padding-top:14px!important}" in source
+    assert "div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}" in source
 
 
 if __name__ == "__main__":

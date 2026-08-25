@@ -3727,8 +3727,6 @@ def _render_radar_tab(market: dict) -> None:
         if st.button("온라인 자료 새로고침", key="j3_force_refresh", width="stretch"):
             j3data.clear_runtime_cache()
             st.rerun()
-    with note_col:
-        st.caption("테마 순위는 5분 캐시, 선택 종목 최근가는 1분 자동 갱신됩니다.")
 
     ranking = _load_theme_rankings()
     if not ranking.get("ok"):
@@ -3756,11 +3754,6 @@ def _render_radar_tab(market: dict) -> None:
     if not rank_open:
         clicked_theme = None
     else:
-        st.markdown(
-            "<div class='j3-theme-open-guide'>표에서 테마 이름을 클릭하면 "
-            "그 테마의 종목 1~6위 화면이 열립니다.</div>",
-            unsafe_allow_html=True,
-        )
         clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
         # **이 점수가 무엇인지 정직하게 적는다**(2026-08-14). 재 보니 점수가 높은
         # 테마가 그 뒤에 더 오르지 않았다 — 평상시 1,708일에서 5일부터 1년까지
@@ -4073,7 +4066,6 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         return
     result = st.session_state.get("j3_top7_result")
     if result is None:
-        st.info("위 단추를 누르면 순위를 뽑습니다. 페이지를 여는 것만으로는 조회하지 않습니다.")
         return
     rows = result.get("rows") or []
     if not rows:
@@ -6058,7 +6050,6 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
         _render_rulebook_finder(result, market, ranking, mode)
         return
     if result is None:
-        st.info("위 버튼을 누르면 조회합니다. 페이지를 여는 것만으로는 전수 검색하지 않습니다.")
         return
     if not result.get("ok"):
         st.error(f"미국 눌림목 조회 실패: {_safe_error_text(result.get('error'))}")
@@ -6543,22 +6534,22 @@ def _briefing_css() -> None:
         """
         <style>
         html:has(.j3b-home),body:has(.j3b-home){overflow-x:hidden!important;max-width:100vw!important}
-        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(430px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important}
+        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(430px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}
         body:has(.j3b-home) [data-testid="stHorizontalBlock"],body:has(.j3b-home) [data-testid="stColumn"],body:has(.j3b-home) [data-testid="column"]{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
         .j3b-hero{height:132px!important;margin:0!important;padding:16px 18px!important;border-radius:0 0 20px 20px!important}.j3b-hero:before{width:540px!important;height:150px!important;bottom:-102px!important}.j3b-hero:after{left:105px!important;bottom:20px!important;width:116px!important;height:20px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:142px!important;right:-2px!important;bottom:3px!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
         .j3b-card{height:auto!important;min-height:142px!important;min-width:0!important;box-sizing:border-box!important;border-radius:14px!important;padding:9px 7px 10px!important;margin:0 0 7px!important}.j3b-card-top{min-height:34px!important;gap:6px!important}.j3b-logo{width:34px!important;height:34px!important;border-radius:9px!important}.j3b-symbol{font-size:18px!important;line-height:1!important;color:#fff9eb!important}.j3b-name{margin-top:3px!important;font-size:10px!important;line-height:1.1!important}.j3b-price{position:absolute!important;left:7px!important;top:49px!important;max-width:55%!important;margin:0!important;color:#fff9eb!important;font-size:14px!important;line-height:1.15!important;white-space:nowrap!important}.j3b-chart{top:44px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:10px!important;margin:0!important;padding-top:3px!important}.j3b-card:has(.j3b-decor-img) .j3b-card-notes{right:58px!important}.j3b-card.compact:has(.j3b-decor-img) .j3b-card-notes{right:62px!important}.j3b-card:has(.j3b-decor-img.left) .j3b-card-notes{left:62px!important;right:7px!important}.j3b-note{display:block;color:#f1f5f7!important;text-decoration:none!important;font-size:9px!important;line-height:1.48!important;padding-right:0!important}.j3b-lamp{display:none!important}.j3b-decor-img{position:absolute;right:-2px;bottom:-1px;width:56px;height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 2px 3px #0005);-webkit-mask-image:radial-gradient(ellipse 82% 88% at 63% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%);mask-image:radial-gradient(ellipse 82% 88% at 63% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%)}.j3b-decor-img.left{left:-2px;right:auto;-webkit-mask-image:radial-gradient(ellipse 82% 88% at 37% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%);mask-image:radial-gradient(ellipse 82% 88% at 37% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%)}.j3b-delete-visual{width:21px!important;height:21px!important;right:6px!important;top:6px!important;font-size:15px!important}
         .j3b-card.compact{height:auto!important;min-height:174px!important;box-sizing:border-box!important;padding-bottom:14px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:block!important;top:42px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card.compact .j3b-card-notes{bottom:14px!important;max-height:none!important;overflow:visible!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:58px!important;bottom:4px!important}
-        div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:8px!important;width:100%!important;overflow-x:hidden!important;overflow-y:visible!important}div[class*="st-key-j3b_grid_"] [data-testid="stColumn"],div[class*="st-key-j3b_grid_"] [data-testid="column"]{width:calc(50% - 4px)!important;min-width:0!important;flex:1 1 0!important}
+        div[class*="st-key-j3b_grid_"]{overflow:visible!important;padding-top:6px!important;padding-bottom:6px!important}div[class*="st-key-j3b_grid_"] [data-testid="stVerticalBlock"],div[class*="st-key-j3b_grid_"] [data-testid="stElementContainer"]{overflow:visible!important}div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:8px!important;width:100%!important;overflow:visible!important}div[class*="st-key-j3b_grid_"] [data-testid="stColumn"],div[class*="st-key-j3b_grid_"] [data-testid="column"]{width:calc(50% - 4px)!important;min-width:0!important;flex:1 1 0!important;overflow:visible!important}
         div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
         .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:68px!important;padding:5px 8px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;min-height:58px!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}
         /* 선택 4종목의 뉴스·하단 테두리와 하단 3메뉴의 실제 터치 영역을 확보한다. */
         .j3b-card:not(.compact){min-height:148px!important;padding-bottom:12px!important;margin-bottom:8px!important}.j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important}
-        div.st-key-j3b_grid_selected_0{padding-top:8px!important}div.st-key-j3b_grid_selected_2{padding-bottom:8px!important}
+        div.st-key-j3b_grid_selected_0{padding-top:14px!important}div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}
         .j3b-card.compact{min-height:164px!important}
         .j3b-bottom-nav{height:72px!important}.j3b-nav-item{width:33.333%!important;min-height:62px!important}
         div.st-key-j3b_nav_controls{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:72px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:72px!important;min-height:72px!important}
-        @media (max-width:600px){body:has(.j3b-bottom-nav) [data-testid="stStatusWidget"],body:has(.j3b-bottom-nav) [data-testid="stAppDeployButton"]{display:none!important}}
+        @media (max-width:1200px){[data-testid="stStatusWidget"],[data-testid="stAppDeployButton"]{display:none!important}}
         @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card:not(.compact){height:auto!important;min-height:144px!important}.j3b-card.compact{height:auto!important;min-height:160px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
         </style>
         """,
