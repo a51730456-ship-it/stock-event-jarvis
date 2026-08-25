@@ -111,6 +111,26 @@ def test_public_translation_batches_and_caches(monkeypatch):
     assert len(calls) == 1
 
 
+def test_public_translation_uses_second_provider_only_after_first_fails(monkeypatch):
+    news._TRANSLATION_CACHE.clear()
+    calls = []
+    def request(url):
+        calls.append(url)
+        if "mymemory" in url:
+            raise RuntimeError("first provider unavailable")
+        return [[[
+            "미국 증시 상승 |||59381||| 반도체 수요 증가",
+            "US stocks rise |||59381||| Chip demand grows", None, None,
+        ]]]
+    monkeypatch.setattr(news, "_request", request)
+    result = news._public_translations(["US stocks rise", "Chip demand grows"])
+    assert result == {
+        "US stocks rise": "미국 증시 상승", "Chip demand grows": "반도체 수요 증가",
+    }
+    assert len(calls) == 2
+    assert "translate.googleapis.com" in calls[1]
+
+
 def test_rss_fallback_keeps_verifiable_actual_rows(monkeypatch):
     stamp = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
     seen = {}

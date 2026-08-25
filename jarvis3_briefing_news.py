@@ -80,6 +80,32 @@ def _public_translations(texts: list[str]) -> dict[str, str]:
                 result[original] = translated_text
                 with _TRANSLATION_LOCK:
                     _TRANSLATION_CACHE[original] = translated_text
+        # 첫 공개 번역이 실패한 제목만 한 번 더 묶어 번역한다. 화면 스레드와는 무관하다.
+        remaining = [(original, source) for original, source in items if original not in result]
+        if not remaining:
+            continue
+        delimiter = "|||59381|||"
+        endpoint = "https://translate.googleapis.com/translate_a/single?" + urlencode({
+            "client": "gtx", "sl": "en", "tl": "ko", "dt": "t",
+            "q": f" {delimiter} ".join(source for _, source in remaining),
+        })
+        try:
+            payload = _request(endpoint)
+            translated = "".join(
+                str(part[0]) for part in (payload[0] if isinstance(payload, list) and payload else [])
+                if isinstance(part, list) and part
+            )
+            parts = [part.strip() for part in translated.split(delimiter)]
+        except Exception:
+            parts = []
+        if len(parts) != len(remaining):
+            continue
+        for (original, _), translated_text in zip(remaining, parts):
+            translated_text = _text(translated_text, 110)
+            if _has_korean(translated_text):
+                result[original] = translated_text
+                with _TRANSLATION_LOCK:
+                    _TRANSLATION_CACHE[original] = translated_text
     return result
 
 
