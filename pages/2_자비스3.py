@@ -6549,7 +6549,11 @@ def _briefing_css() -> None:
         .j3b-card.compact{min-height:164px!important}
         .j3b-bottom-nav{height:72px!important}.j3b-nav-item{width:33.333%!important;min-height:62px!important}
         div.st-key-j3b_nav_controls{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:72px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:72px!important;min-height:72px!important}
-        @media (max-width:1200px){[data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.stAppDeployButton{display:none!important;visibility:hidden!important;pointer-events:none!important}}
+        @media (max-width:1200px){
+        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-bottom:180px!important}
+        .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:76px!important}
+        [data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.stAppDeployButton{display:none!important;visibility:hidden!important;pointer-events:none!important}
+        }
         @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card:not(.compact){height:auto!important;min-height:144px!important}.j3b-card.compact{height:auto!important;min-height:160px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
         </style>
         """,

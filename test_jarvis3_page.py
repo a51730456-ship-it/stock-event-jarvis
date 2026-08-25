@@ -1773,12 +1773,14 @@ def test_long_section_close_buttons_return_to_radar_main():
 
 def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     source = PAGE.read_text(encoding="utf-8")
-    assert '@media (max-width:1200px){[data-testid="stStatusWidget"]' in source
+    assert "@media (max-width:1200px){" in source
     assert '[data-testid="stStatusWidget"]' in source
     assert '[data-testid="stAppDeployButton"]' in source
     assert "z-index:2147483646" in source
     assert "z-index:2147483647!important" in source
     assert "visibility:hidden!important;pointer-events:none!important" in source
+    assert ".j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:76px!important}" in source
+    assert "padding-bottom:180px!important" in source
     reviewed = source[source.index("def _render_top_reviewed"):source.index("def _render_my_stock_panel")]
     search = source[source.index("def _render_my_stock_panel"):source.index("def _render_saved_trades")]
     assert "<div class='j3-theme-top5'>오늘 테마 종목 순위는" not in source
