@@ -6486,8 +6486,13 @@ def _render_existing_theme_content() -> None:
         body:has(.j3-market-top) .st-key-jarvis_method_help_row {
           gap:.35rem!important;
           row-gap:.35rem!important;
-          margin-top:-1.75rem!important;
+          margin-top:-3rem!important;
           margin-bottom:0!important;
+        }
+        @media (max-width:1200px) {
+          body:has(.j3-market-top) .st-key-jarvis_method_help_row {
+            margin-top:-6rem!important;
+          }
         }
         </style>
         """,
