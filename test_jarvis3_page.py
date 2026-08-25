@@ -1801,6 +1801,15 @@ def test_existing_theme_content_opens_radar_without_old_section_radio():
     existing = source[source.index("def _render_existing_theme_content"):source.index("def _briefing_secret")]
     assert 'st.radio(\n        "자비스3 보기"' not in existing
     assert "_render_radar_tab(market)" in existing
+    assert existing.count("st.divider()") == 1
+
+
+def test_radar_main_is_compact_without_manual_refresh_row():
+    source = PAGE.read_text(encoding="utf-8")
+    radar = source[source.index("def _render_radar_tab"):source.index("def _close_theme_panel_top")]
+    assert "온라인 자료 새로고침" not in radar
+    assert "j3_force_refresh" not in radar
+    assert 'font-size: 1.14rem !important;' in source
 
 
 def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
@@ -1834,6 +1843,8 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
         assert removed not in source
     assert "padding-bottom:72px!important" in source
     assert ".j3b-bottom-nav{height:50px!important;padding:2px 6px!important}" in source
+    assert ".j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:9px!important}" in source
+    assert ".j3b-nav-item b{font-size:20px!important}" in source
     assert "div.st-key-j3b_nav_controls{height:50px!important}" in source
     assert 'div[class*="st-key-j3b_grid_"]{overflow:visible!important' in source
     assert "div.st-key-j3b_grid_selected_0{padding-top:14px!important}" in source

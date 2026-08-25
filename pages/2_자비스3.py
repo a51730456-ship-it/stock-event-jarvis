@@ -698,7 +698,7 @@ st.markdown(
     div[class*="st-key-j3_pullback_crash"] button p,
     div[class*="st-key-btn_j3_theme_rank_open"] button p {
         color: #ffffff !important;
-        font-size: 1.02rem !important;
+        font-size: 1.14rem !important;
         font-weight: 800 !important;
         letter-spacing: .01em !important;
         margin: 0 !important;
@@ -821,7 +821,7 @@ st.markdown(
     }
     div[class*="st-key-j3_top7_find"] button p {
         color: #ffffff !important;
-        font-size: 1.02rem !important;
+        font-size: 1.14rem !important;
         font-weight: 800 !important;
         letter-spacing: .01em !important;
     }
@@ -3754,11 +3754,6 @@ def _render_radar_tab(market: dict) -> None:
     # 네 개의 긴 목록을 닫으면 이 미국테마 메인 시작점으로 돌아온다.
     scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
     guest_mode = auth.is_guest()
-    action_col, note_col = st.columns([1, 4])
-    with action_col:
-        if st.button("온라인 자료 새로고침", key="j3_force_refresh", width="stretch"):
-            j3data.clear_runtime_cache()
-            st.rerun()
 
     ranking = _load_theme_rankings()
     if not ranking.get("ok"):
@@ -6492,7 +6487,6 @@ def _render_existing_theme_content() -> None:
     # 미국 페이지에 어울리지 않으므로 자비스4(국내)에 넣는다). 같은 렌더러·세션 상태를
     # 재사용하므로 시장판단 페이지와 판정이 항상 일치한다.
     market_signal_ui.render_us_market_signal_card()
-    st.divider()
     # 폰에서 화면만 먹던 상단 '테마·종목 / 매수 기록 / 판정 기준' 선택줄은
     # 보이지 않고 미국테마 본화면을 바로 그린다.
     _render_radar_tab(market)
@@ -6576,7 +6570,7 @@ def _briefing_css() -> None:
         .j3b-card:not(.compact){min-height:148px!important;padding-bottom:12px!important;margin-bottom:8px!important}.j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important}
         div.st-key-j3b_grid_selected_0{padding-top:14px!important}div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}
         .j3b-card.compact{min-height:164px!important}
-        .j3b-bottom-nav{height:50px!important;padding:2px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:7.5px!important}.j3b-nav-item b{font-size:16px!important}
+        .j3b-bottom-nav{height:50px!important;padding:2px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}
         div.st-key-j3b_nav_controls{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:50px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:50px!important;min-height:50px!important}
         @media (max-width:1200px){
         body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-bottom:72px!important}
