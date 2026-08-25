@@ -2604,9 +2604,6 @@ def _render_stock_detail(
                 ),
                 unsafe_allow_html=True,
             )
-            # 「설명 보기」는 서버 단추가 아니다. 점수·시세를 다시 읽지 않고
-            # 브라우저에서 설명을 연 뒤 그 첫 줄로만 이동한다.
-            _bind_general_theme_help_scroll(f"j3_general_theme_help_{panel}")
         else:
             st.markdown("<div class='j3-section-title'>일반 테마매매 점수</div>", unsafe_allow_html=True)
             st.markdown(
@@ -2892,9 +2889,6 @@ _FACTOR_HELP_CSS = """
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
-    font-family: inherit;
-    line-height: inherit;
-    appearance: none;
     transition: background .12s ease-out, border-color .12s ease-out;
 }
 .j3fh-chip:hover { background: #b9dfff; border-color: #6db6ee; }
@@ -2914,11 +2908,11 @@ _FACTOR_HELP_CSS = """
     display: block;
     animation: j3fh-drop .24s ease-out;
 }
-/* 일반 테마매매는 체크박스 토글을 쓰지 않는다. 「설명 보기」는 항상 열고
-   첫 줄로 이동하며, 닫기는 설명 끝의 별도 단추에서만 한다. */
-.j3fh-swap.j3fh-general .j3fh-p.j3fh-open {
+/* 일반 테마매매 설명은 같은 확인칸으로 열고 닫되, 링크는 설명 시작점까지 바로
+   이동한다. 서버를 다시 실행하지 않아 점수·시세를 다시 읽지 않는다. */
+.j3fh-scroll-target {
     display: block;
-    animation: j3fh-drop .24s ease-out;
+    height: 0;
     scroll-margin-top: 1rem;
 }
 /* ── 태블릿·스마트폰에서는 **화면 아래에서 위로 올라오며** 열린다 ─────────────
@@ -2952,7 +2946,7 @@ _FACTOR_HELP_CSS = """
     }
     /* 일반 테마매매 설명은 표 아래에서 읽는 구조다. 이 한 설명만은 하단 팝업으로
        바꾸지 않아, 「설명 보기」를 누르면 설명 첫 줄까지 자연스럽게 내려간다. */
-    .j3fh-swap.j3fh-general .j3fh-p.j3fh-open {
+    .j3fh-swap.j3fh-general .j3fh-cb:checked ~ .j3fh-p {
         position: static;
         left: auto; right: auto; bottom: auto;
         margin-top: .7rem;
@@ -2967,15 +2961,10 @@ _FACTOR_HELP_CSS = """
     }
     /* 창 안에서는 왼쪽 초록 띠를 뺀다 — 창 위쪽 띠가 이미 그 몫을 한다. */
     .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-item { border-left: none; }
-    .j3fh-swap.j3fh-general .j3fh-p.j3fh-open .j3fh-item { border-left: none; }
     /* 닫기 단추는 손가락으로 누르기 쉽게 넓게, **창 바닥에 붙여 둔다** —
        글이 길어 창 안을 굴려야 하는데, 안 붙여 두면 닫으려고 끝까지 내려야 한다
        (2026-08-14 실측: 375px에서 닫기가 화면 밖이었다). */
     .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-x {
-        display: block; text-align: center; margin: .6rem 0 0; padding: .5rem;
-        position: sticky; bottom: 0;
-    }
-    .j3fh-swap.j3fh-general .j3fh-p.j3fh-open .j3fh-x {
         display: block; text-align: center; margin: .6rem 0 0; padding: .5rem;
         position: sticky; bottom: 0;
     }
@@ -3279,12 +3268,12 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str,
 
 
 def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -> str:
-    """일반 테마매매 표와 글 설명. 브라우저만 열고 이동해 API를 다시 부르지 않는다."""
-    open_id = f"j3fh-open-{key}"
-    panel_id = f"j3fh-help-{key}"
-    close_id = f"j3fh-close-{key}"
-    chip = (f"<button type='button' class='j3fh-chip j3fh-general-open' id='{open_id}' "
-            f"aria-controls='{panel_id}' aria-expanded='false'>설명 보기</button>")
+    """일반 테마매매 표와 글 설명. 브라우저만 여닫아 API를 다시 부르지 않는다."""
+    anchor = f"j3fh-help-{key}"
+    # 링크 대상은 표 아래 설명의 첫 줄이다. label은 기존처럼 확인칸을 열고 닫고,
+    # 바깥 링크는 브라우저만 아래로 이동한다. 서버 rerun·API 호출은 없다.
+    chip = (f"<a class='j3fh-chip' href='#{anchor}'>"
+            f"<label for='{key}'>설명 보기</label></a>")
     table = (
         "<table class='j3-factor-table'><thead><tr>"
         f"<th>상세 배점{chip}</th><th>획득(최대)</th></tr></thead>"
@@ -3293,8 +3282,10 @@ def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -
     return (
         _FACTOR_HELP_CSS
         + "<div class='j3fh-swap j3fh-general'>"
+        + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
         + table
-        + f"<div class='j3fh-p j3fh-general-panel' id='{panel_id}' style='color:#e6e6e6; line-height:1.75; font-size:.92rem; margin-top:.7rem'>"
+        + f"<span id='{anchor}' class='j3fh-scroll-target'></span>"
+        + "<div class='j3fh-p' style='color:#e6e6e6; line-height:1.75; font-size:.92rem; margin-top:.7rem'>"
         + "<div style='color:#93c5fd; font-weight:800; font-size:1.05rem; margin-bottom:.4rem'>"
         + "📘 일반 테마매매 — 앱은 이렇게 종목을 고릅니다</div>"
         + "<div>좋은 종목 하나만 보는 것이 아니라 <span style='color:#6ee7b7; font-weight:800'>좋은 테마 안에 있는 좋은 종목</span>을 찾습니다.<br>"
@@ -3315,67 +3306,8 @@ def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -
         + "<div style='margin-top:.35rem'>축구로 비유하면<br><span style='color:#6ee7b7; font-weight:800'>테마 = 팀</span><br><span style='color:#93c5fd; font-weight:800'>종목 = 선수</span><br>좋은 팀에 있는 좋은 선수를 찾는 방식입니다.<br>팀만 좋고 선수가 약한 종목도 피하고, 선수 혼자 강하고 팀 전체가 약한 경우도 한 번 더 확인합니다.</div>"
         + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 이 점수를 어떻게 보면 되나</div>"
         + "<div style='margin-top:.35rem'>점수가 높은 종목부터 관심 종목으로 봅니다.<br>하지만 최종점수는 ‘무엇을 살지 찾는 점수’입니다.<br><span style='color:#fb923c; font-weight:800'>점수가 높다고 바로 매수하라는 뜻은 아닙니다.</span><br>실제 매수 여부는 시장상태와 현재 가격자리를 따로 확인합니다.</div>"
-        + f"<button type='button' class='j3fh-x j3fh-general-close' id='{close_id}'>✕ 설명 닫기</button></div></div>"
+        + f"<label class='j3fh-x' for='{key}'>✕ 설명 닫기</label></div></div>"
     )
-
-
-def _bind_general_theme_help_scroll(key: str) -> None:
-    """일반 테마 설명을 열고 첫 줄까지 내린다 — 서버 rerun/API 호출 없음.
-
-    Streamlit markdown은 script를 제거하므로, 기존 ``scroll_to.py``와 같은 방식으로
-    0px iframe 안에서 부모 문서의 버튼만 연결한다. 열린 설명은 버튼을 다시 눌러도
-    닫히지 않으며, 닫기는 설명 하단의 전용 단추에서만 가능하다.
-    """
-    open_id = f"j3fh-open-{key}"
-    panel_id = f"j3fh-help-{key}"
-    close_id = f"j3fh-close-{key}"
-    script = f"""
-    <script>
-    (function () {{
-      var tries = 0;
-      function bind() {{
-        tries += 1;
-        var doc;
-        try {{ doc = window.parent && window.parent.document; }} catch (e) {{ return; }}
-        if (!doc) {{ return; }}
-        var open = doc.getElementById({open_id!r});
-        var panel = doc.getElementById({panel_id!r});
-        var close = doc.getElementById({close_id!r});
-        if (!open || !panel || !close) {{
-          if (tries < 40) {{ setTimeout(bind, 50); }}
-          return;
-        }}
-        if (open.dataset.j3fhGeneralBound === "1") {{ return; }}
-        open.dataset.j3fhGeneralBound = "1";
-        function moveToHelp() {{
-          try {{ panel.scrollIntoView({{ behavior: "smooth", block: "start" }}); }} catch (e) {{
-            try {{ panel.scrollIntoView(); }} catch (e2) {{}}
-          }}
-        }}
-        open.addEventListener("click", function (event) {{
-          event.preventDefault();
-          panel.classList.add("j3fh-open");
-          open.setAttribute("aria-expanded", "true");
-          setTimeout(moveToHelp, 30);
-          setTimeout(moveToHelp, 550);
-        }});
-        close.addEventListener("click", function (event) {{
-          event.preventDefault();
-          panel.classList.remove("j3fh-open");
-          open.setAttribute("aria-expanded", "false");
-        }});
-      }}
-      bind();
-    }})();
-    </script>
-    """
-    try:
-        import streamlit.components.v1 as components
-
-        components.html(script, height=0)
-    except Exception:
-        # 연결에 실패해도 표·점수·매수판정은 그대로 보인다.
-        pass
 
 
 def _swing_factor_table_html(
