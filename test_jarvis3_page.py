@@ -1758,9 +1758,12 @@ def test_general_detail_keeps_three_score_groups_and_browser_only_help():
     assert "\uC885\uBAA9 60% + \uD14C\uB9C8 40%" in self_contained
     assert "_general_theme_score_help_html" in self_contained
     helper = source[source.index("def _general_theme_score_help_html"):source.index("def _swing_factor_table_html")]
+    assert '""".lstrip()' in helper
     assert "components.html(script, height=0)" in helper
     assert "get_live_quote" not in helper
     assert "_download" not in helper
+    live_quote = source[source.index("def _render_selected_live_quote"):source.index("def _load_theme_rankings")]
+    assert 'f"{float(stock_score):.1f}/100" if general_theme' in live_quote
 
 
 if __name__ == "__main__":

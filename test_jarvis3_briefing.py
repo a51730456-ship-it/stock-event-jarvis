@@ -106,8 +106,10 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert "시장분석" in rendered
     assert "본 정보는 투자 참고용" not in rendered
     source = page.read_text(encoding="utf-8")
-    assert ".j3b-card.compact{height:142px!important" in source
-    assert ".j3b-card.compact .j3b-card-notes{bottom:8px!important" in source
+    assert ".j3b-card.compact{height:158px!important" in source
+    assert "max-height:none!important;overflow:visible!important" in source
+    assert "overflow-x:hidden!important;overflow-y:visible!important" in source
+    assert ".j3b-card.compact .j3b-card-notes{bottom:12px!important" in source
     assert "mask-image:radial-gradient" in source
     assert 'st.switch_page("app.py")' in source
 
