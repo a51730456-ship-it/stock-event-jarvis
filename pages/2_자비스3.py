@@ -2775,6 +2775,7 @@ def _render_stock_detail(
 # 「20개 테마 실시간 순위」 표를 열어 둘까(2026-08-14 상하님 지시). **기본은 열림.**
 # 여닫는 단추는 '종목 찾기' 바로 위에 있다(_render_pullback_finder 맨 앞).
 _THEME_RANK_OPEN = "j3_theme_rank_open"
+_RADAR_MAIN_ANCHOR = "radar_main"
 
 _THEME_PANEL_OPEN_KEYS = (
     "j3_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
@@ -2784,7 +2785,13 @@ _THEME_PANEL_OPEN_KEYS = (
 )
 
 
-def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
+def _section_toggle(
+    label: str,
+    key: str,
+    *,
+    close_label: str | None = None,
+    close_return_to: str | None = None,
+) -> bool:
     """눌러야 열리는 구역. 열려 있으면 닫는 단추를 보여준다(2026-07-30 사용자 지시).
 
     st.expander는 접혀 있어도 안을 다 그린다 — 시세·차트를 미리 받아 오므로
@@ -2803,6 +2810,8 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
         # 쌓여서 뒤로가기가 도로 열어 버린다(back_nav 설명 참고).
         if now_open:
             back_nav.opened(st, key)
+        elif close_return_to:
+            scroll_to.request(st, close_return_to)
 
     is_open = bool(st.session_state.get(key))
     st.button(
@@ -2812,7 +2821,13 @@ def _section_toggle(label: str, key: str, *, close_label: str | None = None) -> 
     return is_open
 
 
-def _section_close(key: str, label: str, *, slot: str = "") -> None:
+def _section_close(
+    key: str,
+    label: str,
+    *,
+    slot: str = "",
+    return_to: str | None = None,
+) -> None:
     """구역 **맨 아래**에 두는 작은 닫기 단추 (2026-08-01 사용자 지시).
 
     폰에서는 구역 하나가 화면 몇 장이라, 끝까지 내려가면 위에 있는 여는 단추가
@@ -2827,6 +2842,8 @@ def _section_close(key: str, label: str, *, slot: str = "") -> None:
     """
     def _close():
         st.session_state[key] = False
+        if return_to:
+            scroll_to.request(st, return_to)
 
     st.button(f"✕ {label}", key=f"close_{key}{slot}", on_click=_close)
 
@@ -3702,6 +3719,8 @@ def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict,
 
 
 def _render_radar_tab(market: dict) -> None:
+    # 네 개의 긴 목록을 닫으면 이 미국테마 메인 시작점으로 돌아온다.
+    scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
     guest_mode = auth.is_guest()
     action_col, note_col = st.columns([1, 4])
     with action_col:
@@ -3733,6 +3752,7 @@ def _render_radar_tab(market: dict) -> None:
     rank_open = _section_toggle(
         "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
         close_label="20개 테마 실시간 순위 닫기",
+        close_return_to=_RADAR_MAIN_ANCHOR,
     )
     # 단추 바로 밑에 **오늘 1~5위**를 한 줄로 적는다(2026-08-14 상하님 지시).
     # 순위표를 닫아 두셔도 이 한 줄은 보이므로, 표를 안 여셔도 오늘 주도 테마를 아신다.
@@ -4170,7 +4190,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     )
     # 구역 맨 아래 닫기 단추 — 다른 구역에는 다 있는데 여기만 없었다
     # (2026-08-06 사용자 지적). 폰에서 표 끝까지 내려가면 위 단추가 화면 밖으로 나간다.
-    _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기")
+    _section_close(
+        "j3_top7_open", "매수심사결과 높은 순위 9 닫기",
+        return_to=_RADAR_MAIN_ANCHOR,
+    )
 
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
@@ -5212,7 +5235,10 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         "div[class*='st-key-close_j3_pullback_open'] button p {color:#fff !important;font-weight:800 !important;}"
         "</style>", unsafe_allow_html=True,
     )
-    _section_close("j3_pullback_open", "상승장 (신고가 눌림매수) 닫기")
+    _section_close(
+        "j3_pullback_open", "상승장 (신고가 눌림매수) 닫기",
+        return_to=_RADAR_MAIN_ANCHOR,
+    )
 
     all_selectable = primary + watch
     # **목록을 열 때 아무 종목도 고르지 않는다** (2026-08-22 상하님 지적 —
@@ -5376,7 +5402,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         )
         _render_pullback_detail(selected, market, ranking, mode="breakout")
     _section_close(
-        "j3_pullback_open", "상승장 (신고가 눌림매수) 닫기", slot="_bottom"
+        "j3_pullback_open", "상승장 (신고가 눌림매수) 닫기", slot="_bottom",
+        return_to=_RADAR_MAIN_ANCHOR,
     )
 
 
@@ -5601,7 +5628,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         "color:#fff !important; font-weight:800 !important;}</style>",
         unsafe_allow_html=True,
     )
-    _section_close("j3_pullback_open", mode_close_label)
+    _section_close(
+        "j3_pullback_open", mode_close_label,
+        return_to=_RADAR_MAIN_ANCHOR,
+    )
     if not rows:
         st.info(
             "지금은 이 기준에 맞는 종목이 없습니다. 기준을 느슨하게 바꾸지 않습니다 — "
@@ -5869,7 +5899,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 순위 9 위와 ✕ 선택종목 세부사항 닫기 밑, 두 개 사이에 하나 더 만들어라").
     # 위쪽 닫기는 목록 머리글 바로 위에 있어서, 상세까지 다 내려보고 나면 화면
     # 몇 장을 도로 올라가야 접을 수 있었다.
-    _section_close("j3_pullback_open", mode_close_label, slot="_bottom")
+    _section_close(
+        "j3_pullback_open", mode_close_label, slot="_bottom",
+        return_to=_RADAR_MAIN_ANCHOR,
+    )
 
 
 
@@ -5953,7 +5986,10 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     # 여는 단추는 **맨 위**에 있다(순위표 자리). 여기에는 닫는 단추만 둔다 —
     # 상승장·급락과 같은 규칙이다(위에서 열고, 아래에서도 닫는다).
     if st.session_state.get(_THEME_RANK_OPEN):
-        _section_close(_THEME_RANK_OPEN, "20개 테마 실시간 순위 닫기")
+        _section_close(
+            _THEME_RANK_OPEN, "20개 테마 실시간 순위 닫기",
+            return_to=_RADAR_MAIN_ANCHOR,
+        )
     st.markdown(
         "<div class='j3-section-title'>📉 종목 찾기</div>",
         unsafe_allow_html=True,

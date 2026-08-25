@@ -1766,5 +1766,14 @@ def test_general_detail_keeps_three_score_groups_and_browser_only_help():
     assert 'f"{float(stock_score):.1f}/100" if general_theme' in live_quote
 
 
+def test_long_section_close_buttons_return_to_radar_main():
+    source = PAGE.read_text(encoding="utf-8")
+    assert 'scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)' in source
+    assert 'close_return_to=_RADAR_MAIN_ANCHOR' in source
+    assert source.count('return_to=_RADAR_MAIN_ANCHOR') >= 6
+    helper = source[source.index("def _section_close"):source.index("_FACTOR_HELP_CSS")]
+    assert "scroll_to.request(st, return_to)" in helper
+
+
 if __name__ == "__main__":
     unittest.main()
