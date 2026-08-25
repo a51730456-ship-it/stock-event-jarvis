@@ -1769,6 +1769,16 @@ def test_long_section_close_buttons_return_to_radar_main():
     assert source.count('return_to=_RADAR_MAIN_ANCHOR') >= 6
     helper = source[source.index("def _section_close"):source.index("_FACTOR_HELP_CSS")]
     assert "scroll_to.request(st, return_to)" in helper
+    radar = source[source.index("def _render_radar_tab"):source.index("def _render_top7_section")]
+    assert 'st.session_state["j3_theme_panel_open"] = False' in radar
+    assert "for opened in _THEME_PANEL_OPEN_KEYS:" in radar
+
+
+def test_existing_theme_content_opens_radar_without_old_section_radio():
+    source = PAGE.read_text(encoding="utf-8")
+    existing = source[source.index("def _render_existing_theme_content"):source.index("def _briefing_secret")]
+    assert 'st.radio(\n        "자비스3 보기"' not in existing
+    assert "_render_radar_tab(market)" in existing
 
 
 def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
@@ -1791,7 +1801,18 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     assert "표에서 테마 이름을 클릭하면 그 테마의 종목 1~6위 화면이 열립니다." not in source
     assert "위 단추를 누르면 순위를 뽑습니다." not in source
     assert "위 버튼을 누르면 조회합니다." not in source
-    assert "padding-bottom:96px!important" in source
+    for removed in (
+        "원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다.",
+        "20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다.",
+        "단추를 누르면 조회합니다. 열린 뒤 같은 단추를 다시 누르면 접힙니다.",
+        "각 전략 안에서 최대 3종목을 보여줍니다.",
+        "단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.",
+        "티커나 회사 이름을 치면 비슷한 이름까지 찾아 줍니다.",
+    ):
+        assert removed not in source
+    assert "padding-bottom:72px!important" in source
+    assert ".j3b-bottom-nav{height:50px!important;padding:2px 6px!important}" in source
+    assert "div.st-key-j3b_nav_controls{height:50px!important}" in source
     assert 'div[class*="st-key-j3b_grid_"]{overflow:visible!important' in source
     assert "div.st-key-j3b_grid_selected_0{padding-top:14px!important}" in source
     assert "div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}" in source

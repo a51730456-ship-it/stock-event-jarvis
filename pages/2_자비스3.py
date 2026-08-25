@@ -3753,6 +3753,11 @@ def _render_radar_tab(market: dict) -> None:
     )
     if not rank_open:
         clicked_theme = None
+        # 20개 순위를 닫을 때는 순위표만 숨기지 않고, 그 순위표에서 열었던
+        # 테마 종목과 종목 세부 판도 같이 닫아 미국테마 기본화면으로 돌아간다.
+        st.session_state["j3_theme_panel_open"] = False
+        for opened in _THEME_PANEL_OPEN_KEYS:
+            st.session_state[opened] = False
     else:
         clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
         # **이 점수가 무엇인지 정직하게 적는다**(2026-08-14). 재 보니 점수가 높은
@@ -6454,19 +6459,9 @@ def _render_existing_theme_content() -> None:
     # 재사용하므로 시장판단 페이지와 판정이 항상 일치한다.
     market_signal_ui.render_us_market_signal_card()
     st.divider()
-    section = st.radio(
-        "자비스3 보기",
-        ["테마·종목", "매수 기록 현황", "판정 기준"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="j3_section",
-    )
-    if section == "테마·종목":
-        _render_radar_tab(market)
-    elif section == "매수 기록 현황":
-        _render_records_tab()
-    else:
-        _render_method_tab()
+    # 폰에서 화면만 먹던 상단 '테마·종목 / 매수 기록 / 판정 기준' 선택줄은
+    # 보이지 않고 미국테마 본화면을 바로 그린다.
+    _render_radar_tab(market)
 
 
 def _briefing_secret(name: str) -> str:
@@ -6547,10 +6542,10 @@ def _briefing_css() -> None:
         .j3b-card:not(.compact){min-height:148px!important;padding-bottom:12px!important;margin-bottom:8px!important}.j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important}
         div.st-key-j3b_grid_selected_0{padding-top:14px!important}div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}
         .j3b-card.compact{min-height:164px!important}
-        .j3b-bottom-nav{height:72px!important}.j3b-nav-item{width:33.333%!important;min-height:62px!important}
-        div.st-key-j3b_nav_controls{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:72px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:72px!important;min-height:72px!important}
+        .j3b-bottom-nav{height:50px!important;padding:2px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:7.5px!important}.j3b-nav-item b{font-size:16px!important}
+        div.st-key-j3b_nav_controls{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:50px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:50px!important;min-height:50px!important}
         @media (max-width:1200px){
-        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-bottom:96px!important}
+        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-bottom:72px!important}
         .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:0!important;left:50%!important;transform:translateX(-75%)!important;width:min(286.667px,66.667vw)!important}
         [data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.stAppDeployButton{display:none!important;visibility:hidden!important;pointer-events:none!important}
         }
