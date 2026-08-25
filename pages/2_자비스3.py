@@ -3747,24 +3747,12 @@ def _render_radar_tab(market: dict) -> None:
     #
     # **기본은 닫힘**(2026-08-14 상하님 지시 — "화면 처음 열릴 때 순위가 열려 있게
     # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
-    # 아래 구역이 전부 밀려 내려갔다. 아래 초록 한 줄이 오늘 1~5위를 알려 주므로,
-    # 표를 안 여셔도 주도 테마는 바로 보인다.
+    # 아래 구역이 전부 밀려 내려가지 않게 한다.
     rank_open = _section_toggle(
         "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
         close_label="20개 테마 실시간 순위 닫기",
         close_return_to=_RADAR_MAIN_ANCHOR,
     )
-    # 단추 바로 밑에 **오늘 1~5위**를 한 줄로 적는다(2026-08-14 상하님 지시).
-    # 순위표를 닫아 두셔도 이 한 줄은 보이므로, 표를 안 여셔도 오늘 주도 테마를 아신다.
-    # 이름은 순위표가 정한 차례 그대로다 — 여기서 다시 줄 세우지 않는다.
-    if names[:5]:
-        st.markdown(
-            "<div class='j3-theme-top5'>오늘 테마 종목 순위는 "
-            "<span class='j3-top5-names'>"
-            + " · ".join(html.escape(name) for name in names[:5])
-            + "</span> 순입니다.</div>",
-            unsafe_allow_html=True,
-        )
     if not rank_open:
         clicked_theme = None
     else:
@@ -4045,10 +4033,6 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     **빈 자리는 딴 갈래로 메우지 않고 왜 비었는지 적는다.**
     표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다.
     """
-    st.markdown(
-        "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 9</div>",
-        unsafe_allow_html=True,
-    )
     # 재료는 셋이다(2026-08-06 사용자 지시 — "누르든 안 누르든 둘 다 자동으로").
     #   ① 20개 테마의 대장주
     #   ② 상승장(신고가 눌림매수) 결과
@@ -4226,10 +4210,6 @@ def _render_my_stock_panel(market: dict) -> None:
         # 제목을 보라색 그라데이션 띠로 — 순위 7(초록)·눌림목(파랑)과 나란히 구분된다
         # (2026-07-30 사용자 지시). 여기는 누를 곳이 아니라 제목이므로 단추가 아니다.
         "<div class='j3-band j3-band-purple'>종목검색 (검색종목 세부사항 보기)</div>", unsafe_allow_html=True)
-    st.caption(
-        "티커나 회사 이름을 치면 비슷한 이름까지 찾아 줍니다. "
-        "**한글로 쳐도 됩니다**(엔비디아·애플·테슬라 등). 테마 목록에 없는 종목도 됩니다."
-    )
     # **누를 단추를 둔다**(2026-08-21 상하님 지시 — "종목이름 치고 검색 누르는
     # 단추가 없다"). 글자만 치면 한 글자마다 화면을 다시 그려 느리기도 했다.
     # 칸 안에서 엔터를 쳐도 같이 눌린다.
@@ -6578,6 +6558,7 @@ def _briefing_css() -> None:
         .j3b-card.compact{min-height:164px!important}
         .j3b-bottom-nav{height:72px!important}.j3b-nav-item{width:33.333%!important;min-height:62px!important}
         div.st-key-j3b_nav_controls{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:72px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:72px!important;min-height:72px!important}
+        @media (max-width:600px){body:has(.j3b-bottom-nav) [data-testid="stStatusWidget"],body:has(.j3b-bottom-nav) [data-testid="stAppDeployButton"]{display:none!important}}
         @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card:not(.compact){height:auto!important;min-height:144px!important}.j3b-card.compact{height:auto!important;min-height:160px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
         </style>
         """,

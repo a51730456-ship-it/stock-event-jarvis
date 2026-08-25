@@ -289,7 +289,7 @@ class Jarvis3PageTests(unittest.TestCase):
             ])
             # **순위표는 처음에 닫혀 있다**(2026-08-14 상하님 지시 — "화면 처음 열릴 때
             # 순위가 열려 있게 하지 말고 닫아라. 그거 클릭해야 열리지").
-            # 표가 안 그려지므로 테마 단추도 아직 없다. 대신 오늘 1~5위 한 줄은 보인다.
+            # 표가 안 그려지므로 테마 단추도 아직 없다. 삭제한 상위 안내도 없어야 한다.
             self.assertFalse([
                 node for node in app.button if str(node.key or "").startswith("j3tbtn_")
             ], "순위표가 처음부터 열려 있다")
@@ -298,8 +298,8 @@ class Jarvis3PageTests(unittest.TestCase):
                 if str(node.key or "") == "btn_j3_theme_rank_open"
             )
             self.assertIn("열기", str(rank_button.label))
-            self.assertTrue(any("class='j3-theme-top5'" in str(node.value)
-                                for node in app.markdown), "오늘 1~5위 한 줄이 없다")
+            self.assertFalse(any("class='j3-theme-top5'" in str(node.value)
+                                 for node in app.markdown), "삭제한 오늘 1~5위 안내가 남았다")
             rank_button.click().run(timeout=60)
 
             theme_button = next(
@@ -380,12 +380,10 @@ class Jarvis3PageTests(unittest.TestCase):
         # 저장해 둔 목록 **맨 위**에 매수 기록 자리가 있어야 한다(같은 지시).
         self.assertTrue(any("내가 저장한 매수 기록" in value for value in markdowns),
                         "저장해 둔 목록 맨 위에 매수 기록이 없다")
-        # 단추 밑에 **오늘 1~5위 한 줄**이 있어야 한다(2026-08-14 상하님 지시).
-        # (CSS 묶음에도 이름이 나오므로 **실제로 그린 줄**만 고른다.)
+        # 스마트폰 화면을 길게 만들던 오늘 1~5위 안내문은 표시하지 않는다.
         top5 = next((value for value in markdowns
                      if "class='j3-theme-top5'" in value), "")
-        self.assertIn("오늘 테마 종목 순위는", top5)
-        self.assertIn("순입니다", top5)
+        self.assertEqual("", top5)
         self.assertTrue(any("52주 고가 대비" in value for value in markdowns))
         self.assertTrue(any("테마 종목 1–6위" in str(node.value) for node in app.markdown))
         # 일봉·주봉·월봉은 눌러야 받아 온다(2026-07-30) — 여는 단추가 있어야 한다.
@@ -772,10 +770,8 @@ class Jarvis3PageTests(unittest.TestCase):
 
         self.assertEqual(len(app.exception), 0)
         blob = "".join(str(node.value) for node in app.markdown)
-        captions = "".join(str(node.value) for node in app.caption)
         self.assertIn("종목검색 (검색종목 세부사항 보기)", blob)
-        # 미국 종목이라도 한글로 칠 수 있다는 것을 화면이 알려 준다.
-        self.assertIn("한글로 쳐도 됩니다", captions)
+        self.assertNotIn("한글로 쳐도 됩니다", blob)
         self.assertIn("NVIDIA", blob)
 
     def test_korean_aliases_cover_the_common_names(self):
@@ -1773,6 +1769,18 @@ def test_long_section_close_buttons_return_to_radar_main():
     assert source.count('return_to=_RADAR_MAIN_ANCHOR') >= 6
     helper = source[source.index("def _section_close"):source.index("_FACTOR_HELP_CSS")]
     assert "scroll_to.request(st, return_to)" in helper
+
+
+def test_mobile_briefing_hides_cloud_overlays_and_marked_helper_text():
+    source = PAGE.read_text(encoding="utf-8")
+    assert '@media (max-width:600px){body:has(.j3b-bottom-nav)' in source
+    assert '[data-testid="stStatusWidget"]' in source
+    assert '[data-testid="stAppDeployButton"]' in source
+    reviewed = source[source.index("def _render_top_reviewed"):source.index("def _render_my_stock_panel")]
+    search = source[source.index("def _render_my_stock_panel"):source.index("def _render_saved_trades")]
+    assert "<div class='j3-theme-top5'>오늘 테마 종목 순위는" not in source
+    assert "<div class='j3-section-title'>🏆 매수심사결과 높은 순위 9</div>" not in reviewed
+    assert "티커나 회사 이름을 치면 비슷한 이름까지 찾아 줍니다." not in search
 
 
 if __name__ == "__main__":
