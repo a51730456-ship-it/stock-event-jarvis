@@ -62,14 +62,31 @@ def test_news_dedupes_same_url_and_keeps_actual_count():
 
 def test_rss_fallback_keeps_verifiable_actual_rows(monkeypatch):
     stamp = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
-    monkeypatch.setattr(news, "_request_text", lambda _url: f"""
+    seen = {}
+    def request_text(url):
+        seen["url"] = url
+        return f"""
         <rss><channel><item><title>미국 증시 관련 실제 뉴스</title><link>https://example.test/news</link>
         <pubDate>{stamp}</pubDate><source url="https://example.test">테스트 출처</source></item></channel></rss>
-    """)
+        """
+    monkeypatch.setattr(news, "_request_text", request_text)
     rows = news._google_news_rss("market", None)
     assert len(rows) == 1
     assert rows[0]["headline"] == "미국 증시 관련 실제 뉴스"
     assert rows[0]["url"] == "https://example.test/news"
+    assert "hl=en-US" in seen["url"] and "gl=US" in seen["url"] and "ceid=US%3Aen" in seen["url"]
+
+
+def test_us_news_is_preferred_before_naver(monkeypatch):
+    row = {"headline": "US market news", "summary": "", "source": "US source",
+           "url": "https://example.test/us", "published_at": datetime.now(timezone.utc).isoformat()}
+    monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [row])
+    naver = patch.object(news, "_naver_news")
+    monkeypatch.setattr(news, "_groq", lambda rows, *_args: news._fallback(rows))
+    with naver as naver_news:
+        result = news._load("company:NVDA", "company", "NVDA", "", "", "id", "secret")
+    naver_news.assert_not_called()
+    assert result["items"][0]["source"] == "US source"
 
 
 def test_first_page_renders_four_slots_and_next_page_button():
@@ -111,9 +128,17 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert "overflow-x:hidden!important;overflow-y:visible!important" in source
     assert ".j3b-card.compact{height:auto!important;min-height:174px!important" in source
     assert ".j3b-card.compact .j3b-card-notes{bottom:14px!important" in source
-    assert "visible_stocks = selected + home_extras + extras" in source
-    assert '_render_briefing_grid(home_extras, cards, removable=False' in source
-    assert '_render_briefing_grid(extras, cards, removable=True' in source
+    assert ".j3b-card{height:auto!important;min-height:142px!important" in source
+    assert ".j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:10px!important" in source
+    assert "visible_stocks = selected + home_extras" in source
+    assert '_render_briefing_grid(home_extras, cards, removable=True' in source
+    assert 'can_remove = removable and int(stock.get("position", 0)) > 0' in source
+    assert ".j3b-card.compact .j3b-chart{display:block!important" in source
+    assert 'div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"])' in source
+    assert 'delete_visual = ""' in source
+    assert ".j3b-bottom-nav{position:fixed" in source and "height:68px" in source
+    assert '[data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%' in source
+    assert 'st.session_state["j3_briefing_page"] = "home"' in source
     assert "mask-image:radial-gradient" in source
     assert 'st.switch_page("app.py")' in source
 

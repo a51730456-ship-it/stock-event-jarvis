@@ -100,13 +100,13 @@ def _finnhub(kind: str, ticker: str | None, key: str) -> list[dict]:
 
 
 def _google_news_rss(kind: str, ticker: str | None) -> list[dict]:
-    """키가 없을 때만 쓰는 공개 RSS 보조 뉴스원.
+    """미국 원문 기사를 받는 공개 RSS 뉴스원.
 
     첫 화면을 API 키 미설정 상태에서 영구적인 '불러오는 중'으로 남기지 않는다.
     RSS 원문·시간·출처를 그대로 보관하므로 사용자는 카드의 원문 확인에서 검증할 수 있다.
     """
-    query = "미국 증시" if kind == "market" else f"{str(ticker or '').upper()} 주식"
-    params = {"q": f"{query} when:3d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}
+    query = "US stock market" if kind == "market" else f"{str(ticker or '').upper()} stock"
+    params = {"q": f"{query} when:3d", "hl": "en-US", "gl": "US", "ceid": "US:en"}
     endpoint = "https://news.google.com/rss/search?" + urlencode(params)
     root = ElementTree.fromstring(_request_text(endpoint))
     now = datetime.now(timezone.utc)
@@ -207,9 +207,9 @@ def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_
     loaders = []
     if finnhub_key:
         loaders.append(lambda: _finnhub(kind, ticker, finnhub_key))
+    loaders.append(lambda: _google_news_rss(kind, ticker))
     if naver_client_id and naver_client_secret:
         loaders.append(lambda: _naver_news(kind, ticker, naver_client_id, naver_client_secret))
-    loaders.append(lambda: _google_news_rss(kind, ticker))
     for loader in loaders:
         try:
             rows = loader()
