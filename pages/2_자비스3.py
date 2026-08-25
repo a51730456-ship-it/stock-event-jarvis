@@ -3329,7 +3329,7 @@ def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -
         border-radius:0!important;box-shadow:none!important;animation:j3fh-drop .24s ease-out!important}
     }
     </style>
-    """.lstrip()
+    """.strip()
     return (
         _FACTOR_HELP_CSS + general_css
         + "<div class='j3fh-swap j3fh-general'>" + table
