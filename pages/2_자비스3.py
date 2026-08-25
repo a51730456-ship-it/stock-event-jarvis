@@ -2559,7 +2559,7 @@ def _render_stock_detail(
         def _general_factor_rows(spec, values):
             return "".join(
                 f"<tr><td class='j3-fac-name'>{name}"
-                f"<div class='j3-general-factor-note' style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
+                f"<div style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
                 f"{general_factor_notes[name]}</div></td>"
                 "<td class='j3-fac-val'><span style='color:#ff5b5b; font-weight:800'>"
                 f"{_number(part)}</span> <span style='color:#ff5b5b'>/ {_number(maximum)}</span></td></tr>"
@@ -2574,7 +2574,7 @@ def _render_stock_detail(
         )
         total_row = _general_group_row("최종점수", leader.get("score") or 0, "#44f0a1").replace(
             "</td></tr>",
-            "<div class='j3-general-total-note' style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
+            "<div style='color:#9aa0aa; font-size:.78rem; font-weight:500; margin-top:.22rem'>"
             "종목 60% + 테마 40%</div></td></tr>",
             1,
         )
@@ -2892,9 +2892,13 @@ _FACTOR_HELP_CSS = """
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
+    font-family: inherit;
+    line-height: inherit;
+    appearance: none;
     transition: background .12s ease-out, border-color .12s ease-out;
 }
 .j3fh-chip:hover { background: #b9dfff; border-color: #6db6ee; }
+.j3fh-chip:active { filter: brightness(.95); }
 /* 창은 **표 아래(총점 밑)**에 두고 평소에는 숨겨 둔다. 상하님이 '설명'을 누르면
    그 칸의 창만 열린다 — 브라우저가 혼자 하는 일이라 **화면을 다시 그리지 않는다.**
    st.button을 쓰면 표·차트·시세를 통째로 다시 그려 느리다
@@ -2917,8 +2921,6 @@ _FACTOR_HELP_CSS = """
     animation: j3fh-drop .24s ease-out;
     scroll-margin-top: 1rem;
 }
-/* 데스크톱은 항목별 카드, 폰·태블릿은 아래 @media의 세 묶음 카드다. */
-.j3fh-general-compact { display: none; }
 /* ── 태블릿·스마트폰에서는 **화면 아래에서 위로 올라오며** 열린다 ─────────────
    2026-08-14 상하님 지시 — "테블릿과 스마트폰에서 설명을 클릭하면 화면 위로
    가면서 설명창이 열리도록 해 줘."
@@ -2963,18 +2965,6 @@ _FACTOR_HELP_CSS = """
         box-shadow: none;
         animation: j3fh-drop .24s ease-out;
     }
-    /* 7개 배점 설명을 표와 설명 창에서 두 번 읽으면 폰·태블릿에서 두 페이지를
-       넘긴다. 표에는 이름·점수만 남기고, 설명 창은 종목·테마·최종 세 묶음으로
-       압축한다. PC의 항목별 카드와 표 설명은 그대로 둔다. */
-    .j3fh-swap.j3fh-general .j3-general-factor-note,
-    .j3fh-swap.j3fh-general .j3-general-total-note { display: none !important; }
-    .j3fh-swap.j3fh-general .j3fh-general-full { display: none; }
-    .j3fh-swap.j3fh-general .j3fh-general-compact { display: block; }
-    .j3fh-swap.j3fh-general .j3fh-general-compact .j3fh-item {
-        padding: .48rem .68rem;
-        margin: .4rem 0;
-    }
-    .j3fh-swap.j3fh-general .j3fh-general-compact .j3fh-name { margin-bottom: .22rem; }
     /* 창 안에서는 왼쪽 초록 띠를 뺀다 — 창 위쪽 띠가 이미 그 몫을 한다. */
     .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-item { border-left: none; }
     /* 일반 테마는 하단 팝업이 아니라 표 아래 카드다. 폰·태블릿에서도 기존
@@ -3174,60 +3164,18 @@ _FACTOR_HELP_HEAD = (
      "통과하지 못했다'</b>는 뜻입니다."),
     ("_crash",
      "급락 후 반등장 (낙폭종목) — 앱은 이렇게 조사했습니다",
-     "<b>어떻게 쟀나</b> — 지난 10년 동안 <b class='j3fh-k'>나스닥이 바닥을 찍고 "
-     "돌아선 날 아홉 번</b>에 서서, 그날 이 목록에 걸렸을 종목 739개를 다음 날 "
-     "아침에 샀다고 치고 3개월·6개월·1년 뒤를 봤습니다. 명부 198종목 전부입니다.<br>"
+     "<b>어떻게 쟀나</b> — 지난 10년 나스닥이 바닥을 찍고 돌아선 <b class='j3fh-k'>9번</b>에서, "
+     "당시 목록에 걸린 739개 종목을 다음 날 샀다고 가정해 3개월·6개월·1년 뒤를 비교했습니다. "
+     "명부 198종목을 사용했습니다.<br>"
      "<b>점수를 주는 넷 (100점)</b><br>"
-     "· <b class='j3fh-k'>주가 변동성 40점</b> — 평소 크게 출렁이던 종목이 바닥에서도 "
-     "크게 튑니다. 아홉 번 중 3개월은 아홉 번 다 이겼습니다.<br>"
-     "· <b class='j3fh-k'>테마가 30주선 위 30점</b> — 업종이 반년째 흐름을 지키면 "
-     "회복도 빠릅니다. 1년으로는 일곱 번 다 이겼습니다.<br>"
-     "· <b class='j3fh-k'>같은 테마 4개 동시 하락 20점</b> — 업종째 밀려야 업종째 "
-     "돌아옵니다. 3개월은 아홉 번 다인데 길게 가면 약해집니다.<br>"
-     "· <b class='j3fh-k'>테마 6개월 수익률 10점</b> — 1년으로는 여섯 번 다 맞히는데 "
-     "3개월로는 일곱 번 중 네 번뿐이라 낮게 줍니다.<br>"
-     "<b>안 쓰는 것</b> — <b class='j3fh-z'>20일선 위</b>는 반대였고(1년 뒤 23% 덜 "
-     "올랐습니다), <b class='j3fh-z'>고점 대비 낙폭</b>은 목록에 올릴 때 이미 쓴 값인 "
-     "데다 변동성과 71%가 같은 종목입니다. <b class='j3fh-z'>위 테마 순위표</b>는 "
-     "6개월에 무너지고, <b class='j3fh-z'>대형기술주 감점</b>은 오히려 반대였습니다.<br>"
-     "<b>변동성만 종목을 보고 나머지 셋은 테마를 봅니다.</b> 거의 겹치지 않아서 "
-     "<b class='j3fh-k'>둘 다 점수를 받은 종목</b>이 특히 좋았습니다 — 1년 뒤 가운데 "
-     "+129%로 100번 중 97번 올랐습니다.<br>"
-     "<b>한계 — 재 봤습니다</b><br>"
-     "· <b>바닥이 아홉 번뿐입니다.</b> 그래서 <b class='j3fh-k'>한 번씩 빼고 "
-     "다시 재 봤습니다.</b> 어느 바닥 하나를 빼도 네 항목이 다 절반을 "
-     "넘겼습니다 — 한 번 잘 맞은 것에 매달린 결론은 아닙니다.<br>"
-     "· <b>명부 198종목은 지금 살아남은 종목입니다.</b> 망한 회사가 빠져 있어 "
-     "과거 성적이 실제보다 좋게 나옵니다. 크기를 재 보니 10년 내내 있던 종목은 "
-     "1년 뒤 <b class='j3fh-k'>+51.6%</b>, 그 사이 새로 들어온 종목은 "
-     "<b class='j3fh-k'>+74.6%</b>였습니다. 다만 새로 들어온 종목은 "
-     "<b>12%</b>뿐이라 전체를 크게 흔들지는 않습니다.<br>"
-     # ── 참고표 (2026-08-19 상하님 지시) ───────────────────────────────
-     # **앱은 파는 시점을 정하지 않는다**(CLAUDE.md 0-1 바 · 2026-08-12 상하님
-     # 확정). 그래서 배점표가 아니라 이 설명 창 안에 참고로만 둔다.
-     # 숫자는 research/us_crash_holding.py에서 잰 값이다. 바닥 9번 · 739종목.
-     "<b>참고 — 얼마나 들고 있었을 때 어땠나</b><br>"
-     "<span class='j3fh-h'>앱은 파는 시점을 정하지 않습니다.</span> 지난 10년에 "
-     "어땠는지만 적습니다.<br>"
-     "<table class='j3fh-ref'>"
-     "<tr><th>들고 있은 기간</th><th>걸린 종목 전부</th><th>배점 70점 이상</th></tr>"
-     "<tr><td>3개월</td><td>+23.0% (90번)</td><td>+46.4% (100번)</td></tr>"
-     "<tr><td>6개월</td><td>+30.8% (88번)</td><td>+85.8% (98번)</td></tr>"
-     "<tr><td>1년</td><td>+52.8% (89번)</td>"
-     "<td class='j3fh-ref-hi'>+119.4% (100번)</td></tr>"
-     "<tr><td>1년 반</td><td>+70.1% (89번)</td>"
-     "<td class='j3fh-ref-hi'>+149.8% (100번)</td></tr>"
-     "</table>"
-     "가운데 수익과 100번 중 오른 횟수입니다. "
-     "<b class='j3fh-k'>끊어야 할 자리가 안 보입니다</b> — 어느 지점에서도 "
-     "꺾이지 않고 계속 늘어납니다. 오를 확률은 3개월이나 1년 반이나 거의 "
-     "같습니다.<br>"
-     "<b>배점 높은 종목이 어느 기간에서나 낫습니다</b> — 70점 이상은 40점 미만보다 "
-     "<b class='j3fh-k'>어느 기간에서나 세 배 가까이</b> 벌었습니다(3개월 2.8배 · "
-     "1년 반 2.9배). 비율은 거의 그대로인데 오래 들수록 <b>금액 차이</b>가 "
-     "커집니다.<br>"
-     "<span class='j3fh-z'>주의</span> — 1년 반까지 잴 수 있는 바닥은 여덟 "
-     "번뿐이고, 70점 이상은 아홉 번을 통틀어 51종목(한 번에 대여섯 개꼴)입니다."),
+     "· <b class='j3fh-k'>주가 변동성 40점</b> — 바닥에서 반등폭이 큰 종목인지 봅니다.<br>"
+     "· <b class='j3fh-k'>테마 30주선 위 30점</b> — 테마가 반년 흐름을 지키는지 봅니다.<br>"
+     "· <b class='j3fh-k'>같은 테마 동시 하락 20점</b> — 한 종목이 아니라 테마 전체가 밀렸는지 봅니다.<br>"
+     "· <b class='j3fh-k'>테마 6개월 수익률 10점</b> — 테마의 중기 흐름을 봅니다.<br>"
+     "<b>읽는 법</b> — 변동성은 종목을, 나머지 셋은 테마를 봅니다. "
+     "점수가 높을수록 반등 후보에 가깝지만 <b class='j3fh-z'>바로 매수하라는 뜻은 아닙니다.</b><br>"
+     "<b>한계</b> — 바닥 사례가 9번뿐이고 현재 살아남은 198종목 기준이라 과거 성적이 좋게 보일 수 있습니다. "
+     "따라서 이 결과는 후보를 고르는 참고자료로만 봅니다."),
     ("_theme",
      "테마 안에서 어느 종목을 볼까 — 앱은 이렇게 조사했습니다",
      "<b>이 표가 하는 일</b> — 위 「20개 테마 실시간 순위」에서 테마를 고르셨으면, "
@@ -3386,33 +3334,13 @@ def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -
         "예: 종목점수 90점, 테마점수 80점이면 <span class='j3fh-k'>최종점수는 86점</span>입니다.<br>"
         "이 점수는 무엇을 살지 찾는 점수이며, 실제 매수 여부는 시장상태와 현재 가격자리를 따로 확인합니다.</div></div>",
     ))
-    # 폰·태블릿은 위의 8개 카드를 그대로 세우지 않는다. 같은 내용을 세 묶음으로
-    # 보여 주되, 제목·배점·판단 의미는 빠뜨리지 않는다.
-    compact_items = "".join((
-        "<div class='j3fh-item'><div class='j3fh-name'>종목점수 — "
-        "<span class='j3fh-k'>100점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>최근 3개월 40점</span> — 최근 시장보다 강했는지 · "
-        "<span class='j3fh-h'>최근 6개월 40점</span> — 반년 동안 꾸준히 강했는지<br>"
-        "<span class='j3fh-h'>1년 최고가 근접 20점</span> — 높은 가격대 가까이에 있는지 봅니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>테마점수 — "
-        "<span class='j3fh-k'>100점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>6개월 강도 35점</span> · <span class='j3fh-h'>3개월 강도 30점</span> — "
-        "테마의 중기·최근 힘을 봅니다.<br>"
-        "<span class='j3fh-h'>강한 종목 수 25점</span> · <span class='j3fh-h'>최근 힘 증가 10점</span> — "
-        "여러 종목이 함께 강하고 최근 힘이 붙는지 봅니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>최종점수 — "
-        "<span class='j3fh-h'>종목 60%</span> + <span class='j3fh-k'>테마 40%</span></div><div class='j3fh-txt'>"
-        "예: 종목 90점, 테마 80점이면 <span class='j3fh-k'>최종점수는 86점</span>입니다.<br>"
-        "후보를 고르는 점수이며, 실제 매수는 시장상태와 현재 가격자리를 따로 확인합니다.</div></div>",
-    ))
     return (
         _FACTOR_HELP_CSS
         + "<div class='j3fh-swap j3fh-general'>"
         + table
         + f"<div class='j3fh-p j3fh-general-panel' id='{panel_id}' style='color:#e6e6e6; line-height:1.75; font-size:.92rem; margin-top:.7rem'>"
         + head
-        + f"<div class='j3fh-general-full'>{items}</div>"
-        + f"<div class='j3fh-general-compact'>{compact_items}</div>"
+        + items
         + f"<button type='button' class='j3fh-x j3fh-general-close' id='{close_id}'>✕ 설명 닫기</button></div></div>"
     )
 
@@ -6551,112 +6479,6 @@ def _render_method_tab() -> None:
     )
 
 
-def _render_mobile_exit_and_back_guard() -> None:
-    """미국테마 폰·태블릿 하단 종료와 뒤로가기 보호 — 화면 이동만 한다.
-
-    웹페이지는 사용자가 직접 연 브라우저/앱 창을 강제로 닫을 수 없는 경우가 있다.
-    그래서 먼저 창 닫기를 시도하고, 막힌 환경에서는 빈 화면으로 바꿔 미국테마에서
-    완전히 빠져나간다. 뒤로가기는 이 페이지에서만 가로채 화면 맨 위로 돌린다.
-    """
-    button_id = "j3-mobile-window-close"
-    st.markdown(
-        """
-        <style>
-        .j3-mobile-exit-wrap { display: none; }
-        /* 종목 브리핑 자체 하단 메뉴와 중복되어 폰 화면을 가리지 않게 한다. */
-        body:has(.j3b-app) .j3-mobile-exit-wrap { display: none !important; }
-        @media (max-width: 1200px) {
-            .j3-mobile-exit-wrap {
-                display: flex; justify-content: center; margin: 2rem 0 .8rem;
-            }
-            .j3-mobile-exit {
-                appearance: none; border: 1px solid rgba(255,255,255,.24);
-                border-radius: .4rem; background: #3a3f4a; color: #ffffff;
-                padding: .24rem .58rem; font: inherit; font-size: .76rem;
-                font-weight: 800; cursor: pointer;
-            }
-            .j3-mobile-exit:active { filter: brightness(1.18); }
-        }
-        </style>
-        <div class="j3-mobile-exit-wrap">
-          <button type="button" class="j3-mobile-exit" id="j3-mobile-window-close">✕ 창 닫기</button>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    # Streamlit markdown은 script를 없앤다. 기존 scroll_to.py와 같은 0px iframe에서
-    # 부모 문서의 버튼과 방문기록만 다룬다. 데이터·점수·API 호출은 전혀 없다.
-    script = f"""
-    <script>
-    (function () {{
-      var tries = 0;
-      function compact(win) {{
-        try {{ return !!win.matchMedia && win.matchMedia("(max-width: 1200px)").matches; }}
-        catch (e) {{ return false; }}
-      }}
-      function goTop(win) {{
-        try {{ win.scrollTo({{ top: 0, behavior: "smooth" }}); }} catch (e) {{
-          try {{ win.scrollTo(0, 0); }} catch (e2) {{}}
-        }}
-      }}
-      function bind() {{
-        tries += 1;
-        var win;
-        try {{ win = window.parent; }} catch (e) {{ return; }}
-        var doc = win && win.document;
-        var button = doc && doc.getElementById({button_id!r});
-        if (!win || !doc || !button) {{
-          if (tries < 40) {{ setTimeout(bind, 50); }}
-          return;
-        }}
-        if (button.dataset.j3ExitBound !== "1") {{
-          button.dataset.j3ExitBound = "1";
-          button.addEventListener("click", function (event) {{
-            event.preventDefault();
-            try {{ win.close(); }} catch (e) {{}}
-            // 모바일 브라우저는 사용자가 연 창의 close()를 막는다. 그때는 다른
-            // 앱 화면으로 가지 않고 빈 화면으로 바꿔 명시적인 종료가 되게 한다.
-            setTimeout(function () {{
-              try {{ if (!win.closed) {{ win.location.replace("about:blank"); }} }} catch (e) {{}}
-            }}, 250);
-          }});
-        }}
-        if (!compact(win) || win.__jarvisUsThemeBackGuard) {{ return; }}
-        win.__jarvisUsThemeBackGuard = true;
-        var marker = "__jarvis_us_theme_back_guard";
-        try {{
-          var home = Object.assign({{}}, win.history.state || {{}});
-          home[marker] = "home";
-          win.history.replaceState(home, "", win.location.href);
-          var guard = Object.assign({{}}, home);
-          guard[marker] = "guard";
-          win.history.pushState(guard, "", win.location.href);
-          win.addEventListener("popstate", function () {{
-            // 이 리스너는 부모 창에 붙는다. 다른 페이지로 옮긴 뒤에는 미국테마
-            // 하단 단추가 없으므로 즉시 빠져나가 다른 화면의 뒤로가기를 막지 않는다.
-            if (!compact(win) || !doc.getElementById({button_id!r})) {{ return; }}
-            goTop(win);
-            try {{
-              var next = Object.assign({{}}, win.history.state || {{}});
-              next[marker] = "guard";
-              win.history.pushState(next, "", win.location.href);
-            }} catch (e) {{}}
-          }});
-        }} catch (e) {{}}
-      }}
-      bind();
-    }})();
-    </script>
-    """
-    try:
-        import streamlit.components.v1 as components
-
-        components.html(script, height=0)
-    except Exception:
-        # 브라우저 연결이 막혀도 미국테마 본문은 기존처럼 정상 표시한다.
-        pass
-
-
 def _render_existing_theme_content() -> None:
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
@@ -7043,7 +6865,5 @@ def main() -> None:
 
 
 main()
-# 미국테마 맨 아래의 모바일·태블릿 전용 종료 단추와 뒤로가기 보호.
-_render_mobile_exit_and_back_guard()
 # 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
 scroll_to.run(st)
