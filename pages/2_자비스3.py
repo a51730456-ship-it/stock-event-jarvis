@@ -6338,7 +6338,7 @@ def _briefing_css() -> None:
         .j3b-section {display:flex;align-items:center;gap:8px;color:#f8f4e9;margin:18px 4px 9px;font-size:20px;font-weight:850;letter-spacing:-1.2px}.j3b-section .j3b-section-icon{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:0}.j3b-section .j3b-section-icon:after{content:"";width:12px;height:12px;border:2px solid #f3fbff;border-radius:50%;box-sizing:border-box}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500}.j3b-section.search .j3b-section-icon{background:transparent;box-shadow:none;border:3px solid #2ebfff}.j3b-section.search .j3b-section-icon:after{width:10px;height:10px;border-color:#2ebfff}.j3b-section.search .j3b-section-icon:before{content:"";width:11px;height:3px;position:absolute;transform:translate(11px,12px) rotate(48deg);background:#2ebfff;border-radius:2px}
         div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:16px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
-        .j3b-card{height:246px;background:linear-gradient(145deg,#073966 0%,#04264d 70%,#031d3d 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#1685c644,transparent 69%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
+        .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"],div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_grid_"] [data-testid="column"],div[class*="st-key-j3b_grid_"] [data-testid="stColumn"]{width:calc(50% - 5px)!important;min-width:0!important;flex:1 1 0!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"]{position:relative}div[class*="st-key-j3b_extra_"]>.stButton{position:absolute;right:10px;top:7px;z-index:5}div[class*="st-key-j3b_extra_"]>.stButton button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
         .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:100;bottom:0;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:68px;padding:8px 12px 7px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#05244aee,#03162ecc);border-top:1px solid #af8a5199;backdrop-filter:blur(10px)}.j3b-nav-item{display:grid;place-items:center;color:#abb8c8;font-size:11px;line-height:1.15;min-width:61px}.j3b-nav-item b{font-size:25px;font-weight:500}.j3b-nav-item.active{color:#36bcff}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
         div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
@@ -6361,12 +6361,12 @@ def _briefing_css() -> None:
         body:has(.j3b-home) [data-testid="stHorizontalBlock"],body:has(.j3b-home) [data-testid="stColumn"],body:has(.j3b-home) [data-testid="column"]{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
         .j3b-hero{height:132px!important;margin:0!important;padding:16px 18px!important;border-radius:0 0 20px 20px!important}.j3b-hero:before{width:540px!important;height:150px!important;bottom:-102px!important}.j3b-hero:after{left:105px!important;bottom:20px!important;width:116px!important;height:20px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:142px!important;right:-2px!important;bottom:3px!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
-        .j3b-card{height:122px!important;min-width:0!important;box-sizing:border-box!important;border-radius:14px!important;padding:7px!important;margin:0 0 7px!important}.j3b-card-top{min-height:34px!important;gap:6px!important}.j3b-logo{width:34px!important;height:34px!important;border-radius:9px!important}.j3b-symbol{font-size:18px!important;line-height:1!important;color:#fff9eb!important}.j3b-name{margin-top:3px!important;font-size:10px!important;line-height:1.1!important}.j3b-price{position:absolute!important;left:7px!important;top:47px!important;max-width:55%!important;margin:0!important;color:#fff9eb!important;font-size:14px!important;line-height:1.15!important;white-space:nowrap!important}.j3b-chart{top:42px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:7px!important;margin:0!important;padding-top:3px!important}.j3b-card:has(.j3b-decor-img) .j3b-card-notes{right:52px!important}.j3b-card.compact:has(.j3b-decor-img) .j3b-card-notes{right:41px!important}.j3b-note{display:block;color:#f1f5f7!important;text-decoration:none!important;font-size:9px!important;line-height:1.48!important;padding-right:0!important}.j3b-lamp{display:none!important}.j3b-decor-img{position:absolute;right:3px;bottom:2px;width:48px;height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 2px 3px #0008)}.j3b-decor-img.left{left:2px;right:auto}.j3b-delete-visual{width:21px!important;height:21px!important;right:6px!important;top:6px!important;font-size:15px!important}
-        .j3b-card.compact{height:97px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:none!important}.j3b-card.compact .j3b-card-notes{bottom:5px!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:38px!important}
+        .j3b-card{height:122px!important;min-width:0!important;box-sizing:border-box!important;border-radius:14px!important;padding:7px!important;margin:0 0 7px!important}.j3b-card-top{min-height:34px!important;gap:6px!important}.j3b-logo{width:34px!important;height:34px!important;border-radius:9px!important}.j3b-symbol{font-size:18px!important;line-height:1!important;color:#fff9eb!important}.j3b-name{margin-top:3px!important;font-size:10px!important;line-height:1.1!important}.j3b-price{position:absolute!important;left:7px!important;top:47px!important;max-width:55%!important;margin:0!important;color:#fff9eb!important;font-size:14px!important;line-height:1.15!important;white-space:nowrap!important}.j3b-chart{top:42px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:7px!important;margin:0!important;padding-top:3px!important}.j3b-card:has(.j3b-decor-img) .j3b-card-notes{right:58px!important}.j3b-card.compact:has(.j3b-decor-img) .j3b-card-notes{right:62px!important}.j3b-card:has(.j3b-decor-img.left) .j3b-card-notes{left:62px!important;right:7px!important}.j3b-note{display:block;color:#f1f5f7!important;text-decoration:none!important;font-size:9px!important;line-height:1.48!important;padding-right:0!important}.j3b-lamp{display:none!important}.j3b-decor-img{position:absolute;right:-2px;bottom:-1px;width:56px;height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 2px 3px #0005);-webkit-mask-image:radial-gradient(ellipse 82% 88% at 63% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%);mask-image:radial-gradient(ellipse 82% 88% at 63% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%)}.j3b-decor-img.left{left:-2px;right:auto;-webkit-mask-image:radial-gradient(ellipse 82% 88% at 37% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%);mask-image:radial-gradient(ellipse 82% 88% at 37% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%)}.j3b-delete-visual{width:21px!important;height:21px!important;right:6px!important;top:6px!important;font-size:15px!important}
+        .j3b-card.compact{height:122px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:none!important}.j3b-card.compact .j3b-card-notes{bottom:5px!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:64px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:8px!important;width:100%!important;overflow:hidden!important}div[class*="st-key-j3b_grid_"] [data-testid="stColumn"],div[class*="st-key-j3b_grid_"] [data-testid="column"]{width:calc(50% - 4px)!important;min-width:0!important;flex:1 1 0!important}
         div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
-        .j3b-disclaimer{margin:10px 0 8px!important;padding:8px!important;font-size:9px!important;line-height:1.25!important}.j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:58px!important;padding:6px 8px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}.j3-mobile-exit-wrap{display:none!important}
-        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card{height:118px!important}.j3b-card.compact{height:101px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
+        div.st-key-j3b_open_market button{width:100%!important;min-height:42px!important;margin:10px 0 4px!important;border:1px solid #c1975b!important;border-radius:13px!important;background:#06264a!important;color:#f7e7bd!important;font-size:14px!important;font-weight:800!important}
+        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card{height:118px!important}.j3b-card.compact{height:122px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -6449,11 +6449,14 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
     )
     direction = "decline" if (change or 0) < 0 else ""
     decor_name = {
-        "NVDA": "soot_lamp.png", "PLTR": "small_cat_lamp.png",
-        "AMD": "small_totoro.png", "RGTI": "bunny_bench.png",
+        "NVDA": "soot_lamp.png", "TSLA": "small_totoro.png",
+        "PLTR": "small_cat_lamp.png", "AMD": "small_totoro.png",
+        "AAPL": "small_cat_lamp.png", "META": "soot_lamp.png",
+        "AVGO": "small_cat_lamp.png", "RGTI": "bunny_bench.png",
     }.get(ticker)
     decor_uri = _briefing_asset_uri(decor_name) if decor_name else ""
-    decor_html = f'<img class="j3b-decor-img" src="{decor_uri}" alt="">' if decor_uri else ""
+    decor_side = " left" if ticker == "AAPL" else ""
+    decor_html = f'<img class="j3b-decor-img{decor_side}" src="{decor_uri}" alt="">' if decor_uri else ""
     delete_visual = '<span class="j3b-delete-visual" aria-hidden="true">×</span>' if int(stock.get("position", 0)) < 0 else ""
     card_html = (
         f'<div class="j3b-card {direction}{" compact" if compact else ""}"><div class="j3b-card-top">'
@@ -6517,30 +6520,28 @@ def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
         with query_col:
             query = st.text_input("종목 검색", placeholder="종목 검색 후 추가", key="j3b_search", label_visibility="collapsed")
         with plus_col:
-            if st.button("+", key="j3b_manage_toggle"):
-                st.session_state["j3b_manage_open"] = not st.session_state.get("j3b_manage_open", False)
-    if st.session_state.get("j3b_manage_open"):
-        found = j3data.search_stocks(query) if query.strip() else {"ok": True, "rows": []}
-        rows = found.get("rows") or []
-        if query.strip() and not rows:
-            st.caption("확인된 미국 티커를 찾지 못했습니다.")
-        if rows:
-            labels = [f'{row["ticker"]} · {row["name"]}' for row in rows]
-            chosen = rows[labels.index(st.selectbox("확인된 종목", labels, key="j3b_candidate"))]
-            targets = ["추가 검색 종목으로 등록"] + [f"사용자 선정 {stock['position']}번 교체" for stock in selected]
-            target = st.radio("등록 위치", targets, horizontal=False, key="j3b_target")
-            if st.button("선택한 종목 저장", key="j3b_save_stock"):
+            add_clicked = st.button("+", key="j3b_manage_toggle")
+    if add_clicked:
+        if not query.strip():
+            st.session_state["j3b_search_message"] = "추가할 종목명이나 티커를 먼저 입력하세요."
+        else:
+            found = j3data.search_stocks(query)
+            rows = found.get("rows") or []
+            if not found.get("ok", False):
+                st.session_state["j3b_search_message"] = "종목 검색을 완료하지 못했습니다. 잠시 후 다시 눌러주세요."
+            elif not rows:
+                st.session_state["j3b_search_message"] = "확인된 미국 종목을 찾지 못했습니다."
+            else:
+                chosen = rows[0]
                 try:
-                    if target.startswith("추가"):
-                        briefing_store.add_extra(chosen["ticker"], chosen["name"])
-                    else:
-                        slot = int(target.split()[2][0])
-                        briefing_store.replace_selected(slot, chosen["ticker"], chosen["name"])
-                    st.success("저장했습니다.")
+                    briefing_store.add_extra(chosen["ticker"], chosen["name"])
+                    st.session_state["j3b_search_message"] = f'{chosen["ticker"]} 종목을 추가했습니다.'
                     st.rerun()
                 except ValueError as exc:
-                    st.warning(str(exc))
-        st.caption(f"추가 검색 종목: {len(extras)}/8 · 순서는 등록 순서대로 유지됩니다.")
+                    st.session_state["j3b_search_message"] = str(exc)
+    message = st.session_state.pop("j3b_search_message", "")
+    if message:
+        st.caption(message)
 
 
 def _schedule_briefing_news_refresh() -> None:
@@ -6557,6 +6558,13 @@ def _schedule_briefing_news_refresh() -> None:
 
 
 def _render_stock_briefing() -> None:
+    page = st.session_state.get("j3_briefing_page", "home")
+    if page == "market":
+        if st.button("← 종목 브리핑", key="j3b_go_home"):
+            st.session_state["j3_briefing_page"] = "home"
+            st.rerun()
+        _render_existing_theme_content()
+        return
     _briefing_css()
     st.session_state["j3b_news_pending"] = False
     try:
@@ -6567,9 +6575,8 @@ def _render_stock_briefing() -> None:
         _render_existing_theme_content()
         return
     selected, extras = setup["selected"], setup["extra"]
-    page = st.session_state.get("j3_briefing_page", "home")
     home_extras = _briefing_home_extras(extras)
-    visible_stocks = selected + (home_extras if page == "home" else extras[4:])
+    visible_stocks = selected + (extras if extras else home_extras)
     cards = j3data.get_briefing_cards(visible_stocks)
     try:
         visual_debug = str(st.query_params.get("visual_debug", "")).strip() == "1"
@@ -6586,39 +6593,35 @@ def _render_stock_briefing() -> None:
         catbus_uri = _briefing_asset_uri("hero_catbus_crop.png")
         catbus_html = f'<img class="j3b-hero-catbus" src="{catbus_uri}" alt="">' if catbus_uri else ""
         st.markdown(
-            f'<div class="j3b-app {"j3b-home" if page == "home" else "j3b-market"}"></div><div class="j3b-hero"><div class="j3b-head-copy">'
+            '<div class="j3b-app j3b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'
             '<div class="j3b-title">JARVIS <b>3</b></div><div class="j3b-sub">미국테마</div></div>'
             '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
             f'{catbus_html}</div>',
             unsafe_allow_html=True,
         )
-        if page == "home":
-            st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
-            _render_briefing_news("market")
-            with st.container(key="j3b_selected_heading"):
-                st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
-                if st.button("더보기", key="j3b_go_market"):
-                    st.session_state["j3_briefing_page"] = "market"
-                    st.rerun()
-            _render_briefing_grid(selected, cards, removable=False, key="selected")
-            with st.container(key="j3b_extra_header"):
-                heading_col, search_col = st.columns([4, 6], gap="small")
-                with heading_col:
-                    st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
-                with search_col:
-                    _render_briefing_manage(selected, extras)
-            _render_briefing_grid(home_extras, cards, removable=bool(extras), key="extra1", compact=True)
-            st.markdown('<div class="j3b-disclaimer">본 정보는 투자 참고용이며, 투자 판단의 책임은 투자자 본인에게 있습니다.</div><nav class="j3b-bottom-nav"><span class="j3b-nav-item active"><b>⌂</b>홈</span><span class="j3b-nav-item"><b>★</b>관심종목</span><span class="j3b-nav-item"><b>◕</b>시장분석</span><span class="j3b-nav-item"><b>♙</b>마이페이지</span></nav>', unsafe_allow_html=True)
-            _schedule_briefing_news_refresh()
-        else:
-            st.markdown('<div class="j3b-section"><span>⌕</span> 추가 검색 종목 5~8</div>', unsafe_allow_html=True)
-            _render_briefing_grid(extras[4:], cards, removable=True, key="extra2")
-            _render_briefing_manage(selected, extras)
-            if st.button("← 종목 브리핑", key="j3b_go_home"):
-                st.session_state["j3_briefing_page"] = "home"
+        st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
+        _render_briefing_news("market")
+        with st.container(key="j3b_selected_heading"):
+            st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
+            if st.button("더보기", key="j3b_go_market"):
+                st.session_state["j3_briefing_page"] = "market"
                 st.rerun()
-            st.divider()
-            _render_existing_theme_content()
+        _render_briefing_grid(selected, cards, removable=False, key="selected")
+        with st.container(key="j3b_extra_header"):
+            heading_col, search_col = st.columns([4, 6], gap="small")
+            with heading_col:
+                st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
+            with search_col:
+                _render_briefing_manage(selected, extras)
+        _render_briefing_grid(home_extras, cards, removable=bool(extras), key="extra1", compact=True)
+        if len(extras) > 4:
+            st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 종목 더보기</div>', unsafe_allow_html=True)
+            _render_briefing_grid(extras[4:], cards, removable=True, key="extra2", compact=True)
+        with st.container(key="j3b_open_market"):
+            if st.button("미국전체시장 판단", key="j3b_go_market_footer", width="stretch"):
+                st.session_state["j3_briefing_page"] = "market"
+                st.rerun()
+        _schedule_briefing_news_refresh()
 
 
 def main() -> None:

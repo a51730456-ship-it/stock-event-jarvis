@@ -99,3 +99,41 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert "종목 브리핑" in rendered
     assert all(ticker in rendered for ticker in ("NVDA", "TSLA", "PLTR", "AMD"))
     assert any(node.key == "j3b_go_market" for node in app.button)
+    market_button = next(node for node in app.button if node.key == "j3b_go_market_footer")
+    assert market_button.label == "미국전체시장 판단"
+    assert "본 정보는 투자 참고용" not in rendered
+    source = page.read_text(encoding="utf-8")
+    assert ".j3b-card.compact{height:122px!important}" in source
+    assert "mask-image:radial-gradient" in source
+    assert 'st.button("← 종목 브리핑", key="j3b_go_home")' in source
+
+
+def test_search_plus_adds_the_first_matching_extra_stock():
+    stocks = {
+        "selected": [
+            {"position": 1, "ticker": "NVDA", "name": "NVIDIA"},
+            {"position": 2, "ticker": "TSLA", "name": "Tesla"},
+            {"position": 3, "ticker": "PLTR", "name": "Palantir"},
+            {"position": 4, "ticker": "AMD", "name": "AMD"},
+        ], "extra": [],
+    }
+    cards = {ticker: {"ticker": ticker, "name": ticker, "price": 100.0,
+                      "change_pct": 1.0, "chart": [90, 95, 100], "stale": False}
+             for ticker in ("NVDA", "TSLA", "PLTR", "AMD")}
+    page = Path(__file__).parent / "pages" / "2_자비스3.py"
+    with patch("jarvis3_briefing_store.ensure_tables"), \
+         patch("jarvis3_briefing_store.all_stocks", return_value=stocks), \
+         patch("jarvis3_briefing_store.add_extra") as add_extra, \
+         patch("jarvis3_data.search_stocks", return_value={
+             "ok": True, "rows": [{"ticker": "AAPL", "name": "Apple", "market": "NASDAQ"}],
+         }), \
+         patch("jarvis3_data.get_briefing_cards", return_value=cards), \
+         patch("jarvis3_briefing_news.get_or_schedule", return_value={"ok": True, "items": []}):
+        app = AppTest.from_file(str(page), default_timeout=30)
+        app.secrets["APP_PASSWORD"] = "test"
+        app.session_state["authenticated"] = True
+        app.session_state["jarvis_access_role"] = "owner"
+        app.run(timeout=30)
+        next(node for node in app.text_input if node.key == "j3b_search").input("애플").run(timeout=30)
+        next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
+    add_extra.assert_called_once_with("AAPL", "Apple")
