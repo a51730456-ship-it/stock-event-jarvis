@@ -5980,9 +5980,21 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     # 여는 단추는 **맨 위**에 있다(순위표 자리). 여기에는 닫는 단추만 둔다 —
     # 상승장·급락과 같은 규칙이다(위에서 열고, 아래에서도 닫는다).
     if st.session_state.get(_THEME_RANK_OPEN):
-        _section_close(
-            _THEME_RANK_OPEN, "20개 테마 실시간 순위 닫기",
-            return_to=_RADAR_MAIN_ANCHOR,
+        def _close_theme_rank_to_main() -> None:
+            # 이 단추는 fragment 안에 있으므로 상태만 바꾸면 상위 순위표가 화면에
+            # 그대로 남는다. 미국테마 전체를 한 번 다시 그려 순위·테마 상세을 함께
+            # 닫고 메인 시작점으로 돌아간다.
+            st.session_state[_THEME_RANK_OPEN] = False
+            st.session_state["j3_theme_panel_open"] = False
+            for opened in _THEME_PANEL_OPEN_KEYS:
+                st.session_state[opened] = False
+            scroll_to.request(st, _RADAR_MAIN_ANCHOR)
+            st.rerun(scope="app")
+
+        st.button(
+            "✕ 20개 테마 실시간 순위 닫기",
+            key=f"close_{_THEME_RANK_OPEN}",
+            on_click=_close_theme_rank_to_main,
         )
     st.markdown(
         "<div class='j3-section-title'>📉 종목 찾기</div>",

@@ -310,13 +310,15 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertTrue([
                 node for node in app.button if str(node.key or "").startswith("j3lbtn_")
             ])
-            close_button = next(
+            # 순위 아래쪽 닫기는 fragment 안에 있어도 미국테마 전체를 다시 그려야 한다.
+            rank_close = next(
                 node for node in app.button
-                if str(node.key or "") == "close_j3_theme_panel_open_top"
+                if str(node.key or "") == "close_j3_theme_rank_open"
             )
-            close_button.click().run(timeout=60)
+            rank_close.click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
+        self.assertFalse(app.session_state.filtered_state.get("j3_theme_rank_open"))
         self.assertFalse(app.session_state.filtered_state.get("j3_theme_panel_open"))
         self.assertFalse([
             node for node in app.button if str(node.key or "").startswith("j3lbtn_")
