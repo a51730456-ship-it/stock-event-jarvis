@@ -1812,6 +1812,19 @@ def test_radar_main_is_compact_without_manual_refresh_row():
     assert 'font-size: 1.14rem !important;' in source
 
 
+def test_briefing_cards_hover_and_expand_without_rerun_or_script():
+    source = PAGE.read_text(encoding="utf-8")
+    card = source[source.index("def _render_briefing_card"):source.index("def _render_briefing_grid")]
+    assert '<details class="j3b-card-shell"><summary class="j3b-card-summary"' in card
+    assert "onclick=" not in card
+    assert "st.rerun()" not in card.split("if removable:", 1)[0]
+    assert ".j3b-news:hover" in source
+    assert ".j3b-card-shell:not([open])>.j3b-card-summary:hover .j3b-card" in source
+    assert ".j3b-card-shell[open]>.j3b-card-summary" in source
+    assert "white-space:normal!important;overflow:visible!important;text-overflow:clip!important" in source
+    assert "× 다시 누르면 닫힘" in source
+
+
 def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     source = PAGE.read_text(encoding="utf-8")
     assert "@media (max-width:1200px){" in source
