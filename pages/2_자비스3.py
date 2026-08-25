@@ -2817,12 +2817,29 @@ _THEME_PANEL_OPEN_KEYS = (
 )
 
 
+def _close_full_theme_rank() -> None:
+    """20개 테마 순위에서 연 화면을 전부 닫고 미국테마 메인으로 돌아간다."""
+    st.session_state[_THEME_RANK_OPEN] = False
+    st.session_state["j3_theme_panel_open"] = False
+    for opened in _THEME_PANEL_OPEN_KEYS:
+        st.session_state[opened] = False
+    # 선택값까지 남아 있으면 다음에 순위를 열었을 때 직전 테마·종목 상세가
+    # 다시 살아난 것처럼 보인다. 20개 테마 흐름의 선택값만 함께 비운다.
+    st.session_state.pop("j3_theme_choice", None)
+    st.session_state.pop("j3_theme_choice_widget", None)
+    for state_key in list(st.session_state):
+        if str(state_key).startswith("j3_stock_choice_"):
+            st.session_state.pop(state_key, None)
+    scroll_to.request(st, _RADAR_MAIN_ANCHOR)
+
+
 def _section_toggle(
     label: str,
     key: str,
     *,
     close_label: str | None = None,
     close_return_to: str | None = None,
+    on_close=None,
 ) -> bool:
     """눌러야 열리는 구역. 열려 있으면 닫는 단추를 보여준다(2026-07-30 사용자 지시).
 
@@ -2842,8 +2859,11 @@ def _section_toggle(
         # 쌓여서 뒤로가기가 도로 열어 버린다(back_nav 설명 참고).
         if now_open:
             back_nav.opened(st, key)
-        elif close_return_to:
-            scroll_to.request(st, close_return_to)
+        else:
+            if on_close:
+                on_close()
+            elif close_return_to:
+                scroll_to.request(st, close_return_to)
 
     is_open = bool(st.session_state.get(key))
     st.button(
@@ -3776,7 +3796,7 @@ def _render_radar_tab(market: dict) -> None:
     rank_open = _section_toggle(
         "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
         close_label="20개 테마 실시간 순위 닫기",
-        close_return_to=_RADAR_MAIN_ANCHOR,
+        on_close=_close_full_theme_rank,
     )
     if not rank_open:
         clicked_theme = None
@@ -3821,7 +3841,8 @@ def _render_radar_tab(market: dict) -> None:
         # 연 자리가 표 아래 두 화면 밑이라 직접 굴려 내려가야 했다. 열면서 같이
         # 내려간다(2026-08-21 상하님 지시).
         scroll_to.request(st, "theme_stocks")
-    if st.session_state.get("j3_theme_choice_widget") not in names:
+    if (st.session_state.get("j3_theme_panel_open")
+            and st.session_state.get("j3_theme_choice_widget") not in names):
         preferred_theme = st.session_state.get("j3_theme_choice")
         st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
 
@@ -5984,11 +6005,7 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             # 이 단추는 fragment 안에 있으므로 상태만 바꾸면 상위 순위표가 화면에
             # 그대로 남는다. 미국테마 전체를 한 번 다시 그려 순위·테마 상세을 함께
             # 닫고 메인 시작점으로 돌아간다.
-            st.session_state[_THEME_RANK_OPEN] = False
-            st.session_state["j3_theme_panel_open"] = False
-            for opened in _THEME_PANEL_OPEN_KEYS:
-                st.session_state[opened] = False
-            scroll_to.request(st, _RADAR_MAIN_ANCHOR)
+            _close_full_theme_rank()
             st.rerun(scope="app")
 
         st.button(

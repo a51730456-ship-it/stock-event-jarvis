@@ -307,6 +307,7 @@ class Jarvis3PageTests(unittest.TestCase):
             )
             theme_button.click().run(timeout=60)
             self.assertTrue(app.session_state.filtered_state.get("j3_theme_panel_open"))
+            self.assertTrue(app.session_state.filtered_state.get("j3_theme_choice"))
             self.assertTrue([
                 node for node in app.button if str(node.key or "").startswith("j3lbtn_")
             ])
@@ -320,6 +321,15 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         self.assertFalse(app.session_state.filtered_state.get("j3_theme_rank_open"))
         self.assertFalse(app.session_state.filtered_state.get("j3_theme_panel_open"))
+        self.assertNotIn("j3_theme_choice", app.session_state.filtered_state)
+        self.assertNotIn("j3_theme_choice_widget", app.session_state.filtered_state)
+        self.assertFalse([
+            key for key in app.session_state.filtered_state
+            if str(key).startswith("j3_stock_choice_")
+        ])
+        for key in ("j3_leadercmp_open", "j3_detail_open_theme",
+                    "j3_intraday_open_theme", "j3_bundle_open_theme"):
+            self.assertFalse(app.session_state.filtered_state.get(key))
         self.assertFalse([
             node for node in app.button if str(node.key or "").startswith("j3lbtn_")
         ])
