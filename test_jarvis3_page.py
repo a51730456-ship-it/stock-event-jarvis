@@ -1776,6 +1776,9 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     assert '@media (max-width:1200px){[data-testid="stStatusWidget"]' in source
     assert '[data-testid="stStatusWidget"]' in source
     assert '[data-testid="stAppDeployButton"]' in source
+    assert "z-index:2147483646" in source
+    assert "z-index:2147483647!important" in source
+    assert "visibility:hidden!important;pointer-events:none!important" in source
     reviewed = source[source.index("def _render_top_reviewed"):source.index("def _render_my_stock_panel")]
     search = source[source.index("def _render_my_stock_panel"):source.index("def _render_saved_trades")]
     assert "<div class='j3-theme-top5'>오늘 테마 종목 순위는" not in source
