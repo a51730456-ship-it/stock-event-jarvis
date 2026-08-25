@@ -1779,8 +1779,9 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     assert "z-index:2147483646" in source
     assert "z-index:2147483647!important" in source
     assert "visibility:hidden!important;pointer-events:none!important" in source
-    assert ".j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:76px!important}" in source
-    assert "padding-bottom:180px!important" in source
+    assert ".j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:0!important" in source
+    assert "transform:translateX(-75%)!important" in source
+    assert "width:min(286.667px,66.667vw)!important" in source
     reviewed = source[source.index("def _render_top_reviewed"):source.index("def _render_my_stock_panel")]
     search = source[source.index("def _render_my_stock_panel"):source.index("def _render_saved_trades")]
     assert "<div class='j3-theme-top5'>오늘 테마 종목 순위는" not in source
