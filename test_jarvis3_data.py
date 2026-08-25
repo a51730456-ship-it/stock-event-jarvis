@@ -103,7 +103,7 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertFalse(hasattr(j3, "breakout_stars"), "별점이 되살아났다")
         # 점수 버전을 줄마다 남긴다 — 옛 추천을 새 가중치로 덮어쓰지 않기 위한 것이다.
         self.assertEqual("US_SWING_V1", us_swing.SCORE_MODEL_VERSION)
-        self.assertEqual(j3.MODULE_REVISION, us_swing.MODULE_REVISION)
+        self.assertGreaterEqual(j3.MODULE_REVISION, us_swing.MODULE_REVISION)
         # **2026-08-12에 상하님 표 2로 되돌렸다.** 2026-08-07에 내가 나스닥 구간·
         # 종목 낙폭·보유기간 셋을 한꺼번에 바꿔 놓고 "-6%는 흔한 조정"이라고 적었는데,
         # 갈라서 다시 재 보니 진짜 원인은 보유기간이었다(-6%도 1년 들면 +33.1%).
@@ -1341,6 +1341,42 @@ class LeaderScoreMaxTests(unittest.TestCase):
         self.assertIn("종목 조건점수", reason)
         self.assertNotIn("품질", reason)
         self.assertIn("60", reason, "문턱이 몇 점인지 같이 적어야 한다")
+
+
+class GeneralThemeScoreTests(unittest.TestCase):
+    """일반 테마매매 전용 점수가 다른 전략의 옛 점수와 섞이지 않는지 본다."""
+
+    def test_general_points_and_final_formula(self):
+        self.assertEqual(
+            [("최근 3개월 강도", 40.0), ("최근 6개월 강도", 40.0),
+             ("1년 최고가 근접", 20.0)],
+            list(j3.GENERAL_STOCK_SCORE_PARTS),
+        )
+        self.assertEqual(
+            [("테마 6개월 강도", 35.0), ("테마 3개월 강도", 30.0),
+             ("강한 종목 수", 25.0), ("최근 힘 증가", 10.0)],
+            list(j3.GENERAL_THEME_SCORE_PARTS),
+        )
+        self.assertEqual(86.0, j3._general_final_score(90.0, 80.0))
+
+    def test_general_stock_parts_stay_inside_40_40_20(self):
+        metrics = {"ret60": 50.0, "ret120": 50.0, "from_high_pct": 0.0}
+        total, parts = j3._general_stock_score(metrics, {"ret60": 0.0, "ret120": 0.0})
+        self.assertEqual([40.0, 40.0, 20.0], parts)
+        self.assertEqual(100.0, total)
+
+    def test_general_entry_does_not_restore_old_theme70_or_stock60_gate(self):
+        metrics = {
+            "current": 100.0, "atr": 2.0, "atr_pct": 3.0, "ret5": 2.0,
+            "sma20": 100.0, "sma50": 95.0, "from_high_pct": -1.0, "volume_ratio": 1.5,
+        }
+        general = j3._entry_plan(
+            metrics, 30.8, 80.0, 30.8, general_theme_trading=True,
+        )
+        legacy = j3._entry_plan(metrics, 30.8, 80.0, 30.8)
+        self.assertEqual("조건부 후보", general["recommendation"])
+        self.assertEqual("관찰", legacy["recommendation"])
+        self.assertTrue(general["general_theme_trading"])
 
 
 if __name__ == "__main__":

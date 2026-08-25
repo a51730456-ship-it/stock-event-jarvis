@@ -206,6 +206,9 @@ def _open_all_details(app):
     누르면 patch가 이미 풀린 뒤라 시세를 실제로 받으러 나가므로, 세션 값으로
     열어 둔 상태에서 화면을 그린다. 여는 장치 자체는 test_top_reviewed가 지킨다.
     """
+    # 자비스3의 새 첫 화면은 종목 브리핑이다. 기존 테마·상승장·
+    # 급락반등 화면을 검증하는 시험은 하단 '시장분석'으로 들어간 상태로 그린다.
+    app.session_state["j3_briefing_page"] = "market"
     for panel in ("theme", "pullback", "top7", "mystock"):
         app.session_state[f"j3_detail_open_{panel}"] = True
         app.session_state[f"j3_buyform_open_{panel}"] = True
@@ -278,6 +281,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
+            app.session_state["j3_briefing_page"] = "market"
             app.run(timeout=60)
             self.assertFalse(app.session_state.filtered_state.get("j3_theme_panel_open", False))
             self.assertFalse([
@@ -1043,7 +1047,11 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("파는 시점은 규칙에 없습니다", joined)
         # 2026-08-06 — 점수가 순위다(별점은 뺐다). 배점표를 화면에 그대로 뿌린다.
         self.assertIn("점수가 곧 순위입니다", joined)
-        self.assertNotIn("★", joined, "별점이 되살아났다")
+        crash_body = " ".join(
+            str(node.value) for node in app.markdown
+            if "j3b-bottom-nav" not in str(node.value)
+        )
+        self.assertNotIn("★", crash_body, "급락 점수에 별점이 되살아났다")
         # 2026-08-19 새판 — 점수를 주는 넷이 설명 표에 다 보여야 한다.
         # **이름은 그 항목이 던지는 질문 꼴이다**(상하님 지적 — "무슨 말인지
         # 못 알아먹겠다"). 옛 이름('테마 6개월 수익률' 같은 것)으로 돌아가면 깨진다.
@@ -1618,8 +1626,8 @@ class Jarvis3PageTests(unittest.TestCase):
                       source)
         self.assertIn(".j3-reason-mustard .j3-mn-down { color: #ff4d4f; font-weight: 900; }",
                       source)
-        # 상자를 그리는 두 자리 모두 이 손질을 거쳐야 한다.
-        self.assertEqual(2, source.count("j3-reason-mustard'>{_mustard_html("))
+        # 기존 두 자리와 GENERAL 종목·테마·최종 요약이 모두 이 손질을 거쳐야 한다.
+        self.assertEqual(3, source.count("j3-reason-mustard'>{_mustard_html("))
 
     def test_the_three_charts_stand_side_by_side_without_a_big_copy(self):
         """**맨 위 「크게 보기」는 뺐다**(2026-08-21 상하님 지시).
@@ -1692,6 +1700,7 @@ class Jarvis3PageTests(unittest.TestCase):
             app.text_input[0].set_value("test")
             next(node for node in app.button if node.key == "login_submit").click().run(timeout=60)
             self.assertIn("자비스3", [node.page for node in app.get("page_link")])
+            app.session_state["j3_briefing_page"] = "market"
             app.switch_page("pages/2_자비스3.py")
             app.run(timeout=60)
 
@@ -1724,6 +1733,7 @@ class Jarvis3PageTests(unittest.TestCase):
             next(node for node in app.button if node.key == "login_guest").click().run(timeout=60)
             self.assertTrue(any("어디로 갈까요" in str(node.value) for node in app.markdown))
             self.assertIn("자비스3", [node.page for node in app.get("page_link")])
+            app.session_state["j3_briefing_page"] = "market"
             app.switch_page("pages/2_자비스3.py")
             app.run(timeout=60)
 
@@ -1737,6 +1747,20 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("j3_pullback_find", button_keys)
         self.assertNotIn("j3_top7_find", button_keys)
         self.assertTrue([node for node in app.text_input if node.key == "j3_my_stock_query"])
+
+
+def test_general_detail_keeps_three_score_groups_and_browser_only_help():
+    source = PAGE.read_text(encoding="utf-8")
+    self_contained = source[source.index("def _render_stock_detail"):source.index("_THEME_RANK_OPEN")]
+    assert '"\uC885\uBAA9\uC810\uC218"' in self_contained
+    assert '"\uD14C\uB9C8\uC810\uC218"' in self_contained
+    assert '"\uCD5C\uC885\uC810\uC218"' in self_contained
+    assert "\uC885\uBAA9 60% + \uD14C\uB9C8 40%" in self_contained
+    assert "_general_theme_score_help_html" in self_contained
+    helper = source[source.index("def _general_theme_score_help_html"):source.index("def _swing_factor_table_html")]
+    assert "components.html(script, height=0)" in helper
+    assert "get_live_quote" not in helper
+    assert "_download" not in helper
 
 
 if __name__ == "__main__":

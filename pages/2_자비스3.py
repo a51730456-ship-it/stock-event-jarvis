@@ -1095,7 +1095,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082501
+_REQUIRED_J3_REVISION = 2026082502
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1308,8 +1308,8 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>테마</div>", unsafe_allow_html=True)
     head[2].markdown(
-        _flex_row(_THEME_REST_WIDTHS, ["ETF", "조건점수", "상태", "당일",
-                                       "20일 상대강도", "구성종목 확산"], head=True),
+        _flex_row(_THEME_REST_WIDTHS, ["ETF", "테마점수", "상태", "당일",
+                                       "6개월 시장대비", "강한 종목 비율"], head=True),
         unsafe_allow_html=True,
     )
     # 머리글 '테마'와 첫 행(석유·가스 등)이 붙어 보이지 않도록 대장주 표와
@@ -1357,23 +1357,24 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             )
             continue
         score = float(row.get("score") or 0)
-        breadth, change, rs20 = row.get("breadth"), row.get("change_pct"), row.get("rs20")
-        rs_text = "—" if rs20 is None else f"{float(rs20):+.1f}%p"
-        breadth_cell = "—" if breadth is None else (
+        strong_share = row.get("strong_members")
+        change, strength120 = row.get("change_pct"), row.get("strength_120")
+        strength_text = "—" if strength120 is None else f"{float(strength120):+.1f}%p"
+        strong_cell = "—" if strong_share is None else (
             "<div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(breadth), 100):.0f}%'></div></div>"
-            f"<span class='j3-bar-num'>{float(breadth):.0f}%</span></div>"
+            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(strong_share), 100):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{float(strong_share):.0f}%</span></div>"
         )
         cols[2].markdown(
             _flex_row(_THEME_REST_WIDTHS, [
                 etf,
                 "<div class='j3-barwrap'><div class='j3-bar'>"
-                f"<div class='j3-bar-fill' style='width:{_leader_bar_pct(score):.0f}%'></div></div>"
+                f"<div class='j3-bar-fill' style='width:{max(0.0, min(score, 100.0)):.0f}%'></div></div>"
                 f"<span class='j3-bar-num'>{score:.1f}</span></div>",
                 f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
                 f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
-                f"<span style='color:{_sign_color(rs20)}; font-weight:700'>{rs_text}</span>",
-                breadth_cell,
+                f"<span style='color:{_sign_color(strength120)}; font-weight:700'>{strength_text}</span>",
+                strong_cell,
             ]),
             unsafe_allow_html=True,
         )
@@ -1550,7 +1551,7 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[2].markdown(
-        _flex_row(_LEADER_REST_WIDTHS, ["티커", "조건점수", "당일", "52주 고가 대비",
+        _flex_row(_LEADER_REST_WIDTHS, ["티커", "최종점수", "당일", "52주 고가 대비",
                                         "20일 수익률", "매수 상태"], head=True),
         unsafe_allow_html=True,
     )
@@ -1577,8 +1578,8 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
             _flex_row(_LEADER_REST_WIDTHS, [
                 ticker,
                 "<div class='j3-barwrap'><div class='j3-bar'>"
-                f"<div class='j3-bar-fill' style='width:{_leader_bar_pct(score):.0f}%'></div></div>"
-                f"<span class='j3-bar-num'>{score:.1f}</span></div>",
+                f"<div class='j3-bar-fill' style='width:{max(0.0, min(score, 100.0)):.0f}%'></div></div>"
+                f"<span class='j3-bar-num'>{score:.1f}/100</span></div>",
                 *(
                     f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
                     for value in (metrics.get("change_pct"), metrics.get("from_high_pct"),
@@ -2344,7 +2345,7 @@ def _leader_bar_pct(score) -> float:
     return max(0.0, min(float(score or 0) / max(_leader_max(), 1.0) * 100.0, 100.0))
 
 
-def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
+def _render_selected_live_quote(stock_score=None, entry_state=None, *, general_theme=False) -> None:
     ticker = st.session_state.get("j3_selected_ticker")
     if not ticker:
         return
@@ -2357,7 +2358,8 @@ def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
     # 라벨은 코발트, 증감 부호는 미국장 색(+파랑/−빨강), 종목조건점수는 우측 끝.
     # 만점은 모듈에서 읽는다 — /100으로 박아 뒀더니 아래 매수심사 칸(/80)과
     # 한 화면에서 서로 다른 값을 말했다(2026-08-13 상하님 캡처).
-    score_val = (f"{float(stock_score):.1f}/{_number(_leader_max())}"
+    score_max = 100.0 if general_theme else _leader_max()
+    score_val = (f"{float(stock_score):.1f}/{_number(score_max)}"
                  if stock_score is not None else "—")
     state_sub = f"<div class='j3-mc-sub j3-muted'>{entry_state}</div>" if entry_state else ""
     change_sub = f"<div class='j3-mc-sub {_sign_class(quote.get('change_pct'))}'>{_pct(quote.get('change_pct'))}</div>"
@@ -2370,7 +2372,7 @@ def _render_selected_live_quote(stock_score=None, entry_state=None) -> None:
         f"<div class='j3-mc-val {_sign_class(quote.get('ret20'))}'>{_pct(quote.get('ret20'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
         f"<div class='j3-mc-val {_sign_class(quote.get('atr_pct'))}'>{_pct(quote.get('atr_pct'))}</div></div>",
-        f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
+        f"<div class='j3-mc'><div class='j3-mc-label'>{'일반 테마 최종점수' if general_theme else '종목 조건점수'}</div>"
         f"<div class='j3-mc-val j3-green'>{score_val}</div>{state_sub}</div>",
     ]
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
@@ -2515,16 +2517,28 @@ def _render_stock_detail(
         _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")
         return
 
-    # 종목조건점수는 위로 빼지 않고 아래 한 줄 지표에 함께 표시한다.
-    _render_selected_live_quote(leader.get("score"), plan.get("state"))
+    # GENERAL은 종목 100점과 테마 100점을 먼저 각각 만든 뒤
+    # 60:40으로 합친다. 다른 갈래의 옛 /80 표와 섞지 않는다.
+    general_stock_parts = leader.get("stock_score_parts")
+    general_theme_parts = theme_row.get("score_parts")
+    is_general_score = (
+        isinstance(general_stock_parts, (list, tuple))
+        and isinstance(general_theme_parts, (list, tuple))
+    )
+    _render_selected_live_quote(
+        leader.get("score"), plan.get("state"), general_theme=is_general_score,
+    )
 
-    # **이름도 만점도 모듈에서 읽는다**(2026-08-12 상하님 지적). 여기 박아 두었더니
-    # 모듈에서 점수를 1.25배로 키웠는데 최대값은 그대로여서 '31.1 (25)'가 나왔다.
-    # 그리고 아무도 못 받는 '추세 (20)'이 표에 남아 있었다.
-    factor_spec = list(getattr(j3data, "LEADER_SCORE_PARTS",
-                               (("테마 대비 상대강도", 25.0), ("52주 신고가 위치", 25.0),
-                                ("추세", 0.0), ("유동성", 15.0), ("변동성 안정", 15.0))))
-    leader_max = float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
+    if is_general_score:
+        stock_factor_spec = list(getattr(j3data, "GENERAL_STOCK_SCORE_PARTS", ()))
+        theme_factor_spec = list(getattr(j3data, "GENERAL_THEME_SCORE_PARTS", ()))
+    else:
+        # 상승장·급락반등·기존 fixture는 여전히 옛 표시 경로를 쓴다.
+        factor_spec = list(getattr(j3data, "LEADER_SCORE_PARTS",
+                                   (("테마 대비 상대강도", 25.0), ("52주 신고가 위치", 25.0),
+                                    ("추세", 0.0), ("유동성", 15.0), ("변동성 안정", 15.0))))
+        factor_values = list(leader.get("score_parts") or ())
+        leader_max = float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
 
     def _gain_cell(part, maximum, *, top_border=False):
         # 획득값과 (최대) 모두 붉은색, 사이 한 칸 띄운다. 총점 행은 위에 이중선.
@@ -2535,58 +2549,128 @@ def _render_stock_detail(
             f"<span style='color:#ff5b5b'>({maximum})</span></td>"
         )
 
-    # **0점 항목도 표에 넣는다**(2026-08-15 상하님 지시 — "각 배점에도 0점짜리도
-    # 표시하고 점수 미달인 이유 넣고"). 앱이 무엇무엇을 봤는지 상하님이 다 보셔야
-    # 하고, 만점이 0인 줄은 만점 칸에 '0점'이라 적어 왜 안 주는지 설명으로 잇는다.
-    # **이름만으로는 뭘 재는지 모른다**(2026-08-12 상하님 지적 — "유동성이 뭐에 대한
-    # 유동성인지 기준이 뭔지 설명이 불친절하다"). 모듈에 적어 둔 한 줄을 옆에 붙인다.
-    # **이름만 초록 글씨로 둔다**(2026-08-21 상하님 지시 — "심사항목 밑에 하얀색
-    # 설명 빼라, 심사항목에 초록색 글자만 나타내라"). 무엇을 보는 값인지는
-    # 제목 옆 「설명」을 누르면 나온다(_FACTOR_HELP).
-    factor_rows = "".join(
-        f"<tr><td class='j3-fac-name'>{name}</td>"
-        + f"{_gain_cell(part, '0점' if not maximum else _number(maximum))}</tr>"
-        for (name, maximum), part in zip(factor_spec, leader["score_parts"])
-    )
-    # 총점 행: 글자 한 치수 크게 + 배경 밝은 초록
-    total_style = (
-        "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
-        "border-top:4px double rgba(255,255,255,0.55)"
-    )
-    total_row = (
-        f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
-        f"<td class='j3-fac-val' style='{total_style}'>"
-        f"<span style='color:#ff5b5b; font-weight:800'>{_number(leader.get('score'))}</span> "
-        f"<span style='color:#ff5b5b'>({_number(leader_max)})</span></td></tr>"
-    )
+    general_factor_notes = {
+        "최근 3개월 강도": "최근 3개월 동안 시장보다 강했는지 봅니다.",
+        "최근 6개월 강도": "반년 동안 꾸준히 시장보다 강했는지 봅니다.",
+        "1년 최고가 근접": "최근 1년 최고가 가까이에 있는지 봅니다.",
+        "테마 6개월 강도": "반년 동안 강한 테마인지 봅니다.",
+        "테마 3개월 강도": "최근에도 테마 힘이 살아 있는지 봅니다.",
+        "강한 종목 수": "같은 테마의 여러 종목이 함께 강한지 봅니다.",
+        "최근 힘 증가": "최근 들어 테마 힘이 더 좋아지는지 봅니다.",
+    }
+
+    if is_general_score:
+        def _general_group_row(label, score, color, note=""):
+            note_html = (
+                f"<div class='j3-general-factor-note'>{note}</div>" if note else ""
+            )
+            return (
+                "<tr><td class='j3-fac-name j3-general-group'>"
+                f"<span style='color:{color}'>{label}</span>{note_html}</td>"
+                "<td class='j3-fac-val j3-general-group'>"
+                f"<span style='color:{color}'>{float(score or 0):.1f}/100</span></td></tr>"
+            )
+
+        def _general_rows(spec, values):
+            return "".join(
+                f"<tr><td class='j3-fac-name'>{name}"
+                f"<div class='j3-general-factor-note'>{general_factor_notes[name]}</div></td>"
+                "<td class='j3-fac-val'><span style='color:#ff5b5b; font-weight:800'>"
+                f"{_number(part)}</span> <span style='color:#ff5b5b'>/ {_number(maximum)}</span></td></tr>"
+                for (name, maximum), part in zip(spec, values)
+            )
+
+        factor_rows = (
+            _general_group_row("종목점수", leader.get("stock_score"), "#4da6ff")
+            + _general_rows(stock_factor_spec, general_stock_parts)
+            + _general_group_row("테마점수", theme_row.get("score"), "#44f0a1")
+            + _general_rows(theme_factor_spec, general_theme_parts)
+        )
+        total_row = _general_group_row(
+            "최종점수", leader.get("score"), "#44f0a1", "종목 60% + 테마 40%",
+        )
+    else:
+        factor_rows = "".join(
+            f"<tr><td class='j3-fac-name'>{name}</td>"
+            + f"{_gain_cell(part, '0점' if not maximum else _number(maximum))}</tr>"
+            for (name, maximum), part in zip(factor_spec, factor_values)
+        )
+        total_style = (
+            "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
+            "border-top:4px double rgba(255,255,255,0.55)"
+        )
+        total_row = (
+            f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
+            f"<td class='j3-fac-val' style='{total_style}'>"
+            f"<span style='color:#ff5b5b; font-weight:800'>{_number(leader.get('score'))}</span> "
+            f"<span style='color:#ff5b5b'>({_number(leader_max)})</span></td></tr>"
+        )
     score_col, plan_col = st.columns([1, 1], gap="large")
     with score_col:
-        st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
-        # '설명'은 **제목 칸 「심사 항목」 옆**에 하나만 둔다(2026-08-14 상하님 지시).
-        st.markdown(
-            _factor_table_html(
-                factor_rows, total_row,
-                [name for name, _maximum in factor_spec],
-                f"j3_factor_help_{panel}",
-            ),
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f"<div class='j3-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>",
-            unsafe_allow_html=True,
-        )
+        if is_general_score:
+            st.markdown("<div class='j3-section-title'>일반 테마매매 점수</div>", unsafe_allow_html=True)
+            st.markdown(
+                _general_theme_score_help_html(
+                    factor_rows, total_row, f"j3_general_theme_help_{panel}",
+                ),
+                unsafe_allow_html=True,
+            )
+            _bind_general_theme_help_scroll(f"j3_general_theme_help_{panel}")
+            score_summary = (
+                f"테마 내 일반 점수 {leader['rank']}위 · "
+                f"종목점수 {float(leader.get('stock_score') or 0):.1f}/100 · "
+                f"테마점수 {float(theme_row.get('score') or 0):.1f}/100 · "
+                f"최종점수 {float(leader.get('score') or 0):.1f}/100"
+            )
+            st.markdown(
+                f"<div class='j3-reason-mustard'>{_mustard_html(score_summary)}</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
+            st.markdown(
+                _factor_table_html(
+                    factor_rows, total_row,
+                    [name for name, _maximum in factor_spec],
+                    f"j3_factor_help_{panel}",
+                ),
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"<div class='j3-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>",
+                unsafe_allow_html=True,
+            )
     with plan_col:
         st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
         # 점수·상태만 있고 '뭘 하라는 건지'가 없다는 지적(2026-07-30). 판정을 사람
         # 말로 다시 쓴 한 줄을 표 위에 얹는다 — 새 판정을 만들지는 않는다.
-        st.markdown(
-            guidance.html(
-                guidance.build(plan, money=_price, market_score=market.get("score")),
-                css_class="j3-guide",
-            ),
-            unsafe_allow_html=True,
-        )
-        if plan.get("trigger") is not None:
+        guide = guidance.build(plan, money=_price, market_score=market.get("score"))
+        if is_general_score and plan.get("state") == "눌림목 대기":
+            guide = {
+                **guide,
+                "headline": "좋은 후보입니다. 아직 매수 신호는 아닙니다.",
+                "detail": "현재는 눌림 구간에 있습니다. 종목과 테마 점수는 높지만, 현재 매수 조건은 아직 충족하지 않았습니다.",
+            }
+        st.markdown(guidance.html(guide, css_class="j3-guide"), unsafe_allow_html=True)
+        if is_general_score:
+            market_ok = float(market.get("score") or 0) >= 50.0
+            price_state = "눌림 구간" if plan.get("state") == "눌림목 대기" else str(plan.get("state") or "자료 부족")
+            conclusion = (
+                "아직 매수 신호 아님" if plan.get("state") == "눌림목 대기"
+                else "매수 조건 충족" if plan.get("state") == "돌파 확인"
+                else str(plan.get("recommendation") or "관찰")
+            )
+            st.caption(
+                f"종목선정: 통과 · 시장상태: {'통과' if market_ok else '대기'} · "
+                f"가격자리: {price_state} · 결론: {conclusion}"
+            )
+            plan_cells = [
+                ("현재가", _price(metrics.get("current")), "#e6e6e6"),
+                ("가격자리", price_state, "#e6e6e6"),
+                ("매수 계획 취소 참고가격", _price(plan.get("invalidation")), "#ff5b5b"),
+                ("수익 목표 참고가격", _price(plan.get("target")), "#44f0a1"),
+            ]
+        elif plan.get("trigger") is not None:
             plan_cells = [
                 ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
                 ("매수 허용 상단", _price(plan.get("zone_high")), "#e6e6e6"),
@@ -2604,15 +2688,15 @@ def _render_stock_detail(
             ]
         plan_boxes = [
             f"<div class='j3-holo-cell'><div class='label'>{label}</div>"
-            f"<div class='val' style='color:{color}'>{value}</div></div>"
+            f"<div class='val{' j3-holo-words' if label == '가격자리' else ''}' style='color:{color}'>{value}</div></div>"
             for label, value, color in plan_cells
         ]
         # 3열 배치: [기준가][허용상단][종목 조건점수] / [무효화][2R 목표][빈칸]
         score_box = (
             "<div class='j3-holo-cell j3-holo-score'>"
-            "<div class='label'>종목 조건점수</div>"
-            f"<div class='val'>{float(leader.get('score') or 0):.1f}/{_number(_leader_max())}</div>"
-            f"<div class='state'>{plan.get('state', '')}</div></div>"
+            f"<div class='label'>{'일반 테마 최종점수' if is_general_score else '종목 조건점수'}</div>"
+            f"<div class='val'>{float(leader.get('score') or 0):.1f}/{100 if is_general_score else _number(_leader_max())}</div>"
+            f"<div class='state'>{price_state if is_general_score else plan.get('state', '')}</div></div>"
         )
         plan_grid = (
             plan_boxes[0] + plan_boxes[1] + score_box
@@ -2625,8 +2709,14 @@ def _render_stock_detail(
             f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
             unsafe_allow_html=True,
         )
+        if is_general_score:
+            st.markdown(
+                "<div class='j3-plan-note'>※ 참고 가격 — 매수 계획 취소 참고가격은 주가가 크게 "
+                "무너졌는지 판단할 때, 수익 목표 참고가격은 매수했을 경우 목표를 잡을 때 참고합니다.</div>",
+                unsafe_allow_html=True,
+            )
         # 가격이 '—'인 이유와 함께, 어느 가격이 되면 조건이 성립하는지 참고가를 보여준다.
-        if plan.get("trigger") is None:
+        if not is_general_score and plan.get("trigger") is None:
             hints = []
             high52, sma20 = metrics.get("high52"), metrics.get("sma20")
             if high52:
@@ -3179,6 +3269,98 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str,
         + f"<div class='j3fh-p'>{_factor_help_head(key)}{items}"
         + f"<label class='j3fh-x {close_tone}' for='{key}'>✕ 설명 닫기</label></div></div>"
     )
+
+
+def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -> str:
+    """GENERAL 배점표와 아래로 펼쳐지는 설명 카드.
+
+    서버 단추가 아니라 브라우저 DOM만 열고 닫는다. 따라서 시세나
+    점수를 다시 조회하지 않는다.
+    """
+    open_id = f"j3fh-open-{key}"
+    panel_id = f"j3fh-help-{key}"
+    close_id = f"j3fh-close-{key}"
+    chip = (
+        f"<button type='button' class='j3fh-chip j3fh-general-open' id='{open_id}' "
+        f"aria-controls='{panel_id}' aria-expanded='false'>설명 보기</button>"
+    )
+    table = (
+        "<table class='j3-factor-table'><thead><tr>"
+        f"<th>상세 배점{chip}</th><th>획득(최대)</th></tr></thead>"
+        f"<tbody>{factor_rows}{total_row}</tbody></table>"
+    )
+    head = (
+        "<div class='j3fh-head'><span class='j3fh-head-t'>"
+        "📘 일반 테마매매 — 앱은 이렇게 종목을 고릅니다</span>"
+        "<span class='j3fh-k'>좋은 테마 안에 있는 좋은 종목</span>을 찾습니다. "
+        "종목 힘 <span class='j3fh-h'>60%</span> + 테마 힘 "
+        "<span class='j3fh-k'>40%</span>로 최종점수를 만듭니다.<br>"
+        "<span class='j3fh-z'>점수가 높다고 바로 매수하라는 뜻은 아닙니다.</span></div>"
+    )
+    cards = (
+        ("종목점수 — <span class='j3fh-k'>100점</span>",
+         "<span class='j3fh-h'>3개월 40점</span> · <span class='j3fh-h'>6개월 40점</span> · "
+         "<span class='j3fh-h'>1년 최고가 근접 20점</span><br>시장보다 지속적으로 강하고 "
+         "높은 가격대에 있는 종목인지 봅니다."),
+        ("테마점수 — <span class='j3fh-k'>100점</span>",
+         "<span class='j3fh-h'>6개월 35점</span> · <span class='j3fh-h'>3개월 30점</span> · "
+         "<span class='j3fh-h'>강한 종목 수 25점</span> · <span class='j3fh-h'>최근 힘 증가 10점</span><br>"
+         "테마의 중기·최근 힘과 여러 종목이 함께 강한지 봅니다."),
+        ("최종점수", "<span class='j3fh-h'>종목 60%</span> + <span class='j3fh-k'>테마 40%</span>입니다. "
+         "예: 종목 90점, 테마 80점이면 <span class='j3fh-k'>최종 86점</span>입니다.<br>"
+         "실제 매수 여부는 시장상태와 현재 가격자리를 따로 확인합니다."),
+    )
+    items = "".join(
+        f"<div class='j3fh-item'><div class='j3fh-name'>{title}</div>"
+        f"<div class='j3fh-txt'>{body}</div></div>" for title, body in cards
+    )
+    general_css = """
+    <style>
+    .j3-general-group{border-top:2px solid rgba(255,255,255,.35)!important;font-weight:800!important}
+    .j3-general-factor-note{color:#9aa0aa;font-size:.78rem;font-weight:500;margin-top:.22rem}
+    .j3fh-general-panel{display:none;margin-top:.7rem;color:#e6e6e6;line-height:1.75;font-size:.92rem}
+    .j3fh-general-panel.j3fh-open{display:block;animation:j3fh-drop .24s ease-out}
+    @media (max-width:1200px){
+      .j3fh-general-panel.j3fh-open{position:static!important;inset:auto!important;max-height:none!important;
+        overflow:visible!important;padding:0!important;background:transparent!important;border:0!important;
+        border-radius:0!important;box-shadow:none!important;animation:j3fh-drop .24s ease-out!important}
+    }
+    </style>
+    """
+    return (
+        _FACTOR_HELP_CSS + general_css
+        + "<div class='j3fh-swap j3fh-general'>" + table
+        + f"<div class='j3fh-p j3fh-general-panel' id='{panel_id}'>{head}{items}"
+        + f"<button type='button' class='j3fh-x j3fh-general-close' id='{close_id}'>✕ 설명 닫기</button>"
+        + "</div></div>"
+    )
+
+
+def _bind_general_theme_help_scroll(key: str) -> None:
+    """GENERAL 설명을 다시 그리지 않고 열며, 설명 첫 줄로 이동한다."""
+    open_id = f"j3fh-open-{key}"
+    panel_id = f"j3fh-help-{key}"
+    close_id = f"j3fh-close-{key}"
+    script = f"""
+    <script>(function(){{
+      var tries=0;
+      function bind(){{
+        tries+=1; var doc;
+        try{{doc=window.parent.document;}}catch(e){{return;}}
+        var open=doc.getElementById({open_id!r}), panel=doc.getElementById({panel_id!r}), close=doc.getElementById({close_id!r});
+        if(!open||!panel||!close){{if(tries<40)setTimeout(bind,50);return;}}
+        if(open.dataset.j3Bound==='1')return; open.dataset.j3Bound='1';
+        open.addEventListener('click',function(e){{e.preventDefault();panel.classList.add('j3fh-open');
+          open.setAttribute('aria-expanded','true');setTimeout(function(){{panel.scrollIntoView({{behavior:'smooth',block:'start'}});}},30);}});
+        close.addEventListener('click',function(e){{e.preventDefault();panel.classList.remove('j3fh-open');open.setAttribute('aria-expanded','false');}});
+      }} bind();
+    }})();</script>
+    """
+    try:
+        import streamlit.components.v1 as components
+        components.html(script, height=0)
+    except Exception:
+        pass
 
 
 def _swing_factor_table_html(
@@ -6340,7 +6522,8 @@ def _briefing_css() -> None:
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
         .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"],div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_grid_"] [data-testid="column"],div[class*="st-key-j3b_grid_"] [data-testid="stColumn"]{width:calc(50% - 5px)!important;min-width:0!important;flex:1 1 0!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"]{position:relative}div[class*="st-key-j3b_extra_"]>.stButton{position:absolute;right:10px;top:7px;z-index:5}div[class*="st-key-j3b_extra_"]>.stButton button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
-        .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:100;bottom:0;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:68px;padding:8px 12px 7px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#05244aee,#03162ecc);border-top:1px solid #af8a5199;backdrop-filter:blur(10px)}.j3b-nav-item{display:grid;place-items:center;color:#abb8c8;font-size:11px;line-height:1.15;min-width:61px}.j3b-nav-item b{font-size:25px;font-weight:500}.j3b-nav-item.active{color:#36bcff}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
+        .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:100;bottom:0;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:58px;padding:6px 8px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#05244aee,#03162ecc);border-top:1px solid #af8a5199;backdrop-filter:blur(10px);box-sizing:border-box}.j3b-nav-item{display:grid;place-items:center;color:#abb8c8;font-size:9px;line-height:1.1;min-width:0;width:25%}.j3b-nav-item b{font-size:20px;font-weight:500}.j3b-nav-item.active{color:#36bcff}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
+        div.st-key-j3b_nav_controls{position:fixed!important;z-index:110!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:58px!important;pointer-events:none!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:58px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls button{width:100%!important;height:58px!important;min-height:58px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important}
         div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
         @media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-hero-catbus{width:155px}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
         /* 941×1680 기준 캡처를 430×764 CSS viewport에 맞춘 실제 모바일 밀도. */
@@ -6362,11 +6545,11 @@ def _briefing_css() -> None:
         .j3b-hero{height:132px!important;margin:0!important;padding:16px 18px!important;border-radius:0 0 20px 20px!important}.j3b-hero:before{width:540px!important;height:150px!important;bottom:-102px!important}.j3b-hero:after{left:105px!important;bottom:20px!important;width:116px!important;height:20px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:142px!important;right:-2px!important;bottom:3px!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
         .j3b-card{height:122px!important;min-width:0!important;box-sizing:border-box!important;border-radius:14px!important;padding:7px!important;margin:0 0 7px!important}.j3b-card-top{min-height:34px!important;gap:6px!important}.j3b-logo{width:34px!important;height:34px!important;border-radius:9px!important}.j3b-symbol{font-size:18px!important;line-height:1!important;color:#fff9eb!important}.j3b-name{margin-top:3px!important;font-size:10px!important;line-height:1.1!important}.j3b-price{position:absolute!important;left:7px!important;top:47px!important;max-width:55%!important;margin:0!important;color:#fff9eb!important;font-size:14px!important;line-height:1.15!important;white-space:nowrap!important}.j3b-chart{top:42px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:7px!important;margin:0!important;padding-top:3px!important}.j3b-card:has(.j3b-decor-img) .j3b-card-notes{right:58px!important}.j3b-card.compact:has(.j3b-decor-img) .j3b-card-notes{right:62px!important}.j3b-card:has(.j3b-decor-img.left) .j3b-card-notes{left:62px!important;right:7px!important}.j3b-note{display:block;color:#f1f5f7!important;text-decoration:none!important;font-size:9px!important;line-height:1.48!important;padding-right:0!important}.j3b-lamp{display:none!important}.j3b-decor-img{position:absolute;right:-2px;bottom:-1px;width:56px;height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 2px 3px #0005);-webkit-mask-image:radial-gradient(ellipse 82% 88% at 63% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%);mask-image:radial-gradient(ellipse 82% 88% at 63% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%)}.j3b-decor-img.left{left:-2px;right:auto;-webkit-mask-image:radial-gradient(ellipse 82% 88% at 37% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%);mask-image:radial-gradient(ellipse 82% 88% at 37% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%)}.j3b-delete-visual{width:21px!important;height:21px!important;right:6px!important;top:6px!important;font-size:15px!important}
-        .j3b-card.compact{height:122px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:none!important}.j3b-card.compact .j3b-card-notes{bottom:5px!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:64px!important}
+        .j3b-card.compact{height:142px!important;box-sizing:border-box!important;padding-bottom:10px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:none!important}.j3b-card.compact .j3b-card-notes{bottom:8px!important;max-height:46px!important;overflow:hidden!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:58px!important;bottom:4px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:8px!important;width:100%!important;overflow:hidden!important}div[class*="st-key-j3b_grid_"] [data-testid="stColumn"],div[class*="st-key-j3b_grid_"] [data-testid="column"]{width:calc(50% - 4px)!important;min-width:0!important;flex:1 1 0!important}
         div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
-        .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:58px!important;padding:6px 8px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}div.st-key-j3b_go_market_footer{position:fixed!important;z-index:110!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:58px!important;pointer-events:none!important}div.st-key-j3b_go_market_footer button{position:absolute!important;left:50%!important;top:0!important;width:25%!important;height:58px!important;min-height:58px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important}
-        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card{height:118px!important}.j3b-card.compact{height:122px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
+        .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:58px!important;padding:6px 8px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}
+        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card{height:118px!important}.j3b-card.compact{height:138px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -6594,15 +6777,34 @@ def _schedule_briefing_news_refresh() -> None:
     components.html("<script>setTimeout(function(){ window.parent.location.reload(); }, 2500);</script>", height=0)
 
 
-def _render_stock_briefing() -> None:
-    page = st.session_state.get("j3_briefing_page", "home")
-    if page == "market":
-        if st.button("← 종목 브리핑", key="j3b_go_home"):
+def _render_briefing_bottom_nav(active: str) -> None:
+    """종목 브리핑과 시장분석에서 같이 보이는 하단 이동표."""
+    labels = (("home", "⌂", "홈"), ("watch", "★", "관심종목"),
+              ("market", "◕", "시장분석"), ("mypage", "♙", "마이페이지"))
+    items = "".join(
+        f'<span class="j3b-nav-item{" active" if key == active else ""}"><b>{icon}</b>{label}</span>'
+        for key, icon, label in labels
+    )
+    st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>', unsafe_allow_html=True)
+    with st.container(key="j3b_nav_controls"):
+        home_col, watch_col, market_col, _mypage_col = st.columns(4, gap="small")
+        if home_col.button("홈", key="j3b_nav_home"):
+            st.switch_page("app.py")
+        if watch_col.button("관심종목", key="j3b_nav_watch"):
             st.session_state["j3_briefing_page"] = "home"
             st.rerun()
-        _render_existing_theme_content()
-        return
+        if market_col.button("시장분석", key="j3b_nav_market"):
+            st.session_state["j3_briefing_page"] = "market"
+            st.rerun()
+
+
+def _render_stock_briefing() -> None:
     _briefing_css()
+    page = st.session_state.get("j3_briefing_page", "home")
+    if page == "market":
+        _render_existing_theme_content()
+        _render_briefing_bottom_nav("market")
+        return
     st.session_state["j3b_news_pending"] = False
     try:
         briefing_store.ensure_tables()
@@ -6654,10 +6856,7 @@ def _render_stock_briefing() -> None:
         if len(extras) > 4:
             st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 종목 더보기</div>', unsafe_allow_html=True)
             _render_briefing_grid(extras[4:], cards, removable=True, key="extra2", compact=True)
-        st.markdown('<nav class="j3b-bottom-nav"><span class="j3b-nav-item active"><b>⌂</b>홈</span><span class="j3b-nav-item"><b>★</b>관심종목</span><span class="j3b-nav-item"><b>◕</b>시장분석</span><span class="j3b-nav-item"><b>♙</b>마이페이지</span></nav>', unsafe_allow_html=True)
-        if st.button("시장분석", key="j3b_go_market_footer"):
-            st.session_state["j3_briefing_page"] = "market"
-            st.rerun()
+        _render_briefing_bottom_nav("watch")
         _schedule_briefing_news_refresh()
 
 
