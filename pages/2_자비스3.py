@@ -6463,6 +6463,26 @@ def _render_existing_theme_content() -> None:
     )
     # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).
     st.markdown(scroll_to.CSS, unsafe_allow_html=True)
+    # 종목 브리핑에서 들어온 미국 시장분석 화면만 위쪽 여백을 줄인다.
+    # 공용 method_help.py와 한국테마 화면에는 퍼지지 않게 페이지 표식을 쓴다.
+    st.markdown(
+        """
+        <div class="j3-market-top"></div>
+        <style>
+        @media (max-width:1200px) {
+          body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
+          body:has(.j3-market-top) .block-container { padding-top:0!important; }
+          body:has(.j3-market-top) .st-key-jarvis_method_help_row {
+            gap:.35rem!important;
+            row-gap:.35rem!important;
+            margin-top:-1.75rem!important;
+            margin-bottom:0!important;
+          }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
     # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
     scroll_to.anchor(st, "top")
@@ -6585,9 +6605,10 @@ def _briefing_css() -> None:
         .j3b-news:active,.j3b-card-shell:not([open])>.j3b-card-summary:active .j3b-card{transform:translateY(0) scale(.99)!important}
         /* 카드 클릭 확대는 브라우저 기본 details 상태만 쓴다. 재조회·rerun·자바스크립트가 없다. */
         .j3b-card-shell[open]>.j3b-card-summary{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;background:rgba(0,9,25,.9)!important;cursor:zoom-out!important;box-sizing:border-box!important}
-        .j3b-card-shell[open]>.j3b-card-summary:after{content:"× 다시 누르면 닫힘";position:fixed;right:20px;top:16px;z-index:2;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800;pointer-events:none}
+        .j3b-card-shell[open]>.j3b-card-summary:after{content:none!important}
         .j3b-card-shell[open] .j3b-card,.j3b-card-shell[open] .j3b-card.compact{width:min(680px,calc(100vw - 32px))!important;height:auto!important;min-height:360px!important;max-height:calc(100dvh - 76px)!important;margin:0!important;padding:20px!important;border-radius:20px!important;overflow:auto!important;transform:none!important;filter:none!important;box-sizing:border-box!important;box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c!important}
-        .j3b-card-shell[open] .j3b-card-top{min-height:58px!important;gap:10px!important}.j3b-card-shell[open] .j3b-logo{width:58px!important;height:58px!important;border-radius:14px!important}.j3b-card-shell[open] .j3b-symbol{font-size:28px!important}.j3b-card-shell[open] .j3b-name{font-size:14px!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-price{position:static!important;max-width:none!important;margin:12px 0 8px!important;font-size:22px!important}.j3b-card-shell[open] .j3b-chart{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:100px!important;margin:4px 0 14px!important}.j3b-card-shell[open] .j3b-card-notes{position:static!important;inset:auto!important;max-height:none!important;margin:0!important;padding-top:10px!important;overflow:visible!important}.j3b-card-shell[open] .j3b-note{display:block!important;margin:0 0 9px!important;font-size:14px!important;line-height:1.55!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-decor-img{width:78px!important;bottom:5px!important}
+        .j3b-card-shell[open] .j3b-card:before{content:"× 다시 누르면 닫힘";position:absolute;right:12px;top:12px;z-index:6;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800;pointer-events:none}
+        .j3b-card-shell[open] .j3b-card-top{min-height:58px!important;gap:10px!important;padding-right:132px!important}.j3b-card-shell[open] .j3b-logo{width:58px!important;height:58px!important;border-radius:14px!important}.j3b-card-shell[open] .j3b-symbol{font-size:28px!important}.j3b-card-shell[open] .j3b-name{font-size:14px!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-price{position:static!important;max-width:none!important;margin:12px 0 8px!important;font-size:22px!important}.j3b-card-shell[open] .j3b-chart{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:100px!important;margin:4px 0 14px!important}.j3b-card-shell[open] .j3b-card-notes{position:static!important;inset:auto!important;max-height:none!important;margin:0!important;padding-top:10px!important;overflow:visible!important}.j3b-card-shell[open] .j3b-note{display:block!important;margin:0 0 9px!important;font-size:14px!important;line-height:1.55!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-decor-img{width:78px!important;bottom:5px!important}
         </style>
         """,
         unsafe_allow_html=True,
