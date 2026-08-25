@@ -1,4 +1,4 @@
-"""'이 테마 기법에 대한 설명' 단추와 문구 계약 테스트.
+"""'이 테마 설명' 단추와 문구 계약 테스트.
 
 2026-07-30 사용자 지시로 내용을 두 쪽 분량으로 줄였다. 자세한 근거는
 docs/METHOD_ORIGINS.md에 있고, 화면에는 핵심만 남긴다.
@@ -17,7 +17,7 @@ import mobile_ui
 
 class ButtonTests(unittest.TestCase):
     def test_label_is_what_the_user_asked_for(self):
-        self.assertIn("이 테마 기법에 대한 설명", method_help.BUTTON_LABEL)
+        self.assertEqual("📘 이 테마 설명", method_help.BUTTON_LABEL)
 
     def test_button_hugs_its_text_and_sits_on_the_right(self):
         css = method_help.BUTTON_CSS

@@ -6503,12 +6503,12 @@ def _render_existing_theme_content() -> None:
         body:has(.j3-market-top) .st-key-jarvis_method_help_row {
           gap:.35rem!important;
           row-gap:.35rem!important;
-          margin-top:-3rem!important;
+          margin-top:-1rem!important;
           margin-bottom:0!important;
         }
         @media (max-width:1200px) {
           body:has(.j3-market-top) .st-key-jarvis_method_help_row {
-            margin-top:-6rem!important;
+            margin-top:-1rem!important;
           }
         }
         </style>
@@ -6518,7 +6518,7 @@ def _render_existing_theme_content() -> None:
     # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
     # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
     scroll_to.anchor(st, "top")
-    # 최상단 오른쪽에 '이 테마 기법에 대한 설명'을 둔다(2026-07-29 사용자 지시).
+    # 최상단 오른쪽에 '이 테마 설명'을 둔다(2026-07-29 사용자 지시).
     # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
     method_help.render(st, "US")
     # 맨 위 제목은 뺐다(2026-07-30 사용자 지시) — 사이드바에 같은 이름이 있고
