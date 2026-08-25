@@ -60,6 +60,27 @@ def test_news_dedupes_same_url_and_keeps_actual_count():
     assert len(news._fallback(rows)) == 2
 
 
+def test_english_news_fallback_uses_one_batched_deepl_call(monkeypatch):
+    rows = [
+        {"headline": "US stocks rise", "url": "https://example.test/1"},
+        {"headline": "Chip demand grows", "url": "https://example.test/2"},
+    ]
+    seen = {}
+    def translate(texts, key):
+        seen["texts"], seen["key"] = texts, key
+        return ["미국 증시 상승", "반도체 수요 증가"]
+    monkeypatch.setattr(news.deepl_translate, "translate_texts_to_ko", translate)
+    result = news._fallback(rows, "deepl-test")
+    assert seen == {"texts": ["US stocks rise", "Chip demand grows"], "key": "deepl-test"}
+    assert [item["brief"] for item in result] == ["미국 증시 상승", "반도체 수요 증가"]
+
+
+def test_failed_translation_never_displays_english_headline(monkeypatch):
+    monkeypatch.setattr(news.deepl_translate, "translate_texts_to_ko", lambda *_args: [])
+    result = news._fallback([{"headline": "English headline", "url": "https://example.test"}], "key")
+    assert result[0]["brief"] == "미국 원문 뉴스의 한글 번역을 잠시 불러오지 못했습니다."
+
+
 def test_rss_fallback_keeps_verifiable_actual_rows(monkeypatch):
     stamp = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
     seen = {}
@@ -128,15 +149,21 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert "overflow-x:hidden!important;overflow-y:visible!important" in source
     assert ".j3b-card.compact{height:auto!important;min-height:174px!important" in source
     assert ".j3b-card.compact .j3b-card-notes{bottom:14px!important" in source
-    assert ".j3b-card{height:auto!important;min-height:142px!important" in source
-    assert ".j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:10px!important" in source
+    assert ".j3b-card:not(.compact){min-height:160px!important" in source
+    assert ".j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important" in source
     assert "visible_stocks = selected + home_extras" in source
     assert '_render_briefing_grid(home_extras, cards, removable=True' in source
     assert 'can_remove = removable and int(stock.get("position", 0)) > 0' in source
     assert ".j3b-card.compact .j3b-chart{display:block!important" in source
     assert 'div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"])' in source
     assert 'delete_visual = ""' in source
-    assert ".j3b-bottom-nav{position:fixed" in source and "height:68px" in source
+    assert ".j3b-bottom-nav{position:fixed" in source and ".j3b-bottom-nav{height:72px!important}" in source
+    assert 'width:33.333%!important;height:72px!important;flex:0 0 33.333%!important' in source
+    assert 'st.columns(3, gap="small")' in source
+    assert '("mypage", "♙", "마이페이지")' not in source
+    assert 'deepl_key=_briefing_secret("DEEPL_API_KEY")' in source
+    assert "원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다." not in source
+    assert '"""20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""' not in source
     assert '[data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%' in source
     assert 'st.session_state["j3_briefing_page"] = "home"' in source
     assert "mask-image:radial-gradient" in source

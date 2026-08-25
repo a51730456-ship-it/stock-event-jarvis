@@ -3815,7 +3815,6 @@ def _render_radar_tab(market: dict) -> None:
     # 선택 테마 설명·종목 1~6위·상세 종목 선택은 평소에는 닫아 둔다. 20개 순위표의
     # 테마 이름을 눌렀을 때만 한 화면으로 열고, 아래 독립 영역들은 그대로 보여준다.
     if not st.session_state.get("j3_theme_panel_open"):
-        st.caption("원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다.")
         _render_pullback_finder(market, ranking)
         if not guest_mode:
             _render_top7_section(market, ranking)
@@ -5966,7 +5965,6 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     상세도 이 안에 들어 있어야 한다. 표만 묶으면 종목을 눌러도 덩이 밖 상세가
     다시 안 그려져 아무 일도 안 일어난 것처럼 보인다(순위 9에 적힌 그대로다).
     """
-    """20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""
     # st.divider()는 뺐다(2026-08-06 상하님 지시 "제목을 위로 올려라") — 가로줄과
     # 그 아래 빈 자리가 제목을 한참 밀어내렸다. 제목 자체가 구역을 갈라 준다.
     # 제목과 맨 위 설명은 2026-08-06에 뺐다(상하님 지적).
@@ -6588,7 +6586,11 @@ def _briefing_css() -> None:
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:8px!important;width:100%!important;overflow-x:hidden!important;overflow-y:visible!important}div[class*="st-key-j3b_grid_"] [data-testid="stColumn"],div[class*="st-key-j3b_grid_"] [data-testid="column"]{width:calc(50% - 4px)!important;min-width:0!important;flex:1 1 0!important}
         div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
         .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:68px!important;padding:5px 8px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;min-height:58px!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}
-        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card{height:auto!important;min-height:138px!important}.j3b-card.compact{height:auto!important;min-height:170px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
+        /* 선택 4종목의 뉴스·하단 테두리와 하단 3메뉴의 실제 터치 영역을 확보한다. */
+        .j3b-card:not(.compact){min-height:160px!important;padding-bottom:12px!important;margin-bottom:8px!important}.j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important}
+        .j3b-bottom-nav{height:72px!important}.j3b-nav-item{width:33.333%!important;min-height:62px!important}
+        div.st-key-j3b_nav_controls{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:72px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:72px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:72px!important;min-height:72px!important}
+        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card:not(.compact){height:auto!important;min-height:156px!important}.j3b-card.compact{height:auto!important;min-height:170px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -6610,6 +6612,7 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
     result = briefing_news.get_or_schedule(
         kind, ticker, finnhub_key=_briefing_secret("FINNHUB_API_KEY"),
         groq_key=_briefing_secret("GROQ_API_KEY"),
+        deepl_key=_briefing_secret("DEEPL_API_KEY"),
         naver_client_id=_briefing_secret("NAVER_CLIENT_ID"),
         naver_client_secret=_briefing_secret("NAVER_CLIENT_SECRET"),
     )
@@ -6826,14 +6829,14 @@ def _schedule_briefing_news_refresh() -> None:
 def _render_briefing_bottom_nav(active: str) -> None:
     """종목 브리핑과 시장분석에서 같이 보이는 하단 이동표."""
     labels = (("home", "⌂", "홈"), ("watch", "★", "관심종목"),
-              ("market", "◕", "시장분석"), ("mypage", "♙", "마이페이지"))
+              ("market", "◕", "시장분석"))
     items = "".join(
         f'<span class="j3b-nav-item{" active" if key == active else ""}"><b>{icon}</b>{label}</span>'
         for key, icon, label in labels
     )
     st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>', unsafe_allow_html=True)
     with st.container(key="j3b_nav_controls"):
-        home_col, watch_col, market_col, _mypage_col = st.columns(4, gap="small")
+        home_col, watch_col, market_col = st.columns(3, gap="small")
         if home_col.button("홈", key="j3b_nav_home"):
             st.session_state["j3_briefing_page"] = "home"
             st.switch_page("app.py")

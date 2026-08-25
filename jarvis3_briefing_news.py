@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
 import news_data
+import deepl_translate
 
 
 CACHE_SECONDS = 600
@@ -30,6 +31,10 @@ _CACHE: dict[str, dict] = {}
 
 def _text(value, limit=500) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
+
+
+def _has_korean(value: str) -> bool:
+    return bool(re.search(r"[가-힣]", str(value or "")))
 
 
 def _time(value) -> datetime | None:
@@ -158,17 +163,32 @@ def _naver_news(kind: str, ticker: str | None, client_id: str, client_secret: st
     return _dedupe(recent if recent else rows)[:10]
 
 
-def _fallback(rows: list[dict]) -> list[dict]:
-    return [{
-        **row, "sentiment": "neutral", "brief": _text(row["headline"], 110),
-    } for row in rows[:3]]
+def _fallback(rows: list[dict], deepl_key: str = "") -> list[dict]:
+    """Groq가 없어도 미국 원문 제목을 한글로 묶음 번역한다."""
+    selected = rows[:3]
+    english = [_text(row.get("headline"), 300) for row in selected if not _has_korean(row.get("headline"))]
+    translations = []
+    if english and deepl_key:
+        try:
+            translations = deepl_translate.translate_texts_to_ko(english, deepl_key)
+        except Exception:
+            translations = []
+    translated = iter(translations)
+    result = []
+    for row in selected:
+        headline = _text(row.get("headline"), 300)
+        brief = headline if _has_korean(headline) else _text(next(translated, ""), 110)
+        if not _has_korean(brief):
+            brief = "미국 원문 뉴스의 한글 번역을 잠시 불러오지 못했습니다."
+        result.append({**row, "sentiment": "neutral", "brief": brief})
+    return result
 
 
-def _groq(rows: list[dict], label: str, key: str) -> list[dict]:
+def _groq(rows: list[dict], label: str, key: str, deepl_key: str = "") -> list[dict]:
     if not rows:
         return []
     if not key:
-        return _fallback(rows)
+        return _fallback(rows, deepl_key)
     prompt = (
         "당신은 투자 조언자가 아닌 뉴스 해설기다. 아래 뉴스 중 중복 사건은 하나로 줄이고, "
         "실제로 받은 뉴스만 최대 3건 골라 한국어 한줄평을 작성하라. 매수·매도·목표가·예측은 금지. "
@@ -184,10 +204,13 @@ def _groq(rows: list[dict], label: str, key: str) -> list[dict]:
     body = json.dumps(payload).encode("utf-8")
     request = Request("https://api.groq.com/openai/v1/chat/completions", data=body,
                       headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-    with urlopen(request, timeout=12) as response_obj:  # nosec B310 - fixed HTTPS endpoint
-        response = json.loads(response_obj.read().decode("utf-8"))
-    content = response.get("choices", [{}])[0].get("message", {}).get("content", "{}")
-    decoded = json.loads(content)
+    try:
+        with urlopen(request, timeout=12) as response_obj:  # nosec B310 - fixed HTTPS endpoint
+            response = json.loads(response_obj.read().decode("utf-8"))
+        content = response.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+        decoded = json.loads(content)
+    except Exception:
+        return _fallback(rows, deepl_key)
     picks = decoded.get("items", decoded) if isinstance(decoded, dict) else decoded
     result, used = [], set()
     for pick in picks if isinstance(picks, list) else []:
@@ -198,11 +221,13 @@ def _groq(rows: list[dict], label: str, key: str) -> list[dict]:
         result.append({**rows[index], "sentiment": pick.get("sentiment") if pick.get("sentiment") in {"positive", "negative", "neutral"} else "neutral", "brief": _text(pick.get("brief"), 110) or _text(rows[index]["headline"], 110)})
         if len(result) == 3:
             break
-    return result or _fallback(rows)
+    if not result or any(not _has_korean(row.get("brief")) for row in result):
+        return _fallback(rows, deepl_key)
+    return result
 
 
 def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_key: str,
-          naver_client_id: str = "", naver_client_secret: str = "") -> dict:
+          naver_client_id: str = "", naver_client_secret: str = "", deepl_key: str = "") -> dict:
     rows = []
     loaders = []
     if finnhub_key:
@@ -217,11 +242,11 @@ def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_
             rows = []
         if rows:
             break
-    return {"ok": True, "items": _groq(rows, ticker or "미국시장", groq_key), "updated_at": time.time()}
+    return {"ok": True, "items": _groq(rows, ticker or "미국시장", groq_key, deepl_key), "updated_at": time.time()}
 
 
 def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = "", groq_key: str = "",
-                    naver_client_id: str = "", naver_client_secret: str = "") -> dict:
+                    naver_client_id: str = "", naver_client_secret: str = "", deepl_key: str = "") -> dict:
     """기존 캐시를 즉시 반환하고, 만료분만 백그라운드에서 새로 만든다."""
     cache_key = f"{kind}:{str(ticker or '').upper()}"
     now = time.time()
@@ -238,6 +263,7 @@ def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = 
         ttl = CACHE_SECONDS if current and current.get("result", {}).get("items") else ERROR_CACHE_SECONDS
         if current and now - current.get("updated_at", 0) < ttl:
             return current.get("result", {"ok": True, "items": []})
-        future = _POOL.submit(_load, cache_key, kind, ticker, finnhub_key, groq_key, naver_client_id, naver_client_secret)
+        future = _POOL.submit(_load, cache_key, kind, ticker, finnhub_key, groq_key,
+                              naver_client_id, naver_client_secret, deepl_key)
         _CACHE[cache_key] = {"future": future, "updated_at": now, "result": current.get("result", {"ok": True, "items": []}) if current else {"ok": True, "items": []}}
         return {**_CACHE[cache_key]["result"], "pending": True}
