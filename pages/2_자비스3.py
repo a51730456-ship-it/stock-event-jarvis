@@ -588,6 +588,10 @@ st.markdown(
     }
     .st-key-j3_swing_table .j3-td,
     .st-key-j3_swing_rest .j3-td { overflow: hidden; }
+    /* 20개 테마 순위표도 화면 전체를 억지로 채우지 않는다. 가장 긴 테마명인
+       「유전체·정밀의료」가 한 칸에 들어가는 폭을 기준으로 간격을 줄인다. */
+    .st-key-j3_theme_table,
+    .st-key-j3_theme_rest { max-width: 1200px; }
     @media (max-width: 1200px) {
         .st-key-j3_swing_table [data-testid="stHorizontalBlock"],
         .st-key-j3_swing_rest [data-testid="stHorizontalBlock"] {
@@ -596,6 +600,10 @@ st.markdown(
         }
         .st-key-j3_swing_table [data-testid="stColumn"],
         .st-key-j3_swing_rest [data-testid="stColumn"] { min-width: 0 !important; }
+        .st-key-j3_theme_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_theme_rest [data-testid="stHorizontalBlock"] {
+            min-width: 800px;
+        }
     }
     /* 급락 표의 낙폭은 **칸 셋**이다(2026-08-07 상하님 지시 "칸을 두 개 더").
        처음에는 한 칸에 한 줄로 붙였다가 잘려서 세 줄로 겹쳐 놨는데, 그것도
@@ -1296,7 +1304,7 @@ def _fear_greed_color(score) -> str:
     return "#22c55e"
 
 
-_THEME_COL_WIDTHS = [0.75, 2.3, 0.9, 2.2, 0.95, 1.05, 1.35, 1.45]
+_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.0, 1.1]
 # 한 줄을 세 칸으로만 나눈다 — 순위 · 테마(단추) · 나머지를 묶은 한 덩이.
 # 칸마다 요소를 만들면 폰이 느려진다(2026-07-30 실측, 한국테마와 같은 처리).
 _THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_WIDTHS[2:])]
