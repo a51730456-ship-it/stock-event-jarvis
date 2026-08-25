@@ -6548,11 +6548,11 @@ def _briefing_css() -> None:
         .j3b-hero{height:132px!important;margin:0!important;padding:16px 18px!important;border-radius:0 0 20px 20px!important}.j3b-hero:before{width:540px!important;height:150px!important;bottom:-102px!important}.j3b-hero:after{left:105px!important;bottom:20px!important;width:116px!important;height:20px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:142px!important;right:-2px!important;bottom:3px!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
         .j3b-card{height:122px!important;min-width:0!important;box-sizing:border-box!important;border-radius:14px!important;padding:7px!important;margin:0 0 7px!important}.j3b-card-top{min-height:34px!important;gap:6px!important}.j3b-logo{width:34px!important;height:34px!important;border-radius:9px!important}.j3b-symbol{font-size:18px!important;line-height:1!important;color:#fff9eb!important}.j3b-name{margin-top:3px!important;font-size:10px!important;line-height:1.1!important}.j3b-price{position:absolute!important;left:7px!important;top:47px!important;max-width:55%!important;margin:0!important;color:#fff9eb!important;font-size:14px!important;line-height:1.15!important;white-space:nowrap!important}.j3b-chart{top:42px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:7px!important;margin:0!important;padding-top:3px!important}.j3b-card:has(.j3b-decor-img) .j3b-card-notes{right:58px!important}.j3b-card.compact:has(.j3b-decor-img) .j3b-card-notes{right:62px!important}.j3b-card:has(.j3b-decor-img.left) .j3b-card-notes{left:62px!important;right:7px!important}.j3b-note{display:block;color:#f1f5f7!important;text-decoration:none!important;font-size:9px!important;line-height:1.48!important;padding-right:0!important}.j3b-lamp{display:none!important}.j3b-decor-img{position:absolute;right:-2px;bottom:-1px;width:56px;height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 2px 3px #0005);-webkit-mask-image:radial-gradient(ellipse 82% 88% at 63% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%);mask-image:radial-gradient(ellipse 82% 88% at 63% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%)}.j3b-decor-img.left{left:-2px;right:auto;-webkit-mask-image:radial-gradient(ellipse 82% 88% at 37% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%);mask-image:radial-gradient(ellipse 82% 88% at 37% 64%,#000 55%,rgba(0,0,0,.94) 70%,rgba(0,0,0,.45) 84%,transparent 100%)}.j3b-delete-visual{width:21px!important;height:21px!important;right:6px!important;top:6px!important;font-size:15px!important}
-        .j3b-card.compact{height:158px!important;box-sizing:border-box!important;padding-bottom:12px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:none!important}.j3b-card.compact .j3b-card-notes{bottom:12px!important;max-height:none!important;overflow:visible!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:58px!important;bottom:4px!important}
+        .j3b-card.compact{height:auto!important;min-height:174px!important;box-sizing:border-box!important;padding-bottom:14px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:none!important}.j3b-card.compact .j3b-card-notes{bottom:14px!important;max-height:none!important;overflow:visible!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:58px!important;bottom:4px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:8px!important;width:100%!important;overflow-x:hidden!important;overflow-y:visible!important}div[class*="st-key-j3b_grid_"] [data-testid="stColumn"],div[class*="st-key-j3b_grid_"] [data-testid="column"]{width:calc(50% - 4px)!important;min-width:0!important;flex:1 1 0!important}
         div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
         .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:58px!important;padding:6px 8px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}
-        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card{height:118px!important}.j3b-card.compact{height:154px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
+        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card{height:118px!important}.j3b-card.compact{height:auto!important;min-height:170px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -6692,12 +6692,8 @@ _BRIEFING_FIRST_VIEW_EXTRAS = (
 
 
 def _briefing_home_extras(extras: list[dict]) -> list[dict]:
-    """저장된 추가 검색 종목이 없을 때만 첫 화면의 2×2 레이아웃을 채운다.
-
-    DB에 저장하거나 종목 순서를 변경하지 않는 순수 표시용 기본값이다. 실제 사용자가
-    추가 종목을 등록하면 그 목록이 우선이며, 그때부터 이 값은 보이지 않는다.
-    """
-    return extras[:4] if extras else [dict(item) for item in _BRIEFING_FIRST_VIEW_EXTRAS]
+    """첫 화면의 기본 4종목은 사용자가 종목을 추가해도 계속 유지한다."""
+    return [dict(item) for item in _BRIEFING_FIRST_VIEW_EXTRAS]
 
 
 def _briefing_local_search(query: str) -> list[dict]:
@@ -6818,7 +6814,7 @@ def _render_stock_briefing() -> None:
         return
     selected, extras = setup["selected"], setup["extra"]
     home_extras = _briefing_home_extras(extras)
-    visible_stocks = selected + (extras if extras else home_extras)
+    visible_stocks = selected + home_extras + extras
     cards = j3data.get_briefing_cards(visible_stocks)
     try:
         visual_debug = str(st.query_params.get("visual_debug", "")).strip() == "1"
@@ -6855,10 +6851,9 @@ def _render_stock_briefing() -> None:
                 st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
             with search_col:
                 _render_briefing_manage(selected, extras)
-        _render_briefing_grid(home_extras, cards, removable=bool(extras), key="extra1", compact=True)
-        if len(extras) > 4:
-            st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 종목 더보기</div>', unsafe_allow_html=True)
-            _render_briefing_grid(extras[4:], cards, removable=True, key="extra2", compact=True)
+        _render_briefing_grid(home_extras, cards, removable=False, key="extra1", compact=True)
+        if extras:
+            _render_briefing_grid(extras, cards, removable=True, key="extra2", compact=True)
         _render_briefing_bottom_nav("watch")
         _schedule_briefing_news_refresh()
 
