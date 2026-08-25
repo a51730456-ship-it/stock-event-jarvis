@@ -573,6 +573,30 @@ st.markdown(
         display: block; max-width: 100%;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    /* 상승장 후보표는 급락표보다 칸이 적다. 공통 1180px 폭을 그대로 쓰면
+       노트북·태블릿·폰 모두 항목 사이가 불필요하게 벌어지므로 이 표만 별도 폭을 쓴다. */
+    .st-key-j3_swing_table,
+    .st-key-j3_swing_rest {
+        max-width: 1080px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .st-key-j3_swing_rest [data-testid="stExpander"] > details,
+    .st-key-j3_swing_rest [data-testid="stExpander"] > div {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .st-key-j3_swing_table .j3-td,
+    .st-key-j3_swing_rest .j3-td { overflow: hidden; }
+    @media (max-width: 1200px) {
+        .st-key-j3_swing_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_swing_rest [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            min-width: 760px;
+        }
+        .st-key-j3_swing_table [data-testid="stColumn"],
+        .st-key-j3_swing_rest [data-testid="stColumn"] { min-width: 0 !important; }
+    }
     /* 급락 표의 낙폭은 **칸 셋**이다(2026-08-07 상하님 지시 "칸을 두 개 더").
        처음에는 한 칸에 한 줄로 붙였다가 잘려서 세 줄로 겹쳐 놨는데, 그것도
        빽빽하다고 해서 아예 칸을 나눴다. 칸 이름이 곧 그 숫자의 뜻이다.
@@ -5226,7 +5250,9 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     # **3개월·6개월 등수와 중요·보조 점수 칸은 뺐다**(2026-08-21 상하님 지시 —
     # "선택종목 세부사항에 보면 나온다"). 표에는 고를 때 필요한 것만 남긴다 —
     # 번호·점수·종목·티커·등급/상태·눌림·테마. 옆으로 밀리던 것도 사라진다.
-    widths = [0.55, 0.8, 1.75, 0.9, 2.2, 1.5, 1.9]
+    # 이 갈래는 일곱 칸뿐이다. 급락표의 넓은 공통 폭을 쓰지 않고 가장 긴 상태말
+    # 「3·6개월 약함」이 들어가는 정도만 남겨 항목 사이 빈 폭을 줄인다.
+    widths = [0.42, 0.62, 1.55, 0.72, 1.3, 1.2, 1.45]
     row_widths = [widths[0], widths[1], widths[2], sum(widths[3:])]
     rest_widths = widths[3:]
     # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님). 둘 다 점수인데
@@ -5249,7 +5275,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         head[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
         for index, row in enumerate(rows):
             cols = box.columns(row_widths)
-            rank = f"W{index + 1}" if watch_mode else str(int(row.get("primary_rank") or index + 1))
+            rank = str(index + 1) if watch_mode else str(int(row.get("primary_rank") or index + 1))
             cols[0].markdown(f"<div class='j3-td j3-muted'>{rank}</div>", unsafe_allow_html=True)
             # 점수 색은 급락 표와 같은 자를 쓴다 — 70↑ 금색, 50↑ 하늘색, 그 아래 회색.
             total = float(row.get("total_score") or 0)
@@ -5319,7 +5345,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
 
     if primary:
         st.markdown("<div class='j3-section-title'>정식 후보</div>", unsafe_allow_html=True)
-        draw_rows(primary, st.container(key="j3_rulebook_table"), watch_mode=False)
+        draw_rows(primary, st.container(key="j3_swing_table"), watch_mode=False)
     else:
         st.info("오늘은 여섯 가지를 다 넘은 정식 후보가 없습니다. "
                 "자리를 채우려고 기준을 느슨하게 바꾸지 않습니다.")
@@ -5339,7 +5365,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         # 그 자동 선택을 뺀 지금은 펴는 값이 표 열다섯 줄뿐이라 싸다.
         #
         # 그러니 접이칸은 그대로 두는 것이 맞다 — 안 누르면 안 열린다.
-        watch_box = st.container(key="j3_rulebook_rest").expander(
+        watch_box = st.container(key="j3_swing_rest").expander(
             f"관찰만 · 조건을 다 못 넘은 {len(watch)}개 보기"
         )
         draw_rows(watch, watch_box, watch_mode=True)

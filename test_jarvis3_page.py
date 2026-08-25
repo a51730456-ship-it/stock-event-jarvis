@@ -1662,6 +1662,17 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("min-width: 1180px", source)
         self.assertIn('.st-key-j3_rulebook_table [data-testid="stColumn"],', source)
 
+    def test_swing_table_uses_compact_columns_and_plain_watch_numbers(self):
+        """상승장 표만 폭을 줄이고 관찰 번호에는 W를 붙이지 않는다."""
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn("widths = [0.42, 0.62, 1.55, 0.72, 1.3, 1.2, 1.45]", source)
+        self.assertIn('rank = str(index + 1) if watch_mode', source)
+        self.assertNotIn('rank = f"W{index + 1}"', source)
+        self.assertIn('st.container(key="j3_swing_table")', source)
+        self.assertIn('st.container(key="j3_swing_rest")', source)
+        self.assertIn(".st-key-j3_swing_table [data-testid=\"stHorizontalBlock\"]", source)
+        self.assertIn("min-width: 760px", source)
+
     def test_main_login_includes_jarvis3_destination(self):
         source = (ROOT / "app.py").read_text(encoding="utf-8")
         self.assertIn("미국테마 (자비스3)", source)
