@@ -2967,8 +2967,7 @@ _FACTOR_HELP_CSS = """
     }
     /* 창 안에서는 왼쪽 초록 띠를 뺀다 — 창 위쪽 띠가 이미 그 몫을 한다. */
     .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-item { border-left: none; }
-    /* 일반 테마는 하단 팝업이 아니라 표 아래 카드다. 폰·태블릿에서도 기존
-       급락 반등 설명처럼 각 카드의 왼쪽 민트선을 그대로 둔다. */
+    .j3fh-swap.j3fh-general .j3fh-p.j3fh-open .j3fh-item { border-left: none; }
     /* 닫기 단추는 손가락으로 누르기 쉽게 넓게, **창 바닥에 붙여 둔다** —
        글이 길어 창 안을 굴려야 하는데, 안 붙여 두면 닫으려고 끝까지 내려야 한다
        (2026-08-14 실측: 375px에서 닫기가 화면 밖이었다). */
@@ -3291,56 +3290,31 @@ def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -
         f"<th>상세 배점{chip}</th><th>획득(최대)</th></tr></thead>"
         f"<tbody>{factor_rows}{total_row}</tbody></table>"
     )
-    # 급락 후 반등 전용 배점 설명과 같은 읽는 순서다. 위는 한 번에 뜻을 알려 주고,
-    # 아래는 한 항목씩 카드로 끊는다. 점수나 현재 종목 값은 여기서 계산하지 않는다.
-    head = (
-        "<div class='j3fh-head'><span class='j3fh-head-t'>"
-        "📘 일반 테마매매 — 앱은 이렇게 종목을 고릅니다</span>"
-        "<span class='j3fh-k'>좋은 테마 안에 있는 좋은 종목</span>을 찾습니다. "
-        "종목 자체의 힘은 <span class='j3fh-h'>60%</span>, 테마의 힘은 "
-        "<span class='j3fh-k'>40%</span> 반영합니다.<br>"
-        "점수가 높을수록 관심 후보에 가깝지만, "
-        "<span class='j3fh-z'>바로 매수하라는 뜻은 아닙니다.</span></div>"
-    )
-    items = "".join((
-        "<div class='j3fh-item'><div class='j3fh-name'>종목 · 최근 3개월 강도 — "
-        "<span class='j3fh-k'>40점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>무엇을 보는가</span> — 최근 3개월 동안 시장보다 강하게 움직였는지 봅니다.<br>"
-        "잠깐 오른 종목보다 최근에도 계속 강한 종목을 찾기 위한 점수입니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>종목 · 최근 6개월 강도 — "
-        "<span class='j3fh-k'>40점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>무엇을 보는가</span> — 반년 동안 시장보다 꾸준히 강했는지 봅니다.<br>"
-        "며칠 반짝 오른 종목보다 오래 강한 종목을 높게 봅니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>종목 · 1년 최고가 근접 — "
-        "<span class='j3fh-k'>20점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>무엇을 보는가</span> — 현재 주가가 최근 1년 최고가에 얼마나 가까운지 봅니다.<br>"
-        "강한 종목은 높은 가격대에서 계속 움직이는 경우가 많습니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>테마 · 최근 6개월 강도 — "
-        "<span class='j3fh-k'>35점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>무엇을 보는가</span> — 이 종목이 속한 테마가 반년 동안 시장보다 강했는지 봅니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>테마 · 최근 3개월 강도 — "
-        "<span class='j3fh-k'>30점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>무엇을 보는가</span> — 최근에도 그 테마의 힘이 계속 살아 있는지 봅니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>테마 · 강한 종목 수 — "
-        "<span class='j3fh-k'>25점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>무엇을 보는가</span> — 한 종목만 오르는지, 같은 테마의 "
-        "여러 종목이 함께 강한지 봅니다.<br>여러 종목이 같이 강할수록 테마 전체의 힘일 가능성이 높습니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>테마 · 최근 힘 증가 — "
-        "<span class='j3fh-k'>10점</span></div><div class='j3fh-txt'>"
-        "<span class='j3fh-h'>무엇을 보는가</span> — 최근 들어 이전보다 테마의 힘이 더 좋아지는지 봅니다.<br>"
-        "힘이 빠지는 테마보다 힘이 붙는 테마를 찾기 위한 점수입니다.</div></div>",
-        "<div class='j3fh-item'><div class='j3fh-name'>최종점수 — "
-        "<span class='j3fh-h'>종목 60%</span> + <span class='j3fh-k'>테마 40%</span></div><div class='j3fh-txt'>"
-        "예: 종목점수 90점, 테마점수 80점이면 <span class='j3fh-k'>최종점수는 86점</span>입니다.<br>"
-        "이 점수는 무엇을 살지 찾는 점수이며, 실제 매수 여부는 시장상태와 현재 가격자리를 따로 확인합니다.</div></div>",
-    ))
     return (
         _FACTOR_HELP_CSS
         + "<div class='j3fh-swap j3fh-general'>"
         + table
         + f"<div class='j3fh-p j3fh-general-panel' id='{panel_id}' style='color:#e6e6e6; line-height:1.75; font-size:.92rem; margin-top:.7rem'>"
-        + head
-        + items
+        + "<div style='color:#93c5fd; font-weight:800; font-size:1.05rem; margin-bottom:.4rem'>"
+        + "📘 일반 테마매매 — 앱은 이렇게 종목을 고릅니다</div>"
+        + "<div>좋은 종목 하나만 보는 것이 아니라 <span style='color:#6ee7b7; font-weight:800'>좋은 테마 안에 있는 좋은 종목</span>을 찾습니다.<br>"
+        + "<span style='color:#93c5fd; font-weight:800'>종목 60%</span>, <span style='color:#6ee7b7; font-weight:800'>테마 40%</span>를 반영해 최종점수를 만듭니다.<br>"
+        + "점수가 높을수록 관심 종목에 가깝다는 뜻이며, <span style='color:#fb923c; font-weight:800'>점수가 높다고 바로 매수하라는 뜻은 아닙니다.</span></div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 종목 자체는 3가지를 봅니다</div>"
+        + "<div style='margin-top:.35rem'><span style='color:#93c5fd; font-weight:800'>① 최근 3개월 강도</span> — <span style='color:#fbbf24; font-weight:800'>40점</span><br>최근 3개월 동안 시장보다 강하게 움직였는지 봅니다.<br>잠깐 오른 종목보다 최근에도 계속 강한 종목을 찾기 위한 점수입니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>② 최근 6개월 강도</span> — <span style='color:#fbbf24; font-weight:800'>40점</span><br>반년 동안 시장보다 꾸준히 강했는지 봅니다.<br>며칠 반짝 오른 종목보다 오래 강한 종목을 높게 봅니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>③ 1년 최고가 근접</span> — <span style='color:#fbbf24; font-weight:800'>20점</span><br>현재 주가가 최근 1년 최고가에 얼마나 가까운지 봅니다.<br>강한 종목은 높은 가격대에서 계속 움직이는 경우가 많기 때문입니다.</div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 테마는 4가지를 봅니다</div>"
+        + "<div style='margin-top:.35rem'><span style='color:#93c5fd; font-weight:800'>① 테마 최근 6개월 강도</span> — <span style='color:#fbbf24; font-weight:800'>35점</span><br>이 종목이 속한 테마가 반년 동안 시장보다 강했는지 봅니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>② 테마 최근 3개월 강도</span> — <span style='color:#fbbf24; font-weight:800'>30점</span><br>최근에도 그 테마의 힘이 계속 살아 있는지 봅니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>③ 강한 종목 수</span> — <span style='color:#fbbf24; font-weight:800'>25점</span><br>한 종목만 혼자 오르는지, 같은 테마의 <span style='color:#6ee7b7; font-weight:800'>여러 종목이 함께 강한</span>지 봅니다.<br>여러 종목이 같이 강할수록 테마 전체의 힘일 가능성이 높다고 봅니다.<br><br>"
+        + "<span style='color:#93c5fd; font-weight:800'>④ 최근 힘 증가</span> — <span style='color:#fbbf24; font-weight:800'>10점</span><br>이 테마가 최근 들어 이전보다 더 강해지고 있는지 봅니다.<br>힘이 빠지는 테마보다 힘이 붙는 테마를 찾기 위한 점수입니다.</div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 최종점수는 이렇게 만듭니다</div>"
+        + "<div style='margin-top:.35rem'><span style='color:#93c5fd; font-weight:800'>종목점수 60%</span><br>+<br><span style='color:#6ee7b7; font-weight:800'>테마점수 40%</span><br><br>예: 종목점수 <span style='color:#fbbf24; font-weight:800'>90점</span> · 테마점수 <span style='color:#fbbf24; font-weight:800'>80점</span><br>→ <span style='color:#fbbf24; font-weight:800'>최종점수 86점</span></div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 쉽게 말하면</div>"
+        + "<div style='margin-top:.35rem'>축구로 비유하면<br><span style='color:#6ee7b7; font-weight:800'>테마 = 팀</span><br><span style='color:#93c5fd; font-weight:800'>종목 = 선수</span><br>좋은 팀에 있는 좋은 선수를 찾는 방식입니다.<br>팀만 좋고 선수가 약한 종목도 피하고, 선수 혼자 강하고 팀 전체가 약한 경우도 한 번 더 확인합니다.</div>"
+        + "<div style='color:#6ee7b7; font-weight:800; margin-top:1rem'>■ 이 점수를 어떻게 보면 되나</div>"
+        + "<div style='margin-top:.35rem'>점수가 높은 종목부터 관심 종목으로 봅니다.<br>하지만 최종점수는 ‘무엇을 살지 찾는 점수’입니다.<br><span style='color:#fb923c; font-weight:800'>점수가 높다고 바로 매수하라는 뜻은 아닙니다.</span><br>실제 매수 여부는 시장상태와 현재 가격자리를 따로 확인합니다.</div>"
         + f"<button type='button' class='j3fh-x j3fh-general-close' id='{close_id}'>✕ 설명 닫기</button></div></div>"
     )
 
