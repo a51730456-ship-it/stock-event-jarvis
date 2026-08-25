@@ -4055,15 +4055,6 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     #   ③ 급락 후 반등장(낙폭종목) 결과
     # 예전에는 ②·③ 중 **마지막에 누른 하나만** 썼다. 이제 단추를 안 눌러도 둘 다
     # 자동으로 모은다. 두 갈래는 같은 일봉 묶음을 쓰므로 한 번만 받아 온다.
-    # 설명이 너무 길다는 지적(2026-08-06). 왜 섞지 않는지의 자세한 사연은
-    # _blend_top7() 주석에 있다 — 화면에는 핵심 두 줄만 남긴다.
-    st.caption(
-        "**테마 대장주 3 · 상승장 3 · 급락 후 반등장 3**으로 자리를 나눠 뽑습니다. "
-        "위 두 단추를 누르지 않아도 자동으로 함께 봅니다.<br>"
-        "**점수는 갈래마다 다른 자**로 잰 값이라 갈래끼리만 견주십시오. "
-        "**빈 자리는 다른 갈래로 채우지 않습니다** — 급락장에는 상승장 자리가 없습니다.",
-        unsafe_allow_html=True,
-    )
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
     is_open = bool(st.session_state.get("j3_top7_open"))
@@ -4095,7 +4086,6 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
 
     if not st.session_state.get("j3_top7_open"):
-        st.caption("단추를 누르면 순위를 뽑습니다. 열린 뒤 다시 누르면 접힙니다.")
         return
     result = st.session_state.get("j3_top7_result")
     if result is None:
@@ -6081,10 +6071,6 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                 # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
                 picklist_ui.autosave("US", pressed, found)
     if not st.session_state.get("j3_pullback_open"):
-        st.caption(
-            "단추를 누르면 조회합니다. 열린 뒤 같은 단추를 다시 누르면 접힙니다. "
-            "두 단추 모두 ‘이 테마 기법에 대한 설명’의 규칙 그대로 찾습니다."
-        )
         return
     result = st.session_state.get("j3_pullback_result")
     mode = st.session_state.get("j3_pullback_mode") or "기본"
