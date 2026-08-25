@@ -27,6 +27,8 @@ ERROR_CACHE_SECONDS = 30
 _POOL = ThreadPoolExecutor(max_workers=3, thread_name_prefix="j3-brief-news")
 _LOCK = threading.Lock()
 _CACHE: dict[str, dict] = {}
+_TRANSLATION_LOCK = threading.Lock()
+_TRANSLATION_CACHE: dict[str, str] = {}
 
 
 def _text(value, limit=500) -> str:
@@ -35,6 +37,50 @@ def _text(value, limit=500) -> str:
 
 def _has_korean(value: str) -> bool:
     return bool(re.search(r"[가-힣]", str(value or "")))
+
+
+def _public_translations(texts: list[str]) -> dict[str, str]:
+    """DeepL 키가 없을 때 미국 원문 제목을 공개 번역으로 묶어 처리한다.
+
+    화면 스레드가 아니라 기존 뉴스 백그라운드 작업에서만 호출된다. 같은 제목은
+    프로세스 캐시에 남겨 10분 뉴스 갱신 때 번역 요청을 반복하지 않는다.
+    """
+    originals = list(dict.fromkeys(_text(text, 300) for text in texts if _text(text, 300)))
+    with _TRANSLATION_LOCK:
+        result = {text: _TRANSLATION_CACHE[text] for text in originals if text in _TRANSLATION_CACHE}
+    missing = [text for text in originals if text not in result]
+    # 익명 공개 번역의 한 요청 길이를 작게 유지한다. 제목은 화면 한줄용 160자까지만 쓴다.
+    batches, batch, length = [], [], 0
+    for original in missing:
+        source = _text(original, 160)
+        added = len(source) + (13 if batch else 0)
+        if batch and length + added > 450:
+            batches.append(batch)
+            batch, length = [], 0
+        batch.append((original, source))
+        length += added
+    if batch:
+        batches.append(batch)
+    for items in batches:
+        joined = "\nJARVISBREAK\n".join(source for _, source in items)
+        endpoint = "https://api.mymemory.translated.net/get?" + urlencode({
+            "q": joined, "langpair": "en|ko",
+        })
+        try:
+            payload = _request(endpoint)
+            translated = _text((payload.get("responseData") or {}).get("translatedText"), 1200)
+            parts = re.split(r"\s*JARVISBREAK\s*", translated)
+        except Exception:
+            parts = []
+        if len(parts) != len(items):
+            continue
+        for (original, _), translated_text in zip(items, parts):
+            translated_text = _text(translated_text, 110)
+            if _has_korean(translated_text):
+                result[original] = translated_text
+                with _TRANSLATION_LOCK:
+                    _TRANSLATION_CACHE[original] = translated_text
+    return result
 
 
 def _time(value) -> datetime | None:
@@ -167,17 +213,22 @@ def _fallback(rows: list[dict], deepl_key: str = "") -> list[dict]:
     """Groq가 없어도 미국 원문 제목을 한글로 묶음 번역한다."""
     selected = rows[:3]
     english = [_text(row.get("headline"), 300) for row in selected if not _has_korean(row.get("headline"))]
-    translations = []
+    translations = {}
     if english and deepl_key:
         try:
-            translations = deepl_translate.translate_texts_to_ko(english, deepl_key)
+            translated_result = deepl_translate.translate_texts_to_ko(english, deepl_key)
+            if isinstance(translated_result, dict):
+                translations = translated_result.get("translations") or {}
         except Exception:
-            translations = []
-    translated = iter(translations)
+            translations = {}
+    if english:
+        missing = [headline for headline in english if headline not in translations]
+        if missing:
+            translations.update(_public_translations(missing))
     result = []
     for row in selected:
         headline = _text(row.get("headline"), 300)
-        brief = headline if _has_korean(headline) else _text(next(translated, ""), 110)
+        brief = headline if _has_korean(headline) else _text(translations.get(headline), 110)
         if not _has_korean(brief):
             brief = "미국 원문 뉴스의 한글 번역을 잠시 불러오지 못했습니다."
         result.append({**row, "sentiment": "neutral", "brief": brief})

@@ -68,7 +68,10 @@ def test_english_news_fallback_uses_one_batched_deepl_call(monkeypatch):
     seen = {}
     def translate(texts, key):
         seen["texts"], seen["key"] = texts, key
-        return ["미국 증시 상승", "반도체 수요 증가"]
+        return {"ok": True, "translations": {
+            "US stocks rise": "미국 증시 상승",
+            "Chip demand grows": "반도체 수요 증가",
+        }, "error": None}
     monkeypatch.setattr(news.deepl_translate, "translate_texts_to_ko", translate)
     result = news._fallback(rows, "deepl-test")
     assert seen == {"texts": ["US stocks rise", "Chip demand grows"], "key": "deepl-test"}
@@ -77,8 +80,35 @@ def test_english_news_fallback_uses_one_batched_deepl_call(monkeypatch):
 
 def test_failed_translation_never_displays_english_headline(monkeypatch):
     monkeypatch.setattr(news.deepl_translate, "translate_texts_to_ko", lambda *_args: [])
+    monkeypatch.setattr(news, "_public_translations", lambda *_args: {})
     result = news._fallback([{"headline": "English headline", "url": "https://example.test"}], "key")
     assert result[0]["brief"] == "미국 원문 뉴스의 한글 번역을 잠시 불러오지 못했습니다."
+
+
+def test_empty_deepl_key_uses_cached_public_translation(monkeypatch):
+    seen = {}
+    def public(texts):
+        seen["texts"] = texts
+        return {"US stocks rise": "미국 증시 상승"}
+    monkeypatch.setattr(news, "_public_translations", public)
+    result = news._fallback([{"headline": "US stocks rise", "url": "https://example.test"}])
+    assert seen["texts"] == ["US stocks rise"]
+    assert result[0]["brief"] == "미국 증시 상승"
+
+
+def test_public_translation_batches_and_caches(monkeypatch):
+    news._TRANSLATION_CACHE.clear()
+    calls = []
+    def request(url):
+        calls.append(url)
+        return {"responseData": {"translatedText": "미국 증시 상승\nJARVISBREAK\n반도체 수요 증가"}}
+    monkeypatch.setattr(news, "_request", request)
+    texts = ["US stocks rise", "Chip demand grows"]
+    assert news._public_translations(texts) == {
+        "US stocks rise": "미국 증시 상승", "Chip demand grows": "반도체 수요 증가",
+    }
+    assert news._public_translations(texts)["US stocks rise"] == "미국 증시 상승"
+    assert len(calls) == 1
 
 
 def test_rss_fallback_keeps_verifiable_actual_rows(monkeypatch):
@@ -149,8 +179,11 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert "overflow-x:hidden!important;overflow-y:visible!important" in source
     assert ".j3b-card.compact{height:auto!important;min-height:174px!important" in source
     assert ".j3b-card.compact .j3b-card-notes{bottom:14px!important" in source
-    assert ".j3b-card:not(.compact){min-height:160px!important" in source
+    assert ".j3b-card:not(.compact){min-height:148px!important" in source
     assert ".j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important" in source
+    assert "div.st-key-j3b_grid_selected_0{padding-top:8px!important}" in source
+    assert "div.st-key-j3b_grid_selected_2{padding-bottom:8px!important}" in source
+    assert ".j3b-card.compact{min-height:164px!important}" in source
     assert "visible_stocks = selected + home_extras" in source
     assert '_render_briefing_grid(home_extras, cards, removable=True' in source
     assert 'can_remove = removable and int(stock.get("position", 0)) > 0' in source
