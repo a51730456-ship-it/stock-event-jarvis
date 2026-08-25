@@ -6624,6 +6624,12 @@ def _briefing_css() -> None:
         .j3b-card-shell[open] .j3b-card,.j3b-card-shell[open] .j3b-card.compact{width:min(680px,calc(100vw - 32px))!important;height:auto!important;min-height:360px!important;max-height:calc(100dvh - 76px)!important;margin:0!important;padding:20px!important;border-radius:20px!important;overflow:auto!important;transform:none!important;filter:none!important;box-sizing:border-box!important;box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c!important}
         .j3b-card-shell[open] .j3b-card:before{content:"× 다시 누르면 닫힘";position:absolute;right:12px;top:12px;z-index:6;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800;pointer-events:none}
         .j3b-card-shell[open] .j3b-card-top{min-height:58px!important;gap:10px!important;padding-right:132px!important}.j3b-card-shell[open] .j3b-logo{width:58px!important;height:58px!important;border-radius:14px!important}.j3b-card-shell[open] .j3b-symbol{font-size:28px!important}.j3b-card-shell[open] .j3b-name{font-size:14px!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-price{position:static!important;max-width:none!important;margin:12px 0 8px!important;font-size:22px!important}.j3b-card-shell[open] .j3b-chart{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:100px!important;margin:4px 0 14px!important}.j3b-card-shell[open] .j3b-card-notes{position:static!important;inset:auto!important;max-height:none!important;margin:0!important;padding-top:10px!important;overflow:visible!important}.j3b-card-shell[open] .j3b-note{display:block!important;margin:0 0 9px!important;font-size:14px!important;line-height:1.55!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-decor-img{width:78px!important;bottom:5px!important}
+        /* 시장 한줄 브리핑도 링크 이동 없이 같은 화면에서 전체 한글 요약을 펼친다. */
+        .j3b-market-news-shell{display:block;margin:7px 0}.j3b-market-news-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-market-news-summary::-webkit-details-marker{display:none}.j3b-market-news-shell .j3b-news{margin:7px 0!important}.j3b-market-news-shell .j3b-news-link{display:flex;align-items:center;gap:10px;width:100%;color:inherit;text-decoration:none}.j3b-market-news-shell .j3b-news-link>span:nth-child(2){flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.j3b-market-news-expanded{display:none}
+        .j3b-market-news-shell[open]>.j3b-market-news-summary{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;background:rgba(0,9,25,.9)!important;cursor:zoom-out!important;box-sizing:border-box!important}
+        .j3b-market-news-shell[open] .j3b-news{display:none!important}.j3b-market-news-shell[open] .j3b-market-news-expanded{position:relative;display:block;width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 76px);overflow:auto;box-sizing:border-box;padding:26px 22px 22px;border:1px solid #bd9052;border-radius:20px;background:linear-gradient(145deg,#06345f,#03264a 58%,#001d3c);color:#f5fbff;box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c}
+        .j3b-market-news-close{position:absolute;right:12px;top:12px;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800}.j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}.j3b-market-news-text{margin-top:18px;padding-top:18px;border-top:1px solid #8ab7d633;color:#f5f1e8;font-size:18px;line-height:1.6;font-weight:650;white-space:normal;overflow-wrap:anywhere}.j3b-market-news-number{color:#6edbff;font-weight:900;margin-right:8px}
+        @media (max-width:600px){.j3b-market-news-shell{margin:5px 0}.j3b-market-news-shell[open] .j3b-market-news-expanded{padding:24px 18px 20px}.j3b-market-news-title{font-size:16px}.j3b-market-news-text{font-size:17px;line-height:1.65}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -6661,6 +6667,27 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
         message = "뉴스를 불러오는 중입니다" if result.get("pending") else "뉴스 브리핑 일시 사용 불가"
         items = [{"sentiment": "neutral", "brief": message}]
     marks = {"positive": "↗", "negative": "▥", "neutral": "○"}
+    if kind == "market":
+        collapsed_rows, expanded_rows = [], []
+        for index, item in enumerate(items[:3]):
+            sentiment = item.get("sentiment") if item.get("sentiment") in {"positive", "negative", "neutral"} else "neutral"
+            brief = html.escape(str(item.get("brief") or item.get("headline") or ""))
+            collapsed_rows.append(
+                f'<div class="j3b-news"><span class="j3b-news-link"><span class="j3b-news-icon">{marks[sentiment]}</span>'
+                f'<span>{brief}</span><span class="j3b-news-dot {sentiment}"></span></span></div>'
+            )
+            expanded_rows.append(
+                f'<div class="j3b-market-news-text"><span class="j3b-market-news-number">{index + 1}</span>{brief}</div>'
+            )
+        st.markdown(
+            f'<details class="j3b-market-news-shell"><summary class="j3b-market-news-summary">'
+            f'{"".join(collapsed_rows)}<div class="j3b-market-news-expanded">'
+            f'<span class="j3b-market-news-close">× 다시 누르면 닫힘</span>'
+            f'<div class="j3b-market-news-title">미국시장 한줄 브리핑</div>'
+            f'{"".join(expanded_rows)}</div></summary></details>',
+            unsafe_allow_html=True,
+        )
+        return items
     for index, item in enumerate(items[:3]):
         sentiment = item.get("sentiment") if item.get("sentiment") in {"positive", "negative", "neutral"} else "neutral"
         brief = html.escape(str(item.get("brief") or item.get("headline") or ""))

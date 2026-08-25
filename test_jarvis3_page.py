@@ -1827,6 +1827,18 @@ def test_briefing_cards_hover_and_expand_without_rerun_or_script():
     assert "× 다시 누르면 닫힘" in source
 
 
+def test_market_briefing_expands_inline_without_external_news_link():
+    source = PAGE.read_text(encoding="utf-8")
+    news = source[source.index("def _render_briefing_news"):source.index("def _render_briefing_card")]
+    market_branch = news[news.index('if kind == "market":'):news.index("return items", news.index('if kind == "market":'))]
+    assert '<details class="j3b-market-news-shell">' in market_branch
+    assert 'class="j3b-market-news-text"' in market_branch
+    assert '"".join(expanded_rows)' in market_branch
+    assert "href=" not in market_branch
+    assert "target=" not in market_branch
+    assert ".j3b-market-news-shell[open]>.j3b-market-news-summary" in source
+
+
 def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     source = PAGE.read_text(encoding="utf-8")
     assert "@media (max-width:1200px){" in source
