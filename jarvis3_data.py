@@ -35,8 +35,8 @@ _SEOUL = ZoneInfo("Asia/Seoul")
 
 US_THEMES = (
     {"name": "반도체", "etf": "SMH", "alt_etf": "SOXX", "stocks": ("NVDA", "AVGO", "AMD", "TSM", "QCOM", "MU", "AMAT", "LRCX", "ASML", "KLAC")},
-    {"name": "AI·데이터센터", "etf": "AIQ", "alt_etf": "DTCR", "stocks": ("NVDA", "MSFT", "AVGO", "ANET", "VRT", "ORCL", "PLTR", "DELL", "HPE", "ADBE")},
-    {"name": "전력망·전력설비", "etf": "GRID", "alt_etf": "PAVE", "stocks": ("GEV", "ETN", "PWR", "HUBB", "VRT", "NEE", "CEG", "EMR", "SO", "DUK")},
+    {"name": "AI·데이터센터", "etf": "AIQ", "alt_etf": "DTCR", "stocks": ("NVDA", "MSFT", "AVGO", "ANET", "VRT", "ORCL", "PLTR", "DELL", "HPE")},
+    {"name": "전력망·전력설비", "etf": "GRID", "alt_etf": "PAVE", "stocks": ("GEV", "ETN", "PWR", "HUBB", "VRT", "NEE", "CEG", "EMR")},
     {"name": "방산·드론", "etf": "ITA", "alt_etf": "XAR", "stocks": ("RTX", "LMT", "NOC", "GD", "LHX", "AVAV", "KTOS", "HII")},
     # 자비스 빅테크10: 매그니피센트7 + Broadcom·Netflix·Oracle.
     # CrowdStrike는 빅테크가 아니라 아래 사이버보안 테마에서만 다룬다.
@@ -45,17 +45,17 @@ US_THEMES = (
     {"name": "사이버보안", "etf": "CIBR", "alt_etf": "HACK", "stocks": ("CRWD", "PANW", "FTNT", "ZS", "OKTA", "CHKP", "GEN")},
     {"name": "희토류·핵심광물", "etf": "REMX", "alt_etf": "PICK", "stocks": ("MP", "ALB", "SQM", "ELVR", "UUUU", "FCX", "RIO")},
     {"name": "양자컴퓨팅", "etf": "QTUM", "alt_etf": "WQTM", "stocks": ("IONQ", "QBTS", "RGTI", "QUBT", "IBM", "GOOGL", "HON", "MSFT")},
-    {"name": "인프라·리쇼어링", "etf": "PAVE", "alt_etf": "IFRA", "stocks": ("CAT", "URI", "MLM", "VMC", "PWR", "GEV", "ETN", "NUE", "DE")},
-    {"name": "핀테크·블록체인", "etf": "BLOK", "alt_etf": "FINX", "stocks": ("COIN", "HOOD", "PYPL", "XYZ", "MSTR", "SOFI", "NU", "V", "MA", "AXP")},
-    {"name": "클라우드·SaaS", "etf": "SKYY", "alt_etf": "CLOU", "stocks": ("MSFT", "ORCL", "CRM", "NOW", "SNOW", "DDOG", "NET", "MDB", "ADBE", "INTU")},
+    {"name": "인프라·리쇼어링", "etf": "PAVE", "alt_etf": "IFRA", "stocks": ("CAT", "URI", "MLM", "VMC", "PWR", "GEV", "ETN", "NUE")},
+    {"name": "핀테크·블록체인", "etf": "BLOK", "alt_etf": "FINX", "stocks": ("COIN", "HOOD", "PYPL", "XYZ", "MSTR", "SOFI", "NU")},
+    {"name": "클라우드·SaaS", "etf": "SKYY", "alt_etf": "CLOU", "stocks": ("MSFT", "ORCL", "CRM", "NOW", "SNOW", "DDOG", "NET", "MDB")},
     {"name": "석유·가스", "etf": "XLE", "alt_etf": "XOP", "stocks": ("XOM", "CVX", "COP", "SLB", "EOG", "OXY", "MPC", "VLO")},
     {"name": "로봇·자동화", "etf": "BOTZ", "alt_etf": "ROBO", "stocks": ("ISRG", "NVDA", "ABBNY", "TER", "SYM", "ROK", "CGNX")},
-    {"name": "바이오", "etf": "XBI", "alt_etf": "IBB", "stocks": ("REGN", "VRTX", "AMGN", "GILD", "BIIB", "MRNA", "CRSP", "ILMN", "LLY", "TMO")},
+    {"name": "바이오", "etf": "XBI", "alt_etf": "IBB", "stocks": ("REGN", "VRTX", "AMGN", "GILD", "BIIB", "MRNA", "CRSP", "ILMN")},
     {"name": "우주·위성", "etf": "UFO", "alt_etf": "ARKX", "stocks": ("RKLB", "ASTS", "LUNR", "RDW", "PL", "SATS", "IRDM")},
     {"name": "주택·홈빌더", "etf": "XHB", "alt_etf": "ITB", "stocks": ("DHI", "LEN", "PHM", "TOL", "NVR", "HD", "LOW")},
-    {"name": "유전체·정밀의료", "etf": "ARKG", "alt_etf": "GNOM", "stocks": ("CRSP", "NTLA", "BEAM", "TWST", "PACB", "ILMN", "TEM", "TMO", "DHR", "ABT")},
+    {"name": "유전체·정밀의료", "etf": "ARKG", "alt_etf": "GNOM", "stocks": ("CRSP", "NTLA", "BEAM", "TWST", "PACB", "ILMN", "TEM")},
     {"name": "배터리·전기차", "etf": "LIT", "alt_etf": "DRIV", "stocks": ("TSLA", "ALB", "RIVN", "GM", "F", "STLA", "QS", "CHPT")},
-    {"name": "태양광·청정에너지", "etf": "TAN", "alt_etf": "ICLN", "stocks": ("FSLR", "ENPH", "NXT", "SEDG", "RUN", "BEP", "CWEN", "NEE")},
+    {"name": "태양광·청정에너지", "etf": "TAN", "alt_etf": "ICLN", "stocks": ("FSLR", "ENPH", "NXT", "SEDG", "RUN", "BEP", "CWEN")},
 )
 
 THEME_BY_NAME = {item["name"]: item for item in US_THEMES}
@@ -76,11 +76,7 @@ STOCK_NAMES = {
     "QUBT": "Quantum Computing", "IBM": "IBM", "HON": "Honeywell",
     "CCJ": "Cameco", "VST": "Vistra", "LEU": "Centrus Energy", "SMR": "NuScale Power",
     "OKLO": "Oklo", "XOM": "Exxon Mobil", "CVX": "Chevron", "COIN": "Coinbase",
-    "ELVR": "Elevra Lithium", "ABBNY": "ABB ADR", "ADBE": "Adobe",
-    "SO": "Southern Company", "DUK": "Duke Energy", "V": "Visa",
-    "MA": "Mastercard", "AXP": "American Express", "INTU": "Intuit",
-    "DE": "Deere", "LLY": "Eli Lilly", "TMO": "Thermo Fisher",
-    "DHR": "Danaher", "ABT": "Abbott Laboratories",
+    "ELVR": "Elevra Lithium", "ABBNY": "ABB ADR",
     "HOOD": "Robinhood", "PANW": "Palo Alto Networks", "FTNT": "Fortinet",
     "RKLB": "Rocket Lab", "ASTS": "AST SpaceMobile", "LUNR": "Intuitive Machines",
     "FSLR": "First Solar", "ENPH": "Enphase Energy", "ISRG": "Intuitive Surgical",
@@ -198,7 +194,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082403
+MODULE_REVISION = 2026082501
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -944,53 +940,17 @@ def _scale(value: float | None, low: float, high: float, points: float) -> float
 # 여기서는 **등수 대신 그 등수를 만드는 값**에 점수를 준다. '상위 3등 안인가'로
 # 점수를 주면 순위를 매기려고 순위가 필요해진다(순환). 값이 높을수록 등수가
 # 높으므로 결과는 같다.
-# ── 일반 미국테마 전용 배점 (2026-08-24 사용자 지시) ────────────────────────
-# 이 값은 20개 테마의 일반 순위와 그 안의 종목 후보를 고르는 데만 쓴다.
-# 상승장(US_SWING_V1)·급락 후 반등장(CRASH_SCORE_WEIGHTS)·매수심사는 이 값을
-# 읽지 않는다. 공통 점수를 고쳐 다른 전략 결과가 바뀌지 않게 분리한다.
-GENERAL_THEME_SCORE_WEIGHTS = {
-    "strength_120": 35.0,    # 최근 6개월 시장 대비 강도
-    "strength_60": 30.0,     # 최근 3개월 시장 대비 강도
-    "strong_members": 25.0,  # 두 기간 모두 시장보다 강한 구성종목 비율
-    "strength_change": 10.0, # 최근 3개월 강도 − 6개월 평균 강도
+THEME_SCORE_WEIGHTS = {
+    "above20": 40.0,     # 구성종목 중 20일선 위 비율
+    "rose5": 30.0,       # 구성종목 중 최근 5일에 오른 비율
+    "rose20": 20.0,      # 구성종목 중 최근 20일에 오른 비율
+    "less_drop": 10.0,   # 구성종목 평균 고점 대비 (덜 빠졌을수록 높다)
+    "relative": 0.0,     # 20·60일 상대강도 — 두 국면 다 꼴찌거나 탈락
+    "trend": 0.0,        # ETF 20·50일선 위 — 다른 파트에서 거꾸로
 }
-GENERAL_THEME_SCORE_PARTS = (
-    ("테마 6개월 강도", GENERAL_THEME_SCORE_WEIGHTS["strength_120"]),
-    ("테마 3개월 강도", GENERAL_THEME_SCORE_WEIGHTS["strength_60"]),
-    ("강한 종목 수", GENERAL_THEME_SCORE_WEIGHTS["strong_members"]),
-    ("최근 힘 증가", GENERAL_THEME_SCORE_WEIGHTS["strength_change"]),
-)
-GENERAL_THEME_SCORE_MAX = round(sum(GENERAL_THEME_SCORE_WEIGHTS.values()), 1)
-GENERAL_THEME_STATUS_LEAD = round(GENERAL_THEME_SCORE_MAX * 0.75, 1)
-GENERAL_THEME_STATUS_WATCH = round(GENERAL_THEME_SCORE_MAX * 0.60, 1)
-
-# 일반 테마 종목점수도 일반 테마 화면에서만 쓴다. 기존 대장주 조건점수는 매수심사
-# 호환을 위해 그대로 둔다. 즉 이 새 점수는 후보 순위용이고 매수 신호가 아니다.
-GENERAL_STOCK_SCORE_PARTS = (
-    ("최근 3개월 강도", 40.0),
-    ("최근 6개월 강도", 40.0),
-    ("1년 최고가 근접", 20.0),
-)
-GENERAL_STOCK_SCORE_MAX = round(sum(points for _name, points in GENERAL_STOCK_SCORE_PARTS), 1)
-
-# 아래 연결은 일반 테마의 새 순위에만 더했다. 매수심사가 쓰던 기존 입력을 한 글자도
-# 바꾸지 않기 위해, 이 종목들은 매수심사 호환 점수에서만 제외한다.
-_GENERAL_THEME_EXPANDED_MEMBERS = frozenset({
-    ("AI·데이터센터", "ADBE"),
-    ("전력망·전력설비", "SO"), ("전력망·전력설비", "DUK"),
-    ("인프라·리쇼어링", "DE"),
-    ("핀테크·블록체인", "V"), ("핀테크·블록체인", "MA"), ("핀테크·블록체인", "AXP"),
-    ("클라우드·SaaS", "ADBE"), ("클라우드·SaaS", "INTU"),
-    ("바이오", "LLY"), ("바이오", "TMO"),
-    ("유전체·정밀의료", "TMO"), ("유전체·정밀의료", "DHR"), ("유전체·정밀의료", "ABT"),
-    ("태양광·청정에너지", "NEE"),
-})
-
-# 기존 이름은 외부 읽기 호환을 위한 별칭일 뿐이다. 급락·상승장 점수에는 연결하지 않는다.
-THEME_SCORE_WEIGHTS = GENERAL_THEME_SCORE_WEIGHTS
-THEME_SCORE_MAX = GENERAL_THEME_SCORE_MAX
-THEME_STATUS_LEAD = GENERAL_THEME_STATUS_LEAD
-THEME_STATUS_WATCH = GENERAL_THEME_STATUS_WATCH
+THEME_SCORE_MAX = round(sum(THEME_SCORE_WEIGHTS.values()), 1)
+THEME_STATUS_LEAD = round(THEME_SCORE_MAX * 0.75, 1)
+THEME_STATUS_WATCH = round(THEME_SCORE_MAX * 0.60, 1)
 
 
 # 테마 20줄을 **다시 세지 않고 잠깐 쓰는 시간**(2026-08-21 상하님 지적 —
@@ -1127,102 +1087,6 @@ def warm_market_history() -> None:
             _IXIC_WARMING["on"] = False
 
 
-def _general_rank_points(rows: list[dict], value_key: str, points: float) -> None:
-    """20개 일반 테마 안에서만 상대 순위 점수를 붙인다."""
-    ranked = [(index, _finite(row.get(value_key))) for index, row in enumerate(rows)]
-    ranked = [(index, value) for index, value in ranked if value is not None]
-    score_key = f"{value_key}_score"
-    if len(ranked) < 2:
-        for row in rows:
-            row[score_key] = 0.0
-        return
-    ranked.sort(key=lambda item: item[1])
-    total = len(ranked)
-    position = 0
-    while position < total:
-        end = position + 1
-        while end < total and ranked[end][1] == ranked[position][1]:
-            end += 1
-        # 같은 값은 같은 평균 등수다. 최하 0점·최상 만점으로만 늘린다.
-        rank_fraction = ((position + 1 + end) / 2 - 1) / (total - 1)
-        earned = round(max(0.0, min(points, rank_fraction * points)), 1)
-        for index, _value in ranked[position:end]:
-            rows[index][score_key] = earned
-        position = end
-    for row in rows:
-        row.setdefault(score_key, 0.0)
-
-
-def _apply_general_theme_scores(rows: list[dict]) -> None:
-    """일반 미국테마 전용 35/30/25/10 점수. 다른 전략은 이 경로를 쓰지 않는다."""
-    keys = ("strength_120", "strength_60", "strong_members", "strength_change")
-    for key in keys:
-        _general_rank_points(rows, key, GENERAL_THEME_SCORE_WEIGHTS[key])
-    for row in rows:
-        parts = [float(row.get(f"{key}_score") or 0.0) for key in keys]
-        row["score_parts"] = [round(part, 1) for part in parts]
-        row["score"] = round(max(0.0, min(GENERAL_THEME_SCORE_MAX, sum(parts))), 1)
-        row["status"] = (
-            "강함" if row["score"] >= GENERAL_THEME_STATUS_LEAD else
-            "보통" if row["score"] >= GENERAL_THEME_STATUS_WATCH else "약함"
-        )
-        row["basis"] = (
-            f"6개월 강도 {parts[0]:.1f}/35 · 3개월 강도 {parts[1]:.1f}/30 · "
-            f"강한 종목 {parts[2]:.1f}/25 · 최근 힘 증가 {parts[3]:.1f}/10"
-        )
-
-
-def _general_stock_score(metrics: dict, benchmark: dict) -> tuple[float, list[float]]:
-    """일반 테마매매 종목점수 40/40/20. 매수심사 점수와 분리한다."""
-    strength_60 = None
-    strength_120 = None
-    if metrics.get("ret60") is not None and benchmark.get("ret60") is not None:
-        strength_60 = float(metrics["ret60"]) - float(benchmark["ret60"])
-    if metrics.get("ret120") is not None and benchmark.get("ret120") is not None:
-        strength_120 = float(metrics["ret120"]) - float(benchmark["ret120"])
-    # 시장보다 20%p 이상 강하면 각 기간 항목의 만점이다. 부족 자료는 0점이다.
-    recent3 = _scale(strength_60, -20.0, 20.0, 40.0)
-    recent6 = _scale(strength_120, -20.0, 20.0, 40.0)
-    high_near = _scale(metrics.get("from_high_pct"), -50.0, 0.0, 20.0)
-    parts = [round(recent3, 1), round(recent6, 1), round(high_near, 1)]
-    return round(max(0.0, min(GENERAL_STOCK_SCORE_MAX, sum(parts))), 1), parts
-
-
-def _general_final_score(stock_score: float, theme_score: float) -> float:
-    """일반 테마매매 후보 순위: 종목 60% + 테마 40%."""
-    return round(max(0.0, min(100.0, float(stock_score) * 0.60 + float(theme_score) * 0.40)), 1)
-
-
-def _legacy_theme_score_for_entry(theme: dict, daily: dict) -> float:
-    """기존 매수심사 입력을 보존한다. 일반 테마의 새 후보점수와 섞지 않는다."""
-    above20, rose5, rose20, from_highs = [], [], [], []
-    for ticker in theme["stocks"]:
-        if (theme["name"], ticker) in _GENERAL_THEME_EXPANDED_MEMBERS:
-            continue
-        stock = _series_metrics(daily.get(ticker))
-        if not stock.get("ok"):
-            continue
-        if stock.get("sma20"):
-            above20.append(stock["current"] > stock["sma20"])
-        if stock.get("ret5") is not None:
-            rose5.append(stock["ret5"] > 0)
-        if stock.get("ret20") is not None:
-            rose20.append(stock["ret20"] > 0)
-        if stock.get("from_high_pct") is not None:
-            from_highs.append(float(stock["from_high_pct"]))
-
-    def _share(flags):
-        return (sum(flags) / len(flags) * 100) if flags else None
-
-    return round(
-        _scale(_share(above20), 25, 85, 40.0)
-        + _scale(_share(rose5), 20, 80, 30.0)
-        + _scale(_share(rose20), 25, 85, 20.0)
-        + _scale(sum(from_highs) / len(from_highs) if from_highs else None, -30.0, -2.0, 10.0),
-        1,
-    )
-
-
 def _compute_theme_rankings() -> dict:
     # 화면을 여는 김에 상승장이 쓸 나스닥 이력도 뒤에서 받아 둔다.
     warm_market_history()
@@ -1243,55 +1107,80 @@ def _compute_theme_rankings() -> dict:
     intraday, live_meta = _download_cached(
         live_tickers, period="1d", interval="1m", ttl_seconds=THEME_LIVE_TTL, prepost=True
     )
-    # 200종목의 3개월·6개월·1년 고점 관련 값은 한 번만 계산해 각 테마가 함께 쓴다.
-    # 테마마다 다시 내려받거나 같은 종목을 다시 계산하지 않는다.
-    spy = _series_metrics(daily.get("SPY"))
+    spy = _series_metrics(daily.get("SPY"), intraday.get("SPY"))
     if not spy.get("ok"):
         return {"ok": False, "error": daily_meta.get("error") or "SPY 기준 자료가 없습니다", "rows": []}
-    stock_metrics = {
-        ticker: _series_metrics(daily.get(ticker))
-        for ticker in US_LARGE_CAP_UNIVERSE
-    }
 
     rows = []
     for theme in US_THEMES:
         etf_used = theme["etf"] if theme["etf"] in daily else theme["alt_etf"]
         metrics = _series_metrics(daily.get(etf_used), intraday.get(etf_used))
-        strength_60, strength_120, strong_flags = [], [], []
+        if not metrics.get("ok") or metrics.get("ret60") is None:
+            rows.append({"name": theme["name"], "etf": etf_used, "ok": False, "error": "ETF 이력 부족"})
+            continue
+        # 구성종목을 하나씩 보고 **몇 %가 그런가**를 센다. 테마 점수의 90점이
+        # 여기서 나온다 — 실측에서 확산 계열이 두 국면 모두 1~4등이었다.
+        above20, rose5, rose20, from_highs = [], [], [], []
         for ticker in theme["stocks"]:
-            stock = stock_metrics.get(ticker) or {}
+            stock = _series_metrics(daily.get(ticker))
             if not stock.get("ok"):
                 continue
-            rs60 = (float(stock["ret60"]) - float(spy["ret60"])
-                    if stock.get("ret60") is not None and spy.get("ret60") is not None else None)
-            rs120 = (float(stock["ret120"]) - float(spy["ret120"])
-                     if stock.get("ret120") is not None and spy.get("ret120") is not None else None)
-            if rs60 is not None:
-                strength_60.append(rs60)
-            if rs120 is not None:
-                strength_120.append(rs120)
-            if rs60 is not None and rs120 is not None:
-                strong_flags.append(rs60 > 0 and rs120 > 0)
-        theme_strength_60 = sum(strength_60) / len(strength_60) if strength_60 else None
-        theme_strength_120 = sum(strength_120) / len(strength_120) if strength_120 else None
-        strong_member_share = (sum(strong_flags) / len(strong_flags) * 100) if strong_flags else None
-        strength_change = (theme_strength_60 - theme_strength_120 / 2
-                           if theme_strength_60 is not None and theme_strength_120 is not None else None)
+            if stock.get("sma20"):
+                above20.append(stock["current"] > stock["sma20"])
+            if stock.get("ret5") is not None:
+                rose5.append(stock["ret5"] > 0)
+            if stock.get("ret20") is not None:
+                rose20.append(stock["ret20"] > 0)
+            if stock.get("from_high_pct") is not None:
+                from_highs.append(float(stock["from_high_pct"]))
+
+        def _share(flags):
+            return (sum(flags) / len(flags) * 100) if flags else None
+
+        breadth = _share(above20)
+        rose5_share = _share(rose5)
+        rose20_share = _share(rose20)
+        less_drop = (sum(from_highs) / len(from_highs)) if from_highs else None
+        rs20 = metrics["ret20"] - spy["ret20"]
+        rs60 = metrics["ret60"] - spy["ret60"] if spy.get("ret60") is not None else None
+        score = round(
+            _scale(breadth, 25, 85, THEME_SCORE_WEIGHTS["above20"])
+            + _scale(rose5_share, 20, 80, THEME_SCORE_WEIGHTS["rose5"])
+            + _scale(rose20_share, 25, 85, THEME_SCORE_WEIGHTS["rose20"])
+            + _scale(less_drop, -30.0, -2.0, THEME_SCORE_WEIGHTS["less_drop"]),
+            1,
+        )
+        # 이름표는 **지금 상태**를 말한다(2026-08-14에 '주도·관찰'에서 바꿨다).
+        # '주도'는 **앞으로 이끈다**는 뜻으로 읽히는데, 재 보니 그렇지 않다 —
+        # 이 점수가 높은 테마가 그 뒤에 더 오르지 않았다(평상시 1,708일 · 5일부터
+        # 1년까지 여섯 기간 모두 오차가 0을 걸쳤다. research/us_theme_rank_check.py).
+        # 값 자체는 그대로다. **앞날을 말하지 않는 말로만 바꿨다.**
+        status = ("강함" if score >= THEME_STATUS_LEAD
+                  else "보통" if score >= THEME_STATUS_WATCH else "약함")
         rows.append({
             "name": theme["name"],
             "etf": etf_used,
             "alt_etf": theme["alt_etf"],
-            "ok": theme_strength_60 is not None and theme_strength_120 is not None,
+            "ok": True,
+            "score": score,
+            "status": status,
             "change_pct": metrics.get("change_pct"),
-            "strength_60": theme_strength_60,
-            "strength_120": theme_strength_120,
-            "strong_members": strong_member_share,
-            "strength_change": strength_change,
-            "member_count": len(strong_flags),
+            # 상대강도는 **점수에 안 쓴다**(위 THEME_SCORE_WEIGHTS 참고). 다만
+            # 화면이 참고로 보여주고 있어 값 자체는 그대로 실어 보낸다.
+            "rs20": rs20,
+            "rs60": rs60,
+            "breadth": breadth,
+            "rose5_share": rose5_share,
+            "rose20_share": rose20_share,
+            "theme_from_high": less_drop,
             "source_time": metrics.get("source_time"),
+            # 점수의 근거를 그대로 적는다 — 화면 숫자와 배점이 어긋나면 안 된다.
+            "basis": (
+                f"20일선 위 {breadth:.0f}% · 5일 오른 종목 {rose5_share:.0f}% · "
+                f"20일 오른 종목 {rose20_share:.0f}% · 고점 대비 {less_drop:+.1f}%"
+                if None not in (breadth, rose5_share, rose20_share, less_drop)
+                else "자료 일부 부족"),
         })
-
-    _apply_general_theme_scores(rows)
 
     rows.sort(key=lambda row: (bool(row.get("ok")), row.get("score", -1)), reverse=True)
     for index, row in enumerate(rows, 1):
@@ -3340,8 +3229,7 @@ def _leader_score(metrics: dict, theme_ret20: float | None) -> tuple[float, list
     ]
 
 
-def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: float,
-                *, general_theme_trading: bool = False) -> dict:
+def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: float) -> dict:
     current = metrics.get("current")
     atr = metrics.get("atr")
     sma20 = metrics.get("sma20")
@@ -3366,31 +3254,18 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
         invalidation = current - max((atr or current * .03) * 2, current * .03)
         zone_low, zone_high = trigger, trigger * 1.007
         target = trigger + 2 * (trigger - invalidation)
-    elif general_theme_trading or score >= LEADER_GATE_MARK:
+    elif score >= LEADER_GATE_MARK:
         state = "관찰"
         trigger = zone_low = zone_high = invalidation = target = None
     else:
         state = "제외"
         trigger = zone_low = zone_high = invalidation = target = None
 
-    # 일반 테마매매는 새 종목·테마 최종점수로 후보를 고른다. 여기서 옛 테마70·
-    # 종목조건60을 다시 통과시키면 같은 후보를 숨은 옛 점수로 이중 심사하게 된다.
-    # 시장과 기존 가격자리만 진입 판단으로 남기고, 다른 호출 경로는 종전 게이트를
-    # 기본값으로 그대로 쓴다.
-    gates_ok = (market_score >= 50 if general_theme_trading else
-                market_score >= 50 and theme_score >= 70 and score >= LEADER_GATE_MARK)
-    ready_state = state == "돌파 확인" or (
-        state == "눌림목 대기" and not general_theme_trading
-    )
-    recommendation = "조건부 후보" if gates_ok and ready_state else "관찰" if state not in {"추격 금지", "제외"} else "추천 제외"
+    gates_ok = (market_score >= 50 and theme_score >= 70
+                and score >= LEADER_GATE_MARK)
+    recommendation = "조건부 후보" if gates_ok and state in {"돌파 확인", "눌림목 대기"} else "관찰" if state not in {"추격 금지", "제외"} else "추천 제외"
     if market_score < 50:
         buy_reason = "시장 국면이 약세 구간이라 신규 매수를 보류합니다."
-    elif general_theme_trading and state == "눌림목 대기":
-        buy_reason = "좋은 후보입니다. 아직 매수 가격을 기다립니다."
-    elif general_theme_trading and state == "돌파 확인":
-        buy_reason = "좋은 후보입니다. 거래량이 확인된 돌파 기준가를 넘은 뒤에만 진입합니다."
-    elif general_theme_trading and state == "관찰":
-        buy_reason = "좋은 후보이지만 현재 가격자리가 아직 만들어지지 않았습니다."
     elif theme_score < 70:
         buy_reason = "테마 강도가 기준 미달이라 종목 점수가 높아도 매수하지 않습니다."
     elif score < LEADER_GATE_MARK:
@@ -3416,7 +3291,6 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
         "invalidation": invalidation,
         "target": target,
         "buy_reason": buy_reason,
-        "general_theme_trading": bool(general_theme_trading),
     }
 
 
@@ -3463,7 +3337,7 @@ TOP_REVIEW_REFINE = 30
 
 
 def _refine_top_with_live(rows, *, market_score: float) -> None:
-    """상위 후보의 현재 가격자리만 갱신한다. 실패하면 종가 자료를 그대로 둔다."""
+    """상위 후보만 지금 시세(분봉)로 다시 점수를 낸다. 실패하면 종가 점수 그대로 둔다."""
     tickers = [str(r.get("ticker") or "").upper() for r in rows if r.get("ticker")]
     if not tickers:
         return
@@ -3489,18 +3363,9 @@ def _refine_top_with_live(rows, *, market_score: float) -> None:
         # 눌림목에서 온 줄은 점수 계산식이 다르다(눌림 점수). 그건 건드리지 않는다.
         if "pullback" in row:
             continue
-        # 일반 테마 후보는 이미 종목 60% + 테마 40%의 final_score로 줄을 세웠다.
-        # 여기서 옛 조건점수(_leader_score)로 score를 덮으면 순위 9에서만 서로 다른
-        # 점수가 되어 버린다. 현재 분봉은 가격자리 판정에만 반영한다.
-        if row.get("final_score") is not None:
-            entry_score = float(row.get("condition_score") or 0)
-        else:
-            entry_score, score_parts = _leader_score(metrics, row.get("theme_ret20"))
-            row["score"] = entry_score
-            row["score_parts"] = score_parts
+        row["score"], row["score_parts"] = _leader_score(metrics, row.get("theme_ret20"))
         row["plan"] = _entry_plan(
-            metrics, entry_score, market_score, float(row.get("theme_score") or 0),
-            general_theme_trading=bool((row.get("plan") or {}).get("general_theme_trading")),
+            metrics, row["score"], market_score, float(row.get("theme_score") or 0)
         )
 
 
@@ -3548,11 +3413,8 @@ def _prefetch_leader_quotes(theme_rows) -> None:
     # 실패해도 그냥 넘어간다 — 각 테마가 예전처럼 자기 몫을 받으면 되므로
     # 여기서 막히면 느려지기만 하고 결과는 같다.
     try:
-        # get_theme_leaders도 2년 일봉을 쓴다. 여기만 1년을 받으면 화면이 이미
-        # 확보한 2년 묶음을 못 쓰고, 순위9을 처음 열 때 같은 종목을 한 번 더
-        # 내려받는다. 기간을 맞추면 값은 그대로이고 추가 조회만 사라진다.
-        if not _cache_is_warm(unique, period="2y", interval="1d", ttl_seconds=300):
-            _download_cached(unique, period="2y", interval="1d", ttl_seconds=300)
+        if not _cache_is_warm(unique, period="1y", interval="1d", ttl_seconds=300):
+            _download_cached(unique, period="1y", interval="1d", ttl_seconds=300)
     except Exception as exc:
         _log.warning("jarvis3 top7 prefetch failed: %s", exc)
 
@@ -3563,17 +3425,11 @@ def _keep_better(picked: dict, row: dict, *, source: str) -> None:
     if not ticker:
         return
     kept = picked.get(ticker)
-    candidate_score = float(
-        row.get("final_score") if row.get("final_score") is not None else row.get("score") or 0
-    )
     if kept is not None:
         kept.setdefault("sources", [])
         if source and source not in kept["sources"]:
             kept["sources"].append(source)
-        kept_score = float(
-            kept.get("final_score") if kept.get("final_score") is not None else kept.get("score") or 0
-        )
-        if candidate_score <= kept_score:
+        if float(row.get("score") or 0) <= float(kept.get("score") or 0):
             return
         row = dict(row)
         row["sources"] = kept["sources"]
@@ -3591,10 +3447,11 @@ def find_top_reviewed_stocks(
     benchmark_ret20: float | None = None,
     limit: int = TOP_REVIEW_LIMIT,
 ) -> dict:
-    """일반 테마매매 후보를 이미 계산된 final_score 순으로 모은다.
+    """'매수 심사 결과' 종목 조건점수 상위 N개 (2026-07-30 사용자 지시).
 
-    전수 검색을 새로 돌리지 않고, 이미 계산된 20개 테마 구성종목만 모아
-    일반 테마 최종점수(종목 60% + 테마 40%)로 줄을 세운다.
+    자비스4(한국)의 같은 이름 함수와 짝이다. 전수 검색을 새로 돌리지 않고,
+    **이미 화면에 떠 있는 테마의 대장주**와 **이미 돌려 둔 눌림목 결과**만 모아
+    종목 조건점수 하나로 줄 세운다.
     """
     picked: dict[str, dict] = {}
     errors: list[str] = []
@@ -3649,30 +3506,30 @@ def find_top_reviewed_stocks(
                   else "눌림목")
         _keep_better(picked, merged, source=origin)
 
-    # 일반 테마매매 후보는 새 general_final_score만으로 순위를 정한다. 옛 테마
-    # 자리나 옛 leader_score가 마지막 단계에서 순서를 바꾸면 안 된다.
+    # **대장주는 종목 조건점수가 아니라 테마 순위로 줄 세운다**(2026-08-12).
+    # 조건점수는 합격 항목이 하나도 없고, 테마 등수는 세 그물에서 다 통과한
+    # 유일한 항목이다. 테마 1위의 대장주가 맨 위로 온다.
+    #
+    # **2026-08-15에 상하님께 다시 여쭙고 이대로 두기로 했다.** 그날 실측을 보여
+    # 드렸다 — 조건점수는 REGN 75.6 · AMGN 75.0이 VLO 66.9보다 높은데도 바이오가
+    # 테마 2등이라 아래로 밀렸다. 조건점수 순으로 바꾸는 것과 테마를 번갈아 놓는
+    # 것을 나란히 보여 드렸고, 상하님이 **'지금 그대로'**를 고르셨다.
+    # 바꾸려면 먼저 여쭙는다(CLAUDE.md 0-1 나).
     theme_place = {name: index for index, name in enumerate(
         [str(r.get("name") or "") for r in sorted(
             theme_rows or [], key=lambda r: float(r.get("score") or 0), reverse=True)])}
 
     def _order(item):
-        final_score = item.get("final_score")
-        if final_score is not None:
-            return (0, -float(final_score))
         places = [theme_place[name] for name in (item.get("sources") or [])
                   if name in theme_place]
-        return (1, min(places) if places else len(theme_place),
+        return (min(places) if places else len(theme_place),
                 -float(item.get("score") or 0))
 
     ranked = sorted(picked.values(), key=_order)
     # 상위 후보 몇 개만 지금 시세로 다시 재고 그 안에서 최종 차례를 낸다 —
     # 157종목 전부 분봉을 받던 것을 없앤다.
-    result_limit = max(1, int(limit))
-    # 반환하지 않을 후보의 분봉까지 받을 필요는 없다. final_score 순위는 이 단계에서
-    # 바뀌지 않으므로, 화면에 실제로 쓸 줄만 현재 가격자리로 갱신해도 결과는 같다.
-    refined = ranked[: min(TOP_REVIEW_REFINE, result_limit)]
-    _refine_top_with_live(refined, market_score=market_score)
-    rows = sorted(refined, key=_order)[:result_limit]
+    _refine_top_with_live(ranked[:TOP_REVIEW_REFINE], market_score=market_score)
+    rows = sorted(ranked[:TOP_REVIEW_REFINE], key=_order)[: max(1, int(limit))]
     for index, row in enumerate(rows, 1):
         row["pick_rank"] = index
 
@@ -3762,8 +3619,7 @@ def collect_top_picks(theme_rows, *, market_score: float = 0,
     if leaders is None:
         try:
             leaders = find_top_reviewed_stocks(
-                theme_rows or [], market_score=market_score,
-                limit=TOP_REVIEW_SLOTS["leader"])
+                theme_rows or [], market_score=market_score, limit=12)
         except Exception as exc:                     # 한 파트가 죽어도 나머지는 산다
             errors.append(f"테마 대장주: {exc}")
             leaders = {}
@@ -3879,9 +3735,7 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
     theme = THEME_BY_NAME.get(theme_name)
     if theme is None:
         return {"ok": False, "error": "등록되지 않은 테마입니다", "rows": []}
-    # SPY는 일반 종목점수의 시장 기준이다. 이미 화면 전체의 200종목 일봉 묶음에
-    # 들어 있어 보통은 캐시 부분집합을 재사용하고, API 호출 횟수는 늘지 않는다.
-    tickers = ("SPY", theme["etf"], theme["alt_etf"], *theme["stocks"])
+    tickers = (theme["etf"], theme["alt_etf"], *theme["stocks"])
     # **2년치를 부른다. 1년치가 아니다**(2026-08-21). 화면은 테마 순위표를 그리며
     # 이미 248종목 2년치를 한 묶음으로 받아 뒀는데, 여기서 1년치를 부르면 캐시
     # 열쇠(티커·기간·간격·프리포스트)의 '기간'이 달라 그 묶음을 못 쓴다. 그래서
@@ -3900,22 +3754,13 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
     etf_used = theme["etf"] if theme["etf"] in daily else theme["alt_etf"]
     theme_metrics = _series_metrics(daily.get(etf_used), live.get(etf_used))
     theme_ret20 = theme_metrics.get("ret20") if theme_metrics.get("ok") else None
-    benchmark_metrics = _series_metrics(daily.get("SPY"))
-    entry_theme_score = _legacy_theme_score_for_entry(theme, daily)
     rows = []
     for ticker in theme["stocks"]:
         metrics = _series_metrics(daily.get(ticker), live.get(ticker))
         if not metrics.get("ok"):
             continue
-        # 기존 조건점수는 매수심사 결과를 바꾸지 않도록 그대로 계산한다.
-        # 일반 테마 후보 순위는 아래 새 종목점수와 테마점수 60/40만 쓴다.
-        condition_score, condition_parts = _leader_score(metrics, theme_ret20)
-        stock_score, stock_parts = _general_stock_score(metrics, benchmark_metrics)
-        final_score = _general_final_score(stock_score, theme_score)
-        plan = _entry_plan(
-            metrics, condition_score, market_score, entry_theme_score,
-            general_theme_trading=True,
-        )
+        score, parts = _leader_score(metrics, theme_ret20)
+        plan = _entry_plan(metrics, score, market_score, theme_score)
         daily_frame = daily.get(ticker)
         daily_chart = None
         weekly_chart = None
@@ -3926,12 +3771,8 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
         rows.append({
             "ticker": ticker,
             "name": STOCK_NAMES.get(ticker, ticker),
-            "score": final_score,
-            "stock_score": stock_score,
-            "stock_score_parts": stock_parts,
-            "final_score": final_score,
-            "condition_score": condition_score,
-            "condition_score_parts": condition_parts,
+            "score": score,
+            "score_parts": parts,
             # 이 두 값이 있어야 나중에 이 종목만 따로 다시 점수를 낼 수 있다
             # (순위 7이 상위 후보만 분봉을 받아 다시 재는 데 쓴다).
             "theme_ret20": theme_ret20,
@@ -3950,8 +3791,9 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
         row["rank"] = index
         from_high = row["metrics"].get("from_high_pct")
         row["stock_reason"] = (
-            f"테마 내 일반 점수 {index}위 · 종목점수 {row['stock_score']:.1f}/100 · "
-            f"테마점수 {theme_score:.1f}/100"
+            f"테마 내 종합 {index}위 · 52주 고가 대비 {from_high:.1f}% · "
+            f"20일 수익률 {row['metrics']['ret20']:+.1f}%"
+            if from_high is not None else f"테마 내 종합 {index}위"
         )
     return {
         "ok": bool(rows),
