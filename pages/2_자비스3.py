@@ -6365,7 +6365,7 @@ def _briefing_css() -> None:
         .j3b-card.compact{height:122px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:none!important}.j3b-card.compact .j3b-card-notes{bottom:5px!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:64px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:8px!important;width:100%!important;overflow:hidden!important}div[class*="st-key-j3b_grid_"] [data-testid="stColumn"],div[class*="st-key-j3b_grid_"] [data-testid="column"]{width:calc(50% - 4px)!important;min-width:0!important;flex:1 1 0!important}
         div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
-        div.st-key-j3b_open_market button{width:100%!important;min-height:42px!important;margin:10px 0 4px!important;border:1px solid #c1975b!important;border-radius:13px!important;background:#06264a!important;color:#f7e7bd!important;font-size:14px!important;font-weight:800!important}
+        .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:58px!important;padding:6px 8px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}div.st-key-j3b_go_market_footer{position:fixed!important;z-index:110!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:58px!important;pointer-events:none!important}div.st-key-j3b_go_market_footer button{position:absolute!important;left:50%!important;top:0!important;width:25%!important;height:58px!important;min-height:58px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important}
         @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card{height:118px!important}.j3b-card.compact{height:122px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
         </style>
         """,
@@ -6514,6 +6514,46 @@ def _briefing_home_extras(extras: list[dict]) -> list[dict]:
     return extras[:4] if extras else [dict(item) for item in _BRIEFING_FIRST_VIEW_EXTRAS]
 
 
+def _briefing_local_search(query: str) -> list[dict]:
+    """이미 보유한 미국 종목 명부에서 즉시 찾는다.
+
+    브리핑 화면의 ``+`` 버튼 때문에 미국 거래소 명부를 인터넷에서 다시 받으면
+    첫 클릭이 오래 걸린다. 기존 약 200종목 명부와 한글 별칭만 재사용한다.
+    """
+    text = str(query or "").strip()
+    if not text:
+        return []
+    aliases = getattr(j3data, "KOREAN_TICKER_ALIASES", {})
+    names = getattr(j3data, "STOCK_NAMES", {})
+    universe = tuple(getattr(j3data, "US_LARGE_CAP_UNIVERSE", ()))
+    normalized = text.replace(" ", "")
+    alias_ticker = aliases.get(normalized)
+    upper = normalized.upper()
+    lowered = normalized.lower()
+    ordered = []
+    if alias_ticker:
+        ordered.append(alias_ticker)
+    ordered.extend(ticker for ticker in universe if ticker == upper)
+    ordered.extend(ticker for ticker in universe if ticker.startswith(upper))
+    ordered.extend(
+        ticker for ticker in universe
+        if str(names.get(ticker, ticker)).lower().replace(" ", "").startswith(lowered)
+    )
+    ordered.extend(
+        ticker for ticker in universe
+        if lowered in str(names.get(ticker, ticker)).lower().replace(" ", "")
+    )
+    rows, seen = [], set()
+    for ticker in ordered:
+        if ticker in seen:
+            continue
+        seen.add(ticker)
+        rows.append({"ticker": ticker, "name": names.get(ticker, ticker), "market": "US"})
+        if len(rows) >= 12:
+            break
+    return rows
+
+
 def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
     with st.container(key="j3b_search_row"):
         query_col, plus_col = st.columns([7, 1])
@@ -6525,11 +6565,8 @@ def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
         if not query.strip():
             st.session_state["j3b_search_message"] = "추가할 종목명이나 티커를 먼저 입력하세요."
         else:
-            found = j3data.search_stocks(query)
-            rows = found.get("rows") or []
-            if not found.get("ok", False):
-                st.session_state["j3b_search_message"] = "종목 검색을 완료하지 못했습니다. 잠시 후 다시 눌러주세요."
-            elif not rows:
+            rows = _briefing_local_search(query)
+            if not rows:
                 st.session_state["j3b_search_message"] = "확인된 미국 종목을 찾지 못했습니다."
             else:
                 chosen = rows[0]
@@ -6617,10 +6654,10 @@ def _render_stock_briefing() -> None:
         if len(extras) > 4:
             st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 종목 더보기</div>', unsafe_allow_html=True)
             _render_briefing_grid(extras[4:], cards, removable=True, key="extra2", compact=True)
-        with st.container(key="j3b_open_market"):
-            if st.button("미국전체시장 판단", key="j3b_go_market_footer", width="stretch"):
-                st.session_state["j3_briefing_page"] = "market"
-                st.rerun()
+        st.markdown('<nav class="j3b-bottom-nav"><span class="j3b-nav-item active"><b>⌂</b>홈</span><span class="j3b-nav-item"><b>★</b>관심종목</span><span class="j3b-nav-item"><b>◕</b>시장분석</span><span class="j3b-nav-item"><b>♙</b>마이페이지</span></nav>', unsafe_allow_html=True)
+        if st.button("시장분석", key="j3b_go_market_footer"):
+            st.session_state["j3_briefing_page"] = "market"
+            st.rerun()
         _schedule_briefing_news_refresh()
 
 

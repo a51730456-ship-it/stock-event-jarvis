@@ -100,7 +100,8 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert all(ticker in rendered for ticker in ("NVDA", "TSLA", "PLTR", "AMD"))
     assert any(node.key == "j3b_go_market" for node in app.button)
     market_button = next(node for node in app.button if node.key == "j3b_go_market_footer")
-    assert market_button.label == "미국전체시장 판단"
+    assert market_button.label == "시장분석"
+    assert "시장분석" in rendered
     assert "본 정보는 투자 참고용" not in rendered
     source = page.read_text(encoding="utf-8")
     assert ".j3b-card.compact{height:122px!important}" in source
@@ -124,9 +125,6 @@ def test_search_plus_adds_the_first_matching_extra_stock():
     with patch("jarvis3_briefing_store.ensure_tables"), \
          patch("jarvis3_briefing_store.all_stocks", return_value=stocks), \
          patch("jarvis3_briefing_store.add_extra") as add_extra, \
-         patch("jarvis3_data.search_stocks", return_value={
-             "ok": True, "rows": [{"ticker": "AAPL", "name": "Apple", "market": "NASDAQ"}],
-         }), \
          patch("jarvis3_data.get_briefing_cards", return_value=cards), \
          patch("jarvis3_briefing_news.get_or_schedule", return_value={"ok": True, "items": []}):
         app = AppTest.from_file(str(page), default_timeout=30)
@@ -137,3 +135,12 @@ def test_search_plus_adds_the_first_matching_extra_stock():
         next(node for node in app.text_input if node.key == "j3b_search").input("애플").run(timeout=30)
         next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
     add_extra.assert_called_once_with("AAPL", "Apple")
+
+
+def test_briefing_search_uses_the_existing_local_universe_only():
+    page = Path(__file__).parent / "pages" / "2_자비스3.py"
+    source = page.read_text(encoding="utf-8")
+    assert "def _briefing_local_search" in source
+    assert "US_LARGE_CAP_UNIVERSE" in source
+    briefing_block = source[source.index("def _briefing_local_search"):source.index("def _schedule_briefing_news_refresh")]
+    assert "search_stocks(" not in briefing_block
