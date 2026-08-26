@@ -5,6 +5,7 @@
 '점수 하나'라는 규칙을 여기서 붙잡는다.
 """
 
+import time
 import unittest
 from unittest.mock import patch
 
@@ -750,6 +751,34 @@ class WarmTopPicksTests(unittest.TestCase):
                     break
                 _t.sleep(0.05)
         self.assertFalse(j3._TOP_PICK_WARM["on"], "실패한 뒤 표시가 안 내려갔다")
+
+    def test_the_nasdaq_history_is_warmed_too(self):
+        """나스닥 지수 25년치도 같이 미리 받는다 (2026-08-26 상하님이 "2번" 선택).
+
+        상승장(신고가 눌림매수)만 그 25년치를 쓴다 — 지금 시장이 고점에서 얼마나
+        내려와 있는지를 재려는 것이다. 급락 갈래는 안 쓴다. 2026-08-21에 상하님이
+        "노트북은 3초, 스마트폰은 43초다" 하신 그 차이의 자리가 여기다. 그때
+        warm_market_history 를 만들어 두고 화면에 잇지 않아 아무도 안 부르는 채로
+        남아 있었다.
+        """
+        called = {"n": 0}
+        with patch.object(j3, "warm_market_history", lambda: called.__setitem__("n", called["n"] + 1)),              patch.object(j3, "get_theme_rankings", lambda: {"ok": True, "rows": []}),              patch.object(j3, "get_market_overview", lambda: {"score": 65.0}),              patch.object(j3, "collect_top_picks", lambda *a, **k: {"ok": True, "rows": []}):
+            j3.warm_top_picks()
+            import time as _t
+            for _ in range(60):
+                if not j3._TOP_PICK_WARM["on"]:
+                    break
+                _t.sleep(0.05)
+        self.assertEqual(called["n"], 1, "나스닥 25년치를 미리 안 받는다")
+
+    def test_the_nasdaq_warm_runs_even_when_the_picks_are_fresh(self):
+        """순위 9를 방금 해 뒀어도 나스닥 25년치는 따로 챙긴다."""
+        called = {"n": 0}
+        with j3._TOP_PICK_WARM_LOCK:
+            j3._TOP_PICK_WARM["at"] = time.time()   # 방금 해 둔 것으로 친다
+        with patch.object(j3, "warm_market_history", lambda: called.__setitem__("n", called["n"] + 1)):
+            j3.warm_top_picks()
+        self.assertEqual(called["n"], 1, "순위 9가 최신이면 나스닥까지 건너뛴다")
 
     def test_the_screen_calls_it_but_survives_an_old_module(self):
         """첫 화면이 이것을 부르되, 옛 모듈이 남아 있어도 안 죽는다."""

@@ -197,7 +197,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082604
+MODULE_REVISION = 2026082605
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1223,7 +1223,22 @@ _TOP_PICK_WARM = {"on": False, "at": 0.0}
 
 
 def warm_top_picks() -> None:
-    """순위 9 한 벌을 뒤에서 미리 만들어 둔다. 실패해도 화면은 그대로 돈다."""
+    """순위 9 한 벌을 뒤에서 미리 만들어 둔다. 실패해도 화면은 그대로 돈다.
+
+    **나스닥 지수 25년치도 여기서 같이 미리 받는다** (2026-08-26 상하님이 "2번"
+    으로 정해 주심). 상승장(신고가 눌림매수)은 지금 시장이 고점에서 얼마나
+    내려와 있는지를 재려고 그 25년치를 따로 받는데, 급락 갈래는 안 받는다 —
+    2026-08-21에 상하님이 "노트북은 3초, 스마트폰은 43초다" 하신 그 차이의
+    자리가 여기다. 그때 warm_market_history 를 만들어 두고 화면에 잇지 않아
+    아무도 안 부르는 채로 남아 있었다. 이제 여기서 부른다.
+
+    각자 제 뒤 일꾼을 쓰므로 서로 기다리지 않는다. 이미 받아 둔 것이 있으면
+    그 자리에서 바로 돌아간다.
+    """
+    try:
+        warm_market_history()
+    except Exception as exc:
+        _log.warning("IXIC warm-up call failed: %s", exc)
     now = time.time()
     with _TOP_PICK_WARM_LOCK:
         if _TOP_PICK_WARM["on"]:
