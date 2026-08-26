@@ -4035,7 +4035,8 @@ def _render_radar_tab(market: dict) -> None:
             top_candidates[0],
         )
         _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
-    _section_close("j3_theme_panel_open", "테마 종목 화면 닫기")
+    _section_close("j3_theme_panel_open", "테마 종목 화면 닫기",
+                   return_to=_RADAR_MAIN_ANCHOR)
     _render_pullback_finder(market, ranking)
     # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
     if not guest_mode:
@@ -6027,6 +6028,8 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     # 내려가라는 표시를 지워 버려서, 정작 다시 그린 판에는 표시가 없다.
     # 그냥 뒤에 둔다 — 다시 그리기로 멈춘 판은 여기까지 안 오고, 다음 판에서 돈다.
     scroll_to.run(st)
+    # 이 조각 안에서 「다 닫기」를 눌렀으면 여기서 판 전체를 한 번 다시 그린다.
+    _run_close_all_if_requested()
 
 
 def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
@@ -6060,18 +6063,17 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     # 여는 단추는 **맨 위**에 있다(순위표 자리). 여기에는 닫는 단추만 둔다 —
     # 상승장·급락과 같은 규칙이다(위에서 열고, 아래에서도 닫는다).
     if st.session_state.get(_THEME_RANK_OPEN):
-        def _close_theme_rank_to_main() -> None:
-            # 이 단추는 fragment 안에 있으므로 상태만 바꾸면 상위 순위표가 화면에
-            # 그대로 남는다. 미국테마 전체를 한 번 다시 그려 순위·테마 상세을 함께
-            # 닫고 메인 시작점으로 돌아간다.
-            _close_full_theme_rank()
-            st.session_state.pop("j3_close_all_pending", None)
-            st.rerun(scope="app")
-
+        # 이 단추는 프래그먼트 안에 있다. 상태만 바꾸면 그 조각만 다시 그려져
+        # 위쪽 순위표·테마 상세가 화면에 그대로 남는다.
+        # **콜백(on_click) 안에서 st.rerun을 부르면 스트림릿이 무시한다.**
+        # 2026-08-26까지 그렇게 되어 있어서, 맨 밑 닫기를 눌러도 순위표가 남았다
+        # (상하님 캡처 — 닫았는데 첫 번째 화면처럼 그대로였다).
+        # 그래서 콜백은 '판 전체를 다시 그려라'만 적어 두고, 조각이 끝날 때
+        # (_run_close_all_if_requested) 실제로 다시 그린다.
         st.button(
             "✕ 20개 테마 실시간 순위 닫기",
             key=f"close_{_THEME_RANK_OPEN}",
-            on_click=_close_theme_rank_to_main,
+            on_click=_close_all_from_fragment,
         )
     st.markdown(
         "<div class='j3-section-title'>📉 종목 찾기</div>",
@@ -6621,7 +6623,7 @@ def _briefing_asset_uri(filename: str) -> str:
     asset = Path(__file__).resolve().parents[1] / "assets" / "briefing" / filename
     if not asset.is_file():
         return ""
-    mime = "image/svg+xml" if asset.suffix.lower() == ".svg" else "image/png"
+    mime = {".svg": "image/svg+xml", ".webp": "image/webp"}.get(asset.suffix.lower(), "image/png")
     encoded = base64.b64encode(asset.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{encoded}"
 
@@ -6712,6 +6714,8 @@ def _briefing_css() -> None:
         unsafe_allow_html=True,
     )
     st.markdown(_BRIEFING_OPEN_CSS, unsafe_allow_html=True)
+    st.markdown(_decor_css(), unsafe_allow_html=True)
+    st.markdown(_BRIEFING_TABLET_CSS, unsafe_allow_html=True)
 
 
 _BRIEFING_OPEN_CSS = """
@@ -6775,6 +6779,67 @@ _BRIEFING_OPEN_CSS = """
  .j3b-open-news>summary{font-size:15px;line-height:1.6}
  .j3b-open-orig{font-size:14px}
  .j3b-market-news-title{font-size:16px}
+}
+</style>
+"""
+
+
+_BRIEFING_TABLET_CSS = """
+<style>
+/* ── 태블릿(갤럭시탭 S8+) 세로·가로 ─────────────────────────────────────────
+   세로는 CSS 폭 약 800px, 가로는 약 1138px이다. 폰 기준 430px를 그대로 쓰면
+   양옆이 텅 비고 글자가 작아 보인다. 폭을 넓히고 글자·카드를 그만큼 키운다.
+   숫자·점수·판정은 건드리지 않는다 — 보이는 크기만 바꾼다. */
+@media (min-width:700px) and (max-width:1199px){
+ body:has(.j3b-home) [data-testid="stMainBlockContainer"],
+ body:has(.j3b-home) .block-container{max-width:min(760px,100vw)!important;
+  padding:0 14px 108px!important}
+ .j3b-hero{height:250px!important;padding:26px 28px!important;border-radius:0 0 30px 30px!important}
+ .j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:112%!important}
+ .j3b-title{font-size:46px!important;letter-spacing:-2.6px!important}
+ .j3b-sub{margin-top:11px!important;font-size:24px!important}
+ .j3b-head-copy{left:28px!important;top:26px!important}
+ .j3b-head-actions{right:22px!important;top:22px!important;gap:10px!important}
+ .j3b-round,.j3b-live{height:46px!important;border-radius:26px!important}
+ .j3b-round{width:46px!important;font-size:27px!important}
+ .j3b-live{padding:0 15px!important;gap:8px!important;font-size:16px!important}
+ .j3b-live i{width:11px!important;height:11px!important}
+ .j3b-section{margin:20px 6px 12px!important;font-size:26px!important;line-height:34px!important}
+ .j3b-section .j3b-flag{font-size:32px!important}
+ .j3b-section .j3b-section-icon{width:34px!important;height:34px!important}
+ .j3b-section .j3b-more{font-size:17px!important}
+ .j3b-news{margin:9px 0!important;border-radius:20px!important}
+ .j3b-news-link{min-height:52px!important;padding:9px 18px!important;gap:12px!important;font-size:16px!important}
+ .j3b-news-icon{width:30px!important;height:30px!important;font-size:16px!important}
+ .j3b-news-dot{width:15px!important;height:15px!important}
+ .j3b-card:not(.compact){height:auto!important;min-height:250px!important;padding:16px 15px!important;border-radius:22px!important}
+ .j3b-card.compact{height:auto!important;min-height:270px!important;padding:16px 15px!important;border-radius:22px!important}
+ .j3b-logo{width:60px!important;height:60px!important;border-radius:16px!important}
+ .j3b-symbol{font-size:32px!important}
+ .j3b-name{font-size:17px!important}
+ .j3b-price{font-size:28px!important;margin-top:12px!important}
+ .j3b-change{font-size:22px!important}
+ .j3b-chart{height:74px!important}
+ .j3b-note{font-size:15px!important;line-height:1.6!important}
+ .j3b-card-notes{bottom:16px!important;left:15px!important;right:15px!important}
+ .j3b-decor-img{width:86px!important}
+ .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:12px!important;left:50%!important;
+  transform:translateX(-50%)!important;margin-left:-60px!important;
+  width:min(520px,62vw)!important}
+ .j3b-bottom-nav{height:76px!important;padding:7px 12px!important;border-radius:26px!important}
+ .j3b-nav-item{min-height:62px!important;font-size:16px!important;gap:4px!important}
+ .j3b-nav-item b{font-size:30px!important}
+ div.st-key-j3b_nav_controls{height:76px!important}
+ div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:76px!important}
+ div.st-key-j3b_nav_controls [data-testid="stColumn"]{height:76px!important}
+ div.st-key-j3b_nav_controls button{height:76px!important;min-height:76px!important}
+ div[class*="st-key-j3b_extra_header"] .j3b-section{font-size:21px!important}
+ div[class*="st-key-j3b_search_row"] input{height:50px!important;font-size:16px!important}
+ div[class*="st-key-j3b_search_row"] .stButton button{width:50px!important;height:50px!important;
+  min-height:50px!important;font-size:28px!important}
+ .j3b-open-card{width:min(680px,calc(100vw - 40px))!important;padding:22px 22px 112px!important}
+ .j3b-open-news>summary{font-size:17px!important;line-height:1.6!important}
+ .j3b-open-orig{font-size:16px!important}
 }
 </style>
 """
@@ -6867,14 +6932,35 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
 
 
 
-_DECOR_IMAGES = ("soot_lamp_cut.png", "small_cat_lamp_cut.png",
-                 "small_totoro_cut.png", "bunny_bench_cut.png")
+# (이름표, 파일, 가로:세로) — 이름표는 CSS 갈래 이름으로 쓴다.
+_DECOR_IMAGES = (
+    ("soot", "soot_lamp_cut.webp", "75/72"),
+    ("catlamp", "small_cat_lamp_cut.webp", "102/75"),
+    ("totoro", "small_totoro_cut.webp", "99/73"),
+    ("bunny", "bunny_bench_cut.webp", "133/101"),
+)
 _DECOR_BY_TICKER = {
-    "NVDA": "soot_lamp_cut.png", "TSLA": "small_totoro_cut.png",
-    "PLTR": "small_cat_lamp_cut.png", "AMD": "small_totoro_cut.png",
-    "AAPL": "small_cat_lamp_cut.png", "META": "soot_lamp_cut.png",
-    "AVGO": "small_cat_lamp_cut.png", "RGTI": "bunny_bench_cut.png",
+    "NVDA": "soot", "TSLA": "totoro", "PLTR": "catlamp", "AMD": "totoro",
+    "AAPL": "catlamp", "META": "soot", "AVGO": "catlamp", "RGTI": "bunny",
 }
+
+
+@st.cache_data(show_spinner=False)
+def _decor_css() -> str:
+    """캐릭터 그림 네 장을 CSS에 **한 번씩만** 싣는다.
+
+    예전에는 카드마다 그림을 통째로 넣어서, 카드 열두 장이면 같은 그림이 스물네 번
+    실려 나갔다. 화면이 무거워진 원인이다(2026-08-26 상하님 지적).
+    """
+    rules = []
+    for name, filename, ratio in _DECOR_IMAGES:
+        uri = _briefing_asset_uri(filename)
+        if uri:
+            rules.append(f".j3b-decor-img.{name}{{background-image:url('{uri}');aspect-ratio:{ratio}}}")
+    if not rules:
+        return ""
+    return ("<style>.j3b-decor-img{background-size:contain;background-repeat:no-repeat;"
+            "background-position:bottom right;height:auto!important}" + "".join(rules) + "</style>")
 
 # 로고 그림이 없는 종목의 글자표 — (보일 글자, 바탕색 시작, 바탕색 끝, 글자색).
 # 그 회사가 실제로 쓰는 글자와 브랜드 색을 따랐다.
@@ -6957,10 +7043,9 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
     # 넣으신 종목은 티커에서 뽑아 늘 같은 캐릭터가 나오게 한다.
     decor_name = _DECOR_BY_TICKER.get(ticker.upper()) or _DECOR_IMAGES[
         sum(ord(letter) for letter in ticker.upper()) % len(_DECOR_IMAGES)
-    ]
-    decor_uri = _briefing_asset_uri(decor_name) if decor_name else ""
+    ][0]
     decor_side = " left" if ticker == "AAPL" else ""
-    decor_html = f'<img class="j3b-decor-img{decor_side}" src="{decor_uri}" alt="">' if decor_uri else ""
+    decor_html = f'<span class="j3b-decor-img {decor_name}{decor_side}"></span>'
     # 삭제는 저장된 추가 종목의 실제 Streamlit 버튼만 보여 준다.
     delete_visual = ""
     card_body = (
@@ -7205,7 +7290,7 @@ def _render_stock_briefing() -> None:
                     f'<div class="j3b-debug-overlay"><img src="{reference_uri}" alt=""></div>',
                     unsafe_allow_html=True,
                 )
-        catbus_uri = _briefing_asset_uri("hero_scene.png")
+        catbus_uri = _briefing_asset_uri("hero_scene.webp")
         catbus_html = f'<img class="j3b-hero-scene" src="{catbus_uri}" alt="">' if catbus_uri else ""
         st.markdown(
             '<div class="j3b-app j3b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'

@@ -210,9 +210,12 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert "mask-image:radial-gradient" not in source
     # 머리띠 배경은 견본(visual_reference.png)에서 잘라 낸 장면 한 장이다.
     # 그 안에 지구·도시·구름·고양이버스가 다 들어 있다(2026-08-26).
-    assert '_briefing_asset_uri("hero_scene.png")' in source
+    assert '_briefing_asset_uri("hero_scene.webp")' in source
+    # 캐릭터 그림은 카드마다 넣지 않고 CSS에 네 장만 한 번씩 싣는다(2026-08-26).
+    assert "def _decor_css()" in source
+    assert '<span class="j3b-decor-img ' in source
     assert ".j3b-hero:has(.j3b-hero-scene):before" in source
-    assert "soot_lamp_cut.png" in source
+    assert "soot_lamp_cut.webp" in source
     assert 'st.switch_page("app.py")' in source
 
 
