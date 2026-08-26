@@ -2251,3 +2251,28 @@ def test_stacked_rows_line_up_with_the_buttons():
     helper = source[source.index("def _stacked("):]
     helper = helper[:helper.index(chr(10) + "def ", 10)]
     assert "gap:16px" in helper
+
+def test_switching_screens_goes_back_to_the_top():
+    """화면을 바꾸면 **맨 위로 올라간다** (2026-08-27 상하님 지적).
+
+    상하님 — "맨 위에 화면이 다 사라졌다." · "맨 위에 화면 사라진 거 나타나게
+    하되 위에 여백을 너무 많이 두지 말라."
+
+    브라우저는 화면을 바꿔도 굴려 둔 자리를 그대로 들고 간다. 관심종목에서
+    아래로 내려보시다 시장분석을 누르면 그 자리에 그대로 서서, 맨 위의
+    「🌏 한국테마 →」·「📘 이 테마 설명」 두 단추를 지나친 자리가 보였다.
+    예전에는 위에 224px 빈자리가 있어 그것이 가려 줬는데, 그 빈자리를 없애니
+    드러났다.
+
+    브라우저 실측 — 아래로 900px 내려놓고 시장분석을 눌러도 스크롤 0,
+    위 여백 10px, 두 단추 다 보인다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    nav = source[source.index("def _render_briefing_bottom_nav("):]
+    nav = nav[:nav.index(chr(10) + "def ", 10)]
+    assert nav.count('scroll_to.request(st, "top")') == 2, "화면을 바꿔도 맨 위로 안 간다"
+    # 양쪽 화면에 '맨 위' 자리가 있어야 데려갈 곳이 있다.
+    assert source.count('scroll_to.anchor(st, "top")') == 2, "'맨 위' 자리가 한쪽에만 있다"
+    # 여백은 0이 아니라 조금 — 0이면 단추가 화면 끝에 붙어 주소창에 가린다.
+    assert "padding-top:10px!important" in source
+    assert "padding-top:0!important" not in source

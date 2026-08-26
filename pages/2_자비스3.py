@@ -6754,12 +6754,18 @@ def _render_existing_theme_content() -> None:
     # 숨겨도 <style> 안의 규칙은 그대로 작동한다 — 화면에 안 그려질 뿐이다.
     # `.j3-market-top` 은 표식일 뿐이라 같이 없앤다(body:has 는 숨겨도 찾는다).
     # `.jarvis-anchor` 는 **남긴다** — 숨기면 '맨 위로' 가 작동하지 않는다.
+    #
+    # ── 위 여백은 **0이 아니라 10px** (2026-08-27 상하님 지시) ────────────────
+    # 상하님 — "맨 위에 화면 사라진 거 나타나게 하되, 위에 여백을 너무 많이
+    # 두지 말라." 0으로 두면 맨 위 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)가
+    # 화면 끝에 딱 붙어, 폰 브라우저 주소창이 오르내릴 때 가려진다.
+    # 예전 224px 과는 비교가 안 되는 10px 이다.
     st.markdown(
         """
         <div class="j3-market-top"></div>
         <style>
         body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
-        body:has(.j3-market-top) .block-container { padding-top:0!important; }
+        body:has(.j3-market-top) .block-container { padding-top:10px!important; }
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style:only-child),
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] .j3-market-top) {
           display:none!important;
@@ -7723,11 +7729,19 @@ def _render_briefing_bottom_nav(active: str) -> None:
         if home_col.button("홈", key="j3b_nav_home"):
             st.session_state["j3_briefing_page"] = "home"
             st.switch_page("app.py")
+        # **화면을 바꾸면 맨 위로 올라간다** (2026-08-27 상하님 지적 — "맨 위에
+        # 화면이 다 사라졌다"). 브라우저는 화면을 바꿔도 굴려 둔 자리를 그대로
+        # 들고 간다. 관심종목에서 아래로 내려보시다 시장분석을 누르면 그 자리에
+        # 그대로 서서, 맨 위의 「한국테마 →」·「이 테마 설명」 두 단추를 지나친
+        # 자리가 보였다. 예전에는 위에 224px 빈자리가 있어 그것이 가려 줬는데,
+        # 그 빈자리를 없애니 드러났다.
         if watch_col.button("관심종목", key="j3b_nav_watch"):
             st.session_state["j3_briefing_page"] = "home"
+            scroll_to.request(st, "top")
             st.rerun()
         if market_col.button("시장분석", key="j3b_nav_market"):
             st.session_state["j3_briefing_page"] = "market"
+            scroll_to.request(st, "top")
             st.rerun()
 
 
@@ -7776,6 +7790,9 @@ def _render_stock_briefing() -> None:
         # 방문기록에 표식을 하나 쌓아 두면 첫 뒤로가기가 그 표식을 지우고 제자리에
         # 선다. 앞 화면(로그인·메뉴)으로 나가려면 두 번 누르면 된다.
         back_nav.opened(st, "j3b_backstop")
+        # 시장분석에서 관심종목으로 돌아올 때 데려올 '맨 위' 자리.
+        # 시장분석 쪽에는 이미 같은 이름의 자리가 있다(_render_existing_theme_content).
+        scroll_to.anchor(st, "top")
         with st.container(key="j3b_hero_box"):
             st.markdown(
                 '<div class="j3b-app j3b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'
