@@ -6731,7 +6731,7 @@ def _briefing_css() -> None:
         /* 시장판단 카드의 '살짝 뜨는' 결만 브리핑에 재사용한다. 시장판단 원본은 건드리지 않는다. */
         .j3b-news,.j3b-card-shell>.j3b-card-summary .j3b-card{transition:transform .12s ease-out,filter .12s ease-out,box-shadow .12s ease-out!important}
         .j3b-card-shell>.j3b-card-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-card-shell>.j3b-card-summary::-webkit-details-marker{display:none}
-        @media (hover:hover) and (pointer:fine){.j3b-news:hover,.j3b-card-shell:not([open])>.j3b-card-summary:hover .j3b-card{transform:translateY(-3px)!important;filter:brightness(1.1)!important;box-shadow:inset 0 1px #7bc9ff35,0 10px 20px #0008!important}}
+        .j3b-news:hover,.j3b-card-shell:not([open])>.j3b-card-summary:hover .j3b-card{filter:brightness(1.1)!important;box-shadow:inset 0 1px #7bc9ff35,0 10px 20px #0008!important}
         .j3b-news:active,.j3b-card-shell:not([open])>.j3b-card-summary:active .j3b-card{transform:translateY(0) scale(.99)!important}
         /* 카드 클릭 확대는 브라우저 기본 details 상태만 쓴다. 재조회·rerun·자바스크립트가 없다. */
         .j3b-card-shell[open]>.j3b-card-summary{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;background:rgba(0,9,25,.9)!important;cursor:zoom-out!important;box-sizing:border-box!important}
@@ -6942,44 +6942,47 @@ _BRIEFING_TOUCH_CSS = """
               border-color .12s ease-out, box-shadow .12s ease-out;
 }
 
-@media (hover:hover) {
-  /* 카드 — 통째로 뜨고 테두리가 밝아진다.
-     **뜨는 것은 껍데기(summary)에 건다.** 안쪽 .j3b-card 에 걸면 다른 규칙에 눌려
-     테두리만 바뀌고 움직이지 않았다(2026-08-26 실측). */
-  .j3b-card-shell:not([open]) > .j3b-card-summary:hover {
-    transform: translateY(-6px);
-    filter: brightness(1.14);
-  }
-  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-card {
-    border-color: rgba(150,220,255,.95) !important;
-    box-shadow: inset 0 1px #7bc9ff55, 0 0 0 1px rgba(110,200,255,.35),
-                0 16px 30px #000b !important;
-  }
-  /* 시장국면 계기판 바늘처럼, 로고가 한 번 살짝 흔들린다
-     (market_signal_ui.py 의 sig-needle-wiggle 과 같은 결). */
-  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-logo {
-    transform: scale(1.09);
-    animation: j3b-logo-wiggle .55s cubic-bezier(.3,.7,.4,1);
-  }
-  /* 카드 안의 로고와 캐릭터도 조금 더 나온다 */
-  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-decor-img { transform: translateY(-2px) scale(1.05); }
-  /* 브리핑 한 줄 */
-  .j3b-news:hover {
-    transform: translateY(-3px) !important;
-    filter: brightness(1.12) !important;
-    border-color: rgba(255,214,129,.85) !important;
-  }
-  /* 크게 연 화면의 뉴스 줄 */
-  .j3b-open-news > summary:hover { filter: brightness(1.25); transform: translateX(2px); }
-  /* 하단 이동표 */
-  .j3b-nav-item:hover { transform: translateY(-3px); filter: brightness(1.25); }
-  /* 머리띠의 ↻ 와 실시간 */
-  .j3b-round:hover, .j3b-live:hover {
-    transform: translateY(-2px); filter: brightness(1.15);
-    border-color: #ffd88a !important;
-  }
-  .j3b-section .j3b-more:hover { filter: brightness(1.4); transform: translateX(2px); }
+/* **미디어 조건을 걸지 않는다.** 시장분석(market_signal_ui.py)의 카드에는
+   `@media (hover:...)`가 하나도 없다. 그래서 폰·태블릿에서 손가락으로 누르면
+   브라우저가 :hover 를 걸어 줘 카드가 그대로 떠오른다. 내가 조건을 걸어 두는
+   바람에 터치 기기가 통째로 빠졌다(2026-08-26 상하님 지적 —
+   "시장분석은 스마트폰 태블릿에서 되는데, 시장분석 코딩을 봐라"). 조건을 걷는다. */
+/* 카드 — 통째로 뜨고 테두리가 밝아진다.
+   **뜨는 것은 껍데기(summary)에 건다.** 안쪽 .j3b-card 에 걸면 다른 규칙에 눌려
+   테두리만 바뀌고 움직이지 않았다(2026-08-26 실측). */
+.j3b-card-shell:not([open]) > .j3b-card-summary:hover {
+  transform: translateY(-6px);
+  filter: brightness(1.14);
 }
+.j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-card {
+  border-color: rgba(150,220,255,.95) !important;
+  box-shadow: inset 0 1px #7bc9ff55, 0 0 0 1px rgba(110,200,255,.35),
+              0 16px 30px #000b !important;
+}
+/* 시장국면 계기판 바늘처럼, 로고가 한 번 살짝 흔들린다
+   (market_signal_ui.py 의 sig-needle-wiggle 과 같은 결). */
+.j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-logo {
+  transform: scale(1.09);
+  animation: j3b-logo-wiggle .55s cubic-bezier(.3,.7,.4,1);
+}
+/* 카드 안의 로고와 캐릭터도 조금 더 나온다 */
+.j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-decor-img { transform: translateY(-2px) scale(1.05); }
+/* 브리핑 한 줄 */
+.j3b-news:hover {
+  transform: translateY(-3px) !important;
+  filter: brightness(1.12) !important;
+  border-color: rgba(255,214,129,.85) !important;
+}
+/* 크게 연 화면의 뉴스 줄 */
+.j3b-open-news > summary:hover { filter: brightness(1.25); transform: translateX(2px); }
+/* 하단 이동표 */
+.j3b-nav-item:hover { transform: translateY(-3px); filter: brightness(1.25); }
+/* 머리띠의 ↻ 와 실시간 */
+.j3b-round:hover, .j3b-live:hover {
+  transform: translateY(-2px); filter: brightness(1.15);
+  border-color: #ffd88a !important;
+}
+.j3b-section .j3b-more:hover { filter: brightness(1.4); transform: translateX(2px); }
 
 @keyframes j3b-logo-wiggle {
   0%   { transform: scale(1.09) rotate(0deg); }

@@ -2030,8 +2030,13 @@ def test_main_screen_lifts_like_the_market_cards():
     # 뜨는 것은 껍데기(summary)에 건다 — 안쪽 카드에 걸면 다른 규칙에 눌린다.
     assert ".j3b-card-shell:not([open]) > .j3b-card-summary:hover {" in touch
     assert "transform: translateY(-6px);" in touch
-    # 마우스가 있는 기기에서만 뜨고, 손가락으로는 눌리는 느낌만 준다.
-    assert "@media (hover:hover)" in touch
+    # **미디어 조건을 걸지 않는다** — 시장분석 카드가 그렇게 되어 있고, 그래서
+    # 폰·태블릿에서 손가락으로 눌러도 :hover 가 걸려 떠오른다(2026-08-26 상하님 지적).
+    assert "@media (hover:hover)" not in touch, "조건을 걸면 터치 기기가 통째로 빠진다"
+    market_css = (PAGE.parent.parent / "market_signal_ui.py").read_text(encoding="utf-8")
+    assert "@media (hover" not in market_css, "시장분석 쪽 규칙이 바뀌었다 — 다시 견주어야 한다"
+    # 손가락 기기에는 나타나는 움직임과 눌리는 움직임을 따로 준다.
+    assert "@media (hover:none)" in touch
     assert ".j3b-card-shell:not([open]) > .j3b-card-summary:active {" in touch
     for part in (".j3b-news:hover", ".j3b-nav-item:hover", ".j3b-round:hover",
                  ".j3b-open-news > summary:hover", ".j3b-logo", ".j3b-decor-img"):
