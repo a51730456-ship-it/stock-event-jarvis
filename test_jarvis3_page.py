@@ -1937,8 +1937,10 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
         assert removed not in source
     assert "padding-bottom:72px!important" in source
     assert 'div[class*="st-key-j3b_grid_"]{overflow:visible!important' in source
-    assert "div.st-key-j3b_grid_selected_0{padding-top:14px!important}" in source
-    assert "div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}" in source
+    # 카드는 이제 한 통에 죽 들어가고 자리는 CSS가 잡는다(2026-08-27 상하님 지시로
+    # 태블릿을 3칸으로 바꾸면서). 예전에는 두 개씩 묶어 그려 통 이름이 _0 이었다.
+    assert "div.st-key-j3b_grid_selected{padding-top:14px!important" in source
+    assert "padding-bottom:14px!important}" in source
 
 
 if __name__ == "__main__":

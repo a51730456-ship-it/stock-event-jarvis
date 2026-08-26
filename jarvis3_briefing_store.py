@@ -12,7 +12,7 @@ import db_runtime
 from database import DB_PATH
 
 
-SELECTED_SLOTS = 4
+SELECTED_SLOTS = 6
 # 기본 4종목을 실제 줄로 옮겨 적으면서 자리를 8에서 12로 늘렸다. 그러지 않으면
 # 기본 넷이 자리를 먹어 상하님이 넣으실 자리가 절반으로 준다(2026-08-26).
 EXTRA_LIMIT = 12
@@ -24,8 +24,11 @@ DEFAULT_EXTRAS = (
     ("AVGO", "브로드컴"), ("RGTI", "리게티 컴퓨팅"),
 )
 _SEED_GROUP = "extra_seed"
+# 2026-08-27 상하님 지시로 둘을 더했다 — "사용자 선정 종목은 SKHY, SPCX
+# 2개 더 넣으면 되겠네." 태블릿에서 3칸 2줄로 놓으면 여섯 자리가 된다.
 DEFAULT_SELECTED = (("NVDA", "NVIDIA"), ("TSLA", "Tesla"),
-                    ("PLTR", "Palantir"), ("AMD", "AMD"))
+                    ("PLTR", "Palantir"), ("AMD", "AMD"),
+                    ("SKHY", "SK하이닉스"), ("SPCX", "스페이스X"))
 _LOCK = threading.Lock()
 _READY = False
 

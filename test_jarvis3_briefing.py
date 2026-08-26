@@ -29,10 +29,13 @@ def _isolated_store(monkeypatch):
 def test_selected_slots_are_fixed_and_replaceable(monkeypatch):
     _isolated_store(monkeypatch)
     selected = store.selected_stocks()
-    assert [row["ticker"] for row in selected] == ["NVDA", "TSLA", "PLTR", "AMD"]
+    # 2026-08-27 상하님 지시로 여섯 자리다 — "사용자 선정 종목은 SKHY, SPCX
+    # 2개 더 넣으면 되겠네." 태블릿에서 3칸 2줄로 놓으면 여섯이 딱 찬다.
+    assert [row["ticker"] for row in selected] == [
+        "NVDA", "TSLA", "PLTR", "AMD", "SKHY", "SPCX"]
     store.replace_selected(2, "META", "Meta Platforms")
     assert store.selected_stocks()[1]["ticker"] == "META"
-    assert len(store.selected_stocks()) == 4
+    assert len(store.selected_stocks()) == 6
 
 
 def test_extra_stocks_keep_order_and_limit(monkeypatch):
@@ -187,8 +190,10 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert ".j3b-card.compact .j3b-card-notes{bottom:14px!important" in source
     assert ".j3b-card:not(.compact){min-height:148px!important" in source
     assert ".j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important" in source
-    assert "div.st-key-j3b_grid_selected_0{padding-top:14px!important}" in source
-    assert "div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}" in source
+    # 카드는 이제 한 통에 죽 들어가고 자리는 CSS가 잡는다(2026-08-27).
+    # 예전에는 두 개씩 묶어 그려서 통 이름이 _0 · _2 로 나뉘어 있었다.
+    assert "div.st-key-j3b_grid_selected{padding-top:14px!important;padding-bottom:14px!important}" in source
+    assert "grid-template-columns:repeat(2,minmax(0,1fr))" in source, "기본은 두 칸이다"
     assert ".j3b-card.compact{min-height:164px!important}" in source
     assert "visible_stocks = selected + home_extras" in source
     assert '_render_briefing_grid(home_extras, cards, removable=True' in source
