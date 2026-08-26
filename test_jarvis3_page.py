@@ -2088,3 +2088,24 @@ def test_market_top_style_block_has_no_blank_lines():
     blank = [i for i, line in enumerate(block.splitlines()) if not line.strip()]
     assert not blank, f"빈 줄이 {blank} 번째에 있다 — 여기서 <style>이 잘린다"
     assert "/*" not in block, "이 덩어리 안에는 주석을 넣지 않는다"
+
+
+def test_close_all_runs_before_the_scroll_helper():
+    """조각 끝에서 「다 닫기」가 scroll_to.run 보다 **먼저**여야 한다.
+
+    2026-08-26 상하님 지적 — "20개 테마 실시간 순위 닫기 하면 두 번째 캡처처럼
+    가는 게 아니라 첫 번째 캡처처럼 가야 된다고."
+
+    scroll_to.run 이 먼저 돌면 '그 자리로 내려가라'는 표시를 지우면서 내려가는
+    쪽지를 그 조각 안에 그린다. 그런데 바로 뒤의 _run_close_all_if_requested()가
+    판 전체를 다시 그려 그 조각을 버린다. 표시는 이미 지워졌으니 다시 그린 판은
+    아무 데도 안 간다. 순서를 지키면 다시 그리기가 이 판을 멈추고, 표시가 살아
+    남아 페이지 끝(main 의 scroll_to.run)에서 제자리로 데려간다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    for name in ("def _render_pullback_finder(", "def _render_top7_section("):
+        body = source[source.index(name):]
+        body = body[:body.index(chr(10) + "def ", 10)]
+        close_at = body.index("_run_close_all_if_requested()")
+        scroll_at = body.index("scroll_to.run(st)")
+        assert close_at < scroll_at, f"{name} 에서 차례가 뒤집혔다"

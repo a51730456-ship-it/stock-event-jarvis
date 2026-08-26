@@ -6059,14 +6059,23 @@ def _render_pullback_finder(market: dict, ranking: dict) -> None:
     페이지 끝의 것과 두 번 내려가지 않는다.
     """
     _render_pullback_finder_body(market, ranking)
+    # 「다 닫기」가 **먼저**다 (2026-08-26 상하님 지적 — "20개 테마 실시간 순위
+    # 닫기 하면 두 번째 캡처처럼 가는 게 아니라 첫 번째 캡처처럼 가야 된다고").
+    # 차례가 반대였다. scroll_to.run 이 먼저 돌면 '그 자리로 내려가라'는 표시를
+    # **지우면서** 내려가는 쪽지를 이 조각 안에 그린다. 그런데 바로 뒤의
+    # _run_close_all_if_requested()가 판 전체를 다시 그려 그 조각을 통째로 버린다.
+    # 표시는 이미 지워졌으니 다시 그린 판은 아무 데도 안 가고, 상하님은 닫기 전
+    # 그 자리(두 번째 캡처)에 그대로 서 계셨다.
+    # 다시 그리기가 먼저면 이 판은 여기서 멈추고, 표시가 살아남아 페이지 끝
+    # (main 의 scroll_to.run)에서 제자리로 데려간다. 순위 9 쪽
+    # (_render_top7_section)이 원래 이 차례라서 그쪽만 잘 됐다.
+    _run_close_all_if_requested()
     # **try/finally로 감싸면 안 된다**(2026-08-22 상하님 지적 — "관찰 15개에서
     # 종목을 눌러도 세부사항으로 안 간다"). _rerun_here()는 예외를 던져 이 판을
     # 멈추는데, finally는 그 예외가 지나갈 때도 실행된다. 그러면 **버려질 판에서**
     # 내려가라는 표시를 지워 버려서, 정작 다시 그린 판에는 표시가 없다.
     # 그냥 뒤에 둔다 — 다시 그리기로 멈춘 판은 여기까지 안 오고, 다음 판에서 돈다.
     scroll_to.run(st)
-    # 이 조각 안에서 「다 닫기」를 눌렀으면 여기서 판 전체를 한 번 다시 그린다.
-    _run_close_all_if_requested()
 
 
 def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
