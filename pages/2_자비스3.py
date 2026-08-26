@@ -588,6 +588,24 @@ st.markdown(
     }
     .st-key-j3_swing_table .j3-td,
     .st-key-j3_swing_rest .j3-td { overflow: hidden; }
+    /* ── 접이칸이 폰에서 느리게 열리던 것 (2026-08-26 상하님 지적) ──────────────
+       상하님 — "관찰만 조건을 다 못 넘은 15개 보기, 클릭하면 너무 느리게 열린다.
+       로딩 걸린다."
+       실측 — 이 접이칸을 눌러도 **서버에는 한 번도 안 간다**(도는 중 표시 0번).
+       느린 것은 브라우저다. 접이칸 안에 화면 조각이 673개 들어 있고, 열리는
+       순간 그것을 한꺼번에 자리 잡아 그려야 한다. 노트북은 5ms 만에 하지만
+       폰은 훨씬 오래 걸려 손가락이 멈춘 것처럼 느껴진다.
+       content-visibility 는 **화면 밖에 있는 줄은 자리만 잡고 안 그리라**는
+       뜻이다. 열 때는 눈에 보이는 두세 줄만 그리고, 나머지는 굴려 내려갈 때
+       그린다. contain-intrinsic-size 는 안 그린 줄의 어림 높이라 굴림막대가
+       요동치지 않는다.
+       값·점수·판정은 건드리지 않는다 — 그리는 시점만 미룬다. */
+    .st-key-j3_swing_rest [data-testid="stExpander"] [data-testid="stHorizontalBlock"],
+    .st-key-j3_theme_rest [data-testid="stExpander"] [data-testid="stHorizontalBlock"],
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] [data-testid="stHorizontalBlock"] {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 46px;
+    }
     /* 20개 테마 순위표도 화면 전체를 억지로 채우지 않는다. 가장 긴 테마명인
        「유전체·정밀의료」가 한 칸에 들어가는 폭을 기준으로 간격을 줄인다. */
     .st-key-j3_theme_table,

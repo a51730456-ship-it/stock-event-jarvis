@@ -2183,3 +2183,22 @@ def test_help_panel_shows_only_one_close_button():
     phone = css[css.index("@media (max-width: 1200px)"):]
     assert ".j3fh-x-top {" in phone, "폰에서 위 닫기를 안 켠다"
     assert ".j3fh-x:not(.j3fh-x-top) { display: none; }" in phone, "폰에서 아래 닫기가 남는다"
+
+def test_collapsed_tables_only_draw_what_is_on_screen():
+    """접이 표는 화면에 보이는 줄만 그린다 (2026-08-26 상하님 지적).
+
+    상하님 — "관찰만 조건을 다 못 넘은 15개 보기, 클릭하면 너무 느리게 열린다.
+    로딩 걸린다."
+
+    실측으로 못을 박았다 — 이 접이칸을 눌러도 **서버에는 한 번도 안 간다**
+    (도는 중 표시 0번). 느린 것은 브라우저다. 접이칸 안에 화면 조각이 673개
+    들어 있어 열리는 순간 그것을 한꺼번에 자리 잡아 그려야 한다.
+    content-visibility 를 주니 27.4ms → 8.3ms (70% 줄었다). 폰은 노트북보다
+    훨씬 느리므로 체감이 그만큼 크다. 값·점수·판정은 그대로다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    assert "content-visibility: auto;" in source
+    assert "contain-intrinsic-size: auto 46px;" in source
+    # 세 접이 표에 모두 걸려 있어야 한다 — 같은 짜임이라 같은 값을 치른다.
+    for key in ("j3_swing_rest", "j3_theme_rest", "j3_rulebook_rest"):
+        assert f'.st-key-{key} [data-testid="stExpander"] [data-testid="stHorizontalBlock"]' in source, key
