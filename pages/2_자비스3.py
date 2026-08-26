@@ -4146,9 +4146,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     is_open = bool(st.session_state.get("j3_top7_open"))
     run_requested = st.button("매수심사결과 높은 순위 9", key="j3_top7_find")
     if run_requested and is_open:
-        # 닫기 — 조회도 rerun도 하지 않는다. 둘 다 하면 닫는 데만 몇 초 걸린다.
-        st.session_state["j3_top7_open"] = False
-        st.session_state.pop("j3_top7_pick_row", None)
+        # 닫기 — 조회는 하지 않는다. 열린 것을 모두 닫고 메인 시작점으로 올라간다
+        # (2026-08-26 상하님 지시). 이 단추도 프래그먼트 안이라 판 전체를 다시
+        # 그려야 바깥의 20개 테마 순위·상승장·급락장이 화면에서 사라진다.
+        _close_all_from_fragment()
         run_requested = False
     if (
         run_requested
@@ -4266,7 +4267,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # (2026-08-06 사용자 지적). 폰에서 표 끝까지 내려가면 위 단추가 화면 밖으로 나간다.
     _section_close(
         "j3_top7_open", "매수심사결과 높은 순위 9 닫기",
-        return_to=_RADAR_MAIN_ANCHOR,
+        on_close=_close_all_from_fragment,
     )
 
 
@@ -6716,6 +6717,7 @@ def _briefing_css() -> None:
     st.markdown(_BRIEFING_OPEN_CSS, unsafe_allow_html=True)
     st.markdown(_decor_css(), unsafe_allow_html=True)
     st.markdown(_BRIEFING_TABLET_CSS, unsafe_allow_html=True)
+    st.markdown(_BRIEFING_GESTURE_CSS, unsafe_allow_html=True)
 
 
 _BRIEFING_OPEN_CSS = """
@@ -6840,6 +6842,49 @@ _BRIEFING_TABLET_CSS = """
  .j3b-open-card{width:min(680px,calc(100vw - 40px))!important;padding:22px 22px 112px!important}
  .j3b-open-news>summary{font-size:17px!important;line-height:1.6!important}
  .j3b-open-orig{font-size:16px!important}
+}
+</style>
+"""
+
+
+_BRIEFING_GESTURE_CSS = """
+<style>
+/* ── 손가락으로 위에서 아래로 당겨도 새로고침되지 않게 한다 ────────────────
+   2026-08-26 상하님 지시 — "맨 위 화면에서 뒤로 당기면 로그인 화면으로 갔다가
+   다시 메인으로 돌아온다. 이거 안 되게 할 수 없냐."
+   안드로이드 크롬은 맨 위에서 아래로 당기면 페이지를 통째로 다시 불러온다.
+   그러면 로그인 확인을 다시 거치느라 화면이 한 번 깜빡인다.
+   overscroll-behavior 로 그 몸짓만 막는다. 손가락으로 굴려 보는 것은 그대로다. */
+html, body { overscroll-behavior: none !important; }
+body [data-testid="stMainBlockContainer"],
+body section[data-testid="stMain"],
+body [data-testid="stAppViewContainer"] { overscroll-behavior-y: contain !important; }
+
+/* 찾은 종목을 보여 주는 줄 */
+div[class*="st-key-j3b_search_confirm"]{margin:6px 0 2px!important;
+  padding:10px 12px!important;border:1px solid rgba(240,177,67,.45)!important;
+  border-radius:14px!important;background:rgba(6,33,75,.72)!important}
+.j3b-found{color:#ffe0a3;font-size:15px;font-weight:800;margin-bottom:6px}
+div[class*="st-key-j3b_search_confirm"] button{min-height:38px!important;font-size:13px!important}
+
+/* ↻ 되돌리기 — 보이는 것은 머리띠 안의 동그라미이고, 그 위에 속이 비치는
+   진짜 단추를 겹쳐 둔다. 눌리는 것은 이 단추다. */
+div[class*="st-key-j3b_hero_box"] { position: relative !important; }
+div[class*="st-key-j3b_hero_box"] [data-testid="stElementContainer"]:has(button) {
+  position: absolute !important; right: 87px; top: 16px; z-index: 6;
+  width: auto !important; margin: 0 !important; }
+div[class*="st-key-j3b_hero_box"] .stButton,
+div[class*="st-key-j3b_hero_box"] button {
+  width: 33px !important; height: 33px !important; min-height: 33px !important;
+  padding: 0 !important; border: 0 !important; border-radius: 50% !important;
+  background: transparent !important; color: transparent !important;
+  box-shadow: none !important; }
+div[class*="st-key-j3b_hero_box"] button:hover,
+div[class*="st-key-j3b_hero_box"] button:focus { background: #ffffff1f !important; }
+@media (min-width:700px) and (max-width:1199px){
+  div[class*="st-key-j3b_hero_box"] [data-testid="stElementContainer"]:has(button){right:128px;top:23px}
+  div[class*="st-key-j3b_hero_box"] .stButton,
+  div[class*="st-key-j3b_hero_box"] button{width:46px!important;height:46px!important;min-height:46px!important}
 }
 </style>
 """
@@ -7177,33 +7222,63 @@ def _briefing_local_search(query: str) -> list[dict]:
 
 
 def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
+    """종목을 찾아 보여 주고, **맞는지 확인한 뒤에** 넣는다.
+
+    2026-08-26 상하님 지시 — "종목 검색은 조회 후 종목 나타나고 이 종목이 맞는지
+    확인 버튼을 누르고 등록되도록 해야지."
+    예전에는 ＋를 누르면 찾은 첫 종목이 곧바로 들어갔다. 이름이 비슷한 다른 회사가
+    들어가도 알 수가 없었다.
+    """
     with st.container(key="j3b_search_row"):
         query_col, plus_col = st.columns([7, 1])
         with query_col:
-            query = st.text_input("종목 검색", placeholder="종목 검색 후 추가", key="j3b_search", label_visibility="collapsed")
+            query = st.text_input("종목 검색", placeholder="종목 검색 후 추가",
+                                  key="j3b_search", label_visibility="collapsed")
         with plus_col:
             add_clicked = st.button("+", key="j3b_manage_toggle")
     if add_clicked:
+        st.session_state.pop("j3b_search_found", None)
         if not query.strip():
-            st.session_state["j3b_search_message"] = "추가할 종목명이나 티커를 먼저 입력하세요."
+            st.session_state["j3b_search_message"] = "추가할 종목명이나 티커를 먼저 넣으십시오."
         else:
-            rows = _briefing_local_search(query)
-            if not rows:
-                st.session_state["j3b_search_message"] = "확인된 미국 종목을 찾지 못했습니다."
+            with st.spinner("미국 종목 명부에서 찾는 중입니다…"):
+                rows = _briefing_local_search(query)
+            if rows:
+                st.session_state["j3b_search_found"] = rows[:5]
             else:
-                chosen = rows[0]
+                st.session_state["j3b_search_message"] = "그 이름으로는 미국 종목을 찾지 못했습니다."
+
+    found = st.session_state.get("j3b_search_found") or []
+    if found:
+        with st.container(key="j3b_search_confirm"):
+            labels = {f'{row["ticker"]} · {row["name"]}': row for row in found}
+            names = list(labels)
+            picked = names[0]
+            if len(names) > 1:
+                picked = st.radio("찾은 종목 가운데 고르십시오", names, key="j3b_search_pick")
+            else:
+                st.markdown(f"<div class='j3b-found'>{html.escape(picked)}</div>",
+                            unsafe_allow_html=True)
+            yes_col, no_col = st.columns(2)
+            if yes_col.button("이 종목이 맞습니다 · 추가", key="j3b_search_ok", type="primary"):
+                chosen = labels[picked]
                 try:
                     briefing_store.add_extra(chosen["ticker"], chosen["name"])
-                    st.session_state["j3b_search_message"] = f'{chosen["ticker"]} 종목을 추가했습니다.'
+                    st.session_state["j3b_search_message"] = f'{chosen["ticker"]} 종목을 넣었습니다.'
+                    st.session_state.pop("j3b_search_found", None)
                     st.rerun()
                 except ValueError as exc:
                     st.session_state["j3b_search_message"] = str(exc)
+            if no_col.button("아닙니다 · 취소", key="j3b_search_cancel"):
+                st.session_state.pop("j3b_search_found", None)
+                st.rerun()
+
     message = st.session_state.pop("j3b_search_message", "")
     if message:
         st.caption(message)
 
 
-@st.fragment(run_every=2)
+
 def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
     """뉴스가 다 온 뒤에 화면을 딱 한 번만 다시 그린다.
 
@@ -7292,13 +7367,32 @@ def _render_stock_briefing() -> None:
                 )
         catbus_uri = _briefing_asset_uri("hero_scene.webp")
         catbus_html = f'<img class="j3b-hero-scene" src="{catbus_uri}" alt="">' if catbus_uri else ""
-        st.markdown(
-            '<div class="j3b-app j3b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'
-            '<div class="j3b-title">JARVIS <b>3</b></div><div class="j3b-sub">미국테마</div></div>'
-            '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
-            f'{catbus_html}</div>',
-            unsafe_allow_html=True,
-        )
+        # ↻ 는 그림이 아니라 **진짜 단추**다(2026-08-26 상하님 지시 — "맨 위 상단
+        # 실시간 옆 되돌리기 버튼 저것만 작동하게"). 보이는 것은 아래 span 그대로 두고,
+        # 그 위에 속이 비치는 스트림릿 단추를 겹쳐 둔다. 하단 이동표와 같은 장치다.
+        # 뒤로가기를 한 번 눌러도 이 화면에 머문다(2026-08-26 상하님 지시 —
+        # "뒤로가기 버튼을 누르면 로그인 화면으로 갔다가 다시 메인으로 돌아온다").
+        # 방문기록에 표식을 하나 쌓아 두면 첫 뒤로가기가 그 표식을 지우고 제자리에
+        # 선다. 앞 화면(로그인·메뉴)으로 나가려면 두 번 누르면 된다.
+        back_nav.opened(st, "j3b_backstop")
+        with st.container(key="j3b_hero_box"):
+            st.markdown(
+                '<div class="j3b-app j3b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'
+                '<div class="j3b-title">JARVIS <b>3</b></div><div class="j3b-sub">미국테마</div></div>'
+                '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
+                f'{catbus_html}</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("↻", key="j3b_hero_refresh"):
+                try:
+                    j3data.clear_runtime_cache()
+                except Exception:
+                    pass
+                try:
+                    briefing_news.clear_cache()
+                except Exception:
+                    pass
+                st.rerun()
         st.markdown('<div class="j3b-section"><span class="j3b-flag">🇺🇸</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
         _render_briefing_news("market")
         with st.container(key="j3b_selected_heading"):

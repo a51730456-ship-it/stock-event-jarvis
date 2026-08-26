@@ -510,3 +510,12 @@ def ready_count(keys) -> int:
     사용자 선정 종목까지 빈칸으로 두면 안 된다(2026-08-26).
     """
     return sum(1 for kind, ticker in keys if peek(kind, ticker) != "pending")
+
+
+def clear_cache() -> None:
+    """담아 둔 뉴스를 비운다. 화면의 ↻ 단추가 부른다.
+
+    옮겨 둔 번역 공책은 지우지 않는다 — 그건 다시 받을 필요가 없는 것이다.
+    """
+    with _LOCK:
+        _CACHE.clear()

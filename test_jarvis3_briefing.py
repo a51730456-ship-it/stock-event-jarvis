@@ -219,7 +219,7 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert 'st.switch_page("app.py")' in source
 
 
-def test_search_plus_adds_the_first_matching_extra_stock():
+def test_search_shows_the_match_and_adds_only_after_confirming():
     stocks = {
         "selected": [
             {"position": 1, "ticker": "NVDA", "name": "NVIDIA"},
@@ -244,6 +244,10 @@ def test_search_plus_adds_the_first_matching_extra_stock():
         app.run(timeout=30)
         next(node for node in app.text_input if node.key == "j3b_search").input("애플").run(timeout=30)
         next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
+        # ＋ 만으로는 넣지 않는다. 찾은 종목을 보여 주고 확인을 받는다(2026-08-26).
+        add_extra.assert_not_called()
+        assert app.session_state["j3b_search_found"][0]["ticker"] == "AAPL"
+        next(node for node in app.button if node.key == "j3b_search_ok").click().run(timeout=30)
     add_extra.assert_called_once_with("AAPL", "Apple")
 
 
@@ -262,7 +266,7 @@ def test_briefing_search_tries_the_local_list_first_then_the_whole_listing():
     assert "j3data.search_stocks(query, limit=12)" in block
 
 
-def test_search_plus_adds_ionq_from_existing_theme_universe():
+def test_search_confirms_ionq_from_existing_theme_universe():
     stocks = {
         "selected": [
             {"position": 1, "ticker": "NVDA", "name": "NVIDIA"},
@@ -287,6 +291,8 @@ def test_search_plus_adds_ionq_from_existing_theme_universe():
         app.run(timeout=30)
         next(node for node in app.text_input if node.key == "j3b_search").input("Ionq").run(timeout=30)
         next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
+        add_extra.assert_not_called()
+        next(node for node in app.button if node.key == "j3b_search_ok").click().run(timeout=30)
     add_extra.assert_called_once_with("IONQ", "IonQ")
 
 
