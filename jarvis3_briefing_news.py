@@ -406,11 +406,9 @@ def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_
           naver_client_id: str = "", naver_client_secret: str = "", deepl_key: str = "") -> dict:
     rows = []
     loaders = []
-    # 번역기가 하나도 없으면 영문 원문을 받아 봐야 한글로 바꿀 수단이 없다. 그때는
-    # 처음부터 한글로 쓰인 미국시장·미국종목 기사를 받는다. 번역 왕복이 없어 0.5초 안에
-    # 화면이 차고, 무료 번역이 막힌 날에도 브리핑이 비지 않는다(2026-08-26).
-    if not deepl_key and not groq_key:
-        loaders.append(lambda: _google_news_rss_ko(kind, ticker))
+    # 언제나 미국 원문 기사를 먼저 받는다(2026-08-26 상하님 — "미국 뉴스를 갖고
+    # 오는 게 아니냐"). 로이터·워싱턴포스트·배런스 같은 미국 매체 기사를 받아
+    # 한글로 옮긴다. 한글 매체 기사는 번역이 다 막힌 날의 대비책일 뿐이다.
     if finnhub_key:
         loaders.append(lambda: _finnhub(kind, ticker, finnhub_key))
     loaders.append(lambda: _google_news_rss(kind, ticker))
@@ -478,3 +476,13 @@ def peek(kind: str, ticker: str | None = None) -> str:
 def all_ready(keys) -> bool:
     """이번 화면이 기다리는 뉴스가 하나도 안 남았으면 참."""
     return all(peek(kind, ticker) != "pending" for kind, ticker in keys)
+
+
+def ready_count(keys) -> int:
+    """지금까지 도착한 자리가 몇 곳인지 센다.
+
+    화면은 다 오기를 기다리지 않고, 온 만큼 그때그때 채워 그린다. 무료 번역이
+    한 번에 여러 요청을 받으면 뒤쪽이 느려지는데, 그동안 위쪽 시장 브리핑과
+    사용자 선정 종목까지 빈칸으로 두면 안 된다(2026-08-26).
+    """
+    return sum(1 for kind, ticker in keys if peek(kind, ticker) != "pending")

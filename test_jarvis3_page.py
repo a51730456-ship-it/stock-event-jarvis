@@ -1797,15 +1797,29 @@ def test_general_detail_keeps_three_score_groups_and_browser_only_help():
 
 
 def test_long_section_close_buttons_return_to_radar_main():
+    """긴 화면을 접으면 언제나 미국테마 메인 시작점으로 돌아간다.
+
+    돌아가는 길이 두 갈래다 — 다섯 구역은 `return_to=`로 바로 자리를 적어 두고,
+    20개 테마 순위만 `on_close=`로 열린 것을 먼저 다 닫은 뒤 같은 자리를 적는다.
+    (2026-08-25 `4a5a0cb`에서 순위 쪽이 두 번째 갈래로 옮겨졌다.)
+    """
     source = PAGE.read_text(encoding="utf-8")
-    assert 'scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)' in source
-    assert 'close_return_to=_RADAR_MAIN_ANCHOR' in source
-    assert source.count('return_to=_RADAR_MAIN_ANCHOR') >= 6
+    assert source.count('scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)') == 1
+    assert source.count('return_to=_RADAR_MAIN_ANCHOR') >= 5
     helper = source[source.index("def _section_close"):source.index("_FACTOR_HELP_CSS")]
     assert "scroll_to.request(st, return_to)" in helper
-    radar = source[source.index("def _render_radar_tab"):source.index("def _render_top7_section")]
-    assert 'st.session_state["j3_theme_panel_open"] = False' in radar
-    assert "for opened in _THEME_PANEL_OPEN_KEYS:" in radar
+
+    # 20개 테마 순위는 닫을 때 열린 것을 모두 닫고 같은 자리로 돌아간다.
+    assert "on_close=_close_full_theme_rank" in source
+    closer = source[source.index("def _close_full_theme_rank"):source.index("def _section_toggle")]
+    assert 'st.session_state["j3_theme_panel_open"] = False' in closer
+    assert "for opened in _THEME_PANEL_OPEN_KEYS:" in closer
+    assert "scroll_to.request(st, _RADAR_MAIN_ANCHOR)" in closer
+
+    # on_close가 있으면 그쪽을, 없으면 return_to를 쓴다. 둘 다 없으면 그 자리에 머문다.
+    toggle = source[source.index("def _section_toggle"):source.index("def _section_close")]
+    assert "if on_close:" in toggle
+    assert "elif close_return_to:" in toggle
 
 
 def test_existing_theme_content_opens_radar_without_old_section_radio():

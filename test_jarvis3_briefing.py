@@ -169,19 +169,23 @@ def test_us_news_is_preferred_before_naver(monkeypatch):
     assert result["items"][0]["source"] == "US source"
 
 
-def test_without_translation_key_korean_news_comes_first(monkeypatch):
-    """번역 열쇠가 하나도 없으면 한글로 쓰인 미국 기사를 먼저 받는다.
+def test_us_original_news_comes_first_even_without_keys(monkeypatch):
+    """열쇠가 없어도 미국 원문 기사를 먼저 받는다.
 
-    영문 원문을 받아 봐야 한글로 바꿀 수단이 없다. 번역 왕복을 건너뛰므로 화면이
-    훨씬 빨리 차고, 무료 번역이 막힌 날에도 브리핑이 비지 않는다.
+    2026-08-26 상하님 — "미국 뉴스를 갖고 오는 게 아니냐? 왜 국내 뉴스를 갖고오나?"
+    한글 매체 기사는 번역이 다 막힌 날의 대비책일 뿐, 기본 뉴스원이 아니다.
     """
-    korean = {"headline": "뉴욕증시, 기술주 강세에 상승 마감", "summary": "", "source": "서울신문",
-              "url": "https://example.test/ko", "published_at": datetime.now(timezone.utc).isoformat()}
-    monkeypatch.setattr(news, "_google_news_rss_ko", lambda *_args: [korean])
-    with patch.object(news, "_google_news_rss") as english_news:
+    english = {"headline": "Wall Street ends higher as tech rebounds", "summary": "",
+               "source": "Reuters", "url": "https://example.test/us",
+               "published_at": datetime.now(timezone.utc).isoformat()}
+    monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [english])
+    monkeypatch.setattr(news, "_public_translations",
+                        lambda *_args: {english["headline"]: "월가, 기술주 반등에 상승 마감"})
+    with patch.object(news, "_google_news_rss_ko") as korean_news:
         result = news._load("market:", "market", None, "", "")
-    english_news.assert_not_called()
-    assert result["items"][0]["brief"] == "뉴욕증시, 기술주 강세에 상승 마감"
+    korean_news.assert_not_called()
+    assert result["items"][0]["source"] == "Reuters"
+    assert result["items"][0]["brief"] == "월가, 기술주 반등에 상승 마감"
 
 
 def test_english_headlines_are_replaced_by_korean_articles(monkeypatch):
