@@ -1925,3 +1925,60 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_closing_the_theme_rank_clears_every_finder_panel():
+    """20개 테마 순위를 닫으면 「종목 찾기」에서 연 것이 하나도 안 남는다.
+
+    2026-08-26 상하님 지시 — "20개 테마 실시간 순위 닫기 버튼 누르면 20개 테마
+    관련 열린 창 다 닫고 캡처 화면으로 되돌아가도록." 예전에는 테마 쪽만 닫아서
+    매수심사결과 순위 9에서 골라 둔 종목 상세('순위 7에서 고른 종목 · ILMN')가
+    화면에 그대로 남았다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    closer = source[source.index("def _close_full_theme_rank"):source.index("def _section_toggle")]
+    # 세 갈래 단추와 상세 안에서 열리는 창까지 다 끈다.
+    assert "_FINDER_OPEN_KEYS" in closer
+    assert "_DETAIL_OPEN_PREFIXES" in closer
+    assert "_DETAIL_PANELS" in closer
+    assert "scroll_to.request(st, _RADAR_MAIN_ANCHOR)" in closer
+    for key in ("j3_top7_pick_row", "j3_top7_detail_choice",
+                "j3_theme_choice", "j3_theme_choice_widget"):
+        assert key in closer, key
+    assert '_FINDER_OPEN_KEYS = ("j3_pullback_open", "j3_top7_open")' in source
+    assert '"j3_detail_open_", "j3_intraday_open_", "j3_bundle_open_"' in source
+
+
+def test_top9_detail_disappears_when_the_section_is_closed():
+    """순위 9를 닫으면 골라 둔 종목 상세도 같이 사라진다.
+
+    예전에는 골라 둔 줄(j3_top7_pick_row)만 보고 그려서, 구역을 닫아도 상세가
+    화면에 남았다(2026-08-26 상하님 캡처).
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    detail = source[source.index("def _render_top_reviewed_detail"):
+                    source.index("def _render_my_stock_panel")]
+    gate = detail.index('if not st.session_state.get("j3_top7_open"):')
+    pick = detail.index('picked = st.session_state.get("j3_top7_pick_row")')
+    assert gate < pick, "구역이 닫혔는지 보기 전에 상세를 먼저 그리고 있다"
+
+
+def test_top9_close_button_sits_above_the_buy_record_form():
+    """순위 9 닫기 단추는 「실제 매수기록 저장」 **위**에 있고, 누르면 다 닫는다.
+
+    2026-08-26 상하님 지시 — "추천 근거 요약 그 밑에 실제 매수기록 저장하시겠습니까
+    위에 매수심사결과 높은 순위 9 닫기 버튼을 만들어 주고, 그 버튼 누르면 열린
+    화면 다 닫고 위로 올라가게."
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    detail = source[source.index("def _render_stock_detail("):
+                    source.index("# 테마 화면에서 **한 번에 같이 펴는 네 구역**")]
+    close_at = detail.index('_section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기"')
+    form_at = detail.index("_render_buy_form(")
+    assert close_at < form_at, "닫기 단추가 매수기록 저장 밑에 있다"
+    assert 'if panel == "top7":' in detail[:close_at]
+    assert "on_close=_close_full_theme_rank" in detail[close_at:form_at]
+    # 맨 아래 닫기 단추도 '다 닫기'를 시킬 수 있어야 한다.
+    helper = source[source.index("def _section_close("):source.index("# ── 「심사항목 기준」")]
+    assert "on_close=None" in helper
+    assert "if on_close:" in helper
