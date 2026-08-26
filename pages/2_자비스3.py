@@ -1108,7 +1108,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026081210
+_REQUIRED_METHOD_HELP_REVISION = 2026082601
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -6989,6 +6989,17 @@ _BRIEFING_TOUCH_CSS = """
   100% { transform: scale(1.09) rotate(0deg); }
 }
 
+@media (hover:none) {
+  /* 터치 화면에는 '마우스를 올린다'가 없다. 그래서 화면이 뜰 때 카드가 아래에서
+     살짝 올라오며 나타나게 해 움직임을 보여 준다. */
+  @keyframes j3b-card-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .j3b-card-shell > .j3b-card-summary { animation: j3b-card-in .34s ease-out both; }
+  .j3b-news { animation: j3b-card-in .3s ease-out both; }
+}
+
 /* 손가락으로 누를 때 — 폰·태블릿. 마우스가 없으니 '뜨는' 대신 **눌리는** 것을 준다.
    2026-08-26 상하님 — "노트북에는 되네, 태블릿 스마트폰에서는 안 된다."
    손가락 기기에는 :hover 가 아예 없다. 그래서 :active 를 더 뚜렷하게 준다. */
@@ -7091,7 +7102,8 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
     result = _briefing_items(kind, ticker)
     items = result.get("items") or []
     if not items:
-        message = "뉴스를 불러오는 중입니다" if result.get("pending") else "뉴스 브리핑 일시 사용 불가"
+        message = ("뉴스를 불러오는 중입니다" if result.get("pending")
+                   else "뉴스를 못 받았습니다 · 맨 위 ↻ 를 누르십시오")
         items = [{"sentiment": "neutral", "brief": message}]
     marks = {"positive": "↗", "negative": "▥", "neutral": "○"}
     collapsed_rows = []
@@ -7186,7 +7198,9 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
     elif news_result.get("pending"):
         notes = [{"brief": "뉴스를 불러오는 중입니다"}]
     else:
-        notes = [{"brief": "뉴스 브리핑 일시 사용 불가"}]
+        # 2026-08-26 상하님 지적 — 「불러오는 중」에서 굳어 있으면 손쓸 데가 없었다.
+        # 무엇을 누르면 되는지 적는다. 맨 위 ↻ 가 다시 받아 온다.
+        notes = [{"brief": "뉴스를 못 받았습니다 · 맨 위 ↻ 를 누르십시오"}]
     # 접힌 카드의 뉴스 줄은 **링크가 아니다**(2026-08-26 상하님 지시 — "기본 작은
     # 화면에서 종목 밑에 뉴스 클릭하면 바로 뉴스로 들어가지 않게 화면만 크게 하고").
     # 원문은 커진 화면에서 그 줄을 다시 눌러 본다.

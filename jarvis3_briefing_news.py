@@ -24,6 +24,9 @@ import deepl_translate
 
 CACHE_SECONDS = 600
 ERROR_CACHE_SECONDS = 30
+# 뒤 일꾼이 붙잡히면 화면이 「불러오는 중」에서 영영 굳는다(2026-08-26 상하님 지적).
+# 이만큼 지나면 그 일을 버리고 새로 받는다.
+STUCK_SECONDS = 90
 # 뉴스 받기는 통신 대기가 대부분이라 일꾼을 늘려도 CPU를 거의 쓰지 않는다.
 # 첫 화면이 한 번에 9곳(시장 1 + 종목 8)을 받으므로 3명이면 세 번을 기다렸다.
 _POOL = ThreadPoolExecutor(max_workers=6, thread_name_prefix="j3-brief-news")
@@ -468,17 +471,29 @@ def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = 
         if current and current.get("future"):
             future = current["future"]
             if future.done():
-                current["result"] = future.result()
-                current["updated_at"] = now
+                try:
+                    current["result"] = future.result()
+                except Exception:
+                    # 뒤에서 터진 일은 화면으로 올리지 않는다. 빈 결과로 두고 다시 받게 한다.
+                    current["result"] = {"ok": True, "items": []}
+                    current["updated_at"] = 0
+                else:
+                    current["updated_at"] = now
                 current.pop("future", None)
                 return current["result"]
-            return {**current.get("result", {"ok": True, "items": []}), "pending": True}
+            if now - current.get("started_at", now) > STUCK_SECONDS:
+                # 너무 오래 붙잡혀 있다. 그 일은 버리고 아래에서 새로 시킨다.
+                future.cancel()
+                current.pop("future", None)
+            else:
+                return {**current.get("result", {"ok": True, "items": []}), "pending": True}
         ttl = CACHE_SECONDS if current and current.get("result", {}).get("items") else ERROR_CACHE_SECONDS
         if current and now - current.get("updated_at", 0) < ttl:
             return current.get("result", {"ok": True, "items": []})
         future = _POOL.submit(_load, cache_key, kind, ticker, finnhub_key, groq_key,
                               naver_client_id, naver_client_secret, deepl_key)
-        _CACHE[cache_key] = {"future": future, "updated_at": now, "result": current.get("result", {"ok": True, "items": []}) if current else {"ok": True, "items": []}}
+        _CACHE[cache_key] = {"future": future, "updated_at": now, "started_at": now,
+                             "result": current.get("result", {"ok": True, "items": []}) if current else {"ok": True, "items": []}}
         return {**_CACHE[cache_key]["result"], "pending": True}
 
 
