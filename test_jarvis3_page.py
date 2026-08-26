@@ -2029,12 +2029,33 @@ def test_main_screen_lifts_like_the_market_cards():
     assert "transition: transform .12s ease-out" in touch, "시장분석과 같은 0.12초가 아니다"
     # 뜨는 것은 껍데기(summary)에 건다 — 안쪽 카드에 걸면 다른 규칙에 눌린다.
     assert ".j3b-card-shell:not([open]) > .j3b-card-summary:hover {" in touch
-    assert "transform: translateY(-4px);" in touch
+    assert "transform: translateY(-6px);" in touch
     # 마우스가 있는 기기에서만 뜨고, 손가락으로는 눌리는 느낌만 준다.
-    assert "@media (hover:hover) and (pointer:fine)" in touch
+    assert "@media (hover:hover)" in touch
     assert ".j3b-card-shell:not([open]) > .j3b-card-summary:active {" in touch
     for part in (".j3b-news:hover", ".j3b-nav-item:hover", ".j3b-round:hover",
                  ".j3b-open-news > summary:hover", ".j3b-logo", ".j3b-decor-img"):
         assert part in touch, part
     # 움직임을 줄여 달라는 설정이면 멈춘다.
     assert "@media (prefers-reduced-motion: reduce)" in touch
+
+
+def test_top9_close_sits_above_the_stock_search():
+    """「종목검색」 바로 위에도 순위 9 닫기가 있다 (2026-08-26 상하님 지시).
+
+    상하님 — "맨 밑에 종목검색 위에 매수심사결과 높은 순위 9 닫기 버튼 만들고
+    20개 테마 실시간 순위 닫기처럼 만들라고."
+    이 단추는 프래그먼트 **밖**이라 누르면 판 전체가 저절로 다시 그려진다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    fn = source[source.index("def _render_top7_close_above_search"):
+                source.index("def _render_my_stock_panel")]
+    assert 'st.session_state.get("j3_top7_open")' in fn
+    assert "_close_full_theme_rank" in fn
+    assert 'key="close_j3_top7_open_above_search"' in fn
+    # 종목검색 바로 위에서 불린다 — 두 갈래(테마 화면 열림/닫힘) 모두.
+    # 부르는 자리 둘 + 함수를 만드는 자리 하나
+    assert source.count("_render_top7_close_above_search()") == 2 + 1
+    assert re.search(r"_render_top7_close_above_search\(\)\n\s*_render_my_stock_panel", source), "종목검색 바로 위가 아니다"
+    # 20개 테마 순위 닫기와 같은 붉은 옷
+    assert 'st-key-close_j3_top7_open_above_search"] button {' in source

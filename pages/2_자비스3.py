@@ -709,6 +709,21 @@ st.markdown(
         font-size: .82rem !important;
         font-weight: 850 !important;
     }
+    /* 「종목검색」 위의 순위 9 닫기도 같은 옷을 입는다(2026-08-26 상하님 지시 —
+       "20개 테마 실시간 순위 닫기처럼 만들라고"). */
+    div[class*="st-key-close_j3_top7_open_above_search"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        box-shadow: 0 2px 10px rgba(224,71,79,.28) !important;
+    }
+    div[class*="st-key-close_j3_top7_open_above_search"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+    }
+    div[class*="st-key-close_j3_top7_open_above_search"] button p {
+        color: #ffffff !important;
+        font-size: .82rem !important;
+        font-weight: 850 !important;
+    }
     /* 낙폭 두 갈래는 색으로 가른다(2026-08-01 사용자 지시) — 위 설명 카드와 표의
        같은 갈래가 같은 색이라, 카드를 보고 표에서 그 줄을 바로 찾을 수 있다.
        깊은 갈래(-40~-50%)는 주황, 얕은 갈래(-30~-40%)는 하늘색이다.
@@ -3906,6 +3921,7 @@ def _render_radar_tab(market: dict) -> None:
         _render_pullback_finder(market, ranking)
         if not guest_mode:
             _render_top7_section(market, ranking)
+        _render_top7_close_above_search()
         _render_my_stock_panel(market)
         picklist_ui.render(st, "US", toggle=_section_toggle,
                            close=_section_close,
@@ -4041,6 +4057,7 @@ def _render_radar_tab(market: dict) -> None:
     # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
     if not guest_mode:
         _render_top7_section(market, ranking)
+    _render_top7_close_above_search()
     _render_my_stock_panel(market)
     # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
     # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
@@ -4302,6 +4319,24 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
     _render_stock_detail(
         {"name": theme_name}, picked, market, [picked],
         "j3_top7_detail_choice", panel="top7",
+    )
+
+
+def _render_top7_close_above_search() -> None:
+    """「종목검색」 바로 위에 두는 매수심사결과 순위 9 닫기 (2026-08-26 상하님 지시).
+
+    상하님 — "맨 밑에 종목검색 위에 매수심사결과 높은 순위 9 닫기 버튼 만들고
+    20개 테마 실시간 순위 닫기처럼 만들라고."
+    「20개 테마 실시간 순위 닫기」가 '종목 찾기' 바로 위에 있는 것과 같은 자리다.
+    이 단추는 프래그먼트 **밖**이라 누르면 판 전체가 저절로 다시 그려진다 —
+    따로 다시 그리라고 시킬 필요가 없다.
+    """
+    if not st.session_state.get("j3_top7_open"):
+        return
+    st.button(
+        "✕ 매수심사결과 높은 순위 9 닫기",
+        key="close_j3_top7_open_above_search",
+        on_click=_close_full_theme_rank,
     )
 
 
@@ -6692,7 +6727,7 @@ def _briefing_css() -> None:
         .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:4px!important;left:50%!important;transform:translateX(-75%)!important;margin-left:8px!important;width:min(286.667px,66.667vw)!important}
         [data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.stAppDeployButton{display:none!important;visibility:hidden!important;pointer-events:none!important}
         }
-        @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:158px!important}.j3b-hero-scene{width:120%!important}.j3b-section{font-size:17px!important}.j3b-card:not(.compact){height:auto!important;min-height:144px!important}.j3b-card.compact{height:auto!important;min-height:160px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
+        @media (max-width:380px){.j3b-title{font-size:31px!important}.j3b-sub{font-size:16px!important}.j3b-hero-catbus{width:158px!important}.j3b-hero-scene{width:120%!important}.j3b-section{font-size:18px!important}.j3b-card:not(.compact){height:auto!important;min-height:148px!important}.j3b-card.compact{height:auto!important;min-height:160px!important}.j3b-note{font-size:9px!important}.j3b-card.compact .j3b-note{font-size:8.5px!important}}
         /* 시장판단 카드의 '살짝 뜨는' 결만 브리핑에 재사용한다. 시장판단 원본은 건드리지 않는다. */
         .j3b-news,.j3b-card-shell>.j3b-card-summary .j3b-card{transition:transform .12s ease-out,filter .12s ease-out,box-shadow .12s ease-out!important}
         .j3b-card-shell>.j3b-card-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-card-shell>.j3b-card-summary::-webkit-details-marker{display:none}
@@ -6831,7 +6866,7 @@ _BRIEFING_TABLET_CSS = """
   width:min(520px,62vw)!important}
  .j3b-bottom-nav{height:76px!important;padding:7px 12px!important;border-radius:26px!important}
  .j3b-nav-item{min-height:62px!important;font-size:16px!important;gap:4px!important}
- .j3b-nav-item b{font-size:30px!important}
+ .j3b-nav-item b{font-size:27px!important}
  div.st-key-j3b_nav_controls{height:76px!important}
  div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:76px!important}
  div.st-key-j3b_nav_controls [data-testid="stColumn"]{height:76px!important}
@@ -6907,20 +6942,26 @@ _BRIEFING_TOUCH_CSS = """
               border-color .12s ease-out, box-shadow .12s ease-out;
 }
 
-@media (hover:hover) and (pointer:fine) {
+@media (hover:hover) {
   /* 카드 — 통째로 뜨고 테두리가 밝아진다.
      **뜨는 것은 껍데기(summary)에 건다.** 안쪽 .j3b-card 에 걸면 다른 규칙에 눌려
      테두리만 바뀌고 움직이지 않았다(2026-08-26 실측). */
   .j3b-card-shell:not([open]) > .j3b-card-summary:hover {
-    transform: translateY(-4px);
-    filter: brightness(1.12);
+    transform: translateY(-6px);
+    filter: brightness(1.14);
   }
   .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-card {
-    border-color: rgba(140,214,255,.85) !important;
-    box-shadow: inset 0 1px #7bc9ff45, 0 12px 24px #0009 !important;
+    border-color: rgba(150,220,255,.95) !important;
+    box-shadow: inset 0 1px #7bc9ff55, 0 0 0 1px rgba(110,200,255,.35),
+                0 16px 30px #000b !important;
+  }
+  /* 시장국면 계기판 바늘처럼, 로고가 한 번 살짝 흔들린다
+     (market_signal_ui.py 의 sig-needle-wiggle 과 같은 결). */
+  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-logo {
+    transform: scale(1.09);
+    animation: j3b-logo-wiggle .55s cubic-bezier(.3,.7,.4,1);
   }
   /* 카드 안의 로고와 캐릭터도 조금 더 나온다 */
-  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-logo { transform: scale(1.07); }
   .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-decor-img { transform: translateY(-2px) scale(1.05); }
   /* 브리핑 한 줄 */
   .j3b-news:hover {
@@ -6940,6 +6981,38 @@ _BRIEFING_TOUCH_CSS = """
   .j3b-section .j3b-more:hover { filter: brightness(1.4); transform: translateX(2px); }
 }
 
+@keyframes j3b-logo-wiggle {
+  0%   { transform: scale(1.09) rotate(0deg); }
+  25%  { transform: scale(1.09) rotate(-6deg); }
+  55%  { transform: scale(1.09) rotate(4deg); }
+  80%  { transform: scale(1.09) rotate(-1.5deg); }
+  100% { transform: scale(1.09) rotate(0deg); }
+}
+
+/* 손가락으로 누를 때 — 폰·태블릿. 마우스가 없으니 '뜨는' 대신 **눌리는** 것을 준다.
+   2026-08-26 상하님 — "노트북에는 되네, 태블릿 스마트폰에서는 안 된다."
+   손가락 기기에는 :hover 가 아예 없다. 그래서 :active 를 더 뚜렷하게 준다. */
+@media (hover:none) {
+  .j3b-card-shell:not([open]) > .j3b-card-summary:active {
+    transform: scale(.955) !important; filter: brightness(1.22) !important;
+  }
+  .j3b-card-shell:not([open]) > .j3b-card-summary:active .j3b-card {
+    border-color: rgba(150,220,255,.95) !important;
+    box-shadow: inset 0 1px #7bc9ff55, 0 0 0 1px rgba(110,200,255,.45) !important;
+  }
+  .j3b-card-shell:not([open]) > .j3b-card-summary:active .j3b-logo {
+    animation: j3b-logo-wiggle .55s cubic-bezier(.3,.7,.4,1);
+  }
+  .j3b-market-news-shell > .j3b-market-news-summary:active .j3b-news {
+    transform: scale(.97) !important; filter: brightness(1.22) !important;
+    border-color: rgba(255,214,129,.9) !important;
+  }
+  div[class*="st-key-j3b_nav_controls"] button:active { background: #ffffff22 !important; }
+}
+.j3b-card-summary, .j3b-market-news-summary, .j3b-news, .j3b-nav-item {
+  -webkit-tap-highlight-color: rgba(120,205,255,.22);
+}
+
 /* 손가락으로 누를 때 — 폰·태블릿. 눌리는 느낌만 준다. */
 .j3b-card-shell:not([open]) > .j3b-card-summary:active {
   transform: scale(.985); filter: brightness(1.06);
@@ -6952,6 +7025,7 @@ _BRIEFING_TOUCH_CSS = """
 @media (prefers-reduced-motion: reduce) {
   .j3b-card, .j3b-news, .j3b-logo, .j3b-nav-item, .j3b-round, .j3b-live,
   .j3b-decor-img, .j3b-open-news > summary { transition: none !important; }
+  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-logo { animation: none !important; }
 }
 </style>
 """
@@ -7366,11 +7440,11 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
         ready = len(keys)
     # 다 오기를 기다리지 않는다. 새로 도착한 자리가 생길 때마다 그만큼 채워 그려서
     # 위쪽 시장 브리핑과 사용자 선정 종목이 먼저 차고 추가 검색 종목이 뒤따르게 한다.
-    # 40초가 넘으면 더 기다리지 않는다. 못 온 자리는 있는 그대로 둔다.
-    if ready <= int(st.session_state.get("j3b_news_ready", 0)) and waited < 20:
+    # 2분이 넘으면 더 기다리지 않는다. 못 온 자리는 ↻ 를 눌러 다시 받으면 된다.
+    if ready <= int(st.session_state.get("j3b_news_ready", 0)) and waited < 60:
         return
     st.session_state["j3b_news_ready"] = ready
-    if ready >= len(keys) or waited >= 20:
+    if ready >= len(keys) or waited >= 60:
         st.session_state["j3b_news_pending"] = False
         st.session_state.pop("j3b_news_wait", None)
         st.session_state.pop("j3b_news_ready", None)
