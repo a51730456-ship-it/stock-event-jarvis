@@ -6651,6 +6651,65 @@ def _briefing_css() -> None:
         """,
         unsafe_allow_html=True,
     )
+    st.markdown(_BRIEFING_OPEN_CSS, unsafe_allow_html=True)
+
+
+_BRIEFING_OPEN_CSS = """
+<style>
+/* 크게 연 화면 — 2026-08-26 상하님 지시로 구조를 바꿨다.
+   예전에는 큰 판이 <summary> **안에** 있었다. 그러면 그 안의 뉴스를 눌러도
+   브라우저가 <details>를 닫아 버려 원문을 펼칠 수 없었다.
+   이제 큰 판은 summary **밖**에 있다. 어두운 바탕(summary)을 누르면 닫히고,
+   판 안의 뉴스를 누르면 그 줄만 펼쳐진다. */
+.j3b-card-open{display:none}
+.j3b-card-shell[open]>.j3b-card-summary,
+.j3b-market-news-shell[open]>.j3b-market-news-summary{z-index:2147483646!important}
+.j3b-card-shell[open]>.j3b-card-summary>*{visibility:hidden!important}
+.j3b-card-shell[open]>.j3b-card-open,
+.j3b-market-news-shell[open]>.j3b-card-open{position:fixed;inset:0;z-index:2147483647;
+ display:flex;align-items:center;justify-content:center;padding:16px;
+ box-sizing:border-box;pointer-events:none}
+.j3b-open-card{position:relative;pointer-events:auto;width:min(680px,calc(100vw - 32px));
+ max-height:calc(100dvh - 40px);overflow:auto;padding:20px 20px 104px;
+ border:1px solid rgba(123,201,255,.45);border-radius:20px;box-sizing:border-box;
+ background:radial-gradient(circle at 100% 0,rgba(15,85,147,.37),transparent 44%),
+  linear-gradient(145deg,rgba(7,41,87,.99),rgba(3,23,55,.99));
+ box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c}
+.j3b-open-close{position:absolute;right:12px;top:12px;z-index:6;padding:6px 10px;
+ border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;
+ font-size:12px;font-weight:800;pointer-events:none}
+.j3b-open-card .j3b-card-top{display:flex;gap:10px;align-items:center;min-height:58px;padding-right:132px}
+.j3b-open-card .j3b-logo{width:58px;height:58px;border-radius:14px}
+.j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
+.j3b-open-card .j3b-name{display:block;margin-top:2px;color:#c9e8ff;font-size:14px;white-space:normal}
+.j3b-open-card .j3b-price{margin:12px 0 8px;font-size:22px;font-weight:900;color:#fff}
+.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}
+.j3b-open-card .j3b-decor-img{position:absolute;right:10px;bottom:6px;width:96px;height:auto;pointer-events:none}
+.j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}
+.j3b-open-list{margin-top:14px}
+.j3b-open-news{border-top:1px solid rgba(181,219,255,.2)}
+.j3b-open-news>summary{list-style:none;cursor:pointer;position:relative;
+ padding:11px 26px 11px 0;color:#eaf4fc;font-size:14px;line-height:1.55;outline:0}
+.j3b-open-news>summary::-webkit-details-marker{display:none}
+.j3b-open-news>summary:before{content:'•';color:#72e55b;margin-right:7px}
+.j3b-open-news>summary:after{content:'＋';position:absolute;right:2px;top:11px;color:#8fc4ea;font-size:13px}
+.j3b-open-news[open]>summary{color:#9fd8ff;font-weight:800}
+.j3b-open-news[open]>summary:after{content:'－'}
+.j3b-open-body{padding:0 0 13px 15px}
+.j3b-open-label{margin-bottom:4px;color:#7fc4ff;font-size:11px;font-weight:800}
+.j3b-open-orig{color:#cfe0ef;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.j3b-open-src{margin-top:6px;color:#93a9bd;font-size:11px}
+.j3b-open-link{display:inline-block;margin-top:9px;padding:5px 12px;border:1px solid #4f9fd8;
+ border-radius:14px;color:#8fd9ff!important;font-size:12px;font-weight:800;text-decoration:none}
+@media (max-width:600px){
+ .j3b-open-card{padding:18px 16px 96px}
+ .j3b-open-card .j3b-symbol{font-size:24px}
+ .j3b-open-news>summary{font-size:15px;line-height:1.6}
+ .j3b-open-orig{font-size:14px}
+ .j3b-market-news-title{font-size:16px}
+}
+</style>
+"""
 
 
 def _briefing_chart(values, change) -> str:
@@ -6677,6 +6736,38 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
     return result
 
 
+def _news_original_html(item: dict) -> str:
+    """번역 밑에 펼쳐 보일 원문·출처·기사 링크."""
+    brief = str(item.get("brief") or "")
+    headline = str(item.get("headline") or "")
+    url = str(item.get("url") or "")
+    source = str(item.get("source") or "")
+    published = str(item.get("published_at") or "")[:16].replace("T", " ")
+    parts = []
+    if headline and headline != brief:
+        parts.append('<div class="j3b-open-label">원문</div>'
+                     f'<div class="j3b-open-orig">{html.escape(headline)}</div>')
+    if source or published:
+        parts.append(f'<div class="j3b-open-src">{html.escape(source)}'
+                     f'{" · " + html.escape(published) if published else ""}</div>')
+    if url:
+        parts.append(f'<a class="j3b-open-link" href="{html.escape(url, quote=True)}" '
+                     'target="_blank" rel="noopener noreferrer">원문 기사 열기 ↗</a>')
+    if not parts:
+        parts.append('<div class="j3b-open-src">원문 주소를 받지 못했습니다.</div>')
+    return f'<div class="j3b-open-body">{"".join(parts)}</div>'
+
+
+def _news_accordion_html(items: list[dict]) -> str:
+    """크게 연 화면에서 한 줄을 누르면 원문이 펼쳐지는 목록."""
+    rows = []
+    for item in items[:3]:
+        brief = html.escape(str(item.get("brief") or item.get("headline") or ""))
+        rows.append(f'<details class="j3b-open-news"><summary>{brief}</summary>'
+                    f'{_news_original_html(item)}</details>')
+    return "".join(rows)
+
+
 def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
     result = _briefing_items(kind, ticker)
     items = result.get("items") or []
@@ -6684,42 +6775,28 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
         message = "뉴스를 불러오는 중입니다" if result.get("pending") else "뉴스 브리핑 일시 사용 불가"
         items = [{"sentiment": "neutral", "brief": message}]
     marks = {"positive": "↗", "negative": "▥", "neutral": "○"}
-    if kind == "market":
-        collapsed_rows, expanded_rows = [], []
-        for index, item in enumerate(items[:3]):
-            sentiment = item.get("sentiment") if item.get("sentiment") in {"positive", "negative", "neutral"} else "neutral"
-            brief = html.escape(str(item.get("brief") or item.get("headline") or ""))
-            collapsed_rows.append(
-                f'<div class="j3b-news"><span class="j3b-news-link"><span class="j3b-news-icon">{marks[sentiment]}</span>'
-                f'<span>{brief}</span><span class="j3b-news-dot {sentiment}"></span></span></div>'
-            )
-            expanded_rows.append(
-                f'<div class="j3b-market-news-text"><span class="j3b-market-news-number">{index + 1}</span>{brief}</div>'
-            )
-        st.markdown(
-            f'<details class="j3b-market-news-shell"><summary class="j3b-market-news-summary">'
-            f'{"".join(collapsed_rows)}<div class="j3b-market-news-expanded">'
-            f'<span class="j3b-market-news-close">× 다시 누르면 닫힘</span>'
-            f'<div class="j3b-market-news-title">미국시장 한줄 브리핑</div>'
-            f'{"".join(expanded_rows)}</div></summary></details>',
-            unsafe_allow_html=True,
-        )
-        return items
-    for index, item in enumerate(items[:3]):
+    collapsed_rows = []
+    for item in items[:3]:
         sentiment = item.get("sentiment") if item.get("sentiment") in {"positive", "negative", "neutral"} else "neutral"
         brief = html.escape(str(item.get("brief") or item.get("headline") or ""))
-        url = html.escape(str(item.get("url") or ""), quote=True)
-        inner_opening = (
-            f'<a class="j3b-news-link" href="{url}" target="_blank" rel="noopener noreferrer">'
-            if url else '<span class="j3b-news-link">'
+        # 접힌 줄은 **링크가 아니다**. 누르면 기사로 튀지 않고 화면만 커진다
+        # (2026-08-26 상하님 지시). 원문은 커진 화면에서 한 줄을 눌러 본다.
+        collapsed_rows.append(
+            f'<div class="j3b-news"><span class="j3b-news-link"><span class="j3b-news-icon">{marks[sentiment]}</span>'
+            f'<span>{brief}</span><span class="j3b-news-dot {sentiment}"></span></span></div>'
         )
-        inner_closing = "</a>" if url else "</span>"
-        st.markdown(
-            f'<div class="j3b-news">{inner_opening}<span class="j3b-news-icon">{marks[sentiment]}</span>'
-            f'<span>{brief}</span><span class="j3b-news-dot {sentiment}"></span>{inner_closing}</div>',
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        '<details class="j3b-market-news-shell">'
+        f'<summary class="j3b-market-news-summary">{"".join(collapsed_rows)}</summary>'
+        '<div class="j3b-card-open"><div class="j3b-open-card">'
+        '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
+        '<div class="j3b-market-news-title">미국시장 한줄 브리핑</div>'
+        f'<div class="j3b-open-list">{_news_accordion_html(items)}</div>'
+        '</div></div></details>',
+        unsafe_allow_html=True,
+    )
     return items
+
 
 
 _DECOR_IMAGES = ("soot_lamp_cut.png", "small_cat_lamp_cut.png",
@@ -6770,13 +6847,12 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         notes = [{"brief": "뉴스를 불러오는 중입니다"}]
     else:
         notes = [{"brief": "뉴스 브리핑 일시 사용 불가"}]
+    # 접힌 카드의 뉴스 줄은 **링크가 아니다**(2026-08-26 상하님 지시 — "기본 작은
+    # 화면에서 종목 밑에 뉴스 클릭하면 바로 뉴스로 들어가지 않게 화면만 크게 하고").
+    # 원문은 커진 화면에서 그 줄을 다시 눌러 본다.
     note_html = "".join(
-        (
-            f'<a class="j3b-note" href="{html.escape(str(item.get("url") or ""), quote=True)}" '
-            f'target="_blank" rel="noopener noreferrer">{html.escape(str(item.get("brief") or item.get("headline") or "뉴스 브리핑 준비 중"))}</a>'
-            if item.get("url") else
-            f'<div class="j3b-note">{html.escape(str(item.get("brief") or item.get("headline") or "뉴스 브리핑 준비 중"))}</div>'
-        ) for item in notes
+        f'<div class="j3b-note">{html.escape(str(item.get("brief") or item.get("headline") or "뉴스 브리핑 준비 중"))}</div>'
+        for item in notes
     )
     logo_uri = _briefing_logo_uri(ticker)
     # 회사 로고 **그림**은 앱 안에 넣어 둔 여덟 종목만 있다. 나머지는 그 회사가
@@ -6819,10 +6895,22 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         f'{_briefing_chart(card.get("chart"), change)}<div class="j3b-card-notes">{note_html}</div>'
         f'{delete_visual}{decor_html}</div>'
     )
+    open_card = (
+        f'<div class="j3b-open-card {direction}">'
+        '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
+        f'<div class="j3b-card-top"><span class="j3b-logo {html.escape(ticker.lower())}">{logo_html}</span><div>'
+        f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
+        f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
+        f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'
+        f'{_briefing_chart(card.get("chart"), change)}'
+        f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
+        f'{decor_html}</div>'
+    )
     card_html = (
         '<details class="j3b-card-shell"><summary class="j3b-card-summary" '
-        'title="클릭하면 크게 보기">'
-        f'{card_body}</summary></details>'
+        'title="누르면 크게 보기">'
+        f'{card_body}</summary>'
+        f'<div class="j3b-card-open">{open_card}</div></details>'
     )
     if removable:
         position = int(stock["position"])

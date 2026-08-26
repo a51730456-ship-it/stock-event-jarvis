@@ -1852,15 +1852,35 @@ def test_briefing_cards_hover_and_expand_without_rerun_or_script():
 
 
 def test_market_briefing_expands_inline_without_external_news_link():
+    """접힌 줄은 링크가 아니다 — 눌러도 기사로 튀지 않고 화면만 커진다.
+
+    2026-08-26 상하님 지시로 구조를 바꿨다. 커진 판은 <summary> **밖**에 있다.
+    안에 두면 그 안의 뉴스를 눌러도 브라우저가 <details>를 닫아 원문을 못 편다.
+    """
     source = PAGE.read_text(encoding="utf-8")
     news = source[source.index("def _render_briefing_news"):source.index("def _render_briefing_card")]
-    market_branch = news[news.index('if kind == "market":'):news.index("return items", news.index('if kind == "market":'))]
-    assert '<details class="j3b-market-news-shell">' in market_branch
-    assert 'class="j3b-market-news-text"' in market_branch
-    assert '"".join(expanded_rows)' in market_branch
-    assert "href=" not in market_branch
-    assert "target=" not in market_branch
+    collapsed = news[news.index("collapsed_rows.append("):news.index("st.markdown(")]
+    assert "href=" not in collapsed
+    assert "target=" not in collapsed
+    assert '<details class="j3b-market-news-shell">' in news
+    assert '<summary class="j3b-market-news-summary">' in news
+    # 커진 판은 summary를 닫은 **뒤**에 온다.
+    assert news.index("</summary>") < news.index('<div class="j3b-card-open">')
     assert ".j3b-market-news-shell[open]>.j3b-market-news-summary" in source
+
+
+def test_expanded_news_rows_show_the_original_article():
+    """커진 화면에서 한 줄을 누르면 번역 밑에 원문·출처·기사 링크가 펼쳐진다."""
+    source = PAGE.read_text(encoding="utf-8")
+    body = source[source.index("def _news_original_html"):source.index("def _render_briefing_news")]
+    assert '<div class="j3b-open-label">원문</div>' in body
+    assert 'class="j3b-open-orig"' in body
+    assert 'class="j3b-open-src"' in body
+    assert '원문 기사 열기' in body
+    # 번역과 원문이 같으면(번역이 안 된 날) 같은 줄을 두 번 적지 않는다.
+    assert "if headline and headline != brief:" in body
+    assert '<details class="j3b-open-news">' in source
+    assert ".j3b-card-shell[open]>.j3b-card-summary>*{visibility:hidden!important}" in source
 
 
 def test_briefing_hides_cloud_overlays_and_redundant_helper_text():

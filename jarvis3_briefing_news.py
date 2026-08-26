@@ -221,16 +221,24 @@ def _request_text(url: str) -> str:
 
 
 def _dedupe(rows: list[dict]) -> list[dict]:
+    """같은 사건을 두 번 싣지 않는다.
+
+    주소와 제목을 **둘 다** 본다. 예전에는 주소가 있으면 주소만 봐서, 매체가 달라
+    주소가 다르면 같은 기사가 두 줄로 올라왔다(2026-08-26 — 시장 브리핑 세 줄 가운데
+    둘이 "US Stock Market Today: S&P 500 Futures Edge Lower…"로 겹쳤다).
+    """
     seen, result = set(), []
     for row in rows:
         title, url = _text(row.get("headline")), _text(row.get("url"))
         if not title:
             continue
-        words = " ".join(re.findall(r"[a-z0-9가-힣]+", title.lower())[:12])
-        fingerprint = url or hashlib.sha1(words.encode("utf-8")).hexdigest()
-        if fingerprint in seen:
+        words = " ".join(re.findall(r"[a-z0-9가-힣]+", title.lower())[:7])
+        marks = {hashlib.sha1(words.encode("utf-8")).hexdigest()}
+        if url:
+            marks.add(url)
+        if marks & seen:
             continue
-        seen.add(fingerprint)
+        seen |= marks
         result.append(row)
     return result
 

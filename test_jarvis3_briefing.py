@@ -360,3 +360,19 @@ def test_english_articles_about_other_companies_are_dropped():
         assert news._is_about({"headline": headline}, "company", ticker), headline
     for ticker, headline in drop:
         assert not news._is_about({"headline": headline}, "company", ticker), headline
+
+
+def test_same_story_from_two_outlets_is_shown_once():
+    """주소가 달라도 제목이 같은 기사는 한 줄만 싣는다."""
+    stamp = datetime.now(timezone.utc).isoformat()
+    rows = [
+        {"headline": "US Stock Market Today: S&P 500 Futures Edge Lower As Inflation Jitters Linger",
+         "url": "https://a.test/1", "published_at": stamp},
+        {"headline": "US Stock Market Today: S&P 500 Futures Edge Lower As Strong PMI Data Lands",
+         "url": "https://b.test/2", "published_at": stamp},
+        {"headline": "Nvidia earnings loom over Wall Street", "url": "https://c.test/3",
+         "published_at": stamp},
+    ]
+    kept = news._dedupe(rows)
+    assert len(kept) == 2
+    assert kept[1]["headline"].startswith("Nvidia")
