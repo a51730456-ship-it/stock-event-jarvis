@@ -7590,6 +7590,35 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
     st.rerun()
 
 
+def _warm_after_news(keys: tuple) -> None:
+    """뉴스가 다 온 **뒤에** 순위 9와 나스닥 25년치를 미리 챙긴다.
+
+    **뉴스보다 먼저 시작하면 안 된다** (2026-08-26 상하님 지적 — "노트북 메인화면
+    관심종목 로딩이 오래 걸린다", "관심종목에 뉴스 전부 다 안 나온다").
+
+    오늘 제가 이 미리 계산을 화면 그리기 **맨 앞**에 두었다. 파이썬은 한 번에 한
+    가지만 계산한다. 그래서 뒤 일꾼이 테마 20개와 순위 9를 계산하는 동안(17초)
+    첫 화면 그리기와 뉴스 받기가 그만큼 밀렸다. 시장분석 화면은 이 도우미를
+    안 불러서 멀쩡했고, 그것이 "시장분석은 잘 열리는데 관심종목만 느리다"의
+    까닭이다.
+
+    이제 뉴스가 **다 온 뒤에만** 시작한다. 그때는 상하님이 화면을 보고 계실
+    때라 뒤에서 무엇을 하든 기다리실 것이 없다.
+    """
+    try:
+        if not briefing_news.all_ready(keys):
+            return
+    except Exception:
+        return
+    warm = getattr(j3data, "warm_top_picks", None)
+    if not callable(warm):
+        return
+    try:
+        warm()
+    except Exception:
+        pass
+
+
 def _render_briefing_bottom_nav(active: str) -> None:
     """종목 브리핑과 시장분석에서 같이 보이는 하단 이동표."""
     # 시장분석 그림만 글자가 아니라 **직접 그린 그림**이다(2026-08-26 상하님 지시 —
@@ -7622,16 +7651,8 @@ def _render_briefing_bottom_nav(active: str) -> None:
 
 
 def _render_stock_briefing() -> None:
-    # 상하님이 이 첫 화면을 보시는 동안 뒤에서 순위 9를 미리 계산해 둔다
-    # (2026-08-26 상하님 허락 — "매수심사결과 높은순위 9 로딩시간 10초 걸린다").
-    # 계산 내용은 안 바뀐다 — 시작 시점만 앞당긴다. 못 해 놓아도 조용히 넘어가고,
-    # 그때는 예전처럼 단추가 그 자리에서 계산한다.
-    warm = getattr(j3data, "warm_top_picks", None)
-    if callable(warm):
-        try:
-            warm()
-        except Exception:
-            pass
+    # 미리 계산은 이 화면 **맨 끝**에서, 그것도 뉴스가 다 온 뒤에 시작한다
+    # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
     _briefing_css()
     page = st.session_state.get("j3_briefing_page", "home")
     if page == "market":
@@ -7710,6 +7731,10 @@ def _render_stock_briefing() -> None:
         _render_briefing_bottom_nav("watch")
         news_keys = tuple([("market", None)] + [("company", stock["ticker"]) for stock in visible_stocks])
         _schedule_briefing_news_refresh(news_keys)
+        # 뉴스가 다 온 뒤에야 순위 9·나스닥 25년치를 미리 챙긴다. 위 줄이 화면을
+        # 다시 그리라고 하면 이 줄까지 오지 않는다 — 그것이 맞다. 아직 뉴스가
+        # 오는 중이라는 뜻이기 때문이다.
+        _warm_after_news(news_keys)
 
 
 def main() -> None:

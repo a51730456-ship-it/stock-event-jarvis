@@ -780,12 +780,32 @@ class WarmTopPicksTests(unittest.TestCase):
             j3.warm_top_picks()
         self.assertEqual(called["n"], 1, "순위 9가 최신이면 나스닥까지 건너뛴다")
 
-    def test_the_screen_calls_it_but_survives_an_old_module(self):
-        """첫 화면이 이것을 부르되, 옛 모듈이 남아 있어도 안 죽는다."""
+    def test_the_warm_starts_only_after_the_news_has_arrived(self):
+        """미리 계산은 **뉴스가 다 온 뒤에** 시작한다 (2026-08-26 상하님 지적).
+
+        상하님 — "노트북 메인화면 관심종목 로딩이 오래 걸린다."
+        "관심종목에 뉴스 전부 다 안 나온다. 뉴스를 불러오는 중이란다."
+
+        제가 이 미리 계산을 화면 그리기 맨 앞에 두었던 탓이다. 파이썬은 한 번에
+        한 가지만 계산하므로, 뒤 일꾼이 17초를 쓰는 동안 첫 화면과 뉴스가 밀렸다.
+        시장분석 화면은 이 도우미를 안 불러서 멀쩡했다 — 그것이 "시장분석은 잘
+        열리는데 관심종목만 느리다"의 까닭이다.
+        """
         from pathlib import Path
         page = (Path(__file__).resolve().parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
-        block = page[page.index("def _render_stock_briefing()"):]
-        block = block[:block.index("_briefing_css()")]
-        self.assertIn('getattr(j3data, "warm_top_picks", None)', block,
+        helper = page[page.index("def _warm_after_news("):]
+        helper = helper[:helper.index(chr(10) + "def ", 10)]
+        self.assertIn("all_ready(keys)", helper, "뉴스가 다 왔는지 안 본다")
+        self.assertIn('getattr(j3data, "warm_top_picks", None)', helper,
                       "옛 모듈에서 죽지 않게 getattr 로 불러야 한다")
-        self.assertIn("callable(warm)", block)
+        self.assertIn("callable(warm)", helper)
+        # 화면 **맨 앞**에서는 절대 부르지 않는다.
+        head = page[page.index("def _render_stock_briefing()"):]
+        head = head[:head.index("_briefing_css()")]
+        self.assertNotIn("warm_top_picks", head, "화면 맨 앞에서 미리 계산을 시작한다")
+        # 뉴스 예약 **뒤에** 불러야 한다.
+        home = page[page.index("def _render_stock_briefing()"):]
+        home = home[:home.index("def main()")]
+        self.assertLess(home.index("_schedule_briefing_news_refresh(news_keys)"),
+                        home.index("_warm_after_news(news_keys)"),
+                        "뉴스 예약보다 먼저 미리 계산을 시작한다")
