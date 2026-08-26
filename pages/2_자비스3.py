@@ -7626,6 +7626,14 @@ def _warm_after_news(keys: tuple) -> None:
             return
     except Exception:
         return
+    # 시장분석 화면이 그 판에서 처음 열릴 때 받는 신호 시세 13개도 같이 미리
+    # 받아 둔다(2026-08-26 상하님 지적 — "관심종목에서 시장분석 클릭하면 로딩 3초").
+    signal_warm = getattr(market_signal_ui, "warm_us_signal_quotes", None)
+    if callable(signal_warm):
+        try:
+            signal_warm()
+        except Exception:
+            pass
     warm = getattr(j3data, "warm_top_picks", None)
     if not callable(warm):
         return

@@ -13,6 +13,8 @@ from __future__ import annotations
 import importlib
 import math
 import re
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -184,6 +186,49 @@ def _cached_quotes(tickers):
 @st.cache_data(ttl=8, show_spinner=False)
 def _short_cached_quotes(tickers):
     return _fetch_quotes(tickers)
+
+
+# ── 미국장 신호 시세를 미리 받아 둔다 (2026-08-26 상하님 지적) ───────────────
+# 상하님 — "관심종목에서 시장분석 클릭하면 로딩 3초."
+#
+# 시장분석 화면을 **그 판에서 처음 열 때** 이 카드가 티커 13개 시세를 받는다.
+# 실측 — 처음 1.37초, 받아 둔 뒤 0.34초. 상하님이 첫 화면(관심종목)을 보시는
+# 동안 미리 받아 두면 시장분석을 여실 때 그만큼이 없어진다.
+#
+# **판정·점수는 한 글자도 안 바뀐다.** 받는 시점만 앞당긴다.
+# st.cache_data 를 거치지 않고 _fetch_quotes 를 바로 부른다 — 뒤 일꾼에는
+# 스트림릿 판이 없어서 그 저장고를 못 쓴다. 대신 price_data 안쪽이 데워져
+# 화면이 부를 때 훨씬 빨리 끝난다.
+_US_QUOTE_WARM_LOCK = threading.Lock()
+_US_QUOTE_WARM = {"on": False, "at": 0.0}
+US_QUOTE_WARM_SECONDS = 150.0
+
+
+def warm_us_signal_quotes() -> None:
+    """미국장 신호 티커 시세를 뒤에서 미리 받아 둔다. 실패해도 조용히 넘어간다."""
+    now = time.time()
+    with _US_QUOTE_WARM_LOCK:
+        if _US_QUOTE_WARM["on"] or now - _US_QUOTE_WARM["at"] < US_QUOTE_WARM_SECONDS:
+            return
+        _US_QUOTE_WARM["on"] = True
+
+    def _run() -> None:
+        try:
+            tickers = tuple(spec[2] for spec in us_market_signal_engine.US_SIGNAL_SPECS) + ("^VIX3M",)
+            _fetch_quotes(tickers)
+            with _US_QUOTE_WARM_LOCK:
+                _US_QUOTE_WARM["at"] = time.time()
+        except Exception:
+            pass
+        finally:
+            with _US_QUOTE_WARM_LOCK:
+                _US_QUOTE_WARM["on"] = False
+
+    try:
+        threading.Thread(target=_run, name="us-quote-warm", daemon=True).start()
+    except Exception:
+        with _US_QUOTE_WARM_LOCK:
+            _US_QUOTE_WARM["on"] = False
 
 
 def _fetch_previous_us_quote(ticker, as_of_date):

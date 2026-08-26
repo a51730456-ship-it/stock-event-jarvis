@@ -809,3 +809,71 @@ class WarmTopPicksTests(unittest.TestCase):
         self.assertLess(home.index("_schedule_briefing_news_refresh(news_keys)"),
                         home.index("_warm_after_news(news_keys)"),
                         "뉴스 예약보다 먼저 미리 계산을 시작한다")
+
+class WarmUsSignalQuotesTests(unittest.TestCase):
+    """미국장 신호 시세도 첫 화면에서 미리 받아 둔다 (2026-08-26 상하님 지적).
+
+    상하님 — "관심종목에서 시장분석 클릭하면 로딩 3초, 다시 관심종목 클릭하면
+    또 3초." 시장분석 화면을 그 판에서 처음 열 때 신호 카드가 티커 13개 시세를
+    받는다. 프로세스를 따로 띄워 잰 값 — 미리 안 받으면 2.05초, 미리 받아 두면
+    0.37초. **판정·점수는 한 글자도 안 바뀐다.** 받는 시점만 앞당긴다.
+    """
+
+    def setUp(self):
+        import market_signal_ui as msu
+        with msu._US_QUOTE_WARM_LOCK:
+            msu._US_QUOTE_WARM["on"] = False
+            msu._US_QUOTE_WARM["at"] = 0.0
+
+    tearDown = setUp
+
+    def test_the_screen_never_waits_for_it(self):
+        """화면은 미리 받기를 기다리지 않는다."""
+        import market_signal_ui as msu
+        import time as _t
+        started = {"n": 0}
+
+        def slow(tickers):
+            started["n"] += 1
+            _t.sleep(0.5)
+            return {}
+
+        with patch.object(msu, "_fetch_quotes", slow):
+            t = _t.time()
+            msu.warm_us_signal_quotes()
+            self.assertLess(_t.time() - t, 0.3, "화면이 미리 받기를 기다렸다")
+            for _ in range(60):
+                if not msu._US_QUOTE_WARM["on"]:
+                    break
+                _t.sleep(0.05)
+        self.assertEqual(started["n"], 1)
+
+    def test_it_does_not_run_twice_at_once(self):
+        """이미 받고 있으면 또 시키지 않는다."""
+        import market_signal_ui as msu
+        import time as _t
+        started = {"n": 0}
+
+        def slow(tickers):
+            started["n"] += 1
+            _t.sleep(0.4)
+            return {}
+
+        with patch.object(msu, "_fetch_quotes", slow):
+            msu.warm_us_signal_quotes()
+            msu.warm_us_signal_quotes()
+            msu.warm_us_signal_quotes()
+            for _ in range(60):
+                if not msu._US_QUOTE_WARM["on"]:
+                    break
+                _t.sleep(0.05)
+        self.assertEqual(started["n"], 1, "여러 번 겹쳐 받았다")
+
+    def test_the_home_screen_asks_for_it_after_the_news(self):
+        """첫 화면이 뉴스 뒤에 이것을 부르되, 옛 모듈이면 조용히 넘어간다."""
+        from pathlib import Path
+        page = (Path(__file__).resolve().parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        helper = page[page.index("def _warm_after_news("):]
+        helper = helper[:helper.index(chr(10) + "def ", 10)]
+        self.assertIn('getattr(market_signal_ui, "warm_us_signal_quotes", None)', helper)
+        self.assertIn("all_ready(keys)", helper, "뉴스보다 먼저 시작하면 안 된다")
