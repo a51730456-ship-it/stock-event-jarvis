@@ -1115,6 +1115,7 @@ import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용
 import jarvis3_data as j3data
 import jarvis3_briefing_news as briefing_news
 import jarvis3_briefing_store as briefing_store
+import us_company_logos
 import us_swing_selector as us_swing
 import jarvis3_store as j3store
 import market_signal_ui
@@ -2795,6 +2796,13 @@ def _render_stock_detail(
             unsafe_allow_html=True,
         )
 
+    if panel == "top7":
+        # 2026-08-26 상하님 지시 — "추천 근거 요약 그 밑에 실제 매수기록 저장하시겠습니까
+        # 위에 매수심사결과 높은 순위 9 닫기 버튼을 만들어 주고, 그 버튼 누르면 열린
+        # 화면 다 닫고 위로 올라가게." 상세까지 다 내려보고 나면 순위 9를 접으려고
+        # 화면 몇 장을 도로 올라가야 했다.
+        _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기",
+                       slot="_detail", on_close=_close_full_theme_rank)
     _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
     _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")
@@ -2817,19 +2825,40 @@ _THEME_PANEL_OPEN_KEYS = (
 )
 
 
+# 「종목 찾기」의 세 갈래 단추. 20개 테마 순위를 닫을 때 이것들도 같이 닫는다.
+_FINDER_OPEN_KEYS = ("j3_pullback_open", "j3_top7_open")
+# 상세 한 벌 안에서 열리는 창들. 갈래마다 이름 뒤가 다르다.
+_DETAIL_OPEN_PREFIXES = ("j3_detail_open_", "j3_intraday_open_", "j3_bundle_open_",
+                         "j3_leadercmp_open_", "j3_buyform_open_")
+_DETAIL_PANELS = ("theme", "top7", "pullback")
+
+
 def _close_full_theme_rank() -> None:
-    """20개 테마 순위에서 연 화면을 전부 닫고 미국테마 메인으로 돌아간다."""
+    """「종목 찾기」에서 연 화면을 하나도 남기지 않고 다 닫고 메인으로 돌아간다.
+
+    2026-08-26 상하님 지시 — "20개 테마 실시간 순위 닫기 버튼 누르면 20개 테마
+    관련 열린 창 다 닫고 캡처 화면으로 되돌아가도록."
+
+    예전에는 **테마 쪽만** 닫았다. 그래서 매수심사결과 순위 9에서 골라 둔 종목
+    상세가 그대로 남았다(상하님 캡처 — 순위를 닫았는데 '순위 7에서 고른 종목 ·
+    ILMN'이 그대로 있었다). 이제 세 갈래와 그 안에서 연 창, 골라 둔 값까지 비운다.
+    """
     st.session_state[_THEME_RANK_OPEN] = False
     st.session_state["j3_theme_panel_open"] = False
     for opened in _THEME_PANEL_OPEN_KEYS:
         st.session_state[opened] = False
-    # 선택값까지 남아 있으면 다음에 순위를 열었을 때 직전 테마·종목 상세가
-    # 다시 살아난 것처럼 보인다. 20개 테마 흐름의 선택값만 함께 비운다.
-    st.session_state.pop("j3_theme_choice", None)
-    st.session_state.pop("j3_theme_choice_widget", None)
+    for opened in _FINDER_OPEN_KEYS:
+        st.session_state[opened] = False
+    for panel in _DETAIL_PANELS:
+        for prefix in _DETAIL_OPEN_PREFIXES:
+            st.session_state[f"{prefix}{panel}"] = False
+    # 선택값까지 남아 있으면 다음에 열었을 때 직전 상세가 되살아난 것처럼 보인다.
     for state_key in list(st.session_state):
         if str(state_key).startswith("j3_stock_choice_"):
             st.session_state.pop(state_key, None)
+    for state_key in ("j3_theme_choice", "j3_theme_choice_widget",
+                      "j3_top7_pick_row", "j3_top7_detail_choice"):
+        st.session_state.pop(state_key, None)
     scroll_to.request(st, _RADAR_MAIN_ANCHOR)
 
 
@@ -2879,6 +2908,7 @@ def _section_close(
     *,
     slot: str = "",
     return_to: str | None = None,
+    on_close=None,
 ) -> None:
     """구역 **맨 아래**에 두는 작은 닫기 단추 (2026-08-01 사용자 지시).
 
@@ -2894,7 +2924,9 @@ def _section_close(
     """
     def _close():
         st.session_state[key] = False
-        if return_to:
+        if on_close:
+            on_close()
+        elif return_to:
             scroll_to.request(st, return_to)
 
     st.button(f"✕ {label}", key=f"close_{key}{slot}", on_click=_close)
@@ -4216,6 +4248,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
     """순위 7에서 고른 종목의 상세. 위 테마 상세·눌림목 상세와 완전히 별개다."""
+    # 구역이 닫혔으면 상세도 그리지 않는다. 예전에는 골라 둔 줄(j3_top7_pick_row)만
+    # 보고 그려서, 순위 9를 닫아도 상세가 화면에 그대로 남았다(2026-08-26 상하님 캡처).
+    if not st.session_state.get("j3_top7_open"):
+        return
     picked = st.session_state.get("j3_top7_pick_row")
     if not picked:
         return
@@ -6589,7 +6625,7 @@ def _briefing_css() -> None:
         .j3b-section {display:flex;align-items:center;gap:8px;color:#f8f4e9;margin:18px 4px 9px;font-size:20px;font-weight:850;letter-spacing:-1.2px}.j3b-section .j3b-section-icon{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:0}.j3b-section .j3b-section-icon:after{content:"";width:12px;height:12px;border:2px solid #f3fbff;border-radius:50%;box-sizing:border-box}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500}.j3b-section.search .j3b-section-icon{background:transparent;box-shadow:none;border:3px solid #2ebfff}.j3b-section.search .j3b-section-icon:after{width:10px;height:10px;border-color:#2ebfff}.j3b-section.search .j3b-section-icon:before{content:"";width:11px;height:3px;position:absolute;transform:translate(11px,12px) rotate(48deg);background:#2ebfff;border-radius:2px}
         div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:16px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
-        .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
+        .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.photo{background:linear-gradient(145deg,#ffffff,#dde6f3)!important}.j3b-logo.photo img{width:80%;height:80%;object-fit:contain;filter:none!important}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"],div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_grid_"] [data-testid="column"],div[class*="st-key-j3b_grid_"] [data-testid="stColumn"]{width:calc(50% - 5px)!important;min-width:0!important;flex:1 1 0!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
         .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:23px;font-weight:500}.j3b-nav-item.active{color:#4cc6ff;text-shadow:0 0 8px #1f9fe066}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
         div.st-key-j3b_nav_controls{position:fixed!important;z-index:2147483647!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:68px!important;pointer-events:none!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:68px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;height:68px!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]>[data-testid="stVerticalBlock"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%!important;max-width:none!important}div.st-key-j3b_nav_controls button{width:100%!important;height:68px!important;min-height:68px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important;touch-action:manipulation!important}
@@ -6675,15 +6711,17 @@ _BRIEFING_OPEN_CSS = """
  background:radial-gradient(circle at 100% 0,rgba(15,85,147,.37),transparent 44%),
   linear-gradient(145deg,rgba(7,41,87,.99),rgba(3,23,55,.99));
  box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c}
-.j3b-open-close{display:none}
-.j3b-card-shell[open]>.j3b-card-summary:before,
-.j3b-market-news-shell[open]>.j3b-market-news-summary:before{
- content:'× 닫기';position:fixed;top:14px;left:50%;transform:translateX(-50%);
- z-index:2147483648;padding:9px 20px;border:1.5px solid #9bcfff;border-radius:20px;
- background:#062448;color:#f5fbff;font-size:14px;font-weight:800;
- box-shadow:0 4px 14px #000a;white-space:nowrap;visibility:visible}
-.j3b-card-shell[open]>.j3b-card-open,
-.j3b-market-news-shell[open]>.j3b-card-open{padding-top:62px}
+/* 닫기 단추는 **카드 안 오른쪽 위**에 그대로 둔다(2026-08-26 상하님 지시 —
+   "원래 화면대로 하되 안에서 클릭하도록").
+
+   <details>는 어두운 바탕(summary)을 눌러야 닫힌다. 그래서 큰 판은 손가락을
+   받지 않게 두고, 뉴스 목록만 받게 한다. 그러면 단추든 카드 어디든 누르면 그
+   손가락이 바탕까지 내려가 닫히고, 뉴스 줄을 누르면 그 줄만 펼쳐진다. */
+.j3b-open-card{pointer-events:none}
+.j3b-open-list,.j3b-open-link{pointer-events:auto}
+.j3b-open-close{position:absolute;right:12px;top:12px;z-index:6;padding:6px 12px;
+ border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;
+ font-size:12px;font-weight:800;pointer-events:none;white-space:nowrap}
 .j3b-open-card .j3b-card-top{display:flex;gap:10px;align-items:center;min-height:58px;padding-right:132px}
 .j3b-open-card .j3b-logo{width:58px;height:58px;border-radius:14px}
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
@@ -6865,6 +6903,15 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
     # 실제로 쓰는 글자표(워드마크)와 브랜드 색으로 보여 준다 — 티커 두 글자만
     # 잘라 쓰면 무슨 회사인지 알 수 없다(2026-08-26 상하님 지적 — "왜 로고가
     # 이상하지, 그 회사 로고 맞냐?"). 여기에 없는 종목만 티커 두 글자로 간다.
+    logo_kind = ""
+    if not logo_uri:
+        # 앱에 그림이 없는 종목은 companiesmarketcap에서 한 번 받아 두고 그다음부터
+        # 그 그림을 쓴다(2026-08-26 상하님이 알려 주신 곳). 아직 안 왔으면 이번 판은
+        # 글자표로 보여 주고, 다음 판에 그림이 나온다.
+        fetched = us_company_logos.get_or_schedule(ticker)
+        if fetched:
+            logo_uri = "data:image/webp;base64," + base64.b64encode(fetched).decode("ascii")
+            logo_kind = " photo"
     if logo_uri:
         logo_html = f'<img src="{logo_uri}" alt="{html.escape(ticker)} logo">'
     else:
@@ -6894,7 +6941,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
     delete_visual = ""
     card_body = (
         f'<div class="j3b-card {direction}{" compact" if compact else ""}"><div class="j3b-card-top">'
-        f'<span class="j3b-logo {html.escape(ticker.lower())}">{logo_html}</span><div>'
+        f'<span class="j3b-logo{logo_kind} {html.escape(ticker.lower())}">{logo_html}</span><div>'
         f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
         f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
         f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'
@@ -6904,7 +6951,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
     open_card = (
         f'<div class="j3b-open-card {direction}">'
         '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
-        f'<div class="j3b-card-top"><span class="j3b-logo {html.escape(ticker.lower())}">{logo_html}</span><div>'
+        f'<div class="j3b-card-top"><span class="j3b-logo{logo_kind} {html.escape(ticker.lower())}">{logo_html}</span><div>'
         f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
         f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
         f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'

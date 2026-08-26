@@ -100,7 +100,9 @@ _KOREAN_ALIASES = {
 }
 # 시장 브리핑은 이 말 가운데 하나라도 든 기사만 쓴다. 없으면 국내장 기사가 섞인다.
 _MARKET_MARKS = ("미국 증시", "미국증시", "미 증시", "뉴욕증시", "뉴욕 증시",
-                 "나스닥", "S&P", "다우", "월가", "美 증시", "美증시")
+                 "나스닥", "S&P", "다우", "월가", "美 증시", "美증시",
+                 "US STOCK", "U.S. STOCK", "WALL STREET", "NASDAQ", "DOW ",
+                 "STOCK MARKET", "STOCKS", "TREASURY", "FED ", "S&P 500")
 # 이름 뒤에 이 글자가 붙으면 여전히 그 회사다. 다른 글자가 붙으면 다른 낱말이다.
 _PARTICLES = "은는이가을를의에도와과로만라야여요"
 
@@ -130,7 +132,8 @@ def _is_about(row: dict, kind: str, ticker: str | None) -> bool:
     """
     headline = str(row.get("headline") or "")
     if kind == "market":
-        return any(mark in headline for mark in _MARKET_MARKS)
+        upper_line = headline.upper()
+        return any(mark.upper() in upper_line for mark in _MARKET_MARKS)
     symbol = str(ticker or "").upper()
     if not symbol:
         return True
@@ -357,8 +360,9 @@ def _google_news_rss(kind: str, ticker: str | None) -> list[dict]:
     query = "US stock market" if kind == "market" else f"{str(ticker or '').upper()} stock"
     rows = _rss_rows({"q": f"{query} when:3d", "hl": "en-US", "gl": "US", "ceid": "US:en"})
     kept = [row for row in rows if _is_about(row, kind, ticker)]
-    # 다 걸러지면 거르기 전 것을 쓴다. 빈 카드보다는 느슨한 기사가 낫다.
-    return kept if kept else rows
+    # 걸러서 세 줄이 안 차면 거르기 전 것을 쓴다. 화면은 늘 세 줄이어야 한다
+    # (2026-08-26 상하님 지시 — "한 줄씩 3줄로 만들어라, 원래 화면대로").
+    return kept if len(kept) >= 3 else rows
 
 
 
