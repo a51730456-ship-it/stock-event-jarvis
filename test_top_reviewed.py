@@ -530,3 +530,93 @@ class UnitedStatesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TopPickMemoTests(unittest.TestCase):
+    """순위 9를 여는 데 걸리던 7초를 줄인 기억장치 (2026-08-26 상하님 허락).
+
+    상하님 지적 — "매수심사결과 높은 순위 9, 로딩 문제 아직 해결 안 된 것."
+    노트북 실측 7.1초였고, 그 대부분이 이미 계산해 둔 것을 또 계산하는 것이었다.
+    **점수·기준·명부·그물은 한 글자도 안 바뀐다.**
+    """
+
+    def setUp(self):
+        with j3._CACHE_LOCK:
+            for key in [k for k in j3._CACHE
+                        if isinstance(k, str) and k.startswith(("top_leaders:", "top_finder:"))]:
+                j3._CACHE.pop(key, None)
+
+    tearDown = setUp
+
+    def test_the_same_call_is_not_computed_twice(self):
+        """두 번째부터는 다시 계산하지 않고 **같은 답**을 그대로 준다."""
+        rows = [{"name": "바이오", "score": 90.8, "ok": True}]
+        calls = {"leader": 0, "breakout": 0, "crash": 0}
+
+        def leader(*a, **k):
+            calls["leader"] += 1
+            return {"ok": True, "rows": [{"ticker": "AAA", "score": 90.0}],
+                    "scanned_themes": 1, "errors": []}
+
+        def breakout():
+            calls["breakout"] += 1
+            return {"ok": True, "rows": []}
+
+        def crash():
+            calls["crash"] += 1
+            return {"ok": True, "rows": []}
+
+        with patch.object(j3, "find_top_reviewed_stocks", leader),              patch.object(j3, "find_breakout_pullback_stocks", breakout),              patch.object(j3, "find_crash_rebound_stocks", crash):
+            first = j3.collect_top_picks(rows, market_score=65.0)
+            second = j3.collect_top_picks(rows, market_score=65.0)
+
+        self.assertEqual(calls, {"leader": 1, "breakout": 1, "crash": 1},
+                         "두 번째에도 다시 계산했다")
+        self.assertEqual(
+            [(r.get("ticker"), r.get("score")) for r in first.get("rows") or []],
+            [(r.get("ticker"), r.get("score")) for r in second.get("rows") or []],
+            "기억해 둔 답이 처음 답과 다르다")
+
+    def test_a_failure_is_never_remembered(self):
+        """실패는 기억하지 않는다 — 기억하면 5분 내내 빈 화면이 굳는다."""
+        rows = [{"name": "바이오", "score": 90.8, "ok": True}]
+        with patch.object(j3, "find_top_reviewed_stocks",
+                          lambda *a, **k: {"ok": True, "rows": [], "scanned_themes": 0, "errors": []}),              patch.object(j3, "find_breakout_pullback_stocks", lambda: {"ok": True, "rows": []}),              patch.object(j3, "find_crash_rebound_stocks",
+                          lambda: {"ok": False, "error": "일부러 낸 실패", "rows": []}):
+            j3.collect_top_picks(rows, market_score=65.0)
+        with j3._CACHE_LOCK:
+            self.assertNotIn("top_finder:급락 후 반등장", j3._CACHE,
+                             "실패를 기억해 두었다")
+
+    def test_an_empty_day_is_remembered(self):
+        """걸린 종목이 0개인 것은 실패가 아니다 — 그대로 기억한다.
+
+        CLAUDE.md 0-1 바 — 빈 자리를 감추거나 딴 것으로 채우지 않는다.
+        "오늘은 이 자리가 없습니다"도 하나의 답이다.
+        """
+        rows = [{"name": "바이오", "score": 90.8, "ok": True}]
+        with patch.object(j3, "find_top_reviewed_stocks",
+                          lambda *a, **k: {"ok": True, "rows": [], "scanned_themes": 0, "errors": []}),              patch.object(j3, "find_breakout_pullback_stocks", lambda: {"ok": True, "rows": []}),              patch.object(j3, "find_crash_rebound_stocks", lambda: {"ok": True, "rows": []}):
+            j3.collect_top_picks(rows, market_score=65.0)
+        with j3._CACHE_LOCK:
+            self.assertIn("top_finder:급락 후 반등장", j3._CACHE)
+
+    def test_a_changed_theme_list_is_computed_again(self):
+        """테마 줄이 바뀌면 기억한 것을 쓰지 않는다 — 옛 답이 되살아나면 안 된다."""
+        calls = {"n": 0}
+
+        def leader(*a, **k):
+            calls["n"] += 1
+            return {"ok": True, "rows": [], "scanned_themes": 1, "errors": []}
+
+        with patch.object(j3, "find_top_reviewed_stocks", leader),              patch.object(j3, "find_breakout_pullback_stocks", lambda: {"ok": True, "rows": []}),              patch.object(j3, "find_crash_rebound_stocks", lambda: {"ok": True, "rows": []}):
+            j3.collect_top_picks([{"name": "바이오", "score": 90.8}], market_score=65.0)
+            j3.collect_top_picks([{"name": "바이오", "score": 91.9}], market_score=65.0)
+            j3.collect_top_picks([{"name": "바이오", "score": 90.8}], market_score=70.0)
+        self.assertEqual(calls["n"], 3, "테마 점수나 시장 점수가 바뀌었는데 옛 답을 썼다")
+
+    def test_module_revision_was_raised(self):
+        """규칙 11 — 계산이 도는 방식을 바꾸면 리비전을 같이 올린다."""
+        from pathlib import Path
+        page = (Path(__file__).resolve().parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn(f"_REQUIRED_J3_REVISION = {j3.MODULE_REVISION}", page,
+                      "페이지가 요구하는 리비전이 모듈과 다르다")

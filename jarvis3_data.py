@@ -195,7 +195,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082601
+MODULE_REVISION = 2026082602
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -3691,6 +3691,46 @@ def blend_top_picks(buckets: dict, *, quota=TOP_PICK_QUOTA) -> dict:
     }
 
 
+# ── 순위 9를 여는 데 걸리던 7초 (2026-08-26 실측 · 상하님 허락받고 넣음) ──────
+# 상하님 지적 — "매수심사결과 높은 순위 9, 로딩 문제 아직 해결 안 된 것."
+#
+# 노트북에서 재 보니 7.1초였다. 그 대부분이 **이미 계산해 둔 것을 또 계산하는
+# 것**이었다 — 상승장 1.6초 · 급락 1.4초 · 테마 대장주 1.3초. 상하님이 상승장을
+# 열어 보셨어도 순위 9는 급락 쪽과 대장주 쪽을 처음부터 다시 셌다. 온라인은
+# 코어가 한둘뿐이라 이것이 15~20초가 된다.
+#
+# **점수·기준·명부·그물은 한 글자도 안 바뀐다.** 같은 입력에 같은 답을 두 번
+# 계산하지 않을 뿐이다. 5분은 화면이 이미 쓰고 있는 창과 같은 길이다
+# (pages/2_자비스3.py 의 _kept_recently).
+TOP_PICK_MEMO_SECONDS = 300
+
+
+def _memo_ok(key: str, ttl_seconds: float, produce):
+    """**성공한 결과만** 잠깐 기억한다. 실패는 기억하지 않는다.
+
+    실패까지 기억하면 한 번 통신이 막혔을 때 5분 내내 빈 화면이 굳는다.
+    걸린 종목이 0개인 것은 실패가 아니다 — "오늘은 자리가 없다"는 답이므로
+    그대로 기억한다(CLAUDE.md 0-1 바 · 빈 자리를 감추지 않는다).
+    """
+    now = time.time()
+    with _CACHE_LOCK:
+        found = _CACHE.get(key)
+        if found and now - found["at"] < ttl_seconds:
+            return found["value"]
+    value = produce()
+    if isinstance(value, dict) and value.get("ok"):
+        with _CACHE_LOCK:
+            _CACHE[key] = {"at": now, "value": value}
+    return value
+
+
+def _theme_rows_mark(theme_rows, market_score) -> str:
+    """테마 줄이 그대로인지 알아보는 표식. 하나라도 바뀌면 새로 계산한다."""
+    parts = [f"{row.get('name')}:{round(float(row.get('score') or 0), 4)}"
+             for row in (theme_rows or [])]
+    return f"{round(float(market_score or 0), 4)}|" + "|".join(parts)
+
+
 def collect_top_picks(theme_rows, *, market_score: float = 0,
                       leaders: dict | None = None,
                       breakout: dict | None = None,
@@ -3703,9 +3743,12 @@ def collect_top_picks(theme_rows, *, market_score: float = 0,
     errors: list[str] = []
     if leaders is None:
         try:
-            leaders = find_top_reviewed_stocks(
-                theme_rows or [], market_score=market_score,
-                limit=TOP_REVIEW_SLOTS["leader"])
+            mark = _theme_rows_mark(theme_rows, market_score)
+            leaders = _memo_ok(
+                f"top_leaders:{mark}", TOP_PICK_MEMO_SECONDS,
+                lambda: find_top_reviewed_stocks(
+                    theme_rows or [], market_score=market_score,
+                    limit=TOP_REVIEW_SLOTS["leader"]))
         except Exception as exc:                     # 한 파트가 죽어도 나머지는 산다
             errors.append(f"테마 대장주: {exc}")
             leaders = {}
@@ -3717,7 +3760,7 @@ def collect_top_picks(theme_rows, *, market_score: float = 0,
         part = given
         if not (isinstance(part, dict) and part.get("ok")):
             try:
-                part = finder()
+                part = _memo_ok(f"top_finder:{name}", TOP_PICK_MEMO_SECONDS, finder)
             except Exception as exc:
                 errors.append(f"{name}: {exc}")
                 part = {}
