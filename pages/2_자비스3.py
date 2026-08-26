@@ -6915,7 +6915,7 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
 .j3b-open-card .j3b-name{display:block;margin-top:2px;color:#c9e8ff;font-size:14px;white-space:normal}
 .j3b-open-card .j3b-price{margin:12px 0 8px;font-size:22px;font-weight:900;color:#fff}
-.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}.j3b-chart-cap{color:#4da6ff;font-size:12px;font-weight:800;text-align:center;margin:-2px 0 8px}
+.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}/* 크게 연 그림은 선을 가늘게 — 늘어난 그림에 굵은 선은 뭉개져 보인다. */.j3b-open-card .j3b-chart polyline{stroke-width:1.8px}.j3b-chart-cap{color:#4da6ff;font-size:15px;font-weight:800;text-align:center;margin:0 0 10px}
 .j3b-open-card .j3b-decor-img{position:absolute;right:10px;bottom:6px;width:96px;height:auto;pointer-events:none}
 .j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}
 .j3b-open-list{margin-top:14px}
@@ -7175,7 +7175,16 @@ def _briefing_chart(values, change) -> str:
     span = high - low or 1
     points = " ".join(f"{index * 100 / (len(values)-1):.1f},{42 - (value-low) * 38/span:.1f}" for index, value in enumerate(values))
     stroke = "#70e64a" if (change or 0) >= 0 else "#ff5b5b"
-    return f'<svg class="j3b-chart" viewBox="0 0 100 45" preserveAspectRatio="none"><polyline points="{points}" fill="none" stroke="{stroke}" stroke-width="2.1"/></svg>'
+    # **선 굵기를 화면 기준으로 못박는다**(2026-08-26 상하님 지적 — "종목 클릭하면
+    # 나오는 차트 선이 너무 굵다").
+    # 이 그림은 preserveAspectRatio="none" 으로 늘려 그린다. 그러면 선도 같이
+    # 늘어난다 — 크게 연 카드는 가로로 6.3배가 되어 선이 7.9px 로 그려지고 있었다
+    # (브라우저 실측). vector-effect="non-scaling-stroke" 는 "선은 늘리지 말고
+    # 화면 굵기 그대로 그려라"는 뜻이라, 어느 크기에서나 적어 준 만큼만 굵다.
+    # 실제 굵기는 CSS에서 정한다 — 접힌 카드와 크게 연 카드가 다르다.
+    return (f'<svg class="j3b-chart" viewBox="0 0 100 45" preserveAspectRatio="none">'
+            f'<polyline points="{points}" fill="none" stroke="{stroke}" '
+            f'stroke-width="2.1" vector-effect="non-scaling-stroke"/></svg>')
 
 
 def _briefing_items(kind: str, ticker: str | None = None) -> dict:

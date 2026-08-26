@@ -543,3 +543,21 @@ def test_the_card_data_carries_both_series():
     assert 'period="6mo"' in fn, "6개월치를 안 받는다"
     assert '"chart": series.tail(30).tolist()' in fn, "작은 그림이 최근 30일이 아니다"
     assert '"chart6m": series.tolist()' in fn, "6개월치를 안 싣는다"
+
+def test_the_chart_line_does_not_get_thick_when_stretched():
+    """그림을 늘려도 선은 굵어지지 않는다 (2026-08-26 상하님 지적).
+
+    상하님 — "종목 클릭하면 나오는 차트 선이 너무 굵다."
+
+    이 그림은 preserveAspectRatio="none" 으로 늘려 그린다. 그러면 선도 같이
+    늘어난다 — 크게 연 카드는 가로로 6.3배가 되어 선이 **7.9px** 로 그려지고
+    있었다(브라우저 실측). vector-effect="non-scaling-stroke" 를 주면 어느
+    크기에서나 적어 준 만큼만 굵다. 실측 — 7.9px → 1.8px.
+    """
+    page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+    fn = page[page.index("def _briefing_chart("):]
+    fn = fn[:fn.index(chr(10) + "def ", 10)]
+    assert 'vector-effect="non-scaling-stroke"' in fn, "늘리면 선까지 굵어진다"
+    assert ".j3b-open-card .j3b-chart polyline{stroke-width:1.8px}" in page,         "크게 연 그림의 선 굵기를 안 정했다"
+    # 이름표는 조금 더 크게 (상하님 — "일봉 6개월 글자 조금 더 크게").
+    assert ".j3b-chart-cap{color:#4da6ff;font-size:15px" in page
