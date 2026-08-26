@@ -197,7 +197,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082606
+MODULE_REVISION = 2026082607
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -960,6 +960,19 @@ def _previous_market_regime(daily: dict, now=None, back: int = 0) -> dict | None
 
 
 def get_market_overview() -> dict:
+    """미국 전체시장 판단. 자료가 바뀌는 주기(3분)만큼 답을 들고 있는다.
+
+    2026-08-26에 붙였다. 예전에는 화면을 다시 그릴 때마다 처음부터 다시 셌다.
+    쓰는 자료는 일봉 5분·분봉 3분마다 바뀌므로, 그 사이의 다시 세기는 같은
+    자료로 같은 답을 또 만드는 것이다(0.1초 · 온라인은 그 몇 배).
+    돌려주는 것은 복사본이다 — 부르는 쪽이 무엇을 적어 넣어도 다음 사람이 받는
+    값이 더러워지지 않는다(get_theme_rankings와 같은 규칙).
+    """
+    value, _ = _cached_value("us_market_overview", THEME_LIVE_TTL, _compute_market_overview)
+    return copy.deepcopy(value)
+
+
+def _compute_market_overview() -> dict:
     daily, daily_meta = _download_cached(
         MARKET_SYMBOLS, period="1y", interval="1d", ttl_seconds=300
     )
@@ -1082,7 +1095,17 @@ GENERAL_STOCK_SCORE_MAX = round(sum(points for _name, points in GENERAL_STOCK_SC
 # 20초로 둔다. 이 표를 만드는 1분봉 자체가 45초짜리 캐시라 그 안에서는 몇 번을
 # 다시 세도 **같은 숫자가 나온다.** 다시 세지 않을 뿐, 보이는 값은 그대로다.
 # 화면의 '테마 계산 시각'도 함께 담아 두므로 언제 잰 값인지 그대로 보인다.
-THEME_RANKING_TTL = 20.0
+# **자료가 바뀌는 주기에 맞춘다** (2026-08-26 상하님 지적 — "각 테마 클릭 5초,
+# 두 번째 클릭하면 3초"). 그 '두 번째는 빠르다'가 결정적인 단서였다.
+#
+# 예전에는 20초였다. 그런데 이 순위를 만드는 자료는 일봉 30분(US_BATCH_TTL) ·
+# 분봉 3분(THEME_LIVE_TTL)마다 바뀐다. 20초마다 다시 계산해 봐야 **같은 자료로
+# 같은 답을 또 만드는 것**이라, 20초가 지난 뒤 누르실 때마다 0.5~0.6초를
+# 헛되이 냈다(온라인은 코어가 느려 3초쯤 된다).
+#
+# 실측으로 증명했다 — 기억을 강제로 지우고 세 번 다시 계산했더니 등수·이름·
+# 점수(소수점 여섯 자리)·상태·등락이 **완전히 같았다.** 값은 하나도 안 바뀐다.
+THEME_RANKING_TTL = 180.0
 
 # 248종목 2년치 **한 묶음**을 몇 초 동안 다시 안 받나 (2026-08-21).
 #

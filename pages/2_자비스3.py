@@ -1183,7 +1183,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082606
+_REQUIRED_J3_REVISION = 2026082607
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -6959,7 +6959,7 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
 .j3b-open-card .j3b-name{display:block;margin-top:2px;color:#c9e8ff;font-size:14px;white-space:normal}
 .j3b-open-card .j3b-price{margin:12px 0 8px;font-size:22px;font-weight:900;color:#fff}
-.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}/* 크게 연 그림은 선을 가늘게 — 늘어난 그림에 굵은 선은 뭉개져 보인다. */.j3b-open-card .j3b-chart polyline{stroke-width:1.8px}/* 오렌지 형광 — 선 둘레에 은은한 번짐을 준다. */.j3b-open-card .j3b-chart{filter:drop-shadow(0 0 4px #ff9d2e55)}.j3b-chart-cap{color:#4da6ff;font-size:15px;font-weight:800;text-align:center;margin:0 0 10px}
+.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}/* 크게 연 그림은 선을 가늘게 — 늘어난 그림에 굵은 선은 뭉개져 보인다. */.j3b-open-card .j3b-chart polyline{stroke-width:1.8px}/* 선 둘레에 은은한 번짐을 준다. */.j3b-open-card .j3b-chart{filter:drop-shadow(0 0 4px #70e64a55)}.j3b-chart-cap{color:#4da6ff;font-size:15px;font-weight:800;text-align:center;margin:0 0 10px}
 .j3b-open-card .j3b-decor-img{position:absolute;right:10px;bottom:6px;width:96px;height:auto;pointer-events:none}
 .j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}
 .j3b-open-list{margin-top:14px}
@@ -7211,18 +7211,19 @@ _BRIEFING_TOUCH_CSS = """
 """
 
 
-# 일봉 6개월 그림의 색 — 오렌지 형광 (2026-08-26 상하님 지시).
-# 반년 흐름을 오늘 하루의 오르내림 색으로 칠하면 안 된다는 뜻이다.
-_SIX_MONTH_STROKE = "#ff9d2e"
+# 일봉 6개월 그림의 색 — **초록 하나로 고정** (2026-08-26 상하님 지시).
+# 처음에는 오렌지 형광으로 했다가 "안 되겠다, 그냥 초록색으로 하자"고 정하셨다.
+# 오늘 오르내림에 따라 색이 바뀌던 것을 없앤 뜻은 그대로다 — 반년 흐름을
+# 하루 색으로 말하면 안 된다.
+_SIX_MONTH_STROKE = "#70e64a"
 
 
 def _briefing_chart(values, change, *, stroke: str = "") -> str:
     """카드의 작은 그림. ``stroke``를 주면 그 색으로 그린다.
 
     2026-08-26 상하님 지시 — "관심종목에 일봉 6개월 색깔이 당일 차트 색에 따라
-    달라진다. 그냥 오렌지 형광색으로 바꿔라." 접힌 카드의 최근 30일 그림은
-    예전대로 **오늘 오르내림에 따라** 초록·빨강이고, 크게 연 일봉 6개월만
-    오렌지다. 6개월 그림에 오늘 색을 입히면 반년 흐름을 하루 색으로 말하게 된다.
+    달라진다." 접힌 카드의 최근 30일 그림은 예전대로 **오늘 오르내림에 따라**
+    초록·빨강이고, 크게 연 일봉 6개월만 늘 초록이다. 6개월 그림에 오늘 색을 입히면 반년 흐름을 하루 색으로 말하게 된다.
     """
     values = [float(item) for item in (values or []) if item is not None]
     if len(values) < 2:
