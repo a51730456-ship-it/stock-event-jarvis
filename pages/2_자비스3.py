@@ -600,9 +600,14 @@ st.markdown(
        그린다. contain-intrinsic-size 는 안 그린 줄의 어림 높이라 굴림막대가
        요동치지 않는다.
        값·점수·판정은 건드리지 않는다 — 그리는 시점만 미룬다. */
-    .st-key-j3_swing_rest [data-testid="stExpander"] [data-testid="stHorizontalBlock"],
-    .st-key-j3_theme_rest [data-testid="stExpander"] [data-testid="stHorizontalBlock"],
-    .st-key-j3_rulebook_rest [data-testid="stExpander"] [data-testid="stHorizontalBlock"] {
+    /* **앞 여덟 줄은 미루지 않는다** (2026-08-26 상하님 지적 — "종목 1번부터
+       여전히 순서대로 천천히 열린다"). 모든 줄을 미루면 폰 한 화면에 들어오는
+       줄까지 하나씩 나타나 그것이 눈에 띈다. 머리글 + 일곱 줄은 한꺼번에 그리고,
+       화면 밖에 있는 아홉 번째부터만 미룬다. 줄들은 모두 형제라 차례로 셀 수 있다
+       (실측 — 관찰만 표는 머리글 1 + 줄 15 = 형제 16개). */
+    .st-key-j3_swing_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"],
+    .st-key-j3_theme_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"],
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"] {
         content-visibility: auto;
         contain-intrinsic-size: auto 46px;
     }
@@ -1161,7 +1166,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082602
+_REQUIRED_J3_REVISION = 2026082603
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.

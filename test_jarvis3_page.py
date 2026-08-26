@@ -2201,4 +2201,11 @@ def test_collapsed_tables_only_draw_what_is_on_screen():
     assert "contain-intrinsic-size: auto 46px;" in source
     # 세 접이 표에 모두 걸려 있어야 한다 — 같은 짜임이라 같은 값을 치른다.
     for key in ("j3_swing_rest", "j3_theme_rest", "j3_rulebook_rest"):
-        assert f'.st-key-{key} [data-testid="stExpander"] [data-testid="stHorizontalBlock"]' in source, key
+        assert (f'.st-key-{key} [data-testid="stExpander"] '
+                '[data-testid="stLayoutWrapper"]:nth-child(n+9) '
+                '> [data-testid="stHorizontalBlock"]') in source, key
+    # **앞 여덟 줄은 미루지 않는다** (2026-08-26 상하님 — "종목 1번부터 여전히
+    # 순서대로 천천히 열린다"). 전부 미루면 폰 한 화면에 들어오는 줄까지 하나씩
+    # 나타나 그것이 눈에 띈다. 브라우저에서 확인 — 이 선택자는 9~16번 줄만 고른다.
+    assert ':nth-child(n+9)' in source
+    assert '[data-testid="stExpander"] [data-testid="stHorizontalBlock"] {' not in source,         "모든 줄을 미루는 옛 규칙이 남아 있다"

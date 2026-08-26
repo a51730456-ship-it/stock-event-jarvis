@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import copy
 import csv
+import hashlib
+import pickle
 import importlib
 import logging
 import math
@@ -195,7 +197,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082602
+MODULE_REVISION = 2026082603
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -334,6 +336,86 @@ def _cached_value(key, ttl_seconds: float, produce):
     return value, False
 
 
+# ── 받아 온 시세를 파일로도 남긴다 (2026-08-26 실측 · 상하님 허락받고 넣음) ────
+# 상하님 지적 — "미국테마 처음 들어갔을 때 20개 테마 실시간 순위 열기 전에
+# 로딩하고 있더라. 이 로딩을 짧게 할 수 없나?" · "매수심사결과 높은 순위 9,
+# 로딩시간 16초 걸린다. 스마트폰 기준이다."
+#
+# 노트북에서 재 보니 첫 화면이 13.3초였고 **전부 야후에서 시세를 받는 시간**
+# 이었다. 계산은 얼마 안 걸린다. 한 번 받아 두면 그다음은 0초인데, 지금까지는
+# 앱 기억(메모리)에만 뒀다. 온라인은 한동안 안 쓰면 잠들고, 깨어나면 그 기억이
+# 통째로 사라져 13초를 다시 낸다. 순위 9의 16초도 같은 시세를 다시 받는 값이다.
+#
+# 그래서 파일로도 남긴다. 깨어나도 파일이 있으면 안 받는다.
+#
+# **점수·기준·명부·그물은 한 글자도 안 바뀐다.** 같은 자료를 어디에 두느냐만
+# 바뀐다. 얼마나 묵은 것까지 쓸지는 상하님이 정하셨다 —
+# 장중 3분 · 장 마감 뒤 30분. 그보다 오래된 파일은 없는 셈 친다.
+#
+# 저장 자리는 cache/ 안이고 .gitignore에 있다(CLAUDE.md 10번 — 저장소가 공개다).
+DISK_FRESH_OPEN_SECONDS = 180.0      # 장중 — 3분
+DISK_FRESH_CLOSED_SECONDS = 1800.0   # 장 마감 뒤 — 30분
+DISK_MAX_FILES = 30                  # 이보다 많아지면 오래된 것부터 지운다
+                                     # (한 판이 6개쯤 쓴다. 30개면 40MB 안쪽이다.)
+_DISK_DIR = Path(__file__).resolve().parent / "cache" / "j3_prices"
+
+
+def _disk_fresh_seconds() -> float:
+    """지금 몇 분까지 묵은 것을 써도 되나. 장이 닫혀 있으면 값이 안 변한다."""
+    try:
+        return (DISK_FRESH_CLOSED_SECONDS if us_market_calendar.session_closed()
+                else DISK_FRESH_OPEN_SECONDS)
+    except Exception:
+        return DISK_FRESH_OPEN_SECONDS
+
+
+def _disk_name(unique, period, interval, prepost) -> str:
+    raw = "|".join(unique) + f"|{period}|{interval}|{int(bool(prepost))}"
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:20]
+
+
+def _disk_read(name: str) -> dict | None:
+    """파일에 남겨 둔 시세. 없거나 묵었거나 깨졌으면 None — 조용히 넘어간다."""
+    path = _DISK_DIR / f"{name}.pkl"
+    try:
+        if not path.is_file():
+            return None
+        if time.time() - path.stat().st_mtime > _disk_fresh_seconds():
+            return None
+        with path.open("rb") as handle:
+            saved = pickle.load(handle)   # nosec B301 - 이 앱이 직접 쓴 파일만 읽는다
+        frames = saved.get("frames")
+        if not isinstance(frames, dict) or not frames:
+            return None
+        return saved
+    except Exception:
+        return None
+
+
+def _disk_write(name: str, frames: dict, fetched_at: str) -> None:
+    """받아 온 시세를 파일로 남긴다. 실패해도 화면은 그대로 돈다."""
+    try:
+        _DISK_DIR.mkdir(parents=True, exist_ok=True)
+        temporary = _DISK_DIR / f"{name}.pkl.tmp"
+        with temporary.open("wb") as handle:
+            pickle.dump({"frames": frames, "fetched_at": fetched_at}, handle, protocol=4)
+        temporary.replace(_DISK_DIR / f"{name}.pkl")
+        _disk_prune()
+    except Exception:
+        pass
+
+
+def _disk_prune() -> None:
+    """파일이 너무 쌓이지 않게 오래된 것부터 지운다."""
+    try:
+        found = sorted(_DISK_DIR.glob("*.pkl"),
+                       key=lambda path: path.stat().st_mtime, reverse=True)
+        for path in found[DISK_MAX_FILES:]:
+            path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def _download_cached(
     tickers,
     *,
@@ -377,6 +459,19 @@ def _download_cached(
                         "fetched_at": candidate["fetched_at"], "reused_superset": True,
                     }
 
+    # 앱 기억에 없으면 **파일**을 본다. 잠들었다 깨어난 판이 여기서 살아난다.
+    disk_name = _disk_name(unique, period, interval, prepost)
+    saved = _disk_read(disk_name)
+    if saved:
+        frames = saved["frames"]
+        with _CACHE_LOCK:
+            _CACHE[key] = {"at": now, "fetched_at": saved.get("fetched_at"),
+                           "frames": _copy_frames(frames)}
+        return _copy_frames(frames), {
+            "ok": True, "error": None, "stale": False,
+            "fetched_at": saved.get("fetched_at"), "from_disk": True,
+        }
+
     try:
         import yfinance as yf
 
@@ -402,6 +497,7 @@ def _download_cached(
         fetched_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
         with _CACHE_LOCK:
             _CACHE[key] = {"at": now, "fetched_at": fetched_at, "frames": _copy_frames(frames)}
+        _disk_write(disk_name, _copy_frames(frames), fetched_at)
         return frames, {"ok": True, "error": None, "stale": False, "fetched_at": fetched_at}
     except Exception as exc:
         _log.warning("jarvis3 yfinance download failed interval=%s tickers=%s: %s", interval, len(unique), exc)

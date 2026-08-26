@@ -620,3 +620,65 @@ class TopPickMemoTests(unittest.TestCase):
         page = (Path(__file__).resolve().parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         self.assertIn(f"_REQUIRED_J3_REVISION = {j3.MODULE_REVISION}", page,
                       "페이지가 요구하는 리비전이 모듈과 다르다")
+
+class DiskPriceCacheTests(unittest.TestCase):
+    """받아 온 시세를 파일로도 남긴다 (2026-08-26 상하님 허락받고 넣음).
+
+    상하님 지적 — "미국테마 처음 들어갔을 때 로딩하고 있더라. 짧게 할 수 없나?"
+    "매수심사결과 높은 순위 9 로딩시간 16초 걸린다. 스마트폰 기준이다."
+
+    첫 화면 13.3초가 **전부 야후에서 시세를 받는 시간**이었다. 앱 기억에만 둬서
+    온라인이 잠들었다 깨면 통째로 다시 받았다. 실측 — 프로세스를 따로 띄워
+    재 보니 테마순위 8.3초 → 1.3초 → 0.5초, 순위 9 는 6.1초 → 2.8초 → 2.0초.
+    """
+
+    def test_the_saved_file_lives_under_the_ignored_cache_folder(self):
+        """저장소가 공개다(CLAUDE.md 10번). 시세 파일이 올라가면 안 된다."""
+        from pathlib import Path
+        root = Path(__file__).resolve().parent
+        self.assertEqual(j3._DISK_DIR.parent.name, "cache")
+        ignored = (root / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("cache/", ignored)
+
+    def test_how_stale_a_saved_file_may_be(self):
+        """장중 3분 · 장 마감 뒤 30분. 상하님이 정하신 값이다."""
+        self.assertEqual(j3.DISK_FRESH_OPEN_SECONDS, 180.0)
+        self.assertEqual(j3.DISK_FRESH_CLOSED_SECONDS, 1800.0)
+        with patch.object(j3.us_market_calendar, "session_closed", lambda *a: False):
+            self.assertEqual(j3._disk_fresh_seconds(), 180.0)
+        with patch.object(j3.us_market_calendar, "session_closed", lambda *a: True):
+            self.assertEqual(j3._disk_fresh_seconds(), 1800.0)
+
+    def test_a_stale_file_is_treated_as_missing(self):
+        """묵은 파일은 없는 셈 친다 — 옛 시세를 오늘 값처럼 보이면 안 된다."""
+        import os, time as _t
+        name = "test_stale_probe"
+        j3._disk_write(name, {"AAA": None}, "2026-08-26T00:00:00+09:00")
+        path = j3._DISK_DIR / f"{name}.pkl"
+        try:
+            self.assertIsNotNone(j3._disk_read(name), "방금 쓴 것을 못 읽는다")
+            old = _t.time() - j3.DISK_FRESH_CLOSED_SECONDS - 60
+            os.utime(path, (old, old))
+            self.assertIsNone(j3._disk_read(name), "묵은 파일을 그대로 썼다")
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_a_broken_file_never_breaks_the_screen(self):
+        """파일이 깨져도 조용히 넘어간다 — 화면이 죽으면 안 된다."""
+        name = "test_broken_probe"
+        j3._DISK_DIR.mkdir(parents=True, exist_ok=True)
+        path = j3._DISK_DIR / f"{name}.pkl"
+        path.write_bytes("이건 시세가 아니다".encode("utf-8"))
+        try:
+            self.assertIsNone(j3._disk_read(name))
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_the_key_changes_when_the_question_changes(self):
+        """묻는 것이 다르면 다른 파일이다 — 딴 종목 시세를 섞으면 안 된다."""
+        a = j3._disk_name(("AAA", "BBB"), "2y", "1d", False)
+        self.assertEqual(a, j3._disk_name(("AAA", "BBB"), "2y", "1d", False))
+        self.assertNotEqual(a, j3._disk_name(("AAA", "CCC"), "2y", "1d", False))
+        self.assertNotEqual(a, j3._disk_name(("AAA", "BBB"), "1y", "1d", False))
+        self.assertNotEqual(a, j3._disk_name(("AAA", "BBB"), "2y", "5m", False))
+        self.assertNotEqual(a, j3._disk_name(("AAA", "BBB"), "2y", "1d", True))
