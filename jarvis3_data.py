@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+import us_market_calendar
 import us_swing_selector as us_swing
 
 _REQUIRED_US_SWING_REVISION = 2026082181
@@ -194,7 +195,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082502
+MODULE_REVISION = 2026082601
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -726,20 +727,16 @@ def get_fear_greed(request_json=None) -> dict:
 
 
 def market_phase(now: datetime | None = None) -> dict:
-    now_ny = (now or datetime.now(_NY)).astimezone(_NY)
-    if now_ny.weekday() >= 5:
-        label = "주말 휴장"
-    elif now_ny.time() < dt_time(4, 0):
-        label = "정규장 전"
-    elif now_ny.time() < dt_time(9, 30):
-        label = "프리마켓"
-    elif now_ny.time() < dt_time(16, 0):
-        label = "정규장 시간"
-    elif now_ny.time() < dt_time(20, 0):
-        label = "애프터마켓"
-    else:
-        label = "장 마감"
-    return {"label": label, "new_york_time": now_ny.isoformat(timespec="seconds")}
+    """지금이 미국장의 어느 대목인가. 휴장일·조기 폐장까지 본다(2026-08-26).
+
+    예전에는 주말만 알았다. 국경일에도 장이 도는 줄 알았고, 뉴욕 오후 1시에 일찍
+    닫는 날에도 세 시간을 더 장중으로 여겼다. 날짜 계산은 `us_market_calendar`에
+    모아 두었다.
+
+    돌려주는 꾸러미에 날짜가 함께 들어 있다 — `session_date`는 지금 다가오거나
+    돌고 있는 장, `previous_session_date`는 마지막으로 끝난 장이다.
+    """
+    return us_market_calendar.phase(now)
 
 
 def _market_regime_from_rows(rows: dict) -> dict:
@@ -812,9 +809,11 @@ def us_session_closed(now=None) -> bool:
     이렇게 하면 값이 **하루에 한 번, 뉴욕 마감 때만** 바뀐다
     (`_previous_market_regime`이 쓰던 규칙과 같다 — 날짜로 판단하면 뉴욕 자정,
     즉 한국 오후 1~2시에 값이 바뀌어 한국장 한복판에서 흔들린다).
+
+    **거래일이 아니면 언제나 끝난 장이다**(2026-08-26). 국경일과 조기 폐장은
+    `us_market_calendar`가 안다 — 추수감사절 다음날은 뉴욕 13시에 이미 끝난 장이다.
     """
-    now_ny = (now or datetime.now(_NY)).astimezone(_NY)
-    return now_ny.time() >= dt_time(16, 0)
+    return us_market_calendar.session_closed(now)
 
 
 def _previous_market_regime(daily: dict, now=None, back: int = 0) -> dict | None:

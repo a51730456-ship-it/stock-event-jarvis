@@ -14,7 +14,7 @@ import importlib
 import math
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import streamlit as st
@@ -1687,14 +1687,57 @@ _US_TABLE_KEYS = tuple(spec[0] for spec in us_market_signal_engine.US_SIGNAL_SPE
 # 되살리려면 이 자리에 글을 되돌리고 아래 stage_guide= 인자를 다시 넘기면 된다.
 
 
-def _us_regular_session_open() -> bool:
-    """지금 미국 정규장이 열려 있나. 못 알아내면 False — 예전 방식으로 둔다."""
-    try:
-        import jarvis3_data as _j3
+def _us_market_phase() -> dict:
+    """지금 미국장이 어느 대목인지, 어느 날 장인지 한 꾸러미로 받는다.
 
-        return _j3.market_phase() == "정규장 시간"
+    못 알아내면 빈 꾸러미를 준다 — 화면은 예전처럼 '직전 미국장'만 보여 준다.
+    """
+    try:
+        import us_market_calendar
+
+        return us_market_calendar.phase()
     except Exception:
-        return False
+        return {}
+
+
+_US_REST_NOTE_CSS = """
+<style>
+.us-rest-note{margin:.35rem 0 .55rem;padding:.5rem .75rem;border-radius:.6rem;
+ border:1px solid rgba(240,177,67,.45);background:rgba(60,42,10,.35);
+ color:#ffe0a3;font-size:.9rem;font-weight:700}
+</style>
+"""
+
+
+def _us_rest_note(phase: dict) -> str:
+    """오늘 뉴욕이 쉬거나 일찍 닫으면 그 한 줄. 아니면 빈 글자.
+
+    상하님 지시(2026-08-26) — "휴일이다 국경일이다 뭐 이런 맨트만 넣으면 되지
+    않을까? 빈자리 넣어줘." 판정에는 손대지 않는다. 사실만 한 줄 적는다.
+    """
+    if not phase:
+        return ""
+    next_day = str(phase.get("session_date") or "")[5:].replace("-", ".")
+    holiday = str(phase.get("holiday") or "")
+    if holiday:
+        return f"오늘 뉴욕증시는 {holiday}로 쉽니다. 다음 장은 {next_day}입니다."
+    if phase.get("label") == "주말 휴장":
+        return f"주말이라 미국장이 쉽니다. 다음 장은 {next_day}입니다."
+    early = str(phase.get("early_close") or "")
+    if early:
+        return f"오늘은 {early}이라 뉴욕 오후 1시(한국 새벽)에 일찍 닫습니다."
+    return ""
+
+
+def _us_regular_session_open() -> bool:
+    """지금 미국 정규장이 열려 있나. 못 알아내면 False — 예전 방식으로 둔다.
+
+    2026-08-26까지 여기서 `market_phase() == "정규장 시간"`으로 견주고 있었다.
+    `market_phase()`는 **꾸러미**를 돌려주므로 글자와는 절대 같아지지 않아
+    **한 번도 참이 된 적이 없었다.** 그래서 장이 도는 동안에도 화면이
+    '직전 미국장'만 보여 줬다(상하님 캡처 — 한국 8/26 01:23, 뉴욕 8/25 장중).
+    """
+    return _us_market_phase().get("label") == "정규장 시간"
 
 
 def run_us_market_signal_check(force_refresh=False):
@@ -1746,9 +1789,15 @@ def run_us_market_signal_check(force_refresh=False):
     #   장중·장전이면 닻 = 오늘 → 어제 종가가 '직전 완료 장'
     import jarvis3_data as _j3
 
-    closed = _j3.us_session_closed()
-    today_ny = datetime.now(ZoneInfo("America/New_York")).date()
-    anchor = (today_ny + timedelta(days=1)) if closed else today_ny
+    # 닻 = 지금 다가오거나 돌고 있는 장의 날짜. 마감을 지나면 곧바로 다음 거래일이
+    # 되고, 그 앞의 마지막 완성 일봉이 '직전 완료 장'이 된다. 국경일·조기 폐장은
+    # us_market_calendar 가 안다(2026-08-26 상하님 지시).
+    anchor = _us_market_phase().get("session_date") or ""
+    if not anchor:
+        closed = _j3.us_session_closed()
+        today_ny = datetime.now(ZoneInfo("America/New_York")).date()
+        anchor = ((today_ny + timedelta(days=1)) if closed else today_ny).isoformat()
+    anchor = date.fromisoformat(str(anchor))
     frozen_rows = _cached_previous_us_quotes(
         tuple((ticker, anchor.isoformat()) for ticker in tickers))
     frozen_dates = sorted({row.get("trade_date") for row in frozen_rows.values()
@@ -1812,9 +1861,14 @@ def run_us_market_signal_check(force_refresh=False):
     # 직전 완료 장의 종가로 고정이다 — 거기는 안 흔들린다.
     #
     # **장중에는 위 칸이 움직인다.** 그것이 이 방식의 성질이다.
-    session_open = _us_regular_session_open()
+    # 2026-08-26 상하님 지시 — "당일은 장 시작 전이라도 뜨게 해야 볼 수 있지 않나?
+    # 장이 끝나면 전일은 그 장을 바로 반영하고, 당일은 다음 장으로 넘어가야지."
+    # 그래서 위 칸(당일)은 **늘** 보여 준다. 지금이 개장 전인지 장중인지는 제목에
+    # 밝힌다. 판정을 얼려 두는 것은 아래 칸(전일)이고, 거기는 그대로 안 흔들린다.
+    us_phase = _us_market_phase()
+    session_open = us_phase.get("label") == "정규장 시간"
     live_usable = live_result is not None and getattr(live_result, "stage", None)
-    if session_open and live_usable and frozen_result is not None:
+    if live_usable and frozen_result is not None:
         # 위 칸 = 지금 돌고 있는 오늘 장, 아래 칸 = 직전 완료 장(=어제)
         result = live_result
         as_of_note = None
@@ -1831,6 +1885,7 @@ def run_us_market_signal_check(force_refresh=False):
     st.session_state["us_signal_live_result"] = live_result
     st.session_state["us_signal_frozen"] = is_frozen
     st.session_state["us_signal_session_open"] = bool(session_open and not is_frozen)
+    st.session_state["us_signal_phase"] = us_phase
     st.session_state["us_signal_as_of_date"] = as_of_note
     st.session_state["us_signal_previous_result"] = card_previous
     st.session_state["us_signal_previous_date"] = card_previous_date
@@ -1875,14 +1930,19 @@ def render_us_market_signal_card():
     # 선물만 움직이고 ETF·지수는 직전 종가 그대로라, 한 카드에 두 날이 섞였다.
     # 앞 카드에서 고쳐 놓고(닻 하나로 같은 거래일) 이 칸만 안 고친 셈이었다.
     current_label_text = "당일"
-    if st.session_state.get("us_signal_session_open"):
-        # **장이 돌고 있는 동안**은 위 칸이 오늘 장이다(야후 방식, 2026-08-22).
-        # 어느 날인지와 '장중'이라는 것을 제목에 밝힌다 — 이 값은 움직인다.
-        try:
-            _today_ny = datetime.now(ZoneInfo("America/New_York")).strftime("%m.%d")
-            current_label_text = f"당일 · {_today_ny} (장중)"
-        except Exception:
-            current_label_text = "당일 (장중)"
+    _phase = st.session_state.get("us_signal_phase") or {}
+    if not st.session_state.get("us_signal_frozen") or st.session_state.get("us_signal_session_open"):
+        # 위 칸은 **다가오거나 돌고 있는 장**이다. 마감 종이 울리면 곧바로 다음 장으로
+        # 넘어가고, 그때부터 개장 전 움직임(선물·프리마켓)을 보여 준다
+        # (2026-08-26 상하님 지시). 이 값은 움직인다.
+        _day = str(_phase.get("session_date") or "")[5:].replace("-", ".")
+        _note = "장중" if _phase.get("label") == "정규장 시간" else "개장 전"
+        if not _day:
+            try:
+                _day = datetime.now(ZoneInfo("America/New_York")).strftime("%m.%d")
+            except Exception:
+                _day = ""
+        current_label_text = f"당일{' · ' + _day if _day else ''} ({_note})"
     elif st.session_state.get("us_signal_frozen"):
         as_of = str(st.session_state.get("us_signal_as_of_date") or "")
         day = as_of[5:].replace("-", ".") if len(as_of) >= 10 else ""
@@ -1902,6 +1962,12 @@ def render_us_market_signal_card():
         # 다만 **화면이 지금 장을 아예 말하지 않는 것**이 문제였다. 새벽 4시에는
         # 미국장이 다섯 시간째 돌고 있는데 화면에는 그 사실이 없었다.
         # 판정은 안 건드리고 사실 한 줄만 붙인다.
+
+    _rest = _us_rest_note(_phase)
+    if _rest:
+        st.markdown(_US_REST_NOTE_CSS, unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='us-rest-note'>{_rest}</div>", unsafe_allow_html=True)
 
     render_market_signal_card(
         result,

@@ -154,52 +154,7 @@ def test_rss_fallback_keeps_verifiable_actual_rows(monkeypatch):
     assert "hl=en-US" in seen["url"] and "gl=US" in seen["url"] and "ceid=US%3Aen" in seen["url"]
 
 
-def test_us_news_is_preferred_before_naver(monkeypatch):
-    """번역 수단(DeepL 열쇠)이 있으면 미국 원문을 먼저 받고 네이버는 부르지 않는다."""
-    row = {"headline": "US market news", "summary": "", "source": "US source",
-           "url": "https://example.test/us", "published_at": datetime.now(timezone.utc).isoformat()}
-    monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [row])
-    monkeypatch.setattr(news, "_google_news_rss_ko", lambda *_args: [])
-    monkeypatch.setattr(news, "_public_translations", lambda *_args: {"US market news": "미국 증시 소식"})
-    naver = patch.object(news, "_naver_news")
-    monkeypatch.setattr(news, "_groq", lambda rows, *_args: news._fallback(rows))
-    with naver as naver_news:
-        result = news._load("company:NVDA", "company", "NVDA", "", "", "id", "secret", "deepl-key")
-    naver_news.assert_not_called()
-    assert result["items"][0]["source"] == "US source"
 
-
-def test_us_original_news_comes_first_even_without_keys(monkeypatch):
-    """열쇠가 없어도 미국 원문 기사를 먼저 받는다.
-
-    2026-08-26 상하님 — "미국 뉴스를 갖고 오는 게 아니냐? 왜 국내 뉴스를 갖고오나?"
-    한글 매체 기사는 번역이 다 막힌 날의 대비책일 뿐, 기본 뉴스원이 아니다.
-    """
-    english = {"headline": "Wall Street ends higher as tech rebounds", "summary": "",
-               "source": "Reuters", "url": "https://example.test/us",
-               "published_at": datetime.now(timezone.utc).isoformat()}
-    monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [english])
-    monkeypatch.setattr(news, "_public_translations",
-                        lambda *_args: {english["headline"]: "월가, 기술주 반등에 상승 마감"})
-    with patch.object(news, "_google_news_rss_ko") as korean_news:
-        result = news._load("market:", "market", None, "", "")
-    korean_news.assert_not_called()
-    assert result["items"][0]["source"] == "Reuters"
-    assert result["items"][0]["brief"] == "월가, 기술주 반등에 상승 마감"
-
-
-def test_english_headlines_are_replaced_by_korean_articles(monkeypatch):
-    """원문을 받았는데 번역이 다 막히면 같은 주제의 한글 기사로 바꿔 채운다."""
-    english = {"headline": "US market news", "summary": "", "source": "US source",
-               "url": "https://example.test/us", "published_at": datetime.now(timezone.utc).isoformat()}
-    korean = {"headline": "뉴욕증시 상승 마감", "summary": "", "source": "연합뉴스",
-              "url": "https://example.test/ko", "published_at": datetime.now(timezone.utc).isoformat()}
-    monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [english])
-    monkeypatch.setattr(news, "_google_news_rss_ko", lambda *_args: [korean])
-    monkeypatch.setattr(news, "_public_translations", lambda *_args: {})
-    monkeypatch.setattr(news.deepl_translate, "translate_texts_to_ko", lambda *_args: [])
-    result = news._load("market:", "market", None, "", "", "", "", "deepl-key")
-    assert result["items"][0]["brief"] == "뉴욕증시 상승 마감"
 
 
 def test_first_page_renders_four_slots_and_next_page_button():
@@ -255,8 +210,8 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert 'div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"])' in source
     assert 'delete_visual = ""' in source
     assert ".j3b-bottom-nav{position:fixed" in source
-    assert ".j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:68px!important" in source
-    assert 'width:33.333%!important;height:50px!important;flex:0 0 33.333%!important' in source
+    assert ".j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:64px!important" in source
+    assert 'width:33.333%!important;height:58px!important;flex:0 0 33.333%!important' in source
     assert 'st.columns(3, gap="small")' in source
     assert '("mypage", "♙", "마이페이지")' not in source
     assert 'deepl_key=_briefing_secret("DEEPL_API_KEY")' in source
@@ -361,3 +316,47 @@ def test_market_briefing_drops_domestic_market_articles():
     assert news._is_about({"headline": "[시황] 미국증시, 기술주 반등"}, "market", None)
     assert news._is_about({"headline": "뉴욕증시 3대 지수 일제히 상승"}, "market", None)
     assert not news._is_about({"headline": "코스피, 외국인 매도에 하락 마감"}, "market", None)
+
+def test_only_us_media_is_used(monkeypatch):
+    """뉴스원은 미국 매체뿐이다. 한글 매체는 쓰지 않는다.
+
+    2026-08-26 상하님 — "미국시장 한줄 브리핑 이거 미국뉴스에서 갖고 와야 된다.
+    지금 보니 서울신문도 있네." 네이버와 한글 구글뉴스를 뉴스원에서 뺐다.
+    """
+    assert not hasattr(news, "_naver_news")
+    assert not hasattr(news, "_google_news_rss_ko")
+    row = {"headline": "Wall Street ends higher as tech rebounds", "summary": "",
+           "source": "Reuters", "url": "https://example.test/us",
+           "published_at": datetime.now(timezone.utc).isoformat()}
+    monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [row])
+    monkeypatch.setattr(news, "_public_translations",
+                        lambda *_args: {row["headline"]: "월가, 기술주 반등에 상승 마감"})
+    result = news._load("market:", "market", None, "", "", "id", "secret")
+    assert result["items"][0]["source"] == "Reuters"
+    assert result["items"][0]["brief"] == "월가, 기술주 반등에 상승 마감"
+
+
+def test_untranslated_headline_stays_in_english(monkeypatch):
+    """그날 번역이 다 막혀도 미국 매체 기사를 그대로 보여 준다. 한글 기사로 바꾸지 않는다."""
+    row = {"headline": "Wall Street ends higher", "summary": "", "source": "Reuters",
+           "url": "https://example.test/us", "published_at": datetime.now(timezone.utc).isoformat()}
+    monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [row])
+    monkeypatch.setattr(news, "_public_translations", lambda *_args: {})
+    monkeypatch.setattr(news.deepl_translate, "translate_texts_to_ko", lambda *_args: [])
+    result = news._load("market:", "market", None, "", "")
+    assert result["items"][0]["brief"] == "Wall Street ends higher"
+    assert result["items"][0]["source"] == "Reuters"
+
+
+def test_english_articles_about_other_companies_are_dropped():
+    """영어 기사도 그 회사 이야기만 남긴다. 티커 세 글자가 없어도 이름으로 가른다."""
+    keep = [("TSM", "Taiwan Semiconductor Manufacturing beats estimates"),
+            ("GOOGL", "Alphabet stock looks below fair value"),
+            ("IONQ", "IonQ names former Samsung executive to its board"),
+            ("QCOM", "Qualcomm is poised for a breakout")]
+    drop = [("TSM", "Apple unveils a new Mac lineup"),
+            ("GOOGL", "Tesla gives older cars a major FSD boost")]
+    for ticker, headline in keep:
+        assert news._is_about({"headline": headline}, "company", ticker), headline
+    for ticker, headline in drop:
+        assert not news._is_about({"headline": headline}, "company", ticker), headline

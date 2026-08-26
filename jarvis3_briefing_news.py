@@ -18,7 +18,6 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
-import news_data
 import deepl_translate
 
 
@@ -42,6 +41,19 @@ _KOREAN_NAMES = {
     "SMCI": "슈퍼마이크로", "COIN": "코인베이스", "RGTI": "리게티",
     "IONQ": "아이온큐", "MSTR": "마이크로스트래티지", "CRWD": "크라우드스트라이크",
     "ORCL": "오라클", "ADBE": "어도비", "UBER": "우버", "PANW": "팔로알토",
+}
+
+# 미국 매체는 회사 이름을 영어로 쓴다. 티커만으로는 안 걸리는 것을 여기에 적는다.
+# (TSM 기사 제목은 "Taiwan Semiconductor…"라 티커 세 글자가 아예 없다)
+_ENGLISH_ALIASES = {
+    "NVDA": ("Nvidia",), "TSLA": ("Tesla",), "PLTR": ("Palantir",), "AMD": ("AMD",),
+    "AAPL": ("Apple",), "META": ("Meta",), "AVGO": ("Broadcom",), "MSFT": ("Microsoft",),
+    "GOOGL": ("Google", "Alphabet"), "GOOG": ("Google", "Alphabet"),
+    "AMZN": ("Amazon",), "NFLX": ("Netflix",), "INTC": ("Intel",), "MU": ("Micron",),
+    "QCOM": ("Qualcomm",), "ARM": ("Arm Holdings", "Arm "), "TSM": ("Taiwan Semiconductor", "TSMC"),
+    "SMCI": ("Super Micro", "Supermicro"), "COIN": ("Coinbase",), "RGTI": ("Rigetti",),
+    "IONQ": ("IonQ",), "MSTR": ("MicroStrategy", "Strategy"), "CRWD": ("CrowdStrike",),
+    "ORCL": ("Oracle",), "ADBE": ("Adobe",), "UBER": ("Uber",), "PANW": ("Palo Alto",),
 }
 
 # 회사 이름이 여러 갈래로 적히는 종목만 여기에 더 적는다. 없으면 위 이름 하나만 쓴다.
@@ -89,8 +101,16 @@ def _is_about(row: dict, kind: str, ticker: str | None) -> bool:
         return True
     if symbol in headline.upper():
         return True
-    names = _KOREAN_ALIASES.get(symbol) or ((_KOREAN_NAMES[symbol],) if symbol in _KOREAN_NAMES else ())
-    return any(_mentions(headline, name) for name in names)
+    english = _ENGLISH_ALIASES.get(symbol, ())
+    upper = headline.upper()
+    if any(alias.upper() in upper for alias in english):
+        return True
+    korean = _KOREAN_ALIASES.get(symbol) or ((_KOREAN_NAMES[symbol],) if symbol in _KOREAN_NAMES else ())
+    if any(_mentions(headline, name) for name in korean):
+        return True
+    # 이름을 아는 종목인데 어느 이름도 안 나왔으면 다른 회사 기사다.
+    # 이름을 모르는 종목은 거르지 않는다 — 거르면 카드가 통째로 빈다.
+    return not (english or korean)
 
 
 def _text(value, limit=500) -> str:
@@ -275,61 +295,12 @@ def _google_news_rss(kind: str, ticker: str | None) -> list[dict]:
     RSS 원문·시간·출처를 그대로 보관하므로 사용자는 카드의 원문 확인에서 검증할 수 있다.
     """
     query = "US stock market" if kind == "market" else f"{str(ticker or '').upper()} stock"
-    return _rss_rows({"q": f"{query} when:3d", "hl": "en-US", "gl": "US", "ceid": "US:en"})
+    rows = _rss_rows({"q": f"{query} when:3d", "hl": "en-US", "gl": "US", "ceid": "US:en"})
+    kept = [row for row in rows if _is_about(row, kind, ticker)]
+    # 다 걸러지면 거르기 전 것을 쓴다. 빈 카드보다는 느슨한 기사가 낫다.
+    return kept if kept else rows
 
 
-def _google_news_rss_ko(kind: str, ticker: str | None) -> list[dict]:
-    """처음부터 한글로 쓰인 미국시장·미국종목 기사를 받는다.
-
-    번역기를 거치지 않으므로 0.5초 안에 화면이 채워지고, 무료 번역이 막히는 날에도
-    한글 브리핑이 비지 않는다. 번역 열쇠가 없을 때의 기본 뉴스원이다.
-    """
-    if kind == "market":
-        queries = ("미국 증시",)
-    else:
-        symbol = str(ticker or "").upper()
-        name = _KOREAN_NAMES.get(symbol, symbol)
-        # 좁은 말로 먼저 찾고, 세 줄이 안 차면 이름만으로 한 번 더 넓혀 찾는다.
-        # 작은 종목은 '리게티 주가'로는 한 건뿐이고 '리게티'로는 세 건이 나온다.
-        queries = (f"{name} 주가", name)
-    rows = []
-    for query in queries:
-        found = _rss_rows({"q": f"{query} when:3d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"})
-        rows = _dedupe(rows + [row for row in found if _is_about(row, kind, ticker)])
-        if len(rows) >= 3:
-            break
-    return rows
-
-
-def _naver_news(kind: str, ticker: str | None, client_id: str, client_secret: str) -> list[dict]:
-    """기존 앱이 쓰는 Naver 뉴스 키가 있으면 우선 재사용한다."""
-    if not client_id or not client_secret:
-        return []
-    symbol = str(ticker or "").upper()
-    # 티커만 넣으면 국내 뉴스에서 거의 안 걸린다. 한글 회사 이름으로 찾는다.
-    query = "미국 증시" if kind == "market" else _KOREAN_NAMES.get(symbol, symbol)
-    result = news_data.fetch_naver_news(client_id, client_secret, query, display=10, sort="date")
-    if result.get("status") not in {"정상", "데이터 없음"}:
-        return []
-    now = datetime.now(timezone.utc)
-    rows = []
-    for raw in result.get("data") or []:
-        try:
-            published = datetime.fromisoformat(str(raw.get("pub_date") or "").replace(" ", "T"))
-            published = published.replace(tzinfo=timezone(timedelta(hours=9))).astimezone(timezone.utc)
-        except (TypeError, ValueError, OverflowError):
-            continue
-        if published < now - timedelta(hours=72):
-            continue
-        rows.append({
-            "headline": _text(raw.get("title"), 300), "summary": _text(raw.get("description"), 650),
-            "source": "Naver News", "url": _text(raw.get("originallink") or raw.get("link"), 600),
-            "published_at": published.isoformat(),
-        })
-    recent = [row for row in rows if _time(row["published_at"]) >= now - timedelta(hours=24)]
-    kept = _dedupe(recent if recent else rows)
-    # 네이버도 이름만 비슷한 국내 기사를 물어 온다. 그 종목 이야기만 남긴다.
-    return [row for row in kept if _is_about(row, kind, ticker)][:10]
 
 
 def _fallback(rows: list[dict], deepl_key: str = "") -> list[dict]:
@@ -412,8 +383,6 @@ def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_
     if finnhub_key:
         loaders.append(lambda: _finnhub(kind, ticker, finnhub_key))
     loaders.append(lambda: _google_news_rss(kind, ticker))
-    if naver_client_id and naver_client_secret:
-        loaders.append(lambda: _naver_news(kind, ticker, naver_client_id, naver_client_secret))
     for loader in loaders:
         try:
             rows = loader()
@@ -421,17 +390,8 @@ def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_
             rows = []
         if rows:
             break
-    items = _groq(rows, ticker or "미국시장", groq_key, deepl_key)
-    # 영문 원문을 받았는데 그날 번역이 다 막혔으면, 같은 주제를 한글로 쓴 기사로 바꿔 채운다.
-    # 화면에 영문 제목만 남기지 않으려는 것이다.
-    if items and any(not _has_korean(item.get("brief")) for item in items):
-        try:
-            korean_rows = _google_news_rss_ko(kind, ticker)
-        except Exception:
-            korean_rows = []
-        if korean_rows:
-            items = _groq(korean_rows, ticker or "미국시장", groq_key, deepl_key)
-    return {"ok": True, "items": items, "updated_at": time.time()}
+    return {"ok": True, "items": _groq(rows, ticker or "미국시장", groq_key, deepl_key),
+            "updated_at": time.time()}
 
 
 def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = "", groq_key: str = "",

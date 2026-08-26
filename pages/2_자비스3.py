@@ -1127,7 +1127,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082502
+_REQUIRED_J3_REVISION = 2026082601
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -6591,7 +6591,7 @@ def _briefing_css() -> None:
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
         .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
         div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"],div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_grid_"] [data-testid="column"],div[class*="st-key-j3b_grid_"] [data-testid="stColumn"]{width:calc(50% - 5px)!important;min-width:0!important;flex:1 1 0!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
-        .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:0;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:68px;padding:5px 8px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#05244aee,#03162ecc);border-top:1px solid #af8a5199;backdrop-filter:blur(10px);box-sizing:border-box}.j3b-nav-item{display:grid;place-items:center;color:#abb8c8;font-size:9px;line-height:1.1;min-width:0;width:25%;min-height:58px}.j3b-nav-item b{font-size:20px;font-weight:500}.j3b-nav-item.active{color:#36bcff}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
+        .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:23px;font-weight:500}.j3b-nav-item.active{color:#4cc6ff;text-shadow:0 0 8px #1f9fe066}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
         div.st-key-j3b_nav_controls{position:fixed!important;z-index:2147483647!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:68px!important;pointer-events:none!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:68px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;height:68px!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]>[data-testid="stVerticalBlock"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%!important;max-width:none!important}div.st-key-j3b_nav_controls button{width:100%!important;height:68px!important;min-height:68px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important;touch-action:manipulation!important}
         div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
         @media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-hero-catbus{width:155px}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
@@ -6599,7 +6599,7 @@ def _briefing_css() -> None:
         .j3b-hero{height:105px!important;margin-bottom:-5px!important;padding:14px 19px!important;border-radius:0 0 18px 18px!important}.j3b-hero:before{width:510px;height:128px;bottom:-88px}.j3b-hero:after{left:117px;bottom:19px;width:112px;height:19px}.j3b-head-copy{left:20px!important;top:18px!important}.j3b-title{font-size:29px!important;letter-spacing:-1.7px!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:6px!important;font-size:15px!important}.j3b-head-actions{right:15px!important;top:12px!important;gap:6px!important}.j3b-round,.j3b-live{height:31px!important;border-radius:18px!important}.j3b-round{width:31px!important;font-size:19px!important}.j3b-live{padding:0 9px!important;gap:5px!important;font-size:11px!important}.j3b-live i{width:8px!important;height:8px!important}.j3b-hero-catbus{right:-3px!important;bottom:1px!important;width:136px!important}
         .j3b-section{margin:8px 4px 4px!important;font-size:17px!important;gap:6px!important;line-height:22px!important}.j3b-section .j3b-section-icon{width:24px!important;height:24px!important}.j3b-section .j3b-section-icon:after{width:10px!important;height:10px!important}.j3b-section .j3b-more{font-size:11px!important}.j3b-news{min-height:18px!important;margin:3px 0!important;padding:3px 8px!important;border-radius:12px!important;gap:7px!important;font-size:9px!important;line-height:1.1!important}.j3b-news-icon{width:18px!important;height:18px!important;font-size:10px!important}.j3b-news-dot{width:9px!important;height:9px!important}
         .j3b-card{height:108px!important;border-radius:12px!important;padding:6px 7px!important;margin-bottom:6px!important}.j3b-card-top{min-height:32px!important;gap:6px!important}.j3b-logo{width:32px!important;height:32px!important;border-radius:8px!important}.j3b-logo img{width:72%!important;height:72%!important}.j3b-symbol{font-size:17px!important;color:#fff9eb!important;letter-spacing:-.7px!important}.j3b-name{margin-top:2px!important;font-size:9px!important;color:#e6eef5!important}.j3b-price{margin:5px 0 1px!important;font-size:14px!important;color:#fff9eb!important}.j3b-up,.j3b-down,.j3b-neutral{margin-left:3px!important}.j3b-chart{top:34px!important;right:7px!important;width:45%!important;height:31px!important}.j3b-card-notes{margin-top:5px!important;padding-top:3px!important}.j3b-note{font-size:8.1px!important;line-height:1.48!important;color:#f1f5f7!important}.j3b-note:before{margin-right:3px!important}.j3b-lamp{width:17px!important;bottom:0!important;right:3px!important}.j3b-lamp.left{left:3px!important}.j3b-delete-visual{width:18px!important;height:18px!important;right:5px!important;top:5px!important;font-size:13px!important}.j3b-card.compact{height:79px!important}.j3b-card.compact .j3b-card-top{min-height:27px!important}.j3b-card.compact .j3b-logo{width:28px!important;height:28px!important}.j3b-card.compact .j3b-symbol{font-size:15px!important}.j3b-card.compact .j3b-name{font-size:8.5px!important}.j3b-card.compact .j3b-price{font-size:11.5px!important;margin:3px 0 0!important}.j3b-card.compact .j3b-card-notes{margin-top:3px!important;padding-top:1px!important}.j3b-card.compact .j3b-note{font-size:7.5px!important;line-height:1.35!important}.j3b-card.compact .j3b-lamp{width:15px!important}
-        div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:7px!important}div[class*="st-key-j3b_search_row"]{height:30px!important;margin:-28px 0 -27px 202px!important}div[class*="st-key-j3b_search_row"] input{height:29px!important;font-size:9px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:30px!important;height:30px!important;min-height:30px!important;font-size:20px!important}.j3b-disclaimer{margin:5px 0 5px!important;padding:6px!important;border-radius:9px!important;font-size:8px!important}.j3b-bottom-nav{height:46px!important;padding:4px 9px!important}.j3b-nav-item{font-size:8px!important;min-width:48px!important}.j3b-nav-item b{font-size:17px!important}
+        div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:7px!important}div[class*="st-key-j3b_search_row"]{height:30px!important;margin:-28px 0 -27px 202px!important}div[class*="st-key-j3b_search_row"] input{height:29px!important;font-size:9px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:30px!important;height:30px!important;min-height:30px!important;font-size:20px!important}.j3b-disclaimer{margin:5px 0 5px!important;padding:6px!important;border-radius:9px!important;font-size:8px!important}.j3b-bottom-nav{height:56px!important;padding:4px 7px!important}.j3b-nav-item{font-size:11px!important;min-width:44px!important}.j3b-nav-item b{font-size:21px!important}
         </style>
         """,
         unsafe_allow_html=True,
@@ -6617,16 +6617,16 @@ def _briefing_css() -> None:
         .j3b-card.compact{height:auto!important;min-height:174px!important;box-sizing:border-box!important;padding-bottom:14px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:block!important;top:42px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card.compact .j3b-card-notes{bottom:14px!important;max-height:none!important;overflow:visible!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:58px!important;bottom:4px!important}
         div[class*="st-key-j3b_grid_"]{overflow:visible!important;padding-top:6px!important;padding-bottom:6px!important}div[class*="st-key-j3b_grid_"] [data-testid="stVerticalBlock"],div[class*="st-key-j3b_grid_"] [data-testid="stElementContainer"]{overflow:visible!important}div[class*="st-key-j3b_grid_"] [data-testid="stHorizontalBlock"]{gap:8px!important;width:100%!important;overflow:visible!important}div[class*="st-key-j3b_grid_"] [data-testid="stColumn"],div[class*="st-key-j3b_grid_"] [data-testid="column"]{width:calc(50% - 4px)!important;min-width:0!important;flex:1 1 0!important;overflow:visible!important}
         div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
-        .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:68px!important;padding:5px 8px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;min-height:58px!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}
+        .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:64px!important;padding:5px 6px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;min-height:54px!important;font-size:12px!important}.j3b-nav-item b{font-size:23px!important}
         /* 선택 4종목의 뉴스·하단 테두리와 하단 3메뉴의 실제 터치 영역을 확보한다. */
         .j3b-card:not(.compact){min-height:148px!important;padding-bottom:12px!important;margin-bottom:8px!important}.j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important}
         div.st-key-j3b_grid_selected_0{padding-top:14px!important}div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}
         .j3b-card.compact{min-height:164px!important}
-        .j3b-bottom-nav{height:50px!important;padding:2px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:9px!important}.j3b-nav-item b{font-size:20px!important}
-        div.st-key-j3b_nav_controls{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:50px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:50px!important;min-height:50px!important}
+        .j3b-bottom-nav{height:58px!important;padding:3px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:52px!important;font-size:12px!important}.j3b-nav-item b{font-size:23px!important}
+        div.st-key-j3b_nav_controls{height:58px!important;bottom:8px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:58px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:58px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:58px!important;min-height:58px!important}
         @media (max-width:1200px){
         body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-bottom:72px!important}
-        .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:0!important;left:50%!important;transform:translateX(-75%)!important;width:min(286.667px,66.667vw)!important}
+        .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:8px!important;left:50%!important;transform:translateX(-75%)!important;margin-left:8px!important;width:min(286.667px,66.667vw)!important}
         [data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.stAppDeployButton{display:none!important;visibility:hidden!important;pointer-events:none!important}
         }
         @media (max-width:380px){.j3b-title{font-size:29px!important}.j3b-sub{font-size:15px!important}.j3b-hero-catbus{width:132px!important}.j3b-section{font-size:17px!important}.j3b-card:not(.compact){height:auto!important;min-height:144px!important}.j3b-card.compact{height:auto!important;min-height:160px!important}.j3b-note{font-size:8.5px!important}.j3b-card.compact .j3b-note{font-size:8px!important}}
@@ -6722,6 +6722,40 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
     return items
 
 
+_DECOR_IMAGES = ("soot_lamp_cut.png", "small_cat_lamp_cut.png",
+                 "small_totoro_cut.png", "bunny_bench_cut.png")
+_DECOR_BY_TICKER = {
+    "NVDA": "soot_lamp_cut.png", "TSLA": "small_totoro_cut.png",
+    "PLTR": "small_cat_lamp_cut.png", "AMD": "small_totoro_cut.png",
+    "AAPL": "small_cat_lamp_cut.png", "META": "soot_lamp_cut.png",
+    "AVGO": "small_cat_lamp_cut.png", "RGTI": "bunny_bench_cut.png",
+}
+
+# 로고 그림이 없는 종목의 글자표 — (보일 글자, 바탕색 시작, 바탕색 끝, 글자색).
+# 그 회사가 실제로 쓰는 글자와 브랜드 색을 따랐다.
+_BRAND_MARKS = {
+    "GOOGL": ("G", "#ffffff", "#e6ebf5", "#1a73e8"),
+    "GOOG": ("G", "#ffffff", "#e6ebf5", "#1a73e8"),
+    "TSM": ("tsmc", "#ee2b39", "#8f0f1a", "#ffffff"),
+    "QCOM": ("Q", "#3653dc", "#132a86", "#ffffff"),
+    "IONQ": ("IonQ", "#e0348a", "#75104a", "#ffffff"),
+    "MSFT": ("MS", "#00a4ef", "#0b4d78", "#ffffff"),
+    "AMZN": ("a", "#ff9900", "#8a4b00", "#111827"),
+    "INTC": ("intel", "#0068b5", "#023a68", "#ffffff"),
+    "MU": ("MU", "#0a2896", "#04123f", "#ffffff"),
+    "ARM": ("arm", "#0091bd", "#014a61", "#ffffff"),
+    "NFLX": ("N", "#e50914", "#7a0207", "#ffffff"),
+    "ORCL": ("O", "#c74634", "#6d1d13", "#ffffff"),
+    "SMCI": ("SMCI", "#00843d", "#024420", "#ffffff"),
+    "COIN": ("C", "#0052ff", "#012a85", "#ffffff"),
+    "MSTR": ("MS", "#f7931a", "#8a4c04", "#111827"),
+    "CRWD": ("CS", "#e01f3d", "#73071a", "#ffffff"),
+    "PANW": ("PA", "#fa582d", "#822309", "#ffffff"),
+    "ADBE": ("A", "#ed2224", "#7c070a", "#ffffff"),
+    "UBER": ("Uber", "#111827", "#000000", "#ffffff"),
+}
+
+
 def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, compact: bool = False) -> None:
     ticker = stock["ticker"]
     price, change = card.get("price"), card.get("change_pct")
@@ -6745,25 +6779,32 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         ) for item in notes
     )
     logo_uri = _briefing_logo_uri(ticker)
-    # 회사 로고 그림은 앱 안에 넣어 둔 종목만 있다(2026-08-26 상하님 물음 —
-    # "로고 있는 것도 있고 없는 곳도 있는 것은 왜 그러냐"). 상하님이 새로 넣으신
-    # 종목은 그림이 없으므로, 티커 두 글자를 딴 딱지로 대신한다. 딱지 색은
-    # 티커에서 뽑아 늘 같은 색이 나오게 한다 — 카드마다 달라 보여야 구분이 된다.
+    # 회사 로고 **그림**은 앱 안에 넣어 둔 여덟 종목만 있다. 나머지는 그 회사가
+    # 실제로 쓰는 글자표(워드마크)와 브랜드 색으로 보여 준다 — 티커 두 글자만
+    # 잘라 쓰면 무슨 회사인지 알 수 없다(2026-08-26 상하님 지적 — "왜 로고가
+    # 이상하지, 그 회사 로고 맞냐?"). 여기에 없는 종목만 티커 두 글자로 간다.
     if logo_uri:
         logo_html = f'<img src="{logo_uri}" alt="{html.escape(ticker)} logo">'
     else:
-        hue = sum(ord(letter) for letter in ticker.upper()) * 37 % 360
+        mark = _BRAND_MARKS.get(ticker.upper())
+        if mark:
+            text, start, end, ink = mark
+        else:
+            text, ink = ticker[:2].upper(), "#f4faff"
+            hue = sum(ord(letter) for letter in ticker.upper()) * 37 % 360
+            start, end = f"hsl({hue} 52% 42%)", f"hsl({hue} 60% 20%)"
+        size = ".62em" if len(text) <= 2 else (".40em" if len(text) <= 4 else ".33em")
         logo_html = (
-            f'<span class="j3b-logo-text" style="background:linear-gradient('
-            f'145deg,hsl({hue} 52% 42%),hsl({hue} 60% 20%))">{html.escape(ticker[:2].upper())}</span>'
+            f'<span class="j3b-logo-text" style="background:linear-gradient(145deg,{start},{end});'
+            f'color:{ink};font-size:{size}">{html.escape(text)}</span>'
         )
     direction = "decline" if (change or 0) < 0 else ""
-    decor_name = {
-        "NVDA": "soot_lamp_cut.png", "TSLA": "small_totoro_cut.png",
-        "PLTR": "small_cat_lamp_cut.png", "AMD": "small_totoro_cut.png",
-        "AAPL": "small_cat_lamp_cut.png", "META": "soot_lamp_cut.png",
-        "AVGO": "small_cat_lamp_cut.png", "RGTI": "bunny_bench_cut.png",
-    }.get(ticker)
+    # 캐릭터는 **모든 카드**에 붙인다(2026-08-26 상하님 — "각 종목에 캐릭터랑
+    # 똑같게 다 넣어줘"). 익숙한 여덟 종목은 쓰던 캐릭터를 그대로 두고, 새로
+    # 넣으신 종목은 티커에서 뽑아 늘 같은 캐릭터가 나오게 한다.
+    decor_name = _DECOR_BY_TICKER.get(ticker.upper()) or _DECOR_IMAGES[
+        sum(ord(letter) for letter in ticker.upper()) % len(_DECOR_IMAGES)
+    ]
     decor_uri = _briefing_asset_uri(decor_name) if decor_name else ""
     decor_side = " left" if ticker == "AAPL" else ""
     decor_html = f'<img class="j3b-decor-img{decor_side}" src="{decor_uri}" alt="">' if decor_uri else ""

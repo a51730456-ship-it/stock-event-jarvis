@@ -1871,7 +1871,8 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     assert "z-index:2147483646" in source
     assert "z-index:2147483647!important" in source
     assert "visibility:hidden!important;pointer-events:none!important" in source
-    assert ".j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:0!important" in source
+    # 아래에서 8px 띄워 금빛 둥근 모서리가 화면 끝에 잘리지 않게 했다(2026-08-26).
+    assert ".j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:8px!important" in source
     assert "transform:translateX(-75%)!important" in source
     assert "width:min(286.667px,66.667vw)!important" in source
     reviewed = source[source.index("def _render_top_reviewed"):source.index("def _render_my_stock_panel")]
@@ -1893,10 +1894,10 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     ):
         assert removed not in source
     assert "padding-bottom:72px!important" in source
-    assert ".j3b-bottom-nav{height:50px!important;padding:2px 6px!important}" in source
-    assert ".j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:9px!important}" in source
-    assert ".j3b-nav-item b{font-size:20px!important}" in source
-    assert "div.st-key-j3b_nav_controls{height:50px!important}" in source
+    assert ".j3b-bottom-nav{height:58px!important;padding:3px 6px!important}" in source
+    assert ".j3b-nav-item{width:33.333%!important;min-height:52px!important;font-size:12px!important}" in source
+    assert ".j3b-nav-item b{font-size:23px!important}" in source
+    assert "div.st-key-j3b_nav_controls{height:58px!important;bottom:8px!important}" in source
     assert 'div[class*="st-key-j3b_grid_"]{overflow:visible!important' in source
     assert "div.st-key-j3b_grid_selected_0{padding-top:14px!important}" in source
     assert "div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}" in source
