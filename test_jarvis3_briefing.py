@@ -188,7 +188,10 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert 'st.session_state["j3_briefing_page"] = "home"' in source
     # 장식 그림은 배경을 오려 낸 파일이라 네모를 가리던 타원 마스크가 필요 없다(2026-08-26).
     assert "mask-image:radial-gradient" not in source
-    assert '_briefing_asset_uri("hero_catbus_cut.png")' in source
+    # 머리띠 배경은 견본(visual_reference.png)에서 잘라 낸 장면 한 장이다.
+    # 그 안에 지구·도시·구름·고양이버스가 다 들어 있다(2026-08-26).
+    assert '_briefing_asset_uri("hero_scene.png")' in source
+    assert ".j3b-hero:has(.j3b-hero-scene):before" in source
     assert "soot_lamp_cut.png" in source
     assert 'st.switch_page("app.py")' in source
 
