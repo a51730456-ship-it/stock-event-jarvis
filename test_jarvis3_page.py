@@ -2069,3 +2069,22 @@ def test_top9_close_sits_above_the_stock_search():
     assert re.search(r"_render_top7_close_above_search\(\)\n\s*_render_my_stock_panel", source), "종목검색 바로 위가 아니다"
     # 20개 테마 순위 닫기와 같은 붉은 옷
     assert 'st-key-close_j3_top7_open_above_search"] button {' in source
+
+
+def test_market_top_style_block_has_no_blank_lines():
+    """<div>로 시작하는 HTML 덩어리 안에는 빈 줄이 있으면 안 된다.
+
+    2026-08-26에 이 덩어리 안 CSS 주석에 빈 줄을 하나 넣었더니 화면이 깨졌다
+    (상하님 캡처 — CSS 글자가 화면에 그대로 쏟아졌다). 마크다운은 <div> 로
+    시작한 HTML 덩어리를 **빈 줄에서 끝낸다.** 그래서 빈 줄 뒤부터는 <style>
+    안이 아니라 그냥 글로 읽힌다. 주석 자체를 넣지 않는 것이 가장 안전하다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    start = source.index('<div class="j3-market-top"></div>')
+    # 닫는 표까지 넣어야 마지막 줄이 통째로 들어온다. 안 그러면 그 줄의
+    # 들여쓰기 칸만 남아 '빈 줄'로 잘못 잡힌다.
+    end = source.index("</style>", start) + len("</style>")
+    block = source[start:end]
+    blank = [i for i, line in enumerate(block.splitlines()) if not line.strip()]
+    assert not blank, f"빈 줄이 {blank} 번째에 있다 — 여기서 <style>이 잘린다"
+    assert "/*" not in block, "이 덩어리 안에는 주석을 넣지 않는다"
