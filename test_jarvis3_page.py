@@ -1179,21 +1179,28 @@ class Jarvis3PageTests(unittest.TestCase):
         block = source.split("def _render_pullback_detail(")[1].split("\ndef ")[0]
         self.assertIn('if mode in ("crash", "breakout"):', block)
 
-    def test_limits_are_measured_not_just_stated(self):
-        """한계를 적어만 두지 않고 **얼마나 위험한지 잰 결과**를 적는다.
+    def test_limits_and_holding_table_were_removed_by_request(self):
+        """한계와 보유기간 참고표는 **2026-08-26 상하님 지시로 뺐다**.
 
-        2026-08-19 상하님 지시로 두 한계를 쟀다
-        (research/us_crash_leaveout.py) —
-          · 바닥 아홉 번을 하나씩 빼도 네 항목이 다 절반을 넘겼다
-          · 10년 내내 있던 종목 +51.6% vs 새로 들어온 종목 +74.6% (새 쪽 12%)
+        원래는 넣으라 하셨던 것이다 — 한계의 실측값은 2026-08-19 지시였고,
+        보유기간 표는 CLAUDE.md 0-1 바("앱은 파는 시점을 정하지 않고 지난
+        성적을 나란히 보여줄 뿐")가 가리키던 그 표다. 그래서 제 판단으로는
+        못 뺐고, 상하님께 여쭈어 "한계랑 참고표 빼라"는 답을 받고 뺐다.
+
+        되살리라 하시면 숫자는 그대로 있다 —
+        research/us_crash_holding.py · research/us_crash_leaveout.py.
+        이 시험은 **제가 마음대로 도로 넣지 못하게** 막는 것이다.
         """
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         head = source.split('("_crash",')[1].split('("_theme",')[0]
-        self.assertIn("한 번씩 빼고", head, "바닥을 빼고 다시 잰 결과가 없다")
-        # 글이 줄바꿈으로 토막 나 있어 한 낱말씩 본다.
-        self.assertIn("넘겼습니다", head)
-        self.assertIn("+51.6%", head, "생존편향 크기가 없다")
-        self.assertIn("+74.6%", head)
+        # 주석에는 남아 있어도 되지만 화면에 나가는 글에는 없어야 한다.
+        shown = "".join(
+            line for line in head.splitlines() if not line.strip().startswith("#")
+        )
+        self.assertNotIn("j3fh-ref", shown, "보유기간 참고표가 화면에 남아 있다")
+        self.assertNotIn("한 번씩 빼고", shown, "한계 글이 화면에 남아 있다")
+        # 파는 시점을 정하지 않는다는 말은 남긴다 — 이것까지 빼면 화면이 침묵한다.
+        self.assertIn("파는 시점을 정하지 않습니다", shown)
 
     def test_moved_high_is_marked_and_explained(self):
         """1년 최고가가 바뀐 종목에 표시가 붙고, 표 밑에 무슨 뜻인지 적힌다."""
@@ -1270,23 +1277,21 @@ class Jarvis3PageTests(unittest.TestCase):
         # 모듈이 없거나 조회가 실패해도 화면을 죽이지 않는다.
         self.assertIn("except Exception", fn)
 
-    def test_crash_help_carries_the_holding_period_reference_table(self):
-        """설명 창 안에 '얼마나 들고 있었을 때 어땠나' 참고표가 있어야 한다.
+    def test_holding_period_numbers_are_still_kept_in_research(self):
+        """보유기간 참고표는 화면에서 뺐지만 **숫자는 그대로 남아 있다**.
 
-        2026-08-19 상하님 지시 — "설명 창에 참고표로 넣어라."
-        **배점표가 아니라 설명 창이다.** 앱은 파는 시점을 정하지 않으므로
-        (CLAUDE.md 0-1 바) 점수 자리에 두면 앱이 정하는 것처럼 보인다.
+        2026-08-19 상하님이 "설명 창에 참고표로 넣어라" 하셔서 넣었던 표다.
+        2026-08-26 상하님이 "한계랑 참고표 빼라"고 정해 주셔서 화면에서 뺐다.
+        되살리라 하시면 다시 넣을 수 있어야 하므로, 잰 프로그램이 남아 있는지
+        여기서 지킨다. 이것까지 지워지면 표를 다시 못 만든다.
         """
+        for name in ("us_crash_holding.py", "us_crash_leaveout.py"):
+            self.assertTrue((ROOT / "research" / name).is_file(),
+                            f"research/{name} 이 없다 — 참고표를 다시 못 만든다")
+        # 화면에는 '파는 시점을 정하지 않는다'는 말만 남는다(CLAUDE.md 0-1 바).
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         head = source.split('("_crash",')[1].split('("_theme",')[0]
-        self.assertIn("참고 — 얼마나 들고 있었을 때 어땠나", head)
         self.assertIn("앱은 파는 시점을 정하지 않습니다", head)
-        self.assertIn("j3fh-ref", head, "참고표가 배점표 모양을 쓰고 있다")
-        for span in ("3개월", "6개월", "1년", "1년 반"):
-            self.assertIn(f">{span}</td>", head, f"참고표에 {span}이 없다")
-        # 참고표 모양은 **배점표와 달라야** 한다 — 점수 표로 오해하면 안 된다.
-        self.assertIn(".j3fh-ref {", source)
-        self.assertNotIn("j3fh-ref", source.split("_SCORE_TABLE =")[-1].split("}")[0])
 
     def test_breakout_detail_uses_the_breakout_ruler(self):
         result = _breakout_result()
