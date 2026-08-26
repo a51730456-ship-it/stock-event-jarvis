@@ -2109,3 +2109,47 @@ def test_close_all_runs_before_the_scroll_helper():
         close_at = body.index("_run_close_all_if_requested()")
         scroll_at = body.index("scroll_to.run(st)")
         assert close_at < scroll_at, f"{name} 에서 차례가 뒤집혔다"
+
+def test_no_fragment_decorator_is_separated_from_its_function():
+    """@st.fragment 와 def 사이에 빈 줄이 있으면 안 된다.
+
+    2026-08-26까지 _leader_max (숫자 하나 돌려주는 도우미) 가 바로 위의
+    @st.fragment(run_every=60) 을 가로채고 있었다. 87e0d77 이 그 함수를
+    데코레이터와 임자(_render_selected_live_quote) 사이에 끼워 넣은 탓이다.
+    빈 줄 하나 때문에 눈에 안 띄었다. 그 결과 도우미가 '1분마다 저절로 다시
+    그리는 조각'이 되어 화면이 계속 서버를 다녀왔다(상하님 — "너무 느리게
+    열린다, 로딩 걸린다", "닫기를 여러 번 눌러야 된다").
+    """
+    for path in (PAGE, PAGE.parent.parent / "market_signal_ui.py"):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for i, line in enumerate(lines):
+            if not line.startswith("@st.fragment"):
+                continue
+            nxt = lines[i + 1] if i + 1 < len(lines) else ""
+            assert nxt.startswith("def ") or nxt.startswith("@"), (
+                f"{path.name} {i + 1}줄 @st.fragment 바로 다음이 def 가 아니다: {nxt!r}"
+            )
+
+
+def test_leader_max_is_a_plain_helper():
+    """_leader_max 는 숫자만 돌려주는 도우미다 — 조각이 되면 안 된다."""
+    source = PAGE.read_text(encoding="utf-8")
+    at = source.index("def _leader_max(")
+    before = source[:at].rstrip().splitlines()[-1]
+    assert not before.strip().startswith("@st.fragment"), "_leader_max 에 조각이 붙었다"
+
+
+def test_top9_detail_gets_the_real_theme_row():
+    """순위 9 상세는 **진짜 테마 줄**을 넘겨야 배점 항목이 다 나온다.
+
+    2026-08-26 상하님 지적 — "매수심사결과 높은 순위 9 리스트 종목 중에 테마
+    부분 클릭하면 배점 종류가 안 나온다, 합계만 나온다." 이름만 든 빈 껍데기
+    {"name": ...} 를 넘기고 있어서 테마 배점을 못 찾았고, 그래서 옛 80점 표로
+    떨어져 줄이 하나도 안 그려졌다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    fn = source[source.index("def _render_top_reviewed_detail("):]
+    fn = fn[:fn.index(chr(10) + "def ", 10)]
+    assert 'ranking.get("rows")' in fn, "테마 줄을 순위표에서 찾지 않는다"
+    call = fn[fn.index("_render_stock_detail("):]
+    assert "theme_row," in call.split(")")[0], "여전히 껍데기를 넘긴다"

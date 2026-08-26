@@ -2381,10 +2381,18 @@ def _fear_greed_box() -> str:
     return fear_greed_ui.box_html(data)
 
 
-@st.fragment(run_every=60)
-
 def _leader_max() -> float:
-    """대장주 조건점수 만점. **모듈에서 읽는다** — 화면에 박아 두면 어긋난다."""
+    """대장주 조건점수 만점. **모듈에서 읽는다** — 화면에 박아 두면 어긋난다.
+
+    **여기에 @st.fragment 를 붙이면 안 된다.** 2026-08-26까지 바로 위에 있던
+    @st.fragment(run_every=60) 을 이 함수가 가로채고 있었다. 87e0d77 이 이 함수를
+    데코레이터와 그 임자(_render_selected_live_quote) **사이에** 끼워 넣은 탓이다.
+    빈 줄이 하나 있어서 눈에 안 띄었지만, 파이썬은 빈 줄을 건너뛰고 다음 def 에
+    붙인다. 그래서 숫자 하나 돌려주는 이 도우미가 '1분마다 저절로 다시 그리는
+    조각'이 되었다. 부르는 자리가 세 곳이고 줄마다 불리니, 화면에 조각 타이머가
+    여러 개 깔려 1분마다 서버를 계속 다녀왔다(상하님 지적 — "관찰만 15개 부분
+    클릭하면 너무 느리게 열린다, 로딩 걸린다", "닫기를 여러 번 눌러야 된다").
+    """
     return float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
 
 
@@ -2393,6 +2401,8 @@ def _leader_bar_pct(score) -> float:
     return max(0.0, min(float(score or 0) / max(_leader_max(), 1.0) * 100.0, 100.0))
 
 
+# 화면에 「1분 자동 갱신」이라고 적어 둔 그 카드다. 데코레이터를 제자리로 돌려놨다.
+@st.fragment(run_every=60)
 def _render_selected_live_quote(stock_score=None, entry_state=None, *, general_theme=False) -> None:
     ticker = st.session_state.get("j3_selected_ticker")
     if not ticker:
@@ -4317,8 +4327,26 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
         _render_pullback_detail(picked, market, ranking, mode=origin_mode)
         return
     theme_name = (picked.get("sources") or ["—"])[0]
+    # **테마 줄을 그대로 찾아서 넘긴다** (2026-08-26 상하님 지적 — "매수심사결과
+    # 높은 순위 9 리스트 종목 중에 테마 부분 클릭하면 배점 종류가 안 나온다,
+    # 합계만 나온다").
+    #
+    # 여기서 이름만 든 빈 껍데기 {"name": ...} 를 넘기고 있었다. 그러면
+    # _render_stock_detail 이 테마 배점(score_parts)을 못 찾아 「일반 테마매매
+    # 점수」 표로 못 가고, 옛 80점짜리 표로 떨어진다. 그 표는 종목 배점
+    # (score_parts)을 쓰는데 일반 점수 종목에는 그 칸이 없어 **줄이 하나도 안
+    # 그려지고 총점만 남았다.** 96.1/80.0 처럼 획득이 만점보다 큰 숫자가 나온
+    # 것도 100점짜리 점수를 80점 자로 잰 탓이다.
+    #
+    # 점수를 새로 계산하지 않는다 — 이미 20개 테마 순위가 만들어 둔 줄을 그대로
+    # 찾아 넘길 뿐이다. 못 찾으면 예전처럼 이름만 넘긴다.
+    theme_row = next(
+        (row for row in (ranking.get("rows") or [])
+         if str(row.get("name") or "") == str(theme_name)),
+        {"name": theme_name},
+    )
     _render_stock_detail(
-        {"name": theme_name}, picked, market, [picked],
+        theme_row, picked, market, [picked],
         "j3_top7_detail_choice", panel="top7",
     )
 
