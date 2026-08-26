@@ -471,14 +471,28 @@ def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = 
         if current and current.get("future"):
             future = current["future"]
             if future.done():
+                # **가지고 있던 뉴스를 버리지 않는다** (2026-08-26 상하님 지적 —
+                # "왜 자꾸 뉴스를 불러오는 중이라고 됐다 안 됐다 그러냐").
+                #
+                # 여기서 실패할 때마다 옛 결과를 빈 것으로 덮어쓰고 있었다.
+                # 그러면 잘 나오던 카드가 갑자기 「불러오는 중」으로 되돌아간다.
+                # 온라인은 무료 뉴스 자리에서 이따금 거절당하므로(429 등) 이 일이
+                # 자주 난다. 노트북에서는 거의 안 나서 눈에 안 띄었다.
+                #
+                # 이제 실패해도 있던 것을 그대로 두고, 다시 받을 때만 표시해 둔다.
+                # 새로 받은 것이 **비어 있어도** 옛것을 지우지 않는다 — 빈손으로
+                # 돌아온 것과 못 갔다 온 것은 화면에서 같은 뜻이다.
                 try:
-                    current["result"] = future.result()
+                    fetched = future.result()
                 except Exception:
-                    # 뒤에서 터진 일은 화면으로 올리지 않는다. 빈 결과로 두고 다시 받게 한다.
-                    current["result"] = {"ok": True, "items": []}
-                    current["updated_at"] = 0
+                    current["failed"] = True
                 else:
-                    current["updated_at"] = now
+                    if fetched.get("items") or not (current.get("result") or {}).get("items"):
+                        current["result"] = fetched
+                        current["failed"] = not fetched.get("items")
+                    else:
+                        current["failed"] = True
+                current["updated_at"] = now
                 current.pop("future", None)
                 return current["result"]
             if now - current.get("started_at", now) > STUCK_SECONDS:
@@ -487,12 +501,19 @@ def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = 
                 current.pop("future", None)
             else:
                 return {**current.get("result", {"ok": True, "items": []}), "pending": True}
-        ttl = CACHE_SECONDS if current and current.get("result", {}).get("items") else ERROR_CACHE_SECONDS
+        # 지난번에 못 받았으면 옛 뉴스를 보여 주고 있더라도 30초 뒤 다시 받는다.
+        # 안 그러면 실패한 자리가 10분 동안 낡은 채로 굳는다.
+        ttl = (ERROR_CACHE_SECONDS
+               if not current
+               or current.get("failed")
+               or not current.get("result", {}).get("items")
+               else CACHE_SECONDS)
         if current and now - current.get("updated_at", 0) < ttl:
             return current.get("result", {"ok": True, "items": []})
         future = _POOL.submit(_load, cache_key, kind, ticker, finnhub_key, groq_key,
                               naver_client_id, naver_client_secret, deepl_key)
         _CACHE[cache_key] = {"future": future, "updated_at": now, "started_at": now,
+                             "failed": bool(current and current.get("failed")),
                              "result": current.get("result", {"ok": True, "items": []}) if current else {"ok": True, "items": []}}
         return {**_CACHE[cache_key]["result"], "pending": True}
 

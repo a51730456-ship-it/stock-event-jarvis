@@ -454,3 +454,61 @@ def test_translated_titles_survive_a_restart(monkeypatch, tmp_path):
 
     monkeypatch.setattr(news, "_request", blocked)
     assert news._public_translations(["US stocks rise"]) == {"US stocks rise": "미국 증시 상승"}
+
+def test_a_failed_refresh_keeps_the_news_already_on_screen():
+    """뒤에서 다시 받다가 실패해도 **화면에 있던 뉴스를 지우지 않는다**.
+
+    2026-08-26 상하님 지적 — "왜 자꾸 뉴스를 불러오는 중이라고 됐다 안 됐다
+    그러냐." 실패할 때마다 옛 결과를 빈 것으로 덮어쓰고 있었다. 그러면 잘
+    나오던 카드가 갑자기 「불러오는 중」으로 되돌아간다. 온라인은 무료 뉴스
+    자리에서 이따금 거절당하므로 이 일이 자주 나고, 노트북에서는 거의 안 나서
+    눈에 안 띄었다.
+    """
+    import time
+    news.clear_cache()
+    # 먼저 정상으로 한 벌 담아 둔다 (통신 없이 가짜로 넣는다).
+    with news._LOCK:
+        news._CACHE["stock:AAA"] = {
+            "updated_at": 0,
+            "result": {"ok": True, "items": [{"brief": "옛 뉴스"}]},
+        }
+    boom = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("일부러 낸 실패"))
+    original = news._load
+    news._load = boom
+    try:
+        during = news.get_or_schedule("stock", "AAA")
+        assert during.get("items"), "다시 받는 동안 옛 뉴스가 사라졌다"
+        for _ in range(60):
+            if news.peek("stock", "AAA") == "ready":
+                break
+            time.sleep(0.05)
+        after = news.get_or_schedule("stock", "AAA")
+    finally:
+        news._load = original
+    assert after.get("items"), "실패한 뒤 옛 뉴스가 지워졌다"
+    assert after["items"][0]["brief"] == "옛 뉴스"
+    with news._LOCK:
+        assert news._CACHE["stock:AAA"].get("failed"), "다시 받을 표시가 없다"
+
+
+def test_an_empty_result_does_not_wipe_good_news():
+    """빈손으로 돌아와도 옛 뉴스를 지우지 않는다 — 화면에서는 같은 뜻이다."""
+    news.clear_cache()
+    with news._LOCK:
+        news._CACHE["stock:BBB"] = {
+            "updated_at": 0,
+            "result": {"ok": True, "items": [{"brief": "옛 뉴스"}]},
+        }
+    original = news._load
+    news._load = lambda *a, **k: {"ok": True, "items": []}
+    try:
+        import time
+        news.get_or_schedule("stock", "BBB")
+        for _ in range(60):
+            if news.peek("stock", "BBB") == "ready":
+                break
+            time.sleep(0.05)
+        after = news.get_or_schedule("stock", "BBB")
+    finally:
+        news._load = original
+    assert after["items"][0]["brief"] == "옛 뉴스", "빈손으로 돌아와 옛 뉴스를 지웠다"
