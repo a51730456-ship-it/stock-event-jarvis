@@ -197,7 +197,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082605
+MODULE_REVISION = 2026082606
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4281,22 +4281,31 @@ def get_briefing_cards(stocks) -> dict[str, dict]:
         cached = {ticker: _BRIEFING_CARD_CACHE.get(ticker) for ticker in tickers}
         missing = tuple(ticker for ticker, card in cached.items() if not card or now - card["at"] >= 45)
     if missing:
-        daily, daily_meta = _download_cached(missing, period="3mo", interval="1d", ttl_seconds=300)
+        # **6개월치를 받는다**(2026-08-26 상하님 지시 — "관심종목에 종목 클릭하면
+        # 일봉 6개월 차트 나오고 밑에 종목 뉴스 나오게 해 줘"). 예전에는 3개월치를
+        # 받아 마지막 30개만 썼다.
+        # 값이 바뀌지 않는 것을 실측으로 확인했다 — 3개월치로 잰 현재가·등락과
+        # 6개월치로 잰 것이 소수점까지 같고, 마지막 30개 종가도 똑같다.
+        # 접힌 카드의 작은 그림은 예전 그대로 마지막 30개(chart)를 쓰고,
+        # 크게 연 카드만 6개월치(chart6m)를 쓴다.
+        daily, daily_meta = _download_cached(missing, period="6mo", interval="1d", ttl_seconds=300)
         live, live_meta = _download_cached(missing, period="1d", interval="1m", ttl_seconds=45, prepost=True)
         with _CACHE_LOCK:
             for ticker in missing:
                 metrics = _series_metrics(daily.get(ticker), live.get(ticker))
                 if metrics.get("ok"):
-                    closes = daily[ticker]["Close"].dropna().astype(float).tail(30).tolist()
+                    series = daily[ticker]["Close"].dropna().astype(float)
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
                         "price": metrics.get("current"), "change_pct": metrics.get("change_pct"),
-                        "chart": closes, "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
+                        "chart": series.tail(30).tolist(), "chart6m": series.tolist(),
+                        "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
                     }
                 else:
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
-                        "price": None, "change_pct": None, "chart": [], "stale": True,
+                        "price": None, "change_pct": None, "chart": [], "chart6m": [],
+                        "stale": True,
                     }
     with _CACHE_LOCK:
         return {ticker: dict(_BRIEFING_CARD_CACHE[ticker]) for ticker in tickers if ticker in _BRIEFING_CARD_CACHE}

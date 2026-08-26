@@ -512,3 +512,34 @@ def test_an_empty_result_does_not_wipe_good_news():
     finally:
         news._load = original
     assert after["items"][0]["brief"] == "옛 뉴스", "빈손으로 돌아와 옛 뉴스를 지웠다"
+
+def test_the_open_card_shows_a_six_month_daily_chart():
+    """종목을 누르면 **일봉 6개월** 그림이 나오고 그 밑에 뉴스가 온다.
+
+    2026-08-26 상하님 지시 — "관심종목에 종목 클릭하면 일봉 6개월 차트 나오고
+    밑에 종목 뉴스 나오게 해 줘."
+
+    접힌 카드의 작은 그림은 예전 그대로 최근 30일이다. 값이 바뀌지 않는 것도
+    실측으로 확인했다 — 3개월치로 잰 현재가·등락과 6개월치로 잰 것이 소수점까지
+    같고 마지막 30개 종가도 똑같다. 실측 — 작은 그림 30점, 큰 그림 125점.
+    """
+    page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+    card = page[page.index("    open_card = ("):]
+    card = card[:card.index("    card_html = (")]
+    assert 'six_month or card.get("chart")' in card, "크게 연 카드가 6개월치를 안 쓴다"
+    assert "일봉 6개월" in card, "이름표가 없다"
+    # 그림 **뒤에** 뉴스가 와야 한다.
+    assert card.index("_briefing_chart(") < card.index("_news_accordion_html("),         "뉴스가 그림보다 위에 있다"
+    # 접힌 카드는 손대지 않는다 — 작은 그림은 최근 30일 그대로다.
+    body = page[page.index("    card_body = ("):page.index("    six_month = [")]
+    assert '_briefing_chart(card.get("chart"), change)' in body, "접힌 카드까지 바꿨다"
+
+
+def test_the_card_data_carries_both_series():
+    """카드 자료에 최근 30일과 6개월치가 **둘 다** 실려 있어야 한다."""
+    source = (Path(__file__).parent / "jarvis3_data.py").read_text(encoding="utf-8")
+    fn = source[source.index("def get_briefing_cards("):]
+    fn = fn[:fn.index(chr(10) + "def ", 10)]
+    assert 'period="6mo"' in fn, "6개월치를 안 받는다"
+    assert '"chart": series.tail(30).tolist()' in fn, "작은 그림이 최근 30일이 아니다"
+    assert '"chart6m": series.tolist()' in fn, "6개월치를 안 싣는다"

@@ -1166,7 +1166,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082605
+_REQUIRED_J3_REVISION = 2026082606
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -6915,7 +6915,7 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
 .j3b-open-card .j3b-name{display:block;margin-top:2px;color:#c9e8ff;font-size:14px;white-space:normal}
 .j3b-open-card .j3b-price{margin:12px 0 8px;font-size:22px;font-weight:900;color:#fff}
-.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}
+.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}.j3b-chart-cap{color:#4da6ff;font-size:12px;font-weight:800;text-align:center;margin:-2px 0 8px}
 .j3b-open-card .j3b-decor-img{position:absolute;right:10px;bottom:6px;width:96px;height:auto;pointer-events:none}
 .j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}
 .j3b-open-list{margin-top:14px}
@@ -7382,6 +7382,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         f'{_briefing_chart(card.get("chart"), change)}<div class="j3b-card-notes">{note_html}</div>'
         f'{delete_visual}{decor_html}</div>'
     )
+    six_month = [float(v) for v in (card.get("chart6m") or []) if v is not None]
     open_card = (
         f'<div class="j3b-open-card {direction}">'
         '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
@@ -7389,7 +7390,13 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
         f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
         f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'
-        f'{_briefing_chart(card.get("chart"), change)}'
+        # 크게 열면 **일봉 6개월**이다(2026-08-26 상하님 지시 — "관심종목에 종목
+        # 클릭하면 일봉 6개월 차트 나오고 밑에 종목 뉴스 나오게 해 줘").
+        # 접힌 카드의 작은 그림은 예전 그대로 최근 30일이다. 6개월치가 아직 안
+        # 왔으면 그 30일 그림을 그대로 쓰고 이름표도 안 붙인다 — 없는 것을 있는
+        # 것처럼 적으면 안 된다.
+        f'{_briefing_chart(six_month or card.get("chart"), change)}'
+        f'{"<div class='j3b-chart-cap'>일봉 6개월</div>" if six_month else ""}'
         f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
         f'{decor_html}</div>'
     )
