@@ -78,11 +78,17 @@ def test_english_news_fallback_uses_one_batched_deepl_call(monkeypatch):
     assert [item["brief"] for item in result] == ["미국 증시 상승", "반도체 수요 증가"]
 
 
-def test_failed_translation_never_displays_english_headline(monkeypatch):
+def test_failed_translation_falls_back_to_original_headline(monkeypatch):
+    """번역이 다 막힌 날에도 안내 문구가 아니라 진짜 기사 제목을 보여 준다.
+
+    예전에는 세 줄이 모두 '번역을 잠시 불러오지 못했습니다'로 채워져 무슨 뉴스인지조차
+    알 수 없었다(2026-08-26 상하님 지적).
+    """
     monkeypatch.setattr(news.deepl_translate, "translate_texts_to_ko", lambda *_args: [])
     monkeypatch.setattr(news, "_public_translations", lambda *_args: {})
     result = news._fallback([{"headline": "English headline", "url": "https://example.test"}], "key")
-    assert result[0]["brief"] == "미국 원문 뉴스의 한글 번역을 잠시 불러오지 못했습니다."
+    assert result[0]["brief"] == "English headline"
+    assert "불러오지 못했습니다" not in result[0]["brief"]
 
 
 def test_empty_deepl_key_uses_cached_public_translation(monkeypatch):
@@ -149,15 +155,47 @@ def test_rss_fallback_keeps_verifiable_actual_rows(monkeypatch):
 
 
 def test_us_news_is_preferred_before_naver(monkeypatch):
+    """번역 수단(DeepL 열쇠)이 있으면 미국 원문을 먼저 받고 네이버는 부르지 않는다."""
     row = {"headline": "US market news", "summary": "", "source": "US source",
            "url": "https://example.test/us", "published_at": datetime.now(timezone.utc).isoformat()}
     monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [row])
+    monkeypatch.setattr(news, "_google_news_rss_ko", lambda *_args: [])
+    monkeypatch.setattr(news, "_public_translations", lambda *_args: {"US market news": "미국 증시 소식"})
     naver = patch.object(news, "_naver_news")
     monkeypatch.setattr(news, "_groq", lambda rows, *_args: news._fallback(rows))
     with naver as naver_news:
-        result = news._load("company:NVDA", "company", "NVDA", "", "", "id", "secret")
+        result = news._load("company:NVDA", "company", "NVDA", "", "", "id", "secret", "deepl-key")
     naver_news.assert_not_called()
     assert result["items"][0]["source"] == "US source"
+
+
+def test_without_translation_key_korean_news_comes_first(monkeypatch):
+    """번역 열쇠가 하나도 없으면 한글로 쓰인 미국 기사를 먼저 받는다.
+
+    영문 원문을 받아 봐야 한글로 바꿀 수단이 없다. 번역 왕복을 건너뛰므로 화면이
+    훨씬 빨리 차고, 무료 번역이 막힌 날에도 브리핑이 비지 않는다.
+    """
+    korean = {"headline": "뉴욕증시, 기술주 강세에 상승 마감", "summary": "", "source": "서울신문",
+              "url": "https://example.test/ko", "published_at": datetime.now(timezone.utc).isoformat()}
+    monkeypatch.setattr(news, "_google_news_rss_ko", lambda *_args: [korean])
+    with patch.object(news, "_google_news_rss") as english_news:
+        result = news._load("market:", "market", None, "", "")
+    english_news.assert_not_called()
+    assert result["items"][0]["brief"] == "뉴욕증시, 기술주 강세에 상승 마감"
+
+
+def test_english_headlines_are_replaced_by_korean_articles(monkeypatch):
+    """원문을 받았는데 번역이 다 막히면 같은 주제의 한글 기사로 바꿔 채운다."""
+    english = {"headline": "US market news", "summary": "", "source": "US source",
+               "url": "https://example.test/us", "published_at": datetime.now(timezone.utc).isoformat()}
+    korean = {"headline": "뉴욕증시 상승 마감", "summary": "", "source": "연합뉴스",
+              "url": "https://example.test/ko", "published_at": datetime.now(timezone.utc).isoformat()}
+    monkeypatch.setattr(news, "_google_news_rss", lambda *_args: [english])
+    monkeypatch.setattr(news, "_google_news_rss_ko", lambda *_args: [korean])
+    monkeypatch.setattr(news, "_public_translations", lambda *_args: {})
+    monkeypatch.setattr(news.deepl_translate, "translate_texts_to_ko", lambda *_args: [])
+    result = news._load("market:", "market", None, "", "", "", "", "deepl-key")
+    assert result["items"][0]["brief"] == "뉴욕증시 상승 마감"
 
 
 def test_first_page_renders_four_slots_and_next_page_button():
@@ -196,13 +234,15 @@ def test_first_page_renders_four_slots_and_next_page_button():
     source = page.read_text(encoding="utf-8")
     assert ".j3b-card.compact{height:158px!important" not in source
     assert "max-height:none!important;overflow:visible!important" in source
-    assert "overflow-x:hidden!important;overflow-y:visible!important" in source
+    # 가로로는 잘라 화면 밖으로 밀지 않고, 세로로는 카드가 넘칠 수 있어야 한다.
+    # (예전 한 줄짜리 규칙이 두 규칙으로 나뉘었다 — 2026-08-26)
+    assert "html:has(.j3b-home),body:has(.j3b-home){overflow-x:hidden!important" in source
     assert ".j3b-card.compact{height:auto!important;min-height:174px!important" in source
     assert ".j3b-card.compact .j3b-card-notes{bottom:14px!important" in source
     assert ".j3b-card:not(.compact){min-height:148px!important" in source
     assert ".j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important" in source
-    assert "div.st-key-j3b_grid_selected_0{padding-top:8px!important}" in source
-    assert "div.st-key-j3b_grid_selected_2{padding-bottom:8px!important}" in source
+    assert "div.st-key-j3b_grid_selected_0{padding-top:14px!important}" in source
+    assert "div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}" in source
     assert ".j3b-card.compact{min-height:164px!important}" in source
     assert "visible_stocks = selected + home_extras" in source
     assert '_render_briefing_grid(home_extras, cards, removable=True' in source
@@ -210,8 +250,9 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert ".j3b-card.compact .j3b-chart{display:block!important" in source
     assert 'div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"])' in source
     assert 'delete_visual = ""' in source
-    assert ".j3b-bottom-nav{position:fixed" in source and ".j3b-bottom-nav{height:72px!important}" in source
-    assert 'width:33.333%!important;height:72px!important;flex:0 0 33.333%!important' in source
+    assert ".j3b-bottom-nav{position:fixed" in source
+    assert ".j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:68px!important" in source
+    assert 'width:33.333%!important;height:50px!important;flex:0 0 33.333%!important' in source
     assert 'st.columns(3, gap="small")' in source
     assert '("mypage", "♙", "마이페이지")' not in source
     assert 'deepl_key=_briefing_secret("DEEPL_API_KEY")' in source
@@ -219,7 +260,10 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert '"""20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""' not in source
     assert '[data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%' in source
     assert 'st.session_state["j3_briefing_page"] = "home"' in source
-    assert "mask-image:radial-gradient" in source
+    # 장식 그림은 배경을 오려 낸 파일이라 네모를 가리던 타원 마스크가 필요 없다(2026-08-26).
+    assert "mask-image:radial-gradient" not in source
+    assert '_briefing_asset_uri("hero_catbus_cut.png")' in source
+    assert "soot_lamp_cut.png" in source
     assert 'st.switch_page("app.py")' in source
 
 
@@ -286,3 +330,30 @@ def test_search_plus_adds_ionq_from_existing_theme_universe():
         next(node for node in app.text_input if node.key == "j3b_search").input("Ionq").run(timeout=30)
         next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
     add_extra.assert_called_once_with("IONQ", "IonQ")
+
+
+def test_only_articles_about_that_stock_are_kept():
+    """이름만 비슷한 다른 회사·국내장 기사를 카드에서 걸러 낸다.
+
+    구글뉴스는 비슷하기만 해도 물어 온다. 2026-08-26에 실제로 테슬라 칸에 모더나
+    기사가, 브로드컴 칸에 코스피 기사가, 메타 칸에 메타플래닛 기사가 올라왔다.
+    """
+    cases = [
+        ("META", "메타바이오메드 주식 700주 ↑", False),
+        ("META", "메타플래닛, 5거래일간 45% 급등", False),
+        ("META", "메타는 올랐는데 알파벳은 빠졌습니다", True),
+        ("RGTI", "아이온큐·리게티컴퓨팅 등 급등…美 양자컴퓨터주 강세", True),
+        ("TSLA", "모더나 주가 하루만에 177% 폭등", False),
+        ("TSLA", "테슬라, 로보택시 사이버캡 9월 3일 공개", True),
+        ("AVGO", "삼전닉스 휘청에 코스피 하락 지속…엔비디아 실적 주시", False),
+        ("AVGO", "브로드컴(AVGO) 구글 계약 변화 이후", True),
+        ("AMD", "레이몬드 제임스, AMD 주식 등급 상향", True),
+    ]
+    for ticker, headline, keep in cases:
+        assert news._is_about({"headline": headline}, "company", ticker) is keep, headline
+
+
+def test_market_briefing_drops_domestic_market_articles():
+    assert news._is_about({"headline": "[시황] 미국증시, 기술주 반등"}, "market", None)
+    assert news._is_about({"headline": "뉴욕증시 3대 지수 일제히 상승"}, "market", None)
+    assert not news._is_about({"headline": "코스피, 외국인 매도에 하락 마감"}, "market", None)
