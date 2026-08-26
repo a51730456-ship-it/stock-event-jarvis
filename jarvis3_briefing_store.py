@@ -13,7 +13,17 @@ from database import DB_PATH
 
 
 SELECTED_SLOTS = 4
-EXTRA_LIMIT = 8
+# 기본 4종목을 실제 줄로 옮겨 적으면서 자리를 8에서 12로 늘렸다. 그러지 않으면
+# 기본 넷이 자리를 먹어 상하님이 넣으실 자리가 절반으로 준다(2026-08-26).
+EXTRA_LIMIT = 12
+
+# 처음 화면에 늘 보이던 네 종목. 예전에는 화면이 자리만 만들어 보여 줬고 저장고에는
+# 없어서 ×로 지울 수가 없었다(상하님 — "RGTI는 x가 왜 없냐").
+DEFAULT_EXTRAS = (
+    ("AAPL", "애플"), ("META", "메타 플랫폼스"),
+    ("AVGO", "브로드컴"), ("RGTI", "리게티 컴퓨팅"),
+)
+_SEED_GROUP = "extra_seed"
 DEFAULT_SELECTED = (("NVDA", "NVIDIA"), ("TSLA", "Tesla"),
                     ("PLTR", "Palantir"), ("AMD", "AMD"))
 _LOCK = threading.Lock()
@@ -69,6 +79,41 @@ def selected_stocks() -> list[dict]:
     return [rows[position] for position in range(1, SELECTED_SLOTS + 1)]
 
 
+def ensure_default_extras() -> None:
+    """기본 4종목을 **한 번만** 실제 줄로 옮겨 적는다. 그래야 ×로 지울 수 있다.
+
+    한 번 옮겨 적은 뒤에는 다시 넣지 않는다 — 지우신 것이 되살아나면 안 된다.
+    이미 같은 티커가 들어 있으면 건너뛴다.
+    """
+    ensure_tables()
+    conn = _connection()
+    try:
+        if conn.execute("SELECT 1 FROM jarvis3_briefing_stocks WHERE group_name=?",
+                        (_SEED_GROUP,)).fetchone():
+            return
+        rows = conn.execute(
+            "SELECT ticker,position FROM jarvis3_briefing_stocks WHERE group_name='extra'"
+        ).fetchall()
+        have = {row["ticker"] for row in rows}
+        position = max((int(row["position"]) for row in rows), default=0)
+        now = datetime.now().isoformat(timespec="seconds")
+        for ticker, name in DEFAULT_EXTRAS:
+            if ticker in have:
+                continue
+            position += 1
+            conn.execute(
+                "INSERT INTO jarvis3_briefing_stocks "
+                "(group_name,position,ticker,stock_name,created_at,updated_at) "
+                "VALUES ('extra',?,?,?,?,?)", (position, ticker, name, now, now))
+        conn.execute(
+            "INSERT INTO jarvis3_briefing_stocks "
+            "(group_name,position,ticker,stock_name,created_at,updated_at) "
+            "VALUES (?,1,'-','기본 종목 옮겨 적음',?,?)", (_SEED_GROUP, now, now))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def extra_stocks() -> list[dict]:
     return _list("extra")
 
@@ -119,7 +164,7 @@ def add_extra(ticker, name) -> None:
     try:
         count = conn.execute("SELECT COUNT(*) FROM jarvis3_briefing_stocks WHERE group_name='extra'").fetchone()[0]
         if count >= EXTRA_LIMIT:
-            raise ValueError("최대 8개까지 등록할 수 있습니다")
+            raise ValueError(f"최대 {EXTRA_LIMIT}개까지 등록할 수 있습니다")
         if conn.execute("SELECT 1 FROM jarvis3_briefing_stocks WHERE group_name='extra' AND ticker=?", (ticker,)).fetchone():
             raise ValueError("추가 검색 종목에 이미 등록되어 있습니다")
         now = datetime.now().isoformat(timespec="seconds")

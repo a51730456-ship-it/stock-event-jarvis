@@ -36,18 +36,38 @@ def test_selected_slots_are_fixed_and_replaceable(monkeypatch):
 
 
 def test_extra_stocks_keep_order_and_limit(monkeypatch):
+    """자리는 12개다 — 기본 4종목이 실제 줄이 되면서 8에서 늘렸다(2026-08-26)."""
     _isolated_store(monkeypatch)
-    for number in range(8):
+    limit = store.EXTRA_LIMIT
+    assert limit == 12
+    for number in range(limit):
         store.add_extra(f"X{number}", f"X {number}")
-    assert [row["ticker"] for row in store.extra_stocks()] == [f"X{number}" for number in range(8)]
+    assert [row["ticker"] for row in store.extra_stocks()] == [f"X{number}" for number in range(limit)]
     try:
-        store.add_extra("NINE", "Nine")
+        store.add_extra("OVER", "Over")
     except ValueError as exc:
-        assert "최대 8개" in str(exc)
+        assert f"최대 {limit}개" in str(exc)
     else:
-        raise AssertionError("9번째 추가 검색 종목이 저장됐다")
+        raise AssertionError("자리를 넘겨 저장됐다")
     store.remove_extra(3)
-    assert [row["position"] for row in store.extra_stocks()] == list(range(1, 8))
+    assert [row["position"] for row in store.extra_stocks()] == list(range(1, limit))
+
+
+def test_default_extras_become_real_rows_once(monkeypatch):
+    """기본 4종목을 한 번만 실제 줄로 옮겨 적는다 — 그래야 ×로 지울 수 있다.
+
+    2026-08-26 상하님 물음 — "RGTI 리게티 컴퓨팅은 x가 왜 없냐?"
+    예전에는 화면이 자리만 만들어 보여 줬고 저장고에는 없어서 지울 수가 없었다.
+    지운 뒤에 다시 불러도 되살아나면 안 된다.
+    """
+    _isolated_store(monkeypatch)
+    store.ensure_default_extras()
+    assert [row["ticker"] for row in store.extra_stocks()] ==         [ticker for ticker, _name in store.DEFAULT_EXTRAS]
+    store.ensure_default_extras()
+    assert len(store.extra_stocks()) == len(store.DEFAULT_EXTRAS)
+    store.remove_extra(4)                      # RGTI 를 지운다
+    store.ensure_default_extras()
+    assert "RGTI" not in [row["ticker"] for row in store.extra_stocks()]
 
 
 def test_news_dedupes_same_url_and_keeps_actual_count():
@@ -224,13 +244,19 @@ def test_search_plus_adds_the_first_matching_extra_stock():
     add_extra.assert_called_once_with("AAPL", "Apple")
 
 
-def test_briefing_search_uses_the_existing_local_universe_only():
+def test_briefing_search_tries_the_local_list_first_then_the_whole_listing():
+    """가진 200종목 명부에서 먼저 찾고, 없을 때만 미국 거래소 전체 명부로 넓힌다.
+
+    2026-08-26 상하님 지적 — SPCX(스페이스X)가 안 들어갔다. 200종목에 없어서였다.
+    전체 명부는 처음 한 번 받는 데 몇 초 걸리므로, 먼저 찾아보고 없을 때만 간다.
+    """
     page = Path(__file__).parent / "pages" / "2_자비스3.py"
     source = page.read_text(encoding="utf-8")
-    assert "def _briefing_local_search" in source
-    assert "US_LARGE_CAP_UNIVERSE" in source
-    briefing_block = source[source.index("def _briefing_local_search"):source.index("def _schedule_briefing_news_refresh")]
-    assert "search_stocks(" not in briefing_block
+    block = source[source.index("def _briefing_local_search"):source.index("def _schedule_briefing_news_refresh")]
+    assert "US_LARGE_CAP_UNIVERSE" in block
+    # 가진 명부에서 찾은 것이 있으면 거기서 끝난다.
+    assert block.index("if rows:") < block.index("j3data.search_stocks(")
+    assert "j3data.search_stocks(query, limit=12)" in block
 
 
 def test_search_plus_adds_ionq_from_existing_theme_universe():

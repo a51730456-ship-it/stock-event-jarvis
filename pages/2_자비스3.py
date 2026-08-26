@@ -2802,7 +2802,7 @@ def _render_stock_detail(
         # 화면 다 닫고 위로 올라가게." 상세까지 다 내려보고 나면 순위 9를 접으려고
         # 화면 몇 장을 도로 올라가야 했다.
         _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기",
-                       slot="_detail", on_close=_close_full_theme_rank)
+                       slot="_detail", on_close=_close_all_from_fragment)
     _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
     _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")
@@ -2860,6 +2860,28 @@ def _close_full_theme_rank() -> None:
                       "j3_top7_pick_row", "j3_top7_detail_choice"):
         st.session_state.pop(state_key, None)
     scroll_to.request(st, _RADAR_MAIN_ANCHOR)
+
+
+def _close_all_from_fragment() -> None:
+    """프래그먼트 안에서 「다 닫기」를 눌렀을 때 쓴다.
+
+    매수심사결과 순위 9는 `@st.fragment` 안에 있다. 그 안에서 단추를 누르면
+    스트림릿이 **그 조각만** 다시 그린다. 그래서 상태로는 닫혔는데 바깥에 있는
+    20개 테마 순위·상승장·급락장이 화면에 그대로 남았다(2026-08-26 상하님 —
+    "아직 안 되어 있다"). 판 전체를 다시 그리라고 적어 두고 조각 끝에서 실행한다.
+    """
+    _close_full_theme_rank()
+    st.session_state["j3_close_all_pending"] = True
+
+
+def _run_close_all_if_requested() -> None:
+    """적어 둔 '판 전체 다시 그리기'를 한 번 실행한다. 프래그먼트 끝에서 부른다."""
+    if not st.session_state.pop("j3_close_all_pending", False):
+        return
+    try:
+        st.rerun(scope="app")
+    except Exception:
+        st.rerun()
 
 
 def _section_toggle(
@@ -4038,6 +4060,7 @@ def _render_top7_section(market: dict, ranking: dict) -> None:
     """
     _render_top_reviewed(market, ranking)
     _render_top_reviewed_detail(market, ranking)
+    _run_close_all_if_requested()
     # 이 덩이도 프래그먼트라 페이지 끝이 안 돌아간다 — 여기서 내려 준다.
     # finally로 감싸지 않는다(위 _render_pullback_finder의 주석 참고).
     scroll_to.run(st)
@@ -6042,6 +6065,7 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             # 그대로 남는다. 미국테마 전체를 한 번 다시 그려 순위·테마 상세을 함께
             # 닫고 메인 시작점으로 돌아간다.
             _close_full_theme_rank()
+            st.session_state.pop("j3_close_all_pending", None)
             st.rerun(scope="app")
 
         st.button(
@@ -7055,7 +7079,16 @@ def _briefing_local_search(query: str) -> list[dict]:
         rows.append({"ticker": ticker, "name": names.get(ticker, ticker), "market": "US"})
         if len(rows) >= 12:
             break
-    return rows
+    if rows:
+        return rows
+    # 앱이 들고 있는 200종목 명부에 없으면 **미국 거래소 전체 명부**에서 찾는다.
+    # 2026-08-26 상하님 지적 — SPCX(스페이스X)가 안 들어갔다. 200종목에 없어서였다.
+    # 처음 한 번은 명부를 받느라 몇 초 걸리고, 그다음부터는 바로 나온다.
+    try:
+        found = j3data.search_stocks(query, limit=12)
+    except Exception:
+        return []
+    return list(found.get("rows") or []) if found.get("ok") else []
 
 
 def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
@@ -7149,6 +7182,8 @@ def _render_stock_briefing() -> None:
     st.session_state["j3b_news_pending"] = False
     try:
         briefing_store.ensure_tables()
+        # 기본 4종목을 실제 줄로 옮겨 적어 ×로 지울 수 있게 한다(2026-08-26).
+        briefing_store.ensure_default_extras()
         setup = briefing_store.all_stocks()
     except Exception:
         st.error("종목 브리핑 설정을 불러오지 못했습니다. 기존 미국테마 기능은 계속 사용할 수 있습니다.")

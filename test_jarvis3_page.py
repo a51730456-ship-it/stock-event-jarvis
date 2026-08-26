@@ -1977,8 +1977,32 @@ def test_top9_close_button_sits_above_the_buy_record_form():
     form_at = detail.index("_render_buy_form(")
     assert close_at < form_at, "닫기 단추가 매수기록 저장 밑에 있다"
     assert 'if panel == "top7":' in detail[:close_at]
-    assert "on_close=_close_full_theme_rank" in detail[close_at:form_at]
+    assert "on_close=_close_all_from_fragment" in detail[close_at:form_at]
     # 맨 아래 닫기 단추도 '다 닫기'를 시킬 수 있어야 한다.
     helper = source[source.index("def _section_close("):source.index("# ── 「심사항목 기준」")]
     assert "on_close=None" in helper
     assert "if on_close:" in helper
+
+
+def test_fragment_close_asks_for_a_whole_page_redraw():
+    """프래그먼트 안에서 「다 닫기」를 누르면 판 전체를 다시 그린다.
+
+    2026-08-26 상하님 — "아직 안 되어 있다." 매수심사결과 순위 9는 `@st.fragment`
+    안이라, 그 안에서 단추를 누르면 스트림릿이 그 조각만 다시 그린다. 상태로는
+    닫혔는데 바깥의 20개 테마 순위·상승장·급락장이 화면에 그대로 남았다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    helper = source[source.index("def _close_all_from_fragment"):source.index("def _section_toggle")]
+    assert "_close_full_theme_rank()" in helper
+    assert 'st.session_state["j3_close_all_pending"] = True' in helper
+    assert 'st.rerun(scope="app")' in helper
+
+    # 새 닫기 단추가 그 길을 쓴다.
+    detail = source[source.index("def _render_stock_detail("):
+                    source.index("# 테마 화면에서 **한 번에 같이 펴는 네 구역**")]
+    assert "on_close=_close_all_from_fragment" in detail
+
+    # 순위 9 조각이 끝에서 그것을 실행한다.
+    block = source[source.index("def _render_top7_section"):source.index("def _kept_recently")]
+    assert "_run_close_all_if_requested()" in block
+    assert block.index("_render_top_reviewed_detail(market, ranking)") < block.index("_run_close_all_if_requested()")
