@@ -7802,6 +7802,18 @@ def _render_stock_briefing() -> None:
                 unsafe_allow_html=True,
             )
             if st.button("↻", key="j3b_hero_refresh"):
+                # 서버가 담아 둔 것을 비우고, **화면도 통째로 새로 연다.**
+                #
+                # 2026-08-27 상하님 지적 — "맨 위 두 단추가 안 나타난다."
+                # 온라인에는 이미 고쳐져 올라가 있었는데 폰만 옛 화면을 붙잡고
+                # 있었다. 어제 상하님 지시로 **손가락으로 당겨 새로고침하는 것을
+                # 막았고**("맨 위 ↻ 저것만 작동하게 할 수 없냐"), 그런데 이 단추는
+                # 서버 기억만 비우고 화면은 안 열었다. 그래서 폰이 새 판을 받을
+                # 길이 없어졌다.
+                #
+                # 이제 이 단추가 진짜 새로고침이다. **누를 때만** 연다 —
+                # 2026-08-26에 이것을 2.5초마다 부르다 화면이 버벅였다.
+                st.session_state["j3b_hard_reload"] = True
                 try:
                     j3data.clear_runtime_cache()
                 except Exception:
@@ -7835,8 +7847,29 @@ def _render_stock_briefing() -> None:
         _warm_after_news(news_keys)
 
 
+def _run_hard_reload_if_requested() -> None:
+    """맨 위 ↻ 를 누르셨으면 브라우저 화면을 통째로 새로 연다 (2026-08-27).
+
+    스트림릿은 `st.markdown`의 `<script>`를 지우므로, 정식으로 내주는
+    `components.html`(작은 iframe)에 한 줄을 담아 바깥 화면을 새로 연다.
+    실패해도 조용히 넘어간다 — 그때는 예전처럼 서버 기억만 비운 셈이다.
+    """
+    if not st.session_state.pop("j3b_hard_reload", False):
+        return
+    try:
+        import streamlit.components.v1 as components
+
+        components.html(
+            "<script>try{window.parent.location.reload();}catch(e){}</script>",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
 def main() -> None:
     _render_stock_briefing()
+    _run_hard_reload_if_requested()
 
 
 main()
