@@ -682,3 +682,81 @@ class DiskPriceCacheTests(unittest.TestCase):
         self.assertNotEqual(a, j3._disk_name(("AAA", "BBB"), "1y", "1d", False))
         self.assertNotEqual(a, j3._disk_name(("AAA", "BBB"), "2y", "5m", False))
         self.assertNotEqual(a, j3._disk_name(("AAA", "BBB"), "2y", "1d", True))
+
+class WarmTopPicksTests(unittest.TestCase):
+    """순위 9를 첫 화면 보시는 동안 미리 계산해 둔다 (2026-08-26 상하님 허락).
+
+    상하님 — "매수심사결과 높은순위 9 로딩시간 10초 걸린다. 스마트폰 기준이다."
+    "배점이나 딴거 건들이지 마라 - 해라."
+    그래서 계산 내용은 손대지 않고 **시작 시점만** 앞당겼다.
+    """
+
+    def setUp(self):
+        with j3._TOP_PICK_WARM_LOCK:
+            j3._TOP_PICK_WARM["on"] = False
+            j3._TOP_PICK_WARM["at"] = 0.0
+
+    tearDown = setUp
+
+    def test_the_screen_never_waits_for_it(self):
+        """화면은 미리 계산을 기다리지 않는다 — 시키기만 하고 바로 지나간다."""
+        import time as _t
+        started = {"n": 0}
+
+        def slow(*a, **k):
+            started["n"] += 1
+            _t.sleep(0.6)
+            return {"ok": True, "rows": []}
+
+        with patch.object(j3, "get_theme_rankings", lambda: {"ok": True, "rows": []}),              patch.object(j3, "get_market_overview", lambda: {"score": 65.0}),              patch.object(j3, "collect_top_picks", slow):
+            t = _t.time()
+            j3.warm_top_picks()
+            elapsed = _t.time() - t
+            self.assertLess(elapsed, 0.3, "화면이 미리 계산을 기다렸다")
+            for _ in range(60):
+                if not j3._TOP_PICK_WARM["on"]:
+                    break
+                _t.sleep(0.05)
+        self.assertEqual(started["n"], 1, "뒤에서 한 번은 돌아야 한다")
+
+    def test_it_does_not_run_twice_at_once(self):
+        """이미 돌고 있으면 또 시키지 않는다."""
+        import time as _t
+        started = {"n": 0}
+
+        def slow(*a, **k):
+            started["n"] += 1
+            _t.sleep(0.5)
+            return {"ok": True, "rows": []}
+
+        with patch.object(j3, "get_theme_rankings", lambda: {"ok": True, "rows": []}),              patch.object(j3, "get_market_overview", lambda: {"score": 65.0}),              patch.object(j3, "collect_top_picks", slow):
+            j3.warm_top_picks()
+            j3.warm_top_picks()
+            j3.warm_top_picks()
+            for _ in range(60):
+                if not j3._TOP_PICK_WARM["on"]:
+                    break
+                _t.sleep(0.05)
+        self.assertEqual(started["n"], 1, "여러 번 겹쳐 돌았다")
+
+    def test_a_failure_never_reaches_the_screen(self):
+        """뒤에서 터져도 화면으로 올리지 않는다 — 조용히 넘어간다."""
+        import time as _t
+        with patch.object(j3, "get_theme_rankings",
+                          lambda: (_ for _ in ()).throw(RuntimeError("일부러 낸 실패"))):
+            j3.warm_top_picks()          # 예외가 여기까지 오면 시험이 깨진다
+            for _ in range(60):
+                if not j3._TOP_PICK_WARM["on"]:
+                    break
+                _t.sleep(0.05)
+        self.assertFalse(j3._TOP_PICK_WARM["on"], "실패한 뒤 표시가 안 내려갔다")
+
+    def test_the_screen_calls_it_but_survives_an_old_module(self):
+        """첫 화면이 이것을 부르되, 옛 모듈이 남아 있어도 안 죽는다."""
+        from pathlib import Path
+        page = (Path(__file__).resolve().parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = page[page.index("def _render_stock_briefing()"):]
+        block = block[:block.index("_briefing_css()")]
+        self.assertIn('getattr(j3data, "warm_top_picks", None)', block,
+                      "옛 모듈에서 죽지 않게 getattr 로 불러야 한다")
+        self.assertIn("callable(warm)", block)

@@ -197,7 +197,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082603
+MODULE_REVISION = 2026082604
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1204,6 +1204,56 @@ def warm_market_history() -> None:
         _log.warning("IXIC warm-up thread failed: %s", exc)
         with _IXIC_WARM_LOCK:
             _IXIC_WARMING["on"] = False
+
+
+# ── 순위 9를 미리 계산해 둔다 (2026-08-26 실측 · 상하님 허락받고 넣음) ────────
+# 상하님 지적 — "매수심사결과 높은순위 9 로딩시간 10초 걸린다. 스마트폰 기준이다."
+#
+# 시세를 파일로 남긴 뒤로 16초가 10초로 줄었지만, 남은 10초는 **계산 자체**다.
+# 계산 내용은 손대지 않기로 했으므로(상하님 — "배점이나 딴거 건들이지 마라"),
+# 대신 **시작 시점을 앞당긴다.** 상하님이 첫 화면(관심종목)을 보시는 동안 뒤
+# 일꾼이 미리 계산해 둔다. 시장분석에 들어가 순위 9를 누르실 때쯤이면 이미
+# 끝나 있어 기억해 둔 것을 그대로 편다.
+#
+# **계산 내용은 한 글자도 안 바뀐다.** 화면이 부르는 그 함수를 같은 인자로
+# 부를 뿐이다. 못 해 놓아도 조용히 넘어간다 — 그때는 예전처럼 단추가 그
+# 자리에서 계산한다.
+_TOP_PICK_WARM_LOCK = threading.Lock()
+_TOP_PICK_WARM = {"on": False, "at": 0.0}
+
+
+def warm_top_picks() -> None:
+    """순위 9 한 벌을 뒤에서 미리 만들어 둔다. 실패해도 화면은 그대로 돈다."""
+    now = time.time()
+    with _TOP_PICK_WARM_LOCK:
+        if _TOP_PICK_WARM["on"]:
+            return
+        if now - _TOP_PICK_WARM["at"] < TOP_PICK_MEMO_SECONDS:
+            return                      # 방금 해 뒀다. 또 하지 않는다.
+        _TOP_PICK_WARM["on"] = True
+
+    def _run() -> None:
+        try:
+            ranking = get_theme_rankings()
+            overview = get_market_overview()
+            collect_top_picks(
+                ranking.get("rows") or [],
+                market_score=float(overview.get("score") or 0),
+            )
+            with _TOP_PICK_WARM_LOCK:
+                _TOP_PICK_WARM["at"] = time.time()
+        except Exception as exc:
+            _log.warning("top picks warm-up failed: %s", exc)
+        finally:
+            with _TOP_PICK_WARM_LOCK:
+                _TOP_PICK_WARM["on"] = False
+
+    try:
+        threading.Thread(target=_run, name="top-picks-warm", daemon=True).start()
+    except Exception as exc:
+        _log.warning("top picks warm-up thread failed: %s", exc)
+        with _TOP_PICK_WARM_LOCK:
+            _TOP_PICK_WARM["on"] = False
 
 
 def _general_rank_points(rows: list[dict], value_key: str, points: float) -> None:

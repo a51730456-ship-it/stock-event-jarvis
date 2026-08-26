@@ -1166,7 +1166,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082603
+_REQUIRED_J3_REVISION = 2026082604
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1348,6 +1348,26 @@ _THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.0, 1.1]
 # 칸마다 요소를 만들면 폰이 느려진다(2026-07-30 실측, 한국테마와 같은 처리).
 _THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_WIDTHS[2:])]
 _THEME_REST_WIDTHS = _THEME_COL_WIDTHS[2:]
+
+
+def _stacked(cells: list[str]) -> str:
+    """칸 여럿을 **한 덩이 HTML**로 세로로 쌓는다 (2026-08-26 상하님 지시).
+
+    상하님 지적 — "관찰만 15개 보기, 종목 1번부터 여전히 순서대로 천천히
+    열린다."
+
+    지금까지는 **줄마다** st.columns 를 새로 만들었다. 그러면 스트림릿이 줄마다
+    껍데기를 네 벌씩 만들어 15줄이면 화면 조각이 673개가 된다. 그 조각들이 여러
+    뭉치로 나뉘어 도착하기 때문에 줄이 하나씩 나타나 보인다(브라우저에서 실측 —
+    세 뭉치로 2.5초에 걸쳐 도착했다. 폰은 그 몇 배다).
+
+    이제 표 하나에 칸을 **한 번만** 만들고, 각 칸의 값들을 여기서 한 덩이로
+    쌓는다. 틈 16px 은 스트림릿이 단추와 단추 사이에 두는 값과 같다 —
+    그래야 옆 칸의 종목 단추와 줄이 딱 맞는다(실측: 단추 40px · 틈 16px ·
+    .j3-td 40px).
+    """
+    return ("<div style='display:flex; flex-direction:column; gap:16px'>"
+            + "".join(cells) + "</div>")
 
 
 def _flex_row(widths: list[float], cells: list[str], *, head: bool = False,
@@ -5425,44 +5445,46 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     heads = ["티커", "등급 / 상태", "눌림 / 며칠째", "테마"]
 
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
+        """표 한 벌을 **칸 넷으로 한 번에** 그린다 (2026-08-26 상하님 지시).
+
+        예전에는 줄마다 st.columns 를 새로 만들었다. 15줄이면 화면 조각이 673개가
+        되고, 그것이 여러 뭉치로 나뉘어 도착해 줄이 하나씩 나타나 보였다
+        (상하님 — "종목 1번부터 여전히 순서대로 천천히 열린다").
+
+        이제 칸은 한 번만 만들고, 번호·점수·나머지는 각각 한 덩이로 쌓는다.
+        종목 단추 15개만 예전 그대로 진짜 단추로 둔다 — 눌러야 하기 때문이다.
+
+        **값·점수·차례·보이는 모양은 하나도 안 바뀐다.** 같은 글자를 몇 덩이로
+        나누어 보내느냐만 바뀐다.
+        """
         # 줄을 누르면 바깥의 selected_ticker를 그 자리에서 바꾼다 — 그래야
         # 아래 상세가 **같은 판에서** 그 종목으로 그려진다(다시 그리기 없이).
         nonlocal selected_ticker
         prefix = "j3rbw" if watch_mode else "j3rbf"
-        head = box.columns(row_widths)
+        cols = box.columns(row_widths)
         # **「번호 · 점수」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
         # 2026-08-20에 다시 확인하심). 검증되지 않은 차례를 1위·2위처럼 보이면
         # 화면이 거짓말을 한다. 이 배점은 상하님 지시문이 정해 준 것이지 제가
         # 과거차트로 "이 차례가 맞다"를 확인한 것이 아니다. 그냥 번호다.
-        head[0].markdown("<div class='j3-th-head'>번호</div>", unsafe_allow_html=True)
-        head[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
-        head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
-        head[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
+        cols[0].markdown("<div class='j3-th-head'>번호</div>", unsafe_allow_html=True)
+        cols[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
+        cols[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+        cols[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
+
+        number_cells: list[str] = []
+        score_cells: list[str] = []
+        rest_cells: list[str] = []
         for index, row in enumerate(rows):
-            cols = box.columns(row_widths)
             rank = str(index + 1) if watch_mode else str(int(row.get("primary_rank") or index + 1))
-            cols[0].markdown(f"<div class='j3-td j3-muted'>{rank}</div>", unsafe_allow_html=True)
+            number_cells.append(f"<div class='j3-td j3-muted'>{rank}</div>")
             # 점수 색은 급락 표와 같은 자를 쓴다 — 70↑ 금색, 50↑ 하늘색, 그 아래 회색.
             total = float(row.get("total_score") or 0)
             score_class = ("j3-score-hi" if total >= 70 else
                            "j3-score-mid" if total >= 50 else "j3-score-low")
-            cols[1].markdown(
+            score_cells.append(
                 f"<div class='j3-td'><span class='j3-score {score_class}'>"
-                f"{total:.0f}점</span></div>", unsafe_allow_html=True,
+                f"{total:.0f}점</span></div>"
             )
-            key = f"{prefix}_{index:02d}"
-            button_keys.append((key, row.get("ticker")))
-            if cols[2].button(str(row.get("name") or row.get("ticker") or "—"), key=key, width="stretch"):
-                selected_ticker = row.get("ticker")
-                st.session_state["j3_pullback_selected_ticker"] = selected_ticker
-                for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback", "j3_bundle_open_pullback"):
-                    st.session_state[opened] = True
-                scroll_to.request(st, "detail_pullback")
-                # **다시 그리지 않는다**(2026-08-22 상하님 지적 — "종목 클릭하면
-                # 18초"). 부르면 이 덩이를 **한 번 더** 그린다 — 표 서른다섯 줄과
-                # 상세를 두 번씩 그리는 셈이다. 안 불러도 결과는 같다: 아래 상세는
-                # 이 줄보다 **뒤에서** selected_ticker를 읽고, 보라색 표시는 줄을
-                # 다 그린 뒤에 붙인다. 테마 대장주 표에서 이미 같은 방식으로 뺐다.
             # 3개월·6개월 등수는 이 표에 안 적는다 — 종목을 누르면 「선택종목
             # 세부사항」에 그대로 나온다(2026-08-21 상하님 지시).
             pullback = row.get("pullback_pct_close")
@@ -5475,7 +5497,6 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 else "j3-down" if float(pullback) > 10.0
                 else "j3-muted"
             )
-
             # 칸에는 **짧은 말**만 넣는다(2026-08-21). 긴 설명은 손을 올리면 뜨게
             # 두고, 칸 안에서는 잘라 준다 — 안 자르면 옆 칸 글자를 덮는다.
             long_label = (
@@ -5496,17 +5517,34 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                      f" title='{html.escape(long_label)}'>"
                      f"{html.escape(short_label)}</span>")
             theme_text = str(row.get("theme_id") or "자료부족")
-            cols[3].markdown(
-                _flex_row(rest_widths, [
-                    f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
-                    label,
-                    f"<span class='{pullback_tone}' style='font-weight:800'>"
-                    f"{html.escape(pullback_text)}</span>"
-                    f" <span class='j3-muted'>· {int(row.get('days_since_anchor') or 0)}일째</span>",
-                    f"<span class='j3-pull-theme j3-rb-clip' title='{html.escape(theme_text)}'>"
-                    f"{html.escape(theme_text)}</span>",
-                ]), unsafe_allow_html=True,
-            )
+            rest_cells.append(_flex_row(rest_widths, [
+                f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
+                label,
+                f"<span class='{pullback_tone}' style='font-weight:800'>"
+                f"{html.escape(pullback_text)}</span>"
+                f" <span class='j3-muted'>· {int(row.get('days_since_anchor') or 0)}일째</span>",
+                f"<span class='j3-pull-theme j3-rb-clip' title='{html.escape(theme_text)}'>"
+                f"{html.escape(theme_text)}</span>",
+            ]))
+
+        cols[0].markdown(_stacked(number_cells), unsafe_allow_html=True)
+        cols[1].markdown(_stacked(score_cells), unsafe_allow_html=True)
+        # 종목 단추만 진짜 단추다 — 눌러야 아래 상세가 열린다.
+        for index, row in enumerate(rows):
+            key = f"{prefix}_{index:02d}"
+            button_keys.append((key, row.get("ticker")))
+            if cols[2].button(str(row.get("name") or row.get("ticker") or "—"), key=key, width="stretch"):
+                selected_ticker = row.get("ticker")
+                st.session_state["j3_pullback_selected_ticker"] = selected_ticker
+                for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback", "j3_bundle_open_pullback"):
+                    st.session_state[opened] = True
+                scroll_to.request(st, "detail_pullback")
+                # **다시 그리지 않는다**(2026-08-22 상하님 지적 — "종목 클릭하면
+                # 18초"). 부르면 이 덩이를 **한 번 더** 그린다 — 표 서른다섯 줄과
+                # 상세를 두 번씩 그리는 셈이다. 안 불러도 결과는 같다: 아래 상세는
+                # 이 줄보다 **뒤에서** selected_ticker를 읽고, 보라색 표시는 줄을
+                # 다 그린 뒤에 붙인다. 테마 대장주 표에서 이미 같은 방식으로 뺐다.
+        cols[3].markdown(_stacked(rest_cells), unsafe_allow_html=True)
 
     if primary:
         st.markdown("<div class='j3-section-title'>정식 후보</div>", unsafe_allow_html=True)
@@ -7584,6 +7622,16 @@ def _render_briefing_bottom_nav(active: str) -> None:
 
 
 def _render_stock_briefing() -> None:
+    # 상하님이 이 첫 화면을 보시는 동안 뒤에서 순위 9를 미리 계산해 둔다
+    # (2026-08-26 상하님 허락 — "매수심사결과 높은순위 9 로딩시간 10초 걸린다").
+    # 계산 내용은 안 바뀐다 — 시작 시점만 앞당긴다. 못 해 놓아도 조용히 넘어가고,
+    # 그때는 예전처럼 단추가 그 자리에서 계산한다.
+    warm = getattr(j3data, "warm_top_picks", None)
+    if callable(warm):
+        try:
+            warm()
+        except Exception:
+            pass
     _briefing_css()
     page = st.session_state.get("j3_briefing_page", "home")
     if page == "market":
