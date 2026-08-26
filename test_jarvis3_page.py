@@ -1789,10 +1789,17 @@ def test_general_detail_keeps_three_score_groups_and_browser_only_help():
     assert "\uC885\uBAA9 60% + \uD14C\uB9C8 40%" in self_contained
     assert "_general_theme_score_help_html" in self_contained
     helper = source[source.index("def _general_theme_score_help_html"):source.index("def _swing_factor_table_html")]
-    assert '""".strip()' in helper
-    assert "components.html(script, height=0)" in helper
+    # **급락·상승장과 똑같은 확인칸(checkbox) 방식이다** (2026-08-26 상하님 지시 —
+    # "일반테마에 설명보기 클릭하면 급락반등 전용배점의 설명보기처럼 열리도록").
+    # 예전에는 여기만 <button> + 자바스크립트였는데, 스트림릿이 표를 다시 그리면
+    # 손잡이가 붙어 있던 자리가 갈려서 단추가 죽었다.
+    assert "type='checkbox' class='j3fh-cb'" in helper, "확인칸 방식이 아니다"
+    assert "j3fh-swap" in helper
+    assert "components.html" not in helper, "자바스크립트로 여닫으면 다시 그릴 때 죽는다"
     assert "get_live_quote" not in helper
     assert "_download" not in helper
+    # 창 맨 위에도 닫기가 있어야 한다 — 폰에서 아래 닫기는 이동막대에 가린다.
+    assert "_factor_help_close(key)" in helper
     live_quote = source[source.index("def _render_selected_live_quote"):source.index("def _load_theme_rankings")]
     assert 'f"{float(stock_score):.1f}/100" if general_theme' in live_quote
 

@@ -2676,7 +2676,6 @@ def _render_stock_detail(
                 ),
                 unsafe_allow_html=True,
             )
-            _bind_general_theme_help_scroll(f"j3_general_theme_help_{panel}")
             score_summary = (
                 f"테마 내 일반 점수 {leader['rank']}위 · "
                 f"종목점수 {float(leader.get('stock_score') or 0):.1f}/100 · "
@@ -3151,6 +3150,27 @@ _FACTOR_HELP_CSS = """
                border-bottom: 1px solid rgba(255,255,255,.06); }
 .j3fh-ref td:first-child { text-align: left; color: #9aa0aa; font-weight: 700; }
 .j3fh-ref .j3fh-ref-hi { color: #fbbf24; font-weight: 800; }
+/* ── 창 맨 위의 닫기 (2026-08-26 상하님 지적) ────────────────────────────────
+   상하님 — "스마트폰 화면인데 설명이 너무 길어 닫는 버튼이 겹쳐 누를 자리가
+   없다." 폰·태블릿에서 설명 창은 화면 아래에 붙어 열린다. 그런데 하단
+   이동막대(.j3b-bottom-nav)가 z-index 2147483646으로 훨씬 위층에 떠 있어서
+   창 바닥의 닫기를 통째로 덮었다. 창 z-index를 올려 막대를 가리는 대신,
+   막대 자리를 비켜 주고 맨 위에도 닫기를 하나 둔다 — 글이 아무리 길어도
+   손가락이 바로 닿는다.
+   노트북에서는 안 보인다. 거기서는 막대가 겹치지 않고 창이 표 아래 그대로
+   펼쳐지므로 닫기가 하나면 충분하다. */
+.j3fh-x-top { display: none; }
+@media (max-width: 1200px) {
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-x-top {
+        display: block; text-align: center;
+        margin: 0 0 .55rem; padding: .5rem;
+        position: sticky; top: 0; bottom: auto; z-index: 2;
+    }
+    /* 이동막대는 bottom:8px 에 높이 64px = 바닥에서 72px 을 먹는다.
+       그만큼 띄우고, 글이 그 밑으로 굴러 지나갈 자리도 같이 만든다. */
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p { padding-bottom: 5.8rem; }
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-x { bottom: 4.8rem; }
+}
 </style>
 """
 
@@ -3266,41 +3286,46 @@ _FACTOR_HELP_HEAD = (
      "통과하지 못했다'</b>는 뜻입니다."),
     ("_crash",
      "급락 후 반등장 (낙폭종목) — 앱은 이렇게 조사했습니다",
-     "<b>어떻게 쟀나</b> — 지난 10년 동안 <b class='j3fh-k'>나스닥이 바닥을 찍고 "
-     "돌아선 날 아홉 번</b>에 서서, 그날 이 목록에 걸렸을 종목 739개를 다음 날 "
-     "아침에 샀다고 치고 3개월·6개월·1년 뒤를 봤습니다. 명부 198종목 전부입니다.<br>"
+     # ── 2026-08-26 상하님 지시로 3분의 1로 줄였다 ─────────────────────────
+     # 상하님 — "급락반등 전용배점에 설명보기인데 너무 길다. 1/3로 줄이고
+     # 핵심 내용만 넣어라." 3,050자였다.
+     # **남긴 것과 그 까닭** (지우면 규칙을 어긴다)
+     #  · 점수를 주는 넷과 점수 — CLAUDE.md 0-1 마
+     #  · 안 쓰는 것 — 0-1 마 "재 보고 버린 항목은 설명에 남긴다"
+     #  · 보유기간 참고표 — 0-1 바 "앱은 파는 시점을 정하지 않는다.
+     #    3개월·6개월·1년 성적을 나란히 보여줄 뿐이다"
+     # **뺀 것** — 조사 방법 문단, 한계 두 문단, 표 뒤 세 문단. 숫자는
+     # research/us_crash_holding.py 에 그대로 있다.
+     "지난 10년 <b class='j3fh-k'>나스닥 바닥 아홉 번</b>에서 739종목을 재 "
+     "봤습니다.<br>"
      "<b>점수를 주는 넷 (100점)</b><br>"
-     "· <b class='j3fh-k'>주가 변동성 40점</b> — 평소 크게 출렁이던 종목이 바닥에서도 "
-     "크게 튑니다. 아홉 번 중 3개월은 아홉 번 다 이겼습니다.<br>"
-     "· <b class='j3fh-k'>테마가 30주선 위 30점</b> — 업종이 반년째 흐름을 지키면 "
-     "회복도 빠릅니다. 1년으로는 일곱 번 다 이겼습니다.<br>"
-     "· <b class='j3fh-k'>같은 테마 4개 동시 하락 20점</b> — 업종째 밀려야 업종째 "
-     "돌아옵니다. 3개월은 아홉 번 다인데 길게 가면 약해집니다.<br>"
-     "· <b class='j3fh-k'>테마 6개월 수익률 10점</b> — 1년으로는 여섯 번 다 맞히는데 "
-     "3개월로는 일곱 번 중 네 번뿐이라 낮게 줍니다.<br>"
-     "<b>안 쓰는 것</b> — <b class='j3fh-z'>20일선 위</b>는 반대였고(1년 뒤 23% 덜 "
-     "올랐습니다), <b class='j3fh-z'>고점 대비 낙폭</b>은 목록에 올릴 때 이미 쓴 값인 "
-     "데다 변동성과 71%가 같은 종목입니다. <b class='j3fh-z'>위 테마 순위표</b>는 "
-     "6개월에 무너지고, <b class='j3fh-z'>대형기술주 감점</b>은 오히려 반대였습니다.<br>"
-     "<b>변동성만 종목을 보고 나머지 셋은 테마를 봅니다.</b> 거의 겹치지 않아서 "
-     "<b class='j3fh-k'>둘 다 점수를 받은 종목</b>이 특히 좋았습니다 — 1년 뒤 가운데 "
-     "+129%로 100번 중 97번 올랐습니다.<br>"
-     "<b>한계 — 재 봤습니다</b><br>"
-     "· <b>바닥이 아홉 번뿐입니다.</b> 그래서 <b class='j3fh-k'>한 번씩 빼고 "
-     "다시 재 봤습니다.</b> 어느 바닥 하나를 빼도 네 항목이 다 절반을 "
-     "넘겼습니다 — 한 번 잘 맞은 것에 매달린 결론은 아닙니다.<br>"
-     "· <b>명부 198종목은 지금 살아남은 종목입니다.</b> 망한 회사가 빠져 있어 "
-     "과거 성적이 실제보다 좋게 나옵니다. 크기를 재 보니 10년 내내 있던 종목은 "
-     "1년 뒤 <b class='j3fh-k'>+51.6%</b>, 그 사이 새로 들어온 종목은 "
-     "<b class='j3fh-k'>+74.6%</b>였습니다. 다만 새로 들어온 종목은 "
-     "<b>12%</b>뿐이라 전체를 크게 흔들지는 않습니다.<br>"
+     "· <b class='j3fh-k'>주가 변동성 40점</b> — 크게 출렁이던 종목이 크게 "
+     "튑니다.<br>"
+     "· <b class='j3fh-k'>테마가 30주선 위 30점</b> — 업종이 흐름을 지키면 "
+     "회복도 빠릅니다.<br>"
+     "· <b class='j3fh-k'>같은 테마 4개 동시 하락 20점</b> — 업종째 밀려야 "
+     "업종째 돌아옵니다.<br>"
+     "· <b class='j3fh-k'>테마 6개월 수익률 10점</b> — 짧게 보면 덜 맞습니다."
+     "<br>"
+     "<b>안 쓰는 것</b> — <b class='j3fh-z'>20일선 위</b>와 "
+     "<b class='j3fh-z'>대형기술주 감점</b>은 반대였고, "
+     "<b class='j3fh-z'>고점 대비 낙폭</b>은 이미 쓴 값이며, "
+     "<b class='j3fh-z'>위 테마 순위표</b>는 6개월에 무너졌습니다.<br>"
+     "<b class='j3fh-k'>변동성과 테마 둘 다 점수를 받은 종목</b>이 특히 "
+     "좋았습니다.<br>"
+     # 한계는 **적어만 두지 않고 잰 결과를 적는다**(2026-08-19 상하님 지시,
+     # research/us_crash_leaveout.py). 2026-08-26에 글을 3분의 1로 줄이면서
+     # 두 문단을 한 줄로 눌렀지만, 그 지시는 살아 있으므로 숫자는 남긴다.
+     "<b>한계</b> — 바닥을 <b>한 번씩 빼고</b> 다시 재도 네 항목이 다 절반을 "
+     "넘겼습니다. 명부는 살아남은 종목이라 성적이 좋게 나옵니다(10년 내내 "
+     "<b class='j3fh-k'>+51.6%</b> · 새로 든 12%는 "
+     "<b class='j3fh-k'>+74.6%</b>).<br>"
      # ── 참고표 (2026-08-19 상하님 지시) ───────────────────────────────
      # **앱은 파는 시점을 정하지 않는다**(CLAUDE.md 0-1 바 · 2026-08-12 상하님
      # 확정). 그래서 배점표가 아니라 이 설명 창 안에 참고로만 둔다.
      # 숫자는 research/us_crash_holding.py에서 잰 값이다. 바닥 9번 · 739종목.
      "<b>참고 — 얼마나 들고 있었을 때 어땠나</b><br>"
-     "<span class='j3fh-h'>앱은 파는 시점을 정하지 않습니다.</span> 지난 10년에 "
-     "어땠는지만 적습니다.<br>"
+     "<span class='j3fh-h'>앱은 파는 시점을 정하지 않습니다.</span><br>"
      "<table class='j3fh-ref'>"
      "<tr><th>들고 있은 기간</th><th>걸린 종목 전부</th><th>배점 70점 이상</th></tr>"
      "<tr><td>3개월</td><td>+23.0% (90번)</td><td>+46.4% (100번)</td></tr>"
@@ -3310,16 +3335,9 @@ _FACTOR_HELP_HEAD = (
      "<tr><td>1년 반</td><td>+70.1% (89번)</td>"
      "<td class='j3fh-ref-hi'>+149.8% (100번)</td></tr>"
      "</table>"
-     "가운데 수익과 100번 중 오른 횟수입니다. "
-     "<b class='j3fh-k'>끊어야 할 자리가 안 보입니다</b> — 어느 지점에서도 "
-     "꺾이지 않고 계속 늘어납니다. 오를 확률은 3개월이나 1년 반이나 거의 "
-     "같습니다.<br>"
-     "<b>배점 높은 종목이 어느 기간에서나 낫습니다</b> — 70점 이상은 40점 미만보다 "
-     "<b class='j3fh-k'>어느 기간에서나 세 배 가까이</b> 벌었습니다(3개월 2.8배 · "
-     "1년 반 2.9배). 비율은 거의 그대로인데 오래 들수록 <b>금액 차이</b>가 "
-     "커집니다.<br>"
-     "<span class='j3fh-z'>주의</span> — 1년 반까지 잴 수 있는 바닥은 여덟 "
-     "번뿐이고, 70점 이상은 아홉 번을 통틀어 51종목(한 번에 대여섯 개꼴)입니다."),
+     "가운데 수익과 100번 중 오른 횟수입니다.<br>"
+     "<span class='j3fh-z'>주의</span> — 바닥은 아홉 번뿐, 70점 이상은 "
+     "통틀어 51종목입니다."),
     ("_theme",
      "테마 안에서 어느 종목을 볼까 — 앱은 이렇게 조사했습니다",
      "<b>이 표가 하는 일</b> — 위 「20개 테마 실시간 순위」에서 테마를 고르셨으면, "
@@ -3351,6 +3369,17 @@ _FACTOR_HELP_HEAD = (
      "<b class='j3fh-k'>80점 만점</b>입니다. 뒤의 둘(유동성 · 변동성 안정)은 더 벌 "
      "종목을 맞히는 잣대가 아니라 '상하님이 사고파실 수 있는 종목인가'를 거릅니다."),
 )
+
+
+def _factor_help_close(key: str) -> str:
+    """설명 창 **맨 위**의 닫기 (2026-08-26 상하님 지적).
+
+    상하님 — "스마트폰 화면인데 설명이 너무 길어 닫는 버튼이 겹쳐 누를 자리가
+    없다." 폰·태블릿에서 설명 창은 화면 아래에 붙어 열리는데, 그 위로 하단
+    이동막대(홈·관심종목·시장분석)가 더 높은 층에 떠 있어서 창 바닥의 닫기를
+    덮었다. 맨 위에도 하나 두면 글이 아무리 길어도 바로 닫을 수 있다.
+    """
+    return f"<label class='j3fh-x j3fh-x-top' for='{key}'>✕ 설명 닫기</label>"
 
 
 def _factor_help_head(key: str) -> str:
@@ -3418,24 +3447,24 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str,
         + "<div class='j3fh-swap'>"
         + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
         + table
-        + f"<div class='j3fh-p'>{_factor_help_head(key)}{items}"
+        + f"<div class='j3fh-p'>{_factor_help_close(key)}{_factor_help_head(key)}{items}"
         + f"<label class='j3fh-x {close_tone}' for='{key}'>✕ 설명 닫기</label></div></div>"
     )
 
 
 def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -> str:
-    """GENERAL 배점표와 아래로 펼쳐지는 설명 카드.
+    """GENERAL 배점표 + 아래로 펼쳐지는 설명 카드.
 
-    서버 단추가 아니라 브라우저 DOM만 열고 닫는다. 따라서 시세나
-    점수를 다시 조회하지 않는다.
+    **급락·상승장과 똑같은 확인칸(checkbox) 방식이다** (2026-08-26 상하님 지시 —
+    "일반테마에 설명보기 클릭하면 급락반등 전용배점의 설명보기처럼 설명이
+    열리도록 해라").
+
+    예전에는 여기만 <button> 에 자바스크립트로 손잡이를 달았다. 그 스크립트는
+    작은 iframe 안에서 바깥 화면(window.parent)을 찾아 들어가야 하는데,
+    스트림릿이 표를 다시 그리면 손잡이가 붙어 있던 자리가 통째로 갈려서 단추가
+    죽었다. 확인칸 방식은 브라우저가 CSS로만 여닫으므로 다시 그려도 안 죽는다.
     """
-    open_id = f"j3fh-open-{key}"
-    panel_id = f"j3fh-help-{key}"
-    close_id = f"j3fh-close-{key}"
-    chip = (
-        f"<button type='button' class='j3fh-chip j3fh-general-open' id='{open_id}' "
-        f"aria-controls='{panel_id}' aria-expanded='false'>설명 보기</button>"
-    )
+    chip = f"<label class='j3fh-chip' for='{key}'>설명 보기</label>"
     table = (
         "<table class='j3-factor-table'><thead><tr>"
         f"<th>상세 배점{chip}</th><th>획득(최대)</th></tr></thead>"
@@ -3466,53 +3495,29 @@ def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -
         f"<div class='j3fh-item'><div class='j3fh-name'>{title}</div>"
         f"<div class='j3fh-txt'>{body}</div></div>" for title, body in cards
     )
-    general_css = """
-    <style>
-    .j3-general-group{border-top:2px solid rgba(255,255,255,.35)!important;font-weight:800!important}
-    .j3-general-factor-note{color:#9aa0aa;font-size:.78rem;font-weight:500;margin-top:.22rem}
-    .j3fh-general-panel{display:none;margin-top:.7rem;color:#e6e6e6;line-height:1.75;font-size:.92rem}
-    .j3fh-general-panel.j3fh-open{display:block;animation:j3fh-drop .24s ease-out}
-    @media (max-width:1200px){
-      .j3fh-general-panel.j3fh-open{position:static!important;inset:auto!important;max-height:none!important;
-        overflow:visible!important;padding:0!important;background:transparent!important;border:0!important;
-        border-radius:0!important;box-shadow:none!important;animation:j3fh-drop .24s ease-out!important}
-    }
-    </style>
-    """.strip()
+    general_css = (
+        "<style>"
+        ".j3-general-group{border-top:2px solid rgba(255,255,255,.35)!important;font-weight:800!important}"
+        ".j3-general-factor-note{color:#9aa0aa;font-size:.78rem;font-weight:500;margin-top:.22rem}"
+        "</style>"
+    )
     return (
         _FACTOR_HELP_CSS + general_css
-        + "<div class='j3fh-swap j3fh-general'>" + table
-        + f"<div class='j3fh-p j3fh-general-panel' id='{panel_id}'>{head}{items}"
-        + f"<button type='button' class='j3fh-x j3fh-general-close' id='{close_id}'>✕ 설명 닫기</button>"
-        + "</div></div>"
+        + "<div class='j3fh-swap'>"
+        + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
+        + table
+        + f"<div class='j3fh-p'>{_factor_help_close(key)}{head}{items}"
+        + f"<label class='j3fh-x' for='{key}'>✕ 설명 닫기</label></div></div>"
     )
 
 
-def _bind_general_theme_help_scroll(key: str) -> None:
-    """GENERAL 설명을 다시 그리지 않고 열며, 설명 첫 줄로 이동한다."""
-    open_id = f"j3fh-open-{key}"
-    panel_id = f"j3fh-help-{key}"
-    close_id = f"j3fh-close-{key}"
-    script = f"""
-    <script>(function(){{
-      var tries=0;
-      function bind(){{
-        tries+=1; var doc;
-        try{{doc=window.parent.document;}}catch(e){{return;}}
-        var open=doc.getElementById({open_id!r}), panel=doc.getElementById({panel_id!r}), close=doc.getElementById({close_id!r});
-        if(!open||!panel||!close){{if(tries<40)setTimeout(bind,50);return;}}
-        if(open.dataset.j3Bound==='1')return; open.dataset.j3Bound='1';
-        open.addEventListener('click',function(e){{e.preventDefault();panel.classList.add('j3fh-open');
-          open.setAttribute('aria-expanded','true');setTimeout(function(){{panel.scrollIntoView({{behavior:'smooth',block:'start'}});}},30);}});
-        close.addEventListener('click',function(e){{e.preventDefault();panel.classList.remove('j3fh-open');open.setAttribute('aria-expanded','false');}});
-      }} bind();
-    }})();</script>
-    """
-    try:
-        import streamlit.components.v1 as components
-        components.html(script, height=0)
-    except Exception:
-        pass
+# **_bind_general_theme_help_scroll 은 걷어냈다** (2026-08-26).
+# 일반 테마 설명을 <button> + 자바스크립트로 여닫던 장치였다. 그 스크립트는 작은
+# iframe 안에서 바깥 화면(window.parent)을 찾아 들어가 손잡이를 달아야 했는데,
+# 스트림릿이 표를 다시 그리면 손잡이가 붙어 있던 자리가 통째로 갈려서 단추가
+# 죽었다(상하님 — "일반테마에 설명보기 클릭하면 급락반등 전용배점의 설명보기처럼
+# 열리도록 해라"). 이제 급락과 같은 확인칸(checkbox) 방식이라 브라우저가 CSS로만
+# 여닫는다. 다시 그려도 안 죽고, 작은 iframe 하나가 줄어 화면도 가벼워진다.
 
 
 def _swing_factor_table_html(
