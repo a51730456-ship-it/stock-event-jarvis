@@ -2209,3 +2209,45 @@ def test_collapsed_tables_only_draw_what_is_on_screen():
     # 나타나 그것이 눈에 띈다. 브라우저에서 확인 — 이 선택자는 9~16번 줄만 고른다.
     assert ':nth-child(n+9)' in source
     assert '[data-testid="stExpander"] [data-testid="stHorizontalBlock"] {' not in source,         "모든 줄을 미루는 옛 규칙이 남아 있다"
+
+def test_the_big_tables_build_their_columns_only_once():
+    """20개 테마 표와 순위 9 표도 **표 한 벌에 칸을 한 번만** 만든다.
+
+    2026-08-26 상하님이 "2번"으로 정해 주셨다 — 그리는 양을 줄이는 쪽이다.
+    예전에는 줄마다 st.columns 를 새로 만들었다. 테마 표는 20줄 × 칸 3개,
+    순위 9 표는 9줄 × 칸 6개다. 이제 순위·점수·상태·현재가 같은 값 칸은 각각
+    한 덩이로 쌓고, 누를 수 있어야 하는 이름 단추만 진짜 단추로 둔다.
+
+    브라우저 실측 — 테마 표의 가로 덩어리가 11개에서 2개(머리글+몸통)로 줄었고
+    줄 어긋남은 0px 이다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    theme = source[source.index("def _render_theme_table("):]
+    theme = theme[:theme.index(chr(10) + "def ", 10)]
+    assert "_stacked(ranks)" in theme and "_stacked(rests)" in theme, "테마 표가 아직 줄마다 칸을 만든다"
+    assert theme.count("target.columns(_THEME_ROW_WIDTHS)") == 1, "줄마다 칸을 만들고 있다"
+
+    top9 = source[source.index("def _render_top_reviewed(market"):]
+    top9 = top9[:top9.index(chr(10) + "def ", 10)]
+    for name in ("rank_cells", "score_cells", "state_cells", "price_cells", "source_cells"):
+        assert f"_stacked({name})" in top9, f"순위 9 표의 {name} 가 한 덩이가 아니다"
+    # 머리글 한 벌 + 몸통 한 벌 = 두 번이 맞다. 예전에는 여기에 줄 수(9)만큼
+    # 더 있었다.
+    assert top9.count("box.columns(widths)") == 2, "순위 9 표가 줄마다 칸을 만든다"
+
+
+def test_stacked_rows_line_up_with_the_buttons():
+    """쌓은 값 칸과 옆의 단추가 **같은 높이**여야 줄이 맞는다.
+
+    실측으로 어긋남을 잡았다 — 테마 표 단추는 43.2px(2.7rem)인데 값 칸은
+    40px이라 줄마다 3.2px씩 밀려 열 줄이면 30px가 어긋났다. 둘을 같은 높이로
+    못박아 0px 이 되었다. 43.2px 은 테마 표 단추의 지금 높이 그대로다 —
+    폰 375 · 태블릿 800 · 노트북 1400 에서 모두 같은 값이었다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    assert ".st-key-j3_top7_table .j3-td { min-height: 2.7rem; }" in source
+    assert 'height: 2.7rem !important;' in source
+    # 쌓는 도우미의 틈은 스트림릿이 단추 사이에 두는 값(16px)과 같아야 한다.
+    helper = source[source.index("def _stacked("):]
+    helper = helper[:helper.index(chr(10) + "def ", 10)]
+    assert "gap:16px" in helper

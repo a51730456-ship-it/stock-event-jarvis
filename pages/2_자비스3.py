@@ -588,6 +588,23 @@ st.markdown(
     }
     .st-key-j3_swing_table .j3-td,
     .st-key-j3_swing_rest .j3-td { overflow: hidden; }
+    /* ── 표를 한 덩이로 그릴 때 줄이 어긋나지 않게 (2026-08-26) ─────────────────
+       표 한 벌에 칸을 한 번만 만들고 값들을 세로로 쌓으면, **옆 칸의 단추와
+       높이가 정확히 같아야** 줄이 맞는다. 실측으로 어긋남을 잡았다 —
+       테마 표의 단추는 43.2px(2.7rem)인데 값 칸은 40px이라 줄마다 3.2px씩
+       밀려 열 줄이면 30px가 어긋났다.
+       그래서 단추와 값 칸을 **같은 높이로 못박는다.** 43.2px 은 테마 표 단추의
+       지금 높이 그대로다 — 보이는 모양은 안 바뀐다. 폰 375 · 태블릿 800 ·
+       노트북 1400 모두 같은 값이었다. */
+    .st-key-j3_theme_table .j3-td,
+    .st-key-j3_theme_rest .j3-td,
+    .st-key-j3_top7_table .j3-td { min-height: 2.7rem; }
+    .st-key-j3_theme_table div[class*="st-key-j3tbtn_"] button,
+    .st-key-j3_theme_rest div[class*="st-key-j3tbtn_"] button,
+    .st-key-j3_top7_table div[class*="st-key-j3top7_"] button {
+        height: 2.7rem !important;
+        min-height: 2.7rem !important;
+    }
     /* ── 접이칸이 폰에서 느리게 열리던 것 (2026-08-26 상하님 지적) ──────────────
        상하님 — "관찰만 조건을 다 못 넘은 15개 보기, 클릭하면 너무 느리게 열린다.
        로딩 걸린다."
@@ -1424,29 +1441,17 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
         rest_box = st.container(key="j3_theme_rest").expander(
             f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
         )
-    for index, row in enumerate(all_rows):
-        target = theme_box if index < _THEME_VISIBLE_COUNT or rest_box is None else rest_box
-        name = row.get("name", "")
-        color = _STATUS_HEX.get(row.get("status", ""), "#e6e6e6")
-        button_key = f"j3tbtn_{index:02d}"
-        button_css.append(f"div[class*='st-key-{button_key}'] button p {{ color: {color} !important; }}")
-        if name == selected:
-            button_css.append(
-                f"div[class*='st-key-{button_key}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
-            )
-        cols = target.columns(_THEME_ROW_WIDTHS)
-        cols[0].markdown(f"<div class='j3-td'>{row.get('rank', '')}</div>", unsafe_allow_html=True)
-        if cols[1].button(name, key=button_key, width="stretch"):
-            clicked = name
-        # 나머지 여섯 칸은 한 덩이로 그린다 — 칸마다 요소를 만들면 폰이 느려진다
-        # (2026-07-30 실측: 표 두 개가 요소 476개를 만들고 있었다).
+    # **표 한 벌에 칸을 한 번만 만든다** (2026-08-26 상하님 지시로 관찰만 표와
+    # 같은 방식으로 바꿨다). 예전에는 줄마다 st.columns 를 새로 만들어서, 스트림릿이
+    # 껍데기를 줄마다 세 벌씩 만들었다. 20줄이면 그것만으로 조각이 수백 개다.
+    # 이제 순위·나머지는 각각 한 덩이로 쌓고, 테마 이름 단추만 진짜 단추로 둔다.
+    # **값·순위·색·차례는 하나도 안 바뀐다.** 몇 덩이로 나누어 보내느냐만 바뀐다.
+    def _theme_cells(row, color):
+        """한 줄의 '순위' 칸과 '나머지 여섯 칸'을 만든다. 계산은 하지 않는다."""
         etf = str(row.get("etf", ""))
+        rank_cell = f"<div class='j3-td'>{row.get('rank', '')}</div>"
         if not row.get("ok"):
-            cols[2].markdown(
-                _flex_row(_THEME_REST_WIDTHS, [etf] + ["자료 부족"] * 5, muted_from=1),
-                unsafe_allow_html=True,
-            )
-            continue
+            return rank_cell, _flex_row(_THEME_REST_WIDTHS, [etf] + ["자료 부족"] * 5, muted_from=1)
         score = float(row.get("score") or 0)
         strong_share = row.get("strong_members")
         change, strength120 = row.get("change_pct"), row.get("strength_120")
@@ -1456,19 +1461,44 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(strong_share), 100):.0f}%'></div></div>"
             f"<span class='j3-bar-num'>{float(strong_share):.0f}%</span></div>"
         )
-        cols[2].markdown(
-            _flex_row(_THEME_REST_WIDTHS, [
-                etf,
-                "<div class='j3-barwrap'><div class='j3-bar'>"
-                f"<div class='j3-bar-fill' style='width:{max(0.0, min(score, 100.0)):.0f}%'></div></div>"
-                f"<span class='j3-bar-num'>{score:.1f}</span></div>",
-                f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
-                f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
-                f"<span style='color:{_sign_color(strength120)}; font-weight:700'>{strength_text}</span>",
-                strong_cell,
-            ]),
-            unsafe_allow_html=True,
-        )
+        return rank_cell, _flex_row(_THEME_REST_WIDTHS, [
+            etf,
+            "<div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill' style='width:{max(0.0, min(score, 100.0)):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{score:.1f}</span></div>",
+            f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
+            f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
+            f"<span style='color:{_sign_color(strength120)}; font-weight:700'>{strength_text}</span>",
+            strong_cell,
+        ])
+
+    # 앞 열 줄과 접어 둔 나머지를 나눈다. 각자 제 칸 한 벌을 쓴다.
+    groups = [(theme_box, list(enumerate(all_rows))[:_THEME_VISIBLE_COUNT])]
+    if rest_box is not None:
+        groups.append((rest_box, list(enumerate(all_rows))[_THEME_VISIBLE_COUNT:]))
+    for target, part in groups:
+        if not part:
+            continue
+        cols = target.columns(_THEME_ROW_WIDTHS)
+        ranks, rests, names = [], [], []
+        for index, row in part:
+            name = row.get("name", "")
+            color = _STATUS_HEX.get(row.get("status", ""), "#e6e6e6")
+            button_key = f"j3tbtn_{index:02d}"
+            button_css.append(f"div[class*='st-key-{button_key}'] button p {{ color: {color} !important; }}")
+            if name == selected:
+                button_css.append(
+                    f"div[class*='st-key-{button_key}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
+                )
+            rank_cell, rest_cell = _theme_cells(row, color)
+            ranks.append(rank_cell)
+            rests.append(rest_cell)
+            names.append((name, button_key))
+        cols[0].markdown(_stacked(ranks), unsafe_allow_html=True)
+        for name, button_key in names:
+            if cols[1].button(name, key=button_key, width="stretch"):
+                clicked = name
+        cols[2].markdown(_stacked(rests), unsafe_allow_html=True)
 
     st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
     return clicked
@@ -4264,16 +4294,50 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     box = st.container(key="j3_top7_table")
     for column, title in zip(box.columns(widths), titles):
         column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+    # **표 한 벌에 칸을 한 번만 만든다** (2026-08-26 상하님 지시로 관찰만 표와
+    # 같은 방식으로 바꿨다). 이 표는 한 줄에 칸이 여섯이라 가장 무거웠다 —
+    # 줄마다 칸을 새로 만들면 스트림릿이 껍데기를 줄마다 여섯 벌씩 만든다.
+    # 이제 순위·점수·매수 상태·현재가·어느 분야는 각각 한 덩이로 쌓고,
+    # 종목 이름 단추만 진짜 단추로 둔다.
+    # **값·점수·차례·색은 하나도 안 바뀐다.** 몇 덩이로 나누어 보내느냐만 바뀐다.
+    cols = box.columns(widths)
+    rank_cells, score_cells, state_cells, price_cells, source_cells = [], [], [], [], []
+    labels = []
     for index, row in enumerate(rows):
         plan = row.get("plan") or {}
         guide = guidance.build(plan, money=_price, market_score=market.get("score"))
         dot = {"go": "🟩", "wait": "🟨", "stop": "🟥"}.get(guide["level"], "🟨")
-        cols = box.columns(widths)
-        cols[0].markdown(
-            f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}위</div>",
-            unsafe_allow_html=True,
+        rank_cells.append(
+            f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}위</div>"
         )
-        label = f"{row.get('name') or row['ticker']} ({row['ticker']})"
+        labels.append((f"{row.get('name') or row['ticker']} ({row['ticker']})", index, row))
+        score = float(row.get("score") or 0)
+        score_cells.append(
+            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(score, 100):.0f}%'></div>"
+            f"</div><span class='j3-bar-num'>{score:.1f}</span></div></div>"
+        )
+        state_cells.append(f"<div class='j3-td'>{plan.get('state', '—')}</div>")
+        price_cells.append(
+            f"<div class='j3-td' style='font-weight:700'>"
+            f"{_price(row['metrics'].get('current'))}</div>"
+        )
+        # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
+        # 어느 갈래에서 왔는지를 **먼저** 적는다(2026-08-06 사용자 지시) — 점수가
+        # 갈래마다 다른 자로 잰 값이라, 어느 자로 잰 것인지 알아야 읽을 수 있다.
+        origin = str(row.get("top7_origin") or "")
+        themes = " · ".join(row.get("sources") or row.get("themes") or [])
+        source_text = " · ".join(part for part in (origin, themes) if part) or "—"
+        origin_class = {
+            "상승장": "j3-top7-up", "급락 후 반등장": "j3-top7-crash",
+        }.get(origin, "j3-top7-leader")
+        source_cells.append(
+            f"<div class='j3-td {origin_class} j3-top7-src'"
+            f" title='{html.escape(source_text)}'>{html.escape(source_text)}</div>"
+        )
+
+    cols[0].markdown(_stacked(rank_cells), unsafe_allow_html=True)
+    for label, index, row in labels:
         if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
             # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
             st.session_state["j3_top7_pick_row"] = row
@@ -4287,30 +4351,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
                            "j3_intraday_open_pullback"):
                 st.session_state[opened] = True
             scroll_to.request(st, "detail_top7")
-        score = float(row.get("score") or 0)
-        cols[2].markdown(
-            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
-            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(score, 100):.0f}%'></div>"
-            f"</div><span class='j3-bar-num'>{score:.1f}</span></div></div>",
-            unsafe_allow_html=True)
-        cols[3].markdown(
-            f"<div class='j3-td'>{plan.get('state', '—')}</div>", unsafe_allow_html=True)
-        cols[4].markdown(
-            f"<div class='j3-td' style='font-weight:700'>"
-            f"{_price(row['metrics'].get('current'))}</div>", unsafe_allow_html=True)
-        # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
-        # 어느 갈래에서 왔는지를 **먼저** 적는다(2026-08-06 사용자 지시) — 점수가
-        # 갈래마다 다른 자로 잰 값이라, 어느 자로 잰 것인지 알아야 읽을 수 있다.
-        origin = str(row.get("top7_origin") or "")
-        themes = " · ".join(row.get("sources") or row.get("themes") or [])
-        source_text = " · ".join(part for part in (origin, themes) if part) or "—"
-        origin_class = {
-            "상승장": "j3-top7-up", "급락 후 반등장": "j3-top7-crash",
-        }.get(origin, "j3-top7-leader")
-        cols[5].markdown(
-            f"<div class='j3-td {origin_class} j3-top7-src'"
-            f" title='{html.escape(source_text)}'>{html.escape(source_text)}</div>",
-            unsafe_allow_html=True)
+    cols[2].markdown(_stacked(score_cells), unsafe_allow_html=True)
+    cols[3].markdown(_stacked(state_cells), unsafe_allow_html=True)
+    cols[4].markdown(_stacked(price_cells), unsafe_allow_html=True)
+    cols[5].markdown(_stacked(source_cells), unsafe_allow_html=True)
     # 종목 이름 단추는 '테마 종목' 표와 같은 옷을 입힌다.
     st.markdown(
         "<style>"
@@ -6915,7 +6959,7 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
 .j3b-open-card .j3b-name{display:block;margin-top:2px;color:#c9e8ff;font-size:14px;white-space:normal}
 .j3b-open-card .j3b-price{margin:12px 0 8px;font-size:22px;font-weight:900;color:#fff}
-.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}/* 크게 연 그림은 선을 가늘게 — 늘어난 그림에 굵은 선은 뭉개져 보인다. */.j3b-open-card .j3b-chart polyline{stroke-width:1.8px}.j3b-chart-cap{color:#4da6ff;font-size:15px;font-weight:800;text-align:center;margin:0 0 10px}
+.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}/* 크게 연 그림은 선을 가늘게 — 늘어난 그림에 굵은 선은 뭉개져 보인다. */.j3b-open-card .j3b-chart polyline{stroke-width:1.8px}/* 오렌지 형광 — 선 둘레에 은은한 번짐을 준다. */.j3b-open-card .j3b-chart{filter:drop-shadow(0 0 4px #ff9d2e55)}.j3b-chart-cap{color:#4da6ff;font-size:15px;font-weight:800;text-align:center;margin:0 0 10px}
 .j3b-open-card .j3b-decor-img{position:absolute;right:10px;bottom:6px;width:96px;height:auto;pointer-events:none}
 .j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}
 .j3b-open-list{margin-top:14px}
@@ -7167,14 +7211,26 @@ _BRIEFING_TOUCH_CSS = """
 """
 
 
-def _briefing_chart(values, change) -> str:
+# 일봉 6개월 그림의 색 — 오렌지 형광 (2026-08-26 상하님 지시).
+# 반년 흐름을 오늘 하루의 오르내림 색으로 칠하면 안 된다는 뜻이다.
+_SIX_MONTH_STROKE = "#ff9d2e"
+
+
+def _briefing_chart(values, change, *, stroke: str = "") -> str:
+    """카드의 작은 그림. ``stroke``를 주면 그 색으로 그린다.
+
+    2026-08-26 상하님 지시 — "관심종목에 일봉 6개월 색깔이 당일 차트 색에 따라
+    달라진다. 그냥 오렌지 형광색으로 바꿔라." 접힌 카드의 최근 30일 그림은
+    예전대로 **오늘 오르내림에 따라** 초록·빨강이고, 크게 연 일봉 6개월만
+    오렌지다. 6개월 그림에 오늘 색을 입히면 반년 흐름을 하루 색으로 말하게 된다.
+    """
     values = [float(item) for item in (values or []) if item is not None]
     if len(values) < 2:
         return ""
     low, high = min(values), max(values)
     span = high - low or 1
     points = " ".join(f"{index * 100 / (len(values)-1):.1f},{42 - (value-low) * 38/span:.1f}" for index, value in enumerate(values))
-    stroke = "#70e64a" if (change or 0) >= 0 else "#ff5b5b"
+    stroke = stroke or ("#70e64a" if (change or 0) >= 0 else "#ff5b5b")
     # **선 굵기를 화면 기준으로 못박는다**(2026-08-26 상하님 지적 — "종목 클릭하면
     # 나오는 차트 선이 너무 굵다").
     # 이 그림은 preserveAspectRatio="none" 으로 늘려 그린다. 그러면 선도 같이
@@ -7404,7 +7460,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         # 접힌 카드의 작은 그림은 예전 그대로 최근 30일이다. 6개월치가 아직 안
         # 왔으면 그 30일 그림을 그대로 쓰고 이름표도 안 붙인다 — 없는 것을 있는
         # 것처럼 적으면 안 된다.
-        f'{_briefing_chart(six_month or card.get("chart"), change)}'
+        f'{_briefing_chart(six_month or card.get("chart"), change, stroke=_SIX_MONTH_STROKE if six_month else "")}'
         f'{"<div class='j3b-chart-cap'>일봉 6개월</div>" if six_month else ""}'
         f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
         f'{decor_html}</div>'
