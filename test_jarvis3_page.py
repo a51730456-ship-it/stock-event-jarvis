@@ -2160,3 +2160,21 @@ def test_top9_detail_gets_the_real_theme_row():
     assert 'ranking.get("rows")' in fn, "테마 줄을 순위표에서 찾지 않는다"
     call = fn[fn.index("_render_stock_detail("):]
     assert "theme_row," in call.split(")")[0], "여전히 껍데기를 넘긴다"
+
+def test_help_panel_shows_only_one_close_button():
+    """설명 창의 닫기는 **어느 화면에서나 하나**다 (2026-08-26 상하님 지적).
+
+    상하님 — "설명 닫기 두 개나 있다. 밑에 거 없애라."
+    폰·태블릿은 위 것만, 노트북은 아래 것만 보인다. 아래 것도 창 바닥에 붙는
+    단추라, 폰에서 글을 굴리는 동안 화면 한가운데에 떠서 글을 가렸다.
+    실측 375px → 위 1개 · 1400px → 아래 1개.
+    """
+    css = PAGE.read_text(encoding="utf-8")
+    css = css[css.index('_FACTOR_HELP_CSS = """'):]
+    css = css[:css.index('"""', 30)]
+    # 노트북에서는 위 것을 숨긴다.
+    assert ".j3fh-x-top { display: none; }" in css
+    # 폰·태블릿에서는 위 것을 켜고 아래 것을 끈다.
+    phone = css[css.index("@media (max-width: 1200px)"):]
+    assert ".j3fh-x-top {" in phone, "폰에서 위 닫기를 안 켠다"
+    assert ".j3fh-x:not(.j3fh-x-top) { display: none; }" in phone, "폰에서 아래 닫기가 남는다"
