@@ -7,6 +7,7 @@ Streamlit secrets에서 호출자가 전달하며 이 파일에는 저장하지 
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import hashlib
@@ -30,6 +31,40 @@ _LOCK = threading.Lock()
 _CACHE: dict[str, dict] = {}
 _TRANSLATION_LOCK = threading.Lock()
 _TRANSLATION_CACHE: dict[str, str] = {}
+# 한 번 옮긴 제목은 공책에 적어 둔다. 무료 번역기가 막히는 날에도 어제 본 기사는
+# 한글로 그대로 나온다(2026-08-26 — gtx와 MyMemory가 같은 날 둘 다 429였다).
+_TRANSLATION_FILE = Path(__file__).resolve().parent / "cache" / "j3_translations.json"
+_TRANSLATION_LIMIT = 4000
+_TRANSLATION_LOADED = False
+
+
+def _load_translation_book() -> None:
+    global _TRANSLATION_LOADED
+    if _TRANSLATION_LOADED:
+        return
+    _TRANSLATION_LOADED = True
+    try:
+        saved = json.loads(_TRANSLATION_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    if isinstance(saved, dict):
+        with _TRANSLATION_LOCK:
+            for key, value in saved.items():
+                if isinstance(key, str) and isinstance(value, str):
+                    _TRANSLATION_CACHE.setdefault(key, value)
+
+
+def _save_translation_book() -> None:
+    """실패해도 조용히 넘어간다. 공책이 없어도 화면은 그대로 돈다."""
+    try:
+        with _TRANSLATION_LOCK:
+            items = list(_TRANSLATION_CACHE.items())[-_TRANSLATION_LIMIT:]
+        _TRANSLATION_FILE.parent.mkdir(parents=True, exist_ok=True)
+        temporary = _TRANSLATION_FILE.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(dict(items), ensure_ascii=False), encoding="utf-8")
+        temporary.replace(_TRANSLATION_FILE)
+    except Exception:
+        pass
 
 # 한글 뉴스는 회사 한글 이름으로 찾아야 기사가 훨씬 많이 나온다.
 # 여기에 없는 티커는 티커 그대로 찾고, 그래도 없으면 영문 원문을 받아 번역한다.
@@ -127,6 +162,7 @@ def _public_translations(texts: list[str]) -> dict[str, str]:
     화면 스레드가 아니라 기존 뉴스 백그라운드 작업에서만 호출된다. 같은 제목은
     프로세스 캐시에 남겨 10분 뉴스 갱신 때 번역 요청을 반복하지 않는다.
     """
+    _load_translation_book()
     originals = list(dict.fromkeys(_text(text, 300) for text in texts if _text(text, 300)))
     with _TRANSLATION_LOCK:
         result = {text: _TRANSLATION_CACHE[text] for text in originals if text in _TRANSLATION_CACHE}
@@ -150,6 +186,17 @@ def _public_translations(texts: list[str]) -> dict[str, str]:
         result[original] = translated_text
         with _TRANSLATION_LOCK:
             _TRANSLATION_CACHE[original] = translated_text
+
+    def _by_chrome(pending: list[tuple[str, str]]) -> None:
+        params = [("client", "dict-chrome-ex"), ("sl", "en"), ("tl", "ko")]
+        params += [("q", source) for _, source in pending]
+        payload = _request("https://clients5.google.com/translate_a/t?" + urlencode(params))
+        rows = payload if isinstance(payload, list) else []
+        if len(rows) != len(pending):
+            return
+        for (original, _), part in zip(pending, rows):
+            if isinstance(part, str):
+                _record(original, part)
 
     def _by_google(pending: list[tuple[str, str]]) -> None:
         delimiter = "|||59381|||"
@@ -185,7 +232,7 @@ def _public_translations(texts: list[str]) -> dict[str, str]:
         # 번역기 한 곳이 막히거나 구분자를 흐트러뜨려도 다음 번역기가 반드시 이어받는다.
         # 예전에는 첫 번역기가 실패하면 continue로 batch를 통째로 건너뛰어
         # 둘째 번역기가 영영 돌지 않았다(2026-08-26 실측).
-        for translate in (_by_mymemory, _by_google):
+        for translate in (_by_chrome, _by_mymemory, _by_google):
             pending = [(original, source) for original, source in items if original not in result]
             if not pending:
                 break
@@ -193,6 +240,8 @@ def _public_translations(texts: list[str]) -> dict[str, str]:
                 translate(pending)
             except Exception:
                 continue
+    if result:
+        _save_translation_book()
     return result
 
 
@@ -206,7 +255,10 @@ def _time(value) -> datetime | None:
 
 
 def _request(url: str, headers: dict | None = None) -> dict | list:
-    request = Request(url, headers=headers or {"Accept": "application/json"})
+    request = Request(url, headers=headers or {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; Jarvis3News/1.0)",
+    })
     with urlopen(request, timeout=8) as response:  # nosec B310 - fixed HTTPS endpoints below
         return json.loads(response.read().decode("utf-8"))
 

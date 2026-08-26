@@ -102,39 +102,6 @@ def test_empty_deepl_key_uses_cached_public_translation(monkeypatch):
     assert result[0]["brief"] == "미국 증시 상승"
 
 
-def test_public_translation_batches_and_caches(monkeypatch):
-    news._TRANSLATION_CACHE.clear()
-    calls = []
-    def request(url):
-        calls.append(url)
-        return {"responseData": {"translatedText": "미국 증시 상승\nJARVISBREAK\n반도체 수요 증가"}}
-    monkeypatch.setattr(news, "_request", request)
-    texts = ["US stocks rise", "Chip demand grows"]
-    assert news._public_translations(texts) == {
-        "US stocks rise": "미국 증시 상승", "Chip demand grows": "반도체 수요 증가",
-    }
-    assert news._public_translations(texts)["US stocks rise"] == "미국 증시 상승"
-    assert len(calls) == 1
-
-
-def test_public_translation_uses_second_provider_only_after_first_fails(monkeypatch):
-    news._TRANSLATION_CACHE.clear()
-    calls = []
-    def request(url):
-        calls.append(url)
-        if "mymemory" in url:
-            raise RuntimeError("first provider unavailable")
-        return [[[
-            "미국 증시 상승 |||59381||| 반도체 수요 증가",
-            "US stocks rise |||59381||| Chip demand grows", None, None,
-        ]]]
-    monkeypatch.setattr(news, "_request", request)
-    result = news._public_translations(["US stocks rise", "Chip demand grows"])
-    assert result == {
-        "US stocks rise": "미국 증시 상승", "Chip demand grows": "반도체 수요 증가",
-    }
-    assert len(calls) == 2
-    assert "translate.googleapis.com" in calls[1]
 
 
 def test_rss_fallback_keeps_verifiable_actual_rows(monkeypatch):
@@ -376,3 +343,74 @@ def test_same_story_from_two_outlets_is_shown_once():
     kept = news._dedupe(rows)
     assert len(kept) == 2
     assert kept[1]["headline"].startswith("Nvidia")
+
+def _quiet_translation_book(monkeypatch, tmp_path):
+    """시험이 진짜 공책(cache/j3_translations.json)을 읽거나 더럽히지 않게 막는다."""
+    news._TRANSLATION_CACHE.clear()
+    monkeypatch.setattr(news, "_TRANSLATION_FILE", tmp_path / "book.json")
+    monkeypatch.setattr(news, "_TRANSLATION_LOADED", False)
+
+
+def test_public_translation_batches_and_caches(monkeypatch, tmp_path):
+    """한 번에 묶어 옮기고, 같은 제목은 다시 부르지 않는다."""
+    _quiet_translation_book(monkeypatch, tmp_path)
+    calls = []
+
+    def request(url):
+        calls.append(url)
+        return ["미국 증시 상승", "반도체 수요 증가"]
+
+    monkeypatch.setattr(news, "_request", request)
+    texts = ["US stocks rise", "Chip demand grows"]
+    assert news._public_translations(texts) == {
+        "US stocks rise": "미국 증시 상승", "Chip demand grows": "반도체 수요 증가",
+    }
+    assert news._public_translations(texts)["US stocks rise"] == "미국 증시 상승"
+    assert len(calls) == 1
+    assert "clients5.google.com" in calls[0]
+
+
+def test_next_provider_takes_over_when_the_first_is_blocked(monkeypatch, tmp_path):
+    """번역기 한 곳이 막히면 다음이 반드시 이어받는다.
+
+    2026-08-26에 세 곳 가운데 둘(gtx·MyMemory)이 같은 날 429로 막혔다. 예전에는
+    첫 곳이 실패하면 continue가 batch를 통째로 건너뛰어 둘째가 돌지 않았다.
+    """
+    _quiet_translation_book(monkeypatch, tmp_path)
+    calls = []
+
+    def request(url):
+        calls.append(url)
+        if "clients5.google.com" in url:
+            raise RuntimeError("첫 번역기 막힘")
+        if "mymemory" in url:
+            raise RuntimeError("둘째 번역기 막힘")
+        return [[[
+            "미국 증시 상승 |||59381||| 반도체 수요 증가",
+            "US stocks rise |||59381||| Chip demand grows", None, None,
+        ]]]
+
+    monkeypatch.setattr(news, "_request", request)
+    result = news._public_translations(["US stocks rise", "Chip demand grows"])
+    assert result == {
+        "US stocks rise": "미국 증시 상승", "Chip demand grows": "반도체 수요 증가",
+    }
+    assert len(calls) == 3
+    assert "translate.googleapis.com" in calls[2]
+
+
+def test_translated_titles_survive_a_restart(monkeypatch, tmp_path):
+    """한 번 옮긴 제목은 공책에 남아, 번역기가 다 막힌 날에도 한글로 나온다."""
+    _quiet_translation_book(monkeypatch, tmp_path)
+    monkeypatch.setattr(news, "_request", lambda url: ["미국 증시 상승"])
+    assert news._public_translations(["US stocks rise"]) == {"US stocks rise": "미국 증시 상승"}
+
+    # 앱을 다시 켠 셈 치고 기억만 지운다. 공책은 그대로 둔다.
+    news._TRANSLATION_CACHE.clear()
+    monkeypatch.setattr(news, "_TRANSLATION_LOADED", False)
+
+    def blocked(_url):
+        raise RuntimeError("번역기가 다 막혔다")
+
+    monkeypatch.setattr(news, "_request", blocked)
+    assert news._public_translations(["US stocks rise"]) == {"US stocks rise": "미국 증시 상승"}

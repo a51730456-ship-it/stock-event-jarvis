@@ -6675,9 +6675,15 @@ _BRIEFING_OPEN_CSS = """
  background:radial-gradient(circle at 100% 0,rgba(15,85,147,.37),transparent 44%),
   linear-gradient(145deg,rgba(7,41,87,.99),rgba(3,23,55,.99));
  box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c}
-.j3b-open-close{position:absolute;right:12px;top:12px;z-index:6;padding:6px 10px;
- border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;
- font-size:12px;font-weight:800;pointer-events:none}
+.j3b-open-close{display:none}
+.j3b-card-shell[open]>.j3b-card-summary:before,
+.j3b-market-news-shell[open]>.j3b-market-news-summary:before{
+ content:'× 닫기';position:fixed;top:14px;left:50%;transform:translateX(-50%);
+ z-index:2147483648;padding:9px 20px;border:1.5px solid #9bcfff;border-radius:20px;
+ background:#062448;color:#f5fbff;font-size:14px;font-weight:800;
+ box-shadow:0 4px 14px #000a;white-space:nowrap;visibility:visible}
+.j3b-card-shell[open]>.j3b-card-open,
+.j3b-market-news-shell[open]>.j3b-card-open{padding-top:62px}
 .j3b-open-card .j3b-card-top{display:flex;gap:10px;align-items:center;min-height:58px;padding-right:132px}
 .j3b-open-card .j3b-logo{width:58px;height:58px;border-radius:14px}
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
