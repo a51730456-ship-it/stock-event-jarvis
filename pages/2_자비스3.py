@@ -6718,6 +6718,7 @@ def _briefing_css() -> None:
     st.markdown(_decor_css(), unsafe_allow_html=True)
     st.markdown(_BRIEFING_TABLET_CSS, unsafe_allow_html=True)
     st.markdown(_BRIEFING_GESTURE_CSS, unsafe_allow_html=True)
+    st.markdown(_BRIEFING_TOUCH_CSS, unsafe_allow_html=True)
 
 
 _BRIEFING_OPEN_CSS = """
@@ -6885,6 +6886,72 @@ div[class*="st-key-j3b_hero_box"] button:focus { background: #ffffff1f !importan
   div[class*="st-key-j3b_hero_box"] [data-testid="stElementContainer"]:has(button){right:128px;top:23px}
   div[class*="st-key-j3b_hero_box"] .stButton,
   div[class*="st-key-j3b_hero_box"] button{width:46px!important;height:46px!important;min-height:46px!important}
+}
+</style>
+"""
+
+
+_BRIEFING_TOUCH_CSS = """
+<style>
+/* ── 손을 올리면 살짝 앞으로 나온다 (2026-08-26 상하님 지시) ────────────────
+   상하님 — "시장분석의 시장 상황·시장 국면처럼 관심종목 각 부분에도 마우스 갖다
+   대면 그렇게 할 수 없냐."
+   시장분석 쪽과 **같은 결**로 맞춘다 — 0.12초, 위로 살짝, 밝기 1.1.
+   (market_signal_ui.py 의 .sig-head-box / .sig-gauge-shell / .sig-story 규칙)
+   카드는 시장분석 상자보다 크므로 4px 뜨고 테두리가 함께 밝아진다.
+   숫자·점수·판정은 건드리지 않는다 — 보이는 움직임만이다. */
+.j3b-card, .j3b-news, .j3b-logo, .j3b-nav-item, .j3b-round, .j3b-live,
+.j3b-decor-img, .j3b-open-news > summary, .j3b-section .j3b-more,
+.j3b-card-shell:not([open]) > .j3b-card-summary {
+  transition: transform .12s ease-out, filter .12s ease-out,
+              border-color .12s ease-out, box-shadow .12s ease-out;
+}
+
+@media (hover:hover) and (pointer:fine) {
+  /* 카드 — 통째로 뜨고 테두리가 밝아진다.
+     **뜨는 것은 껍데기(summary)에 건다.** 안쪽 .j3b-card 에 걸면 다른 규칙에 눌려
+     테두리만 바뀌고 움직이지 않았다(2026-08-26 실측). */
+  .j3b-card-shell:not([open]) > .j3b-card-summary:hover {
+    transform: translateY(-4px);
+    filter: brightness(1.12);
+  }
+  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-card {
+    border-color: rgba(140,214,255,.85) !important;
+    box-shadow: inset 0 1px #7bc9ff45, 0 12px 24px #0009 !important;
+  }
+  /* 카드 안의 로고와 캐릭터도 조금 더 나온다 */
+  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-logo { transform: scale(1.07); }
+  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-decor-img { transform: translateY(-2px) scale(1.05); }
+  /* 브리핑 한 줄 */
+  .j3b-news:hover {
+    transform: translateY(-3px) !important;
+    filter: brightness(1.12) !important;
+    border-color: rgba(255,214,129,.85) !important;
+  }
+  /* 크게 연 화면의 뉴스 줄 */
+  .j3b-open-news > summary:hover { filter: brightness(1.25); transform: translateX(2px); }
+  /* 하단 이동표 */
+  .j3b-nav-item:hover { transform: translateY(-3px); filter: brightness(1.25); }
+  /* 머리띠의 ↻ 와 실시간 */
+  .j3b-round:hover, .j3b-live:hover {
+    transform: translateY(-2px); filter: brightness(1.15);
+    border-color: #ffd88a !important;
+  }
+  .j3b-section .j3b-more:hover { filter: brightness(1.4); transform: translateX(2px); }
+}
+
+/* 손가락으로 누를 때 — 폰·태블릿. 눌리는 느낌만 준다. */
+.j3b-card-shell:not([open]) > .j3b-card-summary:active {
+  transform: scale(.985); filter: brightness(1.06);
+}
+.j3b-news:active { transform: translateY(0) scale(.99) !important; filter: brightness(1.06) !important; }
+.j3b-nav-item:active { transform: scale(.94); filter: brightness(1.3); }
+.j3b-open-news > summary:active { filter: brightness(1.3); }
+
+/* 움직임을 줄여 달라는 설정이면 다 멈춘다 */
+@media (prefers-reduced-motion: reduce) {
+  .j3b-card, .j3b-news, .j3b-logo, .j3b-nav-item, .j3b-round, .j3b-live,
+  .j3b-decor-img, .j3b-open-news > summary { transition: none !important; }
 }
 </style>
 """

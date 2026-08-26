@@ -2012,3 +2012,29 @@ def test_fragment_close_asks_for_a_whole_page_redraw():
     block = source[source.index("def _render_top7_section"):source.index("def _kept_recently")]
     assert "_run_close_all_if_requested()" in block
     assert block.index("_render_top_reviewed_detail(market, ranking)") < block.index("_run_close_all_if_requested()")
+
+
+def test_main_screen_lifts_like_the_market_cards():
+    """관심종목 화면도 시장분석 카드와 **같은 결**로 손을 따라 움직인다.
+
+    2026-08-26 상하님 지시 — "시장분석의 시장 상황·시장 국면처럼 관심종목 각
+    부분에도 마우스 갖다 대면 그렇게 할 수 없냐."
+    시장분석 쪽(market_signal_ui.py)은 0.12초·위로·밝기 1.1이다. 같은 값을 쓴다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    market = (PAGE.parent.parent / "market_signal_ui.py").read_text(encoding="utf-8")
+    assert "transform: translateY(-3px);" in market and "filter: brightness(1.1);" in market
+
+    touch = source[source.index("_BRIEFING_TOUCH_CSS"):source.index("def _briefing_chart")]
+    assert "transition: transform .12s ease-out" in touch, "시장분석과 같은 0.12초가 아니다"
+    # 뜨는 것은 껍데기(summary)에 건다 — 안쪽 카드에 걸면 다른 규칙에 눌린다.
+    assert ".j3b-card-shell:not([open]) > .j3b-card-summary:hover {" in touch
+    assert "transform: translateY(-4px);" in touch
+    # 마우스가 있는 기기에서만 뜨고, 손가락으로는 눌리는 느낌만 준다.
+    assert "@media (hover:hover) and (pointer:fine)" in touch
+    assert ".j3b-card-shell:not([open]) > .j3b-card-summary:active {" in touch
+    for part in (".j3b-news:hover", ".j3b-nav-item:hover", ".j3b-round:hover",
+                 ".j3b-open-news > summary:hover", ".j3b-logo", ".j3b-decor-img"):
+        assert part in touch, part
+    # 움직임을 줄여 달라는 설정이면 멈춘다.
+    assert "@media (prefers-reduced-motion: reduce)" in touch
