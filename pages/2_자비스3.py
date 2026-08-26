@@ -2811,16 +2811,17 @@ def _render_stock_detail(
             unsafe_allow_html=True,
         )
 
-    if panel == "top7":
-        # 2026-08-26 상하님 지시 — "추천 근거 요약 그 밑에 실제 매수기록 저장하시겠습니까
-        # 위에 매수심사결과 높은 순위 9 닫기 버튼을 만들어 주고, 그 버튼 누르면 열린
-        # 화면 다 닫고 위로 올라가게." 상세까지 다 내려보고 나면 순위 9를 접으려고
-        # 화면 몇 장을 도로 올라가야 했다.
-        _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기",
-                       slot="_detail", on_close=_close_all_from_fragment)
     _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
     _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")
+    if panel == "top7":
+        # 「매수심사결과 높은 순위 9 닫기」는 **✕ 선택종목 세부사항 닫기 바로 밑**이다.
+        # 2026-08-26 상하님이 자리를 바로잡아 주셨다 — "너가 지금 매수심사결과 높은
+        # 순위 9 닫기를 위에 두니 내가 안 보이지. 선택종목 세부사항 닫기 밑에 넣어야
+        # 된다." 앞서 '실제 매수기록 저장' 위에 뒀더니 금빛 저장 단추에 눈이 가려
+        # 회색 닫기 단추가 묻혔다. 누르면 열린 화면을 다 닫고 맨 위로 올라간다.
+        _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기",
+                       slot="_detail", on_close=_close_all_from_fragment)
 
 
 
