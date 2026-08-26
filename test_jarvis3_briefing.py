@@ -198,7 +198,9 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert 'delete_visual = ""' in source
     assert ".j3b-bottom-nav{position:fixed" in source
     assert ".j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:64px!important" in source
-    assert 'width:33.333%!important;height:58px!important;flex:0 0 33.333%!important' in source
+    # 칸 하나가 셋 가운데 하나를 차지한다. 키는 이동표와 같은 값을 쓰므로
+    # 여기서 픽셀을 외우지 않는다(2026-08-26).
+    assert 'div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important' in source
     assert 'st.columns(3, gap="small")' in source
     assert '("mypage", "♙", "마이페이지")' not in source
     assert 'deepl_key=_briefing_secret("DEEPL_API_KEY")' in source

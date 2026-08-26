@@ -1,5 +1,6 @@
 import copy
 import unittest
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1892,7 +1893,16 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     assert "z-index:2147483647!important" in source
     assert "visibility:hidden!important;pointer-events:none!important" in source
     # 아래에서 8px 띄워 금빛 둥근 모서리가 화면 끝에 잘리지 않게 했다(2026-08-26).
-    assert ".j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:8px!important" in source
+    # **픽셀 값을 외우지 않는다** — 디자인을 만질 때마다 시험이 깨졌다(2026-08-26).
+    # 지켜야 할 것만 본다: 바닥에 붙어 있고, 보이는 표와 보이지 않는 단추판의
+    # 키가 같고, 오른쪽 클라우드 단추 자리를 비워 둔다.
+    nav_bottom = re.search(r"\.j3b-bottom-nav,div\.st-key-j3b_nav_controls\{bottom:(\d+)px", source)
+    assert nav_bottom and int(nav_bottom.group(1)) <= 8, "이동표가 바닥에서 너무 떠 있다"
+    # 화면 폭 구간마다 규칙이 여러 벌이라, **마지막에 이기는 한 벌**을 견준다.
+    nav_heights = re.findall(r"\.j3b-bottom-nav\{height:(\d+)px!important", source)
+    panel_heights = re.findall(r"div\.st-key-j3b_nav_controls\{height:(\d+)px!important", source)
+    assert nav_heights and panel_heights, "이동표나 단추판 키를 못 찾았다"
+    assert nav_heights[-1] == panel_heights[-1], "보이는 표와 단추판 키가 다르다"
     assert "transform:translateX(-75%)!important" in source
     assert "width:min(286.667px,66.667vw)!important" in source
     reviewed = source[source.index("def _render_top_reviewed"):source.index("def _render_my_stock_panel")]
@@ -1914,10 +1924,6 @@ def test_briefing_hides_cloud_overlays_and_redundant_helper_text():
     ):
         assert removed not in source
     assert "padding-bottom:72px!important" in source
-    assert ".j3b-bottom-nav{height:58px!important;padding:3px 6px!important}" in source
-    assert ".j3b-nav-item{width:33.333%!important;min-height:52px!important;font-size:12px!important}" in source
-    assert ".j3b-nav-item b{font-size:23px!important}" in source
-    assert "div.st-key-j3b_nav_controls{height:58px!important;bottom:8px!important}" in source
     assert 'div[class*="st-key-j3b_grid_"]{overflow:visible!important' in source
     assert "div.st-key-j3b_grid_selected_0{padding-top:14px!important}" in source
     assert "div.st-key-j3b_grid_selected_2{padding-bottom:14px!important}" in source
