@@ -2290,7 +2290,7 @@ def test_switching_screens_goes_back_to_the_top():
     # 온라인 서비스가 앱 위에 「Fork」·GitHub 띠를 덮어 놓는다. 내 쪽 주소
     # (/~/+/)로 열면 그 띠가 없어서 폭 열한 가지를 다 재도 줄이 늘 y=10 에
     # 있었는데, 상하님 화면에서는 그 y=10 이 띠 밑이었다. 띠 높이만큼만 띄운다.
-    assert "padding-top:58px!important" in source, "폰·태블릿에서 띠에 가린다"
+    assert "padding-top:68px!important" in source, "폰·태블릿에서 띠에 가린다"
     assert "@media (max-width:1199px)" in source
 
 def test_the_phone_home_screen_is_left_alone():

@@ -6766,7 +6766,9 @@ def _render_existing_theme_content() -> None:
     #
     # 2026-08-25 캡처에는 위에 224px 빈자리가 있어 단추가 띠 아래로 밀려나
     # 보였다. 그 빈자리를 없애자 단추가 띠 밑으로 들어가 가려졌다.
-    # 그래서 띠 높이만큼만 띄운다 — 224px 이 아니라 58px 이다.
+    # 그래서 띠 높이만큼만 띄운다 — 224px 이 아니라 68px 이다.
+    # (58px 로 했더니 「한국테마 →」 사각 테두리 위가 조금 잘렸다 —
+    #  상하님 실물 확인. 10px 더 내렸다.)
     # 노트북(1200px 이상)은 10px 그대로다 — 거기서는 띠가 안 덮는다.
     #
     # ── 위 여백은 **0이 아니라 10px** (2026-08-27 상하님 지시) ────────────────
@@ -6782,7 +6784,7 @@ def _render_existing_theme_content() -> None:
         body:has(.j3-market-top) .block-container { padding-top:10px!important; }
         @media (max-width:1199px){
           body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
-          body:has(.j3-market-top) .block-container { padding-top:58px!important; }
+          body:has(.j3-market-top) .block-container { padding-top:68px!important; }
         }
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style:only-child),
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] .j3-market-top) {
