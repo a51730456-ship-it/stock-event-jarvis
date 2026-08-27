@@ -2278,3 +2278,24 @@ def test_switching_screens_goes_back_to_the_top():
     # 여백은 0이 아니라 조금 — 0이면 단추가 화면 끝에 붙어 주소창에 가린다.
     assert "padding-top:10px!important" in source
     assert "padding-top:0!important" not in source
+
+def test_the_phone_home_screen_is_left_alone():
+    """첫 화면의 **폰 모습은 예전 그대로**다 (2026-08-27 상하님 지시).
+
+    상하님 — "스마트폰은 변경하지 말라고. 태블릿만 우선 적용하라고."
+    "스마트폰에는 4개만 보이게 하라고. 사용자 선정 종목 이야기하는 것이야.
+    추가 검색 종목도 건들이지 말고." · "스마트폰은 전부 원래대로 하라고."
+
+    브라우저 실측(폰 375px) — 사용자 선정 4개 · 2칸 2줄 · 통 375px,
+    추가 검색 종목 2칸 그대로. 태블릿 800px 은 6개 3칸 2줄이다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    phone = source[source.index("@media (max-width:699px){"):]
+    phone = phone[:phone.index("}}") + 2]
+    # 폰은 두 칸이다.
+    assert "grid-template-columns:repeat(2,minmax(0,1fr))!important" in phone
+    # 폰 폭은 예전 그대로 430px 이다.
+    assert "max-width:min(430px,100vw)!important" in phone
+    # **사용자 선정 종목만** 앞 넷까지 보인다. 추가 검색 종목은 안 건드린다.
+    assert "div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}" in phone
+    assert "j3b_grid_extra" not in phone, "추가 검색 종목을 건드렸다"
