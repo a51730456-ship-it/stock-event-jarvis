@@ -191,6 +191,14 @@ div[class*="st-key-jarvis_method_help"] button p {
 [data-testid="stPopoverBody"] * { overflow-anchor: none !important; }
 /* 창을 넓힌 것은 **그림 때문**이다. 글까지 넓어지면 읽기가 나빠지므로 글만 묶는다.
    그림은 이 규칙에 안 걸려 창 폭을 다 쓴다. */
+/* 그림 밑 「크게 보기」. 설명 단추와 같은 하늘색 바탕·주황 글씨로 둔다. */
+.mh-zoom {
+    display: inline-block; margin: .35rem 0 .1rem;
+    padding: .38rem .8rem; border-radius: .5rem;
+    background: #cfe9ff; border: 1px solid #9ecbf5;
+    color: #c15f3c !important; font-weight: 800; font-size: .9rem;
+    text-decoration: none !important;
+}
 [data-testid="stPopoverBody"] .mh-doc {
     max-width: 760px !important;
     margin-left: auto !important;
@@ -372,11 +380,44 @@ US_IMAGE_NOTES = (
 
 
 def _image_path(name: str):
-    """assets 안의 그림 경로. 온라인에서 파일이 빠져도 화면이 죽지 않게 확인만 한다."""
+    """그림 경로. 온라인에서 파일이 빠져도 화면이 죽지 않게 확인만 한다.
+
+    **static/을 먼저 본다**(2026-08-27). 거기 있는 파일만 `app/static/이름`이라는
+    주소를 얻어 새 창으로 띄울 수 있다(.streamlit/config.toml의 enableStaticServing).
+    assets/도 계속 본다 — 예전 파일이 거기 남아 있어도 화면이 안 깨진다.
+
+    그림을 바꾸려면 **static/의 같은 이름 파일**을 덮어쓰면 된다. 코드는 그대로 둔다.
+    """
     from pathlib import Path
 
-    path = Path(__file__).resolve().parent / "assets" / name
-    return path if path.exists() else None
+    here = Path(__file__).resolve().parent
+    for folder in ("static", "assets"):
+        path = here / folder / name
+        if path.exists():
+            return path
+    return None
+
+
+def _zoom_link(name: str, label: str) -> str:
+    """그림 밑에 두는 「크게 보기」 (2026-08-27 상하님 지시).
+
+    상하님 — "만화나 액셀 두손가락으로 벌리면 볼수있게 만들수 있나?"
+
+    **설명 창 안에서는 벌려도 안 커진다.** 창이 두 손가락을 '바깥 누름'으로 알아듣고
+    닫혀 버린다. 그래서 창 안에서 늘리려 하지 않고, 새 창에 **원본 그대로** 띄운다.
+    브라우저가 그린 그림이라 거기서는 벌리기·두 번 두드리기가 다 된다.
+
+    주소를 맨 앞 /부터 적는다 — 페이지 주소가 /자비스3이라 상대주소로 적으면
+    /자비스3/app/static/... 으로 잘못 찾아간다.
+
+    **이 길이 막혀도 화면은 멀쩡하다** — 위의 st.image가 그림을 이미 그렸고,
+    이건 그 밑에 붙는 글 한 줄이다.
+    """
+    return (
+        f"<div class='mh-doc'><a class='mh-zoom' href='/app/static/{name}' "
+        f"target='_blank' rel='noopener'>🔍 {label} 크게 보기 — "
+        "새 창이 열리면 두 손가락으로 벌려 보십시오</a></div>"
+    )
 
 
 # 줄 사이에 빈 줄을 넣지 않는다. 빈 줄이 있으면 스트림릿 마크다운이 그 사이를
@@ -703,6 +744,7 @@ def render(st, market: str) -> None:
                 # 크게 볼수 있게"). 창 폭에 맞춰 한 장을 다 보여주고, 크게 보실
                 # 때는 손가락으로 벌리시면 된다 — 그것을 막는 규칙은 앱에 없다.
                 st.image(str(cartoon), use_container_width=True)
+                st.markdown(_zoom_link(US_CARTOON, "만화"), unsafe_allow_html=True)
             # ② 상하님이 만드신 표 그림 — **사진 그대로 올린다**(2026-08-27 상하님
             #    지시: "액셀은 텍스트로 바꾸지말라 원 사진 그대로 올려라").
             for index, (name, caption) in enumerate(US_IMAGES):
@@ -718,6 +760,7 @@ def render(st, market: str) -> None:
                     unsafe_allow_html=True,
                 )
                 st.image(str(path), use_container_width=True)
+                st.markdown(_zoom_link(name, "표"), unsafe_allow_html=True)
                 if index < len(US_IMAGE_NOTES):
                     st.markdown(
                         f"<div class='mh-doc'><div class='mh-note'>"
