@@ -1782,7 +1782,18 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False,
     price = price.rename(columns={date_column: "날짜", "Close": "주가", "MA20": "20일선", "MA50": "50일선"})
     available = [column for column in ("주가", "20일선", "50일선") if column in price.columns]
     long_price = price.melt(id_vars=["날짜"], value_vars=available, var_name="구분", value_name="가격").dropna()
-    line_height = height if height is not None else (220 if include_volume else 315)
+    # **셋을 같은 키로 맞춘다** (2026-08-27 상하님 지적 — 노트북 선택종목
+    # 세부사항에서 차트 넷이 90·242·108·108px 로 제각각이었다).
+    # 일봉만 아래에 거래량 칸이 더 붙어서 108 + 4 + 80 = 192px 가 되고, 눈금까지
+    # 더하면 242px 였다. 키를 정해 주면 그 안에서 나눠 쓴다 — 위 주가 7, 아래
+    # 거래량 3이다. 그러면 일봉·주봉·월봉이 모두 같은 키가 된다.
+    # 키를 안 정해 주면(크게 보는 화면) 예전 그대로다.
+    volume_height = 0
+    if height is not None and include_volume:
+        volume_height = max(24, int(round(height * 0.3)))
+        line_height = max(40, height - volume_height - 4)
+    else:
+        line_height = height if height is not None else (220 if include_volume else 315)
     line = (
         alt.Chart(long_price)
         .mark_line(strokeWidth=1.4 if compact else 2)
@@ -1816,11 +1827,17 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False,
         alt.Chart(volume_frame)
         .mark_bar(color="#3b82f6", opacity=0.65)
         .encode(
-            x=alt.X("날짜:T", title=None, axis=alt.Axis(format="%y-%m", labelAngle=0, tickCount=5)),
-            y=alt.Y("거래량:Q", title="거래량", axis=alt.Axis(format="~s", tickCount=3)),
+            # 작게 그릴 때는 **날짜 눈금을 빼고 세로 눈금도 두 칸만** 둔다.
+            # 바로 위 주가 그림과 같은 날짜라 두 번 적을 까닭이 없고, 그 눈금이
+            # 30px 을 먹어 일봉만 옆 그림보다 커 보였다(2026-08-27 실측 161 vs 108).
+            x=alt.X("날짜:T", title=None,
+                    axis=None if compact
+                    else alt.Axis(format="%y-%m", labelAngle=0, tickCount=5)),
+            y=alt.Y("거래량:Q", title=None if compact else "거래량",
+                    axis=alt.Axis(format="~s", tickCount=2 if compact else 3)),
             tooltip=[alt.Tooltip("날짜:T", title="날짜"), alt.Tooltip("거래량:Q", format=",.0f")],
         )
-        .properties(height=80)
+        .properties(height=volume_height or 80)
     )
     return alt.vconcat(line, bars, spacing=4).resolve_scale(x="shared")
 
