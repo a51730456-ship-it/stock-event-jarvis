@@ -59,8 +59,11 @@ class PanelTests(unittest.TestCase):
         body = css.split('[data-testid="stPopoverBody"] {')[1].split("}")[0]
         self.assertNotIn("position: fixed", body)
         self.assertNotIn("transform: none", body)
-        # 높이만 화면 절반으로 묶어 둔다 — 나머지 절반으로 표를 봐야 한다.
-        self.assertIn("max-height: 50vh !important", body)
+        # 높이는 화면 아래까지 쓴다(2026-08-27 상하님 지시 — "밑으로 더 내려라").
+        # 창이 단추 아래 123px에서 시작하므로 그만큼 빼고 잰다. 예전의 절반(50vh)으로는
+        # 만화 한 장이 안 들어온다.
+        self.assertIn("max-height: calc(100vh - 163px) !important", body)
+        self.assertNotIn("max-height: 50vh", css, "화면 절반만 쓰던 옛 높이가 되살아났다")
         self.assertIn("overflow-y: auto !important", body)
 
     def test_colors_are_split_three_ways(self):

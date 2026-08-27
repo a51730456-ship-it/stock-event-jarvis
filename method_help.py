@@ -29,7 +29,7 @@ if int(getattr(image_zoom, "MODULE_REVISION", 0)) < _REQUIRED_IMAGE_ZOOM_REVISIO
     image_zoom = importlib.reload(image_zoom)
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026082710
+MODULE_REVISION = 2026082711
 
 BUTTON_LABEL = "📘 이 테마 설명"
 
@@ -188,7 +188,11 @@ div[class*="st-key-jarvis_method_help"] button p {
        서 있는데 창은 1000060이라 막대가 이겼다. 창이 열려 있는 동안에는 창이
        위다 — 읽는 동안 막대를 쓸 일이 없다. */
     z-index: 2147483647 !important;
-    max-height: 50vh !important;
+    /* 2026-08-27 상하님 지시 — "밑에 조금 더 크게 밑으로 더 내려라."
+       예전에는 화면의 절반(50vh)만 썼다. 아래 절반으로 실제 표를 보시라는 뜻이었는데,
+       설명 창에 만화가 들어오면서 절반으로는 한 장이 안 들어온다. 창은 단추 아래
+       123px에서 시작하므로 그만큼 빼고 아래에 40px만 남긴다. */
+    max-height: calc(100vh - 163px) !important;
     overflow-y: auto !important;
     box-shadow: 0 10px 40px rgba(0, 0, 0, .55) !important;
     /* '팍' 뜨지 않고 **위에서 아래로 스르륵** 열린다(2026-08-06 사용자 지시).
@@ -230,7 +234,9 @@ div[class*="st-key-jarvis_method_help"] button p {
     [data-testid="stPopoverBody"] {
         width: calc(100vw - 1.2rem) !important;
         max-width: calc(100vw - 1.2rem) !important;
-        max-height: 64vh !important;
+        /* 폰도 같은 셈이다(2026-08-27 상하님 지시). 390×844에서 64vh는 540px이라
+           아래로 181px이 그냥 비어 있었다. 이제 684px까지 내려온다. */
+        max-height: calc(100vh - 160px) !important;
     }
 }
 @media (max-width: 1200px) and (orientation: landscape) {
