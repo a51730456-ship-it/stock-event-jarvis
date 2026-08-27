@@ -7039,6 +7039,19 @@ _BRIEFING_TABLET_CSS = """
  body:has(.j3b-home) .j3b-card .j3b-price,
  body:has(.j3b-home) .j3b-card.compact .j3b-price{position:static!important;
   max-width:none!important;margin:7px 0 0!important}
+ /* 카드를 조금 더 줄인다 (2026-08-27 상하님 지시 — "태블릿은 각 종목들
+    테두리부터 아주 조금 더 축소시켜라"). 테두리 안 여백부터 줄이고 글자·그림도
+    한 치수씩 내린다. 값·점수는 그대로다. */
+ body:has(.j3b-home) .j3b-card{padding:9px 8px 9px!important;border-radius:14px!important}
+ body:has(.j3b-home) .j3b-card .j3b-card-top{min-height:0!important;gap:7px!important}
+ body:has(.j3b-home) .j3b-card .j3b-logo{width:38px!important;height:38px!important;
+  border-radius:10px!important}
+ body:has(.j3b-home) .j3b-card .j3b-symbol{font-size:20px!important}
+ body:has(.j3b-home) .j3b-card .j3b-name{font-size:11px!important;margin-top:2px!important}
+ body:has(.j3b-home) .j3b-card .j3b-price{font-size:16px!important;margin:5px 0 0!important}
+ body:has(.j3b-home) .j3b-card .j3b-chart{height:40px!important;margin:5px 0 2px!important}
+ body:has(.j3b-home) .j3b-card .j3b-note{font-size:10.5px!important;line-height:1.5!important}
+ body:has(.j3b-home) .j3b-card .j3b-decor-img{width:46px!important}
  body:has(.j3b-home) .j3b-card .j3b-card-notes,
  body:has(.j3b-home) .j3b-card.compact .j3b-card-notes{position:static!important;
   inset:auto!important;margin:7px 0 0!important;padding-top:6px!important;
