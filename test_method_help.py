@@ -114,8 +114,14 @@ class PanelTests(unittest.TestCase):
         css = method_help.BUTTON_CSS
         self.assertIn("@media (max-width: 1200px) {", css)
         self.assertIn("@media (max-width: 1200px) and (orientation: landscape) {", css)
-        # 눕히면 세로가 짧아지므로 높이를 더 준다.
-        self.assertIn("max-height: 82vh !important", css)
+        # 눕히면 세로가 짧아진다. 예전에는 82vh를 줬는데 창이 단추 아래 123px에서
+        # 시작해 끝이 화면을 52px 넘었다(2026-08-27 실측 · 844×390). 남은 자리에
+        # 맞춰 잰다.
+        self.assertIn("max-height: calc(100vh - 128px) !important", css)
+        self.assertNotIn("max-height: 82vh", css, "화면 밖으로 나가던 옛 높이가 되살아났다")
+        # 하단 이동막대(z-index 2147483646)보다 창이 위에 서야 한다 — 안 그러면
+        # 눕혔을 때 막대가 그림 한가운데를 가린다.
+        self.assertIn("z-index: 2147483647 !important", css)
         # 폰에서 좌우 칸이 위아래로 쌓여 단추가 왼쪽으로 가는 것은 폰 규칙이라
         # CLAUDE.md 12번에 따라 mobile_ui.py 폰 묶음에 둔다.
         self.assertIn("st-key-jarvis_method_help_close", mobile_ui.CONTENT_CSS)
@@ -186,13 +192,25 @@ class UsGuideTests(unittest.TestCase):
             )
 
     def test_the_renderer_actually_draws_them(self):
+        """그림을 진짜 그리고, 못 그릴 때도 화면이 안 죽어야 한다.
+
+        2026-08-27부터 그림 한 장은 `_picture`가 그린다 — 누르면 새 창에 원본이
+        뜨게 하려고 스트림릿이 붙인 `/media/…` 주소를 쓴다. 그 주소를 못 얻으면
+        **예전처럼 st.image로 그린다.** 그 되돌아가는 길이 사라지면 안 된다.
+        """
         import inspect
 
         source = inspect.getsource(method_help.render)
-        self.assertIn("st.image", source)
+        self.assertIn("_picture(", source)
         self.assertIn("US_IMAGES", source)
         # 그림이 빠져도 화면이 죽으면 안 된다(온라인 배포에서 실제로 생길 수 있다).
         self.assertIn("st.warning", source)
+
+        drawer = inspect.getsource(method_help._picture)
+        self.assertIn("st.image", drawer, "주소를 못 얻었을 때 돌아갈 길이 없다")
+        self.assertIn("target='_blank'", drawer, "새 창으로 안 열면 크게 못 본다")
+        # 스트림릿 속 이름을 쓰므로 판이 바뀌면 없어질 수 있다 — 조용히 넘어가야 한다.
+        self.assertIn("except Exception:", inspect.getsource(method_help._media_url))
 
     def test_the_old_overstated_numbers_are_gone(self):
         """표본 119건·12건짜리 숫자가 다시 기어들어오면 화면이 거짓말을 한다."""

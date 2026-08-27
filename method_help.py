@@ -172,6 +172,11 @@ div[class*="st-key-jarvis_method_help"] button p {
        스트림릿이 창 자리를 그것으로 잡아서, 손대면 창이 옆으로 튄다(위 설명 참고).
        margin으로 내리면 자리 계산은 그대로 두고 그만큼만 내려온다. */
     margin-top: 12px !important;
+    /* **하단 이동막대보다 위에 선다**(2026-08-27 상하님 캡처 — 폰을 눕히니 막대가
+       만화 한가운데를 가렸다). 막대(.j3b-bottom-nav)가 z-index 2147483646으로
+       서 있는데 창은 1000060이라 막대가 이겼다. 창이 열려 있는 동안에는 창이
+       위다 — 읽는 동안 막대를 쓸 일이 없다. */
+    z-index: 2147483647 !important;
     max-height: 50vh !important;
     overflow-y: auto !important;
     box-shadow: 0 10px 40px rgba(0, 0, 0, .55) !important;
@@ -191,14 +196,12 @@ div[class*="st-key-jarvis_method_help"] button p {
 [data-testid="stPopoverBody"] * { overflow-anchor: none !important; }
 /* 창을 넓힌 것은 **그림 때문**이다. 글까지 넓어지면 읽기가 나빠지므로 글만 묶는다.
    그림은 이 규칙에 안 걸려 창 폭을 다 쓴다. */
-/* 그림 밑 「크게 보기」. 설명 단추와 같은 하늘색 바탕·주황 글씨로 둔다. */
-.mh-zoom {
-    display: inline-block; margin: .35rem 0 .1rem;
-    padding: .38rem .8rem; border-radius: .5rem;
-    background: #cfe9ff; border: 1px solid #9ecbf5;
-    color: #c15f3c !important; font-weight: 800; font-size: .9rem;
-    text-decoration: none !important;
-}
+/* 그림 한 장. 누르면 새 창에 원본이 뜬다(2026-08-27). 큰 단추는 두지 않는다 —
+   상하님 지시로 걷어냈다. 그림 밑에 작은 글 한 줄만 둔다. */
+.mh-shot { margin: .2rem 0 .5rem; }
+.mh-shot a { display: block; text-decoration: none !important; }
+.mh-shot img { display: block; width: 100%; height: auto; border-radius: 8px; }
+.mh-shot-hint { margin-top: .25rem; font-size: .8rem; color: var(--mh-dim); }
 [data-testid="stPopoverBody"] .mh-doc {
     max-width: 760px !important;
     margin-left: auto !important;
@@ -226,8 +229,12 @@ div[class*="st-key-jarvis_method_help"] button p {
     }
 }
 @media (max-width: 1200px) and (orientation: landscape) {
+    /* **82vh는 화면 밖으로 나갔다**(2026-08-27 실측 · 844×390). 창이 단추 아래
+       123px에서 시작하는데 82vh는 320px이라 끝이 443px — 화면(390px)을 52px
+       넘겼다. 남은 자리에 맞춰 잰다. 위 여백도 눕히면 아까우니 줄인다. */
     [data-testid="stPopoverBody"] {
-        max-height: 82vh !important;
+        margin-top: 4px !important;
+        max-height: calc(100vh - 128px) !important;
     }
 }
 
@@ -380,43 +387,57 @@ US_IMAGE_NOTES = (
 
 
 def _image_path(name: str):
-    """그림 경로. 온라인에서 파일이 빠져도 화면이 죽지 않게 확인만 한다.
-
-    **static/을 먼저 본다**(2026-08-27). 거기 있는 파일만 `app/static/이름`이라는
-    주소를 얻어 새 창으로 띄울 수 있다(.streamlit/config.toml의 enableStaticServing).
-    assets/도 계속 본다 — 예전 파일이 거기 남아 있어도 화면이 안 깨진다.
-
-    그림을 바꾸려면 **static/의 같은 이름 파일**을 덮어쓰면 된다. 코드는 그대로 둔다.
-    """
+    """assets 안의 그림 경로. 온라인에서 파일이 빠져도 화면이 죽지 않게 확인만 한다."""
     from pathlib import Path
 
-    here = Path(__file__).resolve().parent
-    for folder in ("static", "assets"):
-        path = here / folder / name
-        if path.exists():
-            return path
-    return None
+    path = Path(__file__).resolve().parent / "assets" / name
+    return path if path.exists() else None
 
 
-def _zoom_link(name: str, label: str) -> str:
-    """그림 밑에 두는 「크게 보기」 (2026-08-27 상하님 지시).
+def _media_url(path, name: str) -> str:
+    """그 그림의 **제 주소**를 얻는다 (2026-08-27 상하님 지시).
 
-    상하님 — "만화나 액셀 두손가락으로 벌리면 볼수있게 만들수 있나?"
+    상하님 물음 — "만화나 액셀 두손가락으로 벌리면 볼수있게 만들수 있나?"
 
-    **설명 창 안에서는 벌려도 안 커진다.** 창이 두 손가락을 '바깥 누름'으로 알아듣고
-    닫혀 버린다. 그래서 창 안에서 늘리려 하지 않고, 새 창에 **원본 그대로** 띄운다.
-    브라우저가 그린 그림이라 거기서는 벌리기·두 번 두드리기가 다 된다.
+    **설명 창 안에서는 벌려도 안 커진다.** 창이 `position: fixed`라 손가락으로
+    벌려도 창은 화면에 붙어 있는 크기 그대로다. 막는 규칙이 있어서가 아니다 —
+    2026-08-27에 그림에서 위로 훑어봤는데 touch-action은 전부 auto였고,
+    viewport에도 user-scalable=no·maximum-scale이 없다.
 
-    주소를 맨 앞 /부터 적는다 — 페이지 주소가 /자비스3이라 상대주소로 적으면
-    /자비스3/app/static/... 으로 잘못 찾아간다.
+    그래서 **새 창에 원본을 띄운다.** 브라우저가 직접 그린 그림 화면이라 거기서는
+    벌리기도 두 번 두드리기도 다 된다.
 
-    **이 길이 막혀도 화면은 멀쩡하다** — 위의 st.image가 그림을 이미 그렸고,
-    이건 그 밑에 붙는 글 한 줄이다.
+    **static/ 길은 안 쓴다** — 2026-08-27에 넣어 봤더니 온라인에서 그 주소가
+    그림이 아니라 앱 화면을 내줘 로딩만 돌았다(상하님 캡처). 대신 스트림릿이
+    그림마다 스스로 붙이는 `/media/…` 주소를 그대로 쓴다. 그건 창 안의 그림이
+    이미 쓰고 있는 주소라 온라인에서도 반드시 산다.
+
+    스트림릿 속 이름을 쓰므로 판이 바뀌면 없어질 수 있다. 그때는 빈 글자를
+    돌려주고, 부르는 쪽이 예전처럼 st.image로 그린다 — 화면은 안 깨진다.
     """
-    return (
-        f"<div class='mh-doc'><a class='mh-zoom' href='/app/static/{name}' "
-        f"target='_blank' rel='noopener'>🔍 {label} 크게 보기 — "
-        "새 창이 열리면 두 손가락으로 벌려 보십시오</a></div>"
+    try:
+        from streamlit.elements.lib.image_utils import image_to_url
+        from streamlit.elements.lib.layout_utils import LayoutConfig
+
+        return image_to_url(
+            str(path), LayoutConfig(), clamp=False, channels="RGB",
+            output_format="PNG", image_id=f"jarvis-method-{name}",
+        )
+    except Exception:
+        return ""
+
+
+def _picture(st, path, name: str) -> None:
+    """그림 한 장. 누르면 새 창에 원본이 뜬다."""
+    url = _media_url(path, name)
+    if not url:
+        st.image(str(path), use_container_width=True)
+        return
+    st.markdown(
+        f"<div class='mh-shot'><a href='{url}' target='_blank' rel='noopener'>"
+        f"<img src='{url}' alt=''></a>"
+        "<div class='mh-shot-hint'>그림을 누르면 새 창에서 크게 보입니다</div></div>",
+        unsafe_allow_html=True,
     )
 
 
@@ -743,8 +764,7 @@ def render(st, market: str) -> None:
                 # "그냥 액셀 사진처럼 한장에 다보이도록 해야지 손가락으로 벌리면
                 # 크게 볼수 있게"). 창 폭에 맞춰 한 장을 다 보여주고, 크게 보실
                 # 때는 손가락으로 벌리시면 된다 — 그것을 막는 규칙은 앱에 없다.
-                st.image(str(cartoon), use_container_width=True)
-                st.markdown(_zoom_link(US_CARTOON, "만화"), unsafe_allow_html=True)
+                _picture(st, cartoon, US_CARTOON)
             # ② 상하님이 만드신 표 그림 — **사진 그대로 올린다**(2026-08-27 상하님
             #    지시: "액셀은 텍스트로 바꾸지말라 원 사진 그대로 올려라").
             for index, (name, caption) in enumerate(US_IMAGES):
@@ -759,8 +779,7 @@ def render(st, market: str) -> None:
                     "</div></div>",
                     unsafe_allow_html=True,
                 )
-                st.image(str(path), use_container_width=True)
-                st.markdown(_zoom_link(name, "표"), unsafe_allow_html=True)
+                _picture(st, path, name)
                 if index < len(US_IMAGE_NOTES):
                     st.markdown(
                         f"<div class='mh-doc'><div class='mh-note'>"
