@@ -167,6 +167,11 @@ div[class*="st-key-jarvis_method_help"] button p {
        되어 눈이 줄을 못 따라간다. */
     width: min(1180px, calc(100vw - 2rem)) !important;
     max-width: calc(100vw - 2rem) !important;
+    /* 2026-08-27 상하님 지시 — "지금 기존에 열린창을 밑으로 조금만 더 내려라."
+       창 위와 단추 아래 사이가 5px이라 붙어 보였다. **transform은 안 건드린다** —
+       스트림릿이 창 자리를 그것으로 잡아서, 손대면 창이 옆으로 튄다(위 설명 참고).
+       margin으로 내리면 자리 계산은 그대로 두고 그만큼만 내려온다. */
+    margin-top: 12px !important;
     max-height: 50vh !important;
     overflow-y: auto !important;
     box-shadow: 0 10px 40px rgba(0, 0, 0, .55) !important;
@@ -693,11 +698,11 @@ def render(st, market: str) -> None:
             if cartoon is None:
                 st.warning(f"만화를 찾지 못했습니다 — assets/{US_CARTOON}")
             else:
-                # 폰에서 원래 크기로 밀어 보게 하려고 **만화만** 따로 감싼다
-                # (규칙은 mobile_ui.CONTENT_CSS 폰 묶음에 있다 — CLAUDE.md 12번).
-                # 엑셀 표는 이 옷을 안 입어서 지금까지와 똑같이 보인다.
-                with st.container(key="jarvis_method_cartoon"):
-                    st.image(str(cartoon), use_container_width=True)
+                # **엑셀 표 사진과 똑같이 보여준다**(2026-08-27 상하님 지시 —
+                # "그냥 액셀 사진처럼 한장에 다보이도록 해야지 손가락으로 벌리면
+                # 크게 볼수 있게"). 창 폭에 맞춰 한 장을 다 보여주고, 크게 보실
+                # 때는 손가락으로 벌리시면 된다 — 그것을 막는 규칙은 앱에 없다.
+                st.image(str(cartoon), use_container_width=True)
             # ② 상하님이 만드신 표 그림 — **사진 그대로 올린다**(2026-08-27 상하님
             #    지시: "액셀은 텍스트로 바꾸지말라 원 사진 그대로 올려라").
             for index, (name, caption) in enumerate(US_IMAGES):
