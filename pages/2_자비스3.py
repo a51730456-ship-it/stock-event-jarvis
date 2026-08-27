@@ -6755,6 +6755,20 @@ def _render_existing_theme_content() -> None:
     # `.j3-market-top` 은 표식일 뿐이라 같이 없앤다(body:has 는 숨겨도 찾는다).
     # `.jarvis-anchor` 는 **남긴다** — 숨기면 '맨 위로' 가 작동하지 않는다.
     #
+    # ── 폰·태블릿은 위를 **58px** 띄운다 (2026-08-27 상하님 지적) ─────────────
+    # 상하님 — "시장분석 맨 위 화면 아직도 그거 해결 안 하고 있다."
+    #
+    # 상하님 캡처 맨 위에 「Fork」와 GitHub 표시가 있다. 그건 온라인 서비스가
+    # **앱 위에 덮어 놓는 띠**다. 내 쪽 주소(/~/+/)로 열면 그 띠가 없어서 여태
+    # 못 봤다. 폰 크기 열한 가지(360·375·390·412·600·690·800·1138·1240·1400·
+    # 1920)를 다 재도 줄은 늘 y=10 에 있었는데, 상하님 화면에서는 그 y=10 이
+    # **띠 밑**이었다.
+    #
+    # 2026-08-25 캡처에는 위에 224px 빈자리가 있어 단추가 띠 아래로 밀려나
+    # 보였다. 그 빈자리를 없애자 단추가 띠 밑으로 들어가 가려졌다.
+    # 그래서 띠 높이만큼만 띄운다 — 224px 이 아니라 58px 이다.
+    # 노트북(1200px 이상)은 10px 그대로다 — 거기서는 띠가 안 덮는다.
+    #
     # ── 위 여백은 **0이 아니라 10px** (2026-08-27 상하님 지시) ────────────────
     # 상하님 — "맨 위에 화면 사라진 거 나타나게 하되, 위에 여백을 너무 많이
     # 두지 말라." 0으로 두면 맨 위 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)가
@@ -6766,6 +6780,10 @@ def _render_existing_theme_content() -> None:
         <style>
         body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
         body:has(.j3-market-top) .block-container { padding-top:10px!important; }
+        @media (max-width:1199px){
+          body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
+          body:has(.j3-market-top) .block-container { padding-top:58px!important; }
+        }
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style:only-child),
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] .j3-market-top) {
           display:none!important;

@@ -2285,6 +2285,13 @@ def test_switching_screens_goes_back_to_the_top():
     # 여백은 0이 아니라 조금 — 0이면 단추가 화면 끝에 붙어 주소창에 가린다.
     assert "padding-top:10px!important" in source
     assert "padding-top:0!important" not in source
+    # **폰·태블릿은 58px 이다** (2026-08-27 상하님 지적 — "시장분석 맨 위 화면
+    # 아직도 그거 해결 안 하고 있다" · "태블릿에서도 안 보인다").
+    # 온라인 서비스가 앱 위에 「Fork」·GitHub 띠를 덮어 놓는다. 내 쪽 주소
+    # (/~/+/)로 열면 그 띠가 없어서 폭 열한 가지를 다 재도 줄이 늘 y=10 에
+    # 있었는데, 상하님 화면에서는 그 y=10 이 띠 밑이었다. 띠 높이만큼만 띄운다.
+    assert "padding-top:58px!important" in source, "폰·태블릿에서 띠에 가린다"
+    assert "@media (max-width:1199px)" in source
 
 def test_the_phone_home_screen_is_left_alone():
     """첫 화면의 **폰 모습은 예전 그대로**다 (2026-08-27 상하님 지시).
