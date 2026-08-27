@@ -206,11 +206,13 @@ class UsGuideTests(unittest.TestCase):
         # 그림이 빠져도 화면이 죽으면 안 된다(온라인 배포에서 실제로 생길 수 있다).
         self.assertIn("st.warning", source)
 
-        drawer = inspect.getsource(method_help._picture)
-        self.assertIn("st.image", drawer, "주소를 못 얻었을 때 돌아갈 길이 없다")
-        self.assertIn("target='_blank'", drawer, "새 창으로 안 열면 크게 못 본다")
-        # 스트림릿 속 이름을 쓰므로 판이 바뀌면 없어질 수 있다 — 조용히 넘어가야 한다.
-        self.assertIn("except Exception:", inspect.getsource(method_help._media_url))
+        # 그림은 **스트림릿이 그리게 둔다.** 2026-08-27에 주소를 직접 만들어 봤다가
+        # 온라인에서 그림이 통째로 사라졌다(상하님 — "폰에 만화 그림 없는데").
+        # 설명글에는 그 길들을 왜 버렸는지 적혀 있으니, **코드 부분만** 본다.
+        drawer = inspect.getsource(method_help._picture).split('"""')[-1]
+        self.assertIn("st.image", drawer)
+        self.assertNotIn("app/static/", drawer, "온라인에서 앱 화면을 내주던 길이다")
+        self.assertNotIn("image_to_url", drawer, "온라인에서 그림이 사라지던 길이다")
 
     def test_the_old_overstated_numbers_are_gone(self):
         """표본 119건·12건짜리 숫자가 다시 기어들어오면 화면이 거짓말을 한다."""

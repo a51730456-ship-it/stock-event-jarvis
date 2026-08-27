@@ -196,12 +196,6 @@ div[class*="st-key-jarvis_method_help"] button p {
 [data-testid="stPopoverBody"] * { overflow-anchor: none !important; }
 /* 창을 넓힌 것은 **그림 때문**이다. 글까지 넓어지면 읽기가 나빠지므로 글만 묶는다.
    그림은 이 규칙에 안 걸려 창 폭을 다 쓴다. */
-/* 그림 한 장. 누르면 새 창에 원본이 뜬다(2026-08-27). 큰 단추는 두지 않는다 —
-   상하님 지시로 걷어냈다. 그림 밑에 작은 글 한 줄만 둔다. */
-.mh-shot { margin: .2rem 0 .5rem; }
-.mh-shot a { display: block; text-decoration: none !important; }
-.mh-shot img { display: block; width: 100%; height: auto; border-radius: 8px; }
-.mh-shot-hint { margin-top: .25rem; font-size: .8rem; color: var(--mh-dim); }
 [data-testid="stPopoverBody"] .mh-doc {
     max-width: 760px !important;
     margin-left: auto !important;
@@ -400,51 +394,22 @@ def _image_path(name: str):
     return path if path.exists() else None
 
 
-def _media_url(path, name: str) -> str:
-    """그 그림의 **제 주소**를 얻는다 (2026-08-27 상하님 지시).
-
-    상하님 물음 — "만화나 액셀 두손가락으로 벌리면 볼수있게 만들수 있나?"
-
-    **설명 창 안에서는 벌려도 안 커진다.** 창이 `position: fixed`라 손가락으로
-    벌려도 창은 화면에 붙어 있는 크기 그대로다. 막는 규칙이 있어서가 아니다 —
-    2026-08-27에 그림에서 위로 훑어봤는데 touch-action은 전부 auto였고,
-    viewport에도 user-scalable=no·maximum-scale이 없다.
-
-    그래서 **새 창에 원본을 띄운다.** 브라우저가 직접 그린 그림 화면이라 거기서는
-    벌리기도 두 번 두드리기도 다 된다.
-
-    **static/ 길은 안 쓴다** — 2026-08-27에 넣어 봤더니 온라인에서 그 주소가
-    그림이 아니라 앱 화면을 내줘 로딩만 돌았다(상하님 캡처). 대신 스트림릿이
-    그림마다 스스로 붙이는 `/media/…` 주소를 그대로 쓴다. 그건 창 안의 그림이
-    이미 쓰고 있는 주소라 온라인에서도 반드시 산다.
-
-    스트림릿 속 이름을 쓰므로 판이 바뀌면 없어질 수 있다. 그때는 빈 글자를
-    돌려주고, 부르는 쪽이 예전처럼 st.image로 그린다 — 화면은 안 깨진다.
-    """
-    try:
-        from streamlit.elements.lib.image_utils import image_to_url
-        from streamlit.elements.lib.layout_utils import LayoutConfig
-
-        return image_to_url(
-            str(path), LayoutConfig(), clamp=False, channels="RGB",
-            output_format="PNG", image_id=f"jarvis-method-{name}",
-        )
-    except Exception:
-        return ""
-
-
 def _picture(st, path, name: str) -> None:
-    """그림 한 장. 누르면 새 창에 원본이 뜬다."""
-    url = _media_url(path, name)
-    if not url:
-        st.image(str(path), use_container_width=True)
-        return
-    st.markdown(
-        f"<div class='mh-shot'><a href='{url}' target='_blank' rel='noopener'>"
-        f"<img src='{url}' alt=''></a>"
-        "<div class='mh-shot-hint'>그림을 누르면 새 창에서 크게 보입니다</div></div>",
-        unsafe_allow_html=True,
-    )
+    """그림 한 장. **스트림릿이 그리게 둔다.**
+
+    2026-08-27에 두 번 딴 길로 갔다가 둘 다 실패했다. 상하님 폰에서 **그림이
+    아예 안 보였다.** 여기 적어 둔다 — 다시 시도하지 말 것.
+
+    ① `static/` + `app/static/…` 주소 — 노트북에서는 200으로 열렸는데 온라인에서는
+       그림이 아니라 앱 화면을 내줘 로딩만 돌았다.
+    ② 스트림릿 속 이름(`image_to_url`)으로 `/media/…` 주소를 직접 만들기 —
+       노트북에서는 됐지만 온라인에서는 만화도 엑셀 표도 **둘 다 사라졌다.**
+       그 주소는 스트림릿이 스스로 그릴 때만 살아 있다.
+
+    그래서 st.image 하나만 쓴다. 크게 보시려면 창을 넓혀 둔 것으로 갈음한다
+    (노트북·태블릿은 창이 화면만큼 넓고, 폰은 두 칸짜리 그림이라 한 칸이 162px이다).
+    """
+    st.image(str(path), use_container_width=True)
 
 
 # 줄 사이에 빈 줄을 넣지 않는다. 빈 줄이 있으면 스트림릿 마크다운이 그 사이를
