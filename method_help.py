@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026082601
+MODULE_REVISION = 2026082701
 
 BUTTON_LABEL = "📘 이 테마 설명"
 
@@ -161,7 +161,11 @@ div[class*="st-key-jarvis_method_help"] button p {
    닫을 때는 같은 단추를 다시 누르면 된다.
    높이만 화면의 절반으로 묶어 둔다. 나머지 절반으로 실제 표를 봐야 하기 때문이다. */
 [data-testid="stPopoverBody"] {
-    width: min(680px, calc(100vw - 2rem)) !important;
+    /* 2026-08-27 상하님 지시 — "만화 화면 꽉차게해야되." 만화가 16컷이라 680px에
+       넣으면 한 칸이 150px밖에 안 돼 글씨를 못 읽는다. 창을 화면만큼 넓힌다.
+       글줄은 아래 .mh-doc 규칙으로 따로 묶어 둔다 — 안 묶으면 한 줄이 1,100px이
+       되어 눈이 줄을 못 따라간다. */
+    width: min(1180px, calc(100vw - 2rem)) !important;
     max-width: calc(100vw - 2rem) !important;
     max-height: 50vh !important;
     overflow-y: auto !important;
@@ -180,6 +184,13 @@ div[class*="st-key-jarvis_method_help"] button p {
     overflow-anchor: none !important;
 }
 [data-testid="stPopoverBody"] * { overflow-anchor: none !important; }
+/* 창을 넓힌 것은 **그림 때문**이다. 글까지 넓어지면 읽기가 나빠지므로 글만 묶는다.
+   그림은 이 규칙에 안 걸려 창 폭을 다 쓴다. */
+[data-testid="stPopoverBody"] .mh-doc {
+    max-width: 760px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
 
 /* ── 폰·태블릿에서는 화면 크기에 맞춘다(2026-08-07 상하님 지시) ──────────
    기본값 680px은 노트북 기준이다. 태블릿을 **옆으로 눕히면** 세로가 짧아져
@@ -326,6 +337,21 @@ div[class*="st-key-jarvis_method_help"] button p {
 # **상승장 표(us_method_uptrend.png)는 2026-08-20에 화면에서 뺐다.** 그 표는 옛
 # 그물(신고가 뒤 1~5일 · 10~15% 눌림)을 잰 것이라 지금 화면이 찾는 자리와 다르다.
 # 파일은 assets/에 그대로 두었다 — 지우지는 않는다.
+# ── 맨 위 만화 한 장 (2026-08-27 상하님 지시) ────────────────────────────────
+# 상하님 — "미국테마에 이 테마 설명에 위에 그림을 먼저 넣고 그밑에 액셀캡쳐있는
+# 부분 넣고 그밑에 텍스트 설명 넣어라."
+#
+# 상하님이 만드신 16컷이다. **원본 그대로 올린다** — 상하님 지시("사이즈줄이면
+# 안된다"). 폰 화면이 작아서 줄이면 못 읽는다. `use_container_width=True`로
+# 창 너비를 꽉 채운다.
+#
+# **화면 로딩은 안 느려진다.** 스트림릿 팝오버는 **누르기 전에는 속을 아예 안
+# 그린다** — 2026-08-27에 실물로 쟀다(시장분석을 다 연 상태에서 페이지 안 <img>
+# 0개 · 받은 그림 0KB). 그림은 상하님이 설명 단추를 누르신 그 순간에만 받는다.
+#
+# 그림을 바꾸려면 assets/의 같은 이름 파일을 덮어쓰면 된다. 코드는 안 고쳐도 된다.
+US_CARTOON = "us_method_cartoon.png"
+
 US_IMAGES = (
     ("us_method_drawdown.png", "급락 후 반등장 (낙폭종목)"),
 )
@@ -661,9 +687,19 @@ def render(st, market: str) -> None:
                 st.markdown(KR_TEXT, unsafe_allow_html=True)
                 _close_button(st, "KR")
                 return
-            # 미국은 사용자가 만든 표 그림 두 장을 그대로 보여준다(2026-08-06).
-            # 순서는 '정상적인 상승일때'가 먼저다(사용자 지시).
-            st.markdown(US_TEXT, unsafe_allow_html=True)
+            # **차례는 만화 → 엑셀 캡처 → 글이다**(2026-08-27 상하님 지시).
+            # ① 만화 한 장 — 두 갈래를 한눈에. 원본 크기 그대로, 창 너비를 꽉 채운다.
+            cartoon = _image_path(US_CARTOON)
+            if cartoon is None:
+                st.warning(f"만화를 찾지 못했습니다 — assets/{US_CARTOON}")
+            else:
+                # 폰에서 원래 크기로 밀어 보게 하려고 **만화만** 따로 감싼다
+                # (규칙은 mobile_ui.CONTENT_CSS 폰 묶음에 있다 — CLAUDE.md 12번).
+                # 엑셀 표는 이 옷을 안 입어서 지금까지와 똑같이 보인다.
+                with st.container(key="jarvis_method_cartoon"):
+                    st.image(str(cartoon), use_container_width=True)
+            # ② 상하님이 만드신 표 그림 — **사진 그대로 올린다**(2026-08-27 상하님
+            #    지시: "액셀은 텍스트로 바꾸지말라 원 사진 그대로 올려라").
             for index, (name, caption) in enumerate(US_IMAGES):
                 path = _image_path(name)
                 if path is None:
@@ -683,5 +719,7 @@ def render(st, market: str) -> None:
                         f"{US_IMAGE_NOTES[index]}</div></div>",
                         unsafe_allow_html=True,
                     )
+            # ③ 글로 쓴 설명 — 만화·표가 말하지 않는 것까지 적혀 있다.
+            st.markdown(US_TEXT, unsafe_allow_html=True)
             st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)
             _close_button(st, "US")

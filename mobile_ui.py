@@ -239,6 +239,18 @@ div[class*="st-key-jarvis_method_help"] button { padding: .3rem .7rem !important
    오른쪽으로 밀어 노트북에서 보이던 자리와 같게 맞춘다. */
 div[class*="st-key-jarvis_method_help_close"] { text-align: right !important; }
 div[class*="st-key-jarvis_method_help_close"] button { margin-left: auto !important; margin-right: .3rem !important; }
+/* ── 설명 창 맨 위 만화 (2026-08-27 상하님 지시) ──────────────────────────
+   상하님 — "만화 화면 꽉차게해야되 스마트폰이 적기 때문에 사이즈줄이면 안된다."
+   16컷짜리라 폰 화면(390px)에 맞춰 줄이면 **한 칸이 81px**이 되어 글씨를 못 읽는다
+   (2026-08-27 실측). 그래서 폰에서는 **줄이지 않는다** — 원래 크기(1,306px)로 두고
+   손으로 좌우로 밀어 보게 한다. 한 칸이 326px이 되어 읽힌다.
+   노트북·태블릿은 이 규칙에 안 걸린다 — 거기서는 창에 맞춰도 한 칸이 265~281px라
+   그냥 읽힌다. 엑셀 표도 안 걸린다(감싼 이름이 다르다). */
+div[class*="st-key-jarvis_method_cartoon"] { overflow-x: auto !important; }
+div[class*="st-key-jarvis_method_cartoon"] img {
+    width: 1306px !important;
+    max-width: none !important;
+}
 h1 { font-size: 1.5rem !important; }
 h2 { font-size: 1.2rem !important; }
 .j3-stock-name, .j4-stock-name { font-size: 1.3rem; }
