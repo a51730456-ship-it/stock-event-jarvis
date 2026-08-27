@@ -7043,6 +7043,30 @@ _BRIEFING_TABLET_CSS = """
  body:has(.j3b-home) .j3b-card.compact .j3b-card-notes{position:static!important;
   inset:auto!important;margin:7px 0 0!important;padding-top:6px!important;
   left:auto!important;right:auto!important;bottom:auto!important;max-height:none!important}
+ /* **하단 이동막대를 옆 단추 키에 맞춘다** (2026-08-27 상하님 지시 —
+    "밑에 하단에 홈·관심종목·시장분석 테두리 너무 크다. 옆에 왕관 모양 붉은색
+    배경과 키 높이 맞춰라. 스마트폰은 괜찮다"). 실측 76px 이었다.
+    폰은 안 건드린다 — 이 블록은 601~1199px 에만 걸린다. */
+ body:has(.j3b-home) nav.j3b-bottom-nav,
+ body:has(.j3-market-top) nav.j3b-bottom-nav{height:48px!important;padding:3px 10px!important;
+  border-radius:19px!important;bottom:12px!important}
+ body:has(.j3b-home) nav.j3b-bottom-nav .j3b-nav-item,
+ body:has(.j3-market-top) nav.j3b-bottom-nav .j3b-nav-item{min-height:40px!important;
+  font-size:11px!important;gap:1px!important}
+ body:has(.j3b-home) nav.j3b-bottom-nav .j3b-nav-item b,
+ body:has(.j3-market-top) nav.j3b-bottom-nav .j3b-nav-item b{font-size:21px!important}
+ body:has(.j3b-home) nav.j3b-bottom-nav .j3b-nav-item b .j3b-pie,
+ body:has(.j3-market-top) nav.j3b-bottom-nav .j3b-nav-item b .j3b-pie{width:1.05em!important;height:1.05em!important}
+ /* 눈에 안 보이는 '누르는 자리'도 막대 키에 맞춘다 — 막대보다 크면 그 밑의
+    글을 못 누른다. 막대가 바닥에서 12px 위에 48px 이므로 60px 이다. */
+ body:has(.j3b-home) div.st-key-j3b_nav_controls,
+ body:has(.j3-market-top) div.st-key-j3b_nav_controls{height:60px!important}
+ body:has(.j3b-home) div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"],
+ body:has(.j3-market-top) div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:60px!important}
+ body:has(.j3b-home) div.st-key-j3b_nav_controls [data-testid="stColumn"],
+ body:has(.j3-market-top) div.st-key-j3b_nav_controls [data-testid="stColumn"]{height:60px!important}
+ body:has(.j3b-home) div.st-key-j3b_nav_controls button,
+ body:has(.j3-market-top) div.st-key-j3b_nav_controls button{height:60px!important;min-height:60px!important}
  .j3b-hero{height:250px!important;padding:26px 28px!important;border-radius:0 0 30px 30px!important}
  .j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:112%!important}
  .j3b-title{font-size:46px!important;letter-spacing:-2.6px!important}
