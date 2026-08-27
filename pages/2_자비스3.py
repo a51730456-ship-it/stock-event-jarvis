@@ -2989,6 +2989,20 @@ def _close_all_from_fragment() -> None:
     st.session_state["j3_close_all_pending"] = True
 
 
+def _close_theme_rank_from_fragment() -> None:
+    """덩이 안에 있는 「20개 테마 실시간 순위 닫기」 전용 (2026-08-27).
+
+    이 단추는 덩이 **밖**에 있는 상승장·급락 후 반등장·매수심사결과 순위 9까지
+    끈다. 그것들이 열려 있었다면 덩이만 다시 그려서는 화면에서 안 접힌다 —
+    그때만 판 전체를 다시 그리라고 적어 둔다. 열린 것이 하나도 없으면 안 적는다.
+    그 편이 훨씬 빠르다(판 전체 다시 그리기는 온라인에서 3초다).
+    """
+    outside_open = any(bool(st.session_state.get(key)) for key in _FINDER_OPEN_KEYS)
+    _close_full_theme_rank()
+    if outside_open:
+        st.session_state["j3_close_all_pending"] = True
+
+
 def _run_close_all_if_requested() -> None:
     """적어 둔 '판 전체 다시 그리기'를 한 번 실행한다. 프래그먼트 끝에서 부른다."""
     if not st.session_state.pop("j3_close_all_pending", False):
@@ -4097,16 +4111,30 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
                    return_to=_RADAR_MAIN_ANCHOR)
 
 
-def _render_radar_tab(market: dict) -> None:
-    # 네 개의 긴 목록을 닫으면 이 미국테마 메인 시작점으로 돌아온다.
-    scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
-    guest_mode = auth.is_guest()
+@st.fragment
+def _render_theme_section(market: dict) -> None:
+    """20개 테마 순위와 그 아래 테마 종목 화면을 **한 덩이**로 묶는다 (2026-08-27).
 
+    상하님 실측 — "테마 클릭하면 테마 로딩 3초, 종목 클릭 2초." 자료를 새로 받는
+    시간이 아니었다. 스트림릿은 무엇을 누르든 **화면을 처음부터 다시 만든다** —
+    테마 하나를 눌러도 시장 판단·신호 카드·지수 넷·상승장·급락장·순위 9·종목검색
+    까지 전부 다시 만들었다. 아무것도 안 바꾸고 다시 그리기만 해도 노트북에서
+    0.6초, 코어가 적은 온라인에서 3초다(2026-08-26 실측).
+
+    덩이로 묶으면 이 안에서 누른 것은 **이 안만** 다시 그린다. 뒤쪽 화면
+    (상승장·급락 후 반등장·순위 9·종목검색·날짜별 목록)은 손대지 않으므로
+    그대로 남는다. 순위 9(_render_top7_section)·상승장(_render_pullback_finder)과
+    같은 장치다.
+
+    **자료를 이 안에서 싣는다.** 밖에서 실어 넘기면 덩이만 다시 돌 때 밖이 안
+    돌아, 마지막 판의 옛 순위가 언제까지고 그대로 나온다. 실은 것은
+    `j3_theme_rankings`에 적어 둬서 뒤쪽 화면이 같은 것을 쓰게 한다.
+    """
     ranking = _load_theme_rankings()
+    st.session_state["j3_theme_rankings"] = ranking
     if not ranking.get("ok"):
         st.error(f"테마 자료 조회 실패: {_safe_error_text(ranking.get('error'))}")
         return
-    st.session_state["j3_theme_rankings"] = ranking
     if ranking.get("stale"):
         st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
 
@@ -4123,7 +4151,7 @@ def _render_radar_tab(market: dict) -> None:
     rank_open = _section_toggle(
         "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
         close_label="20개 테마 실시간 순위 닫기",
-        on_close=_close_full_theme_rank,
+        on_close=_close_theme_rank_from_fragment,
     )
     if not rank_open:
         clicked_theme = None
@@ -4177,6 +4205,24 @@ def _render_radar_tab(market: dict) -> None:
     # 테마 이름을 눌렀을 때만 한 화면으로 열고, 아래 독립 영역들은 그대로 보여준다.
     if st.session_state.get("j3_theme_panel_open"):
         _render_theme_panel(market, ranking, names)
+
+    # 덩이 안에서 「다 닫기」를 눌렀으면 여기서 판 전체를 다시 그린다.
+    # **화면 내려주기보다 먼저** 부른다 — 순서를 바꾸면 내려갈 자리를 적어 둔
+    # 표시가 버려지는 판에서 소모돼 화면이 안 내려간다(2026-08-26 실측).
+    _run_close_all_if_requested()
+    # 덩이는 페이지 맨 끝이 안 돌아온다 — 여기서 내려 준다.
+    scroll_to.run(st)
+
+
+def _render_radar_tab(market: dict) -> None:
+    # 네 개의 긴 목록을 닫으면 이 미국테마 메인 시작점으로 돌아온다.
+    scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
+    # 테마 구역은 따로 도는 덩이다. 테마 자료도 그 안에서 싣는다.
+    _render_theme_section(market)
+    ranking = st.session_state.get("j3_theme_rankings") or {}
+    if not ranking.get("ok"):
+        # 오류 문구는 덩이 안에서 이미 보여줬다. 뒤쪽 화면은 이 자료를 쓰므로 건너뛴다.
+        return
     _render_radar_tail(market, ranking)
 
 

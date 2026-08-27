@@ -1823,7 +1823,13 @@ def test_long_section_close_buttons_return_to_radar_main():
     assert "scroll_to.request(st, return_to)" in helper
 
     # 20개 테마 순위는 닫을 때 열린 것을 모두 닫고 같은 자리로 돌아간다.
-    assert "on_close=_close_full_theme_rank" in source
+    # 2026-08-27부터 테마 구역이 덩이(fragment)라, 그 안의 닫기는 얇은 겉옷을
+    # 한 번 거친다 — 덩이 밖 화면까지 접어야 할 때만 판 전체를 다시 그린다.
+    assert "on_close=_close_theme_rank_from_fragment" in source
+    wrapper = source[source.index("def _close_theme_rank_from_fragment"):
+                     source.index("def _run_close_all_if_requested")]
+    assert "_close_full_theme_rank()" in wrapper
+    assert 'st.session_state["j3_close_all_pending"] = True' in wrapper
     closer = source[source.index("def _close_full_theme_rank"):source.index("def _section_toggle")]
     assert 'st.session_state["j3_theme_panel_open"] = False' in closer
     assert "for opened in _THEME_PANEL_OPEN_KEYS:" in closer
@@ -1845,7 +1851,11 @@ def test_existing_theme_content_opens_radar_without_old_section_radio():
 
 def test_radar_main_is_compact_without_manual_refresh_row():
     source = PAGE.read_text(encoding="utf-8")
-    radar = source[source.index("def _render_radar_tab"):source.index("def _close_theme_panel_top")]
+    # 끝 자리를 바로 다음 함수로 잡는다. 예전에는 _close_theme_panel_top으로
+    # 잡았는데, 2026-08-27에 그것이 _render_theme_panel 안으로 들어가면서
+    # _render_radar_tab보다 앞에 오게 됐다 — 빈 토막을 검사해 늘 통과했다.
+    radar = source[source.index("def _render_theme_section"):source.index("def _render_top7_section")]
+    assert radar, "잘라 낸 토막이 비었다"
     assert "온라인 자료 새로고침" not in radar
     assert "j3_force_refresh" not in radar
     assert 'font-size: 1.14rem !important;' in source
