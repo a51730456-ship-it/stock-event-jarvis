@@ -38,26 +38,31 @@ iframe이 없어지면 **거기서 만든 손잡이(이벤트 리스너)도 같�
 from __future__ import annotations
 
 # 표시 방식을 바꾸면 이 숫자를 올리고 부르는 쪽의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026082703
+MODULE_REVISION = 2026082705
 
 # 바깥 화면에 심을 글. 여기 있는 `document`는 **바깥 화면**의 것이다.
 _PARENT_CODE = r"""
 (function () {
   if (window.__jarvisZoom) { return; }
   window.__jarvisZoom = 1;
+  var openedAt = 0;
 
   var style = document.createElement("style");
   style.textContent =
     'div[class*="st-key-jarvis_method_pic"] img{cursor:zoom-in}' +
-    '#jarvis-zoom{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.94);' +
-    'overflow:auto;-webkit-overflow-scrolling:touch;touch-action:auto;display:block}' +
-    '#jarvis-zoom img{display:block;margin:0 auto;max-width:none;height:auto;cursor:zoom-out}' +
+    /* **굴리기를 브라우저에 분명히 알려 준다.** 안 알려 주면 손가락으로 미는 것을
+       화면 확대로 알아들어 밑을 못 본다(2026-08-27 상하님 지적). */
+    '#jarvis-zoom{position:fixed;inset:0;z-index:2147483647;background:#000;' +
+    'overflow:auto;-webkit-overflow-scrolling:touch;' +
+    'touch-action:pan-x pan-y pinch-zoom;overscroll-behavior:contain;display:block}' +
+    '#jarvis-zoom .jz-wrap{min-height:100%;padding:52px 0 20px}' +
+    '#jarvis-zoom img{display:block;margin:0 auto;max-width:none;height:auto}' +
     '#jarvis-zoom .jz-bar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;' +
     'align-items:center;justify-content:flex-end;gap:8px;padding:0 10px;' +
-    'background:rgba(0,0,0,.78);z-index:2}' +
-    '#jarvis-zoom .jz-btn{border:0;border-radius:8px;padding:8px 14px;font-weight:800;' +
-    'font-size:15px;background:#cfe9ff;color:#c15f3c;cursor:pointer}' +
-    '#jarvis-zoom .jz-pad{height:48px}';
+    'background:rgba(0,0,0,.85);z-index:2}' +
+    '#jarvis-zoom .jz-btn{border:0;border-radius:8px;padding:9px 15px;font-weight:800;' +
+    'font-size:15px;background:#cfe9ff;color:#c15f3c;cursor:pointer;' +
+    'touch-action:manipulation}';
   document.head.appendChild(style);
 
   function close() {
@@ -67,8 +72,10 @@ _PARENT_CODE = r"""
 
   function open(src, natural) {
     close();
+    openedAt = Date.now();
     var box = document.createElement("div");
     box.id = "jarvis-zoom";
+
     var bar = document.createElement("div");
     bar.className = "jz-bar";
     var wide = document.createElement("button");
@@ -78,10 +85,12 @@ _PARENT_CODE = r"""
     shut.textContent = "\u2715 \ub2eb\uae30";
     bar.appendChild(wide);
     bar.appendChild(shut);
-    var pad = document.createElement("div");
-    pad.className = "jz-pad";
+
+    var wrap = document.createElement("div");
+    wrap.className = "jz-wrap";
     var big = document.createElement("img");
     big.src = src;
+    wrap.appendChild(big);
 
     var full = false;
     function apply() {
@@ -91,12 +100,20 @@ _PARENT_CODE = r"""
     }
     big.addEventListener("load", apply);
     apply();
-    wide.addEventListener("click", function (e) { e.stopPropagation(); full = !full; apply(); box.scrollTop = 0; });
-    shut.addEventListener("click", function (e) { e.stopPropagation(); close(); });
-    big.addEventListener("click", function () { close(); });
-    box.addEventListener("click", function (e) { if (e.target === box) { close(); } });
 
-    box.appendChild(bar); box.appendChild(pad); box.appendChild(big);
+    wide.addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      full = !full; apply(); box.scrollTop = 0; box.scrollLeft = 0;
+    });
+    shut.addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation(); close();
+    });
+    // **그림을 눌러도 안 닫는다**(2026-08-27 상하님 지적 — "한번더 클릭하면 아예
+    // 이 테마 설명에서 빠져나가버린다"). 닫는 길은 ✕ 단추와 Esc 둘뿐이다.
+    // 굴려 보시다가 손이 그림에 닿아 닫히면 안 된다.
+
+    box.appendChild(bar);
+    box.appendChild(wrap);
     document.body.appendChild(box);
   }
 
@@ -110,8 +127,20 @@ _PARENT_CODE = r"""
     e.stopPropagation();
     open(img.currentSrc || img.src, img.naturalWidth);
   }
+
+  // **손가락은 신호를 두 번 보낸다.** 대는 순간(pointerdown) 한 번, 0.3초쯤 뒤에
+  // '클릭' 한 번 더. 두 번째가 이미 열린 덮개나 그 뒤 화면에 떨어져 설명 창까지
+  // 닫아 버렸다(2026-08-27 상하님 지적). 연 직후 0.7초 동안은 그 신호를 삼킨다.
+  document.addEventListener("click", function (e) {
+    if (document.getElementById("jarvis-zoom") && Date.now() - openedAt < 700) {
+      if (!e.target.closest || !e.target.closest(".jz-btn")) {
+        e.preventDefault(); e.stopPropagation();
+        return;
+      }
+    }
+    grab(e);
+  }, true);
   document.addEventListener("pointerdown", grab, true);
-  document.addEventListener("click", grab, true);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { close(); } });
 })();
 """
