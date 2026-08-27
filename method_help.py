@@ -411,7 +411,11 @@ def _picture(st, path, name: str) -> None:
     그래서 st.image 하나만 쓴다. 크게 보시려면 창을 넓혀 둔 것으로 갈음한다
     (노트북·태블릿은 창이 화면만큼 넓고, 폰은 두 칸짜리 그림이라 한 칸이 162px이다).
     """
-    st.image(str(path), use_container_width=True)
+    # **우리 이름표를 붙여 둔다**(2026-08-27). 눌러서 키우는 손잡이가 이 이름으로
+    # 그림을 찾는다. data-testid는 스트림릿 판마다 달라 온라인에서 안 걸렸다
+    # (2026-07-18에도 같은 일을 겪었다). st-key-… 는 판이 바뀌어도 그대로다.
+    with st.container(key=f"jarvis_method_pic_{name.rsplit(chr(46), 1)[0]}"):
+        st.image(str(path), use_container_width=True)
 
 
 # 줄 사이에 빈 줄을 넣지 않는다. 빈 줄이 있으면 스트림릿 마크다운이 그 사이를

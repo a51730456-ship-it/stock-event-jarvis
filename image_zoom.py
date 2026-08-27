@@ -27,7 +27,7 @@
 from __future__ import annotations
 
 # 표시 방식을 바꾸면 이 숫자를 올리고 부르는 쪽의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026082701
+MODULE_REVISION = 2026082702
 
 # 스크립트는 한 판에 한 번만 붙인다. 두 번 붙어도 같은 표시를 보고 그냥 넘어간다.
 _SCRIPT = """
@@ -40,7 +40,7 @@ _SCRIPT = """
 
   var style = doc.createElement("style");
   style.textContent =
-    '[data-testid="stPopoverBody"] [data-testid="stImage"] img{cursor:zoom-in}' +
+    'div[class*="st-key-jarvis_method_pic"] img{cursor:zoom-in}' +
     '#jarvis-zoom{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.94);' +
     'overflow:auto;-webkit-overflow-scrolling:touch;touch-action:auto;' +
     'display:block;padding:0;margin:0}' +
@@ -115,14 +115,26 @@ _SCRIPT = """
 
   // 설명 창은 눌러야 열리므로 그림이 나중에 생긴다. 그래서 **한 곳에서 받는다** —
   // 그림마다 손잡이를 달면 새로 그려질 때마다 다시 달아야 한다.
-  doc.addEventListener("click", function (e) {
+  function grab(e) {
     var img = e.target;
     if (!img || img.tagName !== "IMG") { return; }
-    if (!img.closest('[data-testid="stPopoverBody"]')) { return; }
     if (img.closest("#jarvis-zoom")) { return; }
+    // **우리 이름표로 찾는다.** data-testid는 스트림릿 판마다 달라서 온라인에서
+    // 안 걸렸다(2026-08-27 상하님 — "마우스로도 안되고 손가락으로 해도 안 된다").
+    if (!img.closest('div[class*="st-key-jarvis_method_pic"]')) { return; }
     e.preventDefault();
     e.stopPropagation();
     open(img.currentSrc || img.src);
+  }
+  // **누르는 순간에 받는다.** click까지 기다리면 창이 먼저 닫히는 판에서는 놓친다.
+  // 둘 다 걸어 두되 덮개가 이미 있으면 두 번째는 그냥 넘어간다.
+  doc.addEventListener("pointerdown", function (e) {
+    if (doc.getElementById("jarvis-zoom")) { return; }
+    grab(e);
+  }, true);
+  doc.addEventListener("click", function (e) {
+    if (doc.getElementById("jarvis-zoom")) { return; }
+    grab(e);
   }, true);
 })();
 </script>
