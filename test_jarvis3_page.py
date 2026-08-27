@@ -2326,3 +2326,20 @@ def test_the_tablet_breakpoint_starts_at_601():
     assert "@media (min-width:601px) and (max-width:1199px)" in source
     assert "@media (max-width:699px)" not in source, "폰 경계가 태블릿을 삼킨다"
     assert "@media (min-width:700px) and (max-width:1199px)" not in source
+
+def test_any_route_into_a_screen_scrolls_to_the_top():
+    """화면이 바뀌면 **어느 길로 왔든** 맨 위로 올린다 (2026-08-27 상하님 지적).
+
+    상하님 — "시장분석 맨 위 화면 아직도 그거 해결 안 하고 있다."
+
+    앞서 단추마다 하나씩 넣었더니 「더보기 ›」를 빠뜨렸다. 브라우저는 화면을
+    바꿔도 굴려 둔 자리를 그대로 들고 오므로, 아래로 내려가야 보이는 단추로
+    들어오면 맨 위 두 단추를 지나친 자리에 선다.
+    이제 단추마다 챙기지 않고 화면을 그리는 한 곳에서 챙긴다 — 직전 화면과
+    다르면 무조건 맨 위다. 새 길이 생겨도 빠뜨릴 수가 없다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    home = source[source.index("def _render_stock_briefing()"):]
+    home = home[:home.index('if page == "market":')]
+    assert 'st.session_state.get("j3b_last_page") != page' in home, "화면이 바뀐 것을 안 본다"
+    assert 'scroll_to.request(st, "top")' in home, "맨 위로 안 올린다"

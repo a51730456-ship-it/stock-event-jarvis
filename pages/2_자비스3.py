@@ -7052,6 +7052,17 @@ _BRIEFING_TABLET_CSS = """
  body:has(.j3b-home) .j3b-card .j3b-chart{height:40px!important;margin:5px 0 2px!important}
  body:has(.j3b-home) .j3b-card .j3b-note{font-size:10.5px!important;line-height:1.5!important}
  body:has(.j3b-home) .j3b-card .j3b-decor-img{width:46px!important}
+ /* **종목 검색칸을 왼쪽으로 한 칸 옮기고 + 를 줄인다** (2026-08-27 상하님 지시 —
+    "종목 검색 후 추가 옆에 동그라미는 왜 짤리지? 검색란은 왼쪽으로 한 칸 옮기고
+    동그라미 크기 줄이면 되겠네"). 오른쪽 끝에 자리를 넉넉히 남긴다. */
+ div[class*="st-key-j3b_extra_header"]{padding-right:10px!important}
+ div[class*="st-key-j3b_search_row"]{margin-right:6px!important}
+ div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{
+  flex:0 0 36px!important;min-width:36px!important}
+ body:has(.j3b-home) div[class*="st-key-j3b_search_row"] .stButton button,
+ body:has(.j3b-home) div[class*="st-key-j3b_search_row"] button{width:34px!important;
+  height:34px!important;min-height:34px!important;max-width:34px!important;
+  padding:0!important;font-size:21px!important;border-radius:50%!important}
  body:has(.j3b-home) .j3b-card .j3b-card-notes,
  body:has(.j3b-home) .j3b-card.compact .j3b-card-notes{position:static!important;
   inset:auto!important;margin:7px 0 0!important;padding-top:6px!important;
@@ -7833,6 +7844,17 @@ def _render_stock_briefing() -> None:
     # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
     _briefing_css()
     page = st.session_state.get("j3_briefing_page", "home")
+    # **화면이 바뀌면 어느 길로 왔든 맨 위로 올린다** (2026-08-27 상하님 지적 —
+    # "시장분석 맨 위 화면 아직도 그거 해결 안 하고 있다").
+    #
+    # 앞서 단추마다 하나씩 넣었는데, 하나를 빠뜨리면(「더보기 ›」가 그랬다) 그
+    # 길로 들어오실 때 맨 위 두 단추를 지나친 자리에 서게 된다. 브라우저는
+    # 화면을 바꿔도 굴려 둔 자리를 그대로 들고 오기 때문이다.
+    # 이제 단추마다 챙기지 않고 **여기 한 곳에서** 챙긴다 — 직전 화면과 다르면
+    # 무조건 맨 위다. 새 길이 생겨도 빠뜨릴 수가 없다.
+    if st.session_state.get("j3b_last_page") != page:
+        st.session_state["j3b_last_page"] = page
+        scroll_to.request(st, "top")
     if page == "market":
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
