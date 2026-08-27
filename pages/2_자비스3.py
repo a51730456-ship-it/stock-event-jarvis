@@ -7911,7 +7911,14 @@ def _render_stock_briefing() -> None:
         with st.container(key="j3b_selected_heading"):
             st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
             if st.button("더보기", key="j3b_go_market"):
+                # **여기도 맨 위로 올린다** (2026-08-27 상하님 지적 — "맨 위에
+                # 메뉴 2개 안 나오는 것 언제 해결할 거냐"). 「더보기 ›」는 화면을
+                # 아래로 내려야 보이는 자리라, 누르면 브라우저가 그 자리를 그대로
+                # 들고 시장분석으로 간다. 그러면 맨 위의 「🌏 한국테마 →」·
+                # 「📘 이 테마 설명」 두 단추를 지나친 자리에 선다.
+                # 하단 이동막대 쪽만 고쳐 두고 이 길을 빠뜨렸다.
                 st.session_state["j3_briefing_page"] = "market"
+                scroll_to.request(st, "top")
                 st.rerun()
         _render_briefing_grid(selected, cards, removable=False, key="selected")
         with st.container(key="j3b_extra_header"):

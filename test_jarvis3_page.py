@@ -2273,6 +2273,13 @@ def test_switching_screens_goes_back_to_the_top():
     nav = source[source.index("def _render_briefing_bottom_nav("):]
     nav = nav[:nav.index(chr(10) + "def ", 10)]
     assert nav.count('scroll_to.request(st, "top")') == 2, "화면을 바꿔도 맨 위로 안 간다"
+    # **시장분석으로 가는 길이 둘이다.** 하단 막대와 「더보기 ›」다. 둘 다 맨 위로
+    # 올려야 한다 — 2026-08-27에 「더보기」 쪽을 빠뜨려 상하님이 맨 위 두 단추를
+    # 못 보셨다. 「더보기」는 화면을 내려야 보이는 자리라 그 자리를 그대로 들고 간다.
+    home = source[source.index("def _render_stock_briefing()"):source.index("def main()")]
+    more = home[home.index('key="j3b_go_market"'):]
+    more = more[:more.index("st.rerun()")]
+    assert 'scroll_to.request(st, "top")' in more, "「더보기」로 가면 맨 위로 안 간다"
     # 양쪽 화면에 '맨 위' 자리가 있어야 데려갈 곳이 있다.
     assert source.count('scroll_to.anchor(st, "top")') == 2, "'맨 위' 자리가 한쪽에만 있다"
     # 여백은 0이 아니라 조금 — 0이면 단추가 화면 끝에 붙어 주소창에 가린다.
