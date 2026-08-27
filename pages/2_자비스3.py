@@ -7021,6 +7021,28 @@ _BRIEFING_TABLET_CSS = """
     사용자 선정 종목 3칸 x 2줄 = 6종목 · 추가 검색 종목 3칸 x 4줄 = 12종목. */
  div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(3,minmax(0,1fr))!important;
   column-gap:10px!important}
+ /* **칸이 좁아진 만큼 카드 속도 다시 놓는다** (2026-08-27 상하님 캡처).
+    두 칸일 때는 카드가 370px 이라 차트를 오른쪽 위에 겹쳐 놓아도 글자를 안
+    덮었다. 세 칸이 되어 카드가 214px 로 좁아지자 차트가 종목명·가격 위를
+    지나갔다(실측 — 차트 x=117~206, 종목명 82~158, 가격 8~125).
+    또 카드 높이가 250·270px 로 박혀 있어 가운데가 140px 이나 비었다.
+    이제 위에서 아래로 흐르게 한다 — 이름 · 가격 · 차트 · 뉴스 차례다.
+    높이는 속 내용이 정한다. */
+ body:has(.j3b-home) .j3b-card,
+ body:has(.j3b-home) .j3b-card.compact{height:auto!important;min-height:0!important;
+  padding-bottom:11px!important}
+ body:has(.j3b-home) .j3b-card .j3b-chart,
+ body:has(.j3b-home) .j3b-card.compact .j3b-chart{position:relative!important;
+  inset:auto!important;top:auto!important;right:auto!important;left:auto!important;
+  bottom:auto!important;display:block!important;width:100%!important;
+  height:46px!important;margin:7px 0 3px!important}
+ body:has(.j3b-home) .j3b-card .j3b-price,
+ body:has(.j3b-home) .j3b-card.compact .j3b-price{position:static!important;
+  max-width:none!important;margin:7px 0 0!important}
+ body:has(.j3b-home) .j3b-card .j3b-card-notes,
+ body:has(.j3b-home) .j3b-card.compact .j3b-card-notes{position:static!important;
+  inset:auto!important;margin:7px 0 0!important;padding-top:6px!important;
+  left:auto!important;right:auto!important;bottom:auto!important;max-height:none!important}
  .j3b-hero{height:250px!important;padding:26px 28px!important;border-radius:0 0 30px 30px!important}
  .j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:112%!important}
  .j3b-title{font-size:46px!important;letter-spacing:-2.6px!important}
