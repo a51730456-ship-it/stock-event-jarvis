@@ -17,6 +17,8 @@
 
 from __future__ import annotations
 
+import image_zoom
+
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
 MODULE_REVISION = 2026082701
 
@@ -760,4 +762,8 @@ def render(st, market: str) -> None:
             # ③ 글로 쓴 설명 — 만화·표가 말하지 않는 것까지 적혀 있다.
             st.markdown(US_TEXT, unsafe_allow_html=True)
             st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)
+            # 그림을 누르면 화면 가득 커진다(2026-08-27 상하님 지시). 그림을 다 그린
+            # 뒤에 한 번 붙인다. **여기서 주소를 만들지 않는다** — st.image가 이미
+            # 그려 놓은 <img>의 주소를 그대로 읽어 쓴다(image_zoom.py 설명 참고).
+            image_zoom.run(st)
             _close_button(st, "US")
