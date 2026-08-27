@@ -7013,7 +7013,7 @@ _BRIEFING_TABLET_CSS = """
     놓으려면 폭도 그만큼 있어야 한다. **갤럭시탭 S8+ 에만 걸리는 규칙이다** —
     폰과 노트북은 예전 그대로 두 칸이다. */
  body:has(.j3b-home) [data-testid="stMainBlockContainer"],
- body:has(.j3b-home) .block-container{max-width:min(1060px,100vw)!important;
+ body:has(.j3b-home) .block-container{max-width:min(1060px,96vw)!important;
   padding:0 14px 108px!important}
  /* **카드를 세 칸으로 놓는다** (2026-08-27 상하님 지시 — "태블릿 화면에는
     종목선정 2줄씩 되어 있는데 3칸씩 넣으면 안 되나?"). 갤럭시탭 S8+ 에만
