@@ -22,14 +22,14 @@ import image_zoom
 # **모듈 판 확인 (CLAUDE.md 11번)** — 안 하면 온라인 프로세스에 옛 image_zoom이
 # 남아 옛 손잡이가 조용히 계속 돈다. 2026-08-27에 method_help에서 실제로 겪었다:
 # 판 숫자를 안 올려서 온라인이 며칠치 고침을 하나도 안 받았다.
-_REQUIRED_IMAGE_ZOOM_REVISION = 2026082705
+_REQUIRED_IMAGE_ZOOM_REVISION = 2026082707
 if int(getattr(image_zoom, "MODULE_REVISION", 0)) < _REQUIRED_IMAGE_ZOOM_REVISION:
     import importlib
 
     image_zoom = importlib.reload(image_zoom)
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026082706
+MODULE_REVISION = 2026082708
 
 BUTTON_LABEL = "📘 이 테마 설명"
 

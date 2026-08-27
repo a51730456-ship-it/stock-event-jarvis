@@ -38,7 +38,7 @@ iframe이 없어지면 **거기서 만든 손잡이(이벤트 리스너)도 같�
 from __future__ import annotations
 
 # 표시 방식을 바꾸면 이 숫자를 올리고 부르는 쪽의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026082705
+MODULE_REVISION = 2026082707
 
 # 바깥 화면에 심을 글. 여기 있는 `document`는 **바깥 화면**의 것이다.
 _PARENT_CODE = r"""
@@ -111,6 +111,17 @@ _PARENT_CODE = r"""
     // **그림을 눌러도 안 닫는다**(2026-08-27 상하님 지적 — "한번더 클릭하면 아예
     // 이 테마 설명에서 빠져나가버린다"). 닫는 길은 ✕ 단추와 Esc 둘뿐이다.
     // 굴려 보시다가 손이 그림에 닿아 닫히면 안 된다.
+
+    // **덮개 안에서 생긴 신호는 바깥으로 안 내보낸다** (2026-08-27 상하님 지적 —
+    // "한번더 클릭하면 아예 이 테마 설명에서 빠져나가버린다"). 스트림릿은 설명 창
+    // **바깥에서 누름(mousedown)** 신호가 오면 창을 닫는다. 덮개가 화면을 다 덮고
+    // 있으니 신호는 덮개에 떨어지는데, 그게 바깥까지 올라가면 스트림릿이 '바깥을
+    // 눌렀다'고 알아듣는다. 덮개에서 끊는다 — 단추는 이미 신호를 받은 뒤라 잘 눌린다.
+    // 굴리기는 stopPropagation으로 막히지 않으므로 그대로 굴러간다.
+    ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick",
+     "touchstart", "touchend"].forEach(function (t) {
+      box.addEventListener(t, function (e) { e.stopPropagation(); });
+    });
 
     box.appendChild(bar);
     box.appendChild(wrap);
