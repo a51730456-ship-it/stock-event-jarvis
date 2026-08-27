@@ -2290,8 +2290,10 @@ def test_the_phone_home_screen_is_left_alone():
     추가 검색 종목 2칸 그대로. 태블릿 800px 은 6개 3칸 2줄이다.
     """
     source = PAGE.read_text(encoding="utf-8")
-    phone = source[source.index("@media (max-width:699px){"):]
-    phone = phone[:phone.index("}}") + 2]
+    # 같은 이름의 블록이 둘이라 **내 규칙이 든 쪽**을 집어서 본다.
+    mark = 'div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}'
+    start = source.rindex("@media (max-width:600px){", 0, source.index(mark))
+    phone = source[start:source.index(mark) + len(mark) + 2]
     # 폰은 두 칸이다.
     assert "grid-template-columns:repeat(2,minmax(0,1fr))!important" in phone
     # 폰 폭은 예전 그대로 430px 이다.
@@ -2299,3 +2301,21 @@ def test_the_phone_home_screen_is_left_alone():
     # **사용자 선정 종목만** 앞 넷까지 보인다. 추가 검색 종목은 안 건드린다.
     assert "div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}" in phone
     assert "j3b_grid_extra" not in phone, "추가 검색 종목을 건드렸다"
+
+def test_the_tablet_breakpoint_starts_at_601():
+    """태블릿 경계는 601px 부터다 (2026-08-27 상하님 지적).
+
+    상하님 — "태블릿은 스마트폰과 같다. 3칸씩 하라고." 완전히 닫았다 다시
+    열어도 두 칸이었다.
+
+    까닭 — 갤럭시탭 S8+ 가 화면 폭을 **700px 보다 작게** 알려 준다. 그래서
+    폰 규칙(≤699)에 걸려 폰과 똑같이 그려지고 있었다. 폰은 360~412px 이므로
+    600px 이면 둘을 가른다.
+
+    브라우저 실측 — 375·600 두 칸 4개(폰 그대로) · 690 세 칸 6개 · 1240 세 칸.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    assert "@media (max-width:600px){body:has(.j3b-home)" in source
+    assert "@media (min-width:601px) and (max-width:1199px)" in source
+    assert "@media (max-width:699px)" not in source, "폰 경계가 태블릿을 삼킨다"
+    assert "@media (min-width:700px) and (max-width:1199px)" not in source
