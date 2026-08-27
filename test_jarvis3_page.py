@@ -2077,9 +2077,11 @@ def test_top9_close_sits_above_the_stock_search():
     assert 'st.session_state.get("j3_top7_open")' in fn
     assert "_close_full_theme_rank" in fn
     assert 'key="close_j3_top7_open_above_search"' in fn
-    # 종목검색 바로 위에서 불린다 — 두 갈래(테마 화면 열림/닫힘) 모두.
-    # 부르는 자리 둘 + 함수를 만드는 자리 하나
-    assert source.count("_render_top7_close_above_search()") == 2 + 1
+    # 종목검색 바로 위에서 불린다. 2026-08-27에 **뒤쪽 화면을 한 곳으로 모으면서**
+    # (_render_radar_tail) 부르는 자리가 둘에서 하나가 되었다 — 예전에는 테마 화면이
+    # 열렸을 때와 닫혔을 때 두 벌이 따로 적혀 있었다. 자리는 그대로다.
+    # 부르는 자리 하나 + 함수를 만드는 자리 하나
+    assert source.count("_render_top7_close_above_search()") == 1 + 1
     assert re.search(r"_render_top7_close_above_search\(\)\n\s*_render_my_stock_panel", source), "종목검색 바로 위가 아니다"
     # 20개 테마 순위 닫기와 같은 붉은 옷
     assert 'st-key-close_j3_top7_open_above_search"] button {' in source

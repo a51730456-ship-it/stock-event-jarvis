@@ -3933,94 +3933,42 @@ def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict,
             st.error(f"매수 기록 저장 실패: {_safe_error_text(exc)}")
 
 
-def _render_radar_tab(market: dict) -> None:
-    # 네 개의 긴 목록을 닫으면 이 미국테마 메인 시작점으로 돌아온다.
-    scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
+def _render_radar_tail(market: dict, ranking: dict) -> None:
+    """테마 구역 **뒤에 오는 화면들**을 한 곳에 모은다 (2026-08-27).
+
+    상승장·급락 후 반등장 · 매수심사결과 높은 순위 9 · 종목검색 · 날짜별 목록이다.
+
+    예전에는 이 다섯이 **두 군데에 똑같이** 적혀 있었다 — 테마 판이 닫혔을 때
+    한 벌, 열렸을 때 한 벌. 그래서 테마 구역만 따로 떼어 낼 수가 없었다.
+
+    **덤으로 흠 하나가 고쳐진다** — 테마 자료나 대장주 조회가 실패하면 예전에는
+    그 자리에서 되돌아가 버려 상승장·순위 9·종목검색이 통째로 사라졌다.
+    이제는 테마 쪽이 어떻게 되든 이 다섯은 늘 그려진다.
+    """
     guest_mode = auth.is_guest()
+    _render_pullback_finder(market, ranking)
+    # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
+    if not guest_mode:
+        _render_top7_section(market, ranking)
+    _render_top7_close_above_search()
+    _render_my_stock_panel(market)
+    # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
+    # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
+    picklist_ui.render(st, "US", toggle=_section_toggle,
+                       close=_section_close,
+                       header=_render_saved_trades_header)
 
-    ranking = _load_theme_rankings()
-    if not ranking.get("ok"):
-        st.error(f"테마 자료 조회 실패: {_safe_error_text(ranking.get('error'))}")
-        return
-    st.session_state["j3_theme_rankings"] = ranking
-    if ranking.get("stale"):
-        st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
 
-    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
-    # 순위표는 **맨 위 단추로 여닫는다**(2026-08-14 상하님 지시 — "맨위에 20개 테마
-    # 실시간 순위를 상승장·급락 후 반등장처럼 버튼을 만들어라. 클릭하면 창이
-    # 열리도록"). 표가 열 줄이라 아래 구역까지 오려면 매번 한참 굴려야 했다.
-    # 제목 대신 단추가 그 자리에 선다 — 상승장·급락 단추와 같은 크기·같은 장치다.
-    # 닫는 단추는 '종목 찾기' 바로 위에도 하나 더 있다(_render_pullback_finder).
-    #
-    # **기본은 닫힘**(2026-08-14 상하님 지시 — "화면 처음 열릴 때 순위가 열려 있게
-    # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
-    # 아래 구역이 전부 밀려 내려가지 않게 한다.
-    rank_open = _section_toggle(
-        "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
-        close_label="20개 테마 실시간 순위 닫기",
-        on_close=_close_full_theme_rank,
-    )
-    if not rank_open:
-        clicked_theme = None
-        # 20개 순위를 닫을 때는 순위표만 숨기지 않고, 그 순위표에서 열었던
-        # 테마 종목과 종목 세부 판도 같이 닫아 미국테마 기본화면으로 돌아간다.
-        st.session_state["j3_theme_panel_open"] = False
-        for opened in _THEME_PANEL_OPEN_KEYS:
-            st.session_state[opened] = False
-    else:
-        clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
-        # **이 점수가 무엇인지 정직하게 적는다**(2026-08-14). 재 보니 점수가 높은
-        # 테마가 그 뒤에 더 오르지 않았다 — 평상시 1,708일에서 5일부터 1년까지
-        # 여섯 기간 모두 오차가 0을 걸쳤다(research/us_theme_rank_check.py).
-        # 그래서 배점 숫자는 그대로 두되(바꿀 근거가 없다) **화면이 앞날을 말하지
-        # 않게** 한다. 갈래별 배점(상승장·급락)이 앞날을 재는 자리다.
-        st.caption(
-            f"테마 계산 시각: {ranking.get('checked_at') or '—'} · "
-            "구성종목이 20일선 위인 비율 40 · 최근 5일 오른 비율 30 · "
-            "최근 20일 오른 비율 20 · 덜 빠졌나 10으로 매깁니다"
-        )
-        st.markdown(
-            "<div class='j3-pull-guide'><b>이 점수는 오늘 그 테마가 어떤 "
-            "상태인지를 요약한 것입니다. <u>앞날을 맞히는 점수가 아닙니다.</u></b> "
-            "제가 10년치로 재 보니, 이 점수가 높은 테마가 그 뒤에 더 오르지는 "
-            "않았습니다(5일 뒤부터 1년 뒤까지 여섯 기간 모두).<br>"
-            "<b>앞날을 재는 자리는 아래 ‘종목 찾기’입니다</b> — 상승장과 급락 후 "
-            "반등장은 각자 따로 잰 배점을 씁니다.</div>",
-            unsafe_allow_html=True,
-        )
-    if clicked_theme in names:
-        st.session_state["j3_theme_choice"] = clicked_theme
-        st.session_state["j3_theme_choice_widget"] = clicked_theme
-        st.session_state["j3_theme_panel_open"] = True
-        # 테마 하나를 누르면 **아래 네 구역까지 한 번에 편다**(2026-08-14 상하님 지시 —
-        # "대장주 1~3위까지 자동 클릭되게, 선택종목 세부사항 보기까지, 당일 실시간
-        # 차트 보기·일봉·주봉·월봉 보기까지"). 그전에는 단추를 네 번 더 눌러야 했다.
-        # 종목은 안 고르셨으면 그 테마 **1위**가 열린다(아래 라디오의 첫 값).
-        # 표에서 종목을 누를 때(아래 clicked_ticker)와 **같은 열쇠 묶음**이다 —
-        # 하나를 고치면 둘 다 고쳐야 한다.
-        for opened in _THEME_PANEL_OPEN_KEYS:
-            st.session_state[opened] = True
-        # 연 자리가 표 아래 두 화면 밑이라 직접 굴려 내려가야 했다. 열면서 같이
-        # 내려간다(2026-08-21 상하님 지시).
-        scroll_to.request(st, "theme_stocks")
-    if (st.session_state.get("j3_theme_panel_open")
-            and st.session_state.get("j3_theme_choice_widget") not in names):
-        preferred_theme = st.session_state.get("j3_theme_choice")
-        st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
+def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
+    """고른 테마의 종목 표와 그 종목 상세 (2026-08-27에 따로 떼어 냈다).
 
-    # 선택 테마 설명·종목 1~6위·상세 종목 선택은 평소에는 닫아 둔다. 20개 순위표의
-    # 테마 이름을 눌렀을 때만 한 화면으로 열고, 아래 독립 영역들은 그대로 보여준다.
-    if not st.session_state.get("j3_theme_panel_open"):
-        _render_pullback_finder(market, ranking)
-        if not guest_mode:
-            _render_top7_section(market, ranking)
-        _render_top7_close_above_search()
-        _render_my_stock_panel(market)
-        picklist_ui.render(st, "US", toggle=_section_toggle,
-                           close=_section_close,
-                           header=_render_saved_trades_header)
-        return
+    예전에는 이 몸통이 _render_radar_tab 안에 그대로 있었고, 중간에 return 이
+    둘 있어서(테마 자료 없음·대장주 조회 실패) 그 뒤의 상승장·순위 9·종목검색
+    까지 같이 건너뛰었다. 따로 떼어 내니 여기서 되돌아가도 뒤쪽은 그대로 그려진다.
+
+    `names` 를 **받아서** 쓴다 — 2026-08-27에 안 넘겨주고 떼어 냈다가 시험
+    스물아홉 개가 깨졌다. 이 목록은 부르는 쪽이 이미 만들어 둔 것이다.
+    """
 
     def _close_theme_panel_top():
         st.session_state["j3_theme_panel_open"] = False
@@ -4147,17 +4095,89 @@ def _render_radar_tab(market: dict) -> None:
         _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     _section_close("j3_theme_panel_open", "테마 종목 화면 닫기",
                    return_to=_RADAR_MAIN_ANCHOR)
-    _render_pullback_finder(market, ranking)
-    # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
-    if not guest_mode:
-        _render_top7_section(market, ranking)
-    _render_top7_close_above_search()
-    _render_my_stock_panel(market)
-    # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
-    # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
-    picklist_ui.render(st, "US", toggle=_section_toggle,
-                       close=_section_close,
-                       header=_render_saved_trades_header)
+
+
+def _render_radar_tab(market: dict) -> None:
+    # 네 개의 긴 목록을 닫으면 이 미국테마 메인 시작점으로 돌아온다.
+    scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
+    guest_mode = auth.is_guest()
+
+    ranking = _load_theme_rankings()
+    if not ranking.get("ok"):
+        st.error(f"테마 자료 조회 실패: {_safe_error_text(ranking.get('error'))}")
+        return
+    st.session_state["j3_theme_rankings"] = ranking
+    if ranking.get("stale"):
+        st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
+
+    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
+    # 순위표는 **맨 위 단추로 여닫는다**(2026-08-14 상하님 지시 — "맨위에 20개 테마
+    # 실시간 순위를 상승장·급락 후 반등장처럼 버튼을 만들어라. 클릭하면 창이
+    # 열리도록"). 표가 열 줄이라 아래 구역까지 오려면 매번 한참 굴려야 했다.
+    # 제목 대신 단추가 그 자리에 선다 — 상승장·급락 단추와 같은 크기·같은 장치다.
+    # 닫는 단추는 '종목 찾기' 바로 위에도 하나 더 있다(_render_pullback_finder).
+    #
+    # **기본은 닫힘**(2026-08-14 상하님 지시 — "화면 처음 열릴 때 순위가 열려 있게
+    # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
+    # 아래 구역이 전부 밀려 내려가지 않게 한다.
+    rank_open = _section_toggle(
+        "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
+        close_label="20개 테마 실시간 순위 닫기",
+        on_close=_close_full_theme_rank,
+    )
+    if not rank_open:
+        clicked_theme = None
+        # 20개 순위를 닫을 때는 순위표만 숨기지 않고, 그 순위표에서 열었던
+        # 테마 종목과 종목 세부 판도 같이 닫아 미국테마 기본화면으로 돌아간다.
+        st.session_state["j3_theme_panel_open"] = False
+        for opened in _THEME_PANEL_OPEN_KEYS:
+            st.session_state[opened] = False
+    else:
+        clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
+        # **이 점수가 무엇인지 정직하게 적는다**(2026-08-14). 재 보니 점수가 높은
+        # 테마가 그 뒤에 더 오르지 않았다 — 평상시 1,708일에서 5일부터 1년까지
+        # 여섯 기간 모두 오차가 0을 걸쳤다(research/us_theme_rank_check.py).
+        # 그래서 배점 숫자는 그대로 두되(바꿀 근거가 없다) **화면이 앞날을 말하지
+        # 않게** 한다. 갈래별 배점(상승장·급락)이 앞날을 재는 자리다.
+        st.caption(
+            f"테마 계산 시각: {ranking.get('checked_at') or '—'} · "
+            "구성종목이 20일선 위인 비율 40 · 최근 5일 오른 비율 30 · "
+            "최근 20일 오른 비율 20 · 덜 빠졌나 10으로 매깁니다"
+        )
+        st.markdown(
+            "<div class='j3-pull-guide'><b>이 점수는 오늘 그 테마가 어떤 "
+            "상태인지를 요약한 것입니다. <u>앞날을 맞히는 점수가 아닙니다.</u></b> "
+            "제가 10년치로 재 보니, 이 점수가 높은 테마가 그 뒤에 더 오르지는 "
+            "않았습니다(5일 뒤부터 1년 뒤까지 여섯 기간 모두).<br>"
+            "<b>앞날을 재는 자리는 아래 ‘종목 찾기’입니다</b> — 상승장과 급락 후 "
+            "반등장은 각자 따로 잰 배점을 씁니다.</div>",
+            unsafe_allow_html=True,
+        )
+    if clicked_theme in names:
+        st.session_state["j3_theme_choice"] = clicked_theme
+        st.session_state["j3_theme_choice_widget"] = clicked_theme
+        st.session_state["j3_theme_panel_open"] = True
+        # 테마 하나를 누르면 **아래 네 구역까지 한 번에 편다**(2026-08-14 상하님 지시 —
+        # "대장주 1~3위까지 자동 클릭되게, 선택종목 세부사항 보기까지, 당일 실시간
+        # 차트 보기·일봉·주봉·월봉 보기까지"). 그전에는 단추를 네 번 더 눌러야 했다.
+        # 종목은 안 고르셨으면 그 테마 **1위**가 열린다(아래 라디오의 첫 값).
+        # 표에서 종목을 누를 때(아래 clicked_ticker)와 **같은 열쇠 묶음**이다 —
+        # 하나를 고치면 둘 다 고쳐야 한다.
+        for opened in _THEME_PANEL_OPEN_KEYS:
+            st.session_state[opened] = True
+        # 연 자리가 표 아래 두 화면 밑이라 직접 굴려 내려가야 했다. 열면서 같이
+        # 내려간다(2026-08-21 상하님 지시).
+        scroll_to.request(st, "theme_stocks")
+    if (st.session_state.get("j3_theme_panel_open")
+            and st.session_state.get("j3_theme_choice_widget") not in names):
+        preferred_theme = st.session_state.get("j3_theme_choice")
+        st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
+
+    # 선택 테마 설명·종목 1~6위·상세 종목 선택은 평소에는 닫아 둔다. 20개 순위표의
+    # 테마 이름을 눌렀을 때만 한 화면으로 열고, 아래 독립 영역들은 그대로 보여준다.
+    if st.session_state.get("j3_theme_panel_open"):
+        _render_theme_panel(market, ranking, names)
+    _render_radar_tail(market, ranking)
 
 
 @st.fragment
