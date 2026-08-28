@@ -28,7 +28,7 @@ from __future__ import annotations
 import argparse
 import sys
 import traceback
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import picklist_store as store
@@ -49,6 +49,33 @@ def _log(message: str) -> None:
     print(f"[{datetime.now(_SEOUL):%H:%M:%S}] {message}", flush=True)
 
 
+def _last_closed_session(market: str) -> str:
+    """**마지막으로 끝난 장**의 날짜.
+
+    예전에는 그냥 그 시장의 오늘 날짜(`store.trade_date_for`)를 썼다. 예약이
+    제때 뜨면 그것이 맞다 — 미국 몫은 뉴욕 21:30(장 마감 5시간 반 뒤)에 도니까.
+
+    **그런데 깃허브가 예약을 몇 시간씩 미룬다**(2026-08-28 실측 — 8/27 미국 몫이
+    8시간 늦어 8/28 05:31 UTC 에 떴다. 그때 뉴욕은 8/28 새벽 1시 반이다).
+    그러면 오늘 날짜는 8/28 인데 값은 8/27 장 종가다 — **아직 열리지도 않은 날짜로**
+    남의 날 목록이 저장된다.
+
+    그래서 시계가 아니라 **장이 끝났나**로 센다. 안 끝났으면 하루 되짚고,
+    휴장일이면 더 되짚는다. 늦게 떠도 제 날짜에 붙는다.
+    """
+    day = date.fromisoformat(store.trade_date_for(market))
+    if not store.session_is_over(market):
+        day -= timedelta(days=1)
+    for _ in range(10):          # 연휴가 아무리 길어도 열흘을 넘지 않는다
+        if market == "US":
+            if store.us_market_is_open(day):
+                return day.isoformat()
+        elif day.weekday() < 5:  # 한국 공휴일은 규칙으로 못 세어 주말만 거른다
+            return day.isoformat()
+        day -= timedelta(days=1)
+    return day.isoformat()
+
+
 def collect_market(market: str, *, out_dir=None, limit: int = 20,
                    trade_date: str | None = None) -> dict:
     """한 시장의 네 갈래를 찍어 저장한다. 결과 요약(dict)을 돌려준다.
@@ -64,12 +91,11 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20,
     else:
         raise ValueError(f"시장은 US 또는 KR입니다: {market}")
 
-    # 날짜는 보통 **오늘**이다. 다만 손으로 되살릴 때만 지정할 수 있게 열어 둔다
+    # 날짜는 **마지막으로 끝난 장**의 날짜다. 손으로 되살릴 때만 지정할 수 있다
     # (2026-08-28 상하님 지시 — 8/27 목록이 2줄로 덮어써진 것을 되살렸다).
     # **아무 날이나 되살릴 수 있는 것이 아니다** — 여기서 만드는 값은 '마지막으로
-    # 끝난 장'의 종가로 계산되므로, 그 장이 아직 그날인 동안(미국장이 다시 열리기
-    # 전)에만 그날 것과 같다. 그 뒤에 지정하면 다른 날 값이 그 날짜로 적힌다.
-    trade_date = trade_date or store.trade_date_for(market)
+    # 끝난 장'의 종가로 계산되므로, 그 장이 아직 그날인 동안에만 그날 것과 같다.
+    trade_date = trade_date or _last_closed_session(market)
     # **미국 휴장일에는 아예 찍지 않는다** (2026-08-19 상하님 지시로 넣었다).
     # 예약 실행은 월~금에 도는데, 그중에는 성탄절·추수감사절처럼 장이 안 열린
     # 날이 섞여 있다. 그날 찍으면 **전날 마감값이 그 휴장일 날짜로** 저장된다.

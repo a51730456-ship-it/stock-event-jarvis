@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026081943
+MODULE_REVISION = 2026081944
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -274,14 +274,19 @@ def _keep_keyboard_down(st, market: str) -> None:
     폰은 글칸에 초점이 가면 자판을 올린다. 날짜는 골라 찍기만 하면 되므로 그
     글칸이 필요 없다.
 
-    어떻게 막나 — 그 칸에 `inputmode="none"` 표를 붙인다. 이 표는 **자판만 막으려고
-    만들어진 표**다. 칸은 그대로 살아 있어 목록을 펴고 고르는 것은 아무 영향이 없다.
+    어떻게 막나 — 그 칸에 표 둘을 붙인다.
+      · `inputmode="none"` — 자판만 막으려고 만들어진 표다.
+      · `readonly` — 그 칸에 글을 못 쓰게 한다. 폰은 글을 못 쓰는 칸에는 자판을
+        안 올린다. 날짜 고르는 칸을 만드는 데 널리 쓰는 방법이다.
 
-    **`readonly` 는 안 쓴다.** 자판을 더 확실히 막지만, 스트림릿 1.59 의 선택칸은
-    React Aria 로 만들어져 있어 그 표가 목록 여는 것까지 막는지 확인할 방법이
-    없었다(2026-08-28 — 미리보기 창에서는 진짜 손가락 클릭을 못 해 가려낼 수가
-    없었다). 자판이 뜨는 것보다 **목록이 안 열리는 쪽이 더 나쁘다.**
-    `inputmode` 로 안 되면 그때 실물 폰에서 확인하고 `readonly` 를 더한다.
+    **처음에는 `inputmode` 만 붙였다가 하나 더 붙였다** — 상하님이 실물 폰에서
+    "저장해 둔 목록 날짜 선택하면 또 자판 뜨게 하지 마라" 하셨다. 갤럭시 크롬은
+    `inputmode` 만으로는 안 막혔다.
+
+    `readonly` 는 **글쓰기만** 막는다 — 초점·누르기·키 눌림은 그대로라 목록을 펴고
+    고르는 것은 된다. 다만 스트림릿 1.59 의 선택칸은 React Aria 로 만들어져 있어
+    미리보기 창에서는 진짜 손가락 클릭을 못 해 확인할 수가 없었다.
+    **목록이 안 열리면 바로 말씀해 주십시오** — 그때는 다른 방법으로 바꾼다.
 
     **왜 CSS 가 아니라 이 방법인가** — 이 두 표는 규칙(CSS)으로는 못 붙인다.
     스트림릿은 `st.markdown` 안의 `<script>` 를 지우므로, 정식으로 내주는
@@ -312,6 +317,7 @@ def _keep_keyboard_down(st, market: str) -> None:
     var boxes = doc.querySelectorAll('[class*="st-key-picklist_date_"] input');
     for (var i = 0; i < boxes.length; i++) {
       boxes[i].setAttribute('inputmode', 'none');
+      boxes[i].setAttribute('readonly', 'readonly');
     }
   }
   hush();
