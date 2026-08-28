@@ -49,7 +49,8 @@ def _log(message: str) -> None:
     print(f"[{datetime.now(_SEOUL):%H:%M:%S}] {message}", flush=True)
 
 
-def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
+def collect_market(market: str, *, out_dir=None, limit: int = 20,
+                   trade_date: str | None = None) -> dict:
     """한 시장의 네 갈래를 찍어 저장한다. 결과 요약(dict)을 돌려준다.
 
     한 갈래가 실패해도 **나머지는 저장한다.** 미국 yfinance가 막힌 날 한국 자료까지
@@ -63,7 +64,12 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
     else:
         raise ValueError(f"시장은 US 또는 KR입니다: {market}")
 
-    trade_date = store.trade_date_for(market)
+    # 날짜는 보통 **오늘**이다. 다만 손으로 되살릴 때만 지정할 수 있게 열어 둔다
+    # (2026-08-28 상하님 지시 — 8/27 목록이 2줄로 덮어써진 것을 되살렸다).
+    # **아무 날이나 되살릴 수 있는 것이 아니다** — 여기서 만드는 값은 '마지막으로
+    # 끝난 장'의 종가로 계산되므로, 그 장이 아직 그날인 동안(미국장이 다시 열리기
+    # 전)에만 그날 것과 같다. 그 뒤에 지정하면 다른 날 값이 그 날짜로 적힌다.
+    trade_date = trade_date or store.trade_date_for(market)
     # **미국 휴장일에는 아예 찍지 않는다** (2026-08-19 상하님 지시로 넣었다).
     # 예약 실행은 월~금에 도는데, 그중에는 성탄절·추수감사절처럼 장이 안 열린
     # 날이 섞여 있다. 그날 찍으면 **전날 마감값이 그 휴장일 날짜로** 저장된다.
@@ -166,11 +172,35 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20) -> dict:
                 extra_rows=extra_rows,
             ))
 
-    path = store.save_rows(collected, trade_date=trade_date, market=market, out_dir=out_dir)
-    if path is None:
-        _log(f"{market} {trade_date} — 저장할 줄이 없어 파일을 건드리지 않았습니다")
+    # ── **이미 있는 것보다 줄이 적으면 덮어쓰지 않는다** (2026-08-28) ──────────
+    # 상하님 지적 — "8월 27일은 저장해 둔 목록에 상승장 신고가 눌림매수밖에 없냐?"
+    # 맞았다. 8/27 미국 파일이 **2줄뿐**이었다. 다른 날은 41~54줄이다.
+    #
+    # 까닭 — 시세를 못 받는 때(야후가 거절하거나 장이 아직 안 끝난 때) 이것을
+    # 돌리면 갈래 넷 중 셋이 빈손으로 돌아오는데, 그래도 **받아 온 몇 줄로 그날
+    # 파일을 통째로 덮어썼다.** 45줄짜리가 2줄짜리로 바뀌고, 그날 목록은
+    # 되살릴 수가 없다(그날 값으로 다시 계산하지 않는 것이 이 기능의 규칙이다).
+    #
+    # 그래서 **줄어드는 저장은 막는다.** 늘어나는 것은 그대로 둔다 — 갈래가
+    # 나중에 더 붙는 일은 정상이다. 막았으면 그 사실을 크게 적어, 조용히 넘어가지
+    # 않게 한다.
+    existing = 0
+    try:
+        existing = len(store.load_rows(trade_date, market) or [])
+    except Exception:
+        existing = 0
+    if existing and len(collected) < existing:
+        _log(f"⚠ {market} {trade_date} — 받은 것이 {len(collected)}줄뿐인데 이미 "
+             f"{existing}줄이 저장돼 있어 **덮어쓰지 않았습니다.** "
+             f"시세를 제대로 못 받은 판입니다. 잠시 뒤 다시 돌리십시오.")
+        path = None
     else:
-        _log(f"{market} {trade_date} — {len(collected)}줄 저장 → {path}")
+        path = store.save_rows(collected, trade_date=trade_date, market=market,
+                               out_dir=out_dir)
+        if path is None:
+            _log(f"{market} {trade_date} — 저장할 줄이 없어 파일을 건드리지 않았습니다")
+        else:
+            _log(f"{market} {trade_date} — {len(collected)}줄 저장 → {path}")
 
     # ── 지난 날들의 **매수금액(다음 거래일 시가)**을 채운다 (2026-08-12) ──────
     # 신호가 난 날에는 다음 거래일 시가를 알 수 없어 빈칸으로 저장된다. 그것을
@@ -206,13 +236,17 @@ def main(argv=None) -> int:
                         help="어느 시장을 찍을지 (기본: 둘 다)")
     parser.add_argument("--limit", type=int, default=20, help="갈래마다 몇 위까지 (기본 20)")
     parser.add_argument("--out-dir", default=None, help="저장 폴더 (기본 data/picklist)")
+    parser.add_argument("--date", default=None,
+                        help="되살릴 날짜 (예 2026-08-27). 안 주면 오늘. "
+                             "마지막으로 끝난 장이 그날일 때만 값이 그날 것과 같다")
     args = parser.parse_args(argv)
 
     markets = ("US", "KR") if args.market == "both" else (args.market,)
     failed = 0
     for market in markets:
         try:
-            summary = collect_market(market, out_dir=args.out_dir, limit=args.limit)
+            summary = collect_market(market, out_dir=args.out_dir, limit=args.limit,
+                                     trade_date=args.date)
         except Exception:
             # 한 시장이 통째로 죽어도 다른 시장은 찍는다.
             traceback.print_exc()
