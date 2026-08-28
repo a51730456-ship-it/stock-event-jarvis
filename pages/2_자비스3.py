@@ -1238,9 +1238,12 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026081310
+_REQUIRED_SIGNAL_UI_REVISION = 2026082810
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
+    # 2026-08-28 접었다 펴는 미국장 카드에서 쓴다. 옛 모듈이면 foldable 인자를
+    # 몰라 화면이 통째로 죽는다.
+    or not hasattr(market_signal_ui, "_peek_gauge_html")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
     or int(getattr(market_signal_ui, "MODULE_REVISION", 0)) < _REQUIRED_SIGNAL_UI_REVISION
 ):
@@ -7193,7 +7196,9 @@ def _render_existing_theme_content() -> None:
     # 미국장 선행신호 카드만 자비스3에 둔다(2026-07-22 사용자 정정: 한국장 수급 카드는
     # 미국 페이지에 어울리지 않으므로 자비스4(국내)에 넣는다). 같은 렌더러·세션 상태를
     # 재사용하므로 시장판단 페이지와 판정이 항상 일치한다.
-    market_signal_ui.render_us_market_signal_card()
+    # 계기판만 먼저 보이고 나머지는 눌러서 연다(2026-08-28 상하님 지시).
+    # 시장 판단 화면은 예전처럼 다 펴 둔다 — 거기는 화면 하나가 통째로 이 카드다.
+    market_signal_ui.render_us_market_signal_card(foldable=True)
     # 폰에서 화면만 먹던 상단 '테마·종목 / 매수 기록 / 판정 기준' 선택줄은
     # 보이지 않고 미국테마 본화면을 바로 그린다.
     _render_radar_tab(market)

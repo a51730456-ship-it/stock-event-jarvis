@@ -1,6 +1,7 @@
 import re
 import unittest
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
@@ -746,3 +747,52 @@ class SaveFailureFallbackTests(unittest.TestCase):
              patch.object(ui.st, "session_state", state):
             ui.run_kr_flow_check()
         self.assertTrue(any("저장 실패" in f for f in state.get("kr_flow_failures", [])))
+
+
+class UsCardFoldTests(unittest.TestCase):
+    """계기판만 먼저 보이고 눌러서 여는 미국장 카드 (2026-08-28 상하님 지시)."""
+
+    def _source(self):
+        return Path(__file__).parent.joinpath("market_signal_ui.py").read_text(encoding="utf-8")
+
+    def test_only_the_gauge_shows_until_you_open_it(self):
+        """접혀 있을 때는 계기판만, 누르면 카드 전체가 열린다.
+
+        상하님 — "동그라미 친 부분만 나오게 하고, 클릭하면 두 번째·세 번째 캡처
+        열리게 해 줘. 닫힘 부분도 넣게 하고, 열릴 때는 창이 수욱 열리게 해 줘."
+        """
+        source = self._source()
+        self.assertIn("def _peek_gauge_html(", source, "미리보기 계기판이 없다")
+        # 미리보기에는 신호 개수 줄이 없어야 한다 — 동그라미 친 부분은 계기판뿐이다.
+        peek = source[source.index("def _peek_gauge_html("):]
+        peek = peek[:peek.index(chr(10) + "def ", 10)]
+        self.assertNotIn("sig-counts", peek, "미리보기에 신호 개수 줄이 들어갔다")
+        self.assertIn("_speedometer_gauge_svg", peek, "카드와 다른 그림을 그린다")
+        # 여닫이는 숨긴 체크상자 하나 — 스트림릿이 <script>를 지우므로 CSS로만 한다.
+        card = source[source.index("def render_us_market_signal_card("):]
+        card = card[:card.index(chr(10) + "def ", 10)]
+        self.assertIn('type="checkbox"', card)
+        self.assertIn("us_signal_fold", card, "접히는 칸에 이름표가 없다")
+        self.assertEqual(card.count('for="us_sig_more"'), 2,
+                         "여는 자리와 닫는 자리 둘이어야 한다")
+
+    def test_the_open_height_is_measured_not_guessed(self):
+        """여는 높이는 실측값에 맞춘다. 너무 크면 열리는 것이 순식간에 끝난다."""
+        source = self._source()
+        found = re.search(r"max-height:(\d+)px; opacity:1", source)
+        self.assertIsNotNone(found, "여는 높이를 못 찾았다")
+        opened = int(found.group(1))
+        # 실측 1347px(폰 375px)보다 넉넉하되, 세 배로 잡으면 슬라이드가 안 보인다.
+        self.assertGreater(opened, 1400, "실측보다 작으면 카드가 잘린다")
+        self.assertLess(opened, 3000, "너무 크면 열리는 동안이 눈에 안 보인다")
+
+    def test_the_market_judgment_page_stays_open(self):
+        """시장 판단 화면은 예전처럼 다 펴 둔다 — 거기는 이 카드가 화면의 전부다."""
+        source = self._source()
+        self.assertIn("def render_us_market_signal_card(*, foldable: bool = False)", source)
+        judgment = source[source.index("def render_market_judgment_page("):]
+        self.assertNotIn("foldable=True", judgment[:judgment.index(chr(10) + "def ", 10)]
+                         if chr(10) + "def " in judgment else judgment)
+        page = Path(__file__).parent.joinpath("pages", "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn("render_us_market_signal_card(foldable=True)", page,
+                      "자비스3 화면이 접는 카드를 안 쓴다")

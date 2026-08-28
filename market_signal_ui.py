@@ -41,7 +41,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026081310
+MODULE_REVISION = 2026082810
 
 
 def _now_seoul():
@@ -1244,6 +1244,94 @@ def _speedometer_gauge_svg(score, zones) -> str:
     return svg.replace("</svg>", "".join(marks) + arrow + "</svg>")
 
 
+def _gauge_zones(verdict_style, verdict_order):
+    """반원 눈금의 다섯 구간. 카드 안 계기판과 미리보기가 **같은 눈금**을 쓴다."""
+    step = 100 / len(verdict_order)
+    zones = []
+    for index, verdict in enumerate(verdict_order):
+        color = verdict_style[verdict][1]
+        name = _VERDICT_SHORT.get(verdict) or str(verdict)
+        zones.append((round(step * (index + 1)), name, color))
+    return zones
+
+
+# ── 접었다 펴는 미국장 카드 (2026-08-28 상하님 지시) ────────────────────────
+#
+# 상하님 — "화면에 첫 번째 캡처한 것 중 동그라미 친 부분만 나오게 하고, 클릭하면
+# 두 번째·세 번째 캡처 열리게 해 줘. 닫힘 부분도 넣게 하고, 열릴 때는 창이 수욱
+# 열리게 해 줘."
+#
+# 동그라미 친 부분은 **계기판**이다. 그것만 먼저 보이고, 누르면 머리 칸·신호 개수·
+# 설명·전일 카드가 한꺼번에 열린다.
+#
+# **카드는 한 글자도 안 건드린다.** 계기판을 하나 더 그려 위에 놓고(미리보기),
+# 원래 카드는 통째로 접어 둔다. 열면 미리보기가 사라지고 카드가 나온다.
+# 카드 속을 갈라 놓는 방법도 있었는데, 그러면 열었을 때 머리 칸이 계기판 밑으로
+# 가서 상하님이 보내 주신 두 번째 캡처와 차례가 달라진다.
+#
+# 자바스크립트를 안 쓴다 — 스트림릿이 <script>를 지운다. 숨긴 체크상자 하나와
+# 그것을 누르는 이름표 둘(위·아래)로 여닫는다.
+_US_FOLD_CSS = """
+<style>
+.sig-fold-tap { position:absolute; opacity:0; width:0; height:0; margin:0; }
+.sig-peek { margin:.35rem 0 0; }
+.sig-peek .sig-gauge-shell {
+    border:1px solid rgba(255,255,255,.16); border-radius:12px;
+    padding:.6rem .7rem .2rem; background:rgba(255,255,255,.03);
+}
+.sig-fold-btn {
+    display:flex; align-items:center; justify-content:center; gap:.4rem;
+    margin:.5rem 0 .1rem; padding:.55rem .9rem;
+    border:1px solid rgba(34,197,94,.45); border-radius:14px;
+    background:rgba(34,197,94,.10); color:#8ef0b5;
+    font-weight:800; font-size:.98rem; cursor:pointer; user-select:none;
+    transition:background .2s ease, border-color .2s ease;
+}
+.sig-fold-btn:hover { background:rgba(34,197,94,.18); border-color:rgba(34,197,94,.7); }
+.sig-fold-btn.bottom { margin:.2rem 0 .4rem; }
+.sig-fold-btn .when-open { display:none; }
+body:has(.sig-fold-tap:checked) .sig-fold-btn .when-open { display:inline; }
+body:has(.sig-fold-tap:checked) .sig-fold-btn .when-closed { display:none; }
+/* 열려 있으면 미리보기 계기판은 감춘다 — 안 감추면 계기판이 둘이 된다. */
+body:has(.sig-fold-tap:checked) .sig-peek { display:none; }
+/* **수욱 열린다.** 여는 높이를 미리 알 수 없어 max-height 로 민다.
+   **2200px 은 재어서 정했다** — 폰 375px 에서 열린 카드가 1347px 이다(2026-08-28
+   브라우저 실측). 넉넉하되 너무 크면 안 된다: 4000px 으로 두었더니 눈에 보이는
+   구간(0→1347)이 전체의 3분의 1이라 열리는 것이 순식간에 끝났다.
+   곡선도 가운데가 거의 일정한 것을 쓴다 — 끝만 늦추는 곡선은 보이는 구간이
+   전부 앞쪽 빠른 데 몰린다. 지금은 보이는 구간이 0.56초쯤 걸린다.
+   내용이 2200px 을 넘으면 잘리므로, 카드에 줄을 크게 더하면 여기도 다시 잰다. */
+div[class*="st-key-us_signal_fold"] {
+    max-height:0; opacity:0; overflow:hidden;
+    transition:max-height .9s cubic-bezier(.45,.05,.35,1), opacity .5s ease;
+}
+body:has(.sig-fold-tap:checked) div[class*="st-key-us_signal_fold"] {
+    max-height:2200px; opacity:1;
+}
+@media (prefers-reduced-motion:reduce) {
+    div[class*="st-key-us_signal_fold"] { transition:none; }
+}
+</style>
+"""
+
+
+def _peek_gauge_html(result, verdict_style, verdict_order, label_text: str) -> str:
+    """접혀 있을 때 보이는 계기판 하나. 카드 안의 것과 **같은 그림**이다."""
+    if not verdict_order:
+        return ""
+    zones = _gauge_zones(verdict_style, verdict_order)
+    score = _verdict_needle_position(result.verdict, verdict_order, result)
+    stage = _verdict_stage_number(result.verdict, verdict_order)
+    short = _VERDICT_SHORT.get(result.verdict) or "판정 확인"
+    stage_text = f" · {stage}단계" if stage is not None else ""
+    return (
+        "<div class='sig-peek'><div class='sig-gauge-shell sig-gauge-today'>"
+        f"<div class='sig-gauge-title'>{label_text}{stage_text} · {short}</div>"
+        f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones)}</div>"
+        "</div></div>"
+    )
+
+
 def _verdict_gauge_html(
     result, verdict_style, verdict_order, previous_stage=None, *, show_position_score=False,
     comparison_result=None, comparison_label="전일", current_label_text="당일",
@@ -1255,13 +1343,7 @@ def _verdict_gauge_html(
     verdict_order는 나쁜 쪽 → 좋은 쪽 순서다. 목록에 없는 판정(데이터 부족)은
     바늘 없이 눈금만 그린다.
     """
-    step = 100 / len(verdict_order)
-    zones = []
-    for index, verdict in enumerate(verdict_order):
-        color = verdict_style[verdict][1]
-        name = _VERDICT_SHORT.get(verdict) or str(verdict)
-        zones.append((round(step * (index + 1)), name, color))
-
+    zones = _gauge_zones(verdict_style, verdict_order)
     score = _verdict_needle_position(result.verdict, verdict_order, result)
 
     def _count_row_tuples(target_result):
@@ -1938,8 +2020,26 @@ def run_us_market_signal_check(force_refresh=False):
     return result
 
 
-def render_us_market_signal_card():
-    """🌐 미국장 시장 상태. 선행·확인 신호로 흐름을 읽는다."""
+class _NoBox:
+    """`with` 에 넣어도 아무 일도 안 하는 틀. 접지 않을 때 쓴다."""
+
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *_exc):
+        return False
+
+
+_NO_BOX = _NoBox()
+
+
+def render_us_market_signal_card(*, foldable: bool = False):
+    """🌐 미국장 시장 상태. 선행·확인 신호로 흐름을 읽는다.
+
+    ``foldable=True`` 면 **계기판만 먼저 보이고** 나머지는 눌러서 연다
+    (2026-08-28 상하님 지시 · 자비스3 시장분석 화면). 시장 판단 화면은 예전처럼
+    다 펴 둔다 — 거기는 화면 하나가 통째로 이 카드다.
+    """
     # **「미국 전체시장 판단」과 같은 크기·같은 보라색**이다(2026-08-21 상하님 지시).
     # 두 제목이 나란히 놓이는 화면이라 크기가 다르면 어느 쪽이 위인지 헷갈린다.
     st.markdown(
@@ -2014,22 +2114,47 @@ def render_us_market_signal_card():
         st.markdown(
             f"<div class='us-rest-note'>{_rest}</div>", unsafe_allow_html=True)
 
-    render_market_signal_card(
-        result,
-        current_label_text=current_label_text,
-        verdict_style=_US_VERDICT_STYLE,
-        core_display=_US_CORE_DISPLAY,
-        table_keys=_US_TABLE_KEYS,
-        detail_title="미국장 신호 상세",
-        detail_caption=(
-            "VIX·미국 10년물·달러지수는 오르면 위험자산에 부담이라 ‘하락’이 긍정 판정입니다. "
-            "선물·반도체 ETF는 본장보다 먼저 움직여 선행, 지수는 결과라서 확인 신호로 봅니다."
-        ),
-        table_key="us_signal_detail_table",
-        verdict_order=US_VERDICT_ORDER,
-        comparison_result=previous_result,
-        comparison_label=previous_label,
-    )
+    if foldable:
+        # 계기판을 하나 더 그려 위에 놓는다. 이것만 보이고 카드는 접혀 있다.
+        st.markdown(f"<style>{gauge_ui.CSS}{_SIGNAL_GAUGE_CSS}</style>", unsafe_allow_html=True)
+        st.markdown(_US_FOLD_CSS, unsafe_allow_html=True)
+        st.markdown(
+            '<input type="checkbox" id="us_sig_more" class="sig-fold-tap">'
+            + _peek_gauge_html(result, _US_VERDICT_STYLE, US_VERDICT_ORDER,
+                               current_label_text)
+            + '<label for="us_sig_more" class="sig-fold-btn">'
+            '<span class="when-closed">자세히 보기 ▾</span>'
+            '<span class="when-open">닫기 ▴</span></label>',
+            unsafe_allow_html=True,
+        )
+
+    _fold_box = st.container(key="us_signal_fold") if foldable else _NO_BOX
+
+    with _fold_box:
+        render_market_signal_card(
+            result,
+            current_label_text=current_label_text,
+            verdict_style=_US_VERDICT_STYLE,
+            core_display=_US_CORE_DISPLAY,
+            table_keys=_US_TABLE_KEYS,
+            detail_title="미국장 신호 상세",
+            detail_caption=(
+                "VIX·미국 10년물·달러지수는 오르면 위험자산에 부담이라 ‘하락’이 긍정 판정입니다. "
+                "선물·반도체 ETF는 본장보다 먼저 움직여 선행, 지수는 결과라서 확인 신호로 봅니다."
+            ),
+            table_key="us_signal_detail_table",
+            verdict_order=US_VERDICT_ORDER,
+            comparison_result=previous_result,
+            comparison_label=previous_label,
+        )
+        if foldable:
+            # 다 읽고 나서 위로 되돌아가지 않아도 닫을 수 있게 밑에도 둔다
+            # (상하님 지시 — "닫힘 부분도 넣게 하고").
+            st.markdown(
+                '<label for="us_sig_more" class="sig-fold-btn bottom">'
+                '<span class="when-open">닫기 ▴</span></label>',
+                unsafe_allow_html=True,
+            )
     # 실패 목록 나열은 없앴다(2026-07-22 사용자 지시) — 못 가져온 값은 위 표에
     # '확인 필요'로 이미 표시되고, 사용자가 손쓸 수 없는 항목이라 나열해도 의미가 없다.
 
