@@ -198,7 +198,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082830
+MODULE_REVISION = 2026082840
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4369,6 +4369,52 @@ def get_live_quote(ticker: str) -> dict:
     }
 
 
+# 카드의 작은 그림에 넣을 점 수. 그림 폭이 폰에서 150px 남짓이라 이보다 많으면
+# 한 픽셀에 점이 여럿 겹쳐 선이 굵어 보인다(2026-08-28 상하님 지적 — "선이 너무 굵다").
+BRIEFING_TODAY_POINTS = 90
+
+
+def _regular_session_closes(frame, limit: int = BRIEFING_TODAY_POINTS) -> list[float]:
+    """1분봉에서 **정규장(뉴욕 09:30~16:00)만** 골라 낸다.
+
+    2026-08-28 상하님 지적 — "너 지금 차트 보면 시간외 차트인 것 같은데 잘못됐다."
+    맞다. 카드가 쓰는 1분봉은 `prepost=True` 로 받은 것이라 프리마켓·시간외가
+    섞여 있다. 한국 낮에 보시면 미국 정규장은 이미 끝나 있어서, 그림의 뒷부분이
+    통째로 시간외 움직임이었다. 오늘 장이 어땠는지를 보여 주는 그림이 아니었다.
+
+    **마지막 거래일 하나만** 쓴다. 그리고 점이 너무 많으면 고르게 솎아 낸다 —
+    390분을 150px 에 그리면 한 픽셀에 두세 점이 겹쳐 선이 굵어 보인다.
+    솎아도 모양은 안 바뀐다(픽셀보다 촘촘한 점을 버리는 것이다).
+    """
+    if frame is None or getattr(frame, "empty", True) or "Close" not in frame.columns:
+        return []
+    closes = frame["Close"].dropna().astype(float)
+    if closes.empty:
+        return []
+    try:
+        index = pd.DatetimeIndex(closes.index)
+        if index.tz is not None:
+            index = index.tz_convert(_NY)
+        closes = closes.copy()
+        closes.index = index
+        closes = closes.between_time("09:30", "16:00")
+        if closes.empty:
+            return []
+        last_day = closes.index[-1].date()
+        closes = closes[closes.index.date == last_day]
+    except Exception:
+        return []
+    if len(closes) < 5:
+        return []
+    values = closes.tolist()
+    if len(values) > limit:
+        step = len(values) / float(limit)
+        picked = [values[min(int(i * step), len(values) - 1)] for i in range(limit)]
+        picked[-1] = values[-1]      # 마지막 값(그날 종가)은 반드시 남긴다
+        values = picked
+    return [float(v) for v in values]
+
+
 def get_briefing_cards(stocks) -> dict[str, dict]:
     """종목 브리핑 카드용 가격·30개 종가. 기존 시장 계산과 분리된 읽기 전용 경로다."""
     tickers = tuple(dict.fromkeys(
@@ -4402,9 +4448,8 @@ def get_briefing_cards(stocks) -> dict[str, dict]:
                     # 카드에 적히는 값·등락률은 **오늘 것**인데 그림만 최근 30일이라
                     # 둘이 서로 다른 이야기를 하고 있었다. 분봉은 이미 위에서 받아
                     # 두었으므로(live) 새로 받는 것이 없다.
-                    today = live.get(ticker)
-                    today_series = ([] if today is None or getattr(today, "empty", True)
-                                    else today["Close"].dropna().astype(float).tolist())
+                    # **정규장만** 쓴다 — prepost 로 받은 자료에는 시간외가 섞여 있다.
+                    today_series = _regular_session_closes(live.get(ticker))
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
                         "price": metrics.get("current"), "change_pct": metrics.get("change_pct"),
