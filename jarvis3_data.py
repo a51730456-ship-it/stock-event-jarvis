@@ -197,7 +197,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082607
+MODULE_REVISION = 2026082810
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4486,6 +4486,187 @@ def get_nasdaq_drawdown(ttl_seconds: float = 600) -> dict:
         "state": state, "color": color, "entry_pct": NASDAQ_DRAWDOWN_ENTRY,
         "gates": gates, "stale": bool(meta.get("stale")),
     }
+
+
+# ── 미국 업종 지도 (2026-08-28 상하님 지시) ──────────────────────────────────
+#
+# 상하님 — "시장국면·상승여건양호 사이에 세 번째 캡처처럼 시장현황을 미국 자료
+# 찾아서 넣어 줘." 세 번째 캡처는 네이버의 한국 업종 지도(칸 크기는 시가총액,
+# 색은 등락)다. 그 미국판을 만든다.
+#
+# **칸 크기는 야후가 주는 '미국 시장에서 차지하는 몫'이다.** 코드에 비중을 적어
+# 두면 반년만 지나도 낡는데, 이 값은 야후가 매번 새로 계산해 준다(열한 몫의 합이
+# 정확히 1.0로 온다 — 2026-08-28 실측). 색과 숫자는 그 업종 대표 ETF의 등락이다.
+#
+# **받는 값**(2026-08-28 · 노트북 실측)
+#     업종 몫 11개 (야후, 6명이 동시에)   1.14초 · CPU 0.08초
+#     대표 ETF 11개 일봉 3개월            1.52초 · CPU 0.86초
+#     11개 지표 계산                      0.03초
+# 합쳐서 2초쯤이라 **화면이 그리는 도중에 받으면 안 된다.** 그래서 관심종목
+# 화면이 뉴스를 다 받은 뒤 뒤에서 미리 받아 두고(warm_sector_map), 시장분석
+# 화면은 **공책에 있는 것만** 읽는다. 없으면 그 판에는 "받는 중"이라고 적고
+# 뒤에서 받기 시작한다 — 다음 판에는 채워져 있다.
+US_SECTOR_MAP = (
+    # (야후 업종 이름, 화면에 적을 이름, 대표 ETF)
+    ("technology", "기술", "XLK"),
+    ("financial-services", "금융", "XLF"),
+    ("healthcare", "의료·제약", "XLV"),
+    ("consumer-cyclical", "소비재", "XLY"),
+    ("communication-services", "통신·미디어", "XLC"),
+    ("industrials", "산업·기계", "XLI"),
+    ("consumer-defensive", "생활필수품", "XLP"),
+    ("energy", "에너지", "XLE"),
+    ("utilities", "전기·가스", "XLU"),
+    ("real-estate", "부동산", "XLRE"),
+    ("basic-materials", "소재·화학", "XLB"),
+)
+# 업종 몫은 하루에도 거의 안 움직인다. 등락은 5분마다 새로 본다.
+SECTOR_WEIGHT_TTL = 6 * 3600.0
+SECTOR_MAP_TTL = 300.0
+_SECTOR_STATE: dict = {"at": 0.0, "value": None, "running": False}
+_SECTOR_WEIGHTS: dict = {"at": 0.0, "value": {}}
+_SECTOR_LOCK = threading.Lock()
+
+
+def _sector_weights() -> dict:
+    """업종별 '미국 시장에서 차지하는 몫'. 6시간에 한 번만 받는다.
+
+    **못 받으면 있던 값을 그대로 쓴다.** 지우고 다시 받게 하면, 야후가 한 번
+    거절한 날 화면에서 칸 크기가 통째로 사라진다(2026-08-26에 뉴스에서 같은
+    실수를 했다 — CLAUDE.md 0-0 두 번째).
+    """
+    now = time.time()
+    with _SECTOR_LOCK:
+        if _SECTOR_WEIGHTS["value"] and now - _SECTOR_WEIGHTS["at"] < SECTOR_WEIGHT_TTL:
+            return dict(_SECTOR_WEIGHTS["value"])
+    import yfinance as yf
+
+    def _one(key: str):
+        try:
+            weight = yf.Sector(key).overview.get("market_weight")
+            return key, float(weight) if weight is not None else None
+        except Exception:
+            return key, None
+
+    fetched = {}
+    try:
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for key, weight in pool.map(_one, [k for k, _n, _e in US_SECTOR_MAP]):
+                if weight and weight > 0:
+                    fetched[key] = weight
+    except Exception:
+        fetched = {}
+    with _SECTOR_LOCK:
+        if fetched:
+            _SECTOR_WEIGHTS.update({"at": now, "value": fetched})
+        return dict(_SECTOR_WEIGHTS["value"])
+
+
+def _sector_breadth() -> dict:
+    """오늘 오른 종목·내린 종목이 몇인가. **이미 받아 둔 자료로만 센다.**
+
+    자비스가 보는 미국 명부(248종목)가 기준이다. 미국장 전체 상장 종목을 세려면
+    따로 내려받아야 하는데, 그 값을 여기서 받으면 화면이 그만큼 밀린다. 화면에는
+    무엇을 셌는지 그대로 적는다 — 미국장 전체인 척하지 않는다.
+    """
+    try:
+        daily, _meta = _download_cache_only(
+            _us_batch_tickers(), period="2y", interval="1d", ttl_seconds=US_BATCH_TTL)
+    except Exception:
+        return {}
+    up = flat = down = 0
+    for frame in (daily or {}).values():
+        if frame is None or getattr(frame, "empty", True):
+            continue
+        try:
+            closes = frame["Close"].dropna().astype(float)
+            if len(closes) < 2:
+                continue
+            change = float(closes.iloc[-1]) / float(closes.iloc[-2]) - 1.0
+        except Exception:
+            continue
+        if change > 0.001:
+            up += 1
+        elif change < -0.001:
+            down += 1
+        else:
+            flat += 1
+    total = up + flat + down
+    return {"up": up, "flat": flat, "down": down, "total": total} if total else {}
+
+
+def _compute_sector_map() -> dict:
+    weights = _sector_weights()
+    tickers = tuple(etf for _key, _name, etf in US_SECTOR_MAP)
+    try:
+        daily, meta = _download_cached(
+            tickers, period="3mo", interval="1d", ttl_seconds=SECTOR_MAP_TTL)
+    except Exception as error:  # noqa: BLE001 - 화면을 죽이지 않는다
+        return {"ok": False, "error": str(error), "rows": []}
+    rows = []
+    for key, name, etf in US_SECTOR_MAP:
+        metrics = _series_metrics(daily.get(etf), None)
+        if not metrics.get("ok"):
+            continue
+        rows.append({
+            "key": key,
+            "name": name,
+            "etf": etf,
+            "weight": weights.get(key),
+            "change_pct": metrics.get("change_pct"),
+            "last_session_change_pct": metrics.get("last_session_change_pct"),
+        })
+    if not rows:
+        return {"ok": False, "error": (meta or {}).get("error") or "업종 시세를 못 받았습니다",
+                "rows": []}
+    # 몫을 못 받은 업종은 남은 몫을 고르게 나눠 갖는다 — 칸이 사라지면 그 업종이
+    # 오늘 어떤지 볼 수가 없다.
+    known = sum(row["weight"] for row in rows if row["weight"])
+    missing = [row for row in rows if not row["weight"]]
+    if missing:
+        share = max(1.0 - known, 0.01 * len(missing)) / len(missing)
+        for row in missing:
+            row["weight"] = share
+    return {"ok": True, "rows": rows, "breadth": _sector_breadth(),
+            "checked_at": datetime.now(_NY).strftime("%Y-%m-%d %H:%M"),
+            "stale": bool((meta or {}).get("stale"))}
+
+
+def _refresh_sector_map() -> None:
+    try:
+        value = _compute_sector_map()
+    except Exception:
+        value = None
+    with _SECTOR_LOCK:
+        _SECTOR_STATE["running"] = False
+        # 새로 받은 것이 비었으면 **옛것을 그대로 둔다**(CLAUDE.md 0-0 두 번째).
+        if value and value.get("ok"):
+            _SECTOR_STATE.update({"at": time.time(), "value": value})
+
+
+def warm_sector_map() -> None:
+    """뒤에서 미리 받아 둔다. 관심종목 화면이 뉴스를 다 받은 뒤에 부른다."""
+    now = time.time()
+    with _SECTOR_LOCK:
+        fresh = _SECTOR_STATE["value"] and now - _SECTOR_STATE["at"] < SECTOR_MAP_TTL
+        if fresh or _SECTOR_STATE["running"]:
+            return
+        _SECTOR_STATE["running"] = True
+    threading.Thread(target=_refresh_sector_map, name="j3-sector-map", daemon=True).start()
+
+
+def get_us_sector_map() -> dict:
+    """업종 지도. **화면을 세워 두고 받지 않는다** — 공책에 있는 것만 준다.
+
+    없으면 뒤에서 받기 시작하고 이번 판은 "받는 중"으로 돌려준다.
+    """
+    warm_sector_map()
+    with _SECTOR_LOCK:
+        value = _SECTOR_STATE["value"]
+        running = _SECTOR_STATE["running"]
+    if value:
+        return copy.deepcopy(value)
+    return {"ok": False, "pending": bool(running), "rows": []}
 
 
 def get_etf_sparklines(

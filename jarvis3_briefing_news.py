@@ -22,7 +22,10 @@ from xml.etree import ElementTree
 import deepl_translate
 
 
-CACHE_SECONDS = 600
+# 30분마다 새로 본다 (2026-08-28 상하님 지시 — "주요뉴스 3건을 30분마다 새로
+# 받기를 원한다"). 예전에는 10분이었다. 새로 받는다고 화면이 꼭 바뀌지는 않는다 —
+# 지금 걸린 것보다 **더 큰 소식일 때만** 갈아 끼운다(_merge_by_importance).
+CACHE_SECONDS = 1800
 ERROR_CACHE_SECONDS = 30
 # 뒤 일꾼이 붙잡히면 화면이 「불러오는 중」에서 영영 굳는다(2026-08-26 상하님 지적).
 # 이만큼 지나면 그 일을 버리고 새로 받는다.
@@ -278,25 +281,125 @@ def _request_text(url: str) -> str:
         return response.read().decode("utf-8", errors="replace")
 
 
+# ── 어느 뉴스가 큰 소식인가 (2026-08-28 상하님 지시) ──────────────────────────
+#
+# 상하님 — "그냥 3건보다 주요뉴스 3건을 30분마다 새로 받기를 원하는데, 그 주요
+# 뉴스보다 비중이 떨어지는 것은 빼고. 3건 중 1건이 중요 뉴스면 좀 더 오래 두고,
+# 나머지 중요 뉴스 나오면 집어넣고, 시시한 거면 그냥 기존 뉴스 두고."
+#
+# 그래서 기사마다 **얼마나 큰 소식인지** 점수를 매기고, 큰 것부터 세 줄을 싣는다.
+# 30분마다 새로 받되 **지금 걸린 것보다 큰 소식일 때만** 자리를 바꾼다.
+#
+# 재는 것 넷 — 사람이 신문을 볼 때 쓰는 기준 그대로다.
+#   ① 같은 사건을 몇 매체가 썼나  ② 큰 매체가 썼나
+#   ③ 시장 전체 이야기인가        ④ 얼마나 새 소식인가
+# AI를 쓰지 않는다 — 열쇠가 없어도 돌아가야 하고, 왜 이 셋이 뽑혔는지 설명할 수
+# 있어야 한다.
+_MAJOR_SOURCES = (
+    "reuters", "bloomberg", "cnbc", "wall street journal", "wsj", "financial times",
+    "barron", "associated press", "marketwatch", "washington post", "new york times",
+    "forbes", "business insider", "yahoo finance", "investing.com", "the economist",
+    "axios", "fortune", "seeking alpha", "investor's business daily",
+)
+# 시장 전체를 흔드는 이야기. 종목 하나짜리 소식보다 크게 친다.
+_BIG_WORDS = (
+    "fed", "federal reserve", "rate cut", "rate hike", "interest rate", "inflation",
+    "cpi", "pce", "jobs report", "payroll", "unemployment", "tariff", "gdp",
+    "recession", "s&p 500", "nasdaq", "dow jones", "treasury", "yield", "earnings",
+    "연준", "금리", "물가", "고용", "관세", "국채", "실적", "증시",
+)
+# 지금 걸려 있는 줄에 주는 덤. 새 기사가 **이만큼은 더 커야** 자리를 뺏는다.
+_STAY_BONUS = 0.4
+# 하루가 지난 기사는 아무리 컸어도 자리를 비운다.
+_HOLD_HOURS = 24.0
+
+
+def _fingerprint(title) -> str:
+    """제목 앞 일곱 낱말로 만든 지문. 같은 사건인지 알아보는 데 쓴다."""
+    words = " ".join(re.findall(r"[a-z0-9가-힣]+", str(title or "").lower())[:7])
+    return hashlib.sha1(words.encode("utf-8")).hexdigest()
+
+
+def _importance(row: dict, kind: str) -> float:
+    """이 기사가 얼마나 큰 소식인가. 클수록 오래 걸려 있는다."""
+    score = 0.0
+    # ① 여러 매체가 같은 사건을 썼다 = 그만큼 큰 사건이다. 가장 무겁게 본다.
+    score += (min(int(row.get("twins") or 1), 5) - 1) * 1.4
+    # ② 큰 매체가 쓴 기사
+    source = _text(row.get("source")).lower()
+    if any(name in source for name in _MAJOR_SOURCES):
+        score += 1.5
+    # ③ 시장 전체 이야기 (종목 카드에는 안 준다 — 거기서는 그 회사 소식이 주인공이다)
+    if kind == "market":
+        text = (_text(row.get("headline")) + " " + _text(row.get("summary"))).lower()
+        if any(word in text for word in _BIG_WORDS):
+            score += 1.2
+    # ④ 새 소식일수록 높다. 열 시간쯤 지나면 이 몫은 0이 된다.
+    published = _time(row.get("published_at"))
+    if published is not None:
+        hours = max((datetime.now(timezone.utc) - published).total_seconds() / 3600.0, 0.0)
+        score += max(0.0, 2.4 - hours / 4.0)
+    return round(score, 3)
+
+
+def _rank(rows: list[dict], kind: str) -> list[dict]:
+    """큰 소식부터 줄을 세운다. 점수는 줄마다 적어 둔다 — 나중에 견줄 때 쓴다."""
+    for row in rows:
+        row["weight"] = _importance(row, kind)
+    return sorted(rows, key=lambda row: -float(row.get("weight") or 0))
+
+
+def _merge_by_importance(held, fresh, limit: int = 3) -> list[dict]:
+    """지금 걸린 줄과 새로 받은 줄을 견줘 세 자리를 준다.
+
+    같은 사건이면 걸려 있던 쪽이 이긴다(덤 _STAY_BONUS). 그래서 시시한 새 기사가
+    와도 화면이 안 흔들리고, 정말 더 큰 소식이 와야 자리가 바뀐다.
+    """
+    now = datetime.now(timezone.utc)
+    best: dict = {}
+    for item, bonus in ([(row, _STAY_BONUS) for row in (held or [])]
+                        + [(row, 0.0) for row in (fresh or [])]):
+        title = _text(item.get("headline")) or _text(item.get("brief"))
+        if not title:
+            continue
+        if bonus:
+            published = _time(item.get("published_at"))
+            if published is not None and (now - published).total_seconds() > _HOLD_HOURS * 3600:
+                continue
+        mark = _fingerprint(title)
+        score = float(item.get("weight") or 0) + bonus
+        if mark not in best or score > best[mark][0]:
+            best[mark] = (score, item)
+    ordered = sorted(best.values(), key=lambda pair: -pair[0])
+    return [item for _score, item in ordered[:limit]]
+
+
 def _dedupe(rows: list[dict]) -> list[dict]:
     """같은 사건을 두 번 싣지 않는다.
 
     주소와 제목을 **둘 다** 본다. 예전에는 주소가 있으면 주소만 봐서, 매체가 달라
     주소가 다르면 같은 기사가 두 줄로 올라왔다(2026-08-26 — 시장 브리핑 세 줄 가운데
     둘이 "US Stock Market Today: S&P 500 Futures Edge Lower…"로 겹쳤다).
+
+    **버리면서 몇 곳이 썼는지 센다**(2026-08-28). 같은 사건을 여러 매체가 쓸수록
+    큰 소식이다 — 뉴스 3건을 고를 때 이 수를 가장 크게 본다.
     """
-    seen, result = set(), []
+    seen: dict = {}
+    result = []
     for row in rows:
         title, url = _text(row.get("headline")), _text(row.get("url"))
         if not title:
             continue
-        words = " ".join(re.findall(r"[a-z0-9가-힣]+", title.lower())[:7])
-        marks = {hashlib.sha1(words.encode("utf-8")).hexdigest()}
+        marks = {_fingerprint(title)}
         if url:
             marks.add(url)
-        if marks & seen:
+        twin = next((seen[mark] for mark in marks if mark in seen), None)
+        if twin is not None:
+            twin["twins"] = int(twin.get("twins") or 1) + 1
             continue
-        seen |= marks
+        row["twins"] = int(row.get("twins") or 1)
+        for mark in marks:
+            seen[mark] = row
         result.append(row)
     return result
 
@@ -441,7 +544,8 @@ def _groq(rows: list[dict], label: str, key: str, deepl_key: str = "") -> list[d
 
 
 def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_key: str,
-          naver_client_id: str = "", naver_client_secret: str = "", deepl_key: str = "") -> dict:
+          naver_client_id: str = "", naver_client_secret: str = "", deepl_key: str = "",
+          held: list | None = None) -> dict:
     rows = []
     loaders = []
     # 언제나 미국 원문 기사를 먼저 받는다(2026-08-26 상하님 — "미국 뉴스를 갖고
@@ -457,7 +561,12 @@ def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_
             rows = []
         if rows:
             break
-    return {"ok": True, "items": _groq(rows, ticker or "미국시장", groq_key, deepl_key),
+    # **큰 소식부터 줄을 세운 뒤** 세 줄을 고른다(2026-08-28 상하님 지시).
+    # 예전에는 구글이 준 차례대로 앞의 셋을 그냥 썼다 — 고르는 사람이 없었다.
+    ranked = _rank(rows, kind)
+    picked = _groq(ranked, ticker or "미국시장", groq_key, deepl_key)
+    # 지금 화면에 걸린 줄과 견줘, **더 큰 소식일 때만** 자리를 바꾼다.
+    return {"ok": True, "items": _merge_by_importance(held, picked),
             "updated_at": time.time()}
 
 
@@ -510,8 +619,10 @@ def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = 
                else CACHE_SECONDS)
         if current and now - current.get("updated_at", 0) < ttl:
             return current.get("result", {"ok": True, "items": []})
+        # 지금 걸려 있는 줄을 같이 넘긴다 — 새것이 더 커야 자리를 뺏는다.
+        held = list((current.get("result") or {}).get("items") or []) if current else []
         future = _POOL.submit(_load, cache_key, kind, ticker, finnhub_key, groq_key,
-                              naver_client_id, naver_client_secret, deepl_key)
+                              naver_client_id, naver_client_secret, deepl_key, held)
         _CACHE[cache_key] = {"future": future, "updated_at": now, "started_at": now,
                              "failed": bool(current and current.get("failed")),
                              "result": current.get("result", {"ok": True, "items": []}) if current else {"ok": True, "items": []}}

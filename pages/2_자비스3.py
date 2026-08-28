@@ -340,6 +340,12 @@ st.markdown(
     .j3-ndd-sub { color: #9aa0aa; font-size: 1rem; font-weight: 700; }
     .j3-ndd-note { color: #aeb6c2; font-size: .92rem; margin-top: .3rem; line-height: 1.55; }
     .j3-ndd-key { color: #4da6ff; font-weight: 850; }
+    /* 검색 종목 배점 안내 (2026-08-28) — 표 바로 위에 붙는다. */
+    .j3-score-origin { background: rgba(192,132,252,0.10);
+        border: 1px solid rgba(192,132,252,0.42); border-radius: .5rem;
+        padding: .55rem .75rem; margin: .1rem 0 .5rem; color: #d8c4f5;
+        font-size: .95rem; font-weight: 600; line-height: 1.62; }
+    .j3-score-origin b { color: #f0e3ff; }
     .j3-theme-open-guide { color: #c084fc; font-size: 1.08rem; font-weight: 850;
         margin: .15rem 0 .65rem; text-shadow: 0 0 8px rgba(192,132,252,.18); }
     /* 오늘 1~5위 테마를 한 줄로 적는다(2026-08-14 상하님 지시) — 순위표를 닫아
@@ -367,6 +373,32 @@ st.markdown(
     .j3-idx-note { font-size: 0.82rem; }
     /* SPY·QQQ는 그림이 둘이라 칸을 조금 넓게 잡는다. */
     .j3-idx-wide { min-width: 240px; }
+    /* ── 시장 현황(업종 지도) 2026-08-28 ────────────────────────────────
+       상자 자리는 서버가 계산해 %로 준다. 칸의 가로:세로를 CSS에서 못박아야
+       그 계산과 화면이 어긋나지 않는다 — 비율이 달라지면 상자가 찌그러진다.
+       글자 크기는 지도 칸의 font-size 하나만 바꾸면 상자 글자가 다 따라온다. */
+    .j3-sector-map { flex: 1 1 100%; max-width: 620px; font-size: 13px; }
+    .j3-sector-sub { color: #8f9bb0; font-size: 0.86em; font-weight: 700; margin: .1rem 0 .35rem; }
+    .j3-sector-grid { position: relative; width: 100%; aspect-ratio: 100 / 58;
+        border-radius: 10px; overflow: hidden; background: rgba(255,255,255,.04); }
+    .j3-sector-tile { position: absolute; box-sizing: border-box;
+        border: 1px solid rgba(2,11,30,.85); border-radius: 4px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: .1em; overflow: hidden; text-align: center; color: #f4f8ff; padding: 2px; }
+    .j3-sector-name { font-weight: 800; line-height: 1.15; }
+    .j3-sector-pct { font-weight: 800; line-height: 1.1; opacity: .95; }
+    .j3-sector-tile.big .j3-sector-name { font-size: 1.15em; }
+    .j3-sector-tile.big .j3-sector-pct { font-size: 1.05em; }
+    .j3-sector-tile.mid .j3-sector-name { font-size: 0.92em; }
+    .j3-sector-tile.mid .j3-sector-pct { font-size: 0.86em; }
+    .j3-sector-tile.small .j3-sector-name { font-size: 0.74em; }
+    .j3-sector-bar { display: flex; height: 7px; border-radius: 4px; overflow: hidden;
+        margin: .4rem 0 .25rem; background: rgba(255,255,255,.08); }
+    .j3-sector-bar span { display: block; height: 100%; }
+    .j3-sector-foot { display: flex; flex-wrap: wrap; gap: .1rem .7rem;
+        font-size: 0.86em; font-weight: 800; }
+    .j3-sector-note { color: #7d8798; font-weight: 700; }
+    .j3-sector-wait { color: #9aa0aa; font-weight: 700; padding: .6rem 0; }
     .j3-idx-charts { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     /* 손을 올리면 '일봉 6개월'이 **오른쪽에서 밀려 들어와 같은 자리에서 바뀐다**
        (2026-08-06 상하님 지시 "오른쪽으로 하되 겹치지 않게").
@@ -1134,7 +1166,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026082110
+_REQUIRED_MOBILE_REVISION = 2026082810
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1183,7 +1215,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082607
+_REQUIRED_J3_REVISION = 2026082810
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2092,6 +2124,10 @@ def _render_market_overview() -> None:
         # SPY·QQQ도 지수 칸과 같은 옷에 그림(당일·일봉)을 넣는다(2026-08-01 지시).
         *_us_etf_cells(overview),
         _market_phase_cell(phase, phase_color, vix_sub),
+        # 시장 현황(업종 지도)은 **시장 상황 바로 뒤, 게이지 앞**이다
+        # (2026-08-28 상하님 지시). 폰에서는 게이지 둘이 order:10 으로 맨 뒤에
+        # 가므로, 이 칸에 order:5 를 주어 그 사이에 서게 한다(mobile_ui).
+        _sector_map_cell(phase),
         _fear_greed_box(),
     ]
     # 게이지 스타일은 지표 줄과 따로 내보낸다. 줄 안에 <style>을 끼워 넣으면
@@ -2432,6 +2468,156 @@ def _us_etf_cells(overview: dict) -> list:
             + chart_html + "</div>"
         )
     return cells
+
+
+# 지도 칸의 세로:가로 비율. 상자 자리를 서버에서 계산하므로 화면에서도 이 비율을
+# 지켜야 상자가 찌그러지지 않는다(CSS aspect-ratio 로 같은 값을 건다).
+_SECTOR_MAP_W = 100.0
+_SECTOR_MAP_H = 58.0
+
+
+def _squarify(areas: list[float], x: float, y: float, width: float, height: float,
+              out: list) -> None:
+    """넓이가 값에 비례하는 상자로 칸을 채운다(squarify).
+
+    큰 것부터 넣으면서 **정사각형에 가깝게** 되도록 한 줄에 몇 개를 담을지 정한다.
+    한 줄로 죽 자르는 방법보다 글자가 들어갈 자리가 잘 나온다 — 네이버 업종 지도가
+    쓰는 것과 같은 방식이다.
+    """
+    if not areas:
+        return
+    if len(areas) == 1 or width <= 0 or height <= 0:
+        offset = y
+        total = sum(areas) or 1.0
+        for area in areas:
+            share = area / total * height
+            out.append((x, offset, width, share))
+            offset += share
+        return
+
+    def _worst(row: list[float], side: float) -> float:
+        total = sum(row)
+        if total <= 0 or side <= 0:
+            return float("inf")
+        return max(side * side * max(row) / (total * total),
+                   (total * total) / (side * side * min(row)))
+
+    side = min(width, height)
+    row, index = [areas[0]], 1
+    while index < len(areas) and _worst(row + [areas[index]], side) <= _worst(row, side):
+        row.append(areas[index])
+        index += 1
+    total = sum(row)
+    if width >= height:
+        band = total / height
+        offset = y
+        for area in row:
+            share = area / total * height
+            out.append((x, offset, band, share))
+            offset += share
+        _squarify(areas[index:], x + band, y, width - band, height, out)
+    else:
+        band = total / width
+        offset = x
+        for area in row:
+            share = area / total * width
+            out.append((offset, y, share, band))
+            offset += share
+        _squarify(areas[index:], x, y + band, width, height - band, out)
+
+
+def _sector_tone(change) -> str:
+    """오르면 파랑, 내리면 빨강. 많이 움직일수록 진하다(미국 화면 색 규칙)."""
+    if change is None:
+        return "#22304a"
+    try:
+        value = float(change)
+    except (TypeError, ValueError):
+        return "#22304a"
+    strength = min(abs(value) / 2.0, 1.0)          # 2% 이상이면 가장 진한 색
+    target = (77, 166, 255) if value >= 0 else (255, 91, 91)
+    dark = (12, 28, 52)
+    mixed = tuple(round(base + (tip - base) * (0.22 + 0.78 * strength))
+                  for base, tip in zip(dark, target))
+    return "#%02x%02x%02x" % mixed
+
+
+def _sector_map_cell(phase: str) -> str:
+    """시장 현황 — 미국 업종 지도 (2026-08-28 상하님 지시).
+
+    상하님 — "시장국면·상승여건양호 사이에 세 번째 캡처처럼 시장현황을 미국 자료
+    찾아서 넣어 줘."
+
+    칸 크기는 그 업종이 **미국 시장에서 차지하는 몫**(야후가 매번 새로 계산해 준다),
+    색과 숫자는 그 업종 대표 ETF의 등락이다. 밑줄은 자비스가 보는 미국 명부에서
+    오늘 오른 종목·내린 종목 수다.
+
+    **자료를 여기서 기다리지 않는다.** 공책에 없으면 한 줄만 적고 넘어간다 —
+    뒤에서 받아 두므로 다음 판에는 채워져 있다(jarvis3_data.get_us_sector_map).
+    """
+    try:
+        sector = j3data.get_us_sector_map()
+    except Exception:
+        return ""
+    rows = [row for row in (sector.get("rows") or []) if row.get("weight")]
+    if not rows:
+        note = "업종 지도를 받는 중입니다" if sector.get("pending") else "업종 자료를 아직 못 받았습니다"
+        return ("<div class='j3-top-cell j3-sector-map'>"
+                "<div class='j3-top-label j3-idx-label'>시장 현황</div>"
+                f"<div class='j3-sector-wait'>{note}</div></div>")
+
+    live = phase == "정규장 시간"
+    for row in rows:
+        change = row.get("change_pct") if live else row.get("last_session_change_pct")
+        if change is None:
+            change = row.get("last_session_change_pct") if live else row.get("change_pct")
+        row["shown_change"] = change
+    rows.sort(key=lambda item: float(item["weight"]), reverse=True)
+
+    total_weight = sum(float(row["weight"]) for row in rows) or 1.0
+    scale = (_SECTOR_MAP_W * _SECTOR_MAP_H) / total_weight
+    boxes: list = []
+    _squarify([float(row["weight"]) * scale for row in rows],
+              0.0, 0.0, _SECTOR_MAP_W, _SECTOR_MAP_H, boxes)
+
+    tiles = []
+    for row, (x, y, width, height) in zip(rows, boxes):
+        change = row.get("shown_change")
+        # 상자가 작으면 글자가 삐져나온다 — 작은 칸은 이름만, 더 작으면 아무것도 안 적는다.
+        size = "big" if (width >= 22 and height >= 18) else "mid" if (width >= 13 and height >= 11) else "small"
+        text = f"<div class='j3-sector-name'>{row['name']}</div>"
+        if size != "small":
+            text += (f"<div class='j3-sector-pct'>{_pct(change)}</div>")
+        tiles.append(
+            f"<div class='j3-sector-tile {size}' title='{row['name']} · {row['etf']} · {_pct(change)}' "
+            f"style='left:{x / _SECTOR_MAP_W * 100:.3f}%;top:{y / _SECTOR_MAP_H * 100:.3f}%;"
+            f"width:{width / _SECTOR_MAP_W * 100:.3f}%;height:{height / _SECTOR_MAP_H * 100:.3f}%;"
+            f"background:{_sector_tone(change)}'>{text}</div>"
+        )
+
+    breadth = sector.get("breadth") or {}
+    foot = ""
+    if breadth.get("total"):
+        total = float(breadth["total"])
+        up, flat, down = breadth["up"], breadth["flat"], breadth["down"]
+        foot = (
+            "<div class='j3-sector-bar'>"
+            f"<span style='width:{up / total * 100:.1f}%;background:#4da6ff'></span>"
+            f"<span style='width:{flat / total * 100:.1f}%;background:#7a8494'></span>"
+            f"<span style='width:{down / total * 100:.1f}%;background:#ff5b5b'></span></div>"
+            f"<div class='j3-sector-foot'><span class='j3-up'>▲ 오름 {up}</span>"
+            f"<span class='j3-muted'>― 그대로 {flat}</span>"
+            f"<span class='j3-down'>▼ 내림 {down}</span>"
+            f"<span class='j3-sector-note'>자비스가 보는 미국 {breadth['total']}종목 기준</span></div>"
+        )
+    return (
+        "<div class='j3-top-cell j3-sector-map'>"
+        "<div class='j3-top-label j3-idx-label'>시장 현황</div>"
+        "<div class='j3-sector-sub'>칸 크기 = 미국 시장에서 차지하는 몫 · "
+        f"색 = {'오늘' if live else '직전 장'} 오르내림</div>"
+        f"<div class='j3-sector-grid'>{''.join(tiles)}</div>"
+        + foot + "</div>"
+    )
 
 
 def _market_phase_cell(phase: str, phase_color: str, vix_sub: str) -> str:
@@ -2778,6 +2964,27 @@ def _render_stock_detail(
             )
         else:
             st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
+            if panel == "mystock":
+                # **어느 배점인지 표 바로 위에 적는다** (2026-08-28 상하님 지적 —
+                # "종목검색 후 선택종목 세부사항의 배점기준은 어느 형식의 배점을
+                # 따르는지 알 수가 없다").
+                #
+                # 여기만 **옛 80점 배점**을 쓴다. 테마 대장주는 새 100점 배점
+                # (종목 60% + 테마 40%)이다. 게다가 직접 찾은 종목은 견줄 테마가
+                # 없어 「테마 대비 상대강도 25점」이 언제나 0점이라, 표에 (80)이라
+                # 적혀 있어도 실제로 받을 수 있는 최대는 55점이다.
+                # 상하님 지시대로 **배점은 그대로 두고 설명만 붙인다**(2026-08-28).
+                st.markdown(
+                    "<div class='j3-score-origin'>"
+                    "이 표는 <b>직접 검색한 종목 전용 배점</b>입니다 — 80점 만점.<br>"
+                    "위 테마 대장주가 쓰는 <b>100점 배점</b>(종목 60% + 테마 40%)과 "
+                    "<b>다른 자</b>입니다. 두 점수를 나란히 놓고 비교하지 마십시오.<br>"
+                    "견줄 테마가 없어 <b>「테마 대비 상대강도」 25점은 언제나 0점</b>입니다. "
+                    "그래서 이 종목이 실제로 받을 수 있는 가장 높은 점수는 "
+                    "<b>55점</b>입니다."
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
             st.markdown(
                 _factor_table_html(
                     factor_rows, total_row,
@@ -6888,6 +7095,63 @@ def _render_existing_theme_content() -> None:
         """,
         unsafe_allow_html=True,
     )
+    # ── 시장분석 화면도 관심종목 화면과 **같은 옷**을 입는다 (2026-08-28 상하님 지시)
+    #
+    # 상하님 — "미국테마를 캡쳐4처럼 디자인을 좀 바꾸고 싶다. 테두리를 캡쳐4처럼
+    # 하고 싶다는 이야기이야."
+    #
+    # 여태 한 페이지 안에서 두 화면이 서로 다른 옷을 입고 있었다. 관심종목 쪽은
+    # 금색 테두리를 두른 남색 카드(.j3b-card)인데, 시장분석 쪽 지수 칸은 테두리도
+    # 바탕도 없는 맨 글자였다. 같은 앱으로 안 보인다.
+    #
+    # 색·굵기·둥글기를 .j3b-card 에서 그대로 가져온다. **한 곳에서 베껴 오지
+    # 않고 여기 다시 적는 까닭** — 저쪽은 .j3b-home 표식이 있어야 걸리는 규칙이라
+    # 이 화면에는 안 걸린다. 표식을 여기 붙이면 카드·격자 규칙까지 통째로 따라와
+    # 지수 칸이 246px 짜리 카드가 된다.
+    #
+    # **값·숫자·순서는 하나도 안 건드린다** — 옷만 갈아입힌다.
+    st.markdown(
+        """
+        <style>
+        body:has(.j3-market-top),
+        body:has(.j3-market-top) .stApp { background:#020b1e !important; }
+        body:has(.j3-market-top) .stApp {
+            background-image:
+                radial-gradient(circle at 51% 1%, #0c3d78 0, transparent 27%),
+                linear-gradient(160deg, #020a1c 0%, #031a3b 53%, #020b21 100%) !important;
+        }
+
+        /* 지수 칸·게이지 상자·나스닥 낙폭 줄 — 관심종목 카드와 같은 테두리 */
+        body:has(.j3-market-top) .j3-top-cell,
+        body:has(.j3-market-top) .fg-box,
+        body:has(.j3-market-top) .j3-ndd {
+            background: linear-gradient(145deg, #06345f 0%, #03264a 58%, #001d3c 100%);
+            border: 1px solid #bf9254a8;
+            border-radius: 17px;
+            box-shadow: inset 0 1px #7bc9ff35, 0 6px 16px #0006;
+            padding: 12px 13px 11px;
+            box-sizing: border-box;
+        }
+
+        /* 칸에 테두리가 생겼으니 칸 사이는 좁혀도 갈린다. 예전 2rem 은 테두리가
+           없을 때 칸을 갈라 보이게 하려던 것이다. */
+        body:has(.j3-market-top) .j3-top-row { gap: 0.85rem; }
+
+        /* 손을 올리면 살짝 밝아진다 — 관심종목 카드와 같은 결이다. */
+        body:has(.j3-market-top) .j3-top-cell:hover {
+            border-color: #d8ab68; box-shadow: inset 0 1px #7bc9ff55, 0 8px 20px #0008;
+        }
+
+        /* 접었다 펴는 설명 상자도 같은 테두리로 맞춘다. */
+        body:has(.j3-market-top) [data-testid="stExpander"] details {
+            border: 1px solid #bf925266 !important;
+            border-radius: 15px !important;
+            background: linear-gradient(145deg, #06304f26, #001d3c40) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
     # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
     scroll_to.anchor(st, "top")
@@ -7414,12 +7678,80 @@ _BRIEFING_TOUCH_CSS = """
 _SIX_MONTH_STROKE = "#70e64a"
 
 
-def _briefing_chart(values, change, *, stroke: str = "") -> str:
+# 기준선 위는 초록, 아래는 빨강 (2026-08-28 상하님 지시 · 야후 파이낸스와 같은 색).
+_BASE_UP_STROKE = "#70e64a"
+_BASE_DOWN_STROKE = "#ff5b5b"
+
+
+def _briefing_chart_split(values, low: float, span: float) -> str:
+    """시작가에 기준선을 긋고 위·아래를 다른 색으로 그린다.
+
+    선이 기준선을 가로지르는 **바로 그 자리**에서 색을 바꾼다. 칸마다 선을 따로
+    그리는 방법도 있지만, 그러면 6개월 그림 하나가 125조각이 되어 화면에 실어
+    보내는 글자가 그만큼 늘어난다. 가로지르는 자리만 끊으면 보통 서넛으로 끝난다.
+    """
+    base = values[0]
+    step = 100.0 / (len(values) - 1)
+
+    def _y(value):
+        return 42 - (value - low) * 38 / span
+
+    base_y = _y(base)
+    pieces, current, sign = [], [(0.0, base)], None
+    for index in range(len(values) - 1):
+        x_now, v_now = index * step, values[index]
+        x_next, v_next = (index + 1) * step, values[index + 1]
+        sign_now = 1 if v_now >= base else -1
+        sign_next = 1 if v_next >= base else -1
+        if sign is None:
+            sign = sign_now if v_now != base else sign_next
+        if sign_next == sign or v_next == base:
+            current.append((x_next, v_next))
+            continue
+        # 기준선을 넘는다 — 만나는 자리를 계산해 넣고 거기서 색을 바꾼다.
+        share = (base - v_now) / (v_next - v_now) if v_next != v_now else 0.0
+        x_cross = x_now + (x_next - x_now) * share
+        current.append((x_cross, base))
+        pieces.append((sign, current))
+        sign, current = sign_next, [(x_cross, base), (x_next, v_next)]
+    pieces.append((sign if sign is not None else 1, current))
+
+    body = []
+    for piece_sign, piece in pieces:
+        if len(piece) < 2:
+            continue
+        color = _BASE_UP_STROKE if piece_sign >= 0 else _BASE_DOWN_STROKE
+        line = " ".join(f"{x:.2f},{_y(v):.2f}" for x, v in piece)
+        area = (f"{piece[0][0]:.2f},{base_y:.2f} " + line
+                + f" {piece[-1][0]:.2f},{base_y:.2f}")
+        body.append(f'<polygon points="{area}" fill="{color}" fill-opacity="0.15"/>')
+        body.append(f'<polyline points="{line}" fill="none" stroke="{color}" '
+                    'stroke-width="2.1" vector-effect="non-scaling-stroke"/>')
+    # 기준선은 **가로로 늘어나도 점 간격이 그대로**여야 한다 — 그래서 여기도
+    # vector-effect 를 건다. 안 걸면 크게 연 카드에서 점선이 실선처럼 보인다.
+    guide = (f'<line x1="0" y1="{base_y:.2f}" x2="100" y2="{base_y:.2f}" '
+             'stroke="rgba(255,255,255,.42)" stroke-width="1" stroke-dasharray="4 4" '
+             'vector-effect="non-scaling-stroke"/>')
+    return ('<svg class="j3b-chart" viewBox="0 0 100 45" preserveAspectRatio="none">'
+            + guide + "".join(body) + "</svg>")
+
+
+def _briefing_chart(values, change, *, stroke: str = "", baseline: bool = False) -> str:
     """카드의 작은 그림. ``stroke``를 주면 그 색으로 그린다.
 
     2026-08-26 상하님 지시 — "관심종목에 일봉 6개월 색깔이 당일 차트 색에 따라
     달라진다." 접힌 카드의 최근 30일 그림은 예전대로 **오늘 오르내림에 따라**
     초록·빨강이고, 크게 연 일봉 6개월만 늘 초록이다. 6개월 그림에 오늘 색을 입히면 반년 흐름을 하루 색으로 말하게 된다.
+
+    ``baseline=True`` 면 **시작가에 점선을 긋고 위아래를 다른 색으로** 그린다
+    (2026-08-28 상하님 지시 — 야후 파이낸스 폰 화면의 6개월 그림처럼).
+    상하님 — "시작가 위로 초록색이고 밑으로는 붉은색인데 이것처럼 기준선이
+    있어야 되지 않나?" 반년 전 종가보다 위인지 아래인지가 선 색으로 바로 읽힌다.
+    선이 기준선을 가로지르는 자리는 **정확히 그 지점에서** 색을 바꾼다 — 칸마다
+    따로 그리지 않으므로 그림이 무거워지지 않는다(6개월 126칸이 조각 서넛으로 끝난다).
+
+    지수 칸의 `_sparkline_svg`와 **같은 규칙**이다. 다만 이 그림은 가로로 늘여
+    그리므로(preserveAspectRatio="none") 선 굵기·점선 간격은 화면 기준으로 못박는다.
     """
     values = [float(item) for item in (values or []) if item is not None]
     if len(values) < 2:
@@ -7427,6 +7759,8 @@ def _briefing_chart(values, change, *, stroke: str = "") -> str:
     low, high = min(values), max(values)
     span = high - low or 1
     points = " ".join(f"{index * 100 / (len(values)-1):.1f},{42 - (value-low) * 38/span:.1f}" for index, value in enumerate(values))
+    if baseline:
+        return _briefing_chart_split(values, low, span)
     stroke = stroke or ("#70e64a" if (change or 0) >= 0 else "#ff5b5b")
     # **선 굵기를 화면 기준으로 못박는다**(2026-08-26 상하님 지적 — "종목 클릭하면
     # 나오는 차트 선이 너무 굵다").
@@ -7657,7 +7991,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         # 접힌 카드의 작은 그림은 예전 그대로 최근 30일이다. 6개월치가 아직 안
         # 왔으면 그 30일 그림을 그대로 쓰고 이름표도 안 붙인다 — 없는 것을 있는
         # 것처럼 적으면 안 된다.
-        f'{_briefing_chart(six_month or card.get("chart"), change, stroke=_SIX_MONTH_STROKE if six_month else "")}'
+        f'{_briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))}'
         f'{"<div class='j3b-chart-cap'>일봉 6개월</div>" if six_month else ""}'
         f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
         f'{decor_html}</div>'
@@ -7892,6 +8226,14 @@ def _warm_after_news(keys: tuple) -> None:
     if callable(signal_warm):
         try:
             signal_warm()
+        except Exception:
+            pass
+    # 시장분석 화면의 업종 지도도 여기서 미리 받아 둔다(2026-08-28). 2초쯤
+    # 걸리는 조회라 그 화면에서 받으면 화면이 그만큼 밀린다.
+    sector_warm = getattr(j3data, "warm_sector_map", None)
+    if callable(sector_warm):
+        try:
+            sector_warm()
         except Exception:
             pass
     warm = getattr(j3data, "warm_top_picks", None)

@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026082110
+MODULE_REVISION = 2026082810
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -139,6 +139,10 @@ TOP_ROW_CSS = """
 /* 게이지는 숫자 뒤로 보낸다 — 폰에서 게이지 세 개가 430px를 먹어 KOSPI·수급이
    첫 화면 밖으로 밀려났다(2026-07-24 실측). 순서만 바꿀 뿐 값은 그대로다. */
 .fg-box { order: 10; box-sizing: border-box; }
+/* 시장 현황(업종 지도)은 숫자 칸들 뒤, 게이지 둘 앞이다 (2026-08-28 상하님 지시 —
+   "시장국면·상승여건양호 사이에 넣어 줘"). 게이지가 order:10 이라 그 사이 값을 준다. */
+.j3-sector-map { order: 5; width: 100% !important; min-width: 100% !important;
+    max-width: 100% !important; font-size: 11px; }
 .fg-box-body { gap: 0.7rem; }
 .fg-box-gauge .fg-gauge { width: 104px; height: auto; }
 .fg-box-hist { min-width: 0; flex: 1 1 auto; }
@@ -172,8 +176,25 @@ TOP_ROW_CSS = """
 # 규칙만 방향별로 갈라 둔다 — 글자 크기·게이지 순서는 위 묶음 그대로다.
 # 폭이 아니라 방향을 보므로 태블릿을 돌리는 즉시 따라 바뀐다.
 TOP_ROW_PORTRAIT_CSS = """
-.j3-top-cell, .j4-top-cell { min-width: calc(50% - 0.6rem); }
-.fg-box { width: 100%; }
+/* 칸 너비를 **정확히 반**으로 못박는다 (2026-08-28 상하님 지적 — "맨 위쪽
+   오른쪽이 비어 있고 시장상황 vix 지수 오른쪽이 비어 있다, 이거 맞춰줘").
+   원인 — min-width 만 주면 최소값일 뿐이라 **글이 길면 칸이 그만큼 넓어진다.**
+   밑줄이 긴 두 칸이 절반을 넘어 그 줄을 혼자 썼다.
+     나스닥100 선물 — "+0.57% · S&P500 선물 +0.35%" 한 줄
+     시장 상황     — "VIX 14.51 -4.60%" (1.25rem 굵게)
+   이제 그 두 줄은 칸 안에서 접히고, 한 줄에 늘 두 칸이 선다.
+   값·색·순서는 하나도 안 바뀐다 — 접히는 자리만 달라진다(규칙 12). */
+.j3-top-cell, .j4-top-cell {
+    width: calc(50% - 0.6rem); min-width: calc(50% - 0.6rem);
+    max-width: calc(50% - 0.6rem); box-sizing: border-box;
+}
+/* SPY·QQQ·시장 상황은 그림이 둘이라 240px 를 따로 잡아 두었다. 폰에서는 그
+   240px 이 절반보다 넓어 같은 일이 난다 — 여기서 풀어 준다. */
+.j3-idx-wide { min-width: calc(50% - 0.6rem) !important; }
+/* 칸끼리 키가 달라도 **밑선이 아니라 윗선**을 맞춘다. 접힌 줄 때문에 한 칸이
+   한 줄 높아졌을 때, 가운데 맞추기로 두면 이름표 높이가 서로 어긋난다. */
+.j3-top-row, .j4-top-row { align-items: flex-start; }
+.fg-box { width: 100%; min-width: 100%; max-width: 100%; }
 """
 
 # 가로로 들면 폭이 배로 넓어지므로 한 줄에 네 칸, 게이지는 두 개씩 담는다.
