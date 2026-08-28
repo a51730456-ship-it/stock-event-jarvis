@@ -6073,6 +6073,9 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     보는 값(신고가 며칠 전 · 고점 대비 · 보유일수)을 보여준다. 승률·평균수익은
     설명서에 적힌 검증값을 그대로 옮긴 참고치이며, 이 종목들의 성적이 아니다.
     """
+    # 단추를 누르면 화면이 여기로 내려온다(2026-08-28). 두 갈래가 함께 쓰는
+    # 자리라 여기 하나만 둔다 — 상승장은 아래 _render_us_swing_finder 로 간다.
+    scroll_to.anchor(st, "finder_top")
     if not result.get("ok"):
         st.error(f"조회 실패: {_safe_error_text(result.get('error'))}")
         return
@@ -6723,6 +6726,12 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             st.session_state["j3_pullback_open"] = True
             st.session_state["j3_pullback_mode"] = pressed
             st.session_state.pop("j3_pullback_selected_ticker", None)
+            # **화면을 결과 자리로 살짝 내린다** (2026-08-28 상하님 지시 —
+            # "상승장 신고가 눌림매수 클릭하면 두 번째 화면처럼 되는데 살짝
+            # 내려라, 그러면 첫 번째 캡처 화면처럼 되게").
+            # 단추가 화면 위쪽에 있어서 누르면 그 자리에 그대로 서 있었고,
+            # 결과(나스닥 지수 줄·정식 후보)는 단추 여섯 개 아래에 있었다.
+            scroll_to.request(st, "finder_top")
             # 폰·태블릿 뒤로가기 — 이 목록이 열린 것을 방문기록에 한 칸 쌓는다.
             # 이 단추는 _section_toggle을 안 거치므로 여기서 따로 알려야 한다.
             back_nav.opened(st, "j3_pullback_open")

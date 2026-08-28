@@ -14,6 +14,8 @@ from zoneinfo import ZoneInfo
 
 import streamlit as st
 
+import page_access  # 지금 열어 둔 화면만 목록에 올린다(2026-08-28).
+
 # 로그인 화면 지구(WebGL). streamlit 외에 무거운 것을 끌어오지 않으므로
 # 인증 게이트 앞에서 불러도 첫 화면이 늦어지지 않는다.
 import login_globe
@@ -451,7 +453,7 @@ except TypeError:
 # 두 곳에 따로 적어 두면 한쪽만 고쳐져 목록이 어긋난다.
 # 순서를 바꾸면 폰·태블릿에서 미국테마·한국테마 둘만 남기는 CSS
 # (nth-child(-n+3)과 nth-child(n+6))도 같이 고쳐야 한다(CLAUDE.md 12번).
-_DEST_OPTIONS = [
+_ALL_DEST_OPTIONS = [
     "시장 판단",
     "자비스1 (기록장)",
     "자비스2 (순환매 플레이북)",
@@ -459,6 +461,16 @@ _DEST_OPTIONS = [
     "한국테마 (자비스4)",
     "선행감지 (자비스5·실험)",
     "종가관찰 (자비스6·연습)",
+]
+# 이름표(page_access의 화면 이름) — 위 목록과 **차례가 같아야 한다.**
+_DEST_KEYS = ["시장판단", "자비스1", "자비스2", "미국테마", "한국테마",
+              "자비스5", "자비스6"]
+# **지금 열어 둔 곳만 목록에 올린다** (2026-08-28 상하님 지시 — "나머지 화면은
+# 접근 금지로 해라"). 옵션 자체는 위에 그대로 남겨 두었다 — page_access의
+# OPEN_PAGES 에 이름을 다시 넣으면 그대로 되살아난다.
+_DEST_OPTIONS = [
+    name for name, key in zip(_ALL_DEST_OPTIONS, _DEST_KEYS)
+    if page_access.is_open(key)
 ]
 _GUEST_DEST_OPTIONS = ["미국테마 (자비스3)", "한국테마 (자비스4)"]
 # 기본 이동은 한국테마(자비스4)다(2026-07-29 사용자 지시). 폰·태블릿에서 숨기는
@@ -741,7 +753,11 @@ if not st.session_state.get("authenticated"):
 # 없으면(=첫 주소로 돌아온 것) 여기서 멈추고 고르는 화면만 그린다.
 # 이 화면은 아래 무거운 모듈(pandas·DB·시세)을 하나도 읽지 않아 바로 뜬다.
 # 비밀번호는 다시 묻지 않는다 — 이미 이 세션에서 확인했다.
-if st.query_params.get("page") != _JARVIS1_URL_MARK:
+# **자비스1을 닫아 두면 주소에 표식이 있어도 안 그린다**(2026-08-28 상하님 지시
+# — "나머지 화면은 접근 금지로 해라"). 북마크나 뒤로가기로 그 주소에 닿아도
+# 고르는 화면에서 멈춘다. page_access.OPEN_PAGES 에 "자비스1"을 넣으면 되살아난다.
+if (st.query_params.get("page") != _JARVIS1_URL_MARK
+        or not page_access.is_open("자비스1")):
     st.markdown(
         """
         <style>
@@ -808,7 +824,10 @@ if st.query_params.get("page") != _JARVIS1_URL_MARK:
     _entry_guest = _is_guest_session()
     _entry_options = _GUEST_DEST_OPTIONS if _entry_guest else _DEST_OPTIONS
     # 게스트 목록은 둘뿐이라 위 '앞 3개·뒤 2개 감추기'가 걸리면 안 된다 — 상자를 따로 쓴다.
-    _entry_box = st.container(key="entry_dest_guest" if _entry_guest else "entry_dest_links")
+    # 감추기 규칙은 일곱 줄짜리 목록을 셈해 만든 것이다(nth-child). 목록이 짧으면
+    # 엉뚱한 줄이 사라지므로 그때는 규칙이 안 걸리는 상자를 쓴다(2026-08-28).
+    _entry_short = _entry_guest or len(_entry_options) < len(_ALL_DEST_OPTIONS)
+    _entry_box = st.container(key="entry_dest_guest" if _entry_short else "entry_dest_links")
     with _entry_box:
         for _entry_name in _entry_options:
             _entry_page = next(

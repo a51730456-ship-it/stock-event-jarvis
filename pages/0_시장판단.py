@@ -21,6 +21,14 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
 
 st.set_page_config(page_title="시장 판단", layout="wide")
 
+# ── 지금은 닫아 둔 화면이다 (2026-08-28 상하님 지시) ──────────────────
+# 상하님 — "나머지 화면은 접근 금지로 해라."
+# **여기가 맨 앞이어야 한다.** 뒤에 두면 그 앞의 시세 조회가 이미 다 돌아
+# 막은 뜻이 없어진다. 되살리려면 page_access.OPEN_PAGES 에 이름을 넣는다.
+import page_access
+
+page_access.guard(st, "시장판단")
+
 # 사이드바 표기는 자비스2·3 페이지와 같은 규칙을 따른다(첫 항목 'app' → '자비스1').
 st.markdown(
     """

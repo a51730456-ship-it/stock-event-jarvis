@@ -237,8 +237,8 @@ class LoginAppLifecycleTests(unittest.TestCase):
         targets = [node.page for node in app.get("page_link")]
         self.assertIn("자비스3", targets)
         self.assertIn("자비스4", targets)
-        # 자비스1만 단추로 남는다 — 옮겨 갈 페이지가 아니라 이 파일 자체라서다.
-        self.assertIn("entry_go", [node.key for node in app.button])
+        # 자비스1은 2026-08-28부터 닫아 두었다 — 그 단추도 없다(상하님 지시).
+        self.assertNotIn("entry_go", [node.key for node in app.button])
         # 자비스1은 그려지지 않아야 한다 — 이게 그려지면 옛 동작으로 돌아간 것이다.
         self.assertFalse(any("① 한국장 판단" in value for value in markdowns))
 
@@ -284,8 +284,10 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         links = app.get("page_link")
         labels = [node.label for node in links]
-        # 자비스1은 옮겨 갈 페이지가 아니라 이 파일이라 단추로 남는다. 나머지 여섯은 링크다.
-        self.assertEqual(6, len(links), labels)
+        # **2026-08-28부터 열어 둔 곳은 둘뿐이다**(상하님 지시 — "나머지 화면은
+        # 접근 금지로 해라"). 목록은 page_access.OPEN_PAGES 가 정한다.
+        # 예전에는 여섯 링크 + 자비스1 단추였다. 되살리면 그때로 돌아온다.
+        self.assertEqual(2, len(links), labels)
         for name in ("미국테마 (자비스3)", "한국테마 (자비스4)"):
             self.assertIn(name, labels)
 

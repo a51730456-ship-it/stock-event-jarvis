@@ -6,6 +6,21 @@ from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 
+import page_access
+
+
+@contextlib.contextmanager
+def _page_open():
+    """이 시험 동안만 화면을 열어 둔다 (2026-08-28).
+
+    상하님 지시로 시장 판단·자비스1·2·5·6은 닫아 두었다(page_access). 그래도
+    **그 화면이 그리는 내용은 계속 지켜야 한다** — 다시 열었을 때 깨져 있으면
+    안 되기 때문이다. 그래서 시험에서만 열고 돌려 본다. 닫혀 있다는 것 자체는
+    아래 ClosedPageTest 가 따로 잰다.
+    """
+    with patch.object(page_access, "OPEN_PAGES", page_access.ALL_PAGES):
+        yield
+
 
 @contextlib.contextmanager
 def _no_network_signal_patches():
@@ -27,7 +42,7 @@ def _no_network_signal_patches():
 
 class MarketJudgmentPageTest(unittest.TestCase):
     def _run(self):
-        with _no_network_signal_patches():
+        with _page_open(), _no_network_signal_patches():
             at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
             at.session_state["authenticated"] = True
             at.run()
@@ -48,8 +63,9 @@ class MarketJudgmentPageTest(unittest.TestCase):
         self.assertIn("us_signal_refresh", keys)
 
     def test_login_gate_blocks_unauthenticated(self):
-        at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
-        at.run()
+        with _page_open():
+            at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
+            at.run()
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("승인된 사용자만", " ".join(c.value for c in at.caption) + text)
         # 인증 전에는 카드가 나오면 안 된다.
@@ -69,12 +85,20 @@ def _open_jarvis1(timeout=90):
     return at
 
 
+@contextlib.contextmanager
+def _jarvis1_open():
+    """자비스1도 시험 동안만 열어 둔다(위 _page_open과 같은 까닭)."""
+    with _page_open():
+        yield
+
+
 class Jarvis1NoLongerHostsCardsTest(unittest.TestCase):
     """카드는 자비스1에서 빠졌어야 한다 — 두 군데에 있으면 안 된다."""
 
     def test_cards_removed_from_jarvis1(self):
         at = _open_jarvis1()
-        at.run()
+        with _jarvis1_open():
+            at.run()
         self.assertEqual(at.exception, [], "자비스1 렌더 중 예외")
         text = " ".join(m.value for m in at.markdown)
         self.assertNotIn("한국장 시장 상태", text)
@@ -82,7 +106,8 @@ class Jarvis1NoLongerHostsCardsTest(unittest.TestCase):
 
     def test_jarvis1_existing_features_intact(self):
         at = _open_jarvis1()
-        at.run()
+        with _jarvis1_open():
+            at.run()
         text = " ".join(m.value for m in at.markdown)
         # 기존 0단계·시장요약은 그대로 남아 있어야 한다.
         self.assertIn("0단계 시장 분위기", text)
@@ -100,7 +125,7 @@ class Jarvis1NoLongerHostsCardsTest(unittest.TestCase):
 class NoFabricatedVerdictTest(unittest.TestCase):
     def test_no_verdict_without_data(self):
         """자동 조회가 자료를 못 얻으면 판정을 만들어내지 않는다(데이터 부족만 표시)."""
-        with _no_network_signal_patches():
+        with _page_open(), _no_network_signal_patches():
             at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
             at.session_state["authenticated"] = True
             at.run()
@@ -137,3 +162,23 @@ class Jarvis2And3UntouchedTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClosedPageTest(unittest.TestCase):
+    """지금은 닫아 둔 화면이다 (2026-08-28 상하님 지시).
+
+    상하님 — "나머지 화면은 접근 금지로 해라." 주소로 바로 들어와도 막혀야 한다.
+    """
+
+    def test_the_page_is_closed_by_default(self):
+        at = AppTest.from_file("pages/0_시장판단.py", default_timeout=90)
+        at.session_state["authenticated"] = True
+        at.run()
+        text = " ".join(str(m.value) for m in at.markdown)
+        self.assertIn("이 화면은 지금 닫혀 있습니다", text)
+        self.assertNotIn("한국장 시장 상태", text)
+
+    def test_only_the_two_theme_pages_are_open(self):
+        self.assertEqual(("미국테마", "한국테마"), page_access.OPEN_PAGES)
+        for closed in ("시장판단", "자비스1", "자비스2", "자비스5", "자비스6"):
+            self.assertFalse(page_access.is_open(closed), closed)
