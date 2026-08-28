@@ -893,8 +893,10 @@ class Jarvis3PageTests(unittest.TestCase):
         # 2026-07-22 추가 계약: 공포·탐욕 지수 칸, 당일 차트, 매수 기록 현황,
         # 시장판단 신호 카드 재사용, 테마 버튼 키 2자리 고정폭(CSS 부분일치 버그 방지).
         self.assertIn("공포·탐욕 지수", source)
-        self.assertIn("_intraday_chart", source)
-        self.assertIn("당일 · 실시간(지연 가능)", source)
+        # 당일 그림은 2026-08-28부터 네(대장주 비교는 셋) 그림 한 판에 함께
+        # 들어간다 — 알테어가 아니라 SVG다(상하님 지시).
+        self.assertIn("_pretty_chart_svg(", source)
+        self.assertIn("j3-chart-grid", source)
         self.assertIn("매수 기록 현황", source)
         self.assertIn("render_us_market_signal_card", source)
         # 한국장 수급 카드는 자비스4(국내) 전용 — 미국 페이지에는 넣지 않는다(2026-07-22).

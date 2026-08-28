@@ -2914,65 +2914,63 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
         # 메달은 종합점수 80점 이상인 대장주에만 붙인다.
         medal = medal_by_rank.get(rank, "") if float(leader["score"]) >= 80 else ""
         medal_html = f"<span class='j3-medal'>{medal}</span> " if medal else ""
+        # **선택종목 세부사항과 같은 그림·같은 자리**다 (2026-08-28 상하님 지시 —
+        # "20개 테마에서 각 테마 클릭하면 1~3위 종목 나오고 당일·일봉·주봉 나오는데
+        # 그것도 선택종목 세부사항의 당일·일봉·주봉처럼 해 줘").
+        #
+        # 스트림릿 칸 넷(왼쪽 글 + 그림 셋)을 쓰지 않는다 — 폰에서 위아래로 쌓여
+        # 한 줄에 하나가 되고, 알테어 그림이 종목마다 셋씩(모두 아홉) 만들어졌다.
+        # 이제 글은 한 덩이, 그림은 CSS 격자 한 판이다.
         with st.container(border=True):
-            left, intraday_col, daily_col, weekly_col = st.columns([1.0, 1.15, 1.15, 1.15])
-            with left:
-                st.markdown(
-                    f"<div class='j3-leader-name'>{medal_html}{rank}위 · {leader['name']}</div>",
-                    unsafe_allow_html=True,
+            change_pct = metrics.get("change_pct")
+            st.markdown(
+                f"<div class='j3-leader-name'>{medal_html}{rank}위 · {leader['name']} "
+                f"<span class='j3-muted'>{html.escape(str(leader['ticker']))}</span></div>"
+                "<div class='j3-leader-score-label'>현재가 · 등락률</div>"
+                f"<div class='j3-leader-live'>{_price(metrics.get('current'))} "
+                f"<span class='j3-mc-sub {_sign_class(change_pct)}'>{_pct(change_pct)}</span></div>"
+                "<div class='j3-leader-score-label'>종목 조건점수</div>"
+                f"<div class='j3-leader-score'>{float(leader['score']):.1f}</div>"
+                f"<div class='j3-leader-state'>{plan.get('state')}</div>"
+                f"<div class='j3-chart-when'>52주 고가 대비 {_pct(metrics.get('from_high_pct'))}</div>",
+                unsafe_allow_html=True,
+            )
+            boxes = []
+            intraday_payload = leader.get("intraday_chart")
+            if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+                closes = _payload_series(intraday_payload,
+                                         intraday_payload["price"].columns[0])
+                drawing = _pretty_chart_svg(
+                    closes, base=intraday_payload.get("prev_close"), height=150)
+                if drawing:
+                    boxes.append(("당일", drawing,
+                                  intraday_payload.get("source_time") or ""))
+            for name, value in (("일봉 60일", leader.get("daily_chart")),
+                                ("주봉 52주", leader.get("weekly_chart"))):
+                payload = _leader_chart_payload(value)
+                if not payload:
+                    continue
+                drawing = _pretty_chart_svg(
+                    _payload_series(payload, "Close"),
+                    ma20=_payload_series(payload, "MA20"),
+                    ma50=_payload_series(payload, "MA50"),
+                    height=150,
                 )
-                st.code(leader["ticker"])
-                # 당일 주가와 등락률 — 제목은 '종목 조건점수' 라벨과 같은 크기·색
-                # (2026-07-22 사용자 지시).
-                change_pct = metrics.get("change_pct")
-                st.markdown(
-                    "<div class='j3-leader-score-label'>현재가 · 등락률</div>"
-                    f"<div class='j3-leader-live'>{_price(metrics.get('current'))} "
-                    f"<span class='j3-mc-sub {_sign_class(change_pct)}'>{_pct(change_pct)}</span></div>",
-                    unsafe_allow_html=True,
+                if drawing:
+                    boxes.append((name, drawing, ""))
+            if boxes:
+                cells = "".join(
+                    f"<div class='j3-chart-box'><div class='j3-chart-name'>{name}</div>"
+                    f"{drawing}"
+                    + (f"<div class='j3-chart-when'>기준 "
+                       f"{html.escape(str(when)[:16].replace('T', ' '))}</div>" if when else "")
+                    + "</div>"
+                    for name, drawing, when in boxes
                 )
-                st.markdown(
-                    "<div class='j3-leader-score-label'>종목 조건점수</div>"
-                    f"<div class='j3-leader-score'>{float(leader['score']):.1f}</div>"
-                    f"<div class='j3-leader-state'>{plan.get('state')}</div>",
-                    unsafe_allow_html=True,
-                )
-                st.caption(f"52주 고가 대비 {_pct(metrics.get('from_high_pct'))}")
-            with intraday_col:
-                st.caption("당일 · 실시간(지연 가능)")
-                intraday_payload = leader.get("intraday_chart")
-                if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-                    st.altair_chart(
-                        _intraday_chart(intraday_payload, height=210),
-                        width="stretch",
-                        theme="streamlit",
-                    )
-                    # 차트 밑에 기준 날짜·시간 표시 (2026-07-22 사용자 지시).
-                    st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-                else:
-                    st.info("당일 자료 없음")
-            with daily_col:
-                st.caption("일봉 · 최근 60거래일")
-                daily_payload = _leader_chart_payload(leader.get("daily_chart"))
-                if daily_payload:
-                    st.altair_chart(
-                        _price_chart(daily_payload, "일봉", include_volume=False, height=210),
-                        width="stretch",
-                        theme="streamlit",
-                    )
-                else:
-                    st.info("일봉 자료 없음")
-            with weekly_col:
-                st.caption("주봉 · 최근 52주")
-                weekly_payload = _leader_chart_payload(leader.get("weekly_chart"))
-                if weekly_payload:
-                    st.altair_chart(
-                        _price_chart(weekly_payload, "주봉", include_volume=False, height=210),
-                        width="stretch",
-                        theme="streamlit",
-                    )
-                else:
-                    st.info("주봉 자료 없음")
+                st.markdown(f"<div class='j3-chart-grid'>{cells}</div>",
+                            unsafe_allow_html=True)
+            else:
+                st.info("차트 자료 없음")
 
 
 _MEDAL_BY_RANK = {1: "🥇", 2: "🥈", 3: "🥉"}
