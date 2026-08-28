@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -566,3 +567,101 @@ def test_the_chart_line_does_not_get_thick_when_stretched():
     assert ".j3b-open-card .j3b-chart polyline{stroke-width:1.8px}" in page,         "크게 연 그림의 선 굵기를 안 정했다"
     # 이름표는 조금 더 크게 (상하님 — "일봉 6개월 글자 조금 더 크게").
     assert ".j3b-chart-cap{color:#4da6ff;font-size:15px" in page
+
+
+def test_the_six_month_chart_has_a_start_line_with_two_colours():
+    """일봉 6개월 그림은 시작가에 기준선을 긋고 위아래를 다른 색으로 그린다.
+
+    2026-08-28 상하님 지시 — 야후 파이낸스 폰 화면의 테슬라 6개월 그림처럼
+    "시작가 위로 초록색이고 밑으로는 붉은색인데 이것처럼 기준선이 있어야 되지 않나?"
+    """
+    page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+    namespace: dict = {}
+    exec(page[page.index("_BASE_UP_STROKE = "):page.index("def _briefing_items(")], namespace)
+    chart = namespace["_briefing_chart"]
+    # 시작가 100에서 내려갔다가 올라오는 반년치
+    values = [100, 96, 92, 88, 95, 103, 110, 105, 99, 101]
+    drawn = chart(values, 2.4, baseline=True)
+    assert "stroke-dasharray" in drawn, "기준선이 없다"
+    assert namespace["_BASE_UP_STROKE"] in drawn and namespace["_BASE_DOWN_STROKE"] in drawn, \
+        "위아래 색이 갈리지 않았다"
+    # 가로지르는 자리마다 끊으므로 조각이 여럿이다. 칸마다 그리면 아홉 조각이 된다.
+    assert 2 <= drawn.count("<polyline") <= 6, f"조각 수가 이상하다: {drawn.count('<polyline')}"
+    # 접힌 카드의 작은 그림은 예전 그대로 — 기준선 없이 한 색이다.
+    plain = chart(values, 2.4)
+    assert "dasharray" not in plain and plain.count("<polyline") == 1
+
+
+def test_the_catbus_orbit_carries_the_selected_logos():
+    """고양이버스 둘레를 도는 로고 (2026-08-28 상하님 지시).
+
+    상하님이 보내 주신 영상(catbus_logo_orbit_preview.mp4)처럼 사용자 선정 종목의
+    로고가 배너를 돈다. 카드와 **같은 로고**를 써야 한 곳만 고쳐지는 일이 없다.
+    """
+    page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+    orbit = page[page.index("def _briefing_orbit_html("):]
+    orbit = orbit[:orbit.index(chr(10) + "def ", 10)]
+    assert "_briefing_logo_face(ticker)" in orbit, "궤도가 카드와 다른 로고를 만든다"
+    card = page[page.index("def _render_briefing_card("):]
+    assert "_briefing_logo_face(ticker)" in card[:card.index(chr(10) + "def ", 10)], \
+        "카드가 떼어 낸 로고 함수를 안 쓴다"
+    # 시작 시각을 한 바퀴에 고르게 나눠야 로고가 한 덩어리로 몰려 다니지 않는다.
+    assert "-_ORBIT_SECONDS * index / len(riders)" in orbit
+    assert 'f\'{catbus_html}{_briefing_orbit_html(selected)}</div>\',' in page, \
+        "배너에 궤도를 안 달았다"
+
+
+def test_the_orbit_does_not_squash_the_logos():
+    """세로로 누른 만큼 로고가 거꾸로 늘어나야 로고가 안 찌그러진다.
+
+    팔은 scaleY(.23)으로 눌러 동그라미를 타원으로 만든다. 로고 쪽이 그 역수만큼
+    늘리지 않으면 로고가 납작해진다. 한쪽만 고치는 일이 잦아 여기서 잡는다.
+    """
+    page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+    squash = re.search(r"transform:scaleY\((\.\d+)\) rotate\(0deg\)", page)
+    stretch = re.search(r"rotate\(0deg\) scaleY\(([\d.]+)\)", page)
+    assert squash and stretch, "누른 값이나 늘린 값을 못 찾았다"
+    product = float(squash.group(1)) * float(stretch.group(1))
+    assert abs(product - 1.0) < 0.01, f"누른 값 × 늘린 값 = {product:.3f} (1이어야 한다)"
+
+
+def test_the_three_news_are_the_big_ones_and_stay_until_something_bigger():
+    """큰 소식부터 세 줄을 싣고, 더 큰 소식이 올 때만 자리를 바꾼다.
+
+    2026-08-28 상하님 지시 — "주요뉴스 3건을 30분마다 새로 받기를 원하는데 그
+    주요뉴스보다 비중이 떨어지는 것은 빼고 … 시시한 거면 그냥 기존 뉴스 두고."
+    """
+    assert news.CACHE_SECONDS == 1800, "30분이 아니다"
+    now = datetime.now(timezone.utc)
+
+    def row(headline, source, hours=1.0, twins=1):
+        return {"headline": headline, "source": source, "summary": "", "twins": twins,
+                "url": f"https://x.test/{abs(hash(headline))}",
+                "published_at": (now - timedelta(hours=hours)).isoformat()}
+
+    ranked = news._rank([
+        row("A tiny startup opens an office", "Random Blog", 5),
+        row("Fed signals rate cut as inflation cools", "Reuters", 1, twins=4),
+        row("Nvidia earnings loom over Wall Street", "CNBC", 2, twins=2),
+        row("Dow slips as treasury yields climb", "Bloomberg", 3, twins=2),
+    ], "market")
+    assert ranked[0]["headline"].startswith("Fed signals"), "여러 매체가 쓴 큰 소식이 맨 위여야 한다"
+    assert ranked[-1]["source"] == "Random Blog"
+
+    # 화면에 걸린 세 줄은 다 큰 소식이다.
+    held = ranked[:3]
+    # 갓 올라온 기사라도 한 곳만 쓴 시시한 것이면 큰 소식을 못 밀어낸다.
+    trivial = news._rank([row("A local shop changes its sign", "Random Blog", 0.05)], "market")
+    assert [item["headline"] for item in news._merge_by_importance(held, trivial)] == \
+        [item["headline"] for item in held], "시시한 새 기사가 걸린 줄을 밀어냈다"
+
+    bigger = news._rank([row("Fed cuts rates in emergency move", "Reuters", 0.1, twins=5)], "market")
+    after = news._merge_by_importance(held, bigger)
+    assert after[0]["headline"].startswith("Fed cuts rates"), "더 큰 소식이 안 들어왔다"
+    assert len(after) == 3
+
+    stale = row("Yesterday's story", "Reuters", 30, twins=5)
+    stale["weight"] = 99.0
+    kept = news._merge_by_importance([stale], news._rank([row("Fresh item", "CNBC", 0.5)], "market"))
+    assert not any(item["headline"].startswith("Yesterday") for item in kept), \
+        "하루 지난 줄이 자리를 안 비웠다"

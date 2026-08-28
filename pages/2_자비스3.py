@@ -7229,7 +7229,33 @@ def _briefing_css() -> None:
         .j3b-hero { position:relative;height:236px;overflow:hidden;border-radius:0 0 24px 24px;padding:26px 23px;background:radial-gradient(circle at 16% 9%,#fff6d6 0 1.6px,transparent 2.4px),radial-gradient(circle at 35% 17%,#ffd681 0 1.2px,transparent 1.9px),radial-gradient(circle at 57% 11%,#ffffff 0 1.6px,transparent 2.4px),radial-gradient(circle at 79% 18%,#ffd681 0 1.2px,transparent 1.9px),radial-gradient(circle at 93% 7%,#fff2c1 0 1.5px,transparent 2.3px),radial-gradient(circle at 8% 26%,#ffe9a8 0 1px,transparent 1.7px),radial-gradient(circle at 24% 34%,#ffffff 0 1.1px,transparent 1.8px),radial-gradient(circle at 45% 6%,#ffd681 0 1px,transparent 1.7px),radial-gradient(circle at 66% 25%,#fff6d6 0 1.3px,transparent 2px),radial-gradient(circle at 88% 31%,#ffffff 0 1px,transparent 1.7px),radial-gradient(circle at 5% 14%,#ffd681 0 1px,transparent 1.7px),radial-gradient(circle at 50% 22%,#ffe9a8 0 1px,transparent 1.7px),radial-gradient(circle at 72% 8%,#ffffff 0 1.2px,transparent 1.9px),radial-gradient(circle at 30% 4%,#fff2c1 0 1px,transparent 1.7px),linear-gradient(158deg,#01091f 0%,#03204d 42%,#063a7d 72%,#04173a 100%);border:1px solid #8fc8f088;box-shadow:inset 0 -18px 31px #00132da8,0 9px 22px #0008; }
         .j3b-hero:before { content:"";position:absolute;z-index:0;width:630px;height:210px;left:50%;bottom:-142px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse at 50% 0,#5fd6ff 0,#12a0e8 18%,#0a63b4 40%,#063666 62%,#01142e 76%);border-top:2.5px solid #8ce6ff;box-shadow:0 -14px 44px #14a0f0c4,inset 0 8px 26px #9fe8ff33; }
         .j3b-hero:after { content:"";position:absolute;z-index:1;left:96px;bottom:38px;width:172px;height:30px;opacity:.9;background:repeating-linear-gradient(90deg,transparent 0 4px,#e2b853 4px 6px,transparent 6px 11px);clip-path:polygon(0 100%,0 75%,5% 75%,5% 25%,9% 25%,9% 68%,15% 68%,15% 5%,20% 5%,20% 70%,28% 70%,28% 36%,34% 36%,34% 72%,42% 72%,42% 13%,49% 13%,49% 72%,56% 72%,56% 32%,62% 32%,62% 70%,70% 70%,70% 18%,77% 18%,77% 67%,85% 67%,85% 42%,92% 42%,92% 72%,100% 72%,100% 100%); }
-        .j3b-head-copy,.j3b-head-actions,.j3b-hero-catbus { position:absolute;z-index:3; }.j3b-head-copy{left:23px;top:29px}.j3b-title{margin:0!important;font-size:39px!important;line-height:1!important;font-weight:900!important;letter-spacing:-2.4px!important;color:#fff8e9!important;text-shadow:0 2px 6px #000!important}.j3b-title b{color:#78ccff!important}.j3b-sub{margin:10px 0 0!important;color:#beeaff!important;font-size:21px!important;font-weight:800!important;letter-spacing:-1.4px!important}.j3b-head-actions{right:16px;top:22px;display:flex;gap:8px}.j3b-round,.j3b-live{height:43px;display:flex;align-items:center;justify-content:center;border:1px solid #c89550;border-radius:24px;background:#061d40dd;color:#fff8e8;box-shadow:0 2px 8px #0007}.j3b-round{width:43px;font-size:26px}.j3b-live{padding:0 13px;gap:7px;font-size:15px;font-weight:800}.j3b-live i{width:10px;height:10px;border-radius:50%;background:#64d84d;box-shadow:0 0 8px #4cf059;display:block}.j3b-hero-catbus{right:-5px;bottom:8px;width:169px;height:auto;filter:drop-shadow(0 5px 6px #000b)}/* 견본(visual_reference.png)에서 잘라 낸 밤하늘 장면. 지구·도시·구름·고양이버스가   한 그림에 다 들어 있어 CSS로 그리던 지구와 도시는 감춘다(2026-08-26 상하님 지시 —   "맨 위에 디자인 지피티 챗이 디자인한 것 그대로"). */.j3b-hero-scene{position:absolute;z-index:1;right:-4%;bottom:-1px;width:116%;max-width:none!important;height:auto;pointer-events:none}.j3b-hero:has(.j3b-hero-scene):before,.j3b-hero:has(.j3b-hero-scene):after{display:none}
+        .j3b-head-copy,.j3b-head-actions,.j3b-hero-catbus { position:absolute;z-index:3; }.j3b-head-copy{left:23px;top:29px}.j3b-title{margin:0!important;font-size:39px!important;line-height:1!important;font-weight:900!important;letter-spacing:-2.4px!important;color:#fff8e9!important;text-shadow:0 2px 6px #000!important}.j3b-title b{color:#78ccff!important}.j3b-sub{margin:10px 0 0!important;color:#beeaff!important;font-size:21px!important;font-weight:800!important;letter-spacing:-1.4px!important}.j3b-head-actions{right:16px;top:22px;display:flex;gap:8px}.j3b-round,.j3b-live{height:43px;display:flex;align-items:center;justify-content:center;border:1px solid #c89550;border-radius:24px;background:#061d40dd;color:#fff8e8;box-shadow:0 2px 8px #0007}.j3b-round{width:43px;font-size:26px}.j3b-live{padding:0 13px;gap:7px;font-size:15px;font-weight:800}.j3b-live i{width:10px;height:10px;border-radius:50%;background:#64d84d;box-shadow:0 0 8px #4cf059;display:block}.j3b-hero-catbus{right:-5px;bottom:8px;width:169px;height:auto;filter:drop-shadow(0 5px 6px #000b)}/* 견본(visual_reference.png)에서 잘라 낸 밤하늘 장면. 지구·도시·구름·고양이버스가   한 그림에 다 들어 있어 CSS로 그리던 지구와 도시는 감춘다(2026-08-26 상하님 지시 —   "맨 위에 디자인 지피티 챗이 디자인한 것 그대로"). */.j3b-hero-scene{position:absolute;z-index:1;right:-4%;bottom:-1px;width:116%;max-width:none!important;height:auto;pointer-events:none}
+        /* ── 고양이버스를 도는 회사 로고 (2026-08-28 상하님 지시) ───────────
+           팔이 돌면서 로고를 끌고 다닌다. 팔을 세로로 눌러(scaleY .32) 동그라미를
+           타원으로 만들고(.23), 로고 쪽에서 거꾸로 돌고 거꾸로 늘려 로고만 똑바로 선다.
+           눌린 값 .23 은 **로고가 배너 밖으로 안 잘리게** 실물에서 재어 정했다 —
+           .32 로 두니 폭 1370px 화면에서 아래쪽 로고가 21px 잘렸다.
+           아래쪽 반 바퀴는 버스 앞(z-index 2 · 크고 또렷), 위쪽 반 바퀴는 버스
+           뒤(z-index 0 · 작고 흐릿)다. 버스 그림이 1이라 그 사이로 지나간다.
+           제목·↻ 단추는 3이라 로고가 그 위를 덮지 않는다.
+           가로 반지름을 min(42%,250px) 로 묶어 둔다 — 안 묶으면 노트북에서
+           타원이 배너보다 높아져 위아래가 잘린다. */
+        .j3b-orbit{position:absolute;inset:0;pointer-events:none}
+        .j3b-orbit:before{content:"";position:absolute;left:50%;top:50%;width:min(84%,500px);aspect-ratio:1/.23;transform:translate(-50%,-50%);border:1px solid #8fc8f026;border-radius:50%;box-shadow:inset 0 0 26px #4da6ff12}
+        .j3b-orbit-arm,.j3b-orbit-pod{position:absolute;width:100%;height:0;transform-origin:0 0}
+        .j3b-orbit-arm{left:50%;top:50%;animation:j3b-orbit-arm 26s linear infinite,j3b-orbit-depth 26s linear infinite}
+        .j3b-orbit-pod{left:0;top:0;animation:j3b-orbit-pod 26s linear infinite}
+        .j3b-orbit-logo{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;animation:j3b-orbit-logo 26s linear infinite}
+        .j3b-orbit-logo .j3b-logo{width:34px;height:34px;border-radius:10px;box-shadow:inset 0 1px #b4efff77,0 3px 9px #000a}
+        .j3b-orbit-tag{font-size:9px;font-weight:900;letter-spacing:-.2px;color:#dbeeff;text-shadow:0 1px 3px #000c;white-space:nowrap}
+        @keyframes j3b-orbit-arm{from{transform:scaleY(.23) rotate(0deg)}to{transform:scaleY(.23) rotate(360deg)}}
+        @keyframes j3b-orbit-pod{from{transform:translateX(min(42%,250px)) rotate(0deg) scaleY(4.348)}to{transform:translateX(min(42%,250px)) rotate(-360deg) scaleY(4.348)}}
+        @keyframes j3b-orbit-depth{0%,49.99%{z-index:2}50%,100%{z-index:0}}
+        @keyframes j3b-orbit-logo{0%{transform:translate(-50%,-50%) scale(.84);opacity:.75}25%{transform:translate(-50%,-50%) scale(1.18);opacity:1}50%{transform:translate(-50%,-50%) scale(.84);opacity:.75}75%{transform:translate(-50%,-50%) scale(.6);opacity:.4}100%{transform:translate(-50%,-50%) scale(.84);opacity:.75}}
+        @media (max-width:600px){.j3b-orbit-logo .j3b-logo{width:26px;height:26px;border-radius:8px}.j3b-orbit-tag{font-size:8px}}
+        /* 움직임을 줄여 달라고 해 둔 기기에서는 멈춰 세운다. 시작 시각이 저마다
+           달라 멈춰도 로고가 궤도에 고르게 흩어져 있다. */
+        @media (prefers-reduced-motion:reduce){.j3b-orbit-arm,.j3b-orbit-pod,.j3b-orbit-logo{animation-play-state:paused}}.j3b-hero:has(.j3b-hero-scene):before,.j3b-hero:has(.j3b-hero-scene):after{display:none}
         .j3b-section {display:flex;align-items:center;gap:8px;color:#f8f4e9;margin:18px 4px 9px;font-size:20px;font-weight:850;letter-spacing:-1.2px}.j3b-section .j3b-section-icon{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:0}.j3b-section .j3b-section-icon:after{content:"";width:12px;height:12px;border:2px solid #f3fbff;border-radius:50%;box-sizing:border-box}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500}.j3b-section .j3b-flag{font-size:23px;line-height:1;filter:drop-shadow(0 1px 2px #0009)}.j3b-section.search .j3b-section-icon{background:transparent;box-shadow:none;border:3px solid #2ebfff}.j3b-section.search .j3b-section-icon:after{width:10px;height:10px;border-color:#2ebfff}.j3b-section.search .j3b-section-icon:before{content:"";width:11px;height:3px;position:absolute;transform:translate(11px,12px) rotate(48deg);background:#2ebfff;border-radius:2px}
         div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:16px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
@@ -7906,6 +7932,89 @@ _BRAND_MARKS = {
 }
 
 
+def _briefing_logo_face(ticker: str) -> tuple[str, str]:
+    """카드와 궤도가 **함께 쓰는** 회사 로고 한 장.
+
+    회사 로고 **그림**은 앱 안에 넣어 둔 여덟 종목만 있다. 나머지는 그 회사가
+    실제로 쓰는 글자표(워드마크)와 브랜드 색으로 보여 준다 — 티커 두 글자만
+    잘라 쓰면 무슨 회사인지 알 수 없다(2026-08-26 상하님 지적 — "왜 로고가
+    이상하지, 그 회사 로고 맞냐?"). 여기에 없는 종목만 티커 두 글자로 간다.
+
+    앱에 그림이 없는 종목은 companiesmarketcap에서 한 번 받아 두고 그다음부터
+    그 그림을 쓴다(2026-08-26 상하님이 알려 주신 곳). 아직 안 왔으면 이번 판은
+    글자표로 보여 주고, 다음 판에 그림이 나온다.
+
+    돌려주는 것은 (안에 넣을 HTML, 틀에 붙일 갈래 이름) 둘이다. 2026-08-28에
+    고양이버스 궤도가 같은 로고를 쓰게 되면서 카드에서 떼어 냈다 — 두 군데에
+    따로 적어 두면 한쪽만 고쳐진다.
+    """
+    logo_uri = _briefing_logo_uri(ticker)
+    logo_kind = ""
+    if not logo_uri:
+        fetched = us_company_logos.get_or_schedule(ticker)
+        if fetched:
+            logo_uri = "data:image/webp;base64," + base64.b64encode(fetched).decode("ascii")
+            logo_kind = " photo"
+    if logo_uri:
+        return f'<img src="{logo_uri}" alt="{html.escape(ticker)} logo">', logo_kind
+    mark = _BRAND_MARKS.get(ticker.upper())
+    if mark:
+        text, start, end, ink = mark
+    else:
+        text, ink = ticker[:2].upper(), "#f4faff"
+        hue = sum(ord(letter) for letter in ticker.upper()) * 37 % 360
+        start, end = f"hsl({hue} 52% 42%)", f"hsl({hue} 60% 20%)"
+    size = ".62em" if len(text) <= 2 else (".40em" if len(text) <= 4 else ".33em")
+    return (
+        f'<span class="j3b-logo-text" style="background:linear-gradient(145deg,{start},{end});'
+        f'color:{ink};font-size:{size}">{html.escape(text)}</span>'
+    ), logo_kind
+
+
+# 궤도를 한 바퀴 도는 데 걸리는 시간. 느긋해야 화면이 안 어지럽다.
+_ORBIT_SECONDS = 26.0
+
+
+def _briefing_orbit_html(stocks: list[dict]) -> str:
+    """고양이버스 둘레를 도는 회사 로고들 (2026-08-28 상하님 지시).
+
+    상하님 — "고양이버스에 사용자 선정 종목의 회사 로고들이 조그맣게 해서
+    고양이버스 앞에서 움직이면서 고양이 버스에 타는 것을 넣어 줘" · 보내 주신
+    영상(catbus_logo_orbit_preview.mp4)처럼 하되 "좀 더 멋있게".
+
+    **어떻게 도나** — 로고마다 팔이 하나씩 있고, 팔이 돌면서 로고를 끌고 다닌다.
+    팔을 세로로 눌러 두면(scaleY) 동그라미가 타원이 된다. 로고가 같이 눌리지
+    않게 로고 쪽에서 **거꾸로 돌고 거꾸로 늘린다** — 그래서 로고는 늘 똑바로
+    선 채로 타원을 돈다.
+
+    **앞뒤가 있다.** 아래쪽 반 바퀴는 버스 **앞**이라 크고 또렷하게, 위쪽 반
+    바퀴는 버스 **뒤**라 작고 흐릿하게 지나간다. 버스 그림이 z-index 1이므로
+    앞은 5, 뒤는 0을 준다 — 로고가 버스 뒤로 사라졌다 앞으로 나온다.
+
+    **자바스크립트를 안 쓴다.** 스트림릿은 st.markdown 안의 <script>를 지운다.
+    움직이는 것은 전부 CSS이고, 브라우저가 그리는 일이라 서버를 다시 안 부른다.
+    """
+    riders = [stock for stock in (stocks or []) if str(stock.get("ticker") or "").strip()][:5]
+    if not riders:
+        return ""
+    pods = []
+    for index, stock in enumerate(riders):
+        ticker = str(stock["ticker"]).upper()
+        face, kind = _briefing_logo_face(ticker)
+        # 다 같은 자리에서 출발하면 한 덩어리로 몰려 다닌다. 시작 시각을 한 바퀴
+        # 나눠 주면 서로 같은 간격으로 벌어진다.
+        delay = -_ORBIT_SECONDS * index / len(riders)
+        pods.append(
+            f'<span class="j3b-orbit-arm" style="animation-delay:{delay:.2f}s">'
+            f'<span class="j3b-orbit-pod" style="animation-delay:{delay:.2f}s">'
+            f'<span class="j3b-orbit-logo" style="animation-delay:{delay:.2f}s">'
+            f'<span class="j3b-logo{kind} {html.escape(ticker.lower())}">{face}</span>'
+            f'<span class="j3b-orbit-tag">{html.escape(ticker)}</span>'
+            "</span></span></span>"
+        )
+    return f'<div class="j3b-orbit" aria-hidden="true">{"".join(pods)}</div>'
+
+
 def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, compact: bool = False) -> None:
     ticker = stock["ticker"]
     price, change = card.get("price"), card.get("change_pct")
@@ -7929,35 +8038,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         f'<div class="j3b-note">{html.escape(str(item.get("brief") or item.get("headline") or "뉴스 브리핑 준비 중"))}</div>'
         for item in notes
     )
-    logo_uri = _briefing_logo_uri(ticker)
-    # 회사 로고 **그림**은 앱 안에 넣어 둔 여덟 종목만 있다. 나머지는 그 회사가
-    # 실제로 쓰는 글자표(워드마크)와 브랜드 색으로 보여 준다 — 티커 두 글자만
-    # 잘라 쓰면 무슨 회사인지 알 수 없다(2026-08-26 상하님 지적 — "왜 로고가
-    # 이상하지, 그 회사 로고 맞냐?"). 여기에 없는 종목만 티커 두 글자로 간다.
-    logo_kind = ""
-    if not logo_uri:
-        # 앱에 그림이 없는 종목은 companiesmarketcap에서 한 번 받아 두고 그다음부터
-        # 그 그림을 쓴다(2026-08-26 상하님이 알려 주신 곳). 아직 안 왔으면 이번 판은
-        # 글자표로 보여 주고, 다음 판에 그림이 나온다.
-        fetched = us_company_logos.get_or_schedule(ticker)
-        if fetched:
-            logo_uri = "data:image/webp;base64," + base64.b64encode(fetched).decode("ascii")
-            logo_kind = " photo"
-    if logo_uri:
-        logo_html = f'<img src="{logo_uri}" alt="{html.escape(ticker)} logo">'
-    else:
-        mark = _BRAND_MARKS.get(ticker.upper())
-        if mark:
-            text, start, end, ink = mark
-        else:
-            text, ink = ticker[:2].upper(), "#f4faff"
-            hue = sum(ord(letter) for letter in ticker.upper()) * 37 % 360
-            start, end = f"hsl({hue} 52% 42%)", f"hsl({hue} 60% 20%)"
-        size = ".62em" if len(text) <= 2 else (".40em" if len(text) <= 4 else ".33em")
-        logo_html = (
-            f'<span class="j3b-logo-text" style="background:linear-gradient(145deg,{start},{end});'
-            f'color:{ink};font-size:{size}">{html.escape(text)}</span>'
-        )
+    logo_html, logo_kind = _briefing_logo_face(ticker)
     direction = "decline" if (change or 0) < 0 else ""
     # 캐릭터는 **모든 카드**에 붙인다(2026-08-26 상하님 — "각 종목에 캐릭터랑
     # 똑같게 다 넣어줘"). 익숙한 여덟 종목은 쓰던 캐릭터를 그대로 두고, 새로
@@ -8348,7 +8429,8 @@ def _render_stock_briefing() -> None:
                 '<div class="j3b-app j3b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'
                 '<div class="j3b-title">JARVIS <b>3</b></div><div class="j3b-sub">미국테마</div></div>'
                 '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
-                f'{catbus_html}</div>',
+                # 사용자 선정 종목의 로고가 버스 둘레를 돈다(2026-08-28 상하님 지시).
+                f'{catbus_html}{_briefing_orbit_html(selected)}</div>',
                 unsafe_allow_html=True,
             )
             if st.button("↻", key="j3b_hero_refresh"):
