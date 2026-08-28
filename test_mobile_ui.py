@@ -15,11 +15,15 @@ class MediaQueryTests(unittest.TestCase):
     def test_no_rule_sits_outside_a_media_query(self):
         """규칙이 미디어쿼리 밖으로 새면 PC 화면까지 바뀐다.
 
-        미디어쿼리는 다섯이다 — 메뉴·상단 지표 줄은 태블릿까지(1200px),
-        그 중 '한 줄에 몇 칸'은 세로·가로 두 갈래(2026-08-01), 표·글자는 폰(600px).
+        미디어쿼리는 일곱이다 — 메뉴·상단 지표 줄은 태블릿까지(1200px), 그 중
+        '한 줄에 몇 칸'은 세로·가로 두 갈래(2026-08-01), 표·글자는 폰(600px),
+        그리고 **태블릿만**(601~1200px) 두 갈래가 2026-08-28에 붙었다 —
+        미국테마 지수 칸의 빈자리를 줄이는 규칙이다(그림 채우기 · 세로 3칸).
         """
         css = m.page_css(m.table_css("x_", 4, {2: "이름"}, "j3-td"))
-        self.assertEqual(css.count("@media"), 5)
+        self.assertEqual(css.count("@media"), 7)
+        # 태블릿 규칙이 폰(600px)까지 내려오면 폰 화면이 바뀐다.
+        self.assertIn("(min-width: 601px)", css)
         # <style> 바로 뒤부터 첫 @media 앞까지 규칙이 있으면 안 된다.
         head = css[len("<style>"): css.index("@media")]
         self.assertEqual(head.strip(), "")

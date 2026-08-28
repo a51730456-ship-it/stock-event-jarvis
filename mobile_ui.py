@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026082820
+MODULE_REVISION = 2026082830
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -210,6 +210,37 @@ TOP_ROW_LANDSCAPE_CSS = """
 .fg-box { width: calc(50% - 0.5rem); }
 """
 
+# ── 태블릿(601~1200px)만 — 미국테마 지수 칸의 빈자리를 줄인다 (2026-08-28) ──
+#
+# 상하님 지적 — "태블릿 세로 가로 화면인데 노란색 그린 부분이 여백이 너무 많다.
+# 스마트폰은 괜찮은데… 차라리 세로 화면에 하나 더 넣으면 여백이 줄지 않을까?"
+#
+# **빈자리의 진짜 까닭은 칸이 넓어서가 아니라 그림이 120px 에 못박혀 있어서다.**
+# 태블릿 세로에서 칸은 345px 인데 그림은 120px 이라 오른쪽 200px 이 통째로 빈다.
+# 상하님이 노란색으로 그리신 자리가 바로 거기다. 그래서 둘 다 한다.
+#   ① 세로는 한 줄에 **셋**. 마지막 줄에 둘만 남으면 그 둘이 늘어나 자리를 메운다
+#      (flex-grow) — 안 그러면 폰에서 고쳐 놓은 '빈 오른쪽'이 태블릿에 생긴다.
+#   ② 그림이 **칸 폭을 채운다.** 가로로 늘려도 선이 굵어지지 않게 못박아 두었다
+#      (_sparkline_svg 의 vector-effect).
+#
+# **한국테마(.j4-top-cell)는 안 건드린다** — 한 시장을 고치면서 다른 시장을 같이
+# 고치지 않는다(CLAUDE.md 0-1 다). 그래서 여기 규칙은 .j3- 만 잡는다.
+# 가로는 지금처럼 넷이다 — 여덟 칸이 두 줄로 딱 맞아 빈자리가 안 생긴다.
+# 다섯으로 늘리면 5+3 이 되어 둘째 줄만 칸이 커진다.
+TABLET_US_FILL_CSS = """
+.j3-top-cell .j3-idx-swap { width: 100%; }
+.j3-top-cell .j3-idx-swap svg, .j3-top-cell > svg { width: 100% !important; }
+"""
+
+TABLET_US_PORTRAIT_CSS = """
+.j3-top-cell {
+    flex: 1 1 calc(33.333% - 0.7rem);
+    width: auto; min-width: calc(33.333% - 0.7rem); max-width: none;
+}
+.j3-idx-wide { min-width: calc(33.333% - 0.7rem) !important; }
+.j3-sector-map { flex: 1 1 100%; }
+"""
+
 # 테마 종목표(HTML 표 9칸)는 폰에서 칸이 34px까지 좁아져 '+1.76%'가 한 글자씩
 # 세로로 쪼개지고 조건점수 막대는 실오라기가 됐다(2026-07-25 실측).
 # 칸을 감추지 않고, 글자를 줄이고 줄바꿈을 막은 뒤 넘치면 표만 옆으로 밀어서 본다.
@@ -345,6 +376,11 @@ def page_css(*table_rules: str) -> str:
         + TOP_ROW_PORTRAIT_CSS + "}"
         + f"@media (max-width: {SIDEBAR_MAX_WIDTH}px) and (orientation: landscape) {{"
         + TOP_ROW_LANDSCAPE_CSS + "}"
+        # 태블릿만(폰 위 ~ 1200px). 미국테마 지수 칸의 빈자리를 줄인다(2026-08-28).
+        + f"@media (min-width: {PHONE_MAX_WIDTH + 1}px) and (max-width: {SIDEBAR_MAX_WIDTH}px) {{"
+        + TABLET_US_FILL_CSS + "}"
+        + f"@media (min-width: {PHONE_MAX_WIDTH + 1}px) and (max-width: {SIDEBAR_MAX_WIDTH}px)"
+        + " and (orientation: portrait) {" + TABLET_US_PORTRAIT_CSS + "}"
         + f"@media (max-width: {PHONE_MAX_WIDTH}px) {{"
         + THEME_TABLE_CSS + CONTENT_CSS + "".join(table_rules)
         + "}</style>"

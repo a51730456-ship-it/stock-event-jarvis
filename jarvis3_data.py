@@ -12,6 +12,7 @@ import csv
 import hashlib
 import pickle
 import importlib
+import json
 import logging
 import math
 import threading
@@ -197,7 +198,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082810
+MODULE_REVISION = 2026082820
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4171,15 +4172,87 @@ def _us_listing() -> list[tuple[str, str, str]]:
             raise RuntimeError("미국 상장 종목 목록이 비었습니다")
         return out
 
-    listing, _stale = _cached_value("us_listing", 6 * 3600, _produce)
+    def _produce_with_file():
+        """받은 목록을 파일로도 남긴다 (2026-08-28).
+
+        온라인은 한동안 안 쓰면 잠들고, 깨어나면 앱 기억이 통째로 사라진다.
+        그러면 이 14초짜리 조회를 처음부터 다시 낸다(실측 14.17초 · 7,091줄).
+        파일로 남겨 두면 깨어나도 안 받는다. **하루** 지난 파일은 안 쓴다 —
+        새로 상장한 종목이 빠지면 안 된다.
+        """
+        path = Path(__file__).resolve().parent / "cache" / "us_listing.json"
+        try:
+            if path.exists() and time.time() - path.stat().st_mtime < 24 * 3600:
+                saved = json.loads(path.read_text(encoding="utf-8"))
+                rows = [tuple(row) for row in saved if isinstance(row, list) and len(row) == 3]
+                if rows:
+                    return rows
+        except Exception:
+            pass
+        produced = _produce()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps(produced, ensure_ascii=False), encoding="utf-8")
+            temporary.replace(path)
+        except Exception:
+            pass
+        return produced
+
+    listing, _stale = _cached_value("us_listing", 6 * 3600, _produce_with_file)
     return listing
 
 
+def _local_matches(text: str, limit: int) -> list[dict]:
+    """앱이 이미 들고 있는 명부(약 250종목 · 한글 별칭)에서 먼저 찾는다.
+
+    **거래소 전체 명부를 받는 데 14.17초가 든다**(2026-08-28 실측 · 노트북에서
+    나스닥 3,980 + 뉴욕 2,795 + 아멕스 316 = 7,091줄). 상하님 지적 —
+    "시장분석의 종목검색에서 종목 로딩이 너무 오래 걸린다."
+
+    그런데 상하님이 찾으시는 것은 거의 다 이 명부 안에 있다(엔비디아·테슬라·
+    애플…). 그래서 여기서 먼저 보고, **여기에 없을 때만** 거래소 명부를 받는다.
+    관심종목 화면이 ``+`` 단추에서 쓰던 방법과 같다(_briefing_local_search).
+    """
+    normalized = str(text or "").replace(" ", "")
+    if not normalized:
+        return []
+    upper, lowered = normalized.upper(), normalized.lower()
+    known = tuple(dict.fromkeys(tuple(US_LARGE_CAP_UNIVERSE) + tuple(STOCK_NAMES)))
+
+    def _name(ticker):
+        return str(STOCK_NAMES.get(ticker, ticker)).lower().replace(" ", "")
+
+    ordered = []
+    alias = KOREAN_TICKER_ALIASES.get(normalized)
+    if alias:
+        ordered.append(alias)
+    ordered.extend(t for t in known if t == upper)
+    ordered.extend(t for t in known if t.startswith(upper))
+    ordered.extend(t for t in known if _name(t).startswith(lowered))
+    ordered.extend(t for t in known if lowered in _name(t))
+    rows, seen = [], set()
+    for ticker in ordered:
+        if ticker in seen:
+            continue
+        seen.add(ticker)
+        rows.append({"ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker), "market": "US"})
+        if len(rows) >= limit:
+            break
+    return rows
+
+
 def search_stocks(query: str, *, limit: int = 12) -> dict:
-    """티커나 회사 이름으로 미국 종목을 찾는다. 한글 이름과 오타도 받아 준다."""
+    """티커나 회사 이름으로 미국 종목을 찾는다. 한글 이름과 오타도 받아 준다.
+
+    **앱이 아는 종목이면 인터넷을 안 간다**(2026-08-28) — 아래 _local_matches.
+    """
     text = str(query or "").strip()
     if not text:
         return {"ok": True, "rows": []}
+    local = _local_matches(text, limit)
+    if local:
+        return {"ok": True, "rows": local, "source": "local"}
     try:
         listing = _us_listing()
     except Exception as exc:
@@ -4241,7 +4314,12 @@ def analyze_one_stock(ticker: str, *, market_score: float = 0,
     ticker = str(ticker or "").strip().upper()
     if not ticker:
         return {"ok": False, "error": "티커가 비었습니다"}
-    daily, daily_meta = _download_cached((ticker,), period="1y", interval="1d", ttl_seconds=300)
+    # **2년치를 부른다**(2026-08-28). 화면이 이미 받아 둔 명부 묶음이 2년치인데
+    # 여기만 1년치를 부르면 `_download_cached`가 기간이 달라 캐시를 못 쓰고
+    # 그 종목을 한 번 더 내려받았다(실측 1.36초 → 0.01초). get_live_quote는
+    # 2026-08-15에 같은 이유로 이미 2년으로 맞춰 두었는데 여기만 빠져 있었다.
+    # **값은 안 바뀐다** — _series_metrics는 전부 끝에서부터 잘라 쓴다.
+    daily, daily_meta = _download_cached((ticker,), period="2y", interval="1d", ttl_seconds=300)
     live, _live_meta = _download_cached(
         (ticker,), period="1d", interval="1m", ttl_seconds=45, prepost=True)
     metrics = _series_metrics(daily.get(ticker), live.get(ticker))

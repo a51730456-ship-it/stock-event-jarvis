@@ -124,3 +124,61 @@ def test_the_breadth_count_never_downloads():
     breadth = breadth[:breadth.index(chr(10) + "def ", 10)]
     assert "_download_cache_only(" in breadth, "여기서 새로 내려받고 있다"
     assert "_download_cached(" not in breadth
+
+
+# ── 종목검색 속도 (2026-08-28 상하님 지적) ──────────────────────────────────
+def test_search_looks_at_the_local_list_first():
+    """아는 종목이면 인터넷을 안 간다.
+
+    상하님 — "시장분석의 종목검색에서 종목 로딩이 너무 오래 걸린다."
+    거래소 전체 명부를 받는 데 **14.17초**가 든다(2026-08-28 실측 · 7,091줄).
+    그런데 찾으시는 것은 거의 다 앱이 이미 아는 250종목 안에 있다.
+    실측 — 엔비디아·TSLA·apple·팔란티어·브로드컴 모두 0.00초.
+    """
+    data = DATA.read_text(encoding="utf-8")
+    fn = data[data.index("def search_stocks("):]
+    fn = fn[:fn.index(chr(10) + "def ", 10)]
+    local_at = fn.index("_local_matches(text, limit)")
+    listing_at = fn.index("_us_listing()")
+    assert local_at < listing_at, "거래소 명부를 먼저 받고 있다"
+    assert "if local:" in fn[local_at:listing_at], "아는 종목인데도 명부를 받는다"
+
+
+def test_the_whole_listing_is_kept_in_a_file():
+    """받은 명부는 파일로 남긴다 — 온라인이 잠들었다 깨어나도 다시 안 받는다."""
+    data = DATA.read_text(encoding="utf-8")
+    fn = data[data.index("def _us_listing("):]
+    fn = fn[:fn.index(chr(10) + "def ", 10)]
+    assert "us_listing.json" in fn, "파일로 안 남긴다"
+    assert "24 * 3600" in fn, "하루가 지나도 옛 파일을 쓰면 새 상장 종목이 빠진다"
+
+
+def test_the_single_stock_check_reuses_the_batch():
+    """종목 하나 심사도 화면이 이미 받아 둔 2년치를 그대로 쓴다.
+
+    여기만 1년치를 부르면 캐시를 못 써서 그 종목을 한 번 더 내려받는다
+    (실측 1.36초 → 0.05초). get_live_quote 는 2026-08-15 에 같은 이유로
+    이미 2년으로 맞춰 두었는데 이 함수만 빠져 있었다.
+    """
+    data = DATA.read_text(encoding="utf-8")
+    fn = data[data.index("def analyze_one_stock("):]
+    fn = fn[:fn.index(chr(10) + "def ", 10)]
+    assert 'period="2y", interval="1d"' in fn, "일봉 기간이 명부 묶음과 다르다"
+    assert 'period="1y"' not in fn
+
+
+def test_closing_the_detail_also_closes_the_search_result():
+    """상세를 닫으면 「찾은 종목」 줄도 같이 걷는다 (2026-08-28 상하님 지적).
+
+    상하님 — "종목 다 보고 닫기 했는데도 찾은 종목 화면이 그대로 있다."
+    """
+    page = PAGE.read_text(encoding="utf-8")
+    panel = page[page.index("def _render_my_stock_panel("):]
+    panel = panel[:panel.index(chr(10) + "def ", 10)]
+    assert "def _forget_search():" in panel, "닫을 때 할 일이 없다"
+    assert 'st.session_state.pop("j3_my_stock_asked", None)' in panel, "찾은 목록이 안 걷힌다"
+    assert "on_close=_forget_search" in panel, "닫기 단추에 안 걸었다"
+    # 여는 단추와 맨 아래 닫기 단추 **둘 다** 같이 걷어야 한다.
+    detail = page[page.index("def _render_stock_detail("):]
+    detail = detail[:detail.index(chr(10) + "def _render_theme_panel") if "def _render_theme_panel" in detail else len(detail)]
+    assert detail.count("on_close=on_close") >= 3, "닫는 자리 가운데 빠진 곳이 있다"

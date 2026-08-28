@@ -598,9 +598,10 @@ class Jarvis3PageTests(unittest.TestCase):
         blocks = [str(n.value) for n in app.markdown if "@media (max-width: 600px)" in str(n.value)]
         self.assertEqual(len(blocks), 1)
         css = blocks[0]
-        # 미디어쿼리는 다섯 — 메뉴·상단 지표 줄은 태블릿까지(1200px), 그 중
-        # '한 줄에 몇 칸'은 세로·가로 두 갈래(2026-08-01), 표·글자는 폰(600px).
-        self.assertEqual(css.count("@media"), 5)
+        # 미디어쿼리는 일곱 — 메뉴·상단 지표 줄은 태블릿까지(1200px), 그 중
+        # '한 줄에 몇 칸'은 세로·가로 두 갈래(2026-08-01), 표·글자는 폰(600px),
+        # 태블릿만(601~1200px) 두 갈래는 2026-08-28에 붙었다.
+        self.assertEqual(css.count("@media"), 7)
         self.assertEqual(css[: len("<style>")], "<style>")
         self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
         phone_block = css[css.index("@media (max-width: 600px)"):]
@@ -2009,7 +2010,8 @@ def test_top9_close_button_sits_below_the_detail_close_button():
     # 같은 글이 이 조각 안에 두 번 나온다(위쪽 것은 다른 갈래다). 매수기록 폼
     # **뒤에** 오는 것을 찾아야 이 상세 한 벌의 맨 끝 닫기 단추다.
     detail_close_at = detail.index(
-        '_section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")', form_at)
+        '_section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기", on_close=on_close)',
+        form_at)
     assert form_at < detail_close_at < close_at, "순위 9 닫기가 선택종목 세부사항 닫기 위에 있다"
     assert 'if panel == "top7":' in detail[detail_close_at:close_at]
     assert "on_close=_close_all_from_fragment" in detail[close_at:]

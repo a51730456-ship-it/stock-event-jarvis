@@ -1166,7 +1166,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026082820
+_REQUIRED_MOBILE_REVISION = 2026082830
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1215,7 +1215,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082810
+_REQUIRED_J3_REVISION = 2026082820
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2227,20 +2227,28 @@ def _sparkline_svg(payload, up_color: str, down_color: str,
         segments.append(
             f"<line x1='{index * step:.1f}' y1='{_y(first):.1f}' "
             f"x2='{(index + 1) * step:.1f}' y2='{_y(second):.1f}' "
-            f"stroke='{color}' stroke-width='1.6' stroke-linecap='round'/>"
+            f"stroke='{color}' stroke-width='1.6' stroke-linecap='round' "
+            f"vector-effect='non-scaling-stroke'/>"
         )
     fill = up_color if points[-1] >= base else down_color
     area = f"0,{base_y:.1f} " + " ".join(
         f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points)
     ) + f" {width:.1f},{base_y:.1f}"
+    # **가로로 늘려도 선이 굵어지지 않는다** (2026-08-28).
+    # 태블릿에서는 이 그림이 칸 폭을 채우도록 CSS가 늘린다(mobile_ui). 늘리면
+    # preserveAspectRatio='none' 이 그림을 옆으로 잡아당기는데, 그때 선까지 같이
+    # 굵어진다 — 카드 그림에서 이미 겪은 일이다(7.9px → 1.8px, 2026-08-26).
+    # vector-effect 는 "선은 늘리지 말고 적어 준 굵기 그대로"라는 뜻이다.
     return (
         f"<svg viewBox='0 0 {width:.0f} {height}' width='{width:.0f}' height='{height}' "
+        f"preserveAspectRatio='none' "
         f"style='display:block; margin:.4rem 0 .1rem;"
         f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
         f" background:rgba(255,255,255,.03)'>"
         f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"
         f"<line x1='0' y1='{base_y:.1f}' x2='{width:.0f}' y2='{base_y:.1f}' "
-        f"stroke='rgba(255,255,255,.38)' stroke-width='1' stroke-dasharray='4 4'/>"
+        f"stroke='rgba(255,255,255,.38)' stroke-width='1' stroke-dasharray='4 4' "
+        f"vector-effect='non-scaling-stroke'/>"
         + "".join(segments) + "</svg>"
     )
 
@@ -2840,9 +2848,13 @@ def _stock_radio_label(item: dict) -> str:
 
 def _render_stock_detail(
     theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
-    *, panel: str = "theme",
+    *, panel: str = "theme", on_close=None,
 ) -> None:
-    """종목 상세 한 벌. panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다."""
+    """종목 상세 한 벌. panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다.
+
+    ``on_close``는 닫기를 누를 때 함께 할 일이다. 종목검색에서 쓴다 — 상세를
+    닫으면 위의 「찾은 종목」 줄도 같이 걷는다(2026-08-28 상하님 지시).
+    """
     ticker = leader["ticker"]
     if panel == "theme":
         st.session_state["j3_selected_ticker"] = ticker
@@ -2854,7 +2866,7 @@ def _render_stock_detail(
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시, 한국테마와 같다).
     if not _section_toggle(
         "🔎 선택종목 세부사항 보기", f"j3_detail_open_{panel}",
-        close_label="선택종목 세부사항 닫기",
+        close_label="선택종목 세부사항 닫기", on_close=on_close,
     ):
         return
     # 대장주 비교와 동일하게, 80점 이상 1~3위 종목이면 종목명에도 메달을 붙인다.
@@ -2872,7 +2884,8 @@ def _render_stock_detail(
     if auth.is_guest():
         _render_day_price_row(metrics)
         _render_price_chart_bundle(ticker, panel=panel)
-        _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")
+        _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기",
+                       on_close=on_close)
         return
 
     # GENERAL은 종목 100점과 테마 100점을 먼저 각각 만든 뒤
@@ -3140,7 +3153,7 @@ def _render_stock_detail(
 
     _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
-    _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기")
+    _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기", on_close=on_close)
     if panel == "top7":
         # 「매수심사결과 높은 순위 9 닫기」는 **✕ 선택종목 세부사항 닫기 바로 밑**이다.
         # 2026-08-26 상하님이 자리를 바로잡아 주셨다 — "너가 지금 매수심사결과 높은
@@ -4835,9 +4848,19 @@ def _render_my_stock_panel(market: dict) -> None:
         "이 점수에는 **테마 대비 상대강도가 빠져 있습니다** — 견줄 테마가 없기 때문입니다. "
         "위 테마 대장주 점수와 나란히 비교하지 마세요."
     )
+    def _forget_search():
+        """상세를 닫으면 「찾은 종목」 줄도 같이 걷는다 (2026-08-28 상하님 지시).
+
+        상하님 — "종목 다 보고 닫기 했는데도 찾은 종목 화면이 그대로 있다."
+        찾은 목록은 상세를 보려고 고르는 자리라, 상세를 닫으면 남아 있을 까닭이
+        없다. 검색어는 그대로 둔다 — 다시 찾아보실 때 또 치지 않으시게.
+        """
+        st.session_state.pop("j3_my_stock_asked", None)
+        st.session_state.pop("j3_my_stock_shown", None)
+
     _render_stock_detail(
         {"name": "내 종목"}, leader, market, [leader],
-        "j3_my_stock_detail_choice", panel="mystock",
+        "j3_my_stock_detail_choice", panel="mystock", on_close=_forget_search,
     )
 
 
