@@ -198,7 +198,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082820
+MODULE_REVISION = 2026082830
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4396,16 +4396,27 @@ def get_briefing_cards(stocks) -> dict[str, dict]:
                 metrics = _series_metrics(daily.get(ticker), live.get(ticker))
                 if metrics.get("ok"):
                     series = daily[ticker]["Close"].dropna().astype(float)
+                    # **당일 그림도 함께 싣는다**(2026-08-28 상하님 지적 — "각 종목들
+                    # 차트가 종가 기준 일봉 차트 맞냐? 뭐가 뭔지 모르겠다. 당일
+                    # 종가가 되면 당일 차트를 해 줘야지").
+                    # 카드에 적히는 값·등락률은 **오늘 것**인데 그림만 최근 30일이라
+                    # 둘이 서로 다른 이야기를 하고 있었다. 분봉은 이미 위에서 받아
+                    # 두었으므로(live) 새로 받는 것이 없다.
+                    today = live.get(ticker)
+                    today_series = ([] if today is None or getattr(today, "empty", True)
+                                    else today["Close"].dropna().astype(float).tolist())
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
                         "price": metrics.get("current"), "change_pct": metrics.get("change_pct"),
                         "chart": series.tail(30).tolist(), "chart6m": series.tolist(),
+                        "chart_today": today_series, "prev_close": metrics.get("prev_close"),
                         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
                     }
                 else:
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
                         "price": None, "change_pct": None, "chart": [], "chart6m": [],
+                        "chart_today": [], "prev_close": None,
                         "stale": True,
                     }
     with _CACHE_LOCK:

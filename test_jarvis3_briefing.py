@@ -536,9 +536,14 @@ def test_the_open_card_shows_a_six_month_daily_chart():
     assert "일봉 6개월" in card, "이름표가 없다"
     # 그림 **뒤에** 뉴스가 와야 한다.
     assert card.index("_briefing_chart(") < card.index("_news_accordion_html("),         "뉴스가 그림보다 위에 있다"
-    # 접힌 카드는 손대지 않는다 — 작은 그림은 최근 30일 그대로다.
+    # **접힌 카드의 작은 그림은 2026-08-28부터 당일이다** (상하님 지적 — "각
+    # 종목들 차트가 종가 기준 일봉 차트 맞냐? 뭐가 뭔지 모르겠다. 당일 종가가
+    # 되면 당일 차트를 해 줘야지"). 바로 옆에 적히는 값·등락률이 오늘 것인데
+    # 그림만 최근 30일이라 둘이 다른 이야기를 하고 있었다.
+    # 당일 자료가 없는 날(주말·휴장)에는 예전처럼 최근 30일로 되돌아간다.
     body = page[page.index("    card_body = ("):page.index("    six_month = [")]
-    assert '_briefing_chart(card.get("chart"), change)' in body, "접힌 카드까지 바꿨다"
+    assert 'card.get("chart_today") or card.get("chart")' in body, "접힌 카드가 당일이 아니다"
+    assert 'base=card.get("prev_close")' in body, "당일 그림의 기준선이 전일 종가가 아니다"
 
 
 def test_the_card_data_carries_both_series():

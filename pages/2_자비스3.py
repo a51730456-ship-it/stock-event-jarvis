@@ -1236,7 +1236,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082820
+_REQUIRED_J3_REVISION = 2026082830
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -7848,14 +7848,16 @@ _BASE_UP_STROKE = "#70e64a"
 _BASE_DOWN_STROKE = "#ff5b5b"
 
 
-def _briefing_chart_split(values, low: float, span: float) -> str:
+def _briefing_chart_split(values, low: float, span: float, *, base=None) -> str:
     """시작가에 기준선을 긋고 위·아래를 다른 색으로 그린다.
 
     선이 기준선을 가로지르는 **바로 그 자리**에서 색을 바꾼다. 칸마다 선을 따로
     그리는 방법도 있지만, 그러면 6개월 그림 하나가 125조각이 되어 화면에 실어
     보내는 글자가 그만큼 늘어난다. 가로지르는 자리만 끊으면 보통 서넛으로 끝난다.
     """
-    base = values[0]
+    # 기준선은 보통 **그림이 시작한 값**이다. 당일 그림만 전일 종가를 밖에서 준다 —
+    # 오늘 오르내림을 재는 자리가 거기이기 때문이다(카드에 적힌 등락률과 같은 자).
+    base = values[0] if base is None else float(base)
     step = 100.0 / (len(values) - 1)
 
     def _y(value):
@@ -7901,7 +7903,8 @@ def _briefing_chart_split(values, low: float, span: float) -> str:
             + guide + "".join(body) + "</svg>")
 
 
-def _briefing_chart(values, change, *, stroke: str = "", baseline: bool = False) -> str:
+def _briefing_chart(values, change, *, stroke: str = "", baseline: bool = False,
+                    base=None) -> str:
     """카드의 작은 그림. ``stroke``를 주면 그 색으로 그린다.
 
     2026-08-26 상하님 지시 — "관심종목에 일봉 6개월 색깔이 당일 차트 색에 따라
@@ -7925,7 +7928,12 @@ def _briefing_chart(values, change, *, stroke: str = "", baseline: bool = False)
     span = high - low or 1
     points = " ".join(f"{index * 100 / (len(values)-1):.1f},{42 - (value-low) * 38/span:.1f}" for index, value in enumerate(values))
     if baseline:
-        return _briefing_chart_split(values, low, span)
+        # 기준선을 밖에서 주면(당일 그림의 전일 종가) 그 값도 그림 안에 들어와야
+        # 한다 — 안 그러면 기준선이 그림 밖으로 나가 안 보인다.
+        if base is not None:
+            low = min(low, float(base))
+            span = (max(high, float(base)) - low) or 1
+        return _briefing_chart_split(values, low, span, base=base)
     stroke = stroke or ("#70e64a" if (change or 0) >= 0 else "#ff5b5b")
     # **선 굵기를 화면 기준으로 못박는다**(2026-08-26 상하님 지적 — "종목 클릭하면
     # 나오는 차트 선이 너무 굵다").
@@ -8195,7 +8203,14 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
         f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
         f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'
-        f'{_briefing_chart(card.get("chart"), change)}<div class="j3b-card-notes">{note_html}</div>'
+        # **접힌 카드 그림은 당일이다**(2026-08-28 상하님 지적 — "각 종목들 차트가
+        # 종가 기준 일봉 차트 맞냐? 뭐가 뭔지 모르겠다. 당일 종가가 되면 당일
+        # 차트를 해 줘야지"). 바로 왼쪽에 적히는 값·등락률이 오늘 것인데 그림만
+        # 최근 30일이라 둘이 다른 이야기를 하고 있었다. 기준선은 전일 종가다 —
+        # 등락률을 재는 자리와 같다. 당일 자료가 없는 날(주말·휴장)에는 예전처럼
+        # 최근 30일을 그린다.
+        f'{_briefing_chart(card.get("chart_today") or card.get("chart"), change, baseline=bool(card.get("chart_today")), base=card.get("prev_close"))}'
+        f'<div class="j3b-card-notes">{note_html}</div>'
         f'{delete_visual}{decor_html}</div>'
     )
     six_month = [float(v) for v in (card.get("chart6m") or []) if v is not None]
