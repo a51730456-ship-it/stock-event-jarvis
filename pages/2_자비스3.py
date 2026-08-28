@@ -4225,13 +4225,19 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
     스물아홉 개가 깨졌다. 이 목록은 부르는 쪽이 이미 만들어 둔 것이다.
     """
 
-    def _close_theme_panel_top():
-        st.session_state["j3_theme_panel_open"] = False
-
+    # **테마에서 연 것을 하나도 남기지 않고 다 닫는다** (2026-08-28 상하님 지시).
+    #
+    # 상하님 — "20개 테마 닫기 하면 첫 번째 캡처 화면으로 가는데 그렇게 되면 안
+    # 되고, 20테마 관련 열었던 거 다 닫고 세 번째 캡처 화면으로 돌아가야 한다."
+    #
+    # 예전에는 이 단추가 **테마 종목 판만** 닫아서, 위의 20개 순위표가 그대로
+    # 열린 화면(첫 번째 캡처)에 남았다. 이제 「20개 테마 실시간 순위 닫기」와
+    # 똑같이 순위표·상승장·급락장·순위 9까지 다 접고 미국테마 기본 화면으로
+    # 돌아간다(세 번째 캡처). 두 단추가 같은 일을 하므로 한 함수를 같이 쓴다.
     st.button(
         "✕ 테마 종목 화면 닫기",
         key="close_j3_theme_panel_open_top",
-        on_click=_close_theme_panel_top,
+        on_click=_close_theme_rank_from_fragment,
     )
     # st.pills는 이 환경에서 클릭이 먹지 않아 검증된 radio로 교체한다(선택 동작만 교체).
     selected_theme = st.radio(
@@ -4348,8 +4354,10 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
             top_candidates[0],
         )
         _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
+    # 맨 아래 닫기도 위 단추와 **같은 일**을 한다 — 어디서 닫든 같은 화면으로
+    # 돌아가야 한다(2026-08-28 상하님 지시).
     _section_close("j3_theme_panel_open", "테마 종목 화면 닫기",
-                   return_to=_RADAR_MAIN_ANCHOR)
+                   on_close=_close_theme_rank_from_fragment)
 
 
 @st.fragment

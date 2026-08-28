@@ -1813,13 +1813,18 @@ def test_general_detail_keeps_three_score_groups_and_browser_only_help():
 def test_long_section_close_buttons_return_to_radar_main():
     """긴 화면을 접으면 언제나 미국테마 메인 시작점으로 돌아간다.
 
-    돌아가는 길이 두 갈래다 — 다섯 구역은 `return_to=`로 바로 자리를 적어 두고,
-    20개 테마 순위만 `on_close=`로 열린 것을 먼저 다 닫은 뒤 같은 자리를 적는다.
-    (2026-08-25 `4a5a0cb`에서 순위 쪽이 두 번째 갈래로 옮겨졌다.)
+    돌아가는 길이 두 갈래다 — 네 구역은 `return_to=`로 바로 자리를 적어 두고,
+    20개 테마 순위와 **테마 종목 화면**은 `on_close=`로 열린 것을 먼저 다 닫은 뒤
+    같은 자리를 적는다.
+    (2026-08-25 `4a5a0cb`에서 순위 쪽이 두 번째 갈래로 옮겨졌다.
+     2026-08-28 상하님 지시로 「테마 종목 화면 닫기」도 같은 갈래로 옮겼다 —
+     "20테마 관련 열었던 거 다 닫고 세 번째 캡처 화면으로 돌아가야 한다.")
     """
     source = PAGE.read_text(encoding="utf-8")
     assert source.count('scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)') == 1
-    assert source.count('return_to=_RADAR_MAIN_ANCHOR') >= 5
+    assert source.count('return_to=_RADAR_MAIN_ANCHOR') >= 4
+    # 테마 쪽 닫기 둘(위·아래)이 같은 함수를 쓴다 — 어디서 닫든 같은 화면이다.
+    assert source.count('on_close=_close_theme_rank_from_fragment') == 2
     helper = source[source.index("def _section_close"):source.index("_FACTOR_HELP_CSS")]
     assert "scroll_to.request(st, return_to)" in helper
 
