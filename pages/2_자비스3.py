@@ -373,6 +373,27 @@ st.markdown(
     .j3-idx-note { font-size: 0.82rem; }
     /* SPY·QQQ는 그림이 둘이라 칸을 조금 넓게 잡는다. */
     .j3-idx-wide { min-width: 240px; }
+    /* ── 종목 차트 넷을 한 판에 (2026-08-28 상하님 지시) ───────────────────
+       "스마트폰 기준으로 당일·일봉 차트 같은 선상에 2개 해 주고 그 밑에 주·월봉."
+       스트림릿 칸은 폰에서 위아래로 쌓여 한 줄에 하나가 되므로 CSS 격자로 둔다 —
+       맨 위 지수 칸과 같은 방식이다. 노트북에서는 넷이 한 줄에 선다. */
+    .j3-chart-grid { display: grid; gap: .7rem; margin: .3rem 0 .6rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (min-width: 1201px) {
+        .j3-chart-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    .j3-chart-box { background: rgba(255,255,255,.03);
+        border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+        padding: .45rem .55rem .35rem; min-width: 0; }
+    .j3-chart-name { color: #9dccff; font-size: .95rem; font-weight: 800;
+        margin-bottom: .15rem; }
+    .j3-chart-when { color: #7d8798; font-size: .72rem; font-weight: 700;
+        margin-top: .2rem; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap; }
+    /* 폰에서 낮추는 규칙은 mobile_ui 에 있다(규칙 12) — 여기 두면 태블릿·PC까지
+       같이 바뀔 위험이 있고, 폰 규칙이 두 군데로 갈린다. */
+    .j3-pretty-chart { display: block; width: 100%; height: 132px;
+        border-radius: 8px; background: rgba(0,0,0,.22); }
     /* ── 시장 현황(업종 지도) 2026-08-28 ────────────────────────────────
        상자 자리는 서버가 계산해 %로 준다. 칸의 가로:세로를 CSS에서 못박아야
        그 계산과 화면이 어긋나지 않는다 — 비율이 달라지면 상자가 찌그러진다.
@@ -1166,7 +1187,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026082830
+_REQUIRED_MOBILE_REVISION = 2026082840
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1812,6 +1833,113 @@ def _leader_table_html(leaders: list[dict], selected_ticker: str | None) -> str:
     )
 
 
+# ── 종목 차트 (2026-08-28 상하님 지시) ──────────────────────────────────────
+#
+# 상하님 — "20개 테마, 신고가 눌림매수, 급락 후 반등장, 매수심사결과 높은 순위의
+# 각 파트별로 종목에 차트들이 나오는데 당일·일봉(거래량 빼라)·주봉·월봉 이렇게
+# 나오는데 너무 못생겼다. 첫 번째 캡처처럼 하되 일·주·월봉은 20선 50선은 넣어 줘."
+#
+# 첫 번째 캡처는 관심종목 카드의 「일봉 6개월」이다 — 시작가에 점선을 긋고 그 위는
+# 초록, 아래는 빨강으로 채운 그림. 그 방식을 종목 상세의 네 그림에 그대로 옮긴다.
+#
+# **덤으로 빨라진다.** 예전 그림은 Vega(알테어)라 그림 하나에 규격 뭉치를 통째로
+# 브라우저에 보내고 브라우저가 그걸 읽어 그린다. 종목을 누르면 그런 그림이 네 개씩
+# 만들어졌다(상하님 지적 — "정식 후보 종목을 클릭하면 15초 정도"). 이 그림은
+# 서버가 만든 SVG 한 조각이라 브라우저가 읽을 것이 없다.
+_CHART_UP = "#70e64a"        # 기준선 위 (관심종목 카드와 같은 초록)
+_CHART_DOWN = "#ff5b5b"      # 기준선 아래
+_CHART_MA20 = "#ffb020"      # 20선 — 주황
+_CHART_MA50 = "#c084fc"      # 50선 — 보라
+
+
+def _split_pieces(values: list[float], base: float) -> list[tuple[int, list]]:
+    """기준선을 넘는 자리에서 선을 끊어 (위/아래, 점들)로 나눈다.
+
+    관심종목 카드 그림과 종목 상세 그림이 **같은 계산**을 쓴다. 칸마다 따로
+    그리면 조각이 수백 개가 되지만, 가로지르는 자리만 끊으면 보통 서넛이다.
+    돌려주는 x는 **칸 번호**다 — 실제 좌표는 부르는 쪽이 정한다.
+    """
+    pieces, current, sign = [], [(0.0, base if values[0] == base else values[0])], None
+    for index in range(len(values) - 1):
+        now_value, next_value = values[index], values[index + 1]
+        sign_now = 1 if now_value >= base else -1
+        sign_next = 1 if next_value >= base else -1
+        if sign is None:
+            sign = sign_now if now_value != base else sign_next
+        if sign_next == sign or next_value == base:
+            current.append((float(index + 1), next_value))
+            continue
+        share = (base - now_value) / (next_value - now_value) if next_value != now_value else 0.0
+        crossing = index + share
+        current.append((crossing, base))
+        pieces.append((sign, current))
+        sign, current = sign_next, [(crossing, base), (float(index + 1), next_value)]
+    pieces.append((sign if sign is not None else 1, current))
+    return pieces
+
+
+def _pretty_chart_svg(closes, *, base=None, ma20=None, ma50=None,
+                      height: int = 150) -> str:
+    """시작가 기준선 위아래를 갈라 그린 종목 차트. 20선·50선도 함께 그린다.
+
+    가로는 화면을 채우고(preserveAspectRatio="none") 세로만 못박는다. 늘려도
+    선이 굵어지지 않게 vector-effect 를 건다 — 2026-08-26에 카드 그림에서
+    7.9px 로 굵어진 것을 겪었다.
+    """
+    values = [float(v) for v in (closes or []) if v is not None and v == v]
+    if len(values) < 2:
+        return ""
+    base = float(base) if base is not None else values[0]
+    lines = []
+    for color, series in ((_CHART_MA20, ma20), (_CHART_MA50, ma50)):
+        cleaned = [(index, float(v)) for index, v in enumerate(series or [])
+                   if v is not None and v == v]
+        if len(cleaned) >= 2:
+            lines.append((color, cleaned))
+
+    span_values = values + [base] + [v for _c, pairs in lines for _i, v in pairs]
+    low, high = min(span_values), max(span_values)
+    reach = (high - low) or 1.0
+    pad = height * 0.06
+    inner = height - pad * 2
+    width = 300.0
+    step = width / (len(values) - 1)
+
+    def _y(value):
+        return pad + inner - (float(value) - low) / reach * inner
+
+    body = [
+        f'<line x1="0" y1="{_y(base):.2f}" x2="{width:.0f}" y2="{_y(base):.2f}" '
+        'stroke="rgba(255,255,255,.42)" stroke-width="1" stroke-dasharray="4 4" '
+        'vector-effect="non-scaling-stroke"/>'
+    ]
+    for piece_sign, piece in _split_pieces(values, base):
+        if len(piece) < 2:
+            continue
+        color = _CHART_UP if piece_sign >= 0 else _CHART_DOWN
+        path = " ".join(f"{x * step:.2f},{_y(v):.2f}" for x, v in piece)
+        area = (f"{piece[0][0] * step:.2f},{_y(base):.2f} " + path
+                + f" {piece[-1][0] * step:.2f},{_y(base):.2f}")
+        body.append(f'<polygon points="{area}" fill="{color}" fill-opacity="0.16"/>')
+        body.append(f'<polyline points="{path}" fill="none" stroke="{color}" '
+                    'stroke-width="1.9" vector-effect="non-scaling-stroke"/>')
+    for color, pairs in lines:
+        path = " ".join(f"{index * step:.2f},{_y(v):.2f}" for index, v in pairs)
+        body.append(f'<polyline points="{path}" fill="none" stroke="{color}" '
+                    'stroke-width="1.4" stroke-opacity=".95" '
+                    'vector-effect="non-scaling-stroke"/>')
+    return (f'<svg class="j3-pretty-chart" viewBox="0 0 {width:.0f} {height}" '
+            'preserveAspectRatio="none">' + "".join(body) + "</svg>")
+
+
+def _payload_series(payload: dict, column: str):
+    """차트 자료에서 한 줄을 꺼낸다. 없으면 빈 목록."""
+    frame = payload.get("price") if isinstance(payload, dict) else None
+    if frame is None or column not in getattr(frame, "columns", []):
+        return []
+    return [None if value != value else float(value) for value in frame[column].tolist()]
+
+
 def _price_chart(payload: dict, timeframe: str, include_volume: bool = False,
                  height: int | None = None, compact: bool = False):
     """주가·20일선·50일선 한 장.
@@ -1954,60 +2082,79 @@ THUMB_CHART_HEIGHT = 108
 
 
 def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
-    """선택 종목의 일봉·주봉·월봉을 한 번의 10년 일봉 조회로 그린다.
+    """선택 종목의 **당일·일봉·주봉·월봉 넷을 한 판에** 그린다 (2026-08-28).
+
+    상하님 지시 두 가지를 한 번에 담았다.
+      · "당일·일봉(거래량 빼라)·주봉·월봉이 너무 못생겼다. 첫 번째 캡처처럼
+         하되 일·주·월봉은 20선 50선은 넣어 줘."
+      · "스마트폰 기준으로 당일·일봉 차트 같은 선상에 2개 해 주고 그 밑에
+         주·월봉 차트. 맨 위 미국 전체시장 판단에 S&P500 옆에 나스닥 종합
+         있는 것처럼."
+
+    **스트림릿 칸(st.columns)을 안 쓴다.** 그것은 폰에서 위아래로 쌓여 한 줄에
+    하나가 된다. 맨 위 지수 칸과 같은 방식으로 CSS 격자에 넣어야 폰에서도 두
+    개씩 선다.
+
+    **거래량은 뺐다**(상하님 지시). 그림 아래 막대가 차지하던 자리만큼 주가
+    흐름이 커진다.
 
     눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축) — 늘 그리면 종목을 고를
-    때마다 10년치를 받아 와 느려진다.
+    때마다 20년치를 받아 와 느려진다. 당일 그림도 이 안에서 함께 받는다.
     """
     if not _section_toggle(
-        "📊 일봉 · 주봉 · 월봉 보기", f"j3_bundle_open_{panel}",
-        close_label="일봉·주봉·월봉 닫기",
+        "📊 당일 · 일봉 · 주봉 · 월봉 보기", f"j3_bundle_open_{panel}",
+        close_label="차트 닫기",
     ):
         return
     st.caption(
-        "주가 흐름은 하늘색 · 20일선은 붉은색 · 50일선은 보라색입니다. "
-        "거래량은 일봉 아래에 함께 표시됩니다."
+        "시작한 값에 회색 점선을 긋고, 그보다 위는 초록·아래는 붉은색입니다. "
+        "20선은 주황색 · 50선은 보라색입니다."
     )
+    boxes = []
+    # 당일 그림 — 기준선은 전일 종가다. 20선·50선은 없다(하루치라 잴 수 없다).
+    try:
+        intraday = j3data.get_intraday_chart(ticker)
+    except Exception:
+        intraday = None
+    if isinstance(intraday, dict) and intraday.get("ok"):
+        closes = _payload_series(intraday, intraday["price"].columns[0])
+        drawing = _pretty_chart_svg(closes, base=intraday.get("prev_close"), height=150)
+        if drawing:
+            boxes.append(("당일", drawing, intraday.get("source_time") or ""))
     chart_bundle = j3data.get_chart_bundle(ticker)
     if not chart_bundle.get("ok"):
-        st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
-        return
-    # **맨 위 「크게 보기」는 뺐다**(2026-08-21 상하님 지시 — "일봉 크게 보기를
-    # 없애라, 밑에 보면 일봉이 또 있으니"). 같은 그림이 한 화면에 두 번 있었다.
-    # 큰 그림이 없어졌으므로 그것을 바꾸던 「일봉·주봉·월봉」 단추도 함께 뺐다 —
-    # 누를 데는 있는데 바뀌는 것이 없으면 화면이 거짓말을 한다.
-    # 거래량은 일봉 그림 아래에 그대로 붙인다.
-    daily_col, weekly_col, monthly_col = st.columns(3)
-    chart_columns = {"일봉": daily_col, "주봉": weekly_col, "월봉": monthly_col}
-    for timeframe, chart_column in chart_columns.items():
-        payload = chart_bundle["charts"].get(timeframe, {})
-        with chart_column:
-            st.markdown(
-                f"<div class='j3-chart-title'>{timeframe}</div>",
-                unsafe_allow_html=True,
+        if not boxes:
+            st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
+            _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
+            return
+    else:
+        for timeframe in ("일봉", "주봉", "월봉"):
+            payload = chart_bundle["charts"].get(timeframe, {})
+            if not payload.get("ok"):
+                continue
+            drawing = _pretty_chart_svg(
+                _payload_series(payload, "Close"),
+                ma20=_payload_series(payload, "MA20"),
+                ma50=_payload_series(payload, "MA50"),
+                height=150,
             )
-            if payload.get("ok"):
-                st.altair_chart(
-                    _price_chart(payload, timeframe,
-                                 include_volume=timeframe == "일봉",
-                                 height=THUMB_CHART_HEIGHT, compact=True),
-                    width="stretch",
-                    theme="streamlit",
-                )
-            else:
-                st.warning(f"{timeframe} 자료 없음")
+            if drawing:
+                boxes.append((timeframe, drawing, ""))
+    if not boxes:
+        st.warning("차트 자료가 없습니다.")
+        _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
+        return
+    cells = "".join(
+        f"<div class='j3-chart-box'><div class='j3-chart-name'>{name}</div>{drawing}"
+        + (f"<div class='j3-chart-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</div>"
+           if when else "")
+        + "</div>"
+        for name, drawing, when in boxes
+    )
+    st.markdown(f"<div class='j3-chart-grid'>{cells}</div>", unsafe_allow_html=True)
     if chart_bundle.get("stale"):
         st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
-    _section_close(f"j3_bundle_open_{panel}", "일봉·주봉·월봉 닫기")
-
-
-# 종목 상세의 당일 차트 높이. 아래 일봉·주봉·월봉과 같은 3분할 폭에 그리므로
-# 이 높이가 곧 가로세로 비율을 정한다(2026-07-30 사용자 지시: 4:3).
-# 실측 — 넓은 화면(1280px)에서 한 칸이 359px이라 4:3이면 269px다.
-# 화면이 좁아지면 칸도 좁아져 세로가 상대적으로 길어진다(픽셀 높이는 고정이므로).
-# **위 지수 카드의 그림과 같은 크기**다(2026-08-21 상하님 지시 — "당일차트 크기
-# 두번째 캡쳐 크기로 바꿔라"). 20개 테마·상승장·급락 세 군데가 이 한 값을 쓴다.
-INTRADAY_CHART_HEIGHT = 90
+    _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
 
 
 def _intraday_chart(payload: dict, height: int = 200, *, small: bool = False):
@@ -3133,7 +3280,6 @@ def _render_stock_detail(
     _render_day_price_row(metrics)
     # 당일 차트가 이 상세에만 없었다(2026-08-06 상하님 지적) — 순위 7에서 테마
     # 대장주를 고르면 여기로 오는데 당일 차트가 안 나왔다.
-    _render_intraday_section(ticker, panel=panel)
     # panel을 넘겨야 같은 종목을 위·아래 두 상세에서 열어도 단추 키가 안 겹친다.
     _render_price_chart_bundle(ticker, panel=panel)
 
@@ -4887,73 +5033,6 @@ def _us_signal_hint() -> str:
     )
 
 
-def _render_guest_pullback_intraday(ticker: str) -> None:
-    """게스트 눌림목 상세에서도 점수판을 제외한 당일 차트는 그대로 보여준다."""
-    if not _section_toggle(
-        "📈 당일 · 실시간 차트 보기", "j3_intraday_open_pullback",
-        close_label="당일 차트 닫기",
-    ):
-        return
-    intraday_error = ""
-    try:
-        intraday_payload = j3data.get_intraday_chart(ticker)
-    except Exception as exc:
-        intraday_payload = None
-        intraday_error = _safe_error_text(exc)
-    intraday_col, _, _ = st.columns(3)
-    with intraday_col:
-        if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-            st.altair_chart(
-                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT),
-                width="stretch", theme="streamlit",
-            )
-            st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-        elif intraday_error:
-            st.info(f"당일 자료 없음 — {intraday_error}")
-        else:
-            st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
-    _section_close("j3_intraday_open_pullback", "당일 차트 닫기")
-
-
-def _render_intraday_section(ticker: str, *, panel: str) -> None:
-    """당일 · 실시간 차트 한 벌. 어느 상세에서든 같은 모양으로 쓴다.
-
-    2026-08-06에 함수로 뺐다 — 눌림목/갈래 상세에만 있고 **순위 7에서 고른
-    테마 대장주 상세에는 없었다**(상하님 지적: "매수심사결과 높은... 클릭하면
-    당일 차트 안 나온다"). panel을 넘겨야 같은 종목을 두 상세에서 열어도
-    단추 키가 안 겹친다.
-
-    차트는 눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축).
-    """
-    key = f"j3_intraday_open_{panel}"
-    if not _section_toggle(
-        "📈 당일 · 실시간 차트 보기", key, close_label="당일 차트 닫기",
-    ):
-        return
-    intraday_error = ""
-    try:
-        intraday_payload = j3data.get_intraday_chart(ticker)
-    except Exception as exc:  # 당일 자료가 없어도 아래 일봉·주봉·월봉은 그려야 한다
-        intraday_payload = None
-        intraday_error = _safe_error_text(exc)
-    # 위 지수 카드 그림과 같은 크기로 둔다(2026-08-21). 폭을 늘리지 않으려고
-    # width="content"를 쓴다 — 안 그러면 칸 폭만큼 늘어나 그림만 길쭉해진다.
-    intraday_col, _, _ = st.columns(3)
-    with intraday_col:
-        if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
-            st.altair_chart(
-                _intraday_chart(intraday_payload, height=INTRADAY_CHART_HEIGHT,
-                                small=True),
-                width="content", theme="streamlit",
-            )
-            st.caption(f"기준 {intraday_payload.get('source_time') or '시각 확인 불가'}")
-        elif intraday_error:
-            st.info(f"당일 자료 없음 — {intraday_error}")
-        else:
-            st.info("당일 자료 없음 — 미국장이 열리면 표시됩니다.")
-    _section_close(key, "당일 차트 닫기")
-
-
 def _render_pullback_detail(row: dict, market: dict, ranking: dict,
                             *, mode: str | None = None) -> None:
     """상단 테마 선택과 독립된 눌림목 종목 상세.
@@ -5055,7 +5134,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     )
     if auth.is_guest():
         _render_day_price_row(metrics)
-        _render_guest_pullback_intraday(ticker)
+        # 당일 그림은 이제 아래 네 그림 판에 함께 들어간다(2026-08-28).
         _render_price_chart_bundle(ticker, panel="pullback")
         _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
         return
@@ -5389,7 +5468,6 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
     _render_day_price_row(metrics)
-    _render_intraday_section(ticker, panel="pullback")
     _render_price_chart_bundle(ticker, panel="pullback")
 
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).

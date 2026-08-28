@@ -1532,7 +1532,9 @@ class Jarvis3PageTests(unittest.TestCase):
         for key in ("j3_detail_open_", "j3_bundle_open_"):
             self.assertIn(f'_section_close(f"{key}', source,
                           f"{key} 구역에 아래 닫기 단추가 없다")
-        self.assertIn('_section_close("j3_intraday_open_pullback"', source)
+        # 당일 차트는 2026-08-28부터 네 그림 한 판에 들어간다 —
+        # 따로 닫는 단추가 없다(상하님 지시로 구역을 합쳤다).
+        self.assertNotIn('_section_close("j3_intraday_open_pullback"', source)
         self.assertIn('_section_close("j3_detail_open_pullback"', source)
         self.assertIn('div[class*="st-key-close_"] button', source)
 
@@ -1657,14 +1659,13 @@ class Jarvis3PageTests(unittest.TestCase):
         for gone in ("BIG_CHART_HEIGHT", "j3-chart-big-title",
                      "on_click=_pick_bundle_chart", "j3_bundle_pick_"):
             self.assertNotIn(gone, block, f"{gone}이 되살아났다")
-        # 셋이 폭을 고르게 나눠 갖는다("너무 왼쪽으로 너무 적게 차지한다" 지적).
-        self.assertIn("st.columns(3)", block)
-        self.assertNotIn("st.columns([1, 1, 1,", block)
-        # 손톱그림 높이는 그대로 108px다 — 눈금·범례를 뺀 작은 그림이다.
-        self.assertIn("height=THUMB_CHART_HEIGHT, compact=True", block)
-        self.assertIn("THUMB_CHART_HEIGHT = 108", source)
-        # **거래량은 일봉 아래에 남는다** — 큰 그림이 그리던 것을 옮겨 왔다.
-        self.assertIn('include_volume=timeframe == "일봉"', block)
+        # **2026-08-28부터 넷이 한 판에 2×2로 선다**(상하님 지시 — "스마트폰
+        # 기준으로 당일·일봉 차트 같은 선상에 2개, 그 밑에 주·월봉").
+        # 스트림릿 칸은 폰에서 위아래로 쌓이므로 CSS 격자를 쓴다.
+        self.assertNotIn("st.columns(", block)
+        self.assertIn("j3-chart-grid", block)
+        # **거래량은 뺐다**(상하님 지시 — "일봉(거래량 빼라)").
+        self.assertNotIn("include_volume", block)
 
     def test_rulebook_table_slides_sideways_like_the_pullback_table(self):
         """폰에서 순위·종목이 따로 쌓이던 것을 눌림목 표와 같은 규칙으로 맞췄다.

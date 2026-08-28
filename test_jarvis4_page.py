@@ -557,10 +557,12 @@ class Jarvis4PageTests(unittest.TestCase):
         blocks = [str(n.value) for n in app.markdown if "@media (max-width: 600px)" in str(n.value)]
         self.assertEqual(len(blocks), 1, "폰 규칙 덩어리는 하나여야 한다")
         css = blocks[0]
-        # 미디어쿼리 밖에 규칙이 새면 PC까지 바뀐다. 미디어쿼리는 다섯 —
+        # 미디어쿼리 밖에 규칙이 새면 PC까지 바뀐다. 미디어쿼리는 일곱 —
         # 메뉴·상단 지표 줄은 태블릿까지(1200px), 그 중 '한 줄에 몇 칸'은
-        # 세로·가로 두 갈래(2026-08-01), 표·글자는 폰(600px).
-        self.assertEqual(css.count("@media"), 5)
+        # 세로·가로 두 갈래(2026-08-01), 표·글자는 폰(600px), 그리고 태블릿만
+        # (601~1200px) 두 갈래가 2026-08-28에 붙었다 — **미국테마 전용 규칙**이라
+        # 한국테마 화면에는 걸리는 것이 없지만, 같은 page_css() 를 쓰므로 글은 같이 실린다.
+        self.assertEqual(css.count("@media"), 7)
         self.assertEqual(css[: len("<style>")], "<style>")
         self.assertEqual(css[len("<style>"): css.index("@media")].strip(), "")
         phone_block = css[css.index("@media (max-width: 600px)"):]
