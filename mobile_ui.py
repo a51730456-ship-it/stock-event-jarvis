@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026082840
+MODULE_REVISION = 2026082850
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -279,6 +279,17 @@ THEME_TABLE_CSS = """
 
 # 종목 상세·신호 카드 등 나머지 자리.
 CONTENT_CSS = """
+/* 시장분석 맨 위 눈밭 캠프 배너 (2026-08-28 상하님 지시 — "시장분석 맨 위에 넣어라").
+   폰에서는 ① 낮추고 ② 봉차트를 **폰용 그림**으로 바꾼다. 봉 개수는 노트북과 같은
+   125개지만, 폰용은 봉 굵기와 선 굵기를 375px 칸에 맞춰 따로 그려 둔 것이다.
+   모양·색·값은 hero_banner.py 에 있다. 여기 있는 것은 폰 표시 규칙뿐이다. */
+.j3hero { height: 150px !important; border-radius: 16px !important; }
+.j3hero-lg { display: none !important; }
+.j3hero-sm { display: block !important; }
+.j3hero-copy { left: 12px !important; }
+.j3hero-mark { font-size: 20px !important; }
+.j3hero-sub { font-size: 11px !important; }
+
 /* 종목 차트 넷(당일·일봉·주봉·월봉)은 폰에서 조금 낮춘다 — 한 줄에 둘씩 서므로
    칸이 좁아 132px 은 세로로 길쭉해 보인다 (2026-08-28). */
 .j3-pretty-chart { height: 104px !important; }

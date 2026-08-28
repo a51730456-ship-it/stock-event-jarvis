@@ -3,12 +3,22 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import page_access
+
+# 이 시험은 **자비스5 화면을 지나간다.** 그 화면이 닫혀 있으면(2026-08-28 상하님
+# 지시) 화면이 안내만 그리고 멈춘다. 시험이
+# 틀린 것이 아니라 길이 막힌 것이므로 건너뛴다 — `page_access.OPEN_PAGES` 에
+# 이름을 다시 넣으면 저절로 다시 돈다.
+_JARVIS5_OPEN = page_access.is_open("자비스5")
+_JARVIS5_WHY = "자비스5 화면을 닫아 두어(page_access.OPEN_PAGES) 이 길이 막혀 있다"
+
 from streamlit.testing.v1 import AppTest
 
 
 PAGE = Path(__file__).parent / "pages" / "4_자비스5.py"
 
 
+@unittest.skipUnless(_JARVIS5_OPEN, _JARVIS5_WHY)
 class Jarvis5PageTests(unittest.TestCase):
     def _patches(self):
         return (

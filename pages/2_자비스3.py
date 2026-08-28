@@ -1187,7 +1187,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026082840
+_REQUIRED_MOBILE_REVISION = 2026082850
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1218,6 +1218,14 @@ import scroll_to
 _REQUIRED_SCROLL_REVISION = 2026080910
 if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
     scroll_to = importlib.reload(scroll_to)
+
+import hero_banner
+
+# 시장분석 맨 위의 눈밭 캠프 배너(2026-08-28 상하님 지시). 그림·글귀를 바꾸면
+# hero_banner의 리비전을 올리고 이 숫자도 같이 올린다(규칙 11).
+_REQUIRED_HERO_REVISION = 2026082812
+if int(getattr(hero_banner, "MODULE_REVISION", 0)) < _REQUIRED_HERO_REVISION:
+    hero_banner = importlib.reload(hero_banner)
 import regime_gauge_ui
 import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용히 예전처럼 돈다.
 import jarvis3_data as j3data
@@ -7303,6 +7311,12 @@ def _render_existing_theme_content() -> None:
     # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
     # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
     scroll_to.anchor(st, "top")
+    # ── 시장분석 **맨 위**의 눈밭 캠프 배너 (2026-08-28 상하님 지시) ──────────
+    # 상하님 — "시장분석 맨 위에 넣어라."
+    # 상하님이 그록·제미나이로 만드신 영상 위에 6개월 일봉 봉차트를 얹은 그림이다.
+    # 봉은 **지어낸 값**이라 숫자를 한 개도 안 적는다. 자세한 것은 hero_banner.py.
+    # 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)보다 먼저 그려야 맨 위에 선다.
+    hero_banner.render(st)
     # 최상단 오른쪽에 '이 테마 설명'을 둔다(2026-07-29 사용자 지시).
     # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
     method_help.render(st, "US")

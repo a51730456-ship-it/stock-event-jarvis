@@ -2,6 +2,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import page_access
+
+# 이 시험은 **자비스1 화면을 지나간다.** 그 화면이 닫혀 있으면(2026-08-28 상하님
+# 지시) 로그인 뒤 「어디로 갈까요」에 자비스1 단추가 없어 길이 막힌다. 시험이
+# 틀린 것이 아니라 길이 막힌 것이므로 건너뛴다 — `page_access.OPEN_PAGES` 에
+# 이름을 다시 넣으면 저절로 다시 돈다.
+_JARVIS1_OPEN = page_access.is_open("자비스1")
+_JARVIS1_WHY = "자비스1 화면을 닫아 두어(page_access.OPEN_PAGES) 이 길이 막혀 있다"
+
 from streamlit.testing.v1 import AppTest
 
 ROOT = Path(__file__).parent
@@ -50,6 +59,7 @@ class USStage2PreviewStructureTests(unittest.TestCase):
             self.assertIn(key_prefix, us_tab)
 
 
+@unittest.skipUnless(_JARVIS1_OPEN, _JARVIS1_WHY)
 class USStage2PreviewRuntimeTests(unittest.TestCase):
     def test_preview_table_and_reason_cards_render(self):
         def snap_side_effect(ticker):
