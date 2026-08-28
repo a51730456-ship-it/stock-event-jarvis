@@ -1034,6 +1034,17 @@ st.markdown(
     }
     .j3-guide-head { font-size: 1.02rem; font-weight: 800; }
     .j3-guide-body { margin-top: .35rem; font-size: .92rem; line-height: 1.5; color: #e6e6e6; }
+    /* 「배점 미달」 표 — 매수 심사 결과 상자 **바로 위**에 붙는다
+       (2026-08-28 상하님 지시 — "70점 넘지 않으면 배점 미달이라고 표시해라").
+       상자 안이 아니라 위에 두는 까닭 — 상자 안의 색은 판정을 따라 바뀌는데,
+       이것은 판정과 별개로 늘 같은 뜻이라 색이 섞이면 안 읽힌다. */
+    .j3-guide-short {
+        border: 2px solid #ff8f3b; border-radius: 10px;
+        padding: .5rem .8rem; margin: 0 0 .5rem;
+        background: rgba(255,143,59,.10);
+        color: #ffb673; font-size: .95rem; font-weight: 800; line-height: 1.45;
+    }
+    .j3-guide-short b { color: #ffd7a8; }
     /* 테두리는 노랑 — 매수 심사 결과가 이 화면에서 제일 먼저 눈에 띄어야 한다
        (2026-07-30 사용자 지시, 한국테마와 같은 색). */
     .j3-holo-card {
@@ -3230,6 +3241,28 @@ def _render_stock_detail(
         # 점수·상태만 있고 '뭘 하라는 건지'가 없다는 지적(2026-07-30). 판정을 사람
         # 말로 다시 쓴 한 줄을 표 위에 얹는다 — 새 판정을 만들지는 않는다.
         guide = guidance.build(plan, money=_price, market_score=market.get("score"))
+        # ── 테마 점수가 70에 못 미치면 **「배점 미달」이라고 적는다** ────────────
+        # 2026-08-28 상하님 지시 — "70점 넘지 않으면 배점 미달이라고 표시해라."
+        #
+        # **문턱 자체는 안 건드린다**(CLAUDE.md 0-1 — 매매 규칙을 바꾸는 것은 먼저
+        # 여쭙는다). 사는 것을 막지 않고, 화면에 그 사실을 적기만 한다.
+        #
+        # 70 은 지어낸 숫자가 아니다. `jarvis3_data._entry_plan` 이 **다른 갈래에서
+        # 이미 쓰고 있는 문턱**이다 —
+        #     market_score >= 50 and theme_score >= 70 and score >= LEADER_GATE_MARK
+        # 20개 테마 갈래만 그 둘을 안 보고 시장 50 하나로 통과시켰고, 그래서 테마
+        # 46.7점짜리도 「좋은 후보」라고 적혔다(2026-08-28 상하님 캡처 · 빅테크10).
+        _THEME_SCORE_MARK = 70.0
+        _theme_score = theme_row.get("score")
+        _theme_short = (_theme_score is not None
+                        and float(_theme_score) < _THEME_SCORE_MARK)
+        if is_general_score and _theme_short:
+            st.markdown(
+                "<div class='j3-guide-short'>⚠ 배점 미달 — 테마점수 "
+                f"<b>{float(_theme_score):.1f}</b>/100 으로 기준 "
+                f"<b>{_THEME_SCORE_MARK:g}</b>점에 못 미칩니다.</div>",
+                unsafe_allow_html=True,
+            )
         if is_general_score and plan.get("state") == "눌림목 대기":
             # ── 여기 있던 두 문장은 **숫자를 안 보고 늘 같은 말**을 했다 ──────────
             # 2026-08-28 상하님 지적 — "테마 순위 밖, 즉 11위 빅테크10을 클릭했는데
@@ -3252,24 +3285,25 @@ def _render_stock_detail(
             # 무엇을 보고 통과시켰는지를 그대로 적어, 화면이 실제보다 더 많이
             # 본 것처럼 보이지 않게 한다.
             _final = leader.get("score")
-            _theme_score = theme_row.get("score")
             _theme_rank = theme_row.get("rank")
             _bits = []
             if _final is not None:
                 _bits.append(f"최종점수 <b>{float(_final):.1f}/100</b>")
             if _theme_score is not None:
-                _bits.append(f"테마점수 <b>{float(_theme_score):.1f}/100</b>")
+                _mark = " — <b>배점 미달</b>" if _theme_short else ""
+                _bits.append(f"테마점수 <b>{float(_theme_score):.1f}/100</b>{_mark}")
             if _theme_rank:
                 _bits.append("오늘 <b>{}위</b> 테마".format(int(_theme_rank))
                              + ("(상위 10 밖)" if int(_theme_rank) > 10 else ""))
             guide = {
                 **guide,
-                "headline": "아직 매수 신호는 아닙니다.",
+                "headline": ("배점 미달 — 아직 매수 신호는 아닙니다."
+                             if _theme_short else "아직 매수 신호는 아닙니다."),
                 "detail": ("지금은 눌림 구간입니다. "
                            + (" · ".join(_bits) + ". " if _bits else "")
-                           + "이 갈래에서 앱이 본 문턱은 <b>시장 점수 50</b> 하나입니다 — "
-                           "테마·종목 점수 문턱은 여기서 보지 않습니다. "
-                           "살 만한 점수인지는 위 배점표를 보고 상하님이 정하십시오."),
+                           + "이 갈래에서 앱이 막는 문턱은 <b>시장 점수 50</b> 하나입니다 — "
+                           "테마 점수가 미달이어도 앱이 막지는 않습니다. "
+                           "살 만한지는 위 배점표를 보고 상하님이 정하십시오."),
             }
         st.markdown(guidance.html(guide, css_class="j3-guide"), unsafe_allow_html=True)
         if is_general_score:
@@ -3284,8 +3318,14 @@ def _render_stock_detail(
             # (2026-08-28 상하님 지적). 그 자리에 **실제 점수**를 적는다.
             _sc = leader.get("score")
             _sc_text = f"{float(_sc):.1f}/100" if _sc is not None else "자료 부족"
+            _th_text = (
+                f"{float(_theme_score):.1f}/100"
+                + (f" · 기준 {_THEME_SCORE_MARK:g} 미달" if _theme_short else "")
+                if _theme_score is not None else "자료 부족"
+            )
             st.caption(
-                f"최종점수: {_sc_text} · 시장상태: {'통과' if market_ok else '대기'} · "
+                f"최종점수: {_sc_text} · 테마점수: {_th_text} · "
+                f"시장상태: {'통과' if market_ok else '대기'} · "
                 f"가격자리: {price_state} · 결론: {conclusion}"
             )
             plan_cells = [
