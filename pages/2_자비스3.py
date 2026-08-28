@@ -1208,7 +1208,7 @@ if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVIS
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
-_REQUIRED_PICKLIST_REVISION = 2026081941
+_REQUIRED_PICKLIST_REVISION = 2026081943
 if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
     picklist_ui = importlib.reload(picklist_ui)
 
@@ -3241,24 +3241,35 @@ def _render_stock_detail(
             # 이라고 적었다. 상하님이 보신 것은 최종점수 65.3(테마 46.7)인데도
             # 같은 문장이 나왔다.
             #
-            # **점수를 대신 판단하지 않는다.** 살 만한 점수인지 아닌지는 앱이
-            # 정하는 것이 아니다(CLAUDE.md 0-1 바). 그래서 있는 숫자를 그대로
-            # 적고, 판단은 상하님께 남긴다.
+            # **이 갈래가 실제로 무엇을 보고 통과시키는지 적는다.**
+            # 문턱은 `jarvis3_data._entry_plan` 에 있다 —
+            #     gates_ok = (market_score >= 50 if general_theme_trading else
+            #                 market_score >= 50 and theme_score >= 70
+            #                 and score >= LEADER_GATE_MARK)
+            # 20개 테마(general_theme_trading=True)는 **시장 점수 50 하나만** 본다.
+            # 테마 70점·종목 60점 문턱은 이 갈래에서 안 본다. 그래서 테마 46.7점인
+            # 종목도 "통과"가 됐고, 화면은 그것을 "좋은 후보"라고 적었다.
+            # 무엇을 보고 통과시켰는지를 그대로 적어, 화면이 실제보다 더 많이
+            # 본 것처럼 보이지 않게 한다.
             _final = leader.get("score")
+            _theme_score = theme_row.get("score")
             _theme_rank = theme_row.get("rank")
             _bits = []
             if _final is not None:
-                _bits.append(f"이 종목의 최종점수는 <b>{float(_final):.1f}/100</b>입니다")
+                _bits.append(f"최종점수 <b>{float(_final):.1f}/100</b>")
+            if _theme_score is not None:
+                _bits.append(f"테마점수 <b>{float(_theme_score):.1f}/100</b>")
             if _theme_rank:
-                _place = ("오늘 <b>{}위</b> 테마입니다".format(int(_theme_rank))
-                          + (" — 상위 10 밖입니다" if int(_theme_rank) > 10 else ""))
-                _bits.append(_place)
+                _bits.append("오늘 <b>{}위</b> 테마".format(int(_theme_rank))
+                             + ("(상위 10 밖)" if int(_theme_rank) > 10 else ""))
             guide = {
                 **guide,
                 "headline": "아직 매수 신호는 아닙니다.",
                 "detail": ("지금은 눌림 구간입니다. "
                            + (" · ".join(_bits) + ". " if _bits else "")
-                           + "점수가 살 만한지는 위 배점표를 보고 상하님이 정하십시오."),
+                           + "이 갈래에서 앱이 본 문턱은 <b>시장 점수 50</b> 하나입니다 — "
+                           "테마·종목 점수 문턱은 여기서 보지 않습니다. "
+                           "살 만한 점수인지는 위 배점표를 보고 상하님이 정하십시오."),
             }
         st.markdown(guidance.html(guide, css_class="j3-guide"), unsafe_allow_html=True)
         if is_general_score:

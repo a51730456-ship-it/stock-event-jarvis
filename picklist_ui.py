@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026081941
+MODULE_REVISION = 2026081943
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -262,6 +262,75 @@ def fetch_prices(market: str, codes) -> dict:
 fetch_buy_opens = store.fetch_buy_opens
 
 
+def _keep_keyboard_down(st, market: str) -> None:
+    """날짜 선택칸을 눌러도 **폰 자판이 안 올라오게** 한다 (2026-08-28 상하님 지시).
+
+    상하님 — "어느 날 목록을 볼까요 누르면 스마트폰 자판이 뜬다. 이거 왜 뜨냐.
+    필요없다. 그냥 손가락으로 날짜 찍으면 되는데 자판이 뜨니 불편하다." ·
+    "그냥 날짜에 자판이 없게만 하라니깐."
+
+    왜 뜨나 — 스트림릿 선택칸 안에는 **글 적는 칸**이 하나 들어 있다(글자를 쳐서
+    목록을 걸러 보라는 것이다). 눌러서 목록을 펴는 순간 그 칸에 초점이 가고,
+    폰은 글칸에 초점이 가면 자판을 올린다. 날짜는 골라 찍기만 하면 되므로 그
+    글칸이 필요 없다.
+
+    어떻게 막나 — 그 칸에 `inputmode="none"` 표를 붙인다. 이 표는 **자판만 막으려고
+    만들어진 표**다. 칸은 그대로 살아 있어 목록을 펴고 고르는 것은 아무 영향이 없다.
+
+    **`readonly` 는 안 쓴다.** 자판을 더 확실히 막지만, 스트림릿 1.59 의 선택칸은
+    React Aria 로 만들어져 있어 그 표가 목록 여는 것까지 막는지 확인할 방법이
+    없었다(2026-08-28 — 미리보기 창에서는 진짜 손가락 클릭을 못 해 가려낼 수가
+    없었다). 자판이 뜨는 것보다 **목록이 안 열리는 쪽이 더 나쁘다.**
+    `inputmode` 로 안 되면 그때 실물 폰에서 확인하고 `readonly` 를 더한다.
+
+    **왜 CSS 가 아니라 이 방법인가** — 이 두 표는 규칙(CSS)으로는 못 붙인다.
+    스트림릿은 `st.markdown` 안의 `<script>` 를 지우므로, 정식으로 내주는
+    `components.html`(높이 0인 작은 창) 안에서 바깥 화면에 손을 뻗는다.
+    같은 방법을 자비스3의 ↻ 새로고침이 이미 쓰고 있다.
+
+    화면이 다시 그려지면 스트림릿이 그 칸을 새로 만든다. 그래서 한 번 붙이고
+    끝내지 않고, 바뀔 때마다 다시 붙이는 감시자를 둔다. 감시자는 **판마다 하나만**
+    둔다(표식을 남겨 두 번 안 만든다).
+
+    실패해도 조용히 넘어간다 — 그때는 예전처럼 자판이 뜰 뿐 화면은 그대로 돈다.
+    """
+    try:
+        import streamlit.components.v1 as components
+    except Exception:
+        return
+    marker = f"__jarvisNoKeyboard_{market}"
+    try:
+        components.html(
+            """
+<script>
+(function(){
+  var doc;
+  try { doc = window.parent.document; } catch (e) { return; }
+  if (window.parent.__MARK__) { return; }
+  window.parent.__MARK__ = true;
+  function hush() {
+    var boxes = doc.querySelectorAll('[class*="st-key-picklist_date_"] input');
+    for (var i = 0; i < boxes.length; i++) {
+      boxes[i].setAttribute('inputmode', 'none');
+    }
+  }
+  hush();
+  var waiting = false;
+  var watch = new MutationObserver(function () {
+    if (waiting) { return; }
+    waiting = true;
+    setTimeout(function () { waiting = false; hush(); }, 150);
+  });
+  watch.observe(doc.body, { childList: true, subtree: true });
+})();
+</script>
+            """.replace("__MARK__", marker),
+            height=0,
+        )
+    except Exception:
+        pass          # 못 붙여도 화면은 그대로 돈다
+
+
 def render(st, market: str, *, toggle, header=None, close=None) -> None:
     """'저장된 목록 보기' 구역 전체.
 
@@ -310,19 +379,16 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
         "</div>",
         unsafe_allow_html=True,
     )
-    # **선택칸(selectbox)이 아니라 누르는 조각(pills)이다** (2026-08-28 상하님 지적 —
-    # "어느 날 목록을 볼까요 누르면 스마트폰 자판이 뜬다. 이거 왜 뜨냐. 필요없다.
-    #  그냥 손가락으로 날짜 찍으면 되는데 자판이 뜨니 불편하다").
+    # 날짜는 **선택칸 그대로** 두고, 자판만 안 뜨게 한다 (2026-08-28 상하님 지시).
     #
-    # 스트림릿 선택칸은 안에 **글 적는 칸**이 있다. 눌러서 목록을 펴는 순간 그 칸에
-    # 초점이 가고, 폰은 글칸에 초점이 가면 자판을 올린다. 조각은 글칸이 없어서
-    # 자판이 안 뜬다 — 손가락으로 날짜를 바로 찍는다.
-    #
-    # 고른 값이 없을 수가 있다(같은 조각을 다시 누르면 풀린다). 그때는 맨 앞 날짜다.
-    picked = st.pills(
-        "어느 날 목록을 볼까요", dates, default=dates[0],
-        selection_mode="single", key=f"picklist_date_pills_{market}",
-    ) or dates[0]
+    # 처음에는 누르는 조각(pills)으로 바꿨는데 상하님이 바로 짚으셨다 —
+    # "날짜를 저렇게 해 놓으면 **일 년 지나면 250개** 될 거 아냐. 그냥 날짜에
+    #  자판이 없게만 하라니깐." 맞다. 지금 16일치라 열여섯 조각이지만 쌓이면
+    # 화면이 조각으로 뒤덮인다. 선택칸은 몇 개가 쌓여도 한 줄이다.
+    picked = st.selectbox(
+        "어느 날 목록을 볼까요", dates, index=0, key=f"picklist_date_{market}",
+    )
+    _keep_keyboard_down(st, market)
     rows = store.load_rows(picked, market)
     if not rows:
         st.warning(f"{picked} 자료를 읽지 못했습니다.")
