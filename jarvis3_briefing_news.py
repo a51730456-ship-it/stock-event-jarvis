@@ -308,6 +308,20 @@ _BIG_WORDS = (
     "recession", "s&p 500", "nasdaq", "dow jones", "treasury", "yield", "earnings",
     "연준", "금리", "물가", "고용", "관세", "국채", "실적", "증시",
 )
+# 그 회사에 실제로 무슨 일이 일어난 기사. 종목 카드에서는 이것이 큰 소식이다
+# (2026-08-28 상하님 지시 — "종목 뉴스도 같이 적용해 줘").
+# 시장 카드의 _BIG_WORDS 와 같은 자리를 종목 카드에서 맡는다. 이 낱말이 없는
+# 기사는 대개 "왜 오를까" 같은 풀이 글이라 그 회사에 생긴 일이 아니다.
+_STOCK_BIG_WORDS = (
+    "earnings", "revenue", "guidance", "outlook", "acquisition", "acquire", "merger",
+    "buyout", "stake", "lawsuit", "sues", "settlement", "recall", "probe", "investigation",
+    "subpoena", "upgrade", "downgrade", "price target", "fda", "approval", "contract",
+    "deal", "order", "layoff", "buyback", "dividend", "split", "ceo", "resign",
+    "launch", "unveil", "partnership", "sec filing", "delivery", "shipment", "chip",
+    "실적", "매출", "가이던스", "전망치", "인수", "합병", "지분", "소송", "리콜",
+    "조사", "제재", "승인", "계약", "수주", "감원", "자사주", "배당", "분할",
+    "목표가", "상향", "하향", "출시", "공개", "제휴", "납품",
+)
 # 지금 걸려 있는 줄에 주는 덤. 새 기사가 **이만큼은 더 커야** 자리를 뺏는다.
 _STAY_BONUS = 0.4
 # 하루가 지난 기사는 아무리 컸어도 자리를 비운다.
@@ -329,11 +343,11 @@ def _importance(row: dict, kind: str) -> float:
     source = _text(row.get("source")).lower()
     if any(name in source for name in _MAJOR_SOURCES):
         score += 1.5
-    # ③ 시장 전체 이야기 (종목 카드에는 안 준다 — 거기서는 그 회사 소식이 주인공이다)
-    if kind == "market":
-        text = (_text(row.get("headline")) + " " + _text(row.get("summary"))).lower()
-        if any(word in text for word in _BIG_WORDS):
-            score += 1.2
+    # ③ 큰 이야기인가. 시장 카드는 시장 전체를 흔드는 일, 종목 카드는 **그 회사에
+    #    실제로 생긴 일**을 크게 친다(2026-08-28 상하님 지시로 종목 쪽도 넣었다).
+    text = (_text(row.get("headline")) + " " + _text(row.get("summary"))).lower()
+    if any(word in text for word in (_BIG_WORDS if kind == "market" else _STOCK_BIG_WORDS)):
+        score += 1.2
     # ④ 새 소식일수록 높다. 열 시간쯤 지나면 이 몫은 0이 된다.
     published = _time(row.get("published_at"))
     if published is not None:

@@ -248,3 +248,42 @@ class GaugeZoneRowsOnPhoneTests(unittest.TestCase):
         # 그 뒤로 닫히지 않았는지 — 여는 중괄호가 닫는 것보다 많아야 안에 있다.
         tail = before[opened:]
         self.assertGreater(tail.count("{"), tail.count("}"), "미디어쿼리가 이미 닫혔다")
+
+
+class TopRowOrderTests(unittest.TestCase):
+    """폰·태블릿에서 위 지표 칸이 서는 차례 (2026-08-28 상하님 지시)."""
+
+    def test_futures_and_market_state_stand_side_by_side(self):
+        """나스닥100 선물과 시장 상황(VIX)이 나란히 선다.
+
+        상하님 — "나스닥100 선물(5분봉)과 시장상황 VIX와 같이 둬라. S&P500과 같이
+        있으니 키높이가 안 맞다." 둘 다 밑줄이 두 줄로 접히는 칸이라, 한 줄짜리
+        지수 칸과 짝을 지으면 키가 어긋난다(실측 232px vs 210px → 232px vs 237px).
+
+        차례는 지수 넷·SPY·QQQ(0) → 선물(1) → 시장 상황(2) → 업종 지도(5) →
+        게이지 둘(10)이다. 이 차례가 깨지면 짝이 다시 어긋난다.
+        """
+        css = m.page_css()
+        order_of = lambda name: int(
+            re.search(name + r" \{ order: (\d+)", css).group(1))
+        futures, phase = order_of(r"\.j3-idx-futures"), order_of(r"\.j3-idx-phase")
+        sector, gauge = order_of(r"\.j3-sector-map"), order_of(r"\.fg-box")
+        self.assertEqual(phase, futures + 1, "선물과 시장 상황 사이에 다른 칸이 낄 수 있다")
+        self.assertLess(0, futures, "선물이 지수 칸보다 앞에 선다")
+        self.assertLess(phase, sector, "업종 지도가 이 둘보다 앞에 온다")
+        self.assertLess(sector, gauge, "게이지가 업종 지도보다 앞에 온다")
+
+    def test_the_page_marks_both_cells(self):
+        """자료를 못 받아 '—'로 나오는 칸에도 이름표가 붙어야 자리가 안 어긋난다."""
+        from pathlib import Path
+
+        page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        futures = page[page.index("def _us_futures_cell("):]
+        futures = futures[:futures.index(chr(10) + "def ", 10)]
+        # 못 받았을 때 돌려주는 자리 전부에 이름표가 있어야 한다.
+        self.assertEqual(futures.count('_top_metric(label, "—"'),
+                         futures.count("extra_class=_FUTURES_CLASS"),
+                         "선물 칸의 '자료 없음' 자리에 이름표가 빠졌다")
+        phase = page[page.index("def _market_phase_cell("):]
+        phase = phase[:phase.index(chr(10) + "def ", 10)]
+        self.assertEqual(phase.count("_PHASE_CLASS"), 2, "시장 상황 칸 두 자리 중 하나가 빠졌다")

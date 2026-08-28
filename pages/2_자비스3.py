@@ -1166,7 +1166,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026082810
+_REQUIRED_MOBILE_REVISION = 2026082820
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1359,13 +1359,20 @@ _SECTION_TITLE_CSS = (
 )
 
 
-def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=False) -> str:
+def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=False,
+                extra_class: str = "") -> str:
+    """지표 한 칸. ``extra_class``는 폰에서 칸 차례를 정하는 이름표다.
+
+    자료를 못 받아 '—'로 나오는 칸도 **같은 자리**에 서야 한다. 이름표를 안 붙이면
+    그 칸만 차례가 어긋나 딴 데 가서 붙는다.
+    """
     if sub_signed:
         sub_html = f"<div class='j3-top-sub {_sign_class(sub)}'>{_pct(sub)}</div>"
     else:
         sub_html = f"<div class='j3-top-sub' style='color:{sub_color or '#9aa0aa'}'>{sub}</div>"
+    cell_class = f"j3-top-cell {extra_class}".strip()
     return (
-        f"<div class='j3-top-cell'><div class='j3-top-label'>{label}</div>"
+        f"<div class='{cell_class}'><div class='j3-top-label'>{label}</div>"
         f"<div class='j3-top-val' style='color:{value_color}'>{value}</div>{sub_html}</div>"
     )
 
@@ -2235,6 +2242,16 @@ def _sparkline_svg(payload, up_color: str, down_color: str,
     )
 
 
+# 폰·태블릿에서 이 두 칸은 **나란히 선다** (2026-08-28 상하님 지시 — "나스닥100
+# 선물과 시장상황 VIX를 같이 둬라, S&P500과 같이 있으니 키높이가 안 맞다").
+#
+# 둘 다 밑줄이 길어 두 줄로 접히는 칸이라, 한 줄짜리 지수 칸과 짝을 지으면 키가
+# 어긋난다. 차례는 mobile_ui 가 정한다(선물 1 · 시장 상황 2 · 업종 지도 5 ·
+# 게이지 10). 노트북은 한 줄에 다섯 칸이 들어가 짝이 안 생기므로 그대로 둔다.
+_FUTURES_CLASS = "j3-idx-futures"
+_PHASE_CLASS = "j3-idx-phase"
+
+
 def _us_futures_cell() -> str:
     """나스닥100 선물 최신 1분봉 — **미국 화면 맨 앞 칸** (2026-08-19 상하님 지시).
 
@@ -2256,10 +2273,10 @@ def _us_futures_cell() -> str:
     try:
         import jarvis4_data as j4data
     except Exception:
-        return _top_metric(label, "—", "#9aa0aa", "자료 없음")
+        return _top_metric(label, "—", "#9aa0aa", "자료 없음", extra_class=_FUTURES_CLASS)
     fetcher = getattr(j4data, "get_us_futures_live", None)
     if fetcher is None:
-        return _top_metric(label, "—", "#9aa0aa", "모듈 갱신 대기")
+        return _top_metric(label, "—", "#9aa0aa", "모듈 갱신 대기", extra_class=_FUTURES_CLASS)
     try:
         # 5분봉이므로 공책도 5분 동안 쓴다 — 1분마다 다시 받을 까닭이 없다.
         futures = fetcher(ttl_seconds=300, interval="5m")
@@ -2268,16 +2285,16 @@ def _us_futures_cell() -> str:
         try:
             futures = fetcher()
         except Exception:
-            return _top_metric(label, "—", "#9aa0aa", "자료 부족")
+            return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
     except Exception:
-        return _top_metric(label, "—", "#9aa0aa", "자료 부족")
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
     if not futures.get("ok"):
-        return _top_metric(label, "—", "#9aa0aa", "자료 부족")
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
     values = futures.get("values") or {}
     nasdaq = values.get("NQ=F") or {}
     sp500 = values.get("ES=F") or {}
     if not nasdaq.get("current"):
-        return _top_metric(label, "—", "#9aa0aa", "자료 부족")
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
     change = nasdaq.get("change_pct")
     # **미국은 오르면 파랑**이다(이 화면의 약속). 한국 화면과 색이 반대다 —
     # _sign_class가 그 규칙을 갖고 있으므로 그것을 쓴다.
@@ -2294,7 +2311,7 @@ def _us_futures_cell() -> str:
     if chart:
         chart += "<div class='j3-idx-cap'>당일</div>"
     return (
-        "<div class='j3-top-cell'>"
+        f"<div class='j3-top-cell {_FUTURES_CLASS}'>"
         f"<div class='j3-top-label j3-idx-label'>{label}</div>"
         f"<div class='j3-top-val j3-idx-val {_sign_class(change)}'>"
         f"{float(nasdaq['current']):,.0f}</div>"
@@ -2636,9 +2653,10 @@ def _market_phase_cell(phase: str, phase_color: str, vix_sub: str) -> str:
     # 그냥 두면 이 칸만 196px가 되어 옆 칸과 밑선이 어긋난다(2026-08-21 실측).
     chart = _index_chart_swap(spark, width=104, height=74, key="vix") if spark else ""
     if not chart:
-        return _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b")
+        return _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b",
+                           extra_class=_PHASE_CLASS)
     return (
-        "<div class='j3-top-cell j3-idx-wide'>"
+        f"<div class='j3-top-cell j3-idx-wide {_PHASE_CLASS}'>"
         "<div class='j3-top-label j3-idx-label'>시장 상황</div>"
         f"<div class='j3-top-val j3-idx-val' style='color:{phase_color}'>{phase}</div>"
         f"<div class='j3-top-sub j3-idx-sub'>{vix_sub}</div>"

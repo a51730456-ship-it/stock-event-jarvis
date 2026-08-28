@@ -665,3 +665,40 @@ def test_the_three_news_are_the_big_ones_and_stay_until_something_bigger():
     kept = news._merge_by_importance([stale], news._rank([row("Fresh item", "CNBC", 0.5)], "market"))
     assert not any(item["headline"].startswith("Yesterday") for item in kept), \
         "하루 지난 줄이 자리를 안 비웠다"
+
+
+def test_stock_news_gets_the_same_tidying_as_the_market_news():
+    """종목 뉴스도 시장 뉴스와 **같은 규칙**을 탄다 (2026-08-28 상하님 지시).
+
+    상하님 — "뉴스 정리는 미국시장 한줄 브리핑만 하냐? 종목뉴스도 같이 적용해 줘."
+
+    한 길(`_load`)이 시장·종목을 함께 처리하므로 큰 소식 고르기와 30분 갈아 끼우기는
+    처음부터 둘 다에 걸린다. 다만 '큰 이야기'를 재는 낱말만 갈라 둔다 — 시장 카드는
+    시장 전체를 흔드는 일, 종목 카드는 **그 회사에 실제로 생긴 일**이다.
+    """
+    source = Path(__file__).parent.joinpath("jarvis3_briefing_news.py").read_text(encoding="utf-8")
+    load = source[source.index("def _load("):]
+    load = load[:load.index(chr(10) + "def ", 10)]
+    assert "_rank(rows, kind)" in load, "큰 소식부터 줄 세우기가 한 길에 없다"
+    assert "_merge_by_importance(held, picked)" in load, "갈아 끼우기가 한 길에 없다"
+    assert "if kind ==" not in load, "시장·종목이 서로 다른 길로 간다"
+
+    now = datetime.now(timezone.utc)
+
+    def row(headline, source_name="CNBC", hours=1.0, twins=1):
+        return {"headline": headline, "source": source_name, "summary": "", "twins": twins,
+                "url": f"https://x.test/{abs(hash(headline))}",
+                "published_at": (now - timedelta(hours=hours)).isoformat()}
+
+    ranked = news._rank([
+        row("Why Tesla stock could be a buy for patient investors", "Motley Fool", 2),
+        row("Tesla recalls 12,000 vehicles over a software issue", "Reuters", 1, twins=3),
+        row("Tesla beats delivery estimates for the quarter", "CNBC", 3, twins=2),
+    ], "company")
+    assert "recalls" in ranked[0]["headline"], "그 회사에 생긴 일이 맨 위여야 한다"
+    assert ranked[-1]["source"] == "Motley Fool", "풀이 글이 맨 아래여야 한다"
+
+    # 같은 조건이면 '그 회사에 생긴 일' 낱말이 든 쪽이 높다.
+    plain = news._importance(row("Tesla stock moves in Tuesday trading"), "company")
+    event = news._importance(row("Tesla wins a 2 billion dollar contract"), "company")
+    assert event > plain, "종목 카드에서 큰 소식 낱말이 점수를 못 받는다"

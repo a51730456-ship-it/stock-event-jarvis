@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026082810
+MODULE_REVISION = 2026082820
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -139,6 +139,12 @@ TOP_ROW_CSS = """
 /* 게이지는 숫자 뒤로 보낸다 — 폰에서 게이지 세 개가 430px를 먹어 KOSPI·수급이
    첫 화면 밖으로 밀려났다(2026-07-24 실측). 순서만 바꿀 뿐 값은 그대로다. */
 .fg-box { order: 10; box-sizing: border-box; }
+/* 나스닥100 선물과 시장 상황(VIX)은 **나란히 선다** (2026-08-28 상하님 지시 —
+   "나스닥100 선물과 시장상황 VIX를 같이 둬라, S&P500과 같이 있으니 키높이가 안 맞다").
+   둘 다 밑줄이 두 줄로 접히는 칸이라, 한 줄짜리 지수 칸과 짝을 지으면 키가 어긋났다.
+   지수 넷과 SPY·QQQ(차례 0)가 먼저 서고, 그다음이 이 둘이다. */
+.j3-idx-futures { order: 1; }
+.j3-idx-phase { order: 2; }
 /* 시장 현황(업종 지도)은 숫자 칸들 뒤, 게이지 둘 앞이다 (2026-08-28 상하님 지시 —
    "시장국면·상승여건양호 사이에 넣어 줘"). 게이지가 order:10 이라 그 사이 값을 준다. */
 .j3-sector-map { order: 5; width: 100% !important; min-width: 100% !important;
