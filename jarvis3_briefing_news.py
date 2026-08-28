@@ -324,6 +324,19 @@ _STOCK_BIG_WORDS = (
 )
 # 지금 걸려 있는 줄에 주는 덤. 새 기사가 **이만큼은 더 커야** 자리를 뺏는다.
 _STAY_BONUS = 0.4
+# **큰 소식일 때만 오래 둔다** (2026-08-28 상하님 물음 — "테슬라는 뉴스가 안 바뀐
+# 것 아닌가?"). 상하님 말씀은 "3건 중 1건이 **중요 뉴스면** 좀 더 오래 두고"였다.
+# 그런데 덤을 아무 줄에나 주면 시시한 것끼리 있을 때도 화면이 굳는다.
+#
+# 실측(2026-08-28) — 테슬라 기사 10건이 전부 작은 매체 한 곳짜리라 점수가
+# 1.31 · 1.20 · 1.20 으로 붙어 있었다. 덤 0.4 가 그 차이보다 커서 새 기사가
+# 아무리 와도 자리를 못 뺏는다. 같은 시각 미국시장 쪽은 3.81 · 3.67 · 2.60 이라
+# 잘 갈렸다.
+#
+# 그래서 **이 선 아래인 줄에는 덤을 안 준다** — 그런 자리는 새 기사가 오면
+# 그냥 새것으로 돈다. 선은 위 실측에서 잡았다: 시장 쪽 세 줄은 다 넘고,
+# 테슬라 쪽은 하나도 못 넘는다.
+_STAY_FLOOR = 2.0
 # 하루가 지난 기사는 아무리 컸어도 자리를 비운다.
 _HOLD_HOURS = 24.0
 
@@ -371,12 +384,17 @@ def _merge_by_importance(held, fresh, limit: int = 3) -> list[dict]:
     """
     now = datetime.now(timezone.utc)
     best: dict = {}
-    for item, bonus in ([(row, _STAY_BONUS) for row in (held or [])]
-                        + [(row, 0.0) for row in (fresh or [])]):
+    # 큰 소식인 줄에만 '오래 두기' 덤을 준다(_STAY_FLOOR). 시시한 것끼리 있을
+    # 때는 덤이 없으니 새 기사가 그냥 들어온다.
+    lineup = [
+        (row, True, _STAY_BONUS if float(row.get("weight") or 0) >= _STAY_FLOOR else 0.0)
+        for row in (held or [])
+    ] + [(row, False, 0.0) for row in (fresh or [])]
+    for item, was_on_screen, bonus in lineup:
         title = _text(item.get("headline")) or _text(item.get("brief"))
         if not title:
             continue
-        if bonus:
+        if was_on_screen:
             published = _time(item.get("published_at"))
             if published is not None and (now - published).total_seconds() > _HOLD_HOURS * 3600:
                 continue

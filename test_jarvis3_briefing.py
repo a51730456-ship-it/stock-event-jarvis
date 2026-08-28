@@ -702,3 +702,47 @@ def test_stock_news_gets_the_same_tidying_as_the_market_news():
     plain = news._importance(row("Tesla stock moves in Tuesday trading"), "company")
     event = news._importance(row("Tesla wins a 2 billion dollar contract"), "company")
     assert event > plain, "종목 카드에서 큰 소식 낱말이 점수를 못 받는다"
+
+
+def test_trivial_lines_do_not_freeze_the_card():
+    """시시한 줄끼리 있을 때는 새 기사가 그냥 들어온다 (2026-08-28 상하님 물음).
+
+    상하님 — "테슬라는 뉴스가 안 바뀐 것 아닌가?"
+
+    실측으로 까닭이 나왔다. 그날 테슬라 기사 10건이 전부 작은 매체 한 곳짜리라
+    점수가 1.31 · 1.20 · 1.20 으로 붙어 있었고, '오래 두기' 덤 0.4 가 그 차이보다
+    커서 새 기사가 아무리 와도 자리를 못 뺏었다. 같은 시각 미국시장 쪽은
+    3.81 · 3.67 · 2.60 이라 잘 갈렸다.
+
+    상하님 말씀은 "**중요 뉴스면** 좀 더 오래 두고"였으므로, 덤은 큰 소식에만 준다.
+    """
+    now = datetime.now(timezone.utc)
+
+    def row(headline, source_name, hours, twins=1):
+        return {"headline": headline, "source": source_name, "summary": "", "twins": twins,
+                "url": f"https://x.test/{abs(hash(headline))}",
+                "published_at": (now - timedelta(hours=hours)).isoformat()}
+
+    # 걸린 줄이 다 시시하면(2.0 아래) 새 기사가 들어온다.
+    trivial_held = news._rank([
+        row("Tesla stock trading higher today", "MarketBeat", 12),
+        row("TSLA stock watch: what to know", "Stocktwits", 14),
+        row("A look at TSLA charts", "Stocktwits", 16),
+    ], "company")
+    self_max = max(item["weight"] for item in trivial_held)
+    assert self_max < news._STAY_FLOOR, "이 시험의 전제가 깨졌다 — 걸린 줄이 시시해야 한다"
+    fresh = news._rank([row("Tesla opens a new store", "Local Paper", 0.1)], "company")
+    after = news._merge_by_importance(trivial_held, fresh)
+    assert after[0]["headline"].startswith("Tesla opens"), "시시한 줄이 화면을 붙잡고 있다"
+
+    # 걸린 줄이 큰 소식이면 시시한 새 기사가 못 밀어낸다(앞 시험과 같은 규칙).
+    big_held = news._rank([
+        row("Fed signals rate cut as inflation cools", "Reuters", 1, twins=4),
+        row("Nvidia earnings loom over Wall Street", "CNBC", 2, twins=2),
+        row("Dow slips as treasury yields climb", "Bloomberg", 3, twins=2),
+    ], "market")
+    assert min(item["weight"] for item in big_held) >= news._STAY_FLOOR
+    kept = news._merge_by_importance(big_held, news._rank(
+        [row("A local shop changes its sign", "Random Blog", 0.05)], "market"))
+    assert [item["headline"] for item in kept] == [item["headline"] for item in big_held], \
+        "큰 소식이 시시한 새 기사에 밀렸다"
