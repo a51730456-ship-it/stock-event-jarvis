@@ -198,7 +198,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082840
+MODULE_REVISION = 2026082850
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4415,6 +4415,61 @@ def _regular_session_closes(frame, limit: int = BRIEFING_TODAY_POINTS) -> list[f
     return [float(v) for v in values]
 
 
+def _card_session_values(daily_frame, live_frame):
+    """카드에 적을 **정규장 기준** 값 넷 — (그림 점, 값, 전일 종가, 등락률).
+
+    2026-08-28 상하님 지시 — "숫자도 정규장 종가 기준으로 바꿔라" ·
+    "오늘 새벽 미국 종가 차트 봐라. 너 시간외 보는 것 같은데."
+
+    네이버 증권 화면과 같은 자를 쓴다. 엔비디아를 예로 들면
+        정규장 종가 227.98 · 전일 209.66 · +8.74%   ← 카드에 적을 값
+        시간외 226.15 · -0.80%                        ← 예전에 적던 값
+    시간외 값은 그날 장이 어땠는지를 말해 주지 않는다. 게다가 그림은 정규장인데
+    숫자만 시간외라 둘이 서로 다른 이야기를 했다.
+
+    **기준선도 여기서 바로잡는다.** 앞서는 `prev_close` 를 기준선으로 썼는데,
+    장이 끝난 뒤 그 값은 **그날 종가 자신**이라(227.98) 선이 제 종가 언저리에서
+    오르내리는 이상한 그림이 됐다. 기준선은 **그 장 하루 앞의 종가**(209.66)다.
+    """
+    points = _regular_session_closes(live_frame)
+    if daily_frame is None or getattr(daily_frame, "empty", True):
+        return points, None, None, None
+    closes = daily_frame["Close"].dropna().astype(float)
+    if closes.empty:
+        return points, None, None, None
+    try:
+        index = pd.DatetimeIndex(closes.index)
+        dates = (index.tz_convert(_NY) if index.tz is not None else index).date
+    except Exception:
+        return points, float(closes.iloc[-1]), None, None
+
+    # 그림에 그린 장이 어느 날인가 — 그 날의 일봉 종가가 카드에 적을 값이다.
+    session_day = None
+    if points and live_frame is not None and not getattr(live_frame, "empty", True):
+        try:
+            live_index = pd.DatetimeIndex(live_frame.index)
+            live_local = live_index.tz_convert(_NY) if live_index.tz is not None else live_index
+            in_hours = live_local[(live_local.time >= dt_time(9, 30))
+                                  & (live_local.time <= dt_time(16, 0))]
+            if len(in_hours):
+                session_day = in_hours[-1].date()
+        except Exception:
+            session_day = None
+    if session_day is None:
+        session_day = dates[-1]
+
+    spot = [i for i, day in enumerate(dates) if day == session_day]
+    at = spot[-1] if spot else len(closes) - 1
+    price = float(closes.iloc[at])
+    prev = float(closes.iloc[at - 1]) if at >= 1 else None
+    change = ((price / prev - 1.0) * 100.0) if prev else None
+    # 그림의 마지막 점은 **그 장의 정식 종가**로 맞춘다 — 1분봉 마지막 값은
+    # 마감 동시호가가 빠져 조금 다르다(엔비디아 227.76 vs 227.98).
+    if points:
+        points[-1] = price
+    return points, price, prev, change
+
+
 def get_briefing_cards(stocks) -> dict[str, dict]:
     """종목 브리핑 카드용 가격·30개 종가. 기존 시장 계산과 분리된 읽기 전용 경로다."""
     tickers = tuple(dict.fromkeys(
@@ -4448,13 +4503,16 @@ def get_briefing_cards(stocks) -> dict[str, dict]:
                     # 카드에 적히는 값·등락률은 **오늘 것**인데 그림만 최근 30일이라
                     # 둘이 서로 다른 이야기를 하고 있었다. 분봉은 이미 위에서 받아
                     # 두었으므로(live) 새로 받는 것이 없다.
-                    # **정규장만** 쓴다 — prepost 로 받은 자료에는 시간외가 섞여 있다.
-                    today_series = _regular_session_closes(live.get(ticker))
+                    # **정규장 기준으로 값과 그림을 함께 만든다**(2026-08-28).
+                    # 시간외 값을 적으면 그날 장이 어땠는지를 말해 주지 않는다.
+                    (today_series, session_price, session_prev,
+                     session_change) = _card_session_values(daily.get(ticker), live.get(ticker))
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
-                        "price": metrics.get("current"), "change_pct": metrics.get("change_pct"),
+                        "price": session_price if session_price is not None else metrics.get("current"),
+                        "change_pct": session_change if session_change is not None else metrics.get("change_pct"),
                         "chart": series.tail(30).tolist(), "chart6m": series.tolist(),
-                        "chart_today": today_series, "prev_close": metrics.get("prev_close"),
+                        "chart_today": today_series, "prev_close": session_prev,
                         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
                     }
                 else:
