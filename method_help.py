@@ -29,7 +29,7 @@ if int(getattr(image_zoom, "MODULE_REVISION", 0)) < _REQUIRED_IMAGE_ZOOM_REVISIO
     image_zoom = importlib.reload(image_zoom)
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026082711
+MODULE_REVISION = 2026082712
 
 BUTTON_LABEL = "📘 이 테마 설명"
 
@@ -231,21 +231,29 @@ div[class*="st-key-jarvis_method_help"] button p {
     .block-container {
         padding-top: .5rem !important;
     }
+    /* ── 폰·태블릿에서는 **화면 전체를 쓰는 창**이다 (2026-08-28 상하님 지적) ──
+       상하님 — "스마트폰도 태블릿도 둘 다 더 내릴 수가 없다. 그래서 밑에 창닫기
+       화면까지 안 보인다. 이거 해결해라."
+
+       무엇이 잘못됐었나. 이 창은 **누른 단추 바로 밑**에서 열린다. 그런데 높이는
+       화면 위에서부터 세고 있었다(100vh - 160px). 단추가 화면 위 160px쯤에 있을
+       때 맞는 셈이었는데, 2026-08-28에 그 위에 배너를 넣으면서 단추가 252px로
+       내려갔다. 창은 그대로 652px 높이라 **아래로 92px이 화면 밖으로 나갔다**
+       (375×812 실측). 그 92px 안에 「창닫기」가 들어 있었다.
+
+       스트림릿은 이 창을 `transform: translate(8px, 239.5px)` 로 앉힌다. 그래서
+       `top`·`bottom` 을 줘도 안 듣는다. 자리를 **통째로** 우리가 잡는다 —
+       가로 8px, 세로 8px, 나머지는 화면 크기에서 뺀다. 무엇이 위에 얼마나
+       들어오든 창은 늘 화면 안에 다 들어온다.
+
+       **가로도 같이 못박아야 한다.** 세로만 바꾸면 스트림릿이 잡아 둔 가로가
+       사라져 창이 왼쪽으로 퍽 튄다(2026-08-06에 실제로 그랬다). */
     [data-testid="stPopoverBody"] {
-        width: calc(100vw - 1.2rem) !important;
-        max-width: calc(100vw - 1.2rem) !important;
-        /* 폰도 같은 셈이다(2026-08-27 상하님 지시). 390×844에서 64vh는 540px이라
-           아래로 181px이 그냥 비어 있었다. 이제 684px까지 내려온다. */
-        max-height: calc(100vh - 160px) !important;
-    }
-}
-@media (max-width: 1200px) and (orientation: landscape) {
-    /* **82vh는 화면 밖으로 나갔다**(2026-08-27 실측 · 844×390). 창이 단추 아래
-       123px에서 시작하는데 82vh는 320px이라 끝이 443px — 화면(390px)을 52px
-       넘겼다. 남은 자리에 맞춰 잰다. 위 여백도 눕히면 아까우니 줄인다. */
-    [data-testid="stPopoverBody"] {
-        margin-top: 4px !important;
-        max-height: calc(100vh - 128px) !important;
+        width: calc(100vw - 16px) !important;
+        max-width: calc(100vw - 16px) !important;
+        transform: translate(8px, 8px) !important;
+        margin-top: 0 !important;
+        max-height: calc(100vh - 16px) !important;
     }
 }
 

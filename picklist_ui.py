@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026081940
+MODULE_REVISION = 2026081941
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -310,9 +310,19 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
         "</div>",
         unsafe_allow_html=True,
     )
-    picked = st.selectbox(
-        "어느 날 목록을 볼까요", dates, index=0, key=f"picklist_date_{market}",
-    )
+    # **선택칸(selectbox)이 아니라 누르는 조각(pills)이다** (2026-08-28 상하님 지적 —
+    # "어느 날 목록을 볼까요 누르면 스마트폰 자판이 뜬다. 이거 왜 뜨냐. 필요없다.
+    #  그냥 손가락으로 날짜 찍으면 되는데 자판이 뜨니 불편하다").
+    #
+    # 스트림릿 선택칸은 안에 **글 적는 칸**이 있다. 눌러서 목록을 펴는 순간 그 칸에
+    # 초점이 가고, 폰은 글칸에 초점이 가면 자판을 올린다. 조각은 글칸이 없어서
+    # 자판이 안 뜬다 — 손가락으로 날짜를 바로 찍는다.
+    #
+    # 고른 값이 없을 수가 있다(같은 조각을 다시 누르면 풀린다). 그때는 맨 앞 날짜다.
+    picked = st.pills(
+        "어느 날 목록을 볼까요", dates, default=dates[0],
+        selection_mode="single", key=f"picklist_date_pills_{market}",
+    ) or dates[0]
     rows = store.load_rows(picked, market)
     if not rows:
         st.warning(f"{picked} 자료를 읽지 못했습니다.")

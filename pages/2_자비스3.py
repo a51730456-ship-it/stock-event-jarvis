@@ -1201,14 +1201,14 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026082711
+_REQUIRED_METHOD_HELP_REVISION = 2026082712
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
-_REQUIRED_PICKLIST_REVISION = 2026080940
+_REQUIRED_PICKLIST_REVISION = 2026081941
 if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
     picklist_ui = importlib.reload(picklist_ui)
 
@@ -1244,7 +1244,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082860
+_REQUIRED_J3_REVISION = 2026082861
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2026,14 +2026,21 @@ def _render_day_price_row(metrics: dict) -> None:
     2026-07-24 사용자 요청. 고가·저가 옆 백분율은 전일 종가 대비이며
     미국시장 색 규칙(+파랑 −빨강)을 쓴다.
     """
-    prev_close = metrics.get("prev_close")
     current = metrics.get("current")
     day_open = metrics.get("day_open")
     day_high = metrics.get("day_high")
     day_low = metrics.get("day_low")
     day_close = metrics.get("day_close")
     phase = (j3data.market_phase() or {}).get("label", "")
-    intraday = phase in ("정규장 시간", "프리마켓", "애프터마켓")
+    # **정규장이 지금 열려 있나**가 갈림길이다 (2026-08-28 상하님 지적 — "당일
+    # 주가와 당일 차트 봐라. 저것도 종가가 아니고 시간외 가액을 넣었다").
+    # 앞서는 프리마켓·애프터마켓까지 '장중'으로 쳐서, 한국 낮에 보시면 「당일
+    # 종가(장중)」 자리에 **프리마켓 값**이 적혔다.
+    open_now = phase == "정규장 시간"
+    # 기준은 **보여 주는 장의 하루 앞 종가**다. 오늘 일봉이 아직 없으면 옛
+    # `prev_close` 는 그 장 자신의 종가라, 그 장의 시가·고가·저가를 자기 자신과
+    # 견주는 꼴이었다(OKTA 2026-08-27 — +28.63% 오른 날을 -0.25%라고 적었다).
+    prev_close = metrics.get("session_prev_close") or metrics.get("prev_close")
 
     def _vs_prev(value):
         if value is None or not prev_close:
@@ -2060,25 +2067,39 @@ def _render_day_price_row(metrics: dict) -> None:
 
     note = (
         "장중이라 고가·저가·종가는 지금까지의 값입니다"
-        if metrics.get("day_is_today")
-        else "오늘 일봉이 아직 없어 마지막 거래일 값입니다"
+        if open_now
+        else "미국 정규장이 닫혀 있어 **마지막으로 끝난 정규장** 값입니다"
     )
     st.markdown(
         "<div class='j3-chart-heading'>당일 가격 · 시가/고가/저가 한눈에 보기</div>",
         unsafe_allow_html=True,
     )
-    st.caption(f"고가·저가 옆 백분율은 전일 종가 대비입니다. {note}.")
+    st.caption(f"옆 백분율은 **그 장의 하루 앞 종가** 대비입니다. {note}.")
+    if open_now:
+        # 정규장이 열려 있다 — 지금까지와 똑같다. 현재가가 곧 정규장 값이다.
+        head = [
+            _cell("현재가", current, _vs_prev(current)),
+            _cell("전일 종가", prev_close, None, sub_text="어제 마감", value_color="#e6e6e6"),
+        ]
+        tail = _cell("당일 종가(장중)", current, _vs_prev(current))
+    else:
+        # 정규장이 닫혀 있다 — **정규장 종가**를 앞에 세운다. 지금 값(프리마켓·
+        # 시간외)은 맨 끝에 따로 적는다. 그 둘은 다른 이야기다.
+        head = [
+            _cell("정규장 종가", day_close, _vs_prev(day_close)),
+            _cell("그 앞 마감", prev_close, None,
+                  sub_text="하루 전 종가", value_color="#e6e6e6"),
+        ]
+        after = None
+        if current and day_close:
+            after = (float(current) / float(day_close) - 1) * 100
+        tail = _cell("지금 시간외", current, after)
     cells = [
-        _cell("현재가", current, metrics.get("change_pct")),
-        _cell("전일 종가", prev_close, None, sub_text="어제 마감", value_color="#e6e6e6"),
+        *head,
         _cell("당일 시가", day_open, _vs_prev(day_open)),
         _cell("당일 고가", day_high, _vs_prev(day_high)),
         _cell("당일 저가", day_low, _vs_prev(day_low)),
-        _cell(
-            "당일 종가(장중)" if intraday else "당일 종가",
-            current if intraday else day_close,
-            _vs_prev(current if intraday else day_close),
-        ),
+        tail,
     ]
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
 
@@ -2912,11 +2933,18 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
     # 눌러야 열린다(2026-07-30 사용자 지시, 한국테마와 같다). 세 종목 × 차트 세 벌이라
     # 늘 그리면 화면도 길고 받아 오는 것도 많다. 제목은 그대로 두고 안내만 뒤에 붙인다.
     if not _section_toggle(
-        "🏅 대장주 1~3위 · 당일/일봉/주봉 비교 — 클릭하면 볼 수 있습니다",
+        "🏅 대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 클릭하면 볼 수 있습니다",
         "j3_leadercmp_open",
-        close_label="대장주 1~3위 · 당일/일봉/주봉 비교 — 다시 클릭하면 닫힙니다",
+        close_label="대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 다시 클릭하면 닫힙니다",
     ):
         return
+    # 세 종목의 일봉·주봉·월봉을 **한 번에 묶어** 받아 둔다(2026-08-28). 아래에서
+    # 종목마다 get_chart_bundle을 부르는데, 묶어 두면 그것들이 캐시를 나눠 쓴다.
+    # 못 받아도 조용히 넘어간다 — 그때는 종목마다 따로 받는다.
+    try:
+        j3data.prefetch_charts([leader.get("ticker") for leader in leaders[:3]])
+    except Exception:
+        pass
     medal_by_rank = {1: "🥇", 2: "🥈", 3: "🥉"}
     for leader in leaders[:3]:
         metrics, plan = leader["metrics"], leader["plan"]
@@ -2955,10 +2983,21 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                 if drawing:
                     boxes.append(("당일", drawing,
                                   intraday_payload.get("source_time") or ""))
-            for name, value in (("일봉 60일", leader.get("daily_chart")),
-                                ("주봉 52주", leader.get("weekly_chart"))):
-                payload = _leader_chart_payload(value)
-                if not payload:
+            # **선택종목 세부사항과 같은 묶음**을 쓴다 (2026-08-28 상하님 지시 —
+            # "당일 일봉 주봉까지 있는데 월봉도 넣어줘").
+            # 대장주 전용 자료(daily_chart·weekly_chart)는 2년치라 월봉 120개월을
+            # 만들 수가 없다. 같은 묶음을 쓰면 넷이 다 나오고, 두 화면의 그림이
+            # 서로 달라질 일도 없다.
+            bundle = {}
+            try:
+                got = j3data.get_chart_bundle(leader["ticker"])
+                if got.get("ok"):
+                    bundle = got.get("charts") or {}
+            except Exception:
+                bundle = {}
+            for name in ("일봉", "주봉", "월봉"):
+                payload = bundle.get(name) or {}
+                if not payload.get("ok"):
                     continue
                 drawing = _pretty_chart_svg(
                     _payload_series(payload, "Close"),
@@ -3192,10 +3231,34 @@ def _render_stock_detail(
         # 말로 다시 쓴 한 줄을 표 위에 얹는다 — 새 판정을 만들지는 않는다.
         guide = guidance.build(plan, money=_price, market_score=market.get("score"))
         if is_general_score and plan.get("state") == "눌림목 대기":
+            # ── 여기 있던 두 문장은 **숫자를 안 보고 늘 같은 말**을 했다 ──────────
+            # 2026-08-28 상하님 지적 — "테마 순위 밖, 즉 11위 빅테크10을 클릭했는데
+            # 배점 점수가 저런데 매수심사결과 밑에 「좋은 후보입니다」. 이거 너무
+            # 안 맞는 것 아니냐. 전부 다 저런 식으로 멘트 넣은 거 아니냐."
+            #
+            # 맞다. 앞서는 눌림 구간이기만 하면 점수와 상관없이 늘
+            #   "좋은 후보입니다" · "종목과 테마 점수는 높지만"
+            # 이라고 적었다. 상하님이 보신 것은 최종점수 65.3(테마 46.7)인데도
+            # 같은 문장이 나왔다.
+            #
+            # **점수를 대신 판단하지 않는다.** 살 만한 점수인지 아닌지는 앱이
+            # 정하는 것이 아니다(CLAUDE.md 0-1 바). 그래서 있는 숫자를 그대로
+            # 적고, 판단은 상하님께 남긴다.
+            _final = leader.get("score")
+            _theme_rank = theme_row.get("rank")
+            _bits = []
+            if _final is not None:
+                _bits.append(f"이 종목의 최종점수는 <b>{float(_final):.1f}/100</b>입니다")
+            if _theme_rank:
+                _place = ("오늘 <b>{}위</b> 테마입니다".format(int(_theme_rank))
+                          + (" — 상위 10 밖입니다" if int(_theme_rank) > 10 else ""))
+                _bits.append(_place)
             guide = {
                 **guide,
-                "headline": "좋은 후보입니다. 아직 매수 신호는 아닙니다.",
-                "detail": "현재는 눌림 구간에 있습니다. 종목과 테마 점수는 높지만, 현재 매수 조건은 아직 충족하지 않았습니다.",
+                "headline": "아직 매수 신호는 아닙니다.",
+                "detail": ("지금은 눌림 구간입니다. "
+                           + (" · ".join(_bits) + ". " if _bits else "")
+                           + "점수가 살 만한지는 위 배점표를 보고 상하님이 정하십시오."),
             }
         st.markdown(guidance.html(guide, css_class="j3-guide"), unsafe_allow_html=True)
         if is_general_score:
@@ -3206,8 +3269,12 @@ def _render_stock_detail(
                 else "매수 조건 충족" if plan.get("state") == "돌파 확인"
                 else str(plan.get("recommendation") or "관찰")
             )
+            # 「종목선정: 통과」는 늘 '통과'라고 적혀 있어 아무것도 안 알려 줬다
+            # (2026-08-28 상하님 지적). 그 자리에 **실제 점수**를 적는다.
+            _sc = leader.get("score")
+            _sc_text = f"{float(_sc):.1f}/100" if _sc is not None else "자료 부족"
             st.caption(
-                f"종목선정: 통과 · 시장상태: {'통과' if market_ok else '대기'} · "
+                f"최종점수: {_sc_text} · 시장상태: {'통과' if market_ok else '대기'} · "
                 f"가격자리: {price_state} · 결론: {conclusion}"
             )
             plan_cells = [

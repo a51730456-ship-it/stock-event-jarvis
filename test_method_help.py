@@ -113,15 +113,32 @@ class PanelTests(unittest.TestCase):
         self.assertIn("= False", inspect.getsource(method_help._shut))
 
     def test_phone_and_tablet_get_the_window_sized_to_the_screen(self):
-        """2026-08-07 지시 — 폰·태블릿도 되게, 태블릿을 눕히면 화면 너비에 맞게."""
+        """폰·태블릿에서 창은 **화면 안에 다 들어와야** 한다.
+
+        2026-08-07 지시로 폰·태블릿에서도 화면 크기에 맞췄고, 2026-08-28에
+        **재는 방식**을 바꿨다. 상하님 — "스마트폰도 태블릿도 둘 다 더 내릴 수가
+        없다. 그래서 밑에 창닫기 화면까지 안 보인다."
+
+        예전에는 높이를 **화면 위에서부터** 셌다(100vh - 160px). 창은 누른 단추
+        바로 밑에서 열리는데, 그 단추가 어디에 있는지는 안 봤다. 배너가 들어와
+        단추가 252px로 내려가자 창이 아래로 92px 밀려났고 그 안에 「창닫기」가
+        있었다(375×812 실측).
+
+        이제는 자리를 **통째로** 잡는다 — 가로 8px, 세로 8px에서 시작해 화면
+        크기만큼. 무엇이 위에 얼마나 들어오든 창은 늘 화면 안에 있다. 눕혔을
+        때를 따로 셈하던 규칙도 이 하나로 덮여 필요 없어졌다.
+        """
         css = method_help.BUTTON_CSS
         self.assertIn("@media (max-width: 1200px) {", css)
-        self.assertIn("@media (max-width: 1200px) and (orientation: landscape) {", css)
-        # 눕히면 세로가 짧아진다. 예전에는 82vh를 줬는데 창이 단추 아래 123px에서
-        # 시작해 끝이 화면을 52px 넘었다(2026-08-27 실측 · 844×390). 남은 자리에
-        # 맞춰 잰다.
-        self.assertIn("max-height: calc(100vh - 128px) !important", css)
+        # 세로 자리를 우리가 잡는다 — 스트림릿의 transform 을 덮어쓴다.
+        self.assertIn("transform: translate(8px, 8px) !important", css)
+        self.assertIn("max-height: calc(100vh - 16px) !important", css)
+        # **가로도 같이 못박아야** 창이 왼쪽으로 안 튄다(2026-08-06에 실제로 그랬다).
+        self.assertIn("width: calc(100vw - 16px) !important", css)
+        # 단추 아래에서부터 세던 옛 높이가 되살아나면 안 된다.
         self.assertNotIn("max-height: 82vh", css, "화면 밖으로 나가던 옛 높이가 되살아났다")
+        self.assertNotIn("max-height: calc(100vh - 160px)", css,
+                         "화면 위에서부터 세던 옛 높이가 되살아났다")
         # 하단 이동막대(z-index 2147483646)보다 창이 위에 서야 한다 — 안 그러면
         # 눕혔을 때 막대가 그림 한가운데를 가린다.
         self.assertIn("z-index: 2147483647 !important", css)

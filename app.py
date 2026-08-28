@@ -771,23 +771,56 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
            (2026-08-09 최소 예제로 재현 확인). 그래서 폰 뒤로가기를 눌러 이 화면에
            온 뒤 또 눌러도 이 화면이 한 번 더 나왔다. 진짜 링크는 기록을 하나만
            쌓아 뒤로가기가 바로 앞 화면으로 간다. 누르는 횟수도 둘에서 하나로 준다. */
+        /* **상자 이름 둘 다에 건다**(2026-08-28 상하님 지적 — "이것 왜 손댔냐?
+           미국테마 한국테마 클릭하는 버튼이 없어졌냐?").
+           목록이 일곱에서 둘로 줄면서 상자 이름이 entry_dest_guest 로 바뀌는데,
+           판 모양 규칙이 옛 이름(entry_dest_links)에만 걸려 있어 맨 글자 링크가
+           됐다. 이름을 둘 다 적어 어느 쪽이든 판이 되게 한다. */
         .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"],
+        .st-key-entry_dest_guest a[data-testid="stPageLink-NavLink"],
         div[class*="st-key-entry_go"] button {
             background: linear-gradient(90deg, #0b2a4a 0%, #123a63 38%, #1d6fc4 100%) !important;
-            border: none !important; border-radius: .5rem !important;
-            min-height: 3rem !important;
+            border: 1px solid rgba(191,146,84,.55) !important;
+            border-radius: 1rem !important;
+            min-height: 4.6rem !important;
             display: flex !important; align-items: center !important;
-            justify-content: center !important;
-            width: 100% !important; margin-bottom: .5rem !important;
+            justify-content: flex-start !important;
+            padding: 0 1.15rem !important;
+            width: 100% !important; margin-bottom: .8rem !important;
             text-decoration: none !important;
+            box-shadow: inset 0 1px rgba(180,239,255,.22), 0 6px 18px rgba(0,0,0,.45) !important;
+            position: relative !important;
+            transition: transform .12s ease, filter .12s ease !important;
         }
-        .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"]:hover {
-            background: linear-gradient(90deg, #0e3559 0%, #164876 38%, #2a86e0 100%) !important;
+        /* 둘뿐이라 **색을 갈라 준다** — 첫 판은 남색(미국), 둘째는 붉은색(한국).
+           같은 판이 둘 겹쳐 있으면 어느 쪽이 어느 쪽인지 글자를 읽어야 안다. */
+        .st-key-entry_dest_guest > div:nth-child(2) a[data-testid="stPageLink-NavLink"] {
+            background: linear-gradient(90deg, #4a0f16 0%, #7a1c22 38%, #c43b34 100%) !important;
+        }
+        /* 오른쪽 끝에 화살표를 둔다 — 눌러서 가는 곳이라는 표시다. */
+        .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"]::after,
+        .st-key-entry_dest_guest a[data-testid="stPageLink-NavLink"]::after {
+            content: "→"; position: absolute; right: 1.15rem;
+            color: rgba(255,255,255,.72); font-size: 1.5rem; font-weight: 700;
+        }
+        .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"]:hover,
+        .st-key-entry_dest_guest a[data-testid="stPageLink-NavLink"]:hover {
+            filter: brightness(1.14) !important;
+            transform: translateY(-2px) !important;
         }
         .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"] span,
         .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"] p,
+        .st-key-entry_dest_guest a[data-testid="stPageLink-NavLink"] span,
+        .st-key-entry_dest_guest a[data-testid="stPageLink-NavLink"] p,
         div[class*="st-key-entry_go"] button p {
-            color: #ffffff !important; font-size: 1.05rem !important; font-weight: 800 !important;
+            color: #ffffff !important; font-size: 1.25rem !important; font-weight: 900 !important;
+            letter-spacing: -.01em !important;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .st-key-entry_dest_links a[data-testid="stPageLink-NavLink"],
+            .st-key-entry_dest_guest a[data-testid="stPageLink-NavLink"] {
+                transition: none !important; transform: none !important;
+            }
         }
         /* 로그인 화면과 똑같이, 폰·태블릿에서는 미국테마·한국테마 둘만 보인다
            (2026-08-01 사용자 지시, CLAUDE.md 12번). 옵션 자체는 남겨 두어

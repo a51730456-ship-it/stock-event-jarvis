@@ -198,7 +198,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082860
+MODULE_REVISION = 2026082861
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -734,6 +734,8 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
         # 장중에는 일봉 마지막 행이 진행 중인 값이고, 오늘 행이 아직 없으면
         # 마지막 거래일 값이므로 day_is_today로 구분해 화면에서 알려준다.
         **_day_prices(daily, last_date == today_ny),
+        # 화면에 적을 **정규장 기준** 값 둘 (2026-08-28). 점수에는 안 쓴다.
+        **_session_reference(daily),
     }
 
 
@@ -3610,15 +3612,150 @@ def _entry_plan(metrics: dict, score: float, market_score: float, theme_score: f
     }
 
 
-def _intraday_chart_payload(frame: pd.DataFrame | None, prev_close: float | None) -> dict | None:
-    """당일 1분봉 흐름 차트 자료. 자비스1 코스피/코스닥 당일 차트와 같은 성격이다.
+# 당일 그림에 쓸 봉을 받는 창 — **이틀치 5분봉**이다(2026-08-28 상하님 지시 —
+# "5분봉으로 해라").
+#
+# 왜 하루치가 아닌가 — 하루치에는 한국 낮에 정규장이 **한 줄도 안 들어온다.**
+# 8종목으로 재 봤다(2026-08-28 17시) — 하루치 1분봉 315줄에 정규장 0일,
+# 이틀치 7,928줄에 정규장 1일.
+# 왜 5분봉인가 — 같은 이틀치인데 줄이 1,248개로 6분의 1이고, 받는 데 0.35초다
+# (이틀치 1분봉은 7,928줄). 150px 짜리 그림에서는 1분봉과 5분봉이 같아 보인다.
+# 시간외를 아예 안 받으므로(prepost=False) 걸러 낼 것도 적다.
+#
+# **값을 받는 쪽은 하루치 1분봉 그대로다** — 200종목을 이틀치로 받으면 테마
+# 화면이 느려진다. 그림을 그릴 때만 이 창을 쓴다.
+SESSION_MINUTES_PERIOD = "2d"
+SESSION_MINUTES_INTERVAL = "5m"      # 상하님 지시 — "5분봉으로 해라"
+SESSION_MINUTES_TTL = 120.0
 
-    이미 받아 둔 1일 1분봉(live) 프레임을 재사용하므로 추가 네트워크 호출이 없다.
-    차트 x축이 뉴욕 거래시간으로 보이도록 시각을 뉴욕 기준 naive로 바꾼다.
+
+def _regular_session_frame(frame):
+    """분봉에서 **마지막으로 정규장이 있는 날**의 09:30~16:00만 남긴다.
+
+    돌려주는 것은 (그 날의 분봉, 그 날짜)다. 정규장이 하나도 없으면 (None, None).
     """
-    if frame is None or frame.empty or "Close" not in frame.columns:
+    if frame is None or getattr(frame, "empty", True) or "Close" not in frame.columns:
+        return None, None
+    try:
+        index = pd.DatetimeIndex(frame.index)
+        local = index.tz_convert(_NY) if index.tz is not None else index
+        shaped = frame.copy()
+        shaped.index = local
+        shaped = shaped.between_time("09:30", "16:00")
+        if shaped.empty:
+            return None, None
+        day = shaped.index[-1].date()
+        shaped = shaped[shaped.index.date == day]
+    except Exception:
+        return None, None
+    if len(shaped) < 5:
+        return None, None
+    return shaped, day
+
+
+def _session_minutes(ticker: str | None, live_frame):
+    """당일 그림에 쓸 **정규장 봉**을 구한다.
+
+    ① 이미 받아 둔 하루치 1분봉에 정규장이 들어 있으면 **그것을 쓴다.** 더 받지
+       않는다(미국 정규장 시간에는 늘 이쪽이다).
+    ② 없으면 — 한국 낮이면 늘 없다 — **이틀치 5분봉**을 한 번 더 받아 마지막으로
+       끝난 정규장을 꺼낸다. 이때만 더 받는다.
+
+    못 구하면 (None, None). 그때 당일 그림은 안 그린다 — 시간외 몇 분을
+    '당일'이라 적어 놓는 것보다 낫다.
+    """
+    shaped, day = _regular_session_frame(live_frame)
+    if shaped is not None:
+        return shaped, day
+    if not ticker:
+        return None, None
+    try:
+        wider, _ = _download_cached(
+            (str(ticker).strip().upper(),), period=SESSION_MINUTES_PERIOD,
+            interval=SESSION_MINUTES_INTERVAL, ttl_seconds=SESSION_MINUTES_TTL,
+            prepost=False)
+    except Exception:
+        return None, None
+    return _regular_session_frame(wider.get(str(ticker).strip().upper()))
+
+
+def prefetch_session_minutes(tickers) -> None:
+    """여러 종목의 정규장 5분봉을 **한 번에 묶어** 받아 둔다.
+
+    `_download_cached` 는 더 큰 묶음이 있으면 그것을 나눠 쓰므로, 여기서 한 번
+    받아 두면 종목마다 따로 받지 않는다. 못 받아도 조용히 넘어간다.
+    """
+    unique = tuple(dict.fromkeys(
+        str(t).strip().upper() for t in (tickers or ()) if str(t).strip()))
+    if len(unique) < 2:
+        return
+    try:
+        _download_cached(unique, period=SESSION_MINUTES_PERIOD,
+                         interval=SESSION_MINUTES_INTERVAL,
+                         ttl_seconds=SESSION_MINUTES_TTL, prepost=False)
+    except Exception as exc:
+        _log.warning("session minutes prefetch failed: %s", exc)
+
+
+def _session_reference(daily) -> dict:
+    """화면에 적을 **정규장 기준** 값 둘. 점수에는 안 쓴다 — 새 칸으로만 더한다.
+
+    2026-08-28 상하님 지적 — "선택종목의 세부사항의 당일주가와 당일차트 봐라.
+    저것도 종가가 아니고 시간외 가액을 넣었다."
+
+    무엇이 잘못됐었나. 한국 낮에는 미국 일봉에 **오늘 줄이 아직 없다.** 그러면
+    `prev_close` 가 `closes.iloc[-1]`, 즉 **보여 주는 그 장 자신의 종가**가 된다.
+    그 값을 기준으로 그 장의 시가·고가·저가를 재니 자기 자신과 견주는 꼴이었다.
+
+    OKTA 로 재 보면(2026-08-28) —
+        화면에 찍히던 것   시가 -3.91% · 고가 +1.12% · 저가 -9.49% · 종가 -0.25%
+        옳은 값            시가 +23.61% · 고가 +30.08% · 저가 +16.43% · 종가 +28.63%
+    그날 OKTA 는 실적으로 +28.63% 오른 날인데 화면은 -0.25% 라고 적고 있었다.
+    부호까지 반대였다.
+
+    **보여 주는 장은 일봉의 마지막 줄이고, 그 기준은 그 앞줄이다.** 장중이면
+    마지막 줄이 오늘이라 앞줄은 어제 — 지금까지와 값이 같다(그때는 안 바뀐다).
+    """
+    out = {"session_prev_close": None, "session_change_pct": None}
+    try:
+        closes = daily["Close"].dropna().astype(float)
+    except Exception:
+        return out
+    if len(closes) < 2:
+        return out
+    prior = _finite(closes.iloc[-2])
+    shown = _finite(closes.iloc[-1])
+    out["session_prev_close"] = prior
+    if prior and shown:
+        out["session_change_pct"] = (shown / prior - 1) * 100
+    return out
+
+
+def _intraday_chart_payload(frame: pd.DataFrame | None, prev_close: float | None,
+                            *, ticker: str | None = None,
+                            daily: pd.DataFrame | None = None) -> dict | None:
+    """당일 흐름 차트 자료 — **정규장(뉴욕 09:30~16:00)만** 그린다.
+
+    2026-08-28 상하님 지적 — "당일 주가와 당일 차트 봐라. 저것도 종가가 아니고
+    시간외 가액을 넣었다."
+
+    맞았다. 여기 오던 1분봉은 `prepost=True` 로 받은 것이고, 한국 낮에 열어 보시면
+    그 안에 **정규장이 한 줄도 없다.** OKTA 로 재 보면 그 시각 프리마켓 19분뿐이었고,
+    화면의 '당일' 그림은 그 19분의 흔들림이었다.
+
+    그래서 두 가지를 고쳤다.
+      · 그림 — `_session_minutes` 로 **마지막으로 끝난 정규장**을 꺼내 그린다.
+      · 기준선 — 그 장의 **하루 앞 종가**를 쓴다. 앞서는 `prev_close` 를 썼는데,
+        오늘 일봉이 없으면 그 값이 그 장 자신의 종가라 선이 제 종가 언저리를
+        지나는 이상한 그림이 됐다(카드에서 2026-08-28 아침에 고친 것과 같은 일).
+
+    정규장을 못 구하면 **None** 을 준다. 시간외 몇 분을 '당일'이라 적어 놓는 것보다
+    그 칸을 안 그리는 쪽이 옳다.
+    """
+    shaped, _day = _session_minutes(ticker, frame)
+    if shaped is None:
         return None
-    closes = frame["Close"].dropna().astype(float)
+    closes = shaped["Close"].dropna().astype(float)
     if len(closes) < 5:
         return None
     price = closes.to_frame(name="Close")
@@ -3626,13 +3763,20 @@ def _intraday_chart_payload(frame: pd.DataFrame | None, prev_close: float | None
         index = pd.DatetimeIndex(price.index)
         if index.tz is not None:
             price.index = index.tz_convert(_NY).tz_localize(None)
+        else:
+            price.index = index
     except Exception:
         pass
+    base = _finite(prev_close)
+    if daily is not None:
+        reference = _session_reference(daily).get("session_prev_close")
+        if reference:
+            base = reference
     return {
         "ok": True,
         "price": price,
-        "prev_close": _finite(prev_close),
-        "source_time": _source_time(frame),
+        "prev_close": base,
+        "source_time": _source_time(shaped),
     }
 
 
@@ -4162,7 +4306,8 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
             "metrics": metrics,
             "plan": plan,
             "intraday_chart": (
-                _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"))
+                _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"),
+                                        ticker=ticker, daily=daily.get(ticker))
                 if with_charts else None
             ),
             "daily_chart": daily_chart,
@@ -4393,7 +4538,8 @@ def analyze_one_stock(ticker: str, *, market_score: float = 0,
         "score_parts": parts,
         "metrics": metrics,
         "plan": _entry_plan(metrics, score, market_score, theme_score),
-        "intraday_chart": _intraday_chart_payload(live.get(ticker), metrics.get("prev_close")),
+        "intraday_chart": _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"),
+                                                 ticker=ticker, daily=frame),
         "daily_chart": (_prepare_chart_payload(frame, None, 60, daily_meta)
                         if frame is not None and not frame.empty else None),
         "weekly_chart": (_prepare_chart_payload(frame, "W-FRI", 52, daily_meta)
@@ -4597,7 +4743,8 @@ def get_intraday_chart(ticker: str) -> dict | None:
     daily, _ = _download_cached((ticker,), period="2y", interval="1d", ttl_seconds=300)
     live, _ = _download_cached((ticker,), period="1d", interval="1m", ttl_seconds=45, prepost=True)
     metrics = _series_metrics(daily.get(ticker), live.get(ticker))
-    return _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"))
+    return _intraday_chart_payload(live.get(ticker), metrics.get("prev_close"),
+                                   ticker=ticker, daily=daily.get(ticker))
 
 
 def prefetch_charts(tickers) -> None:
