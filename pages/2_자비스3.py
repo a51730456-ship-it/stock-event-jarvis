@@ -2278,8 +2278,11 @@ def _render_market_overview() -> None:
         # 장중 값으로 매번 다시 재면 하루 종일 조금씩 움직인다. 실시간 값은 상자
         # 아래 '지금 (참고)' 줄로 남는다. 한국테마는 지금까지대로 실시간이다.
         regime_gauge_ui.regime_box_html(overview, freeze=True),
-        # SPY·QQQ도 지수 칸과 같은 옷에 그림(당일·일봉)을 넣는다(2026-08-01 지시).
-        *_us_etf_cells(overview),
+        # **SPY·QQQ 두 칸은 뺐다** (2026-08-28 상하님 지시 — 캡처에 ×표).
+        # 지수 넷(S&P500·나스닥 종합·다우·나스닥100)이 같은 것을 이미 말하고 있어
+        # 화면만 길어졌다. 값 자체는 그대로 받는다 — 시장 판단 점수가 SPY·QQQ의
+        # 이동평균을 쓰기 때문이다(overview["rows"]). 화면에서만 안 보인다.
+        # 되살리려면 이 줄의 주석을 풀면 된다: *_us_etf_cells(overview),
         _market_phase_cell(phase, phase_color, vix_sub),
         # 시장 현황(업종 지도)은 **시장 상황 바로 뒤, 게이지 앞**이다
         # (2026-08-28 상하님 지시). 폰에서는 게이지 둘이 order:10 으로 맨 뒤에
@@ -2336,11 +2339,10 @@ def _render_market_overview() -> None:
             """,
             unsafe_allow_html=True,
         )
-    stale_text = " · 마지막 정상 자료 표시 중" if overview.get("stale") else ""
-    st.caption(
-        f"최근 가용 시세: {overview.get('checked_at') or '시각 확인 불가'}{stale_text} · "
-        "5분 자동 갱신 · 거래소 정식 실시간 피드가 아니므로 지연될 수 있음"
-    )
+    # **맨 아래 「최근 가용 시세…」 한 줄은 뺐다** (2026-08-28 상하님 지시 —
+    # 캡처에 ×표, "여백 두지 말고 위로 올려라"). 줄을 지우면 그 자리가 차지하던
+    # 여백도 같이 없어져 아래 「미국장 시장 상태」가 위로 붙는다.
+    # 자료가 낡았을 때는 화면 곳곳(테마·상승장)에서 따로 알린다.
 
 
 
@@ -7278,6 +7280,15 @@ def _render_existing_theme_content() -> None:
         body:has(.j3-market-top) .j3-top-cell:hover {
             border-color: #d8ab68; box-shadow: inset 0 1px #7bc9ff55, 0 8px 20px #0008;
         }
+
+        /* 구분선이 차지하는 자리를 줄인다 (2026-08-28 상하님 지시 — "여백 두지
+           말고 위로 올려라"). 줄 자체는 남긴다 — 「미국 전체시장 판단」과
+           「미국장 시장 상태」를 가르는 표시다. 위아래 여백만 좁힌다.
+           실측 85px → 36px.
+           **이 규칙은 여기(<style>로 시작하는 덩어리) 있어야 한다.** 위의
+           `j3-market-top` 덩어리는 <div>로 시작해서 주석을 넣으면 안 된다 —
+           2026-08-26에 거기 주석을 넣었다가 CSS가 글자로 쏟아졌다. */
+        body:has(.j3-market-top) hr { margin: .35rem 0 !important; }
 
         /* 접었다 펴는 설명 상자도 같은 테두리로 맞춘다. */
         body:has(.j3-market-top) [data-testid="stExpander"] details {

@@ -454,8 +454,11 @@ class Jarvis3PageTests(unittest.TestCase):
         top_row = next(value for value in markdowns if "<div class='j3-top-row'>" in value)
         self.assertIn("fg-box", top_row)
         self.assertIn("공포·탐욕 지수", top_row)
-        self.assertIn("SPY (미국 대표주)", top_row)
-        self.assertIn("QQQ (미국 기술주)", top_row)
+        # **SPY·QQQ 두 칸은 2026-08-28에 뺐다**(상하님 지시 — 캡처에 ×표).
+        # 지수 넷이 같은 것을 이미 말하고 있어 화면만 길어졌다. 값은 계속 받는다 —
+        # 시장 판단 점수가 그 둘의 이동평균을 쓰기 때문이다.
+        self.assertNotIn("SPY (미국 대표주)", top_row)
+        self.assertNotIn("QQQ (미국 기술주)", top_row)
         self.assertTrue(any("j3-ndd-key" in value for value in markdowns))
         source = PAGE.read_text(encoding="utf-8")
         self.assertIn("j3-ndd-title", source)
