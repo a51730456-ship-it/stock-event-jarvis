@@ -32,7 +32,7 @@ import math
 
 # 그림·글귀를 바꾸면 이 숫자를 올리고 페이지의 `_REQUIRED_HERO_REVISION`도 같이
 # 올린다(CLAUDE.md 11번). 안 올리면 온라인에 옛 배너가 그대로 남는다.
-MODULE_REVISION = 2026082812
+MODULE_REVISION = 2026082820
 
 UP, DOWN = "#4da6ff", "#ff6b6b"          # 미국 화면 규칙 — 오르면 파랑, 내리면 빨강
 
@@ -227,8 +227,11 @@ _LG, _LG_D = _chart("lg", 900, 236, 16, 22, 24, 224, 1.15, (13, 5.2, 2.3, 7.5))
 
 CSS = """
 <style>
-.j3hero{position:relative;height:220px;overflow:hidden;border-radius:20px;
-  border:1px solid rgba(143,200,240,.55);background:#01091f center 55%/cover no-repeat url("__BLUR__");
+/* 위 모서리는 **각지게** 둔다. 관심종목 화면의 배너(.j3b-hero)가 그렇고, 그래야
+   화면 맨 위에 붙어 보인다(2026-08-28 상하님 지적 — "너무 내려왔다 비교해봐라"). */
+.j3hero{position:relative;height:236px;overflow:hidden;border-radius:0 0 24px 24px;
+  border:1px solid rgba(143,200,240,.55);border-top:none;
+  background:#01091f center 55%/cover no-repeat url("__BLUR__");
   box-shadow:inset 0 -18px 31px rgba(0,19,45,.5),0 9px 22px rgba(0,0,0,.5);
   /* 아래 여백이 1.4rem 인 까닭 — 바로 밑의 두 단추 줄(「🌏 한국테마 →」·
      「📘 이 테마 설명」)이 페이지 규칙에서 위로 1rem 당겨져 있다. 여백을 .55rem
@@ -236,26 +239,55 @@ CSS = """
   margin:0 0 1.4rem}
 .j3hero video{position:absolute;inset:0;width:100%;height:100%;
   object-fit:cover;object-position:center 48%}
-/* 영상 위에 어둠을 깔아야 봉과 글자가 읽힌다. 두 겹이다.
-   ① 왼쪽이 더 어둡다 — 거기 「JARVIS 3 · 시장분석」 글자가 있다.
-   ② **아래쪽**이 더 어둡다 — 거기 봉차트가 있다. 눈밭이 하얘서 이것이 없으면
-      파란 봉이 묻힌다(2026-08-28 실물에서 안 보였다). 로봇과 캠핑카가 있는
-      위쪽은 밝게 둔다 — 상하님이 그 영상을 보시려고 넣으신 것이다. */
+/* 영상 위에 어둠을 깐다. 두 겹이다 — 왼쪽(글자 자리)과 아래쪽(봉 자리).
+   **2026-08-28 상하님 지적으로 많이 걷어냈다** — "영상이 너무 어둡다".
+   괄호 안이 걷어내기 전 값이다. 봉이 눈밭에 묻히지 않을 만큼만 남겼다. */
 .j3hero-scrim{position:absolute;inset:0;
-  background:linear-gradient(90deg,rgba(2,9,26,.9) 0%,rgba(2,9,26,.6) 34%,
-      rgba(2,9,26,.26) 62%,rgba(2,9,26,.38) 100%),
-    linear-gradient(0deg,rgba(1,7,20,.86) 0%,rgba(1,7,20,.5) 34%,transparent 62%)}
+  background:linear-gradient(90deg,rgba(2,9,26,.62) 0%,rgba(2,9,26,.34) 34%,
+      rgba(2,9,26,.08) 62%,rgba(2,9,26,.16) 100%),
+    linear-gradient(0deg,rgba(1,7,20,.58) 0%,rgba(1,7,20,.24) 34%,transparent 62%)}
 .j3hero-vig{position:absolute;inset:0;
-  background:radial-gradient(120% 90% at 50% 40%,transparent 38%,rgba(1,6,18,.68) 100%)}
+  background:radial-gradient(120% 90% at 50% 40%,transparent 46%,rgba(1,6,18,.38) 100%)}
 /* 차트는 **아래 3분의 2**에만 둔다. 위까지 채우면 띠가 로봇 얼굴을 가로지른다. */
 .j3hero-chart{position:absolute;left:0;right:0;bottom:0;width:100%;height:68%}
 .j3hero-lg{display:block}
 .j3hero-sm{display:none}
-.j3hero-copy{position:absolute;left:18px;top:50%;transform:translateY(-50%);
+/* 글자는 **위에 붙인다** (2026-08-28 상하님 지시 — "jarvis3 시장분석 글자 위로
+   붙이고"). 관심종목 배너의 .j3b-head-copy 와 같은 자리다. */
+.j3hero-copy{position:absolute;left:18px;top:15px;z-index:3;
   line-height:1.15;text-shadow:0 2px 12px rgba(0,0,0,.8)}
 .j3hero-mark{margin:0;font-size:26px;font-weight:800;letter-spacing:.02em;color:#eaf4ff}
 .j3hero-mark b{color:#e8c07a;font-weight:900}
 .j3hero-sub{margin:2px 0 0;font-size:13px;font-weight:700;color:#9fc6ea;letter-spacing:.02em}
+/* ↻ 와 「● 실시간」 — 관심종목 배너(.j3b-round/.j3b-live)에서 색·굵기·둥글기를
+   그대로 가져왔다(2026-08-28 상하님 지적 — "실시간하고 리셋 버튼이 없고").
+   ↻ 는 **진짜 눌린다** — 관심종목 쪽과 똑같이, 보이는 동그라미 위에 속이 비치는
+   스트림릿 단추를 겹쳐 둔다(상하님 — "그거 누르면 리셋 되던데?").
+   「실시간」은 그림이다. 저쪽도 그렇다. */
+.j3hero-actions{position:absolute;right:16px;top:14px;z-index:3;display:flex;gap:8px}
+.j3hero-round,.j3hero-live{height:38px;display:flex;align-items:center;justify-content:center;
+  border:1px solid #c89550;border-radius:22px;background:rgba(6,29,64,.87);color:#fff8e8;
+  box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.j3hero-round{width:38px;font-size:23px}
+/* 「실시간」의 **폭을 못박는 까닭** — 그 왼쪽에 있는 ↻ 위에 진짜 단추를 겹쳐야
+   하는데, 겹칠 자리를 오른쪽 끝에서부터 세어 잡는다. 글자 폭에 따라 칸이
+   늘었다 줄었다 하면 단추가 동그라미에서 어긋난다.
+   ↻ 오른쪽 자리 = 16(바깥 여백) + 86(실시간 폭) + 8(사이) = 110px. */
+.j3hero-live{width:86px;gap:7px;font-size:14px;font-weight:800}
+.j3hero-live i{display:block;width:9px;height:9px;border-radius:50%;
+  background:#64d84d;box-shadow:0 0 8px #4cf059}
+/* 보이는 동그라미 위에 겹치는 진짜 단추. 속이 비치고 글자도 안 보인다. */
+div[class*="st-key-j3hero_box"]{position:relative!important}
+div[class*="st-key-j3hero_box"] [data-testid="stElementContainer"]:has(button){
+  position:absolute!important;right:110px;top:14px;z-index:6;
+  width:auto!important;margin:0!important}
+div[class*="st-key-j3hero_box"] .stButton,
+div[class*="st-key-j3hero_box"] button{
+  width:38px!important;height:38px!important;min-height:38px!important;
+  padding:0!important;border:0!important;border-radius:50%!important;
+  background:transparent!important;color:transparent!important;box-shadow:none!important}
+div[class*="st-key-j3hero_box"] button:hover,
+div[class*="st-key-j3hero_box"] button:focus{background:rgba(255,255,255,.12)!important}
 /* 화살촉이 띠를 타고 간다. 6초에 한 바퀴. */
 .j3hero-tip{offset-rotate:auto;animation:j3heroRun 6s linear infinite}
 .j3hero-tip-lg{offset-path:path("__LG__")}
@@ -290,14 +322,35 @@ def html() -> str:
         f"{_SM}{_LG}"
         '<div class="j3hero-copy"><p class="j3hero-mark">JARVIS <b>3</b></p>'
         '<p class="j3hero-sub">시장분석</p></div>'
+        '<div class="j3hero-actions"><span class="j3hero-round">↻</span>'
+        '<span class="j3hero-live"><i></i>실시간</span></div>'
         "</div>"
     )
 
 
-def render(st) -> None:
-    """시장분석 맨 위에 배너를 그린다. 실패해도 화면이 멈추면 안 된다."""
+# 단추를 담는 칸의 이름. 규칙(CSS)이 이 이름으로 단추를 찾아 동그라미 위에 겹친다.
+BOX_KEY = "j3hero_box"
+
+
+def render(st, *, refresh_key: str | None = None) -> bool:
+    """시장분석 맨 위에 배너를 그린다. **↻ 를 누르셨으면 True** 를 준다.
+
+    비우고 새로 여는 일은 여기서 하지 않는다 — 부르는 쪽이 한다. 여기서 하면
+    `st.rerun()` 이 아래 `except` 에 걸려 삼켜진다(스트림릿은 화면을 다시 여는
+    신호도 예외로 던진다).
+
+    실패해도 화면이 멈추면 안 된다. 배너는 그림일 뿐이라 못 그려도 아래 화면은
+    그대로 나와야 한다.
+    """
+    if not refresh_key:
+        try:
+            st.markdown(css() + html(), unsafe_allow_html=True)
+        except Exception:
+            pass
+        return False
     try:
-        st.markdown(css() + html(), unsafe_allow_html=True)
+        with st.container(key=BOX_KEY):
+            st.markdown(css() + html(), unsafe_allow_html=True)
+            return bool(st.button("↻", key=refresh_key))
     except Exception:
-        # 배너는 그림일 뿐이다. 못 그려도 아래 화면은 그대로 나와야 한다.
-        pass
+        return False

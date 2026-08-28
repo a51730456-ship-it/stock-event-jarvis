@@ -2307,16 +2307,23 @@ def test_switching_screens_goes_back_to_the_top():
     assert 'scroll_to.request(st, "top")' in more, "「더보기」로 가면 맨 위로 안 간다"
     # 양쪽 화면에 '맨 위' 자리가 있어야 데려갈 곳이 있다.
     assert source.count('scroll_to.anchor(st, "top")') == 2, "'맨 위' 자리가 한쪽에만 있다"
-    # 여백은 0이 아니라 조금 — 0이면 단추가 화면 끝에 붙어 주소창에 가린다.
-    assert "padding-top:10px!important" in source
-    assert "padding-top:0!important" not in source
-    # **폰·태블릿은 58px 이다** (2026-08-27 상하님 지적 — "시장분석 맨 위 화면
-    # 아직도 그거 해결 안 하고 있다" · "태블릿에서도 안 보인다").
-    # 온라인 서비스가 앱 위에 「Fork」·GitHub 띠를 덮어 놓는다. 내 쪽 주소
-    # (/~/+/)로 열면 그 띠가 없어서 폭 열한 가지를 다 재도 줄이 늘 y=10 에
-    # 있었는데, 상하님 화면에서는 그 y=10 이 띠 밑이었다. 띠 높이만큼만 띄운다.
-    assert "padding-top:68px!important" in source, "폰·태블릿에서 띠에 가린다"
-    assert "@media (max-width:1199px)" in source
+    # ── 위 여백을 68px 에서 0 으로 되돌린 까닭 (2026-08-28) ──────────────────
+    # 2026-08-27에는 맨 위 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)가 화면
+    # 첫 줄이었다. 온라인 서비스가 앱 위에 「Fork」·GitHub 띠를 덮어 놓아서 그
+    # 단추가 띠 밑에 들어가 안 보였고, 띠 높이만큼(68px) 띄워 막았다.
+    #
+    # 이제 그 자리에 **배너가 있다.** 배너가 폰에서 174px, 노트북에서 236px 이라
+    # 두 단추는 띠 밑으로 갈 수가 없다 — 빈 여백이 하던 일을 배너가 한다.
+    # 그래서 68px 을 지우고 관심종목 화면과 같은 0 으로 맞췄다
+    # (2026-08-28 상하님 지적 — "너무 내려왔다 비교해봐라").
+    #
+    # **여백 대신 이것을 지킨다** — 배너가 두 단추보다 **먼저** 그려져야 한다.
+    # 순서가 뒤집히면 단추가 다시 첫 줄이 되어 띠에 가린다.
+    assert "padding-top:0!important" in source
+    assert "padding-top:68px!important" not in source, "배너가 있으니 이 여백은 필요 없다"
+    market = source[source.index("def _render_existing_theme_content()"):]
+    market = market[:market.index('method_help.render(st, "US")')]
+    assert "hero_banner.render(" in market, "배너가 맨 위 두 단추보다 먼저 그려져야 한다"
 
 def test_the_phone_home_screen_is_left_alone():
     """첫 화면의 **폰 모습은 예전 그대로**다 (2026-08-27 상하님 지시).

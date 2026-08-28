@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026082850
+MODULE_REVISION = 2026082861
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -279,16 +279,42 @@ THEME_TABLE_CSS = """
 
 # 종목 상세·신호 카드 등 나머지 자리.
 CONTENT_CSS = """
-/* 시장분석 맨 위 눈밭 캠프 배너 (2026-08-28 상하님 지시 — "시장분석 맨 위에 넣어라").
-   폰에서는 ① 낮추고 ② 봉차트를 **폰용 그림**으로 바꾼다. 봉 개수는 노트북과 같은
-   125개지만, 폰용은 봉 굵기와 선 굵기를 375px 칸에 맞춰 따로 그려 둔 것이다.
+/* 시장분석 맨 위 눈밭 캠프 배너 (2026-08-28 상하님 지시).
+   **관심종목 배너(.j3b-hero)와 같은 크기로 맞춘다** — 상하님 지적 "화면 더 크게
+   스마트폰 관심종목에 크기와 맞춰라". 잰 값 그대로다: 높이 174px, 폭 359px
+   (화면 375px 에서 좌우 8px), 아래 모서리만 24px.
+   폭을 늘리는 법 — 시장분석 화면은 좌우 여백이 16px 이고 관심종목은 8px 이다.
+   화면 여백을 건드리면 아래 표와 카드가 다 움직이므로, **배너만** 좌우로 8px씩
+   빠져나오게 한다.
+   봉차트도 폰용 그림으로 바꾼다. 봉 개수는 노트북과 같은 125개지만, 폰용은 봉
+   굵기와 선 굵기를 375px 칸에 맞춰 따로 그려 둔 것이다.
    모양·색·값은 hero_banner.py 에 있다. 여기 있는 것은 폰 표시 규칙뿐이다. */
-.j3hero { height: 150px !important; border-radius: 16px !important; }
+.j3hero { height: 174px !important; border-radius: 0 0 24px 24px !important;
+          margin-left: -8px !important; margin-right: -8px !important;
+          width: calc(100% + 16px) !important; }
 .j3hero-lg { display: none !important; }
 .j3hero-sm { display: block !important; }
-.j3hero-copy { left: 12px !important; }
-.j3hero-mark { font-size: 20px !important; }
-.j3hero-sub { font-size: 11px !important; }
+.j3hero-copy { left: 20px !important; top: 18px !important; }
+.j3hero-mark { font-size: 29px !important; letter-spacing: -.05em !important; }
+.j3hero-sub { margin-top: 6px !important; font-size: 15px !important; }
+/* ↻ · 「● 실시간」 — 관심종목 배너의 폰 크기 그대로다.
+   ↻ 오른쪽 자리 = 15(바깥 여백) + 66(실시간 폭) + 6(사이) = 87px. */
+.j3hero-actions { right: 15px !important; top: 12px !important; gap: 6px !important; }
+.j3hero-round, .j3hero-live { height: 31px !important; border-radius: 18px !important; }
+.j3hero-round { width: 31px !important; font-size: 19px !important; }
+.j3hero-live { width: 66px !important; gap: 5px !important; font-size: 11px !important; }
+.j3hero-live i { width: 8px !important; height: 8px !important; }
+/* **앞에 `body` 를 붙이는 까닭** — hero_banner.py 의 같은 규칙도 `!important`
+   라서, 붙이지 않으면 나중에 나오는 저쪽이 이긴다(2026-08-28 실물에서 단추가
+   동그라미보다 7px 왼쪽에 38px 크기로 앉아 있었다). `body` 하나로 이 규칙이
+   더 자세해져 이긴다.
+   오른쪽 자리가 79px 인 까닭 — 이 단추는 배너가 아니라 **글칸** 안에서 자리를
+   잡는다. 배너는 글칸보다 좌우로 8px씩 넓으므로 87 에서 8 을 뺀다. */
+body div[class*="st-key-j3hero_box"] [data-testid="stElementContainer"]:has(button) {
+  right: 79px !important; top: 12px !important; }
+body div[class*="st-key-j3hero_box"] .stButton,
+body div[class*="st-key-j3hero_box"] button {
+  width: 31px !important; height: 31px !important; min-height: 31px !important; }
 
 /* 종목 차트 넷(당일·일봉·주봉·월봉)은 폰에서 조금 낮춘다 — 한 줄에 둘씩 서므로
    칸이 좁아 132px 은 세로로 길쭉해 보인다 (2026-08-28). */

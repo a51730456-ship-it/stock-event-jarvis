@@ -1187,7 +1187,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026082850
+_REQUIRED_MOBILE_REVISION = 2026082861
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1223,7 +1223,7 @@ import hero_banner
 
 # 시장분석 맨 위의 눈밭 캠프 배너(2026-08-28 상하님 지시). 그림·글귀를 바꾸면
 # hero_banner의 리비전을 올리고 이 숫자도 같이 올린다(규칙 11).
-_REQUIRED_HERO_REVISION = 2026082812
+_REQUIRED_HERO_REVISION = 2026082820
 if int(getattr(hero_banner, "MODULE_REVISION", 0)) < _REQUIRED_HERO_REVISION:
     hero_banner = importlib.reload(hero_banner)
 import regime_gauge_ui
@@ -7218,11 +7218,7 @@ def _render_existing_theme_content() -> None:
         <div class="j3-market-top"></div>
         <style>
         body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
-        body:has(.j3-market-top) .block-container { padding-top:10px!important; }
-        @media (max-width:1199px){
-          body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
-          body:has(.j3-market-top) .block-container { padding-top:68px!important; }
-        }
+        body:has(.j3-market-top) .block-container { padding-top:0!important; }
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style:only-child),
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] .j3-market-top) {
           display:none!important;
@@ -7316,7 +7312,19 @@ def _render_existing_theme_content() -> None:
     # 상하님이 그록·제미나이로 만드신 영상 위에 6개월 일봉 봉차트를 얹은 그림이다.
     # 봉은 **지어낸 값**이라 숫자를 한 개도 안 적는다. 자세한 것은 hero_banner.py.
     # 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)보다 먼저 그려야 맨 위에 선다.
-    hero_banner.render(st)
+    if hero_banner.render(st, refresh_key="j3hero_refresh"):
+        # ↻ 를 누르셨다. 관심종목 배너의 ↻ 와 **똑같이** 움직인다 —
+        # 서버가 담아 둔 것을 비우고 화면을 통째로 새로 연다
+        # (2026-08-28 상하님 — "그거 누르면 리셋 되던데?").
+        st.session_state["j3b_hard_reload"] = True
+        for _forget in (getattr(j3data, "clear_runtime_cache", None),
+                        getattr(briefing_news, "clear_cache", None)):
+            try:
+                if _forget:
+                    _forget()
+            except Exception:
+                pass          # 못 비워도 화면은 새로 연다
+        st.rerun()
     # 최상단 오른쪽에 '이 테마 설명'을 둔다(2026-07-29 사용자 지시).
     # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
     method_help.render(st, "US")
