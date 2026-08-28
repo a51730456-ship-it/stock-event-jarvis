@@ -2324,6 +2324,16 @@ def test_switching_screens_goes_back_to_the_top():
     market = source[source.index("def _render_existing_theme_content()"):]
     market = market[:market.index('method_help.render(st, "US")')]
     assert "hero_banner.render(" in market, "배너가 맨 위 두 단추보다 먼저 그려져야 한다"
+    # ── 그리고 **맨 위 띠를 없애야 한다** (2026-08-28 상하님 지적 — "이거 왜
+    # 짤리지... 위에 뭔가 있다").
+    # 스트림릿이 화면 맨 위에 띄우는 띠(stHeader)는 60px 이고 z-index 999990 으로
+    # **떠서 덮는다.** 자리를 차지하는 것이 아니라서 밑에 무엇을 놓아도 안 밀린다.
+    # 여백 68px 을 지우자 이 띠가 배너 위 44px 을 덮어 「JARVIS 3」 줄이 잘렸다
+    # (2026-08-28 실측). 관심종목 화면은 이 띠를 아예 없애서 안 잘린다.
+    # 두 화면 다 없애야 한다 — 한쪽만 없애면 그쪽 배너만 온전하다.
+    for mark in ("j3b-home", "j3-market-top"):
+        rule = f'body:has(.{mark}) [data-testid="stHeader"]'
+        assert rule in source, f"{mark} 화면에서 맨 위 띠가 배너를 덮는다"
 
 def test_the_phone_home_screen_is_left_alone():
     """첫 화면의 **폰 모습은 예전 그대로**다 (2026-08-27 상하님 지시).

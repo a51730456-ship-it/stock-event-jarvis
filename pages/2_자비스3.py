@@ -7256,6 +7256,20 @@ def _render_existing_theme_content() -> None:
     st.markdown(
         """
         <style>
+        /* ── 맨 위 검은 띠를 없앤다 (2026-08-28 상하님 지적) ────────────────────
+           상하님 — "이거 왜 짤리지 비교화면 봐라... 저거 지난번에도 무슨 문제
+           있었다 다시 잘봐라 **위에 뭔가 있다**."
+           그 '뭔가'는 스트림릿이 화면 맨 위에 **띄워 놓는 띠**(stHeader)다.
+           온라인에서는 거기에 「Fork」와 GitHub 표시까지 얹힌다.
+           이 띠는 자리를 차지하는 것이 아니라 **덮는다.** 그래서 배너를 맨 위로
+           올리자 배너 윗부분(「JARVIS 3」 줄)이 띠 밑으로 들어가 잘렸다.
+           2026-08-27에 여백 68px 을 넣어 막았던 것이 바로 이것이었는데, 나는 그
+           여백이 하던 일을 배너가 대신한다고 잘못 봤다 — 덮는 것은 밑에 무엇을
+           놓아도 안 밀린다.
+           **관심종목 화면은 이 띠를 아예 없앤다**(body:has(.j3b-home) 쪽에 같은
+           줄이 있다). 그래서 거기 배너는 안 잘린다. 같게 맞춘다.
+           왼쪽 메뉴는 이 화면에서 이미 감춰 두었으므로 잃는 것이 없다. */
+        body:has(.j3-market-top) [data-testid="stHeader"] { display:none !important; }
         body:has(.j3-market-top),
         body:has(.j3-market-top) .stApp { background:#020b1e !important; }
         body:has(.j3-market-top) .stApp {
