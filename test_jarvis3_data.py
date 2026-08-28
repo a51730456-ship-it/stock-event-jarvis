@@ -1381,3 +1381,51 @@ class GeneralThemeScoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SeriesMetricsCacheTests(unittest.TestCase):
+    """같은 종목을 두 번 재지 않는다 (2026-08-28 상하님 지적).
+
+    상하님 — "상승장 신고가 눌림 로딩하는데 10초 걸린다. 매수심사 순위 9도 10초.
+    이거 왜 계속 해결을 못 하지?"
+
+    프로파일러로 재 보니 화면 한 판에 `_series_metrics` 가 **427번** 돌았다 —
+    테마 순위 20개에서 221번, 순위 9에서 206번. 같은 종목의 같은 일봉을 두 번
+    잰 것이다. 한 번 잰 값을 적어 두니 순위 9가 **2.01초 → 0.23초**가 됐다.
+    """
+
+    def setUp(self):
+        j3._METRICS_CACHE.clear()
+
+    def test_the_same_frames_give_the_same_numbers(self):
+        """공책에서 꺼낸 값이 새로 잰 값과 한 글자도 달라선 안 된다."""
+        daily, intraday = _daily_frame(), _intraday_frame(230)
+        fresh = j3._series_metrics_uncached(daily, intraday)
+        first = j3._series_metrics(daily, intraday)      # 재서 담는다
+        second = j3._series_metrics(daily, intraday)     # 공책에서 꺼낸다
+        self.assertEqual(fresh, first)
+        self.assertEqual(fresh, second)
+        self.assertEqual(1, len(j3._METRICS_CACHE), "두 번 잰 것이 따로 담겼다")
+
+    def test_the_caller_cannot_dirty_the_note(self):
+        """부르는 쪽이 줄에 무엇을 적어 넣어도 다음 사람 값이 더러워지면 안 된다.
+
+        테마 순위와 순위 9는 실제로 이 값에 등수·이름을 적어 넣는다.
+        """
+        daily = _daily_frame()
+        got = j3._series_metrics(daily)
+        got["여기다_적어본다"] = 1
+        again = j3._series_metrics(daily)
+        self.assertNotIn("여기다_적어본다", again)
+
+    def test_new_data_is_measured_again(self):
+        """분봉이 하나만 들어와도 다시 잰다 — 값이 옛것으로 굳으면 안 된다."""
+        daily = _daily_frame()
+        j3._series_metrics(daily, _intraday_frame(230))
+        j3._series_metrics(daily, _intraday_frame(231))
+        self.assertEqual(2, len(j3._METRICS_CACHE), "다른 자료인데 같은 것으로 봤다")
+
+    def test_a_frame_without_prices_is_not_cached(self):
+        """잴 수 없는 자료는 담지 않는다 — 담으면 빈 값이 굳는다."""
+        j3._series_metrics(None)
+        self.assertEqual(0, len(j3._METRICS_CACHE))

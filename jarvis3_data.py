@@ -198,7 +198,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082850
+MODULE_REVISION = 2026082860
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -223,6 +223,8 @@ def clear_runtime_cache() -> None:
     with _CACHE_LOCK:
         _CACHE.clear()
         _BRIEFING_CARD_CACHE.clear()
+    with _METRICS_LOCK:
+        _METRICS_CACHE.clear()
     with _FEAR_GREED_LOCK:
         _FEAR_GREED_CACHE.update({"at": 0.0, "value": None})
 
@@ -554,7 +556,63 @@ def _last_session_change(closes, last_date, today_ny, now_ny=None) -> float | No
     return (close / base - 1) * 100
 
 
+# ── 같은 종목을 두 번 재지 않는다 (2026-08-28 상하님 지적) ────────────────────
+#
+# 상하님 — "상승장 신고가 눌림 로딩하는데 10초 걸린다. 매수심사 순위 9도 10초.
+# 이거 왜 계속 해결을 못 하지?"
+#
+# **원인은 자료를 받는 시간이 아니라 같은 계산을 두 번 하는 것이었다.**
+# 프로파일러로 재 보니 화면 한 판에 `_series_metrics` 가 **427번** 돌았다 —
+# 테마 순위 20개에서 221번, 순위 9에서 206번. 한 번이 5ms 라 그것만 2.1초다
+# (노트북 CPU 기준. 온라인은 코어가 적어 몇 배가 된다).
+#
+# 그런데 그 둘은 **같은 종목의 같은 일봉**을 잰다. 한 번 잰 값을 적어 두고
+# 두 번째부터는 그것을 준다.
+#
+# **자료가 조금이라도 바뀌면 다시 잰다.** 지문에 줄 수·첫 날짜·첫 종가·마지막
+# 날짜·마지막 종가·그 앞 종가를 다 넣으므로, 새 분봉이 하나만 들어와도 다른
+# 지문이 되어 새로 잰다. 값이 옛것으로 굳을 여지가 없다.
+_METRICS_CACHE: dict = {}
+_METRICS_LOCK = threading.Lock()
+_METRICS_CACHE_MAX = 4000
+
+
+def _frame_stamp(frame) -> tuple:
+    """이 자료가 아까 잰 그 자료인지 알아보는 지문. 만드는 데 O(1)이다."""
+    if frame is None or getattr(frame, "empty", True) or "Close" not in frame.columns:
+        return ()
+    try:
+        closes = frame["Close"]
+        return (
+            len(frame),
+            str(frame.index[0]), str(frame.index[-1]),
+            float(closes.iloc[0]), float(closes.iloc[-1]),
+            float(closes.iloc[-2]) if len(closes) >= 2 else 0.0,
+        )
+    except Exception:
+        return ()
+
+
 def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = None) -> dict:
+    """아까 잰 것과 같은 자료면 다시 재지 않는다. 실제 계산은 아래 함수가 한다."""
+    stamp = (_frame_stamp(daily), _frame_stamp(intraday))
+    if not stamp[0]:
+        return _series_metrics_uncached(daily, intraday)
+    with _METRICS_LOCK:
+        found = _METRICS_CACHE.get(stamp)
+    if found is not None:
+        # **복사본을 준다** — 부르는 쪽이 줄에 무엇을 적어 넣어도 다음 사람이
+        # 받는 값이 더러워지지 않는다(테마 순위·순위 9가 실제로 적어 넣는다).
+        return dict(found)
+    value = _series_metrics_uncached(daily, intraday)
+    with _METRICS_LOCK:
+        if len(_METRICS_CACHE) >= _METRICS_CACHE_MAX:
+            _METRICS_CACHE.clear()
+        _METRICS_CACHE[stamp] = value
+    return dict(value)
+
+
+def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = None) -> dict:
     if daily is None or len(daily) < 25:
         return {"ok": False}
     closes = daily["Close"].dropna().astype(float)
