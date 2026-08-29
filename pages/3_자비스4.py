@@ -756,7 +756,7 @@ if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVIS
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
-_REQUIRED_PICKLIST_REVISION = 2026080940
+_REQUIRED_PICKLIST_REVISION = 2026082920
 if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
     picklist_ui = importlib.reload(picklist_ui)
 
