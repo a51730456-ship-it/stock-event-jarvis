@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082940
+MODULE_REVISION = 2026082950
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4758,9 +4758,21 @@ def _card_session_values(daily_frame, live_frame):
     closes = daily_frame["Close"].dropna().astype(float)
     if closes.empty:
         return points, None, None, None
+    # ── 일봉 날짜는 **시간대를 바꾸지 않는다** (2026-08-29 상하님 지적) ──────────
+    # 상하님 — "테슬라 엔비디아 네이버 맨 위 두 개 종가 봐라."
+    #   네이버 금 08-28 종가  NVDA 217.55 · TSLA 348.75
+    #   카드가 적던 값        NVDA 227.98 · TSLA 354.81   ← 목 08-27
+    #
+    # **여기가 하루를 밀던 자리다.** 야후 일봉 index 는 UTC 자정으로 오는 일이
+    # 있다(2026-08-28 00:00+00:00). 그것을 뉴욕으로 바꾸면 **08-27 20:00** 이
+    # 되어 날짜가 하루 뒤로 간다. 같은 자료로 저장 쪽(_series_metrics)은
+    # `.iloc[-1]` 로 **자리**를 집어서 금요일을 맞게 뽑았다 — 날짜로 집는 여기만
+    # 틀렸다(저장된 08-28 목록 TSLA 348.75 로 확인).
+    #
+    # 일봉은 **하루에 한 줄**이고 그 줄에 적힌 날짜가 곧 그 장의 날이다. 시간대를
+    # 바꿀 것이 없다. 값도 자리로 집는다 — 저장 쪽과 같은 방식이다.
     try:
-        index = pd.DatetimeIndex(closes.index)
-        dates = (index.tz_convert(_NY) if index.tz is not None else index).date
+        dates = pd.DatetimeIndex(closes.index).date
     except Exception:
         return points, float(closes.iloc[-1]), None, None
 
@@ -4791,10 +4803,9 @@ def _card_session_values(daily_frame, live_frame):
         except Exception:
             points = []
 
-    spot = [i for i, day in enumerate(dates) if day == session_day]
-    at = spot[-1] if spot else len(closes) - 1
-    price = float(closes.iloc[at])
-    prev = float(closes.iloc[at - 1]) if at >= 1 else None
+    # 마지막 줄이 곧 마지막으로 끝난 장이다. **자리로 집는다.**
+    price = float(closes.iloc[-1])
+    prev = float(closes.iloc[-2]) if len(closes) >= 2 else None
     change = ((price / prev - 1.0) * 100.0) if prev else None
     # 그림의 마지막 점은 **그 장의 정식 종가**로 맞춘다 — 1분봉 마지막 값은
     # 마감 동시호가가 빠져 조금 다르다(엔비디아 227.76 vs 227.98).

@@ -1693,3 +1693,20 @@ class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
         # 1분봉이 날을 **덮어쓰면** 안 된다.
         self.assertNotIn("session_day = in_hours[-1].date()", body)
 
+    def test_a_utc_midnight_index_does_not_shift_the_day(self):
+        """**이것이 상하님이 잡아 주신 그 자리다** (2026-08-29).
+
+        야후 일봉 index 가 UTC 자정으로 오는 일이 있다(2026-08-28 00:00+00:00).
+        그것을 뉴욕으로 바꾸면 08-27 20:00 이 되어 날짜가 하루 뒤로 간다.
+
+        상하님 네이버 화면 — 금 08-28 종가 NVDA 217.55 (전일 227.98 · -4.58%).
+        고치기 전 카드는 227.98 +8.74% 를 적었다.
+        """
+        index = pd.DatetimeIndex([pd.Timestamp(f"{day} 00:00", tz="UTC")
+                                  for day in ("2026-08-26", "2026-08-27", "2026-08-28")])
+        daily = pd.DataFrame({"Close": [220.0, 227.98, 217.55]}, index=index)
+        _points, price, prev, change = j3._card_session_values(daily, pd.DataFrame())
+        self.assertEqual(217.55, price, "UTC 자정 일봉에서 하루가 밀렸다")
+        self.assertEqual(227.98, prev)
+        self.assertAlmostEqual(-4.57, change, places=1)
+
