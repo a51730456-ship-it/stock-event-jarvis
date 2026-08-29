@@ -1226,8 +1226,13 @@ if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION
 import scroll_to
 
 # 종목을 누르면 상세 자리로 화면을 내려 주는 장치(2026-08-09).
-_REQUIRED_SCROLL_REVISION = 2026080910
-if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
+_REQUIRED_SCROLL_REVISION = 2026082920
+if (
+    # 2026-08-29 화면을 바꿀 때 **바로** 맨 위로 올리는 데 쓴다. 옛 모듈이면
+    # 이 이름이 없어 화면이 통째로 죽는다.
+    not hasattr(scroll_to, "now")
+    or int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION
+):
     scroll_to = importlib.reload(scroll_to)
 
 import hero_banner
@@ -1308,6 +1313,13 @@ if (
 # 상하님 — "한번 누르면 방금 화면 전으로 가게 하고 두번 누르면 메인메뉴로."
 # 구역을 그리기 **전에** 불러야 한다 — 아래 화면들이 열림/닫힘 값을 읽기 때문이다.
 _backnav_closed = back_nav.sync(st)
+
+
+# 화면에 적는 **테마 개수**. 명부(jarvis3_data.US_THEMES)를 그대로 센다.
+# 손으로 「20개」라고 적어 두면 테마를 더하거나 뺄 때마다 화면 글이 조용히
+# 틀린다 — 2026-08-29에 제약·헬스케어를 더해 20 → 21이 되었다.
+# 명부를 못 읽는 판에서도 화면이 죽지 않게 20을 받쳐 둔다.
+_THEME_COUNT = len(getattr(j3data, "US_THEMES", ())) or 20
 
 
 # 겨자색 상자에서 굵게 뽑을 말들(2026-08-07 상하님 지시 "중요부분만 진하게").
@@ -2936,7 +2948,7 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *, general_t
 
 
 def _load_theme_rankings() -> dict:
-    with st.spinner("미국 20개 테마와 구성종목을 조회하는 중입니다…"):
+    with st.spinner(f"미국 {_THEME_COUNT}개 테마와 구성종목을 조회하는 중입니다…"):
         return j3data.get_theme_rankings()
 
 
@@ -3945,7 +3957,7 @@ _FACTOR_HELP_HEAD = (
      "<span class='j3fh-z'>앱은 파는 시점을 정하지 않습니다.</span>"),
     ("_theme",
      "테마 안에서 어느 종목을 볼까 — 앱은 이렇게 조사했습니다",
-     "<b>이 표가 하는 일</b> — 위 「20개 테마 실시간 순위」에서 테마를 고르셨으면, "
+     f"<b>이 표가 하는 일</b> — 위 「{_THEME_COUNT}개 테마 실시간 순위」에서 테마를 고르셨으면, "
      "이 표는 <b class='j3fh-k'>그 테마 안에서 어느 종목을 볼지</b>를 매깁니다.<br>"
      "<b>앱이 무엇을 했나</b> — 앱은 나스닥 명부 종목의 지난 10년을 창(기간) "
      "<b class='j3fh-k'>96개</b>로 잘라, 잣대마다 '이 잣대가 높은 쪽이 정말 더 "
@@ -4171,7 +4183,16 @@ def _swing_factor_table_html(
         + "<div class='j3fh-swap'>"
         + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
         + table
-        + f"<div class='j3fh-p'>{head}{''.join(items)}"
+        # **창 맨 위에도 닫기를 둔다** (2026-08-29 상하님 지적 — "상승장 신고가
+        # 눌림 전용배점 밑에 심사항목 옆에 자세히 클릭하면 설명문이 내려오는데
+        # 설명문에 닫기 버튼이 없어졌다").
+        #
+        # 폰·태블릿(≤1200px)에서는 창 **바닥**의 닫기를 숨긴다 — 하단 이동막대에
+        # 가려 누를 수가 없어서 2026-08-26에 그렇게 막았다(.j3fh-x:not(.j3fh-x-top)).
+        # 그때 맨 위 닫기(_factor_help_close)를 급락·일반 테마 표에는 넣었는데
+        # **이 표에만 안 넣었다.** 그래서 폰에서 이 창만 닫는 자리가 하나도
+        # 없어졌다. 나머지 둘과 같은 자리에 같은 것을 넣는다.
+        + f"<div class='j3fh-p'>{_factor_help_close(key)}{head}{''.join(items)}"
         + f"<label class='j3fh-x j3fh-x-breakout' for='{key}'>✕ 닫기</label>"
           "</div></div>"
     )
@@ -4670,8 +4691,8 @@ def _render_theme_section(market: dict) -> None:
     # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
     # 아래 구역이 전부 밀려 내려가지 않게 한다.
     rank_open = _section_toggle(
-        "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
-        close_label="20개 테마 실시간 순위 닫기",
+        f"📊 {_THEME_COUNT}개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
+        close_label=f"{_THEME_COUNT}개 테마 실시간 순위 닫기",
         on_close=_close_theme_rank_from_fragment,
     )
     if not rank_open:
@@ -5780,7 +5801,7 @@ _SCORE_TABLE = {
          "<b>왜 그런가</b> — 20일선은 한 달짜리라 급락 뒤에는 며칠 반등만으로도 "
          "금세 넘어섭니다. 그래서 앱은 이것을 <b>점수가 같을 때 순서를 가르는 데만</b> "
          "씁니다"),
-        ("위 「20개 테마 실시간 순위」", "theme_rank",
+        (f"위 「{_THEME_COUNT}개 테마 실시간 순위」", "theme_rank",
          "<u>점수를 주지 않습니다.</u> 그 순위 위쪽 테마의 종목을 사면 어땠는지 "
          "재 봤더니, 3개월과 1년은 맞는데 <b>6개월에 일곱 번 중 세 번</b>으로 "
          "무너집니다.<br>"
@@ -6792,7 +6813,7 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
         # 그래서 콜백은 '판 전체를 다시 그려라'만 적어 두고, 조각이 끝날 때
         # (_run_close_all_if_requested) 실제로 다시 그린다.
         st.button(
-            "✕ 20개 테마 실시간 순위 닫기",
+            f"✕ {_THEME_COUNT}개 테마 실시간 순위 닫기",
             key=f"close_{_THEME_RANK_OPEN}",
             on_click=_close_all_from_fragment,
         )
@@ -8645,6 +8666,63 @@ def _warm_after_news(keys: tuple) -> None:
         pass
 
 
+# 지금 보고 있는 화면(관심종목 home · 시장분석 market)을 **주소에도 적어 둔다**
+# (2026-08-29 상하님 지시).
+#
+# 상하님 — *"스마트폰에서 멀티스크린, 즉 다른 화면 예를 들면 네이버 화면 잠깐
+# 보고 돌아오면 또 리셋되며 로딩시간이 걸린다. 그리고 시장분석 보고 있다가
+# 다른 화면 갔다가 다시 오면 관심종목으로 가버린다."*
+#
+# **왜 그랬나.** 폰은 다른 앱으로 넘어가면 뒷화면을 메모리에서 버린다. 돌아오면
+# 브라우저가 그 주소를 **처음부터 다시** 연다. 스트림릿의 세션 기억
+# (`st.session_state`)은 그때 통째로 비므로, 어느 화면을 보고 있었는지도 같이
+# 사라져 기본값인 관심종목으로 돌아갔다.
+#
+# **주소는 안 사라진다.** 다시 열 때 브라우저가 같은 주소를 그대로 쓰기 때문이다.
+# 그래서 화면 이름을 주소 끝에 적어 둔다(`?s=market`). 세션이 비어도 주소가
+# 남아 있으면 보시던 화면으로 돌아간다.
+#
+# 로딩 시간 자체는 이걸로 줄지 않는다 — 다시 여는 것은 브라우저가 하는 일이다.
+# 다만 **엉뚱한 화면을 다시 그리느라 두 번 기다리는 일**은 없어진다.
+#
+# 뒤로가기와도 어긋나지 않는다. 주소가 바뀌면 방문기록이 한 칸 쌓이므로,
+# 시장분석에서 뒤로가기를 누르면 앞 메뉴가 아니라 **관심종목**으로 온다.
+# (`back_nav`의 표식은 그대로 두어 관심종목에서 또 눌러도 안 빠져나간다.)
+_BRIEFING_PAGE_PARAM = "s"
+_BRIEFING_PAGES = ("home", "market")
+
+
+def _briefing_page() -> str:
+    """지금 볼 화면. **주소를 먼저 보고**, 없으면 세션 기억을 본다.
+
+    주소를 못 읽으면 조용히 예전처럼 세션 기억만으로 돈다 — 이 장치 때문에
+    화면이 막히면 안 된다(CLAUDE.md 13번 쿠키 규칙과 같은 뜻).
+    """
+    try:
+        marked = str(st.query_params.get(_BRIEFING_PAGE_PARAM) or "").strip()
+    except Exception:
+        marked = ""
+    if marked in _BRIEFING_PAGES:
+        st.session_state["j3_briefing_page"] = marked
+        return marked
+    page = str(st.session_state.get("j3_briefing_page") or "home")
+    return page if page in _BRIEFING_PAGES else "home"
+
+
+def _set_briefing_page(page: str) -> None:
+    """볼 화면을 정하고 **주소에도 적는다.** 이미 같으면 안 적는다.
+
+    같은 값을 또 적으면 방문기록만 한 칸 더 쌓여 뒤로가기가 헛돈다.
+    """
+    page = page if page in _BRIEFING_PAGES else "home"
+    st.session_state["j3_briefing_page"] = page
+    try:
+        if str(st.query_params.get(_BRIEFING_PAGE_PARAM) or "") != page:
+            st.query_params[_BRIEFING_PAGE_PARAM] = page
+    except Exception:
+        pass
+
+
 def _render_briefing_bottom_nav(active: str) -> None:
     """종목 브리핑과 시장분석에서 같이 보이는 하단 이동표."""
     # 시장분석 그림만 글자가 아니라 **직접 그린 그림**이다(2026-08-26 상하님 지시 —
@@ -8666,7 +8744,7 @@ def _render_briefing_bottom_nav(active: str) -> None:
     with st.container(key="j3b_nav_controls"):
         home_col, watch_col, market_col = st.columns(3, gap="small")
         if home_col.button("홈", key="j3b_nav_home"):
-            st.session_state["j3_briefing_page"] = "home"
+            _set_briefing_page("home")
             st.switch_page("app.py")
         # **화면을 바꾸면 맨 위로 올라간다** (2026-08-27 상하님 지적 — "맨 위에
         # 화면이 다 사라졌다"). 브라우저는 화면을 바꿔도 굴려 둔 자리를 그대로
@@ -8674,13 +8752,15 @@ def _render_briefing_bottom_nav(active: str) -> None:
         # 그대로 서서, 맨 위의 「한국테마 →」·「이 테마 설명」 두 단추를 지나친
         # 자리가 보였다. 예전에는 위에 224px 빈자리가 있어 그것이 가려 줬는데,
         # 그 빈자리를 없애니 드러났다.
+        # 맨 위로 올리는 일은 **여기서 적어 두지 않는다** (2026-08-29).
+        # _render_stock_briefing 이 화면이 바뀐 것을 보고 그 판 **맨 앞에서**
+        # 바로 올린다. 여기서 적어 두면 그 표시가 판 끝(20개 테마를 다 받은 뒤)
+        # 에서 쓰여, 그동안 내려 보고 계시던 화면을 뿌리치고 끌어올린다.
         if watch_col.button("관심종목", key="j3b_nav_watch"):
-            st.session_state["j3_briefing_page"] = "home"
-            scroll_to.request(st, "top")
+            _set_briefing_page("home")
             st.rerun()
         if market_col.button("시장분석", key="j3b_nav_market"):
-            st.session_state["j3_briefing_page"] = "market"
-            scroll_to.request(st, "top")
+            _set_briefing_page("market")
             st.rerun()
 
 
@@ -8688,7 +8768,10 @@ def _render_stock_briefing() -> None:
     # 미리 계산은 이 화면 **맨 끝**에서, 그것도 뉴스가 다 온 뒤에 시작한다
     # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
     _briefing_css()
-    page = st.session_state.get("j3_briefing_page", "home")
+    # 보시던 화면은 **주소에서** 읽는다 — 폰이 화면을 버렸다 다시 열어도
+    # 관심종목으로 돌아가지 않게 한다(2026-08-29, _briefing_page 참고).
+    page = _briefing_page()
+    _set_briefing_page(page)
     # **화면이 바뀌면 어느 길로 왔든 맨 위로 올린다** (2026-08-27 상하님 지적 —
     # "시장분석 맨 위 화면 아직도 그거 해결 안 하고 있다").
     #
@@ -8697,10 +8780,26 @@ def _render_stock_briefing() -> None:
     # 화면을 바꿔도 굴려 둔 자리를 그대로 들고 오기 때문이다.
     # 이제 단추마다 챙기지 않고 **여기 한 곳에서** 챙긴다 — 직전 화면과 다르면
     # 무조건 맨 위다. 새 길이 생겨도 빠뜨릴 수가 없다.
+    #
+    # **적어 두지 않고 바로 올린다**(2026-08-29 상하님 지적 — "20개 테마 실시간
+    # 순위 이 부분을 로딩하면서 또다시 맨 위 화면으로 올라가버린다").
+    # 적어 두면 그 표시가 판 **끝**에서 쓰이는데, 시장분석은 20개 테마 자료를
+    # 받느라 끝까지 그리는 데 몇 초가 걸린다. 그동안 상하님은 이미 내려 보고
+    # 계셨고, 마지막에 표시가 쓰이면서 그 손을 뿌리쳤다. 지금 올리면 아직
+    # 그릴 것이 없을 때라 뿌리칠 일이 없다.
     if st.session_state.get("j3b_last_page") != page:
         st.session_state["j3b_last_page"] = page
-        scroll_to.request(st, "top")
+        scroll_to.now(st, "top")
     if page == "market":
+        # **시장분석에서도 뒤로가기가 앱 밖으로 나가지 않게 한다**
+        # (2026-08-29 상하님 지시 — "관심종목에서 뒤로 가기 버튼을 시장분석
+        # 에서도 적용시켜라. 모르고 습관적으로 자꾸 누르게 되는데 캡처 화면으로
+        # 자꾸 돌아간다").
+        # 여태 이 표식은 관심종목 화면에만 있었다. 그래서 시장분석에서 처음
+        # 뒤로가기를 누르면 곧장 「어디로 갈까요」 화면으로 빠져나갔다.
+        # 관심종목과 **같은 표식**을 쓴다 — 열쇠가 같으므로 방문기록은
+        # 여전히 한 칸만 쌓인다.
+        back_nav.opened(st, "j3b_backstop")
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
         return
@@ -8785,8 +8884,7 @@ def _render_stock_briefing() -> None:
                 # 들고 시장분석으로 간다. 그러면 맨 위의 「🌏 한국테마 →」·
                 # 「📘 이 테마 설명」 두 단추를 지나친 자리에 선다.
                 # 하단 이동막대 쪽만 고쳐 두고 이 길을 빠뜨렸다.
-                st.session_state["j3_briefing_page"] = "market"
-                scroll_to.request(st, "top")
+                _set_briefing_page("market")
                 st.rerun()
         _render_briefing_grid(selected, cards, removable=False, key="selected")
         with st.container(key="j3b_extra_header"):

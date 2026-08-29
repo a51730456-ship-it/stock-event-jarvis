@@ -60,6 +60,25 @@ US_THEMES = (
     {"name": "유전체·정밀의료", "etf": "ARKG", "alt_etf": "GNOM", "stocks": ("CRSP", "NTLA", "BEAM", "TWST", "PACB", "ILMN", "TEM")},
     {"name": "배터리·전기차", "etf": "LIT", "alt_etf": "DRIV", "stocks": ("TSLA", "ALB", "RIVN", "GM", "F", "STLA", "QS", "CHPT")},
     {"name": "태양광·청정에너지", "etf": "TAN", "alt_etf": "ICLN", "stocks": ("FSLR", "ENPH", "NXT", "SEDG", "RUN", "BEP", "CWEN")},
+    # ── 21번째 테마 (2026-08-29 상하님 지시) ──────────────────────────────────
+    # 상하님 — "MRK(머크 앤 코)는 네이버에 글로벌 헬스케어, 백신 및 동물 건강제품을
+    # 포함한 처방 의약품이라고 나와 있다. 그런데 넌 테마 정보 없음으로 규정하고
+    # 배점 두 가지가 빠져 있다. 정보를 찾아서 넣어야 되는데 넌 안 넣고 있다."
+    #
+    # 맞는 말씀이었다. 명부 200종목 중 **63종목이 어느 테마에도 없었고**, 그래서
+    # 상승장에서 15점(테마 10 + 확산도 5), 급락에서 60점(30주선 30 + 동시 하락 20 +
+    # 6개월 10)을 아예 못 받고 있었다. 그중 제일 큰 묶음이 제약·헬스케어 17종목이다.
+    #
+    # **명부(그물)는 한 종목도 안 늘었다.** 열일곱은 이미 US_LARGE_CAP_UNIVERSE
+    # 안에 있었고 테마만 안 붙어 있었다. 여기 이름을 적어 주면 _universe_daily가
+    # 소속을 만들어 주고, 배점은 그때부터 저절로 돈다.
+    #
+    # **배점은 아직 다시 안 쟀다** — 상하님 지시로 테마를 먼저 넣었다. 다시 재야
+    # 할 두 가지는 docs/US_THEME_SPEC.md 3부 맨 앞에 적어 두었다.
+    {"name": "제약·헬스케어", "etf": "XLV", "alt_etf": "VHT",
+     "stocks": ("LLY", "JNJ", "MRK", "ABBV", "PFE", "BMY", "ZTS",
+                "TMO", "DHR", "ABT", "MDT", "BSX", "SYK",
+                "UNH", "ELV", "CI", "CVS")},
 )
 
 THEME_BY_NAME = {item["name"]: item for item in US_THEMES}
@@ -84,6 +103,13 @@ STOCK_NAMES = {
     "HOOD": "Robinhood", "PANW": "Palo Alto Networks", "FTNT": "Fortinet",
     "RKLB": "Rocket Lab", "ASTS": "AST SpaceMobile", "LUNR": "Intuitive Machines",
     "FSLR": "First Solar", "ENPH": "Enphase Energy", "ISRG": "Intuitive Surgical",
+    # 제약·헬스케어 (2026-08-29). 적어 두지 않으면 화면에 티커가 그대로 나온다.
+    "LLY": "Eli Lilly", "JNJ": "Johnson & Johnson", "MRK": "Merck & Co",
+    "ABBV": "AbbVie", "PFE": "Pfizer", "BMY": "Bristol Myers Squibb",
+    "ZTS": "Zoetis", "TMO": "Thermo Fisher", "DHR": "Danaher",
+    "ABT": "Abbott", "MDT": "Medtronic", "BSX": "Boston Scientific",
+    "SYK": "Stryker", "UNH": "UnitedHealth", "ELV": "Elevance Health",
+    "CI": "Cigna", "CVS": "CVS Health",
 }
 
 # 지수 자체. ETF(SPY·QQQ)는 지수를 따라갈 뿐이라 등락률이 조금씩 어긋난다

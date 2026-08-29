@@ -763,7 +763,7 @@ if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION
 import scroll_to
 
 # 종목을 누르면 상세 자리로 화면을 내려 주는 장치(2026-08-09).
-_REQUIRED_SCROLL_REVISION = 2026080910
+_REQUIRED_SCROLL_REVISION = 2026082920
 if int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION:
     scroll_to = importlib.reload(scroll_to)
 import regime_gauge_ui

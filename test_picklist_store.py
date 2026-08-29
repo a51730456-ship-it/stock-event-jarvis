@@ -584,3 +584,45 @@ class BuyOpenBackfillTests(unittest.TestCase):
         self.assertIn("backfill_buy_opens", source)
         # 목록 저장 **뒤**에 해야 한다 — 여기서 막혀도 오늘 목록은 파일에 남는다.
         self.assertLess(source.index("save_rows("), source.index("backfill_buy_opens"))
+
+
+class HolidayRunIsNotAFailureTests(unittest.TestCase):
+    """장이 안 열린 날 수집기가 **죽지 않아야** 한다 (2026-08-29 상하님 지적).
+
+    상하님 — "저장해 둔 목록 자꾸 문제 생긴다."
+
+    까닭 하나가 여기였다. 건너뛴 판이 돌려주던 요약에 `rows` 칸이 없어서
+    `main()` 이 `summary["rows"]` 를 읽다가 **KeyError 로 죽었다.** 그래서
+    토요일에 밀려 뜬 한국 몫 두 판이 통째로 빨갛게 떴다(실행 33203643713 ·
+    33218787536, 2026-08-28). 자료는 멀쩡한데 작업만 실패로 보이면 **진짜
+    실패한 날을 가려낼 수가 없다.**
+    """
+
+    def test_skipped_summary_has_the_same_shape_as_a_saved_one(self):
+        import picklist_collector as collector
+
+        summary = collector._skipped("KR", "2026-08-28")
+        for field in ("market", "trade_date", "path", "rows", "counts",
+                      "errors", "buy_opens_filled"):
+            self.assertIn(field, summary, f"{field} 칸이 없다")
+        self.assertEqual(0, summary["rows"])
+        self.assertTrue(summary["skipped"])
+
+    def test_a_closed_market_does_not_fail_the_job(self):
+        import picklist_collector as collector
+
+        with patch.object(collector, "collect_market",
+                          return_value=collector._skipped("KR", "2026-08-28")):
+            self.assertEqual(0, collector.main(["--market", "KR"]),
+                             "쉬는 날인데 작업이 빨갛게 떴다")
+
+    def test_a_real_empty_run_still_fails(self):
+        """정말 한 줄도 못 찍은 날은 **그대로 실패**여야 한다 —
+        조용히 빈 날이 쌓이는 것보다 빨갛게 뜨는 편이 낫다."""
+        import picklist_collector as collector
+
+        empty = {"market": "US", "trade_date": "2026-08-28", "path": "",
+                 "rows": 0, "counts": {}, "errors": ["시세 실패"]}
+        with patch.object(collector, "collect_market", return_value=empty):
+            self.assertEqual(1, collector.main(["--market", "US"]))
+
