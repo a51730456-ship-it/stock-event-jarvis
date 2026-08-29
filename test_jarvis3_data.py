@@ -946,12 +946,34 @@ class Jarvis3DataTests(unittest.TestCase):
     def tearDown(self):
         j3.clear_runtime_cache()
 
-    def test_twenty_unique_themes_include_quantum_and_bigtech(self):
+    def test_themes_are_unique_and_include_quantum_bigtech_and_pharma(self):
+        """테마 이름은 겹치면 안 된다 — 겹치면 소속이 한 곳으로 뭉개진다.
+
+        **2026-08-29 에 21개가 되었다.** 상하님 지시로 제약·헬스케어를 더했다 —
+        "MRK 는 네이버에 글로벌 헬스케어·백신이라고 나와 있는데 넌 테마 정보
+        없음으로 규정하고 배점 두 가지가 빠져 있다."
+        """
         names = [theme["name"] for theme in j3.US_THEMES]
-        self.assertEqual(len(names), 20)
-        self.assertEqual(len(set(names)), 20)
+        self.assertEqual(len(names), 21)
+        self.assertEqual(len(set(names)), 21)
         self.assertIn("양자컴퓨팅", names)
         self.assertIn("빅테크10", names)
+        self.assertIn("제약·헬스케어", names)
+
+    def test_pharma_theme_gives_merck_a_home(self):
+        """테마가 붙어야 상승장 15점·급락 60점을 받을 자리가 생긴다.
+
+        **명부(그물)는 안 늘었다** — 열일곱은 이미 US_LARGE_CAP_UNIVERSE 안에
+        있었고 테마만 안 붙어 있었다. 그래서 찾는 범위는 한 종목도 안 바뀐다.
+        """
+        pharma = next(theme for theme in j3.US_THEMES if theme["name"] == "제약·헬스케어")
+        for ticker in ("MRK", "LLY", "JNJ", "ABBV", "PFE", "BMY"):
+            self.assertIn(ticker, pharma["stocks"])
+        self.assertTrue(set(pharma["stocks"]).issubset(set(j3.US_LARGE_CAP_UNIVERSE)),
+                        "테마 종목이 명부 밖에 있으면 시세를 안 받아 온다")
+        self.assertEqual(200, len(j3.US_LARGE_CAP_UNIVERSE), "명부가 늘었다")
+        # 이름을 적어 두지 않으면 화면에 티커가 그대로 나온다.
+        self.assertEqual("Merck & Co", j3.STOCK_NAMES.get("MRK"))
 
     def test_bigtech10_keeps_tesla_and_excludes_crowdstrike(self):
         bigtech = next(theme for theme in j3.US_THEMES if theme["name"] == "빅테크10")

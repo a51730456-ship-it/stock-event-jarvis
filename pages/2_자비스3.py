@@ -1315,6 +1315,13 @@ if (
 _backnav_closed = back_nav.sync(st)
 
 
+# 화면에 적는 **테마 개수**. 명부(jarvis3_data.US_THEMES)를 그대로 센다.
+# 손으로 「20개」라고 적어 두면 테마를 더하거나 뺄 때마다 화면 글이 조용히
+# 틀린다 — 2026-08-29에 제약·헬스케어를 더해 20 → 21이 되었다.
+# 명부를 못 읽는 판에서도 화면이 죽지 않게 20을 받쳐 둔다.
+_THEME_COUNT = len(getattr(j3data, "US_THEMES", ())) or 20
+
+
 # 겨자색 상자에서 굵게 뽑을 말들(2026-08-07 상하님 지시 "중요부분만 진하게").
 # 여기 없는 말은 보통 굵기로 둔다 — 다 굵으면 아무것도 강조되지 않는다.
 _MUSTARD_NUMBER = re.compile(r"[+\-−]\d+(?:[.,]\d+)?%")
@@ -2941,7 +2948,7 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *, general_t
 
 
 def _load_theme_rankings() -> dict:
-    with st.spinner("미국 20개 테마와 구성종목을 조회하는 중입니다…"):
+    with st.spinner(f"미국 {_THEME_COUNT}개 테마와 구성종목을 조회하는 중입니다…"):
         return j3data.get_theme_rankings()
 
 
@@ -3950,7 +3957,7 @@ _FACTOR_HELP_HEAD = (
      "<span class='j3fh-z'>앱은 파는 시점을 정하지 않습니다.</span>"),
     ("_theme",
      "테마 안에서 어느 종목을 볼까 — 앱은 이렇게 조사했습니다",
-     "<b>이 표가 하는 일</b> — 위 「20개 테마 실시간 순위」에서 테마를 고르셨으면, "
+     f"<b>이 표가 하는 일</b> — 위 「{_THEME_COUNT}개 테마 실시간 순위」에서 테마를 고르셨으면, "
      "이 표는 <b class='j3fh-k'>그 테마 안에서 어느 종목을 볼지</b>를 매깁니다.<br>"
      "<b>앱이 무엇을 했나</b> — 앱은 나스닥 명부 종목의 지난 10년을 창(기간) "
      "<b class='j3fh-k'>96개</b>로 잘라, 잣대마다 '이 잣대가 높은 쪽이 정말 더 "
@@ -4684,8 +4691,8 @@ def _render_theme_section(market: dict) -> None:
     # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
     # 아래 구역이 전부 밀려 내려가지 않게 한다.
     rank_open = _section_toggle(
-        "📊 20개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
-        close_label="20개 테마 실시간 순위 닫기",
+        f"📊 {_THEME_COUNT}개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
+        close_label=f"{_THEME_COUNT}개 테마 실시간 순위 닫기",
         on_close=_close_theme_rank_from_fragment,
     )
     if not rank_open:
@@ -5794,7 +5801,7 @@ _SCORE_TABLE = {
          "<b>왜 그런가</b> — 20일선은 한 달짜리라 급락 뒤에는 며칠 반등만으로도 "
          "금세 넘어섭니다. 그래서 앱은 이것을 <b>점수가 같을 때 순서를 가르는 데만</b> "
          "씁니다"),
-        ("위 「20개 테마 실시간 순위」", "theme_rank",
+        (f"위 「{_THEME_COUNT}개 테마 실시간 순위」", "theme_rank",
          "<u>점수를 주지 않습니다.</u> 그 순위 위쪽 테마의 종목을 사면 어땠는지 "
          "재 봤더니, 3개월과 1년은 맞는데 <b>6개월에 일곱 번 중 세 번</b>으로 "
          "무너집니다.<br>"
@@ -6806,7 +6813,7 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
         # 그래서 콜백은 '판 전체를 다시 그려라'만 적어 두고, 조각이 끝날 때
         # (_run_close_all_if_requested) 실제로 다시 그린다.
         st.button(
-            "✕ 20개 테마 실시간 순위 닫기",
+            f"✕ {_THEME_COUNT}개 테마 실시간 순위 닫기",
             key=f"close_{_THEME_RANK_OPEN}",
             on_click=_close_all_from_fragment,
         )
