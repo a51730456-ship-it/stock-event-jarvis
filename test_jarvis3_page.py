@@ -2479,9 +2479,13 @@ def test_the_screen_you_were_on_is_written_into_the_address():
     """
     source = PAGE.read_text(encoding="utf-8")
     reader = source[source.index("def _briefing_page()"):source.index("def _set_briefing_page(")]
-    # 주소를 **먼저** 본다 — 세션 기억보다 앞이어야 다시 연 판에서 살아난다.
     assert "st.query_params.get(_BRIEFING_PAGE_PARAM)" in reader
-    assert reader.index("query_params") < reader.index('st.session_state.get("j3_briefing_page")')
+    # **세션 기억이 먼저**다 (2026-08-29 상하님 — "뒤로가기 버튼 누르더라도
+    # 안 되게 하라니깐"). 주소를 먼저 보면, 뒤로가기가 주소에서 표식을 지웠을 때
+    # 그것을 '관심종목으로 가라'로 읽어 화면이 바뀐다. 아무 일도 안 일어나야 한다.
+    # 주소는 폰이 화면을 버렸다 다시 열어 세션이 빈 판에서만 쓴다.
+    body = reader[reader.index('"""', reader.index('"""') + 3):]
+    assert body.index('st.session_state.get("j3_briefing_page")') < body.index("query_params")
     # 주소를 못 읽어도 화면이 막히면 안 된다(CLAUDE.md 13번과 같은 원칙).
     assert "except Exception:" in reader
 

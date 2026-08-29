@@ -496,20 +496,14 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
     if prices:
         rows = store.with_profit(rows, prices)
 
-    fetched_at = st.session_state.get(fetched_at_key)
-    tried = bool(fetched_at)
-    filled = sum(1 for row in rows if store._num(row.get("buy_open")) is not None)
-    # **매수금액도 지금 값도 자동이다**(2026-08-14·15 상하님 지시). 여기서는 어느
-    # 쪽이 왜 비었는지만 밝힌다.
-    if filled:
-        head = f"  \n**매수금액(다음 거래일 시가) {filled}줄이 채워져 있습니다.**"
-    else:
-        head = ("  \n**매수금액은 아직 없습니다** — 다음 거래일이 열려야 그날 시가가 "
-                "생깁니다. 열리면 이 화면을 여실 때 저절로 채워집니다.")
-    tail = (f" 지금 값은 **{fetched_at} 기준**({len(prices)}종목)입니다 — "
-            "다시 받으시려면 위 **‘🔄 지금 값 다시 받기’**를 누르십시오."
-            if tried else " 지금 값을 못 받았습니다.")
-    st.caption(f"{picked} · {store.summarize(rows)}" + head + tail)
+    # 아래 표가 '지금 값을 받아 봤나'를 알아야 '—'와 '못 받음'을 가른다.
+    tried = bool(st.session_state.get(fetched_at_key))
+    # **날짜 밑 요약 줄은 뺐다** (2026-08-29 상하님이 캡처에 ×표로 짚어 주셨다).
+    # 「2026-08-28 · 상위 테마 5개 … 순위 9 8」 · 「매수금액은 아직 없습니다 …」 ·
+    # 「지금 값은 14:33 기준(30종목)입니다 …」 세 줄이었다.
+    # 같은 것을 아래 표가 이미 말한다 — 갈래마다 제목과 줄 수가 있고, 매수금액은
+    # 빈 칸으로 보인다. 폰에서는 이 줄이 표를 화면 밖으로 밀어냈다.
+    # **계산은 그대로 둔다** — 지금 값(prices)은 위에서 이미 붙였다.
 
     excel = store.to_excel_bytes(rows)
     columns = st.columns(2)
@@ -539,12 +533,8 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
         except Exception:
             continue
     if len(dates) > 1 and every:
-        st.markdown(
-            f"<div class='pl-note'><b>{len(dates)}일치 {len(every):,}줄을 한 파일로</b> "
-            "받으실 수 있습니다. 줄마다 <b>매수일</b> 칸이 있어 엑셀에서 날짜별로 "
-            "걸러 보실 수 있습니다.</div>",
-            unsafe_allow_html=True,
-        )
+        # **「n일치 n줄을 한 파일로…」 안내는 뺐다** (2026-08-29 상하님 ×표).
+        # 바로 밑 단추에 「저장해 둔 n일치 전부」라고 이미 적혀 있다.
         all_columns = st.columns(2)
         all_excel = store.to_excel_bytes(every)
         if all_excel:

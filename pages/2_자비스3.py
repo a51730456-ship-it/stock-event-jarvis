@@ -8817,11 +8817,25 @@ _BRIEFING_PAGES = ("home", "market")
 
 
 def _briefing_page() -> str:
-    """지금 볼 화면. **주소를 먼저 보고**, 없으면 세션 기억을 본다.
+    """지금 볼 화면. **세션 기억이 먼저**, 없을 때만 주소를 본다.
 
-    주소를 못 읽으면 조용히 예전처럼 세션 기억만으로 돈다 — 이 장치 때문에
-    화면이 막히면 안 된다(CLAUDE.md 13번 쿠키 규칙과 같은 뜻).
+    **차례가 중요하다** (2026-08-29 상하님 지시 — "뒤로가기 버튼 누르더라도
+    안 되게 하라니깐"). 주소를 먼저 보면, 뒤로가기가 주소에서 `s=market` 을
+    지웠을 때 그것을 '관심종목으로 가라'로 읽어 화면이 바뀐다. 상하님은
+    **아무 일도 안 일어나기를** 바라신다.
+    세션 기억을 먼저 보면 뒤로가기로 주소가 바뀌어도 보시던 화면 그대로다.
+    바로 아래 `_set_briefing_page` 가 주소를 도로 적으므로, 몇 번을 눌러도
+    앱 밖으로 나가지 않는다.
+
+    **주소는 그래도 필요하다** — 폰이 화면을 버렸다 다시 열면 세션 기억이
+    통째로 비는데, 그때 주소에 적힌 것이 보시던 화면을 되살린다.
+
+    주소를 못 읽으면 조용히 세션 기억만으로 돈다 — 이 장치 때문에 화면이
+    막히면 안 된다(CLAUDE.md 13번 쿠키 규칙과 같은 뜻).
     """
+    page = str(st.session_state.get("j3_briefing_page") or "")
+    if page in _BRIEFING_PAGES:
+        return page
     try:
         marked = str(st.query_params.get(_BRIEFING_PAGE_PARAM) or "").strip()
     except Exception:
@@ -8829,8 +8843,7 @@ def _briefing_page() -> str:
     if marked in _BRIEFING_PAGES:
         st.session_state["j3_briefing_page"] = marked
         return marked
-    page = str(st.session_state.get("j3_briefing_page") or "home")
-    return page if page in _BRIEFING_PAGES else "home"
+    return "home"
 
 
 def _set_briefing_page(page: str) -> None:
