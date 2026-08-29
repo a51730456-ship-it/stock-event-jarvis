@@ -689,3 +689,88 @@ class Theme15IsSavedByTheScreenTooTests(unittest.TestCase):
         with patch.object(store, "session_is_over", side_effect=RuntimeError("고장")):
             self.assertFalse(picklist_ui.needs_autosave("US", "theme15"))
 
+
+class DateBoxKeepsTheKeyboardDownTests(unittest.TestCase):
+    """날짜 칸을 눌러도 폰 자판이 안 떠야 한다 — **판이 바뀌어도** (2026-08-29).
+
+    상하님 — "날짜별로 저장해 둔 목록 보기에 날짜 클릭하면 또 자판 뜬다.
+    이거 몇 번째 이야기하냐."
+
+    세 번째였다. 표를 붙이는 코드는 맞았는데 **붙인 것이 지워진 뒤 다시 안 붙었다.**
+    감시자를 작은 창(iframe) 안에서 만들었는데 스트림릿이 다시 그리며 그 창을
+    없애 버리고, "한 번만 붙인다"는 표식은 바깥 화면에 남아서 다음 창이 곧바로
+    돌아가 버렸다.
+
+    실물 브라우저로 전·후를 나란히 쟀다(chromium, 창을 실제로 만들고 지움) —
+        고치기 전  1판 막힘 · 2판 **자판 뜸** · 3판 **자판 뜸**
+        고친 뒤    1판 막힘 · 2판 막힘 · 3판 막힘
+    """
+
+    def _script(self):
+        import picklist_ui
+        return picklist_ui._KEYBOARD_SCRIPT
+
+    def test_every_run_applies_it_before_any_early_return(self):
+        """판마다 **바로 한 번** 붙인다 — 표식을 보고 먼저 돌아가면 안 된다."""
+        js = self._script()
+        self.assertLess(js.index("hush();"), js.index("__jarvisNoKeyboard"),
+                        "표식을 보고 돌아간 뒤에 붙이면 첫 판에만 막힌다")
+
+    def test_the_watcher_is_planted_in_the_outer_page(self):
+        """감시자는 **바깥 화면 안에서** 만든다 — 작은 창은 다시 그릴 때 없어진다."""
+        js = self._script()
+        self.assertIn("createElement('script')", js, "감시자를 창 안에서 만든다")
+        self.assertIn("doc.head.appendChild", js)
+        self.assertIn("MutationObserver", js)
+        # 감시자를 만드는 코드가 **심는 글 안**에 있어야 한다 — 창 안에 있으면 죽는다.
+        planted = js[js.index("tag.textContent"):js.index("doc.head.appendChild")]
+        self.assertIn("MutationObserver", planted, "감시자가 아직 창 안에 있다")
+
+    def test_the_selector_carries_no_double_quotes(self):
+        """셀렉터에 큰따옴표가 섞이면 심는 글줄이 그 자리에서 끊긴다."""
+        import picklist_ui
+        self.assertNotIn('"', picklist_ui._DATE_INPUT_SELECTOR)
+        self.assertIn("st-key-picklist_date_", picklist_ui._DATE_INPUT_SELECTOR)
+
+    def test_each_run_sends_a_different_body(self):
+        """보내는 글이 그대로면 화면이 창을 다시 안 연다 — scroll_to 와 같은 함정."""
+        import picklist_ui
+
+        class _St:
+            def __init__(self):
+                self.session_state = {}
+
+        sent = []
+        st = _St()
+        with patch.object(picklist_ui, "_KEYBOARD_SCRIPT", "<script></script>"):
+            import streamlit.components.v1 as components
+            real = components.html
+            components.html = lambda body, height=0: sent.append(body)
+            try:
+                picklist_ui._keep_keyboard_down(st, "US")
+                picklist_ui._keep_keyboard_down(st, "US")
+            finally:
+                components.html = real
+        self.assertEqual(2, len(sent))
+        self.assertNotEqual(sent[0], sent[1], "두 판에 같은 글을 보내면 창이 안 열린다")
+
+    def test_it_never_raises(self):
+        """못 붙여도 화면은 그대로 돌아야 한다."""
+        import picklist_ui
+
+        class _St:
+            def __init__(self):
+                self.session_state = {}
+
+        import streamlit.components.v1 as components
+        real = components.html
+
+        def _boom(body, height=0):
+            raise RuntimeError("컴포넌트를 못 그린다")
+
+        components.html = _boom
+        try:
+            picklist_ui._keep_keyboard_down(_St(), "US")   # 터지면 안 된다
+        finally:
+            components.html = real
+

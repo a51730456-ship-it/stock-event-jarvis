@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026082910
+MODULE_REVISION = 2026082920
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -262,6 +262,61 @@ def fetch_prices(market: str, codes) -> dict:
 fetch_buy_opens = store.fetch_buy_opens
 
 
+# 판마다 하나씩 오르는 번호를 담아 두는 자리(_keep_keyboard_down 참고).
+_KEYBOARD_SEQ_KEY = "jarvis_picklist_keyboard_seq"
+
+# 날짜 칸을 찾는 자리 표시. 선택칸 열쇠(picklist_date_US)가 그 칸의 반이다.
+#
+# **따옴표를 쓰지 않는다.** 이 글은 자바스크립트 글줄 **안에** 들어가는데,
+# 큰따옴표가 섞이면 그 자리에서 글줄이 끊겨 스크립트가 통째로 안 돈다.
+# CSS 는 값에 특별한 글자가 없으면 따옴표 없이 써도 된다 —
+# st-key-picklist_date_ 는 글자·숫자·-·_ 뿐이라 그냥 써도 맞다.
+_DATE_INPUT_SELECTOR = "[class*=st-key-picklist_date_] input"
+
+# 자판을 막는 스크립트. 두 몫으로 나뉜다 —
+#   ① 이 판에서 바로 한 번 붙인다 (창 안에서 돈다)
+#   ② 바깥 화면 안에 감시자를 심는다 (창이 없어져도 살아남는다)
+_KEYBOARD_SCRIPT = """
+<script>
+(function () {
+  var win, doc;
+  try { win = window.parent; doc = win && win.document; } catch (e) { return; }
+  if (!doc) { return; }
+
+  function hush() {
+    var boxes = doc.querySelectorAll('__SELECTOR__');
+    for (var i = 0; i < boxes.length; i++) {
+      boxes[i].setAttribute('inputmode', 'none');
+      boxes[i].setAttribute('readonly', 'readonly');
+    }
+  }
+  hush();                       // ① 이 판에서 바로
+
+  // ② 감시자는 **바깥 화면 안에서** 만든다. 여기(작은 창)에서 만들면 화면이
+  //    다시 그려질 때 창과 함께 죽는다. 바깥에 <script> 를 심으면 그 자리에서
+  //    돌기 때문에 창이 없어져도 살아 계속 다시 붙인다.
+  if (win.__jarvisNoKeyboard) { return; }
+  try {
+    var tag = doc.createElement('script');
+    tag.textContent =
+      "(function(w,d){" +
+      "if(w.__jarvisNoKeyboard){return;}w.__jarvisNoKeyboard=1;" +
+      "function h(){var b=d.querySelectorAll('__SELECTOR__');" +
+      "for(var i=0;i<b.length;i++){" +
+      "b[i].setAttribute('inputmode','none');" +
+      "b[i].setAttribute('readonly','readonly');}}" +
+      "h();var t=null;" +
+      "new MutationObserver(function(){if(t){return;}" +
+      "t=setTimeout(function(){t=null;h();},120);})" +
+      ".observe(d.body,{childList:true,subtree:true});" +
+      "})(window,document);";
+    doc.head.appendChild(tag);
+  } catch (e) {}
+})();
+</script>
+""".replace("__SELECTOR__", _DATE_INPUT_SELECTOR)
+
+
 def _keep_keyboard_down(st, market: str) -> None:
     """날짜 선택칸을 눌러도 **폰 자판이 안 올라오게** 한다 (2026-08-28 상하님 지시).
 
@@ -276,26 +331,30 @@ def _keep_keyboard_down(st, market: str) -> None:
 
     어떻게 막나 — 그 칸에 표 둘을 붙인다.
       · `inputmode="none"` — 자판만 막으려고 만들어진 표다.
-      · `readonly` — 그 칸에 글을 못 쓰게 한다. 폰은 글을 못 쓰는 칸에는 자판을
-        안 올린다. 날짜 고르는 칸을 만드는 데 널리 쓰는 방법이다.
+      · `readonly` — 폰은 글을 못 쓰는 칸에는 자판을 안 올린다. 글쓰기만 막으므로
+        초점·누르기는 그대로라 목록을 펴고 고르는 것은 된다.
 
-    **처음에는 `inputmode` 만 붙였다가 하나 더 붙였다** — 상하님이 실물 폰에서
-    "저장해 둔 목록 날짜 선택하면 또 자판 뜨게 하지 마라" 하셨다. 갤럭시 크롬은
-    `inputmode` 만으로는 안 막혔다.
+    ── 2026-08-29 · **세 번째로 같은 말씀을 듣고 진짜 까닭을 찾았다** ────────────
+    상하님 — "날짜 클릭하면 또 자판 뜬다. 이거 몇 번째 이야기하냐."
 
-    `readonly` 는 **글쓰기만** 막는다 — 초점·누르기·키 눌림은 그대로라 목록을 펴고
-    고르는 것은 된다. 다만 스트림릿 1.59 의 선택칸은 React Aria 로 만들어져 있어
-    미리보기 창에서는 진짜 손가락 클릭을 못 해 확인할 수가 없었다.
-    **목록이 안 열리면 바로 말씀해 주십시오** — 그때는 다른 방법으로 바꾼다.
+    표를 붙이는 코드는 맞았다. **붙인 것이 지워진 뒤 다시 안 붙은 것**이 문제였다.
 
-    **왜 CSS 가 아니라 이 방법인가** — 이 두 표는 규칙(CSS)으로는 못 붙인다.
-    스트림릿은 `st.markdown` 안의 `<script>` 를 지우므로, 정식으로 내주는
-    `components.html`(높이 0인 작은 창) 안에서 바깥 화면에 손을 뻗는다.
-    같은 방법을 자비스3의 ↻ 새로고침이 이미 쓰고 있다.
+      · 감시자(MutationObserver)를 **이 작은 창(iframe) 안에서** 만들었다.
+        화면이 다시 그려지면 스트림릿이 이 창을 통째로 없앤다. 그러면 그 안에서
+        만든 감시자도 같이 죽는다(CURRENT_STATUS 2026-08-27에 적어 둔 그 함정이다).
+      · 그런데 "한 번만 붙인다"는 표식은 **바깥 화면**에 두었다. 표식은 살아
+        남으므로, 다음 판에 새로 뜬 창은 표식을 보고 **곧바로 돌아가 버렸다** —
+        표를 붙이지도, 감시자를 다시 세우지도 않았다.
+      · 게다가 창에 담아 보내는 글이 판마다 **한 글자도 안 달라서**, 화면이 창을
+        아예 다시 열지도 않았다(오늘 scroll_to 에서 고친 것과 같은 함정이다).
 
-    화면이 다시 그려지면 스트림릿이 그 칸을 새로 만든다. 그래서 한 번 붙이고
-    끝내지 않고, 바뀔 때마다 다시 붙이는 감시자를 둔다. 감시자는 **판마다 하나만**
-    둔다(표식을 남겨 두 번 안 만든다).
+    그래서 **첫 판에만** 자판이 막히고, 무엇이든 한 번 누른 뒤로는 도로 떴다.
+
+    이제 셋을 고친다.
+      ① 판마다 **바로 한 번** 붙인다 — 표식을 보고 돌아가지 않는다.
+      ② 감시자는 **바깥 화면 안에서** 만든다(거기에 `<script>` 를 심는다).
+         그 자리에서 만들면 이 창이 없어져도 감시자는 살아 계속 다시 붙인다.
+      ③ 보내는 글 끝에 **판마다 다른 번호**를 붙여 화면이 창을 다시 열게 한다.
 
     실패해도 조용히 넘어간다 — 그때는 예전처럼 자판이 뜰 뿐 화면은 그대로 돈다.
     """
@@ -303,36 +362,14 @@ def _keep_keyboard_down(st, market: str) -> None:
         import streamlit.components.v1 as components
     except Exception:
         return
-    marker = f"__jarvisNoKeyboard_{market}"
+    # 판마다 다른 번호. 없으면 화면이 "아까 그 글"이라며 창을 다시 안 연다.
     try:
-        components.html(
-            """
-<script>
-(function(){
-  var doc;
-  try { doc = window.parent.document; } catch (e) { return; }
-  if (window.parent.__MARK__) { return; }
-  window.parent.__MARK__ = true;
-  function hush() {
-    var boxes = doc.querySelectorAll('[class*="st-key-picklist_date_"] input');
-    for (var i = 0; i < boxes.length; i++) {
-      boxes[i].setAttribute('inputmode', 'none');
-      boxes[i].setAttribute('readonly', 'readonly');
-    }
-  }
-  hush();
-  var waiting = false;
-  var watch = new MutationObserver(function () {
-    if (waiting) { return; }
-    waiting = true;
-    setTimeout(function () { waiting = false; hush(); }, 150);
-  });
-  watch.observe(doc.body, { childList: true, subtree: true });
-})();
-</script>
-            """.replace("__MARK__", marker),
-            height=0,
-        )
+        seq = int(st.session_state.get(_KEYBOARD_SEQ_KEY) or 0) + 1
+        st.session_state[_KEYBOARD_SEQ_KEY] = seq
+    except Exception:
+        seq = 0
+    try:
+        components.html(_KEYBOARD_SCRIPT + f"<!-- {market} {seq} -->", height=0)
     except Exception:
         pass          # 못 붙여도 화면은 그대로 돈다
 
