@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082930
+MODULE_REVISION = 2026082940
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4824,7 +4824,13 @@ def get_briefing_cards(stocks) -> dict[str, dict]:
         # 접힌 카드의 작은 그림은 예전 그대로 마지막 30개(chart)를 쓰고,
         # 크게 연 카드만 6개월치(chart6m)를 쓴다.
         daily, daily_meta = _download_cached(missing, period="6mo", interval="1d", ttl_seconds=300)
-        live, live_meta = _download_cached(missing, period="1d", interval="1m", ttl_seconds=45, prepost=True)
+        # **이틀치 5분봉**이다 (2026-08-29 상하님 — "이거 5분봉으로 하라고 했고").
+        # 여기만 하루치 1분봉으로 남아 있었다. 하루치에는 한국 낮에 정규장이 한 줄도
+        # 안 들어와(2026-08-28 실측 8종목 · 정규장 0일), 그 창에 남은 **그 앞 장**이
+        # 잡혀 카드 값이 하루 전으로 밀렸다. 창을 이틀로 넓히면 마지막 장이 늘 들어온다.
+        live, live_meta = _download_cached(
+            missing, period=SESSION_MINUTES_PERIOD, interval=SESSION_MINUTES_INTERVAL,
+            ttl_seconds=SESSION_MINUTES_TTL)
         with _CACHE_LOCK:
             for ticker in missing:
                 metrics = _series_metrics(daily.get(ticker), live.get(ticker))
