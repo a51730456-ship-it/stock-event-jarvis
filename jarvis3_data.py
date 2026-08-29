@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082920
+MODULE_REVISION = 2026082930
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4764,20 +4764,32 @@ def _card_session_values(daily_frame, live_frame):
     except Exception:
         return points, float(closes.iloc[-1]), None, None
 
-    # 그림에 그린 장이 어느 날인가 — 그 날의 일봉 종가가 카드에 적을 값이다.
-    session_day = None
+    # ── 카드에 적을 날은 **일봉이 정한다** (2026-08-29 상하님 지적) ────────────
+    # 상하님 — "관심종목의 선정종목의 주가와 차트는 하루 전이다."
+    #
+    # 맞는 지적이었다. 2026-08-28에 이 함수를 만들면서 **1분봉이 어느 날 것이냐**로
+    # 카드의 날을 정했다. 그런데 1분봉은 `period="1d"`로 받는다 — 지금부터 하루를
+    # 되짚는 창이라, 보시는 시각에 따라 마지막 장이 그 창 밖으로 밀려난다.
+    # 그러면 창 안에 남은 **그 앞 장**이 잡혀서, 일봉에는 금요일 종가가 있는데도
+    # 카드에는 목요일 값이 적혔다(재현 확인 — 일봉 120인데 카드 110).
+    #
+    # 일봉의 마지막 줄이 곧 **마지막으로 끝난 장**이다. 그것을 쓴다. 장중에는
+    # 야후 일봉에 오늘 줄이 이미 들어 있으므로 지금 장이 그대로 잡힌다.
+    #
+    # **그림은 날이 맞을 때만 쓴다.** 1분봉이 다른 날 것이면 숫자와 그림이 서로
+    # 다른 이야기를 한다 — 그것이 2026-08-28에 고치려던 바로 그 문제다.
+    # 그래서 어긋나면 그림을 안 그린다(값은 그대로 나온다).
+    session_day = dates[-1]
     if points and live_frame is not None and not getattr(live_frame, "empty", True):
         try:
             live_index = pd.DatetimeIndex(live_frame.index)
             live_local = live_index.tz_convert(_NY) if live_index.tz is not None else live_index
             in_hours = live_local[(live_local.time >= dt_time(9, 30))
                                   & (live_local.time <= dt_time(16, 0))]
-            if len(in_hours):
-                session_day = in_hours[-1].date()
+            if not len(in_hours) or in_hours[-1].date() != session_day:
+                points = []
         except Exception:
-            session_day = None
-    if session_day is None:
-        session_day = dates[-1]
+            points = []
 
     spot = [i for i, day in enumerate(dates) if day == session_day]
     at = spot[-1] if spot else len(closes) - 1

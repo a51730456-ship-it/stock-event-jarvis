@@ -1626,3 +1626,70 @@ class BreakoutWarmUpUsesNoNetworkTests(unittest.TestCase):
         self._wait()
         self.assertEqual(0.0, j3._BREAKOUT_WARM["at"], "빈손인데 해 뒀다고 적었다")
 
+
+class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
+    """관심종목 카드는 **마지막으로 끝난 장**을 적어야 한다 (2026-08-29 상하님 지적).
+
+    상하님 — *"관심종목의 선정종목의 주가와 차트는 하루 전이다."*
+
+    맞는 지적이었다. 2026-08-28에 `_card_session_values` 를 만들면서 **1분봉이
+    어느 날 것이냐**로 카드의 날을 정했다. 1분봉은 `period="1d"` 로 받는데, 그것은
+    지금부터 하루를 되짚는 창이라 보시는 시각에 따라 마지막 장이 창 밖으로 밀린다.
+    그러면 창 안에 남은 **그 앞 장**이 잡혀서, 일봉에 금요일 종가가 있는데도
+    카드에는 목요일 값이 적혔다.
+
+    이제 **일봉의 마지막 줄**이 날을 정한다. 그림은 날이 맞을 때만 그린다 —
+    숫자와 그림이 다른 날을 말하면 2026-08-28에 고치려던 문제가 도로 생긴다.
+    """
+
+    NY = ZoneInfo("America/New_York")
+
+    def _daily(self, days):
+        index = pd.DatetimeIndex([pd.Timestamp(day, tz=self.NY) for day, _ in days])
+        return pd.DataFrame({"Close": [close for _, close in days]}, index=index)
+
+    def _minutes(self, day, start, end, points=30):
+        index = pd.date_range(f"{day} 09:30", f"{day} 16:00", periods=points, tz=self.NY)
+        values = [start + (end - start) * i / (points - 1) for i in range(points)]
+        return pd.DataFrame({"Close": values}, index=index)
+
+    def setUp(self):
+        # 목 100 · 금 110 · **마지막 장은 금요일 120**
+        self.daily = self._daily([("2026-08-26", 100.0),
+                                  ("2026-08-27", 110.0),
+                                  ("2026-08-28", 120.0)])
+
+    def test_a_lagging_minute_frame_does_not_drag_the_price_back(self):
+        """**이것이 상하님이 보신 그 자리다.** 1분봉이 하루 밀려 와도 값은 금요일이다."""
+        points, price, prev, change = j3._card_session_values(
+            self.daily, self._minutes("2026-08-27", 101.0, 109.5))
+        self.assertEqual(120.0, price, "카드가 하루 전 값을 적었다")
+        self.assertEqual(110.0, prev, "기준선도 하루 밀렸다")
+        # 그림은 다른 날 것이라 안 그린다 — 숫자와 그림이 다른 날을 말하면 안 된다.
+        self.assertEqual([], points, "다른 날 그림을 그렸다")
+
+    def test_a_matching_minute_frame_still_draws_the_picture(self):
+        points, price, prev, change = j3._card_session_values(
+            self.daily, self._minutes("2026-08-28", 111.0, 119.5))
+        self.assertEqual(120.0, price)
+        self.assertEqual(110.0, prev)
+        self.assertTrue(points, "날이 맞는데 그림이 없다")
+        # 그림의 마지막 점은 그 장의 정식 종가로 맞춘다(1분봉은 동시호가가 빠진다).
+        self.assertEqual(120.0, points[-1])
+
+    def test_an_empty_minute_frame_still_shows_the_close(self):
+        """주말에는 1분봉이 빈손으로 오기도 한다. 그래도 값은 나와야 한다."""
+        points, price, prev, change = j3._card_session_values(self.daily, pd.DataFrame())
+        self.assertEqual(120.0, price)
+        self.assertEqual(110.0, prev)
+        self.assertEqual([], points)
+
+    def test_the_day_comes_from_the_daily_bars(self):
+        """날을 정하는 자리가 일봉이어야 한다 — 1분봉이 정하면 또 하루가 밀린다."""
+        source = pathlib.Path("jarvis3_data.py").read_text(encoding="utf-8")
+        body = source[source.index("def _card_session_values("):]
+        body = body[:body.index(chr(10) + "def ", 10)]
+        self.assertIn("session_day = dates[-1]", body, "일봉이 날을 안 정한다")
+        # 1분봉이 날을 **덮어쓰면** 안 된다.
+        self.assertNotIn("session_day = in_hours[-1].date()", body)
+
