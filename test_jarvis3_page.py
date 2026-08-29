@@ -2295,16 +2295,26 @@ def test_switching_screens_goes_back_to_the_top():
     위 여백 10px, 두 단추 다 보인다.
     """
     source = PAGE.read_text(encoding="utf-8")
+    # ── 맨 위로 올리는 일은 **단추가 아니라 한 곳에서** 한다 (2026-08-29) ──────
+    # 2026-08-27에는 단추마다 `scroll_to.request` 를 넣어 두었다. 그런데 적어 둔
+    # 표시는 그 판의 **맨 끝**에서 쓰인다. 시장분석은 20개 테마 자료를 받느라
+    # 끝까지 그리는 데 몇 초가 걸리고, 그동안 상하님은 이미 내려 보고 계셨다.
+    # 마지막에 표시가 쓰이면서 그 손을 뿌리치고 맨 위로 끌어올렸다
+    # (상하님 — "20개 테마 실시간 순위 이 부분을 로딩하면서 또다시 맨 위 화면으로
+    #  올라가버린다").
+    # 이제 화면이 바뀐 것을 본 자리에서 **바로**(scroll_to.now) 올린다.
+    # 단추는 화면 이름만 정하고 물러난다.
     nav = source[source.index("def _render_briefing_bottom_nav("):]
     nav = nav[:nav.index(chr(10) + "def ", 10)]
-    assert nav.count('scroll_to.request(st, "top")') == 2, "화면을 바꿔도 맨 위로 안 간다"
-    # **시장분석으로 가는 길이 둘이다.** 하단 막대와 「더보기 ›」다. 둘 다 맨 위로
-    # 올려야 한다 — 2026-08-27에 「더보기」 쪽을 빠뜨려 상하님이 맨 위 두 단추를
-    # 못 보셨다. 「더보기」는 화면을 내려야 보이는 자리라 그 자리를 그대로 들고 간다.
+    assert 'scroll_to.request(st, "top")' not in nav, "단추가 아직 표시를 적어 둔다"
+    assert nav.count('_set_briefing_page(') == 3, "세 단추가 화면 이름을 안 정한다"
+    # **시장분석으로 가는 길이 둘이다.** 하단 막대와 「더보기 ›」다. 둘 다 같은
+    # 한 곳을 지나므로 빠뜨릴 수가 없다 — 2026-08-27에 「더보기」 쪽을 빠뜨려
+    # 상하님이 맨 위 두 단추를 못 보셨다.
     home = source[source.index("def _render_stock_briefing()"):source.index("def main()")]
     more = home[home.index('key="j3b_go_market"'):]
     more = more[:more.index("st.rerun()")]
-    assert 'scroll_to.request(st, "top")' in more, "「더보기」로 가면 맨 위로 안 간다"
+    assert '_set_briefing_page("market")' in more, "「더보기」가 화면을 안 바꾼다"
     # 양쪽 화면에 '맨 위' 자리가 있어야 데려갈 곳이 있다.
     assert source.count('scroll_to.anchor(st, "top")') == 2, "'맨 위' 자리가 한쪽에만 있다"
     # ── 위 여백을 68px 에서 0 으로 되돌린 까닭 (2026-08-28) ──────────────────
@@ -2391,4 +2401,87 @@ def test_any_route_into_a_screen_scrolls_to_the_top():
     home = source[source.index("def _render_stock_briefing()"):]
     home = home[:home.index('if page == "market":')]
     assert 'st.session_state.get("j3b_last_page") != page' in home, "화면이 바뀐 것을 안 본다"
-    assert 'scroll_to.request(st, "top")' in home, "맨 위로 안 올린다"
+    # **적어 두지 않고 바로 올린다** (2026-08-29). 적어 두면 판 끝에서 쓰이는데,
+    # 시장분석은 끝까지 그리는 데 몇 초가 걸려 그동안 내려 보시던 화면을 뿌리쳤다.
+    assert 'scroll_to.now(st, "top")' in home, "맨 위로 안 올린다"
+    assert 'scroll_to.request(st, "top")' not in home, "판 끝까지 미루면 또 뿌리친다"
+
+
+def test_the_market_screen_also_holds_the_back_button():
+    """시장분석에서도 뒤로가기가 **앱 밖으로 안 나간다** (2026-08-29 상하님 지시).
+
+    상하님 — "미국테마에서 관심종목에서 뒤로 가기 버튼을 시장분석에서도
+    적용시켜라. 모르고 습관적으로 자꾸 누르게 되는데 캡처 화면으로 자꾸
+    돌아간다."
+
+    여태 `back_nav` 표식은 관심종목 화면에만 있었다. 그래서 시장분석에서 처음
+    뒤로가기를 누르면 방문기록에 지울 표식이 없어 곧장 「어디로 갈까요」 화면으로
+    빠져나갔다.
+
+    **열쇠는 관심종목과 같은 것**을 쓴다(j3b_backstop). 열쇠가 같으면 표식도
+    한 칸만 쌓이므로, 몇 번을 눌러야 나가는지가 두 화면에서 어긋나지 않는다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    body = source[source.index("def _render_stock_briefing()"):source.index("def main()")]
+    market = body[body.index('if page == "market":'):]
+    market = market[:market.index("return")]
+    assert 'back_nav.opened(st, "j3b_backstop")' in market, "시장분석에 표식이 없다"
+    # 관심종목 쪽에도 그대로 있어야 한다 — 한쪽만 고치면 다른 쪽이 열린다.
+    assert body.count('back_nav.opened(st, "j3b_backstop")') == 2
+
+
+def test_the_screen_you_were_on_is_written_into_the_address():
+    """폰이 화면을 버렸다 다시 열어도 **보시던 화면**으로 온다 (2026-08-29).
+
+    상하님 — "스마트폰에서 멀티스크린, 즉 다른 화면 예를 들면 네이버 화면 잠깐
+    보고 돌아오면 또 리셋되며 로딩시간이 걸린다. 그리고 시장분석 보고 있다가
+    다른 화면 갔다가 다시 오면 관심종목으로 가버린다."
+
+    폰은 다른 앱으로 넘어가면 뒷화면을 메모리에서 버린다. 돌아오면 브라우저가
+    그 주소를 처음부터 다시 여는데, 그때 세션 기억(st.session_state)은 통째로
+    빈다 — 어느 화면을 보고 있었는지도 같이 사라졌다.
+
+    주소는 안 사라진다. 그래서 화면 이름을 주소 끝에 적어 둔다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    reader = source[source.index("def _briefing_page()"):source.index("def _set_briefing_page(")]
+    # 주소를 **먼저** 본다 — 세션 기억보다 앞이어야 다시 연 판에서 살아난다.
+    assert "st.query_params.get(_BRIEFING_PAGE_PARAM)" in reader
+    assert reader.index("query_params") < reader.index('st.session_state.get("j3_briefing_page")')
+    # 주소를 못 읽어도 화면이 막히면 안 된다(CLAUDE.md 13번과 같은 원칙).
+    assert "except Exception:" in reader
+
+    writer = source[source.index("def _set_briefing_page("):]
+    writer = writer[:writer.index(chr(10) + "def ", 10)]
+    assert "st.query_params[_BRIEFING_PAGE_PARAM] = page" in writer
+    # 같은 값을 또 적으면 방문기록만 한 칸 더 쌓여 뒤로가기가 헛돈다.
+    assert "!= page" in writer
+    assert "except Exception:" in writer
+
+    # 화면을 바꾸는 길 **셋 다** 이 한 곳을 지나야 빠뜨릴 수가 없다
+    # (하단 막대 홈·관심종목·시장분석 + 「더보기 ›」).
+    assert source.count("_set_briefing_page(") >= 5
+    assert 'st.session_state["j3_briefing_page"] = "market"' not in source, \
+        "주소를 안 거치고 화면을 바꾸는 길이 남아 있다"
+
+
+def test_the_breakout_score_help_can_be_closed_on_a_phone():
+    """「자세히」 창에 **닫기가 있어야 한다** (2026-08-29 상하님 지적).
+
+    상하님 — "상승장 신고가 눌림 전용배점 밑에 심사항목 옆에 자세히 클릭하면
+    설명문이 내려오는데 설명문에 닫기 버튼이 없어졌다."
+
+    폰·태블릿(≤1200px)에서는 창 **바닥**의 닫기를 숨긴다 — 하단 이동막대에 가려
+    누를 수가 없어 2026-08-26에 그렇게 막았다. 그때 맨 위 닫기를 급락·일반 테마
+    표에는 넣었는데 **이 표에만 안 넣어서**, 폰에서 이 창만 닫을 자리가 하나도
+    없었다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    swing = source[source.index("def _swing_factor_table_html("):]
+    swing = swing[:swing.index(chr(10) + "def ", 10)]
+    assert "_factor_help_close(key)" in swing, "폰에서 닫을 자리가 없다"
+    # 맨 위 닫기는 창이 열리자마자 손가락이 닿는 자리 — 글보다 **앞**이어야 한다.
+    assert swing.index("_factor_help_close(key)") < swing.index("{head}")
+    # 노트북에서 쓰는 바닥 닫기는 그대로 둔다 — 거기서는 위 것이 안 보인다.
+    assert "j3fh-x j3fh-x-breakout" in swing
+

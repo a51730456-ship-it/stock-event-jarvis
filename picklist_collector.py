@@ -76,6 +76,24 @@ def _last_closed_session(market: str) -> str:
     return day.isoformat()
 
 
+def _skipped(market: str, trade_date: str) -> dict:
+    """장이 안 열린 날 — 찍을 것이 없다. **이것은 실패가 아니다.**
+
+    2026-08-29 상하님 지적 — "저장해 둔 목록 자꾸 문제 생긴다."
+    까닭 하나가 여기였다. 건너뛴 판이 돌려주던 요약에 `rows` 칸이 없어서
+    `main()`이 `summary["rows"]`를 읽다가 **KeyError로 죽었다**. 그래서
+    토요일에 밀려 뜬 한국 몫 두 판이 통째로 빨갛게 떴다(실행 33203643713·
+    33218787536). 자료는 멀쩡한데 작업만 실패로 보이면, 진짜 실패한 날을
+    가려낼 수가 없다.
+
+    칸을 성공한 판과 **같은 모양**으로 맞추고, `skipped` 를 남겨 부르는 쪽이
+    '못 찍은 것'과 '찍을 것이 없던 것'을 가르게 한다.
+    """
+    return {"ok": True, "skipped": "휴장일", "market": market,
+            "trade_date": trade_date, "path": "", "rows": 0,
+            "counts": {}, "errors": [], "buy_opens_filled": {}}
+
+
 def collect_market(market: str, *, out_dir=None, limit: int = 20,
                    trade_date: str | None = None, force: bool = False) -> dict:
     """한 시장의 네 갈래를 찍어 저장한다. 결과 요약(dict)을 돌려준다.
@@ -102,9 +120,7 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20,
     # 휴장일은 picklist_store.us_market_holidays가 규칙으로 센다.
     if market == "US" and not store.us_market_is_open(datetime.fromisoformat(trade_date).date()):
         _log(f"US {trade_date} — 미국 증시가 쉬는 날이라 찍지 않습니다")
-        return {"ok": True, "skipped": "휴장일",
-                "market": market, "trade_date": trade_date, "path": "",
-                "counts": {}, "errors": []}
+        return _skipped(market, trade_date)
     # **한국도 휴장일에는 안 찍는다**(2026-08-19 저녁). 설·추석이 음력이라 달력을
     # 못 만드니 **코스피 일봉에 오늘 봉이 있나**로 가린다. 조회가 안 되면(None)
     # 막지 않는다 — 인터넷이 잠깐 끊겼다고 그날 목록이 통째로 비면 안 된다.
@@ -112,9 +128,7 @@ def collect_market(market: str, *, out_dir=None, limit: int = 20,
         traded = getattr(data, "kr_market_traded_today", lambda: None)()
         if traded is False:
             _log(f"KR {trade_date} — 한국 증시가 쉬는 날이라 찍지 않습니다")
-            return {"ok": True, "skipped": "휴장일",
-                    "market": market, "trade_date": trade_date, "path": "",
-                    "counts": {}, "errors": []}
+            return _skipped(market, trade_date)
     saved_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
     collected: list[dict] = []
     errors: list[str] = []
@@ -286,7 +300,10 @@ def main(argv=None) -> int:
             traceback.print_exc()
             failed += 1
             continue
-        if not summary["rows"]:
+        if summary.get("skipped"):
+            # 장이 안 열린 날이다. 찍을 것이 없는 것이 **정상**이라 실패로 안 센다.
+            continue
+        if not summary.get("rows"):
             failed += 1
     # 한 갈래도 못 찍었으면 실패로 알린다 — 클라우드 작업이 빨갛게 뜨는 편이
     # 조용히 빈 날이 쌓이는 것보다 낫다.
