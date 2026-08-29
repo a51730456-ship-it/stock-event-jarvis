@@ -137,10 +137,25 @@ class CollectorWiringTests(unittest.TestCase):
         self.assertIn('_run("theme15"', collector, "theme15 갈래로 안 남긴다")
 
     def test_the_main_screen_does_not_show_it(self):
-        """본 화면에는 이 구역이 없어야 한다 — 저장 목록 전용이다."""
+        """본 화면에는 이 구역이 **안 보여야** 한다 — 저장 목록 전용이다.
+
+        **다만 저장은 화면도 한다**(2026-08-29 상하님 지적 — "08-28일자에 상위
+        테마 5개 각 종목 1~3위 15종목 리스트가 왜 또 빠지냐!").
+        여태 수집기만 이 갈래를 남겼는데, 깃허브가 예약을 몇 시간씩 미루는 날에는
+        화면 자동 저장만 걸려서 이 갈래가 통째로 빠졌다(8/26 · 8/28).
+        그래서 화면도 **보이지 않게 남기기만** 한다 — 구역은 여전히 없다.
+        """
         page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
         self.assertNotIn("_render_theme_top15", page, "본 화면에 구역이 남아 있다")
-        self.assertNotIn("find_theme_top_picks", page, "본 화면이 이 목록을 만든다")
+        # 부르는 자리는 **저장 도우미 한 곳뿐**이어야 한다. 그리기 쪽에서 부르면
+        # 화면에 구역이 생기거나, 매 판 대장주 다섯 판을 조회하게 된다.
+        self.assertEqual(1, page.count("find_theme_top_picks("),
+                         "본 화면이 이 목록을 두 곳 이상에서 만든다")
+        helper = page[page.index("def _autosave_theme15()"):]
+        helper = helper[:helper.index(chr(10) + "def ", 10)]
+        self.assertIn("find_theme_top_picks(", helper, "저장 도우미 밖에서 만든다")
+        self.assertNotIn("st.markdown", helper, "저장 도우미가 화면에 무엇을 그린다")
+        self.assertNotIn("st.dataframe", helper)
 
     def test_the_saved_list_shows_it_for_the_united_states(self):
         ui = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")

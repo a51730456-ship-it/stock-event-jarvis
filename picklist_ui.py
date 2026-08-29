@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026081944
+MODULE_REVISION = 2026082910
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -595,6 +595,34 @@ def _kr_market_open_today() -> bool:
     except Exception:
         return True
     return True if traded is None else bool(traded)
+
+
+def needs_autosave(market: str, list_kind: str) -> bool:
+    """오늘 이 갈래를 아직 안 남겼나 — **무거운 계산을 하기 전에** 물어본다.
+
+    2026-08-29 상하님 지적 — *"08-28일자에 상위 테마 5개 각 종목 1~3위 15종목
+    리스트가 왜 또 빠지냐!"*
+
+    `autosave` 는 결과를 **먼저 만들어** 넘겨야 한다. 그런데 「상위 테마 5개」는
+    만드는 데 대장주 조회 다섯 판이 든다. 그것을 매 판 부르면 화면이 그만큼
+    느려진다(CLAUDE.md 0-0 — 새로 넣는 것이 무엇을 밀어내는지 먼저 잰다).
+    그래서 먼저 물어보고, **남길 때만 만든다.** 하루에 딱 한 번이다.
+
+    **판단 규칙은 `autosave` 와 똑같다.** 한쪽만 고치면 물어본 답과 실제 저장이
+    조용히 갈라진다. 무슨 일이 있어도 화면을 죽이지 않는다(조용한 실패) —
+    못 물어보면 False 를 줘서 아무것도 안 만들게 한다.
+    """
+    try:
+        if not store.should_save(list_kind, market):
+            return False
+        if not store.session_is_over(market):
+            return False
+        if str(market).upper() == "KR" and not _kr_market_open_today():
+            return False
+        trade_date = store.trade_date_for(market)
+        return list_kind not in store.saved_kinds(trade_date, market)
+    except Exception:
+        return False
 
 
 def autosave(market: str, list_kind: str, result) -> None:

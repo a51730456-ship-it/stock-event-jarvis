@@ -1219,8 +1219,13 @@ if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVIS
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
-_REQUIRED_PICKLIST_REVISION = 2026081944
-if int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION:
+_REQUIRED_PICKLIST_REVISION = 2026082910
+if (
+    # 2026-08-29 「상위 테마 5개」를 화면에서도 남기는 데 쓴다. 옛 모듈이면
+    # 이 이름이 없어 그 갈래가 또 통째로 빠진다.
+    not hasattr(picklist_ui, "needs_autosave")
+    or int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION
+):
     picklist_ui = importlib.reload(picklist_ui)
 
 import scroll_to
@@ -7289,6 +7294,40 @@ def _render_method_tab() -> None:
     )
 
 
+def _autosave_theme15() -> None:
+    """저장해 둔 목록의 「상위 테마 5개 · 각 종목 1~3위」를 **화면에서도** 남긴다.
+
+    2026-08-29 상하님 지적 — *"08-28일자에 상위 테마 5개 각 종목 1~3위 15종목
+    리스트가 왜 또 빠지냐!"*
+
+    **까닭은 화면에 저장하는 자리가 아예 없었기 때문이다.** 2026-08-15에 이 갈래를
+    만들 때 클라우드 수집기(picklist_collector)에만 넣고 화면 쪽 보조 저장에는
+    안 넣었다. 화면의 `autosave` 는 순위 9와 상승장·급락 셋뿐이었다.
+    그래서 **깃허브 예약이 제때 뜬 날에만** 15줄이 들어가고, 예약이 밀려 화면
+    자동 저장만 걸린 날에는 이 갈래가 통째로 빠졌다 — 8/26과 8/28이 그랬다.
+
+    **저장할 때만 만든다.** 이 목록을 만드는 데는 대장주 조회 다섯 판이 든다.
+    매 판 부르면 화면이 그만큼 느려진다(CLAUDE.md 0-0). 그래서 먼저
+    `needs_autosave` 로 물어보고 남길 때만 만든다 — 장이 끝난 뒤 하루에 한 번이다.
+
+    **수집기가 부르는 함수를 같은 인자로 부른다**(CLAUDE.md 10-1). 여기에 고르는
+    계산을 따로 쓰면 저장된 목록이 수집기가 찍은 것과 조용히 갈라진다.
+
+    실패해도 조용히 넘어간다 — 이것 때문에 화면이 죽으면 안 된다.
+    """
+    try:
+        if not picklist_ui.needs_autosave("US", "theme15"):
+            return
+        rows = list((st.session_state.get("j3_theme_rankings") or {}).get("rows") or [])
+        if not rows:
+            return           # 테마 자료를 못 받은 판이다. 다음 판에 다시 본다.
+        overview = st.session_state.get("j3_market_overview") or {}
+        picklist_ui.autosave("US", "theme15", j3data.find_theme_top_picks(
+            rows, market_score=float(overview.get("score") or 0)))
+    except Exception:
+        pass
+
+
 def _render_existing_theme_content() -> None:
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
@@ -7504,6 +7543,9 @@ def _render_existing_theme_content() -> None:
     # 폰에서 화면만 먹던 상단 '테마·종목 / 매수 기록 / 판정 기준' 선택줄은
     # 보이지 않고 미국테마 본화면을 바로 그린다.
     _render_radar_tab(market)
+    # 저장해 둔 목록의 「상위 테마 5개」를 아직 안 남겼으면 여기서 남긴다.
+    # **화면을 다 그린 뒤**다 — 앞에 두면 보실 것이 그만큼 밀린다.
+    _autosave_theme15()
 
 
 def _briefing_secret(name: str) -> str:

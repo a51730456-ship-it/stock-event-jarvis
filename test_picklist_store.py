@@ -626,3 +626,66 @@ class HolidayRunIsNotAFailureTests(unittest.TestCase):
         with patch.object(collector, "collect_market", return_value=empty):
             self.assertEqual(1, collector.main(["--market", "US"]))
 
+
+class Theme15IsSavedByTheScreenTooTests(unittest.TestCase):
+    """「상위 테마 5개 · 각 종목 1~3위」가 화면에서도 남아야 한다 (2026-08-29).
+
+    상하님 — *"08-28일자에 상위 테마 5개 각 종목 1~3위 15종목 리스트가 왜 또
+    빠지냐!"*
+
+    2026-08-15에 이 갈래를 만들 때 **클라우드 수집기에만** 넣고 화면 쪽 보조
+    저장에는 안 넣었다. 그래서 깃허브 예약이 제때 뜬 날에만 15줄이 들어가고,
+    예약이 밀려 화면 자동 저장만 걸린 날에는 통째로 빠졌다(8/26 · 8/28).
+    """
+
+    PAGE = pathlib.Path("pages/2_자비스3.py")
+
+    def test_the_screen_saves_theme15(self):
+        source = self.PAGE.read_text(encoding="utf-8")
+        self.assertIn('picklist_ui.autosave("US", "theme15"', source,
+                      "화면이 이 갈래를 안 남긴다")
+        # **수집기가 부르는 함수를 같은 인자로 부른다**(CLAUDE.md 10-1).
+        # 여기에 고르는 계산을 따로 쓰면 저장 목록이 조용히 갈라진다.
+        helper = source[source.index("def _autosave_theme15()"):]
+        helper = helper[:helper.index(chr(10) + "def ", 10)]
+        self.assertIn("j3data.find_theme_top_picks(", helper)
+        collector = pathlib.Path("picklist_collector.py").read_text(encoding="utf-8")
+        self.assertIn("find_theme_top_picks(", collector)
+        # **남길 때만 만든다** — 매 판 만들면 화면이 그만큼 느려진다(0-0).
+        self.assertIn('picklist_ui.needs_autosave("US", "theme15")', helper)
+        self.assertLess(helper.index("needs_autosave"),
+                        helper.index("find_theme_top_picks"),
+                        "물어보기 전에 만들면 매 판 대장주 다섯 판을 조회한다")
+        # 화면을 **다 그린 뒤**에 부른다 — 앞에 두면 보실 것이 밀린다.
+        body = source[source.index("def _render_existing_theme_content()"):]
+        body = body[:body.index(chr(10) + "def ", 10)]
+        self.assertLess(body.index("_render_radar_tab(market)"),
+                        body.index("_autosave_theme15()"))
+
+    def test_needs_autosave_agrees_with_autosave(self):
+        """물어본 답과 실제 저장이 갈라지면 안 된다."""
+        import picklist_ui
+
+        # 미국 화면에 없는 갈래는 물어볼 것도 없다.
+        self.assertFalse(picklist_ui.needs_autosave("US", "pullback"))
+        # 한국 화면에 없는 갈래도 마찬가지다.
+        self.assertFalse(picklist_ui.needs_autosave("KR", "theme15"))
+        # 장이 안 끝났으면 안 남긴다 — 토요일 뉴욕 정오.
+        with patch.object(store, "session_is_over", return_value=False):
+            self.assertFalse(picklist_ui.needs_autosave("US", "theme15"))
+        # 장이 끝났고 그날 것이 아직 없으면 남긴다.
+        with patch.object(store, "session_is_over", return_value=True), \
+                patch.object(store, "saved_kinds", return_value=set()):
+            self.assertTrue(picklist_ui.needs_autosave("US", "theme15"))
+        # 이미 남아 있으면 다시 안 남긴다 — 장중에 눌러 본 값이 마감값을 덮으면 안 된다.
+        with patch.object(store, "session_is_over", return_value=True), \
+                patch.object(store, "saved_kinds", return_value={"theme15"}):
+            self.assertFalse(picklist_ui.needs_autosave("US", "theme15"))
+
+    def test_it_never_raises(self):
+        """못 물어보면 False — 화면이 이것 때문에 죽으면 안 된다."""
+        import picklist_ui
+
+        with patch.object(store, "session_is_over", side_effect=RuntimeError("고장")):
+            self.assertFalse(picklist_ui.needs_autosave("US", "theme15"))
+
