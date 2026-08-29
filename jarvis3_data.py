@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082861
+MODULE_REVISION = 2026082920
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4137,6 +4137,97 @@ def _memo_ok(key: str, ttl_seconds: float, produce):
     return value
 
 
+def _finder_memo_key(name: str) -> str:
+    """순위 9와 단추가 **같은 기억**을 보게 하는 열쇠. 한 곳에서 만든다.
+
+    두 곳이 열쇠를 따로 적어 두면 한쪽을 고칠 때 조용히 갈라져, 같은 계산을
+    두 번 하게 된다 — 2026-08-29까지 실제로 그랬다(breakout_scan 설명 참고).
+    """
+    return f"top_finder:{name}"
+
+
+def breakout_scan(*, persist: bool = True) -> dict:
+    """상승장(신고가 눌림매수) 한 벌. **방금 만든 것이 있으면 그것을 준다.**
+
+    2026-08-29 상하님 지적(어제부터 다섯 번째) — *"상승장 신고가 눌림매수 첫
+    클릭하면 로딩 너무 오래 걸린다."*
+
+    **까닭은 같은 계산을 두 번 한 것이었다.** 이 결과는 순위 9
+    (`collect_top_picks`)가 이미 만들어 `top_finder:상승장` 으로 5분간 기억해
+    둔다. 그런데 **단추는 그 기억을 안 보고** `find_breakout_pullback_stocks`
+    를 직접 불러 200종목을 처음부터 다시 훑었다. 뒤에서 미리 만들어 둔 판이
+    있어도 아무 소용이 없었다.
+
+    이제 단추도 같은 기억을 본다. 5분 안에 순위 9가 돌았거나 `warm_top_picks`
+    가 미리 만들어 뒀으면 첫 클릭이 **그 자리에서** 끝난다. 없으면 예전처럼
+    그때 찾는다 — 늦어지는 일은 없다.
+
+    **적어 두는 일(persist)은 기억을 썼든 안 썼든 한다.** 같은 것을 두 번 적지는
+    않는다(`_SWING_SAVED` 가 막는다). 그래서 기억을 쓴 판에서도 그날 스냅숏이
+    빠지지 않는다.
+    """
+    scan = _memo_ok(_finder_memo_key("상승장"), TOP_PICK_MEMO_SECONDS,
+                    find_breakout_pullback_stocks)
+    if persist and isinstance(scan, dict) and scan.get("ok"):
+        try:
+            _save_swing_scan_in_background(scan)
+        except Exception as exc:      # 적기에 실패해도 화면에 줄 목록은 그대로다
+            _log.warning("swing snapshot save failed: %s", exc)
+    return scan
+
+
+_BREAKOUT_WARM = {"at": 0.0, "on": False}
+_BREAKOUT_WARM_LOCK = threading.Lock()
+
+
+def warm_breakout_scan() -> None:
+    """상승장 한 벌을 **이미 받아 둔 자료만으로** 미리 만들어 둔다 (2026-08-29).
+
+    상하님 — "상승장 신고가 눌림매수 첫 클릭하면 로딩 너무 오래 걸린다."
+
+    **네트워크를 한 번도 안 쓴다**(`reuse_only=True`). 시장분석 화면을 그리는
+    동안 200종목 2년치와 나스닥 이력은 이미 받아서 공책에 들어 있다. 그것만
+    다시 읽어 **계산만** 해 둔다. 공책에 없으면(창이 지났거나 조회가 막혔거나)
+    그 자리에서 빈손으로 돌아간다 — 그때는 예전처럼 단추가 그때 받는다.
+
+    **`warm_top_picks` 를 쓰지 않는다.** 그것은 21개 테마의 대장주를 전부
+    조회하므로 훨씬 무겁다. 상하님이 말씀하신 것은 상승장 첫 클릭 하나이므로
+    그것만 데운다(CLAUDE.md 0-0 — 새로 넣는 것이 무엇을 밀어내는지 먼저 잰다).
+    실제로 2026-08-29에 warm_top_picks 를 여기 걸었다가 화면 시험 다섯이
+    조회를 기다리다 시간 초과로 깨졌다.
+
+    5분에 한 번만 돈다. 뒤 일꾼이 하므로 화면은 안 기다린다.
+    """
+    now = time.time()
+    with _BREAKOUT_WARM_LOCK:
+        if _BREAKOUT_WARM["on"]:
+            return
+        if now - _BREAKOUT_WARM["at"] < TOP_PICK_MEMO_SECONDS:
+            return                      # 방금 해 뒀다. 또 하지 않는다.
+        _BREAKOUT_WARM["on"] = True
+
+    def _run() -> None:
+        try:
+            scan = _memo_ok(
+                _finder_memo_key("상승장"), TOP_PICK_MEMO_SECONDS,
+                lambda: find_breakout_pullback_stocks(reuse_only=True))
+            if isinstance(scan, dict) and scan.get("ok"):
+                with _BREAKOUT_WARM_LOCK:
+                    _BREAKOUT_WARM["at"] = time.time()
+        except Exception as exc:
+            _log.warning("breakout warm-up failed: %s", exc)
+        finally:
+            with _BREAKOUT_WARM_LOCK:
+                _BREAKOUT_WARM["on"] = False
+
+    try:
+        threading.Thread(target=_run, name="breakout-warm", daemon=True).start()
+    except Exception as exc:
+        _log.warning("breakout warm-up thread failed: %s", exc)
+        with _BREAKOUT_WARM_LOCK:
+            _BREAKOUT_WARM["on"] = False
+
+
 def _theme_rows_mark(theme_rows, market_score) -> str:
     """테마 줄이 그대로인지 알아보는 표식. 하나라도 바뀌면 새로 계산한다."""
     parts = [f"{row.get('name')}:{round(float(row.get('score') or 0), 4)}"
@@ -4173,7 +4264,7 @@ def collect_top_picks(theme_rows, *, market_score: float = 0,
         part = given
         if not (isinstance(part, dict) and part.get("ok")):
             try:
-                part = _memo_ok(f"top_finder:{name}", TOP_PICK_MEMO_SECONDS, finder)
+                part = _memo_ok(_finder_memo_key(name), TOP_PICK_MEMO_SECONDS, finder)
             except Exception as exc:
                 errors.append(f"{name}: {exc}")
                 part = {}

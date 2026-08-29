@@ -223,6 +223,20 @@ def _open_all_details(app):
 
 
 class Jarvis3PageTests(unittest.TestCase):
+    def setUp(self):
+        """시험끼리 **기억을 물려주지 않게** 비운다 (2026-08-29).
+
+        2026-08-29부터 상승장 단추가 순위 9와 같은 기억(`top_finder:상승장`)을
+        본다. 그 기억은 모듈에 붙어 있어 시험이 끝나도 남는다. 그래서 앞 시험이
+        넣어 둔 가짜 결과를 뒷 시험이 그대로 받아, 제 몫의 가짜를 넣어 두고도
+        엉뚱한 줄을 보게 된다.
+        """
+        import jarvis3_data
+
+        jarvis3_data.clear_runtime_cache()
+        jarvis3_data._BREAKOUT_WARM["at"] = 0.0
+        jarvis3_data._BREAKOUT_WARM["on"] = False
+
     def test_guest_hides_only_private_score_panels_but_keeps_stock_detail(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
@@ -390,9 +404,13 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(
             [node for node in app.button if str(node.key or "").startswith("j3_quick_buy_")],
             "지금 값으로 바로 저장 단추가 없다")
-        # 저장해 둔 목록 **맨 위**에 매수 기록 자리가 있어야 한다(같은 지시).
-        self.assertTrue(any("내가 저장한 매수 기록" in value for value in markdowns),
-                        "저장해 둔 목록 맨 위에 매수 기록이 없다")
+        # **맨 위 「내가 저장한 매수 기록」 표는 뺐다** (2026-08-29 상하님 지시 —
+        # "위에 캡처 화면은 날려라. 내가 저장하는 게 없잖아, 자동 저장되니").
+        # 그 표는 「지금 값으로 바로 저장」을 누르셨을 때만 쌓이는데, 목록이
+        # 장 마감 뒤 저절로 저장되므로 누를 일이 없어 화면만 먹고 있었다.
+        # 기록 자체는 DB에 그대로 있다 — 단추도 위에서 그대로 확인한다.
+        self.assertFalse(any("내가 저장한 매수 기록" in value for value in markdowns),
+                         "맨 위 매수 기록 표가 아직 남아 있다")
         # 스마트폰 화면을 길게 만들던 오늘 1~5위 안내문은 표시하지 않는다.
         top5 = next((value for value in markdowns
                      if "class='j3-theme-top5'" in value), "")
@@ -783,13 +801,29 @@ class Jarvis3PageTests(unittest.TestCase):
             box = next(
                 node for node in app.text_input if str(node.key or "") == "j3_my_stock_query"
             )
-            box.set_value("엔비디아").run(timeout=60)
+            # **「🔎 검색」을 눌러야 찾는다** (2026-08-21 상하님 지시로 단추가 생겼다 —
+            # "종목이름 치고 검색 누르는 단추가 없다"). 검색은 st.form 안에 있어서
+            # 글자만 넣으면 아무 일도 안 일어난다.
+            #
+            # 2026-08-29 까지 이 시험은 글자만 넣고 눌지 않았다. 그런데도 통과한
+            # 까닭은 아래에서 찾던 'NVIDIA' 가 **검색 결과가 아니라 저장해 둔 목록
+            # 맨 위의 매수 기록 표**(_sample_trades 의 stock_name)에서 나왔기
+            # 때문이다. 그 표를 상하님 지시로 없애자 드러났다 —
+            # 이 시험은 여태 검색을 한 번도 안 눌러 본 것이다.
+            box.set_value("엔비디아")
+            search = next(node for node in app.button if "검색" in str(node.label))
+            search.click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
         blob = "".join(str(node.value) for node in app.markdown)
         self.assertIn("종목검색 (검색종목 세부사항 보기)", blob)
         self.assertNotIn("한글로 쳐도 됩니다", blob)
-        self.assertIn("NVIDIA", blob)
+        # 찾은 종목은 **고르는 줄**로 나온다 — 이름은 그 선택지에 적힌다.
+        picks = next(node for node in app.radio if str(node.label) == "찾은 종목")
+        self.assertIn("NVIDIA Corp (NVDA)", [str(option) for option in picks.options],
+                      "검색 결과에 찾은 종목이 안 뜬다")
+        self.assertNotIn("내가 저장한 매수 기록", blob,
+                         "맨 위 매수 기록 표가 아직 남아 있다")
 
     def test_korean_aliases_cover_the_common_names(self):
         """'영어로만 쳐야 하나'에 대한 답 — 널리 쓰는 한글 이름은 티커로 이어 준다."""
@@ -2515,4 +2549,31 @@ def test_the_big_card_can_be_closed_from_the_bottom_too():
 
     # 누르는 방식은 위 것과 같다 — 큰 판이 손가락을 안 받아야 바탕까지 내려가 닫힌다.
     assert ".j3b-open-card{pointer-events:none}" in source
+
+
+def test_the_saved_list_goes_straight_to_the_date_picker():
+    """저장해 둔 목록은 **바로 날짜 고르기**로 간다 (2026-08-29 상하님 지시).
+
+    상하님 — "위에 캡처 화면은 날려라. 내가 저장하는 게 없잖아, 자동 저장되니.
+    「어느 날 목록을 볼까요」 바로 위에까지 잘라라."
+
+    구역을 펴면 맨 위에 ① 「내가 저장한 매수 기록」 표와 ② 네 줄짜리 설명이
+    있었다. 폰에서 그 둘이 화면 한 장을 통째로 먹어, 날짜를 고르려면 매번
+    그만큼 굴려 내려와야 했다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    call = source[source.index('picklist_ui.render(st, "US"'):]
+    call = call[:call.index(")") + 1]
+    assert "header=" not in call, "맨 위 매수 기록 표를 아직 넘긴다"
+
+    ui = (ROOT / "picklist_ui.py").read_text(encoding="utf-8")
+    body = ui[ui.index("def render(st, market"):]
+    body = body[:body.index(chr(10) + "def ", 10)]
+    # 구역을 펴고 **날짜를 묻기 전까지** 그리는 것이 없어야 한다.
+    # (날짜 **아래**의 안내 두 줄은 표를 읽는 데 필요하므로 그대로 둔다.)
+    opened = body[body.index("close_label=\"저장해 둔 목록 닫기\""):]
+    before_date = opened[:opened.index("어느 날 목록을 볼까요")]
+    assert "pl-note" not in before_date, "날짜 고르기 위의 설명이 아직 남아 있다"
+    assert "st.markdown" not in before_date, "날짜를 묻기 전에 무엇을 그린다"
+    assert opened.index("어느 날 목록을 볼까요") < opened.index("load_rows")
 

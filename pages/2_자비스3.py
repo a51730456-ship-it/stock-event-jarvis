@@ -1265,7 +1265,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082861
+_REQUIRED_J3_REVISION = 2026082920
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1284,6 +1284,11 @@ if (
     or not hasattr(j3data, "analyze_one_stock")
     # 2026-07-30 '매수심사결과 높은 순위 7'에서 쓴다.
     or not hasattr(j3data, "find_top_reviewed_stocks")
+    # 2026-08-29 상승장 단추가 순위 9의 기억을 같이 쓰는 데 쓴다. 옛 모듈이면
+    # 이 이름이 없어 단추가 죽는다.
+    or not hasattr(j3data, "breakout_scan")
+    # 2026-08-29 시장분석 화면이 상승장을 미리 데우는 데 쓴다.
+    or not hasattr(j3data, "warm_breakout_scan")
     # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 자비스4에서 실제 발생).
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
@@ -4507,9 +4512,16 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
     _render_my_stock_panel(market)
     # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
     # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
+    # **맨 위 「내가 저장한 매수 기록」 표는 뺐다** (2026-08-29 상하님 지시 —
+    # "위에 캡처 화면은 날려라. 내가 저장하는 게 없잖아, 자동 저장되니.
+    #  「어느 날 목록을 볼까요」 바로 위에까지 잘라라").
+    # 그 표는 상하님이 종목 상세에서 「지금 값으로 바로 저장」을 누르셨을 때만
+    # 쌓이는 줄인데, 목록은 이제 장 마감 뒤 저절로 저장되므로 누를 일이 없다.
+    # 그래서 화면만 먹고 있었다. header 를 안 넘기면 그 자리가 통째로 빈다.
+    # **기록 자체는 안 지운다** — DB(j3store)에 그대로 있고, 되살리려면 여기에
+    # header=_render_saved_trades_header 를 도로 넣으면 된다.
     picklist_ui.render(st, "US", toggle=_section_toggle,
-                       close=_section_close,
-                       header=_render_saved_trades_header)
+                       close=_section_close)
 
 
 def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
@@ -6903,10 +6915,15 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                     st.session_state[f"j3_pullback_kept_{pressed}"]
                 )
             elif pressed == "breakout":
+                # **순위 9가 만들어 둔 것을 그대로 쓴다** (2026-08-29 상하님 —
+                # "상승장 신고가 눌림매수 첫 클릭하면 로딩 너무 오래 걸린다").
+                # 여태 이 단추는 find_breakout_pullback_stocks 를 직접 불러
+                # 200종목을 처음부터 다시 훑었다. 그 결과는 순위 9가 이미 만들어
+                # `top_finder:상승장` 으로 5분간 기억해 두는데도 그것을 안 봤다 —
+                # 같은 판에서 같은 계산을 두 번 한 셈이다. breakout_scan 이
+                # 그 기억을 본다. 없으면 예전처럼 그때 찾으므로 늦어지지 않는다.
                 with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
-                    st.session_state["j3_pullback_result"] = (
-                        j3data.find_breakout_pullback_stocks(persist=True)
-                    )
+                    st.session_state["j3_pullback_result"] = j3data.breakout_scan()
             else:
                 with st.spinner("미국 대형주 200개에서 고점 대비 낙폭이 큰 종목을 찾는 중입니다…"):
                     st.session_state["j3_pullback_result"] = (
@@ -7294,6 +7311,22 @@ def _render_method_tab() -> None:
     )
 
 
+def _warm_finders() -> None:
+    """상승장 한 벌을 뒤에서 미리 만들어 둔다 (2026-08-29 상하님 지시).
+
+    **이미 받아 둔 자료만 쓴다** — 네트워크를 한 번도 안 쓰므로 이 판에서
+    상하님이 기다리실 것을 밀어내지 않는다(jarvis3_data.warm_breakout_scan).
+    옛 모듈이 프로세스에 남아 이 이름이 없어도 화면은 그대로 돈다.
+    """
+    warm = getattr(j3data, "warm_breakout_scan", None)
+    if not callable(warm):
+        return
+    try:
+        warm()
+    except Exception:
+        pass
+
+
 def _autosave_theme15() -> None:
     """저장해 둔 목록의 「상위 테마 5개 · 각 종목 1~3위」를 **화면에서도** 남긴다.
 
@@ -7307,8 +7340,16 @@ def _autosave_theme15() -> None:
     자동 저장만 걸린 날에는 이 갈래가 통째로 빠졌다 — 8/26과 8/28이 그랬다.
 
     **저장할 때만 만든다.** 이 목록을 만드는 데는 대장주 조회 다섯 판이 든다.
-    매 판 부르면 화면이 그만큼 느려진다(CLAUDE.md 0-0). 그래서 먼저
-    `needs_autosave` 로 물어보고 남길 때만 만든다 — 장이 끝난 뒤 하루에 한 번이다.
+    그래서 먼저 `needs_autosave` 로 물어보고 남길 때만 만든다 — 장이 끝난 뒤
+    하루에 한 번이다.
+
+    **그 한 번도 뒤 일꾼에게 맡긴다** (2026-08-29 · CLAUDE.md 0-0).
+    처음에는 화면 그리는 길에 그대로 두었는데, 그러면 그날 딱 한 번이라도
+    상하님이 대장주 조회 다섯 판을 통째로 기다리셔야 한다. 실제로 화면 시험이
+    그 조회를 기다리다 시간 초과로 깨졌다 — 상하님 폰에서는 그것이 '오늘따라
+    시장분석이 안 열린다'로 보인다.
+    **세션에서 읽을 것은 일꾼을 띄우기 전에 다 꺼내 둔다** — 세션 기억은
+    뒤 일꾼이 만지면 안 된다.
 
     **수집기가 부르는 함수를 같은 인자로 부른다**(CLAUDE.md 10-1). 여기에 고르는
     계산을 따로 쓰면 저장된 목록이 수집기가 찍은 것과 조용히 갈라진다.
@@ -7322,8 +7363,19 @@ def _autosave_theme15() -> None:
         if not rows:
             return           # 테마 자료를 못 받은 판이다. 다음 판에 다시 본다.
         overview = st.session_state.get("j3_market_overview") or {}
-        picklist_ui.autosave("US", "theme15", j3data.find_theme_top_picks(
-            rows, market_score=float(overview.get("score") or 0)))
+        score = float(overview.get("score") or 0)
+    except Exception:
+        return
+
+    def _save() -> None:
+        try:
+            picklist_ui.autosave("US", "theme15",
+                                 j3data.find_theme_top_picks(rows, market_score=score))
+        except Exception:
+            pass             # 못 남겨도 화면은 그대로다. 클라우드 수집기가 또 찍는다.
+
+    try:
+        threading.Thread(target=_save, name="theme15-save", daemon=True).start()
     except Exception:
         pass
 
@@ -7546,6 +7598,21 @@ def _render_existing_theme_content() -> None:
     # 저장해 둔 목록의 「상위 테마 5개」를 아직 안 남겼으면 여기서 남긴다.
     # **화면을 다 그린 뒤**다 — 앞에 두면 보실 것이 그만큼 밀린다.
     _autosave_theme15()
+    # 상승장 한 벌을 **뒤 일꾼이** 미리 만들어 둔다 (2026-08-29).
+    #
+    # 상하님 — "상승장 신고가 눌림매수 첫 클릭하면 로딩 너무 오래 걸린다."
+    # 이 미리 만들기는 여태 관심종목 화면에만 있었다(_warm_after_news). 그래서
+    # 시장분석으로 바로 들어오시면 아무것도 안 데워져 있어, 첫 클릭이 200종목
+    # 스캔을 통째로 기다렸다.
+    #
+    # **맨 끝에서 부른다.** 여기까지 오면 화면은 다 그려졌고, 이 함수는 뒤
+    # 일꾼을 띄우고 바로 돌아온다. 앞에 두면 상하님이 보실 것이 밀린다
+    # (CLAUDE.md 0-0 — 2026-08-26에 그 실수를 했다).
+    # **네트워크를 한 번도 안 쓴다** — 이 화면을 그리며 이미 받아 둔 200종목
+    # 2년치와 나스닥 이력만 다시 읽어 계산만 해 둔다. 공책에 없으면 그 자리에서
+    # 빈손으로 돌아가고, 그때는 예전처럼 단추가 그때 받는다.
+    # 5분에 한 번만 돈다(warm_breakout_scan 안의 자물쇠).
+    _warm_finders()
 
 
 def _briefing_secret(name: str) -> str:

@@ -156,6 +156,12 @@ class CollectorWiringTests(unittest.TestCase):
         self.assertIn("find_theme_top_picks(", helper, "저장 도우미 밖에서 만든다")
         self.assertNotIn("st.markdown", helper, "저장 도우미가 화면에 무엇을 그린다")
         self.assertNotIn("st.dataframe", helper)
+        # **뒤 일꾼에게 맡긴다** (2026-08-29 · CLAUDE.md 0-0). 화면 그리는 길에
+        # 두면 그날 한 번이라도 대장주 조회 다섯 판을 통째로 기다리셔야 한다.
+        self.assertIn("threading.Thread(", helper, "화면 그리는 길에서 만든다")
+        # 세션에서 읽을 것은 **일꾼을 띄우기 전에** 다 꺼내 둔다.
+        self.assertLess(helper.index("st.session_state"), helper.index("def _save()"))
+        self.assertNotIn("st.session_state", helper[helper.index("def _save()"):])
 
     def test_the_saved_list_shows_it_for_the_united_states(self):
         ui = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")

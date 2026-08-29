@@ -1,3 +1,5 @@
+import pathlib
+import threading
 import unittest
 from datetime import datetime
 from unittest.mock import patch
@@ -1451,3 +1453,176 @@ class SeriesMetricsCacheTests(unittest.TestCase):
         """잴 수 없는 자료는 담지 않는다 — 담으면 빈 값이 굳는다."""
         j3._series_metrics(None)
         self.assertEqual(0, len(j3._METRICS_CACHE))
+
+
+class BreakoutScanSharesTheMemoTests(unittest.TestCase):
+    """상승장 단추가 순위 9와 **같은 기억**을 본다 (2026-08-29 상하님 지시).
+
+    상하님(어제부터 다섯 번째) — *"상승장 신고가 눌림매수 첫 클릭하면 로딩
+    너무 오래 걸린다."*
+
+    까닭은 같은 계산을 두 번 한 것이었다. 순위 9(collect_top_picks)가 이미
+    만들어 `top_finder:상승장` 으로 5분간 기억해 두는데, 단추는 그것을 안 보고
+    200종목을 처음부터 다시 훑었다.
+    """
+
+    def setUp(self):
+        j3.clear_runtime_cache()
+        self._real_finder = j3.find_breakout_pullback_stocks
+        self._real_save = j3._save_swing_scan_in_background
+        self.calls = []
+        j3._save_swing_scan_in_background = lambda scan: None
+
+    def tearDown(self):
+        j3.find_breakout_pullback_stocks = self._real_finder
+        j3._save_swing_scan_in_background = self._real_save
+        j3.clear_runtime_cache()
+
+    def _fake_finder(self, **_kwargs):
+        self.calls.append(1)
+        return {"ok": True, "rows": [{"ticker": "AAA"}]}
+
+    def test_the_second_call_reuses_the_first(self):
+        j3.find_breakout_pullback_stocks = self._fake_finder
+        first = j3.breakout_scan()
+        second = j3.breakout_scan()
+        self.assertEqual(1, len(self.calls), "200종목을 두 번 훑었다")
+        self.assertIs(first, second)
+
+    def test_it_shares_the_key_with_the_top_nine(self):
+        """순위 9가 채운 기억을 단추가 그대로 쓴다 — 그 반대도 마찬가지다."""
+        j3.find_breakout_pullback_stocks = self._fake_finder
+        # 순위 9가 쓰는 것과 **같은 열쇠**여야 한다.
+        self.assertEqual("top_finder:상승장", j3._finder_memo_key("상승장"))
+        source = pathlib.Path("jarvis3_data.py").read_text(encoding="utf-8")
+        # 열쇠 글자를 적는 자리는 `_finder_memo_key` **한 곳뿐**이어야 한다.
+        # 두 곳에서 따로 적으면 한쪽을 고칠 때 조용히 갈라진다.
+        self.assertEqual(1, source.count('f"top_finder:{name}"'),
+                         "열쇠를 두 곳에서 따로 적는다")
+        picks = source[source.index("def collect_top_picks("):]
+        picks = picks[:picks.index(chr(10) + "def ", 10)]
+        self.assertIn("_finder_memo_key(name)", picks, "순위 9가 열쇠를 따로 만든다")
+        # 순위 9 쪽이 먼저 채워 두면 단추는 다시 안 훑는다.
+        j3._memo_ok(j3._finder_memo_key("상승장"), j3.TOP_PICK_MEMO_SECONDS,
+                    self._fake_finder)
+        self.assertEqual(1, len(self.calls))
+        j3.breakout_scan()
+        self.assertEqual(1, len(self.calls), "단추가 기억을 안 봤다")
+
+    def test_a_failed_scan_is_not_remembered(self):
+        """실패는 기억하지 않는다 — 한 번 막혔다고 5분 내내 빈 화면이면 안 된다."""
+        j3.find_breakout_pullback_stocks = lambda **_k: (
+            self.calls.append(1) or {"ok": False, "error": "조회 실패", "rows": []})
+        j3.breakout_scan()
+        j3.breakout_scan()
+        self.assertEqual(2, len(self.calls), "실패를 기억해 두었다")
+
+    def test_it_still_saves_the_snapshot(self):
+        """기억을 쓴 판에서도 그날 스냅숏은 적는다."""
+        saved = []
+        j3.find_breakout_pullback_stocks = self._fake_finder
+        j3._save_swing_scan_in_background = lambda scan: saved.append(scan)
+        j3.breakout_scan()
+        j3.breakout_scan()
+        self.assertEqual(1, len(self.calls), "두 번 훑었다")
+        self.assertEqual(2, len(saved), "기억을 쓴 판에서 적기를 건너뛰었다")
+
+
+class TheMarketScreenWarmsTheFindersTests(unittest.TestCase):
+    """시장분석 화면도 미리 데운다 (2026-08-29).
+
+    이 미리 만들기는 여태 관심종목 화면에만 있었다(_warm_after_news). 그래서
+    시장분석으로 바로 들어오시면 아무것도 안 데워져 있어 첫 클릭이 200종목
+    스캔을 통째로 기다렸다.
+    """
+
+    PAGE = pathlib.Path("pages/2_자비스3.py")
+
+    def test_the_market_screen_calls_the_warm_up(self):
+        source = self.PAGE.read_text(encoding="utf-8")
+        body = source[source.index("def _render_existing_theme_content()"):]
+        body = body[:body.index(chr(10) + "def ", 10)]
+        self.assertIn("_warm_finders()", body, "시장분석이 미리 데우지 않는다")
+        # **화면을 다 그린 뒤**여야 한다 — 앞에 두면 보실 것이 밀린다(0-0).
+        self.assertLess(body.index("_render_radar_tab(market)"),
+                        body.index("_warm_finders()"))
+        helper = source[source.index("def _warm_finders()"):]
+        helper = helper[:helper.index(chr(10) + "def ", 10)]
+        # **가벼운 쪽을 쓴다.** warm_top_picks 는 21개 테마 대장주를 전부
+        # 조회하므로 훨씬 무겁다 — 2026-08-29에 그것을 걸었다가 화면 시험
+        # 다섯이 조회를 기다리다 시간 초과로 깨졌다(CLAUDE.md 0-0).
+        self.assertIn("warm_breakout_scan", helper)
+        self.assertNotIn("warm_top_picks", helper, "무거운 쪽을 부른다")
+        # 옛 모듈이 남아 있어도 화면이 죽으면 안 된다.
+        self.assertIn("getattr(j3data", helper)
+        self.assertIn("except Exception", helper)
+
+    def test_the_button_goes_through_the_shared_memo(self):
+        source = self.PAGE.read_text(encoding="utf-8")
+        self.assertIn("j3data.breakout_scan()", source, "단추가 기억을 안 본다")
+        self.assertNotIn("find_breakout_pullback_stocks(persist=True)", source,
+                         "단추가 아직 처음부터 다시 훑는다")
+
+
+class BreakoutWarmUpUsesNoNetworkTests(unittest.TestCase):
+    """미리 데우기는 **이미 받아 둔 자료만** 쓴다 (2026-08-29).
+
+    화면을 그리는 동안 200종목 2년치와 나스닥 이력은 이미 공책에 들어 있다.
+    그것만 다시 읽어 계산만 해 둔다. 새로 받아 오면 그 조회가 상하님이 다음에
+    누르실 것을 밀어낸다(CLAUDE.md 0-0).
+    """
+
+    def setUp(self):
+        j3.clear_runtime_cache()
+        self._real_finder = j3.find_breakout_pullback_stocks
+        j3._BREAKOUT_WARM["at"] = 0.0
+        j3._BREAKOUT_WARM["on"] = False
+        self.kwargs = []
+
+    def tearDown(self):
+        j3.find_breakout_pullback_stocks = self._real_finder
+        j3._BREAKOUT_WARM["at"] = 0.0
+        j3._BREAKOUT_WARM["on"] = False
+        j3.clear_runtime_cache()
+
+    def _wait(self):
+        for thread in threading.enumerate():
+            if thread.name == "breakout-warm":
+                thread.join(timeout=5)
+
+    def test_it_only_reads_what_is_already_downloaded(self):
+        def _fake(**kwargs):
+            self.kwargs.append(kwargs)
+            return {"ok": True, "rows": []}
+
+        j3.find_breakout_pullback_stocks = _fake
+        j3.warm_breakout_scan()
+        self._wait()
+        self.assertEqual(1, len(self.kwargs), "미리 데우기가 안 돌았다")
+        self.assertTrue(self.kwargs[0].get("reuse_only"),
+                        "공책에 없으면 새로 받아 온다 — 화면을 밀어낸다")
+
+    def test_the_button_then_finds_it_ready(self):
+        """데워 둔 것을 단추가 그대로 쓴다 — 첫 클릭이 그 자리에서 끝난다."""
+        calls = []
+
+        def _fake(**_kwargs):
+            calls.append(1)
+            return {"ok": True, "rows": [{"ticker": "AAA"}]}
+
+        j3.find_breakout_pullback_stocks = _fake
+        j3._save_swing_scan_in_background = lambda scan: None
+        j3.warm_breakout_scan()
+        self._wait()
+        self.assertEqual(1, len(calls))
+        j3.breakout_scan()
+        self.assertEqual(1, len(calls), "단추가 데워 둔 것을 안 봤다")
+
+    def test_an_empty_notebook_is_not_remembered(self):
+        """공책이 비어 못 만들었으면 기억하지 않는다 — 단추가 제대로 다시 찾는다."""
+        j3.find_breakout_pullback_stocks = lambda **_k: {
+            "ok": False, "error": "미국 종목 일봉 조회 실패", "rows": []}
+        j3.warm_breakout_scan()
+        self._wait()
+        self.assertEqual(0.0, j3._BREAKOUT_WARM["at"], "빈손인데 해 뒀다고 적었다")
+
