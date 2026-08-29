@@ -7727,6 +7727,19 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-close{position:absolute;right:12px;top:12px;z-index:6;padding:6px 12px;
  border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;
  font-size:12px;font-weight:800;pointer-events:none;white-space:nowrap}
+/* **아래에도 하나 더** (2026-08-29 상하님 지시 — 캡처에 위 단추를 동그라미 치고
+   아래로 화살표, "간단하게 1개 더 만들어라").
+   글을 끝까지 읽고 나면 손가락이 화면 아래에 있는데, 닫으려고 다시 맨 위
+   오른쪽까지 올라가야 했다. 폰에서는 그 자리가 제일 멀다.
+   글자는 **짧게** 둔다 — 위에 이미 긴 안내가 있어 여기서 되풀이할 것이 없다.
+   자리는 **왼쪽 아래**다. 오른쪽 아래에는 장식 그림(.j3b-decor-img)이 96px 로
+   앉아 있어 거기 두면 겹친다.
+   창 바닥에 **붙이지 않는다**(sticky 아님) — 2026-08-26에 그렇게 했다가 글을
+   굴리는 동안 화면 한가운데에 떠서 글을 가렸다. 카드 안 여백(아래 96~112px)에
+   가만히 놓는다.
+   누르는 방식은 위 것과 똑같다 — 큰 판이 손가락을 안 받으므로(.j3b-open-card
+   pointer-events:none) 여기를 눌러도 그 손가락이 바탕까지 내려가 닫힌다. */
+.j3b-open-close-b{right:auto;left:16px;top:auto;bottom:16px;padding:9px 18px;font-size:13px}
 .j3b-open-card .j3b-card-top{display:flex;gap:10px;align-items:center;min-height:58px;padding-right:132px}
 .j3b-open-card .j3b-logo{width:58px;height:58px;border-radius:14px}
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
@@ -8245,6 +8258,7 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
         '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
         '<div class="j3b-market-news-title">미국시장 한줄 브리핑</div>'
         f'<div class="j3b-open-list">{_news_accordion_html(items)}</div>'
+        '<span class="j3b-open-close j3b-open-close-b">✕ 닫기</span>'
         '</div></div></details>',
         unsafe_allow_html=True,
     )
@@ -8457,6 +8471,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         f'{_briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))}'
         f'{"<div class='j3b-chart-cap'>일봉 6개월</div>" if six_month else ""}'
         f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
+        '<span class="j3b-open-close j3b-open-close-b">✕ 닫기</span>'
         f'{decor_html}</div>'
     )
     card_html = (

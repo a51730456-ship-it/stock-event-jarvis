@@ -2485,3 +2485,34 @@ def test_the_breakout_score_help_can_be_closed_on_a_phone():
     # 노트북에서 쓰는 바닥 닫기는 그대로 둔다 — 거기서는 위 것이 안 보인다.
     assert "j3fh-x j3fh-x-breakout" in swing
 
+
+def test_the_big_card_can_be_closed_from_the_bottom_too():
+    """크게 연 카드에 닫기 안내가 **위아래 둘** 있어야 한다 (2026-08-29 상하님 지시).
+
+    상하님이 캡처 둘에 위 단추를 동그라미 치고 아래로 화살표를 그으시며 —
+    "간단하게 1개 더 만들어라", 그리고 종목 카드 쪽에 "이것도".
+
+    글을 끝까지 읽고 나면 손가락이 화면 아래에 있는데, 닫으려고 다시 맨 위
+    오른쪽까지 올라가야 했다. 폰에서는 그 자리가 제일 멀다.
+
+    **두 창 다** 있어야 한다 — 미국시장 한줄 브리핑과 종목 카드.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    assert source.count('class="j3b-open-close j3b-open-close-b"') == 2, \
+        "두 창 중 한쪽에만 있다"
+    # 위 안내는 그대로 둔다 — 상하님이 지우라고 하신 것이 아니라 하나 더 만들라 하셨다.
+    assert source.count('<span class="j3b-open-close">× 다시 누르면 닫힘</span>') == 2
+
+    css = source[source.index(".j3b-open-close{"):]
+    css = css[:css.index("</style>")]
+    rule = css[css.index(".j3b-open-close-b{"):]
+    rule = rule[:rule.index("}") + 1]
+    # 왼쪽 아래다 — 오른쪽 아래에는 장식 그림(96px)이 앉아 있어 겹친다.
+    assert "left:16px" in rule and "bottom:16px" in rule
+    assert "right:auto" in rule and "top:auto" in rule, "위 규칙을 안 풀면 오른쪽 위에 겹친다"
+    # **창 바닥에 붙이지 않는다** — 2026-08-26에 sticky 로 했다가 글을 가렸다.
+    assert "sticky" not in rule and "fixed" not in rule
+
+    # 누르는 방식은 위 것과 같다 — 큰 판이 손가락을 안 받아야 바탕까지 내려가 닫힌다.
+    assert ".j3b-open-card{pointer-events:none}" in source
+
