@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082960
+MODULE_REVISION = 2026090220
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4072,12 +4072,27 @@ def blend_top_picks(buckets: dict, *, quota=TOP_PICK_QUOTA) -> dict:
 
     순위(``pick_rank``)는 **파트 안에서** 1·2·3으로 매긴다(2026-08-15 상하님 지시).
     1~9로 통으로 매기면 저장한 목록만 봐서는 어느 파트 몇 등인지 알 수 없다.
+
+    **파트끼리 겹쳐도 버리지 않는다** (2026-09-02 상하님 지시).
+    상하님 — *"20개 테마 1~3위가 상승장 1~3위에 나타날 수 있는 것이야. 중복되어도
+    상관없어. 오히려 내가 더 중요하게 생각할 수 있는 것이야. 어차피 나는 20개
+    테마나 상승장 신고가 눌림매수 둘 다 비슷하게 보고, 어느 게 배점이 맞는 것인지
+    비교분석하기 위해 만든 것이야."*
+
+    여태는 앞 파트에서 이미 뽑힌 종목을 뒤 파트에서 버렸다. 그래서 상승장 정식
+    후보가 CRWD(89) · OKTA(87) · ILMN(76) 셋이었는데, 앞 둘이 테마 대장주로 먼저
+    들어갔다는 이유로 순위 9에는 ILMN 하나만 남고 "상승장은 3자리 중 1개만
+    찼습니다"라고 적혔다. 자리가 없어서가 아니라 **내가 버려서** 빈 것이었다.
+
+    이제 파트마다 제 1~3위를 그대로 채운다. 같은 종목이 두 파트에 나오면 그것이
+    곧 **두 자로 재서 둘 다 좋다**는 뜻이라 오히려 눈에 띄어야 한다.
+    한 파트 **안에서만** 같은 종목을 두 번 담지 않는다.
     """
     picked: list[dict] = []
-    seen: set[str] = set()
     empty_notes: list[str] = []
     for name, want in quota:
         taken = 0
+        seen: set[str] = set()          # 이 파트 안에서만 겹침을 막는다
         for row in buckets.get(name) or []:
             if taken >= want:
                 break
@@ -5363,6 +5378,49 @@ def analyze_pullback_stock(
         "stock_reason": reason,
         "benchmark_ret20": benchmark_ret20,
     }
+
+
+def daily_price_rows(ticker: str, days: int = 10) -> list[dict]:
+    """최근 며칠치 **일별 시세** — 날짜·종가·전일대비·등락률 (2026-09-02 지시).
+
+    상하님 — *"2주간 일별 시세 보기란을 만들고"* (네이버 증권의 그 표와 같은 칸).
+
+    **새로 받아 오는 것이 없다.** 관심종목 카드가 쓰는 6개월 일봉을 그대로
+    다시 읽는다(같은 명단·같은 기간이면 공책을 나눠 쓴다). 못 받으면 빈 목록을
+    준다 — 화면은 그때 표를 안 그린다.
+
+    2주 = 거래일 열흘이다. 앞뒤 비교를 하려면 한 줄이 더 필요하므로 하나 더 받아
+    자른다.
+    """
+    ticker = str(ticker or "").strip().upper()
+    if not ticker:
+        return []
+    try:
+        daily, _meta = _download_cached((ticker,), period="6mo", interval="1d",
+                                        ttl_seconds=300)
+        frame = daily.get(ticker)
+        closes = frame["Close"].dropna().astype(float)
+    except Exception:
+        return []
+    if closes.empty:
+        return []
+    wanted = max(1, int(days)) + 1
+    closes = closes.tail(wanted)
+    rows: list[dict] = []
+    values = list(closes.values)
+    labels = list(closes.index)
+    for position in range(len(values) - 1, 0, -1):     # 최근 날이 맨 위
+        close = float(values[position])
+        prev = float(values[position - 1])
+        try:
+            day = pd.Timestamp(labels[position]).strftime("%m.%d")
+        except Exception:
+            day = ""
+        rows.append({
+            "date": day, "close": close, "diff": close - prev,
+            "pct": ((close / prev - 1.0) * 100.0) if prev else None,
+        })
+    return rows
 
 
 def get_chart_bundle(ticker: str) -> dict:

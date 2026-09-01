@@ -1265,7 +1265,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026082960
+_REQUIRED_J3_REVISION = 2026090220
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2053,88 +2053,74 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False,
     return alt.vconcat(line, bars, spacing=4).resolve_scale(x="shared")
 
 
-def _render_day_price_row(metrics: dict) -> None:
-    """당일 가격 한 줄 — 현재가·전일 종가·시가·고가·저가·종가(자비스4와 같은 칸).
+def _render_day_price_row(metrics: dict, ticker: str | None = None,
+                          *, panel: str = "") -> None:
+    """**2주간 일별 시세 보기** — 눌러야 펴진다 (2026-09-02 상하님 지시).
 
-    2026-07-24 사용자 요청. 고가·저가 옆 백분율은 전일 종가 대비이며
-    미국시장 색 규칙(+파랑 −빨강)을 쓴다.
+    상하님 — *"선택종목 세부사항란의 「당일 가격 시가/고가/저가 한눈에 보기」를
+    없애고, 제목을 「2주간 일별 시세 보기」란을 만들고, 클릭하면 「이 테마 설명」
+    처럼 화면이 밑으로 내려가도록 만들어라. 그리고 닫힘 화면."*
+
+    표는 네이버 증권의 「일별 시세」와 같은 칸이다 — 날짜 · 종가 · 전일대비 ·
+    등락률. 거래일 **열흘**(2주)치를 최근 날이 맨 위로 오게 적는다.
+
+    **없앤 것** — 「당일 가격 · 시가/고가/저가 한눈에 보기」 한 줄(현재가·전일
+    종가·시가·고가·저가·지금 시간외). 그 값들은 바로 위 요약 줄과 아래 차트가
+    이미 말하고, 폰에서 여섯 칸이 화면을 한 장 먹었다.
+
+    **새로 받아 오는 것이 없다** — 카드가 쓰는 6개월 일봉을 다시 읽는다.
+    못 받으면 표를 안 그린다(없는 것을 있는 것처럼 적지 않는다).
     """
-    current = metrics.get("current")
-    day_open = metrics.get("day_open")
-    day_high = metrics.get("day_high")
-    day_low = metrics.get("day_low")
-    day_close = metrics.get("day_close")
-    phase = (j3data.market_phase() or {}).get("label", "")
-    # **정규장이 지금 열려 있나**가 갈림길이다 (2026-08-28 상하님 지적 — "당일
-    # 주가와 당일 차트 봐라. 저것도 종가가 아니고 시간외 가액을 넣었다").
-    # 앞서는 프리마켓·애프터마켓까지 '장중'으로 쳐서, 한국 낮에 보시면 「당일
-    # 종가(장중)」 자리에 **프리마켓 값**이 적혔다.
-    open_now = phase == "정규장 시간"
-    # 기준은 **보여 주는 장의 하루 앞 종가**다. 오늘 일봉이 아직 없으면 옛
-    # `prev_close` 는 그 장 자신의 종가라, 그 장의 시가·고가·저가를 자기 자신과
-    # 견주는 꼴이었다(OKTA 2026-08-27 — +28.63% 오른 날을 -0.25%라고 적었다).
-    prev_close = metrics.get("session_prev_close") or metrics.get("prev_close")
-
-    def _vs_prev(value):
-        if value is None or not prev_close:
-            return None
-        return (float(value) / float(prev_close) - 1) * 100
-
-    def _cell(label, value, change, *, sub_text=None, value_color=None):
-        if value_color:
-            color = value_color
-        elif change is not None:
-            color = _sign_color(change)
-        else:
-            color = "#e6e6e6"
-        if change is not None:
-            sub = f"<div class='j3-mc-sub' style='color:{_sign_color(change)}'>{_pct(change)}</div>"
-        elif sub_text:
-            sub = f"<div class='j3-mc-sub j3-muted'>{sub_text}</div>"
-        else:
-            sub = ""
-        return (
-            f"<div class='j3-mc'><div class='j3-mc-label'>{label}</div>"
-            f"<div class='j3-mc-val' style='color:{color}'>{_price(value)}</div>{sub}</div>"
+    key = f"j3_daily_prices_{panel or 'x'}_{str(ticker or 'x').lower()}"
+    if not _section_toggle(
+        "📅 2주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
+        close_label="2주간 일별 시세 닫기",
+    ):
+        return
+    rows = []
+    try:
+        rows = j3data.daily_price_rows(ticker, days=10) or []
+    except Exception:
+        rows = []
+    if not rows:
+        st.caption("일별 시세를 불러오지 못했습니다.")
+        _section_close(key, "2주간 일별 시세 닫기")
+        return
+    # **색은 앱 규칙을 그대로 쓴다** (2026-09-02 상하님 — "화면은 흰색으로
+    # 하라는 게 아니다"). 칸 짜임만 네이버 「일별 시세」와 같게 하고, 흰 바탕·
+    # 빨강 칩은 안 가져온다. 오른 값·빠진 값 색은 화면 다른 곳과 같은
+    # `_sign_color` 하나로 정한다.
+    body = []
+    for row in rows:
+        pct = row.get("pct")
+        diff = row.get("diff") or 0.0
+        tone = _sign_color(pct)
+        arrow = "▲" if (pct or 0) >= 0 else "▼"
+        pct_text = "—" if pct is None else _pct(pct)
+        body.append(
+            f"<tr><td class='j3dp-d'>{html.escape(str(row.get('date') or ''))}</td>"
+            f"<td class='j3dp-c'>{_price(row.get('close'))}</td>"
+            f"<td style='color:{tone}'>{arrow} {abs(diff):,.2f}</td>"
+            f"<td style='color:{tone};font-weight:800'>{pct_text}</td></tr>"
         )
-
-    note = (
-        "장중이라 고가·저가·종가는 지금까지의 값입니다"
-        if open_now
-        else "미국 정규장이 닫혀 있어 **마지막으로 끝난 정규장** 값입니다"
-    )
     st.markdown(
-        "<div class='j3-chart-heading'>당일 가격 · 시가/고가/저가 한눈에 보기</div>",
+        "<style>"
+        ".j3dp{width:100%;border-collapse:collapse;font-size:.93rem;margin:.2rem 0 .4rem;"
+        "background:transparent}"
+        ".j3dp th{color:#9aa0aa;font-weight:800;text-align:right;padding:.35rem .5rem;"
+        "border-bottom:1px solid rgba(255,255,255,.18)}"
+        ".j3dp th:first-child{text-align:left}"
+        ".j3dp td{text-align:right;padding:.34rem .5rem;color:#e6e6e6;"
+        "border-bottom:1px solid rgba(255,255,255,.06)}"
+        ".j3dp .j3dp-d{text-align:left;color:#9aa0aa;font-weight:700}"
+        ".j3dp .j3dp-c{font-weight:800;color:#e6e6e6}"
+        "</style>"
+        f"<table class='j3dp'><thead><tr><th>날짜</th><th>종가</th>"
+        f"<th>전일대비</th><th>등락률</th></tr></thead><tbody>{''.join(body)}</tbody></table>",
         unsafe_allow_html=True,
     )
-    st.caption(f"옆 백분율은 **그 장의 하루 앞 종가** 대비입니다. {note}.")
-    if open_now:
-        # 정규장이 열려 있다 — 지금까지와 똑같다. 현재가가 곧 정규장 값이다.
-        head = [
-            _cell("현재가", current, _vs_prev(current)),
-            _cell("전일 종가", prev_close, None, sub_text="어제 마감", value_color="#e6e6e6"),
-        ]
-        tail = _cell("당일 종가(장중)", current, _vs_prev(current))
-    else:
-        # 정규장이 닫혀 있다 — **정규장 종가**를 앞에 세운다. 지금 값(프리마켓·
-        # 시간외)은 맨 끝에 따로 적는다. 그 둘은 다른 이야기다.
-        head = [
-            _cell("정규장 종가", day_close, _vs_prev(day_close)),
-            _cell("그 앞 마감", prev_close, None,
-                  sub_text="하루 전 종가", value_color="#e6e6e6"),
-        ]
-        after = None
-        if current and day_close:
-            after = (float(current) / float(day_close) - 1) * 100
-        tail = _cell("지금 시간외", current, after)
-    cells = [
-        *head,
-        _cell("당일 시가", day_open, _vs_prev(day_open)),
-        _cell("당일 고가", day_high, _vs_prev(day_high)),
-        _cell("당일 저가", day_low, _vs_prev(day_low)),
-        tail,
-    ]
-    st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+    st.caption("거래일 열흘치입니다. 최근 날이 맨 위입니다.")
+    _section_close(key, "2주간 일별 시세 닫기")
 
 
 # 일봉·주봉·월봉 셋의 높이. 상하님이 보여 준 지수 카드의 작은 그림(124×117)에
@@ -3109,7 +3095,7 @@ def _render_stock_detail(
     # 게스트도 종목명·가격·차트는 본다. 사용자가 지정한 세 캡처 영역
     # (점수/선정 근거·매수 심사·추천 근거)만 만들지 않는다.
     if auth.is_guest():
-        _render_day_price_row(metrics)
+        _render_day_price_row(metrics, ticker, panel=panel)
         _render_price_chart_bundle(ticker, panel=panel)
         _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기",
                        on_close=on_close)
@@ -3425,7 +3411,7 @@ def _render_stock_detail(
             st.warning(plan.get("buy_reason"))
 
     # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 당일 가격·차트 섹션을 시작한다.
-    _render_day_price_row(metrics)
+    _render_day_price_row(metrics, ticker, panel=panel)
     # 당일 차트가 이 상세에만 없었다(2026-08-06 상하님 지적) — 순위 7에서 테마
     # 대장주를 고르면 여기로 오는데 당일 차트가 안 나왔다.
     # panel을 넘겨야 같은 종목을 위·아래 두 상세에서 열어도 단추 키가 안 겹친다.
@@ -5297,7 +5283,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         unsafe_allow_html=True,
     )
     if auth.is_guest():
-        _render_day_price_row(metrics)
+        _render_day_price_row(metrics, ticker, panel="pullback")
         # 당일 그림은 이제 아래 네 그림 판에 함께 들어간다(2026-08-28).
         _render_price_chart_bundle(ticker, panel="pullback")
         _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
@@ -5631,7 +5617,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
         "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
-    _render_day_price_row(metrics)
+    _render_day_price_row(metrics, ticker, panel="pullback")
     _render_price_chart_bundle(ticker, panel="pullback")
 
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
@@ -8211,6 +8197,32 @@ def _briefing_chart_split(values, low: float, span: float, *, base=None) -> str:
             + guide + "".join(body) + "</svg>")
 
 
+def _six_month_caption(six_month) -> str:
+    """「일봉 6개월」 이름표 — **그 6개월 수익률을 같이 적는다** (2026-09-02 지시).
+
+    상하님 — *"관심종목에서 종목을 누르면 일봉 6개월 차트가 나오는데 6개월에
+    대한 수익률은 안 나온다."*
+
+    그림만 있고 숫자가 없어서, 반년 동안 얼마나 올랐는지를 눈대중으로 재셔야
+    했다. 그림의 **첫 점과 끝 점**으로 잰다 — 그림에 그린 그 구간 그대로다.
+    새로 받아 오는 것은 없다.
+
+    6개월치가 아직 안 왔으면 이름표를 아예 안 붙인다(예전 그대로) — 없는 것을
+    있는 것처럼 적으면 안 된다.
+    """
+    points = [float(value) for value in (six_month or []) if value is not None]
+    if not points:
+        return ""
+    first, last = points[0], points[-1]
+    if not first:
+        return "<div class='j3b-chart-cap'>일봉 6개월</div>"
+    ratio = (last / first - 1.0) * 100.0
+    tone = "j3b-up" if ratio >= 0 else "j3b-down"
+    sign = "+" if ratio >= 0 else ""
+    return (f"<div class='j3b-chart-cap'>일봉 6개월 "
+            f"<b class='{tone}'>{sign}{ratio:.1f}%</b></div>")
+
+
 def _briefing_chart(values, change, *, stroke: str = "", baseline: bool = False,
                     base=None) -> str:
     """카드의 작은 그림. ``stroke``를 주면 그 색으로 그린다.
@@ -8536,7 +8548,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
         # 왔으면 그 30일 그림을 그대로 쓰고 이름표도 안 붙인다 — 없는 것을 있는
         # 것처럼 적으면 안 된다.
         f'{_briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))}'
-        f'{"<div class='j3b-chart-cap'>일봉 6개월</div>" if six_month else ""}'
+        f'{_six_month_caption(six_month)}'
         f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
         '<span class="j3b-open-close j3b-open-close-b">✕ 닫기</span>'
         f'{decor_html}</div>'

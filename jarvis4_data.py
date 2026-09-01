@@ -1339,7 +1339,7 @@ def get_fx_intraday(*, ttl_seconds: float = 60) -> dict:
 # 2026-08-20 — 상승장(신고가 눌림매수)이 US_SWING_V1으로 바뀌면서 jarvis3_data의
 # MODULE_REVISION이 올라갔다. **여기 계산은 하나도 안 바뀌었다** — 이 숫자는
 # 옛 모듈이 프로세스에 남았는지 알아채는 표식일 뿐이라, 규칙 11대로 같이 올린다.
-_REQUIRED_J3_REVISION = 2026082960
+_REQUIRED_J3_REVISION = 2026090220
 
 
 def _us_previous_session() -> dict:
