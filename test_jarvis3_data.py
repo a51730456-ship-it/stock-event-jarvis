@@ -1665,8 +1665,11 @@ class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
             self.daily, self._minutes("2026-08-27", 101.0, 109.5))
         self.assertEqual(120.0, price, "카드가 하루 전 값을 적었다")
         self.assertEqual(110.0, prev, "기준선도 하루 밀렸다")
-        # 그림은 다른 날 것이라 안 그린다 — 숫자와 그림이 다른 날을 말하면 안 된다.
-        self.assertEqual([], points, "다른 날 그림을 그렸다")
+        # **그림은 지우지 않는다** (2026-08-29 상하님 — "종목 차트 안 바뀌었다").
+        # 비우면 카드 그림이 통째로 사라지거나 옛것이 남아 보였다. 분봉이 가진
+        # 마지막 정규장을 그대로 그린다. 다만 끝점을 딴 날 종가로 맞추지는 않는다.
+        self.assertTrue(points, "그림을 비워 버렸다")
+        self.assertNotEqual(120.0, points[-1], "딴 날 종가로 끝점을 맞췄다")
 
     def test_a_matching_minute_frame_still_draws_the_picture(self):
         points, price, prev, change = j3._card_session_values(

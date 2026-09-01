@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026082950
+MODULE_REVISION = 2026082960
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4788,28 +4788,32 @@ def _card_session_values(daily_frame, live_frame):
     # 일봉의 마지막 줄이 곧 **마지막으로 끝난 장**이다. 그것을 쓴다. 장중에는
     # 야후 일봉에 오늘 줄이 이미 들어 있으므로 지금 장이 그대로 잡힌다.
     #
-    # **그림은 날이 맞을 때만 쓴다.** 1분봉이 다른 날 것이면 숫자와 그림이 서로
-    # 다른 이야기를 한다 — 그것이 2026-08-28에 고치려던 바로 그 문제다.
-    # 그래서 어긋나면 그림을 안 그린다(값은 그대로 나온다).
+    # **그림은 지우지 않는다** (2026-08-29 상하님 — "종목 차트 안 바뀌었다").
+    # 앞서 '날이 어긋나면 그림을 비운다'로 두었더니, 한 번 어긋난 판에서 카드
+    # 그림이 통째로 사라지거나 옛것이 그대로 남아 보였다. 그림은 5분봉이 가진
+    # **마지막 정규장**을 그대로 그린다(_regular_session_closes 가 이미 그 하루만
+    # 골라 준다). 이틀치 창이라 그것이 곧 마지막으로 끝난 장이다.
     session_day = dates[-1]
+    live_day = None
     if points and live_frame is not None and not getattr(live_frame, "empty", True):
         try:
             live_index = pd.DatetimeIndex(live_frame.index)
             live_local = live_index.tz_convert(_NY) if live_index.tz is not None else live_index
             in_hours = live_local[(live_local.time >= dt_time(9, 30))
                                   & (live_local.time <= dt_time(16, 0))]
-            if not len(in_hours) or in_hours[-1].date() != session_day:
-                points = []
+            if len(in_hours):
+                live_day = in_hours[-1].date()
         except Exception:
-            points = []
+            live_day = None
 
     # 마지막 줄이 곧 마지막으로 끝난 장이다. **자리로 집는다.**
     price = float(closes.iloc[-1])
     prev = float(closes.iloc[-2]) if len(closes) >= 2 else None
     change = ((price / prev - 1.0) * 100.0) if prev else None
-    # 그림의 마지막 점은 **그 장의 정식 종가**로 맞춘다 — 1분봉 마지막 값은
+    # 그림의 마지막 점은 **그 장의 정식 종가**로 맞춘다 — 분봉 마지막 값은
     # 마감 동시호가가 빠져 조금 다르다(엔비디아 227.76 vs 227.98).
-    if points:
+    # **날이 맞을 때만** 맞춘다. 어긋난 판에서 맞추면 그림의 끝만 딴 날 값이 된다.
+    if points and (live_day is None or live_day == session_day):
         points[-1] = price
     return points, price, prev, change
 
