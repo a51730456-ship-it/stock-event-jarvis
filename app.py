@@ -876,6 +876,16 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
             if st.button(_entry_name, key="entry_go", use_container_width=True):
                 _go_to(_entry_name)
                 st.rerun()
+    # **이 화면이 언제 판인지** 맨 밑에 작게 적는다 (2026-09-02 상하님 지시).
+    # 폰(온라인)은 저절로 새로 뜨는데 노트북은 받아 오셔야 바뀐다. 두 화면이
+    # 다를 때 제가 안 한 것인지 노트북이 안 받아 온 것인지 여기서 가르신다.
+    # 로그인 화면에는 안 넣는다 — 그 화면은 가장 빨리 떠야 한다(CLAUDE.md 0-0).
+    try:
+        import build_stamp
+
+        build_stamp.render(st)
+    except Exception:
+        pass
     st.stop()
 
 # 로그인 화면에는 Streamlit과 정적 이미지밖에 필요하지 않다. 시세·뉴스·DB 모듈은
