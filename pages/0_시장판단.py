@@ -178,3 +178,12 @@ if (
 
 st.markdown(mobile_ui.page_css(), unsafe_allow_html=True)
 market_signal_ui.render_market_judgment_page()
+
+# **이 화면이 언제 판인지** 맨 밑에 한 줄 적는다 (2026-09-02 상하님 지시).
+# 노트북과 폰을 나란히 놓고 견주시는 자리다 — 같은 숫자면 같은 판이다.
+try:
+    import build_stamp
+
+    build_stamp.render(st)
+except Exception:
+    pass

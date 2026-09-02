@@ -29,7 +29,7 @@ import pathlib
 import subprocess
 
 # 표시 방식을 바꾸면 이 숫자를 올린다(규칙 11).
-MODULE_REVISION = 2026090210
+MODULE_REVISION = 2026090220
 
 _ROOT = pathlib.Path(__file__).resolve().parent
 
@@ -109,10 +109,17 @@ def stamp() -> str:
     return _CACHE["text"]
 
 
+# **눈에 띄어야 쓸모가 있다** (2026-09-02 상하님 — "판 숫자 안 보인다").
+# 처음에는 회색 0.74rem 으로 아주 작게 뒀는데 어두운 바탕에서 안 보였다.
+# 테두리를 두른 띠로 만들어 화면 맨 밑에서 바로 눈에 걸리게 한다.
 CSS = """
 <style>
-.jarvis-build { color: #6e7480; font-size: .74rem; text-align: center;
-                letter-spacing: .02em; margin: 1.6rem 0 .5rem; }
+.jarvis-build { color: #9dccff; font-size: .9rem; font-weight: 800;
+                text-align: center; letter-spacing: .02em;
+                margin: 1.8rem auto .8rem; padding: .45rem .8rem;
+                max-width: 26rem; border-radius: .5rem;
+                background: rgba(157,204,255,.08);
+                border: 1px solid rgba(157,204,255,.28); }
 </style>
 """
 

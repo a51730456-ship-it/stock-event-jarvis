@@ -73,22 +73,38 @@ class BuildStampTests(unittest.TestCase):
         with patch.object(build_stamp, "stamp", side_effect=RuntimeError("boom")):
             build_stamp.render(st)          # 터지면 안 된다
 
-    def test_both_screens_show_it_at_the_very_bottom(self):
-        """어디로 갈까요 화면과 미국테마 화면 **맨 밑**에 있어야 한다.
+    def test_every_screen_shows_it(self):
+        """**모든 화면**에 있어야 한다 (2026-09-02 상하님 — "판 숫자 안 보인다").
 
-        로그인 화면에는 안 넣는다 — 그 화면은 가장 빨리 떠야 한다(CLAUDE.md 0-0).
+        처음에는 「어디로 갈까요」와 미국테마 둘에만 넣었다. 그랬더니 로그인
+        화면·한국테마에서는 안 보여 "안 보인다"는 말씀이 나왔다. 한 화면이라도
+        빠지면 그 화면에서는 또 못 가르신다.
         """
         app = (ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn("build_stamp.render(st)", app)
-        # 어디로 갈까요 화면을 끝내는 st.stop() **바로 앞**이어야 한다.
+        # 로그인 화면과 「어디로 갈까요」 둘 다 — 각각 st.stop() 앞에 있다.
+        self.assertGreaterEqual(app.count("build_stamp.render(st)"), 2,
+                                "로그인 화면이나 어디로 갈까요에 빠졌다")
         entry = app[app.index('key="entry_go"'):]
         self.assertLess(entry.index("build_stamp.render(st)"), entry.index("st.stop()"))
 
-        page = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
-        self.assertIn("build_stamp.render(st)", page)
-        # 맨 밑이라는 것 — 화면을 다 그린 뒤(scroll_to.run) 다음이다.
-        self.assertLess(page.index("scroll_to.run(st)"),
-                        page.index("build_stamp.render(st)"))
+        for name in ("0_시장판단.py", "1_자비스2.py", "2_자비스3.py",
+                     "3_자비스4.py", "4_자비스5.py", "5_자비스6.py"):
+            page = (ROOT / "pages" / name).read_text(encoding="utf-8")
+            self.assertIn("build_stamp.render(st)", page, f"{name} 에 판 표시가 없다")
+
+        # 미국·한국테마는 화면을 다 그린 뒤(scroll_to.run) 다음이어야 한다.
+        for name in ("2_자비스3.py", "3_자비스4.py"):
+            page = (ROOT / "pages" / name).read_text(encoding="utf-8")
+            self.assertLess(page.index("scroll_to.run(st)"),
+                            page.index("build_stamp.render(st)"))
+
+    def test_it_is_big_enough_to_see(self):
+        """어두운 바탕에서 **눈에 띄어야** 한다 — 안 보이면 쓸모가 없다."""
+        css = build_stamp.CSS
+        self.assertIn("border", css)
+        self.assertNotIn("#6e7480", css)      # 처음의 흐린 회색
+        size = css.split("font-size:")[1].split("rem")[0].strip()
+        self.assertGreaterEqual(float(size), 0.85, "글자가 아직 너무 작다")
 
 
 if __name__ == "__main__":

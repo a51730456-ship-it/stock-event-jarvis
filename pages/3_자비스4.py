@@ -4321,3 +4321,12 @@ def main() -> None:
 main()
 # 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
 scroll_to.run(st)
+
+# **이 화면이 언제 판인지** 맨 밑에 한 줄 적는다 (2026-09-02 상하님 지시).
+# 노트북과 폰을 나란히 놓고 견주시는 자리다 — 같은 숫자면 같은 판이다.
+try:
+    import build_stamp
+
+    build_stamp.render(st)
+except Exception:
+    pass

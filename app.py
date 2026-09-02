@@ -740,6 +740,15 @@ if not st.session_state.get("authenticated"):
             st.rerun()
         else:
             st.error("비밀번호가 올바르지 않습니다.")
+    # 로그인 화면에도 판을 적는다 (2026-09-02 상하님 — "판 숫자 안 보인다").
+    # 두 기계를 견주기에 **가장 빠른 자리**다 — 로그인하지 않아도 보인다.
+    # 한 판에 한 번만 알아보고 담아 두므로 이 화면이 느려지지 않는다.
+    try:
+        import build_stamp
+
+        build_stamp.render(st)
+    except Exception:
+        pass
     st.stop()
 
 # ── 뒤로가기로 첫 주소에 돌아왔을 때 (2026-08-01 사용자 지시) ────────────────────
