@@ -9025,6 +9025,63 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
     st.rerun()
 
 
+@st.fragment(run_every=2)
+def _briefing_news_watcher(keys: tuple = ()) -> None:
+    """뉴스가 **도착하는지 지켜보다가** 왔을 때 화면을 다시 그린다 (2026-09-02).
+
+    상하님 — *"관심종목에 「뉴스 불러오는 중이다」라고 계속 떠 있다. 위에
+    다시 실행하기 하면 그제서야 뉴스가 나온다."*
+
+    **왜 굳어 있었나.** 뉴스는 뒤 일꾼이 받아 온다. 화면은 그걸 기다리며
+    「불러오는 중」이라고 적어 두는데, **기다리는 동안 화면을 다시 그려 보는
+    것이 아무것도 없었다.** `_schedule_briefing_news_refresh` 는 아직 안 왔으면
+    그냥 되돌아가고 끝난다 — 다음 판이 없으니 영영 그 자리다. 그래서 ↻ 를 눌러
+    사람이 손으로 다음 판을 만들어 주어야만 뉴스가 나왔다.
+
+    예전에는 2.5초마다 브라우저를 통째로 새로고침해서 이 문제가 없었다. 그런데
+    통째 새로고침은 화면이 튀고 스크롤이 맨 위로 돌아가 2026-08-26에 걷어냈고,
+    그 자리를 채울 것을 안 두었다.
+
+    **이 조각이 그 자리를 채운다.** 2초마다 도는데, 도는 것은 **이 조각뿐**이다
+    (프래그먼트라 판 전체를 안 그린다). 하는 일도 이미 받아 둔 것을 세는 것뿐이라
+    시세를 새로 부르지 않는다. **새로 도착한 것이 있을 때만** 판 전체를 한 번
+    다시 그린다 — 그때가 화면에 뉴스가 채워지는 순간이다.
+
+    2분이 지나도 안 오면 기다리기를 그만둔다. 그러면 카드에 「못 받았습니다 ·
+    맨 위 ↻ 를 누르십시오」가 뜬다 — 지금까지와 같다.
+
+    **실패해도 아무 일도 일어나지 않아야 한다.** 세다가 터지면 조용히 넘어가고,
+    화면은 지금 그대로 있는다(CLAUDE.md 13번과 같은 원칙).
+    """
+    if not st.session_state.get("j3b_news_pending"):
+        return
+    try:
+        ready = int(briefing_news.ready_count(keys))
+    except Exception:
+        return                      # 못 세면 다음 2초에 다시 본다
+    seen = st.session_state.get("j3b_news_watch_seen")
+    if seen is None:
+        # 처음 한 바퀴는 기준만 잡는다. 여기서 바로 다시 그리면 화면이 헛돈다.
+        st.session_state["j3b_news_watch_seen"] = ready
+        st.session_state["j3b_news_watch_since"] = time.monotonic()
+        return
+    since = float(st.session_state.get("j3b_news_watch_since") or time.monotonic())
+    over = (time.monotonic() - since) > 120
+    if ready <= int(seen) and not over:
+        return                      # 아직 새로 온 것이 없다 — 화면을 안 건드린다
+    st.session_state["j3b_news_watch_seen"] = ready
+    if over or ready >= len(keys):
+        st.session_state["j3b_news_pending"] = False
+        st.session_state.pop("j3b_news_watch_seen", None)
+        st.session_state.pop("j3b_news_watch_since", None)
+    # 판 전체를 다시 그린다 — 카드가 프래그먼트 밖에 있어서 여기만 그리면
+    # 뉴스가 화면에 안 나타난다. scope 를 못 받는 판이면 그냥 전체다.
+    try:
+        st.rerun(scope="app")
+    except Exception:
+        st.rerun()
+
+
 def _warm_after_news(keys: tuple) -> None:
     """뉴스가 다 온 **뒤에** 순위 9와 나스닥 25년치를 미리 챙긴다.
 
@@ -9314,6 +9371,11 @@ def _render_stock_briefing() -> None:
         _render_briefing_bottom_nav("watch")
         news_keys = tuple([("market", None)] + [("company", stock["ticker"]) for stock in visible_stocks])
         _schedule_briefing_news_refresh(news_keys)
+        # 아직 오는 중이면 **2초마다 지켜본다** (2026-09-02 상하님 —
+        # "「뉴스 불러오는 중」이라고 계속 떠 있다"). 다 왔으면 안 그린다 —
+        # 그러면 이 조각도 더 안 돈다.
+        if st.session_state.get("j3b_news_pending"):
+            _briefing_news_watcher(news_keys)
         # 뉴스가 다 온 뒤에야 순위 9·나스닥 25년치를 미리 챙긴다. 위 줄이 화면을
         # 다시 그리라고 하면 이 줄까지 오지 않는다 — 그것이 맞다. 아직 뉴스가
         # 오는 중이라는 뜻이기 때문이다.

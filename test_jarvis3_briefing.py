@@ -751,3 +751,50 @@ def test_trivial_lines_do_not_freeze_the_card():
         [row("A local shop changes its sign", "Random Blog", 0.05)], "market"))
     assert [item["headline"] for item in kept] == [item["headline"] for item in big_held], \
         "큰 소식이 시시한 새 기사에 밀렸다"
+
+
+def test_news_keeps_being_watched_until_it_arrives():
+    """뉴스가 오는 동안 **화면을 다시 그려 볼 것이 있어야** 한다 (2026-09-02).
+
+    상하님 — *"관심종목에 「뉴스 불러오는 중이다」라고 계속 떠 있다. 위에 다시
+    실행하기 하면 그제서야 뉴스가 나온다."*
+
+    까닭 — `_schedule_briefing_news_refresh` 는 아직 안 왔으면 그냥 되돌아간다.
+    다음 판을 만들어 주는 것이 없으니 영영 그 자리였다. 2026-08-26에 2.5초마다
+    브라우저를 통째로 새로고침하던 것을 걷어내면서 그 자리를 안 채운 탓이다.
+    """
+    page = Path(__file__).parent / "pages" / "2_자비스3.py"
+    source = page.read_text(encoding="utf-8")
+
+    # ① 지켜보는 조각이 있어야 하고, **스스로 다시 돌아야** 한다.
+    assert "def _briefing_news_watcher(" in source, "지켜보는 조각이 없다"
+    head = source[:source.index("def _briefing_news_watcher(")]
+    assert head.rstrip().endswith(")"), "조각 위에 데코레이터가 없다"
+    decorator = head.rstrip().rsplit(chr(10), 1)[-1]
+    assert "st.fragment" in decorator and "run_every" in decorator, (
+        f"스스로 다시 도는 조각이 아니다: {decorator}")
+
+    body = source[source.index("def _briefing_news_watcher("):]
+    body = body[:body.index(chr(10) + "def ", 10)]
+
+    # ② 새로 온 것이 없으면 **화면을 안 건드린다** — 2초마다 판 전체를 그리면
+    #    화면이 버벅거린다(2026-08-26에 걷어낸 그 문제로 되돌아간다).
+    assert "if ready <= int(seen) and not over:" in body, "새 것이 없어도 다시 그린다"
+
+    # ③ 왔을 때는 **판 전체**를 다시 그린다 — 카드가 이 조각 밖에 있다.
+    assert 'st.rerun(scope="app")' in body, "판 전체를 안 그린다"
+
+    # ④ 시세·뉴스를 **새로 부르지 않는다** — 이미 받아 둔 것을 세기만 한다.
+    assert "ready_count" in body
+    for banned in ("get_or_schedule", "get_live_quote", "_download"):
+        assert banned not in body, f"{banned} 로 새로 받아 온다 — 2초마다 돌면 안 된다"
+
+    # ⑤ 오는 중일 때만 그린다 — 다 왔으면 이 조각도 더 안 돈다.
+    call = source[source.index("_schedule_briefing_news_refresh(news_keys)"):]
+    call = call[:call.index("_warm_after_news")]
+    assert '_briefing_news_watcher(news_keys)' in call, "부르는 자리가 없다"
+    assert 'if st.session_state.get("j3b_news_pending")' in call, (
+        "다 온 뒤에도 계속 돈다")
+
+    # ⑥ 한없이 기다리지 않는다.
+    assert "> 120" in body, "그만 기다리는 자리가 없다"
