@@ -439,16 +439,25 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("j3-holo-card" in value for value in markdowns))
         # 단타 참고 신호는 접어 뒀다(2026-08-06) — 여는 단추가 있어야 한다.
         self.assertTrue(any("단타 참고 신호 보기" in str(node.label) for node in app.button))
-        # 당일 가격 칸(자비스4와 같은 구성) — 시가·고가·저가·전일 종가
-        self.assertTrue(any("당일 가격 · 시가/고가/저가 한눈에 보기" in value for value in markdowns))
-        self.assertTrue(any("전일 종가" in value for value in markdowns))
-        self.assertTrue(any("당일 고가" in value for value in markdowns))
+        # **「당일 가격 · 시가/고가/저가 한눈에 보기」는 뺐다** (2026-09-02 상하님 지시 —
+        # "선택종목 세부사항란의 당일가격 시가·고가·저가 한눈에 보기를 없애고,
+        #  제목을 「2주간 일별 시세 보기」란을 만들고, 클릭하면 「이 테마 설명」처럼
+        #  화면이 밑으로 내려가도록 만들어라. 그리고 닫힘 화면").
+        # 여섯 칸이 폰에서 화면 한 장을 먹었고, 같은 값을 바로 위 요약 줄과 아래
+        # 차트가 이미 말한다.
+        self.assertFalse(any("당일 가격 · 시가/고가/저가 한눈에 보기" in value
+                             for value in markdowns),
+                         "없앤 당일 가격 칸이 되살아났다")
+        # 그 자리에는 **닫혀 있는** 접이란이 하나 있어야 한다.
+        self.assertTrue(any("2주간 일별 시세 보기" in str(node.label) for node in app.button),
+                        "2주간 일별 시세 접이란이 없다")
+        self.assertFalse(any("j3dp" in value for value in markdowns),
+                         "접이란이 눌리기도 전에 펴져 있다")
         # 값은 결과 payload에서 그대로 와야 한다 — 시험이 숫자를 손으로 박아 두면
         # 계산이 바뀌어도 화면 시험이 옛 숫자를 계속 통과시킨다.
         top = _breakout_result()["rows"][0]["metrics"]
-        for key in ("day_high", "current"):
-            self.assertTrue(any(f"${float(top[key]):,.2f}" in value for value in markdowns),
-                            f"{key} 값이 화면에 없다")
+        self.assertTrue(any(f"${float(top['current']):,.2f}" in value for value in markdowns),
+                        "current 값이 화면에 없다")
         self.assertTrue(any("14일 변동성(ATR)" in value for value in markdowns))
         # 상승장 표는 당일주가 칸 대신 **고를 때 필요한 것만** 쓴다
         # (2026-08-21 상하님 지시 — 등수·점수 칸은 선택종목 세부사항에서 본다).
