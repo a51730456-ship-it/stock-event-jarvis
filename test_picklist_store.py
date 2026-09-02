@@ -685,6 +685,9 @@ class UsSessionGateTests(unittest.TestCase):
             ("jarvis3_data.py", "_REQUIRED_J3_REVISION"),
             ("jarvis4_data.py", "_REQUIRED_J4_REVISION"),
             ("method_help.py", "_REQUIRED_METHOD_HELP_REVISION"),
+            # 2026-09-02에 시장판단 화면이 mobile_ui 보다 낮은 번호를 요구하고
+            # 있는 것을 찾아 맞췄다. 또 어긋나지 않게 여기서도 본다.
+            ("mobile_ui.py", "_REQUIRED_MOBILE_REVISION"),
         )
         root = pathlib.Path(".")
         for module, const in pairs:

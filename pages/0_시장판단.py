@@ -147,7 +147,7 @@ if not st.session_state.get("authenticated"):
 import market_signal_ui
 import mobile_ui
 
-_REQUIRED_MOBILE_REVISION = 2026080810
+_REQUIRED_MOBILE_REVISION = 2026082861
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     import importlib as _importlib
 
