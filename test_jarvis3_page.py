@@ -2575,8 +2575,20 @@ def test_the_saved_list_goes_straight_to_the_date_picker():
     그만큼 굴려 내려와야 했다.
     """
     source = PAGE.read_text(encoding="utf-8")
-    call = source[source.index('picklist_ui.render(st, "US"'):]
-    call = call[:call.index(")") + 1]
+    # **괄호를 세어 부르는 자리 전체를 뜬다** (2026-09-02). 예전에는
+    # `picklist_ui.render(st, "US"` 라는 한 줄을 통째로 찾고 첫 `)` 까지 잘랐는데,
+    # 부르는 자리가 여러 줄이 되고 안에 다른 괄호(람다)가 생기자 못 찾아 깨졌다.
+    # 시험이 보려는 것은 「header= 를 넘기나」 하나뿐이므로 찾는 법만 튼튼히 한다.
+    start = source.index("picklist_ui.render(")
+    depth, end = 0, start
+    for end in range(start + len("picklist_ui.render(") - 1, len(source)):
+        if source[end] == "(":
+            depth += 1
+        elif source[end] == ")":
+            depth -= 1
+            if depth == 0:
+                break
+    call = source[start:end + 1]
     assert "header=" not in call, "맨 위 매수 기록 표를 아직 넘긴다"
 
     ui = (ROOT / "picklist_ui.py").read_text(encoding="utf-8")
