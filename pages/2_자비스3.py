@@ -4495,7 +4495,7 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
     if not guest_mode:
         _render_top7_section(market, ranking)
     _render_top7_close_above_search()
-    _render_my_stock_panel(market)
+    _render_my_stock_panel(market, ranking)
     # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
     # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
     # **맨 위 「내가 저장한 매수 기록」 표는 뺐다** (2026-08-29 상하님 지시 —
@@ -4506,58 +4506,178 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
     # 그래서 화면만 먹고 있었다. header 를 안 넘기면 그 자리가 통째로 빈다.
     # **기록 자체는 안 지운다** — DB(j3store)에 그대로 있고, 되살리려면 여기에
     # header=_render_saved_trades_header 를 도로 넣으면 된다.
-    picklist_ui.render(st, "US", toggle=_section_toggle,
-                       close=_section_close, on_pick=_picklist_detail)
+    picklist_ui.render(
+        st, "US", toggle=_section_toggle, close=_section_close,
+        # 그 줄이 어느 파트에서 나왔는지에 따라 **다른 배점표**로 보내야 한다.
+        # market·ranking 이 있어야 그 파트의 상세를 그리므로 여기서 싸서 넘긴다.
+        on_pick=lambda code, name, kind, row: _picklist_detail(
+            market, ranking, code, name, kind, row),
+    )
 
 
-def _picklist_detail(code: str, name: str, kind: str) -> None:
-    """저장해 둔 목록에서 종목명을 누르면 그 종목 세부사항을 연다.
+# 저장해 둔 줄이 **어느 파트에서 나왔나**.
+_PICKLIST_PART_BY_KIND = {
+    "theme15": "테마 대장주",
+    "breakout": "상승장",
+    "crash": "급락 후 반등장",
+    "pullback": "눌림목",
+}
 
-    2026-09-01 상하님 지시 — *"날짜별로 저장해 둔 목록보기를 누르면 각 종목들이
-    각 파트별로 좍 나오는데, 그 종목명에 종목을 누르면 선택종목 세부사항이
-    나오도록 해라."*
+# **`origin` 칸은 갈래마다 다른 것이 들어 있다** (2026-09-02 실측).
+#   순위 9(top7) 줄 — 「테마 대장주」·「상승장」·「급락 후 반등장」 (매수 파트)
+#   상위 테마(theme15) 줄 — 「사이버보안」처럼 **테마 이름**
+#   상승장·급락 줄 — 빈칸
+# 그래서 origin 을 그냥 파트로 믿으면 theme15 줄이 「사이버보안」이라는 파트로
+# 읽혀 어느 배점표로도 못 간다. **아는 파트 이름일 때만** 파트로 쓴다.
+_PICKLIST_PARTS = ("테마 대장주", "상승장", "급락 후 반등장", "눌림목")
 
-    **왜 종목검색과 같은 길로 가나.** 저장해 둔 줄은 지난 날 것이라 오늘 목록에
-    없을 수 있다. 그래서 테마 표·상승장 표가 쓰는 '오늘 목록에서 고르기'로는
-    못 연다. 종목검색(`_render_my_stock_panel`)이 쓰는 `analyze_one_stock`은
-    티커 하나만 있으면 심사해 주므로, 저장된 어느 날 어느 종목이든 열린다.
 
-    **점수는 종목검색과 같은 뜻이다** — 견줄 테마가 없어 테마 대비 상대강도가
-    빠져 있다. 그래서 위 테마 대장주 점수와 나란히 견주면 안 된다는 안내를
-    거기와 똑같이 붙인다. 표에 저장된 그날 점수는 표 그대로 두고 건드리지 않는다.
+def _picklist_part(kind: str, row: dict) -> str:
+    origin = str((row or {}).get("origin") or "").strip()
+    if origin in _PICKLIST_PARTS:
+        return origin
+    return _PICKLIST_PART_BY_KIND.get(str(kind or ""), "")
+
+
+def _picklist_theme_name(row: dict) -> str:
+    """그 줄의 테마 이름. 상위 테마 줄은 `origin` 에, 나머지는 「테마」 칸에 있다."""
+    origin = str((row or {}).get("origin") or "").strip()
+    if origin and origin not in _PICKLIST_PARTS:
+        return origin
+    return str((row or {}).get("themes") or "").split("·")[0].strip()
+
+
+def _find_scan_row(found: dict, code: str) -> dict | None:
+    """오늘 그 파트 목록에서 이 종목 줄을 찾는다. 없으면 None."""
+    if not isinstance(found, dict) or not found.get("ok"):
+        return None
+    want = str(code or "").upper()
+    for row in (found.get("rows") or []):
+        if str(row.get("ticker") or "").upper() == want:
+            return row
+    return None
+
+
+def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
+                     kind: str, row: dict) -> None:
+    """저장해 둔 목록에서 누른 종목을 **그 줄이 나온 파트의 배점표**로 연다.
+
+    2026-09-02 상하님 지적 — *"CrowdStrike CRWD 종목을 내가 테마에서 클릭하면
+    테마의 배점 기준으로 나와야 되고, 그같이 상승장에서 종목을 누르면 상승장의
+    배점이 나와야지."*
+
+    **전에는 어느 줄을 누르든 종목검색 길(`analyze_one_stock`)로 보냈다.** 그래서
+    상승장에서 나온 CRWD 인데 테마 대장주 배점, 그것도 견줄 테마가 없어 상대강도
+    25점이 통째로 0인 반쪽(80점 만점)으로 나왔다 — 표에 적힌 그날 점수 89.0 과
+    아무 상관없는 숫자다. 「대장주 0위 · 추천 제외」도 같은 탓이었다.
+
+    상하님 말씀대로 **같은 종목이라도 파트가 다르면 배점이 다른 것이 정상**이다
+    (테마 대장주 94.9 · 상승장 89.0). 견주시려고 만든 것이므로 줄마다 그 줄의
+    자로 재야 한다.
+
+    **배점을 새로 만들지 않는다.** 순위 9가 이미 쓰는 길을 그대로 빌린다 —
+    상승장·급락은 `_render_pullback_detail`(전용배점), 테마 대장주는
+    `_render_stock_detail`(테마 배점)이다.
+
+    **오늘 그 파트 목록에 없으면 없다고 적는다.** 저장된 줄은 지난 날 것이라
+    오늘 그물에 안 걸릴 수 있다. 그때 엉뚱한 자로 재서 숫자를 만들어 내지 않는다
+    (CLAUDE.md 0-1 바 — 빈 자리를 딴 것으로 채우지 않는다).
     """
-    market = st.session_state.get("j3_market_overview") or {}
-    # 고른 종목이 바뀌면 상세·차트가 저절로 열리고 화면이 그 자리로 내려간다
-    # (눌림목 표·종목검색과 같은 동작, 2026-08-09·2026-08-21 상하님 지시).
+    part = _picklist_part(kind, row)
+    # 고른 종목이 바뀌면 상세·차트가 저절로 열리고 화면이 그 자리로 내려간다.
     if st.session_state.get("j3_picklist_shown") != code:
         st.session_state["j3_picklist_shown"] = code
         for opened in ("j3_detail_open_picklist", "j3_intraday_open_picklist",
-                       "j3_bundle_open_picklist"):
+                       "j3_bundle_open_picklist",
+                       # 상승장·급락 줄은 눌림목 상세가 그리므로 그쪽 열쇠도 켠다
+                       # (순위 9가 하는 것과 같다).
+                       "j3_detail_open_pullback", "j3_intraday_open_pullback",
+                       "j3_bundle_open_pullback"):
             st.session_state[opened] = True
         back_nav.opened(st, "j3_detail_open_picklist",
                         "j3_intraday_open_picklist", "j3_bundle_open_picklist")
         scroll_to.request(st, "detail_picklist")
-    with st.spinner(f"{name or code} 심사 중입니다…"):
-        result = j3data.analyze_one_stock(
-            code, market_score=float(market.get("score") or 0))
-    if not result.get("ok"):
-        st.error(_safe_error_text(result.get("error")))
+    # 여기가 그 자리다 — 위쪽 눌림목 상세와 이름이 겹치면 엉뚱한 데로 내려간다.
+    scroll_to.anchor(st, "detail_picklist")
+    saved_score = row.get("score")
+    saved_text = f" · 그날 점수 {float(saved_score):.1f}" if saved_score not in (None, "") else ""
+    st.markdown(
+        f"<div class='j3-section-title'>저장해 둔 목록에서 고른 종목 · "
+        f"{html.escape(str(name or code))}"
+        f"{html.escape(part and ' · ' + part or '')}{html.escape(saved_text)}</div>",
+        unsafe_allow_html=True,
+    )
+
+    if part in ("상승장", "눌림목"):
+        with st.spinner(f"{name or code} — 상승장 배점으로 심사 중입니다…"):
+            found = _find_scan_row(j3data.breakout_scan(), code)
+        if found:
+            _render_pullback_detail(found, market, ranking, mode="breakout")
+            return
+        _picklist_not_today(part, name or code)
         return
-    leader = result["row"]
-    st.caption(
-        "이 점수에는 **테마 대비 상대강도가 빠져 있습니다** — 견줄 테마가 없기 때문입니다. "
-        "위 테마 대장주 점수와 나란히 비교하지 마세요."
-    )
 
-    def _forget_pick():
-        """상세를 닫으면 고른 표시도 같이 걷는다 (종목검색과 같은 방식)."""
-        st.session_state.pop(picklist_ui.pick_key("US"), None)
-        st.session_state.pop("j3_picklist_shown", None)
+    if part == "급락 후 반등장":
+        with st.spinner(f"{name or code} — 급락 후 반등장 배점으로 심사 중입니다…"):
+            found = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
+        if found:
+            _render_pullback_detail(found, market, ranking, mode="crash")
+            return
+        _picklist_not_today(part, name or code)
+        return
 
-    _render_stock_detail(
-        {"name": "저장해 둔 목록"}, leader, market, [leader],
-        "j3_picklist_detail_choice", panel="picklist", on_close=_forget_pick,
+    if part == "테마 대장주":
+        # 그 줄의 테마 이름으로 그 테마 대장주 목록을 부른다.
+        theme_name = _picklist_theme_name(row)
+        theme_row = next(
+            (item for item in (ranking.get("rows") or [])
+             if str(item.get("name") or "") == theme_name),
+            None,
+        )
+        if theme_name:
+            with st.spinner(f"{theme_name} 대장주를 다시 세는 중입니다…"):
+                leaders = j3data.get_theme_leaders(
+                    theme_name, market_score=float(market.get("score") or 0),
+                    theme_score=float((theme_row or {}).get("score") or 0),
+                )
+            found = _find_scan_row(leaders, code)
+            if found:
+                _render_stock_detail(
+                    theme_row or {"name": theme_name}, found, market, [found],
+                    "j3_picklist_detail_choice", panel="picklist",
+                    on_close=_forget_picklist_pick,
+                )
+                return
+        _picklist_not_today(part or "테마 대장주", name or code)
+        return
+
+    # 파트를 알 수 없는 옛 줄(2026-08-15 이전 저장분)은 그렇게 적는다.
+    st.info(
+        f"이 줄에는 **매수 파트가 적혀 있지 않습니다**(2026-08-15 이전 저장분). "
+        f"어느 배점으로 재야 할지 알 수 없어 배점표를 그리지 않습니다. "
+        f"표에 적힌 그날 점수는 그대로 보실 수 있습니다."
     )
+    _section_close("j3_detail_open_picklist", "선택종목 세부사항 닫기",
+                   on_close=_forget_picklist_pick)
+
+
+def _forget_picklist_pick() -> None:
+    """상세를 닫으면 고른 표시도 같이 걷는다 (종목검색과 같은 방식)."""
+    st.session_state.pop(picklist_ui.pick_key("US"), None)
+    st.session_state.pop("j3_picklist_shown", None)
+
+
+def _picklist_not_today(part: str, name: str) -> None:
+    """오늘 그 파트 그물에 안 걸린 종목. **딴 자로 재지 않는다.**"""
+    st.warning(
+        f"**{html.escape(str(name))}** 는 오늘 「{html.escape(str(part))}」 목록에 "
+        f"없습니다 — 저장된 날에는 걸렸지만 오늘 그물에는 안 걸렸습니다. "
+        f"그 파트의 배점은 그날 목록 안에서만 잴 수 있어서, 여기서는 배점표를 "
+        f"그리지 않습니다. 다른 자로 재면 표에 적힌 그날 점수와 어긋난 숫자가 "
+        f"나옵니다."
+    )
+    _section_close("j3_detail_open_picklist", "선택종목 세부사항 닫기",
+                   on_close=_forget_picklist_pick)
 
 
 def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
@@ -5127,7 +5247,82 @@ def _render_top7_close_above_search() -> None:
     )
 
 
-def _render_my_stock_panel(market: dict) -> None:
+# 종목검색에서 고를 수 있는 자들. 맨 앞이 여태 쓰던 것이라 기본으로 둔다.
+_SEARCH_RULER_DEFAULT = "테마 없는 대장주 (80점)"
+_SEARCH_RULERS = (
+    _SEARCH_RULER_DEFAULT,
+    "테마 대장주",
+    "상승장",
+    "급락 후 반등장",
+)
+
+
+def _render_search_by_part(ruler: str, code: str, found_row: dict,
+                           market: dict, ranking: dict) -> None:
+    """고르신 파트의 **그 파트 배점표**로 검색 종목을 보여 준다.
+
+    파트 배점은 그 파트의 **오늘 목록 안에서만** 잴 수 있다 — 순위·백분위가
+    목록 안에서 매겨지기 때문이다. 그래서 오늘 그 그물에 안 걸린 종목은
+    **없다고 적는다.** 딴 자로 재서 숫자를 만들어 내지 않는다(CLAUDE.md 0-1 바).
+    """
+    name = str(found_row.get("name") or code)
+    if ruler == "상승장":
+        with st.spinner(f"{name} — 상승장 배점으로 심사 중입니다…"):
+            hit = _find_scan_row(j3data.breakout_scan(), code)
+        if hit:
+            _render_pullback_detail(hit, market, ranking, mode="breakout")
+            return
+    elif ruler == "급락 후 반등장":
+        with st.spinner(f"{name} — 급락 후 반등장 배점으로 심사 중입니다…"):
+            hit = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
+        if hit:
+            _render_pullback_detail(hit, market, ranking, mode="crash")
+            return
+    elif ruler == "테마 대장주":
+        # 그 종목이 든 테마를 **명부(US_THEMES)에서** 찾는다 — 그것이 원본이다.
+        # 여러 테마에 들면 오늘 순위가 가장 높은 테마로 잰다.
+        want = str(code).upper()
+        mine = [str(theme.get("name") or "")
+                for theme in getattr(j3data, "US_THEMES", ())
+                if want in {str(t).upper() for t in (theme.get("stocks") or ())}]
+        order = {str(item.get("name") or ""): index
+                 for index, item in enumerate(ranking.get("rows") or [])}
+        mine.sort(key=lambda title: order.get(title, 999))
+        theme_name = mine[0] if mine else ""
+        if theme_name:
+            theme_row = next(
+                (item for item in (ranking.get("rows") or [])
+                 if str(item.get("name") or "") == theme_name),
+                None,
+            )
+            with st.spinner(f"{theme_name} 대장주를 다시 세는 중입니다…"):
+                leaders = j3data.get_theme_leaders(
+                    theme_name, market_score=float(market.get("score") or 0),
+                    theme_score=float((theme_row or {}).get("score") or 0),
+                )
+            hit = _find_scan_row(leaders, code)
+            if hit:
+                _render_stock_detail(
+                    theme_row or {"name": theme_name}, hit, market, [hit],
+                    "j3_search_part_choice", panel="mystock",
+                )
+                return
+        else:
+            st.warning(
+                f"**{html.escape(name)}** 는 20개 테마 명부에 없는 종목이라 "
+                f"테마 대장주 배점으로는 잴 수 없습니다. 위에서 다른 자를 "
+                f"고르시거나 「테마 없는 대장주 (80점)」로 보십시오."
+            )
+            return
+    st.warning(
+        f"**{html.escape(name)}** 는 오늘 「{html.escape(str(ruler))}」 목록에 "
+        f"없습니다. 그 파트의 배점은 그날 목록 안에서만 잴 수 있어서 "
+        f"(순위·백분위가 목록 안에서 매겨집니다) 여기서는 배점표를 그리지 "
+        f"않습니다. 위에서 다른 자를 고르십시오."
+    )
+
+
+def _render_my_stock_panel(market: dict, ranking: dict) -> None:
     """내 종목 현재상황 — 티커나 회사 이름을 치면 그 종목 상세가 열린다.
 
     한국테마(자비스4)와 같은 자리·같은 화면이다(2026-07-29 요청). 미국 종목이라
@@ -5191,6 +5386,27 @@ def _render_my_stock_panel(market: dict) -> None:
             st.session_state[opened] = True
         back_nav.opened(st, "j3_detail_open_mystock",
                         "j3_intraday_open_mystock", "j3_bundle_open_mystock")
+    # ── **어느 배점으로 볼지 고르신다** (2026-09-02 상하님 지시) ────────────────
+    # 상하님 — "종목 검색에서 나오면 어디 배점을 기준으로 할 거냐고 물어보든지
+    # 해야지."
+    #
+    # 종목검색은 **속한 파트가 없다.** 그래서 여태 대장주 배점을 말없이 썼는데,
+    # 그것도 견줄 테마가 없어 상대강도 25점이 통째로 0인 반쪽(80점 만점)이었다.
+    # 어느 자로 재는지 모르고 보시면 다른 파트 점수와 헛되이 견주시게 된다.
+    #
+    # **배점을 새로 만들지 않는다.** 파트별 배점은 그 파트의 오늘 목록 안에서만
+    # 잴 수 있다(순위는 그 목록 안의 등수로 매기므로). 그래서 고른 파트의 오늘
+    # 목록에 그 종목이 있으면 그 배점표로 보내고, 없으면 **없다고 적는다.**
+    ruler = st.radio(
+        "어느 배점으로 볼까요",
+        _SEARCH_RULERS,
+        horizontal=True,
+        key="j3_my_stock_ruler",
+        help="같은 종목이라도 파트가 다르면 점수가 다릅니다 — 견주시라고 나눠 둔 것입니다.",
+    )
+    if ruler != _SEARCH_RULER_DEFAULT:
+        _render_search_by_part(ruler, chosen, by_ticker[chosen], market, ranking)
+        return
     with st.spinner(f"{by_ticker[chosen]['name']} 심사 중입니다…"):
         result = j3data.analyze_one_stock(
             chosen, market_score=float(market.get("score") or 0))
@@ -5199,8 +5415,10 @@ def _render_my_stock_panel(market: dict) -> None:
         return
     leader = result["row"]
     st.caption(
-        "이 점수에는 **테마 대비 상대강도가 빠져 있습니다** — 견줄 테마가 없기 때문입니다. "
-        "위 테마 대장주 점수와 나란히 비교하지 마세요."
+        "지금 자: **테마 없는 대장주 배점(80점 만점)** — 견줄 테마가 없어 "
+        "테마 대비 상대강도 25점이 통째로 빠져 있습니다. "
+        "위 테마 대장주 점수(100점 만점)와 나란히 비교하지 마세요. "
+        "다른 자로 보시려면 위에서 고르십시오."
     )
     def _forget_search():
         """상세를 닫으면 「찾은 종목」 줄도 같이 걷는다 (2026-08-28 상하님 지시).

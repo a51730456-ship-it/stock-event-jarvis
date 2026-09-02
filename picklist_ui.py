@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026090110
+MODULE_REVISION = 2026090230
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -324,10 +324,18 @@ def pick_key(market: str) -> str:
     return f"picklist_picked_{str(market).upper()}"
 
 
-def _remember_pick(st, market: str, code: str, name: str, kind: str) -> None:
-    """숨은 단추가 눌렸을 때 하는 일. **여기서는 아무것도 계산하지 않는다.**"""
+def _remember_pick(st, market: str, code: str, name: str, kind: str,
+                   row: dict | None = None) -> None:
+    """숨은 단추가 눌렸을 때 하는 일. **여기서는 아무것도 계산하지 않는다.**
+
+    **줄 전체를 담아 둔다**(2026-09-02 상하님 지적). 티커와 이름만 넘기면 그 줄이
+    **어느 파트에서 나온 것인지**를 잃어버린다. 같은 CRWD 라도 테마 대장주 줄과
+    상승장 줄은 배점이 다르다(94.9 · 89.0) — 상하님이 견주시려고 만든 것이다.
+    파트는 `list_kind`(갈래)와 `origin`(매수 파트) 칸에 적혀 있다.
+    """
     st.session_state[pick_key(market)] = {
         "code": str(code), "name": str(name), "kind": str(kind),
+        "row": dict(row or {}),
     }
 
 
@@ -507,7 +515,7 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) ->
              나가 접으려고 한참 올라가야 했다. 안 넘기면 예전처럼 위에만 둔다.
     on_pick: 종목명을 눌렀을 때 **그 종목 세부사항을 그릴 함수**다(2026-09-01
              상하님 지시 — "종목명에 종목을 누르면 선택종목 세부사항이 나오도록").
-             `on_pick(code, name, kind)` 로 부르고, 표 아래 · 닫기 단추 위에서
+             `on_pick(code, name, kind, row)` 로 부르고, 표 아래 · 닫기 단추 위에서
              부른다. 안 넘기면 종목명은 예전처럼 그냥 글자다 — 이 모듈은 시장을
              가리지 않아야 하므로 **무엇을 그릴지는 화면 쪽이 정한다.**
     header : 이 구역 **맨 위**에 그릴 것이 있으면 넘긴다(2026-08-14 상하님 지시 —
@@ -713,7 +721,8 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) ->
                 hidden_box.button(
                     code, key=f"{prefix}{index:02d}",
                     on_click=_remember_pick,
-                    args=(st, market, code, str(row.get("name") or code), kind),
+                    args=(st, market, code, str(row.get("name") or code), kind,
+                          dict(row)),
                 )
         # 「매수 파트」가 빈 줄은 2026-08-15 이전에 저장된 것이다. 그때는 세 파트로
         # 나누기 전 목록을 저장해서 어디서 왔는지가 파일에 없다(되돌려 못 채운다).
@@ -741,7 +750,7 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) ->
         if picked and picked.get("code"):
             try:
                 on_pick(str(picked.get("code")), str(picked.get("name") or ""),
-                        str(picked.get("kind") or ""))
+                        str(picked.get("kind") or ""), picked.get("row") or {})
             except Exception as exc:
                 # 세부사항 하나 때문에 목록 전체가 막히면 안 된다.
                 st.caption(f"세부사항을 열지 못했습니다: {exc}")

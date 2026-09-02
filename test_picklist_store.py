@@ -585,28 +585,81 @@ class UsSessionGateTests(unittest.TestCase):
                 self.session_state = {}
 
         st = _Fake()
-        picklist_ui._remember_pick(st, "US", "CRSP", "CRSP", "crash")
-        self.assertEqual(
-            st.session_state[picklist_ui.pick_key("US")],
-            {"code": "CRSP", "name": "CRSP", "kind": "crash"},
-        )
+        picklist_ui._remember_pick(st, "US", "CRSP", "CRSP", "crash",
+                                   {"origin": "급락 후 반등장", "score": 70.0})
+        saved = st.session_state[picklist_ui.pick_key("US")]
+        self.assertEqual(saved["code"], "CRSP")
+        self.assertEqual(saved["kind"], "crash")
+        # **줄 전체를 담는다** — 어느 파트에서 나온 줄인지가 거기 있다
+        # (2026-09-02 상하님 — "테마에서 클릭하면 테마의 배점 기준으로 나와야 되고,
+        #  상승장에서 종목을 누르면 상승장의 배점이 나와야지").
+        self.assertEqual(saved["row"]["origin"], "급락 후 반등장")
         # 시장마다 따로 담는다 — 한국에서 고른 것이 미국에 나오면 안 된다.
         self.assertNotEqual(picklist_ui.pick_key("US"), picklist_ui.pick_key("KR"))
 
     def test_the_us_screen_wires_the_detail_in(self):
         """미국 화면이 실제로 세부사항 함수를 넘기는지 본다."""
         page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
-        call = page[page.index('picklist_ui.render(st, "US"'):]
-        call = call[:call.index(")") + 1]
-        self.assertIn("on_pick=_picklist_detail", call)
+        self.assertIn("on_pick=lambda code, name, kind, row: _picklist_detail(", page)
         body = page[page.index("def _picklist_detail("):]
         body = body[:body.index(chr(10) + "def ", 10)]
-        # 저장된 줄은 지난 날 것이라 오늘 목록에 없을 수 있다 — 티커 하나로
-        # 심사하는 종목검색과 같은 길로 연다.
-        self.assertIn("analyze_one_stock", body)
-        self.assertIn('panel="picklist"', body)
         # 누르면 화면이 그 자리로 내려간다.
         self.assertIn('scroll_to.request(st, "detail_picklist")', body)
+
+    def test_each_row_opens_its_own_part_scoring(self):
+        """**그 줄이 나온 파트의 배점표**로 열어야 한다 (2026-09-02 상하님 지적).
+
+        상하님 — "CrowdStrike CRWD 종목을 내가 테마에서 클릭하면 테마의 배점
+        기준으로 나와야 되고, 그같이 상승장에서 종목을 누르면 상승장의 배점이
+        나와야지."
+
+        전에는 어느 줄을 누르든 종목검색 길(analyze_one_stock)로 보냈다. 그래서
+        상승장에서 나온 CRWD 인데 테마 대장주 배점, 그것도 테마가 빠진 반쪽
+        (80점 만점)으로 나와 표의 그날 점수 89.0 과 아무 상관없는 숫자가 됐다.
+        """
+        page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
+        body = page[page.index("def _picklist_detail("):page.index("def _forget_picklist_pick(")]
+        # **설명글(docstring)은 뺀다** — 거기에는 옛 길 이름이 '왜 잘못이었나'로
+        # 적혀 있어서, 안 빼면 그 글자에 걸려 시험이 헛되이 깨진다.
+        body = body.split('"""', 2)[-1]
+        # 상승장·급락은 전용배점(눌림목 상세), 테마 대장주는 테마 배점(종목 상세).
+        self.assertIn("breakout_scan()", body)
+        self.assertIn('mode="breakout"', body)
+        self.assertIn("find_crash_rebound_stocks()", body)
+        self.assertIn('mode="crash"', body)
+        self.assertIn("get_theme_leaders(", body)
+        # **종목검색 배점으로는 가지 않는다** — 그것이 이번 잘못의 원인이었다.
+        self.assertNotIn("analyze_one_stock", body,
+                         "아직 종목검색 배점으로 보낸다")
+        # 오늘 그 그물에 안 걸리면 **딴 자로 재지 않는다.**
+        self.assertIn("_picklist_not_today(", body)
+
+    def test_the_part_comes_from_the_saved_row(self):
+        """파트는 `origin`(매수 파트)이 우선, 없으면 갈래 이름으로 가른다."""
+        import importlib.util
+
+        page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
+        block = page[page.index("_PICKLIST_PART_BY_KIND = {"):page.index("def _find_scan_row(")]
+        scope: dict = {}
+        exec(block, scope)                    # 화면을 안 띄우고 이 조각만 돌린다
+        part = scope["_picklist_part"]
+        self.assertEqual(part("theme15", {}), "테마 대장주")
+        self.assertEqual(part("breakout", {}), "상승장")
+        self.assertEqual(part("crash", {}), "급락 후 반등장")
+        # 순위 9 줄은 갈래가 top7 이고 **파트는 origin 칸에** 적혀 있다.
+        self.assertEqual(part("top7", {"origin": "상승장"}), "상승장")
+        self.assertEqual(part("top7", {"origin": "테마 대장주"}), "테마 대장주")
+        # origin 이 있으면 갈래보다 그것이 이긴다.
+        self.assertEqual(part("crash", {"origin": "테마 대장주"}), "테마 대장주")
+        # 2026-08-15 이전 저장분은 파트를 모른다 — 빈 글자다.
+        self.assertEqual(part("top7", {}), "")
+        # **상위 테마 줄의 origin 은 테마 이름이다**(2026-09-02 실측 — OKTA 줄의
+        # origin 이 「사이버보안」이었다). 파트로 읽으면 어느 배점표로도 못 간다.
+        self.assertEqual(part("theme15", {"origin": "사이버보안"}), "테마 대장주")
+        theme_of = scope["_picklist_theme_name"]
+        self.assertEqual(theme_of({"origin": "사이버보안"}), "사이버보안")
+        self.assertEqual(theme_of({"origin": "상승장", "themes": "바이오 · 유전체"}),
+                         "바이오")
 
     def test_the_screen_autosave_checks_the_gate(self):
         """화면 자동 저장이 이 판정을 실제로 부르는지 본다."""
