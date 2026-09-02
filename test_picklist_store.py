@@ -707,6 +707,52 @@ class UsSessionGateTests(unittest.TestCase):
                     f"(CLAUDE.md 11번).",
                 )
 
+    def test_two_details_never_share_a_widget_key(self):
+        """상세를 두 곳에서 그려도 **열쇠가 겹치면 안 된다** (2026-09-02 사고).
+
+        상하님 화면 —
+        *"세부사항을 열지 못했습니다: There are multiple elements with the same
+        key='btn_j3_detail_open_pullback'"*
+
+        까닭 — 저장해 둔 목록에서도 눌림목 상세를 부르게 됐는데, 그 상세가
+        열쇠를 `j3_detail_open_pullback` 으로 **박아 두고** 있었다. 위쪽 급락
+        구역이 열려 있으면 한 판에 같은 열쇠가 두 번 생겨 스트림릿이 터진다.
+
+        이제 이름표(panel)에서 열쇠를 만든다. 기본값은 여태 쓰던 그 이름이라
+        다른 곳은 한 글자도 안 바뀐다.
+        """
+        page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
+        start = page.index("def _render_pullback_detail(")
+        body = page[start:page.index(chr(10) + "def ", start + 10)]
+
+        # ① 이름표를 받고, 기본값은 옛 이름이어야 한다(기존 동작 보존).
+        self.assertIn('panel: str = "pullback"', body, "이름표를 안 받는다")
+
+        # ② 열쇠를 **박아 두지 않는다.**
+        head = body[:body.index("detail_key = ")]
+        for hard in ('"j3_detail_open_pullback"', '"j3_danta_open_pullback"',
+                     'scroll_to.anchor(st, "detail_pullback")',
+                     '_render_price_chart_bundle(ticker, panel="pullback")'):
+            self.assertNotIn(hard, body, f"{hard} 를 아직 박아 두고 있다")
+        self.assertIn('detail_key = f"j3_detail_open_{panel}"', body)
+        self.assertIn('danta_key = f"j3_danta_open_{panel}"', body)
+        self.assertIn('scroll_to.anchor(st, f"detail_{panel}")', body)
+        del head
+
+        # ③ 저장해 둔 목록과 종목검색은 **제 이름표**로 부른다.
+        for where, want in (("def _picklist_detail(", 'panel="picklist"'),
+                            ("def _render_search_by_part(", 'panel="mystock"')):
+            piece = page[page.index(where):]
+            piece = piece[:piece.index(chr(10) + "def ", 10)]
+            self.assertIn(want, piece, f"{where} 가 제 이름표를 안 쓴다")
+
+        # ④ 저장해 둔 목록이 **남의 열쇠를 켜지 않는다** — 그러면 위쪽 급락
+        #    구역까지 열려 같은 사고가 다시 난다.
+        piece = page[page.index("def _picklist_detail("):]
+        piece = piece[:piece.index(chr(10) + "def ", 10)]
+        self.assertNotIn('"j3_detail_open_pullback"', piece,
+                         "남의 열쇠를 켜서 위쪽 구역까지 연다")
+
     def test_the_screen_autosave_checks_the_gate(self):
         """화면 자동 저장이 이 판정을 실제로 부르는지 본다."""
         source = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")

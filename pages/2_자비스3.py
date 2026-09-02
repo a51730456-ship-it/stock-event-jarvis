@@ -4587,17 +4587,19 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
     # 고른 종목이 바뀌면 상세·차트가 저절로 열리고 화면이 그 자리로 내려간다.
     if st.session_state.get("j3_picklist_shown") != code:
         st.session_state["j3_picklist_shown"] = code
+        # **제 이름표(picklist)만 켠다.** 예전에는 눌림목 쪽 열쇠까지 같이 켰는데,
+        # 그러면 위쪽 급락 구역의 상세까지 열려 같은 열쇠가 한 판에 두 번 생겼다
+        # (2026-09-02 상하님 화면 — "multiple elements with the same key").
+        # 이제 상세가 제 이름표로 그려지므로 남의 열쇠를 건드릴 까닭이 없다.
         for opened in ("j3_detail_open_picklist", "j3_intraday_open_picklist",
-                       "j3_bundle_open_picklist",
-                       # 상승장·급락 줄은 눌림목 상세가 그리므로 그쪽 열쇠도 켠다
-                       # (순위 9가 하는 것과 같다).
-                       "j3_detail_open_pullback", "j3_intraday_open_pullback",
-                       "j3_bundle_open_pullback"):
+                       "j3_bundle_open_picklist"):
             st.session_state[opened] = True
         back_nav.opened(st, "j3_detail_open_picklist",
                         "j3_intraday_open_picklist", "j3_bundle_open_picklist")
         scroll_to.request(st, "detail_picklist")
     # 여기가 그 자리다 — 위쪽 눌림목 상세와 이름이 겹치면 엉뚱한 데로 내려간다.
+    # 안쪽 상세도 같은 이름으로 한 번 더 그리지만, **먼저 그린 이곳**으로 간다
+    # (getElementById 규칙). 제목 위로 내려와야 무엇을 보고 있는지 보인다.
     scroll_to.anchor(st, "detail_picklist")
     saved_score = row.get("score")
     saved_text = f" · 그날 점수 {float(saved_score):.1f}" if saved_score not in (None, "") else ""
@@ -4612,7 +4614,8 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
         with st.spinner(f"{name or code} — 상승장 배점으로 심사 중입니다…"):
             found = _find_scan_row(j3data.breakout_scan(), code)
         if found:
-            _render_pullback_detail(found, market, ranking, mode="breakout")
+            _render_pullback_detail(found, market, ranking, mode="breakout",
+                                    panel="picklist")
             return
         _picklist_not_today(part, name or code)
         return
@@ -4621,7 +4624,8 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
         with st.spinner(f"{name or code} — 급락 후 반등장 배점으로 심사 중입니다…"):
             found = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
         if found:
-            _render_pullback_detail(found, market, ranking, mode="crash")
+            _render_pullback_detail(found, market, ranking, mode="crash",
+                                    panel="picklist")
             return
         _picklist_not_today(part, name or code)
         return
@@ -5270,13 +5274,15 @@ def _render_search_by_part(ruler: str, code: str, found_row: dict,
         with st.spinner(f"{name} — 상승장 배점으로 심사 중입니다…"):
             hit = _find_scan_row(j3data.breakout_scan(), code)
         if hit:
-            _render_pullback_detail(hit, market, ranking, mode="breakout")
+            _render_pullback_detail(hit, market, ranking, mode="breakout",
+                                    panel="mystock")
             return
     elif ruler == "급락 후 반등장":
         with st.spinner(f"{name} — 급락 후 반등장 배점으로 심사 중입니다…"):
             hit = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
         if hit:
-            _render_pullback_detail(hit, market, ranking, mode="crash")
+            _render_pullback_detail(hit, market, ranking, mode="crash",
+                                    panel="mystock")
             return
     elif ruler == "테마 대장주":
         # 그 종목이 든 테마를 **명부(US_THEMES)에서** 찾는다 — 그것이 원본이다.
@@ -5452,7 +5458,8 @@ def _us_signal_hint() -> str:
 
 
 def _render_pullback_detail(row: dict, market: dict, ranking: dict,
-                            *, mode: str | None = None) -> None:
+                            *, mode: str | None = None,
+                            panel: str = "pullback") -> None:
     """상단 테마 선택과 독립된 눌림목 종목 상세.
 
     자비스4(한국) 종목 상세와 같은 구성으로 맞춘다(2026-07-24 사용자 지시) —
@@ -5463,11 +5470,18 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
     """
     ticker = str(row.get("ticker") or "")
+    # **열쇠에 이름표를 붙인다** (2026-09-02 상하님 화면 —
+    # "There are multiple elements with the same key='btn_j3_detail_open_pullback'").
+    # 저장해 둔 목록에서도 이 상세를 부르게 되면서, 위쪽 급락 구역이 열려 있으면
+    # 같은 열쇠가 한 판에 두 번 생겨 터졌다. 이름표가 다르면 겹치지 않는다.
+    # **기본값은 여태 쓰던 그 이름이라 다른 곳은 한 글자도 안 바뀐다.**
+    detail_key = f"j3_detail_open_{panel}"
+    danta_key = f"j3_danta_open_{panel}"
     # 종목을 누르면 화면이 여기로 내려온다(2026-08-09 상하님 지시).
-    scroll_to.anchor(st, "detail_pullback")
+    scroll_to.anchor(st, f"detail_{panel}")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
     if not _section_toggle(
-        "🔎 선택종목 세부사항 보기", "j3_detail_open_pullback",
+        "🔎 선택종목 세부사항 보기", detail_key,
         close_label="선택종목 세부사항 닫기",
     ):
         return
@@ -5551,10 +5565,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         unsafe_allow_html=True,
     )
     if auth.is_guest():
-        _render_day_price_row(metrics, ticker, panel="pullback")
+        _render_day_price_row(metrics, ticker, panel=panel)
         # 당일 그림은 이제 아래 네 그림 판에 함께 들어간다(2026-08-28).
-        _render_price_chart_bundle(ticker, panel="pullback")
-        _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
+        _render_price_chart_bundle(ticker, panel=panel)
+        _section_close(detail_key, "선택종목 세부사항 닫기")
         return
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
@@ -5708,7 +5722,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         factor_html = (
             _swing_factor_table_html(
                 factor_rows, total_row, row.get("explanations") or {},
-                "j3_factor_help_pullback_breakout",
+                f"j3_factor_help_{panel}_breakout",
             )
             if mode == "breakout" else
             _factor_table_html(
@@ -5859,7 +5873,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         # 단타 참고 신호는 접어 둔다 — 점수·판정에 안 쓰는 참고값인데 늘 펴 놓으니
         # 화면이 길어졌다(2026-08-06 상하님 지적).
         if _section_toggle(
-            "⚡ 단타 참고 신호 보기", "j3_danta_open_pullback",
+            "⚡ 단타 참고 신호 보기", danta_key,
             close_label="단타 참고 신호 닫기",
         ):
             st.markdown(
@@ -5885,11 +5899,11 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
         "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
-    _render_day_price_row(metrics, ticker, panel="pullback")
-    _render_price_chart_bundle(ticker, panel="pullback")
+    _render_day_price_row(metrics, ticker, panel=panel)
+    _render_price_chart_bundle(ticker, panel=panel)
 
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
-    _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
+    _section_close(detail_key, "선택종목 세부사항 닫기")
 
 
 def _pullback_backdrop_cards(
