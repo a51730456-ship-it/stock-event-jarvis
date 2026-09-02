@@ -1219,7 +1219,7 @@ if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVIS
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
-_REQUIRED_PICKLIST_REVISION = 2026082920
+_REQUIRED_PICKLIST_REVISION = 2026090110
 if (
     # 2026-08-29 「상위 테마 5개」를 화면에서도 남기는 데 쓴다. 옛 모듈이면
     # 이 이름이 없어 그 갈래가 또 통째로 빠진다.
@@ -4507,7 +4507,57 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
     # **기록 자체는 안 지운다** — DB(j3store)에 그대로 있고, 되살리려면 여기에
     # header=_render_saved_trades_header 를 도로 넣으면 된다.
     picklist_ui.render(st, "US", toggle=_section_toggle,
-                       close=_section_close)
+                       close=_section_close, on_pick=_picklist_detail)
+
+
+def _picklist_detail(code: str, name: str, kind: str) -> None:
+    """저장해 둔 목록에서 종목명을 누르면 그 종목 세부사항을 연다.
+
+    2026-09-01 상하님 지시 — *"날짜별로 저장해 둔 목록보기를 누르면 각 종목들이
+    각 파트별로 좍 나오는데, 그 종목명에 종목을 누르면 선택종목 세부사항이
+    나오도록 해라."*
+
+    **왜 종목검색과 같은 길로 가나.** 저장해 둔 줄은 지난 날 것이라 오늘 목록에
+    없을 수 있다. 그래서 테마 표·상승장 표가 쓰는 '오늘 목록에서 고르기'로는
+    못 연다. 종목검색(`_render_my_stock_panel`)이 쓰는 `analyze_one_stock`은
+    티커 하나만 있으면 심사해 주므로, 저장된 어느 날 어느 종목이든 열린다.
+
+    **점수는 종목검색과 같은 뜻이다** — 견줄 테마가 없어 테마 대비 상대강도가
+    빠져 있다. 그래서 위 테마 대장주 점수와 나란히 견주면 안 된다는 안내를
+    거기와 똑같이 붙인다. 표에 저장된 그날 점수는 표 그대로 두고 건드리지 않는다.
+    """
+    market = st.session_state.get("j3_market_overview") or {}
+    # 고른 종목이 바뀌면 상세·차트가 저절로 열리고 화면이 그 자리로 내려간다
+    # (눌림목 표·종목검색과 같은 동작, 2026-08-09·2026-08-21 상하님 지시).
+    if st.session_state.get("j3_picklist_shown") != code:
+        st.session_state["j3_picklist_shown"] = code
+        for opened in ("j3_detail_open_picklist", "j3_intraday_open_picklist",
+                       "j3_bundle_open_picklist"):
+            st.session_state[opened] = True
+        back_nav.opened(st, "j3_detail_open_picklist",
+                        "j3_intraday_open_picklist", "j3_bundle_open_picklist")
+        scroll_to.request(st, "detail_picklist")
+    with st.spinner(f"{name or code} 심사 중입니다…"):
+        result = j3data.analyze_one_stock(
+            code, market_score=float(market.get("score") or 0))
+    if not result.get("ok"):
+        st.error(_safe_error_text(result.get("error")))
+        return
+    leader = result["row"]
+    st.caption(
+        "이 점수에는 **테마 대비 상대강도가 빠져 있습니다** — 견줄 테마가 없기 때문입니다. "
+        "위 테마 대장주 점수와 나란히 비교하지 마세요."
+    )
+
+    def _forget_pick():
+        """상세를 닫으면 고른 표시도 같이 걷는다 (종목검색과 같은 방식)."""
+        st.session_state.pop(picklist_ui.pick_key("US"), None)
+        st.session_state.pop("j3_picklist_shown", None)
+
+    _render_stock_detail(
+        {"name": "저장해 둔 목록"}, leader, market, [leader],
+        "j3_picklist_detail_choice", panel="picklist", on_close=_forget_pick,
+    )
 
 
 def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:

@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026082920
+MODULE_REVISION = 2026090110
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -86,6 +86,25 @@ CSS = """
     white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,.06); }
 .pl-table tr:last-child td { border-bottom: none; }
 .pl-name { color: #c084fc !important; font-weight: 800; }
+/* 종목명을 누르면 그 종목 세부사항이 열린다 (2026-09-01 상하님 지시).
+   상하님 — "종목명에 종목을 누르면 선택종목 세부사항이 나오도록 해라.
+   마우스 갖다 대면 색깔이나 손가락 모양이 바뀌게 하되, 첫 번째 형식처럼
+   종목마다 위아래를 띄우지 말고 두 번째 캡처처럼 하라."
+   그래서 **줄 높이를 하나도 안 바꾼다.** 띄운 만큼(padding) 도로 당겨(margin)
+   글자가 있던 자리 그대로 있게 한다. 바뀌는 것은 손가락 모양과 색뿐이다. */
+.pl-pick { cursor: pointer; border-radius: .3rem;
+           padding: .08rem .35rem; margin: -.08rem -.35rem;
+           transition: background-color .12s ease, color .12s ease; }
+.pl-pick:hover { background: rgba(192,132,252,.22); }
+.pl-pick:hover .pl-name { color: #ffffff !important; }
+.pl-pick.pl-picked { background: rgba(192,132,252,.30);
+                     box-shadow: inset 0 0 0 1px rgba(192,132,252,.55); }
+/* 종목명을 누르라고 심어 둔 스트림릿 단추는 **자리를 차지하지 않는다.**
+   흐름 밖으로 빼서(absolute) 칸 사이 여백까지 안 생기게 한다 — 안 그러면
+   표마다 빈 줄이 하나씩 생긴다. */
+div[class*="st-key-plpickbox_"] { position: absolute !important;
+    width: 0 !important; height: 0 !important; overflow: hidden !important;
+    opacity: 0 !important; pointer-events: none !important; }
 /* 한국 테마는 한 종목이 테마를 열 개씩 달고 있어, 그대로 두면 표가 2,200px까지
    늘어난다(2026-08-09 폰 실측). 테마 칸만 폭을 묶고 넘치면 …으로 자른다 —
    전체 이름은 칸에 손을 올리면 뜬다. 자르는 것은 **폭을 묶은 칸(td)** 이어야 한다.
@@ -187,26 +206,129 @@ def _cell(row: dict, field: str, tried: bool = False) -> str:
     return html.escape(str(value))
 
 
-def table_html(rows, kind: str, *, tried: bool = False) -> str:
+def table_html(rows, kind: str, *, tried: bool = False,
+               pick_prefix: str | None = None, picked_code: str | None = None) -> str:
     """한 갈래의 표를 통째로 그린다. 값은 하나도 고치지 않는다.
 
     `tried`는 **계산 단추를 눌러 값을 받아 봤나**다. 안 눌렀는데 '못 받음'이라
     적으면 저장이 고장 난 줄 아신다(2026-08-14 상하님 지적).
+
+    `pick_prefix`를 주면 **종목명을 누를 수 있게** 한다(2026-09-01 상하님 지시).
+    줄 하나마다 숨은 단추 이름(`{pick_prefix}00`…)을 글자 모양(class)에 적어 둔다.
+    누르면 그 이름의 단추를 대신 눌러 주는 것은 `_pick_bridge`가 한다 —
+    `st.markdown`은 `<script>`를 지우므로 여기서는 표시만 남긴다.
+    표의 생김새는 그대로다. 안 주면 예전과 한 글자도 다르지 않다.
     """
     fields = _KIND_COLUMNS.get(kind, tuple(field for field, _ in _COLUMNS))
     titles = dict(_COLUMNS)
     head = "".join(f"<th>{titles.get(field, field)}</th>" for field in fields)
     body = []
-    for row in rows:
-        cells = "".join(
-            f"<td class='pl-c-{field}'>{_cell(row, field, tried)}</td>" for field in fields
-        )
-        body.append(f"<tr>{cells}</tr>")
+    for index, row in enumerate(rows):
+        cells = []
+        for field in fields:
+            inner = _cell(row, field, tried)
+            if field == "name" and pick_prefix and row.get("code"):
+                mark = " pl-picked" if str(row.get("code")) == str(picked_code or "") else ""
+                inner = (f"<span class='pl-pick pl-k-{pick_prefix}{index:02d}{mark}'>"
+                         f"{inner}</span>")
+            cells.append(f"<td class='pl-c-{field}'>{inner}</td>")
+        body.append(f"<tr>{''.join(cells)}</tr>")
     return (
         "<div class='pl-wrap'><table class='pl-table'>"
         f"<thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody>"
         "</table></div>"
     )
+
+
+# ── 종목명을 누르면 숨은 단추가 대신 눌린다 ────────────────────────────────
+# 2026-09-01 상하님 지시 — "종목명에 종목을 누르면 선택종목 세부사항이 나오도록."
+#
+# **왜 이렇게 하나.** 표는 `st.markdown`으로 그린 그림이라 눌러도 파이썬이 모른다.
+# 그렇다고 줄마다 스트림릿 단추를 세우면 첫 번째 캡처처럼 줄 사이가 벌어진다 —
+# 상하님이 그러지 말라고 하신 바로 그 모양이다. 그래서 **표는 그대로 두고**,
+# 눈에 안 보이는 단추를 따로 세워 두었다가 종목명을 누르면 그 단추를 대신 눌러 준다.
+#
+# **주소를 새로 만들지 않는다** — 링크(`<a href="?...">`)로 하면 뒤로가기 자리가
+# 하나씩 쌓인다. 상하님이 "뒤로가기 버튼 누르더라도 아무 일도 안 되게 하라"고
+# 하셨으므로(2026-08-29) 그 길은 막았다.
+#
+# **바깥 화면에 글을 심는다** — `components.html`이 만드는 iframe은 화면을 다시
+# 그릴 때 없어지고, 거기서 붙인 손잡이도 같이 죽는다(image_zoom.py 에 적힌
+# 2026-08-27의 교훈). 심어 둔 `<script>`는 바깥 화면의 것이라 그대로 산다.
+# 게다가 눌림을 **화면 전체에서 한 번에 받으므로**(위임) 표가 다시 그려져도
+# 새로 붙일 것이 없다.
+#
+# **절대 원칙 — 실패해도 아무 일도 일어나지 않아야 한다.** 브라우저가 막으면
+# 종목명이 그냥 글자로 남을 뿐, 표도 목록도 그대로다(CLAUDE.md 13번과 같다).
+_BRIDGE_CODE = r"""
+(function () {
+  if (window.__jarvisPickBridge) { return; }
+  window.__jarvisPickBridge = 1;
+  document.addEventListener("click", function (ev) {
+    var node = ev.target, hit = null;
+    while (node && node !== document) {
+      if (node.classList && node.classList.contains("pl-pick")) { hit = node; break; }
+      node = node.parentNode;
+    }
+    if (!hit) { return; }
+    var key = "";
+    for (var i = 0; i < hit.classList.length; i++) {
+      var name = hit.classList[i];
+      if (name.indexOf("pl-k-") === 0) { key = name.slice(5); break; }
+    }
+    if (!key) { return; }
+    var btn = document.querySelector('div[class*="st-key-' + key + '"] button');
+    if (btn) { try { btn.click(); } catch (e) {} }
+  }, true);
+})();
+"""
+
+# 심는 글. 제가 들어앉은 칸은 다 돈 뒤 스스로 숨긴다 — 안 숨기면 표 사이에
+# 빈 줄이 하나 남는다(scroll_to.py 의 `_NOW_SCRIPT`와 같은 까닭).
+_BRIDGE_HTML = """
+<script>
+(function () {
+  try {
+    var doc = window.parent && window.parent.document;
+    if (doc && !doc.getElementById("jarvis-pick-bridge")) {
+      var tag = doc.createElement("script");
+      tag.id = "jarvis-pick-bridge";
+      tag.textContent = %s;
+      doc.head.appendChild(tag);
+    }
+  } catch (e) {}
+  try {
+    var box = window.frameElement && window.frameElement.closest(
+      '[data-testid="stElementContainer"]');
+    if (box) { box.style.display = "none"; }
+  } catch (e) {}
+})();
+</script>
+"""
+
+
+def pick_bridge(st) -> None:
+    """종목명 누르기를 숨은 단추로 이어 주는 장치를 한 번 심는다."""
+    try:
+        import json
+
+        import streamlit.components.v1 as components
+
+        components.html(_BRIDGE_HTML % json.dumps(_BRIDGE_CODE), height=0)
+    except Exception:
+        pass          # 못 심어도 표는 그대로 나온다
+
+
+def pick_key(market: str) -> str:
+    """고른 종목을 담아 두는 자리 이름. 시장마다 따로 둔다."""
+    return f"picklist_picked_{str(market).upper()}"
+
+
+def _remember_pick(st, market: str, code: str, name: str, kind: str) -> None:
+    """숨은 단추가 눌렸을 때 하는 일. **여기서는 아무것도 계산하지 않는다.**"""
+    st.session_state[pick_key(market)] = {
+        "code": str(code), "name": str(name), "kind": str(kind),
+    }
 
 
 def fetch_prices(market: str, codes) -> dict:
@@ -374,7 +496,7 @@ def _keep_keyboard_down(st, market: str) -> None:
         pass          # 못 붙여도 화면은 그대로 돈다
 
 
-def render(st, market: str, *, toggle, header=None, close=None) -> None:
+def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) -> None:
     """'저장된 목록 보기' 구역 전체.
 
     toggle : 페이지의 ``_section_toggle``을 그대로 받는다. 여닫는 방식이 그 화면의
@@ -383,6 +505,11 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
              닫기 단추를 하나 더 둔다(2026-08-15 상하님 지시). 이 구역은 날짜마다
              표가 넷이라 화면 몇 장이고, 다 보고 나면 맨 위 닫기 단추가 화면 밖으로
              나가 접으려고 한참 올라가야 했다. 안 넘기면 예전처럼 위에만 둔다.
+    on_pick: 종목명을 눌렀을 때 **그 종목 세부사항을 그릴 함수**다(2026-09-01
+             상하님 지시 — "종목명에 종목을 누르면 선택종목 세부사항이 나오도록").
+             `on_pick(code, name, kind)` 로 부르고, 표 아래 · 닫기 단추 위에서
+             부른다. 안 넘기면 종목명은 예전처럼 그냥 글자다 — 이 모듈은 시장을
+             가리지 않아야 하므로 **무엇을 그릴지는 화면 쪽이 정한다.**
     header : 이 구역 **맨 위**에 그릴 것이 있으면 넘긴다(2026-08-14 상하님 지시 —
              "날짜별로 저장해 둔 목록 보기에 제일 위에 자동 저장된 게 나오도록").
              미국은 매수 기록을, 한국은 아직 아무것도 안 넘긴다. 이 모듈은 시장을
@@ -551,6 +678,8 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
         )
 
 
+    # 지금 고른 종목(있으면 그 줄에 표시가 붙는다). 없으면 None 이다.
+    picked_now = st.session_state.get(pick_key(market)) if on_pick is not None else None
     hidden = 0
     for kind in store.KIND_ORDER:
         part = [row for row in rows if str(row.get("list_kind")) == kind]
@@ -567,7 +696,25 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
             f"<div class='pl-kind'>{store.kind_label(kind, market)} · {len(part)}종목</div>",
             unsafe_allow_html=True,
         )
-        st.markdown(table_html(part, kind, tried=tried), unsafe_allow_html=True)
+        prefix = f"plpick_{market}_{kind}_" if on_pick is not None else None
+        st.markdown(
+            table_html(part, kind, tried=tried, pick_prefix=prefix,
+                       picked_code=(picked_now or {}).get("code")),
+            unsafe_allow_html=True,
+        )
+        if prefix:
+            # 종목명이 누르면 대신 눌릴 **보이지 않는 단추**들. 표 바로 뒤에 둔다.
+            # 자리를 안 차지하게 CSS 로 흐름 밖에 뺐다(위 pl-pick 설명 참고).
+            hidden_box = st.container(key=f"plpickbox_{market}_{kind}")
+            for index, row in enumerate(part):
+                code = str(row.get("code") or "")
+                if not code:
+                    continue
+                hidden_box.button(
+                    code, key=f"{prefix}{index:02d}",
+                    on_click=_remember_pick,
+                    args=(st, market, code, str(row.get("name") or code), kind),
+                )
         # 「매수 파트」가 빈 줄은 2026-08-15 이전에 저장된 것이다. 그때는 세 파트로
         # 나누기 전 목록을 저장해서 어디서 왔는지가 파일에 없다(되돌려 못 채운다).
         if kind == "top7" and any(not str(row.get("origin") or "") for row in part):
@@ -585,6 +732,19 @@ def render(st, market: str, *, toggle, header=None, close=None) -> None:
             f"이 날짜에는 지금 화면에 없는 옛 갈래 {hidden}줄이 더 저장돼 있습니다 — "
             "표로는 보여 드리지 않고, 위 ‘엑셀로 받기·CSV로 받기’에는 그대로 들어갑니다."
         )
+
+    if on_pick is not None:
+        # 누르기를 이어 주는 장치는 표를 다 그린 **뒤에** 심는다 — 심을 때 이미
+        # 표가 화면에 있어야 첫 누름부터 받는다.
+        pick_bridge(st)
+        picked = st.session_state.get(pick_key(market))
+        if picked and picked.get("code"):
+            try:
+                on_pick(str(picked.get("code")), str(picked.get("name") or ""),
+                        str(picked.get("kind") or ""))
+            except Exception as exc:
+                # 세부사항 하나 때문에 목록 전체가 막히면 안 된다.
+                st.caption(f"세부사항을 열지 못했습니다: {exc}")
 
     # 이 구역의 **맨 끝** — 여기서 바로 접을 수 있게 한다(2026-08-15 상하님 지시).
     if close is not None:

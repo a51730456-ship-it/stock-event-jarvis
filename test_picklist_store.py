@@ -505,6 +505,109 @@ class UsSessionGateTests(unittest.TestCase):
         block = ui.split("def _kr_market_open_today(")[1].split(chr(10) + "def ")[0]
         self.assertIn("traded is None", block, "못 읽었을 때 막아 버린다")
 
+    def test_clicking_a_saved_name_opens_the_detail(self):
+        """저장해 둔 목록의 **종목명을 누르면** 세부사항이 열린다 (2026-09-01 지시).
+
+        상하님 — "그 종목명에 종목을 누르면 선택종목 세부사항이 나오도록 해라.
+        마우스 갖다 대면 색깔이나 손가락 모양이 바뀌게 하되, 첫 번째 형식처럼
+        종목마다 위아래를 띄우지 말고 두 번째 캡처처럼 하라."
+        """
+        import picklist_ui
+
+        rows = [
+            {"list_kind": "crash", "rank": 1, "code": "CRSP", "name": "CRSP",
+             "trade_date": "2026-09-01", "score": 70},
+            {"list_kind": "crash", "rank": 2, "code": "MDB", "name": "MDB",
+             "trade_date": "2026-09-01", "score": 70},
+        ]
+        plain = picklist_ui.table_html(rows, "crash")
+        clickable = picklist_ui.table_html(
+            rows, "crash", pick_prefix="plpick_US_crash_", picked_code="MDB")
+
+        # ① 안 넘기면 예전과 **한 글자도 다르지 않다**.
+        self.assertNotIn("pl-pick", plain)
+        # ② 넘기면 줄마다 그 줄의 숨은 단추 이름이 글자 모양에 적힌다.
+        self.assertIn("pl-k-plpick_US_crash_00", clickable)
+        self.assertIn("pl-k-plpick_US_crash_01", clickable)
+        # ③ 고른 줄에는 표시가 붙는다.
+        self.assertIn("pl-k-plpick_US_crash_01 pl-picked", clickable)
+        self.assertNotIn("pl-k-plpick_US_crash_00 pl-picked", clickable)
+        # ④ **줄이 늘거나 칸이 늘지 않는다** — 표 모양은 그대로여야 한다.
+        self.assertEqual(plain.count("<tr>"), clickable.count("<tr>"))
+        self.assertEqual(plain.count("<td"), clickable.count("<td"))
+
+    def test_the_clickable_name_does_not_change_row_height(self):
+        """누를 수 있게 해도 **줄 높이는 그대로**여야 한다 (2026-09-01 상하님 지시).
+
+        상하님 — "첫 번째 형식처럼 종목마다 위아래를 띄우지 말고 두 번째 캡처처럼
+        하라는 말이다." 그래서 띄운 만큼(padding) 도로 당겨(margin) 글자가 있던
+        자리에 그대로 있게 한다. 바뀌는 것은 손가락 모양과 색뿐이다.
+        """
+        import picklist_ui
+
+        css = picklist_ui.CSS
+        block = css.split(".pl-pick {")[1].split("}")[0]
+        self.assertIn("cursor: pointer", block)
+        self.assertIn("padding:", block)
+        self.assertIn("margin: -", block)          # 띄운 만큼 도로 당긴다
+        self.assertIn(".pl-pick:hover", css)       # 색이 바뀐다
+        # 숨은 단추 칸은 **자리를 차지하지 않아야** 한다 — 안 그러면 표마다
+        # 빈 줄이 하나씩 생긴다.
+        hidden = css.split('div[class*="st-key-plpickbox_"] {')[1].split("}")[0]
+        self.assertIn("position: absolute", hidden)
+        self.assertIn("height: 0", hidden)
+
+    def test_the_click_bridge_makes_no_new_browser_history(self):
+        """누르기는 **주소를 새로 만들지 않는다** (2026-08-29 뒤로가기 지시).
+
+        상하님 — "뒤로가기 버튼 누르더라도 아무 일도 안 되게 하라."
+        링크(`<a href="?...">`)나 query_params 로 열면 뒤로가기 자리가 줄마다
+        하나씩 쌓인다. 그래서 숨은 단추를 대신 눌러 주는 길로 만들었다.
+        """
+        import picklist_ui
+
+        code = picklist_ui._BRIDGE_CODE
+        self.assertIn("btn.click()", code)
+        for banned in ("href", "pushState", "query_params", "location"):
+            self.assertNotIn(banned, code, f"{banned} 로 열면 뒤로가기가 쌓인다")
+        # 바깥 화면에 심어야 화면을 다시 그려도 산다(image_zoom.py 의 교훈).
+        self.assertIn("window.parent", picklist_ui._BRIDGE_HTML)
+        self.assertIn("jarvis-pick-bridge", picklist_ui._BRIDGE_HTML)
+        # 제가 들어앉은 칸은 스스로 숨긴다 — 안 숨기면 표 사이에 빈 줄이 남는다.
+        self.assertIn("stElementContainer", picklist_ui._BRIDGE_HTML)
+
+    def test_the_hidden_button_only_remembers_the_pick(self):
+        """숨은 단추는 **아무것도 계산하지 않는다.** 고른 것만 적어 둔다."""
+        import picklist_ui
+
+        class _Fake:
+            def __init__(self):
+                self.session_state = {}
+
+        st = _Fake()
+        picklist_ui._remember_pick(st, "US", "CRSP", "CRSP", "crash")
+        self.assertEqual(
+            st.session_state[picklist_ui.pick_key("US")],
+            {"code": "CRSP", "name": "CRSP", "kind": "crash"},
+        )
+        # 시장마다 따로 담는다 — 한국에서 고른 것이 미국에 나오면 안 된다.
+        self.assertNotEqual(picklist_ui.pick_key("US"), picklist_ui.pick_key("KR"))
+
+    def test_the_us_screen_wires_the_detail_in(self):
+        """미국 화면이 실제로 세부사항 함수를 넘기는지 본다."""
+        page = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
+        call = page[page.index('picklist_ui.render(st, "US"'):]
+        call = call[:call.index(")") + 1]
+        self.assertIn("on_pick=_picklist_detail", call)
+        body = page[page.index("def _picklist_detail("):]
+        body = body[:body.index(chr(10) + "def ", 10)]
+        # 저장된 줄은 지난 날 것이라 오늘 목록에 없을 수 있다 — 티커 하나로
+        # 심사하는 종목검색과 같은 길로 연다.
+        self.assertIn("analyze_one_stock", body)
+        self.assertIn('panel="picklist"', body)
+        # 누르면 화면이 그 자리로 내려간다.
+        self.assertIn('scroll_to.request(st, "detail_picklist")', body)
+
     def test_the_screen_autosave_checks_the_gate(self):
         """화면 자동 저장이 이 판정을 실제로 부르는지 본다."""
         source = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")
