@@ -27,14 +27,20 @@ import datetime
 import html
 import pathlib
 import subprocess
+import time
 
 # 표시 방식을 바꾸면 이 숫자를 올린다(규칙 11).
-MODULE_REVISION = 2026090220
+MODULE_REVISION = 2026090240
 
 _ROOT = pathlib.Path(__file__).resolve().parent
 
-# 한 판에 한 번만 알아본다. 받아 오면 앱이 다시 뜨므로 그때 새로 읽는다.
-_CACHE: dict[str, str] = {}
+# 알아본 값을 잠깐 담아 둔다. **오래 붙들면 안 된다** (2026-09-02 실측 —
+# 노트북이 받아 왔는데도 화면 맨 밑에는 옛 번호가 그대로 떠 있었다).
+# 스트림릿은 앱을 껐다 켜지 않아도 파일이 바뀌면 화면을 다시 그리는데, 이 모듈은
+# 프로세스에 한 번만 올라오므로 담아 둔 값이 그대로 남아 거짓말을 한다.
+# 1분마다 다시 본다 — git 한 번은 0.02초라 무게가 없다.
+_CACHE_SECONDS = 60
+_CACHE: dict[str, object] = {}
 
 # 코드가 든 파일만 본다. 자료(data/…)만 바뀐 커밋은 판이 바뀐 것이 아니다.
 _CODE_PATHS = ("*.py", "pages/*.py", "*.bat", "*.toml")
@@ -100,13 +106,16 @@ def _from_files() -> str:
 
 
 def stamp() -> str:
-    """화면에 적을 한 마디."""
-    if "text" not in _CACHE:
+    """화면에 적을 한 마디. 1분마다 다시 알아본다(위 설명 참고)."""
+    now = time.time()
+    fresh = float(_CACHE.get("at") or 0) + _CACHE_SECONDS > now
+    if not fresh or "text" not in _CACHE:
         try:
             _CACHE["text"] = _from_git() or _from_git_files() or _from_files()
         except Exception:
             _CACHE["text"] = "판 모름"
-    return _CACHE["text"]
+        _CACHE["at"] = now
+    return str(_CACHE["text"])
 
 
 # **눈에 띄어야 쓸모가 있다** (2026-09-02 상하님 — "판 숫자 안 보인다").

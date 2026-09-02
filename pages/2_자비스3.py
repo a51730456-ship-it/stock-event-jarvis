@@ -1219,7 +1219,7 @@ if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVIS
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
-_REQUIRED_PICKLIST_REVISION = 2026090110
+_REQUIRED_PICKLIST_REVISION = 2026090230
 if (
     # 2026-08-29 「상위 테마 5개」를 화면에서도 남기는 데 쓴다. 옛 모듈이면
     # 이 이름이 없어 그 갈래가 또 통째로 빠진다.

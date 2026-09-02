@@ -661,6 +661,49 @@ class UsSessionGateTests(unittest.TestCase):
         self.assertEqual(theme_of({"origin": "상승장", "themes": "바이오 · 유전체"}),
                          "바이오")
 
+    def test_every_page_asks_for_the_revision_the_module_actually_has(self):
+        """**규칙 11을 시험이 지킨다** (2026-09-02 사고).
+
+        상하님 화면에 이렇게 떴다 —
+        *"세부사항을 열지 못했습니다: _render_radar_tail.<locals>.<lambda>()
+        missing 1 required positional argument: 'row'"*
+
+        까닭 — picklist_ui 가 넘기는 값을 셋에서 넷으로 바꾸면서
+        `MODULE_REVISION` 은 올렸는데 페이지의 `_REQUIRED_PICKLIST_REVISION` 을
+        안 올렸다. 그러면 페이지가 "지금 것으로 충분하다"고 보아 **옛 모듈을
+        프로세스에 그대로 둔다.** 화면 코드는 새것인데 모듈은 옛것이라 셋을 받는
+        쪽과 넷을 넘기는 쪽이 어긋나 터졌다. 앱을 껐다 켜야만 풀리는 사고다.
+
+        CLAUDE.md 11번이 바로 이것을 막으라는 규칙인데, 사람이 지키는 규칙은
+        잊는다. 여기서 시험이 지킨다.
+        """
+        import re
+
+        pairs = (
+            ("picklist_ui.py", "_REQUIRED_PICKLIST_REVISION"),
+            ("scroll_to.py", "_REQUIRED_SCROLL_REVISION"),
+            ("jarvis3_data.py", "_REQUIRED_J3_REVISION"),
+            ("jarvis4_data.py", "_REQUIRED_J4_REVISION"),
+            ("method_help.py", "_REQUIRED_METHOD_HELP_REVISION"),
+        )
+        root = pathlib.Path(".")
+        for module, const in pairs:
+            text = (root / module).read_text(encoding="utf-8")
+            found = re.search(r"^MODULE_REVISION\s*=\s*(\d+)", text, re.M)
+            self.assertIsNotNone(found, f"{module} 에 MODULE_REVISION 이 없다")
+            have = int(found.group(1))
+            for page in sorted((root / "pages").glob("*.py")):
+                asked = re.search(rf"^{const}\s*=\s*(\d+)",
+                                  page.read_text(encoding="utf-8"), re.M)
+                if not asked:
+                    continue
+                self.assertGreaterEqual(
+                    int(asked.group(1)), have,
+                    f"{page.name} 의 {const} 가 {module}({have})보다 낮다 — "
+                    f"온라인에서 옛 모듈이 그대로 남아 조용히 옛 계산이 돈다"
+                    f"(CLAUDE.md 11번).",
+                )
+
     def test_the_screen_autosave_checks_the_gate(self):
         """화면 자동 저장이 이 판정을 실제로 부르는지 본다."""
         source = pathlib.Path("picklist_ui.py").read_text(encoding="utf-8")
