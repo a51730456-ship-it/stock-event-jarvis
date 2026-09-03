@@ -1,4 +1,16 @@
-"""자비스3 — 미국 테마 레이더와 실제 매수 기록 페이지."""
+"""자비스6 미국테마 — 새 디자인 화면.
+
+**이 파일은 [pages/2_자비스3.py] 를 그대로 복사한 것이다** (2026-09-03 상하님 지시 —
+"기존 자비스 미국테마 건들이지말고... 디자인만 새로 변경할꺼야").
+
+무엇이 같고 무엇이 다른가:
+  같다 — 값을 받고 점수를 매기고 판정하는 코드 전부. jarvis3_data 를 그대로 부른다.
+         그래서 같은 날 두 화면을 열면 숫자가 똑같아야 한다. 다르면 그것이 버그다.
+  다르다 — 껍데기(CSS)와 화면 짜임뿐이다.
+
+옛 미국테마는 그대로 살아 있다. 이 파일을 고치는 것이 그쪽에 닿지 않는다.
+반대로 그쪽을 고쳐도 여기 안 온다 — 고칠 일이 생기면 두 곳을 다 봐야 한다.
+"""
 
 from __future__ import annotations
 
@@ -22,7 +34,7 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
 
     auth = _importlib.reload(auth)
 
-st.set_page_config(page_title="자비스3 — 종목 브리핑", layout="wide")
+st.set_page_config(page_title="자비스6 미국테마", page_icon="📈", layout="wide")
 
 st.markdown(
     """
@@ -1148,7 +1160,7 @@ def _login_gate() -> None:
     auth.sync_auth()  # 쿠키에 로그인이 남아 있으면 되살린다(폰 복귀 시 재로그인 방지).
     if st.session_state.get("authenticated"):
         return
-    st.markdown("## 자비스3 — 미국 테마 레이더")
+    st.markdown("## 자비스6 미국테마")
     st.caption("승인된 사용자만 접근할 수 있습니다. 여기서 바로 로그인할 수 있습니다.")
     try:
         password = st.secrets.get("APP_PASSWORD")
@@ -1157,8 +1169,8 @@ def _login_gate() -> None:
     if not password:
         st.warning(".streamlit/secrets.toml에 APP_PASSWORD 설정이 필요합니다.")
         st.stop()
-    entered = st.text_input("비밀번호", type="password", key="j3_login_password")
-    if st.button("자비스3 로그인", key="j3_login_submit", width="stretch"):
+    entered = st.text_input("비밀번호", type="password", key="j6_login_password")
+    if st.button("자비스6 로그인", key="j6_login_submit", width="stretch"):
         if entered == password:
             auth.login_as_owner()
             st.rerun()
@@ -4587,19 +4599,17 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
     # 고른 종목이 바뀌면 상세·차트가 저절로 열리고 화면이 그 자리로 내려간다.
     if st.session_state.get("j3_picklist_shown") != code:
         st.session_state["j3_picklist_shown"] = code
-        # **제 이름표(picklist)만 켠다.** 예전에는 눌림목 쪽 열쇠까지 같이 켰는데,
-        # 그러면 위쪽 급락 구역의 상세까지 열려 같은 열쇠가 한 판에 두 번 생겼다
-        # (2026-09-02 상하님 화면 — "multiple elements with the same key").
-        # 이제 상세가 제 이름표로 그려지므로 남의 열쇠를 건드릴 까닭이 없다.
         for opened in ("j3_detail_open_picklist", "j3_intraday_open_picklist",
-                       "j3_bundle_open_picklist"):
+                       "j3_bundle_open_picklist",
+                       # 상승장·급락 줄은 눌림목 상세가 그리므로 그쪽 열쇠도 켠다
+                       # (순위 9가 하는 것과 같다).
+                       "j3_detail_open_pullback", "j3_intraday_open_pullback",
+                       "j3_bundle_open_pullback"):
             st.session_state[opened] = True
         back_nav.opened(st, "j3_detail_open_picklist",
                         "j3_intraday_open_picklist", "j3_bundle_open_picklist")
         scroll_to.request(st, "detail_picklist")
     # 여기가 그 자리다 — 위쪽 눌림목 상세와 이름이 겹치면 엉뚱한 데로 내려간다.
-    # 안쪽 상세도 같은 이름으로 한 번 더 그리지만, **먼저 그린 이곳**으로 간다
-    # (getElementById 규칙). 제목 위로 내려와야 무엇을 보고 있는지 보인다.
     scroll_to.anchor(st, "detail_picklist")
     saved_score = row.get("score")
     saved_text = f" · 그날 점수 {float(saved_score):.1f}" if saved_score not in (None, "") else ""
@@ -4614,8 +4624,7 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
         with st.spinner(f"{name or code} — 상승장 배점으로 심사 중입니다…"):
             found = _find_scan_row(j3data.breakout_scan(), code)
         if found:
-            _render_pullback_detail(found, market, ranking, mode="breakout",
-                                    panel="picklist")
+            _render_pullback_detail(found, market, ranking, mode="breakout")
             return
         _picklist_not_today(part, name or code)
         return
@@ -4624,8 +4633,7 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
         with st.spinner(f"{name or code} — 급락 후 반등장 배점으로 심사 중입니다…"):
             found = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
         if found:
-            _render_pullback_detail(found, market, ranking, mode="crash",
-                                    panel="picklist")
+            _render_pullback_detail(found, market, ranking, mode="crash")
             return
         _picklist_not_today(part, name or code)
         return
@@ -5274,15 +5282,13 @@ def _render_search_by_part(ruler: str, code: str, found_row: dict,
         with st.spinner(f"{name} — 상승장 배점으로 심사 중입니다…"):
             hit = _find_scan_row(j3data.breakout_scan(), code)
         if hit:
-            _render_pullback_detail(hit, market, ranking, mode="breakout",
-                                    panel="mystock")
+            _render_pullback_detail(hit, market, ranking, mode="breakout")
             return
     elif ruler == "급락 후 반등장":
         with st.spinner(f"{name} — 급락 후 반등장 배점으로 심사 중입니다…"):
             hit = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
         if hit:
-            _render_pullback_detail(hit, market, ranking, mode="crash",
-                                    panel="mystock")
+            _render_pullback_detail(hit, market, ranking, mode="crash")
             return
     elif ruler == "테마 대장주":
         # 그 종목이 든 테마를 **명부(US_THEMES)에서** 찾는다 — 그것이 원본이다.
@@ -5458,8 +5464,7 @@ def _us_signal_hint() -> str:
 
 
 def _render_pullback_detail(row: dict, market: dict, ranking: dict,
-                            *, mode: str | None = None,
-                            panel: str = "pullback") -> None:
+                            *, mode: str | None = None) -> None:
     """상단 테마 선택과 독립된 눌림목 종목 상세.
 
     자비스4(한국) 종목 상세와 같은 구성으로 맞춘다(2026-07-24 사용자 지시) —
@@ -5470,18 +5475,11 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
     """
     ticker = str(row.get("ticker") or "")
-    # **열쇠에 이름표를 붙인다** (2026-09-02 상하님 화면 —
-    # "There are multiple elements with the same key='btn_j3_detail_open_pullback'").
-    # 저장해 둔 목록에서도 이 상세를 부르게 되면서, 위쪽 급락 구역이 열려 있으면
-    # 같은 열쇠가 한 판에 두 번 생겨 터졌다. 이름표가 다르면 겹치지 않는다.
-    # **기본값은 여태 쓰던 그 이름이라 다른 곳은 한 글자도 안 바뀐다.**
-    detail_key = f"j3_detail_open_{panel}"
-    danta_key = f"j3_danta_open_{panel}"
     # 종목을 누르면 화면이 여기로 내려온다(2026-08-09 상하님 지시).
-    scroll_to.anchor(st, f"detail_{panel}")
+    scroll_to.anchor(st, "detail_pullback")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
     if not _section_toggle(
-        "🔎 선택종목 세부사항 보기", detail_key,
+        "🔎 선택종목 세부사항 보기", "j3_detail_open_pullback",
         close_label="선택종목 세부사항 닫기",
     ):
         return
@@ -5565,10 +5563,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         unsafe_allow_html=True,
     )
     if auth.is_guest():
-        _render_day_price_row(metrics, ticker, panel=panel)
+        _render_day_price_row(metrics, ticker, panel="pullback")
         # 당일 그림은 이제 아래 네 그림 판에 함께 들어간다(2026-08-28).
-        _render_price_chart_bundle(ticker, panel=panel)
-        _section_close(detail_key, "선택종목 세부사항 닫기")
+        _render_price_chart_bundle(ticker, panel="pullback")
+        _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
         return
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
@@ -5722,7 +5720,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         factor_html = (
             _swing_factor_table_html(
                 factor_rows, total_row, row.get("explanations") or {},
-                f"j3_factor_help_{panel}_breakout",
+                "j3_factor_help_pullback_breakout",
             )
             if mode == "breakout" else
             _factor_table_html(
@@ -5873,7 +5871,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         # 단타 참고 신호는 접어 둔다 — 점수·판정에 안 쓰는 참고값인데 늘 펴 놓으니
         # 화면이 길어졌다(2026-08-06 상하님 지적).
         if _section_toggle(
-            "⚡ 단타 참고 신호 보기", danta_key,
+            "⚡ 단타 참고 신호 보기", "j3_danta_open_pullback",
             close_label="단타 참고 신호 닫기",
         ):
             st.markdown(
@@ -5899,11 +5897,11 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
         "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
-    _render_day_price_row(metrics, ticker, panel=panel)
-    _render_price_chart_bundle(ticker, panel=panel)
+    _render_day_price_row(metrics, ticker, panel="pullback")
+    _render_price_chart_bundle(ticker, panel="pullback")
 
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
-    _section_close(detail_key, "선택종목 세부사항 닫기")
+    _section_close("j3_detail_open_pullback", "선택종목 세부사항 닫기")
 
 
 def _pullback_backdrop_cards(
@@ -7994,8 +7992,8 @@ def _briefing_css() -> None:
         .j3b-card:not(.compact){min-height:148px!important;padding-bottom:12px!important;margin-bottom:8px!important}.j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important}
         div.st-key-j3b_grid_selected{padding-top:14px!important;padding-bottom:14px!important}
         .j3b-card.compact{min-height:164px!important}
-        .j3b-bottom-nav{height:50px!important;padding:1px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:12px!important;gap:1px!important}.j3b-nav-item b{font-size:27px!important}
-        div.st-key-j3b_nav_controls{height:50px!important;bottom:4px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:50px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:50px!important;min-height:50px!important}
+        .j3b-bottom-nav{height:50px!important;padding:1px 6px!important}.j3b-nav-item{width:25%!important;min-height:46px!important;font-size:12px!important;gap:1px!important}.j3b-nav-item b{font-size:27px!important}
+        div.st-key-j3b_nav_controls{height:50px!important;bottom:4px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;height:50px!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls button{height:50px!important;min-height:50px!important}
         @media (max-width:1200px){
         body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-bottom:72px!important}
         .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:4px!important;left:50%!important;transform:translateX(-75%)!important;margin-left:8px!important;width:min(286.667px,66.667vw)!important}
@@ -9164,7 +9162,8 @@ def _warm_after_news(keys: tuple) -> None:
 # 시장분석에서 뒤로가기를 누르면 앞 메뉴가 아니라 **관심종목**으로 온다.
 # (`back_nav`의 표식은 그대로 두어 관심종목에서 또 눌러도 안 빠져나간다.)
 _BRIEFING_PAGE_PARAM = "s"
-_BRIEFING_PAGES = ("home", "market")
+# 화면 넷 — 홈(새) · 관심종목(옛 첫 화면) · 시장분석 · 기록/성과.
+_BRIEFING_PAGES = ("home", "watch", "market", "record")
 
 
 def _briefing_page() -> str:
@@ -9222,18 +9221,28 @@ def _render_briefing_bottom_nav(active: str) -> None:
     pie = ('<svg class="j3b-pie" viewBox="0 0 32 32" aria-hidden="true">'
            '<circle cx="16" cy="16" r="13.2" fill="none" stroke="currentColor" stroke-width="2.6"/>'
            '<path d="M16 16 L16 4.2 A11.8 11.8 0 1 1 4.2 16 Z" fill="currentColor"/></svg>')
+    # 기록/성과 그림도 **직접 그린다** — 이모지는 기기마다 크기가 달라진다
+    # (시장분석의 동그라미를 직접 그린 것과 같은 까닭).
+    clip = ('<svg class="j3b-pie" viewBox="0 0 32 32" aria-hidden="true">'
+            '<rect x="7" y="5.5" width="18" height="22" rx="2.6" fill="none" '
+            'stroke="currentColor" stroke-width="2.4"/>'
+            '<rect x="12" y="2.6" width="8" height="5" rx="1.6" fill="currentColor"/>'
+            '<path d="M11.5 17.2 L14.6 20.3 L20.8 13.4" fill="none" stroke="currentColor" '
+            'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>')
     labels = (("home", "⌂", "홈"), ("watch", "★", "관심종목"),
-              ("market", pie, "시장분석"))
+              ("market", pie, "시장분석"), ("record", clip, "기록/성과"))
     items = "".join(
         f'<span class="j3b-nav-item{" active" if key == active else ""}"><b>{icon}</b>{label}</span>'
         for key, icon, label in labels
     )
     st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>', unsafe_allow_html=True)
     with st.container(key="j3b_nav_controls"):
-        home_col, watch_col, market_col = st.columns(3, gap="small")
+        home_col, watch_col, market_col, record_col = st.columns(4, gap="small")
+        # **홈은 이 화면 안이다.** 옛 미국테마에서는 이 단추가 「어디로 갈까요」로
+        # 나갔지만, 새 디자인의 홈은 오늘의 판단이 있는 첫 화면이다.
         if home_col.button("홈", key="j3b_nav_home"):
             _set_briefing_page("home")
-            st.switch_page("app.py")
+            st.rerun()
         # **화면을 바꾸면 맨 위로 올라간다** (2026-08-27 상하님 지적 — "맨 위에
         # 화면이 다 사라졌다"). 브라우저는 화면을 바꿔도 굴려 둔 자리를 그대로
         # 들고 간다. 관심종목에서 아래로 내려보시다 시장분석을 누르면 그 자리에
@@ -9245,11 +9254,263 @@ def _render_briefing_bottom_nav(active: str) -> None:
         # 바로 올린다. 여기서 적어 두면 그 표시가 판 끝(20개 테마를 다 받은 뒤)
         # 에서 쓰여, 그동안 내려 보고 계시던 화면을 뿌리치고 끌어올린다.
         if watch_col.button("관심종목", key="j3b_nav_watch"):
-            _set_briefing_page("home")
+            _set_briefing_page("watch")
             st.rerun()
         if market_col.button("시장분석", key="j3b_nav_market"):
             _set_briefing_page("market")
             st.rerun()
+        if record_col.button("기록/성과", key="j3b_nav_record"):
+            _set_briefing_page("record")
+            st.rerun()
+
+
+# ── 새 디자인 (자비스6 미국테마) ────────────────────────────────────────────
+# 2026-09-03 상하님 지시로 만든 껍데기다. **값을 만드는 코드는 하나도 없다** —
+# 위쪽에 그대로 옮겨 온 함수들이 만든 값을 받아 다르게 그리기만 한다.
+# 그래서 옛 미국테마와 같은 날 열면 숫자가 똑같아야 한다. 다르면 그것이 버그다.
+#
+# 이름은 `j6-` 로 시작한다. 옛 껍데기(`j3-`·`j3b-`)와 이름이 겹치지 않으니
+# 한쪽을 고쳐도 다른 쪽이 딸려 바뀌지 않는다.
+_J6_CSS = """
+<style>
+.j6-sec {
+    display: flex; align-items: center; gap: .45rem;
+    margin: 1.15rem 0 .55rem; color: #eaf2ff;
+    font-size: 1.06rem; font-weight: 800; letter-spacing: -.01em;
+}
+.j6-sec .j6-sec-more { margin-left: auto; color: #7fb6ff; font-size: .86rem; font-weight: 700; }
+
+/* ── 머리띠 ───────────────────────────────────────────────────────────── */
+.j6-head { display: flex; align-items: center; gap: .55rem; padding: .55rem .2rem .35rem; }
+.j6-brand { font-size: 1.5rem; font-weight: 900; color: #ffffff; letter-spacing: -.02em; }
+.j6-brand b { color: #4da6ff; }
+.j6-chip {
+    padding: .16rem .5rem; border-radius: .45rem; font-size: .8rem; font-weight: 800;
+    color: #cfe3ff; border: 1px solid rgba(120,180,255,.45); background: rgba(77,166,255,.10);
+}
+.j6-live {
+    margin-left: auto; display: inline-flex; align-items: center; gap: .35rem;
+    padding: .22rem .62rem; border-radius: 999px; font-size: .82rem; font-weight: 800;
+    color: #d8f5e6; border: 1px solid rgba(68,240,161,.45); background: rgba(68,240,161,.08);
+}
+.j6-live i { width: 7px; height: 7px; border-radius: 50%; background: #44f0a1; display: inline-block; }
+
+/* ── 판(카드) 공통 ────────────────────────────────────────────────────── */
+.j6-panel {
+    border: 1px solid rgba(120,180,255,.22); border-radius: 16px;
+    background: linear-gradient(160deg, rgba(23,38,68,.92) 0%, rgba(12,20,38,.92) 100%);
+    box-shadow: inset 0 1px rgba(150,200,255,.10), 0 8px 22px rgba(0,0,0,.45);
+    padding: .9rem 1rem;
+}
+
+/* ── 오늘의 판단 — 안은 시장분석의 그 상자(fg-box) 그대로다 ──────────────
+   상자를 새로 만들지 않고 **겉옷만 벗긴다.** 그래야 점수·국면·행동 한 줄이
+   시장분석과 늘 같은 것으로 남는다. */
+.j6-verdict { padding: .75rem .9rem; }
+.j6-verdict .fg-box {
+    display: block !important; width: 100% !important;
+    border: 0 !important; background: transparent !important; padding: 0 !important;
+}
+.j6-verdict .fg-box-title { font-size: 1rem !important; }
+.j6-verdict .fg-box-body { gap: 1rem; flex-wrap: wrap; }
+/* '그래서 무엇을 하라' 한 줄이 이 화면의 주인공이다 — 크게 띄운다. */
+.j6-verdict .fg-box-foot {
+    font-size: 1.45rem !important; font-weight: 900 !important;
+    line-height: 1.35 !important; margin-top: .55rem !important; padding-top: .5rem !important;
+}
+
+/* ── 지수 넉 장 ───────────────────────────────────────────────────────── */
+.j6-idx-row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: .55rem; }
+@media (max-width: 600px) { .j6-idx-row { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.j6-idx {
+    border: 1px solid rgba(120,180,255,.20); border-radius: 13px;
+    background: linear-gradient(165deg, rgba(20,34,60,.9) 0%, rgba(11,18,34,.9) 100%);
+    padding: .6rem .65rem .45rem; overflow: hidden;
+}
+.j6-idx-name { color: #cfe0f5; font-size: .84rem; font-weight: 800; }
+.j6-idx-val { color: #ffffff; font-size: 1.12rem; font-weight: 900; margin-top: .1rem; }
+.j6-idx-chg { font-size: .84rem; font-weight: 800; }
+.j6-idx-note { color: #7f8a9b; font-size: .72rem; font-weight: 700; }
+.j6-idx-spark { margin-top: .25rem; line-height: 0; }
+.j6-idx-spark svg { width: 100%; height: auto; }
+
+/* ── 강한 테마 순위 ───────────────────────────────────────────────────── */
+.j6-th { display: flex; align-items: center; gap: .6rem; padding: .42rem 0; }
+.j6-th + .j6-th { border-top: 1px solid rgba(255,255,255,.06); }
+.j6-th-rank { width: 1.2rem; color: #9fb0c6; font-size: .92rem; font-weight: 800; text-align: center; }
+.j6-th-name { width: 6.6rem; color: #ffffff; font-size: .95rem; font-weight: 800;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.j6-th-bar { flex: 1; height: 9px; border-radius: 5px; background: rgba(255,255,255,.10); overflow: hidden; }
+.j6-th-bar i { display: block; height: 9px; border-radius: 5px;
+    background: linear-gradient(90deg, #2a6bd4 0%, #4da6ff 100%); }
+.j6-th-score { width: 3rem; text-align: right; color: #ffffff; font-size: .95rem; font-weight: 900; }
+
+/* ── 움직임 — 옛 화면과 **같은 결**이다 ───────────────────────────────
+   0.12초 · 살짝 뜨고 1.1배 밝게 · 누르면 눌린다.
+   @media (hover:...) 를 걸지 않는다 — 걸면 폰·태블릿이 통째로 빠진다
+   (2026-08-26 상하님 지적, 옛 화면 _BRIEFING_TOUCH_CSS 참고). */
+.j6-idx, .j6-panel {
+    transition: transform .12s ease-out, filter .12s ease-out, border-color .12s ease-out;
+}
+.j6-idx:hover, .j6-panel:hover { transform: translateY(-3px); filter: brightness(1.1); }
+.j6-idx:active, .j6-panel:active { transform: translateY(0) scale(.99); filter: brightness(1.06); }
+@media (prefers-reduced-motion: reduce) { .j6-idx, .j6-panel { transition: none !important; } }
+
+/* ── 아직 안 받은 자리 ───────────────────────────────────────────────── */
+.j6-later {
+    border: 1px dashed rgba(150,190,240,.35); border-radius: 13px;
+    padding: .85rem .9rem; color: #9fb0c6; font-size: .92rem; line-height: 1.7;
+}
+.j6-later b { color: #7fb6ff; }
+</style>
+"""
+
+
+def _j6_index_cards(overview: dict) -> str:
+    """지수 넉 장. 값은 옛 화면(`_us_index_cells`)이 쓰는 것과 **같은 자리**에서 꺼낸다.
+
+    정규장이 아니면 마지막으로 끝난 정규장의 등락을 쓴다 — 지수는 시간외 거래가
+    없어서 '지금 값'을 쓰면 등락이 0%로 나온다(옛 화면과 같은 규칙).
+    """
+    display = getattr(j3data, "US_INDEX_DISPLAY", ())
+    rows = overview.get("rows") or {}
+    live = (overview.get("phase") or {}).get("label") == "정규장 시간"
+    try:
+        sparklines = j3data.get_index_sparklines()
+    except Exception:
+        sparklines = {}
+    # 그림에 있던 넷 가운데 달러/원은 이 앱이 받는 자료에 없다. 대신 VIX 를
+    # 넷째 자리에 둔다 — 옛 화면도 VIX 를 같은 줄에서 보여 준다.
+    wanted = [(symbol, name) for symbol, name in display
+              if symbol in ("^GSPC", "^NDX", "^DJI")] + [("^VIX", "VIX")]
+    cards = []
+    for symbol, name in wanted:
+        row = rows.get(symbol) or {}
+        if not row.get("ok"):
+            cards.append(
+                f"<div class='j6-idx'><div class='j6-idx-name'>{html.escape(name)}</div>"
+                f"<div class='j6-idx-val'>—</div>"
+                f"<div class='j6-idx-note'>자료 부족</div></div>"
+            )
+            continue
+        change = row.get("change_pct") if live else row.get("last_session_change_pct")
+        spark = _sparkline_svg(sparklines.get(symbol) or {}, "#4da6ff", "#ff5b5b",
+                               width=150.0, height=48)
+        cards.append(
+            f"<div class='j6-idx'>"
+            f"<div class='j6-idx-name'>{html.escape(name)}</div>"
+            f"<div class='j6-idx-val'>{_number(row.get('current'), 2)}</div>"
+            f"<div class='j6-idx-chg {_sign_class(change)}'>{_pct(change)}</div>"
+            f"<div class='j6-idx-note'>{'정규장' if live else '장 마감 기준'}</div>"
+            f"<div class='j6-idx-spark'>{spark}</div>"
+            f"</div>"
+        )
+    return f"<div class='j6-idx-row'>{''.join(cards)}</div>"
+
+
+def _j6_theme_rows(ranking: dict) -> str:
+    """강한 테마 순위 다섯 줄. 값은 시장분석이 이미 받아 둔 것을 그대로 쓴다."""
+    rows = list(ranking.get("rows") or [])[:5]
+    if not rows:
+        return ""
+    scores = [float(row.get("score") or 0) for row in rows]
+    top = max(scores + [1.0])
+    lines = []
+    for index, row in enumerate(rows, start=1):
+        score = float(row.get("score") or 0)
+        width = max(4.0, min(100.0, score / top * 100.0))
+        lines.append(
+            f"<div class='j6-th'><span class='j6-th-rank'>{index}</span>"
+            f"<span class='j6-th-name'>{html.escape(str(row.get('name') or '—'))}</span>"
+            f"<span class='j6-th-bar'><i style='width:{width:.1f}%'></i></span>"
+            f"<span class='j6-th-score'>{score:.1f}</span></div>"
+        )
+    return f"<div class='j6-panel'>{''.join(lines)}</div>"
+
+
+def _render_j6_home() -> None:
+    """새 디자인 첫 화면.
+
+    **여기서 21개 테마를 받지 않는다.** 「강한 테마 순위」와 「강한 종목 후보」는
+    시장분석에서 받는 값인데, 그것을 첫 화면에서 부르면 21개 테마를 다 받은 뒤에야
+    첫 화면이 뜬다(CLAUDE.md 0-0 — 새로 넣는 것이 무엇을 밀어내는지 먼저 잰다).
+    그래서 **이미 받아 둔 것이 있을 때만** 그리고, 없으면 시장분석으로 보낸다.
+    """
+    st.markdown(_J6_CSS, unsafe_allow_html=True)
+    scroll_to.anchor(st, "top")
+    back_nav.opened(st, "j3b_backstop")
+
+    st.markdown(
+        '<div class="j6-head">'
+        '<span class="j6-brand">JARVIS <b>6</b></span>'
+        '<span class="j6-chip">미국테마</span>'
+        '<span class="j6-live"><i></i>실시간</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    overview = j3data.get_market_overview()
+    st.session_state["j3_market_overview"] = overview
+
+    st.markdown('<div class="j6-sec">✦ 오늘의 판단</div>', unsafe_allow_html=True)
+    if not overview.get("ok"):
+        st.error(f"시장 자료 조회 실패: {_safe_error_text(overview.get('error'))}")
+    else:
+        # 게이지 그림 규칙은 시장분석 쪽에서 내보내는데(_render_market_overview),
+        # 이 화면은 그 함수를 부르지 않는다. 여기서 따로 한 번 내보낸다 —
+        # 안 그러면 상자가 껍데기 없이 글자만 흘러나온다.
+        st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
+        # **시장분석과 같은 상자를 그대로 쓴다.** 점수·국면·행동 한 줄을 여기서
+        # 따로 만들면 두 화면이 조용히 갈라진다. freeze=True 도 옛 화면과 같다.
+        st.markdown(
+            '<div class="j6-panel j6-verdict">'
+            + regime_gauge_ui.regime_box_html(overview, freeze=True)
+            + '</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(_j6_index_cards(overview), unsafe_allow_html=True)
+
+    ranking = st.session_state.get("j3_theme_rankings") or {}
+    st.markdown('<div class="j6-sec">⚡ 강한 테마 순위</div>', unsafe_allow_html=True)
+    if ranking.get("rows"):
+        st.markdown(_j6_theme_rows(ranking), unsafe_allow_html=True)
+    else:
+        st.markdown(
+            '<div class="j6-later">21개 테마 시세는 <b>시장분석</b>에서 받습니다. '
+            '여기서 받으면 첫 화면이 그만큼 늦게 뜹니다.<br>'
+            '아래 <b>시장분석</b>을 한 번 열고 오시면 이 자리에 순위가 그대로 남습니다.</div>',
+            unsafe_allow_html=True,
+        )
+
+    _render_briefing_bottom_nav("home")
+
+
+def _render_j6_record() -> None:
+    """기록/성과 — 날짜별로 저장해 둔 목록. 옛 화면이 쓰는 그 함수 그대로다.
+
+    **여기서 21개 테마를 받지 않는다.** 줄을 누르셨을 때만 배점표에 필요한
+    시장·테마 값을 그때 받는다(아래 `on_pick` 안). 목록만 보실 때는 안 받는다.
+    """
+    st.markdown(_J6_CSS, unsafe_allow_html=True)
+    scroll_to.anchor(st, "top")
+    back_nav.opened(st, "j3b_backstop")
+    st.markdown(
+        '<div class="j6-head">'
+        '<span class="j6-brand">JARVIS <b>6</b></span>'
+        '<span class="j6-chip">기록 · 성과</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(mobile_ui.page_css(), unsafe_allow_html=True)
+
+    def _detail(code, name, kind, row) -> None:
+        market = st.session_state.get("j3_market_overview") or j3data.get_market_overview()
+        ranking = st.session_state.get("j3_theme_rankings") or _load_theme_rankings()
+        _picklist_detail(market, ranking, code, name, kind, row)
+
+    picklist_ui.render(st, "US", toggle=_section_toggle, close=_section_close,
+                       on_pick=_detail)
+    _render_briefing_bottom_nav("record")
 
 
 def _render_stock_briefing() -> None:
@@ -9290,6 +9551,12 @@ def _render_stock_briefing() -> None:
         back_nav.opened(st, "j3b_backstop")
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
+        return
+    if page == "home":
+        _render_j6_home()
+        return
+    if page == "record":
+        _render_j6_record()
         return
     st.session_state["j3b_news_pending"] = False
     try:

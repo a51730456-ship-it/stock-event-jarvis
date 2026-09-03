@@ -552,8 +552,13 @@ def test_the_card_data_carries_both_series():
     fn = source[source.index("def get_briefing_cards("):]
     fn = fn[:fn.index(chr(10) + "def ", 10)]
     assert 'period="6mo"' in fn, "6개월치를 안 받는다"
-    assert '"chart": series.tail(30).tolist()' in fn, "작은 그림이 최근 30일이 아니다"
-    assert '"chart6m": series.tolist()' in fn, "6개월치를 안 싣는다"
+    # 2026-09-03 — 그림을 만드는 자리가 `series` 에서 `chart_all` 로 바뀌었다.
+    # 야후 일봉이 마지막으로 끝난 장을 아직 안 올린 판에서는 그 장의 종가를
+    # 끝에 붙여야 하는데(_daily_lags_last_session), `series` 를 그대로 쓰면
+    # 붙일 자리가 없다. **뜻은 그대로다** — 작은 그림은 최근 30일, 큰 그림은 전부.
+    assert '"chart": chart_all[-30:]' in fn, "작은 그림이 최근 30일이 아니다"
+    assert '"chart6m": chart_all' in fn, "6개월치를 안 싣는다"
+    assert '_daily_lags_last_session(' in fn, "일봉이 늦은 판을 안 본다"
 
 def test_the_chart_line_does_not_get_thick_when_stretched():
     """그림을 늘려도 선은 굵어지지 않는다 (2026-08-26 상하님 지적).

@@ -242,19 +242,25 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 자비스1은 그려지지 않아야 한다 — 이게 그려지면 옛 동작으로 돌아간 것이다.
         self.assertFalse(any("① 한국장 판단" in value for value in markdowns))
 
-    def test_phone_and_tablet_see_only_the_two_theme_pages(self):
-        """폰·태블릿(≤1200px)에서는 미국테마·한국테마 둘만 보인다(2026-08-01 지시).
+    def test_phone_and_tablet_see_only_the_theme_pages(self):
+        """폰·태블릿(≤1200px)에서는 테마 화면만 보인다(2026-08-01 지시).
 
-        옵션을 지우는 게 아니라 감추는 것이다 — 노트북/PC에서는 7개가 다 보여야 하고
+        옵션을 지우는 게 아니라 감추는 것이다 — 노트북/PC에서는 다 보여야 하고
         나중에 되살릴 수 있어야 한다(CLAUDE.md 12번). 목록 순서를 바꾸면 아래 번호도
         같이 고쳐야 하므로, 그 짝을 여기서 굳혀 둔다.
+
+        **2026-09-03에 여덟째가 늘었다** — 새 디자인 미국테마(자비스6 미국테마).
+        상하님이 폰에서 옛 화면과 새 화면을 나란히 견주시려면 그것도 보여야 해서,
+        감추는 규칙에 여덟째만 빼는 단서를 달았다.
         """
-        options = re.search(r"_DEST_OPTIONS = \[(.*?)\]", SOURCE, re.S).group(1)
+        options = re.search(r"_ALL_DEST_OPTIONS = \[(.*?)\]", SOURCE, re.S).group(1)
         names = re.findall(r'"([^"]+)"', options)
-        self.assertEqual(7, len(names))
-        # 감추는 번호(1~3, 6~7)를 뺀 나머지가 미국테마·한국테마여야 한다.
-        shown = [name for index, name in enumerate(names, 1) if 4 <= index <= 5]
-        self.assertEqual(["미국테마 (자비스3)", "한국테마 (자비스4)"], shown)
+        self.assertEqual(8, len(names))
+        # 감추는 번호(1~3, 6~7)를 뺀 나머지가 테마 화면 셋이어야 한다.
+        shown = [name for index, name in enumerate(names, 1)
+                 if 4 <= index <= 5 or index == 8]
+        self.assertEqual(["미국테마 (자비스3)", "한국테마 (자비스4)",
+                          "자비스6 미국테마 (새 디자인)"], shown)
         # 기본 선택은 감추는 항목에 들어가면 안 된다.
         default = int(re.search(r"_DEST_DEFAULT_INDEX = (\d+)", SOURCE).group(1))
         self.assertIn(names[default], shown)
@@ -264,7 +270,7 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertNotIn("login_dest_choice", SOURCE.replace("login_dest_choice 목록", ""))
         # '어디로 갈까요'는 2026-08-09부터 링크 목록이라 감추는 자리가 바뀌었다.
         # 링크는 목록 상자(entry_dest_links)의 자식이므로 그 자식 번호로 감춘다.
-        for rule in ("nth-child(-n+3)", "nth-child(n+6)"):
+        for rule in ("nth-child(-n+3)", "nth-child(n+6):not(:nth-child(8))"):
             self.assertIn(
                 f".st-key-entry_dest_links > div:{rule}",
                 SOURCE, f"entry_dest_links에 {rule} 규칙이 없다",
@@ -287,8 +293,10 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # **2026-08-28부터 열어 둔 곳은 둘뿐이다**(상하님 지시 — "나머지 화면은
         # 접근 금지로 해라"). 목록은 page_access.OPEN_PAGES 가 정한다.
         # 예전에는 여섯 링크 + 자비스1 단추였다. 되살리면 그때로 돌아온다.
-        self.assertEqual(2, len(links), labels)
-        for name in ("미국테마 (자비스3)", "한국테마 (자비스4)"):
+        # 2026-09-03에 새 디자인 미국테마가 늘어 셋이다.
+        self.assertEqual(3, len(links), labels)
+        for name in ("미국테마 (자비스3)", "한국테마 (자비스4)",
+                     "자비스6 미국테마 (새 디자인)"):
             self.assertIn(name, labels)
 
 

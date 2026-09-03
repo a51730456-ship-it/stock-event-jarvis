@@ -1687,6 +1687,43 @@ class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
         self.assertEqual(110.0, prev)
         self.assertEqual([], points)
 
+    def test_a_newer_minute_frame_wins_when_the_daily_bar_is_late(self):
+        """**2026-09-03 상하님이 잡아 주신 자리다.**
+
+        상하님 — *"관심종목이 오늘 새벽 5시 종가 이후에 주가 반영이 되어 있지
+        않다. 시장분석에서 종목들은 반영이 되어 있는데."*
+
+        실측(2026-09-03 09:15 한국 · 뉴욕 09-02 20:15) —
+            야후 일봉 마지막 줄  09-01  NVDA 217.44
+            야후 5분봉 마지막 줄 09-02 15:55  NVDA 224.40
+        09-02 장은 새벽 5시에 끝났는데 야후가 그날 **일봉 한 줄을 아직 안 올렸다.**
+        시장분석은 분봉에서 값을 꺼내 09-02 를 맞게 보여 주었고, 카드만 일봉에서
+        꺼내 09-01 을 적었다.
+
+        분봉이 **더 새로운 장**을 가지고 있으면 그것을 적는다. 그 장의 전일 종가는
+        일봉의 마지막 줄이다 — 일봉이 그 장을 아직 안 실었으니 그렇다.
+        """
+        points, price, prev, change = j3._card_session_values(
+            self.daily, self._minutes("2026-08-31", 121.0, 129.5))
+        self.assertEqual(129.5, price, "일봉이 늦었는데 카드가 하루 전 값을 적었다")
+        self.assertEqual(120.0, prev, "전일이 일봉 마지막 줄이 아니다")
+        self.assertAlmostEqual(7.92, change, places=1)
+        self.assertEqual(129.5, points[-1], "그림 끝점이 그 장의 값이 아니다")
+
+    def test_the_lag_is_only_read_one_way(self):
+        """분봉이 **더 옛날**이면 예전 그대로다 — 2026-08-29에 고친 자리를 지킨다."""
+        self.assertTrue(j3._daily_lags_last_session(
+            self.daily, self._minutes("2026-08-31", 121.0, 129.5)),
+            "일봉이 늦은 판을 못 알아봤다")
+        self.assertFalse(j3._daily_lags_last_session(
+            self.daily, self._minutes("2026-08-27", 101.0, 109.5)),
+            "분봉이 더 옛날인데 일봉이 늦었다고 했다")
+        self.assertFalse(j3._daily_lags_last_session(
+            self.daily, self._minutes("2026-08-28", 111.0, 119.5)),
+            "날이 같은데 일봉이 늦었다고 했다")
+        self.assertFalse(j3._daily_lags_last_session(self.daily, pd.DataFrame()),
+                         "분봉이 빈손인데 일봉이 늦었다고 했다")
+
     def test_the_day_comes_from_the_daily_bars(self):
         """날을 정하는 자리가 일봉이어야 한다 — 1분봉이 정하면 또 하루가 밀린다."""
         source = pathlib.Path("jarvis3_data.py").read_text(encoding="utf-8")

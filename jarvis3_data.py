@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026090220
+MODULE_REVISION = 2026090310
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4751,6 +4751,51 @@ def _regular_session_closes(frame, limit: int = BRIEFING_TODAY_POINTS) -> list[f
     return [float(v) for v in values]
 
 
+def _last_regular_session_day(live_frame):
+    """분봉이 가진 **마지막 정규장**의 날. 없으면 None (2026-09-03).
+
+    _card_session_values 안에만 있던 것을 밖으로 꺼냈다. 그림을 만드는 쪽
+    (get_briefing_cards)도 같은 판단이 필요한데, 두 곳에 따로 적으면 한쪽만
+    고쳐져 숫자와 그림이 다른 날을 말하게 된다.
+    """
+    if live_frame is None or getattr(live_frame, "empty", True):
+        return None
+    try:
+        index = pd.DatetimeIndex(live_frame.index)
+        local = index.tz_convert(_NY) if index.tz is not None else index
+        in_hours = local[(local.time >= dt_time(9, 30)) & (local.time <= dt_time(16, 0))]
+        return in_hours[-1].date() if len(in_hours) else None
+    except Exception:
+        return None
+
+
+def _daily_lags_last_session(daily_frame, live_frame) -> bool:
+    """일봉이 **마지막으로 끝난 장을 아직 안 실었나** (2026-09-03 상하님 지적).
+
+    상하님 — *"관심종목이 오늘 새벽 5시 종가 이후에 주가 반영이 되어 있지 않다.
+    시장분석에서 종목들은 반영이 되어 있는데."*
+
+    실측(2026-09-03 09:15 한국 · 뉴욕 09-02 20:15) —
+        야후 일봉 마지막 줄  09-01  NVDA 217.44
+        야후 5분봉 마지막 줄 09-02 15:55  NVDA 224.40
+    09-02 장은 한국 시각 새벽 5시에 끝났는데, 네 시간이 지나도 야후가 그날
+    **일봉 한 줄을 아직 안 올렸다.** 분봉에는 그 장이 다 들어 있었다.
+
+    시장분석은 분봉에서 값을 꺼내므로 09-02 를 맞게 보여 주었고, 관심종목 카드만
+    일봉에서 꺼내 09-01 을 적고 있었다. 그래서 한 화면 안에서 두 날이 섞였다.
+    """
+    live_day = _last_regular_session_day(live_frame)
+    if live_day is None or daily_frame is None or getattr(daily_frame, "empty", True):
+        return False
+    try:
+        closes = daily_frame["Close"].dropna()
+        if closes.empty:
+            return False
+        return bool(pd.DatetimeIndex(closes.index).date[-1] < live_day)
+    except Exception:
+        return False
+
+
 def _card_session_values(daily_frame, live_frame):
     """카드에 적을 **정규장 기준** 값 넷 — (그림 점, 값, 전일 종가, 등락률).
 
@@ -4809,17 +4854,7 @@ def _card_session_values(daily_frame, live_frame):
     # **마지막 정규장**을 그대로 그린다(_regular_session_closes 가 이미 그 하루만
     # 골라 준다). 이틀치 창이라 그것이 곧 마지막으로 끝난 장이다.
     session_day = dates[-1]
-    live_day = None
-    if points and live_frame is not None and not getattr(live_frame, "empty", True):
-        try:
-            live_index = pd.DatetimeIndex(live_frame.index)
-            live_local = live_index.tz_convert(_NY) if live_index.tz is not None else live_index
-            in_hours = live_local[(live_local.time >= dt_time(9, 30))
-                                  & (live_local.time <= dt_time(16, 0))]
-            if len(in_hours):
-                live_day = in_hours[-1].date()
-        except Exception:
-            live_day = None
+    live_day = _last_regular_session_day(live_frame)
 
     # 마지막 줄이 곧 마지막으로 끝난 장이다. **자리로 집는다.**
     price = float(closes.iloc[-1])
@@ -4830,6 +4865,17 @@ def _card_session_values(daily_frame, live_frame):
     # **날이 맞을 때만** 맞춘다. 어긋난 판에서 맞추면 그림의 끝만 딴 날 값이 된다.
     if points and (live_day is None or live_day == session_day):
         points[-1] = price
+    # ── 일봉이 아직 그 장을 안 실었을 때 (2026-09-03 상하님 지적) ──────────────
+    # 위 `_daily_lags_last_session` 에 무슨 일인지 적어 두었다. 분봉이 **더 새로운
+    # 장**을 가지고 있으면 그 장을 적는다 — 시장분석이 보여 주는 그 날이다.
+    #   값    = 그 장의 정규장 마지막 값(분봉)
+    #   전일  = 일봉의 마지막 줄. 일봉이 그 장을 아직 안 실었으니 그것이 곧 전일이다.
+    # 분봉이 **더 옛날**이면 예전 그대로 일봉을 쓴다 — 그것이 2026-08-29에 고친
+    # 자리이고, 위 `if` 와 시험이 그대로 지킨다.
+    if points and live_day is not None and live_day > session_day:
+        session_close = float(points[-1])
+        return (points, session_close, price,
+                ((session_close / price - 1.0) * 100.0) if price else None)
     return points, price, prev, change
 
 
@@ -4876,11 +4922,20 @@ def get_briefing_cards(stocks) -> dict[str, dict]:
                     # 시간외 값을 적으면 그날 장이 어땠는지를 말해 주지 않는다.
                     (today_series, session_price, session_prev,
                      session_change) = _card_session_values(daily.get(ticker), live.get(ticker))
+                    # **그림에도 그 장을 붙인다** (2026-09-03 상하님 지적 —
+                    # "일일차트도, 일봉 6개월도 그런 것 같아").
+                    # 야후 일봉이 마지막 장을 아직 안 올린 판에서는 30일 그림과
+                    # 6개월 그림이 그 장 없이 끝난다. 숫자만 오늘이고 그림은 어제면
+                    # 둘이 다른 이야기를 한다(2026-08-28에 고치려던 바로 그 문제다).
+                    chart_all = [float(v) for v in series.tolist()]
+                    if (session_price is not None
+                            and _daily_lags_last_session(daily.get(ticker), live.get(ticker))):
+                        chart_all.append(float(session_price))
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
                         "price": session_price if session_price is not None else metrics.get("current"),
                         "change_pct": session_change if session_change is not None else metrics.get("change_pct"),
-                        "chart": series.tail(30).tolist(), "chart6m": series.tolist(),
+                        "chart": chart_all[-30:], "chart6m": chart_all,
                         "chart_today": today_series, "prev_close": session_prev,
                         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
                     }

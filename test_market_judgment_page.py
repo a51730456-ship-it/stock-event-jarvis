@@ -178,7 +178,10 @@ class ClosedPageTest(unittest.TestCase):
         self.assertIn("이 화면은 지금 닫혀 있습니다", text)
         self.assertNotIn("한국장 시장 상태", text)
 
-    def test_only_the_two_theme_pages_are_open(self):
-        self.assertEqual(("미국테마", "한국테마"), page_access.OPEN_PAGES)
+    def test_only_the_theme_pages_are_open(self):
+        # 2026-09-03에 새 디자인 미국테마가 늘어 셋이 되었다(상하님 지시 —
+        # "하나는 새로 만들고 하나는(옛날것) 그대로 놔두자").
+        self.assertEqual(("미국테마", "한국테마", "자비스6미국테마"),
+                         page_access.OPEN_PAGES)
         for closed in ("시장판단", "자비스1", "자비스2", "자비스5", "자비스6"):
             self.assertFalse(page_access.is_open(closed), closed)
