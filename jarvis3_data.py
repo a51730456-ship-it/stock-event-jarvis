@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026090310
+MODULE_REVISION = 2026090320
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -999,6 +999,63 @@ def us_session_closed(now=None) -> bool:
     return us_market_calendar.session_closed(now)
 
 
+def _fill_missing_session(daily: dict, live: dict) -> dict:
+    """일봉이 아직 안 실은 「마지막으로 끝난 장」을 분봉으로 채운 일봉 묶음.
+
+    2026-09-03 상하님 지시 — *"시장국면 게이지도 고쳐라."*
+
+    까닭은 관심종목 카드와 같다(`_daily_lags_last_session` 참고). 야후가 그날
+    일봉 한 줄을 늦게 올리면 시장 국면이 '직전 완료 장'을 하루 전으로 잡는다.
+    실측(2026-09-03 09:15 한국 · 뉴욕 09-02 20:15) — 게이지가 「09.01 마감」이라
+    적고 있었는데, 같은 시각 분봉에는 09-02 정규장이 다 들어 있었다.
+
+    **배점은 손대지 않는다.** 같은 자로 재되 **재는 날**만 바로잡는다.
+    채우는 줄은 그 장의 정규장 값이다 — 종가는 마지막 값, 시가는 첫 값,
+    고가·저가는 그 장의 최고·최저, 거래량은 그 장의 합.
+    못 채우는 종목은 **원래 표를 그대로 둔다** — 실패했다고 있던 것을 지우지
+    않는다(CLAUDE.md 0-0).
+    """
+    filled = {}
+    for ticker, frame in (daily or {}).items():
+        filled[ticker] = frame
+        live_frame = (live or {}).get(ticker)
+        if not _daily_lags_last_session(frame, live_frame):
+            continue
+        # **이미 있는 함수를 쓴다**(아래 _regular_session_frame). 2026-09-03에
+        # 같은 이름으로 하나 더 만들었다가, 뒤에 있는 것이 이겨서 이 자리가
+        # 통째로 안 돌았다 — 튜플을 받아 놓고 표인 줄 알았다.
+        session, session_day = _regular_session_frame(live_frame)
+        if session is None or session_day is None:
+            continue
+        try:
+            row = frame.iloc[[-1]].copy()
+            stamp = pd.Timestamp(session_day)
+            last_index = pd.DatetimeIndex(frame.index)
+            if last_index.tz is not None:
+                stamp = stamp.tz_localize(last_index.tz)
+            row.index = pd.DatetimeIndex([stamp])
+            for column, value in (
+                ("Close", session["Close"].dropna().astype(float).iloc[-1]
+                          if "Close" in session.columns else None),
+                ("Open", session["Open"].dropna().astype(float).iloc[0]
+                         if "Open" in session.columns else None),
+                ("High", session["High"].dropna().astype(float).max()
+                         if "High" in session.columns else None),
+                ("Low", session["Low"].dropna().astype(float).min()
+                        if "Low" in session.columns else None),
+                ("Volume", session["Volume"].dropna().astype(float).sum()
+                           if "Volume" in session.columns else None),
+            ):
+                if column in row.columns and value is not None and value == value:
+                    row.iloc[0, row.columns.get_loc(column)] = float(value)
+            if "Close" not in row.columns or not float(row["Close"].iloc[0]) > 0:
+                continue
+            filled[ticker] = pd.concat([frame, row])
+        except Exception:
+            continue          # 못 채우면 원래 표 그대로다
+    return filled
+
+
 def _previous_market_regime(daily: dict, now=None, back: int = 0) -> dict | None:
     """직전 완료 미국장의 같은 조건점수. 장중에는 오늘 일봉을 제외한다.
 
@@ -1084,10 +1141,14 @@ def _compute_market_overview() -> dict:
         }
 
     assessment = _market_regime_from_rows(rows)
-    previous_market = _previous_market_regime(daily)
+    # **일봉이 마지막 장을 아직 안 올렸으면 분봉으로 채워서 잰다**
+    # (2026-09-03 상하님 지시). 안 채우면 게이지가 하루 전 장을 '직전 완료 장'
+    # 이라고 적는다. 배점은 그대로다 — 재는 날만 바로잡는 것이다.
+    daily_for_regime = _fill_missing_session(daily, intraday)
+    previous_market = _previous_market_regime(daily_for_regime)
     # 게이지 아래 줄에 쓸 **그 하루 앞** 장. 실시간 값을 '지금 (참고)'로 놓았더니
     # 마감 뒤에도 움직여 상하님이 지적하셨다 — 견줄 상대는 전일이어야 한다.
-    before_previous_market = _previous_market_regime(daily, back=1)
+    before_previous_market = _previous_market_regime(daily_for_regime, back=1)
 
     source_times = [row.get("source_time") for row in rows.values() if row.get("source_time")]
     return {

@@ -1724,6 +1724,45 @@ class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
         self.assertFalse(j3._daily_lags_last_session(self.daily, pd.DataFrame()),
                          "분봉이 빈손인데 일봉이 늦었다고 했다")
 
+    def test_the_regime_gauge_gets_the_missing_session_filled_in(self):
+        """**2026-09-03 상하님 지시** — *"시장국면 게이지도 고쳐라."*
+
+        게이지는 일봉으로 '직전 완료 장'을 잡는다. 야후가 그날 일봉 한 줄을
+        늦게 올리면 하루 전 장을 직전 장이라고 적는다(노트북 실측 「09.01 마감」).
+        분봉이 더 새로운 장을 가지고 있으면 그 하루를 일봉에 채워 넣는다.
+
+        **배점은 안 건드린다** — 같은 자로 재되 재는 날만 바로잡는 것이다.
+        """
+        daily = {"SPY": self.daily}
+        live = {"SPY": self._minutes("2026-08-31", 121.0, 129.5)}
+        filled = j3._fill_missing_session(daily, live)["SPY"]
+        self.assertEqual(len(self.daily) + 1, len(filled), "채워 넣은 줄이 없다")
+        self.assertEqual(129.5, float(filled["Close"].iloc[-1]))
+        self.assertEqual("2026-08-31", str(pd.Timestamp(filled.index[-1]).date()))
+
+    def test_a_current_daily_frame_is_left_alone(self):
+        """일봉이 이미 그 장을 실었으면 한 줄도 안 더한다."""
+        daily = {"SPY": self.daily}
+        for live in ({"SPY": self._minutes("2026-08-28", 111.0, 119.5)},
+                     {"SPY": self._minutes("2026-08-27", 101.0, 109.5)},
+                     {"SPY": pd.DataFrame()}, {}):
+            filled = j3._fill_missing_session(daily, live)["SPY"]
+            self.assertEqual(len(self.daily), len(filled), str(live.keys()))
+
+    def test_only_one_function_owns_the_regular_session_frame_name(self):
+        """**같은 이름을 두 번 만들면 뒤엣것이 이긴다** (2026-09-03에 실제로 냈다).
+
+        `_regular_session_frame` 을 하나 더 만들었더니 아래에 있던 것이 이겨서,
+        (표, 날짜) 둘을 받아 놓고 표인 줄 알고 쓰다가 그 자리가 통째로 안 돌았다.
+        조용히 안 돌기만 해서 화면에는 아무 표시도 안 났다.
+        """
+        source = pathlib.Path("jarvis3_data.py").read_text(encoding="utf-8")
+        for name in ("_regular_session_frame", "_regular_session_closes",
+                     "_card_session_values", "_fill_missing_session",
+                     "_daily_lags_last_session", "_last_regular_session_day"):
+            self.assertEqual(1, source.count(chr(10) + f"def {name}("),
+                             f"{name} 이 두 번 만들어져 있다")
+
     def test_the_day_comes_from_the_daily_bars(self):
         """날을 정하는 자리가 일봉이어야 한다 — 1분봉이 정하면 또 하루가 밀린다."""
         source = pathlib.Path("jarvis3_data.py").read_text(encoding="utf-8")
