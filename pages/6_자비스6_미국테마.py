@@ -2349,6 +2349,9 @@ def _render_market_overview() -> None:
         # 가므로, 이 칸에 order:5 를 주어 그 사이에 서게 한다(mobile_ui).
         _sector_map_cell(phase),
         _fear_greed_box(),
+        # 나스닥 고점 대비도 **이 묶음 안**이다(2026-09-03 새 디자인). 밖에 두면
+        # 시장 국면·공포탐욕과 한 줄에 세울 수가 없다. 그리는 내용은 그대로다.
+        _nasdaq_drawdown_html(),
     ]
     # 게이지 스타일은 지표 줄과 따로 내보낸다. 줄 안에 <style>을 끼워 넣으면
     # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버려서, CSS가 글자로
@@ -2356,7 +2359,6 @@ def _render_market_overview() -> None:
     st.markdown(_SECTION_TITLE_CSS, unsafe_allow_html=True)
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
-    _render_nasdaq_drawdown()
     # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
     # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
     with st.expander("조건점수·시장 상황 설명 보기", expanded=False):
@@ -2619,7 +2621,19 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
 
 
 def _render_nasdaq_drawdown() -> None:
+    """나스닥 고점 대비 줄을 그린다. 만드는 일은 아래 함수가 한다."""
+    drawn = _nasdaq_drawdown_html()
+    if drawn:
+        st.markdown(drawn, unsafe_allow_html=True)
+
+
+def _nasdaq_drawdown_html() -> str:
     """나스닥이 고점에서 얼마나 내려와 있나 — 한 줄 (2026-08-01 사용자 지시).
+
+    **글자로 돌려준다**(2026-09-03). 새 디자인에서 이 줄을 시장 국면·공포탐욕과
+    **한 줄에 나란히** 세우려면, 그 셋이 같은 묶음 안에 있어야 한다. 그러려면
+    이 줄이 제 자리에서 바로 그려지지 말고 글자로 넘어와야 한다.
+    돌려줄 것이 없으면 빈 글자다.
 
     55년치로 재 보니 '고점 대비 낙폭' 하나가 다른 어떤 신호보다 잘 들었다.
     12% 넘게 빠지면 2년 뒤 100번 중 86번(아무 날이나 샀으면 81번)이었고,
@@ -2628,7 +2642,7 @@ def _render_nasdaq_drawdown() -> None:
     """
     state = j3data.get_nasdaq_drawdown()
     if not state.get("ok"):
-        return
+        return ""
     pct = float(state.get("drawdown_pct") or 0)
     entry = float(state.get("entry_pct") or -12)
     reached = pct <= entry
@@ -2644,7 +2658,7 @@ def _render_nasdaq_drawdown() -> None:
     # 한가운데를 넘었으면 '얼마나 넘었나'로 말이 바뀐다.
     above = pct > 0
     headline = "전고점 위" if above else "나스닥 고점 대비"
-    st.markdown(
+    return (
         "<div class='j3-ndd'>"
         f"<div class='j3-ndd-head'><b class='j3-ndd-title'>{headline}</b> "
         f"<span class='j3-ndd-val' style='color:{_sign_color(pct)}'>{pct:+.1f}%</span> "
@@ -2667,8 +2681,7 @@ def _render_nasdaq_drawdown() -> None:
         "<span class='j3-ndd-key'>8% 정도로는 기준선보다 못했습니다.</span> "
         "12%냐 15%냐는 자료로 가릴 수 없어 <span class='j3-ndd-key'>‘12% 넘게’</span>까지만 봅니다. "
         "다이버전스는 6개 설정 중 0개에서 져서 쓰지 않습니다."
-        "</div></div>",
-        unsafe_allow_html=True,
+        "</div></div>"
     )
 
 
@@ -9499,6 +9512,22 @@ body:has(.j6-skin) [data-testid="stDataFrame"] {
     border-radius: 14px !important;
     border: 1px solid rgba(120,180,255,.20) !important;
     overflow: hidden !important;
+}
+
+/* ── 세 요약 칸을 한 줄에 (그림의 시장분석 위쪽) ──────────────────────────
+   시장 국면 · 공포·탐욕 · 나스닥 고점 대비 셋을 나란히 세운다.
+   **폰(≤600px)은 그대로 세로로 쌓는다** — 375px 에서 셋을 나란히 놓으면 한 칸이
+   115px 이라 게이지도 구간표도 안 읽힌다. 적힌 것을 줄이면 읽을 수 있지만,
+   그러면 구간표·1주 전/1개월 전 줄·55년치 설명이 빠진다. 그것은 상하님께
+   여쭙고 정할 일이라 여기서는 안 줄였다. */
+@media (min-width: 601px) {
+    body:has(.j6-skin) .j3-top-row .fg-box,
+    body:has(.j6-skin) .j3-top-row .j3-ndd {
+        order: 20 !important;
+        flex: 1 1 calc(33.333% - 1.4rem) !important;
+        min-width: 250px !important;
+        box-sizing: border-box !important;
+    }
 }
 
 /* ── 두 갈래를 큰 판으로 (그림의 시장분석 아래쪽) ─────────────────────────
