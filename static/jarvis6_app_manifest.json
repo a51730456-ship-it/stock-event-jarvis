@@ -1,0 +1,27 @@
+{
+  "name": "자비스6 미국테마",
+  "short_name": "자비스6",
+  "description": "미국 테마 · 오늘의 판단과 강한 테마 순위",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "/%EC%9E%90%EB%B9%84%EC%8A%A46_%EB%AF%B8%EA%B5%AD%ED%85%8C%EB%A7%88",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05080f",
+  "theme_color": "#05080f",
+  "icons": [
+    {
+      "src": "/app/static/jarvis6_icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/static/jarvis6_icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

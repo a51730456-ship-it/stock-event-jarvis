@@ -34,7 +34,15 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
 
     auth = _importlib.reload(auth)
 
-st.set_page_config(page_title="자비스6 미국테마", page_icon="📈", layout="wide")
+# 탭 그림(=폰 홈 화면 아이콘의 바탕)은 **우리가 그린 그림 파일**이다.
+# 그림은 tools/make_jarvis6_icon.py 가 만든다. 못 읽으면 조용히 이모지로 남는다 —
+# 그림 하나 때문에 화면이 안 열리면 안 된다.
+_ICON_FILE = Path(__file__).resolve().parent.parent / "static" / "jarvis6_icon_192.png"
+st.set_page_config(
+    page_title="자비스6 미국테마",
+    page_icon=str(_ICON_FILE) if _ICON_FILE.is_file() else "📈",
+    layout="wide",
+)
 
 st.markdown(
     """
@@ -9773,10 +9781,61 @@ def _render_j6_record() -> None:
     _render_briefing_bottom_nav("record")
 
 
+# ── 폰 홈 화면에 「앱」으로 얹히게 한다 (2026-09-03 상하님 지시) ──────────────
+# 상하님 — *"어플 디자인까지 해서 만들고, 내가 어플 누르면 자동으로 들어가게."*
+#
+# 폰은 화면 머리(head)에 적힌 것을 보고 이름·그림·여는 방식을 정한다. 스트림릿은
+# 그 자리를 제 것으로 채우므로, 우리가 만든 것을 거기에 얹어야 한다.
+# 얹는 길은 `components.html` 이 내주는 작은 창이다 — 그 창은 바깥 화면과 **같은
+# 집**이라(sandbox 에 allow-same-origin 이 있다 · 2026-09-03 실측) 바깥 머리에
+# 손이 닿는다. 이 화면이 이미 ↻ 새로고침에 같은 길을 쓰고 있다.
+#
+# **실패해도 조용히 넘어간다** — 아이콘 하나 때문에 화면이 안 열리면 안 된다.
+_APP_MANIFEST_URL = "/app/static/jarvis6_app_manifest.json"
+_APP_ICON_180 = "/app/static/jarvis6_icon_180.png"
+_APP_ICON_192 = "/app/static/jarvis6_icon_192.png"
+
+
+def _install_app_head() -> None:
+    """홈 화면 아이콘·이름·바탕색을 바깥 화면 머리에 얹는다. 판마다 한 번이면 된다."""
+    if st.session_state.get("j6_app_head_done"):
+        return
+    st.session_state["j6_app_head_done"] = True
+    try:
+        import streamlit.components.v1 as components
+
+        components.html(
+            "<script>(function(){try{"
+            "var d=window.parent.document;"
+            "function tag(name,rel,href,attrs){"
+            " var q='[data-j6=\"'+name+'\"]';"
+            " var el=d.head.querySelector(q);"
+            " if(!el){el=d.createElement(rel?'link':'meta');"
+            "  el.setAttribute('data-j6',name);d.head.appendChild(el);}"
+            " if(rel){el.rel=rel;el.href=href;}else{el.name=name;el.content=href;}"
+            " if(attrs){for(var k in attrs){el.setAttribute(k,attrs[k]);}}"
+            "}"
+            f"tag('manifest','manifest','{_APP_MANIFEST_URL}');"
+            f"tag('apple','apple-touch-icon','{_APP_ICON_180}');"
+            f"tag('icon192','icon','{_APP_ICON_192}',"
+            "{'sizes':'192x192','type':'image/png'});"
+            "tag('theme-color',null,'#05080f');"
+            "tag('apple-mobile-web-app-capable',null,'yes');"
+            "tag('apple-mobile-web-app-status-bar-style',null,'black-translucent');"
+            "tag('apple-mobile-web-app-title',null,'자비스6');"
+            "}catch(e){}})();</script>",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
 def _render_stock_briefing() -> None:
     # 미리 계산은 이 화면 **맨 끝**에서, 그것도 뉴스가 다 온 뒤에 시작한다
     # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
     _briefing_css()
+    # 폰이 이 화면을 「앱」으로 알아보게 하는 표시. 판마다 한 번이면 된다.
+    _install_app_head()
     # 새 껍데기는 **네 화면이 다 지나는 여기서 한 번만** 내보낸다
     # (2026-09-03). 화면마다 따로 내보내면 같은 규칙이 여러 벌 실린다.
     #
