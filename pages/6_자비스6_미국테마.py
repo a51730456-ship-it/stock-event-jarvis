@@ -9294,6 +9294,26 @@ _J6_CSS = """
 }
 .j6-sec .j6-sec-more { margin-left: auto; color: #7fb6ff; font-size: .86rem; font-weight: 700; }
 
+/* ── 위 여백 ──────────────────────────────────────────────────────────────
+   스트림릿이 화면 맨 위에 제 막대(60px · 불투명)를 **덮어 그린다**. 그것을
+   비켜 주지 않으면 머리띠가 그 밑에 깔려 안 보인다(2026-09-03 폰에서 실측 —
+   머리띠는 top 8px 에 멀쩡히 있는데 z-index 999990 짜리 막대가 덮고 있었다).
+   노트북에서는 원래 위 여백이 커서 안 가려졌지만, 그 여백이 화면 한 판을
+   먹고 있었다. 양쪽을 같은 값으로 맞춘다. */
+body:has(.j6-app) [data-testid="stMainBlockContainer"],
+body:has(.j6-app) .block-container { padding-top: 68px !important; }
+
+/* 규칙만 담은 빈 칸이 자리를 먹고 있었다 (2026-09-03 실측 — 176px).
+   스트림릿은 칸을 세로로 쌓으면서 **칸마다 16px 을 벌린다.** `<style>` 만 든
+   칸은 높이가 0인데도 그 벌림은 그대로 들어가, 규칙 열한 벌이 화면 한 판을
+   먹었다. 안 보이게 하면 벌림도 같이 사라진다 —
+   `<style>` 은 안 보이는 칸 안에 있어도 그대로 걸린다. */
+body:has(.j6-app) [data-testid="stElementContainer"]:has(style) { display: none !important; }
+
+/* 「맨 위로」가 데려다 주는 자리는 **상단 막대만큼 낮춰 둔다.** 안 그러면
+   머리띠가 그 막대 밑으로 들어가 안 보인다(2026-09-03 폰에서 실측). */
+body:has(.j6-app) .jarvis-anchor { scroll-margin-top: 76px; }
+
 /* ── 머리띠 ───────────────────────────────────────────────────────────── */
 .j6-head { display: flex; align-items: center; gap: .55rem; padding: .55rem .2rem .35rem; }
 .j6-brand { font-size: 1.5rem; font-weight: 900; color: #ffffff; letter-spacing: -.02em; }
@@ -9455,6 +9475,7 @@ def _render_j6_home() -> None:
     back_nav.opened(st, "j3b_backstop")
 
     st.markdown(
+        '<div class="j6-app"></div>'
         '<div class="j6-head">'
         '<span class="j6-brand">JARVIS <b>6</b></span>'
         '<span class="j6-chip">미국테마</span>'
@@ -9509,6 +9530,7 @@ def _render_j6_record() -> None:
     scroll_to.anchor(st, "top")
     back_nav.opened(st, "j3b_backstop")
     st.markdown(
+        '<div class="j6-app"></div>'
         '<div class="j6-head">'
         '<span class="j6-brand">JARVIS <b>6</b></span>'
         '<span class="j6-chip">기록 · 성과</span>'
