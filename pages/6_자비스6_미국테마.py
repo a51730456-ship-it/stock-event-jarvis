@@ -4879,6 +4879,15 @@ def _render_theme_section(market: dict) -> None:
     # **기본은 닫힘**(2026-08-14 상하님 지시 — "화면 처음 열릴 때 순위가 열려 있게
     # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
     # 아래 구역이 전부 밀려 내려가지 않게 한다.
+    # ── 강한 테마 순위 TOP 10 — **늘 보인다** (2026-09-03 새 디자인) ────────────
+    # 그림의 시장분석 화면에 있는 그 자리다. **자료를 새로 받지 않는다** —
+    # 바로 위에서 이미 받은 `ranking` 을 그대로 읽어 열 줄만 그린다.
+    # 아래 「21개 테마 실시간 순위」 단추는 그대로 둔다 — 그것은 점수·등락·
+    # 구성종목까지 다 있는 **전체 표**이고, 여기 있는 것은 순위만 보는 요약이다.
+    st.markdown('<div class="j6-sec">⚡ 강한 테마 순위 TOP 10</div>',
+                unsafe_allow_html=True)
+    st.markdown(_j6_theme_rows(ranking, limit=10), unsafe_allow_html=True)
+
     rank_open = _section_toggle(
         f"📊 {_THEME_COUNT}개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
         close_label=f"{_THEME_COUNT}개 테마 실시간 순위 닫기",
@@ -9492,6 +9501,73 @@ body:has(.j6-skin) [data-testid="stDataFrame"] {
     overflow: hidden !important;
 }
 
+/* ── 두 갈래를 큰 판으로 (그림의 시장분석 아래쪽) ─────────────────────────
+   글자만 있던 단추를 판으로 키우고, 그 아래 한 줄을 붙인다. **색은 그대로다** —
+   초록은 상승장, 주황은 급락 후 반등장으로 이미 정해 두신 색이다. */
+body:has(.j6-skin) div[class*="st-key-j3_pullback_breakout"] button,
+body:has(.j6-skin) div[class*="st-key-j3_pullback_crash"] button {
+    min-height: 104px !important;
+    border-radius: 18px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: .9rem 1.05rem !important;
+    text-align: left !important;
+    white-space: normal !important;
+}
+body:has(.j6-skin) div[class*="st-key-j3_pullback_breakout"] button p,
+body:has(.j6-skin) div[class*="st-key-j3_pullback_crash"] button p {
+    font-size: 1.05rem !important; font-weight: 900 !important; text-align: left !important;
+}
+body:has(.j6-skin) div[class*="st-key-j3_pullback_breakout"] button::after,
+body:has(.j6-skin) div[class*="st-key-j3_pullback_crash"] button::after {
+    display: block; margin-top: .4rem; text-align: left;
+    font-size: .84rem; font-weight: 700; line-height: 1.55; opacity: .85;
+}
+body:has(.j6-skin) div[class*="st-key-j3_pullback_breakout"] button::after {
+    content: "오르는 흐름이 이어지는 종목을 찾습니다";
+}
+body:has(.j6-skin) div[class*="st-key-j3_pullback_crash"] button::after {
+    content: "많이 빠진 뒤 되돌아설 종목을 찾습니다";
+}
+
+/* ── 종목 찾는 칸을 위로, 넓게 (그림의 검색/관리 화면) ────────────────────
+   여태 「추가 검색 종목」 제목 옆에 좁게 끼어 있었다. 한 줄을 통째로 쓰게 하고
+   둥근 테두리를 두른다. 폰 규칙이 `!important` 로 자리를 잡아 두어 여기서도
+   같은 세기로 되돌린다. */
+body:has(.j6-skin) div[class*="st-key-j3b_extra_header"] [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important; gap: .4rem !important;
+}
+body:has(.j6-skin) div[class*="st-key-j3b_extra_header"] [data-testid="stColumn"] {
+    width: 100% !important; flex: 0 0 100% !important; min-width: 0 !important;
+}
+body:has(.j6-skin) div[class*="st-key-j3b_search_row"] {
+    height: auto !important; margin: 0 !important; width: 100% !important;
+}
+body:has(.j6-skin) div[class*="st-key-j3b_search_row"] input {
+    height: 44px !important; font-size: 1rem !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(120,180,255,.45) !important;
+    background: rgba(12,20,38,.85) !important;
+}
+body:has(.j6-skin) div[class*="st-key-j3b_search_row"] .stButton button {
+    width: 100% !important; height: 44px !important; min-height: 44px !important;
+    border-radius: 14px !important;
+}
+/* 검색 칸 **안**은 가로로 둔다 — 칸과 ＋ 가 나란히 서야 한다.
+   위의 '세로로 세운다'가 이 안쪽까지 내려와 ＋ 가 아래로 떨어졌다
+   (2026-09-03 폰에서 실측). */
+body:has(.j6-skin) div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"] {
+    flex-direction: row !important; gap: .4rem !important; align-items: center !important;
+    flex-wrap: nowrap !important;
+}
+body:has(.j6-skin) div[class*="st-key-j3b_search_row"] [data-testid="stColumn"] {
+    flex: 1 1 auto !important; width: auto !important; min-width: 0 !important;
+}
+body:has(.j6-skin) div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child {
+    flex: 0 0 52px !important; width: 52px !important;
+}
+
 /* 움직임은 **옛 화면과 같은 결**이다 — 0.12초·살짝 뜨고 1.1배 밝게.
    여기서는 판이 된 칸에만 더한다(카드·뉴스는 이미 제 규칙이 있다). */
 body:has(.j6-skin) .j3-top-cell,
@@ -9559,9 +9635,13 @@ def _j6_index_cards(overview: dict) -> str:
     return f"<div class='j6-idx-row'>{''.join(cards)}</div>"
 
 
-def _j6_theme_rows(ranking: dict) -> str:
-    """강한 테마 순위 다섯 줄. 값은 시장분석이 이미 받아 둔 것을 그대로 쓴다."""
-    rows = list(ranking.get("rows") or [])[:5]
+def _j6_theme_rows(ranking: dict, limit: int = 5) -> str:
+    """강한 테마 순위. 값은 시장분석이 이미 받아 둔 것을 그대로 쓴다.
+
+    홈은 다섯 줄, 시장분석은 열 줄이다(그림대로). **자료를 새로 받지 않는다** —
+    시장분석이 이미 받아 둔 `j3_theme_rankings` 를 그대로 읽는다.
+    """
+    rows = list(ranking.get("rows") or [])[:limit]
     if not rows:
         return ""
     scores = [float(row.get("score") or 0) for row in rows]
@@ -9587,7 +9667,6 @@ def _render_j6_home() -> None:
     첫 화면이 뜬다(CLAUDE.md 0-0 — 새로 넣는 것이 무엇을 밀어내는지 먼저 잰다).
     그래서 **이미 받아 둔 것이 있을 때만** 그리고, 없으면 시장분석으로 보낸다.
     """
-    st.markdown(_J6_CSS, unsafe_allow_html=True)
     scroll_to.anchor(st, "top")
     back_nav.opened(st, "j3b_backstop")
 
@@ -9643,7 +9722,6 @@ def _render_j6_record() -> None:
     **여기서 21개 테마를 받지 않는다.** 줄을 누르셨을 때만 배점표에 필요한
     시장·테마 값을 그때 받는다(아래 `on_pick` 안). 목록만 보실 때는 안 받는다.
     """
-    st.markdown(_J6_CSS, unsafe_allow_html=True)
     scroll_to.anchor(st, "top")
     back_nav.opened(st, "j3b_backstop")
     st.markdown(
@@ -9672,7 +9750,12 @@ def _render_stock_briefing() -> None:
     _briefing_css()
     # 새 껍데기는 **네 화면이 다 지나는 여기서 한 번만** 내보낸다
     # (2026-09-03). 화면마다 따로 내보내면 같은 규칙이 여러 벌 실린다.
-    st.markdown(_J6_SKIN_CSS, unsafe_allow_html=True)
+    #
+    # **`_J6_CSS` 도 같이 내보낸다.** 앞서 홈·기록에서만 내보냈더니, 시장분석에
+    # 새로 넣은 「강한 테마 순위 TOP 10」이 규칙 없이 글자로만 나왔다
+    # ("1사이버보안92.0" — 2026-09-03 폰에서 실측). 그 안의 자리잡기 규칙
+    # (`body:has(.j6-app)`)은 표식이 있는 화면에서만 걸리므로 여기 있어도 안전하다.
+    st.markdown(_J6_CSS + _J6_SKIN_CSS, unsafe_allow_html=True)
     # 보시던 화면은 **주소에서** 읽는다 — 폰이 화면을 버렸다 다시 열어도
     # 관심종목으로 돌아가지 않게 한다(2026-08-29, _briefing_page 참고).
     page = _briefing_page()
