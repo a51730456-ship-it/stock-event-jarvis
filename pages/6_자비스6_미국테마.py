@@ -9532,6 +9532,37 @@ body:has(.j6-skin) .stButton button {
 body:has(.j6-skin) div[class*="st-key-btn_"] button,
 body:has(.j6-skin) div[class*="st-key-close_"] button { border: 0 !important; }
 
+/* ── 종목 상세의 다섯 칸 (그림 둘째 장) ────────────────────────────────────
+   현재가 · 52주 고가 대비 · 20일 수익률 · 14일 변동성 · 최종점수.
+   여태 글자만 줄줄이 서 있던 것을 그림처럼 **판 다섯 장**으로 만든다.
+   값·이름·색은 하나도 안 건드린다 — 담는 그릇만 바뀐다. */
+body:has(.j6-skin) .j3-metric-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0,1fr)) !important;
+    gap: .5rem !important;
+    margin: .5rem 0 .7rem !important;
+}
+@media (max-width: 600px) {
+    body:has(.j6-skin) .j3-metric-row {
+        grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+    }
+}
+body:has(.j6-skin) .j3-mc {
+    min-width: 0 !important; box-sizing: border-box;
+    border: 1px solid rgba(120,180,255,.22); border-radius: 14px;
+    background: linear-gradient(165deg, rgba(21,36,64,.94) 0%, rgba(11,18,34,.94) 100%);
+    box-shadow: inset 0 1px rgba(150,200,255,.10), 0 6px 16px rgba(0,0,0,.4);
+    padding: .55rem .5rem .5rem; text-align: center;
+    transition: transform .12s ease-out, filter .12s ease-out, border-color .12s ease-out;
+}
+body:has(.j6-skin) .j3-mc:hover { transform: translateY(-3px); filter: brightness(1.1);
+    border-color: rgba(150,220,255,.6); }
+body:has(.j6-skin) .j3-mc:active { transform: translateY(0) scale(.98); }
+body:has(.j6-skin) .j3-mc-label { font-size: .72rem !important; color: #8ea3bd !important; }
+body:has(.j6-skin) .j3-mc-val { font-size: 1.05rem !important; font-weight: 900 !important;
+    margin-top: .18rem; }
+body:has(.j6-skin) .j3-mc-sub { font-size: .74rem !important; }
+
 /* 표 — 줄 사이를 옅게, 머리글은 흐리게 */
 body:has(.j6-skin) .j3-theme-table th {
     color: #8ea3bd !important;
