@@ -2345,7 +2345,7 @@ def _render_market_overview() -> None:
         # 바늘은 **직전 완료 미국장**에 세운다(2026-08-12 상하님 지시) — 프리마켓·
         # 장중 값으로 매번 다시 재면 하루 종일 조금씩 움직인다. 실시간 값은 상자
         # 아래 '지금 (참고)' 줄로 남는다. 한국테마는 지금까지대로 실시간이다.
-        regime_gauge_ui.regime_box_html(overview, freeze=True),
+        _j6_tap_wrap(regime_gauge_ui.regime_box_html(overview, freeze=True), "regime"),
         # **SPY·QQQ 두 칸은 뺐다** (2026-08-28 상하님 지시 — 캡처에 ×표).
         # 지수 넷(S&P500·나스닥 종합·다우·나스닥100)이 같은 것을 이미 말하고 있어
         # 화면만 길어졌다. 값 자체는 그대로 받는다 — 시장 판단 점수가 SPY·QQQ의
@@ -2356,10 +2356,10 @@ def _render_market_overview() -> None:
         # (2026-08-28 상하님 지시). 폰에서는 게이지 둘이 order:10 으로 맨 뒤에
         # 가므로, 이 칸에 order:5 를 주어 그 사이에 서게 한다(mobile_ui).
         _sector_map_cell(phase),
-        _fear_greed_box(),
+        _j6_tap_wrap(_fear_greed_box(), "fear"),
         # 나스닥 고점 대비도 **이 묶음 안**이다(2026-09-03 새 디자인). 밖에 두면
         # 시장 국면·공포탐욕과 한 줄에 세울 수가 없다. 그리는 내용은 그대로다.
-        _nasdaq_drawdown_html(),
+        _j6_tap_wrap(_nasdaq_drawdown_html(), "ndd"),
     ]
     # 게이지 스타일은 지표 줄과 따로 내보낸다. 줄 안에 <style>을 끼워 넣으면
     # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버려서, CSS가 글자로
@@ -9529,14 +9529,84 @@ body:has(.j6-skin) [data-testid="stDataFrame"] {
    그러면 구간표·1주 전/1개월 전 줄·55년치 설명이 빠진다. 그것은 상하님께
    여쭙고 정할 일이라 여기서는 안 줄였다. */
 @media (min-width: 601px) {
-    body:has(.j6-skin) .j3-top-row .fg-box,
-    body:has(.j6-skin) .j3-top-row .j3-ndd {
+    body:has(.j6-skin) .j3-top-row .j6-tap {
         order: 20 !important;
         flex: 1 1 calc(33.333% - 1.4rem) !important;
         min-width: 250px !important;
         box-sizing: border-box !important;
     }
+    /* 껍질은 노트북·태블릿에서 아무 일도 안 한다 — 누르는 자리를 아예 없앤다. */
+    body:has(.j6-skin) .j6-tap-zone { display: none !important; }
 }
+
+/* ── 폰(≤600px)에서도 셋을 나란히 (2026-09-03 상하님 지시) ────────────────────
+   한 칸이 115px 이라 게이지와 숫자만 들어간다. 나머지는 **지우지 않고 접어 둔다** —
+   칸을 누르면 한 줄을 통째로 차지하면서 접어 둔 것이 다 나온다. */
+@media (max-width: 600px) {
+    /* 폭은 **재서 정했다**(2026-09-03 폰 375px 실측) — 줄 안쪽이 343px,
+       칸 사이 벌림이 13.6px 이라 한 칸이 105.3px 을 넘으면 셋째가 밀려난다.
+       `calc(33.333% - .65rem)` = 103.9px 이라 셋이 딱 들어간다. */
+    body:has(.j6-skin) .j3-top-row .j6-tap {
+        order: 20 !important;
+        flex: 1 1 calc(33.333% - .65rem) !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+    /* 셋의 키를 맞춘다 — 안에 든 것이 달라 그냥 두면 「눌러서 자세히」가
+       칸마다 다른 높이에 선다(2026-09-03 폰에서 실측). */
+    body:has(.j6-skin) .j3-top-row { align-items: stretch !important; }
+    body:has(.j6-skin) .j6-tap > .fg-box,
+    body:has(.j6-skin) .j6-tap > .j3-ndd {
+        height: 100% !important; box-sizing: border-box !important;
+        display: flex !important; flex-direction: column !important;
+    }
+    /* 접혀 있을 때 — 게이지와 숫자만 남긴다 */
+    body:has(.j6-skin) .j6-tap .fg-box-hist,
+    body:has(.j6-skin) .j6-tap .fg-box-foot,
+    body:has(.j6-skin) .j6-tap .j3-ndd-scale,
+    body:has(.j6-skin) .j6-tap .j3-ndd-note { display: none !important; }
+    body:has(.j6-skin) .j6-tap .fg-box-body { display: block !important; }
+    body:has(.j6-skin) .j6-tap .fg-box-gauge .fg-gauge {
+        width: 100% !important; max-width: 104px; height: auto !important;
+    }
+    body:has(.j6-skin) .j6-tap .fg-box,
+    body:has(.j6-skin) .j6-tap .j3-ndd {
+        padding: .5rem .45rem .4rem !important; height: 100%; box-sizing: border-box;
+    }
+    body:has(.j6-skin) .j6-tap .fg-box-title,
+    body:has(.j6-skin) .j6-tap .j3-ndd-title { font-size: .72rem !important; line-height: 1.35; }
+    body:has(.j6-skin) .j6-tap .j3-ndd-head { display: block !important; }
+    body:has(.j6-skin) .j6-tap .j3-ndd-val { font-size: 1.2rem !important; }
+    body:has(.j6-skin) .j6-tap .j3-ndd-state { font-size: .72rem !important; }
+    body:has(.j6-skin) .j6-tap .j3-ndd-bar { margin: .5rem 0 .2rem !important; }
+    /* 눌러서 편 칸 — 한 줄을 다 쓰고 접어 둔 것이 다 나온다 */
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) { flex-basis: 100% !important; }
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .fg-box-hist,
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .fg-box-foot,
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .j3-ndd-scale,
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .j3-ndd-note { display: block !important; }
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .fg-box-body { display: flex !important; }
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .fg-box-gauge .fg-gauge { max-width: 124px; }
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .fg-box-title,
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .j3-ndd-title { font-size: .92rem !important; }
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .j3-ndd-head { display: flex !important; }
+    /* 눌러 보라는 표시 한 줄 — **칸 안 맨 아래**다. 껍질에 붙였더니 칸마다
+       위아래가 뒤바뀌어 나왔다(2026-09-03 폰에서 실측). */
+    body:has(.j6-skin) .j6-tap .fg-box::after,
+    body:has(.j6-skin) .j6-tap .j3-ndd::after {
+        content: "눌러서 자세히"; display: block; text-align: center;
+        color: #7fb6ff; font-size: .68rem; font-weight: 800;
+        margin-top: auto; padding-top: .3rem;
+    }
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .fg-box::after,
+    body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .j3-ndd::after { content: "✕ 접기"; }
+}
+
+/* 껍질 — 숨긴 확인칸과 그 위를 덮는 label. 자바스크립트를 안 쓴다.
+   덮개가 칸 전체를 먹으므로 어디를 눌러도 펴진다. */
+.j6-tap { position: relative; display: block; }
+.j6-tap-cb { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+.j6-tap-zone { position: absolute; inset: 0; z-index: 3; cursor: pointer; }
 
 /* ── 두 갈래를 큰 판으로 (그림의 시장분석 아래쪽) ─────────────────────────
    글자만 있던 단추를 판으로 키우고, 그 아래 한 줄을 붙인다. **색은 그대로다** —
@@ -9628,6 +9698,36 @@ body:has(.j6-skin) .j3-ndd:active { transform: translateY(0) scale(.99); }
 }
 </style>
 """
+
+
+def _j6_tap_wrap(inner: str, key: str) -> str:
+    """세 요약 칸을 **눌러서 펴는 껍질**로 감싼다 (2026-09-03 상하님 지시).
+
+    상하님 — *"폰에서 세 요약 칸도 나란히 놔라."*
+
+    폰(375px)에서 셋을 나란히 놓으면 한 칸이 115px 이다. 그 폭에는 게이지와 숫자만
+    들어간다 — 구간표·1주 전 줄·55년치 설명은 들어갈 자리가 없다. 그렇다고 지우면
+    상하님이 보시던 것이 사라진다.
+
+    **그래서 감추지 않고 접어 둔다.** 평소에는 게이지와 숫자만 보이고, 그 칸을
+    누르면 **한 줄을 통째로 차지하면서** 접어 둔 것이 다 나온다. 다시 누르면 접힌다.
+
+    장치는 이 화면이 이미 쓰고 있는 것과 같다(숨긴 확인칸 + 덮은 label —
+    지수 그림 바꾸기 `.j3-idx-tap`, 배점표 설명 `.j3fh-cb`).
+    **화면을 다시 그리지 않는다** — 브라우저가 혼자 하는 일이라 누를 때마다
+    시세를 다시 받지 않는다.
+
+    노트북·태블릿(601px 이상)에서는 껍질이 아무 일도 하지 않는다. 거기서는
+    셋이 그냥 나란히 서고 안이 다 보인다.
+    """
+    if not inner:
+        return ""
+    return (
+        f"<div class='j6-tap'>"
+        f"<input class='j6-tap-cb' type='checkbox' id='j6tap_{key}'>"
+        f"<label class='j6-tap-zone' for='j6tap_{key}'></label>"
+        f"{inner}</div>"
+    )
 
 
 def _j6_index_cards(overview: dict) -> str:
