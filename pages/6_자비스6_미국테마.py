@@ -4548,6 +4548,14 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
         on_pick=lambda code, name, kind, row: _picklist_detail(
             market, ranking, code, name, kind, row),
     )
+    # 그림 넷째 장 맨 아래의 그 안내다. **앱이 이미 하던 말**을 그대로 적는다 —
+    # 테마 순위표 밑에 같은 뜻의 긴 설명이 있고, 여기는 한 줄로 줄인 것이다.
+    st.markdown(
+        "<div class='j6-note'><span class='j6-note-icon'>ⓘ</span>"
+        "<span><b>이 점수는 오늘 상태 요약입니다.</b><br>"
+        "앞날을 맞히는 점수가 아닙니다.</span></div>",
+        unsafe_allow_html=True,
+    )
 
 
 # 저장해 둔 줄이 **어느 파트에서 나왔나**.
@@ -7871,6 +7879,11 @@ def _render_existing_theme_content() -> None:
     # 상하님이 그록·제미나이로 만드신 영상 위에 6개월 일봉 봉차트를 얹은 그림이다.
     # 봉은 **지어낸 값**이라 숫자를 한 개도 안 적는다. 자세한 것은 hero_banner.py.
     # 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)보다 먼저 그려야 맨 위에 선다.
+    st.markdown(
+        '<div class="j6-page-title">시장 분석</div>'
+        '<div class="j6-page-sub">오늘 시장과 강한 테마를 한눈에</div>',
+        unsafe_allow_html=True,
+    )
     if hero_banner.render(st, refresh_key="j3hero_refresh", mark="6"):
         # ↻ 를 누르셨다. 관심종목 배너의 ↻ 와 **똑같이** 움직인다 —
         # 서버가 담아 둔 것을 비우고 화면을 통째로 새로 연다
@@ -9369,6 +9382,15 @@ body:has(.j6-app) .jarvis-anchor { scroll-margin-top: 76px; }
     color: #d8f5e6; border: 1px solid rgba(68,240,161,.45); background: rgba(68,240,161,.08);
 }
 .j6-live i { width: 7px; height: 7px; border-radius: 50%; background: #44f0a1; display: inline-block; }
+/* ↻ — 보이는 것은 이 글자이고, 그 위에 속이 비치는 스트림릿 단추가 겹쳐 있다
+   (옛 화면과 같은 장치). 글자를 빼면 빈 동그라미만 남는다. */
+.j6-round {
+    margin-left: auto; width: 33px; height: 33px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #cfe3ff; font-size: 1.15rem; font-weight: 700;
+    border: 1px solid rgba(120,180,255,.45); background: rgba(77,166,255,.10);
+}
+.j6-round + .j6-live { margin-left: .4rem; }
 
 /* ── 판(카드) 공통 ────────────────────────────────────────────────────── */
 .j6-panel {
@@ -9532,7 +9554,9 @@ body:has(.j6-skin) [data-testid="stDataFrame"] {
    여쭙고 정할 일이라 여기서는 안 줄였다. */
 @media (min-width: 601px) {
     body:has(.j6-skin) .j3-top-row .j6-tap {
-        order: 20 !important;
+        /* 그림에서는 이 셋이 **맨 앞**이다(2026-09-03). 지수 넉 장·선물·업종 지도는
+           그 뒤로 간다. 값은 그대로고 서는 차례만 바뀐다. */
+        order: -1 !important;
         flex: 1 1 calc(33.333% - 1.4rem) !important;
         min-width: 250px !important;
         box-sizing: border-box !important;
@@ -9549,7 +9573,9 @@ body:has(.j6-skin) [data-testid="stDataFrame"] {
        칸 사이 벌림이 13.6px 이라 한 칸이 105.3px 을 넘으면 셋째가 밀려난다.
        `calc(33.333% - .65rem)` = 103.9px 이라 셋이 딱 들어간다. */
     body:has(.j6-skin) .j3-top-row .j6-tap {
-        order: 20 !important;
+        /* 그림에서는 이 셋이 **맨 앞**이다(2026-09-03). 지수 넉 장·선물·업종 지도는
+           그 뒤로 간다. 값은 그대로고 서는 차례만 바뀐다. */
+        order: -1 !important;
         flex: 1 1 calc(33.333% - .65rem) !important;
         min-width: 0 !important;
         box-sizing: border-box !important;
@@ -9603,6 +9629,17 @@ body:has(.j6-skin) [data-testid="stDataFrame"] {
     body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .fg-box::after,
     body:has(.j6-skin) .j6-tap:has(.j6-tap-cb:checked) .j3-ndd::after { content: "✕ 접기"; }
 }
+
+/* 맨 아래 안내 칸 */
+.j6-note {
+    display: flex; align-items: flex-start; gap: .7rem;
+    border: 1px solid rgba(120,180,255,.28); border-radius: 16px;
+    background: linear-gradient(150deg, rgba(20,36,66,.85) 0%, rgba(10,17,32,.85) 100%);
+    padding: .85rem .95rem; margin: 1rem 0 .4rem;
+    color: #b9c8dc; font-size: .88rem; font-weight: 600; line-height: 1.6;
+}
+.j6-note b { color: #ffffff; font-weight: 800; }
+.j6-note-icon { flex: 0 0 auto; color: #4da6ff; font-size: 1.15rem; line-height: 1.35; }
 
 /* 껍질 — 숨긴 확인칸과 그 위를 덮는 label. 자바스크립트를 안 쓴다.
    덮개가 칸 전체를 먹으므로 어디를 눌러도 펴진다. */
@@ -9982,6 +10019,70 @@ def _j6_candidate_tiles(rows: list) -> str:
     return f"<div class='j6-tiles four'>{''.join(tiles)}</div>" if tiles else ""
 
 
+_J6_WATCH_CSS = """
+<style>
+/* ── 검색 / 관리 화면 — 그림 셋째 장 그대로 (2026-09-03) ────────────────────── */
+.j6-page-title { color: #ffffff; font-size: 1.9rem; font-weight: 900; letter-spacing: -.03em;
+    margin: .5rem 0 .1rem; }
+.j6-page-sub { color: #93a6bd; font-size: .88rem; font-weight: 600; margin-bottom: .7rem; }
+
+/* 큰 카드 넷 — 21개 테마 순위 · 상승장 · 급락 후 반등장 · 종목 검색 */
+div[class*="st-key-j6_go_"] button {
+    min-height: 118px !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(120,180,255,.28) !important;
+    background: linear-gradient(155deg, rgba(23,40,74,.95) 0%, rgba(11,18,34,.95) 100%) !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: .9rem 1rem !important;
+    text-align: left !important;
+    white-space: normal !important;
+    box-shadow: inset 0 1px rgba(150,200,255,.10), 0 8px 20px rgba(0,0,0,.45) !important;
+}
+div[class*="st-key-j6_go_"] button p {
+    font-size: 1.02rem !important; font-weight: 900 !important; text-align: left !important;
+    color: #ffffff !important;
+}
+div[class*="st-key-j6_go_"] button::after {
+    display: block; margin-top: .35rem; text-align: left;
+    font-size: .8rem; font-weight: 700; line-height: 1.5; color: #9fb4cc;
+}
+div[class*="st-key-j6_go_theme"] button::after { content: "테마별 성과와 순위를 한눈에"; }
+div[class*="st-key-j6_go_breakout"] button::after { content: "오르는 흐름이 이어지는 종목"; }
+div[class*="st-key-j6_go_crash"] button::after { content: "많이 빠진 뒤 되돌아설 종목"; }
+div[class*="st-key-j6_go_search"] button::after { content: "이름을 넣어 바로 찾아봅니다"; }
+div[class*="st-key-j6_go_theme"] button { border-color: rgba(255,209,102,.45) !important; }
+div[class*="st-key-j6_go_breakout"] button { border-color: rgba(52,211,153,.45) !important; }
+div[class*="st-key-j6_go_crash"] button { border-color: rgba(192,132,252,.45) !important; }
+div[class*="st-key-j6_go_search"] button { border-color: rgba(77,166,255,.45) !important; }
+</style>
+"""
+
+
+_J6_GO_CARDS = (
+    ("j6_go_theme", "🏆  21개 테마 순위"),
+    ("j6_go_breakout", "📈  상승장"),
+    ("j6_go_crash", "📉  급락 후 반등장"),
+    ("j6_go_search", "🔍  종목 검색"),
+)
+
+
+def _j6_open_market(target: str) -> None:
+    """큰 카드를 누르면 시장분석의 그 자리를 열어 두고 넘어간다 (2026-09-03).
+
+    **여는 것은 표시만 바꾸는 일이다** — 자료는 시장분석이 제 차례에 받는다.
+    여기서 미리 받으면 이 화면이 그만큼 늦게 넘어간다(CLAUDE.md 0-0).
+    """
+    if target == "theme":
+        st.session_state[_THEME_RANK_OPEN] = True
+    elif target in ("breakout", "crash"):
+        st.session_state["j3_pullback_open"] = True
+        st.session_state["j3_pullback_mode"] = target
+    _set_briefing_page("market")
+    st.rerun()
+
+
 def _j6_tap_wrap(inner: str, key: str) -> str:
     """세 요약 칸을 **눌러서 펴는 껍질**로 감싼다 (2026-09-03 상하님 지시).
 
@@ -10088,7 +10189,6 @@ def _render_j6_home() -> None:
     둔 것이 있을 때만 그리고, 「강한 종목 후보」는 저장해 둔 목록(파일 한 장)에서
     읽는다. 그래야 첫 화면이 안 밀린다(CLAUDE.md 0-0).
     """
-    st.markdown(_J6_HOME_CSS, unsafe_allow_html=True)
     scroll_to.anchor(st, "top")
     back_nav.opened(st, "j3b_backstop")
 
@@ -10284,7 +10384,8 @@ def _render_stock_briefing() -> None:
     # 새로 넣은 「강한 테마 순위 TOP 10」이 규칙 없이 글자로만 나왔다
     # ("1사이버보안92.0" — 2026-09-03 폰에서 실측). 그 안의 자리잡기 규칙
     # (`body:has(.j6-app)`)은 표식이 있는 화면에서만 걸리므로 여기 있어도 안전하다.
-    st.markdown(_J6_CSS + _J6_SKIN_CSS, unsafe_allow_html=True)
+    st.markdown(_J6_CSS + _J6_SKIN_CSS + _J6_HOME_CSS + _J6_WATCH_CSS,
+                unsafe_allow_html=True)
     # 보시던 화면은 **주소에서** 읽는다 — 폰이 화면을 버렸다 다시 열어도
     # 관심종목으로 돌아가지 않게 한다(2026-08-29, _briefing_page 참고).
     page = _briefing_page()
@@ -10352,40 +10453,25 @@ def _render_stock_briefing() -> None:
                     f'<div class="j3b-debug-overlay"><img src="{reference_uri}" alt=""></div>',
                     unsafe_allow_html=True,
                 )
-        catbus_uri = _briefing_asset_uri("hero_scene.webp")
-        catbus_html = f'<img class="j3b-hero-scene" src="{catbus_uri}" alt="">' if catbus_uri else ""
-        # ↻ 는 그림이 아니라 **진짜 단추**다(2026-08-26 상하님 지시 — "맨 위 상단
-        # 실시간 옆 되돌리기 버튼 저것만 작동하게"). 보이는 것은 아래 span 그대로 두고,
-        # 그 위에 속이 비치는 스트림릿 단추를 겹쳐 둔다. 하단 이동표와 같은 장치다.
-        # 뒤로가기를 한 번 눌러도 이 화면에 머문다(2026-08-26 상하님 지시 —
-        # "뒤로가기 버튼을 누르면 로그인 화면으로 갔다가 다시 메인으로 돌아온다").
-        # 방문기록에 표식을 하나 쌓아 두면 첫 뒤로가기가 그 표식을 지우고 제자리에
-        # 선다. 앞 화면(로그인·메뉴)으로 나가려면 두 번 누르면 된다.
-        back_nav.opened(st, "j3b_backstop")
-        # 시장분석에서 관심종목으로 돌아올 때 데려올 '맨 위' 자리.
-        # 시장분석 쪽에는 이미 같은 이름의 자리가 있다(_render_existing_theme_content).
-        scroll_to.anchor(st, "top")
+        # ── 머리띠와 큰 제목 (그림 셋째 장) ────────────────────────────────
+        # **고양이버스 배너는 뺐다** — 그림에는 그 자리에 큰 제목 「검색 / 관리」가
+        # 있다(2026-09-03 상하님 지시 "대부분 새로운 디자인 캡처 화면 그대로").
+        # 되살리려면 `_briefing_orbit_html` 과 hero_scene.webp 를 도로 넣으면 된다.
         with st.container(key="j3b_hero_box"):
             st.markdown(
-                '<div class="j3b-app j3b-home"></div><div class="j6-skin"></div><div class="j3b-hero"><div class="j3b-head-copy">'
-                '<div class="j3b-title">JARVIS <b>6</b></div><div class="j3b-sub">미국테마</div></div>'
-                '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
-                # 사용자 선정 종목의 로고가 버스 둘레를 돈다(2026-08-28 상하님 지시).
-                f'{catbus_html}{_briefing_orbit_html(selected)}</div>',
+                '<div class="j3b-app j3b-home"></div><div class="j6-skin"></div>'
+                '<div class="j6-head">'
+                '<span class="j6-brand">JARVIS <b>6</b></span>'
+                '<span class="j6-chip">미국테마</span>'
+                '<span class="j6-round">↻</span>'
+                '<span class="j6-live"><i></i>실시간</span>'
+                '</div>'
+                '<div class="j6-page-title">검색 / 관리</div>'
+                '<div class="j6-page-sub">종목 검색, 관리 및 맞춤 테마를 한번에</div>',
                 unsafe_allow_html=True,
             )
             if st.button("↻", key="j3b_hero_refresh"):
-                # 서버가 담아 둔 것을 비우고, **화면도 통째로 새로 연다.**
-                #
-                # 2026-08-27 상하님 지적 — "맨 위 두 단추가 안 나타난다."
-                # 온라인에는 이미 고쳐져 올라가 있었는데 폰만 옛 화면을 붙잡고
-                # 있었다. 어제 상하님 지시로 **손가락으로 당겨 새로고침하는 것을
-                # 막았고**("맨 위 ↻ 저것만 작동하게 할 수 없냐"), 그런데 이 단추는
-                # 서버 기억만 비우고 화면은 안 열었다. 그래서 폰이 새 판을 받을
-                # 길이 없어졌다.
-                #
-                # 이제 이 단추가 진짜 새로고침이다. **누를 때만** 연다 —
-                # 2026-08-26에 이것을 2.5초마다 부르다 화면이 버벅였다.
+                # 서버가 담아 둔 것을 비우고 화면도 통째로 새로 연다(2026-08-27).
                 st.session_state["j3b_hard_reload"] = True
                 try:
                     j3data.clear_runtime_cache()
@@ -10396,27 +10482,41 @@ def _render_stock_briefing() -> None:
                 except Exception:
                     pass
                 st.rerun()
-        st.markdown('<div class="j3b-section"><span class="j3b-flag">🇺🇸</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
-        _render_briefing_news("market")
-        with st.container(key="j3b_selected_heading"):
-            st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
-            if st.button("더보기", key="j3b_go_market"):
-                # **여기도 맨 위로 올린다** (2026-08-27 상하님 지적 — "맨 위에
-                # 메뉴 2개 안 나오는 것 언제 해결할 거냐"). 「더보기 ›」는 화면을
-                # 아래로 내려야 보이는 자리라, 누르면 브라우저가 그 자리를 그대로
-                # 들고 시장분석으로 간다. 그러면 맨 위의 「🌏 한국테마 →」·
-                # 「📘 이 테마 설명」 두 단추를 지나친 자리에 선다.
-                # 하단 이동막대 쪽만 고쳐 두고 이 길을 빠뜨렸다.
-                _set_briefing_page("market")
-                st.rerun()
-        _render_briefing_grid(selected, cards, removable=False, key="selected")
+        # ── 큰 검색 칸 ────────────────────────────────────────────────────
         with st.container(key="j3b_extra_header"):
-            heading_col, search_col = st.columns([4, 6], gap="small")
-            with heading_col:
-                st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
-            with search_col:
-                _render_briefing_manage(selected, extras)
+            _render_briefing_manage(selected, extras)
+        # ── 사용자 선정 종목 (그림의 타일) ─────────────────────────────────
+        st.markdown(
+            '<div class="j6-sec">◎ 사용자 선정 종목'
+            '<span class="j6-sec-more">아래에서 자세히 ›</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(_j6_stock_tiles(selected, cards), unsafe_allow_html=True)
+        # ── 추가 검색 종목 — **카드와 뉴스를 그대로 둔다** ──────────────────
+        # 2026-09-03 상하님 지시 — "뉴스 그대로 두고 카드로 놔둬라".
+        # 그림에서는 줄 목록이지만, 줄로 만들면 카드 안 뉴스 세 줄이 빠진다.
+        st.markdown(
+            '<div class="j6-sec">🔎 추가 검색 종목</div>', unsafe_allow_html=True)
         _render_briefing_grid(home_extras, cards, removable=True, key="extra1", compact=True)
+        # ── 큰 카드 넷 (그림의 아래쪽 2×2) ─────────────────────────────────
+        st.markdown('<div class="j6-sec">📊 어디를 볼까요</div>', unsafe_allow_html=True)
+        first_row = st.columns(2, gap="small")
+        second_row = st.columns(2, gap="small")
+        targets = ("theme", "breakout", "crash", "search")
+        for column, (key, label), target in zip(
+                list(first_row) + list(second_row), _J6_GO_CARDS, targets):
+            with column:
+                if st.button(label, key=key, use_container_width=True):
+                    _j6_open_market(target)
+        # ── 선정 종목 자세히 (뉴스가 든 옛 카드 그대로) ─────────────────────
+        st.markdown(
+            '<div class="j6-sec">📰 선정 종목 · 뉴스</div>', unsafe_allow_html=True)
+        _render_briefing_grid(selected, cards, removable=False, key="selected")
+        # ── 미국시장 한줄 브리핑 ───────────────────────────────────────────
+        st.markdown(
+            '<div class="j6-sec"><span class="j3b-flag">🇺🇸</span> 미국시장 한줄 브리핑</div>',
+            unsafe_allow_html=True)
+        _render_briefing_news("market")
         _render_briefing_bottom_nav("watch")
         news_keys = tuple([("market", None)] + [("company", stock["ticker"]) for stock in visible_stocks])
         _schedule_briefing_news_refresh(news_keys)
