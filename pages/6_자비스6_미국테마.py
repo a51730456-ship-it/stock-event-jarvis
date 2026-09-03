@@ -1236,6 +1236,8 @@ _REQUIRED_METHOD_HELP_REVISION = 2026082712
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
+import math
+import picklist_store
 import picklist_ui
 
 # 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
@@ -9700,6 +9702,286 @@ body:has(.j6-skin) .j3-ndd:active { transform: translateY(0) scale(.99); }
 """
 
 
+_J6_HOME_CSS = """
+<style>
+/* ── 홈 화면 — 상하님이 보내 주신 그림 그대로 (2026-09-03) ────────────────────
+   상하님 지적 — *"그 디자인 샘플 그대로 해달라는 이야기를 넌 왜 안 지켰지?"*
+   맞는 지적이었다. 앞서는 옛 상자에 색만 입혔다. 여기서는 **그림의 짜임 그대로**
+   새로 짠다 — 큰 판단 글씨와 둥근 계기판, 종목 타일, 후보 타일, 경고 띠.
+   값은 여전히 하나도 새로 만들지 않는다. 위에서 받아 둔 것을 다르게 그릴 뿐이다. */
+
+/* 오늘의 판단 — 왼쪽에 큰 글씨, 오른쪽에 둥근 계기판 */
+.j6-vc {
+    display: flex; align-items: center; gap: 1rem;
+    border: 1px solid rgba(120,180,255,.28); border-radius: 20px;
+    background:
+        radial-gradient(120% 100% at 88% 18%, rgba(60,130,240,.30) 0%, rgba(60,130,240,0) 58%),
+        linear-gradient(150deg, rgba(24,44,84,.96) 0%, rgba(10,18,36,.96) 100%);
+    box-shadow: inset 0 1px rgba(160,210,255,.16), 0 10px 26px rgba(0,0,0,.5);
+    padding: 1rem 1.1rem;
+}
+.j6-vc-left { flex: 1 1 auto; min-width: 0; }
+.j6-vc-tag { color: #9fc6ff; font-size: .82rem; font-weight: 800; letter-spacing: -.01em; }
+.j6-vc-head {
+    margin-top: .35rem; color: #ffffff; font-size: 1.85rem; font-weight: 900;
+    line-height: 1.22; letter-spacing: -.03em; word-break: keep-all;
+}
+.j6-vc-head b { color: #ffd166; font-weight: 900; }
+.j6-vc-sub {
+    margin-top: .55rem; color: #b9c8dc; font-size: .88rem; font-weight: 600;
+    line-height: 1.6; word-break: keep-all;
+}
+.j6-vc-time { margin-top: .6rem; color: #7f8fa4; font-size: .74rem; font-weight: 700; }
+.j6-vc-right { flex: 0 0 auto; position: relative; width: 132px; text-align: center; }
+.j6-vc-ring { width: 132px; height: 132px; display: block; }
+.j6-vc-num {
+    position: absolute; left: 0; right: 0; top: 40px;
+    color: #ffffff; font-size: 2.3rem; font-weight: 900; line-height: 1;
+}
+.j6-vc-of { position: absolute; left: 0; right: 0; top: 80px;
+    color: #8fa2ba; font-size: .74rem; font-weight: 700; }
+/* 딱지는 **고리 밑 제자리**에 둔다. 고리 위에 겹쳐 두었더니 글자가 고리에
+   깔려 안 읽혔다(2026-09-03 폰에서 실측). */
+.j6-vc-pill {
+    display: inline-block; margin-top: .25rem;
+    padding: .14rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 800;
+    white-space: nowrap; max-width: 100%; box-sizing: border-box;
+    overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 430px) {
+    .j6-vc { gap: .5rem; padding: .9rem .8rem; }
+    .j6-vc-head { font-size: 1.5rem; }
+    .j6-vc-right { width: 112px; }
+    .j6-vc-ring { width: 112px; height: 112px; }
+    .j6-vc-num { top: 34px; font-size: 1.95rem; }
+    .j6-vc-of { top: 68px; }
+    .j6-vc-pill { font-size: .64rem; padding: .12rem .4rem; }
+}
+
+/* 종목 타일 — 사용자 선정 종목 · 강한 종목 후보 */
+.j6-tiles { display: grid; gap: .5rem; grid-template-columns: repeat(3, minmax(0,1fr)); }
+.j6-tiles.four { grid-template-columns: repeat(4, minmax(0,1fr)); }
+@media (max-width: 600px) {
+    .j6-tiles { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .j6-tiles.four { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+.j6-tile {
+    position: relative; overflow: hidden;
+    border: 1px solid rgba(120,180,255,.22); border-radius: 14px;
+    background: linear-gradient(165deg, rgba(21,36,64,.94) 0%, rgba(11,18,34,.94) 100%);
+    box-shadow: inset 0 1px rgba(150,200,255,.10), 0 6px 16px rgba(0,0,0,.4);
+    padding: .5rem .5rem .35rem;
+    transition: transform .12s ease-out, filter .12s ease-out, border-color .12s ease-out;
+}
+.j6-tile:hover { transform: translateY(-3px); filter: brightness(1.1);
+    border-color: rgba(150,220,255,.6); }
+.j6-tile:active { transform: translateY(0) scale(.98); }
+.j6-tile-rank {
+    position: absolute; left: .38rem; top: .38rem; z-index: 2;
+    min-width: 1.05rem; height: 1.05rem; padding: 0 .2rem; border-radius: .35rem;
+    background: linear-gradient(150deg, #ffd166, #f0a020);
+    color: #201603; font-size: .64rem; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+}
+.j6-tile-rank.plain { background: rgba(255,255,255,.14); color: #dce7f5; border-radius: 999px; }
+.j6-tile-logo {
+    width: 26px; height: 26px; border-radius: 8px; margin: .1rem auto .25rem;
+    display: block; object-fit: contain; background: rgba(255,255,255,.06);
+}
+.j6-tile-logo.blank { display: flex; align-items: center; justify-content: center;
+    color: #cfe0f5; font-size: .7rem; font-weight: 900; }
+.j6-tile-code { color: #ffffff; font-size: .82rem; font-weight: 900; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.j6-tile-name { color: #8ea3bd; font-size: .66rem; font-weight: 700; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.j6-tile-val { color: #ffffff; font-size: .84rem; font-weight: 900; text-align: center;
+    margin-top: .18rem; }
+.j6-tile-chg { font-size: .72rem; font-weight: 800; text-align: center; }
+.j6-tile-spark { margin-top: .2rem; line-height: 0; height: 26px; }
+.j6-tile-spark svg { width: 100%; height: 26px; }
+/* 그림은 옛 카드용 규칙(.j3b-chart)이 **자리를 못박아** 둔 것이라, 타일 안에서는
+   글자 위로 떠올랐다(2026-09-03 폰에서 실측). 타일 안에서만 제자리로 돌린다. */
+.j6-tile .j3b-chart {
+    position: static !important; top: auto !important; right: auto !important;
+    width: 100% !important; height: 26px !important; opacity: 1 !important;
+}
+.j6-tile-score { color: #ffd166; font-size: .9rem; font-weight: 900; text-align: center; }
+
+/* 강한 테마 순위 — 그림처럼 등수 타일을 앞에 둔다 */
+.j6-th-badge {
+    flex: 0 0 auto; width: 1.55rem; height: 1.55rem; border-radius: .5rem;
+    background: linear-gradient(150deg, rgba(77,166,255,.35), rgba(77,166,255,.12));
+    border: 1px solid rgba(120,180,255,.35);
+    color: #cfe3ff; font-size: .8rem; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* 경고 띠 */
+.j6-warn {
+    display: flex; align-items: flex-start; gap: .7rem;
+    border: 1px solid rgba(255,190,90,.55); border-radius: 16px;
+    background: linear-gradient(150deg, rgba(70,48,12,.75) 0%, rgba(26,18,6,.75) 100%);
+    padding: .8rem .9rem; margin-top: .3rem;
+}
+.j6-warn-icon { flex: 0 0 auto; font-size: 1.5rem; line-height: 1; }
+.j6-warn-body { flex: 1 1 auto; min-width: 0; }
+.j6-warn-title { color: #ffd166; font-size: .98rem; font-weight: 900; }
+.j6-warn-text { color: #ddd0b4; font-size: .8rem; font-weight: 600; line-height: 1.55;
+    margin-top: .18rem; word-break: keep-all; }
+</style>
+"""
+
+
+def _j6_ring(score, color: str) -> str:
+    """둥근 계기판 하나. 점수만큼 테두리를 채운다 (2026-09-03 그림의 그 고리).
+
+    값은 만들지 않는다 — 시장 국면 점수를 그대로 받아 그린다.
+    """
+    try:
+        value = max(0.0, min(100.0, float(score)))
+    except Exception:
+        value = 0.0
+    radius = 56.0
+    circumference = 2 * math.pi * radius
+    filled = circumference * value / 100.0
+    return (
+        "<svg class='j6-vc-ring' viewBox='0 0 132 132' aria-hidden='true'>"
+        f"<circle cx='66' cy='66' r='{radius}' fill='none' stroke='rgba(255,255,255,.10)'"
+        " stroke-width='11'/>"
+        f"<circle cx='66' cy='66' r='{radius}' fill='none' stroke='{color}'"
+        f" stroke-width='11' stroke-linecap='round'"
+        f" stroke-dasharray='{filled:.1f} {circumference - filled:.1f}'"
+        " transform='rotate(-90 66 66)'/>"
+        "</svg>"
+    )
+
+
+def _j6_verdict_card(overview: dict) -> str:
+    """오늘의 판단 — 큰 글씨와 둥근 계기판 (그림의 맨 위 판).
+
+    **적히는 말은 앱이 이미 쓰던 것 그대로다.** 무엇을 하라는 말(`posture`)도,
+    국면 이름(`regime`)도, 그 밑 설명도 시장분석이 쓰는 것과 같은 자리에서 온다.
+    여기서 새로 지어내는 문장은 하나도 없다.
+
+    **직전 완료 장 기준이다** — 시장분석 게이지와 같다(freeze). 두 화면이 다른
+    날을 말하면 안 된다.
+    """
+    frozen = overview.get("previous_market") or {}
+    if frozen.get("ok") and frozen.get("score") is not None:
+        score = float(frozen["score"])
+        regime = frozen.get("regime") or ""
+        posture = frozen.get("posture") or overview.get("posture") or ""
+        stamp = str(frozen.get("trade_date") or "")
+    else:
+        score = float(overview.get("score") or 0)
+        regime = str(overview.get("regime") or "")
+        posture = str(overview.get("posture") or "")
+        stamp = ""
+    color = regime_gauge_ui.color_of(score)
+    # 큰 글씨는 **마지막 낱말만** 금색으로 띄운다(그림의 「기다렸다가 / 선별 매수」).
+    words = str(posture).split()
+    if len(words) >= 2:
+        head = f"{html.escape(' '.join(words[:-1]))}<br><b>{html.escape(words[-1])}</b>"
+    else:
+        head = f"<b>{html.escape(str(posture) or '—')}</b>"
+    # 밑줄은 시장분석이 쓰는 그 설명의 **첫 문장**이다.
+    detail = _market_action_detail(overview).split("<br>")[0] if overview.get("ok") else ""
+    when = f"{stamp} 마감 기준 (미 동부시간)" if stamp else "직전 완료 미국장 기준"
+    return (
+        "<div class='j6-vc'><div class='j6-vc-left'>"
+        "<div class='j6-vc-tag'>✦ 오늘의 판단</div>"
+        f"<div class='j6-vc-head'>{head}</div>"
+        f"<div class='j6-vc-sub'>{detail}</div>"
+        f"<div class='j6-vc-time'>🕐 {html.escape(when)}</div>"
+        "</div><div class='j6-vc-right'>"
+        f"{_j6_ring(score, color)}"
+        f"<div class='j6-vc-num'>{score:.0f}</div>"
+        "<div class='j6-vc-of'>/ 100</div>"
+        f"<div class='j6-vc-pill' style='background:{color}22;color:{color};"
+        f"border:1px solid {color}66'>{html.escape(regime)}</div>"
+        "</div></div>"
+    )
+
+
+def _j6_stock_tiles(stocks: list, cards: dict) -> str:
+    """사용자 선정 종목 타일 — 등수 딱지 · 로고 · 값 · 등락 · 작은 그림."""
+    tiles = []
+    for index, stock in enumerate(stocks, start=1):
+        ticker = str(stock.get("ticker") or "").upper()
+        card = cards.get(ticker) or {}
+        change = card.get("change_pct")
+        logo = _briefing_logo_uri(ticker)
+        logo_html = (f"<img class='j6-tile-logo' src='{logo}' alt=''>" if logo else
+                     f"<div class='j6-tile-logo blank'>{html.escape(ticker[:2])}</div>")
+        spark = _briefing_chart(card.get("chart_today") or card.get("chart"), change,
+                                baseline=bool(card.get("chart_today")),
+                                base=card.get("prev_close"))
+        tiles.append(
+            f"<div class='j6-tile'><span class='j6-tile-rank'>{index}</span>"
+            f"{logo_html}"
+            f"<div class='j6-tile-code'>{html.escape(ticker)}</div>"
+            f"<div class='j6-tile-name'>{html.escape(str(stock.get('name') or ticker))}</div>"
+            f"<div class='j6-tile-val'>{_number(card.get('price'), 2)}</div>"
+            f"<div class='j6-tile-chg {_sign_class(change)}'>{_pct(change)}</div>"
+            f"<div class='j6-tile-spark'>{spark}</div></div>"
+        )
+    return f"<div class='j6-tiles'>{''.join(tiles)}</div>" if tiles else ""
+
+
+def _j6_saved_candidates(limit: int = 4) -> tuple:
+    """강한 종목 후보 — **저장해 둔 목록에서 읽는다** (2026-09-03).
+
+    그림의 「빠른 보기 · 강한 종목 후보」 자리다. 여기서 21개 테마를 새로 받으면
+    첫 화면이 그만큼 늦게 뜬다(CLAUDE.md 0-0). 장 마감 뒤 저절로 저장된 목록
+    (`data/picklist`)은 파일 한 장이라 바로 읽힌다 — 기록/성과 화면이 보여 주는
+    그 목록과 **같은 자료**다.
+
+    돌려주는 것은 (줄 목록, 그 날짜)다. 없으면 ([], "").
+    """
+    try:
+        dates = picklist_store.available_dates("US")
+        if not dates:
+            return [], ""
+        day = dates[0]
+        rows = [row for row in picklist_store.load_rows(day, "US")
+                if str(row.get("list_kind") or "") == "top7"]
+        rows.sort(key=lambda row: float(row.get("score") or 0), reverse=True)
+        # **같은 종목은 한 번만.** 순위 9는 갈래(테마 대장주·상승장·급락)마다 따로
+        # 뽑으므로 한 종목이 두 줄에 나올 수 있다. 첫 화면에는 점수가 높은 쪽
+        # 하나만 둔다 — 네 자리에 같은 이름이 둘이면 후보가 셋뿐인 셈이다.
+        seen, unique = set(), []
+        for row in rows:
+            code = str(row.get("code") or "").upper()
+            if not code or code in seen:
+                continue
+            seen.add(code)
+            unique.append(row)
+        return unique[:limit], day
+    except Exception:
+        return [], ""
+
+
+def _j6_candidate_tiles(rows: list) -> str:
+    """저장해 둔 후보 줄을 타일로 그린다. 점수는 **그날 찍힌 그대로**다."""
+    tiles = []
+    for index, row in enumerate(rows, start=1):
+        code = str(row.get("code") or "").upper()
+        score = row.get("score")
+        change = row.get("change_pct")
+        logo = _briefing_logo_uri(code)
+        logo_html = (f"<img class='j6-tile-logo' src='{logo}' alt=''>" if logo else
+                     f"<div class='j6-tile-logo blank'>{html.escape(code[:2])}</div>")
+        tiles.append(
+            f"<div class='j6-tile'><span class='j6-tile-rank plain'>{index}</span>"
+            f"{logo_html}"
+            f"<div class='j6-tile-code'>{html.escape(code)}</div>"
+            f"<div class='j6-tile-name'>{html.escape(str(row.get('name') or code))}</div>"
+            f"<div class='j6-tile-score'>{_number(score, 1)}점</div>"
+            f"<div class='j6-tile-chg {_sign_class(change)}'>{_pct(change)}</div></div>"
+        )
+    return f"<div class='j6-tiles four'>{''.join(tiles)}</div>" if tiles else ""
+
+
 def _j6_tap_wrap(inner: str, key: str) -> str:
     """세 요약 칸을 **눌러서 펴는 껍질**로 감싼다 (2026-09-03 상하님 지시).
 
@@ -9788,7 +10070,7 @@ def _j6_theme_rows(ranking: dict, limit: int = 5) -> str:
         score = float(row.get("score") or 0)
         width = max(4.0, min(100.0, score / top * 100.0))
         lines.append(
-            f"<div class='j6-th'><span class='j6-th-rank'>{index}</span>"
+            f"<div class='j6-th'><span class='j6-th-badge'>{index}</span>"
             f"<span class='j6-th-name'>{html.escape(str(row.get('name') or '—'))}</span>"
             f"<span class='j6-th-bar'><i style='width:{width:.1f}%'></i></span>"
             f"<span class='j6-th-score'>{score:.1f}</span></div>"
@@ -9797,13 +10079,16 @@ def _j6_theme_rows(ranking: dict, limit: int = 5) -> str:
 
 
 def _render_j6_home() -> None:
-    """새 디자인 첫 화면.
+    """새 디자인 첫 화면 — 상하님이 보내 주신 그림의 짜임 그대로.
 
-    **여기서 21개 테마를 받지 않는다.** 「강한 테마 순위」와 「강한 종목 후보」는
-    시장분석에서 받는 값인데, 그것을 첫 화면에서 부르면 21개 테마를 다 받은 뒤에야
-    첫 화면이 뜬다(CLAUDE.md 0-0 — 새로 넣는 것이 무엇을 밀어내는지 먼저 잰다).
-    그래서 **이미 받아 둔 것이 있을 때만** 그리고, 없으면 시장분석으로 보낸다.
+    차례도 그림과 같다 — 머리띠 · 오늘의 판단 · 지수 넉 장 · 강한 테마 순위 ·
+    사용자 선정 종목 · 강한 종목 후보 · 경고 띠.
+
+    **여기서 21개 테마를 받지 않는다.** 「강한 테마 순위」는 시장분석이 이미 받아
+    둔 것이 있을 때만 그리고, 「강한 종목 후보」는 저장해 둔 목록(파일 한 장)에서
+    읽는다. 그래야 첫 화면이 안 밀린다(CLAUDE.md 0-0).
     """
+    st.markdown(_J6_HOME_CSS, unsafe_allow_html=True)
     scroll_to.anchor(st, "top")
     back_nav.opened(st, "j3b_backstop")
 
@@ -9820,26 +10105,20 @@ def _render_j6_home() -> None:
     overview = j3data.get_market_overview()
     st.session_state["j3_market_overview"] = overview
 
-    st.markdown('<div class="j6-sec">✦ 오늘의 판단</div>', unsafe_allow_html=True)
+    # ── 오늘의 판단 ──────────────────────────────────────────────────────────
     if not overview.get("ok"):
         st.error(f"시장 자료 조회 실패: {_safe_error_text(overview.get('error'))}")
     else:
-        # 게이지 그림 규칙은 시장분석 쪽에서 내보내는데(_render_market_overview),
-        # 이 화면은 그 함수를 부르지 않는다. 여기서 따로 한 번 내보낸다 —
-        # 안 그러면 상자가 껍데기 없이 글자만 흘러나온다.
-        st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
-        # **시장분석과 같은 상자를 그대로 쓴다.** 점수·국면·행동 한 줄을 여기서
-        # 따로 만들면 두 화면이 조용히 갈라진다. freeze=True 도 옛 화면과 같다.
-        st.markdown(
-            '<div class="j6-panel j6-verdict">'
-            + regime_gauge_ui.regime_box_html(overview, freeze=True)
-            + '</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(_j6_verdict_card(overview), unsafe_allow_html=True)
         st.markdown(_j6_index_cards(overview), unsafe_allow_html=True)
 
+    # ── 강한 테마 순위 ───────────────────────────────────────────────────────
     ranking = st.session_state.get("j3_theme_rankings") or {}
-    st.markdown('<div class="j6-sec">⚡ 강한 테마 순위</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="j6-sec">⚡ 강한 테마 TOP 5'
+        '<span class="j6-sec-more">시장분석에서 전체 보기 ›</span></div>',
+        unsafe_allow_html=True,
+    )
     if ranking.get("rows"):
         st.markdown(_j6_theme_rows(ranking), unsafe_allow_html=True)
     else:
@@ -9850,7 +10129,69 @@ def _render_j6_home() -> None:
             unsafe_allow_html=True,
         )
 
+    # ── 사용자 선정 종목 ─────────────────────────────────────────────────────
+    try:
+        briefing_store.ensure_tables()
+        briefing_store.ensure_default_extras()
+        selected = briefing_store.all_stocks()["selected"]
+    except Exception:
+        selected = []
+    if selected:
+        cards = j3data.get_briefing_cards(selected)
+        st.markdown(
+            '<div class="j6-sec">◎ 사용자 선정 종목'
+            '<span class="j6-sec-more">관심종목에서 보기 ›</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(_j6_stock_tiles(selected, cards), unsafe_allow_html=True)
+
+    # ── 강한 종목 후보 ───────────────────────────────────────────────────────
+    saved, saved_day = _j6_saved_candidates()
+    if saved:
+        st.markdown(
+            f'<div class="j6-sec">🔥 강한 종목 후보'
+            f'<span class="j6-sec-more">{html.escape(saved_day)} 저장분 ›</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(_j6_candidate_tiles(saved), unsafe_allow_html=True)
+
+    # ── 경고 띠 ──────────────────────────────────────────────────────────────
+    # **앱이 이미 찍어 둔 것만 적는다.** 「추격 금지」는 저장된 줄의 `state` 칸에
+    # 앱이 스스로 찍은 딱지다. 없는 날에는 앱이 늘 하던 말을 그대로 적는다 —
+    # 여기서 새로 지어내는 매매 규칙은 없다.
+    st.markdown(_j6_warning_band(saved_day), unsafe_allow_html=True)
+
     _render_briefing_bottom_nav("home")
+
+
+def _j6_warning_band(saved_day: str) -> str:
+    """경고 띠 — 오늘 목록에 「추격 금지」가 몇 개인가.
+
+    **앱이 스스로 찍은 딱지만 센다.** 없으면 앱이 늘 하던 말(이 점수는 오늘
+    상태 요약이지 앞날 예측이 아니다)을 그대로 적는다.
+    """
+    chased = 0
+    try:
+        if saved_day:
+            for row in picklist_store.load_rows(saved_day, "US"):
+                if "추격 금지" in str(row.get("state") or ""):
+                    chased += 1
+    except Exception:
+        chased = 0
+    if chased:
+        title = "추격 매수 금지가 붙은 종목이 있습니다"
+        text = (f"{html.escape(saved_day)} 저장분에서 <b>{chased}개</b>에 "
+                "「추격 금지」가 찍혔습니다. 이미 많이 오른 자리라 앱이 그 줄에 "
+                "추천을 붙이지 않은 것입니다.")
+    else:
+        title = "이 점수는 오늘 상태 요약입니다"
+        text = ("앞날을 맞히는 점수가 아닙니다. 앞날을 재는 자리는 "
+                "시장분석의 <b>상승장</b>과 <b>급락 후 반등장</b>입니다.")
+    return (
+        "<div class='j6-warn'><div class='j6-warn-icon'>⚠️</div>"
+        f"<div class='j6-warn-body'><div class='j6-warn-title'>{title}</div>"
+        f"<div class='j6-warn-text'>{text}</div></div></div>"
+    )
 
 
 def _render_j6_record() -> None:
