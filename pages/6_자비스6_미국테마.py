@@ -9369,7 +9369,22 @@ body:has(.j6-app) [data-testid="stElementContainer"]:has(
 body:has(.j6-app) .jarvis-anchor { scroll-margin-top: 76px; }
 
 /* ── 머리띠 ───────────────────────────────────────────────────────────── */
-.j6-head { display: flex; align-items: center; gap: .55rem; padding: .55rem .2rem .35rem; }
+/* 한 줄에 다 선다 — 돋보기·종이 들어오면서 「JARVIS / 6」, 「실시 / 간」처럼
+   글자가 접혔다(2026-09-03 폰에서 실측). 접히지 않게 못박는다. */
+.j6-head {
+    display: flex; align-items: center; gap: .45rem;
+    padding: .55rem .2rem .35rem; flex-wrap: nowrap; white-space: nowrap;
+}
+.j6-head > * { flex: 0 0 auto; white-space: nowrap; }
+@media (max-width: 430px) {
+    .j6-head { gap: .3rem; }
+    .j6-brand { font-size: 1.2rem !important; }
+    .j6-chip { font-size: .68rem !important; padding: .12rem .35rem !important; }
+    .j6-live { font-size: .7rem !important; padding: .18rem .45rem !important; }
+    .j6-ico { width: 30px !important; height: 30px !important; font-size: .92rem !important; }
+    .j6-live + .j6-ico { margin-left: .25rem; }
+    .j6-ico + .j6-ico { margin-left: .22rem; }
+}
 .j6-brand { font-size: 1.5rem; font-weight: 900; color: #ffffff; letter-spacing: -.02em; }
 .j6-brand b { color: #4da6ff; }
 .j6-chip {
@@ -9985,7 +10000,8 @@ def _j6_stock_tiles(stocks: list, cards: dict) -> str:
                                 baseline=bool(card.get("chart_today")),
                                 base=card.get("prev_close"))
         tiles.append(
-            f"<div class='j6-tile'><span class='j6-tile-rank'>{index}</span>"
+            f"<div class='j6-tile'>"
+            f"<span class='j6-tile-rank g{min(index, 4)}'>{index}</span>"
             f"{logo_html}"
             f"<div class='j6-tile-code'>{html.escape(ticker)}</div>"
             f"<div class='j6-tile-name'>{html.escape(str(stock.get('name') or ticker))}</div>"
@@ -10030,7 +10046,16 @@ def _j6_saved_candidates(limit: int = 4) -> tuple:
 
 
 def _j6_candidate_tiles(rows: list) -> str:
-    """저장해 둔 후보 줄을 타일로 그린다. 점수는 **그날 찍힌 그대로**다."""
+    """저장해 둔 후보 줄을 타일로 그린다. 점수는 **그날 찍힌 그대로**다.
+
+    작은 그림은 저장된 줄에 없어서 시세에서 받아 온다 — 넷뿐이고 45초 동안
+    담아 두는 자리라(get_briefing_cards) 첫 화면이 밀리지 않는다.
+    """
+    try:
+        charts = j3data.get_briefing_cards(
+            [str(row.get("code") or "").upper() for row in rows])
+    except Exception:
+        charts = {}
     tiles = []
     for index, row in enumerate(rows, start=1):
         code = str(row.get("code") or "").upper()
@@ -10045,9 +10070,110 @@ def _j6_candidate_tiles(rows: list) -> str:
             f"<div class='j6-tile-code'>{html.escape(code)}</div>"
             f"<div class='j6-tile-name'>{html.escape(str(row.get('name') or code))}</div>"
             f"<div class='j6-tile-score'>{_number(score, 1)}점</div>"
-            f"<div class='j6-tile-chg {_sign_class(change)}'>{_pct(change)}</div></div>"
+            f"<div class='j6-tile-chg {_sign_class(change)}'>{_pct(change)}</div>"
+            f"<div class='j6-tile-spark'>"
+            f"{_briefing_chart((charts.get(code) or {}).get('chart'), change)}"
+            f"</div></div>"
         )
     return f"<div class='j6-tiles four'>{''.join(tiles)}</div>" if tiles else ""
+
+
+# ── 테마마다 그림 하나 (2026-09-03 상하님 지시 "나머지 아이콘들도 다 넣어라") ──
+# 그림 첫째 장의 테마 순위에는 이름 앞에 네모난 그림 타일이 있다.
+# **이름이 명부(US_THEMES)와 같아야 한다** — 명부가 바뀌면 여기도 같이 고친다.
+# 없는 이름은 📊 로 나온다(빈칸이 남지 않는다).
+_J6_THEME_ICONS = {
+    "반도체": "🧩", "AI·데이터센터": "🤖", "전력망·전력설비": "⚡",
+    "방산·드론": "🛡️", "빅테크10": "🏢", "원전·우라늄": "☢️",
+    "사이버보안": "🔐", "희토류·핵심광물": "⛏️", "양자컴퓨팅": "⚛️",
+    "인프라·리쇼어링": "🏗️", "핀테크·블록체인": "💳", "클라우드·SaaS": "☁️",
+    "석유·가스": "🛢️", "로봇·자동화": "🦾", "바이오": "🧬",
+    "우주·위성": "🛰️", "주택·홈빌더": "🏠", "유전체·정밀의료": "🧫",
+    "배터리·전기차": "🔋", "태양광·청정에너지": "☀️", "제약·헬스케어": "💊",
+}
+
+
+def _j6_theme_icon(name) -> str:
+    return _J6_THEME_ICONS.get(str(name or "").strip(), "📊")
+
+
+_J6_ICON_CSS = """
+<style>
+/* ── 머리띠의 돋보기·종 (그림 첫째 장) ────────────────────────────────────── */
+.j6-ico {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.05rem; position: relative;
+    border: 1px solid rgba(120,180,255,.35); background: rgba(77,166,255,.08);
+}
+.j6-live + .j6-ico { margin-left: .4rem; }
+.j6-ico + .j6-ico { margin-left: .32rem; }
+.j6-dot {
+    position: absolute; right: 5px; top: 5px; width: 7px; height: 7px;
+    border-radius: 50%; background: #4da6ff; box-shadow: 0 0 6px #4da6ff;
+}
+/* 보이는 것은 위 글자이고, 그 위에 속이 비치는 단추 둘이 겹친다. */
+div.st-key-j6_head_actions {
+    /* 겹치는 자리는 **재서 맞췄다**(2026-09-03 폰 실측 — 글자는 y125, 단추는
+       y115 였다). 10px 내려 맞춘다. */
+    margin: -36px 0 8px auto !important; width: 76px !important;
+    position: relative; z-index: 6;
+}
+div.st-key-j6_head_actions [data-testid="stHorizontalBlock"] { gap: .32rem !important; }
+div.st-key-j6_head_actions [data-testid="stColumn"] {
+    width: 34px !important; flex: 0 0 34px !important; min-width: 0 !important;
+}
+div.st-key-j6_head_actions button {
+    width: 34px !important; height: 34px !important; min-height: 34px !important;
+    padding: 0 !important; border: 0 !important; border-radius: 50% !important;
+    background: transparent !important; color: transparent !important;
+    box-shadow: none !important;
+}
+
+/* ── 지수 넉 장의 작은 그림 (그림 첫째 장) ─────────────────────────────────── */
+.j6-idx-head { display: flex; align-items: flex-start; gap: .3rem; }
+.j6-idx-head .j6-idx-name { flex: 1 1 auto; min-width: 0; }
+.j6-idx-ico {
+    flex: 0 0 auto; width: 20px; height: 20px; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: .7rem; background: rgba(77,166,255,.14);
+    border: 1px solid rgba(120,180,255,.28);
+}
+
+/* ── 테마 순위의 그림 타일 ────────────────────────────────────────────────── */
+.j6-th-icon {
+    flex: 0 0 auto; width: 1.75rem; height: 1.75rem; border-radius: .55rem;
+    display: flex; align-items: center; justify-content: center; font-size: .95rem;
+    background: linear-gradient(150deg, rgba(77,166,255,.28), rgba(77,166,255,.08));
+    border: 1px solid rgba(120,180,255,.32);
+}
+
+/* ── 등수 딱지 — 1·2·3 은 금·은·동 (그림 첫째 장) ─────────────────────────── */
+.j6-tile-rank.g1 { background: linear-gradient(150deg,#ffd970,#e8a712); color: #241a02; }
+.j6-tile-rank.g2 { background: linear-gradient(150deg,#dfe7f0,#9fb0c4); color: #1a2230; }
+.j6-tile-rank.g3 { background: linear-gradient(150deg,#f0b98a,#c07b3c); color: #241304; }
+.j6-tile-rank.g4 { background: rgba(255,255,255,.14); color: #dce7f5; }
+
+/* ── 경고 띠의 「리스크 관리 가이드」 단추 ─────────────────────────────────── */
+div.st-key-j6_risk_guide { margin-top: -14px !important; }
+div.st-key-j6_risk_guide button {
+    border-radius: 999px !important;
+    border: 1px solid rgba(255,209,102,.6) !important;
+    background: rgba(255,209,102,.10) !important;
+    padding: .28rem .9rem !important; min-height: 0 !important;
+}
+div.st-key-j6_risk_guide button p {
+    color: #ffd166 !important; font-size: .82rem !important; font-weight: 800 !important;
+}
+
+/* ── 색 — 그림대로 오르면 초록, 내리면 빨강 (2026-09-03 상하님 지시) ────────
+   이 앱은 여태 미국장을 **오르면 파랑**으로 그렸다. 상하님이 보내 주신 그림은
+   초록이라 새 화면만 초록으로 맞춘다. **옛 미국테마는 그대로 파랑이다** —
+   그 화면에는 `.j6-skin` 표식이 없다.
+   되돌리려면 이 한 줄만 지우면 된다. */
+body:has(.j6-skin) .j3-up { color: #35d07f !important; }
+</style>
+"""
 
 
 _J6_WATCH_CSS = """
@@ -10176,7 +10302,8 @@ def _j6_index_cards(overview: dict) -> str:
                                width=150.0, height=48)
         cards.append(
             f"<div class='j6-idx'>"
-            f"<div class='j6-idx-name'>{html.escape(name)}</div>"
+            f"<div class='j6-idx-head'><div class='j6-idx-name'>{html.escape(name)}</div>"
+            f"<span class='j6-idx-ico'>{'📉' if symbol == '^VIX' else '📈'}</span></div>"
             f"<div class='j6-idx-val'>{_number(row.get('current'), 2)}</div>"
             f"<div class='j6-idx-chg {_sign_class(change)}'>{_pct(change)}</div>"
             f"<div class='j6-idx-note'>{'정규장' if live else '장 마감 기준'}</div>"
@@ -10203,6 +10330,7 @@ def _j6_theme_rows(ranking: dict, limit: int = 5) -> str:
         width = max(4.0, min(100.0, score / top * 100.0))
         lines.append(
             f"<div class='j6-th'><span class='j6-th-badge'>{index}</span>"
+            f"<span class='j6-th-icon'>{_j6_theme_icon(row.get('name'))}</span>"
             f"<span class='j6-th-name'>{html.escape(str(row.get('name') or '—'))}</span>"
             f"<span class='j6-th-bar'><i style='width:{width:.1f}%'></i></span>"
             f"<span class='j6-th-score'>{score:.1f}</span></div>"
@@ -10229,9 +10357,21 @@ def _render_j6_home() -> None:
         '<span class="j6-brand">JARVIS <b>6</b></span>'
         '<span class="j6-chip">미국테마</span>'
         '<span class="j6-live"><i></i>실시간</span>'
+        '<span class="j6-ico">🔍</span>'
+        '<span class="j6-ico">🔔<i class="j6-dot"></i></span>'
         '</div>',
         unsafe_allow_html=True,
     )
+    # 보이는 것은 위 두 글자이고, **누르는 것은 그 위에 겹친 이 단추 둘**이다
+    # (하단 이동표·↻ 와 같은 장치). 죽은 그림을 두지 않으려고 둘 다 갈 곳을 준다.
+    with st.container(key="j6_head_actions"):
+        find_col, bell_col = st.columns(2, gap="small")
+        if find_col.button("🔍", key="j6_head_find"):
+            _set_briefing_page("watch")      # 종목 찾는 칸이 있는 화면
+            st.rerun()
+        if bell_col.button("🔔", key="j6_head_bell"):
+            _set_briefing_page("record")     # 오늘 저장된 목록
+            st.rerun()
 
     overview = j3data.get_market_overview()
     st.session_state["j3_market_overview"] = overview
@@ -10291,6 +10431,13 @@ def _render_j6_home() -> None:
     # 앱이 스스로 찍은 딱지다. 없는 날에는 앱이 늘 하던 말을 그대로 적는다 —
     # 여기서 새로 지어내는 매매 규칙은 없다.
     st.markdown(_j6_warning_band(saved_day), unsafe_allow_html=True)
+    # 그림의 「리스크 관리 가이드 ›」 자리다. 새 글을 쓰지 않는다 —
+    # 시장분석 맨 위의 「📘 이 테마 설명」으로 데려간다. 거기에 이 앱이 무엇을
+    # 어떻게 재는지 이미 다 적혀 있다.
+    with st.container(key="j6_risk_guide"):
+        if st.button("리스크 관리 가이드 ›", key="j6_go_guide"):
+            _set_briefing_page("market")
+            st.rerun()
 
     _render_briefing_bottom_nav("home")
 
@@ -10415,7 +10562,7 @@ def _render_stock_briefing() -> None:
     # 새로 넣은 「강한 테마 순위 TOP 10」이 규칙 없이 글자로만 나왔다
     # ("1사이버보안92.0" — 2026-09-03 폰에서 실측). 그 안의 자리잡기 규칙
     # (`body:has(.j6-app)`)은 표식이 있는 화면에서만 걸리므로 여기 있어도 안전하다.
-    st.markdown(_J6_CSS + _J6_SKIN_CSS + _J6_HOME_CSS + _J6_WATCH_CSS,
+    st.markdown(_J6_CSS + _J6_SKIN_CSS + _J6_HOME_CSS + _J6_WATCH_CSS + _J6_ICON_CSS,
                 unsafe_allow_html=True)
     # 보시던 화면은 **주소에서** 읽는다 — 폰이 화면을 버렸다 다시 열어도
     # 관심종목으로 돌아가지 않게 한다(2026-08-29, _briefing_page 참고).
