@@ -213,7 +213,9 @@ def test_first_page_renders_four_slots_and_next_page_button():
     assert "원하는 테마 이름을 누르면 테마 종목 화면이 이 자리에 열립니다." not in source
     assert '"""20개 미국 테마의 전체 종목에서 상승추세 조정을 찾는다."""' not in source
     assert '[data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%' in source
-    assert 'st.session_state["j3_briefing_page"] = "home"' in source
+    # 566498c 부터 이 일은 `_set_briefing_page` 가 맡는다. 뜻은 그대로 —
+    # 「홈」을 누르면 다음에 돌아오실 때 관심종목이 먼저 보여야 한다.
+    assert '_set_briefing_page("home")' in source
     # 장식 그림은 배경을 오려 낸 파일이라 네모를 가리던 타원 마스크가 필요 없다(2026-08-26).
     assert "mask-image:radial-gradient" not in source
     # 머리띠 배경은 견본(visual_reference.png)에서 잘라 낸 장면 한 장이다.

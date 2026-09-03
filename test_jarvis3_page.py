@@ -1583,7 +1583,11 @@ class Jarvis3PageTests(unittest.TestCase):
         # 당일 차트는 2026-08-28부터 네 그림 한 판에 들어간다 —
         # 따로 닫는 단추가 없다(상하님 지시로 구역을 합쳤다).
         self.assertNotIn('_section_close("j3_intraday_open_pullback"', source)
-        self.assertIn('_section_close("j3_detail_open_pullback"', source)
+        # 2026-09-02(cbb0244)부터 열쇠에 이름표가 붙어 `f"j3_detail_open_{panel}"`
+        # 이 되었다. 기본 이름표가 pullback 이라 뜻은 그대로다 — 위 f-문자열 확인이
+        # 이미 그것을 본다. 없어진 옛 글자를 찾던 이 줄만 바로잡는다.
+        self.assertIn('panel: str = "pullback"', source,
+                      "눌림목이 더는 기본 이름표가 아니다")
         self.assertIn('div[class*="st-key-close_"] button', source)
 
     def test_clicking_a_stock_opens_the_detail_and_the_charts(self):

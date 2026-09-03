@@ -1256,7 +1256,7 @@ import hero_banner
 
 # 시장분석 맨 위의 눈밭 캠프 배너(2026-08-28 상하님 지시). 그림·글귀를 바꾸면
 # hero_banner의 리비전을 올리고 이 숫자도 같이 올린다(규칙 11).
-_REQUIRED_HERO_REVISION = 2026082820
+_REQUIRED_HERO_REVISION = 2026090310
 if int(getattr(hero_banner, "MODULE_REVISION", 0)) < _REQUIRED_HERO_REVISION:
     hero_banner = importlib.reload(hero_banner)
 import regime_gauge_ui
@@ -7661,6 +7661,9 @@ def _autosave_theme15() -> None:
 
 
 def _render_existing_theme_content() -> None:
+    # 새 껍데기 표식 (2026-09-03). 규칙은 길잡이가 이미 내보냈고, 이 표식이
+    # 있어야 `body:has(.j6-skin)` 규칙이 이 화면에도 걸린다.
+    st.markdown('<div class="j6-skin"></div>', unsafe_allow_html=True)
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
         # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
@@ -7836,7 +7839,7 @@ def _render_existing_theme_content() -> None:
     # 상하님이 그록·제미나이로 만드신 영상 위에 6개월 일봉 봉차트를 얹은 그림이다.
     # 봉은 **지어낸 값**이라 숫자를 한 개도 안 적는다. 자세한 것은 hero_banner.py.
     # 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)보다 먼저 그려야 맨 위에 선다.
-    if hero_banner.render(st, refresh_key="j3hero_refresh"):
+    if hero_banner.render(st, refresh_key="j3hero_refresh", mark="6"):
         # ↻ 를 누르셨다. 관심종목 배너의 ↻ 와 **똑같이** 움직인다 —
         # 서버가 담아 둔 것을 비우고 화면을 통째로 새로 연다
         # (2026-08-28 상하님 — "그거 누르면 리셋 되던데?").
@@ -9301,14 +9304,20 @@ _J6_CSS = """
    노트북에서는 원래 위 여백이 커서 안 가려졌지만, 그 여백이 화면 한 판을
    먹고 있었다. 양쪽을 같은 값으로 맞춘다. */
 body:has(.j6-app) [data-testid="stMainBlockContainer"],
-body:has(.j6-app) .block-container { padding-top: 68px !important; }
+body:has(.j6-app) .block-container {
+    padding-top: 68px !important;
+    /* 하단 이동표가 화면에 붙어 떠 있다 — 그만큼 아래를 비워 두지 않으면
+       마지막 칸이 그 밑에 깔린다(2026-09-03 폰에서 실측). */
+    padding-bottom: 84px !important;
+}
 
 /* 규칙만 담은 빈 칸이 자리를 먹고 있었다 (2026-09-03 실측 — 176px).
    스트림릿은 칸을 세로로 쌓으면서 **칸마다 16px 을 벌린다.** `<style>` 만 든
    칸은 높이가 0인데도 그 벌림은 그대로 들어가, 규칙 열한 벌이 화면 한 판을
    먹었다. 안 보이게 하면 벌림도 같이 사라진다 —
    `<style>` 은 안 보이는 칸 안에 있어도 그대로 걸린다. */
-body:has(.j6-app) [data-testid="stElementContainer"]:has(style) { display: none !important; }
+body:has(.j6-app) [data-testid="stElementContainer"]:has(
+    [data-testid="stMarkdownContainer"] > style:only-child) { display: none !important; }
 
 /* 「맨 위로」가 데려다 주는 자리는 **상단 막대만큼 낮춰 둔다.** 안 그러면
    머리띠가 그 막대 밑으로 들어가 안 보인다(2026-09-03 폰에서 실측). */
@@ -9341,10 +9350,15 @@ body:has(.j6-app) .jarvis-anchor { scroll-margin-top: 76px; }
    상자를 새로 만들지 않고 **겉옷만 벗긴다.** 그래야 점수·국면·행동 한 줄이
    시장분석과 늘 같은 것으로 남는다. */
 .j6-verdict { padding: .75rem .9rem; }
-.j6-verdict .fg-box {
+/* **앞에 `body:has(.j6-app)` 를 붙이는 까닭** — 아래 새 껍데기(_J6_SKIN_CSS)가
+   `.fg-box` 를 판으로 만드는데, 그 규칙이 더 세서 판 안에 판이 하나 더 생겼다
+   (2026-09-03 폰에서 실측). 여기가 더 세야 겉옷을 벗길 수 있다. */
+body:has(.j6-app) .j6-verdict .fg-box {
     display: block !important; width: 100% !important;
-    border: 0 !important; background: transparent !important; padding: 0 !important;
+    border: 0 !important; background: transparent !important;
+    padding: 0 !important; box-shadow: none !important; border-radius: 0 !important;
 }
+body:has(.j6-app) .j6-verdict .fg-box:hover { transform: none; filter: none; }
 .j6-verdict .fg-box-title { font-size: 1rem !important; }
 .j6-verdict .fg-box-body { gap: 1rem; flex-wrap: wrap; }
 /* '그래서 무엇을 하라' 한 줄이 이 화면의 주인공이다 — 크게 띄운다. */
@@ -9396,6 +9410,109 @@ body:has(.j6-app) .jarvis-anchor { scroll-margin-top: 76px; }
     padding: .85rem .9rem; color: #9fb0c6; font-size: .92rem; line-height: 1.7;
 }
 .j6-later b { color: #7fb6ff; }
+</style>
+"""
+
+
+_J6_SKIN_CSS = """
+<style>
+/* ── 새 껍데기 (2026-09-03 상하님 지시 "나머지 세 화면 디자인 바꿔라") ──────────
+   **네 화면에 같이 입힌다** — 홈·관심종목·시장분석·기록/성과.
+   여기 있는 것은 **보이는 방식뿐이다.** 값·점수·판정은 한 개도 안 건드린다.
+   오르내림 색(파랑·빨강)도 그대로 둔다 — 그것은 뜻을 담은 색이다.
+
+   `body:has(.j6-skin)` 로 묶어 두어 **옛 미국테마에는 한 줄도 안 걸린다.**
+   그 화면에는 `.j6-skin` 표식이 없다.                                        */
+
+/* 바탕 — 그림에 맞춘 짙은 남색 */
+body:has(.j6-skin) .stApp,
+body:has(.j6-skin) [data-testid="stAppViewContainer"] {
+    background: radial-gradient(1200px 700px at 50% -12%, #12213f 0%, #070d1a 62%, #05080f 100%) !important;
+}
+
+/* 판(카드) 공통 결 — 모서리를 크게, 테두리는 옅은 하늘색, 안쪽에 실선 한 줄 */
+body:has(.j6-skin) .j3b-card,
+body:has(.j6-skin) .j3b-news,
+body:has(.j6-skin) .j3-top-cell,
+body:has(.j6-skin) .fg-box,
+body:has(.j6-skin) .fg-card,
+body:has(.j6-skin) .j3-ndd {
+    border-radius: 16px !important;
+    border: 1px solid rgba(120,180,255,.22) !important;
+    background: linear-gradient(160deg, rgba(23,38,68,.92) 0%, rgba(12,20,38,.92) 100%) !important;
+    box-shadow: inset 0 1px rgba(150,200,255,.10), 0 8px 22px rgba(0,0,0,.45) !important;
+}
+/* 지수 칸은 원래 테두리가 없어 여백이 좁다 — 판이 되었으니 안쪽을 벌린다. */
+body:has(.j6-skin) .j3-top-cell {
+    padding: .7rem .8rem .6rem 1.1rem !important;
+    box-sizing: border-box;
+}
+/* 게이지 상자는 원래 '글자 길이만큼'이라 판으로 만들면 폭이 들쭉날쭉하다. */
+body:has(.j6-skin) .fg-box { padding: .7rem .9rem .65rem !important; }
+
+/* 구역 제목 — 홈의 「✦ 오늘의 판단」과 같은 결로 맞춘다 */
+body:has(.j6-skin) .j3b-section {
+    color: #eaf2ff !important;
+    font-size: 1.06rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -.01em !important;
+}
+body:has(.j6-skin) .j3b-section .j3b-more { color: #7fb6ff !important; }
+
+/* 배너 — 모서리를 판과 같게 */
+body:has(.j6-skin) .j3b-hero,
+body:has(.j6-skin) .j3hero { border-radius: 18px !important; overflow: hidden !important; }
+
+/* 접었다 펴는 머리와 단추 — 판과 같은 결로 */
+body:has(.j6-skin) [data-testid="stExpander"] {
+    border-radius: 14px !important;
+    border: 1px solid rgba(120,180,255,.20) !important;
+    background: rgba(18,30,54,.55) !important;
+}
+body:has(.j6-skin) .stButton button {
+    border-radius: 12px !important;
+    border: 1px solid rgba(120,180,255,.30) !important;
+}
+/* 색을 따로 입혀 둔 단추(갈래별 그라데이션)는 건드리지 않는다 — 그 색이
+   어느 갈래인지 알려 주는 표시다. 모서리만 같이 둥글게 한다. */
+body:has(.j6-skin) div[class*="st-key-btn_"] button,
+body:has(.j6-skin) div[class*="st-key-close_"] button { border: 0 !important; }
+
+/* 표 — 줄 사이를 옅게, 머리글은 흐리게 */
+body:has(.j6-skin) .j3-theme-table th {
+    color: #8ea3bd !important;
+    border-bottom: 1px solid rgba(150,200,255,.22) !important;
+}
+body:has(.j6-skin) .j3-theme-table td {
+    border-bottom: 1px solid rgba(255,255,255,.055) !important;
+}
+body:has(.j6-skin) [data-testid="stDataFrame"] {
+    border-radius: 14px !important;
+    border: 1px solid rgba(120,180,255,.20) !important;
+    overflow: hidden !important;
+}
+
+/* 움직임은 **옛 화면과 같은 결**이다 — 0.12초·살짝 뜨고 1.1배 밝게.
+   여기서는 판이 된 칸에만 더한다(카드·뉴스는 이미 제 규칙이 있다). */
+body:has(.j6-skin) .j3-top-cell,
+body:has(.j6-skin) .fg-box,
+body:has(.j6-skin) .j3-ndd {
+    transition: transform .12s ease-out, filter .12s ease-out, border-color .12s ease-out;
+}
+body:has(.j6-skin) .j3-top-cell:hover,
+body:has(.j6-skin) .fg-box:hover,
+body:has(.j6-skin) .j3-ndd:hover {
+    transform: translateY(-3px); filter: brightness(1.1);
+    border-color: rgba(150,220,255,.6) !important;
+}
+body:has(.j6-skin) .j3-top-cell:active,
+body:has(.j6-skin) .fg-box:active,
+body:has(.j6-skin) .j3-ndd:active { transform: translateY(0) scale(.99); }
+@media (prefers-reduced-motion: reduce) {
+    body:has(.j6-skin) .j3-top-cell,
+    body:has(.j6-skin) .fg-box,
+    body:has(.j6-skin) .j3-ndd { transition: none !important; }
+}
 </style>
 """
 
@@ -9475,7 +9592,7 @@ def _render_j6_home() -> None:
     back_nav.opened(st, "j3b_backstop")
 
     st.markdown(
-        '<div class="j6-app"></div>'
+        '<div class="j6-app"></div><div class="j6-skin"></div>'
         '<div class="j6-head">'
         '<span class="j6-brand">JARVIS <b>6</b></span>'
         '<span class="j6-chip">미국테마</span>'
@@ -9530,7 +9647,7 @@ def _render_j6_record() -> None:
     scroll_to.anchor(st, "top")
     back_nav.opened(st, "j3b_backstop")
     st.markdown(
-        '<div class="j6-app"></div>'
+        '<div class="j6-app"></div><div class="j6-skin"></div>'
         '<div class="j6-head">'
         '<span class="j6-brand">JARVIS <b>6</b></span>'
         '<span class="j6-chip">기록 · 성과</span>'
@@ -9553,6 +9670,9 @@ def _render_stock_briefing() -> None:
     # 미리 계산은 이 화면 **맨 끝**에서, 그것도 뉴스가 다 온 뒤에 시작한다
     # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
     _briefing_css()
+    # 새 껍데기는 **네 화면이 다 지나는 여기서 한 번만** 내보낸다
+    # (2026-09-03). 화면마다 따로 내보내면 같은 규칙이 여러 벌 실린다.
+    st.markdown(_J6_SKIN_CSS, unsafe_allow_html=True)
     # 보시던 화면은 **주소에서** 읽는다 — 폰이 화면을 버렸다 다시 열어도
     # 관심종목으로 돌아가지 않게 한다(2026-08-29, _briefing_page 참고).
     page = _briefing_page()
@@ -9635,8 +9755,8 @@ def _render_stock_briefing() -> None:
         scroll_to.anchor(st, "top")
         with st.container(key="j3b_hero_box"):
             st.markdown(
-                '<div class="j3b-app j3b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'
-                '<div class="j3b-title">JARVIS <b>3</b></div><div class="j3b-sub">미국테마</div></div>'
+                '<div class="j3b-app j3b-home"></div><div class="j6-skin"></div><div class="j3b-hero"><div class="j3b-head-copy">'
+                '<div class="j3b-title">JARVIS <b>6</b></div><div class="j3b-sub">미국테마</div></div>'
                 '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
                 # 사용자 선정 종목의 로고가 버스 둘레를 돈다(2026-08-28 상하님 지시).
                 f'{catbus_html}{_briefing_orbit_html(selected)}</div>',

@@ -32,7 +32,7 @@ import math
 
 # 그림·글귀를 바꾸면 이 숫자를 올리고 페이지의 `_REQUIRED_HERO_REVISION`도 같이
 # 올린다(CLAUDE.md 11번). 안 올리면 온라인에 옛 배너가 그대로 남는다.
-MODULE_REVISION = 2026082820
+MODULE_REVISION = 2026090310
 
 UP, DOWN = "#4da6ff", "#ff6b6b"          # 미국 화면 규칙 — 오르면 파랑, 내리면 빨강
 
@@ -311,8 +311,12 @@ def css() -> str:
                .replace("__BLUR__", _BLUR))
 
 
-def html() -> str:
-    """배너 그림 한 덩어리."""
+def html(mark: str = "3") -> str:
+    """배너 그림 한 덩어리.
+
+    `mark` 는 「JARVIS ○」의 그 숫자다. **기본값이 3이라 부르는 쪽을 안 고치면
+    여태와 한 글자도 안 바뀐다** — 새 디자인 화면(자비스6 미국테마)만 6을 준다.
+    """
     sources = "".join(f'<source src="{u}" type="video/mp4">' for u in _VIDEO_URLS)
     return (
         '<div class="j3hero">'
@@ -320,7 +324,7 @@ def html() -> str:
         f"{sources}</video>"
         '<div class="j3hero-scrim"></div><div class="j3hero-vig"></div>'
         f"{_SM}{_LG}"
-        '<div class="j3hero-copy"><p class="j3hero-mark">JARVIS <b>3</b></p>'
+        f'<div class="j3hero-copy"><p class="j3hero-mark">JARVIS <b>{mark}</b></p>'
         '<p class="j3hero-sub">시장분석</p></div>'
         '<div class="j3hero-actions"><span class="j3hero-round">↻</span>'
         '<span class="j3hero-live"><i></i>실시간</span></div>'
@@ -332,7 +336,7 @@ def html() -> str:
 BOX_KEY = "j3hero_box"
 
 
-def render(st, *, refresh_key: str | None = None) -> bool:
+def render(st, *, refresh_key: str | None = None, mark: str = "3") -> bool:
     """시장분석 맨 위에 배너를 그린다. **↻ 를 누르셨으면 True** 를 준다.
 
     비우고 새로 여는 일은 여기서 하지 않는다 — 부르는 쪽이 한다. 여기서 하면
@@ -344,13 +348,13 @@ def render(st, *, refresh_key: str | None = None) -> bool:
     """
     if not refresh_key:
         try:
-            st.markdown(css() + html(), unsafe_allow_html=True)
+            st.markdown(css() + html(mark), unsafe_allow_html=True)
         except Exception:
             pass
         return False
     try:
         with st.container(key=BOX_KEY):
-            st.markdown(css() + html(), unsafe_allow_html=True)
+            st.markdown(css() + html(mark), unsafe_allow_html=True)
             return bool(st.button("↻", key=refresh_key))
     except Exception:
         return False

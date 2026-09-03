@@ -1244,7 +1244,7 @@ import hero_banner
 
 # 시장분석 맨 위의 눈밭 캠프 배너(2026-08-28 상하님 지시). 그림·글귀를 바꾸면
 # hero_banner의 리비전을 올리고 이 숫자도 같이 올린다(규칙 11).
-_REQUIRED_HERO_REVISION = 2026082820
+_REQUIRED_HERO_REVISION = 2026090310
 if int(getattr(hero_banner, "MODULE_REVISION", 0)) < _REQUIRED_HERO_REVISION:
     hero_banner = importlib.reload(hero_banner)
 import regime_gauge_ui
