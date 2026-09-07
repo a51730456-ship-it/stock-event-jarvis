@@ -76,9 +76,13 @@ class RulebookScreenTests(unittest.TestCase):
     def tearDown(self):
         j3.clear_runtime_cache()
 
-    def test_universe_is_two_hundred_and_holds_every_theme_stock(self):
-        self.assertEqual(200, len(j3.US_LARGE_CAP_UNIVERSE))
-        self.assertEqual(200, len(set(j3.US_LARGE_CAP_UNIVERSE)))
+    def test_universe_holds_every_theme_stock(self):
+        # 2026-09-07에 200개에서 **199개**가 되었다 — 상장폐지된 SATS 를 뺐다
+        # (상하님 지시). 시세가 아예 안 오던 종목이라 계산에는 원래도 안 들어갔고,
+        # 뺀 뒤 우주·위성 테마의 점수·등수·강한 종목 비율이 하나도 안 바뀌었다.
+        # 화면의 「대형주 ○개」는 이 목록을 세어 적으므로 저절로 199로 바뀐다.
+        self.assertEqual(199, len(j3.US_LARGE_CAP_UNIVERSE))
+        self.assertEqual(199, len(set(j3.US_LARGE_CAP_UNIVERSE)))
         theme_stocks = {t for theme in j3.US_THEMES for t in theme["stocks"]}
         # 테마 종목을 다 품어야 야후를 한 번만 부르고 테마 검색이 잘라 쓴다.
         self.assertTrue(theme_stocks.issubset(set(j3.US_LARGE_CAP_UNIVERSE)))
@@ -973,7 +977,7 @@ class Jarvis3DataTests(unittest.TestCase):
             self.assertIn(ticker, pharma["stocks"])
         self.assertTrue(set(pharma["stocks"]).issubset(set(j3.US_LARGE_CAP_UNIVERSE)),
                         "테마 종목이 명부 밖에 있으면 시세를 안 받아 온다")
-        self.assertEqual(200, len(j3.US_LARGE_CAP_UNIVERSE), "명부가 늘었다")
+        self.assertEqual(199, len(j3.US_LARGE_CAP_UNIVERSE), "명부가 늘었다")
         # 이름을 적어 두지 않으면 화면에 티커가 그대로 나온다.
         self.assertEqual("Merck & Co", j3.STOCK_NAMES.get("MRK"))
 
