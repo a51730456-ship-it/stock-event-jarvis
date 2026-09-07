@@ -17,7 +17,7 @@ from typing import Iterable, Mapping
 import pandas as pd
 
 
-MODULE_REVISION = 2026090510
+MODULE_REVISION = 2026090720
 SCORE_MODEL_VERSION = "US_SWING_V1"
 
 
@@ -1161,6 +1161,7 @@ def scan_eod(
     # 6개월 **절대** 수익률 (2026-09-05 상하님 지시로 화면에 적으려고 잰다).
     # 통과조건에는 안 쓴다 — 통과는 여태대로 나스닥 대비 등수(rs120)로 가른다.
     ret120: dict[str, float | None] = {}
+    ret20: dict[str, float | None] = {}
     raw60: dict[str, float | None] = {}
     raw120: dict[str, float | None] = {}
     above50: dict[str, bool | None] = {}
@@ -1175,6 +1176,7 @@ def scan_eod(
             raw60[ticker] = None
             raw120[ticker] = None
             ret120[ticker] = None
+            ret20[ticker] = None
             above50[ticker] = None
             avg_dollar[ticker] = None
             continue
@@ -1185,6 +1187,11 @@ def scan_eod(
         ret120[ticker] = (
             float(closes.iloc[-1] / closes.iloc[-_rs_days - 1] - 1.0) * 100.0
             if len(closes) > _rs_days and _finite(closes.iloc[-_rs_days - 1]) else None
+        )
+        # 20일(한 달) 수익률 — 화면에 적기만 한다. 통과·점수에는 안 쓴다.
+        ret20[ticker] = (
+            float(closes.iloc[-1] / closes.iloc[-21] - 1.0) * 100.0
+            if len(closes) > 20 and _finite(closes.iloc[-21]) else None
         )
         breadth_days = int(cfg["breadth"]["sma_days"])
         above50[ticker] = (
@@ -1244,6 +1251,7 @@ def scan_eod(
             "rs120_raw": raw120.get(ticker),
             # 6개월 **절대** 수익률. 화면에 적기만 한다 — 점수·통과에는 안 쓴다.
             "ret120": ret120.get(ticker),
+            "ret20": ret20.get(ticker),
             "rs120_percentile": rs120_pct,
             "rs120_valid": raw120.get(ticker) is not None and cross120_ok,
             "rs120_reason": (

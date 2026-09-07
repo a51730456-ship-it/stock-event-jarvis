@@ -1341,7 +1341,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026090510
+_REQUIRED_J3_REVISION = 2026090720
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1542,7 +1542,7 @@ def _fear_greed_color(score) -> str:
 
 # 「6개월 수익률」 칸을 하나 더 넣었다(2026-09-05 상하님 지시). 칸 수와 폭이
 # 맞아야 머리글과 값이 어긋나지 않는다 — 넣거나 뺄 때 이 줄도 같이 고친다.
-_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.15, 1.0, 1.1]
+_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.05, 1.15, 1.0, 1.1]
 # 한 줄을 세 칸으로만 나눈다 — 순위 · 테마(단추) · 나머지를 묶은 한 덩이.
 # 칸마다 요소를 만들면 폰이 느려진다(2026-07-30 실측, 한국테마와 같은 처리).
 _THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_WIDTHS[2:])]
@@ -1599,7 +1599,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     head[1].markdown("<div class='j3-th-head'>테마</div>", unsafe_allow_html=True)
     head[2].markdown(
         _flex_row(_THEME_REST_WIDTHS, ["ETF", "테마점수", "상태", "당일",
-                                       "6개월 수익률", "6개월 시장대비",
+                                       "20일 수익률", "6개월 수익률", "6개월 시장대비",
                                        "강한 종목 비율"], head=True),
         unsafe_allow_html=True,
     )
@@ -1634,7 +1634,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
         etf = str(row.get("etf", ""))
         rank_cell = f"<div class='j3-td'>{row.get('rank', '')}</div>"
         if not row.get("ok"):
-            return rank_cell, _flex_row(_THEME_REST_WIDTHS, [etf] + ["자료 부족"] * 6, muted_from=1)
+            return rank_cell, _flex_row(_THEME_REST_WIDTHS, [etf] + ["자료 부족"] * 7, muted_from=1)
         score = float(row.get("score") or 0)
         strong_share = row.get("strong_members")
         change, strength120 = row.get("change_pct"), row.get("strength_120")
@@ -1643,6 +1643,9 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
         # 뺀 값이라 이 테마가 실제로 몇 % 올랐는지가 안 보였다. 둘을 나란히 둔다.
         ret120 = row.get("ret120")
         ret120_text = "—" if ret120 is None else f"{float(ret120):+.1f}%"
+        # 20일 수익률 (2026-09-07 상하님 지시). 최근 한 달 이 테마가 몇 % 움직였나.
+        ret20 = row.get("ret20")
+        ret20_text = "—" if ret20 is None else f"{float(ret20):+.1f}%"
         strong_cell = "—" if strong_share is None else (
             "<div class='j3-barwrap'><div class='j3-bar'>"
             f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(strong_share), 100):.0f}%'></div></div>"
@@ -1655,6 +1658,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             f"<span class='j3-bar-num'>{score:.1f}</span></div>",
             f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
             f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
+            f"<span style='color:{_sign_color(ret20)}; font-weight:800'>{ret20_text}</span>",
             f"<span style='color:{_sign_color(ret120)}; font-weight:800'>{ret120_text}</span>",
             f"<span style='color:{_sign_color(strength120)}; font-weight:700'>{strength_text}</span>",
             strong_cell,
@@ -1842,7 +1846,9 @@ def _leader_chart_payload(value):
     return {"ok": True, "price": frame[["Close", "MA20", "MA50"]], "volume": None, "stale": False}
 
 
-_LEADER_COL_WIDTHS = [0.75, 1.9, 0.85, 1.6, 0.95, 1.25, 1.15, 1.1]
+# 「6개월 수익률」 칸을 하나 더 넣었다(2026-09-07 상하님 지시). 칸 수와 폭이
+# 맞아야 머리글과 값이 어긋나지 않는다 — 넣거나 뺄 때 이 줄도 같이 고친다.
+_LEADER_COL_WIDTHS = [0.75, 1.9, 0.85, 1.6, 0.95, 1.25, 1.15, 1.2, 1.1]
 # 테마표와 같은 이유로 세 칸만 쓴다 — 순위 · 종목(단추) · 나머지를 묶은 한 덩이.
 _LEADER_ROW_WIDTHS = [_LEADER_COL_WIDTHS[0], _LEADER_COL_WIDTHS[1], sum(_LEADER_COL_WIDTHS[2:])]
 _LEADER_REST_WIDTHS = _LEADER_COL_WIDTHS[2:]
@@ -1861,7 +1867,8 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[2].markdown(
         _flex_row(_LEADER_REST_WIDTHS, ["티커", "최종점수", "당일", "52주 고가 대비",
-                                        "20일 수익률", "매수 상태"], head=True),
+                                        "20일 수익률", "6개월 수익률",
+                                        "매수 상태"], head=True),
         unsafe_allow_html=True,
     )
     # 머리글 '종목'과 첫 행 MPC가 붙어 보이지 않도록 한 줄만 띄운다.
@@ -1891,8 +1898,9 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
                 f"<span class='j3-bar-num'>{score:.1f}/100</span></div>",
                 *(
                     f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
+                    # 6개월 수익률을 20일 옆에 둔다(2026-09-07 상하님 지시).
                     for value in (metrics.get("change_pct"), metrics.get("from_high_pct"),
-                                  metrics.get("ret20"))
+                                  metrics.get("ret20"), metrics.get("ret120"))
                 ),
                 str(plan.get("state", "")),
             ]),
@@ -6458,12 +6466,12 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     # 이 갈래는 일곱 칸뿐이다. 급락표의 넓은 공통 폭을 쓰지 않고 가장 긴 상태말
     # 「3·6개월 약함」이 들어가는 정도만 남겨 항목 사이 빈 폭을 줄인다.
     # 「6개월 수익률」을 하나 더 넣었다(2026-09-05 상하님 지시).
-    widths = [0.42, 0.62, 1.55, 0.72, 1.3, 1.2, 1.05, 1.45]
+    widths = [0.42, 0.62, 1.55, 0.72, 1.3, 1.2, 1.0, 1.05, 1.45]
     row_widths = [widths[0], widths[1], widths[2], sum(widths[3:])]
     rest_widths = widths[3:]
     # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님). 둘 다 점수인데
     # 이름만 봐서는 알 수 없었다. 무엇을 재는 점수인지 이름이 직접 말하게 한다.
-    heads = ["티커", "등급 / 상태", "눌림 / 며칠째", "6개월 수익률", "테마"]
+    heads = ["티커", "등급 / 상태", "눌림 / 며칠째", "20일 수익률", "6개월 수익률", "테마"]
 
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
         """표 한 벌을 **칸 넷으로 한 번에** 그린다 (2026-08-26 상하님 지시).
@@ -6542,12 +6550,16 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             # 나스닥 대비 등수라, 이 종목이 실제로 몇 % 올랐는지가 안 보였다.
             ret120 = row.get("ret120")
             ret120_text = "—" if ret120 is None else f"{float(ret120):+.1f}%"
+            # 20일 수익률 (2026-09-07 상하님 지시).
+            ret20 = row.get("ret20")
+            ret20_text = "—" if ret20 is None else f"{float(ret20):+.1f}%"
             rest_cells.append(_flex_row(rest_widths, [
                 f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
                 label,
                 f"<span class='{pullback_tone}' style='font-weight:800'>"
                 f"{html.escape(pullback_text)}</span>"
                 f" <span class='j3-muted'>· {int(row.get('days_since_anchor') or 0)}일째</span>",
+                f"<span style='color:{_sign_color(ret20)}; font-weight:800'>{ret20_text}</span>",
                 f"<span style='color:{_sign_color(ret120)}; font-weight:800'>{ret120_text}</span>",
                 f"<span class='j3-pull-theme j3-rb-clip' title='{html.escape(theme_text)}'>"
                 f"{html.escape(theme_text)}</span>",

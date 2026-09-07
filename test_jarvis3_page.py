@@ -1738,7 +1738,7 @@ class Jarvis3PageTests(unittest.TestCase):
         """상승장 표만 폭을 줄이고 관찰 번호에는 W를 붙이지 않는다."""
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         # 2026-09-05에 「6개월 수익률」 칸이 하나 늘었다(상하님 지시).
-        self.assertIn("widths = [0.42, 0.62, 1.55, 0.72, 1.3, 1.2, 1.05, 1.45]", source)
+        self.assertIn("widths = [0.42, 0.62, 1.55, 0.72, 1.3, 1.2, 1.0, 1.05, 1.45]", source)
         self.assertIn('rank = str(index + 1) if watch_mode', source)
         self.assertNotIn('rank = f"W{index + 1}"', source)
         self.assertIn('st.container(key="j3_swing_table")', source)
@@ -1750,7 +1750,7 @@ class Jarvis3PageTests(unittest.TestCase):
         """20개 테마 순위표는 긴 테마명이 들어갈 만큼만 폭을 사용한다."""
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         self.assertIn(
-            "_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.15, 1.0, 1.1]",
+            "_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.05, 1.15, 1.0, 1.1]",
             source,
         )
         self.assertIn(".st-key-j3_theme_table,", source)
