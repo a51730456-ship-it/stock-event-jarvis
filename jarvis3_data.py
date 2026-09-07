@@ -28,7 +28,7 @@ import pandas as pd
 import us_market_calendar
 import us_swing_selector as us_swing
 
-_REQUIRED_US_SWING_REVISION = 2026082181
+_REQUIRED_US_SWING_REVISION = 2026090510
 if int(getattr(us_swing, "MODULE_REVISION", 0)) < _REQUIRED_US_SWING_REVISION:
     us_swing = importlib.reload(us_swing)
 
@@ -224,7 +224,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026090320
+MODULE_REVISION = 2026090510
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1566,6 +1566,11 @@ def _compute_theme_rankings() -> dict:
             "change_pct": metrics.get("change_pct"),
             "strength_60": theme_strength_60,
             "strength_120": theme_strength_120,
+            # 테마 ETF 의 **절대** 6개월 수익률 (2026-09-05 상하님 지시로 화면에
+            # 적으려고 담는다). 「6개월 시장대비」는 나스닥을 뺀 값이라, 그것만
+            # 봐서는 이 테마가 실제로 몇 % 올랐는지 알 수 없었다.
+            # **점수에는 안 쓴다** — 테마 배점은 여태대로 시장대비로 매긴다.
+            "ret120": metrics.get("ret120"),
             "strong_members": strong_member_share,
             "strength_change": strength_change,
             "member_count": len(strong_flags),

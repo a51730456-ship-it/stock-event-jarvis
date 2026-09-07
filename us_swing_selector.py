@@ -17,7 +17,7 @@ from typing import Iterable, Mapping
 import pandas as pd
 
 
-MODULE_REVISION = 2026082501
+MODULE_REVISION = 2026090510
 SCORE_MODEL_VERSION = "US_SWING_V1"
 
 
@@ -1158,6 +1158,9 @@ def scan_eod(
 
     index_closes = index_frame["Close"].astype(float)
     frames: dict[str, pd.DataFrame] = {}
+    # 6개월 **절대** 수익률 (2026-09-05 상하님 지시로 화면에 적으려고 잰다).
+    # 통과조건에는 안 쓴다 — 통과는 여태대로 나스닥 대비 등수(rs120)로 가른다.
+    ret120: dict[str, float | None] = {}
     raw60: dict[str, float | None] = {}
     raw120: dict[str, float | None] = {}
     above50: dict[str, bool | None] = {}
@@ -1171,11 +1174,18 @@ def scan_eod(
         if not exact_date:
             raw60[ticker] = None
             raw120[ticker] = None
+            ret120[ticker] = None
             above50[ticker] = None
             avg_dollar[ticker] = None
             continue
         raw60[ticker] = relative_strength_raw(closes, index_closes, int(cfg["rs"]["rs60_days"]))
         raw120[ticker] = relative_strength_raw(closes, index_closes, int(cfg["rs"]["rs120_days"]))
+        # 6개월 절대 수익률 — 같은 창(120거래일)이라 rs120 과 재는 기간이 같다.
+        _rs_days = int(cfg["rs"]["rs120_days"])
+        ret120[ticker] = (
+            float(closes.iloc[-1] / closes.iloc[-_rs_days - 1] - 1.0) * 100.0
+            if len(closes) > _rs_days and _finite(closes.iloc[-_rs_days - 1]) else None
+        )
         breadth_days = int(cfg["breadth"]["sma_days"])
         above50[ticker] = (
             bool(closes.iloc[-1] > closes.tail(breadth_days).mean())
@@ -1232,6 +1242,8 @@ def scan_eod(
                 else "INSUFFICIENT_HISTORY"
             ),
             "rs120_raw": raw120.get(ticker),
+            # 6개월 **절대** 수익률. 화면에 적기만 한다 — 점수·통과에는 안 쓴다.
+            "ret120": ret120.get(ticker),
             "rs120_percentile": rs120_pct,
             "rs120_valid": raw120.get(ticker) is not None and cross120_ok,
             "rs120_reason": (
