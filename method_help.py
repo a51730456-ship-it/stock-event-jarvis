@@ -29,7 +29,7 @@ if int(getattr(image_zoom, "MODULE_REVISION", 0)) < _REQUIRED_IMAGE_ZOOM_REVISIO
     image_zoom = importlib.reload(image_zoom)
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026082712
+MODULE_REVISION = 2026090710
 
 BUTTON_LABEL = "📘 이 테마 설명"
 
@@ -396,6 +396,19 @@ div[class*="st-key-jarvis_method_help"] button p {
 # 좌우로 갈라 두 장으로 나눠도 봤지만, 상하님이 이 한 장으로 정하셨다.
 # 그림을 바꾸려면 assets/의 같은 이름 파일을 덮어쓰면 된다. 코드는 안 고쳐도 된다.
 US_CARTOON = "us_method_cartoon.png"
+
+# ── 만화 바로 밑 「나스닥 매매 규칙」 한 장 (2026-09-07 상하님 지시) ────────────
+# 상하님 — *"이 테마 설명 화면에 두 번째 pdf 파일을 첫 번째 캡처 밑에 사진으로
+#           넣어라. 위에 만화나 엑셀처럼 화면 확대되도록."*
+#
+# 상하님이 주신 PDF(나스닥_매매규칙_가나.pdf) 한 쪽을 그림으로 뽑은 것이다
+# (1236×1698). **누르면 커진다** — 만화·엑셀 표와 **같은 함수**(`_picture`)로
+# 그리기 때문이다. 그 함수가 붙이는 이름표(st-key-jarvis_method_pic_…)를
+# image_zoom 이 찾아서 손잡이를 단다. 여기서 새로 만든 장치는 하나도 없다.
+#
+# 그림을 바꾸려면 assets/의 같은 이름 파일을 덮어쓰면 된다. 코드는 안 고쳐도 된다.
+# 다시 뽑으려면: python tools/pdf_to_asset.py <PDF경로> assets/us_method_rules.png
+US_RULES_IMAGE = "us_method_rules.png"
 
 US_IMAGES = (
     ("us_method_drawdown.png", "급락 후 반등장 (낙폭종목)"),
@@ -765,6 +778,14 @@ def render(st, market: str) -> None:
                 # 한 장을 다 보여준다. 크게 보실 때는 그림을 누르시면 새 창에
                 # 원본이 뜬다(_picture).
                 _picture(st, cartoon, US_CARTOON)
+            # ①-2 만화 바로 밑 「나스닥 매매 규칙」 한 장 (2026-09-07 상하님 지시).
+            #     만화와 **같은 함수**로 그린다 — 그래야 눌러서 커지는 손잡이가
+            #     그대로 붙는다(위 US_RULES_IMAGE 설명 참고).
+            rules = _image_path(US_RULES_IMAGE)
+            if rules is None:
+                st.warning(f"규칙 그림을 찾지 못했습니다 — assets/{US_RULES_IMAGE}")
+            else:
+                _picture(st, rules, US_RULES_IMAGE)
             # ② 상하님이 만드신 표 그림 — **사진 그대로 올린다**(2026-08-27 상하님
             #    지시: "액셀은 텍스트로 바꾸지말라 원 사진 그대로 올려라").
             for index, (name, caption) in enumerate(US_IMAGES):
