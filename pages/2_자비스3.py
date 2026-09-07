@@ -493,8 +493,14 @@ st.markdown(
     /* 클릭 가능한 테마표: 머리글·칸은 가운데 정렬, 테마명은 버튼 */
     /* 제목이 두 줄이 되면 한 줄짜리와 밑줄이 어긋났다(2026-07-25 사용자 지적).
        모두 같은 높이를 갖고 글자는 아래에 붙여 밑줄을 한 줄로 맞춘다. */
+    /* **두 줄짜리 제목에 맞춰 키를 통일한다** (2026-09-07 상하님 지적 —
+       "테마 줄도 그렇고 제목들 밑에 줄들이 키높이가 안 맞다").
+       재 보니 머리글이 세 무리로 갈려 있었다 — 한 줄짜리 50px, 두 줄짜리 63px,
+       그리고 따로 선 「테마」 칸. 밑줄이 그만큼 어긋나 보였다.
+       3.95rem(=63px)로 못박으면 한 줄이든 두 줄이든 상자 키가 같아지고,
+       글자는 아래에 붙으므로 밑줄이 한 줄로 선다. */
     .j3-th-head { display: flex; align-items: flex-end; justify-content: center;
-        min-height: 3.1rem; text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
+        min-height: 3.95rem; text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
         padding: 0.45rem 0 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.22); }
     /* 테마명 버튼 행과 나머지 HTML 칸의 세로 라인을 맞춘다(2026-07-22 사용자 지시:
        "Line 일치시킬 것") — 양쪽 다 같은 고정 높이(2.5rem)에 수직 가운데 정렬. */
@@ -1466,7 +1472,7 @@ def _fear_greed_color(score) -> str:
 
 # 「6개월 수익률」 칸을 하나 더 넣었다(2026-09-05 상하님 지시). 칸 수와 폭이
 # 맞아야 머리글과 값이 어긋나지 않는다 — 넣거나 뺄 때 이 줄도 같이 고친다.
-_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.05, 1.15, 1.0, 1.1]
+_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.05, 1.15, 1.5, 1.1]
 # 한 줄을 세 칸으로만 나눈다 — 순위 · 테마(단추) · 나머지를 묶은 한 덩이.
 # 칸마다 요소를 만들면 폰이 느려진다(2026-07-30 실측, 한국테마와 같은 처리).
 _THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_WIDTHS[2:])]

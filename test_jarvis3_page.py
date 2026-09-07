@@ -1750,7 +1750,7 @@ class Jarvis3PageTests(unittest.TestCase):
         """20개 테마 순위표는 긴 테마명이 들어갈 만큼만 폭을 사용한다."""
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         self.assertIn(
-            "_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.05, 1.15, 1.0, 1.1]",
+            "_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.05, 1.15, 1.5, 1.1]",
             source,
         )
         self.assertIn(".st-key-j3_theme_table,", source)
