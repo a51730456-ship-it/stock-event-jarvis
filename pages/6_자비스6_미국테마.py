@@ -44,6 +44,60 @@ st.set_page_config(
     layout="wide",
 )
 
+# ── 지금은 수리 중이다 (2026-09-05 상하님 지시) ─────────────────────────────
+# 상하님 — *"마지막 자비스6은 실패다. 그거 나중에 없앨 예정이다.
+#           그냥 수리 중이라고만 내용 넣어라."*
+#
+# **여기가 맨 앞이어야 한다.** 뒤에 두면 아래 무거운 모듈(시세·차트·DB)이 이미
+# 다 불려서, 수리 중 한 줄을 보여 주려고 몇 초를 쓰게 된다.
+# 옛 미국테마(pages/2_자비스3.py)는 그대로 돌아간다 — 이 파일만 멈춘다.
+#
+# **되살리는 법은 이 블록을 지우는 것 하나다.** 아래 코드는 손대지 않았다.
+_UNDER_REPAIR = True
+
+if _UNDER_REPAIR:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"], [data-testid="stSidebarNav"],
+        [data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapseButton"] { display: none !important; }
+        .stApp, [data-testid="stAppViewContainer"] {
+            background: radial-gradient(1200px 700px at 50% -12%, #12213f 0%,
+                        #070d1a 62%, #05080f 100%) !important;
+        }
+        .j6-repair {
+            max-width: 520px; margin: 4rem auto 0; padding: 2rem 1.6rem;
+            border: 1px solid rgba(120,180,255,.28); border-radius: 20px;
+            background: linear-gradient(150deg, rgba(24,44,84,.94) 0%,
+                        rgba(10,18,36,.94) 100%);
+            box-shadow: inset 0 1px rgba(160,210,255,.14), 0 10px 26px rgba(0,0,0,.5);
+            text-align: center;
+        }
+        .j6-repair-icon { font-size: 2.6rem; line-height: 1; }
+        .j6-repair-title { margin-top: .9rem; color: #ffffff;
+            font-size: 1.55rem; font-weight: 900; letter-spacing: -.02em; }
+        .j6-repair-text { margin-top: .7rem; color: #b9c8dc;
+            font-size: .95rem; font-weight: 600; line-height: 1.75; word-break: keep-all; }
+        </style>
+        <div class="j6-repair">
+          <div class="j6-repair-icon">🛠️</div>
+          <div class="j6-repair-title">수리 중입니다</div>
+          <div class="j6-repair-text">
+            이 화면은 지금 고치고 있습니다.<br>
+            <b style="color:#ffd166">미국테마(자비스3)</b>는 그대로 쓰실 수 있습니다.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    try:
+        st.page_link("pages/2_자비스3.py", label="미국테마로 가기")
+    except Exception:
+        pass
+    st.stop()
+
+
 st.markdown(
     """
     <style>
