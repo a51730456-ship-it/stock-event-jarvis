@@ -1271,7 +1271,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026090730
+_REQUIRED_J3_REVISION = 2026090740
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -5118,6 +5118,11 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.caption(f"🔸 {note} — 다른 갈래로 채우지 않습니다.")
 
     st.caption("종목 이름을 누르면 아래에 그 종목 상세와 차트가 한꺼번에 열립니다.")
+    # **별표가 무슨 뜻인지 적어 둔다**(2026-09-07). 화면에 기호만 있고 설명이
+    # 없으면 무슨 표시인지 알 수 없다. 별표가 붙은 줄이 없으면 이 줄도 안 적는다.
+    if any(row.get("both_theme_and_breakout") for row in rows):
+        st.caption("⭐ 는 **테마 대장주와 상승장 두 곳에 다 걸린 종목**입니다 — "
+                   "서로 다른 자로 재서 둘 다 좋게 나왔다는 뜻입니다.")
     widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]
     # '조건점수'는 갈래마다 다른 자로 잰 값이라 이름을 바꿨다(2026-08-06 사용자 물음).
     titles = ["순위", "종목", "점수 (갈래 자)", "매수 상태", "현재가", "어느 분야"]
@@ -5140,7 +5145,13 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         rank_cells.append(
             f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}위</div>"
         )
-        labels.append((f"{row.get('name') or row['ticker']} ({row['ticker']})", index, row))
+        # **별표** — 「테마 대장주」와 「상승장」 두 파트에 다 걸린 종목이다
+        # (2026-09-07 상하님 지시). 두 자로 재서 둘 다 좋다는 뜻이다.
+        # 표시가 붙는 자리는 jarvis3_data.blend_top_picks 에서 정한다 —
+        # 여기서 다시 세지 않는다.
+        star = "⭐ " if row.get("both_theme_and_breakout") else ""
+        labels.append((f"{star}{row.get('name') or row['ticker']} ({row['ticker']})",
+                       index, row))
         score = float(row.get("score") or 0)
         score_cells.append(
             "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"

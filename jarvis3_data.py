@@ -228,7 +228,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026090730
+MODULE_REVISION = 2026090740
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4182,6 +4182,22 @@ def blend_top_picks(buckets: dict, *, quota=TOP_PICK_QUOTA) -> dict:
                 f"오늘은 **{name}** 자리가 없습니다" if not taken
                 else f"**{name}**은 {want}자리 중 {taken}개만 찼습니다"
             )
+    # ── 두 자로 재서 둘 다 걸린 종목에 별표 (2026-09-07 상하님 지시) ────────────
+    # 상하님 — "21개 테마와 상승장 신고가 눌림매수 둘 다 나올 경우 종목에 별표
+    #           나오게 해라. 로딩 안 걸리도록 유의하고."
+    #
+    # **새로 받아 오는 것도, 새로 세는 것도 없다.** 방금 고른 줄(picked)만 훑어
+    # 티커가 두 파트에 다 있는지 본다 — 아홉 줄짜리 목록이라 눈 깜짝할 새다.
+    # 자리·차례·점수는 하나도 안 바뀐다. 표시 하나만 붙는다.
+    _origins: dict[str, set] = {}
+    for row in picked:
+        code = str(row.get("ticker") or "").strip()
+        if code:
+            _origins.setdefault(code, set()).add(str(row.get("top7_origin") or ""))
+    for row in picked:
+        code = str(row.get("ticker") or "").strip()
+        row["both_theme_and_breakout"] = bool(
+            {"테마 대장주", "상승장"} <= _origins.get(code, set()))
     return {
         "ok": bool(picked),
         "rows": picked,

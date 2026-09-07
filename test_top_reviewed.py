@@ -615,6 +615,34 @@ class TopPickMemoTests(unittest.TestCase):
             j3.collect_top_picks([{"name": "바이오", "score": 90.8}], market_score=70.0)
         self.assertEqual(calls["n"], 3, "테마 점수나 시장 점수가 바뀌었는데 옛 답을 썼다")
 
+    def test_a_stock_in_both_theme_and_breakout_gets_a_star(self):
+        """**두 자로 재서 둘 다 걸린 종목에 별표** (2026-09-07 상하님 지시).
+
+        상하님 — *"21개 테마와 상승장 신고가 눌림매수 둘 다 나올 경우 종목에
+        별표 나오게 해라. 로딩 안 걸리도록 유의하고."*
+
+        표시는 이미 고른 아홉 줄만 훑어서 붙인다 — 새로 받아 오는 것도, 새로
+        세는 것도 없다. 자리·차례·점수는 하나도 안 바뀐다.
+
+        **테마 대장주 ∩ 상승장만** 별표다. 상승장 ∩ 급락은 아니다 —
+        그 둘은 서로 정반대를 고르는 자라 겹쳐도 뜻이 다르다.
+        """
+        buckets = {
+            "테마 대장주": [{"ticker": "OKTA"}, {"ticker": "ILMN"}, {"ticker": "GEN"}],
+            "상승장": [{"ticker": "OKTA"}, {"ticker": "SNOW"}, {"ticker": "CRWD"}],
+            "급락 후 반등장": [{"ticker": "MRNA"}, {"ticker": "CRWD"}, {"ticker": "DELL"}],
+        }
+        rows = j3.blend_top_picks(buckets)["rows"]
+        starred = {row["ticker"] for row in rows if row.get("both_theme_and_breakout")}
+        self.assertEqual({"OKTA"}, starred)
+        # 같은 종목의 **두 줄 다** 별표여야 한다 — 어느 줄을 보시든 눈에 띄어야 한다.
+        self.assertEqual(2, sum(1 for row in rows
+                                if row["ticker"] == "OKTA" and row["both_theme_and_breakout"]))
+        # 자리는 그대로 아홉이고 차례도 안 바뀐다.
+        self.assertEqual(9, len(rows))
+        self.assertEqual(["OKTA", "ILMN", "GEN", "OKTA", "SNOW", "CRWD",
+                          "MRNA", "CRWD", "DELL"], [row["ticker"] for row in rows])
+
     def test_module_revision_was_raised(self):
         """규칙 11 — 계산이 도는 방식을 바꾸면 리비전을 같이 올린다."""
         from pathlib import Path
