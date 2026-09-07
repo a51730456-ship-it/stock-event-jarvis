@@ -736,6 +736,18 @@ def cross_link(st, market: str) -> None:
     if not target:
         return
     page, label = target
+    # **갈 곳이 닫혀 있으면 안 그린다** (2026-09-07 상하님 지시로 한국테마를 닫았다).
+    # 안 그러면 눌렀을 때 「이 화면은 지금 닫혀 있습니다」만 나오는 죽은 단추가 된다.
+    # page_access 를 못 읽어도 화면은 그대로 돈다 — 그때는 예전처럼 단추를 그린다.
+    try:
+        import page_access
+
+        name = {"pages/3_자비스4.py": "한국테마",
+                "pages/2_자비스3.py": "미국테마"}.get(page)
+        if name and not page_access.is_open(name):
+            return
+    except Exception:
+        pass
     try:
         with st.container(key="jarvis_cross_market"):
             st.page_link(page, label=label)

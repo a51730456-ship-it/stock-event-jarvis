@@ -21,6 +21,8 @@ CLOSED_PAGES = {
     "pages/1_자비스2.py": "자비스2",
     "pages/4_자비스5.py": "자비스5",
     "pages/5_자비스6.py": "자비스6",
+    # 2026-09-07에 닫았다(상하님 지시).
+    "pages/3_자비스4.py": "한국테마",
 }
 
 
@@ -31,8 +33,9 @@ class OpenPagesTests(unittest.TestCase):
         상하님 지시 — "하나는 새로 만들고 하나는(옛날것) 그대로 놔두자."
         둘을 나란히 놓고 견주시는 것이 그 화면을 만든 까닭이라 둘 다 열려 있어야 한다.
         """
-        self.assertEqual(("미국테마", "한국테마", "자비스6미국테마"),
-                         page_access.OPEN_PAGES)
+        # 2026-09-07에 **미국테마 하나만** 남겼다(상하님 지시 —
+        # "온라인은 미국테마, 즉 자비스3만 화면에 띄우고 전부 안 보이게 해라").
+        self.assertEqual(("미국테마",), page_access.OPEN_PAGES)
 
     def test_every_name_is_a_real_page(self):
         """열어 둔 이름이 오타면 그 화면이 조용히 막힌다."""
@@ -63,10 +66,13 @@ class GuardPlacementTests(unittest.TestCase):
             # 그것만 앞에 온다.
             self.assertLess(head.index("st.set_page_config("), guard_at, path)
 
-    def test_the_theme_pages_are_not_guarded(self):
-        """열어 둔 화면에는 막는 장치를 두지 않는다."""
-        for path in ("pages/2_자비스3.py", "pages/3_자비스4.py",
-                     "pages/6_자비스6_미국테마.py"):
+    def test_the_open_page_is_not_guarded(self):
+        """열어 둔 화면에는 막는 장치를 두지 않는다.
+
+        2026-09-07부터 열어 둔 것은 미국테마 하나뿐이다. 한국테마는 그날
+        닫으면서 막는 장치를 붙였다(아래 CLOSED_PAGES 가 그것을 지킨다).
+        """
+        for path in ("pages/2_자비스3.py",):
             source = (ROOT / path).read_text(encoding="utf-8")
             self.assertNotIn("page_access.guard(", source, path)
 

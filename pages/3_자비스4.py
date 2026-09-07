@@ -35,6 +35,16 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
 
 st.set_page_config(page_title="자비스4 — 한국 테마 레이더", layout="wide")
 
+# ── 지금은 닫아 둔 화면이다 (2026-09-07 상하님 지시) ────────────────────────
+# 상하님 — *"온라인은 미국테마, 즉 자비스3만 화면에 띄우고 전부 안 보이게 해라."*
+#
+# **여기가 맨 앞이어야 한다.** 뒤에 두면 그 앞의 시세 조회가 이미 다 돌아
+# 막은 뜻이 없어진다. 되살리려면 page_access.OPEN_PAGES 에 「한국테마」를
+# 도로 넣으면 된다 — 그러면 미국테마 맨 위의 건너가기 단추도 같이 살아난다.
+import page_access
+
+page_access.guard(st, "한국테마")
+
 st.markdown(
     """
     <style>
