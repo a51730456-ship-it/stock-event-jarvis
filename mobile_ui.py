@@ -128,6 +128,9 @@ def jarvis7_css() -> str:
       .j7-shell .j7-nav{bottom:max(10px,env(safe-area-inset-bottom));width:calc(100% - 20px);border-radius:22px;padding:8px 5px}
       .j7-shell .j7-nav button{font-size:10px;min-height:48px}
       .j7-shell .j7-nav .j7-icon{width:23px;height:23px}
+      /* Streamlit Cloud has its own controls below the embedded phone app. */
+      .j7-mount[data-embedded="true"] .j7-nav{bottom:max(56px,calc(env(safe-area-inset-bottom) + 46px))}
+      .j7-mount[data-embedded="true"] .j7-shell{padding-bottom:151px}
     }
     """
 

@@ -216,6 +216,7 @@ export default function(component) {
   const {data, parentElement, setTriggerValue} = component;
   let root = parentElement.querySelector('.j7-mount');
   if (!root) {root = document.createElement('div'); root.className='j7-mount'; parentElement.appendChild(root);}
+  root.dataset.embedded=window.self!==window.top?'true':'false';
   const before = root.dataset.route;
   if (root._markup !== data.html) {
     const open = [...root.querySelectorAll('details[open]')].map(d=>d.id);
