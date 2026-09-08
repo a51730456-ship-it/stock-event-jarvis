@@ -5,29 +5,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 import gauge_ui
-import page_access
 from streamlit.testing.v1 import AppTest
-
-
-@pytest.fixture(autouse=True)
-def _open_korea_theme_while_testing():
-    """한국테마는 2026-09-07부터 온라인에서 **닫아** 두었다(상하님 지시 —
-    "온라인은 미국테마만 띄우고 전부 안 보이게 해라").
-
-    이 파일의 시험은 그 화면을 실제로 그려 보고 값을 확인한다. 닫아 두면
-    「이 화면은 지금 닫혀 있습니다」 한 장만 나와 아무것도 못 본다.
-    그래서 **시험이 도는 동안만** 열어 두고 끝나면 도로 닫는다.
-    화면 코드는 하나도 안 건드린다 — 여는 이름표만 잠깐 바꾼다.
-    """
-    saved = page_access.OPEN_PAGES
-    page_access.OPEN_PAGES = tuple(page_access.ALL_PAGES)
-    try:
-        yield
-    finally:
-        page_access.OPEN_PAGES = saved
 
 ROOT = Path(__file__).parent
 PAGE = ROOT / "pages" / "3_자비스4.py"

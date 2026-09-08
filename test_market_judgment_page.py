@@ -181,8 +181,9 @@ class ClosedPageTest(unittest.TestCase):
     def test_only_the_theme_pages_are_open(self):
         # 2026-09-03에 새 디자인 미국테마가 늘어 셋이 되었다(상하님 지시 —
         # "하나는 새로 만들고 하나는(옛날것) 그대로 놔두자").
-        # 2026-09-07에 미국테마 하나만 남겼다(상하님 지시).
-        self.assertEqual(("미국테마",), page_access.OPEN_PAGES)
+        # 2026-09-07에 미국테마 하나만 남겼다가, 2026-09-08에 한국테마를
+        # 도로 열었다(상하님 지시 — "한국테마는 다시 살려라").
+        self.assertEqual(("미국테마", "한국테마"), page_access.OPEN_PAGES)
         for closed in ("시장판단", "자비스1", "자비스2", "자비스5", "자비스6",
-                       "한국테마", "자비스6미국테마"):
+                       "자비스6미국테마"):
             self.assertFalse(page_access.is_open(closed), closed)
