@@ -29,6 +29,108 @@ MODULE_REVISION = 2026082861
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
 
+
+def jarvis7_css() -> str:
+    """Opt-in J7-only phone rules. Existing callers never emit this stylesheet."""
+    return """
+    @media (max-width: 600px) {
+      body:has(.j7-mount) .block-container{padding:.35rem .65rem 0!important}
+      .j7-shell{font-size:13px;padding-bottom:105px}
+      .j7-shell .j7-header{gap:7px;margin:9px 0 15px}
+      .j7-shell .j7-brand{font-size:25px;letter-spacing:-1px}
+      .j7-shell .j7-tag{font-size:9px;padding:2px 5px}
+      .j7-shell .j7-status{font-size:9px;gap:4px;padding:5px 7px}
+      .j7-shell .j7-header .j7-circle{width:29px;height:29px}
+      .j7-shell .j7-header .j7-icon{width:17px;height:17px}
+      .j7-shell .j7-panel{border-radius:17px;padding:15px;margin-bottom:13px}
+      .j7-shell .j7-hero{grid-template-columns:1.1fr .9fr;min-height:250px;padding:20px 16px;gap:5px}
+      .j7-shell .j7-hero h1{font-size:27px;letter-spacing:-1px;line-height:1.3;margin:12px 0}
+      .j7-shell .j7-hero p{font-size:11px;margin-bottom:12px}
+      .j7-shell .j7-eyebrow{font-size:10px;letter-spacing:.2px;gap:4px}
+      .j7-shell .j7-eyebrow .j7-icon{width:17px;height:17px}
+      .j7-shell .j7-footnote{font-size:9px}
+      .j7-shell .j7-gauge{width:145px;height:145px;max-width:100%}
+      .j7-shell .j7-gauge-text strong{font-size:43px;letter-spacing:-2px}
+      .j7-shell .j7-gauge-text span{font-size:10px}
+      .j7-shell .j7-gauge-text b{font-size:10px;margin-top:3px}
+      .j7-shell .j7-index-grid{gap:6px;margin-bottom:13px}
+      .j7-shell .j7-index{padding:10px 7px;border-radius:12px;margin:0}
+      .j7-shell .j7-index .j7-index-name{font-size:10px;margin-bottom:5px}
+      .j7-shell .j7-index .j7-index-name .j7-icon{display:none}
+      .j7-shell .j7-index b{font-size:13px;letter-spacing:-.3px}
+      .j7-shell .j7-index span{font-size:9px}
+      .j7-shell .j7-index small{font-size:8px;overflow-wrap:anywhere}
+      .j7-shell .j7-index .j7-spark,.j7-shell .j7-index .j7-chart-empty{height:39px}
+      .j7-shell .j7-index .j7-index-price{gap:1px;flex-direction:column}
+      .j7-shell .j7-section-head{gap:8px;margin-bottom:10px}
+      .j7-shell h2{font-size:15px;letter-spacing:-.4px}
+      .j7-shell .j7-section-head>span{font-size:9px}
+      .j7-shell .j7-section-head .j7-icon{width:19px;height:19px}
+      .j7-shell .j7-theme-row{grid-template-columns:19px 25px minmax(85px,1.1fr) minmax(35px,1fr) 36px 10px;gap:7px;padding:9px 0}
+      .j7-shell .j7-theme-row b{font-size:12px}
+      .j7-shell .j7-theme-row strong{font-size:14px}
+      .j7-shell .j7-theme-row .j7-rank{font-size:11px}
+      .j7-shell .j7-theme-row .j7-theme-icon{width:25px;height:25px;border-radius:7px}
+      .j7-shell .j7-theme-row .j7-theme-icon .j7-icon{width:18px;height:18px}
+      .j7-shell .j7-theme-row>.j7-icon{width:10px}
+      .j7-shell .j7-bar{height:6px}
+      .j7-shell .j7-stock-strip{grid-auto-columns:126px;gap:8px}
+      .j7-shell .j7-stock-tile{padding:11px 10px;border-radius:13px}
+      .j7-shell .j7-stock-id{gap:6px}.j7-shell .j7-stock-id b{font-size:14px}
+      .j7-shell .j7-logo{width:29px;height:29px;border-radius:8px}
+      .j7-shell .j7-price{font-size:21px}
+      .j7-shell .j7-quick{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+      .j7-shell .j7-quick-item{padding:12px}
+      .j7-shell .j7-quick-item b{font-size:14px}
+      .j7-shell .j7-notice{padding:13px;font-size:12px;gap:10px;border-radius:14px;margin-bottom:13px}
+      .j7-shell .j7-notice>.j7-icon{width:24px;height:24px}
+      .j7-shell .j7-banner{min-height:150px;padding:22px 20px}
+      .j7-shell h1{font-size:31px;letter-spacing:-1px}
+      .j7-shell .j7-banner p{font-size:11px}
+      .j7-shell .j7-banner-art>.j7-icon{width:65px;height:65px}
+      .j7-shell .j7-summary{gap:7px;margin-bottom:13px}
+      .j7-shell .j7-summary-card{padding:12px 4px;margin:0}
+      .j7-shell .j7-summary-card h3{font-size:11px}
+      .j7-shell .j7-gauge.small{width:100px;height:100px}
+      .j7-shell .j7-gauge.small strong{font-size:30px}
+      .j7-shell .j7-gauge.small b{font-size:8px}
+      .j7-shell .j7-summary-card>strong{font-size:26px;margin:20px 0 10px}
+      .j7-shell .j7-summary-card p{font-size:11px}
+      .j7-shell .j7-summary-card small{font-size:8px;overflow-wrap:anywhere}
+      .j7-shell .j7-strategies{gap:10px;margin-bottom:13px}
+      .j7-shell .j7-strategy{padding:17px 13px;border-radius:16px}
+      .j7-shell .j7-strategy h2{font-size:20px}
+      .j7-shell .j7-strategy h3{font-size:12px}
+      .j7-shell .j7-strategy p{font-size:10px;margin:10px 0 15px}
+      .j7-shell .j7-strategy small{font-size:8px}
+      .j7-shell .j7-strategy span{font-size:10px;padding:4px 8px;gap:5px}
+      .j7-shell .j7-strategy span .j7-icon{width:14px;height:14px}
+      .j7-shell .j7-strategy>svg{width:70px;height:70px;right:7px;top:65px;opacity:.18}
+      .j7-shell .j7-search{gap:7px}
+      .j7-shell .j7-search input{font-size:12px;padding:12px}
+      .j7-shell .j7-submit{padding:10px 12px;font-size:12px}
+      .j7-shell .j7-list-row{gap:9px;padding:11px 10px;font-size:12px}
+      .j7-shell .j7-list-row small{font-size:10px}
+      .j7-shell .j7-list-row>div:nth-last-child(3){min-width:40px}
+      .j7-shell .j7-list-name small{max-width:125px}
+      .j7-shell .j7-search-row>.j7-circle{width:31px;height:31px;flex-shrink:0}
+      .j7-shell .j7-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:16px 0}
+      .j7-shell .j7-metric{padding:12px 7px;border-radius:12px}
+      .j7-shell .j7-metric strong{font-size:19px}
+      .j7-shell .j7-metric small{font-size:9px}
+      .j7-shell .j7-metric>span{font-size:9px}
+      .j7-shell .j7-detail-title h1{font-size:33px}
+      .j7-shell .j7-detail-title>.j7-logo{width:47px;height:47px}
+      .j7-shell .j7-decision h2{font-size:22px}
+      .j7-shell .j7-decision p{font-size:12px}
+      .j7-shell .j7-two{grid-template-columns:1fr;gap:0}
+      .j7-shell .j7-evidence li{font-size:12px}
+      .j7-shell .j7-nav{bottom:max(10px,env(safe-area-inset-bottom));width:calc(100% - 20px);border-radius:22px;padding:8px 5px}
+      .j7-shell .j7-nav button{font-size:10px;min-height:48px}
+      .j7-shell .j7-nav .j7-icon{width:23px;height:23px}
+    }
+    """
+
 _BLOCK = "[data-testid='stHorizontalBlock']"
 
 

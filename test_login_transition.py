@@ -258,12 +258,12 @@ class LoginAppLifecycleTests(unittest.TestCase):
         """
         options = re.search(r"_ALL_DEST_OPTIONS = \[(.*?)\]", SOURCE, re.S).group(1)
         names = re.findall(r'"([^"]+)"', options)
-        self.assertEqual(8, len(names))
+        self.assertEqual(9, len(names))
         # 감추는 번호(1~3, 6~7)를 뺀 나머지가 테마 화면 셋이어야 한다.
         shown = [name for index, name in enumerate(names, 1)
-                 if 4 <= index <= 5 or index == 8]
+                 if 4 <= index <= 5 or index in (8, 9)]
         self.assertEqual(["미국테마 (자비스3)", "한국테마 (자비스4)",
-                          "자비스6 미국테마 (새 디자인)"], shown)
+                          "자비스6 미국테마 (새 디자인)", "자비스7 미국테마"], shown)
         # 기본 선택은 감추는 항목에 들어가면 안 된다.
         default = int(re.search(r"_DEST_DEFAULT_INDEX = (\d+)", SOURCE).group(1))
         self.assertIn(names[default], shown)
@@ -299,7 +299,7 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 2026-09-07에 미국테마 하나만 남겼다가, **2026-09-08에 나머지 둘을
         # 도로 열어** 셋이 되었다(상하님 지시 — "한국테마는 다시 살려라" ·
         # "자비스6 미국테마도 다시 살려라").
-        self.assertEqual(3, len(links), labels)
+        self.assertEqual(4, len(links), labels)
         for name in ("미국테마 (자비스3)", "한국테마 (자비스4)",
                      "자비스6 미국테마 (새 디자인)"):
             self.assertIn(name, labels)

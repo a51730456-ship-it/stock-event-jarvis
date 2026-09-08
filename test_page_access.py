@@ -32,7 +32,7 @@ class OpenPagesTests(unittest.TestCase):
         나머지 둘을 도로 열었다** — "한국테마는 다시 살려라" ·
         "자비스6 미국테마도 다시 살려라."
         """
-        self.assertEqual(("미국테마", "한국테마", "자비스6미국테마"),
+        self.assertEqual(("미국테마", "한국테마", "자비스6미국테마", "자비스7"),
                          page_access.OPEN_PAGES)
 
     def test_every_name_is_a_real_page(self):
@@ -42,7 +42,7 @@ class OpenPagesTests(unittest.TestCase):
 
     def test_the_full_list_is_kept_for_restoring(self):
         """되살릴 이름을 지우지 않는다 — 지우면 무엇이 있었는지 알 수 없다."""
-        self.assertEqual(8, len(page_access.ALL_PAGES))
+        self.assertEqual(9, len(page_access.ALL_PAGES))
 
 
 class GuardPlacementTests(unittest.TestCase):
