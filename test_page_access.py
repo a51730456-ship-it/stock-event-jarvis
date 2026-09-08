@@ -26,13 +26,14 @@ CLOSED_PAGES = {
 
 class OpenPagesTests(unittest.TestCase):
     def test_only_the_theme_pages_are_open(self):
-        """지금 열어 둔 것은 미국테마와 한국테마 둘이다.
+        """지금 열어 둔 것은 테마 화면 셋이다.
 
         2026-09-07에 미국테마 하나만 남겼다가, **2026-09-08 상하님 지시로
-        한국테마를 도로 열었다** — "한국테마는 다시 살려라."
-        자비스6미국테마(새 디자인)는 수리 중이라 그대로 닫혀 있다.
+        나머지 둘을 도로 열었다** — "한국테마는 다시 살려라" ·
+        "자비스6 미국테마도 다시 살려라."
         """
-        self.assertEqual(("미국테마", "한국테마"), page_access.OPEN_PAGES)
+        self.assertEqual(("미국테마", "한국테마", "자비스6미국테마"),
+                         page_access.OPEN_PAGES)
 
     def test_every_name_is_a_real_page(self):
         """열어 둔 이름이 오타면 그 화면이 조용히 막힌다."""
@@ -69,9 +70,22 @@ class GuardPlacementTests(unittest.TestCase):
         한국테마는 2026-09-07에 닫으면서 막는 장치를 붙였다가, 2026-09-08에
         도로 열면서 그 장치를 뗐다(상하님 지시 — "한국테마는 다시 살려라").
         """
-        for path in ("pages/2_자비스3.py", "pages/3_자비스4.py"):
+        for path in ("pages/2_자비스3.py", "pages/3_자비스4.py",
+                     "pages/6_자비스6_미국테마.py"):
             source = (ROOT / path).read_text(encoding="utf-8")
             self.assertNotIn("page_access.guard(", source, path)
+
+    def test_the_new_design_page_is_not_under_repair(self):
+        """자비스6미국테마는 「수리 중입니다」 한 장만 그리고 멈추던 장치가 있었다.
+
+        2026-09-07에 붙였다가(상하님 — "그냥 수리 중이라고만 내용 넣어라"),
+        2026-09-08에 뗐다(상하님 — "자비스6 미국테마도 다시 살려라").
+        열어 두기만 하고 이것을 남겨 두면 화면은 여전히 안 열린다 —
+        그래서 여는 것과 함께 지킨다.
+        """
+        source = (ROOT / "pages/6_자비스6_미국테마.py").read_text(encoding="utf-8")
+        self.assertNotIn("_UNDER_REPAIR", source)
+        self.assertNotIn("수리 중입니다", source)
 
 
 class ChooserTests(unittest.TestCase):
