@@ -2559,20 +2559,23 @@ def test_the_big_card_can_be_closed_from_the_bottom_too():
     css = css[:css.index("</style>")]
     rule = css[css.index(".j3b-open-close-b{"):]
     rule = rule[:rule.index("}") + 1]
-    # 왼쪽 아래다 — 오른쪽 아래에는 장식 그림(96px)이 앉아 있어 겹친다.
-    assert "left:16px" in rule
-    assert "right:auto" in rule and "top:auto" in rule, "위 규칙을 안 풀면 오른쪽 위에 겹친다"
-    # **하단 이동막대보다 위여야 누를 수 있다** (2026-09-10 상하님 지적 —
-    # "종목 뉴스가 길어서 닫기 화면 누르면 안 된다").
-    # 막대는 position:fixed; bottom:8px; height:64px 로 화면 바닥 72px를 덮고
-    # z-index가 최대값이라, 16px에 있던 이 단추가 그 밑에 깔렸다.
-    bottom = int(re.search(r"bottom:(\d+)px", rule).group(1))
-    assert bottom > 72, f"하단 이동막대(바닥 72px)에 깔린다 — 지금 {bottom}px"
-    # 그 자리에 설 수 있게 카드 아래 여백도 그만큼 있어야 한다.
+    # **자리를 띄우지 않는다** (2026-09-10 · 두 번 틀린 뒤 내린 결론).
+    #   16px  → 하단 이동막대(position:fixed; bottom:8px; height:64px 로 화면
+    #           바닥 72px를 덮고 z-index 최대값)에 깔렸다.
+    #   88px  → 이번에는 뉴스 목록 위에 겹쳤다. 목록은 pointer-events:auto 라
+    #           손가락을 먹어 버려 카드가 안 닫혔다.
+    # 띄우는 한 어느 쪽이든 겹치므로 목록 **다음 흐름**에 놓는다.
+    assert "position:static" in rule, "띄우면 하단막대나 뉴스 둘 중 하나에 겹친다"
+    for undo in ("right:auto", "left:auto", "top:auto", "bottom:auto"):
+        assert undo in rule, f"위 규칙의 {undo} 를 안 풀면 오른쪽 위에 겹친다"
+    assert "sticky" not in rule and "fixed" not in rule and "absolute" not in rule
+    # 흐름에 놓았으니 **뉴스 목록보다 뒤**에 와야 한다. 앞에 오면 글을 가린다.
+    open_card = source[source.index("open_card = ("):source.index("card_html = (")]
+    assert open_card.index("j3b-open-list") < open_card.index("j3b-open-close-b"), \
+        "닫기가 뉴스 목록보다 앞에 있으면 글 위에 얹힌다"
+    # 카드 아래 여백은 그대로 둔다 — 하단 이동막대와의 거리를 이것이 만든다.
     assert "padding:20px 20px 152px" in source, "넓은 화면 카드 아래 여백이 모자란다"
     assert "padding:18px 16px 144px" in source, "폰 카드 아래 여백이 모자란다"
-    # **창 바닥에 붙이지 않는다** — 2026-08-26에 sticky 로 했다가 글을 가렸다.
-    assert "sticky" not in rule and "fixed" not in rule
 
     # 누르는 방식은 위 것과 같다 — 큰 판이 손가락을 안 받아야 바탕까지 내려가 닫힌다.
     assert ".j3b-open-card{pointer-events:none}" in source
