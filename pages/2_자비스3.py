@@ -9314,22 +9314,29 @@ def _set_briefing_page(page: str) -> None:
 _SWIPE_OUTER_JS = """
 (function () {
   var d = document, x0 = 0, y0 = 0, live = false, fired = false;
+  // 시장분석 화면은 표(21개 테마·급락·상승장)가 다 가로로 잘려 있어 옆으로
+  // 밀어야 보인다. 그 손가락을 화면 넘김으로 잡으면 표를 볼 수가 없다
+  // (2026-09-10 상하님 지적 — "저기서 왼쪽으로 가면 관심종목으로 가버린다.
+  //  오른쪽으로 끝까지 가면 또 관심종목으로 가버린다").
+  // 그래서 되돌아가기는 **화면 왼쪽 가장자리에서 시작한 손가락만** 받는다.
+  // 표는 가운데에 있으므로 서로 부딪히지 않는다. 폰 뒤로가기와 같은 결이다.
+  var EDGE = 44;
   function sideways(node) {
-    for (var i = 0; node && i < 8; i += 1, node = node.parentElement) {
+    // **끝까지 올라간다.** 예전에는 여덟 칸만 보고 말아서 표 감싸개를 놓쳤다.
+    while (node && node !== d.documentElement) {
       try {
-        var how = getComputedStyle(node).overflowX;
-        if ((how === 'auto' || how === 'scroll') && node.scrollWidth > node.clientWidth + 4) {
-          return true;
+        if (node.scrollWidth > node.clientWidth + 4) {
+          var how = getComputedStyle(node).overflowX;
+          if (how === 'auto' || how === 'scroll') { return true; }
         }
       } catch (e) { return false; }
+      node = node.parentElement;
     }
     return false;
   }
   function findButton(key) {
     return d.querySelector('div[class*="st-key-' + key + '"] button');
   }
-  // 손가락이 **움직이는 중에** 넘긴다. 떼기를 기다리면 그만큼 늦게 느껴진다
-  // (2026-09-10 상하님 지적 — "화면 옆으로 넘기는 것 너무 늦다").
   function tryGo(dx, dy) {
     if (fired) { return; }
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) { return; }
@@ -9337,13 +9344,14 @@ _SWIPE_OUTER_JS = """
     var onMarket = !!d.querySelector('.j3-market-top');
     var key = null, out = null;
     if (dx < 0 && onWatch) { key = 'j3b_swipe_market'; out = 'j3b-swipe-out-left'; }
-    else if (dx > 0 && onMarket) { key = 'j3b_swipe_watch'; out = 'j3b-swipe-out-right'; }
+    else if (dx > 0 && onMarket && x0 <= EDGE) {
+      key = 'j3b_swipe_watch'; out = 'j3b-swipe-out-right';
+    }
     if (!key) { return; }
     var hit = findButton(key);
     if (!hit) { return; }
     fired = true;
     live = false;
-    // 화면이 따라 나가는 것과 **동시에** 누른다. 기다리지 않는다.
     try { d.body.classList.add(out); } catch (e) {}
     try { hit.click(); } catch (e) {}
     setTimeout(function () {
@@ -9354,9 +9362,10 @@ _SWIPE_OUTER_JS = """
   d.addEventListener('touchstart', function (ev) {
     if (fired) { return; }
     if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
-    if (sideways(ev.target)) { live = false; return; }
     x0 = ev.touches[0].clientX;
     y0 = ev.touches[0].clientY;
+    // 가장자리에서 시작했으면 표 위라도 받는다 — 되돌아가는 유일한 길이다.
+    if (x0 > EDGE && sideways(ev.target)) { live = false; return; }
     live = true;
   }, { passive: true });
   d.addEventListener('touchmove', function (ev) {
@@ -9364,7 +9373,6 @@ _SWIPE_OUTER_JS = """
     var t = ev.touches[0];
     tryGo(t.clientX - x0, t.clientY - y0);
   }, { passive: true });
-  // 아주 빠르게 튕겨서 touchmove 가 한 번도 안 온 경우를 위한 뒷받침.
   d.addEventListener('touchend', function (ev) {
     if (!live) { return; }
     live = false;
