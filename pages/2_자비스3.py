@@ -8042,7 +8042,7 @@ def _briefing_css() -> None:
         """
         <style>
         html:has(.j3b-home),body:has(.j3b-home){overflow-x:hidden!important;max-width:100vw!important}
-        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
+        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+9){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
         body:has(.j3b-home) [data-testid="stHorizontalBlock"],body:has(.j3b-home) [data-testid="stColumn"],body:has(.j3b-home) [data-testid="column"]{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
         .j3b-hero{height:174px!important;margin:0!important;padding:18px 18px!important;border-radius:0 0 24px 24px!important}.j3b-hero:before{width:620px!important;height:190px!important;bottom:-124px!important}.j3b-hero:after{left:96px!important;bottom:28px!important;width:150px!important;height:27px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:172px!important;right:-4px!important;bottom:4px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:116%!important;max-width:none!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
@@ -9317,7 +9317,7 @@ def _set_briefing_page(page: str) -> None:
 # (2026-09-10에 손으로 하다 틀려서 폰에서 아무 일도 안 일어났다).
 _SWIPE_OUTER_JS = """
 (function () {
-  var d = document, x0 = 0, y0 = 0, live = false;
+  var d = document, x0 = 0, y0 = 0, live = false, fired = false;
   function sideways(node) {
     for (var i = 0; node && i < 8; i += 1, node = node.parentElement) {
       try {
@@ -9332,20 +9332,11 @@ _SWIPE_OUTER_JS = """
   function findButton(key) {
     return d.querySelector('div[class*="st-key-' + key + '"] button');
   }
-  d.addEventListener('touchstart', function (ev) {
-    if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
-    if (sideways(ev.target)) { live = false; return; }
-    x0 = ev.touches[0].clientX;
-    y0 = ev.touches[0].clientY;
-    live = true;
-  }, { passive: true });
-  d.addEventListener('touchend', function (ev) {
-    if (!live) { return; }
-    live = false;
-    var t = (ev.changedTouches || [])[0];
-    if (!t) { return; }
-    var dx = t.clientX - x0, dy = t.clientY - y0;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) { return; }
+  // 손가락이 **움직이는 중에** 넘긴다. 떼기를 기다리면 그만큼 늦게 느껴진다
+  // (2026-09-10 상하님 지적 — "화면 옆으로 넘기는 것 너무 늦다").
+  function tryGo(dx, dy) {
+    if (fired) { return; }
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) { return; }
     var onWatch = !!d.querySelector('.j3b-home');
     var onMarket = !!d.querySelector('.j3-market-top');
     var key = null, out = null;
@@ -9354,13 +9345,36 @@ _SWIPE_OUTER_JS = """
     if (!key) { return; }
     var hit = findButton(key);
     if (!hit) { return; }
+    fired = true;
+    live = false;
+    // 화면이 따라 나가는 것과 **동시에** 누른다. 기다리지 않는다.
     try { d.body.classList.add(out); } catch (e) {}
+    try { hit.click(); } catch (e) {}
     setTimeout(function () {
-      try { hit.click(); } catch (e) {}
-      setTimeout(function () {
-        try { d.body.classList.remove('j3b-swipe-out-left', 'j3b-swipe-out-right'); } catch (e) {}
-      }, 700);
-    }, 170);
+      try { d.body.classList.remove('j3b-swipe-out-left', 'j3b-swipe-out-right'); } catch (e) {}
+      fired = false;
+    }, 900);
+  }
+  d.addEventListener('touchstart', function (ev) {
+    if (fired) { return; }
+    if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
+    if (sideways(ev.target)) { live = false; return; }
+    x0 = ev.touches[0].clientX;
+    y0 = ev.touches[0].clientY;
+    live = true;
+  }, { passive: true });
+  d.addEventListener('touchmove', function (ev) {
+    if (!live || !ev.touches || ev.touches.length !== 1) { return; }
+    var t = ev.touches[0];
+    tryGo(t.clientX - x0, t.clientY - y0);
+  }, { passive: true });
+  // 아주 빠르게 튕겨서 touchmove 가 한 번도 안 온 경우를 위한 뒷받침.
+  d.addEventListener('touchend', function (ev) {
+    if (!live) { return; }
+    live = false;
+    var t = (ev.changedTouches || [])[0];
+    if (!t) { return; }
+    tryGo(t.clientX - x0, t.clientY - y0);
   }, { passive: true });
 })();
 """
@@ -9392,8 +9406,8 @@ def _briefing_swipe_nav(active: str) -> None:
         "div[class*='st-key-j3b_swipe_']{position:absolute!important;"
         "width:1px!important;height:1px!important;margin:0!important;padding:0!important;"
         "overflow:hidden!important;opacity:0!important;pointer-events:none!important}"
-        "[data-testid='stAppViewContainer']{transition:transform .26s cubic-bezier(.22,.61,.36,1),"
-        "opacity .26s ease}"
+        "[data-testid='stAppViewContainer']{transition:transform .15s cubic-bezier(.22,.61,.36,1),"
+        "opacity .15s ease}"
         "body.j3b-swipe-out-left [data-testid='stAppViewContainer']"
         "{transform:translateX(-13%);opacity:.34}"
         "body.j3b-swipe-out-right [data-testid='stAppViewContainer']"
@@ -9401,9 +9415,9 @@ def _briefing_swipe_nav(active: str) -> None:
         "@keyframes j3bInFromRight{from{transform:translateX(15%);opacity:0}to{transform:none;opacity:1}}"
         "@keyframes j3bInFromLeft{from{transform:translateX(-15%);opacity:0}to{transform:none;opacity:1}}"
         "body:has(.j3b-in-right) [data-testid='stAppViewContainer']"
-        "{animation:j3bInFromRight .34s cubic-bezier(.22,.61,.36,1) both}"
+        "{animation:j3bInFromRight .2s cubic-bezier(.22,.61,.36,1) both}"
         "body:has(.j3b-in-left) [data-testid='stAppViewContainer']"
-        "{animation:j3bInFromLeft .34s cubic-bezier(.22,.61,.36,1) both}"
+        "{animation:j3bInFromLeft .2s cubic-bezier(.22,.61,.36,1) both}"
         "@media (prefers-reduced-motion:reduce){"
         "[data-testid='stAppViewContainer']{transition:none}"
         "body.j3b-swipe-out-left [data-testid='stAppViewContainer'],"

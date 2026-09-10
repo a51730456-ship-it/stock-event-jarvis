@@ -2400,21 +2400,29 @@ def test_the_phone_home_screen_is_left_alone():
     "스마트폰에는 4개만 보이게 하라고. 사용자 선정 종목 이야기하는 것이야.
     추가 검색 종목도 건들이지 말고." · "스마트폰은 전부 원래대로 하라고."
 
-    브라우저 실측(폰 375px) — 사용자 선정 4개 · 2칸 2줄 · 통 375px,
-    추가 검색 종목 2칸 그대로. 태블릿 800px 은 6개 3칸 2줄이다.
+    브라우저 실측(폰 375px) — 2칸 · 통 375px, 추가 검색 종목 2칸 그대로.
+
+    **보이는 개수만 2026-09-10에 넷 → 여덟으로 바뀌었다** (상하님 지시 —
+    "사용자 선정종목 추가가 안 된다. 개수 제한 4개이지 싶다. 8개로 가능하도록
+    만들어라"). 저장 한도는 여섯이었는데 폰이 넷만 보여 주어 넷으로 보이셨다.
+    저장 한도(`SELECTED_SLOTS`)와 폰 규칙을 **둘 다 여덟로** 맞췄다.
+    나머지(칸 수·폭·추가 검색 종목)는 2026-08-27 지시 그대로 둔다.
     """
     source = PAGE.read_text(encoding="utf-8")
     # 같은 이름의 블록이 둘이라 **내 규칙이 든 쪽**을 집어서 본다.
-    mark = 'div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}'
+    mark = 'div.st-key-j3b_grid_selected>*:nth-child(n+9){display:none!important}'
     start = source.rindex("@media (max-width:600px){", 0, source.index(mark))
     phone = source[start:source.index(mark) + len(mark) + 2]
     # 폰은 두 칸이다.
     assert "grid-template-columns:repeat(2,minmax(0,1fr))!important" in phone
     # 폰 폭은 예전 그대로 430px 이다.
     assert "max-width:min(430px,100vw)!important" in phone
-    # **사용자 선정 종목만** 앞 넷까지 보인다. 추가 검색 종목은 안 건드린다.
-    assert "div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}" in phone
+    # **사용자 선정 종목만** 앞 여덟까지 보인다. 추가 검색 종목은 안 건드린다.
+    assert mark in phone
     assert "j3b_grid_extra" not in phone, "추가 검색 종목을 건드렸다"
+    # 화면이 보여 주는 개수와 저장 한도가 어긋나면 "추가가 안 된다"가 또 난다.
+    import jarvis3_briefing_store as _store
+    assert _store.SELECTED_SLOTS == 8, "저장 한도와 폰 표시 개수가 어긋난다"
 
 def test_the_tablet_breakpoint_starts_at_601():
     """태블릿 경계는 601px 부터다 (2026-08-27 상하님 지적).
