@@ -8023,7 +8023,7 @@ def _briefing_css() -> None:
         div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:16px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
         .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.photo{background:linear-gradient(145deg,#ffffff,#dde6f3)!important}.j3b-logo.photo img{width:80%;height:80%;object-fit:contain;filter:none!important}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}/* 접힌 카드의 당일 그림은 선을 얇게 (2026-08-28 상하님 지적 — "선이 너무 굵다, 원래 선 크기로"). 분봉이라 점이 촘촘해서 2.1px 로는 선이 굵은 띠처럼 보인다. 크게 연 카드의 6개월 그림은 .j3b-open-card 쪽 규칙이 따로 있어 안 건드린다(상하님 — "선택하면 나오는 건 건드리지 말고"). */.j3b-card .j3b-chart polyline{stroke-width:1.4px}.j3b-card .j3b-chart polygon{fill-opacity:.11}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
-        div[class*="st-key-j3b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}/* 카드 제 아래 여백은 격자 안에서 끈다 — 격자 틈과 겹쳐 위아래가 붙어 보였다(2026-08-27 상하님 지적 — "종목이 위아래 너무 붙어 있지"). 실측 -1px. */div[class*="st-key-j3b_grid_"] .j3b-card{margin-bottom:0!important}/* 칸이 카드보다 작으면 카드가 삐져나와 아래 줄과 붙는다(실측 칸 132 · 카드 148).   칸에 박힌 높이를 풀어 카드 크기를 그대로 따라가게 한다. */div[class*="st-key-j3b_grid_"]>*,div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
+        div[class*="st-key-j3b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}/* 카드 제 아래 여백은 격자 안에서 끈다 — 격자 틈과 겹쳐 위아래가 붙어 보였다(2026-08-27 상하님 지적 — "종목이 위아래 너무 붙어 있지"). 실측 -1px. */div[class*="st-key-j3b_grid_"] .j3b-card{margin-bottom:0!important}/* 칸이 카드보다 작으면 카드가 삐져나와 아래 줄과 붙는다(실측 칸 132 · 카드 148).   칸에 박힌 높이를 풀어 카드 크기를 그대로 따라가게 한다. */div[class*="st-key-j3b_grid_"]>*,div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"],div[class*="st-key-j3b_selected_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]),div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button,div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
         .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:27px;font-weight:500}.j3b-nav-item b .j3b-pie{display:block;width:1.18em;height:1.18em}.j3b-nav-item.active{color:#4cc6ff;text-shadow:0 0 8px #1f9fe066}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
         div.st-key-j3b_nav_controls{position:fixed!important;z-index:2147483647!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:68px!important;pointer-events:none!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:68px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;height:68px!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]>[data-testid="stVerticalBlock"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%!important;max-width:none!important}div.st-key-j3b_nav_controls button{width:100%!important;height:68px!important;min-height:68px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important;touch-action:manipulation!important}
         div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
@@ -8132,14 +8132,18 @@ _BRIEFING_OPEN_CSS = """
    앉아 있어 거기 두면 겹친다.
    창 바닥에 **붙이지 않는다**(sticky 아님) — 2026-08-26에 그렇게 했다가 글을
    굴리는 동안 화면 한가운데에 떠서 글을 가렸다. 카드 안 여백에 가만히 놓는다.
-   **바닥에서 88px 띄운다**(2026-09-10 상하님 지적 — "종목 뉴스가 길어서 닫기
-   화면 누르면 안 된다"). 하단 이동막대가 position:fixed; bottom:8px;
-   height:64px 로 화면 바닥 **72px**를 덮고 z-index가 최대값이라, 16px에
-   두었던 이 단추가 뉴스를 펼쳐 카드가 길어지면 그 막대 밑에 깔렸다.
-   72px보다 위(88px)로 올리고 카드 아래 여백도 152px(폰 144px)로 넓혔다.
+   **띄우지 않고 뉴스 목록 바로 뒤 흐름에 놓는다**(2026-09-10 상하님 지적 —
+   "종목 뉴스가 길어서 닫기 화면 누르면 안 된다" · 고친 뒤에도 "안된다").
+   두 번 틀렸다. 처음에는 바닥에서 16px 이라 하단 이동막대(position:fixed;
+   bottom:8px; height:64px → 화면 바닥 72px, z-index 최대값)에 깔렸다.
+   그래서 88px로 올렸더니 이번에는 **뉴스 목록 위에 겹쳤다** — 목록은
+   pointer-events:auto 라 손가락을 먹어 버려 카드가 안 닫혔다.
+   자리를 띄우는 한 어느 쪽이든 겹친다. absolute 를 버리고 목록 **다음**
+   흐름에 놓으면 뉴스와 겹칠 수가 없고, 카드 아래 여백(152px · 폰 144px)이
+   하단 막대와의 거리도 만들어 준다.
    누르는 방식은 위 것과 똑같다 — 큰 판이 손가락을 안 받으므로(.j3b-open-card
    pointer-events:none) 여기를 눌러도 그 손가락이 바탕까지 내려가 닫힌다. */
-.j3b-open-close-b{right:auto;left:16px;top:auto;bottom:88px;padding:9px 18px;font-size:13px}
+.j3b-open-close-b{position:static;display:inline-block;right:auto;left:auto;top:auto;bottom:auto;margin:16px 0 0;padding:11px 20px;font-size:13px}
 .j3b-open-card .j3b-card-top{display:flex;gap:10px;align-items:center;min-height:58px;padding-right:132px}
 .j3b-open-card .j3b-logo{width:58px;height:58px;border-radius:14px}
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
@@ -9307,117 +9311,143 @@ def _set_briefing_page(page: str) -> None:
         pass
 
 
-def _briefing_swipe_to_market() -> None:
-    """관심종목 화면에서 **오른쪽에서 왼쪽으로 밀면** 시장분석으로 넘어간다.
-
-    2026-09-10 상하님 지시 — "미국테마 첫 화면에서 손가락으로 오른쪽에서 왼쪽으로
-    당기면 시장분석 화면으로 자연스럽게 넘어가도록. 아주 고급스럽게."
-
-    **왜 이렇게 만들었나 — 스트림릿에는 손가락 신호가 없다.**
-    `st.markdown` 은 `<script>` 를 지운다. 그래서 정식으로 내주는
-    `components.html`(작은 iframe)에 담아 보내고, 그 안에서 바깥 화면
-    (`window.parent.document`)에 손가락 신호를 붙인다. `scroll_to.py` 와 같은 길이다.
-
-    **누르는 것은 이 화면 전용 숨은 단추 하나뿐이다.** 하단 이동막대의
-    `j3b_nav_market` 을 직접 누르게 하면 그 막대가 어떻게 그려지는지에 따라
-    엉뚱한 칸을 누를 수 있다. 전용 단추를 두면 파이썬 쪽 길은 하나로 고정된다 —
-    누른 뒤 하는 일은 이동막대와 **똑같다**(`_set_briefing_page("market")`).
-
-    **절대 원칙 — 실패해도 아무 일도 일어나지 않아야 한다.**
-    브라우저가 막거나 단추를 못 찾으면 조용히 넘어간다. 손가락으로 미는 것이
-    안 되면 예전처럼 하단 막대를 누르시면 된다(CLAUDE.md 13번과 같은 결).
-
-    **가로로 굴리는 자리는 건드리지 않는다.** 옆으로 굴러가는 상자(표·그림) 안에서
-    시작한 손가락은 그 상자가 쓰게 둔다. 세로로 더 많이 움직인 손가락도 넘긴다 —
-    화면을 위아래로 굴리시는 중이기 때문이다.
-    """
-    # 보이지 않는 단추. CSS로 자리까지 없애 화면에 빈틈이 생기지 않게 한다.
-    st.markdown(
-        "<style>"
-        "div[class*='st-key-j3b_swipe_market']{position:absolute!important;"
-        "width:1px!important;height:1px!important;margin:0!important;padding:0!important;"
-        "overflow:hidden!important;opacity:0!important;pointer-events:none!important}"
-        # 미는 동안 화면이 왼쪽으로 따라 나간다. 손가락을 뗀 느낌이 나야 '자연스럽다'.
-        "[data-testid='stAppViewContainer']{transition:transform .26s cubic-bezier(.22,.61,.36,1),"
-        "opacity .26s ease}"
-        "body.j3b-swipe-out [data-testid='stAppViewContainer']{transform:translateX(-13%);opacity:.34}"
-        # 넘어간 화면은 오른쪽에서 미끄러져 들어온다.
-        "@keyframes j3bSlideIn{from{transform:translateX(15%);opacity:0}to{transform:none;opacity:1}}"
-        "body:has(.j3b-swiped-in) [data-testid='stAppViewContainer']"
-        "{animation:j3bSlideIn .34s cubic-bezier(.22,.61,.36,1) both}"
-        # 움직임을 줄여 달라고 해 두신 기기에서는 움직이지 않는다.
-        "@media (prefers-reduced-motion:reduce){"
-        "[data-testid='stAppViewContainer']{transition:none}"
-        "body.j3b-swipe-out [data-testid='stAppViewContainer']{transform:none;opacity:1}"
-        "body:has(.j3b-swiped-in) [data-testid='stAppViewContainer']{animation:none}}"
-        "</style>",
-        unsafe_allow_html=True,
-    )
-    if st.button("시장분석으로", key="j3b_swipe_market"):
-        st.session_state["j3b_swiped_in"] = True
-        _set_briefing_page("market")
-        st.rerun()
-    try:
-        import streamlit.components.v1 as components
-
-        components.html(
-            """
-<script>
+# 바깥 화면(스트림릿 판)에서 도는 손가락 신호. **여기 글자는 iframe이 아니라
+# 바깥 화면의 것**이라 판이 다시 그려져도 살아 있다. 아래 _briefing_swipe_nav 가
+# json.dumps 로 안전하게 감싸 심는다 — 따옴표를 손으로 이스케이프하지 않는다
+# (2026-09-10에 손으로 하다 틀려서 폰에서 아무 일도 안 일어났다).
+_SWIPE_OUTER_JS = """
 (function () {
-  var doc;
-  try { doc = window.parent && window.parent.document; } catch (e) { return; }
-  if (!doc || !doc.body) { return; }
-  // 판이 다시 그려질 때마다 이 조각도 새로 오지만, 신호는 바깥 화면에 붙는다.
-  // 두 번 붙으면 한 번 밀 때 두 번 넘어간다 — 표식을 보고 한 번만 붙인다.
-  if (doc.body.dataset.j3bSwipe === "1") { return; }
-  doc.body.dataset.j3bSwipe = "1";
-  var x0 = 0, y0 = 0, live = false;
-  function scrollsSideways(node) {
+  var d = document, x0 = 0, y0 = 0, live = false;
+  function sideways(node) {
     for (var i = 0; node && i < 8; i += 1, node = node.parentElement) {
       try {
-        var how = window.parent.getComputedStyle(node).overflowX;
-        if ((how === "auto" || how === "scroll") && node.scrollWidth > node.clientWidth + 4) {
+        var how = getComputedStyle(node).overflowX;
+        if ((how === 'auto' || how === 'scroll') && node.scrollWidth > node.clientWidth + 4) {
           return true;
         }
       } catch (e) { return false; }
     }
     return false;
   }
-  doc.addEventListener("touchstart", function (ev) {
+  function findButton(key) {
+    return d.querySelector('div[class*="st-key-' + key + '"] button');
+  }
+  d.addEventListener('touchstart', function (ev) {
     if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
-    // 관심종목 화면일 때만 받는다. 시장분석에서는 표식이 없다.
-    if (!doc.querySelector(".j3b-home")) { live = false; return; }
-    if (scrollsSideways(ev.target)) { live = false; return; }
+    if (sideways(ev.target)) { live = false; return; }
     x0 = ev.touches[0].clientX;
     y0 = ev.touches[0].clientY;
     live = true;
   }, { passive: true });
-  doc.addEventListener("touchend", function (ev) {
+  d.addEventListener('touchend', function (ev) {
     if (!live) { return; }
     live = false;
-    var touch = (ev.changedTouches || [])[0];
-    if (!touch) { return; }
-    var dx = touch.clientX - x0, dy = touch.clientY - y0;
-    // 왼쪽으로 70px 넘게, 그리고 위아래보다 두 배 넘게 움직였을 때만.
-    if (dx > -70 || Math.abs(dx) < Math.abs(dy) * 2) { return; }
-    var hit = doc.querySelector("div[class*='st-key-j3b_swipe_market'] button");
+    var t = (ev.changedTouches || [])[0];
+    if (!t) { return; }
+    var dx = t.clientX - x0, dy = t.clientY - y0;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) { return; }
+    var onWatch = !!d.querySelector('.j3b-home');
+    var onMarket = !!d.querySelector('.j3-market-top');
+    var key = null, out = null;
+    if (dx < 0 && onWatch) { key = 'j3b_swipe_market'; out = 'j3b-swipe-out-left'; }
+    else if (dx > 0 && onMarket) { key = 'j3b_swipe_watch'; out = 'j3b-swipe-out-right'; }
+    if (!key) { return; }
+    var hit = findButton(key);
     if (!hit) { return; }
-    try { doc.body.classList.add("j3b-swipe-out"); } catch (e) {}
-    // 화면이 왼쪽으로 나가는 것을 보여 준 뒤에 누른다.
+    try { d.body.classList.add(out); } catch (e) {}
     setTimeout(function () {
       try { hit.click(); } catch (e) {}
       setTimeout(function () {
-        try { doc.body.classList.remove("j3b-swipe-out"); } catch (e) {}
+        try { d.body.classList.remove('j3b-swipe-out-left', 'j3b-swipe-out-right'); } catch (e) {}
       }, 700);
-    }, 180);
+    }, 170);
   }, { passive: true });
 })();
-</script>
-""",
+"""
+
+
+def _briefing_swipe_nav(active: str) -> None:
+    """손가락으로 밀어 관심종목 ↔ 시장분석을 오간다.
+
+    2026-09-10 상하님 지시 — "오른쪽에서 왼쪽으로 당기면 시장분석으로.
+    넘어갔으면 다시 왼쪽에서 오른쪽으로 당기면 되돌아가게."
+
+    **iframe 안에 손잡이를 붙이면 안 된다 (CLAUDE.md · 첫 판에서 이걸 틀렸다).**
+    `components.html` 이 만드는 작은 iframe은 화면을 다시 그릴 때마다 사라진다.
+    그 안에서 `addEventListener` 를 부르면 손잡이 함수가 **죽은 iframe의 것**이라
+    크롬이 조용히 무시한다. 그래서 첫 판은 폰에서 아무 일도 하지 않았다.
+
+    그래서 iframe은 **심부름만** 한다 — 바깥 화면에 `<script>` 조각을 붙이고
+    끝낸다. 그 안의 코드(`_SWIPE_OUTER_JS`)는 바깥 화면의 것이라 계속 산다.
+    이미 심어 두었으면 다시 심지 않는다.
+
+    **어느 쪽으로 갈지는 화면이 정한다** — 관심종목에는 `.j3b-home`,
+    시장분석에는 `.j3-market-top` 표식이 있다. 손잡이는 밀 때마다 지금 화면을
+    다시 보므로 판이 바뀌어도 스스로 맞춰 간다.
+
+    실패해도 아무 일이 없어야 한다 — 안 되면 예전처럼 하단 막대를 누르시면 된다.
+    """
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j3b_swipe_']{position:absolute!important;"
+        "width:1px!important;height:1px!important;margin:0!important;padding:0!important;"
+        "overflow:hidden!important;opacity:0!important;pointer-events:none!important}"
+        "[data-testid='stAppViewContainer']{transition:transform .26s cubic-bezier(.22,.61,.36,1),"
+        "opacity .26s ease}"
+        "body.j3b-swipe-out-left [data-testid='stAppViewContainer']"
+        "{transform:translateX(-13%);opacity:.34}"
+        "body.j3b-swipe-out-right [data-testid='stAppViewContainer']"
+        "{transform:translateX(13%);opacity:.34}"
+        "@keyframes j3bInFromRight{from{transform:translateX(15%);opacity:0}to{transform:none;opacity:1}}"
+        "@keyframes j3bInFromLeft{from{transform:translateX(-15%);opacity:0}to{transform:none;opacity:1}}"
+        "body:has(.j3b-in-right) [data-testid='stAppViewContainer']"
+        "{animation:j3bInFromRight .34s cubic-bezier(.22,.61,.36,1) both}"
+        "body:has(.j3b-in-left) [data-testid='stAppViewContainer']"
+        "{animation:j3bInFromLeft .34s cubic-bezier(.22,.61,.36,1) both}"
+        "@media (prefers-reduced-motion:reduce){"
+        "[data-testid='stAppViewContainer']{transition:none}"
+        "body.j3b-swipe-out-left [data-testid='stAppViewContainer'],"
+        "body.j3b-swipe-out-right [data-testid='stAppViewContainer']{transform:none;opacity:1}"
+        "body:has(.j3b-in-right) [data-testid='stAppViewContainer'],"
+        "body:has(.j3b-in-left) [data-testid='stAppViewContainer']{animation:none}}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+    if active == "market":
+        if st.button("관심종목으로", key="j3b_swipe_watch"):
+            st.session_state["j3b_slide_in"] = "left"
+            _set_briefing_page("home")
+            st.rerun()
+    else:
+        if st.button("시장분석으로", key="j3b_swipe_market"):
+            st.session_state["j3b_slide_in"] = "right"
+            _set_briefing_page("market")
+            st.rerun()
+    try:
+        import json as _json
+        import streamlit.components.v1 as components
+
+        components.html(
+            "<script>(function(){var d;"
+            "try{d=window.parent&&window.parent.document;}catch(e){return;}"
+            "if(!d||!d.body||d.getElementById('j3b-swipe-script')){return;}"
+            "var t=d.createElement('script');t.id='j3b-swipe-script';"
+            "t.textContent=" + _json.dumps(_SWIPE_OUTER_JS) + ";"
+            "d.body.appendChild(t);})();</script>",
             height=0,
         )
     except Exception:
         pass
+
+
+def _briefing_slide_in_marker() -> None:
+    """밀어서 넘어오신 판에만 미끄러져 들어오는 표식을 남긴다 (2026-09-10).
+
+    하단 막대로 누르신 판이나 판이 다시 그려질 때는 표식이 없어 그냥 그려진다.
+    """
+    side = st.session_state.pop("j3b_slide_in", "")
+    if side in ("left", "right"):
+        st.markdown(f'<div class="j3b-in-{side}"></div>', unsafe_allow_html=True)
 
 
 def _render_briefing_bottom_nav(active: str) -> None:
@@ -9500,10 +9530,11 @@ def _render_stock_briefing() -> None:
         # 밀어서 넘어오신 판에만 표식을 남긴다 — 이 표식이 있는 판만 오른쪽에서
         # 미끄러져 들어온다. 하단 막대로 누르신 판이나 판이 다시 그려질 때는
         # 표식이 없어 예전처럼 그냥 그려진다(2026-09-10).
-        if st.session_state.pop("j3b_swiped_in", False):
-            st.markdown('<div class="j3b-swiped-in"></div>', unsafe_allow_html=True)
+        _briefing_slide_in_marker()
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
+        # 왼쪽에서 오른쪽으로 밀면 관심종목으로 되돌아간다(2026-09-10 상하님 지시).
+        _briefing_swipe_nav("market")
         return
     st.session_state["j3b_news_pending"] = False
     try:
@@ -9541,6 +9572,7 @@ def _render_stock_briefing() -> None:
         # 방문기록에 표식을 하나 쌓아 두면 첫 뒤로가기가 그 표식을 지우고 제자리에
         # 선다. 앞 화면(로그인·메뉴)으로 나가려면 두 번 누르면 된다.
         back_nav.opened(st, "j3b_backstop")
+        _briefing_slide_in_marker()
         # 시장분석에서 관심종목으로 돌아올 때 데려올 '맨 위' 자리.
         # 시장분석 쪽에는 이미 같은 이름의 자리가 있다(_render_existing_theme_content).
         scroll_to.anchor(st, "top")
@@ -9606,7 +9638,7 @@ def _render_stock_briefing() -> None:
                               compact=True, group="extra")
         _render_briefing_bottom_nav("watch")
         # 오른쪽→왼쪽으로 밀면 시장분석으로 넘어간다(2026-09-10 상하님 지시).
-        _briefing_swipe_to_market()
+        _briefing_swipe_nav("watch")
         news_keys = tuple([("market", None)] + [("company", stock["ticker"]) for stock in visible_stocks])
         _schedule_briefing_news_refresh(news_keys)
         # 아직 오는 중이면 **2초마다 지켜본다** (2026-09-02 상하님 —
