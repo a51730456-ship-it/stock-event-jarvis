@@ -252,12 +252,12 @@ def test_search_shows_the_match_and_adds_only_after_confirming():
         app.session_state["authenticated"] = True
         app.session_state["jarvis_access_role"] = "owner"
         app.run(timeout=30)
-        next(node for node in app.text_input if node.key == "j3b_search").input("애플").run(timeout=30)
-        next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
+        next(node for node in app.text_input if node.key == "j3b_search_extra").input("애플").run(timeout=30)
+        next(node for node in app.button if node.key == "j3b_manage_toggle_extra").click().run(timeout=30)
         # ＋ 만으로는 넣지 않는다. 찾은 종목을 보여 주고 확인을 받는다(2026-08-26).
         add_extra.assert_not_called()
-        assert app.session_state["j3b_search_found"][0]["ticker"] == "AAPL"
-        next(node for node in app.button if node.key == "j3b_search_ok").click().run(timeout=30)
+        assert app.session_state["j3b_search_found_extra"][0]["ticker"] == "AAPL"
+        next(node for node in app.button if node.key == "j3b_search_ok_extra").click().run(timeout=30)
     add_extra.assert_called_once_with("AAPL", "Apple")
 
 
@@ -299,10 +299,10 @@ def test_search_confirms_ionq_from_existing_theme_universe():
         app.session_state["authenticated"] = True
         app.session_state["jarvis_access_role"] = "owner"
         app.run(timeout=30)
-        next(node for node in app.text_input if node.key == "j3b_search").input("Ionq").run(timeout=30)
-        next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
+        next(node for node in app.text_input if node.key == "j3b_search_extra").input("Ionq").run(timeout=30)
+        next(node for node in app.button if node.key == "j3b_manage_toggle_extra").click().run(timeout=30)
         add_extra.assert_not_called()
-        next(node for node in app.button if node.key == "j3b_search_ok").click().run(timeout=30)
+        next(node for node in app.button if node.key == "j3b_search_ok_extra").click().run(timeout=30)
     add_extra.assert_called_once_with("IONQ", "IonQ")
 
 

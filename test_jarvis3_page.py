@@ -2560,8 +2560,17 @@ def test_the_big_card_can_be_closed_from_the_bottom_too():
     rule = css[css.index(".j3b-open-close-b{"):]
     rule = rule[:rule.index("}") + 1]
     # 왼쪽 아래다 — 오른쪽 아래에는 장식 그림(96px)이 앉아 있어 겹친다.
-    assert "left:16px" in rule and "bottom:16px" in rule
+    assert "left:16px" in rule
     assert "right:auto" in rule and "top:auto" in rule, "위 규칙을 안 풀면 오른쪽 위에 겹친다"
+    # **하단 이동막대보다 위여야 누를 수 있다** (2026-09-10 상하님 지적 —
+    # "종목 뉴스가 길어서 닫기 화면 누르면 안 된다").
+    # 막대는 position:fixed; bottom:8px; height:64px 로 화면 바닥 72px를 덮고
+    # z-index가 최대값이라, 16px에 있던 이 단추가 그 밑에 깔렸다.
+    bottom = int(re.search(r"bottom:(\d+)px", rule).group(1))
+    assert bottom > 72, f"하단 이동막대(바닥 72px)에 깔린다 — 지금 {bottom}px"
+    # 그 자리에 설 수 있게 카드 아래 여백도 그만큼 있어야 한다.
+    assert "padding:20px 20px 152px" in source, "넓은 화면 카드 아래 여백이 모자란다"
+    assert "padding:18px 16px 144px" in source, "폰 카드 아래 여백이 모자란다"
     # **창 바닥에 붙이지 않는다** — 2026-08-26에 sticky 로 했다가 글을 가렸다.
     assert "sticky" not in rule and "fixed" not in rule
 
