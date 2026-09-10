@@ -2356,13 +2356,16 @@ def test_switching_screens_goes_back_to_the_top():
     nav = nav[:nav.index(chr(10) + "def ", 10)]
     assert 'scroll_to.request(st, "top")' not in nav, "단추가 아직 표시를 적어 둔다"
     assert nav.count('_set_briefing_page(') == 3, "세 단추가 화면 이름을 안 정한다"
-    # **시장분석으로 가는 길이 둘이다.** 하단 막대와 「더보기 ›」다. 둘 다 같은
-    # 한 곳을 지나므로 빠뜨릴 수가 없다 — 2026-08-27에 「더보기」 쪽을 빠뜨려
-    # 상하님이 맨 위 두 단추를 못 보셨다.
+    # **시장분석으로 가는 길이 둘이다.** 하단 막대와 손가락으로 미는 것이다.
+    # 둘 다 같은 한 곳(_set_briefing_page)을 지나므로 빠뜨릴 수가 없다.
+    # 「더보기 ›」는 2026-09-10에 뺐다 — 그 자리에 검색줄이 앉는다(상하님 지시 —
+    # "사용자선정종목 바로 옆에 종목검색후추가로 하고 디자인 똑같이 해라").
     home = source[source.index("def _render_stock_briefing()"):source.index("def main()")]
-    more = home[home.index('key="j3b_go_market"'):]
-    more = more[:more.index("st.rerun()")]
-    assert '_set_briefing_page("market")' in more, "「더보기」가 화면을 안 바꾼다"
+    assert 'key="j3b_go_market"' not in home, "「더보기」를 뺐는데 아직 남아 있다"
+    swipe = source[source.index("def _briefing_swipe_nav("):]
+    swipe = swipe[:swipe.index(chr(10) + "def ", 10)]
+    assert '_set_briefing_page("market")' in swipe, "미는 길이 화면을 안 바꾼다"
+    assert '_set_briefing_page("home")' in swipe, "되돌아가는 길이 화면을 안 바꾼다"
     # 양쪽 화면에 '맨 위' 자리가 있어야 데려갈 곳이 있다.
     assert source.count('scroll_to.anchor(st, "top")') == 2, "'맨 위' 자리가 한쪽에만 있다"
     # ── 위 여백을 68px 에서 0 으로 되돌린 까닭 (2026-08-28) ──────────────────
@@ -2518,8 +2521,8 @@ def test_the_screen_you_were_on_is_written_into_the_address():
     assert "!= page" in writer
     assert "except Exception:" in writer
 
-    # 화면을 바꾸는 길 **셋 다** 이 한 곳을 지나야 빠뜨릴 수가 없다
-    # (하단 막대 홈·관심종목·시장분석 + 「더보기 ›」).
+    # 화면을 바꾸는 길이 **다** 이 한 곳을 지나야 빠뜨릴 수가 없다
+    # (하단 막대 홈·관심종목·시장분석 + 손가락으로 미는 것 둘).
     assert source.count("_set_briefing_page(") >= 5
     assert 'st.session_state["j3_briefing_page"] = "market"' not in source, \
         "주소를 안 거치고 화면을 바꾸는 길이 남아 있다"

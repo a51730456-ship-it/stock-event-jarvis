@@ -8020,7 +8020,7 @@ def _briefing_css() -> None:
            달라 멈춰도 로고가 궤도에 고르게 흩어져 있다. */
         @media (prefers-reduced-motion:reduce){.j3b-orbit-arm,.j3b-orbit-pod,.j3b-orbit-logo{animation-play-state:paused}}.j3b-hero:has(.j3b-hero-scene):before,.j3b-hero:has(.j3b-hero-scene):after{display:none}
         .j3b-section {display:flex;align-items:center;gap:8px;color:#f8f4e9;margin:18px 4px 9px;font-size:20px;font-weight:850;letter-spacing:-1.2px}.j3b-section .j3b-section-icon{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:0}.j3b-section .j3b-section-icon:after{content:"";width:12px;height:12px;border:2px solid #f3fbff;border-radius:50%;box-sizing:border-box}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500}.j3b-section .j3b-flag{font-size:23px;line-height:1;filter:drop-shadow(0 1px 2px #0009)}.j3b-section.search .j3b-section-icon{background:transparent;box-shadow:none;border:3px solid #2ebfff}.j3b-section.search .j3b-section-icon:after{width:10px;height:10px;border-color:#2ebfff}.j3b-section.search .j3b-section-icon:before{content:"";width:11px;height:3px;position:absolute;transform:translate(11px,12px) rotate(48deg);background:#2ebfff;border-radius:2px}
-        div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:16px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
+        
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
         .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.photo{background:linear-gradient(145deg,#ffffff,#dde6f3)!important}.j3b-logo.photo img{width:80%;height:80%;object-fit:contain;filter:none!important}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}/* 접힌 카드의 당일 그림은 선을 얇게 (2026-08-28 상하님 지적 — "선이 너무 굵다, 원래 선 크기로"). 분봉이라 점이 촘촘해서 2.1px 로는 선이 굵은 띠처럼 보인다. 크게 연 카드의 6개월 그림은 .j3b-open-card 쪽 규칙이 따로 있어 안 건드린다(상하님 — "선택하면 나오는 건 건드리지 말고"). */.j3b-card .j3b-chart polyline{stroke-width:1.4px}.j3b-card .j3b-chart polygon{fill-opacity:.11}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
         div[class*="st-key-j3b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}/* 카드 제 아래 여백은 격자 안에서 끈다 — 격자 틈과 겹쳐 위아래가 붙어 보였다(2026-08-27 상하님 지적 — "종목이 위아래 너무 붙어 있지"). 실측 -1px. */div[class*="st-key-j3b_grid_"] .j3b-card{margin-bottom:0!important}/* 칸이 카드보다 작으면 카드가 삐져나와 아래 줄과 붙는다(실측 칸 132 · 카드 148).   칸에 박힌 높이를 풀어 카드 크기를 그대로 따라가게 한다. */div[class*="st-key-j3b_grid_"]>*,div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"],div[class*="st-key-j3b_selected_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]),div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button,div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
@@ -8333,13 +8333,6 @@ body section[data-testid="stMain"],
 body [data-testid="stAppViewContainer"] { overscroll-behavior-y: contain !important; }
 
 /* 찾은 종목을 보여 주는 줄 */
-/* 사용자 선정 종목의 검색 줄 (2026-09-10). 추가 검색 줄과 **이름을 나눈다** —
-   그쪽은 제목 옆 칸에 앉느라 음수 여백으로 자리를 맞춰 두어서, 이름이 겹치면
-   여기까지 위로·오른쪽으로 밀린다. 여기는 제목 아래 한 줄로 그냥 놓는다. */
-div[class*="st-key-j3b_selected_search"]{margin:2px 0 6px!important}
-div[class*="st-key-j3b_selected_search"] input{height:34px!important;font-size:12px!important}
-div[class*="st-key-j3b_selected_search"] .stButton button{width:34px!important;
- height:34px!important;min-height:34px!important;font-size:20px!important;padding:0!important}
 div[class*="st-key-j3b_search_confirm"]{margin:6px 0 2px!important;
   padding:10px 12px!important;border:1px solid rgba(240,177,67,.45)!important;
   border-radius:14px!important;background:rgba(6,33,75,.72)!important}
@@ -9053,8 +9046,11 @@ def _render_briefing_manage(selected: list[dict], extras: list[dict], *,
     들어가도 알 수가 없었다.
     """
     found_key = f"j3b_search_found_{group}"
-    row_key = "j3b_search_row" if group == "extra" else "j3b_selected_search"
-    with st.container(key=row_key):
+    # 통 이름을 **둘 다 j3b_search_row 로 시작**하게 둔다. 화면 규칙이
+    # class*="st-key-j3b_search_row" 부분일치라, 이름이 다르면 칸 배치·라벨
+    # 숨김·입력칸 크기가 하나도 안 걸려 검색줄이 깨진다(2026-09-10 상하님 —
+    # "추가검색종목과 디자인 똑같이 해라").
+    with st.container(key="j3b_search_row" if group == "extra" else "j3b_search_row_sel"):
         query_col, plus_col = st.columns([7, 1])
         with query_col:
             query = st.text_input("종목 검색", placeholder="종목 검색 후 추가",
@@ -9380,7 +9376,7 @@ _SWIPE_OUTER_JS = """
 """
 
 
-def _briefing_swipe_nav(active: str) -> None:
+def _briefing_swipe_nav() -> None:
     """손가락으로 밀어 관심종목 ↔ 시장분석을 오간다.
 
     2026-09-10 상하님 지시 — "오른쪽에서 왼쪽으로 당기면 시장분석으로.
@@ -9399,7 +9395,46 @@ def _briefing_swipe_nav(active: str) -> None:
     시장분석에는 `.j3-market-top` 표식이 있다. 손잡이는 밀 때마다 지금 화면을
     다시 보므로 판이 바뀌어도 스스로 맞춰 간다.
 
+    **단추는 여기서 만들지 않는다** — `_briefing_swipe_buttons` 가 화면 **맨
+    앞에서** 만든다. 까닭은 그 함수 설명에 적어 두었다(판을 두 번 그리지 않기
+    위해서다).
+
     실패해도 아무 일이 없어야 한다 — 안 되면 예전처럼 하단 막대를 누르시면 된다.
+    """
+    try:
+        import json as _json
+        import streamlit.components.v1 as components
+
+        components.html(
+            "<script>(function(){var d;"
+            "try{d=window.parent&&window.parent.document;}catch(e){return;}"
+            "if(!d||!d.body||d.getElementById('j3b-swipe-script')){return;}"
+            "var t=d.createElement('script');t.id='j3b-swipe-script';"
+            "t.textContent=" + _json.dumps(_SWIPE_OUTER_JS) + ";"
+            "d.body.appendChild(t);})();</script>",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
+def _briefing_swipe_buttons() -> None:
+    """미는 손가락이 누를 **숨은 단추 둘**을 화면 **맨 앞에서** 만든다.
+
+    2026-09-10 상하님 지적 — "화면 옆으로 넘기는 게 왜 실시간으로 바로 안 되냐?"
+
+    **판을 두 번 그리고 있었다.** 단추가 화면 **맨 뒤**에 있어서, 한 번 밀면
+      1판 — 관심종목을 처음부터 끝까지 다 그린다(뉴스·카드·그림).
+            그 끝에서야 단추가 눌린 것을 알고 `st.rerun()` 을 부른다.
+      2판 — 그제서야 시장분석을 그린다.
+    1판을 통째로 버리는 셈이라, 손가락은 곧바로 반응해도 화면이 늦게 바뀌었다.
+
+    이제 단추를 **맨 앞**에 둔다. 눌린 것을 화면을 그리기 **전에** 알므로
+    `page` 를 읽을 때 이미 바뀐 값이 나오고, **그 한 판에** 시장분석을 그린다.
+    `st.rerun()` 도 필요 없다 — 부르면 그것이 곧 두 판이다.
+
+    **둘 다 만든다.** 여기서는 아직 어느 화면인지 정하기 전이다. 어느 쪽으로
+    갈지는 손가락 쪽(`_SWIPE_OUTER_JS`)이 화면 표식을 보고 정한다.
     """
     st.markdown(
         "<style>"
@@ -9427,31 +9462,12 @@ def _briefing_swipe_nav(active: str) -> None:
         "</style>",
         unsafe_allow_html=True,
     )
-    if active == "market":
-        if st.button("관심종목으로", key="j3b_swipe_watch"):
-            st.session_state["j3b_slide_in"] = "left"
-            _set_briefing_page("home")
-            st.rerun()
-    else:
-        if st.button("시장분석으로", key="j3b_swipe_market"):
-            st.session_state["j3b_slide_in"] = "right"
-            _set_briefing_page("market")
-            st.rerun()
-    try:
-        import json as _json
-        import streamlit.components.v1 as components
-
-        components.html(
-            "<script>(function(){var d;"
-            "try{d=window.parent&&window.parent.document;}catch(e){return;}"
-            "if(!d||!d.body||d.getElementById('j3b-swipe-script')){return;}"
-            "var t=d.createElement('script');t.id='j3b-swipe-script';"
-            "t.textContent=" + _json.dumps(_SWIPE_OUTER_JS) + ";"
-            "d.body.appendChild(t);})();</script>",
-            height=0,
-        )
-    except Exception:
-        pass
+    if st.button("시장분석으로", key="j3b_swipe_market"):
+        st.session_state["j3b_slide_in"] = "right"
+        _set_briefing_page("market")
+    if st.button("관심종목으로", key="j3b_swipe_watch"):
+        st.session_state["j3b_slide_in"] = "left"
+        _set_briefing_page("home")
 
 
 def _briefing_slide_in_marker() -> None:
@@ -9509,6 +9525,9 @@ def _render_stock_briefing() -> None:
     # 미리 계산은 이 화면 **맨 끝**에서, 그것도 뉴스가 다 온 뒤에 시작한다
     # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
     _briefing_css()
+    # **미는 단추가 먼저다.** page 를 읽기 전에 눌린 것을 알아야 그 한 판에
+    # 바뀐 화면을 그린다. 뒤에 두면 판을 두 번 그린다(위 설명 참고).
+    _briefing_swipe_buttons()
     # 보시던 화면은 **주소에서** 읽는다 — 폰이 화면을 버렸다 다시 열어도
     # 관심종목으로 돌아가지 않게 한다(2026-08-29, _briefing_page 참고).
     page = _briefing_page()
@@ -9548,7 +9567,7 @@ def _render_stock_briefing() -> None:
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
         # 왼쪽에서 오른쪽으로 밀면 관심종목으로 되돌아간다(2026-09-10 상하님 지시).
-        _briefing_swipe_nav("market")
+        _briefing_swipe_nav()
         return
     st.session_state["j3b_news_pending"] = False
     try:
@@ -9623,23 +9642,18 @@ def _render_stock_briefing() -> None:
                 st.rerun()
         st.markdown('<div class="j3b-section"><span class="j3b-flag">🇺🇸</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
         _render_briefing_news("market")
-        with st.container(key="j3b_selected_heading"):
-            st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
-            if st.button("더보기", key="j3b_go_market"):
-                # **여기도 맨 위로 올린다** (2026-08-27 상하님 지적 — "맨 위에
-                # 메뉴 2개 안 나오는 것 언제 해결할 거냐"). 「더보기 ›」는 화면을
-                # 아래로 내려야 보이는 자리라, 누르면 브라우저가 그 자리를 그대로
-                # 들고 시장분석으로 간다. 그러면 맨 위의 「🌏 한국테마 →」·
-                # 「📘 이 테마 설명」 두 단추를 지나친 자리에 선다.
-                # 하단 이동막대 쪽만 고쳐 두고 이 길을 빠뜨렸다.
-                _set_briefing_page("market")
-                st.rerun()
-        # **선정 종목도 ×로 지우고 ＋로 넣는다** (2026-09-10 상하님 지시 —
-        # "사용자 선정종목이 삭제 추가가 안 된다. 추가 검색종목처럼 되게 해줘").
-        # 여태 이 무리는 removable=False 라 ×가 아예 안 붙었고, 넣는 길은
-        # 자리를 갈아 끼우는 것뿐이었다. 검색 줄은 아래 추가 검색 종목과 **같은
-        # 것**을 쓰되 무리 이름만 다르게 준다.
-        _render_briefing_manage(selected, extras, group="selected")
+        # **추가 검색 종목과 똑같은 짜임이다** (2026-09-10 상하님 지시 —
+        # "사용자선정종목 바로 옆에 종목검색후추가로 하고 디자인 똑같이 해라").
+        # 통 이름을 j3b_extra_header 로 시작하게 두어 그쪽 화면 규칙을 그대로
+        # 탄다 — 규칙이 class*= 부분일치라 이름만 맞추면 자리·글자 크기가 같아진다.
+        # 「더보기 ›」는 뺐다. 그 자리에 검색줄이 앉는다. 시장분석은 하단
+        # 이동막대와 손가락으로 미는 것으로 간다.
+        with st.container(key="j3b_extra_header_sel"):
+            heading_col, search_col = st.columns([4, 6], gap="small")
+            with heading_col:
+                st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목</div>', unsafe_allow_html=True)
+            with search_col:
+                _render_briefing_manage(selected, extras, group="selected")
         _render_briefing_grid(selected, cards, removable=True, key="selected",
                               group="selected")
         with st.container(key="j3b_extra_header"):
@@ -9652,7 +9666,7 @@ def _render_stock_briefing() -> None:
                               compact=True, group="extra")
         _render_briefing_bottom_nav("watch")
         # 오른쪽→왼쪽으로 밀면 시장분석으로 넘어간다(2026-09-10 상하님 지시).
-        _briefing_swipe_nav("watch")
+        _briefing_swipe_nav()
         news_keys = tuple([("market", None)] + [("company", stock["ticker"]) for stock in visible_stocks])
         _schedule_briefing_news_refresh(news_keys)
         # 아직 오는 중이면 **2초마다 지켜본다** (2026-09-02 상하님 —

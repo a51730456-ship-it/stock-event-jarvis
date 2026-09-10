@@ -174,7 +174,10 @@ def test_first_page_renders_four_slots_and_next_page_button():
     rendered = " ".join(str(node.value) for node in app.markdown)
     assert "종목 브리핑" in rendered
     assert all(ticker in rendered for ticker in ("NVDA", "TSLA", "PLTR", "AMD"))
-    assert any(node.key == "j3b_go_market" for node in app.button)
+    # 「더보기 ›」는 2026-09-10에 뺐다 — 그 자리에 검색줄이 앉는다.
+    # 시장분석은 하단 막대와 손가락으로 미는 것으로 간다.
+    assert not any(node.key == "j3b_go_market" for node in app.button)
+    assert any(node.key == "j3b_swipe_market" for node in app.button), "미는 길이 없다"
     market_button = next(node for node in app.button if node.key == "j3b_nav_market")
     assert market_button.label == "시장분석"
     assert any(node.key == "j3b_nav_home" for node in app.button)
