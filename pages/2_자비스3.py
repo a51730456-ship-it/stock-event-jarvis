@@ -9316,11 +9316,14 @@ _SWIPE_OUTER_JS = """
   var d = document, x0 = 0, y0 = 0, live = false, fired = false;
   // 시장분석 화면은 표(21개 테마·급락·상승장)가 다 가로로 잘려 있어 옆으로
   // 밀어야 보인다. 그 손가락을 화면 넘김으로 잡으면 표를 볼 수가 없다
-  // (2026-09-10 상하님 지적 — "저기서 왼쪽으로 가면 관심종목으로 가버린다.
-  //  오른쪽으로 끝까지 가면 또 관심종목으로 가버린다").
-  // 그래서 되돌아가기는 **화면 왼쪽 가장자리에서 시작한 손가락만** 받는다.
-  // 표는 가운데에 있으므로 서로 부딪히지 않는다. 폰 뒤로가기와 같은 결이다.
-  var EDGE = 44;
+  // (2026-09-10 상하님 지적 — "저기서 왼쪽으로 가면 관심종목으로 가버린다").
+  //
+  // **가장자리에서만 받는 방식은 쓸 수 없다** (같은 날 상하님 — "시장분석에서
+  // 관심종목으로는 이제 안 간다"). 화면 왼쪽 가장자리는 **갤럭시의 뒤로가기
+  // 제스처 자리**라 손가락을 OS가 먼저 가져간다. 여기까지 오지도 않는다.
+  //
+  // 그래서 자리로 가르지 않고 **표 위인지로만** 가른다. 아래 sideways 가
+  // documentElement 까지 끝까지 올라가 보므로 표 감싸개를 놓치지 않는다.
   function sideways(node) {
     // **끝까지 올라간다.** 예전에는 여덟 칸만 보고 말아서 표 감싸개를 놓쳤다.
     while (node && node !== d.documentElement) {
@@ -9344,9 +9347,7 @@ _SWIPE_OUTER_JS = """
     var onMarket = !!d.querySelector('.j3-market-top');
     var key = null, out = null;
     if (dx < 0 && onWatch) { key = 'j3b_swipe_market'; out = 'j3b-swipe-out-left'; }
-    else if (dx > 0 && onMarket && x0 <= EDGE) {
-      key = 'j3b_swipe_watch'; out = 'j3b-swipe-out-right';
-    }
+    else if (dx > 0 && onMarket) { key = 'j3b_swipe_watch'; out = 'j3b-swipe-out-right'; }
     if (!key) { return; }
     var hit = findButton(key);
     if (!hit) { return; }
@@ -9364,8 +9365,8 @@ _SWIPE_OUTER_JS = """
     if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
     x0 = ev.touches[0].clientX;
     y0 = ev.touches[0].clientY;
-    // 가장자리에서 시작했으면 표 위라도 받는다 — 되돌아가는 유일한 길이다.
-    if (x0 > EDGE && sideways(ev.target)) { live = false; return; }
+    // 표 위에서 시작한 손가락은 그 표가 쓰게 둔다.
+    if (sideways(ev.target)) { live = false; return; }
     live = true;
   }, { passive: true });
   d.addEventListener('touchmove', function (ev) {
@@ -9590,7 +9591,13 @@ def _render_stock_briefing() -> None:
     selected, extras = setup["selected"], setup["extra"]
     home_extras = _briefing_home_extras(extras)
     visible_stocks = selected + home_extras
-    cards = j3data.get_briefing_cards(visible_stocks)
+    # **시세는 여기서 받지 않는다** (2026-09-10 상하님 지시 — "관심종목 화면
+    # 가볍게 하는 것도 해라").
+    # 여기서 받으면 종목 10개의 시세·그림이 다 올 때까지 **화면에 아무것도
+    # 안 뜬다.** 맨 위 고양이버스도, 뉴스도, 제목도 그 뒤에 있었다.
+    # 히어로와 뉴스는 시세가 필요 없다 — `selected` (저장고 읽기, 빠르다)만
+    # 있으면 그려진다. 그래서 시세는 **카드를 그리기 바로 앞**으로 내렸다.
+    # 스트림릿은 위에서부터 차례로 내보내므로, 그만큼 첫 화면이 먼저 뜬다.
     try:
         visual_debug = str(st.query_params.get("visual_debug", "")).strip() == "1"
     except Exception:
@@ -9662,6 +9669,8 @@ def _render_stock_briefing() -> None:
                 st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목</div>', unsafe_allow_html=True)
             with search_col:
                 _render_briefing_manage(selected, extras, group="selected")
+        # 여기서부터 시세가 필요하다. 위(히어로·뉴스)는 이미 그려져 있다.
+        cards = j3data.get_briefing_cards(visible_stocks)
         _render_briefing_grid(selected, cards, removable=True, key="selected",
                               group="selected")
         with st.container(key="j3b_extra_header"):
