@@ -1258,6 +1258,14 @@ import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용
 import jarvis3_data as j3data
 import jarvis3_briefing_news as briefing_news
 import jarvis3_briefing_store as briefing_store
+
+# 옛 모듈이 프로세스에 남으면 새 함수(add_selected·remove_selected)를 못 찾아
+# 선정 종목 추가·삭제가 조용히 죽는다(규칙 11 · 2026-09-10).
+_REQUIRED_BRIEFING_STORE_REVISION = 2026091010
+if int(getattr(briefing_store, "MODULE_REVISION", 0)) < _REQUIRED_BRIEFING_STORE_REVISION:
+    import importlib as _importlib
+
+    briefing_store = _importlib.reload(briefing_store)
 import us_company_logos
 import us_swing_selector as us_swing
 import jarvis3_store as j3store
