@@ -2362,10 +2362,20 @@ def test_switching_screens_goes_back_to_the_top():
     # "사용자선정종목 바로 옆에 종목검색후추가로 하고 디자인 똑같이 해라").
     home = source[source.index("def _render_stock_briefing()"):source.index("def main()")]
     assert 'key="j3b_go_market"' not in home, "「더보기」를 뺐는데 아직 남아 있다"
-    swipe = source[source.index("def _briefing_swipe_nav("):]
+    # 미는 단추는 화면 **맨 앞**에 있다. 뒤에 두면 판을 두 번 그려 늦어진다
+    # (2026-09-10 상하님 지적 — "화면 옆으로 넘기는 게 왜 실시간으로 바로
+    # 안 되냐?"). 그래서 `st.rerun()` 도 없다 — 부르면 그것이 곧 두 판이다.
+    swipe = source[source.index("def _briefing_swipe_buttons("):]
     swipe = swipe[:swipe.index(chr(10) + "def ", 10)]
     assert '_set_briefing_page("market")' in swipe, "미는 길이 화면을 안 바꾼다"
     assert '_set_briefing_page("home")' in swipe, "되돌아가는 길이 화면을 안 바꾼다"
+    # 설명 글에도 그 말이 나오므로 **코드 부분만** 본다(설명은 """ 로 닫힌다).
+    swipe_code = swipe[swipe.index('"""', swipe.index('"""') + 3) + 3:]
+    assert "st.rerun()" not in swipe_code, "여기서 다시 그리면 판을 두 번 그린다"
+    # 그리고 그 단추가 page 를 읽기 **전에** 불려야 한다.
+    render = source[source.index("def _render_stock_briefing()"):]
+    render = render[:render.index("page = _briefing_page()")]
+    assert "_briefing_swipe_buttons()" in render, "미는 단추가 page 를 읽은 뒤에 있다"
     # 양쪽 화면에 '맨 위' 자리가 있어야 데려갈 곳이 있다.
     assert source.count('scroll_to.anchor(st, "top")') == 2, "'맨 위' 자리가 한쪽에만 있다"
     # ── 위 여백을 68px 에서 0 으로 되돌린 까닭 (2026-08-28) ──────────────────
