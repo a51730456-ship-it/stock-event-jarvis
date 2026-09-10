@@ -8099,7 +8099,7 @@ _BRIEFING_OPEN_CSS = """
  display:flex;align-items:center;justify-content:center;padding:16px;
  box-sizing:border-box;pointer-events:none}
 .j3b-open-card{position:relative;pointer-events:auto;width:min(680px,calc(100vw - 32px));
- max-height:calc(100dvh - 40px);overflow:auto;padding:20px 20px 104px;
+ max-height:calc(100dvh - 40px);overflow:auto;padding:20px 20px 152px;
  border:1px solid rgba(123,201,255,.45);border-radius:20px;box-sizing:border-box;
  background:radial-gradient(circle at 100% 0,rgba(15,85,147,.37),transparent 44%),
   linear-gradient(145deg,rgba(7,41,87,.99),rgba(3,23,55,.99));
@@ -8123,11 +8123,15 @@ _BRIEFING_OPEN_CSS = """
    자리는 **왼쪽 아래**다. 오른쪽 아래에는 장식 그림(.j3b-decor-img)이 96px 로
    앉아 있어 거기 두면 겹친다.
    창 바닥에 **붙이지 않는다**(sticky 아님) — 2026-08-26에 그렇게 했다가 글을
-   굴리는 동안 화면 한가운데에 떠서 글을 가렸다. 카드 안 여백(아래 96~112px)에
-   가만히 놓는다.
+   굴리는 동안 화면 한가운데에 떠서 글을 가렸다. 카드 안 여백에 가만히 놓는다.
+   **바닥에서 88px 띄운다**(2026-09-10 상하님 지적 — "종목 뉴스가 길어서 닫기
+   화면 누르면 안 된다"). 하단 이동막대가 position:fixed; bottom:8px;
+   height:64px 로 화면 바닥 **72px**를 덮고 z-index가 최대값이라, 16px에
+   두었던 이 단추가 뉴스를 펼쳐 카드가 길어지면 그 막대 밑에 깔렸다.
+   72px보다 위(88px)로 올리고 카드 아래 여백도 152px(폰 144px)로 넓혔다.
    누르는 방식은 위 것과 똑같다 — 큰 판이 손가락을 안 받으므로(.j3b-open-card
    pointer-events:none) 여기를 눌러도 그 손가락이 바탕까지 내려가 닫힌다. */
-.j3b-open-close-b{right:auto;left:16px;top:auto;bottom:16px;padding:9px 18px;font-size:13px}
+.j3b-open-close-b{right:auto;left:16px;top:auto;bottom:88px;padding:9px 18px;font-size:13px}
 .j3b-open-card .j3b-card-top{display:flex;gap:10px;align-items:center;min-height:58px;padding-right:132px}
 .j3b-open-card .j3b-logo{width:58px;height:58px;border-radius:14px}
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
@@ -8152,7 +8156,7 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-link{display:inline-block;margin-top:9px;padding:5px 12px;border:1px solid #4f9fd8;
  border-radius:14px;color:#8fd9ff!important;font-size:12px;font-weight:800;text-decoration:none}
 @media (max-width:600px){
- .j3b-open-card{padding:18px 16px 96px}
+ .j3b-open-card{padding:18px 16px 144px}
  .j3b-open-card .j3b-symbol{font-size:24px}
  .j3b-open-news>summary{font-size:15px;line-height:1.6}
  .j3b-open-orig{font-size:14px}
@@ -8317,6 +8321,13 @@ body section[data-testid="stMain"],
 body [data-testid="stAppViewContainer"] { overscroll-behavior-y: contain !important; }
 
 /* 찾은 종목을 보여 주는 줄 */
+/* 사용자 선정 종목의 검색 줄 (2026-09-10). 추가 검색 줄과 **이름을 나눈다** —
+   그쪽은 제목 옆 칸에 앉느라 음수 여백으로 자리를 맞춰 두어서, 이름이 겹치면
+   여기까지 위로·오른쪽으로 밀린다. 여기는 제목 아래 한 줄로 그냥 놓는다. */
+div[class*="st-key-j3b_selected_search"]{margin:2px 0 6px!important}
+div[class*="st-key-j3b_selected_search"] input{height:34px!important;font-size:12px!important}
+div[class*="st-key-j3b_selected_search"] .stButton button{width:34px!important;
+ height:34px!important;min-height:34px!important;font-size:20px!important;padding:0!important}
 div[class*="st-key-j3b_search_confirm"]{margin:6px 0 2px!important;
   padding:10px 12px!important;border:1px solid rgba(240,177,67,.45)!important;
   border-radius:14px!important;background:rgba(6,33,75,.72)!important}
@@ -8818,7 +8829,8 @@ def _briefing_orbit_html(stocks: list[dict]) -> str:
     return f'<div class="j3b-orbit" aria-hidden="true">{"".join(pods)}</div>'
 
 
-def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, compact: bool = False) -> None:
+def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
+                          compact: bool = False, group: str = "extra") -> None:
     ticker = stock["ticker"]
     price, change = card.get("price"), card.get("change_pct")
     tone = "j3b-up" if (change or 0) > 0 else "j3b-down" if (change or 0) < 0 else "j3b-neutral"
@@ -8896,26 +8908,36 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
     )
     if removable:
         position = int(stock["position"])
-        with st.container(key=f"j3b_extra_{position}"):
+        # 어느 무리의 몇 번 자리인지로 열쇠를 만든다(2026-09-10). 무리 이름을 빼면
+        # 선정 1번과 검색 1번이 **같은 열쇠**를 써서, 하나를 지우려는데 다른
+        # 하나가 지워진다.
+        slot = f"{group}_{position}"
+        remove = (briefing_store.remove_selected if group == "selected"
+                  else briefing_store.remove_extra)
+        with st.container(key=f"j3b_{group}_{position}"):
             st.markdown(card_html, unsafe_allow_html=True)
-            confirm = st.session_state.get("j3b_delete_confirm") == position
+            confirm = st.session_state.get("j3b_delete_confirm") == slot
             if confirm:
                 left, right = st.columns(2)
-                if left.button("삭제 확인", key=f"j3b_del_yes_{position}"):
-                    briefing_store.remove_extra(position)
+                if left.button("삭제 확인", key=f"j3b_del_yes_{slot}"):
+                    try:
+                        remove(position)
+                    except ValueError as exc:
+                        st.session_state["j3b_search_message"] = str(exc)
                     st.session_state.pop("j3b_delete_confirm", None)
                     st.rerun()
-                if right.button("취소", key=f"j3b_del_no_{position}"):
+                if right.button("취소", key=f"j3b_del_no_{slot}"):
                     st.session_state.pop("j3b_delete_confirm", None)
                     st.rerun()
-            elif st.button("×", key=f"j3b_del_{position}"):
-                st.session_state["j3b_delete_confirm"] = position
+            elif st.button("×", key=f"j3b_del_{slot}"):
+                st.session_state["j3b_delete_confirm"] = slot
                 st.rerun()
         return
     st.markdown(card_html, unsafe_allow_html=True)
 
 
-def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str, compact: bool = False) -> None:
+def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str,
+                          compact: bool = False, group: str = "extra") -> None:
     """카드를 **한 통에 죽 넣고 자리는 CSS가 잡는다** (2026-08-27 상하님 지시).
 
     상하님 — "태블릿 화면에는 종목선정 2줄씩 되어 있는데 3칸씩 넣으면 안 되나?"
@@ -8929,7 +8951,8 @@ def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, k
     with st.container(key=f"j3b_grid_{key}"):
         for stock in stocks:
             can_remove = removable and int(stock.get("position", 0)) > 0
-            _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=can_remove, compact=compact)
+            _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=can_remove,
+                                  compact=compact, group=group)
 
 
 _BRIEFING_FIRST_VIEW_EXTRAS = (
@@ -9003,56 +9026,68 @@ def _briefing_local_search(query: str) -> list[dict]:
     return list(found.get("rows") or []) if found.get("ok") else []
 
 
-def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
+def _render_briefing_manage(selected: list[dict], extras: list[dict], *,
+                            group: str = "extra") -> None:
     """종목을 찾아 보여 주고, **맞는지 확인한 뒤에** 넣는다.
+
+    ``group`` 이 "selected" 면 사용자 선정 종목에, "extra" 면 추가 검색 종목에
+    넣는다 (2026-09-10 상하님 지시 — "사용자 선정종목이 삭제 추가가 안 된다.
+    추가 검색종목처럼 되게 해줘"). 열쇠에 무리 이름을 붙여 두 줄이 서로의
+    검색 결과를 덮어쓰지 않게 한다.
 
     2026-08-26 상하님 지시 — "종목 검색은 조회 후 종목 나타나고 이 종목이 맞는지
     확인 버튼을 누르고 등록되도록 해야지."
     예전에는 ＋를 누르면 찾은 첫 종목이 곧바로 들어갔다. 이름이 비슷한 다른 회사가
     들어가도 알 수가 없었다.
     """
-    with st.container(key="j3b_search_row"):
+    found_key = f"j3b_search_found_{group}"
+    row_key = "j3b_search_row" if group == "extra" else "j3b_selected_search"
+    with st.container(key=row_key):
         query_col, plus_col = st.columns([7, 1])
         with query_col:
             query = st.text_input("종목 검색", placeholder="종목 검색 후 추가",
-                                  key="j3b_search", label_visibility="collapsed")
+                                  key=f"j3b_search_{group}", label_visibility="collapsed")
         with plus_col:
-            add_clicked = st.button("+", key="j3b_manage_toggle")
+            add_clicked = st.button("+", key=f"j3b_manage_toggle_{group}")
     if add_clicked:
-        st.session_state.pop("j3b_search_found", None)
+        st.session_state.pop(found_key, None)
         if not query.strip():
             st.session_state["j3b_search_message"] = "추가할 종목명이나 티커를 먼저 넣으십시오."
         else:
             with st.spinner("미국 종목 명부에서 찾는 중입니다…"):
                 rows = _briefing_local_search(query)
             if rows:
-                st.session_state["j3b_search_found"] = rows[:5]
+                st.session_state[found_key] = rows[:5]
             else:
                 st.session_state["j3b_search_message"] = "그 이름으로는 미국 종목을 찾지 못했습니다."
 
-    found = st.session_state.get("j3b_search_found") or []
+    found = st.session_state.get(found_key) or []
     if found:
-        with st.container(key="j3b_search_confirm"):
+        with st.container(key=f"j3b_search_confirm_{group}"):
             labels = {f'{row["ticker"]} · {row["name"]}': row for row in found}
             names = list(labels)
             picked = names[0]
             if len(names) > 1:
-                picked = st.radio("찾은 종목 가운데 고르십시오", names, key="j3b_search_pick")
+                picked = st.radio("찾은 종목 가운데 고르십시오", names,
+                                  key=f"j3b_search_pick_{group}")
             else:
                 st.markdown(f"<div class='j3b-found'>{html.escape(picked)}</div>",
                             unsafe_allow_html=True)
             yes_col, no_col = st.columns(2)
-            if yes_col.button("이 종목이 맞습니다 · 추가", key="j3b_search_ok", type="primary"):
+            if yes_col.button("이 종목이 맞습니다 · 추가", key=f"j3b_search_ok_{group}",
+                              type="primary"):
                 chosen = labels[picked]
+                add = (briefing_store.add_selected if group == "selected"
+                       else briefing_store.add_extra)
                 try:
-                    briefing_store.add_extra(chosen["ticker"], chosen["name"])
+                    add(chosen["ticker"], chosen["name"])
                     st.session_state["j3b_search_message"] = f'{chosen["ticker"]} 종목을 넣었습니다.'
-                    st.session_state.pop("j3b_search_found", None)
+                    st.session_state.pop(found_key, None)
                     st.rerun()
                 except ValueError as exc:
                     st.session_state["j3b_search_message"] = str(exc)
-            if no_col.button("아닙니다 · 취소", key="j3b_search_cancel"):
-                st.session_state.pop("j3b_search_found", None)
+            if no_col.button("아닙니다 · 취소", key=f"j3b_search_cancel_{group}"):
+                st.session_state.pop(found_key, None)
                 st.rerun()
 
     message = st.session_state.pop("j3b_search_message", "")
@@ -9264,6 +9299,119 @@ def _set_briefing_page(page: str) -> None:
         pass
 
 
+def _briefing_swipe_to_market() -> None:
+    """관심종목 화면에서 **오른쪽에서 왼쪽으로 밀면** 시장분석으로 넘어간다.
+
+    2026-09-10 상하님 지시 — "미국테마 첫 화면에서 손가락으로 오른쪽에서 왼쪽으로
+    당기면 시장분석 화면으로 자연스럽게 넘어가도록. 아주 고급스럽게."
+
+    **왜 이렇게 만들었나 — 스트림릿에는 손가락 신호가 없다.**
+    `st.markdown` 은 `<script>` 를 지운다. 그래서 정식으로 내주는
+    `components.html`(작은 iframe)에 담아 보내고, 그 안에서 바깥 화면
+    (`window.parent.document`)에 손가락 신호를 붙인다. `scroll_to.py` 와 같은 길이다.
+
+    **누르는 것은 이 화면 전용 숨은 단추 하나뿐이다.** 하단 이동막대의
+    `j3b_nav_market` 을 직접 누르게 하면 그 막대가 어떻게 그려지는지에 따라
+    엉뚱한 칸을 누를 수 있다. 전용 단추를 두면 파이썬 쪽 길은 하나로 고정된다 —
+    누른 뒤 하는 일은 이동막대와 **똑같다**(`_set_briefing_page("market")`).
+
+    **절대 원칙 — 실패해도 아무 일도 일어나지 않아야 한다.**
+    브라우저가 막거나 단추를 못 찾으면 조용히 넘어간다. 손가락으로 미는 것이
+    안 되면 예전처럼 하단 막대를 누르시면 된다(CLAUDE.md 13번과 같은 결).
+
+    **가로로 굴리는 자리는 건드리지 않는다.** 옆으로 굴러가는 상자(표·그림) 안에서
+    시작한 손가락은 그 상자가 쓰게 둔다. 세로로 더 많이 움직인 손가락도 넘긴다 —
+    화면을 위아래로 굴리시는 중이기 때문이다.
+    """
+    # 보이지 않는 단추. CSS로 자리까지 없애 화면에 빈틈이 생기지 않게 한다.
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j3b_swipe_market']{position:absolute!important;"
+        "width:1px!important;height:1px!important;margin:0!important;padding:0!important;"
+        "overflow:hidden!important;opacity:0!important;pointer-events:none!important}"
+        # 미는 동안 화면이 왼쪽으로 따라 나간다. 손가락을 뗀 느낌이 나야 '자연스럽다'.
+        "[data-testid='stAppViewContainer']{transition:transform .26s cubic-bezier(.22,.61,.36,1),"
+        "opacity .26s ease}"
+        "body.j3b-swipe-out [data-testid='stAppViewContainer']{transform:translateX(-13%);opacity:.34}"
+        # 넘어간 화면은 오른쪽에서 미끄러져 들어온다.
+        "@keyframes j3bSlideIn{from{transform:translateX(15%);opacity:0}to{transform:none;opacity:1}}"
+        "body:has(.j3b-swiped-in) [data-testid='stAppViewContainer']"
+        "{animation:j3bSlideIn .34s cubic-bezier(.22,.61,.36,1) both}"
+        # 움직임을 줄여 달라고 해 두신 기기에서는 움직이지 않는다.
+        "@media (prefers-reduced-motion:reduce){"
+        "[data-testid='stAppViewContainer']{transition:none}"
+        "body.j3b-swipe-out [data-testid='stAppViewContainer']{transform:none;opacity:1}"
+        "body:has(.j3b-swiped-in) [data-testid='stAppViewContainer']{animation:none}}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+    if st.button("시장분석으로", key="j3b_swipe_market"):
+        st.session_state["j3b_swiped_in"] = True
+        _set_briefing_page("market")
+        st.rerun()
+    try:
+        import streamlit.components.v1 as components
+
+        components.html(
+            """
+<script>
+(function () {
+  var doc;
+  try { doc = window.parent && window.parent.document; } catch (e) { return; }
+  if (!doc || !doc.body) { return; }
+  // 판이 다시 그려질 때마다 이 조각도 새로 오지만, 신호는 바깥 화면에 붙는다.
+  // 두 번 붙으면 한 번 밀 때 두 번 넘어간다 — 표식을 보고 한 번만 붙인다.
+  if (doc.body.dataset.j3bSwipe === "1") { return; }
+  doc.body.dataset.j3bSwipe = "1";
+  var x0 = 0, y0 = 0, live = false;
+  function scrollsSideways(node) {
+    for (var i = 0; node && i < 8; i += 1, node = node.parentElement) {
+      try {
+        var how = window.parent.getComputedStyle(node).overflowX;
+        if ((how === "auto" || how === "scroll") && node.scrollWidth > node.clientWidth + 4) {
+          return true;
+        }
+      } catch (e) { return false; }
+    }
+    return false;
+  }
+  doc.addEventListener("touchstart", function (ev) {
+    if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
+    // 관심종목 화면일 때만 받는다. 시장분석에서는 표식이 없다.
+    if (!doc.querySelector(".j3b-home")) { live = false; return; }
+    if (scrollsSideways(ev.target)) { live = false; return; }
+    x0 = ev.touches[0].clientX;
+    y0 = ev.touches[0].clientY;
+    live = true;
+  }, { passive: true });
+  doc.addEventListener("touchend", function (ev) {
+    if (!live) { return; }
+    live = false;
+    var touch = (ev.changedTouches || [])[0];
+    if (!touch) { return; }
+    var dx = touch.clientX - x0, dy = touch.clientY - y0;
+    // 왼쪽으로 70px 넘게, 그리고 위아래보다 두 배 넘게 움직였을 때만.
+    if (dx > -70 || Math.abs(dx) < Math.abs(dy) * 2) { return; }
+    var hit = doc.querySelector("div[class*='st-key-j3b_swipe_market'] button");
+    if (!hit) { return; }
+    try { doc.body.classList.add("j3b-swipe-out"); } catch (e) {}
+    // 화면이 왼쪽으로 나가는 것을 보여 준 뒤에 누른다.
+    setTimeout(function () {
+      try { hit.click(); } catch (e) {}
+      setTimeout(function () {
+        try { doc.body.classList.remove("j3b-swipe-out"); } catch (e) {}
+      }, 700);
+    }, 180);
+  }, { passive: true });
+})();
+</script>
+""",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
 def _render_briefing_bottom_nav(active: str) -> None:
     """종목 브리핑과 시장분석에서 같이 보이는 하단 이동표."""
     # 시장분석 그림만 글자가 아니라 **직접 그린 그림**이다(2026-08-26 상하님 지시 —
@@ -9341,6 +9489,11 @@ def _render_stock_briefing() -> None:
         # 관심종목과 **같은 표식**을 쓴다 — 열쇠가 같으므로 방문기록은
         # 여전히 한 칸만 쌓인다.
         back_nav.opened(st, "j3b_backstop")
+        # 밀어서 넘어오신 판에만 표식을 남긴다 — 이 표식이 있는 판만 오른쪽에서
+        # 미끄러져 들어온다. 하단 막대로 누르신 판이나 판이 다시 그려질 때는
+        # 표식이 없어 예전처럼 그냥 그려진다(2026-09-10).
+        if st.session_state.pop("j3b_swiped_in", False):
+            st.markdown('<div class="j3b-swiped-in"></div>', unsafe_allow_html=True)
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
         return
@@ -9427,15 +9580,25 @@ def _render_stock_briefing() -> None:
                 # 하단 이동막대 쪽만 고쳐 두고 이 길을 빠뜨렸다.
                 _set_briefing_page("market")
                 st.rerun()
-        _render_briefing_grid(selected, cards, removable=False, key="selected")
+        # **선정 종목도 ×로 지우고 ＋로 넣는다** (2026-09-10 상하님 지시 —
+        # "사용자 선정종목이 삭제 추가가 안 된다. 추가 검색종목처럼 되게 해줘").
+        # 여태 이 무리는 removable=False 라 ×가 아예 안 붙었고, 넣는 길은
+        # 자리를 갈아 끼우는 것뿐이었다. 검색 줄은 아래 추가 검색 종목과 **같은
+        # 것**을 쓰되 무리 이름만 다르게 준다.
+        _render_briefing_manage(selected, extras, group="selected")
+        _render_briefing_grid(selected, cards, removable=True, key="selected",
+                              group="selected")
         with st.container(key="j3b_extra_header"):
             heading_col, search_col = st.columns([4, 6], gap="small")
             with heading_col:
                 st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
             with search_col:
-                _render_briefing_manage(selected, extras)
-        _render_briefing_grid(home_extras, cards, removable=True, key="extra1", compact=True)
+                _render_briefing_manage(selected, extras, group="extra")
+        _render_briefing_grid(home_extras, cards, removable=True, key="extra1",
+                              compact=True, group="extra")
         _render_briefing_bottom_nav("watch")
+        # 오른쪽→왼쪽으로 밀면 시장분석으로 넘어간다(2026-09-10 상하님 지시).
+        _briefing_swipe_to_market()
         news_keys = tuple([("market", None)] + [("company", stock["ticker"]) for stock in visible_stocks])
         _schedule_briefing_news_refresh(news_keys)
         # 아직 오는 중이면 **2초마다 지켜본다** (2026-09-02 상하님 —
