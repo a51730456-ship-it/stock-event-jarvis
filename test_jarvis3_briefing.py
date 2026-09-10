@@ -808,3 +808,35 @@ def test_news_keeps_being_watched_until_it_arrives():
 
     # ⑥ 한없이 기다리지 않는다.
     assert "> 120" in body, "그만 기다리는 자리가 없다"
+
+
+def test_one_news_arrival_draws_the_screen_once(): 
+    """뉴스 한 자리가 오면 판을 **한 번만** 그린다 (2026-09-10 상하님 지적).
+
+    상하님 — *"시장분석에서 관심종목으로 4초, 너무 늦다."*
+
+    **판을 두 번씩 그리고 있었다.** 다시 그리라고 하는 자리가 둘이었다 —
+      ① 지켜보는 조각 `_briefing_news_watcher` (2026-09-02에 넣음)
+      ② 판 끝의 `_schedule_briefing_news_refresh` (2026-08-26부터 있던 것)
+    ①이 다시 그리면 그 판 끝에서 ②가 **또** 다시 그렸다. 두 번째 판에서는
+    화면이 하나도 안 바뀐다. 뉴스 자리가 11곳이라(시장 1 + 종목 10) 그 헛판이
+    열한 번 붙었다 — 실측으로 판을 32번 그렸고 그리는 데만 4.52초를 썼다.
+
+    이제 다시 그리는 일은 **지켜보는 조각 하나만** 한다. ②는 세는 일과
+    「그만 기다려라」를 알리는 일만 남는다.
+    """
+    page = Path(__file__).parent / "pages" / "2_자비스3.py"
+    source = page.read_text(encoding="utf-8")
+    body = source[source.index("def _schedule_briefing_news_refresh("):]
+    body = body[:body.index(chr(10) + "def ", 10)]
+    # 설명글은 빼고 **코드만** 본다 — 설명에는 st.rerun 이라는 말이 나온다.
+    code = chr(10).join(line for line in body.splitlines()
+                        if not line.lstrip().startswith("#"))
+    code = code.replace(body[body.index('"""'):body.index('"""', body.index('"""') + 3) + 3], "")
+    assert "st.rerun(" not in code, (
+        "여기서 또 다시 그리면 뉴스 한 자리에 판을 두 번 그린다")
+    # 세는 일과 멈추는 일은 그대로 남아 있어야 한다 — 이것이 꺼져야 지켜보는
+    # 조각도 같이 멈춘다.
+    assert 'st.session_state["j3b_news_pending"] = False' in code, (
+        "그만 기다리라고 알리는 자리가 없어졌다")
+    assert "ready_count" in code, "세는 자리가 없어졌다"

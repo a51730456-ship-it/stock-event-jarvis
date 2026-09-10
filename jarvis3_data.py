@@ -1120,6 +1120,59 @@ def get_market_overview() -> dict:
     return copy.deepcopy(value)
 
 
+_MARKET_OVERVIEW_WARM_LOCK = threading.Lock()
+_MARKET_OVERVIEW_WARM = {"on": False}
+
+
+def warm_market_overview() -> None:
+    """미국 전체시장 판단을 **뒤에서 미리** 만들어 둔다 (2026-09-10).
+
+    상하님 지적 — *"관심종목에서 시장분석으로 2초, 너무 늦다."*
+
+    **재 보니 그 2초는 거의 다 시세를 기다리는 시간이었다.** 시장분석 화면이
+    처음 그려질 때 화면이 세워 놓고 기다리는 조회가 넷인데, 그중 둘이 여기서
+    나간다 — 9종목 1년치 일봉과 5종목 1분봉이다(실측 0.90초).
+
+    화면 여는 동안 받는 것이 아니라, **관심종목 화면에서 뉴스가 다 온 뒤에**
+    미리 받아 둔다(pages/2_자비스3.py `_warm_after_news`). 그때는 상하님이 이미
+    화면을 보고 계실 때라 뒤에서 무엇을 하든 기다리실 것이 없다 —
+    업종 지도·신호 시세를 미리 받는 것과 **같은 자리, 같은 방식**이다.
+
+    **계산은 한 글자도 안 바뀐다.** 화면이 부르는 그 함수(get_market_overview)를
+    같은 인자로 부를 뿐이다. 못 받아도 조용히 넘어간다 — 그때는 예전처럼
+    시장분석 화면이 그 자리에서 받는다.
+
+    **이미 공책에 있으면 아무것도 안 한다.** 3분(THEME_LIVE_TTL) 안이면 그냥
+    돌아간다 — 괜히 야후에 같은 요청을 또 보내지 않는다.
+    """
+    now = time.time()
+    with _MARKET_OVERVIEW_WARM_LOCK:
+        if _MARKET_OVERVIEW_WARM["on"]:
+            return                      # 이미 뒤에서 받는 중이다
+        with _CACHE_LOCK:
+            cached = _CACHE.get("us_market_overview")
+        if cached and now - cached["at"] < THEME_LIVE_TTL:
+            return                      # 아직 안 묵었다
+        _MARKET_OVERVIEW_WARM["on"] = True
+
+    def _run() -> None:
+        try:
+            get_market_overview()
+        except Exception as exc:
+            _log.warning("market overview warm-up failed: %s", exc)
+        finally:
+            with _MARKET_OVERVIEW_WARM_LOCK:
+                _MARKET_OVERVIEW_WARM["on"] = False
+
+    try:
+        threading.Thread(target=_run, name="j3-market-overview-warm",
+                         daemon=True).start()
+    except Exception as exc:
+        _log.warning("market overview warm-up thread failed: %s", exc)
+        with _MARKET_OVERVIEW_WARM_LOCK:
+            _MARKET_OVERVIEW_WARM["on"] = False
+
+
 def _compute_market_overview() -> dict:
     daily, daily_meta = _download_cached(
         MARKET_SYMBOLS, period="1y", interval="1d", ttl_seconds=300

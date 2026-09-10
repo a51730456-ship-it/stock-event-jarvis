@@ -1326,6 +1326,42 @@ class Jarvis3PageTests(unittest.TestCase):
         # 모듈이 없거나 조회가 실패해도 화면을 죽이지 않는다.
         self.assertIn("except Exception", fn)
 
+    def test_us_futures_is_fetched_alongside_the_market_overview(self):
+        """선물 조회가 시장 판단 시세와 **겹쳐 돌아야** 한다 (2026-09-10 상하님 지적).
+
+        상하님 — *"관심종목에서 시장분석으로 2초, 너무 늦다."*
+
+        **실측 — 그 화면이 세워 놓고 기다리는 조회 넷이 한 줄로 섰다.**
+            ① 9종목 1년치 일봉 ② 5종목 1분봉 → get_market_overview (0.90초)
+            ③ NQ=F ④ ES=F 5분봉              → 선물 칸            (0.79초)
+        ①②와 ③④는 서로 아무 상관이 없는데 ①②가 다 온 뒤에 ③④를 시작했다.
+
+        그래서 ③④를 화면 그리기 **맨 앞**에서 뒤 일꾼에게 먼저 맡기고, 선물 칸이
+        값을 읽기 직전에 그 일꾼을 기다린다. 새로 나가는 요청은 하나도 없다 —
+        받는 **때**만 옮겼다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        market = source.split("def _render_existing_theme_content()")[1]
+        market = market.split(chr(10) + "def ")[0]
+        self.assertIn("_start_us_futures_fetch()", market,
+                      "선물을 먼저 시켜 두는 자리가 없다")
+        # **맨 앞이어야 한다** — 시장 판단 시세를 받은 뒤에 시키면 겹칠 것이 없다.
+        self.assertLess(market.index("_start_us_futures_fetch()"),
+                        market.index("_render_market_overview()"),
+                        "시장 판단 시세를 받은 뒤에 선물을 시킨다 — 겹치지 않는다")
+        # **읽기 전에 기다려야 한다** — 안 기다리면 같은 것을 두 번 받는다.
+        fn = source.split("def _us_futures_cell(")[1].split(chr(10) + "def ")[0]
+        self.assertIn("_await_us_futures_fetch()", fn,
+                      "먼저 시켜 둔 일꾼을 안 기다린다 — 같은 것을 두 번 받는다")
+        self.assertLess(fn.index("_await_us_futures_fetch()"),
+                        fn.index('fetcher(ttl_seconds=300'),
+                        "값을 읽은 뒤에 기다린다 — 순서가 뒤집혔다")
+        # 한국테마 파일은 여전히 **읽기만** 한다 — 같은 함수를 같은 인자로 부른다.
+        starter = source.split("def _start_us_futures_fetch()")[1]
+        starter = starter.split(chr(10) + "def ")[0]
+        self.assertIn('ttl_seconds=300, interval="5m"', starter,
+                      "화면이 부르는 것과 다른 인자로 받으면 그 값이 안 쓰인다")
+
     def test_holding_period_numbers_are_still_kept_in_research(self):
         """보유기간 참고표는 화면에서 뺐지만 **숫자는 그대로 남아 있다**.
 

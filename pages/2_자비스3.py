@@ -2515,6 +2515,10 @@ def _us_futures_cell() -> str:
     fetcher = getattr(j4data, "get_us_futures_live", None)
     if fetcher is None:
         return _top_metric(label, "—", "#9aa0aa", "모듈 갱신 대기", extra_class=_FUTURES_CLASS)
+    # 화면 맨 앞에서 먼저 시켜 둔 일꾼이 있으면 그것이 끝나기를 기다린다
+    # (2026-09-10). 안 기다리고 읽으면 같은 것을 **또** 받는다 — 공책은 다 받은
+    # 뒤에야 차기 때문이다. 시켜 둔 것이 없으면 바로 지나간다.
+    _await_us_futures_fetch()
     try:
         # 5분봉이므로 공책도 5분 동안 쓴다 — 1분마다 다시 받을 까닭이 없다.
         futures = fetcher(ttl_seconds=300, interval="5m")
@@ -7710,6 +7714,12 @@ def _autosave_theme15() -> None:
 
 
 def _render_existing_theme_content() -> None:
+    # **선물부터 시켜 둔다** (2026-09-10 상하님 지적 — "관심종목에서 시장분석으로
+    # 2초, 너무 늦다"). 맨 위 선물 칸이 받을 것을 뒤 일꾼에게 먼저 맡긴다.
+    # 그 일꾼이 선물을 받는 동안 이 화면은 「미국 전체시장 판단」 시세를 받는다 —
+    # 여태 한 줄로 서서 기다리던 둘이 겹쳐 돈다(_start_us_futures_fetch 참고).
+    # 새로 나가는 요청은 하나도 없다. 받는 **때**만 옮긴 것이다.
+    _start_us_futures_fetch()
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
         # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
@@ -9105,12 +9115,19 @@ def _render_briefing_manage(selected: list[dict], extras: list[dict], *,
 
 
 def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
-    """뉴스가 다 온 뒤에 화면을 딱 한 번만 다시 그린다.
+    """뉴스가 어디까지 왔는지 **세기만 한다** (2026-09-10부터).
 
     예전에는 2.5초마다 `window.parent.location.reload()`로 브라우저를 통째로
     새로고침했다. 통째 새로고침이라 자비스3 계산이 처음부터 다시 돌고, 화면이 튀고,
     스크롤이 맨 위로 돌아갔다(2026-08-26 상하님 — "화면이 계속 버벅거리더라").
-    이 조각은 '뉴스가 다 왔나'만 조용히 살피고, 다 왔을 때 한 번 다시 그린다.
+    그래서 이 자리가 대신 '다 왔나'를 살펴 다시 그리게 했다.
+
+    **이제 다시 그리는 일은 여기 것이 아니다.** 2026-09-02에 만든 지켜보는 조각
+    (`_briefing_news_watcher`)이 2초마다 살펴 다시 그린다. 둘 다 다시 그리면
+    한 자리가 도착할 때마다 판을 두 번 그린다 — 아래 자세히 적어 두었다.
+
+    여기 남은 일은 **세는 것과 멈추는 것**이다. 다 왔거나 너무 오래 걸리면
+    `j3b_news_pending` 을 꺼서 지켜보는 조각도 같이 멈추게 한다.
     """
     if not st.session_state.get("j3b_news_pending"):
         st.session_state.pop("j3b_news_wait", None)
@@ -9132,7 +9149,21 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
         st.session_state["j3b_news_pending"] = False
         st.session_state.pop("j3b_news_wait", None)
         st.session_state.pop("j3b_news_ready", None)
-    st.rerun()
+    # **여기서 다시 그리라고 하지 않는다** (2026-09-10 상하님 지적 — "시장분석에서
+    # 관심종목으로 4초, 너무 늦다").
+    #
+    # **판을 두 번씩 그리고 있었다.** 뉴스 한 자리가 도착하면
+    #   1판 — 지켜보는 조각(_briefing_news_watcher)이 알아채고 다시 그리라고 한다.
+    #   2판 — 그 판 끝에서 여기가 **또** 다시 그리라고 한다. 화면은 하나도 안 바뀐다.
+    # 뉴스 자리가 11곳이라(시장 1 + 종목 10) 이 헛판이 열한 번 붙었다.
+    # 실측 — 뉴스가 다 올 때까지 판을 **32번** 그렸고 그리는 데만 4.52초를 썼다.
+    #
+    # 2026-09-02에 지켜보는 조각을 만들면서 이 자리가 겹쳤다. 그때는 여기가
+    # 유일한 길이라 필요했는데, 이제는 조각이 2초마다 스스로 살펴 다시 그린다
+    # (그 함수 설명 참고). 둘 다 두면 같은 일을 두 번 한다.
+    #
+    # **세는 일은 그대로 남긴다** — 위의 j3b_news_pending 을 꺼 주는 것이 여기다.
+    # 그것이 꺼져야 지켜보는 조각도 멈춘다.
 
 
 @st.fragment(run_every=2)
@@ -9192,6 +9223,84 @@ def _briefing_news_watcher(keys: tuple = ()) -> None:
         st.rerun()
 
 
+_FUTURES_FETCH_LOCK = threading.Lock()
+_FUTURES_FETCH = {"thread": None}
+
+
+def _start_us_futures_fetch() -> None:
+    """시장분석 맨 위 선물 칸(NQ=F·ES=F)을 **먼저 시켜 둔다** (2026-09-10).
+
+    상하님 지적 — *"관심종목에서 시장분석으로 2초, 너무 늦다."*
+
+    **실측 — 그 화면이 세워 놓고 기다리는 조회가 넷인데, 넷이 한 줄로 선다.**
+        ① 9종목 1년치 일봉 ② 5종목 1분봉  → 「미국 전체시장 판단」 (0.90초)
+        ③ NQ=F ④ ES=F 5분봉               → 선물 칸             (0.79초)
+    ①②는 `j3data.get_market_overview()` 가, ③④는 이 선물 칸이 받는다. **둘은
+    서로 아무 상관이 없는데** 화면이 ①②를 다 받은 뒤에야 ③④를 시작했다.
+
+    그래서 ③④를 **화면 그리기 맨 앞에서** 뒤 일꾼에게 먼저 맡긴다. 일꾼이
+    선물을 받는 동안 화면은 ①②를 받는다. 둘이 겹쳐 도니 0.79초가 통째로 없어진다.
+
+    **새로 나가는 요청이 하나도 없다.** 어차피 그 화면이 받던 것을, 받는 **때**만
+    옮겼다. 값도 계산도 한 글자도 안 바뀐다.
+
+    **한국테마 파일은 안 고친다 — 읽기만 한다.** 화면이 부르는 것과 똑같은
+    함수를 똑같은 인자로 부를 뿐이라(`ttl_seconds=300, interval="5m"`), 받아 둔
+    것이 그 칸에 그대로 쓰이고 한국테마(1분봉·60초)는 키가 달라 영향이 없다.
+
+    **두 번 받지 않게 한다.** 아래 `_await_us_futures_fetch` 가 이 일꾼을 기다린
+    뒤에 값을 읽으므로, 화면과 일꾼이 같은 것을 각자 받는 일이 없다.
+    실패해도 아무 일이 없다 — 그때는 예전처럼 선물 칸이 그 자리에서 받는다.
+    """
+    with _FUTURES_FETCH_LOCK:
+        running = _FUTURES_FETCH.get("thread")
+        if running is not None and running.is_alive():
+            return                      # 이미 받는 중이다
+
+    def _run() -> None:
+        try:
+            import jarvis4_data as j4data
+
+            fetcher = getattr(j4data, "get_us_futures_live", None)
+            if callable(fetcher):
+                fetcher(ttl_seconds=300, interval="5m")
+        except Exception:
+            pass                        # 못 받아도 화면은 그대로 돈다
+
+    try:
+        thread = threading.Thread(target=_run, name="j3-futures-fetch", daemon=True)
+        thread.start()
+    except Exception:
+        return                          # 일꾼을 못 띄우면 예전처럼 화면이 받는다
+    with _FUTURES_FETCH_LOCK:
+        _FUTURES_FETCH["thread"] = thread
+
+
+def _await_us_futures_fetch(timeout: float = 12.0) -> None:
+    """먼저 시켜 둔 선물 조회가 끝나기를 기다린다. 선물 칸이 값을 읽기 직전에 부른다.
+
+    기다리지 않고 바로 읽으면, 일꾼이 아직 받는 중일 때 화면이 **같은 것을 또**
+    받는다(jarvis4_data 의 공책은 다 받은 뒤에야 찬다). 그러면 야후에 요청이
+    두 배로 나가고 빨라지지도 않는다.
+
+    **12초에서 끊는다.** 야후가 멀쩡하면 이 기다림은 1초 안쪽이다 — 실측 0.79초.
+    12초까지 끄는 판은 야후 쪽이 이미 막힌 것이고, 그때는 아래 선물 칸이
+    예전처럼 제가 받아 본다(그 조회 자체의 제한 시간도 12초다).
+
+    **막힌 판에서는 이 기다림만큼 늦어질 수 있다 — 솔직히 적어 둔다.** 다만 그
+    판은 고치기 전에도 선물 칸에서 12초씩 세 번을 기다리던 자리라 늘어나는 몫이
+    전체에 비하면 작고, 야후가 멀쩡한 보통 판에서는 언제나 빨라진다.
+    """
+    with _FUTURES_FETCH_LOCK:
+        thread = _FUTURES_FETCH.get("thread")
+    if thread is None:
+        return
+    try:
+        thread.join(timeout)
+    except Exception:
+        pass
+
+
 def _warm_after_news(keys: tuple) -> None:
     """뉴스가 다 온 **뒤에** 순위 9와 나스닥 25년치를 미리 챙긴다.
 
@@ -9228,6 +9337,23 @@ def _warm_after_news(keys: tuple) -> None:
             sector_warm()
         except Exception:
             pass
+    # ── 시장분석 화면이 **세워 놓고 기다리는 조회 넷**도 여기서 미리 받는다 ──
+    # (2026-09-10 상하님 지적 — "관심종목에서 시장분석으로 2초, 너무 늦다.")
+    #
+    # 실측 — 그 2.05초 중 1.70초가 맨 위 「미국 전체시장 판단」 칸이 시세를
+    # 기다리는 시간이었다. 넷이 연달아 나간다(한 번에 하나씩 나가게 되어 있다):
+    #   ① 9종목 1년치 일봉 · ② 5종목 1분봉   → get_market_overview (0.90초)
+    #   ③ NQ=F · ④ ES=F 5분봉                → 선물 칸        (0.79초)
+    #
+    # 위 신호 시세·업종 지도와 **같은 자리, 같은 방식**이다 — 뉴스가 다 온 뒤에
+    # 뒤 일꾼을 띄우고 바로 돌아간다. 값도 계산도 하나도 안 바뀐다.
+    overview_warm = getattr(j3data, "warm_market_overview", None)
+    if callable(overview_warm):
+        try:
+            overview_warm()
+        except Exception:
+            pass
+    _start_us_futures_fetch()
     warm = getattr(j3data, "warm_top_picks", None)
     if not callable(warm):
         return
