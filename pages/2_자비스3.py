@@ -8035,6 +8035,33 @@ def _render_existing_theme_content() -> None:
     # 두지 말라." 0으로 두면 맨 위 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)가
     # 화면 끝에 딱 붙어, 폰 브라우저 주소창이 오르내릴 때 가려진다.
     # 예전 224px 과는 비교가 안 되는 10px 이다.
+    # ── 여기 <style> 에 2026-09-11 규칙 셋을 더했다 (상하님 지시) ─────────────
+    # **이 덩어리 안에는 주석을 못 쓴다.** <div> 로 시작하는 HTML 덩어리라
+    # 마크다운이 빈 줄에서 끊어 버린다(2026-08-26에 CSS가 화면에 쏟아졌다).
+    # 그래서 설명을 여기 밖에 적는다.
+    #
+    # ① 보이지 않는 자리 표시는 자리를 먹지 않는다
+    #    (`[data-testid="stElementContainer"]:has(.jarvis-anchor)` → position:absolute)
+    #    상하님 — "모든 박스와 박스 사이 여백을 다 같은 여백으로 다 줄여라."
+    #    재 보니 칸 사이가 16px 로 고른 데가 대부분인데 몇 군데만 32~48px 이었다.
+    #    그 자리마다 눈에 안 보이는 자리 표시(scroll_to.anchor, 높이 0)가 한 칸으로
+    #    세어져 있었다. 스트림릿은 칸과 칸 사이에 무조건 16px 을 넣으므로, 높이 0짜리가
+    #    하나 끼면 16px 이 두 번 들어가 32px 이 된다. 흐름에서 빼면 16px 하나만 남는다.
+    #    자리 표시 구실은 그대로다 — top/left 를 안 주므로 있던 자리에 그대로 선다.
+    #    실측 — 강한 테마 카드 → 21개 테마 48px → 16px.
+    #
+    # ② 가로줄(구분선)도 한 칸으로 세어져 위아래 16px 씩, 합쳐 32px 을 먹고 있었다.
+    #    (`:has(hr)` 에 -8px 씩) 줄 자체는 남기고 그 칸이 먹던 여백만 도로 뱉는다.
+    #    실측 — 「시장 전체 흐름」→「미국장 시장 상태」 32px → 16px,
+    #           「순위 9」→「종목검색」 32px → 16px.
+    #    ⚠ hr 은 stElementContainer 의 **직계 자식이 아니다**(stMarkdown 두 겹 안).
+    #      `:has(> hr)` 로 쓰면 하나도 안 걸린다 — 실측으로 확인했다.
+    #
+    # ③ 맨 위 두 단추(한국테마·이 테마 설명)를 배너 그림 안으로 넣는 규칙.
+    #    자세한 내력은 2026-09-11 커밋 설명에 있다.
+    #
+    # **미국테마 화면에만 건다** — method_help·scroll_to 는 한국테마와 공용이다
+    # (CLAUDE.md 0-1 다).
     st.markdown(
         """
         <div class="j3-market-top"></div>
@@ -8044,6 +8071,18 @@ def _render_existing_theme_content() -> None:
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style:only-child),
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] .j3-market-top) {
           display:none!important;
+        }
+        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(hr),
+        body:has(.j3b-home) [data-testid="stElementContainer"]:has(hr) {
+          margin-top:-8px!important;
+          margin-bottom:-8px!important;
+        }
+        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(.jarvis-anchor),
+        body:has(.j3b-home) [data-testid="stElementContainer"]:has(.jarvis-anchor) {
+          position:absolute!important;
+          height:0!important;
+          margin:0!important;
+          padding:0!important;
         }
         body:has(.j3-market-top) .st-key-jarvis_method_help_row {
           gap:.35rem!important;
