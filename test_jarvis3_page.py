@@ -330,6 +330,48 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertIn(margin, tail[:tail.index("}") + 1],
                           f"{key} 여백 값이 실측과 다르다")
 
+    def test_theme_rank_toggle_redraws_the_whole_page_and_scrolls(self):
+        """21개 테마를 여닫으면 **판 전체**를 다시 그리고 그 자리로 올라간다.
+
+        2026-09-11 상하님 지적 — "21개 테마 실시간 순위 닫기 누르면 노란색
+        동그라미 친 부분이 남는다. 또 눌러야 없어진다." ·
+        "강한 테마나 21개 테마를 누르면 화면이 위로 올라가게 하되 캡처 화면처럼
+        위치를 맞춰라."
+
+        **왜 남았나.** 21개 테마가 열렸나를 보고 아래 닫기 단추를 그리는 곳은
+        상승장 덩이인데, 그 상태를 바꾸는 것은 다른 덩이(테마 덩이)다. 스트림릿은
+        누른 단추가 든 덩이만 다시 그리므로 나머지가 옛 상태로 남았다.
+        **여는 쪽도 거울처럼 같은 문제였다** — 맨 위 단추로 열면 아래 닫기 단추가
+        아예 안 생겼다. 진짜 앱을 띄워 둘 다 재현하고 고쳤다:
+
+          맨 위 단추로 연 뒤   아래 닫기 단추  없음 → 있음
+          맨 위 단추로 닫은 뒤 아래 닫기 단추  남음 → 없음
+          열었을 때 닫기 단추가 화면 위에서   —  → 92px (표가 바로 밑에 온다)
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        # ① 닫을 때 — 조건 없이 판 전체를 다시 그린다.
+        close_fn = source.split("def _close_theme_rank_from_fragment()")[1]
+        close_fn = close_fn.split(chr(10) + "def ")[0]
+        self.assertIn('st.session_state["j3_close_all_pending"] = True', close_fn)
+        self.assertNotIn("if outside_open:", close_fn,
+                         "밖에 열린 것이 있을 때만 다시 그리면 닫기 단추가 남는다")
+        # ② 열 때 — 같은 일을 하고, 그 자리로 올라간다.
+        open_fn = source.split("def _open_theme_rank_from_fragment()")[1]
+        open_fn = open_fn.split(chr(10) + "def ")[0]
+        self.assertIn('st.session_state["j3_close_all_pending"] = True', open_fn)
+        self.assertIn("scroll_to.request(st, _THEME_RANK_ANCHOR)", open_fn)
+        # ③ 자리 표시는 21개 테마 단추 **바로 위**여야 캡처 화면처럼 선다.
+        block = source[source.index("    scroll_to.anchor(st, _THEME_RANK_ANCHOR)"):]
+        block = block[:block.index("on_close=_close_theme_rank_from_fragment,")]
+        self.assertIn('f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN,', block,
+                      "자리 표시가 단추 바로 위에 없다")
+        self.assertIn("on_open=_open_theme_rank_from_fragment,", block)
+        # ④ 강한 테마 카드로 열 때도 **같은 자리**로 올라간다.
+        card = source.split('if st.button("강한 테마 TOP 5 — 21개 테마 열기"')[1]
+        card = card[:card.index("st.rerun()")]
+        self.assertIn("scroll_to.request(st, _THEME_RANK_ANCHOR)", card,
+                      "카드로 열면 화면이 안 올라간다")
+
     def test_strong_theme_top5_sits_above_the_theme_rank_button(self):
         """「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시).
 
