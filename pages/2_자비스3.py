@@ -6276,7 +6276,7 @@ def _pullback_backdrop_cards(
                 ref_drop = _red(f"{float(reference.get('reference_drop') or 0):.1f}%")
                 now_drop = _red(f"{float(reference.get('today_drop') or 0):.1f}%")
                 market_body = (
-                    f"{ref_day} 기준으로 찾았습니다 — 그날 나스닥이 고점에서 "
+                    f"{ref_day} 기준으로 찾았습니다 — 그날 QQQ(나스닥100)가 고점에서 "
                     f"{ref_drop}였습니다. 오늘은 {now_drop}입니다."
                 )
             else:
@@ -6290,7 +6290,7 @@ def _pullback_backdrop_cards(
                     low, high = getattr(j3data, "CRASH_MARKET_BAND", (-12.0, -6.0))
                     band = _red(f"{abs(high):.0f}~{abs(low):.0f}%")
                     market_body = (
-                        f"최근 한 달에 나스닥이 {band} 내려온 날이 없었습니다. "
+                        f"최근 한 달에 QQQ(나스닥100)가 {band} 내려온 날이 없었습니다. "
                         f"지금은 {_red(f'{float(drop_pct):.1f}%')}입니다. "
                         "그래서 오늘 낙폭으로 찾은 결과입니다."
                     )
@@ -6842,6 +6842,25 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     )
 
 
+def _ixic_note(reference: dict) -> str:
+    """「(나스닥 종합지수(IXIC)는 7월 29일 종가 -9.78%)」 한 조각 (2026-09-11 상하님 지시).
+
+    **참고로만 적는다.** 종목을 고르는 자는 QQQ 그대로다.
+    값은 jarvis3_data.crash_reference_day 가 같이 실어 보낸다 — 여기서 다시
+    계산하지 않는다. 없으면 빈 글자를 준다(괄호만 빠지고 문장은 그대로 선다).
+    """
+    date_text = str((reference or {}).get("ixic_date") or "")
+    drop = (reference or {}).get("ixic_drop")
+    if not date_text or drop is None:
+        return ""
+    try:
+        _year, month, day = date_text.split("-")
+        when = f"{int(month)}월 {int(day)}일"
+    except Exception:
+        when = date_text
+    return f" (나스닥 종합지수(IXIC)는 {when} 종가 :red[**{float(drop):.2f}%**])"
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -6889,16 +6908,22 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             passed = result.get("days_since_reference")
             passed_text = (f" 그날부터 **{int(passed)}거래일** 지났습니다."
                            if isinstance(passed, (int, float)) else "")
+            # **괄호는 참고다** (2026-09-11 상하님 지시 — "괄호 안에 (나스닥
+            # 종합지수(IXIC)는 7월 29일 종가 -9.78%)"). 화면 숫자는 QQQ를 잰 것이라
+            # 나스닥 종합 숫자와 헷갈리셨다. **고르는 데는 하나도 안 쓴다** —
+            # 기준일도 종목도 QQQ로 정한 그대로다(상하님 — "연결되는 것은 원래대로
+            # QQQ로 하고"). 못 구하면 괄호만 빠지고 나머지는 그대로다.
             st.info(
-                f"**{ref_date} 기준으로 찾았습니다** — 그날 나스닥이 고점에서 "
+                f"**{ref_date} 기준으로 찾았습니다** — 그날 QQQ(나스닥100)가 고점에서 "
                 f":red[**{reference.get('reference_drop', 0):.1f}%**]였고 오늘은 "
-                f":red[**{drop_now:.1f}%**]입니다. "
-                "그날 걸렸던 종목을 그대로 보여드립니다."
+                f":red[**{drop_now:.1f}%**]입니다."
+                + _ixic_note(reference)
+                + " 그날 걸렸던 종목을 그대로 보여드립니다."
                 + passed_text
             )
         elif drop_now is not None:
             st.info(
-                "**최근 한 달에 나스닥이 :red[**-6~-12%**] 내려온 날이 없었습니다** — 지금은 "
+                "**최근 한 달에 QQQ(나스닥100)가 :red[**-6~-12%**] 내려온 날이 없었습니다** — 지금은 "
                 f":red[**{drop_now:.1f}%**]입니다. 그래서 오늘 낙폭으로 찾은 결과입니다."
             )
         # 이 갈래만 붙이는 경고다(2026-08-06 사용자 승인). 점수가 96·95·92처럼 크게
