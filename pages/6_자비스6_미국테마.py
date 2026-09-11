@@ -44,6 +44,21 @@ st.set_page_config(
     layout="wide",
 )
 
+# **닫아 둔 화면이다** (2026-09-11 상하님 지시 — "자비스6 온라인 화면에서 안 보이게
+# 해라"). 목록에서 빼는 것만으로는 북마크·뒤로가기로 그냥 들어가진다.
+# **맨 앞이어야 한다** — 뒤에 두면 그 앞의 시세 조회가 이미 다 돌아 막은 뜻이 없다.
+# 되살리려면 page_access.OPEN_PAGES 에 "자비스6미국테마"를 넣고 이 줄을 뺀다.
+import page_access
+
+# 배포 갱신 중 **옛 page_access** 가 프로세스에 남으면 닫은 것이 조용히 안 먹는다
+# (규칙 11). 리비전이 낮으면 다시 읽는다.
+if int(getattr(page_access, "MODULE_REVISION", 0)) < 2026091110:
+    import importlib as _importlib
+
+    page_access = _importlib.reload(page_access)
+
+page_access.guard(st, "자비스6미국테마")
+
 st.markdown(
     """
     <style>

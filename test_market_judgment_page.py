@@ -184,7 +184,9 @@ class ClosedPageTest(unittest.TestCase):
         # 2026-09-07에 미국테마 하나만 남겼다가, 2026-09-08에 한국테마와
         # 자비스6미국테마를 도로 열었다(상하님 지시 — "한국테마는 다시 살려라" ·
         # "자비스6 미국테마도 다시 살려라").
-        self.assertEqual(("미국테마", "한국테마", "자비스6미국테마"),
+        # 2026-09-11 상하님 지시로 자비스6미국테마를 도로 닫았다
+        # ("자비스6 온라인 화면에서 안 보이게 해라"). 자비스7 은 열려 있다.
+        self.assertEqual(("미국테마", "한국테마", "자비스7"),
                          page_access.OPEN_PAGES)
         for closed in ("시장판단", "자비스1", "자비스2", "자비스5", "자비스6"):
             self.assertFalse(page_access.is_open(closed), closed)

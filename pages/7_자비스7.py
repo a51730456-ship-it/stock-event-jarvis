@@ -36,7 +36,7 @@ def login_gate():
 login_gate()
 
 import page_access
-if getattr(page_access,"MODULE_REVISION",0)<2026090830:
+if getattr(page_access,"MODULE_REVISION",0)<2026091110:
     import importlib
     page_access=importlib.reload(page_access)
 page_access.guard(st,"자비스7")

@@ -21,19 +21,23 @@ CLOSED_PAGES = {
     "pages/1_자비스2.py": "자비스2",
     "pages/4_자비스5.py": "자비스5",
     "pages/5_자비스6.py": "자비스6",
+    # 2026-09-11 상하님 지시로 닫았다 — "자비스6 온라인 화면에서 안 보이게 해라".
+    "pages/6_자비스6_미국테마.py": "자비스6미국테마",
 }
 
 
 class OpenPagesTests(unittest.TestCase):
     def test_only_the_theme_pages_are_open(self):
-        """지금 열어 둔 것은 테마 화면 셋이다.
+        """지금 열어 둔 것은 셋이다 — 미국테마 · 한국테마 · 자비스7.
 
-        2026-09-07에 미국테마 하나만 남겼다가, **2026-09-08 상하님 지시로
-        나머지 둘을 도로 열었다** — "한국테마는 다시 살려라" ·
-        "자비스6 미국테마도 다시 살려라."
+        2026-09-07에 미국테마 하나만 남겼다가 2026-09-08에 둘을 도로 열었고,
+        **2026-09-11 상하님 지시로 자비스6미국테마를 다시 닫았다** —
+        「어디로 갈까요」 캡처의 그 줄에 동그라미를 치시고 "자비스6 온라인
+        화면에서 안 보이게 해라".
         """
-        self.assertEqual(("미국테마", "한국테마", "자비스6미국테마", "자비스7"),
+        self.assertEqual(("미국테마", "한국테마", "자비스7"),
                          page_access.OPEN_PAGES)
+        self.assertFalse(page_access.is_open("자비스6미국테마"))
 
     def test_every_name_is_a_real_page(self):
         """열어 둔 이름이 오타면 그 화면이 조용히 막힌다."""
@@ -69,9 +73,10 @@ class GuardPlacementTests(unittest.TestCase):
 
         한국테마는 2026-09-07에 닫으면서 막는 장치를 붙였다가, 2026-09-08에
         도로 열면서 그 장치를 뗐다(상하님 지시 — "한국테마는 다시 살려라").
+        자비스6미국테마는 2026-09-11에 도로 닫으면서 장치를 다시 붙였으므로
+        여기서 빠지고 위 CLOSED_PAGES 로 옮겼다.
         """
-        for path in ("pages/2_자비스3.py", "pages/3_자비스4.py",
-                     "pages/6_자비스6_미국테마.py"):
+        for path in ("pages/2_자비스3.py", "pages/3_자비스4.py"):
             source = (ROOT / path).read_text(encoding="utf-8")
             self.assertNotIn("page_access.guard(", source, path)
 

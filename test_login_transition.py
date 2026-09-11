@@ -235,11 +235,13 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertEqual([], [node.key for node in app.radio],
                          "고르는 동그라미는 없어야 한다 — 링크를 바로 누른다")
         targets = [node.page for node in app.get("page_link")]
-        # 2026-09-08에 나머지 둘을 도로 열어 셋이 되었다(상하님 지시 —
-        # "한국테마는 다시 살려라" · "자비스6 미국테마도 다시 살려라").
+        # 2026-09-08에 나머지 둘을 도로 열어 셋이 되었다가,
+        # **2026-09-11 상하님 지시로 자비스6 미국테마를 도로 닫았다**
+        # ("자비스6 온라인 화면에서 안 보이게 해라").
         self.assertIn("자비스3", targets)
         self.assertIn("자비스4", targets)
-        self.assertIn("자비스6_미국테마", targets)
+        self.assertIn("자비스7", targets)
+        self.assertNotIn("자비스6_미국테마", targets)
         # 자비스1은 2026-08-28부터 닫아 두었다 — 그 단추도 없다(상하님 지시).
         self.assertNotIn("entry_go", [node.key for node in app.button])
         # 자비스1은 그려지지 않아야 한다 — 이게 그려지면 옛 동작으로 돌아간 것이다.
@@ -296,13 +298,14 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # **2026-08-28부터 열어 둔 곳은 둘뿐이다**(상하님 지시 — "나머지 화면은
         # 접근 금지로 해라"). 목록은 page_access.OPEN_PAGES 가 정한다.
         # 예전에는 여섯 링크 + 자비스1 단추였다. 되살리면 그때로 돌아온다.
-        # 2026-09-07에 미국테마 하나만 남겼다가, **2026-09-08에 나머지 둘을
-        # 도로 열어** 셋이 되었다(상하님 지시 — "한국테마는 다시 살려라" ·
-        # "자비스6 미국테마도 다시 살려라").
-        self.assertEqual(4, len(links), labels)
+        # 2026-09-07에 미국테마 하나만 남겼다가 2026-09-08에 둘을 도로 열었고,
+        # **2026-09-11 상하님 지시로 자비스6 미국테마를 도로 닫아** 셋이 되었다
+        # ("자비스6 온라인 화면에서 안 보이게 해라").
+        self.assertEqual(3, len(links), labels)
         for name in ("미국테마 (자비스3)", "한국테마 (자비스4)",
-                     "자비스6 미국테마 (새 디자인)"):
+                     "자비스7 미국테마"):
             self.assertIn(name, labels)
+        self.assertNotIn("자비스6 미국테마 (새 디자인)", labels)
 
 
 if __name__ == "__main__":
