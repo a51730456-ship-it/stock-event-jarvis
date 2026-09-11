@@ -1027,8 +1027,19 @@ st.markdown(
          칸과 칸 사이       12px → 9px
          그림쇠 한 변       32px → 24px
        다섯 줄 기준으로 카드 높이가 약 340px → 약 232px 이 된다(계산값). */
+    /* ── 위아래 자리 (2026-09-11 상하님 지시 · 실측으로 맞췄다) ──────────────
+       상하님 — "조금 더 위로 올려라. 자세히보기 밑으로." ·
+                "각 클릭들 간격 동일하게 하고 일정하게 하란 말이다."
+       진짜 앱을 폰 폭(412px)으로 띄워 재 보니 이랬다:
+         자세히 보기 → 카드      60px   ← 혼자 멀다
+         카드 → 21개 테마        26px   ← 혼자 다르다 (「전체 보기」 줄 때문)
+         21개 테마 → 상승장      16px
+         상승장 → 급락 후 반등장 16px
+         급락 후 반등장 → 순위 9 16px
+       스트림릿이 칸과 칸 사이에 늘 16px을 넣는다. 그 16px에 **다 맞춘다.**
+       위는 44px을 당기고(60→16), 아래는 「전체 보기」 줄을 없앤 자리를 맞춘다. */
     .j3-st5 {
-        margin: 2px 0 8px;
+        margin: 0;
         padding: 10px 13px 2px;
         border: 1px solid #2a557f;
         border-radius: 16px;
@@ -1045,7 +1056,7 @@ st.markdown(
     /* 한 줄: 순번 · 그림쇠 · 이름 · 막대 · 점수 */
     .j3-st5-row {
         display: grid;
-        grid-template-columns: 24px 24px minmax(72px, 1.05fr) minmax(40px, 1.3fr) 44px;
+        grid-template-columns: 22px 24px minmax(96px, 1.45fr) minmax(34px, .95fr) 42px;
         align-items: center;
         gap: 9px;
         padding: 5px 0;
@@ -1059,7 +1070,13 @@ st.markdown(
         background: linear-gradient(145deg, #1450a3, #072452);
     }
     .j3-st5-icon svg { width: 15px; height: 15px; }
-    .j3-st5-row b { color: #edf5ff; font-size: 14px; font-weight: 600; letter-spacing: -.3px; }
+    /* **이름은 접지 않는다** (2026-09-11). 「태양광·청정에너지」처럼 긴 이름이
+       두 줄로 접히면 그 줄만 키가 커져 카드가 들쭉날쭉해진다(실측 — 그 줄만
+       70px, 나머지는 34px). 넘치면 … 으로 줄인다. */
+    .j3-st5-row b {
+        color: #edf5ff; font-size: 14px; font-weight: 600; letter-spacing: -.3px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
     .j3-st5-bar { height: 6px; border-radius: 3px; background: #122740; overflow: hidden; }
     .j3-st5-bar i {
         display: block; height: 100%; border-radius: 3px;
@@ -1070,18 +1087,39 @@ st.markdown(
         color: #f8cc70; font-size: 15px; font-weight: 800; text-align: right;
         font-variant-numeric: tabular-nums;
     }
-    /* 「전체 보기 ›」 — 카드 아래쪽에 붙어 카드의 한 줄처럼 보이게 한다. */
-    div.st-key-j3_st5_open { margin: -14px 0 10px !important; }
-    div.st-key-j3_st5_open button {
-        width: auto !important; min-height: 0 !important;
-        margin-left: auto !important; margin-right: 6px !important;
-        padding: 3px 10px !important;
-        border: 0 !important; background: transparent !important;
-        color: #9fc4e8 !important; font-size: 13px !important; font-weight: 700 !important;
-        box-shadow: none !important;
+    /* ── 카드 **전체**가 누르는 자리다 (2026-09-11 상하님 지시) ──────────────
+       속이 비치는 스트림릿 단추를 카드 위에 통째로 겹쳐 둔다. 하단 이동막대
+       (j3b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치와 같다. */
+    div.st-key-j3_st5_wrap {
+        position: relative !important;
+        /* **위로 당기는 것은 통이 한다.** 카드에 음수 여백을 주면 카드가 통 밖으로
+           삐져나가, 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측 —
+           카드 242px 가운데 위 42px 이 안 덮였다). */
+        margin-top: -42px !important;
     }
-    div.st-key-j3_st5_open button:hover { color: #42caff !important; background: transparent !important; }
-    div.st-key-j3_st5_open [data-testid="stElementContainer"] { display: flex !important; justify-content: flex-end !important; }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open {
+        position: absolute !important; inset: 0 !important;
+        margin: 0 !important; padding: 0 !important; z-index: 6 !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stVerticalBlock"],
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stElementContainer"],
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stButton"] {
+        width: 100% !important; height: 100% !important;
+        margin: 0 !important; padding: 0 !important; gap: 0 !important;
+        max-width: none !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button {
+        width: 100% !important; height: 100% !important; min-height: 0 !important;
+        margin: 0 !important; padding: 0 !important;
+        border: 0 !important; border-radius: 16px !important;
+        background: transparent !important; box-shadow: none !important;
+        color: transparent !important;
+        pointer-events: auto !important; touch-action: manipulation !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button p { color: transparent !important; }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button:hover {
+        background: rgba(66,202,255,.07) !important;
+    }
     /* 종목검색 칸 이름 — 바로 위 보라색 띠와 같은 계열로 진하게(2026-08-01 지시).
        어두운 화면에서도 읽히도록 띠의 밝은 쪽 보라를 쓴다. */
     div[class*="st-key-j3_my_stock_query"] [data-testid="stWidgetLabel"] p {
@@ -3706,21 +3744,33 @@ def _render_strong_theme_top5(ranking: dict) -> None:
             f'<span class="j3-st5-bar"><i style="width:{width:.1f}%"></i></span>'
             f'<strong>{score_text}</strong></div>'
         )
-    st.markdown(
-        '<div class="j3-st5"><div class="j3-st5-head">'
-        '<span class="j3-st5-flash">⚡</span><b>강한 테마 TOP 5</b>'
-        '<span class="j3-st5-unit">테마 점수 / 100</span></div>'
-        + "".join(lines) + "</div>",
-        unsafe_allow_html=True,
-    )
-    # 「전체 보기 ›」 — 바로 밑 21개 테마 순위를 연다. 여는 방식은 `_section_toggle`
-    # 의 _flip 과 **똑같다**(상태를 켜고 방문기록을 쌓는다). 달리 쓰면 뒤로가기가
-    # 그 단추와 다르게 움직인다.
-    with st.container(key="j3_st5_open"):
-        if st.button("전체 보기 ›", key="j3_st5_open_btn"):
-            st.session_state[_THEME_RANK_OPEN] = True
-            back_nav.opened(st, _THEME_RANK_OPEN)
-            st.rerun()
+    # **카드 어디를 눌러도 21개 테마로 들어간다** (2026-09-11 상하님 지시 —
+    # "강한 테마 TOP5 전체 중 어디든 클릭하면 21개 테마로 들어가게 하고
+    #  전체보기 삭제하고").
+    #
+    # 카드 그림과 **속이 비치는 단추**를 한 통에 담고, 단추를 통 위에 통째로
+    # 겹쳐 둔다. 하단 이동막대(j3b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치다 —
+    # 스트림릿 단추 안에는 막대·점수 같은 HTML을 넣을 수 없어서, 보이는 것과
+    # 누르는 것을 따로 두고 겹치는 수밖에 없다.
+    #
+    # 겹치기가 안 먹어도 **화면은 그대로 돌아간다** — 카드가 안 눌릴 뿐이고,
+    # 바로 밑 「21개 테마」 단추로 여시면 된다.
+    with st.container(key="j3_st5_wrap"):
+        st.markdown(
+            '<div class="j3-st5"><div class="j3-st5-head">'
+            '<span class="j3-st5-flash">⚡</span><b>강한 테마 TOP 5</b>'
+            '<span class="j3-st5-unit">테마 점수 / 100</span></div>'
+            + "".join(lines) + "</div>",
+            unsafe_allow_html=True,
+        )
+        # 여는 방식은 `_section_toggle` 의 _flip 과 **똑같다**(상태를 켜고
+        # 방문기록을 쌓는다). 달리 쓰면 뒤로가기가 그 단추와 다르게 움직인다.
+        # 글자는 남겨 둔다 — 눈에는 안 보여도 화면을 읽어 주는 기기가 이것을 읽는다.
+        with st.container(key="j3_st5_open"):
+            if st.button("강한 테마 TOP 5 — 21개 테마 열기", key="j3_st5_open_btn"):
+                st.session_state[_THEME_RANK_OPEN] = True
+                back_nav.opened(st, _THEME_RANK_OPEN)
+                st.rerun()
 
 
 def _section_toggle(

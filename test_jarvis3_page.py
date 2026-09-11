@@ -303,6 +303,23 @@ class Jarvis3PageTests(unittest.TestCase):
         card = card[:card.index("    .j3-st5-row:last-child")]
         self.assertIn("padding: 5px 0;", card, "줄 위아래 여백이 안 좁혀졌다")
         self.assertIn("gap: 9px;", card, "칸 사이가 안 좁혀졌다")
+        # ⑥ **카드 어디를 눌러도 들어간다** (2026-09-11 상하님 지시 — "강한 테마
+        #    TOP5 전체 중 어디든 클릭하면 21개 테마로 들어가게 하고 전체보기 삭제").
+        #    속이 비치는 단추를 카드 위에 통째로 겹쳐 둔다.
+        self.assertIn('st.container(key="j3_st5_wrap")', source, "카드를 감싼 통이 없다")
+        self.assertIn("div.st-key-j3_st5_wrap div.st-key-j3_st5_open {", source,
+                      "겹쳐 두는 규칙이 없다")
+        self.assertIn("inset: 0 !important;", source, "단추가 카드를 다 안 덮는다")
+        self.assertNotIn('st.button("전체 보기', source, "「전체 보기」가 아직 남았다")
+        # ⑦ **이름은 접지 않는다** — 한 줄만 두 줄이 되면 카드가 들쭉날쭉해진다.
+        self.assertIn("white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", source,
+                      "긴 테마 이름이 두 줄로 접힌다")
+        # ⑧ **위로 당기는 것은 통이 한다** — 카드에 음수 여백을 주면 카드가 통 밖으로
+        #    삐져나가 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측).
+        wrap = source[source.index("    div.st-key-j3_st5_wrap {"):]
+        wrap = wrap[:wrap.index("\n    }") + 6]
+        self.assertIn("margin-top: -42px !important;", wrap,
+                      "카드를 「자세히 보기」 밑으로 당기는 자리가 없다")
 
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
