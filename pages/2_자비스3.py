@@ -8474,6 +8474,33 @@ def _briefing_css() -> None:
             max-width:560px!important;
           }
         }
+        /* ── 태블릿에서 어긋나 보이던 두 자리 (2026-09-11 상하님 지시) ───────────
+           상하님 — "게이지 왼쪽 치우친 것하고 두 단추 한 줄 되는 것 고쳐라."
+
+           ① 「미국장 시장 상태」 게이지가 상자 왼쪽 끝에 붙는다.
+              태블릿 실측 — 상자 폭 978px 인데 게이지(235px)가 왼쪽 92px 에 선다.
+              폰은 상자가 좁아(≈380px) 가운데처럼 보였을 뿐이다. 가운데로 세운다.
+              **공포·탐욕과 시장 국면 게이지는 안 건드린다** — 그 둘은 게이지
+              오른쪽에 숫자표가 들어가는 자리라 왼쪽에 서는 것이 맞다.
+
+           ② 「상승장」과 「급락 후 반등장」이 한 줄에 선다.
+              st.columns(2) 라서 폰(<640px)에서는 위아래로 쌓이는데 태블릿에서는
+              가로로 갈린다. 태블릿 실측 — 상승장 왼쪽 80px, 급락 왼쪽 577px.
+              태블릿에서도 폰처럼 위아래로 쌓는다.
+
+           **폰은 안 건드린다**(601px 미만은 이 규칙에 안 걸린다). */
+        @media (min-width:601px){
+          body:has(.j3-market-top) .sig-gauge{text-align:center!important}
+          body:has(.j3-market-top) .sig-gauge>svg{
+            display:block!important;margin-left:auto!important;margin-right:auto!important;
+          }
+          body:has(.j3-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]){
+            flex-direction:column!important;
+          }
+          body:has(.j3-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]) [data-testid="stColumn"]{
+            width:100%!important;flex:0 0 auto!important;min-width:0!important;
+          }
+        }
         .j3b-news-box{margin:7px 0;padding:0;overflow:hidden;
           border:1px solid #bd905266;border-radius:17px;
           background:linear-gradient(90deg,#062947ed,#042243f3);
