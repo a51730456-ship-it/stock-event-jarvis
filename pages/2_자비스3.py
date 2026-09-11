@@ -8041,7 +8041,7 @@ def _render_existing_theme_content() -> None:
     # 그래서 설명을 여기 밖에 적는다.
     #
     # ① 보이지 않는 자리 표시는 자리를 먹지 않는다
-    #    (`[data-testid="stElementContainer"]:has(.jarvis-anchor)` → position:absolute)
+    #    (`:has(#jarvis-anchor-theme_rank_top)` → position:absolute · **내가 넣은 자리 하나만**)
     #    상하님 — "모든 박스와 박스 사이 여백을 다 같은 여백으로 다 줄여라."
     #    재 보니 칸 사이가 16px 로 고른 데가 대부분인데 몇 군데만 32~48px 이었다.
     #    그 자리마다 눈에 안 보이는 자리 표시(scroll_to.anchor, 높이 0)가 한 칸으로
@@ -8077,8 +8077,7 @@ def _render_existing_theme_content() -> None:
           margin-top:-8px!important;
           margin-bottom:-8px!important;
         }
-        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(.jarvis-anchor),
-        body:has(.j3b-home) [data-testid="stElementContainer"]:has(.jarvis-anchor) {
+        [data-testid="stElementContainer"]:has(#jarvis-anchor-theme_rank_top) {
           position:absolute!important;
           height:0!important;
           margin:0!important;
@@ -8441,6 +8440,13 @@ def _briefing_css() -> None:
         body:has(.j3b-home) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}
         /* 한 마크다운 칸 **안에** 나란히 든 상자(게이지 → 「자세히 보기」)는
            칸 사이 간격이 안 먹는다. 그 자리만 같은 12px 을 손으로 준다. */
+        /* 게이지 칸 맨 앞에 **숨은 체크박스 하나만 든 문단**이 있다. 높이는 0인데
+           밑여백 16px 을 들고 있어 「미국장 신호 다시 확인」과 게이지 사이가 28px
+           이었다(2026-09-11 상하님 지적 — 화살표로 "간격"). 그 문단의 여백만 뗀다.
+           **보이는 것이 하나도 없는 문단**이라 다른 곳에 영향이 없다. */
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child),
+        body:has(.j3b-home) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child){
+          margin:0!important}
         body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>label,
         body:has(.j3b-home) [data-testid="stMarkdownContainer"]>label{margin-top:12px!important;margin-bottom:0!important}
         /* 지수 칸이 나란히 선 줄도 같은 12px 로 */
