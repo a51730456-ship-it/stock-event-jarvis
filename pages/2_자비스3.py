@@ -1096,6 +1096,9 @@ st.markdown(
            삐져나가, 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측 —
            카드 242px 가운데 위 42px 이 안 덮였다). */
         margin-top: -28px !important;
+        /* 통이 카드보다 12px 더 길어서 카드와 「21개 테마」 사이가 24px 이었다
+           (2026-09-11 실측 · 폰·태블릿 둘 다). 그 12px 을 도로 당긴다. */
+        margin-bottom: -12px !important;
     }
     div.st-key-j3_st5_wrap div.st-key-j3_st5_open {
         position: absolute !important; inset: 0 !important;
@@ -3787,7 +3790,17 @@ def _render_strong_theme_top5(ranking: dict) -> None:
             '<div class="j3-st5"><div class="j3-st5-head">'
             '<span class="j3-st5-flash">⚡</span><b>강한 테마 TOP 5</b>'
             '<span class="j3-st5-unit">테마 점수 / 100</span></div>'
-            + "".join(lines) + "</div>",
+            + "".join(lines)
+            # 열었을 때 화면이 올라올 자리를 **카드 안에** 찍는다 (2026-09-11).
+            # 따로 칸을 만들어 찍었더니 두 가지가 틀어졌다 —
+            #  ① 높이 0짜리가 한 칸으로 세어져 카드와 단추 사이가 12px → 24px.
+            #  ② 그 칸을 흐름에서 빼려고 position:absolute 를 줬더니 자리 표시가
+            #     **엉뚱한 곳**으로 갔다(태블릿 실측 — 단추는 887px 인데 자리
+            #     표시는 2428px, 1541px 어긋남. 폰에서도 217px 어긋나 있었다).
+            # 카드 안에 찍으면 칸이 안 늘고 자리도 정확하다. 카드가 안 그려지는
+            # 판(순위 자료가 없을 때)에는 자리 표시도 없어 화면이 그냥 안 올라간다.
+            + f'<div id="{scroll_to.anchor_id(_THEME_RANK_ANCHOR)}" class="jarvis-anchor"></div>'
+            + "</div>",
             unsafe_allow_html=True,
         )
         # 여는 방식은 `_section_toggle` 의 _flip 과 **똑같다**(상태를 켜고
@@ -5150,9 +5163,6 @@ def _render_theme_section(market: dict) -> None:
     # 바로 아래 표가 쓰는 그 순위(ranking)를 그대로 넘긴다 — 새로 받거나 다시
     # 계산하지 않으므로 카드 숫자와 표 숫자가 갈라질 수가 없다.
     _render_strong_theme_top5(ranking)
-    # 열었을 때 화면이 올라올 자리. **단추 바로 위**라서, 열면 캡처 화면처럼
-    # 「✕ 21개 테마 실시간 순위 닫기」가 맨 위에 서고 그 밑에 표가 보인다.
-    scroll_to.anchor(st, _THEME_RANK_ANCHOR)
     rank_open = _section_toggle(
         f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN,
         close_label=f"{_THEME_COUNT}개 테마 실시간 순위 닫기",
@@ -8040,8 +8050,9 @@ def _render_existing_theme_content() -> None:
     # 마크다운이 빈 줄에서 끊어 버린다(2026-08-26에 CSS가 화면에 쏟아졌다).
     # 그래서 설명을 여기 밖에 적는다.
     #
-    # ① 보이지 않는 자리 표시는 자리를 먹지 않는다
-    #    (`:has(#jarvis-anchor-theme_rank_top)` → position:absolute · **내가 넣은 자리 하나만**)
+    # ① 가로줄(구분선) 여백 — 아래 ② 참고
+    #    (자리 표시 절대배치는 2026-09-11 에 걷어냈다 — 자리 표시가 엉뚱한 곳으로
+    #     갔다. 지금은 강한 테마 카드 **안에** 찍는다.)
     #    상하님 — "모든 박스와 박스 사이 여백을 다 같은 여백으로 다 줄여라."
     #    재 보니 칸 사이가 16px 로 고른 데가 대부분인데 몇 군데만 32~48px 이었다.
     #    그 자리마다 눈에 안 보이는 자리 표시(scroll_to.anchor, 높이 0)가 한 칸으로
@@ -8076,12 +8087,6 @@ def _render_existing_theme_content() -> None:
         body:has(.j3b-home) [data-testid="stElementContainer"]:has(hr) {
           margin-top:-8px!important;
           margin-bottom:-8px!important;
-        }
-        [data-testid="stElementContainer"]:has(#jarvis-anchor-theme_rank_top) {
-          position:absolute!important;
-          height:0!important;
-          margin:0!important;
-          padding:0!important;
         }
         body:has(.j3-market-top) .st-key-jarvis_method_help_row {
           gap:.35rem!important;

@@ -360,11 +360,21 @@ class Jarvis3PageTests(unittest.TestCase):
         open_fn = open_fn.split(chr(10) + "def ")[0]
         self.assertIn('st.session_state["j3_close_all_pending"] = True', open_fn)
         self.assertIn("scroll_to.request(st, _THEME_RANK_ANCHOR)", open_fn)
-        # ③ 자리 표시는 21개 테마 단추 **바로 위**여야 캡처 화면처럼 선다.
-        block = source[source.index("    scroll_to.anchor(st, _THEME_RANK_ANCHOR)"):]
+        # ③ 자리 표시는 **강한 테마 카드 안**에 찍는다 (2026-09-11).
+        #    따로 칸을 만들어 찍었더니 두 가지가 틀어졌다 —
+        #     ① 높이 0짜리가 한 칸으로 세어져 카드와 단추 사이가 12px → 24px.
+        #     ② 그 칸을 흐름에서 빼려고 position:absolute 를 줬더니 자리 표시가
+        #        엉뚱한 곳으로 갔다(태블릿 실측 — 단추 887px, 자리 표시 2428px).
+        #    카드 안에 찍으니 폰·태블릿 둘 다 자리 표시 84px, 단추 99~111px 이다.
+        self.assertIn('f\'<div id="{scroll_to.anchor_id(_THEME_RANK_ANCHOR)}"'
+                      ' class="jarvis-anchor"></div>\'', source,
+                      "자리 표시가 카드 안에 없다")
+        self.assertNotIn("scroll_to.anchor(st, _THEME_RANK_ANCHOR)", source,
+                         "따로 칸을 만들어 찍으면 간격이 벌어지고 자리가 틀어진다")
+        self.assertNotIn(':has(#jarvis-anchor-theme_rank_top)', source,
+                         "자리 표시를 흐름에서 빼면 엉뚱한 곳으로 간다")
+        block = source[source.index('f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN,'):]
         block = block[:block.index("on_close=_close_theme_rank_from_fragment,")]
-        self.assertIn('f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN,', block,
-                      "자리 표시가 단추 바로 위에 없다")
         self.assertIn("on_open=_open_theme_rank_from_fragment,", block)
         # ④ 강한 테마 카드로 열 때도 **같은 자리**로 올라간다.
         card = source.split('if st.button("강한 테마 TOP 5 — 21개 테마 열기"')[1]
