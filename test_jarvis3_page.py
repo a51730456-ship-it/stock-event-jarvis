@@ -310,25 +310,56 @@ class Jarvis3PageTests(unittest.TestCase):
                          "화면 구분 없이 전체에 거는 규칙이 생겼다")
 
     def test_watchlist_two_sections_have_the_same_spacing(self):
-        """관심종목 두 구역의 위아래 여백이 **같아야** 한다 (2026-09-11 상하님 지시).
+        """관심종목의 모든 칸 사이가 **12px 하나**여야 한다 (2026-09-11 상하님 지시).
 
-        재 보니 어긋나 있었다 — 통끼리는 둘 다 16px 인데, 첫 카드가 격자 안에서
-        시작하는 자리가 달라(선정 14px · 추가 6px) 눈에 보이는 여백이 8px 어긋났다.
-          뉴스상자 → 「사용자 선정 종목」     5px → 16px
-          [선정] 입력칸 → 첫 카드          33px → 16px
-          [추가] 입력칸 → 첫 카드          25px → 16px
-          선정 카드 → 「추가 검색 종목」     16px 그대로
+        상하님이 화살표로 짚으신 세 자리를 앱을 띄워 다시 쟀다(폰 412 · 태블릿 1138).
+          「미국시장 한줄 브리핑」 제목 → 뉴스 상자   17px → 12px
+          뉴스 상자 → 「사용자 선정 종목」            35px → 12px
+          「사용자 선정 종목」 줄 → 첫 카드            9px → 12px
+          선정 끝 카드 → 「추가 검색 종목」           26px → 12px
+          「추가 검색 종목」 줄 → 첫 카드              9px → 12px
+        17px·35px 의 5px 은 뉴스 접이틀(details)이 들고 있던 위아래 여백이었다.
         """
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
-        for key, margin in (("j3b_extra_header_sel", "margin-top:11px!important;"),
-                            ("j3b_grid_selected", "margin-top:-17px!important;"),
-                            ("j3b_grid_extra1", "margin-top:-9px!important;")):
+        # 접이틀의 제 여백은 떼고 칸 사이 간격 12px 만 남긴다.
+        self.assertNotIn(".j3b-market-news-shell{display:block;margin:7px 0}", source,
+                         "뉴스 접이틀이 아직 제 여백 7px 을 들고 있다")
+        self.assertNotIn(".j3b-market-news-shell{margin:5px 0}", source,
+                         "폰 규칙의 접이틀 여백 5px 이 남아 있다")
+        self.assertIn(".j3b-news-box{margin:0;", source, "뉴스 상자 여백이 0 이 아니다")
+        for key, margin in (("j3b_extra_header_sel", "margin-top:0px!important;"),
+                            ("j3b_grid_selected", "margin-top:-14px!important;"),
+                            ("j3b_grid_extra1", "margin-top:-6px!important;")):
             rule = ('[data-testid="stLayoutWrapper"]:has(> div[class*="st-key-'
                     + key + '"]) {')
             self.assertIn(rule, source, f"{key} 여백 규칙이 없다")
             tail = source[source.index(rule):]
             self.assertIn(margin, tail[:tail.index("}") + 1],
                           f"{key} 여백 값이 실측과 다르다")
+        # 「추가 검색 종목」 줄은 이름이 _sel 줄과 겹친다(class*= 로는 둘 다 걸린다).
+        # class~= 로 **그 줄만** 걸어야 한다.
+        rule = ('[data-testid="stLayoutWrapper"]:has(> div[class~="st-key-'
+                'j3b_extra_header"]) {')
+        self.assertIn(rule, source, "「추가 검색 종목」 줄 여백 규칙이 없다")
+        tail = source[source.index(rule):]
+        self.assertIn("margin-top:-14px!important;", tail[:tail.index("}") + 1],
+                      "「추가 검색 종목」 줄 여백 값이 실측과 다르다")
+
+    def test_table_rows_keep_the_16px_gap_inside_columns(self):
+        """표 안의 종목 단추 칸은 **16px** 을 지켜야 한다 (2026-09-11 상하님 지적).
+
+        상하님 — "매수심사결과 순위 9 누르면 화면이 저렇게 되도록 하라고,
+        저거 너가 건들였냐?" — 내가 건드린 것이 맞다.
+        칸 사이를 12px 로 통일할 때 표의 **종목 이름 단추 칸**까지 걸렸다.
+        값 칸은 _stacked() 가 16px 을 제 안에 박아 두고 있어 단추만 줄마다 4px 씩
+        올라갔다(실측 — 0 · -4 · -8px, 9줄이면 -32px).
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn("gap:16px", source.split("def _stacked")[1][:600],
+                      "_stacked 가 16px 을 안 쓴다")
+        for mark in ("body:has(.j3-market-top)", "body:has(.j3b-home)"):
+            self.assertIn(mark + ' [data-testid="stColumn"]>[data-testid="stVerticalBlock"]',
+                          source, f"{mark} 표 칸 안 간격을 16px 로 안 되돌린다")
 
     def test_theme_rank_toggle_redraws_the_whole_page_and_scrolls(self):
         """21개 테마를 여닫으면 **판 전체**를 다시 그리고 그 자리로 올라간다.

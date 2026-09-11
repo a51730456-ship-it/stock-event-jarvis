@@ -5921,8 +5921,16 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
 
         pullback_pct = row.get("pullback_pct_close")
         cells = [
+            # **당일 등락률을 현재가 밑에 적는다** (2026-09-11 상하님 지적 —
+            # "상승장 신고가 눌림을 눌러 종목 클릭하면 선택종목 세부사항에
+            # 당일 상승율·하락율이 안 나온다").
+            # 맞는 지적이다. 위 눌림목 칸에는 있었는데 이 갈래 칸을 따로 쓰면서
+            # 이 한 줄을 빠뜨렸다. **값은 이미 metrics 안에 있다** — 새로 받아
+            # 오는 것이 없으니 여는 시간은 그대로다.
             f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
-            f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div></div>",
+            f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div>"
+            f"<div class='j3-mc-sub {_sign_class(metrics.get('change_pct'))}'>"
+            f"{_pct(metrics.get('change_pct'))}</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 등수</div>"
             f"<div class='j3-mc-val j3-green'>{_rank_text('rs60_rank')}</div>"
             "<div class='j3-mc-sub j3-muted'>나스닥보다 강한 차례</div></div>",
@@ -8344,13 +8352,16 @@ def _briefing_css() -> None:
            셋 다 16px 로 맞춘다. 겉껍데기(stLayoutWrapper)를 움직여야 아래 것들이
            같이 따라온다 — 안쪽 통만 밀면 껍데기가 제자리를 지켜 헛돈다(실측). */
         [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_extra_header_sel"]) {
-          margin-top:11px!important;
+          margin-top:0px!important;
         }
         [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_selected"]) {
-          margin-top:-17px!important;
+          margin-top:-14px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class~="st-key-j3b_extra_header"]) {
+          margin-top:-14px!important;
         }
         [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_extra1"]) {
-          margin-top:-9px!important;
+          margin-top:-6px!important;
         }
         .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:27px;font-weight:500}.j3b-nav-item b .j3b-pie{display:block;width:1.18em;height:1.18em}
         /* ── 지금 보고 계신 자리는 **형광 연두**로 (2026-09-11 상하님 지시) ──────
@@ -8413,7 +8424,7 @@ def _briefing_css() -> None:
         .j3b-card-shell[open] .j3b-card:before{content:"× 다시 누르면 닫힘";position:absolute;right:12px;top:12px;z-index:6;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800;pointer-events:none}
         .j3b-card-shell[open] .j3b-card-top{min-height:58px!important;gap:10px!important;padding-right:132px!important}.j3b-card-shell[open] .j3b-logo{width:58px!important;height:58px!important;border-radius:14px!important}.j3b-card-shell[open] .j3b-symbol{font-size:28px!important}.j3b-card-shell[open] .j3b-name{font-size:14px!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-price{position:static!important;max-width:none!important;margin:12px 0 8px!important;font-size:22px!important}.j3b-card-shell[open] .j3b-chart{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:100px!important;margin:4px 0 14px!important}.j3b-card-shell[open] .j3b-card-notes{position:static!important;inset:auto!important;max-height:none!important;margin:0!important;padding-top:10px!important;overflow:visible!important}.j3b-card-shell[open] .j3b-note{display:block!important;margin:0 0 9px!important;font-size:14px!important;line-height:1.55!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-decor-img{width:96px!important;right:10px!important;bottom:6px!important}
         /* 시장 한줄 브리핑도 링크 이동 없이 같은 화면에서 전체 한글 요약을 펼친다. */
-        .j3b-market-news-shell{display:block;margin:7px 0}.j3b-market-news-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-market-news-summary::-webkit-details-marker{display:none}.j3b-market-news-shell .j3b-news{margin:7px 0!important}.j3b-market-news-shell .j3b-news-link{display:flex;align-items:center;gap:10px;width:100%;color:inherit;text-decoration:none}.j3b-market-news-shell .j3b-news-link>span:nth-child(2){flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.j3b-market-news-expanded{display:none}
+        .j3b-market-news-shell{display:block;margin:0}.j3b-market-news-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-market-news-summary::-webkit-details-marker{display:none}.j3b-market-news-shell .j3b-news{margin:7px 0!important}.j3b-market-news-shell .j3b-news-link{display:flex;align-items:center;gap:10px;width:100%;color:inherit;text-decoration:none}.j3b-market-news-shell .j3b-news-link>span:nth-child(2){flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.j3b-market-news-expanded{display:none}
         .j3b-market-news-shell[open]>.j3b-market-news-summary{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;background:rgba(0,9,25,.9)!important;cursor:zoom-out!important;box-sizing:border-box!important}
         /* ── 한줄 브리핑 세 줄을 **한 상자**에 담는다 (2026-09-11 상하님 지시) ──
            상하님 — "미국시장 한줄 브리핑을 한 박스 안에 넣어라. 세 박스를 만들
@@ -8434,6 +8445,15 @@ def _briefing_css() -> None:
            그대로다(CLAUDE.md 0-1 다). */
         body:has(.j3-market-top) [data-testid="stVerticalBlock"],
         body:has(.j3b-home) [data-testid="stVerticalBlock"]{gap:12px!important}
+        /* **표 안은 16px 그대로 둔다** (2026-09-11 상하님 지적 — "매수심사결과
+           순위 9 누르면 화면이 저렇게 되도록 하라고, 저거 너가 건들였냐?").
+           내가 건드린 것이 맞다. 바로 윗줄의 12px 이 표의 **종목 이름 단추 칸**
+           까지 걸렸다. 값 칸은 _stacked() 가 16px 을 제 안에 박아 두고 있어서
+           단추만 줄마다 4px 씩 올라갔다(실측 — 0 · -4 · -8px, 9줄이면 -32px).
+           칸 안(=표 줄 사이)은 스트림릿 본래값 16px 로 되돌린다. 상하님이
+           줄이라 하신 것은 **박스와 박스 사이**지 표 줄 사이가 아니다. */
+        body:has(.j3-market-top) [data-testid="stColumn"]>[data-testid="stVerticalBlock"],
+        body:has(.j3b-home) [data-testid="stColumn"]>[data-testid="stVerticalBlock"]{gap:16px!important}
         body:has(.j3-market-top) [data-testid="stMarkdownContainer"],
         body:has(.j3b-home) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
         body:has(.j3-market-top) .j3-top-row,
@@ -8472,6 +8492,7 @@ def _briefing_css() -> None:
         @media (min-width:601px){
           body:has(.j3-market-top) .st-key-jarvis_method_help_row{
             max-width:560px!important;
+            padding-left:18px!important;
           }
         }
         /* ── 태블릿에서 어긋나 보이던 두 자리 (2026-09-11 상하님 지시) ───────────
@@ -8501,7 +8522,7 @@ def _briefing_css() -> None:
             width:100%!important;flex:0 0 auto!important;min-width:0!important;
           }
         }
-        .j3b-news-box{margin:7px 0;padding:0;overflow:hidden;
+        .j3b-news-box{margin:0;padding:0;overflow:hidden;
           border:1px solid #bd905266;border-radius:17px;
           background:linear-gradient(90deg,#062947ed,#042243f3);
           box-shadow:inset 0 1px #6aaee52b}
@@ -8512,7 +8533,7 @@ def _briefing_css() -> None:
         .j3b-market-news-shell[open] .j3b-news-box{display:none!important}
         .j3b-market-news-shell[open] .j3b-news{display:none!important}.j3b-market-news-shell[open] .j3b-market-news-expanded{position:relative;display:block;width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 76px);overflow:auto;box-sizing:border-box;padding:26px 22px 22px;border:1px solid #bd9052;border-radius:20px;background:linear-gradient(145deg,#06345f,#03264a 58%,#001d3c);color:#f5fbff;box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c}
         .j3b-market-news-close{position:absolute;right:12px;top:12px;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800}.j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}.j3b-market-news-text{margin-top:18px;padding-top:18px;border-top:1px solid #8ab7d633;color:#f5f1e8;font-size:18px;line-height:1.6;font-weight:650;white-space:normal;overflow-wrap:anywhere}.j3b-market-news-number{color:#6edbff;font-weight:900;margin-right:8px}
-        @media (max-width:600px){.j3b-market-news-shell{margin:5px 0}.j3b-market-news-shell[open] .j3b-market-news-expanded{padding:24px 18px 20px}.j3b-market-news-title{font-size:16px}.j3b-market-news-text{font-size:17px;line-height:1.65}}
+        @media (max-width:600px){.j3b-market-news-shell{margin:0}.j3b-market-news-shell[open] .j3b-market-news-expanded{padding:24px 18px 20px}.j3b-market-news-title{font-size:16px}.j3b-market-news-text{font-size:17px;line-height:1.65}}
         </style>
         """,
         unsafe_allow_html=True,
