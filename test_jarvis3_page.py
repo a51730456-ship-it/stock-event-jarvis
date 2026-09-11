@@ -414,7 +414,10 @@ class Jarvis3PageTests(unittest.TestCase):
         #    삐져나가 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측).
         wrap = source[source.index("    div.st-key-j3_st5_wrap {"):]
         wrap = wrap[:wrap.index("\n    }") + 6]
-        self.assertIn("margin-top: -42px !important;", wrap,
+        # 값은 **실측으로** 정한다. 2026-09-11 에 칸 사이 간격을 12px 로 통일하면서
+        # -42px → -28px 이 됐다 — 그때 「자세히 보기」와 카드가 2px 겹쳐 있었다
+        # (상하님 캡처에 빨간 네모). 지금은 딱 12px 떨어져 있다.
+        self.assertIn("margin-top: -28px !important;", wrap,
                       "카드를 「자세히 보기」 밑으로 당기는 자리가 없다")
 
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \

@@ -1095,7 +1095,7 @@ st.markdown(
         /* **위로 당기는 것은 통이 한다.** 카드에 음수 여백을 주면 카드가 통 밖으로
            삐져나가, 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측 —
            카드 242px 가운데 위 42px 이 안 덮였다). */
-        margin-top: -42px !important;
+        margin-top: -28px !important;
     }
     div.st-key-j3_st5_wrap div.st-key-j3_st5_open {
         position: absolute !important; inset: 0 !important;
@@ -8091,7 +8091,7 @@ def _render_existing_theme_content() -> None:
           z-index:5!important;
           flex:0 0 auto!important;
           margin-top:-61px!important;
-          margin-bottom:4px!important;
+          margin-bottom:0px!important;
         }
         body:has(.j3-market-top) [data-testid="stLayoutWrapper"]:has(> .st-key-jarvis_method_help_row) {
           margin-top:-22px!important;
@@ -8417,6 +8417,35 @@ def _briefing_css() -> None:
            테두리·바탕·그림자는 **상자 하나만** 두른다. 줄은 가는 선으로만 가른다.
            글자 크기·아이콘 크기·색 점은 한 군데도 안 건드린다 — 그 값들은 폰·태블릿
            규칙(.j3b-news …)이 그대로 가지고 있고, 여기서는 테두리만 벗긴다. */
+        /* ── 칸 사이 여백을 **12px 하나**로 통일한다 (2026-09-11 상하님 지시) ────
+           상하님 — "전부 다 간격 동일하게 줄이라고 했는데 왜 다르냐."
+           맞는 지적이다. 진짜 앱을 띄워 화면에 **칠해진 상자**끼리 재 보니
+           7·8·10·13·14·16·23·30·32·52·74px 로 제각각이었다.
+           까닭 — 스트림릿은 칸 사이에 16px 을 넣고, 마크다운 칸은 그 16px 을
+           되돌리려고 margin-bottom:-16px 을 들고 있다. 그 위에 모듈마다 제
+           여백을 또 얹었다(4.8 · 9.6 · 5.6 · 8 · 28.8px …). 그래서 자리마다
+           다른 값이 나왔다.
+           여기서는 그 제각각인 여백을 걷어내고 **칸 사이 간격 하나**로만 띄운다.
+           **미국테마 두 화면에만 건다** — 공용 모듈이라 한국테마·시장판단 화면은
+           그대로다(CLAUDE.md 0-1 다). */
+        body:has(.j3-market-top) [data-testid="stVerticalBlock"],
+        body:has(.j3b-home) [data-testid="stVerticalBlock"]{gap:12px!important}
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"],
+        body:has(.j3b-home) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
+        body:has(.j3-market-top) .j3-top-row,
+        body:has(.j3-market-top) .j3-ndd,
+        body:has(.j3-market-top) .j3-section-title{margin-top:0!important;margin-bottom:0!important}
+        /* 마크다운 칸의 **맨 바깥 상자**가 제 여백을 들고 있다(5.6 · 4.8 · 9.6 ·
+           8 · 28.8px …). 그것만 걷어낸다 — 상자 **안쪽** 여백은 안 건드린다. */
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>div,
+        body:has(.j3b-home) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}
+        /* 한 마크다운 칸 **안에** 나란히 든 상자(게이지 → 「자세히 보기」)는
+           칸 사이 간격이 안 먹는다. 그 자리만 같은 12px 을 손으로 준다. */
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>label,
+        body:has(.j3b-home) [data-testid="stMarkdownContainer"]>label{margin-top:12px!important;margin-bottom:0!important}
+        /* 지수 칸이 나란히 선 줄도 같은 12px 로 */
+        body:has(.j3-market-top) .j3-top-row{gap:12px!important}
+        body:has(.j3b-home) div[class*="st-key-j3b_grid_"]{row-gap:12px!important}
         .j3b-news-box{margin:7px 0;padding:0;overflow:hidden;
           border:1px solid #bd905266;border-radius:17px;
           background:linear-gradient(90deg,#062947ed,#042243f3);
