@@ -2120,6 +2120,16 @@ def test_market_briefing_expands_inline_without_external_news_link():
     # 커진 판은 summary를 닫은 **뒤**에 온다.
     assert news.index("</summary>") < news.index('<div class="j3b-card-open">')
     assert ".j3b-market-news-shell[open]>.j3b-market-news-summary" in source
+    # **세 줄은 한 상자 안에 들어간다** (2026-09-11 상하님 지시 — "한 박스 안에
+    # 넣어라. 세 박스를 만들 필요가 없다. 한 칸 안에 세 줄을 넣어라").
+    # 테두리·바탕·그림자는 상자 하나만 두르고, 줄은 가는 선으로만 가른다.
+    # 실측 — 브리핑 칸 높이 126px → 110px, 테두리 친 상자 3개 → 1개.
+    assert '<div class="j3b-news-box">' in news, "세 줄을 한 상자에 안 담았다"
+    assert ".j3b-news-box .j3b-news{margin:0!important;border:0!important;" in source, (
+        "줄마다 두르던 테두리를 안 벗겼다")
+    assert "border-bottom:1px solid #bd905233!important" in source, "줄 사이 가는 선이 없다"
+    assert ".j3b-market-news-shell[open] .j3b-news-box{display:none!important}" in source, (
+        "크게 열었을 때 접힌 상자가 안 사라진다")
 
 
 def test_expanded_news_rows_show_the_original_article():

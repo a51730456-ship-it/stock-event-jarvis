@@ -8333,6 +8333,21 @@ def _briefing_css() -> None:
         /* 시장 한줄 브리핑도 링크 이동 없이 같은 화면에서 전체 한글 요약을 펼친다. */
         .j3b-market-news-shell{display:block;margin:7px 0}.j3b-market-news-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-market-news-summary::-webkit-details-marker{display:none}.j3b-market-news-shell .j3b-news{margin:7px 0!important}.j3b-market-news-shell .j3b-news-link{display:flex;align-items:center;gap:10px;width:100%;color:inherit;text-decoration:none}.j3b-market-news-shell .j3b-news-link>span:nth-child(2){flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.j3b-market-news-expanded{display:none}
         .j3b-market-news-shell[open]>.j3b-market-news-summary{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;background:rgba(0,9,25,.9)!important;cursor:zoom-out!important;box-sizing:border-box!important}
+        /* ── 한줄 브리핑 세 줄을 **한 상자**에 담는다 (2026-09-11 상하님 지시) ──
+           상하님 — "미국시장 한줄 브리핑을 한 박스 안에 넣어라. 세 박스를 만들
+           필요가 없다. 한 칸 안에 세 줄을 넣어라."
+           테두리·바탕·그림자는 **상자 하나만** 두른다. 줄은 가는 선으로만 가른다.
+           글자 크기·아이콘 크기·색 점은 한 군데도 안 건드린다 — 그 값들은 폰·태블릿
+           규칙(.j3b-news …)이 그대로 가지고 있고, 여기서는 테두리만 벗긴다. */
+        .j3b-news-box{margin:7px 0;padding:0;overflow:hidden;
+          border:1px solid #bd905266;border-radius:17px;
+          background:linear-gradient(90deg,#062947ed,#042243f3);
+          box-shadow:inset 0 1px #6aaee52b}
+        .j3b-news-box .j3b-news{margin:0!important;border:0!important;border-radius:0!important;
+          background:none!important;box-shadow:none!important;
+          border-bottom:1px solid #bd905233!important}
+        .j3b-news-box .j3b-news:last-child{border-bottom:0!important}
+        .j3b-market-news-shell[open] .j3b-news-box{display:none!important}
         .j3b-market-news-shell[open] .j3b-news{display:none!important}.j3b-market-news-shell[open] .j3b-market-news-expanded{position:relative;display:block;width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 76px);overflow:auto;box-sizing:border-box;padding:26px 22px 22px;border:1px solid #bd9052;border-radius:20px;background:linear-gradient(145deg,#06345f,#03264a 58%,#001d3c);color:#f5fbff;box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c}
         .j3b-market-news-close{position:absolute;right:12px;top:12px;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800}.j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}.j3b-market-news-text{margin-top:18px;padding-top:18px;border-top:1px solid #8ab7d633;color:#f5f1e8;font-size:18px;line-height:1.6;font-weight:650;white-space:normal;overflow-wrap:anywhere}.j3b-market-news-number{color:#6edbff;font-weight:900;margin-right:8px}
         @media (max-width:600px){.j3b-market-news-shell{margin:5px 0}.j3b-market-news-shell[open] .j3b-market-news-expanded{padding:24px 18px 20px}.j3b-market-news-title{font-size:16px}.j3b-market-news-text{font-size:17px;line-height:1.65}}
@@ -8939,7 +8954,12 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
         )
     st.markdown(
         '<details class="j3b-market-news-shell">'
-        f'<summary class="j3b-market-news-summary">{"".join(collapsed_rows)}</summary>'
+        # **세 줄을 한 상자에 담는다** (2026-09-11 상하님 지시 — "한 박스 안에
+        # 넣어라. 세 박스를 만들 필요가 없다. 한 칸 안에 세 줄을 넣어라").
+        # 줄마다 테두리를 두르던 것을 상자 하나가 두르고, 줄 사이는 가는 선으로만
+        # 가른다. 글자 크기·아이콘·색 점은 그대로다.
+        f'<summary class="j3b-market-news-summary">'
+        f'<div class="j3b-news-box">{"".join(collapsed_rows)}</div></summary>'
         '<div class="j3b-card-open"><div class="j3b-open-card">'
         '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
         '<div class="j3b-market-news-title">미국시장 한줄 브리핑</div>'
