@@ -276,6 +276,60 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("<div class='j3-section-title'>추천 근거 요약</div>", markdowns)
         self.assertTrue([node for node in app.button if "bundle_open" in str(node.key or "")])
 
+    def test_top_buttons_sit_inside_the_banner_and_gaps_match(self):
+        """맨 위 두 단추는 **배너 그림 안**에 선다 (2026-09-11 상하님 지시).
+
+        상하님 — "로봇이 있는 그림 안으로 넣으라는 뜻이야. 로봇 있는 그림을
+        줄이라는 말이 아니고." · "빈자리 만들지 말고 위아래 여백을 밸런스 있게…
+        측정해서 맞춰라는 말이다."
+
+        진짜 앱을 띄워 폰(412) · 태블릿(820) · 노트북(1400)에서 재고 맞췄다:
+          단추 아래끝 → 배너 아래끝   16px  (세 폭 모두)
+          배너 아래끝 → 「미국 전체시장 판단」 16~20px
+
+        **배너 크기는 안 건드린다.** 당기는 값은 배너 높이가 아니라 단추줄
+        자신의 자리를 기준으로 잡았기 때문에, 배너가 174px(폰)이든 236px
+        (노트북)이든 같은 자리에 선다.
+
+        **한국테마는 안 건드린다** — 규칙을 `body:has(.j3-market-top)` 으로
+        묶어 미국 시장분석 화면에서만 걸리게 했다(CLAUDE.md 0-1 다).
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source[source.index("body:has(.j3-market-top) .st-key-jarvis_method_help_row {"):]
+        block = block[:block.index("}") + 1]
+        self.assertIn("margin-top:-61px!important;", block, "단추줄을 배너 안으로 안 당긴다")
+        self.assertIn("flex:0 0 auto!important;", block,
+                      "통이 늘어나 음수 여백을 삼킨다 — 실측으로 확인한 자리다")
+        self.assertIn("z-index:5!important;", block, "단추가 배너 밑에 깔린다")
+        # 겉껍데기도 같이 올려야 아래 것들이 따라온다.
+        self.assertIn('body:has(.j3-market-top) [data-testid="stLayoutWrapper"]'
+                      ':has(> .st-key-jarvis_method_help_row)', source,
+                      "겉껍데기를 안 올려 배너 밑에 빈자리가 남는다")
+        # **미국 화면에서만** 걸려야 한다 — 한국테마와 공용 파일이다.
+        self.assertNotIn("\n        .st-key-jarvis_method_help_row {", source,
+                         "화면 구분 없이 전체에 거는 규칙이 생겼다")
+
+    def test_watchlist_two_sections_have_the_same_spacing(self):
+        """관심종목 두 구역의 위아래 여백이 **같아야** 한다 (2026-09-11 상하님 지시).
+
+        재 보니 어긋나 있었다 — 통끼리는 둘 다 16px 인데, 첫 카드가 격자 안에서
+        시작하는 자리가 달라(선정 14px · 추가 6px) 눈에 보이는 여백이 8px 어긋났다.
+          뉴스상자 → 「사용자 선정 종목」     5px → 16px
+          [선정] 입력칸 → 첫 카드          33px → 16px
+          [추가] 입력칸 → 첫 카드          25px → 16px
+          선정 카드 → 「추가 검색 종목」     16px 그대로
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        for key, margin in (("j3b_extra_header_sel", "margin-top:11px!important;"),
+                            ("j3b_grid_selected", "margin-top:-17px!important;"),
+                            ("j3b_grid_extra1", "margin-top:-9px!important;")):
+            rule = ('[data-testid="stLayoutWrapper"]:has(> div[class*="st-key-'
+                    + key + '"]) {')
+            self.assertIn(rule, source, f"{key} 여백 규칙이 없다")
+            tail = source[source.index(rule):]
+            self.assertIn(margin, tail[:tail.index("}") + 1],
+                          f"{key} 여백 값이 실측과 다르다")
+
     def test_strong_theme_top5_sits_above_the_theme_rank_button(self):
         """「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시).
 

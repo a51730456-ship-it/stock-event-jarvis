@@ -8009,13 +8009,14 @@ def _render_existing_theme_content() -> None:
         body:has(.j3-market-top) .st-key-jarvis_method_help_row {
           gap:.35rem!important;
           row-gap:.35rem!important;
-          margin-top:-1rem!important;
-          margin-bottom:0!important;
+          position:relative!important;
+          z-index:5!important;
+          flex:0 0 auto!important;
+          margin-top:-61px!important;
+          margin-bottom:4px!important;
         }
-        @media (max-width:1200px) {
-          body:has(.j3-market-top) .st-key-jarvis_method_help_row {
-            margin-top:-1rem!important;
-          }
+        body:has(.j3-market-top) [data-testid="stLayoutWrapper"]:has(> .st-key-jarvis_method_help_row) {
+          margin-top:-22px!important;
         }
         </style>
         """,
@@ -8248,6 +8249,27 @@ def _briefing_css() -> None:
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
         .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.photo{background:linear-gradient(145deg,#ffffff,#dde6f3)!important}.j3b-logo.photo img{width:80%;height:80%;object-fit:contain;filter:none!important}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}/* 접힌 카드의 당일 그림은 선을 얇게 (2026-08-28 상하님 지적 — "선이 너무 굵다, 원래 선 크기로"). 분봉이라 점이 촘촘해서 2.1px 로는 선이 굵은 띠처럼 보인다. 크게 연 카드의 6개월 그림은 .j3b-open-card 쪽 규칙이 따로 있어 안 건드린다(상하님 — "선택하면 나오는 건 건드리지 말고"). */.j3b-card .j3b-chart polyline{stroke-width:1.4px}.j3b-card .j3b-chart polygon{fill-opacity:.11}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
         div[class*="st-key-j3b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}/* 카드 제 아래 여백은 격자 안에서 끈다 — 격자 틈과 겹쳐 위아래가 붙어 보였다(2026-08-27 상하님 지적 — "종목이 위아래 너무 붙어 있지"). 실측 -1px. */div[class*="st-key-j3b_grid_"] .j3b-card{margin-bottom:0!important}/* 칸이 카드보다 작으면 카드가 삐져나와 아래 줄과 붙는다(실측 칸 132 · 카드 148).   칸에 박힌 높이를 풀어 카드 크기를 그대로 따라가게 한다. */div[class*="st-key-j3b_grid_"]>*,div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"],div[class*="st-key-j3b_selected_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]),div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button,div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
+        /* ── 두 구역의 위아래 여백을 **같게** 맞춘다 (2026-09-11 상하님 지시) ────
+           상하님 — "빈자리 만들지 말고 위아래 여백을 밸런스 있게 잘 붙여 넣으라고.
+           여백을 너무 촘촘하게 너무 크게 말고 측정해서 맞춰라는 말이다."
+           폰 폭 412px 로 앱을 띄워 재 보니 두 구역이 어긋나 있었다:
+             뉴스상자 → 「사용자 선정 종목」 제목    5px
+             [선정] 입력칸 → 첫 카드            33px
+             선정 카드 → 「추가 검색 종목」 제목    16px
+             [추가] 입력칸 → 첫 카드            25px
+           통(컨테이너)끼리는 둘 다 16px 인데, **첫 카드가 격자 안에서 시작하는
+           자리**가 달라(선정 14px · 추가 6px) 눈에 보이는 여백이 8px 어긋났다.
+           셋 다 16px 로 맞춘다. 겉껍데기(stLayoutWrapper)를 움직여야 아래 것들이
+           같이 따라온다 — 안쪽 통만 밀면 껍데기가 제자리를 지켜 헛돈다(실측). */
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_extra_header_sel"]) {
+          margin-top:11px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_selected"]) {
+          margin-top:-17px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_extra1"]) {
+          margin-top:-9px!important;
+        }
         .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:27px;font-weight:500}.j3b-nav-item b .j3b-pie{display:block;width:1.18em;height:1.18em}
         /* ── 지금 보고 계신 자리는 **형광 연두**로 (2026-09-11 상하님 지시) ──────
            상하님 — "동그라미 친 곳(선택된 칸) 선택되면 형광색, 눈에 띄는 것으로
