@@ -1095,7 +1095,7 @@ st.markdown(
         /* **위로 당기는 것은 통이 한다.** 카드에 음수 여백을 주면 카드가 통 밖으로
            삐져나가, 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측 —
            카드 242px 가운데 위 42px 이 안 덮였다). */
-        margin-top: -28px !important;
+        margin-top: -40px !important;
         /* 통이 카드보다 12px 더 길어서 카드와 「21개 테마」 사이가 24px 이었다
            (2026-09-11 실측 · 폰·태블릿 둘 다). 그 12px 을 도로 당긴다. */
         margin-bottom: -12px !important;
@@ -8476,6 +8476,14 @@ def _briefing_css() -> None:
         body:has(.j3b-home) [data-testid="stMarkdownContainer"]>label{margin-top:12px!important;margin-bottom:0!important}
         /* 지수 칸이 나란히 선 줄도 같은 12px 로 */
         body:has(.j3-market-top) .j3-top-row{gap:12px!important}
+        /* 「미국 전체시장 판단」 제목이 배너에 붙어 있었다(실측 2px). 이 제목의
+           제 여백(.25rem)을 위 `stMarkdownContainer>div` 규칙이 같이 걷어낸 탓이다.
+           **이 제목 하나에만** 12px 이 되게 도로 준다 — 쓰는 곳이 한 군데다. */
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>div.j3-page-title{
+          margin-top:10px!important}
+        /* 「상승장」과 「급락 후 반등장」이 위아래로 설 때의 틈 (실측 16px).
+           가로로 선 칸 사이(column-gap)는 안 건드린다 — 표의 칸 사이가 그 값이다. */
+        body:has(.j3-market-top) [data-testid="stHorizontalBlock"]{row-gap:12px!important}
         body:has(.j3b-home) div[class*="st-key-j3b_grid_"]{row-gap:12px!important}
         /* ── 태블릿에서 맨 위 두 단추가 양 끝으로 벌어지던 것 (2026-09-11 상하님) ──
            상하님 — "스마트폰에는 맨 위 한국테마·이 테마 설명의 위치가 좁으니

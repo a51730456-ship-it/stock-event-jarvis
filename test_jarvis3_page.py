@@ -345,6 +345,45 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("margin-top:-14px!important;", tail[:tail.index("}") + 1],
                       "「추가 검색 종목」 줄 여백 값이 실측과 다르다")
 
+    def test_market_screen_gaps_are_all_twelve(self):
+        """시장분석에서 12px 이 아니던 세 자리 (2026-09-11 실측).
+
+        배너 → 「미국 전체시장 판단」        2px → 12px
+        「자세히 보기」 → 강한 테마 TOP 5   24px → 12px
+        「상승장」 → 「급락 후 반등장」      16px → 12px
+        남은 20px 두 자리는 사이에 **가로줄(hr)** 이 들어 있는 자리다 —
+        4px + 줄 12px + 4px 이라 빈자리가 아니다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn('[data-testid="stMarkdownContainer"]>div.j3-page-title{',
+                      source, "「미국 전체시장 판단」 제목 여백 규칙이 없다")
+        self.assertIn('body:has(.j3-market-top) [data-testid="stHorizontalBlock"]'
+                      '{row-gap:12px!important}', source,
+                      "위아래로 선 두 단추의 틈을 12px 로 안 맞춘다")
+        head = source.index("div.st-key-j3_st5_wrap")
+        self.assertIn("margin-top: -40px !important;", source[head:head + 700],
+                      "강한 테마 카드가 12px 자리에 안 선다")
+
+    def test_breakout_detail_shows_today_change_pct(self):
+        """상승장(신고가 눌림) 종목 상세에도 **당일 등락률**이 있어야 한다.
+
+        2026-09-11 상하님 지적 — "상승장 신고가 눌림을 눌러 종목 클릭하면
+        선택종목 세부사항에 당일 상승율·하락율이 안 나온다."
+        눌림목 갈래 칸에는 있었는데 이 갈래 칸을 따로 쓰면서 한 줄을 빠뜨렸다.
+        값은 metrics 안에 이미 있어 새로 받아 오는 것이 없다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        # 상승장 갈래가 **제 칸을 따로 쓰는** 자리다 (cells = [...] 를 다시 만든다).
+        head = source.index("US_SWING_V1은 중요 70·보조 30을")
+        block = source[head:head + 2600]
+        current = block.index("현재가")
+        nxt = block.index("최근 3개월 등수")
+        cell = block[current:nxt]
+        self.assertIn("change_pct", cell,
+                      "상승장 현재가 칸에 당일 등락률이 없다")
+        self.assertIn("_sign_class", cell,
+                      "당일 등락률에 오름·내림 색이 없다")
+
     def test_table_rows_keep_the_16px_gap_inside_columns(self):
         """표 안의 종목 단추 칸은 **16px** 을 지켜야 한다 (2026-09-11 상하님 지적).
 
@@ -455,11 +494,11 @@ class Jarvis3PageTests(unittest.TestCase):
         #    삐져나가 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측).
         wrap = source[source.index("    div.st-key-j3_st5_wrap {"):]
         wrap = wrap[:wrap.index("\n    }") + 6]
-        # 값은 **실측으로** 정한다. 2026-09-11 에 칸 사이 간격을 12px 로 통일하면서
-        # -42px → -28px 이 됐다 — 그때 「자세히 보기」와 카드가 2px 겹쳐 있었다
-        # (상하님 캡처에 빨간 네모). 지금은 딱 12px 떨어져 있다.
-        self.assertIn("margin-top: -28px !important;", wrap,
-                      "카드를 「자세히 보기」 밑으로 당기는 자리가 없다")
+        # 값은 **실측으로** 정한다. -42px → -28px → -40px 로 왔다.
+        # -28px 일 때 「자세히 보기」와 카드 사이가 24px 이어서(2026-09-11 실측)
+        # 다른 자리의 12px 과 어긋났다. -40px 에서 딱 12px 이다.
+        self.assertIn("margin-top: -40px !important;", wrap,
+                      "카드를 「자세히 보기」 밑 12px 자리로 당기지 않는다")
 
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
