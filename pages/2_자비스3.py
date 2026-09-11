@@ -3598,6 +3598,11 @@ _THEME_RANK_OPEN = "j3_theme_rank_open"
 # 위치를 맞춰라"). 표가 맨 위에 오도록 21개 테마 단추 **바로 위**에 찍는다.
 _THEME_RANK_ANCHOR = "theme_rank_top"
 _RADAR_MAIN_ANCHOR = "radar_main"
+# 매수심사결과 높은 순위 9를 **열 때** 화면이 올라갈 자리 (2026-09-11 상하님 지시 —
+# "매수심사결과 높은 순위 9, 이것도 클릭하면 화면이 캡처 화면처럼 하라고").
+# 21개 테마와 **같은 동작**이다 — 그 단추가 화면 맨 위에 서고 그 밑에 표가 보인다.
+# 단추 **바로 위**에 찍는다.
+_TOP7_ANCHOR = "top7_top"
 
 _THEME_PANEL_OPEN_KEYS = (
     "j3_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
@@ -5337,6 +5342,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
     is_open = bool(st.session_state.get("j3_top7_open"))
+    # **단추 바로 위**가 화면이 올라올 자리다 (2026-09-11 상하님 지시 — 캡처처럼
+    # 이 단추가 맨 위에 서고 그 밑에 표가 보이게). 높이 0짜리라 칸 하나를 더
+    # 차지하는데, 그 12px 은 아래 CSS 가 **이 자리 하나만** 골라 도로 당긴다.
+    scroll_to.anchor(st, _TOP7_ANCHOR)
     run_requested = st.button("매수심사결과 높은 순위 9", key="j3_top7_find")
     if run_requested and is_open:
         # 닫기 — 조회는 하지 않는다. 열린 것을 모두 닫고 메인 시작점으로 올라간다
@@ -5351,6 +5360,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     ):
         # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
         st.session_state["j3_top7_open"] = True
+        scroll_to.request(st, _TOP7_ANCHOR)
         run_requested = False
     if run_requested:
         with st.spinner("테마 대장주와 두 갈래 종목을 각각 줄 세우는 중입니다…"):
@@ -5358,6 +5368,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.session_state["j3_top7_result"] = found
         st.session_state["j3_top7_at"] = time.time()
         st.session_state["j3_top7_open"] = True
+        scroll_to.request(st, _TOP7_ANCHOR)
         # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
         # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
         st.session_state.pop("j3_top7_pick_row", None)
@@ -8476,6 +8487,15 @@ def _briefing_css() -> None:
         body:has(.j3b-home) [data-testid="stMarkdownContainer"]>label{margin-top:12px!important;margin-bottom:0!important}
         /* 지수 칸이 나란히 선 줄도 같은 12px 로 */
         body:has(.j3-market-top) .j3-top-row{gap:12px!important}
+        /* 「매수심사결과 높은 순위 9」 단추 위의 자리 표시 — 높이는 0인데 칸 하나를
+           차지해 급락 단추와 사이가 24px 이 된다. 그 12px 만 도로 당긴다.
+           **이 자리 하나만 고른다**(id 로 집는다) — 넓게 걸면 다른 자리 표시까지
+           걸려 「테마 클릭 → 상세로 내려가기」가 죽는다(2026-09-11에 실제로 그랬다). */
+        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(#jarvis-anchor-top7_top){
+          margin-top:-12px!important;margin-bottom:0!important}
+        /* 올라갔을 때 단추가 **맨 위에 바짝** 서게 한다 — 공용 84px 을 쓰면 단추가
+           화면 한참 아래에 선다(캡처는 맨 위다). 이 자리 하나에만 건다. */
+        #jarvis-anchor-top7_top{scroll-margin-top:12px!important}
         /* 「미국 전체시장 판단」 제목이 배너에 붙어 있었다(실측 2px). 이 제목의
            제 여백(.25rem)을 위 `stMarkdownContainer>div` 규칙이 같이 걷어낸 탓이다.
            **이 제목 하나에만** 12px 이 되게 도로 준다 — 쓰는 곳이 한 군데다. */

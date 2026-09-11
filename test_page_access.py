@@ -93,6 +93,28 @@ class GuardPlacementTests(unittest.TestCase):
         self.assertNotIn("수리 중입니다", source)
 
 
+class SidebarTests(unittest.TestCase):
+    """왼쪽 메뉴는 스트림릿이 pages/ 폴더를 보고 **저절로** 만든다.
+
+    2026-09-11 상하님 지적 — "자비스6 왜 아직 온라인에 떠 있냐?"
+    page_access 로 닫아도 그 목록에는 이름이 그대로 남아 있었다. 주소로 골라 감춘다.
+    """
+
+    def test_the_closed_new_design_is_hidden_from_the_sidebar(self):
+        source = (ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn('[data-testid="stSidebarNav"] a[href*="자비스6_미국테마"]', source,
+                      "왼쪽 메뉴에서 자비스6 미국테마를 안 감춘다")
+        # 주소가 %-로 바뀌어 오는 경우도 같이 걸어 둔다.
+        self.assertIn("%EC%9E%90%EB%B9%84%EC%8A%A46_%EB%AF%B8%EA%B5%AD%ED%85%8C%EB%A7%88",
+                      source, "%-주소일 때가 안 걸린다")
+        # **줄 번호로 감추지 않는다** — 파일이 늘고 줄 때마다 엉뚱한 줄이 사라진다
+        # (CLAUDE.md 12번). app.py 에 있는 nth-child 는 **차례(order)** 를 바꾸는
+        # 것이지 감추는 것이 아니다. 감추는 규칙에는 display:none 이 붙으므로
+        # 그 둘이 한 덩이로 붙어 있지 않은지만 본다.
+        self.assertNotIn("li:nth-child(8) { display: none", source,
+                         "줄 번호로 감추면 안 된다")
+
+
 class ChooserTests(unittest.TestCase):
     def test_the_chooser_only_lists_open_pages(self):
         source = (ROOT / "app.py").read_text(encoding="utf-8")

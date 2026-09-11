@@ -345,6 +345,31 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("margin-top:-14px!important;", tail[:tail.index("}") + 1],
                       "「추가 검색 종목」 줄 여백 값이 실측과 다르다")
 
+    def test_top7_scrolls_to_its_own_button_when_opened(self):
+        """「매수심사결과 높은 순위 9」를 열면 **그 단추가 화면 맨 위**로 온다.
+
+        2026-09-11 상하님 지시 — "매수심사결과 높은 순위 9, 이것도 클릭하면
+        화면이 캡처 화면처럼 하라고 몇 번째 이야기하냐?"
+        21개 테마와 같은 동작이다. 실측(폰 412 · 태블릿 1138) — 누른 뒤 단추가
+        화면 위에서 24px, 급락 단추와 사이 12px.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn('_TOP7_ANCHOR = "top7_top"', source, "자리 이름이 없다")
+        head = source.index("def _render_top_reviewed(")
+        body = source[head:source.index("def _render_top_reviewed_detail(")]
+        # 자리 표시는 **단추보다 먼저** 그려야 그 위에 선다.
+        self.assertLess(body.index("scroll_to.anchor(st, _TOP7_ANCHOR)"),
+                        body.index('st.button("매수심사결과 높은 순위 9"'),
+                        "자리 표시가 단추 밑에 있다")
+        # 여는 길이 둘이다(새로 뽑기 · 방금 뽑아 둔 것 다시 펴기). 둘 다 올라가야 한다.
+        self.assertEqual(2, body.count("scroll_to.request(st, _TOP7_ANCHOR)"),
+                         "여는 길 둘 중 하나가 화면을 안 올린다")
+        # 높이 0짜리가 칸 하나를 더 먹는 것을 **이 자리 하나만** 골라 당긴다.
+        self.assertIn('[data-testid="stElementContainer"]:has(#jarvis-anchor-top7_top)',
+                      source, "자리 표시가 먹는 12px 을 안 당긴다")
+        self.assertIn("#jarvis-anchor-top7_top{scroll-margin-top:12px!important}",
+                      source, "단추가 맨 위에 안 선다")
+
     def test_market_screen_gaps_are_all_twelve(self):
         """시장분석에서 12px 이 아니던 세 자리 (2026-09-11 실측).
 
