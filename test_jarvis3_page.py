@@ -276,6 +276,61 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("<div class='j3-section-title'>추천 근거 요약</div>", markdowns)
         self.assertTrue([node for node in app.button if "bundle_open" in str(node.key or "")])
 
+    def test_strong_theme_top5_sits_above_the_theme_rank_button(self):
+        """「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시).
+
+        상하님 — "자비스3 미국테마에 21개 테마 위에 자비스7에 있는 강한 테마 TOP5를
+        넣어라. 클릭하면 자비스3 미국테마에 21개 테마로 들어가도록 해라.
+        그리고 강한 테마 TOP5 위아래 줄을 좀 더 좁혀라."
+
+        ① 21개 테마 단추 **위**에 선다.
+        ② 자료는 바로 아래 표가 쓰는 그 순위를 **그대로** 쓴다 — 카드 숫자와 표
+           숫자가 갈라지면 안 된다.
+        ③ 누르면 21개 테마 순위가 열린다.
+        ④ 줄 간격은 자비스7(10px·12px·32px)보다 좁다.
+        ⑤ 자비스7 모듈을 **끌어오지 않는다** — 거기를 손대면 이 화면이 같이 죽는다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        # ① 그리는 차례 — 카드가 단추보다 앞이다.
+        self.assertIn("_render_strong_theme_top5(ranking)", source)
+        self.assertLess(source.index("_render_strong_theme_top5(ranking)"),
+                        source.index('f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN'),
+                        "카드가 21개 테마 단추보다 아래에 있다")
+        # ⑤ 자비스7을 안 부른다.
+        self.assertNotIn("import jarvis7", source, "자비스7 모듈을 끌어왔다")
+        # ④ 자비스7보다 좁은 줄 간격.
+        card = source[source.index("    .j3-st5-row {"):]
+        card = card[:card.index("    .j3-st5-row:last-child")]
+        self.assertIn("padding: 5px 0;", card, "줄 위아래 여백이 안 좁혀졌다")
+        self.assertIn("gap: 9px;", card, "칸 사이가 안 좁혀졌다")
+
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.list_trades", return_value=[]):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.session_state["j3_briefing_page"] = "market"
+            app.run(timeout=60)
+            self.assertEqual(len(app.exception), 0)
+            blob = "".join(str(node.value) for node in app.markdown)
+            self.assertIn("강한 테마 TOP 5", blob, "카드가 안 그려졌다")
+            # ② 표가 쓰는 그 순위 그대로 — 1위 이름이 카드에 있어야 한다.
+            self.assertIn(_ranking()["rows"][0]["name"], blob,
+                          "카드가 표와 다른 자료를 쓴다")
+            # ③ 누르면 21개 테마가 열린다.
+            self.assertFalse(app.session_state.filtered_state.get("j3_theme_rank_open", False),
+                             "순위가 처음부터 열려 있다")
+            opener = next(node for node in app.button
+                          if str(node.key or "") == "j3_st5_open_btn")
+            opener.click().run(timeout=60)
+            self.assertTrue(app.session_state.filtered_state.get("j3_theme_rank_open"),
+                            "카드를 눌렀는데 21개 테마가 안 열린다")
+
     def test_theme_rank_click_opens_and_close_button_hides_whole_theme_panel(self):
         """20개 순위의 테마 클릭으로 캡처 속 테마 종목 화면 전체를 여닫는다."""
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \

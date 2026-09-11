@@ -1019,6 +1019,69 @@ st.markdown(
         background: linear-gradient(90deg, #2a1450 0%, #3d1f74 38%, #7c3aed 100%);
         box-shadow: 0 2px 10px rgba(124,58,237,.25);
     }
+    /* ── 「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시) ────────────────
+       자비스7에 있던 카드를 이 화면으로 옮긴 것이다. 21개 테마 단추 바로 위에 선다.
+       **줄 간격은 자비스7보다 좁다** — 상하님 지시("위아래 줄을 좀 더 좁혀라.
+       자리를 너무 길게 차지하고 있다. 라인간격을 줄여라는 뜻이다").
+         한 줄 위아래 여백  10px → 5px
+         칸과 칸 사이       12px → 9px
+         그림쇠 한 변       32px → 24px
+       다섯 줄 기준으로 카드 높이가 약 340px → 약 232px 이 된다(계산값). */
+    .j3-st5 {
+        margin: 2px 0 8px;
+        padding: 10px 13px 2px;
+        border: 1px solid #2a557f;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #0a2a4e 0%, #061d38 60%, #041229 100%);
+        box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 1px rgba(140,200,255,.12);
+    }
+    .j3-st5-head {
+        display: flex; align-items: center; gap: 8px;
+        margin: 0 0 6px; color: #edf5ff;
+    }
+    .j3-st5-head b { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+    .j3-st5-flash { color: #42caff; font-size: 17px; }
+    .j3-st5-unit { margin-left: auto; color: #8fa8c6; font-size: 12px; font-weight: 600; }
+    /* 한 줄: 순번 · 그림쇠 · 이름 · 막대 · 점수 */
+    .j3-st5-row {
+        display: grid;
+        grid-template-columns: 24px 24px minmax(72px, 1.05fr) minmax(40px, 1.3fr) 44px;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 0;
+        border-bottom: 1px solid #21406066;
+    }
+    .j3-st5-row:last-child { border-bottom: 0; }
+    .j3-st5-rank { color: #7895ba; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .j3-st5-icon {
+        display: grid; place-items: center; width: 24px; height: 24px;
+        border-radius: 7px; border: 1px solid #2876bc; color: #b6e8ff;
+        background: linear-gradient(145deg, #1450a3, #072452);
+    }
+    .j3-st5-icon svg { width: 15px; height: 15px; }
+    .j3-st5-row b { color: #edf5ff; font-size: 14px; font-weight: 600; letter-spacing: -.3px; }
+    .j3-st5-bar { height: 6px; border-radius: 3px; background: #122740; overflow: hidden; }
+    .j3-st5-bar i {
+        display: block; height: 100%; border-radius: 3px;
+        background: linear-gradient(90deg, #0860eb, #42caff);
+        box-shadow: 0 0 10px rgba(40,180,255,.35);
+    }
+    .j3-st5-row strong {
+        color: #f8cc70; font-size: 15px; font-weight: 800; text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    /* 「전체 보기 ›」 — 카드 아래쪽에 붙어 카드의 한 줄처럼 보이게 한다. */
+    div.st-key-j3_st5_open { margin: -14px 0 10px !important; }
+    div.st-key-j3_st5_open button {
+        width: auto !important; min-height: 0 !important;
+        margin-left: auto !important; margin-right: 6px !important;
+        padding: 3px 10px !important;
+        border: 0 !important; background: transparent !important;
+        color: #9fc4e8 !important; font-size: 13px !important; font-weight: 700 !important;
+        box-shadow: none !important;
+    }
+    div.st-key-j3_st5_open button:hover { color: #42caff !important; background: transparent !important; }
+    div.st-key-j3_st5_open [data-testid="stElementContainer"] { display: flex !important; justify-content: flex-end !important; }
     /* 종목검색 칸 이름 — 바로 위 보라색 띠와 같은 계열로 진하게(2026-08-01 지시).
        어두운 화면에서도 읽히도록 띠의 밝은 쪽 보라를 쓴다. */
     div[class*="st-key-j3_my_stock_query"] [data-testid="stWidgetLabel"] p {
@@ -3573,6 +3636,93 @@ def _run_close_all_if_requested() -> None:
         st.rerun()
 
 
+# ── 「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시) ──────────────────────
+# 상하님 — "자비스3 미국테마에 21개 테마 위에 자비스7에 있는 강한 테마 TOP5 를
+# 넣어라. 클릭하면 자비스3 미국테마에 21개 테마로 들어가도록 해라. 그리고 강한
+# 테마 TOP5 위아래 줄을 좀 더 좁혀라. 자리를 너무 길게 차지하고 있다."
+#
+# **자비스7 모듈을 끌어오지 않는다.** 생김새만 옮기고 그림쇠 넷은 여기 베껴 둔다.
+# 자비스7은 따로 도는 화면이라, 거기를 손대거나 지우면 이 화면까지 같이 죽는다.
+#
+# **자료도 자비스7 것을 안 쓴다.** 바로 아래 21개 테마 표가 쓰는 그 순위
+# (`_load_theme_rankings`)를 **그대로** 받아 쓴다. 새로 계산하거나 새로 받지
+# 않으므로 카드 숫자와 표 숫자가 갈라질 수가 없다(CLAUDE.md 10-1과 같은 뜻).
+#
+# **줄 간격은 자비스7보다 좁다** (상하님 지시). 자비스7은 한 줄 위아래로 10px씩,
+# 칸 사이 12px, 그림쇠 32px 이다. 여기는 5px · 9px · 24px 로 줄였다.
+_STRONG_TOP5_ICONS = {
+    "shield": '<path d="m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6zm-4 9 3 3 5-6"/>',
+    "chip": '<rect x="5" y="5" width="14" height="14" rx="2"/>'
+            '<path d="M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3M9 9h6v6H9z"/>',
+    "cloud": '<path d="M6 18a5 5 0 0 1-1-10 7 7 0 0 1 13-1 6 6 0 0 1 0 11z"/>',
+    "bolt": '<path d="m14 2-10 12h7l-1 8L21 9h-8z"/>',
+}
+
+
+def _strong_top5_icon(name: str) -> str:
+    """테마 이름에 맞는 그림쇠 하나. 자비스7의 theme_icon과 같은 규칙이다."""
+    text = str(name or "")
+    if any(word in text for word in ("반도체", "AI", "양자")):
+        key = "chip"
+    elif "보안" in text:
+        key = "shield"
+    elif any(word in text for word in ("클라우드", "소프트", "SaaS")):
+        key = "cloud"
+    else:
+        key = "bolt"
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+            f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{_STRONG_TOP5_ICONS[key]}</svg>')
+
+
+def _render_strong_theme_top5(ranking: dict) -> None:
+    """21개 테마 바로 위에 서는 「강한 테마 TOP 5」 카드.
+
+    **보여주기만 한다.** 누르는 자리는 카드 맨 아래 「전체 보기 ›」 한 곳이고,
+    그것이 바로 밑 21개 테마 순위를 연다(상하님 지시 — "클릭하면 21개 테마로
+    들어가도록"). 자비스7도 카드 맨 아래에 같은 자리를 두고 있다.
+
+    줄마다 따로 누르게 만들지 않은 까닭 — 스트림릿 단추 안에는 막대·점수 같은
+    HTML을 넣을 수가 없어서, 그리는 것과 누르는 것을 따로 두고 CSS로 겹쳐야 한다.
+    그 겹치기는 화면 크기마다 어긋나 상하님 폰에서 엉뚱한 줄이 눌린다.
+    가는 곳이 어차피 한 군데(21개 테마)라 누르는 자리도 한 곳이면 된다.
+
+    자료를 못 받았으면 **아무것도 그리지 않는다** — 빈 카드가 자리만 먹지 않게.
+    """
+    rows = [row for row in (ranking.get("rows") or []) if row.get("ok")][:5]
+    if not rows:
+        return
+    lines = []
+    for index, row in enumerate(rows, 1):
+        score = row.get("score")
+        try:
+            width = max(0.0, min(100.0, float(score)))
+            score_text = f"{float(score):.1f}"
+        except (TypeError, ValueError):
+            width, score_text = 0.0, "—"
+        lines.append(
+            f'<div class="j3-st5-row"><span class="j3-st5-rank">{index:02}</span>'
+            f'<span class="j3-st5-icon">{_strong_top5_icon(row.get("name"))}</span>'
+            f'<b>{html.escape(str(row.get("name") or ""))}</b>'
+            f'<span class="j3-st5-bar"><i style="width:{width:.1f}%"></i></span>'
+            f'<strong>{score_text}</strong></div>'
+        )
+    st.markdown(
+        '<div class="j3-st5"><div class="j3-st5-head">'
+        '<span class="j3-st5-flash">⚡</span><b>강한 테마 TOP 5</b>'
+        '<span class="j3-st5-unit">테마 점수 / 100</span></div>'
+        + "".join(lines) + "</div>",
+        unsafe_allow_html=True,
+    )
+    # 「전체 보기 ›」 — 바로 밑 21개 테마 순위를 연다. 여는 방식은 `_section_toggle`
+    # 의 _flip 과 **똑같다**(상태를 켜고 방문기록을 쌓는다). 달리 쓰면 뒤로가기가
+    # 그 단추와 다르게 움직인다.
+    with st.container(key="j3_st5_open"):
+        if st.button("전체 보기 ›", key="j3_st5_open_btn"):
+            st.session_state[_THEME_RANK_OPEN] = True
+            back_nav.opened(st, _THEME_RANK_OPEN)
+            st.rerun()
+
+
 def _section_toggle(
     label: str,
     key: str,
@@ -4911,6 +5061,10 @@ def _render_theme_section(market: dict) -> None:
     # "21개 테마만 글자 두고 실시간 순위 열기 글자 삭제하라고").
     # **닫는 단추(close_label)는 그대로 둔다** — 그쪽은 말씀이 없으셨고, 이름이
     # 없으면 무엇을 닫는 단추인지 알 수 없다.
+    # **「⚡ 강한 테마 TOP 5」는 21개 테마 단추 바로 위다** (2026-09-11 상하님 지시).
+    # 바로 아래 표가 쓰는 그 순위(ranking)를 그대로 넘긴다 — 새로 받거나 다시
+    # 계산하지 않으므로 카드 숫자와 표 숫자가 갈라질 수가 없다.
+    _render_strong_theme_top5(ranking)
     rank_open = _section_toggle(
         f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN,
         close_label=f"{_THEME_COUNT}개 테마 실시간 순위 닫기",
