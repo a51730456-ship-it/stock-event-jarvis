@@ -8452,6 +8452,23 @@ def _briefing_css() -> None:
         /* 지수 칸이 나란히 선 줄도 같은 12px 로 */
         body:has(.j3-market-top) .j3-top-row{gap:12px!important}
         body:has(.j3b-home) div[class*="st-key-j3b_grid_"]{row-gap:12px!important}
+        /* ── 태블릿에서 맨 위 두 단추가 양 끝으로 벌어지던 것 (2026-09-11 상하님) ──
+           상하님 — "스마트폰에는 맨 위 한국테마·이 테마 설명의 위치가 좁으니
+           볼 만한데, 태블릿 세로 화면에 너무 왼쪽 끝 오른쪽 끝으로 보내서 화면이
+           엉망이다."
+           까닭 — 설명 단추는 `margin-left:auto` 로 오른쪽 끝에 붙게 되어 있다
+           (method_help.py). 폰(412px)은 화면이 좁아 둘이 가까이 서지만, 태블릿
+           세로(1138px)에서는 가운데가 통째로 비어 보인다.
+           **줄의 최대 폭만 묶는다** — 왼쪽·오른쪽 배치는 그대로고, 벌어지는
+           거리만 폰에서 보이던 만큼으로 막는다.
+           **폰은 안 건드린다**(601px 미만은 이 규칙에 안 걸린다).
+           **한국테마도 안 건드린다** — method_help.py 는 공용이라 여기서
+           `body:has(.j3-market-top)` 으로 미국 시장분석 화면에만 건다. */
+        @media (min-width:601px){
+          body:has(.j3-market-top) .st-key-jarvis_method_help_row{
+            max-width:560px!important;
+          }
+        }
         .j3b-news-box{margin:7px 0;padding:0;overflow:hidden;
           border:1px solid #bd905266;border-radius:17px;
           background:linear-gradient(90deg,#062947ed,#042243f3);
