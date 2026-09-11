@@ -312,7 +312,11 @@ class Jarvis3PageTests(unittest.TestCase):
                 node for node in app.button
                 if str(node.key or "") == "btn_j3_theme_rank_open"
             )
-            self.assertIn("열기", str(rank_button.label))
+            # 여는 단추 이름은 **「21개 테마」 뿐**이다 (2026-09-11 상하님 지시 —
+            # "21개 테마만 글자 두고 실시간 순위 열기 글자 삭제하라고").
+            self.assertIn("개 테마", str(rank_button.label))
+            self.assertNotIn("열기", str(rank_button.label),
+                             "지운 「열기」가 다시 붙었다")
             self.assertFalse(any("class='j3-theme-top5'" in str(node.value)
                                  for node in app.markdown), "삭제한 오늘 1~5위 안내가 남았다")
             rank_button.click().run(timeout=60)
@@ -825,7 +829,11 @@ class Jarvis3PageTests(unittest.TestCase):
 
         self.assertEqual(len(app.exception), 0)
         blob = "".join(str(node.value) for node in app.markdown)
-        self.assertIn("종목검색 (검색종목 세부사항 보기)", blob)
+        # 보라색 띠는 **「종목검색」 글자만** 남긴다 (2026-09-11 상하님 지시 —
+        # "종목검색 글자만 두고 검색종목 세부사항 보기 글자 삭제").
+        self.assertIn("종목검색", blob, "제목 띠가 통째로 사라졌다")
+        self.assertNotIn("검색종목 세부사항 보기", blob,
+                         "지운 괄호 글자가 다시 붙었다")
         self.assertNotIn("한글로 쳐도 됩니다", blob)
         # 찾은 종목은 **고르는 줄**로 나온다 — 이름은 그 선택지에 적힌다.
         picks = next(node for node in app.radio if str(node.label) == "찾은 종목")

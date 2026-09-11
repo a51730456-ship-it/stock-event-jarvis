@@ -402,8 +402,12 @@ class PageWiringTests(unittest.TestCase):
             self.assertIn(f"{prefix}-band {{", source, f"{market}에 띠 CSS가 없다")
             self.assertIn(f"{prefix}-band-purple {{", source)
             self.assertIn("#7c3aed", source, f"{market} 띠가 보라색이 아니다")
+            # **미국테마는 「종목검색」 글자만 남긴다** (2026-09-11 상하님 지시 —
+            # "종목검색 글자만 두고 검색종목 세부사항 보기 글자 삭제").
+            # **한국테마는 안 건드린다** — CLAUDE.md 0-1 다.
+            label = "종목검색" if market == "US" else "종목검색 (검색종목 세부사항 보기)"
             self.assertIn(
-                f"'{prefix}-band {prefix}-band-purple'>종목검색 (검색종목 세부사항 보기)",
+                f"'{prefix}-band {prefix}-band-purple'>{label}</div>",
                 source, f"{market} 제목에 띠가 안 붙었다",
             )
             # 누를 곳이 아니다 — 단추로 만들면 안 된다.
