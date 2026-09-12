@@ -386,8 +386,10 @@ class Jarvis3PageTests(unittest.TestCase):
                       '{row-gap:12px!important}', source,
                       "위아래로 선 두 단추의 틈을 12px 로 안 맞춘다")
         head = source.index("div.st-key-j3_st5_wrap")
-        self.assertIn("margin-top: -40px !important;", source[head:head + 700],
-                      "강한 테마 카드가 12px 자리에 안 선다")
+        # 2026-09-12에 화면 줄 간격을 16px → 9px 로 줄이면서 당길 양도 같이
+        # 줄였다. -40px 그대로 두니 카드가 「자세히 보기」 단추를 덮었다.
+        self.assertIn("margin-top: -20px !important;", source[head:head + 900],
+                      "강한 테마 카드가 16px 자리에 안 선다")
 
     def test_breakout_detail_shows_today_change_pct(self):
         """상승장(신고가 눌림) 종목 상세에도 **당일 등락률**이 있어야 한다.
@@ -519,11 +521,11 @@ class Jarvis3PageTests(unittest.TestCase):
         #    삐져나가 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측).
         wrap = source[source.index("    div.st-key-j3_st5_wrap {"):]
         wrap = wrap[:wrap.index("\n    }") + 6]
-        # 값은 **실측으로** 정한다. -42px → -28px → -40px 로 왔다.
-        # -28px 일 때 「자세히 보기」와 카드 사이가 24px 이어서(2026-09-11 실측)
-        # 다른 자리의 12px 과 어긋났다. -40px 에서 딱 12px 이다.
-        self.assertIn("margin-top: -40px !important;", wrap,
-                      "카드를 「자세히 보기」 밑 12px 자리로 당기지 않는다")
+        # 값은 **실측으로** 정한다. -42px → -28px → -40px → -20px 로 왔다.
+        # 2026-09-12에 화면 줄 간격이 16px → 9px 로 좁아지면서 -40px 은 과하게
+        # 되어 카드가 「자세히 보기」 단추를 덮었다(상하님 캡처). -20px 에서 16px 이다.
+        self.assertIn("margin-top: -20px !important;", wrap,
+                      "카드를 「자세히 보기」 밑 16px 자리로 당기지 않는다")
 
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \

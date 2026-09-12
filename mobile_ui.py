@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026082861
+MODULE_REVISION = 2026091210
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -452,6 +452,11 @@ h2 { font-size: 1.2rem !important; }
 .j4-mc { min-width: calc(50% - 0.7rem); }
 .j4-mc-val { font-size: 1.15rem; }
 .j4-metric-row { gap: 0.6rem 0.9rem; }
+/* 지수 칸이 **너무 길다** (2026-09-12 상하님 — "각 항목에 폭을 줄여라. 너무
+   길다. 전체 항목 다"). 실측(375px) — 칸 191px 가운데 그림이 90px 이었다.
+   그림을 64px 로 낮춘다. 선 굵기는 vector-effect 가 지켜 준다(_sparkline_svg).
+   값·글자는 그대로다. */
+.j3-top-cell svg { height: 64px !important; }
 .j3-metric-row:has(.j3-mc) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 /* 칸을 **더 줄인다** (2026-09-12 상하님 지시 — 캡처에 화살표로 안쪽을 가리키며
    "각 칸마다 크기가 너무 크다. 화살표 방향 보고 줄여라"). 여섯 칸이 폰 화면을

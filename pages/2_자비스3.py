@@ -559,12 +559,14 @@ st.markdown(
     .j3-idx-cap {
         position: absolute; left: 0; right: 0; top: 50%;
         transform: translateY(-54%);
-        color: #ffd166; font-size: .82rem; font-weight: 800;
+        /* **눈에 덜 띄게** (2026-09-12 상하님 — "노랑색 눈에 너무 띈다.
+           투명하게 글자 한 치수 더 적게해라"). 13.1px → 11.2px, 반투명. */
+        color: rgba(255, 209, 102, .55); font-size: .7rem; font-weight: 800;
         letter-spacing: -.02em; text-align: center;
         pointer-events: none; z-index: 0;
-        text-shadow: 0 1px 3px rgba(0,0,0,.85);
+        text-shadow: 0 1px 3px rgba(0,0,0,.7);
     }
-    .j3-idx-cap-daily { color: #ffd166; }
+    .j3-idx-cap-daily { color: rgba(255, 209, 102, .55); }
     /* 그림을 글자 **위**로 올린다 — 주가선이 글자를 타고 넘어간다. */
     .j3-idx-now > svg, .j3-idx-more > svg, .j3-idx-solo > svg {
         position: relative; z-index: 1;
@@ -1417,7 +1419,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026082861
+_REQUIRED_MOBILE_REVISION = 2026091210
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -2561,11 +2563,16 @@ def _render_market_overview() -> None:
     # VIX는 오르면 위험이라 색을 뒤집는다.
     # **VIX 글자와 숫자는 보라색**이다(2026-08-21 상하님 지시). 오르내림 표시는
     # 지금까지대로 둔다 — VIX는 오르면 위험이라 색이 뒤집혀 있다.
+    # **오르내림 크기·색을 다른 칸과 같게 맞춘다** (2026-09-12 상하님 —
+    # "vix 밑에 -11.21% 크기 다른 항목들과 같은 크기 줄여라. + - 색깔 좀
+    # 구분하고"). 실측 — 이 줄만 20px 이었고 다른 칸 밑줄은 13.4px 이었다.
+    # 색도 **보이는 그대로** 가른다 — 여태 VIX 만 부호를 뒤집어(오르면 위험이라)
+    # -11.21% 가 파랑으로 나왔다. 눈으로는 구분이 안 된다.
     vix_sub = (
         f"<span style='font-size:1.25rem;font-weight:800;color:#b98cff'>"
         f"VIX {_number(vix_value, 2)}</span> "
-        f"<span style='font-size:1.25rem;font-weight:800;"
-        f"color:{_sign_color(None if vix_change is None else -float(vix_change))}'>"
+        f"<span style='font-size:.84rem;font-weight:800;"
+        f"color:{_sign_color(vix_change)}'>"
         f"{_pct(vix_change)}</span>"
     )
     top_cells = [
@@ -6387,6 +6394,11 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             f"20일선 이격 {_pct(quality.get('gap_pct'))}</div></div>",
         ])
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+    # **여기에도 단추 둘을 놓는다** (2026-09-12 상하님 지적 — "21개 테마에서
+    # 선정한 종목은 있는데 상승장 급락 후 반등장에는 왜 없냐?").
+    # 2026-09-12에 단추를 만들면서 테마 대장주 상세(_render_selected_live_quote)
+    # 한 곳에만 넣었다. 상승장·급락 상세는 이 함수가 따로 그린다.
+    _render_watchlist_add_buttons(ticker, panel=f"rb_{panel}")
 
     def _fac_cell(part, maximum):
         # 만점이 0인 줄은 숫자 대신 '0점'이라 적는다 — 왜 0점인지는 「설명」에 있다.
