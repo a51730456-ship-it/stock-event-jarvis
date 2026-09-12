@@ -3086,9 +3086,12 @@ def _leader_bar_pct(score) -> float:
     return max(0.0, min(float(score or 0) / max(_leader_max(), 1.0) * 100.0, 100.0))
 
 
-# 화면에 「1분 자동 갱신」이라고 적어 둔 그 카드다. 데코레이터를 제자리로 돌려놨다.
-@st.fragment(run_every=60)
-def _render_selected_live_quote(stock_score=None, entry_state=None, *, general_theme=False) -> None:
+# **5분마다 조용히 갱신한다** (2026-09-12 상하님 지시 — "설명 내용 삭제하고
+# 보이지는 않지만 5분 자동 갱신으로 해주고"). 예전에는 1분마다 돌면서 화면에
+# 「1분 자동 갱신」이라고 적어 두었다. 위 시장판단 줄도 5분이라 주기가 맞는다.
+@st.fragment(run_every=300)
+def _render_selected_live_quote(stock_score=None, entry_state=None, *,
+                                general_theme=False, panel: str = "") -> None:
     ticker = st.session_state.get("j3_selected_ticker")
     if not ticker:
         return
@@ -3127,8 +3130,176 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *, general_t
         f"<div class='j3-mc-val j3-green'>{score_val}</div>{state_sub}</div>",
     ]
     st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
-    stale_text = " · 마지막 정상 자료" if quote.get("stale") else ""
-    st.caption(f"시세 기준 {quote.get('source_time') or '—'}{stale_text} · 1분 자동 갱신")
+    # **「시세 기준 … 1분 자동 갱신」 줄은 뺐다** (2026-09-12 상하님 지시 — 캡처에
+    # 빨간 줄로 표시하셨다). 갱신은 보이지 않게 5분마다 돈다(위 데코레이터).
+    # 그 자리에는 이 종목을 관심종목에 넣는 단추 둘을 놓는다.
+    # 자리 이름을 같이 넘긴다 — 이 카드는 한 화면에 **둘**(세부사항·매수 심사)
+    # 그려져서, 열쇠에 종목만 넣으면 둘이 겹친다(2026-09-12 시험이 잡아냈다).
+    _render_watchlist_add_buttons(ticker, panel=panel)
+
+
+# ── 이 종목을 관심종목에 넣는 단추 둘 (2026-09-12 상하님 지시) ────────────────
+#
+# 상하님 — "그 자리에 사용자선정종목추가와 추가검색종목추가 두 개 버튼을 만들어
+# 줘. 각 버튼을 누르면 현재 선택종목이 관심종목에 … 추가되도록 해 줘."
+#
+# **자리 수를 지킨다**(상하님 — "종목 한도 있는 것 잊지 말고. 갯수 이야기하는
+# 것이야"). 사용자 선정은 **여섯 자리**, 추가 검색은 **열두 개**까지다
+# (jarvis3_briefing_store 의 SELECTED_SLOTS · EXTRA_LIMIT). 넘겨 넣지 않는다.
+#
+# 사용자 선정 여섯 자리는 늘 꽉 차 있다 — 저장고가 기본 여섯 종목으로 채워 둔다.
+# 그래서 **어느 자리를 바꿀지 물어본다.** 상하님이 골라 두신 종목을 말없이
+# 밀어내지 않는다(CLAUDE.md 0-0).
+#
+# **평소에는 저장고를 읽지 않는다.** 이 칸은 5분마다 저절로 도는 자리라, 여기서
+# 읽으면 조회가 계속 늘어난다. 단추를 누르는 그 순간에만 읽는다.
+_WATCH_ADD_CSS = """
+<style>
+/* 두 단추는 자비스7 단추와 같은 결이다(jarvis7_ui 의 .j7-submit).
+   왼쪽은 파랑(사용자 선정), 오른쪽은 금색(추가 검색)이다. */
+div[class*="st-key-j3add_sel_"] button,
+div[class*="st-key-j3add_ext_"] button {
+    border-radius: 12px !important;
+    font-weight: 800 !important;
+    letter-spacing: -.02em !important;
+    padding: .55rem .8rem !important;
+    transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+div[class*="st-key-j3add_sel_"] button {
+    background: linear-gradient(135deg, #147dd4, #0e3f75) !important;
+    border: 1px solid #46b9fc !important;
+    box-shadow: 0 3px 12px rgba(7, 118, 233, .28) !important;
+}
+div[class*="st-key-j3add_ext_"] button {
+    background: linear-gradient(135deg, #b8860b, #6d4f0c) !important;
+    border: 1px solid #f8cc70 !important;
+    box-shadow: 0 3px 12px rgba(248, 204, 112, .22) !important;
+}
+div[class*="st-key-j3add_sel_"] button p,
+div[class*="st-key-j3add_ext_"] button p {
+    color: #fff !important; font-weight: 800 !important;
+    white-space: nowrap;            /* 폰에서 두 줄로 접히지 않게 */
+    font-size: .92rem !important;
+}
+@media (max-width: 420px) {
+    div[class*="st-key-j3add_sel_"] button p,
+    div[class*="st-key-j3add_ext_"] button p { font-size: .82rem !important; }
+}
+div[class*="st-key-j3add_sel_"] button:hover,
+div[class*="st-key-j3add_ext_"] button:hover {
+    transform: translateY(-1px); filter: brightness(1.12);
+}
+/* 자리 고르기 단추는 작고 수수하게 — 주인공은 위 단추 둘이다. */
+div[class*="st-key-j3add_slot_"] button {
+    background: rgba(11, 40, 71, .55) !important;
+    border: 1px solid #2b4e70 !important;
+    border-radius: 10px !important;
+    padding: .35rem .4rem !important;
+}
+div[class*="st-key-j3add_slot_"] button p { font-size: .82rem !important; color: #cfe4ff !important; }
+.j3-add-msg {
+    margin: .35rem 0 .1rem; font-size: .84rem; font-weight: 700;
+    padding: .4rem .7rem; border-radius: 10px;
+    border: 1px solid #2b4e70; background: rgba(11, 40, 71, .45);
+}
+.j3-add-msg.ok { border-color: #44f0a1; color: #44f0a1; }
+.j3-add-msg.no { border-color: #ffb45b; color: #ffd166; }
+.j3-add-ask { margin: .3rem 0 .15rem; font-size: .84rem; color: #9aafc9; font-weight: 700; }
+</style>
+"""
+
+
+def _render_watchlist_add_buttons(ticker: str, *, panel: str = "") -> None:
+    """지금 보고 있는 종목을 관심종목에 넣는다. 자리 수를 넘기지 않는다."""
+    ticker = str(ticker or "").strip().upper()
+    if not ticker:
+        return
+    # 열쇠에는 **자리 이름과 종목**을 같이 넣는다. 한 화면에 이 카드가 둘이다.
+    slot_key = f"{panel or 'x'}_{ticker}"
+    name = getattr(j3data, "STOCK_NAMES", {}).get(ticker, ticker)
+    st.markdown(_WATCH_ADD_CSS, unsafe_allow_html=True)
+    left, right = st.columns(2)
+    # **티커는 단추에 안 적는다** — 바로 위 카드에 크게 있고, 폰에서 글자가
+    # 두 줄로 접혀 단추가 두 배로 커진다(2026-09-12 실측 375px).
+    if left.button("⭐ 사용자 선정에 넣기",
+                   key=f"j3add_sel_{slot_key}", width="stretch"):
+        _watchlist_add(ticker, name, group="selected")
+        _rerun_here()
+    if right.button("🔍 추가 검색에 넣기",
+                    key=f"j3add_ext_{slot_key}", width="stretch"):
+        _watchlist_add(ticker, name, group="extra")
+        _rerun_here()
+
+    message, tone = st.session_state.get("j3add_msg") or ("", "ok")
+    if message:
+        st.markdown(f"<div class='j3-add-msg {tone}'>{html.escape(message)}</div>",
+                    unsafe_allow_html=True)
+
+    # 여섯 자리가 꽉 찼을 때만 자리를 고르게 한다.
+    slots = st.session_state.get("j3add_slots") or []
+    if slots and st.session_state.get("j3add_slots_for") == ticker:
+        st.markdown(
+            "<div class='j3-add-ask'>여섯 자리가 다 찼습니다. "
+            f"<b>{html.escape(ticker)}</b> 을(를) 넣을 자리를 고르십시오 — "
+            "고른 자리의 종목은 지워집니다.</div>",
+            unsafe_allow_html=True,
+        )
+        columns = st.columns(3)
+        for index, row in enumerate(slots):
+            position = int(row.get("position") or index + 1)
+            label = f"{position}. {row.get('ticker') or '—'} 바꾸기"
+            if columns[index % 3].button(label, key=f"j3add_slot_{position}_{slot_key}",
+                                         width="stretch"):
+                _watchlist_replace(position, ticker, name)
+                _rerun_here()
+
+
+def _watchlist_add(ticker: str, name: str, *, group: str) -> None:
+    """저장고에 넣는다. 자리가 없으면 넣지 않고 그 사실을 적어 둔다."""
+    st.session_state.pop("j3add_slots", None)
+    st.session_state.pop("j3add_slots_for", None)
+    try:
+        briefing_store.ensure_tables()
+        if group == "extra":
+            briefing_store.add_extra(ticker, name)
+            limit = getattr(briefing_store, "EXTRA_LIMIT", 12)
+            used = len(briefing_store.extra_stocks())
+            st.session_state["j3add_msg"] = (
+                f"{ticker} 을(를) 관심종목 화면의 「추가 검색 종목」에 "
+                f"넣었습니다 ({used}/{limit}).", "ok")
+            return
+        rows = briefing_store.selected_stocks()
+        if any(str(row.get("ticker") or "").upper() == ticker for row in rows):
+            st.session_state["j3add_msg"] = (
+                f"{ticker} 은(는) 이미 「사용자 선정 종목」에 있습니다.", "no")
+            return
+        st.session_state["j3add_msg"] = ("", "ok")
+        st.session_state["j3add_slots"] = rows
+        st.session_state["j3add_slots_for"] = ticker
+    except ValueError as exc:                 # 자리가 찼거나 이미 있는 종목이다
+        st.session_state["j3add_msg"] = (str(exc), "no")
+    except Exception as exc:                  # 저장고가 막혀도 화면은 살아 있어야 한다
+        st.session_state["j3add_msg"] = (
+            f"넣지 못했습니다: {_safe_error_text(exc)}", "no")
+
+
+def _watchlist_replace(position: int, ticker: str, name: str) -> None:
+    """고른 자리의 종목을 이 종목으로 바꾼다."""
+    try:
+        before = ""
+        for row in st.session_state.get("j3add_slots") or []:
+            if int(row.get("position") or 0) == int(position):
+                before = str(row.get("ticker") or "")
+        briefing_store.replace_selected(int(position), ticker, name)
+        st.session_state["j3add_msg"] = (
+            f"{position}번 자리의 {before} 을(를) {ticker} 으(로) 바꿨습니다.", "ok")
+    except ValueError as exc:
+        st.session_state["j3add_msg"] = (str(exc), "no")
+    except Exception as exc:
+        st.session_state["j3add_msg"] = (
+            f"바꾸지 못했습니다: {_safe_error_text(exc)}", "no")
+    st.session_state.pop("j3add_slots", None)
+    st.session_state.pop("j3add_slots_for", None)
 
 
 def _load_theme_rankings() -> dict:
@@ -3299,6 +3470,7 @@ def _render_stock_detail(
     )
     _render_selected_live_quote(
         leader.get("score"), plan.get("state"), general_theme=is_general_score,
+        panel=panel,
     )
 
     if is_general_score:
@@ -4607,7 +4779,8 @@ def _render_buy_form(
             f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
             unsafe_allow_html=True,
         )
-        _render_selected_live_quote(leader.get("score"), plan.get("state"))
+        _render_selected_live_quote(leader.get("score"), plan.get("state"),
+                                    panel=f"buy_{panel}")
         _render_buy_form_fields(theme_row, leader, market, panel=panel)
 
 

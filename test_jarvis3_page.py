@@ -1100,7 +1100,11 @@ class Jarvis3PageTests(unittest.TestCase):
             # 때문이다. 그 표를 상하님 지시로 없애자 드러났다 —
             # 이 시험은 여태 검색을 한 번도 안 눌러 본 것이다.
             box.set_value("엔비디아")
-            search = next(node for node in app.button if "검색" in str(node.label))
+            # **「🔎 검색」 단추를 정확히 집는다.** 2026-09-12에 선택종목 칸에
+            # 「🔍 추가 검색에 넣기」 단추가 생겨, "검색"만 보고 찾으면 그쪽이
+            # 먼저 잡힌다.
+            search = next(node for node in app.button
+                          if str(node.label).strip() == "🔎 검색")
             search.click().run(timeout=60)
 
         self.assertEqual(len(app.exception), 0)
