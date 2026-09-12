@@ -252,6 +252,17 @@ st.markdown(
        카드**(.j3-reason-card, 급락 화면의 「고점 대비 -20~-30%」 줄)도 쓴다.
        한정하지 않으면 고치라고 하지 않은 그 줄까지 격자로 바뀐다(실측 — 칸 여덟
        개가 생기고 둘만 차서 593px씩 벌어졌다). 그 줄은 예전 줄 세우기 그대로다. */
+    /* ── 화면 **전체**의 줄 간격을 좁힌다 (2026-09-12 상하님 지시) ────────────
+       상하님 — "여백이 너무 넓다. 밑에 것만 달랑 하지 말고 전체적으로 여백 다
+       간격 조절하란 말이다." (두 번 말씀하셨다)
+       스트림릿은 구역과 구역 사이에 **늘 16px**을 넣는다. 그것이 화면 어디서나
+       같은 크기로 쌓여 자리를 먹고 있었다. 9px 로 줄인다.
+       실측(폰 375px) — 「핵심 4개」→「신호 상세」 16px → 9px ·
+       「신호 상세」→「닫기」 19px → 12px.
+       **값·글자·차례는 하나도 안 바뀐다.** 사이 간격만 좁아진다. */
+    [data-testid="stVerticalBlock"] { gap: .55rem !important; }
+    /* 글 문단 아래 16px 도 같이 줄인다 — 접이칸·안내줄이 이것 때문에 벌어진다. */
+    [data-testid="stMarkdownContainer"] > p:last-child { margin-bottom: 0 !important; }
     .j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.2rem 0 0.4rem; }
     .j3-metric-row:has(.j3-mc) {
         display: grid;

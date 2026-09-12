@@ -1301,8 +1301,8 @@ div[class*="st-key-us_signal_fold"] [data-testid="stVerticalBlock"] { gap:.4rem 
 /* **글자 없는 빈 칸을 지운다.** <style> 만 들어 있는 markdown 도 스트림릿은
    14px 짜리 칸을 하나 만든다. 이 구역에만 셋이 끼어 있었다. */
 div[class*="st-key-us_signal_fold"] [data-testid="stElementContainer"]:has(> [data-testid="stMarkdownContainer"] > style) { display:none !important; }
-/* 「닫기」 아래 50px 은 이 칸 바깥 여백이다. 그만큼 당겨 12px 로 만든다. */
-div[class*="st-key-us_signal_fold"] { margin-bottom:-38px !important; }
+/* 「닫기」 아래는 **아래 화면 전체 규칙**이 줄여 준다. 여기서 음수 마진으로
+   당기면 단추가 다음 구역에 먹혀 글자가 잘린다(2026-09-12 실제로 냈다). */
 .sig-fold-btn.bottom { margin:.2rem 0 0; }
 .sig-fold-btn .when-open { display:none; }
 body:has(.sig-fold-tap:checked) .sig-fold-btn .when-open { display:inline; }
