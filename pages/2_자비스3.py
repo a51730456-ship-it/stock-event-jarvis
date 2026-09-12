@@ -226,6 +226,28 @@ st.markdown(
        「신호 상세」→「닫기」 19px → 12px.
        **값·글자·차례는 하나도 안 바뀐다.** 사이 간격만 좁아진다. */
     [data-testid="stVerticalBlock"] { gap: .55rem !important; }
+    /* ── 설명 접이칸 둘은 **한 줄에 나란히** (2026-09-12 상하님 지시) ─────────
+       스트림릿은 폰처럼 좁은 화면에서 칸을 위아래로 쌓는다. 이 줄만 쌓지
+       말라고 못박는다. 제목이 길면 두 줄로 접혀 칸이 두 배가 되므로 글자도
+       한 치수 줄이고 넘치면 …으로 자른다. */
+    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: .4rem !important;
+    }
+    div[class*="st-key-j3_guide_row"] [data-testid="stColumn"] {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
+    div[class*="st-key-j3_guide_row"] [data-testid="stExpander"] summary p {
+        font-size: .82rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    div[class*="st-key-j3_guide_row"] [data-testid="stExpander"] summary {
+        padding-left: .3rem !important;
+        padding-right: .3rem !important;
+    }
     /* 설명 카드와 그 밑 「핵심 4개」 사이가 38px 이었다(2026-09-12 상하님 —
        동그라미). 카드도 접이칸도 여백이 0 인데 그만큼 벌어져 있다. 16px 로 맞춘다. */
     div[class*="st-key-us_signal_fold"] [data-testid="stExpander"] {
@@ -2622,7 +2644,14 @@ def _render_market_overview() -> None:
     _render_nasdaq_drawdown()
     # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
     # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
-    with st.expander("조건점수·시장 상황 설명 보기", expanded=False):
+    #
+    # **둘을 옆으로 나란히 세운다** (2026-09-12 상하님 지시 — "밑으로 두 개
+    # 만들지 말고 옆으로 만들어라"). 위아래로 두면 자리를 두 줄 먹는다.
+    # 스트림릿은 폰에서 칸을 쌓으므로 이 줄만 쌓지 말라고 못박는다(아래 CSS).
+    # 이름도 짧게 줄였다 — "조건점수 설명보기" · "시장전체흐름 기준보기".
+    _guide_row = st.container(key="j3_guide_row")
+    _guide_left, _guide_right = _guide_row.columns(2)
+    with _guide_left.expander("조건점수 설명보기", expanded=False):
         st.markdown(
             f"""
             <div class="j3-score-guide">
@@ -2647,7 +2676,7 @@ def _render_market_overview() -> None:
             unsafe_allow_html=True,
         )
     # 시장 전체 흐름·행동 기준도 접는다(2026-07-25 사용자 지시: "다 숨겨라").
-    with st.expander("시장 전체 흐름 · 행동 기준 보기", expanded=False):
+    with _guide_right.expander("시장전체흐름 기준보기", expanded=False):
         st.markdown(
             f"""
             <div class="j3-market-flow">
