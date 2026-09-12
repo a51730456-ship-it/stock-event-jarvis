@@ -187,6 +187,12 @@ BREAKOUT_MARKET_MAX_DROP = -10.0
 # 이제 **고점 대비 -6% 아래면 전부 본다.** 상하님 표처럼 다섯 칸으로 나눠 보여주되
 # 거르지는 않는다. 10년에 그런 날이 710일(전체의 28%)이다.
 CRASH_MARKET_BAND = (-100.0, -6.0)
+# **재는 것은 나스닥 종합이 아니라 QQQ(나스닥100 ETF)다.** 위 -6% 문턱과 아래
+# 다섯 칸 숫자(710일·28% · 72건 +33.1% …)가 전부 이 QQQ 값으로 잰 것이다.
+# 화면 글자도 「QQQ(나스닥100)」로 적는다 (2026-09-11 상하님 지시) — 여태
+# 「나스닥」이라고만 적혀 있어 나스닥 종합 숫자와 헷갈렸다.
+# 맨 위 「나스닥 고점 대비」 게이지는 **다른 것**이다 — 그쪽은 진짜 ^IXIC를 쓴다
+# (get_nasdaq_drawdown). 같이 바꾸면 안 된다.
 CRASH_MARKET_SYMBOL = "QQQ"
 
 # 상하님 표 2의 다섯 칸. **거르는 조건이 아니라 지금이 어느 칸인지 알려 주는 표**다.
@@ -1137,6 +1143,59 @@ def get_market_overview() -> dict:
     """
     value, _ = _cached_value("us_market_overview", THEME_LIVE_TTL, _compute_market_overview)
     return copy.deepcopy(value)
+
+
+_MARKET_OVERVIEW_WARM_LOCK = threading.Lock()
+_MARKET_OVERVIEW_WARM = {"on": False}
+
+
+def warm_market_overview() -> None:
+    """미국 전체시장 판단을 **뒤에서 미리** 만들어 둔다 (2026-09-10).
+
+    상하님 지적 — *"관심종목에서 시장분석으로 2초, 너무 늦다."*
+
+    **재 보니 그 2초는 거의 다 시세를 기다리는 시간이었다.** 시장분석 화면이
+    처음 그려질 때 화면이 세워 놓고 기다리는 조회가 넷인데, 그중 둘이 여기서
+    나간다 — 9종목 1년치 일봉과 5종목 1분봉이다(실측 0.90초).
+
+    화면 여는 동안 받는 것이 아니라, **관심종목 화면에서 뉴스가 다 온 뒤에**
+    미리 받아 둔다(pages/2_자비스3.py `_warm_after_news`). 그때는 상하님이 이미
+    화면을 보고 계실 때라 뒤에서 무엇을 하든 기다리실 것이 없다 —
+    업종 지도·신호 시세를 미리 받는 것과 **같은 자리, 같은 방식**이다.
+
+    **계산은 한 글자도 안 바뀐다.** 화면이 부르는 그 함수(get_market_overview)를
+    같은 인자로 부를 뿐이다. 못 받아도 조용히 넘어간다 — 그때는 예전처럼
+    시장분석 화면이 그 자리에서 받는다.
+
+    **이미 공책에 있으면 아무것도 안 한다.** 3분(THEME_LIVE_TTL) 안이면 그냥
+    돌아간다 — 괜히 야후에 같은 요청을 또 보내지 않는다.
+    """
+    now = time.time()
+    with _MARKET_OVERVIEW_WARM_LOCK:
+        if _MARKET_OVERVIEW_WARM["on"]:
+            return                      # 이미 뒤에서 받는 중이다
+        with _CACHE_LOCK:
+            cached = _CACHE.get("us_market_overview")
+        if cached and now - cached["at"] < THEME_LIVE_TTL:
+            return                      # 아직 안 묵었다
+        _MARKET_OVERVIEW_WARM["on"] = True
+
+    def _run() -> None:
+        try:
+            get_market_overview()
+        except Exception as exc:
+            _log.warning("market overview warm-up failed: %s", exc)
+        finally:
+            with _MARKET_OVERVIEW_WARM_LOCK:
+                _MARKET_OVERVIEW_WARM["on"] = False
+
+    try:
+        threading.Thread(target=_run, name="j3-market-overview-warm",
+                         daemon=True).start()
+    except Exception as exc:
+        _log.warning("market overview warm-up thread failed: %s", exc)
+        with _MARKET_OVERVIEW_WARM_LOCK:
+            _MARKET_OVERVIEW_WARM["on"] = False
 
 
 def _compute_market_overview() -> dict:
@@ -3303,6 +3362,43 @@ def _trading_days_since(frames: dict, as_of_date: str | None) -> int | None:
         return None
 
 
+def _ixic_reference(window_index) -> dict:
+    """**참고용** — 같은 기간 나스닥 종합(IXIC)이 가장 깊었던 날 (2026-09-11 상하님 지시).
+
+    상하님 — "괄호 안에 (나스닥 종합지수(IXIC)는 7월 29일 종가 -9.78%)".
+    화면 숫자는 **QQQ**를 잰 것이라 나스닥 종합 숫자와 헷갈리신다. 그래서 종합
+    값을 괄호에 참고로 같이 적는다.
+
+    **고르는 데는 하나도 안 쓴다.** 기준일도 종목도 QQQ로 정한 그대로다 —
+    여기서는 글자 한 줄을 더 적을 뿐이다(그물·배점 불변, CLAUDE.md 0-1).
+
+    **새로 받아 오지 않는다.** 맨 위 「나스닥 고점 대비」 게이지가 이미 받아 둔
+    ^IXIC 1년치와 **같은 캐시**를 쓴다(같은 종목·기간·간격). 여는 시간은 그대로다.
+    고점 기준도 그 게이지와 같다 — **그날까지의 최고 종가**다.
+
+    실패하면 빈 dict 를 준다 — 이 한 줄 때문에 화면이 죽으면 안 된다.
+    """
+    try:
+        daily, _meta = _download_cached(
+            ("^IXIC",), period="1y", interval="1d", ttl_seconds=600)
+        frame = daily.get("^IXIC")
+        if frame is None or frame.empty:
+            return {}
+        close = frame["Close"].dropna().astype(float)
+        # 그날까지의 최고 종가 대비 — 뒤를 보면 안 되므로 누적 최대를 쓴다.
+        drop = (close / close.cummax() - 1.0) * 100.0
+        same = drop.reindex(window_index).dropna()
+        if same.empty:
+            return {}
+        worst = same.idxmin()
+        return {"ixic_date": pd.Timestamp(worst).strftime("%Y-%m-%d"),
+                "ixic_drop": float(same.min()),
+                "ixic_close": float(close.loc[worst]),
+                "ixic_high": float(close.loc[:worst].max())}
+    except Exception:
+        return {}
+
+
 def crash_reference_day(lookback_days: int = 30) -> dict:
     """급락 후 반등장의 **기준일**을 찾는다 (2026-08-06 사용자 지시).
 
@@ -3333,16 +3429,18 @@ def crash_reference_day(lookback_days: int = 30) -> dict:
         if inside.empty:
             return {"ok": True, "armed": False, "today_drop": today_drop,
                     "reference_date": None, "reference_drop": None, "days_in_band": 0,
-                    "reason": (f"최근 {lookback_days}거래일에 나스닥이 "
+                    "reason": (f"최근 {lookback_days}거래일에 QQQ(나스닥100)가 "
                                f"{abs(high):.0f}~{abs(low):.0f}% 내려온 날이 없었습니다. "
                                f"지금은 {today_drop:.1f}%입니다.")}
         ref = inside.idxmin()          # 가장 깊었던 날
-        return {"ok": True, "armed": True, "today_drop": today_drop,
-                "reference_date": pd.Timestamp(ref).strftime("%Y-%m-%d"),
-                "reference_drop": float(inside.min()),
-                "days_in_band": int(len(inside)),
-                "last_in_band": pd.Timestamp(inside.index[-1]).strftime("%Y-%m-%d"),
-                "reason": ""}
+        out = {"ok": True, "armed": True, "today_drop": today_drop,
+               "reference_date": pd.Timestamp(ref).strftime("%Y-%m-%d"),
+               "reference_drop": float(inside.min()),
+               "days_in_band": int(len(inside)),
+               "last_in_band": pd.Timestamp(inside.index[-1]).strftime("%Y-%m-%d"),
+               "reason": ""}
+        out.update(_ixic_reference(recent.index))
+        return out
     except Exception as exc:
         return {"ok": False, "reason": f"기준일을 찾지 못했습니다 ({exc})"}
 
@@ -3399,13 +3497,13 @@ def crash_market_state() -> dict:
                 "reason": "나스닥 낙폭을 못 읽어 시장 조건을 확인하지 못했습니다"}
     armed = low <= drop <= high
     if armed:
-        reason = f"나스닥이 고점에서 {drop:.1f}% 내려왔습니다 — 이 규칙을 쓰는 자리입니다"
+        reason = f"QQQ(나스닥100)가 고점에서 {drop:.1f}% 내려왔습니다 — 이 규칙을 쓰는 자리입니다"
     elif drop > high:
-        reason = (f"나스닥이 고점에서 {drop:.1f}%밖에 안 내려왔습니다. "
+        reason = (f"QQQ(나스닥100)가 고점에서 {drop:.1f}%밖에 안 내려왔습니다. "
                   f"이 규칙은 {abs(high):.0f}~{abs(low):.0f}% 내려왔을 때 씁니다 "
                   "(7개월에 한 번쯤 옵니다).")
     else:
-        reason = (f"나스닥이 고점에서 {drop:.1f}% 내려왔습니다 — 너무 깊습니다. "
+        reason = (f"QQQ(나스닥100)가 고점에서 {drop:.1f}% 내려왔습니다 — 너무 깊습니다. "
                   f"{abs(low):.0f}%보다 더 빠진 자리는 아무 종목이나 산 것보다 못했습니다.")
     return {"ok": True, "armed": armed, "drop_pct": drop,
             "band": CRASH_MARKET_BAND, "reason": reason}

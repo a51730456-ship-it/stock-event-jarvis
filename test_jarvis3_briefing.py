@@ -174,7 +174,10 @@ def test_first_page_renders_four_slots_and_next_page_button():
     rendered = " ".join(str(node.value) for node in app.markdown)
     assert "종목 브리핑" in rendered
     assert all(ticker in rendered for ticker in ("NVDA", "TSLA", "PLTR", "AMD"))
-    assert any(node.key == "j3b_go_market" for node in app.button)
+    # 「더보기 ›」는 2026-09-10에 뺐다 — 그 자리에 검색줄이 앉는다.
+    # 시장분석은 하단 막대와 손가락으로 미는 것으로 간다.
+    assert not any(node.key == "j3b_go_market" for node in app.button)
+    assert any(node.key == "j3b_swipe_market" for node in app.button), "미는 길이 없다"
     market_button = next(node for node in app.button if node.key == "j3b_nav_market")
     assert market_button.label == "시장분석"
     assert any(node.key == "j3b_nav_home" for node in app.button)
@@ -252,12 +255,12 @@ def test_search_shows_the_match_and_adds_only_after_confirming():
         app.session_state["authenticated"] = True
         app.session_state["jarvis_access_role"] = "owner"
         app.run(timeout=30)
-        next(node for node in app.text_input if node.key == "j3b_search").input("애플").run(timeout=30)
-        next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
+        next(node for node in app.text_input if node.key == "j3b_search_extra").input("애플").run(timeout=30)
+        next(node for node in app.button if node.key == "j3b_manage_toggle_extra").click().run(timeout=30)
         # ＋ 만으로는 넣지 않는다. 찾은 종목을 보여 주고 확인을 받는다(2026-08-26).
         add_extra.assert_not_called()
-        assert app.session_state["j3b_search_found"][0]["ticker"] == "AAPL"
-        next(node for node in app.button if node.key == "j3b_search_ok").click().run(timeout=30)
+        assert app.session_state["j3b_search_found_extra"][0]["ticker"] == "AAPL"
+        next(node for node in app.button if node.key == "j3b_search_ok_extra").click().run(timeout=30)
     add_extra.assert_called_once_with("AAPL", "Apple")
 
 
@@ -299,10 +302,10 @@ def test_search_confirms_ionq_from_existing_theme_universe():
         app.session_state["authenticated"] = True
         app.session_state["jarvis_access_role"] = "owner"
         app.run(timeout=30)
-        next(node for node in app.text_input if node.key == "j3b_search").input("Ionq").run(timeout=30)
-        next(node for node in app.button if node.key == "j3b_manage_toggle").click().run(timeout=30)
+        next(node for node in app.text_input if node.key == "j3b_search_extra").input("Ionq").run(timeout=30)
+        next(node for node in app.button if node.key == "j3b_manage_toggle_extra").click().run(timeout=30)
         add_extra.assert_not_called()
-        next(node for node in app.button if node.key == "j3b_search_ok").click().run(timeout=30)
+        next(node for node in app.button if node.key == "j3b_search_ok_extra").click().run(timeout=30)
     add_extra.assert_called_once_with("IONQ", "IonQ")
 
 
@@ -805,3 +808,35 @@ def test_news_keeps_being_watched_until_it_arrives():
 
     # ⑥ 한없이 기다리지 않는다.
     assert "> 120" in body, "그만 기다리는 자리가 없다"
+
+
+def test_one_news_arrival_draws_the_screen_once(): 
+    """뉴스 한 자리가 오면 판을 **한 번만** 그린다 (2026-09-10 상하님 지적).
+
+    상하님 — *"시장분석에서 관심종목으로 4초, 너무 늦다."*
+
+    **판을 두 번씩 그리고 있었다.** 다시 그리라고 하는 자리가 둘이었다 —
+      ① 지켜보는 조각 `_briefing_news_watcher` (2026-09-02에 넣음)
+      ② 판 끝의 `_schedule_briefing_news_refresh` (2026-08-26부터 있던 것)
+    ①이 다시 그리면 그 판 끝에서 ②가 **또** 다시 그렸다. 두 번째 판에서는
+    화면이 하나도 안 바뀐다. 뉴스 자리가 11곳이라(시장 1 + 종목 10) 그 헛판이
+    열한 번 붙었다 — 실측으로 판을 32번 그렸고 그리는 데만 4.52초를 썼다.
+
+    이제 다시 그리는 일은 **지켜보는 조각 하나만** 한다. ②는 세는 일과
+    「그만 기다려라」를 알리는 일만 남는다.
+    """
+    page = Path(__file__).parent / "pages" / "2_자비스3.py"
+    source = page.read_text(encoding="utf-8")
+    body = source[source.index("def _schedule_briefing_news_refresh("):]
+    body = body[:body.index(chr(10) + "def ", 10)]
+    # 설명글은 빼고 **코드만** 본다 — 설명에는 st.rerun 이라는 말이 나온다.
+    code = chr(10).join(line for line in body.splitlines()
+                        if not line.lstrip().startswith("#"))
+    code = code.replace(body[body.index('"""'):body.index('"""', body.index('"""') + 3) + 3], "")
+    assert "st.rerun(" not in code, (
+        "여기서 또 다시 그리면 뉴스 한 자리에 판을 두 번 그린다")
+    # 세는 일과 멈추는 일은 그대로 남아 있어야 한다 — 이것이 꺼져야 지켜보는
+    # 조각도 같이 멈춘다.
+    assert 'st.session_state["j3b_news_pending"] = False' in code, (
+        "그만 기다리라고 알리는 자리가 없어졌다")
+    assert "ready_count" in code, "세는 자리가 없어졌다"

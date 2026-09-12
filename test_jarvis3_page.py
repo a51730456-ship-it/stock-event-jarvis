@@ -276,6 +276,282 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertNotIn("<div class='j3-section-title'>추천 근거 요약</div>", markdowns)
         self.assertTrue([node for node in app.button if "bundle_open" in str(node.key or "")])
 
+    def test_top_buttons_sit_inside_the_banner_and_gaps_match(self):
+        """맨 위 두 단추는 **배너 그림 안**에 선다 (2026-09-11 상하님 지시).
+
+        상하님 — "로봇이 있는 그림 안으로 넣으라는 뜻이야. 로봇 있는 그림을
+        줄이라는 말이 아니고." · "빈자리 만들지 말고 위아래 여백을 밸런스 있게…
+        측정해서 맞춰라는 말이다."
+
+        진짜 앱을 띄워 폰(412) · 태블릿(820) · 노트북(1400)에서 재고 맞췄다:
+          단추 아래끝 → 배너 아래끝   16px  (세 폭 모두)
+          배너 아래끝 → 「미국 전체시장 판단」 16~20px
+
+        **배너 크기는 안 건드린다.** 당기는 값은 배너 높이가 아니라 단추줄
+        자신의 자리를 기준으로 잡았기 때문에, 배너가 174px(폰)이든 236px
+        (노트북)이든 같은 자리에 선다.
+
+        **한국테마는 안 건드린다** — 규칙을 `body:has(.j3-market-top)` 으로
+        묶어 미국 시장분석 화면에서만 걸리게 했다(CLAUDE.md 0-1 다).
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = source[source.index("body:has(.j3-market-top) .st-key-jarvis_method_help_row {"):]
+        block = block[:block.index("}") + 1]
+        self.assertIn("margin-top:-61px!important;", block, "단추줄을 배너 안으로 안 당긴다")
+        self.assertIn("flex:0 0 auto!important;", block,
+                      "통이 늘어나 음수 여백을 삼킨다 — 실측으로 확인한 자리다")
+        self.assertIn("z-index:5!important;", block, "단추가 배너 밑에 깔린다")
+        # 겉껍데기도 같이 올려야 아래 것들이 따라온다.
+        self.assertIn('body:has(.j3-market-top) [data-testid="stLayoutWrapper"]'
+                      ':has(> .st-key-jarvis_method_help_row)', source,
+                      "겉껍데기를 안 올려 배너 밑에 빈자리가 남는다")
+        # **미국 화면에서만** 걸려야 한다 — 한국테마와 공용 파일이다.
+        self.assertNotIn("\n        .st-key-jarvis_method_help_row {", source,
+                         "화면 구분 없이 전체에 거는 규칙이 생겼다")
+
+    def test_watchlist_two_sections_have_the_same_spacing(self):
+        """관심종목의 모든 칸 사이가 **12px 하나**여야 한다 (2026-09-11 상하님 지시).
+
+        상하님이 화살표로 짚으신 세 자리를 앱을 띄워 다시 쟀다(폰 412 · 태블릿 1138).
+          「미국시장 한줄 브리핑」 제목 → 뉴스 상자   17px → 12px
+          뉴스 상자 → 「사용자 선정 종목」            35px → 12px
+          「사용자 선정 종목」 줄 → 첫 카드            9px → 12px
+          선정 끝 카드 → 「추가 검색 종목」           26px → 12px
+          「추가 검색 종목」 줄 → 첫 카드              9px → 12px
+        17px·35px 의 5px 은 뉴스 접이틀(details)이 들고 있던 위아래 여백이었다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        # 접이틀의 제 여백은 떼고 칸 사이 간격 12px 만 남긴다.
+        self.assertNotIn(".j3b-market-news-shell{display:block;margin:7px 0}", source,
+                         "뉴스 접이틀이 아직 제 여백 7px 을 들고 있다")
+        self.assertNotIn(".j3b-market-news-shell{margin:5px 0}", source,
+                         "폰 규칙의 접이틀 여백 5px 이 남아 있다")
+        self.assertIn(".j3b-news-box{margin:0;", source, "뉴스 상자 여백이 0 이 아니다")
+        for key, margin in (("j3b_extra_header_sel", "margin-top:0px!important;"),
+                            ("j3b_grid_selected", "margin-top:-14px!important;"),
+                            ("j3b_grid_extra1", "margin-top:-6px!important;")):
+            rule = ('[data-testid="stLayoutWrapper"]:has(> div[class*="st-key-'
+                    + key + '"]) {')
+            self.assertIn(rule, source, f"{key} 여백 규칙이 없다")
+            tail = source[source.index(rule):]
+            self.assertIn(margin, tail[:tail.index("}") + 1],
+                          f"{key} 여백 값이 실측과 다르다")
+        # 「추가 검색 종목」 줄은 이름이 _sel 줄과 겹친다(class*= 로는 둘 다 걸린다).
+        # class~= 로 **그 줄만** 걸어야 한다.
+        rule = ('[data-testid="stLayoutWrapper"]:has(> div[class~="st-key-'
+                'j3b_extra_header"]) {')
+        self.assertIn(rule, source, "「추가 검색 종목」 줄 여백 규칙이 없다")
+        tail = source[source.index(rule):]
+        self.assertIn("margin-top:-14px!important;", tail[:tail.index("}") + 1],
+                      "「추가 검색 종목」 줄 여백 값이 실측과 다르다")
+
+    def test_top7_scrolls_to_its_own_button_when_opened(self):
+        """「매수심사결과 높은 순위 9」를 열면 **그 단추가 화면 맨 위**로 온다.
+
+        2026-09-11 상하님 지시 — "매수심사결과 높은 순위 9, 이것도 클릭하면
+        화면이 캡처 화면처럼 하라고 몇 번째 이야기하냐?"
+        21개 테마와 같은 동작이다. 실측(폰 412 · 태블릿 1138) — 누른 뒤 단추가
+        화면 위에서 24px, 급락 단추와 사이 12px.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn('_TOP7_ANCHOR = "top7_top"', source, "자리 이름이 없다")
+        head = source.index("def _render_top_reviewed(")
+        body = source[head:source.index("def _render_top_reviewed_detail(")]
+        # 자리 표시는 **단추보다 먼저** 그려야 그 위에 선다.
+        self.assertLess(body.index("scroll_to.anchor(st, _TOP7_ANCHOR)"),
+                        body.index('st.button("매수심사결과 높은 순위 9"'),
+                        "자리 표시가 단추 밑에 있다")
+        # 여는 길이 둘이다(새로 뽑기 · 방금 뽑아 둔 것 다시 펴기). 둘 다 올라가야 한다.
+        self.assertEqual(2, body.count("scroll_to.request(st, _TOP7_ANCHOR)"),
+                         "여는 길 둘 중 하나가 화면을 안 올린다")
+        # 높이 0짜리가 칸 하나를 더 먹는 것을 **이 자리 하나만** 골라 당긴다.
+        self.assertIn('[data-testid="stElementContainer"]:has(#jarvis-anchor-top7_top)',
+                      source, "자리 표시가 먹는 12px 을 안 당긴다")
+        self.assertIn("#jarvis-anchor-top7_top{scroll-margin-top:12px!important}",
+                      source, "단추가 맨 위에 안 선다")
+
+    def test_market_screen_gaps_are_all_twelve(self):
+        """시장분석에서 12px 이 아니던 세 자리 (2026-09-11 실측).
+
+        배너 → 「미국 전체시장 판단」        2px → 12px
+        「자세히 보기」 → 강한 테마 TOP 5   24px → 12px
+        「상승장」 → 「급락 후 반등장」      16px → 12px
+        남은 20px 두 자리는 사이에 **가로줄(hr)** 이 들어 있는 자리다 —
+        4px + 줄 12px + 4px 이라 빈자리가 아니다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn('[data-testid="stMarkdownContainer"]>div.j3-page-title{',
+                      source, "「미국 전체시장 판단」 제목 여백 규칙이 없다")
+        self.assertIn('body:has(.j3-market-top) [data-testid="stHorizontalBlock"]'
+                      '{row-gap:12px!important}', source,
+                      "위아래로 선 두 단추의 틈을 12px 로 안 맞춘다")
+        head = source.index("div.st-key-j3_st5_wrap")
+        self.assertIn("margin-top: -40px !important;", source[head:head + 700],
+                      "강한 테마 카드가 12px 자리에 안 선다")
+
+    def test_breakout_detail_shows_today_change_pct(self):
+        """상승장(신고가 눌림) 종목 상세에도 **당일 등락률**이 있어야 한다.
+
+        2026-09-11 상하님 지적 — "상승장 신고가 눌림을 눌러 종목 클릭하면
+        선택종목 세부사항에 당일 상승율·하락율이 안 나온다."
+        눌림목 갈래 칸에는 있었는데 이 갈래 칸을 따로 쓰면서 한 줄을 빠뜨렸다.
+        값은 metrics 안에 이미 있어 새로 받아 오는 것이 없다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        # 상승장 갈래가 **제 칸을 따로 쓰는** 자리다 (cells = [...] 를 다시 만든다).
+        head = source.index("US_SWING_V1은 중요 70·보조 30을")
+        block = source[head:head + 2600]
+        current = block.index("현재가")
+        nxt = block.index("최근 3개월 등수")
+        cell = block[current:nxt]
+        self.assertIn("change_pct", cell,
+                      "상승장 현재가 칸에 당일 등락률이 없다")
+        self.assertIn("_sign_class", cell,
+                      "당일 등락률에 오름·내림 색이 없다")
+
+    def test_table_rows_keep_the_16px_gap_inside_columns(self):
+        """표 안의 종목 단추 칸은 **16px** 을 지켜야 한다 (2026-09-11 상하님 지적).
+
+        상하님 — "매수심사결과 순위 9 누르면 화면이 저렇게 되도록 하라고,
+        저거 너가 건들였냐?" — 내가 건드린 것이 맞다.
+        칸 사이를 12px 로 통일할 때 표의 **종목 이름 단추 칸**까지 걸렸다.
+        값 칸은 _stacked() 가 16px 을 제 안에 박아 두고 있어 단추만 줄마다 4px 씩
+        올라갔다(실측 — 0 · -4 · -8px, 9줄이면 -32px).
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn("gap:16px", source.split("def _stacked")[1][:600],
+                      "_stacked 가 16px 을 안 쓴다")
+        for mark in ("body:has(.j3-market-top)", "body:has(.j3b-home)"):
+            self.assertIn(mark + ' [data-testid="stColumn"]>[data-testid="stVerticalBlock"]',
+                          source, f"{mark} 표 칸 안 간격을 16px 로 안 되돌린다")
+
+    def test_theme_rank_toggle_redraws_the_whole_page_and_scrolls(self):
+        """21개 테마를 여닫으면 **판 전체**를 다시 그리고 그 자리로 올라간다.
+
+        2026-09-11 상하님 지적 — "21개 테마 실시간 순위 닫기 누르면 노란색
+        동그라미 친 부분이 남는다. 또 눌러야 없어진다." ·
+        "강한 테마나 21개 테마를 누르면 화면이 위로 올라가게 하되 캡처 화면처럼
+        위치를 맞춰라."
+
+        **왜 남았나.** 21개 테마가 열렸나를 보고 아래 닫기 단추를 그리는 곳은
+        상승장 덩이인데, 그 상태를 바꾸는 것은 다른 덩이(테마 덩이)다. 스트림릿은
+        누른 단추가 든 덩이만 다시 그리므로 나머지가 옛 상태로 남았다.
+        **여는 쪽도 거울처럼 같은 문제였다** — 맨 위 단추로 열면 아래 닫기 단추가
+        아예 안 생겼다. 진짜 앱을 띄워 둘 다 재현하고 고쳤다:
+
+          맨 위 단추로 연 뒤   아래 닫기 단추  없음 → 있음
+          맨 위 단추로 닫은 뒤 아래 닫기 단추  남음 → 없음
+          열었을 때 닫기 단추가 화면 위에서   —  → 92px (표가 바로 밑에 온다)
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        # ① 닫을 때 — 조건 없이 판 전체를 다시 그린다.
+        close_fn = source.split("def _close_theme_rank_from_fragment()")[1]
+        close_fn = close_fn.split(chr(10) + "def ")[0]
+        self.assertIn('st.session_state["j3_close_all_pending"] = True', close_fn)
+        self.assertNotIn("if outside_open:", close_fn,
+                         "밖에 열린 것이 있을 때만 다시 그리면 닫기 단추가 남는다")
+        # ② 열 때 — 같은 일을 하고, 그 자리로 올라간다.
+        open_fn = source.split("def _open_theme_rank_from_fragment()")[1]
+        open_fn = open_fn.split(chr(10) + "def ")[0]
+        self.assertIn('st.session_state["j3_close_all_pending"] = True', open_fn)
+        self.assertIn("scroll_to.request(st, _THEME_RANK_ANCHOR)", open_fn)
+        # ③ 자리 표시는 **강한 테마 카드 안**에 찍는다 (2026-09-11).
+        #    따로 칸을 만들어 찍었더니 두 가지가 틀어졌다 —
+        #     ① 높이 0짜리가 한 칸으로 세어져 카드와 단추 사이가 12px → 24px.
+        #     ② 그 칸을 흐름에서 빼려고 position:absolute 를 줬더니 자리 표시가
+        #        엉뚱한 곳으로 갔다(태블릿 실측 — 단추 887px, 자리 표시 2428px).
+        #    카드 안에 찍으니 폰·태블릿 둘 다 자리 표시 84px, 단추 99~111px 이다.
+        self.assertIn('f\'<div id="{scroll_to.anchor_id(_THEME_RANK_ANCHOR)}"'
+                      ' class="jarvis-anchor"></div>\'', source,
+                      "자리 표시가 카드 안에 없다")
+        self.assertNotIn("scroll_to.anchor(st, _THEME_RANK_ANCHOR)", source,
+                         "따로 칸을 만들어 찍으면 간격이 벌어지고 자리가 틀어진다")
+        self.assertNotIn(':has(#jarvis-anchor-theme_rank_top)', source,
+                         "자리 표시를 흐름에서 빼면 엉뚱한 곳으로 간다")
+        block = source[source.index('f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN,'):]
+        block = block[:block.index("on_close=_close_theme_rank_from_fragment,")]
+        self.assertIn("on_open=_open_theme_rank_from_fragment,", block)
+        # ④ 강한 테마 카드로 열 때도 **같은 자리**로 올라간다.
+        card = source.split('if st.button("강한 테마 TOP 5 — 21개 테마 열기"')[1]
+        card = card[:card.index("st.rerun()")]
+        self.assertIn("scroll_to.request(st, _THEME_RANK_ANCHOR)", card,
+                      "카드로 열면 화면이 안 올라간다")
+
+    def test_strong_theme_top5_sits_above_the_theme_rank_button(self):
+        """「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시).
+
+        상하님 — "자비스3 미국테마에 21개 테마 위에 자비스7에 있는 강한 테마 TOP5를
+        넣어라. 클릭하면 자비스3 미국테마에 21개 테마로 들어가도록 해라.
+        그리고 강한 테마 TOP5 위아래 줄을 좀 더 좁혀라."
+
+        ① 21개 테마 단추 **위**에 선다.
+        ② 자료는 바로 아래 표가 쓰는 그 순위를 **그대로** 쓴다 — 카드 숫자와 표
+           숫자가 갈라지면 안 된다.
+        ③ 누르면 21개 테마 순위가 열린다.
+        ④ 줄 간격은 자비스7(10px·12px·32px)보다 좁다.
+        ⑤ 자비스7 모듈을 **끌어오지 않는다** — 거기를 손대면 이 화면이 같이 죽는다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        # ① 그리는 차례 — 카드가 단추보다 앞이다.
+        self.assertIn("_render_strong_theme_top5(ranking)", source)
+        self.assertLess(source.index("_render_strong_theme_top5(ranking)"),
+                        source.index('f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN'),
+                        "카드가 21개 테마 단추보다 아래에 있다")
+        # ⑤ 자비스7을 안 부른다.
+        self.assertNotIn("import jarvis7", source, "자비스7 모듈을 끌어왔다")
+        # ④ 자비스7보다 좁은 줄 간격.
+        card = source[source.index("    .j3-st5-row {"):]
+        card = card[:card.index("    .j3-st5-row:last-child")]
+        self.assertIn("padding: 5px 0;", card, "줄 위아래 여백이 안 좁혀졌다")
+        self.assertIn("gap: 9px;", card, "칸 사이가 안 좁혀졌다")
+        # ⑥ **카드 어디를 눌러도 들어간다** (2026-09-11 상하님 지시 — "강한 테마
+        #    TOP5 전체 중 어디든 클릭하면 21개 테마로 들어가게 하고 전체보기 삭제").
+        #    속이 비치는 단추를 카드 위에 통째로 겹쳐 둔다.
+        self.assertIn('st.container(key="j3_st5_wrap")', source, "카드를 감싼 통이 없다")
+        self.assertIn("div.st-key-j3_st5_wrap div.st-key-j3_st5_open {", source,
+                      "겹쳐 두는 규칙이 없다")
+        self.assertIn("inset: 0 !important;", source, "단추가 카드를 다 안 덮는다")
+        self.assertNotIn('st.button("전체 보기', source, "「전체 보기」가 아직 남았다")
+        # ⑦ **이름은 접지 않는다** — 한 줄만 두 줄이 되면 카드가 들쭉날쭉해진다.
+        self.assertIn("white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", source,
+                      "긴 테마 이름이 두 줄로 접힌다")
+        # ⑧ **위로 당기는 것은 통이 한다** — 카드에 음수 여백을 주면 카드가 통 밖으로
+        #    삐져나가 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측).
+        wrap = source[source.index("    div.st-key-j3_st5_wrap {"):]
+        wrap = wrap[:wrap.index("\n    }") + 6]
+        # 값은 **실측으로** 정한다. -42px → -28px → -40px 로 왔다.
+        # -28px 일 때 「자세히 보기」와 카드 사이가 24px 이어서(2026-09-11 실측)
+        # 다른 자리의 12px 과 어긋났다. -40px 에서 딱 12px 이다.
+        self.assertIn("margin-top: -40px !important;", wrap,
+                      "카드를 「자세히 보기」 밑 12px 자리로 당기지 않는다")
+
+        with patch("jarvis3_data.get_market_overview", return_value=_market()), \
+             patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
+             patch("market_signal_ui._fetch_quotes", return_value={}), \
+             patch("jarvis3_data.get_theme_rankings", return_value=_ranking()), \
+             patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
+             patch("jarvis3_store.ensure_tables"), \
+             patch("jarvis3_store.list_trades", return_value=[]):
+            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app.secrets["APP_PASSWORD"] = "test"
+            app.session_state["authenticated"] = True
+            app.session_state["j3_briefing_page"] = "market"
+            app.run(timeout=60)
+            self.assertEqual(len(app.exception), 0)
+            blob = "".join(str(node.value) for node in app.markdown)
+            self.assertIn("강한 테마 TOP 5", blob, "카드가 안 그려졌다")
+            # ② 표가 쓰는 그 순위 그대로 — 1위 이름이 카드에 있어야 한다.
+            self.assertIn(_ranking()["rows"][0]["name"], blob,
+                          "카드가 표와 다른 자료를 쓴다")
+            # ③ 누르면 21개 테마가 열린다.
+            self.assertFalse(app.session_state.filtered_state.get("j3_theme_rank_open", False),
+                             "순위가 처음부터 열려 있다")
+            opener = next(node for node in app.button
+                          if str(node.key or "") == "j3_st5_open_btn")
+            opener.click().run(timeout=60)
+            self.assertTrue(app.session_state.filtered_state.get("j3_theme_rank_open"),
+                            "카드를 눌렀는데 21개 테마가 안 열린다")
+
     def test_theme_rank_click_opens_and_close_button_hides_whole_theme_panel(self):
         """20개 순위의 테마 클릭으로 캡처 속 테마 종목 화면 전체를 여닫는다."""
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
@@ -312,7 +588,11 @@ class Jarvis3PageTests(unittest.TestCase):
                 node for node in app.button
                 if str(node.key or "") == "btn_j3_theme_rank_open"
             )
-            self.assertIn("열기", str(rank_button.label))
+            # 여는 단추 이름은 **「21개 테마」 뿐**이다 (2026-09-11 상하님 지시 —
+            # "21개 테마만 글자 두고 실시간 순위 열기 글자 삭제하라고").
+            self.assertIn("개 테마", str(rank_button.label))
+            self.assertNotIn("열기", str(rank_button.label),
+                             "지운 「열기」가 다시 붙었다")
             self.assertFalse(any("class='j3-theme-top5'" in str(node.value)
                                  for node in app.markdown), "삭제한 오늘 1~5위 안내가 남았다")
             rank_button.click().run(timeout=60)
@@ -825,7 +1105,11 @@ class Jarvis3PageTests(unittest.TestCase):
 
         self.assertEqual(len(app.exception), 0)
         blob = "".join(str(node.value) for node in app.markdown)
-        self.assertIn("종목검색 (검색종목 세부사항 보기)", blob)
+        # 보라색 띠는 **「종목검색」 글자만** 남긴다 (2026-09-11 상하님 지시 —
+        # "종목검색 글자만 두고 검색종목 세부사항 보기 글자 삭제").
+        self.assertIn("종목검색", blob, "제목 띠가 통째로 사라졌다")
+        self.assertNotIn("검색종목 세부사항 보기", blob,
+                         "지운 괄호 글자가 다시 붙었다")
         self.assertNotIn("한글로 쳐도 됩니다", blob)
         # 찾은 종목은 **고르는 줄**로 나온다 — 이름은 그 선택지에 적힌다.
         picks = next(node for node in app.radio if str(node.label) == "찾은 종목")
@@ -1325,6 +1609,42 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("get_us_futures_live", fn)
         # 모듈이 없거나 조회가 실패해도 화면을 죽이지 않는다.
         self.assertIn("except Exception", fn)
+
+    def test_us_futures_is_fetched_alongside_the_market_overview(self):
+        """선물 조회가 시장 판단 시세와 **겹쳐 돌아야** 한다 (2026-09-10 상하님 지적).
+
+        상하님 — *"관심종목에서 시장분석으로 2초, 너무 늦다."*
+
+        **실측 — 그 화면이 세워 놓고 기다리는 조회 넷이 한 줄로 섰다.**
+            ① 9종목 1년치 일봉 ② 5종목 1분봉 → get_market_overview (0.90초)
+            ③ NQ=F ④ ES=F 5분봉              → 선물 칸            (0.79초)
+        ①②와 ③④는 서로 아무 상관이 없는데 ①②가 다 온 뒤에 ③④를 시작했다.
+
+        그래서 ③④를 화면 그리기 **맨 앞**에서 뒤 일꾼에게 먼저 맡기고, 선물 칸이
+        값을 읽기 직전에 그 일꾼을 기다린다. 새로 나가는 요청은 하나도 없다 —
+        받는 **때**만 옮겼다.
+        """
+        source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        market = source.split("def _render_existing_theme_content()")[1]
+        market = market.split(chr(10) + "def ")[0]
+        self.assertIn("_start_us_futures_fetch()", market,
+                      "선물을 먼저 시켜 두는 자리가 없다")
+        # **맨 앞이어야 한다** — 시장 판단 시세를 받은 뒤에 시키면 겹칠 것이 없다.
+        self.assertLess(market.index("_start_us_futures_fetch()"),
+                        market.index("_render_market_overview()"),
+                        "시장 판단 시세를 받은 뒤에 선물을 시킨다 — 겹치지 않는다")
+        # **읽기 전에 기다려야 한다** — 안 기다리면 같은 것을 두 번 받는다.
+        fn = source.split("def _us_futures_cell(")[1].split(chr(10) + "def ")[0]
+        self.assertIn("_await_us_futures_fetch()", fn,
+                      "먼저 시켜 둔 일꾼을 안 기다린다 — 같은 것을 두 번 받는다")
+        self.assertLess(fn.index("_await_us_futures_fetch()"),
+                        fn.index('fetcher(ttl_seconds=300'),
+                        "값을 읽은 뒤에 기다린다 — 순서가 뒤집혔다")
+        # 한국테마 파일은 여전히 **읽기만** 한다 — 같은 함수를 같은 인자로 부른다.
+        starter = source.split("def _start_us_futures_fetch()")[1]
+        starter = starter.split(chr(10) + "def ")[0]
+        self.assertIn('ttl_seconds=300, interval="5m"', starter,
+                      "화면이 부르는 것과 다른 인자로 받으면 그 값이 안 쓰인다")
 
     def test_holding_period_numbers_are_still_kept_in_research(self):
         """보유기간 참고표는 화면에서 뺐지만 **숫자는 그대로 남아 있다**.
@@ -1977,6 +2297,16 @@ def test_market_briefing_expands_inline_without_external_news_link():
     # 커진 판은 summary를 닫은 **뒤**에 온다.
     assert news.index("</summary>") < news.index('<div class="j3b-card-open">')
     assert ".j3b-market-news-shell[open]>.j3b-market-news-summary" in source
+    # **세 줄은 한 상자 안에 들어간다** (2026-09-11 상하님 지시 — "한 박스 안에
+    # 넣어라. 세 박스를 만들 필요가 없다. 한 칸 안에 세 줄을 넣어라").
+    # 테두리·바탕·그림자는 상자 하나만 두르고, 줄은 가는 선으로만 가른다.
+    # 실측 — 브리핑 칸 높이 126px → 110px, 테두리 친 상자 3개 → 1개.
+    assert '<div class="j3b-news-box">' in news, "세 줄을 한 상자에 안 담았다"
+    assert ".j3b-news-box .j3b-news{margin:0!important;border:0!important;" in source, (
+        "줄마다 두르던 테두리를 안 벗겼다")
+    assert "border-bottom:1px solid #bd905233!important" in source, "줄 사이 가는 선이 없다"
+    assert ".j3b-market-news-shell[open] .j3b-news-box{display:none!important}" in source, (
+        "크게 열었을 때 접힌 상자가 안 사라진다")
 
 
 def test_expanded_news_rows_show_the_original_article():
@@ -2383,13 +2713,26 @@ def test_switching_screens_goes_back_to_the_top():
     nav = nav[:nav.index(chr(10) + "def ", 10)]
     assert 'scroll_to.request(st, "top")' not in nav, "단추가 아직 표시를 적어 둔다"
     assert nav.count('_set_briefing_page(') == 3, "세 단추가 화면 이름을 안 정한다"
-    # **시장분석으로 가는 길이 둘이다.** 하단 막대와 「더보기 ›」다. 둘 다 같은
-    # 한 곳을 지나므로 빠뜨릴 수가 없다 — 2026-08-27에 「더보기」 쪽을 빠뜨려
-    # 상하님이 맨 위 두 단추를 못 보셨다.
+    # **시장분석으로 가는 길이 둘이다.** 하단 막대와 손가락으로 미는 것이다.
+    # 둘 다 같은 한 곳(_set_briefing_page)을 지나므로 빠뜨릴 수가 없다.
+    # 「더보기 ›」는 2026-09-10에 뺐다 — 그 자리에 검색줄이 앉는다(상하님 지시 —
+    # "사용자선정종목 바로 옆에 종목검색후추가로 하고 디자인 똑같이 해라").
     home = source[source.index("def _render_stock_briefing()"):source.index("def main()")]
-    more = home[home.index('key="j3b_go_market"'):]
-    more = more[:more.index("st.rerun()")]
-    assert '_set_briefing_page("market")' in more, "「더보기」가 화면을 안 바꾼다"
+    assert 'key="j3b_go_market"' not in home, "「더보기」를 뺐는데 아직 남아 있다"
+    # 미는 단추는 화면 **맨 앞**에 있다. 뒤에 두면 판을 두 번 그려 늦어진다
+    # (2026-09-10 상하님 지적 — "화면 옆으로 넘기는 게 왜 실시간으로 바로
+    # 안 되냐?"). 그래서 `st.rerun()` 도 없다 — 부르면 그것이 곧 두 판이다.
+    swipe = source[source.index("def _briefing_swipe_buttons("):]
+    swipe = swipe[:swipe.index(chr(10) + "def ", 10)]
+    assert '_set_briefing_page("market")' in swipe, "미는 길이 화면을 안 바꾼다"
+    assert '_set_briefing_page("home")' in swipe, "되돌아가는 길이 화면을 안 바꾼다"
+    # 설명 글에도 그 말이 나오므로 **코드 부분만** 본다(설명은 """ 로 닫힌다).
+    swipe_code = swipe[swipe.index('"""', swipe.index('"""') + 3) + 3:]
+    assert "st.rerun()" not in swipe_code, "여기서 다시 그리면 판을 두 번 그린다"
+    # 그리고 그 단추가 page 를 읽기 **전에** 불려야 한다.
+    render = source[source.index("def _render_stock_briefing()"):]
+    render = render[:render.index("page = _briefing_page()")]
+    assert "_briefing_swipe_buttons()" in render, "미는 단추가 page 를 읽은 뒤에 있다"
     # 양쪽 화면에 '맨 위' 자리가 있어야 데려갈 곳이 있다.
     assert source.count('scroll_to.anchor(st, "top")') == 2, "'맨 위' 자리가 한쪽에만 있다"
     # ── 위 여백을 68px 에서 0 으로 되돌린 까닭 (2026-08-28) ──────────────────
@@ -2427,21 +2770,29 @@ def test_the_phone_home_screen_is_left_alone():
     "스마트폰에는 4개만 보이게 하라고. 사용자 선정 종목 이야기하는 것이야.
     추가 검색 종목도 건들이지 말고." · "스마트폰은 전부 원래대로 하라고."
 
-    브라우저 실측(폰 375px) — 사용자 선정 4개 · 2칸 2줄 · 통 375px,
-    추가 검색 종목 2칸 그대로. 태블릿 800px 은 6개 3칸 2줄이다.
+    브라우저 실측(폰 375px) — 2칸 · 통 375px, 추가 검색 종목 2칸 그대로.
+
+    **보이는 개수만 2026-09-10에 넷 → 여덟으로 바뀌었다** (상하님 지시 —
+    "사용자 선정종목 추가가 안 된다. 개수 제한 4개이지 싶다. 8개로 가능하도록
+    만들어라"). 저장 한도는 여섯이었는데 폰이 넷만 보여 주어 넷으로 보이셨다.
+    저장 한도(`SELECTED_SLOTS`)와 폰 규칙을 **둘 다 여덟로** 맞췄다.
+    나머지(칸 수·폭·추가 검색 종목)는 2026-08-27 지시 그대로 둔다.
     """
     source = PAGE.read_text(encoding="utf-8")
     # 같은 이름의 블록이 둘이라 **내 규칙이 든 쪽**을 집어서 본다.
-    mark = 'div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}'
+    mark = 'div.st-key-j3b_grid_selected>*:nth-child(n+9){display:none!important}'
     start = source.rindex("@media (max-width:600px){", 0, source.index(mark))
     phone = source[start:source.index(mark) + len(mark) + 2]
     # 폰은 두 칸이다.
     assert "grid-template-columns:repeat(2,minmax(0,1fr))!important" in phone
     # 폰 폭은 예전 그대로 430px 이다.
     assert "max-width:min(430px,100vw)!important" in phone
-    # **사용자 선정 종목만** 앞 넷까지 보인다. 추가 검색 종목은 안 건드린다.
-    assert "div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}" in phone
+    # **사용자 선정 종목만** 앞 여덟까지 보인다. 추가 검색 종목은 안 건드린다.
+    assert mark in phone
     assert "j3b_grid_extra" not in phone, "추가 검색 종목을 건드렸다"
+    # 화면이 보여 주는 개수와 저장 한도가 어긋나면 "추가가 안 된다"가 또 난다.
+    import jarvis3_briefing_store as _store
+    assert _store.SELECTED_SLOTS == 8, "저장 한도와 폰 표시 개수가 어긋난다"
 
 def test_the_tablet_breakpoint_starts_at_601():
     """태블릿 경계는 601px 부터다 (2026-08-27 상하님 지적).
@@ -2537,8 +2888,8 @@ def test_the_screen_you_were_on_is_written_into_the_address():
     assert "!= page" in writer
     assert "except Exception:" in writer
 
-    # 화면을 바꾸는 길 **셋 다** 이 한 곳을 지나야 빠뜨릴 수가 없다
-    # (하단 막대 홈·관심종목·시장분석 + 「더보기 ›」).
+    # 화면을 바꾸는 길이 **다** 이 한 곳을 지나야 빠뜨릴 수가 없다
+    # (하단 막대 홈·관심종목·시장분석 + 손가락으로 미는 것 둘).
     assert source.count("_set_briefing_page(") >= 5
     assert 'st.session_state["j3_briefing_page"] = "market"' not in source, \
         "주소를 안 거치고 화면을 바꾸는 길이 남아 있다"
@@ -2586,11 +2937,23 @@ def test_the_big_card_can_be_closed_from_the_bottom_too():
     css = css[:css.index("</style>")]
     rule = css[css.index(".j3b-open-close-b{"):]
     rule = rule[:rule.index("}") + 1]
-    # 왼쪽 아래다 — 오른쪽 아래에는 장식 그림(96px)이 앉아 있어 겹친다.
-    assert "left:16px" in rule and "bottom:16px" in rule
-    assert "right:auto" in rule and "top:auto" in rule, "위 규칙을 안 풀면 오른쪽 위에 겹친다"
-    # **창 바닥에 붙이지 않는다** — 2026-08-26에 sticky 로 했다가 글을 가렸다.
-    assert "sticky" not in rule and "fixed" not in rule
+    # **자리를 띄우지 않는다** (2026-09-10 · 두 번 틀린 뒤 내린 결론).
+    #   16px  → 하단 이동막대(position:fixed; bottom:8px; height:64px 로 화면
+    #           바닥 72px를 덮고 z-index 최대값)에 깔렸다.
+    #   88px  → 이번에는 뉴스 목록 위에 겹쳤다. 목록은 pointer-events:auto 라
+    #           손가락을 먹어 버려 카드가 안 닫혔다.
+    # 띄우는 한 어느 쪽이든 겹치므로 목록 **다음 흐름**에 놓는다.
+    assert "position:static" in rule, "띄우면 하단막대나 뉴스 둘 중 하나에 겹친다"
+    for undo in ("right:auto", "left:auto", "top:auto", "bottom:auto"):
+        assert undo in rule, f"위 규칙의 {undo} 를 안 풀면 오른쪽 위에 겹친다"
+    assert "sticky" not in rule and "fixed" not in rule and "absolute" not in rule
+    # 흐름에 놓았으니 **뉴스 목록보다 뒤**에 와야 한다. 앞에 오면 글을 가린다.
+    open_card = source[source.index("open_card = ("):source.index("card_html = (")]
+    assert open_card.index("j3b-open-list") < open_card.index("j3b-open-close-b"), \
+        "닫기가 뉴스 목록보다 앞에 있으면 글 위에 얹힌다"
+    # 카드 아래 여백은 그대로 둔다 — 하단 이동막대와의 거리를 이것이 만든다.
+    assert "padding:20px 20px 152px" in source, "넓은 화면 카드 아래 여백이 모자란다"
+    assert "padding:18px 16px 144px" in source, "폰 카드 아래 여백이 모자란다"
 
     # 누르는 방식은 위 것과 같다 — 큰 판이 손가락을 안 받아야 바탕까지 내려가 닫힌다.
     assert ".j3b-open-card{pointer-events:none}" in source

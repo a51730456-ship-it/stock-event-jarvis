@@ -313,6 +313,19 @@ st.markdown(
     [data-testid="stSidebarNav"] a { min-width: 0 !important; max-width: 100% !important; }
     [data-testid="stSidebarNav"] a p { overflow-wrap: anywhere; }
     [data-testid="stSidebarNav"] li { margin: 0 !important; }
+    /* 「자비스6 미국테마」는 **왼쪽 메뉴에서도** 감춘다 (2026-09-11 상하님 지시 —
+       "자비스6 온라인 화면에서 안 보이게 해라", "자비스6 왜 아직 온라인에 떠 있냐").
+       이 목록은 스트림릿이 pages/ 폴더를 보고 **저절로** 만드는 것이라
+       page_access 로는 안 빠진다. 들어가지는 못하게 막아 두었지만 이름은 남아 있었다.
+       **주소로 고른다** — 줄 번호(nth-child)로 고르면 파일이 하나 늘고 줄 때마다
+       엉뚱한 줄이 사라진다(CLAUDE.md 12번에 같은 사고가 적혀 있다).
+       주소가 한글 그대로일 때와 %-로 바뀌어 올 때를 둘 다 적는다.
+       「자비스6」(종가관찰)은 주소가 /자비스6 이라 여기 안 걸린다.
+       되살리려면 이 두 줄을 빼면 된다. */
+    [data-testid="stSidebarNav"] a[href*="자비스6_미국테마"],
+    [data-testid="stSidebarNav"] a[href*="%EC%9E%90%EB%B9%84%EC%8A%A46_%EB%AF%B8%EA%B5%AD%ED%85%8C%EB%A7%88"] {
+        display: none !important;
+    }
     [data-testid="stSidebarNav"] a {
         padding: 0.45rem 0.6rem !important;
     }

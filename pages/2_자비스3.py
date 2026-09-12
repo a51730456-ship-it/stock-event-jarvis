@@ -1059,6 +1059,110 @@ st.markdown(
         background: linear-gradient(90deg, #2a1450 0%, #3d1f74 38%, #7c3aed 100%);
         box-shadow: 0 2px 10px rgba(124,58,237,.25);
     }
+    /* ── 「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시) ────────────────
+       자비스7에 있던 카드를 이 화면으로 옮긴 것이다. 21개 테마 단추 바로 위에 선다.
+       **줄 간격은 자비스7보다 좁다** — 상하님 지시("위아래 줄을 좀 더 좁혀라.
+       자리를 너무 길게 차지하고 있다. 라인간격을 줄여라는 뜻이다").
+         한 줄 위아래 여백  10px → 5px
+         칸과 칸 사이       12px → 9px
+         그림쇠 한 변       32px → 24px
+       다섯 줄 기준으로 카드 높이가 약 340px → 약 232px 이 된다(계산값). */
+    /* ── 위아래 자리 (2026-09-11 상하님 지시 · 실측으로 맞췄다) ──────────────
+       상하님 — "조금 더 위로 올려라. 자세히보기 밑으로." ·
+                "각 클릭들 간격 동일하게 하고 일정하게 하란 말이다."
+       진짜 앱을 폰 폭(412px)으로 띄워 재 보니 이랬다:
+         자세히 보기 → 카드      60px   ← 혼자 멀다
+         카드 → 21개 테마        26px   ← 혼자 다르다 (「전체 보기」 줄 때문)
+         21개 테마 → 상승장      16px
+         상승장 → 급락 후 반등장 16px
+         급락 후 반등장 → 순위 9 16px
+       스트림릿이 칸과 칸 사이에 늘 16px을 넣는다. 그 16px에 **다 맞춘다.**
+       위는 44px을 당기고(60→16), 아래는 「전체 보기」 줄을 없앤 자리를 맞춘다. */
+    .j3-st5 {
+        margin: 0;
+        padding: 10px 13px 2px;
+        border: 1px solid #2a557f;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #0a2a4e 0%, #061d38 60%, #041229 100%);
+        box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 1px rgba(140,200,255,.12);
+    }
+    .j3-st5-head {
+        display: flex; align-items: center; gap: 8px;
+        margin: 0 0 6px; color: #edf5ff;
+    }
+    .j3-st5-head b { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+    .j3-st5-flash { color: #42caff; font-size: 17px; }
+    .j3-st5-unit { margin-left: auto; color: #8fa8c6; font-size: 12px; font-weight: 600; }
+    /* 한 줄: 순번 · 그림쇠 · 이름 · 막대 · 점수 */
+    .j3-st5-row {
+        display: grid;
+        grid-template-columns: 22px 24px minmax(96px, 1.45fr) minmax(34px, .95fr) 42px;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 0;
+        border-bottom: 1px solid #21406066;
+    }
+    .j3-st5-row:last-child { border-bottom: 0; }
+    .j3-st5-rank { color: #7895ba; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .j3-st5-icon {
+        display: grid; place-items: center; width: 24px; height: 24px;
+        border-radius: 7px; border: 1px solid #2876bc; color: #b6e8ff;
+        background: linear-gradient(145deg, #1450a3, #072452);
+    }
+    .j3-st5-icon svg { width: 15px; height: 15px; }
+    /* **이름은 접지 않는다** (2026-09-11). 「태양광·청정에너지」처럼 긴 이름이
+       두 줄로 접히면 그 줄만 키가 커져 카드가 들쭉날쭉해진다(실측 — 그 줄만
+       70px, 나머지는 34px). 넘치면 … 으로 줄인다. */
+    .j3-st5-row b {
+        color: #edf5ff; font-size: 14px; font-weight: 600; letter-spacing: -.3px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    .j3-st5-bar { height: 6px; border-radius: 3px; background: #122740; overflow: hidden; }
+    .j3-st5-bar i {
+        display: block; height: 100%; border-radius: 3px;
+        background: linear-gradient(90deg, #0860eb, #42caff);
+        box-shadow: 0 0 10px rgba(40,180,255,.35);
+    }
+    .j3-st5-row strong {
+        color: #f8cc70; font-size: 15px; font-weight: 800; text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    /* ── 카드 **전체**가 누르는 자리다 (2026-09-11 상하님 지시) ──────────────
+       속이 비치는 스트림릿 단추를 카드 위에 통째로 겹쳐 둔다. 하단 이동막대
+       (j3b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치와 같다. */
+    div.st-key-j3_st5_wrap {
+        position: relative !important;
+        /* **위로 당기는 것은 통이 한다.** 카드에 음수 여백을 주면 카드가 통 밖으로
+           삐져나가, 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측 —
+           카드 242px 가운데 위 42px 이 안 덮였다). */
+        margin-top: -40px !important;
+        /* 통이 카드보다 12px 더 길어서 카드와 「21개 테마」 사이가 24px 이었다
+           (2026-09-11 실측 · 폰·태블릿 둘 다). 그 12px 을 도로 당긴다. */
+        margin-bottom: -12px !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open {
+        position: absolute !important; inset: 0 !important;
+        margin: 0 !important; padding: 0 !important; z-index: 6 !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stVerticalBlock"],
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stElementContainer"],
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stButton"] {
+        width: 100% !important; height: 100% !important;
+        margin: 0 !important; padding: 0 !important; gap: 0 !important;
+        max-width: none !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button {
+        width: 100% !important; height: 100% !important; min-height: 0 !important;
+        margin: 0 !important; padding: 0 !important;
+        border: 0 !important; border-radius: 16px !important;
+        background: transparent !important; box-shadow: none !important;
+        color: transparent !important;
+        pointer-events: auto !important; touch-action: manipulation !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button p { color: transparent !important; }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button:hover {
+        background: rgba(66,202,255,.07) !important;
+    }
     /* 종목검색 칸 이름 — 바로 위 보라색 띠와 같은 계열로 진하게(2026-08-01 지시).
        어두운 화면에서도 읽히도록 띠의 밝은 쪽 보라를 쓴다. */
     div[class*="st-key-j3_my_stock_query"] [data-testid="stWidgetLabel"] p {
@@ -1298,6 +1402,14 @@ import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용
 import jarvis3_data as j3data
 import jarvis3_briefing_news as briefing_news
 import jarvis3_briefing_store as briefing_store
+
+# 옛 모듈이 프로세스에 남으면 새 함수(add_selected·remove_selected)를 못 찾아
+# 선정 종목 추가·삭제가 조용히 죽는다(규칙 11 · 2026-09-10).
+_REQUIRED_BRIEFING_STORE_REVISION = 2026091010
+if int(getattr(briefing_store, "MODULE_REVISION", 0)) < _REQUIRED_BRIEFING_STORE_REVISION:
+    import importlib as _importlib
+
+    briefing_store = _importlib.reload(briefing_store)
 import us_company_logos
 import us_swing_selector as us_swing
 import jarvis3_store as j3store
@@ -2572,6 +2684,10 @@ def _us_futures_cell() -> str:
     fetcher = getattr(j4data, "get_us_futures_live", None)
     if fetcher is None:
         return _top_metric(label, "—", "#9aa0aa", "모듈 갱신 대기", extra_class=_FUTURES_CLASS)
+    # 화면 맨 앞에서 먼저 시켜 둔 일꾼이 있으면 그것이 끝나기를 기다린다
+    # (2026-09-10). 안 기다리고 읽으면 같은 것을 **또** 받는다 — 공책은 다 받은
+    # 뒤에야 차기 때문이다. 시켜 둔 것이 없으면 바로 지나간다.
+    _await_us_futures_fetch()
     try:
         # 5분봉이므로 공책도 5분 동안 쓴다 — 1분마다 다시 받을 까닭이 없다.
         futures = fetcher(ttl_seconds=300, interval="5m")
@@ -3597,7 +3713,15 @@ def _render_stock_detail(
 # 「20개 테마 실시간 순위」 표를 열어 둘까(2026-08-14 상하님 지시). **기본은 열림.**
 # 여닫는 단추는 '종목 찾기' 바로 위에 있다(_render_pullback_finder 맨 앞).
 _THEME_RANK_OPEN = "j3_theme_rank_open"
+# 21개 테마를 열 때 화면이 올라갈 자리 (2026-09-11 상하님 지시 — "캡처 화면처럼
+# 위치를 맞춰라"). 표가 맨 위에 오도록 21개 테마 단추 **바로 위**에 찍는다.
+_THEME_RANK_ANCHOR = "theme_rank_top"
 _RADAR_MAIN_ANCHOR = "radar_main"
+# 매수심사결과 높은 순위 9를 **열 때** 화면이 올라갈 자리 (2026-09-11 상하님 지시 —
+# "매수심사결과 높은 순위 9, 이것도 클릭하면 화면이 캡처 화면처럼 하라고").
+# 21개 테마와 **같은 동작**이다 — 그 단추가 화면 맨 위에 서고 그 밑에 표가 보인다.
+# 단추 **바로 위**에 찍는다.
+_TOP7_ANCHOR = "top7_top"
 
 _THEME_PANEL_OPEN_KEYS = (
     "j3_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
@@ -3657,17 +3781,41 @@ def _close_all_from_fragment() -> None:
 
 
 def _close_theme_rank_from_fragment() -> None:
-    """덩이 안에 있는 「20개 테마 실시간 순위 닫기」 전용 (2026-08-27).
+    """「21개 테마 실시간 순위 닫기」 전용 (2026-08-27 · 2026-09-11 고침).
 
-    이 단추는 덩이 **밖**에 있는 상승장·급락 후 반등장·매수심사결과 순위 9까지
-    끈다. 그것들이 열려 있었다면 덩이만 다시 그려서는 화면에서 안 접힌다 —
-    그때만 판 전체를 다시 그리라고 적어 둔다. 열린 것이 하나도 없으면 안 적는다.
-    그 편이 훨씬 빠르다(판 전체 다시 그리기는 온라인에서 3초다).
+    이 단추는 덩이 **밖**에 있는 상승장·급락 후 반등장·매수심사결과 순위 9까지 끈다.
+
+    **판 전체를 늘 다시 그린다** (2026-09-11 상하님 지적 — "21개 테마 실시간 순위
+    닫기 누르면 노란색 동그라미 친 부분이 남는다. 또 눌러야 없어진다").
+
+    **왜 남았나.** 21개 테마가 열렸나를 보고 아래 닫기 단추를 그리는 곳은
+    상승장 덩이(_render_pullback_finder_body)인데, 그 상태를 바꾸는 것은 **다른
+    덩이**(테마 덩이)다. 스트림릿은 누른 단추가 든 덩이만 다시 그리므로, 테마
+    덩이만 돌고 상승장 덩이는 옛 상태 그대로 남아 닫기 단추가 화면에 붙어 있었다.
+    한 번 더 누르면 그때는 상승장 덩이가 돌아서 사라졌다 — 그것이 "또 눌러야
+    없어진다"의 정체다.
+
+    예전에는 밖에 열린 것이 있을 때만 판 전체를 다시 그렸다(빠르라고). 그
+    아낀 한 판이 이 버그를 만들었고, 상하님은 어차피 두 번 누르셔야 했으니
+    아낀 것도 없었다. 이제 늘 한 판을 다시 그린다.
     """
-    outside_open = any(bool(st.session_state.get(key)) for key in _FINDER_OPEN_KEYS)
     _close_full_theme_rank()
-    if outside_open:
-        st.session_state["j3_close_all_pending"] = True
+    st.session_state["j3_close_all_pending"] = True
+
+
+def _open_theme_rank_from_fragment() -> None:
+    """21개 테마를 **열 때**도 판 전체를 다시 그린다 (2026-09-11).
+
+    닫는 쪽과 **거울처럼 같은 문제**다. 맨 위 단추로 열면 표는 뜨는데, 아래
+    닫기 단추를 그리는 상승장 덩이가 안 돌아서 그 단추가 안 생겼다(실측으로
+    확인했다 — 열었는데 아래 닫기 단추 없음).
+
+    **그리고 화면을 그 자리로 올린다** (상하님 지시 — "강한 테마나 21개 테마를
+    누르면 화면이 위로 올라가게 하되 캡처 화면처럼 위치를 맞춰라"). 표가 맨 위에
+    오도록 21개 테마 단추 바로 위 자리로 데려간다.
+    """
+    st.session_state["j3_close_all_pending"] = True
+    scroll_to.request(st, _THEME_RANK_ANCHOR)
 
 
 def _run_close_all_if_requested() -> None:
@@ -3680,12 +3828,126 @@ def _run_close_all_if_requested() -> None:
         st.rerun()
 
 
+# ── 「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시) ──────────────────────
+# 상하님 — "자비스3 미국테마에 21개 테마 위에 자비스7에 있는 강한 테마 TOP5 를
+# 넣어라. 클릭하면 자비스3 미국테마에 21개 테마로 들어가도록 해라. 그리고 강한
+# 테마 TOP5 위아래 줄을 좀 더 좁혀라. 자리를 너무 길게 차지하고 있다."
+#
+# **자비스7 모듈을 끌어오지 않는다.** 생김새만 옮기고 그림쇠 넷은 여기 베껴 둔다.
+# 자비스7은 따로 도는 화면이라, 거기를 손대거나 지우면 이 화면까지 같이 죽는다.
+#
+# **자료도 자비스7 것을 안 쓴다.** 바로 아래 21개 테마 표가 쓰는 그 순위
+# (`_load_theme_rankings`)를 **그대로** 받아 쓴다. 새로 계산하거나 새로 받지
+# 않으므로 카드 숫자와 표 숫자가 갈라질 수가 없다(CLAUDE.md 10-1과 같은 뜻).
+#
+# **줄 간격은 자비스7보다 좁다** (상하님 지시). 자비스7은 한 줄 위아래로 10px씩,
+# 칸 사이 12px, 그림쇠 32px 이다. 여기는 5px · 9px · 24px 로 줄였다.
+_STRONG_TOP5_ICONS = {
+    "shield": '<path d="m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6zm-4 9 3 3 5-6"/>',
+    "chip": '<rect x="5" y="5" width="14" height="14" rx="2"/>'
+            '<path d="M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3M9 9h6v6H9z"/>',
+    "cloud": '<path d="M6 18a5 5 0 0 1-1-10 7 7 0 0 1 13-1 6 6 0 0 1 0 11z"/>',
+    "bolt": '<path d="m14 2-10 12h7l-1 8L21 9h-8z"/>',
+}
+
+
+def _strong_top5_icon(name: str) -> str:
+    """테마 이름에 맞는 그림쇠 하나. 자비스7의 theme_icon과 같은 규칙이다."""
+    text = str(name or "")
+    if any(word in text for word in ("반도체", "AI", "양자")):
+        key = "chip"
+    elif "보안" in text:
+        key = "shield"
+    elif any(word in text for word in ("클라우드", "소프트", "SaaS")):
+        key = "cloud"
+    else:
+        key = "bolt"
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+            f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{_STRONG_TOP5_ICONS[key]}</svg>')
+
+
+def _render_strong_theme_top5(ranking: dict) -> None:
+    """21개 테마 바로 위에 서는 「강한 테마 TOP 5」 카드.
+
+    **보여주기만 한다.** 누르는 자리는 카드 맨 아래 「전체 보기 ›」 한 곳이고,
+    그것이 바로 밑 21개 테마 순위를 연다(상하님 지시 — "클릭하면 21개 테마로
+    들어가도록"). 자비스7도 카드 맨 아래에 같은 자리를 두고 있다.
+
+    줄마다 따로 누르게 만들지 않은 까닭 — 스트림릿 단추 안에는 막대·점수 같은
+    HTML을 넣을 수가 없어서, 그리는 것과 누르는 것을 따로 두고 CSS로 겹쳐야 한다.
+    그 겹치기는 화면 크기마다 어긋나 상하님 폰에서 엉뚱한 줄이 눌린다.
+    가는 곳이 어차피 한 군데(21개 테마)라 누르는 자리도 한 곳이면 된다.
+
+    자료를 못 받았으면 **아무것도 그리지 않는다** — 빈 카드가 자리만 먹지 않게.
+    """
+    rows = [row for row in (ranking.get("rows") or []) if row.get("ok")][:5]
+    if not rows:
+        return
+    lines = []
+    for index, row in enumerate(rows, 1):
+        score = row.get("score")
+        try:
+            width = max(0.0, min(100.0, float(score)))
+            score_text = f"{float(score):.1f}"
+        except (TypeError, ValueError):
+            width, score_text = 0.0, "—"
+        lines.append(
+            f'<div class="j3-st5-row"><span class="j3-st5-rank">{index:02}</span>'
+            f'<span class="j3-st5-icon">{_strong_top5_icon(row.get("name"))}</span>'
+            f'<b>{html.escape(str(row.get("name") or ""))}</b>'
+            f'<span class="j3-st5-bar"><i style="width:{width:.1f}%"></i></span>'
+            f'<strong>{score_text}</strong></div>'
+        )
+    # **카드 어디를 눌러도 21개 테마로 들어간다** (2026-09-11 상하님 지시 —
+    # "강한 테마 TOP5 전체 중 어디든 클릭하면 21개 테마로 들어가게 하고
+    #  전체보기 삭제하고").
+    #
+    # 카드 그림과 **속이 비치는 단추**를 한 통에 담고, 단추를 통 위에 통째로
+    # 겹쳐 둔다. 하단 이동막대(j3b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치다 —
+    # 스트림릿 단추 안에는 막대·점수 같은 HTML을 넣을 수 없어서, 보이는 것과
+    # 누르는 것을 따로 두고 겹치는 수밖에 없다.
+    #
+    # 겹치기가 안 먹어도 **화면은 그대로 돌아간다** — 카드가 안 눌릴 뿐이고,
+    # 바로 밑 「21개 테마」 단추로 여시면 된다.
+    with st.container(key="j3_st5_wrap"):
+        st.markdown(
+            '<div class="j3-st5"><div class="j3-st5-head">'
+            '<span class="j3-st5-flash">⚡</span><b>강한 테마 TOP 5</b>'
+            '<span class="j3-st5-unit">테마 점수 / 100</span></div>'
+            + "".join(lines)
+            # 열었을 때 화면이 올라올 자리를 **카드 안에** 찍는다 (2026-09-11).
+            # 따로 칸을 만들어 찍었더니 두 가지가 틀어졌다 —
+            #  ① 높이 0짜리가 한 칸으로 세어져 카드와 단추 사이가 12px → 24px.
+            #  ② 그 칸을 흐름에서 빼려고 position:absolute 를 줬더니 자리 표시가
+            #     **엉뚱한 곳**으로 갔다(태블릿 실측 — 단추는 887px 인데 자리
+            #     표시는 2428px, 1541px 어긋남. 폰에서도 217px 어긋나 있었다).
+            # 카드 안에 찍으면 칸이 안 늘고 자리도 정확하다. 카드가 안 그려지는
+            # 판(순위 자료가 없을 때)에는 자리 표시도 없어 화면이 그냥 안 올라간다.
+            + f'<div id="{scroll_to.anchor_id(_THEME_RANK_ANCHOR)}" class="jarvis-anchor"></div>'
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+        # 여는 방식은 `_section_toggle` 의 _flip 과 **똑같다**(상태를 켜고
+        # 방문기록을 쌓는다). 달리 쓰면 뒤로가기가 그 단추와 다르게 움직인다.
+        # 글자는 남겨 둔다 — 눈에는 안 보여도 화면을 읽어 주는 기기가 이것을 읽는다.
+        with st.container(key="j3_st5_open"):
+            if st.button("강한 테마 TOP 5 — 21개 테마 열기", key="j3_st5_open_btn"):
+                st.session_state[_THEME_RANK_OPEN] = True
+                back_nav.opened(st, _THEME_RANK_OPEN)
+                # 맨 위 단추로 열 때와 **똑같은 자리**로 화면을 올린다
+                # (2026-09-11 상하님 지시 — "강한 테마나 21개 테마를 누르면
+                #  화면이 위로 올라가게 하되 캡처 화면처럼 위치를 맞춰라").
+                scroll_to.request(st, _THEME_RANK_ANCHOR)
+                st.rerun()
+
+
 def _section_toggle(
     label: str,
     key: str,
     *,
     close_label: str | None = None,
     close_return_to: str | None = None,
+    on_open=None,
     on_close=None,
 ) -> bool:
     """눌러야 열리는 구역. 열려 있으면 닫는 단추를 보여준다(2026-07-30 사용자 지시).
@@ -3706,6 +3968,9 @@ def _section_toggle(
         # 쌓여서 뒤로가기가 도로 열어 버린다(back_nav 설명 참고).
         if now_open:
             back_nav.opened(st, key)
+            # 여는 쪽에도 손잡이를 둔다(2026-09-11). 안 주면 예전과 똑같다.
+            if on_open:
+                on_open()
         else:
             if on_close:
                 on_close()
@@ -5014,9 +5279,18 @@ def _render_theme_section(market: dict) -> None:
     # **기본은 닫힘**(2026-08-14 상하님 지시 — "화면 처음 열릴 때 순위가 열려 있게
     # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
     # 아래 구역이 전부 밀려 내려가지 않게 한다.
+    # 여는 단추는 **「21개 테마」 글자만** 남긴다 (2026-09-11 상하님 지시 —
+    # "21개 테마만 글자 두고 실시간 순위 열기 글자 삭제하라고").
+    # **닫는 단추(close_label)는 그대로 둔다** — 그쪽은 말씀이 없으셨고, 이름이
+    # 없으면 무엇을 닫는 단추인지 알 수 없다.
+    # **「⚡ 강한 테마 TOP 5」는 21개 테마 단추 바로 위다** (2026-09-11 상하님 지시).
+    # 바로 아래 표가 쓰는 그 순위(ranking)를 그대로 넘긴다 — 새로 받거나 다시
+    # 계산하지 않으므로 카드 숫자와 표 숫자가 갈라질 수가 없다.
+    _render_strong_theme_top5(ranking)
     rank_open = _section_toggle(
-        f"📊 {_THEME_COUNT}개 테마 실시간 순위 열기", _THEME_RANK_OPEN,
+        f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN,
         close_label=f"{_THEME_COUNT}개 테마 실시간 순위 닫기",
+        on_open=_open_theme_rank_from_fragment,
         on_close=_close_theme_rank_from_fragment,
     )
     if not rank_open:
@@ -5187,6 +5461,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
     is_open = bool(st.session_state.get("j3_top7_open"))
+    # **단추 바로 위**가 화면이 올라올 자리다 (2026-09-11 상하님 지시 — 캡처처럼
+    # 이 단추가 맨 위에 서고 그 밑에 표가 보이게). 높이 0짜리라 칸 하나를 더
+    # 차지하는데, 그 12px 은 아래 CSS 가 **이 자리 하나만** 골라 도로 당긴다.
+    scroll_to.anchor(st, _TOP7_ANCHOR)
     run_requested = st.button("매수심사결과 높은 순위 9", key="j3_top7_find")
     if run_requested and is_open:
         # 닫기 — 조회는 하지 않는다. 열린 것을 모두 닫고 메인 시작점으로 올라간다
@@ -5201,6 +5479,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     ):
         # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
         st.session_state["j3_top7_open"] = True
+        scroll_to.request(st, _TOP7_ANCHOR)
         run_requested = False
     if run_requested:
         with st.spinner("테마 대장주와 두 갈래 종목을 각각 줄 세우는 중입니다…"):
@@ -5208,6 +5487,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         st.session_state["j3_top7_result"] = found
         st.session_state["j3_top7_at"] = time.time()
         st.session_state["j3_top7_open"] = True
+        scroll_to.request(st, _TOP7_ANCHOR)
         # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
         # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
         st.session_state.pop("j3_top7_pick_row", None)
@@ -5496,7 +5776,10 @@ def _render_my_stock_panel(market: dict, ranking: dict) -> None:
     st.markdown(
         # 제목을 보라색 그라데이션 띠로 — 순위 7(초록)·눌림목(파랑)과 나란히 구분된다
         # (2026-07-30 사용자 지시). 여기는 누를 곳이 아니라 제목이므로 단추가 아니다.
-        "<div class='j3-band j3-band-purple'>종목검색 (검색종목 세부사항 보기)</div>", unsafe_allow_html=True)
+        # **괄호 「(검색종목 세부사항 보기)」는 뺐다** (2026-09-11 상하님 지시 —
+        # "종목검색 글자만 두고 검색종목 세부사항 보기 글자 삭제"). 바로 밑에
+        # 「종목이름 또는 티커 (아래에 종목이름을 넣어보세요)」가 같은 말을 하고 있었다.
+        "<div class='j3-band j3-band-purple'>종목검색</div>", unsafe_allow_html=True)
     # **누를 단추를 둔다**(2026-08-21 상하님 지시 — "종목이름 치고 검색 누르는
     # 단추가 없다"). 글자만 치면 한 글자마다 화면을 다시 그려 느리기도 했다.
     # 칸 안에서 엔터를 쳐도 같이 눌린다.
@@ -5768,8 +6051,16 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
 
         pullback_pct = row.get("pullback_pct_close")
         cells = [
+            # **당일 등락률을 현재가 밑에 적는다** (2026-09-11 상하님 지적 —
+            # "상승장 신고가 눌림을 눌러 종목 클릭하면 선택종목 세부사항에
+            # 당일 상승율·하락율이 안 나온다").
+            # 맞는 지적이다. 위 눌림목 칸에는 있었는데 이 갈래 칸을 따로 쓰면서
+            # 이 한 줄을 빠뜨렸다. **값은 이미 metrics 안에 있다** — 새로 받아
+            # 오는 것이 없으니 여는 시간은 그대로다.
             f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
-            f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div></div>",
+            f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div>"
+            f"<div class='j3-mc-sub {_sign_class(metrics.get('change_pct'))}'>"
+            f"{_pct(metrics.get('change_pct'))}</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 등수</div>"
             f"<div class='j3-mc-val j3-green'>{_rank_text('rs60_rank')}</div>"
             "<div class='j3-mc-sub j3-muted'>나스닥보다 강한 차례</div></div>",
@@ -6104,7 +6395,7 @@ def _pullback_backdrop_cards(
                 ref_drop = _red(f"{float(reference.get('reference_drop') or 0):.1f}%")
                 now_drop = _red(f"{float(reference.get('today_drop') or 0):.1f}%")
                 market_body = (
-                    f"{ref_day} 기준으로 찾았습니다 — 그날 나스닥이 고점에서 "
+                    f"{ref_day} 기준으로 찾았습니다 — 그날 QQQ(나스닥100)가 고점에서 "
                     f"{ref_drop}였습니다. 오늘은 {now_drop}입니다."
                 )
             else:
@@ -6118,7 +6409,7 @@ def _pullback_backdrop_cards(
                     low, high = getattr(j3data, "CRASH_MARKET_BAND", (-12.0, -6.0))
                     band = _red(f"{abs(high):.0f}~{abs(low):.0f}%")
                     market_body = (
-                        f"최근 한 달에 나스닥이 {band} 내려온 날이 없었습니다. "
+                        f"최근 한 달에 QQQ(나스닥100)가 {band} 내려온 날이 없었습니다. "
                         f"지금은 {_red(f'{float(drop_pct):.1f}%')}입니다. "
                         "그래서 오늘 낙폭으로 찾은 결과입니다."
                     )
@@ -6687,6 +6978,25 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     )
 
 
+def _ixic_note(reference: dict) -> str:
+    """「(나스닥 종합지수(IXIC)는 7월 29일 종가 -9.78%)」 한 조각 (2026-09-11 상하님 지시).
+
+    **참고로만 적는다.** 종목을 고르는 자는 QQQ 그대로다.
+    값은 jarvis3_data.crash_reference_day 가 같이 실어 보낸다 — 여기서 다시
+    계산하지 않는다. 없으면 빈 글자를 준다(괄호만 빠지고 문장은 그대로 선다).
+    """
+    date_text = str((reference or {}).get("ixic_date") or "")
+    drop = (reference or {}).get("ixic_drop")
+    if not date_text or drop is None:
+        return ""
+    try:
+        _year, month, day = date_text.split("-")
+        when = f"{int(month)}월 {int(day)}일"
+    except Exception:
+        when = date_text
+    return f" (나스닥 종합지수(IXIC)는 {when} 종가 :red[**{float(drop):.2f}%**])"
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -6734,16 +7044,22 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             passed = result.get("days_since_reference")
             passed_text = (f" 그날부터 **{int(passed)}거래일** 지났습니다."
                            if isinstance(passed, (int, float)) else "")
+            # **괄호는 참고다** (2026-09-11 상하님 지시 — "괄호 안에 (나스닥
+            # 종합지수(IXIC)는 7월 29일 종가 -9.78%)"). 화면 숫자는 QQQ를 잰 것이라
+            # 나스닥 종합 숫자와 헷갈리셨다. **고르는 데는 하나도 안 쓴다** —
+            # 기준일도 종목도 QQQ로 정한 그대로다(상하님 — "연결되는 것은 원래대로
+            # QQQ로 하고"). 못 구하면 괄호만 빠지고 나머지는 그대로다.
             st.info(
-                f"**{ref_date} 기준으로 찾았습니다** — 그날 나스닥이 고점에서 "
+                f"**{ref_date} 기준으로 찾았습니다** — 그날 QQQ(나스닥100)가 고점에서 "
                 f":red[**{reference.get('reference_drop', 0):.1f}%**]였고 오늘은 "
-                f":red[**{drop_now:.1f}%**]입니다. "
-                "그날 걸렸던 종목을 그대로 보여드립니다."
+                f":red[**{drop_now:.1f}%**]입니다."
+                + _ixic_note(reference)
+                + " 그날 걸렸던 종목을 그대로 보여드립니다."
                 + passed_text
             )
         elif drop_now is not None:
             st.info(
-                "**최근 한 달에 나스닥이 :red[**-6~-12%**] 내려온 날이 없었습니다** — 지금은 "
+                "**최근 한 달에 QQQ(나스닥100)가 :red[**-6~-12%**] 내려온 날이 없었습니다** — 지금은 "
                 f":red[**{drop_now:.1f}%**]입니다. 그래서 오늘 낙폭으로 찾은 결과입니다."
             )
         # 이 갈래만 붙이는 경고다(2026-08-06 사용자 승인). 점수가 96·95·92처럼 크게
@@ -7291,10 +7607,13 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             key=f"close_{_THEME_RANK_OPEN}",
             on_click=_close_all_from_fragment,
         )
-    st.markdown(
-        "<div class='j3-section-title'>📉 종목 찾기</div>",
-        unsafe_allow_html=True,
-    )
+    # 「📉 종목 찾기」 제목 줄은 뺐다 (2026-09-11 상하님 지시 — 캡처에서 동그라미
+    # 치고 ×로 지우셨다). 바로 밑 세 단추(상승장·급락 후 반등장·매수심사결과 높은
+    # 순위 9)가 이미 제 이름을 달고 있어, 이 줄은 화면 높이만 먹었다.
+    # **단추와 기능은 그대로다** — 제목 글자 한 줄만 없앴다.
+    # 되살리려면 이 자리에 다시 넣으면 된다:
+    #     st.markdown("<div class='j3-section-title'>📉 종목 찾기</div>",
+    #                 unsafe_allow_html=True)
     # 한국테마(자비스4)와 같이 버튼을 눌러야 펼쳐진다(2026-07-25 사용자 지시).
     # 페이지를 여는 것만으로 20종목 표가 통째로 쏟아지면 폰에서 화면을 다 먹었다.
     # 제목은 '눌림목 찾기'만, 폭도 글자만큼만 둔다(2026-07-30 사용자 지시).
@@ -7838,6 +8157,12 @@ def _autosave_theme15() -> None:
 
 
 def _render_existing_theme_content() -> None:
+    # **선물부터 시켜 둔다** (2026-09-10 상하님 지적 — "관심종목에서 시장분석으로
+    # 2초, 너무 늦다"). 맨 위 선물 칸이 받을 것을 뒤 일꾼에게 먼저 맡긴다.
+    # 그 일꾼이 선물을 받는 동안 이 화면은 「미국 전체시장 판단」 시세를 받는다 —
+    # 여태 한 줄로 서서 기다리던 둘이 겹쳐 돈다(_start_us_futures_fetch 참고).
+    # 새로 나가는 요청은 하나도 없다. 받는 **때**만 옮긴 것이다.
+    _start_us_futures_fetch()
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
         # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
@@ -7900,6 +8225,34 @@ def _render_existing_theme_content() -> None:
     # 두지 말라." 0으로 두면 맨 위 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)가
     # 화면 끝에 딱 붙어, 폰 브라우저 주소창이 오르내릴 때 가려진다.
     # 예전 224px 과는 비교가 안 되는 10px 이다.
+    # ── 여기 <style> 에 2026-09-11 규칙 셋을 더했다 (상하님 지시) ─────────────
+    # **이 덩어리 안에는 주석을 못 쓴다.** <div> 로 시작하는 HTML 덩어리라
+    # 마크다운이 빈 줄에서 끊어 버린다(2026-08-26에 CSS가 화면에 쏟아졌다).
+    # 그래서 설명을 여기 밖에 적는다.
+    #
+    # ① 가로줄(구분선) 여백 — 아래 ② 참고
+    #    (자리 표시 절대배치는 2026-09-11 에 걷어냈다 — 자리 표시가 엉뚱한 곳으로
+    #     갔다. 지금은 강한 테마 카드 **안에** 찍는다.)
+    #    상하님 — "모든 박스와 박스 사이 여백을 다 같은 여백으로 다 줄여라."
+    #    재 보니 칸 사이가 16px 로 고른 데가 대부분인데 몇 군데만 32~48px 이었다.
+    #    그 자리마다 눈에 안 보이는 자리 표시(scroll_to.anchor, 높이 0)가 한 칸으로
+    #    세어져 있었다. 스트림릿은 칸과 칸 사이에 무조건 16px 을 넣으므로, 높이 0짜리가
+    #    하나 끼면 16px 이 두 번 들어가 32px 이 된다. 흐름에서 빼면 16px 하나만 남는다.
+    #    자리 표시 구실은 그대로다 — top/left 를 안 주므로 있던 자리에 그대로 선다.
+    #    실측 — 강한 테마 카드 → 21개 테마 48px → 16px.
+    #
+    # ② 가로줄(구분선)도 한 칸으로 세어져 위아래 16px 씩, 합쳐 32px 을 먹고 있었다.
+    #    (`:has(hr)` 에 -8px 씩) 줄 자체는 남기고 그 칸이 먹던 여백만 도로 뱉는다.
+    #    실측 — 「시장 전체 흐름」→「미국장 시장 상태」 32px → 16px,
+    #           「순위 9」→「종목검색」 32px → 16px.
+    #    ⚠ hr 은 stElementContainer 의 **직계 자식이 아니다**(stMarkdown 두 겹 안).
+    #      `:has(> hr)` 로 쓰면 하나도 안 걸린다 — 실측으로 확인했다.
+    #
+    # ③ 맨 위 두 단추(한국테마·이 테마 설명)를 배너 그림 안으로 넣는 규칙.
+    #    자세한 내력은 2026-09-11 커밋 설명에 있다.
+    #
+    # **미국테마 화면에만 건다** — method_help·scroll_to 는 한국테마와 공용이다
+    # (CLAUDE.md 0-1 다).
     st.markdown(
         """
         <div class="j3-market-top"></div>
@@ -7910,16 +8263,22 @@ def _render_existing_theme_content() -> None:
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] .j3-market-top) {
           display:none!important;
         }
+        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(hr),
+        body:has(.j3b-home) [data-testid="stElementContainer"]:has(hr) {
+          margin-top:-8px!important;
+          margin-bottom:-8px!important;
+        }
         body:has(.j3-market-top) .st-key-jarvis_method_help_row {
           gap:.35rem!important;
           row-gap:.35rem!important;
-          margin-top:-1rem!important;
-          margin-bottom:0!important;
+          position:relative!important;
+          z-index:5!important;
+          flex:0 0 auto!important;
+          margin-top:-61px!important;
+          margin-bottom:0px!important;
         }
-        @media (max-width:1200px) {
-          body:has(.j3-market-top) .st-key-jarvis_method_help_row {
-            margin-top:-1rem!important;
-          }
+        body:has(.j3-market-top) [data-testid="stLayoutWrapper"]:has(> .st-key-jarvis_method_help_row) {
+          margin-top:-22px!important;
         }
         </style>
         """,
@@ -8148,11 +8507,45 @@ def _briefing_css() -> None:
            달라 멈춰도 로고가 궤도에 고르게 흩어져 있다. */
         @media (prefers-reduced-motion:reduce){.j3b-orbit-arm,.j3b-orbit-pod,.j3b-orbit-logo{animation-play-state:paused}}.j3b-hero:has(.j3b-hero-scene):before,.j3b-hero:has(.j3b-hero-scene):after{display:none}
         .j3b-section {display:flex;align-items:center;gap:8px;color:#f8f4e9;margin:18px 4px 9px;font-size:20px;font-weight:850;letter-spacing:-1.2px}.j3b-section .j3b-section-icon{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:0}.j3b-section .j3b-section-icon:after{content:"";width:12px;height:12px;border:2px solid #f3fbff;border-radius:50%;box-sizing:border-box}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500}.j3b-section .j3b-flag{font-size:23px;line-height:1;filter:drop-shadow(0 1px 2px #0009)}.j3b-section.search .j3b-section-icon{background:transparent;box-shadow:none;border:3px solid #2ebfff}.j3b-section.search .j3b-section-icon:after{width:10px;height:10px;border-color:#2ebfff}.j3b-section.search .j3b-section-icon:before{content:"";width:11px;height:3px;position:absolute;transform:translate(11px,12px) rotate(48deg);background:#2ebfff;border-radius:2px}
-        div.st-key-j3b_selected_heading{position:relative}div.st-key-j3b_go_market{position:absolute!important;right:0;top:16px;z-index:4}div.st-key-j3b_go_market button{border:0!important;background:transparent!important;color:transparent!important;width:68px!important;min-height:28px!important;padding:0!important;box-shadow:none!important}
+        
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
         .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.photo{background:linear-gradient(145deg,#ffffff,#dde6f3)!important}.j3b-logo.photo img{width:80%;height:80%;object-fit:contain;filter:none!important}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}/* 접힌 카드의 당일 그림은 선을 얇게 (2026-08-28 상하님 지적 — "선이 너무 굵다, 원래 선 크기로"). 분봉이라 점이 촘촘해서 2.1px 로는 선이 굵은 띠처럼 보인다. 크게 연 카드의 6개월 그림은 .j3b-open-card 쪽 규칙이 따로 있어 안 건드린다(상하님 — "선택하면 나오는 건 건드리지 말고"). */.j3b-card .j3b-chart polyline{stroke-width:1.4px}.j3b-card .j3b-chart polygon{fill-opacity:.11}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
-        div[class*="st-key-j3b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}/* 카드 제 아래 여백은 격자 안에서 끈다 — 격자 틈과 겹쳐 위아래가 붙어 보였다(2026-08-27 상하님 지적 — "종목이 위아래 너무 붙어 있지"). 실측 -1px. */div[class*="st-key-j3b_grid_"] .j3b-card{margin-bottom:0!important}/* 칸이 카드보다 작으면 카드가 삐져나와 아래 줄과 붙는다(실측 칸 132 · 카드 148).   칸에 박힌 높이를 풀어 카드 크기를 그대로 따라가게 한다. */div[class*="st-key-j3b_grid_"]>*,div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
-        .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:27px;font-weight:500}.j3b-nav-item b .j3b-pie{display:block;width:1.18em;height:1.18em}.j3b-nav-item.active{color:#4cc6ff;text-shadow:0 0 8px #1f9fe066}.j3b-nav-item.active b{filter:drop-shadow(0 0 5px #21b9ff)}
+        div[class*="st-key-j3b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}/* 카드 제 아래 여백은 격자 안에서 끈다 — 격자 틈과 겹쳐 위아래가 붙어 보였다(2026-08-27 상하님 지적 — "종목이 위아래 너무 붙어 있지"). 실측 -1px. */div[class*="st-key-j3b_grid_"] .j3b-card{margin-bottom:0!important}/* 칸이 카드보다 작으면 카드가 삐져나와 아래 줄과 붙는다(실측 칸 132 · 카드 148).   칸에 박힌 높이를 풀어 카드 크기를 그대로 따라가게 한다. */div[class*="st-key-j3b_grid_"]>*,div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"],div[class*="st-key-j3b_selected_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]),div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button,div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
+        /* ── 두 구역의 위아래 여백을 **같게** 맞춘다 (2026-09-11 상하님 지시) ────
+           상하님 — "빈자리 만들지 말고 위아래 여백을 밸런스 있게 잘 붙여 넣으라고.
+           여백을 너무 촘촘하게 너무 크게 말고 측정해서 맞춰라는 말이다."
+           폰 폭 412px 로 앱을 띄워 재 보니 두 구역이 어긋나 있었다:
+             뉴스상자 → 「사용자 선정 종목」 제목    5px
+             [선정] 입력칸 → 첫 카드            33px
+             선정 카드 → 「추가 검색 종목」 제목    16px
+             [추가] 입력칸 → 첫 카드            25px
+           통(컨테이너)끼리는 둘 다 16px 인데, **첫 카드가 격자 안에서 시작하는
+           자리**가 달라(선정 14px · 추가 6px) 눈에 보이는 여백이 8px 어긋났다.
+           셋 다 16px 로 맞춘다. 겉껍데기(stLayoutWrapper)를 움직여야 아래 것들이
+           같이 따라온다 — 안쪽 통만 밀면 껍데기가 제자리를 지켜 헛돈다(실측). */
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_extra_header_sel"]) {
+          margin-top:0px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_selected"]) {
+          margin-top:-14px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class~="st-key-j3b_extra_header"]) {
+          margin-top:-14px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_extra1"]) {
+          margin-top:-6px!important;
+        }
+        .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:27px;font-weight:500}.j3b-nav-item b .j3b-pie{display:block;width:1.18em;height:1.18em}
+        /* ── 지금 보고 계신 자리는 **형광 연두**로 (2026-09-11 상하님 지시) ──────
+           상하님 — "동그라미 친 곳(선택된 칸) 선택되면 형광색, 눈에 띄는 것으로
+           바꿔라."
+           여태 하늘색(#4cc6ff)이었는데, 이동막대 자체가 남색 바탕이라 같은 계열
+           안에서 조금 밝아지는 정도였다. 어느 칸이 켜져 있는지 한눈에 안 들어온다.
+           형광 연두는 이 화면 어디에도 안 쓰는 색이다 — 오름 파랑(#4cc6ff)·내림
+           빨강(#ff5b5b)·정규장 초록(#44f0a1)·금색 테두리(#e2b25e) 어느 것과도
+           겹치지 않아, 값이나 판정을 말하는 색으로 잘못 읽힐 일이 없다.
+           **색과 빛무리만 바꾼다** — 크기·자리·글자는 그대로다. */
+        .j3b-nav-item.active{color:#c9ff3d;text-shadow:0 0 9px #aaff1fcc,0 0 19px #aaff1f66}.j3b-nav-item.active b{filter:drop-shadow(0 0 6px #c9ff3d) drop-shadow(0 0 14px #aaff1f99)}
         div.st-key-j3b_nav_controls{position:fixed!important;z-index:2147483647!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:68px!important;pointer-events:none!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:68px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;height:68px!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]>[data-testid="stVerticalBlock"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%!important;max-width:none!important}div.st-key-j3b_nav_controls button{width:100%!important;height:68px!important;min-height:68px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important;touch-action:manipulation!important}
         div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
         @media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-hero-catbus{width:155px}.j3b-hero-scene{width:114%}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
@@ -8170,7 +8563,7 @@ def _briefing_css() -> None:
         """
         <style>
         html:has(.j3b-home),body:has(.j3b-home){overflow-x:hidden!important;max-width:100vw!important}
-        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+5){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
+        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+9){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
         body:has(.j3b-home) [data-testid="stHorizontalBlock"],body:has(.j3b-home) [data-testid="stColumn"],body:has(.j3b-home) [data-testid="column"]{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
         .j3b-hero{height:174px!important;margin:0!important;padding:18px 18px!important;border-radius:0 0 24px 24px!important}.j3b-hero:before{width:620px!important;height:190px!important;bottom:-124px!important}.j3b-hero:after{left:96px!important;bottom:28px!important;width:150px!important;height:27px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:172px!important;right:-4px!important;bottom:4px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:116%!important;max-width:none!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
@@ -8203,11 +8596,133 @@ def _briefing_css() -> None:
         .j3b-card-shell[open] .j3b-card:before{content:"× 다시 누르면 닫힘";position:absolute;right:12px;top:12px;z-index:6;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800;pointer-events:none}
         .j3b-card-shell[open] .j3b-card-top{min-height:58px!important;gap:10px!important;padding-right:132px!important}.j3b-card-shell[open] .j3b-logo{width:58px!important;height:58px!important;border-radius:14px!important}.j3b-card-shell[open] .j3b-symbol{font-size:28px!important}.j3b-card-shell[open] .j3b-name{font-size:14px!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-price{position:static!important;max-width:none!important;margin:12px 0 8px!important;font-size:22px!important}.j3b-card-shell[open] .j3b-chart{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:100px!important;margin:4px 0 14px!important}.j3b-card-shell[open] .j3b-card-notes{position:static!important;inset:auto!important;max-height:none!important;margin:0!important;padding-top:10px!important;overflow:visible!important}.j3b-card-shell[open] .j3b-note{display:block!important;margin:0 0 9px!important;font-size:14px!important;line-height:1.55!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-decor-img{width:96px!important;right:10px!important;bottom:6px!important}
         /* 시장 한줄 브리핑도 링크 이동 없이 같은 화면에서 전체 한글 요약을 펼친다. */
-        .j3b-market-news-shell{display:block;margin:7px 0}.j3b-market-news-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-market-news-summary::-webkit-details-marker{display:none}.j3b-market-news-shell .j3b-news{margin:7px 0!important}.j3b-market-news-shell .j3b-news-link{display:flex;align-items:center;gap:10px;width:100%;color:inherit;text-decoration:none}.j3b-market-news-shell .j3b-news-link>span:nth-child(2){flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.j3b-market-news-expanded{display:none}
+        .j3b-market-news-shell{display:block;margin:0}.j3b-market-news-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-market-news-summary::-webkit-details-marker{display:none}.j3b-market-news-shell .j3b-news{margin:7px 0!important}.j3b-market-news-shell .j3b-news-link{display:flex;align-items:center;gap:10px;width:100%;color:inherit;text-decoration:none}.j3b-market-news-shell .j3b-news-link>span:nth-child(2){flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.j3b-market-news-expanded{display:none}
         .j3b-market-news-shell[open]>.j3b-market-news-summary{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;background:rgba(0,9,25,.9)!important;cursor:zoom-out!important;box-sizing:border-box!important}
+        /* ── 한줄 브리핑 세 줄을 **한 상자**에 담는다 (2026-09-11 상하님 지시) ──
+           상하님 — "미국시장 한줄 브리핑을 한 박스 안에 넣어라. 세 박스를 만들
+           필요가 없다. 한 칸 안에 세 줄을 넣어라."
+           테두리·바탕·그림자는 **상자 하나만** 두른다. 줄은 가는 선으로만 가른다.
+           글자 크기·아이콘 크기·색 점은 한 군데도 안 건드린다 — 그 값들은 폰·태블릿
+           규칙(.j3b-news …)이 그대로 가지고 있고, 여기서는 테두리만 벗긴다. */
+        /* ── 칸 사이 여백을 **12px 하나**로 통일한다 (2026-09-11 상하님 지시) ────
+           상하님 — "전부 다 간격 동일하게 줄이라고 했는데 왜 다르냐."
+           맞는 지적이다. 진짜 앱을 띄워 화면에 **칠해진 상자**끼리 재 보니
+           7·8·10·13·14·16·23·30·32·52·74px 로 제각각이었다.
+           까닭 — 스트림릿은 칸 사이에 16px 을 넣고, 마크다운 칸은 그 16px 을
+           되돌리려고 margin-bottom:-16px 을 들고 있다. 그 위에 모듈마다 제
+           여백을 또 얹었다(4.8 · 9.6 · 5.6 · 8 · 28.8px …). 그래서 자리마다
+           다른 값이 나왔다.
+           여기서는 그 제각각인 여백을 걷어내고 **칸 사이 간격 하나**로만 띄운다.
+           **미국테마 두 화면에만 건다** — 공용 모듈이라 한국테마·시장판단 화면은
+           그대로다(CLAUDE.md 0-1 다). */
+        body:has(.j3-market-top) [data-testid="stVerticalBlock"],
+        body:has(.j3b-home) [data-testid="stVerticalBlock"]{gap:12px!important}
+        /* **표 안은 16px 그대로 둔다** (2026-09-11 상하님 지적 — "매수심사결과
+           순위 9 누르면 화면이 저렇게 되도록 하라고, 저거 너가 건들였냐?").
+           내가 건드린 것이 맞다. 바로 윗줄의 12px 이 표의 **종목 이름 단추 칸**
+           까지 걸렸다. 값 칸은 _stacked() 가 16px 을 제 안에 박아 두고 있어서
+           단추만 줄마다 4px 씩 올라갔다(실측 — 0 · -4 · -8px, 9줄이면 -32px).
+           칸 안(=표 줄 사이)은 스트림릿 본래값 16px 로 되돌린다. 상하님이
+           줄이라 하신 것은 **박스와 박스 사이**지 표 줄 사이가 아니다. */
+        body:has(.j3-market-top) [data-testid="stColumn"]>[data-testid="stVerticalBlock"],
+        body:has(.j3b-home) [data-testid="stColumn"]>[data-testid="stVerticalBlock"]{gap:16px!important}
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"],
+        body:has(.j3b-home) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
+        body:has(.j3-market-top) .j3-top-row,
+        body:has(.j3-market-top) .j3-ndd,
+        body:has(.j3-market-top) .j3-section-title{margin-top:0!important;margin-bottom:0!important}
+        /* 마크다운 칸의 **맨 바깥 상자**가 제 여백을 들고 있다(5.6 · 4.8 · 9.6 ·
+           8 · 28.8px …). 그것만 걷어낸다 — 상자 **안쪽** 여백은 안 건드린다. */
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>div,
+        body:has(.j3b-home) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}
+        /* 한 마크다운 칸 **안에** 나란히 든 상자(게이지 → 「자세히 보기」)는
+           칸 사이 간격이 안 먹는다. 그 자리만 같은 12px 을 손으로 준다. */
+        /* 게이지 칸 맨 앞에 **숨은 체크박스 하나만 든 문단**이 있다. 높이는 0인데
+           밑여백 16px 을 들고 있어 「미국장 신호 다시 확인」과 게이지 사이가 28px
+           이었다(2026-09-11 상하님 지적 — 화살표로 "간격"). 그 문단의 여백만 뗀다.
+           **보이는 것이 하나도 없는 문단**이라 다른 곳에 영향이 없다. */
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child),
+        body:has(.j3b-home) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child){
+          margin:0!important}
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>label,
+        body:has(.j3b-home) [data-testid="stMarkdownContainer"]>label{margin-top:12px!important;margin-bottom:0!important}
+        /* 지수 칸이 나란히 선 줄도 같은 12px 로 */
+        body:has(.j3-market-top) .j3-top-row{gap:12px!important}
+        /* 「매수심사결과 높은 순위 9」 단추 위의 자리 표시 — 높이는 0인데 칸 하나를
+           차지해 급락 단추와 사이가 24px 이 된다. 그 12px 만 도로 당긴다.
+           **이 자리 하나만 고른다**(id 로 집는다) — 넓게 걸면 다른 자리 표시까지
+           걸려 「테마 클릭 → 상세로 내려가기」가 죽는다(2026-09-11에 실제로 그랬다). */
+        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(#jarvis-anchor-top7_top){
+          margin-top:-12px!important;margin-bottom:0!important}
+        /* 올라갔을 때 단추가 **맨 위에 바짝** 서게 한다 — 공용 84px 을 쓰면 단추가
+           화면 한참 아래에 선다(캡처는 맨 위다). 이 자리 하나에만 건다. */
+        #jarvis-anchor-top7_top{scroll-margin-top:12px!important}
+        /* 「미국 전체시장 판단」 제목이 배너에 붙어 있었다(실측 2px). 이 제목의
+           제 여백(.25rem)을 위 `stMarkdownContainer>div` 규칙이 같이 걷어낸 탓이다.
+           **이 제목 하나에만** 12px 이 되게 도로 준다 — 쓰는 곳이 한 군데다. */
+        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>div.j3-page-title{
+          margin-top:10px!important}
+        /* 「상승장」과 「급락 후 반등장」이 위아래로 설 때의 틈 (실측 16px).
+           가로로 선 칸 사이(column-gap)는 안 건드린다 — 표의 칸 사이가 그 값이다. */
+        body:has(.j3-market-top) [data-testid="stHorizontalBlock"]{row-gap:12px!important}
+        body:has(.j3b-home) div[class*="st-key-j3b_grid_"]{row-gap:12px!important}
+        /* ── 태블릿에서 맨 위 두 단추가 양 끝으로 벌어지던 것 (2026-09-11 상하님) ──
+           상하님 — "스마트폰에는 맨 위 한국테마·이 테마 설명의 위치가 좁으니
+           볼 만한데, 태블릿 세로 화면에 너무 왼쪽 끝 오른쪽 끝으로 보내서 화면이
+           엉망이다."
+           까닭 — 설명 단추는 `margin-left:auto` 로 오른쪽 끝에 붙게 되어 있다
+           (method_help.py). 폰(412px)은 화면이 좁아 둘이 가까이 서지만, 태블릿
+           세로(1138px)에서는 가운데가 통째로 비어 보인다.
+           **줄의 최대 폭만 묶는다** — 왼쪽·오른쪽 배치는 그대로고, 벌어지는
+           거리만 폰에서 보이던 만큼으로 막는다.
+           **폰은 안 건드린다**(601px 미만은 이 규칙에 안 걸린다).
+           **한국테마도 안 건드린다** — method_help.py 는 공용이라 여기서
+           `body:has(.j3-market-top)` 으로 미국 시장분석 화면에만 건다. */
+        @media (min-width:601px){
+          body:has(.j3-market-top) .st-key-jarvis_method_help_row{
+            max-width:560px!important;
+            padding-left:18px!important;
+          }
+        }
+        /* ── 태블릿에서 어긋나 보이던 두 자리 (2026-09-11 상하님 지시) ───────────
+           상하님 — "게이지 왼쪽 치우친 것하고 두 단추 한 줄 되는 것 고쳐라."
+
+           ① 「미국장 시장 상태」 게이지가 상자 왼쪽 끝에 붙는다.
+              태블릿 실측 — 상자 폭 978px 인데 게이지(235px)가 왼쪽 92px 에 선다.
+              폰은 상자가 좁아(≈380px) 가운데처럼 보였을 뿐이다. 가운데로 세운다.
+              **공포·탐욕과 시장 국면 게이지는 안 건드린다** — 그 둘은 게이지
+              오른쪽에 숫자표가 들어가는 자리라 왼쪽에 서는 것이 맞다.
+
+           ② 「상승장」과 「급락 후 반등장」이 한 줄에 선다.
+              st.columns(2) 라서 폰(<640px)에서는 위아래로 쌓이는데 태블릿에서는
+              가로로 갈린다. 태블릿 실측 — 상승장 왼쪽 80px, 급락 왼쪽 577px.
+              태블릿에서도 폰처럼 위아래로 쌓는다.
+
+           **폰은 안 건드린다**(601px 미만은 이 규칙에 안 걸린다). */
+        @media (min-width:601px){
+          body:has(.j3-market-top) .sig-gauge{text-align:center!important}
+          body:has(.j3-market-top) .sig-gauge>svg{
+            display:block!important;margin-left:auto!important;margin-right:auto!important;
+          }
+          body:has(.j3-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]){
+            flex-direction:column!important;
+          }
+          body:has(.j3-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]) [data-testid="stColumn"]{
+            width:100%!important;flex:0 0 auto!important;min-width:0!important;
+          }
+        }
+        .j3b-news-box{margin:0;padding:0;overflow:hidden;
+          border:1px solid #bd905266;border-radius:17px;
+          background:linear-gradient(90deg,#062947ed,#042243f3);
+          box-shadow:inset 0 1px #6aaee52b}
+        .j3b-news-box .j3b-news{margin:0!important;border:0!important;border-radius:0!important;
+          background:none!important;box-shadow:none!important;
+          border-bottom:1px solid #bd905233!important}
+        .j3b-news-box .j3b-news:last-child{border-bottom:0!important}
+        .j3b-market-news-shell[open] .j3b-news-box{display:none!important}
         .j3b-market-news-shell[open] .j3b-news{display:none!important}.j3b-market-news-shell[open] .j3b-market-news-expanded{position:relative;display:block;width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 76px);overflow:auto;box-sizing:border-box;padding:26px 22px 22px;border:1px solid #bd9052;border-radius:20px;background:linear-gradient(145deg,#06345f,#03264a 58%,#001d3c);color:#f5fbff;box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c}
         .j3b-market-news-close{position:absolute;right:12px;top:12px;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800}.j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}.j3b-market-news-text{margin-top:18px;padding-top:18px;border-top:1px solid #8ab7d633;color:#f5f1e8;font-size:18px;line-height:1.6;font-weight:650;white-space:normal;overflow-wrap:anywhere}.j3b-market-news-number{color:#6edbff;font-weight:900;margin-right:8px}
-        @media (max-width:600px){.j3b-market-news-shell{margin:5px 0}.j3b-market-news-shell[open] .j3b-market-news-expanded{padding:24px 18px 20px}.j3b-market-news-title{font-size:16px}.j3b-market-news-text{font-size:17px;line-height:1.65}}
+        @media (max-width:600px){.j3b-market-news-shell{margin:0}.j3b-market-news-shell[open] .j3b-market-news-expanded{padding:24px 18px 20px}.j3b-market-news-title{font-size:16px}.j3b-market-news-text{font-size:17px;line-height:1.65}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -8235,7 +8750,7 @@ _BRIEFING_OPEN_CSS = """
  display:flex;align-items:center;justify-content:center;padding:16px;
  box-sizing:border-box;pointer-events:none}
 .j3b-open-card{position:relative;pointer-events:auto;width:min(680px,calc(100vw - 32px));
- max-height:calc(100dvh - 40px);overflow:auto;padding:20px 20px 104px;
+ max-height:calc(100dvh - 40px);overflow:auto;padding:20px 20px 152px;
  border:1px solid rgba(123,201,255,.45);border-radius:20px;box-sizing:border-box;
  background:radial-gradient(circle at 100% 0,rgba(15,85,147,.37),transparent 44%),
   linear-gradient(145deg,rgba(7,41,87,.99),rgba(3,23,55,.99));
@@ -8259,11 +8774,19 @@ _BRIEFING_OPEN_CSS = """
    자리는 **왼쪽 아래**다. 오른쪽 아래에는 장식 그림(.j3b-decor-img)이 96px 로
    앉아 있어 거기 두면 겹친다.
    창 바닥에 **붙이지 않는다**(sticky 아님) — 2026-08-26에 그렇게 했다가 글을
-   굴리는 동안 화면 한가운데에 떠서 글을 가렸다. 카드 안 여백(아래 96~112px)에
-   가만히 놓는다.
+   굴리는 동안 화면 한가운데에 떠서 글을 가렸다. 카드 안 여백에 가만히 놓는다.
+   **띄우지 않고 뉴스 목록 바로 뒤 흐름에 놓는다**(2026-09-10 상하님 지적 —
+   "종목 뉴스가 길어서 닫기 화면 누르면 안 된다" · 고친 뒤에도 "안된다").
+   두 번 틀렸다. 처음에는 바닥에서 16px 이라 하단 이동막대(position:fixed;
+   bottom:8px; height:64px → 화면 바닥 72px, z-index 최대값)에 깔렸다.
+   그래서 88px로 올렸더니 이번에는 **뉴스 목록 위에 겹쳤다** — 목록은
+   pointer-events:auto 라 손가락을 먹어 버려 카드가 안 닫혔다.
+   자리를 띄우는 한 어느 쪽이든 겹친다. absolute 를 버리고 목록 **다음**
+   흐름에 놓으면 뉴스와 겹칠 수가 없고, 카드 아래 여백(152px · 폰 144px)이
+   하단 막대와의 거리도 만들어 준다.
    누르는 방식은 위 것과 똑같다 — 큰 판이 손가락을 안 받으므로(.j3b-open-card
    pointer-events:none) 여기를 눌러도 그 손가락이 바탕까지 내려가 닫힌다. */
-.j3b-open-close-b{right:auto;left:16px;top:auto;bottom:16px;padding:9px 18px;font-size:13px}
+.j3b-open-close-b{position:static;display:inline-block;right:auto;left:auto;top:auto;bottom:auto;margin:16px 0 0;padding:11px 20px;font-size:13px}
 .j3b-open-card .j3b-card-top{display:flex;gap:10px;align-items:center;min-height:58px;padding-right:132px}
 .j3b-open-card .j3b-logo{width:58px;height:58px;border-radius:14px}
 .j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
@@ -8288,7 +8811,7 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-link{display:inline-block;margin-top:9px;padding:5px 12px;border:1px solid #4f9fd8;
  border-radius:14px;color:#8fd9ff!important;font-size:12px;font-weight:800;text-decoration:none}
 @media (max-width:600px){
- .j3b-open-card{padding:18px 16px 96px}
+ .j3b-open-card{padding:18px 16px 144px}
  .j3b-open-card .j3b-symbol{font-size:24px}
  .j3b-open-news>summary{font-size:15px;line-height:1.6}
  .j3b-open-orig{font-size:14px}
@@ -8803,7 +9326,12 @@ def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
         )
     st.markdown(
         '<details class="j3b-market-news-shell">'
-        f'<summary class="j3b-market-news-summary">{"".join(collapsed_rows)}</summary>'
+        # **세 줄을 한 상자에 담는다** (2026-09-11 상하님 지시 — "한 박스 안에
+        # 넣어라. 세 박스를 만들 필요가 없다. 한 칸 안에 세 줄을 넣어라").
+        # 줄마다 테두리를 두르던 것을 상자 하나가 두르고, 줄 사이는 가는 선으로만
+        # 가른다. 글자 크기·아이콘·색 점은 그대로다.
+        f'<summary class="j3b-market-news-summary">'
+        f'<div class="j3b-news-box">{"".join(collapsed_rows)}</div></summary>'
         '<div class="j3b-card-open"><div class="j3b-open-card">'
         '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
         '<div class="j3b-market-news-title">미국시장 한줄 브리핑</div>'
@@ -8954,7 +9482,8 @@ def _briefing_orbit_html(stocks: list[dict]) -> str:
     return f'<div class="j3b-orbit" aria-hidden="true">{"".join(pods)}</div>'
 
 
-def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, compact: bool = False) -> None:
+def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
+                          compact: bool = False, group: str = "extra") -> None:
     ticker = stock["ticker"]
     price, change = card.get("price"), card.get("change_pct")
     tone = "j3b-up" if (change or 0) > 0 else "j3b-down" if (change or 0) < 0 else "j3b-neutral"
@@ -9032,26 +9561,36 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False, c
     )
     if removable:
         position = int(stock["position"])
-        with st.container(key=f"j3b_extra_{position}"):
+        # 어느 무리의 몇 번 자리인지로 열쇠를 만든다(2026-09-10). 무리 이름을 빼면
+        # 선정 1번과 검색 1번이 **같은 열쇠**를 써서, 하나를 지우려는데 다른
+        # 하나가 지워진다.
+        slot = f"{group}_{position}"
+        remove = (briefing_store.remove_selected if group == "selected"
+                  else briefing_store.remove_extra)
+        with st.container(key=f"j3b_{group}_{position}"):
             st.markdown(card_html, unsafe_allow_html=True)
-            confirm = st.session_state.get("j3b_delete_confirm") == position
+            confirm = st.session_state.get("j3b_delete_confirm") == slot
             if confirm:
                 left, right = st.columns(2)
-                if left.button("삭제 확인", key=f"j3b_del_yes_{position}"):
-                    briefing_store.remove_extra(position)
+                if left.button("삭제 확인", key=f"j3b_del_yes_{slot}"):
+                    try:
+                        remove(position)
+                    except ValueError as exc:
+                        st.session_state["j3b_search_message"] = str(exc)
                     st.session_state.pop("j3b_delete_confirm", None)
                     st.rerun()
-                if right.button("취소", key=f"j3b_del_no_{position}"):
+                if right.button("취소", key=f"j3b_del_no_{slot}"):
                     st.session_state.pop("j3b_delete_confirm", None)
                     st.rerun()
-            elif st.button("×", key=f"j3b_del_{position}"):
-                st.session_state["j3b_delete_confirm"] = position
+            elif st.button("×", key=f"j3b_del_{slot}"):
+                st.session_state["j3b_delete_confirm"] = slot
                 st.rerun()
         return
     st.markdown(card_html, unsafe_allow_html=True)
 
 
-def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str, compact: bool = False) -> None:
+def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str,
+                          compact: bool = False, group: str = "extra") -> None:
     """카드를 **한 통에 죽 넣고 자리는 CSS가 잡는다** (2026-08-27 상하님 지시).
 
     상하님 — "태블릿 화면에는 종목선정 2줄씩 되어 있는데 3칸씩 넣으면 안 되나?"
@@ -9065,7 +9604,8 @@ def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, k
     with st.container(key=f"j3b_grid_{key}"):
         for stock in stocks:
             can_remove = removable and int(stock.get("position", 0)) > 0
-            _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=can_remove, compact=compact)
+            _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=can_remove,
+                                  compact=compact, group=group)
 
 
 _BRIEFING_FIRST_VIEW_EXTRAS = (
@@ -9139,56 +9679,71 @@ def _briefing_local_search(query: str) -> list[dict]:
     return list(found.get("rows") or []) if found.get("ok") else []
 
 
-def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
+def _render_briefing_manage(selected: list[dict], extras: list[dict], *,
+                            group: str = "extra") -> None:
     """종목을 찾아 보여 주고, **맞는지 확인한 뒤에** 넣는다.
+
+    ``group`` 이 "selected" 면 사용자 선정 종목에, "extra" 면 추가 검색 종목에
+    넣는다 (2026-09-10 상하님 지시 — "사용자 선정종목이 삭제 추가가 안 된다.
+    추가 검색종목처럼 되게 해줘"). 열쇠에 무리 이름을 붙여 두 줄이 서로의
+    검색 결과를 덮어쓰지 않게 한다.
 
     2026-08-26 상하님 지시 — "종목 검색은 조회 후 종목 나타나고 이 종목이 맞는지
     확인 버튼을 누르고 등록되도록 해야지."
     예전에는 ＋를 누르면 찾은 첫 종목이 곧바로 들어갔다. 이름이 비슷한 다른 회사가
     들어가도 알 수가 없었다.
     """
-    with st.container(key="j3b_search_row"):
+    found_key = f"j3b_search_found_{group}"
+    # 통 이름을 **둘 다 j3b_search_row 로 시작**하게 둔다. 화면 규칙이
+    # class*="st-key-j3b_search_row" 부분일치라, 이름이 다르면 칸 배치·라벨
+    # 숨김·입력칸 크기가 하나도 안 걸려 검색줄이 깨진다(2026-09-10 상하님 —
+    # "추가검색종목과 디자인 똑같이 해라").
+    with st.container(key="j3b_search_row" if group == "extra" else "j3b_search_row_sel"):
         query_col, plus_col = st.columns([7, 1])
         with query_col:
             query = st.text_input("종목 검색", placeholder="종목 검색 후 추가",
-                                  key="j3b_search", label_visibility="collapsed")
+                                  key=f"j3b_search_{group}", label_visibility="collapsed")
         with plus_col:
-            add_clicked = st.button("+", key="j3b_manage_toggle")
+            add_clicked = st.button("+", key=f"j3b_manage_toggle_{group}")
     if add_clicked:
-        st.session_state.pop("j3b_search_found", None)
+        st.session_state.pop(found_key, None)
         if not query.strip():
             st.session_state["j3b_search_message"] = "추가할 종목명이나 티커를 먼저 넣으십시오."
         else:
             with st.spinner("미국 종목 명부에서 찾는 중입니다…"):
                 rows = _briefing_local_search(query)
             if rows:
-                st.session_state["j3b_search_found"] = rows[:5]
+                st.session_state[found_key] = rows[:5]
             else:
                 st.session_state["j3b_search_message"] = "그 이름으로는 미국 종목을 찾지 못했습니다."
 
-    found = st.session_state.get("j3b_search_found") or []
+    found = st.session_state.get(found_key) or []
     if found:
-        with st.container(key="j3b_search_confirm"):
+        with st.container(key=f"j3b_search_confirm_{group}"):
             labels = {f'{row["ticker"]} · {row["name"]}': row for row in found}
             names = list(labels)
             picked = names[0]
             if len(names) > 1:
-                picked = st.radio("찾은 종목 가운데 고르십시오", names, key="j3b_search_pick")
+                picked = st.radio("찾은 종목 가운데 고르십시오", names,
+                                  key=f"j3b_search_pick_{group}")
             else:
                 st.markdown(f"<div class='j3b-found'>{html.escape(picked)}</div>",
                             unsafe_allow_html=True)
             yes_col, no_col = st.columns(2)
-            if yes_col.button("이 종목이 맞습니다 · 추가", key="j3b_search_ok", type="primary"):
+            if yes_col.button("이 종목이 맞습니다 · 추가", key=f"j3b_search_ok_{group}",
+                              type="primary"):
                 chosen = labels[picked]
+                add = (briefing_store.add_selected if group == "selected"
+                       else briefing_store.add_extra)
                 try:
-                    briefing_store.add_extra(chosen["ticker"], chosen["name"])
+                    add(chosen["ticker"], chosen["name"])
                     st.session_state["j3b_search_message"] = f'{chosen["ticker"]} 종목을 넣었습니다.'
-                    st.session_state.pop("j3b_search_found", None)
+                    st.session_state.pop(found_key, None)
                     st.rerun()
                 except ValueError as exc:
                     st.session_state["j3b_search_message"] = str(exc)
-            if no_col.button("아닙니다 · 취소", key="j3b_search_cancel"):
-                st.session_state.pop("j3b_search_found", None)
+            if no_col.button("아닙니다 · 취소", key=f"j3b_search_cancel_{group}"):
+                st.session_state.pop(found_key, None)
                 st.rerun()
 
     message = st.session_state.pop("j3b_search_message", "")
@@ -9198,12 +9753,19 @@ def _render_briefing_manage(selected: list[dict], extras: list[dict]) -> None:
 
 
 def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
-    """뉴스가 다 온 뒤에 화면을 딱 한 번만 다시 그린다.
+    """뉴스가 어디까지 왔는지 **세기만 한다** (2026-09-10부터).
 
     예전에는 2.5초마다 `window.parent.location.reload()`로 브라우저를 통째로
     새로고침했다. 통째 새로고침이라 자비스3 계산이 처음부터 다시 돌고, 화면이 튀고,
     스크롤이 맨 위로 돌아갔다(2026-08-26 상하님 — "화면이 계속 버벅거리더라").
-    이 조각은 '뉴스가 다 왔나'만 조용히 살피고, 다 왔을 때 한 번 다시 그린다.
+    그래서 이 자리가 대신 '다 왔나'를 살펴 다시 그리게 했다.
+
+    **이제 다시 그리는 일은 여기 것이 아니다.** 2026-09-02에 만든 지켜보는 조각
+    (`_briefing_news_watcher`)이 2초마다 살펴 다시 그린다. 둘 다 다시 그리면
+    한 자리가 도착할 때마다 판을 두 번 그린다 — 아래 자세히 적어 두었다.
+
+    여기 남은 일은 **세는 것과 멈추는 것**이다. 다 왔거나 너무 오래 걸리면
+    `j3b_news_pending` 을 꺼서 지켜보는 조각도 같이 멈추게 한다.
     """
     if not st.session_state.get("j3b_news_pending"):
         st.session_state.pop("j3b_news_wait", None)
@@ -9225,7 +9787,21 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
         st.session_state["j3b_news_pending"] = False
         st.session_state.pop("j3b_news_wait", None)
         st.session_state.pop("j3b_news_ready", None)
-    st.rerun()
+    # **여기서 다시 그리라고 하지 않는다** (2026-09-10 상하님 지적 — "시장분석에서
+    # 관심종목으로 4초, 너무 늦다").
+    #
+    # **판을 두 번씩 그리고 있었다.** 뉴스 한 자리가 도착하면
+    #   1판 — 지켜보는 조각(_briefing_news_watcher)이 알아채고 다시 그리라고 한다.
+    #   2판 — 그 판 끝에서 여기가 **또** 다시 그리라고 한다. 화면은 하나도 안 바뀐다.
+    # 뉴스 자리가 11곳이라(시장 1 + 종목 10) 이 헛판이 열한 번 붙었다.
+    # 실측 — 뉴스가 다 올 때까지 판을 **32번** 그렸고 그리는 데만 4.52초를 썼다.
+    #
+    # 2026-09-02에 지켜보는 조각을 만들면서 이 자리가 겹쳤다. 그때는 여기가
+    # 유일한 길이라 필요했는데, 이제는 조각이 2초마다 스스로 살펴 다시 그린다
+    # (그 함수 설명 참고). 둘 다 두면 같은 일을 두 번 한다.
+    #
+    # **세는 일은 그대로 남긴다** — 위의 j3b_news_pending 을 꺼 주는 것이 여기다.
+    # 그것이 꺼져야 지켜보는 조각도 멈춘다.
 
 
 @st.fragment(run_every=2)
@@ -9285,6 +9861,84 @@ def _briefing_news_watcher(keys: tuple = ()) -> None:
         st.rerun()
 
 
+_FUTURES_FETCH_LOCK = threading.Lock()
+_FUTURES_FETCH = {"thread": None}
+
+
+def _start_us_futures_fetch() -> None:
+    """시장분석 맨 위 선물 칸(NQ=F·ES=F)을 **먼저 시켜 둔다** (2026-09-10).
+
+    상하님 지적 — *"관심종목에서 시장분석으로 2초, 너무 늦다."*
+
+    **실측 — 그 화면이 세워 놓고 기다리는 조회가 넷인데, 넷이 한 줄로 선다.**
+        ① 9종목 1년치 일봉 ② 5종목 1분봉  → 「미국 전체시장 판단」 (0.90초)
+        ③ NQ=F ④ ES=F 5분봉               → 선물 칸             (0.79초)
+    ①②는 `j3data.get_market_overview()` 가, ③④는 이 선물 칸이 받는다. **둘은
+    서로 아무 상관이 없는데** 화면이 ①②를 다 받은 뒤에야 ③④를 시작했다.
+
+    그래서 ③④를 **화면 그리기 맨 앞에서** 뒤 일꾼에게 먼저 맡긴다. 일꾼이
+    선물을 받는 동안 화면은 ①②를 받는다. 둘이 겹쳐 도니 0.79초가 통째로 없어진다.
+
+    **새로 나가는 요청이 하나도 없다.** 어차피 그 화면이 받던 것을, 받는 **때**만
+    옮겼다. 값도 계산도 한 글자도 안 바뀐다.
+
+    **한국테마 파일은 안 고친다 — 읽기만 한다.** 화면이 부르는 것과 똑같은
+    함수를 똑같은 인자로 부를 뿐이라(`ttl_seconds=300, interval="5m"`), 받아 둔
+    것이 그 칸에 그대로 쓰이고 한국테마(1분봉·60초)는 키가 달라 영향이 없다.
+
+    **두 번 받지 않게 한다.** 아래 `_await_us_futures_fetch` 가 이 일꾼을 기다린
+    뒤에 값을 읽으므로, 화면과 일꾼이 같은 것을 각자 받는 일이 없다.
+    실패해도 아무 일이 없다 — 그때는 예전처럼 선물 칸이 그 자리에서 받는다.
+    """
+    with _FUTURES_FETCH_LOCK:
+        running = _FUTURES_FETCH.get("thread")
+        if running is not None and running.is_alive():
+            return                      # 이미 받는 중이다
+
+    def _run() -> None:
+        try:
+            import jarvis4_data as j4data
+
+            fetcher = getattr(j4data, "get_us_futures_live", None)
+            if callable(fetcher):
+                fetcher(ttl_seconds=300, interval="5m")
+        except Exception:
+            pass                        # 못 받아도 화면은 그대로 돈다
+
+    try:
+        thread = threading.Thread(target=_run, name="j3-futures-fetch", daemon=True)
+        thread.start()
+    except Exception:
+        return                          # 일꾼을 못 띄우면 예전처럼 화면이 받는다
+    with _FUTURES_FETCH_LOCK:
+        _FUTURES_FETCH["thread"] = thread
+
+
+def _await_us_futures_fetch(timeout: float = 12.0) -> None:
+    """먼저 시켜 둔 선물 조회가 끝나기를 기다린다. 선물 칸이 값을 읽기 직전에 부른다.
+
+    기다리지 않고 바로 읽으면, 일꾼이 아직 받는 중일 때 화면이 **같은 것을 또**
+    받는다(jarvis4_data 의 공책은 다 받은 뒤에야 찬다). 그러면 야후에 요청이
+    두 배로 나가고 빨라지지도 않는다.
+
+    **12초에서 끊는다.** 야후가 멀쩡하면 이 기다림은 1초 안쪽이다 — 실측 0.79초.
+    12초까지 끄는 판은 야후 쪽이 이미 막힌 것이고, 그때는 아래 선물 칸이
+    예전처럼 제가 받아 본다(그 조회 자체의 제한 시간도 12초다).
+
+    **막힌 판에서는 이 기다림만큼 늦어질 수 있다 — 솔직히 적어 둔다.** 다만 그
+    판은 고치기 전에도 선물 칸에서 12초씩 세 번을 기다리던 자리라 늘어나는 몫이
+    전체에 비하면 작고, 야후가 멀쩡한 보통 판에서는 언제나 빨라진다.
+    """
+    with _FUTURES_FETCH_LOCK:
+        thread = _FUTURES_FETCH.get("thread")
+    if thread is None:
+        return
+    try:
+        thread.join(timeout)
+    except Exception:
+        pass
+
+
 def _warm_after_news(keys: tuple) -> None:
     """뉴스가 다 온 **뒤에** 순위 9와 나스닥 25년치를 미리 챙긴다.
 
@@ -9321,6 +9975,23 @@ def _warm_after_news(keys: tuple) -> None:
             sector_warm()
         except Exception:
             pass
+    # ── 시장분석 화면이 **세워 놓고 기다리는 조회 넷**도 여기서 미리 받는다 ──
+    # (2026-09-10 상하님 지적 — "관심종목에서 시장분석으로 2초, 너무 늦다.")
+    #
+    # 실측 — 그 2.05초 중 1.70초가 맨 위 「미국 전체시장 판단」 칸이 시세를
+    # 기다리는 시간이었다. 넷이 연달아 나간다(한 번에 하나씩 나가게 되어 있다):
+    #   ① 9종목 1년치 일봉 · ② 5종목 1분봉   → get_market_overview (0.90초)
+    #   ③ NQ=F · ④ ES=F 5분봉                → 선물 칸        (0.79초)
+    #
+    # 위 신호 시세·업종 지도와 **같은 자리, 같은 방식**이다 — 뉴스가 다 온 뒤에
+    # 뒤 일꾼을 띄우고 바로 돌아간다. 값도 계산도 하나도 안 바뀐다.
+    overview_warm = getattr(j3data, "warm_market_overview", None)
+    if callable(overview_warm):
+        try:
+            overview_warm()
+        except Exception:
+            pass
+    _start_us_futures_fetch()
     warm = getattr(j3data, "warm_top_picks", None)
     if not callable(warm):
         return
@@ -9400,6 +10071,188 @@ def _set_briefing_page(page: str) -> None:
         pass
 
 
+# 바깥 화면(스트림릿 판)에서 도는 손가락 신호. **여기 글자는 iframe이 아니라
+# 바깥 화면의 것**이라 판이 다시 그려져도 살아 있다. 아래 _briefing_swipe_nav 가
+# json.dumps 로 안전하게 감싸 심는다 — 따옴표를 손으로 이스케이프하지 않는다
+# (2026-09-10에 손으로 하다 틀려서 폰에서 아무 일도 안 일어났다).
+_SWIPE_OUTER_JS = """
+(function () {
+  var d = document, x0 = 0, y0 = 0, live = false, fired = false;
+  // 시장분석 화면은 표(21개 테마·급락·상승장)가 다 가로로 잘려 있어 옆으로
+  // 밀어야 보인다. 그 손가락을 화면 넘김으로 잡으면 표를 볼 수가 없다
+  // (2026-09-10 상하님 지적 — "저기서 왼쪽으로 가면 관심종목으로 가버린다").
+  //
+  // **가장자리에서만 받는 방식은 쓸 수 없다** (같은 날 상하님 — "시장분석에서
+  // 관심종목으로는 이제 안 간다"). 화면 왼쪽 가장자리는 **갤럭시의 뒤로가기
+  // 제스처 자리**라 손가락을 OS가 먼저 가져간다. 여기까지 오지도 않는다.
+  //
+  // 그래서 자리로 가르지 않고 **표 위인지로만** 가른다. 아래 sideways 가
+  // documentElement 까지 끝까지 올라가 보므로 표 감싸개를 놓치지 않는다.
+  function sideways(node) {
+    // **끝까지 올라간다.** 예전에는 여덟 칸만 보고 말아서 표 감싸개를 놓쳤다.
+    while (node && node !== d.documentElement) {
+      try {
+        if (node.scrollWidth > node.clientWidth + 4) {
+          var how = getComputedStyle(node).overflowX;
+          if (how === 'auto' || how === 'scroll') { return true; }
+        }
+      } catch (e) { return false; }
+      node = node.parentElement;
+    }
+    return false;
+  }
+  function findButton(key) {
+    return d.querySelector('div[class*="st-key-' + key + '"] button');
+  }
+  function tryGo(dx, dy) {
+    if (fired) { return; }
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) { return; }
+    var onWatch = !!d.querySelector('.j3b-home');
+    var onMarket = !!d.querySelector('.j3-market-top');
+    var key = null, out = null;
+    if (dx < 0 && onWatch) { key = 'j3b_swipe_market'; out = 'j3b-swipe-out-left'; }
+    else if (dx > 0 && onMarket) { key = 'j3b_swipe_watch'; out = 'j3b-swipe-out-right'; }
+    if (!key) { return; }
+    var hit = findButton(key);
+    if (!hit) { return; }
+    fired = true;
+    live = false;
+    try { d.body.classList.add(out); } catch (e) {}
+    try { hit.click(); } catch (e) {}
+    setTimeout(function () {
+      try { d.body.classList.remove('j3b-swipe-out-left', 'j3b-swipe-out-right'); } catch (e) {}
+      fired = false;
+    }, 900);
+  }
+  d.addEventListener('touchstart', function (ev) {
+    if (fired) { return; }
+    if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
+    x0 = ev.touches[0].clientX;
+    y0 = ev.touches[0].clientY;
+    // 표 위에서 시작한 손가락은 그 표가 쓰게 둔다.
+    if (sideways(ev.target)) { live = false; return; }
+    live = true;
+  }, { passive: true });
+  d.addEventListener('touchmove', function (ev) {
+    if (!live || !ev.touches || ev.touches.length !== 1) { return; }
+    var t = ev.touches[0];
+    tryGo(t.clientX - x0, t.clientY - y0);
+  }, { passive: true });
+  d.addEventListener('touchend', function (ev) {
+    if (!live) { return; }
+    live = false;
+    var t = (ev.changedTouches || [])[0];
+    if (!t) { return; }
+    tryGo(t.clientX - x0, t.clientY - y0);
+  }, { passive: true });
+})();
+"""
+
+
+def _briefing_swipe_nav() -> None:
+    """손가락으로 밀어 관심종목 ↔ 시장분석을 오간다.
+
+    2026-09-10 상하님 지시 — "오른쪽에서 왼쪽으로 당기면 시장분석으로.
+    넘어갔으면 다시 왼쪽에서 오른쪽으로 당기면 되돌아가게."
+
+    **iframe 안에 손잡이를 붙이면 안 된다 (CLAUDE.md · 첫 판에서 이걸 틀렸다).**
+    `components.html` 이 만드는 작은 iframe은 화면을 다시 그릴 때마다 사라진다.
+    그 안에서 `addEventListener` 를 부르면 손잡이 함수가 **죽은 iframe의 것**이라
+    크롬이 조용히 무시한다. 그래서 첫 판은 폰에서 아무 일도 하지 않았다.
+
+    그래서 iframe은 **심부름만** 한다 — 바깥 화면에 `<script>` 조각을 붙이고
+    끝낸다. 그 안의 코드(`_SWIPE_OUTER_JS`)는 바깥 화면의 것이라 계속 산다.
+    이미 심어 두었으면 다시 심지 않는다.
+
+    **어느 쪽으로 갈지는 화면이 정한다** — 관심종목에는 `.j3b-home`,
+    시장분석에는 `.j3-market-top` 표식이 있다. 손잡이는 밀 때마다 지금 화면을
+    다시 보므로 판이 바뀌어도 스스로 맞춰 간다.
+
+    **단추는 여기서 만들지 않는다** — `_briefing_swipe_buttons` 가 화면 **맨
+    앞에서** 만든다. 까닭은 그 함수 설명에 적어 두었다(판을 두 번 그리지 않기
+    위해서다).
+
+    실패해도 아무 일이 없어야 한다 — 안 되면 예전처럼 하단 막대를 누르시면 된다.
+    """
+    try:
+        import json as _json
+        import streamlit.components.v1 as components
+
+        components.html(
+            "<script>(function(){var d;"
+            "try{d=window.parent&&window.parent.document;}catch(e){return;}"
+            "if(!d||!d.body||d.getElementById('j3b-swipe-script')){return;}"
+            "var t=d.createElement('script');t.id='j3b-swipe-script';"
+            "t.textContent=" + _json.dumps(_SWIPE_OUTER_JS) + ";"
+            "d.body.appendChild(t);})();</script>",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
+def _briefing_swipe_buttons() -> None:
+    """미는 손가락이 누를 **숨은 단추 둘**을 화면 **맨 앞에서** 만든다.
+
+    2026-09-10 상하님 지적 — "화면 옆으로 넘기는 게 왜 실시간으로 바로 안 되냐?"
+
+    **판을 두 번 그리고 있었다.** 단추가 화면 **맨 뒤**에 있어서, 한 번 밀면
+      1판 — 관심종목을 처음부터 끝까지 다 그린다(뉴스·카드·그림).
+            그 끝에서야 단추가 눌린 것을 알고 `st.rerun()` 을 부른다.
+      2판 — 그제서야 시장분석을 그린다.
+    1판을 통째로 버리는 셈이라, 손가락은 곧바로 반응해도 화면이 늦게 바뀌었다.
+
+    이제 단추를 **맨 앞**에 둔다. 눌린 것을 화면을 그리기 **전에** 알므로
+    `page` 를 읽을 때 이미 바뀐 값이 나오고, **그 한 판에** 시장분석을 그린다.
+    `st.rerun()` 도 필요 없다 — 부르면 그것이 곧 두 판이다.
+
+    **둘 다 만든다.** 여기서는 아직 어느 화면인지 정하기 전이다. 어느 쪽으로
+    갈지는 손가락 쪽(`_SWIPE_OUTER_JS`)이 화면 표식을 보고 정한다.
+    """
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j3b_swipe_']{position:absolute!important;"
+        "width:1px!important;height:1px!important;margin:0!important;padding:0!important;"
+        "overflow:hidden!important;opacity:0!important;pointer-events:none!important}"
+        "[data-testid='stAppViewContainer']{transition:transform .15s cubic-bezier(.22,.61,.36,1),"
+        "opacity .15s ease}"
+        "body.j3b-swipe-out-left [data-testid='stAppViewContainer']"
+        "{transform:translateX(-13%);opacity:.34}"
+        "body.j3b-swipe-out-right [data-testid='stAppViewContainer']"
+        "{transform:translateX(13%);opacity:.34}"
+        "@keyframes j3bInFromRight{from{transform:translateX(15%);opacity:0}to{transform:none;opacity:1}}"
+        "@keyframes j3bInFromLeft{from{transform:translateX(-15%);opacity:0}to{transform:none;opacity:1}}"
+        "body:has(.j3b-in-right) [data-testid='stAppViewContainer']"
+        "{animation:j3bInFromRight .2s cubic-bezier(.22,.61,.36,1) both}"
+        "body:has(.j3b-in-left) [data-testid='stAppViewContainer']"
+        "{animation:j3bInFromLeft .2s cubic-bezier(.22,.61,.36,1) both}"
+        "@media (prefers-reduced-motion:reduce){"
+        "[data-testid='stAppViewContainer']{transition:none}"
+        "body.j3b-swipe-out-left [data-testid='stAppViewContainer'],"
+        "body.j3b-swipe-out-right [data-testid='stAppViewContainer']{transform:none;opacity:1}"
+        "body:has(.j3b-in-right) [data-testid='stAppViewContainer'],"
+        "body:has(.j3b-in-left) [data-testid='stAppViewContainer']{animation:none}}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+    if st.button("시장분석으로", key="j3b_swipe_market"):
+        st.session_state["j3b_slide_in"] = "right"
+        _set_briefing_page("market")
+    if st.button("관심종목으로", key="j3b_swipe_watch"):
+        st.session_state["j3b_slide_in"] = "left"
+        _set_briefing_page("home")
+
+
+def _briefing_slide_in_marker() -> None:
+    """밀어서 넘어오신 판에만 미끄러져 들어오는 표식을 남긴다 (2026-09-10).
+
+    하단 막대로 누르신 판이나 판이 다시 그려질 때는 표식이 없어 그냥 그려진다.
+    """
+    side = st.session_state.pop("j3b_slide_in", "")
+    if side in ("left", "right"):
+        st.markdown(f'<div class="j3b-in-{side}"></div>', unsafe_allow_html=True)
+
+
 def _render_briefing_bottom_nav(active: str) -> None:
     """종목 브리핑과 시장분석에서 같이 보이는 하단 이동표."""
     # 시장분석 그림만 글자가 아니라 **직접 그린 그림**이다(2026-08-26 상하님 지시 —
@@ -9445,6 +10298,9 @@ def _render_stock_briefing() -> None:
     # 미리 계산은 이 화면 **맨 끝**에서, 그것도 뉴스가 다 온 뒤에 시작한다
     # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
     _briefing_css()
+    # **미는 단추가 먼저다.** page 를 읽기 전에 눌린 것을 알아야 그 한 판에
+    # 바뀐 화면을 그린다. 뒤에 두면 판을 두 번 그린다(위 설명 참고).
+    _briefing_swipe_buttons()
     # 보시던 화면은 **주소에서** 읽는다 — 폰이 화면을 버렸다 다시 열어도
     # 관심종목으로 돌아가지 않게 한다(2026-08-29, _briefing_page 참고).
     page = _briefing_page()
@@ -9477,8 +10333,14 @@ def _render_stock_briefing() -> None:
         # 관심종목과 **같은 표식**을 쓴다 — 열쇠가 같으므로 방문기록은
         # 여전히 한 칸만 쌓인다.
         back_nav.opened(st, "j3b_backstop")
+        # 밀어서 넘어오신 판에만 표식을 남긴다 — 이 표식이 있는 판만 오른쪽에서
+        # 미끄러져 들어온다. 하단 막대로 누르신 판이나 판이 다시 그려질 때는
+        # 표식이 없어 예전처럼 그냥 그려진다(2026-09-10).
+        _briefing_slide_in_marker()
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
+        # 왼쪽에서 오른쪽으로 밀면 관심종목으로 되돌아간다(2026-09-10 상하님 지시).
+        _briefing_swipe_nav()
         return
     st.session_state["j3b_news_pending"] = False
     try:
@@ -9493,7 +10355,13 @@ def _render_stock_briefing() -> None:
     selected, extras = setup["selected"], setup["extra"]
     home_extras = _briefing_home_extras(extras)
     visible_stocks = selected + home_extras
-    cards = j3data.get_briefing_cards(visible_stocks)
+    # **시세는 여기서 받지 않는다** (2026-09-10 상하님 지시 — "관심종목 화면
+    # 가볍게 하는 것도 해라").
+    # 여기서 받으면 종목 10개의 시세·그림이 다 올 때까지 **화면에 아무것도
+    # 안 뜬다.** 맨 위 고양이버스도, 뉴스도, 제목도 그 뒤에 있었다.
+    # 히어로와 뉴스는 시세가 필요 없다 — `selected` (저장고 읽기, 빠르다)만
+    # 있으면 그려진다. 그래서 시세는 **카드를 그리기 바로 앞**으로 내렸다.
+    # 스트림릿은 위에서부터 차례로 내보내므로, 그만큼 첫 화면이 먼저 뜬다.
     try:
         visual_debug = str(st.query_params.get("visual_debug", "")).strip() == "1"
     except Exception:
@@ -9516,6 +10384,7 @@ def _render_stock_briefing() -> None:
         # 방문기록에 표식을 하나 쌓아 두면 첫 뒤로가기가 그 표식을 지우고 제자리에
         # 선다. 앞 화면(로그인·메뉴)으로 나가려면 두 번 누르면 된다.
         back_nav.opened(st, "j3b_backstop")
+        _briefing_slide_in_marker()
         # 시장분석에서 관심종목으로 돌아올 때 데려올 '맨 위' 자리.
         # 시장분석 쪽에는 이미 같은 이름의 자리가 있다(_render_existing_theme_content).
         scroll_to.anchor(st, "top")
@@ -9552,26 +10421,33 @@ def _render_stock_briefing() -> None:
                 st.rerun()
         st.markdown('<div class="j3b-section"><span class="j3b-flag">🇺🇸</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
         _render_briefing_news("market")
-        with st.container(key="j3b_selected_heading"):
-            st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목 <span class="j3b-more">더보기 ›</span></div>', unsafe_allow_html=True)
-            if st.button("더보기", key="j3b_go_market"):
-                # **여기도 맨 위로 올린다** (2026-08-27 상하님 지적 — "맨 위에
-                # 메뉴 2개 안 나오는 것 언제 해결할 거냐"). 「더보기 ›」는 화면을
-                # 아래로 내려야 보이는 자리라, 누르면 브라우저가 그 자리를 그대로
-                # 들고 시장분석으로 간다. 그러면 맨 위의 「🌏 한국테마 →」·
-                # 「📘 이 테마 설명」 두 단추를 지나친 자리에 선다.
-                # 하단 이동막대 쪽만 고쳐 두고 이 길을 빠뜨렸다.
-                _set_briefing_page("market")
-                st.rerun()
-        _render_briefing_grid(selected, cards, removable=False, key="selected")
+        # **추가 검색 종목과 똑같은 짜임이다** (2026-09-10 상하님 지시 —
+        # "사용자선정종목 바로 옆에 종목검색후추가로 하고 디자인 똑같이 해라").
+        # 통 이름을 j3b_extra_header 로 시작하게 두어 그쪽 화면 규칙을 그대로
+        # 탄다 — 규칙이 class*= 부분일치라 이름만 맞추면 자리·글자 크기가 같아진다.
+        # 「더보기 ›」는 뺐다. 그 자리에 검색줄이 앉는다. 시장분석은 하단
+        # 이동막대와 손가락으로 미는 것으로 간다.
+        with st.container(key="j3b_extra_header_sel"):
+            heading_col, search_col = st.columns([4, 6], gap="small")
+            with heading_col:
+                st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목</div>', unsafe_allow_html=True)
+            with search_col:
+                _render_briefing_manage(selected, extras, group="selected")
+        # 여기서부터 시세가 필요하다. 위(히어로·뉴스)는 이미 그려져 있다.
+        cards = j3data.get_briefing_cards(visible_stocks)
+        _render_briefing_grid(selected, cards, removable=True, key="selected",
+                              group="selected")
         with st.container(key="j3b_extra_header"):
             heading_col, search_col = st.columns([4, 6], gap="small")
             with heading_col:
                 st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
             with search_col:
-                _render_briefing_manage(selected, extras)
-        _render_briefing_grid(home_extras, cards, removable=True, key="extra1", compact=True)
+                _render_briefing_manage(selected, extras, group="extra")
+        _render_briefing_grid(home_extras, cards, removable=True, key="extra1",
+                              compact=True, group="extra")
         _render_briefing_bottom_nav("watch")
+        # 오른쪽→왼쪽으로 밀면 시장분석으로 넘어간다(2026-09-10 상하님 지시).
+        _briefing_swipe_nav()
         news_keys = tuple([("market", None)] + [("company", stock["ticker"]) for stock in visible_stocks])
         _schedule_briefing_news_refresh(news_keys)
         # 아직 오는 중이면 **2초마다 지켜본다** (2026-09-02 상하님 —
