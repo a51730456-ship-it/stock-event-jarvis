@@ -238,23 +238,61 @@ st.markdown(
         min-width: 0 !important;
         flex: 1 1 0 !important;
     }
-    div[class*="st-key-j3_guide_row"] [data-testid="stExpander"] summary p {
-        font-size: .82rem !important;
+    /* ── 여닫이는 **직접 만든다** (2026-09-12 상하님 지시 — "맨 밑에 조그맣게
+       닫기 단추 만들어라"). 스트림릿 접이칸은 머리글을 눌러야만 닫히고, 글
+       맨 아래에 닫는 자리를 둘 수가 없다(2026-09-12에 확인했다 — 머리글 빈
+       곳을 눌러도 안 닫힌다). 그래서 안 보이는 딸깍 상자 하나로 여닫는,
+       화면 곳곳에서 이미 쓰는 방식(「자세히 보기」·「닫기」)으로 바꿨다.
+       값·글·차례는 하나도 안 바뀐다. */
+    .j3-guide-tap { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+    .j3-guide-btn {
+        display: block;
+        margin: 0;
+        padding: .45rem .5rem;
+        border: 1px solid rgba(250, 250, 250, .22);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, .03);
+        color: inherit;
+        font-size: .82rem;
+        font-weight: 600;
+        line-height: 1.35;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        cursor: pointer;
+        user-select: none;
     }
-    div[class*="st-key-j3_guide_row"] [data-testid="stExpander"] summary {
-        padding-left: .3rem !important;
-        padding-right: .3rem !important;
+    .j3-guide-btn::before { content: "›"; margin-right: .35rem; font-weight: 800; }
+    .j3-guide-tap:checked ~ .j3-guide-btn::before { content: "⌄"; }
+    .j3-guide-btn:hover { border-color: rgba(250, 250, 250, .45); }
+    .j3-guide-body {
+        display: none;
+        margin-top: .4rem;
+        padding: .6rem .7rem;
+        border: 1px solid rgba(250, 250, 250, .15);
+        border-radius: 8px;
     }
+    .j3-guide-tap:checked ~ .j3-guide-body { display: block; }
+    /* 아래 「닫기」는 **펼쳤을 때만** 나온다. 접혀 있을 때 두 개가 보이면
+       무엇을 누르는 자리인지 헷갈린다. */
+    .j3-guide-btn.bottom {
+        display: none;
+        width: fit-content;
+        margin: .45rem auto 0;
+        padding: 2px 16px;
+        border-radius: 999px;
+        font-size: .74rem;
+        font-weight: 700;
+    }
+    .j3-guide-btn.bottom::before { content: none; }
+    .j3-guide-tap:checked ~ .j3-guide-btn.bottom { display: block; }
     /* 펼치면 글이 166px 칸에 갇혀 세로로 길게 늘어진다. **펼친 동안만**
        두 칸을 위아래로 되돌려 글이 화면 폭을 다 쓰게 한다. 접으면 다시
        나란히 선다(2026-09-12 실측 — 폰 375px 에서 칸 폭 166px → 343px). */
-    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(details[open]) {
+    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked) {
         flex-wrap: wrap !important;
     }
-    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(details[open])
+    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked)
         [data-testid="stColumn"] {
         flex: 1 1 100% !important;
     }
@@ -2661,9 +2699,11 @@ def _render_market_overview() -> None:
     # 이름도 짧게 줄였다 — "조건점수 설명보기" · "시장전체흐름 기준보기".
     _guide_row = st.container(key="j3_guide_row")
     _guide_left, _guide_right = _guide_row.columns(2)
-    with _guide_left.expander("조건점수 설명보기", expanded=False):
-        st.markdown(
-            f"""
+    _guide_left.markdown(
+        f"""
+        <input type="checkbox" id="j3_guide_score" class="j3-guide-tap">
+        <label for="j3_guide_score" class="j3-guide-btn">조건점수 설명보기</label>
+        <div class="j3-guide-body">
             <div class="j3-score-guide">
                 <b>조건점수 {overview['score']}/100</b>은 상승장 확인 조건에서 얻은 점수이며
                 <b>승률이 아닙니다</b>.<br>
@@ -2682,13 +2722,17 @@ def _render_market_overview() -> None:
                 공포·탐욕 지수는 CNN이 7개 심리 지표로 집계한 값(0 극단적 공포 ~ 100 극단적 탐욕)으로
                 참고용이며 점수·판정에는 반영하지 않습니다.
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        </div>
+        <label for="j3_guide_score" class="j3-guide-btn bottom">닫기</label>
+        """,
+        unsafe_allow_html=True,
+    )
     # 시장 전체 흐름·행동 기준도 접는다(2026-07-25 사용자 지시: "다 숨겨라").
-    with _guide_right.expander("시장전체흐름 기준보기", expanded=False):
-        st.markdown(
-            f"""
+    _guide_right.markdown(
+        f"""
+        <input type="checkbox" id="j3_guide_flow" class="j3-guide-tap">
+        <label for="j3_guide_flow" class="j3-guide-btn">시장전체흐름 기준보기</label>
+        <div class="j3-guide-body">
             <div class="j3-market-flow">
                 <div class="j3-flow-label">시장 전체 흐름</div>
                 <div class="j3-flow-body">{_market_flow_text(overview)}</div>
@@ -2698,9 +2742,11 @@ def _render_market_overview() -> None:
                 <div class="j3-action-posture">{overview['posture']}</div>
                 <div class="j3-action-detail">{_market_action_detail(overview)}</div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        </div>
+        <label for="j3_guide_flow" class="j3-guide-btn bottom">닫기</label>
+        """,
+        unsafe_allow_html=True,
+    )
     # **맨 아래 「최근 가용 시세…」 한 줄은 뺐다** (2026-08-28 상하님 지시 —
     # 캡처에 ×표, "여백 두지 말고 위로 올려라"). 줄을 지우면 그 자리가 차지하던
     # 여백도 같이 없어져 아래 「미국장 시장 상태」가 위로 붙는다.
