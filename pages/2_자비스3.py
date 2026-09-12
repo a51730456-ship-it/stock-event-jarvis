@@ -226,6 +226,16 @@ st.markdown(
        「신호 상세」→「닫기」 19px → 12px.
        **값·글자·차례는 하나도 안 바뀐다.** 사이 간격만 좁아진다. */
     [data-testid="stVerticalBlock"] { gap: .55rem !important; }
+    /* 설명 카드와 그 밑 「핵심 4개」 사이가 38px 이었다(2026-09-12 상하님 —
+       동그라미). 카드도 접이칸도 여백이 0 인데 그만큼 벌어져 있다. 16px 로 맞춘다. */
+    div[class*="st-key-us_signal_fold"] [data-testid="stExpander"] {
+        margin-top: -22px !important;
+    }
+    /* **둘째 접이칸부터는 도로 민다.** 접이칸마다 부모가 달라 :first-of-type 이
+       둘 다 잡는다 — 그대로 두면 「핵심 4개」와 「신호 상세」가 겹친다(실측 -10px). */
+    div[class*="st-key-us_signal_fold"] [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) ~ [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) [data-testid="stExpander"] {
+        margin-top: 0 !important;
+    }
     /* 글 문단 아래 16px 도 줄인다 — 접이칸·안내줄이 이것 때문에 벌어진다.
        **다만 키가 큰 것이 든 문단은 그 키를 제대로 재게 한다.** 2026-09-12에
        그냥 0 으로 만들었더니 「자세히 보기」 단추가 아래 카드에 먹혀 글자가
@@ -1193,7 +1203,8 @@ st.markdown(
        34px 다르다(실측 — 접힌 판 16px 일 때 펼친 판은 -18px 이었다).
        편 판에서는 당기지 않고 도로 밀어 둔다. */
     body:has(.sig-fold-tap:checked) div.st-key-j3_st5_wrap {
-        margin-top: 14px !important;
+        /* 2026-09-12 상하님 — 「닫기」와 카드 사이가 아직 넓다. 38px → 16px. */
+        margin-top: -8px !important;
         /* 통이 카드보다 12px 더 길어서 카드와 「21개 테마」 사이가 24px 이었다
            (2026-09-11 실측 · 폰·태블릿 둘 다). 그 12px 을 도로 당긴다. */
         margin-bottom: -12px !important;
