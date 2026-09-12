@@ -1737,14 +1737,41 @@ class Jarvis3PageTests(unittest.TestCase):
     def test_swing_table_uses_compact_columns_and_plain_watch_numbers(self):
         """상승장 표만 폭을 줄이고 관찰 번호에는 W를 붙이지 않는다."""
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
-        # 2026-09-05에 「6개월 수익률」 칸이 하나 늘었다(상하님 지시).
-        self.assertIn("widths = [0.42, 0.62, 1.55, 0.72, 1.3, 1.2, 1.0, 1.05, 1.45]", source)
+        # 2026-09-05에 「6개월 수익률」 칸이, 2026-09-12에 「당일주가」 칸이 하나씩
+        # 늘었다(상하님 지시 — "상승장 리스트에도 당일주가 등락률을 넣어라").
+        self.assertIn("widths = [0.42, 0.62, 1.55, 0.72, 1.05, 1.3, 1.2, 1.0, 1.05, 1.45]", source)
+        # 급락 표와 **같은 자리·같은 모양**이어야 한다 — 티커 바로 뒤, 가격 위·등락 아래.
+        self.assertIn('heads = ["티커", "당일주가", "등급 / 상태", "눌림 / 며칠째",', source)
         self.assertIn('rank = str(index + 1) if watch_mode', source)
         self.assertNotIn('rank = f"W{index + 1}"', source)
         self.assertIn('st.container(key="j3_swing_table")', source)
         self.assertIn('st.container(key="j3_swing_rest")', source)
         self.assertIn(".st-key-j3_swing_table [data-testid=\"stHorizontalBlock\"]", source)
-        self.assertIn("min-width: 760px", source)
+        # 칸이 하나 늘어 폭도 같이 넓혔다(2026-09-12).
+        self.assertIn("min-width: 850px", source)
+        self.assertIn("max-width: 1160px", source)
+
+    def test_stock_metric_cells_use_the_jarvis7_card_shape(self):
+        """종목 값 칸은 **자비스7 카드 모양**이다 (2026-09-12 상하님 지시).
+
+        상하님 — "자비스3의 각 종목 형식, 즉 디자인을 자비스7의 형식으로 바꿔라."
+
+        자비스7의 `.j7-metric` 에서 가져온 숫자 그대로여야 한다 —
+        테두리 #2b4e70 · 둥글기 15px · 안쪽 17px 12px · 값 24px.
+        미국 화면이 둘이라(자비스3·자비스6 미국테마) 둘 다 같아야 한다.
+        """
+        for name in ("pages/2_자비스3.py", "pages/6_자비스6_미국테마.py"):
+            source = (ROOT / name).read_text(encoding="utf-8")
+            self.assertIn("border: 1px solid #2b4e70; border-radius: 15px;", source, name)
+            self.assertIn("padding: 17px 12px; min-width: 0; text-align: center;", source, name)
+            self.assertIn("display: block; font-size: 24px; font-weight: 800;", source, name)
+            # 카드가 든 줄에만 격자를 준다 — 갈래 설명 줄(.j3-reason-card)까지
+            # 바뀌면 고치라고 하지 않은 화면이 같이 바뀐다.
+            self.assertIn(".j3-metric-row:has(.j3-mc) {", source, name)
+            self.assertIn(
+                ".j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem;", source, name)
+            # 대장주 카드가 쓰는 밑줄 글씨는 **카드 안에서만** 줄을 바꾼다.
+            self.assertIn(".j3-mc > .j3-mc-sub {", source, name)
 
     def test_theme_ranking_table_uses_compact_columns_on_all_screens(self):
         """20개 테마 순위표는 긴 테마명이 들어갈 만큼만 폭을 사용한다."""

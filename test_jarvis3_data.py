@@ -1081,24 +1081,22 @@ class Jarvis3DataTests(unittest.TestCase):
         }
         result = j3.get_fear_greed(request_json=lambda url: payload)
         self.assertTrue(result["ok"])
-        # **화면에 뜨는 score는 얼린 값이다**(2026-08-12) — 장중에는 전일 마감값,
-        # 마감 뒤에는 그날 값. 시험을 지금 시각에 맡기면 아침엔 통과하고 오후엔
-        # 깨진다(실제로 그랬다). 그래서 CNN이 준 **날것**은 live_score로 본다.
+        # **화면에 뜨는 score는 CNN이 지금 주는 값이다**(2026-09-12 상하님 지시 —
+        # "전일 것이 움직여서 거슬린다고 한 게 아닌가?"). 전일 마감값은
+        # previous_close 로 따로 있고, 화면은 그것을 「전일 종가」 줄에 적는다.
         self.assertEqual(result["live_score"], 41.0)
         self.assertEqual(result["previous_close"], 45.0)
-        self.assertIn(result["score"], (41.0, 45.0))
+        self.assertEqual(41.0, result["score"], "큰 숫자가 지금 값이 아니다")
         self.assertEqual(result["rating_kr"], j3.fear_greed_label(result["score"]))
-        # 얼림 자체는 시각을 넣어 못박는다.
+        # 시각을 넣어 못박는다 — 장중이든 마감 뒤든 큰 숫자는 지금 값이다.
         ny = ZoneInfo("America/New_York")
         raw = {"ok": True, "score": 41.0, "previous_close": 45.0}
-        self.assertEqual(
-            45.0, j3._freeze_fear_greed(dict(raw),
-                                        now=datetime(2026, 8, 12, 12, tzinfo=ny))["score"],
-            "장중에는 전일 마감값이어야 한다")
-        self.assertEqual(
-            41.0, j3._freeze_fear_greed(dict(raw),
-                                        now=datetime(2026, 8, 12, 17, tzinfo=ny))["score"],
-            "마감 뒤에는 그날 값이어야 한다")
+        for hour in (12, 17):
+            self.assertEqual(
+                41.0, j3._stamp_fear_greed(dict(raw),
+                                           now=datetime(2026, 8, 12, hour, tzinfo=ny))["score"],
+                "큰 숫자는 언제나 지금 값이어야 한다")
+
 
     def test_fear_greed_bad_payload_returns_not_ok(self):
         result = j3.get_fear_greed(request_json=lambda url: {"unexpected": True})
@@ -1793,3 +1791,137 @@ class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
         self.assertEqual(227.98, prev)
         self.assertAlmostEqual(-4.57, change, places=1)
 
+
+class SectorMapShowsTodaysSessionTests(unittest.TestCase):
+    """업종 지도(시장 현황)는 **오늘 장**을 적어야 한다 (2026-09-12 상하님 지적).
+
+    상하님 — *"미국주식시장이 시작했는데도 … 시장현황 … 반응을 하지 않더라.
+    종가되어야 판단된다."*
+
+    실측(2026-09-11 뉴욕 20:23 · 마감 네 시간 뒤) — 지도 열한 칸이 **전부**
+    하루 전(09-10) 등락이었고 그중 일곱 칸은 색까지 반대였다.
+        XLK  지도 -1.41%  ↔  그날 실제 +1.34%
+        XLI  지도 -0.72%  ↔  그날 실제 +1.08%
+    까닭은 2026-09-03에 관심종목 카드·시장국면 게이지에서 고친 것과 **같다** —
+    야후는 지수가 아닌 종목의 일봉 마지막 줄을 몇 시간 동안 빈칸으로 준다.
+    업종 대표 ETF는 열한 개가 전부 지수가 아니다. 이 자리만 분봉 없이
+    일봉으로 재고 있었다.
+    """
+
+    NY = ZoneInfo("America/New_York")
+
+    def _daily(self, days):
+        index = pd.DatetimeIndex([pd.Timestamp(day, tz=self.NY) for day, _ in days])
+        close = pd.Series([value for _, value in days], index=index)
+        return pd.DataFrame({"Open": close, "High": close, "Low": close,
+                             "Close": close, "Volume": 1_000_000.0}, index=index)
+
+    def _minutes(self, day, start, end, points=30):
+        index = pd.date_range(f"{day} 09:30", f"{day} 16:00", periods=points, tz=self.NY)
+        close = pd.Series([start + (end - start) * i / (points - 1)
+                           for i in range(points)], index=index)
+        return pd.DataFrame({"Open": close, "High": close, "Low": close,
+                             "Close": close, "Volume": 1000.0}, index=index)
+
+    def setUp(self):
+        # 야후가 준 일봉은 **09-11 줄이 없다** — 마지막 두 줄이 100 → 110 이고
+        # 거기서 끝난다. 분봉에는 금 09-11 정규장이 다 들어 있다(110 → 121,
+        # 그날 +10%). `_series_metrics` 가 25줄을 요구하므로 앞을 채워 둔다.
+        days = pd.bdate_range("2026-07-31", periods=28).strftime("%Y-%m-%d").tolist()
+        values = [90.0 + i * 0.1 for i in range(len(days) - 2)] + [100.0, 110.0]
+        self.daily = self._daily(list(zip(days, values)))
+        self.live = self._minutes("2026-09-11", 110.5, 121.0)
+
+    def _run(self, *, live_fails=False):
+        calls = []
+
+        def _fake_download(tickers, *, period, interval, ttl_seconds, prepost=False):
+            calls.append(interval)
+            if interval == "1d":
+                return {etf: self.daily.copy() for etf in tickers}, {"ok": True}
+            if live_fails:
+                raise RuntimeError("분봉 조회 실패")
+            return {etf: self.live.copy() for etf in tickers}, {"ok": True}
+
+        with patch.object(j3, "_download_cached", _fake_download), \
+                patch.object(j3, "_sector_weights", lambda: {}), \
+                patch.object(j3, "_sector_breadth", lambda: {}):
+            return j3._compute_sector_map(), calls
+
+    def test_the_map_reads_todays_session_from_the_minute_bars(self):
+        value, calls = self._run()
+        self.assertTrue(value.get("ok"), value.get("error"))
+        self.assertIn(j3.SESSION_MINUTES_INTERVAL, calls, "분봉을 아예 안 받는다")
+        for row in value["rows"]:
+            # 장중에 적는 값(오늘 121 ÷ 어제 110)
+            self.assertAlmostEqual(10.0, row["change_pct"], places=1,
+                                   msg=f"{row['etf']} 가 오늘 장을 안 본다")
+            # 마감 뒤에 적는 값도 **오늘 장**이어야 한다 — 고치기 전에는 어제였다.
+            self.assertAlmostEqual(10.0, row["last_session_change_pct"], places=1,
+                                   msg=f"{row['etf']} 가 하루 전 장을 적는다")
+
+    def test_a_failed_minute_download_keeps_the_map(self):
+        """분봉을 못 받아도 지도는 그대로 그린다 (CLAUDE.md 0-0 두 번째).
+
+        "실패했으니 지운다"로 두면 야후가 한 번 막히는 날 칸이 통째로 사라진다.
+        """
+        value, _calls = self._run(live_fails=True)
+        self.assertTrue(value.get("ok"), "분봉이 실패하자 지도가 통째로 사라졌다")
+        self.assertEqual(len(j3.US_SECTOR_MAP), len(value["rows"]))
+        for row in value["rows"]:
+            # 일봉만 있을 때는 예전 그대로 — 어제 장(110 ÷ 100)을 적는다.
+            self.assertAlmostEqual(10.0, row["last_session_change_pct"], places=1)
+
+
+class EarlyCloseClockTests(unittest.TestCase):
+    """**일찍 닫는 날**에도 장이 끝난 줄 알아야 한다 (2026-09-12 상하님 지시).
+
+    상하님 — *"섬머타임과 휴장일 공휴일 국경일 다 확인해서 설정해야 되지 않나?"*
+
+    달력(`us_market_calendar`)은 2026-08-26부터 조기 폐장을 알고 있었는데,
+    자비스3의 세 자리가 마감을 **16시로 박아** 두고 달력에 묻지 않았다.
+    추수감사절 다음날은 뉴욕 13시에 닫는데, 그 뒤 세 시간 동안 앱은 그 장을
+    '아직 도는 중'으로 보고 **하루 앞 장**을 적었다.
+    """
+
+    NY = ZoneInfo("America/New_York")
+    EARLY = datetime(2026, 11, 27, 14, 0, tzinfo=NY)      # 조기 폐장 한 시간 뒤
+    NORMAL = datetime(2026, 11, 30, 14, 0, tzinfo=NY)     # 그냥 평일 오후 2시
+
+    def test_the_close_time_comes_from_the_calendar(self):
+        from datetime import time as dt_time
+
+        self.assertEqual(dt_time(13, 0), j3._session_close_time(self.EARLY.date()),
+                         "추수감사절 다음날을 16시에 닫는 날로 본다")
+        self.assertEqual(dt_time(16, 0), j3._session_close_time(self.NORMAL.date()))
+
+    def test_the_finished_early_session_counts_as_finished(self):
+        closes = pd.Series([100.0, 110.0, 121.0],
+                           index=pd.DatetimeIndex(["2026-11-24", "2026-11-25", "2026-11-27"]))
+        change = j3._last_session_change(closes, closes.index[-1].date(),
+                                         self.EARLY.date(), now_ny=self.EARLY)
+        self.assertAlmostEqual(10.0, change, places=1,
+                               msg="일찍 닫은 장을 아직 도는 중으로 보고 하루 앞을 적었다")
+
+    def test_the_regime_uses_the_finished_early_session(self):
+        index = pd.DatetimeIndex([pd.Timestamp(day, tz=self.NY) for day in
+                                  pd.bdate_range("2026-08-03", "2026-11-27")])
+        close = pd.Series([100.0 + i for i in range(len(index))], index=index)
+        frame = pd.DataFrame({"Open": close, "High": close + 1, "Low": close - 1,
+                              "Close": close, "Volume": 1_000_000.0}, index=index)
+        daily = {ticker: frame.copy() for ticker in ("SPY", "QQQ", "IWM", "^VIX")}
+        result = j3._previous_market_regime(daily, now=self.EARLY)
+        self.assertIsNotNone(result)
+        self.assertEqual("2026-11-27", str(result.get("trade_date") or ""),
+                         "일찍 닫은 그 장을 '직전 완료 장'으로 안 본다")
+
+    def test_the_scan_keeps_the_finished_early_bar(self):
+        index = pd.DatetimeIndex(["2026-11-24", "2026-11-25", "2026-11-27"])
+        frame = pd.DataFrame({"Close": [100.0, 110.0, 121.0]}, index=index)
+        self.assertEqual(index[-1].date(),
+                         j3._last_completed_us_date(frame, now=self.EARLY),
+                         "일찍 닫은 그 장의 일봉을 진행봉으로 보고 버렸다")
+        self.assertEqual(index[-2].date(),
+                         j3._last_completed_us_date(
+                             frame, now=datetime(2026, 11, 27, 12, 0, tzinfo=self.NY)),
+                         "아직 도는 중인데 그 줄을 완성된 것으로 봤다")

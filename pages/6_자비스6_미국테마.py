@@ -214,9 +214,48 @@ st.markdown(
        밝은 초록에 굵게. 종목명(밝은 보라)과 색이 갈려 두 줄이 구분된다. */
     .j3-stock-sub { color: #44f0a1; font-size: 0.95rem; font-weight: 800;
         margin: 0.1rem 0 0.7rem; }
+    /* ── 종목 값 칸은 **자비스7 형식**이다 (2026-09-12 상하님 지시) ────────────
+       상하님 — "자비스3의 각 종목 형식, 즉 디자인을 자비스7의 형식으로 바꿔라."
+
+       자비스7은 값 하나하나를 **둥근 카드**에 담는다. 테두리·둥글기·안쪽 여백·
+       글자 크기를 `jarvis7_ui.CSS` 의 `.j7-metric` 에서 그대로 가져왔다.
+           테두리 1px #2b4e70 · 둥글기 15px · 안쪽 17px 12px · 가운데 정렬
+           라벨 12px 회색 · 값 24px · 밑줄 12px 회색
+       예전에는 칸 테두리가 없어 값들이 한 줄에 평평하게 늘어서 있었다.
+
+       **값·점수·글자는 한 자도 안 바뀐다.** 무엇을 적느냐가 아니라 어떻게
+       보이느냐만 바뀐다.
+
+       **색 규칙은 자비스3 것을 지킨다** — 미국은 오르면 파랑이다(_sign_class).
+       자비스7은 오르면 초록이라, 색까지 가져오면 같은 화면의 표·그림과 어긋난다.
+
+       `.j3-mc >` 로 한정한 까닭 — 대장주 카드(.j3-leader-live)가 같은 이름
+       (.j3-mc-sub)을 가격 **옆에** 붙는 글씨로 쓴다. 한정하지 않으면 그 글씨가
+       줄 아래로 내려가 카드가 깨진다.
+
+       `:has(.j3-mc)` 로 한정한 까닭 — 같은 `.j3-metric-row` 를 **갈래 설명
+       카드**(.j3-reason-card, 급락 화면의 「고점 대비 -20~-30%」 줄)도 쓴다.
+       한정하지 않으면 고치라고 하지 않은 그 줄까지 격자로 바뀐다(실측 — 칸 여덟
+       개가 생기고 둘만 차서 593px씩 벌어졌다). 그 줄은 예전 줄 세우기 그대로다. */
     .j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.2rem 0 0.4rem; }
-    .j3-mc { min-width: 120px; }
-    .j3-mc-label { color: #4da6ff; font-size: 0.92rem; font-weight: 800; }
+    .j3-metric-row:has(.j3-mc) {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+        gap: 10px; margin: 0.6rem 0 0.8rem;
+    }
+    .j3-mc {
+        border: 1px solid #2b4e70; border-radius: 15px;
+        background: linear-gradient(145deg, #0b284777, #031023);
+        padding: 17px 12px; min-width: 0; text-align: center;
+    }
+    .j3-mc-label { display: block; color: #95abc8; font-size: 12px; font-weight: 600; }
+    .j3-mc > .j3-mc-val {
+        display: block; font-size: 24px; font-weight: 800; letter-spacing: -.5px;
+        margin: 8px 0 4px; color: #e6e6e6; line-height: 1.18;
+    }
+    .j3-mc > .j3-mc-sub {
+        display: block; color: #9aafc9; font-size: 12px; font-weight: 700;
+    }
     .j3-mc-val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
     .j3-mc-sub { font-size: 0.95rem; font-weight: 800; }
     .j3-up { color: #4da6ff; }
@@ -1293,7 +1332,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026090740
+_REQUIRED_J3_REVISION = 2026091220
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2366,10 +2405,21 @@ def _render_market_overview() -> None:
         # 멈추는데 선물은 밤새 움직여, 장 열리기 전 방향을 먼저 알려 준다.
         _us_futures_cell(),
         *_us_index_cells(overview, phase),
-        # 바늘은 **직전 완료 미국장**에 세운다(2026-08-12 상하님 지시) — 프리마켓·
-        # 장중 값으로 매번 다시 재면 하루 종일 조금씩 움직인다. 실시간 값은 상자
-        # 아래 '지금 (참고)' 줄로 남는다. 한국테마는 지금까지대로 실시간이다.
-        _j6_tap_wrap(regime_gauge_ui.regime_box_html(overview, freeze=True), "regime"),
+        # ── 바늘은 **지금 값**에 세운다 (2026-09-12 상하님 지시) ──────────────
+        # 상하님 — *"2번으로 해라 … 전일 것이 움직여서 거슬린다고 한 게 아닌가?"*
+        #
+        # 2026-08-12에는 바늘을 직전 완료 장에 얼려 두었다. 그때 지적이
+        # "전날 종가에 마감되고 변동이 없어야 하는데 조금씩 변동이 생긴다"라서,
+        # **큰 숫자까지 같이 얼려 버린 것**이 이 줄이었다.
+        # 움직이면 안 되는 것은 **전일 칸**이다 — 그 칸은 상자 아래 「전일
+        # 시장국면」 한 줄이고, `previous_market`(직전 완료 장)이라 뉴욕 마감
+        # 때 딱 한 번만 바뀐다.
+        #
+        # 야후·네이버·CNN이 하는 방식과 같아진다 — 큰 숫자는 지금 값이고,
+        # 그 값이 언제 것인지는 지표 줄 밑 「기준시각」 한 줄이 말한다.
+        # 「미국장 시장 상태」 카드는 2026-08-22에 같은 이유로 이미 고쳤는데
+        # (상하님이 그때 뜻을 짚어 주셨다) 이 게이지만 남아 있었다.
+        _j6_tap_wrap(regime_gauge_ui.regime_box_html(_gauge_overview(overview)), "regime"),
         # **SPY·QQQ 두 칸은 뺐다** (2026-08-28 상하님 지시 — 캡처에 ×표).
         # 지수 넷(S&P500·나스닥 종합·다우·나스닥100)이 같은 것을 이미 말하고 있어
         # 화면만 길어졌다. 값 자체는 그대로 받는다 — 시장 판단 점수가 SPY·QQQ의
@@ -2391,6 +2441,8 @@ def _render_market_overview() -> None:
     st.markdown(_SECTION_TITLE_CSS, unsafe_allow_html=True)
     st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
     st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
+    # 위 숫자가 언제 것인지 **바로 밑에** 적는다(2026-09-12 상하님 지시).
+    st.markdown(_as_of_line(overview, phase), unsafe_allow_html=True)
     # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
     # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
     with st.expander("조건점수·시장 상황 설명 보기", expanded=False):
@@ -2650,6 +2702,60 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
         "<div class='j3-idx-cap j3-idx-cap-daily'>일봉 6개월</div></div>"
         "</div>"
     )
+
+
+def _gauge_overview(overview: dict) -> dict:
+    """게이지에 넘길 꾸러미 — **「전일」이 큰 숫자와 같은 장을 가리키지 않게** 한다.
+
+    2026-09-12 실측으로 잡은 자리다. 게이지를 지금 값으로 바꾸고 나니 장 마감
+    뒤에 큰 숫자도 60점, 「전일 시장국면」도 60점이 되었다. 둘이 **같은 장**을
+    가리켰기 때문이다 — 마감을 지나면 `previous_market`(직전 완료 장)이 곧
+    오늘 장이다.
+
+    야후로 치면 종가와 Previous Close 가 같은 날이 되는 셈이라 견줄 것이 없다.
+    그래서 마감 뒤에는 **그 하루 앞 장**을 전일 자리에 놓는다.
+        장중   — 큰 숫자 = 오늘(도는 중) · 전일 = 어제(직전 완료 장)
+        마감 뒤 — 큰 숫자 = 오늘 종가   · 전일 = 어제(그 하루 앞 장)
+
+    **공용 함수(regime_gauge_ui)는 안 건드린다.** 거기를 고치면 한국테마까지
+    같이 바뀐다(CLAUDE.md 0-1 다). 여기서 꾸러미만 바꿔 넘긴다.
+    """
+    try:
+        if not j3data.us_session_closed():
+            return overview
+    except Exception:
+        return overview
+    before = (overview or {}).get("before_previous_market") or {}
+    if not before.get("ok"):
+        return overview
+    return {**overview, "previous_market": before}
+
+
+def _as_of_line(overview: dict, phase: str) -> str:
+    """위 숫자가 **언제 것인지** 한 줄 (2026-09-12 상하님 지시 — "기준시각도 넣고").
+
+    야후는 큰 숫자 바로 밑에 `At close: September 11 at 4:46:20 PM EDT` 를 적고,
+    네이버는 값을 줄 때 장 상태와 기준시각을 같이 준다. 같은 한 줄이다.
+
+    이 줄이 있어야 큰 숫자를 **움직이게 둘 수 있다** — 움직이는 숫자는 언제
+    것인지 적혀 있어야 읽힌다. 2026-08-28에 뺀 「최근 가용 시세…」 줄과 같은
+    자리지만, 그때 지적(여백만 먹는다)을 피해 **여백 없이 한 줄**만 둔다.
+    """
+    stamp = str(overview.get("checked_at") or "")
+    when = ""
+    try:
+        when = datetime.fromisoformat(stamp).astimezone(_PAGE_SEOUL).strftime("%H:%M")
+    except Exception:
+        when = ""
+    if phase == "정규장 시간":
+        tail = f"한국시각 <b>{when}</b> 기준입니다" if when else "방금 받은 값입니다"
+        body = f"미국장이 돌고 있습니다 · 위 숫자는 {tail}"
+    else:
+        day = str((overview.get("phase") or {}).get("previous_session_date") or "")
+        day_text = f"{int(day[5:7])}월 {int(day[8:10])}일 " if len(day) >= 10 else ""
+        body = f"{phase} · 위 숫자는 <b>{day_text}미국장 마감</b> 기준입니다"
+    return (f"<div style='margin:.1rem 0 .3rem; font-size:.78rem; color:#9aa0aa;"
+            f" letter-spacing:-.01em'>{body}</div>")
 
 
 def _render_nasdaq_drawdown() -> None:

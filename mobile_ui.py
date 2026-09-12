@@ -446,9 +446,17 @@ div[class*="st-key-jarvis_method_help_close"] button { margin-left: auto !import
 h1 { font-size: 1.5rem !important; }
 h2 { font-size: 1.2rem !important; }
 .j3-stock-name, .j4-stock-name { font-size: 1.3rem; }
-.j3-mc, .j4-mc { min-width: calc(50% - 0.7rem); }
-.j3-mc-val, .j4-mc-val { font-size: 1.15rem; }
-.j3-metric-row, .j4-metric-row { gap: 0.6rem 0.9rem; }
+/* 값 칸 — **미국(j3)은 자비스7 카드**라 격자로 두 칸씩 세운다(2026-09-12).
+   한국(j4)은 지금까지대로 줄 세우기다 — 한 시장을 고치면서 다른 시장을 같이
+   건드리지 않는다(CLAUDE.md 0-1 다). 보이는 방식만 바꾸고 값은 그대로다. */
+.j4-mc { min-width: calc(50% - 0.7rem); }
+.j4-mc-val { font-size: 1.15rem; }
+.j4-metric-row { gap: 0.6rem 0.9rem; }
+.j3-metric-row:has(.j3-mc) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.j3-mc { padding: 13px 8px; }
+.j3-mc > .j3-mc-val { font-size: 1.15rem; margin: 6px 0 3px; }
+.j3-mc-label { font-size: 11px; }
+.j3-mc > .j3-mc-sub { font-size: 11px; }
 .j3-section-title, .j4-section-title { font-size: 1.02rem; }
 .j3-pull-guide, .j4-pull-guide, .j5-guide { font-size: 0.86rem; }
 /* 순위표 단추 밑 두 줄 — 보라색 '표에서 테마 이름을 클릭하면…'과 초록색

@@ -228,7 +228,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026090740
+MODULE_REVISION = 2026091220
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -566,6 +566,22 @@ def _source_time(frame: pd.DataFrame | None) -> str | None:
         return None
 
 
+def _session_close_time(day) -> dt_time:
+    """그날 정규장이 **몇 시에 닫나**. 일찍 닫는 날은 뉴욕 13시다(2026-09-12).
+
+    이 세 자리가 마감을 16시로 박아 두고 있었다 — `_last_session_change` ·
+    `_previous_market_regime` · `_last_completed_us_date`. 추수감사절 다음날처럼
+    뉴욕 13시에 닫는 날에는, 장이 끝난 뒤 세 시간 동안 앱이 그 장을 '아직 도는
+    중'으로 보고 **하루 앞 장**을 적었다. 날짜 계산은 달력이 한다.
+
+    달력을 못 읽으면 예전처럼 16시로 둔다 — 화면이 멈추면 안 된다.
+    """
+    try:
+        return us_market_calendar.close_time(day)
+    except Exception:
+        return dt_time(16, 0)
+
+
 def _last_session_change(closes, last_date, today_ny, now_ny=None) -> float | None:
     """마지막으로 '끝난' 정규장의 등락률.
 
@@ -575,7 +591,7 @@ def _last_session_change(closes, last_date, today_ny, now_ny=None) -> float | No
     if len(closes) < 2:
         return None
     now_ny = now_ny or datetime.now(_NY)
-    finished = last_date < today_ny or now_ny.time() >= dt_time(16, 0)
+    finished = last_date < today_ny or now_ny.time() >= _session_close_time(today_ny)
     end = -1 if finished else -2
     if len(closes) < abs(end) + 1:
         return None
@@ -838,47 +854,49 @@ def _fear_greed_request(url: str, *, timeout: float = 8):
         return json.loads(response.read().decode("utf-8"))
 
 
-def _freeze_fear_greed(value: dict, now=None) -> dict:
-    """장중에는 **전일 마감값**을 보여준다 (2026-08-12 상하님 지시).
+def _stamp_fear_greed(value: dict, now=None) -> dict:
+    """큰 숫자는 **지금 값**을 그대로 쓰고, 언제 것인지를 적어 준다 (2026-09-12).
 
-    상하님 지적 — "공포탐욕지수도 전날 종가에 마감되고 변동이 없어야 되는데
-    조금씩 변동이 생긴다." 맞다. **CNN은 이 지수를 장중 내내 계속 고친다.**
-    그 값을 그대로 쓰고 있었으니 화면 숫자가 하루 종일 움직였다.
+    상하님 — *"2번으로 해라 기준시각도 넣고 — 전일 것이 움직여서 거슬린다고
+    한 게 아닌가?"*
 
-    CNN 응답에 **previous_close(전일 마감값)가 이미 같이 온다.** 미국장이 끝나기
-    전에는 그것을 쓰고, 뉴욕 16:00을 지나면 그날 값이 곧 종가이므로 그대로 쓴다.
-    그러면 값이 **하루에 한 번, 마감 때만** 바뀐다.
+    2026-08-12에는 장중에 이 숫자를 **전일 마감값으로 바꿔치기**해 두었다.
+    그때 지적이 "공포탐욕지수도 전날 종가에 마감되고 변동이 없어야 되는데 조금씩
+    변동이 생긴다"였기 때문이다. 움직이면 안 되는 것은 **전일 칸**이었는데
+    큰 숫자까지 같이 얼려 버렸다. 2026-08-22에 「미국장 시장 상태」 카드는 같은
+    이유로 이미 고쳤고, 이 상자만 그대로 남아 있었다.
 
-    실시간 값은 지우지 않고 ``live_score``로 남긴다 — 화면이 참고로 보여줄 수 있고,
-    되돌리려면 이 함수만 빼면 된다.
+    이제 CNN 화면과 같다 — 큰 숫자는 지금 값, 오른쪽 목록에 전일 종가·1주 전·
+    1개월 전·1년 전. **전일 종가는 CNN이 따로 주는 값**(previous_close)이라
+    장중에 흔들리지 않는다(2026-09-12 실측 — 지금 33.3 · 전일 종가 33.1).
+
+    ``live_score``·``frozen``·``as_of_label``은 예전 이름 그대로 남긴다 —
+    화면과 시험이 이미 그 이름을 보고 있다.
     """
     if not value.get("ok"):
         return value
     live = _finite(value.get("score"))
-    frozen = live if us_session_closed(now) else _finite(value.get("previous_close"))
-    if frozen is None:                      # 전일값을 못 받았으면 있는 값을 그대로 쓴다
-        frozen = live
     out = dict(value)
     out["live_score"] = live
-    out["score"] = round(float(frozen), 1)
-    out["rating_kr"] = fear_greed_label(float(frozen))
-    out["frozen"] = frozen != live
-    out["as_of_label"] = "직전 완료 미국장 종가"
+    out["frozen"] = False
+    out["as_of_label"] = ("직전 완료 미국장 종가" if us_session_closed(now)
+                          else "지금 값 (미국장 진행 중)")
     return out
 
 
 def get_fear_greed(request_json=None) -> dict:
     """CNN 공포·탐욕 지수(0~100)를 조회한다. 실패하면 ok=False 또는 마지막 정상값.
 
-    **돌려주는 score는 직전 완료 미국장의 종가값이다**(`_freeze_fear_greed` 참고).
-    얼리는 계산은 캐시 **밖**에서 한다 — 캐시에 넣어 두면 뉴욕 16:00을 지나도
-    캐시가 살아 있는 동안 옛 값이 남는다.
+    **돌려주는 score는 CNN이 지금 주는 값이다**(`_stamp_fear_greed` 참고).
+    전일 마감값은 `previous_close`에 그대로 있고, 화면은 그것을 「전일 종가」
+    줄에 적는다. 기준시각 표시는 캐시 **밖**에서 붙인다 — 캐시에 넣어 두면
+    뉴욕 16:00을 지나도 캐시가 살아 있는 동안 옛 표시가 남는다.
     """
     now = time.time()
     with _FEAR_GREED_LOCK:
         cached = _FEAR_GREED_CACHE["value"]
         if cached and now - _FEAR_GREED_CACHE["at"] < _FEAR_GREED_TTL_SECONDS:
-            return _freeze_fear_greed(dict(cached))
+            return _stamp_fear_greed(dict(cached))
     try:
         payload = (request_json or _fear_greed_request)(_FEAR_GREED_URL)
         block = payload.get("fear_and_greed") if isinstance(payload, dict) else None
@@ -903,13 +921,13 @@ def get_fear_greed(request_json=None) -> dict:
         }
         with _FEAR_GREED_LOCK:
             _FEAR_GREED_CACHE.update({"at": now, "value": dict(value)})
-        return _freeze_fear_greed(value)
+        return _stamp_fear_greed(value)
     except Exception as exc:
         _log.warning("jarvis3 fear&greed fetch failed: %s", exc)
         with _FEAR_GREED_LOCK:
             stale_value = _FEAR_GREED_CACHE["value"]
         if stale_value:
-            return _freeze_fear_greed({**stale_value, "stale": True, "error": str(exc)})
+            return _stamp_fear_greed({**stale_value, "stale": True, "error": str(exc)})
         return {"ok": False, "error": str(exc)}
 
 
@@ -1074,8 +1092,9 @@ def _previous_market_regime(daily: dict, now=None, back: int = 0) -> dict | None
     """
     now_ny = (now or datetime.now(_NY)).astimezone(_NY)
     today_ny = now_ny.date()
-    # 정규장 마감(16:00) 뒤면 오늘 일봉은 완성된 것으로 본다.
-    session_closed = now_ny.time() >= dt_time(16, 0)
+    # 정규장 마감 뒤면 오늘 일봉은 완성된 것으로 본다. 마감 시각은 달력이 안다 —
+    # 일찍 닫는 날은 뉴욕 13시다(2026-09-12).
+    session_closed = now_ny.time() >= _session_close_time(today_ny)
     rows = {}
     used_dates = []
     for ticker in ("SPY", "QQQ", "IWM", "^VIX"):
@@ -3028,7 +3047,7 @@ def _last_completed_us_date(frame, now=None):
     local_dates = [stamp.date() for stamp in index]
     now_ny = (now or datetime.now(_NY)).astimezone(_NY)
     last = local_dates[-1]
-    if last == now_ny.date() and now_ny.time() < dt_time(16, 0):
+    if last == now_ny.date() and now_ny.time() < _session_close_time(now_ny.date()):
         return local_dates[-2] if len(local_dates) >= 2 else None
     return last
 
@@ -5308,9 +5327,31 @@ def _compute_sector_map() -> dict:
             tickers, period="3mo", interval="1d", ttl_seconds=SECTOR_MAP_TTL)
     except Exception as error:  # noqa: BLE001 - 화면을 죽이지 않는다
         return {"ok": False, "error": str(error), "rows": []}
+    # ── 분봉도 같이 받는다 (2026-09-12 상하님 지적) ──────────────────────────
+    # 상하님 — "미국주식시장이 시작했는데도 … 시장현황 … 반응을 하지 않더라."
+    #
+    # **실측(2026-09-11 뉴욕 20:23, 마감 네 시간 뒤)** — 지도 열한 칸이 전부
+    # 하루 전(09-10) 등락이었고, 그중 일곱 칸은 색까지 반대였다.
+    #     XLK  지도 -1.41%  ↔  그날 실제 +1.34%
+    #     XLI  지도 -0.72%  ↔  그날 실제 +1.08%
+    # 까닭은 관심종목 카드·시장국면 게이지와 **같은 것**이다(2026-09-03,
+    # `_daily_lags_last_session` 참고) — 야후가 지수가 아닌 종목의 일봉 마지막
+    # 줄을 몇 시간 동안 빈칸으로 준다. 업종 대표 ETF는 전부 지수가 아니다.
+    # 이 자리만 분봉 없이 일봉으로 재고 있었다.
+    #
+    # **배점·기준은 손대지 않는다.** 같은 자로 재되 재는 날만 바로잡는다.
+    # 분봉을 못 받으면 있던 일봉을 그대로 쓴다 — 실패했다고 지우지 않는다
+    # (CLAUDE.md 0-0 두 번째).
+    try:
+        live, _live_meta = _download_cached(
+            tickers, period=SESSION_MINUTES_PERIOD, interval=SESSION_MINUTES_INTERVAL,
+            ttl_seconds=SECTOR_MAP_TTL)
+    except Exception:  # noqa: BLE001 - 분봉이 없어도 지도는 그린다
+        live = {}
+    daily = _fill_missing_session(daily, live)
     rows = []
     for key, name, etf in US_SECTOR_MAP:
-        metrics = _series_metrics(daily.get(etf), None)
+        metrics = _series_metrics(daily.get(etf), live.get(etf))
         if not metrics.get("ok"):
             continue
         rows.append({

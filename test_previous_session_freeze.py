@@ -113,42 +113,53 @@ class SessionClosedTests(unittest.TestCase):
             )
 
 
-class FearGreedFreezeTests(unittest.TestCase):
-    """CNN은 이 지수를 장중 내내 고친다. 그대로 쓰면 화면이 하루 종일 움직인다."""
+class FearGreedNowTests(unittest.TestCase):
+    """큰 숫자는 **지금 값**, 전일 칸은 **안 움직인다** (2026-09-12 상하님 지시).
+
+    상하님 — *"전일 것이 움직여서 거슬린다고 한 게 아닌가?"*
+
+    2026-08-12에는 장중에 큰 숫자를 전일 마감값으로 바꿔치기해 두었다. 그때
+    지적은 **전일 칸**을 두고 하신 말씀이었는데 큰 숫자까지 같이 얼렸다.
+    이제 야후·CNN과 같다 — 큰 숫자는 지금 값이고, 전일 종가는 CNN이 따로 주는
+    값(previous_close)이라 장중에 흔들리지 않는다.
+    """
 
     RAW = {"ok": True, "score": 71.3, "previous_close": 64.0, "rating_kr": "탐욕"}
 
     def _at(self, hour):
         ny = zoneinfo.ZoneInfo("America/New_York")
-        return j3._freeze_fear_greed(dict(self.RAW),
-                                     now=datetime(2026, 8, 12, hour, tzinfo=ny))
+        return j3._stamp_fear_greed(dict(self.RAW),
+                                    now=datetime(2026, 8, 12, hour, tzinfo=ny))
 
-    def test_during_the_session_it_shows_the_previous_close(self):
-        frozen = self._at(12)
-        self.assertEqual(64.0, frozen["score"], "장중인데 실시간 값이 나왔다")
-        self.assertEqual(71.3, frozen["live_score"], "실시간 값을 버리면 안 된다")
-        self.assertTrue(frozen["frozen"])
+    def test_during_the_session_it_shows_the_value_right_now(self):
+        now = self._at(12)
+        self.assertEqual(71.3, now["score"], "장중인데 전일 값이 나왔다")
+        self.assertEqual(71.3, now["live_score"])
+        self.assertFalse(now["frozen"], "아직 얼리고 있다")
 
-    def test_after_the_close_that_day_becomes_the_close(self):
+    def test_after_the_close_it_is_that_days_close(self):
         self.assertEqual(71.3, self._at(17)["score"])
 
-    def test_it_does_not_move_while_cnn_keeps_changing_it(self):
-        """CNN이 값을 고치는 내내(뉴욕 자정~15시59분) 화면 숫자가 같아야 한다.
+    def test_the_previous_close_never_moves(self):
+        """**이 시험이 상하님이 거슬려 하신 자리다.** 전일 칸은 하루 내내 같아야 한다.
 
-        한국 시각으로는 오후 1시부터 다음 날 새벽 4시59분까지다 — 한국장이 열려
-        있는 동안 미국 공포·탐욕 숫자가 흔들리면 안 된다.
+        CNN 은 지금 값을 장중 내내 고치지만 previous_close 는 따로 준다.
+        화면의 「전일 종가」 줄은 그 값을 적으므로 흔들리지 않는다.
         """
-        seen = {self._at(hour)["score"] for hour in (0, 4, 8, 9, 12, 14, 15)}
-        self.assertEqual(1, len(seen), f"장중에 값이 바뀐다 — {sorted(seen)}")
-        self.assertEqual({64.0}, seen, "장중이면 전일 마감값이어야 한다")
+        seen = {self._at(hour)["previous_close"] for hour in (0, 4, 8, 9, 12, 14, 15, 17)}
+        self.assertEqual({64.0}, seen, f"전일 칸이 움직인다 — {sorted(seen)}")
 
-    def test_missing_previous_close_falls_back_to_the_live_value(self):
-        """전일값을 못 받았다고 화면이 비면 안 된다 — 있는 값을 쓴다."""
+    def test_it_says_when_the_number_is_from(self):
+        """기준시각 표시가 붙어야 한다(2026-09-12 상하님 지시 — "기준시각도 넣고")."""
+        self.assertIn("진행 중", self._at(12)["as_of_label"])
+        self.assertIn("종가", self._at(17)["as_of_label"])
+
+    def test_a_missing_previous_close_does_not_break_it(self):
         ny = zoneinfo.ZoneInfo("America/New_York")
-        frozen = j3._freeze_fear_greed(
+        value = j3._stamp_fear_greed(
             {"ok": True, "score": 71.3, "previous_close": None},
             now=datetime(2026, 8, 12, 12, tzinfo=ny))
-        self.assertEqual(71.3, frozen["score"])
+        self.assertEqual(71.3, value["score"])
 
 
 class RegimeGaugeFreezeTests(unittest.TestCase):
@@ -176,6 +187,40 @@ class RegimeGaugeFreezeTests(unittest.TestCase):
         self.assertIn("33점", html)
         self.assertNotIn("지금 (참고)", html, "실시간 줄이 되살아났다")
         self.assertIn("마감 지침", html)
+
+    def test_after_the_close_the_previous_row_steps_one_session_back(self):
+        """마감 뒤에는 「전일」이 **그 하루 앞 장**이어야 한다 (2026-09-12 실측).
+
+        게이지를 지금 값으로 바꾸고 나니 마감 뒤에 큰 숫자도 60점, 전일도 60점이
+        되었다 — 둘이 같은 장을 가리켰다. 야후로 치면 종가와 Previous Close 가
+        같은 날이 되는 셈이다.
+        """
+        import importlib.util as _util
+        import pathlib as _pathlib
+
+        for name in ("pages/2_자비스3.py", "pages/6_자비스6_미국테마.py"):
+            source = _pathlib.Path(name).read_text(encoding="utf-8")
+            self.assertIn("_gauge_overview(overview)", source, name)
+            body = source[source.index("def _gauge_overview("):]
+            body = body[:body.index(chr(10) + "def ", 10)]
+            self.assertIn("us_session_closed", body, f"{name} 이 마감 여부를 안 본다")
+            self.assertIn("before_previous_market", body,
+                          f"{name} 이 그 하루 앞 장을 안 쓴다")
+
+    def test_the_us_screens_call_it_without_freezing(self):
+        """미국테마 두 화면이 **지금 값**으로 부른다 (2026-09-12 상하님 지시).
+
+        화면이 둘이다 — 자비스3 미국테마와 자비스6 미국테마. 한쪽만 고치면
+        같은 게이지가 두 화면에서 다른 값을 가리킨다.
+        """
+        import pathlib as _pathlib
+
+        for name in ("pages/2_자비스3.py", "pages/6_자비스6_미국테마.py"):
+            source = _pathlib.Path(name).read_text(encoding="utf-8")
+            self.assertIn("regime_gauge_ui.regime_box_html(_gauge_overview(overview))",
+                          source, name)
+            self.assertNotIn("regime_box_html(overview, freeze=True)", source,
+                             f"{name} 이 아직 얼린 값을 그린다")
 
     def test_default_stays_live_so_korea_is_untouched(self):
         import regime_gauge_ui
