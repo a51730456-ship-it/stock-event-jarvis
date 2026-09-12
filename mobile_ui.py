@@ -452,11 +452,15 @@ h2 { font-size: 1.2rem !important; }
 .j4-mc { min-width: calc(50% - 0.7rem); }
 .j4-mc-val { font-size: 1.15rem; }
 .j4-metric-row { gap: 0.6rem 0.9rem; }
-.j3-metric-row:has(.j3-mc) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.j3-mc { padding: 13px 8px; }
-.j3-mc > .j3-mc-val { font-size: 1.15rem; margin: 6px 0 3px; }
-.j3-mc-label { font-size: 11px; }
-.j3-mc > .j3-mc-sub { font-size: 11px; }
+.j3-metric-row:has(.j3-mc) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+/* 칸을 **더 줄인다** (2026-09-12 상하님 지시 — 캡처에 화살표로 안쪽을 가리키며
+   "각 칸마다 크기가 너무 크다. 화살표 방향 보고 줄여라"). 여섯 칸이 폰 화면을
+   한 장 넘게 먹고 있었다. 값·글자는 그대로이고 여백과 글씨 크기만 줄인다.
+   실측(375px) — 카드 높이 94px → 70px · 여섯 칸 전체 298px → 206px */
+.j3-mc { padding: 7px 6px; border-radius: 12px; }
+.j3-mc > .j3-mc-val { font-size: 1rem; margin: 2px 0 1px; }
+.j3-mc-label { font-size: 10px; }
+.j3-mc > .j3-mc-sub { font-size: 10px; }
 .j3-section-title, .j4-section-title { font-size: 1.02rem; }
 .j3-pull-guide, .j4-pull-guide, .j5-guide { font-size: 0.86rem; }
 /* 순위표 단추 밑 두 줄 — 보라색 '표에서 테마 이름을 클릭하면…'과 초록색

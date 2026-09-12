@@ -2084,7 +2084,16 @@ class Jarvis3PageTests(unittest.TestCase):
             source = (ROOT / name).read_text(encoding="utf-8")
             self.assertIn("border: 1px solid #2b4e70; border-radius: 15px;", source, name)
             self.assertIn("padding: 17px 12px; min-width: 0; text-align: center;", source, name)
-            self.assertIn("display: block; font-size: 24px; font-weight: 800;", source, name)
+            self.assertIn("display: block; font-size: 21px; font-weight: 800;", source, name)
+            # **오르내림 색을 값 칸에 직접 박지 않는다**(2026-09-12 상하님 지적 —
+            # "중요내용 +− 비율 색깔이 없냐?"). 박으면 .j3-up·.j3-down 보다 세서
+            # 빨강·파랑을 통째로 덮는다. 색은 카드에서 물려준다.
+            head = source[source.index(".j3-mc {"):source.index(".j3-mc-label")]
+            self.assertIn("color: #e6e6e6;", head, f"{name} 카드가 색을 안 물려준다")
+            # 주석에도 같은 글자가 있으니 **줄바꿈까지** 보고 진짜 규칙을 집는다.
+            body = source[source.index(".j3-mc > .j3-mc-val {" + chr(10)):]
+            body = body[:body.index("}")]
+            self.assertNotIn("color:", body, f"{name} 값 칸이 색을 덮는다")
             # 카드가 든 줄에만 격자를 준다 — 갈래 설명 줄(.j3-reason-card)까지
             # 바뀌면 고치라고 하지 않은 화면이 같이 바뀐다.
             self.assertIn(".j3-metric-row:has(.j3-mc) {", source, name)

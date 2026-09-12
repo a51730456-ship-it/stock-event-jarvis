@@ -227,15 +227,20 @@ st.markdown(
         border: 1px solid #2b4e70; border-radius: 15px;
         background: linear-gradient(145deg, #0b284777, #031023);
         padding: 17px 12px; min-width: 0; text-align: center;
+        /* **색은 여기서 물려준다. 값 칸에 직접 박지 않는다**(2026-09-12 상하님
+           지적 — "중요내용 +− 비율 색깔이 없냐?").
+           카드 틀을 만들면서 `.j3-mc > .j3-mc-val { color: … }` 로 색을 박았더니
+           그 규칙이 `.j3-up`·`.j3-down`·`.j3-green` 보다 세서 **오르내림 색을
+           통째로 덮었다.** -4.55% 가 빨강이 아니라 흰색으로 나왔다.
+           물려주는 색은 자식이 제 색을 가지면 곧바로 밀려나므로 안전하다. */
+        color: #e6e6e6;
     }
-    .j3-mc-label { display: block; color: #95abc8; font-size: 12px; font-weight: 600; }
+    .j3-mc-label { display: block; color: #95abc8; font-size: 11px; font-weight: 600; }
     .j3-mc > .j3-mc-val {
-        display: block; font-size: 24px; font-weight: 800; letter-spacing: -.5px;
-        margin: 8px 0 4px; color: #e6e6e6; line-height: 1.18;
+        display: block; font-size: 21px; font-weight: 800; letter-spacing: -.5px;
+        margin: 6px 0 3px; line-height: 1.18;
     }
-    .j3-mc > .j3-mc-sub {
-        display: block; color: #9aafc9; font-size: 12px; font-weight: 700;
-    }
+    .j3-mc > .j3-mc-sub { display: block; font-size: 11px; font-weight: 700; }
     .j3-mc-val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
     .j3-mc-sub { font-size: 0.95rem; font-weight: 800; }
     .j3-up { color: #4da6ff; }
