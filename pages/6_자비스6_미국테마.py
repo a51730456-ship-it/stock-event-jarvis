@@ -261,10 +261,17 @@ st.markdown(
        「신호 상세」→「닫기」 19px → 12px.
        **값·글자·차례는 하나도 안 바뀐다.** 사이 간격만 좁아진다. */
     [data-testid="stVerticalBlock"] { gap: .55rem !important; }
-    /* **글 문단 아래 16px 은 건드리지 않는다.** 2026-09-12에 0 으로 만들었더니
-       「자세히 보기」 단추가 아래 카드에 먹혀 글자가 잘렸다(상하님 캡처).
-       그 단추는 글 문단 안에 든 label 이라 문단보다 키가 크다 — 문단 아래
-       16px 이 그 넘치는 키를 받아 주고 있었다. */
+    /* 글 문단 아래 16px 도 줄인다 — 접이칸·안내줄이 이것 때문에 벌어진다.
+       **다만 키가 큰 것이 든 문단은 그 키를 제대로 재게 한다.** 2026-09-12에
+       그냥 0 으로 만들었더니 「자세히 보기」 단추가 아래 카드에 먹혀 글자가
+       잘렸다(상하님 캡처). 그 단추는 글 문단 안에 든 label 인데, 문단은 글줄
+       높이(22px)로만 키를 재고 단추(45px)는 밖으로 넘쳤다. 넘친 23px 을
+       문단 아래 16px 이 가려 주고 있었던 것이다.
+       `flow-root` 는 문단에게 **안에 든 것의 키를 다 세라**고 이르는 말이다.
+       그러면 여백이 0 이어도 넘치지 않는다. */
+    [data-testid="stMarkdownContainer"] > p:last-child { margin-bottom: 0 !important; }
+    [data-testid="stMarkdownContainer"] > p:has(> label),
+    [data-testid="stMarkdownContainer"] > p:has(> div) { display: flow-root; }
     .j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.2rem 0 0.4rem; }
     .j3-metric-row:has(.j3-mc) {
         display: grid;

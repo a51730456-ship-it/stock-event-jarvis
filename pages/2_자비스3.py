@@ -226,10 +226,17 @@ st.markdown(
        「신호 상세」→「닫기」 19px → 12px.
        **값·글자·차례는 하나도 안 바뀐다.** 사이 간격만 좁아진다. */
     [data-testid="stVerticalBlock"] { gap: .55rem !important; }
-    /* **글 문단 아래 16px 은 건드리지 않는다.** 2026-09-12에 0 으로 만들었더니
-       「자세히 보기」 단추가 아래 카드에 먹혀 글자가 잘렸다(상하님 캡처).
-       그 단추는 글 문단 안에 든 label 이라 문단보다 키가 크다 — 문단 아래
-       16px 이 그 넘치는 키를 받아 주고 있었다. */
+    /* 글 문단 아래 16px 도 줄인다 — 접이칸·안내줄이 이것 때문에 벌어진다.
+       **다만 키가 큰 것이 든 문단은 그 키를 제대로 재게 한다.** 2026-09-12에
+       그냥 0 으로 만들었더니 「자세히 보기」 단추가 아래 카드에 먹혀 글자가
+       잘렸다(상하님 캡처). 그 단추는 글 문단 안에 든 label 인데, 문단은 글줄
+       높이(22px)로만 키를 재고 단추(45px)는 밖으로 넘쳤다. 넘친 23px 을
+       문단 아래 16px 이 가려 주고 있었던 것이다.
+       `flow-root` 는 문단에게 **안에 든 것의 키를 다 세라**고 이르는 말이다.
+       그러면 여백이 0 이어도 넘치지 않는다. */
+    [data-testid="stMarkdownContainer"] > p:last-child { margin-bottom: 0 !important; }
+    [data-testid="stMarkdownContainer"] > p:has(> label),
+    [data-testid="stMarkdownContainer"] > p:has(> div) { display: flow-root; }
     .j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.2rem 0 0.4rem; }
     .j3-metric-row:has(.j3-mc) {
         display: grid;
@@ -8816,7 +8823,7 @@ def _briefing_css() -> None:
         """
         <style>
         html:has(.j3b-home),body:has(.j3b-home){overflow-x:hidden!important;max-width:100vw!important}
-        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+9){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
+        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+11){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
         body:has(.j3b-home) [data-testid="stHorizontalBlock"],body:has(.j3b-home) [data-testid="stColumn"],body:has(.j3b-home) [data-testid="column"]{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
         .j3b-hero{height:174px!important;margin:0!important;padding:18px 18px!important;border-radius:0 0 24px 24px!important}.j3b-hero:before{width:620px!important;height:190px!important;bottom:-124px!important}.j3b-hero:after{left:96px!important;bottom:28px!important;width:150px!important;height:27px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:172px!important;right:-4px!important;bottom:4px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:116%!important;max-width:none!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}

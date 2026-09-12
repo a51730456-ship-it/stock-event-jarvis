@@ -2793,7 +2793,7 @@ def test_the_phone_home_screen_is_left_alone():
     """
     source = PAGE.read_text(encoding="utf-8")
     # 같은 이름의 블록이 둘이라 **내 규칙이 든 쪽**을 집어서 본다.
-    mark = 'div.st-key-j3b_grid_selected>*:nth-child(n+9){display:none!important}'
+    mark = 'div.st-key-j3b_grid_selected>*:nth-child(n+11){display:none!important}'
     start = source.rindex("@media (max-width:600px){", 0, source.index(mark))
     phone = source[start:source.index(mark) + len(mark) + 2]
     # 폰은 두 칸이다.
@@ -2805,7 +2805,7 @@ def test_the_phone_home_screen_is_left_alone():
     assert "j3b_grid_extra" not in phone, "추가 검색 종목을 건드렸다"
     # 화면이 보여 주는 개수와 저장 한도가 어긋나면 "추가가 안 된다"가 또 난다.
     import jarvis3_briefing_store as _store
-    assert _store.SELECTED_SLOTS == 8, "저장 한도와 폰 표시 개수가 어긋난다"
+    assert _store.SELECTED_SLOTS == 10, "저장 한도와 폰 표시 개수가 어긋난다"
 
 def test_the_tablet_breakpoint_starts_at_601():
     """태블릿 경계는 601px 부터다 (2026-08-27 상하님 지적).
