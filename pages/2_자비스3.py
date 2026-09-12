@@ -248,6 +248,16 @@ st.markdown(
         padding-left: .3rem !important;
         padding-right: .3rem !important;
     }
+    /* 펼치면 글이 166px 칸에 갇혀 세로로 길게 늘어진다. **펼친 동안만**
+       두 칸을 위아래로 되돌려 글이 화면 폭을 다 쓰게 한다. 접으면 다시
+       나란히 선다(2026-09-12 실측 — 폰 375px 에서 칸 폭 166px → 343px). */
+    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(details[open]) {
+        flex-wrap: wrap !important;
+    }
+    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(details[open])
+        [data-testid="stColumn"] {
+        flex: 1 1 100% !important;
+    }
     /* 설명 카드와 그 밑 「핵심 4개」 사이가 38px 이었다(2026-09-12 상하님 —
        동그라미). 카드도 접이칸도 여백이 0 인데 그만큼 벌어져 있다. 16px 로 맞춘다. */
     div[class*="st-key-us_signal_fold"] [data-testid="stExpander"] {
