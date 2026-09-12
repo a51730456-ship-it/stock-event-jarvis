@@ -1,5 +1,6 @@
 import pathlib
 import threading
+import time
 import unittest
 from datetime import datetime
 from unittest.mock import patch
@@ -1545,7 +1546,8 @@ class TheMarketScreenWarmsTheFindersTests(unittest.TestCase):
         body = source[source.index("def _render_existing_theme_content()"):]
         body = body[:body.index(chr(10) + "def ", 10)]
         self.assertIn("_warm_finders()", body, "시장분석이 미리 데우지 않는다")
-        # **화면을 다 그린 뒤**여야 한다 — 앞에 두면 보실 것이 밀린다(0-0).
+        # 맨 끝의 부름은 **남겨 둔 예비**다(2026-09-13). 본래 자리는
+        # _render_radar_tab 안, 상승장 단추 바로 위다(TheButtonWaitsForTheWarmUpTests).
         self.assertLess(body.index("_render_radar_tab(market)"),
                         body.index("_warm_finders()"))
         helper = source[source.index("def _warm_finders()"):]
@@ -1564,6 +1566,82 @@ class TheMarketScreenWarmsTheFindersTests(unittest.TestCase):
         self.assertIn("j3data.breakout_scan()", source, "단추가 기억을 안 본다")
         self.assertNotIn("find_breakout_pullback_stocks(persist=True)", source,
                          "단추가 아직 처음부터 다시 훑는다")
+
+
+class TheButtonWaitsForTheWarmUpTests(unittest.TestCase):
+    """누가 이미 만드는 중이면 단추는 새로 시작하지 않고 기다린다 (2026-09-13).
+
+    상하님 — "앱을 막 열자마자 상승장을 누를 때 느리다." 뒤 일꾼이 상승장을
+    만드는 도중에 단추를 누르면 같은 200종목 계산이 동시에 두 벌 돌았다.
+    """
+
+    KEY = "test_busy:상승장"
+
+    def setUp(self):
+        j3.clear_runtime_cache()
+
+    def tearDown(self):
+        j3.clear_runtime_cache()
+
+    def test_a_second_caller_waits_instead_of_running_again(self):
+        calls = []
+
+        def _slow():
+            calls.append(1)
+            time.sleep(0.4)
+            return {"ok": True, "rows": [{"ticker": "AAA"}]}
+
+        got = {}
+        first = threading.Thread(
+            target=lambda: got.__setitem__("first", j3._memo_ok(self.KEY, 300, _slow)))
+        first.start()
+        time.sleep(0.1)                 # 먼저 만드는 쪽이 자리를 잡게 둔다
+        got["second"] = j3._memo_ok(self.KEY, 300, _slow)
+        first.join(timeout=5)
+        self.assertEqual(1, len(calls), "같은 계산을 두 벌 돌렸다")
+        self.assertEqual(got["first"], got["second"])
+
+    def test_if_the_first_run_fails_the_waiter_makes_it_itself(self):
+        """먼저 만들던 쪽이 빈손이면 기다린 쪽이 직접 만든다 — 빈손으로 안 돌아간다."""
+        calls = []
+
+        def _fail():
+            calls.append("fail")
+            time.sleep(0.3)
+            return {"ok": False, "error": "공책 비었음", "rows": []}
+
+        def _ok():
+            calls.append("ok")
+            return {"ok": True, "rows": []}
+
+        first = threading.Thread(target=lambda: j3._memo_ok(self.KEY, 300, _fail))
+        first.start()
+        time.sleep(0.1)
+        value = j3._memo_ok(self.KEY, 300, _ok)
+        first.join(timeout=5)
+        self.assertTrue(value.get("ok"), "기다렸다가 빈손으로 돌아왔다")
+        self.assertEqual(["fail", "ok"], calls)
+
+    def test_the_busy_mark_is_cleared_even_when_it_raises(self):
+        def _boom():
+            raise RuntimeError("터짐")
+
+        with self.assertRaises(RuntimeError):
+            j3._memo_ok(self.KEY, 300, _boom)
+        self.assertNotIn(self.KEY, j3._MEMO_BUSY,
+                         "표시가 남아 다음 사람이 90초를 기다린다")
+
+    def test_the_market_screen_starts_the_warm_up_right_above_the_button(self):
+        source = pathlib.Path("pages/2_자비스3.py").read_text(encoding="utf-8")
+        body = source[source.index("def _render_radar_tab("):]
+        body = body[:body.index(chr(10) + "def ", 10)]
+        self.assertIn("_warm_finders()", body, "단추 위에서 미리 만들지 않는다")
+        self.assertLess(body.index("_warm_finders()"),
+                        body.index("_render_radar_tail(market, ranking)"),
+                        "미리 만들기가 단추보다 늦게 시작한다")
+        self.assertLess(body.index("_render_theme_section(market)"),
+                        body.index("_warm_finders()"),
+                        "249종목을 받기 전에 시작한다 — 공책이 비어 빈손으로 돌아간다")
 
 
 class BreakoutWarmUpUsesNoNetworkTests(unittest.TestCase):

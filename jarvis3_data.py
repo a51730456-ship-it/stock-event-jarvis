@@ -234,7 +234,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026091220
+MODULE_REVISION = 2026091310
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4338,23 +4338,61 @@ def blend_top_picks(buckets: dict, *, quota=TOP_PICK_QUOTA) -> dict:
 TOP_PICK_MEMO_SECONDS = 300
 
 
+# 같은 열쇠를 **지금 누가 만들고 있는지** 적어 둔다 (2026-09-13).
+_MEMO_BUSY: dict = {}
+# 먼저 만들던 쪽을 이만큼까지만 기다린다. 넘으면 예전처럼 직접 만든다.
+# 시세 받기는 어차피 _DOWNLOAD_LOCK 으로 한 줄로 서므로, 기다리는 편이
+# 같은 계산을 두 벌 돌리는 것보다 늦지 않다.
+MEMO_WAIT_SECONDS = 90.0
+
+
 def _memo_ok(key: str, ttl_seconds: float, produce):
     """**성공한 결과만** 잠깐 기억한다. 실패는 기억하지 않는다.
 
     실패까지 기억하면 한 번 통신이 막혔을 때 5분 내내 빈 화면이 굳는다.
     걸린 종목이 0개인 것은 실패가 아니다 — "오늘은 자리가 없다"는 답이므로
     그대로 기억한다(CLAUDE.md 0-1 바 · 빈 자리를 감추지 않는다).
+
+    **누가 이미 만드는 중이면 새로 시작하지 않고 그 결과를 기다린다**
+    (2026-09-13 상하님 — "앱을 막 열자마자 상승장을 누를 때 느리다").
+    화면이 뒤 일꾼에게 상승장을 미리 만들게 해 두었는데, 그 도중에 단추를
+    누르면 같은 200종목 계산이 **동시에 두 벌** 돌았다. 온라인은 코어가
+    하나둘이라 둘 다 느려진다. 이제 단추는 뒤 일꾼이 끝내기를 기다렸다가
+    그 결과를 받는다. 먼저 만들던 쪽이 실패했거나 너무 오래 걸리면
+    예전처럼 직접 만든다 — 기다렸다고 빈손으로 돌아가는 일은 없다.
     """
     now = time.time()
     with _CACHE_LOCK:
         found = _CACHE.get(key)
         if found and now - found["at"] < ttl_seconds:
             return found["value"]
-    value = produce()
-    if isinstance(value, dict) and value.get("ok"):
+        busy = _MEMO_BUSY.get(key)
+        mine = busy is None
+        if mine:
+            busy = threading.Event()
+            _MEMO_BUSY[key] = busy
+    if not mine:
+        busy.wait(MEMO_WAIT_SECONDS)
         with _CACHE_LOCK:
-            _CACHE[key] = {"at": now, "value": value}
-    return value
+            found = _CACHE.get(key)
+            if found and time.time() - found["at"] < ttl_seconds:
+                return found["value"]
+        value = produce()
+        if isinstance(value, dict) and value.get("ok"):
+            with _CACHE_LOCK:
+                _CACHE[key] = {"at": time.time(), "value": value}
+        return value
+    try:
+        value = produce()
+        if isinstance(value, dict) and value.get("ok"):
+            with _CACHE_LOCK:
+                _CACHE[key] = {"at": now, "value": value}
+        return value
+    finally:
+        with _CACHE_LOCK:
+            if _MEMO_BUSY.get(key) is busy:
+                del _MEMO_BUSY[key]
+        busy.set()
 
 
 def _finder_memo_key(name: str) -> str:
