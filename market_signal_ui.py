@@ -1288,7 +1288,11 @@ _US_FOLD_CSS = """
     transition:background .2s ease, border-color .2s ease;
 }
 .sig-fold-btn:hover { background:rgba(34,197,94,.18); border-color:rgba(34,197,94,.7); }
-.sig-fold-btn.bottom { margin:.2rem 0 .4rem; }
+/* **아래 단추는 다음 구역과 띄운다** (2026-09-12 상하님 지시 — "닫기 부분이
+   강한 테마와 붙어 있다. 원래 띄우는 비율로 띄워라").
+   실측(폰 375px) — 닫기 아래가 3px 뿐이었고, 이 화면의 구역 사이는 16px 였다.
+   그 16px 에 맞춘다. 위쪽은 그대로다 — 바로 위 접이칸과는 이미 떨어져 있다. */
+.sig-fold-btn.bottom { margin:.2rem 0 1.25rem; }
 .sig-fold-btn .when-open { display:none; }
 body:has(.sig-fold-tap:checked) .sig-fold-btn .when-open { display:inline; }
 body:has(.sig-fold-tap:checked) .sig-fold-btn .when-closed { display:none; }

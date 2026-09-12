@@ -550,10 +550,14 @@ st.markdown(
             transition: opacity .24s ease-out, transform .24s ease-out;
         }
     }
-    .j3-idx-cap { color: #9aa0aa; font-size: 0.78rem; font-weight: 700; text-align: center; }
-    /* '일봉 6개월'은 손을 올려야 보이는 그림이라 이름을 스카이블루로 띄운다
-       (2026-08-06 사용자 지시) — 늘 보이는 '당일'과 구분된다. */
-    .j3-idx-cap-daily { color: #4da6ff; font-weight: 800; }
+    /* ── 「당일」·「일봉 6개월」 글자는 **안 보인다** (2026-09-12 상하님 지시) ──
+       상하님 — "당일 텍스트 글들을 다 없애고 네모칸이 너무 길다. 줄여라.
+       노란색 그은 것 보이지. 밑에 너무 길다는 뜻이야. 6개 다 줄여라."
+       실측(폰 375px) — 그림 밑에 34px 이 남아 있었고 그중 20px 이 이 글자였다.
+       칸 높이 211px → 191px, 그림 밑 여백 34px → 14px 로 줄었다.
+       **글자만 감춘다. 그림을 바꿔 보여 주는 것은 그대로다** — 손을 올리거나
+       한 번 누르면 여전히 일봉 여섯 달로 바뀐다. */
+    .j3-idx-cap { display: none; }
     .j3-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
     .j3-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
@@ -3157,12 +3161,23 @@ _WATCH_ADD_CSS = """
 <style>
 /* 두 단추는 자비스7 단추와 같은 결이다(jarvis7_ui 의 .j7-submit).
    왼쪽은 파랑(사용자 선정), 오른쪽은 금색(추가 검색)이다. */
+/* 단추 둘은 **한 줄에** 선다. 폰에서도 쌓이지 않는다. */
+div[class*="st-key-j3addrow_"] [data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap !important;
+    gap: .4rem !important;
+}
+div[class*="st-key-j3addrow_"] [data-testid="stColumn"] {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+}
 div[class*="st-key-j3add_sel_"] button,
 div[class*="st-key-j3add_ext_"] button {
-    border-radius: 12px !important;
+    border-radius: 10px !important;
     font-weight: 800 !important;
-    letter-spacing: -.02em !important;
-    padding: .55rem .8rem !important;
+    letter-spacing: -.03em !important;
+    /* **작게 만든다** — 글자 보고 누르기만 하는 자리다(2026-09-12 상하님). */
+    padding: .3rem .35rem !important;
+    min-height: 0 !important;
     transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
 }
 div[class*="st-key-j3add_sel_"] button {
@@ -3178,12 +3193,13 @@ div[class*="st-key-j3add_ext_"] button {
 div[class*="st-key-j3add_sel_"] button p,
 div[class*="st-key-j3add_ext_"] button p {
     color: #fff !important; font-weight: 800 !important;
-    white-space: nowrap;            /* 폰에서 두 줄로 접히지 않게 */
-    font-size: .92rem !important;
+    white-space: nowrap;            /* 두 줄로 접히면 단추가 두 배가 된다 */
+    font-size: .8rem !important;
+    line-height: 1.25 !important;
 }
 @media (max-width: 420px) {
     div[class*="st-key-j3add_sel_"] button p,
-    div[class*="st-key-j3add_ext_"] button p { font-size: .82rem !important; }
+    div[class*="st-key-j3add_ext_"] button p { font-size: .72rem !important; }
 }
 div[class*="st-key-j3add_sel_"] button:hover,
 div[class*="st-key-j3add_ext_"] button:hover {
@@ -3218,7 +3234,12 @@ def _render_watchlist_add_buttons(ticker: str, *, panel: str = "") -> None:
     slot_key = f"{panel or 'x'}_{ticker}"
     name = getattr(j3data, "STOCK_NAMES", {}).get(ticker, ticker)
     st.markdown(_WATCH_ADD_CSS, unsafe_allow_html=True)
-    left, right = st.columns(2)
+    # **한 줄에 둘이 나란히 선다** (2026-09-12 상하님 지시 — "한 라인에 두 개를
+    # 만들라는 말이야. 그래야 자리를 많이 차지하지 않지"). 스트림릿은 폰처럼 좁은
+    # 화면에서 칸을 위아래로 쌓아 버리므로, 이 줄만 **쌓지 말라**고 못박는다
+    # (아래 CSS 의 flex-wrap: nowrap). 자비스3의 표들이 쓰는 그 방법이다.
+    row = st.container(key=f"j3addrow_{slot_key}")
+    left, right = row.columns(2)
     # **티커는 단추에 안 적는다** — 바로 위 카드에 크게 있고, 폰에서 글자가
     # 두 줄로 접혀 단추가 두 배로 커진다(2026-09-12 실측 375px).
     if left.button("⭐ 사용자 선정에 넣기",
