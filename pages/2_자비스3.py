@@ -226,8 +226,10 @@ st.markdown(
        「신호 상세」→「닫기」 19px → 12px.
        **값·글자·차례는 하나도 안 바뀐다.** 사이 간격만 좁아진다. */
     [data-testid="stVerticalBlock"] { gap: .55rem !important; }
-    /* 글 문단 아래 16px 도 같이 줄인다 — 접이칸·안내줄이 이것 때문에 벌어진다. */
-    [data-testid="stMarkdownContainer"] > p:last-child { margin-bottom: 0 !important; }
+    /* **글 문단 아래 16px 은 건드리지 않는다.** 2026-09-12에 0 으로 만들었더니
+       「자세히 보기」 단추가 아래 카드에 먹혀 글자가 잘렸다(상하님 캡처).
+       그 단추는 글 문단 안에 든 label 이라 문단보다 키가 크다 — 문단 아래
+       16px 이 그 넘치는 키를 받아 주고 있었다. */
     .j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.2rem 0 0.4rem; }
     .j3-metric-row:has(.j3-mc) {
         display: grid;
