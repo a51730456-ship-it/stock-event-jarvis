@@ -43,7 +43,7 @@ def test_extra_stocks_keep_order_and_limit(monkeypatch):
     """자리는 12개다 — 기본 4종목이 실제 줄이 되면서 8에서 늘렸다(2026-08-26)."""
     _isolated_store(monkeypatch)
     limit = store.EXTRA_LIMIT
-    assert limit == 12
+    assert limit == 20
     for number in range(limit):
         store.add_extra(f"X{number}", f"X {number}")
     assert [row["ticker"] for row in store.extra_stocks()] == [f"X{number}" for number in range(limit)]

@@ -550,14 +550,30 @@ st.markdown(
             transition: opacity .24s ease-out, transform .24s ease-out;
         }
     }
-    /* ── 「당일」·「일봉 6개월」 글자는 **안 보인다** (2026-09-12 상하님 지시) ──
-       상하님 — "당일 텍스트 글들을 다 없애고 네모칸이 너무 길다. 줄여라.
-       노란색 그은 것 보이지. 밑에 너무 길다는 뜻이야. 6개 다 줄여라."
-       실측(폰 375px) — 그림 밑에 34px 이 남아 있었고 그중 20px 이 이 글자였다.
-       칸 높이 211px → 191px, 그림 밑 여백 34px → 14px 로 줄었다.
-       **글자만 감춘다. 그림을 바꿔 보여 주는 것은 그대로다** — 손을 올리거나
-       한 번 누르면 여전히 일봉 여섯 달로 바뀐다. */
-    .j3-idx-cap { display: none; }
+    /* ── 「당일」·「6개월」은 **차트 안에 노란 글씨**다 (2026-09-12 상하님 지시) ──
+       상하님 — "당일, 6개월 이거 차트 안에 넣어봐라 노랑색으로." ·
+       "주가선이랑 글자가 겹치면 선이 글자 위로 지나가도록 멋지게 해라.
+       그리고 글자 조금만 더 작게."
+       처음에는 글자를 아예 감췄는데(칸이 길다고 하셔서), 그러면 지금 보는 것이
+       당일인지 여섯 달인지 알 수가 없다. 그래서 **차트 안으로 옮긴다** —
+       칸 길이는 감췄을 때 그대로이고, 무슨 그림인지는 한눈에 보인다.
+       실측(폰 375px) — 그림 밑 여백 34px → 14px · 칸 높이 211px → 191px.
+       **누르면 여섯 달로 바뀌는 장치는 그대로다**(아래 .j3-idx-tap). 글자는
+       클릭을 가로채지 않는다(pointer-events:none). */
+    .j3-idx-now, .j3-idx-more, .j3-idx-solo { position: relative; }
+    .j3-idx-cap {
+        position: absolute; left: 0; right: 0; top: 50%;
+        transform: translateY(-54%);
+        color: #ffd166; font-size: .82rem; font-weight: 800;
+        letter-spacing: -.02em; text-align: center;
+        pointer-events: none; z-index: 0;
+        text-shadow: 0 1px 3px rgba(0,0,0,.85);
+    }
+    .j3-idx-cap-daily { color: #ffd166; }
+    /* 그림을 글자 **위**로 올린다 — 주가선이 글자를 타고 넘어간다. */
+    .j3-idx-now > svg, .j3-idx-more > svg, .j3-idx-solo > svg {
+        position: relative; z-index: 1;
+    }
     .j3-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
     .j3-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
@@ -2639,7 +2655,9 @@ def _us_futures_cell() -> str:
     # 맞추는 '당일' 글자만 붙인다.
     chart = _sparkline_svg(nasdaq.get("chart") or {}, "#4da6ff", "#ff5b5b")
     if chart:
-        chart += "<div class='j3-idx-cap'>당일</div>"
+        # 선물 칸은 그림을 바꿔 보여 주는 틀이 없다. 글자를 차트 안에 얹으려면
+        # 자리 잡을 틀이 하나 있어야 해서 여기서 감싼다(.j3-idx-solo).
+        chart = f"<div class='j3-idx-solo'>{chart}<div class='j3-idx-cap'>당일</div></div>"
     return (
         f"<div class='j3-top-cell {_FUTURES_CLASS}'>"
         f"<div class='j3-top-label j3-idx-label'>{label}</div>"
@@ -2723,7 +2741,8 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
         f"<label for='{tap_id}' class='j3-idx-tapzone'></label>"
         f"<div class='j3-idx-now'>{today}<div class='j3-idx-cap'>당일</div></div>"
         f"<div class='j3-idx-more'>{daily}"
-        "<div class='j3-idx-cap j3-idx-cap-daily'>일봉 6개월</div></div>"
+        # 차트 안에 넣으므로 **짧게** 적는다(2026-09-12 상하님 손글씨 그대로).
+        "<div class='j3-idx-cap j3-idx-cap-daily'>6개월</div></div>"
         "</div>"
     )
 
@@ -3283,13 +3302,35 @@ def _watchlist_add(ticker: str, name: str, *, group: str) -> None:
         briefing_store.ensure_tables()
         if group == "extra":
             briefing_store.add_extra(ticker, name)
-            limit = getattr(briefing_store, "EXTRA_LIMIT", 12)
+            limit = getattr(briefing_store, "EXTRA_LIMIT", 20)
             used = len(briefing_store.extra_stocks())
             st.session_state["j3add_msg"] = (
                 f"{ticker} 을(를) 관심종목 화면의 「추가 검색 종목」에 "
                 f"넣었습니다 ({used}/{limit}).", "ok")
             return
         rows = briefing_store.selected_stocks()
+        slots = getattr(briefing_store, "SELECTED_SLOTS", 10)
+        # **빈 자리가 있으면 묻지 않고 바로 넣는다.** 저장고의 add_selected 가
+        # 빈 자리 가운데 가장 앞 번호에 넣어 준다(2026-09-10에 만들어 둔 것).
+        # 자리가 꽉 찼을 때만 어느 자리를 바꿀지 물어본다 — 상하님이 골라 두신
+        # 종목을 말없이 밀어내지 않는다(CLAUDE.md 0-0).
+        adder = getattr(briefing_store, "add_selected", None)
+        if adder is not None:
+            try:
+                adder(ticker, name)
+            except ValueError as exc:
+                if "이미" in str(exc):
+                    st.session_state["j3add_msg"] = (str(exc), "no")
+                    return
+                st.session_state["j3add_msg"] = ("", "ok")
+                st.session_state["j3add_slots"] = rows
+                st.session_state["j3add_slots_for"] = ticker
+                return
+            st.session_state["j3add_msg"] = (
+                f"{ticker} 을(를) 관심종목 화면의 「사용자 선정 종목」에 "
+                f"넣었습니다 ({len(rows) + 1}/{slots}).", "ok")
+            return
+        # 옛 모듈이 프로세스에 남아 add_selected 가 없을 때는 예전처럼 자리를 묻는다.
         if any(str(row.get("ticker") or "").upper() == ticker for row in rows):
             st.session_state["j3add_msg"] = (
                 f"{ticker} 은(는) 이미 「사용자 선정 종목」에 있습니다.", "no")

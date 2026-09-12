@@ -1288,11 +1288,22 @@ _US_FOLD_CSS = """
     transition:background .2s ease, border-color .2s ease;
 }
 .sig-fold-btn:hover { background:rgba(34,197,94,.18); border-color:rgba(34,197,94,.7); }
-/* **아래 단추는 다음 구역과 띄운다** (2026-09-12 상하님 지시 — "닫기 부분이
-   강한 테마와 붙어 있다. 원래 띄우는 비율로 띄워라").
-   실측(폰 375px) — 닫기 아래가 3px 뿐이었고, 이 화면의 구역 사이는 16px 였다.
-   그 16px 에 맞춘다. 위쪽은 그대로다 — 바로 위 접이칸과는 이미 떨어져 있다. */
-.sig-fold-btn.bottom { margin:.2rem 0 1.25rem; }
+/* ── 이 카드 아래 세 줄의 **간격을 고르게 좁힌다** (2026-09-12 상하님 지시) ──
+   상하님 — "여백이 너무 넓다. 밑에 것만 달랑 하지 말고 전체적으로 여백 다
+   간격 조절하란 말이다."
+   실측(폰 375px) — 들쭉날쭉했다.
+       설명 카드 → 「핵심 4개」      32px
+       「핵심 4개」 → 「신호 상세」   16px
+       「신호 상세」 → 「닫기」       19px
+       「닫기」 → 「강한 테마 TOP」   54px   ← 제일 넓다
+   줄이 네 개뿐인데 자리를 250px 이나 먹고 있었다. */
+div[class*="st-key-us_signal_fold"] [data-testid="stVerticalBlock"] { gap:.4rem !important; }
+/* **글자 없는 빈 칸을 지운다.** <style> 만 들어 있는 markdown 도 스트림릿은
+   14px 짜리 칸을 하나 만든다. 이 구역에만 셋이 끼어 있었다. */
+div[class*="st-key-us_signal_fold"] [data-testid="stElementContainer"]:has(> [data-testid="stMarkdownContainer"] > style) { display:none !important; }
+/* 「닫기」 아래 50px 은 이 칸 바깥 여백이다. 그만큼 당겨 12px 로 만든다. */
+div[class*="st-key-us_signal_fold"] { margin-bottom:-38px !important; }
+.sig-fold-btn.bottom { margin:.2rem 0 0; }
 .sig-fold-btn .when-open { display:none; }
 body:has(.sig-fold-tap:checked) .sig-fold-btn .when-open { display:inline; }
 body:has(.sig-fold-tap:checked) .sig-fold-btn .when-closed { display:none; }
