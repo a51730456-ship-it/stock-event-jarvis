@@ -10828,12 +10828,21 @@ def _render_briefing_bottom_nav(active: str) -> None:
         # _render_stock_briefing 이 화면이 바뀐 것을 보고 그 판 **맨 앞에서**
         # 바로 올린다. 여기서 적어 두면 그 표시가 판 끝(20개 테마를 다 받은 뒤)
         # 에서 쓰여, 그동안 내려 보고 계시던 화면을 뿌리치고 끌어올린다.
-        if watch_col.button("관심종목", key="j3b_nav_watch"):
-            _set_briefing_page("home")
-            st.rerun()
-        if market_col.button("시장분석", key="j3b_nav_market"):
-            _set_briefing_page("market")
-            st.rerun()
+        # **판을 두 번 그리지 않는다** (2026-09-13 상하님 — "관심종목·시장분석 둘 다
+        # 왔다 갔다 로딩 2초씩 걸린다").
+        # 이 단추는 화면 **맨 끝**에 있다. 예전에는 `if 단추: … st.rerun()` 이라
+        #   1판 — 지금 화면(시장분석이면 지수·게이지·테마 순위·표 전부)을 끝까지
+        #          다시 그리고, 그 끝에서야 단추가 눌린 것을 알아 st.rerun()
+        #   2판 — 그제서야 가려는 화면을 그렸다.
+        # 1판을 통째로 버리는 셈이었다. 손가락으로 미는 쪽은 2026-09-10에 같은 까닭으로
+        # 단추를 맨 앞에 옮겨 고쳤는데(_briefing_swipe_buttons), 이 막대 단추는 남아 있었다.
+        # 이제 **누르는 순간(on_click)** 볼 화면을 바꿔 둔다 — on_click 은 판을 그리기
+        # **전에** 돌므로 곧바로 가려는 화면 **한 판**만 그린다. st.rerun() 은 안 부른다.
+        # 화면을 맨 위로 올리는 일은 예전처럼 _render_stock_briefing 이 챙긴다.
+        watch_col.button("관심종목", key="j3b_nav_watch",
+                         on_click=_set_briefing_page, args=("home",))
+        market_col.button("시장분석", key="j3b_nav_market",
+                          on_click=_set_briefing_page, args=("market",))
 
 
 def _render_stock_briefing() -> None:

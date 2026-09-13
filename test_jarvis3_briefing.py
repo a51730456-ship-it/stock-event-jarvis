@@ -840,3 +840,19 @@ def test_one_news_arrival_draws_the_screen_once():
     assert 'st.session_state["j3b_news_pending"] = False' in code, (
         "그만 기다리라고 알리는 자리가 없어졌다")
     assert "ready_count" in code, "세는 자리가 없어졌다"
+
+
+
+def test_the_bottom_bar_switches_screens_in_one_draw():
+    """하단 막대 「관심종목」·「시장분석」은 **한 판**에 화면을 바꾼다 (2026-09-13).
+
+    상하님 — "관심종목·시장분석 둘 다 왔다 갔다 로딩 2초씩 걸린다." 단추가 화면
+    맨 끝에 있고 st.rerun() 을 불러, 지금 화면을 끝까지 다시 그린 뒤에 가려는
+    화면을 또 그렸다. 누르는 순간(on_click) 바꿔 두면 한 판이다.
+    """
+    source = (Path(__file__).resolve().parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+    nav = source[source.index("def _render_briefing_bottom_nav"):source.index("def _render_stock_briefing")]
+    assert 'on_click=_set_briefing_page, args=("home",)' in nav
+    assert 'on_click=_set_briefing_page, args=("market",)' in nav
+    watch = nav[nav.index('key="j3b_nav_watch"'):]
+    assert "st.rerun()" not in watch, "두 단추가 아직 판을 한 번 더 그린다"
