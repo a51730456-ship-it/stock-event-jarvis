@@ -856,3 +856,49 @@ def test_the_bottom_bar_switches_screens_in_one_draw():
     assert 'on_click=_set_briefing_page, args=("market",)' in nav
     watch = nav[nav.index('key="j3b_nav_watch"'):]
     assert "st.rerun()" not in watch, "두 단추가 아직 판을 한 번 더 그린다"
+
+
+
+def test_the_watchlist_is_read_with_one_database_trip(monkeypatch):
+    """관심종목을 그릴 때 원격 DB 에 **한 번만** 다녀온다 (2026-09-13 상하님 지시).
+
+    상하님 — "시장분석에서 관심종목 클릭 3초." 머리그림을 그리기 전에 기본 종목
+    확인·선정 읽기·추가 읽기로 원격 DB 에 일곱 번 다녀왔다(온라인 실측 1.9초 동안
+    화면에 아무것도 안 떴다).
+    """
+    _isolated_store(monkeypatch)
+    store.ensure_default_extras()
+    first = store.all_stocks()
+    # 따로 읽던 것과 모양·차례가 똑같아야 한다.
+    assert first == {"selected": store.selected_stocks(), "extra": store.extra_stocks()}
+
+    calls = {"execute": 0, "commit": 0}
+    inner = store._connection
+
+    class Counting:
+        def __init__(self):
+            self._conn = inner()
+        def execute(self, *args, **kwargs):
+            calls["execute"] += 1
+            return self._conn.execute(*args, **kwargs)
+        def commit(self):
+            calls["commit"] += 1
+            return self._conn.commit()
+        def close(self):
+            pass
+
+    monkeypatch.setattr(store, "_connection", lambda: Counting())
+    store.ensure_default_extras()
+    again = store.all_stocks()
+    assert again == first
+    assert calls == {"execute": 1, "commit": 0}, calls
+
+
+def test_a_fresh_database_still_gets_the_default_stocks(monkeypatch):
+    """새 DB 에서는 기본 종목을 **다시** 옮겨 적는다 — 한 번만 하는 표시가 막으면 안 된다."""
+    _isolated_store(monkeypatch)
+    assert [row["ticker"] for row in store.all_stocks()["selected"]][:2] == ["NVDA", "TSLA"]
+    _isolated_store(monkeypatch)                 # 다른 빈 DB
+    assert [row["ticker"] for row in store.all_stocks()["selected"]][:2] == ["NVDA", "TSLA"]
+    store.ensure_default_extras()
+    assert [row["ticker"] for row in store.extra_stocks()] == [t for t, _n in store.DEFAULT_EXTRAS]

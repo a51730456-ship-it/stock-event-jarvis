@@ -1582,7 +1582,7 @@ import jarvis3_briefing_store as briefing_store
 
 # 옛 모듈이 프로세스에 남으면 새 함수(add_selected·remove_selected)를 못 찾아
 # 선정 종목 추가·삭제가 조용히 죽는다(규칙 11 · 2026-09-10).
-_REQUIRED_BRIEFING_STORE_REVISION = 2026091210
+_REQUIRED_BRIEFING_STORE_REVISION = 2026091310
 if int(getattr(briefing_store, "MODULE_REVISION", 0)) < _REQUIRED_BRIEFING_STORE_REVISION:
     import importlib as _importlib
 

@@ -14,7 +14,7 @@ from database import DB_PATH
 
 # 반환 키나 함수가 바뀌면 이 숫자를 올리고 페이지의 요구 판 숫자도 같이 올린다(규칙 11).
 # 안 올리면 온라인에서 옛 모듈이 프로세스에 남아 새 함수(add_selected 등)를 못 찾는다.
-MODULE_REVISION = 2026091210
+MODULE_REVISION = 2026091310
 
 # 2026-09-10 상하님 지시로 6 → 8. "사용자 선정종목 추가가 안 된다. 개수 제한
 # 4개이지 싶다. 8개로 가능하도록 만들어라." 화면에 넷만 보인 것은 폰 규칙
@@ -42,6 +42,12 @@ DEFAULT_SELECTED = (("NVDA", "NVIDIA"), ("TSLA", "Tesla"),
                     ("SKHY", "SK하이닉스"), ("SPCX", "스페이스X"))
 _LOCK = threading.Lock()
 _READY = False
+# 기본 종목 옮겨 적기를 **이 서버에서 이미 마쳤나** (2026-09-13 상하님 — "관심종목·
+# 시장분석 왔다 갔다 로딩 2~3초"). 온라인은 원격 DB라 한 번 물을 때마다 인터넷을
+# 다녀온다. 관심종목을 그릴 때마다 기본 종목 확인에만 네다섯 번을 다녀왔는데,
+# 한 번 옮겨 적고 나면 다시 할 일이 없다. 표를 새로 만들면(ensure_tables) 비운다 —
+# 새 DB 에서는 다시 옮겨 적어야 하기 때문이다.
+_SEEDED: set = set()
 
 
 def _connection():
@@ -62,6 +68,7 @@ def ensure_tables() -> None:
                 stock_name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
                 PRIMARY KEY (group_name, position), UNIQUE (group_name, ticker))""")
             conn.commit()
+            _SEEDED.clear()
             _READY = True
         finally:
             conn.close()
@@ -98,6 +105,8 @@ def ensure_default_selected() -> None:
     남고 `add_selected` 가 그 자리를 다시 채운다.
     """
     ensure_tables()
+    if "selected" in _SEEDED:
+        return                          # 이 서버에서 이미 마쳤다 — DB 에 안 묻는다
     conn = _connection()
     try:
         marks = {
@@ -134,6 +143,7 @@ def ensure_default_selected() -> None:
             changed = True
         if changed:
             conn.commit()
+        _SEEDED.add("selected")
     finally:
         conn.close()
 
@@ -170,6 +180,8 @@ def ensure_default_extras() -> None:
     옮겨 적힌 뒤 상하님이 지우신 종목이 다시 살아나지 않는다.
     """
     ensure_tables()
+    if "extra" in _SEEDED:
+        return                          # 이 서버에서 이미 마쳤다 — DB 에 안 묻는다
     conn = _connection()
     try:
         marks = {
@@ -215,6 +227,7 @@ def ensure_default_extras() -> None:
                     "VALUES ('extra',?,?,?,?,?)", (position, ticker, name, now, now))
             mark(ticker)
         conn.commit()
+        _SEEDED.add("extra")
     finally:
         conn.close()
 
@@ -224,7 +237,32 @@ def extra_stocks() -> list[dict]:
 
 
 def all_stocks() -> dict:
-    return {"selected": selected_stocks(), "extra": extra_stocks()}
+    """사용자 선정·추가 검색을 **한 번에** 읽는다 (2026-09-13).
+
+    예전에는 둘을 따로 읽어 원격 DB 에 두 번 다녀왔다. 돌려주는 모양·차례는
+    `selected_stocks()` · `extra_stocks()` 와 똑같다 — 선정은 1~10번 자리 순,
+    추가 검색은 자리 순 전부.
+    """
+    ensure_default_selected()
+    conn = _connection()
+    try:
+        rows = conn.execute(
+            "SELECT group_name,position,ticker,stock_name FROM jarvis3_briefing_stocks "
+            "WHERE group_name IN ('selected','extra') ORDER BY position"
+        ).fetchall()
+    finally:
+        conn.close()
+    selected_by_position: dict[int, dict] = {}
+    extra: list[dict] = []
+    for row in rows:
+        item = {"position": int(row["position"]), "ticker": row["ticker"], "name": row["stock_name"]}
+        if row["group_name"] == "selected":
+            selected_by_position[item["position"]] = item
+        else:
+            extra.append(item)
+    selected = [selected_by_position[position] for position in range(1, SELECTED_SLOTS + 1)
+                if position in selected_by_position]
+    return {"selected": selected, "extra": extra}
 
 
 def replace_selected(position: int, ticker, name) -> None:
