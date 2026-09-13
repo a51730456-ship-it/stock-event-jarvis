@@ -5368,6 +5368,10 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
 # 화면이 캡처 화면처럼 위로 올라오게 해라"). 캡처는 「어느 날 목록을 볼까요」가
 # 화면 맨 위다. 그 칸 **바로 위**에 찍는다.
 _PICKLIST_ANCHOR = "picklist_top"
+# 날짜 칸의 열쇠 — picklist_ui 가 `picklist_date_{시장}` 으로 만든다(그 모듈은 안 건드린다).
+_PICKLIST_DATE_KEY = "picklist_date_US"
+# 지난 판에 본 날짜. 이것과 달라졌으면 날짜를 바꿔 고르신 판이다.
+_PICKLIST_SEEN_DATE_KEY = "j3_picklist_seen_date"
 
 
 def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
@@ -5383,6 +5387,19 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
         on_open=lambda: scroll_to.request(st, _PICKLIST_ANCHOR),
     )
     if is_open:
+        # **날짜를 바꿔 골라도 다시 그 자리로 올린다** (2026-09-13 상하님 —
+        # "첫 번째 한 번은 되는데 화면을 내려서 밑에서 다시 날짜 클릭하면 또 안 된다").
+        # 여는 순간에만 올리게 해 두어서, 열어 둔 채 날짜를 바꾸면 화면이 그 자리에
+        # 머물렀다. 날짜 칸은 스트림릿이 이 판을 그리기 **전에** 새 값으로 바꿔 두므로,
+        # 지난 판에 본 날짜와 견주어 달라졌으면 올린다. 처음 여는 판은 위 on_open 이
+        # 이미 올리므로 여기서는 날짜만 적어 둔다. 종목 누르기 같은 다른 판에서는
+        # 날짜가 그대로라 안 올린다(그때는 세부사항 자리로 내려가야 한다).
+        picked = st.session_state.get(_PICKLIST_DATE_KEY)
+        seen = st.session_state.get(_PICKLIST_SEEN_DATE_KEY)
+        if picked != seen:
+            if seen is not None and picked is not None:
+                scroll_to.request(st, _PICKLIST_ANCHOR)
+            st.session_state[_PICKLIST_SEEN_DATE_KEY] = picked
         scroll_to.anchor(st, _PICKLIST_ANCHOR)
     return is_open
 

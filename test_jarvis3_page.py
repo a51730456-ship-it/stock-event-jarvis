@@ -3118,3 +3118,20 @@ def test_the_saved_list_download_buttons_stay_two_to_a_row_on_a_phone():
     assert source.rindex("@media (max-width: 640px) {", 0, small) > at
     ui = (ROOT / "picklist_ui.py").read_text(encoding="utf-8")
     assert ui.count("st.columns(2)") >= 2, "받기 단추를 두 칸 줄에 넣던 모듈이 바뀌었다"
+
+
+def test_changing_the_saved_list_date_lifts_the_date_picker_again():
+    """열어 둔 채 **날짜를 바꿔 골라도** 「어느 날 목록을 볼까요」 자리로 올린다.
+
+    2026-09-13 상하님 — "첫 번째 한 번은 되는데 화면을 내려서 밑에서 다시 날짜
+    클릭하면 또 안 된다." 여는 순간에만 올리게 되어 있었다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    toggle = source[source.index("def _picklist_toggle"):source.index("def _render_picklist_section")]
+    assert "_PICKLIST_DATE_KEY" in toggle and "_PICKLIST_SEEN_DATE_KEY" in toggle
+    changed = toggle[toggle.index("if picked != seen:"):]
+    assert changed.index("scroll_to.request(st, _PICKLIST_ANCHOR)") < changed.index("scroll_to.anchor(st, _PICKLIST_ANCHOR)")
+    assert '_PICKLIST_DATE_KEY = "picklist_date_US"' in source
+    # 날짜 칸 열쇠를 만드는 모듈이 그 이름을 그대로 쓰는지 — 바뀌면 조용히 안 올라간다.
+    ui = (ROOT / "picklist_ui.py").read_text(encoding="utf-8")
+    assert 'key=f"picklist_date_{market}"' in ui
