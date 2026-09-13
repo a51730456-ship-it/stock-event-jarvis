@@ -2445,7 +2445,9 @@ def test_top9_close_button_sits_below_the_detail_close_button():
         form_at)
     assert form_at < detail_close_at < close_at, "순위 9 닫기가 선택종목 세부사항 닫기 위에 있다"
     assert 'if panel == "top7":' in detail[detail_close_at:close_at]
-    assert "on_close=_close_all_from_fragment" in detail[close_at:]
+    # 2026-09-13 — 순위 9만 열렸으면 덩이만 다시 그리는 길로 닫는다.
+    # 같이 열린 것이 있으면 그 길이 _close_all_from_fragment 를 부른다(아래 시험).
+    assert "on_close=_close_top7_from_fragment" in detail[close_at:]
     # 맨 아래 닫기 단추도 '다 닫기'를 시킬 수 있어야 한다.
     helper = source[source.index("def _section_close("):source.index("# ── 「심사항목 기준」")]
     assert "on_close=None" in helper
@@ -2465,10 +2467,14 @@ def test_fragment_close_asks_for_a_whole_page_redraw():
     assert 'st.session_state["j3_close_all_pending"] = True' in helper
     assert 'st.rerun(scope="app")' in helper
 
-    # 새 닫기 단추가 그 길을 쓴다.
+    # 순위 9 닫기는 새 길(_close_top7_from_fragment)을 거친다. 같이 열린 것이
+    # 있으면 그 길이 **여전히 판 전체를 다시 그린다**(2026-09-13).
     detail = source[source.index("def _render_stock_detail("):
                     source.index("# 테마 화면에서 **한 번에 같이 펴는 네 구역**")]
-    assert "on_close=_close_all_from_fragment" in detail
+    assert "on_close=_close_top7_from_fragment" in detail
+    top7_close = source[source.index("def _close_top7_from_fragment"):
+                        source.index("def _close_theme_rank_from_fragment")]
+    assert "_close_all_from_fragment()" in top7_close
 
     # 순위 9 조각이 끝에서 그것을 실행한다.
     block = source[source.index("def _render_top7_section"):source.index("def _kept_recently")]
@@ -2518,14 +2524,23 @@ def test_top9_close_sits_above_the_stock_search():
     fn = source[source.index("def _render_top7_close_above_search"):
                 source.index("def _render_my_stock_panel")]
     assert 'st.session_state.get("j3_top7_open")' in fn
-    assert "_close_full_theme_rank" in fn
+    assert "on_click=_close_top7_from_fragment" in fn
     assert 'key="close_j3_top7_open_above_search"' in fn
     # 종목검색 바로 위에서 불린다. 2026-08-27에 **뒤쪽 화면을 한 곳으로 모으면서**
     # (_render_radar_tail) 부르는 자리가 둘에서 하나가 되었다 — 예전에는 테마 화면이
     # 열렸을 때와 닫혔을 때 두 벌이 따로 적혀 있었다. 자리는 그대로다.
     # 부르는 자리 하나 + 함수를 만드는 자리 하나
     assert source.count("_render_top7_close_above_search()") == 1 + 1
-    assert re.search(r"_render_top7_close_above_search\(\)\n\s*_render_my_stock_panel", source), "종목검색 바로 위가 아니다"
+    # **2026-09-13에 순위 9 덩이 안으로 옮겼다.** 덩이 맨 끝에서 그리고, 그 덩이
+    # 바로 다음이 종목검색이라 보이는 자리는 그대로다. 밖에 두면 순위 9를 열어도
+    # 이 단추가 안 생기고(열기는 덩이만 다시 그린다), 덩이만 닫으면 단추가 남는다.
+    block = source[source.index("def _render_top7_section"):source.index("def _kept_recently")]
+    assert block.index("_render_top_reviewed_detail(market, ranking)") \
+        < block.index("_run_close_all_if_requested()") \
+        < block.index("scroll_to.run(st)") \
+        < block.index("_render_top7_close_above_search()"), \
+        "화면 올리기 칸이 단추 밑으로 가면 종목검색과 사이가 벌어진다"
+    assert re.search(r"_render_top7_section\(market, ranking\)\n\s*_render_my_stock_panel", source), "종목검색 바로 위가 아니다"
     # 20개 테마 순위 닫기와 같은 붉은 옷
     assert 'st-key-close_j3_top7_open_above_search"] button {' in source
 
@@ -3012,3 +3027,73 @@ def test_the_saved_list_goes_straight_to_the_date_picker():
     assert "st.markdown" not in before_date, "날짜를 묻기 전에 무엇을 그린다"
     assert opened.index("어느 날 목록을 볼까요") < opened.index("load_rows")
 
+
+
+def test_closing_top9_alone_does_not_redraw_the_whole_screen():
+    """순위 9 **하나만** 열렸으면 닫을 때 판 전체를 다시 그리지 않는다 (2026-09-13).
+
+    상하님 — "매수심사결과 높은 순위 9 … 나중에 닫기도 늦고." 닫기 단추 넷이
+    모두 시장분석 화면 전체를 다시 그렸다(노트북 1.7초). 21개 테마·상승장이
+    같이 열렸을 때만 그렇게 하고, 순위 9만 열렸으면 덩이만 다시 그린다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    helper = source[source.index("def _close_top7_from_fragment"):
+                    source.index("def _close_theme_rank_from_fragment")]
+    for key in ("_THEME_RANK_OPEN", '"j3_theme_panel_open"', "_THEME_PANEL_OPEN_KEYS",
+                '"j3_pullback_open"'):
+        assert key in helper, f"같이 열린 것({key})을 안 본다 — 닫아도 화면에 남는다"
+    opened_branch = helper[helper.index("if others_open:"):helper.index("return")]
+    assert "_close_all_from_fragment()" in opened_branch
+    assert helper.rstrip().endswith("_close_full_theme_rank()"), "상태를 다 비우지 않는다"
+    # 순위 9를 닫는 네 자리가 모두 이 길을 쓴다.
+    reviewed = source[source.index("def _render_top_reviewed("):
+                      source.index("def _render_top_reviewed_detail")]
+    assert "_close_top7_from_fragment()" in reviewed
+    assert "on_close=_close_top7_from_fragment" in reviewed
+    assert "_close_all_from_fragment()" not in reviewed
+
+
+def test_the_saved_list_redraws_only_itself_and_lifts_the_date_picker():
+    """날짜별 목록은 제 덩이만 다시 그리고, 열면 「어느 날 목록을 볼까요」가 맨 위다.
+
+    2026-09-13 상하님 — "날짜별로 저장해 둔 목록 보기도 조금 늦다. 그리고 클릭하면
+    화면이 캡처 화면처럼 위로 올라오게 해라."
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    at = source.index("def _render_picklist_section")
+    assert source[:at].rstrip().endswith("@st.fragment"), "목록이 제 덩이가 아니다"
+    body = source[at:source.index("_PICKLIST_PART_BY_KIND = {")]
+    assert "toggle=_picklist_toggle" in body
+    assert body.index("picklist_ui.render(") < body.index("scroll_to.run(st)"), \
+        "덩이만 다시 그릴 때 화면을 못 올린다"
+    tail = source[source.index("def _render_radar_tail"):at]
+    assert "_render_picklist_section(market, ranking)" in tail
+    toggle = source[source.index("def _picklist_toggle"):at]
+    assert "on_open=lambda: scroll_to.request(st, _PICKLIST_ANCHOR)" in toggle
+    assert "scroll_to.anchor(st, _PICKLIST_ANCHOR)" in toggle
+    # 올라갔을 때 맨 위에 바짝 — 공용 84px 이 아니라 이 자리 하나만.
+    assert "#jarvis-anchor-picklist_top{scroll-margin-top:0!important}" in source
+    # 한국테마와 같이 쓰는 모듈은 건드리지 않았다.
+    ui = (ROOT / "picklist_ui.py").read_text(encoding="utf-8")
+    assert "_PICKLIST_ANCHOR" not in ui and "picklist_top" not in ui
+
+
+def test_saved_swing_rows_are_looked_up_in_the_watch_list_too():
+    """저장 목록의 상승장 줄은 **관찰 줄에서도** 찾는다 (2026-09-13 상하님 지적).
+
+    "9월 10일 상승장 종목을 클릭했는데 선택종목 세부사항이 안 나온다." 그날 줄은
+    DELL 하나였고, 오늘 DELL 은 정식 후보가 아니라 관찰 줄에 있었다. 상승장 화면은
+    둘 다 눌러 세부사항을 보게 하는데, 저장 목록은 정식 후보만 뒤졌다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    fn_src = source[source.index("def _find_scan_row"):source.index("def _picklist_detail")]
+    scope = {}
+    exec(fn_src, scope)
+    find = scope["_find_scan_row"]
+    scan = {"ok": True, "rows": [], "watch_rows": [{"ticker": "DELL", "total_score": 79.0}]}
+    assert find(scan, "DELL") is None, "기본값이 바뀌었다 — 종목검색까지 바뀐다"
+    assert find(scan, "dell", with_watch=True)["ticker"] == "DELL"
+    detail = source[source.index("def _picklist_detail"):source.index("def _forget_picklist_pick")]
+    assert "_find_scan_row(j3data.breakout_scan(), code, with_watch=True)" in detail
+    # 급락·테마 대장주는 예전 그대로다.
+    assert "_find_scan_row(j3data.find_crash_rebound_stocks(), code)" in detail

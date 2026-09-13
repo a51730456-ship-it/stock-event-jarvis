@@ -1644,6 +1644,31 @@ class TheButtonWaitsForTheWarmUpTests(unittest.TestCase):
                         "249종목을 받기 전에 시작한다 — 공책이 비어 빈손으로 돌아간다")
 
 
+class TopNinePrefetchReadsTheTwoYearBatchTests(unittest.TestCase):
+    """순위 9가 미리 받는 시세는 대장주가 **실제로 읽는 2년치**여야 한다 (2026-09-13).
+
+    상하님 — "매수심사결과 높은 순위 9 첫 로딩 늦다." 2026-08-21에 대장주를
+    2년치로 바꾸면서 미리 받기만 1년치로 남아, 아무도 안 읽는 194종목 1년치를
+    누를 때마다 받았다(노트북 12.8초).
+    """
+
+    def test_it_asks_for_two_years_with_spy(self):
+        asked = []
+        rows = [{"name": theme["name"]} for theme in j3.US_THEMES[:3]]
+        with patch.object(j3, "_cache_is_warm", lambda tickers, **kw: asked.append(("warm", tuple(tickers), kw)) or False), \
+                patch.object(j3, "_download_cached", lambda tickers, **kw: asked.append(("get", tuple(tickers), kw)) or ({}, {})):
+            j3._prefetch_leader_quotes(rows)
+        self.assertEqual(["warm", "get"], [kind for kind, _t, _k in asked])
+        for _kind, tickers, kw in asked:
+            self.assertEqual("2y", kw.get("period"), "대장주가 안 읽는 기간을 받는다")
+            self.assertEqual("SPY", tickers[0], "SPY 가 빠지면 테마 하나도 못 덮는다")
+        leaders = pathlib.Path("jarvis3_data.py").read_text(encoding="utf-8")
+        leaders = leaders[leaders.index("def get_theme_leaders"):]
+        leaders = leaders[:leaders.index(chr(10) + "def ", 10)]
+        self.assertIn('tickers = ("SPY", theme["etf"], theme["alt_etf"], *theme["stocks"])', leaders)
+        self.assertIn('period="2y"', leaders)
+
+
 class BreakoutWarmUpUsesNoNetworkTests(unittest.TestCase):
     """미리 데우기는 **이미 받아 둔 자료만** 쓴다 (2026-08-29).
 

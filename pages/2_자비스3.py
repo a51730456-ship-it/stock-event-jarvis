@@ -1564,7 +1564,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026091310
+_REQUIRED_J3_REVISION = 2026091320
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -4078,7 +4078,7 @@ def _render_stock_detail(
         # 된다." 앞서 '실제 매수기록 저장' 위에 뒀더니 금빛 저장 단추에 눈이 가려
         # 회색 닫기 단추가 묻혔다. 누르면 열린 화면을 다 닫고 맨 위로 올라간다.
         _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기",
-                       slot="_detail", on_close=_close_all_from_fragment)
+                       slot="_detail", on_close=_close_top7_from_fragment)
 
 
 
@@ -4153,6 +4153,37 @@ def _close_all_from_fragment() -> None:
     """
     _close_full_theme_rank()
     st.session_state["j3_close_all_pending"] = True
+
+
+def _close_top7_from_fragment() -> None:
+    """「매수심사결과 높은 순위 9」 닫기 — **밖에 열린 것이 없으면 판 전체를
+    다시 그리지 않는다** (2026-09-13 상하님 — "나중에 닫기도 늦고").
+
+    닫기 단추 넷이 모두 `_close_all_from_fragment` 를 불러 **시장분석 화면
+    전체**(지수·게이지·업종 지도·테마 순위…)를 처음부터 다시 그렸다. 21개
+    테마·상승장이 같이 열려 있을 때는 그것들도 화면에서 지워야 하므로 맞다.
+    그런데 순위 9 **하나만** 열려 있을 때도 그렇게 해서 닫는 데 판 한 벌이 들었다
+    (노트북 실측 1.7초 · 폰은 더).
+
+    이제 순위 9만 열려 있으면 **이 덩이만** 다시 그린다. 상태는 예전과 똑같이
+    전부 비우고(`_close_full_theme_rank`) 메인 시작점으로 올라간다.
+    같이 열린 것이 하나라도 있으면 예전 그대로 판 전체를 다시 그린다.
+
+    **닫은 뒤 남는 단추가 없어야 한다** — 순위 9 에 딸린 단추는 모두 이 덩이
+    안에 있다. 종목검색 위의 「✕ 순위 9 닫기」도 이 덩이 안으로 옮겼다
+    (_render_top7_section). 2026-09-11 「21개 테마 닫기」 때처럼 밖에 딸린
+    단추가 옛 상태로 붙어 있는 일이 이 덩이에는 없다.
+    """
+    others_open = (
+        st.session_state.get(_THEME_RANK_OPEN)
+        or st.session_state.get("j3_theme_panel_open")
+        or any(st.session_state.get(key) for key in _THEME_PANEL_OPEN_KEYS)
+        or st.session_state.get("j3_pullback_open")
+    )
+    if others_open:
+        _close_all_from_fragment()
+        return
+    _close_full_theme_rank()
 
 
 def _close_theme_rank_from_fragment() -> None:
@@ -5281,8 +5312,8 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
     _render_pullback_finder(market, ranking)
     # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
     if not guest_mode:
+        # 종목검색 위의 「✕ 순위 9 닫기」도 이 덩이 안에서 그린다(2026-09-13).
         _render_top7_section(market, ranking)
-    _render_top7_close_above_search()
     _render_my_stock_panel(market, ranking)
     # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
     # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
@@ -5294,13 +5325,51 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
     # 그래서 화면만 먹고 있었다. header 를 안 넘기면 그 자리가 통째로 빈다.
     # **기록 자체는 안 지운다** — DB(j3store)에 그대로 있고, 되살리려면 여기에
     # header=_render_saved_trades_header 를 도로 넣으면 된다.
+    _render_picklist_section(market, ranking)
+
+
+# 날짜별 목록을 **열 때** 화면이 올라갈 자리 (2026-09-13 상하님 지시 — "클릭하면
+# 화면이 캡처 화면처럼 위로 올라오게 해라"). 캡처는 「어느 날 목록을 볼까요」가
+# 화면 맨 위다. 그 칸 **바로 위**에 찍는다.
+_PICKLIST_ANCHOR = "picklist_top"
+
+
+def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
+    """날짜별 목록 여닫이 — 열면 「어느 날 목록을 볼까요」가 화면 맨 위로 온다.
+
+    여닫는 방식은 다른 구역과 같은 `_section_toggle` 을 그대로 쓴다. 여는 순간에만
+    그 자리로 올라가라고 적어 두고, 열려 있으면 여닫이 단추 바로 밑(= 「어느 날
+    목록을 볼까요」 바로 위)에 자리 표시를 찍는다. picklist_ui(한국테마와 같이
+    쓰는 모듈)는 건드리지 않는다.
+    """
+    is_open = _section_toggle(
+        label, key, close_label=close_label,
+        on_open=lambda: scroll_to.request(st, _PICKLIST_ANCHOR),
+    )
+    if is_open:
+        scroll_to.anchor(st, _PICKLIST_ANCHOR)
+    return is_open
+
+
+@st.fragment
+def _render_picklist_section(market: dict, ranking: dict) -> None:
+    """날짜별로 저장해 둔 목록 — **제 덩이만** 다시 그린다 (2026-09-13 상하님 —
+    "날짜별로 저장해 둔 목록 보기도 조금 늦다").
+
+    여닫이 단추가 덩이 밖에 있어서 누를 때마다 시장분석 화면 **전체**를 처음부터
+    다시 그렸다(온라인 게스트 실측 2.6초). 이 구역은 날짜·표·받기 단추뿐이고
+    바깥이 이 구역의 상태를 보지 않으므로 덩이 하나로 묶는다. 안에서 누르는
+    날짜 고르기·종목 누르기도 이 덩이만 다시 그린다.
+    """
     picklist_ui.render(
-        st, "US", toggle=_section_toggle, close=_section_close,
+        st, "US", toggle=_picklist_toggle, close=_section_close,
         # 그 줄이 어느 파트에서 나왔는지에 따라 **다른 배점표**로 보내야 한다.
         # market·ranking 이 있어야 그 파트의 상세를 그리므로 여기서 싸서 넘긴다.
         on_pick=lambda code, name, kind, row: _picklist_detail(
             market, ranking, code, name, kind, row),
     )
+    # 덩이만 다시 그릴 때는 페이지 끝이 안 돈다 — 여기서 그 자리로 올려 준다.
+    scroll_to.run(st)
 
 
 # 저장해 둔 줄이 **어느 파트에서 나왔나**.
@@ -5335,12 +5404,23 @@ def _picklist_theme_name(row: dict) -> str:
     return str((row or {}).get("themes") or "").split("·")[0].strip()
 
 
-def _find_scan_row(found: dict, code: str) -> dict | None:
-    """오늘 그 파트 목록에서 이 종목 줄을 찾는다. 없으면 None."""
+def _find_scan_row(found: dict, code: str, *, with_watch: bool = False) -> dict | None:
+    """오늘 그 파트 목록에서 이 종목 줄을 찾는다. 없으면 None.
+
+    with_watch — 상승장의 **관찰 줄**(watch_rows)까지 본다 (2026-09-13 상하님 —
+    "날짜별로 저장해 둔 목록에서 9월 10일 상승장 종목을 클릭했는데 선택종목
+    세부사항이 안 나온다"). 상승장 화면은 정식 후보와 관찰 줄을 **둘 다** 눌러
+    세부사항을 보게 한다(_render_us_swing_finder 의 all_selectable). 그런데
+    여기서는 정식 후보(rows)만 뒤져서, 그날 저장된 DELL 이 오늘 관찰 줄에
+    있는데도 "오늘 목록에 없다"로 빠졌다. 오늘은 정식 후보가 0개였다.
+    """
     if not isinstance(found, dict) or not found.get("ok"):
         return None
     want = str(code or "").upper()
-    for row in (found.get("rows") or []):
+    rows = list(found.get("rows") or [])
+    if with_watch:
+        rows += list(found.get("watch_rows") or [])
+    for row in rows:
         if str(row.get("ticker") or "").upper() == want:
             return row
     return None
@@ -5400,7 +5480,8 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
 
     if part in ("상승장", "눌림목"):
         with st.spinner(f"{name or code} — 상승장 배점으로 심사 중입니다…"):
-            found = _find_scan_row(j3data.breakout_scan(), code)
+            # 관찰 줄까지 본다 — 상승장 화면이 누르게 해 주는 범위와 같다(2026-09-13).
+            found = _find_scan_row(j3data.breakout_scan(), code, with_watch=True)
         if found:
             _render_pullback_detail(found, market, ranking, mode="breakout",
                                     panel="picklist")
@@ -5770,6 +5851,13 @@ def _render_top7_section(market: dict, ranking: dict) -> None:
     # 이 덩이도 프래그먼트라 페이지 끝이 안 돌아간다 — 여기서 내려 준다.
     # finally로 감싸지 않는다(위 _render_pullback_finder의 주석 참고).
     scroll_to.run(st)
+    # 종목검색 바로 위의 「✕ 순위 9 닫기」는 **이 덩이 안**에서 그린다
+    # (2026-09-13). 이 덩이 바로 다음이 종목검색이라 보이는 자리는 그대로다.
+    # 밖에 두면 ① 순위 9를 열어도 이 단추가 안 생기고(열기는 덩이만 다시
+    # 그린다 — 노트북에서 확인함) ② 덩이만 다시 그려 닫으면 단추가 남는다.
+    # **scroll_to.run 뒤에 둔다** — 그 칸(높이 0)이 단추 밑으로 가면 종목검색과
+    # 사이가 12px 벌어진다(실측 33px → 45px). 예전 차례(그 칸 → 단추)와 같게 둔다.
+    _render_top7_close_above_search()
 
 
 def _kept_recently(key: str, seconds: float = 300) -> bool:
@@ -5858,7 +5946,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         # 닫기 — 조회는 하지 않는다. 열린 것을 모두 닫고 메인 시작점으로 올라간다
         # (2026-08-26 상하님 지시). 이 단추도 프래그먼트 안이라 판 전체를 다시
         # 그려야 바깥의 20개 테마 순위·상승장·급락장이 화면에서 사라진다.
-        _close_all_from_fragment()
+        # 순위 9만 열려 있으면 이 덩이만 다시 그린다(2026-09-13).
+        _close_top7_from_fragment()
         run_requested = False
     if (
         run_requested
@@ -6003,7 +6092,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # (2026-08-06 사용자 지적). 폰에서 표 끝까지 내려가면 위 단추가 화면 밖으로 나간다.
     _section_close(
         "j3_top7_open", "매수심사결과 높은 순위 9 닫기",
-        on_close=_close_all_from_fragment,
+        on_close=_close_top7_from_fragment,
     )
 
 
@@ -6065,15 +6154,16 @@ def _render_top7_close_above_search() -> None:
     상하님 — "맨 밑에 종목검색 위에 매수심사결과 높은 순위 9 닫기 버튼 만들고
     20개 테마 실시간 순위 닫기처럼 만들라고."
     「20개 테마 실시간 순위 닫기」가 '종목 찾기' 바로 위에 있는 것과 같은 자리다.
-    이 단추는 프래그먼트 **밖**이라 누르면 판 전체가 저절로 다시 그려진다 —
-    따로 다시 그리라고 시킬 필요가 없다.
+    **순위 9 덩이 안에서 그린다**(2026-09-13) — 그 덩이 바로 다음이 종목검색이라
+    자리는 그대로다. 누르면 다른 닫기 단추와 같은 길로 닫는다
+    (`_close_top7_from_fragment` — 순위 9만 열렸으면 덩이만 다시 그린다).
     """
     if not st.session_state.get("j3_top7_open"):
         return
     st.button(
         "✕ 매수심사결과 높은 순위 9 닫기",
         key="close_j3_top7_open_above_search",
-        on_click=_close_full_theme_rank,
+        on_click=_close_top7_from_fragment,
     )
 
 
@@ -9051,6 +9141,11 @@ def _briefing_css() -> None:
         /* 올라갔을 때 단추가 **맨 위에 바짝** 서게 한다 — 공용 84px 을 쓰면 단추가
            화면 한참 아래에 선다(캡처는 맨 위다). 이 자리 하나에만 건다. */
         #jarvis-anchor-top7_top{scroll-margin-top:12px!important}
+        /* 날짜별 목록 자리 표시(2026-09-13) — 칸 하나 차지하는 만큼 도로 당기고,
+           올라갔을 때 「어느 날 목록을 볼까요」가 캡처처럼 **맨 위에 바짝** 서게 한다. */
+        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(#jarvis-anchor-picklist_top){
+          margin-top:-12px!important;margin-bottom:0!important}
+        #jarvis-anchor-picklist_top{scroll-margin-top:0!important}
         /* 「미국 전체시장 판단」 제목이 배너에 붙어 있었다(실측 2px). 이 제목의
            제 여백(.25rem)을 위 `stMarkdownContainer>div` 규칙이 같이 걷어낸 탓이다.
            **이 제목 하나에만** 12px 이 되게 도로 준다 — 쓰는 곳이 한 군데다. */

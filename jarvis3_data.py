@@ -234,7 +234,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026091310
+MODULE_REVISION = 2026091320
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4091,11 +4091,24 @@ def _prefetch_leader_quotes(theme_rows) -> None:
     unique = list(dict.fromkeys(tickers))
     if not unique:
         return
+    # **2년치 · SPY 포함으로 받는다** (2026-09-13 상하님 — "매수심사결과 높은
+    # 순위 9 첫 로딩 늦다").
+    #
+    # 2026-08-21에 get_theme_leaders 를 2년치로 바꾸면서 여기만 1년치로 남았다.
+    # 그래서 **아무도 안 읽는 194종목 1년치**를 누를 때마다 받고 있었다
+    # (노트북 실측 12.8초 — 순위 9 첫 열기 14.7초 중 거의 전부). 대장주는 2년치를
+    # 읽으므로, 여기서 1년치를 받아도 그 공책을 못 쓴다.
+    # SPY 도 넣는다 — get_theme_leaders 는 테마마다 SPY 를 같이 부른다. 빠지면
+    # 이 묶음이 테마 하나도 못 덮어, 5분이 지난 뒤에는 21개 테마가 **따로따로**
+    # 받는다. 화면이 이미 들고 있는 249종목 2년치 묶음에는 이 종목들이 다
+    # 들어 있어서, 5분 안이면 아무것도 새로 안 받는다.
+    # **값은 안 바뀐다** — 대장주 점수는 원래 2년치로 계산한다. 받는 것만 바뀐다.
+    unique = ["SPY", *[ticker for ticker in unique if ticker != "SPY"]]
     # 실패해도 그냥 넘어간다 — 각 테마가 예전처럼 자기 몫을 받으면 되므로
     # 여기서 막히면 느려지기만 하고 결과는 같다.
     try:
-        if not _cache_is_warm(unique, period="1y", interval="1d", ttl_seconds=300):
-            _download_cached(unique, period="1y", interval="1d", ttl_seconds=300)
+        if not _cache_is_warm(unique, period="2y", interval="1d", ttl_seconds=300):
+            _download_cached(unique, period="2y", interval="1d", ttl_seconds=300)
     except Exception as exc:
         _log.warning("jarvis3 top7 prefetch failed: %s", exc)
 
