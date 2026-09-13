@@ -238,6 +238,42 @@ st.markdown(
         min-width: 0 !important;
         flex: 1 1 0 !important;
     }
+    /* ── 날짜별 목록의 받기 단추 넷은 **두 개씩 한 줄** (2026-09-13 상하님 지시 —
+       "첫 번째 캡처 화면을 두 번째 캡처 화면처럼", 즉 위 설명보기 두 칸처럼).
+       picklist_ui 는 원래 두 칸 줄(st.columns(2))에 넣는데, 스트림릿이 폰에서
+       칸을 위아래로 쌓아 한 줄에 하나씩 네 줄이 됐다(실측 375px — 343px 넷).
+       위 설명 접이칸 줄과 **같은 방법**으로 이 두 줄만 쌓지 말라고 못박는다.
+       이 화면의 CSS 라 같은 모듈을 쓰는 한국테마는 안 바뀐다.
+       단추 열쇠로 그 줄 **바로 위 칸**만 집는다 — 넓게 걸면 다른 줄까지 붙는다. */
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_US"]),
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_all_US"]) {
+        flex-wrap: nowrap !important;
+        gap: .4rem !important;
+    }
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_US"]) > [data-testid="stColumn"],
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_all_US"]) > [data-testid="stColumn"] {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
+    /* 반쪽 폭에 글자가 한 줄로 들어가게 — 「(.xlsx)」·「(CSV)」가 잘리면 둘을 못 가른다.
+       **칸이 쌓이던 좁은 화면(640px 이하 — 스트림릿이 칸을 쌓는 너비)에서만** 줄인다.
+       태블릿·PC는 원래 두 칸이 나란히라 글자 크기를 바꾸지 않는다. */
+    @media (max-width: 640px) {
+        div[class*="st-key-picklist_xlsx_US"] button,
+        div[class*="st-key-picklist_csv_US"] button,
+        div[class*="st-key-picklist_xlsx_all_US"] button,
+        div[class*="st-key-picklist_csv_all_US"] button {
+            padding-left: .3rem !important;
+            padding-right: .3rem !important;
+        }
+        div[class*="st-key-picklist_xlsx_US"] button p,
+        div[class*="st-key-picklist_csv_US"] button p,
+        div[class*="st-key-picklist_xlsx_all_US"] button p,
+        div[class*="st-key-picklist_csv_all_US"] button p {
+            font-size: .74rem !important;
+            white-space: nowrap !important;
+        }
+    }
     /* ── 여닫이는 **직접 만든다** (2026-09-12 상하님 지시 — "맨 밑에 조그맣게
        닫기 단추 만들어라"). 스트림릿 접이칸은 머리글을 눌러야만 닫히고, 글
        맨 아래에 닫는 자리를 둘 수가 없다(2026-09-12에 확인했다 — 머리글 빈

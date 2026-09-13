@@ -3097,3 +3097,24 @@ def test_saved_swing_rows_are_looked_up_in_the_watch_list_too():
     assert "_find_scan_row(j3data.breakout_scan(), code, with_watch=True)" in detail
     # 급락·테마 대장주는 예전 그대로다.
     assert "_find_scan_row(j3data.find_crash_rebound_stocks(), code)" in detail
+
+
+def test_the_saved_list_download_buttons_stay_two_to_a_row_on_a_phone():
+    """날짜별 목록의 받기 단추 넷은 폰에서도 **두 개씩 한 줄**이다 (2026-09-13 상하님 지시).
+
+    picklist_ui 는 원래 두 칸 줄에 넣는데, 스트림릿이 폰에서 칸을 쌓아 네 줄이 됐다.
+    설명보기 두 칸 줄과 같은 방법으로 이 줄만 쌓지 않게 한다. 한국테마(같은 모듈)는
+    이 화면의 CSS 를 안 읽으므로 바뀌지 않는다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    for key in ("picklist_csv_US", "picklist_csv_all_US"):
+        rule = ('[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > '
+                f'[data-testid="stVerticalBlock"] > [class*="st-key-{key}"])')
+        assert rule in source, f"{key} 줄을 안 묶는다"
+    at = source.index('[class*="st-key-picklist_csv_all_US"]) {')
+    assert "flex-wrap: nowrap !important;" in source[at:at + 120]
+    # 글자 줄이기는 칸이 쌓이던 좁은 화면에서만 — 태블릿·PC 는 그대로다.
+    small = source.index("font-size: .74rem !important;")
+    assert source.rindex("@media (max-width: 640px) {", 0, small) > at
+    ui = (ROOT / "picklist_ui.py").read_text(encoding="utf-8")
+    assert ui.count("st.columns(2)") >= 2, "받기 단추를 두 칸 줄에 넣던 모듈이 바뀌었다"
