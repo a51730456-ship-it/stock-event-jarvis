@@ -1339,7 +1339,30 @@ def get_fx_intraday(*, ttl_seconds: float = 60) -> dict:
 # 2026-08-20 — 상승장(신고가 눌림매수)이 US_SWING_V1으로 바뀌면서 jarvis3_data의
 # MODULE_REVISION이 올라갔다. **여기 계산은 하나도 안 바뀌었다** — 이 숫자는
 # 옛 모듈이 프로세스에 남았는지 알아채는 표식일 뿐이라, 규칙 11대로 같이 올린다.
-_REQUIRED_J3_REVISION = 2026091320
+_REQUIRED_J3_REVISION = 2026090740
+
+
+def _us_fear_greed_as_before(j3, value: dict) -> dict:
+    """2026-09-12 이전 jarvis3_data._freeze_fear_greed 와 똑같이 만든다.
+
+    미국장이 끝나기 전에는 CNN 이 같이 주는 전일 마감값(previous_close)을 쓰고,
+    뉴욕 마감이 지나면 그날 값을 쓴다. 실시간 값은 live_score 로 남긴다.
+    """
+    if not isinstance(value, dict) or not value.get("ok"):
+        return value
+    live = j3._finite(value.get("score"))
+    frozen = live if j3.us_session_closed() else j3._finite(value.get("previous_close"))
+    if frozen is None:                      # 전일값을 못 받았으면 있는 값을 그대로 쓴다
+        frozen = live
+    if frozen is None:
+        return value
+    out = dict(value)
+    out["live_score"] = live
+    out["score"] = round(float(frozen), 1)
+    out["rating_kr"] = j3.fear_greed_label(float(frozen))
+    out["frozen"] = frozen != live
+    out["as_of_label"] = "직전 완료 미국장 종가"
+    return out
 
 
 def _us_previous_session() -> dict:
@@ -1376,7 +1399,10 @@ def _us_previous_session() -> dict:
 
         spy = _session_change("^GSPC", "SPY")
         qqq = _session_change("^NDX", "QQQ")
-        fear_greed = j3.get_fear_greed()
+        # **한국테마는 예전 그대로 — 미국장 중에는 전일 마감값** (2026-09-14 상하님 지시,
+        # 2026-09-12 이전으로 되돌림). 2026-09-12에 미국테마 공포·탐욕을 「지금 값」으로
+        # 바꾸면서 이 칸도 같이 바뀌었다. 미국테마 계산은 두고, 여기서만 예전 방식을 쓴다.
+        fear_greed = _us_fear_greed_as_before(j3, j3.get_fear_greed())
         previous_market = overview.get("previous_market") or {}
         return {
             "ok": spy is not None and qqq is not None,
