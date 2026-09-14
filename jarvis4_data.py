@@ -45,6 +45,12 @@ _HEADERS = {
 
 _THEME_LIST_URL = "https://finance.naver.com/sise/theme.naver"
 _THEME_DETAIL_URL = "https://finance.naver.com/sise/sise_group_detail.naver?type=theme&no={no}"
+# **네이버가 옛 증권 페이지를 새 사이트로 옮겼다** (2026-09-10~11 무렵, 2026-09-14 확인).
+# 위 두 주소는 이제 stock.naver.com 으로 넘어가고 예전 표가 없어 테마가 0개로 읽혔다
+# (화면 — 「테마 자료 조회 실패: 테마 목록을 찾지 못했습니다」, 그 아래가 통째로 안 보임).
+# 새 사이트가 쓰는 자료 주소에서 같은 값을 받는다. 옛 표 읽기는 지우지 않고 뒤에 둔다.
+_THEME_LIST_API = "https://m.stock.naver.com/api/stocks/theme?page={page}&pageSize=100"
+_THEME_DETAIL_API = "https://m.stock.naver.com/api/stocks/theme/{no}?page={page}&pageSize=100"
 _STOCK_FLOW_URL = "https://finance.naver.com/item/frgn.naver?code={code}"
 _YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 
@@ -86,7 +92,7 @@ PULLBACK_SCORE_MAX = 25.0 + 25.0 + PULLBACK_TREND_POINTS + 25.0 + 15.0
 # 화면은 새 코드인데 계산은 옛 코드인 상태가 생긴다(2026-07-24 실제 발생:
 # 눌림목 깔때기의 전체·유동성·수급 확인 개수가 전부 0으로 표시됐다).
 # 계산 결과나 반환 키를 바꾸면 이 숫자를 올린다.
-MODULE_REVISION = 2026080920
+MODULE_REVISION = 2026091410
 
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict = {}
@@ -696,7 +702,46 @@ def _parse_theme_detail_numbers(numbers: list[str] | tuple[str, ...]) -> dict:
     }
 
 
+def _get_json(url: str, *, timeout: float = 8, retries: int = 2) -> dict:
+    """새 네이버 자료 주소(JSON). 실패는 _get_text 와 같은 방식으로 다시 해 본다."""
+    last_error = None
+    for attempt in range(retries + 1):
+        try:
+            response = _http_session().get(url, timeout=timeout)
+            response.raise_for_status()
+            return response.json()
+        except Exception as exc:
+            last_error = exc
+            if attempt < retries:
+                time.sleep(0.8 * (attempt + 1))
+    raise RuntimeError(f"네이버 조회 실패: {last_error}")
+
+
+def _fetch_theme_page_api(page: int) -> dict:
+    """테마 목록 한 장 — 새 자료 주소. 옛 표와 같은 모양(no·name·change_pct)으로 돌려준다."""
+    payload = _get_json(_THEME_LIST_API.format(page=page))
+    found = {}
+    for group in payload.get("groups") or []:
+        try:
+            theme_no = int(group.get("no"))
+            change_pct = float(str(group.get("changeRate")).replace(",", ""))
+        except (TypeError, ValueError):
+            continue
+        name = str(group.get("name") or "").strip()
+        if not name:
+            continue
+        found[theme_no] = {"no": theme_no, "name": name, "change_pct": change_pct}
+    return found
+
+
 def _fetch_theme_page(page: int) -> dict:
+    try:
+        found = _fetch_theme_page_api(page)
+        if found or page > 1:
+            return found
+    except Exception:
+        if page > 1:
+            raise
     url = _THEME_LIST_URL if page == 1 else f"{_THEME_LIST_URL}?page={page}"
     html = _get_text(url)
     found = {}
@@ -735,7 +780,61 @@ def get_all_themes(*, ttl_seconds: float = 300) -> dict:
     return {"ok": True, "stale": stale, "themes": themes}
 
 
+def _fetch_theme_detail_api(theme_no: int) -> list[dict]:
+    """테마 구성종목 — 새 자료 주소. 옛 표와 같은 칸으로 돌려준다.
+
+    거래대금은 옛 표와 같은 백만원 단위(accumulatedTradingValue)다. **전일 거래량은
+    새 자료에 없다** — 옛 표를 못 읽었을 때처럼 비워 둔다(None).
+    """
+    stocks = []
+    page, total = 1, None
+    while page <= 10:
+        payload = _get_json(_THEME_DETAIL_API.format(no=theme_no, page=page))
+        batch = payload.get("stocks") or []
+        for item in batch:
+            code = str(item.get("itemCode") or "").strip()
+            if not re.fullmatch(r"\d{6}", code):
+                continue
+            parsed = _parse_theme_detail_numbers([
+                str(item.get("closePrice") or ""),
+                str(item.get("accumulatedTradingVolume") or ""),
+                str(item.get("accumulatedTradingValue") or ""),
+                "-1",                       # 전일 거래량 — 새 자료에 없다
+            ])
+            if parsed["price"] is None:
+                continue
+            try:
+                change_pct = float(str(item.get("fluctuationsRatio")).replace(",", ""))
+            except (TypeError, ValueError):
+                change_pct = None
+            stocks.append({
+                "code": code,
+                "name": str(item.get("stockName") or "").strip(),
+                "price": parsed["price"],
+                "change_pct": change_pct,
+                "volume": parsed["volume"],
+                "trading_value_million": parsed["trading_value_million"],
+                "trading_value": parsed["trading_value"],
+                "previous_volume": parsed["previous_volume"],
+                "parser_version": THEME_DETAIL_PARSER_VERSION,
+            })
+        try:
+            total = int(payload.get("totalCount") or 0)
+        except (TypeError, ValueError):
+            total = 0
+        if not batch or len(stocks) >= total:
+            break
+        page += 1
+    return stocks
+
+
 def _fetch_theme_detail(theme_no: int) -> list[dict]:
+    try:
+        stocks = _fetch_theme_detail_api(theme_no)
+        if stocks:
+            return stocks
+    except Exception:
+        pass
     html = _get_text(_THEME_DETAIL_URL.format(no=theme_no))
     stocks = []
     for code, name, body in _DETAIL_ROW_PATTERN.findall(html):
