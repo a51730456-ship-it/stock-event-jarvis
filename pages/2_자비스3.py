@@ -2900,17 +2900,16 @@ def _us_futures_cell() -> str:
         return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
     values = futures.get("values") or {}
     nasdaq = values.get("NQ=F") or {}
-    sp500 = values.get("ES=F") or {}
     if not nasdaq.get("current"):
         return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
     change = nasdaq.get("change_pct")
     # **미국은 오르면 파랑**이다(이 화면의 약속). 한국 화면과 색이 반대다 —
     # _sign_class가 그 규칙을 갖고 있으므로 그것을 쓴다.
+    # **S&P500 선물은 여기 적지 않는다** (2026-09-16 상하님 지시 — "나스닥100
+    # 선물 칸만 키높이가 안 맞다, · S&P500 선물 +0.14% 이 부분 때문인 것 같다,
+    # 삭제해라"). 밑줄이 길어 칸 안에서 두 줄로 접혀 그 칸만 한 줄 높았다.
+    # S&P500 선물 값은 그대로 받는다 — 시장 신호 표(us_market_signal_engine)가 쓴다.
     sub = f"<span class='{_sign_class(change)}'>{_pct(change)}</span>"
-    if sp500.get("change_pct") is not None:
-        sub += (f" <span class='j3-muted'>· S&P500 선물</span> "
-                f"<span class='{_sign_class(sp500['change_pct'])}'>"
-                f"{float(sp500['change_pct']):+.2f}%</span>")
     # **바꿔 보여주는 틀을 쓰지 않는다**(2026-08-21 상하님 지적 — 눌렀더니 그림이
     # 사라졌다). 선물에는 '일봉 6개월' 그림이 없어서, 틀에 넣으면 손을 올렸을 때
     # 당일 그림만 감추고 보여줄 것이 없다. 그림은 그대로 두고 지수 칸과 밑선을
@@ -2923,7 +2922,10 @@ def _us_futures_cell() -> str:
     return (
         f"<div class='j3-top-cell {_FUTURES_CLASS}'>"
         f"<div class='j3-top-label j3-idx-label'>{label}</div>"
-        f"<div class='j3-top-val j3-idx-val {_sign_class(change)}'>"
+        # 숫자 색은 **옆 지수 칸들과 같은 흰색**이다 (2026-09-16 상하님 지시 —
+        # "29,282 숫자, 다른 것과 통일된 색을 해라, 흰색이지?"). 오르내림 색은
+        # 바로 밑 %에 그대로 남는다.
+        f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>"
         f"{float(nasdaq['current']):,.0f}</div>"
         f"<div class='j3-top-sub j3-idx-sub'>{sub}</div>"
         + chart
