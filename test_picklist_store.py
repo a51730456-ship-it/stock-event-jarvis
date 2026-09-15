@@ -1022,3 +1022,35 @@ class DateBoxKeepsTheKeyboardDownTests(unittest.TestCase):
         finally:
             components.html = real
 
+class TitleNeverLeavesItsTableTests(unittest.TestCase):
+    """표 제목은 **표와 한 조각**이어야 한다 (2026-09-16 상하님 지적).
+
+    상하님 — 온라인 노트북에서 "두 번째 리스트에는 제목이 없다." 9월 11일(급락 후
+    반등장)·9월 14일(상승장) 두 날 다 **둘째 제목만** 빠졌다. 앱이 만드는 제목은
+    셋 다 멀쩡했고(확인함), 제 노트북에서는 게스트·로그인, 폰·태블릿·노트북,
+    바로 열기·날짜 바꾸기 여섯 가지로 해 봐도 재현되지 않았다.
+
+    원인을 못 박았으므로 **떨어질 수 없게** 만든다 — 제목과 표를 st.markdown
+    한 번으로 함께 그린다. 그러면 표가 보이는데 제목만 사라지는 일은 못 생긴다.
+    """
+
+    def _render_body(self):
+        source = (Path(__file__).parent / "picklist_ui.py").read_text(encoding="utf-8")
+        start = source.index("def render(")
+        return source[start:source.index("\ndef ", start + 10)]
+
+    def test_the_title_and_the_table_go_out_in_one_markdown(self):
+        body = self._render_body()
+        head = body.index("pl-kind")
+        table = body.index("table_html(", head)
+        # 제목과 표 사이에 st.markdown 이 새로 열리면 조각이 둘로 갈라진 것이다.
+        self.assertNotIn("st.markdown(", body[head:table],
+                         "제목과 표가 아직 따로 그려진다")
+
+    def test_the_title_spacing_survives_the_zeroed_margins(self):
+        """미국 화면은 조각 안 div 의 margin 을 0으로 만든다 — padding 으로 띄운다."""
+        import picklist_ui
+        line = next(x for x in picklist_ui.CSS.splitlines() if x.strip().startswith(".pl-kind"))
+        rule = picklist_ui.CSS[picklist_ui.CSS.index(line):]
+        rule = rule[:rule.index("}")]
+        self.assertIn("padding:", rule, "제목 띄우기를 padding 으로 준다")

@@ -121,7 +121,11 @@ div[class*="st-key-plpickbox_"] { position: absolute !important;
 .pl-profit-up { color: #22c55e; font-weight: 900; }
 .pl-profit-down { color: #ff4d4f; font-weight: 900; }
 .pl-table td.pl-c-profit_pct { font-size: .95rem; }
-.pl-kind { color: #ffb020; font-weight: 800; font-size: 1.02rem; margin: 1rem 0 .35rem; }
+/* 제목은 표와 **같은 조각 안**에 있다(위 render 설명). 그래서 사이를 띄우는 것은
+   여백(margin)이 아니라 안쪽 여백(padding)으로 준다 — 미국 화면에는 조각 안 div 의
+   margin 을 0으로 만드는 규칙이 있어서, margin 으로 주면 제목이 표에 붙는다. */
+.pl-kind { color: #ffb020; font-weight: 800; font-size: 1.02rem;
+           margin: 0; padding: 1rem 0 .35rem; }
 .pl-note { color: #9aa0aa; font-size: .88rem; line-height: 1.6; margin: .2rem 0 .8rem; }
 .pl-note b { color: #44f0a1; }
 /* 여는 단추 — 네 갈래 단추와 같은 결의 회색 띠. 누를 곳이라는 것만 보이면 된다. */
@@ -699,15 +703,19 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) ->
         if not store.should_show(kind, market):
             hidden += len(part)
             continue
+        prefix = f"plpick_{market}_{kind}_" if on_pick is not None else None
+        # **제목과 표를 한 덩이로 그린다** (2026-09-16 상하님 지적 — 온라인 노트북에서
+        # "두 번째 표에 제목이 없다", 9월 11일·14일 두 날 다 둘째 제목만 빠졌다).
+        # 예전에는 제목과 표를 st.markdown 두 번으로 나눠 그렸다. 그러면 화면 조각이
+        # 둘이라, 스트림릿이 판을 다시 그리며 조각을 자리 번호로 갈아 끼울 때 제목
+        # 조각만 헌 채로 남을 수 있다(제 노트북에서는 게스트·로그인, 폰·태블릿·노트북,
+        # 바로 열기·날짜 바꾸기 여섯 가지로 해 봤지만 재현되지 않았다 — 원인을 못
+        # 박았으므로 **제목이 표에서 떨어질 수 없게** 아예 한 조각으로 합친다).
         st.markdown(
             # 제목은 **그 시장 화면이 쓰는 말 그대로**다(2026-08-15 상하님 지시).
-            f"<div class='pl-kind'>{store.kind_label(kind, market)} · {len(part)}종목</div>",
-            unsafe_allow_html=True,
-        )
-        prefix = f"plpick_{market}_{kind}_" if on_pick is not None else None
-        st.markdown(
-            table_html(part, kind, tried=tried, pick_prefix=prefix,
-                       picked_code=(picked_now or {}).get("code")),
+            f"<div class='pl-kind'>{store.kind_label(kind, market)} · {len(part)}종목</div>"
+            + table_html(part, kind, tried=tried, pick_prefix=prefix,
+                         picked_code=(picked_now or {}).get("code")),
             unsafe_allow_html=True,
         )
         if prefix:
