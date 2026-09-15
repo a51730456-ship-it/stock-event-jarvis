@@ -9042,7 +9042,7 @@ def _briefing_css() -> None:
         @media (max-width:600px){.j3b-orbit-logo .j3b-logo{width:26px;height:26px;border-radius:8px}.j3b-orbit-tag{font-size:8px}}
         /* 움직임을 줄여 달라고 해 둔 기기에서는 멈춰 세운다. 시작 시각이 저마다
            달라 멈춰도 로고가 궤도에 고르게 흩어져 있다. */
-        @media (prefers-reduced-motion:reduce){.j3b-orbit-arm,.j3b-orbit-pod,.j3b-orbit-logo{animation-play-state:paused}}.j3b-hero:has(.j3b-hero-scene):before,.j3b-hero:has(.j3b-hero-scene):after{display:none}
+        @media (prefers-reduced-motion:reduce){.j3b-orbit-arm,.j3b-orbit-pod,.j3b-orbit-logo{animation-play-state:paused}}.j3b-hero:has(.j3b-hero-scene):before,.j3b-hero:has(.j3b-hero-scene):after{display:none}.j3b-hero .j3b-hero-scene{bottom:-10px!important}.j3b-hero.j3b-hero-pop{position:absolute!important;left:0;top:0;width:100%;z-index:4;overflow:visible!important;background:none!important;border-color:transparent!important;box-shadow:none!important;pointer-events:none;clip-path:inset(0 0 -80px 0)}.j3b-hero-pop .j3b-hero-scene{aspect-ratio:598/146}.j3b-hero-pop .j3b-hero-pop-bus{position:absolute;left:48.161%;top:7.534%;width:49.666%;height:auto;max-width:none!important;filter:drop-shadow(0 7px 5px rgba(0,0,0,.55))}.j3b-hero .j3b-head-copy,.j3b-hero .j3b-head-actions{z-index:6!important}.j3b-hero .j3b-orbit{z-index:5}
         .j3b-section {display:flex;align-items:center;gap:8px;color:#f8f4e9;margin:18px 4px 9px;font-size:20px;font-weight:850;letter-spacing:-1.2px}.j3b-section .j3b-section-icon{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:0}.j3b-section .j3b-section-icon:after{content:"";width:12px;height:12px;border:2px solid #f3fbff;border-radius:50%;box-sizing:border-box}.j3b-section .j3b-more{margin-left:auto;color:#e7e2d8;font-size:14px;font-weight:500}.j3b-section .j3b-flag{font-size:23px;line-height:1;filter:drop-shadow(0 1px 2px #0009)}.j3b-section.search .j3b-section-icon{background:transparent;box-shadow:none;border:3px solid #2ebfff}.j3b-section.search .j3b-section-icon:after{width:10px;height:10px;border-color:#2ebfff}.j3b-section.search .j3b-section-icon:before{content:"";width:11px;height:3px;position:absolute;transform:translate(11px,12px) rotate(48deg);background:#2ebfff;border-radius:2px}
         
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
@@ -10927,6 +10927,12 @@ def _render_stock_briefing() -> None:
                 )
         catbus_uri = _briefing_asset_uri("hero_scene.webp")
         catbus_html = f'<img class="j3b-hero-scene" src="{catbus_uri}" alt="">' if catbus_uri else ""
+        # 틀 밖으로 삐져나오는 버스(2026-09-15 상하님 지시 — 위 CSS 설명 참고).
+        pop_uri = _briefing_asset_uri("hero_catbus_pop.webp") if catbus_uri else ""
+        pop_html = (
+            '<div class="j3b-hero j3b-hero-pop" aria-hidden="true"><div class="j3b-hero-scene">'
+            f'<img class="j3b-hero-pop-bus" src="{pop_uri}" alt=""></div></div>'
+        ) if pop_uri else ""
         # ↻ 는 그림이 아니라 **진짜 단추**다(2026-08-26 상하님 지시 — "맨 위 상단
         # 실시간 옆 되돌리기 버튼 저것만 작동하게"). 보이는 것은 아래 span 그대로 두고,
         # 그 위에 속이 비치는 스트림릿 단추를 겹쳐 둔다. 하단 이동표와 같은 장치다.
@@ -10945,7 +10951,7 @@ def _render_stock_briefing() -> None:
                 '<div class="j3b-title">JARVIS <b>3</b></div><div class="j3b-sub">미국테마</div></div>'
                 '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
                 # 사용자 선정 종목의 로고가 버스 둘레를 돈다(2026-08-28 상하님 지시).
-                f'{catbus_html}{_briefing_orbit_html(selected)}</div>',
+                f'{catbus_html}{_briefing_orbit_html(selected)}</div>{pop_html}',
                 unsafe_allow_html=True,
             )
             if st.button("↻", key="j3b_hero_refresh"):
