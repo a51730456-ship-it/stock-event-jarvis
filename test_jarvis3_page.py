@@ -3130,7 +3130,10 @@ def test_changing_the_saved_list_date_lifts_the_date_picker_again():
     source = PAGE.read_text(encoding="utf-8")
     toggle = source[source.index("def _picklist_toggle"):source.index("def _render_picklist_section")]
     assert "_PICKLIST_DATE_KEY" in toggle and "_PICKLIST_SEEN_DATE_KEY" in toggle
-    changed = toggle[toggle.index("if picked != seen:"):]
+    changed = toggle[toggle.index("if picked is not None and seen is not None and picked != seen:"):]
+    # 본 날짜는 **목록을 다 그린 뒤** 적는다(2026-09-16 — 두 번째 클릭이 빠지던 것).
+    section = source[source.index("def _render_picklist_section"):source.index("_PICKLIST_PART_BY_KIND = {")]
+    assert section.index("picklist_ui.render(") < section.index("st.session_state[_PICKLIST_SEEN_DATE_KEY] =")
     assert changed.index("scroll_to.request(st, _PICKLIST_ANCHOR)") < changed.index("scroll_to.anchor(st, _PICKLIST_ANCHOR)")
     assert '_PICKLIST_DATE_KEY = "picklist_date_US"' in source
     # 날짜 칸 열쇠를 만드는 모듈이 그 이름을 그대로 쓰는지 — 바뀌면 조용히 안 올라간다.
