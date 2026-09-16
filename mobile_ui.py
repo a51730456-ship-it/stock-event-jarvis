@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026091630
+MODULE_REVISION = 2026091640
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -475,18 +475,20 @@ div[class*="st-key-j3sc_box"] [data-testid="stHorizontalBlock"]:has(div[class*="
 div[class*="st-key-j3sc_box"] [data-testid="stColumn"]:has(div[class*="st-key-j3sc_span_"]) {
     flex: 1 1 calc(50% - 6px) !important; width: auto !important; min-width: 0 !important;
 }
+/* 줄 사이 틈을 12px → 8px 로 더 좁힌다(2026-09-16 상하님 — "여백 조금 더 좁게"). */
+div[class*="st-key-pldl_US"] { gap: 8px !important; }
 div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:has(div[class*="st-key-picklist_scorecard_US"]),
 div[class*="st-key-pldl_US"] [data-testid="stHorizontalBlock"]:has(div[class*="st-key-picklist_scorecard_US"]) {
     display: contents !important;
 }
 div[class*="st-key-pldl_US"] [data-testid="stColumn"]:has(div[class*="st-key-picklist_scorecard_US"]) {
-    order: 3 !important; width: 100% !important; margin-top: -12px !important;
+    order: 3 !important; width: 100% !important; margin-top: -16px !important;
 }
 /* 받기 단추 줄 사이 여백을 **12px 로 고르게** 맞춘다 (2026-09-16 상하님 지시 —
    폰 캡처에 화살표로 다섯 자리를 짚어 주셨다). 실측 24·12·12·24·8px 이었다.
    빈 칸 하나가 끼어 있는 자리(날짜 칸 밑, 성적표 단추 위)만 그만큼 도로 당긴다. */
-div[class*="st-key-picklist_calc_US"] { margin-top: -12px !important; }
-div[class*="st-key-j3sc_box"] { margin-top: 14px !important; }
+div[class*="st-key-picklist_calc_US"] { margin-top: -16px !important; }
+div[class*="st-key-j3sc_box"] { margin-top: 10px !important; }
 div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:has(div[class*="st-key-picklist_xlsx_all_US"]) {
     order: 2 !important;
 }

@@ -508,6 +508,26 @@ def _keep_keyboard_down(st, market: str) -> None:
         pass          # 못 붙여도 화면은 그대로 돈다
 
 
+def _kept_file(st, slot: str, key: str, build):
+    """만든 파일(엑셀·CSV)을 세션에 두고 **자료가 그대로면 다시 안 만든다.**
+
+    2026-09-16 상하님 — "파트별 성적표 클릭하는데 로딩이 왜 그리 오래 걸리냐?
+    닫기도 그렇고. 3초 2초 이렇게 걸린다." 이 구역은 단추를 누를 때마다 다시
+    그려지는데, 그때마다 **받기 단추에 담을 엑셀을 새로 만들고 있었다**
+    (노트북 실측 — 그날치 43줄 0.05초, 28일치 1,220줄 0.35초. 온라인은 코어가
+    한두 개라 몇 배가 된다). 같은 날 같은 줄이면 파일도 같으므로 한 번만 만든다.
+
+    key 에 날짜·줄 수·값 받은 시각을 담는다 — 그중 하나라도 바뀌면 새로 만든다.
+    """
+    slot_key = f"picklist_file_{slot}"
+    kept = st.session_state.get(slot_key)
+    if isinstance(kept, tuple) and len(kept) == 2 and kept[0] == key:
+        return kept[1]
+    made = build()
+    st.session_state[slot_key] = (key, made)
+    return made
+
+
 def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
            scorecard=None) -> None:
     """'저장된 목록 보기' 구역 전체.
@@ -650,7 +670,9 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
     # 빈 칸으로 보인다. 폰에서는 이 줄이 표를 화면 밖으로 밀어냈다.
     # **계산은 그대로 둔다** — 지금 값(prices)은 위에서 이미 붙였다.
 
-    excel = store.to_excel_bytes(rows)
+    # 파일 이름표 — 날짜·줄 수·값 받은 시각이 같으면 파일도 같다.
+    stamp = f"{picked}|{len(rows)}|{st.session_state.get(fetched_at_key) or ''}"
+    excel = _kept_file(st, f"xlsx_{market}", stamp, lambda: store.to_excel_bytes(rows))
     # 받기 단추 두 줄을 **한 칸 안에** 담는다 (2026-09-16 상하님 지시 — 폰에서
     # "파트별 성적표 부분이 저장해 둔 28일치 밑에 들어가게"). 폰에서 차례를 바꾸려면
     # 두 줄이 같은 칸의 형제여야 한다 — 그 차례는 mobile_ui 의 폰 규칙이 바꾼다.
@@ -670,7 +692,9 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
             scorecard_open = scorecard("button")
     else:
         columns[1].download_button(
-            "⬇ CSV로 받기", data=store.to_csv_bytes(rows),
+            "⬇ CSV로 받기",
+            data=_kept_file(st, f"csv_{market}", stamp,
+                            lambda: store.to_csv_bytes(rows)),
             file_name=f"목록_{market}_{picked}.csv", mime="text/csv",
             key=f"picklist_csv_{market}", width="stretch",
         )
@@ -692,7 +716,9 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
         # **「n일치 n줄을 한 파일로…」 안내는 뺐다** (2026-08-29 상하님 ×표).
         # 바로 밑 단추에 「저장해 둔 n일치 전부」라고 이미 적혀 있다.
         all_columns = box.columns(2)
-        all_excel = store.to_excel_bytes(every)
+        all_stamp = f"{dates[0]}|{len(dates)}|{len(every)}"
+        all_excel = _kept_file(st, f"xlsx_all_{market}", all_stamp,
+                               lambda: store.to_excel_bytes(every))
         if all_excel:
             all_columns[0].download_button(
                 f"⬇ 저장해 둔 {len(dates)}일치 전부 (.xlsx)", data=all_excel,
@@ -702,7 +728,9 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
             )
         if scorecard is None:
             all_columns[1].download_button(
-                f"⬇ 저장해 둔 {len(dates)}일치 전부 (CSV)", data=store.to_csv_bytes(every),
+                f"⬇ 저장해 둔 {len(dates)}일치 전부 (CSV)",
+                data=_kept_file(st, f"csv_all_{market}", all_stamp,
+                                lambda: store.to_csv_bytes(every)),
                 file_name=f"목록_{market}_전체_{dates[-1]}~{dates[0]}.csv", mime="text/csv",
                 key=f"picklist_csv_all_{market}", width="stretch",
             )
