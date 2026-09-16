@@ -319,3 +319,32 @@ class BeforePreviousRowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TodaysCardActuallyAppearsTests(unittest.TestCase):
+    """장이 도는 동안에는 위 칸이 **오늘 장**이어야 한다 (2026-09-16 상하님 지적).
+
+    상하님 — "오늘이 9월 16일 새벽 02:13 캡처인데, 장이 시작된 지 한참 지났는데
+    왜 미국시간 9월 14일로 되어 있냐? 9월 15일로 장 시작하면 반영하기로 했지
+    않았냐? 전일이 9월 14일로 바뀌어야 된다."
+
+    까닭 — 위 칸을 오늘 장으로 바꿀지 고르는 줄이 `live_result.stage` 를 봤는데,
+    `UsSignalResult` 에는 **그런 칸이 아예 없다.** getattr 이 늘 None 을 돌려줘
+    그 조건이 한 번도 참이 된 적이 없었다. 2026-08-26 에 `_us_regular_session_open`
+    이 꾸러미와 글자를 견줘 같은 일이 났던 것과 똑같은 실수다.
+    """
+
+    def test_the_result_has_no_stage_field(self):
+        """없는 칸을 다시 보지 않게 못박는다."""
+        import us_market_signal_engine as engine
+
+        self.assertNotIn("stage", engine.UsSignalResult.__dataclass_fields__,
+                         "stage 가 생겼다면 아래 시험도 같이 고쳐라")
+
+    def test_the_live_check_looks_at_something_that_exists(self):
+        import pathlib
+        source = (pathlib.Path(__file__).parent / "market_signal_ui.py").read_text(encoding="utf-8")
+        line = next(x for x in source.splitlines() if "live_usable =" in x)
+        self.assertNotIn('"stage"', line, "없는 칸을 보면 위 칸이 영영 안 바뀐다")
+        self.assertIn("verdict", line)
+        fields = __import__("us_market_signal_engine").UsSignalResult.__dataclass_fields__
+        self.assertIn("verdict", fields)

@@ -41,7 +41,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026082810
+MODULE_REVISION = 2026091610
 
 
 def _now_seoul():
@@ -2009,7 +2009,13 @@ def run_us_market_signal_check(force_refresh=False):
     # 밝힌다. 판정을 얼려 두는 것은 아래 칸(전일)이고, 거기는 그대로 안 흔들린다.
     us_phase = _us_market_phase()
     session_open = us_phase.get("label") == "정규장 시간"
-    live_usable = live_result is not None and getattr(live_result, "stage", None)
+    # **여기서 `stage`를 봤다 — UsSignalResult 에는 그런 칸이 없다.** getattr 이 늘
+    # None 을 돌려줘 live_usable 이 **한 번도 참이 된 적이 없었다.** 그래서 장이
+    # 도는 동안에도 위 칸이 「직전 미국장」으로 굳어 있었다 (2026-09-16 상하님 지적 —
+    # 한국 9/16 02:13, 뉴욕 9/15 장중인데 「직전 미국장 · 09.14」).
+    # 2026-08-26의 `_us_regular_session_open` 과 똑같은 실수를 이 줄에서 또 냈다.
+    # 이제 **실시간 값이 실제로 왔고 판정이 나왔나**를 본다.
+    live_usable = bool(quotes) and getattr(live_result, "verdict", None) is not None
     if live_usable and frozen_result is not None:
         # 위 칸 = 지금 돌고 있는 오늘 장, 아래 칸 = 직전 완료 장(=어제)
         result = live_result
