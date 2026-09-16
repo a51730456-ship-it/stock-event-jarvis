@@ -234,7 +234,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026091610
+MODULE_REVISION = 2026091710
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -5286,6 +5286,14 @@ def prefetch_charts(tickers) -> None:
 
 
 
+# 지수 칸·SPY·QQQ 칸의 **「당일」 작은 그림을 몇 초마다 새로 받나** (2026-09-17
+# 상하님 지시 '가' — "당일 그림을 3분 → 10분마다 새로 받는다").
+# 온라인 실측 — 이 그림이 3분(지수 5분봉)·45초(SPY·QQQ 1분봉)마다 새로 받느라,
+# 그 순간 무슨 단추를 눌러도 5~10초씩 멈췄다(상승장·급락이 똑같이 늦었다).
+# **칸의 숫자는 그대로 실시간이다** — 늦게 따라오는 것은 작은 그림뿐이다.
+INDEX_CHART_TTL = 600.0
+
+
 def get_index_sparklines(days: int = 30) -> dict:
     """4대 지수의 '당일 분봉 흐름'과 '전일 종가'.
 
@@ -5297,8 +5305,10 @@ def get_index_sparklines(days: int = 30) -> dict:
     # 종합처럼 그래프 넣어라"). 같은 묶음에 하나 더 얹는 것이라 조회 횟수는 그대로다.
     symbols = US_INDEX_SYMBOLS + ("^VIX",)
     try:
+        # **당일 그림은 10분마다 새로 받는다**(2026-09-17 상하님 지시 '가' —
+        # INDEX_CHART_TTL 설명 참고).
         intraday, _m1 = _download_cached(
-            symbols, period="1d", interval="5m", ttl_seconds=300)
+            symbols, period="1d", interval="5m", ttl_seconds=INDEX_CHART_TTL)
         # 6개월치를 받는다 — 손을 올렸을 때 보여줄 '일봉 6개월' 그림에 쓴다
         # (2026-08-06). 조회 횟수는 그대로이고 기간만 늘어난다.
         daily, _m2 = _download_cached(
@@ -5613,8 +5623,10 @@ def get_etf_sparklines(
     if not wanted:
         return {}
     try:
+        # 당일 그림은 10분마다(INDEX_CHART_TTL). 시장 요약이 먼저 받아 둔 1분봉
+        # 묶음이 10분 안이면 그것을 잘라 쓴다 — 예전 45초로는 거의 매번 새로 받았다.
         intraday, _m1 = _download_cached(
-            wanted, period="1d", interval="1m", ttl_seconds=45, prepost=True)
+            wanted, period="1d", interval="1m", ttl_seconds=INDEX_CHART_TTL, prepost=True)
         daily, _m2 = _download_cached(
             wanted, period="1y", interval="1d", ttl_seconds=300)
     except Exception:
