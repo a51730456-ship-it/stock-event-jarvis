@@ -5419,6 +5419,144 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
     return is_open
 
 
+# 파트별 성적표 (2026-09-16 상하님 지시) ─────────────────────────────────────
+# 상하님 — "각 테마별 성적표", "자리는 csv로 받기 자리에 그대로 넣고 밑에 저장해 둔
+# 28일치 csv는 비워둬라", "창이 위에서 밑으로 스르륵 멋지게 내려오도록".
+#
+# **화면 단추 이름 그대로** 넷이다 (2026-09-16 상하님 지적 — 「순위 9」를 그 안의
+# 매수 파트로 쪼개 「순위 9 · 테마 대장주」라고 부른 것은 제가 만든 이름이었다).
+# 막대 색도 그 단추 색 그대로라, 어느 단추 이야기인지 색만 보고 알 수 있다.
+_SCORECARD_KEY = "j3_scorecard_open"
+_SCORECARD_CACHE = "j3_scorecard_counts"
+_SCORECARD_PARTS = (
+    ("top7", "매수심사결과 높은 순위 9", "#2a78d6"),
+    ("breakout", "상승장 (신고가 눌림매수)", "#1b9e6f"),
+    ("theme15", "21개 테마", "#c0392b"),
+    ("crash", "급락 후 반등장 (낙폭종목)", "#e08b1e"),
+)
+# 기간 넷. 저장된 매수일이 오늘로부터 며칠 안인가로 가른다.
+_SCORECARD_SPANS = (("일주일", 7), ("이번 달", 31), ("1년", 365), ("누계", None))
+
+
+def _scorecard_counts() -> dict:
+    """저장해 둔 날을 전부 읽어 파트마다 **100번 사면 이익 난 횟수**를 센다.
+
+    산 값은 저장된 「매수금액(다음 거래일 시가)」이고, 지금 값은 한 번에 묶어
+    받는다(picklist_ui.fetch_prices). 매수금액이 빈 줄과 값을 못 받은 종목은
+    **안 센다** — 0으로 채우면 본전으로 읽혀 안 잰 것과 구별이 안 된다.
+    한 판에 한 번만 받고 세션에 둔다.
+    """
+    if _SCORECARD_CACHE in st.session_state:
+        return st.session_state[_SCORECARD_CACHE]
+    import picklist_store as store
+
+    dates = store.available_dates("US")
+    rows = []
+    for day in dates:
+        try:
+            rows.extend(store.load_rows(day, "US") or [])
+        except Exception:
+            continue
+    prices = {}
+    if rows:
+        try:
+            prices = picklist_ui.fetch_prices("US", [r.get("code") for r in rows])
+        except Exception:
+            prices = {}
+    today = datetime.now(_PAGE_SEOUL).date()
+    counts = {}
+    for kind, _name, _color in _SCORECARD_PARTS:
+        for label, _days in _SCORECARD_SPANS:
+            counts[(kind, label)] = [0, 0]          # [센 줄, 이익 난 줄]
+    counts[("_all", "누계")] = [0, 0]
+    for row in rows:
+        kind = str(row.get("list_kind") or "")
+        gain = store.profit_pct(row.get("buy_open"),
+                                prices.get(str(row.get("code") or "")))
+        if gain is None:
+            continue
+        try:
+            when = date.fromisoformat(str(row.get("trade_date")))
+        except Exception:
+            continue
+        old = (today - when).days
+        for label, days in _SCORECARD_SPANS:
+            if days is not None and old > days:
+                continue
+            keys = [(kind, label)]
+            if label == "누계":
+                keys.append(("_all", label))
+            for key in keys:
+                if key in counts:
+                    counts[key][0] += 1
+                    counts[key][1] += 1 if gain > 0 else 0
+    st.session_state[_SCORECARD_CACHE] = {
+        "counts": counts, "days": len(dates),
+        "first": dates[-1] if dates else "", "last": dates[0] if dates else "",
+    }
+    return st.session_state[_SCORECARD_CACHE]
+
+
+def _scorecard_panel_html(data: dict) -> str:
+    """성적표 창. 막대 길이가 「100번 사면 이익 난 횟수」다."""
+    counts = data["counts"]
+
+    def hit(kind, label):
+        seen, win = counts.get((kind, label), (0, 0))
+        return None if not seen else round(win * 100.0 / seen)
+
+    ranked = sorted(_SCORECARD_PARTS, key=lambda part: -(hit(part[0], "누계") or -1))
+    rows_html = []
+    for kind, name, color in ranked:
+        total = hit(kind, "누계")
+        if total is None:
+            rows_html.append(
+                f"<div class='j3sc-row'><div><div class='j3sc-name'>{html.escape(name)}</div>"
+                "<div class='j3sc-sub'>아직 잴 줄이 없습니다</div></div>"
+                "<span class='j3sc-bar'></span>"
+                "<span class='j3sc-val' style='color:#6f93bd'>—</span></div>")
+            continue
+        spans = [f"{label} {hit(kind, label)}번" for label, _d in _SCORECARD_SPANS[:3]
+                 if hit(kind, label) is not None]
+        seen = counts[(kind, "누계")][0]
+        tone = "#ffd166" if total >= 50 else "#ff8a8a"
+        rows_html.append(
+            f"<div class='j3sc-row'><div><div class='j3sc-name'>{html.escape(name)}</div>"
+            f"<div class='j3sc-sub'>{' · '.join(spans)} · 센 줄 {seen}</div></div>"
+            f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
+            f"<span class='j3sc-val' style='color:{tone}'>{total}번</span></div>")
+    base = hit("_all", "누계")
+    if base is not None:
+        rows_html.append(
+            "<div class='j3sc-row j3sc-base'><div>"
+            "<div class='j3sc-name'>네 파트를 다 샀다면</div></div>"
+            f"<span class='j3sc-bar'><i style='width:{base}%;background:#46617f'></i></span>"
+            f"<span class='j3sc-val'>{base}번</span></div>")
+    return (
+        "<div class='j3sc'><div class='j3sc-head'><b>100번 사면 이익 난 횟수</b>"
+        "<span>다음 거래일 시가에 사서 지금까지</span></div>"
+        + "".join(rows_html)
+        + f"<div class='j3sc-note'>{html.escape(str(data['first']))} ~ "
+          f"{html.escape(str(data['last']))} · 저장해 둔 {data['days']}일치로 셌습니다. "
+          "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다.</div></div>"
+    )
+
+
+def _render_picklist_scorecard(part: str):
+    """「CSV로 받기」 자리의 단추와, 눌렀을 때 스르륵 내려오는 창."""
+    if part == "button":
+        open_now = bool(st.session_state.get(_SCORECARD_KEY))
+        label = "📊 파트별 성적표 닫기" if open_now else "📊 파트별 성적표 보기"
+        if st.button(label, key="picklist_scorecard_US", width="stretch"):
+            open_now = not open_now
+            st.session_state[_SCORECARD_KEY] = open_now
+        return open_now
+    with st.spinner("저장해 둔 목록으로 성적을 세는 중입니다…"):
+        data = _scorecard_counts()
+    st.markdown(_scorecard_panel_html(data), unsafe_allow_html=True)
+    return True
+
+
 @st.fragment
 def _render_picklist_section(market: dict, ranking: dict) -> None:
     """날짜별로 저장해 둔 목록 — **제 덩이만** 다시 그린다 (2026-09-13 상하님 —
@@ -5435,6 +5573,8 @@ def _render_picklist_section(market: dict, ranking: dict) -> None:
         # market·ranking 이 있어야 그 파트의 상세를 그리므로 여기서 싸서 넘긴다.
         on_pick=lambda code, name, kind, row: _picklist_detail(
             market, ranking, code, name, kind, row),
+        # 「CSV로 받기」 자리에 성적표 단추를 놓는다(2026-09-16 상하님 지시).
+        scorecard=_render_picklist_scorecard,
     )
     # 이 판에 보인 날짜를 적어 둔다 — 다음 판에 날짜가 바뀌었나를 여기와 견준다(위 _picklist_toggle).
     # 닫힌 판에는 날짜 칸이 없어 빈값이 적히고, 다시 열면 그 판 끝에 새로 적힌다.
@@ -9217,6 +9357,33 @@ def _briefing_css() -> None:
         body:has(.j3-market-top) [data-testid="stElementContainer"]:has(#jarvis-anchor-picklist_top){
           margin-top:-12px!important;margin-bottom:0!important}
         #jarvis-anchor-picklist_top{scroll-margin-top:0!important}
+        /* 파트별 성적표 (2026-09-16 상하님 지시 — 「CSV로 받기」 자리에 단추를 놓고,
+           누르면 "창이 위에서 밑으로 스르륵" 내려오게). 위에서 아래로 걷어 올리듯
+           보여 준다 — 높이를 재지 않아도 되므로 줄 수가 달라져도 그대로 돈다. */
+        @keyframes j3sc-drop{
+          from{opacity:0;transform:translateY(-14px);clip-path:inset(0 0 100% 0)}
+          to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+        .j3sc{animation:j3sc-drop .55s cubic-bezier(.2,.8,.2,1) both;transform-origin:top;
+          border:1px solid #1d3a63;border-radius:12px;padding:14px 16px;margin-top:10px}
+        .j3sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+        .j3sc-head b{font-size:1rem;color:#fff;font-weight:800}
+        .j3sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}
+        .j3sc-row{display:grid;grid-template-columns:minmax(0,1fr) 150px 58px;
+          align-items:center;gap:10px;padding:10px 0;border-top:1px solid #16304f}
+        .j3sc-name{font-size:.92rem;font-weight:800;color:#fff}
+        .j3sc-sub{font-size:.76rem;color:#6f93bd;margin-top:2px}
+        .j3sc-bar{display:block;height:9px;border-radius:5px;background:#16304f}
+        .j3sc-bar i{display:block;height:9px;border-radius:5px}
+        .j3sc-val{font-size:.95rem;font-weight:800;text-align:right}
+        .j3sc-base .j3sc-name{font-weight:700;color:#8fb4de;font-size:.86rem}
+        .j3sc-base .j3sc-val{color:#8fb4de;font-weight:700}
+        .j3sc-note{font-size:.76rem;color:#6f93bd;line-height:1.6;margin-top:12px}
+        @media (max-width:600px){
+          .j3sc{padding:12px 12px}
+          .j3sc-row{grid-template-columns:minmax(0,1fr) 78px 50px;gap:8px}
+          .j3sc-name{font-size:.86rem}
+          .j3sc-sub{font-size:.72rem}
+        }
         /* 「미국 전체시장 판단」 제목이 배너에 붙어 있었다(실측 2px). 이 제목의
            제 여백(.25rem)을 위 `stMarkdownContainer>div` 규칙이 같이 걷어낸 탓이다.
            **이 제목 하나에만** 12px 이 되게 도로 준다 — 쓰는 곳이 한 군데다. */

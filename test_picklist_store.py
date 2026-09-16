@@ -1054,3 +1054,53 @@ class TitleNeverLeavesItsTableTests(unittest.TestCase):
         rule = picklist_ui.CSS[picklist_ui.CSS.index(line):]
         rule = rule[:rule.index("}")]
         self.assertIn("padding:", rule, "제목 띄우기를 padding 으로 준다")
+
+class ScorecardSitsInTheCsvSlotTests(unittest.TestCase):
+    """파트별 성적표는 **「CSV로 받기」 자리**에 서고, 그 밑 CSV 자리는 비운다.
+
+    2026-09-16 상하님 지시 — "자리는 csv로 받기 자리에 그대로 넣고 밑에 저장해 둔
+    28일치 csv는 비워둬라." 미국 화면만이다 — 한국 화면은 성적표를 안 넘기므로
+    CSV 단추 둘이 지금 그대로 나온다.
+    """
+
+    def _render_body(self):
+        source = (Path(__file__).parent / "picklist_ui.py").read_text(encoding="utf-8")
+        start = source.index("def render(")
+        return source[start:source.index("\ndef ", start + 10)]
+
+    def test_the_csv_button_gives_its_seat_to_the_scorecard(self):
+        body = self._render_body()
+        self.assertIn("if scorecard is not None:", body)
+        seat = body[body.index("columns = st.columns(2)"):body.index("every = []")]
+        self.assertLess(seat.index('scorecard("button")'), seat.index("⬇ CSV로 받기"),
+                        "성적표가 CSV 단추 자리보다 뒤에 서면 자리가 바뀐 것이 아니다")
+
+    def test_the_all_days_csv_seat_is_left_empty(self):
+        body = self._render_body()
+        tail = body[body.index("all_columns = st.columns(2)"):]
+        self.assertIn("if scorecard is None:", tail)
+        self.assertLess(tail.index("if scorecard is None:"),
+                        tail.index("일치 전부 (CSV)"),
+                        "성적표를 쓰는 화면에서도 28일치 CSV 단추가 그대로 나온다")
+
+    def test_the_korean_screen_keeps_both_csv_buttons(self):
+        """성적표를 안 넘기면 **지금과 똑같이** CSV 단추 둘이 나와야 한다."""
+        body = self._render_body()
+        head = body[:body.index('"""')]
+        self.assertIn("scorecard=None", head.replace(" ", ""),
+                      "성적표는 넘길 수도 있고 안 넘길 수도 있어야 한다")
+
+    def test_the_parts_are_the_four_screen_buttons(self):
+        """파트 이름은 **화면 단추 그대로** 넷이다 — 순위 9를 쪼개지 않는다."""
+        page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        block = page[page.index("_SCORECARD_PARTS = ("):page.index("_SCORECARD_SPANS")]
+        for name in ("매수심사결과 높은 순위 9", "상승장 (신고가 눌림매수)",
+                     "21개 테마", "급락 후 반등장 (낙폭종목)"):
+            self.assertIn(name, block)
+        self.assertNotIn("테마 대장주", block, "순위 9를 매수 파트로 쪼개면 안 된다")
+
+    def test_the_panel_slides_down(self):
+        """창은 위에서 밑으로 스르륵 내려온다(2026-09-16 상하님 지시)."""
+        page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn("@keyframes j3sc-drop", page)
+        self.assertIn("animation:j3sc-drop", page)

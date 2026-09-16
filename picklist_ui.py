@@ -508,7 +508,8 @@ def _keep_keyboard_down(st, market: str) -> None:
         pass          # 못 붙여도 화면은 그대로 돈다
 
 
-def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) -> None:
+def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
+           scorecard=None) -> None:
     """'저장된 목록 보기' 구역 전체.
 
     toggle : 페이지의 ``_section_toggle``을 그대로 받는다. 여닫는 방식이 그 화면의
@@ -522,6 +523,11 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) ->
              `on_pick(code, name, kind, row)` 로 부르고, 표 아래 · 닫기 단추 위에서
              부른다. 안 넘기면 종목명은 예전처럼 그냥 글자다 — 이 모듈은 시장을
              가리지 않아야 하므로 **무엇을 그릴지는 화면 쪽이 정한다.**
+    scorecard: 「CSV로 받기」 자리에 놓을 **파트별 성적표** 함수다 (2026-09-16
+             상하님 지시 — "자리는 csv로 받기 자리에 그대로 넣고, 밑에 저장해 둔
+             28일치 csv는 비워둬라"). 넘기면 그 두 자리의 CSV 단추가 성적표로
+             바뀌고, 안 넘기면 **지금과 똑같이** CSV 단추가 나온다. 이 모듈은
+             시장을 가리지 않아야 하므로 **무엇을 그릴지는 화면 쪽이 정한다.**
     header : 이 구역 **맨 위**에 그릴 것이 있으면 넘긴다(2026-08-14 상하님 지시 —
              "날짜별로 저장해 둔 목록 보기에 제일 위에 자동 저장된 게 나오도록").
              미국은 매수 기록을, 한국은 아직 아무것도 안 넘긴다. 이 모듈은 시장을
@@ -653,11 +659,17 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) ->
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"picklist_xlsx_{market}", width="stretch",
         )
-    columns[1].download_button(
-        "⬇ CSV로 받기", data=store.to_csv_bytes(rows),
-        file_name=f"목록_{market}_{picked}.csv", mime="text/csv",
-        key=f"picklist_csv_{market}", width="stretch",
-    )
+    if scorecard is not None:
+        # 「CSV로 받기」 자리다. 단추만 여기 놓고, 열린 창은 두 줄 밑에서 그린다.
+        with columns[1]:
+            scorecard_open = scorecard("button")
+    else:
+        columns[1].download_button(
+            "⬇ CSV로 받기", data=store.to_csv_bytes(rows),
+            file_name=f"목록_{market}_{picked}.csv", mime="text/csv",
+            key=f"picklist_csv_{market}", width="stretch",
+        )
+        scorecard_open = False
 
     # ── **저장해 둔 날을 한꺼번에** 받는다 (2026-08-15 상하님 지시) ──────────────
     # 상하님 — "나중에 엑셀로 한꺼번에 받아서 정리해서 볼 수 있는 데이터 형식으로
@@ -683,11 +695,15 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None) ->
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=f"picklist_xlsx_all_{market}", width="stretch",
             )
-        all_columns[1].download_button(
-            f"⬇ 저장해 둔 {len(dates)}일치 전부 (CSV)", data=store.to_csv_bytes(every),
-            file_name=f"목록_{market}_전체_{dates[-1]}~{dates[0]}.csv", mime="text/csv",
-            key=f"picklist_csv_all_{market}", width="stretch",
-        )
+        if scorecard is None:
+            all_columns[1].download_button(
+                f"⬇ 저장해 둔 {len(dates)}일치 전부 (CSV)", data=store.to_csv_bytes(every),
+                file_name=f"목록_{market}_전체_{dates[-1]}~{dates[0]}.csv", mime="text/csv",
+                key=f"picklist_csv_all_{market}", width="stretch",
+            )
+        # 성적표를 쓰는 화면에서는 이 자리를 **비워 둔다** (2026-09-16 상하님 지시).
+    if scorecard is not None and scorecard_open:
+        scorecard("panel")
 
 
     # 지금 고른 종목(있으면 그 줄에 표시가 붙는다). 없으면 None 이다.
