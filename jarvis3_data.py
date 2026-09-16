@@ -234,7 +234,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026091320
+MODULE_REVISION = 2026091610
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -399,11 +399,39 @@ DISK_MAX_FILES = 30                  # 이보다 많아지면 오래된 것부�
 _DISK_DIR = Path(__file__).resolve().parent / "cache" / "j3_prices"
 
 
-def _disk_fresh_seconds() -> float:
-    """지금 몇 분까지 묵은 것을 써도 되나. 장이 닫혀 있으면 값이 안 변한다."""
+def _disk_fresh_seconds(interval: str = "") -> float:
+    """받아 둔 파일을 몇 초까지 묵혀 써도 되나.
+
+    **정규장이 안 도는 동안에는 일봉을 다음 정규장까지 그대로 쓴다**
+    (2026-09-16 상하님 지시). 상하님 — "미국장이 닫혀 있는 동안에는 일봉 값이
+    아예 안 바뀌는데 30분마다 다시 받는다." 노트북 실측 — 상승장 한 번에
+    **받기 10초 · 계산 0.8초**였다. 정규장이 안 도는 동안 그 10초로 받아 오는
+    일봉은 방금 것과 **숫자가 똑같다.**
+
+    가르는 자리가 둘이다.
+      · **일봉(1d)** — 정규장(뉴욕 09:30~16:00) 밖에서는 값이 안 바뀐다.
+        마지막 마감 뒤에 받아 둔 파일이면 그대로 쓴다. 「써도 되는 나이」를
+        *마지막 마감이 몇 초 전이었나*로 주므로, 장중에 받아 둔 파일(그 장의
+        마지막 값이 없는 것)은 자동으로 걸러진다.
+      · **분봉·그 밖** — 프리마켓·애프터마켓에도 계속 바뀌므로 **지금까지 그대로**
+        3분이다. 2026-08-26 에 상하님이 정하신 값을 안 건드린다.
+    정규장이 도는 동안에는 일봉도 3분 그대로다.
+    30분(DISK_FRESH_CLOSED_SECONDS)은 **가장 짧게 보장하는 값**으로 남긴다.
+    """
     try:
-        return (DISK_FRESH_CLOSED_SECONDS if us_market_calendar.session_closed()
-                else DISK_FRESH_OPEN_SECONDS)
+        if str(interval).lower() not in ("1d", "1day", "d"):
+            return (DISK_FRESH_CLOSED_SECONDS
+                    if us_market_calendar.session_closed()
+                    else DISK_FRESH_OPEN_SECONDS)
+        now_ny = datetime.now(us_market_calendar.NEW_YORK)
+        if us_market_calendar.phase(now_ny).get("label") == "정규장 시간":
+            return DISK_FRESH_OPEN_SECONDS
+        last_day = us_market_calendar.previous_session_date(now_ny)
+        last_close = datetime.combine(
+            last_day, us_market_calendar.close_time(last_day),
+            tzinfo=us_market_calendar.NEW_YORK)
+        since_close = (now_ny - last_close).total_seconds()
+        return max(DISK_FRESH_CLOSED_SECONDS, since_close)
     except Exception:
         return DISK_FRESH_OPEN_SECONDS
 
@@ -413,13 +441,17 @@ def _disk_name(unique, period, interval, prepost) -> str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:20]
 
 
-def _disk_read(name: str) -> dict | None:
-    """파일에 남겨 둔 시세. 없거나 묵었거나 깨졌으면 None — 조용히 넘어간다."""
+def _disk_read(name: str, interval: str = "") -> dict | None:
+    """파일에 남겨 둔 시세. 없거나 묵었거나 깨졌으면 None — 조용히 넘어간다.
+
+    interval 을 받는 까닭은 위 `_disk_fresh_seconds` 설명에 있다 — 일봉과
+    분봉이 묵힐 수 있는 시간이 다르다.
+    """
     path = _DISK_DIR / f"{name}.pkl"
     try:
         if not path.is_file():
             return None
-        if time.time() - path.stat().st_mtime > _disk_fresh_seconds():
+        if time.time() - path.stat().st_mtime > _disk_fresh_seconds(interval):
             return None
         with path.open("rb") as handle:
             saved = pickle.load(handle)   # nosec B301 - 이 앱이 직접 쓴 파일만 읽는다
@@ -500,7 +532,7 @@ def _download_cached(
 
     # 앱 기억에 없으면 **파일**을 본다. 잠들었다 깨어난 판이 여기서 살아난다.
     disk_name = _disk_name(unique, period, interval, prepost)
-    saved = _disk_read(disk_name)
+    saved = _disk_read(disk_name, interval)
     if saved:
         frames = saved["frames"]
         with _CACHE_LOCK:
