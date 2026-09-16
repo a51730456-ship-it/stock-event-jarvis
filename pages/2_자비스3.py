@@ -8923,6 +8923,63 @@ def _warm_finders() -> None:
         pass
 
 
+def _autosave_other_parts() -> None:
+    """저장해 둔 목록의 **상승장 · 급락 후 반등장 · 순위 9** 도 화면에서 남긴다.
+
+    2026-09-17 상하님 지적 — *"저장해 둔 목록 보기에 각 테마가 없다, 두 개밖에
+    안 나온다. 이거 저번에 이야기했는데 아직 안 된 이유가 뭐냐? 상승장은 종목이
+    없어 그럴 수 있다 쳐도 매수심사결과 높은 순위 9 는 왜 안 나오냐?"*
+
+    **까닭** — 화면이 목록을 남기는 것은 그 파트를 **화면에 그렸을 때뿐**이었다.
+    순위 9 를 안 열면 순위 9 가 안 남았다. 네 파트를 다 남기는 본체는 클라우드
+    수집기인데, 야후 일봉이 늦게 올라와 한국 아침 8시 반쯤에야 찍힌다. 그 전에
+    보시면 화면이 그때까지 그린 파트만 들어 있는 목록이 보였다.
+    2026-08-29 에 같은 지적(「상위 테마 5개가 왜 또 빠지냐」)을 받고 **상위 테마
+    5개만** 이 방법으로 고쳤다(_autosave_theme15). 나머지 셋을 안 고친 것이 이번이다.
+
+    **수집기와 같은 함수를 같은 차례로 부른다**(CLAUDE.md 10-1) — 상승장 →
+    급락 → 순위 9(앞의 둘을 재료로 넘긴다). 판단 규칙은 `needs_autosave` 그대로라
+    **장이 끝나기 전에는 아무것도 안 하고**, 이미 남긴 파트는 건너뛴다. 하루에 한 번이다.
+    화면을 기다리게 하지 않도록 뒤에서 돈다(상위 테마 5개와 같은 방식).
+    """
+    try:
+        wanted = [kind for kind in ("breakout", "crash", "top7")
+                  if picklist_ui.needs_autosave("US", kind)]
+        if not wanted:
+            return
+        rows = list((st.session_state.get("j3_theme_rankings") or {}).get("rows") or [])
+        overview = st.session_state.get("j3_market_overview") or {}
+        score = float(overview.get("score") or 0)
+    except Exception:
+        return
+
+    def _save() -> None:
+        breakout = crash = None
+        try:
+            breakout = j3data.find_breakout_pullback_stocks()
+            if "breakout" in wanted:
+                picklist_ui.autosave("US", "breakout", breakout)
+        except Exception:
+            breakout = None
+        try:
+            crash = j3data.find_crash_rebound_stocks()
+            if "crash" in wanted:
+                picklist_ui.autosave("US", "crash", crash)
+        except Exception:
+            crash = None
+        if "top7" in wanted and rows:
+            try:
+                picklist_ui.autosave("US", "top7", j3data.collect_top_picks(
+                    rows, market_score=score, breakout=breakout, crash=crash))
+            except Exception:
+                pass         # 못 남겨도 화면은 그대로다. 클라우드 수집기가 또 찍는다.
+
+    try:
+        threading.Thread(target=_save, name="parts-save", daemon=True).start()
+    except Exception:
+        pass
+
+
 def _autosave_theme15() -> None:
     """저장해 둔 목록의 「상위 테마 5개 · 각 종목 1~3위」를 **화면에서도** 남긴다.
 
@@ -9234,6 +9291,7 @@ def _render_existing_theme_content() -> None:
     # 저장해 둔 목록의 「상위 테마 5개」를 아직 안 남겼으면 여기서 남긴다.
     # **화면을 다 그린 뒤**다 — 앞에 두면 보실 것이 그만큼 밀린다.
     _autosave_theme15()
+    _autosave_other_parts()
     # 상승장 한 벌을 **뒤 일꾼이** 미리 만들어 둔다 (2026-08-29).
     #
     # 상하님 — "상승장 신고가 눌림매수 첫 클릭하면 로딩 너무 오래 걸린다."
