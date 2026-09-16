@@ -5468,16 +5468,51 @@ def _scorecard_in_span(when, anchor, days) -> bool:
     return 0 <= (anchor - when).days <= days
 
 
-def _scorecard_counts() -> dict:
-    """저장해 둔 날을 전부 읽어 파트마다 **100번 사면 이익 난 횟수**를 센다.
+def _scorecard_prices(codes) -> dict:
+    """성적표가 쓰는 「지금 값」 — **마지막 장 종가**다 (2026-09-16 상하님 지시 ①).
 
-    산 값은 저장된 「매수금액(다음 거래일 시가)」이고, 지금 값은 한 번에 묶어
-    받는다(picklist_ui.fetch_prices). 매수금액이 빈 줄과 값을 못 받은 종목은
-    **안 센다** — 0으로 채우면 본전으로 읽혀 안 잰 것과 구별이 안 된다.
-    한 판에 한 번만 받고 세션에 둔다.
+    상하님 — "첫 열기 5초, 줄일 수 있는 방법은?" 시간은 전부 종목값 받는 데
+    들고 있었다. picklist_ui.fetch_prices 는 일봉과 **당일 1분봉(장전·장후 포함)**
+    을 둘 다 받는데, 성적표는 「어제까지」로 재기로 했으므로 오늘 1분봉이 필요
+    없다. 1분봉은 45초짜리라 누를 때마다 110종목을 새로 받고 있었다.
+
+    일봉도 **시장분석 화면이 이미 받아 둔 249종목 묶음**을 그대로 쓴다. 그 묶음과
+    같은 기한(US_BATCH_TTL=30분)으로 부르면 `_download_cached` 가 큰 묶음에서
+    꺼내 준다. 예전에는 5분으로 물어서 5분만 지나면 110종목을 다시 받았다.
     """
-    if _SCORECARD_CACHE in st.session_state:
-        return st.session_state[_SCORECARD_CACHE]
+    wanted = tuple(dict.fromkeys(
+        str(code).strip().upper() for code in codes if str(code).strip()))
+    if not wanted:
+        return {}
+    try:
+        frames, _info = j3data._download_cached(
+            wanted, period="2y", interval="1d",
+            ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+    except Exception:
+        return {}
+    out = {}
+    for code, frame in (frames or {}).items():
+        try:
+            closes = frame["Close"].dropna()
+        except Exception:
+            continue
+        if len(closes):
+            out[code] = float(closes.iloc[-1])
+    return out
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _scorecard_counts_cached(stamp: str) -> dict:
+    """저장해 둔 날을 전부 읽어 파트마다 **이익 난 확률**을 센다.
+
+    산 값은 저장된 「매수금액(다음 거래일 시가)」이고, 지금 값은 마지막 장
+    종가다(_scorecard_prices). 매수금액이 빈 줄과 값을 못 받은 종목은 **안 센다**
+    — 0으로 채우면 본전으로 읽혀 안 잰 것과 구별이 안 된다.
+
+    **앱 전체에 10분 보관한다** (2026-09-16 상하님 지시 ②). 예전에는 화면을 새로
+    열 때마다(세션마다) 다시 셌다. 한 번 세면 그 뒤로는 바로 나온다.
+    stamp 에 저장된 날 수와 가장 최근 날을 담아, 새 날이 저장되면 다시 센다.
+    """
     import picklist_store as store
 
     dates = store.available_dates("US")
@@ -5487,62 +5522,60 @@ def _scorecard_counts() -> dict:
             rows.extend(store.load_rows(day, "US") or [])
         except Exception:
             continue
-    prices = {}
-    if rows:
-        try:
-            prices = picklist_ui.fetch_prices("US", [r.get("code") for r in rows])
-        except Exception:
-            prices = {}
-    # 기간을 세는 **기준은 어제**다(2026-09-16 상하님 지시 — 위 _scorecard_in_span).
+    prices = _scorecard_prices([row.get("code") for row in rows]) if rows else {}
     anchor = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
     parts = {kind for kind, _name, _color in _SCORECARD_PARTS}
-    # **당일 산 줄은 안 센다** (2026-09-16 상하님 지시 — "당일은 빼야지, 수익은
-    # 다음날 돼야 알 수 있지"). 목록은 그날 장이 끝난 뒤 저장되므로, 그 목록보다
-    # **더 나중에 저장된 날이 있어야** 산 날의 장도 끝난 것이다. 가장 최근에 저장된
-    # 날의 줄은 아직 산 날 장이 도는 중이거나 끝나지 않았으므로 뺀다.
     newest = dates[0] if dates else ""
     counts = {}
     for label, _days in _SCORECARD_SPANS:
         for kind in parts:
             counts[(kind, label)] = [0, 0]          # [센 횟수, 이익 난 횟수]
-        # 「네 파트를 다 샀다면」 — **기간마다** 만든다(2026-09-16). 예전에는 누계
-        # 하나만 있어서 일주일·이번 달·1년을 고르면 그 줄이 통째로 사라졌다.
         counts[("_all", label)] = [0, 0]
     seen_days = {label: set() for label, _days in _SCORECARD_SPANS}
     for row in rows:
         kind = str(row.get("list_kind") or "")
-        # **화면에 없는 옛 갈래는 안 센다**(2026-09-16). 미국 화면에서 2026-08-06 에
-        # 뺀 「눌림목 찾기」 48줄이 기준 줄에만 섞여 들어가고 있었다 — 네 파트 어디에도
-        # 안 나오는 줄이 「네 파트를 다 샀다면」에는 들어간 셈이다.
         if kind not in parts:
             continue
-        if newest and str(row.get("trade_date") or "") >= newest:
+        day = str(row.get("trade_date") or "")
+        if newest and day >= newest:
             continue            # 산 날 장이 아직 안 끝났다 — 다음 날 센다
-        if str(row.get("trade_date") or "") < _SCORECARD_START:
-            continue            # 세기 시작한 날보다 앞이다(위 _SCORECARD_START)
+        if day < _SCORECARD_START:
+            continue            # 세기 시작한 날보다 앞이다
         gain = store.profit_pct(row.get("buy_open"),
-                                prices.get(str(row.get("code") or "")))
+                                prices.get(str(row.get("code") or "").upper()))
         if gain is None:
             continue
         try:
-            when = date.fromisoformat(str(row.get("trade_date")))
+            when = date.fromisoformat(day)
         except Exception:
             continue
         for label, days in _SCORECARD_SPANS:
             if not _scorecard_in_span(when, anchor, days):
                 continue
-            seen_days[label].add(when.isoformat())
+            seen_days[label].add(day)
             for key in ((kind, label), ("_all", label)):
                 counts[key][0] += 1
                 counts[key][1] += 1 if gain > 0 else 0
     spans = {}
     for label, _days in _SCORECARD_SPANS:
-        days_used = sorted(seen_days[label])
-        spans[label] = {"days": len(days_used),
-                        "first": days_used[0] if days_used else "",
-                        "last": days_used[-1] if days_used else ""}
-    st.session_state[_SCORECARD_CACHE] = {"counts": counts, "spans": spans}
-    return st.session_state[_SCORECARD_CACHE]
+        used = sorted(seen_days[label])
+        spans[label] = {"days": len(used),
+                        "first": used[0] if used else "",
+                        "last": used[-1] if used else ""}
+    return {"counts": counts, "spans": spans}
+
+
+def _scorecard_counts() -> dict:
+    """이 판에서 쓸 성적표 값. 세션에 한 번, 앱 전체에 10분 보관한다."""
+    if _SCORECARD_CACHE in st.session_state:
+        return st.session_state[_SCORECARD_CACHE]
+    import picklist_store as store
+
+    dates = store.available_dates("US")
+    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}"
+    data = _scorecard_counts_cached(stamp)
+    st.session_state[_SCORECARD_CACHE] = data
+    return data
 
 
 def _scorecard_panel_html(data: dict, span: str) -> str:
