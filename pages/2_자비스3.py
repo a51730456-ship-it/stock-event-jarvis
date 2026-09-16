@@ -677,6 +677,15 @@ st.markdown(
     .j3-idx-now > svg, .j3-idx-more > svg, .j3-idx-solo > svg {
         position: relative; z-index: 1;
     }
+    /* 그림은 **칸 폭을 꽉 채운다** (2026-09-16 상하님 지적 — 노트북에서
+       "나스닥100 선물 차트 여백이 너무 심하다", 폰에서 "시장 상황 애프터마켓
+       차트 오른쪽 여백"). 그림 폭이 120px·104px 로 못박혀 있어, 칸이 그보다
+       넓으면 그만큼 오른쪽이 비었다(노트북 1280px 실측 — 선물 칸 안쪽 175px에
+       그림 120px, 시장 상황 칸 213px에 그림 104px).
+       이 그림들은 preserveAspectRatio="none" 이라 가로로 늘려도 모양이 상하지
+       않고, 세로 높이는 그대로라 **칸 키높이는 안 바뀐다.** 폰 그림 높이 규칙
+       (mobile_ui 64px)도 그대로다. */
+    .j3-top-cell svg { width: 100% !important; }
     .j3-theme-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
     .j3-theme-table th { text-align: center; color: #9aa0aa; font-weight: 800; padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
     .j3-theme-table td { text-align: center; padding: 0.45rem 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.06); color: #e6e6e6; overflow: hidden; text-overflow: ellipsis; }
