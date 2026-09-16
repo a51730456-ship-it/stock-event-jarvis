@@ -2897,7 +2897,15 @@ def _us_futures_cell() -> str:
     # 화면 맨 앞에서 먼저 시켜 둔 일꾼이 있으면 그것이 끝나기를 기다린다
     # (2026-09-10). 안 기다리고 읽으면 같은 것을 **또** 받는다 — 공책은 다 받은
     # 뒤에야 차기 때문이다. 시켜 둔 것이 없으면 바로 지나간다.
-    _await_us_futures_fetch()
+    #
+    # **2초 안에 안 오면 기다리지 않는다**(2026-09-16 상하님 지시 '가'). 여기서
+    # 직접 받으면 그 조회도 최대 12초라 화면이 그만큼 멈춘다. 늦는 판에는
+    # 마지막으로 받아 둔 값을 그대로 보여 주고 넘어간다.
+    if not _await_us_futures_fetch():
+        kept = st.session_state.get(_FUTURES_LAST_KEY)
+        if isinstance(kept, str) and kept:
+            return kept
+        return _top_metric(label, "—", "#9aa0aa", "받는 중", extra_class=_FUTURES_CLASS)
     try:
         # 5분봉이므로 공책도 5분 동안 쓴다 — 1분마다 다시 받을 까닭이 없다.
         futures = fetcher(ttl_seconds=300, interval="5m")
@@ -2932,7 +2940,7 @@ def _us_futures_cell() -> str:
         # 선물 칸은 그림을 바꿔 보여 주는 틀이 없다. 글자를 차트 안에 얹으려면
         # 자리 잡을 틀이 하나 있어야 해서 여기서 감싼다(.j3-idx-solo).
         chart = f"<div class='j3-idx-solo'>{chart}<div class='j3-idx-cap'>당일</div></div>"
-    return (
+    cell = (
         f"<div class='j3-top-cell {_FUTURES_CLASS}'>"
         f"<div class='j3-top-label j3-idx-label'>{label}</div>"
         # 숫자 색은 **옆 지수 칸들과 같은 흰색**이다 (2026-09-16 상하님 지시 —
@@ -2944,6 +2952,9 @@ def _us_futures_cell() -> str:
         + chart
         + "</div>"
     )
+    # 잘 받은 칸은 적어 둔다 — 다음에 늦는 판에서 이것을 그대로 보여 준다.
+    st.session_state[_FUTURES_LAST_KEY] = cell
+    return cell
 
 
 def _us_index_cells(overview: dict, phase: str) -> list:
@@ -10768,29 +10779,37 @@ def _start_us_futures_fetch() -> None:
         _FUTURES_FETCH["thread"] = thread
 
 
-def _await_us_futures_fetch(timeout: float = 12.0) -> None:
-    """먼저 시켜 둔 선물 조회가 끝나기를 기다린다. 선물 칸이 값을 읽기 직전에 부른다.
+# 선물 값을 기다리는 시간. **2초에서 끊는다** (2026-09-16 상하님 지시 '가').
+# 예전에는 12초였는데, 야후가 막힌 판에서는 그 12초를 꽉 채우고 화면이 멈췄다.
+# 온라인 실측 — 그 시간에 무슨 단추를 눌러도 12.3초 · 10.0초 · 3.0초씩 걸렸고,
+# 상승장과 급락이 **똑같이** 늦었다(그 단추들 탓이 아니라는 뜻이다).
+# 야후가 멀쩡하면 이 기다림은 0.8초라 2초로도 넉넉하다.
+_FUTURES_WAIT_SECONDS = 2.0
+# 마지막으로 제대로 받은 선물 값. 늦는 판에서는 이것을 그대로 보여 준다.
+_FUTURES_LAST_KEY = "j3_futures_last"
+
+
+def _await_us_futures_fetch(timeout: float | None = None) -> bool:
+    """먼저 시켜 둔 선물 조회가 끝나기를 기다린다. 끝났으면 True.
 
     기다리지 않고 바로 읽으면, 일꾼이 아직 받는 중일 때 화면이 **같은 것을 또**
     받는다(jarvis4_data 의 공책은 다 받은 뒤에야 찬다). 그러면 야후에 요청이
     두 배로 나가고 빨라지지도 않는다.
 
-    **12초에서 끊는다.** 야후가 멀쩡하면 이 기다림은 1초 안쪽이다 — 실측 0.79초.
-    12초까지 끄는 판은 야후 쪽이 이미 막힌 것이고, 그때는 아래 선물 칸이
-    예전처럼 제가 받아 본다(그 조회 자체의 제한 시간도 12초다).
-
-    **막힌 판에서는 이 기다림만큼 늦어질 수 있다 — 솔직히 적어 둔다.** 다만 그
-    판은 고치기 전에도 선물 칸에서 12초씩 세 번을 기다리던 자리라 늘어나는 몫이
-    전체에 비하면 작고, 야후가 멀쩡한 보통 판에서는 언제나 빨라진다.
+    **2초에서 끊는다**(_FUTURES_WAIT_SECONDS). 못 받고 끊은 판에서는 부르는 쪽이
+    **직접 받지 않는다** — 마지막으로 받아 둔 값을 그대로 보여 주고 넘어간다.
+    그래야 화면이 멈추지 않는다. 값은 다음 판에서 채워진다(선물 칸은 5분마다
+    저절로 다시 그린다).
     """
     with _FUTURES_FETCH_LOCK:
         thread = _FUTURES_FETCH.get("thread")
     if thread is None:
-        return
+        return True
     try:
-        thread.join(timeout)
+        thread.join(_FUTURES_WAIT_SECONDS if timeout is None else timeout)
+        return not thread.is_alive()
     except Exception:
-        pass
+        return False
 
 
 def _warm_after_news(keys: tuple) -> None:
