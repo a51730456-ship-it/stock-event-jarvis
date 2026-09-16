@@ -3101,24 +3101,27 @@ def test_saved_swing_rows_are_looked_up_in_the_watch_list_too():
 
 
 def test_the_saved_list_download_buttons_stay_two_to_a_row_on_a_phone():
-    """날짜별 목록의 받기 단추 넷은 폰에서도 **두 개씩 한 줄**이다 (2026-09-13 상하님 지시).
+    """날짜별 목록의 받기 단추 — 폰 차례는 **엑셀 → 28일치 → 파트별 성적표**다.
 
-    picklist_ui 는 원래 두 칸 줄에 넣는데, 스트림릿이 폰에서 칸을 쌓아 네 줄이 됐다.
-    설명보기 두 칸 줄과 같은 방법으로 이 줄만 쌓지 않게 한다. 한국테마(같은 모듈)는
-    이 화면의 CSS 를 안 읽으므로 바뀌지 않는다.
+    2026-09-13 상하님 지시로 「받기 단추 넷을 폰에서 두 개씩 한 줄」로 묶어 뒀는데,
+    2026-09-16 에 상하님이 그 자리를 다시 정하셨다 — 「CSV로 받기」 자리에 파트별
+    성적표를 넣고(그래서 미국 화면 받기 단추는 셋이 됐다), 폰에서는 성적표를
+    「저장해 둔 28일치 전부」 **밑에** 둔다. 노트북·태블릿은 성적표가 엑셀 오른쪽,
+    곧 예전 「CSV로 받기」 자리 그대로다.
+
+    한국테마(같은 모듈)는 성적표를 안 넘기므로 CSV 단추 둘이 그대로다.
     """
     source = PAGE.read_text(encoding="utf-8")
-    for key in ("picklist_csv_US", "picklist_csv_all_US"):
-        rule = ('[data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > '
-                f'[data-testid="stVerticalBlock"] > [class*="st-key-{key}"])')
-        assert rule in source, f"{key} 줄을 안 묶는다"
-    at = source.index('[class*="st-key-picklist_csv_all_US"]) {')
-    assert "flex-wrap: nowrap !important;" in source[at:at + 120]
-    # 글자 줄이기는 칸이 쌓이던 좁은 화면에서만 — 태블릿·PC 는 그대로다.
-    small = source.index("font-size: .74rem !important;")
-    assert source.rindex("@media (max-width: 640px) {", 0, small) > at
     ui = (ROOT / "picklist_ui.py").read_text(encoding="utf-8")
-    assert ui.count("st.columns(2)") >= 2, "받기 단추를 두 칸 줄에 넣던 모듈이 바뀌었다"
+    assert ui.count("box.columns(2)") >= 2, "받기 단추를 두 칸 줄에 넣던 모듈이 바뀌었다"
+    assert 'st.container(key=f"pldl_{market}")' in ui, "두 줄을 한 칸에 담아야 차례를 바꾼다"
+
+    mobile = (ROOT / "mobile_ui.py").read_text(encoding="utf-8")
+    phone = mobile[mobile.index("@media (max-width: 600px)"):]
+    assert 'st-key-picklist_scorecard_US' in phone, "폰 차례 규칙이 없다"
+    assert "order: 3 !important" in phone and "order: 2 !important" in phone
+    # 폰 규칙은 규칙 12 대로 mobile_ui 안에만 있어야 한다.
+    assert "st-key-pldl_US" not in source, "폰 차례 규칙이 화면 파일로 샜다"
 
 
 def test_changing_the_saved_list_date_lifts_the_date_picker_again():

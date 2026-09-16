@@ -651,7 +651,12 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
     # **계산은 그대로 둔다** — 지금 값(prices)은 위에서 이미 붙였다.
 
     excel = store.to_excel_bytes(rows)
-    columns = st.columns(2)
+    # 받기 단추 두 줄을 **한 칸 안에** 담는다 (2026-09-16 상하님 지시 — 폰에서
+    # "파트별 성적표 부분이 저장해 둔 28일치 밑에 들어가게"). 폰에서 차례를 바꾸려면
+    # 두 줄이 같은 칸의 형제여야 한다 — 그 차례는 mobile_ui 의 폰 규칙이 바꾼다.
+    # 성적표를 안 쓰는 화면에서는 이 칸을 만들지 않는다 — DOM 이 지금 그대로다.
+    box = st.container(key=f"pldl_{market}") if scorecard is not None else st
+    columns = box.columns(2)
     if excel:
         columns[0].download_button(
             "⬇ 엑셀로 받기 (.xlsx)", data=excel,
@@ -686,7 +691,7 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
     if len(dates) > 1 and every:
         # **「n일치 n줄을 한 파일로…」 안내는 뺐다** (2026-08-29 상하님 ×표).
         # 바로 밑 단추에 「저장해 둔 n일치 전부」라고 이미 적혀 있다.
-        all_columns = st.columns(2)
+        all_columns = box.columns(2)
         all_excel = store.to_excel_bytes(every)
         if all_excel:
             all_columns[0].download_button(

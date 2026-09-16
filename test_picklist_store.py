@@ -1071,13 +1071,13 @@ class ScorecardSitsInTheCsvSlotTests(unittest.TestCase):
     def test_the_csv_button_gives_its_seat_to_the_scorecard(self):
         body = self._render_body()
         self.assertIn("if scorecard is not None:", body)
-        seat = body[body.index("columns = st.columns(2)"):body.index("every = []")]
+        seat = body[body.index("columns = box.columns(2)"):body.index("every = []")]
         self.assertLess(seat.index('scorecard("button")'), seat.index("⬇ CSV로 받기"),
                         "성적표가 CSV 단추 자리보다 뒤에 서면 자리가 바뀐 것이 아니다")
 
     def test_the_all_days_csv_seat_is_left_empty(self):
         body = self._render_body()
-        tail = body[body.index("all_columns = st.columns(2)"):]
+        tail = body[body.index("all_columns = box.columns(2)"):]
         self.assertIn("if scorecard is None:", tail)
         self.assertLess(tail.index("if scorecard is None:"),
                         tail.index("일치 전부 (CSV)"),

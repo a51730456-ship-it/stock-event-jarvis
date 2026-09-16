@@ -1534,7 +1534,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026091610
+_REQUIRED_MOBILE_REVISION = 2026091620
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -5428,6 +5428,9 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
 # 막대 색도 그 단추 색 그대로라, 어느 단추 이야기인지 색만 보고 알 수 있다.
 _SCORECARD_KEY = "j3_scorecard_open"
 _SCORECARD_CACHE = "j3_scorecard_counts"
+_SCORECARD_SPAN_KEY = "j3_scorecard_span"
+# 칩에 적는 말. 속으로 쓰는 이름(누계)과 화면에 적는 말을 따로 둔다.
+_SCORECARD_CHIP_LABELS = {"누계": "기록 시작 후 누계"}
 _SCORECARD_PARTS = (
     ("top7", "매수심사결과 높은 순위 9", "#2a78d6"),
     ("breakout", "상승장 (신고가 눌림매수)", "#1b9e6f"),
@@ -5497,45 +5500,45 @@ def _scorecard_counts() -> dict:
     return st.session_state[_SCORECARD_CACHE]
 
 
-def _scorecard_panel_html(data: dict) -> str:
-    """성적표 창. 막대 길이가 「100번 사면 이익 난 횟수」다."""
+def _scorecard_panel_html(data: dict, span: str) -> str:
+    """성적표 창. 막대 길이가 그 기간의 「100번 사면 이익 난 횟수」다.
+
+    기간은 **칩 네 개**로 고른다(2026-09-16 상하님 지적 — 시안에 있던 칩을 제가
+    만들 때 빼먹었다). 고른 기간의 숫자만 보여 주고, 그 기간에 잴 것이 없으면
+    「이 기간에는 잰 것이 없습니다」라고 적는다 — 0으로 채우지 않는다.
+    """
     counts = data["counts"]
 
     def hit(kind, label):
         seen, win = counts.get((kind, label), (0, 0))
         return None if not seen else round(win * 100.0 / seen)
 
-    ranked = sorted(_SCORECARD_PARTS, key=lambda part: -(hit(part[0], "누계") or -1))
+    ranked = sorted(_SCORECARD_PARTS, key=lambda part: -(hit(part[0], span) or -1))
     rows_html = []
-    for kind, name, color in ranked:
-        total = hit(kind, "누계")
+    for order, (kind, name, color) in enumerate(ranked, start=1):
+        total = hit(kind, span)
         if total is None:
             rows_html.append(
-                f"<div class='j3sc-row'><div><div class='j3sc-name'>{html.escape(name)}</div>"
-                "<div class='j3sc-sub'>아직 잴 줄이 없습니다</div></div>"
+                f"<div class='j3sc-row'><span class='j3sc-no'>{order:02d}</span>"
+                f"<div class='j3sc-name'>{html.escape(name)}</div>"
                 "<span class='j3sc-bar'></span>"
                 "<span class='j3sc-val' style='color:#6f93bd'>—</span></div>")
             continue
-        spans = [f"{label} {hit(kind, label)}번" for label, _d in _SCORECARD_SPANS[:3]
-                 if hit(kind, label) is not None]
-        seen = counts[(kind, "누계")][0]
         tone = "#ffd166" if total >= 50 else "#ff8a8a"
         rows_html.append(
-            f"<div class='j3sc-row'><div><div class='j3sc-name'>{html.escape(name)}</div>"
-            f"<div class='j3sc-sub'>{' · '.join(spans)} · 센 줄 {seen}</div></div>"
+            f"<div class='j3sc-row'><span class='j3sc-no'>{order:02d}</span>"
+            f"<div class='j3sc-name'>{html.escape(name)}</div>"
             f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
             f"<span class='j3sc-val' style='color:{tone}'>{total}번</span></div>")
-    base = hit("_all", "누계")
+    base = hit("_all", span)
     if base is not None:
         rows_html.append(
-            "<div class='j3sc-row j3sc-base'><div>"
-            "<div class='j3sc-name'>네 파트를 다 샀다면</div></div>"
+            "<div class='j3sc-row j3sc-base'><span class='j3sc-no'></span>"
+            "<div class='j3sc-name'>네 파트를 다 샀다면</div>"
             f"<span class='j3sc-bar'><i style='width:{base}%;background:#46617f'></i></span>"
             f"<span class='j3sc-val'>{base}번</span></div>")
     return (
-        "<div class='j3sc'><div class='j3sc-head'><b>100번 사면 이익 난 횟수</b>"
-        "<span>다음 거래일 시가에 사서 지금까지</span></div>"
-        + "".join(rows_html)
+        "<div class='j3sc-body'>" + "".join(rows_html)
         + f"<div class='j3sc-note'>{html.escape(str(data['first']))} ~ "
           f"{html.escape(str(data['last']))} · 저장해 둔 {data['days']}일치로 셌습니다. "
           "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다.</div></div>"
@@ -5545,15 +5548,39 @@ def _scorecard_panel_html(data: dict) -> str:
 def _render_picklist_scorecard(part: str):
     """「CSV로 받기」 자리의 단추와, 눌렀을 때 스르륵 내려오는 창."""
     if part == "button":
+        # **켜고 끄기는 on_click 으로 한다** (2026-09-16 상하님 지적 — "파트별
+        # 성적표 보기와 닫기를 헷갈리는 모양이다"). 눌린 판에서 값을 바꾸면,
+        # 단추는 이미 옛 이름으로 그려진 뒤라 이름과 창이 어긋난다 — 닫을 때
+        # 「닫기」라고 적힌 채 창만 사라졌다. on_click 은 다시 그리기 **전에**
+        # 값을 바꾸므로 이름과 창이 늘 같이 간다.
         open_now = bool(st.session_state.get(_SCORECARD_KEY))
-        label = "📊 파트별 성적표 닫기" if open_now else "📊 파트별 성적표 보기"
-        if st.button(label, key="picklist_scorecard_US", width="stretch"):
-            open_now = not open_now
-            st.session_state[_SCORECARD_KEY] = open_now
+        st.button(
+            "📊 파트별 성적표 닫기" if open_now else "📊 파트별 성적표 보기",
+            key="picklist_scorecard_US", width="stretch",
+            on_click=lambda: st.session_state.__setitem__(
+                _SCORECARD_KEY, not st.session_state.get(_SCORECARD_KEY)),
+        )
         return open_now
     with st.spinner("저장해 둔 목록으로 성적을 세는 중입니다…"):
         data = _scorecard_counts()
-    st.markdown(_scorecard_panel_html(data), unsafe_allow_html=True)
+    span = str(st.session_state.get(_SCORECARD_SPAN_KEY) or "누계")
+    if span not in [label for label, _d in _SCORECARD_SPANS]:
+        span = "누계"
+    panel = st.container(key="j3sc_box")
+    with panel:
+        st.markdown(
+            "<div class='j3sc-head'><b>📊 파트별 성적표</b>"
+            "<span>100번 사면 이익 난 횟수</span></div>", unsafe_allow_html=True)
+        chips = st.columns(len(_SCORECARD_SPANS))
+        for index, (label, _days) in enumerate(_SCORECARD_SPANS):
+            chips[index].button(
+                _SCORECARD_CHIP_LABELS.get(label, label),
+                key=f"j3sc_span_{index}", width="stretch",
+                type="primary" if label == span else "secondary",
+                on_click=lambda value=label: st.session_state.__setitem__(
+                    _SCORECARD_SPAN_KEY, value),
+            )
+        st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
     return True
 
 
@@ -9363,13 +9390,25 @@ def _briefing_css() -> None:
         @keyframes j3sc-drop{
           from{opacity:0;transform:translateY(-14px);clip-path:inset(0 0 100% 0)}
           to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
-        .j3sc{animation:j3sc-drop .55s cubic-bezier(.2,.8,.2,1) both;transform-origin:top;
-          border:1px solid #1d3a63;border-radius:12px;padding:14px 16px;margin-top:10px}
+        div[class*="st-key-j3sc_box"]{animation:j3sc-drop .55s cubic-bezier(.2,.8,.2,1) both;
+          transform-origin:top;border:1px solid #1d3a63;border-radius:12px;
+          padding:14px 16px;margin-top:10px}
+        /* 기간 칩 넷 — 고른 것만 노랑이다(스트림릿의 primary 단추). */
+        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button{
+          min-height:0!important;padding:.2rem .5rem!important;border-radius:8px!important;
+          background:transparent!important;border:1px solid #1d3a63!important}
+        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button p{
+          font-size:.78rem!important;font-weight:700!important;color:#8fb4de!important}
+        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button[kind="primary"]{
+          background:#ffb020!important;border-color:#ffb020!important}
+        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button[kind="primary"] p{
+          color:#0a1a33!important}
+        .j3sc-no{font-size:.76rem;color:#6f93bd;text-align:right}
         .j3sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
         .j3sc-head b{font-size:1rem;color:#fff;font-weight:800}
         .j3sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}
-        .j3sc-row{display:grid;grid-template-columns:minmax(0,1fr) 150px 58px;
-          align-items:center;gap:10px;padding:10px 0;border-top:1px solid #16304f}
+        .j3sc-row{display:grid;grid-template-columns:26px minmax(0,1fr) 150px 58px;
+          align-items:center;gap:10px;padding:6px 0;border-top:1px solid #16304f}
         .j3sc-name{font-size:.92rem;font-weight:800;color:#fff}
         .j3sc-sub{font-size:.76rem;color:#6f93bd;margin-top:2px}
         .j3sc-bar{display:block;height:9px;border-radius:5px;background:#16304f}
@@ -9380,7 +9419,7 @@ def _briefing_css() -> None:
         .j3sc-note{font-size:.76rem;color:#6f93bd;line-height:1.6;margin-top:12px}
         @media (max-width:600px){
           .j3sc{padding:12px 12px}
-          .j3sc-row{grid-template-columns:minmax(0,1fr) 78px 50px;gap:8px}
+          .j3sc-row{grid-template-columns:20px minmax(0,1fr) 72px 48px;gap:6px}
           .j3sc-name{font-size:.86rem}
           .j3sc-sub{font-size:.72rem}
         }

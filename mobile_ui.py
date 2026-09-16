@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026091610
+MODULE_REVISION = 2026091620
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -462,6 +462,29 @@ h2 { font-size: 1.2rem !important; }
    애프터마켓 부분이 또 키높이가 안 맞다. 태블릿이나 노트북 온라인은 맞다").
    폰에서만 그 숫자를 한 치수 줄여 한 줄에 넣는다. 보라색·값·「애프터마켓」은
    그대로다 — 보이는 크기만 바꾼다(규칙 12). */
+/* 파트별 성적표 단추는 폰에서 **「저장해 둔 28일치 전부」 밑**에 선다
+   (2026-09-16 상하님 지시 — 폰 캡처를 짚으며 "파트별 성적표 부분이 저장해 둔
+   28일치... 밑에 넣어라"). 노트북·태블릿은 지금 그대로 「CSV로 받기」 자리다.
+   두 줄을 한 칸(pldl_US)에 담아 두었으므로, 첫 줄을 풀어(display:contents)
+   두 줄의 칸들을 형제로 만든 뒤 차례만 바꾼다. 값·단추·글자는 그대로다. */
+/* 기간 칩 넷은 폰에서 **두 개씩 두 줄**로 선다 (2026-09-16). 스트림릿이 좁은
+   화면에서 칸을 위아래로 쌓아 버려 칩 넷이 네 줄이 됐다. 값은 그대로다. */
+div[class*="st-key-j3sc_box"] [data-testid="stHorizontalBlock"]:has(div[class*="st-key-j3sc_span_"]) {
+    flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important;
+}
+div[class*="st-key-j3sc_box"] [data-testid="stColumn"]:has(div[class*="st-key-j3sc_span_"]) {
+    flex: 1 1 calc(50% - 6px) !important; width: auto !important; min-width: 0 !important;
+}
+div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:has(div[class*="st-key-picklist_scorecard_US"]),
+div[class*="st-key-pldl_US"] [data-testid="stHorizontalBlock"]:has(div[class*="st-key-picklist_scorecard_US"]) {
+    display: contents !important;
+}
+div[class*="st-key-pldl_US"] [data-testid="stColumn"]:has(div[class*="st-key-picklist_scorecard_US"]) {
+    order: 3 !important; width: 100% !important;
+}
+div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:has(div[class*="st-key-picklist_xlsx_all_US"]) {
+    order: 2 !important;
+}
 .j3-idx-phase .j3-top-sub span:first-child {
     font-size: 1rem !important; line-height: 19px !important;
 }
