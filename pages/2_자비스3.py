@@ -1022,13 +1022,17 @@ st.markdown(
     }
     /* 「종목검색」 위의 순위 9 닫기도 같은 옷을 입는다(2026-08-26 상하님 지시 —
        "20개 테마 실시간 순위 닫기처럼 만들라고"). */
+    /* 색은 **여는 단추와 같은 파랑 그라데이션**이다 (2026-09-16 상하님 지시 —
+       "색깔은 원래 매수심사결과 높은 순위 9 단추 색깔과 같은 색 그라데이션으로
+       해라, 크기는 지금 크기가 맞다"). 위 st-key-j3_top7_find 와 같은 값이다.
+       크기는 안 건드린다 — 글자 .82rem 그대로다. */
     div[class*="st-key-close_j3_top7_open_above_search"] button {
-        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        background: linear-gradient(90deg, #0a2740 0%, #12507f 38%, #4da6ff 100%) !important;
         border: none !important; border-radius: .5rem !important;
-        box-shadow: 0 2px 10px rgba(224,71,79,.28) !important;
+        box-shadow: 0 2px 10px rgba(77,166,255,.25) !important;
     }
     div[class*="st-key-close_j3_top7_open_above_search"] button:hover {
-        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+        background: linear-gradient(90deg, #0e3455 0%, #17629b 38%, #7cc8ff 100%) !important;
     }
     div[class*="st-key-close_j3_top7_open_above_search"] button p {
         color: #ffffff !important;
@@ -5529,14 +5533,14 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
             f"<div class='j3sc-row'><span class='j3sc-no'>{order:02d}</span>"
             f"<div class='j3sc-name'>{html.escape(name)}</div>"
             f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
-            f"<span class='j3sc-val' style='color:{tone}'>{total}번</span></div>")
+            f"<span class='j3sc-val' style='color:{tone}'>{total}%</span></div>")
     base = hit("_all", span)
     if base is not None:
         rows_html.append(
             "<div class='j3sc-row j3sc-base'><span class='j3sc-no'></span>"
             "<div class='j3sc-name'>네 파트를 다 샀다면</div>"
             f"<span class='j3sc-bar'><i style='width:{base}%;background:#46617f'></i></span>"
-            f"<span class='j3sc-val'>{base}번</span></div>")
+            f"<span class='j3sc-val'>{base}%</span></div>")
     return (
         "<div class='j3sc-body'>" + "".join(rows_html)
         + f"<div class='j3sc-note'>{html.escape(str(data['first']))} ~ "
@@ -5570,7 +5574,7 @@ def _render_picklist_scorecard(part: str):
     with panel:
         st.markdown(
             "<div class='j3sc-head'><b>📊 파트별 성적표</b>"
-            "<span>100번 사면 이익 난 횟수</span></div>", unsafe_allow_html=True)
+            "<span>이익 난 확률</span></div>", unsafe_allow_html=True)
         chips = st.columns(len(_SCORECARD_SPANS))
         for index, (label, _days) in enumerate(_SCORECARD_SPANS):
             chips[index].button(
@@ -6254,8 +6258,14 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     labels = []
     for index, row in enumerate(rows):
         plan = row.get("plan") or {}
-        guide = guidance.build(plan, money=_price, market_score=market.get("score"))
-        dot = {"go": "🟩", "wait": "🟨", "stop": "🟥"}.get(guide["level"], "🟨")
+        # **순위 칸 네모는 그 줄이 어느 파트에서 왔는지**를 말한다 (2026-09-16
+        # 상하님 지시 — "테마 1~3위, 상승장 1~3위, 급락 후 1~3위 다 색깔이 달라야지").
+        # 색은 맨 오른쪽 「어느 분야」 칸 글자색과 **같다** — 테마 대장주 파랑 ·
+        # 상승장 초록 · 급락 후 반등장 주황(.j3-top7-leader/up/crash).
+        # 예전에는 초록·노랑·빨강으로 매수 상태를 되풀이했는데, 그 값은 바로 옆
+        # 「매수 상태」 칸이 이미 말한다. 점수·차례·값은 하나도 안 바뀐다.
+        origin = str(row.get("top7_origin") or "")
+        dot = {"상승장": "🟩", "급락 후 반등장": "🟧"}.get(origin, "🟦")
         rank_cells.append(
             f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}위</div>"
         )
@@ -6280,7 +6290,6 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
         # 어느 갈래에서 왔는지를 **먼저** 적는다(2026-08-06 사용자 지시) — 점수가
         # 갈래마다 다른 자로 잰 값이라, 어느 자로 잰 것인지 알아야 읽을 수 있다.
-        origin = str(row.get("top7_origin") or "")
         themes = " · ".join(row.get("sources") or row.get("themes") or [])
         source_text = " · ".join(part for part in (origin, themes) if part) or "—"
         origin_class = {
@@ -6326,12 +6335,11 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         "</style>",
         unsafe_allow_html=True,
     )
-    # 구역 맨 아래 닫기 단추 — 다른 구역에는 다 있는데 여기만 없었다
-    # (2026-08-06 사용자 지적). 폰에서 표 끝까지 내려가면 위 단추가 화면 밖으로 나간다.
-    _section_close(
-        "j3_top7_open", "매수심사결과 높은 순위 9 닫기",
-        on_close=_close_top7_from_fragment,
-    )
+    # 구역 맨 아래 닫기 단추는 **여기 두지 않는다** (2026-09-16 상하님 지적 —
+    # "맨 밑에 매수심사결과 높은 순위 9 닫기가 2개이고, 하나 없애라").
+    # 2026-08-26 에 「종목검색 바로 위」에 같은 닫기를 하나 더 만들면서 둘이 나란히
+    # 섰다 — 자리가 사실상 같은 곳이다. 남기는 것은 그때 상하님이 자리를 짚어
+    # 주신 쪽(_render_top7_close_above_search)이다.
 
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:

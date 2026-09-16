@@ -3050,8 +3050,13 @@ def test_closing_top9_alone_does_not_redraw_the_whole_screen():
     reviewed = source[source.index("def _render_top_reviewed("):
                       source.index("def _render_top_reviewed_detail")]
     assert "_close_top7_from_fragment()" in reviewed
-    assert "on_close=_close_top7_from_fragment" in reviewed
     assert "_close_all_from_fragment()" not in reviewed
+    # 구역 맨 아래 닫기는 2026-09-16 에 없앴다(「종목검색 위」 것과 나란히 둘이었다).
+    # 남은 세 자리가 모두 이 길을 쓴다.
+    assert source.count("_close_top7_from_fragment") >= 4
+    above = source[source.index("def _render_top7_close_above_search"):]
+    assert "on_click=_close_top7_from_fragment" in above[:above.index(chr(10) * 3)]
+    assert "on_close=_close_top7_from_fragment" in source, "선택종목 세부사항 밑 닫기"
 
 
 def test_the_saved_list_redraws_only_itself_and_lifts_the_date_picker():
