@@ -1538,7 +1538,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026091640
+_REQUIRED_MOBILE_REVISION = 2026091710
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -5462,6 +5462,14 @@ _SCORECARD_SPANS = (("일주일", 7), ("이번 달", "month"), ("6개월", 183),
 # 8월 31일 월요일부터 해라"). 파트마다 배점·명부가 확정된 날이 8/19·8/20·8/29 로
 # 제각각이라, 상하님이 그 뒤의 한 날로 못박으셨다. 이 날보다 앞선 줄은 안 센다.
 _SCORECARD_START = "2026-08-31"
+# 순위 9 속 세 파트 — 이름은 저장 파일의 origin 칸 그대로, 색은 순위 9 표의
+# 「어느 분야」 칸 글자색 그대로다(테마 대장주 파랑 · 상승장 초록 · 급락 주황).
+_SCORECARD_TOP9_PARTS = (
+    ("테마 대장주", "#4da6ff"),
+    ("상승장", "#12a06a"),
+    ("급락 후 반등장", "#e67813"),
+)
+_SCORECARD_TOP9_PARTS_NAMES = {name for name, _color in _SCORECARD_TOP9_PARTS}
 
 
 def _scorecard_in_span(when, anchor, days) -> bool:
@@ -5564,7 +5572,16 @@ def _scorecard_counts_cached(stamp: str) -> dict:
             if not _scorecard_in_span(when, anchor, days):
                 continue
             seen_days[label].add(day)
-            for key in ((kind, label), ("_all", label)):
+            keys = [(kind, label), ("_all", label)]
+            # **순위 9 는 그 속 세 파트로도 센다** (2026-09-17 상하님 지시 —
+            # "매수심사결과 높은 순위 9 에 세 가지 항목이 3개씩 들어 있는데 이걸 알
+            # 수가 없다, 클릭하면 그 속에서 이익율을 볼 수 있게"). 저장된 줄의
+            # origin 칸이 파트다(8/31 이후 줄은 전부 들어 있다).
+            origin = str(row.get("origin") or "").strip()
+            if kind == "top7" and origin in _SCORECARD_TOP9_PARTS_NAMES:
+                keys.append((f"top7:{origin}", label))
+            for key in keys:
+                counts.setdefault(key, [0, 0])
                 counts[key][0] += 1
                 counts[key][1] += 1 if gain > 0 else 0
     spans = {}
@@ -5583,7 +5600,8 @@ def _scorecard_counts() -> dict:
     import picklist_store as store
 
     dates = store.available_dates("US")
-    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}"
+    # 끝의 판 표시는 세는 모양이 바뀌면 올린다 — 앱에 남은 옛 모양을 안 쓰게.
+    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|top9-parts"
     data = _scorecard_counts_cached(stamp)
     st.session_state[_SCORECARD_CACHE] = data
     return data
@@ -5614,6 +5632,36 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
                 "<span class='j3sc-val' style='color:#6f93bd'>—</span></div>")
             continue
         tone = "#ffd166" if total >= 50 else "#ff8a8a"
+        if kind == "top7":
+            # **누르면 그 속 세 파트가 펼쳐진다** (2026-09-17 상하님 지시). 숨은
+            # 체크칸으로 여닫아 서버에 다시 묻지 않는다 — 누르는 즉시 열린다.
+            subs = []
+            for part_name, part_color in _SCORECARD_TOP9_PARTS:
+                sub_seen = counts.get((f"top7:{part_name}", span), (0, 0))[0]
+                sub_rate = hit(f"top7:{part_name}", span)
+                if sub_rate is None:
+                    subs.append(
+                        "<div class='j3sc-row j3sc-sub-row'><span class='j3sc-no'></span>"
+                        f"<div class='j3sc-name'>{html.escape(part_name)} 1~3위</div>"
+                        "<span class='j3sc-bar'></span>"
+                        "<span class='j3sc-val' style='color:#6f93bd'>—</span></div>")
+                    continue
+                sub_tone = "#ffd166" if sub_rate >= 50 else "#ff8a8a"
+                subs.append(
+                    "<div class='j3sc-row j3sc-sub-row'><span class='j3sc-no'></span>"
+                    f"<div class='j3sc-name'>{html.escape(part_name)} 1~3위"
+                    f"<span class='j3sc-count'>{sub_seen}번</span></div>"
+                    f"<span class='j3sc-bar'><i style='width:{sub_rate}%;background:{part_color}'></i></span>"
+                    f"<span class='j3sc-val' style='color:{sub_tone}'>{sub_rate}%</span></div>")
+            rows_html.append(
+                "<input type='checkbox' id='j3sc-top9-tap' class='j3sc-tap'>"
+                "<label for='j3sc-top9-tap' class='j3sc-row j3sc-top9'>"
+                f"<span class='j3sc-no'>{order:02d}</span>"
+                f"<div class='j3sc-name'>{html.escape(name)}<span class='j3sc-caret'>›</span></div>"
+                f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
+                f"<span class='j3sc-val' style='color:{tone}'>{total}%</span></label>"
+                "<div class='j3sc-subs'>" + "".join(subs) + "</div>")
+            continue
         rows_html.append(
             f"<div class='j3sc-row'><span class='j3sc-no'>{order:02d}</span>"
             f"<div class='j3sc-name'>{html.escape(name)}</div>"
@@ -9561,6 +9609,20 @@ def _briefing_css() -> None:
         div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button[kind="primary"] p{
           color:#0a1a33!important}
         .j3sc-no{font-size:.76rem;color:#6f93bd;text-align:right}
+        /* 순위 9 줄 — 누르면 그 속 세 파트가 펼쳐진다(2026-09-17 상하님 지시). */
+        .j3sc-tap{display:none}
+        label.j3sc-top9{cursor:pointer;margin:0}
+        label.j3sc-top9:hover .j3sc-name{color:#bfe0ff}
+        .j3sc-caret{display:inline-block;margin-left:6px;color:#8fb4de;
+          transition:transform .2s ease}
+        .j3sc-subs{display:none;margin:0 0 4px 0;padding-left:10px;
+          border-left:2px solid #2a78d6}
+        .j3sc-tap:checked + label.j3sc-top9 + .j3sc-subs{display:block;
+          animation:j3sc-drop .35s cubic-bezier(.2,.8,.2,1) both}
+        .j3sc-tap:checked + label.j3sc-top9 .j3sc-caret{transform:rotate(90deg)}
+        .j3sc-sub-row{border-top:1px dashed #16304f}
+        .j3sc-sub-row .j3sc-name{font-size:.84rem;font-weight:700;color:#cfe3ff}
+        .j3sc-count{margin-left:8px;font-size:.72rem;font-weight:600;color:#6f93bd}
         .j3sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
         .j3sc-head b{font-size:1rem;color:#fff;font-weight:800}
         .j3sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}
