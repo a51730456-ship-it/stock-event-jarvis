@@ -1538,7 +1538,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026091710
+_REQUIRED_MOBILE_REVISION = 2026091720
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -5633,34 +5633,48 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
             continue
         tone = "#ffd166" if total >= 50 else "#ff8a8a"
         if kind == "top7":
-            # **누르면 그 속 세 파트가 펼쳐진다** (2026-09-17 상하님 지시). 숨은
-            # 체크칸으로 여닫아 서버에 다시 묻지 않는다 — 누르는 즉시 열린다.
-            subs = []
+            # **누르는 곳은 보라색으로 가른다 · 누르면 창이 튀어 오른다**
+            # (2026-09-17 상하님 지적 — "구분을 못 하겠다, 어지럽기만 하다. 클릭
+            # 색깔 구분하게 하고, 테마나 종목 단추 누를 때 보라색 부분처럼. 클릭하면
+            # 다른 부분 흐릿하게 하고 그 부분 확대하면서 창이 애플 스마트폰처럼
+            # 확대되게, 다시 누르면 풍선 줄어들 듯이").
+            # 숨은 체크칸 하나로 여닫는다 — 서버에 다시 묻지 않아 누르는 즉시 움직인다.
+            # 창은 사라질 때도 움직임이 보이도록 display 가 아니라 크기·투명도로 감춘다.
+            parts_html = []
             for part_name, part_color in _SCORECARD_TOP9_PARTS:
                 sub_seen = counts.get((f"top7:{part_name}", span), (0, 0))[0]
                 sub_rate = hit(f"top7:{part_name}", span)
                 if sub_rate is None:
-                    subs.append(
-                        "<div class='j3sc-row j3sc-sub-row'><span class='j3sc-no'></span>"
-                        f"<div class='j3sc-name'>{html.escape(part_name)} 1~3위</div>"
-                        "<span class='j3sc-bar'></span>"
-                        "<span class='j3sc-val' style='color:#6f93bd'>—</span></div>")
-                    continue
-                sub_tone = "#ffd166" if sub_rate >= 50 else "#ff8a8a"
-                subs.append(
-                    "<div class='j3sc-row j3sc-sub-row'><span class='j3sc-no'></span>"
-                    f"<div class='j3sc-name'>{html.escape(part_name)} 1~3위"
-                    f"<span class='j3sc-count'>{sub_seen}번</span></div>"
-                    f"<span class='j3sc-bar'><i style='width:{sub_rate}%;background:{part_color}'></i></span>"
-                    f"<span class='j3sc-val' style='color:{sub_tone}'>{sub_rate}%</span></div>")
+                    rate_html = "<b class='j3pop-rate' style='color:#6f93bd'>—</b>"
+                    bar_html = "<span class='j3sc-bar'></span>"
+                    seen_html = "<small>이 기간에는 잰 것이 없습니다</small>"
+                else:
+                    sub_tone = "#ffd166" if sub_rate >= 50 else "#ff8a8a"
+                    rate_html = f"<b class='j3pop-rate' style='color:{sub_tone}'>{sub_rate}%</b>"
+                    bar_html = (f"<span class='j3sc-bar'><i style='width:{sub_rate}%;"
+                                f"background:{part_color}'></i></span>")
+                    seen_html = f"<small>{sub_seen}번 사 본 값</small>"
+                parts_html.append(
+                    f"<div class='j3pop-part' style='--part:{part_color}'>"
+                    f"<div class='j3pop-part-head'><span class='j3pop-dot'></span>"
+                    f"<span class='j3pop-part-name'>{html.escape(part_name)} 1~3위</span>"
+                    f"{rate_html}</div>{bar_html}{seen_html}</div>")
             rows_html.append(
                 "<input type='checkbox' id='j3sc-top9-tap' class='j3sc-tap'>"
                 "<label for='j3sc-top9-tap' class='j3sc-row j3sc-top9'>"
                 f"<span class='j3sc-no'>{order:02d}</span>"
-                f"<div class='j3sc-name'>{html.escape(name)}<span class='j3sc-caret'>›</span></div>"
+                f"<div class='j3sc-name'>{html.escape(name)}"
+                "<span class='j3sc-chip'>세 파트 보기</span></div>"
                 f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
                 f"<span class='j3sc-val' style='color:{tone}'>{total}%</span></label>"
-                "<div class='j3sc-subs'>" + "".join(subs) + "</div>")
+                # 흐려진 바탕을 눌러도 닫힌다.
+                "<label for='j3sc-top9-tap' class='j3pop-scrim' aria-hidden='true'></label>"
+                "<label for='j3sc-top9-tap' class='j3pop'>"
+                "<span class='j3pop-title'>매수심사결과 높은 순위 9</span>"
+                f"<span class='j3pop-total' style='color:{tone}'>{total}%</span>"
+                "<span class='j3pop-sub'>속 세 파트 · 이익 난 확률</span>"
+                + "".join(parts_html)
+                + "<span class='j3pop-close'>다시 누르면 닫힘</span></label>")
             continue
         rows_html.append(
             f"<div class='j3sc-row'><span class='j3sc-no'>{order:02d}</span>"
@@ -9609,20 +9623,61 @@ def _briefing_css() -> None:
         div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button[kind="primary"] p{
           color:#0a1a33!important}
         .j3sc-no{font-size:.76rem;color:#6f93bd;text-align:right}
-        /* 순위 9 줄 — 누르면 그 속 세 파트가 펼쳐진다(2026-09-17 상하님 지시). */
-        .j3sc-tap{display:none}
-        label.j3sc-top9{cursor:pointer;margin:0}
-        label.j3sc-top9:hover .j3sc-name{color:#bfe0ff}
-        .j3sc-caret{display:inline-block;margin-left:6px;color:#8fb4de;
-          transition:transform .2s ease}
-        .j3sc-subs{display:none;margin:0 0 4px 0;padding-left:10px;
-          border-left:2px solid #2a78d6}
-        .j3sc-tap:checked + label.j3sc-top9 + .j3sc-subs{display:block;
-          animation:j3sc-drop .35s cubic-bezier(.2,.8,.2,1) both}
-        .j3sc-tap:checked + label.j3sc-top9 .j3sc-caret{transform:rotate(90deg)}
-        .j3sc-sub-row{border-top:1px dashed #16304f}
-        .j3sc-sub-row .j3sc-name{font-size:.84rem;font-weight:700;color:#cfe3ff}
-        .j3sc-count{margin-left:8px;font-size:.72rem;font-weight:600;color:#6f93bd}
+        /* 순위 9 줄 — **누르는 곳은 보라색**이다(테마·종목 단추와 같은 결).
+           누르면 나머지가 흐려지고 창이 튀어 오르며, 다시 누르면 풍선처럼 줄어든다
+           (2026-09-17 상하님 지시). */
+        .j3sc-tap{position:absolute;opacity:0;pointer-events:none}
+        /* 창은 **성적표 상자 전체**의 가운데에 뜬다. 스트림릿 칸이 제 자리를 기준으로
+           삼지 않게 풀어 주고, 상자가 내려올 때 쓴 잘라 내기(clip-path)가 끝난 뒤
+           남아 창을 자르지 않게 한다. */
+        div[class*="st-key-j3sc_box"]{position:relative;animation-fill-mode:backwards!important}
+        div[class*="st-key-j3sc_box"] [data-testid="stElementContainer"]:has(.j3pop),
+        div[class*="st-key-j3sc_box"] [data-testid="stMarkdown"]:has(.j3pop),
+        div[class*="st-key-j3sc_box"] [data-testid="stMarkdownContainer"]:has(.j3pop){
+          position:static!important}
+        .j3sc-body{position:static}
+        label.j3sc-top9{cursor:pointer;margin:0 -8px;padding:6px 8px;border-radius:10px;
+          background:rgba(192,132,252,.10);box-shadow:inset 3px 0 0 #c084fc;
+          transition:background-color .15s ease}
+        label.j3sc-top9:hover{background:rgba(192,132,252,.22)}
+        label.j3sc-top9 .j3sc-name{color:#e9d5ff}
+        .j3sc-chip{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;
+          font-size:.68rem;font-weight:800;color:#1a0b2e;background:#c084fc;vertical-align:1px}
+        .j3sc-body > *,
+        div[class*="st-key-j3sc_box"] [data-testid="stElementContainer"]{
+          transition:opacity .25s ease,filter .25s ease}
+        /* 창이 뜨면 **나머지는 흐리게** — 제목·칩·다른 줄·안내 글 모두. */
+        .j3sc-body:has(.j3sc-tap:checked) > :not(.j3pop):not(.j3pop-scrim):not(.j3sc-tap),
+        div[class*="st-key-j3sc_box"]:has(.j3sc-tap:checked)
+          [data-testid="stElementContainer"]:not(:has(.j3pop)){
+          opacity:.18;filter:blur(2px)}
+        .j3pop-scrim{position:absolute;inset:0;z-index:4;cursor:pointer;
+          visibility:hidden}
+        .j3sc-tap:checked ~ .j3pop-scrim{visibility:visible}
+        .j3pop{position:absolute;left:50%;top:50%;z-index:5;cursor:pointer;
+          width:min(94%,520px);box-sizing:border-box;padding:16px 16px 12px;
+          border-radius:22px;background:#132a4d;border:1px solid rgba(192,132,252,.55);
+          box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.04) inset;
+          display:flex;flex-direction:column;gap:10px;
+          opacity:0;visibility:hidden;pointer-events:none;
+          transform:translate(-50%,-50%) scale(.55);
+          transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .22s ease,
+            visibility 0s linear .32s}
+        .j3sc-tap:checked ~ .j3pop{opacity:1;visibility:visible;pointer-events:auto;
+          transform:translate(-50%,-50%) scale(1);
+          transition:transform .5s cubic-bezier(.34,1.56,.64,1),opacity .2s ease,
+            visibility 0s}
+        .j3pop-title{font-size:.86rem;font-weight:800;color:#e9d5ff}
+        .j3pop-total{font-size:2rem;font-weight:900;line-height:1;margin-top:-4px}
+        .j3pop-sub{font-size:.74rem;color:#8fb4de;margin-top:-6px}
+        .j3pop-part{border-top:1px solid #1d3a63;padding-top:9px;display:flex;
+          flex-direction:column;gap:6px}
+        .j3pop-part-head{display:flex;align-items:center;gap:8px}
+        .j3pop-dot{width:10px;height:10px;border-radius:3px;background:var(--part);flex:0 0 auto}
+        .j3pop-part-name{font-size:.92rem;font-weight:800;color:#fff;flex:1 1 auto}
+        .j3pop-rate{font-size:1.1rem;font-weight:900}
+        .j3pop-part small{font-size:.72rem;color:#6f93bd}
+        .j3pop-close{align-self:center;font-size:.72rem;color:#8fb4de;margin-top:2px}
         .j3sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
         .j3sc-head b{font-size:1rem;color:#fff;font-weight:800}
         .j3sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}

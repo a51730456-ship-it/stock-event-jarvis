@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026091710
+MODULE_REVISION = 2026091720
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -478,6 +478,9 @@ div[class*="st-key-j3sc_box"] [data-testid="stColumn"]:has(div[class*="st-key-j3
 /* 성적표 순위 9 줄 — 폰에서 「›」와 횟수가 줄바꿈되지 않게 한다(2026-09-17).
    이름은 한 치수 줄여 한 줄에 두고, 파트별 횟수(30번)는 폰에서 감춘다. 값은 그대로다. */
 label.j3sc-top9 .j3sc-name { white-space: nowrap !important; font-size: .82rem !important; }
+/* 폰에서는 「세 파트 보기」 글자가 막대를 덮는다 — 글자 대신 보라색 화살표만 둔다(2026-09-17). */
+.j3sc-chip { display: none !important; }
+label.j3sc-top9 .j3sc-name::after { content: "›"; color: #c084fc; font-weight: 900; margin-left: 5px; }
 .j3sc-sub-row .j3sc-name { white-space: nowrap !important; font-size: .8rem !important; }
 .j3sc-count { display: none !important; }
 /* 줄 사이 틈을 12px → 8px 로 더 좁힌다(2026-09-16 상하님 — "여백 조금 더 좁게"). */
