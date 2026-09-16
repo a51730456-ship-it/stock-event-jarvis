@@ -5441,8 +5441,20 @@ _SCORECARD_PARTS = (
     ("theme15", "21개 테마", "#c0392b"),
     ("crash", "급락 후 반등장 (낙폭종목)", "#e08b1e"),
 )
-# 기간 넷. 저장된 매수일이 오늘로부터 며칠 안인가로 가른다.
-_SCORECARD_SPANS = (("일주일", 7), ("이번 달", 31), ("1년", 365), ("누계", None))
+# 기간 넷. 「이번 달」만 **달력의 이번 달**(9월이면 9월 1일부터)이고, 나머지는
+# 오늘로부터 며칠 안인가로 가른다. 2026-09-16 에 상하님이 "계산 다시 짚어봐라"
+# 하셔서 보니, 「이번 달」이 사실은 「최근 31일」이었다 — 9월 16일에 8월 16일치가
+# 섞여 들었다. 이름과 계산이 달랐다.
+_SCORECARD_SPANS = (("일주일", 7), ("이번 달", "month"), ("1년", 365), ("누계", None))
+
+
+def _scorecard_in_span(when, today, days) -> bool:
+    """그 매수일이 이 기간 안인가."""
+    if days == "month":
+        return (when.year, when.month) == (today.year, today.month)
+    if days is None:
+        return True
+    return 0 <= (today - when).days <= days
 
 
 def _scorecard_counts() -> dict:
@@ -5471,13 +5483,29 @@ def _scorecard_counts() -> dict:
         except Exception:
             prices = {}
     today = datetime.now(_PAGE_SEOUL).date()
+    parts = {kind for kind, _name, _color in _SCORECARD_PARTS}
+    # **당일 산 줄은 안 센다** (2026-09-16 상하님 지시 — "당일은 빼야지, 수익은
+    # 다음날 돼야 알 수 있지"). 목록은 그날 장이 끝난 뒤 저장되므로, 그 목록보다
+    # **더 나중에 저장된 날이 있어야** 산 날의 장도 끝난 것이다. 가장 최근에 저장된
+    # 날의 줄은 아직 산 날 장이 도는 중이거나 끝나지 않았으므로 뺀다.
+    newest = dates[0] if dates else ""
     counts = {}
-    for kind, _name, _color in _SCORECARD_PARTS:
-        for label, _days in _SCORECARD_SPANS:
-            counts[(kind, label)] = [0, 0]          # [센 줄, 이익 난 줄]
-    counts[("_all", "누계")] = [0, 0]
+    for label, _days in _SCORECARD_SPANS:
+        for kind in parts:
+            counts[(kind, label)] = [0, 0]          # [센 횟수, 이익 난 횟수]
+        # 「네 파트를 다 샀다면」 — **기간마다** 만든다(2026-09-16). 예전에는 누계
+        # 하나만 있어서 일주일·이번 달·1년을 고르면 그 줄이 통째로 사라졌다.
+        counts[("_all", label)] = [0, 0]
+    seen_days = {label: set() for label, _days in _SCORECARD_SPANS}
     for row in rows:
         kind = str(row.get("list_kind") or "")
+        # **화면에 없는 옛 갈래는 안 센다**(2026-09-16). 미국 화면에서 2026-08-06 에
+        # 뺀 「눌림목 찾기」 48줄이 기준 줄에만 섞여 들어가고 있었다 — 네 파트 어디에도
+        # 안 나오는 줄이 「네 파트를 다 샀다면」에는 들어간 셈이다.
+        if kind not in parts:
+            continue
+        if newest and str(row.get("trade_date") or "") >= newest:
+            continue            # 산 날 장이 아직 안 끝났다 — 다음 날 센다
         gain = store.profit_pct(row.get("buy_open"),
                                 prices.get(str(row.get("code") or "")))
         if gain is None:
@@ -5486,21 +5514,20 @@ def _scorecard_counts() -> dict:
             when = date.fromisoformat(str(row.get("trade_date")))
         except Exception:
             continue
-        old = (today - when).days
         for label, days in _SCORECARD_SPANS:
-            if days is not None and old > days:
+            if not _scorecard_in_span(when, today, days):
                 continue
-            keys = [(kind, label)]
-            if label == "누계":
-                keys.append(("_all", label))
-            for key in keys:
-                if key in counts:
-                    counts[key][0] += 1
-                    counts[key][1] += 1 if gain > 0 else 0
-    st.session_state[_SCORECARD_CACHE] = {
-        "counts": counts, "days": len(dates),
-        "first": dates[-1] if dates else "", "last": dates[0] if dates else "",
-    }
+            seen_days[label].add(when.isoformat())
+            for key in ((kind, label), ("_all", label)):
+                counts[key][0] += 1
+                counts[key][1] += 1 if gain > 0 else 0
+    spans = {}
+    for label, _days in _SCORECARD_SPANS:
+        days_used = sorted(seen_days[label])
+        spans[label] = {"days": len(days_used),
+                        "first": days_used[0] if days_used else "",
+                        "last": days_used[-1] if days_used else ""}
+    st.session_state[_SCORECARD_CACHE] = {"counts": counts, "spans": spans}
     return st.session_state[_SCORECARD_CACHE]
 
 
@@ -5534,6 +5561,14 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
             f"<div class='j3sc-name'>{html.escape(name)}</div>"
             f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
             f"<span class='j3sc-val' style='color:{tone}'>{total}%</span></div>")
+    used = (data.get("spans") or {}).get(span) or {}
+    if used.get("days"):
+        note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
+                f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
+                "지금 값과 견준 것입니다. 매수금액이 아직 없는 줄과 값을 못 받은 "
+                "종목은 세지 않습니다.")
+    else:
+        note = "이 기간에는 아직 잴 것이 없습니다."
     base = hit("_all", span)
     if base is not None:
         rows_html.append(
@@ -5543,9 +5578,7 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
             f"<span class='j3sc-val'>{base}%</span></div>")
     return (
         "<div class='j3sc-body'>" + "".join(rows_html)
-        + f"<div class='j3sc-note'>{html.escape(str(data['first']))} ~ "
-          f"{html.escape(str(data['last']))} · 저장해 둔 {data['days']}일치로 셌습니다. "
-          "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다.</div></div>"
+        + f"<div class='j3sc-note'>{note}</div></div>"
     )
 
 
