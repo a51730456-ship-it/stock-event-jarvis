@@ -5447,6 +5447,10 @@ _SCORECARD_PARTS = (
 # 섞여 들었다. 이름과 계산이 달랐다.
 _SCORECARD_SPANS = (("일주일", 7), ("이번 달", "month"), ("6개월", 183),
                     ("1년", 365), ("누계", None))
+# **세기 시작하는 날** (2026-09-16 상하님 지시 — "복잡하니 카운트 미국장 기준
+# 8월 31일 월요일부터 해라"). 파트마다 배점·명부가 확정된 날이 8/19·8/20·8/29 로
+# 제각각이라, 상하님이 그 뒤의 한 날로 못박으셨다. 이 날보다 앞선 줄은 안 센다.
+_SCORECARD_START = "2026-08-31"
 
 
 def _scorecard_in_span(when, anchor, days) -> bool:
@@ -5514,6 +5518,8 @@ def _scorecard_counts() -> dict:
             continue
         if newest and str(row.get("trade_date") or "") >= newest:
             continue            # 산 날 장이 아직 안 끝났다 — 다음 날 센다
+        if str(row.get("trade_date") or "") < _SCORECARD_START:
+            continue            # 세기 시작한 날보다 앞이다(위 _SCORECARD_START)
         gain = store.profit_pct(row.get("buy_open"),
                                 prices.get(str(row.get("code") or "")))
         if gain is None:
