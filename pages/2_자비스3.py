@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 import base64
 import html
@@ -5445,16 +5445,23 @@ _SCORECARD_PARTS = (
 # 오늘로부터 며칠 안인가로 가른다. 2026-09-16 에 상하님이 "계산 다시 짚어봐라"
 # 하셔서 보니, 「이번 달」이 사실은 「최근 31일」이었다 — 9월 16일에 8월 16일치가
 # 섞여 들었다. 이름과 계산이 달랐다.
-_SCORECARD_SPANS = (("일주일", 7), ("이번 달", "month"), ("1년", 365), ("누계", None))
+_SCORECARD_SPANS = (("일주일", 7), ("이번 달", "month"), ("6개월", 183),
+                    ("1년", 365), ("누계", None))
 
 
-def _scorecard_in_span(when, today, days) -> bool:
-    """그 매수일이 이 기간 안인가."""
+def _scorecard_in_span(when, anchor, days) -> bool:
+    """그 매수일이 이 기간 안인가. **기준은 어제**다.
+
+    2026-09-16 상하님 지시 — "오늘 전날부터, 즉 어제부터 일주일·이번 달·1년
+    이런 식으로 카운트해라." 오늘 산 것은 장이 안 끝나 성적을 모르므로, 기간을
+    오늘이 아니라 어제에서 거꾸로 센다. 「이번 달」도 **어제가 속한 달**이다
+    (10월 1일에 보면 9월 성적이 그대로 남는다).
+    """
     if days == "month":
-        return (when.year, when.month) == (today.year, today.month)
+        return (when.year, when.month) == (anchor.year, anchor.month)
     if days is None:
         return True
-    return 0 <= (today - when).days <= days
+    return 0 <= (anchor - when).days <= days
 
 
 def _scorecard_counts() -> dict:
@@ -5482,7 +5489,8 @@ def _scorecard_counts() -> dict:
             prices = picklist_ui.fetch_prices("US", [r.get("code") for r in rows])
         except Exception:
             prices = {}
-    today = datetime.now(_PAGE_SEOUL).date()
+    # 기간을 세는 **기준은 어제**다(2026-09-16 상하님 지시 — 위 _scorecard_in_span).
+    anchor = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
     parts = {kind for kind, _name, _color in _SCORECARD_PARTS}
     # **당일 산 줄은 안 센다** (2026-09-16 상하님 지시 — "당일은 빼야지, 수익은
     # 다음날 돼야 알 수 있지"). 목록은 그날 장이 끝난 뒤 저장되므로, 그 목록보다
@@ -5515,7 +5523,7 @@ def _scorecard_counts() -> dict:
         except Exception:
             continue
         for label, days in _SCORECARD_SPANS:
-            if not _scorecard_in_span(when, today, days):
+            if not _scorecard_in_span(when, anchor, days):
                 continue
             seen_days[label].add(when.isoformat())
             for key in ((kind, label), ("_all", label)):
