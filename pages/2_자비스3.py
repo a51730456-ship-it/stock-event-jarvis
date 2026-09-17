@@ -778,7 +778,12 @@ st.markdown(
     .st-key-j3_rulebook_table,
     .st-key-j3_theme_table,
     .st-key-j3_rulebook_rest [data-testid="stExpander"] > details,
-    .st-key-j3_theme_rest [data-testid="stExpander"] > details {
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details,
+    /* 날짜별로 저장해 둔 목록의 표(상위 테마 5개·상승장·급락·순위 9)도 **같은 두께** —
+       2026-09-17 상하님 지시 "맨 밑 바 높이가 너무 작아 마우스로 찍기 힘들다, 22개 테마
+       순위 맨 밑 바 크기로 맞춰라". 이 CSS 는 미국테마 화면에서만 나오므로 한국테마
+       저장 목록은 그대로다. */
+    .pl-wrap {
         scrollbar-width: auto;
         scrollbar-color: rgba(124, 200, 255, .70) rgba(255, 255, 255, .08);
     }
@@ -790,7 +795,8 @@ st.markdown(
     .st-key-j3_rulebook_table::-webkit-scrollbar,
     .st-key-j3_theme_table::-webkit-scrollbar,
     .st-key-j3_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
-    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar {
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
+    .pl-wrap::-webkit-scrollbar {
         height: 15px;
         background: rgba(255, 255, 255, .08);
     }
@@ -802,7 +808,8 @@ st.markdown(
     .st-key-j3_rulebook_table::-webkit-scrollbar-thumb,
     .st-key-j3_theme_table::-webkit-scrollbar-thumb,
     .st-key-j3_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
-    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb {
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
+    .pl-wrap::-webkit-scrollbar-thumb {
         background: rgba(124, 200, 255, .70);
         border-radius: 8px;
         min-width: 60px;
