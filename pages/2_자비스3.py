@@ -1298,6 +1298,25 @@ st.markdown(
         display: block; height: 100%; border-radius: 3px;
         background: linear-gradient(90deg, #0860eb, #42caff);
         box-shadow: 0 0 10px rgba(40,180,255,.35);
+        transform-origin: left center;
+    }
+    /* 막대가 **왼쪽에서 오른쪽으로 한 번** 차오른다 (2026-09-17 상하님 지시 — "나스닥
+       고점 대비처럼 마우스나 화면이 그곳으로 스크롤되면 그래프가 왼쪽에서 오른쪽으로
+       한 번만 움직이게"). 시간·곡선은 나스닥 고점 대비 막대(j3-ndd-grow)와 같다.
+       ① 화면에 들어오면 한 번 — 페이지 맨 끝의 _ST5_WATCH 가 j3-st5-play 를 붙였다 뗀다.
+       ② 마우스를 올리면 다시 — 나스닥 막대와 같다. 카드 위에는 속이 비치는 단추가
+          겹쳐 있어 카드가 아니라 **통**(j3_st5_wrap)에 손이 닿은 것으로 본다.
+       이름이 둘인 까닭 — 같은 이름이면 ①이 끝난 뒤 손을 올려도 다시 안 돈다. */
+    @keyframes j3-st5-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes j3-st5-regrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .j3-st5.j3-st5-play .j3-st5-bar i {
+        animation: j3-st5-grow 1.4s cubic-bezier(.33,0,.2,1) both;
+    }
+    div.st-key-j3_st5_wrap:hover .j3-st5:not(.j3-st5-play) .j3-st5-bar i {
+        animation: j3-st5-regrow 1.4s cubic-bezier(.33,0,.2,1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .j3-st5 .j3-st5-bar i { animation: none !important; }
     }
     .j3-st5-row strong {
         color: #f8cc70; font-size: 15px; font-weight: 800; text-align: right;
@@ -11703,5 +11722,51 @@ try:
     import build_stamp
 
     build_stamp.render(st)
+except Exception:
+    pass
+
+# ── 「강한 테마 TOP 5」 막대 — 화면에 들어오면 **한 번** 차오르게 (2026-09-17) ─────
+# 상하님 — "마우스나 화면이 그곳으로 스크롤되면 그래프가 왼쪽에서 오른쪽으로 한 번만
+# 움직이게". 「화면에 들어왔다」는 CSS 만으로 알 수 없어 작은 스크립트를 **페이지에
+# 한 번** 심는다(스트림릿은 st.markdown 의 <script> 를 지우므로 iframe 으로 심는다).
+# 카드 옆이 아니라 **맨 끝**에 두는 까닭 — 카드와 「22개 테마」 단추 사이 틈은 px 로
+# 맞춰 둔 자리라, 높이 0 짜리 칸 하나만 끼어도 틈이 벌어진다(2026-09-11 실측).
+# 심은 스크립트는 카드를 0.8초마다 찾아, 처음 보이는 순간 j3-st5-play 를 붙이고
+# 다 차오르면 뗀다. 화면이 다시 그려져도 같은 카드는 다시 안 돈다. 실패해도 막대는
+# 그냥 서 있다 — 지금까지와 같다.
+_ST5_WATCH = """
+(function(){
+  if (window.__j3St5Watch) { return; }
+  window.__j3St5Watch = true;
+  function arm() {
+    document.querySelectorAll('.j3-st5:not([data-j3-armed])').forEach(function (card) {
+      card.setAttribute('data-j3-armed', '1');
+      if (!('IntersectionObserver' in window)) { return; }
+      var watcher = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) { return; }
+          watcher.disconnect();
+          card.classList.add('j3-st5-play');
+          window.setTimeout(function () { card.classList.remove('j3-st5-play'); }, 1600);
+        });
+      }, { threshold: 0.4 });
+      watcher.observe(card);
+    });
+  }
+  arm();
+  window.setInterval(arm, 800);
+})();
+"""
+try:
+    import json as _json
+    import streamlit.components.v1 as _components
+
+    _components.html(
+        "<script>(function(){try{var d=window.parent.document;"
+        "if(d.getElementById('j3-st5-watch')){return;}"
+        "var s=d.createElement('script');s.id='j3-st5-watch';"
+        f"s.textContent={_json.dumps(_ST5_WATCH)};d.head.appendChild(s);}}catch(e){{}}}})();</script>",
+        height=0,
+    )
 except Exception:
     pass

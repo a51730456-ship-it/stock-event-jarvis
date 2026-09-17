@@ -3167,3 +3167,20 @@ def test_breakout_content_opens_right_under_the_breakout_button():
     assert "@media" not in css_rule, "폰·태블릿·노트북 모두 위아래로 쌓여 있으니 셋 다 고친다"
     assert 'style[data-j3-open="breakout"]' in css_rule
     assert 'st-key-j3_pullback_crash"]){\n          order:1!important}' in css_rule
+
+
+def test_strong_top5_bars_grow_once_when_seen():
+    """강한 테마 TOP 5 막대 — 화면에 들어오면 한 번, 마우스를 올리면 다시 차오른다
+    (2026-09-17 상하님 지시 — "나스닥 고점 대비처럼 … 왼쪽에서 오른쪽으로 한 번만").
+
+    지켜보는 스크립트는 **페이지 맨 끝**에 심는다 — 카드 옆에 높이 0 짜리 칸이 끼면
+    카드와 「22개 테마」 단추 사이 px 로 맞춘 틈이 벌어진다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    assert ".j3-st5.j3-st5-play .j3-st5-bar i" in source
+    assert "div.st-key-j3_st5_wrap:hover .j3-st5:not(.j3-st5-play) .j3-st5-bar i" in source
+    tail = source[source.index("build_stamp.render(st)"):]
+    assert "_ST5_WATCH" in tail and "IntersectionObserver" in tail
+    assert "watcher.disconnect()" in tail, "한 번 돌면 다시 안 본다"
+    top5 = source[source.index("def _render_strong_theme_top5"):source.index("def _section_close(")]
+    assert "components.html" not in top5, "카드 옆에 칸을 끼우지 않는다"
