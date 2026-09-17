@@ -9036,6 +9036,16 @@ def _warm_finders() -> None:
         pass
 
 
+# 상승장·급락·순위 9 자동 남기기를 **서버 전체에서 한 시간에 한 번만** 해 본다(2026-09-17).
+_OTHER_PARTS_RETRY_SECONDS = 3600.0
+
+
+@st.cache_resource(show_spinner=False)
+def _other_parts_autosave_tried() -> dict:
+    """그날 몇 시에 해 봤나 — 판이 다시 그려져도, 다른 분이 열어도 **같은 공책**이다."""
+    return {"lock": threading.Lock(), "at": {}}
+
+
 def _autosave_other_parts() -> None:
     """저장해 둔 목록의 **상승장 · 급락 후 반등장 · 순위 9** 도 화면에서 남긴다.
 
@@ -9063,13 +9073,28 @@ def _autosave_other_parts() -> None:
         rows = list((st.session_state.get("j3_theme_rankings") or {}).get("rows") or [])
         overview = st.session_state.get("j3_market_overview") or {}
         score = float(overview.get("score") or 0)
+        # **하루에 한 번, 못 했으면 한 시간 뒤에 한 번 더**만 해 본다 (2026-09-17 상하님
+        # 지적 — "상승장 신고가 눌림매수 처음 클릭 시 로딩이 왜 이리 오래 걸리냐, 왜 이것만").
+        # 까닭은 같은 날 아침 이 함수를 넣은 제 실수였다. 그날 상승장이 **0종목**이면
+        # 남길 줄이 없어 「아직 안 남겼다」가 계속 참이었고, 그래서 화면을 다시 그릴
+        # 때마다 상승장·급락·순위 9 계산을 뒤에서 **처음부터 또** 돌렸다(한국 아침 내내).
+        # 온라인 실측 — 상승장 첫 열기 22초 · 그 뒤 닫기 9.6초(급락은 열기 0.9초).
+        tried = _other_parts_autosave_tried()
+        day = str(picklist_ui.store.trade_date_for("US"))
+        now = time.time()
+        with tried["lock"]:
+            if now - float(tried["at"].get(day) or 0) < _OTHER_PARTS_RETRY_SECONDS:
+                return
+            tried["at"][day] = now
     except Exception:
         return
 
     def _save() -> None:
         breakout = crash = None
         try:
-            breakout = j3data.find_breakout_pullback_stocks()
+            # 단추가 쓰는 **같은 기억**으로 만든다(breakout_scan) — 방금 누가 만들었으면
+            # 다시 안 만들고, 여기서 만든 것은 단추가 그대로 쓴다.
+            breakout = j3data.breakout_scan(persist=False)
             if "breakout" in wanted:
                 picklist_ui.autosave("US", "breakout", breakout)
         except Exception:

@@ -3184,3 +3184,21 @@ def test_strong_top5_bars_grow_once_when_seen():
     assert "watcher.disconnect()" in tail, "한 번 돌면 다시 안 본다"
     top5 = source[source.index("def _render_strong_theme_top5"):source.index("def _section_close(")]
     assert "components.html" not in top5, "카드 옆에 칸을 끼우지 않는다"
+
+
+def test_other_parts_autosave_runs_at_most_hourly_and_reuses_the_button_memo():
+    """상승장 첫 클릭이 느리던 것 (2026-09-17 상하님 — "왜 이것만 그렇냐").
+
+    그날 상승장이 0종목이면 「아직 안 남겼다」가 계속 참이라, 화면을 다시 그릴 때마다
+    상승장·급락·순위 9 계산을 뒤에서 처음부터 또 돌렸다(로컬 실측 — 세 번 여는 동안
+    상승장 계산 5번 → 고친 뒤 1번). 서버 전체에서 한 시간에 한 번만 해 보고, 상승장은
+    단추와 같은 기억(breakout_scan)으로 만든다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    body = source[source.index("def _autosave_other_parts"):source.index("def _autosave_theme15")]
+    assert "_other_parts_autosave_tried()" in body
+    assert "_OTHER_PARTS_RETRY_SECONDS" in body
+    assert "j3data.breakout_scan(persist=False)" in body
+    assert "find_breakout_pullback_stocks()" not in body
+    assert "@st.cache_resource" in source[source.index("def _other_parts_autosave_tried") - 80:
+                                          source.index("def _other_parts_autosave_tried")]
