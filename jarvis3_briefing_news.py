@@ -21,6 +21,9 @@ from xml.etree import ElementTree
 
 import deepl_translate
 
+# 규칙 11 — 이 파일을 바꾸면 올리고, pages/2_자비스3.py 의 요구 숫자도 같이 올린다.
+MODULE_REVISION = 2026091710
+
 
 # 30분마다 새로 본다 (2026-08-28 상하님 지시 — "주요뉴스 3건을 30분마다 새로
 # 받기를 원한다"). 예전에는 10분이었다. 새로 받는다고 화면이 꼭 바뀌지는 않는다 —
@@ -596,10 +599,35 @@ def _load(cache_key: str, kind: str, ticker: str | None, finnhub_key: str, groq_
     # **큰 소식부터 줄을 세운 뒤** 세 줄을 고른다(2026-08-28 상하님 지시).
     # 예전에는 구글이 준 차례대로 앞의 셋을 그냥 썼다 — 고르는 사람이 없었다.
     ranked = _rank(rows, kind)
+    # **기사 본문도 뒤에서 받기 시작한다**(jarvis3_news_reader · 2026-09-17 상하님 지시
+    # '가'). 제목을 옮기는 동안 미리 시작하고, **뉴스는 기다리게 하지 않는다** —
+    # 본문을 기다리게 했더니 여섯 종목 뉴스가 1.4초 → 5.4초로 늦어졌다(실측).
+    # 본문이 도착하면 화면의 지켜보는 조각이 다시 그린다(pages/2 _briefing_news_watcher).
+    reader = _news_reader()
+    if reader is not None:
+        try:
+            reader.schedule(row.get("url") for row in ranked[:3])
+        except Exception:
+            pass
     picked = _groq(ranked, ticker or "미국시장", groq_key, deepl_key)
     # 지금 화면에 걸린 줄과 견줘, **더 큰 소식일 때만** 자리를 바꾼다.
-    return {"ok": True, "items": _merge_by_importance(held, picked),
-            "updated_at": time.time()}
+    items = _merge_by_importance(held, picked)
+    if reader is not None:
+        try:
+            reader.schedule(row.get("url") for row in items)
+        except Exception:
+            pass                     # 본문을 못 받아도 뉴스 줄은 그대로 나간다
+    return {"ok": True, "items": items, "updated_at": time.time()}
+
+
+def _news_reader():
+    """본문 받기 모듈. 없거나 고장 나도 뉴스는 예전처럼 돈다."""
+    try:
+        import jarvis3_news_reader
+
+        return jarvis3_news_reader
+    except Exception:
+        return None
 
 
 def get_or_schedule(kind: str, ticker: str | None = None, *, finnhub_key: str = "", groq_key: str = "",

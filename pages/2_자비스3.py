@@ -1592,6 +1592,19 @@ import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용
 import jarvis3_data as j3data
 import jarvis3_briefing_news as briefing_news
 import jarvis3_briefing_store as briefing_store
+import jarvis3_news_reader as news_reader
+
+# 뉴스 본문 받기(2026-09-17) — 옛 모듈이 남으면 본문을 안 받는다(규칙 11).
+_REQUIRED_BRIEFING_NEWS_REVISION = 2026091710
+if int(getattr(briefing_news, "MODULE_REVISION", 0)) < _REQUIRED_BRIEFING_NEWS_REVISION:
+    import importlib as _importlib
+
+    briefing_news = _importlib.reload(briefing_news)
+_REQUIRED_NEWS_READER_REVISION = 2026091710
+if int(getattr(news_reader, "MODULE_REVISION", 0)) < _REQUIRED_NEWS_READER_REVISION:
+    import importlib as _importlib
+
+    news_reader = _importlib.reload(news_reader)
 
 # 옛 모듈이 프로세스에 남으면 새 함수(add_selected·remove_selected)를 못 찾아
 # 선정 종목 추가·삭제가 조용히 죽는다(규칙 11 · 2026-09-10).
@@ -9858,6 +9871,9 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-card .j3b-price{margin:12px 0 8px;font-size:22px;font-weight:900;color:#fff}
 .j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}/* 크게 연 그림은 선을 가늘게 — 늘어난 그림에 굵은 선은 뭉개져 보인다. */.j3b-open-card .j3b-chart polyline{stroke-width:1.8px}/* 선 둘레에 은은한 번짐을 준다. */.j3b-open-card .j3b-chart{filter:drop-shadow(0 0 4px #70e64a55)}.j3b-chart-cap{color:#4da6ff;font-size:15px;font-weight:800;text-align:center;margin:0 0 10px}
 .j3b-open-card .j3b-decor-img{position:absolute;right:10px;bottom:6px;width:96px;height:auto;pointer-events:none}
+/* 뉴스 한 줄을 펼치면 장식 그림을 감춘다(2026-09-17). 기사 본문이 들어와 카드가 길어지면
+   카드 안을 굴리게 되는데, 그림은 카드 아래 모서리에 붙어 있어 본문 글자 위에 떴다. */
+.j3b-open-card:has(.j3b-open-news[open]) .j3b-decor-img{display:none}
 .j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}
 .j3b-open-list{margin-top:14px}
 .j3b-open-news{border-top:1px solid rgba(181,219,255,.2)}
@@ -9874,6 +9890,13 @@ _BRIEFING_OPEN_CSS = """
 .j3b-open-src{margin-top:6px;color:#93a9bd;font-size:11px}
 .j3b-open-link{display:inline-block;margin-top:9px;padding:5px 12px;border:1px solid #4f9fd8;
  border-radius:14px;color:#8fd9ff!important;font-size:12px;font-weight:800;text-decoration:none}
+/* 기사 본문 — 앱이 광고를 빼고 한글로 옮긴 것(2026-09-17 상하님 지시 '가'). */
+.j3b-article{margin:0 0 12px;padding:11px 13px 9px;border-radius:12px;
+ background:rgba(2,18,42,.62);border:1px solid rgba(123,201,255,.2)}
+.j3b-article p{margin:0 0 9px;color:#eaf3fb;font-size:14px;line-height:1.72;overflow-wrap:anywhere}
+.j3b-article-note{color:#8fb0cc;font-size:11px;line-height:1.55}
+.j3b-article-miss{margin:0 0 10px;padding:8px 11px;border-radius:10px;
+ background:rgba(2,18,42,.45);border:1px dashed rgba(123,201,255,.25)}
 @media (max-width:600px){
  .j3b-open-card{padding:18px 16px 144px}
  .j3b-open-card .j3b-symbol{font-size:24px}
@@ -10338,14 +10361,103 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
     return result
 
 
+# 이번 판에 「받는 중」으로 그린 기사 주소들. 판이 끝날 때 _ARTICLE_WAIT 로 옮긴다.
+_ARTICLE_WAIT_RUN = "j3b_article_wait_run"
+_ARTICLE_WAIT = "j3b_article_wait"
+_ARTICLE_WAIT_SINCE = "j3b_article_wait_since"
+_ARTICLE_RERUN_AT = "j3b_article_rerun_at"
+# 본문이 도착해 다시 그리는 것은 **4초에 한 번까지**, 기다리는 것은 90초까지다.
+# 한 기사에 2~3초가 걸리고(실측) 첫 화면 기사가 20여 개라, 도착할 때마다 그리면
+# 판을 스무 번 그린다(2026-09-10 「판 32번」과 같은 일).
+_ARTICLE_RERUN_GAP = 4.0
+_ARTICLE_WAIT_LIMIT = 90.0
+
+
+def _article_wait_carry() -> None:
+    """판 끝에서 — 이번 판에 받는 중이던 기사를 지켜볼 목록으로 옮긴다."""
+    waiting = st.session_state.pop(_ARTICLE_WAIT_RUN, {}) or {}
+    if waiting and not st.session_state.get(_ARTICLE_WAIT):
+        st.session_state[_ARTICLE_WAIT_SINCE] = time.monotonic()
+    st.session_state[_ARTICLE_WAIT] = dict(waiting)
+    if not waiting:
+        st.session_state.pop(_ARTICLE_WAIT_SINCE, None)
+
+
+def _article_arrived() -> bool:
+    """지켜보던 기사 중 **도착한 것이 있고** 다시 그릴 때가 됐으면 참.
+
+    **화면을 다시 그려도 열어 둔 카드는 안 닫힌다** — 2026-09-17 브라우저에서 확인했다
+    (<details> 가 같은 자리 그대로 남고 열린 상태도 그대로다). 그래서 카드를 보시는
+    중에 본문이 들어와도 카드가 닫히지 않는다.
+    """
+    waiting = st.session_state.get(_ARTICLE_WAIT) or {}
+    if not waiting:
+        return False
+    now = time.monotonic()
+    since = float(st.session_state.get(_ARTICLE_WAIT_SINCE) or now)
+    if now - since > _ARTICLE_WAIT_LIMIT:
+        st.session_state.pop(_ARTICLE_WAIT, None)
+        st.session_state.pop(_ARTICLE_WAIT_SINCE, None)
+        return False
+    if now - float(st.session_state.get(_ARTICLE_RERUN_AT) or 0) < _ARTICLE_RERUN_GAP:
+        return False
+    try:
+        arrived = any(not news_reader.pending(url) for url in waiting)
+    except Exception:
+        return False
+    if arrived:
+        st.session_state[_ARTICLE_RERUN_AT] = now
+    return arrived
+
+
+def _news_article_html(url: str) -> str:
+    """기사 본문 — **앱이 대신 받아 광고 없이 한글로** 옮긴 것 (2026-09-17 상하님 지시 '가').
+
+    상하님 — "관심종목에서 종목 뉴스 클릭하면 광고가 너무 많아 내용을 덮어 버려
+    내용을 볼 수가 없다." 원문 링크는 그대로 두고, 그 위에 본문을 먼저 보인다.
+    받는 일은 뉴스를 받을 때 뒤에서 이미 했다(jarvis3_briefing_news._load).
+    여기서는 **받아 둔 것만 읽는다** — 화면을 기다리게 하지 않는다.
+    """
+    if not url:
+        return ""
+    try:
+        row = news_reader.get(url)
+        if row is None or row.get("status") in ("english", "failed"):
+            news_reader.schedule([url])      # 아직 없거나 다시 받을 때 — 뒤에서 받는다
+        if news_reader.pending(url):
+            # 받는 중인 기사를 적어 둔다 — 도착하면 지켜보는 조각이 다시 그린다.
+            st.session_state.setdefault(_ARTICLE_WAIT_RUN, {})[url] = True
+    except Exception:
+        return ""
+    status = (row or {}).get("status")
+    paragraphs = "".join(f"<p>{html.escape(str(text))}</p>"
+                         for text in (row or {}).get("paragraphs") or [])
+    notes = {
+        "ok": "앱이 광고를 빼고 옮긴 기사 앞부분입니다 · 기계 번역이라 원문과 조금 다를 수 있습니다",
+        "english": "번역기가 잠시 막혀 영어 원문 그대로입니다 · 광고는 뺐습니다",
+        "summary": "이 사이트는 본문을 앱에 주지 않아, 사이트가 적어 둔 요약만 옮겼습니다",
+    }
+    if status in notes and paragraphs:
+        return (f'<div class="j3b-article">{paragraphs}'
+                f'<div class="j3b-article-note">{notes[status]}</div></div>')
+    if status == "blocked":
+        return ('<div class="j3b-article-note j3b-article-miss">유료 기사이거나 사이트가 앱의 접속을 '
+                '막아 본문을 못 가져옵니다 · 아래 원문 기사로 보셔야 합니다</div>')
+    return ('<div class="j3b-article-note j3b-article-miss">본문을 받는 중입니다 · '
+            '조금 뒤 화면을 다시 열면 여기에 나옵니다</div>')
+
+
 def _news_original_html(item: dict) -> str:
-    """번역 밑에 펼쳐 보일 원문·출처·기사 링크."""
+    """번역 밑에 펼쳐 보일 **기사 본문**·원문·출처·기사 링크."""
     brief = str(item.get("brief") or "")
     headline = str(item.get("headline") or "")
     url = str(item.get("url") or "")
     source = str(item.get("source") or "")
     published = str(item.get("published_at") or "")[:16].replace("T", " ")
     parts = []
+    article = _news_article_html(url)
+    if article:
+        parts.append(article)
     if headline and headline != brief:
         parts.append('<div class="j3b-open-label">원문</div>'
                      f'<div class="j3b-open-orig">{html.escape(headline)}</div>')
@@ -10897,6 +11009,13 @@ def _briefing_news_watcher(keys: tuple = ()) -> None:
     화면은 지금 그대로 있는다(CLAUDE.md 13번과 같은 원칙).
     """
     if not st.session_state.get("j3b_news_pending"):
+        # 뉴스는 다 왔다. **기사 본문**이 뒤에서 도착했으면 한 번 다시 그린다
+        # (2026-09-17 상하님 지시 '가' — 광고 없이 본문을 앱 안에서).
+        if _article_arrived():
+            try:
+                st.rerun(scope="app")
+            except Exception:
+                st.rerun()
         return
     try:
         ready = int(briefing_news.ready_count(keys))
@@ -11540,7 +11659,9 @@ def _render_stock_briefing() -> None:
         # 아직 오는 중이면 **2초마다 지켜본다** (2026-09-02 상하님 —
         # "「뉴스 불러오는 중」이라고 계속 떠 있다"). 다 왔으면 안 그린다 —
         # 그러면 이 조각도 더 안 돈다.
-        if st.session_state.get("j3b_news_pending"):
+        # 기사 본문을 받는 중이어도 지켜본다(2026-09-17) — 도착하면 다시 그린다.
+        _article_wait_carry()
+        if st.session_state.get("j3b_news_pending") or st.session_state.get(_ARTICLE_WAIT):
             _briefing_news_watcher(news_keys)
         # 뉴스가 다 온 뒤에야 순위 9·나스닥 25년치를 미리 챙긴다. 위 줄이 화면을
         # 다시 그리라고 하면 이 줄까지 오지 않는다 — 그것이 맞다. 아직 뉴스가
