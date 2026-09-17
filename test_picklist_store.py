@@ -1095,7 +1095,7 @@ class ScorecardSitsInTheCsvSlotTests(unittest.TestCase):
         page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         block = page[page.index("_SCORECARD_PARTS = ("):page.index("_SCORECARD_SPANS")]
         for name in ("매수심사결과 높은 순위 9", "상승장 (신고가 눌림매수)",
-                     "21개 테마", "급락 후 반등장 (낙폭종목)"):
+                     "{_THEME_COUNT}개 테마", "급락 후 반등장 (낙폭종목)"):
             self.assertIn(name, block)
         self.assertNotIn("테마 대장주", block, "순위 9를 매수 파트로 쪼개면 안 된다")
 

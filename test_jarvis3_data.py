@@ -82,8 +82,11 @@ class RulebookScreenTests(unittest.TestCase):
         # (상하님 지시). 시세가 아예 안 오던 종목이라 계산에는 원래도 안 들어갔고,
         # 뺀 뒤 우주·위성 테마의 점수·등수·강한 종목 비율이 하나도 안 바뀌었다.
         # 화면의 「대형주 ○개」는 이 목록을 세어 적으므로 저절로 199로 바뀐다.
-        self.assertEqual(199, len(j3.US_LARGE_CAP_UNIVERSE))
-        self.assertEqual(199, len(set(j3.US_LARGE_CAP_UNIVERSE)))
+        # 2026-09-17 에 **208개**가 되었다 — 휴머노이드·액추에이터 테마(상하님 "명단
+        # 그대로 넣어라")의 열하나 중 아홉(PH RRX MOG-A TKR ALNT OUST HSAI SERV RR)이
+        # 명부 밖이었다. 명부가 테마 종목을 전부 품게 짜여 있어 함께 들어왔다.
+        self.assertEqual(208, len(j3.US_LARGE_CAP_UNIVERSE))
+        self.assertEqual(208, len(set(j3.US_LARGE_CAP_UNIVERSE)))
         theme_stocks = {t for theme in j3.US_THEMES for t in theme["stocks"]}
         # 테마 종목을 다 품어야 야후를 한 번만 부르고 테마 검색이 잘라 쓴다.
         self.assertTrue(theme_stocks.issubset(set(j3.US_LARGE_CAP_UNIVERSE)))
@@ -961,11 +964,25 @@ class Jarvis3DataTests(unittest.TestCase):
         없음으로 규정하고 배점 두 가지가 빠져 있다."
         """
         names = [theme["name"] for theme in j3.US_THEMES]
-        self.assertEqual(len(names), 21)
-        self.assertEqual(len(set(names)), 21)
+        # 2026-09-17 에 22개가 되었다 — 휴머노이드·액추에이터(상하님 "명단 그대로 넣어라").
+        self.assertEqual(len(names), 22)
+        self.assertEqual(len(set(names)), 22)
         self.assertIn("양자컴퓨팅", names)
         self.assertIn("빅테크10", names)
         self.assertIn("제약·헬스케어", names)
+        self.assertIn("휴머노이드·액추에이터", names)
+
+    def test_humanoid_theme_is_the_list_sanghanim_approved(self):
+        """상하님이 "명단 그대로 넣어라" 하신 열한 종목 그대로다(2026-09-17)."""
+        theme = j3.THEME_BY_NAME["휴머노이드·액추에이터"]
+        self.assertEqual(theme["etf"], "KOID")
+        self.assertEqual(theme["alt_etf"], "ROBO")
+        self.assertEqual(set(theme["stocks"]), {
+            "TSLA", "NVDA", "PH", "RRX", "MOG-A", "TKR", "ALNT",
+            "OUST", "HSAI", "SERV", "RR"})
+        self.assertNotIn("KSCP", theme["stocks"], "거래대금이 너무 작아 뺀 종목이다")
+        # 명부가 테마 종목을 전부 품어야 시세를 받아 온다.
+        self.assertTrue(set(theme["stocks"]).issubset(set(j3.US_LARGE_CAP_UNIVERSE)))
 
     def test_pharma_theme_gives_merck_a_home(self):
         """테마가 붙어야 상승장 15점·급락 60점을 받을 자리가 생긴다.
@@ -978,7 +995,8 @@ class Jarvis3DataTests(unittest.TestCase):
             self.assertIn(ticker, pharma["stocks"])
         self.assertTrue(set(pharma["stocks"]).issubset(set(j3.US_LARGE_CAP_UNIVERSE)),
                         "테마 종목이 명부 밖에 있으면 시세를 안 받아 온다")
-        self.assertEqual(199, len(j3.US_LARGE_CAP_UNIVERSE), "명부가 늘었다")
+        # 제약·헬스케어로는 안 늘었다(199). 2026-09-17 휴머노이드·액추에이터로 아홉이 늘어 208.
+        self.assertEqual(208, len(j3.US_LARGE_CAP_UNIVERSE), "명부가 늘었다")
         # 이름을 적어 두지 않으면 화면에 티커가 그대로 나온다.
         self.assertEqual("Merck & Co", j3.STOCK_NAMES.get("MRK"))
 

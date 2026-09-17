@@ -474,7 +474,7 @@ class Jarvis3PageTests(unittest.TestCase):
         block = block[:block.index("on_close=_close_theme_rank_from_fragment,")]
         self.assertIn("on_open=_open_theme_rank_from_fragment,", block)
         # ④ 강한 테마 카드로 열 때도 **같은 자리**로 올라간다.
-        card = source.split('if st.button("강한 테마 TOP 5 — 21개 테마 열기"')[1]
+        card = source.split('if st.button(f"강한 테마 TOP 5 — {_THEME_COUNT}개 테마 열기"')[1]
         card = card[:card.index("st.rerun()")]
         self.assertIn("scroll_to.request(st, _THEME_RANK_ANCHOR)", card,
                       "카드로 열면 화면이 안 올라간다")

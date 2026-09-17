@@ -83,11 +83,25 @@ US_THEMES = (
      "stocks": ("LLY", "JNJ", "MRK", "ABBV", "PFE", "BMY", "ZTS",
                 "TMO", "DHR", "ABT", "MDT", "BSX", "SYK",
                 "UNH", "ELV", "CI", "CVS")},
+    # ── 22번째 테마 (2026-09-17 상하님 지시 — "명단 그대로 넣어라") ─────────────
+    # 상하님 — "21테마에는 휴머노이드 로봇이나 액추에이터 이런 것은 없나?" 없었다 —
+    # 「로봇·자동화」는 수술·공장 로봇이다. 본체·두뇌(TSLA NVDA) · 관절·구동부(PH RRX
+    # MOG-A TKR ALNT) · 로봇 눈(OUST HSAI) · 서비스 로봇(SERV RR).
+    # KOID 는 2025-06 상장이라 15개월치뿐이다 — 모자라면 ROBO 가 대신한다.
+    # **아홉 종목이 명부 밖이었다** — US_LARGE_CAP_UNIVERSE 가 테마 종목을 전부 품으므로
+    # 상승장·급락이 찾는 범위도 함께 넓어진다. 배점 재측정은 docs/US_THEME_SPEC.md 3부.
+    {"name": "휴머노이드·액추에이터", "etf": "KOID", "alt_etf": "ROBO",
+     "stocks": ("TSLA", "NVDA", "PH", "RRX", "MOG-A", "TKR", "ALNT",
+                "OUST", "HSAI", "SERV", "RR")},
 )
 
 THEME_BY_NAME = {item["name"]: item for item in US_THEMES}
 
 STOCK_NAMES = {
+    # 휴머노이드·액추에이터(2026-09-17)
+    "PH": "Parker-Hannifin", "RRX": "Regal Rexnord", "MOG-A": "Moog", "TKR": "Timken",
+    "ALNT": "Allient", "OUST": "Ouster", "HSAI": "Hesai", "SERV": "Serve Robotics",
+    "RR": "Richtech Robotics",
     "NVDA": "NVIDIA", "AVGO": "Broadcom", "AMD": "AMD", "TSM": "TSMC",
     "QCOM": "Qualcomm", "MU": "Micron", "AMAT": "Applied Materials",
     "LRCX": "Lam Research", "ASML": "ASML", "KLAC": "KLA",
@@ -234,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026091710
+MODULE_REVISION = 2026091720
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()

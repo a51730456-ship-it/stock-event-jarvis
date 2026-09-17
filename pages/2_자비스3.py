@@ -1613,7 +1613,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026091710
+_REQUIRED_J3_REVISION = 2026091720
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -4399,7 +4399,7 @@ def _render_strong_theme_top5(ranking: dict) -> None:
         # 방문기록을 쌓는다). 달리 쓰면 뒤로가기가 그 단추와 다르게 움직인다.
         # 글자는 남겨 둔다 — 눈에는 안 보여도 화면을 읽어 주는 기기가 이것을 읽는다.
         with st.container(key="j3_st5_open"):
-            if st.button("강한 테마 TOP 5 — 21개 테마 열기", key="j3_st5_open_btn"):
+            if st.button(f"강한 테마 TOP 5 — {_THEME_COUNT}개 테마 열기", key="j3_st5_open_btn"):
                 st.session_state[_THEME_RANK_OPEN] = True
                 back_nav.opened(st, _THEME_RANK_OPEN)
                 # 맨 위 단추로 열 때와 **똑같은 자리**로 화면을 올린다
@@ -5449,7 +5449,8 @@ _SCORECARD_CHIP_LABELS = {"누계": "기록 시작 후 누계"}
 _SCORECARD_PARTS = (
     ("top7", "매수심사결과 높은 순위 9", "#2a78d6"),
     ("breakout", "상승장 (신고가 눌림매수)", "#1b9e6f"),
-    ("theme15", "21개 테마", "#c0392b"),
+    # 이름은 화면 단추 그대로 — 테마 수가 늘면 따라간다(2026-09-17 22개가 됐다).
+    ("theme15", f"{_THEME_COUNT}개 테마", "#c0392b"),
     ("crash", "급락 후 반등장 (낙폭종목)", "#e08b1e"),
 )
 # 기간 넷. 「이번 달」만 **달력의 이번 달**(9월이면 9월 1일부터)이고, 나머지는
