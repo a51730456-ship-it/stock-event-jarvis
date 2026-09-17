@@ -573,8 +573,10 @@ class UsSessionGateTests(unittest.TestCase):
         # 바깥 화면에 심어야 화면을 다시 그려도 산다(image_zoom.py 의 교훈).
         self.assertIn("window.parent", picklist_ui._BRIDGE_HTML)
         self.assertIn("jarvis-pick-bridge", picklist_ui._BRIDGE_HTML)
-        # 제가 들어앉은 칸은 스스로 숨긴다 — 안 숨기면 표 사이에 빈 줄이 남는다.
-        self.assertIn("stElementContainer", picklist_ui._BRIDGE_HTML)
+        # 제가 들어앉은 칸은 숨긴다 — 안 숨기면 표 사이에 빈 줄이 남는다.
+        # 2026-09-17부터는 **칸에 직접 적지 않고 CSS 로** 숨긴다(BridgeNeverHidesATableTests).
+        self.assertIn('stElementContainer"]:has(iframe[srcdoc*="jarvis-pick-bridge"])',
+                      picklist_ui.CSS)
 
     def test_the_hidden_button_only_remembers_the_pick(self):
         """숨은 단추는 **아무것도 계산하지 않는다.** 고른 것만 적어 둔다."""
@@ -1104,3 +1106,25 @@ class ScorecardSitsInTheCsvSlotTests(unittest.TestCase):
         page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         self.assertIn("@keyframes j3sc-drop", page)
         self.assertIn("animation:j3sc-drop", page)
+
+
+class BridgeNeverHidesATableTests(unittest.TestCase):
+    """날짜를 바꾸면 순위 9 표가 통째로 안 보이던 것 (2026-09-17 상하님 — "9월 14일
+    매수심사결과 높은 순위 9 가 없다, 8월 31일부터 대부분 없는 것 같다").
+
+    누르기 장치(iframe)가 **제 칸에 직접 display:none 을 적었다.** 표 수가 다른 날로
+    바꾸면 칸이 한 자리씩 밀리고, 스트림릿이 칸 껍데기를 자리 번호로 다시 쓰면서
+    그 자리로 온 순위 9 표 칸이 display:none 을 물려받았다. 이제 CSS 가 **장치가 든
+    칸만** 숨긴다.
+    """
+
+    def test_bridge_does_not_write_display_none_on_its_box(self):
+        import picklist_ui
+
+        self.assertNotIn("style.display", picklist_ui._BRIDGE_HTML)
+
+    def test_css_hides_only_the_box_that_holds_the_bridge(self):
+        import picklist_ui
+
+        self.assertIn('iframe[srcdoc*="jarvis-pick-bridge"]', picklist_ui.CSS)
+        self.assertIn("jarvis-pick-bridge", picklist_ui._BRIDGE_HTML)

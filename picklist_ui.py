@@ -21,7 +21,7 @@ import picklist_store as store
 _SEOUL = ZoneInfo("Asia/Seoul")
 
 # 표시 문구·칸을 바꾸면 이 숫자를 올리고 페이지의 요구 리비전도 올린다(규칙 11).
-MODULE_REVISION = 2026090230
+MODULE_REVISION = 2026091740
 
 def open_key(market: str) -> str:
     """여닫힘을 담아 두는 자리 이름. **시장마다 따로 둔다.**
@@ -76,6 +76,10 @@ _KIND_COLUMNS = {
 
 CSS = """
 <style>
+/* 종목명 누르기 장치(pick_bridge)가 든 칸 — 표 사이에 빈 줄이 안 남게 숨긴다.
+   **칸에 직접 적지 않고 이 규칙으로만** 숨긴다(아래 _BRIDGE_HTML 설명 · 2026-09-17). */
+div[data-testid="stElementContainer"]:has(iframe[srcdoc*="jarvis-pick-bridge"]) {
+    display: none !important; }
 .pl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch;
     border: 1px solid rgba(255,255,255,.09); border-radius: .55rem; margin-bottom: .9rem; }
 .pl-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .88rem; }
@@ -287,8 +291,18 @@ _BRIDGE_CODE = r"""
 })();
 """
 
-# 심는 글. 제가 들어앉은 칸은 다 돈 뒤 스스로 숨긴다 — 안 숨기면 표 사이에
-# 빈 줄이 하나 남는다(scroll_to.py 의 `_NOW_SCRIPT`와 같은 까닭).
+# 심는 글. 제가 들어앉은 칸은 **CSS 가 숨긴다**(위 CSS 의 jarvis-pick-bridge 규칙).
+#
+# **스스로 칸에 display:none 을 적지 않는다** (2026-09-17 상하님 지적 — "9월 14일
+# 매수심사결과 높은 순위 9 가 없다, 두 번이나 해결하라고 했는데 못 하냐, 8월
+# 31일부터 대부분 없는 것 같다"). 예전에는 이 스크립트가 제 칸에 직접
+# `style="display:none"` 을 적었다. 날짜를 바꾸면 표 수가 달라져(9/16 은 셋,
+# 9/14 는 넷) 칸들이 한 자리씩 밀리는데, 스트림릿은 칸 껍데기를 **자리 번호로
+# 다시 쓴다.** 그래서 이 장치가 있던 자리로 밀려 온 「순위 9」 표 칸이 그 적힌
+# display:none 을 물려받아 통째로 안 보였다(노트북 실측 — 9/16 을 연 뒤 9/14 로
+# 바꾸면 13번 칸이 순위 9 표인데 display:none). 파일에는 9월 14일 순위 9 7줄이
+# 그대로 있었다. 2026-09-16 「둘째 표 제목이 없다」도 같은 까닭이었을 것이다.
+# CSS 는 **이 장치가 든 칸에만** 걸리므로, 다른 표가 그 자리로 와도 물려받지 않는다.
 _BRIDGE_HTML = """
 <script>
 (function () {
@@ -300,11 +314,6 @@ _BRIDGE_HTML = """
       tag.textContent = %s;
       doc.head.appendChild(tag);
     }
-  } catch (e) {}
-  try {
-    var box = window.frameElement && window.frameElement.closest(
-      '[data-testid="stElementContainer"]');
-    if (box) { box.style.display = "none"; }
   } catch (e) {}
 })();
 </script>
