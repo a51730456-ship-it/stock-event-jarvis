@@ -3147,3 +3147,23 @@ def test_changing_the_saved_list_date_lifts_the_date_picker_again():
     # 날짜 칸 열쇠를 만드는 모듈이 그 이름을 그대로 쓰는지 — 바뀌면 조용히 안 올라간다.
     ui = (ROOT / "picklist_ui.py").read_text(encoding="utf-8")
     assert 'key=f"picklist_date_{market}"' in ui
+
+
+def test_breakout_content_opens_right_under_the_breakout_button():
+    """상승장을 누르면 **상승장 단추 바로 밑**에 열린다 (2026-09-17 상하님 지적 —
+    "상승장 신고가 눌렀는데 왜 급락 후 반등장 밑에 열리냐?").
+
+    두 단추는 한 줄(st.columns)에 담겨 위아래로 쌓여 있어, 내용이 둘 다 지난 뒤에
+    그려졌다. 상승장 내용이 스스로 표시(data-j3-open)를 달고, CSS 가 그 표시가
+    있을 때만 급락 단추를 내용 뒤로 보낸다. 표시가 여는 단추 쪽에 있으면 안 된다 —
+    그 단추는 누른 판에서 아직 '닫힘'으로 그려져 첫 클릭에 표시가 안 나온다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    swing = source[source.index("def _render_us_swing_finder"):source.index("def _render_rulebook_finder")]
+    assert "<style data-j3-open='breakout'>" in swing
+    assert source.count("data-j3-open='") == 1, "표시는 상승장 내용 한 곳에만 둔다"
+    css_rule = source[source.index("상승장을 누르면 **상승장 단추 바로 밑**에 열린다"):]
+    css_rule = css_rule[:css_rule.index(".j3b-news-box{")]
+    assert "@media" not in css_rule, "폰·태블릿·노트북 모두 위아래로 쌓여 있으니 셋 다 고친다"
+    assert 'style[data-j3-open="breakout"]' in css_rule
+    assert 'st-key-j3_pullback_crash"]){\n          order:1!important}' in css_rule

@@ -7635,8 +7635,11 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 unsafe_allow_html=True,
             )
 
+    # data-j3-open — 「상승장 내용이 그려졌다」는 표시다. 이 표시가 있을 때만 급락
+    # 단추를 내용 뒤로 보낸다(아래 CSS — 2026-09-17 상하님 지적 "상승장 신고가
+    # 눌렀는데 왜 급락 후 반등장 밑에 열리냐?"). 보이는 것은 하나도 안 바꾼다.
     st.markdown(
-        "<style>div[class*='st-key-close_j3_pullback_open'] button {"
+        "<style data-j3-open='breakout'>div[class*='st-key-close_j3_pullback_open'] button {"
         "background:linear-gradient(90deg,#075d46,#18bf87) !important;color:#fff !important;"
         "border:1px solid rgba(255,255,255,.28) !important;}"
         "div[class*='st-key-close_j3_pullback_open'] button p {color:#fff !important;font-weight:800 !important;}"
@@ -9752,6 +9755,26 @@ def _briefing_css() -> None:
             width:100%!important;flex:0 0 auto!important;min-width:0!important;
           }
         }
+        /* ── 상승장을 누르면 **상승장 단추 바로 밑**에 열린다 (2026-09-17 상하님 지적) ──
+           상하님 — 폰 캡처 "상승장 신고가 눌렀는데 왜 급락 후 반등장 밑에 열리냐?"
+           두 단추는 폰·태블릿·노트북 모두 위아래로 쌓여 있는데(바로 위 ②), 한 줄
+           (st.columns)에 담긴 두 칸이라 내용은 **둘 다 지난 뒤**에 그려졌다 —
+           「상승장 · 급락 · 상승장 내용」. 상승장 내용이 그려졌을 때만(data-j3-open)
+           그 줄을 풀어 급락 단추를 내용 맨 뒤로 보낸다. 급락이 열렸을 때는 원래
+           차례가 맞으므로 그대로다. 값·단추·글자는 하나도 안 바꾼다. */
+        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] style[data-j3-open="breakout"])
+          > [data-testid="stLayoutWrapper"]:has(> [data-testid="stHorizontalBlock"] [class*="st-key-j3_pullback_crash"]),
+        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] style[data-j3-open="breakout"])
+          > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_crash"]){
+          display:contents!important}
+        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] style[data-j3-open="breakout"])
+          > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_crash"])
+          > [data-testid="stColumn"]{
+          width:100%!important;flex:0 0 auto!important;min-width:0!important}
+        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] style[data-j3-open="breakout"])
+          > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]
+          > [data-testid="stColumn"]:has([class*="st-key-j3_pullback_crash"]){
+          order:1!important}
         .j3b-news-box{margin:0;padding:0;overflow:hidden;
           border:1px solid #bd905266;border-radius:17px;
           background:linear-gradient(90deg,#062947ed,#042243f3);
