@@ -1641,7 +1641,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026091610
+_REQUIRED_SIGNAL_UI_REVISION = 2026091710
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 2026-08-28 접었다 펴는 미국장 카드에서 쓴다. 옛 모듈이면 foldable 인자를

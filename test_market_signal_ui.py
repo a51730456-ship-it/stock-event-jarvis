@@ -796,3 +796,67 @@ class UsCardFoldTests(unittest.TestCase):
         page = Path(__file__).parent.joinpath("pages", "2_자비스3.py").read_text(encoding="utf-8")
         self.assertIn("render_us_market_signal_card(foldable=True)", page,
                       "자비스3 화면이 접는 카드를 안 쓴다")
+
+
+class UsPreOpenTodayTests(unittest.TestCase):
+    """개장 전 「당일」이 「전일」과 똑같던 것 (2026-09-17 상하님 지적 — "전일이나 당일이나
+    왜 똑같냐?"). 마감 뒤에 실제로 움직인 값만 담고, 어제 값을 다시 넣지 않는다."""
+
+    @staticmethod
+    def _frame(points):
+        index = pd.DatetimeIndex([pd.Timestamp(stamp, tz="America/New_York") for stamp, _ in points])
+        return pd.DataFrame({"Close": [value for _, value in points]}, index=index)
+
+    def _run(self, frames, futures):
+        import jarvis3_data
+        import jarvis4_data
+
+        with patch.object(jarvis3_data, "_download_cached", return_value=(frames, {})) as download, \
+             patch.object(jarvis4_data, "get_us_futures_live", return_value=futures):
+            quotes, extras = ui._pre_open_quotes(
+                ("ES=F", "NQ=F", "NVDA", "^VIX", "^GSPC"), "2026-09-16")
+        return quotes, extras, download
+
+    def test_after_hours_move_is_measured_from_that_sessions_own_close(self):
+        frames = {
+            # 한국 아침에는 야후 일봉이 그 장을 아직 안 올린다 — 종가도 5분봉에서 꺼낸다.
+            "NVDA": self._frame([("2026-09-15 15:55", 90.0), ("2026-09-16 15:55", 100.0),
+                                 ("2026-09-16 16:05", 100.5), ("2026-09-16 19:55", 101.0)]),
+            # VIX 는 16:15 뒤로 값이 없다 — 어제 움직임을 다시 넣지 않는다.
+            "^VIX": self._frame([("2026-09-16 15:55", 17.0), ("2026-09-16 16:10", 17.7)]),
+        }
+        futures = {"ok": True, "values": {"NQ=F": {"change_pct": 0.67}, "ES=F": {"change_pct": 0.5}}}
+        quotes, extras, download = self._run(frames, futures)
+        self.assertAlmostEqual(quotes["NVDA"]["change_pct"], 1.0)
+        self.assertNotIn("^VIX", quotes)
+        self.assertNotIn("^GSPC", quotes, "지수는 시간외 거래가 없다")
+        self.assertNotIn("^GSPC", download.call_args.args[0])
+        self.assertEqual(quotes["NQ=F"]["change_pct"], 0.67, "맨 위 선물 칸과 같은 값")
+        self.assertEqual(quotes["ES=F"]["change_pct"], 0.5)
+        self.assertNotIn("vix_current", extras)
+
+    def test_nothing_moved_means_nothing_is_filled(self):
+        quotes, extras, _download = self._run({}, {"ok": False})
+        self.assertEqual(quotes, {})
+        self.assertEqual(extras, {})
+
+    def test_gauge_title_never_says_none_stage(self):
+        import us_market_signal_engine as us
+
+        current = us.build_us_market_signal_result({})
+        self.assertEqual(current.verdict, us.UsMarketVerdict.INSUFFICIENT_DATA)
+        previous = us.build_us_market_signal_result({})
+        html = ui._verdict_gauge_html(
+            current, ui._US_VERDICT_STYLE, ui.US_VERDICT_ORDER,
+            comparison_result=previous, comparison_label="전일 · 09.16",
+            current_label_text="당일 · 09.17 (개장 전)",
+        )
+        self.assertNotIn("None단계", html)
+        self.assertIn(">당일 · 09.17 (개장 전) · ", html)
+
+    def test_check_uses_pre_open_quotes_only_outside_regular_hours(self):
+        source = Path(ui.__file__).read_text(encoding="utf-8")
+        body = source[source.index("def run_us_market_signal_check"):]
+        body = body[:body.index("st.session_state[\"us_signal_result\"]")]
+        self.assertIn("if us_phase and not session_open and frozen_dates:", body)
+        self.assertIn("_cached_pre_open_quotes(tickers, frozen_dates[-1])", body)

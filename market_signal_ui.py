@@ -41,7 +41,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026091610
+MODULE_REVISION = 2026091710
 
 
 def _now_seoul():
@@ -1418,15 +1418,20 @@ def _verdict_gauge_html(
         current_label = _VERDICT_SHORT.get(result.verdict) or "판정 확인"
         comparison_stage_label = _VERDICT_SHORT.get(comparison_result.verdict) or "판정 확인"
         comparison_rows = _count_row_tuples(comparison_result)
+        # 단계가 없는 판정(데이터 부족)은 「None단계」로 찍혔다 — 단계 글자를 뺀다
+        # (2026-09-17 · 개장 전 당일 칸이 데이터 부족으로 자주 서게 되면서 드러났다).
+        current_stage_text = f" · {current_stage}단계" if current_stage is not None else ""
+        previous_stage_text = (
+            f" · {previous_stage_number}단계" if previous_stage_number is not None else "")
         gauges_html = (
             "<div class='sig-gauge-pair'>"
             "<div class='sig-gauge-shell sig-gauge-today'>"
-            f"<div class='sig-gauge-title'>{current_label_text} · {current_stage}단계 · {current_label}</div>"
+            f"<div class='sig-gauge-title'>{current_label_text}{current_stage_text} · {current_label}</div>"
             f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones)}</div>"
             f"<div class='sig-counts'>{gauge_ui.rows_html(row_tuples)}</div>"
             "</div>"
             "<div class='sig-gauge-shell sig-gauge-previous'>"
-            f"<div class='sig-gauge-title'>{comparison_label} · {previous_stage_number}단계 · {comparison_stage_label}</div>"
+            f"<div class='sig-gauge-title'>{comparison_label}{previous_stage_text} · {comparison_stage_label}</div>"
             f"<div class='sig-gauge'>{_speedometer_gauge_svg(comparison_score, zones)}</div>"
             f"<div class='sig-counts'>{gauge_ui.rows_html(comparison_rows)}</div>"
             "</div></div>"
@@ -1871,6 +1876,99 @@ def _us_rest_note(phase: dict) -> str:
     return ""
 
 
+# ── 개장 전 「당일」은 **마감 뒤에 실제로 움직인 값**만 담는다 (2026-09-17) ─────────
+# 상하님 지적 — 한국 09/17 08:29 캡처 "어제 당일 장 시작 시 반영되도록 하라고 했는데
+# 반영이 된 건지, 지금 화면에 전일이나 당일이나 왜 똑같냐?"
+#
+# **까닭** — 당일 칸이 쓰던 값(price_data.get_snapshot_defaults)은 실시간 값이 아니라
+# 「마지막 일봉 종가 − 그 앞 일봉 종가」다. 장중에는 오늘 일봉이 있어 오늘 움직임이
+# 되지만, 마감 뒤에는 마지막 일봉이 **방금 끝난 장** 그대로라 전일 칸과 같은 날을
+# 한 번 더 쟀다. 실측(한국 09:18 · 뉴욕 09/16 20:18) — 신호 티커 전부 마지막 일봉이
+# 09/16 이었다.
+#
+# 그래서 개장 전에는 **방금 끝난 장의 종가 뒤로 움직인 것**만 담는다 — 2026-08-26
+# 상하님 지시("당일은 장 시작 전이라도 뜨게, 장이 끝나면 전일은 그 장을 바로 반영하고
+# 당일은 다음 장으로 넘어가야지") 그대로다.
+#   · 선물(ES·NQ)       — 밤새 돈다. 맨 위 「나스닥100 선물」 칸과 **같은 값**을 쓴다.
+#   · ETF·종목·달러지수 — 시간외·프리마켓 5분봉의 마지막 값 ÷ 그 장 정규장 마지막 값.
+#     **종가도 같은 5분봉에서 꺼낸다** — 한국 아침에는 야후 일봉이 아직 그 장을 안
+#     올려(실측 09:23 — SOXX·SMH·NVDA·TSLA·HYG 가 09/15 까지뿐) 일봉 종가를 쓰면
+#     그 장의 움직임이 통째로 또 들어간다.
+#   · 마감 뒤 거래가 없는 것(VIX·10년물·S&P500·나스닥 지수) — 「확인 필요」로 둔다.
+#     어제 값을 다시 넣지 않는다.
+# 정규장이 열리면 지금까지와 똑같이 오늘 일봉으로 잰다. 판정 규칙은 안 건드린다.
+_US_OVERNIGHT_FUTURES = ("ES=F", "NQ=F")
+_US_NO_EXTENDED_HOURS = ("^GSPC", "^IXIC")     # 지수는 시간외 거래가 없다
+_US_AFTER_CLOSE_MINUTES = 15                   # VIX 는 16:15 까지 계산돼 그 뒤부터 본다
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_pre_open_quotes(tickers, completed_date):
+    return _pre_open_quotes(tickers, completed_date)
+
+
+def _pre_open_quotes(tickers, completed_date):
+    """(quotes, extras) — 직전 완료 장(completed_date) 마감 뒤에 움직인 값만."""
+    quotes, extras = {}, {}
+    now = _now_seoul()
+    try:
+        import jarvis4_data as _j4     # 읽기만 한다 — 맨 위 선물 칸과 같은 공책
+
+        futures = _j4.get_us_futures_live(ttl_seconds=300, interval="5m")
+        values = (futures.get("values") or {}) if futures.get("ok") else {}
+        for ticker in _US_OVERNIGHT_FUTURES:
+            change = (values.get(ticker) or {}).get("change_pct")
+            if ticker in tickers and change is not None and math.isfinite(float(change)):
+                quotes[ticker] = {"change_pct": float(change), "as_of": now,
+                                  "source": "선물(밤새 거래)"}
+    except Exception:
+        pass
+
+    wanted = tuple(ticker for ticker in tickers
+                   if ticker not in _US_OVERNIGHT_FUTURES
+                   and ticker not in _US_NO_EXTENDED_HOURS)
+    try:
+        import jarvis3_data as _j3
+
+        frames, _meta = _j3._download_cached(
+            wanted, period="2d", interval="5m", ttl_seconds=180, prepost=True)
+        new_york = ZoneInfo("America/New_York")
+        day_start = datetime.combine(date.fromisoformat(str(completed_date)),
+                                     datetime.min.time(), tzinfo=new_york)
+        regular_open = day_start + timedelta(hours=9, minutes=30)
+        regular_close = day_start + timedelta(hours=16)
+        cut = regular_close + timedelta(minutes=_US_AFTER_CLOSE_MINUTES)
+    except Exception:
+        return quotes, extras
+    for ticker in wanted:
+        frame = frames.get(ticker)
+        if frame is None or getattr(frame, "empty", True) or "Close" not in frame:
+            continue
+        try:
+            closes_series = frame["Close"].dropna().astype(float)
+            index = closes_series.index
+            if getattr(index, "tz", None) is None:
+                index = index.tz_localize("UTC")
+            stamps = index.tz_convert(new_york)
+            session = closes_series[(stamps >= regular_open) & (stamps < regular_close)]
+            after = closes_series[stamps > cut]
+            if session.empty or after.empty:
+                continue            # 마감 뒤 거래가 없다 — 어제 값을 다시 넣지 않는다
+            close = float(session.iloc[-1])
+            last = float(after.iloc[-1])
+        except Exception:
+            continue
+        change = _safe_pct_diff(last, close)
+        if change is None or not math.isfinite(change):
+            continue
+        quotes[ticker] = {"change_pct": change, "as_of": now, "source": "시간외·프리마켓"}
+        if ticker == "^VIX":
+            extras["vix_current"] = last
+        elif ticker == "^VIX3M":
+            extras["vix3m_current"] = last
+    return quotes, extras
+
+
 def _us_regular_session_open() -> bool:
     """지금 미국 정규장이 열려 있나. 못 알아내면 False — 예전 방식으로 둔다.
 
@@ -2009,6 +2107,21 @@ def run_us_market_signal_check(force_refresh=False):
     # 밝힌다. 판정을 얼려 두는 것은 아래 칸(전일)이고, 거기는 그대로 안 흔들린다.
     us_phase = _us_market_phase()
     session_open = us_phase.get("label") == "정규장 시간"
+    # **개장 전에는 마감 뒤에 움직인 값만** 당일 칸에 넣는다(위 _pre_open_quotes ·
+    # 2026-09-17 상하님 지적 "전일이나 당일이나 왜 똑같냐?"). 장중은 그대로다.
+    if us_phase and not session_open and frozen_dates:
+        try:
+            quotes, pre_extras = _cached_pre_open_quotes(tickers, frozen_dates[-1])
+        except Exception:
+            quotes, pre_extras = {}, {}
+        live_result = us_market_signal_engine.build_us_market_signal_result(
+            quotes, extras=pre_extras)
+        if live_result.verdict == us_market_signal_engine.UsMarketVerdict.INSUFFICIENT_DATA:
+            waiting = [signal.label for signal in (live_result.core_signals or [])
+                       if signal.is_unknown]
+            live_result.headline = (
+                f"개장 전이라 {'·'.join(waiting) or '핵심 신호'} 값이 아직 없어 "
+                "판정은 미국장이 열리면 냅니다. 선물·시간외 값은 아래 표에 있습니다.")
     # **여기서 `stage`를 봤다 — UsSignalResult 에는 그런 칸이 없다.** getattr 이 늘
     # None 을 돌려줘 live_usable 이 **한 번도 참이 된 적이 없었다.** 그래서 장이
     # 도는 동안에도 위 칸이 「직전 미국장」으로 굳어 있었다 (2026-09-16 상하님 지적 —
