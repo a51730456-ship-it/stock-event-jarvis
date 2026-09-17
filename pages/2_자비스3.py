@@ -1673,7 +1673,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026091710
+_REQUIRED_SIGNAL_UI_REVISION = 2026091740
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 2026-08-28 접었다 펴는 미국장 카드에서 쓴다. 옛 모듈이면 foldable 인자를
@@ -5481,8 +5481,10 @@ _SCORECARD_CHIP_LABELS = {"누계": "기록 시작 후 누계"}
 _SCORECARD_PARTS = (
     ("top7", "매수심사결과 높은 순위 9", "#2a78d6"),
     ("breakout", "상승장 (신고가 눌림매수)", "#1b9e6f"),
-    # 이름은 화면 단추 그대로 — 테마 수가 늘면 따라간다(2026-09-17 22개가 됐다).
-    ("theme15", f"{_THEME_COUNT}개 테마", "#c0392b"),
+    # 이 줄이 세는 것은 22개 테마 전체가 아니라 **상위 테마 5개의 1~3위**다. 이름을 저장 목록
+    # 제목과 맞춘다(2026-09-17 상하님 지시 — "22개 테마에 이름이 바뀌어야 되지 않나?
+    # 상위 테마 5개(1~3위) 이게 맞지 않나?").
+    ("theme15", "상위 테마 5개 (1~3위)", "#c0392b"),
     ("crash", "급락 후 반등장 (낙폭종목)", "#e08b1e"),
 )
 # 기간 넷. 「이번 달」만 **달력의 이번 달**(9월이면 9월 1일부터)이고, 나머지는

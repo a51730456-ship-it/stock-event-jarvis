@@ -860,3 +860,60 @@ class UsPreOpenTodayTests(unittest.TestCase):
         body = body[:body.index("st.session_state[\"us_signal_result\"]")]
         self.assertIn("if us_phase and not session_open and frozen_dates:", body)
         self.assertIn("_cached_pre_open_quotes(tickers, frozen_dates[-1])", body)
+
+
+class UsPreviousDayLagAndNeedleTests(unittest.TestCase):
+    """2026-09-17 상하님 지시 — 전일 칸 날짜 섞임 · 당일 데이터 부족에 바늘 없음."""
+
+    @staticmethod
+    def _frame(points):
+        index = pd.DatetimeIndex([pd.Timestamp(stamp, tz="America/New_York") for stamp, _ in points])
+        return pd.DataFrame({"Close": [value for _, value in points]}, index=index)
+
+    def test_lagging_etf_gets_the_latest_session_from_minute_bars(self):
+        import jarvis3_data
+
+        rows = {
+            "^GSPC": {"ok": True, "trade_date": "2026-09-16", "current": 7551.8, "change_pct": -0.45},
+            "SOXX": {"ok": True, "trade_date": "2026-09-15", "current": 100.0, "change_pct": 0.36},
+        }
+        frames = {"SOXX": self._frame([
+            ("2026-09-15 15:55", 100.0), ("2026-09-16 09:30", 100.5),
+            ("2026-09-16 15:55", 102.0), ("2026-09-16 19:55", 103.0),   # 시간외는 안 쓴다
+        ])}
+        with patch.object(jarvis3_data, "_download_cached", return_value=(frames, {})):
+            filled = ui._fill_lagging_session(rows)
+        self.assertEqual(filled["SOXX"]["trade_date"], "2026-09-16")
+        self.assertAlmostEqual(filled["SOXX"]["change_pct"], 2.0)
+        self.assertEqual(filled["^GSPC"], rows["^GSPC"])
+        self.assertEqual(rows["SOXX"]["trade_date"], "2026-09-15", "캐시에 든 사전은 안 바꾼다")
+
+    def test_two_day_gap_is_left_alone(self):
+        import jarvis3_data
+
+        rows = {
+            "^GSPC": {"ok": True, "trade_date": "2026-09-16", "current": 1.0, "change_pct": 0.0},
+            "SOXX": {"ok": True, "trade_date": "2026-09-14", "current": 100.0, "change_pct": 0.1},
+        }
+        frames = {"SOXX": self._frame([("2026-09-15 15:55", 101.0), ("2026-09-16 15:55", 102.0)])}
+        with patch.object(jarvis3_data, "_download_cached", return_value=(frames, {})):
+            filled = ui._fill_lagging_session(rows)
+        self.assertEqual(filled["SOXX"]["trade_date"], "2026-09-14")
+
+    def test_us_insufficient_data_still_has_a_needle(self):
+        import us_market_signal_engine as us
+        import market_signal_common as common
+
+        result = us.build_us_market_signal_result({
+            "NQ=F": {"change_pct": 0.6}, "ES=F": {"change_pct": 0.5}, "SOXX": {"change_pct": 1.2},
+        })
+        self.assertEqual(result.verdict, us.UsMarketVerdict.INSUFFICIENT_DATA)
+        score = ui._verdict_needle_position(result.verdict, ui.US_VERDICT_ORDER, result)
+        self.assertIsNotNone(score, "데이터 부족이어도 바늘이 있어야 한다")
+        self.assertTrue(10 <= score <= 90)
+
+    def test_korean_card_needle_is_unchanged(self):
+        import kr_intraday_flow
+
+        self.assertIsNone(ui._verdict_needle_position(
+            kr_intraday_flow.ReboundVerdict.INSUFFICIENT_DATA, ui.KR_VERDICT_ORDER, object()))

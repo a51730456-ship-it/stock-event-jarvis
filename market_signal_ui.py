@@ -41,7 +41,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026091710
+MODULE_REVISION = 2026091740
 
 
 def _now_seoul():
@@ -1099,6 +1099,16 @@ def _verdict_needle_position(verdict, verdict_order, result=None) -> float | Non
     """
     stage = _verdict_stage_number(verdict, verdict_order)
     if stage is None:
+        # **미국장 「데이터 부족」에도 바늘을 세운다** (2026-09-17 상하님 지적 — "당일
+        # 데이터 부족으로 바늘이 안 보이다니 황당하다"). 개장 전에는 VIX·10년물이
+        # 아직 안 나와 판정 단계가 없다. 그래도 읽은 신호는 있으므로 **켜짐·반대 비율**
+        # 만큼 계기판 전체(양 끝 10% 비움) 위에 바늘을 둔다. 판정 글자는 그대로
+        # 「자료 부족」이다. 한국장 카드는 건드리지 않는다(예전처럼 바늘 없음).
+        if (result is not None
+                and isinstance(verdict, us_market_signal_engine.UsMarketVerdict)):
+            balance = _signal_balance(result)
+            # 읽은 신호에 켜짐·반대가 하나도 없으면 가리킬 곳이 없다 — 예전처럼 바늘 없음.
+            return None if balance is None else 10 + 80 * float(balance)
         return None
     step = 100 / len(tuple(verdict_order))
     low = step * (stage - 1)
@@ -1184,10 +1194,15 @@ def _previous_kr_flow_stage() -> dict | None:
     return stage
 
 
-def _speedometer_gauge_svg(score, zones) -> str:
-    """첫 참고 캡처처럼 촘촘한 눈금과 굵은 화살표를 얹은 판정 계기판."""
+def _speedometer_gauge_svg(score, zones, label=None) -> str:
+    """첫 참고 캡처처럼 촘촘한 눈금과 굵은 화살표를 얹은 판정 계기판.
+
+    label — 바늘 밑 글자. 안 주면 바늘이 가리키는 구간 이름이다. 판정 단계가 없는
+    「데이터 부족」에 바늘을 세울 때는 「자료 부족」을 그대로 적는다(2026-09-17) —
+    구간 이름을 적으면 제목(데이터 부족)과 다른 말을 한다.
+    """
     svg = gauge_ui.gauge_svg(
-        score, zones, ticks=(0, 25, 50, 75, 100), show_score=False
+        score, zones, label=label, ticks=(0, 25, 50, 75, 100), show_score=False
     )
     center_x, center_y = 160.0, 132.0
 
@@ -1342,7 +1357,7 @@ def _peek_gauge_html(result, verdict_style, verdict_order, label_text: str) -> s
     return (
         "<div class='sig-peek'><div class='sig-gauge-shell sig-gauge-today'>"
         f"<div class='sig-gauge-title'>{label_text}{stage_text} · {short}</div>"
-        f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones)}</div>"
+        f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones, None if stage is not None else '자료 부족')}</div>"
         "</div></div>"
     )
 
@@ -1427,12 +1442,12 @@ def _verdict_gauge_html(
             "<div class='sig-gauge-pair'>"
             "<div class='sig-gauge-shell sig-gauge-today'>"
             f"<div class='sig-gauge-title'>{current_label_text}{current_stage_text} · {current_label}</div>"
-            f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones)}</div>"
+            f"<div class='sig-gauge'>{_speedometer_gauge_svg(score, zones, None if current_stage is not None else '자료 부족')}</div>"
             f"<div class='sig-counts'>{gauge_ui.rows_html(row_tuples)}</div>"
             "</div>"
             "<div class='sig-gauge-shell sig-gauge-previous'>"
             f"<div class='sig-gauge-title'>{comparison_label}{previous_stage_text} · {comparison_stage_label}</div>"
-            f"<div class='sig-gauge'>{_speedometer_gauge_svg(comparison_score, zones)}</div>"
+            f"<div class='sig-gauge'>{_speedometer_gauge_svg(comparison_score, zones, None if previous_stage_number is not None else '자료 부족')}</div>"
             f"<div class='sig-counts'>{gauge_ui.rows_html(comparison_rows)}</div>"
             "</div></div>"
         )
@@ -1969,6 +1984,72 @@ def _pre_open_quotes(tickers, completed_date):
     return quotes, extras
 
 
+def _fill_lagging_session(rows: dict) -> dict:
+    """야후 일봉이 **아직 그 장을 안 올린 종목**은 5분봉으로 그 장 종가를 채운다.
+
+    2026-09-17 상하님 지시 — "전일 칸 다섯 줄 9/15 값 섞인 것 고쳐라." 한국 아침에는
+    야후 일봉이 선물·지수는 9/16 까지 올렸는데 SOXX·SMH·NVDA·TSLA·HYG 는 9/15 까지뿐이라,
+    「전일 · 09.16」 칸 다섯 줄이 **하루 앞 장**의 값이었다(실측 한국 09:23).
+
+    채우는 방법 — 그 장(가장 늦은 날)의 **정규장 마지막 5분봉 종가**를 그 장 종가로,
+    원래 줄의 종가(하루 앞 장)를 전날 종가로 삼는다. 원래 줄이 **바로 앞 거래일**일
+    때만 채운다 — 이틀 이상 비었으면 무엇과 견줄지 확실하지 않아 그대로 둔다.
+    못 채우면 원래 줄 그대로다(지금까지와 같다). 캐시에 든 사전은 건드리지 않는다.
+    """
+    dates = sorted({row.get("trade_date") for row in rows.values()
+                    if row.get("ok") and row.get("trade_date")})
+    if not dates:
+        return rows
+    latest = dates[-1]
+    lagging = tuple(sorted(
+        ticker for ticker, row in rows.items()
+        if row.get("ok") and row.get("trade_date") and row["trade_date"] < latest
+        and ticker not in _US_OVERNIGHT_FUTURES and ticker not in _US_NO_EXTENDED_HOURS))
+    if not lagging:
+        return rows
+    try:
+        import jarvis3_data as _j3
+
+        frames, _meta = _j3._download_cached(
+            lagging, period="5d", interval="5m", ttl_seconds=180, prepost=True)
+    except Exception:
+        return rows
+    new_york = ZoneInfo("America/New_York")
+    filled = dict(rows)
+    for ticker in lagging:
+        frame = frames.get(ticker)
+        if frame is None or getattr(frame, "empty", True) or "Close" not in frame:
+            continue
+        try:
+            closes = frame["Close"].dropna().astype(float)
+            index = closes.index
+            if getattr(index, "tz", None) is None:
+                index = index.tz_localize("UTC")
+            stamps = index.tz_convert(new_york)
+            minutes = stamps.hour * 60 + stamps.minute
+            regular = closes[(minutes >= 570) & (minutes < 960)]      # 09:30~16:00
+            days = sorted({stamp.date().isoformat() for stamp in stamps[(minutes >= 570) & (minutes < 960)]})
+            if latest not in days or days.index(latest) == 0:
+                continue
+            if days[days.index(latest) - 1] != rows[ticker]["trade_date"]:
+                continue                     # 원래 줄이 바로 앞 거래일이 아니다
+            regular_stamps = stamps[(minutes >= 570) & (minutes < 960)]
+            session = regular[[stamp.date().isoformat() == latest for stamp in regular_stamps]]
+            if session.empty:
+                continue
+            close = float(session.iloc[-1])
+            prev_close = float(rows[ticker]["current"])
+        except Exception:
+            continue
+        change = _safe_pct_diff(close, prev_close)
+        if change is None or not math.isfinite(change):
+            continue
+        filled[ticker] = {**rows[ticker], "current": close, "prev_close": prev_close,
+                          "change_pct": change, "trade_date": latest,
+                          "filled_from": "5분봉"}
+    return filled
+
+
 def _us_regular_session_open() -> bool:
     """지금 미국 정규장이 열려 있나. 못 알아내면 False — 예전 방식으로 둔다.
 
@@ -2040,6 +2121,11 @@ def run_us_market_signal_check(force_refresh=False):
     anchor = date.fromisoformat(str(anchor))
     frozen_rows = _cached_previous_us_quotes(
         tuple((ticker, anchor.isoformat()) for ticker in tickers))
+    # 야후 일봉이 늦은 종목은 5분봉으로 그 장을 채운다(2026-09-17 — 전일 칸 날짜 섞임).
+    try:
+        frozen_rows = _fill_lagging_session(frozen_rows)
+    except Exception:
+        pass
     frozen_dates = sorted({row.get("trade_date") for row in frozen_rows.values()
                            if row.get("ok") and row.get("trade_date")})
     # '전일'은 그 직전 완료 장의 **하루 앞**이다. 여기도 닻 하나로 맞춘다.
