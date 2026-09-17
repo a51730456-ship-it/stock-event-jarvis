@@ -1645,7 +1645,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026091720
+_REQUIRED_J3_REVISION = 2026091730
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -7321,13 +7321,18 @@ def _pullback_backdrop_cards(
                     market_body = html.escape(
                         str(state.get("reason") or "나스닥 상태를 못 읽었습니다"))
                 else:
-                    low, high = getattr(j3data, "CRASH_MARKET_BAND", (-12.0, -6.0))
-                    band = _red(f"{abs(high):.0f}~{abs(low):.0f}%")
-                    market_body = (
-                        f"최근 한 달에 QQQ(나스닥100)가 {band} 내려온 날이 없었습니다. "
-                        f"지금은 {_red(f'{float(drop_pct):.1f}%')}입니다. "
-                        "그래서 오늘 낙폭으로 찾은 결과입니다."
-                    )
+                    # **「최근 한 달」이 아니라 전고점 대비로 적는다** (2026-09-17 상하님
+                    # 지시 — "최근 한 달이 아니고 그냥 전고점 대비 나스닥이 몇 프로
+                    # 내려왔었고 지금은 몇 프로입니다라고 해야 된다").
+                    deepest = state.get("deepest_pct")
+                    if deepest is None:      # 옛 계산이 남은 판 — 지금 값만 적는다
+                        market_body = (f"QQQ(나스닥100)는 지금 전고점 대비 "
+                                       f"{_red(f'{float(drop_pct):.1f}%')}입니다.")
+                    else:
+                        market_body = (
+                            f"QQQ(나스닥100)가 전고점 대비 {_red(f'{float(deepest):.1f}%')}까지 "
+                            f"내려왔었고, 지금은 {_red(f'{float(drop_pct):.1f}%')}입니다."
+                        )
         else:
             # 목록을 계산한 같은 EOD snapshot을 쓴다. 상세을 열 때 시장을 재조회하면
             # 목록의 Gate와 상세 설명이 서로 다른 시각을 말할 수 있다.
@@ -7976,10 +7981,18 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 + passed_text
             )
         elif drop_now is not None:
-            st.info(
-                "**최근 한 달에 QQQ(나스닥100)가 :red[**-6~-12%**] 내려온 날이 없었습니다** — 지금은 "
-                f":red[**{drop_now:.1f}%**]입니다. 그래서 오늘 낙폭으로 찾은 결과입니다."
-            )
+            # 종목 상세 「시장 상황」과 **같은 문장**이다 (2026-09-17 상하님 지시 — "최근
+            # 한 달이 아니고 전고점 대비 몇 프로 내려왔었고 지금은 몇 프로").
+            deepest = crash_market.get("deepest_pct")
+            if deepest is None:
+                deepest = reference.get("deepest_drop")
+            if deepest is None:              # 옛 계산이 남은 판 — 지금 값만 적는다
+                st.info(f"**QQQ(나스닥100)는 지금 전고점 대비 :red[**{drop_now:.1f}%**]입니다.**")
+            else:
+                st.info(
+                    f"**QQQ(나스닥100)가 전고점 대비 :red[**{float(deepest):.1f}%**]까지 "
+                    f"내려왔었고**, 지금은 :red[**{drop_now:.1f}%**]입니다."
+                )
         # 이 갈래만 붙이는 경고다(2026-08-06 사용자 승인). 점수가 96·95·92처럼 크게
         # 찍혀 1등이 확실히 좋아 보이는데, 재 보면 1등과 10등의 성적 차이가 100번에
         # 1~3번뿐이다. 상승장은 테마 하나로 앞 +8.6 / 뒤 +2.5라 이 경고를 안 붙인다.

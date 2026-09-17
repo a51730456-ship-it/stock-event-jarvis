@@ -920,6 +920,24 @@ class RulebookScreenTests(unittest.TestCase):
         self.assertIn("고점 대비 -33.0%까지 내려온", reason)
         self.assertNotIn("기준일", reason)
 
+    def test_crash_reason_says_how_deep_it_went_and_where_it_is_now(self):
+        """얼마까지 내려왔었고 지금은 몇 %인지 둘 다 (2026-09-17 상하님 지시)."""
+        row = {"metrics": {"from_high_pct": -43.1}, "now_from_high_pct": -43.1,
+               "deepest_from_high_pct": -65.0, "hold_days": 120, "bucket": "deep",
+               "together_tier": 0, "together_count": 0, "recent_gain_pct": 0.0}
+        reason = j3.crash_rebound_plan(row)["buy_reason"]
+        self.assertIn("고점 대비 -65.0%까지 내려왔던 낙폭 종목이고, 지금은 고점 대비 -43.1%입니다", reason)
+
+    def test_deepest_drop_uses_the_same_high_as_from_high(self):
+        index = pd.bdate_range("2026-01-01", periods=6)
+        frame = pd.DataFrame({
+            "High":  [90.0, 100.0, 95.0, 80.0, 85.0, 88.0],
+            "Close": [88.0,  98.0, 70.0, 60.0, 75.0, 80.0],
+        }, index=index)
+        # 고점 100(둘째 날) 뒤로 가장 낮은 종가 60 → -40%. 고점 전의 88은 안 센다.
+        self.assertAlmostEqual(j3.deepest_drop_since_high(frame), -40.0)
+        self.assertIsNone(j3.deepest_drop_since_high(None))
+
     def test_nasdaq_drawdown_gate_matches_what_was_measured(self):
         """문턱 12%는 55년치로 재고 정했다 — 8%는 기준선보다 못했다.
 

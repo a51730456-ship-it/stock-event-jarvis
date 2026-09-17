@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026091720
+MODULE_REVISION = 2026091730
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -2742,6 +2742,31 @@ def breakout_plan(row: dict) -> dict:
     }
 
 
+def deepest_drop_since_high(frame) -> float | None:
+    """1년 최고가를 찍은 날부터 오늘까지 **종가가 가장 낮았던 날**이 그 고점에서 몇 % 아래였나.
+
+    2026-09-17 상하님 지시 — "고점 대비 얼마까지 내려온 낙폭 종목이고 현재는 몇
+    프로이다" · "전고점 대비 나스닥이 몇 프로 내려왔었고 지금은 몇 프로입니다".
+    고점은 「고점 대비」(from_high_pct)와 **같은 고점**이다 — 최근 252거래일 고가 중
+    가장 높은 값. 화면에 두 숫자가 나란히 서므로 자가 같아야 한다.
+    점수·갈래에는 쓰지 않는다. 보여 주기만 한다.
+    """
+    if frame is None or getattr(frame, "empty", True):
+        return None
+    try:
+        highs = frame["High"].dropna().astype(float).tail(252)
+        closes = frame["Close"].dropna().astype(float)
+        if highs.empty or closes.empty:
+            return None
+        high = float(highs.max())
+        after = closes[closes.index >= highs.idxmax()]
+        if after.empty or high <= 0:
+            return None
+        return (float(after.min()) / high - 1.0) * 100
+    except Exception:
+        return None
+
+
 def _crash_drop_story(row: dict, metrics: dict) -> str:
     """급락 갈래의 낙폭을 '그날 → 지금 → 그 뒤' 세 숫자로 풀어 쓴다.
 
@@ -2764,6 +2789,13 @@ def _crash_drop_story(row: dict, metrics: dict) -> str:
     ref_date = row.get("reference_date")
     since = row.get("since_reference_pct")
     if judged is None or not ref_date or now_drop is None:
+        # **얼마까지 내려왔었고 지금은 몇 %인지** 둘 다 적는다 (2026-09-17 상하님 지시).
+        # 예전에는 지금 낙폭 하나만 「~까지 내려온」이라 적어, 가장 깊었던 자리인지
+        # 지금 자리인지 알 수 없었다.
+        deepest = row.get("deepest_from_high_pct")
+        if deepest is not None and now_drop is not None:
+            return (f"고점 대비 {float(deepest):.1f}%까지 내려왔던 낙폭 종목이고, "
+                    f"지금은 고점 대비 {float(now_drop):.1f}%입니다.")
         return f"고점 대비 {float(now_drop or 0):.1f}%까지 내려온 낙폭 종목입니다."
     moved = ""
     if since is not None:
@@ -3474,6 +3506,8 @@ def crash_reference_day(lookback_days: int = 30) -> dict:
         inside = recent[(recent >= low) & (recent <= high)]
         if inside.empty:
             return {"ok": True, "armed": False, "today_drop": today_drop,
+                    # 전고점 뒤로 가장 깊었던 자리(2026-09-17) — 화면 문장에만 쓴다.
+                    "deepest_drop": deepest_drop_since_high(frame),
                     "reference_date": None, "reference_drop": None, "days_in_band": 0,
                     "reason": (f"최근 {lookback_days}거래일에 QQQ(나스닥100)가 "
                                f"{abs(high):.0f}~{abs(low):.0f}% 내려온 날이 없었습니다. "
@@ -3541,6 +3575,12 @@ def crash_market_state() -> dict:
     if drop is None:
         return {"ok": False, "armed": True, "drop_pct": None, "band": CRASH_MARKET_BAND,
                 "reason": "나스닥 낙폭을 못 읽어 시장 조건을 확인하지 못했습니다"}
+    # 전고점 뒤로 가장 깊었던 자리 — 화면이 「몇 %까지 내려왔었고 지금은 몇 %」로
+    # 적는다(2026-09-17 상하님 지시). 판정(armed)에는 안 쓴다.
+    try:
+        deepest = deepest_drop_since_high(daily.get(CRASH_MARKET_SYMBOL))
+    except Exception:
+        deepest = None
     armed = low <= drop <= high
     if armed:
         reason = f"QQQ(나스닥100)가 고점에서 {drop:.1f}% 내려왔습니다 — 이 규칙을 쓰는 자리입니다"
@@ -3551,7 +3591,7 @@ def crash_market_state() -> dict:
     else:
         reason = (f"QQQ(나스닥100)가 고점에서 {drop:.1f}% 내려왔습니다 — 너무 깊습니다. "
                   f"{abs(low):.0f}%보다 더 빠진 자리는 아무 종목이나 산 것보다 못했습니다.")
-    return {"ok": True, "armed": armed, "drop_pct": drop,
+    return {"ok": True, "armed": armed, "drop_pct": drop, "deepest_pct": deepest,
             "band": CRASH_MARKET_BAND, "reason": reason}
 
 
@@ -3615,6 +3655,8 @@ def find_crash_rebound_stocks(*, reuse_only: bool = False, result_limit: int = 2
                 # 그날 낙폭 · 지금 낙폭 · 그 뒤 주가를 같이 보여준다.
                 row["judged_from_high_pct"] = from_high
                 row["now_from_high_pct"] = now_from_high
+                # 고점 뒤로 가장 깊었던 자리 — 상세 문장에만 쓴다(2026-09-17 상하님 지시).
+                row["deepest_from_high_pct"] = deepest_drop_since_high(daily.get(ticker))
                 row["reference_date"] = ref_date
                 current = metrics.get("current")
                 row["since_reference_pct"] = (
