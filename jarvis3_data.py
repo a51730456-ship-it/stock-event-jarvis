@@ -269,7 +269,12 @@ def _configure_yfinance_cache(yf) -> None:
 
 
 def clear_runtime_cache() -> None:
-    """사용자가 새로고침을 눌렀을 때 자비스3 메모리 캐시만 비운다."""
+    """사용자가 새로고침을 눌렀을 때 자비스3 메모리 캐시만 비운다.
+
+    **담아 둔 상승장 한 벌도 같이 버린다** (2026-09-18). 맨 위 ↻ 는 "새로 받아
+    와라"는 뜻이다. 담아 둔 것을 남겨 두면 ↻ 를 눌러도 그것이 그대로 나가서,
+    상하님이 새로 받으라고 하셨는데 아무것도 안 받는 셈이 된다.
+    """
     with _CACHE_LOCK:
         _CACHE.clear()
         _BRIEFING_CARD_CACHE.clear()
@@ -277,6 +282,11 @@ def clear_runtime_cache() -> None:
         _METRICS_CACHE.clear()
     with _FEAR_GREED_LOCK:
         _FEAR_GREED_CACHE.update({"at": 0.0, "value": None})
+    try:
+        with _BREAKOUT_LAST_LOCK:
+            _BREAKOUT_LAST.update({"at": 0.0, "session": None, "value": None})
+    except NameError:
+        pass                    # 옛 모듈 순서로 불려도 화면은 그대로 돈다
 
 
 def _finite(value) -> float | None:
@@ -4447,6 +4457,15 @@ _MEMO_BUSY: dict = {}
 MEMO_WAIT_SECONDS = 90.0
 
 
+def _memo_peek(key: str, ttl_seconds: float):
+    """기억을 **들여다보기만** 한다. 없거나 식었으면 None — 만들지는 않는다."""
+    with _CACHE_LOCK:
+        found = _CACHE.get(key)
+        if found and time.time() - float(found["at"]) < ttl_seconds:
+            return found["value"]
+    return None
+
+
 def _memo_ok(key: str, ttl_seconds: float, produce):
     """**성공한 결과만** 잠깐 기억한다. 실패는 기억하지 않는다.
 
@@ -4525,14 +4544,110 @@ def breakout_scan(*, persist: bool = True) -> dict:
     않는다(`_SWING_SAVED` 가 막는다). 그래서 기억을 쓴 판에서도 그날 스냅숏이
     빠지지 않는다.
     """
-    scan = _memo_ok(_finder_memo_key("상승장"), TOP_PICK_MEMO_SECONDS,
-                    find_breakout_pullback_stocks)
+    scan = _memo_peek(_finder_memo_key("상승장"), TOP_PICK_MEMO_SECONDS)
+    if scan is None:
+        # **화면을 켜 둔 채 30분이 지난 판** (2026-09-18 상하님 지시 — "30분 지난 뒤
+        # 느린 것도 고쳐라"). 그때는 249종목 묶음이 공책에서 빠져 있어서, 이 단추가
+        # 그것을 **처음부터 다시 받았다**. 노트북 실측 7.84초(CPU 9.28초).
+        #
+        # **그런데 그렇게 받아 와도 목록이 한 글자도 안 바뀐다.** 이 계산은
+        # `_last_completed_us_date` 로 **끝난 거래일까지만** 보고, 줄에 붙는
+        # 「당일주가」도 그날로 잘라 만들기 때문이다. 실측으로 확인했다 —
+        # 40분 전 목록과 정식·관찰이 모두 같았다.
+        #
+        # 그러니 **마지막으로 제대로 만든 한 벌을 그 자리에서 드린다.** 미국장이
+        # 그 뒤로 한 번도 안 닫혔으면 같은 답이다(`_breakout_kept_for_this_session`).
+        # 새로 받는 일은 뒤 일꾼에게 맡긴다 — 야후가 늦게 올린 일봉을 그때 채운다.
+        # 이것이 CLAUDE.md 0-0 둘째 원칙이다(있던 것을 그대로 두고 다시 받게 한다).
+        kept = _breakout_kept_for_this_session()
+        if kept is not None:
+            scan = kept
+            _refresh_breakout_in_background()
+        else:
+            scan = _memo_ok(_finder_memo_key("상승장"), TOP_PICK_MEMO_SECONDS,
+                            find_breakout_pullback_stocks)
+    _remember_breakout(scan)
     if persist and isinstance(scan, dict) and scan.get("ok"):
         try:
             _save_swing_scan_in_background(scan)
         except Exception as exc:      # 적기에 실패해도 화면에 줄 목록은 그대로다
             _log.warning("swing snapshot save failed: %s", exc)
     return scan
+
+
+# ── 마지막으로 제대로 만든 상승장 한 벌 (2026-09-18 상하님 지시) ──────────────
+# 5분 기억(`top_finder:상승장`)이 식어도 이것은 남는다. **미국장이 그 뒤로 한 번도
+# 안 닫혔을 때만** 쓴다 — 닫혔으면 새 일봉이 생겨 답이 달라지므로 그때는 안 준다.
+_BREAKOUT_LAST: dict = {"at": 0.0, "session": None, "value": None}
+_BREAKOUT_LAST_LOCK = threading.Lock()
+# 뒤에서 새로 받아 오기는 10분에 한 번까지만. 자주 돌면 코어 하나를 화면과 나눈다.
+BREAKOUT_REFRESH_SECONDS = 600.0
+_BREAKOUT_REFRESH = {"at": 0.0, "on": False}
+_BREAKOUT_REFRESH_LOCK = threading.Lock()
+
+
+def _completed_session_key(now=None):
+    """마지막으로 **끝난** 미국장의 날짜. 인터넷도 시세도 안 쓴다 — 달력이 안다.
+
+    국경일·조기 폐장도 `us_market_calendar` 가 안다. 이 값이 그대로면 그 사이에
+    미국장이 한 번도 안 닫혔다는 뜻이고, 그러면 상승장 계산의 답도 그대로다.
+    """
+    try:
+        return us_market_calendar.previous_session_date(now).isoformat()
+    except Exception:
+        return None
+
+
+def _remember_breakout(scan) -> None:
+    """제대로 만든 한 벌을 **어느 장의 것인지와 함께** 담아 둔다."""
+    if not (isinstance(scan, dict) and scan.get("ok")):
+        return
+    session = _completed_session_key()
+    if session is None:
+        return
+    with _BREAKOUT_LAST_LOCK:
+        _BREAKOUT_LAST.update({"at": time.time(), "session": session, "value": scan})
+
+
+def _breakout_kept_for_this_session():
+    """담아 둔 한 벌. **그 뒤로 미국장이 닫힌 적이 있으면 안 준다.**"""
+    session = _completed_session_key()
+    if session is None:
+        return None
+    with _BREAKOUT_LAST_LOCK:
+        if _BREAKOUT_LAST.get("session") != session:
+            return None
+        return _BREAKOUT_LAST.get("value")
+
+
+def _refresh_breakout_in_background() -> None:
+    """뒤에서 새로 받아 둔다. 화면은 기다리지 않는다. 10분에 한 번까지만 돈다."""
+    now = time.time()
+    with _BREAKOUT_REFRESH_LOCK:
+        if _BREAKOUT_REFRESH["on"]:
+            return
+        if now - float(_BREAKOUT_REFRESH["at"]) < BREAKOUT_REFRESH_SECONDS:
+            return
+        _BREAKOUT_REFRESH["on"] = True
+        _BREAKOUT_REFRESH["at"] = now
+
+    def _run() -> None:
+        try:
+            _remember_breakout(_memo_ok(
+                _finder_memo_key("상승장"), TOP_PICK_MEMO_SECONDS,
+                find_breakout_pullback_stocks))
+        except Exception as exc:
+            _log.warning("breakout refresh failed: %s", exc)
+        finally:
+            with _BREAKOUT_REFRESH_LOCK:
+                _BREAKOUT_REFRESH["on"] = False
+
+    try:
+        threading.Thread(target=_run, name="breakout-refresh", daemon=True).start()
+    except Exception as exc:
+        _log.warning("breakout refresh thread failed: %s", exc)
+        with _BREAKOUT_REFRESH_LOCK:
+            _BREAKOUT_REFRESH["on"] = False
 
 
 _BREAKOUT_WARM = {"at": 0.0, "on": False}
@@ -4642,6 +4757,9 @@ def prepare_breakout_scan() -> None:
         if isinstance(scan, dict) and scan.get("ok"):
             with _BREAKOUT_WARM_LOCK:
                 _BREAKOUT_WARM["at"] = time.time()
+            # 여기서 만든 것도 담아 둔다 — 5분 기억이 식은 뒤에 누르셔도 이것이
+            # 그 자리에서 나간다(2026-09-18 · `_breakout_kept_for_this_session`).
+            _remember_breakout(scan)
     except Exception as exc:
         # 실패해도 화면은 그대로 돈다 — 그때는 예전처럼 단추가 그 자리에서 만든다.
         _log.warning("breakout prepare failed: %s", exc)

@@ -1862,6 +1862,97 @@ class TheScreenMakesTheSwingListUpFrontTests(unittest.TestCase):
         self.assertIn("except Exception", helper)
 
 
+class TheButtonKeepsTheLastGoodListTests(unittest.TestCase):
+    """화면을 켜 둔 채 30분이 지난 뒤 눌러도 **그 자리에서** 나와야 한다.
+
+    2026-09-18 상하님 지시 — *"30분 지난 뒤 느린 것도 고쳐라."*
+
+    30분이 지나면 249종목 묶음이 공책에서 빠져, 단추가 그것을 처음부터 다시 받았다
+    (노트북 실측 7.84초 · CPU 9.28초). **그런데 그렇게 받아 와도 목록이 한 글자도
+    안 바뀐다** — 이 계산은 끝난 거래일까지만 보기 때문이다(실측으로 확인했다).
+    그래서 마지막으로 제대로 만든 한 벌을 그대로 드리고, 새로 받는 일은 뒤 일꾼에게
+    맡긴다(CLAUDE.md 0-0 둘째 원칙 — 있던 것을 그대로 두고 다시 받게 한다).
+    """
+
+    def setUp(self):
+        j3.clear_runtime_cache()
+        self._real_finder = j3.find_breakout_pullback_stocks
+        self._real_save = j3._save_swing_scan_in_background
+        self._real_refresh = j3._refresh_breakout_in_background
+        j3._save_swing_scan_in_background = lambda scan: None
+        self.refreshed = []
+        j3._refresh_breakout_in_background = lambda: self.refreshed.append(1)
+
+    def tearDown(self):
+        j3.find_breakout_pullback_stocks = self._real_finder
+        j3._save_swing_scan_in_background = self._real_save
+        j3._refresh_breakout_in_background = self._real_refresh
+        j3.clear_runtime_cache()
+
+    @staticmethod
+    def _finder(calls, ticker="AAA"):
+        def _made(**_kwargs):
+            calls.append(1)
+            return {"ok": True, "date": "2026-09-17", "rows": [{"ticker": ticker}],
+                    "primary_rows": [{"ticker": ticker}], "watch_rows": []}
+        return _made
+
+    def test_a_cold_notebook_gets_the_last_good_list_without_scanning_again(self):
+        calls = []
+        j3.find_breakout_pullback_stocks = self._finder(calls)
+        first = j3.breakout_scan()
+        self.assertEqual(1, len(calls))
+        # 30분이 지난 판 — 기억도 249종목 묶음도 공책에서 빠졌다(담아 둔 것은 그대로).
+        with j3._CACHE_LOCK:
+            j3._CACHE.clear()
+        again = j3.breakout_scan()
+        self.assertEqual(1, len(calls), "담아 둔 것이 있는데 200종목을 또 훑었다")
+        self.assertEqual(first, again, "담아 둔 것과 다른 목록이 나갔다")
+        self.assertEqual(1, len(self.refreshed), "뒤에서 새로 받아 오기를 안 걸었다")
+
+    def test_after_a_market_close_it_makes_a_new_one(self):
+        """미국장이 한 번 닫혔으면 새 일봉이 생긴다 — 담아 둔 것을 주면 안 된다."""
+        calls = []
+        j3.find_breakout_pullback_stocks = self._finder(calls)
+        j3.breakout_scan()
+        self.assertEqual(1, len(calls))
+        with j3._CACHE_LOCK:
+            j3._CACHE.clear()
+        with j3._BREAKOUT_LAST_LOCK:
+            j3._BREAKOUT_LAST["session"] = "1999-01-04"    # 그 뒤로 장이 닫혔다
+        j3.breakout_scan()
+        self.assertEqual(2, len(calls), "장이 닫혔는데 옛 목록을 그대로 줬다")
+
+    def test_the_refresh_button_throws_the_kept_list_away(self):
+        """맨 위 ↻ 는 「새로 받아 와라」는 뜻이다 — 담아 둔 것도 버려야 한다."""
+        calls = []
+        j3.find_breakout_pullback_stocks = self._finder(calls)
+        j3.breakout_scan()
+        self.assertIsNotNone(j3._breakout_kept_for_this_session())
+        j3.clear_runtime_cache()
+        self.assertIsNone(j3._breakout_kept_for_this_session(),
+                          "↻ 를 눌렀는데 담아 둔 것이 그대로 나간다")
+
+    def test_the_background_refresh_runs_at_most_once_in_ten_minutes(self):
+        j3._refresh_breakout_in_background = self._real_refresh
+        started = []
+        real_thread = threading.Thread
+
+        class _Counted(real_thread):
+            def start(self):                    # 실제로 돌리지는 않는다
+                started.append(self.name)
+
+        try:
+            threading.Thread = _Counted
+            j3._BREAKOUT_REFRESH.update({"at": 0.0, "on": False})
+            j3._refresh_breakout_in_background()
+            j3._refresh_breakout_in_background()
+        finally:
+            threading.Thread = real_thread
+            j3._BREAKOUT_REFRESH.update({"at": 0.0, "on": False})
+        self.assertEqual(1, len(started), "뒤 일꾼이 누를 때마다 249종목을 받는다")
+
+
 class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
     """관심종목 카드는 **마지막으로 끝난 장**을 적어야 한다 (2026-08-29 상하님 지적).
 
