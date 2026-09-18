@@ -997,6 +997,75 @@ def test_a_page_reached_by_swiping_can_be_swiped_again():
     assert "j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) both" not in source
 
 
+def _swipe_js() -> str:
+    return _j3_source().split('_SWIPE_OUTER_JS = """', 1)[1].split('"""', 1)[0]
+
+
+def test_the_next_page_lies_under_the_turning_page():
+    """넘기기 **시작하는 순간부터** 밑에 다음 쪽이 보인다 (2026-09-19 상하님 — "페이지
+    넘기는 순간부터 미리 다음 페이지가 보여야지 자연스럽지").
+
+    한 번 본 화면을 떠 두었다가(그림자 칸) 종이 밑에 깐다. 손을 떼면 서버가 진짜
+    화면을 그리는 동안 그 사진이 자리를 지킨다 — 로딩이 안 보인다.
+    """
+    js = _swipe_js()
+    assert "attachShadow" in js, "사진은 그림자 칸 안에 둔다 — 두 화면 규칙이 섞이면 안 된다"
+    assert "function capture(" in js and "function showSnap(" in js
+    assert "drag.snap = still ? false : showSnap(go.to, box);" in js, \
+        "손가락이 잡히는 그 순간에 깔아야 한다"
+    # 사진 규칙은 **뜰 때 그 화면의 것**을 같이 떠 둔다(시장분석 사진이 하얗게 나왔다).
+    assert "SNAP[sname] = { node: top, v: snapV, css: css };" in js
+    # 진짜 화면에서 숨은 칸은 사진에서도 숨긴다(사진이 168px 아래로 밀렸다).
+    assert "setProperty('display', 'none', 'important')" in js
+
+
+def test_the_hidden_picture_can_never_cover_the_real_page():
+    """숨겨 둔 사진이 진짜 화면 위로 새어 나오면 안 된다 (2026-09-18 실측 — 「안 보이게」
+    로만 숨겼더니 사진 속 「보이게」 규칙이 이겨서 두 화면이 겹쳐 보였다).
+
+    투명하게 하고 바탕 뒤(z-index -1)로 내린다. 눌리지도 않는다(inert·pointer-events).
+    """
+    js = _swipe_js()
+    host = js.split("snapHost.style.cssText = ", 1)[1].split(";\n", 1)[0]
+    assert "z-index:-1" in host and "opacity:0" in host and "pointer-events:none" in host
+    assert "visibility:hidden" not in host
+    hide = js.split("function hideSnap()", 1)[1].split("\n  }", 1)[0]
+    assert "opacity = '0'" in hide and "zIndex = '-1'" in hide
+    assert "snapHost.inert = true" in js
+
+
+def test_starting_a_swipe_does_not_mark_the_whole_page():
+    """넘기기 시작하는 순간 body 에 표시를 붙이지 않는다 (2026-09-19 실측).
+
+    body·껍데기에 표시를 붙이거나 떼면 폰이 화면 칸 1,400개를 전부 다시 따져서, 느린
+    폰 기준 한 번 80~100ms 멈칫했다. 흐림은 하단 막대에만 직접 끈다.
+    """
+    js = _swipe_js()
+    move = js.split("d.addEventListener('touchmove'", 1)[1].split("d.addEventListener('touchend'", 1)[0]
+    assert "classList" not in move, "손가락이 움직이는 동안 표시를 붙이면 멈칫한다"
+    assert "nav.style.backdropFilter = 'none'" in move
+    assert "j3-turning" not in _j3_source()
+
+
+def test_the_page_edge_follows_the_finger_and_folds_inward():
+    """종이 끝이 민 거리만큼 물러난다 — 화면 안쪽으로 넘어가서 밑의 쪽이 바로 드러난다.
+
+    예전에는 종이 끝이 보는 사람 쪽으로 들려 오며 커져서 3분의 1을 넘길 때까지 화면을
+    다 덮었다(실측 — 28도에서 종이 폭 410px). 실측(고친 뒤) — 80px 밀면 76px 드러남.
+    """
+    js = _swipe_js()
+    assert "function angleFor(" in js
+    assert "rotateY(' + (-sign * deg).toFixed(2) + 'deg)'" in js
+
+
+def test_the_swipe_marker_takes_no_room():
+    """「넘겨서 들어왔다」 표시 칸이 틈 12px 를 더 먹으면 사진과 진짜 화면이 어긋난다
+    (2026-09-19 실측 — 처음 열 때 198px, 넘겨서 올 때 210px → 고친 뒤 둘 다 198px)."""
+    source = _j3_source()
+    assert "div[data-testid='stElementContainer']:has(.j3b-in-left)," in source
+    assert "div[data-testid='stElementContainer']:has(.j3b-in-right){display:none!important}" in source
+
+
 def test_the_bottom_close_button_sits_on_the_left_on_phones():
     """폰에서 아래쪽 창닫기는 왼쪽이다 — 오른쪽 아래에는 스트림릿 표시가 떠서 겹친다."""
     import mobile_ui
