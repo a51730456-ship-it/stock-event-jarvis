@@ -2781,7 +2781,8 @@ def test_switching_screens_goes_back_to_the_top():
     assert "padding-top:0!important" in source
     assert "padding-top:68px!important" not in source, "배너가 있으니 이 여백은 필요 없다"
     market = source[source.index("def _render_existing_theme_content()"):]
-    market = market[:market.index('method_help.render(st, "US")')]
+    # 2026-09-18 부터 게스트 숨김(show_help=…)이 붙어 괄호가 뒤로 밀렸다 — 앞부분만 찾는다.
+    market = market[:market.index('method_help.render(st, "US"')]
     assert "hero_banner.render(" in market, "배너가 맨 위 두 단추보다 먼저 그려져야 한다"
     # ── 그리고 **맨 위 띠를 없애야 한다** (2026-08-28 상하님 지적 — "이거 왜
     # 짤리지... 위에 뭔가 있다").

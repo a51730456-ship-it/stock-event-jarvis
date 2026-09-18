@@ -1213,6 +1213,65 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 700 !important;
     }
+    /* 「📅 2주간 일별 시세 보기」 — 연한 무지개 그라데이션 (2026-09-18 상하님 지시
+       "단추 색깔 무지개색으로 연하게 그라데이션 넣어줘").
+       옆 단추들(황금·붉은색)과 싸우지 않게 **연하게**만 깐다 — 다섯 색을 36%
+       투명도로 눕히고(20% 는 남색 바탕에 묻혀 무지개로 안 보였다 — 실물로 재 봤다) 글자는 흰색 그대로 둔다. 여닫는 단추 둘 다에 건다
+       (여는 쪽 `btn_j3_daily_prices_` · 닫는 쪽 `close_j3_daily_prices_`).
+       위 `st-key-close_` 공통 규칙보다 **뒤에 있어야** 닫기 단추에도 걸린다. */
+    div[class*="st-key-btn_j3_daily_prices_"] button,
+    div[class*="st-key-close_j3_daily_prices_"] button {
+        background: linear-gradient(90deg,
+            rgba(255,107,107,.36) 0%, rgba(255,183,77,.36) 25%,
+            rgba(129,199,132,.36) 50%, rgba(79,172,254,.36) 75%,
+            rgba(186,148,250,.36) 100%) !important;
+        border: 1px solid rgba(255,255,255,.22) !important;
+        border-radius: .5rem !important;
+    }
+    div[class*="st-key-btn_j3_daily_prices_"] button:hover,
+    div[class*="st-key-close_j3_daily_prices_"] button:hover {
+        background: linear-gradient(90deg,
+            rgba(255,107,107,.52) 0%, rgba(255,183,77,.52) 25%,
+            rgba(129,199,132,.52) 50%, rgba(79,172,254,.52) 75%,
+            rgba(186,148,250,.52) 100%) !important;
+        border-color: rgba(255,255,255,.38) !important;
+    }
+    div[class*="st-key-btn_j3_daily_prices_"] button p,
+    div[class*="st-key-close_j3_daily_prices_"] button p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    /* ── 「📘 이 테마 설명」 창이 열리는 모양 (2026-09-18 상하님 지시) ─────────
+       상하님 — "이 테마 설명 창 열리는 방법은 저장해 둔 목록의 파트별 성적표에서
+       「매수심사결과 높은 순위 9」를 클릭하면 창이 열리듯이 해 주고."
+       그 창(.j3pop)은 **누르면 나머지가 흐려지고 창이 튀어 오른다.** 같은 결로 맞춘다.
+
+       **transform 은 절대 안 건드린다.** 스트림릿이 창 자리를 그것으로 잡는다
+       (실측 — matrix(1,0,0,1,8,8)). 손대면 창이 8px 옆으로 튄다. 그래서 따로 있는
+       `scale` 속성만 쓴다 — transform 과 겹치지 않고 같이 걸린다.
+
+       **이 화면에서만 걸린다** — `.j3-market-top` 은 시장분석 화면에만 있는 표식이다.
+       한국테마·자비스6의 같은 단추는 지금까지 그대로다. */
+    @keyframes j3HelpPop { from { scale: .90; opacity: 0; } to { scale: 1; opacity: 1; } }
+    body:has(.j3-market-top) [data-testid="stPopoverBody"] {
+        animation: j3HelpPop .22s cubic-bezier(.2,.9,.25,1) both !important;
+        box-shadow: 0 24px 70px rgba(0,0,0,.55) !important;
+    }
+    /* 창이 뜨면 뒤는 흐려진다. 창은 화면 껍데기 **밖**(portal)에 있어서 같이 안
+       흐려진다 — 실측으로 확인했다(stPopoverBody 가 stAppViewContainer 안에 없다). */
+    body:has(.j3-market-top) [data-testid="stAppViewContainer"] {
+        transition: filter .22s ease, opacity .22s ease;
+    }
+    body:has(.j3-market-top):has([data-testid="stPopoverBody"])
+        [data-testid="stAppViewContainer"] {
+        filter: blur(2.5px) !important;
+        opacity: .45 !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        body:has(.j3-market-top) [data-testid="stPopoverBody"] { animation: none !important; }
+        body:has(.j3-market-top):has([data-testid="stPopoverBody"])
+            [data-testid="stAppViewContainer"] { filter: none !important; opacity: 1 !important; }
+    }
     /* 대장주 1~3위 비교 — 붉은색 그라데이션(2026-07-30 사용자 지시, 한국테마와 같다). */
     div[class*="st-key-btn_j3_leadercmp_open"] button {
         background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
@@ -1578,7 +1637,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026090710
+_REQUIRED_METHOD_HELP_REVISION = 2026091810
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -9424,7 +9483,10 @@ def _render_existing_theme_content() -> None:
         st.rerun()
     # 최상단 오른쪽에 '이 테마 설명'을 둔다(2026-07-29 사용자 지시).
     # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
-    method_help.render(st, "US")
+    # **게스트는 「이 테마 설명」을 못 본다** (2026-09-18 상하님 지시).
+    # 건너가기 단추(「🌏 한국테마 →」)는 그대로 둔다 — 그것까지 없애면 게스트가
+    # 두 화면을 오갈 수가 없다.
+    method_help.render(st, "US", show_help=not auth.is_guest())
     # 맨 위 제목은 뺐다(2026-07-30 사용자 지시) — 사이드바에 같은 이름이 있고
     # 첫 화면 높이만 먹었다. 페이지 이름은 파일명이 그대로 쓴다.
     try:
@@ -11376,28 +11438,77 @@ _SWIPE_OUTER_JS = """
   function findButton(key) {
     return d.querySelector('div[class*="st-key-' + key + '"] button');
   }
-  function tryGo(dx, dy) {
-    if (fired) { return; }
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) { return; }
+  // ── 만화책 넘기듯 (2026-09-18 상하님 지시) ───────────────────────────────
+  // 상하님이 보여 주신 영상(네이버 시리즈 「책 넘김」) — **종이가 손가락을 그대로
+  // 따라 넘어가고**, 반쯤 넘긴 채로 멈출 수도 있고, 덜 넘기고 놓으면 제자리로
+  // 돌아간다. 예전 것은 60px 를 밀면 그 자리에서 한 번 휙 넘어갔다.
+  //
+  // **가만히 있을 때는 아무것도 안 건다.** 화면 껍데기에 원근·입체를 늘 걸어
+  // 두었더니 폰 화면이 통째로 까매졌다(2026-09-18 실측 — 올리기 전에 잡았다).
+  // 그래서 손가락이 닿아 있는 동안에만 껍데기에 돌림(rotateY)을 걸고, 손을 떼면
+  // 다 지운다. 원근은 돌림 **안에**(perspective()) 넣어 바깥에 안 건다.
+  var drag = null;
+  var still = false;
+  try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  function paper() { return d.querySelector('[data-testid="stAppViewContainer"]'); }
+  function destination(dx) {
     var onWatch = !!d.querySelector('.j3b-home');
     var onMarket = !!d.querySelector('.j3-market-top');
-    var key = null, out = null;
-    if (dx < 0 && onWatch) { key = 'j3b_swipe_market'; out = 'j3b-swipe-out-left'; }
-    else if (dx > 0 && onMarket) { key = 'j3b_swipe_watch'; out = 'j3b-swipe-out-right'; }
-    if (!key) { return; }
-    var hit = findButton(key);
-    if (!hit) { return; }
-    fired = true;
-    live = false;
-    try { d.body.classList.add(out); } catch (e) {}
-    try { hit.click(); } catch (e) {}
-    setTimeout(function () {
-      try { d.body.classList.remove('j3b-swipe-out-left', 'j3b-swipe-out-right'); } catch (e) {}
-      fired = false;
-    }, 900);
+    if (dx < 0 && onWatch) { return { key: 'j3b_swipe_market', out: 'j3b-swipe-out-left' }; }
+    if (dx > 0 && onMarket) { return { key: 'j3b_swipe_watch', out: 'j3b-swipe-out-right' }; }
+    return null;
+  }
+  // 손가락 거리만큼 넘긴다. 화면 폭을 다 밀면 거의 모로 선다(95도).
+  // 왼쪽으로 밀면 **왼쪽 끝이 책등**, 오른쪽으로 밀면 오른쪽 끝이 책등이다.
+  function turn(box, sign, dist, width, animate) {
+    if (still) { return; }
+    var p = Math.max(0, Math.min(1, dist / width));
+    var deg = sign * p * 95;
+    box.style.transition = animate
+      ? 'transform .26s cubic-bezier(.3,.7,.3,1), opacity .26s ease, box-shadow .26s ease'
+      : 'none';
+    box.style.transformOrigin = sign < 0 ? '0% 50%' : '100% 50%';
+    box.style.transform = 'perspective(1100px) rotateY(' + deg.toFixed(2) + 'deg)';
+    box.style.opacity = String(1 - 0.55 * p);
+    // 넘어가는 쪽 가장자리에 그늘 — 종이가 들린 것처럼 보인다.
+    box.style.boxShadow = (sign < 0 ? '-' : '') + Math.round(40 * p) + 'px 0 '
+      + Math.round(60 * p) + 'px rgba(0,0,0,' + (0.55 * p).toFixed(2) + ')';
+  }
+  function clear(box) {
+    try {
+      box.style.transition = ''; box.style.transform = ''; box.style.transformOrigin = '';
+      box.style.opacity = ''; box.style.boxShadow = '';
+    } catch (e) {}
+  }
+  // 덜 넘기고 놓으면 제자리로 **넘어 돌아온다**. 다 돌아오면 건 것을 다 지운다.
+  function settle(box) {
+    if (still) { clear(box); return; }
+    box.style.transition = 'transform .24s cubic-bezier(.3,.7,.3,1), opacity .24s ease, box-shadow .24s ease';
+    box.style.transform = 'perspective(1100px) rotateY(0deg)';
+    box.style.opacity = '1';
+    box.style.boxShadow = 'none';
+    setTimeout(function () { clear(box); }, 300);
+  }
+  // 다음 화면이 실제로 도착하면(화면 표식이 바뀌면) 건 것을 지운다.
+  // 시간으로 지우면 서버가 늦는 날 옛 화면이 되살아났다가 바뀌어 번쩍인다.
+  function whenArrived(wasWatch, box) {
+    var t0 = Date.now();
+    (function check() {
+      var nowWatch = !!d.querySelector('.j3b-home');
+      var nowMarket = !!d.querySelector('.j3-market-top');
+      var arrived = wasWatch ? (nowMarket && !nowWatch) : (nowWatch && !nowMarket);
+      if (arrived || Date.now() - t0 > 8000) {
+        clear(box);
+        try { d.body.classList.remove('j3b-swipe-out-left', 'j3b-swipe-out-right'); } catch (e) {}
+        fired = false;
+        return;
+      }
+      setTimeout(check, 40);
+    })();
   }
   d.addEventListener('touchstart', function (ev) {
     if (fired) { return; }
+    drag = null;
     if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
     x0 = ev.touches[0].clientX;
     y0 = ev.touches[0].clientY;
@@ -11406,17 +11517,44 @@ _SWIPE_OUTER_JS = """
     live = true;
   }, { passive: true });
   d.addEventListener('touchmove', function (ev) {
-    if (!live || !ev.touches || ev.touches.length !== 1) { return; }
+    if (!live || fired || !ev.touches || ev.touches.length !== 1) { return; }
     var t = ev.touches[0];
-    tryGo(t.clientX - x0, t.clientY - y0);
+    var dx = t.clientX - x0, dy = t.clientY - y0;
+    if (!drag) {
+      if (Math.abs(dx) < 12) { return; }                              // 아직 어느 쪽인지 모른다
+      if (Math.abs(dx) < Math.abs(dy) * 1.5) { live = false; return; } // 위아래로 굴리는 손가락
+      var go = destination(dx);
+      var box = paper();
+      if (!go || !box || !findButton(go.key)) { live = false; return; }
+      drag = { box: box, go: go, sign: dx < 0 ? -1 : 1, t0: Date.now(),
+               width: Math.max(200, box.clientWidth) };
+    }
+    // 잡은 쪽과 반대로 끌면 0 에서 멈춘다(반대쪽 넘김은 없다).
+    var dist = Math.max(0, drag.sign * dx);
+    turn(drag.box, drag.sign, dist, drag.width, false);
   }, { passive: true });
-  d.addEventListener('touchend', function (ev) {
+  function release(ev, cancelled) {
     if (!live) { return; }
     live = false;
-    var t = (ev.changedTouches || [])[0];
-    if (!t) { return; }
-    tryGo(t.clientX - x0, t.clientY - y0);
-  }, { passive: true });
+    if (!drag) { return; }
+    var box = drag.box, go = drag.go, sign = drag.sign, width = drag.width;
+    var t = ((ev && ev.changedTouches) || [])[0];
+    var dist = t ? Math.max(0, sign * (t.clientX - x0)) : 0;
+    // 3분의 1 넘게 넘겼거나, 짧게 탁 튕겼으면 넘긴다.
+    var flick = (Date.now() - drag.t0) < 260 && dist > 50;
+    drag = null;
+    if (cancelled || !(dist >= width / 3 || flick)) { settle(box); return; }
+    var hit = findButton(go.key);
+    if (!hit) { settle(box); return; }
+    fired = true;
+    var wasWatch = !!d.querySelector('.j3b-home');
+    turn(box, sign, width, width, true);                 // 끝까지 넘긴다
+    try { d.body.classList.add(go.out); } catch (e) {}
+    try { hit.click(); } catch (e) {}                    // 서버는 넘기는 동안 같이 돈다
+    whenArrived(wasWatch, box);
+  }
+  d.addEventListener('touchend', function (ev) { release(ev, false); }, { passive: true });
+  d.addEventListener('touchcancel', function (ev) { release(ev, true); }, { passive: true });
 })();
 """
 
@@ -11486,22 +11624,23 @@ def _briefing_swipe_buttons() -> None:
         "div[class*='st-key-j3b_swipe_']{position:absolute!important;"
         "width:1px!important;height:1px!important;margin:0!important;padding:0!important;"
         "overflow:hidden!important;opacity:0!important;pointer-events:none!important}"
-        "[data-testid='stAppViewContainer']{transition:transform .15s cubic-bezier(.22,.61,.36,1),"
-        "opacity .15s ease}"
-        "body.j3b-swipe-out-left [data-testid='stAppViewContainer']"
-        "{transform:translateX(-13%);opacity:.34}"
-        "body.j3b-swipe-out-right [data-testid='stAppViewContainer']"
-        "{transform:translateX(13%);opacity:.34}"
-        "@keyframes j3bInFromRight{from{transform:translateX(15%);opacity:0}to{transform:none;opacity:1}}"
-        "@keyframes j3bInFromLeft{from{transform:translateX(-15%);opacity:0}to{transform:none;opacity:1}}"
+        # ── 들어오는 화면 (2026-09-18 상하님 지시 — 만화책 넘기듯) ─────────────
+        # 나가는 화면은 손가락이 직접 넘긴다(위 _SWIPE_OUTER_JS). 여기는 **넘긴 뒤
+        # 새 화면이 펴지는 모양**만 둔다 — 넘긴 종이 밑에 있던 쪽이 책등에서 펴진다.
+        # **가만히 있을 때는 아무것도 안 건다.** 원근(perspective)이나 입체
+        # (preserve-3d)를 화면 껍데기에 늘 걸어 두면 폰 화면이 통째로 까매진다
+        # (2026-09-18 실측). 원근은 돌림 안(perspective())에만 넣고, 끝은 none 이다.
+        "@keyframes j3bTurnInFromRight{from{transform-origin:100% 50%;"
+        "transform:perspective(1100px) rotateY(38deg);opacity:0}"
+        "to{transform-origin:100% 50%;transform:none;opacity:1}}"
+        "@keyframes j3bTurnInFromLeft{from{transform-origin:0% 50%;"
+        "transform:perspective(1100px) rotateY(-38deg);opacity:0}"
+        "to{transform-origin:0% 50%;transform:none;opacity:1}}"
         "body:has(.j3b-in-right) [data-testid='stAppViewContainer']"
-        "{animation:j3bInFromRight .2s cubic-bezier(.22,.61,.36,1) both}"
+        "{animation:j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) both}"
         "body:has(.j3b-in-left) [data-testid='stAppViewContainer']"
-        "{animation:j3bInFromLeft .2s cubic-bezier(.22,.61,.36,1) both}"
+        "{animation:j3bTurnInFromLeft .34s cubic-bezier(.22,.61,.36,1) both}"
         "@media (prefers-reduced-motion:reduce){"
-        "[data-testid='stAppViewContainer']{transition:none}"
-        "body.j3b-swipe-out-left [data-testid='stAppViewContainer'],"
-        "body.j3b-swipe-out-right [data-testid='stAppViewContainer']{transform:none;opacity:1}"
         "body:has(.j3b-in-right) [data-testid='stAppViewContainer'],"
         "body:has(.j3b-in-left) [data-testid='stAppViewContainer']{animation:none}}"
         "</style>",

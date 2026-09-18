@@ -902,3 +902,66 @@ def test_a_fresh_database_still_gets_the_default_stocks(monkeypatch):
     assert [row["ticker"] for row in store.all_stocks()["selected"]][:2] == ["NVDA", "TSLA"]
     store.ensure_default_extras()
     assert [row["ticker"] for row in store.extra_stocks()] == [t for t, _n in store.DEFAULT_EXTRAS]
+
+
+# ── 2026-09-18 상하님 지시 세 가지 ──────────────────────────────────────────────
+_J3_PAGE = Path(__file__).parent / "pages" / "2_자비스3.py"
+
+
+def _j3_source() -> str:
+    return _J3_PAGE.read_text(encoding="utf-8")
+
+
+def test_swiping_turns_the_page_with_the_finger():
+    """만화책 넘기듯 — 종이가 **손가락을 따라** 넘어가고, 덜 넘기면 제자리로 온다.
+
+    상하님이 보여 주신 영상(네이버 시리즈 「책 넘김」)과 같게 한다. 예전 것은 60px 를
+    밀면 그 자리에서 한 번 휙 넘어갔다.
+    """
+    js = _j3_source().split('_SWIPE_OUTER_JS = """', 1)[1].split('"""', 1)[0]
+    assert "rotateY(" in js, "종이가 돌아가지 않는다"
+    assert "perspective(" in js, "원근이 없으면 종이가 납작하게 찌부러진다"
+    assert "function settle(" in js, "덜 넘기고 놓으면 제자리로 돌아와야 한다"
+    assert "function whenArrived(" in js, "다음 화면이 온 뒤에 건 것을 지워야 한다"
+    assert "touchcancel" in js
+    # 표를 옆으로 미는 손가락은 표가 쓰게 둔다(2026-09-10) — 그대로 남아 있어야 한다.
+    assert "sideways(ev.target)" in js
+
+
+def test_nothing_3d_is_left_on_the_screen_while_resting():
+    """**가만히 있을 때 원근·입체를 걸면 폰 화면이 통째로 까매진다** (2026-09-18 실측).
+
+    그것을 올리기 전에 잡았다. 화면 껍데기에 늘 거는 perspective·preserve-3d 가
+    다시 들어오면 안 된다 — 원근은 돌림 안(perspective())에만 넣는다.
+    """
+    code = "\n".join(line for line in _j3_source().splitlines()
+                     if not line.lstrip().startswith("#"))
+    assert "preserve-3d" not in code, "입체를 늘 걸면 폰 화면이 까매진다"
+    assert "body{perspective" not in code, "body 에 원근을 걸면 폰 화면이 까매진다"
+
+
+def test_the_theme_help_is_hidden_from_guests_but_the_korea_link_stays():
+    """게스트는 「이 테마 설명」을 못 본다. 「🌏 한국테마 →」 단추는 남는다."""
+    source = _j3_source()
+    assert 'method_help.render(st, "US", show_help=not auth.is_guest())' in source
+    import method_help
+    import inspect
+    body = inspect.getsource(method_help.render)
+    assert body.index("cross_link(st, market)") < body.index("if not show_help:"), \
+        "건너가기 단추보다 먼저 돌아가면 게스트가 한국테마로 못 간다"
+
+
+def test_the_theme_help_pops_up_without_touching_transform():
+    """창은 튀어 오르고 뒤는 흐려진다. **transform 은 안 건드린다** — 스트림릿이
+    창 자리를 그것으로 잡아서, 손대면 창이 옆으로 튄다(실측 matrix(1,0,0,1,8,8))."""
+    source = _j3_source()
+    assert "@keyframes j3HelpPop { from { scale: .90; opacity: 0; }" in source
+    block = source.split("@keyframes j3HelpPop", 1)[1].split("}", 2)[0]
+    assert "transform" not in block
+
+
+def test_the_two_week_price_button_is_a_soft_rainbow():
+    source = _j3_source()
+    rule = source.split('div[class*="st-key-btn_j3_daily_prices_"] button,', 1)[1][:600]
+    for color in ("255,107,107", "255,183,77", "129,199,132", "79,172,254", "186,148,250"):
+        assert color in rule, f"무지개 색 {color} 가 빠졌다"

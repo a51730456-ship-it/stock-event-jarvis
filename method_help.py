@@ -29,7 +29,7 @@ if int(getattr(image_zoom, "MODULE_REVISION", 0)) < _REQUIRED_IMAGE_ZOOM_REVISIO
     image_zoom = importlib.reload(image_zoom)
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026090710
+MODULE_REVISION = 2026091810
 
 BUTTON_LABEL = "📘 이 테마 설명"
 
@@ -758,8 +758,13 @@ def cross_link(st, market: str) -> None:
         pass
 
 
-def render(st, market: str) -> None:
-    """맨 왼쪽에 건너가기 단추, 오른쪽에 설명 단추를 놓는다. market은 'US' 또는 'KR'."""
+def render(st, market: str, *, show_help: bool = True) -> None:
+    """맨 왼쪽에 건너가기 단추, 오른쪽에 설명 단추를 놓는다. market은 'US' 또는 'KR'.
+
+    `show_help=False` 면 **설명 단추만 안 그린다** — 건너가기 단추는 그대로 둔다
+    (2026-09-18 상하님 지시 "게스트 화면에서는 볼 수 없게"). 기본값은 True 라
+    이 값을 안 주는 화면들은 지금까지와 한 글자도 다르지 않다.
+    """
     st.markdown(BUTTON_CSS, unsafe_allow_html=True)
     # 두 단추를 한 줄에 둔다. st.columns가 아니라 가로 칸을 쓰는 까닭은, 설명 창
     # 안에서 다시 st.columns(창닫기 자리)를 쓰기 때문이다 — 칸 안의 칸은 깊이
@@ -767,6 +772,10 @@ def render(st, market: str) -> None:
     row = st.container(horizontal=True, key="jarvis_method_help_row")
     with row:
         cross_link(st, market)
+        if not show_help:
+            # 건너가기 단추만 남기고 돌아간다. 설명 창은 아예 안 만든다 —
+            # 안 만들면 화면에 실리지도 않는다(숨기는 것보다 가볍고 확실하다).
+            return
         box = st.container(key="jarvis_method_help")
     with box:
         # key·on_change를 줘야 열림 상태가 session_state에 담긴다 — '창닫기'가
