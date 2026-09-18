@@ -348,3 +348,33 @@ class TodaysCardActuallyAppearsTests(unittest.TestCase):
         self.assertIn("verdict", line)
         fields = __import__("us_market_signal_engine").UsSignalResult.__dataclass_fields__
         self.assertIn("verdict", fields)
+
+
+class TheTopBoxHoldsTheLastClosedSessionTests(unittest.TestCase):
+    """위 칸은 **장이 열려야** 다음 장으로 넘어간다 (2026-09-18 상하님 지시).
+
+    상하님 — *"장 시작 시 열고, 장 종료 시 당일 마감하고, 그게 다음날 장 시작 시
+    전일로 넘어가면 되지 않냐?"*
+
+    여태는 마감 종이 울리는 순간 위 칸이 다음 장으로 넘어갔다(2026-08-26 지시).
+    다음 장은 열일곱 시간 뒤에나 열리니 그 사이 위 칸에 담을 것이 없어 「자료 부족」
+    으로 섰고 바늘도 없었다 — 상하님이 보시는 한국 아침이 그 시간대다.
+    """
+
+    def test_the_switch_waits_for_the_opening_bell(self):
+        import pathlib
+        source = (pathlib.Path(__file__).parent / "market_signal_ui.py").read_text(encoding="utf-8")
+        line = next(x for x in source.splitlines() if "live_usable =" in x)
+        self.assertIn("session_open", line,
+                      "장이 열리기 전에 위 칸이 다음 장으로 넘어간다 — 담을 값이 없다")
+
+    def test_the_closed_box_is_still_called_today(self):
+        """칸 이름은 「당일」 그대로다 — 상하님이 그대로 두라고 하셨다."""
+        import pathlib
+        source = (pathlib.Path(__file__).parent / "market_signal_ui.py").read_text(encoding="utf-8")
+        line = next(x for x in source.splitlines()
+                    if "current_label_text = " in x and "(마감)" in x)
+        self.assertIn("당일", line, "마감된 칸 이름이 「당일」이 아니다")
+        # 옛 이름은 **글자로 찍히는 자리**에서만 없으면 된다(주석에는 남아 있어도 된다).
+        self.assertNotIn('current_label_text = f"직전 미국장', source,
+                         "옛 이름이 남아 있으면 같은 칸을 두 이름으로 부른다")
