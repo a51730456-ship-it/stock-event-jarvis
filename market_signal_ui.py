@@ -41,7 +41,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026091740
+MODULE_REVISION = 2026091810
 
 
 def _now_seoul():
@@ -1107,8 +1107,27 @@ def _verdict_needle_position(verdict, verdict_order, result=None) -> float | Non
         if (result is not None
                 and isinstance(verdict, us_market_signal_engine.UsMarketVerdict)):
             balance = _signal_balance(result)
-            # 읽은 신호에 켜짐·반대가 하나도 없으면 가리킬 곳이 없다 — 예전처럼 바늘 없음.
-            return None if balance is None else 10 + 80 * float(balance)
+            if balance is not None:
+                return 10 + 80 * float(balance)
+            # **읽은 것이 전부 「보합」인 날에도 바늘을 세운다** (2026-09-18 상하님 지적
+            # — "당일 바늘 없고 자료 데이터 부족으로 뜨는 건 해결을 못 한 것 아니냐").
+            #
+            # 2026-09-17 에 넣은 위 줄은 **켜짐이나 반대가 하나라도 있을 때만** 바늘을
+            # 세웠다. 그래서 그 다음 날 아침(09.18 개장 전)에 또 바늘이 없었다 —
+            # 그날 읽힌 8개가 나스닥100 선물 -0.17% · SOXX -0.09% 처럼 **전부 보합**이라
+            # 켜짐 0 · 반대 0 이었기 때문이다(온라인 실화면에서 확인).
+            #
+            # 보합은 '못 읽었다'가 아니라 **'어느 쪽도 아니다'**이다. 그러니 가리킬
+            # 곳이 있다 — 한가운데다. 판정 단계가 있는 날에도 켜짐·반대가 없으면 이
+            # 함수는 이미 그 단계의 한가운데를 가리킨다(아래 `low + step * 0.5`).
+            # 같은 규칙을 단계가 없는 날에도 그대로 쓴다 — 새 규칙이 아니다.
+            #
+            # **하나도 못 읽은 날은 예전처럼 바늘이 없다** — 그때는 가리킬 근거가
+            # 정말로 없다. 바늘 밑 글자는 어느 쪽이든 「자료 부족」 그대로다.
+            known = [signal for signal
+                     in market_signal_common.counted_signals(result.signals)
+                     if not signal.is_unknown]
+            return 50.0 if known else None
         return None
     step = 100 / len(tuple(verdict_order))
     low = step * (stage - 1)

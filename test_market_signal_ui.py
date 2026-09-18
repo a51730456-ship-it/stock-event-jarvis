@@ -912,6 +912,36 @@ class UsPreviousDayLagAndNeedleTests(unittest.TestCase):
         self.assertIsNotNone(score, "데이터 부족이어도 바늘이 있어야 한다")
         self.assertTrue(10 <= score <= 90)
 
+    def test_a_day_where_everything_read_is_flat_still_has_a_needle(self):
+        """읽은 것이 **전부 보합**인 아침에도 바늘이 있어야 한다 (2026-09-18 상하님 지적).
+
+        9/17 에 넣은 것은 **켜짐이나 반대가 하나라도 있을 때만** 바늘을 세웠다.
+        그래서 다음 날 아침(09.18 개장 전)에 또 바늘이 없었다 — 나스닥100 선물
+        -0.17% · SOXX -0.09% 처럼 읽힌 8개가 전부 보합이라 켜짐 0 · 반대 0 이었다
+        (온라인 실화면에서 확인). 보합은 '못 읽었다'가 아니라 '어느 쪽도 아니다'다.
+        """
+        import us_market_signal_engine as us
+
+        result = us.build_us_market_signal_result({
+            "NQ=F": {"change_pct": -0.17}, "ES=F": {"change_pct": -0.05},
+            "SOXX": {"change_pct": -0.09},
+        })
+        self.assertEqual(result.verdict, us.UsMarketVerdict.INSUFFICIENT_DATA)
+        self.assertIsNone(ui._signal_balance(result), "이 날은 켜짐도 반대도 없어야 한다")
+        score = ui._verdict_needle_position(result.verdict, ui.US_VERDICT_ORDER, result)
+        self.assertIsNotNone(score, "전부 보합인 날에 바늘이 또 사라졌다")
+        self.assertAlmostEqual(50.0, score, msg="어느 쪽도 아니면 한가운데를 가리킨다")
+
+    def test_a_day_with_nothing_read_has_no_needle(self):
+        """하나도 못 읽은 날은 가리킬 근거가 없다 — 예전처럼 바늘 없음."""
+        import us_market_signal_engine as us
+
+        result = us.build_us_market_signal_result({})
+        self.assertEqual(result.verdict, us.UsMarketVerdict.INSUFFICIENT_DATA)
+        self.assertIsNone(
+            ui._verdict_needle_position(result.verdict, ui.US_VERDICT_ORDER, result),
+            "못 읽었는데 바늘을 세우면 화면이 거짓말을 한다")
+
     def test_korean_card_needle_is_unchanged(self):
         import kr_intraday_flow
 
