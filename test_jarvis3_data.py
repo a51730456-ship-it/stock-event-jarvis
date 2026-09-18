@@ -1768,6 +1768,82 @@ class BreakoutWarmUpUsesNoNetworkTests(unittest.TestCase):
         self.assertEqual(0.0, j3._BREAKOUT_WARM["at"], "빈손인데 해 뒀다고 적었다")
 
 
+class TheScreenMakesTheSwingListUpFrontTests(unittest.TestCase):
+    """상승장을 **뒤가 아니라 앞줄에서** 만든다 (2026-09-18 상하님 지시 「가」).
+
+    상하님 물음 — *"22개 테마는 비슷한 구조이고 더 오래 걸려야 되는데 왜 더
+    빠르냐?"* 22개 테마는 화면 그리는 길에서 이미 계산을 끝내 두고, 단추는 그
+    표를 펴 보이기만 한다. 상승장만 뒤 일꾼에게 시켜서, 일꾼이 한둘인 온라인에서
+    화면과 코어를 나눠 쓰고 그 도중에 누르면 기다리게 되어 있었다.
+
+    이 시험이 지키는 것은 둘이다 — ① 화면이 **그 자리에서** 만든다(뒤 일꾼이
+    아니다) ② 그러면서도 **네트워크는 안 쓴다**(공책이 비면 빈손으로 돌아간다).
+    ②가 깨지면 화면이 조회를 기다려 상하님이 그만큼 더 기다리신다(CLAUDE.md 0-0).
+    """
+
+    PAGE = pathlib.Path("pages/2_자비스3.py")
+
+    def setUp(self):
+        j3.clear_runtime_cache()
+        self._real_finder = j3.find_breakout_pullback_stocks
+        j3._BREAKOUT_WARM["at"] = 0.0
+        j3._BREAKOUT_WARM["on"] = False
+
+    def tearDown(self):
+        j3.find_breakout_pullback_stocks = self._real_finder
+        j3._BREAKOUT_WARM["at"] = 0.0
+        j3._BREAKOUT_WARM["on"] = False
+        j3.clear_runtime_cache()
+
+    def test_it_runs_here_and_now_not_in_a_thread(self):
+        """부르고 돌아왔을 때 **이미 끝나 있어야** 한다 — 기다릴 것이 없다."""
+        calls = []
+        j3.find_breakout_pullback_stocks = lambda **kwargs: (
+            calls.append(kwargs) or {"ok": True, "rows": [{"ticker": "AAA"}]})
+        j3.prepare_breakout_scan()
+        self.assertEqual(1, len(calls), "그 자리에서 안 만들었다 — 뒤 일꾼에게 넘겼다")
+        self.assertTrue(calls[0].get("reuse_only"),
+                        "공책에 없으면 새로 받아 온다 — 화면이 조회를 기다린다")
+
+    def test_the_button_then_finds_it_ready(self):
+        """앞줄에서 만들어 둔 것을 단추가 그대로 쓴다 — 첫 클릭이 그 자리에서 끝난다."""
+        calls = []
+        j3.find_breakout_pullback_stocks = lambda **_k: (
+            calls.append(1) or {"ok": True, "rows": [{"ticker": "AAA"}]})
+        j3._save_swing_scan_in_background = lambda scan: None
+        j3.prepare_breakout_scan()
+        j3.breakout_scan()
+        self.assertEqual(1, len(calls), "단추가 만들어 둔 것을 안 봤다")
+
+    def test_an_empty_notebook_costs_nothing_and_is_not_remembered(self):
+        """공책이 비면 빈손으로 바로 돌아간다 — 화면을 붙잡지 않는다."""
+        j3.find_breakout_pullback_stocks = lambda **_k: {
+            "ok": False, "error": "재사용할 일봉 배치가 없습니다", "rows": []}
+        started = time.time()
+        j3.prepare_breakout_scan()
+        self.assertLess(time.time() - started, 2.0, "빈 공책인데 화면을 붙잡았다")
+        self.assertEqual(0.0, j3._BREAKOUT_WARM["at"], "빈손인데 해 뒀다고 적었다")
+
+    def test_it_does_not_run_twice_within_five_minutes(self):
+        calls = []
+        j3.find_breakout_pullback_stocks = lambda **_k: (
+            calls.append(1) or {"ok": True, "rows": []})
+        j3.prepare_breakout_scan()
+        j3.prepare_breakout_scan()
+        self.assertEqual(1, len(calls), "판마다 다시 계산한다")
+
+    def test_the_screen_prefers_the_up_front_one(self):
+        source = self.PAGE.read_text(encoding="utf-8")
+        helper = source[source.index("def _warm_finders()"):]
+        helper = helper[:helper.index(chr(10) + "def ", 10)]
+        self.assertIn("prepare_breakout_scan", helper,
+                      "화면이 아직 뒤 일꾼에게 시킨다")
+        # 옛 모듈이 프로세스에 남았을 때 물러설 자리는 남겨 둔다(CLAUDE.md 11).
+        self.assertIn("warm_breakout_scan", helper, "옛 모듈일 때 물러설 자리가 없다")
+        self.assertIn("getattr(j3data", helper)
+        self.assertIn("except Exception", helper)
+
+
 class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
     """관심종목 카드는 **마지막으로 끝난 장**을 적어야 한다 (2026-08-29 상하님 지적).
 

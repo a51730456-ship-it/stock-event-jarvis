@@ -4587,6 +4587,61 @@ def warm_breakout_scan() -> None:
             _BREAKOUT_WARM["on"] = False
 
 
+def prepare_breakout_scan() -> None:
+    """상승장 한 벌을 **화면 그리는 그 자리에서** 만들어 둔다 (2026-09-18 상하님 지시).
+
+    상하님 물음 — *"22개 테마는 비슷한 구조이고 더 오래 걸려야 되는데 왜 더
+    빠르냐?"* 그리고 답을 들으신 뒤 — *"가로 해라."*
+
+    **까닭 — 22개 테마는 단추를 누르기 전에 이미 계산이 끝나 있다.**
+    `_compute_theme_rankings` 가 화면 그리는 길에서 249종목 2년치를 받아 테마
+    22개를 다 계산해 둔다(노트북 실측 11.26초, 공책이 따뜻하면 0.63초). 그래서
+    「22개 테마」 단추는 이미 만들어 둔 표를 펴 보이기만 한다 — 온라인 실측 1.3초.
+
+    상승장은 그 계산을 **뒤 일꾼**(`warm_breakout_scan`)에게 시켰다. 온라인은
+    일꾼이 한둘이라 그 뒤 일꾼이 화면 그리는 몫을 나눠 갖고, 그 도중에 단추를
+    누르면 `_memo_ok` 가 끝나기를 기다린다(최대 `MEMO_WAIT_SECONDS` = 90초).
+    상하님이 "첫 로딩이 너무 길다"고 하신 자리가 여기다.
+
+    **이 함수는 그 일을 뒤가 아니라 앞줄에서 한다** — 22개 테마와 같은 방식이다.
+    화면은 그만큼(노트북 실측 0.70~1.08초) 늦게 그려지고, 그 대신 단추를 누르면
+    이미 만들어 둔 것이 바로 나온다. 기다림이 없어지는 것이 아니라 단추 뒤에서
+    화면 여는 쪽으로 **옮겨 가는** 것이다.
+
+    **네트워크는 한 번도 안 쓴다**(`reuse_only=True` → `_download_cache_only` 는
+    앱 기억만 읽고 파일도 인터넷도 안 본다). 공책이 비었으면 그 자리에서 빈손으로
+    돌아가므로 화면이 조회를 기다리는 일이 없다(CLAUDE.md 0-0 — 새로 넣는 것이
+    무엇을 밀어내는지 먼저 잰다). 시험에서도 기억이 비어 있어 **0초로 지나간다.**
+
+    **`warm_breakout_scan` 은 안 지운다.** 관심종목 화면(`_warm_after_news`)처럼
+    뒤에서 해야 옳은 자리가 따로 있고, 옛 모듈이 프로세스에 남았을 때 화면이
+    물러설 자리이기도 하다(CLAUDE.md 11).
+
+    자물쇠와 5분 제한은 뒤 일꾼과 **같은 것**을 쓴다 — 둘이 같은 계산을 두 벌
+    돌리지 않게 한다.
+    """
+    now = time.time()
+    with _BREAKOUT_WARM_LOCK:
+        if _BREAKOUT_WARM["on"]:
+            return                      # 뒤 일꾼이 이미 하고 있다
+        if now - _BREAKOUT_WARM["at"] < TOP_PICK_MEMO_SECONDS:
+            return                      # 방금 해 뒀다. 또 하지 않는다.
+        _BREAKOUT_WARM["on"] = True
+    try:
+        scan = _memo_ok(
+            _finder_memo_key("상승장"), TOP_PICK_MEMO_SECONDS,
+            lambda: find_breakout_pullback_stocks(reuse_only=True))
+        if isinstance(scan, dict) and scan.get("ok"):
+            with _BREAKOUT_WARM_LOCK:
+                _BREAKOUT_WARM["at"] = time.time()
+    except Exception as exc:
+        # 실패해도 화면은 그대로 돈다 — 그때는 예전처럼 단추가 그 자리에서 만든다.
+        _log.warning("breakout prepare failed: %s", exc)
+    finally:
+        with _BREAKOUT_WARM_LOCK:
+            _BREAKOUT_WARM["on"] = False
+
+
 def _theme_rows_mark(theme_rows, market_score) -> str:
     """테마 줄이 그대로인지 알아보는 표식. 하나라도 바뀌면 새로 계산한다."""
     parts = [f"{row.get('name')}:{round(float(row.get('score') or 0), 4)}"
