@@ -919,8 +919,7 @@ def test_swiping_turns_the_page_with_the_finger():
     밀면 그 자리에서 한 번 휙 넘어갔다.
     """
     js = _j3_source().split('_SWIPE_OUTER_JS = """', 1)[1].split('"""', 1)[0]
-    assert "rotateY(" in js, "종이가 돌아가지 않는다"
-    assert "perspective(" in js, "원근이 없으면 종이가 납작하게 찌부러진다"
+    assert "function place(" in js, "종이가 손가락을 따라가지 않는다"
     assert "function settle(" in js, "덜 넘기고 놓으면 제자리로 돌아와야 한다"
     assert "function whenArrived(" in js, "다음 화면이 온 뒤에 건 것을 지워야 한다"
     assert "touchcancel" in js
@@ -987,14 +986,14 @@ def test_a_page_reached_by_swiping_can_be_swiped_again():
     """넘겨서 들어온 화면도 **다시 넘어가 보여야** 한다 (2026-09-18 상하님 —
     "한 번 되고 안 된다. 그리고 계속 로딩을 하더라").
 
-    들어올 때 쓴 움직임을 both 로 두면 끝난 뒤에도 마지막 모양을 붙들고 있어서,
-    손가락이 거는 돌림을 덮었다. 실측(온라인 · 네 번 연달아) — 1번째 51도,
-    2·3·4번째 0도. backwards 로 두면 끝나고 놓는다.
+    그때는 들어오는 화면에 건 움직임(both)이 끝난 뒤에도 모양을 붙들고 있어 손가락이
+    거는 돌림을 덮었다. 2026-09-19 부터는 **진짜 화면을 아예 안 움직인다** — 넘기는
+    모양은 위에 얹는 조각이 다 만든다. 들어오는 화면에 거는 움직임도 없다.
     """
     source = _j3_source()
-    assert "{animation:j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) backwards}" in source
-    assert "{animation:j3bTurnInFromLeft .34s cubic-bezier(.22,.61,.36,1) backwards}" in source
-    assert "j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) both" not in source
+    assert "j3bTurnIn" not in source
+    js = _swipe_js()
+    assert "box.style.transform" not in js and "paper()" not in js
 
 
 def _swipe_js() -> str:
@@ -1010,9 +1009,8 @@ def test_the_next_page_lies_under_the_turning_page():
     """
     js = _swipe_js()
     assert "attachShadow" in js, "사진은 그림자 칸 안에 둔다 — 두 화면 규칙이 섞이면 안 된다"
-    assert "function capture(" in js and "function showSnap(" in js
-    assert "drag.snap = still ? false : showSnap(go.to, box);" in js, \
-        "손가락이 잡히는 그 순간에 깔아야 한다"
+    assert "function capture(" in js and "function showUnder(" in js
+    assert "drag.snap = showUnder(go.to);" in js, "손가락이 잡히는 그 순간에 깔아야 한다"
     # 사진 규칙은 **뜰 때 그 화면의 것**을 같이 떠 둔다(시장분석 사진이 하얗게 나왔다).
     assert "SNAP[sname] = { node: top, v: snapV, css: css };" in js
     # 진짜 화면에서 숨은 칸은 사진에서도 숨긴다(사진이 168px 아래로 밀렸다).
@@ -1038,24 +1036,31 @@ def test_starting_a_swipe_does_not_mark_the_whole_page():
     """넘기기 시작하는 순간 body 에 표시를 붙이지 않는다 (2026-09-19 실측).
 
     body·껍데기에 표시를 붙이거나 떼면 폰이 화면 칸 1,400개를 전부 다시 따져서, 느린
-    폰 기준 한 번 80~100ms 멈칫했다. 흐림은 하단 막대에만 직접 끈다.
+    폰 기준 한 번 80~100ms 멈칫했다. 문서에 무엇을 새로 붙이는 것도 같아서, 말린
+    종이 조각·빈 종이는 조용할 때 미리 만들어 둔다(첫 넘김 245ms → 0).
     """
     js = _swipe_js()
     move = js.split("function onMove(ev)", 1)[1].split("function release(", 1)[0]
     assert "classList" not in move, "손가락이 움직이는 동안 표시를 붙이면 멈칫한다"
-    assert "nav.style.backdropFilter = 'none'" in move
+    assert "appendChild" not in move
+    idle = js.split("function idle()", 1)[1].split("\n  }", 1)[0]
+    assert "curlParts(); blankLayer();" in idle
     assert "j3-turning" not in _j3_source()
 
 
-def test_the_page_edge_follows_the_finger_and_folds_inward():
-    """종이 끝이 민 거리만큼 물러난다 — 화면 안쪽으로 넘어가서 밑의 쪽이 바로 드러난다.
+def test_the_page_curls_toward_the_viewer_under_the_finger():
+    """종이가 **앞으로 말려** 넘어간다 (2026-09-19 상하님 — "뒤로 넘기는 것 보기 안
+    좋다. 앞으로 종이 말리듯이 해 달라고! 유튜브까지 내가 보여 줬는데").
 
-    예전에는 종이 끝이 보는 사람 쪽으로 들려 오며 커져서 3분의 1을 넘길 때까지 화면을
-    다 덮었다(실측 — 28도에서 종이 폭 410px). 실측(고친 뒤) — 80px 밀면 76px 드러남.
+    종이 끝은 손가락을 그대로 따라가고(민 만큼), 접힌 선은 끝과 원래 자리의 한가운데다.
+    넘어온 종이의 뒷면(말린 빛)이 보이고, 접힌 선 너머로 다음 쪽이 보인다.
     """
     js = _swipe_js()
-    assert "function angleFor(" in js
-    assert "rotateY(' + (-sign * deg).toFixed(2) + 'deg)'" in js
+    assert "edge = W - dist; fold = W - dist / 2;" in js
+    assert "edge = dist; fold = dist / 2;" in js
+    assert "function showCurl(" in js and "function hideCurl(" in js
+    # 넘기는 동안 진짜 화면은 돌리지 않는다(돌림·원근 없음).
+    assert "rotateY(" not in js and "perspective(" not in js
 
 
 def test_a_swipe_is_not_lost_when_the_touched_spot_is_redrawn():
@@ -1069,7 +1074,7 @@ def test_a_swipe_is_not_lost_when_the_touched_spot_is_redrawn():
     assert "hook(ev.target);" in js
     assert "node.addEventListener('touchend', onEnd" in js
     assert "function firstTime(ev)" in js
-    assert "if (drag) { var old = drag; drag = null; hideSnap(); clear(old.box); }" in js
+    assert "if (drag) { drag = null; hideCurl(); hideSnap(); }" in js
 
 
 def test_the_swipe_marker_takes_no_room():

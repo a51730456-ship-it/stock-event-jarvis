@@ -11602,14 +11602,13 @@ _SWIPE_OUTER_JS = """
   // 따라 넘어가고**, 반쯤 넘긴 채로 멈출 수도 있고, 덜 넘기고 놓으면 제자리로
   // 돌아간다. 예전 것은 60px 를 밀면 그 자리에서 한 번 휙 넘어갔다.
   //
-  // **가만히 있을 때는 아무것도 안 건다.** 화면 껍데기에 원근·입체를 늘 걸어
-  // 두었더니 폰 화면이 통째로 까매졌다(2026-09-18 실측 — 올리기 전에 잡았다).
-  // 그래서 손가락이 닿아 있는 동안에만 껍데기에 돌림(rotateY)을 걸고, 손을 떼면
-  // 다 지운다. 원근은 돌림 **안에**(perspective()) 넣어 바깥에 안 건다.
+  // **진짜 화면(종이)은 한 번도 돌리거나 옮기지 않는다** (2026-09-19). 넘기는 모양은
+  // 그 위에 얹는 몇 장(다음 쪽 사진 · 말린 종이 뒷면 · 그늘)이 다 만든다 — 아래
+  // 「앞으로 말려 넘어가는 종이」. 화면 껍데기에 원근·입체를 걸면 폰 화면이 통째로
+  // 까매진 적이 있고(2026-09-18), 껍데기에 표시를 붙이면 한 번 멈칫했다(2026-09-19).
   var drag = null;
   var still = false;
   try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
-  function paper() { return d.querySelector('[data-testid="stAppViewContainer"]'); }
   // 지금 어느 화면인가 — 관심종목(watch) · 시장분석(market) · 홈(home = 앱 첫 화면
   // 「어디로 갈까요」). **바깥 화면만 본다** — 아래 사진은 그림자 칸(shadow) 안에
   // 있어서 querySelector 에 안 걸린다. 사진이 판정을 흐리지 않는다.
@@ -11634,9 +11633,9 @@ _SWIPE_OUTER_JS = """
   // "페이지 넘기는 것처럼 화면은 되는데 그다음 로딩을 해 버리니 답답하다."
   //
   // 다음 화면은 서버가 그려 보내기 전에는 폰에 없다. 그래서 **한 번 본 화면을 사진처럼
-  // 떠 둔다**(DOM 을 통째로 베낀 조각). 넘기기 시작하면 그 사진을 **종이 밑**에 깔고,
-  // 손을 떼면 서버가 진짜 화면을 그리는 동안 사진이 그 자리를 지킨다. 진짜가 다 오면
-  // 살짝 겹쳐 바꿔 끼운다. 서버에는 한 번도 더 안 묻는다.
+  // 떠 둔다**(DOM 을 통째로 베낀 조각). 넘기기 시작하면 그 사진을 접힌 선 너머에
+  // 보이게 얹고, 손을 떼면 서버가 진짜 화면을 그리는 동안 사진이 화면을 덮고 있다.
+  // 진짜가 다 오면 사진을 걷어 낸다. 서버에는 한 번도 더 안 묻는다.
   //
   // **사진은 그림자 칸(shadow DOM) 안에 둔다.** 두 화면의 모양이 「이 화면인가」 표식
   // (body:has(.j3b-home) · body:has(.j3-market-top))에 115개 규칙이 기대고 있어서,
@@ -11644,12 +11643,10 @@ _SWIPE_OUTER_JS = """
   // 들어오고 안의 표식도 바깥에서 안 보인다. 규칙은 한 벌 베껴 넣되 body 를 칸 안의
   // 껍데기(.j3snap-body)로 바꿔 적는다.
   //
-  // **바탕과 종이 사이에 끼운다.** 바탕색은 맨 바깥 껍데기(stApp)가 칠하고 종이
-  // (stAppViewContainer)는 투명하다(2026-09-18 실측). 사진 칸을 z-index 0, 넘기는
-  // 동안만 종이를 z-index 1 로 올리면 사진이 그 사이에 선다. 가만히 있을 때는 아무것도
-  // 안 건다(사진 칸도 안 보이게 숨겨 둔다).
+  // 가만히 있을 때 사진 칸은 투명하게, 바탕 뒤(z-index -1)에 숨어 있다. 넘기는 동안만
+  // 하단 막대와 같은 층으로 올린다.
   //
-  // 한 번도 안 본 화면은 사진이 없다 — 그때는 예전처럼 넘긴 뒤 진짜 화면을 기다린다.
+  // 한 번도 안 본 화면은 사진이 없다 — 그때는 바탕색만 칠한 빈 종이를 대신 깐다.
   // 다음에 앱을 열었을 때도 첫 넘김부터 되게, 사진을 폰 저장소에 판 표시와 함께 둔다
   // (판이 바뀌면 옛 사진은 안 쓴다 — 모양이 달라졌을 수 있다).
   var SNAP = {}, lastCap = {}, lastSave = {};
@@ -11853,17 +11850,50 @@ _SWIPE_OUTER_JS = """
       return true;
     } catch (e) { return false; }
   }
-  function showSnap(sname, box) {
-    if (!mount(sname)) { return false; }
-    try { box.style.zIndex = '1'; } catch (e) {}
-    snapHost.style.zIndex = '0';
-    snapHost.style.opacity = '1';
-    return true;
+  // 밑에 까는 다음 쪽. 사진이 있으면 사진 칸, 없으면(처음 한 번) 바탕색만 칠한 빈 종이.
+  var blankEl = null, under = null;
+  function blankLayer() {
+    if (blankEl && blankEl.isConnected) { return blankEl; }
+    blankEl = d.createElement('div');
+    blankEl.setAttribute('aria-hidden', 'true');
+    blankEl.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0';
+    d.body.appendChild(blankEl);
+    return blankEl;
+  }
+  function showUnder(sname) {
+    var snapped = mount(sname), outer, inner = null;
+    if (snapped) {
+      outer = snapHost;
+      inner = snapRoot.querySelector('.j3snap-html');
+    } else {
+      outer = blankLayer();
+      try {
+        var app = getComputedStyle(d.querySelector('[data-testid="stApp"]'));
+        outer.style.backgroundColor = app.backgroundColor;
+        outer.style.backgroundImage = app.backgroundImage;
+      } catch (e) {}
+    }
+    // 하단 막대(2147483646)와 같은 층, 문서에서 더 뒤라 막대 위에 선다.
+    outer.style.zIndex = '2147483646';
+    outer.style.opacity = '1';
+    outer.style.willChange = 'transform';
+    if (inner) { inner.style.willChange = 'transform'; }
+    under = { outer: outer, inner: inner, snap: snapped };
+    return snapped;
   }
   function hideSnap() {
-    if (!snapHost) { return; }
-    snapHost.style.opacity = '0';
-    snapHost.style.zIndex = '-1';
+    var list = [snapHost, blankEl];
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i];
+      if (!el) { continue; }
+      el.style.opacity = '0'; el.style.zIndex = '-1';
+      el.style.transform = ''; el.style.transition = ''; el.style.willChange = '';
+    }
+    try {
+      var inner = snapRoot && snapRoot.querySelector('.j3snap-html');
+      if (inner) { inner.style.transform = ''; inner.style.transition = ''; inner.style.willChange = ''; }
+    } catch (e) {}
+    under = null;
   }
   // 화면이 다 그려져 조용해지면 — 지금 화면을 뜨고, 다음에 넘길 쪽을 미리 깔아 둔다.
   var idleTimer = null;
@@ -11875,14 +11905,11 @@ _SWIPE_OUTER_JS = """
     if (!sname) { return; }
     capture(false);
     var next = sname === 'watch' ? 'market' : (sname === 'market' ? 'watch' : '');
-    // 다음 쪽 사진이 깔리면 body 에 j3snap-used 를 붙인다 — 그때부터는 넘겨서 들어오는
-    // 화면의 「펴지는 움직임」을 안 쓴다(사진이 이미 서 있는데 또 펴지면 두 번 넘어가
-    // 보인다). **조용할 때 한 번만 붙이고 떼지 않는다.** body 에 표시를 붙이거나 떼는
-    // 일은 폰이 화면 칸을 전부 다시 따지게 해서, 넘기는 순간에 하면 한 번 멈칫한다
-    // (느린 폰 기준 80ms · 2026-09-19 실측).
-    if (next && mount(next) && !d.body.classList.contains('j3snap-used')) {
-      d.body.classList.add('j3snap-used');
-    }
+    if (next) { mount(next); }
+    // 말린 종이 조각·빈 종이도 **조용할 때 미리 만들어 둔다.** 문서에 무엇을 새로 붙이는
+    // 일은 폰이 화면 칸을 전부 다시 따지게 해서, 넘기기 시작하는 순간에 만들면 첫 넘김이
+    // 한 번 멈칫했다(느린 폰 기준 245ms · 2026-09-19 실측). 넘길 때는 보이기만 한다.
+    if (sname === 'watch' || sname === 'market') { curlParts(); blankLayer(); }
   }
   try {
     new MutationObserver(function () {
@@ -11892,85 +11919,114 @@ _SWIPE_OUTER_JS = """
   } catch (e) {}
   idleTimer = setTimeout(idle, 1500);
 
-  // 손가락 거리만큼 넘긴다. 화면 폭을 다 밀면 거의 모로 선다(95도).
-  // 왼쪽으로 밀면 **왼쪽 끝이 책등**, 오른쪽으로 밀면 오른쪽 끝이 책등이다.
-  // **버벅거림** — 매 순간 그늘(box-shadow)을 새로 그리던 것을 뺐다(그리기가 제일
-  // 무겁다). 넘기는 동안은 종이를 한 장짜리 그림으로 올려(will-change) 돌리기만 한다.
+  // ── 앞으로 말려 넘어가는 종이 (2026-09-19 상하님 지시) ─────────────────────
+  // 상하님 — *"화면 넘기는 것 뒤로 넘기는 것 보기 안 좋다. 앞으로 종이 말리듯이
+  // 해 달라고! 유튜브까지 내가 보여 줬는데."* 그 앞의 판은 종이가 화면 **안쪽으로**
+  // 접혀 들어갔다. 영상(네이버 시리즈 「책 넘김」)은 종이 끝이 **보는 사람 쪽으로**
+  // 들려 말려 넘어가고, 넘어온 종이의 **뒷면**이 보이며, 접힌 선 너머로 다음 쪽이 보인다.
   //
-  // **종이 끝이 손가락을 그대로 따라간다** (2026-09-19 상하님 지시 — "페이지 넘기는
-  // 순간부터 미리 다음 페이지가 보여야지"). 예전에는 종이 끝이 보는 사람 쪽으로 들려
-  // 오면서 원근 때문에 오히려 커져서, 3분의 1을 넘길 때까지 화면을 다 덮었다
-  // (실측 — 28도에서 종이 폭 410px, 화면은 384px). 이제는 종이가 **화면 안쪽으로**
-  // 넘어가고, 민 거리만큼 끝이 물러나도록 각도를 거꾸로 푼다. 민 만큼 밑의 다음
-  // 쪽이 바로 드러난다.
-  var DEPTH = 1100;
-  function angleFor(dist, width) {
-    // 책등에서 종이 끝까지 보이는 폭 = 폭·cos(각) · 원근/(원근 + 폭·sin(각)).
-    // 이것이 (폭 − 민 거리)가 되는 각을 반씩 잘라 찾는다(14번이면 0.01도 안쪽).
-    var target = Math.max(0, width - dist), lo = 0, hi = Math.PI / 2;
-    for (var i = 0; i < 14; i++) {
-      var mid = (lo + hi) / 2;
-      var seen = width * Math.cos(mid) * DEPTH / (DEPTH + width * Math.sin(mid));
-      if (seen > target) { lo = mid; } else { hi = mid; }
+  // 그렇게 그린다. **진짜 화면(종이)은 건드리지 않는다** — 그 위에 세 장을 얹을 뿐이다.
+  //   ① 다음 쪽(사진) — 접힌 선 너머만 보이게 옮긴다.
+  //   ② 넘어온 종이 뒷면 — 둥글게 말린 빛(그러데이션). 폭은 민 거리의 반.
+  //   ③ 그늘 둘 — 말린 종이가 지금 쪽에 드리우는 그늘 · 접힌 선에 지는 그늘.
+  // 손가락이 잡은 종이 끝은 **손가락을 그대로 따라간다**(민 만큼 끝이 온다).
+  // 접힌 선은 끝과 원래 자리의 한가운데다 — 종이를 반으로 접어 넘기는 것과 같다.
+  // 모두 옮기기(transform)·투명도만 바꾸므로 폰이 화면을 다시 따지지 않는다.
+  var curl = null;
+  function curlParts() {
+    if (curl && curl.flap.isConnected) { return curl; }
+    function part(width) {
+      var el = d.createElement('div');
+      el.setAttribute('aria-hidden', 'true');
+      el.style.cssText = 'position:fixed;top:0;bottom:0;left:0;width:' + width
+        + ';pointer-events:none;z-index:2147483647;display:none;will-change:transform,opacity';
+      d.body.appendChild(el);
+      return el;
     }
-    return (lo + hi) / 2 * 180 / Math.PI;
+    curl = { flap: part('100vw'), cast: part('46px'), fold: part('72px') };
+    return curl;
   }
-  function turn(box, sign, dist, width, animate, withSnap) {
-    if (still) { return; }
-    var deg = animate ? 95 : angleFor(dist, width);
-    var p = Math.min(1, deg / 95);
-    box.style.transition = animate
-      ? 'transform .26s cubic-bezier(.3,.7,.3,1), opacity .26s ease'
-      : 'none';
-    box.style.transformOrigin = sign < 0 ? '0% 50%' : '100% 50%';
-    // 왼쪽으로 밀면(책등 왼쪽) +, 오른쪽으로 밀면(책등 오른쪽) − 로 돌려야 안쪽으로 간다.
-    box.style.transform = 'perspective(' + DEPTH + 'px) rotateY(' + (-sign * deg).toFixed(2) + 'deg)';
-    // 밑에 다음 쪽이 깔려 있으면 넘기는 종이는 거의 안 비치게 둔다 — 일찍 옅어지면
-    // 두 화면 글자가 겹쳐 읽힌다.
-    box.style.opacity = String(1 - (withSnap ? 0.3 * p * p : 0.55 * p));
+  var CAST = 46, FOLD = 72;
+  function showCurl(sign) {
+    var c = curlParts();
+    // 뒷면 빛 — 접힌 선 쪽은 어둡고, 말린 끝 가까이에 밝은 띠가 선다(둥근 종이).
+    var toEdge = sign < 0 ? 'to left' : 'to right';     // 접힌 선 → 말린 끝
+    c.flap.style.backgroundImage = 'linear-gradient(' + toEdge + ','
+      + '#07152c 0%,#16305a 22%,#2d5188 48%,#6f95c8 70%,#a9c6ec 80%,#5577aa 90%,#1a3159 100%)';
+    c.flap.style.transformOrigin = sign < 0 ? '100% 50%' : '0% 50%';
+    // 말린 종이가 지금 쪽에 드리우는 그늘 — 끝에서 멀어질수록 옅다.
+    c.cast.style.backgroundImage = 'linear-gradient(' + (sign < 0 ? 'to left' : 'to right')
+      + ',rgba(0,0,0,.42),rgba(0,0,0,0))';
+    // 접힌 선에서 다음 쪽으로 번지는 그늘.
+    c.fold.style.backgroundImage = 'linear-gradient(' + (sign < 0 ? 'to right' : 'to left')
+      + ',rgba(0,0,0,.55),rgba(0,0,0,0))';
+    c.flap.style.display = 'block'; c.cast.style.display = 'block'; c.fold.style.display = 'block';
   }
-  function clear(box) {
-    try {
-      box.style.transition = ''; box.style.transform = ''; box.style.transformOrigin = '';
-      box.style.opacity = ''; box.style.boxShadow = ''; box.style.zIndex = ''; box.style.willChange = '';
-      box.style.backgroundColor = ''; box.style.backgroundImage = '';
-      var nav = d.querySelector('.j3b-bottom-nav');
-      if (nav) { nav.style.backdropFilter = ''; nav.style.webkitBackdropFilter = ''; }
-    } catch (e) {}
+  function hideCurl() {
+    if (!curl) { return; }
+    var list = [curl.flap, curl.cast, curl.fold];
+    for (var i = 0; i < list.length; i++) {
+      list[i].style.display = 'none'; list[i].style.transition = ''; list[i].style.transform = '';
+    }
   }
-  // 덜 넘기고 놓으면 제자리로 **넘어 돌아온다**. 다 돌아오면 건 것을 다 지운다.
-  function settle(box) {
-    if (still) { hideSnap(); clear(box); return; }
-    box.style.transition = 'transform .24s cubic-bezier(.3,.7,.3,1), opacity .24s ease';
-    box.style.transform = 'perspective(1100px) rotateY(0deg)';
-    box.style.opacity = '1';
-    setTimeout(function () { hideSnap(); clear(box); }, 300);
+  // 민 거리(dist)에 맞춰 네 장을 놓는다. ms 를 주면 그 시간에 걸쳐 미끄러지게 한다
+  // (손을 뗀 뒤 — 폰의 그리는 쪽이 따로 움직여서, 서버 일로 바빠도 끊기지 않는다).
+  function place(g, dist, ms) {
+    var W = g.width, s = g.sign, edge, fold;
+    if (s < 0) { edge = W - dist; fold = W - dist / 2; } else { edge = dist; fold = dist / 2; }
+    var tr = ms ? 'transform ' + ms + 'ms cubic-bezier(.2,.7,.25,1),opacity ' + ms + 'ms ease' : 'none';
+    var shade = String(Math.min(1, dist / 40));
+    if (under) {
+      var shift = s < 0 ? fold : fold - W;
+      under.outer.style.transition = tr;
+      under.outer.style.transform = 'translate3d(' + shift.toFixed(1) + 'px,0,0)';
+      if (under.inner) {
+        under.inner.style.transition = tr;
+        under.inner.style.transform = 'translate3d(' + (-shift).toFixed(1) + 'px,0,0)';
+      }
+    }
+    var c = curlParts();
+    var k = Math.max(0.0001, dist / 2 / W);
+    c.flap.style.transition = tr;
+    c.flap.style.transform = 'translate3d(' + (s < 0 ? fold - W : fold).toFixed(1) + 'px,0,0) scaleX(' + k.toFixed(4) + ')';
+    c.cast.style.transition = tr;
+    c.cast.style.transform = 'translate3d(' + (s < 0 ? edge - CAST : edge).toFixed(1) + 'px,0,0)';
+    c.cast.style.opacity = shade;
+    c.fold.style.transition = tr;
+    c.fold.style.transform = 'translate3d(' + (s < 0 ? fold : fold - FOLD).toFixed(1) + 'px,0,0)';
+    c.fold.style.opacity = shade;
+  }
+  // 덜 넘기고 놓으면 종이가 제자리로 **펴져 돌아온다**. 다 돌아오면 얹은 것을 걷는다.
+  function settle(g) {
+    if (!g || still) { hideCurl(); hideSnap(); return; }
+    place(g, 0, 240);
+    setTimeout(function () { hideCurl(); hideSnap(); }, 270);
   }
   // 다음 화면이 실제로 도착하고 **다 그려지면** 사진에서 진짜로 바꿔 끼운다.
   // 표식만 보고 바꾸면 아래쪽이 아직 빈 진짜 화면이 드러난다. 다 그려지기를 기다리되
   // 1.6초가 넘으면 그냥 바꾼다. 시간으로만 지우면 서버가 늦는 날 옛 화면이 번쩍인다.
-  function whenArrived(go, box, withSnap) {
+  function whenArrived(go, withSnap, tDone) {
     var t0 = Date.now(), tFlip = 0;
     (function check() {
       var now = screenNow();
       var arrived = now === go.to;
       if (arrived && !tFlip) { tFlip = Date.now(); }
       var running = !!d.querySelector('[data-testid="stStatusWidget"]');
-      var ready = arrived && (!withSnap || !running || Date.now() - tFlip > 1600);
+      // 넘어가는 움직임이 끝나기 전에는 걷지 않는다 — 걷는 순간 반쯤 넘어간 종이가 사라진다.
+      var ready = arrived && Date.now() >= tDone
+        && (!withSnap || !running || Date.now() - tFlip > 1600);
       var gaveUp = Date.now() - t0 > 9000 || (now !== go.from && !arrived && Date.now() - t0 > 3000);
       if (!ready && !gaveUp) { setTimeout(check, 40); return; }
-      if (withSnap && arrived && !still) {
-        // 진짜 화면을 투명에서 시작해 0.2초에 드러낸다 — 밑의 사진과 같은 화면이라
-        // 바뀌는 순간이 안 보인다.
-        box.style.transition = 'none';
-        box.style.transform = 'none';
-        box.style.opacity = '0';
-        void box.offsetWidth;
-        box.style.transition = 'opacity .2s ease';
-        box.style.opacity = '1';
-        setTimeout(function () { hideSnap(); clear(box); fired = false; }, 240);
+      hideCurl();
+      if (arrived && under && !still) {
+        // 덮고 있던 다음 쪽을 0.2초에 걷는다 — 밑의 진짜 화면이 같은 모양이라
+        // 바뀌는 순간이 안 보인다(사진이 없던 첫 번은 빈 종이가 걷히며 화면이 드러난다).
+        var cover = under.outer;
+        cover.style.transition = 'opacity .2s ease';
+        cover.style.opacity = '0';
+        setTimeout(function () { hideSnap(); fired = false; }, 240);
       } else {
-        hideSnap(); clear(box); fired = false;
+        hideSnap(); fired = false;
       }
     })();
   }
@@ -12005,7 +12061,7 @@ _SWIPE_OUTER_JS = """
   d.addEventListener('touchstart', function (ev) {
     if (fired) { return; }
     // 지난 손가락이 끝 신호 없이 사라져 종이가 반쯤 돌아가 있으면 먼저 바로 세운다.
-    if (drag) { var old = drag; drag = null; hideSnap(); clear(old.box); }
+    if (drag) { drag = null; hideCurl(); hideSnap(); }
     // 「이 테마 설명」 카드가 열려 있으면 그 안의 그림을 옆으로 밀어도 화면이
     // 넘어가면 안 된다(2026-09-18).
     var helpTap = d.getElementById('j3-help-tap');
@@ -12027,58 +12083,47 @@ _SWIPE_OUTER_JS = """
       if (Math.abs(dx) < 12) { return; }                              // 아직 어느 쪽인지 모른다
       if (Math.abs(dx) < Math.abs(dy) * 1.5) { live = false; return; } // 위아래로 굴리는 손가락
       var go = destination(dx);
-      var box = paper();
-      if (!go || !box || !findButton(go.key)) { live = false; return; }
-      drag = { box: box, go: go, sign: dx < 0 ? -1 : 1, t0: Date.now(),
-               width: Math.max(200, box.clientWidth) };
-      // 종이를 한 장짜리 그림으로 올리고, 무거운 흐림 효과를 잠깐 끈다.
-      // 흐림이 걸린 것은 하단 막대 하나뿐이라 **그 막대에만 직접** 건다. body 에 표시를
-      // 붙여 CSS 로 끄면 폰이 화면 칸 1,400개를 전부 다시 따져서, 넘기기 시작하는
-      // 순간 한 번 멈칫했다(느린 폰 기준 두 장면에 130ms → 막대에만 31ms ·
-      // 2026-09-19 실측 · 아무것도 안 할 때 28ms).
-      try {
-        box.style.willChange = 'transform, opacity';
-        var nav = d.querySelector('.j3b-bottom-nav');
-        if (nav) { nav.style.backdropFilter = 'none'; nav.style.webkitBackdropFilter = 'none'; }
-      } catch (e) {}
+      if (!go || !findButton(go.key)) { live = false; return; }
+      drag = { go: go, sign: dx < 0 ? -1 : 1, t0: Date.now(),
+               width: Math.max(200, d.documentElement.clientWidth || window.innerWidth || 0) };
+      if (still) { drag.snap = false; return; }
       // **밑에 다음 쪽을 깐다** — 넘기기 시작하는 순간부터 보인다.
-      drag.snap = still ? false : showSnap(go.to, box);
-      // 넘기는 종이에 바탕을 칠한다 — 종이는 원래 투명해서(바탕은 맨 바깥이 칠한다)
-      // 밑의 다음 쪽이 카드 사이로 비쳐 두 화면이 뒤섞여 보였다(2026-09-18 실측).
-      if (drag.snap) {
-        try {
-          var app = getComputedStyle(d.querySelector('[data-testid="stApp"]'));
-          box.style.backgroundColor = app.backgroundColor;
-          box.style.backgroundImage = app.backgroundImage;
-        } catch (e) {}
-      }
+      drag.snap = showUnder(go.to);
+      showCurl(drag.sign);
     }
+    if (still) { return; }
     // 잡은 쪽과 반대로 끌면 0 에서 멈춘다(반대쪽 넘김은 없다).
-    var dist = Math.max(0, drag.sign * dx);
-    turn(drag.box, drag.sign, dist, drag.width, false, drag.snap);
+    var dist = Math.max(0, Math.min(drag.width * 2, drag.sign * dx));
+    place(drag, dist, 0);
   }
   function release(ev, cancelled) {
     if (!live) { return; }
     live = false;
     unhook();
     if (!drag) { return; }
-    var box = drag.box, go = drag.go, sign = drag.sign, width = drag.width, withSnap = drag.snap;
+    var g = drag, go = drag.go, width = drag.width, withSnap = drag.snap;
     var t = ((ev && ev.changedTouches) || [])[0];
-    var dist = t ? Math.max(0, sign * (t.clientX - x0)) : 0;
+    var dist = t ? Math.max(0, g.sign * (t.clientX - x0)) : 0;
     // 3분의 1 넘게 넘겼거나, 짧게 탁 튕겼으면 넘긴다.
-    var flick = (Date.now() - drag.t0) < 260 && dist > 50;
+    var flick = (Date.now() - g.t0) < 260 && dist > 50;
     drag = null;
-    if (cancelled || !(dist >= width / 3 || flick)) { settle(box); return; }
+    if (cancelled || !(dist >= width / 3 || flick)) { settle(g); return; }
     var hit = findButton(go.key);
-    if (!hit) { settle(box); return; }
+    if (!hit) { settle(g); return; }
     fired = true;
     // 떠나는 화면은 보통 조용할 때 이미 떠 두었다. 이 방문에서 한 번도 못 떴을 때만
     // 여기서 뜬다 — 손을 떼는 순간에 일을 얹으면 넘어가는 첫 장면이 그만큼 늦는다.
     // (가만히 둔 화면은 바뀐 것이 없으니 예전에 뜬 사진이 그대로 맞다.)
     if (!lastCap[go.from]) { capture(true); }
-    turn(box, sign, width, width, true, withSnap);       // 끝까지 넘긴다
+    var tDone = Date.now();
+    if (!still) {
+      // 끝까지 넘긴다 — 종이 끝이 반대편 밖으로 나가고 다음 쪽이 화면을 다 덮는다.
+      place(g, width * 2, 320);
+      tDone += 340;
+      setTimeout(hideCurl, 340);
+    }
     try { hit.click(); } catch (e) {}                    // 서버는 넘기는 동안 같이 돈다
-    whenArrived(go, box, withSnap);
+    whenArrived(go, withSnap, tDone);
   }
   function onEnd(ev) { if (firstTime(ev)) { release(ev, false); } }
   function onCancel(ev) { if (firstTime(ev)) { release(ev, true); } }
@@ -12174,37 +12219,9 @@ def _briefing_swipe_buttons() -> None:
         "div[class*='st-key-j3b_swipe_']{position:absolute!important;"
         "width:1px!important;height:1px!important;margin:0!important;padding:0!important;"
         "overflow:hidden!important;opacity:0!important;pointer-events:none!important}"
-        # ── 들어오는 화면 (2026-09-18 상하님 지시 — 만화책 넘기듯) ─────────────
-        # 나가는 화면은 손가락이 직접 넘긴다(위 _SWIPE_OUTER_JS). 여기는 **넘긴 뒤
-        # 새 화면이 펴지는 모양**만 둔다 — 넘긴 종이 밑에 있던 쪽이 책등에서 펴진다.
-        # **가만히 있을 때는 아무것도 안 건다.** 원근(perspective)이나 입체
-        # (preserve-3d)를 화면 껍데기에 늘 걸어 두면 폰 화면이 통째로 까매진다
-        # (2026-09-18 실측). 원근은 돌림 안(perspective())에만 넣고, 끝은 none 이다.
-        "@keyframes j3bTurnInFromRight{from{transform-origin:100% 50%;"
-        "transform:perspective(1100px) rotateY(38deg);opacity:0}"
-        "to{transform-origin:100% 50%;transform:none;opacity:1}}"
-        "@keyframes j3bTurnInFromLeft{from{transform-origin:0% 50%;"
-        "transform:perspective(1100px) rotateY(-38deg);opacity:0}"
-        "to{transform-origin:0% 50%;transform:none;opacity:1}}"
-        # **끝나면 떨어져야 한다 — both 가 아니라 backwards** (2026-09-18 상하님 지적
-        # — "한 번 되고 안 된다. 그리고 계속 로딩을 하더라").
-        # both 로 두면 펴지는 움직임이 끝난 뒤에도 그 마지막 모양(transform:none)을
-        # 계속 붙들고 있다. 움직임은 화면 글자에 적은 값(손가락이 거는 돌림)보다 힘이
-        # 세서, 넘겨서 들어온 화면에서는 **손가락이 걸어도 종이가 0도 그대로**였다.
-        # 손을 떼면 넘어가긴 해서 "안 움직이다가 로딩만 한다"로 보였다.
-        # 실측(온라인 · 네 번 연달아) — 1번째 51도, 2·3·4번째 0도.
-        # backwards 는 시작 전에만 첫 모양을 붙들고, 끝나면 놓는다.
-        # 넘기는 종이 밑에 깔 사진(다음 쪽)이 준비되면 body 에 j3snap-used 가 붙는다.
-        # 그때는 들어오는 화면을 또 펴지 않는다 — 두 번 넘어가 보인다(2026-09-18).
-        "body:not(.j3snap-used):has(.j3b-in-right) [data-testid='stAppViewContainer']"
-        "{animation:j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) backwards}"
-        "body:not(.j3snap-used):has(.j3b-in-left) [data-testid='stAppViewContainer']"
-        "{animation:j3bTurnInFromLeft .34s cubic-bezier(.22,.61,.36,1) backwards}"
-        # **버벅거림** — 넘기는 동안은 하단 막대의 흐림 효과(backdrop-filter)를 끈다.
-        # 막대가 뒤를 10px 흐리는데, 종이가 돌 때마다 그 흐림을 새로 계산해야 해서
-        # 폰에서 제일 무거웠다. 막대 바탕이 거의 불투명이라 꺼도 모양은 그대로다.
-        # 끄는 일은 여기(CSS)가 아니라 손가락 쪽(_SWIPE_OUTER_JS)이 막대에 직접 한다 —
-        # body 에 표시를 붙여 끄면 그 순간 한 번 멈칫한다(2026-09-19 실측).
+        # 들어오는 화면을 따로 펴는 움직임(돌리기)은 2026-09-19 에 뺐다 — 넘기는 동안
+        # 다음 쪽(사진 · 사진이 없으면 빈 종이)이 먼저 화면을 덮고, 진짜 화면이 다 그려지면
+        # 그것을 걷어 낸다(손가락 쪽 _SWIPE_OUTER_JS). 또 펴면 두 번 넘어가 보인다.
         # 「넘겨서 들어왔다」 표시 칸은 **자리를 차지하지 않게** 한다. 높이는 0 이지만
         # 칸과 칸 사이 틈(12px)이 하나 더 붙어, 넘겨서 온 화면만 12px 내려앉았다
         # (2026-09-19 실측 — 처음 열 때 198px, 넘겨서 올 때 210px). 그러면 밑에 깔아
@@ -12212,9 +12229,6 @@ def _briefing_swipe_buttons() -> None:
         # 위의 body:has(...) 는 계속 잡힌다.
         "div[data-testid='stElementContainer']:has(.j3b-in-left),"
         "div[data-testid='stElementContainer']:has(.j3b-in-right){display:none!important}"
-        "@media (prefers-reduced-motion:reduce){"
-        "body:has(.j3b-in-right) [data-testid='stAppViewContainer'],"
-        "body:has(.j3b-in-left) [data-testid='stAppViewContainer']{animation:none}}"
         "</style>",
         unsafe_allow_html=True,
     )
