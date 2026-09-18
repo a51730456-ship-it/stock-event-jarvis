@@ -1041,7 +1041,7 @@ def test_starting_a_swipe_does_not_mark_the_whole_page():
     폰 기준 한 번 80~100ms 멈칫했다. 흐림은 하단 막대에만 직접 끈다.
     """
     js = _swipe_js()
-    move = js.split("d.addEventListener('touchmove'", 1)[1].split("d.addEventListener('touchend'", 1)[0]
+    move = js.split("function onMove(ev)", 1)[1].split("function release(", 1)[0]
     assert "classList" not in move, "손가락이 움직이는 동안 표시를 붙이면 멈칫한다"
     assert "nav.style.backdropFilter = 'none'" in move
     assert "j3-turning" not in _j3_source()
@@ -1056,6 +1056,20 @@ def test_the_page_edge_follows_the_finger_and_folds_inward():
     js = _swipe_js()
     assert "function angleFor(" in js
     assert "rotateY(' + (-sign * deg).toFixed(2) + 'deg)'" in js
+
+
+def test_a_swipe_is_not_lost_when_the_touched_spot_is_redrawn():
+    """넘기는 도중 손가락 밑 칸이 새것으로 바뀌어도 넘기기가 끝나야 한다 (2026-09-19
+    온라인 실측 — 올린 직후 첫 넘김에서 화면이 한 번 다시 그려져 종이가 33도에서 멈췄다).
+
+    처음 닿은 칸에도 직접 귀를 붙이고(hook), 같은 신호를 두 번 받지 않게 표시한다.
+    끝 신호 없이 사라진 손가락이 남긴 기울기는 다음에 닿을 때 바로 세운다.
+    """
+    js = _swipe_js()
+    assert "hook(ev.target);" in js
+    assert "node.addEventListener('touchend', onEnd" in js
+    assert "function firstTime(ev)" in js
+    assert "if (drag) { var old = drag; drag = null; hideSnap(); clear(old.box); }" in js
 
 
 def test_the_swipe_marker_takes_no_room():

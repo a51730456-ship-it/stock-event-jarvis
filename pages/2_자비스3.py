@@ -11971,9 +11971,38 @@ _SWIPE_OUTER_JS = """
       }
     })();
   }
+  // ── 손가락 밑 칸이 바뀌어도 놓치지 않게 (2026-09-19 온라인 실측) ──────────────
+  // 넘기는 도중에 스트림릿이 화면을 한 번 다시 그리면 손가락이 처음 닿은 칸이 새것으로
+  // 바뀐다. 그러면 그 뒤의 움직임·손 뗌 신호가 문서까지 올라오지 않아서, 종이가 반쯤
+  // 돌아간 채 멈췄다(올린 직후 온라인 첫 넘김 — 33도에서 멈춤). 그래서 처음 닿은 칸에도
+  // 직접 귀를 붙인다. 두 곳에서 같은 신호를 두 번 받지 않게 받은 신호에 표시해 둔다.
+  var held = null;
+  function firstTime(ev) {
+    if (ev.__j3seen) { return false; }
+    try { ev.__j3seen = true; } catch (e) {}
+    return true;
+  }
+  function unhook() {
+    if (!held) { return; }
+    try {
+      held.removeEventListener('touchmove', onMove);
+      held.removeEventListener('touchend', onEnd);
+      held.removeEventListener('touchcancel', onCancel);
+    } catch (e) {}
+    held = null;
+  }
+  function hook(node) {
+    unhook();
+    if (!node || node === d || !node.addEventListener) { return; }
+    held = node;
+    node.addEventListener('touchmove', onMove, { passive: true });
+    node.addEventListener('touchend', onEnd, { passive: true });
+    node.addEventListener('touchcancel', onCancel, { passive: true });
+  }
   d.addEventListener('touchstart', function (ev) {
     if (fired) { return; }
-    drag = null;
+    // 지난 손가락이 끝 신호 없이 사라져 종이가 반쯤 돌아가 있으면 먼저 바로 세운다.
+    if (drag) { var old = drag; drag = null; hideSnap(); clear(old.box); }
     // 「이 테마 설명」 카드가 열려 있으면 그 안의 그림을 옆으로 밀어도 화면이
     // 넘어가면 안 된다(2026-09-18).
     var helpTap = d.getElementById('j3-help-tap');
@@ -11984,8 +12013,10 @@ _SWIPE_OUTER_JS = """
     // 표 위에서 시작한 손가락은 그 표가 쓰게 둔다.
     if (sideways(ev.target)) { live = false; return; }
     live = true;
+    hook(ev.target);
   }, { passive: true });
-  d.addEventListener('touchmove', function (ev) {
+  function onMove(ev) {
+    if (!firstTime(ev)) { return; }
     if (!live || fired || !ev.touches || ev.touches.length !== 1) { return; }
     var t = ev.touches[0];
     var dx = t.clientX - x0, dy = t.clientY - y0;
@@ -12022,10 +12053,11 @@ _SWIPE_OUTER_JS = """
     // 잡은 쪽과 반대로 끌면 0 에서 멈춘다(반대쪽 넘김은 없다).
     var dist = Math.max(0, drag.sign * dx);
     turn(drag.box, drag.sign, dist, drag.width, false, drag.snap);
-  }, { passive: true });
+  }
   function release(ev, cancelled) {
     if (!live) { return; }
     live = false;
+    unhook();
     if (!drag) { return; }
     var box = drag.box, go = drag.go, sign = drag.sign, width = drag.width, withSnap = drag.snap;
     var t = ((ev && ev.changedTouches) || [])[0];
@@ -12045,8 +12077,11 @@ _SWIPE_OUTER_JS = """
     try { hit.click(); } catch (e) {}                    // 서버는 넘기는 동안 같이 돈다
     whenArrived(go, box, withSnap);
   }
-  d.addEventListener('touchend', function (ev) { release(ev, false); }, { passive: true });
-  d.addEventListener('touchcancel', function (ev) { release(ev, true); }, { passive: true });
+  function onEnd(ev) { if (firstTime(ev)) { release(ev, false); } }
+  function onCancel(ev) { if (firstTime(ev)) { release(ev, true); } }
+  d.addEventListener('touchmove', onMove, { passive: true });
+  d.addEventListener('touchend', onEnd, { passive: true });
+  d.addEventListener('touchcancel', onCancel, { passive: true });
 
   // ── 「📘 이 테마 설명」 창닫기 — 풍선처럼 줄어든다 (2026-09-18 상하님 지시) ──
   // 「✕ 창닫기」는 서버에 다녀와야 창이 사라진다. 누르는 **순간** 창에 표시를
