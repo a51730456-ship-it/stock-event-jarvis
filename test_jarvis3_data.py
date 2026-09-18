@@ -1832,6 +1832,24 @@ class TheScreenMakesTheSwingListUpFrontTests(unittest.TestCase):
         j3.prepare_breakout_scan()
         self.assertEqual(1, len(calls), "판마다 다시 계산한다")
 
+    def test_it_makes_it_again_when_the_memory_was_cleared(self):
+        """맨 위 ↻ 를 누르면 기억이 비는데, 그때 **다시 만들어야** 한다.
+
+        2026-09-18 온라인에서 잡은 흠이다. `clear_runtime_cache()` 는 기억만
+        비우고 「방금 해 뒀다」 시각은 안 지운다. 그 시각만 보고 건너뛰면 기억이
+        텅 빈 채로 단추가 넘겨받아 제 손으로 200종목을 계산한다 — 고치기 전과
+        똑같이 느려진다(온라인 실측 1.99초 대 1.97초).
+        """
+        calls = []
+        j3.find_breakout_pullback_stocks = lambda **_k: (
+            calls.append(1) or {"ok": True, "rows": []})
+        j3.prepare_breakout_scan()
+        self.assertEqual(1, len(calls))
+        j3.clear_runtime_cache()            # 맨 위 ↻ 를 누르신 것과 같다
+        j3.prepare_breakout_scan()
+        self.assertEqual(2, len(calls),
+                         "기억이 비었는데 시각만 보고 건너뛴다 — 단추가 떠안는다")
+
     def test_the_screen_prefers_the_up_front_one(self):
         source = self.PAGE.read_text(encoding="utf-8")
         helper = source[source.index("def _warm_finders()"):]
