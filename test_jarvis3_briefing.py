@@ -955,9 +955,56 @@ def test_the_theme_help_pops_up_without_touching_transform():
     """창은 튀어 오르고 뒤는 흐려진다. **transform 은 안 건드린다** — 스트림릿이
     창 자리를 그것으로 잡아서, 손대면 창이 옆으로 튄다(실측 matrix(1,0,0,1,8,8))."""
     source = _j3_source()
-    assert "@keyframes j3HelpPop { from { scale: .90; opacity: 0; }" in source
-    block = source.split("@keyframes j3HelpPop", 1)[1].split("}", 2)[0]
-    assert "transform" not in block
+    block = source.split("@keyframes j3HelpPop", 1)[1].split("}", 3)
+    assert "scale: .55" in block[0], "작게 시작해야 튀어 오르는 것이 보인다"
+    assert "transform:" not in "".join(block[:2])
+
+
+def test_the_theme_help_pops_only_after_its_content_arrives():
+    """**내용이 다 찬 뒤에** 튀어 오른다 (2026-09-18 상하님 — "뭐가 바뀐지 모르겠는데?").
+
+    재 보니 창은 0.07초에 뜨고 만화는 0.36초에 찼다. 움직임이 빈 창에서 다 끝나
+    버려 안 보였다. 아래 창닫기 단추가 생긴 것을 다 찼다는 표시로 쓴다.
+    내용이 끝내 안 오면 2.5초 뒤 그냥 보인다 — 안 그러면 창이 영영 안 뜬다.
+    """
+    source = _j3_source()
+    assert ':has([class*="st-key-jarvis_method_help_close_bottom"])' in source
+    assert "animation: j3HelpWait .01s linear 2.5s both" in source
+    assert "j3HelpPop .42s" in source and "backwards" in source.split("j3HelpPop .42s", 1)[1][:80]
+
+
+def test_the_theme_help_shrinks_when_closed():
+    """「✕ 창닫기」를 누르면 풍선처럼 줄어든다. 창이 안 지워지면 5초 뒤 되살린다."""
+    source = _j3_source()
+    js = source.split('_SWIPE_OUTER_JS = """', 1)[1].split('"""', 1)[0]
+    assert "j3-help-closing" in js and "pointerdown" in js
+    assert "5000" in js, "창이 안 지워지면 흐린 뒤 화면에 갇힌다"
+    assert "[data-testid=\"stPopoverBody\"].j3-help-closing" in source or         '[data-testid="stPopoverBody"].j3-help-closing' in source
+
+
+def test_a_page_reached_by_swiping_can_be_swiped_again():
+    """넘겨서 들어온 화면도 **다시 넘어가 보여야** 한다 (2026-09-18 상하님 —
+    "한 번 되고 안 된다. 그리고 계속 로딩을 하더라").
+
+    들어올 때 쓴 움직임을 both 로 두면 끝난 뒤에도 마지막 모양을 붙들고 있어서,
+    손가락이 거는 돌림을 덮었다. 실측(온라인 · 네 번 연달아) — 1번째 51도,
+    2·3·4번째 0도. backwards 로 두면 끝나고 놓는다.
+    """
+    source = _j3_source()
+    assert "{animation:j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) backwards}" in source
+    assert "{animation:j3bTurnInFromLeft .34s cubic-bezier(.22,.61,.36,1) backwards}" in source
+    assert "j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) both" not in source
+
+
+def test_the_bottom_close_button_sits_on_the_left_on_phones():
+    """폰에서 아래쪽 창닫기는 왼쪽이다 — 오른쪽 아래에는 스트림릿 표시가 떠서 겹친다."""
+    import mobile_ui
+    css = mobile_ui.page_css() if hasattr(mobile_ui, "page_css") else ""
+    source = Path(mobile_ui.__file__).read_text(encoding="utf-8")
+    rule = 'div[class*="st-key-jarvis_method_help_close_bottom"] button { margin-left: .3rem !important; margin-right: auto !important; }'
+    assert rule in source
+    phone = source.split("@media (max-width: 600px)", 1)[1]
+    assert rule in phone, "폰 묶음 밖으로 새면 노트북까지 바뀐다(CLAUDE.md 12)"
 
 
 def test_the_two_week_price_button_is_a_soft_rainbow():

@@ -29,7 +29,7 @@ if int(getattr(image_zoom, "MODULE_REVISION", 0)) < _REQUIRED_IMAGE_ZOOM_REVISIO
     image_zoom = importlib.reload(image_zoom)
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026091810
+MODULE_REVISION = 2026091820
 
 BUTTON_LABEL = "📘 이 테마 설명"
 
@@ -57,7 +57,8 @@ CROSS_PAGES = {
     "US": ("pages/3_자비스4.py", "🌏 한국테마 →"),
     "KR": ("pages/2_자비스3.py", "🌎 미국테마 →"),
 }
-CLOSE_HINT = "다 읽으셨으면 오른쪽 ‘✕ 창닫기’를 누르십시오. 위 단추를 다시 눌러도 닫힙니다."
+# 「오른쪽」은 뺐다(2026-09-18) — 폰에서는 아래쪽 창닫기가 왼쪽으로 갔다.
+CLOSE_HINT = "다 읽으셨으면 ‘✕ 창닫기’를 누르십시오. 위 단추를 다시 눌러도 닫힙니다."
 
 # 단추는 눌림목 찾기 단추와 같은 옷을 입힌다(밝은 스카이 블루 바탕·주황 글씨).
 # 다만 좌우로 늘리지 않고 글자 크기만큼만 차지하게 두고, 오른쪽 끝에 붙인다.

@@ -1252,23 +1252,62 @@ st.markdown(
 
        **이 화면에서만 걸린다** — `.j3-market-top` 은 시장분석 화면에만 있는 표식이다.
        한국테마·자비스6의 같은 단추는 지금까지 그대로다. */
-    @keyframes j3HelpPop { from { scale: .90; opacity: 0; } to { scale: 1; opacity: 1; } }
+    /* ── 2026-09-18 두 번째 — 상하님 "뭐가 바뀐지 모르겠는데?" ──────────────────
+       재 보니(노트북) 누르면 창이 0.07초에 뜨는데 **내용(만화)은 0.36초에야 찬다.**
+       그 사이 창은 꽉 찼다 → 빈 창(97px) → 다시 꽉 찼다. 튀어 오르는 움직임(0.22초)은
+       **빈 창에서 다 끝나 버리고** 내용은 움직임 없이 툭 나타났다. 온라인은 더 늦다.
+
+       그래서 — ① 누르면 **뒤 화면부터 곧바로** 흐려진다(눌렀다는 것이 바로 보인다).
+       ② 창은 **내용이 다 찰 때까지 안 보이게** 두었다가(아래 창닫기 단추가 생긴 것이
+       다 찼다는 표시다) 그 순간 **작게 시작해 크게 튀어 오른다** — 3번 캡처처럼
+       살짝 넘쳤다가 제자리에 선다. 위에서 자라 내려오게 위쪽 가운데를 축으로 삼는다.
+       ③ 내용이 끝내 안 오면(그림을 못 읽은 날 등) 2.5초 뒤에 그냥 보인다 —
+       안 그러면 뒤만 흐린 채 창이 영영 안 뜬다.
+       ④ 「✕ 창닫기」를 누르면 **풍선처럼 줄어들며** 사라지고 뒤가 다시 밝아진다
+       (누르는 순간 붙는 표시 j3-help-closing · 위 _SWIPE_OUTER_JS 끝부분).
+       맨 위 「📘 이 테마 설명」을 다시 눌러 닫는 것은 스트림릿이 창을 곧바로 지워서
+       줄어드는 움직임을 넣을 수 없다 — 그때는 예전처럼 바로 닫힌다.
+
+       **끝나면 놓는다(backwards)** — both 로 두면 scale:1 이 계속 붙어 창 안의 고정
+       요소 자리가 바뀔 수 있다. */
+    @keyframes j3HelpWait { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes j3HelpPop {
+        from { scale: .55; opacity: 0; }
+        to   { scale: 1;   opacity: 1; }
+    }
+    @keyframes j3HelpShrink { to { scale: .55; opacity: 0; } }
     body:has(.j3-market-top) [data-testid="stPopoverBody"] {
-        animation: j3HelpPop .22s cubic-bezier(.2,.9,.25,1) both !important;
-        box-shadow: 0 24px 70px rgba(0,0,0,.55) !important;
+        transform-origin: 50% 0 !important;
+        box-shadow: 0 24px 70px rgba(0,0,0,.6) !important;
+    }
+    body:has(.j3-market-top) [data-testid="stPopoverBody"]:not(:has([class*="st-key-jarvis_method_help_close_bottom"])) {
+        animation: j3HelpWait .01s linear 2.5s both !important;
+    }
+    body:has(.j3-market-top) [data-testid="stPopoverBody"]:has([class*="st-key-jarvis_method_help_close_bottom"]) {
+        animation: j3HelpPop .42s cubic-bezier(.18,1.3,.4,1) backwards !important;
+    }
+    body:has(.j3-market-top) [data-testid="stPopoverBody"].j3-help-closing {
+        animation: j3HelpShrink .22s cubic-bezier(.2,.7,.3,1) forwards !important;
     }
     /* 창이 뜨면 뒤는 흐려진다. 창은 화면 껍데기 **밖**(portal)에 있어서 같이 안
        흐려진다 — 실측으로 확인했다(stPopoverBody 가 stAppViewContainer 안에 없다). */
     body:has(.j3-market-top) [data-testid="stAppViewContainer"] {
-        transition: filter .22s ease, opacity .22s ease;
+        transition: filter .24s ease, opacity .24s ease;
     }
     body:has(.j3-market-top):has([data-testid="stPopoverBody"])
         [data-testid="stAppViewContainer"] {
-        filter: blur(2.5px) !important;
-        opacity: .45 !important;
+        filter: blur(3px) !important;
+        opacity: .38 !important;
+    }
+    body:has(.j3-market-top):has(.j3-help-closing) [data-testid="stAppViewContainer"] {
+        filter: none !important;
+        opacity: 1 !important;
     }
     @media (prefers-reduced-motion: reduce) {
-        body:has(.j3-market-top) [data-testid="stPopoverBody"] { animation: none !important; }
+        body:has(.j3-market-top) [data-testid="stPopoverBody"],
+        body:has(.j3-market-top) [data-testid="stPopoverBody"]:has([class*="st-key-jarvis_method_help_close_bottom"]),
+        body:has(.j3-market-top) [data-testid="stPopoverBody"]:not(:has([class*="st-key-jarvis_method_help_close_bottom"])),
+        body:has(.j3-market-top) [data-testid="stPopoverBody"].j3-help-closing { animation: none !important; }
         body:has(.j3-market-top):has([data-testid="stPopoverBody"])
             [data-testid="stAppViewContainer"] { filter: none !important; opacity: 1 !important; }
     }
@@ -1623,7 +1662,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026091720
+_REQUIRED_MOBILE_REVISION = 2026091810
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1637,7 +1676,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026091810
+_REQUIRED_METHOD_HELP_REVISION = 2026091820
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -11555,6 +11594,26 @@ _SWIPE_OUTER_JS = """
   }
   d.addEventListener('touchend', function (ev) { release(ev, false); }, { passive: true });
   d.addEventListener('touchcancel', function (ev) { release(ev, true); }, { passive: true });
+
+  // ── 「📘 이 테마 설명」 창닫기 — 풍선처럼 줄어든다 (2026-09-18 상하님 지시) ──
+  // 「✕ 창닫기」는 서버에 다녀와야 창이 사라진다. 누르는 **순간** 창에 표시를
+  // 붙여 CSS 가 줄어드는 움직임을 돌리게 한다(j3-help-closing). 누르는 일 자체는
+  // 막지 않는다 — 표시만 붙이고 그대로 흘려보낸다.
+  // 서버가 끝내 창을 안 지우면 5초 뒤 표시를 떼서 창이 되살아나게 한다 — 안 그러면
+  // 뒤만 흐린 채 빈 화면에 갇힌다.
+  d.addEventListener('pointerdown', function (ev) {
+    try {
+      var t = ev.target;
+      var hit = t && t.closest && t.closest('div[class*="st-key-jarvis_method_help_close"] button');
+      if (!hit) { return; }
+      var body = d.querySelector('[data-testid="stPopoverBody"]');
+      if (!body) { return; }
+      body.classList.add('j3-help-closing');
+      setTimeout(function () {
+        try { if (body.isConnected) { body.classList.remove('j3-help-closing'); } } catch (e) {}
+      }, 5000);
+    } catch (e) {}
+  }, true);
 })();
 """
 
@@ -11636,10 +11695,18 @@ def _briefing_swipe_buttons() -> None:
         "@keyframes j3bTurnInFromLeft{from{transform-origin:0% 50%;"
         "transform:perspective(1100px) rotateY(-38deg);opacity:0}"
         "to{transform-origin:0% 50%;transform:none;opacity:1}}"
+        # **끝나면 떨어져야 한다 — both 가 아니라 backwards** (2026-09-18 상하님 지적
+        # — "한 번 되고 안 된다. 그리고 계속 로딩을 하더라").
+        # both 로 두면 펴지는 움직임이 끝난 뒤에도 그 마지막 모양(transform:none)을
+        # 계속 붙들고 있다. 움직임은 화면 글자에 적은 값(손가락이 거는 돌림)보다 힘이
+        # 세서, 넘겨서 들어온 화면에서는 **손가락이 걸어도 종이가 0도 그대로**였다.
+        # 손을 떼면 넘어가긴 해서 "안 움직이다가 로딩만 한다"로 보였다.
+        # 실측(온라인 · 네 번 연달아) — 1번째 51도, 2·3·4번째 0도.
+        # backwards 는 시작 전에만 첫 모양을 붙들고, 끝나면 놓는다.
         "body:has(.j3b-in-right) [data-testid='stAppViewContainer']"
-        "{animation:j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) both}"
+        "{animation:j3bTurnInFromRight .34s cubic-bezier(.22,.61,.36,1) backwards}"
         "body:has(.j3b-in-left) [data-testid='stAppViewContainer']"
-        "{animation:j3bTurnInFromLeft .34s cubic-bezier(.22,.61,.36,1) both}"
+        "{animation:j3bTurnInFromLeft .34s cubic-bezier(.22,.61,.36,1) backwards}"
         "@media (prefers-reduced-motion:reduce){"
         "body:has(.j3b-in-right) [data-testid='stAppViewContainer'],"
         "body:has(.j3b-in-left) [data-testid='stAppViewContainer']{animation:none}}"

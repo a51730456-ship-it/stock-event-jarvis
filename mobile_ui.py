@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026091720
+MODULE_REVISION = 2026091810
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -443,6 +443,11 @@ div[class*="st-key-jarvis_method_help"] button { padding: .3rem .7rem !important
    오른쪽으로 밀어 노트북에서 보이던 자리와 같게 맞춘다. */
 div[class*="st-key-jarvis_method_help_close"] { text-align: right !important; }
 div[class*="st-key-jarvis_method_help_close"] button { margin-left: auto !important; margin-right: .3rem !important; }
+/* **아래쪽 창닫기만 왼쪽으로** (2026-09-18 상하님 지시 — 캡처에 네모를 그려 주심).
+   온라인에서는 화면 오른쪽 아래 구석에 스트림릿 표시(초록 아이콘·빨간 왕관)가 떠서
+   맨 아래 창닫기와 겹쳤다. 위쪽 창닫기는 그대로 오른쪽이다. */
+div[class*="st-key-jarvis_method_help_close_bottom"] { text-align: left !important; }
+div[class*="st-key-jarvis_method_help_close_bottom"] button { margin-left: .3rem !important; margin-right: auto !important; }
 h1 { font-size: 1.5rem !important; }
 h2 { font-size: 1.2rem !important; }
 .j3-stock-name, .j4-stock-name { font-size: 1.3rem; }
