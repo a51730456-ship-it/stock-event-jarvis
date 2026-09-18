@@ -29,7 +29,7 @@ if int(getattr(image_zoom, "MODULE_REVISION", 0)) < _REQUIRED_IMAGE_ZOOM_REVISIO
     image_zoom = importlib.reload(image_zoom)
 
 # 계산 결과나 문구를 바꾸면 이 숫자를 올리고, 페이지의 요구 리비전도 같이 올린다.
-MODULE_REVISION = 2026091820
+MODULE_REVISION = 2026091830
 
 BUTTON_LABEL = "📘 이 테마 설명"
 
@@ -759,12 +759,73 @@ def cross_link(st, market: str) -> None:
         pass
 
 
-def render(st, market: str, *, show_help: bool = True) -> None:
+
+def render_us_body(st) -> None:
+    """「이 테마 설명」 미국 본문 — 만화 → 규칙 → 표 그림 → 글 → 그림 확대 손잡이.
+
+    2026-09-18 에 render() 안에서 떼어 냈다. **내용은 한 글자도 안 바뀌었다.**
+    스트림릿 창(popover) 안에서도, 자비스3의 카드 창 안에서도 같은 것을 그리려고
+    한 곳에 둔다. 창닫기 단추는 여기 없다 — 부르는 쪽이 제 방식으로 둔다.
+    """
+    # **차례는 만화 → 엑셀 캡처 → 글이다**(2026-08-27 상하님 지시).
+    # ① 만화 한 장 — 두 갈래를 한눈에. 창 너비를 꽉 채운다.
+    cartoon = _image_path(US_CARTOON)
+    if cartoon is None:
+        st.warning(f"만화를 찾지 못했습니다 — assets/{US_CARTOON}")
+    else:
+        # **엑셀 표 사진과 똑같이 보여준다**(2026-08-27 상하님 지시 —
+        # "그냥 액셀 사진처럼 한장에 다보이도록 해야지"). 창 폭에 맞춰
+        # 한 장을 다 보여준다. 크게 보실 때는 그림을 누르시면 새 창에
+        # 원본이 뜬다(_picture).
+        _picture(st, cartoon, US_CARTOON)
+    # ①-2 만화 바로 밑 「나스닥 매매 규칙」 한 장 (2026-09-07 상하님 지시).
+    #     만화와 **같은 함수**로 그린다 — 그래야 눌러서 커지는 손잡이가
+    #     그대로 붙는다(위 US_RULES_IMAGE 설명 참고).
+    rules = _image_path(US_RULES_IMAGE)
+    if rules is None:
+        st.warning(f"규칙 그림을 찾지 못했습니다 — assets/{US_RULES_IMAGE}")
+    else:
+        _picture(st, rules, US_RULES_IMAGE)
+    # ② 상하님이 만드신 표 그림 — **사진 그대로 올린다**(2026-08-27 상하님
+    #    지시: "액셀은 텍스트로 바꾸지말라 원 사진 그대로 올려라").
+    for index, (name, caption) in enumerate(US_IMAGES):
+        path = _image_path(name)
+        if path is None:
+            # 온라인에 그림이 안 올라갔을 때 화면이 죽지 않게 알려만 준다.
+            st.warning(f"표 그림을 찾지 못했습니다 — assets/{name}")
+            continue
+        st.markdown(
+            f"<div class='mh-doc'><div class='mh-h2'>"
+            f"<span class='mh-no'>{index + 2}</span><span>{caption}</span>"
+            "</div></div>",
+            unsafe_allow_html=True,
+        )
+        _picture(st, path, name)
+        if index < len(US_IMAGE_NOTES):
+            st.markdown(
+                f"<div class='mh-doc'><div class='mh-note'>"
+                f"{US_IMAGE_NOTES[index]}</div></div>",
+                unsafe_allow_html=True,
+            )
+    # ③ 글로 쓴 설명 — 만화·표가 말하지 않는 것까지 적혀 있다.
+    st.markdown(US_TEXT, unsafe_allow_html=True)
+    st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)
+    # 그림을 누르면 화면 가득 커진다(2026-08-27 상하님 지시). 그림을 다 그린
+    # 뒤에 한 번 붙인다. **여기서 주소를 만들지 않는다** — st.image가 이미
+    # 그려 놓은 <img>의 주소를 그대로 읽어 쓴다(image_zoom.py 설명 참고).
+    image_zoom.run(st)
+
+
+def render(st, market: str, *, show_help: bool = True, help_slot=None) -> None:
     """맨 왼쪽에 건너가기 단추, 오른쪽에 설명 단추를 놓는다. market은 'US' 또는 'KR'.
 
     `show_help=False` 면 **설명 단추만 안 그린다** — 건너가기 단추는 그대로 둔다
     (2026-09-18 상하님 지시 "게스트 화면에서는 볼 수 없게"). 기본값은 True 라
     이 값을 안 주는 화면들은 지금까지와 한 글자도 다르지 않다.
+
+    `help_slot` 을 주면 **스트림릿 창(popover) 대신 그 함수를 같은 자리에서 부른다**
+    (2026-09-18 상하님 지시 — 「이 테마 설명」을 성적표 순위 9 창처럼). 자비스3이
+    서버를 안 거치는 카드 창의 여는 단추를 이 줄 안에 넣는 데 쓴다. 안 주면 예전 그대로다.
     """
     st.markdown(BUTTON_CSS, unsafe_allow_html=True)
     # 두 단추를 한 줄에 둔다. st.columns가 아니라 가로 칸을 쓰는 까닭은, 설명 창
@@ -776,6 +837,10 @@ def render(st, market: str, *, show_help: bool = True) -> None:
         if not show_help:
             # 건너가기 단추만 남기고 돌아간다. 설명 창은 아예 안 만든다 —
             # 안 만들면 화면에 실리지도 않는다(숨기는 것보다 가볍고 확실하다).
+            return
+        if help_slot is not None:
+            # 스트림릿 창 대신 부르는 쪽이 만든 여는 단추를 이 자리에 둔다.
+            help_slot()
             return
         box = st.container(key="jarvis_method_help")
     with box:
@@ -789,51 +854,5 @@ def render(st, market: str, *, show_help: bool = True) -> None:
                 st.markdown(KR_TEXT, unsafe_allow_html=True)
                 _close_button(st, "KR")
                 return
-            # **차례는 만화 → 엑셀 캡처 → 글이다**(2026-08-27 상하님 지시).
-            # ① 만화 한 장 — 두 갈래를 한눈에. 창 너비를 꽉 채운다.
-            cartoon = _image_path(US_CARTOON)
-            if cartoon is None:
-                st.warning(f"만화를 찾지 못했습니다 — assets/{US_CARTOON}")
-            else:
-                # **엑셀 표 사진과 똑같이 보여준다**(2026-08-27 상하님 지시 —
-                # "그냥 액셀 사진처럼 한장에 다보이도록 해야지"). 창 폭에 맞춰
-                # 한 장을 다 보여준다. 크게 보실 때는 그림을 누르시면 새 창에
-                # 원본이 뜬다(_picture).
-                _picture(st, cartoon, US_CARTOON)
-            # ①-2 만화 바로 밑 「나스닥 매매 규칙」 한 장 (2026-09-07 상하님 지시).
-            #     만화와 **같은 함수**로 그린다 — 그래야 눌러서 커지는 손잡이가
-            #     그대로 붙는다(위 US_RULES_IMAGE 설명 참고).
-            rules = _image_path(US_RULES_IMAGE)
-            if rules is None:
-                st.warning(f"규칙 그림을 찾지 못했습니다 — assets/{US_RULES_IMAGE}")
-            else:
-                _picture(st, rules, US_RULES_IMAGE)
-            # ② 상하님이 만드신 표 그림 — **사진 그대로 올린다**(2026-08-27 상하님
-            #    지시: "액셀은 텍스트로 바꾸지말라 원 사진 그대로 올려라").
-            for index, (name, caption) in enumerate(US_IMAGES):
-                path = _image_path(name)
-                if path is None:
-                    # 온라인에 그림이 안 올라갔을 때 화면이 죽지 않게 알려만 준다.
-                    st.warning(f"표 그림을 찾지 못했습니다 — assets/{name}")
-                    continue
-                st.markdown(
-                    f"<div class='mh-doc'><div class='mh-h2'>"
-                    f"<span class='mh-no'>{index + 2}</span><span>{caption}</span>"
-                    "</div></div>",
-                    unsafe_allow_html=True,
-                )
-                _picture(st, path, name)
-                if index < len(US_IMAGE_NOTES):
-                    st.markdown(
-                        f"<div class='mh-doc'><div class='mh-note'>"
-                        f"{US_IMAGE_NOTES[index]}</div></div>",
-                        unsafe_allow_html=True,
-                    )
-            # ③ 글로 쓴 설명 — 만화·표가 말하지 않는 것까지 적혀 있다.
-            st.markdown(US_TEXT, unsafe_allow_html=True)
-            st.markdown(US_TAIL_TEXT, unsafe_allow_html=True)
-            # 그림을 누르면 화면 가득 커진다(2026-08-27 상하님 지시). 그림을 다 그린
-            # 뒤에 한 번 붙인다. **여기서 주소를 만들지 않는다** — st.image가 이미
-            # 그려 놓은 <img>의 주소를 그대로 읽어 쓴다(image_zoom.py 설명 참고).
-            image_zoom.run(st)
+            render_us_body(st)
             _close_button(st, "US")

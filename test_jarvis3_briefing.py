@@ -943,43 +943,44 @@ def test_nothing_3d_is_left_on_the_screen_while_resting():
 def test_the_theme_help_is_hidden_from_guests_but_the_korea_link_stays():
     """게스트는 「이 테마 설명」을 못 본다. 「🌏 한국테마 →」 단추는 남는다."""
     source = _j3_source()
-    assert 'method_help.render(st, "US", show_help=not auth.is_guest())' in source
+    assert "_help_guest = auth.is_guest()" in source
+    assert "show_help=not _help_guest" in source
+    assert "if not auth.is_guest():\n        _render_help_card()" in source
     import method_help
     import inspect
     body = inspect.getsource(method_help.render)
-    assert body.index("cross_link(st, market)") < body.index("if not show_help:"), \
-        "건너가기 단추보다 먼저 돌아가면 게스트가 한국테마로 못 간다"
+    assert body.index("cross_link(st, market)") < body.index("if not show_help:"),         "건너가기 단추보다 먼저 돌아가면 게스트가 한국테마로 못 간다"
 
 
-def test_the_theme_help_pops_up_without_touching_transform():
-    """창은 튀어 오르고 뒤는 흐려진다. **transform 은 안 건드린다** — 스트림릿이
-    창 자리를 그것으로 잡아서, 손대면 창이 옆으로 튄다(실측 matrix(1,0,0,1,8,8))."""
-    source = _j3_source()
-    block = source.split("@keyframes j3HelpPop", 1)[1].split("}", 3)
-    assert "scale: .55" in block[0], "작게 시작해야 튀어 오르는 것이 보인다"
-    assert "transform:" not in "".join(block[:2])
+def test_the_theme_help_opens_like_the_scorecard_card_without_the_server():
+    """「이 테마 설명」은 성적표 순위 9 창과 **같은 장치**다 (2026-09-18 상하님 —
+    "성적표에서 순위 9 를 클릭해 보면 창이 열리는 것도 해 보고. 내가 뭘 원하는지
+    이해가 안 가냐?").
 
-
-def test_the_theme_help_pops_only_after_its_content_arrives():
-    """**내용이 다 찬 뒤에** 튀어 오른다 (2026-09-18 상하님 — "뭐가 바뀐지 모르겠는데?").
-
-    재 보니 창은 0.07초에 뜨고 만화는 0.36초에 찼다. 움직임이 빈 창에서 다 끝나
-    버려 안 보였다. 아래 창닫기 단추가 생긴 것을 다 찼다는 표시로 쓴다.
-    내용이 끝내 안 오면 2.5초 뒤 그냥 보인다 — 안 그러면 창이 영영 안 뜬다.
+    숨은 체크칸 하나로 여닫는다 — 누르면 서버에 묻지 않고 곧바로 뜬다(실측 서버 0번).
+    예전 스트림릿 창은 누를 때도 닫을 때도 서버에 다녀와 빈 창이 먼저 보였다.
     """
     source = _j3_source()
-    assert ':has([class*="st-key-jarvis_method_help_close_bottom"])' in source
-    assert "animation: j3HelpWait .01s linear 2.5s both" in source
-    assert "j3HelpPop .42s" in source and "backwards" in source.split("j3HelpPop .42s", 1)[1][:80]
+    assert "type='checkbox' id='{_HELP_TAP}'" in source
+    assert "class='j3-help-trigger'" in source and "class='j3-help-scrim'" in source
+    card = source.split("_HELP_CARD_CSS = ", 1)[1].split('"""', 2)[1]
+    # 성적표 카드와 같은 옷·같은 움직임.
+    assert "background:#132a4d" in card and "border-radius:22px" in card
+    assert "scale(.55)" in card and "cubic-bezier(.34,1.56,.64,1)" in card
+    # 하단 막대(2147483646)보다 위에 선다.
+    assert "z-index:2147483647" in card
+    # 그림은 카드 폭을 꽉 채운다 — 스트림릿은 55% 로 줄어 있을 때 잰 폭을 박아 둔다.
+    assert '[data-testid="stImage"] img{width:100%!important' in card
+    # 아래 창닫기는 왼쪽이다(오른쪽 아래 구석은 온라인 표시와 겹친다).
+    assert ".j3-help-row.bottom{justify-content:flex-start" in card
+    import method_help
+    assert callable(getattr(method_help, "render_us_body", None))
 
 
-def test_the_theme_help_shrinks_when_closed():
-    """「✕ 창닫기」를 누르면 풍선처럼 줄어든다. 창이 안 지워지면 5초 뒤 되살린다."""
-    source = _j3_source()
-    js = source.split('_SWIPE_OUTER_JS = """', 1)[1].split('"""', 1)[0]
-    assert "j3-help-closing" in js and "pointerdown" in js
-    assert "5000" in js, "창이 안 지워지면 흐린 뒤 화면에 갇힌다"
-    assert "[data-testid=\"stPopoverBody\"].j3-help-closing" in source or         '[data-testid="stPopoverBody"].j3-help-closing' in source
+def test_the_swipe_is_off_while_the_help_card_is_open():
+    """카드 안의 그림을 옆으로 밀어도 화면이 넘어가면 안 된다."""
+    js = _j3_source().split('_SWIPE_OUTER_JS = """', 1)[1].split('"""', 1)[0]
+    assert "getElementById('j3-help-tap')" in js
 
 
 def test_a_page_reached_by_swiping_can_be_swiped_again():

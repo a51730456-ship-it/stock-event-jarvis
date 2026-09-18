@@ -1676,7 +1676,7 @@ import method_help
 
 # 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
 # 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
-_REQUIRED_METHOD_HELP_REVISION = 2026091820
+_REQUIRED_METHOD_HELP_REVISION = 2026091830
 if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
     method_help = importlib.reload(method_help)
 
@@ -9291,6 +9291,113 @@ def _autosave_theme15() -> None:
         pass
 
 
+
+# ── 「📘 이 테마 설명」 카드 창 (2026-09-18 상하님 지시) ─────────────────────────
+# 상하님 — "이 테마 설명 너가 해 봐라. 파트별 성적표에서 매수심사결과 높은 순위 9 를
+# 클릭해 보면 창이 열리는 것도 해 보고. 내가 뭘 원하는지 이해가 안 가냐?"
+#
+# 해 보니 둘이 이렇게 달랐다.
+#   성적표 순위 9 창  누르는 **즉시** 뜬다(서버 안 거침) · 화면 가운데 **카드 한 장** ·
+#                    55% 에서 튀어 올라 살짝 넘쳤다 제자리 · 뒤는 흐림 · 다시 누르면 줄어듦
+#   이 테마 설명      누르면 서버에 다녀와 내용이 찬다(그 사이 빈 창) · 화면을 꽉 채움 ·
+#                    닫을 때도 서버에 다녀와 시장분석 화면 전체를 다시 그림
+# 그래서 이 창을 성적표 창과 **같은 장치**로 바꾼다 — 숨은 체크칸 하나로 여닫는다.
+# 내용은 화면을 그릴 때 미리 그려 두고 숨겨 두므로, 누르면 서버에 묻지 않고 곧바로
+# 뜨고 곧바로 닫힌다. 모양·움직임 값은 성적표 카드(.j3pop)를 그대로 베꼈다.
+# 내용(만화·규칙·표·글)은 method_help.render_us_body 가 그린다 — 예전 창과 같은 것이다.
+_HELP_TAP = "j3-help-tap"
+
+
+def _help_card_trigger() -> None:
+    """맨 위 줄 오른쪽 「📘 이 테마 설명」 — 누르면 카드가 열린다(서버 안 거침)."""
+    st.markdown(
+        f"<label for='{_HELP_TAP}' class='j3-help-trigger'>{method_help.BUTTON_LABEL}</label>",
+        unsafe_allow_html=True,
+    )
+
+
+_HELP_CARD_CSS = """
+<style>
+/* 숨은 체크칸 — 이것 하나로 여닫는다. 자리를 차지하지 않게 칸째 띄운다. */
+.j3-help-tap{position:absolute!important;opacity:0!important;width:1px;height:1px;
+  pointer-events:none;margin:0}
+[data-testid="stElementContainer"]:has(.j3-help-tap){position:absolute!important;
+  width:0!important;height:0!important;margin:0!important;overflow:visible!important}
+/* 여는 단추 — 예전 「📘 이 테마 설명」 단추와 같은 옷(method_help.BUTTON_CSS). */
+label.j3-help-trigger{display:inline-flex;align-items:center;white-space:nowrap;
+  background:#cfe9ff;border:1px solid #8ec9f5;border-radius:.5rem;padding:.35rem .9rem;
+  color:#c15f3c;font-size:.95rem;font-weight:800;cursor:pointer;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .12s ease-out,filter .12s ease-out,background .12s ease-out}
+label.j3-help-trigger:hover{background:#b9dfff;transform:translateY(-2px)}
+label.j3-help-trigger:active{transform:scale(.97)}
+/* 흐린 뒤판 — 누르면 닫힌다. 하단 막대(2147483646)보다 위에 선다. */
+.j3-help-scrim{position:fixed;inset:0;z-index:2147483647;cursor:pointer;
+  background:rgba(3,10,24,.52);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  opacity:0;visibility:hidden;transition:opacity .24s ease,visibility 0s linear .32s}
+body:has(#j3-help-tap:checked) .j3-help-scrim{opacity:1;visibility:visible;
+  transition:opacity .24s ease,visibility 0s}
+/* 카드 — 성적표 카드와 같은 옷·같은 움직임. 화면 가운데에 뜬다. */
+div.st-key-j3_help_card{position:fixed!important;left:50%;top:50%;z-index:2147483647;
+  width:min(1180px,calc(100vw - 28px))!important;max-height:86vh;overflow-y:auto;
+  overscroll-behavior:contain;box-sizing:border-box;padding:14px 14px 16px!important;
+  border-radius:22px;background:#132a4d;border:1px solid rgba(192,132,252,.55);
+  box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.04) inset;
+  color:#e8eef8;opacity:0;visibility:hidden;pointer-events:none;
+  transform:translate(-50%,-50%) scale(.55);
+  transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .22s ease,visibility 0s linear .32s}
+body:has(#j3-help-tap:checked) div.st-key-j3_help_card{opacity:1;visibility:visible;
+  pointer-events:auto;transform:translate(-50%,-50%) scale(1);
+  transition:transform .5s cubic-bezier(.34,1.56,.64,1),opacity .2s ease,visibility 0s}
+/* 창닫기 — 위는 오른쪽, 아래는 왼쪽(오른쪽 아래 구석은 온라인 표시와 겹친다). */
+.j3-help-row{display:flex;align-items:center;gap:10px;margin:2px 0 4px}
+.j3-help-row.top{justify-content:flex-end;margin-bottom:22px}
+/* ↑ 밑을 띄운다 — 그림 오른쪽 위에 스트림릿이 붙이는 「크게 보기」 네모가 창닫기와 겹쳤다. */
+.j3-help-row.bottom{justify-content:flex-start;margin-top:10px}
+label.j3-help-close{display:inline-flex;align-items:center;white-space:nowrap;cursor:pointer;
+  background:#cfe9ff;border:1px solid #8ec9f5;border-radius:.6rem;padding:.4rem 1rem;
+  color:#c15f3c;font-size:1.05rem;font-weight:800;user-select:none;
+  -webkit-tap-highlight-color:transparent}
+label.j3-help-close:active{transform:scale(.97)}
+.j3-help-hint{color:#8fb4de;font-size:.82rem}
+/* 그림은 **카드 폭을 꽉 채운다**. 스트림릿은 그림 폭을 카드가 55% 로 줄어 숨어
+   있을 때 재서(326px × .55 = 179px) 그대로 박아 두고, 카드가 펴져도 다시 안 잰다
+   (돌림 크기는 자리 크기가 아니라서). 그래서 폭을 여기서 정한다(2026-09-18 실측). */
+div.st-key-j3_help_card [data-testid="stFullScreenFrame"]>div,
+div.st-key-j3_help_card [data-testid="stImage"],
+div.st-key-j3_help_card [data-testid="stImageContainer"],
+div.st-key-j3_help_card [data-testid="stImageContainer"] a,
+div.st-key-j3_help_card [data-testid="stImage"] img{width:100%!important;max-width:100%!important}
+div.st-key-j3_help_card [data-testid="stImage"] img{height:auto!important}
+@media (prefers-reduced-motion:reduce){
+  div.st-key-j3_help_card,body:has(#j3-help-tap:checked) div.st-key-j3_help_card,
+  .j3-help-scrim,body:has(#j3-help-tap:checked) .j3-help-scrim{transition:none}}
+</style>
+"""
+
+
+def _render_help_card() -> None:
+    """「이 테마 설명」 카드 — 미리 그려 두고 숨겨 둔다. 체크칸이 켜지면 튀어 오른다."""
+    st.markdown(
+        _HELP_CARD_CSS
+        + f"<input type='checkbox' id='{_HELP_TAP}' class='j3-help-tap' aria-hidden='true'>"
+        + f"<label for='{_HELP_TAP}' class='j3-help-scrim' aria-hidden='true'></label>",
+        unsafe_allow_html=True,
+    )
+    with st.container(key="j3_help_card"):
+        st.markdown(
+            "<div class='j3-help-row top'>"
+            f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label></div>",
+            unsafe_allow_html=True,
+        )
+        method_help.render_us_body(st)
+        st.markdown(
+            "<div class='j3-help-row bottom'>"
+            f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label>"
+            "<span class='j3-help-hint'>바깥을 눌러도 닫힙니다.</span></div>",
+            unsafe_allow_html=True,
+        )
+
 def _render_existing_theme_content() -> None:
     # **선물부터 시켜 둔다** (2026-09-10 상하님 지적 — "관심종목에서 시장분석으로
     # 2초, 너무 늦다"). 맨 위 선물 칸이 받을 것을 뒤 일꾼에게 먼저 맡긴다.
@@ -9525,7 +9632,13 @@ def _render_existing_theme_content() -> None:
     # **게스트는 「이 테마 설명」을 못 본다** (2026-09-18 상하님 지시).
     # 건너가기 단추(「🌏 한국테마 →」)는 그대로 둔다 — 그것까지 없애면 게스트가
     # 두 화면을 오갈 수가 없다.
-    method_help.render(st, "US", show_help=not auth.is_guest())
+    # **여는 단추는 서버를 안 거치는 카드 창의 것이다** (2026-09-18 상하님 지시 —
+    # "이 테마 설명 너가 해 봐라. 성적표에서 순위 9 를 클릭해 보면 창이 열리는 것도
+    # 해 보고. 내가 뭘 원하는지 이해가 안 가냐?"). 카드는 이 화면 맨 끝에서 그린다
+    # (_render_help_card). 게스트에게는 단추도 카드도 없다.
+    _help_guest = auth.is_guest()
+    method_help.render(st, "US", show_help=not _help_guest,
+                       help_slot=None if _help_guest else _help_card_trigger)
     # 맨 위 제목은 뺐다(2026-07-30 사용자 지시) — 사이드바에 같은 이름이 있고
     # 첫 화면 높이만 먹었다. 페이지 이름은 파일명이 그대로 쓴다.
     try:
@@ -9569,6 +9682,10 @@ def _render_existing_theme_content() -> None:
     # 빈손으로 돌아가고, 그때는 예전처럼 단추가 그때 받는다.
     # 5분에 한 번만 돈다(warm_breakout_scan 안의 자물쇠).
     _warm_finders()
+    # 「이 테마 설명」 카드 창 — **화면 맨 끝**에서 그린다. 닫혀 있을 때는 자리를
+    # 차지하지 않지만, 혹시 틈이 생겨도 맨 아래라 보이지 않는다. 게스트는 없다.
+    if not auth.is_guest():
+        _render_help_card()
 
 
 def _briefing_secret(name: str) -> str:
@@ -11548,6 +11665,10 @@ _SWIPE_OUTER_JS = """
   d.addEventListener('touchstart', function (ev) {
     if (fired) { return; }
     drag = null;
+    // 「이 테마 설명」 카드가 열려 있으면 그 안의 그림을 옆으로 밀어도 화면이
+    // 넘어가면 안 된다(2026-09-18).
+    var helpTap = d.getElementById('j3-help-tap');
+    if (helpTap && helpTap.checked) { live = false; return; }
     if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
     x0 = ev.touches[0].clientX;
     y0 = ev.touches[0].clientY;

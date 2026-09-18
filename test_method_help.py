@@ -220,7 +220,9 @@ class UsGuideTests(unittest.TestCase):
         """
         import inspect
 
-        source = inspect.getsource(method_help.render)
+        # 2026-09-18 부터 미국 본문은 render_us_body 가 그린다(카드 창과 같이 쓴다).
+        source = (inspect.getsource(method_help.render)
+                  + inspect.getsource(method_help.render_us_body))
         self.assertIn("_picture(", source)
         self.assertIn("US_IMAGES", source)
         # 그림이 빠져도 화면이 죽으면 안 된다(온라인 배포에서 실제로 생길 수 있다).
