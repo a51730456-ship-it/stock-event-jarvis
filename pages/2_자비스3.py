@@ -9336,8 +9336,11 @@ label.j3-help-trigger:active{transform:scale(.97)}
   background:rgba(3,10,24,.52);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
   opacity:0;visibility:hidden;transition:opacity .24s ease,visibility 0s linear .32s}
 body:has(#j3-help-tap:checked) .j3-help-scrim{opacity:1;visibility:visible;
-  transition:opacity .24s ease,visibility 0s}
-/* 카드 — 성적표 카드와 같은 옷·같은 움직임. 화면 가운데에 뜬다. */
+  transition:opacity .36s ease,visibility 0s}
+/* 카드 — 성적표 카드와 같은 옷·같은 움직임. 화면 가운데에 뜬다.
+   **여는 것만 성적표보다 조금 느리게 둔다** (2026-09-19 상하님 — "너무 빨리 열려 효과가
+   못 느껴진다, 아주 조금만 늦게"). 튀어 오름 .5초 → .75초, 뒤판 흐려짐 .24초 → .36초.
+   닫는 것은 그대로다. */
 div.st-key-j3_help_card{position:fixed!important;left:50%;top:50%;z-index:2147483647;
   width:min(1180px,calc(100vw - 28px))!important;max-height:86vh;overflow-y:auto;
   overscroll-behavior:contain;box-sizing:border-box;padding:14px 14px 16px!important;
@@ -9348,7 +9351,7 @@ div.st-key-j3_help_card{position:fixed!important;left:50%;top:50%;z-index:214748
   transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .22s ease,visibility 0s linear .32s}
 body:has(#j3-help-tap:checked) div.st-key-j3_help_card{opacity:1;visibility:visible;
   pointer-events:auto;transform:translate(-50%,-50%) scale(1);
-  transition:transform .5s cubic-bezier(.34,1.56,.64,1),opacity .2s ease,visibility 0s}
+  transition:transform .75s cubic-bezier(.34,1.56,.64,1),opacity .3s ease,visibility 0s}
 /* 창닫기 — 위는 오른쪽, 아래는 왼쪽(오른쪽 아래 구석은 온라인 표시와 겹친다). */
 .j3-help-row{display:flex;align-items:center;gap:10px;margin:2px 0 4px}
 .j3-help-row.top{justify-content:flex-end;margin-bottom:22px}
