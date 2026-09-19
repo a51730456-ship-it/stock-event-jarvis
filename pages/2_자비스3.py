@@ -379,7 +379,8 @@ st.markdown(
     .j3-mc > .j3-mc-sub { display: block; font-size: 11px; font-weight: 700; }
     /* **최근가 칸** — 달러 가격은 조금 작게, 그 밑 등락률은 크게 (2026-09-19 상하님
        지시 — "최근가 밑에 -% 크기 너무 작다. 달러 가격 크기 조금 작게, 퍼센티지 부분
-       조금 더 크게"). 다른 칸은 그대로다. 폰 크기는 mobile_ui.py 에 따로 있다. */
+       조금 더 크게"). 다른 칸은 그대로다. 폰 크기는 mobile_ui.py 에 따로 있다.
+       상승장·급락 후 반등장 상세의 「현재가」 칸도 같은 크기다(같은 날 상하님 지시). */
     .j3-mc > .j3-mc-val.j3-mc-price { font-size: 19px; }
     .j3-mc > .j3-mc-sub.j3-mc-chg { font-size: 14px; font-weight: 800; }
     .j3-mc-val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
@@ -7036,10 +7037,13 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         _render_price_chart_bundle(ticker, panel=panel)
         _section_close(detail_key, "선택종목 세부사항 닫기")
         return
+    # 현재가 칸 글씨 크기는 테마 대장주의 「최근가」 칸과 같게 둔다(j3-mc-price ·
+    # j3-mc-chg — 2026-09-19 상하님 지시 "상승장·급락 후 반등장의 현재가 칸도 크기
+    # 맞춰 줘야지"). 아래 상승장 칸도 같다.
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
-        f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div>"
-        f"<div class='j3-mc-sub {_sign_class(metrics.get('change_pct'))}'>"
+        f"<div class='j3-mc-val j3-mc-price'>{_price(metrics.get('current'))}</div>"
+        f"<div class='j3-mc-sub j3-mc-chg {_sign_class(metrics.get('change_pct'))}'>"
         f"{_pct(metrics.get('change_pct'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
         f"<div class='j3-mc-val {_sign_class(metrics.get('from_high_pct'))}'>"
@@ -7083,8 +7087,8 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             # 이 한 줄을 빠뜨렸다. **값은 이미 metrics 안에 있다** — 새로 받아
             # 오는 것이 없으니 여는 시간은 그대로다.
             f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
-            f"<div class='j3-mc-val'>{_price(metrics.get('current'))}</div>"
-            f"<div class='j3-mc-sub {_sign_class(metrics.get('change_pct'))}'>"
+            f"<div class='j3-mc-val j3-mc-price'>{_price(metrics.get('current'))}</div>"
+            f"<div class='j3-mc-sub j3-mc-chg {_sign_class(metrics.get('change_pct'))}'>"
             f"{_pct(metrics.get('change_pct'))}</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 등수</div>"
             f"<div class='j3-mc-val j3-green'>{_rank_text('rs60_rank')}</div>"
