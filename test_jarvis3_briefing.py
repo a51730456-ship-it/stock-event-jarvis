@@ -1012,7 +1012,7 @@ def test_the_next_page_lies_under_the_turning_page():
     assert "function capture(" in js and "function showUnder(" in js
     assert "drag.snap = showUnder(go.to);" in js, "손가락이 잡히는 그 순간에 깔아야 한다"
     # 사진 규칙은 **뜰 때 그 화면의 것**을 같이 떠 둔다(시장분석 사진이 하얗게 나왔다).
-    assert "SNAP[sname] = { node: top, v: snapV, css: css };" in js
+    assert "SNAP[sname] = { node: top, v: snapV, css: css, sig: sig };" in js
     # 진짜 화면에서 숨은 칸은 사진에서도 숨긴다(사진이 168px 아래로 밀렸다).
     assert "setProperty('display', 'none', 'important')" in js
 
@@ -1044,23 +1044,58 @@ def test_starting_a_swipe_does_not_mark_the_whole_page():
     assert "classList" not in move, "손가락이 움직이는 동안 표시를 붙이면 멈칫한다"
     assert "appendChild" not in move
     idle = js.split("function idle()", 1)[1].split("\n  }", 1)[0]
-    assert "curlParts(); blankLayer();" in idle
+    assert "ensureLayers();" in idle
     assert "j3-turning" not in _j3_source()
 
 
-def test_the_page_curls_toward_the_viewer_under_the_finger():
-    """종이가 **앞으로 말려** 넘어간다 (2026-09-19 상하님 — "뒤로 넘기는 것 보기 안
-    좋다. 앞으로 종이 말리듯이 해 달라고! 유튜브까지 내가 보여 줬는데").
+def test_the_page_picture_curls_toward_the_viewer_under_the_finger():
+    """**화면 그림이** 앞으로 넘어오며 끝이 말린다 (2026-09-19 상하님 — "뒤로 넘기는 것
+    보기 안 좋다. 앞으로 종이 말리듯이" · "그냥 부옇게 처리해 버리면 어떡하냐? 말리더라도
+    그림이 말려야지. 앞으로 넘기되 그림이 말려야지").
 
-    종이 끝은 손가락을 그대로 따라가고(민 만큼), 접힌 선은 끝과 원래 자리의 한가운데다.
-    넘어온 종이의 뒷면(말린 빛)이 보이고, 접힌 선 너머로 다음 쪽이 보인다.
+    지금 쪽 사진 두 장 — 평평한 쪽(face)과 말리는 끝(edge, 폭의 3할)이 책등을 축으로
+    보는 사람 쪽으로 넘어오고, 끝은 종이보다 더 말린다. 종이 끝은 손가락을 따라온다.
     """
     js = _swipe_js()
-    assert "edge = W - dist; fold = W - dist / 2;" in js
-    assert "edge = dist; fold = dist / 2;" in js
-    assert "function showCurl(" in js and "function hideCurl(" in js
-    # 넘기는 동안 진짜 화면은 돌리지 않는다(돌림·원근 없음).
-    assert "rotateY(" not in js and "perspective(" not in js
+    assert "function outerX(" in js and "function angleFor(" in js
+    assert "function pageTf(" in js and "function edgeTf(" in js
+    assert "var FACE = copyHolder('j3page-host'), EDGE = copyHolder('j3curl-host');" in js
+    # 눈을 종이 끝 위에 둔다 — 앞으로 넘어와도 종이가 커지지 않고 다음 쪽이 곧장 드러난다.
+    assert "'translateX(' + (-s * W) + 'px) perspective(' + DEPTH + 'px) translateX(' + (s * W) + 'px) '" in js
+
+
+def test_the_real_screen_never_turns():
+    """**진짜 화면은 한 번도 안 움직인다** (2026-09-19 실측). 진짜 시장분석을 돌렸더니
+    손가락이 움직일 때마다 칸 5,651개를 통째로 다시 배치해 한 번 넘기는 동안 18번
+    멈칫했다. 사진(사본)을 돌리면 20장면 0번이었다.
+    """
+    js = _swipe_js()
+    assert "stAppViewContainer" not in js
+    assert "box.style" not in js
+
+
+def test_the_turning_copy_keeps_its_svg_letters_still():
+    """사진 속 그림 글자는 모양을 고정한다 — 돌 때마다 다시 배치하면 한 번 넘기는 동안
+    17번 멈칫했다 → 1번(느린 폰 · 2026-09-19 실측). 사진에만 건다(진짜 화면은 그대로)."""
+    js = _swipe_js()
+    assert ".j3snap-html svg text,.j3snap-html svg tspan{text-rendering:geometricPrecision!important}" in js
+
+
+def test_the_copies_are_relaid_only_when_the_screen_shape_changes():
+    """지금 쪽 사진은 모양(높이·칸 수)이 바뀔 때만 새로 깐다 — 시세 숫자만 바뀌는데 20초마다
+    새로 깔았더니 가만히 있어도 느린 폰에서 0.7초씩 멈췄다(2026-09-19 실측)."""
+    js = _swipe_js()
+    assert "function sigOf(main)" in js
+    assert "(h.v === snap.v || (!force && h.sig && h.sig === snap.sig))" in js
+
+
+def test_the_shield_never_stays():
+    """넘기는 동안만 맨 위에 까는 투명한 막 — 남으면 화면이 안 눌린다. 모든 끝에서 걷고,
+    혹시 남으면 다음 손가락이 닿는 순간 걷는다."""
+    js = _swipe_js()
+    hide = js.split("function hideAll()", 1)[1].split("\n  }", 1)[0]
+    assert "fx.shield" in hide
+    assert "else if (fx && fx.shield.style.display === 'block') { hideAll(); }" in js
 
 
 def test_a_swipe_is_not_lost_when_the_touched_spot_is_redrawn():
@@ -1074,7 +1109,7 @@ def test_a_swipe_is_not_lost_when_the_touched_spot_is_redrawn():
     assert "hook(ev.target);" in js
     assert "node.addEventListener('touchend', onEnd" in js
     assert "function firstTime(ev)" in js
-    assert "if (drag) { drag = null; hideCurl(); hideSnap(); }" in js
+    assert "if (drag) { drag = null; hideAll(); }" in js
 
 
 def test_the_swipe_marker_takes_no_room():
