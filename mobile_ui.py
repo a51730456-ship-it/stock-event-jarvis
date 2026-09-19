@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026091810
+MODULE_REVISION = 2026091910
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -517,6 +517,11 @@ div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:has(div[class*="s
 .j3-mc > .j3-mc-val { font-size: 1rem; margin: 2px 0 1px; }
 .j3-mc-label { font-size: 10px; }
 .j3-mc > .j3-mc-sub { font-size: 10px; }
+/* 최근가 칸 — 가격은 한 치수 작게, 등락률은 크게 (2026-09-19 상하님 지시 — "최근가 밑에
+   -% 크기 너무 작다. 달러 가격 크기 조금 작게, 퍼센티지 부분 조금 더 크게").
+   가격 16px → 15px · 등락률 10px → 13px. 다른 칸은 그대로다. */
+.j3-metric-row .j3-mc > .j3-mc-val.j3-mc-price { font-size: 15px; }
+.j3-metric-row .j3-mc > .j3-mc-sub.j3-mc-chg { font-size: 13px; }
 .j3-section-title, .j4-section-title { font-size: 1.02rem; }
 .j3-pull-guide, .j4-pull-guide, .j5-guide { font-size: 0.86rem; }
 /* 순위표 단추 밑 두 줄 — 보라색 '표에서 테마 이름을 클릭하면…'과 초록색

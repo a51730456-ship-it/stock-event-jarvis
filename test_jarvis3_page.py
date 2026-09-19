@@ -731,8 +731,8 @@ class Jarvis3PageTests(unittest.TestCase):
                              for value in markdowns),
                          "없앤 당일 가격 칸이 되살아났다")
         # 그 자리에는 **닫혀 있는** 접이란이 하나 있어야 한다.
-        self.assertTrue(any("2주간 일별 시세 보기" in str(node.label) for node in app.button),
-                        "2주간 일별 시세 접이란이 없다")
+        self.assertTrue(any("3주간 일별 시세 보기" in str(node.label) for node in app.button),
+                        "3주간 일별 시세 접이란이 없다")
         self.assertFalse(any("j3dp" in value for value in markdowns),
                          "접이란이 눌리기도 전에 펴져 있다")
         # 값은 결과 payload에서 그대로 와야 한다 — 시험이 숫자를 손으로 박아 두면

@@ -377,6 +377,11 @@ st.markdown(
         margin: 6px 0 3px; line-height: 1.18;
     }
     .j3-mc > .j3-mc-sub { display: block; font-size: 11px; font-weight: 700; }
+    /* **최근가 칸** — 달러 가격은 조금 작게, 그 밑 등락률은 크게 (2026-09-19 상하님
+       지시 — "최근가 밑에 -% 크기 너무 작다. 달러 가격 크기 조금 작게, 퍼센티지 부분
+       조금 더 크게"). 다른 칸은 그대로다. 폰 크기는 mobile_ui.py 에 따로 있다. */
+    .j3-mc > .j3-mc-val.j3-mc-price { font-size: 19px; }
+    .j3-mc > .j3-mc-sub.j3-mc-chg { font-size: 14px; font-weight: 800; }
     .j3-mc-val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
     .j3-mc-sub { font-size: 0.95rem; font-weight: 800; }
     .j3-up { color: #4da6ff; }
@@ -1213,7 +1218,7 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 700 !important;
     }
-    /* 「📅 2주간 일별 시세 보기」 — 연한 무지개 그라데이션 (2026-09-18 상하님 지시
+    /* 「📅 3주간 일별 시세 보기」 — 연한 무지개 그라데이션 (2026-09-18 상하님 지시
        "단추 색깔 무지개색으로 연하게 그라데이션 넣어줘").
        옆 단추들(황금·붉은색)과 싸우지 않게 **연하게**만 깐다 — 다섯 색을 36%
        투명도로 눕히고(20% 는 남색 바탕에 묻혀 무지개로 안 보였다 — 실물로 재 봤다) 글자는 흰색 그대로 둔다. 여닫는 단추 둘 다에 건다
@@ -1662,7 +1667,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026091810
+_REQUIRED_MOBILE_REVISION = 2026091910
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -2572,20 +2577,22 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
     **새로 받아 오는 것이 없다** — 카드가 쓰는 6개월 일봉을 다시 읽는다.
     못 받으면 표를 안 그린다(없는 것을 있는 것처럼 적지 않는다).
     """
+    # **3주(거래일 15일)로 늘렸다** (2026-09-19 상하님 지시 — "3주간으로 늘려라, 위아래
+    # 라인 좀 더 좁게. 즉 거래 15일치"). 줄 위아래 여백도 줄였다(.34rem → .2rem).
     key = f"j3_daily_prices_{panel or 'x'}_{str(ticker or 'x').lower()}"
     if not _section_toggle(
-        "📅 2주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
-        close_label="2주간 일별 시세 닫기",
+        "📅 3주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
+        close_label="3주간 일별 시세 닫기",
     ):
         return
     rows = []
     try:
-        rows = j3data.daily_price_rows(ticker, days=10) or []
+        rows = j3data.daily_price_rows(ticker, days=15) or []
     except Exception:
         rows = []
     if not rows:
         st.caption("일별 시세를 불러오지 못했습니다.")
-        _section_close(key, "2주간 일별 시세 닫기")
+        _section_close(key, "3주간 일별 시세 닫기")
         return
     # **색은 앱 규칙을 그대로 쓴다** (2026-09-02 상하님 — "화면은 흰색으로
     # 하라는 게 아니다"). 칸 짜임만 네이버 「일별 시세」와 같게 하고, 흰 바탕·
@@ -2608,10 +2615,10 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
         "<style>"
         ".j3dp{width:100%;border-collapse:collapse;font-size:.93rem;margin:.2rem 0 .4rem;"
         "background:transparent}"
-        ".j3dp th{color:#9aa0aa;font-weight:800;text-align:right;padding:.35rem .5rem;"
+        ".j3dp th{color:#9aa0aa;font-weight:800;text-align:right;padding:.25rem .5rem;"
         "border-bottom:1px solid rgba(255,255,255,.18)}"
         ".j3dp th:first-child{text-align:left}"
-        ".j3dp td{text-align:right;padding:.34rem .5rem;color:#e6e6e6;"
+        ".j3dp td{text-align:right;padding:.2rem .5rem;color:#e6e6e6;"
         "border-bottom:1px solid rgba(255,255,255,.06)}"
         ".j3dp .j3dp-d{text-align:left;color:#9aa0aa;font-weight:700}"
         ".j3dp .j3dp-c{font-weight:800;color:#e6e6e6}"
@@ -2620,8 +2627,8 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
         f"<th>전일대비</th><th>등락률</th></tr></thead><tbody>{''.join(body)}</tbody></table>",
         unsafe_allow_html=True,
     )
-    st.caption("거래일 열흘치입니다. 최근 날이 맨 위입니다.")
-    _section_close(key, "2주간 일별 시세 닫기")
+    st.caption("거래일 15일치입니다. 최근 날이 맨 위입니다.")
+    _section_close(key, "3주간 일별 시세 닫기")
 
 
 # 일봉·주봉·월봉 셋의 높이. 상하님이 보여 준 지수 카드의 작은 그림(124×117)에
@@ -3548,10 +3555,11 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *,
         else "—"
     )
     state_sub = f"<div class='j3-mc-sub j3-muted'>{entry_state}</div>" if entry_state else ""
-    change_sub = f"<div class='j3-mc-sub {_sign_class(quote.get('change_pct'))}'>{_pct(quote.get('change_pct'))}</div>"
+    # 최근가 칸만 글씨 크기를 따로 둔다(j3-mc-price · j3-mc-chg — 아래 CSS).
+    change_sub = f"<div class='j3-mc-sub j3-mc-chg {_sign_class(quote.get('change_pct'))}'>{_pct(quote.get('change_pct'))}</div>"
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>최근가</div>"
-        f"<div class='j3-mc-val'>{_price(quote.get('current'))}</div>{change_sub}</div>",
+        f"<div class='j3-mc-val j3-mc-price'>{_price(quote.get('current'))}</div>{change_sub}</div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
         f"<div class='j3-mc-val {_sign_class(quote.get('from_high_pct'))}'>{_pct(quote.get('from_high_pct'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
