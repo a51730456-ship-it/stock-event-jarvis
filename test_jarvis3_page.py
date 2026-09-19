@@ -406,8 +406,13 @@ class Jarvis3PageTests(unittest.TestCase):
         current = block.index("현재가")
         nxt = block.index("최근 3개월 등수")
         cell = block[current:nxt]
-        self.assertIn("change_pct", cell,
+        # 2026-09-19부터 칸에 적는 값은 당일 그림과 같은 정규장 기준(shown_change)이다.
+        # 못 구하면 metrics 의 change_pct 로 돌아간다(_session_price_change).
+        self.assertIn("shown_change", cell,
                       "상승장 현재가 칸에 당일 등락률이 없다")
+        self.assertIn("ticker, metrics.get('current'), metrics.get('change_pct'))",
+                      source[head - 3000:head],
+                      "정규장 값을 못 구할 때 돌아갈 등락률이 없다")
         self.assertIn("_sign_class", cell,
                       "당일 등락률에 오름·내림 색이 없다")
 

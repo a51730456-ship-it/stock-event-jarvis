@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026091730
+MODULE_REVISION = 2026091910
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -5492,6 +5492,43 @@ def get_intraday_chart(ticker: str) -> dict | None:
                                    ticker=ticker, daily=daily.get(ticker))
 
 
+def session_quote(ticker: str) -> dict:
+    """선택종목 세부사항의 **가격·등락률** — 당일 그림과 같은 정규장 기준 (2026-09-19).
+
+    상하님 — *"선택종목 세부사항에 퍼센티지 제대로 된 것 맞냐? 당일 차트와도
+    안 맞는데?"*
+
+    맞는 지적이다. 세부사항 가격 칸은 `get_live_quote` 의 값을 적고 있었는데,
+    그 값은 1분봉을 **시간외까지**(prepost) 받아 그 마지막 체결가다. 당일 그림은
+    정규장(09:30~16:00)만 그린다. 실측(한국 2026-09-19 11:50 · 뉴욕 09-18 22:50) —
+        CRSP  세부사항 57.31 -0.03%  ↔  정규장 종가 56.56 -1.33% (당일 그림 -1.33%)
+        SNOW  세부사항 330.62 -2.30% ↔  정규장 종가 332.43 -1.76%
+    2026-08-28 에 관심종목 카드와 당일 그림은 정규장 기준으로 바꿨는데(상하님 —
+    "숫자도 정규장 종가 기준으로"), 이 칸만 남아 있었다.
+
+    **당일 그림과 같은 자료를 같은 방법으로 쓴다** — 일봉은 get_intraday_chart 와
+    같은 2년치, 분봉은 `_session_minutes` 가 고르는 마지막 정규장, 값은 관심종목
+    카드가 쓰는 `_card_session_values`. 그래서 셋이 같은 날·같은 값을 말한다.
+    장중이면 야후 일봉 마지막 줄이 오늘이라 지금 값이 그대로 나온다.
+
+    **점수·배점에는 안 쓴다.** 화면 칸에 적을 값만 준다. 못 구하면 ok=False —
+    부르는 쪽은 그때 예전 값을 그대로 적는다(있던 것을 지우지 않는다).
+    """
+    ticker = str(ticker or "").strip().upper()
+    if not ticker:
+        return {"ok": False}
+    try:
+        daily, _ = _download_cached((ticker,), period="2y", interval="1d", ttl_seconds=300)
+        live, _ = _download_cached((ticker,), period="1d", interval="1m", ttl_seconds=45, prepost=True)
+        shaped, _day = _session_minutes(ticker, live.get(ticker))
+        _points, price, prev, change = _card_session_values(daily.get(ticker), shaped)
+    except Exception:
+        return {"ok": False}
+    if price is None:
+        return {"ok": False}
+    return {"ok": True, "price": float(price), "prev_close": prev, "change_pct": change}
+
+
 def prefetch_charts(tickers) -> None:
     """여러 종목의 차트 자료를 **한 번에 묶어** 받아 둔다 (2026-08-14 상하님 지시).
 
@@ -5994,7 +6031,7 @@ def analyze_pullback_stock(
     }
 
 
-def daily_price_rows(ticker: str, days: int = 10) -> list[dict]:
+def daily_price_rows(ticker: str, days: int = 10, *, fill_last_session: bool = False) -> list[dict]:
     """최근 며칠치 **일별 시세** — 날짜·종가·전일대비·등락률 (2026-09-02 지시).
 
     상하님 — *"2주간 일별 시세 보기란을 만들고"* (네이버 증권의 그 표와 같은 칸).
@@ -6016,6 +6053,22 @@ def daily_price_rows(ticker: str, days: int = 10) -> list[dict]:
         closes = frame["Close"].dropna().astype(float)
     except Exception:
         return []
+    # **마지막으로 끝난 장을 채운다** (2026-09-19 상하님 — "3주간 시세 당일 시세는 왜
+    # 안 넣냐?"). 야후가 미국장이 끝난 뒤 그날 일봉을 몇 시간 늦게 올린다
+    # (`_daily_lags_last_session` 참고). 한국 2026-09-19 11:28 상하님 화면 — 위 칸
+    # 가격은 09-18 인데 표는 09-17 부터였다. 관심종목 카드·시장 국면과 같은 방법으로
+    # 당일 그림이 쓰는 정규장 분봉에서 그 장 한 줄을 채운다. 못 채우면 표는 그대로다.
+    # 자비스3 화면만 켠다(fill_last_session=True). 자비스6 은 그대로 둔다.
+    if fill_last_session and not closes.empty:
+        try:
+            live, _ = _download_cached((ticker,), period="1d", interval="1m",
+                                       ttl_seconds=45, prepost=True)
+            shaped, _day = _session_minutes(ticker, live.get(ticker))
+            if shaped is not None:
+                frame = _fill_missing_session({ticker: frame}, {ticker: shaped}).get(ticker, frame)
+                closes = frame["Close"].dropna().astype(float)
+        except Exception:
+            pass
     if closes.empty:
         return []
     wanted = max(1, int(days)) + 1

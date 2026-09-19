@@ -1756,7 +1756,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026091730
+_REQUIRED_J3_REVISION = 2026091910
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2594,7 +2594,7 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
         return
     rows = []
     try:
-        rows = j3data.daily_price_rows(ticker, days=15) or []
+        rows = j3data.daily_price_rows(ticker, days=15, fill_last_session=True) or []
     except Exception:
         rows = []
     if not rows:
@@ -3539,6 +3539,21 @@ def _leader_bar_pct(score) -> float:
     return max(0.0, min(float(score or 0) / max(_leader_max(), 1.0) * 100.0, 100.0))
 
 
+def _session_price_change(ticker, fallback_price, fallback_change):
+    """세부사항 가격 칸에 적을 (가격, 등락률) — 당일 그림과 같은 정규장 기준 (2026-09-19).
+
+    못 구하면 넘겨받은 예전 값을 그대로 돌려준다. 칸이 빈칸이 되면 안 된다.
+    """
+    try:
+        got = j3data.session_quote(ticker)
+    except Exception:
+        got = {}
+    if got.get("ok") and got.get("price") is not None:
+        change = got.get("change_pct")
+        return got["price"], (change if change is not None else fallback_change)
+    return fallback_price, fallback_change
+
+
 # **5분마다 조용히 갱신한다** (2026-09-12 상하님 지시 — "설명 내용 삭제하고
 # 보이지는 않지만 5분 자동 갱신으로 해주고"). 예전에는 1분마다 돌면서 화면에
 # 「1분 자동 갱신」이라고 적어 두었다. 위 시장판단 줄도 5분이라 주기가 맞는다.
@@ -3565,10 +3580,15 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *,
     )
     state_sub = f"<div class='j3-mc-sub j3-muted'>{entry_state}</div>" if entry_state else ""
     # 최근가 칸만 글씨 크기를 따로 둔다(j3-mc-price · j3-mc-chg — 아래 CSS).
-    change_sub = f"<div class='j3-mc-sub j3-mc-chg {_sign_class(quote.get('change_pct'))}'>{_pct(quote.get('change_pct'))}</div>"
+    # **가격·등락률은 당일 그림과 같은 정규장 기준이다** (2026-09-19 상하님 — "퍼센티지
+    # 제대로 된 것 맞냐? 당일 차트와도 안 맞는데?"). 시간외 체결가를 적고 있었다
+    # (j3data.session_quote 설명). 못 구하면 예전 값을 그대로 적는다.
+    shown_price, shown_change = _session_price_change(
+        ticker, quote.get('current'), quote.get('change_pct'))
+    change_sub = f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>{_pct(shown_change)}</div>"
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>최근가</div>"
-        f"<div class='j3-mc-val j3-mc-price'>{_price(quote.get('current'))}</div>{change_sub}</div>",
+        f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>{change_sub}</div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
         f"<div class='j3-mc-val {_sign_class(quote.get('from_high_pct'))}'>{_pct(quote.get('from_high_pct'))}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
@@ -7048,11 +7068,15 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     # 현재가 칸 글씨 크기는 테마 대장주의 「최근가」 칸과 같게 둔다(j3-mc-price ·
     # j3-mc-chg — 2026-09-19 상하님 지시 "상승장·급락 후 반등장의 현재가 칸도 크기
     # 맞춰 줘야지"). 아래 상승장 칸도 같다.
+    # 가격·등락률은 당일 그림과 같은 정규장 기준이다(2026-09-19 — 위 최근가 칸과 같다).
+    # 목록을 만들 때 잰 값(metrics)은 점수에 쓰이므로 그대로 두고, 칸에 적는 것만 바꾼다.
+    shown_price, shown_change = _session_price_change(
+        ticker, metrics.get('current'), metrics.get('change_pct'))
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
-        f"<div class='j3-mc-val j3-mc-price'>{_price(metrics.get('current'))}</div>"
-        f"<div class='j3-mc-sub j3-mc-chg {_sign_class(metrics.get('change_pct'))}'>"
-        f"{_pct(metrics.get('change_pct'))}</div></div>",
+        f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>"
+        f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>"
+        f"{_pct(shown_change)}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
         f"<div class='j3-mc-val {_sign_class(metrics.get('from_high_pct'))}'>"
         f"{_pct(metrics.get('from_high_pct'))}</div>"
@@ -7095,9 +7119,9 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             # 이 한 줄을 빠뜨렸다. **값은 이미 metrics 안에 있다** — 새로 받아
             # 오는 것이 없으니 여는 시간은 그대로다.
             f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
-            f"<div class='j3-mc-val j3-mc-price'>{_price(metrics.get('current'))}</div>"
-            f"<div class='j3-mc-sub j3-mc-chg {_sign_class(metrics.get('change_pct'))}'>"
-            f"{_pct(metrics.get('change_pct'))}</div></div>",
+            f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>"
+            f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>"
+            f"{_pct(shown_change)}</div></div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 등수</div>"
             f"<div class='j3-mc-val j3-green'>{_rank_text('rs60_rank')}</div>"
             "<div class='j3-mc-sub j3-muted'>나스닥보다 강한 차례</div></div>",

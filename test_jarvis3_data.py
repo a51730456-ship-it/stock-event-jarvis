@@ -1953,6 +1953,72 @@ class TheButtonKeepsTheLastGoodListTests(unittest.TestCase):
         self.assertEqual(1, len(started), "뒤 일꾼이 누를 때마다 249종목을 받는다")
 
 
+class DetailPriceIsTheRegularSessionTests(unittest.TestCase):
+    """선택종목 세부사항 가격 칸·3주간 표는 **당일 그림과 같은 정규장 기준**이다 (2026-09-19).
+
+    상하님 — *"선택종목 세부사항에 퍼센티지 제대로 된 것 맞냐? 당일 차트와도 안
+    맞는데?"* · *"3주간 시세 당일 시세는 왜 안 넣냐?"*
+    세부사항 칸은 시간외 체결가를 적고 있었고(CRSP 세부사항 -0.03% ↔ 정규장 -1.33%),
+    3주간 표는 야후가 늦게 올린 마지막 장이 빠져 있었다.
+    """
+
+    NY = ZoneInfo("America/New_York")
+
+    def _daily(self, days):
+        index = pd.DatetimeIndex([pd.Timestamp(day, tz=self.NY) for day, _ in days])
+        return pd.DataFrame({"Close": [close for _, close in days]}, index=index)
+
+    def _minutes(self, day, start, end, *, after_hours=None, points=30):
+        index = list(pd.date_range(f"{day} 09:30", f"{day} 16:00", periods=points, tz=self.NY))
+        values = [start + (end - start) * i / (points - 1) for i in range(points)]
+        if after_hours is not None:
+            index.append(pd.Timestamp(f"{day} 18:30", tz=self.NY))
+            values.append(after_hours)
+        return pd.DataFrame({"Close": values}, index=pd.DatetimeIndex(index))
+
+    def _patch(self, daily, minutes):
+        real = j3._download_cached
+
+        def fake(tickers, *, period, interval, ttl_seconds, prepost=False):
+            frame = daily if interval == "1d" else minutes
+            return {"ABC": frame.copy()}, {"ok": True, "stale": False}
+
+        j3._download_cached = fake
+        self.addCleanup(setattr, j3, "_download_cached", real)
+
+    def test_the_price_card_ignores_the_after_hours_trade(self):
+        daily = self._daily([("2026-09-16", 100.0), ("2026-09-17", 110.0), ("2026-09-18", 104.5)])
+        self._patch(daily, self._minutes("2026-09-18", 109.0, 104.6, after_hours=109.9))
+        got = j3.session_quote("ABC")
+        self.assertTrue(got["ok"])
+        self.assertEqual(104.5, got["price"], "시간외 체결가를 적었다")
+        self.assertAlmostEqual(-5.0, got["change_pct"], places=6)
+
+    def test_the_price_card_uses_the_late_session_from_minutes(self):
+        """야후 일봉이 그 장을 아직 안 올렸으면 당일 그림의 그 장 값을 적는다."""
+        daily = self._daily([("2026-09-16", 100.0), ("2026-09-17", 110.0)])
+        self._patch(daily, self._minutes("2026-09-18", 109.0, 104.5, after_hours=109.9))
+        got = j3.session_quote("ABC")
+        self.assertEqual(104.5, got["price"])
+        self.assertEqual(110.0, got["prev_close"])
+
+    def test_the_three_week_table_gets_the_late_session(self):
+        daily = self._daily([("2026-09-16", 100.0), ("2026-09-17", 110.0)])
+        self._patch(daily, self._minutes("2026-09-18", 109.0, 104.5))
+        rows = j3.daily_price_rows("ABC", days=15, fill_last_session=True)
+        self.assertEqual("09.18", rows[0]["date"], "마지막으로 끝난 장이 빠졌다")
+        self.assertEqual(104.5, rows[0]["close"])
+        self.assertAlmostEqual(-5.0, rows[0]["pct"], places=6)
+        self.assertEqual("09.17", rows[1]["date"])
+
+    def test_the_table_is_unchanged_without_the_switch(self):
+        """자비스6 화면은 켜지 않는다 — 예전 그대로다."""
+        daily = self._daily([("2026-09-16", 100.0), ("2026-09-17", 110.0)])
+        self._patch(daily, self._minutes("2026-09-18", 109.0, 104.5))
+        rows = j3.daily_price_rows("ABC", days=15)
+        self.assertEqual("09.17", rows[0]["date"])
+
+
 class CardShowsTheLastFinishedSessionTests(unittest.TestCase):
     """관심종목 카드는 **마지막으로 끝난 장**을 적어야 한다 (2026-08-29 상하님 지적).
 
