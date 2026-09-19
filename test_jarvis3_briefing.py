@@ -1112,6 +1112,27 @@ def test_a_swipe_is_not_lost_when_the_touched_spot_is_redrawn():
     assert "if (drag) { drag = null; hideAll(); }" in js
 
 
+def test_home_pulls_back_to_the_watchlist():
+    """홈에서 어느 쪽으로 당겨도 관심종목으로 넘어간다 (2026-09-19 상하님 — "홈에서 다시
+    관심종목으로 손가락으로 당기면 관심종목으로 안 된다"). 홈의 「미국테마 (자비스3)」
+    이동 고리를 누르고, 홈 화면 사진도 말려 넘어간다."""
+    js = _swipe_js()
+    assert "if (now === 'home') { return { link: '자비스3', from: 'home', to: 'watch' }; }" in js
+    assert "function findTarget(go)" in js
+    assert "findButton(go.key)" in js.split("function findTarget(go)", 1)[1].split("\n  }", 1)[0]
+
+
+def test_top9_card_opens_and_closes_like_the_theme_help():
+    """성적표 순위 9 창은 「이 테마 설명」과 같은 속도로 열리고 같은 모양으로 닫힌다
+    (2026-09-19 상하님 지시)."""
+    source = _j3_source()
+    help_css = source.split("_HELP_CARD_CSS = ", 1)[1].split('"""', 2)[1]
+    for move in ("transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease",
+                 "transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0)"):
+        assert move in help_css
+        assert move in source.split(".j3pop{position:absolute", 1)[1][:1500]
+
+
 def test_the_swipe_marker_takes_no_room():
     """「넘겨서 들어왔다」 표시 칸이 틈 12px 를 더 먹으면 사진과 진짜 화면이 어긋난다
     (2026-09-19 실측 — 처음 열 때 198px, 넘겨서 올 때 210px → 고친 뒤 둘 다 198px)."""

@@ -9984,11 +9984,15 @@ def _briefing_css() -> None:
           display:flex;flex-direction:column;gap:10px;
           opacity:0;visibility:hidden;pointer-events:none;
           transform:translate(-50%,-50%) scale(.55);
-          transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .22s ease,
-            visibility 0s linear .32s}
+          transition:transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0),
+            visibility 0s linear .56s}
+        /* 여닫는 움직임은 「이 테마 설명」 카드와 **같게** 둔다 (2026-09-19 상하님 지시 —
+           "순위 9 누르면 창이 열리는 속도를 이 테마 설명 속도처럼 만들고 닫히는 것도
+           이 테마 설명과 같이"). 열 때 .9초에 튀어 올라 살짝 넘쳤다 자리 잡고, 닫을 때는
+           살짝 부풀었다가 가운데로 줄어들며(.56초) 끝 무렵에 옅어진다. */
         .j3sc-tap:checked ~ .j3pop{opacity:1;visibility:visible;pointer-events:auto;
           transform:translate(-50%,-50%) scale(1);
-          transition:transform .5s cubic-bezier(.34,1.56,.64,1),opacity .2s ease,
+          transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,
             visibility 0s}
         .j3pop-title{font-size:.86rem;font-weight:800;color:#e9d5ff}
         .j3pop-total{font-size:2rem;font-weight:900;line-height:1;margin-top:-4px}
@@ -11629,6 +11633,21 @@ _SWIPE_OUTER_JS = """
     if (dx < 0 && now === 'watch') { return { key: 'j3b_swipe_market', from: 'watch', to: 'market' }; }
     if (dx > 0 && now === 'watch') { return { key: 'j3b_nav_home', from: 'watch', to: 'home' }; }
     if (dx > 0 && now === 'market') { return { key: 'j3b_swipe_watch', from: 'market', to: 'watch' }; }
+    // **홈에서는 어느 쪽으로 당겨도 관심종목으로 간다** (2026-09-19 상하님 지시 — "홈에서
+    // 다시 관심종목으로 손가락으로 당기면 관심종목으로 안 된다"). 홈의 「미국테마
+    // (자비스3)」 이동 고리(링크)를 누른다. 홈에는 다른 넘길 쪽이 없다.
+    if (now === 'home') { return { link: '자비스3', from: 'home', to: 'watch' }; }
+    return null;
+  }
+  // 넘긴 뒤 누를 것 — 자비스3 안에서는 숨은 단추, 홈에서는 「미국테마 (자비스3)」 고리.
+  function findTarget(go) {
+    if (go.key) { return findButton(go.key); }
+    var links = d.querySelectorAll('a[data-testid="stPageLink-NavLink"]');
+    for (var i = 0; i < links.length; i++) {
+      var href = '';
+      try { href = decodeURIComponent(links[i].getAttribute('href') || ''); } catch (e) {}
+      if (href.split('?')[0].split('/').pop() === go.link) { return links[i]; }
+    }
     return null;
   }
 
@@ -12014,14 +12033,13 @@ _SWIPE_OUTER_JS = """
     capture(false);
     // 문서에 새로 붙이는 일도 조용할 때 한다 — 넘기기 시작하는 순간에 붙이면 폰이 화면
     // 칸을 전부 다시 따져 첫 넘김이 한 번 멈칫했다(느린 폰 기준 245ms · 2026-09-19).
-    if (sname === 'watch' || sname === 'market') { ensureLayers(); }
-    var next = sname === 'watch' ? 'market' : (sname === 'market' ? 'watch' : '');
+    ensureLayers();
+    // 넘길 쪽 — 관심종목이면 시장분석, 시장분석·홈이면 관심종목.
+    var next = sname === 'watch' ? 'market' : 'watch';
     var jobs = [];
-    if (next) { jobs.push(function () { mount(next); }); }
-    if (sname === 'watch' || sname === 'market') {
-      jobs.push(function () { mountCopy(FACE, sname); });
-      jobs.push(function () { mountCopy(EDGE, sname); });
-    }
+    jobs.push(function () { mount(next); });
+    jobs.push(function () { mountCopy(FACE, sname); });
+    jobs.push(function () { mountCopy(EDGE, sname); });
     (function run() {
       var job = jobs.shift();
       if (!job || drag || fired) { return; }
@@ -12058,7 +12076,7 @@ _SWIPE_OUTER_JS = """
       if (Math.abs(top - capScroll) < (window.innerHeight || 800) * 1.5) { return; }
       capScroll = top;
       var sname = screenNow();
-      if (sname !== 'watch' && sname !== 'market') { return; }
+      if (!sname) { return; }
       capture(true);
       setTimeout(function () { if (!drag && !fired) { mountCopy(FACE, sname, true); } }, 60);
       setTimeout(function () { if (!drag && !fired) { mountCopy(EDGE, sname, true); } }, 140);
@@ -12278,7 +12296,7 @@ _SWIPE_OUTER_JS = """
       if (Math.abs(dx) < 12) { return; }                              // 아직 어느 쪽인지 모른다
       if (Math.abs(dx) < Math.abs(dy) * 1.5) { live = false; return; } // 위아래로 굴리는 손가락
       var go = destination(dx);
-      if (!go || !findButton(go.key)) { live = false; return; }
+      if (!go || !findTarget(go)) { live = false; return; }
       var W = Math.max(200, d.documentElement.clientWidth || window.innerWidth || 0);
       drag = { go: go, sign: dx < 0 ? -1 : 1, t0: Date.now(), width: W, c: 0, snap: false };
       // 지금 쪽 사진이 아직 안 깔렸으면(화면에 들어오자마자 넘길 때) 모양 없이 넘긴다.
@@ -12305,7 +12323,7 @@ _SWIPE_OUTER_JS = """
     var flick = (Date.now() - g.t0) < 260 && dist > 50;
     drag = null;
     if (cancelled || !(dist >= width / 3 || flick)) { if (!g.plain) { settle(g); } return; }
-    var hit = findButton(go.key);
+    var hit = findTarget(go);
     if (!hit) { if (!g.plain) { settle(g); } return; }
     fired = true;
     // 떠나는 화면은 보통 조용할 때 이미 떠 두었다. 이 방문에서 한 번도 못 떴을 때만
