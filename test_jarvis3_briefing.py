@@ -1133,6 +1133,36 @@ def test_top9_card_opens_and_closes_like_the_theme_help():
         assert move in source.split(".j3pop{position:absolute", 1)[1][:1500]
 
 
+def test_theme_help_card_keeps_its_text_colours():
+    """「이 테마 설명」 글자 색 — 색 값이 예전 창(stPopoverBody)에만 있어서 카드로 옮긴 뒤
+    글이 한 색이 됐다(2026-09-19 상하님 지적). 카드에도 같은 값을 둔다."""
+    card = _j3_source().split("_HELP_CARD_CSS = ", 1)[1].split('"""', 2)[1]
+    assert "div.st-key-j3_help_card{--j-title:#44f0a1;--j-step:#4da6ff;--j-mark:#ff6b6b;" in card
+    assert "div.st-key-j3_help_card h3{color:var(--j-title)!important}" in card
+
+
+def test_theme_help_card_opens_at_the_top():
+    """맨 밑까지 읽고 닫았다 다시 열면 맨 위부터 (2026-09-19 상하님 지시)."""
+    js = _swipe_js()
+    assert "if (!t || t.id !== 'j3-help-tap' || !t.checked) { return; }" in js
+    assert "if (card) { card.scrollTop = 0; }" in js
+
+
+def test_a_new_swipe_can_take_over_while_the_page_still_loads():
+    """넘긴 화면이 도착했으면 아직 그리는 중이어도 다음 넘김을 받고, 종이 모양으로 넘긴다
+    (2026-09-19 상하님 — "로딩이 늦어 바로 다음 장으로 넘길 때 안 먹힌다 · 그사이 로딩 끝나면
+    말리는 것 없이 바로 넘어가 버린다")."""
+    js = _swipe_js()
+    assert "function canTake()" in js
+    assert "take = pending; take.cancelled = true; pending = null; fired = false;" in js
+    # 막 넘어와 지금 쪽 칸이 옛 화면이면 넘어올 때 깔았던 사진 칸을 종이로 쓴다.
+    assert "drag.face = { host: snapHost, root: snapRoot };" in js
+    # 서버를 기다리는 틈에 말리는 끝 칸을 새 화면으로 바꿔 둔다.
+    assert "try { mountCopy(EDGE, go.to); } catch (e) {}" in js
+    # 걷히는 0.2초 사이에 가로채면 뒤늦게 다 걷지 않는다.
+    assert "if (me.cancelled) { return; }" in js
+
+
 def test_the_swipe_marker_takes_no_room():
     """「넘겨서 들어왔다」 표시 칸이 틈 12px 를 더 먹으면 사진과 진짜 화면이 어긋난다
     (2026-09-19 실측 — 처음 열 때 198px, 넘겨서 올 때 210px → 고친 뒤 둘 다 198px)."""
