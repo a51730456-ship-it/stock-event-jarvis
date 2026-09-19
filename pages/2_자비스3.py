@@ -2581,9 +2581,15 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
     # **3주(거래일 15일)로 늘렸다** (2026-09-19 상하님 지시 — "3주간으로 늘려라, 위아래
     # 라인 좀 더 좁게. 즉 거래 15일치"). 줄 위아래 여백도 줄였다(.34rem → .2rem).
     key = f"j3_daily_prices_{panel or 'x'}_{str(ticker or 'x').lower()}"
+    # **열면 화면이 표로 내려간다** (2026-09-19 상하님 지시 — "클릭하면 이 화면으로
+    # 스크롤되게"). 보여 주신 화면은 맨 위에 「✕ 3주간 일별 시세 닫기」, 그 밑에 표다.
+    # 자리 표시는 **표와 같은 글 덩이 안**에 찍는다 — 따로 칸을 만들면 그 칸만큼
+    # 틈이 벌어진다(강한 테마 TOP 5 자리 표시와 같은 까닭). 단추가 표 바로 위에
+    # 보이도록 그 높이만큼 띄워 세운다(.j3dp-anchor). 못 찾으면 그 자리에 머문다.
     if not _section_toggle(
         "📅 3주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
         close_label="3주간 일별 시세 닫기",
+        on_open=lambda: scroll_to.request(st, key),
     ):
         return
     rows = []
@@ -2623,7 +2629,9 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
         "border-bottom:1px solid rgba(255,255,255,.06)}"
         ".j3dp .j3dp-d{text-align:left;color:#9aa0aa;font-weight:700}"
         ".j3dp .j3dp-c{font-weight:800;color:#e6e6e6}"
+        ".jarvis-anchor.j3dp-anchor{scroll-margin-top:66px}"
         "</style>"
+        f"<div id='{scroll_to.anchor_id(key)}' class='jarvis-anchor j3dp-anchor'></div>"
         f"<table class='j3dp'><thead><tr><th>날짜</th><th>종가</th>"
         f"<th>전일대비</th><th>등락률</th></tr></thead><tbody>{''.join(body)}</tbody></table>",
         unsafe_allow_html=True,
