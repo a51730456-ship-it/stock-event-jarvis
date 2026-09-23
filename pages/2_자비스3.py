@@ -580,6 +580,44 @@ st.markdown(
        같이 바뀔 위험이 있고, 폰 규칙이 두 군데로 갈린다. */
     .j3-pretty-chart { display: block; width: 100%; height: 132px;
         border-radius: 8px; background: rgba(0,0,0,.22); }
+    /* ── 차트를 누르면 크게 (2026-09-23 저녁 상하님 지시) ─────────────────────
+       순위 9 창(.j3pop)과 같은 움직임 — 열 때 .9초에 튀어 올라 살짝 넘쳤다 자리 잡고,
+       닫을 때는 가운데로 줄어들며(.56초) 끝 무렵에 옅어진다. 폰 세로 화면을 거의 꽉
+       채우고(사방 8px), 태블릿·노트북에서는 960×760 안에 선다. 뒤는 어둡게 덮는다.
+       하단 막대보다 위(맨 위 층)에 선다. 창이 떠 있는 동안 하단 막대는 숨긴다 — 창
+       아래쪽을 눌렀는데 투명한 막대 단추가 눌려 다른 화면으로 가면 안 된다. */
+    .j3cz { position: relative; }
+    .j3cz-tap { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; margin: 0; }
+    label.j3cz-cell { display: block; cursor: zoom-in; }
+    .j3cz-scrim { position: fixed; inset: 0; z-index: 2147483646; cursor: zoom-out;
+        background: rgba(1,8,22,.8); opacity: 0; visibility: hidden;
+        transition: opacity .3s ease, visibility 0s linear .56s; }
+    .j3cz-pop { position: fixed; left: 50%; top: 50%; z-index: 2147483647; cursor: zoom-out;
+        width: min(calc(100vw - 16px), 960px); height: min(calc(100dvh - 16px), 760px);
+        box-sizing: border-box; padding: 16px 14px 12px; border-radius: 22px;
+        background: #0d2344; border: 1px solid rgba(157,204,255,.45);
+        box-shadow: 0 18px 50px rgba(0,0,0,.6);
+        display: flex; flex-direction: column; gap: 8px;
+        opacity: 0; visibility: hidden; pointer-events: none;
+        transform: translate(-50%,-50%) scale(.55);
+        transition: transform .56s cubic-bezier(.5,-.18,.72,.18), opacity .56s cubic-bezier(.7,0,.84,0),
+            visibility 0s linear .56s; }
+    .j3cz-t0:checked ~ .j3cz-s0, .j3cz-t1:checked ~ .j3cz-s1,
+    .j3cz-t2:checked ~ .j3cz-s2, .j3cz-t3:checked ~ .j3cz-s3 {
+        opacity: 1; visibility: visible; transition: opacity .3s ease, visibility 0s; }
+    .j3cz-t0:checked ~ .j3cz-p0, .j3cz-t1:checked ~ .j3cz-p1,
+    .j3cz-t2:checked ~ .j3cz-p2, .j3cz-t3:checked ~ .j3cz-p3 {
+        opacity: 1; visibility: visible; pointer-events: auto;
+        transform: translate(-50%,-50%) scale(1);
+        transition: transform .9s cubic-bezier(.34,1.56,.64,1), opacity .36s ease, visibility 0s; }
+    .j3cz-name { color: #9dccff; font-size: 1.15rem; font-weight: 800; }
+    /* 폰에서 차트를 104px 로 낮추는 규칙(mobile_ui · !important)이 창 안까지 오지 않게 세게 건다. */
+    .j3cz-pop svg.j3-pretty-chart { flex: 1 1 auto !important; height: auto !important; min-height: 0 !important; }
+    .j3cz-when { color: #7d8798; font-size: .78rem; font-weight: 700; }
+    .j3cz-close { align-self: center; font-size: .78rem; color: #8fb4de; }
+    body:has(.j3cz-tap:checked) div.st-key-j3b_nav_controls,
+    body:has(.j3cz-tap:checked) .j3b-bottom-nav { visibility: hidden !important; }
+    @media (prefers-reduced-motion: reduce) { .j3cz-pop, .j3cz-scrim { transition: none !important; } }
     /* ── 시장 현황(업종 지도) 2026-08-28 ────────────────────────────────
        상자 자리는 서버가 계산해 %로 준다. 칸의 가로:세로를 CSS에서 못박아야
        그 계산과 화면이 어긋나지 않는다 — 비율이 달라지면 상자가 찌그러진다.
@@ -1945,17 +1983,23 @@ def _list_price_change(metrics: dict) -> tuple:
     세부사항 548.92 −4.59%). 급락 목록이 전부 +0.00% 로 나오던 것도 같은 자리다 —
     일봉이 그날 줄을 아직 안 실으면 `change_pct` 가 제 종가를 제 종가와 견준다.
 
-    **미국장이 열려 있는 동안에는 지금 값**을 그대로 적는다. 장이 끝났으면
-    마지막으로 끝난 정규장의 종가와 등락률을 적는다 — 지수 칸이 이미 쓰는 방식이고
-    (`last_session_change_pct`), 세부사항의 `session_quote` 와 같은 날을 말한다.
-    **새로 받는 자료는 없다** — 둘 다 이미 잰 값 안에 들어 있다.
+    **미국 정규장이 열려 있는 동안에만 지금 값**을 그대로 적는다. 그 밖(장 열기 전 ·
+    장 끝난 뒤 · 주말 · 휴장)에는 마지막으로 끝난 정규장의 종가와 등락률을 적는다 —
+    지수 칸이 이미 쓰는 방식이고(`last_session_change_pct`), 세부사항의 `session_quote` 와
+    같은 날을 말한다. **새로 받는 자료는 없다** — 둘 다 이미 잰 값 안에 들어 있다.
+
+    **장 열기 전도 여기 든다** (2026-09-23 저녁 상하님 — "급락 후 반등장 당일주가와
+    손익율 봐라 문제있다"). 예전에는 「장이 끝났으면(뉴욕 16시 뒤)」만 보았다. 그런데
+    뉴욕 자정부터 장 열기 전(한국 오후 1시 ~ 밤 10시 반)은 달력에서 「오늘 장이 아직 안
+    끝남」이라 지금 값을 썼고, 그때 지금 값은 어제 종가라 어제 종가와 견주어 **목록이 전부
+    +0.00%** 였다(18:23 캡처 — CRSP $58.33 +0.00% 등).
     """
     price, change = metrics.get("current"), metrics.get("change_pct")
     try:
-        closed = j3data.us_session_closed()
+        regular_open = j3data.market_phase().get("label") == "정규장 시간"
     except Exception:
-        closed = False
-    if closed:
+        regular_open = False
+    if not regular_open:
         session_close = metrics.get("last_session_close")
         session_change = metrics.get("last_session_change_pct")
         if session_close is not None:
@@ -2716,14 +2760,36 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
         st.warning("차트 자료가 없습니다.")
         _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
         return
+    # **누르면 크게 뜬다** (2026-09-23 저녁 상하님 지시 — "종목별 차트 일봉·주봉·월봉 클릭하면
+    # 파트별 성적표 밑에 매수심사결과 높은 순위 9 처럼 창이 열리고 닫히고를 스마트폰 세로 화면
+    # 꽉 채우도록 해라"). 순위 9 창과 같은 장치다 — 숨은 스위치(체크칸) 하나로 여닫아 서버에
+    # 다시 묻지 않는다. 칸(label)을 누르면 켜지고, 뜬 창이나 어두운 바탕을 누르면 꺼진다.
+    # 그림은 작은 칸의 것을 그대로 한 벌 더 쓴다 — 새로 받는 자료가 없다.
+    # 스위치는 맨 앞에 둔다 — 뒤의 칸·창을 「~」로 집으려면 스위치가 앞서야 한다.
+    zoom = f"j3cz-{html.escape(str(panel))}"
+    taps = "".join(
+        f"<input type='checkbox' id='{zoom}-{index}' class='j3cz-tap j3cz-t{index}'>"
+        for index in range(len(boxes))
+    )
     cells = "".join(
-        f"<div class='j3-chart-box'><div class='j3-chart-name'>{name}</div>{drawing}"
+        f"<label for='{zoom}-{index}' class='j3-chart-box j3cz-cell'>"
+        f"<div class='j3-chart-name'>{name}</div>{drawing}"
         + (f"<div class='j3-chart-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</div>"
            if when else "")
-        + "</div>"
-        for name, drawing, when in boxes
+        + "</label>"
+        for index, (name, drawing, when) in enumerate(boxes)
     )
-    st.markdown(f"<div class='j3-chart-grid'>{cells}</div>", unsafe_allow_html=True)
+    pops = "".join(
+        f"<label for='{zoom}-{index}' class='j3cz-scrim j3cz-s{index}' aria-hidden='true'></label>"
+        f"<label for='{zoom}-{index}' class='j3cz-pop j3cz-p{index}'>"
+        f"<span class='j3cz-name'>{name}</span>{drawing}"
+        + (f"<span class='j3cz-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</span>"
+           if when else "")
+        + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
+        for index, (name, drawing, when) in enumerate(boxes)
+    )
+    st.markdown(f"<div class='j3cz'>{taps}<div class='j3-chart-grid'>{cells}</div>{pops}</div>",
+                unsafe_allow_html=True)
     if chart_bundle.get("stale"):
         st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
     _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
@@ -5792,236 +5858,6 @@ def _scorecard_counts() -> dict:
     return data
 
 
-# ── 어느 때 어느 파트가 나았나 (2026-09-23 상하님 지시) ──────────────────────
-#
-# 상하님 — *"어떨 때 상위 테마가 성적이 좋았는지, 급락 후 반등장이 좋았는지,
-# 상승장이 좋았는지 만들 수 있나?"* · *"상승장은 종목이 몇 개 나오지 않아 수익률을
-# 왜곡할 수 있다."*
-#
-# **때는 달력이 아니라 그날 나스닥이 어디 있었나로 가른다.** 화면 맨 위 막대가 쓰는
-# 그 값(1년 최고 대비 몇 %)이라 지난 어느 날이든 다시 잴 수 있다.
-#
-# **종목 수가 달라 생기는 왜곡은 이렇게 막는다**(research/parts_when.py 와 같은 자).
-#   ① 하루에 한 표 — 그날 그 파트의 **가운데 값** 하나만 그날 성적으로 쓴다.
-#   ② 평균이 아니라 가운데 값 — 한 종목이 크게 튀어도 안 끌려간다.
-#   ③ 이긴 날 수 — 그날 파트들 중 가운데 값이 가장 높았던 파트를 센다.
-#   ④ 잰 날이 열흘이 안 되면 숫자를 안 믿는다 — 「아직 모자람」이라 적는다.
-#
-# 성적은 **신호 다음 거래일 시가에 사서 5거래일 뒤 종가에 판 값**이다. 20·60거래일은
-# 아직 잴 날이 모자라 화면에 안 쓴다(2026-09-23 — 20일치 11일 · 60일치 0일).
-_WHEN_HORIZON = 5
-_WHEN_MIN_DAYS = 10
-_WHEN_BUCKETS = (
-    ("전고점 근처", -3.0, 0.0, "#2a78d6"),
-    ("조금 빠짐", -10.0, -3.0, "#e08b1e"),
-    ("많이 빠짐", -100.0, -10.0, "#c0392b"),
-)
-
-
-def _when_bucket(drop) -> str:
-    if drop is None:
-        return ""
-    for name, low, high in ((n, lo, hi) for n, lo, hi, _c in _WHEN_BUCKETS):
-        if low < drop <= high:
-            return name
-    return ""
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def _scorecard_when_cached(stamp: str) -> dict:
-    """날짜별 목록으로 **때별 파트 성적**을 센다. 새로 받는 자료는 없다.
-
-    쓰는 자료는 성적표가 이미 쓰는 그 249종목 2년치 묶음이다(_scorecard_prices 설명).
-    나스닥 일봉도 시장 화면이 이미 받아 둔 것을 그대로 꺼내 쓴다.
-    """
-    import statistics
-
-    import picklist_store as store
-
-    dates = store.available_dates("US")
-    rows = []
-    for day in dates:
-        try:
-            rows.extend(store.load_rows(day, "US") or [])
-        except Exception:
-            continue
-    if not rows:
-        return {"ok": False}
-    codes = tuple(dict.fromkeys(
-        str(row.get("code") or "").strip().upper() for row in rows if row.get("code")))
-    try:
-        frames, _info = j3data._download_cached(
-            codes, period="2y", interval="1d",
-            ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
-    except Exception:
-        return {"ok": False}
-    try:
-        index_frames, _meta = j3data._download_cached(
-            ("^IXIC",), period="2y", interval="1d", ttl_seconds=600)
-        index_close = index_frames["^IXIC"]["Close"].dropna().astype(float)
-        index_high = index_close.rolling(252, min_periods=60).max()
-        drops = ((index_close / index_high - 1.0) * 100.0).dropna()
-    except Exception:
-        drops = None
-
-    def forward(code: str, day: str):
-        frame = frames.get(code)
-        if frame is None:
-            return None
-        try:
-            after = frame.index[frame.index > pd.Timestamp(day)]
-            if len(after) < _WHEN_HORIZON + 1:
-                return None
-            buy = float(frame.loc[after[0], "Open"])
-            sell = float(frame.loc[after[_WHEN_HORIZON], "Close"])
-            if not buy:
-                return None
-            return (sell / buy - 1.0) * 100.0
-        except Exception:
-            return None
-
-    parts = [kind for kind, _name, _color in _SCORECARD_PARTS]
-    by_day: dict = {}
-    for row in rows:
-        kind = str(row.get("list_kind") or "")
-        day = str(row.get("trade_date") or "")
-        code = str(row.get("code") or "").strip().upper()
-        if kind not in parts or not day or not code or day < _SCORECARD_START:
-            continue
-        value = forward(code, day)
-        if value is None:
-            continue
-        by_day.setdefault(day, {}).setdefault(kind, []).append(value)
-
-    middles: dict = {}
-    for day, kinds in by_day.items():
-        middles[day] = {kind: statistics.median(values) for kind, values in kinds.items() if values}
-
-    wins: dict = {kind: 0 for kind in parts}
-    for day, values in middles.items():
-        if not values:
-            continue
-        best = max(values, key=lambda kind: values[kind])
-        wins[best] += 1
-
-    def summary(days):
-        out = {}
-        for kind in parts:
-            picked = [middles[day][kind] for day in days if kind in middles.get(day, {})]
-            out[kind] = {
-                "days": len(picked),
-                "middle": statistics.median(picked) if picked else None,
-                "enough": len(picked) >= _WHEN_MIN_DAYS,
-            }
-        return out
-
-    all_days = sorted(middles)
-    result = {
-        "ok": True,
-        "horizon": _WHEN_HORIZON,
-        "days": len(all_days),
-        "first": all_days[0] if all_days else "",
-        "last": all_days[-1] if all_days else "",
-        "all": summary(all_days),
-        "wins": wins,
-        "buckets": [],
-    }
-    for name, _low, _high, color in _WHEN_BUCKETS:
-        if drops is None:
-            continue
-        picked = []
-        for day in all_days:
-            try:
-                drop = float(drops.loc[:pd.Timestamp(day)].iloc[-1])
-            except Exception:
-                continue
-            if _when_bucket(drop) == name:
-                picked.append(day)
-        if picked:
-            result["buckets"].append({"name": name, "color": color,
-                                      "days": len(picked), "parts": summary(picked)})
-    return result
-
-
-def _scorecard_when_html(data: dict) -> str:
-    """때별 성적 표 한 덩이. 숫자는 위 함수가 낸 것을 받아 적기만 한다."""
-    if not data.get("ok") or not data.get("days"):
-        return ""
-    parts = [(kind, name, color) for kind, name, color in _SCORECARD_PARTS]
-
-    def cell(info):
-        if not info or not info.get("days"):
-            return "<td class='j3w-none'>—</td>"
-        middle = info.get("middle")
-        if middle is None:
-            return "<td class='j3w-none'>—</td>"
-        tone = "j3w-up" if middle > 0 else "j3w-down" if middle < 0 else "j3w-flat"
-        thin = "" if info.get("enough") else " j3w-thin"
-        return (f"<td class='{tone}{thin}'>{middle:+.1f}%"
-                f"<span class='j3w-days'>{info['days']}일</span></td>")
-
-    head = ["<th class='j3w-part'>파트</th>", "<th>전체</th>", "<th>이긴 날</th>"]
-    for bucket in data["buckets"]:
-        head.append(f"<th style='color:{bucket['color']}'>{html.escape(bucket['name'])}"
-                    f"<span class='j3w-days'>{bucket['days']}일</span></th>")
-    body = []
-    for kind, name, color in parts:
-        cells = [f"<td class='j3w-part' style='color:{color}'>{html.escape(name)}</td>",
-                 cell(data["all"].get(kind)),
-                 f"<td class='j3w-win'>{int(data['wins'].get(kind, 0))}번</td>"]
-        for bucket in data["buckets"]:
-            cells.append(cell(bucket["parts"].get(kind)))
-        body.append("<tr>" + "".join(cells) + "</tr>")
-    note = (f"신호 다음 날 시가에 사서 <b>{data['horizon']}거래일 뒤 종가</b>에 판 값입니다. "
-            "하루에 한 표(그날 그 파트 종목들의 <b>가운데 값</b>)만 세므로 종목이 많은 파트가 "
-            "더 세게 치지 않습니다. 「이긴 날」은 그날 가운데 값이 가장 높았던 파트를 센 것입니다. "
-            f"<b>흐린 숫자</b>는 잰 날이 {_WHEN_MIN_DAYS}일이 안 돼 아직 못 믿는 칸입니다.")
-    return (
-        "<div class='j3w-wrap'>"
-        "<div class='j3w-head'><b>어느 때 어느 파트가 나았나</b>"
-        f"<span>{html.escape(data['first'])} ~ {html.escape(data['last'])} · {data['days']}일</span></div>"
-        "<table class='j3w'><thead><tr>" + "".join(head) + "</tr></thead>"
-        "<tbody>" + "".join(body) + "</tbody></table>"
-        f"<div class='j3w-note'>{note}</div></div>"
-    )
-
-
-_WHEN_CSS = """
-<style>
-.j3w-wrap{margin:10px 0 2px}
-.j3w-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
-  color:#e6e6e6;font-size:.95rem;margin-bottom:6px}
-.j3w-head span{color:#9aa0aa;font-size:.76rem;font-weight:700}
-table.j3w{width:100%;border-collapse:collapse;font-size:.82rem}
-table.j3w th{color:#9aa0aa;font-weight:800;text-align:right;padding:.25rem .3rem;
-  border-bottom:1px solid rgba(255,255,255,.18);white-space:nowrap}
-table.j3w td{text-align:right;padding:.28rem .3rem;font-weight:800;
-  border-bottom:1px solid rgba(255,255,255,.06);white-space:nowrap}
-table.j3w .j3w-part{text-align:left;font-weight:800;max-width:9.5rem;
-  overflow:hidden;text-overflow:ellipsis}
-.j3w-up{color:#4da6ff}.j3w-down{color:#ff5b5b}.j3w-flat{color:#e6e6e6}
-.j3w-none{color:#6b7280}.j3w-win{color:#e6e6e6}
-.j3w-thin{opacity:.45}
-.j3w-days{display:block;color:#9aa0aa;font-size:.68rem;font-weight:700}
-.j3w-note{color:#9aa0aa;font-size:.74rem;line-height:1.45;margin-top:6px}
-</style>
-"""
-
-
-def _scorecard_when() -> dict:
-    """이 판에서 쓸 때별 성적. 세션에 한 번, 앱 전체에 10분 보관한다."""
-    key = "j3_scorecard_when"
-    if key in st.session_state:
-        return st.session_state[key]
-    import picklist_store as store
-
-    dates = store.available_dates("US")
-    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|when{_WHEN_HORIZON}"
-    data = _scorecard_when_cached(stamp)
-    st.session_state[key] = data
-    return data
-
-
 def _scorecard_panel_html(data: dict, span: str) -> str:
     """성적표 창. 막대 길이가 그 기간의 「100번 사면 이익 난 횟수」다.
 
@@ -6117,6 +5953,27 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
     )
 
 
+# 성적표 머리 자리 — 성적표를 열거나 기간 단추를 누르면 이 자리가 화면 맨 위에 선다
+# (2026-09-23 저녁 상하님 — "파트별 성적표 어디서 클릭하던 처음 화면이 저 위치에 되도록 해라").
+# 캡처처럼 성적표 상자 위 테두리가 화면 맨 위에서 12px 아래에 서게 띄운다(머리가 상자 위
+# 테두리에서 15px 아래라 27px). 굴리기는 「날짜별 목록」 덩이 끝의 scroll_to.run 이 한다.
+_SCORECARD_ANCHOR = "scorecard"
+
+
+def _toggle_scorecard() -> None:
+    """성적표 여닫기. **열 때** 성적표 머리를 화면 맨 위로 올린다."""
+    opening = not st.session_state.get(_SCORECARD_KEY)
+    st.session_state[_SCORECARD_KEY] = opening
+    if opening:
+        scroll_to.request(st, _SCORECARD_ANCHOR)
+
+
+def _pick_scorecard_span(value: str) -> None:
+    """기간 단추(일주일·이번 달·6개월·1년·누계). 고른 뒤 성적표 머리를 화면 맨 위로."""
+    st.session_state[_SCORECARD_SPAN_KEY] = value
+    scroll_to.request(st, _SCORECARD_ANCHOR)
+
+
 def _render_picklist_scorecard(part: str):
     """「CSV로 받기」 자리의 단추와, 눌렀을 때 스르륵 내려오는 창."""
     if part == "button":
@@ -6129,8 +5986,7 @@ def _render_picklist_scorecard(part: str):
         st.button(
             "📊 파트별 성적표 닫기" if open_now else "📊 파트별 성적표 보기",
             key="picklist_scorecard_US", width="stretch",
-            on_click=lambda: st.session_state.__setitem__(
-                _SCORECARD_KEY, not st.session_state.get(_SCORECARD_KEY)),
+            on_click=_toggle_scorecard,
         )
         return open_now
     with st.spinner("저장해 둔 목록으로 성적을 세는 중입니다…"):
@@ -6141,6 +5997,8 @@ def _render_picklist_scorecard(part: str):
     panel = st.container(key="j3sc_box")
     with panel:
         st.markdown(
+            # 자리 표시는 머리와 **같은 글 상자** 안에 둔다 — 따로 두면 칸 사이 틈이 하나 는다.
+            f"<div id='{scroll_to.anchor_id(_SCORECARD_ANCHOR)}' class='jarvis-anchor j3sc-anchor'></div>"
             "<div class='j3sc-head'><b>📊 파트별 성적표</b>"
             "<span>이익 난 확률</span></div>", unsafe_allow_html=True)
         chips = st.columns(len(_SCORECARD_SPANS))
@@ -6149,18 +6007,11 @@ def _render_picklist_scorecard(part: str):
                 _SCORECARD_CHIP_LABELS.get(label, label),
                 key=f"j3sc_span_{index}", width="stretch",
                 type="primary" if label == span else "secondary",
-                on_click=lambda value=label: st.session_state.__setitem__(
-                    _SCORECARD_SPAN_KEY, value),
+                on_click=_pick_scorecard_span, args=(label,),
             )
         st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
-        # 「어느 때 어느 파트가 나았나」 — 같은 창 안, 파트 막대 바로 밑이다.
-        try:
-            when = _scorecard_when()
-            block = _scorecard_when_html(when)
-        except Exception:
-            block = ""
-        if block:
-            st.markdown(_WHEN_CSS + block, unsafe_allow_html=True)
+        # 「어느 때 어느 파트가 나았나」 표는 뺐다(2026-09-23 저녁 상하님 — "파트별 성적표 밑에
+        # 다 지워라 의미없다 삭제해라"). 계산만 research/parts_when.py 에 남아 있다.
     return True
 
 
@@ -10424,6 +10275,7 @@ def _briefing_css() -> None:
         .j3pop-part small{font-size:.72rem;color:#6f93bd}
         .j3pop-close{align-self:center;font-size:.72rem;color:#8fb4de;margin-top:2px}
         .j3sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+        .jarvis-anchor.j3sc-anchor{scroll-margin-top:27px}
         .j3sc-head b{font-size:1rem;color:#fff;font-weight:800}
         .j3sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}
         .j3sc-row{display:grid;grid-template-columns:26px minmax(0,1fr) 150px 58px;
@@ -12830,6 +12682,9 @@ _SWIPE_OUTER_JS = """
     // 넘어가면 안 된다(2026-09-18).
     var helpTap = d.getElementById('j3-help-tap');
     if (helpTap && helpTap.checked) { live = false; return; }
+    // 차트를 크게 띄운 동안에도 넘기지 않는다(2026-09-23 저녁) — 창 위를 밀었는데 화면이
+    // 넘어가면 안 된다.
+    if (d.querySelector('input.j3cz-tap:checked')) { live = false; return; }
     if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
     x0 = ev.touches[0].clientX;
     y0 = ev.touches[0].clientY;

@@ -3219,3 +3219,25 @@ def test_other_parts_autosave_runs_at_most_hourly_and_reuses_the_button_memo():
     assert "find_breakout_pullback_stocks()" not in body
     assert "@st.cache_resource" in source[source.index("def _other_parts_autosave_tried") - 80:
                                           source.index("def _other_parts_autosave_tried")]
+
+def test_list_price_uses_the_last_regular_session_unless_the_market_is_open():
+    """목록 「당일주가」는 정규장이 **열려 있을 때만** 지금 값이다 (2026-09-23 저녁 상하님 —
+    "급락 후 반등장 당일주가와 손익율 봐라 문제있다").
+
+    장 열기 전(한국 오후 1시 ~ 밤 10시 반)에는 지금 값이 어제 종가라, 그것을 어제 종가와
+    견주어 목록이 전부 +0.00% 였다. 그때는 마지막으로 끝난 정규장 값을 적는다.
+    """
+    import ast
+    source = PAGE.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_list_price_change")
+    metrics = {"current": 58.33, "change_pct": 0.0, "last_session_close": 58.33, "last_session_change_pct": 3.13}
+    for label, want in (("프리마켓", 3.13), ("정규장 전", 3.13), ("정규장 시간", 0.0),
+                        ("애프터마켓", 3.13), ("장 마감", 3.13), ("주말 휴장", 3.13)):
+        class FakeData:
+            @staticmethod
+            def market_phase():
+                return {"label": label}
+        ns = {"j3data": FakeData}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), "page", "exec"), ns)
+        assert ns["_list_price_change"](metrics)[1] == want, label
