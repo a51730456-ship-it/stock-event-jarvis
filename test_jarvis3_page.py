@@ -2748,7 +2748,10 @@ def test_switching_screens_goes_back_to_the_top():
     nav = nav[:nav.index(chr(10) + "def ", 10)]
     assert 'scroll_to.request(st, "top")' not in nav, "단추가 아직 표시를 적어 둔다"
     # 「관심종목」·「시장분석」은 누르는 순간(on_click) 정한다(2026-09-13 — 판 두 번 그리기 없앰).
-    assert nav.count('_set_briefing_page(') + nav.count('on_click=_set_briefing_page') == 3,         "세 단추가 화면 이름을 안 정한다"
+    # 「홈」은 누르는 순간 표시만 하고 화면 맨 앞(_briefing_swipe_buttons)에서 이름을 적고
+    # 넘어간다(2026-09-23 저녁 — 맨 끝에서 넘어가면 막대 통이 홈 밑에 남았다).
+    assert nav.count('_set_briefing_page(') + nav.count('on_click=_set_briefing_page') \
+        + nav.count('on_click=_request_briefing_home') == 3, "세 단추가 화면 이름을 안 정한다"
     # **시장분석으로 가는 길이 둘이다.** 하단 막대와 손가락으로 미는 것이다.
     # 둘 다 같은 한 곳(_set_briefing_page)을 지나므로 빠뜨릴 수가 없다.
     # 「더보기 ›」는 2026-09-10에 뺐다 — 그 자리에 검색줄이 앉는다(상하님 지시 —

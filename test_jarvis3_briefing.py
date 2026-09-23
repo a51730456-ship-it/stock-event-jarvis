@@ -181,6 +181,7 @@ def test_first_page_renders_four_slots_and_next_page_button():
     market_button = next(node for node in app.button if node.key == "j3b_nav_market")
     assert market_button.label == "시장분석"
     assert any(node.key == "j3b_nav_home" for node in app.button)
+    assert any(node.key == "j3b_swipe_home" for node in app.button), "손가락으로 홈에 가는 길이 없다"
     assert any(node.key == "j3b_nav_watch" for node in app.button)
     assert "시장분석" in rendered
     assert "본 정보는 투자 참고용" not in rendered
@@ -1046,6 +1047,55 @@ def test_starting_a_swipe_does_not_mark_the_whole_page():
     idle = js.split("function idle()", 1)[1].split("\n  }", 1)[0]
     assert "ensureLayers();" in idle
     assert "j3-turning" not in _j3_source()
+
+
+def test_swipe_reads_the_live_screen_not_the_dimmed_leftover():
+    """화면이 뜨는 중에도 **살아 있는 표식**으로 지금 화면을 가린다 (2026-09-23 저녁 상하님 —
+    "로딩이 걸리는데 그 안에 손가락으로 페이지 넘기면 오류가 나던지 아니면 그냥 페이지가
+    넘어가 버린다").
+
+    스트림릿은 화면을 옮기는 동안 앞 화면 조각을 흐리게(data-stale) 남긴다. 흐린 관심종목
+    표식을 보고 「아직 관심종목」이라 여기면, 시장분석이 차오르는 동안 넘긴 손가락을 안 받고
+    홈이 뜨는 동안에는 흐린 관심종목의 숨은 단추를 누른다.
+    """
+    js = _swipe_js()
+    now = js.split("function screenNow()", 1)[1].split("\n  }", 1)[0]
+    assert "closest('[data-stale=\"true\"]')" in now
+    assert now.index("closest(") < now.index("if (d.querySelector(MARKS[i][0]))"), "살아 있는 표식을 먼저 본다"
+
+
+def test_swipe_to_home_presses_the_front_button():
+    """손가락으로 홈에 갈 때는 **맨 앞의** 숨은 「홈으로」 단추를 누른다 (2026-09-23 저녁).
+
+    하단 막대 「홈」은 화면 맨 끝이라, 누르면 홈으로 가기 전에 지금 화면을 끝까지 한 번
+    더 그렸다. 그리는 중에 넘기면 그 판이 끊긴 채 홈으로 가서 홈 밑에 시장분석 조각이
+    남는 일이 있었다(온라인 실측).
+    """
+    js = _swipe_js()
+    assert "key: 'j3b_swipe_home', from: 'watch', to: 'home'" in js
+    assert "key: 'j3b_swipe_home', from: 'market', to: 'home'" in js
+    assert "'j3b_nav_home'" not in js
+    source = _j3_source()
+    front = source.split("def _briefing_swipe_buttons", 1)[1].split("\ndef ", 1)[0]
+    assert 'key="j3b_swipe_home"' in front
+    assert 'st.switch_page("app.py")' in front
+    # 하단 막대 「홈」도 누르는 순간 표시만 하고, 넘어가는 것은 맨 앞에서 한다 —
+    # 맨 끝에서 넘어가면 그 막대 통이 홈 밑에 남았다(온라인 실측 여섯 번 중 네 번).
+    assert 'st.session_state.pop("j3b_go_home", False)' in front
+    nav = source.split("def _render_briefing_bottom_nav", 1)[1].split("\ndef ", 1)[0]
+    assert 'key="j3b_nav_home", on_click=_request_briefing_home' in nav
+    assert "switch_page" not in nav.split('key="j3b_nav_home"', 1)[1].split("watch_col.button", 1)[0]
+
+
+def test_saved_page_pictures_survive_a_new_version():
+    """판을 새로 올려도 저장해 둔 화면 사진을 버리지 않는다 (2026-09-23 저녁).
+
+    버리면 판을 올린 날마다 사진이 비어 종이 없이 넘어간다(상하님 — "그냥 페이지가
+    넘어가 버린다"). 그 화면을 한 번 보면 새 사진으로 바뀐다.
+    """
+    js = _swipe_js()
+    load = js.split("function load(sname)", 1)[1].split("\n  }", 1)[0]
+    assert "buildStamp()" not in load
 
 
 def test_turn_layers_live_outside_body():

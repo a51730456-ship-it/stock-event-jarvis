@@ -11995,6 +11995,15 @@ def _briefing_page() -> str:
     return "home"
 
 
+def _request_briefing_home() -> None:
+    """하단 막대 「홈」 — 누르는 순간 표시만 해 둔다(2026-09-23 저녁).
+
+    넘어가는 일은 화면 맨 앞(_briefing_swipe_buttons)에서 한다. 누른 판에서 화면을
+    다시 그리기 **전에** 돌므로, 그 판은 맨 앞에서 곧바로 홈으로 넘어간다.
+    """
+    st.session_state["j3b_go_home"] = True
+
+
 def _set_briefing_page(page: str) -> None:
     """볼 화면을 정하고 **주소에도 적는다.** 이미 같으면 안 적는다.
 
@@ -12095,23 +12104,40 @@ _SWIPE_OUTER_JS = """
   // 지금 어느 화면인가 — 관심종목(watch) · 시장분석(market) · 홈(home = 앱 첫 화면
   // 「어디로 갈까요」). **바깥 화면만 본다** — 아래 사진은 그림자 칸(shadow) 안에
   // 있어서 querySelector 에 안 걸린다. 사진이 판정을 흐리지 않는다.
+  //
+  // **살아 있는 표식을 먼저 본다** (2026-09-23 저녁 상하님 — "로딩이 걸리는데 그 안에
+  // 손가락으로 페이지 넘기면 오류가 나던지 아니면 그냥 페이지가 넘어가 버린다").
+  // 화면을 옮기는 동안 스트림릿은 앞 화면 조각을 흐리게(data-stale) 한동안 남겨 둔다.
+  // 예전에는 그 흐린 관심종목 표식을 보고 「아직 관심종목」이라 여겼다. 그래서 시장분석이
+  // 차오르는 동안 넘긴 손가락은 안 받았고(느린 통신 실측 — 넘겨도 그대로), 홈이 뜨는 동안
+  // 넘기면 홈 대신 흐린 관심종목의 숨은 단추를 눌렀다. 살아 있는 표식이 하나도 없을 때만
+  // (새 판이 막 시작해 조각이 잠깐 다 흐린 때) 예전처럼 아무 표식이나 본다.
+  var MARKS = [['.j3b-home', 'watch'], ['.j3-market-top', 'market'], ['.jarvis-entry-title', 'home']];
   function screenNow() {
-    if (d.querySelector('.j3b-home')) { return 'watch'; }
-    if (d.querySelector('.j3-market-top')) { return 'market'; }
-    if (d.querySelector('.jarvis-entry-title')) { return 'home'; }
+    var i, j, all;
+    for (i = 0; i < MARKS.length; i++) {
+      all = d.querySelectorAll(MARKS[i][0]);
+      for (j = 0; j < all.length; j++) {
+        if (!all[j].closest('[data-stale="true"]')) { return MARKS[i][1]; }
+      }
+    }
+    for (i = 0; i < MARKS.length; i++) {
+      if (d.querySelector(MARKS[i][0])) { return MARKS[i][1]; }
+    }
     return '';
   }
   // 어디로 넘어가나. **관심종목에서 오른쪽으로 넘기면 홈**이다(2026-09-18 상하님
-  // 지시 — "관심에서 홈으로도 페이지 넘기듯이 해라"). 하단 막대 「홈」 단추를 누른다.
+  // 지시 — "관심에서 홈으로도 페이지 넘기듯이 해라"). 맨 앞의 숨은 「홈으로」 단추를 누른다
+  // (2026-09-23 저녁 — 예전에는 맨 끝의 하단 막대 「홈」을 눌러 화면을 한 번 더 그렸다).
   function destination(dx) {
     var now = screenNow();
     if (dx < 0 && now === 'watch') { return { key: 'j3b_swipe_market', from: 'watch', to: 'market' }; }
-    if (dx > 0 && now === 'watch') { return { key: 'j3b_nav_home', from: 'watch', to: 'home' }; }
+    if (dx > 0 && now === 'watch') { return { key: 'j3b_swipe_home', from: 'watch', to: 'home' }; }
     if (dx > 0 && now === 'market') { return { key: 'j3b_swipe_watch', from: 'market', to: 'watch' }; }
     // **끝에서 한 번 더 밀면 홈이다** (2026-09-23 상하님 지시 — "페이지 넘기기 끝
     // (시장분석에서 오른쪽)에서 또 넘기기 하면 홈으로, 왼쪽으로 넘기면 관심종목이
     // 되도록"). 시장분석이 마지막 장이라 여기서는 넘길 곳이 없었다.
-    if (dx < 0 && now === 'market') { return { key: 'j3b_nav_home', from: 'market', to: 'home' }; }
+    if (dx < 0 && now === 'market') { return { key: 'j3b_swipe_home', from: 'market', to: 'home' }; }
     // **홈에서는 어느 쪽으로 당겨도 관심종목으로 간다** (2026-09-19 상하님 지시 — "홈에서
     // 다시 관심종목으로 손가락으로 당기면 관심종목으로 안 된다"). 홈의 「미국테마
     // (자비스3)」 이동 고리(링크)를 누른다. 홈에는 다른 넘길 쪽이 없다.
@@ -12149,8 +12175,11 @@ _SWIPE_OUTER_JS = """
   // 하단 막대와 같은 층으로 올린다.
   //
   // 한 번도 안 본 화면은 사진이 없다 — 그때는 바탕색만 칠한 빈 종이를 대신 깐다.
-  // 다음에 앱을 열었을 때도 첫 넘김부터 되게, 사진을 폰 저장소에 판 표시와 함께 둔다
-  // (판이 바뀌면 옛 사진은 안 쓴다 — 모양이 달라졌을 수 있다).
+  // 다음에 앱을 열었을 때도 첫 넘김부터 되게, 사진을 폰 저장소에 판 표시와 함께 둔다.
+  // **판이 바뀌어도 옛 사진을 쓴다** (2026-09-23 저녁 — 상하님 "그냥 페이지가 넘어가
+  // 버린다"). 예전에는 판이 바뀌면 버렸다. 그날처럼 판을 여러 번 올리면 사진이 번번이
+  // 비어 종이 없이 넘어갔다. 옛 사진은 넘기는 순간 잠깐만 보이고, 그 화면을 한 번 보면
+  // 새 사진으로 바뀐다.
   var SNAP = {}, lastCap = {}, lastSave = {};
   var snapHost = null, snapRoot = null, snapMounted = '', snapMountedV = 0, cssMemo = {};
   var snapV = 0;
@@ -12326,7 +12355,7 @@ _SWIPE_OUTER_JS = """
       var raw = window.localStorage.getItem(STORE + sname);
       if (!raw) { return null; }
       var saved = JSON.parse(raw);
-      if (!saved || !saved.html || !saved.css || saved.st !== buildStamp()) { return null; }
+      if (!saved || !saved.html || !saved.css) { return null; }
       var tpl = d.createElement('template');
       tpl.innerHTML = saved.html;
       var node = tpl.content.firstElementChild;
@@ -12951,11 +12980,12 @@ _SWIPE_OUTER_JS = """
     // 있어 빈 화면이 보이지는 않는다. 종이 모양 없이 넘기는 판(plain)은 예전 그대로 곧바로.
     // 다음 쪽 사진이 깔린 판에서만 미룬다. 사진이 없으면(빈 종이) **곧바로** 불러
     // 진짜 화면이 그 자리를 채우게 한다 — 안 그러면 넘기는 내내 까만 종이만 보인다.
-    if (g.plain || !withSnap) {
-      try { hit.click(); } catch (e) {}
-    } else {
-      setTimeout(function () { try { hit.click(); } catch (e) {} }, 360);
+    var delay = (g.plain || !withSnap) ? 0 : 360;
+    function press() {
+      var t = findTarget(go) || hit;
+      try { t.click(); } catch (e) {}
     }
+    if (delay) { setTimeout(press, delay); } else { press(); }
     whenArrived(go, withSnap, tDone);
   }
   function onEnd(ev) { if (firstTime(ev)) { release(ev, false); } }
@@ -13127,6 +13157,21 @@ def _briefing_swipe_buttons() -> None:
     if st.button("관심종목으로", key="j3b_swipe_watch"):
         st.session_state["j3b_slide_in"] = "left"
         _set_briefing_page("home")
+    # **홈으로 넘기는 숨은 단추도 맨 앞에 둔다** (2026-09-23 저녁 상하님 — "로딩이
+    # 걸리는데 그 안에 손가락으로 페이지 넘기면 오류가 나던지 …").
+    # 손가락은 여태 하단 막대 「홈」(j3b_nav_home)을 눌렀다. 그 단추는 화면 **맨 끝**에
+    # 있어서, 홈으로 가기 전에 지금 화면(시장분석이면 게이지·테마·표 전부)을 처음부터
+    # 끝까지 한 번 더 그렸고, 그 판에서 넘어가면 누른 단추가 든 통이나 그리다 만 조각
+    # (신호 카드 통)이 홈 밑에 남았다 — 흐린 표시도 없이 홈의 일부처럼(온라인 실측 ·
+    # 그리는 중에 넘기면 다섯 번 중 두 번, 판이 끝나길 기다렸다 눌러도 여섯 번 중 네 번).
+    # 여기서는 그리기 전에 넘어가니 남을 조각이 없다. 하는 일은 예전과 똑같다 —
+    # 볼 화면을 적고 홈으로 간다.
+    # 하단 막대 「홈」(_request_briefing_home)도 여기서 넘어간다 — 같은 까닭이다.
+    swipe_home = st.button("홈으로", key="j3b_swipe_home")
+    bar_home = st.session_state.pop("j3b_go_home", False)
+    if swipe_home or bar_home:
+        _set_briefing_page("home")
+        st.switch_page("app.py")
 
 
 def _briefing_slide_in_marker() -> None:
@@ -13159,9 +13204,11 @@ def _render_briefing_bottom_nav(active: str) -> None:
     st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>', unsafe_allow_html=True)
     with st.container(key="j3b_nav_controls"):
         home_col, watch_col, market_col = st.columns(3, gap="small")
-        if home_col.button("홈", key="j3b_nav_home"):
-            _set_briefing_page("home")
-            st.switch_page("app.py")
+        # 「홈」은 누르는 순간 표시만 해 두고, 홈으로 넘어가는 일은 화면 **맨 앞**
+        # (_briefing_swipe_buttons)에서 한다 (2026-09-23 저녁). 여기(화면 맨 끝)서 넘어가면
+        # 홈으로 가기 전에 지금 화면을 끝까지 다시 그리고, 이 막대 통이 홈 밑에 남았다
+        # (온라인 실측 · 그리는 중에 누른 여섯 번 중 네 번 — 128px 짜리 빈 통).
+        home_col.button("홈", key="j3b_nav_home", on_click=_request_briefing_home)
         # **화면을 바꾸면 맨 위로 올라간다** (2026-08-27 상하님 지적 — "맨 위에
         # 화면이 다 사라졌다"). 브라우저는 화면을 바꿔도 굴려 둔 자리를 그대로
         # 들고 간다. 관심종목에서 아래로 내려보시다 시장분석을 누르면 그 자리에
