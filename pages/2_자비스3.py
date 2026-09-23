@@ -829,9 +829,13 @@ st.markdown(
         }
         .st-key-j3_theme_rest [data-testid="stHorizontalBlock"],
         .st-key-j3_leader_table [data-testid="stHorizontalBlock"],
-        .st-key-j3_top7_table [data-testid="stHorizontalBlock"],
         .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
+        }
+        /* 순위 9 표는 2026-09-23 에 수익률 칸 셋이 늘었다 — 900px 로는 글자가
+           짓눌린다. 폰·태블릿에서는 옆으로 밀어서 본다(다른 표와 같다). */
+        .st-key-j3_top7_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1150px;
         }
         /* 상승장·급락 표는 2026-08-06에 '점수' 칸이 하나 늘어 아홉 칸이 됐다.
            900px로는 글자가 짓눌려 1000px로 넓혔고, 2026-08-07에 급락 낙폭이
@@ -2021,6 +2025,10 @@ def _list_price_change(metrics: dict) -> tuple:
         if session_change is not None:
             change = session_change
     return price, change
+
+
+# 순위 9 표의 「20일 · 6개월 · 6개월 시장대비」 세 칸 폭 (2026-09-23).
+_TOP7_RET_WIDTHS = [1.0, 1.0, 1.2]
 
 
 def _stacked(cells: list[str]) -> str:
@@ -6633,12 +6641,25 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     if any(row.get("both_theme_and_breakout") for row in rows):
         st.caption("⭐ 는 **테마 대장주와 상승장 두 곳에 다 걸린 종목**입니다 — "
                    "서로 다른 자로 재서 둘 다 좋게 나왔다는 뜻입니다.")
-    widths = [0.6, 2.0, 1.2, 1.2, 1.3, 1.6]
+    # **수익률 칸 셋을 더했다** (2026-09-23 상하님 지시 — "현재가 밑에 당일 등락률을
+    # 표시하고, 20일 수익률·6개월 수익률·6개월 시장대비 칸을 넣어라").
+    # 셋은 **한 칸 안에** 나란히 그린다 — 스트림릿 칸을 셋 더 만들면 줄마다 껍데기가
+    # 그만큼 늘어 표가 느려진다(2026-08-26에 이 표를 한 덩이로 바꾼 까닭과 같다).
+    # 값은 이미 잰 것에서 꺼낸다 — 새로 받아 오는 자료가 없다.
+    widths = [0.6, 2.0, 1.2, 1.2, 1.3, 2.4, 1.6]
     # '조건점수'는 갈래마다 다른 자로 잰 값이라 이름을 바꿨다(2026-08-06 사용자 물음).
-    titles = ["순위", "종목", "점수 (갈래 자)", "매수 상태", "현재가", "어느 분야"]
+    titles = ["순위", "종목", "점수 (갈래 자)", "매수 상태", "현재가", None, "어느 분야"]
+    ret_titles = ["20일 수익률", "6개월 수익률", "6개월 시장대비"]
+    # **「6개월 시장대비」는 나스닥이 아니라 SPY 를 뺀 값이다** — 21개 테마 표의
+    # 같은 이름 칸과 같은 자다(jarvis3_data 의 테마 강도도 SPY 로 뺀다).
+    spy_ret120 = ((market.get("rows") or {}).get("SPY") or {}).get("ret120")
     box = st.container(key="j3_top7_table")
     for column, title in zip(box.columns(widths), titles):
-        column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+        if title is None:
+            column.markdown(_flex_row(_TOP7_RET_WIDTHS, ret_titles, head=True),
+                            unsafe_allow_html=True)
+        else:
+            column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
     # **표 한 벌에 칸을 한 번만 만든다** (2026-08-26 상하님 지시로 관찰만 표와
     # 같은 방식으로 바꿨다). 이 표는 한 줄에 칸이 여섯이라 가장 무거웠다 —
     # 줄마다 칸을 새로 만들면 스트림릿이 껍데기를 줄마다 여섯 벌씩 만든다.
@@ -6647,6 +6668,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # **값·점수·차례·색은 하나도 안 바뀐다.** 몇 덩이로 나누어 보내느냐만 바뀐다.
     cols = box.columns(widths)
     rank_cells, score_cells, state_cells, price_cells, source_cells = [], [], [], [], []
+    ret_cells = []
     labels = []
     for index, row in enumerate(rows):
         plan = row.get("plan") or {}
@@ -6675,10 +6697,31 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             f"</div><span class='j3-bar-num'>{score:.1f}</span></div></div>"
         )
         state_cells.append(f"<div class='j3-td'>{plan.get('state', '—')}</div>")
+        # **현재가 밑에 당일 등락률**(2026-09-23 상하님 지시). 값은 세부사항·상승장
+        # 표와 같은 정규장 기준이다(_list_price_change).
+        top_price, top_change = _list_price_change(row["metrics"])
         price_cells.append(
-            f"<div class='j3-td' style='font-weight:700'>"
-            f"{_price(_list_price_change(row['metrics'])[0])}</div>"
+            "<div class='j3-td' style='font-weight:700'>"
+            "<span style='display:inline-flex; flex-direction:column;"
+            " line-height:1.12; align-items:flex-start'>"
+            f"<span>{_price(top_price)}</span>"
+            f"<span style='color:{_sign_color(top_change)}; font-weight:800;"
+            f" font-size:.82rem'>{_pct(top_change)}</span></span></div>"
         )
+        # 20일 · 6개월 · 6개월 시장대비 — 셋 다 **보여주기만** 한다(점수에 안 쓴다).
+        stock_ret20 = row["metrics"].get("ret20")
+        stock_ret120 = row["metrics"].get("ret120")
+        versus = (float(stock_ret120) - float(spy_ret120)
+                  if stock_ret120 is not None and spy_ret120 is not None else None)
+        ret_cells.append(_flex_row(_TOP7_RET_WIDTHS, [
+            f"<span style='color:{_sign_color(stock_ret20)}; font-weight:700'>"
+            f"{_pct(stock_ret20)}</span>",
+            f"<span style='color:{_sign_color(stock_ret120)}; font-weight:700'>"
+            f"{_pct(stock_ret120)}</span>",
+            "—" if versus is None else
+            f"<span style='color:{_sign_color(versus)}; font-weight:700'>"
+            f"{versus:+.1f}%p</span>",
+        ]))
         # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
         # 어느 갈래에서 왔는지를 **먼저** 적는다(2026-08-06 사용자 지시) — 점수가
         # 갈래마다 다른 자로 잰 값이라, 어느 자로 잰 것인지 알아야 읽을 수 있다.
@@ -6710,7 +6753,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     cols[2].markdown(_stacked(score_cells), unsafe_allow_html=True)
     cols[3].markdown(_stacked(state_cells), unsafe_allow_html=True)
     cols[4].markdown(_stacked(price_cells), unsafe_allow_html=True)
-    cols[5].markdown(_stacked(source_cells), unsafe_allow_html=True)
+    cols[5].markdown(_stacked(ret_cells), unsafe_allow_html=True)
+    cols[6].markdown(_stacked(source_cells), unsafe_allow_html=True)
     # 종목 이름 단추는 '테마 종목' 표와 같은 옷을 입힌다.
     st.markdown(
         "<style>"
