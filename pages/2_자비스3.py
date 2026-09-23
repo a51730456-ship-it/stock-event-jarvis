@@ -582,9 +582,9 @@ st.markdown(
         border-radius: 8px; background: rgba(0,0,0,.22); }
     /* ── 차트를 누르면 크게 (2026-09-23 저녁 상하님 지시) ─────────────────────
        순위 9 창(.j3pop)과 같은 움직임 — 열 때 .9초에 튀어 올라 살짝 넘쳤다 자리 잡고,
-       닫을 때는 가운데로 줄어들며(.56초) 끝 무렵에 옅어진다. 폰 세로 화면을 거의 꽉
-       채우고(사방 8px), 태블릿·노트북에서는 960×760 안에 선다. 뒤는 어둡게 덮는다.
-       하단 막대보다 위(맨 위 층)에 선다. 창이 떠 있는 동안 하단 막대는 숨긴다 — 창
+       닫을 때는 가운데로 줄어들며(.56초) 끝 무렵에 옅어진다. 가로 화면은 꽉
+       채우고(사방 8px · 태블릿·노트북은 960×760 안), 세로 화면은 높이 절반이다(아래).
+       뒤는 어둡게 덮는다. 하단 막대보다 위(맨 위 층)에 선다. 창이 떠 있는 동안 하단 막대는 숨긴다 — 창
        아래쪽을 눌렀는데 투명한 막대 단추가 눌려 다른 화면으로 가면 안 된다. */
     .j3cz { position: relative; }
     .j3cz-tap { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; margin: 0; }
@@ -617,6 +617,9 @@ st.markdown(
     .j3cz-close { align-self: center; font-size: .78rem; color: #8fb4de; }
     body:has(.j3cz-tap:checked) div.st-key-j3b_nav_controls,
     body:has(.j3cz-tap:checked) .j3b-bottom-nav { visibility: hidden !important; }
+    /* 세로로 든 화면(폰·세운 태블릿)은 높이를 **절반**으로 줄인다 — 가로 화면은 위 크기 그대로 꽉 채운다
+       (2026-09-23 밤 상하님 — "가로 화면은 지금처럼 꽉 채우고 세로 화면은 절반으로 줄여라"). */
+    @media (orientation: portrait) { .j3cz-pop { height: calc((100dvh - 16px) / 2); } }
     @media (prefers-reduced-motion: reduce) { .j3cz-pop, .j3cz-scrim { transition: none !important; } }
     /* ── 시장 현황(업종 지도) 2026-08-28 ────────────────────────────────
        상자 자리는 서버가 계산해 %로 준다. 칸의 가로:세로를 CSS에서 못박아야
@@ -10275,7 +10278,13 @@ def _briefing_css() -> None:
         .j3pop-part small{font-size:.72rem;color:#6f93bd}
         .j3pop-close{align-self:center;font-size:.72rem;color:#8fb4de;margin-top:2px}
         .j3sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-        .jarvis-anchor.j3sc-anchor{scroll-margin-top:27px}
+        /* 자리 표시는 상자 안에 있어서, 상자가 위에서 14px 미끄러져 내려오는 동안(.55초)
+           같이 움직인다. 처음 열 때는 그 도중에 자리를 재서 상자가 14px 아래에 섰다
+           (2026-09-23 밤 실측 26px · 기간 단추는 12px). 표시만 같은 박자로 거꾸로 밀어
+           제자리에 붙들어 둔다 — 눈에 안 보이는 칸이라 화면 모양은 그대로다. */
+        @keyframes j3sc-anchor-hold{from{transform:translateY(14px)}to{transform:none}}
+        .jarvis-anchor.j3sc-anchor{scroll-margin-top:27px;
+          animation:j3sc-anchor-hold .55s cubic-bezier(.2,.8,.2,1) backwards}
         .j3sc-head b{font-size:1rem;color:#fff;font-weight:800}
         .j3sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}
         .j3sc-row{display:grid;grid-template-columns:26px minmax(0,1fr) 150px 58px;

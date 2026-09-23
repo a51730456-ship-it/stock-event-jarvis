@@ -3241,3 +3241,25 @@ def test_list_price_uses_the_last_regular_session_unless_the_market_is_open():
         ns = {"j3data": FakeData}
         exec(compile(ast.Module(body=[node], type_ignores=[]), "page", "exec"), ns)
         assert ns["_list_price_change"](metrics)[1] == want, label
+
+def test_scorecard_anchor_does_not_ride_the_drop_animation():
+    """성적표를 **처음 열 때도** 상자가 기간 단추를 누를 때와 같은 자리에 선다 (2026-09-23 밤).
+
+    자리 표시가 상자 안에 있어 상자가 14px 미끄러져 내려오는 동안 같이 움직였고, 그 도중에
+    자리를 재서 처음 열 때만 상자가 14px 아래(26px)에 섰다. 표시만 같은 박자로 거꾸로 민다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    drop = re.search(r"@keyframes j3sc-drop\{\s*from\{[^}]*translateY\(-(\d+)px\)", source)
+    hold = re.search(r"@keyframes j3sc-anchor-hold\{from\{transform:translateY\((\d+)px\)\}", source)
+    assert drop and hold and drop.group(1) == hold.group(1)
+    box = re.search(r'div\[class\*="st-key-j3sc_box"\]\{animation:j3sc-drop ([.\d]+s cubic-bezier\([^)]*\))', source)
+    anchor = re.search(r"animation:j3sc-anchor-hold ([.\d]+s cubic-bezier\([^)]*\))", source)
+    assert box and anchor and box.group(1) == anchor.group(1)
+
+
+def test_chart_zoom_is_half_height_on_a_portrait_screen():
+    """차트를 누르면 뜨는 창 — 가로 화면은 꽉, **세로 화면은 높이 절반** (2026-09-23 밤 상하님 —
+    "가로 화면은 지금처럼 꽉 채우고 세로 화면은 절반으로 줄여라")."""
+    source = PAGE.read_text(encoding="utf-8")
+    assert "height: min(calc(100dvh - 16px), 760px);" in source
+    assert "@media (orientation: portrait) { .j3cz-pop { height: calc((100dvh - 16px) / 2); } }" in source
