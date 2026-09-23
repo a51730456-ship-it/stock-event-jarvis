@@ -11775,6 +11775,30 @@ def _set_briefing_page(page: str) -> None:
 # 바깥 화면의 것**이라 판이 다시 그려져도 살아 있다. 아래 _briefing_swipe_nav 가
 # json.dumps 로 안전하게 감싸 심는다 — 따옴표를 손으로 이스케이프하지 않는다
 # (2026-09-10에 손으로 하다 틀려서 폰에서 아무 일도 안 일어났다).
+# ── 화면을 옮기는 그 순간에도 **숨은 것은 숨어 있게** (2026-09-23 상하님 지적) ──
+#
+# 상하님 — *"페이지 넘기다 보면 자꾸 이 테마 설명 저 부분이 나온다."*
+#
+# 까닭 — 자비스3의 꾸밈 규칙은 그 화면의 <style> 안에 있다. 홈이나 다른 화면으로
+# 옮기면 그 <style> 이 먼저 사라지고 카드·숨은 단추의 **자리는 잠깐 남는다.**
+# 그 사이에 「이 테마 설명」 카드가 꾸밈 없이 펼쳐져 그림이 화면에 쏟아졌다
+# (상하님 캡처 — 홈 화면 밑에 상승장 설명 그림이 그대로 나왔다).
+#
+# 그래서 **넘기기 코드와 같은 자리(바깥 문서)에** 이 규칙을 심는다. 화면을 옮겨도
+# 살아 있으므로 그 틈에도 숨어 있다. 여는 규칙(body:has(#j3-help-tap:checked) …)이
+# 더 세서, 상하님이 설명을 여실 때는 예전 그대로 열린다.
+_LEFTOVER_CSS = (
+    "div.st-key-j3_help_card{position:fixed;left:50%;top:50%;opacity:0;"
+    "visibility:hidden;pointer-events:none}"
+    ".j3-help-scrim{position:fixed;inset:0;opacity:0;visibility:hidden;"
+    "pointer-events:none}"
+    "div[class*='st-key-j3b_swipe_']{position:fixed;left:-9999px;top:-9999px;"
+    "width:1px;height:1px;overflow:hidden}"
+    "div.st-key-j3b_nav_controls button{color:transparent;background:transparent;"
+    "border:0}"
+)
+
+
 _SWIPE_OUTER_JS = """
 (function () {
   var d = document, x0 = 0, y0 = 0, live = false, fired = false;
@@ -12448,7 +12472,15 @@ _SWIPE_OUTER_JS = """
       if (me.cancelled) { return; }
       var now = screenNow();
       var arrived = now === go.to;
-      if (arrived && !tFlip) { tFlip = Date.now(); }
+      if (arrived && !tFlip) {
+        tFlip = Date.now();
+        // **도착한 그 순간** 다음 넘김 사진을 깐다 (2026-09-23). 종이는 이미 다 돌아
+        // 모로 서 있어(90도) 속을 바꿔도 안 보인다. 새로 뜨는 일도 없다 — 방금 밑에
+        // 깔았던 그 사진이다. 예전에는 덮개를 걷은 **뒤**에야 깔아서, 새 화면이 아직
+        // 그려지는 중이면 1.6초를 더 기다렸다(상하님 — "1~2초 기다려야 넘어간다").
+        try { mountCopy(FACE, go.to); } catch (e) {}
+        try { mountCopy(EDGE, go.to); } catch (e) {}
+      }
       var running = !!d.querySelector('[data-testid="stStatusWidget"]');
       // 넘어가는 움직임이 끝나기 전에는 걷지 않는다.
       var ready = arrived && Date.now() >= tDone
@@ -12457,6 +12489,15 @@ _SWIPE_OUTER_JS = """
       if (!ready && !gaveUp) { setTimeout(check, 40); return; }
       var cover = me.cover;
       hideCopy(FACE); hideCopy(EDGE);
+      // **도착하면 곧바로 다음 넘김 사진을 깔아 둔다** (2026-09-23 상하님 지적 —
+      // "넘기려면 여전히 1~2초 기다려야 안정되게 넘어간다"). 예전에는 조용해진 뒤
+      // 1.2초에야 깔려서, 그전에 넘기면 종이 모양 없이 넘어갔다. 사진은 방금 밑에
+      // 깔았던 그것이라 이미 손에 있다 — 여기서는 새로 뜨는 일이 없다.
+      // 종이는 바로 위에서 걷었으므로 속을 바꿔도 보이지 않는다.
+      if (arrived) {
+        try { mountCopy(FACE, go.to); } catch (e) {}
+        try { mountCopy(EDGE, go.to); } catch (e) {}
+      }
       if (fx) { fx.page.style.display = 'none'; fx.edge.style.display = 'none'; fx.cast.style.display = 'none'; }
       if (arrived && cover && !still) {
         // 덮고 있던 다음 쪽을 0.2초에 걷는다 — 밑의 진짜 화면이 같은 모양이라 바뀌는
@@ -12617,6 +12658,8 @@ _SWIPE_OUTER_JS = """
       // 바꿔 둔다. 도착하자마자 되넘길 때도 끝이 말려 넘어간다(안 바꾸면 통째로 넘어간다).
       setTimeout(function () {
         if (!fired || !pending || pending.go !== go || pending.cancelled) { return; }
+        // 도착한 화면 사진을 **둘 다** 곧바로 깐다 — 그래야 바로 또 넘겨도 종이가 돈다.
+        try { mountCopy(FACE, go.to); } catch (e) {}
         try { mountCopy(EDGE, go.to); } catch (e) {}
       }, 380);
     }
@@ -12749,7 +12792,12 @@ def _briefing_swipe_nav() -> None:
         components.html(
             "<script>(function(){var d;"
             "try{d=window.parent&&window.parent.document;}catch(e){return;}"
-            "if(!d||!d.body||d.getElementById('j3b-swipe-script')){return;}"
+            "if(!d||!d.body){return;}"
+            "if(!d.getElementById('j3b-leftover-css')){"
+            "var c=d.createElement('style');c.id='j3b-leftover-css';"
+            "c.textContent=" + _json.dumps(_LEFTOVER_CSS) + ";"
+            "d.head.appendChild(c);}"
+            "if(d.getElementById('j3b-swipe-script')){return;}"
             "var t=d.createElement('script');t.id='j3b-swipe-script';"
             "t.textContent=" + _json.dumps(_SWIPE_OUTER_JS) + ";"
             "d.body.appendChild(t);})();</script>",
