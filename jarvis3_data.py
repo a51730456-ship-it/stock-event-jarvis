@@ -526,10 +526,7 @@ def _download_cached(
     now = time.time()
     with _CACHE_LOCK:
         cached = _CACHE.get(key)
-        # 받아 둔 것이 성기면(종목이 많이 빠졌으면) 긴 보관을 안 쓴다 — 위 설명 참고.
-        kept = _kept_for(interval, ttl_seconds) if (not cached or cached.get("full", True)) \
-            else ttl_seconds
-        if cached and now - cached["at"] < kept:
+        if cached and now - cached["at"] < ttl_seconds:
             return _copy_frames(cached["frames"]), {
                 "ok": True, "error": None, "stale": False, "fetched_at": cached["fetched_at"]
             }
