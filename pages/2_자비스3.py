@@ -11,6 +11,17 @@ import re
 
 import streamlit as st
 
+# ── 임시 — 온라인 서버가 어디서 기다리나 잰다 (2026-09-23 밤 · 재고 나면 뺀다) ──────
+# 주소에 j3prof=1 이 붙은 판만 잰다. 결과는 맨 끝에서 눈에 안 보이는 칸 하나에 싣는다.
+import time as _ptime
+
+_PROF = None
+if str(st.query_params.get("j3prof") or "") == "1":
+    import cProfile as _cprof
+
+    _PROF = (_cprof.Profile(), _ptime.perf_counter(), _ptime.thread_time(), {})
+    _PROF[0].enable()
+
 import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
 import login_prism  # 첫 화면의 '판 누르고 왔나' 표식을 읽는다(2026-08-09).
 
@@ -13277,35 +13288,11 @@ def main() -> None:
     _run_hard_reload_if_requested()
 
 
-# ── 임시 — 온라인 서버가 어디서 기다리나 잰다 (2026-09-23 밤 · 재고 나면 뺀다) ──────
-# 주소에 j3prof=1 이 붙은 판만 잰다. 결과는 눈에 안 보이는 칸 하나에 글자로 싣는다.
-if str(st.query_params.get("j3prof") or "") == "1":
-    import cProfile as _cprof
-    import io as _pio
-    import pstats as _pstats
-
-    _prof = _cprof.Profile()
-    _prof_wall, _prof_cpu = time.perf_counter(), time.thread_time()
-    _prof.enable()
-    try:
-        main()
-    finally:
-        _prof.disable()
-        try:
-            _buf = _pio.StringIO()
-            _stats = _pstats.Stats(_prof, stream=_buf)
-            _stats.sort_stats("cumulative").print_stats(80)
-            _stats.sort_stats("tottime").print_stats(30)
-            _text = (f"wall {time.perf_counter() - _prof_wall:.3f} "
-                     f"cpu {time.thread_time() - _prof_cpu:.3f}\n" + _buf.getvalue())
-            st.markdown(
-                "<div hidden id='j3prof' data-p='"
-                + base64.b64encode(_text.encode("utf-8")).decode("ascii") + "'></div>",
-                unsafe_allow_html=True)
-        except Exception:
-            pass
-else:
-    main()
+if _PROF:
+    _PROF[3]["main_start"] = _ptime.perf_counter() - _PROF[1]
+main()
+if _PROF:
+    _PROF[3]["main_end"] = _ptime.perf_counter() - _PROF[1]
 # 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
 scroll_to.run(st)
 # **이 화면이 언제 판인지** 맨 밑에 작게 적는다 (2026-09-02 상하님 지시).
@@ -13362,3 +13349,26 @@ try:
     )
 except Exception:
     pass
+
+
+# ── 임시 — 잰 것을 싣는다 (위 j3prof · 재고 나면 뺀다) ────────────────────────
+if _PROF:
+    _PROF[0].disable()
+    try:
+        import io as _pio
+        import pstats as _pstats
+
+        _buf = _pio.StringIO()
+        _stats = _pstats.Stats(_PROF[0], stream=_buf)
+        _stats.sort_stats("cumulative").print_stats(90)
+        _stats.sort_stats("tottime").print_stats(30)
+        _text = (f"wall {_ptime.perf_counter() - _PROF[1]:.3f} "
+                 f"cpu {_ptime.thread_time() - _PROF[2]:.3f} "
+                 f"main {_PROF[3].get('main_start', 0):.3f}~{_PROF[3].get('main_end', 0):.3f}\n"
+                 + _buf.getvalue())
+        st.markdown(
+            "<div hidden id='j3prof' data-p='"
+            + base64.b64encode(_text.encode("utf-8")).decode("ascii") + "'></div>",
+            unsafe_allow_html=True)
+    except Exception:
+        pass
