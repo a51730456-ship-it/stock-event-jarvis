@@ -8437,6 +8437,16 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.35, 1.25, 1.25, 1.75, 1.2, 1.0, 1.15, 1.5]
     else:
         widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.75, 1.2, 1.0, 1.15, 1.5]
+    # ── **급락 목록에 수익률 칸 셋** (2026-09-23 상하님 지시 — "급락 후 반등장 순위
+    # 리스트에 20일 수익률·6개월 수익률·6개월 시장대비 칸을 넣어라") ────────────
+    # 「당일주가」 바로 뒤에 넣는다 — 순위 9 표와 같은 차례다. 상승장 쪽은 이미
+    # 제 표에 20일·6개월 칸이 있어 손대지 않는다.
+    # 「6개월 시장대비」 = 그 종목 6개월 수익률 − SPY 6개월 수익률(%p). 21개 테마 표의
+    # 같은 이름 칸과 같은 자다. **점수에는 안 쓴다** — 보여주기만 한다.
+    show_returns = not breakout
+    spy_ret120 = ((market.get("rows") or {}).get("SPY") or {}).get("ret120")
+    if show_returns:
+        widths = widths[:4] + [1.0, 1.0, 1.15] + widths[4:]
     # 점수는 순위 **다음 칸**에 따로 둔다(2026-08-06 사용자 지시). 순위 칸에 같이
     # 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다(상하님 캡처).
     row_widths = [widths[0], 0.7, widths[1], sum(widths[2:])]
@@ -8457,7 +8467,9 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 갈라 재니 뒤 5년에서 져서 배점이 0점이 됐다. 점수에 안 쓰는 값을 표에 두면
     # 화면이 순위와 다른 것을 설명하게 된다.
     volume_head = "최근 11일"
-    head_cells = (["티커", "당일주가"] + drop_heads
+    head_cells = (["티커", "당일주가"]
+                  + (["20일 수익률", "6개월 수익률", "6개월 시장대비"] if show_returns else [])
+                  + drop_heads
                   + ["소속 테마", third, "1년 성적", "같이 걸린 종목", volume_head])
     # **상승장은 '순위'라고 부르지 않는다**(2026-08-07). 그물을 144가지로 다 재도
     # 하나도 기준선을 못 넘었다 — 그 위에서 매긴 차례를 1위·2위로 보이면 화면이
@@ -8553,6 +8565,23 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             f"<span style='color:{_sign_color(crash_change)};"
             f" font-weight:800; font-size:.82rem'>{_pct(crash_change)}</span></span>"
         )
+        # 수익률 셋 — 이미 잰 값에서 꺼낸다(새로 받는 자료 없음).
+        if show_returns:
+            row_ret20 = metrics.get("ret20")
+            row_ret120 = metrics.get("ret120")
+            row_versus = (float(row_ret120) - float(spy_ret120)
+                          if row_ret120 is not None and spy_ret120 is not None else None)
+            return_cells = [
+                f"<span style='color:{_sign_color(row_ret20)}; font-weight:700'>"
+                f"{_pct(row_ret20)}</span>",
+                f"<span style='color:{_sign_color(row_ret120)}; font-weight:700'>"
+                f"{_pct(row_ret120)}</span>",
+                "<span class='j3-muted'>—</span>" if row_versus is None else
+                f"<span style='color:{_sign_color(row_versus)}; font-weight:700'>"
+                f"{row_versus:+.1f}%p</span>",
+            ]
+        else:
+            return_cells = []
         if breakout:
             third_cell = f"<span class='j3-green'>{int(row.get('wait_days') or 0)}일 전</span>"
         else:
@@ -8652,6 +8681,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             _flex_row(rest_widths, [
                 html.escape(str(row.get("ticker") or "—")),
                 price_cell,
+                *return_cells,
                 *drop_cells,
                 f"<span class='j3-rb-clip j3-pull-theme'"
                 f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
@@ -12042,7 +12072,7 @@ _SWIPE_OUTER_JS = """
     // 「안 보이게」를 풀고 거는 것 자체도 무겁다 — 사진 속 칸 2,600개를 다 다시
     // 따진다. 느린 폰 기준 두 장면에 70ms, 투명만 바꾸면 42ms(2026-09-19 실측).
     snapHost.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0;'
-      + 'overflow:hidden;contain:strict';
+      + 'overflow:hidden;contain:strict;will-change:transform,opacity';
     snapRoot = snapHost.attachShadow({ mode: 'open' });
     snapMounted = ''; snapMountedV = 0;
     d.body.appendChild(snapHost);
@@ -12088,7 +12118,8 @@ _SWIPE_OUTER_JS = """
     if (blankEl && blankEl.isConnected) { return blankEl; }
     blankEl = d.createElement('div');
     blankEl.setAttribute('aria-hidden', 'true');
-    blankEl.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0';
+    blankEl.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0;'
+      + 'will-change:transform,opacity';
     d.body.appendChild(blankEl);
     return blankEl;
   }
@@ -12106,7 +12137,7 @@ _SWIPE_OUTER_JS = """
     }
     // 앞 넘김에서 종이 노릇을 하느라 기울어 있었을 수 있다 — 반듯하게 편다.
     el.style.transition = 'none'; el.style.transform = ''; el.style.transformOrigin = '';
-    el.style.clipPath = ''; el.style.willChange = '';
+    el.style.clipPath = '';
     el.style.zIndex = UNDER_Z;
     el.style.opacity = '1';
     under = el;
@@ -12118,7 +12149,7 @@ _SWIPE_OUTER_JS = """
       if (!list[i]) { continue; }
       var st = list[i].style;
       st.transition = ''; st.opacity = '0'; st.zIndex = '-1';
-      st.transform = ''; st.transformOrigin = ''; st.clipPath = ''; st.willChange = '';
+      st.transform = ''; st.transformOrigin = ''; st.clipPath = '';
     }
     under = null;
   }
@@ -12143,8 +12174,14 @@ _SWIPE_OUTER_JS = """
     h.host.id = h.id;
     h.host.setAttribute('aria-hidden', 'true');
     try { h.host.inert = true; } catch (e) {}
+    // **will-change 를 미리 걸어 둔다** (2026-09-23 상하님 지적 — "손가락으로 페이지
+    // 넘기면 종이처럼 넘기는 부분이 버벅거린다").
+    // 실측(느린 폰 4배 · 끄는 0.5초 동안 · 2026-09-23) — 메인 스레드가 한 일 2.0초 중
+    // **층 만들기(Layerize) 0.70초 · 칠하기(Paint) 0.49초**였다. 넘기기 시작하는 순간
+    // 이 칸들이 처음으로 보이게 되면서 그때 층을 만들고 칠했기 때문이다.
+    // will-change 를 **가만히 있을 때** 걸어 두면 그 일을 미리 해 둔다.
     h.host.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0;'
-      + 'overflow:hidden;contain:strict';
+      + 'overflow:hidden;contain:strict;will-change:transform,opacity';
     h.root = h.host.attachShadow({ mode: 'open' });
     h.name = ''; h.v = 0;
     d.body.appendChild(h.host);
@@ -12172,7 +12209,9 @@ _SWIPE_OUTER_JS = """
   function hideCopy(h) {
     if (!h.host) { return; }
     var st = h.host.style;
-    st.transition = ''; st.transform = ''; st.clipPath = ''; st.willChange = '';
+    // **willChange 는 그대로 둔다** (2026-09-23). 지우면 다음에 넘길 때 층을 다시
+    // 만드느라 첫 몇 판이 멈칫한다 — 그것이 버벅임의 가장 큰 몫이었다.
+    st.transition = ''; st.transform = ''; st.clipPath = '';
     st.opacity = '0'; st.zIndex = '-1';
   }
   // 빛·그늘·막 — 사진 칸과 같은 돌림을 걸어 종이에 붙어 다닌다.
@@ -12181,7 +12220,8 @@ _SWIPE_OUTER_JS = """
     var el = d.createElement('div');
     el.setAttribute('aria-hidden', 'true');
     el.style.cssText = 'position:fixed;inset:0;pointer-events:none;display:none;'
-      + 'background-repeat:no-repeat;z-index:' + z + ';' + (extra || '');
+      + 'background-repeat:no-repeat;will-change:transform,opacity;z-index:' + z + ';'
+      + (extra || '');
     d.body.appendChild(el);
     return el;
   }
@@ -12200,7 +12240,17 @@ _SWIPE_OUTER_JS = """
     // 걷는다 — 남으면 화면이 안 눌린다.
     fx.shield = fxPart(TOP, 'pointer-events:auto;background:transparent');
   }
+  // ── 넘기는 동안 **진짜 화면은 그리기를 쉰다** (2026-09-23 시험) ──────────────
+  // 넘기는 1초 동안 화면은 위아래가 사진으로 다 덮여 진짜 화면이 한 점도 안 보인다.
+  // 그런데 폰은 그동안에도 그것을 계속 따지고 있었다. 쉬게 하면 그만큼 덜 버벅인다.
+  var appEl = null;
+  function liveRest(on) {
+    if (!appEl || !appEl.isConnected) { appEl = d.querySelector('[data-testid="stApp"]'); }
+    if (!appEl) { return; }
+    try { appEl.style.contentVisibility = on ? 'hidden' : ''; } catch (e) {}
+  }
   function hideAll() {
+    liveRest(false);
     hideCopy(FACE); hideCopy(EDGE); hideSnap();
     if (!fx) { return; }
     var list = [fx.page, fx.edge, fx.cast, fx.shield];
@@ -12349,6 +12399,7 @@ _SWIPE_OUTER_JS = """
       es.willChange = 'transform'; es.zIndex = TOP; es.opacity = '1';
       alignCopy(EDGE);
     }
+    liveRest(true);
     var dark = 'rgba(0,0,0,', lite = 'rgba(255,255,255,';
     var toEdge = s < 0 ? 'to right' : 'to left';        // 책등 → 종이 끝
     var p = fx.page.style, e = fx.edge.style, k = fx.cast.style;
@@ -12576,7 +12627,19 @@ _SWIPE_OUTER_JS = """
         try { mountCopy(EDGE, go.to); } catch (e) {}
       }, 380);
     }
-    try { hit.click(); } catch (e) {}                    // 서버는 넘기는 동안 같이 돈다
+    // ── **종이가 다 넘어간 뒤에 서버를 부른다** (2026-09-23 상하님 지적 — "손가락으로
+    // 페이지 넘기면 로딩이 너무 오래 걸려 종이처럼 넘기는 부분이 버벅거린다") ──────
+    // 예전에는 손을 떼자마자 눌러 **서버 일과 종이 움직임을 겹쳤다.** 빠르기는 했지만,
+    // 새 화면을 만드는 일(느린 폰 4배 기준 한 번에 1.1~1.3초)이 종이가 도는 0.34초와
+    // 정면으로 겹쳐 그 사이 화면이 멈춰 보였다(실측 — 넘어가는 동안 멈칫 1.1~1.3초).
+    // 이제 종이가 다 넘어간 **뒤**에 누른다. 종이는 끝까지 매끄럽게 돌고, 새 화면은
+    // 그 뒤에 만들어진다 — 도착이 0.36초 늦지만 그동안 밑에는 다음 쪽 사진이 이미 깔려
+    // 있어 빈 화면이 보이지는 않는다. 종이 모양 없이 넘기는 판(plain)은 예전 그대로 곧바로.
+    if (g.plain) {
+      try { hit.click(); } catch (e) {}
+    } else {
+      setTimeout(function () { try { hit.click(); } catch (e) {} }, 360);
+    }
     whenArrived(go, withSnap, tDone);
   }
   function onEnd(ev) { if (firstTime(ev)) { release(ev, false); } }
