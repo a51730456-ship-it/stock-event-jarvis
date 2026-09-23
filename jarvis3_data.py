@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026091910
+MODULE_REVISION = 2026092310
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -644,6 +644,24 @@ def _session_close_time(day) -> dt_time:
         return dt_time(16, 0)
 
 
+def _last_session_close(closes, last_date, today_ny, now_ny=None) -> float | None:
+    """마지막으로 '끝난' 정규장의 **종가** (2026-09-23 상하님 지적).
+
+    상하님 — *"당일주가와 선택종목 세부사항의 현재가와 맞지 않은 것도 있다."*
+    목록 표는 `current`(시간외 체결가까지 들어간 값)를 적고 세부사항은 정규장
+    종가를 적어, 한 화면 안에서 두 값이 달랐다(2026-09-23 실측 — DELL 목록
+    553.34 / 세부사항 548.92). 아래 `_last_session_change` 와 **같은 줄**을 집는다.
+    """
+    if len(closes) < 1:
+        return None
+    now_ny = now_ny or datetime.now(_NY)
+    finished = last_date < today_ny or now_ny.time() >= _session_close_time(today_ny)
+    end = -1 if finished else -2
+    if len(closes) < abs(end):
+        return None
+    return _finite(closes.iloc[end])
+
+
 def _last_session_change(closes, last_date, today_ny, now_ny=None) -> float | None:
     """마지막으로 '끝난' 정규장의 등락률.
 
@@ -745,6 +763,7 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
     # 기준이라 '미국 전일'처럼 끝난 장을 물어보는 자리에는 쓸 수 없다
     # (2026-07-24 실측: 전일 -1.23%인데 화면에 프리마켓 +0.22%가 나왔다).
     last_session_change_pct = _last_session_change(closes, last_date, today_ny)
+    last_session_close = _last_session_close(closes, last_date, today_ny)
 
     ret = lambda days: (current / float(closes.iloc[-min(days + 1, len(closes))]) - 1) * 100
     sma20 = _finite(closes.tail(20).mean())
@@ -810,6 +829,8 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
         "prev_close": prev_close,
         "change_pct": ((current / prev_close - 1) * 100) if prev_close else None,
         "last_session_change_pct": last_session_change_pct,
+        # 그 등락률과 **같은 줄의 종가**. 목록 표가 적는 「당일주가」다(2026-09-23).
+        "last_session_close": last_session_close,
         "ret5": ret(5),
         "ret20": ret(20),
         "ret60": ret(60) if len(closes) >= 61 else None,
@@ -5642,6 +5663,27 @@ def nasdaq_drawdown_state(pct: float | None) -> tuple[str, str]:
     return "고점 근처", "#9aa0aa"
 
 
+def _peak_before_record_run(closes) -> float | None:
+    """지금 기록 행진이 시작되기 **직전**의 최고 종가. 행진 중이 아니면 None (2026-09-23).
+
+    기록 행진 = 마지막으로 '그때까지의 최고가 아니었던 날' 다음부터 오늘까지.
+    그 앞에 날이 하나도 없으면(창 전체가 기록 행진) None 을 준다 — 그때는
+    견줄 옛 고점이 창 안에 없다.
+    """
+    try:
+        running_max = closes.cummax()
+        is_record = closes >= running_max - 1e-9
+        positions = [i for i, flag in enumerate(is_record.tolist()) if not flag]
+        if not positions:
+            return None
+        start = positions[-1] + 1
+        if start <= 0 or start >= len(closes):
+            return None
+        return float(closes.iloc[:start].max())
+    except Exception:
+        return None
+
+
 def get_nasdaq_drawdown(ttl_seconds: float = 600) -> dict:
     """나스닥이 1년 최고에서 얼마나 내려와 있나, 그리고 문턱까지 얼마 남았나."""
     try:
@@ -5660,7 +5702,20 @@ def get_nasdaq_drawdown(ttl_seconds: float = 600) -> dict:
         return {"ok": False, "error": str(exc)}
     if not high:
         return {"ok": False, "error": "고점을 구할 수 없습니다"}
-    pct = (current / high - 1) * 100
+    # ── **신고가를 낸 날은 「넘기 직전 최고」와 견준다** (2026-09-23 상하님 지적) ──
+    # 상하님 — *"이거 전고점 뚫은 지 2일 정도 지났지 싶은데 아직도 반영이 안 되었다."*
+    #
+    # 맞는 지적이다. 고점을 **오늘까지 넣어서** 잡으니, 오늘이 제일 높은 날이면
+    # 자기 자신과 견주게 되어 언제나 0.0% 였다. 실측(2026-09-23) — 나스닥은 09-21에
+    # 전고점(27,093.9)을 넘어 지금 27,244.3 인데 화면은 +0.0% 라고 적고 있었다.
+    #
+    # 그래서 지금이 기록 행진 중이면 **그 행진이 시작되기 직전의 최고 종가**를
+    # 전고점으로 본다. 행진이 아니면 예전 그대로 1년 최고와 견준다.
+    prior_high = _peak_before_record_run(close)
+    if prior_high and current >= high - 1e-9:
+        pct = (current / prior_high - 1) * 100
+    else:
+        pct = (current / high - 1) * 100
     state, color = nasdaq_drawdown_state(pct)
     gates = []
     for limit, label, _c in sorted(NASDAQ_DRAWDOWN_GATES, key=lambda g: -g[0]):
@@ -5708,7 +5763,16 @@ US_SECTOR_MAP = (
     ("utilities", "전기·가스", "XLU"),
     ("real-estate", "부동산", "XLRE"),
     ("basic-materials", "소재·화학", "XLB"),
+    # **반도체는 야후 갈래가 아니라 기술 갈래 **안의** 산업이다** (2026-09-23 상하님
+    # 지시 — "반도체 부분은 왜 빠졌냐? 지금 트렌드에 맞게 해봐 · 칸을 새로 구성하던지").
+    # 그래서 칸 크기는 **기술 몫에서 떼어 온다**(아래 _semi_share_of_tech). 야후가
+    # 주는 숫자만 쓴다 — 지어낸 비중은 없다. 실측(2026-09-23) — 기술 몫 0.326 중
+    # 반도체·반도체장비가 0.413 이라 반도체 칸은 미국 시장의 13.5%, 기술 칸은 19.1%다.
+    (SEMI_SECTOR_KEY := "semiconductors", "반도체", "SOXX"),
 )
+# 반도체 칸이 가져갈 몫을 재는 산업 둘(야후 이름). 엔비디아·브로드컴·AMD 는 앞쪽,
+# 램리서치·어플라이드머티리얼즈 는 뒤쪽에 든다. SOXX 는 둘을 다 담는 ETF다.
+SEMI_INDUSTRIES = ("semiconductors", "semiconductor-equipment-materials")
 # 업종 몫은 하루에도 거의 안 움직인다. 등락은 5분마다 새로 본다.
 SECTOR_WEIGHT_TTL = 6 * 3600.0
 SECTOR_MAP_TTL = 300.0
@@ -5740,15 +5804,45 @@ def _sector_weights() -> dict:
     fetched = {}
     try:
         with ThreadPoolExecutor(max_workers=6) as pool:
-            for key, weight in pool.map(_one, [k for k, _n, _e in US_SECTOR_MAP]):
+            keys = [k for k, _n, _e in US_SECTOR_MAP if k != SEMI_SECTOR_KEY]
+            for key, weight in pool.map(_one, keys):
                 if weight and weight > 0:
                     fetched[key] = weight
     except Exception:
         fetched = {}
+    # 반도체 칸 몫을 **기술 몫에서 떼어 낸다**. 못 받으면 떼지 않는다 —
+    # 그때는 지도가 예전처럼 열한 칸이 된다(있던 것을 지우지 않는다).
+    if fetched.get("technology"):
+        share = _semi_share_of_tech()
+        if share:
+            tech = fetched["technology"]
+            fetched[SEMI_SECTOR_KEY] = tech * share
+            fetched["technology"] = tech * (1.0 - share)
     with _SECTOR_LOCK:
         if fetched:
             _SECTOR_WEIGHTS.update({"at": now, "value": fetched})
         return dict(_SECTOR_WEIGHTS["value"])
+
+
+def _semi_share_of_tech() -> float | None:
+    """기술 갈래 안에서 **반도체가 차지하는 몫**. 야후가 주는 값이다 (2026-09-23).
+
+    야후의 산업 몫은 **그 갈래 안에서의 몫**이다(기술 갈래 산업 일곱의 합이 정확히
+    1.0 로 온다 — 2026-09-23 실측). 그래서 기술 몫에 곱하면 미국 시장에서의 몫이 된다.
+    못 받으면 None — 그러면 기술 칸을 안 쪼갠다.
+    """
+    import yfinance as yf
+
+    total = 0.0
+    for key in SEMI_INDUSTRIES:
+        try:
+            weight = yf.Industry(key).overview.get("market_weight")
+        except Exception:
+            return None
+        if not weight:
+            return None
+        total += float(weight)
+    return total if 0.0 < total < 1.0 else None
 
 
 def _sector_breadth() -> dict:
@@ -5816,6 +5910,10 @@ def _compute_sector_map() -> dict:
     daily = _fill_missing_session(daily, live)
     rows = []
     for key, name, etf in US_SECTOR_MAP:
+        # 반도체 몫을 못 받은 판에서는 그 칸을 아예 안 그린다 — 남은 몫을 나눠 갖게
+        # 두면 크기가 엉뚱해진다(2026-09-23).
+        if key == SEMI_SECTOR_KEY and not weights.get(key):
+            continue
         metrics = _series_metrics(daily.get(etf), live.get(etf))
         if not metrics.get("ok"):
             continue

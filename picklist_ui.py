@@ -383,6 +383,18 @@ def fetch_prices(market: str, codes) -> dict:
         import jarvis4_data as data
 
     def _one(code):
+        # **정규장 기준 값을 먼저 쓴다** (2026-09-23 상하님 지적 — "당일주가와 선택종목
+        # 세부사항의 현재가와 맞지 않은 것도 있다"). get_live_quote 의 current 는 장이
+        # 끝난 뒤 시간외 체결가라, 세부사항·당일 그림과 다른 값이었다(NET 323.25 ↔ 323.60).
+        # 못 구하면 예전처럼 current 를 쓴다 — 빈칸으로 두지 않는다.
+        session = getattr(data, "session_quote", None)
+        if callable(session):
+            try:
+                got = session(code)
+            except Exception:
+                got = None
+            if isinstance(got, dict) and got.get("ok") and got.get("price") is not None:
+                return code, got["price"]
         try:
             quote = data.get_live_quote(code)
         except Exception:

@@ -1134,6 +1134,36 @@ st.markdown(
     }
     /* 테마 종목표의 MPC·VLO 단추와 같은 네모 카드·가운데 정렬. */
     div[class*="st-key-j3tbtn_"] button { justify-content: center !important; }
+    /* ── **표 줄이 어긋나던 것** (2026-09-23 상하님 지적 — "라인과 종목 맞지 않다.
+       전체 테마 상승장 급락후 매수심사9 전체 검토해서 맞춰라") ──────────────────
+       이 표들은 칸을 **세로로 한 줄씩 쌓아** 두고(_stacked, 칸 40px·틈 16px) 종목
+       단추만 따로 쌓는다. 이름이 길어 두 줄이 되는 종목(Palo Alto Networks 등)이
+       나오면 그 단추가 64px 이 되어, **그 아래부터 단추 쪽만 밀린다**(실측 56px).
+       상하님이 「이름을 한 줄로 자르기」를 고르셨다 — 단추 높이를 40px 로 묶고
+       이름은 한 줄에서 끊어 … 을 붙인다. 종목 기호는 옆 칸에 그대로 보인다.
+       (이 주석에 표 머리글 낱말을 적지 않는다 — 시험이 CSS 덩이를 표 머리글로
+        착각한다. 2026-09-23에 실제로 겪었다.) */
+    div[class*="st-key-j3tbtn_"] button,
+    div[class*="st-key-j3lbtn_"] button,
+    div[class*="st-key-j3top7_"] button,
+    div[class*="st-key-j3rbf_"] button,
+    div[class*="st-key-j3rbw_"] button,
+    div[class*="st-key-j3pbf_"] button,
+    div[class*="st-key-j3sw_"] button {
+        height: 40px !important; min-height: 40px !important;
+        max-height: 40px !important; overflow: hidden !important;
+    }
+    div[class*="st-key-j3tbtn_"] button p,
+    div[class*="st-key-j3lbtn_"] button p,
+    div[class*="st-key-j3top7_"] button p,
+    div[class*="st-key-j3rbf_"] button p,
+    div[class*="st-key-j3rbw_"] button p,
+    div[class*="st-key-j3pbf_"] button p,
+    div[class*="st-key-j3sw_"] button p {
+        white-space: nowrap !important; overflow: hidden !important;
+        text-overflow: ellipsis !important; max-width: 100% !important;
+        display: block !important;
+    }
     div[class*="st-key-j3tbtn_"] button p {
         font-weight: 800 !important; font-size: 0.95rem !important; margin: 0 !important;
         text-align: center !important;
@@ -1756,7 +1786,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026091910
+_REQUIRED_J3_REVISION = 2026092310
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1962,6 +1992,35 @@ _THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.05, 1.15, 1.5, 1.1]
 # 칸마다 요소를 만들면 폰이 느려진다(2026-07-30 실측, 한국테마와 같은 처리).
 _THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_WIDTHS[2:])]
 _THEME_REST_WIDTHS = _THEME_COL_WIDTHS[2:]
+
+
+def _list_price_change(metrics: dict) -> tuple:
+    """목록 표에 적을 **(가격, 등락률)** — 세부사항·당일 그림과 같은 정규장 기준.
+
+    2026-09-23 상하님 지적 — *"당일주가와 선택종목 세부사항의 현재가와 맞지 않은
+    것도 있다."* 목록은 `current`(시간외 체결가까지 든 값)를 적고 세부사항은
+    정규장 종가를 적어 한 화면에서 두 값이 달랐다(실측 — DELL 목록 553.34 −3.82% ·
+    세부사항 548.92 −4.59%). 급락 목록이 전부 +0.00% 로 나오던 것도 같은 자리다 —
+    일봉이 그날 줄을 아직 안 실으면 `change_pct` 가 제 종가를 제 종가와 견준다.
+
+    **미국장이 열려 있는 동안에는 지금 값**을 그대로 적는다. 장이 끝났으면
+    마지막으로 끝난 정규장의 종가와 등락률을 적는다 — 지수 칸이 이미 쓰는 방식이고
+    (`last_session_change_pct`), 세부사항의 `session_quote` 와 같은 날을 말한다.
+    **새로 받는 자료는 없다** — 둘 다 이미 잰 값 안에 들어 있다.
+    """
+    price, change = metrics.get("current"), metrics.get("change_pct")
+    try:
+        closed = j3data.us_session_closed()
+    except Exception:
+        closed = False
+    if closed:
+        session_close = metrics.get("last_session_close")
+        session_change = metrics.get("last_session_change_pct")
+        if session_close is not None:
+            price = session_close
+        if session_change is not None:
+            change = session_change
+    return price, change
 
 
 def _stacked(cells: list[str]) -> str:
@@ -2314,7 +2373,8 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
                 *(
                     f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
                     # 6개월 수익률을 20일 옆에 둔다(2026-09-07 상하님 지시).
-                    for value in (metrics.get("change_pct"), metrics.get("from_high_pct"),
+                    # 「당일」은 세부사항과 같은 정규장 기준이다(2026-09-23 · _list_price_change).
+                    for value in (_list_price_change(metrics)[1], metrics.get("from_high_pct"),
                                   metrics.get("ret20"), metrics.get("ret120"))
                 ),
                 str(plan.get("state", "")),
@@ -2355,7 +2415,8 @@ def _leader_table_html(leaders: list[dict], selected_ticker: str | None) -> str:
             f"<div class='j3-bar-fill' style='width:{_leader_bar_pct(score):.0f}%'></div></div>"
             f"<span class='j3-bar-num'>{score:.1f}</span></div>"
         )
-        change, from_high, ret20 = metrics.get("change_pct"), metrics.get("from_high_pct"), metrics.get("ret20")
+        change = _list_price_change(metrics)[1]      # 세부사항과 같은 정규장 기준(2026-09-23)
+        from_high, ret20 = metrics.get("from_high_pct"), metrics.get("ret20")
         detail = "상세 분석 대상" if rank <= 3 else "예비 관찰"
         body.append(
             f"<tr class='j3-th-row{highlight}'>"
@@ -3475,6 +3536,7 @@ def _sector_map_cell(phase: str) -> str:
         "<div class='j3-top-cell j3-sector-map'>"
         "<div class='j3-top-label j3-idx-label'>시장 현황</div>"
         "<div class='j3-sector-sub'>칸 크기 = 미국 시장에서 차지하는 몫 · "
+        "반도체는 기술에서 떼어 냈습니다 · "
         f"색 = {'오늘' if live else '직전 장'} 오르내림</div>"
         f"<div class='j3-sector-grid'>{''.join(tiles)}</div>"
         + foot + "</div>"
@@ -3851,12 +3913,12 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
         # 한 줄에 하나가 되고, 알테어 그림이 종목마다 셋씩(모두 아홉) 만들어졌다.
         # 이제 글은 한 덩이, 그림은 CSS 격자 한 판이다.
         with st.container(border=True):
-            change_pct = metrics.get("change_pct")
+            live_price, change_pct = _list_price_change(metrics)   # 정규장 기준(2026-09-23)
             st.markdown(
                 f"<div class='j3-leader-name'>{medal_html}{rank}위 · {leader['name']} "
                 f"<span class='j3-muted'>{html.escape(str(leader['ticker']))}</span></div>"
                 "<div class='j3-leader-score-label'>현재가 · 등락률</div>"
-                f"<div class='j3-leader-live'>{_price(metrics.get('current'))} "
+                f"<div class='j3-leader-live'>{_price(live_price)} "
                 f"<span class='j3-mc-sub {_sign_class(change_pct)}'>{_pct(change_pct)}</span></div>"
                 "<div class='j3-leader-score-label'>종목 조건점수</div>"
                 f"<div class='j3-leader-score'>{float(leader['score']):.1f}</div>"
@@ -6615,7 +6677,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         state_cells.append(f"<div class='j3-td'>{plan.get('state', '—')}</div>")
         price_cells.append(
             f"<div class='j3-td' style='font-weight:700'>"
-            f"{_price(row['metrics'].get('current'))}</div>"
+            f"{_price(_list_price_change(row['metrics'])[0])}</div>"
         )
         # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
         # 어느 갈래에서 왔는지를 **먼저** 적는다(2026-08-06 사용자 지시) — 점수가
@@ -7956,13 +8018,14 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             # 당일주가 — 급락 표와 **같은 모양**이다(가격 위, 등락 아래).
             # 값도 같은 자리에서 온다(row["metrics"]) — 두 표가 어긋나지 않는다.
             swing_metrics = row.get("metrics") or {}
+            swing_price, swing_change = _list_price_change(swing_metrics)
             price_cell = (
                 "<span style='display:inline-flex; flex-direction:column; align-items:center;"
                 " line-height:1.12; font-weight:800; color:#e6e6e6'>"
-                f"<span>{_price(swing_metrics.get('current'))}</span>"
-                f"<span style='color:{_sign_color(swing_metrics.get('change_pct'))};"
+                f"<span>{_price(swing_price)}</span>"
+                f"<span style='color:{_sign_color(swing_change)};"
                 f" font-weight:800; font-size:.82rem'>"
-                f"{_pct(swing_metrics.get('change_pct'))}</span></span>"
+                f"{_pct(swing_change)}</span></span>"
             )
             rest_cells.append(_flex_row(rest_widths, [
                 f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
@@ -8438,12 +8501,13 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "{ background: rgba(192,132,252,.16) !important; "
                 "border-left: 3px solid #c084fc !important; }"
             )
+        crash_price, crash_change = _list_price_change(metrics)
         price_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             " line-height:1.12; font-weight:800; color:#e6e6e6'>"
-            f"<span>{_price(metrics.get('current'))}</span>"
-            f"<span style='color:{_sign_color(metrics.get('change_pct'))};"
-            f" font-weight:800; font-size:.82rem'>{_pct(metrics.get('change_pct'))}</span></span>"
+            f"<span>{_price(crash_price)}</span>"
+            f"<span style='color:{_sign_color(crash_change)};"
+            f" font-weight:800; font-size:.82rem'>{_pct(crash_change)}</span></span>"
         )
         if breakout:
             third_cell = f"<span class='j3-green'>{int(row.get('wait_days') or 0)}일 전</span>"
@@ -8895,12 +8959,13 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
         avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
         # 당일주가 — 가격과 등락을 두 줄로 쌓는다. 한 줄이면 좁은 화면에서 폭이 넘쳐
         # 옆 칸 값과 겹쳤다(2026-07-25). 등락은 미국장 색 규칙(+파랑 −빨강)이다.
+        pull_price, pull_change = _list_price_change(row['metrics'])
         price_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             " line-height:1.12; font-weight:800; color:#e6e6e6'>"
-            f"<span>{_price(row['metrics'].get('current'))}</span>"
-            f"<span style='color:{_sign_color(row['metrics'].get('change_pct'))};"
-            f" font-weight:800; font-size:.82rem'>{_pct(row['metrics'].get('change_pct'))}</span></span>"
+            f"<span>{_price(pull_price)}</span>"
+            f"<span style='color:{_sign_color(pull_change)};"
+            f" font-weight:800; font-size:.82rem'>{_pct(pull_change)}</span></span>"
         )
         cols[2].markdown(
             _flex_row(rest_widths, [
@@ -11693,6 +11758,10 @@ _SWIPE_OUTER_JS = """
     if (dx < 0 && now === 'watch') { return { key: 'j3b_swipe_market', from: 'watch', to: 'market' }; }
     if (dx > 0 && now === 'watch') { return { key: 'j3b_nav_home', from: 'watch', to: 'home' }; }
     if (dx > 0 && now === 'market') { return { key: 'j3b_swipe_watch', from: 'market', to: 'watch' }; }
+    // **끝에서 한 번 더 밀면 홈이다** (2026-09-23 상하님 지시 — "페이지 넘기기 끝
+    // (시장분석에서 오른쪽)에서 또 넘기기 하면 홈으로, 왼쪽으로 넘기면 관심종목이
+    // 되도록"). 시장분석이 마지막 장이라 여기서는 넘길 곳이 없었다.
+    if (dx < 0 && now === 'market') { return { key: 'j3b_nav_home', from: 'market', to: 'home' }; }
     // **홈에서는 어느 쪽으로 당겨도 관심종목으로 간다** (2026-09-19 상하님 지시 — "홈에서
     // 다시 관심종목으로 손가락으로 당기면 관심종목으로 안 된다"). 홈의 「미국테마
     // (자비스3)」 이동 고리(링크)를 누른다. 홈에는 다른 넘길 쪽이 없다.
@@ -12471,6 +12540,44 @@ _SWIPE_OUTER_JS = """
   d.addEventListener('touchmove', onMove, { passive: true });
   d.addEventListener('touchend', onEnd, { passive: true });
   d.addEventListener('touchcancel', onCancel, { passive: true });
+
+  // ── 위에서 아래로 당겨도 화면이 다시 불리지 않게 (2026-09-23 상하님 지시) ──
+  // 상하님 — "관심종목이든 시장분석이든 손가락으로 위에서 아래로 당기면 다시
+  // 리셋된다. 이거 안 되도록 해라."
+  //
+  // 막는 규칙(overscroll-behavior)은 2026-08-26에 넣어 두었고 제 쪽 화면에서는
+  // 켜져 있다(html·body none · 속 칸 contain — 2026-09-23 실측). 그런데 상하님
+  // 폰에서는 그대로 새로고침이 됐다. 그 규칙을 안 듣는 브라우저가 있다.
+  // 그래서 **몸짓 자체를 가로챈다** — 맨 위에서 아래로 끄는 움직임만 막는다.
+  //   · 손가락이 하나일 때만
+  //   · 손가락을 댄 자리가 **이미 맨 위**일 때만 (굴려 내려가 있으면 안 막는다)
+  //   · 아래로 끄는 중이고 가로보다 세로가 클 때만 (옆으로 넘기기는 그대로)
+  // 막지 못해도 예전과 같다 — 화면이 한 번 다시 불릴 뿐이다.
+  (function () {
+    var fromY = 0, fromX = 0, hold = false;
+    function boxAt(node) {
+      for (var n = node; n && n !== d.body && n.nodeType === 1; n = n.parentElement) {
+        if (n.scrollHeight > n.clientHeight + 4) {
+          var how = getComputedStyle(n).overflowY;
+          if (how === 'auto' || how === 'scroll') { return n; }
+        }
+      }
+      return scroller();
+    }
+    d.addEventListener('touchstart', function (ev) {
+      if (!ev.touches || ev.touches.length !== 1) { hold = false; return; }
+      fromY = ev.touches[0].clientY;
+      fromX = ev.touches[0].clientX;
+      var box = boxAt(ev.target);
+      hold = !box || box.scrollTop <= 0;
+    }, { passive: true, capture: true });
+    d.addEventListener('touchmove', function (ev) {
+      if (!hold || !ev.cancelable || !ev.touches || ev.touches.length !== 1) { return; }
+      var dy = ev.touches[0].clientY - fromY;
+      var dx = ev.touches[0].clientX - fromX;
+      if (dy > 0 && Math.abs(dy) > Math.abs(dx)) { ev.preventDefault(); }
+    }, { passive: false, capture: true });
+  })();
 
   // ── 「📘 이 테마 설명」은 열 때마다 **맨 위부터** (2026-09-19 상하님 지시) ──
   // 상하님 — "맨 밑에서 읽고 창닫기 하고 다시 이 테마 설명 누르면 화면이 밑에 그대로

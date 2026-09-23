@@ -2257,7 +2257,10 @@ class SectorMapShowsTodaysSessionTests(unittest.TestCase):
         """
         value, _calls = self._run(live_fails=True)
         self.assertTrue(value.get("ok"), "분봉이 실패하자 지도가 통째로 사라졌다")
-        self.assertEqual(len(j3.US_SECTOR_MAP), len(value["rows"]))
+        # 반도체 칸은 **몫을 못 받으면 안 그린다**(2026-09-23) — 이 시험은 몫을
+        # 빈손으로 주므로 그만큼 빠진다. 나머지 열한 칸은 그대로 있어야 한다.
+        expected = len([1 for key, _n, _e in j3.US_SECTOR_MAP if key != j3.SEMI_SECTOR_KEY])
+        self.assertEqual(expected, len(value["rows"]))
         for row in value["rows"]:
             # 일봉만 있을 때는 예전 그대로 — 어제 장(110 ÷ 100)을 적는다.
             self.assertAlmostEqual(10.0, row["last_session_change_pct"], places=1)
