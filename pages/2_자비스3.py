@@ -12124,24 +12124,22 @@ _SWIPE_OUTER_JS = """
     return blankEl;
   }
   function showUnder(sname) {
-    var snapped = mount(sname), el;
-    if (snapped) {
-      el = snapHost;
-    } else {
-      el = blankLayer();
-      try {
-        var app = getComputedStyle(d.querySelector('[data-testid="stApp"]'));
-        el.style.backgroundColor = app.backgroundColor;
-        el.style.backgroundImage = app.backgroundImage;
-      } catch (e) {}
-    }
+    // ── **사진이 없으면 아무것도 안 깐다** (2026-09-23 상하님 지적 — "다음 페이지
+    // 부분이 블랙으로 나올 때도 있고 안 나올 때도 있다") ─────────────────────────
+    // 예전에는 사진이 없으면 **바탕색만 칠한 빈 종이**를 깔았다. 그 바탕색이
+    // rgb(2,11,30) 이라 폰에서는 까맣게 보인다 — 넘긴 자리가 텅 빈 남색이었다
+    // (2026-09-23 장면 촬영으로 확인). 아무것도 안 깔면 그 자리에 **진짜 화면**이
+    // 보인다. 처음에는 지금 화면이지만, 서버가 새 화면을 그리면 그대로 바뀐다.
+    var snapped = mount(sname);
+    if (!snapped) { hideSnap(); return false; }
+    var el = snapHost;
     // 앞 넘김에서 종이 노릇을 하느라 기울어 있었을 수 있다 — 반듯하게 편다.
     el.style.transition = 'none'; el.style.transform = ''; el.style.transformOrigin = '';
     el.style.clipPath = '';
     el.style.zIndex = UNDER_Z;
     el.style.opacity = '1';
     under = el;
-    return snapped;
+    return true;
   }
   function hideSnap() {
     var list = [snapHost, blankEl];
@@ -12152,18 +12150,6 @@ _SWIPE_OUTER_JS = """
       st.transform = ''; st.transformOrigin = ''; st.clipPath = '';
     }
     under = null;
-  }
-  // 사진 없이 바탕색만 칠한 빈 종이를 밑에 깐다.
-  function showBlank() {
-    var el = blankLayer();
-    try {
-      var app = getComputedStyle(d.querySelector('[data-testid="stApp"]'));
-      el.style.backgroundColor = app.backgroundColor;
-      el.style.backgroundImage = app.backgroundImage;
-    } catch (e) {}
-    el.style.transition = 'none'; el.style.zIndex = UNDER_Z; el.style.opacity = '1';
-    under = el;
-    return false;
   }
   // 지금 쪽 사진 칸 둘 — 평평한 쪽(face)과 말리는 끝(edge). 같은 사진을 두 번 깐다.
   function copyHolder(id) { return { id: id, host: null, root: null, name: '', v: 0, sig: '' }; }
@@ -12399,7 +12385,11 @@ _SWIPE_OUTER_JS = """
       es.willChange = 'transform'; es.zIndex = TOP; es.opacity = '1';
       alignCopy(EDGE);
     }
-    liveRest(true);
+    // **사진이 깔렸을 때만 쉬게 한다** (2026-09-23 상하님 지적 — "다음 페이지 부분이
+    // 블랙으로 나올 때도 있고 안 나올 때도 있다"). 다음 쪽 사진이 아직 없는 판에서는
+    // 밑에 **빈 종이**(앱 바탕색 rgb(2,11,30) — 폰에서는 까맣게 보인다)가 깔린다.
+    // 그때 진짜 화면까지 쉬게 하면 넘기는 내내 까만 종이만 보인다.
+    if (g.snap) { liveRest(true); }
     var dark = 'rgba(0,0,0,', lite = 'rgba(255,255,255,';
     var toEdge = s < 0 ? 'to right' : 'to left';        // 책등 → 종이 끝
     var p = fx.page.style, e = fx.edge.style, k = fx.cast.style;
@@ -12584,7 +12574,10 @@ _SWIPE_OUTER_JS = """
           us.zIndex = UNDER_Z; us.opacity = '1';
           under = FACE.host; drag.snap = true;
         } else {
-          drag.snap = showBlank();
+          // 다음 쪽 사진이 없다 — 빈 종이를 깔지 않는다(까맣게 보인다).
+          // 밑에는 진짜 화면이 그대로 보이고, 서버가 새 화면을 그리면 바뀐다.
+          hideSnap();
+          drag.snap = false;
         }
       } else {
         drag.snap = showUnder(go.to);
@@ -12635,7 +12628,9 @@ _SWIPE_OUTER_JS = """
     // 이제 종이가 다 넘어간 **뒤**에 누른다. 종이는 끝까지 매끄럽게 돌고, 새 화면은
     // 그 뒤에 만들어진다 — 도착이 0.36초 늦지만 그동안 밑에는 다음 쪽 사진이 이미 깔려
     // 있어 빈 화면이 보이지는 않는다. 종이 모양 없이 넘기는 판(plain)은 예전 그대로 곧바로.
-    if (g.plain) {
+    // 다음 쪽 사진이 깔린 판에서만 미룬다. 사진이 없으면(빈 종이) **곧바로** 불러
+    // 진짜 화면이 그 자리를 채우게 한다 — 안 그러면 넘기는 내내 까만 종이만 보인다.
+    if (g.plain || !withSnap) {
       try { hit.click(); } catch (e) {}
     } else {
       setTimeout(function () { try { hit.click(); } catch (e) {} }, 360);
