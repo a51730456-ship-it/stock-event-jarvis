@@ -356,6 +356,7 @@ def _download_cache_only(
 ) -> tuple[dict[str, pd.DataFrame], dict]:
     """정확 키 또는 더 큰 배치의 메모리 캐시만 읽고 네트워크는 호출하지 않는다."""
     unique = tuple(dict.fromkeys(str(t).strip().upper() for t in tickers if str(t).strip()))
+    ttl_seconds = _kept_for(interval, ttl_seconds)
     requested = set(unique)
     now = time.time()
     with _CACHE_LOCK:
@@ -511,6 +512,31 @@ def _disk_prune() -> None:
         pass
 
 
+# 장이 닫혀 있는 동안 **일봉을 들고 있는 시간** (2026-09-23 상하님 지시).
+#
+# 상하님 — *"오늘도 아침 9시에 상승장 신고가 클릭하니 첫 로딩시 시간이 너무 오래
+# 걸린다."* 받아 둔 일봉을 5분만 쥐고 있어서, 화면을 켜 둔 채 30분이 지난 뒤에
+# 누르면 249종목을 처음부터 다시 받았다. **장이 끝난 뒤에는 일봉이 안 바뀐다** —
+# 그동안은 더 오래 들고 있어도 값이 같다. 장중에는 예전 그대로(부르는 쪽이 정한
+# 시간)다 — 그때는 오늘 줄이 계속 자라기 때문이다.
+#
+# 야후가 늦게 올리는 그날 일봉은 이 시간과 상관없이 분봉으로 채운다
+# (`_fill_missing_session` · `_daily_lags_last_session`).
+DAILY_KEPT_WHEN_CLOSED = 1800.0
+
+
+def _kept_for(interval: str, ttl_seconds: float) -> float:
+    """이 자료를 몇 초나 들고 있을까. 일봉이고 장이 닫혔으면 더 길게."""
+    if str(interval) != "1d":
+        return ttl_seconds
+    try:
+        if not us_session_closed():
+            return ttl_seconds
+    except Exception:
+        return ttl_seconds
+    return max(float(ttl_seconds), DAILY_KEPT_WHEN_CLOSED)
+
+
 def _download_cached(
     tickers,
     *,
@@ -522,6 +548,7 @@ def _download_cached(
     unique = tuple(dict.fromkeys(str(t).strip().upper() for t in tickers if str(t).strip()))
     if not unique:
         return {}, {"ok": False, "error": "조회 티커가 없습니다", "stale": False}
+    ttl_seconds = _kept_for(interval, ttl_seconds)
     key = (unique, period, interval, bool(prepost))
     now = time.time()
     with _CACHE_LOCK:

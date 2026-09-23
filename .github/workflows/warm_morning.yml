@@ -1,0 +1,46 @@
+# 아침에 앱을 미리 깨워 둔다 (2026-09-23 상하님 지시 — "아침 9시 첫 클릭이 너무 오래
+# 걸린다 · 새벽에 다 정리해 놓으면 안 되나?").
+#
+# 온라인 앱은 받아 둔 자료를 그 판(프로세스) 안에만 들고 있다. 아침 목록 저장
+# (picklist_collect.yml 08:30 KST)이 끝나며 저장소에 글을 올리면 스트림릿이 앱을
+# 껐다 켜서 그 자료가 전부 사라진다. 그래서 **그 뒤에** 한 번 열어 둔다.
+# 까닭과 실측은 warm_morning.py 맨 위에 적어 두었다.
+#
+# cron 은 UTC다. 한국시각 = UTC + 9.
+name: 아침에 미리 깨워 두기
+
+on:
+  schedule:
+    # 아침 저장(08:30 KST)이 보통 08:40~09:15 사이에 글을 올린다(실측 — 09-19 08:28 ·
+    # 09-22 09:13 · 09-23 08:42). 그 뒤에 한 번, 늦게 끝난 날을 위해 한 번 더 깨운다.
+    - cron: "50 23 * * 0-4"   # 08:50 KST (월~금)
+    - cron: "25 0 * * 1-5"    # 09:25 KST (월~금)
+  workflow_dispatch:
+
+concurrency:
+  group: warm-morning
+  cancel-in-progress: false
+
+permissions:
+  contents: read            # 저장소에 아무것도 안 쓴다. 보기만 한다.
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 브라우저 하나만 설치
+        run: |
+          pip install playwright==1.47.0
+          python -m playwright install --with-deps chromium
+
+      - name: 앱 깨우기
+        # 실패해도 그날 아침이 예전처럼 느릴 뿐이라 워크플로를 붉게 만들지 않는다.
+        continue-on-error: true
+        run: python warm_morning.py
