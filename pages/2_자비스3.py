@@ -12037,6 +12037,13 @@ _LEFTOVER_CSS = (
     "div.st-key-j3_help_card{position:fixed;left:50%;top:50%;"
     "opacity:0;visibility:hidden}"
     ".j3-help-scrim{position:fixed;inset:0;opacity:0;visibility:hidden}"
+    # **앞 화면에서 흐리게 남은 설명 그림은 아예 안 보인다** (2026-09-23 상하님 캡처 12:45 —
+    # 홈 화면 판 번호 밑에 설명 그림이 흐리게 나왔다). 스트림릿은 화면을 옮기는 동안 앞
+    # 화면 조각을 data-stale="true" 로 흐리게 남겨 둔다. 로그인하신 홈은 그리는 데 오래
+    # 걸려 그 사이 설명 그림이 꾸밈 없이 드러났다. 설명 그림·설명 카드 안의 조각만 막는다.
+    "div[class*='st-key-jarvis_method_pic'] [data-stale='true'],"
+    "div[class*='st-key-jarvis_method_pic'][data-stale='true'],"
+    "div.st-key-j3_help_card [data-stale='true']{display:none!important}"
     "div[class*='st-key-j3b_swipe_']{position:fixed;left:-9999px;top:-9999px;"
     "width:1px;height:1px;overflow:hidden}"
     "div.st-key-j3b_nav_controls button{color:transparent;background:transparent;"
@@ -13054,10 +13061,10 @@ def _briefing_swipe_nav() -> None:
             "<script>(function(){var d;"
             "try{d=window.parent&&window.parent.document;}catch(e){return;}"
             "if(!d||!d.body){return;}"
-            "if(!d.getElementById('j3b-leftover-css')){"
-            "var c=d.createElement('style');c.id='j3b-leftover-css';"
-            "c.textContent=" + _json.dumps(_LEFTOVER_CSS) + ";"
-            "d.head.appendChild(c);}"
+            "var c=d.getElementById('j3b-leftover-css');"
+            "if(!c){c=d.createElement('style');c.id='j3b-leftover-css';d.head.appendChild(c);}"
+            "var css=" + _json.dumps(_LEFTOVER_CSS) + ";"
+            "if(c.textContent!==css){c.textContent=css;}"
             "if(d.getElementById('j3b-swipe-script')){return;}"
             "var t=d.createElement('script');t.id='j3b-swipe-script';"
             "t.textContent=" + _json.dumps(_SWIPE_OUTER_JS) + ";"
