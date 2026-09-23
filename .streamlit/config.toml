@@ -19,6 +19,3 @@ disconnectedSessionTTL = 1800
 # 화면에 그려지는 것은 한 글자도 안 바뀐다 — 보내는 방식만 바뀐다.
 [global]
 minCachedMessageSize = 1000
-# 화면을 바꿀 때마다 「이 판에 쓴 명령 목록」(7~8KB)을 스트림릿 회사로 보내는 통계를 끈다.
-[browser]
-gatherUsageStats = false

@@ -11,49 +11,6 @@ import re
 
 import streamlit as st
 
-# ── 임시 — 온라인 서버가 어디서 기다리나 잰다 (2026-09-23 밤 · 재고 나면 뺀다) ──────
-# 주소에 j3prof=1 이 붙은 판만 잰다. 결과는 맨 끝에서 눈에 안 보이는 칸 하나에 싣는다.
-import time as _ptime
-
-_PROF = None
-if str(st.query_params.get("j3prof") or "") == "1":
-    import cProfile as _cprof
-
-    _PROF = (_cprof.Profile(), _ptime.perf_counter(), _ptime.thread_time(), {})
-    _PROF[0].enable()
-
-    # 이 판이 도는 동안 **서버의 모든 일꾼**이 무엇을 하나 5ms 마다 엿본다(2.5초).
-    # 결과는 다음 판의 숨은 칸에 실린다(이 판이 끝날 때 아직 엿보는 중이라).
-    import collections as _pcol
-    import sys as _psys
-    import threading as _pthr
-
-    def _j3_sampler(until: float) -> None:
-        counts: dict = _pcol.Counter()
-        me = _pthr.get_ident()
-        rounds = 0
-        while _ptime.perf_counter() < until:
-            names = {t.ident: t.name for t in _pthr.enumerate()}
-            for ident, frame in _psys._current_frames().items():
-                if ident == me:
-                    continue
-                top = f"{frame.f_code.co_filename.rsplit('/', 1)[-1]}:{frame.f_code.co_name}"
-                where, walk = "", frame
-                while walk is not None:
-                    if "/mount/src/" in walk.f_code.co_filename:
-                        where = (f"{walk.f_code.co_filename.rsplit('/', 1)[-1]}:"
-                                 f"{walk.f_code.co_name}:{walk.f_lineno}")
-                        break
-                    walk = walk.f_back
-                name = str(names.get(ident, "?"))[:28]
-                counts[(name, top, where)] += 1
-            rounds += 1
-            _ptime.sleep(0.005)
-        _pthr._j3prof_last = (rounds, counts.most_common(45))
-
-    _pthr.Thread(target=_j3_sampler, args=(_ptime.perf_counter() + 2.5,),
-                 name="j3prof-sampler", daemon=True).start()
-
 import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
 import login_prism  # 첫 화면의 '판 누르고 왔나' 표식을 읽는다(2026-08-09).
 
@@ -13320,11 +13277,7 @@ def main() -> None:
     _run_hard_reload_if_requested()
 
 
-if _PROF:
-    _PROF[3]["main_start"] = _ptime.perf_counter() - _PROF[1]
 main()
-if _PROF:
-    _PROF[3]["main_end"] = _ptime.perf_counter() - _PROF[1]
 # 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
 scroll_to.run(st)
 # **이 화면이 언제 판인지** 맨 밑에 작게 적는다 (2026-09-02 상하님 지시).
@@ -13381,31 +13334,3 @@ try:
     )
 except Exception:
     pass
-
-
-# ── 임시 — 잰 것을 싣는다 (위 j3prof · 재고 나면 뺀다) ────────────────────────
-if _PROF:
-    _PROF[0].disable()
-    try:
-        import io as _pio
-        import pstats as _pstats
-
-        _buf = _pio.StringIO()
-        _stats = _pstats.Stats(_PROF[0], stream=_buf)
-        _stats.sort_stats("cumulative").print_stats(90)
-        _stats.sort_stats("tottime").print_stats(30)
-        _last = getattr(_pthr, "_j3prof_last", None)
-        _sampled = ""
-        if _last:
-            _sampled = f"SAMPLES rounds={_last[0]}\n" + "\n".join(
-                f"{count:5d} | {name} | {top} | {where}" for (name, top, where), count in _last[1])
-        _text = (f"wall {_ptime.perf_counter() - _PROF[1]:.3f} "
-                 f"cpu {_ptime.thread_time() - _PROF[2]:.3f} "
-                 f"main {_PROF[3].get('main_start', 0):.3f}~{_PROF[3].get('main_end', 0):.3f}\n"
-                 + _sampled + "\n" + _buf.getvalue())
-        st.markdown(
-            "<div hidden id='j3prof' data-p='"
-            + base64.b64encode(_text.encode("utf-8")).decode("ascii") + "'></div>",
-            unsafe_allow_html=True)
-    except Exception:
-        pass
