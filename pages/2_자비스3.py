@@ -12025,11 +12025,14 @@ def _set_briefing_page(page: str) -> None:
 # 그래서 **넘기기 코드와 같은 자리(바깥 문서)에** 이 규칙을 심는다. 화면을 옮겨도
 # 살아 있으므로 그 틈에도 숨어 있다. 여는 규칙(body:has(#j3-help-tap:checked) …)이
 # 더 세서, 상하님이 설명을 여실 때는 예전 그대로 열린다.
+# **닫혀 있을 때만 건다**(2026-09-23 상하님 지적 — "자꾸 넘기다 보면 이거 또 나온다").
+# 처음에는 조건 없이 걸었더니 `.j3-help-scrim` 의 pointer-events:none 이 **열렸을 때도**
+# 남아, 바깥을 눌러도 카드가 안 닫혔다. 한 번 열리면 넘겨도 계속 따라다녔다.
 _LEFTOVER_CSS = (
-    "div.st-key-j3_help_card{position:fixed;left:50%;top:50%;opacity:0;"
-    "visibility:hidden;pointer-events:none}"
-    ".j3-help-scrim{position:fixed;inset:0;opacity:0;visibility:hidden;"
-    "pointer-events:none}"
+    "body:not(:has(#j3-help-tap:checked)) div.st-key-j3_help_card{position:fixed;"
+    "left:50%;top:50%;opacity:0;visibility:hidden;pointer-events:none}"
+    "body:not(:has(#j3-help-tap:checked)) .j3-help-scrim{position:fixed;inset:0;"
+    "opacity:0;visibility:hidden}"
     "div[class*='st-key-j3b_swipe_']{position:fixed;left:-9999px;top:-9999px;"
     "width:1px;height:1px;overflow:hidden}"
     "div.st-key-j3b_nav_controls button{color:transparent;background:transparent;"
@@ -12860,6 +12863,22 @@ _SWIPE_OUTER_JS = """
         }
       } else {
         drag.snap = showUnder(go.to);
+      }
+      // ── **다음 쪽 사진이 없으면 종이 모양 없이 넘긴다** (2026-09-23 상하님 지적 —
+      // "첫 로딩에서 관심종목에서 시장분석 넘기는데 관심종목이 배경으로 나오고
+      // 넘어간다. 다음에는 안 그런다") ─────────────────────────────────────────
+      // 밑에 깔 다음 쪽 사진이 없으면 그 자리에 **지금 화면**이 비친다. 종이는
+      // 넘어가는데 밑이 같은 화면이라 이상하게 보인다. 까만 종이를 까는 것도
+      // 아니다(그건 2026-09-23 낮에 상하님이 지적하신 그 검은 화면이다).
+      // 그래서 그런 판은 예전처럼 **그냥 넘긴다** — 사진이 깔린 다음부터 종이가 돈다.
+      if (!drag.snap) {
+        drag.plain = true;
+        hideSnap();
+        hideCopy(FACE); hideCopy(EDGE);
+        if (fx) { fx.page.style.display = 'none'; fx.edge.style.display = 'none';
+                  fx.cast.style.display = 'none'; }
+        if (take) { hideAll(); }
+        return;
       }
       lift(drag);
     }
