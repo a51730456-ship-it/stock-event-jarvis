@@ -12028,11 +12028,15 @@ def _set_briefing_page(page: str) -> None:
 # **닫혀 있을 때만 건다**(2026-09-23 상하님 지적 — "자꾸 넘기다 보면 이거 또 나온다").
 # 처음에는 조건 없이 걸었더니 `.j3-help-scrim` 의 pointer-events:none 이 **열렸을 때도**
 # 남아, 바깥을 눌러도 카드가 안 닫혔다. 한 번 열리면 넘겨도 계속 따라다녔다.
+# **열려 있든 닫혀 있든 건다** (2026-09-23 상하님 캡처 — 설명을 열어 둔 채 넘기면
+# 그대로 새어 나왔다). 자비스3 화면의 여는 규칙(body:has(#j3-help-tap:checked) …)이
+# 이것보다 세므로, 그 화면에서는 예전 그대로 열린다. 화면을 옮겨 그 규칙이 사라진
+# 뒤에만 이것이 듣는다. **pointer-events 는 안 건다** — 걸었더니 열렸을 때 바깥을
+# 눌러도 안 닫혔다(같은 날 낮에 그렇게 만들었다가 상하님이 잡아 주셨다).
 _LEFTOVER_CSS = (
-    "body:not(:has(#j3-help-tap:checked)) div.st-key-j3_help_card{position:fixed;"
-    "left:50%;top:50%;opacity:0;visibility:hidden;pointer-events:none}"
-    "body:not(:has(#j3-help-tap:checked)) .j3-help-scrim{position:fixed;inset:0;"
+    "div.st-key-j3_help_card{position:fixed;left:50%;top:50%;"
     "opacity:0;visibility:hidden}"
+    ".j3-help-scrim{position:fixed;inset:0;opacity:0;visibility:hidden}"
     "div[class*='st-key-j3b_swipe_']{position:fixed;left:-9999px;top:-9999px;"
     "width:1px;height:1px;overflow:hidden}"
     "div.st-key-j3b_nav_controls button{color:transparent;background:transparent;"

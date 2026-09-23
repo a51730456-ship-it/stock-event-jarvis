@@ -620,6 +620,36 @@ def _download_cached(
         frames = _split_download(raw, unique)
         if not frames:
             raise RuntimeError("시세 응답이 비어 있습니다")
+        # ── **빠진 종목은 한 번 더 받아 채운다** (2026-09-23 상하님 지적 — "오늘 아침에
+        # 종목 나왔는데 지금은 또 안 나온다") ────────────────────────────────────────
+        # 실측 — 그 시각 온라인 상승장에 DELL·MPC·VLO 가 관찰 목록에도 없었다. 야후가
+        # 온라인(클라우드 주소)에서 일부 종목을 자주 거른다. 한 묶음에서 빠진 종목만
+        # 모아 **한 번만** 다시 부른다. 그래도 안 오면 예전처럼 그 종목 없이 간다.
+        missing = [code for code in unique if code not in frames]
+        if missing and len(missing) <= 80:
+            try:
+                with _DOWNLOAD_LOCK:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        again = yf.download(
+                            missing,
+                            period=period,
+                            interval=interval,
+                            group_by="ticker",
+                            auto_adjust=True,
+                            prepost=prepost,
+                            threads=True,
+                            progress=False,
+                            timeout=15,
+                            multi_level_index=True,
+                        )
+                filled = _split_download(again, tuple(missing))
+                if filled:
+                    frames.update(filled)
+                    _log.info("jarvis3 재요청으로 %d종목 중 %d종목을 채웠습니다",
+                              len(missing), len(filled))
+            except Exception as retry_error:      # 못 채워도 그대로 간다
+                _log.warning("jarvis3 재요청 실패 %d종목: %s", len(missing), retry_error)
         fetched_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
         # ── **성긴 판은 오래 들고 있지 않는다** (2026-09-23 상하님 지적 — "오늘 아침에
         # 종목 나왔는데 지금은 또 안 나온다") ──────────────────────────────────────
