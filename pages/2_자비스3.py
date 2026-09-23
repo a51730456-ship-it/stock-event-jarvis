@@ -1794,7 +1794,7 @@ if int(getattr(news_reader, "MODULE_REVISION", 0)) < _REQUIRED_NEWS_READER_REVIS
 
 # 옛 모듈이 프로세스에 남으면 새 함수(add_selected·remove_selected)를 못 찾아
 # 선정 종목 추가·삭제가 조용히 죽는다(규칙 11 · 2026-09-10).
-_REQUIRED_BRIEFING_STORE_REVISION = 2026091310
+_REQUIRED_BRIEFING_STORE_REVISION = 2026092350
 if int(getattr(briefing_store, "MODULE_REVISION", 0)) < _REQUIRED_BRIEFING_STORE_REVISION:
     import importlib as _importlib
 

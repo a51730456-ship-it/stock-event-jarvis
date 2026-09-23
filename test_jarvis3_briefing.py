@@ -18,6 +18,8 @@ def _isolated_store(monkeypatch):
     conn.row_factory = sqlite3.Row
     monkeypatch.setattr(store, "_connection", lambda: conn)
     monkeypatch.setattr(store, "_READY", False)
+    # 서버 기억(2026-09-23)도 시험마다 새로 — 앞 시험의 목록이 남으면 안 된다.
+    monkeypatch.setattr(store, "_ALL_MEMO", {"at": 0.0, "value": None, "version": 0})
     # 각 호출이 close()하므로 테스트 연결은 닫지 않는 얇은 wrapper가 필요하다.
     class Shared:
         def __getattr__(self, name):
@@ -72,6 +74,37 @@ def test_default_extras_become_real_rows_once(monkeypatch):
     store.remove_extra(4)                      # RGTI 를 지운다
     store.ensure_default_extras()
     assert "RGTI" not in [row["ticker"] for row in store.extra_stocks()]
+
+
+def test_watchlist_is_read_once_and_forgotten_on_every_change(monkeypatch):
+    """관심종목으로 넘길 때마다 원격 DB 에 목록을 묻지 않는다 (2026-09-23 밤 실측 — 한 번에
+    0.19~0.3초). 넣거나 빼면 **바로** 새 목록이 나와야 한다."""
+    _isolated_store(monkeypatch)
+    store.ensure_default_extras()
+    first = store.all_stocks()
+    reads = []
+    real = store._connection
+
+    def counting():
+        reads.append(1)
+        return real()
+
+    monkeypatch.setattr(store, "_connection", counting)
+    again = store.all_stocks()
+    assert again == first and reads == [], "기억이 있는데 DB 에 또 물었다"
+    again["extra"].clear()
+    assert store.all_stocks()["extra"], "받는 쪽이 고친 것이 기억까지 바꿨다"
+    store.add_extra("MSFT", "Microsoft")
+    assert "MSFT" in [row["ticker"] for row in store.all_stocks()["extra"]], "넣은 종목이 안 보인다"
+    store.remove_selected(1)
+    assert "NVDA" not in [row["ticker"] for row in store.all_stocks()["selected"]], "뺀 종목이 남았다"
+    store.add_selected("ORCL", "Oracle")
+    store.replace_selected(2, "META", "Meta")
+    tickers = [row["ticker"] for row in store.all_stocks()["selected"]]
+    assert "ORCL" in tickers and tickers[1] == "META"
+    extra = store.all_stocks()["extra"]
+    store.remove_extra(extra[0]["position"])
+    assert extra[0]["ticker"] not in [row["ticker"] for row in store.all_stocks()["extra"]]
 
 
 def test_news_dedupes_same_url_and_keeps_actual_count():
@@ -892,7 +925,9 @@ def test_the_watchlist_is_read_with_one_database_trip(monkeypatch):
     store.ensure_default_extras()
     again = store.all_stocks()
     assert again == first
-    assert calls == {"execute": 1, "commit": 0}, calls
+    # 2026-09-23 밤부터는 **0번**이다 — 한 번 읽은 목록을 서버 기억에 둔다
+    # (test_watchlist_is_read_once_and_forgotten_on_every_change).
+    assert calls == {"execute": 0, "commit": 0}, calls
 
 
 def test_a_fresh_database_still_gets_the_default_stocks(monkeypatch):

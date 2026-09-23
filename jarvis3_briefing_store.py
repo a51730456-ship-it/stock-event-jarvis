@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import copy
 import threading
+import time
 from datetime import datetime
 
 import db_runtime
@@ -14,7 +16,7 @@ from database import DB_PATH
 
 # 반환 키나 함수가 바뀌면 이 숫자를 올리고 페이지의 요구 판 숫자도 같이 올린다(규칙 11).
 # 안 올리면 온라인에서 옛 모듈이 프로세스에 남아 새 함수(add_selected 등)를 못 찾는다.
-MODULE_REVISION = 2026091310
+MODULE_REVISION = 2026092350
 
 # 2026-09-10 상하님 지시로 6 → 8. "사용자 선정종목 추가가 안 된다. 개수 제한
 # 4개이지 싶다. 8개로 가능하도록 만들어라." 화면에 넷만 보인 것은 폰 규칙
@@ -49,6 +51,22 @@ _READY = False
 # 새 DB 에서는 다시 옮겨 적어야 하기 때문이다.
 _SEEDED: set = set()
 
+# 관심종목 목록을 **서버 기억에도** 둔다 (2026-09-23 밤 상하님 — "손가락으로 홈·관심종목·
+# 시장분석 넘기면 로딩이 오래 걸린다"). 온라인 실측 — 관심종목으로 넘길 때마다 원격 DB 에
+# 목록을 한 번 물었고, 그 한 번이 0.19~0.3초였다(화면 계산 전체 0.4~0.6초 중). 목록은
+# 이 파일의 넣기·빼기로만 바뀌므로, 바꿀 때마다(commit 바로 뒤) 기억을 지운다. 다른
+# 곳에서 DB 를 바꿔도 늦어야 5분이면 새로 읽는다.
+ALL_STOCKS_TTL = 300.0
+# version — 바꿀 때마다 오른다. 읽는 도중에 누가 바꿨으면(번호가 달라졌으면) 읽은 것을
+# 기억에 두지 않는다 — 바뀌기 전 목록이 5분 동안 남는 일을 막는다.
+_ALL_MEMO: dict = {"at": 0.0, "value": None, "version": 0}
+_MEMO_LOCK = threading.Lock()
+
+
+def _forget_all_stocks() -> None:
+    with _MEMO_LOCK:
+        _ALL_MEMO.update({"at": 0.0, "value": None, "version": _ALL_MEMO["version"] + 1})
+
 
 def _connection():
     return db_runtime.connect(DB_PATH)
@@ -68,6 +86,7 @@ def ensure_tables() -> None:
                 stock_name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
                 PRIMARY KEY (group_name, position), UNIQUE (group_name, ticker))""")
             conn.commit()
+            _forget_all_stocks()
             _SEEDED.clear()
             _READY = True
         finally:
@@ -143,6 +162,7 @@ def ensure_default_selected() -> None:
             changed = True
         if changed:
             conn.commit()
+            _forget_all_stocks()
         _SEEDED.add("selected")
     finally:
         conn.close()
@@ -227,6 +247,7 @@ def ensure_default_extras() -> None:
                     "VALUES ('extra',?,?,?,?,?)", (position, ticker, name, now, now))
             mark(ticker)
         conn.commit()
+        _forget_all_stocks()
         _SEEDED.add("extra")
     finally:
         conn.close()
@@ -242,8 +263,18 @@ def all_stocks() -> dict:
     예전에는 둘을 따로 읽어 원격 DB 에 두 번 다녀왔다. 돌려주는 모양·차례는
     `selected_stocks()` · `extra_stocks()` 와 똑같다 — 선정은 1~10번 자리 순,
     추가 검색은 자리 순 전부.
+
+    **서버 기억에 있으면 DB 에 안 묻는다**(위 ALL_STOCKS_TTL 설명). 받는 쪽이 고쳐도
+    기억이 안 바뀌게 깊은 사본을 준다.
     """
+    with _MEMO_LOCK:
+        memo = _ALL_MEMO["value"]
+        if memo is not None and time.time() - _ALL_MEMO["at"] < ALL_STOCKS_TTL:
+            return copy.deepcopy(memo)
     ensure_default_selected()
+    # 번호는 기본 종목 옮겨 적기(그것도 「바꾸기」다) **뒤에** 적어 둔다.
+    with _MEMO_LOCK:
+        version = _ALL_MEMO["version"]
     conn = _connection()
     try:
         rows = conn.execute(
@@ -262,7 +293,11 @@ def all_stocks() -> dict:
             extra.append(item)
     selected = [selected_by_position[position] for position in range(1, SELECTED_SLOTS + 1)
                 if position in selected_by_position]
-    return {"selected": selected, "extra": extra}
+    value = {"selected": selected, "extra": extra}
+    with _MEMO_LOCK:
+        if _ALL_MEMO["version"] == version:
+            _ALL_MEMO.update({"at": time.time(), "value": copy.deepcopy(value)})
+    return value
 
 
 def replace_selected(position: int, ticker, name) -> None:
@@ -296,6 +331,7 @@ def replace_selected(position: int, ticker, name) -> None:
                 (position, ticker, name, now, now),
             )
         conn.commit()
+        _forget_all_stocks()
     finally:
         conn.close()
 
@@ -329,6 +365,7 @@ def add_selected(ticker, name) -> None:
             "(group_name,position,ticker,stock_name,created_at,updated_at) "
             "VALUES ('selected',?,?,?,?,?)", (free[0], ticker, name, now, now))
         conn.commit()
+        _forget_all_stocks()
     finally:
         conn.close()
 
@@ -349,6 +386,7 @@ def remove_selected(position: int) -> None:
         if not cur.rowcount:
             raise ValueError("삭제할 사용자 선정 종목을 찾지 못했습니다")
         conn.commit()
+        _forget_all_stocks()
     finally:
         conn.close()
 
@@ -366,6 +404,7 @@ def add_extra(ticker, name) -> None:
         now = datetime.now().isoformat(timespec="seconds")
         conn.execute("INSERT INTO jarvis3_briefing_stocks (group_name,position,ticker,stock_name,created_at,updated_at) VALUES ('extra',?,?,?,?,?)", (count + 1, ticker, name, now, now))
         conn.commit()
+        _forget_all_stocks()
     finally:
         conn.close()
 
@@ -379,5 +418,6 @@ def remove_extra(position: int) -> None:
             raise ValueError("삭제할 추가 검색 종목을 찾지 못했습니다")
         conn.execute("UPDATE jarvis3_briefing_stocks SET position=position-1 WHERE group_name='extra' AND position>?", (int(position),))
         conn.commit()
+        _forget_all_stocks()
     finally:
         conn.close()
