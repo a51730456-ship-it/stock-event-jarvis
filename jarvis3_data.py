@@ -356,7 +356,7 @@ def _download_cache_only(
 ) -> tuple[dict[str, pd.DataFrame], dict]:
     """정확 키 또는 더 큰 배치의 메모리 캐시만 읽고 네트워크는 호출하지 않는다."""
     unique = tuple(dict.fromkeys(str(t).strip().upper() for t in tickers if str(t).strip()))
-    ttl_seconds = _kept_for(interval, ttl_seconds)
+    # 긴 보관은 **꽉 찬 판에만** 쓴다 — 아래 묶음 검사에서 판마다 따진다(2026-09-23).
     requested = set(unique)
     now = time.time()
     with _CACHE_LOCK:
@@ -369,7 +369,8 @@ def _download_cache_only(
                 and cached_interval == interval
                 and bool(cached_prepost) == bool(prepost)
                 and requested.issubset(set(cached_tickers))
-                and now - candidate["at"] < ttl_seconds
+                and now - candidate["at"] < (_kept_for(interval, ttl_seconds)
+                                             if candidate.get("full", True) else ttl_seconds)
             ):
                 frames = {
                     ticker: candidate["frames"][ticker].copy()
@@ -548,12 +549,14 @@ def _download_cached(
     unique = tuple(dict.fromkeys(str(t).strip().upper() for t in tickers if str(t).strip()))
     if not unique:
         return {}, {"ok": False, "error": "조회 티커가 없습니다", "stale": False}
-    ttl_seconds = _kept_for(interval, ttl_seconds)
     key = (unique, period, interval, bool(prepost))
     now = time.time()
     with _CACHE_LOCK:
         cached = _CACHE.get(key)
-        if cached and now - cached["at"] < ttl_seconds:
+        # 받아 둔 것이 성기면(종목이 많이 빠졌으면) 긴 보관을 안 쓴다 — 위 설명 참고.
+        kept = _kept_for(interval, ttl_seconds) if (not cached or cached.get("full", True)) \
+            else ttl_seconds
+        if cached and now - cached["at"] < kept:
             return _copy_frames(cached["frames"]), {
                 "ok": True, "error": None, "stale": False, "fetched_at": cached["fetched_at"]
             }
@@ -569,7 +572,8 @@ def _download_cached(
                 and cached_interval == interval
                 and bool(cached_prepost) == bool(prepost)
                 and requested.issubset(set(cached_tickers))
-                and now - candidate["at"] < ttl_seconds
+                and now - candidate["at"] < (_kept_for(interval, ttl_seconds)
+                                             if candidate.get("full", True) else ttl_seconds)
             ):
                 frames = {
                     ticker: candidate["frames"][ticker].copy()
@@ -617,8 +621,16 @@ def _download_cached(
         if not frames:
             raise RuntimeError("시세 응답이 비어 있습니다")
         fetched_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
+        # ── **성긴 판은 오래 들고 있지 않는다** (2026-09-23 상하님 지적 — "오늘 아침에
+        # 종목 나왔는데 지금은 또 안 나온다") ──────────────────────────────────────
+        # 실측 — 그 시각 온라인 상승장에는 DELL·MPC·VLO 가 **관찰 목록에도 없었다.**
+        # 세 종목의 일봉을 아예 못 받았기 때문이다(야후가 온라인에서 자주 거른다).
+        # 그런 판을 30분 들고 있으면 그동안 목록이 계속 비어 보인다. 빠진 종목이
+        # 열에 하나를 넘으면 **짧게만**(부르는 쪽이 정한 시간) 들고 있다가 다시 받는다.
+        full = len(frames) >= max(1, int(len(unique) * 0.9))
         with _CACHE_LOCK:
-            _CACHE[key] = {"at": now, "fetched_at": fetched_at, "frames": _copy_frames(frames)}
+            _CACHE[key] = {"at": now, "fetched_at": fetched_at,
+                           "frames": _copy_frames(frames), "full": full}
         _disk_write(disk_name, _copy_frames(frames), fetched_at)
         return frames, {"ok": True, "error": None, "stale": False, "fetched_at": fetched_at}
     except Exception as exc:
