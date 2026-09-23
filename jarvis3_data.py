@@ -356,7 +356,6 @@ def _download_cache_only(
 ) -> tuple[dict[str, pd.DataFrame], dict]:
     """정확 키 또는 더 큰 배치의 메모리 캐시만 읽고 네트워크는 호출하지 않는다."""
     unique = tuple(dict.fromkeys(str(t).strip().upper() for t in tickers if str(t).strip()))
-    # 긴 보관은 **꽉 찬 판에만** 쓴다 — 아래 묶음 검사에서 판마다 따진다(2026-09-23).
     requested = set(unique)
     now = time.time()
     with _CACHE_LOCK:
@@ -369,8 +368,7 @@ def _download_cache_only(
                 and cached_interval == interval
                 and bool(cached_prepost) == bool(prepost)
                 and requested.issubset(set(cached_tickers))
-                and now - candidate["at"] < (_kept_for(interval, ttl_seconds)
-                                             if candidate.get("full", True) else ttl_seconds)
+                and now - candidate["at"] < ttl_seconds
             ):
                 frames = {
                     ticker: candidate["frames"][ticker].copy()
@@ -513,31 +511,6 @@ def _disk_prune() -> None:
         pass
 
 
-# 장이 닫혀 있는 동안 **일봉을 들고 있는 시간** (2026-09-23 상하님 지시).
-#
-# 상하님 — *"오늘도 아침 9시에 상승장 신고가 클릭하니 첫 로딩시 시간이 너무 오래
-# 걸린다."* 받아 둔 일봉을 5분만 쥐고 있어서, 화면을 켜 둔 채 30분이 지난 뒤에
-# 누르면 249종목을 처음부터 다시 받았다. **장이 끝난 뒤에는 일봉이 안 바뀐다** —
-# 그동안은 더 오래 들고 있어도 값이 같다. 장중에는 예전 그대로(부르는 쪽이 정한
-# 시간)다 — 그때는 오늘 줄이 계속 자라기 때문이다.
-#
-# 야후가 늦게 올리는 그날 일봉은 이 시간과 상관없이 분봉으로 채운다
-# (`_fill_missing_session` · `_daily_lags_last_session`).
-DAILY_KEPT_WHEN_CLOSED = 1800.0
-
-
-def _kept_for(interval: str, ttl_seconds: float) -> float:
-    """이 자료를 몇 초나 들고 있을까. 일봉이고 장이 닫혔으면 더 길게."""
-    if str(interval) != "1d":
-        return ttl_seconds
-    try:
-        if not us_session_closed():
-            return ttl_seconds
-    except Exception:
-        return ttl_seconds
-    return max(float(ttl_seconds), DAILY_KEPT_WHEN_CLOSED)
-
-
 def _download_cached(
     tickers,
     *,
@@ -572,8 +545,7 @@ def _download_cached(
                 and cached_interval == interval
                 and bool(cached_prepost) == bool(prepost)
                 and requested.issubset(set(cached_tickers))
-                and now - candidate["at"] < (_kept_for(interval, ttl_seconds)
-                                             if candidate.get("full", True) else ttl_seconds)
+                and now - candidate["at"] < ttl_seconds
             ):
                 frames = {
                     ticker: candidate["frames"][ticker].copy()
@@ -620,47 +592,9 @@ def _download_cached(
         frames = _split_download(raw, unique)
         if not frames:
             raise RuntimeError("시세 응답이 비어 있습니다")
-        # ── **빠진 종목은 한 번 더 받아 채운다** (2026-09-23 상하님 지적 — "오늘 아침에
-        # 종목 나왔는데 지금은 또 안 나온다") ────────────────────────────────────────
-        # 실측 — 그 시각 온라인 상승장에 DELL·MPC·VLO 가 관찰 목록에도 없었다. 야후가
-        # 온라인(클라우드 주소)에서 일부 종목을 자주 거른다. 한 묶음에서 빠진 종목만
-        # 모아 **한 번만** 다시 부른다. 그래도 안 오면 예전처럼 그 종목 없이 간다.
-        missing = [code for code in unique if code not in frames]
-        if missing and len(missing) <= 80:
-            try:
-                with _DOWNLOAD_LOCK:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        again = yf.download(
-                            missing,
-                            period=period,
-                            interval=interval,
-                            group_by="ticker",
-                            auto_adjust=True,
-                            prepost=prepost,
-                            threads=True,
-                            progress=False,
-                            timeout=15,
-                            multi_level_index=True,
-                        )
-                filled = _split_download(again, tuple(missing))
-                if filled:
-                    frames.update(filled)
-                    _log.info("jarvis3 재요청으로 %d종목 중 %d종목을 채웠습니다",
-                              len(missing), len(filled))
-            except Exception as retry_error:      # 못 채워도 그대로 간다
-                _log.warning("jarvis3 재요청 실패 %d종목: %s", len(missing), retry_error)
         fetched_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
-        # ── **성긴 판은 오래 들고 있지 않는다** (2026-09-23 상하님 지적 — "오늘 아침에
-        # 종목 나왔는데 지금은 또 안 나온다") ──────────────────────────────────────
-        # 실측 — 그 시각 온라인 상승장에는 DELL·MPC·VLO 가 **관찰 목록에도 없었다.**
-        # 세 종목의 일봉을 아예 못 받았기 때문이다(야후가 온라인에서 자주 거른다).
-        # 그런 판을 30분 들고 있으면 그동안 목록이 계속 비어 보인다. 빠진 종목이
-        # 열에 하나를 넘으면 **짧게만**(부르는 쪽이 정한 시간) 들고 있다가 다시 받는다.
-        full = len(frames) >= max(1, int(len(unique) * 0.9))
         with _CACHE_LOCK:
-            _CACHE[key] = {"at": now, "fetched_at": fetched_at,
-                           "frames": _copy_frames(frames), "full": full}
+            _CACHE[key] = {"at": now, "fetched_at": fetched_at, "frames": _copy_frames(frames)}
         _disk_write(disk_name, _copy_frames(frames), fetched_at)
         return frames, {"ok": True, "error": None, "stale": False, "fetched_at": fetched_at}
     except Exception as exc:
