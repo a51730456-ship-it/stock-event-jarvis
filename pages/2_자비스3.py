@@ -13277,7 +13277,35 @@ def main() -> None:
     _run_hard_reload_if_requested()
 
 
-main()
+# ── 임시 — 온라인 서버가 어디서 기다리나 잰다 (2026-09-23 밤 · 재고 나면 뺀다) ──────
+# 주소에 j3prof=1 이 붙은 판만 잰다. 결과는 눈에 안 보이는 칸 하나에 글자로 싣는다.
+if str(st.query_params.get("j3prof") or "") == "1":
+    import cProfile as _cprof
+    import io as _pio
+    import pstats as _pstats
+
+    _prof = _cprof.Profile()
+    _prof_wall, _prof_cpu = time.perf_counter(), time.thread_time()
+    _prof.enable()
+    try:
+        main()
+    finally:
+        _prof.disable()
+        try:
+            _buf = _pio.StringIO()
+            _stats = _pstats.Stats(_prof, stream=_buf)
+            _stats.sort_stats("cumulative").print_stats(80)
+            _stats.sort_stats("tottime").print_stats(30)
+            _text = (f"wall {time.perf_counter() - _prof_wall:.3f} "
+                     f"cpu {time.thread_time() - _prof_cpu:.3f}\n" + _buf.getvalue())
+            st.markdown(
+                "<div hidden id='j3prof' data-p='"
+                + base64.b64encode(_text.encode("utf-8")).decode("ascii") + "'></div>",
+                unsafe_allow_html=True)
+        except Exception:
+            pass
+else:
+    main()
 # 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
 scroll_to.run(st)
 # **이 화면이 언제 판인지** 맨 밑에 작게 적는다 (2026-09-02 상하님 지시).
