@@ -5854,6 +5854,236 @@ def _scorecard_counts() -> dict:
     return data
 
 
+# ── 어느 때 어느 파트가 나았나 (2026-09-23 상하님 지시) ──────────────────────
+#
+# 상하님 — *"어떨 때 상위 테마가 성적이 좋았는지, 급락 후 반등장이 좋았는지,
+# 상승장이 좋았는지 만들 수 있나?"* · *"상승장은 종목이 몇 개 나오지 않아 수익률을
+# 왜곡할 수 있다."*
+#
+# **때는 달력이 아니라 그날 나스닥이 어디 있었나로 가른다.** 화면 맨 위 막대가 쓰는
+# 그 값(1년 최고 대비 몇 %)이라 지난 어느 날이든 다시 잴 수 있다.
+#
+# **종목 수가 달라 생기는 왜곡은 이렇게 막는다**(research/parts_when.py 와 같은 자).
+#   ① 하루에 한 표 — 그날 그 파트의 **가운데 값** 하나만 그날 성적으로 쓴다.
+#   ② 평균이 아니라 가운데 값 — 한 종목이 크게 튀어도 안 끌려간다.
+#   ③ 이긴 날 수 — 그날 파트들 중 가운데 값이 가장 높았던 파트를 센다.
+#   ④ 잰 날이 열흘이 안 되면 숫자를 안 믿는다 — 「아직 모자람」이라 적는다.
+#
+# 성적은 **신호 다음 거래일 시가에 사서 5거래일 뒤 종가에 판 값**이다. 20·60거래일은
+# 아직 잴 날이 모자라 화면에 안 쓴다(2026-09-23 — 20일치 11일 · 60일치 0일).
+_WHEN_HORIZON = 5
+_WHEN_MIN_DAYS = 10
+_WHEN_BUCKETS = (
+    ("전고점 근처", -3.0, 0.0, "#2a78d6"),
+    ("조금 빠짐", -10.0, -3.0, "#e08b1e"),
+    ("많이 빠짐", -100.0, -10.0, "#c0392b"),
+)
+
+
+def _when_bucket(drop) -> str:
+    if drop is None:
+        return ""
+    for name, low, high in ((n, lo, hi) for n, lo, hi, _c in _WHEN_BUCKETS):
+        if low < drop <= high:
+            return name
+    return ""
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _scorecard_when_cached(stamp: str) -> dict:
+    """날짜별 목록으로 **때별 파트 성적**을 센다. 새로 받는 자료는 없다.
+
+    쓰는 자료는 성적표가 이미 쓰는 그 249종목 2년치 묶음이다(_scorecard_prices 설명).
+    나스닥 일봉도 시장 화면이 이미 받아 둔 것을 그대로 꺼내 쓴다.
+    """
+    import statistics
+
+    import picklist_store as store
+
+    dates = store.available_dates("US")
+    rows = []
+    for day in dates:
+        try:
+            rows.extend(store.load_rows(day, "US") or [])
+        except Exception:
+            continue
+    if not rows:
+        return {"ok": False}
+    codes = tuple(dict.fromkeys(
+        str(row.get("code") or "").strip().upper() for row in rows if row.get("code")))
+    try:
+        frames, _info = j3data._download_cached(
+            codes, period="2y", interval="1d",
+            ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+    except Exception:
+        return {"ok": False}
+    try:
+        index_frames, _meta = j3data._download_cached(
+            ("^IXIC",), period="2y", interval="1d", ttl_seconds=600)
+        index_close = index_frames["^IXIC"]["Close"].dropna().astype(float)
+        index_high = index_close.rolling(252, min_periods=60).max()
+        drops = ((index_close / index_high - 1.0) * 100.0).dropna()
+    except Exception:
+        drops = None
+
+    def forward(code: str, day: str):
+        frame = frames.get(code)
+        if frame is None:
+            return None
+        try:
+            after = frame.index[frame.index > pd.Timestamp(day)]
+            if len(after) < _WHEN_HORIZON + 1:
+                return None
+            buy = float(frame.loc[after[0], "Open"])
+            sell = float(frame.loc[after[_WHEN_HORIZON], "Close"])
+            if not buy:
+                return None
+            return (sell / buy - 1.0) * 100.0
+        except Exception:
+            return None
+
+    parts = [kind for kind, _name, _color in _SCORECARD_PARTS]
+    by_day: dict = {}
+    for row in rows:
+        kind = str(row.get("list_kind") or "")
+        day = str(row.get("trade_date") or "")
+        code = str(row.get("code") or "").strip().upper()
+        if kind not in parts or not day or not code or day < _SCORECARD_START:
+            continue
+        value = forward(code, day)
+        if value is None:
+            continue
+        by_day.setdefault(day, {}).setdefault(kind, []).append(value)
+
+    middles: dict = {}
+    for day, kinds in by_day.items():
+        middles[day] = {kind: statistics.median(values) for kind, values in kinds.items() if values}
+
+    wins: dict = {kind: 0 for kind in parts}
+    for day, values in middles.items():
+        if not values:
+            continue
+        best = max(values, key=lambda kind: values[kind])
+        wins[best] += 1
+
+    def summary(days):
+        out = {}
+        for kind in parts:
+            picked = [middles[day][kind] for day in days if kind in middles.get(day, {})]
+            out[kind] = {
+                "days": len(picked),
+                "middle": statistics.median(picked) if picked else None,
+                "enough": len(picked) >= _WHEN_MIN_DAYS,
+            }
+        return out
+
+    all_days = sorted(middles)
+    result = {
+        "ok": True,
+        "horizon": _WHEN_HORIZON,
+        "days": len(all_days),
+        "first": all_days[0] if all_days else "",
+        "last": all_days[-1] if all_days else "",
+        "all": summary(all_days),
+        "wins": wins,
+        "buckets": [],
+    }
+    for name, _low, _high, color in _WHEN_BUCKETS:
+        if drops is None:
+            continue
+        picked = []
+        for day in all_days:
+            try:
+                drop = float(drops.loc[:pd.Timestamp(day)].iloc[-1])
+            except Exception:
+                continue
+            if _when_bucket(drop) == name:
+                picked.append(day)
+        if picked:
+            result["buckets"].append({"name": name, "color": color,
+                                      "days": len(picked), "parts": summary(picked)})
+    return result
+
+
+def _scorecard_when_html(data: dict) -> str:
+    """때별 성적 표 한 덩이. 숫자는 위 함수가 낸 것을 받아 적기만 한다."""
+    if not data.get("ok") or not data.get("days"):
+        return ""
+    parts = [(kind, name, color) for kind, name, color in _SCORECARD_PARTS]
+
+    def cell(info):
+        if not info or not info.get("days"):
+            return "<td class='j3w-none'>—</td>"
+        middle = info.get("middle")
+        if middle is None:
+            return "<td class='j3w-none'>—</td>"
+        tone = "j3w-up" if middle > 0 else "j3w-down" if middle < 0 else "j3w-flat"
+        thin = "" if info.get("enough") else " j3w-thin"
+        return (f"<td class='{tone}{thin}'>{middle:+.1f}%"
+                f"<span class='j3w-days'>{info['days']}일</span></td>")
+
+    head = ["<th class='j3w-part'>파트</th>", "<th>전체</th>", "<th>이긴 날</th>"]
+    for bucket in data["buckets"]:
+        head.append(f"<th style='color:{bucket['color']}'>{html.escape(bucket['name'])}"
+                    f"<span class='j3w-days'>{bucket['days']}일</span></th>")
+    body = []
+    for kind, name, color in parts:
+        cells = [f"<td class='j3w-part' style='color:{color}'>{html.escape(name)}</td>",
+                 cell(data["all"].get(kind)),
+                 f"<td class='j3w-win'>{int(data['wins'].get(kind, 0))}번</td>"]
+        for bucket in data["buckets"]:
+            cells.append(cell(bucket["parts"].get(kind)))
+        body.append("<tr>" + "".join(cells) + "</tr>")
+    note = (f"신호 다음 날 시가에 사서 <b>{data['horizon']}거래일 뒤 종가</b>에 판 값입니다. "
+            "하루에 한 표(그날 그 파트 종목들의 <b>가운데 값</b>)만 세므로 종목이 많은 파트가 "
+            "더 세게 치지 않습니다. 「이긴 날」은 그날 가운데 값이 가장 높았던 파트를 센 것입니다. "
+            f"<b>흐린 숫자</b>는 잰 날이 {_WHEN_MIN_DAYS}일이 안 돼 아직 못 믿는 칸입니다.")
+    return (
+        "<div class='j3w-wrap'>"
+        "<div class='j3w-head'><b>어느 때 어느 파트가 나았나</b>"
+        f"<span>{html.escape(data['first'])} ~ {html.escape(data['last'])} · {data['days']}일</span></div>"
+        "<table class='j3w'><thead><tr>" + "".join(head) + "</tr></thead>"
+        "<tbody>" + "".join(body) + "</tbody></table>"
+        f"<div class='j3w-note'>{note}</div></div>"
+    )
+
+
+_WHEN_CSS = """
+<style>
+.j3w-wrap{margin:10px 0 2px}
+.j3w-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  color:#e6e6e6;font-size:.95rem;margin-bottom:6px}
+.j3w-head span{color:#9aa0aa;font-size:.76rem;font-weight:700}
+table.j3w{width:100%;border-collapse:collapse;font-size:.82rem}
+table.j3w th{color:#9aa0aa;font-weight:800;text-align:right;padding:.25rem .3rem;
+  border-bottom:1px solid rgba(255,255,255,.18);white-space:nowrap}
+table.j3w td{text-align:right;padding:.28rem .3rem;font-weight:800;
+  border-bottom:1px solid rgba(255,255,255,.06);white-space:nowrap}
+table.j3w .j3w-part{text-align:left;font-weight:800;max-width:9.5rem;
+  overflow:hidden;text-overflow:ellipsis}
+.j3w-up{color:#4da6ff}.j3w-down{color:#ff5b5b}.j3w-flat{color:#e6e6e6}
+.j3w-none{color:#6b7280}.j3w-win{color:#e6e6e6}
+.j3w-thin{opacity:.45}
+.j3w-days{display:block;color:#9aa0aa;font-size:.68rem;font-weight:700}
+.j3w-note{color:#9aa0aa;font-size:.74rem;line-height:1.45;margin-top:6px}
+</style>
+"""
+
+
+def _scorecard_when() -> dict:
+    """이 판에서 쓸 때별 성적. 세션에 한 번, 앱 전체에 10분 보관한다."""
+    key = "j3_scorecard_when"
+    if key in st.session_state:
+        return st.session_state[key]
+    import picklist_store as store
+
+    dates = store.available_dates("US")
+    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|when{_WHEN_HORIZON}"
+    data = _scorecard_when_cached(stamp)
+    st.session_state[key] = data
+    return data
+
+
 def _scorecard_panel_html(data: dict, span: str) -> str:
     """성적표 창. 막대 길이가 그 기간의 「100번 사면 이익 난 횟수」다.
 
@@ -5985,6 +6215,14 @@ def _render_picklist_scorecard(part: str):
                     _SCORECARD_SPAN_KEY, value),
             )
         st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
+        # 「어느 때 어느 파트가 나았나」 — 같은 창 안, 파트 막대 바로 밑이다.
+        try:
+            when = _scorecard_when()
+            block = _scorecard_when_html(when)
+        except Exception:
+            block = ""
+        if block:
+            st.markdown(_WHEN_CSS + block, unsafe_allow_html=True)
     return True
 
 
