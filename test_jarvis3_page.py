@@ -2050,7 +2050,12 @@ class Jarvis3PageTests(unittest.TestCase):
         # 기준으로 당일·일봉 차트 같은 선상에 2개, 그 밑에 주·월봉").
         # 스트림릿 칸은 폰에서 위아래로 쌓이므로 CSS 격자를 쓴다.
         self.assertNotIn("st.columns(", block)
-        self.assertIn("j3-chart-grid", block)
+        # 격자 판은 2026-09-24 부터 대장주 1~3위 차트와 같이 쓰는 _chart_zoom_html 이 만든다
+        # (누르면 크게 뜨는 장치까지 한 벌 — 상하님 지시).
+        self.assertIn("_chart_zoom_html(boxes,", block)
+        zoom = source.split("def _chart_zoom_html(")[1].split("\ndef ")[0]
+        self.assertIn("j3-chart-grid", zoom)
+        self.assertNotIn("st.columns(", zoom)
         # **거래량은 뺐다**(상하님 지시 — "일봉(거래량 빼라)").
         self.assertNotIn("include_volume", block)
 

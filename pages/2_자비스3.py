@@ -11,6 +11,17 @@ import re
 
 import streamlit as st
 
+# 스트림릿 1.59 버그 막기 — 덩이만 다시 그리는 판에서는 조각을 「이미 가진 것」 표시로 줄여 보내지
+# 않는다. 안 막으면 급락 목록 종목을 누를 때 화면이 하얗게 죽을 수 있다(2026-09-24 · 그 파일 설명).
+# 막은 **뒤에** 조각 되짚기를 1,000자부터로 낮춘다 — 화면 넘길 때 보내는 양이 3분의 1로 준다.
+try:
+    import st_fragment_ref_fix
+
+    if st_fragment_ref_fix.install():
+        st_fragment_ref_fix.lower_cache_threshold()
+except Exception:
+    pass
+
 import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
 import login_prism  # 첫 화면의 '판 누르고 왔나' 표식을 읽는다(2026-08-09).
 
@@ -1769,7 +1780,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026092340
+_REQUIRED_J3_REVISION = 2026092410
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2333,7 +2344,7 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[2].markdown(
-        _flex_row(_LEADER_REST_WIDTHS, ["티커", "최종점수", "당일", "52주 고가 대비",
+        _flex_row(_LEADER_REST_WIDTHS, ["티커", "최종점수", "당일주가", "52주 고가 대비",
                                         "20일 수익률", "6개월 수익률",
                                         "매수 상태"], head=True),
         unsafe_allow_html=True,
@@ -2356,6 +2367,17 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
             f"<div class='j3-td'>{rank_mark.get(rank, f'{rank}위')}</div>", unsafe_allow_html=True)
         if cols[1].button(leader["name"], key=button_key, width="stretch"):
             clicked = ticker
+        # 당일주가 — **가격 위 · 등락 아래** (2026-09-24 상하님 — "22개 테마에서 각 테마 클릭하면
+        # 종목에서 당일에 주가 없이 퍼센티지만 나온다. 다른 파트 참고하고 일관성을 유지해라").
+        # 상승장·급락·눌림목 표와 같은 모양·같은 값(세부사항과 같은 정규장 기준)이다.
+        leader_price, leader_change = _list_price_change(metrics)
+        price_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+            f"<span>{_price(leader_price)}</span>"
+            f"<span style='color:{_sign_color(leader_change)};"
+            f" font-weight:800; font-size:.82rem'>{_pct(leader_change)}</span></span>"
+        )
         # 나머지 여섯 칸은 한 덩이로 그린다(2026-07-30 — 요소 수를 줄여 폰을 빠르게).
         cols[2].markdown(
             _flex_row(_LEADER_REST_WIDTHS, [
@@ -2363,11 +2385,11 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
                 "<div class='j3-barwrap'><div class='j3-bar'>"
                 f"<div class='j3-bar-fill' style='width:{max(0.0, min(score, 100.0)):.0f}%'></div></div>"
                 f"<span class='j3-bar-num'>{score:.1f}/100</span></div>",
+                price_cell,
                 *(
                     f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
                     # 6개월 수익률을 20일 옆에 둔다(2026-09-07 상하님 지시).
-                    # 「당일」은 세부사항과 같은 정규장 기준이다(2026-09-23 · _list_price_change).
-                    for value in (_list_price_change(metrics)[1], metrics.get("from_high_pct"),
+                    for value in (metrics.get("from_high_pct"),
                                   metrics.get("ret20"), metrics.get("ret120"))
                 ),
                 str(plan.get("state", "")),
@@ -2700,6 +2722,38 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
 THUMB_CHART_HEIGHT = 108
 
 
+def _chart_zoom_html(boxes: list, zoom: str) -> str:
+    """차트 칸 여럿을 **누르면 크게 뜨는** 한 판으로 싼다(아래 두 곳이 같이 쓴다).
+
+    boxes 는 (이름, 그림 svg, 기준 시각) 묶음이다. 숨은 스위치(체크칸) 하나로 여닫아
+    서버에 다시 묻지 않는다 — 칸(label)을 누르면 켜지고, 뜬 창이나 어두운 바탕을 누르면
+    꺼진다. 스위치는 맨 앞에 둔다 — 뒤의 칸·창을 「~」로 집으려면 스위치가 앞서야 한다.
+    zoom 은 한 화면에서 겹치면 안 된다(체크칸 id 의 앞머리).
+    """
+    taps = "".join(
+        f"<input type='checkbox' id='{zoom}-{index}' class='j3cz-tap j3cz-t{index}'>"
+        for index in range(len(boxes))
+    )
+    cells = "".join(
+        f"<label for='{zoom}-{index}' class='j3-chart-box j3cz-cell'>"
+        f"<div class='j3-chart-name'>{name}</div>{drawing}"
+        + (f"<div class='j3-chart-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</div>"
+           if when else "")
+        + "</label>"
+        for index, (name, drawing, when) in enumerate(boxes)
+    )
+    pops = "".join(
+        f"<label for='{zoom}-{index}' class='j3cz-scrim j3cz-s{index}' aria-hidden='true'></label>"
+        f"<label for='{zoom}-{index}' class='j3cz-pop j3cz-p{index}'>"
+        f"<span class='j3cz-name'>{name}</span>{drawing}"
+        + (f"<span class='j3cz-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</span>"
+           if when else "")
+        + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
+        for index, (name, drawing, when) in enumerate(boxes)
+    )
+    return f"<div class='j3cz'>{taps}<div class='j3-chart-grid'>{cells}</div>{pops}</div>"
+
+
 def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
     """선택 종목의 **당일·일봉·주봉·월봉 넷을 한 판에** 그린다 (2026-08-28).
 
@@ -2769,29 +2823,7 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
     # 다시 묻지 않는다. 칸(label)을 누르면 켜지고, 뜬 창이나 어두운 바탕을 누르면 꺼진다.
     # 그림은 작은 칸의 것을 그대로 한 벌 더 쓴다 — 새로 받는 자료가 없다.
     # 스위치는 맨 앞에 둔다 — 뒤의 칸·창을 「~」로 집으려면 스위치가 앞서야 한다.
-    zoom = f"j3cz-{html.escape(str(panel))}"
-    taps = "".join(
-        f"<input type='checkbox' id='{zoom}-{index}' class='j3cz-tap j3cz-t{index}'>"
-        for index in range(len(boxes))
-    )
-    cells = "".join(
-        f"<label for='{zoom}-{index}' class='j3-chart-box j3cz-cell'>"
-        f"<div class='j3-chart-name'>{name}</div>{drawing}"
-        + (f"<div class='j3-chart-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</div>"
-           if when else "")
-        + "</label>"
-        for index, (name, drawing, when) in enumerate(boxes)
-    )
-    pops = "".join(
-        f"<label for='{zoom}-{index}' class='j3cz-scrim j3cz-s{index}' aria-hidden='true'></label>"
-        f"<label for='{zoom}-{index}' class='j3cz-pop j3cz-p{index}'>"
-        f"<span class='j3cz-name'>{name}</span>{drawing}"
-        + (f"<span class='j3cz-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</span>"
-           if when else "")
-        + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
-        for index, (name, drawing, when) in enumerate(boxes)
-    )
-    st.markdown(f"<div class='j3cz'>{taps}<div class='j3-chart-grid'>{cells}</div>{pops}</div>",
+    st.markdown(_chart_zoom_html(boxes, f"j3cz-{html.escape(str(panel))}"),
                 unsafe_allow_html=True)
     if chart_bundle.get("stale"):
         st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
@@ -3981,16 +4013,12 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                 if drawing:
                     boxes.append((name, drawing, ""))
             if boxes:
-                cells = "".join(
-                    f"<div class='j3-chart-box'><div class='j3-chart-name'>{name}</div>"
-                    f"{drawing}"
-                    + (f"<div class='j3-chart-when'>기준 "
-                       f"{html.escape(str(when)[:16].replace('T', ' '))}</div>" if when else "")
-                    + "</div>"
-                    for name, drawing, when in boxes
-                )
-                st.markdown(f"<div class='j3-chart-grid'>{cells}</div>",
-                            unsafe_allow_html=True)
+                # **누르면 크게 뜬다** — 선택종목 세부사항의 차트와 같은 장치다 (2026-09-23 밤
+                # 상하님 — "22개 테마에서 각 테마 선택하면 대장주 1~3위 당일/일봉/주봉/월봉도
+                # 선택종목 세부사항 부분의 차트처럼 클릭하면 화면 커지도록 해라").
+                # 스위치 앞머리는 종목마다 달라야 한다 — 세 종목이 한 화면에 선다.
+                zoom_id = "j3cz-lead-" + re.sub(r"[^A-Za-z0-9]", "_", str(leader.get("ticker") or rank))
+                st.markdown(_chart_zoom_html(boxes, zoom_id), unsafe_allow_html=True)
             else:
                 st.info("차트 자료 없음")
 
@@ -5668,6 +5696,26 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
         label, key, close_label=close_label,
         on_open=lambda: scroll_to.request(st, _PICKLIST_ANCHOR),
     )
+    if not is_open:
+        # **목록을 닫으면 안에 열어 둔 파트별 성적표도 같이 닫는다** (2026-09-23 밤 상하님 —
+        # "목록 닫기 했다가 다시 열면 파트별 성적표 그대로 열려 있더라"). 위·아래 닫기 단추
+        # 어느 쪽으로 닫아도 닫힌 판에는 여기를 지난다.
+        st.session_state.pop(_SCORECARD_KEY, None)
+        return is_open
+    if _PICKLIST_DATE_KEY not in st.session_state:
+        # **처음 열 때는 맨 위(가장 새 날)가 아니라 그 전날을 고른다** (2026-09-23 밤
+        # 상하님 — "당일이 첫 로딩으로 되어 있는데 전날로 해라"). 가장 새 날 목록은
+        # 매수금액(다음 거래일 시가)이 아직 없다. 날짜 칸은 한국테마와 같이 쓰는
+        # picklist_ui 가 만들므로 그 모듈은 안 건드리고, 칸이 생기기 **전에** 값만 적어 둔다
+        # (index=0 이라 스트림릿이 「기본값과 둘 다 줬다」고 경고하지 않는다).
+        try:
+            import picklist_store as _pl_store
+
+            _saved_dates = _pl_store.available_dates("US")
+            if len(_saved_dates) > 1:
+                st.session_state[_PICKLIST_DATE_KEY] = _saved_dates[1]
+        except Exception:
+            pass
     if is_open:
         # **날짜를 바꿔 골라도 다시 그 자리로 올린다** (2026-09-13 상하님 —
         # "첫 번째 한 번은 되는데 화면을 내려서 밑에서 다시 날짜 클릭하면 또 안 된다").
@@ -10487,6 +10535,32 @@ _BRIEFING_OPEN_CSS = """
  .j3b-open-orig{font-size:14px}
  .j3b-market-news-title{font-size:16px}
 }
+/* 크게 여닫는 **움직임** — 순위 9 창과 같다 (2026-09-23 밤 상하님 — "관심종목에 미국시장
+   한줄 브리핑이나 각 종목 클릭하면 파트별 성적표의 매수심사결과 높은 순위 9 클릭하면 화면
+   열리고 닫히듯 하되 … 지금 화면 크기로 하면 된다. 단지 열리고 닫히는 것을 하란 말임").
+   크기·자리는 그대로다. 열 때 .9초에 튀어 올라 살짝 넘쳤다 자리 잡고(바탕은 .3초에 어두워짐),
+   닫을 때는 살짝 부풀었다가 가운데로 줄어들며(.56초) 끝 무렵에 옅어진다.
+   닫기는 <details> 가 누르는 즉시 사라져 CSS 만으로는 못 한다 — 페이지 맨 끝 작은 스크립트가
+   .56초 붙들었다(j3b-closing) 닫는다. 스크립트가 없으면 예전처럼 바로 닫힌다. */
+@keyframes j3b-pop-grow{from{transform:scale(.55)}to{transform:scale(1)}}
+@keyframes j3b-pop-shrink{from{transform:scale(1)}to{transform:scale(.55)}}
+@keyframes j3b-pop-show{from{opacity:0}to{opacity:1}}
+@keyframes j3b-pop-hide{from{opacity:1}to{opacity:0}}
+.j3b-card-shell[open]>.j3b-card-open .j3b-open-card,
+.j3b-market-news-shell[open]>.j3b-card-open .j3b-open-card{
+ animation:j3b-pop-grow .9s cubic-bezier(.34,1.56,.64,1) both,j3b-pop-show .36s ease both}
+.j3b-card-shell[open]>.j3b-card-summary,
+.j3b-market-news-shell[open]>.j3b-market-news-summary{animation:j3b-pop-show .3s ease both}
+.j3b-card-shell.j3b-closing[open]>.j3b-card-open .j3b-open-card,
+.j3b-market-news-shell.j3b-closing[open]>.j3b-card-open .j3b-open-card{
+ animation:j3b-pop-shrink .56s cubic-bezier(.5,-.18,.72,.18) both,
+  j3b-pop-hide .56s cubic-bezier(.7,0,.84,0) both}
+.j3b-card-shell.j3b-closing[open]>.j3b-card-summary,
+.j3b-market-news-shell.j3b-closing[open]>.j3b-market-news-summary{animation:j3b-pop-hide .56s ease both}
+@media (prefers-reduced-motion:reduce){
+ .j3b-card-shell[open] .j3b-open-card,.j3b-market-news-shell[open] .j3b-open-card,
+ .j3b-card-shell[open]>.j3b-card-summary,.j3b-market-news-shell[open]>.j3b-market-news-summary{animation:none!important}
+}
 </style>
 """
 
@@ -13321,6 +13395,32 @@ _ST5_WATCH = """
   window.setInterval(arm, 800);
 })();
 """
+# ── 관심종목 큰 판을 **닫는 움직임** (2026-09-23 밤 상하님 지시) ─────────────────────
+# 카드·한줄 브리핑을 누르면 뜨는 큰 판은 <details> 라, 어두운 바탕을 누르는 순간 브라우저가
+# 닫아 버려 줄어드는 움직임을 보일 틈이 없다. 그 누름을 한 번 붙들어 j3b-closing 을 붙이고
+# (CSS 가 .56초 동안 줄이고 옅게 한다) 그 뒤에 닫는다. 판 안의 뉴스 줄은 제 <details> 라
+# 여기 걸리지 않는다. 움직임을 줄이라는 기기 설정이면 붙들지 않는다.
+_J3B_POP_CLOSE = """
+(function(){
+  if (window.__j3bPopClose) { return; }
+  window.__j3bPopClose = true;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.addEventListener('click', function (e) {
+    var sum = e.target && e.target.closest
+      ? e.target.closest('summary.j3b-card-summary, summary.j3b-market-news-summary') : null;
+    if (!sum || still) { return; }
+    var box = sum.parentElement;
+    if (!box || !box.open) { return; }
+    e.preventDefault();
+    if (box.classList.contains('j3b-closing')) { return; }
+    box.classList.add('j3b-closing');
+    window.setTimeout(function () {
+      box.open = false;
+      box.classList.remove('j3b-closing');
+    }, 560);
+  }, true);
+})();
+"""
 try:
     import json as _json
     import streamlit.components.v1 as _components
@@ -13329,7 +13429,12 @@ try:
         "<script>(function(){try{var d=window.parent.document;"
         "if(d.getElementById('j3-st5-watch')){return;}"
         "var s=d.createElement('script');s.id='j3-st5-watch';"
-        f"s.textContent={_json.dumps(_ST5_WATCH)};d.head.appendChild(s);}}catch(e){{}}}})();</script>",
+        f"s.textContent={_json.dumps(_ST5_WATCH)};d.head.appendChild(s);}}catch(e){{}}}})();"
+        # 관심종목 큰 판 닫는 움직임(위 _J3B_POP_CLOSE 설명) — 같은 칸에 싣는다(칸을 더 안 만든다).
+        "(function(){try{var d=window.parent.document;"
+        "if(d.getElementById('j3b-pop-close')){return;}"
+        "var s=d.createElement('script');s.id='j3b-pop-close';"
+        f"s.textContent={_json.dumps(_J3B_POP_CLOSE)};d.head.appendChild(s);}}catch(e){{}}}})();</script>",
         height=0,
     )
 except Exception:

@@ -2342,6 +2342,109 @@ class SectorWeightRetryTests(unittest.TestCase):
         self.assertTrue(j3._SECTOR_WEIGHTS["complete"])
 
 
+class DailyHoleFillTests(unittest.TestCase):
+    """야후 일봉 **가운데 하루가 빠진 것**을 한 시간 봉으로 메운다 (2026-09-24 상하님 —
+    "3주간 일별 시세에 9월 22일 주가가 없다. 공휴일이 아니었다. 전체 확인해봐라").
+
+    실측 — 259종목 중 190종목 일봉에 09-22 가 없었고, 그래서 09-23 「당일」이 09-21 과 견준 값이었다.
+    """
+
+    NY = ZoneInfo("America/New_York")
+
+    def setUp(self):
+        self._saved = dict(j3._HOLE_FILLS)
+        j3._HOLE_FILLS.clear()
+        # 파일에 남긴 값은 읽지도 쓰지도 않는다 — 시험끼리 섞이지 않게.
+        self._loaded = dict(j3._HOLE_LOADED)
+        j3._HOLE_LOADED["done"] = True
+        self._no_save = patch.object(j3, "_save_hole_fills", lambda: None)
+        self._no_save.start()
+
+    def tearDown(self):
+        self._no_save.stop()
+        j3._HOLE_LOADED.update(self._loaded)
+        j3._HOLE_FILLS.clear()
+        j3._HOLE_FILLS.update(self._saved)
+
+    def _daily(self, days, closes):
+        index = pd.DatetimeIndex(pd.to_datetime(days))
+        close = pd.Series(closes, index=index, dtype=float)
+        return pd.DataFrame({"Open": close, "High": close, "Low": close,
+                             "Close": close, "Volume": 1_000.0}, index=index)
+
+    def _hourly(self, day, closes):
+        index = pd.date_range(f"{day} 09:30", periods=len(closes), freq="h", tz=self.NY)
+        close = pd.Series(closes, index=index, dtype=float)
+        return pd.DataFrame({"Open": close, "High": close + 1, "Low": close - 1,
+                             "Close": close, "Volume": 10.0}, index=index)
+
+    def test_a_missing_middle_session_is_filled_from_hourly_bars(self):
+        daily = {"CRWD": self._daily(["2026-09-17", "2026-09-18", "2026-09-21", "2026-09-23"],
+                                     [245.7, 237.65, 249.35, 262.49])}
+        calls = []
+
+        def fake_download(tickers, **kwargs):
+            calls.append((tuple(tickers), kwargs.get("interval")))
+            return "raw"
+
+        with patch("yfinance.download", fake_download),                 patch.object(j3, "_split_download",
+                             lambda raw, tickers: {"CRWD": self._hourly("2026-09-22", [248.0, 251.5, 250.07])}):
+            filled = j3._fill_daily_holes(daily)
+        closes = filled["CRWD"]["Close"]
+        self.assertIn(pd.Timestamp("2026-09-22"), closes.index, "빠진 09-22 를 안 채웠다")
+        self.assertAlmostEqual(250.07, float(closes[pd.Timestamp("2026-09-22")]), places=2)
+        self.assertEqual(float(filled["CRWD"].loc[pd.Timestamp("2026-09-22"), "High"]), 252.5)
+        self.assertEqual(float(filled["CRWD"].loc[pd.Timestamp("2026-09-22"), "Volume"]), 30.0)
+        self.assertEqual(list(closes.index), sorted(closes.index), "날짜 차례가 흐트러졌다")
+        self.assertEqual([(("CRWD",), "1h")], calls)
+        # 한 번 채운 날은 다시 받지 않는다.
+        with patch("yfinance.download", fake_download):
+            again = j3._fill_daily_holes(daily)
+        self.assertEqual(1, len(calls), "채운 날을 또 받았다")
+        self.assertIn(pd.Timestamp("2026-09-22"), again["CRWD"].index)
+
+    def test_filled_days_survive_a_restart_through_the_file(self):
+        """앱이 다시 켜져도 채운 날을 다시 받지 않는다(파일에서 읽는다)."""
+        import json as _json
+        import tempfile
+
+        folder = pathlib.Path(tempfile.mkdtemp())
+        path = folder / "daily_hole_fills.json"
+        path.write_text(_json.dumps({"CRWD|2026-09-22": {"Close": 250.07, "Open": 249.0,
+                                                          "High": 252.0, "Low": 248.0, "Volume": 5.0}}),
+                        encoding="utf-8")
+        daily = {"CRWD": self._daily(["2026-09-18", "2026-09-21", "2026-09-23"], [237.65, 249.35, 262.49])}
+
+        def boom(*args, **kwargs):
+            raise AssertionError("파일에 있는데 또 받으러 갔다")
+
+        j3._HOLE_LOADED["done"] = False
+        with patch.object(j3, "_HOLE_FILE", path), patch("yfinance.download", boom):
+            filled = j3._fill_daily_holes(daily)
+        self.assertAlmostEqual(250.07, float(filled["CRWD"].loc[pd.Timestamp("2026-09-22"), "Close"]), places=2)
+
+    def test_holidays_and_complete_tables_ask_for_nothing(self):
+        # 09-07 은 노동절(휴장)이라 빠진 게 아니다.
+        daily = {"AAPL": self._daily(["2026-09-03", "2026-09-04", "2026-09-08", "2026-09-09"],
+                                     [1.0, 2.0, 3.0, 4.0])}
+
+        def boom(*args, **kwargs):
+            raise AssertionError("빠진 장이 없는데 받으러 갔다")
+
+        with patch("yfinance.download", boom):
+            self.assertIs(daily, j3._fill_daily_holes(daily))
+
+    def test_a_failed_hourly_download_keeps_the_table(self):
+        daily = {"CRWD": self._daily(["2026-09-18", "2026-09-21", "2026-09-23"], [1.0, 2.0, 3.0])}
+
+        def fail(*args, **kwargs):
+            raise RuntimeError("야후 거절")
+
+        with patch("yfinance.download", fail):
+            filled = j3._fill_daily_holes(daily)
+        self.assertEqual(3, len(filled["CRWD"]), "실패했는데 표를 바꿨다")
+
+
 class EarlyCloseClockTests(unittest.TestCase):
     """**일찍 닫는 날**에도 장이 끝난 줄 알아야 한다 (2026-09-12 상하님 지시).
 

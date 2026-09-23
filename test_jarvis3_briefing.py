@@ -1291,3 +1291,57 @@ def test_the_two_week_price_button_is_a_soft_rainbow():
     rule = source.split('div[class*="st-key-btn_j3_daily_prices_"] button,', 1)[1][:600]
     for color in ("255,107,107", "255,183,77", "129,199,132", "79,172,254", "186,148,250"):
         assert color in rule, f"무지개 색 {color} 가 빠졌다"
+
+
+def test_a_dropped_fragment_run_takes_its_already_have_it_markers_along():
+    """덩이가 다시 그리다 버린 판의 「이미 가진 것」 표시는 같이 버려진다 (2026-09-24 — 급락 목록
+    종목을 누르면 화면이 하얗게 죽던 것). 표시 자체는 그대로 쓴다(보내는 양이 안 는다)."""
+    import st_fragment_ref_fix
+    from types import SimpleNamespace
+    from streamlit.proto.ForwardMsg_pb2 import ForwardMsg
+    from streamlit.runtime.forward_msg_cache import populate_hash_if_needed
+    from streamlit.runtime.forward_msg_queue import ForwardMsgQueue
+    from streamlit.runtime.scriptrunner_utils import script_run_context as src
+    from streamlit.runtime.scriptrunner_utils.script_run_context import ScriptRunContext
+
+    patcher = patch.object(src.ThreadState, "get", return_value=SimpleNamespace(active_script_hash="h"))
+    patcher.start()
+    try:
+        assert st_fragment_ref_fix.install() is True
+        assert st_fragment_ref_fix.install() is True           # 두 번 걸어도 한 겹
+
+        queue = ForwardMsgQueue()
+
+        class Ctx:
+            enqueue = ScriptRunContext.enqueue
+
+            def __init__(self, fragment_ids, have):
+                self.fragment_ids_this_run = fragment_ids
+                self.cached_message_hashes = frozenset(have)
+                self._enqueue = queue.enqueue
+
+        def big(path):
+            msg = ForwardMsg()
+            msg.delta.new_element.markdown.body = "x" * 20000
+            msg.delta.fragment_id = "frag-1"
+            msg.metadata.delta_path[:] = path
+            populate_hash_if_needed(msg)
+            return msg
+
+        sample = big([0, 3, 5, 1])
+        frag = Ctx(["frag-1"], [sample.hash])
+        frag.enqueue(big([0, 3, 5, 1]))
+        assert queue._queue[-1].HasField("ref_hash"), "덩이 판에서도 표시는 그대로 써야 한다(양이 늘면 안 된다)"
+        # 덩이가 곧바로 다시 돈다 — 버린 판을 지운다.
+        queue.clear(retain_lifecycle_msgs=True, fragment_ids_this_run=["frag-1"])
+        assert not any(m.HasField("ref_hash") for m in queue._queue), "버린 판의 표시가 남았다 — 하얀 화면 버그"
+
+        # 판 전체 그리기에서 만든 표시는 건드리지 않는다.
+        full = Ctx(None, [sample.hash])
+        full.enqueue(big([0, 7]))
+        assert queue._queue[-1].HasField("ref_hash")
+        sent = queue.flush()
+        assert len(sent) == 1 and sent[0].HasField("ref_hash")
+        assert frag._enqueue == queue.enqueue, "보내는 길을 되돌려 놓지 않았다"
+    finally:
+        patcher.stop()

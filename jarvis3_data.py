@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092340
+MODULE_REVISION = 2026092410
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -511,6 +511,189 @@ def _disk_prune() -> None:
         pass
 
 
+# ── 야후 일봉 **가운데 하루가 통째로 빠지는** 것 메우기 (2026-09-24 상하님 지적) ─────────
+# 상하님 — *"3주간 일별 시세에 9월 22일 주가가 없다. 공휴일이 아니었다. 전체 확인해봐라."*
+#
+# 실측(한국 2026-09-24 08시 · 뉴욕 09-23 19시) — 자비스가 받는 미국 259종목 중 **190종목**의
+# 일봉에 09-22 줄이 없었다(S&P500·나스닥·다우·VIX 지수까지). 기간을 5일·1달·3달 어느 것으로
+# 받아도 없고, **한 시간 봉에는 09-22 가 다 있다.** 그 줄이 빠지니 09-23 의 「당일」 등락률이
+# 09-21 과 견준 값이 되었다(CRWD 목록 +5.27% ← 실제로는 09-22 종가 250.07 대비 +4.97%).
+#
+# 그래서 일봉을 받을 때마다 **최근 10거래일 안에 빠진 장**이 있는지 미국 달력으로 보고,
+# 빠진 종목만 한 시간 봉(한 달치)을 받아 그날 한 줄을 채운다 — 시가는 첫 봉, 고가·저가는
+# 그날 최고·최저, 종가는 마지막 봉, 거래량은 합(마지막 장을 채우는 _fill_missing_session 과
+# 같은 방법). 한 번 채운 날은 기억해 다시 받지 않는다. 야후가 줄을 되살리면 빠진 장이
+# 없으니 아무것도 안 받는다. 못 채우면 **원래 표를 그대로 둔다**(CLAUDE.md 0-0).
+# **배점·기준은 그대로다** — 재는 날의 값만 바로잡는다.
+DAILY_HOLE_LOOKBACK = 10
+DAILY_HOLE_RETRY_SECONDS = 1800.0
+_HOLE_FILLS: dict = {}          # (종목, 날짜) → (잰 시각, 한 줄 값 dict 또는 None)
+_HOLE_LOCK = threading.Lock()
+# 채운 값은 **파일에도** 남긴다 — 앱이 다시 켜질 때마다(올릴 때·아침 저장 때) 190종목의 한 시간
+# 봉을 다시 받으면 그 뒤 첫 클릭이 그만큼 늦어진다(2026-09-24 상하님 — "상승장 첫 클릭 15초").
+# .pkl 이 아니라 .json 이다 — 시세 파일 정리(_disk_prune)가 .pkl 을 오래된 것부터 지운다.
+_HOLE_FILE = _DISK_DIR / "daily_hole_fills.json"
+_HOLE_LOADED = {"done": False}
+
+
+def _load_hole_fills() -> None:
+    """파일에 남긴 채운 값을 한 번 읽어 둔다. 없거나 깨졌으면 조용히 넘어간다."""
+    with _HOLE_LOCK:
+        if _HOLE_LOADED["done"]:
+            return
+        _HOLE_LOADED["done"] = True
+        try:
+            saved = json.loads(_HOLE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        from datetime import date as _date
+
+        for key, value in (saved or {}).items():
+            try:
+                ticker, day = key.rsplit("|", 1)
+                if isinstance(value, dict) and value.get("Close"):
+                    _HOLE_FILLS.setdefault((ticker, _date.fromisoformat(day)), (0.0, value))
+            except Exception:
+                continue
+
+
+def _save_hole_fills() -> None:
+    try:
+        with _HOLE_LOCK:
+            data = {f"{ticker}|{day.isoformat()}": value
+                    for (ticker, day), (_at, value) in _HOLE_FILLS.items() if value}
+        _DISK_DIR.mkdir(parents=True, exist_ok=True)
+        _HOLE_FILE.write_text(json.dumps(data), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _daily_holes(frames: dict) -> dict:
+    """{종목: [빠진 장 날짜…]} — 그 종목 표가 걸친 기간 안의 최근 거래일만 본다."""
+    from datetime import timedelta
+
+    holes: dict = {}
+    for ticker, frame in (frames or {}).items():
+        try:
+            if frame is None or frame.empty:
+                continue
+            have = {stamp.date() for stamp in pd.DatetimeIndex(frame.index)}
+            first, day = min(have), max(have)
+        except Exception:
+            continue
+        missing, seen = [], 0
+        while seen < DAILY_HOLE_LOOKBACK and day >= first:
+            if us_market_calendar.is_trading_day(day):
+                seen += 1
+                if day not in have:
+                    missing.append(day)
+            day -= timedelta(days=1)
+        if missing:
+            holes[ticker] = missing
+    return holes
+
+
+def _fill_daily_holes(frames: dict) -> dict:
+    """빠진 장을 한 시간 봉으로 채운 일봉 묶음(위 설명). 실패하면 받은 그대로 준다."""
+    try:
+        holes = _daily_holes(frames)
+    except Exception:
+        return frames
+    if not holes:
+        return frames
+    _load_hole_fills()
+    now = time.time()
+    with _HOLE_LOCK:
+        need = sorted({
+            ticker for ticker, days in holes.items() for day in days
+            if (ticker, day) not in _HOLE_FILLS
+            or (_HOLE_FILLS[(ticker, day)][1] is None
+                and now - _HOLE_FILLS[(ticker, day)][0] > DAILY_HOLE_RETRY_SECONDS)
+        })
+    if need:
+        # 받는 기간은 **가장 오래 빠진 날까지**만 — 최근 닷새 안이면 5일치(한 달치의 1/4)다.
+        from datetime import timedelta
+
+        oldest = min(day for ticker in need for day in holes.get(ticker, []))
+        today = datetime.now(_NY).date()
+        sessions_back, walk = 0, today
+        while walk > oldest:
+            if us_market_calendar.is_trading_day(walk):
+                sessions_back += 1
+            walk -= timedelta(days=1)
+        hourly_period = "5d" if sessions_back <= 4 else "1mo"
+        try:
+            import yfinance as yf
+
+            with _DOWNLOAD_LOCK:
+                _configure_yfinance_cache(yf)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    raw = yf.download(
+                        need, period=hourly_period, interval="1h", group_by="ticker",
+                        auto_adjust=True, prepost=False, threads=True,
+                        progress=False, timeout=15, multi_level_index=True,
+                    )
+            hourly = _split_download(raw, tuple(need))
+        except Exception as exc:
+            _log.warning("jarvis3 daily hole fill failed tickers=%s: %s", len(need), exc)
+            hourly = {}
+        with _HOLE_LOCK:
+            for ticker in need:
+                bars = hourly.get(ticker)
+                days_of = None
+                if bars is not None and not bars.empty:
+                    index = pd.DatetimeIndex(bars.index)
+                    if index.tz is not None:
+                        index = index.tz_convert(_NY)
+                    days_of = [stamp.date() for stamp in index]
+                for day in holes.get(ticker, []):
+                    value = None
+                    if days_of is not None:
+                        picked = bars[[d == day for d in days_of]]
+                        closes = picked["Close"].dropna().astype(float) if "Close" in picked else []
+                        if len(closes):
+                            value = {"Close": float(closes.iloc[-1])}
+                            if "Open" in picked:
+                                opens = picked["Open"].dropna().astype(float)
+                                if len(opens):
+                                    value["Open"] = float(opens.iloc[0])
+                            if "High" in picked:
+                                value["High"] = float(picked["High"].dropna().astype(float).max())
+                            if "Low" in picked:
+                                value["Low"] = float(picked["Low"].dropna().astype(float).min())
+                            if "Volume" in picked:
+                                value["Volume"] = float(picked["Volume"].dropna().astype(float).sum())
+                    _HOLE_FILLS[(ticker, day)] = (now, value)
+        _save_hole_fills()
+    filled = {}
+    with _HOLE_LOCK:
+        fills = dict(_HOLE_FILLS)
+    for ticker, frame in frames.items():
+        rows = []
+        for day in holes.get(ticker, []):
+            value = (fills.get((ticker, day)) or (0, None))[1]
+            if not value:
+                continue
+            stamp = pd.Timestamp(day)
+            tz = pd.DatetimeIndex(frame.index).tz
+            if tz is not None:
+                stamp = stamp.tz_localize(tz)
+            row = {column: value.get(column, value["Close"] if column in ("Open", "High", "Low") else float("nan"))
+                   for column in frame.columns}
+            rows.append(pd.DataFrame([row], index=pd.DatetimeIndex([stamp])))
+        if rows:
+            try:
+                merged = pd.concat([frame] + rows)
+                merged = merged[~merged.index.duplicated(keep="first")].sort_index()
+                filled[ticker] = merged
+                continue
+            except Exception:
+                pass
+        filled[ticker] = frame
+    return filled
+
+
 def _download_cached(
     tickers,
     *,
@@ -559,6 +742,8 @@ def _download_cached(
     saved = _disk_read(disk_name, interval)
     if saved:
         frames = saved["frames"]
+        if interval == "1d":
+            frames = _fill_daily_holes(frames)       # 파일에 빠진 장이 있던 판도 메운다
         with _CACHE_LOCK:
             _CACHE[key] = {"at": now, "fetched_at": saved.get("fetched_at"),
                            "frames": _copy_frames(frames)}
@@ -589,6 +774,8 @@ def _download_cached(
         frames = _split_download(raw, unique)
         if not frames:
             raise RuntimeError("시세 응답이 비어 있습니다")
+        if interval == "1d":
+            frames = _fill_daily_holes(frames)       # 가운데 빠진 장(2026-09-24 · 위 설명)
         fetched_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
         with _CACHE_LOCK:
             _CACHE[key] = {"at": now, "fetched_at": fetched_at, "frames": _copy_frames(frames)}
