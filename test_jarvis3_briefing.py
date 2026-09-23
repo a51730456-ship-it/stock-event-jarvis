@@ -1048,6 +1048,25 @@ def test_starting_a_swipe_does_not_mark_the_whole_page():
     assert "j3-turning" not in _j3_source()
 
 
+def test_turn_layers_live_outside_body():
+    """넘기기용 칸(사진 세 장·빛·막)은 body 밖, html 바로 밑에 붙인다 (2026-09-23 실측).
+
+    화면이 바뀔 때 body:has(…) 규칙 때문에 폰이 body 밑을 통째로 다시 따진다. 사진이
+    body 안에 있으면 사진 칸 7,300개까지 같이 따져서 한 번에 7,564칸이었다 → 밖으로
+    옮기니 2,180칸. 붙이는 차례는 그대로여야 칸끼리 위아래가 안 바뀐다.
+    """
+    js = _swipe_js()
+    assert "(d.documentElement || d.body).appendChild(el);" in js
+    for name in ("snapHost", "blankEl", "h.host", "el"):
+        assert f"d.body.appendChild({name});" not in js
+    assert js.count("attachLayer(") == 5      # 만드는 곳 하나 + 붙이는 곳 넷
+    layers = js.split("function ensureLayers()", 1)[1].split("\n  }", 1)[0]
+    order = [layers.index(k) for k in ("blankLayer();", "ensureHost();", "fx.cast =",
+                                        "ensureCopy(FACE); fx.page", "ensureCopy(EDGE); fx.edge",
+                                        "fx.shield =")]
+    assert order == sorted(order)
+
+
 def test_the_page_picture_curls_toward_the_viewer_under_the_finger():
     """**화면 그림이** 앞으로 넘어오며 끝이 말린다 (2026-09-19 상하님 — "뒤로 넘기는 것
     보기 안 좋다. 앞으로 종이 말리듯이" · "그냥 부옇게 처리해 버리면 어떡하냐? 말리더라도

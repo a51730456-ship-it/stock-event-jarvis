@@ -12336,6 +12336,16 @@ _SWIPE_OUTER_JS = """
       return SNAP[sname];
     } catch (e) { return null; }
   }
+  // ── 넘기기용 칸(사진·빛·막)은 **body 밖, html 바로 밑에** 붙인다 (2026-09-23) ──
+  // 상하님 — "새 화면 그리는 시간 그것도 해결해라" · "넘기려면 1~2초 기다려야 한다".
+  // 이 앱의 「이 화면인가」 꾸밈 규칙(body:has(…))은 화면이 바뀔 때마다 폰이 body 밑을
+  // 통째로 다시 따지게 만든다. 사진 세 장(칸 7,300개)이 body 안에 있으면 그것까지 같이
+  // 따졌다. 실측(느린 폰 4배 · 시장분석 → 관심종목 · 온라인) — 한 번에 따진 칸
+  // 7,564개 → 2,180개, 모양 따지기 2.4초 → 0.6~1.2초. 넘기는 모양은 그대로다
+  // (반쯤 넘긴 화면을 찍어 견줌). 붙이는 차례는 그대로라 칸끼리 위아래도 그대로다.
+  function attachLayer(el) {
+    (d.documentElement || d.body).appendChild(el);
+  }
   function ensureHost() {
     if (snapHost && snapHost.isConnected) { return; }
     snapHost = d.createElement('div');
@@ -12351,7 +12361,7 @@ _SWIPE_OUTER_JS = """
       + 'overflow:hidden;contain:strict;will-change:transform,opacity';
     snapRoot = snapHost.attachShadow({ mode: 'open' });
     snapMounted = ''; snapMountedV = 0;
-    d.body.appendChild(snapHost);
+    attachLayer(snapHost);
   }
   // 사진 한 벌 — 규칙(style) 과 껍데기(.j3snap-html > .j3snap-body) 안의 화면 조각.
   function snapTree(snap) {
@@ -12396,7 +12406,7 @@ _SWIPE_OUTER_JS = """
     blankEl.setAttribute('aria-hidden', 'true');
     blankEl.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0;'
       + 'will-change:transform,opacity';
-    d.body.appendChild(blankEl);
+    attachLayer(blankEl);
     return blankEl;
   }
   function showUnder(sname) {
@@ -12446,7 +12456,7 @@ _SWIPE_OUTER_JS = """
       + 'overflow:hidden;contain:strict;will-change:transform,opacity';
     h.root = h.host.attachShadow({ mode: 'open' });
     h.name = ''; h.v = 0;
-    d.body.appendChild(h.host);
+    attachLayer(h.host);
   }
   // 지금 쪽 사진은 **모양이 바뀌었을 때만** 새로 깐다(force 는 화면을 굴렸을 때). 까는
   // 일은 무겁다 — 시장분석은 느린 폰 기준 한 번에 0.7초. 시세 숫자가 조금 다른 것은 넘기는
@@ -12484,7 +12494,7 @@ _SWIPE_OUTER_JS = """
     el.style.cssText = 'position:fixed;inset:0;pointer-events:none;display:none;'
       + 'background-repeat:no-repeat;will-change:transform,opacity;z-index:' + z + ';'
       + (extra || '');
-    d.body.appendChild(el);
+    attachLayer(el);
     return el;
   }
   // **쌓이는 차례가 곧 위아래다** — 한꺼번에, 이 차례로 만든다(조용할 때).
