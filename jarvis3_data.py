@@ -3220,6 +3220,28 @@ def _last_completed_us_date(frame, now=None):
     return last
 
 
+def _stocks_common_date(frames, wanted):
+    """종목 일봉 대부분(80%)이 가진 가장 늦은 날. wanted 보다 늦지 않다 (2026-09-23).
+
+    종목 대부분이 wanted 날 줄을 가지고 있으면 wanted 그대로다. 못 재면 wanted 그대로다.
+    """
+    lasts = []
+    for frame in (frames or {}).values():
+        try:
+            closes = frame["Close"].dropna()
+            if len(closes):
+                lasts.append(pd.DatetimeIndex(closes.index).date[-1])
+        except Exception:
+            continue
+    if not lasts or wanted is None:
+        return wanted
+    if sum(1 for day in lasts if day >= wanted) >= 0.8 * len(lasts):
+        return wanted
+    lasts.sort()
+    common = lasts[int(len(lasts) * 0.2)]
+    return min(common, wanted)
+
+
 def find_breakout_pullback_stocks(
     *,
     reuse_only: bool = False,
@@ -3273,6 +3295,15 @@ def find_breakout_pullback_stocks(
     completed = explicit_as_of or _last_completed_us_date(ixic)
     if completed is None:
         return {"ok": False, "error": "완료된 미국 거래일을 확인하지 못했습니다", "rows": []}
+    # ── **종목 일봉이 그날 줄을 아직 안 실었으면 종목들이 가진 날로 잰다** ─────────
+    # (2026-09-23 상하님 — "오늘 아침에 종목 나왔는데 지금은 또 안 나온다")
+    # 실측(한국 12:20) — 나스닥 지수 일봉은 09-22 까지 왔는데 **종목 일봉은 09-21
+    # 까지만** 왔다(야후가 그날 줄을 넣었다 뺐다 한다). 그런데 09-22 기준으로 재니
+    # 명부 208종목 중 **1종목만** 자료가 맞아 나머지가 전부 「자료가 모자랍니다」가
+    # 됐다. 이럴 때는 종목 대부분(80%)이 가진 가장 늦은 날로 잰다. 조건·배점은
+    # 그대로다 — **재는 날만** 맞춘다. 종목이 그날 줄을 받으면 저절로 그날로 잰다.
+    if explicit_as_of is None:
+        completed = _stocks_common_date(daily, completed)
 
     # 현재 저장소에는 자산유형이 붙은 Nasdaq 전체 명부가 없다. 조용히 가장하지 않고
     # 실제 사용한 연구 200명부와 요청값을 둘 다 결과에 남긴다.
