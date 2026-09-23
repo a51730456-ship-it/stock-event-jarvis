@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092330
+MODULE_REVISION = 2026092340
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -5808,7 +5808,10 @@ SEMI_INDUSTRIES = ("semiconductors", "semiconductor-equipment-materials")
 SECTOR_WEIGHT_TTL = 6 * 3600.0
 SECTOR_MAP_TTL = 300.0
 _SECTOR_STATE: dict = {"at": 0.0, "value": None, "running": False}
-_SECTOR_WEIGHTS: dict = {"at": 0.0, "value": {}}
+# raw = 야후가 준 업종 몫 그대로(반도체를 떼기 전) · semi = 기술 안 반도체 몫 ·
+# complete = 열한 업종과 반도체 몫을 다 받았나. 다 못 받은 판은 6시간이 아니라
+# 5분 뒤에 다시 받는다(_sector_weights 설명).
+_SECTOR_WEIGHTS: dict = {"at": 0.0, "value": {}, "raw": {}, "semi": None, "complete": False}
 _SECTOR_LOCK = threading.Lock()
 
 
@@ -5818,11 +5821,23 @@ def _sector_weights() -> dict:
     **못 받으면 있던 값을 그대로 쓴다.** 지우고 다시 받게 하면, 야후가 한 번
     거절한 날 화면에서 칸 크기가 통째로 사라진다(2026-08-26에 뉴스에서 같은
     실수를 했다 — CLAUDE.md 0-0 두 번째).
+
+    **몇 개만 빠져도 다시 받는다** (2026-09-23 밤 상하님 — "반도체 업종 넣기로 했지
+    않았냐?"). 온라인에서 한꺼번에 받은 첫 여섯(기술·금융·의료·소비재·통신·산업)이
+    전부 빠지고 뒤 다섯만 왔다 — 노트북에서는 열한 개가 다 온다. 빠진 여섯은 남은
+    몫을 똑같이 나눠 가져 지도에서 같은 크기(14.0)로 섰고, 기술 몫이 없으니 반도체도
+    못 떼어 반도체 칸이 사라졌다. 그 반쪽짜리를 6시간 동안 그대로 들고 있었다.
+    그래서 — 빠진 업종만 하나씩 다시 받고, 그래도 없으면 전에 받아 둔 값을 쓰고,
+    다 못 받은 판은 5분 뒤(지도 새로 받는 박자)에 다시 받는다. 이 일은 지도를 뒤에서
+    받는 일꾼이 하므로 화면은 기다리지 않는다.
     """
     now = time.time()
     with _SECTOR_LOCK:
-        if _SECTOR_WEIGHTS["value"] and now - _SECTOR_WEIGHTS["at"] < SECTOR_WEIGHT_TTL:
+        ttl = SECTOR_WEIGHT_TTL if _SECTOR_WEIGHTS["complete"] else SECTOR_MAP_TTL
+        if _SECTOR_WEIGHTS["value"] and now - _SECTOR_WEIGHTS["at"] < ttl:
             return dict(_SECTOR_WEIGHTS["value"])
+        old_raw = dict(_SECTOR_WEIGHTS["raw"])
+        old_semi = _SECTOR_WEIGHTS["semi"]
     import yfinance as yf
 
     def _one(key: str):
@@ -5832,26 +5847,39 @@ def _sector_weights() -> dict:
         except Exception:
             return key, None
 
-    fetched = {}
+    keys = [k for k, _n, _e in US_SECTOR_MAP if k != SEMI_SECTOR_KEY]
+    raw = {}
     try:
         with ThreadPoolExecutor(max_workers=6) as pool:
-            keys = [k for k, _n, _e in US_SECTOR_MAP if k != SEMI_SECTOR_KEY]
             for key, weight in pool.map(_one, keys):
                 if weight and weight > 0:
-                    fetched[key] = weight
+                    raw[key] = weight
     except Exception:
-        fetched = {}
+        raw = {}
+    # 빠진 것만 **하나씩** 다시 받는다 — 한꺼번에 받을 때만 빠지고 따로 받으면 온다.
+    for key in [k for k in keys if k not in raw]:
+        _key, weight = _one(key)
+        if weight and weight > 0:
+            raw[key] = weight
+    semi = _semi_share_of_tech() if raw.get("technology") else None
+    complete = all(key in raw for key in keys) and bool(semi)
+    # 그래도 빠진 것은 전에 받아 둔 값으로 채운다(있던 것을 지우지 않는다).
+    for key in keys:
+        if key not in raw and old_raw.get(key):
+            raw[key] = old_raw[key]
+    if not semi:
+        semi = old_semi
     # 반도체 칸 몫을 **기술 몫에서 떼어 낸다**. 못 받으면 떼지 않는다 —
     # 그때는 지도가 예전처럼 열한 칸이 된다(있던 것을 지우지 않는다).
-    if fetched.get("technology"):
-        share = _semi_share_of_tech()
-        if share:
-            tech = fetched["technology"]
-            fetched[SEMI_SECTOR_KEY] = tech * share
-            fetched["technology"] = tech * (1.0 - share)
+    fetched = dict(raw)
+    if fetched.get("technology") and semi:
+        tech = fetched["technology"]
+        fetched[SEMI_SECTOR_KEY] = tech * semi
+        fetched["technology"] = tech * (1.0 - semi)
     with _SECTOR_LOCK:
         if fetched:
-            _SECTOR_WEIGHTS.update({"at": now, "value": fetched})
+            _SECTOR_WEIGHTS.update({"at": now, "value": fetched, "raw": raw,
+                                    "semi": semi, "complete": complete})
         return dict(_SECTOR_WEIGHTS["value"])
 
 

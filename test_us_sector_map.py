@@ -182,3 +182,32 @@ def test_closing_the_detail_also_closes_the_search_result():
     detail = page[page.index("def _render_stock_detail("):]
     detail = detail[:detail.index(chr(10) + "def _render_theme_panel") if "def _render_theme_panel" in detail else len(detail)]
     assert detail.count("on_close=on_close") >= 3, "닫는 자리 가운데 빠진 곳이 있다"
+
+
+def test_the_semiconductor_note_only_comes_with_the_semiconductor_box():
+    """「반도체는 기술에서 떼어 냈습니다」는 **반도체 칸이 있을 때만** 적는다
+    (2026-09-23 밤 상하님 캡처 — 칸 없이 이 말만 남아 있었다)."""
+    source = PAGE.read_text(encoding="utf-8")
+    start = source.index("def _sector_map_cell(")
+    body = source[start:source.index("def _market_phase_cell(")]
+    namespace = _page_namespace()
+
+    class _Data:
+        SEMI_SECTOR_KEY = "semiconductors"
+        rows: list = []
+
+        @classmethod
+        def get_us_sector_map(cls):
+            return {"ok": True, "rows": [dict(row) for row in cls.rows], "breadth": {}}
+
+    namespace.update({"j3data": _Data, "_pct": lambda value: f"{value:+.2f}%"})
+    exec(body, namespace)
+    tech = {"key": "technology", "name": "기술", "etf": "XLK", "weight": 0.19,
+            "change_pct": 0.5, "last_session_change_pct": 0.5}
+    semi = {"key": "semiconductors", "name": "반도체", "etf": "SOXX", "weight": 0.135,
+            "change_pct": 1.0, "last_session_change_pct": 1.0}
+    _Data.rows = [tech]
+    assert "떼어 냈습니다" not in namespace["_sector_map_cell"]("장 마감")
+    _Data.rows = [tech, semi]
+    html = namespace["_sector_map_cell"]("장 마감")
+    assert "떼어 냈습니다" in html and "반도체" in html

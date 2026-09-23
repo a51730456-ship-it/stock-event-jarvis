@@ -2266,6 +2266,82 @@ class SectorMapShowsTodaysSessionTests(unittest.TestCase):
             self.assertAlmostEqual(10.0, row["last_session_change_pct"], places=1)
 
 
+class SectorWeightRetryTests(unittest.TestCase):
+    """업종 몫이 **몇 개만 빠져도** 반도체 칸이 사라지지 않게 (2026-09-23 밤 상하님 —
+    "반도체 업종 넣기로 했지 않았냐?").
+
+    온라인에서 한꺼번에 받은 첫 여섯이 전부 빠져, 여섯 칸이 같은 크기로 서고 기술 몫이
+    없어 반도체 칸이 사라졌다. 그 반쪽짜리를 6시간 들고 있었다.
+    """
+
+    WEIGHTS = {"technology": 0.32, "financial-services": 0.13, "healthcare": 0.09,
+               "consumer-cyclical": 0.09, "communication-services": 0.09, "industrials": 0.10,
+               "consumer-defensive": 0.04, "energy": 0.05, "utilities": 0.02,
+               "real-estate": 0.02, "basic-materials": 0.03}
+    SEMI = {"semiconductors": 0.33, "semiconductor-equipment-materials": 0.08}
+
+    def setUp(self):
+        self._saved = dict(j3._SECTOR_WEIGHTS)
+        j3._SECTOR_WEIGHTS.update({"at": 0.0, "value": {}, "raw": {}, "semi": None, "complete": False})
+
+    def tearDown(self):
+        j3._SECTOR_WEIGHTS.clear()
+        j3._SECTOR_WEIGHTS.update(self._saved)
+
+    def _fake_yahoo(self, fail_first=(), always_fail=()):
+        calls = {}
+        weights, semi = self.WEIGHTS, self.SEMI
+
+        class _Sector:
+            def __init__(self, key):
+                calls[key] = calls.get(key, 0) + 1
+                if key in always_fail or (key in fail_first and calls[key] == 1):
+                    raise RuntimeError("야후가 거절")
+                self.overview = {"market_weight": weights[key]}
+
+        class _Industry:
+            def __init__(self, key):
+                self.overview = {"market_weight": semi[key]}
+
+        return patch.multiple("yfinance", Sector=_Sector, Industry=_Industry), calls
+
+    def test_the_missed_sectors_are_fetched_again_one_by_one(self):
+        first_six = ("technology", "financial-services", "healthcare",
+                     "consumer-cyclical", "communication-services", "industrials")
+        fake, calls = self._fake_yahoo(fail_first=first_six)
+        with fake:
+            value = j3._sector_weights()
+        self.assertIn(j3.SEMI_SECTOR_KEY, value, "반도체 칸 몫이 없다")
+        self.assertAlmostEqual(0.32 * 0.41, value[j3.SEMI_SECTOR_KEY], places=6)
+        self.assertAlmostEqual(0.32 * 0.59, value["technology"], places=6)
+        self.assertAlmostEqual(0.13, value["financial-services"], places=6)
+        self.assertEqual(2, calls["technology"], "빠진 업종을 다시 받지 않았다")
+        self.assertTrue(j3._SECTOR_WEIGHTS["complete"])
+
+    def test_a_still_missing_sector_keeps_the_old_share_and_retries_soon(self):
+        fake, _calls = self._fake_yahoo()
+        with fake:
+            j3._sector_weights()
+        before = dict(j3._SECTOR_WEIGHTS["value"])
+        # 6시간이 지나 다시 받는데 기술만 끝내 못 받는다.
+        j3._SECTOR_WEIGHTS["at"] = time.time() - j3.SECTOR_WEIGHT_TTL - 1
+        fake, _calls = self._fake_yahoo(always_fail=("technology",))
+        with fake:
+            value = j3._sector_weights()
+        self.assertAlmostEqual(before["technology"], value["technology"], places=6,
+                               msg="못 받은 업종의 몫을 지웠다")
+        self.assertAlmostEqual(before[j3.SEMI_SECTOR_KEY], value[j3.SEMI_SECTOR_KEY], places=6,
+                               msg="반도체를 두 번 떼었거나 칸을 지웠다")
+        self.assertFalse(j3._SECTOR_WEIGHTS["complete"])
+        # 다 못 받은 판은 5분 뒤에 다시 받는다 — 6시간 들고 있지 않는다.
+        j3._SECTOR_WEIGHTS["at"] = time.time() - j3.SECTOR_MAP_TTL - 1
+        fake, calls = self._fake_yahoo()
+        with fake:
+            j3._sector_weights()
+        self.assertIn("technology", calls, "5분이 지났는데 다시 받지 않는다")
+        self.assertTrue(j3._SECTOR_WEIGHTS["complete"])
+
+
 class EarlyCloseClockTests(unittest.TestCase):
     """**일찍 닫는 날**에도 장이 끝난 줄 알아야 한다 (2026-09-12 상하님 지시).
 
