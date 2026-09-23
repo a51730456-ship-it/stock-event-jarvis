@@ -1,0 +1,9 @@
+# Historical study files record SHA-256 of their exact local bytes. Do not
+# normalize CRLF to LF when these artifacts are committed on Windows.
+/jarvis8*.py -text whitespace=cr-at-eol
+/pages/8_*.py -text whitespace=cr-at-eol
+/research/audit_jarvis8*.py -text whitespace=cr-at-eol
+/research/independent_*.py -text whitespace=cr-at-eol
+/research/jarvis8_*.py -text whitespace=cr-at-eol
+/data/jarvis8/*.json -text whitespace=cr-at-eol
+/output/independent_research/** -text whitespace=cr-at-eol

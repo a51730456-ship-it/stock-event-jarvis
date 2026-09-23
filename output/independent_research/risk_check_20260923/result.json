@@ -1,0 +1,2399 @@
+{
+  "metadata": {
+    "script_sha256": "a48acead85e0df4af39395af814a3ff51e996328a50adeeb9e1e57c33ab1d6af",
+    "original_result_sha256": "1de9b3085aefab228ed5ddfcca27ab42a751c5cb1240a55c107b4d8a83a020ad",
+    "selections_sha256": "15379389ae0e157d3605467b750d3ec5a2e20e8ca5cd1b47412e017b40abd7c2",
+    "policy": "Research only: reduce exposure to test whether momentum's edge survives.\n\nFollow-up chosen AFTER the exploratory 20-session result: not out-of-sample.\nNo reranking, optimized weights or trading application changes. Compare 5% and\n10% per stock (25%/50% max). Same timing/exposure QQQ plus original 50% QQQ.\nAll three pre-existing grids and .2/.5/1% cost assumptions are reported.\n",
+    "limits": [
+      "Already-seen history and current survivors: not OOS",
+      "Single provider adjusted OHLCV; original price files retained; no independent full-series validation",
+      "Adjusted close times volume is a proxy, not point-in-time dollar volume",
+      "252 trading-day closing high differs from exact 52-week price high and original paper",
+      "No delisted roster, spread/impact, cash interest, intraday exits or intraday drawdown",
+      "Offsets overlap across experiments and are not independent confirmations",
+      "No positive finding alone justifies application implementation",
+      "Half allocation chosen after initial result, not risk-matched optimization",
+      "Recorded CAGR and drawdown are not predictions; no probability of future success estimated"
+    ]
+  },
+  "summary": [
+    {
+      "offset": 0,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 63.725490196078425,
+      "cagr_pct": 2.3223653259286214,
+      "mdd_pct": -9.88733055386193,
+      "without_best3_cagr_pct": 1.4461576732569092
+    },
+    {
+      "offset": 0,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 60.78431372549019,
+      "cagr_pct": 9.720028089563758,
+      "mdd_pct": -14.053582315400659,
+      "without_best3_cagr_pct": 5.638128254992081
+    },
+    {
+      "offset": 0,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 67.64705882352942,
+      "cagr_pct": 3.5835086641383906,
+      "mdd_pct": -7.996738682946081,
+      "without_best3_cagr_pct": 2.6401998871738774
+    },
+    {
+      "offset": 0,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 62.745098039215684,
+      "cagr_pct": 1.5467219257736087,
+      "mdd_pct": -10.275062007645342,
+      "without_best3_cagr_pct": 0.7014625967119104
+    },
+    {
+      "offset": 0,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 60.78431372549019,
+      "cagr_pct": 8.872565678914945,
+      "mdd_pct": -14.352167312639208,
+      "without_best3_cagr_pct": 4.853842349256965
+    },
+    {
+      "offset": 0,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 63.725490196078425,
+      "cagr_pct": 2.7954693000938446,
+      "mdd_pct": -8.054968947112629,
+      "without_best3_cagr_pct": 1.884049421106626
+    },
+    {
+      "offset": 0,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 57.84313725490197,
+      "cagr_pct": 0.27081440286573777,
+      "mdd_pct": -11.94365373212044,
+      "without_best3_cagr_pct": -0.5239261641530768
+    },
+    {
+      "offset": 0,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 58.82352941176471,
+      "cagr_pct": 7.4787480597785505,
+      "mdd_pct": -14.846006246403586,
+      "without_best3_cagr_pct": 3.5634300703343724
+    },
+    {
+      "offset": 0,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 59.80392156862745,
+      "cagr_pct": 1.4992138420723666,
+      "mdd_pct": -8.151642794111913,
+      "without_best3_cagr_pct": 0.6398503379452469
+    },
+    {
+      "offset": 0,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 63.725490196078425,
+      "cagr_pct": 4.509121258252868,
+      "mdd_pct": -19.350440598225617,
+      "without_best3_cagr_pct": 2.752043200780152
+    },
+    {
+      "offset": 0,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 60.78431372549019,
+      "cagr_pct": 18.90388464446442,
+      "mdd_pct": -26.292726306966074,
+      "without_best3_cagr_pct": 10.734710323133424
+    },
+    {
+      "offset": 0,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 67.64705882352942,
+      "cagr_pct": 7.107073327181768,
+      "mdd_pct": -15.61632623586947,
+      "without_best3_cagr_pct": 5.19525729046888
+    },
+    {
+      "offset": 0,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 62.745098039215684,
+      "cagr_pct": 2.934067016547104,
+      "mdd_pct": -19.788387393901232,
+      "without_best3_cagr_pct": 1.2510028967854803
+    },
+    {
+      "offset": 0,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 60.78431372549019,
+      "cagr_pct": 17.092786586129982,
+      "mdd_pct": -26.816571738350568,
+      "without_best3_cagr_pct": 9.10682100209932
+    },
+    {
+      "offset": 0,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 63.725490196078425,
+      "cagr_pct": 5.488958320058579,
+      "mdd_pct": -15.72921111128407,
+      "without_best3_cagr_pct": 3.6548380698184335
+    },
+    {
+      "offset": 0,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 57.84313725490197,
+      "cagr_pct": 0.36658142756180734,
+      "mdd_pct": -22.81123172651477,
+      "without_best3_cagr_pct": -1.1973532071251514
+    },
+    {
+      "offset": 0,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 58.82352941176471,
+      "cagr_pct": 14.141084455664998,
+      "mdd_pct": -27.679617652938603,
+      "without_best3_cagr_pct": 6.45184565102821
+    },
+    {
+      "offset": 0,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 59.80392156862745,
+      "cagr_pct": 2.851397130729816,
+      "mdd_pct": -15.916629895008638,
+      "without_best3_cagr_pct": 1.1423579546093743
+    },
+    {
+      "offset": 7,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 72.54901960784314,
+      "cagr_pct": 4.756209788914001,
+      "mdd_pct": -6.795895116694862,
+      "without_best3_cagr_pct": 3.138339930608236
+    },
+    {
+      "offset": 7,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 69.6078431372549,
+      "cagr_pct": 11.632605775152815,
+      "mdd_pct": -14.34920432609359,
+      "without_best3_cagr_pct": 8.154618801264334
+    },
+    {
+      "offset": 7,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 72.54901960784314,
+      "cagr_pct": 3.5569190077195056,
+      "mdd_pct": -6.821570868728899,
+      "without_best3_cagr_pct": 2.7369103337993916
+    },
+    {
+      "offset": 7,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 68.62745098039215,
+      "cagr_pct": 3.9560540470360728,
+      "mdd_pct": -6.851079786658132,
+      "without_best3_cagr_pct": 2.3767997586231493
+    },
+    {
+      "offset": 7,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 66.66666666666666,
+      "cagr_pct": 10.765561287212467,
+      "mdd_pct": -14.912774533852458,
+      "without_best3_cagr_pct": 7.345710436603148
+    },
+    {
+      "offset": 7,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 68.62745098039215,
+      "cagr_pct": 2.7684919010720455,
+      "mdd_pct": -6.877091918957046,
+      "without_best3_cagr_pct": 1.9792148292136824
+    },
+    {
+      "offset": 7,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 64.70588235294117,
+      "cagr_pct": 2.639917152181126,
+      "mdd_pct": -6.9426887182890145,
+      "without_best3_cagr_pct": 1.12375838256491
+    },
+    {
+      "offset": 7,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 64.70588235294117,
+      "cagr_pct": 9.339610953196464,
+      "mdd_pct": -15.841106698402474,
+      "without_best3_cagr_pct": 6.014871683703649
+    },
+    {
+      "offset": 7,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 63.725490196078425,
+      "cagr_pct": 1.4716087800881184,
+      "mdd_pct": -6.969259644069037,
+      "without_best3_cagr_pct": 0.7324867298973414
+    },
+    {
+      "offset": 7,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 72.54901960784314,
+      "cagr_pct": 9.47684581585544,
+      "mdd_pct": -13.518177920894525,
+      "without_best3_cagr_pct": 6.212554573752183
+    },
+    {
+      "offset": 7,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 69.6078431372549,
+      "cagr_pct": 22.884614005924586,
+      "mdd_pct": -27.944511310969055,
+      "without_best3_cagr_pct": 15.704351230387669
+    },
+    {
+      "offset": 7,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 102,
+      "basket_win_pct": 72.54901960784314,
+      "cagr_pct": 7.066998922068479,
+      "mdd_pct": -13.52953472289572,
+      "without_best3_cagr_pct": 5.399987532306749
+    },
+    {
+      "offset": 7,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 68.62745098039215,
+      "cagr_pct": 7.818263206228249,
+      "mdd_pct": -13.62838172049814,
+      "without_best3_cagr_pct": 4.654500921905913
+    },
+    {
+      "offset": 7,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 66.66666666666666,
+      "cagr_pct": 21.006083831486144,
+      "mdd_pct": -28.890412601157443,
+      "without_best3_cagr_pct": 13.99562831425072
+    },
+    {
+      "offset": 7,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 102,
+      "basket_win_pct": 68.62745098039215,
+      "cagr_pct": 5.44821178690329,
+      "mdd_pct": -13.6402839699731,
+      "without_best3_cagr_pct": 3.855012112648626
+    },
+    {
+      "offset": 7,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 64.70588235294117,
+      "cagr_pct": 5.114882569509649,
+      "mdd_pct": -13.811325316048439,
+      "without_best3_cagr_pct": 2.113341802637758
+    },
+    {
+      "offset": 7,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 64.70588235294117,
+      "cagr_pct": 17.944688425282717,
+      "mdd_pct": -30.436400429750133,
+      "without_best3_cagr_pct": 11.209043915010586
+    },
+    {
+      "offset": 7,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 102,
+      "basket_win_pct": 63.725490196078425,
+      "cagr_pct": 2.8095978077611994,
+      "mdd_pct": -13.824134163788159,
+      "without_best3_cagr_pct": 1.3351499856358862
+    },
+    {
+      "offset": 14,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 100,
+      "basket_win_pct": 66.0,
+      "cagr_pct": 4.768785426060651,
+      "mdd_pct": -10.1920460045135,
+      "without_best3_cagr_pct": 3.3858482367471687
+    },
+    {
+      "offset": 14,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 100,
+      "basket_win_pct": 61.0,
+      "cagr_pct": 7.100753244097691,
+      "mdd_pct": -17.897542858979932,
+      "without_best3_cagr_pct": 4.319205725571251
+    },
+    {
+      "offset": 14,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 0.2,
+      "active": 100,
+      "basket_win_pct": 65.0,
+      "cagr_pct": 3.1417130285199324,
+      "mdd_pct": -6.773230125855012,
+      "without_best3_cagr_pct": 2.412658339771645
+    },
+    {
+      "offset": 14,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 100,
+      "basket_win_pct": 62.0,
+      "cagr_pct": 3.9778639619911793,
+      "mdd_pct": -10.307444893341122,
+      "without_best3_cagr_pct": 2.63137914978111
+    },
+    {
+      "offset": 14,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 100,
+      "basket_win_pct": 61.0,
+      "cagr_pct": 6.287973608165753,
+      "mdd_pct": -18.210505706996326,
+      "without_best3_cagr_pct": 3.5566204998173534
+    },
+    {
+      "offset": 14,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 0.5,
+      "active": 100,
+      "basket_win_pct": 63.0,
+      "cagr_pct": 2.366526648722589,
+      "mdd_pct": -6.835991173579026,
+      "without_best3_cagr_pct": 1.6673534578312443
+    },
+    {
+      "offset": 14,
+      "method": "high",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 100,
+      "basket_win_pct": 56.99999999999999,
+      "cagr_pct": 2.676760150657853,
+      "mdd_pct": -10.498855159208798,
+      "without_best3_cagr_pct": 1.3898277151599192
+    },
+    {
+      "offset": 14,
+      "method": "momentum",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 100,
+      "basket_win_pct": 59.0,
+      "cagr_pct": 4.950966556913805,
+      "mdd_pct": -18.72792911244391,
+      "without_best3_cagr_pct": 2.3017243267821064
+    },
+    {
+      "offset": 14,
+      "method": "qqq",
+      "weight": 0.05,
+      "cost": 1.0,
+      "active": 100,
+      "basket_win_pct": 62.0,
+      "cagr_pct": 1.0912576583581801,
+      "mdd_pct": -6.940189770921812,
+      "without_best3_cagr_pct": 0.4408538512155058
+    },
+    {
+      "offset": 14,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 100,
+      "basket_win_pct": 66.0,
+      "cagr_pct": 9.458231548919581,
+      "mdd_pct": -19.911879466426086,
+      "without_best3_cagr_pct": 6.65000368291373
+    },
+    {
+      "offset": 14,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 100,
+      "basket_win_pct": 61.0,
+      "cagr_pct": 13.433457851137497,
+      "mdd_pct": -32.502196198713015,
+      "without_best3_cagr_pct": 7.849221832228448
+    },
+    {
+      "offset": 14,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 0.2,
+      "active": 100,
+      "basket_win_pct": 65.0,
+      "cagr_pct": 6.22345121688066,
+      "mdd_pct": -13.438468318920371,
+      "without_best3_cagr_pct": 4.744351053785123
+    },
+    {
+      "offset": 14,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 100,
+      "basket_win_pct": 62.0,
+      "cagr_pct": 7.819421322659537,
+      "mdd_pct": -20.12710182147567,
+      "without_best3_cagr_pct": 5.104309551806252
+    },
+    {
+      "offset": 14,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 100,
+      "basket_win_pct": 61.0,
+      "cagr_pct": 11.731923505363895,
+      "mdd_pct": -33.02797364631371,
+      "without_best3_cagr_pct": 6.286535131811677
+    },
+    {
+      "offset": 14,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 0.5,
+      "active": 100,
+      "basket_win_pct": 63.0,
+      "cagr_pct": 4.637371327695505,
+      "mdd_pct": -13.558824315920626,
+      "without_best3_cagr_pct": 3.2287892540822094
+    },
+    {
+      "offset": 14,
+      "method": "high",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 100,
+      "basket_win_pct": 56.99999999999999,
+      "cagr_pct": 5.147625213954421,
+      "mdd_pct": -20.483756761544115,
+      "without_best3_cagr_pct": 2.5827064404081446
+    },
+    {
+      "offset": 14,
+      "method": "momentum",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 100,
+      "basket_win_pct": 59.0,
+      "cagr_pct": 8.95794433169186,
+      "mdd_pct": -34.276954238434165,
+      "without_best3_cagr_pct": 3.7371853881214445
+    },
+    {
+      "offset": 14,
+      "method": "qqq",
+      "weight": 0.1,
+      "cost": 1.0,
+      "active": 100,
+      "basket_win_pct": 62.0,
+      "cagr_pct": 2.0514181210850024,
+      "mdd_pct": -13.758653876565297,
+      "without_best3_cagr_pct": 0.756273141346786
+    }
+  ],
+  "yearly_pairs": [
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2016,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": 0.9267300827517287,
+      "high_minus_qqq_mean_pp": 0.058511003261326903
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.8455365686248303,
+      "high_minus_qqq_mean_pp": 0.02679476908630703
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2018,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.09403723957003386,
+      "high_minus_qqq_mean_pp": 0.05318859249689192
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.05764434552981523,
+      "high_minus_qqq_mean_pp": 0.012309424368633914
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2020,
+      "cycles": 13,
+      "momentum_minus_qqq_mean_pp": 1.918411542602097,
+      "high_minus_qqq_mean_pp": -0.2648645115161847
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.16963559511184992,
+      "high_minus_qqq_mean_pp": 0.10313524990244276
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2022,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.2545929527873833,
+      "high_minus_qqq_mean_pp": 0.2597734514048302
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.15027179176418756,
+      "high_minus_qqq_mean_pp": -0.358241838672547
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.9319651229526419,
+      "high_minus_qqq_mean_pp": -0.7170596396005157
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.585835181430473,
+      "high_minus_qqq_mean_pp": 0.1444426328713222
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -1.2027298592968472,
+      "high_minus_qqq_mean_pp": -0.4732791332527956
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2016,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": 0.9239540496131039,
+      "high_minus_qqq_mean_pp": 0.058335732719183575
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.8430037518121353,
+      "high_minus_qqq_mean_pp": 0.02671450497455652
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2018,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.09375554968192666,
+      "high_minus_qqq_mean_pp": 0.05302926531186076
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.05747167107322726,
+      "high_minus_qqq_mean_pp": 0.012272551312934402
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2020,
+      "cycles": 13,
+      "momentum_minus_qqq_mean_pp": 1.9126649135512952,
+      "high_minus_qqq_mean_pp": -0.26407110610624085
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.16912744927490006,
+      "high_minus_qqq_mean_pp": 0.10282630679504985
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2022,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.25383031597764644,
+      "high_minus_qqq_mean_pp": 0.2589952963378303
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.1498216504754735,
+      "high_minus_qqq_mean_pp": -0.3571687201515045
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.9291734081766571,
+      "high_minus_qqq_mean_pp": -0.7149116772553246
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.581084789597955,
+      "high_minus_qqq_mean_pp": 0.14400995291095434
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -1.1991270649035664,
+      "high_minus_qqq_mean_pp": -0.4718614188803229
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2016,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": 0.9193457425289066,
+      "high_minus_qqq_mean_pp": 0.058044777805945004
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.8387991918958635,
+      "high_minus_qqq_mean_pp": 0.026581263886897116
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2018,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.0932879351247296,
+      "high_minus_qqq_mean_pp": 0.05276477690022909
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.05718502574810954,
+      "high_minus_qqq_mean_pp": 0.0122113408174677
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2020,
+      "cycles": 13,
+      "momentum_minus_qqq_mean_pp": 1.9031253187256643,
+      "high_minus_qqq_mean_pp": -0.26275402681046073
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.16828391033165127,
+      "high_minus_qqq_mean_pp": 0.10231345098988265
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2022,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.25256431357872616,
+      "high_minus_qqq_mean_pp": 0.2577035331171515
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.14907440100615232,
+      "high_minus_qqq_mean_pp": -0.3553873078139471
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.924539069054345,
+      "high_minus_qqq_mean_pp": -0.7113459885197773
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.5731989815973648,
+      "high_minus_qqq_mean_pp": 0.14329168982582519
+    },
+    {
+      "offset": 0,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -1.1931463067150427,
+      "high_minus_qqq_mean_pp": -0.46950796599995537
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2016,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": 1.8534601655034766,
+      "high_minus_qqq_mean_pp": 0.11702200652266015
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.691073137249661,
+      "high_minus_qqq_mean_pp": 0.05358953817261869
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2018,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.18807447914006692,
+      "high_minus_qqq_mean_pp": 0.10637718499378689
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.11528869105963217,
+      "high_minus_qqq_mean_pp": 0.024618848737270566
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2020,
+      "cycles": 13,
+      "momentum_minus_qqq_mean_pp": 3.8368230852041907,
+      "high_minus_qqq_mean_pp": -0.5297290230323779
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.33927119022369423,
+      "high_minus_qqq_mean_pp": 0.20627049980489195
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2022,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.5091859055747695,
+      "high_minus_qqq_mean_pp": 0.5195469028096614
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.3005435835283721,
+      "high_minus_qqq_mean_pp": -0.7164836773450866
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.8639302459052869,
+      "high_minus_qqq_mean_pp": -1.434119279201031
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 3.1716703628609433,
+      "high_minus_qqq_mean_pp": 0.288885265742649
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -2.405459718593694,
+      "high_minus_qqq_mean_pp": -0.9465582665055878
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2016,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": 1.8479080992262127,
+      "high_minus_qqq_mean_pp": 0.11667146543836873
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.6860075036242723,
+      "high_minus_qqq_mean_pp": 0.05342900994912044
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2018,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.18751109936385751,
+      "high_minus_qqq_mean_pp": 0.10605853062372249
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.11494334214645074,
+      "high_minus_qqq_mean_pp": 0.024545102625862365
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2020,
+      "cycles": 13,
+      "momentum_minus_qqq_mean_pp": 3.825329827102585,
+      "high_minus_qqq_mean_pp": -0.5281422122124799
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.33825489854980845,
+      "high_minus_qqq_mean_pp": 0.2056526135900932
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2022,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.5076606319552919,
+      "high_minus_qqq_mean_pp": 0.5179905926756596
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.2996433009509479,
+      "high_minus_qqq_mean_pp": -0.7143374403030229
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.8583468163533194,
+      "high_minus_qqq_mean_pp": -1.429823354510649
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 3.162169579195903,
+      "high_minus_qqq_mean_pp": 0.2880199058219105
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -2.398254129807135,
+      "high_minus_qqq_mean_pp": -0.9437228377606315
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2016,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": 1.8386914850578229,
+      "high_minus_qqq_mean_pp": 0.11608955561187255
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.677598383791721,
+      "high_minus_qqq_mean_pp": 0.053162527773781276
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2018,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.18657587024946246,
+      "high_minus_qqq_mean_pp": 0.10552955380045112
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.11437005149620798,
+      "high_minus_qqq_mean_pp": 0.02442268163494188
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2020,
+      "cycles": 13,
+      "momentum_minus_qqq_mean_pp": 3.80625063745133,
+      "high_minus_qqq_mean_pp": -0.5255080536209122
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.3365678206633002,
+      "high_minus_qqq_mean_pp": 0.20462690197977093
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2022,
+      "cycles": 11,
+      "momentum_minus_qqq_mean_pp": 0.5051286271574493,
+      "high_minus_qqq_mean_pp": 0.5154070662343039
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.29814880201230104,
+      "high_minus_qqq_mean_pp": -0.7107746156278859
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.8490781381086858,
+      "high_minus_qqq_mean_pp": -1.422691977039553
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 3.146397963194728,
+      "high_minus_qqq_mean_pp": 0.28658337965164854
+    },
+    {
+      "offset": 0,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -2.3862926134300873,
+      "high_minus_qqq_mean_pp": -0.9390159319999106
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 1.3354537493543521,
+      "high_minus_qqq_mean_pp": -0.4153473998733892
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.3202337746732055,
+      "high_minus_qqq_mean_pp": -0.04917021388568069
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.11645652198602752,
+      "high_minus_qqq_mean_pp": 0.5333930917007891
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.3266454131751306,
+      "high_minus_qqq_mean_pp": -0.1451359288356611
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.7192099814341497,
+      "high_minus_qqq_mean_pp": 0.3207277290390091
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.16944296492935343,
+      "high_minus_qqq_mean_pp": -0.11711675728769781
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.11171109295993464,
+      "high_minus_qqq_mean_pp": 0.18822573319634364
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.23687931300878373,
+      "high_minus_qqq_mean_pp": -0.2411779833237676
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.491760045584713,
+      "high_minus_qqq_mean_pp": 0.0530555093254124
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.2927893634975747,
+      "high_minus_qqq_mean_pp": 0.6118491259864097
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -1.3595715781880189,
+      "high_minus_qqq_mean_pp": 0.09822427010810168
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 1.3314533786614162,
+      "high_minus_qqq_mean_pp": -0.4141032208318722
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.31927450984827094,
+      "high_minus_qqq_mean_pp": -0.04902292381090412
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.11610767481870321,
+      "high_minus_qqq_mean_pp": 0.5317953051110972
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.32566694219588926,
+      "high_minus_qqq_mean_pp": -0.14470117209736585
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.7110645492745093,
+      "high_minus_qqq_mean_pp": 0.31976698456673924
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.16893539611885963,
+      "high_minus_qqq_mean_pp": -0.11676593237613848
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.11137646079272627,
+      "high_minus_qqq_mean_pp": 0.18766190033645916
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.23616973765884416,
+      "high_minus_qqq_mean_pp": -0.2404555312457803
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.4872914571591254,
+      "high_minus_qqq_mean_pp": 0.05289658079291234
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.2859212803615834,
+      "high_minus_qqq_mean_pp": 0.6100163232305703
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -1.3554989621959035,
+      "high_minus_qqq_mean_pp": 0.09793003791049067
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 1.32481263062883,
+      "high_minus_qqq_mean_pp": -0.41203784235667545
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.31768209842245504,
+      "high_minus_qqq_mean_pp": -0.048778417401547834
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.11552857695056133,
+      "high_minus_qqq_mean_pp": 0.5291429263776414
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.3240426479169315,
+      "high_minus_qqq_mean_pp": -0.14397946149201182
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.697542861725904,
+      "high_minus_qqq_mean_pp": 0.3181721168772874
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.16809281505865245,
+      "high_minus_qqq_mean_pp": -0.1161835513869669
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.11082096029624659,
+      "high_minus_qqq_mean_pp": 0.18672591908813485
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.23499181904310848,
+      "high_minus_qqq_mean_pp": -0.23925623683440275
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.4798734521607626,
+      "high_minus_qqq_mean_pp": 0.05263275415770541
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.274520034558711,
+      "high_minus_qqq_mean_pp": 0.6069738098664105
+    },
+    {
+      "offset": 7,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -1.3487382845705178,
+      "high_minus_qqq_mean_pp": 0.09744160270351696
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 2.670907498708713,
+      "high_minus_qqq_mean_pp": -0.8306947997467673
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.6404675493464268,
+      "high_minus_qqq_mean_pp": -0.09834042777134473
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.23291304397205784,
+      "high_minus_qqq_mean_pp": 1.0667861834015655
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.6532908263502503,
+      "high_minus_qqq_mean_pp": -0.29027185767132313
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 5.438419962868299,
+      "high_minus_qqq_mean_pp": 0.6414554580780164
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.3388859298587186,
+      "high_minus_qqq_mean_pp": -0.23423351457539746
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.22342218591986837,
+      "high_minus_qqq_mean_pp": 0.3764514663926864
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.4737586260175674,
+      "high_minus_qqq_mean_pp": -0.4823559666475333
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.9835200911694213,
+      "high_minus_qqq_mean_pp": 0.106111018650822
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 4.585578726995155,
+      "high_minus_qqq_mean_pp": 1.2236982519728101
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -2.719143156376041,
+      "high_minus_qqq_mean_pp": 0.19644854021619704
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 2.6629067573228102,
+      "high_minus_qqq_mean_pp": -0.8282064416637556
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.6385490196965354,
+      "high_minus_qqq_mean_pp": -0.09804584762181286
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.2322153496374092,
+      "high_minus_qqq_mean_pp": 1.0635906102221981
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.6513338843917739,
+      "high_minus_qqq_mean_pp": -0.2894023441947428
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 5.422129098549011,
+      "high_minus_qqq_mean_pp": 0.6395339691334749
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.337870792237724,
+      "high_minus_qqq_mean_pp": -0.23353186475227602
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.2227529215854507,
+      "high_minus_qqq_mean_pp": 0.3753238006729229
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.4723394753176892,
+      "high_minus_qqq_mean_pp": -0.4809110624915634
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.9745829143182547,
+      "high_minus_qqq_mean_pp": 0.10579316158583214
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 4.571842560723165,
+      "high_minus_qqq_mean_pp": 1.2200326464611435
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -2.7109979243918096,
+      "high_minus_qqq_mean_pp": 0.1958600758209734
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 2.649625261257667,
+      "high_minus_qqq_mean_pp": -0.8240756847133491
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.635364196844901,
+      "high_minus_qqq_mean_pp": -0.09755683480308734
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.23105715390111528,
+      "high_minus_qqq_mean_pp": 1.0582858527552845
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.6480852958338641,
+      "high_minus_qqq_mean_pp": -0.28795892298402276
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 5.3950857234518175,
+      "high_minus_qqq_mean_pp": 0.6363442337545618
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.3361856301173101,
+      "high_minus_qqq_mean_pp": -0.2323671027739421
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.2216419205924941,
+      "high_minus_qqq_mean_pp": 0.37345183817626876
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.46998363808621235,
+      "high_minus_qqq_mean_pp": -0.4785124736688009
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.9597469043215217,
+      "high_minus_qqq_mean_pp": 0.10526550831541077
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 4.5490400691174235,
+      "high_minus_qqq_mean_pp": 1.2139476197328294
+    },
+    {
+      "offset": 7,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2026,
+      "cycles": 7,
+      "momentum_minus_qqq_mean_pp": -2.697476569141039,
+      "high_minus_qqq_mean_pp": 0.19488320540702597
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 0.6550422754511658,
+      "high_minus_qqq_mean_pp": -0.021588997176591462
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.6774925111254401,
+      "high_minus_qqq_mean_pp": 0.28000178177107293
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.025951810998626534,
+      "high_minus_qqq_mean_pp": 0.5858874843171463
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.24076529989875692,
+      "high_minus_qqq_mean_pp": -0.2183119614636797
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.8465761836962387,
+      "high_minus_qqq_mean_pp": -0.04995091506959093
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -1.028469470445237,
+      "high_minus_qqq_mean_pp": 0.24441897445034352
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.0,
+      "high_minus_qqq_mean_pp": 0.0
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.35182775860092086,
+      "high_minus_qqq_mean_pp": -0.6650547778603485
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.0167632280365757,
+      "high_minus_qqq_mean_pp": 0.7016798179063386
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.069387061020984,
+      "high_minus_qqq_mean_pp": 0.03365202032482214
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.2,
+      "year": 2026,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": -0.5312332301407247,
+      "high_minus_qqq_mean_pp": 0.920990817326465
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 0.6530800870020244,
+      "high_minus_qqq_mean_pp": -0.02152432702860659
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.6754630726761356,
+      "high_minus_qqq_mean_pp": 0.2791630324528606
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.025874071979804403,
+      "high_minus_qqq_mean_pp": 0.5841324500280373
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.24004408401983868,
+      "high_minus_qqq_mean_pp": -0.21765800487927311
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.8410447384843531,
+      "high_minus_qqq_mean_pp": -0.049801286393330514
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -1.0253886755242914,
+      "high_minus_qqq_mean_pp": 0.24368681393735955
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.0,
+      "high_minus_qqq_mean_pp": 0.0
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.3507738535479337,
+      "high_minus_qqq_mean_pp": -0.6630625968178714
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.0137174993312015,
+      "high_minus_qqq_mean_pp": 0.6995779260356966
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.0661836968757286,
+      "high_minus_qqq_mean_pp": 0.03355121521949241
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 0.5,
+      "year": 2026,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": -0.529641913447043,
+      "high_minus_qqq_mean_pp": 0.9182319762390145
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 0.6498227890955536,
+      "high_minus_qqq_mean_pp": -0.021416972438007924
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.6720941375389099,
+      "high_minus_qqq_mean_pp": 0.2777706807654166
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.02574502263016735,
+      "high_minus_qqq_mean_pp": 0.5812190348980358
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.23884684173991666,
+      "high_minus_qqq_mean_pp": -0.2165724152590559
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.8318623559684415,
+      "high_minus_qqq_mean_pp": -0.049552897827916574
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -1.020274453773277,
+      "high_minus_qqq_mean_pp": 0.24247140320187432
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.0,
+      "high_minus_qqq_mean_pp": 0.0
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.34902433620459256,
+      "high_minus_qqq_mean_pp": -0.6597555102117209
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.0086614886610872,
+      "high_minus_qqq_mean_pp": 0.6960887158159421
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.0608660061470367,
+      "high_minus_qqq_mean_pp": 0.03338387540118929
+    },
+    {
+      "offset": 14,
+      "weight": 0.05,
+      "cost": 1.0,
+      "year": 2026,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": -0.5270002749555579,
+      "high_minus_qqq_mean_pp": 0.9136522085299932
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 1.310084550902335,
+      "high_minus_qqq_mean_pp": -0.04317799435319033
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.354985022250873,
+      "high_minus_qqq_mean_pp": 0.5600035635421377
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.05190362199725681,
+      "high_minus_qqq_mean_pp": 1.1717749686342973
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.48153059979750185,
+      "high_minus_qqq_mean_pp": -0.4366239229273677
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 3.693152367392478,
+      "high_minus_qqq_mean_pp": -0.09990183013919096
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -2.056938940890471,
+      "high_minus_qqq_mean_pp": 0.4888379489006815
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.0,
+      "high_minus_qqq_mean_pp": 0.0
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.7036555172018445,
+      "high_minus_qqq_mean_pp": -1.330109555720693
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.0335264560731536,
+      "high_minus_qqq_mean_pp": 1.403359635812672
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.1387741220419745,
+      "high_minus_qqq_mean_pp": 0.06730404064964242
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.2,
+      "year": 2026,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": -1.062466460281444,
+      "high_minus_qqq_mean_pp": 1.84198163465293
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 1.306160174004038,
+      "high_minus_qqq_mean_pp": -0.04304865405722058
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.3509261453522743,
+      "high_minus_qqq_mean_pp": 0.5583260649057205
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.05174814395962243,
+      "high_minus_qqq_mean_pp": 1.1682649000560865
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.48008816803966897,
+      "high_minus_qqq_mean_pp": -0.4353160097585555
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 3.682089476968713,
+      "high_minus_qqq_mean_pp": -0.09960257278665845
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -2.0507773510485894,
+      "high_minus_qqq_mean_pp": 0.48737362787471444
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.0,
+      "high_minus_qqq_mean_pp": 0.0
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.7015477070958638,
+      "high_minus_qqq_mean_pp": -1.3261251936357474
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.0274349986624065,
+      "high_minus_qqq_mean_pp": 1.3991558520713943
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.1323673937514553,
+      "high_minus_qqq_mean_pp": 0.06710243043898112
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 0.5,
+      "year": 2026,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": -1.0592838268940976,
+      "high_minus_qqq_mean_pp": 1.8364639524780253
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2016,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": 1.299645578191096,
+      "high_minus_qqq_mean_pp": -0.042833944876017695
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2017,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 1.3441882750778216,
+      "high_minus_qqq_mean_pp": 0.5555413615308323
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2018,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.051490045260341254,
+      "high_minus_qqq_mean_pp": 1.1624380697960808
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2019,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.4776936834798183,
+      "high_minus_qqq_mean_pp": -0.4331448305181192
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2020,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 3.6637247119368834,
+      "high_minus_qqq_mean_pp": -0.0991057956558387
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2021,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -2.040548907546557,
+      "high_minus_qqq_mean_pp": 0.48494280640375137
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2022,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 0.0,
+      "high_minus_qqq_mean_pp": 0.0
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2023,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": -0.698048672409175,
+      "high_minus_qqq_mean_pp": -1.3195110204234355
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2024,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.017322977322184,
+      "high_minus_qqq_mean_pp": 1.3921774316318762
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2025,
+      "cycles": 12,
+      "momentum_minus_qqq_mean_pp": 2.1217320122940766,
+      "high_minus_qqq_mean_pp": 0.06676775080238317
+    },
+    {
+      "offset": 14,
+      "weight": 0.1,
+      "cost": 1.0,
+      "year": 2026,
+      "cycles": 6,
+      "momentum_minus_qqq_mean_pp": -1.0540005499111158,
+      "high_minus_qqq_mean_pp": 1.82730441705999
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "version": "J8-OPPORTUNITY-DIAGNOSTICS-20260923.1",
+  "inputs": {
+    "script_sha256": "813a47681e8cce3b69047a8c0cab56a2ce71a4afeb569abea1397885928ceb7f",
+    "study_sha256": "1de9b3085aefab228ed5ddfcca27ab42a751c5cb1240a55c107b4d8a83a020ad",
+    "cycles_sha256": "b21f006914047a99d943edf98b931513da83a5f7ee2be9d857c8468d0d0cd023",
+    "close_sha256": "48c01c027bfbbb19413deb9b08659906c7f75d235c1d31f28398cc7d3aa94639"
+  },
+  "method": {
+    "offset": 0,
+    "hold": 20,
+    "roundtrip_cost_pct": 0.5,
+    "signal_count": 121,
+    "active_count": 102,
+    "best_count": 20,
+    "pre_signal_volatility": "QQQ prior 20 completed daily returns, sample std (ddof=1) × sqrt(252)",
+    "comparison": "same dates, next open, 20-session close, same exposure and cost QQQ"
+  },
+  "concentration": {
+    "momentum": {
+      "all_simple_sum_pct_points": 185.1879753518811,
+      "best20_simple_sum_pct_points": 231.75806182957513,
+      "remaining_simple_sum_pct_points": -46.57008647769402
+    },
+    "qqq": {
+      "all_simple_sum_pct_points": 57.46139226727302,
+      "best20_simple_sum_pct_points": 74.88865901218674,
+      "remaining_simple_sum_pct_points": -17.427266744913716
+    },
+    "qqq_on_momentum_best_dates": {
+      "best20_simple_sum_pct_points": 55.84916569215077,
+      "remaining_simple_sum_pct_points": 1.6122265751222438
+    }
+  },
+  "volatility_quartiles": [
+    {
+      "quartile": 1,
+      "signals": 26,
+      "min_prior_vol_pct": 5.739133118555877,
+      "max_prior_vol_pct": 11.224808093478797,
+      "mean_excess_pct_points": 0.9440100274912887
+    },
+    {
+      "quartile": 2,
+      "signals": 25,
+      "min_prior_vol_pct": 11.274277796062885,
+      "max_prior_vol_pct": 15.320470192606322,
+      "mean_excess_pct_points": 1.8515242716204154
+    },
+    {
+      "quartile": 3,
+      "signals": 25,
+      "min_prior_vol_pct": 15.55545547562572,
+      "max_prior_vol_pct": 20.681351169615727,
+      "mean_excess_pct_points": 1.1141928128253615
+    },
+    {
+      "quartile": 4,
+      "signals": 26,
+      "min_prior_vol_pct": 20.929127390436534,
+      "max_prior_vol_pct": 39.86501859425543,
+      "mean_excess_pct_points": 1.1168998176419278
+    }
+  ],
+  "volatility_edge_pearson": -0.02146166650322549,
+  "limits": [
+    "Already-seen current-survivor roster; not out-of-sample or future performance",
+    "Top 20 cycles selected after returns; cannot be used as an advance no-trade filter",
+    "Simple cycle sums are percentage points, not compounded account returns",
+    "Four volatility groups are exploratory and have no multiple-testing correction",
+    "BTC execution analysis was not an input to this US-equity calculation"
+  ]
+}

@@ -1,0 +1,7154 @@
+[
+  {
+    "offset": 0,
+    "day": "2016-06-30",
+    "eligible": 72,
+    "high": [
+      "ADP",
+      "BSX",
+      "CB",
+      "CVX",
+      "DHR"
+    ],
+    "momentum": [
+      "NVDA",
+      "AMD",
+      "AMZN",
+      "ALB",
+      "HII"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2016-08-01",
+    "eligible": 77,
+    "high": [
+      "AMZN",
+      "BLK",
+      "BSX",
+      "DHR",
+      "GOOGL"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "ALB",
+      "HII",
+      "KLAC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2016-08-30",
+    "eligible": 95,
+    "high": [
+      "APD",
+      "BLK",
+      "BRK-B",
+      "JPM",
+      "LHX"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "DHR",
+      "ALB",
+      "AMAT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2016-09-29",
+    "eligible": 95,
+    "high": [
+      "ACN",
+      "AMZN",
+      "BKNG",
+      "CAT",
+      "NVDA"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "AMAT",
+      "DHR",
+      "ALB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2016-10-28",
+    "eligible": 75,
+    "high": [
+      "MA",
+      "NOC",
+      "TER",
+      "JPM",
+      "DE"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "AMAT",
+      "DHR",
+      "ALB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2016-11-29",
+    "eligible": 78,
+    "high": [
+      "ACN",
+      "ADP",
+      "AMAT",
+      "GD",
+      "HPE"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "DHR",
+      "GEN",
+      "ALB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2016-12-29",
+    "eligible": 85,
+    "high": [
+      "ADP",
+      "T",
+      "DE",
+      "CB",
+      "ZTS"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "FCX",
+      "CGNX",
+      "DHR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-01-31",
+    "eligible": 109,
+    "high": [
+      "DHR",
+      "GEN",
+      "HUBB",
+      "NOW",
+      "ZTS"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "FCX",
+      "URI",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-03-02",
+    "eligible": 125,
+    "high": [
+      "ABT",
+      "ALB",
+      "AVGO",
+      "BKNG",
+      "CGNX"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "URI",
+      "MU",
+      "DHR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-03-31",
+    "eligible": 119,
+    "high": [
+      "ADBE",
+      "AMZN",
+      "CGNX",
+      "DIS",
+      "FTNT"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "MU",
+      "URI",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-05-02",
+    "eligible": 118,
+    "high": [
+      "AAPL",
+      "ABBNY",
+      "ABBV",
+      "AMAT",
+      "ANET"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "MU",
+      "CGNX",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-06-01",
+    "eligible": 115,
+    "high": [
+      "ABBNY",
+      "ABT",
+      "ACN",
+      "AMAT",
+      "ANET"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "MU",
+      "CGNX",
+      "XYZ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-06-30",
+    "eligible": 114,
+    "high": [
+      "AXP",
+      "DHI",
+      "PHM",
+      "CAT",
+      "C"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "ANET",
+      "MU",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-08-01",
+    "eligible": 115,
+    "high": [
+      "ACN",
+      "APD",
+      "C",
+      "CB",
+      "CGNX"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "MU",
+      "ANET",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-08-30",
+    "eligible": 109,
+    "high": [
+      "AAPL",
+      "ADBE",
+      "ANET",
+      "BMY",
+      "CAT"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "CGNX",
+      "NFLX",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-09-29",
+    "eligible": 121,
+    "high": [
+      "ALB",
+      "AMAT",
+      "ASML",
+      "AVAV",
+      "AXP"
+    ],
+    "momentum": [
+      "NVDA",
+      "STLA",
+      "XYZ",
+      "ANET",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-10-30",
+    "eligible": 122,
+    "high": [
+      "AAPL",
+      "ACN",
+      "AMZN",
+      "ANET",
+      "AVGO"
+    ],
+    "momentum": [
+      "XYZ",
+      "NVDA",
+      "STLA",
+      "MU",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-11-29",
+    "eligible": 121,
+    "high": [
+      "AXP",
+      "BAC",
+      "BLK",
+      "BRK-B",
+      "CI"
+    ],
+    "momentum": [
+      "XYZ",
+      "SEDG",
+      "STLA",
+      "SQM",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2017-12-29",
+    "eligible": 118,
+    "high": [
+      "ABBNY",
+      "APD",
+      "LOW",
+      "PEP",
+      "RIO"
+    ],
+    "momentum": [
+      "SEDG",
+      "XYZ",
+      "ANET",
+      "CGNX",
+      "NVR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-01-31",
+    "eligible": 124,
+    "high": [
+      "ADP",
+      "AMZN",
+      "CB",
+      "CRM",
+      "FTNT"
+    ],
+    "momentum": [
+      "SEDG",
+      "ANET",
+      "XYZ",
+      "FSLR",
+      "SQM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-03-02",
+    "eligible": 107,
+    "high": [
+      "CRM",
+      "CRSP",
+      "NFLX",
+      "NOW",
+      "PANW"
+    ],
+    "momentum": [
+      "XYZ",
+      "NVDA",
+      "SEDG",
+      "ANET",
+      "STLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-04-03",
+    "eligible": 87,
+    "high": [
+      "RUN",
+      "COP",
+      "NEE",
+      "LHX",
+      "MPC"
+    ],
+    "momentum": [
+      "SEDG",
+      "XYZ",
+      "FSLR",
+      "CRSP",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-05-02",
+    "eligible": 77,
+    "high": [
+      "CCJ",
+      "MA",
+      "OKTA",
+      "PANW",
+      "VLO"
+    ],
+    "momentum": [
+      "SEDG",
+      "CRSP",
+      "XYZ",
+      "FSLR",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-06-01",
+    "eligible": 88,
+    "high": [
+      "AAPL",
+      "ADBE",
+      "ADP",
+      "AMZN",
+      "FTNT"
+    ],
+    "momentum": [
+      "CRSP",
+      "SEDG",
+      "XYZ",
+      "STLA",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-07-02",
+    "eligible": 78,
+    "high": [
+      "CRM",
+      "DELL",
+      "NEE",
+      "RUN",
+      "AVAV"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "SEDG",
+      "XYZ",
+      "OKTA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-08-01",
+    "eligible": 89,
+    "high": [
+      "AAPL",
+      "MDT",
+      "PFE",
+      "LLY",
+      "PLD"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "XYZ",
+      "OKTA",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-08-30",
+    "eligible": 92,
+    "high": [
+      "AAPL",
+      "AMGN",
+      "AMZN",
+      "COP",
+      "COST"
+    ],
+    "momentum": [
+      "XYZ",
+      "CRSP",
+      "RUN",
+      "OKTA",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-10-01",
+    "eligible": 94,
+    "high": [
+      "ABT",
+      "ADBE",
+      "ADP",
+      "BSX",
+      "COP"
+    ],
+    "momentum": [
+      "XYZ",
+      "FTNT",
+      "OKTA",
+      "AMZN",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2018-10-30",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2018-11-29",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2019-01-02",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2019-02-01",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2019-03-05",
+    "eligible": 74,
+    "high": [
+      "MRK",
+      "NEE",
+      "SBUX",
+      "ZTS",
+      "LLY"
+    ],
+    "momentum": [
+      "MDB",
+      "OKTA",
+      "AMD",
+      "RUN",
+      "LLY"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-04-03",
+    "eligible": 90,
+    "high": [
+      "ACN",
+      "ANET",
+      "APD",
+      "DELL",
+      "INTU"
+    ],
+    "momentum": [
+      "AMD",
+      "MDB",
+      "ZS",
+      "OKTA",
+      "IRDM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-05-03",
+    "eligible": 90,
+    "high": [
+      "APD",
+      "AXP",
+      "DELL",
+      "DHR",
+      "ENPH"
+    ],
+    "momentum": [
+      "MDB",
+      "AMD",
+      "ZS",
+      "IRDM",
+      "ENPH"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-06-04",
+    "eligible": 79,
+    "high": [
+      "AON",
+      "APD",
+      "KO",
+      "KTOS",
+      "LHX"
+    ],
+    "momentum": [
+      "MDB",
+      "ENPH",
+      "ZS",
+      "AMD",
+      "OKTA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-07-03",
+    "eligible": 91,
+    "high": [
+      "ABT",
+      "ACN",
+      "ADBE",
+      "AON",
+      "APD"
+    ],
+    "momentum": [
+      "MDB",
+      "ENPH",
+      "OKTA",
+      "KTOS",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-08-02",
+    "eligible": 87,
+    "high": [
+      "SO",
+      "ZTS",
+      "DHI",
+      "NEE",
+      "T"
+    ],
+    "momentum": [
+      "ENPH",
+      "MDB",
+      "OKTA",
+      "ZS",
+      "KTOS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-09-03",
+    "eligible": 75,
+    "high": [
+      "DUK",
+      "KLAC",
+      "KO",
+      "LMT",
+      "MLM"
+    ],
+    "momentum": [
+      "ENPH",
+      "OKTA",
+      "MDB",
+      "ZS",
+      "SBUX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-10-02",
+    "eligible": 64,
+    "high": [
+      "LEN",
+      "PHM",
+      "SO",
+      "DUK",
+      "NEE"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "OKTA",
+      "SBUX",
+      "KLAC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-10-31",
+    "eligible": 91,
+    "high": [
+      "AMGN",
+      "BMY",
+      "MRK",
+      "NEE",
+      "SO"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "OKTA",
+      "KLAC",
+      "TER"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2019-12-02",
+    "eligible": 103,
+    "high": [
+      "BAC",
+      "JPM",
+      "AMGN",
+      "DHR",
+      "MRK"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "LRCX",
+      "KLAC",
+      "OKTA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-01-02",
+    "eligible": 128,
+    "high": [
+      "AAPL",
+      "ABBNY",
+      "ADBE",
+      "AMAT",
+      "AMD"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "SEDG",
+      "AMD",
+      "TER"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-02-03",
+    "eligible": 112,
+    "high": [
+      "ADBE",
+      "AON",
+      "DUK",
+      "MSFT",
+      "NOW"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "AMD",
+      "TER",
+      "CRSP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-03-04",
+    "eligible": 88,
+    "high": [
+      "GILD",
+      "NEE",
+      "NVR",
+      "DUK",
+      "ZTS"
+    ],
+    "momentum": [
+      "ENPH",
+      "TSLA",
+      "SEDG",
+      "AMD",
+      "LRCX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-04-02",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2020-05-04",
+    "eligible": 31,
+    "high": [
+      "OKTA",
+      "MRNA",
+      "VRTX",
+      "GILD",
+      "TMO"
+    ],
+    "momentum": [
+      "ENPH",
+      "TSLA",
+      "SEDG",
+      "AMD",
+      "REGN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-06-03",
+    "eligible": 71,
+    "high": [
+      "ASML",
+      "DHR",
+      "KLAC",
+      "LOW",
+      "NKE"
+    ],
+    "momentum": [
+      "TSLA",
+      "ENPH",
+      "MRNA",
+      "NVDA",
+      "SEDG"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-07-02",
+    "eligible": 81,
+    "high": [
+      "ADBE",
+      "AMGN",
+      "AMZN",
+      "ASML",
+      "CRSP"
+    ],
+    "momentum": [
+      "MRNA",
+      "TSLA",
+      "ENPH",
+      "SEDG",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-08-03",
+    "eligible": 92,
+    "high": [
+      "AAPL",
+      "ACN",
+      "CGNX",
+      "COST",
+      "CRM"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "NVDA",
+      "SEDG",
+      "REGN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-09-01",
+    "eligible": 101,
+    "high": [
+      "AAPL",
+      "ALB",
+      "AMD",
+      "AMZN",
+      "APD"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "RUN",
+      "NVDA",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-10-01",
+    "eligible": 112,
+    "high": [
+      "DDOG",
+      "DHI",
+      "ENPH",
+      "LEN",
+      "PACB"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "RUN",
+      "ENPH",
+      "ZS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-10-30",
+    "eligible": 88,
+    "high": [
+      "SQM",
+      "PWR",
+      "TMO",
+      "NEE",
+      "DHR"
+    ],
+    "momentum": [
+      "TSLA",
+      "RUN",
+      "ENPH",
+      "MRNA",
+      "ZS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-12-01",
+    "eligible": 102,
+    "high": [
+      "ACN",
+      "AMAT",
+      "ASML",
+      "AVGO",
+      "BLK"
+    ],
+    "momentum": [
+      "TSLA",
+      "ENPH",
+      "RUN",
+      "MRNA",
+      "TWST"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2020-12-31",
+    "eligible": 127,
+    "high": [
+      "ABBNY",
+      "AVGO",
+      "BLK",
+      "DIS",
+      "GS"
+    ],
+    "momentum": [
+      "MRNA",
+      "TSLA",
+      "TWST",
+      "RUN",
+      "ENPH"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-02-02",
+    "eligible": 127,
+    "high": [
+      "AVGO",
+      "FTNT",
+      "GOOGL",
+      "MSTR",
+      "NOW"
+    ],
+    "momentum": [
+      "TWST",
+      "PACB",
+      "ENPH",
+      "MRNA",
+      "TSLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-03-04",
+    "eligible": 110,
+    "high": [
+      "AXP",
+      "BAC",
+      "MPC",
+      "SCHW",
+      "EMR"
+    ],
+    "momentum": [
+      "PACB",
+      "TWST",
+      "TSLA",
+      "MRNA",
+      "MSTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-04-05",
+    "eligible": 155,
+    "high": [
+      "ABBNY",
+      "ACN",
+      "ADP",
+      "AMAT",
+      "AON"
+    ],
+    "momentum": [
+      "PACB",
+      "TSLA",
+      "MSTR",
+      "FCX",
+      "ENPH"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-05-04",
+    "eligible": 146,
+    "high": [
+      "AON",
+      "BLK",
+      "BRK-B",
+      "CAT",
+      "CI"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "NTLA",
+      "BEAM",
+      "TSLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-06-03",
+    "eligible": 133,
+    "high": [
+      "ANET",
+      "AXP",
+      "BAC",
+      "COP",
+      "EMR"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "FCX",
+      "UUUU",
+      "NTLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-07-02",
+    "eligible": 154,
+    "high": [
+      "ACN",
+      "ADBE",
+      "ADP",
+      "BLK",
+      "BMY"
+    ],
+    "momentum": [
+      "PACB",
+      "UUUU",
+      "MSTR",
+      "FCX",
+      "MRNA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-08-03",
+    "eligible": 151,
+    "high": [
+      "ABBNY",
+      "ADP",
+      "ALB",
+      "AMD",
+      "AON"
+    ],
+    "momentum": [
+      "PACB",
+      "NTLA",
+      "BEAM",
+      "MSTR",
+      "MP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-09-01",
+    "eligible": 137,
+    "high": [
+      "ABT",
+      "ACN",
+      "ALB",
+      "AON",
+      "ASML"
+    ],
+    "momentum": [
+      "NTLA",
+      "MRNA",
+      "PACB",
+      "MSTR",
+      "BEAM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-10-01",
+    "eligible": 112,
+    "high": [
+      "COP",
+      "DELL",
+      "JPM",
+      "MPC",
+      "MRK"
+    ],
+    "momentum": [
+      "NTLA",
+      "MRNA",
+      "UUUU",
+      "NET",
+      "ALB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-11-01",
+    "eligible": 134,
+    "high": [
+      "ABT",
+      "ALB",
+      "AMD",
+      "COST",
+      "CRM"
+    ],
+    "momentum": [
+      "NTLA",
+      "MRNA",
+      "UUUU",
+      "MSTR",
+      "UEC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-12-01",
+    "eligible": 104,
+    "high": [
+      "LRCX",
+      "NVR",
+      "PFE",
+      "AAPL",
+      "NEE"
+    ],
+    "momentum": [
+      "UUUU",
+      "UEC",
+      "NET",
+      "FTNT",
+      "CCJ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2021-12-31",
+    "eligible": 117,
+    "high": [
+      "ITW",
+      "LIN",
+      "MDLZ",
+      "NEE",
+      "PEP"
+    ],
+    "momentum": [
+      "NVDA",
+      "F",
+      "NET",
+      "FTNT",
+      "UEC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2022-02-01",
+    "eligible": 90,
+    "high": [
+      "COP",
+      "EOG",
+      "OXY",
+      "UPS",
+      "VLO"
+    ],
+    "momentum": [
+      "FTNT",
+      "NUE",
+      "NVDA",
+      "F",
+      "EOG"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2022-03-03",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-04-01",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-05-03",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-06-02",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-07-05",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-08-03",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-09-01",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-10-03",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-11-01",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2022-12-01",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2023-01-03",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2023-02-02",
+    "eligible": 53,
+    "high": [
+      "BSX",
+      "DHI",
+      "NUE",
+      "SYK",
+      "URI"
+    ],
+    "momentum": [
+      "FSLR",
+      "CEG",
+      "MPC",
+      "IRDM",
+      "LLY"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-03-06",
+    "eligible": 70,
+    "high": [
+      "AVGO",
+      "FSLR",
+      "PGR",
+      "PWR",
+      "ROK"
+    ],
+    "momentum": [
+      "FSLR",
+      "CEG",
+      "VLO",
+      "MPC",
+      "ALB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-04-04",
+    "eligible": 57,
+    "high": [
+      "BSX",
+      "MCD",
+      "MDLZ",
+      "ORCL",
+      "SYK"
+    ],
+    "momentum": [
+      "FSLR",
+      "MPC",
+      "IRDM",
+      "VLO",
+      "XOM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-05-04",
+    "eligible": 62,
+    "high": [
+      "BIIB",
+      "PEP",
+      "VRTX",
+      "MDLZ",
+      "MSFT"
+    ],
+    "momentum": [
+      "FSLR",
+      "NFLX",
+      "IRDM",
+      "PACB",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-06-05",
+    "eligible": 73,
+    "high": [
+      "CCJ",
+      "FTNT",
+      "ISRG",
+      "LLY",
+      "MLM"
+    ],
+    "momentum": [
+      "FSLR",
+      "PACB",
+      "IRDM",
+      "BIIB",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-07-06",
+    "eligible": 109,
+    "high": [
+      "VST",
+      "BRK-B",
+      "V",
+      "MA",
+      "MSTR"
+    ],
+    "momentum": [
+      "FSLR",
+      "NVDA",
+      "PACB",
+      "SYM",
+      "VRT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-08-04",
+    "eligible": 97,
+    "high": [
+      "BKNG",
+      "CEG",
+      "MPC",
+      "VRT",
+      "VST"
+    ],
+    "momentum": [
+      "SYM",
+      "PACB",
+      "IONQ",
+      "NVDA",
+      "VRT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-09-05",
+    "eligible": 105,
+    "high": [
+      "ADBE",
+      "ANET",
+      "IBM",
+      "INTU",
+      "LLY"
+    ],
+    "momentum": [
+      "SYM",
+      "NVDA",
+      "VRT",
+      "IONQ",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-10-04",
+    "eligible": 86,
+    "high": [
+      "COST",
+      "GOOGL",
+      "WMT",
+      "VRTX",
+      "LIN"
+    ],
+    "momentum": [
+      "NVDA",
+      "IONQ",
+      "VRT",
+      "SYM",
+      "META"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-11-02",
+    "eligible": 78,
+    "high": [
+      "ANET",
+      "CCJ",
+      "CEG",
+      "KTOS",
+      "VRTX"
+    ],
+    "momentum": [
+      "NVDA",
+      "META",
+      "SYM",
+      "IONQ",
+      "VRT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2023-12-04",
+    "eligible": 94,
+    "high": [
+      "AVAV",
+      "CCJ",
+      "COIN",
+      "COST",
+      "CRWD"
+    ],
+    "momentum": [
+      "SYM",
+      "VRT",
+      "META",
+      "NVDA",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-01-04",
+    "eligible": 121,
+    "high": [
+      "AMGN",
+      "BSX",
+      "C",
+      "JPM",
+      "VRTX"
+    ],
+    "momentum": [
+      "SYM",
+      "COIN",
+      "IONQ",
+      "MSTR",
+      "VRT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-02-05",
+    "eligible": 110,
+    "high": [
+      "ABBV",
+      "ASML",
+      "BKNG",
+      "BRK-B",
+      "CAT"
+    ],
+    "momentum": [
+      "VRT",
+      "SYM",
+      "MSTR",
+      "NVDA",
+      "CRWD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-03-06",
+    "eligible": 116,
+    "high": [
+      "ABBV",
+      "ABNB",
+      "AMAT",
+      "AMD",
+      "ASML"
+    ],
+    "momentum": [
+      "VRT",
+      "NVDA",
+      "META",
+      "CRWD",
+      "DELL"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-04-05",
+    "eligible": 125,
+    "high": [
+      "AMZN",
+      "CAT",
+      "CEG",
+      "COP",
+      "DELL"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "COIN",
+      "NVDA",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-05-06",
+    "eligible": 126,
+    "high": [
+      "CCJ",
+      "CEG",
+      "DUK",
+      "GS",
+      "MS"
+    ],
+    "momentum": [
+      "VRT",
+      "COIN",
+      "MSTR",
+      "VST",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-06-05",
+    "eligible": 120,
+    "high": [
+      "AMAT",
+      "AVAV",
+      "COST",
+      "DHR",
+      "GEN"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "COIN",
+      "VST",
+      "DELL"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-07-08",
+    "eligible": 118,
+    "high": [
+      "AAPL",
+      "ANET",
+      "ASML",
+      "C",
+      "KLAC"
+    ],
+    "momentum": [
+      "MSTR",
+      "VRT",
+      "VST",
+      "COIN",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-08-06",
+    "eligible": 88,
+    "high": [
+      "DUK",
+      "PG",
+      "LMT",
+      "T",
+      "KO"
+    ],
+    "momentum": [
+      "MSTR",
+      "VST",
+      "NVDA",
+      "ASTS",
+      "COIN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-09-05",
+    "eligible": 101,
+    "high": [
+      "SO",
+      "SPGI",
+      "T",
+      "DUK",
+      "PG"
+    ],
+    "momentum": [
+      "ASTS",
+      "MSTR",
+      "VST",
+      "NVDA",
+      "TWST"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-10-04",
+    "eligible": 123,
+    "high": [
+      "ADP",
+      "ANET",
+      "AXP",
+      "BSX",
+      "CAT"
+    ],
+    "momentum": [
+      "ASTS",
+      "MSTR",
+      "VST",
+      "NVDA",
+      "TWST"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-11-04",
+    "eligible": 122,
+    "high": [
+      "BKNG",
+      "GILD",
+      "ILMN",
+      "V",
+      "NOW"
+    ],
+    "momentum": [
+      "ASTS",
+      "VST",
+      "MSTR",
+      "SMR",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2024-12-04",
+    "eligible": 119,
+    "high": [
+      "AAPL",
+      "AMZN",
+      "BKNG",
+      "C",
+      "COIN"
+    ],
+    "momentum": [
+      "SMR",
+      "ASTS",
+      "MSTR",
+      "VST",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-01-06",
+    "eligible": 101,
+    "high": [
+      "ANET",
+      "C",
+      "GOOGL",
+      "IONQ",
+      "KTOS"
+    ],
+    "momentum": [
+      "SMR",
+      "MSTR",
+      "LUNR",
+      "ASTS",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-02-06",
+    "eligible": 102,
+    "high": [
+      "ADP",
+      "BAC",
+      "BSX",
+      "C",
+      "COST"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "ASTS",
+      "SMR",
+      "MSTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-03-10",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2025-04-08",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2025-05-08",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 0,
+    "day": "2025-06-09",
+    "eligible": 92,
+    "high": [
+      "IBM",
+      "KTOS",
+      "LEU",
+      "MP",
+      "MSFT"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "RKLB",
+      "PLTR",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-07-10",
+    "eligible": 102,
+    "high": [
+      "BLK",
+      "COIN",
+      "EMR",
+      "GEV",
+      "HOOD"
+    ],
+    "momentum": [
+      "QBTS",
+      "RGTI",
+      "OKLO",
+      "RKLB",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-08-08",
+    "eligible": 121,
+    "high": [
+      "AVGO",
+      "BLK",
+      "GILD",
+      "HOOD",
+      "JNJ"
+    ],
+    "momentum": [
+      "QBTS",
+      "RGTI",
+      "RKLB",
+      "OKLO",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-09-09",
+    "eligible": 118,
+    "high": [
+      "C",
+      "GOOGL",
+      "GS",
+      "HOOD",
+      "MDT"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "RKLB",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-10-08",
+    "eligible": 107,
+    "high": [
+      "ANET",
+      "ASTS",
+      "AVAV",
+      "CAT",
+      "CEG"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "HOOD",
+      "RKLB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-11-06",
+    "eligible": 114,
+    "high": [
+      "CWEN",
+      "DDOG",
+      "GOOGL",
+      "LLY",
+      "MU"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "PL",
+      "OKLO",
+      "HOOD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2025-12-08",
+    "eligible": 104,
+    "high": [
+      "C",
+      "GS",
+      "MDB",
+      "MS",
+      "TER"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "LEU",
+      "QS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2026-01-08",
+    "eligible": 121,
+    "high": [
+      "F",
+      "GM",
+      "GOOGL",
+      "HII",
+      "LHX"
+    ],
+    "momentum": [
+      "OKLO",
+      "LEU",
+      "HOOD",
+      "ASTS",
+      "MP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2026-02-09",
+    "eligible": 116,
+    "high": [
+      "ABBNY",
+      "C",
+      "CAT",
+      "COP",
+      "CVX"
+    ],
+    "momentum": [
+      "UUUU",
+      "PL",
+      "LEU",
+      "MU",
+      "ASTS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2026-03-11",
+    "eligible": 102,
+    "high": [
+      "CVX",
+      "MPC",
+      "OXY",
+      "VLO",
+      "VRT"
+    ],
+    "momentum": [
+      "PL",
+      "UUUU",
+      "RKLB",
+      "MU",
+      "UEC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2026-04-10",
+    "eligible": 105,
+    "high": [
+      "AMAT",
+      "APD",
+      "BEP",
+      "CAT",
+      "CWEN"
+    ],
+    "momentum": [
+      "PL",
+      "MU",
+      "UUUU",
+      "TER",
+      "ASTS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2026-05-11",
+    "eligible": 97,
+    "high": [
+      "ABBNY",
+      "AMAT",
+      "AMD",
+      "APD",
+      "CGNX"
+    ],
+    "momentum": [
+      "PL",
+      "MU",
+      "TER",
+      "UUUU",
+      "ASTS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2026-06-10",
+    "eligible": 97,
+    "high": [
+      "KO",
+      "TJX",
+      "CVS",
+      "KLAC",
+      "AMAT"
+    ],
+    "momentum": [
+      "MU",
+      "PL",
+      "TER",
+      "RKLB",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 0,
+    "day": "2026-07-13",
+    "eligible": 94,
+    "high": [
+      "AAPL",
+      "CVS",
+      "ELV",
+      "KO",
+      "MPC"
+    ],
+    "momentum": [
+      "MU",
+      "PL",
+      "TER",
+      "LRCX",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2016-07-12",
+    "eligible": 74,
+    "high": [
+      "ALB",
+      "AMAT",
+      "AON",
+      "BMY",
+      "CVX"
+    ],
+    "momentum": [
+      "NVDA",
+      "AMD",
+      "AMZN",
+      "ALB",
+      "HII"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2016-08-10",
+    "eligible": 87,
+    "high": [
+      "ADBE",
+      "AMZN",
+      "AVGO",
+      "CGNX",
+      "COST"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "DHR",
+      "ALB",
+      "AMAT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2016-09-09",
+    "eligible": 90,
+    "high": [
+      "JPM",
+      "GEN",
+      "ANET",
+      "OXY",
+      "ABBNY"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "ALB",
+      "DHR",
+      "AMAT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2016-10-10",
+    "eligible": 83,
+    "high": [
+      "ANET",
+      "DE",
+      "JPM",
+      "LRCX",
+      "MRK"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "AMAT",
+      "DHR",
+      "ALB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2016-11-08",
+    "eligible": 80,
+    "high": [
+      "AVGO",
+      "BKNG",
+      "CGNX",
+      "CVX",
+      "HPE"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "AMAT",
+      "ALB",
+      "DHR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2016-12-08",
+    "eligible": 87,
+    "high": [
+      "ACN",
+      "ADP",
+      "ALB",
+      "AMAT",
+      "AMD"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "FCX",
+      "DHR",
+      "ALB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-01-10",
+    "eligible": 106,
+    "high": [
+      "AAPL",
+      "ASML",
+      "AXP",
+      "CGNX",
+      "PGR"
+    ],
+    "momentum": [
+      "AMD",
+      "FCX",
+      "NVDA",
+      "CGNX",
+      "AMAT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-02-09",
+    "eligible": 118,
+    "high": [
+      "AAPL",
+      "ADBE",
+      "ASML",
+      "AXP",
+      "BKNG"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "FCX",
+      "URI",
+      "MU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-03-13",
+    "eligible": 118,
+    "high": [
+      "ADBE",
+      "ADP",
+      "ALB",
+      "AMAT",
+      "ANET"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "MU",
+      "URI",
+      "DHR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-04-11",
+    "eligible": 117,
+    "high": [
+      "DE",
+      "MCD",
+      "PLD",
+      "WMT",
+      "AON"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "MU",
+      "CGNX",
+      "URI"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-05-11",
+    "eligible": 119,
+    "high": [
+      "AAPL",
+      "ADBE",
+      "ALB",
+      "AMAT",
+      "ANET"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "MU",
+      "CGNX",
+      "URI"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-06-12",
+    "eligible": 117,
+    "high": [
+      "AON",
+      "CAT",
+      "DE",
+      "JNJ",
+      "NVR"
+    ],
+    "momentum": [
+      "NVDA",
+      "AMD",
+      "MU",
+      "XYZ",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-07-12",
+    "eligible": 115,
+    "high": [
+      "ADBE",
+      "ALB",
+      "BKNG",
+      "CAT",
+      "CI"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "MU",
+      "AMD",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-08-10",
+    "eligible": 108,
+    "high": [
+      "NEE",
+      "PG",
+      "LHX",
+      "LMT",
+      "PGR"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "MU",
+      "AMD",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-09-11",
+    "eligible": 113,
+    "high": [
+      "ABBV",
+      "ABT",
+      "ACN",
+      "ADBE",
+      "ALB"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "CGNX",
+      "ANET",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-10-10",
+    "eligible": 121,
+    "high": [
+      "ABBV",
+      "ABT",
+      "AON",
+      "AXP",
+      "BIIB"
+    ],
+    "momentum": [
+      "NVDA",
+      "STLA",
+      "XYZ",
+      "CGNX",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-11-08",
+    "eligible": 118,
+    "high": [
+      "AAPL",
+      "ACN",
+      "ADBE",
+      "ALB",
+      "AMAT"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "STLA",
+      "MU",
+      "KTOS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2017-12-08",
+    "eligible": 116,
+    "high": [
+      "ACN",
+      "AVAV",
+      "BLK",
+      "CAT",
+      "DE"
+    ],
+    "momentum": [
+      "XYZ",
+      "SEDG",
+      "NVDA",
+      "ANET",
+      "MU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-01-10",
+    "eligible": 126,
+    "high": [
+      "ADBE",
+      "AMZN",
+      "ANET",
+      "AXP",
+      "BAC"
+    ],
+    "momentum": [
+      "SEDG",
+      "XYZ",
+      "ANET",
+      "AVAV",
+      "FSLR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-02-09",
+    "eligible": 101,
+    "high": [
+      "FTNT",
+      "NOC",
+      "BMY",
+      "SPGI",
+      "ANET"
+    ],
+    "momentum": [
+      "SEDG",
+      "XYZ",
+      "ANET",
+      "FSLR",
+      "STLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-03-13",
+    "eligible": 109,
+    "high": [
+      "ILMN",
+      "INTU",
+      "MU",
+      "SEDG",
+      "ZTS"
+    ],
+    "momentum": [
+      "XYZ",
+      "SEDG",
+      "NVDA",
+      "ANET",
+      "STLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-04-12",
+    "eligible": 98,
+    "high": [
+      "COP",
+      "MPC",
+      "VLO",
+      "VST",
+      "FTNT"
+    ],
+    "momentum": [
+      "SEDG",
+      "XYZ",
+      "CRSP",
+      "NVDA",
+      "FSLR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-05-11",
+    "eligible": 95,
+    "high": [
+      "ADBE",
+      "CCJ",
+      "COP",
+      "CRM",
+      "FTNT"
+    ],
+    "momentum": [
+      "CRSP",
+      "SEDG",
+      "XYZ",
+      "STLA",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-06-12",
+    "eligible": 101,
+    "high": [
+      "ADP",
+      "AMZN",
+      "COST",
+      "CRM",
+      "FTNT"
+    ],
+    "momentum": [
+      "CRSP",
+      "SEDG",
+      "XYZ",
+      "NFLX",
+      "OKTA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-07-12",
+    "eligible": 85,
+    "high": [
+      "ACN",
+      "AMZN",
+      "COST",
+      "CRM",
+      "DELL"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "XYZ",
+      "SEDG",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-08-10",
+    "eligible": 93,
+    "high": [
+      "AVAV",
+      "FTNT",
+      "TJX",
+      "LLY",
+      "NEE"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "XYZ",
+      "NFLX",
+      "RUN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-09-11",
+    "eligible": 87,
+    "high": [
+      "ACN",
+      "AMD",
+      "AON",
+      "AVAV",
+      "AXP"
+    ],
+    "momentum": [
+      "XYZ",
+      "CRSP",
+      "FTNT",
+      "AMZN",
+      "RUN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-10-10",
+    "eligible": 78,
+    "high": [
+      "NEE",
+      "VZ",
+      "LLY",
+      "PFE",
+      "ELV"
+    ],
+    "momentum": [
+      "XYZ",
+      "OKTA",
+      "FTNT",
+      "AMD",
+      "AMZN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-11-08",
+    "eligible": 69,
+    "high": [
+      "AON",
+      "DELL",
+      "JNJ",
+      "MCD",
+      "MRK"
+    ],
+    "momentum": [
+      "MDB",
+      "AMD",
+      "XYZ",
+      "AVAV",
+      "FTNT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2018-12-11",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2019-01-11",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2019-02-12",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2019-03-14",
+    "eligible": 71,
+    "high": [
+      "ABT",
+      "ADP",
+      "APD",
+      "CHKP",
+      "ENPH"
+    ],
+    "momentum": [
+      "MDB",
+      "OKTA",
+      "RUN",
+      "AMD",
+      "ENPH"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-04-12",
+    "eligible": 85,
+    "high": [
+      "ACN",
+      "ADP",
+      "ANET",
+      "AON",
+      "APD"
+    ],
+    "momentum": [
+      "MDB",
+      "ZS",
+      "AMD",
+      "OKTA",
+      "IRDM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-05-14",
+    "eligible": 78,
+    "high": [
+      "LHX",
+      "NEE",
+      "MDLZ",
+      "PEP",
+      "PG"
+    ],
+    "momentum": [
+      "MDB",
+      "AMD",
+      "IRDM",
+      "ZS",
+      "ENPH"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-06-13",
+    "eligible": 67,
+    "high": [
+      "ABT",
+      "ACN",
+      "COST",
+      "DHR",
+      "DIS"
+    ],
+    "momentum": [
+      "ENPH",
+      "MDB",
+      "OKTA",
+      "ZS",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-07-15",
+    "eligible": 87,
+    "high": [
+      "AMD",
+      "AXP",
+      "CB",
+      "COST",
+      "DIS"
+    ],
+    "momentum": [
+      "MDB",
+      "ENPH",
+      "OKTA",
+      "ZS",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-08-13",
+    "eligible": 90,
+    "high": [
+      "DHI",
+      "ENPH",
+      "LMT",
+      "MLM",
+      "NVR"
+    ],
+    "momentum": [
+      "ENPH",
+      "OKTA",
+      "MDB",
+      "ZS",
+      "KTOS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-09-12",
+    "eligible": 78,
+    "high": [
+      "ASML",
+      "DUK",
+      "ITW",
+      "LRCX",
+      "MDT"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "OKTA",
+      "SBUX",
+      "MDB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-10-11",
+    "eligible": 90,
+    "high": [
+      "AAPL",
+      "ASML",
+      "DE",
+      "HD",
+      "TER"
+    ],
+    "momentum": [
+      "ENPH",
+      "MDB",
+      "OKTA",
+      "SEDG",
+      "TER"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-11-11",
+    "eligible": 86,
+    "high": [
+      "AAPL",
+      "AMD",
+      "APD",
+      "BMY",
+      "DE"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "OKTA",
+      "KLAC",
+      "TER"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2019-12-11",
+    "eligible": 112,
+    "high": [
+      "AAPL",
+      "ABBNY",
+      "ASML",
+      "AVGO",
+      "BMY"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "LRCX",
+      "TER",
+      "KLAC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-01-13",
+    "eligible": 125,
+    "high": [
+      "AAPL",
+      "ADBE",
+      "ADP",
+      "AXP",
+      "BLK"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "TER",
+      "LRCX",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-02-12",
+    "eligible": 123,
+    "high": [
+      "AAPL",
+      "ABBV",
+      "ADBE",
+      "AMAT",
+      "AMD"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "AMD",
+      "AAPL",
+      "CRSP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-03-13",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2020-04-14",
+    "eligible": 42,
+    "high": [
+      "LLY",
+      "REGN",
+      "VRTX",
+      "WMT",
+      "OKTA"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "TSLA",
+      "AMD",
+      "AAPL"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-05-13",
+    "eligible": 43,
+    "high": [
+      "MDB",
+      "OKTA",
+      "REGN",
+      "NFLX",
+      "PYPL"
+    ],
+    "momentum": [
+      "TSLA",
+      "ENPH",
+      "AMD",
+      "SEDG",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-06-12",
+    "eligible": 64,
+    "high": [
+      "ADBE",
+      "DHR",
+      "PYPL",
+      "AMZN",
+      "ASML"
+    ],
+    "momentum": [
+      "MRNA",
+      "TSLA",
+      "ENPH",
+      "NVDA",
+      "SEDG"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-07-14",
+    "eligible": 79,
+    "high": [
+      "AAPL",
+      "ABBNY",
+      "ABBV",
+      "APD",
+      "ASML"
+    ],
+    "momentum": [
+      "MRNA",
+      "TSLA",
+      "ENPH",
+      "SEDG",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-08-12",
+    "eligible": 95,
+    "high": [
+      "ABBNY",
+      "AVGO",
+      "BLK",
+      "DELL",
+      "DHI"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "NVDA",
+      "REGN",
+      "RUN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-09-11",
+    "eligible": 96,
+    "high": [
+      "CAT",
+      "FCX",
+      "NKE",
+      "RIO",
+      "PGR"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "ENPH",
+      "SEDG",
+      "RUN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-10-12",
+    "eligible": 116,
+    "high": [
+      "ABBNY",
+      "ASML",
+      "AVGO",
+      "BLK",
+      "CAT"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "RUN",
+      "TWST",
+      "ENPH"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-11-10",
+    "eligible": 113,
+    "high": [
+      "ABBNY",
+      "ALB",
+      "CAT",
+      "DE",
+      "ELV"
+    ],
+    "momentum": [
+      "TSLA",
+      "ENPH",
+      "RUN",
+      "MRNA",
+      "TWST"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2020-12-10",
+    "eligible": 120,
+    "high": [
+      "CCJ",
+      "CRSP",
+      "CRWD",
+      "DELL",
+      "GS"
+    ],
+    "momentum": [
+      "TSLA",
+      "ENPH",
+      "MRNA",
+      "RUN",
+      "TWST"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-01-12",
+    "eligible": 125,
+    "high": [
+      "ABBNY",
+      "ABBV",
+      "AMAT",
+      "ANET",
+      "ASML"
+    ],
+    "momentum": [
+      "MRNA",
+      "TWST",
+      "TSLA",
+      "NET",
+      "PACB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-02-11",
+    "eligible": 121,
+    "high": [
+      "ABT",
+      "AMAT",
+      "ASML",
+      "AVGO",
+      "CAT"
+    ],
+    "momentum": [
+      "PACB",
+      "MRNA",
+      "TSLA",
+      "TWST",
+      "ENPH"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-03-15",
+    "eligible": 145,
+    "high": [
+      "ABBNY",
+      "ADP",
+      "CAT",
+      "CCJ",
+      "CI"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "MRNA",
+      "TSLA",
+      "RUN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-04-14",
+    "eligible": 152,
+    "high": [
+      "CI",
+      "DE",
+      "DUK",
+      "HON",
+      "LOW"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "BEAM",
+      "TWST",
+      "NTLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-05-13",
+    "eligible": 134,
+    "high": [
+      "ABBV",
+      "C",
+      "DUK",
+      "GEN",
+      "JPM"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "NTLA",
+      "FCX",
+      "UUUU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-06-14",
+    "eligible": 146,
+    "high": [
+      "ADBE",
+      "ASML",
+      "FTNT",
+      "GOOGL",
+      "INTU"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "FCX",
+      "UUUU",
+      "NTLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-07-14",
+    "eligible": 151,
+    "high": [
+      "AAPL",
+      "ABBV",
+      "ACN",
+      "ADBE",
+      "ADP"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "NTLA",
+      "BEAM",
+      "MP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-08-12",
+    "eligible": 145,
+    "high": [
+      "ABBNY",
+      "ADBE",
+      "AON",
+      "BLK",
+      "CB"
+    ],
+    "momentum": [
+      "NTLA",
+      "PACB",
+      "MSTR",
+      "BEAM",
+      "MRNA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-09-13",
+    "eligible": 137,
+    "high": [
+      "AON",
+      "ASML",
+      "AVGO",
+      "CCJ",
+      "KLAC"
+    ],
+    "momentum": [
+      "NTLA",
+      "MRNA",
+      "MSTR",
+      "BEAM",
+      "NET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-10-12",
+    "eligible": 109,
+    "high": [
+      "GD",
+      "LHX",
+      "NET",
+      "ORCL",
+      "PANW"
+    ],
+    "momentum": [
+      "NTLA",
+      "MRNA",
+      "UUUU",
+      "MSTR",
+      "UEC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-11-10",
+    "eligible": 130,
+    "high": [
+      "ADP",
+      "PG",
+      "PLD",
+      "KO",
+      "LIN"
+    ],
+    "momentum": [
+      "NTLA",
+      "UUUU",
+      "MSTR",
+      "UEC",
+      "FTNT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2021-12-10",
+    "eligible": 123,
+    "high": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ACN",
+      "AVGO"
+    ],
+    "momentum": [
+      "UEC",
+      "UUUU",
+      "FTNT",
+      "NET",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2022-01-11",
+    "eligible": 117,
+    "high": [
+      "ABBV",
+      "BAC",
+      "BRK-B",
+      "COP",
+      "CVS"
+    ],
+    "momentum": [
+      "NVDA",
+      "F",
+      "FTNT",
+      "UUUU",
+      "UEC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2022-02-10",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-03-14",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-04-12",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-05-12",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-06-13",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-07-14",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-08-12",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-09-13",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-10-12",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-11-10",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2022-12-12",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2023-01-12",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2023-02-13",
+    "eligible": 70,
+    "high": [
+      "ETN",
+      "PGR",
+      "PWR",
+      "ROK",
+      "URI"
+    ],
+    "momentum": [
+      "FSLR",
+      "CEG",
+      "IRDM",
+      "MPC",
+      "VLO"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-03-15",
+    "eligible": 66,
+    "high": [
+      "ANET",
+      "AVGO",
+      "BSX",
+      "NVR",
+      "MDLZ"
+    ],
+    "momentum": [
+      "FSLR",
+      "MPC",
+      "VLO",
+      "GILD",
+      "IRDM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-04-14",
+    "eligible": 56,
+    "high": [
+      "ABBNY",
+      "BSX",
+      "NVR",
+      "ORCL",
+      "PHM"
+    ],
+    "momentum": [
+      "FSLR",
+      "IRDM",
+      "MPC",
+      "DHI",
+      "GILD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-05-15",
+    "eligible": 85,
+    "high": [
+      "ABBNY",
+      "BSX",
+      "DHI",
+      "FTNT",
+      "ISRG"
+    ],
+    "momentum": [
+      "FSLR",
+      "PACB",
+      "MSTR",
+      "NFLX",
+      "IRDM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-06-14",
+    "eligible": 111,
+    "high": [
+      "AAPL",
+      "ABBNY",
+      "ASML",
+      "AVGO",
+      "FTNT"
+    ],
+    "momentum": [
+      "FSLR",
+      "PACB",
+      "SYM",
+      "NFLX",
+      "MSTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-07-17",
+    "eligible": 119,
+    "high": [
+      "AAPL",
+      "ABNB",
+      "ADBE",
+      "ASML",
+      "AVGO"
+    ],
+    "momentum": [
+      "PACB",
+      "NVDA",
+      "FSLR",
+      "SYM",
+      "VRT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-08-15",
+    "eligible": 95,
+    "high": [
+      "LLY",
+      "CEG",
+      "HD",
+      "PWR",
+      "WMT"
+    ],
+    "momentum": [
+      "SYM",
+      "NVDA",
+      "IONQ",
+      "VRT",
+      "NU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-09-14",
+    "eligible": 108,
+    "high": [
+      "BRK-B",
+      "CCJ",
+      "CEG",
+      "GOOGL",
+      "LIN"
+    ],
+    "momentum": [
+      "NVDA",
+      "SYM",
+      "IONQ",
+      "VRT",
+      "PHM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-10-13",
+    "eligible": 88,
+    "high": [
+      "PGR",
+      "VRTX",
+      "LLY",
+      "AMGN",
+      "PANW"
+    ],
+    "momentum": [
+      "NVDA",
+      "IONQ",
+      "VRT",
+      "SYM",
+      "META"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-11-13",
+    "eligible": 85,
+    "high": [
+      "AVAV",
+      "CCJ",
+      "CHKP",
+      "COST",
+      "CRWD"
+    ],
+    "momentum": [
+      "SYM",
+      "NVDA",
+      "META",
+      "IONQ",
+      "VRT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2023-12-13",
+    "eligible": 97,
+    "high": [
+      "AAPL",
+      "ACN",
+      "AMD",
+      "AMZN",
+      "AVGO"
+    ],
+    "momentum": [
+      "VRT",
+      "META",
+      "SYM",
+      "NVDA",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-01-16",
+    "eligible": 113,
+    "high": [
+      "AMD",
+      "ANET",
+      "BSX",
+      "CRWD",
+      "DDOG"
+    ],
+    "momentum": [
+      "SYM",
+      "VRT",
+      "COIN",
+      "NVDA",
+      "MSTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-02-14",
+    "eligible": 114,
+    "high": [
+      "AMAT",
+      "BRK-B",
+      "BSX",
+      "CHKP",
+      "CI"
+    ],
+    "momentum": [
+      "VRT",
+      "NVDA",
+      "CRWD",
+      "SYM",
+      "COIN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-03-15",
+    "eligible": 129,
+    "high": [
+      "CAT",
+      "CI",
+      "ELV",
+      "FCX",
+      "HOOD"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "PLTR",
+      "NVDA",
+      "SYM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-04-16",
+    "eligible": 112,
+    "high": [
+      "SCHW",
+      "BSX",
+      "PGR",
+      "AMAT",
+      "ELV"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "COIN",
+      "NVDA",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-05-15",
+    "eligible": 125,
+    "high": [
+      "AMAT",
+      "ANET",
+      "AVGO",
+      "BAC",
+      "BSX"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "COIN",
+      "NVDA",
+      "VST"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-06-14",
+    "eligible": 117,
+    "high": [
+      "AVGO",
+      "COST",
+      "MSFT",
+      "NFLX",
+      "NVDA"
+    ],
+    "momentum": [
+      "MSTR",
+      "VRT",
+      "COIN",
+      "VST",
+      "DELL"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-07-17",
+    "eligible": 121,
+    "high": [
+      "AMGN",
+      "AXP",
+      "BRK-B",
+      "C",
+      "DUK"
+    ],
+    "momentum": [
+      "VRT",
+      "VST",
+      "MSTR",
+      "NVDA",
+      "ASTS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-08-15",
+    "eligible": 115,
+    "high": [
+      "ABBV",
+      "ADP",
+      "ASTS",
+      "CHKP",
+      "ISRG"
+    ],
+    "momentum": [
+      "MSTR",
+      "ASTS",
+      "COIN",
+      "NVDA",
+      "TWST"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-09-16",
+    "eligible": 105,
+    "high": [
+      "ADP",
+      "AMGN",
+      "AXP",
+      "CB",
+      "CI"
+    ],
+    "momentum": [
+      "ASTS",
+      "MSTR",
+      "NVDA",
+      "VST",
+      "VRT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-10-15",
+    "eligible": 130,
+    "high": [
+      "APD",
+      "AXP",
+      "BKNG",
+      "BLK",
+      "GEN"
+    ],
+    "momentum": [
+      "ASTS",
+      "MSTR",
+      "VST",
+      "TWST",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-11-13",
+    "eligible": 121,
+    "high": [
+      "AMZN",
+      "AON",
+      "BSX",
+      "EMR",
+      "GD"
+    ],
+    "momentum": [
+      "ASTS",
+      "SMR",
+      "MSTR",
+      "VST",
+      "HOOD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2024-12-13",
+    "eligible": 110,
+    "high": [
+      "AAPL",
+      "ANET",
+      "AVGO",
+      "PYPL",
+      "TSLA"
+    ],
+    "momentum": [
+      "SMR",
+      "MSTR",
+      "ASTS",
+      "LUNR",
+      "RKLB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-01-16",
+    "eligible": 102,
+    "high": [
+      "BSX",
+      "C",
+      "CEG",
+      "EOG",
+      "GS"
+    ],
+    "momentum": [
+      "SMR",
+      "MSTR",
+      "RGTI",
+      "QBTS",
+      "ASTS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-02-18",
+    "eligible": 95,
+    "high": [
+      "C",
+      "CRWD",
+      "DE",
+      "FTNT",
+      "GS"
+    ],
+    "momentum": [
+      "RGTI",
+      "SMR",
+      "ASTS",
+      "RKLB",
+      "RDW"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-03-19",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2025-04-17",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2025-05-19",
+    "eligible": 69,
+    "high": [
+      "ADP",
+      "BKNG",
+      "BSX",
+      "GEV",
+      "IBM"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "RKLB",
+      "PLTR",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-06-18",
+    "eligible": 92,
+    "high": [
+      "ASTS",
+      "HOOD",
+      "IBM",
+      "LEU",
+      "MP"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "RKLB",
+      "PLTR",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-07-21",
+    "eligible": 100,
+    "high": [
+      "AVGO",
+      "KLAC",
+      "NET",
+      "PL",
+      "RTX"
+    ],
+    "momentum": [
+      "QBTS",
+      "RGTI",
+      "OKLO",
+      "RKLB",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-08-19",
+    "eligible": 116,
+    "high": [
+      "CVS",
+      "JNJ",
+      "SEDG",
+      "T",
+      "TJX"
+    ],
+    "momentum": [
+      "QBTS",
+      "RGTI",
+      "OKLO",
+      "RKLB",
+      "LEU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-09-18",
+    "eligible": 114,
+    "high": [
+      "ABBV",
+      "AXP",
+      "BAC",
+      "C",
+      "CAT"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "RKLB",
+      "MP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-10-17",
+    "eligible": 107,
+    "high": [
+      "AXP",
+      "CVS",
+      "GILD",
+      "JNJ",
+      "MU"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "IONQ",
+      "RKLB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-11-17",
+    "eligible": 104,
+    "high": [
+      "AMGN",
+      "CWEN",
+      "JNJ",
+      "SQM",
+      "NEE"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "LEU",
+      "PL"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2025-12-17",
+    "eligible": 104,
+    "high": [
+      "ALB",
+      "CB",
+      "RIO",
+      "SQM",
+      "MCD"
+    ],
+    "momentum": [
+      "OKLO",
+      "QBTS",
+      "RGTI",
+      "LEU",
+      "MP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2026-01-20",
+    "eligible": 111,
+    "high": [
+      "MU",
+      "NXE",
+      "UEC",
+      "XOM",
+      "NUE"
+    ],
+    "momentum": [
+      "PL",
+      "QBTS",
+      "OKLO",
+      "LEU",
+      "ASTS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2026-02-19",
+    "eligible": 112,
+    "high": [
+      "AMAT",
+      "COP",
+      "CVX",
+      "DE",
+      "GEV"
+    ],
+    "momentum": [
+      "UUUU",
+      "KTOS",
+      "PL",
+      "ASTS",
+      "MU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2026-03-20",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 7,
+    "day": "2026-04-21",
+    "eligible": 107,
+    "high": [
+      "AMD",
+      "ANET",
+      "CAT",
+      "DELL",
+      "ETN"
+    ],
+    "momentum": [
+      "PL",
+      "MU",
+      "TER",
+      "SEDG",
+      "ASTS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2026-05-20",
+    "eligible": 95,
+    "high": [
+      "AAPL",
+      "CRWD",
+      "GS",
+      "IRDM",
+      "MS"
+    ],
+    "momentum": [
+      "PL",
+      "TER",
+      "MU",
+      "ALB",
+      "RKLB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2026-06-22",
+    "eligible": 108,
+    "high": [
+      "ABBNY",
+      "AMAT",
+      "AMD",
+      "BAC",
+      "BEAM"
+    ],
+    "momentum": [
+      "PL",
+      "MU",
+      "RKLB",
+      "TER",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 7,
+    "day": "2026-07-22",
+    "eligible": 95,
+    "high": [
+      "BAC",
+      "JPM",
+      "BMY",
+      "GD",
+      "UNH"
+    ],
+    "momentum": [
+      "MU",
+      "TER",
+      "LRCX",
+      "AMD",
+      "AMAT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2016-07-21",
+    "eligible": 80,
+    "high": [
+      "PLD",
+      "JNJ",
+      "UNH",
+      "DHR",
+      "RTX"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "ALB",
+      "KLAC",
+      "AMZN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2016-08-19",
+    "eligible": 93,
+    "high": [
+      "AMAT",
+      "AMD",
+      "APD",
+      "EOG",
+      "GEN"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "DHR",
+      "ALB",
+      "AMAT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2016-09-20",
+    "eligible": 89,
+    "high": [
+      "AMAT",
+      "PG",
+      "TSM",
+      "MA",
+      "ISRG"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "DHR",
+      "AMAT",
+      "ALB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2016-10-19",
+    "eligible": 86,
+    "high": [
+      "GOOGL",
+      "SLB",
+      "UNH",
+      "MA",
+      "JPM"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "AMAT",
+      "DHR",
+      "GEN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2016-11-17",
+    "eligible": 78,
+    "high": [
+      "AMAT",
+      "AMD",
+      "BRK-B",
+      "CGNX",
+      "DE"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "ALB",
+      "DHR",
+      "HPE"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2016-12-19",
+    "eligible": 93,
+    "high": [
+      "ADP",
+      "AMD",
+      "ANET",
+      "AVGO",
+      "CGNX"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "FCX",
+      "DHR",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-01-20",
+    "eligible": 102,
+    "high": [
+      "AAPL",
+      "AMAT",
+      "AVGO",
+      "CHKP",
+      "DE"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "FCX",
+      "CGNX",
+      "PWR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-02-21",
+    "eligible": 124,
+    "high": [
+      "AAPL",
+      "ABT",
+      "AMAT",
+      "AMD",
+      "AMZN"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "URI",
+      "MU",
+      "FCX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-03-22",
+    "eligible": 118,
+    "high": [
+      "ACN",
+      "ANET",
+      "ASML",
+      "CHKP",
+      "KLAC"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "MU",
+      "ANET",
+      "URI"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-04-21",
+    "eligible": 116,
+    "high": [
+      "ABBNY",
+      "ADBE",
+      "ANET",
+      "FTNT",
+      "HD"
+    ],
+    "momentum": [
+      "AMD",
+      "NVDA",
+      "MU",
+      "CGNX",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-05-22",
+    "eligible": 116,
+    "high": [
+      "ADBE",
+      "AMZN",
+      "AON",
+      "BLK",
+      "BSX"
+    ],
+    "momentum": [
+      "AMD",
+      "MU",
+      "NVDA",
+      "CGNX",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-06-21",
+    "eligible": 114,
+    "high": [
+      "ABBV",
+      "ADBE",
+      "ANET",
+      "ISRG",
+      "JNJ"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "MU",
+      "CGNX",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-07-21",
+    "eligible": 116,
+    "high": [
+      "ABBV",
+      "ACN",
+      "AON",
+      "ASML",
+      "CB"
+    ],
+    "momentum": [
+      "NVDA",
+      "AMD",
+      "XYZ",
+      "MU",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-08-21",
+    "eligible": 100,
+    "high": [
+      "DUK",
+      "NEE",
+      "PG",
+      "SQM",
+      "STLA"
+    ],
+    "momentum": [
+      "NVDA",
+      "XYZ",
+      "MU",
+      "NFLX",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-09-20",
+    "eligible": 117,
+    "high": [
+      "ACN",
+      "ALB",
+      "ANET",
+      "AON",
+      "APD"
+    ],
+    "momentum": [
+      "NVDA",
+      "STLA",
+      "ANET",
+      "XYZ",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-10-19",
+    "eligible": 124,
+    "high": [
+      "ABBV",
+      "ABT",
+      "ACN",
+      "ADBE",
+      "AON"
+    ],
+    "momentum": [
+      "NVDA",
+      "STLA",
+      "XYZ",
+      "ANET",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-11-17",
+    "eligible": 118,
+    "high": [
+      "ANET",
+      "CGNX",
+      "CRM",
+      "DE",
+      "DHI"
+    ],
+    "momentum": [
+      "XYZ",
+      "SEDG",
+      "SQM",
+      "STLA",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2017-12-19",
+    "eligible": 119,
+    "high": [
+      "ABBNY",
+      "ABT",
+      "CAT",
+      "DE",
+      "DHR"
+    ],
+    "momentum": [
+      "XYZ",
+      "SEDG",
+      "ANET",
+      "MU",
+      "CGNX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-01-22",
+    "eligible": 125,
+    "high": [
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "ADP",
+      "AMGN"
+    ],
+    "momentum": [
+      "ANET",
+      "XYZ",
+      "NVR",
+      "MU",
+      "FSLR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-02-21",
+    "eligible": 109,
+    "high": [
+      "AMZN",
+      "CRM",
+      "HII",
+      "NOW",
+      "SEDG"
+    ],
+    "momentum": [
+      "XYZ",
+      "SEDG",
+      "ANET",
+      "STLA",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-03-22",
+    "eligible": 96,
+    "high": [
+      "NEE",
+      "MPC",
+      "FTNT",
+      "INTU",
+      "VST"
+    ],
+    "momentum": [
+      "SEDG",
+      "XYZ",
+      "FSLR",
+      "NVDA",
+      "CRSP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-04-23",
+    "eligible": 90,
+    "high": [
+      "LHX",
+      "MPC",
+      "OKTA",
+      "OXY",
+      "VLO"
+    ],
+    "momentum": [
+      "SEDG",
+      "XYZ",
+      "CRSP",
+      "FSLR",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-05-22",
+    "eligible": 95,
+    "high": [
+      "AXP",
+      "ILMN",
+      "SCHW",
+      "TJX",
+      "NKE"
+    ],
+    "momentum": [
+      "CRSP",
+      "SEDG",
+      "XYZ",
+      "STLA",
+      "FSLR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-06-21",
+    "eligible": 81,
+    "high": [
+      "COST",
+      "PYPL",
+      "META",
+      "NFLX",
+      "TJX"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "SEDG",
+      "XYZ",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-07-23",
+    "eligible": 81,
+    "high": [
+      "ASML",
+      "COST",
+      "FTNT",
+      "MDT",
+      "META"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "XYZ",
+      "SEDG",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-08-21",
+    "eligible": 89,
+    "high": [
+      "ADP",
+      "AMD",
+      "AXP",
+      "COST",
+      "EMR"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "XYZ",
+      "OKTA",
+      "NFLX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-09-20",
+    "eligible": 95,
+    "high": [
+      "ABT",
+      "ACN",
+      "ADP",
+      "AMGN",
+      "AXP"
+    ],
+    "momentum": [
+      "CRSP",
+      "XYZ",
+      "RUN",
+      "FTNT",
+      "AMZN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-10-19",
+    "eligible": 68,
+    "high": [
+      "DIS",
+      "MRK",
+      "VZ",
+      "NEE",
+      "ELV"
+    ],
+    "momentum": [
+      "XYZ",
+      "MDB",
+      "OKTA",
+      "AMD",
+      "AVAV"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2018-11-19",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2018-12-20",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2019-01-23",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2019-02-22",
+    "eligible": 62,
+    "high": [
+      "ABT",
+      "ADP",
+      "BSX",
+      "CHKP",
+      "DHR"
+    ],
+    "momentum": [
+      "MDB",
+      "OKTA",
+      "AMD",
+      "XYZ",
+      "LLY"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-03-25",
+    "eligible": 82,
+    "high": [
+      "DUK",
+      "LLY",
+      "MDLZ",
+      "PEP",
+      "SBUX"
+    ],
+    "momentum": [
+      "MDB",
+      "AMD",
+      "OKTA",
+      "IRDM",
+      "KTOS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-04-24",
+    "eligible": 81,
+    "high": [
+      "ACN",
+      "APD",
+      "AXP",
+      "COST",
+      "DELL"
+    ],
+    "momentum": [
+      "MDB",
+      "AMD",
+      "ZS",
+      "IRDM",
+      "OKTA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-05-23",
+    "eligible": 82,
+    "high": [
+      "KTOS",
+      "LHX",
+      "NEE",
+      "SO",
+      "KO"
+    ],
+    "momentum": [
+      "MDB",
+      "ZS",
+      "AMD",
+      "IRDM",
+      "OKTA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-06-24",
+    "eligible": 79,
+    "high": [
+      "AON",
+      "APD",
+      "BSX",
+      "CB",
+      "KO"
+    ],
+    "momentum": [
+      "MDB",
+      "ENPH",
+      "ZS",
+      "OKTA",
+      "KTOS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-07-24",
+    "eligible": 90,
+    "high": [
+      "ADBE",
+      "CB",
+      "CVX",
+      "ITW",
+      "KLAC"
+    ],
+    "momentum": [
+      "MDB",
+      "ENPH",
+      "OKTA",
+      "ZS",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-08-22",
+    "eligible": 87,
+    "high": [
+      "DUK",
+      "HD",
+      "KLAC",
+      "LMT",
+      "MDT"
+    ],
+    "momentum": [
+      "ENPH",
+      "OKTA",
+      "MDB",
+      "ZS",
+      "KTOS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-09-23",
+    "eligible": 80,
+    "high": [
+      "DHI",
+      "DUK",
+      "FSLR",
+      "LEN",
+      "LRCX"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "OKTA",
+      "SBUX",
+      "MDB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-10-22",
+    "eligible": 86,
+    "high": [
+      "BAC",
+      "DE",
+      "ITW",
+      "JPM",
+      "NEE"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "TER",
+      "KLAC",
+      "PHM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-11-20",
+    "eligible": 105,
+    "high": [
+      "AMGN",
+      "AON",
+      "LOW",
+      "SO",
+      "SPGI"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "OKTA",
+      "KLAC",
+      "TER"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2019-12-20",
+    "eligible": 128,
+    "high": [
+      "ACN",
+      "AMD",
+      "AON",
+      "BSX",
+      "C"
+    ],
+    "momentum": [
+      "ENPH",
+      "CRSP",
+      "AMD",
+      "SEDG",
+      "OKTA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-01-23",
+    "eligible": 126,
+    "high": [
+      "AAPL",
+      "ADBE",
+      "AMAT",
+      "AMD",
+      "AON"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "AMD",
+      "TER",
+      "LRCX"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-02-24",
+    "eligible": 112,
+    "high": [
+      "GILD",
+      "DUK",
+      "NVR",
+      "MCD",
+      "KO"
+    ],
+    "momentum": [
+      "ENPH",
+      "SEDG",
+      "AMD",
+      "TSLA",
+      "AAPL"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-03-24",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2020-04-23",
+    "eligible": 34,
+    "high": [
+      "LLY",
+      "AMZN",
+      "OKTA",
+      "REGN",
+      "VRTX"
+    ],
+    "momentum": [
+      "ENPH",
+      "TSLA",
+      "SEDG",
+      "AMD",
+      "REGN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-05-22",
+    "eligible": 57,
+    "high": [
+      "ADBE",
+      "CGNX",
+      "MDB",
+      "META",
+      "NVDA"
+    ],
+    "momentum": [
+      "TSLA",
+      "ENPH",
+      "MRNA",
+      "AMD",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-06-23",
+    "eligible": 74,
+    "high": [
+      "AAPL",
+      "ABBV",
+      "ADBE",
+      "AMZN",
+      "ASML"
+    ],
+    "momentum": [
+      "MRNA",
+      "TSLA",
+      "ENPH",
+      "NVDA",
+      "SEDG"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-07-23",
+    "eligible": 87,
+    "high": [
+      "ABT",
+      "CCJ",
+      "CGNX",
+      "DHR",
+      "ISRG"
+    ],
+    "momentum": [
+      "MRNA",
+      "TSLA",
+      "SEDG",
+      "ENPH",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-08-21",
+    "eligible": 100,
+    "high": [
+      "AAPL",
+      "ACN",
+      "CHKP",
+      "COST",
+      "DE"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "RUN",
+      "NVDA",
+      "SEDG"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-09-22",
+    "eligible": 100,
+    "high": [
+      "LEN",
+      "PACB",
+      "RUN",
+      "ORCL",
+      "CRWD"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "NVDA",
+      "RUN",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-10-21",
+    "eligible": 99,
+    "high": [
+      "FCX",
+      "PYPL",
+      "SQM",
+      "TER",
+      "TMO"
+    ],
+    "momentum": [
+      "TSLA",
+      "MRNA",
+      "RUN",
+      "ZS",
+      "DDOG"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-11-19",
+    "eligible": 105,
+    "high": [
+      "ABBV",
+      "AMAT",
+      "AVGO",
+      "ENPH",
+      "ETN"
+    ],
+    "momentum": [
+      "TSLA",
+      "ENPH",
+      "RUN",
+      "TWST",
+      "SEDG"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2020-12-21",
+    "eligible": 116,
+    "high": [
+      "CGNX",
+      "CRSP",
+      "CRWD",
+      "ENPH",
+      "FSLR"
+    ],
+    "momentum": [
+      "TSLA",
+      "ENPH",
+      "TWST",
+      "MRNA",
+      "RUN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-01-22",
+    "eligible": 125,
+    "high": [
+      "AAPL",
+      "AVAV",
+      "BEP",
+      "GOOGL",
+      "ILMN"
+    ],
+    "momentum": [
+      "TWST",
+      "MRNA",
+      "TSLA",
+      "ENPH",
+      "NET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-02-23",
+    "eligible": 124,
+    "high": [
+      "AXP",
+      "BKNG",
+      "BRK-B",
+      "CAT",
+      "DIS"
+    ],
+    "momentum": [
+      "PACB",
+      "MRNA",
+      "NTLA",
+      "TWST",
+      "TSLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-03-24",
+    "eligible": 146,
+    "high": [
+      "ACN",
+      "ELV",
+      "HD",
+      "IBM",
+      "UNH"
+    ],
+    "momentum": [
+      "PACB",
+      "TSLA",
+      "MSTR",
+      "MRNA",
+      "UUUU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-04-23",
+    "eligible": 153,
+    "high": [
+      "ABBV",
+      "ACN",
+      "ADP",
+      "ASML",
+      "BSX"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "BEAM",
+      "TSLA",
+      "NTLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-05-24",
+    "eligible": 141,
+    "high": [
+      "ADP",
+      "ANET",
+      "BMY",
+      "C",
+      "FTNT"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "TSLA",
+      "FCX",
+      "NTLA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-06-23",
+    "eligible": 146,
+    "high": [
+      "DHR",
+      "INTU",
+      "ISRG",
+      "META",
+      "NET"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "UUUU",
+      "FCX",
+      "ENPH"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-07-23",
+    "eligible": 147,
+    "high": [
+      "ABBNY",
+      "ABBV",
+      "ACN",
+      "ADBE",
+      "ANET"
+    ],
+    "momentum": [
+      "PACB",
+      "MSTR",
+      "NTLA",
+      "BEAM",
+      "NET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-08-23",
+    "eligible": 136,
+    "high": [
+      "ACN",
+      "ADBE",
+      "ASML",
+      "BLK",
+      "ETN"
+    ],
+    "momentum": [
+      "NTLA",
+      "MRNA",
+      "MSTR",
+      "BEAM",
+      "NET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-09-22",
+    "eligible": 123,
+    "high": [
+      "AON",
+      "DDOG",
+      "MDB",
+      "NET",
+      "TMO"
+    ],
+    "momentum": [
+      "NTLA",
+      "MRNA",
+      "BEAM",
+      "NET",
+      "UUUU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-10-21",
+    "eligible": 132,
+    "high": [
+      "AMD",
+      "ANET",
+      "AON",
+      "AVGO",
+      "CB"
+    ],
+    "momentum": [
+      "MRNA",
+      "NTLA",
+      "UUUU",
+      "MSTR",
+      "UEC"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-11-19",
+    "eligible": 125,
+    "high": [
+      "AAPL",
+      "ADBE",
+      "ALB",
+      "AMD",
+      "COST"
+    ],
+    "momentum": [
+      "UUUU",
+      "NTLA",
+      "UEC",
+      "MRNA",
+      "MSTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2021-12-21",
+    "eligible": 114,
+    "high": [
+      "AVGO",
+      "ZTS",
+      "ELV",
+      "CVS",
+      "MCD"
+    ],
+    "momentum": [
+      "UUUU",
+      "UEC",
+      "NVDA",
+      "NET",
+      "FTNT"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2022-01-21",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-02-22",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-03-23",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-04-22",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-05-23",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-06-23",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-07-25",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-08-23",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-09-22",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-10-21",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-11-21",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2022-12-21",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2023-01-24",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2023-02-23",
+    "eligible": 63,
+    "high": [
+      "PWR",
+      "PGR",
+      "ETN",
+      "ORCL",
+      "ROK"
+    ],
+    "momentum": [
+      "FSLR",
+      "CEG",
+      "MPC",
+      "VLO",
+      "IRDM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-03-24",
+    "eligible": 50,
+    "high": [
+      "MDLZ",
+      "REGN",
+      "ANET",
+      "BSX",
+      "MCD"
+    ],
+    "momentum": [
+      "FSLR",
+      "MPC",
+      "IRDM",
+      "GILD",
+      "VLO"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-04-25",
+    "eligible": 63,
+    "high": [
+      "ABBNY",
+      "ABBV",
+      "HUBB",
+      "MDLZ",
+      "MRK"
+    ],
+    "momentum": [
+      "FSLR",
+      "IRDM",
+      "NFLX",
+      "MPC",
+      "ANET"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-05-24",
+    "eligible": 73,
+    "high": [
+      "META",
+      "PANW",
+      "NU",
+      "AVGO",
+      "VMC"
+    ],
+    "momentum": [
+      "FSLR",
+      "PACB",
+      "IRDM",
+      "NFLX",
+      "DHI"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-06-26",
+    "eligible": 100,
+    "high": [
+      "MLM",
+      "UBER",
+      "VMC",
+      "NVR",
+      "PWR"
+    ],
+    "momentum": [
+      "FSLR",
+      "PACB",
+      "SYM",
+      "NFLX",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-07-26",
+    "eligible": 113,
+    "high": [
+      "ABNB",
+      "BRK-B",
+      "CCJ",
+      "GOOGL",
+      "IONQ"
+    ],
+    "momentum": [
+      "PACB",
+      "FSLR",
+      "NVDA",
+      "VRT",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-08-24",
+    "eligible": 94,
+    "high": [
+      "ETN",
+      "NVDA",
+      "EMR",
+      "LLY",
+      "IBM"
+    ],
+    "momentum": [
+      "SYM",
+      "NVDA",
+      "IONQ",
+      "VRT",
+      "PHM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-09-25",
+    "eligible": 95,
+    "high": [
+      "CCJ",
+      "NXE",
+      "UUUU",
+      "VLO",
+      "CEG"
+    ],
+    "momentum": [
+      "NVDA",
+      "SYM",
+      "VRT",
+      "IONQ",
+      "PHM"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-10-24",
+    "eligible": 77,
+    "high": [
+      "AVAV",
+      "UEC",
+      "CHKP",
+      "WMT",
+      "VRTX"
+    ],
+    "momentum": [
+      "NVDA",
+      "VRT",
+      "IONQ",
+      "SYM",
+      "META"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-11-22",
+    "eligible": 89,
+    "high": [
+      "ACN",
+      "ADBE",
+      "AMZN",
+      "ANET",
+      "AVAV"
+    ],
+    "momentum": [
+      "SYM",
+      "NVDA",
+      "META",
+      "VRT",
+      "MSTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2023-12-22",
+    "eligible": 113,
+    "high": [
+      "ACN",
+      "BKNG",
+      "CHKP",
+      "COIN",
+      "ETN"
+    ],
+    "momentum": [
+      "SYM",
+      "IONQ",
+      "VRT",
+      "COIN",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-01-25",
+    "eligible": 114,
+    "high": [
+      "ACN",
+      "AMD",
+      "AMZN",
+      "ASML",
+      "BRK-B"
+    ],
+    "momentum": [
+      "SYM",
+      "COIN",
+      "VRT",
+      "NVDA",
+      "MSTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-02-26",
+    "eligible": 123,
+    "high": [
+      "ABBV",
+      "ACN",
+      "AMAT",
+      "AVGO",
+      "AXP"
+    ],
+    "momentum": [
+      "VRT",
+      "NVDA",
+      "CRWD",
+      "META",
+      "AMD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-03-26",
+    "eligible": 133,
+    "high": [
+      "BSX",
+      "C",
+      "CI",
+      "DIS",
+      "ELV"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "NVDA",
+      "PLTR",
+      "COIN"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-04-25",
+    "eligible": 120,
+    "high": [
+      "BSX",
+      "ELV",
+      "GM",
+      "NOC",
+      "VRT"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "COIN",
+      "NVDA",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-05-24",
+    "eligible": 126,
+    "high": [
+      "AMAT",
+      "AVAV",
+      "CEG",
+      "COST",
+      "CRWD"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "COIN",
+      "VST",
+      "DELL"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-06-26",
+    "eligible": 121,
+    "high": [
+      "AMZN",
+      "ISRG",
+      "KO",
+      "MSFT",
+      "NU"
+    ],
+    "momentum": [
+      "MSTR",
+      "VRT",
+      "VST",
+      "COIN",
+      "DELL"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-07-26",
+    "eligible": 109,
+    "high": [
+      "ABBV",
+      "ASTS",
+      "BLK",
+      "CHKP",
+      "DHR"
+    ],
+    "momentum": [
+      "VRT",
+      "MSTR",
+      "VST",
+      "ASTS",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-08-26",
+    "eligible": 118,
+    "high": [
+      "ADP",
+      "BLK",
+      "BRK-B",
+      "COST",
+      "DUK"
+    ],
+    "momentum": [
+      "MSTR",
+      "ASTS",
+      "COIN",
+      "TWST",
+      "VST"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-09-25",
+    "eligible": 123,
+    "high": [
+      "ANET",
+      "CEG",
+      "IBM",
+      "MCD",
+      "META"
+    ],
+    "momentum": [
+      "ASTS",
+      "MSTR",
+      "NVDA",
+      "VST",
+      "PLTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-10-24",
+    "eligible": 126,
+    "high": [
+      "GILD",
+      "MSTR",
+      "NOW",
+      "PLTR",
+      "PM"
+    ],
+    "momentum": [
+      "ASTS",
+      "VST",
+      "MSTR",
+      "SMR",
+      "NVDA"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-11-22",
+    "eligible": 122,
+    "high": [
+      "AXP",
+      "BAC",
+      "C",
+      "COST",
+      "CRM"
+    ],
+    "momentum": [
+      "SMR",
+      "ASTS",
+      "MSTR",
+      "VST",
+      "HOOD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2024-12-24",
+    "eligible": 102,
+    "high": [
+      "AAPL",
+      "IONQ",
+      "LUNR",
+      "MA",
+      "PLTR"
+    ],
+    "momentum": [
+      "SMR",
+      "MSTR",
+      "LUNR",
+      "VST",
+      "RKLB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-01-28",
+    "eligible": 101,
+    "high": [
+      "AMZN",
+      "BSX",
+      "CRWD",
+      "FTNT",
+      "JPM"
+    ],
+    "momentum": [
+      "QBTS",
+      "RGTI",
+      "SMR",
+      "ASTS",
+      "MSTR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-02-27",
+    "eligible": 91,
+    "high": [
+      "ABBV",
+      "AON",
+      "BRK-B",
+      "GILD",
+      "PGR"
+    ],
+    "momentum": [
+      "SMR",
+      "RGTI",
+      "RDW",
+      "RKLB",
+      "ASTS"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-03-28",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2025-04-29",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2025-05-29",
+    "eligible": 80,
+    "high": [
+      "BKNG",
+      "INTU",
+      "ADP",
+      "PM",
+      "RTX"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "PLTR",
+      "RKLB",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-06-30",
+    "eligible": 100,
+    "high": [
+      "AVGO",
+      "BKNG",
+      "BSX",
+      "C",
+      "CRWD"
+    ],
+    "momentum": [
+      "QBTS",
+      "RGTI",
+      "IONQ",
+      "OKLO",
+      "RKLB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-07-30",
+    "eligible": 112,
+    "high": [
+      "AMD",
+      "AVGO",
+      "CAT",
+      "GEV",
+      "INTU"
+    ],
+    "momentum": [
+      "QBTS",
+      "RGTI",
+      "RKLB",
+      "OKLO",
+      "IONQ"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-08-28",
+    "eligible": 111,
+    "high": [
+      "BAC",
+      "CVS",
+      "GOOGL",
+      "GS",
+      "JPM"
+    ],
+    "momentum": [
+      "QBTS",
+      "RGTI",
+      "OKLO",
+      "RKLB",
+      "SMR"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-09-29",
+    "eligible": 115,
+    "high": [
+      "ABBV",
+      "AVAV",
+      "AXP",
+      "BAC",
+      "BLK"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "IONQ",
+      "RKLB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-10-28",
+    "eligible": 115,
+    "high": [
+      "AAPL",
+      "AVGO",
+      "CCJ",
+      "CRWD",
+      "DELL"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "PL",
+      "HOOD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-11-26",
+    "eligible": 109,
+    "high": [
+      "AAPL",
+      "AMAT",
+      "AMGN",
+      "AVGO",
+      "GM"
+    ],
+    "momentum": [
+      "RGTI",
+      "QBTS",
+      "OKLO",
+      "LEU",
+      "HOOD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2025-12-29",
+    "eligible": 116,
+    "high": [
+      "CB",
+      "MU",
+      "XOM",
+      "MRK",
+      "GM"
+    ],
+    "momentum": [
+      "OKLO",
+      "LEU",
+      "MP",
+      "SYM",
+      "HOOD"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2026-01-29",
+    "eligible": 108,
+    "high": [
+      "ABBNY",
+      "AMAT",
+      "ASML",
+      "ASTS",
+      "CAT"
+    ],
+    "momentum": [
+      "QBTS",
+      "PL",
+      "ASTS",
+      "MU",
+      "LEU"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2026-03-02",
+    "eligible": 107,
+    "high": [
+      "CB",
+      "COP",
+      "CVX",
+      "DUK",
+      "GEV"
+    ],
+    "momentum": [
+      "UUUU",
+      "PL",
+      "MU",
+      "ASTS",
+      "RKLB"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2026-03-31",
+    "eligible": 0,
+    "high": [],
+    "momentum": [],
+    "qqq": []
+  },
+  {
+    "offset": 14,
+    "day": "2026-04-30",
+    "eligible": 105,
+    "high": [
+      "ABBNY",
+      "AMD",
+      "AMZN",
+      "CAT",
+      "ETN"
+    ],
+    "momentum": [
+      "PL",
+      "MU",
+      "UUUU",
+      "SEDG",
+      "TER"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2026-06-01",
+    "eligible": 97,
+    "high": [
+      "AMAT",
+      "AVGO",
+      "DDOG",
+      "DELL",
+      "ELV"
+    ],
+    "momentum": [
+      "PL",
+      "MU",
+      "TER",
+      "ALB",
+      "MP"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  },
+  {
+    "offset": 14,
+    "day": "2026-07-01",
+    "eligible": 103,
+    "high": [
+      "ABNB",
+      "APD",
+      "BAC",
+      "CB",
+      "CVS"
+    ],
+    "momentum": [
+      "MU",
+      "PL",
+      "TER",
+      "DELL",
+      "SEDG"
+    ],
+    "qqq": [
+      "QQQ"
+    ]
+  }
+]
