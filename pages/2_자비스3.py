@@ -250,8 +250,8 @@ st.markdown(
         flex-wrap: nowrap !important;
         gap: .4rem !important;
     }
-    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_US"]) > [data-testid="stColumn"],
-    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_all_US"]) > [data-testid="stColumn"] {
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_US"]) > .stColumn,
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_all_US"]) > .stColumn {
         min-width: 0 !important;
         flex: 1 1 0 !important;
     }
@@ -329,7 +329,7 @@ st.markdown(
         flex-wrap: wrap !important;
     }
     div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked)
-        [data-testid="stColumn"] {
+        .stColumn {
         flex: 1 1 100% !important;
     }
     /* 설명 카드와 그 밑 「핵심 4개」 사이가 38px 이었다(2026-09-12 상하님 —
@@ -339,7 +339,7 @@ st.markdown(
     }
     /* **둘째 접이칸부터는 도로 민다.** 접이칸마다 부모가 달라 :first-of-type 이
        둘 다 잡는다 — 그대로 두면 「핵심 4개」와 「신호 상세」가 겹친다(실측 -10px). */
-    div[class*="st-key-us_signal_fold"] [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) ~ [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) [data-testid="stExpander"] {
+    div[class*="st-key-us_signal_fold"] [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) ~ [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) .stExpander {
         margin-top: 0 !important;
     }
     /* 글 문단 아래 16px 도 줄인다 — 접이칸·안내줄이 이것 때문에 벌어진다.
@@ -1281,75 +1281,13 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 700 !important;
     }
-    /* ── 「📘 이 테마 설명」 창이 열리는 모양 (2026-09-18 상하님 지시) ─────────
-       상하님 — "이 테마 설명 창 열리는 방법은 저장해 둔 목록의 파트별 성적표에서
-       「매수심사결과 높은 순위 9」를 클릭하면 창이 열리듯이 해 주고."
-       그 창(.j3pop)은 **누르면 나머지가 흐려지고 창이 튀어 오른다.** 같은 결로 맞춘다.
-
-       **transform 은 절대 안 건드린다.** 스트림릿이 창 자리를 그것으로 잡는다
-       (실측 — matrix(1,0,0,1,8,8)). 손대면 창이 8px 옆으로 튄다. 그래서 따로 있는
-       `scale` 속성만 쓴다 — transform 과 겹치지 않고 같이 걸린다.
-
-       **이 화면에서만 걸린다** — `.j3-market-top` 은 시장분석 화면에만 있는 표식이다.
-       한국테마·자비스6의 같은 단추는 지금까지 그대로다. */
-    /* ── 2026-09-18 두 번째 — 상하님 "뭐가 바뀐지 모르겠는데?" ──────────────────
-       재 보니(노트북) 누르면 창이 0.07초에 뜨는데 **내용(만화)은 0.36초에야 찬다.**
-       그 사이 창은 꽉 찼다 → 빈 창(97px) → 다시 꽉 찼다. 튀어 오르는 움직임(0.22초)은
-       **빈 창에서 다 끝나 버리고** 내용은 움직임 없이 툭 나타났다. 온라인은 더 늦다.
-
-       그래서 — ① 누르면 **뒤 화면부터 곧바로** 흐려진다(눌렀다는 것이 바로 보인다).
-       ② 창은 **내용이 다 찰 때까지 안 보이게** 두었다가(아래 창닫기 단추가 생긴 것이
-       다 찼다는 표시다) 그 순간 **작게 시작해 크게 튀어 오른다** — 3번 캡처처럼
-       살짝 넘쳤다가 제자리에 선다. 위에서 자라 내려오게 위쪽 가운데를 축으로 삼는다.
-       ③ 내용이 끝내 안 오면(그림을 못 읽은 날 등) 2.5초 뒤에 그냥 보인다 —
-       안 그러면 뒤만 흐린 채 창이 영영 안 뜬다.
-       ④ 「✕ 창닫기」를 누르면 **풍선처럼 줄어들며** 사라지고 뒤가 다시 밝아진다
-       (누르는 순간 붙는 표시 j3-help-closing · 위 _SWIPE_OUTER_JS 끝부분).
-       맨 위 「📘 이 테마 설명」을 다시 눌러 닫는 것은 스트림릿이 창을 곧바로 지워서
-       줄어드는 움직임을 넣을 수 없다 — 그때는 예전처럼 바로 닫힌다.
-
-       **끝나면 놓는다(backwards)** — both 로 두면 scale:1 이 계속 붙어 창 안의 고정
-       요소 자리가 바뀔 수 있다. */
-    @keyframes j3HelpWait { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes j3HelpPop {
-        from { scale: .55; opacity: 0; }
-        to   { scale: 1;   opacity: 1; }
-    }
-    @keyframes j3HelpShrink { to { scale: .55; opacity: 0; } }
-    body:has(.j3-market-top) [data-testid="stPopoverBody"] {
-        transform-origin: 50% 0 !important;
-        box-shadow: 0 24px 70px rgba(0,0,0,.6) !important;
-    }
-    body:has(.j3-market-top) [data-testid="stPopoverBody"]:not(:has([class*="st-key-jarvis_method_help_close_bottom"])) {
-        animation: j3HelpWait .01s linear 2.5s both !important;
-    }
-    body:has(.j3-market-top) [data-testid="stPopoverBody"]:has([class*="st-key-jarvis_method_help_close_bottom"]) {
-        animation: j3HelpPop .42s cubic-bezier(.18,1.3,.4,1) backwards !important;
-    }
-    body:has(.j3-market-top) [data-testid="stPopoverBody"].j3-help-closing {
-        animation: j3HelpShrink .22s cubic-bezier(.2,.7,.3,1) forwards !important;
-    }
-    /* 창이 뜨면 뒤는 흐려진다. 창은 화면 껍데기 **밖**(portal)에 있어서 같이 안
-       흐려진다 — 실측으로 확인했다(stPopoverBody 가 stAppViewContainer 안에 없다). */
-    body:has(.j3-market-top) [data-testid="stAppViewContainer"] {
+    /* ── 「📘 이 테마 설명」 창(스트림릿 팝업)에 걸던 규칙은 걷어냈다 (2026-09-23 저녁) ──
+       이 화면은 이제 그 팝업을 안 쓴다 — 주인은 카드 창(_render_help_card), 손님은 단추가
+       없다. 가리킬 칸이 하나도 없는 규칙만 남아, 화면이 바뀔 때마다 폰이 문서 전체를 다시
+       따지게 했다(설명은 _J3B_HOME_CSS 위). 창 뒤를 흐리던 움직임 시간 한 줄만 남긴다 —
+       값이 그대로라 화면이 안 바뀐다. */
+    body:has(.j3-market-top) .stAppViewContainer {
         transition: filter .24s ease, opacity .24s ease;
-    }
-    body:has(.j3-market-top):has([data-testid="stPopoverBody"])
-        [data-testid="stAppViewContainer"] {
-        filter: blur(3px) !important;
-        opacity: .38 !important;
-    }
-    body:has(.j3-market-top):has(.j3-help-closing) [data-testid="stAppViewContainer"] {
-        filter: none !important;
-        opacity: 1 !important;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        body:has(.j3-market-top) [data-testid="stPopoverBody"],
-        body:has(.j3-market-top) [data-testid="stPopoverBody"]:has([class*="st-key-jarvis_method_help_close_bottom"]),
-        body:has(.j3-market-top) [data-testid="stPopoverBody"]:not(:has([class*="st-key-jarvis_method_help_close_bottom"])),
-        body:has(.j3-market-top) [data-testid="stPopoverBody"].j3-help-closing { animation: none !important; }
-        body:has(.j3-market-top):has([data-testid="stPopoverBody"])
-            [data-testid="stAppViewContainer"] { filter: none !important; opacity: 1 !important; }
     }
     /* 대장주 1~3위 비교 — 붉은색 그라데이션(2026-07-30 사용자 지시, 한국테마와 같다). */
     div[class*="st-key-btn_j3_leadercmp_open"] button {
@@ -8175,6 +8113,13 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         "background:linear-gradient(90deg,#075d46,#18bf87) !important;color:#fff !important;"
         "border:1px solid rgba(255,255,255,.28) !important;}"
         "div[class*='st-key-close_j3_pullback_open'] button p {color:#fff !important;font-weight:800 !important;}"
+        # 두 단추 줄을 풀어 급락 단추를 내용 뒤로 — 예전에는 이 표식을 찾는 :has 로 걸었다
+        # (2026-09-23 저녁 · 까닭은 _J3B_HOME_CSS 위). 이 <style> 이 있을 때만 걸리는 것은 같다.
+        "[data-testid='stLayoutWrapper']:has(> .stHorizontalBlock .st-key-j3_pullback_crash),"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock:has(.st-key-j3_pullback_crash){display:contents!important}"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock:has(.st-key-j3_pullback_crash) > .stColumn{"
+        "width:100%!important;flex:0 0 auto!important;min-width:0!important}"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock > .stColumn:has(.st-key-j3_pullback_crash){order:1!important}"
         "</style>", unsafe_allow_html=True,
     )
     _section_close(
@@ -9943,14 +9888,14 @@ def _render_existing_theme_content() -> None:
         """
         <div class="j3-market-top"></div>
         <style>
-        body:has(.j3-market-top) [data-testid="stMainBlockContainer"],
+        body:has(.j3-market-top) .stMainBlockContainer,
         body:has(.j3-market-top) .block-container { padding-top:0!important; }
-        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style:only-child),
-        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] .j3-market-top) {
+        body:has(.j3-market-top) .stElementContainer:has(> [data-testid="stMarkdown"] style:only-child),
+        body:has(.j3-market-top) .stElementContainer:has(> [data-testid="stMarkdown"] .j3-market-top) {
           display:none!important;
         }
-        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(hr),
-        body:has(.j3b-home) [data-testid="stElementContainer"]:has(hr) {
+        body:has(.j3-market-top) .stElementContainer:has(hr),
+        body:has(.j3b-home) .stElementContainer:has(hr) {
           margin-top:-8px!important;
           margin-bottom:-8px!important;
         }
@@ -9963,9 +9908,13 @@ def _render_existing_theme_content() -> None:
           margin-top:-61px!important;
           margin-bottom:0px!important;
         }
-        body:has(.j3-market-top) [data-testid="stLayoutWrapper"]:has(> .st-key-jarvis_method_help_row) {
+        body:not(.j3-never) [data-testid="stLayoutWrapper"]:has(> .st-key-jarvis_method_help_row) {
           margin-top:-22px!important;
         }
+        body:not(.j3-never) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
+        body:not(.j3-never) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}
+        body:not(.j3-never) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child){
+          margin:0!important}
         </style>
         """,
         unsafe_allow_html=True,
@@ -10001,7 +9950,7 @@ def _render_existing_theme_content() -> None:
            **관심종목 화면은 이 띠를 아예 없앤다**(body:has(.j3b-home) 쪽에 같은
            줄이 있다). 그래서 거기 배너는 안 잘린다. 같게 맞춘다.
            왼쪽 메뉴는 이 화면에서 이미 감춰 두었으므로 잃는 것이 없다. */
-        body:has(.j3-market-top) [data-testid="stHeader"] { display:none !important; }
+        body:has(.j3-market-top) .stAppHeader { display:none !important; }
         body:has(.j3-market-top),
         body:has(.j3-market-top) .stApp { background:#020b1e !important; }
         body:has(.j3-market-top) .stApp {
@@ -10158,6 +10107,37 @@ def _briefing_logo_uri(ticker: str) -> str:
     return _briefing_asset_uri(f"{ticker.upper()}.svg")
 
 
+# ── 「이 화면인가」 꾸밈 규칙과 새 화면 그리는 시간 (2026-09-23 저녁) ─────────────
+# 상하님 — "새 화면 그리는 시간 그것도 해결해라."
+#
+# 스트림릿은 화면을 그리며 칸을 하나 넣을 때마다 자리를 잰다. 그때마다 크롬은 :has(…)
+# 규칙 때문에 「다시 볼 칸 목록」을 들고 문서를 살핀다. 크롬은 모든 :has 규칙의 **맨 끝
+# 칸**을 한 목록으로 합쳐 쓰는데, 그중 하나라도 「아무 칸이나」(`> :not(…)`)·「data-testid
+# 붙은 칸 전부」·「div 전부」처럼 넓으면 칸 하나 넣을 때마다 문서 전체(2,100칸)를 다시
+# 따졌다. 실측은 CURRENT_STATUS(2026-09-23 저녁).
+#
+# 그래서 **:has 뒤의 맨 끝 칸은 이름(class)으로 적는다.** 스트림릿이 같은 이름을 class
+# 로도 붙여 두는 칸은 그것으로 바꿨다 — 가리키는 칸이 정확히 같다(두 화면 · 여러 상태에서
+# 세어 확인): stElementContainer · stColumn · stHorizontalBlock · stVerticalBlock ·
+# stMainBlockContainer · stAppViewContainer · stExpander, 맨 위 띠는 stAppHeader.
+# class 가 없는 칸(글 상자 stMarkdownContainer · 그 안의 div·p)을 「이 화면이면」으로
+# 꾸미는 규칙은 **화면 표식과 같은 덩어리**로 옮겼다 — 표식과 규칙이 함께 생기고 함께
+# 사라지니 조건을 건 것과 똑같이 동작한다. 앞의 `body:not(.j3-never)` 는 늘 참이다 —
+# 규칙의 세기(우선순위)를 예전과 같게 맞출 뿐이다. 시장분석은 .j3-market-top 덩어리,
+# 관심종목은 아래 _J3B_HOME_CSS(머리 그림 글 상자 끝에 붙는다). 상승장 줄 풀기는 상승장
+# 표식(<style data-j3-open>) 안으로 옮겼다. 바꾸기 전후로 모든 칸의 모양을 대조해 한 칸도
+# 안 바뀐 것을 확인했다(폰·태블릿 · 여덟 가지 상태).
+# 새 규칙을 넣을 때도 `…:has(…) [data-testid="…"]` 처럼 :has 뒤 끝 칸을 넓게 쓰지 않는다.
+_J3B_HOME_CSS = (
+    "<style>"
+    'body:not(.j3-never) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}'
+    'body:not(.j3-never) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}'
+    'body:not(.j3-never) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child){margin:0!important}'
+    'body:not(.j3-never) div[class*="st-key-j3b_grid_"]{row-gap:12px!important}'
+    "</style>"
+)
+
+
 def _briefing_css() -> None:
     st.markdown(
         """
@@ -10173,9 +10153,9 @@ def _briefing_css() -> None:
            1240px 이면 3칸 · 1600px 이면 4칸 · 1920px 이면 5칸이다. */
         body:has(.j3b-home), body:has(.j3b-home) .stApp { background:#020b1e !important; }
         body:has(.j3b-home) .stApp { background-image:radial-gradient(circle at 51% 1%,#0c3d78 0,transparent 27%),linear-gradient(160deg,#020a1c 0%,#031a3b 53%,#020b21 100%) !important; }
-        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container { max-width:min(1500px,94vw) !important;padding:0 10px 94px !important;margin:0 auto !important; }
+        body:has(.j3b-home) .stMainBlockContainer,body:has(.j3b-home) .block-container { max-width:min(1500px,94vw) !important;padding:0 10px 94px !important;margin:0 auto !important; }
         body:has(.j3b-home) .block-container > .stVerticalBlock { gap:0 !important; }
-        body:has(.j3b-home) [data-testid="stHeader"] { display:none !important; }
+        body:has(.j3b-home) .stAppHeader { display:none !important; }
         .j3b-app { color:#fbf5e9;font-family:"Noto Sans KR","Malgun Gothic",sans-serif; }
         .j3b-hero { position:relative;height:236px;overflow:hidden;border-radius:0 0 24px 24px;padding:26px 23px;background:radial-gradient(circle at 16% 9%,#fff6d6 0 1.6px,transparent 2.4px),radial-gradient(circle at 35% 17%,#ffd681 0 1.2px,transparent 1.9px),radial-gradient(circle at 57% 11%,#ffffff 0 1.6px,transparent 2.4px),radial-gradient(circle at 79% 18%,#ffd681 0 1.2px,transparent 1.9px),radial-gradient(circle at 93% 7%,#fff2c1 0 1.5px,transparent 2.3px),radial-gradient(circle at 8% 26%,#ffe9a8 0 1px,transparent 1.7px),radial-gradient(circle at 24% 34%,#ffffff 0 1.1px,transparent 1.8px),radial-gradient(circle at 45% 6%,#ffd681 0 1px,transparent 1.7px),radial-gradient(circle at 66% 25%,#fff6d6 0 1.3px,transparent 2px),radial-gradient(circle at 88% 31%,#ffffff 0 1px,transparent 1.7px),radial-gradient(circle at 5% 14%,#ffd681 0 1px,transparent 1.7px),radial-gradient(circle at 50% 22%,#ffe9a8 0 1px,transparent 1.7px),radial-gradient(circle at 72% 8%,#ffffff 0 1.2px,transparent 1.9px),radial-gradient(circle at 30% 4%,#fff2c1 0 1px,transparent 1.7px),linear-gradient(158deg,#01091f 0%,#03204d 42%,#063a7d 72%,#04173a 100%);border:1px solid #8fc8f088;box-shadow:inset 0 -18px 31px #00132da8,0 9px 22px #0008; }
         .j3b-hero:before { content:"";position:absolute;z-index:0;width:630px;height:210px;left:50%;bottom:-142px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse at 50% 0,#5fd6ff 0,#12a0e8 18%,#0a63b4 40%,#063666 62%,#01142e 76%);border-top:2.5px solid #8ce6ff;box-shadow:0 -14px 44px #14a0f0c4,inset 0 8px 26px #9fe8ff33; }
@@ -10249,7 +10229,7 @@ def _briefing_css() -> None:
         .j3b-nav-item.active{color:#c9ff3d;text-shadow:0 0 9px #aaff1fcc,0 0 19px #aaff1f66}.j3b-nav-item.active b{filter:drop-shadow(0 0 6px #c9ff3d) drop-shadow(0 0 14px #aaff1f99)}
         div.st-key-j3b_nav_controls{position:fixed!important;z-index:2147483647!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:68px!important;pointer-events:none!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:68px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;height:68px!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]>[data-testid="stVerticalBlock"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%!important;max-width:none!important}div.st-key-j3b_nav_controls button{width:100%!important;height:68px!important;min-height:68px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important;touch-action:manipulation!important}
         div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
-        @media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-hero-catbus{width:155px}.j3b-hero-scene{width:114%}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
+        @media (max-width:600px){body:has(.j3b-home) .stMainBlockContainer,body:has(.j3b-home) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-hero-catbus{width:155px}.j3b-hero-scene{width:114%}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
         /* 941×1680 기준 캡처를 430×764 CSS viewport에 맞춘 실제 모바일 밀도. */
         .j3b-hero{height:150px!important;margin-bottom:-5px!important;padding:16px 19px!important;border-radius:0 0 20px 20px!important}.j3b-hero:before{width:580px;height:168px;bottom:-110px}.j3b-hero:after{left:104px;bottom:26px;width:140px;height:25px}.j3b-head-copy{left:20px!important;top:18px!important}.j3b-title{font-size:29px!important;letter-spacing:-1.7px!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:6px!important;font-size:15px!important}.j3b-head-actions{right:15px!important;top:12px!important;gap:6px!important}.j3b-round,.j3b-live{height:31px!important;border-radius:18px!important}.j3b-round{width:31px!important;font-size:19px!important}.j3b-live{padding:0 9px!important;gap:5px!important;font-size:11px!important}.j3b-live i{width:8px!important;height:8px!important}.j3b-hero-catbus{right:-3px!important;bottom:2px!important;width:162px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:118%!important;max-width:none!important}
         .j3b-section{margin:8px 4px 4px!important;font-size:17px!important;gap:6px!important;line-height:22px!important}.j3b-section .j3b-section-icon{width:24px!important;height:24px!important}.j3b-section .j3b-section-icon:after{width:10px!important;height:10px!important}.j3b-section .j3b-more{font-size:11px!important}.j3b-news{min-height:18px!important;margin:3px 0!important;padding:3px 8px!important;border-radius:12px!important;gap:7px!important;font-size:9px!important;line-height:1.1!important}.j3b-news-icon{width:18px!important;height:18px!important;font-size:10px!important}.j3b-news-dot{width:9px!important;height:9px!important}
@@ -10264,8 +10244,8 @@ def _briefing_css() -> None:
         """
         <style>
         html:has(.j3b-home),body:has(.j3b-home){overflow-x:hidden!important;max-width:100vw!important}
-        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+11){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
-        body:has(.j3b-home) [data-testid="stHorizontalBlock"],body:has(.j3b-home) [data-testid="stColumn"],body:has(.j3b-home) [data-testid="column"]{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+        body:has(.j3b-home) .stMainBlockContainer,body:has(.j3b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j3b-home) .stMainBlockContainer,body:has(.j3b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+11){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
+        body:has(.j3b-home) .stHorizontalBlock,body:has(.j3b-home) .stColumn{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
         .j3b-hero{height:174px!important;margin:0!important;padding:18px 18px!important;border-radius:0 0 24px 24px!important}.j3b-hero:before{width:620px!important;height:190px!important;bottom:-124px!important}.j3b-hero:after{left:96px!important;bottom:28px!important;width:150px!important;height:27px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:172px!important;right:-4px!important;bottom:4px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:116%!important;max-width:none!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
         .j3b-card{height:auto!important;min-height:142px!important;min-width:0!important;box-sizing:border-box!important;border-radius:14px!important;padding:9px 7px 10px!important;margin:0 0 7px!important}.j3b-card-top{min-height:34px!important;gap:6px!important}.j3b-logo{width:34px!important;height:34px!important;border-radius:9px!important}.j3b-symbol{font-size:18px!important;line-height:1!important;color:#fff9eb!important}.j3b-name{margin-top:3px!important;font-size:10px!important;line-height:1.1!important}.j3b-price{position:absolute!important;left:7px!important;top:49px!important;max-width:55%!important;margin:0!important;color:#fff9eb!important;font-size:14px!important;line-height:1.15!important;white-space:nowrap!important}.j3b-chart{top:44px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:10px!important;margin:0!important;padding-top:3px!important}.j3b-card:has(.j3b-decor-img) .j3b-card-notes{right:58px!important}.j3b-card.compact:has(.j3b-decor-img) .j3b-card-notes{right:62px!important}.j3b-card:has(.j3b-decor-img.left) .j3b-card-notes{left:62px!important;right:7px!important}.j3b-note{display:block;color:#f1f5f7!important;text-decoration:none!important;font-size:9px!important;line-height:1.48!important;padding-right:0!important}.j3b-lamp{display:none!important}.j3b-decor-img{position:absolute;right:-2px;bottom:-1px;width:56px;height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 2px 3px #0007)}.j3b-decor-img.left{left:-2px;right:auto}.j3b-delete-visual{width:21px!important;height:21px!important;right:6px!important;top:6px!important;font-size:15px!important}
@@ -10280,7 +10260,7 @@ def _briefing_css() -> None:
         .j3b-bottom-nav{height:50px!important;padding:1px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:12px!important;gap:1px!important}.j3b-nav-item b{font-size:27px!important}
         div.st-key-j3b_nav_controls{height:50px!important;bottom:4px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:50px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:50px!important;min-height:50px!important}
         @media (max-width:1200px){
-        body:has(.j3b-home) [data-testid="stMainBlockContainer"],body:has(.j3b-home) .block-container{padding-bottom:72px!important}
+        body:has(.j3b-home) .stMainBlockContainer,body:has(.j3b-home) .block-container{padding-bottom:72px!important}
         .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:4px!important;left:50%!important;transform:translateX(-75%)!important;margin-left:8px!important;width:min(286.667px,66.667vw)!important}
         [data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.stAppDeployButton{display:none!important;visibility:hidden!important;pointer-events:none!important}
         }
@@ -10316,8 +10296,8 @@ def _briefing_css() -> None:
            여기서는 그 제각각인 여백을 걷어내고 **칸 사이 간격 하나**로만 띄운다.
            **미국테마 두 화면에만 건다** — 공용 모듈이라 한국테마·시장판단 화면은
            그대로다(CLAUDE.md 0-1 다). */
-        body:has(.j3-market-top) [data-testid="stVerticalBlock"],
-        body:has(.j3b-home) [data-testid="stVerticalBlock"]{gap:12px!important}
+        body:has(.j3-market-top) .stVerticalBlock,
+        body:has(.j3b-home) .stVerticalBlock{gap:12px!important}
         /* **표 안은 16px 그대로 둔다** (2026-09-11 상하님 지적 — "매수심사결과
            순위 9 누르면 화면이 저렇게 되도록 하라고, 저거 너가 건들였냐?").
            내가 건드린 것이 맞다. 바로 윗줄의 12px 이 표의 **종목 이름 단추 칸**
@@ -10325,26 +10305,23 @@ def _briefing_css() -> None:
            단추만 줄마다 4px 씩 올라갔다(실측 — 0 · -4 · -8px, 9줄이면 -32px).
            칸 안(=표 줄 사이)은 스트림릿 본래값 16px 로 되돌린다. 상하님이
            줄이라 하신 것은 **박스와 박스 사이**지 표 줄 사이가 아니다. */
-        body:has(.j3-market-top) [data-testid="stColumn"]>[data-testid="stVerticalBlock"],
-        body:has(.j3b-home) [data-testid="stColumn"]>[data-testid="stVerticalBlock"]{gap:16px!important}
-        body:has(.j3-market-top) [data-testid="stMarkdownContainer"],
-        body:has(.j3b-home) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
+        body:has(.j3-market-top) [data-testid="stColumn"]>.stVerticalBlock,
+        body:has(.j3b-home) [data-testid="stColumn"]>.stVerticalBlock{gap:16px!important}
+        /* 마크다운 칸 밑 여백 0 은 화면 표식 덩어리로 옮겼다(2026-09-23 저녁 — 시장분석은
+           .j3-market-top 덩어리, 관심종목은 _J3B_HOME_CSS. 까닭은 _J3B_HOME_CSS 위). */
         body:has(.j3-market-top) .j3-top-row,
         body:has(.j3-market-top) .j3-ndd,
         body:has(.j3-market-top) .j3-section-title{margin-top:0!important;margin-bottom:0!important}
         /* 마크다운 칸의 **맨 바깥 상자**가 제 여백을 들고 있다(5.6 · 4.8 · 9.6 ·
            8 · 28.8px …). 그것만 걷어낸다 — 상자 **안쪽** 여백은 안 건드린다. */
-        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>div,
-        body:has(.j3b-home) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}
+        /* ↑ 이 두 줄도 화면 표식 덩어리로 옮겼다(2026-09-23 저녁). */
         /* 한 마크다운 칸 **안에** 나란히 든 상자(게이지 → 「자세히 보기」)는
            칸 사이 간격이 안 먹는다. 그 자리만 같은 12px 을 손으로 준다. */
         /* 게이지 칸 맨 앞에 **숨은 체크박스 하나만 든 문단**이 있다. 높이는 0인데
            밑여백 16px 을 들고 있어 「미국장 신호 다시 확인」과 게이지 사이가 28px
            이었다(2026-09-11 상하님 지적 — 화살표로 "간격"). 그 문단의 여백만 뗀다.
            **보이는 것이 하나도 없는 문단**이라 다른 곳에 영향이 없다. */
-        body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child),
-        body:has(.j3b-home) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child){
-          margin:0!important}
+        /* ↑ 이 규칙도 화면 표식 덩어리로 옮겼다(2026-09-23 저녁). */
         body:has(.j3-market-top) [data-testid="stMarkdownContainer"]>label,
         body:has(.j3b-home) [data-testid="stMarkdownContainer"]>label{margin-top:12px!important;margin-bottom:0!important}
         /* 지수 칸이 나란히 선 줄도 같은 12px 로 */
@@ -10353,14 +10330,14 @@ def _briefing_css() -> None:
            차지해 급락 단추와 사이가 24px 이 된다. 그 12px 만 도로 당긴다.
            **이 자리 하나만 고른다**(id 로 집는다) — 넓게 걸면 다른 자리 표시까지
            걸려 「테마 클릭 → 상세로 내려가기」가 죽는다(2026-09-11에 실제로 그랬다). */
-        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(#jarvis-anchor-top7_top){
+        body:has(.j3-market-top) .stElementContainer:has(#jarvis-anchor-top7_top){
           margin-top:-12px!important;margin-bottom:0!important}
         /* 올라갔을 때 단추가 **맨 위에 바짝** 서게 한다 — 공용 84px 을 쓰면 단추가
            화면 한참 아래에 선다(캡처는 맨 위다). 이 자리 하나에만 건다. */
         #jarvis-anchor-top7_top{scroll-margin-top:12px!important}
         /* 날짜별 목록 자리 표시(2026-09-13) — 칸 하나 차지하는 만큼 도로 당기고,
            올라갔을 때 「어느 날 목록을 볼까요」가 캡처처럼 **맨 위에 바짝** 서게 한다. */
-        body:has(.j3-market-top) [data-testid="stElementContainer"]:has(#jarvis-anchor-picklist_top){
+        body:has(.j3-market-top) .stElementContainer:has(#jarvis-anchor-picklist_top){
           margin-top:-12px!important;margin-bottom:0!important}
         #jarvis-anchor-picklist_top{scroll-margin-top:0!important}
         /* 파트별 성적표 (2026-09-16 상하님 지시 — 「CSV로 받기」 자리에 단추를 놓고,
@@ -10406,10 +10383,14 @@ def _briefing_css() -> None:
         .j3sc-body > *,
         div[class*="st-key-j3sc_box"] [data-testid="stElementContainer"]{
           transition:opacity .25s ease,filter .25s ease}
-        /* 창이 뜨면 **나머지는 흐리게** — 제목·칩·다른 줄·안내 글 모두. */
-        .j3sc-body:has(.j3sc-tap:checked) > :not(.j3pop):not(.j3pop-scrim):not(.j3sc-tap),
-        div[class*="st-key-j3sc_box"]:has(.j3sc-tap:checked)
-          [data-testid="stElementContainer"]:not(:has(.j3pop)){
+        /* 창이 뜨면 **나머지는 흐리게** — 제목·칩·다른 줄·안내 글 모두.
+           .j3sc-body 의 자식은 줄(.j3sc-row)·안내 글(.j3sc-note)과 스위치·바탕·창뿐이다
+           (_scorecard_body_html). 예전에는 「창·바탕·스위치 말고 전부」로 적었는데, 이름 없는
+           「전부」가 화면 바뀔 때마다 문서 전체를 다시 따지게 했다(2026-09-23 저녁 · 설명은
+           _J3B_HOME_CSS 위). 뒤의 :not 둘은 세기(우선순위)를 예전과 같게 맞춘다. */
+        .j3sc-body:has(> .j3sc-tap:checked) > :is(.j3sc-row, .j3sc-note):not(.j3pop):not(.j3pop-scrim),
+        div.st-key-j3sc_box:has(.j3sc-tap:checked)
+          .stElementContainer:not(:has(.j3pop)){
           opacity:.18;filter:blur(2px)}
         .j3pop-scrim{position:absolute;inset:0;z-index:4;cursor:pointer;
           visibility:hidden}
@@ -10468,8 +10449,8 @@ def _briefing_css() -> None:
           margin-top:10px!important}
         /* 「상승장」과 「급락 후 반등장」이 위아래로 설 때의 틈 (실측 16px).
            가로로 선 칸 사이(column-gap)는 안 건드린다 — 표의 칸 사이가 그 값이다. */
-        body:has(.j3-market-top) [data-testid="stHorizontalBlock"]{row-gap:12px!important}
-        body:has(.j3b-home) div[class*="st-key-j3b_grid_"]{row-gap:12px!important}
+        body:has(.j3-market-top) .stHorizontalBlock{row-gap:12px!important}
+        /* 관심종목 격자 틈 12px 은 _J3B_HOME_CSS 로 옮겼다(2026-09-23 저녁). */
         /* ── 태블릿에서 맨 위 두 단추가 양 끝으로 벌어지던 것 (2026-09-11 상하님) ──
            상하님 — "스마트폰에는 맨 위 한국테마·이 테마 설명의 위치가 좁으니
            볼 만한데, 태블릿 세로 화면에 너무 왼쪽 끝 오른쪽 끝으로 보내서 화면이
@@ -10508,10 +10489,10 @@ def _briefing_css() -> None:
           body:has(.j3-market-top) .sig-gauge>svg{
             display:block!important;margin-left:auto!important;margin-right:auto!important;
           }
-          body:has(.j3-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]){
+          body:has(.j3-market-top) .stHorizontalBlock:has([class*="st-key-j3_pullback_breakout"]){
             flex-direction:column!important;
           }
-          body:has(.j3-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]) [data-testid="stColumn"]{
+          body:has(.j3-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]) .stColumn{
             width:100%!important;flex:0 0 auto!important;min-width:0!important;
           }
         }
@@ -10522,19 +10503,8 @@ def _briefing_css() -> None:
            「상승장 · 급락 · 상승장 내용」. 상승장 내용이 그려졌을 때만(data-j3-open)
            그 줄을 풀어 급락 단추를 내용 맨 뒤로 보낸다. 급락이 열렸을 때는 원래
            차례가 맞으므로 그대로다. 값·단추·글자는 하나도 안 바꾼다. */
-        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] style[data-j3-open="breakout"])
-          > [data-testid="stLayoutWrapper"]:has(> [data-testid="stHorizontalBlock"] [class*="st-key-j3_pullback_crash"]),
-        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] style[data-j3-open="breakout"])
-          > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_crash"]){
-          display:contents!important}
-        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] style[data-j3-open="breakout"])
-          > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_crash"])
-          > [data-testid="stColumn"]{
-          width:100%!important;flex:0 0 auto!important;min-width:0!important}
-        [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] style[data-j3-open="breakout"])
-          > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]
-          > [data-testid="stColumn"]:has([class*="st-key-j3_pullback_crash"]){
-          order:1!important}
+        /* ↑ 이 줄 풀기 규칙은 상승장 표식(<style data-j3-open>) 안으로 옮겼다(2026-09-23 저녁 —
+           표식과 함께 생기고 사라지니 「표식이 있으면」과 같다. 까닭은 _J3B_HOME_CSS 위). */
         .j3b-news-box{margin:0;padding:0;overflow:hidden;
           border:1px solid #bd905266;border-radius:17px;
           background:linear-gradient(90deg,#062947ed,#042243f3);
@@ -10666,7 +10636,7 @@ _BRIEFING_TABLET_CSS = """
     많다"). 760px 이면 1138px 화면에서 양옆이 190px 씩 비었다. 카드를 세 칸으로
     놓으려면 폭도 그만큼 있어야 한다. **갤럭시탭 S8+ 에만 걸리는 규칙이다** —
     폰과 노트북은 예전 그대로 두 칸이다. */
- body:has(.j3b-home) [data-testid="stMainBlockContainer"],
+ body:has(.j3b-home) .stMainBlockContainer,
  body:has(.j3b-home) .block-container{max-width:min(1060px,96vw)!important;
   padding:0 14px 108px!important}
  /* **카드를 세 칸으로 놓는다** (2026-08-27 상하님 지시 — "태블릿 화면에는
@@ -10739,10 +10709,10 @@ _BRIEFING_TABLET_CSS = """
     글을 못 누른다. 막대가 바닥에서 12px 위에 48px 이므로 60px 이다. */
  body:has(.j3b-home) div.st-key-j3b_nav_controls,
  body:has(.j3-market-top) div.st-key-j3b_nav_controls{height:60px!important}
- body:has(.j3b-home) div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"],
- body:has(.j3-market-top) div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:60px!important}
- body:has(.j3b-home) div.st-key-j3b_nav_controls [data-testid="stColumn"],
- body:has(.j3-market-top) div.st-key-j3b_nav_controls [data-testid="stColumn"]{height:60px!important}
+ body:has(.j3b-home) div.st-key-j3b_nav_controls .stHorizontalBlock,
+ body:has(.j3-market-top) div.st-key-j3b_nav_controls .stHorizontalBlock{height:60px!important}
+ body:has(.j3b-home) div.st-key-j3b_nav_controls .stColumn,
+ body:has(.j3-market-top) div.st-key-j3b_nav_controls .stColumn{height:60px!important}
  body:has(.j3b-home) div.st-key-j3b_nav_controls button,
  body:has(.j3-market-top) div.st-key-j3b_nav_controls button{height:60px!important;min-height:60px!important}
  .j3b-hero{height:250px!important;padding:26px 28px!important;border-radius:0 0 30px 30px!important}
@@ -13342,7 +13312,9 @@ def _render_stock_briefing() -> None:
                 '<div class="j3b-title">JARVIS <b>3</b></div><div class="j3b-sub">미국테마</div></div>'
                 '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
                 # 사용자 선정 종목의 로고가 버스 둘레를 돈다(2026-08-28 상하님 지시).
-                f'{catbus_html}{_briefing_orbit_html(selected)}</div>{pop_html}',
+                f'{catbus_html}{_briefing_orbit_html(selected)}</div>{pop_html}'
+                # 이 화면 표식(.j3b-home)과 같은 덩어리에 둘 규칙(2026-09-23 저녁 · _J3B_HOME_CSS 위).
+                + _J3B_HOME_CSS,
                 unsafe_allow_html=True,
             )
             if st.button("↻", key="j3b_hero_refresh"):

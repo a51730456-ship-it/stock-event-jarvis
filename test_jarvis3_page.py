@@ -302,8 +302,12 @@ class Jarvis3PageTests(unittest.TestCase):
                       "통이 늘어나 음수 여백을 삼킨다 — 실측으로 확인한 자리다")
         self.assertIn("z-index:5!important;", block, "단추가 배너 밑에 깔린다")
         # 겉껍데기도 같이 올려야 아래 것들이 따라온다.
-        self.assertIn('body:has(.j3-market-top) [data-testid="stLayoutWrapper"]'
-                      ':has(> .st-key-jarvis_method_help_row)', source,
+        # 2026-09-23 저녁부터는 「이 화면이면」을 :has 로 걸지 않고 **시장분석 표식과 같은
+        # 덩어리** 안에 둔다(표식과 함께 생기고 사라진다). 앞의 body:not(.j3-never) 는 늘 참이다.
+        marker = source[source.index('<div class="j3-market-top"></div>'):]
+        marker = marker[:marker.index("</style>")]
+        self.assertIn('body:not(.j3-never) [data-testid="stLayoutWrapper"]'
+                      ':has(> .st-key-jarvis_method_help_row)', marker,
                       "겉껍데기를 안 올려 배너 밑에 빈자리가 남는다")
         # **미국 화면에서만** 걸려야 한다 — 한국테마와 공용 파일이다.
         self.assertNotIn("\n        .st-key-jarvis_method_help_row {", source,
@@ -365,7 +369,7 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertEqual(2, body.count("scroll_to.request(st, _TOP7_ANCHOR)"),
                          "여는 길 둘 중 하나가 화면을 안 올린다")
         # 높이 0짜리가 칸 하나를 더 먹는 것을 **이 자리 하나만** 골라 당긴다.
-        self.assertIn('[data-testid="stElementContainer"]:has(#jarvis-anchor-top7_top)',
+        self.assertIn('.stElementContainer:has(#jarvis-anchor-top7_top)',
                       source, "자리 표시가 먹는 12px 을 안 당긴다")
         self.assertIn("#jarvis-anchor-top7_top{scroll-margin-top:12px!important}",
                       source, "단추가 맨 위에 안 선다")
@@ -382,7 +386,7 @@ class Jarvis3PageTests(unittest.TestCase):
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         self.assertIn('[data-testid="stMarkdownContainer"]>div.j3-page-title{',
                       source, "「미국 전체시장 판단」 제목 여백 규칙이 없다")
-        self.assertIn('body:has(.j3-market-top) [data-testid="stHorizontalBlock"]'
+        self.assertIn('body:has(.j3-market-top) .stHorizontalBlock'
                       '{row-gap:12px!important}', source,
                       "위아래로 선 두 단추의 틈을 12px 로 안 맞춘다")
         head = source.index("div.st-key-j3_st5_wrap")
@@ -429,7 +433,7 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("gap:16px", source.split("def _stacked")[1][:600],
                       "_stacked 가 16px 을 안 쓴다")
         for mark in ("body:has(.j3-market-top)", "body:has(.j3b-home)"):
-            self.assertIn(mark + ' [data-testid="stColumn"]>[data-testid="stVerticalBlock"]',
+            self.assertIn(mark + ' [data-testid="stColumn"]>.stVerticalBlock',
                           source, f"{mark} 표 칸 안 간격을 16px 로 안 되돌린다")
 
     def test_theme_rank_toggle_redraws_the_whole_page_and_scrolls(self):
@@ -2800,7 +2804,8 @@ def test_switching_screens_goes_back_to_the_top():
     # (2026-08-28 실측). 관심종목 화면은 이 띠를 아예 없애서 안 잘린다.
     # 두 화면 다 없애야 한다 — 한쪽만 없애면 그쪽 배너만 온전하다.
     for mark in ("j3b-home", "j3-market-top"):
-        rule = f'body:has(.{mark}) [data-testid="stHeader"]'
+        # 맨 위 띠는 class stAppHeader 로 집는다(2026-09-23 저녁 — data-testid="stHeader" 와 같은 칸).
+        rule = f'body:has(.{mark}) .stAppHeader'
         assert rule in source, f"{mark} 화면에서 맨 위 띠가 배너를 덮는다"
 
 def test_the_phone_home_screen_is_left_alone():
@@ -3171,11 +3176,14 @@ def test_breakout_content_opens_right_under_the_breakout_button():
     swing = source[source.index("def _render_us_swing_finder"):source.index("def _render_rulebook_finder")]
     assert "<style data-j3-open='breakout'>" in swing
     assert source.count("data-j3-open='") == 1, "표시는 상승장 내용 한 곳에만 둔다"
-    css_rule = source[source.index("상승장을 누르면 **상승장 단추 바로 밑**에 열린다"):]
-    css_rule = css_rule[:css_rule.index(".j3b-news-box{")]
-    assert "@media" not in css_rule, "폰·태블릿·노트북 모두 위아래로 쌓여 있으니 셋 다 고친다"
-    assert 'style[data-j3-open="breakout"]' in css_rule
-    assert 'st-key-j3_pullback_crash"]){\n          order:1!important}' in css_rule
+    # 줄 풀기 규칙은 2026-09-23 저녁부터 **상승장 표식 <style> 안**에 있다 — 표식과 함께
+    # 생기고 사라지니 「표식이 있으면」과 같다(예전에는 표식을 :has 로 찾았다).
+    marker = swing[swing.index("<style data-j3-open='breakout'>"):]
+    marker = marker[:marker.index('"</style>"')]
+    assert "@media" not in marker, "폰·태블릿·노트북 모두 위아래로 쌓여 있으니 셋 다 고친다"
+    assert "{display:contents!important}" in marker
+    assert ".stColumn:has(.st-key-j3_pullback_crash){order:1!important}" in marker
+    assert 'style[data-j3-open="breakout"]' not in source, "표식을 찾는 :has 가 남았다"
 
 
 def test_strong_top5_bars_grow_once_when_seen():

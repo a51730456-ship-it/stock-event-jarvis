@@ -1354,7 +1354,7 @@ div[class*="st-key-us_signal_fold"] {
     max-height:0; opacity:0; overflow:hidden;
     transition:max-height .9s cubic-bezier(.45,.05,.35,1), opacity .5s ease;
 }
-body:has(.sig-fold-tap:checked) div[class*="st-key-us_signal_fold"] {
+body:has(.sig-fold-tap:checked) div.st-key-us_signal_fold {
     max-height:2200px; opacity:1;
 }
 @media (prefers-reduced-motion:reduce) {

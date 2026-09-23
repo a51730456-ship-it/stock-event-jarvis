@@ -623,7 +623,7 @@ def test_the_catbus_orbit_carries_the_selected_logos():
         "카드가 떼어 낸 로고 함수를 안 쓴다"
     # 시작 시각을 한 바퀴에 고르게 나눠야 로고가 한 덩어리로 몰려 다니지 않는다.
     assert "-_ORBIT_SECONDS * index / len(riders)" in orbit
-    assert 'f\'{catbus_html}{_briefing_orbit_html(selected)}</div>{pop_html}\',' in page, \
+    assert 'f\'{catbus_html}{_briefing_orbit_html(selected)}</div>{pop_html}\'' in page, \
         "배너에 궤도를 안 달았다"
 
 
