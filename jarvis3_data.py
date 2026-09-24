@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092499
+MODULE_REVISION = 2026092500
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -5399,7 +5399,12 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
     # 0.09초, 아홉 배). 여기서 쓰는 값은 전부 뒤에서 세는 것이라(tail·최근 N일)
     # 자료가 길어도 결과가 같다 — 석유·가스 8종목의 순위·점수·항목별 점수·매수
     # 심사 결과가 하나도 안 달라지는 것을 확인했다.
-    daily, daily_meta = _download_cached(tickers, period="2y", interval="1d", ttl_seconds=300)
+    # **기한도 그 묶음과 같은 30분으로 둔다** (2026-09-24 상하님 — "테마 클릭 3초"). 5분으로 물으면
+    # 묶음이 5분만 지나도 못 쓰고 테마마다 10종목을 새로 받았다(온라인 테마 처음 열기 1.6~1.8초의 한 몫).
+    # 22개 테마 순위·순위 9 도 이미 이 30분 묶음을 쓴다. 장이 닫힌 지금 4개 테마 32종목의 현재가·
+    # 20일 수익률·거래량 비율·점수가 새로 받은 것과 한 줄도 안 다른 것을 확인했다.
+    daily, daily_meta = _download_cached(tickers, period="2y", interval="1d",
+                                         ttl_seconds=US_BATCH_TTL)
     # with_live=False면 분봉을 아예 안 받는다. 순위 7이 1차로 줄만 세울 때 쓴다 —
     # 157종목 분봉을 받는 데 시간 대부분이 갔다(2026-07-31 실측 3.7초 → 0.3초).
     if with_live:
