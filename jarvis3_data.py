@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092410
+MODULE_REVISION = 2026092420
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -568,11 +568,22 @@ def _save_hole_fills() -> None:
         pass
 
 
-def _daily_holes(frames: dict) -> dict:
-    """{종목: [빠진 장 날짜…]} — 그 종목 표가 걸친 기간 안의 최근 거래일만 본다."""
+def _daily_holes(frames: dict, *, now=None) -> dict:
+    """{종목: [빠진 장 날짜…]} — 최근 거래일 가운데 표에 없는 날.
+
+    **끝도 본다** (2026-09-24 온라인 실측) — ZS·CRSP 한 종목만 받으면 야후 일봉이 09-21 에서
+    끝났다(09-22·09-23 둘 다 없음). 표의 마지막 날까지만 보면 빠진 게 없어 보여서, 3주간 표에
+    09-23(분봉으로 채운 줄) 다음이 곧장 09-21 이었다. 그래서 **마지막으로 끝난 장**(미국 달력)
+    까지 본다. 다만 표가 그보다 닷새 넘게 멈춰 있으면(거래 정지·상장 폐지) 끝은 안 본다 —
+    그런 종목을 받을 때마다 헛걸음하지 않게.
+    """
     from datetime import timedelta
 
     holes: dict = {}
+    try:
+        finished = us_market_calendar.previous_session_date(now)
+    except Exception:
+        finished = None
     for ticker, frame in (frames or {}).items():
         try:
             if frame is None or frame.empty:
@@ -581,6 +592,14 @@ def _daily_holes(frames: dict) -> dict:
             first, day = min(have), max(have)
         except Exception:
             continue
+        if finished is not None and day < finished:
+            gap, walk = 0, finished
+            while walk > day:
+                if us_market_calendar.is_trading_day(walk):
+                    gap += 1
+                walk -= timedelta(days=1)
+            if gap <= 5:
+                day = finished
         missing, seen = [], 0
         while seen < DAILY_HOLE_LOOKBACK and day >= first:
             if us_market_calendar.is_trading_day(day):

@@ -2423,6 +2423,16 @@ class DailyHoleFillTests(unittest.TestCase):
             filled = j3._fill_daily_holes(daily)
         self.assertAlmostEqual(250.07, float(filled["CRWD"].loc[pd.Timestamp("2026-09-22"), "Close"]), places=2)
 
+    def test_days_missing_at_the_end_are_found_too(self):
+        """한 종목만 받으면 야후 일봉이 09-21 에서 끝나기도 한다(ZS·CRSP · 2026-09-24 실측).
+        마지막으로 끝난 장까지 빠진 날을 찾는다. 닷새 넘게 멈춘 표(거래 정지)는 끝을 안 본다."""
+        now = datetime(2026, 9, 23, 20, 0, tzinfo=self.NY)          # 09-23 장 끝난 뒤
+        lagging = {"ZS": self._daily(["2026-09-17", "2026-09-18", "2026-09-21"], [1.0, 2.0, 3.0])}
+        holes = j3._daily_holes(lagging, now=now)
+        self.assertEqual(sorted(holes["ZS"]), [datetime(2026, 9, 22).date(), datetime(2026, 9, 23).date()])
+        stale = {"OLD": self._daily(["2026-08-31", "2026-09-01", "2026-09-02"], [1.0, 2.0, 3.0])}
+        self.assertEqual({}, j3._daily_holes(stale, now=now), "멈춘 종목까지 받으러 간다")
+
     def test_holidays_and_complete_tables_ask_for_nothing(self):
         # 09-07 은 노동절(휴장)이라 빠진 게 아니다.
         daily = {"AAPL": self._daily(["2026-09-03", "2026-09-04", "2026-09-08", "2026-09-09"],
