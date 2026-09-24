@@ -2843,3 +2843,15 @@ class OhlcRowsTests(unittest.TestCase):
     def test_a_frame_without_candle_columns_gives_nothing(self):
         self.assertEqual([], j3._ohlc_rows(pd.DataFrame({"Close": [1.0, 2.0]}), 10))
         self.assertEqual([], j3._ohlc_rows(None, 10))
+
+
+class ThemeLeadersSessionMinutesBatchTests(unittest.TestCase):
+    """테마를 처음 열 때 당일 그림 5분봉을 **한 번에 묶어** 받는다 (2026-09-24 상하님 — "테마 클릭 3초").
+    미국 장이 닫혀 있으면 1분봉에 정규장이 없어 종목마다 따로 받던 것(8~10번 줄 서기)을 없앴다."""
+
+    def test_the_lacking_stocks_are_fetched_in_one_batch_first(self):
+        source = pathlib.Path(j3.__file__).read_text(encoding="utf-8")
+        body = source[source.index("def get_theme_leaders("):source.index("rows.sort(key=lambda row: row[\"score\"], reverse=True)")]
+        batch = body.index("prefetch_session_minutes(lacking)")
+        assert batch < body.index("_intraday_chart_payload("), "묶어 받기가 종목별 그림보다 뒤에 있다"
+        assert "_regular_session_frame(live.get(ticker))[0] is None" in body

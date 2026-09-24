@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092497
+MODULE_REVISION = 2026092498
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -5407,6 +5407,16 @@ def get_theme_leaders(theme_name: str, market_score: float = 0, theme_score: flo
             tickers, period="1d", interval="1m", ttl_seconds=45, prepost=True)
     else:
         live, live_meta = {}, {}
+    # **당일 그림 재료를 한 번에 묶어 받는다** (2026-09-24 상하님 — "22개 테마 클릭하면 3초").
+    # 미국 장이 닫혀 있으면(한국 낮) 1분봉에 정규장이 없어, 아래 당일 그림이 종목마다 5분봉을
+    # **하나씩 따로** 받았다 — 테마를 처음 열 때 8~10번 줄 서서 1.5~2.4초(노트북 실측). 묶는
+    # 장치(prefetch_session_minutes)는 있었는데 아무도 안 불렀다. 모자란 종목만 한 번에 받아 두면
+    # 종목마다 부르는 자리가 그 묶음을 나눠 쓴다. 받는 자료·값은 그대로다.
+    if with_charts and with_live:
+        lacking = [ticker for ticker in theme["stocks"]
+                   if _regular_session_frame(live.get(ticker))[0] is None]
+        if len(lacking) >= 2:
+            prefetch_session_minutes(lacking)
     etf_used = theme["etf"] if theme["etf"] in daily else theme["alt_etf"]
     theme_metrics = _series_metrics(daily.get(etf_used), live.get(etf_used))
     theme_ret20 = theme_metrics.get("ret20") if theme_metrics.get("ok") else None
