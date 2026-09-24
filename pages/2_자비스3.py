@@ -12186,7 +12186,12 @@ _SWIPE_OUTER_JS = """
     return false;
   }
   function findButton(key) {
-    return d.querySelector('div[class*="st-key-' + key + '"] button');
+    // 새 판이 그려지는 중에는 흐린(옛 판) 단추와 새 단추가 함께 있을 수 있다 — 살아 있는 쪽을 먼저.
+    var all = d.querySelectorAll('div[class*="st-key-' + key + '"] button');
+    for (var i = 0; i < all.length; i++) {
+      if (!all[i].closest('[data-stale="true"]')) { return all[i]; }
+    }
+    return all.length ? all[0] : null;
   }
   // ── 만화책 넘기듯 (2026-09-18 상하님 지시) ───────────────────────────────
   // 상하님이 보여 주신 영상(네이버 시리즈 「책 넘김」) — **종이가 손가락을 그대로
@@ -12229,7 +12234,10 @@ _SWIPE_OUTER_JS = """
   // 지시 — "관심에서 홈으로도 페이지 넘기듯이 해라"). 맨 앞의 숨은 「홈으로」 단추를 누른다
   // (2026-09-23 저녁 — 예전에는 맨 끝의 하단 막대 「홈」을 눌러 화면을 한 번 더 그렸다).
   function destination(dx) {
-    var now = screenNow();
+    // **넘어가는 중이면 넘어가던 쪽이 지금 화면이다** (2026-09-24 상하님 — "그전에 넘기면
+    // 안 넘어가고 … 결국 1초나 1.5초 뒤에 넘겨야 된다"). 종이가 다 넘어간 뒤로는 서버가
+    // 새 화면을 아직 안 보냈어도 손가락을 받는다 — 그때 보이는 것은 이미 넘어간 쪽 사진이다.
+    var now = (fired && pending && !pending.cancelled) ? pending.go.to : screenNow();
     if (dx < 0 && now === 'watch') { return { key: 'j3b_swipe_market', from: 'watch', to: 'market' }; }
     if (dx > 0 && now === 'watch') { return { key: 'j3b_swipe_home', from: 'watch', to: 'home' }; }
     if (dx > 0 && now === 'market') { return { key: 'j3b_swipe_watch', from: 'market', to: 'watch' }; }
@@ -12893,13 +12901,25 @@ _SWIPE_OUTER_JS = """
         // 덮고 있던 다음 쪽을 0.2초에 걷는다 — 밑의 진짜 화면이 같은 모양이라 바뀌는
         // 순간이 안 보인다(사진이 없던 첫 번은 빈 종이가 걷히며 화면이 드러난다).
         // 걷히는 0.2초 동안에도 다음 넘김이 이것을 가로챌 수 있다(가로채면 여기서 손 뗀다).
-        cover.style.transition = 'opacity .2s ease';
-        cover.style.opacity = '0';
-        setTimeout(function () {
-          if (me.cancelled) { return; }
-          if (pending === me) { pending = null; }
-          hideAll(); fired = false; soon();
-        }, 240);
+        //
+        // **걷기 전에 진짜 화면부터 깨운다** (2026-09-24 상하님 — "넘어가고 화면이 껌벅인다").
+        // 넘기는 동안 진짜 화면은 그리기를 쉬고 있다(liveRest). 예전에는 쉬는 채로 덮개를
+        // 옅게 걷어 0.2초 동안 어두운 바탕이 비쳤고(4배 느린 폰 실측 — 밝기 51 → 27, 0.26초),
+        // 그다음에야 깨워 한 번 번쩍였다. 이제 덮개 밑에서 먼저 깨우고, 폰이 그것을 한 번
+        // 다 그린 **다음 장면**부터 걷는다 — 걷히는 동안 밑에 진짜 화면이 이미 있다.
+        liveRest(false);
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            if (me.cancelled) { return; }
+            cover.style.transition = 'opacity .2s ease';
+            cover.style.opacity = '0';
+            setTimeout(function () {
+              if (me.cancelled) { return; }
+              if (pending === me) { pending = null; }
+              hideAll(); fired = false; soon();
+            }, 240);
+          });
+        });
       } else {
         if (pending === me) { pending = null; }
         hideAll(); fired = false; soon();
@@ -12945,8 +12965,12 @@ _SWIPE_OUTER_JS = """
   // 로딩 끝나면 페이지 말리는 것 없이 바로 넘어가 버리더라"). 예전에는 새 화면이 다
   // 그려질 때까지 손가락을 아예 안 받았고, 받더라도 새 화면의 사진이 아직 안 깔려서
   // 종이 모양 없이 넘어갔다.
+  // **종이가 다 넘어갔으면 서버를 기다리지 않고 받는다** (2026-09-24 상하님 — "그전에 넘기면
+  // 안 넘어가고 … 1초나 1.5초 뒤에 넘겨야 된다"). 예전에는 새 화면 표식이 서버에서 올 때까지
+  // (4배 느린 폰 실측 1.06초) 손가락을 안 받았다. 그 사이 화면에는 이미 넘어간 쪽 사진이 깔려
+  // 있다. 받아서 숨은 단추를 누르면 스트림릿이 그리던 판을 멈추고 새로 누른 쪽을 그린다.
   function canTake() {
-    return !!(fired && pending && screenNow() === pending.go.to && Date.now() >= pending.tDone);
+    return !!(fired && pending && !pending.cancelled && Date.now() >= pending.tDone);
   }
   d.addEventListener('touchstart', function (ev) {
     if (fired && !canTake()) { return; }
