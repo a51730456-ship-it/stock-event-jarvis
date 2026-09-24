@@ -14,6 +14,8 @@ import tempfile as _tempfile
 # 상승장 한 벌을 남기는 파일(2026-09-25)은 시험 동안 임시 폴더로 돌린다 — 진짜 공책 파일을 안 건드린다.
 _BREAKOUT_TMP = _tempfile.TemporaryDirectory()
 j3._BREAKOUT_DISK_PATH = pathlib.Path(_BREAKOUT_TMP.name) / "breakout_last.val"
+j3._SECTOR_PLAN_PATH = pathlib.Path(_BREAKOUT_TMP.name) / "sector_plan.val"
+j3._SECTOR_MAP_PATH = pathlib.Path(_BREAKOUT_TMP.name) / "sector_map.val"
 import us_swing_selector as us_swing
 import us_swing_testdata
 
@@ -2300,6 +2302,7 @@ class SectorThemeTileTests(unittest.TestCase):
     def setUp(self):
         self._saved = (dict(j3._SECTOR_TILES), dict(j3._SECTOR_WEIGHTS))
         j3._SECTOR_TILES.update({"at": 0.0, "value": None, "complete": False})
+        j3._SECTOR_PLAN_PATH.unlink(missing_ok=True)      # 파일로 남긴 판(2026-09-25)도 비운다
         j3._SECTOR_WEIGHTS.update({"raw": dict(self.SECTORS)})
 
     def tearDown(self):
@@ -2895,3 +2898,41 @@ class BreakoutKeptOnDiskTests(unittest.TestCase):
         j3._BREAKOUT_LAST.update({"at": 0.0, "session": None, "value": None})
         with patch.object(j3, "_completed_session_key", lambda now=None: "2026-09-24"):
             self.assertIsNone(j3._breakout_kept_for_this_session(), "장이 닫힌 뒤인데 옛 답을 줬다")
+
+
+class SectorMapKeptOnDiskTests(unittest.TestCase):
+    """시장 현황 칸 판·지도도 **파일로** 남긴다 (2026-09-25 상하님 — "닫기 5초"). 켜진 직후 서버가
+    이것들을 새로 만드느라 붙잡혀 다른 단추가 다 느렸다."""
+
+    def setUp(self):
+        self._tiles = dict(j3._SECTOR_TILES)
+        self._state = dict(j3._SECTOR_STATE)
+        for path in (j3._SECTOR_PLAN_PATH, j3._SECTOR_MAP_PATH):
+            path.unlink(missing_ok=True)
+
+    def tearDown(self):
+        j3._SECTOR_TILES.clear(); j3._SECTOR_TILES.update(self._tiles)
+        j3._SECTOR_STATE.clear(); j3._SECTOR_STATE.update(self._state)
+
+    def test_a_restarted_app_takes_the_plan_from_the_file_without_asking_yahoo(self):
+        plan = [{"name": "반도체", "sector": "technology", "share": 0.14, "etf": "SOXX",
+                 "proxies": [("SOXX", 1.0)]}]
+        j3._value_write(j3._SECTOR_PLAN_PATH, {"at": time.time(), "value": plan, "complete": True})
+        j3._SECTOR_TILES.update({"at": 0.0, "value": None, "complete": False})
+        with patch.object(j3, "_sector_weights", side_effect=AssertionError("야후를 다시 불렀다")):
+            got = j3._sector_tile_plan()
+        self.assertEqual("반도체", got[0]["name"])
+
+    def test_a_restarted_app_shows_the_map_from_the_file_if_it_is_fresh(self):
+        value = {"ok": True, "rows": [{"name": "반도체", "weight": 0.14}]}
+        j3._value_write(j3._SECTOR_MAP_PATH, {"at": time.time(), "value": value, "open": False})
+        j3._SECTOR_STATE.update({"at": 0.0, "value": None, "running": False})
+        j3._sector_map_from_file()
+        self.assertEqual(value, j3._SECTOR_STATE["value"])
+
+    def test_an_old_map_file_is_not_used(self):
+        value = {"ok": True, "rows": []}
+        j3._value_write(j3._SECTOR_MAP_PATH, {"at": time.time() - 3 * 3600, "value": value, "open": False})
+        j3._SECTOR_STATE.update({"at": 0.0, "value": None, "running": False})
+        j3._sector_map_from_file()
+        self.assertIsNone(j3._SECTOR_STATE["value"])

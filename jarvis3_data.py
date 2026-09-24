@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092501
+MODULE_REVISION = 2026092502
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -6453,6 +6453,9 @@ SECTOR_TILE_COVER = 0.70          # 대표 회사가 칸 몫의 이만큼을 덮
 SECTOR_TILE_MAX_COMPANIES = 3     # 많아야 셋
 SECTOR_MAP_CLOSED_TTL = 1800.0    # 장이 닫혀 있으면 30분에 한 번
 _SECTOR_TILES: dict = {"at": 0.0, "value": None, "complete": False}
+# 켜진 직후에도 쓰게 파일로 남기는 자리(2026-09-25). .pkl 이 아니다 — 시세 파일 정리가 안 지운다.
+_SECTOR_PLAN_PATH = _DISK_DIR / "sector_plan.val"
+_SECTOR_MAP_PATH = _DISK_DIR / "sector_map.val"
 
 
 def _sector_price_ttl() -> float:
@@ -6484,6 +6487,17 @@ def _sector_tile_plan() -> list | None:
         if _SECTOR_TILES["value"] and now - _SECTOR_TILES["at"] < ttl:
             return [dict(tile) for tile in _SECTOR_TILES["value"]]
         old = _SECTOR_TILES["value"]
+    if not old:
+        # **막 켜진 앱은 파일부터 본다** (2026-09-25 상하님 — "상승장 첫 로딩 15초 · 닫기 5초").
+        # 켜진 직후 이 판을 새로 만들면(야후 업종 11번 + 산업 45번 부르기) 서버가 그동안 붙잡혀 다른
+        # 단추가 다 느렸다. 6시간 안에 다 만든 판이면 그대로 쓴다.
+        saved = _value_read(_SECTOR_PLAN_PATH)
+        if (isinstance(saved, dict) and saved.get("complete") and saved.get("value")
+                and now - float(saved.get("at") or 0) < SECTOR_WEIGHT_TTL):
+            with _SECTOR_LOCK:
+                _SECTOR_TILES.update({"at": float(saved["at"]), "value": saved["value"],
+                                      "complete": True})
+            return [dict(tile) for tile in saved["value"]]
     _sector_weights()
     with _SECTOR_LOCK:
         sector_share = dict(_SECTOR_WEIGHTS["raw"])
@@ -6581,6 +6595,8 @@ def _sector_tile_plan() -> list | None:
         tile["proxies"] = picked
     with _SECTOR_LOCK:
         _SECTOR_TILES.update({"at": now, "value": tiles, "complete": complete})
+    if complete:
+        _value_write(_SECTOR_PLAN_PATH, {"at": now, "value": tiles, "complete": True})
     return [dict(tile) for tile in tiles]
 
 
@@ -6749,6 +6765,29 @@ def _refresh_sector_map() -> None:
         # 새로 받은 것이 비었으면 **옛것을 그대로 둔다**(CLAUDE.md 0-0 두 번째).
         if value and value.get("ok"):
             _SECTOR_STATE.update({"at": time.time(), "value": value, "open": open_now})
+    if value and value.get("ok"):
+        _value_write(_SECTOR_MAP_PATH, {"at": time.time(), "value": value, "open": open_now})
+
+
+def _sector_map_from_file() -> None:
+    """막 켜진 앱이면 파일로 남긴 지도를 앱 기억에 올린다 (2026-09-25).
+
+    30분 안의 것만 쓴다 — 그보다 묵었으면 예전처럼 뒤에서 새로 만든다. 올린 뒤에는 원래 박자
+    (장중 5분·장 닫힘 30분)대로 새로 받을지 정한다.
+    """
+    with _SECTOR_LOCK:
+        if _SECTOR_STATE["value"] is not None:
+            return
+    saved = _value_read(_SECTOR_MAP_PATH)
+    if not (isinstance(saved, dict) and isinstance(saved.get("value"), dict)
+            and saved["value"].get("ok")):
+        return
+    if time.time() - float(saved.get("at") or 0) >= SECTOR_MAP_CLOSED_TTL:
+        return
+    with _SECTOR_LOCK:
+        if _SECTOR_STATE["value"] is None:
+            _SECTOR_STATE.update({"at": float(saved["at"]), "value": saved["value"],
+                                  "open": bool(saved.get("open"))})
 
 
 def warm_sector_map() -> None:
@@ -6757,6 +6796,7 @@ def warm_sector_map() -> None:
     장이 닫혀 있는 동안 받아 둔 것은 30분 쓴다(테마 칸 받는 양이 예전의 서너 배라서 ·
     2026-09-24). 장이 열렸거나 장중에 받아 둔 것이면 예전처럼 5분이다.
     """
+    _sector_map_from_file()
     now = time.time()
     try:
         open_now = bool(_regular_open_now())
