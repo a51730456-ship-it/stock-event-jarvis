@@ -248,11 +248,69 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092502
+MODULE_REVISION = 2026092503
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict[tuple, dict] = {}
+
+
+# ── 뒤 일꾼은 **한 번에 하나**, 그리고 **화면이 그리는 동안은 비켜선다** ──────────────
+# (2026-09-25 상하님 — "상승장 첫 로딩 15초 · 닫기 5초 · 이거 해결 왜 안 했냐")
+#
+# 온라인 실측(막 켜진 앱) — 상승장 열기 17.8초 · 닫기 11.5초. 닫기는 자기 일이 거의 없는데 11초였다.
+# 켜진 직후 뒤 일꾼 다섯(순위 9 미리 만들기 · 시장 현황 지도 · 시장 요약 · 나스닥 긴 이력 · 뉴스)이
+# **한꺼번에** 돌며 코어 한둘을 나눠 먹어, 그동안 누른 단추가 몫을 1/6 쯤밖에 못 받았다(노트북
+# 한 코어로 재현 — 뒤 일꾼이 붙잡은 시간 순위 9 21.7초 · 지도 20.4초 · 요약 11.7초 · 나스닥 11.3초).
+#
+# 그래서 ① 무거운 뒤 일은 자리 하나(_BG_SLOT)를 차례로 쓰고, ② 일을 시작하기 전·시세를 받기 전마다
+# **화면이 그리는 중이면 끝날 때까지 기다린다**(최대 BG_YIELD_MAX_SECONDS). 화면 일꾼은 스트림릿이
+# 이름을 「ScriptRunner.scriptThread」로 붙인다(1.59.1 script_runner.py). ③ 다만 **화면이 그 뒤 일의
+# 결과를 기다리는 중이면**(_memo_ok) 비켜서지 않는다 — 비켜서면 서로 기다리다 멈춘다.
+BG_YIELD_MAX_SECONDS = 20.0
+_BG_SLOT = threading.Semaphore(1)
+_BG_LOCAL = threading.local()
+_FG_WAITING = {"n": 0}
+_FG_WAITING_LOCK = threading.Lock()
+
+
+def _is_screen_thread(thread=None) -> bool:
+    return str((thread or threading.current_thread()).name).startswith("ScriptRunner")
+
+
+def _screen_busy() -> bool:
+    """화면이 지금 그리는 중인가. 화면이 뒤 일의 결과를 기다리는 중이면 「아니다」로 본다."""
+    with _FG_WAITING_LOCK:
+        if _FG_WAITING["n"] > 0:
+            return False
+    try:
+        return any(thread.is_alive() and _is_screen_thread(thread) for thread in threading.enumerate())
+    except Exception:
+        return False
+
+
+def _yield_to_screen(limit: float = BG_YIELD_MAX_SECONDS) -> None:
+    """뒤 일꾼이 무거운 일 앞에서 부른다. 화면이 그리는 중이면 끝날 때까지(최대 limit초) 기다린다."""
+    if _is_screen_thread():
+        return
+    deadline = time.time() + float(limit)
+    while time.time() < deadline and _screen_busy():
+        time.sleep(0.15)
+
+
+def _background(job):
+    """뒤 일꾼 몸통을 감싼다 — 화면에 비켜선 뒤 자리 하나를 차례로 쓴다. 같은 일꾼 안에서 겹쳐 불려도 한 번만 잡는다."""
+    def _run(*args, **kwargs):
+        if getattr(_BG_LOCAL, "holding", False) or _is_screen_thread():
+            return job(*args, **kwargs)
+        _yield_to_screen()
+        with _BG_SLOT:
+            _BG_LOCAL.holding = True
+            try:
+                return job(*args, **kwargs)
+            finally:
+                _BG_LOCAL.holding = False
+    return _run
 _BRIEFING_CARD_CACHE: dict[str, dict] = {}
 _YF_CACHE_READY = False
 
@@ -853,6 +911,8 @@ def _fetch_and_keep(unique: tuple, *, period: str, interval: str, prepost: bool,
     """야후에서 받아 앱 기억과 파일에 남긴다. 실패하면 예외를 그대로 올린다(있던 것은 안 건드린다)."""
     import yfinance as yf
 
+    # 뒤 일꾼이 받는 것이면 **화면이 그리는 동안 기다렸다가** 받는다(2026-09-25 · 위 _background 설명).
+    _yield_to_screen()
     with _DOWNLOAD_LOCK:
         _configure_yfinance_cache(yf)
         with warnings.catch_warnings():
@@ -914,7 +974,7 @@ def _recheck_daily_in_background(unique: tuple, *, period: str, interval: str, p
             _log.warning("jarvis3 daily recheck failed tickers=%s: %s", len(unique), exc)
 
     try:
-        threading.Thread(target=_run, name="j3-daily-recheck", daemon=True).start()
+        threading.Thread(target=_background(_run), name="j3-daily-recheck", daemon=True).start()
     except Exception as exc:
         _log.warning("jarvis3 daily recheck thread failed: %s", exc)
 
@@ -1653,7 +1713,7 @@ def warm_market_overview() -> None:
                 _MARKET_OVERVIEW_WARM["on"] = False
 
     try:
-        threading.Thread(target=_run, name="j3-market-overview-warm",
+        threading.Thread(target=_background(_run), name="j3-market-overview-warm",
                          daemon=True).start()
     except Exception as exc:
         _log.warning("market overview warm-up thread failed: %s", exc)
@@ -1928,7 +1988,7 @@ def warm_market_history() -> None:
                 _IXIC_WARMING["on"] = False
 
     try:
-        threading.Thread(target=_run, name="ixic-warm", daemon=True).start()
+        threading.Thread(target=_background(_run), name="ixic-warm", daemon=True).start()
     except Exception as exc:
         _log.warning("IXIC warm-up thread failed: %s", exc)
         with _IXIC_WARM_LOCK:
@@ -1993,7 +2053,7 @@ def warm_top_picks() -> None:
                 _TOP_PICK_WARM["on"] = False
 
     try:
-        threading.Thread(target=_run, name="top-picks-warm", daemon=True).start()
+        threading.Thread(target=_background(_run), name="top-picks-warm", daemon=True).start()
     except Exception as exc:
         _log.warning("top picks warm-up thread failed: %s", exc)
         with _TOP_PICK_WARM_LOCK:
@@ -3856,7 +3916,7 @@ def _save_swing_scan_in_background(scan: dict) -> None:
             _log.warning("US swing snapshot save failed: %s", exc)
 
     try:
-        threading.Thread(target=_run, name="swing-snapshot", daemon=True).start()
+        threading.Thread(target=_background(_run), name="swing-snapshot", daemon=True).start()
         scan["snapshot_saved"] = None       # 아직 모른다 — 화면은 아무 말도 안 한다
     except Exception as exc:
         _log.warning("US swing snapshot thread failed: %s", exc)
@@ -4977,7 +5037,17 @@ def _memo_ok(key: str, ttl_seconds: float, produce):
             busy = threading.Event()
             _MEMO_BUSY[key] = busy
     if not mine:
-        busy.wait(MEMO_WAIT_SECONDS)
+        # 화면이 뒤 일꾼의 결과를 기다리는 동안에는 그 일꾼이 화면에 비켜서지 않게 알린다(2026-09-25).
+        screen = _is_screen_thread()
+        if screen:
+            with _FG_WAITING_LOCK:
+                _FG_WAITING["n"] += 1
+        try:
+            busy.wait(MEMO_WAIT_SECONDS)
+        finally:
+            if screen:
+                with _FG_WAITING_LOCK:
+                    _FG_WAITING["n"] -= 1
         with _CACHE_LOCK:
             found = _CACHE.get(key)
             if found and time.time() - found["at"] < ttl_seconds:
@@ -5172,7 +5242,7 @@ def _refresh_breakout_in_background() -> None:
                 _BREAKOUT_REFRESH["on"] = False
 
     try:
-        threading.Thread(target=_run, name="breakout-refresh", daemon=True).start()
+        threading.Thread(target=_background(_run), name="breakout-refresh", daemon=True).start()
     except Exception as exc:
         _log.warning("breakout refresh thread failed: %s", exc)
         with _BREAKOUT_REFRESH_LOCK:
@@ -5224,7 +5294,7 @@ def warm_breakout_scan() -> None:
                 _BREAKOUT_WARM["on"] = False
 
     try:
-        threading.Thread(target=_run, name="breakout-warm", daemon=True).start()
+        threading.Thread(target=_background(_run), name="breakout-warm", daemon=True).start()
     except Exception as exc:
         _log.warning("breakout warm-up thread failed: %s", exc)
         with _BREAKOUT_WARM_LOCK:
@@ -6809,7 +6879,7 @@ def warm_sector_map() -> None:
         if fresh or _SECTOR_STATE["running"]:
             return
         _SECTOR_STATE["running"] = True
-    threading.Thread(target=_refresh_sector_map, name="j3-sector-map", daemon=True).start()
+    threading.Thread(target=_background(_refresh_sector_map), name="j3-sector-map", daemon=True).start()
 
 
 def get_us_sector_map() -> dict:

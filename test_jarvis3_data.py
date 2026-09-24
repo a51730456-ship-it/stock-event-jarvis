@@ -2936,3 +2936,56 @@ class SectorMapKeptOnDiskTests(unittest.TestCase):
         j3._SECTOR_STATE.update({"at": 0.0, "value": None, "running": False})
         j3._sector_map_from_file()
         self.assertIsNone(j3._SECTOR_STATE["value"])
+
+
+class BackgroundGivesWayTests(unittest.TestCase):
+    """뒤 일꾼은 한 번에 하나, 화면이 그리는 동안은 비켜선다 (2026-09-25 상하님 — "상승장 첫 로딩
+    15초 · 닫기 5초"). 막 켜진 앱에서 뒤 일꾼 다섯이 한꺼번에 돌아 누른 단추가 몫을 못 받았다."""
+
+    def _fake_screen(self, seconds):
+        stop = threading.Event()
+        worker = threading.Thread(target=lambda: stop.wait(seconds), name="ScriptRunner.scriptThread")
+        worker.start()
+        return worker, stop
+
+    def test_a_background_job_waits_while_the_screen_is_drawing(self):
+        worker, stop = self._fake_screen(5)
+        started = time.time()
+        threading.Timer(0.4, stop.set).start()          # 0.4초 뒤 화면이 다 그린다
+        j3._yield_to_screen(limit=3)
+        waited = time.time() - started
+        worker.join()
+        self.assertGreaterEqual(waited, 0.3, "화면이 그리는데 비켜서지 않았다")
+        self.assertLess(waited, 2.0, "화면이 끝났는데도 계속 기다렸다")
+
+    def test_it_does_not_wait_when_the_screen_waits_for_it(self):
+        worker, stop = self._fake_screen(5)
+        with j3._FG_WAITING_LOCK:
+            j3._FG_WAITING["n"] += 1
+        try:
+            started = time.time()
+            j3._yield_to_screen(limit=3)
+            self.assertLess(time.time() - started, 0.3, "화면이 기다리는 일꾼이 비켜서서 서로 멈춘다")
+        finally:
+            with j3._FG_WAITING_LOCK:
+                j3._FG_WAITING["n"] -= 1
+            stop.set(); worker.join()
+
+    def test_jobs_take_turns_and_a_nested_call_does_not_lock(self):
+        running, peak, lock = [0], [0], threading.Lock()
+
+        def job():
+            with lock:
+                running[0] += 1; peak[0] = max(peak[0], running[0])
+            j3._background(lambda: None)()              # 같은 일꾼 안에서 또 불러도 안 멈춘다
+            time.sleep(0.05)
+            with lock:
+                running[0] -= 1
+
+        threads = [threading.Thread(target=j3._background(job)) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(5)
+        self.assertEqual(1, peak[0], "무거운 뒤 일이 한꺼번에 돌았다")
+        self.assertTrue(all(not thread.is_alive() for thread in threads), "안에서 또 부르자 멈췄다")
