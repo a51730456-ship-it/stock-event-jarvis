@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026092410
+MODULE_REVISION = 2026092420
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -479,6 +479,14 @@ div[class*="st-key-j3sc_box"] [data-testid="stHorizontalBlock"]:has(div[class*="
 }
 div[class*="st-key-j3sc_box"] [data-testid="stColumn"]:has(div[class*="st-key-j3sc_span_"]) {
     flex: 1 1 calc(50% - 6px) !important; width: auto !important; min-width: 0 !important;
+}
+/* 기간 고르기 달력(2026-09-24)은 폰에서도 **월~금 다섯 칸이 한 줄**이다 — 스트림릿이 좁은
+   화면에서 칸을 위아래로 쌓으면 달력이 세로 한 줄이 된다. 시작일·종료일 두 칸도 한 줄. */
+div[class*="st-key-j3sc_cal"] [data-testid="stHorizontalBlock"] {
+    flex-direction: row !important; flex-wrap: nowrap !important; gap: 4px !important;
+}
+div[class*="st-key-j3sc_cal"] [data-testid="stColumn"] {
+    flex: 1 1 0 !important; width: auto !important; min-width: 0 !important;
 }
 /* 성적표 순위 9 줄 — 폰에서 「›」와 횟수가 줄바꿈되지 않게 한다(2026-09-17).
    이름은 한 치수 줄여 한 줄에 두고, 파트별 횟수(30번)는 폰에서 감춘다. 값은 그대로다. */

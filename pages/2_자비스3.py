@@ -645,13 +645,49 @@ st.markdown(
         border: 1px solid rgba(2,11,30,.85); border-radius: 4px;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         gap: .1em; overflow: hidden; text-align: center; color: #f4f8ff; padding: 2px; }
-    .j3-sector-name { font-weight: 800; line-height: 1.15; }
-    .j3-sector-pct { font-weight: 800; line-height: 1.1; opacity: .95; }
+    /* 글자 굵기를 한 단계 낮췄다 (2026-09-24 상하님 — "작은 화면이고 큰 화면이고 둘 다 글자가
+       너무 굵다"). 800 → 이름 600 · 등락 500. */
+    .j3-sector-name { font-weight: 600; line-height: 1.12; word-break: keep-all; }
+    .j3-sector-pct { font-weight: 500; line-height: 1.1; opacity: .95; }
     .j3-sector-tile.big .j3-sector-name { font-size: 1.15em; }
     .j3-sector-tile.big .j3-sector-pct { font-size: 1.05em; }
     .j3-sector-tile.mid .j3-sector-name { font-size: 0.92em; }
     .j3-sector-tile.mid .j3-sector-pct { font-size: 0.86em; }
     .j3-sector-tile.small .j3-sector-name { font-size: 0.74em; }
+    @supports not (container-type: size) {
+        .j3-sector-tile.small .j3-sector-pct, .j3-sector-tile.tiny .j3-sector-pct,
+        .j3-sector-tile.tiny .j3-sector-name { display: none; }
+    }
+    /* **글자를 칸 크기에 맞춘다** (2026-09-24 상하님 — 폰에서 눕힌 창 윗줄 「의료기기·진단」이
+       잘렸다). 칸마다 제 크기를 재는 틀(container)로 두고, 이름은 가장 긴 토막(--n, 글자 수
+       배수)이 칸 폭의 92% 안에 들고 두 줄+등락이 칸 높이에 들도록 줄인다. 너무 작은 칸은
+       등락 → 이름 차례로 감춘다. 기기마다 칸 픽셀이 달라도 그 자리에서 맞춰진다. */
+    .j3-sector-tile, .j3-sector-theme { container-type: size; }
+    .j3-sector-grid { --fmax: 15px; }
+    .j3sm-pop, .j3sm-pop .j3-sector-grid { --fmax: 24px; }
+    @supports (container-type: size) {
+        .j3-sector-tile .j3-sector-name, .j3-sector-theme .j3-sector-name {
+            font-size: clamp(8px, min(calc(92cqw / var(--n, 4)), 27cqh), var(--fmax, 15px)) !important; }
+        .j3-sector-tile .j3-sector-pct, .j3-sector-theme .j3-sector-pct {
+            font-size: clamp(8px, min(calc(92cqw / 3.6), 22cqh), calc(var(--fmax, 15px) * .88)) !important; }
+        /* 좁은 칸은 **등락을 먼저** 감춘다 — 이름 없이 숫자만 남으면 무슨 칸인지 모른다. */
+        @container (max-height: 30px) { .j3-sector-tile .j3-sector-pct { display: none; } }
+        @container (max-width: 40px) { .j3-sector-tile .j3-sector-pct { display: none; } }
+        @container (max-width: 20px) { .j3-sector-name { display: none; } }
+        @container (max-height: 13px) { .j3-sector-name { display: none; } }
+    }
+    /* 자비스 테마 상위 5 줄 — 지도 밑. 칸 크기는 같다(몫이 아니라 등수다). */
+    .j3-sector-themes { margin-top: .4rem; }
+    .j3-sector-themes-label { color: #c084fc; font-size: .82em; font-weight: 600; margin-bottom: .2rem; }
+    .j3-sector-theme-row { display: flex; gap: 3px; height: 46px; }
+    .j3-sector-theme { flex: 1 1 0; min-width: 0; box-sizing: border-box; border-radius: 4px;
+        border: 1px solid rgba(2,11,30,.85); display: flex; flex-direction: column;
+        align-items: center; justify-content: center; text-align: center; overflow: hidden;
+        color: #f4f8ff; padding: 2px; }
+    .j3-sector-theme .j3-sector-name i { font-style: normal; color: #ffd166; margin-right: .1em; }
+    .j3sm-pop .j3-sector-themes { margin-top: 0; flex: 0 0 auto; }
+    .j3sm-pop .j3-sector-themes-label { font-size: .7em; margin-bottom: .15rem; }
+    .j3sm-pop .j3-sector-theme-row { height: clamp(40px, 11vmin, 84px); }
     .j3-sector-bar { display: flex; height: 7px; border-radius: 4px; overflow: hidden;
         margin: .4rem 0 .25rem; background: rgba(255,255,255,.08); }
     .j3-sector-bar span { display: block; height: 100%; }
@@ -693,14 +729,16 @@ st.markdown(
     .j3sm-tap:checked ~ .j3sm-pop { opacity: 1; visibility: visible; pointer-events: auto;
         transform: translate(-50%,-50%) scale(1);
         transition: transform .9s cubic-bezier(.34,1.56,.64,1), opacity .36s ease, visibility 0s; }
-    .j3sm-title { color: #9dccff; font-size: 1.1em; font-weight: 800; }
-    .j3sm-title small { color: #8fb4de; font-size: .72em; font-weight: 700; margin-left: .4em; }
-    .j3sm-sub { color: #8f9bb0; font-size: .74em; font-weight: 700; line-height: 1.3; }
+    .j3sm-title { color: #9dccff; font-size: 1.05em; font-weight: 700; }
+    .j3sm-title small { color: #8fb4de; font-size: .72em; font-weight: 500; margin-left: .4em; }
+    .j3sm-sub { color: #8f9bb0; font-size: .7em; font-weight: 500; line-height: 1.3; }
     .j3sm-pop .j3sm-grid { flex: 1 1 auto; min-height: 0; aspect-ratio: auto; }
     .j3sm-pop .j3-sector-bar { flex: 0 0 auto; margin: .15rem 0 0; }
     .j3sm-pop .j3-sector-foot { font-size: .74em; }
+    /* 눕힌 창은 폰 아래 끝 60px 을 비운다 — 온라인 앱의 오른쪽 아래 단추(스트림릿 표시)가
+       그 자리를 덮어 「미디어·통신」 칸이 가려졌다(2026-09-24 상하님 폰 캡처). */
     @media (orientation: portrait) {
-        .j3sm-pop { width: calc(100dvh - 16px); height: calc(100vw - 16px);
+        .j3sm-pop { width: calc(100dvh - 76px); height: calc(100vw - 16px); top: calc(50% - 30px);
             transform: translate(-50%,-50%) rotate(90deg) scale(.55); }
         .j3sm-tap:checked ~ .j3sm-pop { transform: translate(-50%,-50%) rotate(90deg) scale(1); }
     }
@@ -1739,7 +1777,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026092410
+_REQUIRED_MOBILE_REVISION = 2026092420
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1827,7 +1865,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026092490
+_REQUIRED_J3_REVISION = 2026092495
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -3793,6 +3831,7 @@ def _sector_map_cell(phase: str) -> str:
     # 손가락 넘기기와 하단 막대가 쉬게 한다(넘기기 코드·막대 숨김 규칙이 이 이름표를 본다).
     color_note = ("색 = 칸 대표 회사들을 몫대로 섞은 등락 · 반도체·바이오·에너지·전력·부동산은 대표 ETF"
                   if by_tiles else "색 = 업종 대표 ETF 등락")
+    themes = _sector_theme_strip(live, when)
     return (
         "<div class='j3-top-cell j3-sector-map'>"
         "<input type='checkbox' id='j3sm-tap' class='j3cz-tap j3sm-tap'>"
@@ -3802,16 +3841,62 @@ def _sector_map_cell(phase: str) -> str:
         f"{semi_note}"
         f"색 = {when} 오르내림 · 누르면 크게</div>"
         f"<div class='j3-sector-grid'>{tiles}</div>"
-        + foot + "</label>"
+        + themes + foot + "</label>"
         "<label for='j3sm-tap' class='j3sm-scrim' aria-hidden='true'></label>"
         "<label for='j3sm-tap' class='j3sm-pop'>"
         f"<span class='j3sm-title'>시장 현황 · 미국 업종·테마 지도 <small>{when} 오르내림</small></span>"
         f"<span class='j3sm-sub'>칸 크기 = 미국 시장에서 차지하는 몫(야후) · {color_note}"
         + (" · 굵은 테두리 = 같은 업종" if by_tiles else "") + "</span>"
         f"<div class='j3-sector-grid j3sm-grid'>{big_tiles}</div>"
-        + foot + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
+        + themes + foot + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
         "</div>"
     )
+
+
+def _sector_theme_strip(live: bool, when: str) -> str:
+    """자비스 22개 테마 중 **상위 5개** 한 줄 (2026-09-24 상하님 — "테마 22의 종목들은 여기에
+    안 들어가나? 없으면 적어도 상위 5개는 넣어 줘야 되지 않나?").
+
+    지도 칸은 미국 시장 전체를 몫대로 나눈 것이라, 테마 칸을 그 안에 겹쳐 넣으면 같은 회사를
+    두 번 세어 넓이가 틀어진다. 그래서 지도 **밑에 따로** 한 줄로 둔다. 순서는 아래 「22개 테마
+    실시간 순위」와 같은 테마 등수이고, 색·숫자는 그 테마 ETF 의 등락이다.
+    **순위를 여기서 새로 세지 않는다** — 공책에 있는 것만 쓴다(없으면 이 판에는 줄이 없다).
+    """
+    ranking = None
+    try:
+        peek = getattr(j3data, "peek_theme_rankings", None)
+        ranking = peek() if peek else None
+        if not ranking:
+            ranking = st.session_state.get("j3_theme_rankings")
+    except Exception:
+        ranking = None
+    rows = [row for row in ((ranking or {}).get("rows") or []) if row.get("ok")][:5]
+    if not rows:
+        return ""
+    cells = []
+    for place, row in enumerate(rows, start=1):
+        change = row.get("change_pct") if live else row.get("last_session_change_pct")
+        if change is None:
+            change = row.get("last_session_change_pct") if live else row.get("change_pct")
+        name = str(row.get("name") or "")
+        cells.append(
+            f"<div class='j3-sector-theme' title='{place}위 {name} · {row.get('etf') or ''} · {_pct(change)}' "
+            f"style='--n:{_sector_label_em(name):.2f};background:{_sector_tone(change)}'>"
+            f"<div class='j3-sector-name'><i>{place}</i> {name.replace('·', '·<wbr>')}</div>"
+            f"<div class='j3-sector-pct'>{_pct(change)}</div></div>")
+    return ("<div class='j3-sector-themes'>"
+            f"<div class='j3-sector-themes-label'>자비스 테마 상위 5 · 색 = 테마 ETF {when} 등락</div>"
+            f"<div class='j3-sector-theme-row'>{''.join(cells)}</div></div>")
+
+
+def _sector_label_em(name: str) -> float:
+    """이름 한 줄이 차지할 폭(글자 크기 배수). 「·」·빈칸에서 줄을 바꿀 수 있으므로 가장 긴 토막을 잰다.
+    칸 글자 크기를 칸 폭에 맞추는 데 쓴다(한글 1 · 영문·숫자 0.62 · 가운뎃점 0.35)."""
+    longest = 0.0
+    for part in name.replace("·", "·\n").replace(" ", "\n").split("\n"):
+        width = sum(0.35 if ch == "·" else 0.62 if ch.isascii() else 1.0 for ch in part)
+        longest = max(longest, width)
+    return max(longest, 2.0)
 
 
 def _sector_layout(rows: list, width: float, height: float) -> tuple[list, list]:
@@ -3857,12 +3942,15 @@ def _sector_tiles_html(rows: list, width: float, height: float, sizes: tuple, *,
             size = "small"
         else:
             size = "tiny"
-        text = "" if size == "tiny" else f"<div class='j3-sector-name'>{row['name']}</div>"
-        if size in ("big", "mid"):
-            text += f"<div class='j3-sector-pct'>{_pct(change)}</div>"
+        # 글자는 **칸 크기에 맞춰 줄고 는다**(CSS 칸 단위 · 2026-09-24 상하님 — 폰에서 「의료기기·진단」
+        # 이 잘렸다). 이름·등락을 늘 싣고, 칸이 너무 작으면 CSS 가 감춘다. size 는 그 CSS 를
+        # 모르는 옛 브라우저를 위한 예비다.
+        text = (f"<div class='j3-sector-name'>{row['name'].replace('·', '·<wbr>')}</div>"
+                f"<div class='j3-sector-pct'>{_pct(change)}</div>")
         out.append(
             f"<div class='j3-sector-tile {size}' title='{row['name']} · {row['etf']} · {_pct(change)}' "
-            f"style='{pos(x, y, w, h)};background:{_sector_tone(change)}'>{text}</div>")
+            f"style='{pos(x, y, w, h)};--n:{_sector_label_em(row['name']):.2f};"
+            f"background:{_sector_tone(change)}'>{text}</div>")
     for name, (gx, gy, gw, gh), first in frames:
         roomy = first is not None and first[2] >= 14 and first[3] >= 12
         badge = f"<span>{name}</span>" if labels and name and roomy else ""
@@ -6241,7 +6329,6 @@ def _scorecard_counts() -> dict:
 # 없으니." 기간 칩 다섯은 모두 「지금 값」과 견준다. 여기서는 **끝일 종가**와 견준다 —
 # 시작일~끝일 사이에 저장된 목록을 다음 거래일 시가에 사서 끝일 종가에 팔았다면.
 _SCORECARD_RANGE = "기간"
-_SCORECARD_RANGE_KEY = "j3sc_range"
 
 
 def _us_last_trading_day(day):
@@ -6489,6 +6576,113 @@ def _pick_scorecard_span(value: str) -> None:
     scroll_to.request(st, _SCORECARD_ANCHOR)
 
 
+# ── 기간 고르기 달력 (2026-09-24 상하님 — "기간 고르기 너무 불편하다 · 날짜도 영어 말고
+# 숫자로 · 기간 처음 클릭하면 달력 뜨고 클릭, 종료일 클릭하면 달력 뜨고 이런 식으로") ────────
+# 스트림릿 날짜 칸은 영어 달력이고, 폰에서 누르면 자판이 올라오고, 첫 날을 누르면 달력이 닫혀
+# 끝날을 고르려면 다시 열어야 했다. 그래서 숫자 단추 달력을 직접 그린다 — 항공편 예약처럼
+# 「시작일」 칸을 누르면 그 달력이, 날을 누르면 곧바로 「종료일」 달력이 뜨고, 날을 누르면 닫히며
+# 성적이 나온다. 미국장이 쉬는 날(주말·휴일)은 칸만 있고 누를 수 없다. 주말 줄은 뺐다.
+_SCORECARD_RANGE_START = "j3sc_rng_start"
+_SCORECARD_RANGE_END = "j3sc_rng_end"
+_SCORECARD_RANGE_STEP = "j3sc_rng_step"      # "start" · "end" · "" (두 날을 다 고름)
+_SCORECARD_RANGE_MONTH = "j3sc_rng_month"    # 달력에 띄운 (연, 월)
+
+
+def _range_open_field(which: str) -> None:
+    """「시작일」·「종료일」 칸을 누르면 그 달력을 띄운다(그 날이 있는 달로)."""
+    st.session_state[_SCORECARD_RANGE_STEP] = which
+    day = st.session_state.get(_SCORECARD_RANGE_START if which == "start" else _SCORECARD_RANGE_END) \
+        or st.session_state.get(_SCORECARD_RANGE_START)
+    if day:
+        st.session_state[_SCORECARD_RANGE_MONTH] = (day.year, day.month)
+
+
+def _range_pick_day(day_iso: str) -> None:
+    """달력의 날을 눌렀다. 시작일이면 곧바로 종료일 달력으로, 종료일이면 달력을 닫는다."""
+    day = date.fromisoformat(day_iso)
+    if (st.session_state.get(_SCORECARD_RANGE_STEP) or "start") == "start":
+        st.session_state[_SCORECARD_RANGE_START] = day
+        end = st.session_state.get(_SCORECARD_RANGE_END)
+        if end and end < day:
+            st.session_state.pop(_SCORECARD_RANGE_END, None)
+        st.session_state[_SCORECARD_RANGE_STEP] = "end"
+    else:
+        st.session_state[_SCORECARD_RANGE_END] = day
+        st.session_state[_SCORECARD_RANGE_STEP] = ""
+
+
+def _range_move_month(step: int) -> None:
+    year, month = st.session_state.get(_SCORECARD_RANGE_MONTH) or (date.today().year, date.today().month)
+    month += step
+    year, month = (year - 1, 12) if month < 1 else (year + 1, 1) if month > 12 else (year, month)
+    st.session_state[_SCORECARD_RANGE_MONTH] = (year, month)
+
+
+def _render_range_picker():
+    """시작일·종료일 두 칸과 그 밑 달력. 두 날을 다 골랐으면 (시작일, 종료일), 아니면 None."""
+    import calendar as _calendar
+
+    import us_market_calendar
+
+    first_day = date.fromisoformat(_SCORECARD_START)
+    last_day = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
+    state = st.session_state
+    if _SCORECARD_RANGE_STEP not in state:
+        state[_SCORECARD_RANGE_STEP] = "start"            # 처음 누르면 시작일 달력부터
+    start, end = state.get(_SCORECARD_RANGE_START), state.get(_SCORECARD_RANGE_END)
+    step = state.get(_SCORECARD_RANGE_STEP) or ""
+    if _SCORECARD_RANGE_MONTH not in state:
+        state[_SCORECARD_RANGE_MONTH] = (last_day.year, last_day.month)
+    with st.container(key="j3sc_calf"):
+        fields = st.columns(2)
+        fields[0].button(f"시작일 · {start:%Y.%m.%d}" if start else "시작일 · 누르세요",
+                         key="j3sc_calf_start", width="stretch",
+                         type="primary" if step == "start" else "secondary",
+                         on_click=_range_open_field, args=("start",))
+        fields[1].button(f"종료일 · {end:%Y.%m.%d}" if end else "종료일 · 누르세요",
+                         key="j3sc_calf_end", width="stretch", disabled=start is None,
+                         type="primary" if step == "end" else "secondary",
+                         on_click=_range_open_field, args=("end",))
+    if step:
+        year, month = state[_SCORECARD_RANGE_MONTH]
+        with st.container(key="j3sc_cal"):
+            head = st.columns([1, 4, 1])
+            head[0].button("◀", key="j3sc_cal_prev", width="stretch",
+                           disabled=(year, month) <= (first_day.year, first_day.month),
+                           on_click=_range_move_month, args=(-1,))
+            head[1].markdown(
+                f"<div class='j3sc-cal-title'>{'① 시작일' if step == 'start' else '② 종료일'}을 누르세요"
+                f"<b>{year}년 {month}월</b></div>", unsafe_allow_html=True)
+            head[2].button("▶", key="j3sc_cal_next", width="stretch",
+                           disabled=(year, month) >= (last_day.year, last_day.month),
+                           on_click=_range_move_month, args=(1,))
+            st.markdown("<div class='j3sc-cal-week'><span>월</span><span>화</span><span>수</span>"
+                        "<span>목</span><span>금</span></div>", unsafe_allow_html=True)
+            for week in _calendar.Calendar(firstweekday=0).monthdatescalendar(year, month):
+                days = week[:5]                              # 월~금만(주말은 장이 없다)
+                if not any(day.month == month for day in days):
+                    continue
+                cells = st.columns(5)
+                for cell, day in zip(cells, days):
+                    if day.month != month:
+                        cell.markdown("<div class='j3sc-cal-off'>&nbsp;</div>", unsafe_allow_html=True)
+                        continue
+                    usable = (first_day <= day <= last_day and us_market_calendar.is_trading_day(day)
+                              and not (step == "end" and start and day < start))
+                    if not usable:
+                        cell.markdown(f"<div class='j3sc-cal-off'>{day.day}</div>", unsafe_allow_html=True)
+                        continue
+                    chosen = day in (start, end)
+                    inside = bool(start and end and start < day < end)
+                    cell.button(str(day.day), key=f"j3sc_cal_{'in' if inside else 'd'}_{day.isoformat()}",
+                                width="stretch", type="primary" if chosen else "secondary",
+                                on_click=_range_pick_day, args=(day.isoformat(),))
+        return None
+    if start and end:
+        return start, end
+    return None
+
+
 def _render_picklist_scorecard(part: str):
     """「CSV로 받기」 자리의 단추와, 눌렀을 때 스르륵 내려오는 창."""
     if part == "button":
@@ -6528,22 +6722,8 @@ def _render_picklist_scorecard(part: str):
                 on_click=_pick_scorecard_span, args=(label,),
             )
         if span == _SCORECARD_RANGE:
-            # 달력에서 **시작일 → 끝일**을 차례로 누른다(항공편 예약처럼). 처음에는 세기
-            # 시작한 날부터 어제까지가 골라져 있다.
-            first_day = date.fromisoformat(_SCORECARD_START)
-            last_day = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
-            # 기간 칩으로 갔다 돌아와도 고른 두 날이 남게 따로 적어 둔다(칸이 안 그려진 판에는
-            # 스트림릿이 칸 값을 지운다). 날이 바뀌어 끝일이 범위를 벗어나면 안으로 당긴다.
-            kept = st.session_state.get(_SCORECARD_RANGE_KEY + "_kept") or (first_day, last_day)
-            kept = tuple(min(max(day, first_day), last_day) for day in kept)
-            picked = st.date_input(
-                "시작일 ~ 끝일 — 달력에서 두 날을 차례로 누르세요",
-                value=kept,
-                min_value=first_day, max_value=last_day,
-                format="YYYY.MM.DD", key=_SCORECARD_RANGE_KEY,
-            )
-            if isinstance(picked, (tuple, list)) and len(picked) == 2:
-                st.session_state[_SCORECARD_RANGE_KEY + "_kept"] = tuple(picked)
+            picked = _render_range_picker()
+            if picked:
                 import picklist_store as _pl_store
 
                 dates = _pl_store.available_dates("US")
@@ -6552,8 +6732,6 @@ def _render_picklist_scorecard(part: str):
                     data = _scorecard_range_counts(stamp, picked[0].isoformat(), picked[1].isoformat())
                 st.markdown(_scorecard_panel_html(data, span) + _scorecard_theme_html(data),
                             unsafe_allow_html=True)
-            else:
-                st.caption("끝일을 한 번 더 눌러 주세요.")
         else:
             st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
         # 「어느 때 어느 파트가 나았나」 표는 뺐다(2026-09-23 저녁 상하님 — "파트별 성적표 밑에
@@ -10805,9 +10983,25 @@ def _briefing_css() -> None:
           border:1px solid #7c3aed!important;box-shadow:0 2px 10px rgba(124,58,237,.25)!important}
         div[class*="st-key-picklist_scorecard_US"] button p{color:#ffffff!important;font-weight:800!important}
         div[class*="st-key-picklist_scorecard_US"] button:hover{filter:brightness(1.15)}
-        /* 기간 고르기 달력 칸의 이름 — 칩 글자와 같은 빛깔(기본은 바탕에 묻혀 안 읽혔다). */
-        div[class*="st-key-j3sc_range"] [data-testid="stWidgetLabel"] p{color:#8fb4de!important;
-          font-size:.8rem!important;font-weight:700!important}
+        /* 기간 고르기 달력 (2026-09-24 상하님 — "날짜도 영어 말고 숫자로"). 시작일·종료일 칸과
+           달력 날짜 단추. 고른 날은 노랑(기간 칩과 같은 빛), 그 사이 날은 옅은 노랑 띠. */
+        div[class*="st-key-j3sc_cal"]{gap:4px!important}
+        div[class*="st-key-j3sc_cal"] [data-testid="stHorizontalBlock"]{gap:4px!important}
+        div[class*="st-key-j3sc_cal"] button{min-height:0!important;padding:.3rem 0!important;
+          border-radius:8px!important;background:transparent!important;border:1px solid #1d3a63!important}
+        div[class*="st-key-j3sc_cal"] button p{font-size:.9rem!important;font-weight:600!important;color:#cfe0f5!important}
+        div[class*="st-key-j3sc_cal"] button[kind="primary"]{background:#ffb020!important;border-color:#ffb020!important}
+        div[class*="st-key-j3sc_cal"] button[kind="primary"] p{color:#0a1a33!important}
+        div[class*="st-key-j3sc_cal_in_"] button{background:rgba(255,176,32,.18)!important;
+          border-color:rgba(255,176,32,.45)!important}
+        div[class*="st-key-j3sc_cal"] button:disabled{opacity:.35}
+        div[class*="st-key-j3sc_calf_"] button p{font-size:.84rem!important}
+        .j3sc-cal-title{text-align:center;color:#8fb4de;font-size:.78rem;font-weight:600;line-height:1.25}
+        .j3sc-cal-title b{display:block;color:#e6eefb;font-size:1rem;font-weight:700}
+        .j3sc-cal-week{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;
+          color:#6f93bd;font-size:.76rem;font-weight:600}
+        .j3sc-cal-off{text-align:center;color:#3d5a80;font-size:.9rem;padding:.32rem 0;
+          border:1px solid transparent}
         div[class*="st-key-j3sc_box"]{animation:j3sc-drop .55s cubic-bezier(.2,.8,.2,1) both;
           transform-origin:top;border:1px solid #1d3a63;border-radius:12px;
           padding:14px 16px;margin-top:10px}

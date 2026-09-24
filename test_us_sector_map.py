@@ -257,6 +257,41 @@ def test_the_map_pops_out_and_lies_down_on_a_portrait_screen():
     portrait = source[source.index(".j3sm-tap:checked ~ .j3sm-pop {"):]
     portrait = portrait[portrait.index("@media (orientation: portrait)"):]
     portrait = portrait[:portrait.index("@media (prefers-reduced-motion")]
-    assert "rotate(90deg)" in portrait and "width: calc(100dvh - 16px); height: calc(100vw - 16px)" in portrait
+    assert "rotate(90deg)" in portrait and "height: calc(100vw - 16px)" in portrait
     # 칸에 손이 닿으면 뜨는 움직임(transform)이 있으면 창이 화면이 아니라 칸에 붙는다 — 열린 동안 끈다.
     assert ".j3-sector-map:has(> .j3sm-tap:checked) { transform: none !important; filter: none !important;" in source
+
+
+def test_the_top_five_themes_sit_under_the_map_without_waiting():
+    """자비스 22개 테마 중 **상위 5개** 줄이 지도 밑에 선다 (2026-09-24 상하님). 순위를 새로 세지
+    않고 공책에 있는 것만 쓴다 — 지도는 화면 맨 위라 기다리면 첫 화면이 밀린다."""
+    namespace = _cell_namespace()
+
+    class _Data:
+        @staticmethod
+        def peek_theme_rankings():
+            rows = [{"ok": True, "name": f"테마{i}", "etf": f"E{i}", "change_pct": i - 3.0,
+                     "last_session_change_pct": i - 3.0} for i in range(1, 8)]
+            rows.insert(2, {"ok": False, "name": "못 잰 테마"})
+            return {"rows": rows}
+
+    namespace["j3data"] = _Data
+    strip = namespace["_sector_theme_strip"](False, "직전 장")
+    assert strip.count("class='j3-sector-theme'") == 5, "상위 5개가 아니다"
+    assert "못 잰 테마" not in strip and "테마6" not in strip
+    data = DATA.read_text(encoding="utf-8")
+    peek = data[data.index("def peek_theme_rankings("):]
+    peek = peek[:peek.index(chr(10) + "def ", 10)]
+    assert "_compute_theme_rankings" not in peek, "지도가 순위를 새로 센다"
+
+
+def test_tile_text_fits_its_box_and_is_not_bold():
+    """글자는 칸 크기에 맞춰 줄고(칸 단위), 굵기는 이름 600·등락 500 (2026-09-24 상하님 — "글자가 너무 굵다")."""
+    source = PAGE.read_text(encoding="utf-8")
+    assert ".j3-sector-name { font-weight: 600;" in source
+    assert ".j3-sector-pct { font-weight: 500;" in source
+    assert ".j3-sector-tile, .j3-sector-theme { container-type: size; }" in source
+    assert "calc(92cqw / var(--n, 4))" in source
+    namespace = _cell_namespace()
+    assert namespace["_sector_label_em"]("하드웨어·통신장비") == 4.35     # 첫 줄 「하드웨어·」(가운뎃점 0.35)가 가장 길다
+    assert namespace["_sector_label_em"]("반도체") == 3.0

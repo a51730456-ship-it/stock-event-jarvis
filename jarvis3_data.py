@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092490
+MODULE_REVISION = 2026092495
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1869,6 +1869,19 @@ def get_theme_rankings() -> dict:
     """
     value, _ = _cached_value("us_theme_rankings", THEME_RANKING_TTL, _compute_theme_rankings)
     return copy.deepcopy(value)
+
+
+def peek_theme_rankings() -> dict | None:
+    """테마 순위를 **새로 세지 않고** 공책에 있는 것만 준다 (2026-09-24).
+
+    시장 현황 지도에 「자비스 테마 상위 5」 줄을 붙이는 데 쓴다. 지도는 화면 맨 위라
+    여기서 순위를 세면(받는 데 몇 초) 첫 화면이 그만큼 밀린다(CLAUDE.md 0-0 첫째).
+    없으면 None — 그 판에는 줄을 안 붙이고, 아래 순위 구역이 센 뒤 다음 판부터 붙는다.
+    """
+    with _CACHE_LOCK:
+        cached = _CACHE.get("us_theme_rankings")
+    value = cached.get("value") if cached else None
+    return copy.deepcopy(value) if value else None
 
 
 _IXIC_WARM_LOCK = threading.Lock()

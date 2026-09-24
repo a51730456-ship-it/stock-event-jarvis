@@ -3379,3 +3379,31 @@ def test_scorecard_range_sells_at_the_end_day_close():
     assert data["spans"]["기간"] == {"days": 2, "first": "2026-09-16", "last": "2026-09-17"}
     name, seen, win, avg = data["themes"][0]
     assert (name, seen, win) == ("바이오", 2, 1) and abs(avg - 5.0) < 1e-9
+
+
+def test_scorecard_range_uses_a_korean_number_calendar_start_then_end():
+    """기간 고르기 — 영어 날짜 칸이 아니라 **숫자 달력**이다 (2026-09-24 상하님 — "기간 고르기 너무
+    불편하다 · 날짜도 영어 말고 숫자로 · 처음 클릭하면 달력, 종료일 클릭하면 달력"). 시작일 날을
+    누르면 곧바로 종료일 달력으로 넘어가고, 종료일 날을 누르면 달력이 닫힌다."""
+    source = PAGE.read_text(encoding="utf-8")
+    panel = source[source.index("def _render_picklist_scorecard("):source.index("def _render_picklist_section")]
+    assert "st.date_input" not in panel, "영어 날짜 칸이 남아 있다"
+    picker = source[source.index("def _render_range_picker("):source.index("def _render_picklist_scorecard(")]
+    assert "<span>월</span><span>화</span><span>수</span>" in picker
+    assert "{year}년 {month}월" in picker and "is_trading_day(day)" in picker
+    ns = {"st": type("S", (), {"session_state": {}})(), "date": __import__("datetime").date}
+    import ast
+    tree = ast.parse(source)
+    wanted = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_range_pick_day"]
+    consts = [n for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "").startswith("_SCORECARD_RANGE_")]
+    exec(compile(ast.Module(body=consts + wanted, type_ignores=[]), "page", "exec"), ns)
+    state = ns["st"].session_state
+    ns["_range_pick_day"]("2026-09-08")
+    assert state[ns["_SCORECARD_RANGE_STEP"]] == "end", "시작일을 누른 뒤 종료일 달력으로 안 넘어간다"
+    ns["_range_pick_day"]("2026-09-18")
+    assert state[ns["_SCORECARD_RANGE_STEP"]] == "", "종료일을 누른 뒤 달력이 안 닫힌다"
+    assert str(state[ns["_SCORECARD_RANGE_START"]]) == "2026-09-08"
+    assert str(state[ns["_SCORECARD_RANGE_END"]]) == "2026-09-18"
+    mobile = (ROOT / "mobile_ui.py").read_text(encoding="utf-8")
+    phone = mobile[mobile.index("@media (max-width: 600px)"):]
+    assert 'div[class*="st-key-j3sc_cal"] [data-testid="stHorizontalBlock"]' in mobile, "폰에서 달력이 세로로 쌓인다"
