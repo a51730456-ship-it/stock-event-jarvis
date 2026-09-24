@@ -76,13 +76,42 @@ def _wait_for(page, js: str, limit: float = CLICK_LIMIT) -> float | None:
     return None
 
 
+def _wait_for_version(page, short_sha: str, limit: float = 900.0) -> bool:
+    """앱 맨 밑 「판 … · 커밋」에 새 커밋이 뜰 때까지 기다린다 (2026-09-24).
+
+    목록 저장이 글을 올린 **바로 뒤에** 이 파일이 돌면, 앱은 아직 옛 판이라 데워 둔 것이
+    곧 껐다 켜지며 사라진다. 그래서 새 판이 뜬 것을 본 뒤에 데운다. 30초마다 다시 연다.
+    """
+    start = time.time()
+    while time.time() - start < limit:
+        try:
+            page.goto(APP, wait_until="domcontentloaded", timeout=180_000)
+            if _wait_for(page, "!!document.querySelector('.jarvis-build')", limit=240) is not None:
+                stamp = page.evaluate(
+                    "(document.querySelector('.jarvis-build') || {}).textContent || ''")
+                if short_sha in stamp:
+                    _log(f"새 판 확인 — {stamp.strip()}")
+                    return True
+                _log(f"아직 옛 판 — {stamp.strip()}")
+        except Exception as exc:
+            _log(f"판 확인 실패 — {exc}")
+        page.wait_for_timeout(30_000)
+    return False
+
+
 def main() -> int:
+    import os
+
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as play:
         browser = play.chromium.launch()
         page = browser.new_page(viewport={"width": 420, "height": 900})
         try:
+            # 목록 저장 뒤에 불렸으면(WAIT_FOR_SHA) 새 판이 뜰 때까지 먼저 기다린다.
+            short_sha = (os.environ.get("WAIT_FOR_SHA") or "").strip()[:7]
+            if short_sha and not _wait_for_version(page, short_sha):
+                _log("새 판이 안 떴다 — 그래도 지금 판을 데운다")
             started = time.time()
             _log("앱 열기")
             page.goto(APP, wait_until="domcontentloaded", timeout=180_000)

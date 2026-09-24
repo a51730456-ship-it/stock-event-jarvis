@@ -10,6 +10,12 @@
 name: 아침에 미리 깨워 두기
 
 on:
+  # **목록 저장이 끝날 때마다** 데운다 (2026-09-24 상하님 — "상승장 첫 클릭 로딩 15초 ·
+  # 두 번째 1초"). 저장은 하루 일곱 번(미국 넷·한국 셋) 글을 올리고, 올릴 때마다 앱이
+  # 껐다 켜진다. 08:50 한 번만 데웠더니 그날 08:51 저장이 다시 껐다 켜서 헛돌았다.
+  workflow_run:
+    workflows: ["날짜별 목록 저장"]
+    types: [completed]
   schedule:
     # 아침 저장(08:30 KST)이 보통 08:40~09:15 사이에 글을 올린다(실측 — 09-19 08:28 ·
     # 09-22 09:13 · 09-23 08:42). 그 뒤에 한 번, 늦게 끝난 날을 위해 한 번 더 깨운다.
@@ -26,8 +32,10 @@ permissions:
 
 jobs:
   warm:
+    # 저장이 실패한 판에는 올린 글이 없어 앱이 안 껐다 켜진다 — 데울 까닭이 없다.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -43,4 +51,8 @@ jobs:
       - name: 앱 깨우기
         # 실패해도 그날 아침이 예전처럼 느릴 뿐이라 워크플로를 붉게 만들지 않는다.
         continue-on-error: true
-        run: python warm_morning.py
+        run: |
+          # 저장이 막 올린 글(맨 끝 커밋)이 앱에 뜰 때까지 기다린 뒤 데운다(warm_morning.py).
+          git fetch --depth=1 origin master
+          export WAIT_FOR_SHA="$(git rev-parse --short=7 FETCH_HEAD)"
+          python warm_morning.py
