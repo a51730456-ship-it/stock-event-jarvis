@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092460
+MODULE_REVISION = 2026092470
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -4666,6 +4666,7 @@ def find_top_reviewed_stocks(
 ) -> dict:
     """이미 계산된 일반 테마 최종점수로 일반 후보를 모은다."""
     picked: dict[str, dict] = {}
+    theme_tables: dict[str, list] = {}      # 테마 이름 → 그 테마 표(점수 높은 순)
     errors: list[str] = []
     scanned_themes = 0
     theme_scores = {
@@ -4702,6 +4703,7 @@ def find_top_reviewed_stocks(
                     errors.append(f"{name}: {result.get('error') or '조회 실패'}")
                     continue
                 scanned_themes += 1
+                theme_tables[name] = list(result["rows"])
                 for row in result["rows"]:
                     _keep_better(picked, row, source=name)
 
@@ -4727,6 +4729,8 @@ def find_top_reviewed_stocks(
     # 테마 2등이라 아래로 밀렸다. 조건점수 순으로 바꾸는 것과 테마를 번갈아 놓는
     # 것을 나란히 보여 드렸고, 상하님이 **'지금 그대로'**를 고르셨다.
     # 바꾸려면 먼저 여쭙는다(CLAUDE.md 0-1 나).
+    # → **2026-09-24 상하님이 「테마 1·2·3위에서 하나씩」으로 정하셨다**(아래 rows 만드는 자리).
+    #   아래 _order 는 갈래 줄(extra_rows)을 같이 넣을 때만 쓴다.
     theme_place = {name: index for index, name in enumerate(
         [str(r.get("name") or "") for r in sorted(
             theme_rows or [], key=lambda r: float(r.get("score") or 0), reverse=True)])}
@@ -4740,13 +4744,37 @@ def find_top_reviewed_stocks(
         return (1, min(places) if places else len(theme_place),
                 -float(item.get("score") or 0))
 
-    ranked = sorted(picked.values(), key=_order)
-    # 상위 후보 몇 개만 지금 시세로 다시 재고 그 안에서 최종 차례를 낸다 —
-    # 157종목 전부 분봉을 받던 것을 없앤다.
     result_limit = max(1, int(limit))
-    refined = ranked[: min(TOP_REVIEW_REFINE, result_limit)]
-    _refine_top_with_live(refined, market_score=market_score)
-    rows = sorted(refined, key=_order)[:result_limit]
+    if not extra_rows:
+        # **테마 1위·2위·3위에서 1등 하나씩** (2026-09-24 상하님 결정 — "나로 하고
+        # 빠졌더라도 내가 테마에서 보면 되지 않나"). 2026-08-24~25 일반 점수를 넣으면서
+        # 「종목 60%+테마 40% 높은 순」으로 바뀌어 한 테마에서 둘이 나오고 3위 테마는
+        # 빠졌다(09-24 CRWD·NET·OKTA). 이제 테마 순서대로 돌며 그 테마 표의 1등을
+        # 하나씩 뽑는다. 앞에서 이미 뽑힌 종목이면 그 테마의 다음 종목을 쓴다.
+        # 설명서 3-4 에 같은 말을 적었다.
+        rows = []
+        taken: set[str] = set()
+        for name in sorted(theme_tables, key=lambda n: theme_place.get(n, len(theme_place))):
+            for row in theme_tables[name]:
+                ticker = str(row.get("ticker") or "").strip().upper()
+                if not ticker or ticker in taken:
+                    continue
+                item = dict(row)
+                others = (picked.get(ticker) or {}).get("sources") or []
+                item["sources"] = [name] + [other for other in others if other != name]
+                rows.append(item)
+                taken.add(ticker)
+                break
+            if len(rows) >= result_limit:
+                break
+        _refine_top_with_live(rows, market_score=market_score)
+    else:
+        ranked = sorted(picked.values(), key=_order)
+        # 상위 후보 몇 개만 지금 시세로 다시 재고 그 안에서 최종 차례를 낸다 —
+        # 157종목 전부 분봉을 받던 것을 없앤다.
+        refined = ranked[: min(TOP_REVIEW_REFINE, result_limit)]
+        _refine_top_with_live(refined, market_score=market_score)
+        rows = sorted(refined, key=_order)[:result_limit]
     for index, row in enumerate(rows, 1):
         row["pick_rank"] = index
 

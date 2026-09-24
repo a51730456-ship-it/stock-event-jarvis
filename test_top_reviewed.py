@@ -501,6 +501,31 @@ class UnitedStatesTests(unittest.TestCase):
         # 1차는 종가로만 줄 세운다 — 157종목 분봉을 받던 것을 없앴다(2026-07-31).
         self.assertEqual([False, False], seen_live)
 
+    def test_leader_slots_take_one_from_each_top_theme(self):
+        """2026-09-24 상하님 결정 — 테마 1·2·3위에서 1등 하나씩. 한 테마에서 둘이 나오면 안 되고,
+        앞에서 뽑힌 종목이 다음 테마에도 있으면 그 테마의 다음 종목을 쓴다."""
+        themes = [{"name": "클라우드", "score": 90}, {"name": "사이버보안", "score": 88},
+                  {"name": "바이오", "score": 80}, {"name": "반도체", "score": 70}]
+        tables = {
+            "클라우드": [_us_leader("NET", 95.0, final_score=95.0), _us_leader("MDB", 93.5, final_score=93.5)],
+            "사이버보안": [_us_leader("NET", 95.3, final_score=95.3), _us_leader("CRWD", 95.2, final_score=95.2),
+                       _us_leader("OKTA", 95.0, final_score=95.0)],
+            "바이오": [_us_leader("ILMN", 93.2, final_score=93.2), _us_leader("MRNA", 92.0, final_score=92.0)],
+            "반도체": [_us_leader("NVDA", 99.0, final_score=99.0)],
+        }
+
+        def fake_leaders(theme_name, **_kw):
+            return {"ok": True, "rows": [dict(row) for row in tables[theme_name]]}
+
+        with patch.object(j3, "get_theme_leaders", side_effect=fake_leaders), \
+                patch.object(j3, "_download_cached", return_value=({}, {})):
+            result = j3.find_top_reviewed_stocks(themes, market_score=60, limit=3)
+
+        self.assertEqual(["NET", "CRWD", "ILMN"], [row["ticker"] for row in result["rows"]],
+                         "테마마다 1등 하나씩이 아니다")
+        self.assertEqual("사이버보안", result["rows"][1]["sources"][0])
+        self.assertNotIn("NVDA", [row["ticker"] for row in result["rows"]], "4위 테마가 끼어들었다")
+
     def test_slots_are_three_each_in_the_us(self):
         """2026-08-12 상하님 지시 — 대장주 3 · 상승장 3 · 급락 3, 합쳐 아홉이다.
 
