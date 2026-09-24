@@ -622,6 +622,7 @@ st.markdown(
         transform: translate(-50%,-50%) scale(1);
         transition: transform .9s cubic-bezier(.34,1.56,.64,1), opacity .36s ease, visibility 0s; }
     .j3cz-name { color: #9dccff; font-size: 1.15rem; font-weight: 800; }
+    .j3cz-draw { display: none; }
     /* 폰에서 차트를 104px 로 낮추는 규칙(mobile_ui · !important)이 창 안까지 오지 않게 세게 건다. */
     .j3cz-pop svg.j3-pretty-chart { flex: 1 1 auto !important; height: auto !important; min-height: 0 !important; }
     .j3cz-when { color: #7d8798; font-size: .78rem; font-weight: 700; }
@@ -2773,10 +2774,15 @@ def _chart_zoom_html(boxes: list, zoom: str) -> str:
         + "</label>"
         for index, (name, drawing, when) in enumerate(boxes)
     )
+    # **큰 창에는 그림을 한 벌 더 싣지 않는다** (2026-09-24 상하님 — "테마 클릭하면 3초").
+    # 예전에는 작은 칸의 그림을 창 안에 그대로 한 번 더 넣어, 테마 하나를 누르면 대장주
+    # 셋·테마 차트의 그림 16장이 두 벌씩 312KB 로 왔다(온라인 실측 — 한 번 누름 353KB).
+    # 이제 창에는 빈자리(j3cz-draw)만 두고, 누르는 순간 작은 칸의 그림을 베껴 넣는다
+    # (_ZOOM_CLONE_JS — 바깥 화면에 한 번 심는다).
     pops = "".join(
         f"<label for='{zoom}-{index}' class='j3cz-scrim j3cz-s{index}' aria-hidden='true'></label>"
         f"<label for='{zoom}-{index}' class='j3cz-pop j3cz-p{index}'>"
-        f"<span class='j3cz-name'>{name}</span>{drawing}"
+        f"<span class='j3cz-name'>{name}</span><i class='j3cz-draw'></i>"
         + (f"<span class='j3cz-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</span>"
            if when else "")
         + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
@@ -13194,6 +13200,28 @@ _SWIPE_OUTER_JS = """
 """
 
 
+_ZOOM_CLONE_JS = """
+(function () {
+  // 차트 칸을 누르면(숨은 스위치가 켜지면) 그 칸의 그림을 큰 창의 빈자리 앞에 베껴 넣는다.
+  // 스위치가 켜지는 바로 그 순간이라 창이 떠오르기 전에 그림이 들어가 있다.
+  var d = document;
+  d.addEventListener('change', function (ev) {
+    var tap = ev.target;
+    if (!tap || !tap.classList || !tap.classList.contains('j3cz-tap') || !tap.checked) { return; }
+    var m = /(?:^|\\s)j3cz-t(\\d+)(?:\\s|$)/.exec(tap.className);
+    var root = tap.closest('.j3cz');
+    if (!m || !root) { return; }
+    var pop = root.querySelector('.j3cz-p' + m[1]);
+    var slot = pop && pop.querySelector('.j3cz-draw');
+    if (!slot || pop.querySelector('svg')) { return; }
+    var cell = root.querySelectorAll('.j3cz-cell')[+m[1]];
+    var svg = cell && cell.querySelector('svg');
+    if (svg) { pop.insertBefore(svg.cloneNode(true), slot); }
+  }, true);
+})();
+"""
+
+
 def _briefing_swipe_nav() -> None:
     """손가락으로 밀어 관심종목 ↔ 시장분석을 오간다.
 
@@ -13231,6 +13259,11 @@ def _briefing_swipe_nav() -> None:
             "if(!c){c=d.createElement('style');c.id='j3b-leftover-css';d.head.appendChild(c);}"
             "var css=" + _json.dumps(_LEFTOVER_CSS) + ";"
             "if(c.textContent!==css){c.textContent=css;}"
+            # 차트 큰 창에 그림을 베껴 넣는 손잡이 — 넘기기와 **따로** 심는다. 이미 열려 있는
+            # 폰에 옛 넘기기 코드가 남아 있어도 이것은 새로 들어간다(이름이 다르다).
+            "if(!d.getElementById('j3cz-clone-script')){var z=d.createElement('script');"
+            "z.id='j3cz-clone-script';z.textContent=" + _json.dumps(_ZOOM_CLONE_JS) + ";"
+            "d.body.appendChild(z);}"
             "if(d.getElementById('j3b-swipe-script')){return;}"
             "var t=d.createElement('script');t.id='j3b-swipe-script';"
             "t.textContent=" + _json.dumps(_SWIPE_OUTER_JS) + ";"
