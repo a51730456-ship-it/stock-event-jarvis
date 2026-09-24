@@ -1865,7 +1865,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026092498
+_REQUIRED_J3_REVISION = 2026092499
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -12218,12 +12218,6 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
         f'{delete_visual}{decor_html}</div>'
     )
     six_month = [float(v) for v in (card.get("chart6m") or []) if v is not None]
-    # 6개월은 **봉차트**다(2026-09-24 상하님 — "각 차트에서 일봉은 봉차트로"). 봉 값이 없으면
-    # 예전 선 그림.
-    six_chart = (_candle_svg(card.get("chart6m_ohlc") or [], up=_CHART_UP, down=_CHART_DOWN,
-                             svg_open='<svg class="j3b-chart j3-candle-chart" viewBox="0 0 {W} {H}" '
-                                      'preserveAspectRatio="none">') if six_month else "") \
-        or _briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))
     open_card = (
         f'<div class="j3b-open-card {direction}">'
         '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
@@ -12236,7 +12230,9 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
         # 접힌 카드의 작은 그림은 예전 그대로 최근 30일이다. 6개월치가 아직 안
         # 왔으면 그 30일 그림을 그대로 쓰고 이름표도 안 붙인다 — 없는 것을 있는
         # 것처럼 적으면 안 된다.
-        f'{six_chart}'
+        # **관심종목은 봉차트가 아니라 이 선 그림 그대로다** (2026-09-24 상하님 — "관심종목만 원래대로
+        # 해라 · 6개월 중간 기준선도 없어져 버렸잖아"). 봉차트는 시장분석 쪽 일봉에만 쓴다.
+        f'{_briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))}'
         f'{_six_month_caption(six_month)}'
         f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
         '<span class="j3b-open-close j3b-open-close-b">✕ 닫기</span>'

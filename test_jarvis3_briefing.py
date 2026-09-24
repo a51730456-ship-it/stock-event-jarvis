@@ -569,14 +569,12 @@ def test_the_open_card_shows_a_six_month_daily_chart():
     같고 마지막 30개 종가도 똑같다. 실측 — 작은 그림 30점, 큰 그림 125점.
     """
     page = (Path(__file__).parent / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
-    # 6개월 그림은 2026-09-24 부터 **봉차트**다(봉 값이 없으면 예전 선 그림) — 카드 앞에서 만든다.
-    card = page[page.index("    six_chart = ("):]
+    card = page[page.index("    open_card = ("):]
     card = card[:card.index("    card_html = (")]
     assert 'six_month or card.get("chart")' in card, "크게 연 카드가 6개월치를 안 쓴다"
-    assert 'card.get("chart6m_ohlc")' in card, "6개월이 봉차트가 아니다"
     assert "일봉 6개월" in card, "이름표가 없다"
     # 그림 **뒤에** 뉴스가 와야 한다.
-    assert card.index("{six_chart}") < card.index("_news_accordion_html("),         "뉴스가 그림보다 위에 있다"
+    assert card.index("_briefing_chart(") < card.index("_news_accordion_html("),         "뉴스가 그림보다 위에 있다"
     # **접힌 카드의 작은 그림은 2026-08-28부터 당일이다** (상하님 지적 — "각
     # 종목들 차트가 종가 기준 일봉 차트 맞냐? 뭐가 뭔지 모르겠다. 당일 종가가
     # 되면 당일 차트를 해 줘야지"). 바로 옆에 적히는 값·등락률이 오늘 것인데

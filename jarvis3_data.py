@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092498
+MODULE_REVISION = 2026092499
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -5946,21 +5946,14 @@ def get_briefing_cards(stocks) -> dict[str, dict]:
                     # 6개월 그림이 그 장 없이 끝난다. 숫자만 오늘이고 그림은 어제면
                     # 둘이 다른 이야기를 한다(2026-08-28에 고치려던 바로 그 문제다).
                     chart_all = [float(v) for v in series.tolist()]
-                    # 6개월 봉차트 재료(2026-09-24 상하님 — "일봉은 봉차트로"). 이미 받은 일봉이다.
-                    chart_ohlc = _ohlc_rows(daily.get(ticker), len(chart_all))
                     if (session_price is not None
                             and _daily_lags_last_session(daily.get(ticker), live.get(ticker))):
                         chart_all.append(float(session_price))
-                        # 야후 일봉에 아직 없는 마지막 장은 그 장의 5분봉으로 봉 하나를 만든다.
-                        steps = [float(v) for v in (today_series or []) if v is not None]
-                        if chart_ohlc and steps:
-                            chart_ohlc.append([steps[0], max(steps + [float(session_price)]),
-                                               min(steps + [float(session_price)]), float(session_price)])
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
                         "price": session_price if session_price is not None else metrics.get("current"),
                         "change_pct": session_change if session_change is not None else metrics.get("change_pct"),
-                        "chart": chart_all[-30:], "chart6m": chart_all, "chart6m_ohlc": chart_ohlc,
+                        "chart": chart_all[-30:], "chart6m": chart_all,
                         "chart_today": today_series, "prev_close": session_prev,
                         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
                     }

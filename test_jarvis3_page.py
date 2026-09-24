@@ -3427,10 +3427,15 @@ def test_daily_charts_are_candles_with_whole_number_coordinates():
     assert "." not in re.sub(r'stroke-opacity="[^"]*"', "", svg.split(">", 1)[1]).replace("stroke-width=\"1\"", ""), \
         "좌표가 정수가 아니다"
     assert ns["_candle_svg"]([[1, 2, 0.5, 1.5]], up="#0f0", down="#f00", svg_open="<svg>") == "", "봉 하나로 그렸다"
-    # 네 자리가 봉차트를 쓴다 — 종목 상세·대장주 비교(일봉) · 지수 칸 「6개월」 · 관심종목 카드 「일봉 6개월」
+    # 세 자리가 봉차트를 쓴다 — 종목 상세·대장주 비교(일봉) · 시장분석 지수 칸 「6개월」.
+    # **관심종목 카드 「일봉 6개월」은 봉차트가 아니다** — 기준선 있는 선 그림 그대로(2026-09-24
+    # 상하님 — "관심종목만 원래대로 해라 · 6개월 중간 기준선도 없어져 버렸잖아").
     assert source.count('(_daily_candles(payload) if timeframe == "일봉" else "")') == 1
     assert source.count('(_daily_candles(payload) if name == "일봉" else "")') == 1
-    assert 'spark.get("daily_ohlc")' in source and 'card.get("chart6m_ohlc")' in source
+    assert 'spark.get("daily_ohlc")' in source
+    assert "chart6m_ohlc" not in source, "관심종목 카드가 봉차트다"
+    card = source[source.index("    open_card = ("):source.index("    card_html = (")]
+    assert '_briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))' in card
 
 
 def test_selection_highlight_style_is_always_drawn_so_nothing_below_shifts():
