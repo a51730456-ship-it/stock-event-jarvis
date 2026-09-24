@@ -3431,3 +3431,16 @@ def test_daily_charts_are_candles_with_whole_number_coordinates():
     assert source.count('(_daily_candles(payload) if timeframe == "일봉" else "")') == 1
     assert source.count('(_daily_candles(payload) if name == "일봉" else "")') == 1
     assert 'spark.get("daily_ohlc")' in source and 'card.get("chart6m_ohlc")' in source
+
+
+def test_selection_highlight_style_is_always_drawn_so_nothing_below_shifts():
+    """고른 줄 주황·보라 표시 꾸밈은 **고른 것이 없어도** 늘 그린다 (2026-09-24 상하님 — "종목 클릭 2초").
+
+    고를 때만 그리면 처음 누른 판에 그 칸이 새로 끼어들어 밑의 대장주 차트가 한 칸씩 밀리고,
+    폰이 차트 그림 16장 중 8장을 통째로 새로 그렸다(노트북 실측). 늘 그리면 0장이다.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    assert "if button_css:" not in source
+    assert "if selected_css:" not in source
+    table = source[source.index("def _render_leader_table("):source.index("def _leader_table_html(")]
+    assert 'st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)' in table

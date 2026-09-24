@@ -2522,8 +2522,11 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
         "{ background: rgba(255,176,32,0.16) !important; }"
         for key, ticker in button_keys if ticker == highlight
     ]
-    if button_css:
-        st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
+    # **고른 것이 없어도 빈 꾸밈 칸을 늘 그린다** (2026-09-24 상하님 — "종목 클릭하면 2초").
+    # 고를 때만 그리면 종목을 처음 누른 판에 이 칸이 **새로 끼어들어**, 그 밑의 대장주 차트 넷
+    # (약 100KB)이 한 칸씩 밀려 폰이 통째로 새로 그렸다(내용은 그대로인데). 늘 그 자리에 있으면
+    # 밑은 안 밀리고 이 칸 글자만 바뀐다. 빈 꾸밈 칸은 화면에 자리를 안 차지한다.
+    st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
     return clicked
 
 
@@ -8999,8 +9002,9 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         "border-left: 3px solid #c084fc !important; }"
         for key, ticker in button_keys if ticker and ticker == selected_ticker
     ]
-    if selected_css:
-        st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+    # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
+    # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
+    st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
 
     st.caption(
         "**중요 점수(70점)** 는 최근 3개월·6개월에 시장보다 강했나와 신고가 뒤 알맞게 "
@@ -9556,8 +9560,9 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             ]),
             unsafe_allow_html=True,
         )
-    if selected_css:
-        st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+    # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
+    # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
+    st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
     st.caption(
         "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
         "그 자리에 와 있는 종목을 좁혀 준 목록이며, 사라는 신호가 아닙니다. "
@@ -9928,8 +9933,9 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             ]),
             unsafe_allow_html=True,
         )
-    if selected_css:
-        st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+    # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
+    # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
+    st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
     with st.expander("표 읽는 법 보기", expanded=False):
         st.caption(
             "평균 거래대금은 최근 일봉 기준 달러 거래규모입니다. 이 표는 진입가를 확정하는 매수 신호가 아니라, "
