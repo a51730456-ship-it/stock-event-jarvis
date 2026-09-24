@@ -1155,6 +1155,12 @@ st.markdown(
     div[class*="st-key-btn_j3_theme_rank_open"] button {
         min-height: 3rem !important;
     }
+    /* 아래 닫기 단추가 22개 테마 덩이 끝으로 옮겨 와(2026-09-25) 단추가 12px 위로 붙고 그 밑 틈이
+       12px 늘었다(폰·PC 실측 둘 다 — 상승장 단추 자리는 그대로). 단추만 예전 자리로 12px 내린다 —
+       위로 12px 더 띄우고 밑을 12px 당기면 상승장 단추는 제자리, 둘 사이는 예전 25px 이다. */
+    div[class*="st-key-close_j3_theme_rank_open"] {
+        margin-top: 12px !important; margin-bottom: 0 !important;
+    }
     div[class*="st-key-btn_j3_theme_rank_open"] button:hover,
     div[class*="st-key-close_j3_theme_rank_open"] button:hover {
         background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
@@ -5039,8 +5045,12 @@ def _close_theme_rank_from_fragment() -> None:
     아낀 한 판이 이 버그를 만들었고, 상하님은 어차피 두 번 누르셔야 했으니
     아낀 것도 없었다. 이제 늘 한 판을 다시 그린다.
     """
+    # 2026-09-25 — 아래 닫기 단추가 이 덩이 안으로 옮겨 와, 밖(상승장·급락·순위 9)이 닫혀 있으면
+    # 이 덩이만 다시 그리면 된다. 밖에 열린 것이 있을 때만 판 전체를 다시 그린다(그것들도 닫아야 하므로).
+    outside_open = any(st.session_state.get(key) for key in _FINDER_OPEN_KEYS)
     _close_full_theme_rank()
-    st.session_state["j3_close_all_pending"] = True
+    if outside_open:
+        st.session_state["j3_close_all_pending"] = True
 
 
 def _open_theme_rank_from_fragment() -> None:
@@ -5054,7 +5064,7 @@ def _open_theme_rank_from_fragment() -> None:
     누르면 화면이 위로 올라가게 하되 캡처 화면처럼 위치를 맞춰라"). 표가 맨 위에
     오도록 21개 테마 단추 바로 위 자리로 데려간다.
     """
-    st.session_state["j3_close_all_pending"] = True
+    # 판 전체 다시 그리기는 뺐다(2026-09-25) — 아래 닫기 단추가 이제 이 덩이 안에 있다.
     scroll_to.request(st, _THEME_RANK_ANCHOR)
 
 
@@ -5178,7 +5188,8 @@ def _render_strong_theme_top5(ranking: dict) -> None:
                 # (2026-09-11 상하님 지시 — "강한 테마나 21개 테마를 누르면
                 #  화면이 위로 올라가게 하되 캡처 화면처럼 위치를 맞춰라").
                 scroll_to.request(st, _THEME_RANK_ANCHOR)
-                st.rerun()
+                # st.rerun()(판 전체)은 뺐다(2026-09-25) — 바로 아래 여닫이가 이 판에서 켜진 값을 보고
+                # 표를 곧바로 그린다. 아래 닫기 단추도 이 덩이 안에 있다.
 
 
 def _section_toggle(
@@ -7297,6 +7308,17 @@ def _render_theme_section(market: dict) -> None:
     # 덩이 안에서 「다 닫기」를 눌렀으면 여기서 판 전체를 다시 그린다.
     # **화면 내려주기보다 먼저** 부른다 — 순서를 바꾸면 내려갈 자리를 적어 둔
     # 표시가 버려지는 판에서 소모돼 화면이 안 내려간다(2026-08-26 실측).
+    # **「✕ 22개 테마 실시간 순위 닫기」(아래쪽)는 이 덩이 맨 끝에 둔다** (2026-09-25 상하님 —
+    # "22개 테마 클릭 2초"). 예전에는 바로 아래 상승장 덩이 맨 앞에 있어서, 22개 테마를 열고 닫을
+    # 때마다 그 단추를 그리거나 지우려고 **판 전체**(맨 위 지수·지도까지)를 다시 그렸다(2026-09-11
+    # 「남는 단추」 고침). 이 덩이 끝이 곧 상승장 덩이 맨 앞이라 화면 자리는 그대로이고, 이제 여닫을
+    # 때 이 덩이만 다시 그리면 된다.
+    if st.session_state.get(_THEME_RANK_OPEN):
+        st.button(
+            f"✕ {_THEME_COUNT}개 테마 실시간 순위 닫기",
+            key=f"close_{_THEME_RANK_OPEN}",
+            on_click=_close_theme_rank_from_fragment,
+        )
     _run_close_all_if_requested()
     # 덩이는 페이지 맨 끝이 안 돌아온다 — 여기서 내려 준다.
     scroll_to.run(st)
@@ -9683,19 +9705,9 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     # 굴려야 했다. 상승장·급락 닫기 단추와 같은 장치(_section_close)를 쓴다.
     # 여는 단추는 **맨 위**에 있다(순위표 자리). 여기에는 닫는 단추만 둔다 —
     # 상승장·급락과 같은 규칙이다(위에서 열고, 아래에서도 닫는다).
-    if st.session_state.get(_THEME_RANK_OPEN):
-        # 이 단추는 프래그먼트 안에 있다. 상태만 바꾸면 그 조각만 다시 그려져
-        # 위쪽 순위표·테마 상세가 화면에 그대로 남는다.
-        # **콜백(on_click) 안에서 st.rerun을 부르면 스트림릿이 무시한다.**
-        # 2026-08-26까지 그렇게 되어 있어서, 맨 밑 닫기를 눌러도 순위표가 남았다
-        # (상하님 캡처 — 닫았는데 첫 번째 화면처럼 그대로였다).
-        # 그래서 콜백은 '판 전체를 다시 그려라'만 적어 두고, 조각이 끝날 때
-        # (_run_close_all_if_requested) 실제로 다시 그린다.
-        st.button(
-            f"✕ {_THEME_COUNT}개 테마 실시간 순위 닫기",
-            key=f"close_{_THEME_RANK_OPEN}",
-            on_click=_close_all_from_fragment,
-        )
+    # 「✕ 22개 테마 실시간 순위 닫기」는 2026-09-25 부터 **22개 테마 덩이 맨 끝**에서 그린다
+    # (_render_theme_section). 화면 자리는 그대로다 — 그 덩이 끝이 곧 이 덩이 맨 앞이다.
+    # 여기 두면 22개 테마를 열고 닫을 때마다 이 덩이도 같이 다시 그려야 해서 판 전체를 다시 그렸다.
     # 「📉 종목 찾기」 제목 줄은 뺐다 (2026-09-11 상하님 지시 — 캡처에서 동그라미
     # 치고 ×로 지우셨다). 바로 밑 세 단추(상승장·급락 후 반등장·매수심사결과 높은
     # 순위 9)가 이미 제 이름을 달고 있어, 이 줄은 화면 높이만 먹었다.

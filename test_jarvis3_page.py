@@ -454,16 +454,23 @@ class Jarvis3PageTests(unittest.TestCase):
           열었을 때 닫기 단추가 화면 위에서   —  → 92px (표가 바로 밑에 온다)
         """
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
-        # ① 닫을 때 — 조건 없이 판 전체를 다시 그린다.
+        # **2026-09-25 — 아래 닫기 단추를 22개 테마 덩이 맨 끝으로 옮겼다** (상하님 — "22개 테마 클릭
+        # 2초"). 남던 단추(09-11)는 그 단추가 **다른 덩이**(상승장)에 있어서였다. 이제 같은 덩이 안이라
+        # 여닫을 때 판 전체를 다시 그릴 까닭이 없다 — 여는 쪽은 이 덩이만, 닫는 쪽은 밖(상승장·급락·
+        # 순위 9)에 열린 것이 있을 때만 판 전체를 다시 그린다(그것들도 닫아야 하므로).
+        theme = source[source.index("def _render_theme_section("):source.index("def _render_radar_tab(")]
+        self.assertIn('key=f"close_{_THEME_RANK_OPEN}"', theme, "아래 닫기 단추가 22개 테마 덩이 안에 없다")
+        pullback = source[source.index("def _render_pullback_finder_body("):]
+        pullback = pullback[:pullback.index(chr(10) + "def ", 10)]
+        self.assertNotIn('key=f"close_{_THEME_RANK_OPEN}"', pullback, "상승장 덩이에 옛 닫기 단추가 남았다")
+        # ① 닫을 때 — 밖에 열린 것이 있을 때만 판 전체.
         close_fn = source.split("def _close_theme_rank_from_fragment()")[1]
         close_fn = close_fn.split(chr(10) + "def ")[0]
-        self.assertIn('st.session_state["j3_close_all_pending"] = True', close_fn)
-        self.assertNotIn("if outside_open:", close_fn,
-                         "밖에 열린 것이 있을 때만 다시 그리면 닫기 단추가 남는다")
-        # ② 열 때 — 같은 일을 하고, 그 자리로 올라간다.
+        self.assertIn("if outside_open:", close_fn)
+        # ② 열 때 — 이 덩이만 다시 그리고, 그 자리로 올라간다.
         open_fn = source.split("def _open_theme_rank_from_fragment()")[1]
         open_fn = open_fn.split(chr(10) + "def ")[0]
-        self.assertIn('st.session_state["j3_close_all_pending"] = True', open_fn)
+        self.assertNotIn('st.session_state["j3_close_all_pending"] = True', open_fn)
         self.assertIn("scroll_to.request(st, _THEME_RANK_ANCHOR)", open_fn)
         # ③ 자리 표시는 **강한 테마 카드 안**에 찍는다 (2026-09-11).
         #    따로 칸을 만들어 찍었더니 두 가지가 틀어졌다 —
