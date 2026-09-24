@@ -2247,8 +2247,10 @@ class SectorMapShowsTodaysSessionTests(unittest.TestCase):
                 raise RuntimeError("분봉 조회 실패")
             return {etf: self.live.copy() for etf in tickers}, {"ok": True}
 
+        # 이 시험은 **예전 업종 열두 칸** 길을 본다 — 테마 칸 판은 없는 것으로 둔다(2026-09-24).
         with patch.object(j3, "_download_cached", _fake_download), \
                 patch.object(j3, "_sector_weights", lambda: {}), \
+                patch.object(j3, "_sector_tile_plan", lambda: None), \
                 patch.object(j3, "_sector_breadth", lambda: {}):
             return j3._compute_sector_map(), calls
 
@@ -2278,6 +2280,112 @@ class SectorMapShowsTodaysSessionTests(unittest.TestCase):
         for row in value["rows"]:
             # 일봉만 있을 때는 예전 그대로 — 어제 장(110 ÷ 100)을 적는다.
             self.assertAlmostEqual(10.0, row["last_session_change_pct"], places=1)
+
+
+class SectorThemeTileTests(unittest.TestCase):
+    """시장 현황 테마 칸 스물일곱 (2026-09-24 상하님 — "테마 구성이 너무 부실하다 · 유명 테마를
+    더 넣어라"). 칸 크기는 **야후가 주는 몫만** 쓰고, 색은 칸 대표 회사를 몫대로 섞는다."""
+
+    SECTORS = {"technology": 0.30, "financial-services": 0.10, "healthcare": 0.10,
+               "consumer-cyclical": 0.10, "communication-services": 0.10, "industrials": 0.10,
+               "consumer-defensive": 0.05, "energy": 0.05, "utilities": 0.03,
+               "real-estate": 0.03, "basic-materials": 0.04}
+
+    def setUp(self):
+        self._saved = (dict(j3._SECTOR_TILES), dict(j3._SECTOR_WEIGHTS))
+        j3._SECTOR_TILES.update({"at": 0.0, "value": None, "complete": False})
+        j3._SECTOR_WEIGHTS.update({"raw": dict(self.SECTORS)})
+
+    def tearDown(self):
+        j3._SECTOR_TILES.clear()
+        j3._SECTOR_TILES.update(self._saved[0])
+        j3._SECTOR_WEIGHTS.clear()
+        j3._SECTOR_WEIGHTS.update(self._saved[1])
+
+    def _fake_yahoo(self, *, broken_top=()):
+        # 업종 안 산업 몫 — 기술은 반도체 0.4 · 소프트웨어 0.2 · 전자기기 0.2 · 나머지 둘 0.1씩.
+        industries = {
+            "technology": {"semiconductors": 0.4, "software-infrastructure": 0.2,
+                           "consumer-electronics": 0.2, "computer-hardware": 0.1,
+                           "communication-equipment": 0.1},
+        }
+        tops = {
+            "software-infrastructure": [("MSFT", 0.6), ("ORCL", 0.1), ("PLTR", 0.1), ("CRWD", 0.05)],
+            "consumer-electronics": [("AAPL", 0.99)],
+            "computer-hardware": [("DELL", 0.5)],
+            "communication-equipment": [("CSCO", 0.5)],
+        }
+
+        class _Sector:
+            def __init__(self, key):
+                found = industries.get(key) or {f"{key}-a": 0.7, f"{key}-b": 0.3}
+                self.industries = pd.DataFrame(
+                    {"name": list(found), "market weight": list(found.values())}, index=list(found))
+
+        class _Industry:
+            def __init__(self, key):
+                if key in broken_top:
+                    raise RuntimeError("야후가 거절")
+                rows = tops.get(key) or [(key.upper()[:4], 0.8)]
+                self.top_companies = pd.DataFrame(
+                    {"market weight": [w for _s, w in rows]}, index=[s for s, _w in rows])
+
+        return patch.multiple("yfinance", Sector=_Sector, Industry=_Industry)
+
+    def _plan(self, **kwargs):
+        with self._fake_yahoo(**kwargs), patch.object(j3, "_sector_weights", lambda: {}):
+            return {tile["name"]: tile for tile in j3._sector_tile_plan()}
+
+    def test_the_tile_share_is_the_sector_share_times_the_industry_share(self):
+        plan = self._plan()
+        for name in ("반도체", "소프트웨어", "애플·전자기기", "하드웨어·통신장비"):
+            self.assertIn(name, plan, "기술 칸이 빠졌다")
+        # 가짜 자료의 다른 업종은 산업 이름이 칸 목록과 달라, 그 몫이 모두 그 업종 「*」 칸으로 간다.
+        self.assertAlmostEqual(0.10, plan["보험"]["share"], places=9)
+        self.assertAlmostEqual(0.30 * 0.4, plan["반도체"]["share"], places=9)
+        self.assertAlmostEqual(0.30 * 0.2, plan["소프트웨어"]["share"], places=9)
+        # 「*」 칸은 같은 업종의 다른 줄이 안 가져간 나머지 전부다.
+        self.assertAlmostEqual(0.30 * 0.2, plan["하드웨어·통신장비"]["share"], places=9)
+        self.assertAlmostEqual(1.0, sum(tile["share"] for tile in plan.values()), places=9,
+                               msg="칸 몫을 다 더하면 미국 시장 전체여야 한다")
+
+    def test_the_colour_comes_from_the_top_companies_until_they_cover_seventy_percent(self):
+        plan = self._plan()
+        # 소프트웨어 — MSFT 60% 로는 70% 가 안 돼 ORCL 을 더한다(70%). PLTR 은 안 넣는다.
+        self.assertEqual(["MSFT", "ORCL"], [s for s, _w in plan["소프트웨어"]["proxies"]])
+        self.assertEqual(["AAPL"], [s for s, _w in plan["애플·전자기기"]["proxies"]])
+        self.assertEqual([("SOXX", 1.0)], plan["반도체"]["proxies"], "반도체는 대표 ETF")
+
+    def test_a_tile_whose_companies_fail_is_painted_by_its_sector_etf(self):
+        """대표 회사를 못 받은 칸은 **업종 ETF** 로 칠한다 — 칸을 지우지 않는다(CLAUDE.md 0-0)."""
+        plan = self._plan(broken_top=("consumer-electronics",))
+        self.assertEqual([("XLK", 1.0)], plan["애플·전자기기"]["proxies"])
+        self.assertFalse(j3._SECTOR_TILES["complete"], "다 못 만든 판은 5분 뒤 다시 만들어야 한다")
+
+    def test_without_sector_shares_the_map_falls_back_to_the_old_twelve_boxes(self):
+        j3._SECTOR_WEIGHTS.update({"raw": {}})
+        with self._fake_yahoo(), patch.object(j3, "_sector_weights", lambda: {}):
+            self.assertIsNone(j3._sector_tile_plan())
+
+    def test_the_tile_change_mixes_the_companies_by_their_share(self):
+        plan = [{"name": "인터넷 플랫폼", "sector": "communication-services", "sector_name": "통신·미디어",
+                 "share": 0.07, "etf": None, "proxies": [("GOOG", 0.66), ("META", 0.30)]}]
+        changes = {"GOOG": 1.0, "META": -2.0}
+
+        def _metrics(daily, live=None):
+            return {"ok": True, "change_pct": daily, "last_session_change_pct": daily}
+
+        def _download(tickers, **_kwargs):
+            return {ticker: changes[ticker] for ticker in tickers}, {"ok": True}
+
+        with patch.object(j3, "_download_cached", _download), \
+                patch.object(j3, "_fill_missing_session", lambda daily, live: daily), \
+                patch.object(j3, "_series_metrics", _metrics):
+            rows, _meta = j3._sector_tile_rows(plan)
+        expected = (1.0 * 0.66 - 2.0 * 0.30) / 0.96
+        self.assertAlmostEqual(expected, rows[0]["change_pct"], places=9)
+        self.assertEqual("GOOG·META", rows[0]["etf"])
+        self.assertEqual("communication-services", rows[0]["sector"])
 
 
 class SectorWeightRetryTests(unittest.TestCase):

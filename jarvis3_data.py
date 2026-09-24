@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092480
+MODULE_REVISION = 2026092490
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -6322,6 +6322,231 @@ def _semi_share_of_tech() -> float | None:
     return total if 0.0 < total < 1.0 else None
 
 
+# ── 시장 현황 테마 칸 (2026-09-24 상하님 지시) ───────────────────────────────────
+# 상하님 — "테마 구성이 너무 부실하지 않나? 다시 재정리하고 유명 테마가 빠져 있으면
+# 개수를 더 늘려라." 업종 열한 칸(+반도체)을 **야후가 주는 산업 몫**으로 쪼개 사람들이
+# 아는 테마 스물일곱 칸으로 만든다. 칸 크기는 여전히 야후 숫자만 쓴다 — 지어낸 비중은 없다.
+#     칸 몫 = 업종 몫 × (그 업종 안에서 그 칸 산업들의 몫 합)
+# 색은 그 칸 **대표 회사들을 야후가 주는 몫대로 섞은 등락**이다(대표 회사가 칸 몫의 70% 를
+# 덮을 때까지, 많아야 셋 — 인터넷 플랫폼이면 구글 66%·메타 30%). 대표 회사가 흩어져 있는
+# 칸(바이오·에너지·전력·부동산)과 반도체는 그 테마의 대표 ETF 등락이다.
+# 이 판을 못 만든 날(야후가 산업 몫을 안 준 날)에는 **예전 업종 열두 칸 그대로** 그린다.
+#
+# 받는 양(2026-09-24 노트북 실측) — 대표 회사·ETF 74곳 일봉 1.6초(CPU 2.0초) · 5분봉 1.3초
+# (CPU 1.7초). 예전 열두 곳의 서너 배라, 장이 닫혀 있을 때는 30분에 한 번만 새로 받는다
+# (장중에는 예전처럼 5분). 산업 몫·대표 회사는 6시간에 한 번이다.
+US_SECTOR_TILES = (
+    # (야후 업종, 화면 이름, 산업들 — "*" 는 그 업종에서 앞 줄들이 안 가져간 나머지 전부, 대표 ETF)
+    ("technology", "반도체", ("semiconductors", "semiconductor-equipment-materials"), "SOXX"),
+    ("technology", "소프트웨어", ("software-infrastructure", "software-application"), None),
+    ("technology", "애플·전자기기", ("consumer-electronics",), None),
+    ("technology", "하드웨어·통신장비", "*", None),
+    ("communication-services", "인터넷 플랫폼", ("internet-content-information",), None),
+    ("communication-services", "미디어·통신", "*", None),
+    ("consumer-cyclical", "전자상거래", ("internet-retail",), None),
+    ("consumer-cyclical", "자동차·전기차",
+     ("auto-manufacturers", "auto-parts", "auto-truck-dealerships", "recreational-vehicles"), None),
+    ("consumer-cyclical", "외식·여행·쇼핑", "*", None),
+    ("financial-services", "은행", ("banks-diversified", "banks-regional", "mortgage-finance"), None),
+    ("financial-services", "카드·결제", ("credit-services",), None),
+    ("financial-services", "증권·자산운용",
+     ("asset-management", "capital-markets", "financial-data-stock-exchanges",
+      "financial-conglomerates", "shell-companies"), None),
+    ("financial-services", "보험", "*", None),
+    ("healthcare", "제약", ("drug-manufacturers-general", "drug-manufacturers-specialty-generic"), None),
+    ("healthcare", "바이오", ("biotechnology",), "XBI"),
+    ("healthcare", "의료기기·진단",
+     ("medical-devices", "medical-instruments-supplies", "diagnostics-research"), None),
+    ("healthcare", "의료보험·유통", "*", None),
+    ("industrials", "항공우주·방산", ("aerospace-defense",), None),
+    ("industrials", "운송·물류",
+     ("railroads", "integrated-freight-logistics", "airlines", "trucking", "marine-shipping",
+      "airports-air-services"), None),
+    ("industrials", "기계·설비", "*", None),
+    ("consumer-defensive", "대형마트", ("discount-stores", "grocery-stores"), None),
+    ("consumer-defensive", "음식료·생활용품", "*", None),
+    ("energy", "석유·가스", "*", "XLE"),
+    ("utilities", "전력·원전", "*", "XLU"),
+    ("real-estate", "부동산·리츠", "*", "XLRE"),
+    ("basic-materials", "금·광산",
+     ("gold", "copper", "silver", "other-precious-metals-mining", "other-industrial-metals-mining",
+      "aluminum", "steel", "coking-coal"), None),
+    ("basic-materials", "화학·소재", "*", None),
+)
+SECTOR_TILE_COVER = 0.70          # 대표 회사가 칸 몫의 이만큼을 덮을 때까지 넣는다
+SECTOR_TILE_MAX_COMPANIES = 3     # 많아야 셋
+SECTOR_MAP_CLOSED_TTL = 1800.0    # 장이 닫혀 있으면 30분에 한 번
+_SECTOR_TILES: dict = {"at": 0.0, "value": None, "complete": False}
+
+
+def _sector_price_ttl() -> float:
+    """등락을 새로 받는 박자 — 장중 5분, 장이 닫혀 있으면 30분."""
+    try:
+        return SECTOR_MAP_TTL if _regular_open_now() else SECTOR_MAP_CLOSED_TTL
+    except Exception:
+        return SECTOR_MAP_TTL
+
+
+def _resolve_tile_industries(sector: str, industries, weights: dict) -> list:
+    """칸이 가진 산업 이름들. "*" 는 같은 업종의 다른 줄이 안 가져간 나머지 전부다."""
+    if industries != "*":
+        return [key for key in industries if key in weights]
+    taken = {key for tile_sector, _n, keys, _e in US_SECTOR_TILES
+             if tile_sector == sector and keys != "*" for key in keys}
+    return [key for key in weights if key not in taken]
+
+
+def _sector_tile_plan() -> list | None:
+    """테마 칸 스물일곱의 크기와 색 재료. **6시간에 한 번** 뒤 일꾼이 만든다.
+
+    못 만들면 전에 만든 판을 그대로 쓰고(있던 것을 지우지 않는다), 그것도 없으면 None —
+    그때 지도는 예전 업종 열두 칸이다. 다 못 만든 판은 5분 뒤에 다시 만든다.
+    """
+    now = time.time()
+    with _SECTOR_LOCK:
+        ttl = SECTOR_WEIGHT_TTL if _SECTOR_TILES["complete"] else SECTOR_MAP_TTL
+        if _SECTOR_TILES["value"] and now - _SECTOR_TILES["at"] < ttl:
+            return [dict(tile) for tile in _SECTOR_TILES["value"]]
+        old = _SECTOR_TILES["value"]
+    _sector_weights()
+    with _SECTOR_LOCK:
+        sector_share = dict(_SECTOR_WEIGHTS["raw"])
+    sectors = list(dict.fromkeys(tile[0] for tile in US_SECTOR_TILES))
+    if not all(sector_share.get(sector) for sector in sectors):
+        return [dict(tile) for tile in old] if old else None
+    import yfinance as yf
+
+    def _industries(key: str):
+        try:
+            frame = yf.Sector(key).industries
+            found = {}
+            for industry, row in frame.iterrows():
+                weight = _finite(row.get("market weight"))
+                if weight and weight > 0:
+                    found[str(industry)] = weight
+            return key, found
+        except Exception:
+            return key, {}
+
+    try:
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            industry_weights = dict(pool.map(_industries, sectors))
+    except Exception:
+        industry_weights = {}
+    if not all(industry_weights.get(sector) for sector in sectors):
+        return [dict(tile) for tile in old] if old else None
+
+    sector_etf = {key: etf for key, _name, etf in US_SECTOR_MAP}
+    sector_name = {key: name for key, name, _etf in US_SECTOR_MAP}
+    tiles, wanted = [], set()
+    for sector, name, industries, etf in US_SECTOR_TILES:
+        weights = industry_weights[sector]
+        keys = _resolve_tile_industries(sector, industries, weights)
+        inside = sum(weights[key] for key in keys)
+        share = sector_share[sector] * inside
+        if share <= 0:
+            continue
+        tile = {"sector": sector, "sector_name": sector_name.get(sector, sector), "name": name,
+                "share": share, "etf": etf, "industries": keys, "proxies": []}
+        if not etf:
+            # 대표 회사를 받을 산업 — 칸 안에서 큰 것부터, 칸 몫의 80% 를 덮을 때까지(많아야 셋).
+            ranked = sorted(keys, key=lambda key: -weights[key])
+            cover, chosen = 0.0, []
+            for key in ranked:
+                if chosen and (cover >= 0.8 * inside or len(chosen) >= 3):
+                    break
+                chosen.append(key)
+                cover += weights[key]
+            tile["top_from"] = chosen
+            wanted.update(chosen)
+        tiles.append(tile)
+
+    def _top(key: str):
+        try:
+            frame = yf.Industry(key).top_companies
+            found = []
+            for symbol, row in frame.head(6).iterrows():
+                weight = _finite(row.get("market weight"))
+                if symbol and weight and weight > 0:
+                    found.append((str(symbol).strip().upper(), weight))
+            return key, found
+        except Exception:
+            return key, []
+
+    try:
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            tops = dict(pool.map(_top, sorted(wanted)))
+    except Exception:
+        tops = {}
+    complete = True
+    for tile in tiles:
+        if tile["etf"]:
+            tile["proxies"] = [(tile["etf"], 1.0)]
+            continue
+        weights = industry_weights[tile["sector"]]
+        sector_w = sector_share[tile["sector"]]
+        companies: dict = {}
+        for key in tile.pop("top_from", []):
+            for symbol, weight in tops.get(key) or []:
+                companies[symbol] = companies.get(symbol, 0.0) + sector_w * weights[key] * weight
+        picked, cover = [], 0.0
+        for symbol, weight in sorted(companies.items(), key=lambda item: -item[1]):
+            if picked and (cover >= SECTOR_TILE_COVER * tile["share"]
+                           or len(picked) >= SECTOR_TILE_MAX_COMPANIES):
+                break
+            picked.append((symbol, weight))
+            cover += weight
+        if not picked:
+            # 대표 회사를 못 받은 칸은 **그 업종 ETF** 로 칠한다 — 칸을 지우지 않는다.
+            complete = False
+            fallback = sector_etf.get(tile["sector"])
+            picked = [(fallback, 1.0)] if fallback else []
+            tile["etf"] = fallback
+        tile["proxies"] = picked
+    with _SECTOR_LOCK:
+        _SECTOR_TILES.update({"at": now, "value": tiles, "complete": complete})
+    return [dict(tile) for tile in tiles]
+
+
+def _sector_tile_rows(plan: list) -> tuple[list, dict]:
+    """테마 칸 줄 — 칸마다 대표 회사(또는 ETF) 등락을 몫대로 섞는다."""
+    tickers = tuple(dict.fromkeys(symbol for tile in plan for symbol, _w in tile["proxies"]))
+    ttl = _sector_price_ttl()
+    daily, meta = _download_cached(tickers, period="3mo", interval="1d", ttl_seconds=ttl)
+    try:
+        live, _live_meta = _download_cached(
+            tickers, period=SESSION_MINUTES_PERIOD, interval=SESSION_MINUTES_INTERVAL,
+            ttl_seconds=ttl)
+    except Exception:  # noqa: BLE001 - 분봉이 없어도 지도는 그린다
+        live = {}
+    daily = _fill_missing_session(daily, live)
+    metrics = {symbol: _series_metrics(daily.get(symbol), live.get(symbol)) for symbol in tickers}
+    rows = []
+    for tile in plan:
+        mixed = {}
+        for field in ("change_pct", "last_session_change_pct"):
+            total = weight_sum = 0.0
+            for symbol, weight in tile["proxies"]:
+                value = (metrics.get(symbol) or {}).get(field) if (metrics.get(symbol) or {}).get("ok") else None
+                if value is None:
+                    continue
+                total += float(value) * weight
+                weight_sum += weight
+            mixed[field] = total / weight_sum if weight_sum else None
+        rows.append({
+            "key": f"tile:{tile['name']}",
+            "name": tile["name"],
+            "etf": "·".join(symbol for symbol, _w in tile["proxies"]),
+            "weight": tile["share"],
+            "sector": tile["sector"],
+            "sector_name": tile["sector_name"],
+            "by_etf": bool(tile.get("etf")),
+            "change_pct": mixed["change_pct"],
+            "last_session_change_pct": mixed["last_session_change_pct"],
+        })
+    return rows, meta or {}
+
+
 def _sector_breadth() -> dict:
     """오늘 오른 종목·내린 종목이 몇인가. **이미 받아 둔 자료로만 센다.**
 
@@ -6356,6 +6581,22 @@ def _sector_breadth() -> dict:
 
 
 def _compute_sector_map() -> dict:
+    # 테마 칸 스물일곱(2026-09-24)을 먼저 해 본다. 판을 못 만들었거나 등락을 하나도 못
+    # 받았으면 아래 예전 업종 열두 칸으로 간다 — 지도가 비지 않게.
+    try:
+        plan = _sector_tile_plan()
+    except Exception:  # noqa: BLE001 - 테마 칸이 안 되면 예전 지도
+        plan = None
+    if plan:
+        try:
+            rows, meta = _sector_tile_rows(plan)
+        except Exception:  # noqa: BLE001
+            rows, meta = [], {}
+        if any(row.get("change_pct") is not None or row.get("last_session_change_pct") is not None
+               for row in rows):
+            return {"ok": True, "rows": rows, "tiles": True, "breadth": _sector_breadth(),
+                    "checked_at": datetime.now(_NY).strftime("%Y-%m-%d %H:%M"),
+                    "stale": bool((meta or {}).get("stale"))}
     weights = _sector_weights()
     tickers = tuple(etf for _key, _name, etf in US_SECTOR_MAP)
     try:
@@ -6423,18 +6664,32 @@ def _refresh_sector_map() -> None:
         value = _compute_sector_map()
     except Exception:
         value = None
+    try:
+        open_now = bool(_regular_open_now())
+    except Exception:
+        open_now = True
     with _SECTOR_LOCK:
         _SECTOR_STATE["running"] = False
         # 새로 받은 것이 비었으면 **옛것을 그대로 둔다**(CLAUDE.md 0-0 두 번째).
         if value and value.get("ok"):
-            _SECTOR_STATE.update({"at": time.time(), "value": value})
+            _SECTOR_STATE.update({"at": time.time(), "value": value, "open": open_now})
 
 
 def warm_sector_map() -> None:
-    """뒤에서 미리 받아 둔다. 관심종목 화면이 뉴스를 다 받은 뒤에 부른다."""
+    """뒤에서 미리 받아 둔다. 관심종목 화면이 뉴스를 다 받은 뒤에 부른다.
+
+    장이 닫혀 있는 동안 받아 둔 것은 30분 쓴다(테마 칸 받는 양이 예전의 서너 배라서 ·
+    2026-09-24). 장이 열렸거나 장중에 받아 둔 것이면 예전처럼 5분이다.
+    """
     now = time.time()
+    try:
+        open_now = bool(_regular_open_now())
+    except Exception:
+        open_now = True
     with _SECTOR_LOCK:
-        fresh = _SECTOR_STATE["value"] and now - _SECTOR_STATE["at"] < SECTOR_MAP_TTL
+        closed_both = not open_now and _SECTOR_STATE.get("open") is False
+        ttl = SECTOR_MAP_CLOSED_TTL if closed_both else SECTOR_MAP_TTL
+        fresh = _SECTOR_STATE["value"] and now - _SECTOR_STATE["at"] < ttl
         if fresh or _SECTOR_STATE["running"]:
             return
         _SECTOR_STATE["running"] = True

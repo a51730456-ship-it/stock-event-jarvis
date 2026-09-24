@@ -659,6 +659,52 @@ st.markdown(
         font-size: 0.86em; font-weight: 800; }
     .j3-sector-note { color: #7d8798; font-weight: 700; }
     .j3-sector-wait { color: #9aa0aa; font-weight: 700; padding: .6rem 0; }
+    .j3-sector-tile.tiny { padding: 0; }
+    /* 같은 업종 칸을 두르는 굵은 테두리(2026-09-24 테마 칸). 누르기는 칸이 받는다. */
+    .j3-sector-group { position: absolute; box-sizing: border-box; pointer-events: none;
+        border: 2px solid #020b1e; border-radius: 5px; }
+    .j3-sector-group span { position: absolute; left: 3px; top: 2px; padding: 0 4px;
+        border-radius: 3px; font-size: .66em; font-weight: 800; line-height: 1.35;
+        color: rgba(230,240,255,.8); background: rgba(2,11,30,.6); }
+    /* ── 시장 현황을 누르면 크게 (2026-09-24 상하님 지시) ────────────────────────
+       차트 큰 창(.j3cz-pop)과 같은 움직임 — 열 때 튀어 올라 자리 잡고, 닫을 때 줄어든다.
+       가로 화면은 꽉 채우고, **세로로 든 화면(폰·세운 태블릿)은 창을 눕혀** 긴 쪽으로 꽉
+       채운다(상하님 — "세로 말고 가로로"). 창이 떠 있는 동안에는 칸이 손에 뜨는 움직임을
+       끈다 — 그 움직임(transform·filter)이 있으면 창이 화면이 아니라 칸에 붙는다. */
+    label.j3sm-cell { display: block; cursor: zoom-in; }
+    .j3-sector-map:has(> .j3sm-tap:checked) { transform: none !important; filter: none !important;
+        z-index: 2147483000 !important; }
+    .j3sm-scrim { position: fixed; inset: 0; z-index: 2147483646; cursor: zoom-out;
+        background: rgba(1,8,22,.84); opacity: 0; visibility: hidden;
+        transition: opacity .3s ease, visibility 0s linear .56s; }
+    .j3sm-pop { position: fixed; left: 50%; top: 50%; z-index: 2147483647; cursor: zoom-out;
+        width: min(calc(100vw - 16px), 1280px); height: min(calc(100dvh - 16px), 860px);
+        box-sizing: border-box; padding: 14px 14px 10px; border-radius: 22px;
+        background: #0d2344; border: 1px solid rgba(157,204,255,.45);
+        box-shadow: 0 18px 50px rgba(0,0,0,.6);
+        display: flex; flex-direction: column; gap: 6px;
+        font-size: clamp(12px, 1.45vmax, 18px); color: #f4f8ff;
+        opacity: 0; visibility: hidden; pointer-events: none;
+        transform: translate(-50%,-50%) scale(.55);
+        transition: transform .56s cubic-bezier(.5,-.18,.72,.18), opacity .56s cubic-bezier(.7,0,.84,0),
+            visibility 0s linear .56s; }
+    .j3sm-tap:checked ~ .j3sm-scrim { opacity: 1; visibility: visible;
+        transition: opacity .3s ease, visibility 0s; }
+    .j3sm-tap:checked ~ .j3sm-pop { opacity: 1; visibility: visible; pointer-events: auto;
+        transform: translate(-50%,-50%) scale(1);
+        transition: transform .9s cubic-bezier(.34,1.56,.64,1), opacity .36s ease, visibility 0s; }
+    .j3sm-title { color: #9dccff; font-size: 1.1em; font-weight: 800; }
+    .j3sm-title small { color: #8fb4de; font-size: .72em; font-weight: 700; margin-left: .4em; }
+    .j3sm-sub { color: #8f9bb0; font-size: .74em; font-weight: 700; line-height: 1.3; }
+    .j3sm-pop .j3sm-grid { flex: 1 1 auto; min-height: 0; aspect-ratio: auto; }
+    .j3sm-pop .j3-sector-bar { flex: 0 0 auto; margin: .15rem 0 0; }
+    .j3sm-pop .j3-sector-foot { font-size: .74em; }
+    @media (orientation: portrait) {
+        .j3sm-pop { width: calc(100dvh - 16px); height: calc(100vw - 16px);
+            transform: translate(-50%,-50%) rotate(90deg) scale(.55); }
+        .j3sm-tap:checked ~ .j3sm-pop { transform: translate(-50%,-50%) rotate(90deg) scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) { .j3sm-pop, .j3sm-scrim { transition: none !important; } }
     .j3-idx-charts { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     /* 손을 올리면 '일봉 6개월'이 **오른쪽에서 밀려 들어와 같은 자리에서 바뀐다**
        (2026-08-06 상하님 지시 "오른쪽으로 하되 겹치지 않게").
@@ -1781,7 +1827,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026092480
+_REQUIRED_J3_REVISION = 2026092490
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -3606,6 +3652,10 @@ def _us_etf_cells(overview: dict) -> list:
 # 지켜야 상자가 찌그러지지 않는다(CSS aspect-ratio 로 같은 값을 건다).
 _SECTOR_MAP_W = 100.0
 _SECTOR_MAP_H = 58.0
+# 누르면 뜨는 큰 창의 판 — 가로로 더 길다(폰은 눕혀 띄운다). 창 크기가 기기마다 달라 칸이
+# 조금 늘어나거나 줄지만, 가로·세로를 따로 늘려도 **넓이의 비는 그대로**다(몫 비례는 지켜진다).
+_SECTOR_POP_W = 100.0
+_SECTOR_POP_H = 45.0
 
 
 def _squarify(areas: list[float], x: float, y: float, width: float, height: float,
@@ -3706,26 +3756,15 @@ def _sector_map_cell(phase: str) -> str:
         row["shown_change"] = change
     rows.sort(key=lambda item: float(item["weight"]), reverse=True)
 
-    total_weight = sum(float(row["weight"]) for row in rows) or 1.0
-    scale = (_SECTOR_MAP_W * _SECTOR_MAP_H) / total_weight
-    boxes: list = []
-    _squarify([float(row["weight"]) * scale for row in rows],
-              0.0, 0.0, _SECTOR_MAP_W, _SECTOR_MAP_H, boxes)
-
-    tiles = []
-    for row, (x, y, width, height) in zip(rows, boxes):
-        change = row.get("shown_change")
-        # 상자가 작으면 글자가 삐져나온다 — 작은 칸은 이름만, 더 작으면 아무것도 안 적는다.
-        size = "big" if (width >= 22 and height >= 18) else "mid" if (width >= 13 and height >= 11) else "small"
-        text = f"<div class='j3-sector-name'>{row['name']}</div>"
-        if size != "small":
-            text += (f"<div class='j3-sector-pct'>{_pct(change)}</div>")
-        tiles.append(
-            f"<div class='j3-sector-tile {size}' title='{row['name']} · {row['etf']} · {_pct(change)}' "
-            f"style='left:{x / _SECTOR_MAP_W * 100:.3f}%;top:{y / _SECTOR_MAP_H * 100:.3f}%;"
-            f"width:{width / _SECTOR_MAP_W * 100:.3f}%;height:{height / _SECTOR_MAP_H * 100:.3f}%;"
-            f"background:{_sector_tone(change)}'>{text}</div>"
-        )
+    # 작은 칸 — 예전 크기(100×58). 상자가 작으면 글자가 삐져나온다 — 작은 칸은 이름만,
+    # 더 작으면 아무것도 안 적는다.
+    tiles = _sector_tiles_html(rows, _SECTOR_MAP_W, _SECTOR_MAP_H,
+                               (22, 18, 13, 11, 7, 5), labels=False)
+    # 누르면 뜨는 큰 창 — 가로로 긴 판(100×45)이다. 폰·세운 태블릿은 창을 눕혀 띄운다
+    # (2026-09-24 상하님 — "화면이 스마트폰이나 태블릿에서 옆으로 꽉 차듯이. 세로 말고 가로로").
+    big_tiles = _sector_tiles_html(rows, _SECTOR_POP_W, _SECTOR_POP_H,
+                                   (9, 7, 5, 4.5, 3, 2.5), labels=True)
+    by_tiles = any(row.get("sector") for row in rows)
 
     breadth = sector.get("breadth") or {}
     foot = ""
@@ -3747,15 +3786,88 @@ def _sector_map_cell(phase: str) -> str:
     semi_note = ("반도체는 기술에서 떼어 냈습니다 · "
                  if any(row.get("key") == getattr(j3data, "SEMI_SECTOR_KEY", "semiconductors")
                         for row in rows) else "")
+    when = "오늘" if live else "직전 장"
+    # **누르면 창이 튀어 오른다** (2026-09-24 상하님 — "클릭하면 관심종목 종목 클릭처럼,
+    # 파트별 성적표 순위 9 클릭하면 튀어나오는 화면처럼"). 차트 큰 창과 같은 숨은 스위치라
+    # 서버에 다시 묻지 않는다. 스위치에 j3cz-tap 이름표를 같이 붙여, 창이 떠 있는 동안
+    # 손가락 넘기기와 하단 막대가 쉬게 한다(넘기기 코드·막대 숨김 규칙이 이 이름표를 본다).
+    color_note = ("색 = 칸 대표 회사들을 몫대로 섞은 등락 · 반도체·바이오·에너지·전력·부동산은 대표 ETF"
+                  if by_tiles else "색 = 업종 대표 ETF 등락")
     return (
         "<div class='j3-top-cell j3-sector-map'>"
+        "<input type='checkbox' id='j3sm-tap' class='j3cz-tap j3sm-tap'>"
+        "<label for='j3sm-tap' class='j3sm-cell'>"
         "<div class='j3-top-label j3-idx-label'>시장 현황</div>"
         "<div class='j3-sector-sub'>칸 크기 = 미국 시장에서 차지하는 몫 · "
         f"{semi_note}"
-        f"색 = {'오늘' if live else '직전 장'} 오르내림</div>"
-        f"<div class='j3-sector-grid'>{''.join(tiles)}</div>"
-        + foot + "</div>"
+        f"색 = {when} 오르내림 · 누르면 크게</div>"
+        f"<div class='j3-sector-grid'>{tiles}</div>"
+        + foot + "</label>"
+        "<label for='j3sm-tap' class='j3sm-scrim' aria-hidden='true'></label>"
+        "<label for='j3sm-tap' class='j3sm-pop'>"
+        f"<span class='j3sm-title'>시장 현황 · 미국 업종·테마 지도 <small>{when} 오르내림</small></span>"
+        f"<span class='j3sm-sub'>칸 크기 = 미국 시장에서 차지하는 몫(야후) · {color_note}"
+        + (" · 굵은 테두리 = 같은 업종" if by_tiles else "") + "</span>"
+        f"<div class='j3-sector-grid j3sm-grid'>{big_tiles}</div>"
+        + foot + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
+        "</div>"
     )
+
+
+def _sector_layout(rows: list, width: float, height: float) -> tuple[list, list]:
+    """칸 자리 (x, y, 폭, 높이). 테마 칸이면 **업종끼리 먼저 묶어** 자리를 나누고 그 안을 다시
+    나눈다 — 같은 업종 칸이 한데 모여 굵은 테두리 안에 선다. 넓이는 어느 쪽이든 몫에 비례한다."""
+    total = sum(float(row["weight"]) for row in rows) or 1.0
+    scale = width * height / total
+    if not any(row.get("sector") for row in rows):
+        boxes: list = []
+        _squarify([float(row["weight"]) * scale for row in rows], 0.0, 0.0, width, height, boxes)
+        return list(zip(rows, boxes)), []
+    groups: dict = {}
+    for row in rows:
+        groups.setdefault(row["sector"], []).append(row)
+    ordered = sorted(groups.values(), key=lambda group: -sum(float(r["weight"]) for r in group))
+    outer: list = []
+    _squarify([sum(float(r["weight"]) for r in group) * scale for group in ordered],
+              0.0, 0.0, width, height, outer)
+    placed, frames = [], []
+    for group, (gx, gy, gw, gh) in zip(ordered, outer):
+        group = sorted(group, key=lambda r: -float(r["weight"]))
+        inner: list = []
+        _squarify([float(r["weight"]) * scale for r in group], gx, gy, gw, gh, inner)
+        placed.extend(zip(group, inner))
+        # 업종 이름표는 테두리 왼쪽 위에 선다 — 그 자리의 첫 칸이 넉넉해야 칸 이름을 안 덮는다.
+        frames.append((group[0].get("sector_name") or "", (gx, gy, gw, gh), inner[0] if inner else None))
+    return placed, frames
+
+
+def _sector_tiles_html(rows: list, width: float, height: float, sizes: tuple, *, labels: bool) -> str:
+    """지도 칸들. sizes = (큰 칸 폭·높이, 중간 칸 폭·높이, 이름만 적는 칸 폭·높이) — 판 단위다."""
+    placed, frames = _sector_layout(rows, width, height)
+    pos = lambda x, y, w, h: (f"left:{x / width * 100:.3f}%;top:{y / height * 100:.3f}%;"
+                              f"width:{w / width * 100:.3f}%;height:{h / height * 100:.3f}%")
+    out = []
+    for row, (x, y, w, h) in placed:
+        change = row.get("shown_change")
+        if w >= sizes[0] and h >= sizes[1]:
+            size = "big"
+        elif w >= sizes[2] and h >= sizes[3]:
+            size = "mid"
+        elif w >= sizes[4] and h >= sizes[5]:
+            size = "small"
+        else:
+            size = "tiny"
+        text = "" if size == "tiny" else f"<div class='j3-sector-name'>{row['name']}</div>"
+        if size in ("big", "mid"):
+            text += f"<div class='j3-sector-pct'>{_pct(change)}</div>"
+        out.append(
+            f"<div class='j3-sector-tile {size}' title='{row['name']} · {row['etf']} · {_pct(change)}' "
+            f"style='{pos(x, y, w, h)};background:{_sector_tone(change)}'>{text}</div>")
+    for name, (gx, gy, gw, gh), first in frames:
+        roomy = first is not None and first[2] >= 14 and first[3] >= 12
+        badge = f"<span>{name}</span>" if labels and name and roomy else ""
+        out.append(f"<div class='j3-sector-group' style='{pos(gx, gy, gw, gh)}'>{badge}</div>")
+    return "".join(out)
 
 
 def _market_phase_cell(phase: str, phase_color: str, vix_sub: str) -> str:

@@ -211,3 +211,52 @@ def test_the_semiconductor_note_only_comes_with_the_semiconductor_box():
     _Data.rows = [tech, semi]
     html = namespace["_sector_map_cell"]("장 마감")
     assert "떼어 냈습니다" in html and "반도체" in html
+
+
+def _cell_namespace() -> dict:
+    """지도 칸 함수와 그 밑 도우미까지 떼어 낸다."""
+    source = PAGE.read_text(encoding="utf-8")
+    namespace = _page_namespace()
+    namespace["_pct"] = lambda value: "—" if value is None else f"{value:+.2f}%"
+    exec(source[source.index("def _sector_map_cell("):source.index("def _market_phase_cell(")], namespace)
+    return namespace
+
+
+def test_theme_tiles_stay_together_by_sector_and_keep_their_share():
+    """테마 칸(2026-09-24)은 **업종끼리 모여** 서고, 넓이는 여전히 몫에 비례한다."""
+    namespace = _cell_namespace()
+    rows = [
+        {"name": "반도체", "sector": "technology", "sector_name": "기술", "weight": 0.14},
+        {"name": "소프트웨어", "sector": "technology", "sector_name": "기술", "weight": 0.09},
+        {"name": "인터넷 플랫폼", "sector": "communication-services", "sector_name": "통신·미디어", "weight": 0.07},
+        {"name": "은행", "sector": "financial-services", "sector_name": "금융", "weight": 0.045},
+        {"name": "보험", "sector": "financial-services", "sector_name": "금융", "weight": 0.03},
+    ]
+    width, height = 100.0, 45.0
+    placed, frames = namespace["_sector_layout"](rows, width, height)
+    total = sum(row["weight"] for row in rows)
+    for row, (x, y, w, h) in placed:
+        assert abs(w * h / (width * height) - row["weight"] / total) < 0.005, row["name"]
+    assert len(frames) == 3, "업종 테두리는 업종 수만큼"
+    for name, (gx, gy, gw, gh), _first in frames:
+        members = [box for row, box in placed if row["sector_name"] == name]
+        for x, y, w, h in members:          # 같은 업종 칸은 그 업종 테두리 안에 있다
+            assert gx - 1e-6 <= x and x + w <= gx + gw + 1e-6
+            assert gy - 1e-6 <= y and y + h <= gy + gh + 1e-6
+
+
+def test_the_map_pops_out_and_lies_down_on_a_portrait_screen():
+    """누르면 창이 뜨고(서버에 안 묻는 숨은 스위치), 세로 화면은 창을 **눕혀** 꽉 채운다
+    (2026-09-24 상하님 — "세로 말고 가로로"). 스위치는 j3cz-tap 이름표를 같이 달아,
+    창이 떠 있는 동안 손가락 넘기기와 하단 막대가 쉰다."""
+    source = PAGE.read_text(encoding="utf-8")
+    cell = source[source.index("def _sector_map_cell("):source.index("def _market_phase_cell(")]
+    assert "class='j3cz-tap j3sm-tap'" in cell
+    assert "class='j3sm-pop'" in cell and "class='j3sm-scrim'" in cell
+    assert "input.j3cz-tap:checked" in source, "넘기기 코드가 창을 안 본다"
+    portrait = source[source.index(".j3sm-tap:checked ~ .j3sm-pop {"):]
+    portrait = portrait[portrait.index("@media (orientation: portrait)"):]
+    portrait = portrait[:portrait.index("@media (prefers-reduced-motion")]
+    assert "rotate(90deg)" in portrait and "width: calc(100dvh - 16px); height: calc(100vw - 16px)" in portrait
+    # 칸에 손이 닿으면 뜨는 움직임(transform)이 있으면 창이 화면이 아니라 칸에 붙는다 — 열린 동안 끈다.
+    assert ".j3-sector-map:has(> .j3sm-tap:checked) { transform: none !important; filter: none !important;" in source
