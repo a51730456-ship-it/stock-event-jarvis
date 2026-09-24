@@ -2469,6 +2469,207 @@ class DailyHoleFillTests(unittest.TestCase):
         self.assertEqual(3, len(filled["CRWD"]), "실패했는데 표를 바꿨다")
 
 
+class ProvisionalLastSessionTests(unittest.TestCase):
+    """마지막 장을 한 시간 봉으로 채운 값은 임시다 — 뒤에서 다시 받아 공식 일봉으로 바꾼다
+    (2026-09-24 전수 점검 — 09-23 에 채운 252종목 중 28종목이 공식 종가와 0.1% 넘게 달랐다.
+    TMO 660.37 · 공식 665.30).
+    """
+
+    NY = ZoneInfo("America/New_York")
+
+    def setUp(self):
+        import tempfile
+
+        self._saved = dict(j3._HOLE_FILLS)
+        j3._HOLE_FILLS.clear()
+        self._loaded = dict(j3._HOLE_LOADED)
+        j3._HOLE_LOADED["done"] = True
+        self._recheck = dict(j3._DAILY_RECHECK)
+        j3._DAILY_RECHECK.clear()
+        self._cache = dict(j3._CACHE)
+        from datetime import date
+
+        self.folder = pathlib.Path(tempfile.mkdtemp())
+        # 「마지막으로 끝난 장」을 09-23 으로 못박는다 — 시험 돌리는 날에 따라 답이 바뀌지 않게.
+        self._patches = [patch.object(j3, "_save_hole_fills", lambda: None),
+                         patch.object(j3, "_DISK_DIR", self.folder),
+                         patch.object(j3.us_market_calendar, "previous_session_date",
+                                      lambda now=None: date(2026, 9, 23))]
+        for item in self._patches:
+            item.start()
+
+    def tearDown(self):
+        for item in self._patches:
+            item.stop()
+        j3._HOLE_LOADED.update(self._loaded)
+        j3._HOLE_FILLS.clear()
+        j3._HOLE_FILLS.update(self._saved)
+        j3._DAILY_RECHECK.clear()
+        j3._DAILY_RECHECK.update(self._recheck)
+        j3._CACHE.clear()
+        j3._CACHE.update(self._cache)
+
+    def _daily(self, days, closes):
+        index = pd.DatetimeIndex(pd.to_datetime(days))
+        close = pd.Series(closes, index=index, dtype=float)
+        return pd.DataFrame({"Open": close, "High": close, "Low": close,
+                             "Close": close, "Volume": 1_000.0}, index=index)
+
+    def _hourly(self, day, closes):
+        index = pd.date_range(f"{day} 09:30", periods=len(closes), freq="h", tz=self.NY)
+        close = pd.Series(closes, index=index, dtype=float)
+        return pd.DataFrame({"Open": close, "High": close, "Low": close,
+                             "Close": close, "Volume": 10.0}, index=index)
+
+    def _write(self, name, provisional, age):
+        import pickle
+
+        j3._disk_write(name, {"TMO": self._daily(["2026-09-21", "2026-09-22", "2026-09-23"],
+                                                 [658.76, 658.52, 660.37])},
+                       "2026-09-24T10:15:00+09:00", provisional=provisional)
+        path = self.folder / f"{name}.pkl"
+        saved = pickle.loads(path.read_bytes())
+        saved["saved_at"] = time.time() - age
+        path.write_bytes(pickle.dumps(saved))
+
+    def test_a_missing_last_session_is_marked_provisional(self):
+        from datetime import date
+
+        lagging = {"TMO": self._daily(["2026-09-18", "2026-09-21", "2026-09-22"], [651.45, 658.76, 658.52])}
+        with patch.object(j3.us_market_calendar, "previous_session_date", lambda now=None: date(2026, 9, 23)), \
+                patch("yfinance.download", lambda *a, **k: "raw"), \
+                patch.object(j3, "_split_download", lambda raw, tickers: {"TMO": self._hourly("2026-09-23", [661.0, 660.37])}):
+            filled, provisional = j3._fill_daily_holes_marked(lagging)
+        self.assertTrue(provisional, "마지막 장을 한 시간 봉으로 채웠는데 임시로 안 적었다")
+        self.assertAlmostEqual(660.37, float(filled["TMO"]["Close"].iloc[-1]), places=2)
+        # 가운데 하루만 빠진 것(야후가 끝내 안 싣는 날)은 임시가 아니다.
+        middle = {"ASML": self._daily(["2026-09-18", "2026-09-21", "2026-09-23"], [1679.92, 1711.32, 1744.61])}
+        j3._HOLE_FILLS[("ASML", date(2026, 9, 22))] = (time.time(), {"Close": 1748.33})
+        with patch.object(j3.us_market_calendar, "previous_session_date", lambda now=None: date(2026, 9, 23)):
+            _filled, provisional = j3._fill_daily_holes_marked(middle)
+        self.assertFalse(provisional)
+
+    def test_a_single_halted_stock_in_a_big_batch_is_not_provisional(self):
+        from datetime import date
+
+        frames = {f"T{i}": self._daily(["2026-09-21", "2026-09-22", "2026-09-23"], [1.0, 2.0, 3.0])
+                  for i in range(20)}
+        frames["HALT"] = self._daily(["2026-09-18", "2026-09-21", "2026-09-22"], [1.0, 2.0, 3.0])
+        j3._HOLE_FILLS[("HALT", date(2026, 9, 23))] = (time.time(), None)
+
+        def boom(*args, **kwargs):
+            raise AssertionError("받으러 갔다")
+
+        with patch.object(j3.us_market_calendar, "previous_session_date", lambda now=None: date(2026, 9, 23)), \
+                patch("yfinance.download", boom):
+            _filled, provisional = j3._fill_daily_holes_marked(frames)
+        self.assertFalse(provisional, "한 종목 거래 정지로 판 전체를 30분마다 다시 받는다")
+
+    def test_an_old_provisional_file_is_served_now_and_refetched_behind(self):
+        unique = ("TMO",)
+        name = j3._disk_name(unique, "2y", "1d", False)
+        self._write(name, provisional=True, age=2400)
+        started = []
+
+        class _Later:
+            def __init__(self, target=None, name=None, daemon=None):
+                self.target = target
+
+            def start(self):
+                started.append(self.target)
+
+        with patch.object(j3, "_disk_fresh_seconds", lambda interval="": 1e9), \
+                patch.object(j3.threading, "Thread", _Later):
+            frames, meta = j3._download_cached(unique, period="2y", interval="1d", ttl_seconds=1)
+            self.assertTrue(meta.get("from_disk"), "화면이 새로 받기를 기다렸다")
+            self.assertAlmostEqual(660.37, float(frames["TMO"]["Close"].iloc[-1]), places=2)
+            self.assertEqual(1, len(started), "뒤에서 다시 받으러 안 갔다")
+            # 30분 안에는 또 가지 않는다.
+            j3._CACHE.clear()
+            j3._download_cached(unique, period="2y", interval="1d", ttl_seconds=1)
+            self.assertEqual(1, len(started), "30분 안에 또 받으러 갔다")
+            # 뒤에서 받은 공식 일봉이 앱 기억과 파일을 바꾼다.
+            official = {"TMO": self._daily(["2026-09-21", "2026-09-22", "2026-09-23"],
+                                           [658.76, 658.52, 665.30])}
+            with patch("yfinance.download", lambda *a, **k: "raw"), \
+                    patch.object(j3, "_split_download", lambda raw, tickers: official):
+                started[0]()
+            again, _meta = j3._download_cached(unique, period="2y", interval="1d", ttl_seconds=600)
+            self.assertAlmostEqual(665.30, float(again["TMO"]["Close"].iloc[-1]), places=2)
+            self.assertFalse(j3._disk_read(name, "1d").get("provisional"),
+                             "공식 일봉을 받았는데 계속 임시로 남았다")
+
+    def test_a_fresh_or_final_file_asks_for_nothing(self):
+        unique = ("TMO",)
+        name = j3._disk_name(unique, "2y", "1d", False)
+
+        def boom(*args, **kwargs):
+            raise AssertionError("받으러 갔다")
+
+        with patch.object(j3, "_disk_fresh_seconds", lambda interval="": 1e9), \
+                patch.object(j3.threading, "Thread", boom):
+            self._write(name, provisional=True, age=60)         # 방금 받은 임시 판
+            j3._download_cached(unique, period="2y", interval="1d", ttl_seconds=1)
+            j3._CACHE.clear()
+            self._write(name, provisional=False, age=7200)      # 공식 일봉 판
+            j3._download_cached(unique, period="2y", interval="1d", ttl_seconds=1)
+
+    def test_an_old_file_without_the_mark_is_judged_by_the_fill_record(self):
+        """표시가 없는 옛 파일(2026-09-24 전에 쓴 것)은 「마지막 장을 채운 기록」으로 알아본다."""
+        import os
+        import pickle
+        from datetime import date
+
+        unique = ("TMO",)
+        name = j3._disk_name(unique, "2y", "1d", False)
+        path = self.folder / f"{name}.pkl"
+        frames = {"TMO": self._daily(["2026-09-21", "2026-09-22", "2026-09-23"], [658.76, 658.52, 660.37])}
+        path.write_bytes(pickle.dumps({"frames": frames, "fetched_at": "2026-09-24T10:15:00+09:00"}))
+        old = time.time() - 2400
+        os.utime(path, (old, old))
+        started = []
+
+        class _Later:
+            def __init__(self, target=None, name=None, daemon=None):
+                self.target = target
+
+            def start(self):
+                started.append(self.target)
+
+        with patch.object(j3, "_disk_fresh_seconds", lambda interval="": 1e9), \
+                patch.object(j3.threading, "Thread", _Later):
+            j3._download_cached(unique, period="2y", interval="1d", ttl_seconds=1)
+            self.assertEqual([], started, "채운 기록이 없는데 다시 받으러 갔다")
+            j3._CACHE.clear()
+            j3._HOLE_FILLS[("TMO", date(2026, 9, 23))] = (time.time(), {"Close": 660.37})
+            j3._download_cached(unique, period="2y", interval="1d", ttl_seconds=1)
+            self.assertEqual(1, len(started), "마지막 장을 채운 옛 파일인데 다시 안 받았다")
+
+    def test_a_failed_recheck_keeps_what_was_there(self):
+        unique = ("TMO",)
+        name = j3._disk_name(unique, "2y", "1d", False)
+        self._write(name, provisional=True, age=2400)
+        key = (unique, "2y", "1d", False)
+
+        class _Now:
+            def __init__(self, target=None, name=None, daemon=None):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        def fail(*args, **kwargs):
+            raise RuntimeError("야후 거절")
+
+        with patch("yfinance.download", fail), patch.object(j3.threading, "Thread", _Now):
+            j3._recheck_daily_in_background(unique, period="2y", interval="1d", prepost=False,
+                                            key=key, disk_name=name, saved_at=time.time() - 2400)
+        with patch.object(j3, "_disk_fresh_seconds", lambda interval="": 1e9):
+            kept = j3._disk_read(name, "1d")
+        self.assertIsNotNone(kept, "실패했는데 있던 파일을 지웠다")
+        self.assertAlmostEqual(660.37, float(kept["frames"]["TMO"]["Close"].iloc[-1]), places=2)
+
+
 class EarlyCloseClockTests(unittest.TestCase):
     """**일찍 닫는 날**에도 장이 끝난 줄 알아야 한다 (2026-09-12 상하님 지시).
 

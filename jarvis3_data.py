@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092450
+MODULE_REVISION = 2026092460
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -482,18 +482,26 @@ def _disk_read(name: str, interval: str = "") -> dict | None:
         frames = saved.get("frames")
         if not isinstance(frames, dict) or not frames:
             return None
+        if "saved_at" not in saved:       # 2026-09-24 전에 쓴 파일 — 파일 시각으로 대신한다
+            saved["saved_at"] = path.stat().st_mtime
         return saved
     except Exception:
         return None
 
 
-def _disk_write(name: str, frames: dict, fetched_at: str) -> None:
-    """받아 온 시세를 파일로 남긴다. 실패해도 화면은 그대로 돈다."""
+def _disk_write(name: str, frames: dict, fetched_at: str, *, provisional: bool = False) -> None:
+    """받아 온 시세를 파일로 남긴다. 실패해도 화면은 그대로 돈다.
+
+    provisional — 마지막으로 끝난 장을 야후 일봉이 아직 안 실어 한 시간 봉으로 채운 판
+    (아래 `_recheck_daily_in_background` 설명).
+    """
     try:
         _DISK_DIR.mkdir(parents=True, exist_ok=True)
         temporary = _DISK_DIR / f"{name}.pkl.tmp"
         with temporary.open("wb") as handle:
-            pickle.dump({"frames": frames, "fetched_at": fetched_at}, handle, protocol=4)
+            pickle.dump({"frames": frames, "fetched_at": fetched_at,
+                         "provisional": bool(provisional), "saved_at": time.time()},
+                        handle, protocol=4)
         temporary.replace(_DISK_DIR / f"{name}.pkl")
         _disk_prune()
     except Exception:
@@ -614,12 +622,51 @@ def _daily_holes(frames: dict, *, now=None) -> dict:
 
 def _fill_daily_holes(frames: dict) -> dict:
     """빠진 장을 한 시간 봉으로 채운 일봉 묶음(위 설명). 실패하면 받은 그대로 준다."""
+    return _fill_daily_holes_marked(frames)[0]
+
+
+# 마지막 장을 한 시간 봉으로 채운 값은 **임시다** (2026-09-24 전수 점검 · 상하님 — "뭐가 이렇게
+# 계속 틀어지고 안 맞냐"). 한 시간 봉의 마지막 값은 16시 **종가 경매 전** 값이라 공식 종가와
+# 다를 수 있다 — 09-23 에 채운 252종목 중 28종목이 0.1% 넘게 달랐다(TMO 660.37 · 공식 665.30,
+# 가장 큰 차이 0.95%). 야후는 몇 시간 뒤 공식 일봉을 싣는다(09-23 장은 뉴욕 21시 18분엔 없고
+# 22시엔 254종목 다 있었다). 그런데 장이 닫힌 동안 파일은 다음 장까지 그대로 쓰므로 그
+# 임시 값이 한국 낮 내내 남았다. 그래서 **종목의 10% 이상이 마지막 장을 못 받았으면** 그 판을
+# 임시로 적어 두고, 30분마다 뒤에서 다시 받아 공식 일봉이 실리면 바꿔 끼운다.
+PROVISIONAL_SHARE = 0.10
+
+
+def _fill_daily_holes_marked(frames: dict) -> tuple[dict, bool]:
+    """(채운 일봉 묶음, 마지막으로 끝난 장을 야후가 아직 안 실었나)."""
     try:
         holes = _daily_holes(frames)
     except Exception:
-        return frames
+        return frames, False
     if not holes:
-        return frames
+        return frames, False
+    provisional = False
+    try:
+        finished = us_market_calendar.previous_session_date(None)
+        lacking = sum(1 for days in holes.values() if finished in days)
+        provisional = lacking >= max(1, PROVISIONAL_SHARE * len(frames or {}))
+    except Exception:
+        provisional = False
+    return _fill_daily_holes_found(frames, holes), provisional
+
+
+def _last_session_was_filled(frames: dict) -> bool:
+    """마지막으로 끝난 장을 한 시간 봉으로 채운 종목이 10% 이상인가(채운 기록으로 본다)."""
+    try:
+        _load_hole_fills()
+        finished = us_market_calendar.previous_session_date(None)
+        with _HOLE_LOCK:
+            filled = sum(1 for ticker in (frames or {})
+                         if (_HOLE_FILLS.get((ticker, finished)) or (0, None))[1])
+        return filled >= max(1, PROVISIONAL_SHARE * len(frames or {}))
+    except Exception:
+        return False
+
+
+def _fill_daily_holes_found(frames: dict, holes: dict) -> dict:
     _load_hole_fills()
     now = time.time()
     with _HOLE_LOCK:
@@ -766,39 +813,24 @@ def _download_cached(
         with _CACHE_LOCK:
             _CACHE[key] = {"at": now, "fetched_at": saved.get("fetched_at"),
                            "frames": _copy_frames(frames)}
+        provisional = saved.get("provisional")
+        if provisional is None and interval == "1d":
+            # 표시가 없는 옛 파일(2026-09-24 전) — 채운 기록으로 알아본다.
+            provisional = _last_session_was_filled(frames)
+        if interval == "1d" and provisional:
+            # 마지막 장이 임시 값이면 **화면은 기다리지 않고** 뒤에서 다시 받는다.
+            _recheck_daily_in_background(unique, period=period, interval=interval,
+                                         prepost=prepost, key=key, disk_name=disk_name,
+                                         saved_at=saved.get("saved_at"))
         return _copy_frames(frames), {
             "ok": True, "error": None, "stale": False,
             "fetched_at": saved.get("fetched_at"), "from_disk": True,
         }
 
     try:
-        import yfinance as yf
-
-        with _DOWNLOAD_LOCK:
-            _configure_yfinance_cache(yf)
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                raw = yf.download(
-                    list(unique),
-                    period=period,
-                    interval=interval,
-                    group_by="ticker",
-                    auto_adjust=True,
-                    prepost=prepost,
-                    threads=True,
-                    progress=False,
-                    timeout=15,
-                    multi_level_index=True,
-                )
-        frames = _split_download(raw, unique)
-        if not frames:
-            raise RuntimeError("시세 응답이 비어 있습니다")
-        if interval == "1d":
-            frames = _fill_daily_holes(frames)       # 가운데 빠진 장(2026-09-24 · 위 설명)
-        fetched_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
-        with _CACHE_LOCK:
-            _CACHE[key] = {"at": now, "fetched_at": fetched_at, "frames": _copy_frames(frames)}
-        _disk_write(disk_name, _copy_frames(frames), fetched_at)
+        frames, fetched_at = _fetch_and_keep(unique, period=period, interval=interval,
+                                             prepost=prepost, key=key, disk_name=disk_name,
+                                             now=now)
         return frames, {"ok": True, "error": None, "stale": False, "fetched_at": fetched_at}
     except Exception as exc:
         _log.warning("jarvis3 yfinance download failed interval=%s tickers=%s: %s", interval, len(unique), exc)
@@ -812,6 +844,77 @@ def _download_cached(
                 "fetched_at": stale["fetched_at"],
             }
         return {}, {"ok": False, "error": str(exc), "stale": False, "fetched_at": None}
+
+
+def _fetch_and_keep(unique: tuple, *, period: str, interval: str, prepost: bool,
+                    key: tuple, disk_name: str, now: float) -> tuple[dict, str]:
+    """야후에서 받아 앱 기억과 파일에 남긴다. 실패하면 예외를 그대로 올린다(있던 것은 안 건드린다)."""
+    import yfinance as yf
+
+    with _DOWNLOAD_LOCK:
+        _configure_yfinance_cache(yf)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            raw = yf.download(
+                list(unique),
+                period=period,
+                interval=interval,
+                group_by="ticker",
+                auto_adjust=True,
+                prepost=prepost,
+                threads=True,
+                progress=False,
+                timeout=15,
+                multi_level_index=True,
+            )
+    frames = _split_download(raw, unique)
+    if not frames:
+        raise RuntimeError("시세 응답이 비어 있습니다")
+    provisional = False
+    if interval == "1d":
+        # 가운데 빠진 장(2026-09-24 · 위 설명) · 마지막 장이 임시 값인지도 같이 본다
+        frames, provisional = _fill_daily_holes_marked(frames)
+    fetched_at = datetime.now(_SEOUL).isoformat(timespec="seconds")
+    with _CACHE_LOCK:
+        _CACHE[key] = {"at": now, "fetched_at": fetched_at, "frames": _copy_frames(frames)}
+    _disk_write(disk_name, _copy_frames(frames), fetched_at, provisional=provisional)
+    return frames, fetched_at
+
+
+DAILY_RECHECK_SECONDS = 1800.0
+_DAILY_RECHECK: dict = {}          # 파일 이름 → 마지막으로 다시 받으러 간 시각
+_DAILY_RECHECK_LOCK = threading.Lock()
+
+
+def _recheck_daily_in_background(unique: tuple, *, period: str, interval: str, prepost: bool,
+                                 key: tuple, disk_name: str, saved_at) -> None:
+    """마지막 장이 임시 값인 일봉 파일을 **뒤에서** 다시 받는다(위 PROVISIONAL_SHARE 설명).
+
+    화면은 기다리지 않는다 — 있던 값을 그대로 쓰고, 다 받으면 다음 클릭부터 새 값이다.
+    한 파일에 30분에 한 번까지만 간다. 받다가 실패하면 있던 것을 그대로 둔다(CLAUDE.md 0-0).
+    """
+    now = time.time()
+    try:
+        if now - float(saved_at or 0) < DAILY_RECHECK_SECONDS:
+            return
+    except (TypeError, ValueError):
+        return
+    with _DAILY_RECHECK_LOCK:
+        if now - float(_DAILY_RECHECK.get(disk_name, -1e18)) < DAILY_RECHECK_SECONDS:
+            return
+        _DAILY_RECHECK[disk_name] = now
+
+    def _run() -> None:
+        try:
+            _fetch_and_keep(unique, period=period, interval=interval, prepost=prepost,
+                            key=key, disk_name=disk_name, now=time.time())
+        except Exception as exc:
+            _log.warning("jarvis3 daily recheck failed tickers=%s: %s", len(unique), exc)
+
+    try:
+        threading.Thread(target=_run, name="j3-daily-recheck", daemon=True).start()
+    except Exception as exc:
+        _log.warning("jarvis3 daily recheck thread failed: %s", exc)
 
 
 def _last_close(frame: pd.DataFrame | None) -> float | None:
