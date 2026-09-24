@@ -1780,7 +1780,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026092470
+_REQUIRED_J3_REVISION = 2026092480
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1808,7 +1808,7 @@ if (
     or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
 ):
     j3data = importlib.reload(j3data)
-_REQUIRED_SIGNAL_UI_REVISION = 2026092320
+_REQUIRED_SIGNAL_UI_REVISION = 2026092440
 if (
     not hasattr(market_signal_ui, "_STATUS_TEXT")
     # 2026-08-28 접었다 펴는 미국장 카드에서 쓴다. 옛 모듈이면 foldable 인자를
@@ -3009,7 +3009,7 @@ def _render_market_overview() -> None:
         # 그 값이 언제 것인지는 지표 줄 밑 「기준시각」 한 줄이 말한다.
         # 「미국장 시장 상태」 카드는 2026-08-22에 같은 이유로 이미 고쳤는데
         # (상하님이 그때 뜻을 짚어 주셨다) 이 게이지만 남아 있었다.
-        regime_gauge_ui.regime_box_html(_gauge_overview(overview)),
+        _regime_box_with_days(overview),
         # **SPY·QQQ 두 칸은 뺐다** (2026-08-28 상하님 지시 — 캡처에 ×표).
         # 지수 넷(S&P500·나스닥 종합·다우·나스닥100)이 같은 것을 이미 말하고 있어
         # 화면만 길어졌다. 값 자체는 그대로 받는다 — 시장 판단 점수가 SPY·QQQ의
@@ -3364,6 +3364,70 @@ def _gauge_overview(overview: dict) -> dict:
     return {**overview, "previous_market": before}
 
 
+def _gauge_days() -> tuple:
+    """게이지 큰 숫자가 가리키는 장과 그 하루 앞 장, 그리고 장이 도는 중인지.
+
+    장이 돌면 큰 숫자 = 오늘(도는 중), 닫혀 있으면 = 마지막으로 끝난 장.
+    """
+    import us_market_calendar
+
+    try:
+        phase = j3data.market_phase()
+        live = phase.get("label") == "정규장 시간"
+        big = date.fromisoformat(str(phase.get("session_date" if live else "previous_session_date")))
+    except Exception:
+        return None, None, False
+    before = big - timedelta(days=1)
+    try:
+        for _ in range(15):
+            if us_market_calendar.is_trading_day(before):
+                break
+            before -= timedelta(days=1)
+    except Exception:
+        return big, None, live
+    return big, before, live
+
+
+def _with_days(box: str, big, before, live: bool, old_label: str) -> str:
+    """게이지 상자에 **당일·전일 날짜**를 넣는다 (2026-09-24 상하님 — "시장국면과 공포탐욕지수
+    전일 당일 날짜 넣어라"). 바늘 밑에 「당일 · 09.23 (마감)」, 전일 줄 이름을 「전일 · 09.22」로.
+    한국테마와 같이 쓰는 상자 부품(regime_gauge_ui · fear_greed_ui)은 안 건드리고 여기서 글만 바꾼다.
+    """
+    if big is not None:
+        tag = "장중" if live else "마감"
+        day_line = (f"<div class='j3-gauge-day' style='text-align:center; font-size:.74rem;"
+                    f" font-weight:800; color:#9aa0aa; margin-top:.1rem'>"
+                    f"당일 · {big:%m.%d} ({tag})</div>")
+        box = box.replace("</div><div class='fg-box-hist'>", f"{day_line}</div><div class='fg-box-hist'>", 1)
+    if before is not None:
+        box = box.replace(f">{old_label}</span>", f">전일 · {before:%m.%d}</span>", 1)
+    return box
+
+
+def _regime_box_with_days(overview: dict) -> str:
+    """시장 국면 상자 + 당일·전일 날짜. 전일 줄의 날짜는 그 줄이 실제로 잰 장이다.
+
+    **전일 줄은 날짜로 고른다** (2026-09-24). `_gauge_overview` 는 「뉴욕 마감 뒤 같은 날」만
+    그 하루 앞 장으로 바꿨다. 뉴욕 자정을 넘긴 뒤 장 열기 전(한국 오후 1시~밤 10시 반)에는
+    「직전 완료 장」이 큰 숫자와 **같은 장**이라 전일 줄이 당일을 한 번 더 적었다(09-24 실측 —
+    당일 09.23 90점 · 전일 09.23 90점). 큰 숫자의 하루 앞 장을 가진 쪽을 전일로 쓴다.
+    """
+    shown = dict(_gauge_overview(overview) or {})
+    big, before, live = _gauge_days()
+    if before is not None:
+        for key in ("previous_market", "before_previous_market"):
+            candidate = (overview or {}).get(key) or {}
+            if candidate.get("ok") and str(candidate.get("trade_date") or "") == before.isoformat():
+                shown["previous_market"] = candidate
+                break
+    traded = str((shown.get("previous_market") or {}).get("trade_date") or "")
+    try:
+        before = date.fromisoformat(traded) if len(traded) >= 10 else before
+    except ValueError:
+        pass
+    return _with_days(regime_gauge_ui.regime_box_html(shown), big, before, live, "전일 시장국면")
+
+
 def _as_of_line(overview: dict, phase: str) -> str:
     """위 숫자가 **언제 것인지** 한 줄 (2026-09-12 상하님 지시 — "기준시각도 넣고").
 
@@ -3671,7 +3735,20 @@ def _fear_greed_box() -> str:
     """
     fetcher = getattr(j3data, "get_fear_greed", None)
     data = fetcher() if fetcher else {"ok": False}
-    return fear_greed_ui.box_html(data)
+    big, before, live = _gauge_days()
+    # **「전일」은 큰 숫자의 하루 앞 장이다** (2026-09-24). CNN 은 뉴욕 자정에 날짜를 넘겨,
+    # 장이 열리기 전(한국 오후 1시~밤 10시 반)에는 previous_close 가 큰 숫자와 같은 장이
+    # 된다(09-24 실측 — 지금 34.63 · previous_close 34.69 가 둘 다 09-23 · 09-22 는 35.03).
+    # 그때는 CNN 날짜별 값에서 그 하루 앞 장을 꺼내 쓴다. 없으면 CNN 값 그대로.
+    if data.get("ok") and big is not None and before is not None and not live:
+        try:
+            cnn_day = date.fromisoformat(str(data.get("as_of") or "")[:10])
+        except ValueError:
+            cnn_day = None
+        history = data.get("history") or {}
+        if cnn_day is not None and cnn_day > big and before.isoformat() in history:
+            data = {**data, "previous_close": history[before.isoformat()]}
+    return _with_days(fear_greed_ui.box_html(data), big, before, live, "전일 종가")
 
 
 def _leader_max() -> float:

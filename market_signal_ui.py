@@ -41,7 +41,7 @@ _SEOUL_TZ = ZoneInfo("Asia/Seoul")
 # 이름이 그대로인 채 내용만 바뀐 경우를 못 걸렀다 — 2026-07-24 온라인에서 4대 지수는
 # 나오는데 신호 카드 게이지만 빠지는 일이 실제로 있었다.
 # 화면에 나가는 것이 바뀌면 이 숫자를 올린다.
-MODULE_REVISION = 2026092320
+MODULE_REVISION = 2026092440
 
 
 def _now_seoul():
@@ -263,9 +263,88 @@ def _fetch_previous_us_quote(ticker, as_of_date):
             "prev_close": prev_close,
             "change_pct": _safe_pct_diff(current, prev_close),
             "trade_date": trade_date,
+            "prev_date": closes.index[-2].strftime("%Y-%m-%d"),
         }
     except Exception:
         return {"ok": False, "error": "전일 시세 해석 실패"}
+
+
+def _trading_day_before(day):
+    """그날 바로 앞 미국 거래일."""
+    import us_market_calendar
+
+    walk = day - timedelta(days=1)
+    for _ in range(15):
+        if us_market_calendar.is_trading_day(walk):
+            return walk
+        walk -= timedelta(days=1)
+    return None
+
+
+def _repair_missing_sessions(results, pairs):
+    """야후 일봉에 **하루가 빠진** 종목은 빠진 날을 채운 일봉으로 다시 잰다 (2026-09-24).
+
+    상하님 캡처 — 「당일 · 09.23 · 하락 압력 큼」과 「전일 · 09.22」. 야후가 09-22 일봉을
+    안 올린 일곱 종목(VIX·10년물·달러·하이일드·S&P500·나스닥·VIX 3개월)은 09-23 을
+    **09-21 과 견줘** 이틀 치를 하루 치로 적었다(10년물 +3.04% · VIX +2.08% — 하루 치는
+    +2.94% · +6.83%). 「전일 · 09.22」 칸 일곱 줄도 사실은 09-21 값이었다. 판정 단계는
+    두 날 다 그대로였지만(1단계 · 3단계) 칸 숫자와 까닭 글이 틀렸다.
+
+    빠진 날은 자비스3이 한 시간 봉으로 채운 일봉(jarvis3_data._download_cached)에서
+    가져온다 — 빠진 종목만 모아 **한 번에** 받는다. 못 채우면 원래 줄 그대로다.
+    """
+    import jarvis3_data as _j3
+    import us_market_calendar
+
+    last_done = us_market_calendar.previous_session_date(None)
+    need = {}
+    for ticker, as_of_date in pairs:
+        row = results.get(ticker) or {}
+        if not row.get("ok") or not row.get("trade_date") or not row.get("prev_date"):
+            continue
+        try:
+            target = date.fromisoformat(str(as_of_date))
+            trade = date.fromisoformat(str(row["trade_date"]))
+            prev = date.fromisoformat(str(row["prev_date"]))
+        except ValueError:
+            continue
+        want = _trading_day_before(target)
+        if want is not None and last_done is not None and want > last_done:
+            want = last_done
+        if trade != want or prev != _trading_day_before(trade):
+            need[ticker] = target
+    if not need:
+        return results
+    frames, _meta = _j3._download_cached(
+        tuple(sorted(need)), period="1mo", interval="1d", ttl_seconds=_j3.US_BATCH_TTL)
+    new_york = ZoneInfo("America/New_York")
+    fixed = dict(results)
+    for ticker, target in need.items():
+        frame = frames.get(ticker)
+        if frame is None or getattr(frame, "empty", True) or "Close" not in frame:
+            continue
+        try:
+            closes = frame["Close"].dropna().astype(float)
+            index = closes.index
+            days = [(stamp.tz_convert(new_york) if stamp.tzinfo else stamp).date() for stamp in index]
+            prior = [(day, float(value)) for day, value in zip(days, closes) if day < target]
+            if len(prior) < 2:
+                continue
+            (prev_day, prev_close), (trade_day, current) = prior[-2], prior[-1]
+            want = _trading_day_before(target)
+            if want is not None and last_done is not None and want > last_done:
+                want = last_done
+            if trade_day != want or prev_day != _trading_day_before(trade_day):
+                continue                     # 채운 일봉에도 그날이 없다 — 그대로 둔다
+            if current <= 0 or prev_close <= 0:
+                continue
+        except Exception:
+            continue
+        fixed[ticker] = {**results[ticker], "current": current, "prev_close": prev_close,
+                         "change_pct": _safe_pct_diff(current, prev_close),
+                         "trade_date": trade_day.isoformat(), "prev_date": prev_day.isoformat(),
+                         "filled_from": "빠진 장 채움"}
+    return fixed
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -286,6 +365,10 @@ def _cached_previous_us_quotes(ticker_dates):
                 results[ticker] = future.result()
             except Exception:
                 results[ticker] = {"ok": False, "error": "전일 시세 조회 실패"}
+    try:
+        results = _repair_missing_sessions(results, pairs)
+    except Exception:
+        pass                                 # 못 고치면 원래 값 그대로(0-0)
     return results
 
 

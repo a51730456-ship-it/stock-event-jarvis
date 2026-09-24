@@ -426,6 +426,33 @@ class VerdictGaugeTests(unittest.TestCase):
         self.assertEqual(previous["trade_date"], "2026-07-30")
         self.assertAlmostEqual(previous["change_pct"], 5.0)
 
+    def test_a_missing_middle_session_is_filled_before_the_change_is_taken(self):
+        """야후 일봉에 09-22 가 빠져 09-23 을 09-21 과 견줬다(10년물 +3.04% — 하루 치는 +2.94%).
+        빠진 날을 채운 일봉으로 다시 잰다(2026-09-24 상하님 캡처)."""
+        from datetime import date as _date
+
+        broken = {"^TNX": {"ok": True, "current": 5.114, "prev_close": 4.963, "change_pct": 3.04,
+                           "trade_date": "2026-09-23", "prev_date": "2026-09-21"},
+                  "ES=F": {"ok": True, "current": 7772.5, "prev_close": 7831.75, "change_pct": -0.76,
+                           "trade_date": "2026-09-23", "prev_date": "2026-09-22"}}
+        filled = pd.DataFrame({"Close": [4.963, 4.968, 5.114]},
+                              index=pd.to_datetime(["2026-09-21", "2026-09-22", "2026-09-23"]))
+        asked = []
+
+        def fake_download(tickers, **_kw):
+            asked.append(tuple(tickers))
+            return {"^TNX": filled}, {}
+
+        import jarvis3_data
+
+        with patch.object(jarvis3_data, "_download_cached", side_effect=fake_download), \
+                patch("us_market_calendar.previous_session_date", return_value=_date(2026, 9, 23)):
+            fixed = ui._repair_missing_sessions(broken, (("^TNX", "2026-09-24"), ("ES=F", "2026-09-24")))
+        self.assertEqual([("^TNX",)], asked, "빠진 종목만 한 번에 받지 않았다")
+        self.assertAlmostEqual(fixed["^TNX"]["change_pct"], (5.114 / 4.968 - 1) * 100, places=4)
+        self.assertEqual("2026-09-22", fixed["^TNX"]["prev_date"])
+        self.assertIs(broken["ES=F"], fixed["ES=F"], "멀쩡한 줄을 건드렸다")
+
 
 class UsStageGuideRemovedTests(unittest.TestCase):
     """미국장 카드에서 '5단계 기준 · 판정 구성' 안내를 뺐다 (2026-08-21 상하님 지시).

@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092470
+MODULE_REVISION = 2026092480
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -1328,6 +1328,25 @@ def _stamp_fear_greed(value: dict, now=None) -> dict:
     return out
 
 
+def _fear_greed_history(payload) -> dict:
+    """CNN 날짜별 값 {YYYY-MM-DD: 값}. 점 하나가 그날 장의 값이다(UTC 자정 = 그 날짜).
+    CNN 은 오늘 점을 지금 값으로 한 번 더 싣는다 — 같은 날짜면 뒤의 것이 이긴다."""
+    from datetime import timezone as _timezone
+
+    try:
+        points = ((payload or {}).get("fear_and_greed_historical") or {}).get("data") or []
+        out = {}
+        for point in points[-15:]:
+            value = _finite(point.get("y"))
+            if value is None:
+                continue
+            day = datetime.fromtimestamp(float(point["x"]) / 1000, _timezone.utc).date().isoformat()
+            out[day] = value
+        return out
+    except Exception:
+        return {}
+
+
 def get_fear_greed(request_json=None) -> dict:
     """CNN 공포·탐욕 지수(0~100)를 조회한다. 실패하면 ok=False 또는 마지막 정상값.
 
@@ -1362,6 +1381,10 @@ def get_fear_greed(request_json=None) -> dict:
             "as_of": str(block.get("timestamp") or ""),
             "stale": False,
             "source": "CNN Fear & Greed",
+            # 날짜별 마감값(최근 15개) — 「전일」 칸이 **그 하루 앞 장**을 짚게 한다
+            # (2026-09-24). CNN 은 뉴욕 자정에 날짜를 넘겨, 한국 오후 1시~밤 10시 반에는
+            # previous_close 가 큰 숫자와 **같은 장**(마지막으로 끝난 장)이 된다.
+            "history": _fear_greed_history(payload),
         }
         with _FEAR_GREED_LOCK:
             _FEAR_GREED_CACHE.update({"at": now, "value": dict(value)})
