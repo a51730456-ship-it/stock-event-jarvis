@@ -1222,12 +1222,26 @@ class LastSessionChangeTests(unittest.TestCase):
         ))
 
     def test_metrics_expose_both_numbers_separately(self):
-        """지금 값 기준(change_pct)과 끝난 장(last_session_change_pct)은 다른 값이다."""
+        """정규장이 열려 있을 때 지금 값 기준(change_pct)과 끝난 장(last_session_change_pct)은 다른 값이다."""
         daily = _daily_frame()
-        metrics = j3._series_metrics(daily, _intraday_frame(500.0))
+        with patch.object(j3, "_regular_open_now", lambda: True):
+            j3._METRICS_CACHE.clear()
+            metrics = j3._series_metrics(daily, _intraday_frame(500.0))
         self.assertIn("last_session_change_pct", metrics)
         self.assertIsNotNone(metrics["last_session_change_pct"])
         self.assertNotEqual(metrics["change_pct"], metrics["last_session_change_pct"])
+
+    def test_closed_market_scores_on_the_last_regular_close(self):
+        """장이 닫혀 있으면 점수가 쓰는 값도 **마지막 정규장 종가**다 (2026-09-24 상하님 결정 ·
+        설명서 2부 기준 10). 시간외 가격(500)이 수익률·등락률에 섞이면 안 된다."""
+        daily = _daily_frame()
+        with patch.object(j3, "_regular_open_now", lambda: False):
+            j3._METRICS_CACHE.clear()
+            metrics = j3._series_metrics(daily, _intraday_frame(500.0))
+        self.assertAlmostEqual(metrics["current"], metrics["last_session_close"], places=6)
+        self.assertAlmostEqual(metrics["change_pct"], metrics["last_session_change_pct"], places=6)
+        self.assertAlmostEqual(metrics["ret20"], metrics["session_ret20"], places=6)
+        j3._METRICS_CACHE.clear()
 
 
 

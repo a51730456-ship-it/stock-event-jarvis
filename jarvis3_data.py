@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092430
+MODULE_REVISION = 2026092440
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -977,9 +977,27 @@ def _frame_stamp(frame) -> tuple:
         return ()
 
 
+# ── 점수에 쓰는 가격 — **장이 닫혀 있으면 마지막 정규장 종가** (2026-09-24 상하님 결정) ──────
+# 상하님 — *"1은 정규장 종가로 바꾸고."* 여태 `current` 는 1분봉을 시간외까지 받은 마지막 체결가라,
+# 장 닫힌 동안(한국 낮·새벽 목록 저장 때) 점수·순위가 시간외 가격에 따라 흔들렸다. 과거 검증은
+# 일봉 종가로 했으므로 이쪽이 배점을 만든 자와 같다. 장이 열려 있을 때는 지금 값 그대로다.
+# 설명서 docs/US_THEME_SPEC.md 2부 기준 10. 끄면(False) 예전과 같다.
+SCORE_ON_SESSION_CLOSE = True
+
+
+def _regular_open_now() -> bool:
+    """미국 정규장이 지금 열려 있나(달력과 시계 · 통신 없음)."""
+    try:
+        return market_phase().get("label") == "정규장 시간"
+    except Exception:
+        return False
+
+
 def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = None) -> dict:
     """아까 잰 것과 같은 자료면 다시 재지 않는다. 실제 계산은 아래 함수가 한다."""
-    stamp = (_frame_stamp(daily), _frame_stamp(intraday))
+    # 장이 열렸나·닫혔나에 따라 `current` 가 달라지므로(위 SCORE_ON_SESSION_CLOSE) 그것도 열쇠에 넣는다.
+    stamp = (_frame_stamp(daily), _frame_stamp(intraday),
+             bool(SCORE_ON_SESSION_CLOSE) and not _regular_open_now())
     if not stamp[0]:
         return _series_metrics_uncached(daily, intraday)
     with _METRICS_LOCK:
@@ -1022,6 +1040,13 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
     # (2026-07-24 실측: 전일 -1.23%인데 화면에 프리마켓 +0.22%가 나왔다).
     last_session_change_pct = _last_session_change(closes, last_date, today_ny)
     last_session_close = _last_session_close(closes, last_date, today_ny)
+    # 장이 닫혀 있으면 점수·수익률·52주·변동성을 모두 **끝난 장 종가**로 잰다(위 SCORE_ON_SESSION_CLOSE).
+    # 등락률도 그 장의 것이 된다 — 전일 종가를 그 종가의 앞날로 맞춘다.
+    if (SCORE_ON_SESSION_CLOSE and last_session_close is not None
+            and not _regular_open_now()):
+        current = last_session_close
+        if last_session_change_pct is not None:
+            prev_close = current / (1 + last_session_change_pct / 100)
 
     ret = lambda days: (current / float(closes.iloc[-min(days + 1, len(closes))]) - 1) * 100
     sma20 = _finite(closes.tail(20).mean())
