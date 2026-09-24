@@ -9,6 +9,11 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 import jarvis3_data as j3
+import tempfile as _tempfile
+
+# 상승장 한 벌을 남기는 파일(2026-09-25)은 시험 동안 임시 폴더로 돌린다 — 진짜 공책 파일을 안 건드린다.
+_BREAKOUT_TMP = _tempfile.TemporaryDirectory()
+j3._BREAKOUT_DISK_PATH = pathlib.Path(_BREAKOUT_TMP.name) / "breakout_last.val"
 import us_swing_selector as us_swing
 import us_swing_testdata
 
@@ -1932,9 +1937,10 @@ class TheButtonKeepsTheLastGoodListTests(unittest.TestCase):
         self.assertEqual(1, len(calls))
         with j3._CACHE_LOCK:
             j3._CACHE.clear()
-        with j3._BREAKOUT_LAST_LOCK:
-            j3._BREAKOUT_LAST["session"] = "1999-01-04"    # 그 뒤로 장이 닫혔다
-        j3.breakout_scan()
+        # 그 뒤로 장이 닫혔다 — 「마지막으로 끝난 장」 날짜가 넘어간다. 앱 기억만이 아니라 파일로
+        # 남긴 한 벌(2026-09-25)도 그 날짜와 안 맞으니 안 줘야 한다.
+        with patch.object(j3, "_completed_session_key", lambda now=None: "2099-01-05"):
+            j3.breakout_scan()
         self.assertEqual(2, len(calls), "장이 닫혔는데 옛 목록을 그대로 줬다")
 
     def test_the_refresh_button_throws_the_kept_list_away(self):
@@ -2855,3 +2861,37 @@ class ThemeLeadersSessionMinutesBatchTests(unittest.TestCase):
         batch = body.index("prefetch_session_minutes(lacking)")
         assert batch < body.index("_intraday_chart_payload("), "묶어 받기가 종목별 그림보다 뒤에 있다"
         assert "_regular_session_frame(live.get(ticker))[0] is None" in body
+
+
+class BreakoutKeptOnDiskTests(unittest.TestCase):
+    """상승장 한 벌을 **파일로도** 남긴다 (2026-09-25 상하님 — "상승장 첫 로딩 15초").
+    앱이 껐다 켜져 기억이 비어도, 같은 장의 것이면 파일에서 곧바로 준다."""
+
+    def setUp(self):
+        import tempfile
+        self._dir = tempfile.TemporaryDirectory()
+        self._saved_path = j3._BREAKOUT_DISK_PATH
+        self._saved_last = dict(j3._BREAKOUT_LAST)
+        j3._BREAKOUT_DISK_PATH = pathlib.Path(self._dir.name) / "breakout_last.val"
+
+    def tearDown(self):
+        j3._BREAKOUT_DISK_PATH = self._saved_path
+        j3._BREAKOUT_LAST.clear()
+        j3._BREAKOUT_LAST.update(self._saved_last)
+        self._dir.cleanup()
+
+    def test_a_restarted_app_gets_the_kept_scan_from_the_file(self):
+        scan = {"ok": True, "rows": [{"ticker": "NVDA"}]}
+        with patch.object(j3, "_completed_session_key", lambda now=None: "2026-09-24"):
+            j3._remember_breakout(scan)
+            self.assertTrue(j3._BREAKOUT_DISK_PATH.is_file(), "파일로 안 남겼다")
+            j3._BREAKOUT_LAST.update({"at": 0.0, "session": None, "value": None})   # 껐다 켜진 앱
+            kept = j3._breakout_kept_for_this_session()
+        self.assertEqual(scan, kept)
+
+    def test_a_scan_from_before_the_last_close_is_not_used(self):
+        with patch.object(j3, "_completed_session_key", lambda now=None: "2026-09-23"):
+            j3._remember_breakout({"ok": True, "rows": []})
+        j3._BREAKOUT_LAST.update({"at": 0.0, "session": None, "value": None})
+        with patch.object(j3, "_completed_session_key", lambda now=None: "2026-09-24"):
+            self.assertIsNone(j3._breakout_kept_for_this_session(), "장이 닫힌 뒤인데 옛 답을 줬다")

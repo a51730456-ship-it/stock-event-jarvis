@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092500
+MODULE_REVISION = 2026092501
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -285,7 +285,9 @@ def clear_runtime_cache() -> None:
     try:
         with _BREAKOUT_LAST_LOCK:
             _BREAKOUT_LAST.update({"at": 0.0, "session": None, "value": None})
-    except NameError:
+        # 파일로 남긴 한 벌도 버린다(2026-09-25) — 안 버리면 ↻ 뒤 첫 클릭이 그것을 다시 읽는다.
+        _BREAKOUT_DISK_PATH.unlink(missing_ok=True)
+    except (NameError, OSError):
         pass                    # 옛 모듈 순서로 불려도 화면은 그대로 돈다
 
 
@@ -5081,26 +5083,70 @@ def _completed_session_key(now=None):
         return None
 
 
+# **파일로도 남긴다** (2026-09-25 상하님 — "상승장 첫 로딩 15초 · 이거 해결 왜 안 했냐").
+# 위 한 벌은 앱 기억에만 있어서, 온라인 앱이 껐다 켜지면(저장소에 글이 올라올 때마다 — 자비스5 수집
+# 하루 9번 · 목록 저장 · 고칠 때 올리기) 통째로 사라졌다. 그러면 첫 클릭이 249종목 2년치를 받고
+# 200종목을 처음부터 계산했다(온라인 14~20초). 이 답은 **끝난 장까지만** 보므로 파일에 남겨 둔 한 벌도
+# 같은 장의 것이면 그대로 맞다. 한 벌 473KB · 쓰기 2ms · 읽기 3ms(노트북 실측).
+# 확장자를 .pkl 로 두지 않는다 — 시세 파일 정리(_disk_prune)가 오래된 .pkl 부터 지운다.
+_BREAKOUT_DISK_PATH = _DISK_DIR / "breakout_last.val"
+
+
 def _remember_breakout(scan) -> None:
-    """제대로 만든 한 벌을 **어느 장의 것인지와 함께** 담아 둔다."""
+    """제대로 만든 한 벌을 **어느 장의 것인지와 함께** 담아 둔다(앱 기억 + 파일)."""
     if not (isinstance(scan, dict) and scan.get("ok")):
         return
     session = _completed_session_key()
     if session is None:
         return
     with _BREAKOUT_LAST_LOCK:
+        same = _BREAKOUT_LAST.get("value") is scan and _BREAKOUT_LAST.get("session") == session
         _BREAKOUT_LAST.update({"at": time.time(), "session": session, "value": scan})
+    if not same:                    # 같은 한 벌을 누를 때마다 다시 쓰지 않는다
+        _value_write(_BREAKOUT_DISK_PATH, {"session": session, "value": scan})
 
 
 def _breakout_kept_for_this_session():
-    """담아 둔 한 벌. **그 뒤로 미국장이 닫힌 적이 있으면 안 준다.**"""
+    """담아 둔 한 벌. **그 뒤로 미국장이 닫힌 적이 있으면 안 준다.**
+
+    앱 기억에 없으면(막 켜진 앱) 파일을 본다 — 같은 장의 것이면 그것을 기억에 올려 쓴다.
+    """
     session = _completed_session_key()
     if session is None:
         return None
     with _BREAKOUT_LAST_LOCK:
-        if _BREAKOUT_LAST.get("session") != session:
+        if _BREAKOUT_LAST.get("session") == session and _BREAKOUT_LAST.get("value") is not None:
+            return _BREAKOUT_LAST.get("value")
+    saved = _value_read(_BREAKOUT_DISK_PATH)
+    value = (saved or {}).get("value")
+    if (saved or {}).get("session") != session or not (isinstance(value, dict) and value.get("ok")):
+        return None
+    with _BREAKOUT_LAST_LOCK:
+        _BREAKOUT_LAST.update({"at": time.time(), "session": session, "value": value})
+    return value
+
+
+def _value_write(path, value) -> None:
+    """작은 값 하나를 파일로 남긴다. 실패해도 화면은 그대로 돈다."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(path.name + ".tmp")
+        with temporary.open("wb") as handle:
+            pickle.dump(value, handle, protocol=4)
+        temporary.replace(path)
+    except Exception:
+        pass
+
+
+def _value_read(path):
+    """_value_write 로 남긴 값. 없거나 깨졌으면 None — 조용히 넘어간다."""
+    try:
+        if not path.is_file():
             return None
-        return _BREAKOUT_LAST.get("value")
+        with path.open("rb") as handle:
+            return pickle.load(handle)   # nosec B301 - 이 앱이 직접 쓴 파일만 읽는다
+    except Exception:
+        return None
 
 
 def _refresh_breakout_in_background() -> None:
