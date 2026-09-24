@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092495
+MODULE_REVISION = 2026092497
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -5936,14 +5936,21 @@ def get_briefing_cards(stocks) -> dict[str, dict]:
                     # 6개월 그림이 그 장 없이 끝난다. 숫자만 오늘이고 그림은 어제면
                     # 둘이 다른 이야기를 한다(2026-08-28에 고치려던 바로 그 문제다).
                     chart_all = [float(v) for v in series.tolist()]
+                    # 6개월 봉차트 재료(2026-09-24 상하님 — "일봉은 봉차트로"). 이미 받은 일봉이다.
+                    chart_ohlc = _ohlc_rows(daily.get(ticker), len(chart_all))
                     if (session_price is not None
                             and _daily_lags_last_session(daily.get(ticker), live.get(ticker))):
                         chart_all.append(float(session_price))
+                        # 야후 일봉에 아직 없는 마지막 장은 그 장의 5분봉으로 봉 하나를 만든다.
+                        steps = [float(v) for v in (today_series or []) if v is not None]
+                        if chart_ohlc and steps:
+                            chart_ohlc.append([steps[0], max(steps + [float(session_price)]),
+                                               min(steps + [float(session_price)]), float(session_price)])
                     _BRIEFING_CARD_CACHE[ticker] = {
                         "at": now, "ticker": ticker, "name": STOCK_NAMES.get(ticker, ticker),
                         "price": session_price if session_price is not None else metrics.get("current"),
                         "change_pct": session_change if session_change is not None else metrics.get("change_pct"),
-                        "chart": chart_all[-30:], "chart6m": chart_all,
+                        "chart": chart_all[-30:], "chart6m": chart_all, "chart6m_ohlc": chart_ohlc,
                         "chart_today": today_series, "prev_close": session_prev,
                         "stale": bool(daily_meta.get("stale") or live_meta.get("stale")),
                     }
@@ -6088,6 +6095,8 @@ def get_index_sparklines(days: int = 30) -> dict:
                 "points": points, "base": base,
                 "daily_points": daily_points if len(daily_points) >= 2 else [],
                 "daily_base": daily_points[0] if len(daily_points) >= 2 else None,
+                # 「6개월」 봉차트 재료(2026-09-24 상하님 — "일봉은 봉차트로"). 이미 받은 일봉이다.
+                "daily_ohlc": _ohlc_rows(closes, len(closes)),
             }
     return result
 
@@ -6772,10 +6781,26 @@ def get_etf_sparklines(
         if len(day_points) >= 2:
             # 일봉 그림의 기준선은 '그 구간이 시작한 날의 종가'다. 당일 그림처럼
             # 전일 종가를 쓰면 석 달치가 전부 기준선 한쪽에 붙어 색이 의미를 잃는다.
-            pair["daily"] = {"points": day_points, "base": day_points[0]}
+            # 봉차트 재료(ohlc)도 싣는다(2026-09-24 상하님 — "일봉은 봉차트로"). 이미 받은 일봉이다.
+            pair["daily"] = {"points": day_points, "base": day_points[0],
+                             "ohlc": _ohlc_rows(closes, daily_sessions)}
         if pair:
             result[symbol] = pair
     return result
+
+
+def _ohlc_rows(frame, limit: int) -> list:
+    """봉차트 재료 — 마지막 limit 개 일봉의 [시가, 고가, 저가, 종가] (2026-09-24). 빈 값이 있는 날은 뺀다.
+
+    이미 받아 둔 일봉 표에서 꺼내기만 한다 — 새로 받지 않는다. 칸이 없으면 빈 목록(그러면 화면은
+    예전 선 그림으로 간다).
+    """
+    try:
+        sub = frame[["Open", "High", "Low", "Close"]].dropna().astype(float).tail(int(limit))
+    except Exception:
+        return []
+    return [[round(o, 4), round(h, 4), round(l, 4), round(c, 4)]
+            for o, h, l, c in sub.itertuples(index=False)]
 
 
 def _prior_session_close(daily: pd.DataFrame, session_day) -> float | None:

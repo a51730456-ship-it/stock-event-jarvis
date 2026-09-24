@@ -3407,3 +3407,27 @@ def test_scorecard_range_uses_a_korean_number_calendar_start_then_end():
     mobile = (ROOT / "mobile_ui.py").read_text(encoding="utf-8")
     phone = mobile[mobile.index("@media (max-width: 600px)"):]
     assert 'div[class*="st-key-j3sc_cal"] [data-testid="stHorizontalBlock"]' in mobile, "폰에서 달력이 세로로 쌓인다"
+
+
+def test_daily_charts_are_candles_with_whole_number_coordinates():
+    """일봉은 봉차트 (2026-09-24 상하님 — "각 차트에서 일봉은 봉차트로 해라 · 로딩 오래 걸리면 다시
+    고민"). 좌표를 정수로 적어 봉 하나에 약 30자 — 예전 선 그림보다 가볍다. 새로 받는 자료는 없다."""
+    import ast
+    source = PAGE.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_candle_svg"]
+    ns: dict = {}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "page", "exec"), ns)
+    rows = [[10, 12, 9, 11], [11, 11.5, 8, 9], [9, 10, 8.5, 9.5]]       # 오름 · 내림 · 오름
+    svg = ns["_candle_svg"](rows, up="#0f0", down="#f00", svg_open="<svg viewBox='0 0 {W} {H}'>")
+    assert svg.startswith("<svg viewBox='0 0 30 600'>")
+    up_body = re.search(r'd="([^"]*)" fill="#0f0"', svg).group(1)
+    down_body = re.search(r'd="([^"]*)" fill="#f00"', svg).group(1)
+    assert up_body.count("M") == 2 and down_body.count("M") == 1, "오른 날·내린 날이 갈리지 않았다"
+    assert "." not in re.sub(r'stroke-opacity="[^"]*"', "", svg.split(">", 1)[1]).replace("stroke-width=\"1\"", ""), \
+        "좌표가 정수가 아니다"
+    assert ns["_candle_svg"]([[1, 2, 0.5, 1.5]], up="#0f0", down="#f00", svg_open="<svg>") == "", "봉 하나로 그렸다"
+    # 네 자리가 봉차트를 쓴다 — 종목 상세·대장주 비교(일봉) · 지수 칸 「6개월」 · 관심종목 카드 「일봉 6개월」
+    assert source.count('(_daily_candles(payload) if timeframe == "일봉" else "")') == 1
+    assert source.count('(_daily_candles(payload) if name == "일봉" else "")') == 1
+    assert 'spark.get("daily_ohlc")' in source and 'card.get("chart6m_ohlc")' in source

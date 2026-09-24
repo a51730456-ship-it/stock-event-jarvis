@@ -1865,7 +1865,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026092495
+_REQUIRED_J3_REVISION = 2026092497
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2672,6 +2672,88 @@ def _pretty_chart_svg(closes, *, base=None, ma20=None, ma50=None,
             'preserveAspectRatio="none">' + "".join(body) + "</svg>")
 
 
+# 일봉 봉차트에 싣는 봉 수 — 여섯 달(거래일 120일). 예전 선 그림은 180일이었는데, 봉은 폭이
+# 있어 180개면 폰의 작은 칸(약 170px)에서 봉 하나가 1px 도 안 돼 막대 뭉치로 보였다.
+CANDLE_SESSIONS = 120
+
+
+def _candle_svg(rows: list, *, up: str, down: str, lines=(), svg_open: str) -> str:
+    """봉차트 그림. rows 는 [시가, 고가, 저가, 종가] 줄들, lines 는 (색, [(자리, 값)]) 이평선들.
+
+    좌표는 **정수**다 — 봉 한 칸 폭 10·판 높이 600 으로 잡고 화면에 늘려 그린다(늘려도 심지·
+    이평선 굵기는 그대로 — vector-effect). 봉 하나에 약 30자라 봉 126개도 4천 자 안팎이다
+    (예전 선 그림 한 장과 비슷하다). 오른 날(종가 ≥ 시가)·내린 날 두 갈래를 길 하나씩으로 묶는다.
+    svg_open 은 {W}·{H} 자리가 있는 여는 꼬리표 — 자리마다 크기·꾸밈이 달라 부르는 쪽이 준다.
+    """
+    rows = [row for row in rows if len(row) == 4 and all(v is not None and v == v for v in row)]
+    if len(rows) < 2:
+        return ""
+    width, height = 10 * len(rows), 600
+    span_values = [v for row in rows for v in (row[1], row[2])] + [v for _c, pairs in lines for _i, v in pairs]
+    low, high = min(span_values), max(span_values)
+    reach = (high - low) or 1.0
+    pad = height * 0.06
+    inner = height - pad * 2
+
+    def _y(value):
+        return round(pad + inner - (float(value) - low) / reach * inner)
+
+    wicks = {True: [], False: []}
+    bodies = {True: [], False: []}
+    for index, (o, h, l, c) in enumerate(rows):
+        rising = c >= o
+        wicks[rising].append(f"M{index * 10 + 5} {_y(h)}V{_y(l)}")
+        top, bottom = _y(max(o, c)), _y(min(o, c))
+        bodies[rising].append(f"M{index * 10 + 2} {top}h6v{max(bottom - top, 2)}h-6z")
+    body = []
+    for rising, color in ((True, up), (False, down)):
+        if wicks[rising]:
+            body.append(f'<path d="{"".join(wicks[rising])}" stroke="{color}" stroke-width="1" '
+                        'fill="none" vector-effect="non-scaling-stroke"/>')
+            body.append(f'<path d="{"".join(bodies[rising])}" fill="{color}"/>')
+    for color, pairs in lines:
+        path = " ".join(f"{place * 10 + 5},{_y(v)}" for place, v in pairs)
+        body.append(f'<polyline points="{path}" fill="none" stroke="{color}" '
+                    'stroke-width="1.4" stroke-opacity=".95" vector-effect="non-scaling-stroke"/>')
+    return svg_open.format(W=width, H=height) + "".join(body) + "</svg>"
+
+
+def _candle_chart_svg(frame, *, ma20=None, ma50=None,
+                      up: str = _CHART_UP, down: str = _CHART_DOWN) -> str:
+    """종목 상세 일봉 **봉차트** (2026-09-24 상하님 — "각 차트에서 일봉은 봉차트로 해라").
+
+    오른 날은 초록, 내린 날은 빨강 — 선 그림의 위·아래 색과 같다. 20선·50선은 예전처럼 겹쳐 그린다.
+    frame 은 Open·High·Low·Close 칸이 있는 표다. 없거나 모자라면 빈 글자 — 부르는 쪽이 선 그림으로 간다.
+    """
+    try:
+        rows = [[float(o), float(h), float(l), float(c)]
+                for o, h, l, c in zip(frame["Open"], frame["High"], frame["Low"], frame["Close"])]
+    except Exception:
+        return ""
+    keep = [index for index, row in enumerate(rows) if all(v == v for v in row)]
+    lines = []
+    for color, series in ((_CHART_MA20, ma20), (_CHART_MA50, ma50)):
+        series = list(series or [])
+        cleaned = [(place, float(series[index])) for place, index in enumerate(keep)
+                   if index < len(series) and series[index] is not None and series[index] == series[index]]
+        if len(cleaned) >= 2:
+            lines.append((color, cleaned))
+    return _candle_svg([rows[index] for index in keep], up=up, down=down, lines=lines,
+                       svg_open='<svg class="j3-pretty-chart j3-candle-chart" viewBox="0 0 {W} {H}" '
+                                'preserveAspectRatio="none">')
+
+
+def _daily_candles(payload: dict, height: int = 150) -> str:
+    """일봉 자료(get_chart_bundle 의 「일봉」)로 봉차트. 봉 값이 없으면 빈 글자."""
+    frame = payload.get("ohlcv") if isinstance(payload, dict) else None
+    if frame is None or not {"Open", "High", "Low", "Close"}.issubset(getattr(frame, "columns", [])):
+        return ""
+    frame = frame.tail(CANDLE_SESSIONS)
+    column = lambda name: ([None if v != v else float(v) for v in frame[name].tolist()]
+                           if name in frame.columns else [])
+    return _candle_chart_svg(frame, ma20=column("MA20"), ma50=column("MA50"))
+
+
 def _payload_series(payload: dict, column: str):
     """차트 자료에서 한 줄을 꺼낸다. 없으면 빈 목록."""
     frame = payload.get("price") if isinstance(payload, dict) else None
@@ -2953,8 +3035,8 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
     ):
         return
     st.caption(
-        "시작한 값에 회색 점선을 긋고, 그보다 위는 초록·아래는 붉은색입니다. "
-        "20선은 주황색 · 50선은 보라색입니다."
+        "일봉은 봉차트(여섯 달 · 오른 날 초록·내린 날 빨강), 당일·주봉·월봉은 시작한 값 점선 "
+        "위는 초록·아래는 붉은색입니다. 20선은 주황색 · 50선은 보라색입니다."
     )
     boxes = []
     # 당일 그림 — 기준선은 전일 종가다. 20선·50선은 없다(하루치라 잴 수 없다).
@@ -2978,7 +3060,8 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
             payload = chart_bundle["charts"].get(timeframe, {})
             if not payload.get("ok"):
                 continue
-            drawing = _pretty_chart_svg(
+            # 일봉은 봉차트(2026-09-24) — 봉 값이 없으면 예전 선 그림.
+            drawing = (_daily_candles(payload) if timeframe == "일봉" else "") or _pretty_chart_svg(
                 _payload_series(payload, "Close"),
                 ma20=_payload_series(payload, "MA20"),
                 ma50=_payload_series(payload, "MA50"),
@@ -3456,10 +3539,19 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
     if not today:
         return ""
     daily_points = spark.get("daily_points") or []
-    daily = _sparkline_svg(
+    # 「6개월」은 **봉차트**다(2026-09-24 상하님 — "각 차트에서 일봉은 봉차트로"). 색은 이 칸들의
+    # 규칙 그대로 오른 날 파랑·내린 날 빨강. 봉 값이 없으면 예전 선 그림.
+    daily = _candle_svg(
+        spark.get("daily_ohlc") or [], up="#4da6ff", down="#ff5b5b",
+        svg_open=(f"<svg class='j3-candle-chart' viewBox='0 0 {{W}} {{H}}' width='{width:.0f}' "
+                  f"height='{height}' preserveAspectRatio='none' "
+                  "style='display:block; margin:.4rem 0 .1rem;"
+                  " border:1px solid rgba(255,255,255,.22); border-radius:8px;"
+                  " background:rgba(255,255,255,.03)'>"),
+    ) or (_sparkline_svg(
         {"points": daily_points, "base": spark.get("daily_base")},
         "#4da6ff", "#ff5b5b", width=width, height=height,
-    ) if len(daily_points) >= 2 else ""
+    ) if len(daily_points) >= 2 else "")
     # id에 쓸 수 없는 글자(^ 같은 것)를 걸러 낸다 — 지수 이름은 '^IXIC' 꼴이다.
     tap_id = "j3idx_" + re.sub(r"[^0-9A-Za-z]+", "", str(key) or str(int(width)))
     if not daily:
@@ -3673,7 +3765,8 @@ def _us_etf_cells(overview: dict) -> list:
         chart_html = _index_chart_swap(
             {**(pair.get("intraday") or {}),
              "daily_points": ((pair.get("daily") or {}).get("points") or []),
-             "daily_base": (pair.get("daily") or {}).get("base")},
+             "daily_base": (pair.get("daily") or {}).get("base"),
+             "daily_ohlc": (pair.get("daily") or {}).get("ohlc") or []},
             width=104, height=78, key=f"etf{symbol}",
         )
         cells.append(
@@ -4393,7 +4486,8 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                 payload = bundle.get(name) or {}
                 if not payload.get("ok"):
                     continue
-                drawing = _pretty_chart_svg(
+                # 일봉은 봉차트(2026-09-24) — 선택종목 세부사항과 같은 그림.
+                drawing = (_daily_candles(payload) if name == "일봉" else "") or _pretty_chart_svg(
                     _payload_series(payload, "Close"),
                     ma20=_payload_series(payload, "MA20"),
                     ma50=_payload_series(payload, "MA50"),
@@ -12118,6 +12212,12 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
         f'{delete_visual}{decor_html}</div>'
     )
     six_month = [float(v) for v in (card.get("chart6m") or []) if v is not None]
+    # 6개월은 **봉차트**다(2026-09-24 상하님 — "각 차트에서 일봉은 봉차트로"). 봉 값이 없으면
+    # 예전 선 그림.
+    six_chart = (_candle_svg(card.get("chart6m_ohlc") or [], up=_CHART_UP, down=_CHART_DOWN,
+                             svg_open='<svg class="j3b-chart j3-candle-chart" viewBox="0 0 {W} {H}" '
+                                      'preserveAspectRatio="none">') if six_month else "") \
+        or _briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))
     open_card = (
         f'<div class="j3b-open-card {direction}">'
         '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
@@ -12130,7 +12230,7 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
         # 접힌 카드의 작은 그림은 예전 그대로 최근 30일이다. 6개월치가 아직 안
         # 왔으면 그 30일 그림을 그대로 쓰고 이름표도 안 붙인다 — 없는 것을 있는
         # 것처럼 적으면 안 된다.
-        f'{_briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))}'
+        f'{six_chart}'
         f'{_six_month_caption(six_month)}'
         f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
         '<span class="j3b-open-close j3b-open-close-b">✕ 닫기</span>'

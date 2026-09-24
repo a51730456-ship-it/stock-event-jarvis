@@ -2830,3 +2830,16 @@ class EarlyCloseClockTests(unittest.TestCase):
                          j3._last_completed_us_date(
                              frame, now=datetime(2026, 11, 27, 12, 0, tzinfo=self.NY)),
                          "아직 도는 중인데 그 줄을 완성된 것으로 봤다")
+
+
+class OhlcRowsTests(unittest.TestCase):
+    """봉차트 재료 — 이미 받은 일봉에서 [시가, 고가, 저가, 종가] 를 꺼낸다(2026-09-24)."""
+
+    def test_rows_skip_blank_days_and_keep_the_last_ones(self):
+        frame = pd.DataFrame({"Open": [1.0, 2.0, float("nan"), 4.0], "High": [1.5, 2.5, 3.5, 4.5],
+                              "Low": [0.5, 1.5, 2.5, 3.5], "Close": [1.2, 2.2, 3.2, 4.2]})
+        self.assertEqual([[2.0, 2.5, 1.5, 2.2], [4.0, 4.5, 3.5, 4.2]], j3._ohlc_rows(frame, 2))
+
+    def test_a_frame_without_candle_columns_gives_nothing(self):
+        self.assertEqual([], j3._ohlc_rows(pd.DataFrame({"Close": [1.0, 2.0]}), 10))
+        self.assertEqual([], j3._ohlc_rows(None, 10))
