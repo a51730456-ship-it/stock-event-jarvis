@@ -1780,7 +1780,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026092440
+_REQUIRED_J3_REVISION = 2026092450
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -2005,7 +2005,7 @@ def _shown_numbers(metrics: dict) -> dict:
     까닭은 셋이었다. ① 목록의 가격 칸은 장이 닫혀 있으면 정규장 종가인데 수익률 칸은 시간외
     체결가로 쟀다. ② 상승장 표의 수익률만 일봉 종가로 쟀다. ③ 세부사항은 같은 종목을 따로 다시
     받아 쟀다. 이제 **모든 칸이 이 함수 하나**를 쓴다 — 장이 열려 있으면 지금 값, 닫혀 있으면
-    마지막 정규장 종가 기준(jarvis3_data._session_basis). 목록 줄과 세부사항은 **같은 metrics** 를
+    마지막 정규장 종가 기준(jarvis3_data 가 장 닫힘이면 그 종가로 잰 값). 목록 줄과 세부사항은 **같은 metrics** 를
     넘겨 받으므로 숫자가 갈릴 수 없다. **점수는 안 바뀐다** — 점수는 여태대로 계산한 값을 쓴다.
     """
     metrics = metrics or {}

@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092440
+MODULE_REVISION = 2026092450
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -850,58 +850,6 @@ def _session_close_time(day) -> dt_time:
         return dt_time(16, 0)
 
 
-def _session_basis(daily, closes, last_date, today_ny, now_ny=None) -> dict:
-    """**마지막으로 끝난 정규장 종가**로 잰 20일·60일·6개월 수익률·52주 고가 대비·변동성.
-
-    2026-09-24 상하님 — *"자비스3 미국테마 전체에 대해 현재가·수익률 20일·6개월 수익·6개월
-    시장대비 등등 … 뭐가 이렇게 계속 틀어지고 안 맞고 그러냐."*
-
-    `ret20`·`ret120`·`from_high_pct`·`atr_pct` 는 **지금 값**(`current` — 1분봉을 시간외까지 받은
-    마지막 체결가)으로 잰다. 그런데 목록의 「당일주가」는 장이 닫혀 있으면 정규장 종가를 적어
-    (`last_session_close`), 한 줄 안에서 가격 칸과 수익률 칸이 서로 다른 값을 기준으로 삼았다.
-    상승장 표의 20일·6개월은 또 일봉 종가로 잰 값이라 파트끼리도 어긋났다.
-    이 값들은 `last_session_close` 와 **같은 줄**(끝난 장)을 기준으로 잰다. 화면이 장 닫힌 동안
-    쓴다. **점수·배점에는 안 쓴다** — 점수는 여태대로 `ret20` 등을 쓴다.
-    """
-    out = {"session_ret20": None, "session_ret60": None, "session_ret120": None,
-           "session_from_high_pct": None, "session_atr_pct": None}
-    try:
-        now_ny = now_ny or datetime.now(_NY)
-        finished = last_date < today_ny or now_ny.time() >= _session_close_time(today_ny)
-        end = len(closes) - (1 if finished else 2)
-        if end < 0:
-            return out
-        close = _finite(closes.iloc[end])
-        if not close:
-            return out
-
-        def _back(days):
-            start = end - days
-            if start < 0:
-                return None
-            base = _finite(closes.iloc[start])
-            return (close / base - 1) * 100 if base else None
-
-        out["session_ret20"] = _back(20)
-        out["session_ret60"] = _back(60)
-        out["session_ret120"] = _back(120)
-        upto = daily.loc[:closes.index[end]]
-        highs = (upto["High"] if "High" in upto.columns else upto["Close"]).dropna().astype(float).tail(252)
-        if not highs.empty:
-            high = _finite(highs.max())
-            out["session_from_high_pct"] = ((close / high - 1) * 100) if high else None
-        if {"High", "Low", "Close"}.issubset(upto.columns) and len(upto) >= 15:
-            prev = upto["Close"].shift(1).astype(float)
-            high_s, low_s = upto["High"].astype(float), upto["Low"].astype(float)
-            tr = pd.concat([(high_s - low_s), (high_s - prev).abs(), (low_s - prev).abs()],
-                           axis=1).max(axis=1)
-            atr = _finite(tr.tail(14).mean())
-            out["session_atr_pct"] = (atr / close * 100) if atr is not None else None
-    except Exception:
-        pass
-    return out
-
-
 def _last_session_close(closes, last_date, today_ny, now_ny=None) -> float | None:
     """마지막으로 '끝난' 정규장의 **종가** (2026-09-23 상하님 지적).
 
@@ -985,12 +933,24 @@ def _frame_stamp(frame) -> tuple:
 SCORE_ON_SESSION_CLOSE = True
 
 
+_OPEN_MEMO: dict = {"at": -1e9, "value": False}
+
+
 def _regular_open_now() -> bool:
-    """미국 정규장이 지금 열려 있나(달력과 시계 · 통신 없음)."""
+    """미국 정규장이 지금 열려 있나(달력과 시계 · 통신 없음).
+
+    종목 하나 잴 때마다 두 번 불린다. 달력 계산이 한 번 0.23ms 라 첫 클릭(종목 천여 번)에서 쌓이므로
+    **1초 동안은 같은 답**을 쓴다(2026-09-24 실측 — 켜진 직후 상승장 첫 클릭 45초의 한 몫).
+    """
+    now = time.monotonic()
+    if now - _OPEN_MEMO["at"] < 1.0:
+        return _OPEN_MEMO["value"]
     try:
-        return market_phase().get("label") == "정규장 시간"
+        value = market_phase().get("label") == "정규장 시간"
     except Exception:
-        return False
+        value = False
+    _OPEN_MEMO.update({"at": now, "value": value})
+    return value
 
 
 def _series_metrics(daily: pd.DataFrame | None, intraday: pd.DataFrame | None = None) -> dict:
@@ -1020,17 +980,34 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
     closes = daily["Close"].dropna().astype(float)
     if len(closes) < 25:
         return {"ok": False}
-    current = _last_close(intraday) or _last_close(daily)
+
+    def _day_of(stamp) -> "datetime.date":
+        stamp = pd.Timestamp(stamp)
+        return stamp.tz_convert(_NY).date() if stamp.tzinfo is not None else stamp.date()
+
+    today_ny = datetime.now(_NY).date()
+    # **장이 닫혀 있으면 끝난 장 종가로 잰다**(위 SCORE_ON_SESSION_CLOSE · 설명서 2부 기준 10).
+    # 프리마켓에 야후가 미리 넣어 두는 「아직 안 끝난 오늘 줄」은 떼고, 마지막 줄의 종가를 지금 값으로
+    # 쓴다. 그러면 수익률·52주·변동성·거래량이 모두 **한 번의 계산으로** 그 종가 기준이 된다
+    # (2026-09-24 — 따로 한 벌 더 재던 것이 종목마다 1.3ms 를 더 써서 켜진 직후 첫 클릭이 늦었다).
+    closed_mode = bool(SCORE_ON_SESSION_CLOSE) and not _regular_open_now()
+    if closed_mode:
+        if (_day_of(closes.index[-1]) == today_ny
+                and datetime.now(_NY).time() < _session_close_time(today_ny)
+                and len(closes) >= 26):
+            cut = closes.index[-1]
+            daily = daily.loc[daily.index < cut]
+            closes = closes.iloc[:-1]
+        current = _finite(closes.iloc[-1])
+    else:
+        current = _last_close(intraday) or _last_close(daily)
     if current is None:
         return {"ok": False}
 
-    today_ny = datetime.now(_NY).date()
-    last_index = pd.Timestamp(closes.index[-1])
-    if last_index.tzinfo is not None:
-        last_date = last_index.tz_convert(_NY).date()
-    else:
-        last_date = last_index.date()
-    if last_date == today_ny and len(closes) >= 2:
+    last_date = _day_of(closes.index[-1])
+    if closed_mode:
+        prev_close = _finite(closes.iloc[-2])
+    elif last_date == today_ny and len(closes) >= 2:
         prev_close = _finite(closes.iloc[-2])
     else:
         prev_close = _finite(closes.iloc[-1])
@@ -1040,13 +1017,6 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
     # (2026-07-24 실측: 전일 -1.23%인데 화면에 프리마켓 +0.22%가 나왔다).
     last_session_change_pct = _last_session_change(closes, last_date, today_ny)
     last_session_close = _last_session_close(closes, last_date, today_ny)
-    # 장이 닫혀 있으면 점수·수익률·52주·변동성을 모두 **끝난 장 종가**로 잰다(위 SCORE_ON_SESSION_CLOSE).
-    # 등락률도 그 장의 것이 된다 — 전일 종가를 그 종가의 앞날로 맞춘다.
-    if (SCORE_ON_SESSION_CLOSE and last_session_close is not None
-            and not _regular_open_now()):
-        current = last_session_close
-        if last_session_change_pct is not None:
-            prev_close = current / (1 + last_session_change_pct / 100)
 
     ret = lambda days: (current / float(closes.iloc[-min(days + 1, len(closes))]) - 1) * 100
     sma20 = _finite(closes.tail(20).mean())
@@ -1106,7 +1076,7 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
         if atr is not None and current:
             atr_pct = atr / current * 100
 
-    return {
+    result = {
         "ok": True,
         "current": current,
         "prev_close": prev_close,
@@ -1148,9 +1118,12 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
         **_day_prices(daily, last_date == today_ny),
         # 화면에 적을 **정규장 기준** 값 둘 (2026-08-28). 점수에는 안 쓴다.
         **_session_reference(daily),
-        # 장 닫힌 동안 화면이 쓰는 **끝난 장 종가 기준** 수익률들 (2026-09-24 · 위 _session_basis).
-        **_session_basis(daily, closes, last_date, today_ny),
     }
+    # 장 닫힌 동안 화면이 쓰는 **끝난 장 종가 기준** 값(2026-09-24 · 페이지 _shown_numbers).
+    # 장이 닫혀 있으면 위 값들이 이미 그 기준이라 그대로 싣고, 열려 있으면 비워 둔다(화면이 지금 값을 쓴다).
+    for key in ("ret20", "ret60", "ret120", "from_high_pct", "atr_pct"):
+        result["session_" + key] = result.get(key) if closed_mode else None
+    return result
 
 
 def _day_prices(daily: pd.DataFrame, is_today: bool) -> dict:
