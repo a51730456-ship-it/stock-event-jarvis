@@ -3118,16 +3118,26 @@ def _sparkline_svg(payload, up_color: str, down_color: str,
         return pad + inner - (value - low) / span * inner
 
     base_y = _y(base)
-    segments = []
+    # **같은 색이 이어지는 토막은 한 줄로 긋는다** (2026-09-24 상하님 「둘 다 해라」).
+    # 예전에는 점 사이 토막마다 <line> 하나였다 — 그림 하나에 120여 개, 맨 위 지수 열 장이
+    # 172KB 였다(온라인 실측). 느린 폰은 넘길 때마다 이 글자를 다시 읽는다. 점은 하나도
+    # 빼지 않고 자리·색·굵기도 그대로다 — 둥근 이음(round join)이 토막마다 둥근 끝이
+    # 겹쳐 보이던 것과 같은 모양을 낸다. 관심종목 카드 그림이 이미 이렇게 긋는다.
+    runs: list = []
     for index in range(len(points) - 1):
         first, second = points[index], points[index + 1]
         color = up_color if (first + second) / 2 >= base else down_color
-        segments.append(
-            f"<line x1='{index * step:.1f}' y1='{_y(first):.1f}' "
-            f"x2='{(index + 1) * step:.1f}' y2='{_y(second):.1f}' "
-            f"stroke='{color}' stroke-width='1.6' stroke-linecap='round' "
-            f"vector-effect='non-scaling-stroke'/>"
-        )
+        if runs and runs[-1][0] == color:
+            runs[-1][1].append(index + 1)
+        else:
+            runs.append((color, [index, index + 1]))
+    segments = [
+        "<polyline points='"
+        + " ".join(f"{i * step:.1f},{_y(points[i]):.1f}" for i in members)
+        + f"' fill='none' stroke='{color}' stroke-width='1.6' stroke-linecap='round' "
+        f"stroke-linejoin='round' vector-effect='non-scaling-stroke'/>"
+        for color, members in runs
+    ]
     fill = up_color if points[-1] >= base else down_color
     area = f"0,{base_y:.1f} " + " ".join(
         f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points)
@@ -10072,7 +10082,47 @@ def _briefing_asset_uri(filename: str) -> str:
 
 
 def _briefing_logo_uri(ticker: str) -> str:
+    asset = Path(__file__).resolve().parents[1] / "assets" / "briefing" / f"{ticker.upper()}.svg"
+    if asset.is_file():
+        try:
+            served = _briefing_logo_static(ticker.upper(), asset.read_bytes(), ".svg")
+        except Exception:
+            served = ""
+        if served:
+            return served
     return _briefing_asset_uri(f"{ticker.upper()}.svg")
+
+
+# ── 회사 로고는 글자(data:)로 박지 않고 **주소로** 부른다 (2026-09-24 상하님 「둘 다 해라」) ──
+# 실측(온라인 게스트 관심종목) — 로고 58장이 글자로 265KB, 화면 글 상자 853KB 의 31%였다.
+# 느린 폰은 넘길 때마다 이 글자를 다시 읽는다. 로고를 `static/j3logo/` 에 한 번 써 두고
+# `app/static/…` 로 부르면 브라우저가 한 번 받아 기억한다. 온라인에서 이 주소가 그림을
+# 내주는 것을 먼저 확인했다(/~/+/app/static/hero_snow_camp.webp → 200 image/webp).
+# 파일 이름에 내용 도장을 붙여 로고가 바뀌면 주소도 바뀐다. **쓰기가 막히면 빈 값** —
+# 부르는 쪽이 예전처럼 글자로 박는다(로고가 사라지면 안 된다 · CLAUDE.md 0-0).
+_LOGO_STATIC_DIR = Path(__file__).resolve().parents[1] / "static" / "j3logo"
+_LOGO_STATIC_DONE: dict = {}
+
+
+def _briefing_logo_static(name: str, data: bytes, suffix: str) -> str:
+    import hashlib
+
+    if not data:
+        return ""
+    stamp = hashlib.sha1(data).hexdigest()[:10]
+    filename = f"{name}-{stamp}{suffix}"
+    if filename not in _LOGO_STATIC_DONE:
+        target = _LOGO_STATIC_DIR / filename
+        try:
+            if not target.is_file():
+                _LOGO_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+                temporary = target.with_name(filename + ".tmp")
+                temporary.write_bytes(data)
+                temporary.replace(target)
+        except Exception:
+            return ""
+        _LOGO_STATIC_DONE[filename] = True
+    return f"app/static/j3logo/{filename}"
 
 
 # ── 「이 화면인가」 꾸밈 규칙과 새 화면 그리는 시간 (2026-09-23 저녁) ─────────────
@@ -11314,7 +11364,8 @@ def _briefing_logo_face(ticker: str) -> tuple[str, str]:
     if not logo_uri:
         fetched = us_company_logos.get_or_schedule(ticker)
         if fetched:
-            logo_uri = "data:image/webp;base64," + base64.b64encode(fetched).decode("ascii")
+            logo_uri = (_briefing_logo_static(ticker.upper(), fetched, ".webp")
+                        or "data:image/webp;base64," + base64.b64encode(fetched).decode("ascii"))
             logo_kind = " photo"
     if logo_uri:
         return f'<img src="{logo_uri}" alt="{html.escape(ticker)} logo">', logo_kind

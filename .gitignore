@@ -38,3 +38,6 @@ db/jarvis6_close.sqlite3
 
 # 측정용으로 받아 둔 시세 (다시 받으면 되고 용량이 크다)
 research/_data/
+
+# 관심종목 로고를 주소로 부르려고 앱이 돌며 써 두는 그림(2026-09-24) — 올리지 않는다
+static/j3logo/
