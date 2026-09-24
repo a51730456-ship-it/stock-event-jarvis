@@ -2689,17 +2689,22 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
     # **3주(거래일 15일)로 늘렸다** (2026-09-19 상하님 지시 — "3주간으로 늘려라, 위아래
     # 라인 좀 더 좁게. 즉 거래 15일치"). 줄 위아래 여백도 줄였다(.34rem → .2rem).
     key = f"j3_daily_prices_{panel or 'x'}_{str(ticker or 'x').lower()}"
-    # **열면 화면이 표로 내려간다** (2026-09-19 상하님 지시 — "클릭하면 이 화면으로
-    # 스크롤되게"). 보여 주신 화면은 맨 위에 「✕ 3주간 일별 시세 닫기」, 그 밑에 표다.
-    # 자리 표시는 **표와 같은 글 덩이 안**에 찍는다 — 따로 칸을 만들면 그 칸만큼
-    # 틈이 벌어진다(강한 테마 TOP 5 자리 표시와 같은 까닭). 단추가 표 바로 위에
-    # 보이도록 그 높이만큼 띄워 세운다(.j3dp-anchor). 못 찾으면 그 자리에 머문다.
-    if not _section_toggle(
-        "📅 3주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
-        close_label="3주간 일별 시세 닫기",
-        on_open=lambda: scroll_to.request(st, key),
-    ):
-        return
+    # **누르면 창으로 튀어 오른다** (2026-09-24 상하님 지시 — "3주간 일별 시세 이것도 클릭하면
+    # 관심종목에서 종목 클릭하면 화면이 동일하게, 즉 파트별 성적표의 매수심사결과 높은 순위 9
+    # 클릭하면 튀어나오게 하는 화면처럼 움직이게"). 예전에는 누르면 서버를 돌아 그 자리 밑에
+    # 표가 펴지고 화면이 표로 내려갔다(2026-09-19).
+    #
+    # **처음 한 번만 서버에 묻는다.** 표는 그 종목의 6개월 일봉·1분봉으로 만드는데, 처음 보는
+    # 종목이면 받는 데 2초 안팎이 든다(노트북 실측 1.9~2.3초). 늘 미리 만들면 종목을 누를
+    # 때마다 그만큼 늦어진다. 그래서 첫 누름은 예전처럼 서버 단추 → 표를 만들어 **곧바로 창을
+    # 띄우고**, 그 뒤로는 차트 큰 창·순위 9 창과 같은 숨은 스위치로 여닫는다(서버에 안 묻는다).
+    if not st.session_state.get(key):
+        st.session_state.pop(key + "_shown", None)     # 다시 누르면 곧바로 뜨게
+        _section_toggle(
+            "📅 3주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
+        )
+        if not st.session_state.get(key):
+            return
     rows = []
     try:
         rows = j3data.daily_price_rows(ticker, days=15, fill_last_session=True) or []
@@ -2726,6 +2731,14 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
             f"<td style='color:{tone}'>{arrow} {abs(diff):,.2f}</td>"
             f"<td style='color:{tone};font-weight:800'>{pct_text}</td></tr>"
         )
+    # 막 누른 판에서만 창을 **열린 채로** 보낸다 — 그 뒤 판은 닫힌 채로 보내 화면이 다시
+    # 그려질 때 창이 저절로 떠오르지 않게 한다. 다시 여닫는 것은 숨은 스위치가 한다.
+    shown_key = key + "_shown"
+    pop_now = not st.session_state.get(shown_key)
+    st.session_state[shown_key] = True
+    tap_id = "j3dp-" + re.sub(r"[^A-Za-z0-9]", "_", key)
+    table = (f"<table class='j3dp'><thead><tr><th>날짜</th><th>종가</th>"
+             f"<th>전일대비</th><th>등락률</th></tr></thead><tbody>{''.join(body)}</tbody></table>")
     st.markdown(
         "<style>"
         ".j3dp{width:100%;border-collapse:collapse;font-size:.93rem;margin:.2rem 0 .4rem;"
@@ -2737,15 +2750,54 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
         "border-bottom:1px solid rgba(255,255,255,.06)}"
         ".j3dp .j3dp-d{text-align:left;color:#9aa0aa;font-weight:700}"
         ".j3dp .j3dp-c{font-weight:800;color:#e6e6e6}"
-        ".jarvis-anchor.j3dp-anchor{scroll-margin-top:66px}"
+        # 여는 칸 — 서버 단추(btn_j3_daily_prices_)와 같은 연한 무지개 · 같은 크기
+        "label.j3dp-open{display:flex;align-items:center;justify-content:center;width:100%;"
+        "box-sizing:border-box;min-height:2.5rem;padding:.35rem .75rem;border-radius:.5rem;"
+        "border:1px solid rgba(255,255,255,.22);cursor:pointer;color:#fff;font-weight:700;"
+        "background:linear-gradient(90deg,rgba(255,107,107,.36) 0%,rgba(255,183,77,.36) 25%,"
+        "rgba(129,199,132,.36) 50%,rgba(79,172,254,.36) 75%,rgba(186,148,250,.36) 100%)}"
+        # 창 — 차트 큰 창(.j3cz-pop)과 같은 모양·움직임. 표 15줄이 다 들도록 높이는 내용만큼
+        # (세로 화면의 「절반 높이」 규칙은 차트용이라 여기서는 푼다).
+        ".j3cz-pop.j3dp-pop{height:auto;max-height:calc(100dvh - 16px);overflow-y:auto}"
+        ".j3dp-tap:checked ~ .j3dp-scrim{opacity:1;visibility:visible;transition:opacity .3s ease,visibility 0s}"
+        ".j3dp-tap:checked ~ .j3dp-pop{opacity:1;visibility:visible;pointer-events:auto;"
+        "transform:translate(-50%,-50%) scale(1);"
+        "transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,visibility 0s;"
+        # 처음부터 켜진 채로 그려지는 판에는 옮겨 가는 움직임(transition)이 안 먹는다 —
+        # 그래서 켜질 때마다 한 번 도는 움직임(animation)으로 튀어 오르게 한다.
+        "animation:j3dp-in .9s cubic-bezier(.34,1.56,.64,1)}"
+        "@keyframes j3dp-in{from{opacity:0;transform:translate(-50%,-50%) scale(.55)}"
+        "to{opacity:1;transform:translate(-50%,-50%) scale(1)}}"
+        "@media (prefers-reduced-motion: reduce){.j3dp-tap:checked ~ .j3dp-pop{animation:none}}"
         "</style>"
-        f"<div id='{scroll_to.anchor_id(key)}' class='jarvis-anchor j3dp-anchor'></div>"
-        f"<table class='j3dp'><thead><tr><th>날짜</th><th>종가</th>"
-        f"<th>전일대비</th><th>등락률</th></tr></thead><tbody>{''.join(body)}</tbody></table>",
+        f"<div class='j3dpz'><input type='checkbox' id='{tap_id}' class='j3cz-tap j3dp-tap'>"
+        f"<label for='{tap_id}' class='j3dp-open'>📅 3주간 일별 시세 보기</label>"
+        f"<label for='{tap_id}' class='j3cz-scrim j3dp-scrim' aria-hidden='true'></label>"
+        f"<label for='{tap_id}' class='j3cz-pop j3dp-pop'>"
+        f"<span class='j3cz-name'>{html.escape(str(ticker or ''))} · 3주간 일별 시세</span>"
+        f"{table}"
+        "<span class='j3cz-when'>거래일 15일치 · 최근 날이 맨 위</span>"
+        "<span class='j3cz-close'>다시 누르면 닫힘</span></label></div>",
         unsafe_allow_html=True,
     )
-    st.caption("거래일 15일치입니다. 최근 날이 맨 위입니다.")
-    _section_close(key, "3주간 일별 시세 닫기")
+    # **막 누른 판에서만 스위치를 한 번 켠다.** 켜진 채로(checked) 그려 보내면 스트림릿이
+    # 그 칸을 「켜짐 고정」으로 붙잡아 눌러도 안 닫혔다(2026-09-24 노트북 실측). 꺼진 채로
+    # 그리고 여기서 켜면 차트 큰 창과 똑같이 튀어 오르고, 누르면 닫힌다.
+    if pop_now:
+        try:
+            import json as _json
+            import streamlit.components.v1 as components
+
+            components.html(
+                "<script>(function(){var n=0;function go(){var t=null;"
+                "try{t=window.parent.document.getElementById(" + _json.dumps(tap_id) + ");}"
+                "catch(e){return;}"
+                "if(t){if(!t.checked){t.click();}return;}"
+                "if(n++<40){setTimeout(go,50);}}go();})();</script>",
+                height=0,
+            )
+        except Exception:
+            pass
 
 
 # 일봉·주봉·월봉 셋의 높이. 상하님이 보여 준 지수 카드의 작은 그림(124×117)에
