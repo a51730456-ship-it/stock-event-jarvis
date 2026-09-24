@@ -1780,7 +1780,7 @@ if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_
 # 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
 # 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
 # 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
-_REQUIRED_J3_REVISION = 2026092420
+_REQUIRED_J3_REVISION = 2026092430
 if (
     not hasattr(j3data, "get_fear_greed")
     # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
@@ -1988,6 +1988,36 @@ _THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_
 _THEME_REST_WIDTHS = _THEME_COL_WIDTHS[2:]
 
 
+def _regular_open() -> bool:
+    """미국 정규장이 지금 열려 있나(달력과 시계만 본다 · 통신 없음)."""
+    try:
+        return j3data.market_phase().get("label") == "정규장 시간"
+    except Exception:
+        return False
+
+
+def _shown_numbers(metrics: dict) -> dict:
+    """화면 칸에 적을 **한 벌의 값** — 가격·등락률·20일·6개월 수익률·52주 고가 대비·변동성.
+
+    2026-09-24 상하님 — *"자비스3 미국테마 전체에 대해 현재가·수익률 20일·6개월 수익·6개월
+    시장대비 … 전반적으로 각 파트별로 확인해 봐라. 뭐가 이렇게 계속 틀어지고 안 맞냐."*
+
+    까닭은 셋이었다. ① 목록의 가격 칸은 장이 닫혀 있으면 정규장 종가인데 수익률 칸은 시간외
+    체결가로 쟀다. ② 상승장 표의 수익률만 일봉 종가로 쟀다. ③ 세부사항은 같은 종목을 따로 다시
+    받아 쟀다. 이제 **모든 칸이 이 함수 하나**를 쓴다 — 장이 열려 있으면 지금 값, 닫혀 있으면
+    마지막 정규장 종가 기준(jarvis3_data._session_basis). 목록 줄과 세부사항은 **같은 metrics** 를
+    넘겨 받으므로 숫자가 갈릴 수 없다. **점수는 안 바뀐다** — 점수는 여태대로 계산한 값을 쓴다.
+    """
+    metrics = metrics or {}
+    price, change = _list_price_change(metrics)
+    shown = {"price": price, "change": change}
+    live_now = _regular_open()
+    for key in ("ret20", "ret120", "from_high_pct", "atr_pct"):
+        live, session = metrics.get(key), metrics.get("session_" + key)
+        shown[key] = live if (live_now or session is None) else session
+    return shown
+
+
 def _list_price_change(metrics: dict) -> tuple:
     """목록 표에 적을 **(가격, 등락률)** — 세부사항·당일 그림과 같은 정규장 기준.
 
@@ -2009,11 +2039,7 @@ def _list_price_change(metrics: dict) -> tuple:
     +0.00%** 였다(18:23 캡처 — CRSP $58.33 +0.00% 등).
     """
     price, change = metrics.get("current"), metrics.get("change_pct")
-    try:
-        regular_open = j3data.market_phase().get("label") == "정규장 시간"
-    except Exception:
-        regular_open = False
-    if not regular_open:
+    if not _regular_open():
         session_close = metrics.get("last_session_close")
         session_change = metrics.get("last_session_change_pct")
         if session_close is not None:
@@ -2115,14 +2141,17 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
             return rank_cell, _flex_row(_THEME_REST_WIDTHS, [etf] + ["자료 부족"] * 7, muted_from=1)
         score = float(row.get("score") or 0)
         strong_share = row.get("strong_members")
-        change, strength120 = row.get("change_pct"), row.get("strength_120")
+        # 당일·20일·6개월은 종목 표들과 **같은 규칙**(_shown_numbers)으로 적는다(2026-09-24) —
+        # 장이 닫혀 있으면 테마 ETF 의 마지막 정규장 종가 기준. 예전에는 시간외 가격으로 쟀다.
+        theme_shown = _shown_numbers(row)
+        change, strength120 = theme_shown["change"], row.get("strength_120")
         strength_text = "—" if strength120 is None else f"{float(strength120):+.1f}%p"
         # 6개월 **절대** 수익률 (2026-09-05 상하님 지시). 「시장대비」는 나스닥을
         # 뺀 값이라 이 테마가 실제로 몇 % 올랐는지가 안 보였다. 둘을 나란히 둔다.
-        ret120 = row.get("ret120")
+        ret120 = theme_shown["ret120"]
         ret120_text = "—" if ret120 is None else f"{float(ret120):+.1f}%"
         # 20일 수익률 (2026-09-07 상하님 지시). 최근 한 달 이 테마가 몇 % 움직였나.
-        ret20 = row.get("ret20")
+        ret20 = theme_shown["ret20"]
         ret20_text = "—" if ret20 is None else f"{float(ret20):+.1f}%"
         strong_cell = "—" if strong_share is None else (
             "<div class='j3-barwrap'><div class='j3-bar'>"
@@ -2370,7 +2399,8 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
         # 당일주가 — **가격 위 · 등락 아래** (2026-09-24 상하님 — "22개 테마에서 각 테마 클릭하면
         # 종목에서 당일에 주가 없이 퍼센티지만 나온다. 다른 파트 참고하고 일관성을 유지해라").
         # 상승장·급락·눌림목 표와 같은 모양·같은 값(세부사항과 같은 정규장 기준)이다.
-        leader_price, leader_change = _list_price_change(metrics)
+        leader_shown = _shown_numbers(metrics)
+        leader_price, leader_change = leader_shown["price"], leader_shown["change"]
         price_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             " line-height:1.12; font-weight:800; color:#e6e6e6'>"
@@ -2389,8 +2419,9 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
                 *(
                     f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
                     # 6개월 수익률을 20일 옆에 둔다(2026-09-07 상하님 지시).
-                    for value in (metrics.get("from_high_pct"),
-                                  metrics.get("ret20"), metrics.get("ret120"))
+                    # 52주·20일·6개월도 가격 칸과 같은 기준이다(2026-09-24 · _shown_numbers).
+                    for value in (leader_shown["from_high_pct"],
+                                  leader_shown["ret20"], leader_shown["ret120"])
                 ),
                 str(plan.get("state", "")),
             ]),
@@ -3673,11 +3704,22 @@ def _session_price_change(ticker, fallback_price, fallback_change):
 # 「1분 자동 갱신」이라고 적어 두었다. 위 시장판단 줄도 5분이라 주기가 맞는다.
 @st.fragment(run_every=300)
 def _render_selected_live_quote(stock_score=None, entry_state=None, *,
-                                general_theme=False, panel: str = "") -> None:
-    ticker = st.session_state.get("j3_selected_ticker")
+                                general_theme=False, panel: str = "", ticker=None,
+                                metrics=None) -> None:
+    # **그리는 종목을 받아서 쓴다** (2026-09-24 상하님 캡처 — 순위 9 에서 CrowdStrike 를 눌렀는데
+    # 세부사항 칸에 NET 의 가격·수익률이 나왔다). 예전에는 「22개 테마 안에서 마지막으로 고른
+    # 종목」(j3_selected_ticker)을 읽었는데, 그 값은 테마 상세에서만 적혀서 순위 9·검색·날짜별
+    # 목록 상세에서는 **전에 테마에서 본 종목**이 그대로 나왔다. 아래 관심종목 넣기 단추도 같았다.
+    ticker = ticker or st.session_state.get("j3_selected_ticker")
     if not ticker:
         return
-    quote = j3data.get_live_quote(ticker)
+    # **장이 닫혀 있으면 목록 줄과 같은 값(metrics)을 그대로 쓴다** (2026-09-24 상하님 — 목록
+    # $262.50 · 세부사항 $261.31). 따로 다시 받아 재면 받은 때·받은 묶음이 달라 숫자가 갈렸다.
+    # 장이 열려 있을 때만 5분마다 새로 받는다(값이 움직이는 때다).
+    if metrics and metrics.get("ok", True) and not _regular_open():
+        quote = {"ok": True, **metrics}
+    else:
+        quote = j3data.get_live_quote(ticker)
     st.session_state["j3_selected_live_quote"] = quote
     if not quote.get("ok"):
         st.warning(f"{ticker} 실시간 시세 갱신 실패: {_safe_error_text(quote.get('error'))}")
@@ -3697,23 +3739,24 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *,
     # **가격·등락률은 당일 그림과 같은 정규장 기준이다** (2026-09-19 상하님 — "퍼센티지
     # 제대로 된 것 맞냐? 당일 차트와도 안 맞는데?"). 시간외 체결가를 적고 있었다
     # (j3data.session_quote 설명). 못 구하면 예전 값을 그대로 적는다.
-    shown_price, shown_change = _session_price_change(
-        ticker, quote.get('current'), quote.get('change_pct'))
+    # 가격·등락률·52주·20일·6개월·변동성 모두 목록과 **같은 규칙**(_shown_numbers)이다.
+    shown = _shown_numbers(quote)
+    shown_price, shown_change = shown["price"], shown["change"]
     change_sub = f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>{_pct(shown_change)}</div>"
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>최근가</div>"
         f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>{change_sub}</div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
-        f"<div class='j3-mc-val {_sign_class(quote.get('from_high_pct'))}'>{_pct(quote.get('from_high_pct'))}</div></div>",
+        f"<div class='j3-mc-val {_sign_class(shown['from_high_pct'])}'>{_pct(shown['from_high_pct'])}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
-        f"<div class='j3-mc-val {_sign_class(quote.get('ret20'))}'>{_pct(quote.get('ret20'))}</div></div>",
+        f"<div class='j3-mc-val {_sign_class(shown['ret20'])}'>{_pct(shown['ret20'])}</div></div>",
         # 6개월 수익률 (2026-09-05 상하님 지시). 「이 종목이 여섯 달 동안 실제로
         # 몇 % 올랐나」다. 상승장 통과조건은 나스닥 대비 **등수**라 그 숫자만
         # 봐서는 얼마나 올랐는지 알 수 없었다. **점수에는 안 쓴다.**
         f"<div class='j3-mc'><div class='j3-mc-label'>6개월 수익률</div>"
-        f"<div class='j3-mc-val {_sign_class(quote.get('ret120'))}'>{_pct(quote.get('ret120'))}</div></div>",
+        f"<div class='j3-mc-val {_sign_class(shown['ret120'])}'>{_pct(shown['ret120'])}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
-        f"<div class='j3-mc-val {_sign_class(quote.get('atr_pct'))}'>{_pct(quote.get('atr_pct'))}</div></div>",
+        f"<div class='j3-mc-val {_sign_class(shown['atr_pct'])}'>{_pct(shown['atr_pct'])}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>{'일반 테마 최종점수' if general_theme else '종목 조건점수'}</div>"
         f"<div class='j3-mc-val j3-green'>{score_val}</div>{state_sub}</div>",
     ]
@@ -3965,7 +4008,8 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
         # 한 줄에 하나가 되고, 알테어 그림이 종목마다 셋씩(모두 아홉) 만들어졌다.
         # 이제 글은 한 덩이, 그림은 CSS 격자 한 판이다.
         with st.container(border=True):
-            live_price, change_pct = _list_price_change(metrics)   # 정규장 기준(2026-09-23)
+            cmp_shown = _shown_numbers(metrics)       # 목록·세부사항과 같은 값(2026-09-24)
+            live_price, change_pct = cmp_shown["price"], cmp_shown["change"]
             st.markdown(
                 f"<div class='j3-leader-name'>{medal_html}{rank}위 · {leader['name']} "
                 f"<span class='j3-muted'>{html.escape(str(leader['ticker']))}</span></div>"
@@ -3975,7 +4019,7 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                 "<div class='j3-leader-score-label'>종목 조건점수</div>"
                 f"<div class='j3-leader-score'>{float(leader['score']):.1f}</div>"
                 f"<div class='j3-leader-state'>{plan.get('state')}</div>"
-                f"<div class='j3-chart-when'>52주 고가 대비 {_pct(metrics.get('from_high_pct'))}</div>",
+                f"<div class='j3-chart-when'>52주 고가 대비 {_pct(cmp_shown['from_high_pct'])}</div>",
                 unsafe_allow_html=True,
             )
             boxes = []
@@ -4093,7 +4137,7 @@ def _render_stock_detail(
     )
     _render_selected_live_quote(
         leader.get("score"), plan.get("state"), general_theme=is_general_score,
-        panel=panel,
+        panel=panel, ticker=ticker, metrics=metrics,
     )
 
     if is_general_score:
@@ -4320,7 +4364,9 @@ def _render_stock_detail(
                 f"가격자리: {price_state} · 결론: {conclusion}"
             )
             plan_cells = [
-                ("현재가", _price(metrics.get("current")), "#e6e6e6"),
+                # 목록 표·세부사항 가격 칸과 **같은 값**(장이 닫혀 있으면 정규장 종가)이다
+                # (2026-09-24 상하님 캡처 — 목록 $262.50 · 이 칸 $261.31(시간외 체결가)).
+                ("현재가", _price(_list_price_change(metrics)[0]), "#e6e6e6"),
                 ("가격자리", price_state, "#e6e6e6"),
                 ("매수 계획 취소 참고가격", _price(plan.get("invalidation")), "#ff5b5b"),
                 ("수익 목표 참고가격", _price(plan.get("target")), "#44f0a1"),
@@ -5583,7 +5629,8 @@ def _render_buy_form(
             unsafe_allow_html=True,
         )
         _render_selected_live_quote(leader.get("score"), plan.get("state"),
-                                    panel=f"buy_{panel}")
+                                    panel=f"buy_{panel}", ticker=ticker,
+                                    metrics=leader.get("metrics"))
         _render_buy_form_fields(theme_row, leader, market, panel=panel)
 
 
@@ -6735,7 +6782,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     ret_titles = ["20일 수익률", "6개월 수익률", "6개월 시장대비"]
     # **「6개월 시장대비」는 나스닥이 아니라 SPY 를 뺀 값이다** — 21개 테마 표의
     # 같은 이름 칸과 같은 자다(jarvis3_data 의 테마 강도도 SPY 로 뺀다).
-    spy_ret120 = ((market.get("rows") or {}).get("SPY") or {}).get("ret120")
+    # 시장대비의 기준(SPY)도 종목과 **같은 규칙**으로 잰다(2026-09-24 · _shown_numbers).
+    spy_ret120 = _shown_numbers((market.get("rows") or {}).get("SPY") or {})["ret120"]
     box = st.container(key="j3_top7_table")
     for column, title in zip(box.columns(widths), titles):
         if title is None:
@@ -6782,7 +6830,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         state_cells.append(f"<div class='j3-td'>{plan.get('state', '—')}</div>")
         # **현재가 밑에 당일 등락률**(2026-09-23 상하님 지시). 값은 세부사항·상승장
         # 표와 같은 정규장 기준이다(_list_price_change).
-        top_price, top_change = _list_price_change(row["metrics"])
+        top_shown = _shown_numbers(row["metrics"])
+        top_price, top_change = top_shown["price"], top_shown["change"]
         price_cells.append(
             "<div class='j3-td' style='font-weight:700'>"
             "<span style='display:inline-flex; flex-direction:column;"
@@ -6792,8 +6841,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             f" font-size:.82rem'>{_pct(top_change)}</span></span></div>"
         )
         # 20일 · 6개월 · 6개월 시장대비 — 셋 다 **보여주기만** 한다(점수에 안 쓴다).
-        stock_ret20 = row["metrics"].get("ret20")
-        stock_ret120 = row["metrics"].get("ret120")
+        stock_ret20 = top_shown["ret20"]
+        stock_ret120 = top_shown["ret120"]
         versus = (float(stock_ret120) - float(spy_ret120)
                   if stock_ret120 is not None and spy_ret120 is not None else None)
         ret_cells.append(_flex_row(_TOP7_RET_WIDTHS, [
@@ -7259,26 +7308,28 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     # 맞춰 줘야지"). 아래 상승장 칸도 같다.
     # 가격·등락률은 당일 그림과 같은 정규장 기준이다(2026-09-19 — 위 최근가 칸과 같다).
     # 목록을 만들 때 잰 값(metrics)은 점수에 쓰이므로 그대로 두고, 칸에 적는 것만 바꾼다.
-    shown_price, shown_change = _session_price_change(
-        ticker, metrics.get('current'), metrics.get('change_pct'))
+    # 가격·등락률·52주·20일·6개월·변동성 모두 목록 줄과 **같은 값·같은 규칙**이다
+    # (2026-09-24 · _shown_numbers). 예전에는 가격만 따로 받은 분봉으로 재서 목록과 갈렸다.
+    pb_shown = _shown_numbers(metrics)
+    shown_price, shown_change = pb_shown["price"], pb_shown["change"]
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
         f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>"
         f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>"
         f"{_pct(shown_change)}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
-        f"<div class='j3-mc-val {_sign_class(metrics.get('from_high_pct'))}'>"
-        f"{_pct(metrics.get('from_high_pct'))}</div>"
+        f"<div class='j3-mc-val {_sign_class(pb_shown['from_high_pct'])}'>"
+        f"{_pct(pb_shown['from_high_pct'])}</div>"
         f"<div class='j3-mc-sub j3-muted'>{int(quality.get('high52_days_ago') or 0)}일 전 신고가</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
-        f"<div class='j3-mc-val {_sign_class(metrics.get('ret20'))}'>"
-        f"{_pct(metrics.get('ret20'))}</div></div>",
+        f"<div class='j3-mc-val {_sign_class(pb_shown['ret20'])}'>"
+        f"{_pct(pb_shown['ret20'])}</div></div>",
         # 6개월 수익률 (2026-09-05 상하님 지시). 점수에는 안 쓰고 보여만 준다.
         f"<div class='j3-mc'><div class='j3-mc-label'>6개월 수익률</div>"
-        f"<div class='j3-mc-val {_sign_class(metrics.get('ret120'))}'>"
-        f"{_pct(metrics.get('ret120'))}</div></div>",
+        f"<div class='j3-mc-val {_sign_class(pb_shown['ret120'])}'>"
+        f"{_pct(pb_shown['ret120'])}</div></div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
-        f"<div class='j3-mc-val j3-up'>{_pct(metrics.get('atr_pct'))}</div></div>",
+        f"<div class='j3-mc-val j3-up'>{_pct(pb_shown['atr_pct'])}</div></div>",
         # 금액만 보여주면 알 수가 없다는 지적(2026-08-06). 큰 회사는 늘 크기 때문이다.
         # **얼마나 늘었나**로 바꾼다. 미국은 외국인·기관 수급을 종가 뒤에도 공개하지
         # 않으므로(한국만 있는 제도), 돈이 몰리는지 볼 수 있는 값은 이것뿐이다.
@@ -8144,14 +8195,19 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             theme_text = str(row.get("theme_id") or "자료부족")
             # 6개월 **절대** 수익률 (2026-09-05 상하님 지시). 통과조건은 여태대로
             # 나스닥 대비 등수라, 이 종목이 실제로 몇 % 올랐는지가 안 보였다.
-            ret120 = row.get("ret120")
+            # 20일·6개월은 다른 표·세부사항과 **같은 규칙**으로 잰 값을 적는다(2026-09-24 ·
+            # _shown_numbers). 예전에는 상승장 선별이 따로 잰 값(일봉 종가)이라, 장 닫힌 동안
+            # 다른 파트(시간외 가격 기준)와 같은 종목이 다른 수익률로 나왔다. 선별이 잰 값은
+            # 줄에 metrics 가 없을 때만 쓴다. **통과·점수에는 원래 안 쓰던 값이다.**
+            swing_metrics = row.get("metrics") or {}
+            swing_shown = _shown_numbers(swing_metrics) if swing_metrics else {}
+            ret120 = swing_shown.get("ret120") if swing_shown.get("ret120") is not None else row.get("ret120")
             ret120_text = "—" if ret120 is None else f"{float(ret120):+.1f}%"
             # 20일 수익률 (2026-09-07 상하님 지시).
-            ret20 = row.get("ret20")
+            ret20 = swing_shown.get("ret20") if swing_shown.get("ret20") is not None else row.get("ret20")
             ret20_text = "—" if ret20 is None else f"{float(ret20):+.1f}%"
             # 당일주가 — 급락 표와 **같은 모양**이다(가격 위, 등락 아래).
             # 값도 같은 자리에서 온다(row["metrics"]) — 두 표가 어긋나지 않는다.
-            swing_metrics = row.get("metrics") or {}
             swing_price, swing_change = _list_price_change(swing_metrics)
             price_cell = (
                 "<span style='display:inline-flex; flex-direction:column; align-items:center;"
@@ -8534,7 +8590,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 「6개월 시장대비」 = 그 종목 6개월 수익률 − SPY 6개월 수익률(%p). 21개 테마 표의
     # 같은 이름 칸과 같은 자다. **점수에는 안 쓴다** — 보여주기만 한다.
     show_returns = not breakout
-    spy_ret120 = ((market.get("rows") or {}).get("SPY") or {}).get("ret120")
+    # 시장대비의 기준(SPY)도 종목과 **같은 규칙**으로 잰다(2026-09-24 · _shown_numbers).
+    spy_ret120 = _shown_numbers((market.get("rows") or {}).get("SPY") or {})["ret120"]
     if show_returns:
         widths = widths[:4] + [1.0, 1.0, 1.15] + widths[4:]
     # 점수는 순위 **다음 칸**에 따로 둔다(2026-08-06 사용자 지시). 순위 칸에 같이
@@ -8647,7 +8704,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "{ background: rgba(192,132,252,.16) !important; "
                 "border-left: 3px solid #c084fc !important; }"
             )
-        crash_price, crash_change = _list_price_change(metrics)
+        crash_shown = _shown_numbers(metrics)
+        crash_price, crash_change = crash_shown["price"], crash_shown["change"]
         price_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             " line-height:1.12; font-weight:800; color:#e6e6e6'>"
@@ -8657,8 +8715,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         )
         # 수익률 셋 — 이미 잰 값에서 꺼낸다(새로 받는 자료 없음).
         if show_returns:
-            row_ret20 = metrics.get("ret20")
-            row_ret120 = metrics.get("ret120")
+            row_ret20 = crash_shown["ret20"]
+            row_ret120 = crash_shown["ret120"]
             row_versus = (float(row_ret120) - float(spy_ret120)
                           if row_ret120 is not None and spy_ret120 is not None else None)
             return_cells = [
@@ -9123,7 +9181,10 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
         avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
         # 당일주가 — 가격과 등락을 두 줄로 쌓는다. 한 줄이면 좁은 화면에서 폭이 넘쳐
         # 옆 칸 값과 겹쳤다(2026-07-25). 등락은 미국장 색 규칙(+파랑 −빨강)이다.
-        pull_price, pull_change = _list_price_change(row['metrics'])
+        pull_shown = _shown_numbers(row['metrics'])
+        pull_price, pull_change = pull_shown["price"], pull_shown["change"]
+        # 52주 고가 대비도 가격 칸과 **같은 기준**이다(2026-09-24 · _shown_numbers).
+        from_high = pull_shown["from_high_pct"] if pull_shown["from_high_pct"] is not None else from_high
         price_cell = (
             "<span style='display:inline-flex; flex-direction:column; align-items:center;"
             " line-height:1.12; font-weight:800; color:#e6e6e6'>"

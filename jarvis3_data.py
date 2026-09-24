@@ -248,7 +248,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092420
+MODULE_REVISION = 2026092430
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
@@ -850,6 +850,58 @@ def _session_close_time(day) -> dt_time:
         return dt_time(16, 0)
 
 
+def _session_basis(daily, closes, last_date, today_ny, now_ny=None) -> dict:
+    """**마지막으로 끝난 정규장 종가**로 잰 20일·60일·6개월 수익률·52주 고가 대비·변동성.
+
+    2026-09-24 상하님 — *"자비스3 미국테마 전체에 대해 현재가·수익률 20일·6개월 수익·6개월
+    시장대비 등등 … 뭐가 이렇게 계속 틀어지고 안 맞고 그러냐."*
+
+    `ret20`·`ret120`·`from_high_pct`·`atr_pct` 는 **지금 값**(`current` — 1분봉을 시간외까지 받은
+    마지막 체결가)으로 잰다. 그런데 목록의 「당일주가」는 장이 닫혀 있으면 정규장 종가를 적어
+    (`last_session_close`), 한 줄 안에서 가격 칸과 수익률 칸이 서로 다른 값을 기준으로 삼았다.
+    상승장 표의 20일·6개월은 또 일봉 종가로 잰 값이라 파트끼리도 어긋났다.
+    이 값들은 `last_session_close` 와 **같은 줄**(끝난 장)을 기준으로 잰다. 화면이 장 닫힌 동안
+    쓴다. **점수·배점에는 안 쓴다** — 점수는 여태대로 `ret20` 등을 쓴다.
+    """
+    out = {"session_ret20": None, "session_ret60": None, "session_ret120": None,
+           "session_from_high_pct": None, "session_atr_pct": None}
+    try:
+        now_ny = now_ny or datetime.now(_NY)
+        finished = last_date < today_ny or now_ny.time() >= _session_close_time(today_ny)
+        end = len(closes) - (1 if finished else 2)
+        if end < 0:
+            return out
+        close = _finite(closes.iloc[end])
+        if not close:
+            return out
+
+        def _back(days):
+            start = end - days
+            if start < 0:
+                return None
+            base = _finite(closes.iloc[start])
+            return (close / base - 1) * 100 if base else None
+
+        out["session_ret20"] = _back(20)
+        out["session_ret60"] = _back(60)
+        out["session_ret120"] = _back(120)
+        upto = daily.loc[:closes.index[end]]
+        highs = (upto["High"] if "High" in upto.columns else upto["Close"]).dropna().astype(float).tail(252)
+        if not highs.empty:
+            high = _finite(highs.max())
+            out["session_from_high_pct"] = ((close / high - 1) * 100) if high else None
+        if {"High", "Low", "Close"}.issubset(upto.columns) and len(upto) >= 15:
+            prev = upto["Close"].shift(1).astype(float)
+            high_s, low_s = upto["High"].astype(float), upto["Low"].astype(float)
+            tr = pd.concat([(high_s - low_s), (high_s - prev).abs(), (low_s - prev).abs()],
+                           axis=1).max(axis=1)
+            atr = _finite(tr.tail(14).mean())
+            out["session_atr_pct"] = (atr / close * 100) if atr is not None else None
+    except Exception:
+        pass
+    return out
+
+
 def _last_session_close(closes, last_date, today_ny, now_ny=None) -> float | None:
     """마지막으로 '끝난' 정규장의 **종가** (2026-09-23 상하님 지적).
 
@@ -1071,6 +1123,8 @@ def _series_metrics_uncached(daily: pd.DataFrame | None, intraday: pd.DataFrame 
         **_day_prices(daily, last_date == today_ny),
         # 화면에 적을 **정규장 기준** 값 둘 (2026-08-28). 점수에는 안 쓴다.
         **_session_reference(daily),
+        # 장 닫힌 동안 화면이 쓰는 **끝난 장 종가 기준** 수익률들 (2026-09-24 · 위 _session_basis).
+        **_session_basis(daily, closes, last_date, today_ny),
     }
 
 
@@ -1938,6 +1992,12 @@ def _compute_theme_rankings() -> dict:
             "ret120": metrics.get("ret120"),
             # 20일 수익률도 같이 담는다 (2026-09-07 상하님 지시). 점수에는 안 쓴다.
             "ret20": metrics.get("ret20"),
+            # 장 닫힌 동안 화면이 쓰는 값(끝난 장 종가 기준 · 2026-09-24). 점수에는 안 쓴다.
+            "current": metrics.get("current"),
+            "last_session_close": metrics.get("last_session_close"),
+            "last_session_change_pct": metrics.get("last_session_change_pct"),
+            "session_ret20": metrics.get("session_ret20"),
+            "session_ret120": metrics.get("session_ret120"),
             "strong_members": strong_member_share,
             "strength_change": strength_change,
             "member_count": len(strong_flags),

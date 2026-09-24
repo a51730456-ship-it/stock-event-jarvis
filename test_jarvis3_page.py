@@ -410,13 +410,12 @@ class Jarvis3PageTests(unittest.TestCase):
         current = block.index("현재가")
         nxt = block.index("최근 3개월 등수")
         cell = block[current:nxt]
-        # 2026-09-19부터 칸에 적는 값은 당일 그림과 같은 정규장 기준(shown_change)이다.
-        # 못 구하면 metrics 의 change_pct 로 돌아간다(_session_price_change).
+        # 2026-09-19부터 칸에 적는 값은 정규장 기준(shown_change)이다. 2026-09-24부터는 목록 줄과
+        # **같은 값**을 쓴다(_shown_numbers — 목록 $262.50 · 세부사항 $261.31 이 갈리던 것).
         self.assertIn("shown_change", cell,
                       "상승장 현재가 칸에 당일 등락률이 없다")
-        self.assertIn("ticker, metrics.get('current'), metrics.get('change_pct'))",
-                      source[head - 3000:head],
-                      "정규장 값을 못 구할 때 돌아갈 등락률이 없다")
+        self.assertIn("pb_shown = _shown_numbers(metrics)", source[head - 3000:head],
+                      "세부사항 칸이 목록 줄과 다른 값을 쓴다")
         self.assertIn("_sign_class", cell,
                       "당일 등락률에 오름·내림 색이 없다")
 
@@ -3236,6 +3235,7 @@ def test_list_price_uses_the_last_regular_session_unless_the_market_is_open():
     source = PAGE.read_text(encoding="utf-8")
     tree = ast.parse(source)
     node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_list_price_change")
+    helper = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_regular_open")
     metrics = {"current": 58.33, "change_pct": 0.0, "last_session_close": 58.33, "last_session_change_pct": 3.13}
     for label, want in (("프리마켓", 3.13), ("정규장 전", 3.13), ("정규장 시간", 0.0),
                         ("애프터마켓", 3.13), ("장 마감", 3.13), ("주말 휴장", 3.13)):
@@ -3244,7 +3244,7 @@ def test_list_price_uses_the_last_regular_session_unless_the_market_is_open():
             def market_phase():
                 return {"label": label}
         ns = {"j3data": FakeData}
-        exec(compile(ast.Module(body=[node], type_ignores=[]), "page", "exec"), ns)
+        exec(compile(ast.Module(body=[helper, node], type_ignores=[]), "page", "exec"), ns)
         assert ns["_list_price_change"](metrics)[1] == want, label
 
 def test_scorecard_anchor_does_not_ride_the_drop_animation():
@@ -3268,3 +3268,48 @@ def test_chart_zoom_is_half_height_on_a_portrait_screen():
     source = PAGE.read_text(encoding="utf-8")
     assert "height: min(calc(100dvh - 16px), 760px);" in source
     assert "@media (orientation: portrait) { .j3cz-pop { height: calc((100dvh - 16px) / 2); } }" in source
+
+
+def test_every_price_cell_uses_one_rule_and_the_detail_uses_the_row_values():
+    """2026-09-24 상하님 — "1위 현재가랑 선택종목 세부사항의 현재가가 차이 난다 · 폰에서는 아예
+    2위 종목의 현재가가 나타난다 · 전체를 신뢰할 수가 없다."
+
+    ① 세부사항 가격 칸이 **그리는 종목**을 받아 쓴다(예전에는 22개 테마에서 마지막으로 고른 종목).
+    ② 장이 닫혀 있으면 세부사항은 목록 줄의 값(metrics)을 그대로 쓴다.
+    ③ 모든 표·칸이 _shown_numbers 한 규칙을 쓴다(20일·6개월·52주·시장대비까지).
+    """
+    import ast
+    source = PAGE.read_text(encoding="utf-8")
+    assert "panel=panel, ticker=ticker, metrics=metrics," in source
+    assert 'panel=f"buy_{panel}", ticker=ticker,' in source
+    quote_fn = source.split("def _render_selected_live_quote(")[1].split("\ndef ")[0]
+    assert "if metrics and metrics.get(\"ok\", True) and not _regular_open():" in quote_fn
+    assert "shown = _shown_numbers(quote)" in quote_fn
+    assert "quote.get('ret20')" not in quote_fn and "quote.get('ret120')" not in quote_fn
+    for marker in ("leader_shown = _shown_numbers(metrics)", "cmp_shown = _shown_numbers(metrics)",
+                   "top_shown = _shown_numbers(row[\"metrics\"])", "crash_shown = _shown_numbers(metrics)",
+                   "pull_shown = _shown_numbers(row['metrics'])", "theme_shown = _shown_numbers(row)",
+                   "swing_shown = _shown_numbers(swing_metrics)", "pb_shown = _shown_numbers(metrics)"):
+        assert marker in source, marker
+    assert source.count('spy_ret120 = _shown_numbers((market.get("rows") or {}).get("SPY") or {})["ret120"]') == 2
+    # 규칙 자체 — 장 닫힘이면 끝난 장 종가 기준 값, 열림이면 지금 값.
+    tree = ast.parse(source)
+    wanted = {"_regular_open", "_list_price_change", "_shown_numbers"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in wanted]
+    metrics = {"current": 261.31, "change_pct": 4.4, "last_session_close": 262.5,
+               "last_session_change_pct": 4.97, "ret20": 40.4, "session_ret20": 40.96,
+               "ret120": 165.0, "session_ret120": 165.75, "from_high_pct": -1.0,
+               "session_from_high_pct": -0.5, "atr_pct": 5.2, "session_atr_pct": 5.1}
+    for label, live in (("장 마감", False), ("정규장 시간", True)):
+        class FakeData:
+            @staticmethod
+            def market_phase():
+                return {"label": label}
+        ns = {"j3data": FakeData}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), "page", "exec"), ns)
+        shown = ns["_shown_numbers"](metrics)
+        if live:
+            assert (shown["price"], shown["ret20"], shown["ret120"]) == (261.31, 40.4, 165.0)
+        else:
+            assert (shown["price"], shown["change"], shown["ret20"], shown["ret120"],
+                    shown["from_high_pct"], shown["atr_pct"]) == (262.5, 4.97, 40.96, 165.75, -0.5, 5.1)
