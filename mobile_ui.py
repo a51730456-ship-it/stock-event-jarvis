@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026091910
+MODULE_REVISION = 2026092410
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -504,6 +504,12 @@ div[class*="st-key-picklist_calc_US"] { margin-top: -16px !important; }
 div[class*="st-key-j3sc_box"] { margin-top: 10px !important; }
 div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:has(div[class*="st-key-picklist_xlsx_all_US"]) {
     order: 2 !important;
+}
+/* 성적표 단추가 「저장해 둔 목록 닫기」 밑으로 옮겨 가(2026-09-24 상하님 지시) 「엑셀로
+   받기」 옆 칸이 비었다. 폰에서는 빈 칸도 위아래로 쌓여 틈 12px 를 하나 더 만든다
+   (실측 엑셀→28일치 24px, 다른 줄은 12px). 첫 줄의 빈 칸만 감춘다. 값·단추는 그대로다. */
+div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:first-child [data-testid="stColumn"]:has(> [data-testid="stVerticalBlock"]:empty) {
+    display: none !important;
 }
 .j3-idx-phase .j3-top-sub span:first-child {
     font-size: 1rem !important; line-height: 19px !important;

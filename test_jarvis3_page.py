@@ -3313,3 +3313,69 @@ def test_every_price_cell_uses_one_rule_and_the_detail_uses_the_row_values():
         else:
             assert (shown["price"], shown["change"], shown["ret20"], shown["ret120"],
                     shown["from_high_pct"], shown["atr_pct"]) == (262.5, 4.97, 40.96, 165.75, -0.5, 5.1)
+
+
+def test_scorecard_button_sits_under_the_list_close_button_and_is_purple():
+    """파트별 성적표 단추는 **「저장해 둔 목록 닫기」 밑 · 「어느 날 목록을 볼까요」 위**다
+    (2026-09-24 상하님 지시). 단추는 보라색 그라데이션이다. 받기 단추 옆 옛 자리는 비워 둔다
+    — None 을 넘기면 CSV 단추가 되살아나므로 빈 자리 함수를 넘긴다."""
+    source = PAGE.read_text(encoding="utf-8")
+    toggle = source[source.index("def _picklist_toggle"):source.index("def _picklist_no_scorecard")]
+    assert '_render_picklist_scorecard("button")' in toggle
+    assert '_render_picklist_scorecard("panel")' in toggle
+    section = source[source.index("def _render_picklist_section"):source.index("_PICKLIST_PART_BY_KIND = {")]
+    assert "scorecard=_picklist_no_scorecard" in section
+    assert re.search(r'st-key-picklist_scorecard_US"\] button\{\s*background:linear-gradient\([^)]*#7c3aed', source)
+
+
+def test_scorecard_range_sells_at_the_end_day_close():
+    """기간 고르기 — 시작일~끝일 사이 목록을 **다음 거래일 시가에 사서 끝일 종가에 판** 성적.
+
+    끝일이 쉬는 날(토요일)이면 그 앞 거래일 종가다. 산 날(다음 거래일)이 끝일보다 뒤인
+    목록은 안 센다. 「상위 테마 5개」 줄은 테마별로도 센다.
+    """
+    import ast
+    import sys
+    import types
+    from datetime import date, timedelta
+    from zoneinfo import ZoneInfo
+
+    import picklist_store
+
+    tree = ast.parse(PAGE.read_text(encoding="utf-8"))
+    wanted = {"_us_last_trading_day", "_us_next_trading_day", "_scorecard_range_counts"}
+    nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in wanted]
+    for node in nodes:
+        node.decorator_list = []
+    lists = {
+        "2026-09-16": [{"list_kind": "theme15", "code": "AAA", "origin": "바이오", "buy_open": 10, "trade_date": "2026-09-16"},
+                       {"list_kind": "top7", "code": "BBB", "origin": "상승장", "buy_open": 20, "trade_date": "2026-09-16"}],
+        "2026-09-17": [{"list_kind": "theme15", "code": "CCC", "origin": "바이오", "buy_open": 10, "trade_date": "2026-09-17"}],
+        # 다음 거래일(9/21 월)이 끝일(9/18 금)보다 뒤 — 안 센다.
+        "2026-09-18": [{"list_kind": "theme15", "code": "AAA", "origin": "바이오", "buy_open": 1, "trade_date": "2026-09-18"}],
+    }
+    fake_store = types.SimpleNamespace(
+        available_dates=lambda market: sorted(lists, reverse=True),
+        load_rows=lambda day, market: lists[day],
+        profit_pct=picklist_store.profit_pct,
+    )
+    index = pd.to_datetime(["2026-09-17", "2026-09-18", "2026-09-21"])
+    frames = {"AAA": pd.DataFrame({"Close": [11.0, 12.0, 99.0]}, index=index),
+              "BBB": pd.DataFrame({"Close": [19.0, 18.0, 99.0]}, index=index),
+              "CCC": pd.DataFrame({"Close": [10.0, 9.0, 99.0]}, index=index)}
+    fake_j3 = types.SimpleNamespace(_download_cached=lambda *a, **k: (frames, {}), US_BATCH_TTL=1800.0)
+    ns = {"date": date, "timedelta": timedelta, "ZoneInfo": ZoneInfo, "j3data": fake_j3,
+          "_SCORECARD_START": "2026-08-31", "_SCORECARD_RANGE": "기간",
+          "_SCORECARD_PARTS": (("top7", "", ""), ("breakout", "", ""), ("theme15", "", ""), ("crash", "", "")),
+          "_SCORECARD_TOP9_PARTS_NAMES": {"테마 대장주", "상승장", "급락 후 반등장"}}
+    with patch.dict(sys.modules, {"picklist_store": fake_store}):
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), "page", "exec"), ns)
+        data = ns["_scorecard_range_counts"]("stamp", "2026-09-16", "2026-09-19")
+    assert data["sold"] == "2026-09-18"                       # 토요일 끝일 → 금요일 종가
+    assert data["counts"][("theme15", "기간")] == [2, 1]        # AAA +20% · CCC -10% (9/18 목록 뺌)
+    assert data["counts"][("top7", "기간")] == [1, 0]           # BBB 20 → 18
+    assert data["counts"][("top7:상승장", "기간")] == [1, 0]
+    assert data["counts"][("_all", "기간")] == [3, 1]
+    assert data["spans"]["기간"] == {"days": 2, "first": "2026-09-16", "last": "2026-09-17"}
+    name, seen, win, avg = data["themes"][0]
+    assert (name, seen, win) == ("바이오", 2, 1) and abs(avg - 5.0) < 1e-9

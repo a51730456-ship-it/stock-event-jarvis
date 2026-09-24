@@ -1693,7 +1693,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026091910
+_REQUIRED_MOBILE_REVISION = 2026092410
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -5926,8 +5926,24 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
         seen = st.session_state.get(_PICKLIST_SEEN_DATE_KEY)
         if picked is not None and seen is not None and picked != seen:
             scroll_to.request(st, _PICKLIST_ANCHOR)
-        scroll_to.anchor(st, _PICKLIST_ANCHOR)
+        # **파트별 성적표 단추는 「저장해 둔 목록 닫기」 밑 · 「어느 날 목록을 볼까요」 위에
+        # 선다** (2026-09-24 상하님 지시). 예전에는 「CSV로 받기」 자리(엑셀 단추 오른쪽)였다.
+        # 올라가는 자리는 성적표가 닫혀 있으면 단추 위라 단추와 날짜 칸이 같이 보이고,
+        # 열려 있으면 성적표 밑(= 날짜 칸 바로 위)이라 날짜를 바꿔도 목록 쪽으로 간다.
+        scorecard_open = bool(st.session_state.get(_SCORECARD_KEY))
+        if not scorecard_open:
+            scroll_to.anchor(st, _PICKLIST_ANCHOR)
+        if _render_picklist_scorecard("button"):
+            _render_picklist_scorecard("panel")
+        if scorecard_open:
+            scroll_to.anchor(st, _PICKLIST_ANCHOR)
     return is_open
+
+
+def _picklist_no_scorecard(_part: str) -> bool:
+    """받기 단추 자리에는 이제 아무것도 안 둔다 — 성적표는 맨 위로 옮겼다(2026-09-24).
+    CSV 단추가 되살아나지 않게 picklist_ui 에는 빈 자리를 넘긴다(2026-09-16 「비워 둬라」)."""
+    return False
 
 
 # 파트별 성적표 (2026-09-16 상하님 지시) ─────────────────────────────────────
@@ -6106,6 +6122,140 @@ def _scorecard_counts() -> dict:
     return data
 
 
+# ── 기간 고르기 (2026-09-24 상하님 지시) ───────────────────────────────────────
+# 상하님 — "기간을 정하는 것도 추가로 넣어라. 몇 월 며칠부터 몇 월 며칠까지 날짜 누르면
+# 시작 날짜와 끝날 날짜(항공편 예약하듯이) · 그 기간을 반영하면 저장해 둔 목록에서 찾을 수
+# 있잖아. 그러면 그 기간에 어떤 테마가 성적이 좋은지 알 수 있잖아. 지금은 시작점은 현시점밖에
+# 없으니." 기간 칩 다섯은 모두 「지금 값」과 견준다. 여기서는 **끝일 종가**와 견준다 —
+# 시작일~끝일 사이에 저장된 목록을 다음 거래일 시가에 사서 끝일 종가에 팔았다면.
+_SCORECARD_RANGE = "기간"
+_SCORECARD_RANGE_KEY = "j3sc_range"
+
+
+def _us_last_trading_day(day):
+    """그날이거나 그 앞의 마지막 미국 거래일."""
+    import us_market_calendar
+
+    for _ in range(15):
+        if us_market_calendar.is_trading_day(day):
+            return day
+        day -= timedelta(days=1)
+    return day
+
+
+def _us_next_trading_day(day):
+    import us_market_calendar
+
+    day += timedelta(days=1)
+    for _ in range(15):
+        if us_market_calendar.is_trading_day(day):
+            return day
+        day += timedelta(days=1)
+    return day
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _scorecard_range_counts(stamp: str, start: str, end: str) -> dict:
+    """시작일~끝일 성적. 산 값 = 저장된 매수금액(다음 거래일 시가) · 판 값 = 끝일 종가.
+
+    끝일이 쉬는 날이면 그 앞 거래일 종가다. 산 날(다음 거래일)이 끝일보다 뒤인 줄은 안 센다.
+    매수금액이 빈 줄 · 끝일 값을 못 찾은 종목은 안 센다(0으로 채우지 않는다).
+    「상위 테마 5개」 줄은 테마별로도 센다 — 어느 테마가 그 기간에 잘 맞았나.
+    """
+    import picklist_store as store
+
+    first = date.fromisoformat(start)
+    last = _us_last_trading_day(date.fromisoformat(end))
+    rows = []
+    for day in store.available_dates("US"):
+        try:
+            when = date.fromisoformat(day)
+        except ValueError:
+            continue
+        if day < _SCORECARD_START or when < first or _us_next_trading_day(when) > last:
+            continue
+        try:
+            rows.extend(store.load_rows(day, "US") or [])
+        except Exception:
+            continue
+    wanted = tuple(dict.fromkeys(str(row.get("code") or "").strip().upper()
+                                 for row in rows if str(row.get("code") or "").strip()))
+    closes_at_end = {}
+    if wanted:
+        try:
+            frames, _info = j3data._download_cached(
+                wanted, period="2y", interval="1d",
+                ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+        except Exception:
+            frames = {}
+        for code, frame in (frames or {}).items():
+            try:
+                closes = frame["Close"].dropna()
+                days = [(stamp_.tz_convert(ZoneInfo("America/New_York")) if stamp_.tzinfo else stamp_).date()
+                        for stamp_ in closes.index]
+                picked = [float(v) for d, v in zip(days, closes) if d <= last]
+                if picked:
+                    closes_at_end[code] = picked[-1]
+            except Exception:
+                continue
+    parts = {kind for kind, _name, _color in _SCORECARD_PARTS}
+    counts: dict = {}
+    themes: dict = {}
+    used = set()
+    for row in rows:
+        kind = str(row.get("list_kind") or "")
+        if kind not in parts:
+            continue
+        gain = store.profit_pct(row.get("buy_open"),
+                                closes_at_end.get(str(row.get("code") or "").upper()))
+        if gain is None:
+            continue
+        used.add(str(row.get("trade_date") or ""))
+        keys = [(kind, _SCORECARD_RANGE), ("_all", _SCORECARD_RANGE)]
+        origin = str(row.get("origin") or "").strip()
+        if kind == "top7" and origin in _SCORECARD_TOP9_PARTS_NAMES:
+            keys.append((f"top7:{origin}", _SCORECARD_RANGE))
+        for key in keys:
+            counts.setdefault(key, [0, 0])
+            counts[key][0] += 1
+            counts[key][1] += 1 if gain > 0 else 0
+        if kind == "theme15" and origin:
+            slot = themes.setdefault(origin, [0, 0, 0.0])
+            slot[0] += 1
+            slot[1] += 1 if gain > 0 else 0
+            slot[2] += float(gain)
+    ordered = sorted(used)
+    return {
+        "counts": counts,
+        "spans": {_SCORECARD_RANGE: {"days": len(ordered), "first": ordered[0] if ordered else "",
+                                     "last": ordered[-1] if ordered else ""}},
+        "themes": sorted(((name, seen, win, total / seen) for name, (seen, win, total) in themes.items()),
+                         key=lambda item: (-(item[2] / item[1]), -item[3])),
+        "sold": last.isoformat(),
+    }
+
+
+def _scorecard_theme_html(data: dict) -> str:
+    """기간 고르기의 테마별 성적 — 「상위 테마 5개」에 든 테마마다 산 횟수·이익 난 횟수·평균."""
+    themes = data.get("themes") or []
+    if not themes:
+        return ""
+    rows = "".join(
+        f"<tr><td style='text-align:left;color:#e6e6e6;font-weight:700'>{html.escape(name)}</td>"
+        f"<td style='color:#b8c7dc'>{seen}번 중 {win}번</td>"
+        f"<td style='color:{'#ffd166' if win * 2 >= seen else '#ff8a8a'};font-weight:800'>"
+        f"{round(win * 100.0 / seen)}%</td>"
+        f"<td style='color:{_sign_color(avg)}'>{_pct(avg)}</td></tr>"
+        for name, seen, win, avg in themes)
+    return (
+        "<div class='j3sc-themes' style='margin-top:.6rem'>"
+        "<div style='color:#c084fc;font-weight:800;margin-bottom:.2rem'>이 기간 테마별 — 상위 테마 5개 줄</div>"
+        "<table style='width:100%;border-collapse:collapse;font-size:.86rem'>"
+        "<thead><tr style='color:#9aa0aa'><th style='text-align:left'>테마</th><th>이익 난 횟수</th>"
+        "<th>확률</th><th>평균</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>")
+
+
 def _scorecard_panel_html(data: dict, span: str) -> str:
     """성적표 창. 막대 길이가 그 기간의 「100번 사면 이익 난 횟수」다.
 
@@ -6181,7 +6331,12 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
             f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
             f"<span class='j3sc-val' style='color:{tone}'>{total}%</span></div>")
     used = (data.get("spans") or {}).get(span) or {}
-    if used.get("days"):
+    if used.get("days") and span == _SCORECARD_RANGE:
+        note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
+                f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
+                f"<b>{html.escape(str(data.get('sold') or ''))} 종가</b>에 판 것으로 견줬습니다. "
+                "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다.")
+    elif used.get("days"):
         note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
                 f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
                 "지금 값과 견준 것입니다. 매수금액이 아직 없는 줄과 값을 못 받은 "
@@ -6237,11 +6392,12 @@ def _render_picklist_scorecard(part: str):
             on_click=_toggle_scorecard,
         )
         return open_now
-    with st.spinner("저장해 둔 목록으로 성적을 세는 중입니다…"):
-        data = _scorecard_counts()
     span = str(st.session_state.get(_SCORECARD_SPAN_KEY) or "누계")
-    if span not in [label for label, _d in _SCORECARD_SPANS]:
+    if span not in [label for label, _d in _SCORECARD_SPANS] + [_SCORECARD_RANGE]:
         span = "누계"
+    if span != _SCORECARD_RANGE:
+        with st.spinner("저장해 둔 목록으로 성적을 세는 중입니다…"):
+            data = _scorecard_counts()
     panel = st.container(key="j3sc_box")
     with panel:
         st.markdown(
@@ -6249,15 +6405,45 @@ def _render_picklist_scorecard(part: str):
             f"<div id='{scroll_to.anchor_id(_SCORECARD_ANCHOR)}' class='jarvis-anchor j3sc-anchor'></div>"
             "<div class='j3sc-head'><b>📊 파트별 성적표</b>"
             "<span>이익 난 확률</span></div>", unsafe_allow_html=True)
-        chips = st.columns(len(_SCORECARD_SPANS))
-        for index, (label, _days) in enumerate(_SCORECARD_SPANS):
+        chip_list = list(_SCORECARD_SPANS) + [(_SCORECARD_RANGE, None)]
+        chips = st.columns(len(chip_list))
+        for index, (label, _days) in enumerate(chip_list):
             chips[index].button(
-                _SCORECARD_CHIP_LABELS.get(label, label),
+                "📅 기간 고르기" if label == _SCORECARD_RANGE
+                else _SCORECARD_CHIP_LABELS.get(label, label),
                 key=f"j3sc_span_{index}", width="stretch",
                 type="primary" if label == span else "secondary",
                 on_click=_pick_scorecard_span, args=(label,),
             )
-        st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
+        if span == _SCORECARD_RANGE:
+            # 달력에서 **시작일 → 끝일**을 차례로 누른다(항공편 예약처럼). 처음에는 세기
+            # 시작한 날부터 어제까지가 골라져 있다.
+            first_day = date.fromisoformat(_SCORECARD_START)
+            last_day = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
+            # 기간 칩으로 갔다 돌아와도 고른 두 날이 남게 따로 적어 둔다(칸이 안 그려진 판에는
+            # 스트림릿이 칸 값을 지운다). 날이 바뀌어 끝일이 범위를 벗어나면 안으로 당긴다.
+            kept = st.session_state.get(_SCORECARD_RANGE_KEY + "_kept") or (first_day, last_day)
+            kept = tuple(min(max(day, first_day), last_day) for day in kept)
+            picked = st.date_input(
+                "시작일 ~ 끝일 — 달력에서 두 날을 차례로 누르세요",
+                value=kept,
+                min_value=first_day, max_value=last_day,
+                format="YYYY.MM.DD", key=_SCORECARD_RANGE_KEY,
+            )
+            if isinstance(picked, (tuple, list)) and len(picked) == 2:
+                st.session_state[_SCORECARD_RANGE_KEY + "_kept"] = tuple(picked)
+                import picklist_store as _pl_store
+
+                dates = _pl_store.available_dates("US")
+                stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|range"
+                with st.spinner("고른 기간의 성적을 세는 중입니다…"):
+                    data = _scorecard_range_counts(stamp, picked[0].isoformat(), picked[1].isoformat())
+                st.markdown(_scorecard_panel_html(data, span) + _scorecard_theme_html(data),
+                            unsafe_allow_html=True)
+            else:
+                st.caption("끝일을 한 번 더 눌러 주세요.")
+        else:
+            st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
         # 「어느 때 어느 파트가 나았나」 표는 뺐다(2026-09-23 저녁 상하님 — "파트별 성적표 밑에
         # 다 지워라 의미없다 삭제해라"). 계산만 research/parts_when.py 에 남아 있다.
     return True
@@ -6279,8 +6465,9 @@ def _render_picklist_section(market: dict, ranking: dict) -> None:
         # market·ranking 이 있어야 그 파트의 상세를 그리므로 여기서 싸서 넘긴다.
         on_pick=lambda code, name, kind, row: _picklist_detail(
             market, ranking, code, name, kind, row),
-        # 「CSV로 받기」 자리에 성적표 단추를 놓는다(2026-09-16 상하님 지시).
-        scorecard=_render_picklist_scorecard,
+        # 성적표 단추는 _picklist_toggle 이 목록 맨 위에 그린다(2026-09-24). 「CSV로 받기」
+        # 자리는 비워 둔다 — None 을 넘기면 CSV 단추가 되살아난다.
+        scorecard=_picklist_no_scorecard,
     )
     # 이 판에 보인 날짜를 적어 둔다 — 다음 판에 날짜가 바뀌었나를 여기와 견준다(위 _picklist_toggle).
     # 닫힌 판에는 날짜 칸이 없어 빈값이 적히고, 다시 열면 그 판 끝에 새로 적힌다.
@@ -10499,6 +10686,16 @@ def _briefing_css() -> None:
         @keyframes j3sc-drop{
           from{opacity:0;transform:translateY(-14px);clip-path:inset(0 0 100% 0)}
           to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+        /* 성적표 여닫이 단추 — **보라색 그라데이션** (2026-09-24 상하님 지시).
+           시장분석 보라 띠(.j3-band-purple)와 같은 세 빛깔이다. */
+        div[class*="st-key-picklist_scorecard_US"] button{
+          background:linear-gradient(90deg,#2a1450 0%,#3d1f74 38%,#7c3aed 100%)!important;
+          border:1px solid #7c3aed!important;box-shadow:0 2px 10px rgba(124,58,237,.25)!important}
+        div[class*="st-key-picklist_scorecard_US"] button p{color:#ffffff!important;font-weight:800!important}
+        div[class*="st-key-picklist_scorecard_US"] button:hover{filter:brightness(1.15)}
+        /* 기간 고르기 달력 칸의 이름 — 칩 글자와 같은 빛깔(기본은 바탕에 묻혀 안 읽혔다). */
+        div[class*="st-key-j3sc_range"] [data-testid="stWidgetLabel"] p{color:#8fb4de!important;
+          font-size:.8rem!important;font-weight:700!important}
         div[class*="st-key-j3sc_box"]{animation:j3sc-drop .55s cubic-bezier(.2,.8,.2,1) both;
           transform-origin:top;border:1px solid #1d3a63;border-radius:12px;
           padding:14px 16px;margin-top:10px}
