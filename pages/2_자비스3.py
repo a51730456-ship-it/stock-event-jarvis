@@ -4930,8 +4930,9 @@ def _render_stock_detail(
 
 
 # 테마 화면에서 **한 번에 같이 펴는 네 구역** (2026-08-14 상하님 지시).
-# 테마 이름을 눌러도, 표에서 종목을 눌러도, 아래 '상세 종목 선택'으로 골라도
-# 이 넷이 함께 열린다. 셋이 따로 놀면 어떤 길로 들어왔느냐에 따라 화면이 달라진다.
+# 표에서 종목을 눌러도, 아래 '상세 종목 선택'으로 골라도 이 넷이 함께 열린다.
+# 테마 이름을 누를 때는 세부사항만 열고 차트는 닫아 둔다(2026-09-25 · 아래
+# _THEME_CHART_OPEN_KEYS).
 # 「20개 테마 실시간 순위」 표를 열어 둘까(2026-08-14 상하님 지시). **기본은 열림.**
 # 여닫는 단추는 '종목 찾기' 바로 위에 있다(_render_pullback_finder 맨 앞).
 _THEME_RANK_OPEN = "j3_theme_rank_open"
@@ -4950,6 +4951,15 @@ _THEME_PANEL_OPEN_KEYS = (
     "j3_detail_open_theme",     # 🔎 선택종목 세부사항 보기
     "j3_intraday_open_theme",   # 📈 당일 · 실시간 차트 보기
     "j3_bundle_open_theme",     # 📊 일봉 · 주봉 · 월봉 보기
+)
+# 위 넷 가운데 **차트** 구역. 테마 이름을 누를 때는 이것들을 **펴지 않는다**
+# (2026-09-25 상하님 — "바꿔라"). 느린 폰에서 테마를 처음 열 때 2.5~5.4초의 대부분이
+# 대장주 차트 12장과 세부 차트였다. 차트는 그 단추를 누를 때만 열린다.
+# 표에서 **종목**을 누를 때와 '상세 종목 선택'으로 고를 때는 예전처럼 넷을 다 편다.
+_THEME_CHART_OPEN_KEYS = (
+    "j3_leadercmp_open",
+    "j3_intraday_open_theme",
+    "j3_bundle_open_theme",
 )
 
 
@@ -7157,11 +7167,13 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
     if leader_result.get("stale"):
         st.warning("일부 종목은 마지막 정상 시세로 계산했습니다.")
     leaders = leader_result["rows"]
-    # 테마를 누르면 대장주 셋의 차트가 함께 열린다(_THEME_PANEL_OPEN_KEYS).
+    # 종목을 누르면 대장주 셋의 차트가 함께 열린다(_THEME_PANEL_OPEN_KEYS).
     # 그 자료를 **한 번에 묶어** 미리 받아 둔다 — 종목마다 따로 받으면 여섯 번을
     # 줄 서서 기다린다(2026-08-14 실측 4.5초, 그중 CPU는 0.2초뿐이었다).
     # 값은 안 만든다. 받아 두기만 하면 아래 차트들이 캐시를 그대로 쓴다.
-    if any(st.session_state.get(key) for key in _THEME_PANEL_OPEN_KEYS):
+    # **차트가 하나라도 열렸을 때만** 받는다(2026-09-25) — 테마 이름만 누르면 차트가
+    # 닫혀 있으니 받을 것이 없다.
+    if any(st.session_state.get(key) for key in _THEME_CHART_OPEN_KEYS):
         j3data.prefetch_charts([row.get("ticker") for row in leaders[:3]])
     st.markdown(
         f"<div class='j3-section-title'><span class='j3-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
@@ -7312,10 +7324,13 @@ def _render_theme_section(market: dict) -> None:
         # "대장주 1~3위까지 자동 클릭되게, 선택종목 세부사항 보기까지, 당일 실시간
         # 차트 보기·일봉·주봉·월봉 보기까지"). 그전에는 단추를 네 번 더 눌러야 했다.
         # 종목은 안 고르셨으면 그 테마 **1위**가 열린다(아래 라디오의 첫 값).
-        # 표에서 종목을 누를 때(아래 clicked_ticker)와 **같은 열쇠 묶음**이다 —
-        # 하나를 고치면 둘 다 고쳐야 한다.
+        # **차트는 펴지 않는다**(2026-09-25 상하님 — "바꿔라"). 테마를 처음 열 때 느린 폰
+        # 2.5~5.4초의 대부분이 대장주 차트 12장과 세부 차트였다. 세부사항은 그대로 펴고,
+        # 차트 구역(_THEME_CHART_OPEN_KEYS)은 닫아 둔다 — 앞 테마에서 열어 둔 차트도
+        # 새 테마를 누르면 닫힌다. 차트는 그 단추를 누르면 열린다.
+        # 표에서 **종목**을 누를 때(아래 clicked_ticker)는 예전처럼 넷을 다 편다.
         for opened in _THEME_PANEL_OPEN_KEYS:
-            st.session_state[opened] = True
+            st.session_state[opened] = opened not in _THEME_CHART_OPEN_KEYS
         # 연 자리가 표 아래 두 화면 밑이라 직접 굴려 내려가야 했다. 열면서 같이
         # 내려간다(2026-08-21 상하님 지시).
         scroll_to.request(st, "theme_stocks")

@@ -623,6 +623,21 @@ class Jarvis3PageTests(unittest.TestCase):
             self.assertTrue([
                 node for node in app.button if str(node.key or "").startswith("j3lbtn_")
             ])
+            # 테마 이름을 누르면 세부사항만 열리고 **차트는 닫혀 있다**(2026-09-25 상하님 —
+            # "바꿔라"). 차트는 그 단추를 누를 때만 열린다.
+            state = app.session_state.filtered_state
+            self.assertTrue(state.get("j3_detail_open_theme"))
+            for key in ("j3_leadercmp_open", "j3_intraday_open_theme", "j3_bundle_open_theme"):
+                self.assertFalse(state.get(key), f"테마를 눌렀는데 {key} 가 열렸다")
+            # 표에서 종목을 누르면 예전처럼 차트까지 다 편다(2026-08-06 상하님 지시).
+            stock_button = next(
+                node for node in app.button if str(node.key or "").startswith("j3lbtn_")
+            )
+            stock_button.click().run(timeout=60)
+            state = app.session_state.filtered_state
+            for key in ("j3_leadercmp_open", "j3_detail_open_theme",
+                        "j3_intraday_open_theme", "j3_bundle_open_theme"):
+                self.assertTrue(state.get(key), f"종목을 눌렀는데 {key} 가 안 열렸다")
             # 순위 아래쪽 닫기는 fragment 안에 있어도 미국테마 전체를 다시 그려야 한다.
             rank_close = next(
                 node for node in app.button
