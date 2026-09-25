@@ -13411,12 +13411,23 @@ _SWIPE_OUTER_JS = """
   // 화면이 다 그려져 조용해지면 — 지금 화면을 뜨고, 다음에 넘길 쪽과 지금 쪽 사진을
   // 미리 깔아 둔다. 까는 일은 한 번에 하나씩 나눠 한다 — 한꺼번에 하면 그만큼 멈칫한다.
   var idleTimer = null;
+  // **첫 로딩에는 화면이 다 차는 순간 곧바로 뜬다** (2026-09-25 상하님 — "첫 로딩 때 몇 초
+  // 기다려야 종이 말리듯 된다"). 첫 화면이 보인 뒤에도 아래쪽 종목 카드가 빈 자리(stSkeleton)로
+  // 있다가 두어 번에 나눠 채워진다. 예전에는 채워질 때마다 1.2초 조용하기를 다시 기다렸다(온라인
+  // 느린 폰 — 마지막 카드 뒤 1.2초를 그냥 보냈다). 이제 첫 번에는 빈 자리가 남아 있으면 그것부터
+  // 기다리고(화면이 기다리는 것 먼저), 다 차면 0.2초 뒤에 뜬다. 빈 자리가 4초 넘게 남으면 예전처럼.
+  var firstReady = false, bornAt = Date.now();
+  function screenFilled() {
+    return !d.querySelector('[data-testid="stSkeleton"]') && !d.querySelector('[data-testid="stStatusWidget"]');
+  }
   function idle() {
     idleTimer = null;
     if (drag || fired) { return; }
     if (d.querySelector('[data-testid="stStatusWidget"]')) { idleTimer = setTimeout(idle, 800); return; }
+    if (!firstReady && Date.now() - bornAt < 4000 && !screenFilled()) { idleTimer = setTimeout(idle, 300); return; }
     var sname = screenNow();
     if (!sname) { return; }
+    firstReady = true;
     capture(false);
     // 문서에 새로 붙이는 일도 조용할 때 한다 — 넘기기 시작하는 순간에 붙이면 폰이 화면
     // 칸을 전부 다시 따져 첫 넘김이 한 번 멈칫했다(느린 폰 기준 245ms · 2026-09-19).
@@ -13437,7 +13448,7 @@ _SWIPE_OUTER_JS = """
   try {
     new MutationObserver(function () {
       if (idleTimer) { clearTimeout(idleTimer); }
-      idleTimer = setTimeout(idle, 1200);
+      idleTimer = setTimeout(idle, (!firstReady && screenFilled()) ? 200 : 1200);
     }).observe(d.body, { childList: true, subtree: true });
   } catch (e) {}
   // 심자마자 곧 한 번 본다(2026-09-25 · 예전 1.5초). 이 코드는 화면 조각들 **뒤에** 심어져서

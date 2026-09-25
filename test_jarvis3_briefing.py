@@ -1056,6 +1056,9 @@ def test_the_next_page_lies_under_the_turning_page():
     assert "var POPUPS = '.j3sm-scrim,.j3sm-pop,.j3cz-scrim,.j3cz-pop';" in js
     assert "(snap.head || snap.node).outerHTML" in js
     assert "idleTimer = setTimeout(idle, 300);" in js
+    # 첫 번에는 빈 카드 자리(stSkeleton)가 다 차기를 기다리고, 차면 곧바로(0.2초) 뜬다.
+    assert "idleTimer = setTimeout(idle, (!firstReady && screenFilled()) ? 200 : 1200);" in js
+    assert "!d.querySelector('[data-testid=\"stSkeleton\"]')" in js
     # 진짜 화면에서 숨은 칸은 사진에서도 숨긴다(사진이 168px 아래로 밀렸다).
     assert "setProperty('display', 'none', 'important')" in js
 
