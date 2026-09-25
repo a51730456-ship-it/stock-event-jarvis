@@ -13416,12 +13416,19 @@ _SWIPE_OUTER_JS = """
   //     오히려 늦어졌다(4.4~5.1초 → 4.7~6.2초).
   //   · 첫 번만 0.6초 — 들쭉날쭉(3.0~6.3초)하고, 화면이 다 차기 전에 떴다가 다 찬 뒤 한 번 더 떠서
   //     준비 뒤에 0.4~1.4초 버벅였다. 1.2초는 4.4~5.1초로 고르고 뒤에 버벅임이 없었다.
+  // **다만 첫 사진은 뉴스를 기다리지 않는다** (2026-09-25 상하님 — "뉴스 기다리지 마"). 서버가 막
+  // 켜진 때는 뉴스가 화면 뒤 5초쯤 늦게 와서 판을 한 번 더 그린다. 그때까지 화면이 바뀔 때마다 1.2초씩
+  // 미뤄져서 첫 로딩에 종이 말리기가 4~6초 뒤에야 됐다. 이제 첫 판을 서버가 다 그리면(도는 중 표시가
+  // 사라지면) 늦게 오는 카드·단추·뉴스는 안 기다리고 곧바로 뜬다. 뉴스가 오면 그 뒤에 1.2초 규칙대로
+  // 한 번 새로 뜬다 — 그 사이 넘기면 종이에 뉴스 오기 전 화면이 잠깐 보인다(상하님이 고르신 쪽).
+  var firstReady = false;
   function idle() {
     idleTimer = null;
     if (drag || fired) { return; }
-    if (d.querySelector('[data-testid="stStatusWidget"]')) { idleTimer = setTimeout(idle, 800); return; }
+    if (d.querySelector('[data-testid="stStatusWidget"]')) { idleTimer = setTimeout(idle, firstReady ? 800 : 300); return; }
     var sname = screenNow();
-    if (!sname) { return; }
+    if (!sname) { if (!firstReady) { idleTimer = setTimeout(idle, 300); } return; }
+    firstReady = true;
     capture(false);
     // 문서에 새로 붙이는 일도 조용할 때 한다 — 넘기기 시작하는 순간에 붙이면 폰이 화면
     // 칸을 전부 다시 따져 첫 넘김이 한 번 멈칫했다(느린 폰 기준 245ms · 2026-09-19).
@@ -13441,6 +13448,8 @@ _SWIPE_OUTER_JS = """
   }
   try {
     new MutationObserver(function () {
+      // 첫 사진을 뜨기 전에는 화면이 바뀌어도 미루지 않는다(위 firstReady) — 심을 때 잡아 둔 확인이 돈다.
+      if (!firstReady && idleTimer) { return; }
       if (idleTimer) { clearTimeout(idleTimer); }
       idleTimer = setTimeout(idle, 1200);
     }).observe(d.body, { childList: true, subtree: true });

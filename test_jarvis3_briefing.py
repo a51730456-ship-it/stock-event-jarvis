@@ -1058,6 +1058,9 @@ def test_the_next_page_lies_under_the_turning_page():
     assert "idleTimer = setTimeout(idle, 300);" in js
     # 조용하기 1.2초는 줄이지 않는다 — 줄였더니 들쭉날쭉하고 준비 뒤에 한 번 더 떠서 버벅였다(2026-09-25).
     assert "idleTimer = setTimeout(idle, 1200);" in js
+    # 첫 사진은 뉴스·늦게 오는 카드를 기다리지 않는다(2026-09-25 상하님 "뉴스 기다리지 마").
+    assert "if (!firstReady && idleTimer) { return; }" in js
+    assert "firstReady = true;" in js
     assert "stSkeleton" not in js, "단추가 다 차기를 기다리면 온라인에서 오히려 늦어졌다"
     # 진짜 화면에서 숨은 칸은 사진에서도 숨긴다(사진이 168px 아래로 밀렸다).
     assert "setProperty('display', 'none', 'important')" in js
