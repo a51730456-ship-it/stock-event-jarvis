@@ -3476,3 +3476,20 @@ def test_selection_highlight_style_is_always_drawn_so_nothing_below_shifts():
     assert "if selected_css:" not in source
     table = source[source.index("def _render_leader_table("):source.index("def _leader_table_html(")]
     assert 'st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)' in table
+
+
+def test_leader_comparison_scrolls_its_button_to_the_top_when_opened():
+    """「🏅 대장주 1~3위 비교」를 열면 그 단추가 화면 맨 위에 선다 (2026-09-25 상하님 지시).
+
+    상하님 — "클릭하면 두 번째 캡처 화면처럼 위로 올라가게 화면을 맞춰라." 순위 9 와 같은 장치 —
+    단추 바로 위에 자리 표시, 열 때 그 자리로 올린다(덩이 끝 scroll_to.run). 실측(노트북 · 폰 412px ·
+    PC 1188px) — 누른 뒤 단추가 화면 맨 위에서 811~823px → 24px. 표와 단추 사이는 12px 그대로.
+    """
+    source = PAGE.read_text(encoding="utf-8")
+    block = source[source.index("def _render_leader_comparison("):]
+    block = block[:block.index("medal_by_rank")]
+    assert block.index("scroll_to.anchor(st, _LEADERCMP_ANCHOR)") < block.index("_section_toggle(")
+    assert "on_open=lambda: scroll_to.request(st, _LEADERCMP_ANCHOR)" in block
+    assert '_LEADERCMP_ANCHOR = "leadercmp_top"' in source
+    assert "#jarvis-anchor-leadercmp_top{scroll-margin-top:12px!important}" in source
+    assert ".stElementContainer:has(#jarvis-anchor-leadercmp_top){" in source

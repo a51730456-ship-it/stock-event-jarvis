@@ -4434,10 +4434,15 @@ def _load_theme_rankings() -> dict:
 def _render_leader_comparison(leaders: list[dict]) -> None:
     # 눌러야 열린다(2026-07-30 사용자 지시, 한국테마와 같다). 세 종목 × 차트 세 벌이라
     # 늘 그리면 화면도 길고 받아 오는 것도 많다. 제목은 그대로 두고 안내만 뒤에 붙인다.
+    # **누르면 이 단추가 화면 맨 위에 서고 그 밑에 차트가 보인다** (2026-09-25 상하님 지시 —
+    # "클릭하면 두 번째 캡처 화면처럼 위로 올라가게 화면을 맞춰라"). 순위 9 와 같은 장치다 —
+    # 단추 바로 위에 자리 표시를 찍고, 열 때 그 자리로 올린다(덩이 끝 scroll_to.run).
+    scroll_to.anchor(st, _LEADERCMP_ANCHOR)
     if not _section_toggle(
         "🏅 대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 클릭하면 볼 수 있습니다",
         "j3_leadercmp_open",
         close_label="대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 다시 클릭하면 닫힙니다",
+        on_open=lambda: scroll_to.request(st, _LEADERCMP_ANCHOR),
     ):
         return
     # 세 종목의 일봉·주봉·월봉을 **한 번에 묶어** 받아 둔다(2026-08-28). 아래에서
@@ -4945,6 +4950,8 @@ _RADAR_MAIN_ANCHOR = "radar_main"
 # 21개 테마와 **같은 동작**이다 — 그 단추가 화면 맨 위에 서고 그 밑에 표가 보인다.
 # 단추 **바로 위**에 찍는다.
 _TOP7_ANCHOR = "top7_top"
+# 「🏅 대장주 1~3위 비교」를 **열 때** 화면이 올라갈 자리 (2026-09-25 상하님 지시). 단추 바로 위.
+_LEADERCMP_ANCHOR = "leadercmp_top"
 
 _THEME_PANEL_OPEN_KEYS = (
     "j3_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
@@ -11126,6 +11133,11 @@ def _briefing_css() -> None:
         body:has(.j3-market-top) .stElementContainer:has(#jarvis-anchor-scorecard_btn){
           margin-top:-12px!important;margin-bottom:0!important}
         #jarvis-anchor-scorecard_btn{scroll-margin-top:12px!important}
+        /* 대장주 1~3위 비교 단추 자리 표시(2026-09-25) — 칸 하나 차지하는 만큼 도로 당기고(표와 단추 사이
+           12px 그대로), 열면 단추가 화면 맨 위에서 12px 아래에 선다(순위 9 와 같다). */
+        body:has(.j3-market-top) .stElementContainer:has(#jarvis-anchor-leadercmp_top){
+          margin-top:-12px!important;margin-bottom:0!important}
+        #jarvis-anchor-leadercmp_top{scroll-margin-top:12px!important}
         /* 파트별 성적표 (2026-09-16 상하님 지시 — 「CSV로 받기」 자리에 단추를 놓고,
            누르면 "창이 위에서 밑으로 스르륵" 내려오게). 위에서 아래로 걷어 올리듯
            보여 준다 — 높이를 재지 않아도 되므로 줄 수가 달라져도 그대로 돈다. */
