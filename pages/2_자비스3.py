@@ -13411,20 +13411,17 @@ _SWIPE_OUTER_JS = """
   // 화면이 다 그려져 조용해지면 — 지금 화면을 뜨고, 다음에 넘길 쪽과 지금 쪽 사진을
   // 미리 깔아 둔다. 까는 일은 한 번에 하나씩 나눠 한다 — 한꺼번에 하면 그만큼 멈칫한다.
   var idleTimer = null;
-  // **첫 로딩에는 화면이 다 차는 순간 곧바로 뜬다** (2026-09-25 상하님 — "첫 로딩 때 몇 초
-  // 기다려야 종이 말리듯 된다"). 첫 화면이 보인 뒤에도 아래쪽 종목 카드가 빈 자리(stSkeleton)로
-  // 있다가 두어 번에 나눠 채워진다. 예전에는 채워질 때마다 1.2초 조용하기를 다시 기다렸다(온라인
-  // 느린 폰 — 마지막 카드 뒤 1.2초를 그냥 보냈다). 이제 첫 번에는 빈 자리가 남아 있으면 그것부터
-  // 기다리고(화면이 기다리는 것 먼저), 다 차면 0.2초 뒤에 뜬다. 빈 자리가 4초 넘게 남으면 예전처럼.
-  var firstReady = false, bornAt = Date.now();
-  function screenFilled() {
-    return !d.querySelector('[data-testid="stSkeleton"]') && !d.querySelector('[data-testid="stStatusWidget"]');
-  }
+  // **첫 로딩에는 조용하기를 0.6초만 기다린다** (2026-09-25 상하님 — "첫 로딩 때 몇 초
+  // 기다려야 종이 말리듯 된다"). 첫 화면이 보인 뒤에도 아래쪽 종목 카드가 0.5초 간격으로 두어 번
+  // 나눠 채워진다. 예전에는 마지막 카드 뒤 1.2초를 그냥 보냈다. 0.6초면 카드 사이(0.5초)에는 안
+  // 끼어들고 마지막 카드 뒤에 뜬다. **단추가 다 차기를 기다리지는 않는다** — 스트림릿이 단추(카드 ×·
+  // 하단 막대)를 3초쯤 늦게 채워서, 그것까지 기다리게 했더니 온라인에서 오히려 늦어졌다(4.4~5.1초 →
+  // 4.7~6.2초). 사진을 한 번 뜬 뒤로는 예전처럼 1.2초.
+  var firstReady = false;
   function idle() {
     idleTimer = null;
     if (drag || fired) { return; }
     if (d.querySelector('[data-testid="stStatusWidget"]')) { idleTimer = setTimeout(idle, 800); return; }
-    if (!firstReady && Date.now() - bornAt < 4000 && !screenFilled()) { idleTimer = setTimeout(idle, 300); return; }
     var sname = screenNow();
     if (!sname) { return; }
     firstReady = true;
@@ -13448,7 +13445,7 @@ _SWIPE_OUTER_JS = """
   try {
     new MutationObserver(function () {
       if (idleTimer) { clearTimeout(idleTimer); }
-      idleTimer = setTimeout(idle, (!firstReady && screenFilled()) ? 200 : 1200);
+      idleTimer = setTimeout(idle, firstReady ? 1200 : 600);
     }).observe(d.body, { childList: true, subtree: true });
   } catch (e) {}
   // 심자마자 곧 한 번 본다(2026-09-25 · 예전 1.5초). 이 코드는 화면 조각들 **뒤에** 심어져서
