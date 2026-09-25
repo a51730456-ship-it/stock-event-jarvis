@@ -13010,6 +13010,11 @@ _SWIPE_OUTER_JS = """
   var snapHost = null, snapRoot = null, snapMounted = '', snapMountedV = 0, cssMemo = {};
   var snapV = 0;
   var STORE = 'j3snap:v1:';
+  // 사진에서 빼는 **숨은 큰 창** — 시장 현황 지도 창(j3sm)·차트/일별 시세 창(j3cz) (2026-09-25).
+  // 닫혀 있어도 투명하게 숨었을 뿐 자리를 잡고 그려진다. 지도 창 하나가 시장분석 사진을 깔 때
+  // 느린 폰 기준 0.8초를 더 먹었다(칸 27개가 제 크기에 맞춰 글자를 다시 잰다). 창이 열려 있으면
+  // 넘기기가 꺼져 있으므로(touchstart) 사진에 창이 없어도 보일 일이 없다.
+  var POPUPS = '.j3sm-scrim,.j3sm-pop,.j3cz-scrim,.j3cz-pop';
   function buildStamp() {
     var el = d.querySelector('.jarvis-build');
     return el ? String(el.textContent || '').trim() : '';
@@ -13088,9 +13093,17 @@ _SWIPE_OUTER_JS = """
       // 기준 0.7초씩 더 걸렸다. 아래 칸을 빼도 위쪽 자리는 한 칸도 안 움직인다.
       // 화면을 멀리 굴리면 사진도 새로 뜬다(아래 scroll).
       var farBelow = (window.innerHeight || 800) * 3, drop = [];
+      // **다음 쪽으로 밑에 깔 때는 맨 위 한 화면 남짓만 쓴다** (2026-09-25 상하님 — "첫 로딩 때
+      // 몇 초 기다려야 종이 말리듯 된다"). 밑에 깔린 다음 쪽은 늘 맨 위부터 보인다(showUnder).
+      // 그런데 다음 쪽 사진을 통째로 깔아서, 첫 로딩에 시장분석 사진 한 장을 까는 데만 느린 폰
+      // 기준 2.7초가 들었다(그동안 넘기면 사진이 없어 그냥 넘어간다). 쪽 맨 위에서 1.3화면보다
+      // 아래 칸에 표시를 해 두고, 밑에 깔 판(head)에서는 뺀다. 아래 칸이라 위 자리는 안 움직인다.
+      var headLim = (window.innerHeight || 800) * 1.3, mainTop = main.getBoundingClientRect().top;
       if (liveBoxes.length === copyBoxes.length) {
         for (k = 0; k < liveBoxes.length; k++) {
-          if (liveBoxes[k].getBoundingClientRect().top > farBelow) { drop.push(copyBoxes[k]); continue; }
+          var boxTop = liveBoxes[k].getBoundingClientRect().top;
+          if (boxTop - mainTop > headLim) { copyBoxes[k].setAttribute('data-j3-below', '1'); }
+          if (boxTop > farBelow) { drop.push(copyBoxes[k]); continue; }
           if (getComputedStyle(liveBoxes[k]).display === 'none') {
             copyBoxes[k].style.setProperty('display', 'none', 'important');
           }
@@ -13138,7 +13151,7 @@ _SWIPE_OUTER_JS = """
       for (k = 0; k < marks.length; k++) { marks[k].className = ''; }
       var junk = clone.querySelectorAll('script,audio,object,embed,noscript,'
         + '.j3-help-scrim,div.st-key-j3_help_card,[class*="st-key-j3b_swipe_"],'
-        + '[data-testid="stStatusWidget"]');
+        + '[data-testid="stStatusWidget"],' + POPUPS);
       for (k = 0; k < junk.length; k++) { junk[k].remove(); }
       var ids = clone.querySelectorAll('[id]');
       for (k = 0; k < ids.length; k++) { ids[k].removeAttribute('id'); }
@@ -13154,8 +13167,11 @@ _SWIPE_OUTER_JS = """
         cur = shell;
       }
       if (cur) { cur.appendChild(clone); } else { top = clone; }
+      // 밑에 깔 판 — 맨 위 1.3화면 아래 칸을 뺀 것(위 headLim). 폰 저장소에도 이것을 둔다.
+      var head = top.cloneNode(true), below = head.querySelectorAll('[data-j3-below]');
+      for (k = 0; k < below.length; k++) { below[k].remove(); }
       snapV += 1;
-      SNAP[sname] = { node: top, v: snapV, css: css, sig: sig };
+      SNAP[sname] = { node: top, head: head, v: snapV, css: css, sig: sig };
       lastCap[sname] = now; lastSig[sname] = sig;
       save(sname, SNAP[sname]);
     } catch (e) {}
@@ -13166,7 +13182,8 @@ _SWIPE_OUTER_JS = """
     lastSave[sname] = now;
     setTimeout(function () {
       try {
-        var html = snap.node.outerHTML;
+        // 저장소 사진은 **다음 쪽으로 밑에 깔 때만** 쓴다(지금 쪽은 그 자리에서 뜬다) — 위쪽 판이면 된다.
+        var html = (snap.head || snap.node).outerHTML;
         if (html.length + snap.css.length > 2000000) { return; }
         window.localStorage.setItem(STORE + sname,
           JSON.stringify({ st: buildStamp(), html: html, css: snap.css }));
@@ -13186,8 +13203,11 @@ _SWIPE_OUTER_JS = """
       tpl.innerHTML = saved.html;
       var node = tpl.content.firstElementChild;
       if (!node) { return null; }
+      // 예전에 저장한 사진에는 숨은 큰 창이 들어 있다 — 깔기 전에 뺀다(위 POPUPS).
+      var pops = node.querySelectorAll(POPUPS);
+      for (var p = 0; p < pops.length; p++) { pops[p].remove(); }
       snapV += 1;
-      SNAP[sname] = { node: node, v: snapV, css: saved.css };
+      SNAP[sname] = { node: node, head: node, v: snapV, css: saved.css };
       return SNAP[sname];
     } catch (e) { return null; }
   }
@@ -13219,13 +13239,14 @@ _SWIPE_OUTER_JS = """
     attachLayer(snapHost);
   }
   // 사진 한 벌 — 규칙(style) 과 껍데기(.j3snap-html > .j3snap-body) 안의 화면 조각.
-  function snapTree(snap) {
+  // useHead — 다음 쪽으로 밑에 깔 때는 맨 위 판(head)을 쓴다(capture 의 headLim).
+  function snapTree(snap, useHead) {
     var style = d.createElement('style');
     style.textContent = snap.css;
     var htmlBox = d.createElement('div'); htmlBox.className = 'j3snap-html';
     var bodyBox = d.createElement('div'); bodyBox.className = 'j3snap-body';
     htmlBox.appendChild(bodyBox);
-    bodyBox.appendChild(snap.node.cloneNode(true));
+    bodyBox.appendChild(((useHead && snap.head) || snap.node).cloneNode(true));
     return [style, htmlBox];
   }
   // 그 화면 사진을 사진 칸에 깐다(보이지는 않게). 이미 깔려 있으면 그대로 둔다.
@@ -13235,7 +13256,7 @@ _SWIPE_OUTER_JS = """
     try {
       ensureHost();
       if (snapMounted === sname && snapMountedV === snap.v && snapRoot.childNodes.length) { return true; }
-      var tree = snapTree(snap);
+      var tree = snapTree(snap, true);
       snapRoot.replaceChildren(tree[0], tree[1]);
       snapMounted = sname; snapMountedV = snap.v;
       return true;
@@ -13419,7 +13440,10 @@ _SWIPE_OUTER_JS = """
       idleTimer = setTimeout(idle, 1200);
     }).observe(d.body, { childList: true, subtree: true });
   } catch (e) {}
-  idleTimer = setTimeout(idle, 1500);
+  // 심자마자 곧 한 번 본다(2026-09-25 · 예전 1.5초). 이 코드는 화면 조각들 **뒤에** 심어져서
+  // 심길 때는 화면이 거의 다 와 있다. 아직 서버가 그리는 중이면 idle 이 스스로 0.8초씩 미룬다.
+  // 첫 로딩에 종이 말리기 준비가 그만큼 빨리 끝난다.
+  idleTimer = setTimeout(idle, 300);
   // 화면을 굴리면 사진도 새로 뜬다 — 사진은 뜬 자리에서 화면 두 장 아래까지만 담으므로,
   // 한 장 반 넘게 굴린 뒤에 넘기면 사진 아래쪽이 빌 수 있다.
   var scrollTimer = null, capScroll = 0;

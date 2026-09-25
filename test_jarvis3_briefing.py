@@ -1048,7 +1048,14 @@ def test_the_next_page_lies_under_the_turning_page():
     assert "function capture(" in js and "function showUnder(" in js
     assert "drag.snap = showUnder(go.to);" in js, "손가락이 잡히는 그 순간에 깔아야 한다"
     # 사진 규칙은 **뜰 때 그 화면의 것**을 같이 떠 둔다(시장분석 사진이 하얗게 나왔다).
-    assert "SNAP[sname] = { node: top, v: snapV, css: css, sig: sig };" in js
+    assert "SNAP[sname] = { node: top, head: head, v: snapV, css: css, sig: sig };" in js
+    # 첫 로딩에 종이 말리기가 늦던 것(2026-09-25 상하님) — 밑에 까는 다음 쪽은 맨 위 판(head),
+    # 사진에서 숨은 큰 창은 뺀다(지도 창 하나가 느린 폰 0.8초), 저장소에도 위쪽 판을 둔다.
+    assert "var tree = snapTree(snap, true);" in js, "밑에 까는 다음 쪽은 맨 위 판이어야 한다"
+    assert "'[data-testid=\"stStatusWidget\"],' + POPUPS" in js
+    assert "var POPUPS = '.j3sm-scrim,.j3sm-pop,.j3cz-scrim,.j3cz-pop';" in js
+    assert "(snap.head || snap.node).outerHTML" in js
+    assert "idleTimer = setTimeout(idle, 300);" in js
     # 진짜 화면에서 숨은 칸은 사진에서도 숨긴다(사진이 168px 아래로 밀렸다).
     assert "setProperty('display', 'none', 'important')" in js
 
