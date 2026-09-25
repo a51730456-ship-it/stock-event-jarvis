@@ -13411,20 +13411,17 @@ _SWIPE_OUTER_JS = """
   // 화면이 다 그려져 조용해지면 — 지금 화면을 뜨고, 다음에 넘길 쪽과 지금 쪽 사진을
   // 미리 깔아 둔다. 까는 일은 한 번에 하나씩 나눠 한다 — 한꺼번에 하면 그만큼 멈칫한다.
   var idleTimer = null;
-  // **첫 로딩에는 조용하기를 0.6초만 기다린다** (2026-09-25 상하님 — "첫 로딩 때 몇 초
-  // 기다려야 종이 말리듯 된다"). 첫 화면이 보인 뒤에도 아래쪽 종목 카드가 0.5초 간격으로 두어 번
-  // 나눠 채워진다. 예전에는 마지막 카드 뒤 1.2초를 그냥 보냈다. 0.6초면 카드 사이(0.5초)에는 안
-  // 끼어들고 마지막 카드 뒤에 뜬다. **단추가 다 차기를 기다리지는 않는다** — 스트림릿이 단추(카드 ×·
-  // 하단 막대)를 3초쯤 늦게 채워서, 그것까지 기다리게 했더니 온라인에서 오히려 늦어졌다(4.4~5.1초 →
-  // 4.7~6.2초). 사진을 한 번 뜬 뒤로는 예전처럼 1.2초.
-  var firstReady = false;
+  // **조용하기 1.2초는 줄이지 않는다** (2026-09-25 온라인 실측 · 느린 폰 4배). 첫 로딩에 줄여 봤다.
+  //   · 빈 카드 자리가 다 차기를 기다리게 — 스트림릿이 카드 ×·하단 막대 단추를 3초쯤 늦게 채워서
+  //     오히려 늦어졌다(4.4~5.1초 → 4.7~6.2초).
+  //   · 첫 번만 0.6초 — 들쭉날쭉(3.0~6.3초)하고, 화면이 다 차기 전에 떴다가 다 찬 뒤 한 번 더 떠서
+  //     준비 뒤에 0.4~1.4초 버벅였다. 1.2초는 4.4~5.1초로 고르고 뒤에 버벅임이 없었다.
   function idle() {
     idleTimer = null;
     if (drag || fired) { return; }
     if (d.querySelector('[data-testid="stStatusWidget"]')) { idleTimer = setTimeout(idle, 800); return; }
     var sname = screenNow();
     if (!sname) { return; }
-    firstReady = true;
     capture(false);
     // 문서에 새로 붙이는 일도 조용할 때 한다 — 넘기기 시작하는 순간에 붙이면 폰이 화면
     // 칸을 전부 다시 따져 첫 넘김이 한 번 멈칫했다(느린 폰 기준 245ms · 2026-09-19).
@@ -13445,7 +13442,7 @@ _SWIPE_OUTER_JS = """
   try {
     new MutationObserver(function () {
       if (idleTimer) { clearTimeout(idleTimer); }
-      idleTimer = setTimeout(idle, firstReady ? 1200 : 600);
+      idleTimer = setTimeout(idle, 1200);
     }).observe(d.body, { childList: true, subtree: true });
   } catch (e) {}
   // 심자마자 곧 한 번 본다(2026-09-25 · 예전 1.5초). 이 코드는 화면 조각들 **뒤에** 심어져서
