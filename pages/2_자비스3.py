@@ -1448,6 +1448,18 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 700 !important;
     }
+    /* 맨 밑 작은 닫기 단추(2026-09-25) — 크기는 다른 닫기 단추처럼 작게, 색은 위 단추와 같은 그라데이션. */
+    div[class*="st-key-close_j3_leadercmp_open"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border-color: transparent !important;
+    }
+    div[class*="st-key-close_j3_leadercmp_open"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+        border-color: transparent !important;
+    }
+    div[class*="st-key-close_j3_leadercmp_open"] button p {
+        color: #ffffff !important;
+    }
     /* 제목 띠 — 단추가 아니라 제목이다(누를 곳이 아니다). 순위 7 단추(초록)·
        눌림목 단추(파랑)와 같은 결로 맞춘 보라색. 한국테마와 같은 모양이다. */
     .j3-band {
@@ -4525,6 +4537,11 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                 st.markdown(_chart_zoom_html(boxes, zoom_id), unsafe_allow_html=True)
             else:
                 st.info("차트 자료 없음")
+    # **맨 밑(3위 밑 · 「상세 종목 선택」 위)에도 작은 닫기 단추** (2026-09-25 상하님 지시 — "색깔
+    # 그라데이션 맞추고"). 세 종목 차트가 폰에서 화면 몇 장이라 위 단추까지 올라가지 않고 닫게 한다.
+    # 닫으면 화면이 위 단추 자리로 올라간다(열 때와 같은 자리 표시).
+    _section_close("j3_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉/월봉 비교 닫기",
+                   return_to=_LEADERCMP_ANCHOR)
 
 
 _MEDAL_BY_RANK = {1: "🥇", 2: "🥈", 3: "🥉"}

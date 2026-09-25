@@ -3493,3 +3493,9 @@ def test_leader_comparison_scrolls_its_button_to_the_top_when_opened():
     assert '_LEADERCMP_ANCHOR = "leadercmp_top"' in source
     assert "#jarvis-anchor-leadercmp_top{scroll-margin-top:12px!important}" in source
     assert ".stElementContainer:has(#jarvis-anchor-leadercmp_top){" in source
+    # 맨 밑(3위 밑 · 「상세 종목 선택」 위)에도 작은 닫기 단추 — 위 단추와 같은 그라데이션(2026-09-25).
+    whole = source[source.index("def _render_leader_comparison("):source.index("_MEDAL_BY_RANK = {")]
+    assert whole.rstrip().endswith('return_to=_LEADERCMP_ANCHOR)')
+    assert '_section_close("j3_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉/월봉 비교 닫기",' in whole
+    close_css = source[source.index('div[class*="st-key-close_j3_leadercmp_open"] button {'):]
+    assert close_css[:200].count("linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%)") == 1
