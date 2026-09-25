@@ -492,6 +492,8 @@ _DEST_OPTIONS = [
 ]
 _GUEST_DEST_OPTIONS = ["미국테마 (자비스3)", "한국테마 (자비스4)",
                        "자비스8 미국주식 연구실"]
+# 폰·태블릿(1200px 이하)에서 보이는 곳 — 이 둘뿐이다(2026-09-25 상하님 지시 · CLAUDE.md 12번).
+_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "한국테마 (자비스4)")
 # 기본 이동은 한국테마(자비스4)다(2026-07-29 사용자 지시). 폰·태블릿에서 숨기는
 # 앞 3개에 들어가면 '선택된 항목이 안 보이는' 상태가 되므로 그 밖이어야 한다.
 _DEST_DEFAULT_INDEX = 4
@@ -867,6 +869,11 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
             .st-key-entry_dest_links > div:nth-child(n+6):not(:nth-child(8)):not(:nth-child(9)) {
                 display: none !important;
             }
+            /* 짧은 목록(지금 열어 둔 곳만 · 게스트)에서도 **미국테마·한국테마 둘만** 보인다
+               (2026-09-25 상하님 지시 — "스마트폰 테블릿에서 자비스3 미국테마만 두고 화면에 다
+               보이지 않게 해라. 한국테마는 화면에 보이게"). 나머지(자비스7·자비스8 따위)는 아래
+               for 문에서 entry_pc_only_ 상자에 따로 담아 여기서 숨긴다. 노트북·PC 는 그대로 다 보인다. */
+            div[class*="st-key-entry_pc_only_"] { display: none !important; }
         }
         </style>
         """,
@@ -903,6 +910,11 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
             )
             if _entry_page:
                 # 진짜 링크라 기록이 하나만 쌓인다(위 설명 참고).
+                # 짧은 목록에서 미국테마·한국테마 말고는 폰·태블릿에서 숨길 상자에 담는다(위 CSS).
+                if _entry_short and _entry_name not in _PHONE_DEST_OPTIONS:
+                    with st.container(key=f"entry_pc_only_{_entry_options.index(_entry_name)}"):
+                        st.page_link(_entry_page, label=_entry_name)
+                    continue
                 st.page_link(_entry_page, label=_entry_name)
                 continue
             # 자비스1은 옮겨 갈 페이지가 아니라 이 파일 자체라 링크가 없다.

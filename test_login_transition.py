@@ -260,7 +260,7 @@ class LoginAppLifecycleTests(unittest.TestCase):
         """
         options = re.search(r"_ALL_DEST_OPTIONS = \[(.*?)\]", SOURCE, re.S).group(1)
         names = re.findall(r'"([^"]+)"', options)
-        self.assertEqual(9, len(names))
+        self.assertEqual(10, len(names))   # 2026-09-25 — 자비스8 미국주식 연구실이 늘어 열 개
         # 감추는 번호(1~3, 6~7)를 뺀 나머지가 테마 화면 셋이어야 한다.
         shown = [name for index, name in enumerate(names, 1)
                  if 4 <= index <= 5 or index in (8, 9)]
@@ -280,6 +280,13 @@ class LoginAppLifecycleTests(unittest.TestCase):
                 f".st-key-entry_dest_links > div:{rule}",
                 SOURCE, f"entry_dest_links에 {rule} 규칙이 없다",
             )
+        # **짧은 목록(지금 열어 둔 곳만 · 게스트)에서도 폰·태블릿은 미국테마·한국테마 둘만**
+        # (2026-09-25 상하님 지시). 나머지는 entry_pc_only_ 상자에 담아 1200px 이하에서 숨긴다.
+        self.assertIn('_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "한국테마 (자비스4)")', SOURCE)
+        self.assertIn('with st.container(key=f"entry_pc_only_', SOURCE)
+        wide = SOURCE[SOURCE.index(".st-key-entry_dest_links > div:nth-child(-n+3)"):]
+        wide = wide[:wide.index("</style>")]
+        self.assertIn('div[class*="st-key-entry_pc_only_"] { display: none !important; }', wide)
 
     def test_the_chooser_offers_a_real_link_to_every_page(self):
         """갈 곳마다 진짜 링크가 있어야 한다. 없으면 그 화면에 갇힌다.
@@ -301,9 +308,10 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 2026-09-07에 미국테마 하나만 남겼다가 2026-09-08에 둘을 도로 열었고,
         # **2026-09-11 상하님 지시로 자비스6 미국테마를 도로 닫아** 셋이 되었다
         # ("자비스6 온라인 화면에서 안 보이게 해라").
-        self.assertEqual(3, len(links), labels)
+        # 2026-09-25 기준 열린 곳은 넷(자비스8 미국주식 연구실이 늘었다).
+        self.assertEqual(4, len(links), labels)
         for name in ("미국테마 (자비스3)", "한국테마 (자비스4)",
-                     "자비스7 미국테마"):
+                     "자비스7 미국테마", "자비스8 미국주식 연구실"):
             self.assertIn(name, labels)
         self.assertNotIn("자비스6 미국테마 (새 디자인)", labels)
 
