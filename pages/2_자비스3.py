@@ -3563,19 +3563,13 @@ def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
     if not today:
         return ""
     daily_points = spark.get("daily_points") or []
-    # 「6개월」은 **봉차트**다(2026-09-24 상하님 — "각 차트에서 일봉은 봉차트로"). 색은 이 칸들의
-    # 규칙 그대로 오른 날 파랑·내린 날 빨강. 봉 값이 없으면 예전 선 그림.
-    daily = _candle_svg(
-        spark.get("daily_ohlc") or [], up="#4da6ff", down="#ff5b5b",
-        svg_open=(f"<svg class='j3-candle-chart' viewBox='0 0 {{W}} {{H}}' width='{width:.0f}' "
-                  f"height='{height}' preserveAspectRatio='none' "
-                  "style='display:block; margin:.4rem 0 .1rem;"
-                  " border:1px solid rgba(255,255,255,.22); border-radius:8px;"
-                  " background:rgba(255,255,255,.03)'>"),
-    ) or (_sparkline_svg(
+    # 「6개월」은 **원래 선 그림**이다 (2026-09-25 상하님 — "나스닥100 선물 외에 클릭하면 6개월 일봉이
+    # 되는데 봉차트 말고 원래 차트로 해라, 다른 것 건들이지 말고"). 09-24 에 봉차트로 바꿨던 것을
+    # 이 칸들(지수 넷·시장 상황·SPY/QQQ)만 되돌린다. 종목 상세·대장주 비교의 일봉 봉차트는 그대로다.
+    daily = _sparkline_svg(
         {"points": daily_points, "base": spark.get("daily_base")},
         "#4da6ff", "#ff5b5b", width=width, height=height,
-    ) if len(daily_points) >= 2 else "")
+    ) if len(daily_points) >= 2 else ""
     # id에 쓸 수 없는 글자(^ 같은 것)를 걸러 낸다 — 지수 이름은 '^IXIC' 꼴이다.
     tap_id = "j3idx_" + re.sub(r"[^0-9A-Za-z]+", "", str(key) or str(int(width)))
     if not daily:
