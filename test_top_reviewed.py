@@ -753,8 +753,16 @@ class WarmTopPicksTests(unittest.TestCase):
         with j3._TOP_PICK_WARM_LOCK:
             j3._TOP_PICK_WARM["on"] = False
             j3._TOP_PICK_WARM["at"] = 0.0
+        # 뒤 일꾼은 화면이 그리는 동안 비켜선다(2026-09-25). 앞선 화면 시험이 남긴 화면 일꾼이 살아 있으면
+        # 여기서 최대 20초 기다리므로, 이 시험(미리 계산이 한 번만 도나)에서는 그 비켜서기를 끈다.
+        self._busy = patch.object(j3, "_screen_busy", lambda: False)
+        self._busy.start()
 
-    tearDown = setUp
+    def tearDown(self):
+        self._busy.stop()
+        with j3._TOP_PICK_WARM_LOCK:
+            j3._TOP_PICK_WARM["on"] = False
+            j3._TOP_PICK_WARM["at"] = 0.0
 
     def test_the_screen_never_waits_for_it(self):
         """화면은 미리 계산을 기다리지 않는다 — 시키기만 하고 바로 지나간다."""

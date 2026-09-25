@@ -3327,11 +3327,16 @@ def test_scorecard_button_sits_under_the_list_close_button_and_is_purple():
     (2026-09-24 상하님 지시). 단추는 보라색 그라데이션이다. 받기 단추 옆 옛 자리는 비워 둔다
     — None 을 넘기면 CSV 단추가 되살아나므로 빈 자리 함수를 넘긴다."""
     source = PAGE.read_text(encoding="utf-8")
+    # **2026-09-25 — 목록 밖으로 뺐다** (상하님 — "날짜별로 저장해 둔 목록 보기 안에 파트별 성적표 보기를
+    # 바깥으로 빼라. 날짜별로 저장해 둔 목록 보기 밑에 넣어라"). 목록 여닫이 안에는 이제 없다.
     toggle = source[source.index("def _picklist_toggle"):source.index("def _picklist_no_scorecard")]
-    assert '_render_picklist_scorecard("button")' in toggle
-    assert '_render_picklist_scorecard("panel")' in toggle
+    assert '_render_picklist_scorecard(' not in toggle, "성적표가 아직 목록 안에 있다"
     section = source[source.index("def _render_picklist_section"):source.index("_PICKLIST_PART_BY_KIND = {")]
     assert "scorecard=_picklist_no_scorecard" in section
+    assert section.index("picklist_ui.render(") < section.index("_render_scorecard_section()"), "목록 밑이 아니다"
+    # 열면 맨 밑에 닫기 단추가 하나 더 있다(2026-09-25 상하님 지시).
+    panel = source[source.index("def _render_picklist_scorecard("):source.index("def _render_picklist_section")]
+    assert 'key="picklist_scorecard_US_close"' in panel and "on_click=_close_scorecard_from_bottom" in panel
     assert re.search(r'st-key-picklist_scorecard_US"\] button\{\s*background:linear-gradient\([^)]*#7c3aed', source)
 
 

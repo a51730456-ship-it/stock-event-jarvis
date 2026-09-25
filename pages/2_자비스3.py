@@ -695,6 +695,9 @@ st.markdown(
         font-size: 0.86em; font-weight: 800; }
     .j3-sector-note { color: #7d8798; font-weight: 700; }
     .j3-sector-wait { color: #9aa0aa; font-weight: 700; padding: .6rem 0; }
+    /* 게이지 상자 「전일」 줄 (2026-09-25) — 날짜는 이름 밑에 작게, 옆 두 칸은 한 줄에. */
+    .j3-hist-day { display: block; font-size: .78em; font-weight: 600; opacity: .85; line-height: 1.1; }
+    .fg-box-hist .fg-hist-zone, .fg-box-hist .fg-hist-value { white-space: nowrap; }
     .j3-sector-tile.tiny { padding: 0; }
     /* 같은 업종 칸을 두르는 굵은 테두리(2026-09-24 테마 칸). 누르기는 칸이 받는다. */
     .j3-sector-group { position: absolute; box-sizing: border-box; pointer-events: none;
@@ -3643,7 +3646,11 @@ def _with_days(box: str, big, before, live: bool, old_label: str) -> str:
                     f"당일 · {big:%m.%d} ({tag})</div>")
         box = box.replace("</div><div class='fg-box-hist'>", f"{day_line}</div><div class='fg-box-hist'>", 1)
     if before is not None:
-        box = box.replace(f">{old_label}</span>", f">전일 · {before:%m.%d}</span>", 1)
+        # **「전일」 밑에 날짜를 작게 한 줄 더** (2026-09-25 상하님 폰 캡처 — 「전일 · 09.23」을 한 줄에
+        # 적었더니 글자가 큰 폰에서 이름·「상승 여건 양호」·「90점」이 모두 두 줄로 접혔다). 이름 칸 폭이
+        # 「전일」만큼으로 줄어 옆 칸이 한 줄에 든다. 옆 두 칸은 이 화면 꾸밈 규칙으로 접히지 않게 한다.
+        box = box.replace(f">{old_label}</span>",
+                          f">전일<small class='j3-hist-day'>{before:%m.%d}</small></span>", 1)
     return box
 
 
@@ -6197,10 +6204,7 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
         on_open=lambda: scroll_to.request(st, _PICKLIST_ANCHOR),
     )
     if not is_open:
-        # **목록을 닫으면 안에 열어 둔 파트별 성적표도 같이 닫는다** (2026-09-23 밤 상하님 —
-        # "목록 닫기 했다가 다시 열면 파트별 성적표 그대로 열려 있더라"). 위·아래 닫기 단추
-        # 어느 쪽으로 닫아도 닫힌 판에는 여기를 지난다.
-        st.session_state.pop(_SCORECARD_KEY, None)
+        # 목록을 닫아도 **파트별 성적표는 그대로 둔다** (2026-09-25 상하님 — 성적표를 목록 밖으로 뺐다).
         return is_open
     if _PICKLIST_DATE_KEY not in st.session_state:
         # **처음 열 때는 맨 위(가장 새 날)가 아니라 그 전날을 고른다** (2026-09-23 밤
@@ -6238,13 +6242,8 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
         # 선다** (2026-09-24 상하님 지시). 예전에는 「CSV로 받기」 자리(엑셀 단추 오른쪽)였다.
         # 올라가는 자리는 성적표가 닫혀 있으면 단추 위라 단추와 날짜 칸이 같이 보이고,
         # 열려 있으면 성적표 밑(= 날짜 칸 바로 위)이라 날짜를 바꿔도 목록 쪽으로 간다.
-        scorecard_open = bool(st.session_state.get(_SCORECARD_KEY))
-        if not scorecard_open:
-            scroll_to.anchor(st, _PICKLIST_ANCHOR)
-        if _render_picklist_scorecard("button"):
-            _render_picklist_scorecard("panel")
-        if scorecard_open:
-            scroll_to.anchor(st, _PICKLIST_ANCHOR)
+        # 파트별 성적표는 2026-09-25 부터 이 목록 **밖**이다(_render_scorecard_section).
+        scroll_to.anchor(st, _PICKLIST_ANCHOR)
     return is_open
 
 
@@ -6791,6 +6790,23 @@ def _render_range_picker():
     return None
 
 
+_SCORECARD_BTN_ANCHOR = "scorecard_btn"
+
+
+def _close_scorecard_from_bottom() -> None:
+    """성적표 맨 밑 닫기 — 닫고 성적표 단추 자리로 올라간다."""
+    st.session_state[_SCORECARD_KEY] = False
+    scroll_to.request(st, _SCORECARD_BTN_ANCHOR)
+
+
+def _render_scorecard_section() -> None:
+    """파트별 성적표 — 날짜별 목록 **밖**, 그 밑 (2026-09-25 상하님 지시)."""
+    # 맨 밑 닫기를 누르면 이 자리(성적표 단추 바로 위)로 올라온다.
+    scroll_to.anchor(st, _SCORECARD_BTN_ANCHOR)
+    if _render_picklist_scorecard("button"):
+        _render_picklist_scorecard("panel")
+
+
 def _render_picklist_scorecard(part: str):
     """「CSV로 받기」 자리의 단추와, 눌렀을 때 스르륵 내려오는 창."""
     if part == "button":
@@ -6844,6 +6860,10 @@ def _render_picklist_scorecard(part: str):
             st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
         # 「어느 때 어느 파트가 나았나」 표는 뺐다(2026-09-23 저녁 상하님 — "파트별 성적표 밑에
         # 다 지워라 의미없다 삭제해라"). 계산만 research/parts_when.py 에 남아 있다.
+        # **맨 밑에 닫기 단추를 하나 더** (2026-09-25 상하님 — "파트별 성적표 보기를 열고 나면 맨 밑에
+        # 파트별 성적표 보기 닫기 단추를 하나 더 넣어라"). 누르면 닫고 성적표 단추 자리로 올라간다.
+        st.button("✕ 파트별 성적표 닫기", key="picklist_scorecard_US_close", width="stretch",
+                  on_click=_close_scorecard_from_bottom)
     return True
 
 
@@ -6867,6 +6887,10 @@ def _render_picklist_section(market: dict, ranking: dict) -> None:
         # 자리는 비워 둔다 — None 을 넘기면 CSV 단추가 되살아난다.
         scorecard=_picklist_no_scorecard,
     )
+    # **파트별 성적표는 목록 밖, 「날짜별로 저장해 둔 목록 보기」 밑** (2026-09-25 상하님 — "날짜별로
+    # 저장해 둔 목록 보기 안에 파트별 성적표 보기를 바깥으로 빼라. 날짜별로 저장해 둔 목록 보기 밑에
+    # 넣어라"). 목록을 안 열어도 바로 볼 수 있다. 목록을 열면 목록 끝 뒤에 선다.
+    _render_scorecard_section()
     # 이 판에 보인 날짜를 적어 둔다 — 다음 판에 날짜가 바뀌었나를 여기와 견준다(위 _picklist_toggle).
     # 닫힌 판에는 날짜 칸이 없어 빈값이 적히고, 다시 열면 그 판 끝에 새로 적힌다.
     st.session_state[_PICKLIST_SEEN_DATE_KEY] = st.session_state.get(_PICKLIST_DATE_KEY)
@@ -11082,6 +11106,11 @@ def _briefing_css() -> None:
         body:has(.j3-market-top) .stElementContainer:has(#jarvis-anchor-picklist_top){
           margin-top:-12px!important;margin-bottom:0!important}
         #jarvis-anchor-picklist_top{scroll-margin-top:0!important}
+        /* 성적표 단추 자리 표시(2026-09-25) — 칸 하나 차지하는 만큼 도로 당긴다. 맨 밑 닫기를 누르면
+           성적표 단추가 화면 맨 위에서 12px 아래에 선다. */
+        body:has(.j3-market-top) .stElementContainer:has(#jarvis-anchor-scorecard_btn){
+          margin-top:-12px!important;margin-bottom:0!important}
+        #jarvis-anchor-scorecard_btn{scroll-margin-top:12px!important}
         /* 파트별 성적표 (2026-09-16 상하님 지시 — 「CSV로 받기」 자리에 단추를 놓고,
            누르면 "창이 위에서 밑으로 스르륵" 내려오게). 위에서 아래로 걷어 올리듯
            보여 준다 — 높이를 재지 않아도 되므로 줄 수가 달라져도 그대로 돈다. */
