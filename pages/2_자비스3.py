@@ -13445,9 +13445,26 @@ _SWIPE_OUTER_JS = """
   // 사라지면) 늦게 오는 카드·단추·뉴스는 안 기다리고 곧바로 뜬다. 뉴스가 오면 그 뒤에 1.2초 규칙대로
   // 한 번 새로 뜬다 — 그 사이 넘기면 종이에 뉴스 오기 전 화면이 잠깐 보인다(상하님이 고르신 쪽).
   var firstReady = false;
+  // ── **손가락이 화면에 있거나 화면이 굴러가는 동안에는 사진을 뜨지 않는다** (2026-09-30 상하님 —
+  // "넘어가고 난 뒤 화면이 버벅인다") ──────────────────────────────────────────────
+  // 넘긴 뒤 약 2.7초에 다음 넘김용 사진 세 장을 새로 뜨고 깐다(느린 폰 4배 실측). 그때 화면을 굴리고
+  // 있으면 그 일에 막혀 멈칫했다. 손가락이 닿아 있거나 굴러가는 동안은 미루고, 손을 떼고 1.2초 조용하면
+  // 뜬다. 사진을 까는 세 가지 일 사이에도 다시 본다 — 중간에 손을 대면 나머지는 또 미룬다.
+  // 하는 일과 넘기는 모양은 그대로다 — 하는 **때**만 옮긴다.
+  var busyUntil = 0, fingerDown = false;
+  function markBusy() { busyUntil = Date.now() + 1200; }
+  function userBusy() { return fingerDown || Date.now() < busyUntil; }
+  function busyWait() { return Math.max(200, busyUntil - Date.now() + 100); }
+  d.addEventListener('touchstart', function () { fingerDown = true; markBusy(); }, { passive: true, capture: true });
+  d.addEventListener('touchend', function (ev) {
+    if (!ev.touches || !ev.touches.length) { fingerDown = false; }
+    markBusy();
+  }, { passive: true, capture: true });
+  d.addEventListener('touchcancel', function () { fingerDown = false; markBusy(); }, { passive: true, capture: true });
   function idle() {
     idleTimer = null;
     if (drag || fired) { return; }
+    if (userBusy()) { idleTimer = setTimeout(idle, busyWait()); return; }
     if (d.querySelector('[data-testid="stStatusWidget"]')) { idleTimer = setTimeout(idle, firstReady ? 800 : 300); return; }
     var sname = screenNow();
     if (!sname) { if (!firstReady) { idleTimer = setTimeout(idle, 300); } return; }
@@ -13463,6 +13480,8 @@ _SWIPE_OUTER_JS = """
     jobs.push(function () { mountCopy(FACE, sname); });
     jobs.push(function () { mountCopy(EDGE, sname); });
     (function run() {
+      if (drag || fired) { return; }
+      if (userBusy()) { setTimeout(run, busyWait()); return; }
       var job = jobs.shift();
       if (!job || drag || fired) { return; }
       try { job(); } catch (e) {}
@@ -13495,10 +13514,12 @@ _SWIPE_OUTER_JS = """
     return null;
   }
   d.addEventListener('scroll', function () {
+    markBusy();                     // 굴러가는 동안(손 뗀 뒤 미끄러지는 것까지) 사진 뜨기를 미룬다(위)
     if (drag || fired) { return; }
     if (scrollTimer) { clearTimeout(scrollTimer); }
-    scrollTimer = setTimeout(function () {
+    scrollTimer = setTimeout(function afterScroll() {
       scrollTimer = null;
+      if (userBusy()) { scrollTimer = setTimeout(afterScroll, busyWait()); return; }
       var sc = scroller(), top = sc ? sc.scrollTop : 0;
       if (Math.abs(top - capScroll) < (window.innerHeight || 800) * 1.5) { return; }
       capScroll = top;
@@ -13506,7 +13527,7 @@ _SWIPE_OUTER_JS = """
       if (!sname) { return; }
       capture(true);
       setTimeout(function () { if (!drag && !fired) { mountCopy(FACE, sname, true); } }, 60);
-      setTimeout(function () { if (!drag && !fired) { mountCopy(EDGE, sname, true); } }, 140);
+      setTimeout(function () { if (!drag && !fired && !userBusy()) { mountCopy(EDGE, sname, true); } }, 140);
     }, 700);
   }, { capture: true, passive: true });
 

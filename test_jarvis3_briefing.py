@@ -1060,6 +1060,12 @@ def test_the_next_page_lies_under_the_turning_page():
     assert "idleTimer = setTimeout(idle, 1200);" in js
     # 첫 사진은 뉴스·늦게 오는 카드를 기다리지 않는다(2026-09-25 상하님 "뉴스 기다리지 마").
     assert "if (!firstReady && idleTimer) { return; }" in js
+    # 손가락이 닿아 있거나 굴러가는 동안에는 사진을 뜨지 않는다(2026-09-30 상하님 "넘어가고 난 뒤 버벅인다").
+    # 느린 폰 실측 — 넘긴 뒤 6초 굴리는 동안 가장 긴 멈칫 283~316ms → 0~61ms.
+    assert "if (userBusy()) { idleTimer = setTimeout(idle, busyWait()); return; }" in js
+    assert "if (userBusy()) { setTimeout(run, busyWait()); return; }" in js
+    assert "if (userBusy()) { scrollTimer = setTimeout(afterScroll, busyWait()); return; }" in js
+    assert "markBusy();                     // 굴러가는 동안" in js
     assert "firstReady = true;" in js
     assert "stSkeleton" not in js, "단추가 다 차기를 기다리면 온라인에서 오히려 늦어졌다"
     # 진짜 화면에서 숨은 칸은 사진에서도 숨긴다(사진이 168px 아래로 밀렸다).
