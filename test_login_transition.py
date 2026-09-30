@@ -240,6 +240,7 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # ("자비스6 온라인 화면에서 안 보이게 해라").
         self.assertIn("자비스3", targets)
         self.assertIn("자비스4", targets)
+        self.assertIn("자비스10", targets)   # 2026-09-30 한국증시
         self.assertIn("자비스7", targets)
         self.assertNotIn("자비스6_미국테마", targets)
         # 자비스1은 2026-08-28부터 닫아 두었다 — 그 단추도 없다(상하님 지시).
@@ -257,15 +258,20 @@ class LoginAppLifecycleTests(unittest.TestCase):
         **2026-09-03에 여덟째가 늘었다** — 새 디자인 미국테마(자비스6 미국테마).
         상하님이 폰에서 옛 화면과 새 화면을 나란히 견주시려면 그것도 보여야 해서,
         감추는 규칙에 여덟째만 빼는 단서를 달았다.
+
+        **2026-09-30 한국증시(자비스10)가 다섯째로 들어왔다** — 상하님 "기존에 한국테마
+        스마트폰이나 테블릿에서 빼고 너가 한국증시 새로 만들어 올려라". 한국테마는 여섯째로
+        밀려 폰·태블릿에서 감춘다. 뒤의 번호는 하나씩 밀렸다.
         """
         options = re.search(r"_ALL_DEST_OPTIONS = \[(.*?)\]", SOURCE, re.S).group(1)
         names = re.findall(r'"([^"]+)"', options)
-        self.assertEqual(10, len(names))   # 2026-09-25 — 자비스8 미국주식 연구실이 늘어 열 개
-        # 감추는 번호(1~3, 6~7)를 뺀 나머지가 테마 화면 셋이어야 한다.
+        self.assertEqual(11, len(names))   # 2026-09-30 — 한국증시(자비스10)가 늘어 열한 개
+        # 감추는 번호(1~3, 6~8, 11)를 뺀 나머지가 보여야 할 화면이다.
         shown = [name for index, name in enumerate(names, 1)
-                 if 4 <= index <= 5 or index in (8, 9)]
-        self.assertEqual(["미국테마 (자비스3)", "한국테마 (자비스4)",
+                 if 4 <= index <= 5 or index in (9, 10)]
+        self.assertEqual(["미국테마 (자비스3)", "한국증시 (자비스10)",
                           "자비스6 미국테마 (새 디자인)", "자비스7 미국테마"], shown)
+        self.assertEqual("한국테마 (자비스4)", names[5])   # 여섯째 — 폰·태블릿에서 감춘다
         # 기본 선택은 감추는 항목에 들어가면 안 된다.
         default = int(re.search(r"_DEST_DEFAULT_INDEX = (\d+)", SOURCE).group(1))
         self.assertIn(names[default], shown)
@@ -275,14 +281,15 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertNotIn("login_dest_choice", SOURCE.replace("login_dest_choice 목록", ""))
         # '어디로 갈까요'는 2026-08-09부터 링크 목록이라 감추는 자리가 바뀌었다.
         # 링크는 목록 상자(entry_dest_links)의 자식이므로 그 자식 번호로 감춘다.
-        for rule in ("nth-child(-n+3)", "nth-child(n+6):not(:nth-child(8))"):
+        for rule in ("nth-child(-n+3)", "nth-child(n+6):not(:nth-child(9)):not(:nth-child(10))"):
             self.assertIn(
                 f".st-key-entry_dest_links > div:{rule}",
                 SOURCE, f"entry_dest_links에 {rule} 규칙이 없다",
             )
-        # **짧은 목록(지금 열어 둔 곳만 · 게스트)에서도 폰·태블릿은 미국테마·한국테마 둘만**
-        # (2026-09-25 상하님 지시). 나머지는 entry_pc_only_ 상자에 담아 1200px 이하에서 숨긴다.
-        self.assertIn('_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "한국테마 (자비스4)")', SOURCE)
+        # **짧은 목록(지금 열어 둔 곳만 · 게스트)에서도 폰·태블릿은 둘만**(2026-09-25 상하님 지시).
+        # 2026-09-30 부터 그 둘은 미국테마·한국증시다(한국테마는 노트북·PC 에만).
+        # 나머지는 entry_pc_only_ 상자에 담아 1200px 이하에서 숨긴다.
+        self.assertIn('_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "한국증시 (자비스10)")', SOURCE)
         self.assertIn('with st.container(key=f"entry_pc_only_', SOURCE)
         wide = SOURCE[SOURCE.index(".st-key-entry_dest_links > div:nth-child(-n+3)"):]
         wide = wide[:wide.index("</style>")]
@@ -309,8 +316,9 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # **2026-09-11 상하님 지시로 자비스6 미국테마를 도로 닫아** 셋이 되었다
         # ("자비스6 온라인 화면에서 안 보이게 해라").
         # 2026-09-25 기준 열린 곳은 넷(자비스8 미국주식 연구실이 늘었다).
-        self.assertEqual(4, len(links), labels)
-        for name in ("미국테마 (자비스3)", "한국테마 (자비스4)",
+        # 2026-09-30 한국증시(자비스10)가 늘어 다섯.
+        self.assertEqual(5, len(links), labels)
+        for name in ("미국테마 (자비스3)", "한국증시 (자비스10)", "한국테마 (자비스4)",
                      "자비스7 미국테마", "자비스8 미국주식 연구실"):
             self.assertIn(name, labels)
         self.assertNotIn("자비스6 미국테마 (새 디자인)", labels)

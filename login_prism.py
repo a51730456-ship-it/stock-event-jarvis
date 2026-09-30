@@ -32,7 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 화면 구성이나 문구를 바꾸면 이 숫자를 올린다(CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026080990
+MODULE_REVISION = 2026093001
 
 # 판을 누르면 이 표식을 달고 그 화면으로 간다. 받는 쪽(pages/*.py)이 이것을 보고
 # 비밀번호 없이 게스트로 들여보낸다. 게스트는 원래도 비밀번호 없이 들어갈 수 있으므로
@@ -44,6 +44,14 @@ PANELS = (
     ("US", "pages/2_자비스3.py", "미국테마", "나스닥 · 테마 20 · 상승장과 급락장"),
     ("KR", "pages/3_자비스4.py", "한국테마", "코스피 · 테마 20 · 상승장과 급락장"),
 )
+
+# **폰·태블릿(1200px 이하)에서만** 오른쪽 판을 한국증시로 바꾼다 (2026-09-30 상하님 지시 —
+# "기존에 한국테마 스마트폰이나 테블릿에서 빼고 너가 한국증시 새로 만들어 올려라").
+# 노트북·PC 는 그대로 한국테마다. 두 판을 다 그려 두고 CSS 로 하나만 보인다(판 수는 늘 둘).
+PHONE_PANELS = {
+    "KR": ("pages/9_자비스10.py", "한국증시", "코스피 지수 30년 · 한국·미국 시장"),
+}
+PHONE_MAX_WIDTH = 1200
 
 # ── 국기 (2026-08-09 상하님 지적 "국기를 왜 지구로 바꿨냐") ────────────────
 # **이모지 국기(🇺🇸·🇰🇷)를 쓰지 않는다.** 윈도우에는 나라 깃발 글꼴이 없어서
@@ -426,25 +434,30 @@ WAVE_SVG = (
 )
 
 
-def panel_style(index: int, market: str) -> str:
-    """판 하나의 배경과 퍼지는 방향. 칸마다 달라서 따로 내보낸다."""
+def panel_style(index: int, market: str, key: str | None = None) -> str:
+    """판 하나의 배경과 퍼지는 방향. 칸마다 달라서 따로 내보낸다.
+
+    ``key`` 는 상자 이름(없으면 market). 폰에서만 보이는 한국증시 판은 그림·국기는 한국(KR)
+    그대로 쓰고 상자 이름만 다르다(KRM).
+    """
     burst = "jp-burst-left" if index == 0 else "jp-burst-right"
     delay = 0.10 + index * 0.14      # 왼쪽 0.10초 · 오른쪽 0.24초 (뒤따라 올라온다)
+    box = key or market
     return (
-        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] {{"
+        f".st-key-jp_panel_{box} a[data-testid='stPageLink-NavLink'] {{"
         f" background-image: {_panel_background(market)} !important;"
         " background-size: cover !important; background-position: center !important;"
         f" animation: {burst} .55s cubic-bezier(.16,1,.3,1) {delay:.2f}s both;"
         "}"
         # 주식 그림은 배경이 아니라 ::before에 넣는다 — 그림만 따로 움직이게.
-        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink']::before {{"
+        f".st-key-jp_panel_{box} a[data-testid='stPageLink-NavLink']::before {{"
         f" background-image: url(\"{chart_url(market)}\");"
         "}"
         # 국기는 글자 왼쪽에 **하나만** 붙인다. 스트림릿이 글자를
         # <span><div><p>글자</p></div></span> 로 세 겹 싸는데, span과 p에 같이
         # 걸어 놔서 국기가 두 개로 보였다(2026-08-09 상하님 지적).
         # 맨 안쪽 p에만 걸고, 바깥 span은 그림을 끈다.
-        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] p {{"
+        f".st-key-jp_panel_{box} a[data-testid='stPageLink-NavLink'] p {{"
         f" background-image: url(\"{flag_url(market)}\") !important;"
         " background-repeat: no-repeat !important;"
         " background-position: left center !important;"
@@ -452,7 +465,7 @@ def panel_style(index: int, market: str) -> str:
         " padding-left: 3.3rem !important;"
         " display: inline-block !important;"
         "}"
-        f".st-key-jp_panel_{market} a[data-testid='stPageLink-NavLink'] > span {{"
+        f".st-key-jp_panel_{box} a[data-testid='stPageLink-NavLink'] > span {{"
         " background-image: none !important; padding-left: 0 !important;"
         "}"
     )
@@ -522,21 +535,41 @@ def render(st) -> None:
     # 가로 칸(st.container(horizontal=True))을 쓰면 판이 글자 폭만큼만 좁아진다
     # (2026-08-09 실측: 800px 화면에서 판이 141px). 보통 칸으로 나눈다.
     columns = st.container(key="jp_panels").columns(len(PANELS), gap="medium")
+    def _board(box_key: str, page: str, name: str, note: str) -> None:
+        with st.container(key=f"jp_panel_{box_key}"):
+            try:
+                # width="stretch"가 없으면 링크가 글자 폭만큼만 그려진다
+                # (2026-08-09 실측: 1280px 화면에서 판이 141px). CSS로는 안 늘어난다.
+                st.page_link(page, label=name, width="stretch",
+                             query_params={GUEST_PARAM: GUEST_VALUE})
+            except Exception:
+                # 페이지 목록이 없는 자리(시험용)에서는 조용히 건너뛴다 —
+                # 아래 비밀번호 로그인은 그대로 돈다.
+                pass
+        st.markdown(f"<div class='jp-panel-note'>{note}</div>", unsafe_allow_html=True)
+
     for index, (market, page, name, note) in enumerate(PANELS):
         styles.append(panel_style(index, market))
         with columns[index]:
-            box = st.container(key=f"jp_panel_{market}")
-            with box:
-                try:
-                    # width="stretch"가 없으면 링크가 글자 폭만큼만 그려진다
-                    # (2026-08-09 실측: 1280px 화면에서 판이 141px). CSS로는 안 늘어난다.
-                    st.page_link(page, label=name, width="stretch",
-                                 query_params={GUEST_PARAM: GUEST_VALUE})
-                except Exception:
-                    # 페이지 목록이 없는 자리(시험용)에서는 조용히 건너뛴다 —
-                    # 아래 비밀번호 로그인은 그대로 돈다.
-                    pass
-            st.markdown(f"<div class='jp-panel-note'>{note}</div>", unsafe_allow_html=True)
+            swap = PHONE_PANELS.get(market)
+            if not swap:
+                _board(market, page, name, note)
+                continue
+            # 노트북·PC 판과 폰·태블릿 판을 둘 다 그리고 폭으로 하나만 보인다(위 PHONE_PANELS).
+            with st.container(key=f"jp_desk_{market}"):
+                _board(market, page, name, note)
+            with st.container(key=f"jp_phone_{market}"):
+                _board(f"{market}M", *swap)
+            styles.append(panel_style(index, market, key=f"{market}M"))
+            # 스트림릿 1.59 는 이름 붙인 상자를 겉싸개(stLayoutWrapper)로 한 겹 더 싼다. 안쪽만 감추면
+            # 겉싸개가 틈(16px)을 하나 더 만들어 오른쪽 판이 16px 처졌다(2026-09-30 실측) — 겉싸개도 감춘다.
+            wrap = '[data-testid="stLayoutWrapper"]:has(> .st-key-jp_{}_{})'
+            styles.append(
+                f"@media (max-width: {PHONE_MAX_WIDTH}px) {{ .st-key-jp_desk_{market}, {wrap.format('desk', market)}"
+                " { display: none !important; } }"
+                f"@media (min-width: {PHONE_MAX_WIDTH + 1}px) {{ .st-key-jp_phone_{market}, {wrap.format('phone', market)}"
+                " { display: none !important; } }"
+            )
     st.markdown("<style>" + "".join(styles) + "</style>", unsafe_allow_html=True)
     st.markdown(
         "<div class='jp-hint'>판을 누르면 비밀번호 없이 바로 들어갑니다. "

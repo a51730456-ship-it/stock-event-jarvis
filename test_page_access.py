@@ -35,7 +35,8 @@ class OpenPagesTests(unittest.TestCase):
         「어디로 갈까요」 캡처의 그 줄에 동그라미를 치시고 "자비스6 온라인
         화면에서 안 보이게 해라".
         """
-        self.assertEqual(("미국테마", "한국테마", "자비스7", "자비스8"),
+        # 2026-09-30 한국증시(자비스10)를 열었다 — 상하님 "한국증시 새로 만들어 올려라".
+        self.assertEqual(("미국테마", "한국증시", "한국테마", "자비스7", "자비스8"),
                          page_access.OPEN_PAGES)
         self.assertFalse(page_access.is_open("자비스6미국테마"))
 
@@ -46,7 +47,7 @@ class OpenPagesTests(unittest.TestCase):
 
     def test_the_full_list_is_kept_for_restoring(self):
         """되살릴 이름을 지우지 않는다 — 지우면 무엇이 있었는지 알 수 없다."""
-        self.assertEqual(10, len(page_access.ALL_PAGES))
+        self.assertEqual(11, len(page_access.ALL_PAGES))   # 2026-09-30 한국증시가 늘었다
 
 
 class GuardPlacementTests(unittest.TestCase):

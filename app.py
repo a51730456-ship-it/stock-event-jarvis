@@ -326,6 +326,21 @@ st.markdown(
     [data-testid="stSidebarNav"] a[href*="%EC%9E%90%EB%B9%84%EC%8A%A46_%EB%AF%B8%EA%B5%AD%ED%85%8C%EB%A7%88"] {
         display: none !important;
     }
+    /* 「자비스10」 이름표를 「한국증시 (자비스10)」 으로 (2026-09-30). 위와 같이 **주소로** 고른다. */
+    [data-testid="stSidebarNav"] a[href*="자비스10"] p,
+    [data-testid="stSidebarNav"] a[href*="%EC%9E%90%EB%B9%84%EC%8A%A410"] p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] a[href*="자비스10"] p::before,
+    [data-testid="stSidebarNav"] a[href*="%EC%9E%90%EB%B9%84%EC%8A%A410"] p::before {
+        content: "한국증시\\A(자비스10)"; white-space: pre; line-height: 1.2;
+        font-size: 1.15rem; font-weight: 800; color: #ffb020;
+    }
+    /* 폰·태블릿(≤1200px)에서는 왼쪽 메뉴에서도 한국테마(자비스4)를 감춘다 (2026-09-30 상하님 —
+       "기존에 한국테마 스마트폰이나 테블릿에서 빼고"). 노트북·PC 는 그대로 보인다.
+       (아래 nth-child 규칙 덩어리와 글자를 일부러 다르게 적는다 — 시험이 그 덩어리를 첫 줄로 찾는다.) */
+    @media screen and (max-width: 1200px) {
+        [data-testid="stSidebarNav"] a[href*="자비스4"],
+        [data-testid="stSidebarNav"] a[href*="%EC%9E%90%EB%B9%84%EC%8A%A44"] { display: none !important; }
+    }
     [data-testid="stSidebarNav"] a {
         padding: 0.45rem 0.6rem !important;
     }
@@ -464,13 +479,16 @@ except TypeError:
 
 # 갈 수 있는 곳 — 로그인 화면과 '어디로 갈까' 화면이 같은 목록을 쓴다.
 # 두 곳에 따로 적어 두면 한쪽만 고쳐져 목록이 어긋난다.
-# 순서를 바꾸면 폰·태블릿에서 미국테마·한국테마 둘만 남기는 CSS
+# 순서를 바꾸면 폰·태블릿에서 미국테마·한국증시 둘만 남기는 CSS
 # (nth-child(-n+3)과 nth-child(n+6))도 같이 고쳐야 한다(CLAUDE.md 12번).
 _ALL_DEST_OPTIONS = [
     "시장 판단",
     "자비스1 (기록장)",
     "자비스2 (순환매 플레이북)",
     "미국테마 (자비스3)",
+    # 한국증시 (2026-09-30 상하님 지시 — 「기존에 한국테마 스마트폰이나 테블릿에서 빼고 너가
+    # 한국증시 새로 만들어 올려라」). 미국테마 바로 다음이라 폰·태블릿에서 둘째 판(붉은색)이 된다.
+    "한국증시 (자비스10)",
     "한국테마 (자비스4)",
     "선행감지 (자비스5·실험)",
     "종가관찰 (자비스6·연습)",
@@ -481,7 +499,7 @@ _ALL_DEST_OPTIONS = [
     "자비스8 미국주식 연구실",
 ]
 # 이름표(page_access의 화면 이름) — 위 목록과 **차례가 같아야 한다.**
-_DEST_KEYS = ["시장판단", "자비스1", "자비스2", "미국테마", "한국테마",
+_DEST_KEYS = ["시장판단", "자비스1", "자비스2", "미국테마", "한국증시", "한국테마",
               "자비스5", "자비스6", "자비스6미국테마", "자비스7", "자비스8"]
 # **지금 열어 둔 곳만 목록에 올린다** (2026-08-28 상하님 지시 — "나머지 화면은
 # 접근 금지로 해라"). 옵션 자체는 위에 그대로 남겨 두었다 — page_access의
@@ -490,17 +508,20 @@ _DEST_OPTIONS = [
     name for name, key in zip(_ALL_DEST_OPTIONS, _DEST_KEYS)
     if page_access.is_open(key)
 ]
-_GUEST_DEST_OPTIONS = ["미국테마 (자비스3)", "한국테마 (자비스4)",
+_GUEST_DEST_OPTIONS = ["미국테마 (자비스3)", "한국증시 (자비스10)", "한국테마 (자비스4)",
                        "자비스8 미국주식 연구실"]
 # 폰·태블릿(1200px 이하)에서 보이는 곳 — 이 둘뿐이다(2026-09-25 상하님 지시 · CLAUDE.md 12번).
-_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "한국테마 (자비스4)")
-# 기본 이동은 한국테마(자비스4)다(2026-07-29 사용자 지시). 폰·태블릿에서 숨기는
-# 앞 3개에 들어가면 '선택된 항목이 안 보이는' 상태가 되므로 그 밖이어야 한다.
+# **2026-09-30 한국테마 자리를 한국증시로 바꿨다**(상하님 — "기존에 한국테마 스마트폰이나 테블릿에서
+# 빼고"). 한국테마는 노트북·PC 목록에 그대로 남는다.
+_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "한국증시 (자비스10)")
+# 기본 이동 — 폰·태블릿에서 숨기는 항목에 들어가면 '선택된 항목이 안 보이는' 상태가 되므로
+# 그 밖이어야 한다. 2026-09-30 부터 넷째(0부터 셈) = 한국증시.
 _DEST_DEFAULT_INDEX = 4
 _DEST_PAGES = {
     "시장 판단": "pages/0_시장판단.py",
     "자비스2": "pages/1_자비스2.py",
     "미국테마": "pages/2_자비스3.py",
+    "한국증시": "pages/9_자비스10.py",
     "한국테마": "pages/3_자비스4.py",
     "선행감지": "pages/4_자비스5.py",
     "종가관찰": "pages/5_자비스6.py",
@@ -818,7 +839,9 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
             min-height: 4.6rem !important;
             display: flex !important; align-items: center !important;
             justify-content: flex-start !important;
-            padding: 0 1.15rem !important;
+            /* 오른쪽 3rem 은 화살표(→) 자리다 — 2026-09-30 「한국증시 (자비스10)」 이 길어 화살표가
+               글자 끝(「10)」)을 덮었다. 원래도 「(자비스3)」 의 「3)」 을 조금 덮고 있었다. */
+            padding: 0 3rem 0 1.15rem !important;
             width: 100% !important; margin-bottom: .8rem !important;
             text-decoration: none !important;
             box-shadow: inset 0 1px rgba(180,239,255,.22), 0 6px 18px rgba(0,0,0,.45) !important;
@@ -859,17 +882,20 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
            (2026-08-01 사용자 지시, CLAUDE.md 12번). 옵션 자체는 남겨 두어
            노트북/PC에서는 7개가 다 보인다.
            번호는 _DEST_OPTIONS 차례 그대로다 — 1 시장판단 · 2 자비스1 · 3 자비스2 ·
-           4 미국테마 · 5 한국테마 · 6 선행감지 · 7 종가관찰 · 8 자비스6 미국테마.
-           순서를 바꾸면 여기도 고친다.
-           **여덟째(새 디자인 미국테마)는 폰에서도 보인다**(2026-09-03) — 상하님이
+           4 미국테마 · 5 한국증시 · 6 한국테마 · 7 선행감지 · 8 종가관찰 · 9 자비스6 미국테마 ·
+           10 자비스7. 순서를 바꾸면 여기도 고친다.
+           **2026-09-30 한국증시가 다섯째로 들어오고 한국테마(여섯째)는 폰·태블릿에서 감춘다**
+           (상하님 — "기존에 한국테마 스마트폰이나 테블릿에서 빼고").
+           **아홉째(새 디자인 미국테마)는 폰에서도 보인다**(2026-09-03) — 상하님이
            폰에서 옛 화면과 새 화면을 견주시려면 둘 다 보여야 한다.
            게스트는 목록이 둘뿐이라 이 규칙이 안 걸리게 상자 이름을 따로 쓴다. */
         @media (max-width: 1200px) {
             .st-key-entry_dest_links > div:nth-child(-n+3),
-            .st-key-entry_dest_links > div:nth-child(n+6):not(:nth-child(8)):not(:nth-child(9)) {
+            .st-key-entry_dest_links > div:nth-child(n+6):not(:nth-child(9)):not(:nth-child(10)) {
                 display: none !important;
             }
-            /* 짧은 목록(지금 열어 둔 곳만 · 게스트)에서도 **미국테마·한국테마 둘만** 보인다
+            /* 짧은 목록(지금 열어 둔 곳만 · 게스트)에서도 **미국테마·한국증시 둘만** 보인다
+               (2026-09-30 한국테마 자리를 한국증시로 바꿨다 — _PHONE_DEST_OPTIONS).
                (2026-09-25 상하님 지시 — "스마트폰 테블릿에서 자비스3 미국테마만 두고 화면에 다
                보이지 않게 해라. 한국테마는 화면에 보이게"). 나머지(자비스7·자비스8 따위)는 아래
                for 문에서 entry_pc_only_ 상자에 따로 담아 여기서 숨긴다. 노트북·PC 는 그대로 다 보인다. */
@@ -910,7 +936,7 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
             )
             if _entry_page:
                 # 진짜 링크라 기록이 하나만 쌓인다(위 설명 참고).
-                # 짧은 목록에서 미국테마·한국테마 말고는 폰·태블릿에서 숨길 상자에 담는다(위 CSS).
+                # 짧은 목록에서 미국테마·한국증시 말고는 폰·태블릿에서 숨길 상자에 담는다(위 CSS).
                 if _entry_short and _entry_name not in _PHONE_DEST_OPTIONS:
                     with st.container(key=f"entry_pc_only_{_entry_options.index(_entry_name)}"):
                         st.page_link(_entry_page, label=_entry_name)
