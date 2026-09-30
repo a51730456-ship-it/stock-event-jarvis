@@ -26,6 +26,14 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
     import importlib as _importlib
 
     auth = _importlib.reload(auth)
+# 로그인 첫 화면의 큰 판(폰·태블릿 = 한국증시)도 여기서 판 번호를 본다 — 첫 화면(app.py)은 모듈을 다시
+# 읽지 않는 규칙이라(test_reference_panel_guard), 온라인에 옛 login_prism 이 남으면 한국테마 판이 그대로
+# 나왔다(2026-10-01 온라인 실측). 이 화면이 한 번 열리면 서버 전체가 새 판으로 바뀐다(CLAUDE.md 11).
+_REQUIRED_LOGIN_PRISM_REVISION = 2026093001
+if int(getattr(login_prism, "MODULE_REVISION", 0)) < _REQUIRED_LOGIN_PRISM_REVISION:
+    import importlib as _importlib
+
+    login_prism = _importlib.reload(login_prism)
 
 st.set_page_config(page_title="자비스10 — 한국증시", layout="centered")
 
