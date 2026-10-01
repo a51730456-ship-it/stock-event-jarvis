@@ -262,16 +262,19 @@ class LoginAppLifecycleTests(unittest.TestCase):
         **2026-09-30 한국증시(자비스10)가 다섯째로 들어왔다** — 상하님 "기존에 한국테마
         스마트폰이나 테블릿에서 빼고 너가 한국증시 새로 만들어 올려라". 한국테마는 여섯째로
         밀려 폰·태블릿에서 감춘다. 뒤의 번호는 하나씩 밀렸다.
+
+        **2026-10-01 자비스11(미국테마)이 여섯째로 들어왔다** — 폰·태블릿에서도 보인다.
+        한국테마는 일곱째로 밀렸고 뒤의 번호도 하나씩 밀렸다.
         """
         options = re.search(r"_ALL_DEST_OPTIONS = \[(.*?)\]", SOURCE, re.S).group(1)
         names = re.findall(r'"([^"]+)"', options)
-        self.assertEqual(11, len(names))   # 2026-09-30 — 한국증시(자비스10)가 늘어 열한 개
-        # 감추는 번호(1~3, 6~8, 11)를 뺀 나머지가 보여야 할 화면이다.
+        self.assertEqual(12, len(names))   # 2026-10-01 — 자비스11 이 늘어 열두 개
+        # 감추는 번호(1~3, 7~9, 12)를 뺀 나머지가 보여야 할 화면이다.
         shown = [name for index, name in enumerate(names, 1)
-                 if 4 <= index <= 5 or index in (9, 10)]
-        self.assertEqual(["미국테마 (자비스3)", "한국증시 (자비스10)",
+                 if 4 <= index <= 6 or index in (10, 11)]
+        self.assertEqual(["미국테마 (자비스3)", "한국증시 (자비스10)", "미국테마 (자비스11)",
                           "자비스6 미국테마 (새 디자인)", "자비스7 미국테마"], shown)
-        self.assertEqual("한국테마 (자비스4)", names[5])   # 여섯째 — 폰·태블릿에서 감춘다
+        self.assertEqual("한국테마 (자비스4)", names[6])   # 일곱째 — 폰·태블릿에서 감춘다
         # 기본 선택은 감추는 항목에 들어가면 안 된다.
         default = int(re.search(r"_DEST_DEFAULT_INDEX = (\d+)", SOURCE).group(1))
         self.assertIn(names[default], shown)
@@ -281,7 +284,7 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertNotIn("login_dest_choice", SOURCE.replace("login_dest_choice 목록", ""))
         # '어디로 갈까요'는 2026-08-09부터 링크 목록이라 감추는 자리가 바뀌었다.
         # 링크는 목록 상자(entry_dest_links)의 자식이므로 그 자식 번호로 감춘다.
-        for rule in ("nth-child(-n+3)", "nth-child(n+6):not(:nth-child(9)):not(:nth-child(10))"):
+        for rule in ("nth-child(-n+3)", "nth-child(n+7):not(:nth-child(10)):not(:nth-child(11))"):
             self.assertIn(
                 f".st-key-entry_dest_links > div:{rule}",
                 SOURCE, f"entry_dest_links에 {rule} 규칙이 없다",
@@ -289,7 +292,9 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # **짧은 목록(지금 열어 둔 곳만 · 게스트)에서도 폰·태블릿은 둘만**(2026-09-25 상하님 지시).
         # 2026-09-30 부터 그 둘은 미국테마·한국증시다(한국테마는 노트북·PC 에만).
         # 나머지는 entry_pc_only_ 상자에 담아 1200px 이하에서 숨긴다.
-        self.assertIn('_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "한국증시 (자비스10)")', SOURCE)
+        # 2026-10-01 자비스11 이 셋째로 더해졌다.
+        self.assertIn('_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "한국증시 (자비스10)", "미국테마 (자비스11)")',
+                      SOURCE)
         self.assertIn('with st.container(key=f"entry_pc_only_', SOURCE)
         wide = SOURCE[SOURCE.index(".st-key-entry_dest_links > div:nth-child(-n+3)"):]
         wide = wide[:wide.index("</style>")]
@@ -316,11 +321,14 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # **2026-09-11 상하님 지시로 자비스6 미국테마를 도로 닫아** 셋이 되었다
         # ("자비스6 온라인 화면에서 안 보이게 해라").
         # 2026-09-25 기준 열린 곳은 넷(자비스8 미국주식 연구실이 늘었다).
-        # 2026-09-30 한국증시(자비스10)가 늘어 다섯.
-        self.assertEqual(5, len(links), labels)
-        for name in ("미국테마 (자비스3)", "한국증시 (자비스10)", "한국테마 (자비스4)",
-                     "자비스7 미국테마", "자비스8 미국주식 연구실"):
+        # 2026-09-30 한국증시(자비스10)가 늘어 다섯 · 2026-10-01 자비스11 이 늘어 여섯.
+        self.assertEqual(6, len(links), labels)
+        for name in ("미국테마 (자비스3)", "한국증시 (자비스10)", "미국테마 (자비스11)",
+                     "한국테마 (자비스4)", "자비스7 미국테마", "자비스8 미국주식 연구실"):
             self.assertIn(name, labels)
+        # 자비스11 고리는 자비스11 화면으로 가야 한다(「미국테마」 앞부분에 먼저 걸려 자비스3 으로 가면 안 된다).
+        j11 = next(node for node in links if node.label == "미국테마 (자비스11)")
+        self.assertIn("자비스11", str(j11.proto.page))
         self.assertNotIn("자비스6 미국테마 (새 디자인)", labels)
 
 

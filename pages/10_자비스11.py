@@ -1,0 +1,12760 @@
+"""자비스11 — 자비스3 미국테마를 그대로 베끼고 안 쓰는 코드만 뺀 화면 (2026-10-01 상하님 지시).
+
+상하님 — *"자비스3 미국테마는 그대로 두고 중요부분을 그대로 복사해서 자비스11 미국테마
+하나를 더 만든다 … 필요없는 코드는 다 버리고 지금 있는 것 그대로 다 가져간다."*
+
+화면에 보이는 것·점수·목록은 자비스3 과 같다(같은 jarvis3_data 를 부른다).
+뺀 것 — 아무 데서도 부르지 않던 함수, 어디에도 걸리지 않던 꾸밈 규칙, 폰으로 보내던
+꾸밈·움직임 코드 안의 설명 글. 그 설명과 내력은 pages/2_자비스3.py 에 그대로 있다.
+자비스3 과 한 탭에서 오가도 손가락 넘기기가 섞이지 않게 화면 표식·사진 저장 이름을 j11 로 바꿨다.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+import base64
+import html
+from pathlib import Path
+import re
+
+import streamlit as st
+
+# 스트림릿 1.59 버그 막기 — 덩이만 다시 그리는 판에서는 조각을 「이미 가진 것」 표시로 줄여 보내지
+# 않는다. 안 막으면 급락 목록 종목을 누를 때 화면이 하얗게 죽을 수 있다(2026-09-24 · 그 파일 설명).
+# 막은 **뒤에** 조각 되짚기를 1,000자부터로 낮춘다 — 화면 넘길 때 보내는 양이 3분의 1로 준다.
+try:
+    import st_fragment_ref_fix
+
+    if st_fragment_ref_fix.install():
+        st_fragment_ref_fix.lower_cache_threshold()
+except Exception:
+    pass
+
+import auth  # 로그인 유지(쿠키). 쿠키가 안 되면 조용히 세션 기반 동작으로 남는다.
+import login_prism  # 첫 화면의 '판 누르고 왔나' 표식을 읽는다(2026-08-09).
+
+# 배포 갱신 중 옛 auth가 프로세스에 남으면 함수 모양이 안 맞아 화면이 죽는다
+# (2026-07-25 온라인 실발생). 리비전이 낮으면 다시 읽는다.
+_REQUIRED_AUTH_REVISION = 2026080301
+if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
+    import importlib as _importlib
+
+    auth = _importlib.reload(auth)
+
+st.set_page_config(page_title="자비스11 — 미국테마", layout="wide")
+
+import page_access  # noqa: E402
+
+if int(getattr(page_access, "MODULE_REVISION", 0)) < 2026100101:
+    import importlib as _importlib
+
+    page_access = _importlib.reload(page_access)
+page_access.guard(st, "자비스11")
+
+st.markdown(
+    """
+    <style>    [data-testid="stSidebar"],
+    [data-testid="stSidebarNav"],
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"] { display: none !important; }
+    [data-testid="stSidebar"],
+    section[data-testid="stSidebar"] {
+        width: 10rem !important; min-width: 10rem !important; max-width: 10rem !important;
+    }
+    [data-testid="stSidebar"] > div,
+    [data-testid="stSidebarContent"],
+    section[data-testid="stSidebar"] > div {
+        width: 10rem !important; min-width: 10rem !important;
+    }
+    [data-testid="stSidebarNav"],
+    [data-testid="stSidebarNav"] ul,
+    [data-testid="stSidebarNav"] li,
+    [data-testid="stSidebarNav"] a { min-width: 0 !important; max-width: 100% !important; }
+    [data-testid="stSidebarNav"] a p { overflow-wrap: anywhere; }
+    [data-testid="stSidebarNav"] li { margin: 0 !important; }
+    [data-testid="stSidebarNav"] a { padding: 0.45rem 0.6rem !important; }
+    [data-testid="stSidebarNav"] a,
+    [data-testid="stSidebarNav"] a * {
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+        color: #ffb020 !important;
+        line-height: 1.4 !important;
+    }
+    [data-testid="stSidebarNav"] li:first-child a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:first-child a p::before {
+        content: "자비스1";
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] ul { display: flex; flex-direction: column; }
+    [data-testid="stSidebarNav"] li:nth-child(1) { order: 2; }
+    [data-testid="stSidebarNav"] li:nth-child(2) { order: 1; }
+    [data-testid="stSidebarNav"] li:nth-child(3) { order: 3; }
+    [data-testid="stSidebarNav"] li:nth-child(4) { order: 4; }
+    [data-testid="stSidebarNav"] li:nth-child(5) { order: 5; }
+    [data-testid="stSidebarNav"] li:nth-child(6) { order: 6; }
+    [data-testid="stSidebarNav"] li:nth-child(7) { order: 7; }
+    [data-testid="stSidebarNav"] li:nth-child(7) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(7) a p::before {
+        content: "종가관찰\\A(자비스6)"; white-space: pre; line-height: 1.2;
+        font-size: 1.15rem; font-weight: 800; color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(4) a p::before {
+        content: "미국테마\\A(자비스3)"; white-space: pre; line-height: 1.2;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(5) a p::before {
+        content: "한국테마\\A(자비스4)"; white-space: pre; line-height: 1.2;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #ffb020;
+    }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p { font-size: 0 !important; }
+    [data-testid="stSidebarNav"] li:nth-child(6) a p::before {
+        content: "한국테마\\A(선행감지)"; white-space: pre; line-height: 1.2; font-size: 1.15rem; font-weight: 800; color: #ffb020;
+    }
+    div[class*="st-key-j3_theme_choice"] [data-baseweb="button-group"] {
+        gap: 0.35rem;
+    }
+    .j3-market-flow {
+        color: #44f0a1;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.65;
+    }
+    .j3-score-guide {
+        color: #e6e6e6;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.75;
+        margin-top: 0.35rem;
+    }
+    .j3-score-guide b { color: #44f0a1; font-weight: 800; }
+    .j3-market-flow {
+        margin: 1.9rem 0 0.8rem 0;
+        padding: 0.75rem 1rem;
+        border-left: 4px solid #44f0a1;
+        background: rgba(34, 197, 94, 0.08);
+        border-radius: 0.4rem;
+    }
+    .stButton button, [data-testid="stExpander"] summary {
+        transition: transform .12s ease-out, filter .12s ease-out,
+                    box-shadow .12s ease-out, border-color .12s ease-out !important;
+    }
+    .stButton button:hover, [data-testid="stExpander"] summary:hover {
+        transform: translateY(-2px) !important;
+        filter: brightness(1.12) !important;
+    }
+    .stButton button:active, [data-testid="stExpander"] summary:active {
+        transform: translateY(0) scale(.985) !important;
+    }
+    .j3-top-cell, .fg-box, .j3-ndd {
+        transition: transform .12s ease-out, filter .12s ease-out;
+        border-radius: .6rem;
+    }
+    .j3-top-cell:hover, .fg-box:hover, .j3-ndd:hover {
+        transform: translateY(-3px);
+        filter: brightness(1.1);
+    }
+    div[class*="st-key-j3rbf_"] button:hover,
+    div[class*="st-key-j3top7_"] button:hover,
+    div[class*="st-key-j3tbtn_"] button:hover,
+    div[class*="st-key-j3pbf_"] button:hover,
+    div[class*="st-key-j3lbtn_"] button:hover {
+        transform: translateX(3px) !important;
+        border-color: rgba(192,132,252,.6) !important;
+        filter: none !important;
+    }
+    .j3-action-box {
+        color: #4da6ff;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.65;
+        margin-top: 1.9rem;
+        margin-bottom: 0.8rem;
+        padding: 0.8rem 1rem;
+        border: 1px solid rgba(77, 166, 255, 0.45);
+        background: rgba(37, 99, 235, 0.13);
+        border-radius: 0.55rem;
+    }
+    h1 { font-size: 2.05rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1.65rem !important; }
+    .j3-stock-name { color: #c084fc; font-size: 1.7rem; font-weight: 800; line-height: 1.2; margin-top: 0.3rem; }
+    .j3-stock-sub { color: #44f0a1; font-size: 0.95rem; font-weight: 800;
+        margin: 0.1rem 0 0.7rem; }
+    [data-testid="stVerticalBlock"] { gap: .55rem !important; }
+    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: .4rem !important;
+    }
+    div[class*="st-key-j3_guide_row"] [data-testid="stColumn"] {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_US"]),
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_all_US"]) {
+        flex-wrap: nowrap !important;
+        gap: .4rem !important;
+    }
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_US"]) > .stColumn,
+    [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] > [data-testid="stVerticalBlock"] > [class*="st-key-picklist_csv_all_US"]) > .stColumn {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
+    @media (max-width: 640px) {
+        div[class*="st-key-picklist_xlsx_US"] button,
+        div[class*="st-key-picklist_csv_US"] button,
+        div[class*="st-key-picklist_xlsx_all_US"] button,
+        div[class*="st-key-picklist_csv_all_US"] button {
+            padding-left: .3rem !important;
+            padding-right: .3rem !important;
+        }
+        div[class*="st-key-picklist_xlsx_US"] button p,
+        div[class*="st-key-picklist_csv_US"] button p,
+        div[class*="st-key-picklist_xlsx_all_US"] button p,
+        div[class*="st-key-picklist_csv_all_US"] button p {
+            font-size: .74rem !important;
+            white-space: nowrap !important;
+        }
+    }
+    .j3-guide-tap { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+    .j3-guide-btn {
+        display: block;
+        margin: 0;
+        padding: .45rem .5rem;
+        border: 1px solid rgba(250, 250, 250, .22);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, .03);
+        color: inherit;
+        font-size: .82rem;
+        font-weight: 600;
+        line-height: 1.35;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+        user-select: none;
+    }
+    .j3-guide-btn::before { content: "›"; margin-right: .35rem; font-weight: 800; }
+    .j3-guide-tap:checked ~ .j3-guide-btn::before { content: "⌄"; }
+    .j3-guide-btn:hover { border-color: rgba(250, 250, 250, .45); }
+    .j3-guide-body {
+        display: none;
+        margin-top: .4rem;
+        padding: .6rem .7rem;
+        border: 1px solid rgba(250, 250, 250, .15);
+        border-radius: 8px;
+    }
+    .j3-guide-tap:checked ~ .j3-guide-body { display: block; }
+    .j3-guide-btn.bottom {
+        display: none;
+        width: fit-content;
+        margin: .45rem auto 0;
+        padding: 2px 16px;
+        border-radius: 999px;
+        font-size: .74rem;
+        font-weight: 700;
+    }
+    .j3-guide-btn.bottom::before { content: none; }
+    .j3-guide-tap:checked ~ .j3-guide-btn.bottom { display: block; }
+    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked) {
+        flex-wrap: wrap !important;
+    }
+    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked)
+        .stColumn {
+        flex: 1 1 100% !important;
+    }
+    div[class*="st-key-us_signal_fold"] [data-testid="stExpander"] {
+        margin-top: -22px !important;
+    }
+    div[class*="st-key-us_signal_fold"] [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) ~ [data-testid="stLayoutWrapper"]:has([data-testid="stExpander"]) .stExpander {
+        margin-top: 0 !important;
+    }
+    [data-testid="stMarkdownContainer"] > p:last-child { margin-bottom: 0 !important; }
+    [data-testid="stMarkdownContainer"] > p:has(> label),
+    [data-testid="stMarkdownContainer"] > p:has(> div) { display: flow-root; }
+    .j3-metric-row { display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.2rem 0 0.4rem; }
+    .j3-metric-row:has(.j3-mc) {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+        gap: 10px; margin: 0.6rem 0 0.8rem;
+    }
+    .j3-mc {
+        border: 1px solid #2b4e70; border-radius: 15px;
+        background: linear-gradient(145deg, #0b284777, #031023);
+        padding: 17px 12px; min-width: 0; text-align: center;
+        color: #e6e6e6;
+    }
+    .j3-mc-label { display: block; color: #95abc8; font-size: 11px; font-weight: 600; }
+    .j3-mc > .j3-mc-val {
+        display: block; font-size: 21px; font-weight: 800; letter-spacing: -.5px;
+        margin: 6px 0 3px; line-height: 1.18;
+    }
+    .j3-mc > .j3-mc-sub { display: block; font-size: 11px; font-weight: 700; }
+    .j3-mc > .j3-mc-val.j3-mc-price { font-size: 19px; }
+    .j3-mc > .j3-mc-sub.j3-mc-chg { font-size: 14px; font-weight: 800; }
+    .j3-mc-val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
+    .j3-mc-sub { font-size: 0.95rem; font-weight: 800; }
+    .j3-up { color: #4da6ff; }
+    .j3-down { color: #ff5b5b; }
+    .j3-muted { color: #9aa0aa; }
+    .j3-section-title { color: #4da6ff; font-size: 1.2rem; font-weight: 800; margin: 1rem 0 0.5rem; }
+    .j3-title-tag {
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+    }
+    .j3-title-breakout { background-image: linear-gradient(90deg, #18bf87 0%, #8ef7cd 100%); }
+    .j3-title-crash { background-image: linear-gradient(90deg, #e67813 0%, #ffd39a 100%); }
+    .j3-factor-table { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; font-size: 0.95rem; }
+    .j3-factor-table th { text-align: center; color: #4da6ff; font-weight: 800; padding: 0.45rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.18); }
+    .j3-factor-table td { color: #44f0a1; font-weight: 700; padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .j3-factor-table td.j3-fac-name { text-align: left; }
+    .j3-factor-table td.j3-fac-val { text-align: center; }
+    .j3-reason-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 0.55rem; padding: 0.6rem 0.75rem; height: 100%; }
+    .j3-reason-title { color: #4da6ff; font-weight: 800; font-size: 0.95rem; margin-bottom: 0.25rem; }
+    .j3-reason-body { color: #44f0a1; font-weight: 700; font-size: 0.9rem; line-height: 1.45; }
+    .j3-help-line { display: block; color: #44f0a1; font-weight: 800;
+        font-size: .93rem; line-height: 1.5; margin-bottom: .2rem; }
+    .j3-help-detail { display: block; color: #b9c0cb; font-weight: 400;
+        font-size: .89rem; line-height: 1.62; }
+    .j3-help-detail b { color: #e6e6e6; font-weight: 800; }
+    .j3-reason-sub { color: #9aa0aa; font-weight: 600; font-size: 0.8rem;
+        line-height: 1.42; margin-top: 0.3rem; }
+    .j3-reason-sub b { color: #cfd4da; }
+    .j3-leader-name { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
+    .j3-leader-live { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; margin-top: 0.35rem; }
+    .j3-leader-live .j3-mc-sub { font-size: 1rem; }
+    .j3-leader-name .j3-medal { font-size: 1.6rem; vertical-align: -2px; }
+    .j3-leader-score-label { color: #4da6ff; font-size: 0.85rem; font-weight: 800; margin-top: 0.35rem; }
+    .j3-leader-score { color: #ff5b5b; font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
+    .j3-leader-state { color: #9aa0aa; font-size: 0.9rem; }
+    .j3-green { color: #44f0a1; }
+    .j3-green-strong { color: #22c55e; font-weight: 800; }
+    .j3-theme-box { background: rgba(77,166,255,0.08); border: 1px solid rgba(77,166,255,0.3); border-radius: 0.55rem; padding: 0.7rem 0.9rem; font-size: 0.95rem; line-height: 1.7; margin-bottom: 0.6rem; }
+    .j3-reason-mustard { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.42); color: #e6c34a; border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-weight: 500; line-height: 1.62; }
+    .j3-reason-mustard .j3-mn-up { color: #4fb8ff; font-weight: 900; }
+    .j3-reason-mustard .j3-mn-down { color: #ff4d4f; font-weight: 900; }
+    .j3-reason-mustard .j3-mn-key { color: #ffd479; font-weight: 900; }
+    .j3-reason-mustard .j3-mn-score { color: #44f0a1; font-weight: 900; }
+    .j3-theme-badge { display: inline-block; background: rgba(255,176,32,0.16); color: #ffb020; border: 1px solid #ffb020; border-radius: 0.5rem; padding: 0.15rem 0.7rem; font-weight: 800; font-size: 1.05rem; margin-right: 0.4rem; }
+    .j3-flow-label { color: #44f0a1; font-weight: 800; margin-bottom: .25rem; }
+    .j3-flow-body { color: #4da6ff; font-weight: 800; }
+    .j3-action-label { color: #4da6ff; font-weight: 800; margin-bottom: .25rem; }
+    .j3-action-posture { color: #ff5b5b; font-weight: 800; }
+    .j3-action-detail { color: #ff9d3b; font-weight: 800; margin-top: .15rem; }
+    .j3-top-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 0.3rem;
+        align-items: center; }
+    .j3-top-cell { min-width: 150px; padding-left: 1.6rem; position: relative; }
+    .j3-top-cell:hover { z-index: 50; }
+    .j3-ndd { border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
+        padding: .5rem .8rem; margin: .1rem 0 .6rem; background: rgba(255,255,255,.03); }
+    .j3-ndd-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+    .j3-ndd-title { color: #c084fc; font-weight: 850; }
+    .j3-ndd-val { font-size: 1.45rem; font-weight: 900; }
+    .j3-ndd-state { font-size: .95rem; font-weight: 800; }
+    .j3-ndd-bar { position: relative; height: 10px; border-radius: 5px;
+        background: rgba(255,255,255,.10); margin: .35rem 0 .2rem; overflow: hidden; }
+    .j3-ndd-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px;
+        background: linear-gradient(90deg, #ffd166 0%, #44f0a1 100%);
+        transform-origin: left center; }
+    .j3-ndd-mark { position: absolute; top: -3px; bottom: -3px; width: 2px;
+        background: #ffffff; opacity: .85; }
+    .j3-ndd-center { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 3px;
+        margin-left: -1.5px; background: #c084fc; border-radius: 2px;
+        box-shadow: 0 0 6px rgba(192,132,252,.7); }
+    .j3-ndd-scale { display: flex; justify-content: space-between;
+        color: #8a9099; font-size: .78rem; font-weight: 700; margin-bottom: .25rem; }
+    .j3-ndd-scale-mid { color: #c084fc; }
+    @keyframes j3-ndd-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .j3-ndd:hover .j3-ndd-fill, .j3-ndd:active .j3-ndd-fill {
+        animation: j3-ndd-grow 1.4s cubic-bezier(.33,0,.2,1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .j3-ndd:hover .j3-ndd-fill, .j3-ndd:active .j3-ndd-fill { animation: none; }
+    }
+    .j3-ndd-note { color: #aeb6c2; font-size: .92rem; margin-top: .3rem; line-height: 1.55; }
+    .j3-ndd-key { color: #4da6ff; font-weight: 850; }
+    .j3-score-origin { background: rgba(192,132,252,0.10);
+        border: 1px solid rgba(192,132,252,0.42); border-radius: .5rem;
+        padding: .55rem .75rem; margin: .1rem 0 .5rem; color: #d8c4f5;
+        font-size: .95rem; font-weight: 600; line-height: 1.62; }
+    .j3-score-origin b { color: #f0e3ff; }
+    .j3-leader-head-gap { height: .55rem; }
+    .j3-top-label { color: #9aa0aa; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
+    .j3-top-val { font-size: 1.7rem; font-weight: 800; line-height: 1.2; }
+    .j3-top-sub { font-size: 0.95rem; font-weight: 700; }
+    .j3-idx-label { color: #44f0a1; font-size: 1.15rem; }
+    .j3-idx-val { font-size: 1.5rem; }
+    .j3-idx-sub { font-size: 1.1rem; }
+    .j3-idx-note { font-size: 0.82rem; }
+    .j3-idx-wide { min-width: 240px; }
+    .j3-chart-grid { display: grid; gap: .7rem; margin: .3rem 0 .6rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (min-width: 1201px) {
+        .j3-chart-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    .j3-chart-box { background: rgba(255,255,255,.03);
+        border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+        padding: .45rem .55rem .35rem; min-width: 0; }
+    .j3-chart-name { color: #9dccff; font-size: .95rem; font-weight: 800;
+        margin-bottom: .15rem; }
+    .j3-chart-when { color: #7d8798; font-size: .72rem; font-weight: 700;
+        margin-top: .2rem; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap; }
+    .j3-pretty-chart { display: block; width: 100%; height: 132px;
+        border-radius: 8px; background: rgba(0,0,0,.22); }
+    .j3cz { position: relative; }
+    .j3cz-tap { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; margin: 0; }
+    label.j3cz-cell { display: block; cursor: zoom-in; }
+    .j3cz-scrim { position: fixed; inset: 0; z-index: 2147483646; cursor: zoom-out;
+        background: rgba(1,8,22,.8); opacity: 0; visibility: hidden;
+        transition: opacity .3s ease, visibility 0s linear .56s; }
+    .j3cz-pop { position: fixed; left: 50%; top: 50%; z-index: 2147483647; cursor: zoom-out;
+        width: min(calc(100vw - 16px), 960px); height: min(calc(100dvh - 16px), 760px);
+        box-sizing: border-box; padding: 16px 14px 12px; border-radius: 22px;
+        background: #0d2344; border: 1px solid rgba(157,204,255,.45);
+        box-shadow: 0 18px 50px rgba(0,0,0,.6);
+        display: flex; flex-direction: column; gap: 8px;
+        opacity: 0; visibility: hidden; pointer-events: none;
+        transform: translate(-50%,-50%) scale(.55);
+        transition: transform .56s cubic-bezier(.5,-.18,.72,.18), opacity .56s cubic-bezier(.7,0,.84,0),
+            visibility 0s linear .56s; }
+    .j3cz-t0:checked ~ .j3cz-s0, .j3cz-t1:checked ~ .j3cz-s1,
+    .j3cz-t2:checked ~ .j3cz-s2, .j3cz-t3:checked ~ .j3cz-s3 {
+        opacity: 1; visibility: visible; transition: opacity .3s ease, visibility 0s; }
+    .j3cz-t0:checked ~ .j3cz-p0, .j3cz-t1:checked ~ .j3cz-p1,
+    .j3cz-t2:checked ~ .j3cz-p2, .j3cz-t3:checked ~ .j3cz-p3 {
+        opacity: 1; visibility: visible; pointer-events: auto;
+        transform: translate(-50%,-50%) scale(1);
+        transition: transform .9s cubic-bezier(.34,1.56,.64,1), opacity .36s ease, visibility 0s; }
+    .j3cz-name { color: #9dccff; font-size: 1.15rem; font-weight: 800; }
+    .j3cz-draw { display: none; }
+    .j3cz-pop svg.j3-pretty-chart { flex: 1 1 auto !important; height: auto !important; min-height: 0 !important; }
+    .j3cz-when { color: #7d8798; font-size: .78rem; font-weight: 700; }
+    .j3cz-close { align-self: center; font-size: .78rem; color: #8fb4de; }
+    body:has(.j3cz-tap:checked) div.st-key-j3b_nav_controls,
+    body:has(.j3cz-tap:checked) .j3b-bottom-nav { visibility: hidden !important; }
+    @media (orientation: portrait) { .j3cz-pop { height: calc((100dvh - 16px) / 2); } }
+    @media (prefers-reduced-motion: reduce) { .j3cz-pop, .j3cz-scrim { transition: none !important; } }
+    .j3-sector-map { flex: 1 1 100%; max-width: 620px; font-size: 13px; }
+    .j3-sector-sub { color: #8f9bb0; font-size: 0.86em; font-weight: 700; margin: .1rem 0 .35rem; }
+    .j3-sector-grid { position: relative; width: 100%; aspect-ratio: 100 / 58;
+        border-radius: 10px; overflow: hidden; background: rgba(255,255,255,.04); }
+    .j3-sector-tile { position: absolute; box-sizing: border-box;
+        border: 1px solid rgba(2,11,30,.85); border-radius: 4px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: .1em; overflow: hidden; text-align: center; color: #f4f8ff; padding: 2px; }
+    .j3-sector-name { font-weight: 600; line-height: 1.12; word-break: keep-all; }
+    .j3-sector-pct { font-weight: 500; line-height: 1.1; opacity: .95; }
+    .j3-sector-tile.big .j3-sector-name { font-size: 1.15em; }
+    .j3-sector-tile.big .j3-sector-pct { font-size: 1.05em; }
+    .j3-sector-tile.mid .j3-sector-name { font-size: 0.92em; }
+    .j3-sector-tile.mid .j3-sector-pct { font-size: 0.86em; }
+    .j3-sector-tile.small .j3-sector-name { font-size: 0.74em; }
+    @supports not (container-type: size) {
+        .j3-sector-tile.small .j3-sector-pct, .j3-sector-tile.tiny .j3-sector-pct,
+        .j3-sector-tile.tiny .j3-sector-name { display: none; }
+    }
+    .j3-sector-tile, .j3-sector-theme { container-type: size; }
+    .j3-sector-grid { --fmax: 15px; }
+    .j3sm-pop, .j3sm-pop .j3-sector-grid { --fmax: 24px; }
+    @supports (container-type: size) {
+        .j3-sector-tile .j3-sector-name, .j3-sector-theme .j3-sector-name {
+            font-size: clamp(8px, min(calc(92cqw / var(--n, 4)), 27cqh), var(--fmax, 15px)) !important; }
+        .j3-sector-tile .j3-sector-pct, .j3-sector-theme .j3-sector-pct {
+            font-size: clamp(8px, min(calc(92cqw / 3.6), 22cqh), calc(var(--fmax, 15px) * .88)) !important; }
+        @container (max-height: 30px) { .j3-sector-tile .j3-sector-pct { display: none; } }
+        @container (max-width: 40px) { .j3-sector-tile .j3-sector-pct { display: none; } }
+        @container (max-width: 20px) { .j3-sector-name { display: none; } }
+        @container (max-height: 13px) { .j3-sector-name { display: none; } }
+    }
+    .j3-sector-themes { margin-top: .4rem; }
+    .j3-sector-themes-label { color: #c084fc; font-size: .82em; font-weight: 600; margin-bottom: .2rem; }
+    .j3-sector-theme-row { display: flex; gap: 3px; height: 46px; }
+    .j3-sector-theme { flex: 1 1 0; min-width: 0; box-sizing: border-box; border-radius: 4px;
+        border: 1px solid rgba(2,11,30,.85); display: flex; flex-direction: column;
+        align-items: center; justify-content: center; text-align: center; overflow: hidden;
+        color: #f4f8ff; padding: 2px; }
+    .j3-sector-theme .j3-sector-name i { font-style: normal; color: #ffd166; margin-right: .1em; }
+    .j3sm-pop .j3-sector-themes { margin-top: 0; flex: 0 0 auto; }
+    .j3sm-pop .j3-sector-themes-label { font-size: .7em; margin-bottom: .15rem; }
+    .j3sm-pop .j3-sector-theme-row { height: clamp(40px, 11vmin, 84px); }
+    .j3-sector-bar { display: flex; height: 7px; border-radius: 4px; overflow: hidden;
+        margin: .4rem 0 .25rem; background: rgba(255,255,255,.08); }
+    .j3-sector-bar span { display: block; height: 100%; }
+    .j3-sector-foot { display: flex; flex-wrap: wrap; gap: .1rem .7rem;
+        font-size: 0.86em; font-weight: 800; }
+    .j3-sector-note { color: #7d8798; font-weight: 700; }
+    .j3-sector-wait { color: #9aa0aa; font-weight: 700; padding: .6rem 0; }
+    .j3-hist-day { display: block; font-size: .78em; font-weight: 600; opacity: .85; line-height: 1.1; }
+    .fg-box-hist .fg-hist-zone, .fg-box-hist .fg-hist-value { white-space: nowrap; }
+    .j3-sector-tile.tiny { padding: 0; }
+    .j3-sector-group { position: absolute; box-sizing: border-box; pointer-events: none;
+        border: 2px solid #020b1e; border-radius: 5px; }
+    .j3-sector-group span { position: absolute; left: 3px; top: 2px; padding: 0 4px;
+        border-radius: 3px; font-size: .66em; font-weight: 800; line-height: 1.35;
+        color: rgba(230,240,255,.8); background: rgba(2,11,30,.6); }
+    label.j3sm-cell { display: block; cursor: zoom-in; }
+    .j3-sector-map:has(> .j3sm-tap:checked) { transform: none !important; filter: none !important;
+        z-index: 2147483000 !important; }
+    .j3sm-scrim { position: fixed; inset: 0; z-index: 2147483646; cursor: zoom-out;
+        background: rgba(1,8,22,.84); opacity: 0; visibility: hidden;
+        transition: opacity .3s ease, visibility 0s linear .56s; }
+    .j3sm-pop { position: fixed; left: 50%; top: 50%; z-index: 2147483647; cursor: zoom-out;
+        width: min(calc(100vw - 16px), 1280px); height: min(calc(100dvh - 16px), 860px);
+        box-sizing: border-box; padding: 14px 14px 10px; border-radius: 22px;
+        background: #0d2344; border: 1px solid rgba(157,204,255,.45);
+        box-shadow: 0 18px 50px rgba(0,0,0,.6);
+        display: flex; flex-direction: column; gap: 6px;
+        font-size: clamp(12px, 1.45vmax, 18px); color: #f4f8ff;
+        opacity: 0; visibility: hidden; pointer-events: none;
+        transform: translate(-50%,-50%) scale(.55);
+        transition: transform .56s cubic-bezier(.5,-.18,.72,.18), opacity .56s cubic-bezier(.7,0,.84,0),
+            visibility 0s linear .56s; }
+    .j3sm-tap:checked ~ .j3sm-scrim { opacity: 1; visibility: visible;
+        transition: opacity .3s ease, visibility 0s; }
+    .j3sm-tap:checked ~ .j3sm-pop { opacity: 1; visibility: visible; pointer-events: auto;
+        transform: translate(-50%,-50%) scale(1);
+        transition: transform .9s cubic-bezier(.34,1.56,.64,1), opacity .36s ease, visibility 0s; }
+    .j3sm-title { color: #9dccff; font-size: 1.05em; font-weight: 700; }
+    .j3sm-title small { color: #8fb4de; font-size: .72em; font-weight: 500; margin-left: .4em; }
+    .j3sm-sub { color: #8f9bb0; font-size: .7em; font-weight: 500; line-height: 1.3; }
+    .j3sm-pop .j3sm-grid { flex: 1 1 auto; min-height: 0; aspect-ratio: auto; }
+    .j3sm-pop .j3-sector-bar { flex: 0 0 auto; margin: .15rem 0 0; }
+    .j3sm-pop .j3-sector-foot { font-size: .74em; }
+    @media (orientation: portrait) {
+        .j3sm-pop { width: calc(100dvh - 76px); height: calc(100vw - 16px); top: calc(50% - 30px);
+            transform: translate(-50%,-50%) rotate(90deg) scale(.55); }
+        .j3sm-tap:checked ~ .j3sm-pop { transform: translate(-50%,-50%) rotate(90deg) scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) { .j3sm-pop, .j3sm-scrim { transition: none !important; } }
+    .j3-idx-swap { position: relative; overflow: hidden; border-radius: .5rem; }
+    .j3-idx-swap > div { transition: opacity .5s ease, transform .5s ease; }
+    .j3-idx-swap .j3-idx-now { opacity: 1; transform: translateX(0); }
+    .j3-idx-swap .j3-idx-more {
+        position: absolute; inset: 0;
+        opacity: 0; transform: translateX(26px); pointer-events: none;
+    }
+    .j3-idx-more svg {
+        border: 2px solid #4da6ff !important;
+        border-radius: .5rem;
+        box-shadow: 0 0 10px rgba(77,166,255,.28);
+    }
+    .j3-idx-tap { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+    .j3-idx-tapzone { position: absolute; inset: 0; z-index: 3; cursor: pointer; }
+    .j3-idx-swap .j3-idx-tap:checked ~ .j3-idx-now {
+        opacity: 0; transform: translateX(-26px);
+        transition: opacity .24s ease-out, transform .24s ease-out;
+    }
+    .j3-idx-swap .j3-idx-tap:checked ~ .j3-idx-more {
+        opacity: 1; transform: translateX(0);
+        transition: opacity .24s ease-out, transform .24s ease-out;
+    }
+    @media (hover: hover) and (pointer: fine) {
+        .j3-top-cell:hover .j3-idx-swap .j3-idx-now {
+            opacity: 0; transform: translateX(-26px);
+            transition: opacity .24s ease-out, transform .24s ease-out;
+        }
+        .j3-top-cell:hover .j3-idx-swap .j3-idx-more {
+            opacity: 1; transform: translateX(0);
+            transition: opacity .24s ease-out, transform .24s ease-out;
+        }
+    }
+    .j3-idx-now, .j3-idx-more, .j3-idx-solo { position: relative; }
+    .j3-idx-cap {
+        position: absolute; left: 0; right: 0; top: 50%;
+        transform: translateY(-54%);
+        color: rgba(255, 209, 102, .55); font-size: .7rem; font-weight: 800;
+        letter-spacing: -.02em; text-align: center;
+        pointer-events: none; z-index: 0;
+        text-shadow: 0 1px 3px rgba(0,0,0,.7);
+    }
+    .j3-idx-cap-daily { color: rgba(255, 209, 102, .55); }
+    .j3-idx-now > svg, .j3-idx-more > svg, .j3-idx-solo > svg {
+        position: relative; z-index: 1;
+    }
+    .j3-top-cell svg { width: 100% !important; }
+    .j3-th-muted { color: #9aa0aa; }
+    .j3-barwrap { display: flex; align-items: center; gap: 6px; }
+    .j3-bar { position: relative; flex: 1; background: rgba(255,255,255,0.10); border-radius: 4px; height: 8px; overflow: hidden; }
+    .j3-bar-fill { height: 8px; background: #ff5b5b; }
+    .j3-bar-green { background: #44f0a1; }
+    .j3-bar-num { font-size: 0.82rem; font-weight: 700; color: #e6e6e6; min-width: 32px; text-align: right; }
+    .j3-th-head { display: flex; align-items: flex-end; justify-content: center;
+        min-height: 3.95rem; text-align: center; color: #9aa0aa; font-weight: 800; font-size: 0.92rem;
+        padding: 0.45rem 0 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.22); }
+    .j3-td { text-align: center; color: #e6e6e6; font-size: 0.92rem; padding: 0;
+        border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 2.5rem;
+        display: flex; align-items: center; justify-content: center; }
+    .j3-td > .j3-barwrap { width: 100%; }
+    .st-key-j3_pullback_table,
+    .st-key-j3_theme_rest,
+    .st-key-j3_rulebook_rest,
+    .st-key-j3_leader_table,
+    .st-key-j3_top7_table,
+    .st-key-j3_rulebook_table,
+    .st-key-j3_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details,
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > div,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > div {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .st-key-j3_pullback_table,
+    .st-key-j3_theme_rest,
+    .st-key-j3_rulebook_rest,
+    .st-key-j3_leader_table,
+    .st-key-j3_top7_table,
+    .st-key-j3_rulebook_table,
+    .st-key-j3_theme_table,
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details,
+    .pl-wrap {
+        scrollbar-width: auto;
+        scrollbar-color: rgba(124, 200, 255, .70) rgba(255, 255, 255, .08);
+    }
+    .st-key-j3_pullback_table::-webkit-scrollbar,
+    .st-key-j3_theme_rest::-webkit-scrollbar,
+    .st-key-j3_rulebook_rest::-webkit-scrollbar,
+    .st-key-j3_leader_table::-webkit-scrollbar,
+    .st-key-j3_top7_table::-webkit-scrollbar,
+    .st-key-j3_rulebook_table::-webkit-scrollbar,
+    .st-key-j3_theme_table::-webkit-scrollbar,
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
+    .pl-wrap::-webkit-scrollbar {
+        height: 15px;
+        background: rgba(255, 255, 255, .08);
+    }
+    .st-key-j3_pullback_table::-webkit-scrollbar-thumb,
+    .st-key-j3_theme_rest::-webkit-scrollbar-thumb,
+    .st-key-j3_rulebook_rest::-webkit-scrollbar-thumb,
+    .st-key-j3_leader_table::-webkit-scrollbar-thumb,
+    .st-key-j3_top7_table::-webkit-scrollbar-thumb,
+    .st-key-j3_rulebook_table::-webkit-scrollbar-thumb,
+    .st-key-j3_theme_table::-webkit-scrollbar-thumb,
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
+    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
+    .pl-wrap::-webkit-scrollbar-thumb {
+        background: rgba(124, 200, 255, .70);
+        border-radius: 8px;
+        min-width: 60px;
+    }
+    @media (max-width: 1200px) {
+        .st-key-j3_pullback_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1150px;
+        }
+        .st-key-j3_rulebook_rest [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1180px;
+        }
+        .st-key-j3_theme_rest [data-testid="stHorizontalBlock"],
+        .st-key-j3_leader_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 900px;
+        }
+        .st-key-j3_top7_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1150px;
+        }
+        .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1180px;
+        }
+        .st-key-j3_pullback_table [data-testid="stColumn"],
+        .st-key-j3_theme_rest [data-testid="stColumn"],
+        .st-key-j3_rulebook_rest [data-testid="stColumn"],
+        .st-key-j3_leader_table [data-testid="stColumn"],
+        .st-key-j3_top7_table [data-testid="stColumn"],
+        .st-key-j3_rulebook_table [data-testid="stColumn"],
+        .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
+    }
+    .j3-td { white-space: nowrap; }
+    .st-key-j3_rulebook_table .j3-td { overflow: hidden; }
+    .j3-rb-clip {
+        display: block; max-width: 100%;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .st-key-j3_swing_table,
+    .st-key-j3_swing_rest {
+        max-width: 1160px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .st-key-j3_swing_rest [data-testid="stExpander"] > details,
+    .st-key-j3_swing_rest [data-testid="stExpander"] > div {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .st-key-j3_swing_table .j3-td,
+    .st-key-j3_swing_rest .j3-td { overflow: hidden; }
+    .st-key-j3_theme_table .j3-td,
+    .st-key-j3_theme_rest .j3-td,
+    .st-key-j3_top7_table .j3-td { min-height: 2.7rem; }
+    .st-key-j3_theme_table div[class*="st-key-j3tbtn_"] button,
+    .st-key-j3_theme_rest div[class*="st-key-j3tbtn_"] button,
+    .st-key-j3_top7_table div[class*="st-key-j3top7_"] button {
+        height: 2.7rem !important;
+        min-height: 2.7rem !important;
+    }
+    .st-key-j3_swing_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"],
+    .st-key-j3_theme_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"],
+    .st-key-j3_rulebook_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"] {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 46px;
+    }
+    .st-key-j3_theme_table,
+    .st-key-j3_theme_rest { max-width: 1200px; }
+    @media (max-width: 1200px) {
+        .st-key-j3_swing_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_swing_rest [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            min-width: 850px;
+        }
+        .st-key-j3_swing_table [data-testid="stColumn"],
+        .st-key-j3_swing_rest [data-testid="stColumn"] { min-width: 0 !important; }
+        .st-key-j3_theme_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_theme_rest [data-testid="stHorizontalBlock"] {
+            min-width: 800px;
+        }
+    }
+    div[class*="st-key-close_"] button {
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,.22) !important;
+        border-radius: .45rem !important;
+        min-height: 0 !important;
+        padding: .18rem .7rem !important;
+        width: auto !important;
+        box-shadow: none !important;
+    }
+    div[class*="st-key-close_"] button:hover {
+        background: rgba(255,255,255,.07) !important;
+        border-color: rgba(255,255,255,.4) !important;
+    }
+    div[class*="st-key-close_"] button p {
+        color: #9aa0aa !important;
+        font-size: .82rem !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+    }
+    div[class*="st-key-close_"] { margin: .1rem 0 .8rem; }
+    div[class*="st-key-close_j3_theme_panel_open"] button {
+        background: linear-gradient(90deg, #7f1d1d 0%, #b4232c 52%, #ef4b55 100%) !important;
+        border-color: transparent !important;
+        box-shadow: 0 0 0 1px rgba(239,75,85,.12) !important;
+    }
+    div[class*="st-key-close_j3_theme_panel_open"] button:hover {
+        background: linear-gradient(90deg, #991b1b 0%, #c72d36 52%, #ff5964 100%) !important;
+        border-color: transparent !important;
+    }
+    div[class*="st-key-close_j3_theme_panel_open"] button p {
+        color: #ffffff !important;
+        font-size: .82rem !important;
+        font-weight: 850 !important;
+    }
+    div[class*="st-key-j3_pullback_breakout"] button {
+        background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(18,160,106,.25) !important;
+    }
+    div[class*="st-key-j3_pullback_crash"] button {
+        background: linear-gradient(90deg, #4a2408 0%, #7a3c0d 38%, #e07f1f 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(224,127,31,.25) !important;
+    }
+    div[class*="st-key-btn_j3_theme_rank_open"] button,
+    div[class*="st-key-close_j3_theme_rank_open"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        box-shadow: 0 2px 10px rgba(224,71,79,.25) !important;
+    }
+    div[class*="st-key-btn_j3_theme_rank_open"] button {
+        min-height: 3rem !important;
+    }
+    div[class*="st-key-close_j3_theme_rank_open"] {
+        margin-top: 12px !important; margin-bottom: 0 !important;
+    }
+    div[class*="st-key-btn_j3_theme_rank_open"] button:hover,
+    div[class*="st-key-close_j3_theme_rank_open"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+    }
+    div[class*="st-key-j3_pullback_breakout"] button p,
+    div[class*="st-key-j3_pullback_crash"] button p,
+    div[class*="st-key-btn_j3_theme_rank_open"] button p {
+        color: #ffffff !important;
+        font-size: 1.14rem !important;
+        font-weight: 800 !important;
+        letter-spacing: .01em !important;
+        margin: 0 !important;
+    }
+    div[class*="st-key-close_j3_theme_rank_open"] button p {
+        color: #ffffff !important;
+        font-size: .82rem !important;
+        font-weight: 850 !important;
+    }
+    div[class*="st-key-close_j3_top7_open_above_search"] button {
+        background: linear-gradient(90deg, #0a2740 0%, #12507f 38%, #4da6ff 100%) !important;
+        border: none !important; border-radius: .5rem !important;
+        box-shadow: 0 2px 10px rgba(77,166,255,.25) !important;
+    }
+    div[class*="st-key-close_j3_top7_open_above_search"] button:hover {
+        background: linear-gradient(90deg, #0e3455 0%, #17629b 38%, #7cc8ff 100%) !important;
+    }
+    div[class*="st-key-close_j3_top7_open_above_search"] button p {
+        color: #ffffff !important;
+        font-size: .82rem !important;
+        font-weight: 850 !important;
+    }
+    .j3-band-deep, .j3-band-mid {
+        display: inline-block; border-radius: .4rem; padding: .05rem .45rem;
+        font-weight: 800; white-space: nowrap;
+    }
+    .j3-band-deep { color: #ff9d3b; background: rgba(255,157,59,.16);
+        border: 1px solid rgba(255,157,59,.55); }
+    .j3-band-mid { color: #7cc8ff; background: rgba(124,200,255,.14);
+        border: 1px solid rgba(124,200,255,.5); }
+    .j3-card-deep { border-color: rgba(255,157,59,.55) !important; }
+    .j3-card-deep .j3-reason-title { color: #ff9d3b !important; }
+    .j3-card-mid { border-color: rgba(124,200,255,.5) !important; }
+    .j3-card-mid .j3-reason-title { color: #7cc8ff !important; }
+    .j3-score { font-size: .95rem; line-height: 1; font-weight: 850; }
+    .j3-score-hi { color: #ffc740; }
+    .j3-score-mid { color: #7cc8ff; }
+    .j3-score-low { color: #8a8f98; }
+    .j3-weight { display: flex; align-items: baseline; gap: .5rem; padding: .18rem 0;
+        border-bottom: 1px solid rgba(255,255,255,.05); font-size: .84rem; }
+    .j3-weight b { color: #e6e6e6; min-width: 10.4rem; flex: 0 0 auto; }
+    .j3-weight .j3-w-pt { color: #ffc740; font-weight: 850; min-width: 2.6rem;
+        text-align: right; }
+    .j3-weight .j3-w-why { color: #9aa0a8; }
+    .j3-drop { color: #ff5b5b; font-weight: 900; }
+    .j3-hold-120 { color: #44f0a1; font-weight: 850; }
+    div[class*="st-key-j3rbf_"] button {
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;
+        padding: .2rem .7rem !important; min-height: 2.5rem !important; width: 100% !important;
+        justify-content: flex-start !important;
+        border-radius: .55rem !important;
+    }
+    div[class*="st-key-j3rbf_"] button:hover {
+        background: rgba(192,132,252,.09) !important;
+        border-color: rgba(192,132,252,.55) !important;
+    }
+    div[class*="st-key-j3rbf_"] button p {
+        color: #c084fc !important; font-weight: 800 !important; font-size: .94rem !important;
+        margin: 0 !important; text-align: left !important;
+    }
+    div[class*="st-key-j3tbtn_"] button {
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.24) !important;
+        box-shadow: none !important;
+        padding: .2rem .7rem !important;
+        min-height: 2.7rem !important;
+        width: 100% !important;
+        border-radius: .55rem !important;
+    }
+    div[class*="st-key-j3tbtn_"] button:hover {
+        background: rgba(192,132,252,.09) !important;
+        border-color: rgba(192,132,252,.55) !important;
+    }
+    div[class*="st-key-j3tbtn_"] button { justify-content: center !important; }
+    div[class*="st-key-j3tbtn_"] button,
+    div[class*="st-key-j3lbtn_"] button,
+    div[class*="st-key-j3top7_"] button,
+    div[class*="st-key-j3rbf_"] button,
+    div[class*="st-key-j3pbf_"] button{
+        height: 40px !important; min-height: 40px !important;
+        max-height: 40px !important; overflow: hidden !important;
+    }
+    div[class*="st-key-j3tbtn_"] button p,
+    div[class*="st-key-j3lbtn_"] button p,
+    div[class*="st-key-j3top7_"] button p,
+    div[class*="st-key-j3rbf_"] button p,
+    div[class*="st-key-j3pbf_"] button p{
+        white-space: nowrap !important; overflow: hidden !important;
+        text-overflow: ellipsis !important; max-width: 100% !important;
+        display: block !important;
+    }
+    div[class*="st-key-j3tbtn_"] button p {
+        font-weight: 800 !important; font-size: 0.95rem !important; margin: 0 !important;
+        text-align: center !important;
+    }
+    div[class*="st-key-j3_stock_choice"] [data-testid="stWidgetLabel"] p {
+        color: #7cc8ff !important;
+        font-size: 1.55rem !important;
+        font-weight: 800 !important;
+    }
+    div[class*="st-key-j3_stock_choice"] label p,
+    div[class*="st-key-j3_stock_choice"] label div,
+    div[class*="st-key-j3_stock_choice"] label span {
+        font-size: 1.12rem !important;
+    }
+    div[class*="st-key-j3_top7_find"] button {
+        background: linear-gradient(90deg, #0a2740 0%, #12507f 38%, #4da6ff 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(77,166,255,.25) !important;
+    }
+    div[class*="st-key-j3_top7_find"] button:hover {
+        background: linear-gradient(90deg, #0e3455 0%, #17629b 38%, #7cc8ff 100%) !important;
+    }
+    div[class*="st-key-j3_top7_find"] button p {
+        color: #ffffff !important;
+        font-size: 1.14rem !important;
+        font-weight: 800 !important;
+        letter-spacing: .01em !important;
+    }
+    .j3-top7-src {
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        max-width: 100%;
+    }
+    .j3-top7-leader { color: #4da6ff; font-weight: 800; }
+    .j3-top7-up { color: #12a06a; font-weight: 800; }
+    .j3-top7-crash { color: #e67813; font-weight: 800; }
+    div[class*="st-key-btn_j3_detail_open_"] button {
+        background: linear-gradient(90deg, #3a2705 0%, #6b4a0e 38%, #d9a521 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+        min-height: 3rem !important;
+        box-shadow: 0 2px 10px rgba(217,165,33,.28) !important;
+    }
+    div[class*="st-key-btn_j3_detail_open_"] button:hover {
+        background: linear-gradient(90deg, #4a3208 0%, #855c14 38%, #efc04a 100%) !important;
+    }
+    div[class*="st-key-btn_j3_detail_open_"] button p {
+        color: #ffffff !important;
+        font-size: 1.02rem !important;
+        font-weight: 800 !important;
+        letter-spacing: .01em !important;
+        margin: 0 !important;
+    }
+    div[class*="st-key-btn_j3_intraday_open_"] button,
+    div[class*="st-key-btn_j3_bundle_open_"] button,
+    div[class*="st-key-btn_j3_buyform_open_"] button {
+        background: linear-gradient(90deg, #6b4d16 0%, #9a7420 38%, #e8c264 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+    }
+    div[class*="st-key-btn_j3_intraday_open_"] button:hover,
+    div[class*="st-key-btn_j3_bundle_open_"] button:hover,
+    div[class*="st-key-btn_j3_buyform_open_"] button:hover {
+        background: linear-gradient(90deg, #7d5b1c 0%, #b28829 38%, #f3d489 100%) !important;
+    }
+    div[class*="st-key-btn_j3_intraday_open_"] button p,
+    div[class*="st-key-btn_j3_bundle_open_"] button p,
+    div[class*="st-key-btn_j3_buyform_open_"] button p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    div[class*="st-key-btn_j3_daily_prices_"] button,
+    div[class*="st-key-close_j3_daily_prices_"] button {
+        background: linear-gradient(90deg,
+            rgba(255,107,107,.36) 0%, rgba(255,183,77,.36) 25%,
+            rgba(129,199,132,.36) 50%, rgba(79,172,254,.36) 75%,
+            rgba(186,148,250,.36) 100%) !important;
+        border: 1px solid rgba(255,255,255,.22) !important;
+        border-radius: .5rem !important;
+    }
+    div[class*="st-key-btn_j3_daily_prices_"] button:hover,
+    div[class*="st-key-close_j3_daily_prices_"] button:hover {
+        background: linear-gradient(90deg,
+            rgba(255,107,107,.52) 0%, rgba(255,183,77,.52) 25%,
+            rgba(129,199,132,.52) 50%, rgba(79,172,254,.52) 75%,
+            rgba(186,148,250,.52) 100%) !important;
+        border-color: rgba(255,255,255,.38) !important;
+    }
+    div[class*="st-key-btn_j3_daily_prices_"] button p,
+    div[class*="st-key-close_j3_daily_prices_"] button p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    body:has(.j11-market-top) .stAppViewContainer {
+        transition: filter .24s ease, opacity .24s ease;
+    }
+    div[class*="st-key-btn_j3_leadercmp_open"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border: none !important;
+        border-radius: .5rem !important;
+    }
+    div[class*="st-key-btn_j3_leadercmp_open"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+    }
+    div[class*="st-key-btn_j3_leadercmp_open"] button p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    div[class*="st-key-close_j3_leadercmp_open"] button {
+        background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
+        border-color: transparent !important;
+    }
+    div[class*="st-key-close_j3_leadercmp_open"] button:hover {
+        background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
+        border-color: transparent !important;
+    }
+    div[class*="st-key-close_j3_leadercmp_open"] button p {
+        color: #ffffff !important;
+    }
+    .j3-band {
+        display: inline-block;
+        border-radius: .5rem;
+        padding: .6rem 1.1rem;
+        margin: .2rem 0 .6rem;
+        color: #ffffff;
+        font-size: 1.02rem;
+        font-weight: 800;
+        letter-spacing: .01em;
+    }
+    .j3-band-purple {
+        background: linear-gradient(90deg, #2a1450 0%, #3d1f74 38%, #7c3aed 100%);
+        box-shadow: 0 2px 10px rgba(124,58,237,.25);
+    }
+    .j3-st5 {
+        margin: 0;
+        padding: 10px 13px 2px;
+        border: 1px solid #2a557f;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #0a2a4e 0%, #061d38 60%, #041229 100%);
+        box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 1px rgba(140,200,255,.12);
+    }
+    .j3-st5-head {
+        display: flex; align-items: center; gap: 8px;
+        margin: 0 0 6px; color: #edf5ff;
+    }
+    .j3-st5-head b { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+    .j3-st5-flash { color: #42caff; font-size: 17px; }
+    .j3-st5-unit { margin-left: auto; color: #8fa8c6; font-size: 12px; font-weight: 600; }
+    .j3-st5-row {
+        display: grid;
+        grid-template-columns: 22px 24px minmax(96px, 1.45fr) minmax(34px, .95fr) 42px;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 0;
+        border-bottom: 1px solid #21406066;
+    }
+    .j3-st5-row:last-child { border-bottom: 0; }
+    .j3-st5-rank { color: #7895ba; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .j3-st5-icon {
+        display: grid; place-items: center; width: 24px; height: 24px;
+        border-radius: 7px; border: 1px solid #2876bc; color: #b6e8ff;
+        background: linear-gradient(145deg, #1450a3, #072452);
+    }
+    .j3-st5-icon svg { width: 15px; height: 15px; }
+    .j3-st5-row b {
+        color: #edf5ff; font-size: 14px; font-weight: 600; letter-spacing: -.3px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    .j3-st5-bar { height: 6px; border-radius: 3px; background: #122740; overflow: hidden; }
+    .j3-st5-bar i {
+        display: block; height: 100%; border-radius: 3px;
+        background: linear-gradient(90deg, #0860eb, #42caff);
+        box-shadow: 0 0 10px rgba(40,180,255,.35);
+        transform-origin: left center;
+    }
+    @keyframes j3-st5-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes j3-st5-regrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    .j3-st5.j3-st5-play .j3-st5-bar i {
+        animation: j3-st5-grow 1.4s cubic-bezier(.33,0,.2,1) both;
+    }
+    div.st-key-j3_st5_wrap:hover .j3-st5:not(.j3-st5-play) .j3-st5-bar i {
+        animation: j3-st5-regrow 1.4s cubic-bezier(.33,0,.2,1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .j3-st5 .j3-st5-bar i { animation: none !important; }
+    }
+    .j3-st5-row strong {
+        color: #f8cc70; font-size: 15px; font-weight: 800; text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    div.st-key-j3_st5_wrap {
+        position: relative !important;
+        margin-top: -20px !important;
+    }
+    body:has(.sig-fold-tap:checked) div.st-key-j3_st5_wrap {
+        margin-top: -8px !important;
+        margin-bottom: -12px !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open {
+        position: absolute !important; inset: 0 !important;
+        margin: 0 !important; padding: 0 !important; z-index: 6 !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stVerticalBlock"],
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stElementContainer"],
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stButton"] {
+        width: 100% !important; height: 100% !important;
+        margin: 0 !important; padding: 0 !important; gap: 0 !important;
+        max-width: none !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button {
+        width: 100% !important; height: 100% !important; min-height: 0 !important;
+        margin: 0 !important; padding: 0 !important;
+        border: 0 !important; border-radius: 16px !important;
+        background: transparent !important; box-shadow: none !important;
+        color: transparent !important;
+        pointer-events: auto !important; touch-action: manipulation !important;
+    }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button p { color: transparent !important; }
+    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button:hover {
+        background: rgba(66,202,255,.07) !important;
+    }
+    div[class*="st-key-j3_my_stock_query"] [data-testid="stWidgetLabel"] p {
+        color: #a855f7 !important;
+        font-size: 1.08rem !important;
+        font-weight: 900 !important;
+    }
+    .j3-guide {
+        border: 2px solid; border-radius: 10px; padding: .6rem .85rem;
+        margin: 0 0 .7rem; background: rgba(255,255,255,0.03);
+    }
+    .j3-guide-body { margin-top: .35rem; font-size: .92rem; line-height: 1.5; color: #e6e6e6; }
+    .j3-guide-short {
+        border: 2px solid #ff8f3b; border-radius: 10px;
+        padding: .5rem .8rem; margin: 0 0 .5rem;
+        background: rgba(255,143,59,.10);
+        color: #ffb673; font-size: .95rem; font-weight: 800; line-height: 1.45;
+    }
+    .j3-guide-short b { color: #ffd7a8; }
+    .j3-holo-card {
+        position: relative;
+        background: linear-gradient(135deg, rgba(255,209,102,0.07), rgba(255,176,32,0.07));
+        border: 1px solid rgba(255,199,64,0.75);
+        border-radius: 10px;
+        padding: 1.15rem 1.3rem;
+        box-shadow: 0 0 14px rgba(255,199,64,0.30), inset 0 0 20px rgba(255,199,64,0.08);
+    }
+    .j3-holo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem 1.8rem; }
+    .j3-holo-cell { min-width: 0; }
+    @media (max-width: 900px) {
+        .j3-holo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .j3-holo-score .label { color: #4da6ff !important; font-size: 0.92rem; font-weight: 800; }
+    .j3-holo-score .val { color: #44f0a1 !important; font-size: 1.5rem; font-weight: 800; line-height: 1.25; }
+    .j3-holo-score .state { color: #9aa0aa; font-size: 0.95rem; font-weight: 700; }
+    .j3-plan-note { margin-top: 1.1rem; color: #9aa0aa; font-size: 1rem; line-height: 1.65; }
+    .j3-plan-note b { color: #44f0a1; font-size: 1.1rem; font-weight: 800; }
+    .j3-danta-box { border: 1px solid rgba(234,179,8,0.5); background: rgba(234,179,8,0.07);
+        border-radius: 0.55rem; padding: 0.7rem 0.9rem; margin-top: 0.9rem; line-height: 1.7; }
+    .j3-holo-cell .label { color: #9aa0aa; font-size: 0.85rem; }
+    .j3-holo-cell .val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.2; text-shadow: 0 0 8px rgba(77,166,255,0.45); }
+    .j3-holo-cell .val .j3-holo-words { font-size: 1.05rem; line-height: 1.45;
+        font-weight: 800; }
+    .j3-holo-corner { position: absolute; width: 14px; height: 14px; border-color: #4da6ff; }
+    .j3-holo-corner.tl { top: 6px; left: 6px; border-top: 2px solid #4da6ff; border-left: 2px solid #4da6ff; }
+    .j3-holo-corner.tr { top: 6px; right: 6px; border-top: 2px solid #4da6ff; border-right: 2px solid #4da6ff; }
+    .j3-holo-corner.bl { bottom: 6px; left: 6px; border-bottom: 2px solid #4da6ff; border-left: 2px solid #4da6ff; }
+    .j3-holo-corner.br { bottom: 6px; right: 6px; border-bottom: 2px solid #4da6ff; border-right: 2px solid #4da6ff; }
+    .j3-pull-guide { border-left: 4px solid #4da6ff; background: rgba(77,166,255,.07);
+        border-radius: .45rem; padding: .7rem .9rem; color: #b7c0ce; line-height: 1.6;
+        margin: .15rem 0 .65rem; }
+    .j3-pull-guide b { color: #44f0a1; }
+    .j3-pull-stats { color: #9dccff; font-size: .93rem; line-height: 1.55;
+        margin: .15rem 0 .65rem; text-align: left; }
+    .j3-pull-theme { color: #9dccff !important; }
+    .j3-pull-amber { color: #ffb020 !important; font-weight: 800; }
+    div[class*="st-key-j3pbf_"] button {
+        background: rgba(255,255,255,.025) !important;
+        border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;
+        padding: .2rem .7rem !important; min-height: 2.5rem !important; width: 100% !important;
+        justify-content: flex-start !important;
+        border-radius: .55rem !important;
+    }
+    div[class*="st-key-j3pbf_"] button:hover {
+        background: rgba(192,132,252,.09) !important;
+        border-color: rgba(192,132,252,.55) !important;
+    }
+    div[class*="st-key-j3pbf_"] button p {
+        color: #c084fc !important; font-weight: 800 !important; font-size: .94rem !important;
+        margin: 0 !important; text-align: left !important;
+    }</style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+def _login_gate() -> None:
+    # 첫 화면의 큰 판(미국테마·한국테마)을 누르고 온 사람은 비밀번호를 묻지 않는다
+    # (2026-08-09 상하님 지시 "게스트 비번 필요 없는 것 기준"). 주소에 달려 오는
+    # 표식 하나로 가른다 — 게스트는 원래도 비밀번호 없이 들어올 수 있으므로
+    # 이 표식이 새로 여는 문은 없고, 누르는 횟수만 둘에서 하나로 준다.
+    # 이미 로그인한 사람은 건드리지 않는다(login_prism.wants_guest가 막는다).
+    try:
+        if login_prism.wants_guest(st):
+            auth.login_as_guest()
+    except Exception:
+        pass      # 표식을 못 읽어도 아래 예전 흐름으로 그대로 간다
+    auth.sync_auth()  # 쿠키에 로그인이 남아 있으면 되살린다(폰 복귀 시 재로그인 방지).
+    if st.session_state.get("authenticated"):
+        return
+    st.markdown("## 자비스11 — 미국테마")
+    st.caption("승인된 사용자만 접근할 수 있습니다. 여기서 바로 로그인할 수 있습니다.")
+    try:
+        password = st.secrets.get("APP_PASSWORD")
+    except Exception:
+        password = None
+    if not password:
+        st.warning(".streamlit/secrets.toml에 APP_PASSWORD 설정이 필요합니다.")
+        st.stop()
+    entered = st.text_input("비밀번호", type="password", key="j3_login_password")
+    if st.button("자비스11 로그인", key="j3_login_submit", width="stretch"):
+        if entered == password:
+            auth.login_as_owner()
+            st.rerun()
+        else:
+            st.error("비밀번호가 올바르지 않습니다.")
+    st.stop()
+
+
+_login_gate()
+
+if auth.is_guest():
+    # 게스트는 사이드바를 통해 다른 자비스 화면으로 우회하지 못하고 미국·한국
+    # 테마 두 화면만 오갈 수 있다. 실제 자료·계산에는 손대지 않는 표시 제한이다.
+    st.markdown(
+        """
+        <style>        [data-testid="stSidebarNav"] li:not(:nth-child(4)):not(:nth-child(5)) {
+            display: none !important;
+        }</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+import importlib
+import os
+import threading
+import time
+
+_PAGE_SEOUL = ZoneInfo("Asia/Seoul")
+
+import pandas as pd
+
+import fear_greed_ui
+import mobile_ui
+
+# 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
+# (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
+_REQUIRED_MOBILE_REVISION = 2026092420
+if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
+    mobile_ui = importlib.reload(mobile_ui)
+import guidance
+
+# 지침 문구를 바꾸면 guidance의 리비전을 올린다(규칙 11).
+_REQUIRED_GUIDANCE_REVISION = 2026080110
+if int(getattr(guidance, "MODULE_REVISION", 0)) < _REQUIRED_GUIDANCE_REVISION:
+    guidance = importlib.reload(guidance)
+
+import method_help
+
+# 설명 단추 문구·숫자를 바꾸면 method_help의 리비전을 올린다.
+# 안 올리면 온라인에서 옛 문구가 그대로 남는다(규칙 11).
+_REQUIRED_METHOD_HELP_REVISION = 2026091830
+if int(getattr(method_help, "MODULE_REVISION", 0)) < _REQUIRED_METHOD_HELP_REVISION:
+    method_help = importlib.reload(method_help)
+
+import picklist_ui
+
+# 날짜별로 저장해 둔 목록을 보는 자리(2026-08-09). 표시 칸을 바꾸면 같이 올린다.
+_REQUIRED_PICKLIST_REVISION = 2026091740
+if (
+    # 2026-08-29 「상위 테마 5개」를 화면에서도 남기는 데 쓴다. 옛 모듈이면
+    # 이 이름이 없어 그 갈래가 또 통째로 빠진다.
+    not hasattr(picklist_ui, "needs_autosave")
+    or int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION
+):
+    picklist_ui = importlib.reload(picklist_ui)
+
+import scroll_to
+
+# 종목을 누르면 상세 자리로 화면을 내려 주는 장치(2026-08-09).
+_REQUIRED_SCROLL_REVISION = 2026082920
+if (
+    # 2026-08-29 화면을 바꿀 때 **바로** 맨 위로 올리는 데 쓴다. 옛 모듈이면
+    # 이 이름이 없어 화면이 통째로 죽는다.
+    not hasattr(scroll_to, "now")
+    or int(getattr(scroll_to, "MODULE_REVISION", 0)) < _REQUIRED_SCROLL_REVISION
+):
+    scroll_to = importlib.reload(scroll_to)
+
+import hero_banner
+
+# 시장분석 맨 위의 눈밭 캠프 배너(2026-08-28 상하님 지시). 그림·글귀를 바꾸면
+# hero_banner의 리비전을 올리고 이 숫자도 같이 올린다(규칙 11).
+_REQUIRED_HERO_REVISION = 2026090310
+if int(getattr(hero_banner, "MODULE_REVISION", 0)) < _REQUIRED_HERO_REVISION:
+    hero_banner = importlib.reload(hero_banner)
+import regime_gauge_ui
+import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용히 예전처럼 돈다.
+import jarvis3_data as j3data
+import jarvis3_briefing_news as briefing_news
+import jarvis3_briefing_store as briefing_store
+import jarvis3_news_reader as news_reader
+
+# 뉴스 본문 받기(2026-09-17) — 옛 모듈이 남으면 본문을 안 받는다(규칙 11).
+_REQUIRED_BRIEFING_NEWS_REVISION = 2026091710
+if int(getattr(briefing_news, "MODULE_REVISION", 0)) < _REQUIRED_BRIEFING_NEWS_REVISION:
+    import importlib as _importlib
+
+    briefing_news = _importlib.reload(briefing_news)
+_REQUIRED_NEWS_READER_REVISION = 2026091710
+if int(getattr(news_reader, "MODULE_REVISION", 0)) < _REQUIRED_NEWS_READER_REVISION:
+    import importlib as _importlib
+
+    news_reader = _importlib.reload(news_reader)
+
+# 옛 모듈이 프로세스에 남으면 새 함수(add_selected·remove_selected)를 못 찾아
+# 선정 종목 추가·삭제가 조용히 죽는다(규칙 11 · 2026-09-10).
+_REQUIRED_BRIEFING_STORE_REVISION = 2026092350
+if int(getattr(briefing_store, "MODULE_REVISION", 0)) < _REQUIRED_BRIEFING_STORE_REVISION:
+    import importlib as _importlib
+
+    briefing_store = _importlib.reload(briefing_store)
+import us_company_logos
+import us_swing_selector as us_swing
+import jarvis3_store as j3store
+import market_signal_ui
+
+_REQUIRED_REGIME_GAUGE_REVISION = 2026081310
+if int(getattr(regime_gauge_ui, "MODULE_REVISION", 0)) < _REQUIRED_REGIME_GAUGE_REVISION:
+    regime_gauge_ui = importlib.reload(regime_gauge_ui)
+
+# ── 온라인 옛 모듈 자가복구 ──────────────────────────────────────────────────
+# 스트림릿 클라우드는 배포 갱신 때 페이지 파일만 새로 읽고 import된 모듈은 옛것을
+# 프로세스에 유지하는 경우가 있다(2026-07-22 '모듈 갱신 대기'·'당일 자료 없음' 실발생).
+# 새 코드에만 있는 함수가 없으면 그 모듈을 파일에서 다시 읽어 재부팅 없이 복구한다.
+_REQUIRED_J3_REVISION = 2026092503
+if (
+    not hasattr(j3data, "get_fear_greed")
+    # 2026-08-01 SPY·QQQ 칸의 당일·일봉 그림에서 쓴다.
+    or not hasattr(j3data, "get_etf_sparklines")
+    # 2026-08-01 설명서 두 갈래(상승장 신고가 눌림 · 급락 후 낙폭)에서 쓴다.
+    or not hasattr(j3data, "find_breakout_pullback_stocks")
+    or not hasattr(j3data, "find_crash_rebound_stocks")
+    or not hasattr(j3data, "_intraday_chart_payload")
+    or not hasattr(j3data, "find_pullback_stocks")
+    or not hasattr(j3data, "analyze_pullback_stock")
+    or not hasattr(j3data, "get_intraday_chart")
+    or not hasattr(j3data, "get_index_sparklines")
+    # 2026-07-29 '내 종목 현재상황'에서 쓴다. 빠뜨리면 온라인에서 AttributeError가 난다.
+    or not hasattr(j3data, "search_stocks")
+    or not hasattr(j3data, "get_briefing_cards")
+    or not hasattr(j3data, "analyze_one_stock")
+    # 2026-07-30 '매수심사결과 높은 순위 7'에서 쓴다.
+    or not hasattr(j3data, "find_top_reviewed_stocks")
+    # 2026-08-29 상승장 단추가 순위 9의 기억을 같이 쓰는 데 쓴다. 옛 모듈이면
+    # 이 이름이 없어 단추가 죽는다.
+    or not hasattr(j3data, "breakout_scan")
+    # 2026-08-29 시장분석 화면이 상승장을 미리 데우는 데 쓴다.
+    or not hasattr(j3data, "warm_breakout_scan")
+    # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 자비스4에서 실제 발생).
+    or int(getattr(j3data, "MODULE_REVISION", 0)) < _REQUIRED_J3_REVISION
+):
+    j3data = importlib.reload(j3data)
+_REQUIRED_SIGNAL_UI_REVISION = 2026092440
+if (
+    not hasattr(market_signal_ui, "_STATUS_TEXT")
+    # 2026-08-28 접었다 펴는 미국장 카드에서 쓴다. 옛 모듈이면 foldable 인자를
+    # 몰라 화면이 통째로 죽는다.
+    or not hasattr(market_signal_ui, "_peek_gauge_html")
+    # 이름은 그대로인데 내용만 옛것인 모듈도 걸러낸다(2026-07-24 온라인 실발생).
+    or int(getattr(market_signal_ui, "MODULE_REVISION", 0)) < _REQUIRED_SIGNAL_UI_REVISION
+):
+    import sys
+
+    # 게이지 그림 모듈도 함께 다시 읽는다 — 카드가 이것들을 쓰므로 하나만 옛것이면
+    # 화면 일부만 옛 모습으로 남는다.
+    for _dep_name in (
+        "market_signal_common", "kr_intraday_flow",
+        "us_market_signal_engine", "naver_market_data",
+        "gauge_ui", "fear_greed_ui", "regime_gauge_ui",
+    ):
+        _dep = sys.modules.get(_dep_name)
+        if _dep is not None:
+            importlib.reload(_dep)
+    market_signal_ui = importlib.reload(market_signal_ui)
+    fear_greed_ui = sys.modules.get("fear_greed_ui", fear_greed_ui)
+    regime_gauge_ui = sys.modules.get("regime_gauge_ui", regime_gauge_ui)
+
+
+# ── 폰·태블릿 뒤로가기 (2026-08-21 상하님 지시) ─────────────────────────────
+# 상하님 — "한번 누르면 방금 화면 전으로 가게 하고 두번 누르면 메인메뉴로."
+# 구역을 그리기 **전에** 불러야 한다 — 아래 화면들이 열림/닫힘 값을 읽기 때문이다.
+_backnav_closed = back_nav.sync(st)
+
+
+# 화면에 적는 **테마 개수**. 명부(jarvis3_data.US_THEMES)를 그대로 센다.
+# 손으로 「20개」라고 적어 두면 테마를 더하거나 뺄 때마다 화면 글이 조용히
+# 틀린다 — 2026-08-29에 제약·헬스케어를 더해 20 → 21이 되었다.
+# 명부를 못 읽는 판에서도 화면이 죽지 않게 20을 받쳐 둔다.
+_THEME_COUNT = len(getattr(j3data, "US_THEMES", ())) or 20
+
+
+# 겨자색 상자에서 굵게 뽑을 말들(2026-08-07 상하님 지시 "중요부분만 진하게").
+# 여기 없는 말은 보통 굵기로 둔다 — 다 굵으면 아무것도 강조되지 않는다.
+_MUSTARD_NUMBER = re.compile(r"[+\-−]\d+(?:[.,]\d+)?%")
+_MUSTARD_HOLD = re.compile(r"\d+거래일 뒤 종가")
+# **점수도 뽑아 준다**(2026-08-21 상하님 지시 "점수와 프로테이지 색깔 구분").
+# 66.0/70 · 17.0/30 · 83.0/100 꼴을 초록으로 굵게 칠한다.
+_MUSTARD_SCORE = re.compile(r"\d+(?:\.\d+)?/\d+")
+_MUSTARD_KEYS = (
+    "그날 낙폭으로 정합니다",
+    "다음 거래일 시가",
+    "손절가가 없습니다",
+    "손절가는 없습니다",
+    # 2026-08-12 — 파는 시점을 앱이 정하지 않는다는 말이 눈에 띄어야 한다.
+    "파는 시점은 규칙에 없습니다",
+    # 2026-08-21 — 상승장 갈래에서 꼭 읽어야 하는 두 마디.
+    "지난 1년 최고가를 넘은 날",
+    "손절과 파는 시점은 앱이 정하지 않습니다",
+)
+
+
+def _mustard_html(text) -> str:
+    """겨자색 상자의 글 — 숫자와 중요한 말만 굵게·색으로 뽑는다.
+
+    오른 값(+)은 스카이블루, 빠진 값(−)은 붉은색이다. 화면 다른 곳과 같은 약속이다.
+
+    **글은 먼저 escape한다** — 여기 들어오는 글은 jarvis3_data가 만든 평문이고,
+    그 뒤에 우리가 만든 태그만 얹는다. 순서를 바꾸면 우리가 얹은 태그까지
+    글자로 보이게 된다.
+    """
+    safe = html.escape(str(text or ""))
+    safe = _MUSTARD_NUMBER.sub(
+        lambda match: (
+            f"<span class='j3-mn-{'up' if match.group()[0] == '+' else 'down'}'>"
+            f"{match.group()}</span>"
+        ),
+        safe,
+    )
+    safe = _MUSTARD_HOLD.sub(
+        lambda match: f"<span class='j3-mn-key'>{match.group()}</span>", safe)
+    safe = _MUSTARD_SCORE.sub(
+        lambda match: f"<span class='j3-mn-score'>{match.group()}</span>", safe)
+    for phrase in _MUSTARD_KEYS:
+        safe = safe.replace(phrase, f"<span class='j3-mn-key'>{phrase}</span>")
+    return safe
+
+
+def _pct(value) -> str:
+    return "—" if value is None else f"{float(value):+.2f}%"
+
+
+def _price(value) -> str:
+    return "—" if value is None else f"${float(value):,.2f}"
+
+
+def _number(value, digits=1) -> str:
+    return "—" if value is None else f"{float(value):,.{digits}f}"
+
+
+def _sign_class(value) -> str:
+    """미국장 색: 상승(+)은 푸른색, 하락(−)은 붉은색."""
+    if value is None:
+        return "j3-muted"
+    try:
+        return "j3-up" if float(value) >= 0 else "j3-down"
+    except (TypeError, ValueError):
+        return "j3-muted"
+
+
+def _sign_color(value) -> str:
+    """미국장 색 hex: 상승(+) 밝은 코발트, 하락(−) 붉은색 (인라인 지정용)."""
+    if value is None:
+        return "#9aa0aa"
+    try:
+        return "#4da6ff" if float(value) >= 0 else "#ff5b5b"
+    except (TypeError, ValueError):
+        return "#9aa0aa"
+
+
+# 화면 큰 제목 두 개(「미국 전체시장 판단」·「미국장 시장 상태」)가 쓰는 옷.
+# **한 곳에서만 정한다** — 두 군데 적어 두면 한쪽만 고쳐 크기가 어긋난다
+# (2026-08-21 상하님 지시 "동일하게 할 것").
+_SECTION_TITLE_CLASS = "j3-page-title"
+_SECTION_TITLE_CSS = (
+    "<style>.j3-page-title{font-size:16px; font-weight:800; color:#c084fc;"
+    " margin:.25rem 0 .4rem; letter-spacing:-.01em;}</style>"
+)
+
+
+def _top_metric(label, value, value_color, sub, *, sub_color=None, sub_signed=False,
+                extra_class: str = "") -> str:
+    """지표 한 칸. ``extra_class``는 폰에서 칸 차례를 정하는 이름표다.
+
+    자료를 못 받아 '—'로 나오는 칸도 **같은 자리**에 서야 한다. 이름표를 안 붙이면
+    그 칸만 차례가 어긋나 딴 데 가서 붙는다.
+    """
+    if sub_signed:
+        sub_html = f"<div class='j3-top-sub {_sign_class(sub)}'>{_pct(sub)}</div>"
+    else:
+        sub_html = f"<div class='j3-top-sub' style='color:{sub_color or '#9aa0aa'}'>{sub}</div>"
+    cell_class = f"j3-top-cell {extra_class}".strip()
+    return (
+        f"<div class='{cell_class}'><div class='j3-top-label'>{label}</div>"
+        f"<div class='j3-top-val' style='color:{value_color}'>{value}</div>{sub_html}</div>"
+    )
+
+
+# 2026-08-14에 이름표를 '주도·관찰'에서 '강함·보통'으로 바꿨다(앞날을 말하지
+# 않는 말로). **옛 이름도 남겨 둔다** — 저장해 둔 기록에는 옛 이름이 들어 있다.
+_STATUS_HEX = {"강함": "#44f0a1", "보통": "#ff9d3b", "약함": "#9aa0aa",
+               "주도": "#44f0a1", "관찰": "#ff9d3b"}
+
+
+# 「6개월 수익률」 칸을 하나 더 넣었다(2026-09-05 상하님 지시). 칸 수와 폭이
+# 맞아야 머리글과 값이 어긋나지 않는다 — 넣거나 뺄 때 이 줄도 같이 고친다.
+_THEME_COL_WIDTHS = [0.42, 1.55, 0.55, 1.4, 0.62, 0.78, 1.05, 1.15, 1.5, 1.1]
+# 한 줄을 세 칸으로만 나눈다 — 순위 · 테마(단추) · 나머지를 묶은 한 덩이.
+# 칸마다 요소를 만들면 폰이 느려진다(2026-07-30 실측, 한국테마와 같은 처리).
+_THEME_ROW_WIDTHS = [_THEME_COL_WIDTHS[0], _THEME_COL_WIDTHS[1], sum(_THEME_COL_WIDTHS[2:])]
+_THEME_REST_WIDTHS = _THEME_COL_WIDTHS[2:]
+
+
+def _regular_open() -> bool:
+    """미국 정규장이 지금 열려 있나(달력과 시계만 본다 · 통신 없음)."""
+    try:
+        return j3data.market_phase().get("label") == "정규장 시간"
+    except Exception:
+        return False
+
+
+def _shown_numbers(metrics: dict) -> dict:
+    """화면 칸에 적을 **한 벌의 값** — 가격·등락률·20일·6개월 수익률·52주 고가 대비·변동성.
+
+    2026-09-24 상하님 — *"자비스3 미국테마 전체에 대해 현재가·수익률 20일·6개월 수익·6개월
+    시장대비 … 전반적으로 각 파트별로 확인해 봐라. 뭐가 이렇게 계속 틀어지고 안 맞냐."*
+
+    까닭은 셋이었다. ① 목록의 가격 칸은 장이 닫혀 있으면 정규장 종가인데 수익률 칸은 시간외
+    체결가로 쟀다. ② 상승장 표의 수익률만 일봉 종가로 쟀다. ③ 세부사항은 같은 종목을 따로 다시
+    받아 쟀다. 이제 **모든 칸이 이 함수 하나**를 쓴다 — 장이 열려 있으면 지금 값, 닫혀 있으면
+    마지막 정규장 종가 기준(jarvis3_data 가 장 닫힘이면 그 종가로 잰 값). 목록 줄과 세부사항은 **같은 metrics** 를
+    넘겨 받으므로 숫자가 갈릴 수 없다. **점수는 안 바뀐다** — 점수는 여태대로 계산한 값을 쓴다.
+    """
+    metrics = metrics or {}
+    price, change = _list_price_change(metrics)
+    shown = {"price": price, "change": change}
+    live_now = _regular_open()
+    for key in ("ret20", "ret120", "from_high_pct", "atr_pct"):
+        live, session = metrics.get(key), metrics.get("session_" + key)
+        shown[key] = live if (live_now or session is None) else session
+    return shown
+
+
+def _list_price_change(metrics: dict) -> tuple:
+    """목록 표에 적을 **(가격, 등락률)** — 세부사항·당일 그림과 같은 정규장 기준.
+
+    2026-09-23 상하님 지적 — *"당일주가와 선택종목 세부사항의 현재가와 맞지 않은
+    것도 있다."* 목록은 `current`(시간외 체결가까지 든 값)를 적고 세부사항은
+    정규장 종가를 적어 한 화면에서 두 값이 달랐다(실측 — DELL 목록 553.34 −3.82% ·
+    세부사항 548.92 −4.59%). 급락 목록이 전부 +0.00% 로 나오던 것도 같은 자리다 —
+    일봉이 그날 줄을 아직 안 실으면 `change_pct` 가 제 종가를 제 종가와 견준다.
+
+    **미국 정규장이 열려 있는 동안에만 지금 값**을 그대로 적는다. 그 밖(장 열기 전 ·
+    장 끝난 뒤 · 주말 · 휴장)에는 마지막으로 끝난 정규장의 종가와 등락률을 적는다 —
+    지수 칸이 이미 쓰는 방식이고(`last_session_change_pct`), 세부사항의 `session_quote` 와
+    같은 날을 말한다. **새로 받는 자료는 없다** — 둘 다 이미 잰 값 안에 들어 있다.
+
+    **장 열기 전도 여기 든다** (2026-09-23 저녁 상하님 — "급락 후 반등장 당일주가와
+    손익율 봐라 문제있다"). 예전에는 「장이 끝났으면(뉴욕 16시 뒤)」만 보았다. 그런데
+    뉴욕 자정부터 장 열기 전(한국 오후 1시 ~ 밤 10시 반)은 달력에서 「오늘 장이 아직 안
+    끝남」이라 지금 값을 썼고, 그때 지금 값은 어제 종가라 어제 종가와 견주어 **목록이 전부
+    +0.00%** 였다(18:23 캡처 — CRSP $58.33 +0.00% 등).
+    """
+    price, change = metrics.get("current"), metrics.get("change_pct")
+    if not _regular_open():
+        session_close = metrics.get("last_session_close")
+        session_change = metrics.get("last_session_change_pct")
+        if session_close is not None:
+            price = session_close
+        if session_change is not None:
+            change = session_change
+    return price, change
+
+
+# 순위 9 표의 「20일 · 6개월 · 6개월 시장대비」 세 칸 폭 (2026-09-23).
+_TOP7_RET_WIDTHS = [1.0, 1.0, 1.2]
+
+
+def _stacked(cells: list[str]) -> str:
+    """칸 여럿을 **한 덩이 HTML**로 세로로 쌓는다 (2026-08-26 상하님 지시).
+
+    상하님 지적 — "관찰만 15개 보기, 종목 1번부터 여전히 순서대로 천천히
+    열린다."
+
+    지금까지는 **줄마다** st.columns 를 새로 만들었다. 그러면 스트림릿이 줄마다
+    껍데기를 네 벌씩 만들어 15줄이면 화면 조각이 673개가 된다. 그 조각들이 여러
+    뭉치로 나뉘어 도착하기 때문에 줄이 하나씩 나타나 보인다(브라우저에서 실측 —
+    세 뭉치로 2.5초에 걸쳐 도착했다. 폰은 그 몇 배다).
+
+    이제 표 하나에 칸을 **한 번만** 만들고, 각 칸의 값들을 여기서 한 덩이로
+    쌓는다. 틈 16px 은 스트림릿이 단추와 단추 사이에 두는 값과 같다 —
+    그래야 옆 칸의 종목 단추와 줄이 딱 맞는다(실측: 단추 40px · 틈 16px ·
+    .j3-td 40px).
+    """
+    return ("<div style='display:flex; flex-direction:column; gap:16px'>"
+            + "".join(cells) + "</div>")
+
+
+def _flex_row(widths: list[float], cells: list[str], *, head: bool = False,
+              muted_from: int | None = None) -> str:
+    """여러 칸을 한 덩이 HTML로 그린다. 칸 폭은 원래 비율을 그대로 쓴다."""
+    kind = "j3-th-head" if head else "j3-td"
+    parts = []
+    for index, (width, cell) in enumerate(zip(widths, cells)):
+        extra = " j3-th-muted" if muted_from is not None and index >= muted_from else ""
+        parts.append(
+            f"<div class='{kind}{extra}' style='flex:{width} 1 0; min-width:0'>{cell}</div>"
+        )
+    return f"<div style='display:flex; align-items:center; gap:.15rem'>{''.join(parts)}</div>"
+
+# 테마 순위표에서 처음부터 보여줄 개수. 나머지는 접어 두고 눌러서 본다
+# (2026-07-25 사용자 지시). 자비스4도 같은 값을 쓴다.
+_THEME_VISIBLE_COUNT = 10
+
+
+def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
+    """테마표를 그리고, 테마 이름 버튼이 눌리면 그 테마명을 돌려준다.
+
+    테마명만 st.button이라 클릭이 확실히 되고(세션도 안 끊김),
+    나머지 칸은 HTML이라 가운데 정렬·색·막대를 그대로 쓸 수 있다.
+    """
+    # 폰·태블릿에서 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25, 한국테마와 같은 방식).
+    theme_box = st.container(key="j3_theme_table")
+    head = theme_box.columns(_THEME_ROW_WIDTHS)
+    head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j3-th-head'>테마</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(_THEME_REST_WIDTHS, ["ETF", "테마점수", "상태", "당일",
+                                       "20일 수익률", "6개월 수익률", "6개월 시장대비",
+                                       "강한 종목 비율"], head=True),
+        unsafe_allow_html=True,
+    )
+    # 머리글 '테마'와 첫 행(석유·가스 등)이 붙어 보이지 않도록 대장주 표와
+    # 같은 간격을 둔다. 표 전체를 함께 밀어 열 정렬은 그대로 유지한다.
+    theme_box.markdown("<div class='j3-leader-head-gap'></div>", unsafe_allow_html=True)
+
+    # 테마명 버튼 색을 상태색과 맞춘다(선택된 테마는 주황 배경으로 표시).
+    # 키는 2자리 고정폭(j3tbtn_01)으로 만든다 — class*= 부분일치 선택자라서
+    # j3tbtn_1이 j3tbtn_10~19에도 매칭돼 안 고른 행에 배경이 묻던 버그 수정
+    # (2026-07-22 사용자 제보: "클릭 후 흔적이 남음").
+    button_css = []
+    clicked = None
+    # 11위부터는 접어 둔다 — 20개가 다 펼쳐져 있으면 폰에서 화면을 다 먹는다
+    # (2026-07-25 사용자 지시). 값·순위·계산은 그대로이고, 그리는 자리만 바꾼다.
+    all_rows = list(ranking.get("rows", []))
+    rest_box = None
+    if len(all_rows) > _THEME_VISIBLE_COUNT:
+        # 키를 가진 칸으로 한 번 감싼다 — 그래야 위 표와 같은 '옆으로 밀기' CSS가
+        # 이 안에도 걸린다(한국테마 j4_theme_rest와 같은 방식). 감싸지 않았더니
+        # 폰에서 접힌 쪽만 순위·테마·값이 세로로 쌓였다(2026-08-09 상하님 캡처).
+        rest_box = st.container(key="j3_theme_rest").expander(
+            f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
+        )
+    # **표 한 벌에 칸을 한 번만 만든다** (2026-08-26 상하님 지시로 관찰만 표와
+    # 같은 방식으로 바꿨다). 예전에는 줄마다 st.columns 를 새로 만들어서, 스트림릿이
+    # 껍데기를 줄마다 세 벌씩 만들었다. 20줄이면 그것만으로 조각이 수백 개다.
+    # 이제 순위·나머지는 각각 한 덩이로 쌓고, 테마 이름 단추만 진짜 단추로 둔다.
+    # **값·순위·색·차례는 하나도 안 바뀐다.** 몇 덩이로 나누어 보내느냐만 바뀐다.
+    def _theme_cells(row, color):
+        """한 줄의 '순위' 칸과 '나머지 여섯 칸'을 만든다. 계산은 하지 않는다."""
+        etf = str(row.get("etf", ""))
+        rank_cell = f"<div class='j3-td'>{row.get('rank', '')}</div>"
+        if not row.get("ok"):
+            return rank_cell, _flex_row(_THEME_REST_WIDTHS, [etf] + ["자료 부족"] * 7, muted_from=1)
+        score = float(row.get("score") or 0)
+        strong_share = row.get("strong_members")
+        # 당일·20일·6개월은 종목 표들과 **같은 규칙**(_shown_numbers)으로 적는다(2026-09-24) —
+        # 장이 닫혀 있으면 테마 ETF 의 마지막 정규장 종가 기준. 예전에는 시간외 가격으로 쟀다.
+        theme_shown = _shown_numbers(row)
+        change, strength120 = theme_shown["change"], row.get("strength_120")
+        strength_text = "—" if strength120 is None else f"{float(strength120):+.1f}%p"
+        # 6개월 **절대** 수익률 (2026-09-05 상하님 지시). 「시장대비」는 나스닥을
+        # 뺀 값이라 이 테마가 실제로 몇 % 올랐는지가 안 보였다. 둘을 나란히 둔다.
+        ret120 = theme_shown["ret120"]
+        ret120_text = "—" if ret120 is None else f"{float(ret120):+.1f}%"
+        # 20일 수익률 (2026-09-07 상하님 지시). 최근 한 달 이 테마가 몇 % 움직였나.
+        ret20 = theme_shown["ret20"]
+        ret20_text = "—" if ret20 is None else f"{float(ret20):+.1f}%"
+        strong_cell = "—" if strong_share is None else (
+            "<div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(float(strong_share), 100):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{float(strong_share):.0f}%</span></div>"
+        )
+        return rank_cell, _flex_row(_THEME_REST_WIDTHS, [
+            etf,
+            "<div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill' style='width:{max(0.0, min(score, 100.0)):.0f}%'></div></div>"
+            f"<span class='j3-bar-num'>{score:.1f}</span></div>",
+            f"<span style='color:{color}; font-weight:800'>{row.get('status', '')}</span>",
+            f"<span style='color:{_sign_color(change)}; font-weight:700'>{_pct(change)}</span>",
+            f"<span style='color:{_sign_color(ret20)}; font-weight:800'>{ret20_text}</span>",
+            f"<span style='color:{_sign_color(ret120)}; font-weight:800'>{ret120_text}</span>",
+            f"<span style='color:{_sign_color(strength120)}; font-weight:700'>{strength_text}</span>",
+            strong_cell,
+        ])
+
+    # 앞 열 줄과 접어 둔 나머지를 나눈다. 각자 제 칸 한 벌을 쓴다.
+    groups = [(theme_box, list(enumerate(all_rows))[:_THEME_VISIBLE_COUNT])]
+    if rest_box is not None:
+        groups.append((rest_box, list(enumerate(all_rows))[_THEME_VISIBLE_COUNT:]))
+    for target, part in groups:
+        if not part:
+            continue
+        cols = target.columns(_THEME_ROW_WIDTHS)
+        ranks, rests, names = [], [], []
+        for index, row in part:
+            name = row.get("name", "")
+            color = _STATUS_HEX.get(row.get("status", ""), "#e6e6e6")
+            button_key = f"j3tbtn_{index:02d}"
+            button_css.append(f"div[class*='st-key-{button_key}'] button p {{ color: {color} !important; }}")
+            if name == selected:
+                button_css.append(
+                    f"div[class*='st-key-{button_key}'] button {{ background: rgba(255,176,32,0.16) !important; }}"
+                )
+            rank_cell, rest_cell = _theme_cells(row, color)
+            ranks.append(rank_cell)
+            rests.append(rest_cell)
+            names.append((name, button_key))
+        cols[0].markdown(_stacked(ranks), unsafe_allow_html=True)
+        for name, button_key in names:
+            if cols[1].button(name, key=button_key, width="stretch"):
+                clicked = name
+        cols[2].markdown(_stacked(rests), unsafe_allow_html=True)
+
+    st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
+    return clicked
+
+
+def _safe_error_text(error) -> str:
+    text = str(error or "일시적인 온라인 조회 오류")
+    return text[:220]
+
+
+def _trend_position(row: dict, label: str) -> str:
+    current = row.get("current")
+    sma20, sma50 = row.get("sma20"), row.get("sma50")
+    if current is None or sma20 is None or sma50 is None:
+        return f"{label} 추세 자료가 부족합니다"
+    above20, above50 = current > sma20, current > sma50
+    if above20 and above50:
+        return f"{label}은 20·50일선 위로 단기·중기 추세가 모두 살아 있습니다"
+    if above50:
+        return f"{label}은 50일선 위지만 20일선 아래여서 중기 추세 속 단기 조정입니다"
+    if above20:
+        return f"{label}은 20일선은 회복했지만 50일선 아래라 추세 전환 확인이 필요합니다"
+    return f"{label}은 20·50일선 아래로 단기·중기 흐름이 모두 약합니다"
+
+
+def _market_flow_text(overview: dict) -> str:
+    rows = overview.get("rows", {})
+    sections = [
+        _trend_position(rows.get("SPY", {}), "S&P500"),
+        _trend_position(rows.get("QQQ", {}), "나스닥100"),
+    ]
+    iwm = rows.get("IWM", {})
+    if iwm.get("current") is not None and iwm.get("sma50") is not None:
+        if iwm["current"] > iwm["sma50"]:
+            sections.append("IWM이 50일선 위여서 중소형주도 중기 추세를 지킨다는 ‘중소형주 동행’ 조건은 충족했습니다")
+        else:
+            sections.append("IWM이 50일선 아래라 중소형주는 대형주 상승에 충분히 동참하지 못하고 있습니다")
+    vix_value = rows.get("^VIX", {}).get("current")
+    if vix_value is not None:
+        if vix_value < 25:
+            sections.append(f"VIX {vix_value:.1f}은 25 미만으로 공포·변동성은 과열 구간이 아닙니다")
+        elif vix_value < 35:
+            sections.append(f"VIX {vix_value:.1f}은 25~35 경계 구간이라 변동성 확대에 주의해야 합니다")
+        else:
+            sections.append(f"VIX {vix_value:.1f}은 35 이상으로 시장 공포와 급변 위험이 매우 높습니다")
+    # 문장이 한 덩어리로 붙으면 너무 빽빽하다는 지적(2026-07-22 캡처 빗금 표시)에 따라
+    # 문장마다 줄을 바꿔 보여준다.
+    return ".<br>".join(sections) + "."
+
+
+def _regime_range_text() -> str:
+    """구간 안내 한 줄. 이름·점수는 regime_gauge_ui가 원본이라 여기서 따로 적지 않는다."""
+    return " · ".join(
+        f"{regime_gauge_ui.RANGE_TEXT[name]}점 {name}"
+        for _limit, name, _color in regime_gauge_ui.ZONES
+    )
+
+
+def _market_score_detail(overview: dict) -> str:
+    breakdown = overview.get("score_breakdown") or []
+    if not breakdown:
+        return "세부 점수는 다음 온라인 갱신에서 표시됩니다."
+    earned = [f"{item['label']} {item['earned']}/{item['max']}점" for item in breakdown if item.get("earned")]
+    missed = [item["label"] for item in breakdown if not item.get("earned")]
+    earned_text = ", ".join(earned) if earned else "충족 신호 없음"
+    missed_text = ", ".join(missed) if missed else "없음"
+    # <b>는 이 설명 상자에서 초록으로 띄우는 표시다(위 .j3-score-guide b 참고).
+    return f"<b>현재 획득</b>: {earned_text} · <b>미충족</b>: {missed_text}"
+
+
+def _market_action_detail(overview: dict) -> str:
+    # 문장마다 <br>로 줄을 바꾼다 — 글자가 너무 빽빽하다는 지적(2026-07-22 캡처 빗금) 반영.
+    score = float(overview.get("score") or 0)
+    if score >= 75:
+        return (
+            "시장 추세와 위험선호가 충분히 확인된 구간입니다.<br>"
+            "그래도 아무 종목이나 매수하지 않고, 주도 테마이면서 "
+            f"종목 조건점수 {_number(getattr(j3data, 'LEADER_GATE_MARK', 60.0))}점 이상인 "
+            "대장주가 기준가격을 통과할 때만 분할 진입합니다."
+        )
+    if score >= 50:
+        return (
+            "시장 일부만 강한 선별 구간입니다.<br>"
+            "매수 비중을 평소보다 줄이고, 주도 테마의 1~3위 종목 중 "
+            "돌파 또는 20일선 눌림 조건이 확인된 종목만 심사합니다."
+        )
+    return (
+        "상승장 확인 조건이 부족하므로 신규 매수를 보류합니다.<br>"
+        "보유 종목의 손절 기준과 비중을 먼저 관리하고,<br>"
+        "SPY·QQQ의 20·50일선 회복과 시장점수 50점 이상을 확인한 뒤 다시 매수 심사를 시작합니다."
+    )
+
+
+def _relative_strength_guide(value) -> tuple[str, str]:
+    if value is None:
+        return "판단 불가", "상대강도 자료가 부족합니다."
+    value = float(value)
+    if value >= 10:
+        level = "매우 강함"
+    elif value >= 5:
+        level = "강함"
+    elif value >= 0:
+        level = "시장 대비 우위"
+    elif value >= -5:
+        level = "시장 대비 약세"
+    else:
+        level = "매우 약함"
+    meaning = f"최근 20거래일 동안 해당 테마 ETF가 SPY보다 {abs(value):.1f}%p {'더 올랐거나 덜 내렸습니다' if value >= 0 else '뒤처졌습니다'}."
+    return level, meaning
+
+
+def _reference_plan(metrics: dict):
+    """확정 셋업 전 종목의 '조건 도달 기준' 참고 가격을 계산한다.
+
+    돌파 조건(52주 고가 −2%)과 눌림목 조건(20일선) 중 현재가에 가까운 쪽을 기준가로 본다.
+    실제 매수 판정(state·recommendation)은 바꾸지 않는다.
+    """
+    current = metrics.get("current")
+    if not current:
+        return None, None, None, None
+    current = float(current)
+    high52, sma20, atr = metrics.get("high52"), metrics.get("sma20"), metrics.get("atr")
+    candidates = []
+    if high52:
+        candidates.append(float(high52) * 0.98)
+    if sma20:
+        candidates.append(float(sma20))
+    if not candidates:
+        return None, None, None, None
+    trigger = min(candidates, key=lambda price: abs(price - current))
+    invalidation = current - max((float(atr) if atr else current * 0.03) * 2, current * 0.03)
+    zone_high = trigger * 1.007
+    target = trigger + 2 * (trigger - invalidation)
+    return trigger, zone_high, invalidation, target
+
+
+# 「6개월 수익률」 칸을 하나 더 넣었다(2026-09-07 상하님 지시). 칸 수와 폭이
+# 맞아야 머리글과 값이 어긋나지 않는다 — 넣거나 뺄 때 이 줄도 같이 고친다.
+_LEADER_COL_WIDTHS = [0.75, 1.9, 0.85, 1.6, 0.95, 1.25, 1.15, 1.2, 1.1]
+# 테마표와 같은 이유로 세 칸만 쓴다 — 순위 · 종목(단추) · 나머지를 묶은 한 덩이.
+_LEADER_ROW_WIDTHS = [_LEADER_COL_WIDTHS[0], _LEADER_COL_WIDTHS[1], sum(_LEADER_COL_WIDTHS[2:])]
+_LEADER_REST_WIDTHS = _LEADER_COL_WIDTHS[2:]
+
+
+def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> str | None:
+    """종목표를 그리고, 종목 이름 버튼이 눌리면 그 티커를 돌려준다.
+
+    한국테마(자비스4)와 같은 방식이다(2026-07-29 지시). 예전에는 순수 HTML 표라
+    이름을 눌러도 아무 일이 없었다. 아래 '상세 종목 선택'은 그대로 둔다.
+    폰·태블릿 규칙은 이미 도는 테마표·눌림목표와 같은 CSS 묶음에 얹었다.
+    """
+    box = st.container(key="j3_leader_table")
+    head = box.columns(_LEADER_ROW_WIDTHS)
+    head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(_LEADER_REST_WIDTHS, ["티커", "최종점수", "당일주가", "52주 고가 대비",
+                                        "20일 수익률", "6개월 수익률",
+                                        "매수 상태"], head=True),
+        unsafe_allow_html=True,
+    )
+    # 머리글 '종목'과 첫 행 MPC가 붙어 보이지 않도록 한 줄만 띄운다.
+    box.markdown("<div class='j3-leader-head-gap'></div>", unsafe_allow_html=True)
+
+    rank_mark = {1: "🟡 1위", 2: "⚪ 2위", 3: "🟠 3위"}
+    button_keys = []
+    clicked = None
+    for index, leader in enumerate(leaders[:6]):
+        metrics, plan = leader["metrics"], leader["plan"]
+        rank = int(leader.get("rank") or 0)
+        ticker = leader["ticker"]
+        score = float(leader.get("score") or 0)
+        button_key = f"j3lbtn_{index:02d}"
+        button_keys.append((button_key, ticker))
+        cols = box.columns(_LEADER_ROW_WIDTHS)
+        cols[0].markdown(
+            f"<div class='j3-td'>{rank_mark.get(rank, f'{rank}위')}</div>", unsafe_allow_html=True)
+        if cols[1].button(leader["name"], key=button_key, width="stretch"):
+            clicked = ticker
+        # 당일주가 — **가격 위 · 등락 아래** (2026-09-24 상하님 — "22개 테마에서 각 테마 클릭하면
+        # 종목에서 당일에 주가 없이 퍼센티지만 나온다. 다른 파트 참고하고 일관성을 유지해라").
+        # 상승장·급락·눌림목 표와 같은 모양·같은 값(세부사항과 같은 정규장 기준)이다.
+        leader_shown = _shown_numbers(metrics)
+        leader_price, leader_change = leader_shown["price"], leader_shown["change"]
+        price_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+            f"<span>{_price(leader_price)}</span>"
+            f"<span style='color:{_sign_color(leader_change)};"
+            f" font-weight:800; font-size:.82rem'>{_pct(leader_change)}</span></span>"
+        )
+        # 나머지 여섯 칸은 한 덩이로 그린다(2026-07-30 — 요소 수를 줄여 폰을 빠르게).
+        cols[2].markdown(
+            _flex_row(_LEADER_REST_WIDTHS, [
+                ticker,
+                "<div class='j3-barwrap'><div class='j3-bar'>"
+                f"<div class='j3-bar-fill' style='width:{max(0.0, min(score, 100.0)):.0f}%'></div></div>"
+                f"<span class='j3-bar-num'>{score:.1f}/100</span></div>",
+                price_cell,
+                *(
+                    f"<span style='color:{_sign_color(value)}; font-weight:700'>{_pct(value)}</span>"
+                    # 6개월 수익률을 20일 옆에 둔다(2026-09-07 상하님 지시).
+                    # 52주·20일·6개월도 가격 칸과 같은 기준이다(2026-09-24 · _shown_numbers).
+                    for value in (leader_shown["from_high_pct"],
+                                  leader_shown["ret20"], leader_shown["ret120"])
+                ),
+                str(plan.get("state", "")),
+            ]),
+            unsafe_allow_html=True,
+        )
+
+    # 주황 표시는 **줄을 다 그린 뒤에** 한 번에 붙인다. 그래서 이 판에서 방금 누른
+    # 줄도 곧바로 표시할 수 있다 — 예전에는 표를 그리기 전의 선택만 알고 있어서
+    # 화면을 통째로 다시 돌려야(st.rerun) 표시가 옮겨졌다(2026-08-21).
+    highlight = clicked or selected_ticker
+    button_css = [
+        f"div[class*='st-key-{key}'] button "
+        "{ background: rgba(255,176,32,0.16) !important; }"
+        for key, ticker in button_keys if ticker == highlight
+    ]
+    # **고른 것이 없어도 빈 꾸밈 칸을 늘 그린다** (2026-09-24 상하님 — "종목 클릭하면 2초").
+    # 고를 때만 그리면 종목을 처음 누른 판에 이 칸이 **새로 끼어들어**, 그 밑의 대장주 차트 넷
+    # (약 100KB)이 한 칸씩 밀려 폰이 통째로 새로 그렸다(내용은 그대로인데). 늘 그 자리에 있으면
+    # 밑은 안 밀리고 이 칸 글자만 바뀐다. 빈 꾸밈 칸은 화면에 자리를 안 차지한다.
+    st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
+    return clicked
+
+
+# ── 종목 차트 (2026-08-28 상하님 지시) ──────────────────────────────────────
+#
+# 상하님 — "20개 테마, 신고가 눌림매수, 급락 후 반등장, 매수심사결과 높은 순위의
+# 각 파트별로 종목에 차트들이 나오는데 당일·일봉(거래량 빼라)·주봉·월봉 이렇게
+# 나오는데 너무 못생겼다. 첫 번째 캡처처럼 하되 일·주·월봉은 20선 50선은 넣어 줘."
+#
+# 첫 번째 캡처는 관심종목 카드의 「일봉 6개월」이다 — 시작가에 점선을 긋고 그 위는
+# 초록, 아래는 빨강으로 채운 그림. 그 방식을 종목 상세의 네 그림에 그대로 옮긴다.
+#
+# **덤으로 빨라진다.** 예전 그림은 Vega(알테어)라 그림 하나에 규격 뭉치를 통째로
+# 브라우저에 보내고 브라우저가 그걸 읽어 그린다. 종목을 누르면 그런 그림이 네 개씩
+# 만들어졌다(상하님 지적 — "정식 후보 종목을 클릭하면 15초 정도"). 이 그림은
+# 서버가 만든 SVG 한 조각이라 브라우저가 읽을 것이 없다.
+_CHART_UP = "#70e64a"        # 기준선 위 (관심종목 카드와 같은 초록)
+_CHART_DOWN = "#ff5b5b"      # 기준선 아래
+_CHART_MA20 = "#ffb020"      # 20선 — 주황
+_CHART_MA50 = "#c084fc"      # 50선 — 보라
+
+
+def _split_pieces(values: list[float], base: float) -> list[tuple[int, list]]:
+    """기준선을 넘는 자리에서 선을 끊어 (위/아래, 점들)로 나눈다.
+
+    관심종목 카드 그림과 종목 상세 그림이 **같은 계산**을 쓴다. 칸마다 따로
+    그리면 조각이 수백 개가 되지만, 가로지르는 자리만 끊으면 보통 서넛이다.
+    돌려주는 x는 **칸 번호**다 — 실제 좌표는 부르는 쪽이 정한다.
+    """
+    pieces, current, sign = [], [(0.0, base if values[0] == base else values[0])], None
+    for index in range(len(values) - 1):
+        now_value, next_value = values[index], values[index + 1]
+        sign_now = 1 if now_value >= base else -1
+        sign_next = 1 if next_value >= base else -1
+        if sign is None:
+            sign = sign_now if now_value != base else sign_next
+        if sign_next == sign or next_value == base:
+            current.append((float(index + 1), next_value))
+            continue
+        share = (base - now_value) / (next_value - now_value) if next_value != now_value else 0.0
+        crossing = index + share
+        current.append((crossing, base))
+        pieces.append((sign, current))
+        sign, current = sign_next, [(crossing, base), (float(index + 1), next_value)]
+    pieces.append((sign if sign is not None else 1, current))
+    return pieces
+
+
+def _pretty_chart_svg(closes, *, base=None, ma20=None, ma50=None,
+                      height: int = 150) -> str:
+    """시작가 기준선 위아래를 갈라 그린 종목 차트. 20선·50선도 함께 그린다.
+
+    가로는 화면을 채우고(preserveAspectRatio="none") 세로만 못박는다. 늘려도
+    선이 굵어지지 않게 vector-effect 를 건다 — 2026-08-26에 카드 그림에서
+    7.9px 로 굵어진 것을 겪었다.
+    """
+    values = [float(v) for v in (closes or []) if v is not None and v == v]
+    if len(values) < 2:
+        return ""
+    base = float(base) if base is not None else values[0]
+    lines = []
+    for color, series in ((_CHART_MA20, ma20), (_CHART_MA50, ma50)):
+        cleaned = [(index, float(v)) for index, v in enumerate(series or [])
+                   if v is not None and v == v]
+        if len(cleaned) >= 2:
+            lines.append((color, cleaned))
+
+    span_values = values + [base] + [v for _c, pairs in lines for _i, v in pairs]
+    low, high = min(span_values), max(span_values)
+    reach = (high - low) or 1.0
+    pad = height * 0.06
+    inner = height - pad * 2
+    width = 300.0
+    step = width / (len(values) - 1)
+
+    def _y(value):
+        return pad + inner - (float(value) - low) / reach * inner
+
+    body = [
+        f'<line x1="0" y1="{_y(base):.2f}" x2="{width:.0f}" y2="{_y(base):.2f}" '
+        'stroke="rgba(255,255,255,.42)" stroke-width="1" stroke-dasharray="4 4" '
+        'vector-effect="non-scaling-stroke"/>'
+    ]
+    for piece_sign, piece in _split_pieces(values, base):
+        if len(piece) < 2:
+            continue
+        color = _CHART_UP if piece_sign >= 0 else _CHART_DOWN
+        path = " ".join(f"{x * step:.2f},{_y(v):.2f}" for x, v in piece)
+        area = (f"{piece[0][0] * step:.2f},{_y(base):.2f} " + path
+                + f" {piece[-1][0] * step:.2f},{_y(base):.2f}")
+        body.append(f'<polygon points="{area}" fill="{color}" fill-opacity="0.16"/>')
+        body.append(f'<polyline points="{path}" fill="none" stroke="{color}" '
+                    'stroke-width="1.9" vector-effect="non-scaling-stroke"/>')
+    for color, pairs in lines:
+        path = " ".join(f"{index * step:.2f},{_y(v):.2f}" for index, v in pairs)
+        body.append(f'<polyline points="{path}" fill="none" stroke="{color}" '
+                    'stroke-width="1.4" stroke-opacity=".95" '
+                    'vector-effect="non-scaling-stroke"/>')
+    return (f'<svg class="j3-pretty-chart" viewBox="0 0 {width:.0f} {height}" '
+            'preserveAspectRatio="none">' + "".join(body) + "</svg>")
+
+
+# 일봉 봉차트에 싣는 봉 수 — 여섯 달(거래일 120일). 예전 선 그림은 180일이었는데, 봉은 폭이
+# 있어 180개면 폰의 작은 칸(약 170px)에서 봉 하나가 1px 도 안 돼 막대 뭉치로 보였다.
+CANDLE_SESSIONS = 120
+
+
+def _candle_svg(rows: list, *, up: str, down: str, lines=(), svg_open: str) -> str:
+    """봉차트 그림. rows 는 [시가, 고가, 저가, 종가] 줄들, lines 는 (색, [(자리, 값)]) 이평선들.
+
+    좌표는 **정수**다 — 봉 한 칸 폭 10·판 높이 600 으로 잡고 화면에 늘려 그린다(늘려도 심지·
+    이평선 굵기는 그대로 — vector-effect). 봉 하나에 약 30자라 봉 126개도 4천 자 안팎이다
+    (예전 선 그림 한 장과 비슷하다). 오른 날(종가 ≥ 시가)·내린 날 두 갈래를 길 하나씩으로 묶는다.
+    svg_open 은 {W}·{H} 자리가 있는 여는 꼬리표 — 자리마다 크기·꾸밈이 달라 부르는 쪽이 준다.
+    """
+    rows = [row for row in rows if len(row) == 4 and all(v is not None and v == v for v in row)]
+    if len(rows) < 2:
+        return ""
+    width, height = 10 * len(rows), 600
+    span_values = [v for row in rows for v in (row[1], row[2])] + [v for _c, pairs in lines for _i, v in pairs]
+    low, high = min(span_values), max(span_values)
+    reach = (high - low) or 1.0
+    pad = height * 0.06
+    inner = height - pad * 2
+
+    def _y(value):
+        return round(pad + inner - (float(value) - low) / reach * inner)
+
+    wicks = {True: [], False: []}
+    bodies = {True: [], False: []}
+    for index, (o, h, l, c) in enumerate(rows):
+        rising = c >= o
+        wicks[rising].append(f"M{index * 10 + 5} {_y(h)}V{_y(l)}")
+        top, bottom = _y(max(o, c)), _y(min(o, c))
+        bodies[rising].append(f"M{index * 10 + 2} {top}h6v{max(bottom - top, 2)}h-6z")
+    body = []
+    for rising, color in ((True, up), (False, down)):
+        if wicks[rising]:
+            body.append(f'<path d="{"".join(wicks[rising])}" stroke="{color}" stroke-width="1" '
+                        'fill="none" vector-effect="non-scaling-stroke"/>')
+            body.append(f'<path d="{"".join(bodies[rising])}" fill="{color}"/>')
+    for color, pairs in lines:
+        path = " ".join(f"{place * 10 + 5},{_y(v)}" for place, v in pairs)
+        body.append(f'<polyline points="{path}" fill="none" stroke="{color}" '
+                    'stroke-width="1.4" stroke-opacity=".95" vector-effect="non-scaling-stroke"/>')
+    return svg_open.format(W=width, H=height) + "".join(body) + "</svg>"
+
+
+def _candle_chart_svg(frame, *, ma20=None, ma50=None,
+                      up: str = _CHART_UP, down: str = _CHART_DOWN) -> str:
+    """종목 상세 일봉 **봉차트** (2026-09-24 상하님 — "각 차트에서 일봉은 봉차트로 해라").
+
+    오른 날은 초록, 내린 날은 빨강 — 선 그림의 위·아래 색과 같다. 20선·50선은 예전처럼 겹쳐 그린다.
+    frame 은 Open·High·Low·Close 칸이 있는 표다. 없거나 모자라면 빈 글자 — 부르는 쪽이 선 그림으로 간다.
+    """
+    try:
+        rows = [[float(o), float(h), float(l), float(c)]
+                for o, h, l, c in zip(frame["Open"], frame["High"], frame["Low"], frame["Close"])]
+    except Exception:
+        return ""
+    keep = [index for index, row in enumerate(rows) if all(v == v for v in row)]
+    lines = []
+    for color, series in ((_CHART_MA20, ma20), (_CHART_MA50, ma50)):
+        series = list(series or [])
+        cleaned = [(place, float(series[index])) for place, index in enumerate(keep)
+                   if index < len(series) and series[index] is not None and series[index] == series[index]]
+        if len(cleaned) >= 2:
+            lines.append((color, cleaned))
+    return _candle_svg([rows[index] for index in keep], up=up, down=down, lines=lines,
+                       svg_open='<svg class="j3-pretty-chart j3-candle-chart" viewBox="0 0 {W} {H}" '
+                                'preserveAspectRatio="none">')
+
+
+def _daily_candles(payload: dict, height: int = 150) -> str:
+    """일봉 자료(get_chart_bundle 의 「일봉」)로 봉차트. 봉 값이 없으면 빈 글자."""
+    frame = payload.get("ohlcv") if isinstance(payload, dict) else None
+    if frame is None or not {"Open", "High", "Low", "Close"}.issubset(getattr(frame, "columns", [])):
+        return ""
+    frame = frame.tail(CANDLE_SESSIONS)
+    column = lambda name: ([None if v != v else float(v) for v in frame[name].tolist()]
+                           if name in frame.columns else [])
+    return _candle_chart_svg(frame, ma20=column("MA20"), ma50=column("MA50"))
+
+
+def _payload_series(payload: dict, column: str):
+    """차트 자료에서 한 줄을 꺼낸다. 없으면 빈 목록."""
+    frame = payload.get("price") if isinstance(payload, dict) else None
+    if frame is None or column not in getattr(frame, "columns", []):
+        return []
+    return [None if value != value else float(value) for value in frame[column].tolist()]
+
+
+def _render_day_price_row(metrics: dict, ticker: str | None = None,
+                          *, panel: str = "") -> None:
+    """**2주간 일별 시세 보기** — 눌러야 펴진다 (2026-09-02 상하님 지시).
+
+    상하님 — *"선택종목 세부사항란의 「당일 가격 시가/고가/저가 한눈에 보기」를
+    없애고, 제목을 「2주간 일별 시세 보기」란을 만들고, 클릭하면 「이 테마 설명」
+    처럼 화면이 밑으로 내려가도록 만들어라. 그리고 닫힘 화면."*
+
+    표는 네이버 증권의 「일별 시세」와 같은 칸이다 — 날짜 · 종가 · 전일대비 ·
+    등락률. 거래일 **열흘**(2주)치를 최근 날이 맨 위로 오게 적는다.
+
+    **없앤 것** — 「당일 가격 · 시가/고가/저가 한눈에 보기」 한 줄(현재가·전일
+    종가·시가·고가·저가·지금 시간외). 그 값들은 바로 위 요약 줄과 아래 차트가
+    이미 말하고, 폰에서 여섯 칸이 화면을 한 장 먹었다.
+
+    **새로 받아 오는 것이 없다** — 카드가 쓰는 6개월 일봉을 다시 읽는다.
+    못 받으면 표를 안 그린다(없는 것을 있는 것처럼 적지 않는다).
+    """
+    # **3주(거래일 15일)로 늘렸다** (2026-09-19 상하님 지시 — "3주간으로 늘려라, 위아래
+    # 라인 좀 더 좁게. 즉 거래 15일치"). 줄 위아래 여백도 줄였다(.34rem → .2rem).
+    key = f"j3_daily_prices_{panel or 'x'}_{str(ticker or 'x').lower()}"
+    # **누르면 창으로 튀어 오른다** (2026-09-24 상하님 지시 — "3주간 일별 시세 이것도 클릭하면
+    # 관심종목에서 종목 클릭하면 화면이 동일하게, 즉 파트별 성적표의 매수심사결과 높은 순위 9
+    # 클릭하면 튀어나오게 하는 화면처럼 움직이게"). 예전에는 누르면 서버를 돌아 그 자리 밑에
+    # 표가 펴지고 화면이 표로 내려갔다(2026-09-19).
+    #
+    # **처음 한 번만 서버에 묻는다.** 표는 그 종목의 6개월 일봉·1분봉으로 만드는데, 처음 보는
+    # 종목이면 받는 데 2초 안팎이 든다(노트북 실측 1.9~2.3초). 늘 미리 만들면 종목을 누를
+    # 때마다 그만큼 늦어진다. 그래서 첫 누름은 예전처럼 서버 단추 → 표를 만들어 **곧바로 창을
+    # 띄우고**, 그 뒤로는 차트 큰 창·순위 9 창과 같은 숨은 스위치로 여닫는다(서버에 안 묻는다).
+    if not st.session_state.get(key):
+        st.session_state.pop(key + "_shown", None)     # 다시 누르면 곧바로 뜨게
+        _section_toggle(
+            "📅 3주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
+        )
+        if not st.session_state.get(key):
+            return
+    rows = []
+    try:
+        rows = j3data.daily_price_rows(ticker, days=15, fill_last_session=True) or []
+    except Exception:
+        rows = []
+    if not rows:
+        st.caption("일별 시세를 불러오지 못했습니다.")
+        _section_close(key, "3주간 일별 시세 닫기")
+        return
+    # **색은 앱 규칙을 그대로 쓴다** (2026-09-02 상하님 — "화면은 흰색으로
+    # 하라는 게 아니다"). 칸 짜임만 네이버 「일별 시세」와 같게 하고, 흰 바탕·
+    # 빨강 칩은 안 가져온다. 오른 값·빠진 값 색은 화면 다른 곳과 같은
+    # `_sign_color` 하나로 정한다.
+    body = []
+    for row in rows:
+        pct = row.get("pct")
+        diff = row.get("diff") or 0.0
+        tone = _sign_color(pct)
+        arrow = "▲" if (pct or 0) >= 0 else "▼"
+        pct_text = "—" if pct is None else _pct(pct)
+        body.append(
+            f"<tr><td class='j3dp-d'>{html.escape(str(row.get('date') or ''))}</td>"
+            f"<td class='j3dp-c'>{_price(row.get('close'))}</td>"
+            f"<td style='color:{tone}'>{arrow} {abs(diff):,.2f}</td>"
+            f"<td style='color:{tone};font-weight:800'>{pct_text}</td></tr>"
+        )
+    # 막 누른 판에서만 창을 **열린 채로** 보낸다 — 그 뒤 판은 닫힌 채로 보내 화면이 다시
+    # 그려질 때 창이 저절로 떠오르지 않게 한다. 다시 여닫는 것은 숨은 스위치가 한다.
+    shown_key = key + "_shown"
+    pop_now = not st.session_state.get(shown_key)
+    st.session_state[shown_key] = True
+    tap_id = "j3dp-" + re.sub(r"[^A-Za-z0-9]", "_", key)
+    table = (f"<table class='j3dp'><thead><tr><th>날짜</th><th>종가</th>"
+             f"<th>전일대비</th><th>등락률</th></tr></thead><tbody>{''.join(body)}</tbody></table>")
+    st.markdown(
+        "<style>"
+        ".j3dp{width:100%;border-collapse:collapse;font-size:.93rem;margin:.2rem 0 .4rem;"
+        "background:transparent}"
+        ".j3dp th{color:#9aa0aa;font-weight:800;text-align:right;padding:.25rem .5rem;"
+        "border-bottom:1px solid rgba(255,255,255,.18)}"
+        ".j3dp th:first-child{text-align:left}"
+        ".j3dp td{text-align:right;padding:.2rem .5rem;color:#e6e6e6;"
+        "border-bottom:1px solid rgba(255,255,255,.06)}"
+        ".j3dp .j3dp-d{text-align:left;color:#9aa0aa;font-weight:700}"
+        ".j3dp .j3dp-c{font-weight:800;color:#e6e6e6}"
+        # 여는 칸 — 서버 단추(btn_j3_daily_prices_)와 같은 연한 무지개 · 같은 크기
+        "label.j3dp-open{display:flex;align-items:center;justify-content:center;width:100%;"
+        "box-sizing:border-box;min-height:2.5rem;padding:.35rem .75rem;border-radius:.5rem;"
+        "border:1px solid rgba(255,255,255,.22);cursor:pointer;color:#fff;font-weight:700;"
+        "background:linear-gradient(90deg,rgba(255,107,107,.36) 0%,rgba(255,183,77,.36) 25%,"
+        "rgba(129,199,132,.36) 50%,rgba(79,172,254,.36) 75%,rgba(186,148,250,.36) 100%)}"
+        # 창 — 차트 큰 창(.j3cz-pop)과 같은 모양·움직임. 표 15줄이 다 들도록 높이는 내용만큼
+        # (세로 화면의 「절반 높이」 규칙은 차트용이라 여기서는 푼다).
+        ".j3cz-pop.j3dp-pop{height:auto;max-height:calc(100dvh - 16px);overflow-y:auto}"
+        ".j3dp-tap:checked ~ .j3dp-scrim{opacity:1;visibility:visible;transition:opacity .3s ease,visibility 0s}"
+        ".j3dp-tap:checked ~ .j3dp-pop{opacity:1;visibility:visible;pointer-events:auto;"
+        "transform:translate(-50%,-50%) scale(1);"
+        "transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,visibility 0s;"
+        # 처음부터 켜진 채로 그려지는 판에는 옮겨 가는 움직임(transition)이 안 먹는다 —
+        # 그래서 켜질 때마다 한 번 도는 움직임(animation)으로 튀어 오르게 한다.
+        "animation:j3dp-in .9s cubic-bezier(.34,1.56,.64,1)}"
+        "@keyframes j3dp-in{from{opacity:0;transform:translate(-50%,-50%) scale(.55)}"
+        "to{opacity:1;transform:translate(-50%,-50%) scale(1)}}"
+        "@media (prefers-reduced-motion: reduce){.j3dp-tap:checked ~ .j3dp-pop{animation:none}}"
+        "</style>"
+        f"<div class='j3dpz'><input type='checkbox' id='{tap_id}' class='j3cz-tap j3dp-tap'>"
+        f"<label for='{tap_id}' class='j3dp-open'>📅 3주간 일별 시세 보기</label>"
+        f"<label for='{tap_id}' class='j3cz-scrim j3dp-scrim' aria-hidden='true'></label>"
+        f"<label for='{tap_id}' class='j3cz-pop j3dp-pop'>"
+        f"<span class='j3cz-name'>{html.escape(str(ticker or ''))} · 3주간 일별 시세</span>"
+        f"{table}"
+        "<span class='j3cz-when'>거래일 15일치 · 최근 날이 맨 위</span>"
+        "<span class='j3cz-close'>다시 누르면 닫힘</span></label></div>",
+        unsafe_allow_html=True,
+    )
+    # **막 누른 판에서만 스위치를 한 번 켠다.** 켜진 채로(checked) 그려 보내면 스트림릿이
+    # 그 칸을 「켜짐 고정」으로 붙잡아 눌러도 안 닫혔다(2026-09-24 노트북 실측). 꺼진 채로
+    # 그리고 여기서 켜면 차트 큰 창과 똑같이 튀어 오르고, 누르면 닫힌다.
+    if pop_now:
+        try:
+            import json as _json
+            import streamlit.components.v1 as components
+
+            components.html(
+                "<script>(function(){var n=0;function go(){var t=null;"
+                "try{t=window.parent.document.getElementById(" + _json.dumps(tap_id) + ");}"
+                "catch(e){return;}"
+                "if(t){if(!t.checked){t.click();}return;}"
+                "if(n++<40){setTimeout(go,50);}}go();})();</script>",
+                height=0,
+            )
+        except Exception:
+            pass
+
+
+def _chart_zoom_html(boxes: list, zoom: str) -> str:
+    """차트 칸 여럿을 **누르면 크게 뜨는** 한 판으로 싼다(아래 두 곳이 같이 쓴다).
+
+    boxes 는 (이름, 그림 svg, 기준 시각) 묶음이다. 숨은 스위치(체크칸) 하나로 여닫아
+    서버에 다시 묻지 않는다 — 칸(label)을 누르면 켜지고, 뜬 창이나 어두운 바탕을 누르면
+    꺼진다. 스위치는 맨 앞에 둔다 — 뒤의 칸·창을 「~」로 집으려면 스위치가 앞서야 한다.
+    zoom 은 한 화면에서 겹치면 안 된다(체크칸 id 의 앞머리).
+    """
+    taps = "".join(
+        f"<input type='checkbox' id='{zoom}-{index}' class='j3cz-tap j3cz-t{index}'>"
+        for index in range(len(boxes))
+    )
+    cells = "".join(
+        f"<label for='{zoom}-{index}' class='j3-chart-box j3cz-cell'>"
+        f"<div class='j3-chart-name'>{name}</div>{drawing}"
+        + (f"<div class='j3-chart-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</div>"
+           if when else "")
+        + "</label>"
+        for index, (name, drawing, when) in enumerate(boxes)
+    )
+    # **큰 창에는 그림을 한 벌 더 싣지 않는다** (2026-09-24 상하님 — "테마 클릭하면 3초").
+    # 예전에는 작은 칸의 그림을 창 안에 그대로 한 번 더 넣어, 테마 하나를 누르면 대장주
+    # 셋·테마 차트의 그림 16장이 두 벌씩 312KB 로 왔다(온라인 실측 — 한 번 누름 353KB).
+    # 이제 창에는 빈자리(j3cz-draw)만 두고, 누르는 순간 작은 칸의 그림을 베껴 넣는다
+    # (_ZOOM_CLONE_JS — 바깥 화면에 한 번 심는다).
+    pops = "".join(
+        f"<label for='{zoom}-{index}' class='j3cz-scrim j3cz-s{index}' aria-hidden='true'></label>"
+        f"<label for='{zoom}-{index}' class='j3cz-pop j3cz-p{index}'>"
+        f"<span class='j3cz-name'>{name}</span><i class='j3cz-draw'></i>"
+        + (f"<span class='j3cz-when'>기준 {html.escape(str(when)[:16].replace('T', ' '))}</span>"
+           if when else "")
+        + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
+        for index, (name, drawing, when) in enumerate(boxes)
+    )
+    return f"<div class='j3cz'>{taps}<div class='j3-chart-grid'>{cells}</div>{pops}</div>"
+
+
+def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
+    """선택 종목의 **당일·일봉·주봉·월봉 넷을 한 판에** 그린다 (2026-08-28).
+
+    상하님 지시 두 가지를 한 번에 담았다.
+      · "당일·일봉(거래량 빼라)·주봉·월봉이 너무 못생겼다. 첫 번째 캡처처럼
+         하되 일·주·월봉은 20선 50선은 넣어 줘."
+      · "스마트폰 기준으로 당일·일봉 차트 같은 선상에 2개 해 주고 그 밑에
+         주·월봉 차트. 맨 위 미국 전체시장 판단에 S&P500 옆에 나스닥 종합
+         있는 것처럼."
+
+    **스트림릿 칸(st.columns)을 안 쓴다.** 그것은 폰에서 위아래로 쌓여 한 줄에
+    하나가 된다. 맨 위 지수 칸과 같은 방식으로 CSS 격자에 넣어야 폰에서도 두
+    개씩 선다.
+
+    **거래량은 뺐다**(상하님 지시). 그림 아래 막대가 차지하던 자리만큼 주가
+    흐름이 커진다.
+
+    눌러야 받아 온다(2026-07-30 사용자 지시 + 로딩 단축) — 늘 그리면 종목을 고를
+    때마다 20년치를 받아 와 느려진다. 당일 그림도 이 안에서 함께 받는다.
+    """
+    if not _section_toggle(
+        "📊 당일 · 일봉 · 주봉 · 월봉 보기", f"j3_bundle_open_{panel}",
+        close_label="차트 닫기",
+    ):
+        return
+    st.caption(
+        "일봉은 봉차트(여섯 달 · 오른 날 초록·내린 날 빨강), 당일·주봉·월봉은 시작한 값 점선 "
+        "위는 초록·아래는 붉은색입니다. 20선은 주황색 · 50선은 보라색입니다."
+    )
+    boxes = []
+    # 당일 그림 — 기준선은 전일 종가다. 20선·50선은 없다(하루치라 잴 수 없다).
+    try:
+        intraday = j3data.get_intraday_chart(ticker)
+    except Exception:
+        intraday = None
+    if isinstance(intraday, dict) and intraday.get("ok"):
+        closes = _payload_series(intraday, intraday["price"].columns[0])
+        drawing = _pretty_chart_svg(closes, base=intraday.get("prev_close"), height=150)
+        if drawing:
+            boxes.append(("당일", drawing, intraday.get("source_time") or ""))
+    chart_bundle = j3data.get_chart_bundle(ticker)
+    if not chart_bundle.get("ok"):
+        if not boxes:
+            st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
+            _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
+            return
+    else:
+        for timeframe in ("일봉", "주봉", "월봉"):
+            payload = chart_bundle["charts"].get(timeframe, {})
+            if not payload.get("ok"):
+                continue
+            # 일봉은 봉차트(2026-09-24) — 봉 값이 없으면 예전 선 그림.
+            drawing = (_daily_candles(payload) if timeframe == "일봉" else "") or _pretty_chart_svg(
+                _payload_series(payload, "Close"),
+                ma20=_payload_series(payload, "MA20"),
+                ma50=_payload_series(payload, "MA50"),
+                height=150,
+            )
+            if drawing:
+                boxes.append((timeframe, drawing, ""))
+    if not boxes:
+        st.warning("차트 자료가 없습니다.")
+        _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
+        return
+    # **누르면 크게 뜬다** (2026-09-23 저녁 상하님 지시 — "종목별 차트 일봉·주봉·월봉 클릭하면
+    # 파트별 성적표 밑에 매수심사결과 높은 순위 9 처럼 창이 열리고 닫히고를 스마트폰 세로 화면
+    # 꽉 채우도록 해라"). 순위 9 창과 같은 장치다 — 숨은 스위치(체크칸) 하나로 여닫아 서버에
+    # 다시 묻지 않는다. 칸(label)을 누르면 켜지고, 뜬 창이나 어두운 바탕을 누르면 꺼진다.
+    # 그림은 작은 칸의 것을 그대로 한 벌 더 쓴다 — 새로 받는 자료가 없다.
+    # 스위치는 맨 앞에 둔다 — 뒤의 칸·창을 「~」로 집으려면 스위치가 앞서야 한다.
+    st.markdown(_chart_zoom_html(boxes, f"j3cz-{html.escape(str(panel))}"),
+                unsafe_allow_html=True)
+    if chart_bundle.get("stale"):
+        st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
+    _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
+
+
+# **5분마다 갱신한다**(2026-08-21 상하님 지시). 1분마다 돌면 화면이 쉴 새 없이
+# 다시 그려지고, 그때마다 지수·선물·공포탐욕을 다시 받는다. 선물도 5분봉이라
+# 1분 간격으로 볼 새 값이 없다.
+@st.fragment(run_every=300)
+def _render_market_overview() -> None:
+    """시장판단은 페이지 최상단에서 5분마다 독립 갱신한다."""
+    overview = j3data.get_market_overview()
+    st.session_state["j3_market_overview"] = overview
+    # 제목은 **절반 크기**다(2026-08-21 상하님 지시). st.subheader는 28px인데
+    # 그만한 글씨가 필요한 자리가 아니다 — 아래 칸들이 주인공이다.
+    st.markdown(
+        f"<div class='{_SECTION_TITLE_CLASS}'>미국 전체시장 판단</div>",
+        unsafe_allow_html=True,
+    )
+    if not overview.get("ok"):
+        st.error(f"시장 자료 조회 실패: {_safe_error_text(overview.get('error'))}")
+        st.caption("네트워크가 복구되면 5분 자동 갱신에서 다시 시도합니다.")
+        return
+
+    # ── 국면은 **지금 시계로** 잰다 (2026-09-12 상하님 지적) ──────────────────
+    # 상하님 — "미국주식시장이 시작했는데도 … 모든것이 반응을 하지 않더라."
+    #
+    # 이 한 글자가 화면 전체를 가른다 — 지수 넷·VIX·업종 지도가 모두
+    # `phase == "정규장 시간"` 일 때만 **오늘 값**을 적고, 아니면 전일 값을 적는다.
+    # 그런데 이 글자를 **꾸러미 안에서** 꺼내 쓰고 있었다. 꾸러미는 3분 동안
+    # 그대로 쓰는 것이라(THEME_LIVE_TTL), 뉴욕 09:30 종이 울려도 화면은 최대
+    # 3분 더 '프리마켓'인 줄 알고 어제 값을 적고 있었다. 마감 때도 마찬가지다.
+    # 국면 계산은 **통신을 하지 않는다** — 달력과 시계뿐이라 값이 늘 지금이다.
+    try:
+        phase = j3data.market_phase()["label"]
+    except Exception:
+        phase = overview.get("phase", {}).get("label", "—")
+    if phase == "정규장 시간":
+        phase_color = "#44f0a1"
+    elif phase in ("프리마켓", "애프터마켓"):
+        phase_color = "#ff9d3b"
+    else:
+        phase_color = "#ff5b5b"
+    vix_row = overview["rows"].get("^VIX", {})
+    vix_value = vix_row.get("current")
+    # **직전 완료 장의 등락률을 쓴다** (2026-08-12 상하님 지적 "지금은 왜 0.00이
+    # 되어 있나? 기준이 없냐?"). 원인은 야후다 — 미국장이 끝난 뒤 프리마켓 시간에
+    # 야후가 **오늘 일봉을 전일 종가와 같은 값으로 미리 넣어** 둔다. 그것을 그대로
+    # 쓰면 등락률이 0.00%가 된다. `last_session_change_pct`는 완성된 장만 보므로
+    # 마감 뒤부터 다음 마감까지 안 흔들린다(2026-07-24에 같은 이유로 만들어 둔 값).
+    # **장이 열려 있는 동안에는 오늘 값으로 움직인다** (2026-08-22 상하님 지적 —
+    # "오늘 장중인데도 오늘값이 어제값 그대로다. 장이 끝나야 바뀐다").
+    # 여기만 지수 카드와 달리 언제나 '직전 완료 장'을 쓰고 있어서, 정규장이
+    # 돌아가는 내내 어제 등락률이 붙어 있었다. 지수 카드가 하는 대로 맞춘다.
+    #
+    # 정규장이 아닐 때 완료 장을 쓰는 까닭은 그대로다 — 야후가 프리마켓 시간에
+    # **오늘 일봉을 전일 종가와 같은 값으로 미리 넣어** 둬서, 그것을 쓰면
+    # 등락률이 0.00%가 된다(2026-08-12 상하님 지적 "지금은 왜 0.00이냐").
+    vix_live = phase == "정규장 시간"
+    vix_change = (vix_row.get("change_pct") if vix_live
+                  else vix_row.get("last_session_change_pct"))
+    if vix_change is None:
+        vix_change = (vix_row.get("last_session_change_pct") if vix_live
+                      else vix_row.get("change_pct"))
+    # VIX는 '지금 수준(15.28)'과 '전일 대비(-1.16%)'가 서로 다른 값이다. 둘 다
+    # 크게 적는다(2026-08-12 상하님 지시 "수치와 +− 글자 둘 다 크게").
+    # VIX는 오르면 위험이라 색을 뒤집는다.
+    # **VIX 글자와 숫자는 보라색**이다(2026-08-21 상하님 지시). 오르내림 표시는
+    # 지금까지대로 둔다 — VIX는 오르면 위험이라 색이 뒤집혀 있다.
+    # **오르내림 크기·색을 다른 칸과 같게 맞춘다** (2026-09-12 상하님 —
+    # "vix 밑에 -11.21% 크기 다른 항목들과 같은 크기 줄여라. + - 색깔 좀
+    # 구분하고"). 실측 — 이 줄만 20px 이었고 다른 칸 밑줄은 13.4px 이었다.
+    # 색도 **보이는 그대로** 가른다 — 여태 VIX 만 부호를 뒤집어(오르면 위험이라)
+    # -11.21% 가 파랑으로 나왔다. 눈으로는 구분이 안 된다.
+    vix_sub = (
+        f"<span style='font-size:1.25rem;font-weight:800;color:#b98cff'>"
+        f"VIX {_number(vix_value, 2)}</span> "
+        f"<span style='font-size:.84rem;font-weight:800;"
+        f"color:{_sign_color(vix_change)}'>"
+        f"{_pct(vix_change)}</span>"
+    )
+    top_cells = [
+        # 시장 국면도 공포·탐욕과 같은 반원 게이지로 통일한다 — 국면 이름만 크게
+        # 적으면 '하락 압력 큼'이 5점인지 29점인지 알 수 없다(2026-07-24 사용자 지시).
+        # 4대 지수를 게이지 앞에 둔다 — '시장 국면' 카드 위에 올려 달라는 요청
+        # (2026-07-25). 폰에서는 숫자 칸이 앞, 게이지가 뒤로 가는 규칙 그대로다.
+        # 선물이 **맨 앞**이다(2026-08-19 상하님 지시). 4대 지수는 정규장이 끝나면
+        # 멈추는데 선물은 밤새 움직여, 장 열리기 전 방향을 먼저 알려 준다.
+        _us_futures_cell(),
+        *_us_index_cells(overview, phase),
+        # ── 바늘은 **지금 값**에 세운다 (2026-09-12 상하님 지시) ──────────────
+        # 상하님 — *"2번으로 해라 … 전일 것이 움직여서 거슬린다고 한 게 아닌가?"*
+        #
+        # 2026-08-12에는 바늘을 직전 완료 장에 얼려 두었다. 그때 지적이
+        # "전날 종가에 마감되고 변동이 없어야 하는데 조금씩 변동이 생긴다"라서,
+        # **큰 숫자까지 같이 얼려 버린 것**이 이 줄이었다.
+        # 움직이면 안 되는 것은 **전일 칸**이다 — 그 칸은 상자 아래 「전일
+        # 시장국면」 한 줄이고, `previous_market`(직전 완료 장)이라 뉴욕 마감
+        # 때 딱 한 번만 바뀐다.
+        #
+        # 야후·네이버·CNN이 하는 방식과 같아진다 — 큰 숫자는 지금 값이고,
+        # 그 값이 언제 것인지는 지표 줄 밑 「기준시각」 한 줄이 말한다.
+        # 「미국장 시장 상태」 카드는 2026-08-22에 같은 이유로 이미 고쳤는데
+        # (상하님이 그때 뜻을 짚어 주셨다) 이 게이지만 남아 있었다.
+        _regime_box_with_days(overview),
+        # **SPY·QQQ 두 칸은 뺐다** (2026-08-28 상하님 지시 — 캡처에 ×표).
+        # 지수 넷(S&P500·나스닥 종합·다우·나스닥100)이 같은 것을 이미 말하고 있어
+        # 화면만 길어졌다. 값 자체는 그대로 받는다 — 시장 판단 점수가 SPY·QQQ의
+        # 이동평균을 쓰기 때문이다(overview["rows"]). 화면에서만 안 보인다.
+        # 되살리려면 이 줄의 주석을 풀면 된다: *_us_etf_cells(overview),
+        _market_phase_cell(phase, phase_color, vix_sub),
+        # 시장 현황(업종 지도)은 **시장 상황 바로 뒤, 게이지 앞**이다
+        # (2026-08-28 상하님 지시). 폰에서는 게이지 둘이 order:10 으로 맨 뒤에
+        # 가므로, 이 칸에 order:5 를 주어 그 사이에 서게 한다(mobile_ui).
+        _sector_map_cell(phase),
+        _fear_greed_box(),
+    ]
+    # 게이지 스타일은 지표 줄과 따로 내보낸다. 줄 안에 <style>을 끼워 넣으면
+    # 스트림릿 마크다운이 그 덩어리를 HTML로 안 보고 글로 흘려버려서, CSS가 글자로
+    # 찍히고 SPY·QQQ의 '$' 두 개가 수식으로 잡혔다(2026-07-24 실제 깨짐).
+    st.markdown(_SECTION_TITLE_CSS, unsafe_allow_html=True)
+    st.markdown(f"<style>{fear_greed_ui.CSS}</style>", unsafe_allow_html=True)
+    st.markdown(f"<div class='j3-top-row'>{''.join(top_cells)}</div>", unsafe_allow_html=True)
+    # 위 숫자가 언제 것인지 **바로 밑에** 적는다(2026-09-12 상하님 지시).
+    st.markdown(_as_of_line(overview, phase), unsafe_allow_html=True)
+    _render_nasdaq_drawdown()
+    # 긴 설명은 접어 둔다 — 폰에서 이 글이 첫 화면을 다 먹었다(2026-07-25 사용자 지시:
+    # "클릭하면 내용이 나오도록"). 값·판정은 그대로이고 보여주는 방식만 바꾼다.
+    #
+    # **둘을 옆으로 나란히 세운다** (2026-09-12 상하님 지시 — "밑으로 두 개
+    # 만들지 말고 옆으로 만들어라"). 위아래로 두면 자리를 두 줄 먹는다.
+    # 스트림릿은 폰에서 칸을 쌓으므로 이 줄만 쌓지 말라고 못박는다(아래 CSS).
+    # 이름도 짧게 줄였다 — "조건점수 설명보기" · "시장전체흐름 기준보기".
+    _guide_row = st.container(key="j3_guide_row")
+    _guide_left, _guide_right = _guide_row.columns(2)
+    _guide_left.markdown(
+        f"""
+        <input type="checkbox" id="j3_guide_score" class="j3-guide-tap">
+        <label for="j3_guide_score" class="j3-guide-btn">조건점수 설명보기</label>
+        <div class="j3-guide-body">
+            <div class="j3-score-guide">
+                <b>조건점수 {overview['score']}/100</b>은 상승장 확인 조건에서 얻은 점수이며
+                <b>승률이 아닙니다</b>.<br>
+                {_regime_range_text()}<br>
+                {_market_score_detail(overview)}<br>
+                이 점수와 아래 <b>선행신호 카드는 서로 다른 것을 잽니다</b>(2026-07-30 질문).
+                이 점수는 <b>주가가 20·50일선 위에 있는지</b>를 보고, 선행신호는 <b>오늘 선물·반도체가
+                오르는지</b>를 봅니다. 그래서 한참 빠져 있던 자리에서 오늘 반등이 시작되면
+                선행신호는 켜지는데 이 점수는 아직 낮습니다 — 둘이 달라도 모순이 아닙니다.
+                "오늘 방향"과 "평균선 위/아래"는 다른 이야기입니다.<br>
+                시장 상황은 미국 세션 단계입니다(뉴욕시각 기준): 프리마켓 04:00~09:30 → 정규장 09:30~16:00
+                → 애프터마켓 16:00~20:00 → 장 마감<br>
+                VIX 두 값은 서로 다른 것입니다 — 위 <b>VIX 18.70 같은 숫자는 공포지수 현재 수준</b>(25 미만이면
+                과열 아님)이고, 아래 선행신호 카드의 <b>VIX +12.38% 같은 값은 전일 종가 대비 변동률</b>입니다.
+                수준은 낮은데 하루 변동만 큰 날이 있어 두 값이 함께 있어도 모순이 아닙니다.<br>
+                공포·탐욕 지수는 CNN이 7개 심리 지표로 집계한 값(0 극단적 공포 ~ 100 극단적 탐욕)으로
+                참고용이며 점수·판정에는 반영하지 않습니다.
+            </div>
+        </div>
+        <label for="j3_guide_score" class="j3-guide-btn bottom">닫기</label>
+        """,
+        unsafe_allow_html=True,
+    )
+    # 시장 전체 흐름·행동 기준도 접는다(2026-07-25 사용자 지시: "다 숨겨라").
+    _guide_right.markdown(
+        f"""
+        <input type="checkbox" id="j3_guide_flow" class="j3-guide-tap">
+        <label for="j3_guide_flow" class="j3-guide-btn">시장전체흐름 기준보기</label>
+        <div class="j3-guide-body">
+            <div class="j3-market-flow">
+                <div class="j3-flow-label">시장 전체 흐름</div>
+                <div class="j3-flow-body">{_market_flow_text(overview)}</div>
+            </div>
+            <div class="j3-action-box">
+                <div class="j3-action-label">행동 기준</div>
+                <div class="j3-action-posture">{overview['posture']}</div>
+                <div class="j3-action-detail">{_market_action_detail(overview)}</div>
+            </div>
+        </div>
+        <label for="j3_guide_flow" class="j3-guide-btn bottom">닫기</label>
+        """,
+        unsafe_allow_html=True,
+    )
+    # **맨 아래 「최근 가용 시세…」 한 줄은 뺐다** (2026-08-28 상하님 지시 —
+    # 캡처에 ×표, "여백 두지 말고 위로 올려라"). 줄을 지우면 그 자리가 차지하던
+    # 여백도 같이 없어져 아래 「미국장 시장 상태」가 위로 붙는다.
+    # 자료가 낡았을 때는 화면 곳곳(테마·상승장)에서 따로 알린다.
+
+
+def _sparkline_svg(payload, up_color: str, down_color: str,
+                   width: float = 120.0, height: int = 90) -> str:
+    """네이버 금융식 그림 — 당일 분봉 + 전일 종가 기준선(2026-07-25 사용자 지적 반영).
+
+    기준선 위 구간과 아래 구간을 다른 색으로 그린다. 색은 시장 규칙을 부르는 쪽이
+    준다(미국은 오르면 파랑, 한국은 오르면 빨강).
+    """
+    if not isinstance(payload, dict):
+        return ""
+    points = [float(v) for v in (payload.get("points") or []) if v is not None]
+    base = payload.get("base")
+    if len(points) < 2 or not base:
+        return ""
+    low, high = min(points + [base]), max(points + [base])
+    span = (high - low) or 1.0
+    pad = 6.0
+    inner = height - pad * 2
+    step = width / (len(points) - 1)
+
+    def _y(value):
+        return pad + inner - (value - low) / span * inner
+
+    base_y = _y(base)
+    # **같은 색이 이어지는 토막은 한 줄로 긋는다** (2026-09-24 상하님 「둘 다 해라」).
+    # 예전에는 점 사이 토막마다 <line> 하나였다 — 그림 하나에 120여 개, 맨 위 지수 열 장이
+    # 172KB 였다(온라인 실측). 느린 폰은 넘길 때마다 이 글자를 다시 읽는다. 점은 하나도
+    # 빼지 않고 자리·색·굵기도 그대로다 — 둥근 이음(round join)이 토막마다 둥근 끝이
+    # 겹쳐 보이던 것과 같은 모양을 낸다. 관심종목 카드 그림이 이미 이렇게 긋는다.
+    runs: list = []
+    for index in range(len(points) - 1):
+        first, second = points[index], points[index + 1]
+        color = up_color if (first + second) / 2 >= base else down_color
+        if runs and runs[-1][0] == color:
+            runs[-1][1].append(index + 1)
+        else:
+            runs.append((color, [index, index + 1]))
+    segments = [
+        "<polyline points='"
+        + " ".join(f"{i * step:.1f},{_y(points[i]):.1f}" for i in members)
+        + f"' fill='none' stroke='{color}' stroke-width='1.6' stroke-linecap='round' "
+        f"stroke-linejoin='round' vector-effect='non-scaling-stroke'/>"
+        for color, members in runs
+    ]
+    fill = up_color if points[-1] >= base else down_color
+    area = f"0,{base_y:.1f} " + " ".join(
+        f"{i * step:.1f},{_y(v):.1f}" for i, v in enumerate(points)
+    ) + f" {width:.1f},{base_y:.1f}"
+    # **가로로 늘려도 선이 굵어지지 않는다** (2026-08-28).
+    # 태블릿에서는 이 그림이 칸 폭을 채우도록 CSS가 늘린다(mobile_ui). 늘리면
+    # preserveAspectRatio='none' 이 그림을 옆으로 잡아당기는데, 그때 선까지 같이
+    # 굵어진다 — 카드 그림에서 이미 겪은 일이다(7.9px → 1.8px, 2026-08-26).
+    # vector-effect 는 "선은 늘리지 말고 적어 준 굵기 그대로"라는 뜻이다.
+    return (
+        f"<svg viewBox='0 0 {width:.0f} {height}' width='{width:.0f}' height='{height}' "
+        f"preserveAspectRatio='none' "
+        f"style='display:block; margin:.4rem 0 .1rem;"
+        f" border:1px solid rgba(255,255,255,.22); border-radius:8px;"
+        f" background:rgba(255,255,255,.03)'>"
+        f"<polygon points='{area}' fill='{fill}' fill-opacity='0.14'/>"
+        f"<line x1='0' y1='{base_y:.1f}' x2='{width:.0f}' y2='{base_y:.1f}' "
+        f"stroke='rgba(255,255,255,.38)' stroke-width='1' stroke-dasharray='4 4' "
+        f"vector-effect='non-scaling-stroke'/>"
+        + "".join(segments) + "</svg>"
+    )
+
+
+# 폰·태블릿에서 이 두 칸은 **나란히 선다** (2026-08-28 상하님 지시 — "나스닥100
+# 선물과 시장상황 VIX를 같이 둬라, S&P500과 같이 있으니 키높이가 안 맞다").
+#
+# 둘 다 밑줄이 길어 두 줄로 접히는 칸이라, 한 줄짜리 지수 칸과 짝을 지으면 키가
+# 어긋난다. 차례는 mobile_ui 가 정한다(선물 1 · 시장 상황 2 · 업종 지도 5 ·
+# 게이지 10). 노트북은 한 줄에 다섯 칸이 들어가 짝이 안 생기므로 그대로 둔다.
+_FUTURES_CLASS = "j3-idx-futures"
+_PHASE_CLASS = "j3-idx-phase"
+
+
+def _us_futures_cell() -> str:
+    """나스닥100 선물 최신 1분봉 — **미국 화면 맨 앞 칸** (2026-08-19 상하님 지시).
+
+    상하님 — "한국테마에 있는 미국 나스닥100 선물 미국테마에도 넣어라 가장 위에."
+
+    **왜 맨 앞인가** — 4대 지수는 정규장이 끝나면 멈춘다. 선물은 밤새 움직이므로
+    장 열리기 전에 미국이 어느 쪽으로 갈지 먼저 보여주는 칸이다.
+
+    **자료는 한국테마 모듈에서 읽어 온다**(jarvis4_data.get_us_futures_live).
+    한국 파일을 고치지 않는다 — 읽기만 한다(2026-08-19 상하님 지시 "한국테마는
+    하지 말라"). 같은 것을 여기 새로 쓰면 야후에 같은 요청을 두 번 보내게 되고,
+    두 화면의 숫자가 조용히 갈라진다.
+
+    모듈이 없거나 조회가 실패해도 **화면을 죽이지 않는다** — 칸만 '—'로 둔다.
+    """
+    # **5분봉이다**(2026-08-21 상하님 지시 — "1분마다 로딩하니 너무 자주 로딩하는
+    # 듯하다"). 한국테마는 1분봉 그대로다 — 부르는 쪽이 정하게 해 두었다.
+    label = "나스닥100 선물 (5분봉)"
+    try:
+        import jarvis4_data as j4data
+    except Exception:
+        return _top_metric(label, "—", "#9aa0aa", "자료 없음", extra_class=_FUTURES_CLASS)
+    fetcher = getattr(j4data, "get_us_futures_live", None)
+    if fetcher is None:
+        return _top_metric(label, "—", "#9aa0aa", "모듈 갱신 대기", extra_class=_FUTURES_CLASS)
+    # 화면 맨 앞에서 먼저 시켜 둔 일꾼이 있으면 그것이 끝나기를 기다린다
+    # (2026-09-10). 안 기다리고 읽으면 같은 것을 **또** 받는다 — 공책은 다 받은
+    # 뒤에야 차기 때문이다. 시켜 둔 것이 없으면 바로 지나간다.
+    #
+    # **2초 안에 안 오면 기다리지 않는다**(2026-09-16 상하님 지시 '가'). 여기서
+    # 직접 받으면 그 조회도 최대 12초라 화면이 그만큼 멈춘다. 늦는 판에는
+    # 마지막으로 받아 둔 값을 그대로 보여 주고 넘어간다.
+    if not _await_us_futures_fetch():
+        kept = st.session_state.get(_FUTURES_LAST_KEY)
+        if isinstance(kept, str) and kept:
+            return kept
+        return _top_metric(label, "—", "#9aa0aa", "받는 중", extra_class=_FUTURES_CLASS)
+    try:
+        # 5분봉이므로 공책도 5분 동안 쓴다 — 1분마다 다시 받을 까닭이 없다.
+        futures = fetcher(ttl_seconds=300, interval="5m")
+    except TypeError:
+        # 옛 모듈이 프로세스에 남아 있으면 인자를 모른다 — 그때는 예전처럼 부른다.
+        try:
+            futures = fetcher()
+        except Exception:
+            return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
+    except Exception:
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
+    if not futures.get("ok"):
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
+    values = futures.get("values") or {}
+    nasdaq = values.get("NQ=F") or {}
+    if not nasdaq.get("current"):
+        return _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FUTURES_CLASS)
+    change = nasdaq.get("change_pct")
+    # **미국은 오르면 파랑**이다(이 화면의 약속). 한국 화면과 색이 반대다 —
+    # _sign_class가 그 규칙을 갖고 있으므로 그것을 쓴다.
+    # **S&P500 선물은 여기 적지 않는다** (2026-09-16 상하님 지시 — "나스닥100
+    # 선물 칸만 키높이가 안 맞다, · S&P500 선물 +0.14% 이 부분 때문인 것 같다,
+    # 삭제해라"). 밑줄이 길어 칸 안에서 두 줄로 접혀 그 칸만 한 줄 높았다.
+    # S&P500 선물 값은 그대로 받는다 — 시장 신호 표(us_market_signal_engine)가 쓴다.
+    sub = f"<span class='{_sign_class(change)}'>{_pct(change)}</span>"
+    # **바꿔 보여주는 틀을 쓰지 않는다**(2026-08-21 상하님 지적 — 눌렀더니 그림이
+    # 사라졌다). 선물에는 '일봉 6개월' 그림이 없어서, 틀에 넣으면 손을 올렸을 때
+    # 당일 그림만 감추고 보여줄 것이 없다. 그림은 그대로 두고 지수 칸과 밑선을
+    # 맞추는 '당일' 글자만 붙인다.
+    chart = _sparkline_svg(nasdaq.get("chart") or {}, "#4da6ff", "#ff5b5b")
+    if chart:
+        # 선물 칸은 그림을 바꿔 보여 주는 틀이 없다. 글자를 차트 안에 얹으려면
+        # 자리 잡을 틀이 하나 있어야 해서 여기서 감싼다(.j3-idx-solo).
+        chart = f"<div class='j3-idx-solo'>{chart}<div class='j3-idx-cap'>당일</div></div>"
+    cell = (
+        f"<div class='j3-top-cell {_FUTURES_CLASS}'>"
+        f"<div class='j3-top-label j3-idx-label'>{label}</div>"
+        # 숫자 색은 **옆 지수 칸들과 같은 흰색**이다 (2026-09-16 상하님 지시 —
+        # "29,282 숫자, 다른 것과 통일된 색을 해라, 흰색이지?"). 오르내림 색은
+        # 바로 밑 %에 그대로 남는다.
+        f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>"
+        f"{float(nasdaq['current']):,.0f}</div>"
+        f"<div class='j3-top-sub j3-idx-sub'>{sub}</div>"
+        + chart
+        + "</div>"
+    )
+    # 잘 받은 칸은 적어 둔다 — 다음에 늦는 판에서 이것을 그대로 보여 준다.
+    st.session_state[_FUTURES_LAST_KEY] = cell
+    return cell
+
+
+def _us_index_cells(overview: dict, phase: str) -> list:
+    """4대 지수 줄 — S&P 500 · 나스닥 종합 · 다우존스 · 나스닥 100 (2026-07-24 추가).
+
+    ETF(SPY·QQQ)가 아니라 지수를 그대로 쓴다. 정규장이 아니면 마지막으로 끝난
+    정규장의 종가와 등락을 보여준다 — 지수는 시간외 거래가 없어서 '지금 값'을
+    쓰면 등락이 0%로 나온다.
+    """
+    display = getattr(j3data, "US_INDEX_DISPLAY", ())
+    if not display:
+        return []
+    try:
+        sparklines = j3data.get_index_sparklines()
+    except Exception:
+        sparklines = {}
+    live = phase == "정규장 시간"
+    rows = overview.get("rows") or {}
+    cells = []
+    for symbol, name in display:
+        row = rows.get(symbol) or {}
+        if not row.get("ok"):
+            cells.append(_top_metric(name, "—", "#9aa0aa", "자료 부족"))
+            continue
+        change = row.get("change_pct") if live else row.get("last_session_change_pct")
+        note = "정규장" if live else "장 마감 기준"
+        cells.append(
+            f"<div class='j3-top-cell'>"
+            f"<div class='j3-top-label j3-idx-label'>{name}</div>"
+            f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>{_number(row.get('current'), 2)}</div>"
+            f"<div class='j3-top-sub j3-idx-sub {_sign_class(change)}'>{_pct(change)} "
+            f"<span class='j3-muted j3-idx-note'>· {note}</span></div>"
+            # 손을 올리면 같은 자리에서 '일봉 6개월'로 바뀐다(2026-08-06 사용자 지시).
+            # 클릭으로 안 하는 이유 — 스트림릿은 누르면 화면을 통째로 다시 그려서
+            # 움직임이 버벅거린다.
+            + _index_chart_swap(sparklines.get(symbol), key=f"idx{symbol}")
+            + "</div>"
+        )
+    return cells
+
+
+def _index_chart_swap(spark: dict | None, *, width: float = 120.0,
+                      height: int = 90, key: str = "") -> str:
+    """'당일' 그림과 '일봉 6개월' 그림을 같은 자리에 겹쳐 두고 바꿔 보여 준다.
+
+    두 그림이 한 틀 안에 포개져 있어 **자리를 새로 만들지 않는다** — 그래서
+    나타나고 사라져도 아래 화면이 밀리지 않고 옆 칸을 덮지도 않는다.
+
+    바꾸는 길이 둘이다 — 마우스는 올리기만 하면 되고, **손가락은 눌렀다 다시
+    누르면 돌아온다**(2026-08-07 상하님 지적). 손가락 쪽은 숨긴 체크상자가 맡는다.
+    자리마다 이름이 달라야 하나만 눌러도 옆 칸까지 같이 바뀌지 않는다.
+    """
+    spark = spark or {}
+    today = _sparkline_svg(spark, "#4da6ff", "#ff5b5b", width=width, height=height)
+    if not today:
+        return ""
+    daily_points = spark.get("daily_points") or []
+    # 「6개월」은 **원래 선 그림**이다 (2026-09-25 상하님 — "나스닥100 선물 외에 클릭하면 6개월 일봉이
+    # 되는데 봉차트 말고 원래 차트로 해라, 다른 것 건들이지 말고"). 09-24 에 봉차트로 바꿨던 것을
+    # 이 칸들(지수 넷·시장 상황·SPY/QQQ)만 되돌린다. 종목 상세·대장주 비교의 일봉 봉차트는 그대로다.
+    daily = _sparkline_svg(
+        {"points": daily_points, "base": spark.get("daily_base")},
+        "#4da6ff", "#ff5b5b", width=width, height=height,
+    ) if len(daily_points) >= 2 else ""
+    # id에 쓸 수 없는 글자(^ 같은 것)를 걸러 낸다 — 지수 이름은 '^IXIC' 꼴이다.
+    tap_id = "j3idx_" + re.sub(r"[^0-9A-Za-z]+", "", str(key) or str(int(width)))
+    if not daily:
+        # 바꿔 보여줄 두 번째 그림이 없으면 **틀을 씌우지 않는다.** 씌우면 손을
+        # 올렸을 때 당일 그림만 감추고 보여줄 것이 없어 칸이 비어 버린다
+        # (2026-08-21 상하님 지적). 키를 맞출 자리는 부르는 쪽이 붙인다.
+        return today
+    return (
+        "<div class='j3-idx-swap'>"
+        f"<input type='checkbox' id='{tap_id}' class='j3-idx-tap'>"
+        f"<label for='{tap_id}' class='j3-idx-tapzone'></label>"
+        f"<div class='j3-idx-now'>{today}<div class='j3-idx-cap'>당일</div></div>"
+        f"<div class='j3-idx-more'>{daily}"
+        # 차트 안에 넣으므로 **짧게** 적는다(2026-09-12 상하님 손글씨 그대로).
+        "<div class='j3-idx-cap j3-idx-cap-daily'>6개월</div></div>"
+        "</div>"
+    )
+
+
+def _gauge_overview(overview: dict) -> dict:
+    """게이지에 넘길 꾸러미 — **「전일」이 큰 숫자와 같은 장을 가리키지 않게** 한다.
+
+    2026-09-12 실측으로 잡은 자리다. 게이지를 지금 값으로 바꾸고 나니 장 마감
+    뒤에 큰 숫자도 60점, 「전일 시장국면」도 60점이 되었다. 둘이 **같은 장**을
+    가리켰기 때문이다 — 마감을 지나면 `previous_market`(직전 완료 장)이 곧
+    오늘 장이다.
+
+    야후로 치면 종가와 Previous Close 가 같은 날이 되는 셈이라 견줄 것이 없다.
+    그래서 마감 뒤에는 **그 하루 앞 장**을 전일 자리에 놓는다.
+        장중   — 큰 숫자 = 오늘(도는 중) · 전일 = 어제(직전 완료 장)
+        마감 뒤 — 큰 숫자 = 오늘 종가   · 전일 = 어제(그 하루 앞 장)
+
+    **공용 함수(regime_gauge_ui)는 안 건드린다.** 거기를 고치면 한국테마까지
+    같이 바뀐다(CLAUDE.md 0-1 다). 여기서 꾸러미만 바꿔 넘긴다.
+    """
+    try:
+        if not j3data.us_session_closed():
+            return overview
+    except Exception:
+        return overview
+    before = (overview or {}).get("before_previous_market") or {}
+    if not before.get("ok"):
+        return overview
+    return {**overview, "previous_market": before}
+
+
+def _gauge_days() -> tuple:
+    """게이지 큰 숫자가 가리키는 장과 그 하루 앞 장, 그리고 장이 도는 중인지.
+
+    장이 돌면 큰 숫자 = 오늘(도는 중), 닫혀 있으면 = 마지막으로 끝난 장.
+    """
+    import us_market_calendar
+
+    try:
+        phase = j3data.market_phase()
+        live = phase.get("label") == "정규장 시간"
+        big = date.fromisoformat(str(phase.get("session_date" if live else "previous_session_date")))
+    except Exception:
+        return None, None, False
+    before = big - timedelta(days=1)
+    try:
+        for _ in range(15):
+            if us_market_calendar.is_trading_day(before):
+                break
+            before -= timedelta(days=1)
+    except Exception:
+        return big, None, live
+    return big, before, live
+
+
+def _with_days(box: str, big, before, live: bool, old_label: str) -> str:
+    """게이지 상자에 **당일·전일 날짜**를 넣는다 (2026-09-24 상하님 — "시장국면과 공포탐욕지수
+    전일 당일 날짜 넣어라"). 바늘 밑에 「당일 · 09.23 (마감)」, 전일 줄 이름을 「전일 · 09.22」로.
+    한국테마와 같이 쓰는 상자 부품(regime_gauge_ui · fear_greed_ui)은 안 건드리고 여기서 글만 바꾼다.
+    """
+    if big is not None:
+        tag = "장중" if live else "마감"
+        day_line = (f"<div class='j3-gauge-day' style='text-align:center; font-size:.74rem;"
+                    f" font-weight:800; color:#9aa0aa; margin-top:.1rem'>"
+                    f"당일 · {big:%m.%d} ({tag})</div>")
+        box = box.replace("</div><div class='fg-box-hist'>", f"{day_line}</div><div class='fg-box-hist'>", 1)
+    if before is not None:
+        # **「전일」 밑에 날짜를 작게 한 줄 더** (2026-09-25 상하님 폰 캡처 — 「전일 · 09.23」을 한 줄에
+        # 적었더니 글자가 큰 폰에서 이름·「상승 여건 양호」·「90점」이 모두 두 줄로 접혔다). 이름 칸 폭이
+        # 「전일」만큼으로 줄어 옆 칸이 한 줄에 든다. 옆 두 칸은 이 화면 꾸밈 규칙으로 접히지 않게 한다.
+        box = box.replace(f">{old_label}</span>",
+                          f">전일<small class='j3-hist-day'>{before:%m.%d}</small></span>", 1)
+    return box
+
+
+def _regime_box_with_days(overview: dict) -> str:
+    """시장 국면 상자 + 당일·전일 날짜. 전일 줄의 날짜는 그 줄이 실제로 잰 장이다.
+
+    **전일 줄은 날짜로 고른다** (2026-09-24). `_gauge_overview` 는 「뉴욕 마감 뒤 같은 날」만
+    그 하루 앞 장으로 바꿨다. 뉴욕 자정을 넘긴 뒤 장 열기 전(한국 오후 1시~밤 10시 반)에는
+    「직전 완료 장」이 큰 숫자와 **같은 장**이라 전일 줄이 당일을 한 번 더 적었다(09-24 실측 —
+    당일 09.23 90점 · 전일 09.23 90점). 큰 숫자의 하루 앞 장을 가진 쪽을 전일로 쓴다.
+    """
+    shown = dict(_gauge_overview(overview) or {})
+    big, before, live = _gauge_days()
+    if before is not None:
+        for key in ("previous_market", "before_previous_market"):
+            candidate = (overview or {}).get(key) or {}
+            if candidate.get("ok") and str(candidate.get("trade_date") or "") == before.isoformat():
+                shown["previous_market"] = candidate
+                break
+    traded = str((shown.get("previous_market") or {}).get("trade_date") or "")
+    try:
+        before = date.fromisoformat(traded) if len(traded) >= 10 else before
+    except ValueError:
+        pass
+    return _with_days(regime_gauge_ui.regime_box_html(shown), big, before, live, "전일 시장국면")
+
+
+def _as_of_line(overview: dict, phase: str) -> str:
+    """위 숫자가 **언제 것인지** 한 줄 (2026-09-12 상하님 지시 — "기준시각도 넣고").
+
+    야후는 큰 숫자 바로 밑에 `At close: September 11 at 4:46:20 PM EDT` 를 적고,
+    네이버는 값을 줄 때 장 상태와 기준시각을 같이 준다. 같은 한 줄이다.
+
+    이 줄이 있어야 큰 숫자를 **움직이게 둘 수 있다** — 움직이는 숫자는 언제
+    것인지 적혀 있어야 읽힌다. 2026-08-28에 뺀 「최근 가용 시세…」 줄과 같은
+    자리지만, 그때 지적(여백만 먹는다)을 피해 **여백 없이 한 줄**만 둔다.
+    """
+    stamp = str(overview.get("checked_at") or "")
+    when = ""
+    try:
+        when = datetime.fromisoformat(stamp).astimezone(_PAGE_SEOUL).strftime("%H:%M")
+    except Exception:
+        when = ""
+    if phase == "정규장 시간":
+        tail = f"한국시각 <b>{when}</b> 기준입니다" if when else "방금 받은 값입니다"
+        body = f"미국장이 돌고 있습니다 · 위 숫자는 {tail}"
+    else:
+        day = str((overview.get("phase") or {}).get("previous_session_date") or "")
+        day_text = f"{int(day[5:7])}월 {int(day[8:10])}일 " if len(day) >= 10 else ""
+        body = f"{phase} · 위 숫자는 <b>{day_text}미국장 마감</b> 기준입니다"
+    return (f"<div style='margin:.1rem 0 .3rem; font-size:.78rem; color:#9aa0aa;"
+            f" letter-spacing:-.01em'>{body}</div>")
+
+
+def _render_nasdaq_drawdown() -> None:
+    """나스닥이 고점에서 얼마나 내려와 있나 — 한 줄 (2026-08-01 사용자 지시).
+
+    55년치로 재 보니 '고점 대비 낙폭' 하나가 다른 어떤 신호보다 잘 들었다.
+    12% 넘게 빠지면 2년 뒤 100번 중 86번(아무 날이나 샀으면 81번)이었고,
+    8% 정도로는 오히려 기준선보다 못했다. 그래서 문턱을 12%로 둔다.
+    숫자와 문턱은 `jarvis3_data`가 정한다 — 화면은 받아 적기만 한다.
+    """
+    state = j3data.get_nasdaq_drawdown()
+    if not state.get("ok"):
+        return
+    pct = float(state.get("drawdown_pct") or 0)
+    entry = float(state.get("entry_pct") or -12)
+    reached = pct <= entry
+    # **막대 한가운데가 전고점이다**(2026-08-09 상하님 지시).
+    #   왼쪽 끝 = 고점에서 25% 아래 · 한가운데 = 고점 그 자리 · 오른쪽 끝 = 고점 위 25%
+    # 그래서 지금 -1.5%면 막대가 한가운데에 조금 못 미치고, 전고점을 넘으면
+    # 한가운데를 지나 오른쪽으로 간다. 예전에는 왼쪽 0 ~ 오른쪽 25%(낙폭)이라
+    # 막대가 길수록 나쁜 뜻이어서 거꾸로 읽혔다.
+    span = 25.0
+    center = 50.0
+    fill = max(0.0, min(100.0, center + (pct / span) * center))
+    mark = max(0.0, min(100.0, center + (entry / span) * center))
+    # 한가운데를 넘었으면 '얼마나 넘었나'로 말이 바뀐다.
+    above = pct > 0
+    headline = "전고점 위" if above else "나스닥 고점 대비"
+    st.markdown(
+        "<div class='j3-ndd'>"
+        f"<div class='j3-ndd-head'><b class='j3-ndd-title'>{headline}</b> "
+        f"<span class='j3-ndd-val' style='color:{_sign_color(pct)}'>{pct:+.1f}%</span> "
+        f"<span class='j3-ndd-state' style='color:{state.get('color')}'>"
+        f"{html.escape(str(state.get('state') or ''))}</span></div>"
+        # 막대 안에 한가운데 선(전고점)과 문턱 선(사는 자리)을 같이 세운다.
+        f"<div class='j3-ndd-bar'><span class='j3-ndd-fill' style='width:{fill:.1f}%'></span>"
+        f"<span class='j3-ndd-mark' style='left:{mark:.1f}%'></span>"
+        "<span class='j3-ndd-center'></span></div>"
+        "<div class='j3-ndd-scale'><span>고점 −25%</span>"
+        "<span class='j3-ndd-scale-mid'>전고점</span><span>고점 +25%</span></div>"
+        # '지금 · 1년 최고 · 문턱 …' 줄은 2026-08-06에 뺐다(사용자 지시). 막대와
+        # 위 % 숫자가 같은 말을 하고 있어 줄만 길었다.
+        # 예전에는 '100번 중 86번이었습니다'로 끝나 **무엇이 86번인지**가 빠져
+        # 있었다(2026-08-06 상하님 지적). '86번 이익'으로 채운다.
+        "<div class='j3-ndd-note'><span class='j3-ndd-key'>55년치</span>로 재 보니 "
+        "<span class='j3-ndd-key'>12% 넘게 빠졌을 때</span> 사서 2년 뒤에 팔면 "
+        "<span class='j3-ndd-key'>100번 중 86번 이익</span>이었습니다"
+        "(아무 날이나 샀으면 81번 이익). "
+        "<span class='j3-ndd-key'>8% 정도로는 기준선보다 못했습니다.</span> "
+        "12%냐 15%냐는 자료로 가릴 수 없어 <span class='j3-ndd-key'>‘12% 넘게’</span>까지만 봅니다. "
+        "다이버전스는 6개 설정 중 0개에서 져서 쓰지 않습니다."
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+# 지도 칸의 세로:가로 비율. 상자 자리를 서버에서 계산하므로 화면에서도 이 비율을
+# 지켜야 상자가 찌그러지지 않는다(CSS aspect-ratio 로 같은 값을 건다).
+_SECTOR_MAP_W = 100.0
+_SECTOR_MAP_H = 58.0
+# 누르면 뜨는 큰 창의 판 — 가로로 더 길다(폰은 눕혀 띄운다). 창 크기가 기기마다 달라 칸이
+# 조금 늘어나거나 줄지만, 가로·세로를 따로 늘려도 **넓이의 비는 그대로**다(몫 비례는 지켜진다).
+_SECTOR_POP_W = 100.0
+_SECTOR_POP_H = 45.0
+
+
+def _squarify(areas: list[float], x: float, y: float, width: float, height: float,
+              out: list) -> None:
+    """넓이가 값에 비례하는 상자로 칸을 채운다(squarify).
+
+    큰 것부터 넣으면서 **정사각형에 가깝게** 되도록 한 줄에 몇 개를 담을지 정한다.
+    한 줄로 죽 자르는 방법보다 글자가 들어갈 자리가 잘 나온다 — 네이버 업종 지도가
+    쓰는 것과 같은 방식이다.
+    """
+    if not areas:
+        return
+    if len(areas) == 1 or width <= 0 or height <= 0:
+        offset = y
+        total = sum(areas) or 1.0
+        for area in areas:
+            share = area / total * height
+            out.append((x, offset, width, share))
+            offset += share
+        return
+
+    def _worst(row: list[float], side: float) -> float:
+        total = sum(row)
+        if total <= 0 or side <= 0:
+            return float("inf")
+        return max(side * side * max(row) / (total * total),
+                   (total * total) / (side * side * min(row)))
+
+    side = min(width, height)
+    row, index = [areas[0]], 1
+    while index < len(areas) and _worst(row + [areas[index]], side) <= _worst(row, side):
+        row.append(areas[index])
+        index += 1
+    total = sum(row)
+    if width >= height:
+        band = total / height
+        offset = y
+        for area in row:
+            share = area / total * height
+            out.append((x, offset, band, share))
+            offset += share
+        _squarify(areas[index:], x + band, y, width - band, height, out)
+    else:
+        band = total / width
+        offset = x
+        for area in row:
+            share = area / total * width
+            out.append((offset, y, share, band))
+            offset += share
+        _squarify(areas[index:], x, y + band, width, height - band, out)
+
+
+def _sector_tone(change) -> str:
+    """오르면 파랑, 내리면 빨강. 많이 움직일수록 진하다(미국 화면 색 규칙)."""
+    if change is None:
+        return "#22304a"
+    try:
+        value = float(change)
+    except (TypeError, ValueError):
+        return "#22304a"
+    strength = min(abs(value) / 2.0, 1.0)          # 2% 이상이면 가장 진한 색
+    target = (77, 166, 255) if value >= 0 else (255, 91, 91)
+    dark = (12, 28, 52)
+    mixed = tuple(round(base + (tip - base) * (0.22 + 0.78 * strength))
+                  for base, tip in zip(dark, target))
+    return "#%02x%02x%02x" % mixed
+
+
+def _sector_map_cell(phase: str) -> str:
+    """시장 현황 — 미국 업종 지도 (2026-08-28 상하님 지시).
+
+    상하님 — "시장국면·상승여건양호 사이에 세 번째 캡처처럼 시장현황을 미국 자료
+    찾아서 넣어 줘."
+
+    칸 크기는 그 업종이 **미국 시장에서 차지하는 몫**(야후가 매번 새로 계산해 준다),
+    색과 숫자는 그 업종 대표 ETF의 등락이다. 밑줄은 자비스가 보는 미국 명부에서
+    오늘 오른 종목·내린 종목 수다.
+
+    **자료를 여기서 기다리지 않는다.** 공책에 없으면 한 줄만 적고 넘어간다 —
+    뒤에서 받아 두므로 다음 판에는 채워져 있다(jarvis3_data.get_us_sector_map).
+    """
+    try:
+        sector = j3data.get_us_sector_map()
+    except Exception:
+        return ""
+    rows = [row for row in (sector.get("rows") or []) if row.get("weight")]
+    if not rows:
+        note = "업종 지도를 받는 중입니다" if sector.get("pending") else "업종 자료를 아직 못 받았습니다"
+        return ("<div class='j3-top-cell j3-sector-map'>"
+                "<div class='j3-top-label j3-idx-label'>시장 현황</div>"
+                f"<div class='j3-sector-wait'>{note}</div></div>")
+
+    live = phase == "정규장 시간"
+    for row in rows:
+        change = row.get("change_pct") if live else row.get("last_session_change_pct")
+        if change is None:
+            change = row.get("last_session_change_pct") if live else row.get("change_pct")
+        row["shown_change"] = change
+    rows.sort(key=lambda item: float(item["weight"]), reverse=True)
+
+    # 작은 칸 — 예전 크기(100×58). 상자가 작으면 글자가 삐져나온다 — 작은 칸은 이름만,
+    # 더 작으면 아무것도 안 적는다.
+    tiles = _sector_tiles_html(rows, _SECTOR_MAP_W, _SECTOR_MAP_H,
+                               (22, 18, 13, 11, 7, 5), labels=False)
+    # 누르면 뜨는 큰 창 — 가로로 긴 판(100×45)이다. 폰·세운 태블릿은 창을 눕혀 띄운다
+    # (2026-09-24 상하님 — "화면이 스마트폰이나 태블릿에서 옆으로 꽉 차듯이. 세로 말고 가로로").
+    big_tiles = _sector_tiles_html(rows, _SECTOR_POP_W, _SECTOR_POP_H,
+                                   (9, 7, 5, 4.5, 3, 2.5), labels=True)
+    by_tiles = any(row.get("sector") for row in rows)
+
+    breadth = sector.get("breadth") or {}
+    foot = ""
+    if breadth.get("total"):
+        total = float(breadth["total"])
+        up, flat, down = breadth["up"], breadth["flat"], breadth["down"]
+        foot = (
+            "<div class='j3-sector-bar'>"
+            f"<span style='width:{up / total * 100:.1f}%;background:#4da6ff'></span>"
+            f"<span style='width:{flat / total * 100:.1f}%;background:#7a8494'></span>"
+            f"<span style='width:{down / total * 100:.1f}%;background:#ff5b5b'></span></div>"
+            f"<div class='j3-sector-foot'><span class='j3-up'>▲ 오름 {up}</span>"
+            f"<span class='j3-muted'>― 그대로 {flat}</span>"
+            f"<span class='j3-down'>▼ 내림 {down}</span>"
+            f"<span class='j3-sector-note'>자비스가 보는 미국 {breadth['total']}종목 기준</span></div>"
+        )
+    # 「반도체는 떼어 냈습니다」는 **반도체 칸이 있을 때만** 적는다 — 몫을 못 받은 판에
+    # 칸 없이 이 말만 남아 있었다(2026-09-23 밤 상하님 캡처).
+    semi_note = ("반도체는 기술에서 떼어 냈습니다 · "
+                 if any(row.get("key") == getattr(j3data, "SEMI_SECTOR_KEY", "semiconductors")
+                        for row in rows) else "")
+    when = "오늘" if live else "직전 장"
+    # **누르면 창이 튀어 오른다** (2026-09-24 상하님 — "클릭하면 관심종목 종목 클릭처럼,
+    # 파트별 성적표 순위 9 클릭하면 튀어나오는 화면처럼"). 차트 큰 창과 같은 숨은 스위치라
+    # 서버에 다시 묻지 않는다. 스위치에 j3cz-tap 이름표를 같이 붙여, 창이 떠 있는 동안
+    # 손가락 넘기기와 하단 막대가 쉬게 한다(넘기기 코드·막대 숨김 규칙이 이 이름표를 본다).
+    color_note = ("색 = 칸 대표 회사들을 몫대로 섞은 등락 · 반도체·바이오·에너지·전력·부동산은 대표 ETF"
+                  if by_tiles else "색 = 업종 대표 ETF 등락")
+    themes = _sector_theme_strip(live, when)
+    return (
+        "<div class='j3-top-cell j3-sector-map'>"
+        "<input type='checkbox' id='j3sm-tap' class='j3cz-tap j3sm-tap'>"
+        "<label for='j3sm-tap' class='j3sm-cell'>"
+        "<div class='j3-top-label j3-idx-label'>시장 현황</div>"
+        "<div class='j3-sector-sub'>칸 크기 = 미국 시장에서 차지하는 몫 · "
+        f"{semi_note}"
+        f"색 = {when} 오르내림 · 누르면 크게</div>"
+        f"<div class='j3-sector-grid'>{tiles}</div>"
+        + themes + foot + "</label>"
+        "<label for='j3sm-tap' class='j3sm-scrim' aria-hidden='true'></label>"
+        "<label for='j3sm-tap' class='j3sm-pop'>"
+        f"<span class='j3sm-title'>시장 현황 · 미국 업종·테마 지도 <small>{when} 오르내림</small></span>"
+        f"<span class='j3sm-sub'>칸 크기 = 미국 시장에서 차지하는 몫(야후) · {color_note}"
+        + (" · 굵은 테두리 = 같은 업종" if by_tiles else "") + "</span>"
+        f"<div class='j3-sector-grid j3sm-grid'>{big_tiles}</div>"
+        + themes + foot + "<span class='j3cz-close'>다시 누르면 닫힘</span></label>"
+        "</div>"
+    )
+
+
+def _sector_theme_strip(live: bool, when: str) -> str:
+    """자비스 22개 테마 중 **상위 5개** 한 줄 (2026-09-24 상하님 — "테마 22의 종목들은 여기에
+    안 들어가나? 없으면 적어도 상위 5개는 넣어 줘야 되지 않나?").
+
+    지도 칸은 미국 시장 전체를 몫대로 나눈 것이라, 테마 칸을 그 안에 겹쳐 넣으면 같은 회사를
+    두 번 세어 넓이가 틀어진다. 그래서 지도 **밑에 따로** 한 줄로 둔다. 순서는 아래 「22개 테마
+    실시간 순위」와 같은 테마 등수이고, 색·숫자는 그 테마 ETF 의 등락이다.
+    **순위를 여기서 새로 세지 않는다** — 공책에 있는 것만 쓴다(없으면 이 판에는 줄이 없다).
+    """
+    ranking = None
+    try:
+        peek = getattr(j3data, "peek_theme_rankings", None)
+        ranking = peek() if peek else None
+        if not ranking:
+            ranking = st.session_state.get("j3_theme_rankings")
+    except Exception:
+        ranking = None
+    rows = [row for row in ((ranking or {}).get("rows") or []) if row.get("ok")][:5]
+    if not rows:
+        return ""
+    cells = []
+    for place, row in enumerate(rows, start=1):
+        change = row.get("change_pct") if live else row.get("last_session_change_pct")
+        if change is None:
+            change = row.get("last_session_change_pct") if live else row.get("change_pct")
+        name = str(row.get("name") or "")
+        cells.append(
+            f"<div class='j3-sector-theme' title='{place}위 {name} · {row.get('etf') or ''} · {_pct(change)}' "
+            f"style='--n:{_sector_label_em(name):.2f};background:{_sector_tone(change)}'>"
+            f"<div class='j3-sector-name'><i>{place}</i> {name.replace('·', '·<wbr>')}</div>"
+            f"<div class='j3-sector-pct'>{_pct(change)}</div></div>")
+    return ("<div class='j3-sector-themes'>"
+            f"<div class='j3-sector-themes-label'>자비스 테마 상위 5 · 색 = 테마 ETF {when} 등락</div>"
+            f"<div class='j3-sector-theme-row'>{''.join(cells)}</div></div>")
+
+
+def _sector_label_em(name: str) -> float:
+    """이름 한 줄이 차지할 폭(글자 크기 배수). 「·」·빈칸에서 줄을 바꿀 수 있으므로 가장 긴 토막을 잰다.
+    칸 글자 크기를 칸 폭에 맞추는 데 쓴다(한글 1 · 영문·숫자 0.62 · 가운뎃점 0.35)."""
+    longest = 0.0
+    for part in name.replace("·", "·\n").replace(" ", "\n").split("\n"):
+        width = sum(0.35 if ch == "·" else 0.62 if ch.isascii() else 1.0 for ch in part)
+        longest = max(longest, width)
+    return max(longest, 2.0)
+
+
+def _sector_layout(rows: list, width: float, height: float) -> tuple[list, list]:
+    """칸 자리 (x, y, 폭, 높이). 테마 칸이면 **업종끼리 먼저 묶어** 자리를 나누고 그 안을 다시
+    나눈다 — 같은 업종 칸이 한데 모여 굵은 테두리 안에 선다. 넓이는 어느 쪽이든 몫에 비례한다."""
+    total = sum(float(row["weight"]) for row in rows) or 1.0
+    scale = width * height / total
+    if not any(row.get("sector") for row in rows):
+        boxes: list = []
+        _squarify([float(row["weight"]) * scale for row in rows], 0.0, 0.0, width, height, boxes)
+        return list(zip(rows, boxes)), []
+    groups: dict = {}
+    for row in rows:
+        groups.setdefault(row["sector"], []).append(row)
+    ordered = sorted(groups.values(), key=lambda group: -sum(float(r["weight"]) for r in group))
+    outer: list = []
+    _squarify([sum(float(r["weight"]) for r in group) * scale for group in ordered],
+              0.0, 0.0, width, height, outer)
+    placed, frames = [], []
+    for group, (gx, gy, gw, gh) in zip(ordered, outer):
+        group = sorted(group, key=lambda r: -float(r["weight"]))
+        inner: list = []
+        _squarify([float(r["weight"]) * scale for r in group], gx, gy, gw, gh, inner)
+        placed.extend(zip(group, inner))
+        # 업종 이름표는 테두리 왼쪽 위에 선다 — 그 자리의 첫 칸이 넉넉해야 칸 이름을 안 덮는다.
+        frames.append((group[0].get("sector_name") or "", (gx, gy, gw, gh), inner[0] if inner else None))
+    return placed, frames
+
+
+def _sector_tiles_html(rows: list, width: float, height: float, sizes: tuple, *, labels: bool) -> str:
+    """지도 칸들. sizes = (큰 칸 폭·높이, 중간 칸 폭·높이, 이름만 적는 칸 폭·높이) — 판 단위다."""
+    placed, frames = _sector_layout(rows, width, height)
+    pos = lambda x, y, w, h: (f"left:{x / width * 100:.3f}%;top:{y / height * 100:.3f}%;"
+                              f"width:{w / width * 100:.3f}%;height:{h / height * 100:.3f}%")
+    out = []
+    for row, (x, y, w, h) in placed:
+        change = row.get("shown_change")
+        if w >= sizes[0] and h >= sizes[1]:
+            size = "big"
+        elif w >= sizes[2] and h >= sizes[3]:
+            size = "mid"
+        elif w >= sizes[4] and h >= sizes[5]:
+            size = "small"
+        else:
+            size = "tiny"
+        # 글자는 **칸 크기에 맞춰 줄고 는다**(CSS 칸 단위 · 2026-09-24 상하님 — 폰에서 「의료기기·진단」
+        # 이 잘렸다). 이름·등락을 늘 싣고, 칸이 너무 작으면 CSS 가 감춘다. size 는 그 CSS 를
+        # 모르는 옛 브라우저를 위한 예비다.
+        text = (f"<div class='j3-sector-name'>{row['name'].replace('·', '·<wbr>')}</div>"
+                f"<div class='j3-sector-pct'>{_pct(change)}</div>")
+        out.append(
+            f"<div class='j3-sector-tile {size}' title='{row['name']} · {row['etf']} · {_pct(change)}' "
+            f"style='{pos(x, y, w, h)};--n:{_sector_label_em(row['name']):.2f};"
+            f"background:{_sector_tone(change)}'>{text}</div>")
+    for name, (gx, gy, gw, gh), first in frames:
+        roomy = first is not None and first[2] >= 14 and first[3] >= 12
+        badge = f"<span>{name}</span>" if labels and name and roomy else ""
+        out.append(f"<div class='j3-sector-group' style='{pos(gx, gy, gw, gh)}'>{badge}</div>")
+    return "".join(out)
+
+
+def _market_phase_cell(phase: str, phase_color: str, vix_sub: str) -> str:
+    """시장 상황 칸 — VIX 그림을 지수 칸과 같은 모양으로 붙인다(2026-08-21 지시).
+
+    상하님 — "시장상황 vix지수 이것도 나스닥 종합처럼 그래프 넣어라. 당일 그래프
+    그리고 클릭하면 일봉 6개월 나오게 하고 … 옆에 QQQ 지수와 키높이하고."
+
+    그림이 없으면 지금까지처럼 숫자만 보여준다 — 자료 탓에 칸이 사라지면 안 된다.
+    """
+    try:
+        spark = (j3data.get_index_sparklines() or {}).get("^VIX")
+    except Exception:
+        spark = None
+    # 그림 높이를 QQQ 칸보다 4px 낮춘다 — VIX 숫자 줄이 1.25rem이라 그만큼 높아서,
+    # 그냥 두면 이 칸만 196px가 되어 옆 칸과 밑선이 어긋난다(2026-08-21 실측).
+    chart = _index_chart_swap(spark, width=104, height=74, key="vix") if spark else ""
+    if not chart:
+        return _top_metric("시장 상황", phase, phase_color, vix_sub, sub_color="#ff5b5b",
+                           extra_class=_PHASE_CLASS)
+    return (
+        f"<div class='j3-top-cell j3-idx-wide {_PHASE_CLASS}'>"
+        "<div class='j3-top-label j3-idx-label'>시장 상황</div>"
+        f"<div class='j3-top-val j3-idx-val' style='color:{phase_color}'>{phase}</div>"
+        f"<div class='j3-top-sub j3-idx-sub'>{vix_sub}</div>"
+        + chart + "</div>"
+    )
+
+
+def _fear_greed_box() -> str:
+    """상단 줄에 들어가는 공포·탐욕 게이지 박스. CNN 그림을 직접 그린 것이다.
+
+    스타일도 함께 실어 보낸다 — 페이지 맨 위 <style> 덩어리는 로그인 문 앞이라
+    fear_greed_ui를 아직 import하기 전이다.
+    """
+    fetcher = getattr(j3data, "get_fear_greed", None)
+    data = fetcher() if fetcher else {"ok": False}
+    big, before, live = _gauge_days()
+    # **「전일」은 큰 숫자의 하루 앞 장이다** (2026-09-24). CNN 은 뉴욕 자정에 날짜를 넘겨,
+    # 장이 열리기 전(한국 오후 1시~밤 10시 반)에는 previous_close 가 큰 숫자와 같은 장이
+    # 된다(09-24 실측 — 지금 34.63 · previous_close 34.69 가 둘 다 09-23 · 09-22 는 35.03).
+    # 그때는 CNN 날짜별 값에서 그 하루 앞 장을 꺼내 쓴다. 없으면 CNN 값 그대로.
+    if data.get("ok") and big is not None and before is not None and not live:
+        try:
+            cnn_day = date.fromisoformat(str(data.get("as_of") or "")[:10])
+        except ValueError:
+            cnn_day = None
+        history = data.get("history") or {}
+        if cnn_day is not None and cnn_day > big and before.isoformat() in history:
+            data = {**data, "previous_close": history[before.isoformat()]}
+    return _with_days(fear_greed_ui.box_html(data), big, before, live, "전일 종가")
+
+
+def _leader_max() -> float:
+    """대장주 조건점수 만점. **모듈에서 읽는다** — 화면에 박아 두면 어긋난다.
+
+    **여기에 @st.fragment 를 붙이면 안 된다.** 2026-08-26까지 바로 위에 있던
+    @st.fragment(run_every=60) 을 이 함수가 가로채고 있었다. 87e0d77 이 이 함수를
+    데코레이터와 그 임자(_render_selected_live_quote) **사이에** 끼워 넣은 탓이다.
+    빈 줄이 하나 있어서 눈에 안 띄었지만, 파이썬은 빈 줄을 건너뛰고 다음 def 에
+    붙인다. 그래서 숫자 하나 돌려주는 이 도우미가 '1분마다 저절로 다시 그리는
+    조각'이 되었다. 부르는 자리가 세 곳이고 줄마다 불리니, 화면에 조각 타이머가
+    여러 개 깔려 1분마다 서버를 계속 다녀왔다(상하님 지적 — "관찰만 15개 부분
+    클릭하면 너무 느리게 열린다, 로딩 걸린다", "닫기를 여러 번 눌러야 된다").
+    """
+    return float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
+
+
+# **5분마다 조용히 갱신한다** (2026-09-12 상하님 지시 — "설명 내용 삭제하고
+# 보이지는 않지만 5분 자동 갱신으로 해주고"). 예전에는 1분마다 돌면서 화면에
+# 「1분 자동 갱신」이라고 적어 두었다. 위 시장판단 줄도 5분이라 주기가 맞는다.
+@st.fragment(run_every=300)
+def _render_selected_live_quote(stock_score=None, entry_state=None, *,
+                                general_theme=False, panel: str = "", ticker=None,
+                                metrics=None) -> None:
+    # **그리는 종목을 받아서 쓴다** (2026-09-24 상하님 캡처 — 순위 9 에서 CrowdStrike 를 눌렀는데
+    # 세부사항 칸에 NET 의 가격·수익률이 나왔다). 예전에는 「22개 테마 안에서 마지막으로 고른
+    # 종목」(j3_selected_ticker)을 읽었는데, 그 값은 테마 상세에서만 적혀서 순위 9·검색·날짜별
+    # 목록 상세에서는 **전에 테마에서 본 종목**이 그대로 나왔다. 아래 관심종목 넣기 단추도 같았다.
+    ticker = ticker or st.session_state.get("j3_selected_ticker")
+    if not ticker:
+        return
+    # **장이 닫혀 있으면 목록 줄과 같은 값(metrics)을 그대로 쓴다** (2026-09-24 상하님 — 목록
+    # $262.50 · 세부사항 $261.31). 따로 다시 받아 재면 받은 때·받은 묶음이 달라 숫자가 갈렸다.
+    # 장이 열려 있을 때만 5분마다 새로 받는다(값이 움직이는 때다).
+    if metrics and metrics.get("ok", True) and not _regular_open():
+        quote = {"ok": True, **metrics}
+    else:
+        quote = j3data.get_live_quote(ticker)
+    st.session_state["j3_selected_live_quote"] = quote
+    if not quote.get("ok"):
+        st.warning(f"{ticker} 실시간 시세 갱신 실패: {_safe_error_text(quote.get('error'))}")
+        return
+    # 최근가·52주대비·20일수익률·14일변동성·종목조건점수를 한 줄에 표시한다.
+    # 라벨은 코발트, 증감 부호는 미국장 색(+파랑/−빨강), 종목조건점수는 우측 끝.
+    # 만점은 모듈에서 읽는다 — /100으로 박아 뒀더니 아래 매수심사 칸(/80)과
+    # 한 화면에서 서로 다른 값을 말했다(2026-08-13 상하님 캡처).
+    score_max = 100.0 if general_theme else _leader_max()
+    score_val = (
+        f"{float(stock_score):.1f}/100" if general_theme and stock_score is not None
+        else f"{float(stock_score):.1f}/{_number(score_max)}" if stock_score is not None
+        else "—"
+    )
+    state_sub = f"<div class='j3-mc-sub j3-muted'>{entry_state}</div>" if entry_state else ""
+    # 최근가 칸만 글씨 크기를 따로 둔다(j3-mc-price · j3-mc-chg — 아래 CSS).
+    # **가격·등락률은 당일 그림과 같은 정규장 기준이다** (2026-09-19 상하님 — "퍼센티지
+    # 제대로 된 것 맞냐? 당일 차트와도 안 맞는데?"). 시간외 체결가를 적고 있었다
+    # (j3data.session_quote 설명). 못 구하면 예전 값을 그대로 적는다.
+    # 가격·등락률·52주·20일·6개월·변동성 모두 목록과 **같은 규칙**(_shown_numbers)이다.
+    shown = _shown_numbers(quote)
+    shown_price, shown_change = shown["price"], shown["change"]
+    change_sub = f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>{_pct(shown_change)}</div>"
+    cells = [
+        f"<div class='j3-mc'><div class='j3-mc-label'>최근가</div>"
+        f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>{change_sub}</div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
+        f"<div class='j3-mc-val {_sign_class(shown['from_high_pct'])}'>{_pct(shown['from_high_pct'])}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
+        f"<div class='j3-mc-val {_sign_class(shown['ret20'])}'>{_pct(shown['ret20'])}</div></div>",
+        # 6개월 수익률 (2026-09-05 상하님 지시). 「이 종목이 여섯 달 동안 실제로
+        # 몇 % 올랐나」다. 상승장 통과조건은 나스닥 대비 **등수**라 그 숫자만
+        # 봐서는 얼마나 올랐는지 알 수 없었다. **점수에는 안 쓴다.**
+        f"<div class='j3-mc'><div class='j3-mc-label'>6개월 수익률</div>"
+        f"<div class='j3-mc-val {_sign_class(shown['ret120'])}'>{_pct(shown['ret120'])}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
+        f"<div class='j3-mc-val {_sign_class(shown['atr_pct'])}'>{_pct(shown['atr_pct'])}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>{'일반 테마 최종점수' if general_theme else '종목 조건점수'}</div>"
+        f"<div class='j3-mc-val j3-green'>{score_val}</div>{state_sub}</div>",
+    ]
+    st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+    # **「시세 기준 … 1분 자동 갱신」 줄은 뺐다** (2026-09-12 상하님 지시 — 캡처에
+    # 빨간 줄로 표시하셨다). 갱신은 보이지 않게 5분마다 돈다(위 데코레이터).
+    # 그 자리에는 이 종목을 관심종목에 넣는 단추 둘을 놓는다.
+    # 자리 이름을 같이 넘긴다 — 이 카드는 한 화면에 **둘**(세부사항·매수 심사)
+    # 그려져서, 열쇠에 종목만 넣으면 둘이 겹친다(2026-09-12 시험이 잡아냈다).
+    _render_watchlist_add_buttons(ticker, panel=panel)
+
+
+# ── 이 종목을 관심종목에 넣는 단추 둘 (2026-09-12 상하님 지시) ────────────────
+#
+# 상하님 — "그 자리에 사용자선정종목추가와 추가검색종목추가 두 개 버튼을 만들어
+# 줘. 각 버튼을 누르면 현재 선택종목이 관심종목에 … 추가되도록 해 줘."
+#
+# **자리 수를 지킨다**(상하님 — "종목 한도 있는 것 잊지 말고. 갯수 이야기하는
+# 것이야"). 사용자 선정은 **여섯 자리**, 추가 검색은 **열두 개**까지다
+# (jarvis3_briefing_store 의 SELECTED_SLOTS · EXTRA_LIMIT). 넘겨 넣지 않는다.
+#
+# 사용자 선정 여섯 자리는 늘 꽉 차 있다 — 저장고가 기본 여섯 종목으로 채워 둔다.
+# 그래서 **어느 자리를 바꿀지 물어본다.** 상하님이 골라 두신 종목을 말없이
+# 밀어내지 않는다(CLAUDE.md 0-0).
+#
+# **평소에는 저장고를 읽지 않는다.** 이 칸은 5분마다 저절로 도는 자리라, 여기서
+# 읽으면 조회가 계속 늘어난다. 단추를 누르는 그 순간에만 읽는다.
+_WATCH_ADD_CSS = """
+<style>div[class*="st-key-j3addrow_"] [data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap !important;
+    gap: .4rem !important;
+}
+div[class*="st-key-j3addrow_"] [data-testid="stColumn"] {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+}
+div[class*="st-key-j3add_sel_"] button,
+div[class*="st-key-j3add_ext_"] button {
+    border-radius: 10px !important;
+    font-weight: 800 !important;
+    letter-spacing: -.03em !important;
+    padding: .3rem .35rem !important;
+    min-height: 0 !important;
+    transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+div[class*="st-key-j3add_sel_"] button {
+    background: linear-gradient(135deg, #147dd4, #0e3f75) !important;
+    border: 1px solid #46b9fc !important;
+    box-shadow: 0 3px 12px rgba(7, 118, 233, .28) !important;
+}
+div[class*="st-key-j3add_ext_"] button {
+    background: linear-gradient(135deg, #b8860b, #6d4f0c) !important;
+    border: 1px solid #f8cc70 !important;
+    box-shadow: 0 3px 12px rgba(248, 204, 112, .22) !important;
+}
+div[class*="st-key-j3add_sel_"] button p,
+div[class*="st-key-j3add_ext_"] button p {
+    color: #fff !important; font-weight: 800 !important;
+    white-space: nowrap;            
+    font-size: .8rem !important;
+    line-height: 1.25 !important;
+}
+@media (max-width: 420px) {
+    div[class*="st-key-j3add_sel_"] button p,
+    div[class*="st-key-j3add_ext_"] button p { font-size: .72rem !important; }
+}
+div[class*="st-key-j3add_sel_"] button:hover,
+div[class*="st-key-j3add_ext_"] button:hover {
+    transform: translateY(-1px); filter: brightness(1.12);
+}
+div[class*="st-key-j3add_slot_"] button {
+    background: rgba(11, 40, 71, .55) !important;
+    border: 1px solid #2b4e70 !important;
+    border-radius: 10px !important;
+    padding: .35rem .4rem !important;
+}
+div[class*="st-key-j3add_slot_"] button p { font-size: .82rem !important; color: #cfe4ff !important; }
+.j3-add-msg {
+    margin: .35rem 0 .1rem; font-size: .84rem; font-weight: 700;
+    padding: .4rem .7rem; border-radius: 10px;
+    border: 1px solid #2b4e70; background: rgba(11, 40, 71, .45);
+}
+.j3-add-msg.ok { border-color: #44f0a1; color: #44f0a1; }
+.j3-add-msg.no { border-color: #ffb45b; color: #ffd166; }
+.j3-add-ask { margin: .3rem 0 .15rem; font-size: .84rem; color: #9aafc9; font-weight: 700; }</style>
+"""
+
+
+def _render_watchlist_add_buttons(ticker: str, *, panel: str = "") -> None:
+    """지금 보고 있는 종목을 관심종목에 넣는다. 자리 수를 넘기지 않는다."""
+    ticker = str(ticker or "").strip().upper()
+    if not ticker:
+        return
+    # 열쇠에는 **자리 이름과 종목**을 같이 넣는다. 한 화면에 이 카드가 둘이다.
+    slot_key = f"{panel or 'x'}_{ticker}"
+    name = getattr(j3data, "STOCK_NAMES", {}).get(ticker, ticker)
+    st.markdown(_WATCH_ADD_CSS, unsafe_allow_html=True)
+    # **한 줄에 둘이 나란히 선다** (2026-09-12 상하님 지시 — "한 라인에 두 개를
+    # 만들라는 말이야. 그래야 자리를 많이 차지하지 않지"). 스트림릿은 폰처럼 좁은
+    # 화면에서 칸을 위아래로 쌓아 버리므로, 이 줄만 **쌓지 말라**고 못박는다
+    # (아래 CSS 의 flex-wrap: nowrap). 자비스3의 표들이 쓰는 그 방법이다.
+    row = st.container(key=f"j3addrow_{slot_key}")
+    left, right = row.columns(2)
+    # **티커는 단추에 안 적는다** — 바로 위 카드에 크게 있고, 폰에서 글자가
+    # 두 줄로 접혀 단추가 두 배로 커진다(2026-09-12 실측 375px).
+    if left.button("⭐ 사용자 선정에 넣기",
+                   key=f"j3add_sel_{slot_key}", width="stretch"):
+        _watchlist_add(ticker, name, group="selected")
+        _rerun_here()
+    if right.button("🔍 추가 검색에 넣기",
+                    key=f"j3add_ext_{slot_key}", width="stretch"):
+        _watchlist_add(ticker, name, group="extra")
+        _rerun_here()
+
+    message, tone = st.session_state.get("j3add_msg") or ("", "ok")
+    if message:
+        st.markdown(f"<div class='j3-add-msg {tone}'>{html.escape(message)}</div>",
+                    unsafe_allow_html=True)
+
+    # 여섯 자리가 꽉 찼을 때만 자리를 고르게 한다.
+    slots = st.session_state.get("j3add_slots") or []
+    if slots and st.session_state.get("j3add_slots_for") == ticker:
+        st.markdown(
+            "<div class='j3-add-ask'>여섯 자리가 다 찼습니다. "
+            f"<b>{html.escape(ticker)}</b> 을(를) 넣을 자리를 고르십시오 — "
+            "고른 자리의 종목은 지워집니다.</div>",
+            unsafe_allow_html=True,
+        )
+        columns = st.columns(3)
+        for index, row in enumerate(slots):
+            position = int(row.get("position") or index + 1)
+            label = f"{position}. {row.get('ticker') or '—'} 바꾸기"
+            if columns[index % 3].button(label, key=f"j3add_slot_{position}_{slot_key}",
+                                         width="stretch"):
+                _watchlist_replace(position, ticker, name)
+                _rerun_here()
+
+
+def _watchlist_add(ticker: str, name: str, *, group: str) -> None:
+    """저장고에 넣는다. 자리가 없으면 넣지 않고 그 사실을 적어 둔다."""
+    st.session_state.pop("j3add_slots", None)
+    st.session_state.pop("j3add_slots_for", None)
+    try:
+        briefing_store.ensure_tables()
+        if group == "extra":
+            briefing_store.add_extra(ticker, name)
+            limit = getattr(briefing_store, "EXTRA_LIMIT", 20)
+            used = len(briefing_store.extra_stocks())
+            st.session_state["j3add_msg"] = (
+                f"{ticker} 을(를) 관심종목 화면의 「추가 검색 종목」에 "
+                f"넣었습니다 ({used}/{limit}).", "ok")
+            return
+        rows = briefing_store.selected_stocks()
+        slots = getattr(briefing_store, "SELECTED_SLOTS", 10)
+        # **빈 자리가 있으면 묻지 않고 바로 넣는다.** 저장고의 add_selected 가
+        # 빈 자리 가운데 가장 앞 번호에 넣어 준다(2026-09-10에 만들어 둔 것).
+        # 자리가 꽉 찼을 때만 어느 자리를 바꿀지 물어본다 — 상하님이 골라 두신
+        # 종목을 말없이 밀어내지 않는다(CLAUDE.md 0-0).
+        adder = getattr(briefing_store, "add_selected", None)
+        if adder is not None:
+            try:
+                adder(ticker, name)
+            except ValueError as exc:
+                if "이미" in str(exc):
+                    st.session_state["j3add_msg"] = (str(exc), "no")
+                    return
+                st.session_state["j3add_msg"] = ("", "ok")
+                st.session_state["j3add_slots"] = rows
+                st.session_state["j3add_slots_for"] = ticker
+                return
+            st.session_state["j3add_msg"] = (
+                f"{ticker} 을(를) 관심종목 화면의 「사용자 선정 종목」에 "
+                f"넣었습니다 ({len(rows) + 1}/{slots}).", "ok")
+            return
+        # 옛 모듈이 프로세스에 남아 add_selected 가 없을 때는 예전처럼 자리를 묻는다.
+        if any(str(row.get("ticker") or "").upper() == ticker for row in rows):
+            st.session_state["j3add_msg"] = (
+                f"{ticker} 은(는) 이미 「사용자 선정 종목」에 있습니다.", "no")
+            return
+        st.session_state["j3add_msg"] = ("", "ok")
+        st.session_state["j3add_slots"] = rows
+        st.session_state["j3add_slots_for"] = ticker
+    except ValueError as exc:                 # 자리가 찼거나 이미 있는 종목이다
+        st.session_state["j3add_msg"] = (str(exc), "no")
+    except Exception as exc:                  # 저장고가 막혀도 화면은 살아 있어야 한다
+        st.session_state["j3add_msg"] = (
+            f"넣지 못했습니다: {_safe_error_text(exc)}", "no")
+
+
+def _watchlist_replace(position: int, ticker: str, name: str) -> None:
+    """고른 자리의 종목을 이 종목으로 바꾼다."""
+    try:
+        before = ""
+        for row in st.session_state.get("j3add_slots") or []:
+            if int(row.get("position") or 0) == int(position):
+                before = str(row.get("ticker") or "")
+        briefing_store.replace_selected(int(position), ticker, name)
+        st.session_state["j3add_msg"] = (
+            f"{position}번 자리의 {before} 을(를) {ticker} 으(로) 바꿨습니다.", "ok")
+    except ValueError as exc:
+        st.session_state["j3add_msg"] = (str(exc), "no")
+    except Exception as exc:
+        st.session_state["j3add_msg"] = (
+            f"바꾸지 못했습니다: {_safe_error_text(exc)}", "no")
+    st.session_state.pop("j3add_slots", None)
+    st.session_state.pop("j3add_slots_for", None)
+
+
+def _load_theme_rankings() -> dict:
+    with st.spinner(f"미국 {_THEME_COUNT}개 테마와 구성종목을 조회하는 중입니다…"):
+        return j3data.get_theme_rankings()
+
+
+def _render_leader_comparison(leaders: list[dict]) -> None:
+    # 눌러야 열린다(2026-07-30 사용자 지시, 한국테마와 같다). 세 종목 × 차트 세 벌이라
+    # 늘 그리면 화면도 길고 받아 오는 것도 많다. 제목은 그대로 두고 안내만 뒤에 붙인다.
+    # **누르면 이 단추가 화면 맨 위에 서고 그 밑에 차트가 보인다** (2026-09-25 상하님 지시 —
+    # "클릭하면 두 번째 캡처 화면처럼 위로 올라가게 화면을 맞춰라"). 순위 9 와 같은 장치다 —
+    # 단추 바로 위에 자리 표시를 찍고, 열 때 그 자리로 올린다(덩이 끝 scroll_to.run).
+    scroll_to.anchor(st, _LEADERCMP_ANCHOR)
+    if not _section_toggle(
+        "🏅 대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 클릭하면 볼 수 있습니다",
+        "j3_leadercmp_open",
+        close_label="대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 다시 클릭하면 닫힙니다",
+        on_open=lambda: scroll_to.request(st, _LEADERCMP_ANCHOR),
+    ):
+        return
+    # 세 종목의 일봉·주봉·월봉을 **한 번에 묶어** 받아 둔다(2026-08-28). 아래에서
+    # 종목마다 get_chart_bundle을 부르는데, 묶어 두면 그것들이 캐시를 나눠 쓴다.
+    # 못 받아도 조용히 넘어간다 — 그때는 종목마다 따로 받는다.
+    try:
+        j3data.prefetch_charts([leader.get("ticker") for leader in leaders[:3]])
+    except Exception:
+        pass
+    medal_by_rank = {1: "🥇", 2: "🥈", 3: "🥉"}
+    for leader in leaders[:3]:
+        metrics, plan = leader["metrics"], leader["plan"]
+        rank = int(leader["rank"])
+        # 메달은 종합점수 80점 이상인 대장주에만 붙인다.
+        medal = medal_by_rank.get(rank, "") if float(leader["score"]) >= 80 else ""
+        medal_html = f"<span class='j3-medal'>{medal}</span> " if medal else ""
+        # **선택종목 세부사항과 같은 그림·같은 자리**다 (2026-08-28 상하님 지시 —
+        # "20개 테마에서 각 테마 클릭하면 1~3위 종목 나오고 당일·일봉·주봉 나오는데
+        # 그것도 선택종목 세부사항의 당일·일봉·주봉처럼 해 줘").
+        #
+        # 스트림릿 칸 넷(왼쪽 글 + 그림 셋)을 쓰지 않는다 — 폰에서 위아래로 쌓여
+        # 한 줄에 하나가 되고, 알테어 그림이 종목마다 셋씩(모두 아홉) 만들어졌다.
+        # 이제 글은 한 덩이, 그림은 CSS 격자 한 판이다.
+        with st.container(border=True):
+            cmp_shown = _shown_numbers(metrics)       # 목록·세부사항과 같은 값(2026-09-24)
+            live_price, change_pct = cmp_shown["price"], cmp_shown["change"]
+            st.markdown(
+                f"<div class='j3-leader-name'>{medal_html}{rank}위 · {leader['name']} "
+                f"<span class='j3-muted'>{html.escape(str(leader['ticker']))}</span></div>"
+                "<div class='j3-leader-score-label'>현재가 · 등락률</div>"
+                f"<div class='j3-leader-live'>{_price(live_price)} "
+                f"<span class='j3-mc-sub {_sign_class(change_pct)}'>{_pct(change_pct)}</span></div>"
+                "<div class='j3-leader-score-label'>종목 조건점수</div>"
+                f"<div class='j3-leader-score'>{float(leader['score']):.1f}</div>"
+                f"<div class='j3-leader-state'>{plan.get('state')}</div>"
+                f"<div class='j3-chart-when'>52주 고가 대비 {_pct(cmp_shown['from_high_pct'])}</div>",
+                unsafe_allow_html=True,
+            )
+            boxes = []
+            intraday_payload = leader.get("intraday_chart")
+            if isinstance(intraday_payload, dict) and intraday_payload.get("ok"):
+                closes = _payload_series(intraday_payload,
+                                         intraday_payload["price"].columns[0])
+                drawing = _pretty_chart_svg(
+                    closes, base=intraday_payload.get("prev_close"), height=150)
+                if drawing:
+                    boxes.append(("당일", drawing,
+                                  intraday_payload.get("source_time") or ""))
+            # **선택종목 세부사항과 같은 묶음**을 쓴다 (2026-08-28 상하님 지시 —
+            # "당일 일봉 주봉까지 있는데 월봉도 넣어줘").
+            # 대장주 전용 자료(daily_chart·weekly_chart)는 2년치라 월봉 120개월을
+            # 만들 수가 없다. 같은 묶음을 쓰면 넷이 다 나오고, 두 화면의 그림이
+            # 서로 달라질 일도 없다.
+            bundle = {}
+            try:
+                got = j3data.get_chart_bundle(leader["ticker"])
+                if got.get("ok"):
+                    bundle = got.get("charts") or {}
+            except Exception:
+                bundle = {}
+            for name in ("일봉", "주봉", "월봉"):
+                payload = bundle.get(name) or {}
+                if not payload.get("ok"):
+                    continue
+                # 일봉은 봉차트(2026-09-24) — 선택종목 세부사항과 같은 그림.
+                drawing = (_daily_candles(payload) if name == "일봉" else "") or _pretty_chart_svg(
+                    _payload_series(payload, "Close"),
+                    ma20=_payload_series(payload, "MA20"),
+                    ma50=_payload_series(payload, "MA50"),
+                    height=150,
+                )
+                if drawing:
+                    boxes.append((name, drawing, ""))
+            if boxes:
+                # **누르면 크게 뜬다** — 선택종목 세부사항의 차트와 같은 장치다 (2026-09-23 밤
+                # 상하님 — "22개 테마에서 각 테마 선택하면 대장주 1~3위 당일/일봉/주봉/월봉도
+                # 선택종목 세부사항 부분의 차트처럼 클릭하면 화면 커지도록 해라").
+                # 스위치 앞머리는 종목마다 달라야 한다 — 세 종목이 한 화면에 선다.
+                zoom_id = "j3cz-lead-" + re.sub(r"[^A-Za-z0-9]", "_", str(leader.get("ticker") or rank))
+                st.markdown(_chart_zoom_html(boxes, zoom_id), unsafe_allow_html=True)
+            else:
+                st.info("차트 자료 없음")
+    # **맨 밑(3위 밑 · 「상세 종목 선택」 위)에도 작은 닫기 단추** (2026-09-25 상하님 지시 — "색깔
+    # 그라데이션 맞추고"). 세 종목 차트가 폰에서 화면 몇 장이라 위 단추까지 올라가지 않고 닫게 한다.
+    # 닫으면 화면이 위 단추 자리로 올라간다(열 때와 같은 자리 표시).
+    _section_close("j3_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉/월봉 비교 닫기",
+                   return_to=_LEADERCMP_ANCHOR)
+
+
+_MEDAL_BY_RANK = {1: "🥇", 2: "🥈", 3: "🥉"}
+# 상태 색은 20개 테마 순위표의 상태색과 같은 규칙(주도 초록·관찰 주황·약함 회색)을 쓴다.
+_STATE_COLOR_WORD = {"강함": "green", "보통": "orange", "약함": "gray",
+                     "주도": "green", "관찰": "orange"}
+
+
+def _stock_radio_label(item: dict) -> str:
+    """상세 종목 선택 라디오 한 항목의 표시 문구(위·아래 라디오가 같은 형식을 쓴다)."""
+    rank = int(item["rank"])
+    medal = _MEDAL_BY_RANK.get(rank, "")
+    state = item["plan"].get("state", "")
+    color_word = _STATE_COLOR_WORD.get(state, "gray")
+    return (
+        f"{medal} :green[**{rank}위 · {item['name']} ({item['ticker']})**] · "
+        f":red[**{item['score']:.1f}점**] · :{color_word}[**{state}**]"
+    )
+
+
+def _render_stock_detail(
+    theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
+    *, panel: str = "theme", on_close=None,
+) -> None:
+    """종목 상세 한 벌. panel은 위젯 키를 갈라 두 상세가 서로를 덮어쓰지 않게 한다.
+
+    ``on_close``는 닫기를 누를 때 함께 할 일이다. 종목검색에서 쓴다 — 상세를
+    닫으면 위의 「찾은 종목」 줄도 같이 걷는다(2026-08-28 상하님 지시).
+    """
+    ticker = leader["ticker"]
+    if panel == "theme":
+        st.session_state["j3_selected_ticker"] = ticker
+    metrics, plan = leader["metrics"], leader["plan"]
+
+    st.divider()
+    # 종목을 누르면 화면이 여기로 내려온다(2026-08-09 상하님 지시).
+    scroll_to.anchor(st, f"detail_{panel}")
+    # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시, 한국테마와 같다).
+    if not _section_toggle(
+        "🔎 선택종목 세부사항 보기", f"j3_detail_open_{panel}",
+        close_label="선택종목 세부사항 닫기", on_close=on_close,
+    ):
+        return
+    # 대장주 비교와 동일하게, 80점 이상 1~3위 종목이면 종목명에도 메달을 붙인다.
+    detail_rank = int(leader.get("rank") or 0)
+    detail_medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(detail_rank, "") if float(leader.get("score") or 0) >= 80 else ""
+    detail_medal_html = f"<span class='j3-medal'>{detail_medal}</span> " if detail_medal else ""
+    st.markdown(
+        f"<div class='j3-stock-name'>{detail_medal_html}{leader['name']} · {ticker}</div>"
+        f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
+        unsafe_allow_html=True,
+    )
+
+    # 게스트도 종목명·가격·차트는 본다. 사용자가 지정한 세 캡처 영역
+    # (점수/선정 근거·매수 심사·추천 근거)만 만들지 않는다.
+    if auth.is_guest():
+        _render_day_price_row(metrics, ticker, panel=panel)
+        _render_price_chart_bundle(ticker, panel=panel)
+        _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기",
+                       on_close=on_close)
+        return
+
+    # GENERAL은 종목 100점과 테마 100점을 먼저 각각 만든 뒤
+    # 60:40으로 합친다. 다른 갈래의 옛 /80 표와 섞지 않는다.
+    general_stock_parts = leader.get("stock_score_parts")
+    general_theme_parts = theme_row.get("score_parts")
+    is_general_score = (
+        isinstance(general_stock_parts, (list, tuple))
+        and isinstance(general_theme_parts, (list, tuple))
+    )
+    _render_selected_live_quote(
+        leader.get("score"), plan.get("state"), general_theme=is_general_score,
+        panel=panel, ticker=ticker, metrics=metrics,
+    )
+
+    if is_general_score:
+        stock_factor_spec = list(getattr(j3data, "GENERAL_STOCK_SCORE_PARTS", ()))
+        theme_factor_spec = list(getattr(j3data, "GENERAL_THEME_SCORE_PARTS", ()))
+    else:
+        # 상승장·급락반등·기존 fixture는 여전히 옛 표시 경로를 쓴다.
+        factor_spec = list(getattr(j3data, "LEADER_SCORE_PARTS",
+                                   (("테마 대비 상대강도", 25.0), ("52주 신고가 위치", 25.0),
+                                    ("추세", 0.0), ("유동성", 15.0), ("변동성 안정", 15.0))))
+        factor_values = list(leader.get("score_parts") or ())
+        leader_max = float(getattr(j3data, "LEADER_SCORE_MAX", 80.0))
+
+    def _gain_cell(part, maximum, *, top_border=False):
+        # 획득값과 (최대) 모두 붉은색, 사이 한 칸 띄운다. 총점 행은 위에 이중선.
+        border = " style='border-top:4px double rgba(255,255,255,0.55)'" if top_border else ""
+        return (
+            f"<td class='j3-fac-val'{border}>"
+            f"<span style='color:#ff5b5b; font-weight:800'>{_number(part)}</span> "
+            f"<span style='color:#ff5b5b'>({maximum})</span></td>"
+        )
+
+    general_factor_notes = {
+        "최근 3개월 강도": "최근 3개월 동안 시장보다 강했는지 봅니다.",
+        "최근 6개월 강도": "반년 동안 꾸준히 시장보다 강했는지 봅니다.",
+        "1년 최고가 근접": "최근 1년 최고가 가까이에 있는지 봅니다.",
+        "테마 6개월 강도": "반년 동안 강한 테마인지 봅니다.",
+        "테마 3개월 강도": "최근에도 테마 힘이 살아 있는지 봅니다.",
+        "강한 종목 수": "같은 테마의 여러 종목이 함께 강한지 봅니다.",
+        "최근 힘 증가": "최근 들어 테마 힘이 더 좋아지는지 봅니다.",
+    }
+
+    if is_general_score:
+        def _general_group_row(label, score, color, note=""):
+            note_html = (
+                f"<div class='j3-general-factor-note'>{note}</div>" if note else ""
+            )
+            return (
+                "<tr><td class='j3-fac-name j3-general-group'>"
+                f"<span style='color:{color}'>{label}</span>{note_html}</td>"
+                "<td class='j3-fac-val j3-general-group'>"
+                f"<span style='color:{color}'>{float(score or 0):.1f}/100</span></td></tr>"
+            )
+
+        def _general_rows(spec, values):
+            return "".join(
+                f"<tr><td class='j3-fac-name'>{name}"
+                f"<div class='j3-general-factor-note'>{general_factor_notes[name]}</div></td>"
+                "<td class='j3-fac-val'><span style='color:#ff5b5b; font-weight:800'>"
+                f"{_number(part)}</span> <span style='color:#ff5b5b'>/ {_number(maximum)}</span></td></tr>"
+                for (name, maximum), part in zip(spec, values)
+            )
+
+        factor_rows = (
+            _general_group_row("종목점수", leader.get("stock_score"), "#4da6ff")
+            + _general_rows(stock_factor_spec, general_stock_parts)
+            + _general_group_row("테마점수", theme_row.get("score"), "#44f0a1")
+            + _general_rows(theme_factor_spec, general_theme_parts)
+        )
+        total_row = _general_group_row(
+            "최종점수", leader.get("score"), "#44f0a1", "종목 60% + 테마 40%",
+        )
+    else:
+        factor_rows = "".join(
+            f"<tr><td class='j3-fac-name'>{name}</td>"
+            + f"{_gain_cell(part, '0점' if not maximum else _number(maximum))}</tr>"
+            for (name, maximum), part in zip(factor_spec, factor_values)
+        )
+        total_style = (
+            "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
+            "border-top:4px double rgba(255,255,255,0.55)"
+        )
+        total_row = (
+            f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
+            f"<td class='j3-fac-val' style='{total_style}'>"
+            f"<span style='color:#ff5b5b; font-weight:800'>{_number(leader.get('score'))}</span> "
+            f"<span style='color:#ff5b5b'>({_number(leader_max)})</span></td></tr>"
+        )
+    score_col, plan_col = st.columns([1, 1], gap="large")
+    with score_col:
+        if is_general_score:
+            st.markdown("<div class='j3-section-title'>일반 테마매매 점수</div>", unsafe_allow_html=True)
+            st.markdown(
+                _general_theme_score_help_html(
+                    factor_rows, total_row, f"j3_general_theme_help_{panel}",
+                ),
+                unsafe_allow_html=True,
+            )
+            score_summary = (
+                f"테마 내 일반 점수 {leader['rank']}위 · "
+                f"종목점수 {float(leader.get('stock_score') or 0):.1f}/100 · "
+                f"테마점수 {float(theme_row.get('score') or 0):.1f}/100 · "
+                f"최종점수 {float(leader.get('score') or 0):.1f}/100"
+            )
+            st.markdown(
+                f"<div class='j3-reason-mustard'>{_mustard_html(score_summary)}</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown("<div class='j3-section-title'>종목 선정 근거</div>", unsafe_allow_html=True)
+            if panel == "mystock":
+                # **어느 배점인지 표 바로 위에 적는다** (2026-08-28 상하님 지적 —
+                # "종목검색 후 선택종목 세부사항의 배점기준은 어느 형식의 배점을
+                # 따르는지 알 수가 없다").
+                #
+                # 여기만 **옛 80점 배점**을 쓴다. 테마 대장주는 새 100점 배점
+                # (종목 60% + 테마 40%)이다. 게다가 직접 찾은 종목은 견줄 테마가
+                # 없어 「테마 대비 상대강도 25점」이 언제나 0점이라, 표에 (80)이라
+                # 적혀 있어도 실제로 받을 수 있는 최대는 55점이다.
+                # 상하님 지시대로 **배점은 그대로 두고 설명만 붙인다**(2026-08-28).
+                st.markdown(
+                    "<div class='j3-score-origin'>"
+                    "이 표는 <b>직접 검색한 종목 전용 배점</b>입니다 — 80점 만점.<br>"
+                    "위 테마 대장주가 쓰는 <b>100점 배점</b>(종목 60% + 테마 40%)과 "
+                    "<b>다른 자</b>입니다. 두 점수를 나란히 놓고 비교하지 마십시오.<br>"
+                    "견줄 테마가 없어 <b>「테마 대비 상대강도」 25점은 언제나 0점</b>입니다. "
+                    "그래서 이 종목이 실제로 받을 수 있는 가장 높은 점수는 "
+                    "<b>55점</b>입니다."
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                _factor_table_html(
+                    factor_rows, total_row,
+                    [name for name, _maximum in factor_spec],
+                    f"j3_factor_help_{panel}",
+                ),
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"<div class='j3-reason-mustard'>{_mustard_html(leader['stock_reason'])}</div>",
+                unsafe_allow_html=True,
+            )
+    with plan_col:
+        st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
+        # 점수·상태만 있고 '뭘 하라는 건지'가 없다는 지적(2026-07-30). 판정을 사람
+        # 말로 다시 쓴 한 줄을 표 위에 얹는다 — 새 판정을 만들지는 않는다.
+        guide = guidance.build(plan, money=_price, market_score=market.get("score"))
+        # ── 테마 점수가 70에 못 미치면 **「배점 미달」이라고 적는다** ────────────
+        # 2026-08-28 상하님 지시 — "70점 넘지 않으면 배점 미달이라고 표시해라."
+        #
+        # **문턱 자체는 안 건드린다**(CLAUDE.md 0-1 — 매매 규칙을 바꾸는 것은 먼저
+        # 여쭙는다). 사는 것을 막지 않고, 화면에 그 사실을 적기만 한다.
+        #
+        # 70 은 지어낸 숫자가 아니다. `jarvis3_data._entry_plan` 이 **다른 갈래에서
+        # 이미 쓰고 있는 문턱**이다 —
+        #     market_score >= 50 and theme_score >= 70 and score >= LEADER_GATE_MARK
+        # 20개 테마 갈래만 그 둘을 안 보고 시장 50 하나로 통과시켰고, 그래서 테마
+        # 46.7점짜리도 「좋은 후보」라고 적혔다(2026-08-28 상하님 캡처 · 빅테크10).
+        _THEME_SCORE_MARK = 70.0
+        _theme_score = theme_row.get("score")
+        _theme_short = (_theme_score is not None
+                        and float(_theme_score) < _THEME_SCORE_MARK)
+        if is_general_score and _theme_short:
+            st.markdown(
+                "<div class='j3-guide-short'>⚠ 배점 미달 — 테마점수 "
+                f"<b>{float(_theme_score):.1f}</b>/100 으로 기준 "
+                f"<b>{_THEME_SCORE_MARK:g}</b>점에 못 미칩니다.</div>",
+                unsafe_allow_html=True,
+            )
+        if is_general_score and plan.get("state") == "눌림목 대기":
+            # ── 여기 있던 두 문장은 **숫자를 안 보고 늘 같은 말**을 했다 ──────────
+            # 2026-08-28 상하님 지적 — "테마 순위 밖, 즉 11위 빅테크10을 클릭했는데
+            # 배점 점수가 저런데 매수심사결과 밑에 「좋은 후보입니다」. 이거 너무
+            # 안 맞는 것 아니냐. 전부 다 저런 식으로 멘트 넣은 거 아니냐."
+            #
+            # 맞다. 앞서는 눌림 구간이기만 하면 점수와 상관없이 늘
+            #   "좋은 후보입니다" · "종목과 테마 점수는 높지만"
+            # 이라고 적었다. 상하님이 보신 것은 최종점수 65.3(테마 46.7)인데도
+            # 같은 문장이 나왔다.
+            #
+            # **이 갈래가 실제로 무엇을 보고 통과시키는지 적는다.**
+            # 문턱은 `jarvis3_data._entry_plan` 에 있다 —
+            #     gates_ok = (market_score >= 50 if general_theme_trading else
+            #                 market_score >= 50 and theme_score >= 70
+            #                 and score >= LEADER_GATE_MARK)
+            # 20개 테마(general_theme_trading=True)는 **시장 점수 50 하나만** 본다.
+            # 테마 70점·종목 60점 문턱은 이 갈래에서 안 본다. 그래서 테마 46.7점인
+            # 종목도 "통과"가 됐고, 화면은 그것을 "좋은 후보"라고 적었다.
+            # 무엇을 보고 통과시켰는지를 그대로 적어, 화면이 실제보다 더 많이
+            # 본 것처럼 보이지 않게 한다.
+            _final = leader.get("score")
+            _theme_rank = theme_row.get("rank")
+            _bits = []
+            if _final is not None:
+                _bits.append(f"최종점수 <b>{float(_final):.1f}/100</b>")
+            if _theme_score is not None:
+                _mark = " — <b>배점 미달</b>" if _theme_short else ""
+                _bits.append(f"테마점수 <b>{float(_theme_score):.1f}/100</b>{_mark}")
+            if _theme_rank:
+                _bits.append("오늘 <b>{}위</b> 테마".format(int(_theme_rank))
+                             + ("(상위 10 밖)" if int(_theme_rank) > 10 else ""))
+            guide = {
+                **guide,
+                "headline": ("배점 미달 — 아직 매수 신호는 아닙니다."
+                             if _theme_short else "아직 매수 신호는 아닙니다."),
+                "detail": ("지금은 눌림 구간입니다. "
+                           + (" · ".join(_bits) + ". " if _bits else "")
+                           + "이 갈래에서 앱이 막는 문턱은 <b>시장 점수 50</b> 하나입니다 — "
+                           "테마 점수가 미달이어도 앱이 막지는 않습니다. "
+                           "살 만한지는 위 배점표를 보고 상하님이 정하십시오."),
+            }
+        st.markdown(guidance.html(guide, css_class="j3-guide"), unsafe_allow_html=True)
+        if is_general_score:
+            market_ok = float(market.get("score") or 0) >= 50.0
+            price_state = "눌림 구간" if plan.get("state") == "눌림목 대기" else str(plan.get("state") or "자료 부족")
+            conclusion = (
+                "아직 매수 신호 아님" if plan.get("state") == "눌림목 대기"
+                else "매수 조건 충족" if plan.get("state") == "돌파 확인"
+                else str(plan.get("recommendation") or "관찰")
+            )
+            # 「종목선정: 통과」는 늘 '통과'라고 적혀 있어 아무것도 안 알려 줬다
+            # (2026-08-28 상하님 지적). 그 자리에 **실제 점수**를 적는다.
+            _sc = leader.get("score")
+            _sc_text = f"{float(_sc):.1f}/100" if _sc is not None else "자료 부족"
+            _th_text = (
+                f"{float(_theme_score):.1f}/100"
+                + (f" · 기준 {_THEME_SCORE_MARK:g} 미달" if _theme_short else "")
+                if _theme_score is not None else "자료 부족"
+            )
+            st.caption(
+                f"최종점수: {_sc_text} · 테마점수: {_th_text} · "
+                f"시장상태: {'통과' if market_ok else '대기'} · "
+                f"가격자리: {price_state} · 결론: {conclusion}"
+            )
+            plan_cells = [
+                # 목록 표·세부사항 가격 칸과 **같은 값**(장이 닫혀 있으면 정규장 종가)이다
+                # (2026-09-24 상하님 캡처 — 목록 $262.50 · 이 칸 $261.31(시간외 체결가)).
+                ("현재가", _price(_list_price_change(metrics)[0]), "#e6e6e6"),
+                ("가격자리", price_state, "#e6e6e6"),
+                ("매수 계획 취소 참고가격", _price(plan.get("invalidation")), "#ff5b5b"),
+                ("수익 목표 참고가격", _price(plan.get("target")), "#44f0a1"),
+            ]
+        elif plan.get("trigger") is not None:
+            plan_cells = [
+                ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
+                ("매수 허용 상단", _price(plan.get("zone_high")), "#e6e6e6"),
+                ("무효화 가격", _price(plan.get("invalidation")), "#ff5b5b"),
+                ("2R 목표 참고", _price(plan.get("target")), "#44f0a1"),
+            ]
+        else:
+            # 확정 셋업 전(관찰·제외·추격금지)에는 조건 도달 기준의 참고 가격을 채워 보여준다.
+            ref_trigger, ref_zone_high, ref_invalidation, ref_target = _reference_plan(metrics)
+            plan_cells = [
+                ("조건 기준가 (참고)", _price(ref_trigger), "#e6e6e6"),
+                ("매수 허용 상단 (참고)", _price(ref_zone_high), "#e6e6e6"),
+                ("무효화 가격 (참고)", _price(ref_invalidation), "#ff5b5b"),
+                ("2R 목표 (참고)", _price(ref_target), "#44f0a1"),
+            ]
+        plan_boxes = [
+            f"<div class='j3-holo-cell'><div class='label'>{label}</div>"
+            f"<div class='val{' j3-holo-words' if label == '가격자리' else ''}' style='color:{color}'>{value}</div></div>"
+            for label, value, color in plan_cells
+        ]
+        # 3열 배치: [기준가][허용상단][종목 조건점수] / [무효화][2R 목표][빈칸]
+        score_box = (
+            "<div class='j3-holo-cell j3-holo-score'>"
+            f"<div class='label'>{'일반 테마 최종점수' if is_general_score else '종목 조건점수'}</div>"
+            f"<div class='val'>{float(leader.get('score') or 0):.1f}/{100 if is_general_score else _number(_leader_max())}</div>"
+            f"<div class='state'>{price_state if is_general_score else plan.get('state', '')}</div></div>"
+        )
+        plan_grid = (
+            plan_boxes[0] + plan_boxes[1] + score_box
+            + plan_boxes[2] + plan_boxes[3] + "<div class='j3-holo-cell'></div>"
+        )
+        st.markdown(
+            "<div class='j3-holo-card'>"
+            "<span class='j3-holo-corner tl'></span><span class='j3-holo-corner tr'></span>"
+            "<span class='j3-holo-corner bl'></span><span class='j3-holo-corner br'></span>"
+            f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
+            unsafe_allow_html=True,
+        )
+        if is_general_score:
+            st.markdown(
+                "<div class='j3-plan-note'>※ 참고 가격 — 매수 계획 취소 참고가격은 주가가 크게 "
+                "무너졌는지 판단할 때, 수익 목표 참고가격은 매수했을 경우 목표를 잡을 때 참고합니다.</div>",
+                unsafe_allow_html=True,
+            )
+        # 가격이 '—'인 이유와 함께, 어느 가격이 되면 조건이 성립하는지 참고가를 보여준다.
+        if not is_general_score and plan.get("trigger") is None:
+            hints = []
+            high52, sma20 = metrics.get("high52"), metrics.get("sma20")
+            if high52:
+                hints.append(f"돌파 조건 도달가 <b>{_price(float(high52) * 0.98)}</b> (52주 고가 −2% 지점)")
+            if sma20:
+                hints.append(f"눌림목 조건 도달가 <b>{_price(sma20)}</b> (20일선)")
+            hint_text = f"참고 — {' · '.join(hints)}. " if hints else ""
+            # st.caption은 '$'를 LaTeX 수식으로 해석해 글자가 깨지므로 HTML로 그린다.
+            st.markdown(
+                f"<div class='j3-plan-note'>※ 지금은 ‘{plan.get('state')}’ 상태라 확정 기준가·목표가가 "
+                f"아직 없습니다. {hint_text}이 조건이 실제로 충족되면 위 칸에 매수 가격이 표시됩니다.</div>",
+                unsafe_allow_html=True,
+            )
+        st.write("")
+        if plan.get("recommendation") == "조건부 후보":
+            st.success(plan.get("buy_reason"))
+        elif plan.get("state") == "추격 금지":
+            st.error(plan.get("buy_reason"))
+        else:
+            st.warning(plan.get("buy_reason"))
+
+    # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 당일 가격·차트 섹션을 시작한다.
+    _render_day_price_row(metrics, ticker, panel=panel)
+    # 당일 차트가 이 상세에만 없었다(2026-08-06 상하님 지적) — 순위 7에서 테마
+    # 대장주를 고르면 여기로 오는데 당일 차트가 안 나왔다.
+    # panel을 넘겨야 같은 종목을 위·아래 두 상세에서 열어도 단추 키가 안 겹친다.
+    _render_price_chart_bundle(ticker, panel=panel)
+
+    st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
+    reason_cards = [
+        ("시장 근거", f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"),
+        ("테마 근거", theme_row.get("basis", "자료부족")),
+        ("종목 근거", leader["stock_reason"]),
+        ("매수 근거", plan.get("buy_reason", "자료부족")),
+    ]
+    for column, (title, body) in zip(st.columns(4), reason_cards):
+        column.markdown(
+            f"<div class='j3-reason-card'><div class='j3-reason-title'>{title}</div>"
+            f"<div class='j3-reason-body'>{body}</div></div>",
+            unsafe_allow_html=True,
+        )
+
+    _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
+    # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
+    _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기", on_close=on_close)
+    if panel == "top7":
+        # 「매수심사결과 높은 순위 9 닫기」는 **✕ 선택종목 세부사항 닫기 바로 밑**이다.
+        # 2026-08-26 상하님이 자리를 바로잡아 주셨다 — "너가 지금 매수심사결과 높은
+        # 순위 9 닫기를 위에 두니 내가 안 보이지. 선택종목 세부사항 닫기 밑에 넣어야
+        # 된다." 앞서 '실제 매수기록 저장' 위에 뒀더니 금빛 저장 단추에 눈이 가려
+        # 회색 닫기 단추가 묻혔다. 누르면 열린 화면을 다 닫고 맨 위로 올라간다.
+        _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기",
+                       slot="_detail", on_close=_close_top7_from_fragment)
+
+
+# 테마 화면에서 **한 번에 같이 펴는 네 구역** (2026-08-14 상하님 지시).
+# 표에서 종목을 눌러도, 아래 '상세 종목 선택'으로 골라도 이 넷이 함께 열린다.
+# 테마 이름을 누를 때는 세부사항만 열고 차트는 닫아 둔다(2026-09-25 · 아래
+# _THEME_CHART_OPEN_KEYS).
+# 「20개 테마 실시간 순위」 표를 열어 둘까(2026-08-14 상하님 지시). **기본은 열림.**
+# 여닫는 단추는 '종목 찾기' 바로 위에 있다(_render_pullback_finder 맨 앞).
+_THEME_RANK_OPEN = "j3_theme_rank_open"
+# 21개 테마를 열 때 화면이 올라갈 자리 (2026-09-11 상하님 지시 — "캡처 화면처럼
+# 위치를 맞춰라"). 표가 맨 위에 오도록 21개 테마 단추 **바로 위**에 찍는다.
+_THEME_RANK_ANCHOR = "theme_rank_top"
+_RADAR_MAIN_ANCHOR = "radar_main"
+# 매수심사결과 높은 순위 9를 **열 때** 화면이 올라갈 자리 (2026-09-11 상하님 지시 —
+# "매수심사결과 높은 순위 9, 이것도 클릭하면 화면이 캡처 화면처럼 하라고").
+# 21개 테마와 **같은 동작**이다 — 그 단추가 화면 맨 위에 서고 그 밑에 표가 보인다.
+# 단추 **바로 위**에 찍는다.
+_TOP7_ANCHOR = "top7_top"
+# 「🏅 대장주 1~3위 비교」를 **열 때** 화면이 올라갈 자리 (2026-09-25 상하님 지시). 단추 바로 위.
+_LEADERCMP_ANCHOR = "leadercmp_top"
+
+_THEME_PANEL_OPEN_KEYS = (
+    "j3_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
+    "j3_detail_open_theme",     # 🔎 선택종목 세부사항 보기
+    "j3_intraday_open_theme",   # 📈 당일 · 실시간 차트 보기
+    "j3_bundle_open_theme",     # 📊 일봉 · 주봉 · 월봉 보기
+)
+# 위 넷 가운데 **차트** 구역. 테마 이름을 누를 때는 이것들을 **펴지 않는다**
+# (2026-09-25 상하님 — "바꿔라"). 느린 폰에서 테마를 처음 열 때 2.5~5.4초의 대부분이
+# 대장주 차트 12장과 세부 차트였다. 차트는 그 단추를 누를 때만 열린다.
+# 표에서 **종목**을 누를 때와 '상세 종목 선택'으로 고를 때는 예전처럼 넷을 다 편다.
+_THEME_CHART_OPEN_KEYS = (
+    "j3_leadercmp_open",
+    "j3_intraday_open_theme",
+    "j3_bundle_open_theme",
+)
+
+
+# 「종목 찾기」의 세 갈래 단추. 20개 테마 순위를 닫을 때 이것들도 같이 닫는다.
+_FINDER_OPEN_KEYS = ("j3_pullback_open", "j3_top7_open")
+# 상세 한 벌 안에서 열리는 창들. 갈래마다 이름 뒤가 다르다.
+_DETAIL_OPEN_PREFIXES = ("j3_detail_open_", "j3_intraday_open_", "j3_bundle_open_",
+                         "j3_leadercmp_open_", "j3_buyform_open_")
+_DETAIL_PANELS = ("theme", "top7", "pullback")
+
+
+def _close_full_theme_rank() -> None:
+    """「종목 찾기」에서 연 화면을 하나도 남기지 않고 다 닫고 메인으로 돌아간다.
+
+    2026-08-26 상하님 지시 — "20개 테마 실시간 순위 닫기 버튼 누르면 20개 테마
+    관련 열린 창 다 닫고 캡처 화면으로 되돌아가도록."
+
+    예전에는 **테마 쪽만** 닫았다. 그래서 매수심사결과 순위 9에서 골라 둔 종목
+    상세가 그대로 남았다(상하님 캡처 — 순위를 닫았는데 '순위 7에서 고른 종목 ·
+    ILMN'이 그대로 있었다). 이제 세 갈래와 그 안에서 연 창, 골라 둔 값까지 비운다.
+    """
+    st.session_state[_THEME_RANK_OPEN] = False
+    st.session_state["j3_theme_panel_open"] = False
+    for opened in _THEME_PANEL_OPEN_KEYS:
+        st.session_state[opened] = False
+    for opened in _FINDER_OPEN_KEYS:
+        st.session_state[opened] = False
+    for panel in _DETAIL_PANELS:
+        for prefix in _DETAIL_OPEN_PREFIXES:
+            st.session_state[f"{prefix}{panel}"] = False
+    # 선택값까지 남아 있으면 다음에 열었을 때 직전 상세가 되살아난 것처럼 보인다.
+    for state_key in list(st.session_state):
+        if str(state_key).startswith("j3_stock_choice_"):
+            st.session_state.pop(state_key, None)
+    for state_key in ("j3_theme_choice", "j3_theme_choice_widget",
+                      "j3_top7_pick_row", "j3_top7_detail_choice"):
+        st.session_state.pop(state_key, None)
+    scroll_to.request(st, _RADAR_MAIN_ANCHOR)
+
+
+def _close_all_from_fragment() -> None:
+    """프래그먼트 안에서 「다 닫기」를 눌렀을 때 쓴다.
+
+    매수심사결과 순위 9는 `@st.fragment` 안에 있다. 그 안에서 단추를 누르면
+    스트림릿이 **그 조각만** 다시 그린다. 그래서 상태로는 닫혔는데 바깥에 있는
+    20개 테마 순위·상승장·급락장이 화면에 그대로 남았다(2026-08-26 상하님 —
+    "아직 안 되어 있다"). 판 전체를 다시 그리라고 적어 두고 조각 끝에서 실행한다.
+    """
+    _close_full_theme_rank()
+    st.session_state["j3_close_all_pending"] = True
+
+
+def _close_top7_from_fragment() -> None:
+    """「매수심사결과 높은 순위 9」 닫기 — **밖에 열린 것이 없으면 판 전체를
+    다시 그리지 않는다** (2026-09-13 상하님 — "나중에 닫기도 늦고").
+
+    닫기 단추 넷이 모두 `_close_all_from_fragment` 를 불러 **시장분석 화면
+    전체**(지수·게이지·업종 지도·테마 순위…)를 처음부터 다시 그렸다. 21개
+    테마·상승장이 같이 열려 있을 때는 그것들도 화면에서 지워야 하므로 맞다.
+    그런데 순위 9 **하나만** 열려 있을 때도 그렇게 해서 닫는 데 판 한 벌이 들었다
+    (노트북 실측 1.7초 · 폰은 더).
+
+    이제 순위 9만 열려 있으면 **이 덩이만** 다시 그린다. 상태는 예전과 똑같이
+    전부 비우고(`_close_full_theme_rank`) 메인 시작점으로 올라간다.
+    같이 열린 것이 하나라도 있으면 예전 그대로 판 전체를 다시 그린다.
+
+    **닫은 뒤 남는 단추가 없어야 한다** — 순위 9 에 딸린 단추는 모두 이 덩이
+    안에 있다. 종목검색 위의 「✕ 순위 9 닫기」도 이 덩이 안으로 옮겼다
+    (_render_top7_section). 2026-09-11 「21개 테마 닫기」 때처럼 밖에 딸린
+    단추가 옛 상태로 붙어 있는 일이 이 덩이에는 없다.
+    """
+    others_open = (
+        st.session_state.get(_THEME_RANK_OPEN)
+        or st.session_state.get("j3_theme_panel_open")
+        or any(st.session_state.get(key) for key in _THEME_PANEL_OPEN_KEYS)
+        or st.session_state.get("j3_pullback_open")
+    )
+    if others_open:
+        _close_all_from_fragment()
+        return
+    _close_full_theme_rank()
+
+
+def _close_theme_rank_from_fragment() -> None:
+    """「21개 테마 실시간 순위 닫기」 전용 (2026-08-27 · 2026-09-11 고침).
+
+    이 단추는 덩이 **밖**에 있는 상승장·급락 후 반등장·매수심사결과 순위 9까지 끈다.
+
+    **판 전체를 늘 다시 그린다** (2026-09-11 상하님 지적 — "21개 테마 실시간 순위
+    닫기 누르면 노란색 동그라미 친 부분이 남는다. 또 눌러야 없어진다").
+
+    **왜 남았나.** 21개 테마가 열렸나를 보고 아래 닫기 단추를 그리는 곳은
+    상승장 덩이(_render_pullback_finder_body)인데, 그 상태를 바꾸는 것은 **다른
+    덩이**(테마 덩이)다. 스트림릿은 누른 단추가 든 덩이만 다시 그리므로, 테마
+    덩이만 돌고 상승장 덩이는 옛 상태 그대로 남아 닫기 단추가 화면에 붙어 있었다.
+    한 번 더 누르면 그때는 상승장 덩이가 돌아서 사라졌다 — 그것이 "또 눌러야
+    없어진다"의 정체다.
+
+    예전에는 밖에 열린 것이 있을 때만 판 전체를 다시 그렸다(빠르라고). 그
+    아낀 한 판이 이 버그를 만들었고, 상하님은 어차피 두 번 누르셔야 했으니
+    아낀 것도 없었다. 이제 늘 한 판을 다시 그린다.
+    """
+    # 2026-09-25 — 아래 닫기 단추가 이 덩이 안으로 옮겨 와, 밖(상승장·급락·순위 9)이 닫혀 있으면
+    # 이 덩이만 다시 그리면 된다. 밖에 열린 것이 있을 때만 판 전체를 다시 그린다(그것들도 닫아야 하므로).
+    outside_open = any(st.session_state.get(key) for key in _FINDER_OPEN_KEYS)
+    _close_full_theme_rank()
+    if outside_open:
+        st.session_state["j3_close_all_pending"] = True
+
+
+def _open_theme_rank_from_fragment() -> None:
+    """21개 테마를 **열 때**도 판 전체를 다시 그린다 (2026-09-11).
+
+    닫는 쪽과 **거울처럼 같은 문제**다. 맨 위 단추로 열면 표는 뜨는데, 아래
+    닫기 단추를 그리는 상승장 덩이가 안 돌아서 그 단추가 안 생겼다(실측으로
+    확인했다 — 열었는데 아래 닫기 단추 없음).
+
+    **그리고 화면을 그 자리로 올린다** (상하님 지시 — "강한 테마나 21개 테마를
+    누르면 화면이 위로 올라가게 하되 캡처 화면처럼 위치를 맞춰라"). 표가 맨 위에
+    오도록 21개 테마 단추 바로 위 자리로 데려간다.
+    """
+    # 판 전체 다시 그리기는 뺐다(2026-09-25) — 아래 닫기 단추가 이제 이 덩이 안에 있다.
+    scroll_to.request(st, _THEME_RANK_ANCHOR)
+
+
+def _run_close_all_if_requested() -> None:
+    """적어 둔 '판 전체 다시 그리기'를 한 번 실행한다. 프래그먼트 끝에서 부른다."""
+    if not st.session_state.pop("j3_close_all_pending", False):
+        return
+    try:
+        st.rerun(scope="app")
+    except Exception:
+        st.rerun()
+
+
+# ── 「⚡ 강한 테마 TOP 5」 카드 (2026-09-11 상하님 지시) ──────────────────────
+# 상하님 — "자비스3 미국테마에 21개 테마 위에 자비스7에 있는 강한 테마 TOP5 를
+# 넣어라. 클릭하면 자비스3 미국테마에 21개 테마로 들어가도록 해라. 그리고 강한
+# 테마 TOP5 위아래 줄을 좀 더 좁혀라. 자리를 너무 길게 차지하고 있다."
+#
+# **자비스7 모듈을 끌어오지 않는다.** 생김새만 옮기고 그림쇠 넷은 여기 베껴 둔다.
+# 자비스7은 따로 도는 화면이라, 거기를 손대거나 지우면 이 화면까지 같이 죽는다.
+#
+# **자료도 자비스7 것을 안 쓴다.** 바로 아래 21개 테마 표가 쓰는 그 순위
+# (`_load_theme_rankings`)를 **그대로** 받아 쓴다. 새로 계산하거나 새로 받지
+# 않으므로 카드 숫자와 표 숫자가 갈라질 수가 없다(CLAUDE.md 10-1과 같은 뜻).
+#
+# **줄 간격은 자비스7보다 좁다** (상하님 지시). 자비스7은 한 줄 위아래로 10px씩,
+# 칸 사이 12px, 그림쇠 32px 이다. 여기는 5px · 9px · 24px 로 줄였다.
+_STRONG_TOP5_ICONS = {
+    "shield": '<path d="m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6zm-4 9 3 3 5-6"/>',
+    "chip": '<rect x="5" y="5" width="14" height="14" rx="2"/>'
+            '<path d="M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3M9 9h6v6H9z"/>',
+    "cloud": '<path d="M6 18a5 5 0 0 1-1-10 7 7 0 0 1 13-1 6 6 0 0 1 0 11z"/>',
+    "bolt": '<path d="m14 2-10 12h7l-1 8L21 9h-8z"/>',
+}
+
+
+def _strong_top5_icon(name: str) -> str:
+    """테마 이름에 맞는 그림쇠 하나. 자비스7의 theme_icon과 같은 규칙이다."""
+    text = str(name or "")
+    if any(word in text for word in ("반도체", "AI", "양자")):
+        key = "chip"
+    elif "보안" in text:
+        key = "shield"
+    elif any(word in text for word in ("클라우드", "소프트", "SaaS")):
+        key = "cloud"
+    else:
+        key = "bolt"
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+            f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{_STRONG_TOP5_ICONS[key]}</svg>')
+
+
+def _render_strong_theme_top5(ranking: dict) -> None:
+    """21개 테마 바로 위에 서는 「강한 테마 TOP 5」 카드.
+
+    **보여주기만 한다.** 누르는 자리는 카드 맨 아래 「전체 보기 ›」 한 곳이고,
+    그것이 바로 밑 21개 테마 순위를 연다(상하님 지시 — "클릭하면 21개 테마로
+    들어가도록"). 자비스7도 카드 맨 아래에 같은 자리를 두고 있다.
+
+    줄마다 따로 누르게 만들지 않은 까닭 — 스트림릿 단추 안에는 막대·점수 같은
+    HTML을 넣을 수가 없어서, 그리는 것과 누르는 것을 따로 두고 CSS로 겹쳐야 한다.
+    그 겹치기는 화면 크기마다 어긋나 상하님 폰에서 엉뚱한 줄이 눌린다.
+    가는 곳이 어차피 한 군데(21개 테마)라 누르는 자리도 한 곳이면 된다.
+
+    자료를 못 받았으면 **아무것도 그리지 않는다** — 빈 카드가 자리만 먹지 않게.
+    """
+    rows = [row for row in (ranking.get("rows") or []) if row.get("ok")][:5]
+    if not rows:
+        return
+    lines = []
+    for index, row in enumerate(rows, 1):
+        score = row.get("score")
+        try:
+            width = max(0.0, min(100.0, float(score)))
+            score_text = f"{float(score):.1f}"
+        except (TypeError, ValueError):
+            width, score_text = 0.0, "—"
+        lines.append(
+            f'<div class="j3-st5-row"><span class="j3-st5-rank">{index:02}</span>'
+            f'<span class="j3-st5-icon">{_strong_top5_icon(row.get("name"))}</span>'
+            f'<b>{html.escape(str(row.get("name") or ""))}</b>'
+            f'<span class="j3-st5-bar"><i style="width:{width:.1f}%"></i></span>'
+            f'<strong>{score_text}</strong></div>'
+        )
+    # **카드 어디를 눌러도 21개 테마로 들어간다** (2026-09-11 상하님 지시 —
+    # "강한 테마 TOP5 전체 중 어디든 클릭하면 21개 테마로 들어가게 하고
+    #  전체보기 삭제하고").
+    #
+    # 카드 그림과 **속이 비치는 단추**를 한 통에 담고, 단추를 통 위에 통째로
+    # 겹쳐 둔다. 하단 이동막대(j3b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치다 —
+    # 스트림릿 단추 안에는 막대·점수 같은 HTML을 넣을 수 없어서, 보이는 것과
+    # 누르는 것을 따로 두고 겹치는 수밖에 없다.
+    #
+    # 겹치기가 안 먹어도 **화면은 그대로 돌아간다** — 카드가 안 눌릴 뿐이고,
+    # 바로 밑 「21개 테마」 단추로 여시면 된다.
+    with st.container(key="j3_st5_wrap"):
+        st.markdown(
+            '<div class="j3-st5"><div class="j3-st5-head">'
+            '<span class="j3-st5-flash">⚡</span><b>강한 테마 TOP 5</b>'
+            '<span class="j3-st5-unit">테마 점수 / 100</span></div>'
+            + "".join(lines)
+            # 열었을 때 화면이 올라올 자리를 **카드 안에** 찍는다 (2026-09-11).
+            # 따로 칸을 만들어 찍었더니 두 가지가 틀어졌다 —
+            #  ① 높이 0짜리가 한 칸으로 세어져 카드와 단추 사이가 12px → 24px.
+            #  ② 그 칸을 흐름에서 빼려고 position:absolute 를 줬더니 자리 표시가
+            #     **엉뚱한 곳**으로 갔다(태블릿 실측 — 단추는 887px 인데 자리
+            #     표시는 2428px, 1541px 어긋남. 폰에서도 217px 어긋나 있었다).
+            # 카드 안에 찍으면 칸이 안 늘고 자리도 정확하다. 카드가 안 그려지는
+            # 판(순위 자료가 없을 때)에는 자리 표시도 없어 화면이 그냥 안 올라간다.
+            + f'<div id="{scroll_to.anchor_id(_THEME_RANK_ANCHOR)}" class="jarvis-anchor"></div>'
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+        # 여는 방식은 `_section_toggle` 의 _flip 과 **똑같다**(상태를 켜고
+        # 방문기록을 쌓는다). 달리 쓰면 뒤로가기가 그 단추와 다르게 움직인다.
+        # 글자는 남겨 둔다 — 눈에는 안 보여도 화면을 읽어 주는 기기가 이것을 읽는다.
+        with st.container(key="j3_st5_open"):
+            if st.button(f"강한 테마 TOP 5 — {_THEME_COUNT}개 테마 열기", key="j3_st5_open_btn"):
+                st.session_state[_THEME_RANK_OPEN] = True
+                back_nav.opened(st, _THEME_RANK_OPEN)
+                # 맨 위 단추로 열 때와 **똑같은 자리**로 화면을 올린다
+                # (2026-09-11 상하님 지시 — "강한 테마나 21개 테마를 누르면
+                #  화면이 위로 올라가게 하되 캡처 화면처럼 위치를 맞춰라").
+                scroll_to.request(st, _THEME_RANK_ANCHOR)
+                # st.rerun()(판 전체)은 뺐다(2026-09-25) — 바로 아래 여닫이가 이 판에서 켜진 값을 보고
+                # 표를 곧바로 그린다. 아래 닫기 단추도 이 덩이 안에 있다.
+
+
+def _section_toggle(
+    label: str,
+    key: str,
+    *,
+    close_label: str | None = None,
+    close_return_to: str | None = None,
+    on_open=None,
+    on_close=None,
+) -> bool:
+    """눌러야 열리는 구역. 열려 있으면 닫는 단추를 보여준다(2026-07-30 사용자 지시).
+
+    st.expander는 접혀 있어도 안을 다 그린다 — 시세·차트를 미리 받아 오므로
+    여는 시간이 안 줄어든다. 그래서 아예 그리지 않는 방식으로 둔다.
+    한국테마(자비스4)와 같은 장치다.
+
+    여닫기는 on_click으로 처리한다. 단추가 만들어진 뒤에 상태를 뒤집으면 그 판에
+    이미 옛 글자가 찍혀 있어, 닫았는데도 '닫기'가 그대로 남는다
+    (2026-07-30 사용자 지적). on_click은 화면을 다시 그리기 **전에** 돌아서
+    글자와 속내용이 같은 판에서 맞는다.
+    """
+    def _flip():
+        now_open = not bool(st.session_state.get(key))
+        st.session_state[key] = now_open
+        # 열 때만 방문기록을 쌓는다 — 닫을 때 주소를 되돌리면 그것이 또 기록에
+        # 쌓여서 뒤로가기가 도로 열어 버린다(back_nav 설명 참고).
+        if now_open:
+            back_nav.opened(st, key)
+            # 여는 쪽에도 손잡이를 둔다(2026-09-11). 안 주면 예전과 똑같다.
+            if on_open:
+                on_open()
+        else:
+            if on_close:
+                on_close()
+            elif close_return_to:
+                scroll_to.request(st, close_return_to)
+
+    is_open = bool(st.session_state.get(key))
+    st.button(
+        ("✕ " + (close_label or label)) if is_open else label,
+        key=f"btn_{key}", on_click=_flip,
+    )
+    return is_open
+
+
+def _section_close(
+    key: str,
+    label: str,
+    *,
+    slot: str = "",
+    return_to: str | None = None,
+    on_close=None,
+) -> None:
+    """구역 **맨 아래**에 두는 작은 닫기 단추 (2026-08-01 사용자 지시).
+
+    폰에서는 구역 하나가 화면 몇 장이라, 끝까지 내려가면 위에 있는 여는 단추가
+    화면 밖으로 나간다. 닫으려고 다시 위로 올라가야 했다. 같은 값을 끄는 단추를
+    아래에도 하나 둬서 그 자리에서 접을 수 있게 한다. 한국테마와 같은 장치다.
+
+    slot은 **같은 값을 끄는 단추를 한 화면에 둘 이상** 둘 때 쓴다(2026-08-15
+    상하님 지시 — 상승장·급락 갈래는 목록 위와 상세 아래 두 곳에 닫기가 있다).
+    스트림릿은 열쇠가 같은 단추를 두 번 그리면 오류를 낸다. 색을 입히는 CSS는
+    `class*='st-key-close_j3_pullback_open'`처럼 **앞부분만** 맞추므로 slot이
+    붙어도 같은 색이 그대로 간다.
+    """
+    def _close():
+        st.session_state[key] = False
+        if on_close:
+            on_close()
+        elif return_to:
+            scroll_to.request(st, return_to)
+
+    st.button(f"✕ {label}", key=f"close_{key}{slot}", on_click=_close)
+
+
+# ── 「심사항목 기준」 여닫이 (2026-08-14 상하님 지시) ─────────────────────────
+# 상하님 — "종목 선정 근거에 '심사항목 기준'이란 조그만 버튼 만들고 간략하게 쉽게
+# 설명을 만들어라. 신고가 눌림 전용 배점도, 급락 후 반등장도, 테마 실시간
+# 종목선정 근거에도."
+#
+# **st.button을 쓰지 않는다**(2026-08-14 상하님 지적 — "열고 닫는데 로딩시간이 너무
+# 많이 걸린다"). st.button은 누를 때마다 **화면 전체를 다시 그린다.** 이 설명은
+# 글자뿐이라 다시 그릴 것이 없는데도 표·차트·시세를 통째로 다시 그리느라 몇 초씩
+# 걸렸다. 그래서 브라우저가 혼자 여닫는 <details>를 쓴다 — **다시 그리지 않으므로
+# 기다림이 없다.**
+#
+# 대신 여는 모양은 '이 테마 기법에 대한 설명'과 **같게** 맞췄다(상하님 지시) —
+# 단추 색(하늘색 바탕·주황 글씨)도, 위에서 아래로 커튼처럼 펼치는 것도 같다.
+# 펼치는 규칙은 method_help.py의 mh-drop과 같은 방식이되 **이름을 갈라 둔다** —
+# 같은 이름을 쓰면 한쪽을 고칠 때 다른 쪽이 조용히 따라 바뀐다.
+#
+# **한 가지 다른 점** — <details>는 화면을 다시 그리면 닫힌다. 스트림릿이 다시
+# 그리는 것은 상하님이 다른 단추를 누르셨을 때뿐이라 실제로는 걸리지 않는다.
+# 열린 채로 남기려면 st.button으로 돌아가야 하고, 그러면 다시 느려진다.
+_FACTOR_HELP_CSS = """
+<style>@keyframes j3fh-drop {
+    from { opacity: .35; clip-path: inset(0 0 100% 0); }
+    to   { opacity: 1;   clip-path: inset(0 0 0 0); }
+}
+.j3fh-chip {
+    display: inline-block;
+    margin-left: 1.5rem;
+    background: #cfe9ff;
+    border: 1px solid #8ec9f5;
+    border-radius: .45rem;
+    padding: .12rem .6rem;
+    color: #c15f3c !important;
+    font-size: .84rem;
+    font-weight: 800;
+    text-decoration: none !important;
+    vertical-align: middle;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s ease-out, border-color .12s ease-out;
+}
+.j3fh-chip:hover { background: #b9dfff; border-color: #6db6ee; }
+.j3fh-chip:active { filter: brightness(.95); }
+.j3fh-cb { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; }
+.j3fh-p { display: none; }
+.j3fh-swap .j3fh-cb:checked ~ .j3fh-p {
+    display: block;
+    animation: j3fh-drop .24s ease-out;
+}
+@media (max-width: 1200px) {
+    @keyframes j3fh-up {
+        from { transform: translateY(100%); opacity: .4; }
+        to   { transform: translateY(0); opacity: 1; }
+    }
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        z-index: 1000;
+        margin: 0;
+        padding: .85rem .9rem .6rem;
+        max-height: 78vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        background: #12161f;
+        border-top: 3px solid #6ee7b7;
+        border-radius: 14px 14px 0 0;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, .6);
+        animation: j3fh-up .26s ease-out;
+    }
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-item { border-left: none; }
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-x {
+        display: block; text-align: center; margin: .6rem 0 0; padding: .5rem;
+        position: sticky; bottom: 0;
+    }
+}
+.j3fh-x {
+    display: inline-block;
+    margin: .55rem 0 1.5rem;
+    padding: .18rem .7rem;
+    border-radius: .4rem;
+    color: #ffffff;
+    font-size: .85rem;
+    font-weight: 800;
+    cursor: pointer;
+    background: linear-gradient(90deg, #3a3f4a 0%, #565d6b 38%, #8b94a5 100%);
+}
+.j3fh-x-breakout { background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%); }
+.j3fh-x-crash { background: linear-gradient(90deg, #4a2408 0%, #7a3c0d 38%, #e07f1f 100%); }
+.j3fh-x:hover { filter: brightness(1.12); }
+.j3fh-item {
+    border-left: 3px solid #6ee7b7;
+    background: rgba(110, 231, 183, .06);
+    padding: .6rem .85rem;
+    margin: .55rem 0;
+    border-radius: 6px;
+}
+.j3fh-name { font-weight: 800; color: #6ee7b7; margin-bottom: .4rem; font-size: .97rem; }
+.j3fh-txt { line-height: 1.75; font-size: .92rem; }
+.j3fh-now { line-height: 1.7; font-size: .92rem; color: #9aa0aa;
+    margin-top: .35rem; padding-top: .35rem;
+    border-top: 1px dashed rgba(255,255,255,0.14); }
+.j3fh-h { color: #93c5fd; font-weight: 800; }
+.j3fh-k { color: #fbbf24; font-weight: 800; }
+.j3fh-z { color: #fb923c; font-weight: 800; }
+.j3fh-head {
+    border-left: 3px solid #93c5fd;
+    background: rgba(147, 197, 253, .08);
+    padding: .7rem .9rem;
+    margin: .2rem 0 .9rem;
+    border-radius: 6px;
+    line-height: 1.8;
+    font-size: .92rem;
+}
+.j3fh-head-t { color: #93c5fd; font-weight: 800; font-size: 1.0rem; display: block;
+               margin-bottom: .35rem; }
+.j3fh-x-top { display: none; }
+@media (max-width: 1200px) {
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-x-top {
+        display: block; text-align: center;
+        margin: 0 0 .55rem; padding: .5rem;
+        position: sticky; top: 0; bottom: auto; z-index: 2;
+    }
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p .j3fh-x:not(.j3fh-x-top) { display: none; }
+    .j3fh-swap .j3fh-cb:checked ~ .j3fh-p { padding-bottom: 5.8rem; }
+}</style>
+"""
+
+# **이름은 앞부분만 맞춰 본다.** 급락 항목 이름에는 '(상위 5등)'처럼 등수가 붙는데
+# 그 숫자는 다시 잴 때마다 바뀐다. 이름을 통째로 맞추면 그때 설명이 조용히 사라진다.
+#
+# **점수 숫자를 여기 적을 때는 조심한다.** 배점을 고치면 이 글도 같이 고쳐야 한다.
+# 2026-08-14에 「테마 상황」 카드가 사라진 항목을 계속 가리키고 있었다.
+#
+# **'무리'라고 쓰지 않는다**(2026-08-14 상하님 지시). 화면 어디에도 없는 말이라
+# 상하님이 무엇을 가리키는지 되물으셔야 했다. 표에 있는 말 그대로 '관련 테마'라 쓴다.
+# 「설명」 창에 들어가는 글. **핵심만 적는다**(2026-08-21 상하님 지시 —
+# "설명란 내용이 너무 많다 핵심만 넣어라"). 남기는 것은 세 가지뿐이다 —
+#   무엇을 보는가 · 배점(문턱) · 0점이면 왜 0점인가.
+# 「왜 보는가」·「재어 보니」·「이렇게 읽으십시오」 같은 뒷이야기는 뺐다.
+# 그 내력은 docs/US_THEME_SPEC.md와 git 기록에 남아 있다.
+#
+# **표에는 이 글을 안 붙인다**(같은 지시 — "심사항목에 초록색 글자만 나타내라").
+# 항목 이름 밑에 흰 글씨로 붙이던 것을 걷어냈고, 여기 「설명」에서만 본다.
+_FACTOR_HELP = (
+    # 2026-08-26 상하님 지시로 급락 네 항목의 글을 두 줄 안으로 줄였다
+    # ("설명 줄인 것 맞나? 너무 많다"). 무엇을 보는지와 몇 점인지만 남긴다.
+    ("이 종목이 평소 크게 움직이나",
+     "<b class='j3fh-k'>최근 3개월 동안 하루에 몇 %씩 움직였는지</b> — 오늘 목록에서 위쪽 절반이면 점수를 줍니다."),
+    ("테마가 같이 오르는가",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마가 최근 5일 동안 다른 테마보다 <b "
+     "class='j3fh-k'>더 올랐는지</b> 보고, 테마 20개를 줄 세워 위쪽 5등 안에 들면 점수를 주려 했습니다.<br><span "
+     "class='j3fh-z'>왜 0점인가</span> — 상승장 자리에서 재 보니 <b class='j3fh-k'>이 잣대로 고른 쪽이 더 벌지 "
+     "않았습니다.</b> 최근 5일은 너무 짧아 그날그날 오르내림에 휘둘립니다. 대신 앱은 같은 ‘테마를 본다’는 생각을 훨씬 긴 잣대(반년 수익률·30주선)로 "
+     "바꿔 급락 갈래에서만 점수를 줍니다."),
+    ("이 테마가 이미 오름세로 돌아섰나",
+     "같은 테마 회사들 중 <b class='j3fh-k'>몇 %가 30주선(150일 평균) 위</b>인지 — 테마 20개 중 3등 안이면 점수를 줍니다."),
+    ("이 테마가 통째로 떨어졌나",
+     "<b class='j3fh-k'>같은 테마 회사가 네 개 이상</b> 오늘 이 목록에 같이 올라왔는지 — 중간 점수는 없습니다."),
+    ("이 테마가 지난 반년에 많이 올랐나",
+     "같은 테마 회사들이 <b class='j3fh-k'>지난 반년에 평균 몇 % 올랐는지</b> — 테마 20개 중 3등 안이면 점수를 줍니다."),
+    ("테마가 30주선 위에 있나",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마에 든 회사 중 <b class='j3fh-k'>몇 %가 "
+     "30주선(150일 평균) 위에 있는지</b> 세어, 테마 20개를 줄 세웁니다. 위에서 <b class='j3fh-k'>3등 안</b>에 들면 30점, "
+     "아니면 0점입니다."),
+    ("테마가 덜 빠졌나",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목의 관련 테마가 다른 테마보다 <b class='j3fh-k'>덜 "
+     "떨어졌는지</b> 보고, 테마 20개를 줄 세워 위쪽 몇 등 안에 들면 점수를 주려 했습니다.<br><span class='j3fh-z'>왜 "
+     "0점인가</span> — 앱은 2026-08-13까지 이 잣대에 점수를 주고 있었습니다. 그런데 나스닥이 −12%·−18%·−24%에 처음 닿은 날 "
+     "기준으로 다시 재 보니 <b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. 오히려 <b class='j3fh-k'>많이 "
+     "빠진 테마가 더 크게 되돌아왔습니다.</b> 그래서 앱은 0점으로 내렸습니다. 상승장 자리에서도 따로 재 봤지만 마찬가지로 통과하지 못했습니다."),
+    ("테마 주봉이 오름세인가",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 관련 테마 회사들 중 몇 %가 아직 <b class='j3fh-k'>오름세 "
+     "모양</b>인지 봅니다. 오름세 모양이란 지금 값이 50일 평균 위 · 50일 평균이 150일 평균 위 · 150일 평균이 200일 평균 위이고, 200일 "
+     "평균이 오르는 중인 것입니다.<br><span class='j3fh-z'>왜 0점인가</span> — 나스닥이 −12%·−18%·−24%에 처음 닿은 날 "
+     "기준으로 다시 재 보니 <b class='j3fh-k'>100번 중 34~44번</b>밖에 못 맞혔습니다. 네 조건을 다 채우려면 이미 한참 오른 뒤여야 "
+     "해서, <b class='j3fh-k'>급락 바로 뒤에는 이 조건을 채우는 테마가 거의 없습니다.</b> 값은 그대로 적어 두니 참고로만 보십시오."),
+    ("테마가 20일선 위에 있나",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 관련 테마 회사들 중 몇 %가 최근 한 달 평균값(20일선) 위에 있는지 세어 "
+     "테마 20개를 줄 세웁니다.<br><span class='j3fh-z'>왜 0점인가</span> — 20일선은 한 달짜리라 급락 뒤에는 <b "
+     "class='j3fh-k'>며칠 반등만으로도 금세 넘어섭니다.</b> 다시 재 보니 20일선 위에 있던 종목이 1년 뒤 오히려 <b "
+     "class='j3fh-k'>23% 덜 올랐습니다.</b> 앱은 같은 생각을 훨씬 긴 잣대(30주선 30점)로 바꿔 주고 있습니다."),
+    ("테마 대비 상대강도",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 최근 20일 동안 <b class='j3fh-k'>자기 관련 테마 "
+     "평균보다 더 올랐는지</b> 봅니다."),
+    ("SPY 대비 상대강도",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 최근 20일 동안 <b class='j3fh-k'>미국 시장 "
+     "전체(SPY)보다 더 올랐는지</b> 봅니다."),
+    ("52주 신고가 위치",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 지금 값이 <b class='j3fh-k'>지난 1년 최고가에 얼마나 "
+     "가까운지</b> 봅니다. 가까울수록 점수가 높습니다."),
+    ("추세",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 짧은 평균선이 긴 평균선 위에 있는지 봅니다(20일 · 50일 · 200일). "
+     "위에서부터 차례로 놓여 있으면 오르는 중입니다.<br><span class='j3fh-z'>왜 0점인가</span> — 앱이 지난 10년을 창 96개로 "
+     "잘라 재 보니, <b class='j3fh-k'>20일선 위는 96개 중 5개, 50일선 위는 12개</b>에서만 이겼습니다. 거의 거꾸로였습니다. "
+     "여기까지 올라온 종목은 대부분 이미 오름세라 <b class='j3fh-k'>이 잣대로는 서로를 가려낼 수 없습니다.</b> 뺀 20점은 다른 항목에 나눠 "
+     "주지 않았습니다 — 그래서 이 표의 만점은 100점이 아니라 80점입니다."),
+    ("유동성",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 이 종목이 하루에 얼마나 많이 사고팔리는지 봅니다. 적으면 상하님이 사고팔 때 "
+     "값이 크게 흔들립니다."),
+    ("변동성 안정",
+     "<span class='j3fh-h'>무엇을 보는가</span> — 앱은 값이 하루에 얼마나 크게 흔들리는지 봅니다."),
+)
+
+
+# ── 설명 창 **머리말** ──────────────────────────────────────────────────────
+# 2026-08-15 상하님 지시 — "왜 그렇게 했는지 나스닥 어떻게 조사했고 결과가 그렇다
+# 이런 내용을 맨 위에 표시하고 그다음 세부항목별 간단한 이유 넣어라."
+#
+# 항목 설명만 늘어놓으면 **왜 어떤 항목은 40점이고 어떤 항목은 0점인지**를 알 수
+# 없다. 그 답은 항목 하나에 있지 않고 '어떻게 조사했나'에 있다. 그래서 파트마다
+# 조사 방법과 결과를 맨 위에 한 번 적는다.
+#
+# **여기 적힌 숫자는 실제로 돌려서 나온 값이다**(CLAUDE.md 0-1 가). 배점을 다시
+# 재면 이 글도 같이 고친다.
+_FACTOR_HELP_HEAD = (
+    ("_breakout",
+     "상승장 (신고가 눌림매수) — 앱은 이렇게 조사했습니다",
+     "<b>앱이 무엇을 했나</b> — 앱은 나스닥 명부 200종목의 지난 10년 일봉을 놓고, "
+     "<b class='j3fh-k'>1년 최고가를 뚫은 뒤 −10~−15% 눌린 날</b>을 전부 찾아냈습니다. "
+     "그리고 <b class='j3fh-k'>같은 날 뽑힌 종목끼리만</b> 견줬습니다 — 잘 오른 해에 "
+     "뽑힌 종목과 빠진 해에 뽑힌 종목을 섞으면, 시장이 좋았던 것을 종목이 좋았던 "
+     "것으로 착각하게 됩니다. 사고 나서 3개월·6개월·1년 들고 있었을 때를 각각 "
+     "봤습니다.<br>"
+     "<b>결과가 그렇습니다</b> — 종목 하나만 보는 잣대(지금 눌린 폭 · 거래대금 · "
+     "하루 오르내림 폭)는 <b class='j3fh-k'>세 보유기간 어디에서도 갈라내지 "
+     "못했습니다.</b> 갈린 것은 둘뿐이었습니다. 하나는 그 종목이 아니라 "
+     "<b class='j3fh-k'>관련 테마</b>가 1년 최고에 얼마나 붙어 있나(70점), 다른 하나는 "
+     "<b class='j3fh-k'>뚫던 날</b> 기준 앞 60일에 얼마나 올랐나(30점)입니다. "
+     "둘을 더해 100점 만점입니다.<br>"
+     "<b>0점 항목을 왜 남겨 뒀나</b> — 앱이 무엇을 보고 무엇을 버렸는지 상하님이 "
+     "아셔야 하기 때문입니다. 0점은 '안 쟀다'가 아니라 <b class='j3fh-k'>'재 봤는데 "
+     "통과하지 못했다'</b>는 뜻입니다."),
+    ("_crash",
+     "급락 후 반등장 (낙폭종목) — 앱은 이렇게 조사했습니다",
+     # ── 2026-08-26 상하님 지시로 3분의 1로 줄였다 ─────────────────────────
+     # 상하님 — "급락반등 전용배점에 설명보기인데 너무 길다. 1/3로 줄이고
+     # 핵심 내용만 넣어라." 3,050자였다.
+     # **남긴 것과 그 까닭** (지우면 규칙을 어긴다)
+     #  · 점수를 주는 넷과 점수 — CLAUDE.md 0-1 마
+     #  · 안 쓰는 것 — 0-1 마 "재 보고 버린 항목은 설명에 남긴다"
+     #  · 보유기간 참고표 — 0-1 바 "앱은 파는 시점을 정하지 않는다.
+     #    3개월·6개월·1년 성적을 나란히 보여줄 뿐이다"
+     # **뺀 것** — 조사 방법 문단, 한계 두 문단, 표 뒤 세 문단. 숫자는
+     # research/us_crash_holding.py 에 그대로 있다.
+     "지난 10년 <b class='j3fh-k'>나스닥 바닥 아홉 번</b>에서 739종목을 재 "
+     "봤습니다.<br>"
+     "<b>점수를 주는 넷 (100점)</b><br>"
+     "· <b class='j3fh-k'>주가 변동성 40점</b> — 크게 출렁이던 종목이 크게 "
+     "튑니다.<br>"
+     "· <b class='j3fh-k'>테마가 30주선 위 30점</b> — 업종이 흐름을 지키면 "
+     "회복도 빠릅니다.<br>"
+     "· <b class='j3fh-k'>같은 테마 4개 동시 하락 20점</b> — 업종째 밀려야 "
+     "업종째 돌아옵니다.<br>"
+     "· <b class='j3fh-k'>테마 6개월 수익률 10점</b> — 짧게 보면 덜 맞습니다."
+     "<br>"
+     "<b>안 쓰는 것</b> — <b class='j3fh-z'>20일선 위</b>와 "
+     "<b class='j3fh-z'>대형기술주 감점</b>은 반대였고, "
+     "<b class='j3fh-z'>고점 대비 낙폭</b>은 이미 쓴 값이며, "
+     "<b class='j3fh-z'>위 테마 순위표</b>는 6개월에 무너졌습니다.<br>"
+     "<b class='j3fh-k'>둘 다 점수를 받은 종목</b>이 특히 좋았습니다.<br>"
+     # ── 2026-08-26 상하님 지시로 **한계와 참고표를 뺐다** ────────────────
+     # 상하님 — "설명 줄인 것 맞나? 너무 많다." → 제가 못 빼는 넷을 여쭈었고
+     # "한계랑 참고표 빼라"고 정해 주셨다.
+     #
+     # 이 둘은 원래 상하님이 넣으라 하셨던 것이라 제 판단으로는 못 뺐다 —
+     #  · 한계의 실측값(바닥 하나씩 빼고 다시 재기 · 생존편향 +51.6/+74.6%)
+     #    은 2026-08-19 지시였다.
+     #  · 보유기간 참고표(3개월·6개월·1년·1년 반)는 CLAUDE.md 0-1 바가
+     #    "앱은 파는 시점을 정하지 않고 지난 성적을 나란히 보여줄 뿐"이라고
+     #    적어 둔 그 표다.
+     # 오늘 상하님이 직접 빼라 하셨으므로 뺀다. **숫자는 그대로 살아 있다** —
+     # research/us_crash_holding.py (보유기간) · research/us_crash_leaveout.py
+     # (한계). 되살리려면 이 주석 자리에 그대로 도로 넣으면 된다.
+     "<span class='j3fh-z'>앱은 파는 시점을 정하지 않습니다.</span>"),
+    ("_theme",
+     "테마 안에서 어느 종목을 볼까 — 앱은 이렇게 조사했습니다",
+     f"<b>이 표가 하는 일</b> — 위 「{_THEME_COUNT}개 테마 실시간 순위」에서 테마를 고르셨으면, "
+     "이 표는 <b class='j3fh-k'>그 테마 안에서 어느 종목을 볼지</b>를 매깁니다.<br>"
+     "<b>앱이 무엇을 했나</b> — 앱은 나스닥 명부 종목의 지난 10년을 창(기간) "
+     "<b class='j3fh-k'>96개</b>로 잘라, 잣대마다 '이 잣대가 높은 쪽이 정말 더 "
+     "벌었나'를 창마다 따로 봤습니다. 한 기간에서만 통하는 값은 기간이 바뀌면 "
+     "뒤집히기 때문입니다.<br>"
+     "<b>결과가 그렇습니다</b> — 평균선 줄서기(추세)는 96개 창 중 "
+     "<b class='j3fh-k'>20일선은 5개, 50일선은 12개</b>에서만 이겼습니다. 거의 "
+     "거꾸로였습니다. 그래서 앱은 추세를 <b class='j3fh-z'>0점</b>으로 내렸습니다. "
+     "남은 넷을 더해 <b class='j3fh-k'>80점 만점</b>입니다. 뒤의 둘(유동성 · 변동성 "
+     "안정)은 더 벌 종목을 맞히는 잣대가 아니라 '상하님이 사고파실 수 있는 종목인가'를 "
+     "거르는 잣대입니다.<br>"
+     "<b>위 테마 점수(100점)에 대해</b> — 앱은 그 점수도 따로 재 봤습니다. 거래일 "
+     "2,500일 동안 날마다 테마 20개를 그 점수로 줄 세우고 5일·10일·20일·3개월·"
+     "6개월·1년 뒤 성적과 견줬는데, <b class='j3fh-k'>어느 기간에서도 앞날을 맞히지 "
+     "못했습니다.</b> 그래서 그 점수는 앞날이 아니라 <b class='j3fh-k'>지금 달아오른 "
+     "정도</b>로만 읽으십시오. 이름표를 '주도/관찰'에서 '강함/보통'으로 바꾼 것도 "
+     "그 때문입니다."),
+    ("",
+     "이 종목 배점 — 앱은 이렇게 조사했습니다",
+     "<b>앱이 무엇을 했나</b> — 앱은 나스닥 명부 종목의 지난 10년을 창(기간) "
+     "<b class='j3fh-k'>96개</b>로 잘라, 잣대마다 '이 잣대가 높은 쪽이 정말 더 "
+     "벌었나'를 창마다 따로 봤습니다.<br>"
+     "<b>결과가 그렇습니다</b> — 평균선 줄서기(추세)는 96개 창 중 "
+     "<b class='j3fh-k'>20일선은 5개, 50일선은 12개</b>에서만 이겼습니다. 거의 "
+     "거꾸로여서 앱은 <b class='j3fh-z'>0점</b>으로 내렸습니다. 남은 넷을 더해 "
+     "<b class='j3fh-k'>80점 만점</b>입니다. 뒤의 둘(유동성 · 변동성 안정)은 더 벌 "
+     "종목을 맞히는 잣대가 아니라 '상하님이 사고파실 수 있는 종목인가'를 거릅니다."),
+)
+
+
+def _factor_help_close(key: str) -> str:
+    """설명 창 **맨 위**의 닫기 (2026-08-26 상하님 지적).
+
+    상하님 — "스마트폰 화면인데 설명이 너무 길어 닫는 버튼이 겹쳐 누를 자리가
+    없다." 폰·태블릿에서 설명 창은 화면 아래에 붙어 열리는데, 그 위로 하단
+    이동막대(홈·관심종목·시장분석)가 더 높은 층에 떠 있어서 창 바닥의 닫기를
+    덮었다. 맨 위에도 하나 두면 글이 아무리 길어도 바로 닫을 수 있다.
+    """
+    return f"<label class='j3fh-x j3fh-x-top' for='{key}'>✕ 설명 닫기</label>"
+
+
+def _factor_help_head(key: str) -> str:
+    """이 배점표가 붙은 파트의 머리말. 열쇠 이름 끝으로 파트를 가른다."""
+    text = str(key)
+    for suffix, title, body in _FACTOR_HELP_HEAD:
+        if suffix and text.endswith(suffix):
+            return (f"<div class='j3fh-head'><span class='j3fh-head-t'>{title}</span>"
+                    f"{body}</div>")
+    _suffix, title, body = _FACTOR_HELP_HEAD[-1]
+    return (f"<div class='j3fh-head'><span class='j3fh-head-t'>{title}</span>"
+            f"{body}</div>")
+
+
+def _factor_help_body(name) -> str:
+    """이 심사항목의 설명 글. 설명이 없는 항목이면 빈 글자."""
+    for prefix, body in _FACTOR_HELP:
+        if str(name).startswith(prefix):
+            return body
+    return ""
+
+
+def _factor_table_html(factor_rows: str, total_row: str, names, key: str,
+                       notes=None) -> str:
+    """배점표 한 벌 — 표 + 제목 옆 '설명' + 총점 아래 설명 창을 **한 덩어리로** 만든다.
+
+    상하님 — "제목 심사항목 옆에 넣으라고." · "버튼 안눌린다."
+
+    **한 덩어리여야 눌린다.** 확인칸·'설명'·창을 st.markdown 세 번에 나눠 넣으면
+    스트림릿이 각각 다른 묶음에 그려서 브라우저가 서로를 못 찾는다. 이 화면의
+    지수 그림 바꾸기(.j3-idx-swap)도 한 묶음이라 눌린다 — 같은 짜임으로 맞췄다.
+
+    설명이 있는 항목이 하나도 없으면 표만 돌려준다 — 열 것이 없는데 '설명'만
+    보이면 상하님이 없는 것을 찾으시게 된다.
+    """
+    # ``notes``는 배점표에 붙어 있던 '이 종목의 값' 줄이다. 표에서는 뺐고
+    # (2026-08-21 상하님 지시 — "초록색 제목만 두고 나머지 흰색 내용 다 빼라")
+    # 값은 여기 설명 창으로 내린다. 버리면 왜 이 점수인지가 화면에서 사라진다.
+    names = [str(name) for name in (names or ())]
+    note_list = [str(note or "").strip() for note in (notes or ())]
+    note_list += [""] * (len(names) - len(note_list))
+    picked = [(name, _factor_help_body(name), note)
+              for name, note in zip(names, note_list)]
+    picked = [item for item in picked if item[1] or item[2]]
+    # 닫기 단추 색은 **그 파트의 갈래 색**이다(2026-08-14 상하님 지시). 갈래는 열쇠
+    # 이름으로 안다 — j3_factor_help_pullback_breakout / …_crash. 테마 실시간·순위 7은
+    # 갈래가 아니라 회색 그대로다(초록=상승장, 주황=급락이라는 약속이 흐려진다).
+    close_tone = ("j3fh-x-breakout" if str(key).endswith("_breakout")
+                  else "j3fh-x-crash" if str(key).endswith("_crash") else "")
+    chip = f"<label class='j3fh-chip' for='{key}'>설명</label>"
+    table = (
+        "<table class='j3-factor-table'><thead><tr>"
+        f"<th>심사 항목{chip}</th><th>획득(최대)</th></tr></thead>"
+        f"<tbody>{factor_rows}{total_row}</tbody></table>"
+    )
+    items = "".join(
+        f"<div class='j3fh-item'><div class='j3fh-name'>{html.escape(name)}</div>"
+        + (f"<div class='j3fh-txt'>{body}</div>" if body else "")
+        + (f"<div class='j3fh-now'>{html.escape(note)}</div>" if note else "")
+        + "</div>"
+        for name, body, note in picked
+    )
+    return (
+        _FACTOR_HELP_CSS
+        + "<div class='j3fh-swap'>"
+        + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
+        + table
+        + f"<div class='j3fh-p'>{_factor_help_close(key)}{_factor_help_head(key)}{items}"
+        + f"<label class='j3fh-x {close_tone}' for='{key}'>✕ 설명 닫기</label></div></div>"
+    )
+
+
+def _general_theme_score_help_html(factor_rows: str, total_row: str, key: str) -> str:
+    """GENERAL 배점표 + 아래로 펼쳐지는 설명 카드.
+
+    **급락·상승장과 똑같은 확인칸(checkbox) 방식이다** (2026-08-26 상하님 지시 —
+    "일반테마에 설명보기 클릭하면 급락반등 전용배점의 설명보기처럼 설명이
+    열리도록 해라").
+
+    예전에는 여기만 <button> 에 자바스크립트로 손잡이를 달았다. 그 스크립트는
+    작은 iframe 안에서 바깥 화면(window.parent)을 찾아 들어가야 하는데,
+    스트림릿이 표를 다시 그리면 손잡이가 붙어 있던 자리가 통째로 갈려서 단추가
+    죽었다. 확인칸 방식은 브라우저가 CSS로만 여닫으므로 다시 그려도 안 죽는다.
+    """
+    chip = f"<label class='j3fh-chip' for='{key}'>설명 보기</label>"
+    table = (
+        "<table class='j3-factor-table'><thead><tr>"
+        f"<th>상세 배점{chip}</th><th>획득(최대)</th></tr></thead>"
+        f"<tbody>{factor_rows}{total_row}</tbody></table>"
+    )
+    head = (
+        "<div class='j3fh-head'><span class='j3fh-head-t'>"
+        "📘 일반 테마매매 — 앱은 이렇게 종목을 고릅니다</span>"
+        "<span class='j3fh-k'>좋은 테마 안에 있는 좋은 종목</span>을 찾습니다. "
+        "종목 힘 <span class='j3fh-h'>60%</span> + 테마 힘 "
+        "<span class='j3fh-k'>40%</span>로 최종점수를 만듭니다.<br>"
+        "<span class='j3fh-z'>점수가 높다고 바로 매수하라는 뜻은 아닙니다.</span></div>"
+    )
+    cards = (
+        ("종목점수 — <span class='j3fh-k'>100점</span>",
+         "<span class='j3fh-h'>3개월 40점</span> · <span class='j3fh-h'>6개월 40점</span> · "
+         "<span class='j3fh-h'>1년 최고가 근접 20점</span><br>시장보다 지속적으로 강하고 "
+         "높은 가격대에 있는 종목인지 봅니다."),
+        ("테마점수 — <span class='j3fh-k'>100점</span>",
+         "<span class='j3fh-h'>6개월 35점</span> · <span class='j3fh-h'>3개월 30점</span> · "
+         "<span class='j3fh-h'>강한 종목 수 25점</span> · <span class='j3fh-h'>최근 힘 증가 10점</span><br>"
+         "테마의 중기·최근 힘과 여러 종목이 함께 강한지 봅니다."),
+        ("최종점수", "<span class='j3fh-h'>종목 60%</span> + <span class='j3fh-k'>테마 40%</span>입니다. "
+         "예: 종목 90점, 테마 80점이면 <span class='j3fh-k'>최종 86점</span>입니다.<br>"
+         "실제 매수 여부는 시장상태와 현재 가격자리를 따로 확인합니다."),
+    )
+    items = "".join(
+        f"<div class='j3fh-item'><div class='j3fh-name'>{title}</div>"
+        f"<div class='j3fh-txt'>{body}</div></div>" for title, body in cards
+    )
+    general_css = (
+        "<style>"
+        ".j3-general-group{border-top:2px solid rgba(255,255,255,.35)!important;font-weight:800!important}"
+        ".j3-general-factor-note{color:#9aa0aa;font-size:.78rem;font-weight:500;margin-top:.22rem}"
+        "</style>"
+    )
+    return (
+        _FACTOR_HELP_CSS + general_css
+        + "<div class='j3fh-swap'>"
+        + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
+        + table
+        + f"<div class='j3fh-p'>{_factor_help_close(key)}{head}{items}"
+        + f"<label class='j3fh-x' for='{key}'>✕ 설명 닫기</label></div></div>"
+    )
+
+
+# **_bind_general_theme_help_scroll 은 걷어냈다** (2026-08-26).
+# 일반 테마 설명을 <button> + 자바스크립트로 여닫던 장치였다. 그 스크립트는 작은
+# iframe 안에서 바깥 화면(window.parent)을 찾아 들어가 손잡이를 달아야 했는데,
+# 스트림릿이 표를 다시 그리면 손잡이가 붙어 있던 자리가 통째로 갈려서 단추가
+# 죽었다(상하님 — "일반테마에 설명보기 클릭하면 급락반등 전용배점의 설명보기처럼
+# 열리도록 해라"). 이제 급락과 같은 확인칸(checkbox) 방식이라 브라우저가 CSS로만
+# 여닫는다. 다시 그려도 안 죽고, 작은 iframe 하나가 줄어 화면도 가벼워진다.
+
+
+def _swing_factor_table_html(
+    factor_rows: str, total_row: str, explanations: dict, key: str,
+) -> str:
+    """US_SWING_V1 표와 selector 중앙 설명 payload를 한 덩어리로 표시한다."""
+
+    order = ("market", "rs60", "rs120", "breakout", "pullback",
+             "theme", "volume", "breadth", "rebound")
+    items = []
+    for metric in order:
+        payload = (explanations or {}).get(metric) or {}
+        if not payload:
+            continue
+        title = html.escape(str(payload.get("title") or metric))
+        current = html.escape(str(payload.get("display_value") or "자료부족"))
+        one_line = html.escape(str(payload.get("one_line_explanation") or ""))
+        detail = html.escape(str(payload.get("detail_explanation") or ""))
+        status = html.escape(str(payload.get("status") or ""))
+        confidence = html.escape(str(payload.get("confidence") or ""))
+        sureness = us_swing.plain_confidence(payload.get("confidence"))
+        items.append(
+            "<div class='j3fh-item'>"
+            f"<div class='j3fh-name'>{title} · {current}</div>"
+            "<div class='j3fh-txt'>"
+            f"<span class='j3-help-line'>{one_line}</span>"
+            f"<span class='j3-help-detail'>{detail}</span>"
+            f"<span class='j3-muted'>지금 {status or '—'}"
+            + (f" · {html.escape(sureness)}" if sureness else "")
+            + "</span></div></div>"
+        )
+    chip = f"<label class='j3fh-chip' for='{key}'>자세히</label>"
+    table = (
+        "<table class='j3-factor-table'><thead><tr>"
+        f"<th>심사 항목{chip}</th><th>획득(최대)</th></tr></thead>"
+        f"<tbody>{factor_rows}{total_row}</tbody></table>"
+    )
+    head = (
+        "<div class='j3fh-head'><span class='j3fh-head-t'>"
+        "상승장 (신고가 눌림매수) — 항목마다 무엇을 보고 준 점수인가</span>"
+        "점수보다 **통과조건**이 먼저입니다. 여섯 가지를 다 넘지 못하면 뒤쪽 네 항목이 "
+        "아무리 좋아도 등급을 붙이지 않습니다. 총점은 승률이 아닙니다.</div>"
+    )
+    return (
+        _FACTOR_HELP_CSS
+        + "<div class='j3fh-swap'>"
+        + f"<input type='checkbox' class='j3fh-cb' id='{key}'>"
+        + table
+        # **창 맨 위에도 닫기를 둔다** (2026-08-29 상하님 지적 — "상승장 신고가
+        # 눌림 전용배점 밑에 심사항목 옆에 자세히 클릭하면 설명문이 내려오는데
+        # 설명문에 닫기 버튼이 없어졌다").
+        #
+        # 폰·태블릿(≤1200px)에서는 창 **바닥**의 닫기를 숨긴다 — 하단 이동막대에
+        # 가려 누를 수가 없어서 2026-08-26에 그렇게 막았다(.j3fh-x:not(.j3fh-x-top)).
+        # 그때 맨 위 닫기(_factor_help_close)를 급락·일반 테마 표에는 넣었는데
+        # **이 표에만 안 넣었다.** 그래서 폰에서 이 창만 닫는 자리가 하나도
+        # 없어졌다. 나머지 둘과 같은 자리에 같은 것을 넣는다.
+        + f"<div class='j3fh-p'>{_factor_help_close(key)}{head}{''.join(items)}"
+        + f"<label class='j3fh-x j3fh-x-breakout' for='{key}'>✕ 닫기</label>"
+          "</div></div>"
+    )
+
+
+def _trade_snapshot(theme_row: dict, leader: dict, market: dict) -> dict:
+    """저장할 때 함께 남기는 **그때의 시장·테마·종목 상태**.
+
+    한 곳에 모아 둔다 — 예전에는 폼 안에만 있어서, 다른 자리에서 저장하면 남기는
+    내용이 조용히 달라질 수 있었다.
+    """
+    metrics = leader.get("metrics") or {}
+    return {
+        "captured_at": theme_row.get("source_time") or market.get("checked_at"),
+        "market": {"regime": market.get("regime"), "score": market.get("score")},
+        "theme": {
+            "name": theme_row.get("name"), "etf": theme_row.get("etf"),
+            "score": theme_row.get("score"), "rank": theme_row.get("rank"),
+            "rs20": theme_row.get("rs20"), "breadth": theme_row.get("breadth"),
+        },
+        "stock": {
+            "ticker": leader.get("ticker"), "rank": leader.get("rank"),
+            "score": leader.get("score"), "current": metrics.get("current"),
+            "score_model_version": leader.get("score_model_version"),
+            "core_score": leader.get("core_score"),
+            "support_score": leader.get("support_score"),
+            "primary_status": leader.get("primary_status"),
+            "from_high_pct": metrics.get("from_high_pct"),
+            "ret20": metrics.get("ret20"), "atr_pct": metrics.get("atr_pct"),
+            "ret120": metrics.get("ret120"),
+        },
+    }
+
+
+def _save_trade_now(theme_row: dict, leader: dict, market: dict) -> tuple[bool, str]:
+    """**지금 화면 값 그대로** 매수 기록 한 줄을 남긴다 (2026-08-14 상하님 지시).
+
+    상하님 — "실제 매수 기록 부분은 클릭하면 그 시점에 자동매수 한 걸로 저장되게."
+
+    **주문은 내지 않는다.** 이 앱은 증권사에 아무것도 보내지 않고 기록만 한다
+    (CLAUDE.md 2번 — 자동매매·주문 API 금지). '자동매수'는 **그때 값으로 샀다고
+    치고 적어 둔다**는 뜻이다.
+
+    값은 지금 보고 계신 화면 그대로다 — 매수가는 현재가, 매수일은 오늘, 수량은
+    비워 둔다. 실제 체결가가 다르면 아래 '값을 직접 적어 저장'에서 고쳐 적으시면 된다.
+    """
+    metrics, plan = leader.get("metrics") or {}, leader.get("plan") or {}
+    price = metrics.get("current")
+    if not price:
+        return False, "지금 값을 못 읽어 저장하지 못했습니다. 잠시 뒤 다시 눌러 주십시오."
+    buy_date = date.today()
+    try:
+        j3store.save_trade(
+            ticker=leader["ticker"],
+            stock_name=leader.get("name") or leader["ticker"],
+            theme_name=theme_row.get("name") or "",
+            buy_date=buy_date,
+            buy_price=float(price),
+            quantity=None,
+            trade_style="스윙",
+            entry_setup=plan.get("state"),
+            recommendation_state=plan.get("recommendation"),
+            market_regime=market.get("regime"),
+            market_score=market.get("score"),
+            theme_score=theme_row.get("score"),
+            stock_score=leader.get("score"),
+            score_model_version=leader.get("score_model_version"),
+            entry_plan=plan,
+            snapshot=_trade_snapshot(theme_row, leader, market),
+            memo="화면에서 바로 저장(그때 값 그대로)",
+        )
+    except Exception as exc:
+        return False, f"매수 기록 저장 실패: {_safe_error_text(exc)}"
+    return True, (f"{leader.get('name') or leader['ticker']} · {buy_date.isoformat()} · "
+                  f"${float(price):,.2f} 매수 기록을 저장했습니다.")
+
+
+def _render_buy_form(
+    theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
+    *, panel: str = "theme",
+) -> None:
+    ticker = leader["ticker"]
+    metrics, plan = leader["metrics"], leader["plan"]
+    # 위 '추천 근거 요약' 카드와 붙어 보이지 않게 한 줄 띄운다(2026-07-22 사용자 지시).
+    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+    # 매수 기록은 눌러야 열린다 — 늘 펴 두면 화면이 길고 기록 조회도 매번 돈다
+    # (2026-07-30 사용자 지시, 한국테마와 같은 처리).
+    if not _section_toggle(
+        "💾 실제 매수기록 저장하시겠습니까?", f"j3_buyform_open_{panel}",
+        close_label="매수기록 닫기",
+    ):
+        return
+
+    # **한 번 눌러 바로 저장**(2026-08-14 상하님 지시). 매수가는 지금 값, 매수일은
+    # 오늘이다. 아래 자세한 폼은 그대로 뒀다 — 실제 체결가가 화면 값과 다를 때
+    # 고쳐 적으실 자리다. **주문은 내지 않는다**(_save_trade_now 설명 참고).
+    quick_msg_key = f"j3_quick_buy_msg_{panel}"
+
+    def _quick_save():
+        st.session_state[quick_msg_key] = _save_trade_now(theme_row, leader, market)
+
+    price_now = (leader.get("metrics") or {}).get("current")
+    st.button(
+        f"🧾 지금 값으로 바로 저장 — {leader.get('name') or ticker}"
+        + (f" ${float(price_now):,.2f}" if price_now else "")
+        + f" · {date.today().isoformat()}",
+        key=f"j3_quick_buy_{panel}", on_click=_quick_save,
+    )
+    quick_msg = st.session_state.pop(quick_msg_key, None)
+    if quick_msg:
+        (st.success if quick_msg[0] else st.error)(quick_msg[1])
+
+    # 상세 종목 선택(복제)은 네모칸 밖, '실제 매수 기록' 제목 위에 둔다
+    # (2026-07-22 사용자 지시). 여기서 골라도 위 상세 전체가 같이 바뀐다.
+    ticker_options = [item["ticker"] for item in top_candidates]
+    by_ticker = {item["ticker"]: item for item in top_candidates}
+    mirror_key = f"{stock_key}_form"
+
+    def _apply_form_stock_change():
+        # 아래 라디오에서 고른 종목을 위 라디오(진짜 선택 상태)에 반영한다.
+        st.session_state[stock_key] = st.session_state[mirror_key]
+
+    if st.session_state.get(mirror_key) != ticker or st.session_state.get(mirror_key) not in ticker_options:
+        st.session_state[mirror_key] = ticker
+    st.radio(
+        "상세 종목 선택",
+        ticker_options,
+        format_func=lambda value: _stock_radio_label(by_ticker[value]) if value in by_ticker else value,
+        horizontal=True,
+        key=mirror_key,
+        on_change=_apply_form_stock_change,
+    )
+
+    # 제목 옆에서 그동안 저장한 매수 기록 현황을 바로 펼쳐볼 수 있게 한다
+    # (2026-07-22 사용자 지시 — 저장 폼과 현황이 함께 있어야 한다).
+    title_col, status_col = st.columns([0.28, 1.72])
+    with title_col:
+        st.markdown("#### 실제 매수 기록")
+    with status_col:
+        try:
+            progress = j3store.trade_progress()
+            summary = (
+                f"보유 {progress['open_count']}건 · 청산 {progress['closed_count']}/"
+                f"{progress['minimum_sample']}건 · 전체 {progress['total_count']}건"
+            )
+        except Exception:
+            summary = None
+        expander_label = f"📋 매수 기록 현황 보기 — {summary}" if summary else "📋 매수 기록 현황 보기"
+        with st.expander(expander_label, expanded=False):
+            try:
+                records = j3store.list_trades(limit=100)
+            except Exception as exc:
+                st.error(f"기록 조회 실패: {_safe_error_text(exc)}")
+                records = []
+            if records:
+                # 읽기 전용 표였을 때 매도일·매도가를 눌러도 안 된다는 지적(2026-07-22)
+                # → 여기서도 같은 클릭 입력형 표를 쓴다.
+                _render_records_editor(records, key_prefix=f"form_{panel}")
+            else:
+                st.caption("아직 저장된 매수 기록이 없습니다.")
+    st.caption("실제로 매수한 경우에만 저장합니다. 저장 시 당시 시장·테마·종목 조건도 함께 보존됩니다.")
+    # 화면이 길어 여기까지 내려오면 어느 종목인지 헷갈린다는 지적(2026-07-22)에 따라,
+    # 네모칸 안 맨 위에 종목 이름·지표 헤더를 그대로 한 번 더 넣는다(위쪽 원본 유지).
+    with st.container(border=True):
+        form_rank = int(leader.get("rank") or 0)
+        form_medal = _MEDAL_BY_RANK.get(form_rank, "") if float(leader.get("score") or 0) >= 80 else ""
+        form_medal_html = f"<span class='j3-medal'>{form_medal}</span> " if form_medal else ""
+        st.markdown(
+            f"<div class='j3-stock-name'>{form_medal_html}{leader['name']} · {ticker}</div>"
+            f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
+            unsafe_allow_html=True,
+        )
+        _render_selected_live_quote(leader.get("score"), plan.get("state"),
+                                    panel=f"buy_{panel}", ticker=ticker,
+                                    metrics=leader.get("metrics"))
+        _render_buy_form_fields(theme_row, leader, market, panel=panel)
+
+
+def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict,
+                            *, panel: str = "theme") -> None:
+    ticker = leader["ticker"]
+    metrics, plan = leader["metrics"], leader["plan"]
+    with st.form(f"j3_buy_form_{panel}_{ticker}", clear_on_submit=False, border=False):
+        c1, c2, c3, c4 = st.columns(4)
+        buy_date = c1.date_input("매수일", value=date.today(), key=f"j3_buy_date_{panel}_{ticker}")
+        default_price = float(metrics.get("current") or 0.01)
+        buy_price = c2.number_input(
+            "실제 매수가(USD)", min_value=0.01, value=round(default_price, 2), step=0.01,
+            key=f"j3_buy_price_{panel}_{ticker}",
+        )
+        quantity = c3.number_input(
+            "수량(선택)", min_value=0.0, value=0.0, step=1.0, key=f"j3_buy_qty_{panel}_{ticker}",
+        )
+        trade_style = c4.selectbox(
+            "매매유형", ["스윙", "단타", "중장기"], key=f"j3_trade_style_{panel}_{ticker}",
+        )
+        memo = st.text_area("매수 이유·메모", key=f"j3_buy_memo_{panel}_{ticker}", height=80)
+        confirmed = st.checkbox(
+            "실제 체결된 매수임을 확인합니다",
+            key=f"j3_buy_confirm_{panel}_{ticker}",
+        )
+        submitted = st.form_submit_button("매수 기록 저장", width="stretch")
+
+    if submitted:
+        if not confirmed:
+            st.error("실제 체결 확인을 체크해야 저장할 수 있습니다.")
+            return
+        snapshot = _trade_snapshot(theme_row, leader, market)
+        try:
+            j3store.save_trade(
+                ticker=ticker,
+                stock_name=leader["name"],
+                theme_name=theme_row["name"],
+                buy_date=buy_date,
+                buy_price=buy_price,
+                quantity=quantity or None,
+                trade_style=trade_style,
+                entry_setup=plan.get("state"),
+                recommendation_state=plan.get("recommendation"),
+                market_regime=market.get("regime"),
+                market_score=market.get("score"),
+                theme_score=theme_row.get("score"),
+                stock_score=leader.get("score"),
+                score_model_version=leader.get("score_model_version"),
+                entry_plan=plan,
+                snapshot=snapshot,
+                memo=memo,
+            )
+            st.success(f"{leader['name']} · {buy_date.isoformat()} · ${buy_price:,.2f} 매수 기록을 저장했습니다.")
+        except Exception as exc:
+            st.error(f"매수 기록 저장 실패: {_safe_error_text(exc)}")
+
+
+def _render_radar_tail(market: dict, ranking: dict) -> None:
+    """테마 구역 **뒤에 오는 화면들**을 한 곳에 모은다 (2026-08-27).
+
+    상승장·급락 후 반등장 · 매수심사결과 높은 순위 9 · 종목검색 · 날짜별 목록이다.
+
+    예전에는 이 다섯이 **두 군데에 똑같이** 적혀 있었다 — 테마 판이 닫혔을 때
+    한 벌, 열렸을 때 한 벌. 그래서 테마 구역만 따로 떼어 낼 수가 없었다.
+
+    **덤으로 흠 하나가 고쳐진다** — 테마 자료나 대장주 조회가 실패하면 예전에는
+    그 자리에서 되돌아가 버려 상승장·순위 9·종목검색이 통째로 사라졌다.
+    이제는 테마 쪽이 어떻게 되든 이 다섯은 늘 그려진다.
+    """
+    guest_mode = auth.is_guest()
+    _render_pullback_finder(market, ranking)
+    # 매수심사결과 높은 순위 7 — 한국테마(자비스4)와 같은 자리·같은 화면이다.
+    if not guest_mode:
+        # 종목검색 위의 「✕ 순위 9 닫기」도 이 덩이 안에서 그린다(2026-09-13).
+        _render_top7_section(market, ranking)
+    _render_my_stock_panel(market, ranking)
+    # 날짜별로 저장해 둔 목록(2026-08-09 상하님 지시). 네 갈래를 다 지나온 뒤에 둔다 —
+    # 오늘 것을 먼저 보고, 지난 날 것은 그 아래에서 펴 본다.
+    # **맨 위 「내가 저장한 매수 기록」 표는 뺐다** (2026-08-29 상하님 지시 —
+    # "위에 캡처 화면은 날려라. 내가 저장하는 게 없잖아, 자동 저장되니.
+    #  「어느 날 목록을 볼까요」 바로 위에까지 잘라라").
+    # 그 표는 상하님이 종목 상세에서 「지금 값으로 바로 저장」을 누르셨을 때만
+    # 쌓이는 줄인데, 목록은 이제 장 마감 뒤 저절로 저장되므로 누를 일이 없다.
+    # 그래서 화면만 먹고 있었다. header 를 안 넘기면 그 자리가 통째로 빈다.
+    # **기록 자체는 안 지운다** — DB(j3store)에 그대로 있고, 되살리려면 여기에
+    # header=_render_saved_trades_header 를 도로 넣으면 된다.
+    _render_picklist_section(market, ranking)
+
+
+# 날짜별 목록을 **열 때** 화면이 올라갈 자리 (2026-09-13 상하님 지시 — "클릭하면
+# 화면이 캡처 화면처럼 위로 올라오게 해라"). 캡처는 「어느 날 목록을 볼까요」가
+# 화면 맨 위다. 그 칸 **바로 위**에 찍는다.
+_PICKLIST_ANCHOR = "picklist_top"
+# 날짜 칸의 열쇠 — picklist_ui 가 `picklist_date_{시장}` 으로 만든다(그 모듈은 안 건드린다).
+_PICKLIST_DATE_KEY = "picklist_date_US"
+# 지난 판에 본 날짜. 이것과 달라졌으면 날짜를 바꿔 고르신 판이다.
+_PICKLIST_SEEN_DATE_KEY = "j3_picklist_seen_date"
+
+
+def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
+    """날짜별 목록 여닫이 — 열면 「어느 날 목록을 볼까요」가 화면 맨 위로 온다.
+
+    여닫는 방식은 다른 구역과 같은 `_section_toggle` 을 그대로 쓴다. 여는 순간에만
+    그 자리로 올라가라고 적어 두고, 열려 있으면 여닫이 단추 바로 밑(= 「어느 날
+    목록을 볼까요」 바로 위)에 자리 표시를 찍는다. picklist_ui(한국테마와 같이
+    쓰는 모듈)는 건드리지 않는다.
+    """
+    is_open = _section_toggle(
+        label, key, close_label=close_label,
+        on_open=lambda: scroll_to.request(st, _PICKLIST_ANCHOR),
+    )
+    if not is_open:
+        # 목록을 닫아도 **파트별 성적표는 그대로 둔다** (2026-09-25 상하님 — 성적표를 목록 밖으로 뺐다).
+        return is_open
+    if _PICKLIST_DATE_KEY not in st.session_state:
+        # **처음 열 때는 맨 위(가장 새 날)가 아니라 그 전날을 고른다** (2026-09-23 밤
+        # 상하님 — "당일이 첫 로딩으로 되어 있는데 전날로 해라"). 가장 새 날 목록은
+        # 매수금액(다음 거래일 시가)이 아직 없다. 날짜 칸은 한국테마와 같이 쓰는
+        # picklist_ui 가 만들므로 그 모듈은 안 건드리고, 칸이 생기기 **전에** 값만 적어 둔다
+        # (index=0 이라 스트림릿이 「기본값과 둘 다 줬다」고 경고하지 않는다).
+        try:
+            import picklist_store as _pl_store
+
+            _saved_dates = _pl_store.available_dates("US")
+            if len(_saved_dates) > 1:
+                st.session_state[_PICKLIST_DATE_KEY] = _saved_dates[1]
+        except Exception:
+            pass
+    if is_open:
+        # **날짜를 바꿔 골라도 다시 그 자리로 올린다** (2026-09-13 상하님 —
+        # "첫 번째 한 번은 되는데 화면을 내려서 밑에서 다시 날짜 클릭하면 또 안 된다").
+        # 여는 순간에만 올리게 해 두어서, 열어 둔 채 날짜를 바꾸면 화면이 그 자리에
+        # 머물렀다. 날짜 칸은 스트림릿이 이 판을 그리기 **전에** 새 값으로 바꿔 두므로,
+        # 지난 판에 본 날짜와 견주어 달라졌으면 올린다. 처음 여는 판은 위 on_open 이
+        # 이미 올리므로 여기서는 날짜만 적어 둔다. 종목 누르기 같은 다른 판에서는
+        # 날짜가 그대로라 안 올린다(그때는 세부사항 자리로 내려가야 한다).
+        #
+        # **두 번째 날짜 클릭이 빠지던 것** (2026-09-16 상하님 — "두 번째 날짜를 클릭하면
+        # 안 되고 세 번째부터는 되더라"). 「지난 판에 본 날짜」를 여기서 적었는데, 목록을
+        # 연 그 판에는 날짜 칸이 아직 안 만들어져 빈값이라 아무것도 못 적었다. 그래서
+        # 첫 날짜 변경 판에는 견줄 값이 없어 건너뛰었다. 이제 **목록을 다 그린 뒤**
+        # (_render_picklist_section 끝) 그 판의 날짜를 적는다 — 연 판에도 적힌다.
+        picked = st.session_state.get(_PICKLIST_DATE_KEY)
+        seen = st.session_state.get(_PICKLIST_SEEN_DATE_KEY)
+        if picked is not None and seen is not None and picked != seen:
+            scroll_to.request(st, _PICKLIST_ANCHOR)
+        # **파트별 성적표 단추는 「저장해 둔 목록 닫기」 밑 · 「어느 날 목록을 볼까요」 위에
+        # 선다** (2026-09-24 상하님 지시). 예전에는 「CSV로 받기」 자리(엑셀 단추 오른쪽)였다.
+        # 올라가는 자리는 성적표가 닫혀 있으면 단추 위라 단추와 날짜 칸이 같이 보이고,
+        # 열려 있으면 성적표 밑(= 날짜 칸 바로 위)이라 날짜를 바꿔도 목록 쪽으로 간다.
+        # 파트별 성적표는 2026-09-25 부터 이 목록 **밖**이다(_render_scorecard_section).
+        scroll_to.anchor(st, _PICKLIST_ANCHOR)
+    return is_open
+
+
+def _picklist_no_scorecard(_part: str) -> bool:
+    """받기 단추 자리에는 이제 아무것도 안 둔다 — 성적표는 맨 위로 옮겼다(2026-09-24).
+    CSV 단추가 되살아나지 않게 picklist_ui 에는 빈 자리를 넘긴다(2026-09-16 「비워 둬라」)."""
+    return False
+
+
+# 파트별 성적표 (2026-09-16 상하님 지시) ─────────────────────────────────────
+# 상하님 — "각 테마별 성적표", "자리는 csv로 받기 자리에 그대로 넣고 밑에 저장해 둔
+# 28일치 csv는 비워둬라", "창이 위에서 밑으로 스르륵 멋지게 내려오도록".
+#
+# **화면 단추 이름 그대로** 넷이다 (2026-09-16 상하님 지적 — 「순위 9」를 그 안의
+# 매수 파트로 쪼개 「순위 9 · 테마 대장주」라고 부른 것은 제가 만든 이름이었다).
+# 막대 색도 그 단추 색 그대로라, 어느 단추 이야기인지 색만 보고 알 수 있다.
+_SCORECARD_KEY = "j3_scorecard_open"
+_SCORECARD_CACHE = "j3_scorecard_counts"
+_SCORECARD_SPAN_KEY = "j3_scorecard_span"
+# 칩에 적는 말. 속으로 쓰는 이름(누계)과 화면에 적는 말을 따로 둔다.
+_SCORECARD_CHIP_LABELS = {"누계": "기록 시작 후 누계"}
+_SCORECARD_PARTS = (
+    ("top7", "매수심사결과 높은 순위 9", "#2a78d6"),
+    ("breakout", "상승장 (신고가 눌림매수)", "#1b9e6f"),
+    # 이 줄이 세는 것은 22개 테마 전체가 아니라 **상위 테마 5개의 1~3위**다. 이름을 저장 목록
+    # 제목과 맞춘다(2026-09-17 상하님 지시 — "22개 테마에 이름이 바뀌어야 되지 않나?
+    # 상위 테마 5개(1~3위) 이게 맞지 않나?").
+    ("theme15", "상위 테마 5개 (1~3위)", "#c0392b"),
+    ("crash", "급락 후 반등장 (낙폭종목)", "#e08b1e"),
+)
+# 기간 넷. 「이번 달」만 **달력의 이번 달**(9월이면 9월 1일부터)이고, 나머지는
+# 오늘로부터 며칠 안인가로 가른다. 2026-09-16 에 상하님이 "계산 다시 짚어봐라"
+# 하셔서 보니, 「이번 달」이 사실은 「최근 31일」이었다 — 9월 16일에 8월 16일치가
+# 섞여 들었다. 이름과 계산이 달랐다.
+_SCORECARD_SPANS = (("일주일", 7), ("이번 달", "month"), ("6개월", 183),
+                    ("1년", 365), ("누계", None))
+# **세기 시작하는 날** (2026-09-16 상하님 지시 — "복잡하니 카운트 미국장 기준
+# 8월 31일 월요일부터 해라"). 파트마다 배점·명부가 확정된 날이 8/19·8/20·8/29 로
+# 제각각이라, 상하님이 그 뒤의 한 날로 못박으셨다. 이 날보다 앞선 줄은 안 센다.
+_SCORECARD_START = "2026-08-31"
+# 순위 9 속 세 파트 — 이름은 저장 파일의 origin 칸 그대로, 색은 순위 9 표의
+# 「어느 분야」 칸 글자색 그대로다(테마 대장주 파랑 · 상승장 초록 · 급락 주황).
+_SCORECARD_TOP9_PARTS = (
+    ("테마 대장주", "#4da6ff"),
+    ("상승장", "#12a06a"),
+    ("급락 후 반등장", "#e67813"),
+)
+_SCORECARD_TOP9_PARTS_NAMES = {name for name, _color in _SCORECARD_TOP9_PARTS}
+
+
+def _scorecard_in_span(when, anchor, days) -> bool:
+    """그 매수일이 이 기간 안인가. **기준은 어제**다.
+
+    2026-09-16 상하님 지시 — "오늘 전날부터, 즉 어제부터 일주일·이번 달·1년
+    이런 식으로 카운트해라." 오늘 산 것은 장이 안 끝나 성적을 모르므로, 기간을
+    오늘이 아니라 어제에서 거꾸로 센다. 「이번 달」도 **어제가 속한 달**이다
+    (10월 1일에 보면 9월 성적이 그대로 남는다).
+    """
+    if days == "month":
+        return (when.year, when.month) == (anchor.year, anchor.month)
+    if days is None:
+        return True
+    return 0 <= (anchor - when).days <= days
+
+
+def _scorecard_prices(codes) -> dict:
+    """성적표가 쓰는 「지금 값」 — **마지막 장 종가**다 (2026-09-16 상하님 지시 ①).
+
+    상하님 — "첫 열기 5초, 줄일 수 있는 방법은?" 시간은 전부 종목값 받는 데
+    들고 있었다. picklist_ui.fetch_prices 는 일봉과 **당일 1분봉(장전·장후 포함)**
+    을 둘 다 받는데, 성적표는 「어제까지」로 재기로 했으므로 오늘 1분봉이 필요
+    없다. 1분봉은 45초짜리라 누를 때마다 110종목을 새로 받고 있었다.
+
+    일봉도 **시장분석 화면이 이미 받아 둔 249종목 묶음**을 그대로 쓴다. 그 묶음과
+    같은 기한(US_BATCH_TTL=30분)으로 부르면 `_download_cached` 가 큰 묶음에서
+    꺼내 준다. 예전에는 5분으로 물어서 5분만 지나면 110종목을 다시 받았다.
+    """
+    wanted = tuple(dict.fromkeys(
+        str(code).strip().upper() for code in codes if str(code).strip()))
+    if not wanted:
+        return {}
+    try:
+        frames, _info = j3data._download_cached(
+            wanted, period="2y", interval="1d",
+            ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+    except Exception:
+        return {}
+    out = {}
+    for code, frame in (frames or {}).items():
+        try:
+            closes = frame["Close"].dropna()
+        except Exception:
+            continue
+        if len(closes):
+            out[code] = float(closes.iloc[-1])
+    return out
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _scorecard_counts_cached(stamp: str) -> dict:
+    """저장해 둔 날을 전부 읽어 파트마다 **이익 난 확률**을 센다.
+
+    산 값은 저장된 「매수금액(다음 거래일 시가)」이고, 지금 값은 마지막 장
+    종가다(_scorecard_prices). 매수금액이 빈 줄과 값을 못 받은 종목은 **안 센다**
+    — 0으로 채우면 본전으로 읽혀 안 잰 것과 구별이 안 된다.
+
+    **앱 전체에 10분 보관한다** (2026-09-16 상하님 지시 ②). 예전에는 화면을 새로
+    열 때마다(세션마다) 다시 셌다. 한 번 세면 그 뒤로는 바로 나온다.
+    stamp 에 저장된 날 수와 가장 최근 날을 담아, 새 날이 저장되면 다시 센다.
+    """
+    import picklist_store as store
+
+    dates = store.available_dates("US")
+    rows = []
+    for day in dates:
+        try:
+            rows.extend(store.load_rows(day, "US") or [])
+        except Exception:
+            continue
+    prices = _scorecard_prices([row.get("code") for row in rows]) if rows else {}
+    anchor = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
+    parts = {kind for kind, _name, _color in _SCORECARD_PARTS}
+    newest = dates[0] if dates else ""
+    counts = {}
+    for label, _days in _SCORECARD_SPANS:
+        for kind in parts:
+            counts[(kind, label)] = [0, 0]          # [센 횟수, 이익 난 횟수]
+        counts[("_all", label)] = [0, 0]
+    seen_days = {label: set() for label, _days in _SCORECARD_SPANS}
+    for row in rows:
+        kind = str(row.get("list_kind") or "")
+        if kind not in parts:
+            continue
+        day = str(row.get("trade_date") or "")
+        if newest and day >= newest:
+            continue            # 산 날 장이 아직 안 끝났다 — 다음 날 센다
+        if day < _SCORECARD_START:
+            continue            # 세기 시작한 날보다 앞이다
+        gain = store.profit_pct(row.get("buy_open"),
+                                prices.get(str(row.get("code") or "").upper()))
+        if gain is None:
+            continue
+        try:
+            when = date.fromisoformat(day)
+        except Exception:
+            continue
+        for label, days in _SCORECARD_SPANS:
+            if not _scorecard_in_span(when, anchor, days):
+                continue
+            seen_days[label].add(day)
+            keys = [(kind, label), ("_all", label)]
+            # **순위 9 는 그 속 세 파트로도 센다** (2026-09-17 상하님 지시 —
+            # "매수심사결과 높은 순위 9 에 세 가지 항목이 3개씩 들어 있는데 이걸 알
+            # 수가 없다, 클릭하면 그 속에서 이익율을 볼 수 있게"). 저장된 줄의
+            # origin 칸이 파트다(8/31 이후 줄은 전부 들어 있다).
+            origin = str(row.get("origin") or "").strip()
+            if kind == "top7" and origin in _SCORECARD_TOP9_PARTS_NAMES:
+                keys.append((f"top7:{origin}", label))
+            for key in keys:
+                counts.setdefault(key, [0, 0])
+                counts[key][0] += 1
+                counts[key][1] += 1 if gain > 0 else 0
+    spans = {}
+    for label, _days in _SCORECARD_SPANS:
+        used = sorted(seen_days[label])
+        spans[label] = {"days": len(used),
+                        "first": used[0] if used else "",
+                        "last": used[-1] if used else ""}
+    return {"counts": counts, "spans": spans}
+
+
+def _scorecard_counts() -> dict:
+    """이 판에서 쓸 성적표 값. 세션에 한 번, 앱 전체에 10분 보관한다."""
+    if _SCORECARD_CACHE in st.session_state:
+        return st.session_state[_SCORECARD_CACHE]
+    import picklist_store as store
+
+    dates = store.available_dates("US")
+    # 끝의 판 표시는 세는 모양이 바뀌면 올린다 — 앱에 남은 옛 모양을 안 쓰게.
+    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|top9-parts"
+    data = _scorecard_counts_cached(stamp)
+    st.session_state[_SCORECARD_CACHE] = data
+    return data
+
+
+# ── 기간 고르기 (2026-09-24 상하님 지시) ───────────────────────────────────────
+# 상하님 — "기간을 정하는 것도 추가로 넣어라. 몇 월 며칠부터 몇 월 며칠까지 날짜 누르면
+# 시작 날짜와 끝날 날짜(항공편 예약하듯이) · 그 기간을 반영하면 저장해 둔 목록에서 찾을 수
+# 있잖아. 그러면 그 기간에 어떤 테마가 성적이 좋은지 알 수 있잖아. 지금은 시작점은 현시점밖에
+# 없으니." 기간 칩 다섯은 모두 「지금 값」과 견준다. 여기서는 **끝일 종가**와 견준다 —
+# 시작일~끝일 사이에 저장된 목록을 다음 거래일 시가에 사서 끝일 종가에 팔았다면.
+_SCORECARD_RANGE = "기간"
+
+
+def _us_last_trading_day(day):
+    """그날이거나 그 앞의 마지막 미국 거래일."""
+    import us_market_calendar
+
+    for _ in range(15):
+        if us_market_calendar.is_trading_day(day):
+            return day
+        day -= timedelta(days=1)
+    return day
+
+
+def _us_next_trading_day(day):
+    import us_market_calendar
+
+    day += timedelta(days=1)
+    for _ in range(15):
+        if us_market_calendar.is_trading_day(day):
+            return day
+        day += timedelta(days=1)
+    return day
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _scorecard_range_counts(stamp: str, start: str, end: str) -> dict:
+    """시작일~끝일 성적. 산 값 = 저장된 매수금액(다음 거래일 시가) · 판 값 = 끝일 종가.
+
+    끝일이 쉬는 날이면 그 앞 거래일 종가다. 산 날(다음 거래일)이 끝일보다 뒤인 줄은 안 센다.
+    매수금액이 빈 줄 · 끝일 값을 못 찾은 종목은 안 센다(0으로 채우지 않는다).
+    「상위 테마 5개」 줄은 테마별로도 센다 — 어느 테마가 그 기간에 잘 맞았나.
+    """
+    import picklist_store as store
+
+    first = date.fromisoformat(start)
+    last = _us_last_trading_day(date.fromisoformat(end))
+    rows = []
+    for day in store.available_dates("US"):
+        try:
+            when = date.fromisoformat(day)
+        except ValueError:
+            continue
+        if day < _SCORECARD_START or when < first or _us_next_trading_day(when) > last:
+            continue
+        try:
+            rows.extend(store.load_rows(day, "US") or [])
+        except Exception:
+            continue
+    wanted = tuple(dict.fromkeys(str(row.get("code") or "").strip().upper()
+                                 for row in rows if str(row.get("code") or "").strip()))
+    closes_at_end = {}
+    if wanted:
+        try:
+            frames, _info = j3data._download_cached(
+                wanted, period="2y", interval="1d",
+                ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+        except Exception:
+            frames = {}
+        for code, frame in (frames or {}).items():
+            try:
+                closes = frame["Close"].dropna()
+                days = [(stamp_.tz_convert(ZoneInfo("America/New_York")) if stamp_.tzinfo else stamp_).date()
+                        for stamp_ in closes.index]
+                picked = [float(v) for d, v in zip(days, closes) if d <= last]
+                if picked:
+                    closes_at_end[code] = picked[-1]
+            except Exception:
+                continue
+    parts = {kind for kind, _name, _color in _SCORECARD_PARTS}
+    counts: dict = {}
+    themes: dict = {}
+    used = set()
+    for row in rows:
+        kind = str(row.get("list_kind") or "")
+        if kind not in parts:
+            continue
+        gain = store.profit_pct(row.get("buy_open"),
+                                closes_at_end.get(str(row.get("code") or "").upper()))
+        if gain is None:
+            continue
+        used.add(str(row.get("trade_date") or ""))
+        keys = [(kind, _SCORECARD_RANGE), ("_all", _SCORECARD_RANGE)]
+        origin = str(row.get("origin") or "").strip()
+        if kind == "top7" and origin in _SCORECARD_TOP9_PARTS_NAMES:
+            keys.append((f"top7:{origin}", _SCORECARD_RANGE))
+        for key in keys:
+            counts.setdefault(key, [0, 0])
+            counts[key][0] += 1
+            counts[key][1] += 1 if gain > 0 else 0
+        if kind == "theme15" and origin:
+            slot = themes.setdefault(origin, [0, 0, 0.0])
+            slot[0] += 1
+            slot[1] += 1 if gain > 0 else 0
+            slot[2] += float(gain)
+    ordered = sorted(used)
+    return {
+        "counts": counts,
+        "spans": {_SCORECARD_RANGE: {"days": len(ordered), "first": ordered[0] if ordered else "",
+                                     "last": ordered[-1] if ordered else ""}},
+        "themes": sorted(((name, seen, win, total / seen) for name, (seen, win, total) in themes.items()),
+                         key=lambda item: (-(item[2] / item[1]), -item[3])),
+        "sold": last.isoformat(),
+    }
+
+
+def _scorecard_theme_html(data: dict) -> str:
+    """기간 고르기의 테마별 성적 — 「상위 테마 5개」에 든 테마마다 산 횟수·이익 난 횟수·평균."""
+    themes = data.get("themes") or []
+    if not themes:
+        return ""
+    rows = "".join(
+        f"<tr><td style='text-align:left;color:#e6e6e6;font-weight:700'>{html.escape(name)}</td>"
+        f"<td style='color:#b8c7dc'>{seen}번 중 {win}번</td>"
+        f"<td style='color:{'#ffd166' if win * 2 >= seen else '#ff8a8a'};font-weight:800'>"
+        f"{round(win * 100.0 / seen)}%</td>"
+        f"<td style='color:{_sign_color(avg)}'>{_pct(avg)}</td></tr>"
+        for name, seen, win, avg in themes)
+    return (
+        "<div class='j3sc-themes' style='margin-top:.6rem'>"
+        "<div style='color:#c084fc;font-weight:800;margin-bottom:.2rem'>이 기간 테마별 — 상위 테마 5개 줄</div>"
+        "<table style='width:100%;border-collapse:collapse;font-size:.86rem'>"
+        "<thead><tr style='color:#9aa0aa'><th style='text-align:left'>테마</th><th>이익 난 횟수</th>"
+        "<th>확률</th><th>평균</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>")
+
+
+def _scorecard_panel_html(data: dict, span: str) -> str:
+    """성적표 창. 막대 길이가 그 기간의 「100번 사면 이익 난 횟수」다.
+
+    기간은 **칩 네 개**로 고른다(2026-09-16 상하님 지적 — 시안에 있던 칩을 제가
+    만들 때 빼먹었다). 고른 기간의 숫자만 보여 주고, 그 기간에 잴 것이 없으면
+    「이 기간에는 잰 것이 없습니다」라고 적는다 — 0으로 채우지 않는다.
+    """
+    counts = data["counts"]
+
+    def hit(kind, label):
+        seen, win = counts.get((kind, label), (0, 0))
+        return None if not seen else round(win * 100.0 / seen)
+
+    ranked = sorted(_SCORECARD_PARTS, key=lambda part: -(hit(part[0], span) or -1))
+    rows_html = []
+    for order, (kind, name, color) in enumerate(ranked, start=1):
+        total = hit(kind, span)
+        if total is None:
+            rows_html.append(
+                f"<div class='j3sc-row'><span class='j3sc-no'>{order:02d}</span>"
+                f"<div class='j3sc-name'>{html.escape(name)}</div>"
+                "<span class='j3sc-bar'></span>"
+                "<span class='j3sc-val' style='color:#6f93bd'>—</span></div>")
+            continue
+        tone = "#ffd166" if total >= 50 else "#ff8a8a"
+        if kind == "top7":
+            # **누르는 곳은 보라색으로 가른다 · 누르면 창이 튀어 오른다**
+            # (2026-09-17 상하님 지적 — "구분을 못 하겠다, 어지럽기만 하다. 클릭
+            # 색깔 구분하게 하고, 테마나 종목 단추 누를 때 보라색 부분처럼. 클릭하면
+            # 다른 부분 흐릿하게 하고 그 부분 확대하면서 창이 애플 스마트폰처럼
+            # 확대되게, 다시 누르면 풍선 줄어들 듯이").
+            # 숨은 체크칸 하나로 여닫는다 — 서버에 다시 묻지 않아 누르는 즉시 움직인다.
+            # 창은 사라질 때도 움직임이 보이도록 display 가 아니라 크기·투명도로 감춘다.
+            parts_html = []
+            for part_name, part_color in _SCORECARD_TOP9_PARTS:
+                sub_seen = counts.get((f"top7:{part_name}", span), (0, 0))[0]
+                sub_rate = hit(f"top7:{part_name}", span)
+                if sub_rate is None:
+                    rate_html = "<b class='j3pop-rate' style='color:#6f93bd'>—</b>"
+                    bar_html = "<span class='j3sc-bar'></span>"
+                    seen_html = "<small>이 기간에는 잰 것이 없습니다</small>"
+                else:
+                    sub_tone = "#ffd166" if sub_rate >= 50 else "#ff8a8a"
+                    rate_html = f"<b class='j3pop-rate' style='color:{sub_tone}'>{sub_rate}%</b>"
+                    bar_html = (f"<span class='j3sc-bar'><i style='width:{sub_rate}%;"
+                                f"background:{part_color}'></i></span>")
+                    seen_html = f"<small>{sub_seen}번 사 본 값</small>"
+                parts_html.append(
+                    f"<div class='j3pop-part' style='--part:{part_color}'>"
+                    f"<div class='j3pop-part-head'><span class='j3pop-dot'></span>"
+                    f"<span class='j3pop-part-name'>{html.escape(part_name)} 1~3위</span>"
+                    f"{rate_html}</div>{bar_html}{seen_html}</div>")
+            rows_html.append(
+                "<input type='checkbox' id='j3sc-top9-tap' class='j3sc-tap'>"
+                "<label for='j3sc-top9-tap' class='j3sc-row j3sc-top9'>"
+                f"<span class='j3sc-no'>{order:02d}</span>"
+                f"<div class='j3sc-name'>{html.escape(name)}"
+                "<span class='j3sc-chip'>세 파트 보기</span></div>"
+                f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
+                f"<span class='j3sc-val' style='color:{tone}'>{total}%</span></label>"
+                # 흐려진 바탕을 눌러도 닫힌다.
+                "<label for='j3sc-top9-tap' class='j3pop-scrim' aria-hidden='true'></label>"
+                "<label for='j3sc-top9-tap' class='j3pop'>"
+                "<span class='j3pop-title'>매수심사결과 높은 순위 9</span>"
+                f"<span class='j3pop-total' style='color:{tone}'>{total}%</span>"
+                "<span class='j3pop-sub'>속 세 파트 · 이익 난 확률</span>"
+                + "".join(parts_html)
+                + "<span class='j3pop-close'>다시 누르면 닫힘</span></label>")
+            continue
+        rows_html.append(
+            f"<div class='j3sc-row'><span class='j3sc-no'>{order:02d}</span>"
+            f"<div class='j3sc-name'>{html.escape(name)}</div>"
+            f"<span class='j3sc-bar'><i style='width:{total}%;background:{color}'></i></span>"
+            f"<span class='j3sc-val' style='color:{tone}'>{total}%</span></div>")
+    used = (data.get("spans") or {}).get(span) or {}
+    if used.get("days") and span == _SCORECARD_RANGE:
+        note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
+                f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
+                f"<b>{html.escape(str(data.get('sold') or ''))} 종가</b>에 판 것으로 견줬습니다. "
+                "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다.")
+    elif used.get("days"):
+        note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
+                f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
+                "지금 값과 견준 것입니다. 매수금액이 아직 없는 줄과 값을 못 받은 "
+                "종목은 세지 않습니다.")
+    else:
+        note = "이 기간에는 아직 잴 것이 없습니다."
+    base = hit("_all", span)
+    if base is not None:
+        rows_html.append(
+            "<div class='j3sc-row j3sc-base'><span class='j3sc-no'></span>"
+            "<div class='j3sc-name'>네 파트를 다 샀다면</div>"
+            f"<span class='j3sc-bar'><i style='width:{base}%;background:#46617f'></i></span>"
+            f"<span class='j3sc-val'>{base}%</span></div>")
+    return (
+        "<div class='j3sc-body'>" + "".join(rows_html)
+        + f"<div class='j3sc-note'>{note}</div></div>"
+    )
+
+
+# 성적표 머리 자리 — 성적표를 열거나 기간 단추를 누르면 이 자리가 화면 맨 위에 선다
+# (2026-09-23 저녁 상하님 — "파트별 성적표 어디서 클릭하던 처음 화면이 저 위치에 되도록 해라").
+# 캡처처럼 성적표 상자 위 테두리가 화면 맨 위에서 12px 아래에 서게 띄운다(머리가 상자 위
+# 테두리에서 15px 아래라 27px). 굴리기는 「날짜별 목록」 덩이 끝의 scroll_to.run 이 한다.
+_SCORECARD_ANCHOR = "scorecard"
+
+
+def _toggle_scorecard() -> None:
+    """성적표 여닫기. **열 때** 성적표 머리를 화면 맨 위로 올린다."""
+    opening = not st.session_state.get(_SCORECARD_KEY)
+    st.session_state[_SCORECARD_KEY] = opening
+    if opening:
+        scroll_to.request(st, _SCORECARD_ANCHOR)
+
+
+def _pick_scorecard_span(value: str) -> None:
+    """기간 단추(일주일·이번 달·6개월·1년·누계). 고른 뒤 성적표 머리를 화면 맨 위로."""
+    st.session_state[_SCORECARD_SPAN_KEY] = value
+    scroll_to.request(st, _SCORECARD_ANCHOR)
+
+
+# ── 기간 고르기 달력 (2026-09-24 상하님 — "기간 고르기 너무 불편하다 · 날짜도 영어 말고
+# 숫자로 · 기간 처음 클릭하면 달력 뜨고 클릭, 종료일 클릭하면 달력 뜨고 이런 식으로") ────────
+# 스트림릿 날짜 칸은 영어 달력이고, 폰에서 누르면 자판이 올라오고, 첫 날을 누르면 달력이 닫혀
+# 끝날을 고르려면 다시 열어야 했다. 그래서 숫자 단추 달력을 직접 그린다 — 항공편 예약처럼
+# 「시작일」 칸을 누르면 그 달력이, 날을 누르면 곧바로 「종료일」 달력이 뜨고, 날을 누르면 닫히며
+# 성적이 나온다. 미국장이 쉬는 날(주말·휴일)은 칸만 있고 누를 수 없다. 주말 줄은 뺐다.
+_SCORECARD_RANGE_START = "j3sc_rng_start"
+_SCORECARD_RANGE_END = "j3sc_rng_end"
+_SCORECARD_RANGE_STEP = "j3sc_rng_step"      # "start" · "end" · "" (두 날을 다 고름)
+_SCORECARD_RANGE_MONTH = "j3sc_rng_month"    # 달력에 띄운 (연, 월)
+
+
+def _range_open_field(which: str) -> None:
+    """「시작일」·「종료일」 칸을 누르면 그 달력을 띄운다(그 날이 있는 달로)."""
+    st.session_state[_SCORECARD_RANGE_STEP] = which
+    day = st.session_state.get(_SCORECARD_RANGE_START if which == "start" else _SCORECARD_RANGE_END) \
+        or st.session_state.get(_SCORECARD_RANGE_START)
+    if day:
+        st.session_state[_SCORECARD_RANGE_MONTH] = (day.year, day.month)
+
+
+def _range_pick_day(day_iso: str) -> None:
+    """달력의 날을 눌렀다. 시작일이면 곧바로 종료일 달력으로, 종료일이면 달력을 닫는다."""
+    day = date.fromisoformat(day_iso)
+    if (st.session_state.get(_SCORECARD_RANGE_STEP) or "start") == "start":
+        st.session_state[_SCORECARD_RANGE_START] = day
+        end = st.session_state.get(_SCORECARD_RANGE_END)
+        if end and end < day:
+            st.session_state.pop(_SCORECARD_RANGE_END, None)
+        st.session_state[_SCORECARD_RANGE_STEP] = "end"
+    else:
+        st.session_state[_SCORECARD_RANGE_END] = day
+        st.session_state[_SCORECARD_RANGE_STEP] = ""
+
+
+def _range_move_month(step: int) -> None:
+    year, month = st.session_state.get(_SCORECARD_RANGE_MONTH) or (date.today().year, date.today().month)
+    month += step
+    year, month = (year - 1, 12) if month < 1 else (year + 1, 1) if month > 12 else (year, month)
+    st.session_state[_SCORECARD_RANGE_MONTH] = (year, month)
+
+
+def _render_range_picker():
+    """시작일·종료일 두 칸과 그 밑 달력. 두 날을 다 골랐으면 (시작일, 종료일), 아니면 None."""
+    import calendar as _calendar
+
+    import us_market_calendar
+
+    first_day = date.fromisoformat(_SCORECARD_START)
+    last_day = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
+    state = st.session_state
+    if _SCORECARD_RANGE_STEP not in state:
+        state[_SCORECARD_RANGE_STEP] = "start"            # 처음 누르면 시작일 달력부터
+    start, end = state.get(_SCORECARD_RANGE_START), state.get(_SCORECARD_RANGE_END)
+    step = state.get(_SCORECARD_RANGE_STEP) or ""
+    if _SCORECARD_RANGE_MONTH not in state:
+        state[_SCORECARD_RANGE_MONTH] = (last_day.year, last_day.month)
+    with st.container(key="j3sc_calf"):
+        fields = st.columns(2)
+        fields[0].button(f"시작일 · {start:%Y.%m.%d}" if start else "시작일 · 누르세요",
+                         key="j3sc_calf_start", width="stretch",
+                         type="primary" if step == "start" else "secondary",
+                         on_click=_range_open_field, args=("start",))
+        fields[1].button(f"종료일 · {end:%Y.%m.%d}" if end else "종료일 · 누르세요",
+                         key="j3sc_calf_end", width="stretch", disabled=start is None,
+                         type="primary" if step == "end" else "secondary",
+                         on_click=_range_open_field, args=("end",))
+    if step:
+        year, month = state[_SCORECARD_RANGE_MONTH]
+        with st.container(key="j3sc_cal"):
+            head = st.columns([1, 4, 1])
+            head[0].button("◀", key="j3sc_cal_prev", width="stretch",
+                           disabled=(year, month) <= (first_day.year, first_day.month),
+                           on_click=_range_move_month, args=(-1,))
+            head[1].markdown(
+                f"<div class='j3sc-cal-title'>{'① 시작일' if step == 'start' else '② 종료일'}을 누르세요"
+                f"<b>{year}년 {month}월</b></div>", unsafe_allow_html=True)
+            head[2].button("▶", key="j3sc_cal_next", width="stretch",
+                           disabled=(year, month) >= (last_day.year, last_day.month),
+                           on_click=_range_move_month, args=(1,))
+            st.markdown("<div class='j3sc-cal-week'><span>월</span><span>화</span><span>수</span>"
+                        "<span>목</span><span>금</span></div>", unsafe_allow_html=True)
+            for week in _calendar.Calendar(firstweekday=0).monthdatescalendar(year, month):
+                days = week[:5]                              # 월~금만(주말은 장이 없다)
+                if not any(day.month == month for day in days):
+                    continue
+                cells = st.columns(5)
+                for cell, day in zip(cells, days):
+                    if day.month != month:
+                        cell.markdown("<div class='j3sc-cal-off'>&nbsp;</div>", unsafe_allow_html=True)
+                        continue
+                    usable = (first_day <= day <= last_day and us_market_calendar.is_trading_day(day)
+                              and not (step == "end" and start and day < start))
+                    if not usable:
+                        cell.markdown(f"<div class='j3sc-cal-off'>{day.day}</div>", unsafe_allow_html=True)
+                        continue
+                    chosen = day in (start, end)
+                    inside = bool(start and end and start < day < end)
+                    cell.button(str(day.day), key=f"j3sc_cal_{'in' if inside else 'd'}_{day.isoformat()}",
+                                width="stretch", type="primary" if chosen else "secondary",
+                                on_click=_range_pick_day, args=(day.isoformat(),))
+        return None
+    if start and end:
+        return start, end
+    return None
+
+
+_SCORECARD_BTN_ANCHOR = "scorecard_btn"
+
+
+def _close_scorecard_from_bottom() -> None:
+    """성적표 맨 밑 닫기 — 닫고 성적표 단추 자리로 올라간다."""
+    st.session_state[_SCORECARD_KEY] = False
+    scroll_to.request(st, _SCORECARD_BTN_ANCHOR)
+
+
+def _render_scorecard_section() -> None:
+    """파트별 성적표 — 날짜별 목록 **밖**, 그 밑 (2026-09-25 상하님 지시)."""
+    # 맨 밑 닫기를 누르면 이 자리(성적표 단추 바로 위)로 올라온다.
+    scroll_to.anchor(st, _SCORECARD_BTN_ANCHOR)
+    if _render_picklist_scorecard("button"):
+        _render_picklist_scorecard("panel")
+
+
+def _render_picklist_scorecard(part: str):
+    """「CSV로 받기」 자리의 단추와, 눌렀을 때 스르륵 내려오는 창."""
+    if part == "button":
+        # **켜고 끄기는 on_click 으로 한다** (2026-09-16 상하님 지적 — "파트별
+        # 성적표 보기와 닫기를 헷갈리는 모양이다"). 눌린 판에서 값을 바꾸면,
+        # 단추는 이미 옛 이름으로 그려진 뒤라 이름과 창이 어긋난다 — 닫을 때
+        # 「닫기」라고 적힌 채 창만 사라졌다. on_click 은 다시 그리기 **전에**
+        # 값을 바꾸므로 이름과 창이 늘 같이 간다.
+        open_now = bool(st.session_state.get(_SCORECARD_KEY))
+        st.button(
+            "📊 파트별 성적표 닫기" if open_now else "📊 파트별 성적표 보기",
+            key="picklist_scorecard_US", width="stretch",
+            on_click=_toggle_scorecard,
+        )
+        return open_now
+    span = str(st.session_state.get(_SCORECARD_SPAN_KEY) or "누계")
+    if span not in [label for label, _d in _SCORECARD_SPANS] + [_SCORECARD_RANGE]:
+        span = "누계"
+    if span != _SCORECARD_RANGE:
+        with st.spinner("저장해 둔 목록으로 성적을 세는 중입니다…"):
+            data = _scorecard_counts()
+    panel = st.container(key="j3sc_box")
+    with panel:
+        st.markdown(
+            # 자리 표시는 머리와 **같은 글 상자** 안에 둔다 — 따로 두면 칸 사이 틈이 하나 는다.
+            f"<div id='{scroll_to.anchor_id(_SCORECARD_ANCHOR)}' class='jarvis-anchor j3sc-anchor'></div>"
+            "<div class='j3sc-head'><b>📊 파트별 성적표</b>"
+            "<span>이익 난 확률</span></div>", unsafe_allow_html=True)
+        chip_list = list(_SCORECARD_SPANS) + [(_SCORECARD_RANGE, None)]
+        chips = st.columns(len(chip_list))
+        for index, (label, _days) in enumerate(chip_list):
+            chips[index].button(
+                "📅 기간 고르기" if label == _SCORECARD_RANGE
+                else _SCORECARD_CHIP_LABELS.get(label, label),
+                key=f"j3sc_span_{index}", width="stretch",
+                type="primary" if label == span else "secondary",
+                on_click=_pick_scorecard_span, args=(label,),
+            )
+        if span == _SCORECARD_RANGE:
+            picked = _render_range_picker()
+            if picked:
+                import picklist_store as _pl_store
+
+                dates = _pl_store.available_dates("US")
+                stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|range"
+                with st.spinner("고른 기간의 성적을 세는 중입니다…"):
+                    data = _scorecard_range_counts(stamp, picked[0].isoformat(), picked[1].isoformat())
+                st.markdown(_scorecard_panel_html(data, span) + _scorecard_theme_html(data),
+                            unsafe_allow_html=True)
+        else:
+            st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
+        # 「어느 때 어느 파트가 나았나」 표는 뺐다(2026-09-23 저녁 상하님 — "파트별 성적표 밑에
+        # 다 지워라 의미없다 삭제해라"). 계산만 research/parts_when.py 에 남아 있다.
+        # **맨 밑에 닫기 단추를 하나 더** (2026-09-25 상하님 — "파트별 성적표 보기를 열고 나면 맨 밑에
+        # 파트별 성적표 보기 닫기 단추를 하나 더 넣어라"). 누르면 닫고 성적표 단추 자리로 올라간다.
+        st.button("✕ 파트별 성적표 닫기", key="picklist_scorecard_US_close", width="stretch",
+                  on_click=_close_scorecard_from_bottom)
+    return True
+
+
+@st.fragment
+def _render_picklist_section(market: dict, ranking: dict) -> None:
+    """날짜별로 저장해 둔 목록 — **제 덩이만** 다시 그린다 (2026-09-13 상하님 —
+    "날짜별로 저장해 둔 목록 보기도 조금 늦다").
+
+    여닫이 단추가 덩이 밖에 있어서 누를 때마다 시장분석 화면 **전체**를 처음부터
+    다시 그렸다(온라인 게스트 실측 2.6초). 이 구역은 날짜·표·받기 단추뿐이고
+    바깥이 이 구역의 상태를 보지 않으므로 덩이 하나로 묶는다. 안에서 누르는
+    날짜 고르기·종목 누르기도 이 덩이만 다시 그린다.
+    """
+    picklist_ui.render(
+        st, "US", toggle=_picklist_toggle, close=_section_close,
+        # 그 줄이 어느 파트에서 나왔는지에 따라 **다른 배점표**로 보내야 한다.
+        # market·ranking 이 있어야 그 파트의 상세를 그리므로 여기서 싸서 넘긴다.
+        on_pick=lambda code, name, kind, row: _picklist_detail(
+            market, ranking, code, name, kind, row),
+        # 성적표 단추는 _picklist_toggle 이 목록 맨 위에 그린다(2026-09-24). 「CSV로 받기」
+        # 자리는 비워 둔다 — None 을 넘기면 CSV 단추가 되살아난다.
+        scorecard=_picklist_no_scorecard,
+    )
+    # **파트별 성적표는 목록 밖, 「날짜별로 저장해 둔 목록 보기」 밑** (2026-09-25 상하님 — "날짜별로
+    # 저장해 둔 목록 보기 안에 파트별 성적표 보기를 바깥으로 빼라. 날짜별로 저장해 둔 목록 보기 밑에
+    # 넣어라"). 목록을 안 열어도 바로 볼 수 있다. 목록을 열면 목록 끝 뒤에 선다.
+    _render_scorecard_section()
+    # 이 판에 보인 날짜를 적어 둔다 — 다음 판에 날짜가 바뀌었나를 여기와 견준다(위 _picklist_toggle).
+    # 닫힌 판에는 날짜 칸이 없어 빈값이 적히고, 다시 열면 그 판 끝에 새로 적힌다.
+    st.session_state[_PICKLIST_SEEN_DATE_KEY] = st.session_state.get(_PICKLIST_DATE_KEY)
+    # 덩이만 다시 그릴 때는 페이지 끝이 안 돈다 — 여기서 그 자리로 올려 준다.
+    scroll_to.run(st)
+
+
+# 저장해 둔 줄이 **어느 파트에서 나왔나**.
+_PICKLIST_PART_BY_KIND = {
+    "theme15": "테마 대장주",
+    "breakout": "상승장",
+    "crash": "급락 후 반등장",
+    "pullback": "눌림목",
+}
+
+# **`origin` 칸은 갈래마다 다른 것이 들어 있다** (2026-09-02 실측).
+#   순위 9(top7) 줄 — 「테마 대장주」·「상승장」·「급락 후 반등장」 (매수 파트)
+#   상위 테마(theme15) 줄 — 「사이버보안」처럼 **테마 이름**
+#   상승장·급락 줄 — 빈칸
+# 그래서 origin 을 그냥 파트로 믿으면 theme15 줄이 「사이버보안」이라는 파트로
+# 읽혀 어느 배점표로도 못 간다. **아는 파트 이름일 때만** 파트로 쓴다.
+_PICKLIST_PARTS = ("테마 대장주", "상승장", "급락 후 반등장", "눌림목")
+
+
+def _picklist_part(kind: str, row: dict) -> str:
+    origin = str((row or {}).get("origin") or "").strip()
+    if origin in _PICKLIST_PARTS:
+        return origin
+    return _PICKLIST_PART_BY_KIND.get(str(kind or ""), "")
+
+
+def _picklist_theme_name(row: dict) -> str:
+    """그 줄의 테마 이름. 상위 테마 줄은 `origin` 에, 나머지는 「테마」 칸에 있다."""
+    origin = str((row or {}).get("origin") or "").strip()
+    if origin and origin not in _PICKLIST_PARTS:
+        return origin
+    return str((row or {}).get("themes") or "").split("·")[0].strip()
+
+
+def _find_scan_row(found: dict, code: str, *, with_watch: bool = False) -> dict | None:
+    """오늘 그 파트 목록에서 이 종목 줄을 찾는다. 없으면 None.
+
+    with_watch — 상승장의 **관찰 줄**(watch_rows)까지 본다 (2026-09-13 상하님 —
+    "날짜별로 저장해 둔 목록에서 9월 10일 상승장 종목을 클릭했는데 선택종목
+    세부사항이 안 나온다"). 상승장 화면은 정식 후보와 관찰 줄을 **둘 다** 눌러
+    세부사항을 보게 한다(_render_us_swing_finder 의 all_selectable). 그런데
+    여기서는 정식 후보(rows)만 뒤져서, 그날 저장된 DELL 이 오늘 관찰 줄에
+    있는데도 "오늘 목록에 없다"로 빠졌다. 오늘은 정식 후보가 0개였다.
+    """
+    if not isinstance(found, dict) or not found.get("ok"):
+        return None
+    want = str(code or "").upper()
+    rows = list(found.get("rows") or [])
+    if with_watch:
+        rows += list(found.get("watch_rows") or [])
+    for row in rows:
+        if str(row.get("ticker") or "").upper() == want:
+            return row
+    return None
+
+
+def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
+                     kind: str, row: dict) -> None:
+    """저장해 둔 목록에서 누른 종목을 **그 줄이 나온 파트의 배점표**로 연다.
+
+    2026-09-02 상하님 지적 — *"CrowdStrike CRWD 종목을 내가 테마에서 클릭하면
+    테마의 배점 기준으로 나와야 되고, 그같이 상승장에서 종목을 누르면 상승장의
+    배점이 나와야지."*
+
+    **전에는 어느 줄을 누르든 종목검색 길(`analyze_one_stock`)로 보냈다.** 그래서
+    상승장에서 나온 CRWD 인데 테마 대장주 배점, 그것도 견줄 테마가 없어 상대강도
+    25점이 통째로 0인 반쪽(80점 만점)으로 나왔다 — 표에 적힌 그날 점수 89.0 과
+    아무 상관없는 숫자다. 「대장주 0위 · 추천 제외」도 같은 탓이었다.
+
+    상하님 말씀대로 **같은 종목이라도 파트가 다르면 배점이 다른 것이 정상**이다
+    (테마 대장주 94.9 · 상승장 89.0). 견주시려고 만든 것이므로 줄마다 그 줄의
+    자로 재야 한다.
+
+    **배점을 새로 만들지 않는다.** 순위 9가 이미 쓰는 길을 그대로 빌린다 —
+    상승장·급락은 `_render_pullback_detail`(전용배점), 테마 대장주는
+    `_render_stock_detail`(테마 배점)이다.
+
+    **오늘 그 파트 목록에 없으면 없다고 적는다.** 저장된 줄은 지난 날 것이라
+    오늘 그물에 안 걸릴 수 있다. 그때 엉뚱한 자로 재서 숫자를 만들어 내지 않는다
+    (CLAUDE.md 0-1 바 — 빈 자리를 딴 것으로 채우지 않는다).
+    """
+    part = _picklist_part(kind, row)
+    # 고른 종목이 바뀌면 상세·차트가 저절로 열리고 화면이 그 자리로 내려간다.
+    if st.session_state.get("j3_picklist_shown") != code:
+        st.session_state["j3_picklist_shown"] = code
+        # **제 이름표(picklist)만 켠다.** 예전에는 눌림목 쪽 열쇠까지 같이 켰는데,
+        # 그러면 위쪽 급락 구역의 상세까지 열려 같은 열쇠가 한 판에 두 번 생겼다
+        # (2026-09-02 상하님 화면 — "multiple elements with the same key").
+        # 이제 상세가 제 이름표로 그려지므로 남의 열쇠를 건드릴 까닭이 없다.
+        for opened in ("j3_detail_open_picklist", "j3_intraday_open_picklist",
+                       "j3_bundle_open_picklist"):
+            st.session_state[opened] = True
+        back_nav.opened(st, "j3_detail_open_picklist",
+                        "j3_intraday_open_picklist", "j3_bundle_open_picklist")
+        scroll_to.request(st, "detail_picklist")
+    # 여기가 그 자리다 — 위쪽 눌림목 상세와 이름이 겹치면 엉뚱한 데로 내려간다.
+    # 안쪽 상세도 같은 이름으로 한 번 더 그리지만, **먼저 그린 이곳**으로 간다
+    # (getElementById 규칙). 제목 위로 내려와야 무엇을 보고 있는지 보인다.
+    scroll_to.anchor(st, "detail_picklist")
+    saved_score = row.get("score")
+    saved_text = f" · 그날 점수 {float(saved_score):.1f}" if saved_score not in (None, "") else ""
+    st.markdown(
+        f"<div class='j3-section-title'>저장해 둔 목록에서 고른 종목 · "
+        f"{html.escape(str(name or code))}"
+        f"{html.escape(part and ' · ' + part or '')}{html.escape(saved_text)}</div>",
+        unsafe_allow_html=True,
+    )
+
+    if part in ("상승장", "눌림목"):
+        with st.spinner(f"{name or code} — 상승장 배점으로 심사 중입니다…"):
+            # 관찰 줄까지 본다 — 상승장 화면이 누르게 해 주는 범위와 같다(2026-09-13).
+            found = _find_scan_row(j3data.breakout_scan(), code, with_watch=True)
+        if found:
+            _render_pullback_detail(found, market, ranking, mode="breakout",
+                                    panel="picklist")
+            return
+        _picklist_not_today(part, name or code)
+        return
+
+    if part == "급락 후 반등장":
+        with st.spinner(f"{name or code} — 급락 후 반등장 배점으로 심사 중입니다…"):
+            found = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
+        if found:
+            _render_pullback_detail(found, market, ranking, mode="crash",
+                                    panel="picklist")
+            return
+        _picklist_not_today(part, name or code)
+        return
+
+    if part == "테마 대장주":
+        # 그 줄의 테마 이름으로 그 테마 대장주 목록을 부른다.
+        theme_name = _picklist_theme_name(row)
+        theme_row = next(
+            (item for item in (ranking.get("rows") or [])
+             if str(item.get("name") or "") == theme_name),
+            None,
+        )
+        if theme_name:
+            with st.spinner(f"{theme_name} 대장주를 다시 세는 중입니다…"):
+                leaders = j3data.get_theme_leaders(
+                    theme_name, market_score=float(market.get("score") or 0),
+                    theme_score=float((theme_row or {}).get("score") or 0),
+                )
+            found = _find_scan_row(leaders, code)
+            if found:
+                _render_stock_detail(
+                    theme_row or {"name": theme_name}, found, market, [found],
+                    "j3_picklist_detail_choice", panel="picklist",
+                    on_close=_forget_picklist_pick,
+                )
+                return
+        _picklist_not_today(part or "테마 대장주", name or code)
+        return
+
+    # 파트를 알 수 없는 옛 줄(2026-08-15 이전 저장분)은 그렇게 적는다.
+    st.info(
+        f"이 줄에는 **매수 파트가 적혀 있지 않습니다**(2026-08-15 이전 저장분). "
+        f"어느 배점으로 재야 할지 알 수 없어 배점표를 그리지 않습니다. "
+        f"표에 적힌 그날 점수는 그대로 보실 수 있습니다."
+    )
+    _section_close("j3_detail_open_picklist", "선택종목 세부사항 닫기",
+                   on_close=_forget_picklist_pick)
+
+
+def _forget_picklist_pick() -> None:
+    """상세를 닫으면 고른 표시도 같이 걷는다 (종목검색과 같은 방식)."""
+    st.session_state.pop(picklist_ui.pick_key("US"), None)
+    st.session_state.pop("j3_picklist_shown", None)
+
+
+def _picklist_not_today(part: str, name: str) -> None:
+    """오늘 그 파트 그물에 안 걸린 종목. **딴 자로 재지 않는다.**"""
+    st.warning(
+        f"**{html.escape(str(name))}** 는 오늘 「{html.escape(str(part))}」 목록에 "
+        f"없습니다 — 저장된 날에는 걸렸지만 오늘 그물에는 안 걸렸습니다. "
+        f"그 파트의 배점은 그날 목록 안에서만 잴 수 있어서, 여기서는 배점표를 "
+        f"그리지 않습니다. 다른 자로 재면 표에 적힌 그날 점수와 어긋난 숫자가 "
+        f"나옵니다."
+    )
+    _section_close("j3_detail_open_picklist", "선택종목 세부사항 닫기",
+                   on_close=_forget_picklist_pick)
+
+
+def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
+    """고른 테마의 종목 표와 그 종목 상세 (2026-08-27에 따로 떼어 냈다).
+
+    예전에는 이 몸통이 _render_radar_tab 안에 그대로 있었고, 중간에 return 이
+    둘 있어서(테마 자료 없음·대장주 조회 실패) 그 뒤의 상승장·순위 9·종목검색
+    까지 같이 건너뛰었다. 따로 떼어 내니 여기서 되돌아가도 뒤쪽은 그대로 그려진다.
+
+    `names` 를 **받아서** 쓴다 — 2026-08-27에 안 넘겨주고 떼어 냈다가 시험
+    스물아홉 개가 깨졌다. 이 목록은 부르는 쪽이 이미 만들어 둔 것이다.
+    """
+
+    # **테마에서 연 것을 하나도 남기지 않고 다 닫는다** (2026-08-28 상하님 지시).
+    #
+    # 상하님 — "20개 테마 닫기 하면 첫 번째 캡처 화면으로 가는데 그렇게 되면 안
+    # 되고, 20테마 관련 열었던 거 다 닫고 세 번째 캡처 화면으로 돌아가야 한다."
+    #
+    # 예전에는 이 단추가 **테마 종목 판만** 닫아서, 위의 20개 순위표가 그대로
+    # 열린 화면(첫 번째 캡처)에 남았다. 이제 「20개 테마 실시간 순위 닫기」와
+    # 똑같이 순위표·상승장·급락장·순위 9까지 다 접고 미국테마 기본 화면으로
+    # 돌아간다(세 번째 캡처). 두 단추가 같은 일을 하므로 한 함수를 같이 쓴다.
+    st.button(
+        "✕ 테마 종목 화면 닫기",
+        key="close_j3_theme_panel_open_top",
+        on_click=_close_theme_rank_from_fragment,
+    )
+    # st.pills는 이 환경에서 클릭이 먹지 않아 검증된 radio로 교체한다(선택 동작만 교체).
+    selected_theme = st.radio(
+        "테마 선택",
+        names,
+        horizontal=True,
+        key="j3_theme_choice_widget",
+    )
+    st.session_state["j3_theme_choice"] = selected_theme
+    theme_row = next((row for row in ranking["rows"] if row["name"] == selected_theme), None)
+    if theme_row is None:
+        st.warning("선택한 테마 자료를 찾지 못했습니다. 다른 테마를 선택하세요.")
+        return
+    rs_level, rs_meaning = _relative_strength_guide(theme_row.get("rs20"))
+    if theme_row.get("rs60") is not None and theme_row.get("breadth") is not None:
+        basis_html = (
+            f"<span class='j3-green-strong'>20일 상대강도</span> {theme_row['rs20']:+.1f}%p · "
+            f"60일 {theme_row['rs60']:+.1f}%p · 20일선 위 {theme_row['breadth']:.0f}%"
+        )
+    else:
+        basis_html = theme_row.get("basis", "근거 자료 부족")
+    # 상태 단어(주도/관찰/약함)는 20개 테마 순위표와 같은 상태색을 쓴다
+    # (2026-07-22 사용자 지시: "실시간 순위 상태와 같은 색으로").
+    status_hex = _STATUS_HEX.get(theme_row.get("status", ""), "#e6e6e6")
+    # 20개 순위표에서 테마 이름을 누르면 화면이 **여기까지 내려온다**
+    # (2026-08-21 상하님 지시 — "석유·가스 테마를 클릭하면 두 번째 화면으로
+    # 자동 내려가도록"). 표가 20줄이라 그 아래에 열리는 테마 종목 화면이
+    # 두 화면 밑에 있었다.
+    scroll_to.anchor(st, "theme_stocks")
+    st.markdown(
+        "<div class='j3-theme-box'>"
+        f"<span class='j3-green-strong'>{selected_theme}</span> · "
+        f"<span style='color:{status_hex}; font-weight:800'>{theme_row['status']}</span> : "
+        f"<span class='j3-green'>{theme_row['score']:.1f}/100</span><br>"
+        f"{basis_html}<br>"
+        f"<span class='j3-green-strong'>20일 상대강도 해석</span> : {rs_level} — {rs_meaning}<br>"
+        "<span class='j3-green-strong'>기준</span> : +10%p 이상 매우 강함 · +5–10%p 강함 · "
+        "0–5%p 시장 대비 우위 · 음수는 시장 대비 약세"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    with st.spinner(f"{selected_theme} 대장주를 조회하는 중입니다…"):
+        leader_result = j3data.get_theme_leaders(
+            selected_theme,
+            market_score=float(market.get("score") or 0),
+            theme_score=float(theme_row.get("score") or 0),
+        )
+    if not leader_result.get("ok"):
+        st.error(f"대장주 조회 실패: {_safe_error_text(leader_result.get('error'))}")
+        return
+    if leader_result.get("stale"):
+        st.warning("일부 종목은 마지막 정상 시세로 계산했습니다.")
+    leaders = leader_result["rows"]
+    # 종목을 누르면 대장주 셋의 차트가 함께 열린다(_THEME_PANEL_OPEN_KEYS).
+    # 그 자료를 **한 번에 묶어** 미리 받아 둔다 — 종목마다 따로 받으면 여섯 번을
+    # 줄 서서 기다린다(2026-08-14 실측 4.5초, 그중 CPU는 0.2초뿐이었다).
+    # 값은 안 만든다. 받아 두기만 하면 아래 차트들이 캐시를 그대로 쓴다.
+    # **차트가 하나라도 열렸을 때만** 받는다(2026-09-25) — 테마 이름만 누르면 차트가
+    # 닫혀 있으니 받을 것이 없다.
+    if any(st.session_state.get(key) for key in _THEME_CHART_OPEN_KEYS):
+        j3data.prefetch_charts([row.get("ticker") for row in leaders[:3]])
+    st.markdown(
+        f"<div class='j3-section-title'><span class='j3-theme-badge'>{selected_theme}</span> 테마 종목 1–6위</div>",
+        unsafe_allow_html=True,
+    )
+    st.caption("표에서 종목 이름을 누르거나 아래 ‘상세 종목 선택’에서 1~6위 아무 종목이나 고르면 상세가 그 종목으로 바뀝니다.")
+    # 표에 1~6위를 보여주면서 상세는 1~3위만 고를 수 있었다(2026-07-29 지적,
+    # 한국테마와 같은 문제). 표에 나온 여섯 개를 그대로 고를 수 있게 한다.
+    top_candidates = leaders[:6]
+    ticker_options = [leader["ticker"] for leader in top_candidates]
+    stock_key = f"j3_stock_choice_{selected_theme}"
+    clicked_ticker = _render_leader_table(leaders, st.session_state.get(stock_key))
+    if clicked_ticker:
+        st.session_state[stock_key] = clicked_ticker
+        # 이미 선택된 1위 종목을 다시 눌러도 상세가 열려야 한다. 이전에는 선택값과
+        # 같으면 이 블록을 건너뛰어, 첫 행(MPC 등)을 눌러도 아무 일도 일어나지 않았다.
+        # 상세만 열고 차트는 안 열려서 단추를 또 눌러야 했다(2026-08-06 상하님 지시).
+        # 상승장·급락·순위 7 표와 같이 당일 차트와 일봉·주봉·월봉까지 한 번에 편다.
+        for opened in _THEME_PANEL_OPEN_KEYS:
+            st.session_state[opened] = True
+        scroll_to.request(st, "detail_theme")
+        # **st.rerun()을 부르지 않는다**(2026-08-21 상하님 지적 — "종목 클릭 후
+        # 5초 걸린다"). 부르면 화면 한 판을 통째로 더 그린다(실측 1.8초, 그중
+        # CPU 0.9초 — 온라인은 코어가 적어 더 걸린다). 안 불러도 결과는 같다 —
+        # 아래 '상세 종목 선택'(key=stock_key)은 **이 줄보다 뒤에** 만들어지므로
+        # 방금 넣은 값을 그대로 집어 들고, 상세도 그 종목으로 그려진다.
+        # 표의 주황 표시는 _render_leader_table이 이 판에서 스스로 옮긴다.
+
+    _render_leader_comparison(leaders)
+    if leaders:
+        # 재랭킹으로 이전에 고른 종목이 top3에서 빠지면 st.radio가 예외를 낸다 → 미리 정리한다.
+        if stock_key in st.session_state and st.session_state[stock_key] not in ticker_options:
+            del st.session_state[stock_key]
+
+        def _stock_label(ticker):
+            item = next((cand for cand in top_candidates if cand["ticker"] == ticker), None)
+            return _stock_radio_label(item) if item else ticker
+
+        def _open_selected_theme_stock():
+            # 아래 '상세 종목 선택'으로 골라도 표에서 누른 것과 똑같이 편다.
+            for opened in _THEME_PANEL_OPEN_KEYS:
+                st.session_state[opened] = True
+            scroll_to.request(st, "detail_theme")
+
+        selected_ticker = st.radio(
+            "상세 종목 선택",
+            ticker_options,
+            format_func=_stock_label,
+            horizontal=True,
+            key=stock_key,
+            on_change=_open_selected_theme_stock,
+        )
+        selected_leader = next(
+            (item for item in top_candidates if item["ticker"] == selected_ticker),
+            top_candidates[0],
+        )
+        _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
+    # 맨 아래 닫기도 위 단추와 **같은 일**을 한다 — 어디서 닫든 같은 화면으로
+    # 돌아가야 한다(2026-08-28 상하님 지시).
+    _section_close("j3_theme_panel_open", "테마 종목 화면 닫기",
+                   on_close=_close_theme_rank_from_fragment)
+
+
+@st.fragment
+def _render_theme_section(market: dict) -> None:
+    """20개 테마 순위와 그 아래 테마 종목 화면을 **한 덩이**로 묶는다 (2026-08-27).
+
+    상하님 실측 — "테마 클릭하면 테마 로딩 3초, 종목 클릭 2초." 자료를 새로 받는
+    시간이 아니었다. 스트림릿은 무엇을 누르든 **화면을 처음부터 다시 만든다** —
+    테마 하나를 눌러도 시장 판단·신호 카드·지수 넷·상승장·급락장·순위 9·종목검색
+    까지 전부 다시 만들었다. 아무것도 안 바꾸고 다시 그리기만 해도 노트북에서
+    0.6초, 코어가 적은 온라인에서 3초다(2026-08-26 실측).
+
+    덩이로 묶으면 이 안에서 누른 것은 **이 안만** 다시 그린다. 뒤쪽 화면
+    (상승장·급락 후 반등장·순위 9·종목검색·날짜별 목록)은 손대지 않으므로
+    그대로 남는다. 순위 9(_render_top7_section)·상승장(_render_pullback_finder)과
+    같은 장치다.
+
+    **자료를 이 안에서 싣는다.** 밖에서 실어 넘기면 덩이만 다시 돌 때 밖이 안
+    돌아, 마지막 판의 옛 순위가 언제까지고 그대로 나온다. 실은 것은
+    `j3_theme_rankings`에 적어 둬서 뒤쪽 화면이 같은 것을 쓰게 한다.
+    """
+    ranking = _load_theme_rankings()
+    st.session_state["j3_theme_rankings"] = ranking
+    if not ranking.get("ok"):
+        st.error(f"테마 자료 조회 실패: {_safe_error_text(ranking.get('error'))}")
+        return
+    if ranking.get("stale"):
+        st.warning("온라인 재조회 실패로 마지막 정상 테마 자료를 표시하고 있습니다.")
+
+    names = [row["name"] for row in ranking["rows"] if row.get("ok")]
+    # 순위표는 **맨 위 단추로 여닫는다**(2026-08-14 상하님 지시 — "맨위에 20개 테마
+    # 실시간 순위를 상승장·급락 후 반등장처럼 버튼을 만들어라. 클릭하면 창이
+    # 열리도록"). 표가 열 줄이라 아래 구역까지 오려면 매번 한참 굴려야 했다.
+    # 제목 대신 단추가 그 자리에 선다 — 상승장·급락 단추와 같은 크기·같은 장치다.
+    # 닫는 단추는 '종목 찾기' 바로 위에도 하나 더 있다(_render_pullback_finder).
+    #
+    # **기본은 닫힘**(2026-08-14 상하님 지시 — "화면 처음 열릴 때 순위가 열려 있게
+    # 하지 말고 닫아라. 그거 클릭해야 열리지"). 표가 열 줄이라 화면을 열자마자
+    # 아래 구역이 전부 밀려 내려가지 않게 한다.
+    # 여는 단추는 **「21개 테마」 글자만** 남긴다 (2026-09-11 상하님 지시 —
+    # "21개 테마만 글자 두고 실시간 순위 열기 글자 삭제하라고").
+    # **닫는 단추(close_label)는 그대로 둔다** — 그쪽은 말씀이 없으셨고, 이름이
+    # 없으면 무엇을 닫는 단추인지 알 수 없다.
+    # **「⚡ 강한 테마 TOP 5」는 21개 테마 단추 바로 위다** (2026-09-11 상하님 지시).
+    # 바로 아래 표가 쓰는 그 순위(ranking)를 그대로 넘긴다 — 새로 받거나 다시
+    # 계산하지 않으므로 카드 숫자와 표 숫자가 갈라질 수가 없다.
+    _render_strong_theme_top5(ranking)
+    rank_open = _section_toggle(
+        f"📊 {_THEME_COUNT}개 테마", _THEME_RANK_OPEN,
+        close_label=f"{_THEME_COUNT}개 테마 실시간 순위 닫기",
+        on_open=_open_theme_rank_from_fragment,
+        on_close=_close_theme_rank_from_fragment,
+    )
+    if not rank_open:
+        clicked_theme = None
+        # 20개 순위를 닫을 때는 순위표만 숨기지 않고, 그 순위표에서 열었던
+        # 테마 종목과 종목 세부 판도 같이 닫아 미국테마 기본화면으로 돌아간다.
+        st.session_state["j3_theme_panel_open"] = False
+        for opened in _THEME_PANEL_OPEN_KEYS:
+            st.session_state[opened] = False
+    else:
+        clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
+        # **이 점수가 무엇인지 정직하게 적는다**(2026-08-14). 재 보니 점수가 높은
+        # 테마가 그 뒤에 더 오르지 않았다 — 평상시 1,708일에서 5일부터 1년까지
+        # 여섯 기간 모두 오차가 0을 걸쳤다(research/us_theme_rank_check.py).
+        # 그래서 배점 숫자는 그대로 두되(바꿀 근거가 없다) **화면이 앞날을 말하지
+        # 않게** 한다. 갈래별 배점(상승장·급락)이 앞날을 재는 자리다.
+        st.caption(
+            f"테마 계산 시각: {ranking.get('checked_at') or '—'} · "
+            "구성종목이 20일선 위인 비율 40 · 최근 5일 오른 비율 30 · "
+            "최근 20일 오른 비율 20 · 덜 빠졌나 10으로 매깁니다"
+        )
+        st.markdown(
+            "<div class='j3-pull-guide'><b>이 점수는 오늘 그 테마가 어떤 "
+            "상태인지를 요약한 것입니다. <u>앞날을 맞히는 점수가 아닙니다.</u></b> "
+            "제가 10년치로 재 보니, 이 점수가 높은 테마가 그 뒤에 더 오르지는 "
+            "않았습니다(5일 뒤부터 1년 뒤까지 여섯 기간 모두).<br>"
+            "<b>앞날을 재는 자리는 아래 ‘종목 찾기’입니다</b> — 상승장과 급락 후 "
+            "반등장은 각자 따로 잰 배점을 씁니다.</div>",
+            unsafe_allow_html=True,
+        )
+    if clicked_theme in names:
+        st.session_state["j3_theme_choice"] = clicked_theme
+        st.session_state["j3_theme_choice_widget"] = clicked_theme
+        st.session_state["j3_theme_panel_open"] = True
+        # 테마 하나를 누르면 **아래 네 구역까지 한 번에 편다**(2026-08-14 상하님 지시 —
+        # "대장주 1~3위까지 자동 클릭되게, 선택종목 세부사항 보기까지, 당일 실시간
+        # 차트 보기·일봉·주봉·월봉 보기까지"). 그전에는 단추를 네 번 더 눌러야 했다.
+        # 종목은 안 고르셨으면 그 테마 **1위**가 열린다(아래 라디오의 첫 값).
+        # **차트는 펴지 않는다**(2026-09-25 상하님 — "바꿔라"). 테마를 처음 열 때 느린 폰
+        # 2.5~5.4초의 대부분이 대장주 차트 12장과 세부 차트였다. 세부사항은 그대로 펴고,
+        # 차트 구역(_THEME_CHART_OPEN_KEYS)은 닫아 둔다 — 앞 테마에서 열어 둔 차트도
+        # 새 테마를 누르면 닫힌다. 차트는 그 단추를 누르면 열린다.
+        # 표에서 **종목**을 누를 때(아래 clicked_ticker)는 예전처럼 넷을 다 편다.
+        for opened in _THEME_PANEL_OPEN_KEYS:
+            st.session_state[opened] = opened not in _THEME_CHART_OPEN_KEYS
+        # 연 자리가 표 아래 두 화면 밑이라 직접 굴려 내려가야 했다. 열면서 같이
+        # 내려간다(2026-08-21 상하님 지시).
+        scroll_to.request(st, "theme_stocks")
+    if (st.session_state.get("j3_theme_panel_open")
+            and st.session_state.get("j3_theme_choice_widget") not in names):
+        preferred_theme = st.session_state.get("j3_theme_choice")
+        st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
+
+    # 선택 테마 설명·종목 1~6위·상세 종목 선택은 평소에는 닫아 둔다. 20개 순위표의
+    # 테마 이름을 눌렀을 때만 한 화면으로 열고, 아래 독립 영역들은 그대로 보여준다.
+    if st.session_state.get("j3_theme_panel_open"):
+        _render_theme_panel(market, ranking, names)
+
+    # 덩이 안에서 「다 닫기」를 눌렀으면 여기서 판 전체를 다시 그린다.
+    # **화면 내려주기보다 먼저** 부른다 — 순서를 바꾸면 내려갈 자리를 적어 둔
+    # 표시가 버려지는 판에서 소모돼 화면이 안 내려간다(2026-08-26 실측).
+    # **「✕ 22개 테마 실시간 순위 닫기」(아래쪽)는 이 덩이 맨 끝에 둔다** (2026-09-25 상하님 —
+    # "22개 테마 클릭 2초"). 예전에는 바로 아래 상승장 덩이 맨 앞에 있어서, 22개 테마를 열고 닫을
+    # 때마다 그 단추를 그리거나 지우려고 **판 전체**(맨 위 지수·지도까지)를 다시 그렸다(2026-09-11
+    # 「남는 단추」 고침). 이 덩이 끝이 곧 상승장 덩이 맨 앞이라 화면 자리는 그대로이고, 이제 여닫을
+    # 때 이 덩이만 다시 그리면 된다.
+    if st.session_state.get(_THEME_RANK_OPEN):
+        st.button(
+            f"✕ {_THEME_COUNT}개 테마 실시간 순위 닫기",
+            key=f"close_{_THEME_RANK_OPEN}",
+            on_click=_close_theme_rank_from_fragment,
+        )
+    _run_close_all_if_requested()
+    # 덩이는 페이지 맨 끝이 안 돌아온다 — 여기서 내려 준다.
+    scroll_to.run(st)
+
+
+def _render_radar_tab(market: dict) -> None:
+    # 네 개의 긴 목록을 닫으면 이 미국테마 메인 시작점으로 돌아온다.
+    scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
+    # 테마 구역은 따로 도는 덩이다. 테마 자료도 그 안에서 싣는다.
+    _render_theme_section(market)
+    ranking = st.session_state.get("j3_theme_rankings") or {}
+    if not ranking.get("ok"):
+        # 오류 문구는 덩이 안에서 이미 보여줬다. 뒤쪽 화면은 이 자료를 쓰므로 건너뛴다.
+        return
+    # **상승장 미리 만들기를 여기서 시작한다** (2026-09-13 상하님 지시).
+    #
+    # 상하님 — "앱을 막 열자마자 상승장을 누를 때 느리다."
+    # 상승장 단추는 바로 아래 _render_radar_tail 이 그린다. 미리 만들기가 화면
+    # **맨 끝**에 있으면, 단추가 보이자마자 누르셨을 때 그 일은 아직 시작도
+    # 안 해서 누른 쪽이 200종목을 직접 계산했다. 스트림릿은 그리던 화면을 끊지
+    # 않고 그 뒤로 누른 것을 세우므로 화면 나머지까지 기다리셨다.
+    #
+    # 여기가 **가장 이른 자리**다 — 바로 위 테마 순위가 249종목 2년치를 방금
+    # 공책에 넣었다. 뒤 일꾼은 그 공책만 읽어 계산하고(인터넷 안 씀), 단추는
+    # 그 결과를 기다려 받는다(jarvis3_data._memo_ok). 5분에 한 번만 돈다.
+    _warm_finders()
+    _render_radar_tail(market, ranking)
+
+
+@st.fragment
+def _render_top7_section(market: dict, ranking: dict) -> None:
+    """순위 7과 그 상세를 한 덩이로 묶는다 (2026-07-30 폰 실측: 닫는 데 3초).
+
+    이 덩이 안에서 단추를 누르면 스트림릿이 여기만 다시 그린다. 묶기 전에는 단추
+    한 번에 지수 카드·게이지·테마 20줄까지 판 전체를 다시 그렸다 — 자료를 하나도
+    안 가져오는 '닫기'가 3초 걸린 이유가 그것이다.
+    상세도 같이 넣어야 한다. 표만 묶으면 종목 이름을 눌러도 덩이 밖에 있는 상세가
+    다시 안 그려져 아무 일도 안 일어난 것처럼 보인다.
+    """
+    _render_top_reviewed(market, ranking)
+    _render_top_reviewed_detail(market, ranking)
+    _run_close_all_if_requested()
+    # 이 덩이도 프래그먼트라 페이지 끝이 안 돌아간다 — 여기서 내려 준다.
+    # finally로 감싸지 않는다(위 _render_pullback_finder의 주석 참고).
+    scroll_to.run(st)
+    # 종목검색 바로 위의 「✕ 순위 9 닫기」는 **이 덩이 안**에서 그린다
+    # (2026-09-13). 이 덩이 바로 다음이 종목검색이라 보이는 자리는 그대로다.
+    # 밖에 두면 ① 순위 9를 열어도 이 단추가 안 생기고(열기는 덩이만 다시
+    # 그린다 — 노트북에서 확인함) ② 덩이만 다시 그려 닫으면 단추가 남는다.
+    # **scroll_to.run 뒤에 둔다** — 그 칸(높이 0)이 단추 밑으로 가면 종목검색과
+    # 사이가 12px 벌어진다(실측 33px → 45px). 예전 차례(그 칸 → 단추)와 같게 둔다.
+    _render_top7_close_above_search()
+
+
+def _kept_recently(key: str, seconds: float = 300) -> bool:
+    """방금 찾아 둔 결과가 아직 쓸 만한가 (기본 5분).
+
+    닫았다 바로 다시 열 때 같은 결과를 다시 찾느라 몇 초를 또 내던 것을 없앤다.
+    단추는 그대로 하나다 — 5분이 지나면 알아서 새로 찾는다(2026-07-31).
+    """
+    at = st.session_state.get(key)
+    try:
+        return bool(at) and (time.time() - float(at)) < seconds
+    except (TypeError, ValueError):
+        return False
+
+
+# 순위 7의 자리 배분 (2026-08-06 사용자 지시).
+# 세 군데에서 갖고 오는데 **자가 서로 다르다.** 하나의 자로 다시 재면 급락 종목이
+# 영원히 못 올라온다 — 종목 조건점수 100점 중 45점이 '52주 신고가에 가까운가'(25)와
+# '이동평균 위인가'(20)인데, 고점에서 20~50% 빠진 종목은 정의상 그 45점을 못 받는다.
+# 실제로 2026-08-06에 두 갈래 27종목을 넣고 돌려 보니 상위 7에 하나도 못 들었다.
+# 그래서 섞어 재지 않고 **자리를 나눠 각자 자기 자로 뽑는다.**
+# 2026-08-12 상하님 지시로 3·3·3 아홉 자리가 됐다 — "대장주 3개 상승장 3개
+# 급락 3개씩 해라. 급락하는 시장에서는 상승장이 없잖아. 없으면 없는 대로 하면 돼.
+# 그 대신 설명을 해야겠지."
+# 자리 배분은 **모듈이 정한다** — 화면과 클라우드 수집기가 같은 값을 봐야 한다.
+_TOP7_QUOTA = tuple(getattr(j3data, "TOP_PICK_QUOTA",
+                            (("테마 대장주", 3), ("상승장", 3), ("급락 후 반등장", 3))))
+_TOP_TOTAL = int(getattr(j3data, "TOP_PICK_TOTAL",
+                         sum(quota for _name, quota in _TOP7_QUOTA)))
+
+# 상승장·급락 표에서 처음부터 펴 두는 줄 수. 나머지는 접어 둔다
+# (2026-08-06 사용자 지시 — 급락은 20줄이라 화면이 너무 길었다).
+# 2026-08-07에 15 → 10으로 더 줄였다(상하님 지시). 아래 접는 칸 이름은 이 값에서
+# 자동으로 만든다 — '11위~20위 더 보기'.
+_RULEBOOK_OPEN_ROWS = 10
+
+
+def _blend_top7(market: dict, ranking: dict) -> dict:
+    """세 파트에서 각자 자기 자로 3개씩 뽑아 아홉 개를 만든다(2026-08-06).
+
+    **뽑는 일은 jarvis3_data.collect_top_picks가 한다** — 2026-08-15에 여기서 그리로
+    옮겼다. 여기 있는 동안에는 클라우드 수집기가 같은 것을 부를 수 없어서, 화면은
+    3·3·3을 보여 주는데 **저장은 한 통에서 위에서 아홉을 뽑은 딴 목록**을 남겼다
+    (상하님 지적 — "왜 순위가 123 123 123 이렇게 되어야지 1~9위가 나오냐").
+    이 함수가 하는 일은 이제 **화면에서만 아는 것을 넘겨 주는 것**뿐이다 —
+    상하님이 이미 열어 두신 갈래 결과를 넘겨 같은 조회를 두 번 하지 않게 한다.
+    """
+    market_score = float(market.get("score") or 0)
+    opened = st.session_state.get("j3_pullback_result") or {}
+    opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
+    result = j3data.collect_top_picks(
+        ranking.get("rows") or [],
+        market_score=market_score,
+        breakout=opened if opened_mode == "breakout" else None,
+        crash=opened if opened_mode == "crash" else None,
+    )
+    # **저장은 화면이 보여 주는 그 목록이다**(CLAUDE.md 10-1). 예전에는 섞기 전
+    # 재료(find_top_reviewed_stocks)를 저장해서 저장 목록과 화면이 갈라져 있었다.
+    picklist_ui.autosave("US", "top7", result)
+    return result
+
+
+def _render_top_reviewed(market: dict, ranking: dict) -> None:
+    """매수심사결과 높은 순위 9 (2026-08-12 상하님 지시로 7 → 9).
+
+    세 군데에서 각자 자기 자로 뽑아 합친다 — 테마 대장주 3 · 상승장 3 · 급락 3.
+    **점수를 다시 재지 않는다.** 각 목록이 제 자로 잰 값을 그대로 쓴다.
+    **빈 자리는 딴 갈래로 메우지 않고 왜 비었는지 적는다.**
+    표는 위 '테마 종목' 표와 같은 모양으로 화면에 바로 편다.
+    """
+    # 재료는 셋이다(2026-08-06 사용자 지시 — "누르든 안 누르든 둘 다 자동으로").
+    #   ① 20개 테마의 대장주
+    #   ② 상승장(신고가 눌림매수) 결과
+    #   ③ 급락 후 반등장(낙폭종목) 결과
+    # 예전에는 ②·③ 중 **마지막에 누른 하나만** 썼다. 이제 단추를 안 눌러도 둘 다
+    # 자동으로 모은다. 두 갈래는 같은 일봉 묶음을 쓰므로 한 번만 받아 온다.
+    # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
+    # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
+    is_open = bool(st.session_state.get("j3_top7_open"))
+    # **단추 바로 위**가 화면이 올라올 자리다 (2026-09-11 상하님 지시 — 캡처처럼
+    # 이 단추가 맨 위에 서고 그 밑에 표가 보이게). 높이 0짜리라 칸 하나를 더
+    # 차지하는데, 그 12px 은 아래 CSS 가 **이 자리 하나만** 골라 도로 당긴다.
+    scroll_to.anchor(st, _TOP7_ANCHOR)
+    run_requested = st.button("매수심사결과 높은 순위 9", key="j3_top7_find")
+    if run_requested and is_open:
+        # 닫기 — 조회는 하지 않는다. 열린 것을 모두 닫고 메인 시작점으로 올라간다
+        # (2026-08-26 상하님 지시). 이 단추도 프래그먼트 안이라 판 전체를 다시
+        # 그려야 바깥의 20개 테마 순위·상승장·급락장이 화면에서 사라진다.
+        # 순위 9만 열려 있으면 이 덩이만 다시 그린다(2026-09-13).
+        _close_top7_from_fragment()
+        run_requested = False
+    if (
+        run_requested
+        and _kept_recently("j3_top7_at")
+        and st.session_state.get("j3_top7_result") is not None
+    ):
+        # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
+        st.session_state["j3_top7_open"] = True
+        scroll_to.request(st, _TOP7_ANCHOR)
+        run_requested = False
+    if run_requested:
+        with st.spinner("테마 대장주와 두 갈래 종목을 각각 줄 세우는 중입니다…"):
+            found = _blend_top7(market, ranking)
+        st.session_state["j3_top7_result"] = found
+        st.session_state["j3_top7_at"] = time.time()
+        st.session_state["j3_top7_open"] = True
+        scroll_to.request(st, _TOP7_ANCHOR)
+        # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
+        # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
+        st.session_state.pop("j3_top7_pick_row", None)
+        # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
+        # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
+        # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
+
+    if not st.session_state.get("j3_top7_open"):
+        return
+    result = st.session_state.get("j3_top7_result")
+    if result is None:
+        return
+    rows = result.get("rows") or []
+    if not rows:
+        st.warning("심사할 대장주를 한 종목도 못 모았습니다. 테마 순위를 먼저 갱신해 보십시오.")
+        return
+
+    errors = result.get("errors") or []
+    st.caption(
+        f"테마 {result.get('scanned_themes', 0)}개 심사 · 후보 {result.get('candidate_count', 0)}개 → "
+        f"{len(rows)}종목 (자리 {_TOP_TOTAL}개)"
+        + (f" · 자료를 못 받은 테마 {len(errors)}개" if errors else "")
+    )
+    # **빈 자리는 감추지 않는다**(2026-08-12 상하님 지시). 자리를 못 채웠으면
+    # 왜 비었는지 적는다 — 급락장에 상승장 자리가 없는 것은 알아야 할 정보다.
+    for note in result.get("empty_notes") or []:
+        st.caption(f"🔸 {note} — 다른 갈래로 채우지 않습니다.")
+
+    st.caption("종목 이름을 누르면 아래에 그 종목 상세와 차트가 한꺼번에 열립니다.")
+    # **별표가 무슨 뜻인지 적어 둔다**(2026-09-07). 화면에 기호만 있고 설명이
+    # 없으면 무슨 표시인지 알 수 없다. 별표가 붙은 줄이 없으면 이 줄도 안 적는다.
+    if any(row.get("both_theme_and_breakout") for row in rows):
+        st.caption("⭐ 는 **테마 대장주와 상승장 두 곳에 다 걸린 종목**입니다 — "
+                   "서로 다른 자로 재서 둘 다 좋게 나왔다는 뜻입니다.")
+    # **수익률 칸 셋을 더했다** (2026-09-23 상하님 지시 — "현재가 밑에 당일 등락률을
+    # 표시하고, 20일 수익률·6개월 수익률·6개월 시장대비 칸을 넣어라").
+    # 셋은 **한 칸 안에** 나란히 그린다 — 스트림릿 칸을 셋 더 만들면 줄마다 껍데기가
+    # 그만큼 늘어 표가 느려진다(2026-08-26에 이 표를 한 덩이로 바꾼 까닭과 같다).
+    # 값은 이미 잰 것에서 꺼낸다 — 새로 받아 오는 자료가 없다.
+    widths = [0.6, 2.0, 1.2, 1.2, 1.3, 2.4, 1.6]
+    # '조건점수'는 갈래마다 다른 자로 잰 값이라 이름을 바꿨다(2026-08-06 사용자 물음).
+    titles = ["순위", "종목", "점수 (갈래 자)", "매수 상태", "현재가", None, "어느 분야"]
+    ret_titles = ["20일 수익률", "6개월 수익률", "6개월 시장대비"]
+    # **「6개월 시장대비」는 나스닥이 아니라 SPY 를 뺀 값이다** — 21개 테마 표의
+    # 같은 이름 칸과 같은 자다(jarvis3_data 의 테마 강도도 SPY 로 뺀다).
+    # 시장대비의 기준(SPY)도 종목과 **같은 규칙**으로 잰다(2026-09-24 · _shown_numbers).
+    spy_ret120 = _shown_numbers((market.get("rows") or {}).get("SPY") or {})["ret120"]
+    box = st.container(key="j3_top7_table")
+    for column, title in zip(box.columns(widths), titles):
+        if title is None:
+            column.markdown(_flex_row(_TOP7_RET_WIDTHS, ret_titles, head=True),
+                            unsafe_allow_html=True)
+        else:
+            column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
+    # **표 한 벌에 칸을 한 번만 만든다** (2026-08-26 상하님 지시로 관찰만 표와
+    # 같은 방식으로 바꿨다). 이 표는 한 줄에 칸이 여섯이라 가장 무거웠다 —
+    # 줄마다 칸을 새로 만들면 스트림릿이 껍데기를 줄마다 여섯 벌씩 만든다.
+    # 이제 순위·점수·매수 상태·현재가·어느 분야는 각각 한 덩이로 쌓고,
+    # 종목 이름 단추만 진짜 단추로 둔다.
+    # **값·점수·차례·색은 하나도 안 바뀐다.** 몇 덩이로 나누어 보내느냐만 바뀐다.
+    cols = box.columns(widths)
+    rank_cells, score_cells, state_cells, price_cells, source_cells = [], [], [], [], []
+    ret_cells = []
+    labels = []
+    for index, row in enumerate(rows):
+        plan = row.get("plan") or {}
+        # **순위 칸 네모는 그 줄이 어느 파트에서 왔는지**를 말한다 (2026-09-16
+        # 상하님 지시 — "테마 1~3위, 상승장 1~3위, 급락 후 1~3위 다 색깔이 달라야지").
+        # 색은 맨 오른쪽 「어느 분야」 칸 글자색과 **같다** — 테마 대장주 파랑 ·
+        # 상승장 초록 · 급락 후 반등장 주황(.j3-top7-leader/up/crash).
+        # 예전에는 초록·노랑·빨강으로 매수 상태를 되풀이했는데, 그 값은 바로 옆
+        # 「매수 상태」 칸이 이미 말한다. 점수·차례·값은 하나도 안 바뀐다.
+        origin = str(row.get("top7_origin") or "")
+        dot = {"상승장": "🟩", "급락 후 반등장": "🟧"}.get(origin, "🟦")
+        rank_cells.append(
+            f"<div class='j3-td'>{dot} {row.get('pick_rank', index + 1)}위</div>"
+        )
+        # **별표** — 「테마 대장주」와 「상승장」 두 파트에 다 걸린 종목이다
+        # (2026-09-07 상하님 지시). 두 자로 재서 둘 다 좋다는 뜻이다.
+        # 표시가 붙는 자리는 jarvis3_data.blend_top_picks 에서 정한다 —
+        # 여기서 다시 세지 않는다.
+        star = "⭐ " if row.get("both_theme_and_breakout") else ""
+        labels.append((f"{star}{row.get('name') or row['ticker']} ({row['ticker']})",
+                       index, row))
+        score = float(row.get("score") or 0)
+        score_cells.append(
+            "<div class='j3-td'><div class='j3-barwrap'><div class='j3-bar'>"
+            f"<div class='j3-bar-fill j3-bar-green' style='width:{min(score, 100):.0f}%'></div>"
+            f"</div><span class='j3-bar-num'>{score:.1f}</span></div></div>"
+        )
+        state_cells.append(f"<div class='j3-td'>{plan.get('state', '—')}</div>")
+        # **현재가 밑에 당일 등락률**(2026-09-23 상하님 지시). 값은 세부사항·상승장
+        # 표와 같은 정규장 기준이다(_list_price_change).
+        top_shown = _shown_numbers(row["metrics"])
+        top_price, top_change = top_shown["price"], top_shown["change"]
+        price_cells.append(
+            "<div class='j3-td' style='font-weight:700'>"
+            "<span style='display:inline-flex; flex-direction:column;"
+            " line-height:1.12; align-items:flex-start'>"
+            f"<span>{_price(top_price)}</span>"
+            f"<span style='color:{_sign_color(top_change)}; font-weight:800;"
+            f" font-size:.82rem'>{_pct(top_change)}</span></span></div>"
+        )
+        # 20일 · 6개월 · 6개월 시장대비 — 셋 다 **보여주기만** 한다(점수에 안 쓴다).
+        stock_ret20 = top_shown["ret20"]
+        stock_ret120 = top_shown["ret120"]
+        versus = (float(stock_ret120) - float(spy_ret120)
+                  if stock_ret120 is not None and spy_ret120 is not None else None)
+        ret_cells.append(_flex_row(_TOP7_RET_WIDTHS, [
+            f"<span style='color:{_sign_color(stock_ret20)}; font-weight:700'>"
+            f"{_pct(stock_ret20)}</span>",
+            f"<span style='color:{_sign_color(stock_ret120)}; font-weight:700'>"
+            f"{_pct(stock_ret120)}</span>",
+            "—" if versus is None else
+            f"<span style='color:{_sign_color(versus)}; font-weight:700'>"
+            f"{versus:+.1f}%p</span>",
+        ]))
+        # 분야 이름이 길면 옆 칸(현재가)을 덮어썼다(2026-07-30 캡처로 확인).
+        # 어느 갈래에서 왔는지를 **먼저** 적는다(2026-08-06 사용자 지시) — 점수가
+        # 갈래마다 다른 자로 잰 값이라, 어느 자로 잰 것인지 알아야 읽을 수 있다.
+        themes = " · ".join(row.get("sources") or row.get("themes") or [])
+        source_text = " · ".join(part for part in (origin, themes) if part) or "—"
+        origin_class = {
+            "상승장": "j3-top7-up", "급락 후 반등장": "j3-top7-crash",
+        }.get(origin, "j3-top7-leader")
+        source_cells.append(
+            f"<div class='j3-td {origin_class} j3-top7-src'"
+            f" title='{html.escape(source_text)}'>{html.escape(source_text)}</div>"
+        )
+
+    cols[0].markdown(_stacked(rank_cells), unsafe_allow_html=True)
+    for label, index, row in labels:
+        if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
+            # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
+            st.session_state["j3_top7_pick_row"] = row
+            # 종목을 누르면 세부사항과 차트까지 한 번에 열린다(2026-08-06 사용자 지시,
+            # 상승장·급락 표와 같은 동작). 누르고 또 눌러야 보이던 것을 없앤다.
+            # 갈래에서 온 줄은 눌림목 상세(panel="pullback")가 그리고 대장주 줄은
+            # 종목 상세(panel="top7")가 그리므로 양쪽 열쇠를 다 켠다.
+            for opened in ("j3_detail_open_top7", "j3_bundle_open_top7",
+                           "j3_intraday_open_top7",
+                           "j3_detail_open_pullback", "j3_bundle_open_pullback",
+                           "j3_intraday_open_pullback"):
+                st.session_state[opened] = True
+            scroll_to.request(st, "detail_top7")
+    cols[2].markdown(_stacked(score_cells), unsafe_allow_html=True)
+    cols[3].markdown(_stacked(state_cells), unsafe_allow_html=True)
+    cols[4].markdown(_stacked(price_cells), unsafe_allow_html=True)
+    cols[5].markdown(_stacked(ret_cells), unsafe_allow_html=True)
+    cols[6].markdown(_stacked(source_cells), unsafe_allow_html=True)
+    # 종목 이름 단추는 '테마 종목' 표와 같은 옷을 입힌다.
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j3top7_'] button { background: rgba(255,255,255,.025) !important;"
+        " border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;"
+        " border-radius: .55rem !important;"
+        " min-height: 2.4rem !important; width: 100% !important; }"
+        # 손을 올리면 테두리가 보라색 — 테마 단추와 같은 결이다(2026-08-09 지시).
+        "div[class*='st-key-j3top7_'] button:hover {"
+        " background: rgba(192,132,252,.09) !important;"
+        " border-color: rgba(192,132,252,.55) !important; }"
+        "div[class*='st-key-j3top7_'] button p { color: #e6e6e6 !important;"
+        " font-weight: 700 !important; }"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+    # 구역 맨 아래 닫기 단추는 **여기 두지 않는다** (2026-09-16 상하님 지적 —
+    # "맨 밑에 매수심사결과 높은 순위 9 닫기가 2개이고, 하나 없애라").
+    # 2026-08-26 에 「종목검색 바로 위」에 같은 닫기를 하나 더 만들면서 둘이 나란히
+    # 섰다 — 자리가 사실상 같은 곳이다. 남기는 것은 그때 상하님이 자리를 짚어
+    # 주신 쪽(_render_top7_close_above_search)이다.
+
+
+def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
+    """순위 7에서 고른 종목의 상세. 위 테마 상세·눌림목 상세와 완전히 별개다."""
+    # 구역이 닫혔으면 상세도 그리지 않는다. 예전에는 골라 둔 줄(j3_top7_pick_row)만
+    # 보고 그려서, 순위 9를 닫아도 상세가 화면에 그대로 남았다(2026-08-26 상하님 캡처).
+    if not st.session_state.get("j3_top7_open"):
+        return
+    picked = st.session_state.get("j3_top7_pick_row")
+    if not picked:
+        return
+    # 순위 7은 제 이름의 자리를 따로 갖는다 — 안에서 눌림목 상세를 다시 그릴 때
+    # 같은 이름이 두 번 생겨 위쪽(갈래 표 밑) 자리로 잘못 내려가는 것을 막는다.
+    scroll_to.anchor(st, "detail_top7")
+    st.markdown(
+        f"<div class='j3-section-title'>순위 7에서 고른 종목 · "
+        f"{html.escape(str(picked.get('name') or picked.get('ticker') or ''))}</div>",
+        unsafe_allow_html=True,
+    )
+    # 갈래에서 온 줄은 눌림목 상세가 그리고, 테마 대장주 줄은 종목 상세가 그린다.
+    # 어느 갈래에서 왔는지는 top7_origin에 적혀 있다 — 위 표에서 지금 무엇을 보고
+    # 있느냐(j3_pullback_mode)와 다를 수 있으므로 **줄에 적힌 갈래로** 잰다
+    # (2026-08-06). 안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
+    origin_mode = {"상승장": "breakout", "급락 후 반등장": "crash"}.get(
+        str(picked.get("top7_origin") or "")
+    )
+    if origin_mode or "pullback" in picked:
+        _render_pullback_detail(picked, market, ranking, mode=origin_mode)
+        return
+    theme_name = (picked.get("sources") or ["—"])[0]
+    # **테마 줄을 그대로 찾아서 넘긴다** (2026-08-26 상하님 지적 — "매수심사결과
+    # 높은 순위 9 리스트 종목 중에 테마 부분 클릭하면 배점 종류가 안 나온다,
+    # 합계만 나온다").
+    #
+    # 여기서 이름만 든 빈 껍데기 {"name": ...} 를 넘기고 있었다. 그러면
+    # _render_stock_detail 이 테마 배점(score_parts)을 못 찾아 「일반 테마매매
+    # 점수」 표로 못 가고, 옛 80점짜리 표로 떨어진다. 그 표는 종목 배점
+    # (score_parts)을 쓰는데 일반 점수 종목에는 그 칸이 없어 **줄이 하나도 안
+    # 그려지고 총점만 남았다.** 96.1/80.0 처럼 획득이 만점보다 큰 숫자가 나온
+    # 것도 100점짜리 점수를 80점 자로 잰 탓이다.
+    #
+    # 점수를 새로 계산하지 않는다 — 이미 20개 테마 순위가 만들어 둔 줄을 그대로
+    # 찾아 넘길 뿐이다. 못 찾으면 예전처럼 이름만 넘긴다.
+    theme_row = next(
+        (row for row in (ranking.get("rows") or [])
+         if str(row.get("name") or "") == str(theme_name)),
+        {"name": theme_name},
+    )
+    _render_stock_detail(
+        theme_row, picked, market, [picked],
+        "j3_top7_detail_choice", panel="top7",
+    )
+
+
+def _render_top7_close_above_search() -> None:
+    """「종목검색」 바로 위에 두는 매수심사결과 순위 9 닫기 (2026-08-26 상하님 지시).
+
+    상하님 — "맨 밑에 종목검색 위에 매수심사결과 높은 순위 9 닫기 버튼 만들고
+    20개 테마 실시간 순위 닫기처럼 만들라고."
+    「20개 테마 실시간 순위 닫기」가 '종목 찾기' 바로 위에 있는 것과 같은 자리다.
+    **순위 9 덩이 안에서 그린다**(2026-09-13) — 그 덩이 바로 다음이 종목검색이라
+    자리는 그대로다. 누르면 다른 닫기 단추와 같은 길로 닫는다
+    (`_close_top7_from_fragment` — 순위 9만 열렸으면 덩이만 다시 그린다).
+    """
+    if not st.session_state.get("j3_top7_open"):
+        return
+    st.button(
+        "✕ 매수심사결과 높은 순위 9 닫기",
+        key="close_j3_top7_open_above_search",
+        on_click=_close_top7_from_fragment,
+    )
+
+
+# 종목검색에서 고를 수 있는 자들. 맨 앞이 여태 쓰던 것이라 기본으로 둔다.
+_SEARCH_RULER_DEFAULT = "테마 없는 대장주 (80점)"
+_SEARCH_RULERS = (
+    _SEARCH_RULER_DEFAULT,
+    "테마 대장주",
+    "상승장",
+    "급락 후 반등장",
+)
+
+
+def _render_search_by_part(ruler: str, code: str, found_row: dict,
+                           market: dict, ranking: dict) -> None:
+    """고르신 파트의 **그 파트 배점표**로 검색 종목을 보여 준다.
+
+    파트 배점은 그 파트의 **오늘 목록 안에서만** 잴 수 있다 — 순위·백분위가
+    목록 안에서 매겨지기 때문이다. 그래서 오늘 그 그물에 안 걸린 종목은
+    **없다고 적는다.** 딴 자로 재서 숫자를 만들어 내지 않는다(CLAUDE.md 0-1 바).
+    """
+    name = str(found_row.get("name") or code)
+    if ruler == "상승장":
+        with st.spinner(f"{name} — 상승장 배점으로 심사 중입니다…"):
+            hit = _find_scan_row(j3data.breakout_scan(), code)
+        if hit:
+            _render_pullback_detail(hit, market, ranking, mode="breakout",
+                                    panel="mystock")
+            return
+    elif ruler == "급락 후 반등장":
+        with st.spinner(f"{name} — 급락 후 반등장 배점으로 심사 중입니다…"):
+            hit = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
+        if hit:
+            _render_pullback_detail(hit, market, ranking, mode="crash",
+                                    panel="mystock")
+            return
+    elif ruler == "테마 대장주":
+        # 그 종목이 든 테마를 **명부(US_THEMES)에서** 찾는다 — 그것이 원본이다.
+        # 여러 테마에 들면 오늘 순위가 가장 높은 테마로 잰다.
+        want = str(code).upper()
+        mine = [str(theme.get("name") or "")
+                for theme in getattr(j3data, "US_THEMES", ())
+                if want in {str(t).upper() for t in (theme.get("stocks") or ())}]
+        order = {str(item.get("name") or ""): index
+                 for index, item in enumerate(ranking.get("rows") or [])}
+        mine.sort(key=lambda title: order.get(title, 999))
+        theme_name = mine[0] if mine else ""
+        if theme_name:
+            theme_row = next(
+                (item for item in (ranking.get("rows") or [])
+                 if str(item.get("name") or "") == theme_name),
+                None,
+            )
+            with st.spinner(f"{theme_name} 대장주를 다시 세는 중입니다…"):
+                leaders = j3data.get_theme_leaders(
+                    theme_name, market_score=float(market.get("score") or 0),
+                    theme_score=float((theme_row or {}).get("score") or 0),
+                )
+            hit = _find_scan_row(leaders, code)
+            if hit:
+                _render_stock_detail(
+                    theme_row or {"name": theme_name}, hit, market, [hit],
+                    "j3_search_part_choice", panel="mystock",
+                )
+                return
+        else:
+            st.warning(
+                f"**{html.escape(name)}** 는 20개 테마 명부에 없는 종목이라 "
+                f"테마 대장주 배점으로는 잴 수 없습니다. 위에서 다른 자를 "
+                f"고르시거나 「테마 없는 대장주 (80점)」로 보십시오."
+            )
+            return
+    st.warning(
+        f"**{html.escape(name)}** 는 오늘 「{html.escape(str(ruler))}」 목록에 "
+        f"없습니다. 그 파트의 배점은 그날 목록 안에서만 잴 수 있어서 "
+        f"(순위·백분위가 목록 안에서 매겨집니다) 여기서는 배점표를 그리지 "
+        f"않습니다. 위에서 다른 자를 고르십시오."
+    )
+
+
+def _render_my_stock_panel(market: dict, ranking: dict) -> None:
+    """내 종목 현재상황 — 티커나 회사 이름을 치면 그 종목 상세가 열린다.
+
+    한국테마(자비스4)와 같은 자리·같은 화면이다(2026-07-29 요청). 미국 종목이라
+    티커·회사명은 영어지만, 널리 쓰는 한글 이름(엔비디아·애플…)도 받아 준다.
+    """
+    st.divider()
+    st.markdown(
+        # 제목을 보라색 그라데이션 띠로 — 순위 7(초록)·눌림목(파랑)과 나란히 구분된다
+        # (2026-07-30 사용자 지시). 여기는 누를 곳이 아니라 제목이므로 단추가 아니다.
+        # **괄호 「(검색종목 세부사항 보기)」는 뺐다** (2026-09-11 상하님 지시 —
+        # "종목검색 글자만 두고 검색종목 세부사항 보기 글자 삭제"). 바로 밑에
+        # 「종목이름 또는 티커 (아래에 종목이름을 넣어보세요)」가 같은 말을 하고 있었다.
+        "<div class='j3-band j3-band-purple'>종목검색</div>", unsafe_allow_html=True)
+    # **누를 단추를 둔다**(2026-08-21 상하님 지시 — "종목이름 치고 검색 누르는
+    # 단추가 없다"). 글자만 치면 한 글자마다 화면을 다시 그려 느리기도 했다.
+    # 칸 안에서 엔터를 쳐도 같이 눌린다.
+    # 입력칸과 글자를 키운다(2026-08-21 상하님 지시).
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j3_my_stock_query'] input{font-size:1.15rem !important;"
+        " padding:.85rem .9rem !important; font-weight:700 !important;}"
+        "div[class*='st-key-j3_my_stock_query'] label p{font-size:1.02rem !important;}"
+        "</style>", unsafe_allow_html=True,
+    )
+    with st.form("j3_my_stock_form", clear_on_submit=False, border=False):
+        typed = st.text_input(
+            # 무엇을 어디에 넣어야 하는지 칸 이름이 직접 말하게 한다(2026-08-01 지시).
+            "종목이름 또는 티커 (아래에 종목이름을 넣어보세요)", key="j3_my_stock_query",
+            placeholder="예: 엔비디아, NVDA, apple, 팔란티어",
+        )
+        searched = st.form_submit_button("🔎 검색", type="primary")
+    if searched:
+        st.session_state["j3_my_stock_asked"] = str(typed or "").strip()
+    query = str(st.session_state.get("j3_my_stock_asked") or "")
+    if not query.strip():
+        st.caption("종목 이름을 넣고 **🔎 검색**을 누르십시오.")
+        return
+
+    found = j3data.search_stocks(query)
+    if not found.get("ok"):
+        st.error(f"종목 목록 조회 실패: {_safe_error_text(found.get('error'))}")
+        return
+    rows = found.get("rows") or []
+    if not rows:
+        st.warning(f"‘{query}’와 비슷한 종목을 못 찾았습니다. 티커나 이름 일부만 쳐 보세요.")
+        return
+
+    options = [row["ticker"] for row in rows]
+    by_ticker = {row["ticker"]: row for row in rows}
+    chosen = st.radio(
+        "찾은 종목",
+        options,
+        format_func=lambda t: f"{by_ticker[t]['name']} ({t})",
+        horizontal=True,
+        key="j3_my_stock_pick",
+    )
+    # **고른 종목이 바뀌면 차트가 저절로 열린다**(2026-08-21 상하님 지시).
+    # 눌림목 표에서 종목을 누를 때와 같은 동작이다 — 거기서는 이미 그렇게 한다.
+    # 열어 둔 뒤 상하님이 닫으시면 그대로 닫혀 있고, 다른 종목을 고르면 다시 열린다.
+    if st.session_state.get("j3_my_stock_shown") != chosen:
+        st.session_state["j3_my_stock_shown"] = chosen
+        for opened in ("j3_detail_open_mystock", "j3_intraday_open_mystock",
+                       "j3_bundle_open_mystock"):
+            st.session_state[opened] = True
+        back_nav.opened(st, "j3_detail_open_mystock",
+                        "j3_intraday_open_mystock", "j3_bundle_open_mystock")
+    # ── **어느 배점으로 볼지 고르신다** (2026-09-02 상하님 지시) ────────────────
+    # 상하님 — "종목 검색에서 나오면 어디 배점을 기준으로 할 거냐고 물어보든지
+    # 해야지."
+    #
+    # 종목검색은 **속한 파트가 없다.** 그래서 여태 대장주 배점을 말없이 썼는데,
+    # 그것도 견줄 테마가 없어 상대강도 25점이 통째로 0인 반쪽(80점 만점)이었다.
+    # 어느 자로 재는지 모르고 보시면 다른 파트 점수와 헛되이 견주시게 된다.
+    #
+    # **배점을 새로 만들지 않는다.** 파트별 배점은 그 파트의 오늘 목록 안에서만
+    # 잴 수 있다(순위는 그 목록 안의 등수로 매기므로). 그래서 고른 파트의 오늘
+    # 목록에 그 종목이 있으면 그 배점표로 보내고, 없으면 **없다고 적는다.**
+    ruler = st.radio(
+        "어느 배점으로 볼까요",
+        _SEARCH_RULERS,
+        horizontal=True,
+        key="j3_my_stock_ruler",
+        help="같은 종목이라도 파트가 다르면 점수가 다릅니다 — 견주시라고 나눠 둔 것입니다.",
+    )
+    if ruler != _SEARCH_RULER_DEFAULT:
+        _render_search_by_part(ruler, chosen, by_ticker[chosen], market, ranking)
+        return
+    with st.spinner(f"{by_ticker[chosen]['name']} 심사 중입니다…"):
+        result = j3data.analyze_one_stock(
+            chosen, market_score=float(market.get("score") or 0))
+    if not result.get("ok"):
+        st.error(_safe_error_text(result.get("error")))
+        return
+    leader = result["row"]
+    st.caption(
+        "지금 자: **테마 없는 대장주 배점(80점 만점)** — 견줄 테마가 없어 "
+        "테마 대비 상대강도 25점이 통째로 빠져 있습니다. "
+        "위 테마 대장주 점수(100점 만점)와 나란히 비교하지 마세요. "
+        "다른 자로 보시려면 위에서 고르십시오."
+    )
+    def _forget_search():
+        """상세를 닫으면 「찾은 종목」 줄도 같이 걷는다 (2026-08-28 상하님 지시).
+
+        상하님 — "종목 다 보고 닫기 했는데도 찾은 종목 화면이 그대로 있다."
+        찾은 목록은 상세를 보려고 고르는 자리라, 상세를 닫으면 남아 있을 까닭이
+        없다. 검색어는 그대로 둔다 — 다시 찾아보실 때 또 치지 않으시게.
+        """
+        st.session_state.pop("j3_my_stock_asked", None)
+        st.session_state.pop("j3_my_stock_shown", None)
+
+    _render_stock_detail(
+        {"name": "내 종목"}, leader, market, [leader],
+        "j3_my_stock_detail_choice", panel="mystock", on_close=_forget_search,
+    )
+
+
+def _us_signal_hint() -> str:
+    """미국장 선행신호 카드 판정을 단타 참고 문구로 옮긴다(점수에는 반영하지 않는다).
+
+    한국장 자비스4의 ‘기관 수급 반전’ 자리에 들어가는 미국판이다. 미국은 장중
+    투자자별 수급 공개 자료가 없어 선물·반도체·변동성·금리 방향을 대신 쓴다.
+    """
+    result = st.session_state.get("us_signal_result")
+    if result is None:
+        return "미국장 시장 상태는 위 ‘미국장 시장 상태’ 카드에서 확인하세요."
+    return (
+        f"미국장 시장 상태: <b>{html.escape(str(result.verdict_label))}</b> · "
+        f"{html.escape(str(result.headline))}"
+    )
+
+
+def _render_pullback_detail(row: dict, market: dict, ranking: dict,
+                            *, mode: str | None = None,
+                            panel: str = "pullback") -> None:
+    """상단 테마 선택과 독립된 눌림목 종목 상세.
+
+    자비스4(한국) 종목 상세와 같은 구성으로 맞춘다(2026-07-24 사용자 지시) —
+    선정 근거 점수표 · 매수 심사 결과 · 일봉/주봉/월봉 차트를 함께 보여준다.
+
+    mode를 넘기면 그 갈래의 자로 잰다. 안 넘기면 위 표에서 지금 보고 있는 갈래를
+    쓴다. 순위 7에서 부를 때는 **줄에 적힌 갈래**를 넘겨야 한다(2026-08-06) —
+    안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
+    """
+    ticker = str(row.get("ticker") or "")
+    # **열쇠에 이름표를 붙인다** (2026-09-02 상하님 화면 —
+    # "There are multiple elements with the same key='btn_j3_detail_open_pullback'").
+    # 저장해 둔 목록에서도 이 상세를 부르게 되면서, 위쪽 급락 구역이 열려 있으면
+    # 같은 열쇠가 한 판에 두 번 생겨 터졌다. 이름표가 다르면 겹치지 않는다.
+    # **기본값은 여태 쓰던 그 이름이라 다른 곳은 한 글자도 안 바뀐다.**
+    detail_key = f"j3_detail_open_{panel}"
+    danta_key = f"j3_danta_open_{panel}"
+    # 종목을 누르면 화면이 여기로 내려온다(2026-08-09 상하님 지시).
+    scroll_to.anchor(st, f"detail_{panel}")
+    # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
+    if not _section_toggle(
+        "🔎 선택종목 세부사항 보기", detail_key,
+        close_label="선택종목 세부사항 닫기",
+    ):
+        return
+    metrics = row.get("metrics") or {}
+    quality = row.get("pullback") or {}
+    themes = " · ".join(row.get("themes") or []) or "테마 정보 없음"
+    avg_value = metrics.get("avg_dollar_volume")
+
+    # ── 선정 근거·매수 심사 (자비스4 종목 상세와 같은 구성) ──────────────────
+    # 눌림목 검색은 테마를 가로지르므로 상대강도 기준은 SPY 20일 수익률을 쓴다.
+    market_score = float(market.get("score") or 0)
+    spy_ret20 = ((market.get("rows") or {}).get("SPY") or {}).get("ret20")
+    theme_scores = {
+        item.get("name"): float(item.get("score") or 0)
+        for item in (ranking.get("rows") or [])
+        if item.get("ok") and item.get("name")
+    }
+    own_scores = [theme_scores[name] for name in (row.get("themes") or []) if name in theme_scores]
+    theme_score = max(own_scores) if own_scores else 0.0
+    # 설명서 두 갈래는 **다른 자로 잰다**(2026-08-01 사용자 지시).
+    # 기존 조건점수는 '신고가에 가까운가·이동평균 위인가'로 절반을 주는데, 낙폭 종목은
+    # 그 조건을 정의상 하나도 못 맞춰 전부 14~26점 '제외'로 나왔다(실측). 찾아 놓고
+    # 사지 말라는 화면이 되므로 갈래마다 전용 배점·전용 심사를 쓴다.
+    mode = mode or st.session_state.get("j3_pullback_mode") or "기본"
+    if mode == "crash":
+        scored = j3data.crash_rebound_score(row)
+        plan = j3data.crash_rebound_plan(row)
+    elif mode == "breakout":
+        scored = j3data.breakout_score(row)
+        plan = j3data.breakout_plan(row)
+    else:
+        scored = None
+    if scored is not None:
+        review = {
+            "score": scored["score"],
+            "score_parts": [value for _n, value, _m, _t in scored["parts"]],
+            "stock_reason": plan.get("buy_reason", ""),
+            "plan": plan,
+        }
+        factor_names = [name for name, _v, _m, _t in scored["parts"]]
+        factor_max = [maximum for _n, _v, maximum, _t in scored["parts"]]
+        factor_notes = [note for _n, _v, _m, note in scored["parts"]]
+        # 만점은 **모듈이 정한다.** 갈래마다 다르다(상승장 90점 · 급락 100점) —
+        # 합격한 항목만 점수를 주고 남는 점수를 다른 항목에 나눠 주지 않기 때문이다
+        # (CLAUDE.md 0-1 마). 화면에 100을 박아 두면 90점 만점 갈래가 낮아 보인다.
+        score_max = float(scored.get("max") or 100.0)
+    else:
+        review = j3data.analyze_pullback_stock(
+            row,
+            benchmark_ret20=spy_ret20,
+            market_score=market_score,
+            theme_score=theme_score,
+        )
+        plan = review.get("plan") or {}
+        # 만점은 모듈에서 읽어 온다 — 숫자를 여기 박아 두면 배점을 고칠 때
+        # 표만 옛 숫자로 남는다(2026-08-12에 실제로 그래서 '31.1 (25)'가 나왔다).
+        spec = list(getattr(j3data, "LEADER_SCORE_PARTS", ()))
+        long_names = ["SPY 대비 상대강도", "52주 신고가 위치", "추세(20·50·200일선)",
+                      "유동성(거래대금)", "변동성 안정"]
+        # 검증 결과가 아니라 **무엇을 재는지**를 적는다 — 검증 결과는 위 배점표에
+        # 이미 있고, 여기서 알아야 할 것은 '유동성이 뭔데'다(2026-08-12 상하님).
+        note_map = getattr(j3data, "LEADER_SCORE_NOTES", {})
+        notes = [note_map.get(name, "") for name, _p in spec]
+        # **0점 항목도 남긴다**(2026-08-15 상하님 지시). 빼 버리면 앱이 무엇을
+        # 봤는지 상하님이 못 보시고, 기준이 두 개뿐인 것처럼 보인다.
+        keep = list(range(len(spec)))
+        factor_names = [long_names[i] for i in keep]
+        factor_max = [round(spec[i][1], 1) for i in keep]
+        factor_notes = [notes[i] for i in keep]
+        parts_all = list(review.get("score_parts") or [])
+        review = {**review, "score_parts": [parts_all[i] for i in keep
+                                            if i < len(parts_all)]}
+        score_max = float(getattr(j3data, "LEADER_SCORE_MAX", 80.0)) or 100.0
+
+    # 종목 이름·판정은 자비스4 종목 상세와 같은 형식으로 크게 보여준다.
+    st.markdown(
+        f"<div class='j3-stock-name'>{html.escape(str(row.get('name') or ticker))} · "
+        f"{html.escape(ticker)}</div>"
+        f"<div class='j3-stock-sub'>{html.escape(themes)} 눌림목 선택 종목 · "
+        f"{html.escape(str(plan.get('recommendation') or '판정 없음'))}</div>",
+        unsafe_allow_html=True,
+    )
+    if auth.is_guest():
+        _render_day_price_row(metrics, ticker, panel=panel)
+        # 당일 그림은 이제 아래 네 그림 판에 함께 들어간다(2026-08-28).
+        _render_price_chart_bundle(ticker, panel=panel)
+        _section_close(detail_key, "선택종목 세부사항 닫기")
+        return
+    # 현재가 칸 글씨 크기는 테마 대장주의 「최근가」 칸과 같게 둔다(j3-mc-price ·
+    # j3-mc-chg — 2026-09-19 상하님 지시 "상승장·급락 후 반등장의 현재가 칸도 크기
+    # 맞춰 줘야지"). 아래 상승장 칸도 같다.
+    # 가격·등락률은 당일 그림과 같은 정규장 기준이다(2026-09-19 — 위 최근가 칸과 같다).
+    # 목록을 만들 때 잰 값(metrics)은 점수에 쓰이므로 그대로 두고, 칸에 적는 것만 바꾼다.
+    # 가격·등락률·52주·20일·6개월·변동성 모두 목록 줄과 **같은 값·같은 규칙**이다
+    # (2026-09-24 · _shown_numbers). 예전에는 가격만 따로 받은 분봉으로 재서 목록과 갈렸다.
+    pb_shown = _shown_numbers(metrics)
+    shown_price, shown_change = pb_shown["price"], pb_shown["change"]
+    cells = [
+        f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
+        f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>"
+        f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>"
+        f"{_pct(shown_change)}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
+        f"<div class='j3-mc-val {_sign_class(pb_shown['from_high_pct'])}'>"
+        f"{_pct(pb_shown['from_high_pct'])}</div>"
+        f"<div class='j3-mc-sub j3-muted'>{int(quality.get('high52_days_ago') or 0)}일 전 신고가</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
+        f"<div class='j3-mc-val {_sign_class(pb_shown['ret20'])}'>"
+        f"{_pct(pb_shown['ret20'])}</div></div>",
+        # 6개월 수익률 (2026-09-05 상하님 지시). 점수에는 안 쓰고 보여만 준다.
+        f"<div class='j3-mc'><div class='j3-mc-label'>6개월 수익률</div>"
+        f"<div class='j3-mc-val {_sign_class(pb_shown['ret120'])}'>"
+        f"{_pct(pb_shown['ret120'])}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
+        f"<div class='j3-mc-val j3-up'>{_pct(pb_shown['atr_pct'])}</div></div>",
+        # 금액만 보여주면 알 수가 없다는 지적(2026-08-06). 큰 회사는 늘 크기 때문이다.
+        # **얼마나 늘었나**로 바꾼다. 미국은 외국인·기관 수급을 종가 뒤에도 공개하지
+        # 않으므로(한국만 있는 제도), 돈이 몰리는지 볼 수 있는 값은 이것뿐이다.
+        "<div class='j3-mc'><div class='j3-mc-label'>거래량 (어제 대비)</div>"
+        f"<div class='j3-mc-val {_sign_class(metrics.get('volume_vs_prev'))}'>"
+        f"{_pct(metrics.get('volume_vs_prev'))}</div>"
+        "<div class='j3-mc-sub j3-muted'>지난 5일 평균 대비 "
+        f"{_pct(metrics.get('volume_vs_week'))}</div></div>",
+    ]
+    if mode == "breakout":
+        # US_SWING_V1은 중요 70·보조 30을 숨기지 않고 실제 등수·눌림과 나란히 둔다.
+        # 등수는 selector가 적어 둔 값을 그대로 쓴다 — 화면이 다시 세지 않는다.
+        total_ranked = row.get("rs_ranked_count")
+
+        def _rank_text(key):
+            rank = row.get(key)
+            if not rank:
+                return "—"
+            return f"{int(rank)}등" + (f" / {int(total_ranked)}" if total_ranked else "")
+
+        pullback_pct = row.get("pullback_pct_close")
+        cells = [
+            # **당일 등락률을 현재가 밑에 적는다** (2026-09-11 상하님 지적 —
+            # "상승장 신고가 눌림을 눌러 종목 클릭하면 선택종목 세부사항에
+            # 당일 상승율·하락율이 안 나온다").
+            # 맞는 지적이다. 위 눌림목 칸에는 있었는데 이 갈래 칸을 따로 쓰면서
+            # 이 한 줄을 빠뜨렸다. **값은 이미 metrics 안에 있다** — 새로 받아
+            # 오는 것이 없으니 여는 시간은 그대로다.
+            f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
+            f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>"
+            f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>"
+            f"{_pct(shown_change)}</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 등수</div>"
+            f"<div class='j3-mc-val j3-green'>{_rank_text('rs60_rank')}</div>"
+            "<div class='j3-mc-sub j3-muted'>나스닥보다 강한 차례</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>최근 6개월 등수</div>"
+            f"<div class='j3-mc-val j3-green'>{_rank_text('rs120_rank')}</div>"
+            "<div class='j3-mc-sub j3-muted'>나스닥보다 강한 차례</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>신고가 후 눌림</div>"
+            f"<div class='j3-mc-val j3-up'>{'—' if pullback_pct is None else f'-{float(pullback_pct):.1f}%'}</div>"
+            f"<div class='j3-mc-sub j3-muted'>최고가 넘고 {int(row.get('days_since_anchor') or 0)}거래일째</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>중요 점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(row.get('core_score') or 0):.0f}/70</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>보조 점수</div>"
+            f"<div class='j3-mc-val'>{float(row.get('support_score') or 0):.0f}/30</div>"
+            "<div class='j3-mc-sub j3-muted'>추가검증 중</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>총점</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.0f}/100</div>"
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(row.get('status_text') or ''))}</div></div>",
+        ]
+    elif mode == "crash":
+        # 점수는 **하나만** 둔다(2026-08-06 상하님 지적 "이 갈래 점수가 뭔말이냐").
+        # 예전에는 한 화면에 셋('이 갈래 점수'·'눌림 점수'·위 표의 '종목 조건점수')이
+        # 있었는데, 그중 '눌림 점수'는 이 화면에서 순위에 쓰지 않는 A 규칙 값이다.
+        cells.append(
+            f"<div class='j3-mc'><div class='j3-mc-label'>이 종목 점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.0f}점 "
+            f"<span style='font-size:1rem; color:#9aa0aa'>/ {score_max:g}</span></div>"
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
+            "</div></div>"
+        )
+    else:
+        cells.extend([
+            f"<div class='j3-mc'><div class='j3-mc-label'>종목 조건점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(review.get('score') or 0):.1f}"
+            f"/{score_max:g}</div>"
+            f"<div class='j3-mc-sub j3-muted'>{html.escape(str(plan.get('state') or ''))}"
+            "</div></div>",
+            f"<div class='j3-mc'><div class='j3-mc-label'>눌림 점수</div>"
+            f"<div class='j3-mc-val j3-green'>{float(quality.get('score') or 0):.1f}/100</div>"
+            f"<div class='j3-mc-sub {_sign_class(quality.get('gap_pct'))}'>"
+            f"20일선 이격 {_pct(quality.get('gap_pct'))}</div></div>",
+        ])
+    st.markdown(f"<div class='j3-metric-row'>{''.join(cells)}</div>", unsafe_allow_html=True)
+    # **여기에도 단추 둘을 놓는다** (2026-09-12 상하님 지적 — "21개 테마에서
+    # 선정한 종목은 있는데 상승장 급락 후 반등장에는 왜 없냐?").
+    # 2026-09-12에 단추를 만들면서 테마 대장주 상세(_render_selected_live_quote)
+    # 한 곳에만 넣었다. 상승장·급락 상세는 이 함수가 따로 그린다.
+    _render_watchlist_add_buttons(ticker, panel=f"rb_{panel}")
+
+    def _fac_cell(part, maximum):
+        # 만점이 0인 줄은 숫자 대신 '0점'이라 적는다 — 왜 0점인지는 「설명」에 있다.
+        shown = "0점" if not maximum else maximum
+        return (
+            "<td class='j3-fac-val'>"
+            f"<span style='color:#ff5b5b; font-weight:800'>{_number(part)}</span> "
+            f"<span style='color:#ff5b5b'>({shown})</span></td>"
+        )
+
+    # **심사 항목 칸에는 초록 이름만 둔다**(2026-08-21 상하님 지시 — 처음에는
+    # "심사항목 밑에 하얀색 설명 빼라", 그다음 급락 표를 보시고 "초록색 제목만
+    # 두고 나머지 흰색 내용 다 빼라"). 이름 옆에 붙던 값 줄까지 걷어냈다.
+    #
+    # **값을 버리지는 않는다.** 그 줄(하루 평균 3.7%씩 · 오늘 목록 58개 중 26등
+    # 같은 것)은 제목 옆 「설명」 창으로 내린다. 없애 버리면 왜 이 점수인지가
+    # 화면 어디에도 안 남는다(CLAUDE.md 0-1 마 — 버린 것은 「설명」에 남긴다).
+    parts_values = review.get("score_parts") or []
+    notes_padded = factor_notes + [""] * len(factor_names)
+    factor_rows = "".join(
+        f"<tr><td class='j3-fac-name'>{html.escape(name)}</td>"
+        f"{_fac_cell(part, maximum)}</tr>"
+        for name, part, maximum in zip(factor_names, parts_values, factor_max)
+    )
+    total_style = (
+        "font-weight:800; font-size:1.1rem; background:rgba(134,255,203,0.12); "
+        "border-top:4px double rgba(255,255,255,0.55)"
+    )
+    total_row = (
+        f"<tr><td class='j3-fac-name' style='{total_style}'>총점</td>"
+        f"<td class='j3-fac-val' style='{total_style}'>"
+        f"<span style='color:#ff5b5b; font-weight:800'>{_number(review.get('score'))}</span> "
+        f"<span style='color:#ff5b5b'>({score_max:g})</span></td></tr>"
+    )
+    # 시장·테마는 배점표 **위**에 둔다(2026-08-07). 차트 뒤 맨 아래 있던 것을
+    # 올렸다 — 종목 점수를 보기 전에 어떤 시장·어떤 테마인지부터 알아야 한다.
+    st.markdown("<div class='j3-section-title'>이 종목을 찾은 배경</div>",
+                unsafe_allow_html=True)
+    for column, (title, body) in zip(
+        st.columns(2),
+        _pullback_backdrop_cards(
+            mode=mode, market=market, themes=themes, theme_score=theme_score,
+            scored=scored, review=review, plan=plan, row=row,
+        ),
+    ):
+        column.markdown(
+            f"<div class='j3-reason-card'><div class='j3-reason-title'>{title}</div>"
+            f"<div class='j3-reason-body'>{body}</div></div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
+    score_col, plan_col = st.columns([1, 1], gap="large")
+    with score_col:
+        # 앞말은 스카이블루 그대로, **괄호 안 갈래 이름만** 갈래 색으로 칠한다
+        # (2026-08-14 상하님 지시). 순위 7의 '(미국형 5개 항목)'은 갈래가 아니라
+        # 색을 안 준다 — 초록이면 상승장, 주황이면 급락이라는 약속이 흐려진다.
+        tag, tone = (
+            ("(급락 반등 전용 배점)", "j3-title-tag j3-title-crash") if mode == "crash"
+            else ("(신고가 눌림 전용 배점)", "j3-title-tag j3-title-breakout")
+            if mode == "breakout" else ("(미국형 5개 항목)", "")
+        )
+        st.markdown(
+            "<div class='j3-section-title'>종목 선정 근거 "
+            + (f"<span class='{tone}'>{tag}</span>" if tone else tag)
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+        # '설명'은 **제목 칸 「심사 항목」 옆**에 하나만 둔다(2026-08-14 상하님 지시).
+        # 갈래마다 열쇠를 갈라 둔다 — 상승장 상세와 급락 상세가 서로를 덮어쓰지 않게.
+        factor_html = (
+            _swing_factor_table_html(
+                factor_rows, total_row, row.get("explanations") or {},
+                f"j3_factor_help_{panel}_breakout",
+            )
+            if mode == "breakout" else
+            _factor_table_html(
+                factor_rows, total_row, factor_names,
+                f"j3_factor_help_pullback_{mode}",
+                notes=notes_padded[:len(factor_names)],
+            )
+        )
+        st.markdown(factor_html, unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='j3-reason-mustard'>{_mustard_html(review.get('stock_reason'))}</div>",
+            unsafe_allow_html=True,
+        )
+        # 갈래 화면에는 여기에 아무 말도 붙이지 않는다(2026-08-07 상하님 지시
+        # "중요하지 않으면 빼라"). 예전에는 "표 위 '이 화면 설명 보기'에 있습니다"라고
+        # 적어 뒀는데, 이 상세는 **순위 7에서도 열려** 거기에는 그 단추가 없었다.
+        # 없는 것을 가리키느니 빼는 게 낫다 — 배점표는 표 위 설명 구역에 그대로 있고,
+        # 무슨 항목에 몇 점인지는 바로 위 '종목 선정 근거' 표가 이미 다 보여준다.
+        if mode not in ("crash", "breakout"):
+            st.caption(
+                "이 점수는 위 표의 ‘종목 조건점수’와 같은 값이며, 표의 순위를 정하는 ‘눌림 점수’와는 "
+                "다른 것을 잽니다 — 눌림 점수는 지금이 눌림 자리로 좋은지, 이 점수는 종목 자체가 "
+                "좋은지를 봅니다. 상대강도 기준은 테마 ETF가 아니라 SPY 20일 수익률입니다"
+                "(눌림목 검색은 여러 테마를 가로질러 돌기 때문). 그래서 위 테마 대장주 표의 점수와도 "
+                "다를 수 있습니다."
+            )
+    with plan_col:
+        st.markdown("<div class='j3-section-title'>매수 심사 결과</div>", unsafe_allow_html=True)
+        # 점수·상태만 있고 '뭘 하라는 건지'가 없다는 지적(2026-07-30). 판정을 사람
+        # 말로 다시 쓴 한 줄을 표 위에 얹는다 — 새 판정을 만들지는 않는다.
+        st.markdown(
+            guidance.html(
+                guidance.build(plan, money=_price, market_score=market.get("score")),
+                css_class="j3-guide",
+            ),
+            unsafe_allow_html=True,
+        )
+        if mode == "breakout":
+            anchor = row.get("anchor_date") or "—"
+            pullback = row.get("pullback_pct_close")
+            pullback_text = "—" if pullback is None else f"{float(pullback):.1f}%"
+            # **두 값이 한 칸에 들어가는 자리는 색으로 가른다**(2026-08-21 상하님
+            # 지적 — "26년8.19 / 1거래일 숫자 구분이 안 되어 있다"). 앞뒤 색을
+            # 다르게 주고 가운데 빗금은 흐리게 둬서 어디까지가 앞값인지 보이게 한다.
+            def _pair(left, left_color, right, right_color, right_words=False):
+                right_class = " class='j3-holo-words'" if right_words else ""
+                return (f"<span style='color:{left_color}'>{left}</span>"
+                        "<span style='color:#6f757e; font-weight:600'> / </span>"
+                        f"<span{right_class} style='color:{right_color}'>{right}</span>")
+
+            plan_cells = [
+                ("진입 관찰",
+                 f"<span class='j3-holo-words'>"
+                 f"{html.escape(str(plan.get('entry') or '—'))}</span>",
+                 "#44f0a1"),
+                ("최고가 넘은 날 / 그 뒤",
+                 _pair(anchor, "#9dccff",
+                       f"{int(row.get('days_since_anchor') or 0)}거래일째", "#44f0a1",
+                       right_words=True),
+                 "#e6e6e6"),
+                ("중요 / 보조 점수",
+                 _pair(f"{float(row.get('core_score') or 0):.0f}/70", "#44f0a1",
+                       f"{float(row.get('support_score') or 0):.0f}/30", "#ffb020"),
+                 "#e6e6e6"),
+                ("눌림 / 손절",
+                 _pair(pullback_text, "#ffd23f", "앱이 안 정함", "#9aa0aa",
+                       right_words=True),
+                 "#ffd23f"),
+            ]
+        elif mode == "crash":
+            # 이 규칙에는 넘어야 할 기준가도 손절도 없다. 없는 것을 있는 것처럼
+            # 적지 않고, 규칙이 실제로 정한 것을 적는다.
+            # **파는 시점은 앱이 정하지 않는다**(2026-08-12 상하님 확정).
+            # 자리 하나에 3개월·6개월·1년 과거 성적을 나란히 놓고, 고르는 것은
+            # 상하님이 하신다. 상하님 표 1·2가 원래 그 모양이다.
+            spans = " · ".join(
+                f"{item['label']} {item['median_return']:+.1f}%"
+                for item in (plan.get("hold_results") or ())
+            )
+            # 네 칸 다 **숫자가 아니라 말**이다. 1.5rem으로 그리면 "다음 거 래일
+            # 시 가"처럼 한 글자씩 줄바꿈된다(2026-08-21 상하님 지적). 상승장
+            # 카드와 같은 j3-holo-words(1.05rem)로 맞춘다.
+            def _words(text):
+                return f"<span class='j3-holo-words'>{html.escape(str(text))}</span>"
+
+            plan_cells = [
+                ("사는 때", _words(plan.get("entry") or "—"), "#44f0a1"),
+                ("파는 때", _words("규칙에 없음"), "#ffd23f"),
+                ("이 자리 과거 성적", _words(spans or "—"), "#e6e6e6"),
+                ("손절가", _words("이 규칙에는 없음"), "#ff5b5b"),
+            ]
+        elif plan.get("trigger") is not None:
+            plan_cells = [
+                ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
+                ("매수 허용 상단", _price(plan.get("zone_high")), "#e6e6e6"),
+                ("무효화 가격", _price(plan.get("invalidation")), "#ff5b5b"),
+                ("2R 목표 참고", _price(plan.get("target")), "#44f0a1"),
+            ]
+        else:
+            ref_trigger, ref_zone_high, ref_invalidation, ref_target = _reference_plan(metrics)
+            plan_cells = [
+                ("조건 기준가 (참고)", _price(ref_trigger), "#e6e6e6"),
+                ("매수 허용 상단 (참고)", _price(ref_zone_high), "#e6e6e6"),
+                ("무효화 가격 (참고)", _price(ref_invalidation), "#ff5b5b"),
+                ("2R 목표 (참고)", _price(ref_target), "#44f0a1"),
+            ]
+        plan_boxes = [
+            f"<div class='j3-holo-cell'><div class='label'>{label}</div>"
+            f"<div class='val' style='color:{color}'>{value}</div></div>"
+            for label, value, color in plan_cells
+        ]
+        # 라벨과 만점을 갈래에 맞춘다 — 급락·상승은 그 갈래 배점(둘 다 100점),
+        # 미국형 5개 항목은 대장주 조건점수(80점)다. 숫자는 모듈에서 읽는다.
+        score_label = ("이 종목 점수" if mode in ("crash", "breakout")
+                       else "종목 조건점수")
+        score_box = (
+            "<div class='j3-holo-cell j3-holo-score'>"
+            f"<div class='label'>{score_label}</div>"
+            f"<div class='val'>{float(review.get('score') or 0):.1f}/{score_max:g}</div>"
+            f"<div class='state'>{plan.get('state', '')}</div></div>"
+        )
+        plan_grid = (
+            plan_boxes[0] + plan_boxes[1] + score_box
+            + plan_boxes[2] + plan_boxes[3] + "<div class='j3-holo-cell'></div>"
+        )
+        st.markdown(
+            "<div class='j3-holo-card'>"
+            "<span class='j3-holo-corner tl'></span><span class='j3-holo-corner tr'></span>"
+            "<span class='j3-holo-corner bl'></span><span class='j3-holo-corner br'></span>"
+            f"<div class='j3-holo-grid'>{plan_grid}</div></div>",
+            unsafe_allow_html=True,
+        )
+        if mode in ("crash", "breakout"):
+            # 여기 있던 ※ 두 줄은 뺐다(2026-08-06 상하님 지적 "반복되는 내용 없애라").
+            # 첫 줄은 바로 위 카드의 '손절가 — 이 규칙에는 없음'이 이미 말하고,
+            # 둘째 줄은 왼쪽 점수표 아래 설명과 같은 말이었다.
+            pass
+        else:
+            st.markdown(
+                "<div class='j3-plan-note'>※ <b>가격 칸이 채워지는 기준</b> — ‘돌파 확인’이나 ‘눌림목 대기’처럼 "
+                "<b>가격 셋업이 완성된 종목만</b> 확정 기준가·손절가·목표가가 나옵니다. "
+                "‘관찰’·‘제외’·‘추격 금지’는 아직 살 자리가 없다는 뜻이라 참고가로만 채웁니다.<br>"
+                f"※ <b>‘{plan.get('state', '')}’(가격 상태)와 ‘{plan.get('recommendation', '')}’(최종 판정)은 "
+                "다른 말</b>입니다 — 가격 셋업이 완성돼도 시장·테마 점수가 기준 미달이면 최종 판정은 매수가 "
+                f"아닙니다(이 종목의 테마 점수 {theme_score:.1f}/100 · 시장 {market_score:.0f}/100).</div>",
+                unsafe_allow_html=True,
+            )
+        # 단타 참고 신호는 접어 둔다 — 점수·판정에 안 쓰는 참고값인데 늘 펴 놓으니
+        # 화면이 길어졌다(2026-08-06 상하님 지적).
+        if _section_toggle(
+            "⚡ 단타 참고 신호 보기", danta_key,
+            close_label="단타 참고 신호 닫기",
+        ):
+            st.markdown(
+                f"<div class='j3-danta-box'>{_us_signal_hint()}<br>"
+                "<span class='j3-muted'>선행신호가 위험선호로 바뀌고 기준가를 넘으면 장중 진입 신호로 "
+                "참고합니다 (점수·판정에는 반영하지 않습니다). 미국은 투자자별 수급을 "
+                "<b>종가 뒤에도 공개하지 않아</b> 한국장의 ‘기관 수급 반전’ 대신 "
+                "선물·반도체·변동성·금리 방향을 씁니다.</span></div>",
+                unsafe_allow_html=True,
+            )
+        # 갈래 화면에서는 이 상자를 뺀다 — 왼쪽 점수표 아래 겨자색 상자와 **똑같은
+        # 문장**이었다(2026-08-06 상하님 캡처).
+        if mode not in ("crash", "breakout"):
+            st.write("")
+            if plan.get("recommendation") == "조건부 후보":
+                st.success(plan.get("buy_reason"))
+            elif plan.get("state") == "추격 금지":
+                st.error(plan.get("buy_reason"))
+            else:
+                st.warning(plan.get("buy_reason"))
+
+    st.caption(
+        "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
+        "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
+    )
+    _render_day_price_row(metrics, ticker, panel=panel)
+    _render_price_chart_bundle(ticker, panel=panel)
+
+    # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
+    _section_close(detail_key, "선택종목 세부사항 닫기")
+
+
+def _pullback_backdrop_cards(
+    *, mode: str, market: dict, themes: str, theme_score: float,
+    scored: dict | None, review: dict, plan: dict, row: dict | None = None,
+) -> list[tuple[str, str]]:
+    """상세 맨 위에 놓을 '시장 · 테마' 두 칸을 만든다.
+
+    **왜 넷에서 둘로 줄였나(2026-08-07 상하님 물음 "이게 여기 있는 게 맞나").**
+    예전에는 시장·테마·종목·매수 네 칸이 차트 뒤 맨 아래 있었는데,
+      * '종목' 칸은 바로 위 배점표를 소리 내어 다시 읽는 것이었고,
+      * '매수' 칸은 매수 심사 카드·지금 할 일 상자·겨자색 상자에 이어 **네 번째**로
+        같은 말을 했다.
+    남은 시장·테마 둘만 이 상세에서 처음 나오는 이야기다. 그래서 둘만 남기고,
+    자리도 배점표 **위로** 올린다 — 시장 → 테마 → 종목 순으로 읽어야 배점이
+    무슨 뜻인지 알고 볼 수 있다.
+    """
+
+    def _red(text) -> str:
+        """하락폭은 붉은색 진하게(2026-08-06 사용자 지시) — 눈에 먼저 들어와야 한다."""
+        return (f"<span style='color:#ff5b5b; font-weight:900'>"
+                f"{html.escape(str(text))}</span>")
+
+    if mode in ("crash", "breakout"):
+        # 이 두 갈래는 **다른 자로 잰다**. 그런데 예전에는 네 칸 중 '시장 근거'가
+        # 눌림목(A 규칙)의 조건점수를, '종목 근거'와 '매수 근거'가 **똑같은 문장**을
+        # 보여줬다(2026-08-06 상하님 캡처). 셋 다 이 갈래의 값으로 바꾼다.
+        if mode == "crash":
+            # **기준일로 찾아 놓고 오늘 낙폭으로 판정하면 앞뒤가 안 맞는다**
+            # (2026-08-06 상하님 지적). 표는 7/29(-11.5%) 기준으로 찾아 놓고
+            # 이 칸만 "오늘 -4.1%라 쓸 자리가 아닙니다"라고 말하고 있었다.
+            # 표와 **같은 기준일**로 말한다.
+            reference = j3data.crash_reference_day()
+            if reference.get("armed"):
+                ref_day = html.escape(str(reference.get("reference_date") or ""))
+                ref_drop = _red(f"{float(reference.get('reference_drop') or 0):.1f}%")
+                now_drop = _red(f"{float(reference.get('today_drop') or 0):.1f}%")
+                market_body = (
+                    f"{ref_day} 기준으로 찾았습니다 — 그날 QQQ(나스닥100)가 고점에서 "
+                    f"{ref_drop}였습니다. 오늘은 {now_drop}입니다."
+                )
+            else:
+                # 기준일이 없으면 오늘 낙폭으로 찾은 것이다. 그 사실을 그대로 적는다.
+                state = j3data.crash_market_state()
+                drop_pct = state.get("drop_pct")
+                if drop_pct is None:
+                    market_body = html.escape(
+                        str(state.get("reason") or "나스닥 상태를 못 읽었습니다"))
+                else:
+                    # **「최근 한 달」이 아니라 전고점 대비로 적는다** (2026-09-17 상하님
+                    # 지시 — "최근 한 달이 아니고 그냥 전고점 대비 나스닥이 몇 프로
+                    # 내려왔었고 지금은 몇 프로입니다라고 해야 된다").
+                    deepest = state.get("deepest_pct")
+                    if deepest is None:      # 옛 계산이 남은 판 — 지금 값만 적는다
+                        market_body = (f"QQQ(나스닥100)는 지금 전고점 대비 "
+                                       f"{_red(f'{float(drop_pct):.1f}%')}입니다.")
+                    else:
+                        market_body = (
+                            f"QQQ(나스닥100)가 전고점 대비 {_red(f'{float(deepest):.1f}%')}까지 "
+                            f"내려왔었고, 지금은 {_red(f'{float(drop_pct):.1f}%')}입니다."
+                        )
+        else:
+            # 목록을 계산한 같은 EOD snapshot을 쓴다. 상세을 열 때 시장을 재조회하면
+            # 목록의 Gate와 상세 설명이 서로 다른 시각을 말할 수 있다.
+            state = row or {}
+            market_body = html.escape(
+                str(
+                    (state.get("explanations") or {}).get("market", {}).get("one_line_explanation")
+                    or state.get("status_text")
+                    or "나스닥 시장 Gate 상태를 확인합니다."
+                )
+            )
+            market_body += (
+                "<div class='j3-reason-sub'>"
+                f"지금 <b>{html.escape(us_swing.plain_state(state.get('market_status')) or '자료부족')}</b>"
+                " · 나스닥이 이 상태일 때만 새로 살 후보를 냅니다.</div>"
+            )
+    else:
+        market_body = f"{market.get('regime', '자료부족')} · {market.get('score', 0)}/100"
+    # 여기 담기는 글은 **이미 안전하게 만들어 둔 것**이다(붉은 숫자 span이 들어간다).
+    # 그래서 아래에서 다시 escape하지 않는다 — 새 글을 넣을 때는 html.escape를
+    # 거쳐서 넣어야 한다.
+    # 여기 70.7/100만 적어 뒀더니 왼쪽 배점표의 테마 40점과 어긋나 보였다
+    # (2026-08-07 상하님 지적 "이거 맞냐"). 둘 다 맞는 값인데 **자가 다르다** —
+    # 이쪽은 위 테마 순위표가 테마 자체를 100점으로 잰 값이고, 저쪽은 이 종목의
+    # 급락 배점 100점 중 테마 몫이다. 그 사실을 카드에 적어 둔다.
+    # (옛 문구를 주석에 그대로 옮겨 적지 않는다 — '그 말이 화면에 남아 있나' 보는
+    #  시험이 주석을 먼저 집는다. 2026-08-07 실제로 걸렸다.)
+    if mode == "breakout":
+        swing_row = row or {}
+        theme_percentile = swing_row.get("theme_percentile")
+        breadth = swing_row.get("breadth_pct")
+        theme_body = html.escape(
+            f"{swing_row.get('theme_id') or themes} · 테마 보조점수 "
+            f"{float(swing_row.get('theme_score') or 0):.0f}/10"
+        )
+        theme_body += (
+            "<div class='j3-reason-sub'>대상 종목을 뺀 다른 구성종목으로 계산 · "
+            f"테마 등수 상위 {'—' if theme_percentile is None else f'{max(0.0, 100.0 - float(theme_percentile)):.0f}%'}"
+            f" · 50일선 위 {'—' if breadth is None else f'{float(breadth):.1f}%'}"
+            "</div>"
+        )
+    else:
+        theme_body = (
+            html.escape(f"{themes} · 테마 자체 점수 {theme_score:.1f}/100")
+        # 여기에 배점 항목 이름이나 점수를 **적지 않는다.** 적어 두면 배점을 고칠 때마다
+        # 이 줄이 조용히 옛말을 하게 된다(2026-08-14에 실제로 그랬다 — 배점에서
+        # 사라진 항목을 이 줄이 계속 가리키고 있었다).
+            + "<div class='j3-reason-sub'>위 <b>테마 순위표</b>가 이 테마를 100점으로 잰 "
+          "값입니다. 왼쪽 배점표의 <b>테마 점수</b>와는 <b>다른 자</b>입니다.</div>"
+        )
+    return [("시장 상황", market_body), ("테마 상황", theme_body)]
+
+
+# 낙폭 두 갈래의 색 (2026-08-01 사용자 지시: "-30~-40과 -40~-50 색깔 구분하고").
+# 설명 카드와 표의 같은 갈래가 같은 색이라 카드를 보고 표에서 그 줄을 바로 찾는다.
+# 갈래 이름은 2026-08-06에 바뀌었다 — 옛 deep/mid(-40~-50 / -30~-40)에서
+# shallow/deep(-20~-30 / -30~-50)으로. 옛 이름도 남겨 둬야 저장해 둔 기록이 안 깨진다.
+_BAND_CARD_CLASS = {"shallow": "j3-card-mid", "deep": "j3-card-deep", "mid": "j3-card-mid"}
+_BAND_CELL_CLASS = {"shallow": "j3-band-mid", "deep": "j3-band-deep", "mid": "j3-band-mid"}
+
+# 배점표 — 화면에 그대로 뿌린다(2026-08-06 사용자 지시 "기준을 세부적으로 화면에").
+#
+# **숫자는 여기 적지 않고 jarvis3_data에서 읽는다** (2026-08-09에 고쳤다).
+# 그전에는 숫자를 여기 박아 뒀는데, 2026-08-07에 급락 배점을 다시 재면서
+# 모듈만 고치고 이 표를 안 고쳐 **화면이 두 날 동안 옛 배점을 설명했다**
+# (화면 '같은 테마 동반 40점' · 실제 30점, '테마 등수' 줄은 아예 없었다).
+# 이제 모듈의 값을 그대로 읽으므로 다시는 어긋나지 않는다.
+# 0점 항목도 지우지 않고 남긴다 — 왜 뺐는지 모르면 나중에 다시 넣게 된다.
+#
+# (이름, 배점 열쇠 또는 None, 왜) — 열쇠가 None이면 배점에 아예 없는 항목이라 0점이다.
+_SCORE_TABLE = {
+    "crash": (
+        ("이 종목이 평소 크게 움직이나", "volatility",
+         "<b>무엇을 보나</b> — 이 회사 주가가 <b>최근 3개월 동안 하루에 몇 %씩 "
+         "움직였는지</b> 봅니다. 오늘 목록에 오른 종목끼리 줄을 세워 "
+         "<b>위쪽 절반</b>에 들면 점수를 줍니다.<br>"
+         "<b>왜 보나</b> — 평소 크게 출렁이던 종목이 바닥에서도 크게 튑니다. "
+         "얌전한 종목은 올라올 때도 얌전하게 올라옵니다.<br>"
+         "<b>과거에 어땠나</b> — 나스닥이 바닥을 찍고 돌아선 날 아홉 번 중 "
+         "<b>3개월로 보면 아홉 번 다</b>, 1년으로 봐도 <b>여덟 번 다</b> 이렇게 고른 "
+         "쪽이 나머지보다 더 벌었습니다. 네 항목 중 가장 꾸준합니다.<br>"
+         "<b>주의</b> — 바닥이 <u>아홉 번뿐</u>입니다. 확실한 숫자가 아닙니다"),
+        ("이 테마가 이미 오름세로 돌아섰나", "above150",
+         "<b>무엇을 보나</b> — 그 분야에 속한 회사들 중 <b>몇 %가 30주선 위에 "
+         "있는지</b> 세어, 분야 20개를 줄 세웁니다. <b>위에서 3등 안</b>이면 "
+         "점수를 줍니다.<br>"
+         "<b>30주선이란</b> 최근 30주(약 150거래일) 평균값을 이어 그린 선입니다. "
+         "주가가 그 위에 있으면 <u>반년 평균보다 지금이 비싸다</u>는 뜻입니다.<br>"
+         "<b>왜 보나</b> — 스탠 와인스타인은 1988년에 주가가 바닥을 다지고 "
+         "<b>30주선 위로 올라설 때가 오름세의 시작</b>이라고 했습니다. 급락 후 "
+         "반등이 바로 그 자리입니다.<br>"
+         "<b>과거에 어땠나</b> — 바닥에서 <b>1년으로 보면 일곱 번 중 일곱 번</b> "
+         "다 이겼습니다. 3개월은 여덟 번 중 일곱 번입니다.<br>"
+         "<b>왜 3등까지만인가</b> — 5등까지 넓혀 보니 무너졌습니다"),
+        ("이 테마가 통째로 떨어졌나", "together",
+         "<b>무엇을 보나</b> — 이 회사와 <b>같은 분야 회사가 네 개 이상</b> 이 목록에 "
+         "같이 올라왔으면 점수를 줍니다. 한두 개만 떨어졌으면 그 회사 사정이고, "
+         "네 개가 같이 떨어졌으면 <b>그 분야가 통째로 밀린 것</b>입니다. 분야째 "
+         "밀린 것은 돌아올 때도 분야째 돌아옵니다.<br>"
+         "<b>과거에 어땠나</b> — <b>3개월로 보면 아홉 번 다</b> 이겼는데, "
+         "6개월·1년으로 길게 보면 여덟 번 중 여섯 번으로 약해집니다. 그래서 "
+         "20점입니다.<br>"
+         "<b>주의</b> — 바닥이 <u>아홉 번뿐</u>입니다. 확실한 숫자가 아닙니다"),
+        ("이 테마가 지난 반년에 많이 올랐나", "theme_ret120",
+         "<b>무엇을 보나</b> — 그 분야 회사들이 <b>최근 반년에 평균 몇 % 올랐는지</b>로 "
+         "분야 20개를 줄 세워, <b>위에서 3등 안</b>이면 점수를 줍니다.<br>"
+         "<b>과거에 어땠나</b> — <b>1년으로 보면 여섯 번 중 여섯 번</b>으로 네 항목 중 "
+         "가장 잘 맞혔습니다. 그런데 <b>3개월로 보면 일곱 번 중 네 번</b>뿐입니다. "
+         "짧게 보면 잘 안 맞아서 10점만 줍니다.<br>"
+         "<b>주의</b> — 바닥이 <u>여덟 번뿐</u>입니다. 확실한 숫자가 아닙니다"),
+        ("고점 대비 낙폭", "bucket",
+         "<u>점수를 주지 않습니다.</u> 이 목록에 올릴 때 <b>이미 쓴 값</b>입니다 — "
+         "1년 최고가보다 20~50% 내려온 종목만 올리고 있습니다. 그 안에서 더 많이 "
+         "떨어진 쪽에 또 점수를 주면 한 가지를 두 번 세는 셈입니다.<br>"
+         "<b>게다가 겹칩니다</b> — 많이 떨어진 종목의 <b>71%</b>가 위 "
+         "<b>주가 변동성</b> 항목에도 걸립니다. 거의 같은 종목입니다.<br>"
+         "대신 낙폭 칸마다 과거 성적을 따로 보여 드립니다"),
+        ("테마가 20일선 위에 있나", "above20",
+         "<u>점수를 주지 않습니다 — 반대였습니다.</u> 20일선 위에 있던 종목이 1년 뒤 "
+         "오히려 <b>23% 덜 올랐습니다</b>. 나스닥이 바닥을 찍고 돌아선 날 아홉 번 중 "
+         "네 번밖에 못 맞혔습니다.<br>"
+         "<b>주가 변동성이 비슷한 종목끼리만 모아서 다시 봐도 같았습니다</b> — "
+         "20일선 위는 1년 뒤 53% 올랐고 아래는 76% 올랐습니다.<br>"
+         "<b>왜 그런가</b> — 20일선은 한 달짜리라 급락 뒤에는 며칠 반등만으로도 "
+         "금세 넘어섭니다. 그래서 앱은 이것을 <b>점수가 같을 때 순서를 가르는 데만</b> "
+         "씁니다"),
+        (f"위 「{_THEME_COUNT}개 테마 실시간 순위」", "theme_rank",
+         "<u>점수를 주지 않습니다.</u> 그 순위 위쪽 테마의 종목을 사면 어땠는지 "
+         "재 봤더니, 3개월과 1년은 맞는데 <b>6개월에 일곱 번 중 세 번</b>으로 "
+         "무너집니다.<br>"
+         "<b>왜 그런가</b> — 그 순위 점수 안에 <b>20일선 위 비율이 40점</b>으로 가장 "
+         "크게 들어 있습니다. 그런데 바로 위에서 보셨듯 급락 뒤 20일선은 거꾸로입니다. "
+         "그래서 이 자리에서는 구조적으로 맞지 않습니다.<br>"
+         "<b>그 순위표는 상승장 기준입니다</b> — 급락 목록을 고르실 때 그대로 "
+         "따라가시면 안 됩니다"),
+        ("테마가 덜 빠졌나", "less_drop",
+         "<u>2026-08-14에 뺐습니다.</u> 제가 잰 자리가 틀렸었습니다 — 나스닥이 "
+         "조금이라도 빠진 날을 <b>전부</b> 넣고 쟀는데, 그 대부분은 "
+         "<b>아직 더 떨어지는 중인 날</b>이었습니다. 떨어지는 중에는 덜 빠진 분야가 "
+         "덜 손해 보는 것이 당연합니다.<br>"
+         "실제로 사시는 자리에서 다시 재니 <b>100번 중 36번</b>이었습니다 — "
+         "거꾸로였습니다"),
+        ("테마 주봉이 오름세인가", "aligned",
+         "<u>2026-08-14에 뺐습니다.</u> 이 잣대로 보려면 종가가 50일선 위 · "
+         "50일선이 150일선 위 · 150일선이 200일선 위 · 200일선까지 오르는 중, "
+         "이 넷을 다 맞춰야 합니다. <b>상승이 한창일 때의 모습</b>입니다.<br>"
+         "<b>급락 직후에는 그 조건을 맞추는 분야가 거의 없습니다</b> — 잴 수 있는 "
+         "사건이 한두 번뿐이었습니다. 위 30주선 하나가 훨씬 느슨해서 그 자리를 "
+         "잡습니다"),
+        ("테마가 같이 오르는가", "spread5",
+         "<u>2026-08-12에 뺐습니다</u> — 이걸로 고른 종목은 20% 오르는 데 "
+         "<b>46일</b> 걸려 아무거나 산 것(45일)보다 <b>느렸습니다</b>"),
+        ("대형기술주 감점 · 여행 분야 감점", None,
+         "<u>넣지 않았습니다.</u> 2026-08-19에 상하님이 주신 지시문에 있던 것인데, "
+         "앱 명부로 재 보니 대형기술주 여섯 개는 <b>오히려 1년 뒤 6.6% 더 올랐고</b> "
+         "걸린 경우도 29번뿐이라 가를 수 없었습니다. 여행 분야는 앱 테마 20개에 "
+         "<b>그 이름이 아예 없습니다</b>"),
+        ("거래대금 · 사고팔기 쉬운가", "liquidity",
+         "세 보유기간 전부 미달이었습니다"),
+    ),
+}
+
+_SCORE_WEIGHT_SOURCE = {
+    "breakout": "BREAKOUT_SCORE_WEIGHTS",
+    "crash": "CRASH_SCORE_WEIGHTS",
+}
+
+# 배점표 맨 위 **한 줄 요약** (2026-08-12 상하님 지시 — "쉽게 알아먹게 한 줄 넣어라").
+# 아래 표를 안 읽어도 이 한 줄이면 무엇으로 순위를 매기는지 알 수 있어야 한다.
+_SCORE_TABLE_PLAIN = {
+    "crash": ("<b>쉽게 말해</b> — 크게 빠진 종목 중에서 <b>평소 크게 출렁이던 종목</b>과 "
+              "<b>그 종목이 속한 분야가 이미 몸을 일으킨 종목</b>을 위로 올립니다. "
+              "<b>40점이 그 종목의 출렁임</b>, <b>60점이 분야</b>, 더해서 100점입니다.<br>"
+              "<b>2026-08-19에 새로 짰습니다.</b> 그전에는 셋 다 분야만 봤는데, 상하님이 "
+              "주신 지시문의 <b>주가 변동성</b>을 앱 명부로 재 보니 넷 중 가장 꾸준했습니다. "
+              "이 자리에서 <b>종목 자체를 보는 항목이 점수를 받은 것은 처음</b>입니다.<br>"
+              "<b>위 테마 순위표 점수는 상승장 기준입니다</b> — 이 자리에서는 6개월에 무너집니다. "
+              "순위표 위쪽을 그대로 고르시면 안 됩니다.<br>"
+              "<b>0점은 나쁜 종목이라는 뜻이 아닙니다</b> — 점수는 <b>먼저 볼 순서</b>를 "
+              "정할 뿐이고, 0점도 조건에 걸려 올라온 종목입니다. 같은 점수는 분야를 "
+              "번갈아 놓습니다."),
+}
+
+
+def _score_table_rows(mode: str):
+    """(이름, 점수, 왜) — 점수는 **모듈에서 읽는다**(위 설명 참고)."""
+    weights = getattr(j3data, _SCORE_WEIGHT_SOURCE.get(mode, ""), {}) or {}
+    for name, key, why in _SCORE_TABLE.get(mode, ()):
+        points = float(weights.get(key) or 0) if key else 0.0
+        # 47.0처럼 소수 첫 자리가 0이면 정수로 적는다 — 화면이 지저분해진다.
+        text = f"{points:.0f}" if abs(points - round(points)) < 0.05 else f"{points:.1f}"
+        yield name, points, text, why
+
+
+def _score_table_html(mode: str, base_win_rate=None) -> str:
+    """배점표를 화면에 뿌린다. **점수를 주는 항목만** 적는다.
+
+    2026-08-15에 상하님이 "0점짜리도 표시하고 점수 미달인 이유 넣고"라고 하셔서
+    재 보고 버린 항목까지 다 적어 두었다. **2026-08-21에 상하님이 빼라고 하셨다** —
+    급락 배점표의 열한 줄 중 일곱이 0점이라 표가 그 일곱에 묻혔다.
+
+    버린 항목이 무엇이었는지는 `docs/US_THEME_SPEC.md` 3-3에 그대로 남아 있다.
+    되살리려면 아래 한 줄(points를 거르는 곳)만 지우면 된다.
+    """
+    lines = "".join(
+        f"<div class='j3-weight'>"
+        f"<b>{name}</b><span class='j3-w-pt'>{text}점</span>"
+        f"<span class='j3-w-why'>{why}</span></div>"
+        for name, points, text, why in _score_table_rows(mode)
+        if points
+    )
+    base = (
+        f" 기준은 <b>그날 아무 종목이나</b> 샀을 때 100번 중 {base_win_rate:.0f}번입니다."
+        if base_win_rate else ""
+    )
+    plain = _SCORE_TABLE_PLAIN.get(mode, "")
+    head = (f"<div class='j3-pull-guide' style='padding-bottom:.15rem'>{plain}</div>"
+            if plain else "")
+    return (
+        f"{head}"
+        "<div class='j3-pull-guide'><b>점수를 매기는 기준</b>(2026-08-12에 다시 쟀습니다) — "
+        "2년·3년·4년 창을 한 달씩 밀어 가며 재고, <u>어느 창에서나</u> 이겨야 점수를 "
+        "줍니다. 한 시기에서만 통한 값은 그 시기에만 맞는 자리를 1등으로 올립니다."
+        f"{base}</div>"
+        f"<div class='j3-pull-guide' style='padding-top:.2rem'>{lines}</div>"
+    )
+
+
+# 관찰 목록에 펴 두는 줄 수. **20개는 너무 많다**(2026-08-21 상하님 지시).
+_SWING_WATCH_ROWS = 15
+
+# 「등급 / 상태」 칸의 색. **종류별로 갈라 놓는다**(2026-08-21 상하님 지시).
+#   초록 — 통과했다 · 주황 — 거의 다 왔다 · 하늘 — 오늘 막 넘었다
+#   붉음 — 이 자리가 아니다 · 보라 — 아직 최고가를 못 넘었다 · 회색 — 힘이 모자라다
+_SWING_STATUS_TONE = {
+    "PRIMARY_CANDIDATE": "#22c55e",
+    "PULLBACK_WAIT": "#ffb020",
+    "ENTRY_WINDOW_NOT_STARTED": "#9dccff",
+    "TOO_DEEP": "#ff5b5b",
+    "MARKET_BLOCKED": "#ff5b5b",
+    "BREAKOUT_WAIT": "#b98cff",
+    "ENTRY_WINDOW_EXPIRED": "#8a8f98",
+    "RS60_WEAK": "#9aa0aa",
+    "RS120_WEAK": "#9aa0aa",
+    "RS_BOTH_WEAK": "#6f757e",
+    "INSUFFICIENT_DATA": "#6f757e",
+}
+_SWING_GRADE_TONE = {"S": "#22c55e", "A": "#44f0a1", "B": "#ffb020", "C": "#9dccff"}
+
+
+def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
+    """US_SWING_V1 전용 PRIMARY/WATCH 목록. 기존 급락 렌더와 완전히 분리한다."""
+
+    primary = list(result.get("primary_rows") or result.get("rows") or [])
+    watch = list(result.get("watch_rows") or [])
+    market_state = result.get("market") or {}
+    market_status = str(market_state.get("market_status") or "자료부족")
+    ixic = market_state.get("ixic_close")
+    drawdown = market_state.get("market_drawdown")
+
+    # **노란 경고 상자로 두지 않는다**(2026-08-21 상하님 물음 — "저거는 무슨 말인지
+    # 모르겠다, 지금 찾을 수 없다는 말인가?"). 문제가 난 것이 아니라 어느 명부로
+    # 찾았는지 알려 주는 곁글이라, 아래 기준일 줄 옆에 조용히 붙인다.
+    notes = [str(w) for w in (result.get("universe_warning"),
+                              result.get("market_history_warning")) if w]
+    market_line = (
+        f"나스닥 지수 — {us_swing.plain_state(market_status)}"
+        + (f" · 지금 {float(ixic):,.2f}" if ixic is not None else "")
+        + (f" · 지금까지의 최고 대비 {float(drawdown) * 100:+.1f}%"
+           if drawdown is not None else "")
+    )
+    if market_status == "MARKET_ON" and market_state.get("valid"):
+        st.success(market_line + " — 오늘은 새로 살 후보를 낼 수 있는 장입니다.")
+    else:
+        st.error(market_line + " — 점수가 높아도 오늘은 새로 살 후보를 내지 않습니다.")
+
+    # 저장 알림과 기준일·명부 줄은 2026-08-21에 뺐다(상하님 지시 — "설명 없애라").
+    # 그 값들은 아래 표가 이미 보여준다(정식 후보 수 · 관찰 수 · 종목별 기준일).
+    # **빈 자리를 남기지 않는다** — 그리는 코드를 통째로 지워 아래 칸이 위로 붙는다.
+    # 저장이 **실패**했을 때만 알린다. 조용히 넘어가면 그날 자료가 빈 줄로 남는다.
+    if result.get("snapshot_saved") is False:
+        st.warning("후보는 다 찾았는데 그날 값을 저장하지 못했습니다: "
+                   f"{result.get('snapshot_error') or '원인을 확인해야 합니다'}")
+
+    # **접이칸이다. 단추가 아니다**(2026-08-22 상하님 지적 — "이 화면 설명
+    # 보기를 클릭하는데도 25초 걸린다"). 단추는 누를 때마다 서버가 화면을
+    # 다시 그린다. 이 칸은 글자뿐이라(시세도 그림도 없다) 미리 만들어 두고
+    # 접어 두면 여닫는 데 **서버를 안 거친다** — 브라우저가 바로 편다.
+    # 다른 구역이 아직 단추인 까닭은 그 안에 시세·차트가 들어 있어서다.
+    with st.expander(
+        "📘 이 화면 설명 보기 (통과조건 여섯 · 중요 70점 · 거드는 30점)",
+        expanded=False,
+    ):
+        config = result.get("config") or {}
+        rs_cfg = config.get("rs") or {}
+        entry_cfg = config.get("entry") or {}
+        st.markdown(
+            "<div class='j3-pull-guide'><b>먼저 자격, 그다음 순위</b> — "
+            "나스닥이 살 만한 장인가 · 최근 3개월 강했나 · 최근 6개월 강했나 · "
+            "종가로 지난 1년 최고가를 넘었나 · 그 뒤 1~3거래일인가 · "
+            "종가가 3~10% 내려왔나 — <b>여섯 가지를 다 넘어야</b> 정식 후보가 됩니다. "
+            "뒤쪽 네 항목이 아무리 좋아도 이 여섯을 대신하지 못합니다.<br>"
+            f"지금 기준: 최근 3개월 상위 "
+            f"{100 - float(rs_cfg.get('rs60_min_percentile', 80)):.0f}% · 최근 6개월 상위 "
+            f"{100 - float(rs_cfg.get('rs120_min_percentile', 80)):.0f}% · "
+            f"신고가 뒤 {int(entry_cfg.get('watch_start_day', 1))}~"
+            f"{int(entry_cfg.get('watch_end_day', 3))}거래일 · "
+            f"눌림 {float(entry_cfg.get('pullback_min', .03)) * 100:.0f}~"
+            f"{float(entry_cfg.get('pullback_max', .10)) * 100:.0f}%<br>"
+            "<b>점수</b> — 최근 3개월 25 + 최근 6개월 25 + 눌림 20 = <b>중요 점수 70</b>, "
+            "테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7 = <b>보조 점수 30</b>입니다. "
+            "총점은 승률이나 보장수익이 아닙니다.</div>",
+            unsafe_allow_html=True,
+        )
+        catalog = result.get("explanation_catalog") or {}
+        for metric in ("market", "rs60", "rs120", "breakout", "pullback",
+                       "theme", "volume", "breadth", "rebound"):
+            payload = catalog.get(metric) or {}
+            if not payload:
+                continue
+            st.markdown(
+                "<div class='j3-reason-card'>"
+                f"<div class='j3-reason-title'>{html.escape(str(payload.get('title') or metric))} "
+                f"<span class='j3-muted'>· "
+                f"{html.escape(us_swing.plain_confidence(payload.get('confidence')))}</span></div>"
+                f"<span class='j3-help-line'>{html.escape(str(payload.get('one_line') or ''))}</span>"
+                f"<span class='j3-help-detail'>{html.escape(str(payload.get('detail') or ''))}</span>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+    # data-j3-open — 「상승장 내용이 그려졌다」는 표시다. 이 표시가 있을 때만 급락
+    # 단추를 내용 뒤로 보낸다(아래 CSS — 2026-09-17 상하님 지적 "상승장 신고가
+    # 눌렀는데 왜 급락 후 반등장 밑에 열리냐?"). 보이는 것은 하나도 안 바꾼다.
+    st.markdown(
+        "<style data-j3-open='breakout'>div[class*='st-key-close_j3_pullback_open'] button {"
+        "background:linear-gradient(90deg,#075d46,#18bf87) !important;color:#fff !important;"
+        "border:1px solid rgba(255,255,255,.28) !important;}"
+        "div[class*='st-key-close_j3_pullback_open'] button p {color:#fff !important;font-weight:800 !important;}"
+        # 두 단추 줄을 풀어 급락 단추를 내용 뒤로 — 예전에는 이 표식을 찾는 :has 로 걸었다
+        # (2026-09-23 저녁 · 까닭은 _J3B_HOME_CSS 위). 이 <style> 이 있을 때만 걸리는 것은 같다.
+        "[data-testid='stLayoutWrapper']:has(> .stHorizontalBlock .st-key-j3_pullback_crash),"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock:has(.st-key-j3_pullback_crash){display:contents!important}"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock:has(.st-key-j3_pullback_crash) > .stColumn{"
+        "width:100%!important;flex:0 0 auto!important;min-width:0!important}"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock > .stColumn:has(.st-key-j3_pullback_crash){order:1!important}"
+        "</style>", unsafe_allow_html=True,
+    )
+    _section_close(
+        "j3_pullback_open", "상승장 (신고가 눌림매수) 닫기",
+        return_to=_RADAR_MAIN_ANCHOR,
+    )
+
+    all_selectable = primary + watch
+    # **목록을 열 때 아무 종목도 고르지 않는다** (2026-08-22 상하님 지적 —
+    # "그건 내가 한 적 없다. 그냥 종목 클릭하면 열리도록 하라고 했지").
+    #
+    # 지금까지는 목록이 뜨면 1등 종목을 저절로 골라 **상세와 차트 넷까지 같이**
+    # 그렸다. 재 보니 그것이 5배였다 — 목록만 그리면 0.36초, 상세·차트까지
+    # 그리면 1.75초다(노트북·자료 없이 그리기만). 폰에서는 차트가 더 비싸다.
+    # 20개 테마 순위표가 빠른 까닭도 같다 — 거기는 목록만 그린다.
+    #
+    # 목록은 목록만 그리고, 상세와 차트는 **종목을 누를 때** 열린다.
+    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    tickers = [str(row.get("ticker") or "") for row in all_selectable]
+    if selected_ticker not in tickers:
+        selected_ticker = None
+    selected_css = []
+    button_keys = []          # (단추 열쇠, 티커) — 보라색 표시를 나중에 붙인다
+
+    # **3개월·6개월 등수와 중요·보조 점수 칸은 뺐다**(2026-08-21 상하님 지시 —
+    # "선택종목 세부사항에 보면 나온다"). 표에는 고를 때 필요한 것만 남긴다 —
+    # 번호·점수·종목·티커·등급/상태·눌림·테마. 옆으로 밀리던 것도 사라진다.
+    # 이 갈래는 일곱 칸뿐이다. 급락표의 넓은 공통 폭을 쓰지 않고 가장 긴 상태말
+    # 「3·6개월 약함」이 들어가는 정도만 남겨 항목 사이 빈 폭을 줄인다.
+    # 「6개월 수익률」을 하나 더 넣었다(2026-09-05 상하님 지시).
+    # 「당일주가」를 티커 바로 뒤에 넣었다(2026-09-12 상하님 지시 — "21테마·급락
+    # 후 반등 리스트에는 당일주가 등락률이 나오는데 상승장 리스트에는 있나 확인
+    # 하고 없으면 넣어라"). 자리·차례·모양을 급락 표와 똑같이 맞춘다 — 두 표가
+    # 같은 값을 다르게 보이면 어느 쪽이 맞는지 알 수 없다.
+    widths = [0.42, 0.62, 1.55, 0.72, 1.05, 1.3, 1.2, 1.0, 1.05, 1.45]
+    row_widths = [widths[0], widths[1], widths[2], sum(widths[3:])]
+    rest_widths = widths[3:]
+    # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님). 둘 다 점수인데
+    # 이름만 봐서는 알 수 없었다. 무엇을 재는 점수인지 이름이 직접 말하게 한다.
+    heads = ["티커", "당일주가", "등급 / 상태", "눌림 / 며칠째",
+             "20일 수익률", "6개월 수익률", "테마"]
+
+    def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
+        """표 한 벌을 **칸 넷으로 한 번에** 그린다 (2026-08-26 상하님 지시).
+
+        예전에는 줄마다 st.columns 를 새로 만들었다. 15줄이면 화면 조각이 673개가
+        되고, 그것이 여러 뭉치로 나뉘어 도착해 줄이 하나씩 나타나 보였다
+        (상하님 — "종목 1번부터 여전히 순서대로 천천히 열린다").
+
+        이제 칸은 한 번만 만들고, 번호·점수·나머지는 각각 한 덩이로 쌓는다.
+        종목 단추 15개만 예전 그대로 진짜 단추로 둔다 — 눌러야 하기 때문이다.
+
+        **값·점수·차례·보이는 모양은 하나도 안 바뀐다.** 같은 글자를 몇 덩이로
+        나누어 보내느냐만 바뀐다.
+        """
+        # 줄을 누르면 바깥의 selected_ticker를 그 자리에서 바꾼다 — 그래야
+        # 아래 상세가 **같은 판에서** 그 종목으로 그려진다(다시 그리기 없이).
+        nonlocal selected_ticker
+        prefix = "j3rbw" if watch_mode else "j3rbf"
+        cols = box.columns(row_widths)
+        # **「번호 · 점수」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
+        # 2026-08-20에 다시 확인하심). 검증되지 않은 차례를 1위·2위처럼 보이면
+        # 화면이 거짓말을 한다. 이 배점은 상하님 지시문이 정해 준 것이지 제가
+        # 과거차트로 "이 차례가 맞다"를 확인한 것이 아니다. 그냥 번호다.
+        cols[0].markdown("<div class='j3-th-head'>번호</div>", unsafe_allow_html=True)
+        cols[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
+        cols[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+        cols[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
+
+        number_cells: list[str] = []
+        score_cells: list[str] = []
+        rest_cells: list[str] = []
+        for index, row in enumerate(rows):
+            rank = str(index + 1) if watch_mode else str(int(row.get("primary_rank") or index + 1))
+            number_cells.append(f"<div class='j3-td j3-muted'>{rank}</div>")
+            # 점수 색은 급락 표와 같은 자를 쓴다 — 70↑ 금색, 50↑ 하늘색, 그 아래 회색.
+            total = float(row.get("total_score") or 0)
+            score_class = ("j3-score-hi" if total >= 70 else
+                           "j3-score-mid" if total >= 50 else "j3-score-low")
+            score_cells.append(
+                f"<div class='j3-td'><span class='j3-score {score_class}'>"
+                f"{total:.0f}점</span></div>"
+            )
+            # 3개월·6개월 등수는 이 표에 안 적는다 — 종목을 누르면 「선택종목
+            # 세부사항」에 그대로 나온다(2026-08-21 상하님 지시).
+            pullback = row.get("pullback_pct_close")
+            pullback_text = "—" if pullback is None else f"-{float(pullback):.1f}%"
+            # 눌림은 3~10%가 **좋은 자리**다. 좋으면 초록, 너무 깊으면 붉게.
+            pullback_tone = (
+                "j3-muted" if pullback is None
+                else "j3-green-strong" if 6.0 <= float(pullback) <= 10.0
+                else "j3-green" if 3.0 <= float(pullback) < 6.0
+                else "j3-down" if float(pullback) > 10.0
+                else "j3-muted"
+            )
+            # 칸에는 **짧은 말**만 넣는다(2026-08-21). 긴 설명은 손을 올리면 뜨게
+            # 두고, 칸 안에서는 잘라 준다 — 안 자르면 옆 칸 글자를 덮는다.
+            long_label = (
+                str(row.get("status_text") or "조건을 다 넘지 못했습니다")
+                if watch_mode else
+                str(row.get("grade_text") or "정식 후보")
+            )
+            short_label = (
+                us_swing.short_status(row.get("primary_status")) if watch_mode
+                else f"{row.get('grade') or '—'}등급"
+            )
+            tone = (
+                _SWING_STATUS_TONE.get(str(row.get("primary_status") or ""), "#9aa0aa")
+                if watch_mode else
+                _SWING_GRADE_TONE.get(str(row.get("grade") or ""), "#9aa0aa")
+            )
+            label = (f"<span class='j3-rb-clip' style='font-weight:800; color:{tone}'"
+                     f" title='{html.escape(long_label)}'>"
+                     f"{html.escape(short_label)}</span>")
+            theme_text = str(row.get("theme_id") or "자료부족")
+            # 6개월 **절대** 수익률 (2026-09-05 상하님 지시). 통과조건은 여태대로
+            # 나스닥 대비 등수라, 이 종목이 실제로 몇 % 올랐는지가 안 보였다.
+            # 20일·6개월은 다른 표·세부사항과 **같은 규칙**으로 잰 값을 적는다(2026-09-24 ·
+            # _shown_numbers). 예전에는 상승장 선별이 따로 잰 값(일봉 종가)이라, 장 닫힌 동안
+            # 다른 파트(시간외 가격 기준)와 같은 종목이 다른 수익률로 나왔다. 선별이 잰 값은
+            # 줄에 metrics 가 없을 때만 쓴다. **통과·점수에는 원래 안 쓰던 값이다.**
+            swing_metrics = row.get("metrics") or {}
+            swing_shown = _shown_numbers(swing_metrics) if swing_metrics else {}
+            ret120 = swing_shown.get("ret120") if swing_shown.get("ret120") is not None else row.get("ret120")
+            ret120_text = "—" if ret120 is None else f"{float(ret120):+.1f}%"
+            # 20일 수익률 (2026-09-07 상하님 지시).
+            ret20 = swing_shown.get("ret20") if swing_shown.get("ret20") is not None else row.get("ret20")
+            ret20_text = "—" if ret20 is None else f"{float(ret20):+.1f}%"
+            # 당일주가 — 급락 표와 **같은 모양**이다(가격 위, 등락 아래).
+            # 값도 같은 자리에서 온다(row["metrics"]) — 두 표가 어긋나지 않는다.
+            swing_price, swing_change = _list_price_change(swing_metrics)
+            price_cell = (
+                "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+                " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+                f"<span>{_price(swing_price)}</span>"
+                f"<span style='color:{_sign_color(swing_change)};"
+                f" font-weight:800; font-size:.82rem'>"
+                f"{_pct(swing_change)}</span></span>"
+            )
+            rest_cells.append(_flex_row(rest_widths, [
+                f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
+                price_cell,
+                label,
+                f"<span class='{pullback_tone}' style='font-weight:800'>"
+                f"{html.escape(pullback_text)}</span>"
+                f" <span class='j3-muted'>· {int(row.get('days_since_anchor') or 0)}일째</span>",
+                f"<span style='color:{_sign_color(ret20)}; font-weight:800'>{ret20_text}</span>",
+                f"<span style='color:{_sign_color(ret120)}; font-weight:800'>{ret120_text}</span>",
+                f"<span class='j3-pull-theme j3-rb-clip' title='{html.escape(theme_text)}'>"
+                f"{html.escape(theme_text)}</span>",
+            ]))
+
+        cols[0].markdown(_stacked(number_cells), unsafe_allow_html=True)
+        cols[1].markdown(_stacked(score_cells), unsafe_allow_html=True)
+        # 종목 단추만 진짜 단추다 — 눌러야 아래 상세가 열린다.
+        for index, row in enumerate(rows):
+            key = f"{prefix}_{index:02d}"
+            button_keys.append((key, row.get("ticker")))
+            if cols[2].button(str(row.get("name") or row.get("ticker") or "—"), key=key, width="stretch"):
+                selected_ticker = row.get("ticker")
+                st.session_state["j3_pullback_selected_ticker"] = selected_ticker
+                for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback", "j3_bundle_open_pullback"):
+                    st.session_state[opened] = True
+                scroll_to.request(st, "detail_pullback")
+                # **다시 그리지 않는다**(2026-08-22 상하님 지적 — "종목 클릭하면
+                # 18초"). 부르면 이 덩이를 **한 번 더** 그린다 — 표 서른다섯 줄과
+                # 상세를 두 번씩 그리는 셈이다. 안 불러도 결과는 같다: 아래 상세는
+                # 이 줄보다 **뒤에서** selected_ticker를 읽고, 보라색 표시는 줄을
+                # 다 그린 뒤에 붙인다. 테마 대장주 표에서 이미 같은 방식으로 뺐다.
+        cols[3].markdown(_stacked(rest_cells), unsafe_allow_html=True)
+
+    if primary:
+        st.markdown("<div class='j3-section-title'>정식 후보</div>", unsafe_allow_html=True)
+        draw_rows(primary, st.container(key="j3_swing_table"), watch_mode=False)
+    else:
+        st.info("오늘은 여섯 가지를 다 넘은 정식 후보가 없습니다. "
+                "자리를 채우려고 기준을 느슨하게 바꾸지 않습니다.")
+
+    if watch:
+        # **급락 표의 '11위~20위 더 보기'와 같은 열쇠를 쓴다**(2026-08-21 상하님
+        # 지적 — 관찰 목록이 글자끼리 겹쳐 보였다). 그 열쇠에는 칸을 제 폭 안에
+        # 가두고 표를 옆으로 미는 규칙이 이미 붙어 있다. 두 갈래는 한 번에 하나만
+        # 그려지므로 열쇠가 겹치지 않는다.
+        watch = watch[:_SWING_WATCH_ROWS]
+        # **접이칸으로 되돌렸다** (2026-08-22 상하님 지적 — "누르지도 않았는데
+        # 자동으로 열린다. 이거 잘못됐다").
+        #
+        # 오늘 오전에 제가 이걸 잠깐 뺐었다. 접이칸이 **펼 때 서버를 한 번 더
+        # 다녀와서** 10~20초가 걸렸기 때문이다. 그런데 그 값의 대부분은 접이칸
+        # 자체가 아니라, 그때 같이 다시 그리던 **종목 상세와 차트 넷**이었다.
+        # 그 자동 선택을 뺀 지금은 펴는 값이 표 열다섯 줄뿐이라 싸다.
+        #
+        # 그러니 접이칸은 그대로 두는 것이 맞다 — 안 누르면 안 열린다.
+        watch_box = st.container(key="j3_swing_rest").expander(
+            f"관찰만 · 조건을 다 못 넘은 {len(watch)}개 보기"
+        )
+        draw_rows(watch, watch_box, watch_mode=True)
+    # 고른 줄은 **보라색**이다 — 테마표·급락표와 같은 약속(2026-08-21 상하님 지시).
+    # 줄을 다 그린 **뒤에** 붙이므로, 이 판에서 방금 누른 줄도 곧바로 표시된다.
+    selected_css += [
+        f"div[class*='st-key-{key}'] button "
+        "{ background: rgba(192,132,252,.16) !important; "
+        "border-left: 3px solid #c084fc !important; }"
+        for key, ticker in button_keys if ticker and ticker == selected_ticker
+    ]
+    # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
+    # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
+    st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+
+    st.caption(
+        "**중요 점수(70점)** 는 최근 3개월·6개월에 시장보다 강했나와 신고가 뒤 알맞게 "
+        "쉬었나 셋을 더한 것이고, **보조 점수(30점)** 는 테마·돌파 거래량·테마 "
+        "확산도·반등 넷을 더한 것입니다. 둘을 더하면 왼쪽 「점수」입니다. "
+        "정식 후보에만 등급을 붙이고, 관찰 줄은 무엇이 모자란가를 먼저 적습니다. "
+        "점수는 승률이 아닙니다."
+    )
+    if all_selectable and selected_ticker:
+        selected = next(
+            (row for row in all_selectable if row.get("ticker") == selected_ticker),
+            all_selectable[0],
+        )
+        _render_pullback_detail(selected, market, ranking, mode="breakout")
+    _section_close(
+        "j3_pullback_open", "상승장 (신고가 눌림매수) 닫기", slot="_bottom",
+        return_to=_RADAR_MAIN_ANCHOR,
+    )
+
+
+def _ixic_note(reference: dict) -> str:
+    """「(나스닥 종합지수(IXIC)는 7월 29일 종가 -9.78%)」 한 조각 (2026-09-11 상하님 지시).
+
+    **참고로만 적는다.** 종목을 고르는 자는 QQQ 그대로다.
+    값은 jarvis3_data.crash_reference_day 가 같이 실어 보낸다 — 여기서 다시
+    계산하지 않는다. 없으면 빈 글자를 준다(괄호만 빠지고 문장은 그대로 선다).
+    """
+    date_text = str((reference or {}).get("ixic_date") or "")
+    drop = (reference or {}).get("ixic_drop")
+    if not date_text or drop is None:
+        return ""
+    try:
+        _year, month, day = date_text.split("-")
+        when = f"{int(month)}월 {int(day)}일"
+    except Exception:
+        when = date_text
+    return f" (나스닥 종합지수(IXIC)는 {when} 종가 :red[**{float(drop):.2f}%**])"
+
+
+def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
+    """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
+
+    기본 눌림목 표와 칸이 다르다 — 여기서는 '눌림 점수'가 아니라 설명서가 실제로
+    보는 값(신고가 며칠 전 · 고점 대비 · 보유일수)을 보여준다. 승률·평균수익은
+    설명서에 적힌 검증값을 그대로 옮긴 참고치이며, 이 종목들의 성적이 아니다.
+    """
+    # 단추를 누르면 화면이 여기로 내려온다(2026-08-28). 두 갈래가 함께 쓰는
+    # 자리라 여기 하나만 둔다 — 상승장은 아래 _render_us_swing_finder 로 간다.
+    scroll_to.anchor(st, "finder_top")
+    if not result.get("ok"):
+        st.error(f"조회 실패: {_safe_error_text(result.get('error'))}")
+        return
+    if mode == "breakout":
+        _render_us_swing_finder(result, market, ranking)
+        return
+    rows = result.get("rows") or []
+    breakout = mode == "breakout"
+    # 늘 보이는 것은 **오늘 이야기 한 줄**뿐이다. 설명은 전부 접는다
+    # (2026-08-06 사용자 지시 — 설명이 첫 화면을 다 먹었다).
+    wait_min, wait_max = 1, 5
+    if breakout:
+        rule = result.get("rule") or {}
+        wait_min, wait_max = rule.get("wait_days", (1, 5))
+        drop_low, drop_high = rule.get("drop_band", (-15.0, -4.0))
+        # 표를 잰 자리인지 먼저 알려준다(2026-08-06 사용자 결정). **막지 않는다** —
+        # 표 1의 '장세' 칸은 원래 설명서의 규칙이 아니라 그 숫자를 잰 범위였다.
+        breakout_market = result.get("market") or {}
+        if breakout_market.get("reason"):
+            if breakout_market.get("armed"):
+                st.success(breakout_market["reason"])
+            else:
+                st.error(breakout_market["reason"])
+    else:
+        counts = result.get("bucket_counts") or {}
+        # 이름을 market으로 두면 이 함수의 인자(시장 조건점수)를 덮어쓴다.
+        crash_market = result.get("market") or {}
+        reference = result.get("reference") or {}
+        drop_now = crash_market.get("drop_pct")
+        ref_date = reference.get("reference_date")
+        # 하락폭 숫자는 붉게(2026-08-06 사용자 지시). 스트림릿 글자색 표시를 쓴다.
+        if ref_date and drop_now is not None:
+            # 며칠 지났는지 함께 적는다(2026-08-16) — 표의 '테마 반등' 칸이
+            # 기준일에서 잰 값이라, 며칠째인지 모르면 그 숫자를 읽을 수 없다.
+            passed = result.get("days_since_reference")
+            passed_text = (f" 그날부터 **{int(passed)}거래일** 지났습니다."
+                           if isinstance(passed, (int, float)) else "")
+            # **괄호는 참고다** (2026-09-11 상하님 지시 — "괄호 안에 (나스닥
+            # 종합지수(IXIC)는 7월 29일 종가 -9.78%)"). 화면 숫자는 QQQ를 잰 것이라
+            # 나스닥 종합 숫자와 헷갈리셨다. **고르는 데는 하나도 안 쓴다** —
+            # 기준일도 종목도 QQQ로 정한 그대로다(상하님 — "연결되는 것은 원래대로
+            # QQQ로 하고"). 못 구하면 괄호만 빠지고 나머지는 그대로다.
+            st.info(
+                f"**{ref_date} 기준으로 찾았습니다** — 그날 QQQ(나스닥100)가 고점에서 "
+                f":red[**{reference.get('reference_drop', 0):.1f}%**]였고 오늘은 "
+                f":red[**{drop_now:.1f}%**]입니다."
+                + _ixic_note(reference)
+                + " 그날 걸렸던 종목을 그대로 보여드립니다."
+                + passed_text
+            )
+        elif drop_now is not None:
+            # 종목 상세 「시장 상황」과 **같은 문장**이다 (2026-09-17 상하님 지시 — "최근
+            # 한 달이 아니고 전고점 대비 몇 프로 내려왔었고 지금은 몇 프로").
+            deepest = crash_market.get("deepest_pct")
+            if deepest is None:
+                deepest = reference.get("deepest_drop")
+            if deepest is None:              # 옛 계산이 남은 판 — 지금 값만 적는다
+                st.info(f"**QQQ(나스닥100)는 지금 전고점 대비 :red[**{drop_now:.1f}%**]입니다.**")
+            else:
+                st.info(
+                    f"**QQQ(나스닥100)가 전고점 대비 :red[**{float(deepest):.1f}%**]까지 "
+                    f"내려왔었고**, 지금은 :red[**{drop_now:.1f}%**]입니다."
+                )
+        # 이 갈래만 붙이는 경고다(2026-08-06 사용자 승인). 점수가 96·95·92처럼 크게
+        # 찍혀 1등이 확실히 좋아 보이는데, 재 보면 1등과 10등의 성적 차이가 100번에
+        # 1~3번뿐이다. 상승장은 테마 하나로 앞 +8.6 / 뒤 +2.5라 이 경고를 안 붙인다.
+        st.caption(
+            "⚠️ 이 화면은 순위가 성적을 거의 못 가립니다. 위에 있다고 더 좋은 자리가 "
+            "아닙니다 — 10년치로 재 보면 1등과 10등의 차이가 100번에 1~3번입니다. "
+            "목록으로 보시고 고르시는 것은 상하님이 하십시오."
+        )
+    # **접이칸이다. 단추가 아니다**(2026-08-22 상하님 지적 — "이 화면 설명
+    # 보기를 클릭하는데도 25초 걸린다"). 단추는 누를 때마다 서버가 화면을
+    # 다시 그린다. 이 칸은 글자뿐이라(시세도 그림도 없다) 미리 만들어 두고
+    # 접어 두면 여닫는 데 **서버를 안 거친다** — 브라우저가 바로 편다.
+    # 다른 구역이 아직 단추인 까닭은 그 안에 시세·차트가 들어 있어서다.
+    with st.expander(
+        "📘 이 화면 설명 보기 (찾는 그물 · 점수 매기는 기준)",
+        expanded=False,
+    ):
+        if breakout:
+            st.markdown(
+                "<div class='j3-pull-guide'>"
+                f"<b>찾는 그물</b> — 52주 신고가 뒤 <b>{wait_min}~{wait_max}거래일</b> 안에 "
+                f"그 고점에서 <b>{abs(drop_high):.0f}~{abs(drop_low):.0f}%</b> 내려온 종목을 "
+                "<u>모두</u> 보여줍니다. 이동평균은 보지 않습니다.<br>"
+                "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
+                "점수가 낮은 줄도 <u>참고로</u> 올려 두니 보시고 판단하십시오.<br>"
+                f"같은 기간 <u>아무 날 아무 종목이나</u> 샀으면 6개월에 100번 중 "
+                f"{result.get('base_win_rate')}번 이익 · 가운데 값 "
+                f"+{result.get('base_median_return')}%였습니다. 아래 숫자는 "
+                "<u>과거를 잰 것</u>이며 이 종목들의 성적이 아닙니다.<br>"
+                # 2026-08-07 — 그물 자체를 격자로 다 재 보고 알게 된 것. 감추면 안 된다.
+                "<b class='j3-down'>⚠ 이 그물은 아직 검증되지 않았습니다.</b> "
+                "2026-08-07에 기다린 날·눌린 폭·보유기간·시장조건을 바꿔 가며 "
+                "<b>144가지</b>를 3년 창으로 다 재 봤는데 <b>하나도 기준선을 넘지 "
+                "못했습니다</b>(가장 나은 조합도 가운데 +2.1%p). 지난 10년 나스닥이 "
+                "해마다 20.9%씩 올라 <u>아무 대형주나 사도 6개월에 100번 중 65번</u> "
+                "벌던 시장이라, 골라내는 값이 표시가 안 납니다. "
+                "<b>순위는 참고로만 보시고, 목록으로 읽으십시오.</b> "
+                "같은 방법으로 한국은 192가지 중 41가지가 통과했습니다"
+                "(docs/KR_RULE_BACKTEST.md).</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            cards = []
+            for rule in result.get("rules") or []:
+                # 카드와 표의 같은 갈래가 같은 색이어야 눈으로 이어진다(2026-08-01 지시).
+                cards.append(
+                    f"<div class='j3-reason-card {_BAND_CARD_CLASS.get(rule['key'], '')}'>"
+                    f"<div class='j3-reason-title'>{rule['label']}</div>"
+                    # **파는 날을 적지 않는다**(2026-08-12 상하님 확정). 대신
+                    # 3개월·6개월·1년 과거 성적을 나란히 놓는다.
+                    f"<div class='j3-reason-body'>"
+                    + " · ".join(
+                        f"{item['label']} <b>{item['median_return']:+.1f}%</b>"
+                        f"(100번 중 {item['win_rate']:.0f}번)"
+                        for item in rule.get("results") or ())
+                    + f" · 지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
+                )
+            if ref_date:
+                st.caption(
+                    f"오늘이 아니라 {ref_date} 기준으로 갈래를 나눴습니다"
+                    f"(최근 {reference.get('days_in_band', 0)}일이 그 자리였고 마지막은 "
+                    f"{reference.get('last_in_band', '—')}). 오늘 기준으로 다시 재면 "
+                    "이미 오른 종목이 목록에서 사라집니다."
+                )
+            st.markdown(
+                "<div class='j3-pull-guide'><b>찾는 그물</b> — 나스닥이 "
+                "<span class='j3-drop'>-6~-12%</span>였던 날을 기준으로, 고점에서 "
+                "<span class='j3-drop'>-20~-50%</span> 빠진 종목을 찾습니다.</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<div class='j3-pull-guide'>"
+                "<b>찾는 그물</b> — 신고가가 언제였는지는 <u>보지 않고</u> "
+                "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
+                "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
+                "아래 갈래별 성적은 <u>갈래끼리 견준 것</u>이고, 순위는 배점표가 정합니다.<br>"
+                # 낙폭 칸 셋이 무엇인지 화면 어디에도 설명이 없었다(2026-08-07 지적).
+                + (f"<b>낙폭 칸 셋</b> — <b>고점 대비</b>는 기준일({ref_date})에 "
+                   "고점에서 얼마나 빠져 있었나, <b>고점대비현재</b>는 오늘 얼마나 "
+                   "빠져 있나, <b>종목저점후</b>는 그 기준일 종가에서 지금까지 얼마나 "
+                   "움직였나입니다(그 종목 스스로의 저점이 아니라 <u>기준일</u>이 "
+                   "출발점입니다). <u>갈래와 점수는 ‘고점 대비’로 정합니다</u> — 오늘 "
+                   "값으로 정하면 이미 반등한 종목이 목록에서 사라집니다.<br>"
+                   if ref_date else "")
+                + "<b>아래 성적은 10년치(2016.8~2026.8)를 잰 것</b>이며 앞으로의 승률이 아닙니다."
+                "</div>"
+                f"<div class='j3-metric-row'>{''.join(cards)}</div>",
+                unsafe_allow_html=True,
+            )
+        # 배점표를 화면에 그대로 뿌린다(2026-08-06 사용자 지시). 0점 항목도 왜 뺐는지
+        # 같이 보여야 나중에 같은 실수를 되풀이하지 않는다.
+        base_rate = result.get("base_win_rate") if breakout else (
+            (result.get("rules") or [{}])[0].get("base_win_rate")
+        )
+        # **깊은 급락에서는 점수가 순위를 못 가른다**(2026-08-12 상하님 지적으로
+        # 갈라서 재 봤다 — research/us_crash_depth_check.py). 나스닥 -24% 아래에서는
+        # 세 항목이 전부 무너진다. 그럴 때는 감추지 말고 그렇다고 적는다.
+        if result.get("score_blind"):
+            drop = (result.get("market") or {}).get("drop_pct")
+            limit = getattr(j3data, "CRASH_SCORE_BLIND_BELOW", -24.0)
+            st.markdown(
+                "<div class='j3-pull-guide'><b class='j3-down'>⚠ 오늘은 점수로 "
+                "순위를 가를 수 없습니다.</b> 나스닥이 고점 대비 "
+                + (_red(f"{float(drop):.1f}%") if drop is not None else "크게")
+                + f"까지 빠져 있습니다. 이만큼(<b>{abs(limit):.0f}% 아래</b>) 깊은 "
+                "자리에서는 배점 세 항목이 <u>전부 무너집니다</u> — 10년치를 낙폭 칸별로 "
+                "갈라 재서 확인했습니다.<br><b>아래 목록은 순서 없이 보십시오.</b> "
+                "이런 날은 어느 자리를 사도 크게 올랐습니다(그물 전체 1년 가운데 +32%).</div>",
+                unsafe_allow_html=True)
+        # **얕은 급락(6~12%)에서도 순위가 약하다.** 그런데 여기가 급락 목록이 뜨는
+        # 날의 41%, 제일 자주 오는 자리다. 2026-08-12 저녁 상하님 물음 —
+        # "답이 없다는 말이 뭐냐. 내보고 어쩌라고." 화면이 아무 말도 안 하고 있던
+        # 것이 문제였다. 깊은 급락과 달리 아주 못 쓰는 것은 아니라 문구를 달리한다.
+        elif result.get("score_weak"):
+            drop = (result.get("market") or {}).get("drop_pct")
+            low, high = getattr(j3data, "CRASH_SCORE_WEAK_BAND", (-12.0, -6.0))
+            st.markdown(
+                "<div class='j3-pull-guide'><b class='j3-down'>⚠ 오늘은 순위가 "
+                "약합니다.</b> 나스닥이 고점 대비 "
+                + (_red(f"{float(drop):.1f}%") if drop is not None else "조금")
+                + f" 빠져 있습니다. 이 정도(<b>{abs(high):.0f}~{abs(low):.0f}%</b>) "
+                "얕은 자리는 <u>급락 목록이 뜨는 날의 41%</u>로 제일 자주 오는데, "
+                "10년치로 재 보면 배점 세 항목 중 <b>‘테마가 덜 빠졌나’만 1년 보유에서 "
+                "걸립니다.</b><br><b>1등과 5등을 크게 다르게 보지 마십시오.</b> "
+                "짧게 들고 나오실 생각이면 특히 그렇습니다.</div>",
+                unsafe_allow_html=True)
+        st.markdown(
+            _score_table_html("breakout" if breakout else "crash", base_rate)
+            + "<div class='j3-pull-guide'>"
+            "<b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 여섯 가지를 "
+            "재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>",
+            unsafe_allow_html=True,
+        )
+    reuse_text = "기존 일봉 배치 재사용" if result.get("reused_batch") else "일봉 1회 배치 조회"
+    funnel = (
+        f"신고가 {wait_min}~{wait_max}일 전 <b>{result.get('window_count', 0):,}개</b> → "
+        if breakout else ""
+    )
+    st.markdown(
+        "<div class='j3-pull-stats'>"
+        f"대형주 <b>{result.get('universe_count', 0):,}개</b> → "
+        f"일봉 확보 <b>{result.get('data_count', 0):,}개</b> → "
+        f"{funnel}기준 통과 <b class='j3-green'>{len(rows):,}개</b>"
+        f"(최대 {int(result.get('result_limit') or 0)}개) · {reuse_text}</div>",
+        unsafe_allow_html=True,
+    )
+    # 사용자가 지정한 정확한 자리: '대형주 → 일봉 확보 → 기준 통과' 통계 바로
+    # 아래이면서, '순위 · 종목 · 티커' 표 머리글 바로 위에 둔다.
+    mode_close_label = (
+        "상승장 (신고가 눌림매수) 닫기"
+        if breakout else "급락 후 반등장 (낙폭종목) 닫기"
+    )
+    close_background = (
+        "linear-gradient(90deg,#075d46,#18bf87)"
+        if breakout else "linear-gradient(90deg,#6b2d05,#e67813)"
+    )
+    st.markdown(
+        "<style>div[class*='st-key-close_j3_pullback_open'] button {"
+        f"background:{close_background} !important; color:#fff !important;"
+        "border:1px solid rgba(255,255,255,.28) !important;"
+        "box-shadow:0 0 12px rgba(230,120,19,.20) !important;}"
+        "div[class*='st-key-close_j3_pullback_open'] button p {"
+        "color:#fff !important; font-weight:800 !important;}</style>",
+        unsafe_allow_html=True,
+    )
+    _section_close(
+        "j3_pullback_open", mode_close_label,
+        return_to=_RADAR_MAIN_ANCHOR,
+    )
+    if not rows:
+        st.info(
+            "지금은 이 기준에 맞는 종목이 없습니다. 기준을 느슨하게 바꾸지 않습니다 — "
+            "설명서 그대로 찾은 결과입니다."
+        )
+        return
+
+    # 급락 갈래에서 기준일이 있으면 낙폭을 **세 칸으로 나눈다**(2026-08-07 상하님
+    # 지시 "너무 촘촘하니 칸을 두 개 더"). 한 칸에 세 줄을 겹쳐 넣었더니 빽빽했다.
+    split_drop = bool(not breakout and (result.get("reference") or {}).get("reference_date"))
+    if split_drop:
+        # '테마 반등' 칸을 '종목저점후' 바로 뒤에 넣었다(2026-08-16 상하님 지시).
+        # 둘 다 기준일에서 잰 값이라 나란히 둬야 읽힌다 — 앞은 이 종목 하나,
+        # 뒤는 그 테마 전체다. **점수는 아니다.**
+        widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.35, 1.25, 1.25, 1.75, 1.2, 1.0, 1.15, 1.5]
+    else:
+        widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.75, 1.2, 1.0, 1.15, 1.5]
+    # ── **급락 목록에 수익률 칸 셋** (2026-09-23 상하님 지시 — "급락 후 반등장 순위
+    # 리스트에 20일 수익률·6개월 수익률·6개월 시장대비 칸을 넣어라") ────────────
+    # 「당일주가」 바로 뒤에 넣는다 — 순위 9 표와 같은 차례다. 상승장 쪽은 이미
+    # 제 표에 20일·6개월 칸이 있어 손대지 않는다.
+    # 「6개월 시장대비」 = 그 종목 6개월 수익률 − SPY 6개월 수익률(%p). 21개 테마 표의
+    # 같은 이름 칸과 같은 자다. **점수에는 안 쓴다** — 보여주기만 한다.
+    show_returns = not breakout
+    # 시장대비의 기준(SPY)도 종목과 **같은 규칙**으로 잰다(2026-09-24 · _shown_numbers).
+    spy_ret120 = _shown_numbers((market.get("rows") or {}).get("SPY") or {})["ret120"]
+    if show_returns:
+        widths = widths[:4] + [1.0, 1.0, 1.15] + widths[4:]
+    # 점수는 순위 **다음 칸**에 따로 둔다(2026-08-06 사용자 지시). 순위 칸에 같이
+    # 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다(상하님 캡처).
+    row_widths = [widths[0], 0.7, widths[1], sum(widths[2:])]
+    rest_widths = widths[2:]
+    # 상승장에서 이 칸이 실제로 고르는 자리다 — 거르는 기준은 눌린 폭 하나이고,
+    # 며칠 지났는지는 보여만 주고 사람이 판단한다(2026-08-06 사용자 지시).
+    third = "고점 후 며칠" if breakout else "갈래"
+    # 칸 이름은 상하님이 정한 그대로 쓴다(2026-08-07).
+    #   고점 대비     — 기준일 그날의 낙폭. **갈래와 15점을 정하는 값이다.**
+    #   고점대비현재  — 오늘 낙폭.
+    #   종목저점후    — 기준일 종가에서 지금까지의 변동.
+    #   테마 반등     — 기준일 이후 그 테마 명부 종목 몇 개 중 몇 개가 올라 있나.
+    #                   **점수에 안 쓴다**(2026-08-16). 보시는 그 시점의 사실이다.
+    drop_heads = (["고점 대비", "고점대비현재", "종목저점후", "테마 반등"] if split_drop
+                  else ["고점 대비"])
+    # 마지막 칸은 두 갈래가 같다(2026-08-06). 배점 25점짜리 '최근 11일에 빠졌나'를
+    # 보여준다 — 예전에 여기 있던 '거래대금 연속'과 '최근 60일 상승폭'은 앞뒤로
+    # 갈라 재니 뒤 5년에서 져서 배점이 0점이 됐다. 점수에 안 쓰는 값을 표에 두면
+    # 화면이 순위와 다른 것을 설명하게 된다.
+    volume_head = "최근 11일"
+    head_cells = (["티커", "당일주가"]
+                  + (["20일 수익률", "6개월 수익률", "6개월 시장대비"] if show_returns else [])
+                  + drop_heads
+                  + ["소속 테마", third, "1년 성적", "같이 걸린 종목", volume_head])
+    # **상승장은 '순위'라고 부르지 않는다**(2026-08-07). 그물을 144가지로 다 재도
+    # 하나도 기준선을 못 넘었다 — 그 위에서 매긴 차례를 1위·2위로 보이면 화면이
+    # 검증되지 않은 것을 검증된 것처럼 말하게 된다. 그냥 번호다.
+    # 급락 후 반등장은 그물이 통과했으므로 '순위' 그대로 쓴다.
+    rank_head = "번호" if breakout else "순위"
+    table_box = st.container(key="j3_rulebook_table")
+    head = table_box.columns(row_widths)
+    head[0].markdown(f"<div class='j3-th-head'>{rank_head}</div>", unsafe_allow_html=True)
+    head[1].markdown(
+        f"<div class='j3-th-head'>점수</div>",
+        unsafe_allow_html=True)
+    head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+    head[3].markdown(
+        _flex_row(rest_widths, head_cells, head=True),
+        unsafe_allow_html=True,
+    )
+
+    tickers_now = [row.get("ticker") for row in rows]
+    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    if selected_ticker not in tickers_now:
+        selected_ticker = rows[0].get("ticker")
+    selected_css = []
+    # 20줄을 다 펴 놓으면 화면이 길다(2026-08-06 사용자 지시). 앞 15줄만 펴 두고
+    # 나머지는 접는다 — 위 '11위~20위 테마 더 보기'와 같은 방식이다.
+    overflow_box = None
+    for index, row in enumerate(rows):
+        if index == _RULEBOOK_OPEN_ROWS and len(rows) > _RULEBOOK_OPEN_ROWS:
+            # 테마표와 같은 이유로 키를 가진 칸으로 감싼다 — 접힌 쪽도 옆으로
+            # 밀어서 보게 한다(2026-08-09 상하님 지적, 폰·태블릿 둘 다 쌓였다).
+            overflow_box = st.container(key="j3_rulebook_rest").expander(
+                f"{_RULEBOOK_OPEN_ROWS + 1}위~{len(rows)}위 더 보기"
+            )
+            # 접힌 쪽에도 머리글을 한 번 붙인다 — 없으면 어느 칸이 무엇인지 모른다.
+            over_head = overflow_box.columns(row_widths)
+            for column, title in zip(
+                    over_head,
+                    (rank_head, "점수", "종목")):
+                column.markdown(f"<div class='j3-th-head'>{title}</div>",
+                                unsafe_allow_html=True)
+            over_head[3].markdown(
+                _flex_row(rest_widths, head_cells, head=True),
+                unsafe_allow_html=True,
+            )
+        row_box = table_box if index < _RULEBOOK_OPEN_ROWS else overflow_box
+        metrics = row.get("metrics") or {}
+        from_high = metrics.get("from_high_pct")
+        cols = row_box.columns(row_widths)
+        # 점수는 순위 다음 **따로 칸**에 둔다(2026-08-06 사용자 지시).
+        score = row.get("score")
+        score_class = (
+            "j3-score-hi" if (score or 0) >= 70
+            else "j3-score-mid" if (score or 0) >= 50
+            else "j3-score-low"
+        )
+        cols[0].markdown(
+            f"<div class='j3-td j3-muted'>{int(row.get('pullback_rank') or index + 1)}</div>",
+            unsafe_allow_html=True,
+        )
+        cols[1].markdown(
+            f"<div class='j3-td'><span class='j3-score {score_class}'>"
+            + (f"{float(score):.0f}점" if score is not None else "—")
+            + "</span></div>",
+            unsafe_allow_html=True,
+        )
+        if cols[2].button(
+            str(row.get("name") or row.get("ticker") or "—"),
+            key=f"j3rbf_{index:02d}",
+            width="stretch",
+        ):
+            st.session_state["j3_pullback_selected_ticker"] = row["ticker"]
+            # 종목을 누르면 상세와 차트까지 한 번에 열린다(2026-08-01 사용자 지시).
+            for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
+                           "j3_bundle_open_pullback"):
+                st.session_state[opened] = True
+            back_nav.opened(st, "j3_detail_open_pullback",
+                            "j3_intraday_open_pullback", "j3_bundle_open_pullback")
+            # 열기만 하면 그 자리가 화면 한참 아래라 직접 굴려야 했다(2026-08-09).
+            scroll_to.request(st, "detail_pullback")
+            # **이 덩이만 다시 그린다.** scope를 안 주면 판 전체가 돈다.
+            _rerun_here()
+        if row.get("ticker") == selected_ticker:
+            selected_css.append(
+                f"div[class*='st-key-j3rbf_{index:02d}'] button "
+                "{ background: rgba(192,132,252,.16) !important; "
+                "border-left: 3px solid #c084fc !important; }"
+            )
+        crash_shown = _shown_numbers(metrics)
+        crash_price, crash_change = crash_shown["price"], crash_shown["change"]
+        price_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+            f"<span>{_price(crash_price)}</span>"
+            f"<span style='color:{_sign_color(crash_change)};"
+            f" font-weight:800; font-size:.82rem'>{_pct(crash_change)}</span></span>"
+        )
+        # 수익률 셋 — 이미 잰 값에서 꺼낸다(새로 받는 자료 없음).
+        if show_returns:
+            row_ret20 = crash_shown["ret20"]
+            row_ret120 = crash_shown["ret120"]
+            row_versus = (float(row_ret120) - float(spy_ret120)
+                          if row_ret120 is not None and spy_ret120 is not None else None)
+            return_cells = [
+                f"<span style='color:{_sign_color(row_ret20)}; font-weight:700'>"
+                f"{_pct(row_ret20)}</span>",
+                f"<span style='color:{_sign_color(row_ret120)}; font-weight:700'>"
+                f"{_pct(row_ret120)}</span>",
+                "<span class='j3-muted'>—</span>" if row_versus is None else
+                f"<span style='color:{_sign_color(row_versus)}; font-weight:700'>"
+                f"{row_versus:+.1f}%p</span>",
+            ]
+        else:
+            return_cells = []
+        if breakout:
+            third_cell = f"<span class='j3-green'>{int(row.get('wait_days') or 0)}일 전</span>"
+        else:
+            # 칸이 좁아 '고점 대비 -40~-50%'는 옆 칸을 덮었다(2026-08-01 폰 캡처).
+            # '고점 대비'는 바로 왼쪽 칸 이름이 이미 말하므로 숫자만 남긴다.
+            band = str(row.get("bucket_label") or "—").replace("고점 대비 ", "")
+            band_class = _BAND_CELL_CLASS.get(str(row.get("bucket")), "j3-pull-amber")
+            third_cell = f"<span class='{band_class}'>{html.escape(band)}</span>"
+        # 순위를 정한 값(테마 동반)과 참고값(거래대금)을 표에 그대로 보여 준다.
+        tier = int(row.get("together_tier") or 0)
+        tier_class = ("j3-muted", "j3-pull-theme", "j3-pull-amber", "j3-green-strong")[tier]
+        together_cell = (
+            f"<span class='{tier_class}' style='font-weight:850'"
+            f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
+            f"{int(row.get('together_count') or 0)}개</span>"
+        )
+        # 2026-08-12부터 파는 날을 규칙으로 정하지 않는다. 그래서 이 칸에는
+        # 며칠이 아니라 **이 자리를 1년 들었을 때의 과거 성적**을 적는다.
+        year = next((item for item in (row.get("hold_results") or ())
+                     if item.get("days") == 250), None)
+        hold_cell = (f"<span class='j3-hold-120'>1년 {year['median_return']:+.0f}%</span>"
+                     if year else "<span class='j3-muted'>—</span>")
+        # 달러 거래대금은 숨기고 이 화면에서 실제 순위에 쓰는 값만 남긴다.
+        # 최근 11일에 빠진 쪽이 만점이므로, 빠진 것을 초록으로 둔다(값이 좋다는 뜻).
+        gain11 = row.get("recent_gain_pct")
+        gain_class = (
+            "j3-muted" if gain11 is None
+            else "j3-green-strong" if float(gain11) <= -5.0
+            else "j3-up" if float(gain11) <= 0.0
+            else "j3-muted"
+        )
+        volume_cell = (
+            f"<span class='{gain_class}' style='font-weight:850'>"
+            f"{'—' if gain11 is None else f'{float(gain11):+.1f}%'}</span>"
+        )
+        themes_all = [name for name in (row.get("themes") or []) if name]
+        lead = str(row.get("together_theme") or "") or (themes_all[0] if themes_all else "")
+        rest_n = max(len(themes_all) - 1, 0)
+        theme_text = (f"{lead} 외 {rest_n}" if rest_n else lead) or "—"
+        # 급락 갈래에서 기준일이 있으면 '그날 → 지금'을 한 칸에 같이 보여 준다.
+        # 오늘 숫자만 보면 이미 오른 종목이 왜 목록에 있는지 알 수 없다(2026-08-06).
+        judged = row.get("judged_from_high_pct")
+        since = row.get("since_reference_pct")
+        if split_drop:
+            # 한 칸에 세 줄을 겹쳐 넣었더니 빽빽했다(2026-08-07 상하님 지적).
+            # **칸을 셋으로 나눈다** — 칸 이름이 곧 그 숫자의 뜻이다.
+            # 오늘 낙폭은 jarvis3_data가 따로 적어 둔 값을 먼저 쓴다 — metrics의
+            # 값과 같아야 하지만, 적어 둔 쪽이 이 화면이 쓰라고 만든 값이다.
+            now_drop = row.get("now_from_high_pct")
+            if now_drop is None:
+                now_drop = from_high
+            # 테마 반등 — '5개 중 3개'. 명부에 그 테마가 없거나 기준일 값을 못 낸
+            # 종목뿐이면 '—'다. **0으로 채우지 않는다**(CLAUDE.md 10-1).
+            up_total = int(row.get("theme_up_total") or 0)
+            up_count = int(row.get("theme_up_count") or 0)
+            if up_total:
+                # 넷 중 셋 넘게 오른 테마만 밝게 — 엑셀 실측에서 값이 있던 자리다.
+                spread_class = ("j3-green-strong" if up_count / up_total >= 0.8
+                                else "j3-pull-theme" if up_count / up_total >= 0.5
+                                else "j3-muted")
+                spread_cell = (
+                    f"<span class='{spread_class}'"
+                    f" title='{html.escape(str(row.get('theme_up_name') or ''))}"
+                    f" · 기준일 이후 오른 종목'>{up_total}개 중 {up_count}개</span>"
+                )
+            else:
+                spread_cell = "<span class='j3-muted'>—</span>"
+            # ── 1년 최고가가 바뀐 종목은 표시한다 (2026-08-19 상하님 지적) ──
+            # 「고점 대비」와 「고점대비현재」가 **서로 다른 고점**을 쓰게 되면
+            # 두 값을 견줄 수 없다. 20종목 중 셋이 그랬다(MDB·DELL·NOW).
+            # 값은 그대로 두고 ˟표만 붙인다 — 각 숫자는 제 뜻대로 맞다.
+            moved_mark = ""
+            if row.get("high52_moved"):
+                then_high = row.get("high52_then")
+                now_high = row.get("high52_now")
+                moved_mark = (
+                    "<span class='j3-pull-amber' style='font-size:.8rem'"
+                    f" title='기준일 뒤 1년 최고가가 바뀌었습니다"
+                    f" ({float(then_high):,.2f} → {float(now_high):,.2f}).'"
+                    " '>˟</span>"
+                )
+            drop_cells = [
+                f"<span class='{_sign_class(judged)}'"
+                f" style='font-weight:800'>{_pct(judged)}</span>",
+                f"<span class='{_sign_class(now_drop)}'>{_pct(now_drop)}</span>"
+                + moved_mark,
+                (f"<span class='{_sign_class(since)}'>{float(since):+.1f}%</span>"
+                 if since is not None else "<span class='j3-muted'>—</span>"),
+                spread_cell,
+            ]
+        else:
+            drop_cells = [
+                f"<span class='{_sign_class(from_high)}'"
+                f" style='font-weight:800'>{_pct(from_high)}</span>"
+            ]
+        cols[3].markdown(
+            _flex_row(rest_widths, [
+                html.escape(str(row.get("ticker") or "—")),
+                price_cell,
+                *return_cells,
+                *drop_cells,
+                f"<span class='j3-rb-clip j3-pull-theme'"
+                f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
+                third_cell,
+                hold_cell,
+                together_cell,
+                volume_cell,
+            ]),
+            unsafe_allow_html=True,
+        )
+    # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
+    # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
+    st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+    st.caption(
+        "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
+        "그 자리에 와 있는 종목을 좁혀 준 목록이며, 사라는 신호가 아닙니다. "
+        + ("**0점**은 나쁘다는 뜻이 아니라 "
+           "**점수 주는 세 자리 중 하나도 안 맞다**는 뜻입니다. "
+           "**「테마 반등」 칸은 점수에 안 들어갑니다** — 기준일 이후 그 테마에서 "
+           "몇 종목이 올라 있는지 보여드릴 뿐이고, 순위를 바꾸지 않습니다. "
+           # 2026-08-19 상하님 지적 — 세 숫자가 빼기로 안 맞는다는 물음.
+           # 셋 다 맞는데 재는 자리가 다르다. 그 말을 표 밑에 한 번 적어 둔다.
+           "**「고점 대비」와 「고점대비현재」는 1년 최고가에서 잰 값**이고, "
+           "**「종목저점후」는 기준일 종가에서 잰 값**입니다. 기준이 서로 달라 "
+           "두 낙폭을 빼도 「종목저점후」가 나오지 않습니다 — 값이 내려간 만큼 "
+           "나중에 오른 폭은 더 크게 보입니다. "
+           "**˟ 표가 붙은 종목**은 기준일 뒤 1년 최고가가 바뀌어 두 낙폭이 "
+           "서로 다른 고점을 쓴 종목입니다(표에 손을 올리면 그 값이 보입니다).")
+    )
+    selected_row = next(
+        (row for row in rows if row.get("ticker") == selected_ticker), rows[0]
+    )
+    _render_pullback_detail(selected_row, market, ranking)
+    # 이 갈래의 **맨 끝** 닫기 단추 (2026-08-15 상하님 지시 — "매수심사결과 높은
+    # 순위 9 위와 ✕ 선택종목 세부사항 닫기 밑, 두 개 사이에 하나 더 만들어라").
+    # 위쪽 닫기는 목록 머리글 바로 위에 있어서, 상세까지 다 내려보고 나면 화면
+    # 몇 장을 도로 올라가야 접을 수 있었다.
+    _section_close(
+        "j3_pullback_open", mode_close_label, slot="_bottom",
+        return_to=_RADAR_MAIN_ANCHOR,
+    )
+
+
+# **'차트 미리 받기'는 걷어냈다** (2026-08-22).
+#
+# 상하님 지적 — "상승장 클릭하면 또 35초." 제가 오늘 넣었다가 두 번 다 더
+# 느리게 만든 것이다.
+#   · 뒤 일꾼에게 넘겼더니 → 내려받기가 한 줄로 서서 돌기 때문에, 화면이 지금
+#     쓸 자료가 그 뒤에 섰다(10초).
+#   · 그 자리에서 받게 했더니 → 세 종목의 **전체 이력**을 목록 뜨기 전에
+#     받느라 35초가 됐다.
+#
+# 목록은 목록만 그리고, 차트는 종목을 누를 때 그 한 종목만 받는다 —
+# 2026-08-21 저녁 상태(상승장 열기 4초)로 되돌린 것이다.
+# 누른 뒤가 느린 것은 따로 재서 잡는다. 여는 것이 먼저다.
+
+
+def _rerun_here() -> None:
+    """지금 덩이(프래그먼트)만 다시 그린다. 안 되는 판이면 예전처럼 판 전체를.
+
+    scope="fragment"는 프래그먼트 밖에서 부르면 예외가 난다. 그때는 조용히
+    예전 방식으로 넘어간다 — 화면이 죽으면 안 된다.
+    """
+    try:
+        st.rerun(scope="fragment")
+    except Exception:
+        st.rerun()
+
+
+@st.fragment
+def _render_pullback_finder(market: dict, ranking: dict) -> None:
+    """상승장·급락 덩이. 그리고 **덩이 안에서 화면을 내려 준다.**
+
+    2026-08-21에 이 덩이를 프래그먼트로 묶으면서 종목을 눌러도 화면이 안
+    내려가게 만들었다(상하님 지적 — "선택종목 세부사항으로 자동으로 내려가야
+    되는데 또 변동 없다"). 화면 내려가기는 페이지 **맨 끝**에서 도는데,
+    프래그먼트만 다시 그리면 그 끝이 안 돌아간다.
+
+    그래서 덩이가 끝날 때 여기서 한 번 더 부른다. 자리 표시(anchor)는 이 안에서
+    이미 그려졌으므로 브라우저가 찾을 수 있다. 먼저 부르는 쪽이 표시를 지우므로
+    페이지 끝의 것과 두 번 내려가지 않는다.
+    """
+    _render_pullback_finder_body(market, ranking)
+    # 「다 닫기」가 **먼저**다 (2026-08-26 상하님 지적 — "20개 테마 실시간 순위
+    # 닫기 하면 두 번째 캡처처럼 가는 게 아니라 첫 번째 캡처처럼 가야 된다고").
+    # 차례가 반대였다. scroll_to.run 이 먼저 돌면 '그 자리로 내려가라'는 표시를
+    # **지우면서** 내려가는 쪽지를 이 조각 안에 그린다. 그런데 바로 뒤의
+    # _run_close_all_if_requested()가 판 전체를 다시 그려 그 조각을 통째로 버린다.
+    # 표시는 이미 지워졌으니 다시 그린 판은 아무 데도 안 가고, 상하님은 닫기 전
+    # 그 자리(두 번째 캡처)에 그대로 서 계셨다.
+    # 다시 그리기가 먼저면 이 판은 여기서 멈추고, 표시가 살아남아 페이지 끝
+    # (main 의 scroll_to.run)에서 제자리로 데려간다. 순위 9 쪽
+    # (_render_top7_section)이 원래 이 차례라서 그쪽만 잘 됐다.
+    _run_close_all_if_requested()
+    # **try/finally로 감싸면 안 된다**(2026-08-22 상하님 지적 — "관찰 15개에서
+    # 종목을 눌러도 세부사항으로 안 간다"). _rerun_here()는 예외를 던져 이 판을
+    # 멈추는데, finally는 그 예외가 지나갈 때도 실행된다. 그러면 **버려질 판에서**
+    # 내려가라는 표시를 지워 버려서, 정작 다시 그린 판에는 표시가 없다.
+    # 그냥 뒤에 둔다 — 다시 그리기로 멈춘 판은 여기까지 안 오고, 다음 판에서 돈다.
+    scroll_to.run(st)
+
+
+def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
+    """상승장·급락 두 갈래와 그 상세를 **한 덩이로 묶는다** (2026-08-21).
+
+    상하님 지적 — "상승장은 닫는 데도 8초 걸리는데 순위 9는 닫는 게 금방이다."
+    맞는 관찰이다. 순위 9는 이미 프래그먼트라 그 덩이만 다시 그리는데, 여기는
+    안 묶여 있어서 단추 한 번에 **판 전체**를 다시 그렸다 — 지수 카드·게이지·
+    미국장 신호·테마 20줄까지. 자료를 하나도 안 가져오는 '닫기'가 8초 걸린
+    까닭이 그것이다.
+
+    상세도 이 안에 들어 있어야 한다. 표만 묶으면 종목을 눌러도 덩이 밖 상세가
+    다시 안 그려져 아무 일도 안 일어난 것처럼 보인다(순위 9에 적힌 그대로다).
+    """
+    # st.divider()는 뺐다(2026-08-06 상하님 지시 "제목을 위로 올려라") — 가로줄과
+    # 그 아래 빈 자리가 제목을 한참 밀어내렸다. 제목 자체가 구역을 갈라 준다.
+    # 제목과 맨 위 설명은 2026-08-06에 뺐다(상하님 지적).
+    #
+    # '눌림목 종목 찾기(상승추세 중 조정)'는 없앤 A 규칙의 이름이고, 그 아래 설명도
+    # A 규칙의 배점(눌림 점수 25+20+20+20+10+5)을 말하고 있었다. 단추만 빼고 제목·
+    # 설명을 안 지워서 화면이 없는 기능을 설명하고 있었다.
+    #
+    # **맨 위에서 통째로 설명하지 않는다.** 지금 이 자리에는 서로 다른 자를 쓰는
+    # 갈래가 둘(상승장·급락) 있고, 아래 순위 7은 또 다른 자다. 갈래마다 제 설명이
+    # 이미 자기 안에 있다 — 상승장·급락은 '이 화면 설명 보기', 순위 7은 제목 아래
+    # 문단이다. 맨 위 설명은 그 셋을 뭉뚱그려 오해를 만든다.
+    #
+    # **「20개 테마 실시간 순위」 여닫이는 여기, '종목 찾기' 바로 위에 둔다**
+    # (2026-08-14 상하님 지시). 순위표가 열 줄이라 이 구역까지 오려면 매번 한참
+    # 굴려야 했다. 상승장·급락 닫기 단추와 같은 장치(_section_close)를 쓴다.
+    # 여는 단추는 **맨 위**에 있다(순위표 자리). 여기에는 닫는 단추만 둔다 —
+    # 상승장·급락과 같은 규칙이다(위에서 열고, 아래에서도 닫는다).
+    # 「✕ 22개 테마 실시간 순위 닫기」는 2026-09-25 부터 **22개 테마 덩이 맨 끝**에서 그린다
+    # (_render_theme_section). 화면 자리는 그대로다 — 그 덩이 끝이 곧 이 덩이 맨 앞이다.
+    # 여기 두면 22개 테마를 열고 닫을 때마다 이 덩이도 같이 다시 그려야 해서 판 전체를 다시 그렸다.
+    # 「📉 종목 찾기」 제목 줄은 뺐다 (2026-09-11 상하님 지시 — 캡처에서 동그라미
+    # 치고 ×로 지우셨다). 바로 밑 세 단추(상승장·급락 후 반등장·매수심사결과 높은
+    # 순위 9)가 이미 제 이름을 달고 있어, 이 줄은 화면 높이만 먹었다.
+    # **단추와 기능은 그대로다** — 제목 글자 한 줄만 없앴다.
+    # 되살리려면 이 자리에 다시 넣으면 된다:
+    #     st.markdown("<div class='j3-section-title'>📉 종목 찾기</div>",
+    #                 unsafe_allow_html=True)
+    # 한국테마(자비스4)와 같이 버튼을 눌러야 펼쳐진다(2026-07-25 사용자 지시).
+    # 페이지를 여는 것만으로 20종목 표가 통째로 쏟아지면 폰에서 화면을 다 먹었다.
+    # 제목은 '눌림목 찾기'만, 폭도 글자만큼만 둔다(2026-07-30 사용자 지시).
+    # 열려 있을 때 다시 누르면 접는다(2026-07-30 사용자 지적: 두 번째 클릭이 안 먹었다).
+    # 설명서(‘이 테마 기법에 대한 설명’)가 말하는 두 갈래를 옆에 단추로 둔다
+    # (2026-08-01 사용자 지시). 어느 단추를 눌렀느냐에 따라 같은 자리의 표가 바뀐다.
+    # 세 단추 모두 열려 있을 때 다시 누르면 접힌다.
+    # 지금 어느 갈래를 보고 있는지 단추만 봐서는 알 수 없었다(2026-08-01 사용자 지적).
+    # 열려 있는 갈래의 단추에는 앞에 ●를 붙이고, 아래 CSS가 그 단추를 밝게 칠한다.
+    guest_mode = auth.is_guest()
+    if guest_mode and st.session_state.get("j3_pullback_mode") not in ("breakout", "crash"):
+        st.session_state["j3_pullback_open"] = False
+    open_mode = (
+        (st.session_state.get("j3_pullback_mode") or "기본")
+        if st.session_state.get("j3_pullback_open") else None
+    )
+    # '눌림목 찾기'(옛 A 규칙)는 2026-08-06에 뺐다(사용자 지시).
+    # 목적이 '상승장(신고가 눌림매수)'과 같은데 10년치로 재 보니 기준선을 못 이겼다 —
+    # 평상시 100번 중 57번(기준선 57번), 급락장 54번(기준선 61번)으로 네 사건 모두 졌다.
+    # 상위 8개만 추려도 55번이라 순위가 거꾸로 매겨졌다(docs/US_THREE_RULES_COMPARE.md).
+    # 함수(find_pullback_stocks)는 지우지 않는다 — 한국테마(자비스4)가 아직 쓴다.
+    mode_options = (
+        ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
+        ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
+    )
+    finder_cols = st.columns(len(mode_options))
+    pressed = None
+    for column, (mode, label, key) in zip(finder_cols, mode_options):
+        with column:
+            if st.button(("● " if open_mode == mode else "") + label, key=key):
+                pressed = mode
+        if open_mode == mode:
+            # 열린 단추만 밝게 — 색이 아니라 테두리와 밝기로 갈라 색 규칙을 안 건드린다.
+            st.markdown(
+                f"<style>div[class*='st-key-{key}'] button {{"
+                " outline: 3px solid #ffffff !important; outline-offset: 1px;"
+                " filter: brightness(1.25) !important; }</style>",
+                unsafe_allow_html=True,
+            )
+    if pressed:
+        already_open = (
+            st.session_state.get("j3_pullback_open")
+            and st.session_state.get("j3_pullback_mode") == pressed
+        )
+        if already_open:
+            # 닫기 — 조회도 rerun도 하지 않는다(2026-07-30 사용자 실측: 닫는 데 1.5초).
+            st.session_state["j3_pullback_open"] = False
+            st.session_state.pop("j3_pullback_selected_ticker", None)
+        else:
+            st.session_state["j3_pullback_open"] = True
+            st.session_state["j3_pullback_mode"] = pressed
+            st.session_state.pop("j3_pullback_selected_ticker", None)
+            # **화면을 결과 자리로 살짝 내린다** (2026-08-28 상하님 지시 —
+            # "상승장 신고가 눌림매수 클릭하면 두 번째 화면처럼 되는데 살짝
+            # 내려라, 그러면 첫 번째 캡처 화면처럼 되게").
+            # 단추가 화면 위쪽에 있어서 누르면 그 자리에 그대로 서 있었고,
+            # 결과(나스닥 지수 줄·정식 후보)는 단추 여섯 개 아래에 있었다.
+            scroll_to.request(st, "finder_top")
+            # 폰·태블릿 뒤로가기 — 이 목록이 열린 것을 방문기록에 한 칸 쌓는다.
+            # 이 단추는 _section_toggle을 안 거치므로 여기서 따로 알려야 한다.
+            back_nav.opened(st, "j3_pullback_open")
+            # **방금 찾아 둔 것이 있으면 다시 안 찾는다** (2026-08-22 상하님 지적
+            # — "상승장 클릭도 조금 줄었지만 여전히 느리다").
+            #
+            # 닫았다 다시 열 때마다 200종목을 처음부터 다시 찾고 있었다. 5분 안에
+            # 다시 열면 결과가 어차피 같다 — 이 화면의 순위 9는 2026-07-31부터
+            # 이미 그렇게 돌고 있다(_kept_recently). 같은 장치를 여기에도 둔다.
+            # 5분이 지나면 알아서 새로 찾는다.
+            kept = (
+                _kept_recently(f"j3_pullback_at_{pressed}")
+                and isinstance(st.session_state.get(f"j3_pullback_kept_{pressed}"), dict)
+            )
+            if kept:
+                st.session_state["j3_pullback_result"] = (
+                    st.session_state[f"j3_pullback_kept_{pressed}"]
+                )
+            elif pressed == "breakout":
+                # **순위 9가 만들어 둔 것을 그대로 쓴다** (2026-08-29 상하님 —
+                # "상승장 신고가 눌림매수 첫 클릭하면 로딩 너무 오래 걸린다").
+                # 여태 이 단추는 find_breakout_pullback_stocks 를 직접 불러
+                # 200종목을 처음부터 다시 훑었다. 그 결과는 순위 9가 이미 만들어
+                # `top_finder:상승장` 으로 5분간 기억해 두는데도 그것을 안 봤다 —
+                # 같은 판에서 같은 계산을 두 번 한 셈이다. breakout_scan 이
+                # 그 기억을 본다. 없으면 예전처럼 그때 찾으므로 늦어지지 않는다.
+                with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
+                    st.session_state["j3_pullback_result"] = j3data.breakout_scan()
+            else:
+                with st.spinner("미국 대형주 200개에서 고점 대비 낙폭이 큰 종목을 찾는 중입니다…"):
+                    st.session_state["j3_pullback_result"] = (
+                        j3data.find_crash_rebound_stocks()
+                    )
+            if not kept:
+                found = st.session_state.get("j3_pullback_result")
+                if isinstance(found, dict) and found.get("ok"):
+                    st.session_state[f"j3_pullback_kept_{pressed}"] = found
+                    st.session_state[f"j3_pullback_at_{pressed}"] = time.time()
+                # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
+                # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
+                picklist_ui.autosave("US", pressed, found)
+    if not st.session_state.get("j3_pullback_open"):
+        return
+    result = st.session_state.get("j3_pullback_result")
+    mode = st.session_state.get("j3_pullback_mode") or "기본"
+    if mode in ("breakout", "crash") and isinstance(result, dict):
+        _render_rulebook_finder(result, market, ranking, mode)
+        return
+    if result is None:
+        return
+    if not result.get("ok"):
+        st.error(f"미국 눌림목 조회 실패: {_safe_error_text(result.get('error'))}")
+        return
+    rows = result.get("rows") or []
+    window = result.get("window") or (1, 20)
+    reuse_text = "기존 일봉 배치 재사용" if result.get("reused_batch") else "일봉 1회 배치 조회"
+    st.markdown(
+        "<div class='j3-pull-stats'>"
+        f"전체 <b>{result.get('universe_count', 0):,}개</b> → "
+        f"일봉 확보 <b>{result.get('data_count', 0):,}개</b> → "
+        f"상승추세 <b>{result.get('trend_count', 0):,}개</b> → "
+        f"신고가 {window[0]}~{window[1]}일 전 조정 <b>{result.get('window_count', 0):,}개</b> → "
+        f"최종 눌림 점수 {float(result.get('min_score') or 0):.0f}점 이상 "
+        f"<b class='j3-green'>{len(rows):,}개</b>(최대 {int(result.get('result_limit') or 0)}개) "
+        f"· {reuse_text}</div>",
+        unsafe_allow_html=True,
+    )
+    if not rows:
+        st.info("현재 조건에 맞는 미국 눌림목 종목이 없습니다.")
+        return
+
+    widths = [0.55, 1.7, 0.8, 1.45, 1.2, 1.0, 1.4, 1.1, 1.15, 1.25, 1.8, 0.85]
+    # 테마표·대장주표와 같은 이유로 한 줄을 세 칸으로만 나눈다 — 칸마다 요소를
+    # 만들면 폰이 느려진다(2026-07-30 실측). 나머지 열 칸은 한 덩이로 그린다.
+    row_widths = [widths[0], widths[1], sum(widths[2:])]
+    rest_widths = widths[2:]
+    # 머리글과 줄이 같이 밀려야 하므로 한 상자에 담는다(2026-07-25).
+    table_box = st.container(key="j3_pullback_table")
+    head = table_box.columns(row_widths)
+    head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
+    head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
+    head[2].markdown(
+        _flex_row(rest_widths, ["티커", "눌림 점수", "종목 조건점수", "신고가", "당일주가",
+                                "고점 대비", "20일선 이격", "평균 거래대금", "소속 테마",
+                                "테마 가산"], head=True),
+        unsafe_allow_html=True,
+    )
+
+    # 표의 '종목 조건점수'는 아래 상세와 같은 계산이어야 한다 — 같은 함수·같은 기준(SPY 20일)을 쓴다.
+    spy_ret20_for_table = ((market.get("rows") or {}).get("SPY") or {}).get("ret20")
+
+    # 아무것도 누르지 않았거나 고른 종목이 이번 결과에서 빠졌으면 1순위를 자동으로 연다
+    # (2026-07-24 사용자 지시: 클릭하지 않아도 맨 위 종목 상세가 바로 보여야 한다).
+    tickers_now = [row.get("ticker") for row in rows]
+    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    if selected_ticker not in tickers_now:
+        selected_ticker = rows[0].get("ticker")
+    selected_css = []
+    for index, row in enumerate(rows):
+        quality = row["pullback"]
+        from_high = quality.get("from_high_pct")
+        gap = quality.get("gap_pct")
+        score = float(quality.get("score") or 0)
+        avg_value = row["metrics"].get("avg_dollar_volume")
+        theme_bonus = float((quality.get("parts") or [0])[-1])
+        themes = " · ".join(row.get("themes") or []) or "—"
+        cols = table_box.columns(row_widths)
+        cols[0].markdown(
+            f"<div class='j3-td j3-muted'>{int(row['pullback_rank'])}</div>",
+            unsafe_allow_html=True,
+        )
+        if cols[1].button(
+            str(row.get("name") or row.get("ticker") or "—"),
+            key=f"j3pbf_{index:02d}",
+            width="stretch",
+        ):
+            st.session_state["j3_pullback_selected_ticker"] = row["ticker"]
+            # 종목을 누르면 상세와 차트까지 한 번에 열린다(2026-08-09 상하님 지시
+            # "모든 곳에 적용" — 상승장·급락 표는 이미 이렇게 돌고 있었다).
+            for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
+                           "j3_bundle_open_pullback"):
+                st.session_state[opened] = True
+            back_nav.opened(st, "j3_detail_open_pullback",
+                            "j3_intraday_open_pullback", "j3_bundle_open_pullback")
+            scroll_to.request(st, "detail_pullback")
+            # **이 덩이만 다시 그린다.** scope를 안 주면 판 전체가 돈다.
+            _rerun_here()
+        if row.get("ticker") == selected_ticker:
+            selected_css.append(
+                f"div[class*='st-key-j3pbf_{index:02d}'] button "
+                "{ background: rgba(192,132,252,.16) !important; "
+                "border-left: 3px solid #c084fc !important; }"
+            )
+        # 종목 조건점수 — 아래 상세와 같은 값. 순위(눌림 점수)와 다른 것을 재는 점수라
+        # 20위가 3위보다 높을 수 있다(2026-07-24 사용자 질문에 따라 표에 함께 표시).
+        stock_score = float(
+            j3data.analyze_pullback_stock(row, benchmark_ret20=spy_ret20_for_table).get("score") or 0
+        )
+        avg_text = f"${float(avg_value) / 1e6:,.0f}M" if avg_value is not None else "—"
+        # 당일주가 — 가격과 등락을 두 줄로 쌓는다. 한 줄이면 좁은 화면에서 폭이 넘쳐
+        # 옆 칸 값과 겹쳤다(2026-07-25). 등락은 미국장 색 규칙(+파랑 −빨강)이다.
+        pull_shown = _shown_numbers(row['metrics'])
+        pull_price, pull_change = pull_shown["price"], pull_shown["change"]
+        # 52주 고가 대비도 가격 칸과 **같은 기준**이다(2026-09-24 · _shown_numbers).
+        from_high = pull_shown["from_high_pct"] if pull_shown["from_high_pct"] is not None else from_high
+        price_cell = (
+            "<span style='display:inline-flex; flex-direction:column; align-items:center;"
+            " line-height:1.12; font-weight:800; color:#e6e6e6'>"
+            f"<span>{_price(pull_price)}</span>"
+            f"<span style='color:{_sign_color(pull_change)};"
+            f" font-weight:800; font-size:.82rem'>{_pct(pull_change)}</span></span>"
+        )
+        cols[2].markdown(
+            _flex_row(rest_widths, [
+                html.escape(str(row.get("ticker") or "—")),
+                "<div class='j3-barwrap'><div class='j3-bar'>"
+                f"<div class='j3-bar-fill j3-bar-green' style='width:{max(0, min(score, 100)):.0f}%'></div>"
+                f"</div><span class='j3-bar-num'>{score:.1f}</span></div>",
+                "<div class='j3-barwrap'><div class='j3-bar'>"
+                f"<div class='j3-bar-fill' style='width:{max(0, min(stock_score, 100)):.0f}%;"
+                f" background:#c084fc'></div></div>"
+                f"<span class='j3-bar-num'>{stock_score:.1f}</span></div>",
+                f"<span class='j3-green'>{int(quality.get('high52_days_ago') or 0)}일 전</span>",
+                price_cell,
+                f"<span class='{_sign_class(from_high)}' style='font-weight:800'>{_pct(from_high)}</span>",
+                f"<span class='{_sign_class(gap)}' style='font-weight:800'>{_pct(gap)}</span>",
+                f"<span class='j3-green'>{avg_text}</span>",
+                f"<span class='j3-pull-theme' title='{html.escape(themes)}'>{html.escape(themes)}</span>",
+                f"<span class='j3-pull-amber'>{theme_bonus:.1f}/5</span>",
+            ]),
+            unsafe_allow_html=True,
+        )
+    # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
+    # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
+    st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
+    with st.expander("표 읽는 법 보기", expanded=False):
+        st.caption(
+            "평균 거래대금은 최근 일봉 기준 달러 거래규모입니다. 이 표는 진입가를 확정하는 매수 신호가 아니라, "
+            "상승추세가 아직 유지되는 조정 후보를 좁히는 1차 목록입니다. "
+            "아래 상세는 처음에 1순위 종목이 열려 있고, 보라색 종목 이름을 누르면 그 종목의 "
+            "선정 근거 점수표·매수 심사 결과와 일봉·주봉·월봉 차트로 바뀝니다."
+        )
+    selected_row = next(
+        (row for row in rows if row.get("ticker") == selected_ticker),
+        rows[0],
+    )
+    _render_pullback_detail(selected_row, market, ranking)
+
+
+def _records_live_prices(records: list[dict]) -> dict:
+    """보유 종목 최근가를 조회한다. 표 편집 중 값이 바뀌면 입력이 초기화될 수 있어
+    같은 기록 구성에서는 5분 동안 세션에 고정해 둔다."""
+    fingerprint = tuple(sorted((int(r["id"]), str(r.get("status"))) for r in records))
+    cache = st.session_state.get("j3_records_pl_cache") or {}
+    if cache.get("fp") == fingerprint and time.time() - cache.get("at", 0) < 300:
+        return cache["prices"]
+    open_tickers = sorted({
+        str(record.get("ticker")) for record in records
+        if record.get("status") == "보유" and record.get("ticker")
+    })[:30]
+    prices = {}
+    for ticker in open_tickers:
+        quote = j3data.get_live_quote(ticker)
+        if quote.get("ok") and quote.get("current"):
+            prices[ticker] = float(quote["current"])
+    st.session_state["j3_records_pl_cache"] = {"fp": fingerprint, "at": time.time(), "prices": prices}
+    return prices
+
+
+def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None:
+    """매수 기록 현황 표 하나에서 바로 청산을 입력한다(2026-07-22 사용자 지시).
+
+    종목 줄의 매도일 칸을 누르면 달력이 뜨고, 매도가 칸에 금액을 넣으면 확정
+    손익률이 자동 계산된다(표 아래 미리보기 → 저장 시 확정 칸에 기록).
+    매도가는 매수가 ±50% 범위만 허용한다. 제목·내용은 가운데 정렬한다.
+    key_prefix로 탭·매수 폼 두 곳에서 각각 독립 위젯으로 쓴다.
+    """
+    saved_message = st.session_state.pop("j3_close_saved_msg", None)
+    if saved_message:
+        st.success(saved_message)
+    st.caption(
+        "보유 종목 줄에서 매도일 칸을 누르면 달력이 뜨고, 매도가(USD) 칸에 금액을 넣으면 "
+        "표 아래에 확정 손익률이 자동 계산됩니다. ‘청산 저장’을 눌러야 확정됩니다. "
+        "매도가는 매수가 ±50% 범위만 저장됩니다."
+    )
+
+    prices = _records_live_prices(records)
+
+    def _pl_text(value):
+        # 입력형 표는 글자색 지정이 안 되는 부품이라 색깔 원으로 이익/손실을 표시한다
+        # (2026-07-22 사용자 지시: 손익률에 색): 이익 🔵 파랑 · 손실 🔴 빨강.
+        if value is None:
+            return None
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
+        return f"{'🔵' if value >= 0 else '🔴'} {value:+.2f}%"
+
+    editor_rows = []
+    for record in records:
+        is_open = record.get("status") == "보유"
+        buy_price = float(record["buy_price"]) if record.get("buy_price") is not None else None
+        current = prices.get(str(record.get("ticker"))) if is_open else None
+        live_pl = (current / buy_price - 1) * 100 if current and buy_price else None
+        editor_rows.append({
+            "번호": int(record["id"]),
+            "매수일": record.get("buy_date"),
+            "티커": record.get("ticker"),
+            "종목명": record.get("stock_name"),
+            "테마": record.get("theme_name"),
+            "매매유형": record.get("trade_style"),
+            "매수가(USD)": buy_price,
+            "수량": record.get("quantity"),
+            "상태": record.get("status"),
+            "현재 손익률(%)": _pl_text(live_pl),
+            "매도일": record.get("sell_date"),
+            "매도가(USD)": record.get("sell_price"),
+            "확정 손익률(%)": _pl_text(record.get("result_pct")),
+            "시장 국면": record.get("market_regime"),
+            "시장점수": record.get("market_score"),
+            "테마점수": record.get("theme_score"),
+            "종목점수": record.get("stock_score"),
+            "메모": record.get("memo"),
+        })
+    frame = pd.DataFrame(editor_rows)
+    frame["매도일"] = pd.to_datetime(frame["매도일"])
+    for column in ("매수가(USD)", "매도가(USD)", "수량", "시장점수", "테마점수", "종목점수"):
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+
+    center = {"alignment": "center"}
+    column_config = {
+        "번호": st.column_config.NumberColumn(format="%d", **center),
+        "매수일": st.column_config.TextColumn(**center),
+        "티커": st.column_config.TextColumn(**center),
+        "종목명": st.column_config.TextColumn(**center),
+        "테마": st.column_config.TextColumn(**center),
+        "매매유형": st.column_config.TextColumn(**center),
+        "매수가(USD)": st.column_config.NumberColumn(format="%.2f", **center),
+        "수량": st.column_config.NumberColumn(format="%.0f", **center),
+        "상태": st.column_config.TextColumn(**center),
+        "현재 손익률(%)": st.column_config.TextColumn(**center),
+        "매도일": st.column_config.DateColumn(
+            "매도일", format="YYYY-MM-DD", help="보유 종목 칸을 누르면 달력이 뜹니다", **center
+        ),
+        "매도가(USD)": st.column_config.NumberColumn(
+            "매도가(USD)", min_value=0.01, step=0.01, format="%.2f",
+            help="매수가 ±50% 범위에서 입력", **center,
+        ),
+        "확정 손익률(%)": st.column_config.TextColumn(**center),
+        "시장 국면": st.column_config.TextColumn(**center),
+        "시장점수": st.column_config.NumberColumn(format="%.0f", **center),
+        "테마점수": st.column_config.NumberColumn(format="%.0f", **center),
+        "종목점수": st.column_config.NumberColumn(format="%.0f", **center),
+        "메모": st.column_config.TextColumn(**center),
+    }
+    editor_key = f"j3_records_editor_{key_prefix}"
+    edited = st.data_editor(
+        frame,
+        column_config=column_config,
+        disabled=[col for col in frame.columns if col not in ("매도일", "매도가(USD)")],
+        hide_index=True,
+        width="stretch",
+        key=editor_key,
+    )
+
+    # 매도가를 넣는 순간 자동 계산되는 확정 손익률 미리보기(저장 전).
+    previews = []
+    touched_closed = []
+    for index, record in enumerate(records):
+        row = edited.iloc[index]
+        if record.get("status") != "보유":
+            same_price = pd.isna(row["매도가(USD)"]) if record.get("sell_price") is None \
+                else (not pd.isna(row["매도가(USD)"]) and float(row["매도가(USD)"]) == float(record["sell_price"]))
+            if not same_price:
+                touched_closed.append(str(record.get("ticker")))
+            continue
+        sell_price = row["매도가(USD)"]
+        if sell_price is None or pd.isna(sell_price) or not record.get("buy_price"):
+            continue
+        pl = (float(sell_price) / float(record["buy_price"]) - 1) * 100
+        color = "#4da6ff" if pl >= 0 else "#ff5b5b"
+        previews.append(
+            f"<b>{record['ticker']}</b> 매도가 ${float(sell_price):,.2f} → 확정 손익률 "
+            f"<span style='color:{color};font-weight:800'>{pl:+.2f}%</span>"
+        )
+    if previews:
+        st.markdown(
+            "<div class='j3-plan-note'>자동계산 미리보기 — " + " · ".join(previews)
+            + " <span class='j3-muted'>(청산 저장을 누르면 확정 손익률 칸에 기록됩니다)</span></div>",
+            unsafe_allow_html=True,
+        )
+    if touched_closed:
+        st.warning("이미 청산된 기록은 수정되지 않습니다: " + ", ".join(sorted(set(touched_closed))))
+
+    if st.button("청산 저장 (매도일·매도가 입력된 종목만)", key=f"j3_close_editor_save_{key_prefix}", width="stretch"):
+        saved_count = 0
+        errors = []
+        for index, record in enumerate(records):
+            if record.get("status") != "보유":
+                continue
+            row = edited.iloc[index]
+            sell_date, sell_price = row["매도일"], row["매도가(USD)"]
+            has_date = sell_date is not None and not pd.isna(sell_date)
+            has_price = sell_price is not None and not pd.isna(sell_price)
+            if not has_date and not has_price:
+                continue
+            label = f"#{record['id']} {record['ticker']}"
+            if not (has_date and has_price):
+                errors.append(f"{label}: 매도일과 매도가를 모두 입력해야 저장됩니다")
+                continue
+            buy_price = float(record["buy_price"])
+            if not buy_price * 0.5 <= float(sell_price) <= buy_price * 1.5:
+                errors.append(
+                    f"{label}: 매도가는 매수가 ±50% 범위"
+                    f"({buy_price * 0.5:,.2f} ~ {buy_price * 1.5:,.2f})여야 합니다"
+                )
+                continue
+            try:
+                j3store.close_trade(
+                    int(record["id"]),
+                    sell_date=pd.Timestamp(sell_date).date(),
+                    sell_price=float(sell_price),
+                )
+                saved_count += 1
+            except Exception as exc:
+                errors.append(f"{label}: {_safe_error_text(exc)}")
+        for error in errors:
+            st.error(error)
+        if saved_count and not errors:
+            st.session_state["j3_close_saved_msg"] = f"{saved_count}건 청산을 저장했습니다."
+            st.session_state.pop(editor_key, None)
+            st.session_state.pop("j3_records_pl_cache", None)
+            st.rerun()
+        elif saved_count:
+            st.success(f"{saved_count}건 청산을 저장했습니다. 위 오류 항목은 저장되지 않았습니다.")
+
+
+def _warm_finders() -> None:
+    """상승장 한 벌을 미리 만들어 둔다 (2026-08-29 상하님 지시 · 2026-09-18 고침).
+
+    **2026-09-18 상하님 지시 「가」로 바꿨다 — 뒤가 아니라 그 자리에서 만든다.**
+
+    상하님 물음 — *"22개 테마는 비슷한 구조이고 더 오래 걸려야 되는데 왜 더
+    빠르냐?"* 까닭은 22개 테마가 **단추를 누르기 전에 이미 계산을 끝내 두기**
+    때문이다. 화면을 그리는 길에서 249종목을 받아 22개를 다 계산하므로, 단추는
+    만들어 둔 표를 펴 보이기만 한다(온라인 실측 1.3초).
+
+    상승장은 그 계산을 뒤 일꾼에게 시켰다. 온라인은 일꾼이 한둘이라 그 뒤
+    일꾼이 화면 그리는 몫을 나눠 갖고, 그 도중에 누르면 끝나기를 기다린다.
+    그래서 22개 테마와 **같은 방식**으로 맞춘다 — `prepare_breakout_scan` 은
+    이 자리에서 바로 만든다(노트북 실측 0.70~1.08초).
+
+    **이미 받아 둔 자료만 쓴다** — 네트워크를 한 번도 안 쓰므로 조회를 기다리는
+    일은 없다. 공책이 비었으면 그 자리에서 빈손으로 돌아간다.
+
+    옛 모듈이 프로세스에 남아 새 이름이 없으면 예전처럼 `warm_breakout_scan`
+    (뒤 일꾼)으로 물러난다. 둘 다 없어도 화면은 그대로 돈다.
+    """
+    prepare = getattr(j3data, "prepare_breakout_scan", None)
+    warm = prepare if callable(prepare) else getattr(j3data, "warm_breakout_scan", None)
+    if not callable(warm):
+        return
+    try:
+        warm()
+    except Exception:
+        pass
+
+
+# 상승장·급락·순위 9 자동 남기기를 **서버 전체에서 한 시간에 한 번만** 해 본다(2026-09-17).
+_OTHER_PARTS_RETRY_SECONDS = 3600.0
+
+
+@st.cache_resource(show_spinner=False)
+def _other_parts_autosave_tried() -> dict:
+    """그날 몇 시에 해 봤나 — 판이 다시 그려져도, 다른 분이 열어도 **같은 공책**이다."""
+    return {"lock": threading.Lock(), "at": {}}
+
+
+def _autosave_other_parts() -> None:
+    """저장해 둔 목록의 **상승장 · 급락 후 반등장 · 순위 9** 도 화면에서 남긴다.
+
+    2026-09-17 상하님 지적 — *"저장해 둔 목록 보기에 각 테마가 없다, 두 개밖에
+    안 나온다. 이거 저번에 이야기했는데 아직 안 된 이유가 뭐냐? 상승장은 종목이
+    없어 그럴 수 있다 쳐도 매수심사결과 높은 순위 9 는 왜 안 나오냐?"*
+
+    **까닭** — 화면이 목록을 남기는 것은 그 파트를 **화면에 그렸을 때뿐**이었다.
+    순위 9 를 안 열면 순위 9 가 안 남았다. 네 파트를 다 남기는 본체는 클라우드
+    수집기인데, 야후 일봉이 늦게 올라와 한국 아침 8시 반쯤에야 찍힌다. 그 전에
+    보시면 화면이 그때까지 그린 파트만 들어 있는 목록이 보였다.
+    2026-08-29 에 같은 지적(「상위 테마 5개가 왜 또 빠지냐」)을 받고 **상위 테마
+    5개만** 이 방법으로 고쳤다(_autosave_theme15). 나머지 셋을 안 고친 것이 이번이다.
+
+    **수집기와 같은 함수를 같은 차례로 부른다**(CLAUDE.md 10-1) — 상승장 →
+    급락 → 순위 9(앞의 둘을 재료로 넘긴다). 판단 규칙은 `needs_autosave` 그대로라
+    **장이 끝나기 전에는 아무것도 안 하고**, 이미 남긴 파트는 건너뛴다. 하루에 한 번이다.
+    화면을 기다리게 하지 않도록 뒤에서 돈다(상위 테마 5개와 같은 방식).
+    """
+    try:
+        wanted = [kind for kind in ("breakout", "crash", "top7")
+                  if picklist_ui.needs_autosave("US", kind)]
+        if not wanted:
+            return
+        rows = list((st.session_state.get("j3_theme_rankings") or {}).get("rows") or [])
+        overview = st.session_state.get("j3_market_overview") or {}
+        score = float(overview.get("score") or 0)
+        # **하루에 한 번, 못 했으면 한 시간 뒤에 한 번 더**만 해 본다 (2026-09-17 상하님
+        # 지적 — "상승장 신고가 눌림매수 처음 클릭 시 로딩이 왜 이리 오래 걸리냐, 왜 이것만").
+        # 까닭은 같은 날 아침 이 함수를 넣은 제 실수였다. 그날 상승장이 **0종목**이면
+        # 남길 줄이 없어 「아직 안 남겼다」가 계속 참이었고, 그래서 화면을 다시 그릴
+        # 때마다 상승장·급락·순위 9 계산을 뒤에서 **처음부터 또** 돌렸다(한국 아침 내내).
+        # 온라인 실측 — 상승장 첫 열기 22초 · 그 뒤 닫기 9.6초(급락은 열기 0.9초).
+        tried = _other_parts_autosave_tried()
+        day = str(picklist_ui.store.trade_date_for("US"))
+        now = time.time()
+        with tried["lock"]:
+            if now - float(tried["at"].get(day) or 0) < _OTHER_PARTS_RETRY_SECONDS:
+                return
+            tried["at"][day] = now
+    except Exception:
+        return
+
+    def _save() -> None:
+        breakout = crash = None
+        try:
+            # 단추가 쓰는 **같은 기억**으로 만든다(breakout_scan) — 방금 누가 만들었으면
+            # 다시 안 만들고, 여기서 만든 것은 단추가 그대로 쓴다.
+            breakout = j3data.breakout_scan(persist=False)
+            if "breakout" in wanted:
+                picklist_ui.autosave("US", "breakout", breakout)
+        except Exception:
+            breakout = None
+        try:
+            crash = j3data.find_crash_rebound_stocks()
+            if "crash" in wanted:
+                picklist_ui.autosave("US", "crash", crash)
+        except Exception:
+            crash = None
+        if "top7" in wanted and rows:
+            try:
+                picklist_ui.autosave("US", "top7", j3data.collect_top_picks(
+                    rows, market_score=score, breakout=breakout, crash=crash))
+            except Exception:
+                pass         # 못 남겨도 화면은 그대로다. 클라우드 수집기가 또 찍는다.
+
+    try:
+        threading.Thread(target=_save, name="parts-save", daemon=True).start()
+    except Exception:
+        pass
+
+
+def _autosave_theme15() -> None:
+    """저장해 둔 목록의 「상위 테마 5개 · 각 종목 1~3위」를 **화면에서도** 남긴다.
+
+    2026-08-29 상하님 지적 — *"08-28일자에 상위 테마 5개 각 종목 1~3위 15종목
+    리스트가 왜 또 빠지냐!"*
+
+    **까닭은 화면에 저장하는 자리가 아예 없었기 때문이다.** 2026-08-15에 이 갈래를
+    만들 때 클라우드 수집기(picklist_collector)에만 넣고 화면 쪽 보조 저장에는
+    안 넣었다. 화면의 `autosave` 는 순위 9와 상승장·급락 셋뿐이었다.
+    그래서 **깃허브 예약이 제때 뜬 날에만** 15줄이 들어가고, 예약이 밀려 화면
+    자동 저장만 걸린 날에는 이 갈래가 통째로 빠졌다 — 8/26과 8/28이 그랬다.
+
+    **저장할 때만 만든다.** 이 목록을 만드는 데는 대장주 조회 다섯 판이 든다.
+    그래서 먼저 `needs_autosave` 로 물어보고 남길 때만 만든다 — 장이 끝난 뒤
+    하루에 한 번이다.
+
+    **그 한 번도 뒤 일꾼에게 맡긴다** (2026-08-29 · CLAUDE.md 0-0).
+    처음에는 화면 그리는 길에 그대로 두었는데, 그러면 그날 딱 한 번이라도
+    상하님이 대장주 조회 다섯 판을 통째로 기다리셔야 한다. 실제로 화면 시험이
+    그 조회를 기다리다 시간 초과로 깨졌다 — 상하님 폰에서는 그것이 '오늘따라
+    시장분석이 안 열린다'로 보인다.
+    **세션에서 읽을 것은 일꾼을 띄우기 전에 다 꺼내 둔다** — 세션 기억은
+    뒤 일꾼이 만지면 안 된다.
+
+    **수집기가 부르는 함수를 같은 인자로 부른다**(CLAUDE.md 10-1). 여기에 고르는
+    계산을 따로 쓰면 저장된 목록이 수집기가 찍은 것과 조용히 갈라진다.
+
+    실패해도 조용히 넘어간다 — 이것 때문에 화면이 죽으면 안 된다.
+    """
+    try:
+        if not picklist_ui.needs_autosave("US", "theme15"):
+            return
+        rows = list((st.session_state.get("j3_theme_rankings") or {}).get("rows") or [])
+        if not rows:
+            return           # 테마 자료를 못 받은 판이다. 다음 판에 다시 본다.
+        overview = st.session_state.get("j3_market_overview") or {}
+        score = float(overview.get("score") or 0)
+    except Exception:
+        return
+
+    def _save() -> None:
+        try:
+            picklist_ui.autosave("US", "theme15",
+                                 j3data.find_theme_top_picks(rows, market_score=score))
+        except Exception:
+            pass             # 못 남겨도 화면은 그대로다. 클라우드 수집기가 또 찍는다.
+
+    try:
+        threading.Thread(target=_save, name="theme15-save", daemon=True).start()
+    except Exception:
+        pass
+
+
+# ── 「📘 이 테마 설명」 카드 창 (2026-09-18 상하님 지시) ─────────────────────────
+# 상하님 — "이 테마 설명 너가 해 봐라. 파트별 성적표에서 매수심사결과 높은 순위 9 를
+# 클릭해 보면 창이 열리는 것도 해 보고. 내가 뭘 원하는지 이해가 안 가냐?"
+#
+# 해 보니 둘이 이렇게 달랐다.
+#   성적표 순위 9 창  누르는 **즉시** 뜬다(서버 안 거침) · 화면 가운데 **카드 한 장** ·
+#                    55% 에서 튀어 올라 살짝 넘쳤다 제자리 · 뒤는 흐림 · 다시 누르면 줄어듦
+#   이 테마 설명      누르면 서버에 다녀와 내용이 찬다(그 사이 빈 창) · 화면을 꽉 채움 ·
+#                    닫을 때도 서버에 다녀와 시장분석 화면 전체를 다시 그림
+# 그래서 이 창을 성적표 창과 **같은 장치**로 바꾼다 — 숨은 체크칸 하나로 여닫는다.
+# 내용은 화면을 그릴 때 미리 그려 두고 숨겨 두므로, 누르면 서버에 묻지 않고 곧바로
+# 뜨고 곧바로 닫힌다. 모양·움직임 값은 성적표 카드(.j3pop)를 그대로 베꼈다.
+# 내용(만화·규칙·표·글)은 method_help.render_us_body 가 그린다 — 예전 창과 같은 것이다.
+_HELP_TAP = "j3-help-tap"
+
+
+def _help_card_trigger() -> None:
+    """맨 위 줄 오른쪽 「📘 이 테마 설명」 — 누르면 카드가 열린다(서버 안 거침)."""
+    st.markdown(
+        f"<label for='{_HELP_TAP}' class='j3-help-trigger'>{method_help.BUTTON_LABEL}</label>",
+        unsafe_allow_html=True,
+    )
+
+
+_HELP_CARD_CSS = """
+<style>.j3-help-tap{position:absolute!important;opacity:0!important;width:1px;height:1px;
+  pointer-events:none;margin:0}
+[data-testid="stElementContainer"]:has(.j3-help-tap){position:absolute!important;
+  width:0!important;height:0!important;margin:0!important;overflow:visible!important}
+label.j3-help-trigger{display:inline-flex;align-items:center;white-space:nowrap;
+  background:#cfe9ff;border:1px solid #8ec9f5;border-radius:.5rem;padding:.35rem .9rem;
+  color:#c15f3c;font-size:.95rem;font-weight:800;cursor:pointer;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .12s ease-out,filter .12s ease-out,background .12s ease-out}
+label.j3-help-trigger:hover{background:#b9dfff;transform:translateY(-2px)}
+label.j3-help-trigger:active{transform:scale(.97)}
+.j3-help-scrim{position:fixed;inset:0;z-index:2147483647;cursor:pointer;
+  background:rgba(3,10,24,.52);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  opacity:0;visibility:hidden;transition:opacity .5s cubic-bezier(.55,0,.8,.3),visibility 0s linear .56s}
+body:has(#j3-help-tap:checked) .j3-help-scrim{opacity:1;visibility:visible;
+  transition:opacity .42s ease,visibility 0s}
+div.st-key-j3_help_card{position:fixed!important;left:50%;top:50%;z-index:2147483647;
+  width:min(1180px,calc(100vw - 28px))!important;max-height:86vh;overflow-y:auto;
+  overscroll-behavior:contain;box-sizing:border-box;padding:14px 14px 16px!important;
+  border-radius:22px;background:#132a4d;border:1px solid rgba(192,132,252,.55);
+  box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.04) inset;
+  color:#e8eef8;opacity:0;visibility:hidden;pointer-events:none;
+  transform:translate(-50%,-50%) scale(.55);
+  transition:transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0),
+    visibility 0s linear .56s}
+body:has(#j3-help-tap:checked) div.st-key-j3_help_card{opacity:1;visibility:visible;
+  pointer-events:auto;transform:translate(-50%,-50%) scale(1);
+  transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,visibility 0s}
+div.st-key-j3_help_card{--j-title:#44f0a1;--j-step:#4da6ff;--j-mark:#ff6b6b;
+  --mh-line:rgba(255,255,255,.18);--mh-buy:#44f0a1;--mh-sell:#ff9d3b;--mh-data:#4da6ff;
+  --mh-key:#c084fc;--mh-dim:#9aa0aa;--mh-pos:#44f0a1;--mh-neg:#ff6b6b}
+div.st-key-j3_help_card h3{color:var(--j-title)!important}
+div.st-key-j3_help_card h5{color:var(--j-step)!important;font-size:1.02rem!important}
+div.st-key-j3_help_card p > strong,
+div.st-key-j3_help_card blockquote strong{color:var(--j-mark)!important}
+div.st-key-j3_help_card td strong,
+div.st-key-j3_help_card th strong,
+div.st-key-j3_help_card li strong{color:inherit!important}
+div.st-key-j3_help_card .mh-doc{max-width:760px;margin-left:auto;margin-right:auto}
+.j3-help-row{display:flex;align-items:center;gap:10px;margin:2px 0 4px}
+.j3-help-row.top{justify-content:flex-end;margin-bottom:22px}
+.j3-help-row.bottom{justify-content:flex-start;margin-top:10px}
+label.j3-help-close{display:inline-flex;align-items:center;white-space:nowrap;cursor:pointer;
+  background:#cfe9ff;border:1px solid #8ec9f5;border-radius:.6rem;padding:.4rem 1rem;
+  color:#c15f3c;font-size:1.05rem;font-weight:800;user-select:none;
+  -webkit-tap-highlight-color:transparent}
+label.j3-help-close:active{transform:scale(.97)}
+.j3-help-hint{color:#8fb4de;font-size:.82rem}
+div.st-key-j3_help_card [data-testid="stFullScreenFrame"]>div,
+div.st-key-j3_help_card [data-testid="stImage"],
+div.st-key-j3_help_card [data-testid="stImageContainer"],
+div.st-key-j3_help_card [data-testid="stImageContainer"] a,
+div.st-key-j3_help_card [data-testid="stImage"] img{width:100%!important;max-width:100%!important}
+div.st-key-j3_help_card [data-testid="stImage"] img{height:auto!important}
+@media (prefers-reduced-motion:reduce){
+  div.st-key-j3_help_card,body:has(#j3-help-tap:checked) div.st-key-j3_help_card,
+  .j3-help-scrim,body:has(#j3-help-tap:checked) .j3-help-scrim{transition:none}}</style>
+"""
+
+
+def _render_help_card() -> None:
+    """「이 테마 설명」 카드 — 미리 그려 두고 숨겨 둔다. 체크칸이 켜지면 튀어 오른다."""
+    st.markdown(
+        _HELP_CARD_CSS
+        + f"<input type='checkbox' id='{_HELP_TAP}' class='j3-help-tap' aria-hidden='true'>"
+        + f"<label for='{_HELP_TAP}' class='j3-help-scrim' aria-hidden='true'></label>",
+        unsafe_allow_html=True,
+    )
+    with st.container(key="j3_help_card"):
+        st.markdown(
+            "<div class='j3-help-row top'>"
+            f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label></div>",
+            unsafe_allow_html=True,
+        )
+        method_help.render_us_body(st)
+        st.markdown(
+            "<div class='j3-help-row bottom'>"
+            f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label>"
+            "<span class='j3-help-hint'>바깥을 눌러도 닫힙니다.</span></div>",
+            unsafe_allow_html=True,
+        )
+
+def _render_existing_theme_content() -> None:
+    # **선물부터 시켜 둔다** (2026-09-10 상하님 지적 — "관심종목에서 시장분석으로
+    # 2초, 너무 늦다"). 맨 위 선물 칸이 받을 것을 뒤 일꾼에게 먼저 맡긴다.
+    # 그 일꾼이 선물을 받는 동안 이 화면은 「미국 전체시장 판단」 시세를 받는다 —
+    # 여태 한 줄로 서서 기다리던 둘이 겹쳐 돈다(_start_us_futures_fetch 참고).
+    # 새로 나가는 요청은 하나도 없다. 받는 **때**만 옮긴 것이다.
+    _start_us_futures_fetch()
+    st.markdown(
+        # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
+        # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
+        # 순위 7 표를 세로로 쌓던 규칙(table_css·hide_own_header)은 2026-08-01에 뺐다.
+        # 사용자 지시 — 나머지 세 표(오늘의 강한테마·테마 종목 1~6위·눌림목 찾기)처럼
+        # 표를 원래 폭으로 두고 손가락으로 옆으로 밀어서 보게 한다. 그 규칙은
+        # 페이지 위 <style>의 .st-key-j3_top7_table 줄에 있다.
+        mobile_ui.page_css(),
+        unsafe_allow_html=True,
+    )
+    # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).
+    st.markdown(scroll_to.CSS, unsafe_allow_html=True)
+    # 종목 브리핑에서 들어온 미국 시장분석 화면만 위쪽 여백을 줄인다.
+    # 공용 method_help.py와 한국테마 화면에는 퍼지지 않게 페이지 표식을 쓴다.
+    #
+    # ⚠ 아래 <style> 안에 **빈 줄을 넣지 않는다.** 2026-08-26에 거기에 설명을
+    # 적으면서 주석 가운데 빈 줄을 하나 넣었더니 화면이 깨졌다(상하님 캡처 —
+    # CSS 글자가 화면에 그대로 쏟아졌다).
+    #
+    # 이유 — 이 덩어리는 <div class="j11-market-top">로 시작한다. 마크다운은
+    # <div> 로 시작한 HTML 덩어리를 **빈 줄에서 끝낸다.** 그래서 빈 줄 뒤부터는
+    # <style> 안이 아니라 그냥 글로 읽혀 화면에 그대로 그려졌다. 그 글 안의
+    # 역따옴표는 회색 상자로, 별표 두 개는 굵은 글씨로 바뀌어 있었다.
+    # (<style> 로 **시작하는** 덩어리는 </style> 를 만나야 끝나므로 빈 줄이
+    #  있어도 괜찮다. 이 덩어리만 앞에 <div> 가 붙어 있어서 다르다.)
+    #
+    # 설명은 전부 여기 파이썬 주석에 쓴다 — 여기서는 무엇을 써도 안전하다.
+    #
+    # ── 화면 맨 위 빈자리 224px의 진짜 이유 (2026-08-26 실측) ─────────────────
+    # 이 화면 맨 위에는 **눈에 안 보이는 <style> 덩어리가 14개** 줄지어 있다.
+    # 높이는 0이지만 스트림릿이 칸과 칸 사이에 16px씩 틈을 넣기 때문에
+    # 14 × 16px = 224px 이 통째로 빈 자리가 된다. 상하님 지적 —
+    # "스마트폰·태블릿 상단에 여백 좀 (줄이라고) 하라니깐".
+    #
+    # **<style> 하나만 들어 있는 칸**만 없앤다. `style:only-child` 는 그 칸에
+    # style 말고는 아무것도 없다는 뜻이라, 보이는 것을 잘못 숨길 수가 없다.
+    # 글이 같이 든 칸은 자식이 둘이라 이 조건에 안 걸린다.
+    # 숨겨도 <style> 안의 규칙은 그대로 작동한다 — 화면에 안 그려질 뿐이다.
+    # `.j11-market-top` 은 표식일 뿐이라 같이 없앤다(body:has 는 숨겨도 찾는다).
+    # `.jarvis-anchor` 는 **남긴다** — 숨기면 '맨 위로' 가 작동하지 않는다.
+    #
+    # ── 폰·태블릿은 위를 **58px** 띄운다 (2026-08-27 상하님 지적) ─────────────
+    # 상하님 — "시장분석 맨 위 화면 아직도 그거 해결 안 하고 있다."
+    #
+    # 상하님 캡처 맨 위에 「Fork」와 GitHub 표시가 있다. 그건 온라인 서비스가
+    # **앱 위에 덮어 놓는 띠**다. 내 쪽 주소(/~/+/)로 열면 그 띠가 없어서 여태
+    # 못 봤다. 폰 크기 열한 가지(360·375·390·412·600·690·800·1138·1240·1400·
+    # 1920)를 다 재도 줄은 늘 y=10 에 있었는데, 상하님 화면에서는 그 y=10 이
+    # **띠 밑**이었다.
+    #
+    # 2026-08-25 캡처에는 위에 224px 빈자리가 있어 단추가 띠 아래로 밀려나
+    # 보였다. 그 빈자리를 없애자 단추가 띠 밑으로 들어가 가려졌다.
+    # 그래서 띠 높이만큼만 띄운다 — 224px 이 아니라 68px 이다.
+    # (58px 로 했더니 「한국테마 →」 사각 테두리 위가 조금 잘렸다 —
+    #  상하님 실물 확인. 10px 더 내렸다.)
+    # 노트북(1200px 이상)은 10px 그대로다 — 거기서는 띠가 안 덮는다.
+    #
+    # ── 위 여백은 **0이 아니라 10px** (2026-08-27 상하님 지시) ────────────────
+    # 상하님 — "맨 위에 화면 사라진 거 나타나게 하되, 위에 여백을 너무 많이
+    # 두지 말라." 0으로 두면 맨 위 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)가
+    # 화면 끝에 딱 붙어, 폰 브라우저 주소창이 오르내릴 때 가려진다.
+    # 예전 224px 과는 비교가 안 되는 10px 이다.
+    # ── 여기 <style> 에 2026-09-11 규칙 셋을 더했다 (상하님 지시) ─────────────
+    # **이 덩어리 안에는 주석을 못 쓴다.** <div> 로 시작하는 HTML 덩어리라
+    # 마크다운이 빈 줄에서 끊어 버린다(2026-08-26에 CSS가 화면에 쏟아졌다).
+    # 그래서 설명을 여기 밖에 적는다.
+    #
+    # ① 가로줄(구분선) 여백 — 아래 ② 참고
+    #    (자리 표시 절대배치는 2026-09-11 에 걷어냈다 — 자리 표시가 엉뚱한 곳으로
+    #     갔다. 지금은 강한 테마 카드 **안에** 찍는다.)
+    #    상하님 — "모든 박스와 박스 사이 여백을 다 같은 여백으로 다 줄여라."
+    #    재 보니 칸 사이가 16px 로 고른 데가 대부분인데 몇 군데만 32~48px 이었다.
+    #    그 자리마다 눈에 안 보이는 자리 표시(scroll_to.anchor, 높이 0)가 한 칸으로
+    #    세어져 있었다. 스트림릿은 칸과 칸 사이에 무조건 16px 을 넣으므로, 높이 0짜리가
+    #    하나 끼면 16px 이 두 번 들어가 32px 이 된다. 흐름에서 빼면 16px 하나만 남는다.
+    #    자리 표시 구실은 그대로다 — top/left 를 안 주므로 있던 자리에 그대로 선다.
+    #    실측 — 강한 테마 카드 → 21개 테마 48px → 16px.
+    #
+    # ② 가로줄(구분선)도 한 칸으로 세어져 위아래 16px 씩, 합쳐 32px 을 먹고 있었다.
+    #    (`:has(hr)` 에 -8px 씩) 줄 자체는 남기고 그 칸이 먹던 여백만 도로 뱉는다.
+    #    실측 — 「시장 전체 흐름」→「미국장 시장 상태」 32px → 16px,
+    #           「순위 9」→「종목검색」 32px → 16px.
+    #    ⚠ hr 은 stElementContainer 의 **직계 자식이 아니다**(stMarkdown 두 겹 안).
+    #      `:has(> hr)` 로 쓰면 하나도 안 걸린다 — 실측으로 확인했다.
+    #
+    # ③ 맨 위 두 단추(한국테마·이 테마 설명)를 배너 그림 안으로 넣는 규칙.
+    #    자세한 내력은 2026-09-11 커밋 설명에 있다.
+    #
+    # **미국테마 화면에만 건다** — method_help·scroll_to 는 한국테마와 공용이다
+    # (CLAUDE.md 0-1 다).
+    st.markdown(
+        """
+        <div class="j11-market-top"></div>
+        <style>        body:has(.j11-market-top) .stMainBlockContainer,
+        body:has(.j11-market-top) .block-container { padding-top:0!important; }
+        body:has(.j11-market-top) .stElementContainer:has(> [data-testid="stMarkdown"] style:only-child),
+        body:has(.j11-market-top) .stElementContainer:has(> [data-testid="stMarkdown"] .j11-market-top) {
+          display:none!important;
+        }
+        body:has(.j11-market-top) .stElementContainer:has(hr),
+        body:has(.j11b-home) .stElementContainer:has(hr) {
+          margin-top:-8px!important;
+          margin-bottom:-8px!important;
+        }
+        body:has(.j11-market-top) .st-key-jarvis_method_help_row {
+          gap:.35rem!important;
+          row-gap:.35rem!important;
+          position:relative!important;
+          z-index:5!important;
+          flex:0 0 auto!important;
+          margin-top:-61px!important;
+          margin-bottom:0px!important;
+        }
+        body:not(.j3-never) [data-testid="stLayoutWrapper"]:has(> .st-key-jarvis_method_help_row) {
+          margin-top:-22px!important;
+        }
+        body:not(.j3-never) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
+        body:not(.j3-never) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}
+        body:not(.j3-never) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child){
+          margin:0!important}</style>
+        """,
+        unsafe_allow_html=True,
+    )
+    # ── 시장분석 화면도 관심종목 화면과 **같은 옷**을 입는다 (2026-08-28 상하님 지시)
+    #
+    # 상하님 — "미국테마를 캡쳐4처럼 디자인을 좀 바꾸고 싶다. 테두리를 캡쳐4처럼
+    # 하고 싶다는 이야기이야."
+    #
+    # 여태 한 페이지 안에서 두 화면이 서로 다른 옷을 입고 있었다. 관심종목 쪽은
+    # 금색 테두리를 두른 남색 카드(.j3b-card)인데, 시장분석 쪽 지수 칸은 테두리도
+    # 바탕도 없는 맨 글자였다. 같은 앱으로 안 보인다.
+    #
+    # 색·굵기·둥글기를 .j3b-card 에서 그대로 가져온다. **한 곳에서 베껴 오지
+    # 않고 여기 다시 적는 까닭** — 저쪽은 .j11b-home 표식이 있어야 걸리는 규칙이라
+    # 이 화면에는 안 걸린다. 표식을 여기 붙이면 카드·격자 규칙까지 통째로 따라와
+    # 지수 칸이 246px 짜리 카드가 된다.
+    #
+    # **값·숫자·순서는 하나도 안 건드린다** — 옷만 갈아입힌다.
+    st.markdown(
+        """
+        <style>        body:has(.j11-market-top) .stAppHeader { display:none !important; }
+        body:has(.j11-market-top),
+        body:has(.j11-market-top) .stApp { background:#020b1e !important; }
+        body:has(.j11-market-top) .stApp {
+            background-image:
+                radial-gradient(circle at 51% 1%, #0c3d78 0, transparent 27%),
+                linear-gradient(160deg, #020a1c 0%, #031a3b 53%, #020b21 100%) !important;
+        }
+        body:has(.j11-market-top) .j3-top-cell,
+        body:has(.j11-market-top) .fg-box,
+        body:has(.j11-market-top) .j3-ndd {
+            background: linear-gradient(145deg, #06345f 0%, #03264a 58%, #001d3c 100%);
+            border: 1px solid #bf9254a8;
+            border-radius: 17px;
+            box-shadow: inset 0 1px #7bc9ff35, 0 6px 16px #0006;
+            padding: 12px 13px 11px;
+            box-sizing: border-box;
+        }
+        body:has(.j11-market-top) .j3-top-row { gap: 0.85rem; }
+        body:has(.j11-market-top) .j3-top-cell:hover {
+            border-color: #d8ab68; box-shadow: inset 0 1px #7bc9ff55, 0 8px 20px #0008;
+        }
+        body:has(.j11-market-top) hr { margin: .35rem 0 !important; }
+        body:has(.j11-market-top) [data-testid="stExpander"] details {
+            border: 1px solid #bf925266 !important;
+            border-radius: 15px !important;
+            background: linear-gradient(145deg, #06304f26, #001d3c40) !important;
+        }</style>
+        """,
+        unsafe_allow_html=True,
+    )
+    # 뒤로가기를 눌렀을 때 돌아올 **화면 맨 위** 자리(2026-08-21 상하님 지시 —
+    # "한번 누르면 밑으로 화면 내린 부분에서 바로 위로").
+    scroll_to.anchor(st, "top")
+    # ── 시장분석 **맨 위**의 눈밭 캠프 배너 (2026-08-28 상하님 지시) ──────────
+    # 상하님 — "시장분석 맨 위에 넣어라."
+    # 상하님이 그록·제미나이로 만드신 영상 위에 6개월 일봉 봉차트를 얹은 그림이다.
+    # 봉은 **지어낸 값**이라 숫자를 한 개도 안 적는다. 자세한 것은 hero_banner.py.
+    # 두 단추(「🌏 한국테마 →」·「📘 이 테마 설명」)보다 먼저 그려야 맨 위에 선다.
+    if hero_banner.render(st, refresh_key="j3hero_refresh", mark="11"):
+        # ↻ 를 누르셨다. 관심종목 배너의 ↻ 와 **똑같이** 움직인다 —
+        # 서버가 담아 둔 것을 비우고 화면을 통째로 새로 연다
+        # (2026-08-28 상하님 — "그거 누르면 리셋 되던데?").
+        st.session_state["j3b_hard_reload"] = True
+        for _forget in (getattr(j3data, "clear_runtime_cache", None),
+                        getattr(briefing_news, "clear_cache", None)):
+            try:
+                if _forget:
+                    _forget()
+            except Exception:
+                pass          # 못 비워도 화면은 새로 연다
+        st.rerun()
+    # 최상단 오른쪽에 '이 테마 설명'을 둔다(2026-07-29 사용자 지시).
+    # 제목보다 먼저 그려야 화면 맨 위 오른쪽에 붙는다.
+    # **게스트는 「이 테마 설명」을 못 본다** (2026-09-18 상하님 지시).
+    # 건너가기 단추(「🌏 한국테마 →」)는 그대로 둔다 — 그것까지 없애면 게스트가
+    # 두 화면을 오갈 수가 없다.
+    # **여는 단추는 서버를 안 거치는 카드 창의 것이다** (2026-09-18 상하님 지시 —
+    # "이 테마 설명 너가 해 봐라. 성적표에서 순위 9 를 클릭해 보면 창이 열리는 것도
+    # 해 보고. 내가 뭘 원하는지 이해가 안 가냐?"). 카드는 이 화면 맨 끝에서 그린다
+    # (_render_help_card). 게스트에게는 단추도 카드도 없다.
+    _help_guest = auth.is_guest()
+    method_help.render(st, "US", show_help=not _help_guest,
+                       help_slot=None if _help_guest else _help_card_trigger)
+    # 맨 위 제목은 뺐다(2026-07-30 사용자 지시) — 사이드바에 같은 이름이 있고
+    # 첫 화면 높이만 먹었다. 페이지 이름은 파일명이 그대로 쓴다.
+    try:
+        j3store.ensure_tables()
+    except Exception as exc:
+        st.error(f"자비스3 기록 테이블 준비 실패: {_safe_error_text(exc)}")
+
+    # 뒤로가기로 무언가 닫혔으면 화면을 맨 위로 올린다 — 상하님이 아래까지
+    # 내려가 보시던 자리에 그대로 서 있으면 아무 일도 안 일어난 것처럼 보인다.
+    if _backnav_closed:
+        scroll_to.request(st, "top")
+    _render_market_overview()
+    market = st.session_state.get("j3_market_overview") or {"ok": False, "score": 0, "regime": "자료부족"}
+    st.divider()
+    # 미국장 선행신호 카드만 자비스3에 둔다(2026-07-22 사용자 정정: 한국장 수급 카드는
+    # 미국 페이지에 어울리지 않으므로 자비스4(국내)에 넣는다). 같은 렌더러·세션 상태를
+    # 재사용하므로 시장판단 페이지와 판정이 항상 일치한다.
+    # 계기판만 먼저 보이고 나머지는 눌러서 연다(2026-08-28 상하님 지시).
+    # 시장 판단 화면은 예전처럼 다 펴 둔다 — 거기는 화면 하나가 통째로 이 카드다.
+    market_signal_ui.render_us_market_signal_card(foldable=True)
+    # 폰에서 화면만 먹던 상단 '테마·종목 / 매수 기록 / 판정 기준' 선택줄은
+    # 보이지 않고 미국테마 본화면을 바로 그린다.
+    _render_radar_tab(market)
+    # 저장해 둔 목록의 「상위 테마 5개」를 아직 안 남겼으면 여기서 남긴다.
+    # **화면을 다 그린 뒤**다 — 앞에 두면 보실 것이 그만큼 밀린다.
+    _autosave_theme15()
+    _autosave_other_parts()
+    # 상승장 한 벌을 **뒤 일꾼이** 미리 만들어 둔다 (2026-08-29).
+    #
+    # 상하님 — "상승장 신고가 눌림매수 첫 클릭하면 로딩 너무 오래 걸린다."
+    # 이 미리 만들기는 여태 관심종목 화면에만 있었다(_warm_after_news). 그래서
+    # 시장분석으로 바로 들어오시면 아무것도 안 데워져 있어, 첫 클릭이 200종목
+    # 스캔을 통째로 기다렸다.
+    #
+    # **본래 자리는 _render_radar_tab 안, 상승장 단추 바로 위다** (2026-09-13).
+    # 여기 맨 끝의 부름은 **남겨 둔다** — 테마 자료를 못 받아 위에서 건너뛴
+    # 판이 있으면 여기서 한 번 더 해 본다. 이미 돌고 있거나 5분 안에 해 뒀으면
+    # warm_breakout_scan 의 자물쇠가 바로 돌려보낸다(아무 일도 안 한다).
+    # **네트워크를 한 번도 안 쓴다** — 이 화면을 그리며 이미 받아 둔 200종목
+    # 2년치와 나스닥 이력만 다시 읽어 계산만 해 둔다. 공책에 없으면 그 자리에서
+    # 빈손으로 돌아가고, 그때는 예전처럼 단추가 그때 받는다.
+    # 5분에 한 번만 돈다(warm_breakout_scan 안의 자물쇠).
+    _warm_finders()
+    # 「이 테마 설명」 카드 창 — **화면 맨 끝**에서 그린다. 닫혀 있을 때는 자리를
+    # 차지하지 않지만, 혹시 틈이 생겨도 맨 아래라 보이지 않는다. 게스트는 없다.
+    if not auth.is_guest():
+        _render_help_card()
+
+
+def _briefing_secret(name: str) -> str:
+    """키가 없거나 secrets 접근이 막혀도 화면은 정상 표시한다."""
+    try:
+        return str(st.secrets.get(name) or os.getenv(name) or "").strip()
+    except Exception:
+        return str(os.getenv(name) or "").strip()
+
+
+@st.cache_data(show_spinner=False)
+def _briefing_asset_uri(filename: str) -> str:
+    """첫 화면 전용 로컬 장식·로고를 HTML 안에서 안전하게 쓴다.
+
+    외부 hotlink 없이 배포본에도 같은 자산을 보여 주기 위한 data URI다.
+    """
+    asset = Path(__file__).resolve().parents[1] / "assets" / "briefing" / filename
+    if not asset.is_file():
+        return ""
+    mime = {".svg": "image/svg+xml", ".webp": "image/webp"}.get(asset.suffix.lower(), "image/png")
+    encoded = base64.b64encode(asset.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _briefing_logo_uri(ticker: str) -> str:
+    asset = Path(__file__).resolve().parents[1] / "assets" / "briefing" / f"{ticker.upper()}.svg"
+    if asset.is_file():
+        try:
+            served = _briefing_logo_static(ticker.upper(), asset.read_bytes(), ".svg")
+        except Exception:
+            served = ""
+        if served:
+            return served
+    return _briefing_asset_uri(f"{ticker.upper()}.svg")
+
+
+# ── 회사 로고는 글자(data:)로 박지 않고 **주소로** 부른다 (2026-09-24 상하님 「둘 다 해라」) ──
+# 실측(온라인 게스트 관심종목) — 로고 58장이 글자로 265KB, 화면 글 상자 853KB 의 31%였다.
+# 느린 폰은 넘길 때마다 이 글자를 다시 읽는다. 로고를 `static/j3logo/` 에 한 번 써 두고
+# `app/static/…` 로 부르면 브라우저가 한 번 받아 기억한다. 온라인에서 이 주소가 그림을
+# 내주는 것을 먼저 확인했다(/~/+/app/static/hero_snow_camp.webp → 200 image/webp).
+# 파일 이름에 내용 도장을 붙여 로고가 바뀌면 주소도 바뀐다. **쓰기가 막히면 빈 값** —
+# 부르는 쪽이 예전처럼 글자로 박는다(로고가 사라지면 안 된다 · CLAUDE.md 0-0).
+_LOGO_STATIC_DIR = Path(__file__).resolve().parents[1] / "static" / "j3logo"
+_LOGO_STATIC_DONE: dict = {}
+
+
+def _briefing_logo_static(name: str, data: bytes, suffix: str) -> str:
+    import hashlib
+
+    if not data:
+        return ""
+    stamp = hashlib.sha1(data).hexdigest()[:10]
+    filename = f"{name}-{stamp}{suffix}"
+    if filename not in _LOGO_STATIC_DONE:
+        target = _LOGO_STATIC_DIR / filename
+        try:
+            if not target.is_file():
+                _LOGO_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+                temporary = target.with_name(filename + ".tmp")
+                temporary.write_bytes(data)
+                temporary.replace(target)
+        except Exception:
+            return ""
+        _LOGO_STATIC_DONE[filename] = True
+    return f"app/static/j3logo/{filename}"
+
+
+# ── 「이 화면인가」 꾸밈 규칙과 새 화면 그리는 시간 (2026-09-23 저녁) ─────────────
+# 상하님 — "새 화면 그리는 시간 그것도 해결해라."
+#
+# 스트림릿은 화면을 그리며 칸을 하나 넣을 때마다 자리를 잰다. 그때마다 크롬은 :has(…)
+# 규칙 때문에 「다시 볼 칸 목록」을 들고 문서를 살핀다. 크롬은 모든 :has 규칙의 **맨 끝
+# 칸**을 한 목록으로 합쳐 쓰는데, 그중 하나라도 「아무 칸이나」(`> :not(…)`)·「data-testid
+# 붙은 칸 전부」·「div 전부」처럼 넓으면 칸 하나 넣을 때마다 문서 전체(2,100칸)를 다시
+# 따졌다. 실측은 CURRENT_STATUS(2026-09-23 저녁).
+#
+# 그래서 **:has 뒤의 맨 끝 칸은 이름(class)으로 적는다.** 스트림릿이 같은 이름을 class
+# 로도 붙여 두는 칸은 그것으로 바꿨다 — 가리키는 칸이 정확히 같다(두 화면 · 여러 상태에서
+# 세어 확인): stElementContainer · stColumn · stHorizontalBlock · stVerticalBlock ·
+# stMainBlockContainer · stAppViewContainer · stExpander, 맨 위 띠는 stAppHeader.
+# class 가 없는 칸(글 상자 stMarkdownContainer · 그 안의 div·p)을 「이 화면이면」으로
+# 꾸미는 규칙은 **화면 표식과 같은 덩어리**로 옮겼다 — 표식과 규칙이 함께 생기고 함께
+# 사라지니 조건을 건 것과 똑같이 동작한다. 앞의 `body:not(.j3-never)` 는 늘 참이다 —
+# 규칙의 세기(우선순위)를 예전과 같게 맞출 뿐이다. 시장분석은 .j11-market-top 덩어리,
+# 관심종목은 아래 _J3B_HOME_CSS(머리 그림 글 상자 끝에 붙는다). 상승장 줄 풀기는 상승장
+# 표식(<style data-j3-open>) 안으로 옮겼다. 바꾸기 전후로 모든 칸의 모양을 대조해 한 칸도
+# 안 바뀐 것을 확인했다(폰·태블릿 · 여덟 가지 상태).
+# 새 규칙을 넣을 때도 `…:has(…) [data-testid="…"]` 처럼 :has 뒤 끝 칸을 넓게 쓰지 않는다.
+_J3B_HOME_CSS = (
+    "<style>"
+    'body:not(.j3-never) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}'
+    'body:not(.j3-never) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}'
+    'body:not(.j3-never) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child){margin:0!important}'
+    'body:not(.j3-never) div[class*="st-key-j3b_grid_"]{row-gap:12px!important}'
+    "</style>"
+)
+
+
+def _briefing_css() -> None:
+    st.markdown(
+        """
+        <style>        body:has(.j11b-home), body:has(.j11b-home) .stApp { background:#020b1e !important; }
+        body:has(.j11b-home) .stApp { background-image:radial-gradient(circle at 51% 1%,#0c3d78 0,transparent 27%),linear-gradient(160deg,#020a1c 0%,#031a3b 53%,#020b21 100%) !important; }
+        body:has(.j11b-home) .stMainBlockContainer,body:has(.j11b-home) .block-container { max-width:min(1500px,94vw) !important;padding:0 10px 94px !important;margin:0 auto !important; }
+        body:has(.j11b-home) .block-container > .stVerticalBlock { gap:0 !important; }
+        body:has(.j11b-home) .stAppHeader { display:none !important; }
+        .j3b-app { color:#fbf5e9;font-family:"Noto Sans KR","Malgun Gothic",sans-serif; }
+        .j3b-hero { position:relative;height:236px;overflow:hidden;border-radius:0 0 24px 24px;padding:26px 23px;background:radial-gradient(circle at 16% 9%,#fff6d6 0 1.6px,transparent 2.4px),radial-gradient(circle at 35% 17%,#ffd681 0 1.2px,transparent 1.9px),radial-gradient(circle at 57% 11%,#ffffff 0 1.6px,transparent 2.4px),radial-gradient(circle at 79% 18%,#ffd681 0 1.2px,transparent 1.9px),radial-gradient(circle at 93% 7%,#fff2c1 0 1.5px,transparent 2.3px),radial-gradient(circle at 8% 26%,#ffe9a8 0 1px,transparent 1.7px),radial-gradient(circle at 24% 34%,#ffffff 0 1.1px,transparent 1.8px),radial-gradient(circle at 45% 6%,#ffd681 0 1px,transparent 1.7px),radial-gradient(circle at 66% 25%,#fff6d6 0 1.3px,transparent 2px),radial-gradient(circle at 88% 31%,#ffffff 0 1px,transparent 1.7px),radial-gradient(circle at 5% 14%,#ffd681 0 1px,transparent 1.7px),radial-gradient(circle at 50% 22%,#ffe9a8 0 1px,transparent 1.7px),radial-gradient(circle at 72% 8%,#ffffff 0 1.2px,transparent 1.9px),radial-gradient(circle at 30% 4%,#fff2c1 0 1px,transparent 1.7px),linear-gradient(158deg,#01091f 0%,#03204d 42%,#063a7d 72%,#04173a 100%);border:1px solid #8fc8f088;box-shadow:inset 0 -18px 31px #00132da8,0 9px 22px #0008; }
+        .j3b-hero:before { content:"";position:absolute;z-index:0;width:630px;height:210px;left:50%;bottom:-142px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse at 50% 0,#5fd6ff 0,#12a0e8 18%,#0a63b4 40%,#063666 62%,#01142e 76%);border-top:2.5px solid #8ce6ff;box-shadow:0 -14px 44px #14a0f0c4,inset 0 8px 26px #9fe8ff33; }
+        .j3b-hero:after { content:"";position:absolute;z-index:1;left:96px;bottom:38px;width:172px;height:30px;opacity:.9;background:repeating-linear-gradient(90deg,transparent 0 4px,#e2b853 4px 6px,transparent 6px 11px);clip-path:polygon(0 100%,0 75%,5% 75%,5% 25%,9% 25%,9% 68%,15% 68%,15% 5%,20% 5%,20% 70%,28% 70%,28% 36%,34% 36%,34% 72%,42% 72%,42% 13%,49% 13%,49% 72%,56% 72%,56% 32%,62% 32%,62% 70%,70% 70%,70% 18%,77% 18%,77% 67%,85% 67%,85% 42%,92% 42%,92% 72%,100% 72%,100% 100%); }
+        .j3b-head-copy,.j3b-head-actions{ position:absolute;z-index:3; }.j3b-head-copy{left:23px;top:29px}.j3b-title{margin:0!important;font-size:39px!important;line-height:1!important;font-weight:900!important;letter-spacing:-2.4px!important;color:#fff8e9!important;text-shadow:0 2px 6px #000!important}.j3b-title b{color:#78ccff!important}.j3b-sub{margin:10px 0 0!important;color:#beeaff!important;font-size:21px!important;font-weight:800!important;letter-spacing:-1.4px!important}.j3b-head-actions{right:16px;top:22px;display:flex;gap:8px}.j3b-round,.j3b-live{height:43px;display:flex;align-items:center;justify-content:center;border:1px solid #c89550;border-radius:24px;background:#061d40dd;color:#fff8e8;box-shadow:0 2px 8px #0007}.j3b-round{width:43px;font-size:26px}.j3b-live{padding:0 13px;gap:7px;font-size:15px;font-weight:800}.j3b-live i{width:10px;height:10px;border-radius:50%;background:#64d84d;box-shadow:0 0 8px #4cf059;display:block}.j3b-hero-scene{position:absolute;z-index:1;right:-4%;bottom:-1px;width:116%;max-width:none!important;height:auto;pointer-events:none}
+        .j3b-orbit{position:absolute;inset:0;pointer-events:none}
+        .j3b-orbit:before{content:"";position:absolute;left:50%;top:50%;width:min(84%,500px);aspect-ratio:1/.23;transform:translate(-50%,-50%);border:1px solid #8fc8f026;border-radius:50%;box-shadow:inset 0 0 26px #4da6ff12}
+        .j3b-orbit-arm,.j3b-orbit-pod{position:absolute;width:100%;height:0;transform-origin:0 0}
+        .j3b-orbit-arm{left:50%;top:50%;animation:j3b-orbit-arm 26s linear infinite,j3b-orbit-depth 26s linear infinite}
+        .j3b-orbit-pod{left:0;top:0;animation:j3b-orbit-pod 26s linear infinite}
+        .j3b-orbit-logo{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:3px;animation:j3b-orbit-logo 26s linear infinite}
+        .j3b-orbit-logo .j3b-logo{width:34px;height:34px;border-radius:10px;box-shadow:inset 0 1px #b4efff77,0 3px 9px #000a}
+        .j3b-orbit-tag{font-size:9px;font-weight:900;letter-spacing:-.2px;color:#dbeeff;text-shadow:0 1px 3px #000c;white-space:nowrap}
+        @keyframes j3b-orbit-arm{from{transform:scaleY(.23) rotate(0deg)}to{transform:scaleY(.23) rotate(360deg)}}
+        @keyframes j3b-orbit-pod{from{transform:translateX(min(42%,250px)) rotate(0deg) scaleY(4.348)}to{transform:translateX(min(42%,250px)) rotate(-360deg) scaleY(4.348)}}
+        @keyframes j3b-orbit-depth{0%,49.99%{z-index:2}50%,100%{z-index:0}}
+        @keyframes j3b-orbit-logo{0%{transform:translate(-50%,-50%) scale(.84);opacity:.75}25%{transform:translate(-50%,-50%) scale(1.18);opacity:1}50%{transform:translate(-50%,-50%) scale(.84);opacity:.75}75%{transform:translate(-50%,-50%) scale(.6);opacity:.4}100%{transform:translate(-50%,-50%) scale(.84);opacity:.75}}
+        @media (max-width:600px){.j3b-orbit-logo .j3b-logo{width:26px;height:26px;border-radius:8px}.j3b-orbit-tag{font-size:8px}}
+        @media (prefers-reduced-motion:reduce){.j3b-orbit-arm,.j3b-orbit-pod,.j3b-orbit-logo{animation-play-state:paused}}.j3b-hero:has(.j3b-hero-scene):before,.j3b-hero:has(.j3b-hero-scene):after{display:none}.j3b-hero .j3b-hero-scene{bottom:-10px!important}.j3b-hero.j3b-hero-pop{position:absolute!important;left:0;top:0;width:100%;z-index:4;overflow:visible!important;background:none!important;border-color:transparent!important;box-shadow:none!important;pointer-events:none;clip-path:inset(0 0 -80px 0)}.j3b-hero-pop .j3b-hero-scene{aspect-ratio:598/146}.j3b-hero img.j3b-hero-scene{object-position:50% 100%!important}.j3b-hero-pop .j3b-hero-pop-bus{position:absolute;left:calc((100% - min(100%, 598px)) / 2 + min(100%, 598px) * .48161);top:calc(100% - min(100%, 146px) * .92466);width:calc(min(100%, 598px) * .49666);height:auto;max-width:none!important;filter:drop-shadow(0 7px 5px rgba(0,0,0,.55))}.j3b-hero .j3b-head-copy,.j3b-hero .j3b-head-actions{z-index:6!important}.j3b-hero .j3b-orbit{z-index:5}
+        .j3b-section {display:flex;align-items:center;gap:8px;color:#f8f4e9;margin:18px 4px 9px;font-size:20px;font-weight:850;letter-spacing:-1.2px}.j3b-section .j3b-section-icon{width:29px;height:29px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#1cc9ff,#1265e9);box-shadow:inset 0 0 0 3px #d3f6ff;font-size:0}.j3b-section .j3b-section-icon:after{content:"";width:12px;height:12px;border:2px solid #f3fbff;border-radius:50%;box-sizing:border-box}.j3b-section .j3b-flag{font-size:23px;line-height:1;filter:drop-shadow(0 1px 2px #0009)}.j3b-section.search .j3b-section-icon{background:transparent;box-shadow:none;border:3px solid #2ebfff}.j3b-section.search .j3b-section-icon:after{width:10px;height:10px;border-color:#2ebfff}.j3b-section.search .j3b-section-icon:before{content:"";width:11px;height:3px;position:absolute;transform:translate(11px,12px) rotate(48deg);background:#2ebfff;border-radius:2px}
+        .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
+        .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.photo{background:linear-gradient(145deg,#ffffff,#dde6f3)!important}.j3b-logo.photo img{width:80%;height:80%;object-fit:contain;filter:none!important}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}.j3b-card .j3b-chart polyline{stroke-width:1.4px}.j3b-card .j3b-chart polygon{fill-opacity:.11}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}
+        div[class*="st-key-j3b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}div[class*="st-key-j3b_grid_"] .j3b-card{margin-bottom:0!important}div[class*="st-key-j3b_grid_"]>*,div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"],div[class*="st-key-j3b_selected_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]),div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button,div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_extra_header_sel"]) {
+          margin-top:0px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_selected"]) {
+          margin-top:-14px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class~="st-key-j3b_extra_header"]) {
+          margin-top:-14px!important;
+        }
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_extra1"]) {
+          margin-top:-6px!important;
+        }
+        .j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:27px;font-weight:500}.j3b-nav-item b .j3b-pie{display:block;width:1.18em;height:1.18em}
+        .j3b-nav-item.active{color:#c9ff3d;text-shadow:0 0 9px #aaff1fcc,0 0 19px #aaff1f66}.j3b-nav-item.active b{filter:drop-shadow(0 0 6px #c9ff3d) drop-shadow(0 0 14px #aaff1f99)}
+        div.st-key-j3b_nav_controls{position:fixed!important;z-index:2147483647!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:68px!important;pointer-events:none!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:68px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;height:68px!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]>[data-testid="stVerticalBlock"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%!important;max-width:none!important}div.st-key-j3b_nav_controls button{width:100%!important;height:68px!important;min-height:68px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important;touch-action:manipulation!important}
+        div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
+        @media (max-width:600px){body:has(.j11b-home) .stMainBlockContainer,body:has(.j11b-home) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-hero-scene{width:114%}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
+        .j3b-hero{height:150px!important;margin-bottom:-5px!important;padding:16px 19px!important;border-radius:0 0 20px 20px!important}.j3b-hero:before{width:580px;height:168px;bottom:-110px}.j3b-hero:after{left:104px;bottom:26px;width:140px;height:25px}.j3b-head-copy{left:20px!important;top:18px!important}.j3b-title{font-size:29px!important;letter-spacing:-1.7px!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:6px!important;font-size:15px!important}.j3b-head-actions{right:15px!important;top:12px!important;gap:6px!important}.j3b-round,.j3b-live{height:31px!important;border-radius:18px!important}.j3b-round{width:31px!important;font-size:19px!important}.j3b-live{padding:0 9px!important;gap:5px!important;font-size:11px!important}.j3b-live i{width:8px!important;height:8px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:118%!important;max-width:none!important}
+        .j3b-section{margin:8px 4px 4px!important;font-size:17px!important;gap:6px!important;line-height:22px!important}.j3b-section .j3b-section-icon{width:24px!important;height:24px!important}.j3b-section .j3b-section-icon:after{width:10px!important;height:10px!important}.j3b-news{min-height:18px!important;margin:3px 0!important;padding:3px 8px!important;border-radius:12px!important;gap:7px!important;font-size:9px!important;line-height:1.1!important}.j3b-news-icon{width:18px!important;height:18px!important;font-size:10px!important}.j3b-news-dot{width:9px!important;height:9px!important}
+        .j3b-card{height:108px!important;border-radius:12px!important;padding:6px 7px!important;margin-bottom:6px!important}.j3b-card-top{min-height:32px!important;gap:6px!important}.j3b-logo{width:32px!important;height:32px!important;border-radius:8px!important}.j3b-logo img{width:72%!important;height:72%!important}.j3b-symbol{font-size:17px!important;color:#fff9eb!important;letter-spacing:-.7px!important}.j3b-name{margin-top:2px!important;font-size:9px!important;color:#e6eef5!important}.j3b-price{margin:5px 0 1px!important;font-size:14px!important;color:#fff9eb!important}.j3b-up,.j3b-down,.j3b-neutral{margin-left:3px!important}.j3b-chart{top:34px!important;right:7px!important;width:45%!important;height:31px!important}.j3b-card-notes{margin-top:5px!important;padding-top:3px!important}.j3b-note{font-size:8.1px!important;line-height:1.48!important;color:#f1f5f7!important}.j3b-note:before{margin-right:3px!important}.j3b-card.compact{height:79px!important}.j3b-card.compact .j3b-card-top{min-height:27px!important}.j3b-card.compact .j3b-logo{width:28px!important;height:28px!important}.j3b-card.compact .j3b-symbol{font-size:15px!important}.j3b-card.compact .j3b-name{font-size:8.5px!important}.j3b-card.compact .j3b-price{font-size:11.5px!important;margin:3px 0 0!important}.j3b-card.compact .j3b-card-notes{margin-top:3px!important;padding-top:1px!important}.j3b-card.compact .j3b-note{font-size:7.5px!important;line-height:1.35!important}
+        div[class*="st-key-j3b_grid_"]{column-gap:7px!important}div[class*="st-key-j3b_search_row"]{height:30px!important;margin:-28px 0 -27px 202px!important}div[class*="st-key-j3b_search_row"] input{height:29px!important;font-size:9px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:30px!important;height:30px!important;min-height:30px!important;font-size:20px!important}.j3b-bottom-nav{height:56px!important;padding:4px 7px!important}.j3b-nav-item{font-size:11px!important;min-width:44px!important}.j3b-nav-item b{font-size:25px!important}</style>
+        """,
+        unsafe_allow_html=True,
+    )
+    # Android Chrome의 글자 확대·작은 CSS viewport에서도 가로 넘침과 카드 겹침을 막는다.
+    st.markdown(
+        """
+        <style>        html:has(.j11b-home),body:has(.j11b-home){overflow-x:hidden!important;max-width:100vw!important}
+        body:has(.j11b-home) .stMainBlockContainer,body:has(.j11b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j11b-home) .stMainBlockContainer,body:has(.j11b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+11){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
+        body:has(.j11b-home) .stHorizontalBlock,body:has(.j11b-home) .stColumn{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+        .j3b-hero{height:174px!important;margin:0!important;padding:18px 18px!important;border-radius:0 0 24px 24px!important}.j3b-hero:before{width:620px!important;height:190px!important;bottom:-124px!important}.j3b-hero:after{left:96px!important;bottom:28px!important;width:150px!important;height:27px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:116%!important;max-width:none!important}
+        .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
+        .j3b-card{height:auto!important;min-height:142px!important;min-width:0!important;box-sizing:border-box!important;border-radius:14px!important;padding:9px 7px 10px!important;margin:0 0 7px!important}.j3b-card-top{min-height:34px!important;gap:6px!important}.j3b-logo{width:34px!important;height:34px!important;border-radius:9px!important}.j3b-symbol{font-size:18px!important;line-height:1!important;color:#fff9eb!important}.j3b-name{margin-top:3px!important;font-size:10px!important;line-height:1.1!important}.j3b-price{position:absolute!important;left:7px!important;top:49px!important;max-width:55%!important;margin:0!important;color:#fff9eb!important;font-size:14px!important;line-height:1.15!important;white-space:nowrap!important}.j3b-chart{top:44px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:10px!important;margin:0!important;padding-top:3px!important}.j3b-card:has(.j3b-decor-img) .j3b-card-notes{right:58px!important}.j3b-card.compact:has(.j3b-decor-img) .j3b-card-notes{right:62px!important}.j3b-card:has(.j3b-decor-img.left) .j3b-card-notes{left:62px!important;right:7px!important}.j3b-note{display:block;color:#f1f5f7!important;text-decoration:none!important;font-size:9px!important;line-height:1.48!important;padding-right:0!important}.j3b-decor-img{position:absolute;right:-2px;bottom:-1px;width:56px;height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 2px 3px #0007)}.j3b-decor-img.left{left:-2px;right:auto}
+        .j3b-card.compact{height:auto!important;min-height:174px!important;box-sizing:border-box!important;padding-bottom:14px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:block!important;top:42px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card.compact .j3b-card-notes{bottom:14px!important;max-height:none!important;overflow:visible!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:58px!important;bottom:4px!important}
+        div[class*="st-key-j3b_grid_"]{overflow:visible!important;padding-top:6px!important;padding-bottom:6px!important}div[class*="st-key-j3b_grid_"] [data-testid="stVerticalBlock"],div[class*="st-key-j3b_grid_"] [data-testid="stElementContainer"]{overflow:visible!important}
+        div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
+        .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:64px!important;padding:5px 6px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;min-height:54px!important;font-size:12px!important}.j3b-nav-item b{font-size:27px!important}
+        .j3b-card:not(.compact){min-height:148px!important;padding-bottom:12px!important;margin-bottom:8px!important}.j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important}
+        div.st-key-j3b_grid_selected{padding-top:14px!important;padding-bottom:14px!important}
+        .j3b-card.compact{min-height:164px!important}
+        .j3b-bottom-nav{height:50px!important;padding:1px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:12px!important;gap:1px!important}.j3b-nav-item b{font-size:27px!important}
+        div.st-key-j3b_nav_controls{height:50px!important;bottom:4px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:50px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:50px!important;min-height:50px!important}
+        @media (max-width:1200px){
+        body:has(.j11b-home) .stMainBlockContainer,body:has(.j11b-home) .block-container{padding-bottom:72px!important}
+        .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:4px!important;left:50%!important;transform:translateX(-75%)!important;margin-left:8px!important;width:min(286.667px,66.667vw)!important}
+        [data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.stAppDeployButton{display:none!important;visibility:hidden!important;pointer-events:none!important}
+        }
+        @media (max-width:380px){.j3b-title{font-size:31px!important}.j3b-sub{font-size:16px!important}.j3b-hero-scene{width:120%!important}.j3b-section{font-size:18px!important}.j3b-card:not(.compact){height:auto!important;min-height:148px!important}.j3b-card.compact{height:auto!important;min-height:160px!important}.j3b-note{font-size:9px!important}.j3b-card.compact .j3b-note{font-size:8.5px!important}}
+        .j3b-news,.j3b-card-shell>.j3b-card-summary .j3b-card{transition:transform .12s ease-out,filter .12s ease-out,box-shadow .12s ease-out!important}
+        .j3b-card-shell>.j3b-card-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-card-shell>.j3b-card-summary::-webkit-details-marker{display:none}
+        .j3b-news:hover,.j3b-card-shell:not([open])>.j3b-card-summary:hover .j3b-card{filter:brightness(1.1)!important;box-shadow:inset 0 1px #7bc9ff35,0 10px 20px #0008!important}
+        .j3b-news:active,.j3b-card-shell:not([open])>.j3b-card-summary:active .j3b-card{transform:translateY(0) scale(.99)!important}
+        .j3b-card-shell[open]>.j3b-card-summary{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;background:rgba(0,9,25,.9)!important;cursor:zoom-out!important;box-sizing:border-box!important}
+        .j3b-card-shell[open]>.j3b-card-summary:after{content:none!important}
+        .j3b-card-shell[open] .j3b-card,.j3b-card-shell[open] .j3b-card.compact{width:min(680px,calc(100vw - 32px))!important;height:auto!important;min-height:440px!important;max-height:calc(100dvh - 40px)!important;margin:0!important;padding:20px 20px 108px!important;border-radius:20px!important;overflow:auto!important;transform:none!important;filter:none!important;box-sizing:border-box!important;box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c!important}
+        .j3b-card-shell[open] .j3b-card:before{content:"× 다시 누르면 닫힘";position:absolute;right:12px;top:12px;z-index:6;padding:6px 10px;border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;font-size:12px;font-weight:800;pointer-events:none}
+        .j3b-card-shell[open] .j3b-card-top{min-height:58px!important;gap:10px!important;padding-right:132px!important}.j3b-card-shell[open] .j3b-logo{width:58px!important;height:58px!important;border-radius:14px!important}.j3b-card-shell[open] .j3b-symbol{font-size:28px!important}.j3b-card-shell[open] .j3b-name{font-size:14px!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-price{position:static!important;max-width:none!important;margin:12px 0 8px!important;font-size:22px!important}.j3b-card-shell[open] .j3b-chart{position:relative!important;inset:auto!important;display:block!important;width:100%!important;height:100px!important;margin:4px 0 14px!important}.j3b-card-shell[open] .j3b-card-notes{position:static!important;inset:auto!important;max-height:none!important;margin:0!important;padding-top:10px!important;overflow:visible!important}.j3b-card-shell[open] .j3b-note{display:block!important;margin:0 0 9px!important;font-size:14px!important;line-height:1.55!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.j3b-card-shell[open] .j3b-decor-img{width:96px!important;right:10px!important;bottom:6px!important}
+        .j3b-market-news-shell{display:block;margin:0}.j3b-market-news-summary{display:block;list-style:none;cursor:zoom-in;outline:0}.j3b-market-news-summary::-webkit-details-marker{display:none}.j3b-market-news-shell .j3b-news{margin:7px 0!important}.j3b-market-news-shell .j3b-news-link{display:flex;align-items:center;gap:10px;width:100%;color:inherit;text-decoration:none}.j3b-market-news-shell .j3b-news-link>span:nth-child(2){flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .j3b-market-news-shell[open]>.j3b-market-news-summary{position:fixed!important;inset:0!important;z-index:2147483647!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:16px!important;background:rgba(0,9,25,.9)!important;cursor:zoom-out!important;box-sizing:border-box!important}
+        body:has(.j11-market-top) .stVerticalBlock,
+        body:has(.j11b-home) .stVerticalBlock{gap:12px!important}
+        body:has(.j11-market-top) [data-testid="stColumn"]>.stVerticalBlock,
+        body:has(.j11b-home) [data-testid="stColumn"]>.stVerticalBlock{gap:16px!important}
+        body:has(.j11-market-top) .j3-top-row,
+        body:has(.j11-market-top) .j3-ndd,
+        body:has(.j11-market-top) .j3-section-title{margin-top:0!important;margin-bottom:0!important}
+        body:has(.j11-market-top) [data-testid="stMarkdownContainer"]>label,
+        body:has(.j11b-home) [data-testid="stMarkdownContainer"]>label{margin-top:12px!important;margin-bottom:0!important}
+        body:has(.j11-market-top) .j3-top-row{gap:12px!important}
+        body:has(.j11-market-top) .stElementContainer:has(#jarvis-anchor-top7_top){
+          margin-top:-12px!important;margin-bottom:0!important}
+        #jarvis-anchor-top7_top{scroll-margin-top:12px!important}
+        body:has(.j11-market-top) .stElementContainer:has(#jarvis-anchor-picklist_top){
+          margin-top:-12px!important;margin-bottom:0!important}
+        #jarvis-anchor-picklist_top{scroll-margin-top:0!important}
+        body:has(.j11-market-top) .stElementContainer:has(#jarvis-anchor-scorecard_btn){
+          margin-top:-12px!important;margin-bottom:0!important}
+        #jarvis-anchor-scorecard_btn{scroll-margin-top:12px!important}
+        body:has(.j11-market-top) .stElementContainer:has(#jarvis-anchor-leadercmp_top){
+          margin-top:-12px!important;margin-bottom:0!important}
+        #jarvis-anchor-leadercmp_top{scroll-margin-top:12px!important}
+        @keyframes j3sc-drop{
+          from{opacity:0;transform:translateY(-14px);clip-path:inset(0 0 100% 0)}
+          to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+        div[class*="st-key-picklist_scorecard_US"] button{
+          background:linear-gradient(90deg,#2a1450 0%,#3d1f74 38%,#7c3aed 100%)!important;
+          border:1px solid #7c3aed!important;box-shadow:0 2px 10px rgba(124,58,237,.25)!important}
+        div[class*="st-key-picklist_scorecard_US"] button p{color:#ffffff!important;font-weight:800!important}
+        div[class*="st-key-picklist_scorecard_US"] button:hover{filter:brightness(1.15)}
+        div[class*="st-key-j3sc_cal"]{gap:4px!important}
+        div[class*="st-key-j3sc_cal"] [data-testid="stHorizontalBlock"]{gap:4px!important}
+        div[class*="st-key-j3sc_cal"] button{min-height:0!important;padding:.3rem 0!important;
+          border-radius:8px!important;background:transparent!important;border:1px solid #1d3a63!important}
+        div[class*="st-key-j3sc_cal"] button p{font-size:.9rem!important;font-weight:600!important;color:#cfe0f5!important}
+        div[class*="st-key-j3sc_cal"] button[kind="primary"]{background:#ffb020!important;border-color:#ffb020!important}
+        div[class*="st-key-j3sc_cal"] button[kind="primary"] p{color:#0a1a33!important}
+        div[class*="st-key-j3sc_cal_in_"] button{background:rgba(255,176,32,.18)!important;
+          border-color:rgba(255,176,32,.45)!important}
+        div[class*="st-key-j3sc_cal"] button:disabled{opacity:.35}
+        div[class*="st-key-j3sc_calf_"] button p{font-size:.84rem!important}
+        .j3sc-cal-title{text-align:center;color:#8fb4de;font-size:.78rem;font-weight:600;line-height:1.25}
+        .j3sc-cal-title b{display:block;color:#e6eefb;font-size:1rem;font-weight:700}
+        .j3sc-cal-week{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;
+          color:#6f93bd;font-size:.76rem;font-weight:600}
+        .j3sc-cal-off{text-align:center;color:#3d5a80;font-size:.9rem;padding:.32rem 0;
+          border:1px solid transparent}
+        div[class*="st-key-j3sc_box"]{animation:j3sc-drop .55s cubic-bezier(.2,.8,.2,1) both;
+          transform-origin:top;border:1px solid #1d3a63;border-radius:12px;
+          padding:14px 16px;margin-top:10px}
+        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button{
+          min-height:0!important;padding:.2rem .5rem!important;border-radius:8px!important;
+          background:transparent!important;border:1px solid #1d3a63!important}
+        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button p{
+          font-size:.78rem!important;font-weight:700!important;color:#8fb4de!important}
+        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button[kind="primary"]{
+          background:#ffb020!important;border-color:#ffb020!important}
+        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button[kind="primary"] p{
+          color:#0a1a33!important}
+        .j3sc-no{font-size:.76rem;color:#6f93bd;text-align:right}
+        .j3sc-tap{position:absolute;opacity:0;pointer-events:none}
+        div[class*="st-key-j3sc_box"]{position:relative;animation-fill-mode:backwards!important}
+        div[class*="st-key-j3sc_box"] [data-testid="stElementContainer"]:has(.j3pop),
+        div[class*="st-key-j3sc_box"] [data-testid="stMarkdown"]:has(.j3pop),
+        div[class*="st-key-j3sc_box"] [data-testid="stMarkdownContainer"]:has(.j3pop){
+          position:static!important}
+        .j3sc-body{position:static}
+        label.j3sc-top9{cursor:pointer;margin:0 -8px;padding:6px 8px;border-radius:10px;
+          background:rgba(192,132,252,.10);box-shadow:inset 3px 0 0 #c084fc;
+          transition:background-color .15s ease}
+        label.j3sc-top9:hover{background:rgba(192,132,252,.22)}
+        label.j3sc-top9 .j3sc-name{color:#e9d5ff}
+        .j3sc-chip{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;
+          font-size:.68rem;font-weight:800;color:#1a0b2e;background:#c084fc;vertical-align:1px}
+        .j3sc-body > *,
+        div[class*="st-key-j3sc_box"] [data-testid="stElementContainer"]{
+          transition:opacity .25s ease,filter .25s ease}
+        .j3sc-body:has(> .j3sc-tap:checked) > :is(.j3sc-row, .j3sc-note):not(.j3pop):not(.j3pop-scrim),
+        div.st-key-j3sc_box:has(.j3sc-tap:checked)
+          .stElementContainer:not(:has(.j3pop)){
+          opacity:.18;filter:blur(2px)}
+        .j3pop-scrim{position:absolute;inset:0;z-index:4;cursor:pointer;
+          visibility:hidden}
+        .j3sc-tap:checked ~ .j3pop-scrim{visibility:visible}
+        .j3pop{position:absolute;left:50%;top:50%;z-index:5;cursor:pointer;
+          width:min(94%,520px);box-sizing:border-box;padding:16px 16px 12px;
+          border-radius:22px;background:#132a4d;border:1px solid rgba(192,132,252,.55);
+          box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.04) inset;
+          display:flex;flex-direction:column;gap:10px;
+          opacity:0;visibility:hidden;pointer-events:none;
+          transform:translate(-50%,-50%) scale(.55);
+          transition:transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0),
+            visibility 0s linear .56s}
+        .j3sc-tap:checked ~ .j3pop{opacity:1;visibility:visible;pointer-events:auto;
+          transform:translate(-50%,-50%) scale(1);
+          transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,
+            visibility 0s}
+        .j3pop-title{font-size:.86rem;font-weight:800;color:#e9d5ff}
+        .j3pop-total{font-size:2rem;font-weight:900;line-height:1;margin-top:-4px}
+        .j3pop-sub{font-size:.74rem;color:#8fb4de;margin-top:-6px}
+        .j3pop-part{border-top:1px solid #1d3a63;padding-top:9px;display:flex;
+          flex-direction:column;gap:6px}
+        .j3pop-part-head{display:flex;align-items:center;gap:8px}
+        .j3pop-dot{width:10px;height:10px;border-radius:3px;background:var(--part);flex:0 0 auto}
+        .j3pop-part-name{font-size:.92rem;font-weight:800;color:#fff;flex:1 1 auto}
+        .j3pop-rate{font-size:1.1rem;font-weight:900}
+        .j3pop-part small{font-size:.72rem;color:#6f93bd}
+        .j3pop-close{align-self:center;font-size:.72rem;color:#8fb4de;margin-top:2px}
+        .j3sc-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+        @keyframes j3sc-anchor-hold{from{transform:translateY(14px)}to{transform:none}}
+        .jarvis-anchor.j3sc-anchor{scroll-margin-top:27px;
+          animation:j3sc-anchor-hold .55s cubic-bezier(.2,.8,.2,1) backwards}
+        .j3sc-head b{font-size:1rem;color:#fff;font-weight:800}
+        .j3sc-head span{margin-left:auto;font-size:.78rem;color:#8fb4de}
+        .j3sc-row{display:grid;grid-template-columns:26px minmax(0,1fr) 150px 58px;
+          align-items:center;gap:10px;padding:6px 0;border-top:1px solid #16304f}
+        .j3sc-name{font-size:.92rem;font-weight:800;color:#fff}
+        .j3sc-bar{display:block;height:9px;border-radius:5px;background:#16304f}
+        .j3sc-bar i{display:block;height:9px;border-radius:5px}
+        .j3sc-val{font-size:.95rem;font-weight:800;text-align:right}
+        .j3sc-base .j3sc-name{font-weight:700;color:#8fb4de;font-size:.86rem}
+        .j3sc-base .j3sc-val{color:#8fb4de;font-weight:700}
+        .j3sc-note{font-size:.76rem;color:#6f93bd;line-height:1.6;margin-top:12px}
+        @media (max-width:600px){
+          .j3sc{padding:12px 12px}
+          .j3sc-row{grid-template-columns:20px minmax(0,1fr) 72px 48px;gap:6px}
+          .j3sc-name{font-size:.86rem}
+        }
+        body:has(.j11-market-top) [data-testid="stMarkdownContainer"]>div.j3-page-title{
+          margin-top:10px!important}
+        body:has(.j11-market-top) .stHorizontalBlock{row-gap:12px!important}
+        @media (min-width:601px){
+          body:has(.j11-market-top) .st-key-jarvis_method_help_row{
+            max-width:560px!important;
+            padding-left:18px!important;
+          }
+        }
+        @media (min-width:601px){
+          body:has(.j11-market-top) .sig-gauge{text-align:center!important}
+          body:has(.j11-market-top) .sig-gauge>svg{
+            display:block!important;margin-left:auto!important;margin-right:auto!important;
+          }
+          body:has(.j11-market-top) .stHorizontalBlock:has([class*="st-key-j3_pullback_breakout"]){
+            flex-direction:column!important;
+          }
+          body:has(.j11-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]) .stColumn{
+            width:100%!important;flex:0 0 auto!important;min-width:0!important;
+          }
+        }
+        .j3b-news-box{margin:0;padding:0;overflow:hidden;
+          border:1px solid #bd905266;border-radius:17px;
+          background:linear-gradient(90deg,#062947ed,#042243f3);
+          box-shadow:inset 0 1px #6aaee52b}
+        .j3b-news-box .j3b-news{margin:0!important;border:0!important;border-radius:0!important;
+          background:none!important;box-shadow:none!important;
+          border-bottom:1px solid #bd905233!important}
+        .j3b-news-box .j3b-news:last-child{border-bottom:0!important}
+        .j3b-market-news-shell[open] .j3b-news-box{display:none!important}
+        .j3b-market-news-shell[open] .j3b-news{display:none!important}
+        .j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}
+        @media (max-width:600px){.j3b-market-news-shell{margin:0}.j3b-market-news-title{font-size:16px}}</style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(_BRIEFING_OPEN_CSS, unsafe_allow_html=True)
+    st.markdown(_decor_css(), unsafe_allow_html=True)
+    st.markdown(_BRIEFING_TABLET_CSS, unsafe_allow_html=True)
+    st.markdown(_BRIEFING_GESTURE_CSS, unsafe_allow_html=True)
+    st.markdown(_BRIEFING_TOUCH_CSS, unsafe_allow_html=True)
+
+
+_BRIEFING_OPEN_CSS = """
+<style>.j3b-card-open{display:none}
+.j3b-card-shell[open]>.j3b-card-summary,
+.j3b-market-news-shell[open]>.j3b-market-news-summary{z-index:2147483646!important}
+.j3b-card-shell[open]>.j3b-card-summary>*{visibility:hidden!important}
+.j3b-card-shell[open]>.j3b-card-open,
+.j3b-market-news-shell[open]>.j3b-card-open{position:fixed;inset:0;z-index:2147483647;
+ display:flex;align-items:center;justify-content:center;padding:16px;
+ box-sizing:border-box;pointer-events:none}
+.j3b-open-card{position:relative;pointer-events:auto;width:min(680px,calc(100vw - 32px));
+ max-height:calc(100dvh - 40px);overflow:auto;padding:20px 20px 152px;
+ border:1px solid rgba(123,201,255,.45);border-radius:20px;box-sizing:border-box;
+ background:radial-gradient(circle at 100% 0,rgba(15,85,147,.37),transparent 44%),
+  linear-gradient(145deg,rgba(7,41,87,.99),rgba(3,23,55,.99));
+ box-shadow:inset 0 1px #7bc9ff55,0 18px 48px #000c}
+.j3b-open-card{pointer-events:none}
+.j3b-open-list,.j3b-open-link{pointer-events:auto}
+.j3b-open-close{position:absolute;right:12px;top:12px;z-index:6;padding:6px 12px;
+ border:1px solid #9bcfff;border-radius:16px;background:#062448;color:#f5fbff;
+ font-size:12px;font-weight:800;pointer-events:none;white-space:nowrap}
+.j3b-open-close-b{position:static;display:inline-block;right:auto;left:auto;top:auto;bottom:auto;margin:16px 0 0;padding:11px 20px;font-size:13px}
+.j3b-open-card .j3b-card-top{display:flex;gap:10px;align-items:center;min-height:58px;padding-right:132px}
+.j3b-open-card .j3b-logo{width:58px;height:58px;border-radius:14px}
+.j3b-open-card .j3b-symbol{display:block;font-size:28px;font-weight:900;color:#fff8e9}
+.j3b-open-card .j3b-name{display:block;margin-top:2px;color:#c9e8ff;font-size:14px;white-space:normal}
+.j3b-open-card .j3b-price{margin:12px 0 8px;font-size:22px;font-weight:900;color:#fff}
+.j3b-open-card .j3b-chart{position:relative;inset:auto;display:block;width:100%;height:100px;margin:4px 0 6px}.j3b-open-card .j3b-chart polyline{stroke-width:1.8px}.j3b-open-card .j3b-chart{filter:drop-shadow(0 0 4px #70e64a55)}.j3b-chart-cap{color:#4da6ff;font-size:15px;font-weight:800;text-align:center;margin:0 0 10px}
+.j3b-open-card .j3b-decor-img{position:absolute;right:10px;bottom:6px;width:96px;height:auto;pointer-events:none}
+.j3b-open-card:has(.j3b-open-news[open]) .j3b-decor-img{display:none}
+.j3b-market-news-title{padding-right:130px;color:#61baff;font-size:18px;font-weight:900}
+.j3b-open-list{margin-top:14px}
+.j3b-open-news{border-top:1px solid rgba(181,219,255,.2)}
+.j3b-open-news>summary{list-style:none;cursor:pointer;position:relative;
+ padding:11px 26px 11px 0;color:#eaf4fc;font-size:14px;line-height:1.55;outline:0}
+.j3b-open-news>summary::-webkit-details-marker{display:none}
+.j3b-open-news>summary:before{content:'•';color:#72e55b;margin-right:7px}
+.j3b-open-news>summary:after{content:'＋';position:absolute;right:2px;top:11px;color:#8fc4ea;font-size:13px}
+.j3b-open-news[open]>summary{color:#9fd8ff;font-weight:800}
+.j3b-open-news[open]>summary:after{content:'－'}
+.j3b-open-body{padding:0 0 13px 15px}
+.j3b-open-label{margin-bottom:4px;color:#7fc4ff;font-size:11px;font-weight:800}
+.j3b-open-orig{color:#cfe0ef;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.j3b-open-src{margin-top:6px;color:#93a9bd;font-size:11px}
+.j3b-open-link{display:inline-block;margin-top:9px;padding:5px 12px;border:1px solid #4f9fd8;
+ border-radius:14px;color:#8fd9ff!important;font-size:12px;font-weight:800;text-decoration:none}
+.j3b-article{margin:0 0 12px;padding:11px 13px 9px;border-radius:12px;
+ background:rgba(2,18,42,.62);border:1px solid rgba(123,201,255,.2)}
+.j3b-article p{margin:0 0 9px;color:#eaf3fb;font-size:14px;line-height:1.72;overflow-wrap:anywhere}
+.j3b-article-note{color:#8fb0cc;font-size:11px;line-height:1.55}
+.j3b-article-miss{margin:0 0 10px;padding:8px 11px;border-radius:10px;
+ background:rgba(2,18,42,.45);border:1px dashed rgba(123,201,255,.25)}
+@media (max-width:600px){
+ .j3b-open-card{padding:18px 16px 144px}
+ .j3b-open-card .j3b-symbol{font-size:24px}
+ .j3b-open-news>summary{font-size:15px;line-height:1.6}
+ .j3b-open-orig{font-size:14px}
+ .j3b-market-news-title{font-size:16px}
+}
+@keyframes j3b-pop-grow{from{transform:scale(.55)}to{transform:scale(1)}}
+@keyframes j3b-pop-shrink{from{transform:scale(1)}to{transform:scale(.55)}}
+@keyframes j3b-pop-show{from{opacity:0}to{opacity:1}}
+@keyframes j3b-pop-hide{from{opacity:1}to{opacity:0}}
+.j3b-card-shell[open]>.j3b-card-open .j3b-open-card,
+.j3b-market-news-shell[open]>.j3b-card-open .j3b-open-card{
+ animation:j3b-pop-grow .9s cubic-bezier(.34,1.56,.64,1) both,j3b-pop-show .36s ease both}
+.j3b-card-shell[open]>.j3b-card-summary,
+.j3b-market-news-shell[open]>.j3b-market-news-summary{animation:j3b-pop-show .3s ease both}
+.j3b-card-shell.j3b-closing[open]>.j3b-card-open .j3b-open-card,
+.j3b-market-news-shell.j3b-closing[open]>.j3b-card-open .j3b-open-card{
+ animation:j3b-pop-shrink .56s cubic-bezier(.5,-.18,.72,.18) both,
+  j3b-pop-hide .56s cubic-bezier(.7,0,.84,0) both}
+.j3b-card-shell.j3b-closing[open]>.j3b-card-summary,
+.j3b-market-news-shell.j3b-closing[open]>.j3b-market-news-summary{animation:j3b-pop-hide .56s ease both}
+@media (prefers-reduced-motion:reduce){
+ .j3b-card-shell[open] .j3b-open-card,.j3b-market-news-shell[open] .j3b-open-card,
+ .j3b-card-shell[open]>.j3b-card-summary,.j3b-market-news-shell[open]>.j3b-market-news-summary{animation:none!important}
+}</style>
+"""
+
+
+_BRIEFING_TABLET_CSS = """
+<style>@media (min-width:601px) and (max-width:1199px){
+ body:has(.j11b-home) .stMainBlockContainer,
+ body:has(.j11b-home) .block-container{max-width:min(1060px,96vw)!important;
+  padding:0 14px 108px!important}
+ div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  column-gap:10px!important}
+ body:has(.j11b-home) .j3b-card,
+ body:has(.j11b-home) .j3b-card.compact{height:auto!important;min-height:0!important;
+  padding-bottom:11px!important}
+ body:has(.j11b-home) .j3b-card .j3b-chart,
+ body:has(.j11b-home) .j3b-card.compact .j3b-chart{position:relative!important;
+  inset:auto!important;top:auto!important;right:auto!important;left:auto!important;
+  bottom:auto!important;display:block!important;width:100%!important;
+  height:46px!important;margin:7px 0 3px!important}
+ body:has(.j11b-home) .j3b-card .j3b-price,
+ body:has(.j11b-home) .j3b-card.compact .j3b-price{position:static!important;
+  max-width:none!important;margin:7px 0 0!important}
+ body:has(.j11b-home) .j3b-card{padding:9px 8px 9px!important;border-radius:14px!important}
+ body:has(.j11b-home) .j3b-card .j3b-card-top{min-height:0!important;gap:7px!important}
+ body:has(.j11b-home) .j3b-card .j3b-logo{width:38px!important;height:38px!important;
+  border-radius:10px!important}
+ body:has(.j11b-home) .j3b-card .j3b-symbol{font-size:20px!important}
+ body:has(.j11b-home) .j3b-card .j3b-name{font-size:11px!important;margin-top:2px!important}
+ body:has(.j11b-home) .j3b-card .j3b-price{font-size:16px!important;margin:5px 0 0!important}
+ body:has(.j11b-home) .j3b-card .j3b-chart{height:40px!important;margin:5px 0 2px!important}
+ body:has(.j11b-home) .j3b-card .j3b-note{font-size:10.5px!important;line-height:1.5!important}
+ body:has(.j11b-home) .j3b-card .j3b-decor-img{width:46px!important}
+ div[class*="st-key-j3b_extra_header"]{padding-right:10px!important}
+ div[class*="st-key-j3b_search_row"]{margin-right:6px!important}
+ div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{
+  flex:0 0 36px!important;min-width:36px!important}
+ body:has(.j11b-home) div[class*="st-key-j3b_search_row"] .stButton button,
+ body:has(.j11b-home) div[class*="st-key-j3b_search_row"] button{width:34px!important;
+  height:34px!important;min-height:34px!important;max-width:34px!important;
+  padding:0!important;font-size:21px!important;border-radius:50%!important}
+ body:has(.j11b-home) .j3b-card .j3b-card-notes,
+ body:has(.j11b-home) .j3b-card.compact .j3b-card-notes{position:static!important;
+  inset:auto!important;margin:7px 0 0!important;padding-top:6px!important;
+  left:auto!important;right:auto!important;bottom:auto!important;max-height:none!important}
+ body:has(.j11b-home) nav.j3b-bottom-nav,
+ body:has(.j11-market-top) nav.j3b-bottom-nav{height:48px!important;padding:3px 10px!important;
+  border-radius:19px!important;bottom:12px!important}
+ body:has(.j11b-home) nav.j3b-bottom-nav .j3b-nav-item,
+ body:has(.j11-market-top) nav.j3b-bottom-nav .j3b-nav-item{min-height:40px!important;
+  font-size:11px!important;gap:1px!important}
+ body:has(.j11b-home) nav.j3b-bottom-nav .j3b-nav-item b,
+ body:has(.j11-market-top) nav.j3b-bottom-nav .j3b-nav-item b{font-size:21px!important}
+ body:has(.j11b-home) nav.j3b-bottom-nav .j3b-nav-item b .j3b-pie,
+ body:has(.j11-market-top) nav.j3b-bottom-nav .j3b-nav-item b .j3b-pie{width:1.05em!important;height:1.05em!important}
+ body:has(.j11b-home) div.st-key-j3b_nav_controls,
+ body:has(.j11-market-top) div.st-key-j3b_nav_controls{height:60px!important}
+ body:has(.j11b-home) div.st-key-j3b_nav_controls .stHorizontalBlock,
+ body:has(.j11-market-top) div.st-key-j3b_nav_controls .stHorizontalBlock{height:60px!important}
+ body:has(.j11b-home) div.st-key-j3b_nav_controls .stColumn,
+ body:has(.j11-market-top) div.st-key-j3b_nav_controls .stColumn{height:60px!important}
+ body:has(.j11b-home) div.st-key-j3b_nav_controls button,
+ body:has(.j11-market-top) div.st-key-j3b_nav_controls button{height:60px!important;min-height:60px!important}
+ .j3b-hero{height:250px!important;padding:26px 28px!important;border-radius:0 0 30px 30px!important}
+ .j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:112%!important}
+ .j3b-title{font-size:46px!important;letter-spacing:-2.6px!important}
+ .j3b-sub{margin-top:11px!important;font-size:24px!important}
+ .j3b-head-copy{left:28px!important;top:26px!important}
+ .j3b-head-actions{right:22px!important;top:22px!important;gap:10px!important}
+ .j3b-round,.j3b-live{height:46px!important;border-radius:26px!important}
+ .j3b-round{width:46px!important;font-size:27px!important}
+ .j3b-live{padding:0 15px!important;gap:8px!important;font-size:16px!important}
+ .j3b-live i{width:11px!important;height:11px!important}
+ .j3b-section{margin:20px 6px 12px!important;font-size:26px!important;line-height:34px!important}
+ .j3b-section .j3b-flag{font-size:32px!important}
+ .j3b-section .j3b-section-icon{width:34px!important;height:34px!important}
+ .j3b-news{margin:9px 0!important;border-radius:20px!important}
+ .j3b-news-link{min-height:52px!important;padding:9px 18px!important;gap:12px!important;font-size:16px!important}
+ .j3b-news-icon{width:30px!important;height:30px!important;font-size:16px!important}
+ .j3b-news-dot{width:15px!important;height:15px!important}
+ .j3b-card:not(.compact){height:auto!important;min-height:250px!important;padding:16px 15px!important;border-radius:22px!important}
+ .j3b-card.compact{height:auto!important;min-height:270px!important;padding:16px 15px!important;border-radius:22px!important}
+ .j3b-logo{width:60px!important;height:60px!important;border-radius:16px!important}
+ .j3b-symbol{font-size:32px!important}
+ .j3b-name{font-size:17px!important}
+ .j3b-price{font-size:28px!important;margin-top:12px!important}
+ .j3b-chart{height:74px!important}
+ .j3b-note{font-size:15px!important;line-height:1.6!important}
+ .j3b-card-notes{bottom:16px!important;left:15px!important;right:15px!important}
+ .j3b-decor-img{width:86px!important}
+ .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:12px!important;left:50%!important;
+  transform:translateX(-50%)!important;margin-left:-60px!important;
+  width:min(520px,62vw)!important}
+ .j3b-bottom-nav{height:76px!important;padding:7px 12px!important;border-radius:26px!important}
+ .j3b-nav-item{min-height:62px!important;font-size:16px!important;gap:4px!important}
+ .j3b-nav-item b{font-size:27px!important}
+ div.st-key-j3b_nav_controls{height:76px!important}
+ div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:76px!important}
+ div.st-key-j3b_nav_controls [data-testid="stColumn"]{height:76px!important}
+ div.st-key-j3b_nav_controls button{height:76px!important;min-height:76px!important}
+ div[class*="st-key-j3b_extra_header"] .j3b-section{font-size:21px!important}
+ div[class*="st-key-j3b_search_row"] input{height:50px!important;font-size:16px!important}
+ div[class*="st-key-j3b_search_row"] .stButton button{width:50px!important;height:50px!important;
+  min-height:50px!important;font-size:28px!important}
+ .j3b-open-card{width:min(680px,calc(100vw - 40px))!important;padding:22px 22px 112px!important}
+ .j3b-open-news>summary{font-size:17px!important;line-height:1.6!important}
+ .j3b-open-orig{font-size:16px!important}
+}</style>
+"""
+
+
+_BRIEFING_GESTURE_CSS = """
+<style>html, body { overscroll-behavior: none !important; }
+body [data-testid="stMainBlockContainer"],
+body section[data-testid="stMain"],
+body [data-testid="stAppViewContainer"] { overscroll-behavior-y: contain !important; }
+div[class*="st-key-j3b_search_confirm"]{margin:6px 0 2px!important;
+  padding:10px 12px!important;border:1px solid rgba(240,177,67,.45)!important;
+  border-radius:14px!important;background:rgba(6,33,75,.72)!important}
+.j3b-found{color:#ffe0a3;font-size:15px;font-weight:800;margin-bottom:6px}
+div[class*="st-key-j3b_search_confirm"] button{min-height:38px!important;font-size:13px!important}
+div[class*="st-key-j3b_hero_box"] { position: relative !important; }
+div[class*="st-key-j3b_hero_box"] [data-testid="stElementContainer"]:has(button) {
+  position: absolute !important; right: 87px; top: 16px; z-index: 6;
+  width: auto !important; margin: 0 !important; }
+div[class*="st-key-j3b_hero_box"] .stButton,
+div[class*="st-key-j3b_hero_box"] button {
+  width: 33px !important; height: 33px !important; min-height: 33px !important;
+  padding: 0 !important; border: 0 !important; border-radius: 50% !important;
+  background: transparent !important; color: transparent !important;
+  box-shadow: none !important; }
+div[class*="st-key-j3b_hero_box"] button:hover,
+div[class*="st-key-j3b_hero_box"] button:focus { background: #ffffff1f !important; }
+@media (min-width:601px) and (max-width:1199px){
+  div[class*="st-key-j3b_hero_box"] [data-testid="stElementContainer"]:has(button){right:128px;top:23px}
+  div[class*="st-key-j3b_hero_box"] .stButton,
+  div[class*="st-key-j3b_hero_box"] button{width:46px!important;height:46px!important;min-height:46px!important}
+}</style>
+"""
+
+
+_BRIEFING_TOUCH_CSS = """
+<style>.j3b-card, .j3b-news, .j3b-logo, .j3b-nav-item, .j3b-round, .j3b-live,
+.j3b-decor-img, .j3b-open-news > summary,
+.j3b-card-shell:not([open]) > .j3b-card-summary {
+  transition: transform .12s ease-out, filter .12s ease-out,
+              border-color .12s ease-out, box-shadow .12s ease-out;
+}
+.j3b-card-shell:not([open]) > .j3b-card-summary:hover {
+  transform: translateY(-6px);
+  filter: brightness(1.14);
+}
+.j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-card {
+  border-color: rgba(150,220,255,.95) !important;
+  box-shadow: inset 0 1px #7bc9ff55, 0 0 0 1px rgba(110,200,255,.35),
+              0 16px 30px #000b !important;
+}
+.j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-logo {
+  transform: scale(1.09);
+  animation: j3b-logo-wiggle .55s cubic-bezier(.3,.7,.4,1);
+}
+.j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-decor-img { transform: translateY(-2px) scale(1.05); }
+.j3b-news:hover {
+  transform: translateY(-3px) !important;
+  filter: brightness(1.12) !important;
+  border-color: rgba(255,214,129,.85) !important;
+}
+.j3b-open-news > summary:hover { filter: brightness(1.25); transform: translateX(2px); }
+.j3b-nav-item:hover { transform: translateY(-3px); filter: brightness(1.25); }
+.j3b-round:hover, .j3b-live:hover {
+  transform: translateY(-2px); filter: brightness(1.15);
+  border-color: #ffd88a !important;
+}
+@keyframes j3b-logo-wiggle {
+  0%   { transform: scale(1.09) rotate(0deg); }
+  25%  { transform: scale(1.09) rotate(-6deg); }
+  55%  { transform: scale(1.09) rotate(4deg); }
+  80%  { transform: scale(1.09) rotate(-1.5deg); }
+  100% { transform: scale(1.09) rotate(0deg); }
+}
+@media (hover:none) {
+  @keyframes j3b-card-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .j3b-card-shell > .j3b-card-summary { animation: j3b-card-in .34s ease-out both; }
+  .j3b-news { animation: j3b-card-in .3s ease-out both; }
+}
+@media (hover:none) {
+  .j3b-card-shell:not([open]) > .j3b-card-summary:active {
+    transform: scale(.955) !important; filter: brightness(1.22) !important;
+  }
+  .j3b-card-shell:not([open]) > .j3b-card-summary:active .j3b-card {
+    border-color: rgba(150,220,255,.95) !important;
+    box-shadow: inset 0 1px #7bc9ff55, 0 0 0 1px rgba(110,200,255,.45) !important;
+  }
+  .j3b-card-shell:not([open]) > .j3b-card-summary:active .j3b-logo {
+    animation: j3b-logo-wiggle .55s cubic-bezier(.3,.7,.4,1);
+  }
+  .j3b-market-news-shell > .j3b-market-news-summary:active .j3b-news {
+    transform: scale(.97) !important; filter: brightness(1.22) !important;
+    border-color: rgba(255,214,129,.9) !important;
+  }
+  div[class*="st-key-j3b_nav_controls"] button:active { background: #ffffff22 !important; }
+}
+.j3b-card-summary, .j3b-market-news-summary, .j3b-news, .j3b-nav-item {
+  -webkit-tap-highlight-color: rgba(120,205,255,.22);
+}
+.j3b-card-shell:not([open]) > .j3b-card-summary:active {
+  transform: scale(.985); filter: brightness(1.06);
+}
+.j3b-news:active { transform: translateY(0) scale(.99) !important; filter: brightness(1.06) !important; }
+.j3b-nav-item:active { transform: scale(.94); filter: brightness(1.3); }
+.j3b-open-news > summary:active { filter: brightness(1.3); }
+@media (prefers-reduced-motion: reduce) {
+  .j3b-card, .j3b-news, .j3b-logo, .j3b-nav-item, .j3b-round, .j3b-live,
+  .j3b-decor-img, .j3b-open-news > summary { transition: none !important; }
+  .j3b-card-shell:not([open]) > .j3b-card-summary:hover .j3b-logo { animation: none !important; }
+}</style>
+"""
+
+
+# 기준선 위는 초록, 아래는 빨강 (2026-08-28 상하님 지시 · 야후 파이낸스와 같은 색).
+_BASE_UP_STROKE = "#70e64a"
+_BASE_DOWN_STROKE = "#ff5b5b"
+
+
+def _briefing_chart_split(values, low: float, span: float, *, base=None) -> str:
+    """시작가에 기준선을 긋고 위·아래를 다른 색으로 그린다.
+
+    선이 기준선을 가로지르는 **바로 그 자리**에서 색을 바꾼다. 칸마다 선을 따로
+    그리는 방법도 있지만, 그러면 6개월 그림 하나가 125조각이 되어 화면에 실어
+    보내는 글자가 그만큼 늘어난다. 가로지르는 자리만 끊으면 보통 서넛으로 끝난다.
+    """
+    # 기준선은 보통 **그림이 시작한 값**이다. 당일 그림만 전일 종가를 밖에서 준다 —
+    # 오늘 오르내림을 재는 자리가 거기이기 때문이다(카드에 적힌 등락률과 같은 자).
+    base = values[0] if base is None else float(base)
+    step = 100.0 / (len(values) - 1)
+
+    def _y(value):
+        return 42 - (value - low) * 38 / span
+
+    base_y = _y(base)
+    pieces, current, sign = [], [(0.0, base)], None
+    for index in range(len(values) - 1):
+        x_now, v_now = index * step, values[index]
+        x_next, v_next = (index + 1) * step, values[index + 1]
+        sign_now = 1 if v_now >= base else -1
+        sign_next = 1 if v_next >= base else -1
+        if sign is None:
+            sign = sign_now if v_now != base else sign_next
+        if sign_next == sign or v_next == base:
+            current.append((x_next, v_next))
+            continue
+        # 기준선을 넘는다 — 만나는 자리를 계산해 넣고 거기서 색을 바꾼다.
+        share = (base - v_now) / (v_next - v_now) if v_next != v_now else 0.0
+        x_cross = x_now + (x_next - x_now) * share
+        current.append((x_cross, base))
+        pieces.append((sign, current))
+        sign, current = sign_next, [(x_cross, base), (x_next, v_next)]
+    pieces.append((sign if sign is not None else 1, current))
+
+    body = []
+    for piece_sign, piece in pieces:
+        if len(piece) < 2:
+            continue
+        color = _BASE_UP_STROKE if piece_sign >= 0 else _BASE_DOWN_STROKE
+        line = " ".join(f"{x:.2f},{_y(v):.2f}" for x, v in piece)
+        area = (f"{piece[0][0]:.2f},{base_y:.2f} " + line
+                + f" {piece[-1][0]:.2f},{base_y:.2f}")
+        body.append(f'<polygon points="{area}" fill="{color}" fill-opacity="0.15"/>')
+        body.append(f'<polyline points="{line}" fill="none" stroke="{color}" '
+                    'stroke-width="2.1" vector-effect="non-scaling-stroke"/>')
+    # 기준선은 **가로로 늘어나도 점 간격이 그대로**여야 한다 — 그래서 여기도
+    # vector-effect 를 건다. 안 걸면 크게 연 카드에서 점선이 실선처럼 보인다.
+    guide = (f'<line x1="0" y1="{base_y:.2f}" x2="100" y2="{base_y:.2f}" '
+             'stroke="rgba(255,255,255,.42)" stroke-width="1" stroke-dasharray="4 4" '
+             'vector-effect="non-scaling-stroke"/>')
+    return ('<svg class="j3b-chart" viewBox="0 0 100 45" preserveAspectRatio="none">'
+            + guide + "".join(body) + "</svg>")
+
+
+def _six_month_caption(six_month) -> str:
+    """「일봉 6개월」 이름표 — **그 6개월 수익률을 같이 적는다** (2026-09-02 지시).
+
+    상하님 — *"관심종목에서 종목을 누르면 일봉 6개월 차트가 나오는데 6개월에
+    대한 수익률은 안 나온다."*
+
+    그림만 있고 숫자가 없어서, 반년 동안 얼마나 올랐는지를 눈대중으로 재셔야
+    했다. 그림의 **첫 점과 끝 점**으로 잰다 — 그림에 그린 그 구간 그대로다.
+    새로 받아 오는 것은 없다.
+
+    6개월치가 아직 안 왔으면 이름표를 아예 안 붙인다(예전 그대로) — 없는 것을
+    있는 것처럼 적으면 안 된다.
+    """
+    points = [float(value) for value in (six_month or []) if value is not None]
+    if not points:
+        return ""
+    first, last = points[0], points[-1]
+    if not first:
+        return "<div class='j3b-chart-cap'>일봉 6개월</div>"
+    ratio = (last / first - 1.0) * 100.0
+    tone = "j3b-up" if ratio >= 0 else "j3b-down"
+    sign = "+" if ratio >= 0 else ""
+    return (f"<div class='j3b-chart-cap'>일봉 6개월 "
+            f"<b class='{tone}'>{sign}{ratio:.1f}%</b></div>")
+
+
+def _briefing_chart(values, change, *, stroke: str = "", baseline: bool = False,
+                    base=None) -> str:
+    """카드의 작은 그림. ``stroke``를 주면 그 색으로 그린다.
+
+    2026-08-26 상하님 지시 — "관심종목에 일봉 6개월 색깔이 당일 차트 색에 따라
+    달라진다." 접힌 카드의 최근 30일 그림은 예전대로 **오늘 오르내림에 따라**
+    초록·빨강이고, 크게 연 일봉 6개월만 늘 초록이다. 6개월 그림에 오늘 색을 입히면 반년 흐름을 하루 색으로 말하게 된다.
+
+    ``baseline=True`` 면 **시작가에 점선을 긋고 위아래를 다른 색으로** 그린다
+    (2026-08-28 상하님 지시 — 야후 파이낸스 폰 화면의 6개월 그림처럼).
+    상하님 — "시작가 위로 초록색이고 밑으로는 붉은색인데 이것처럼 기준선이
+    있어야 되지 않나?" 반년 전 종가보다 위인지 아래인지가 선 색으로 바로 읽힌다.
+    선이 기준선을 가로지르는 자리는 **정확히 그 지점에서** 색을 바꾼다 — 칸마다
+    따로 그리지 않으므로 그림이 무거워지지 않는다(6개월 126칸이 조각 서넛으로 끝난다).
+
+    지수 칸의 `_sparkline_svg`와 **같은 규칙**이다. 다만 이 그림은 가로로 늘여
+    그리므로(preserveAspectRatio="none") 선 굵기·점선 간격은 화면 기준으로 못박는다.
+    """
+    values = [float(item) for item in (values or []) if item is not None]
+    if len(values) < 2:
+        return ""
+    low, high = min(values), max(values)
+    span = high - low or 1
+    points = " ".join(f"{index * 100 / (len(values)-1):.1f},{42 - (value-low) * 38/span:.1f}" for index, value in enumerate(values))
+    if baseline:
+        # 기준선을 밖에서 주면(당일 그림의 전일 종가) 그 값도 그림 안에 들어와야
+        # 한다 — 안 그러면 기준선이 그림 밖으로 나가 안 보인다.
+        if base is not None:
+            low = min(low, float(base))
+            span = (max(high, float(base)) - low) or 1
+        return _briefing_chart_split(values, low, span, base=base)
+    stroke = stroke or ("#70e64a" if (change or 0) >= 0 else "#ff5b5b")
+    # **선 굵기를 화면 기준으로 못박는다**(2026-08-26 상하님 지적 — "종목 클릭하면
+    # 나오는 차트 선이 너무 굵다").
+    # 이 그림은 preserveAspectRatio="none" 으로 늘려 그린다. 그러면 선도 같이
+    # 늘어난다 — 크게 연 카드는 가로로 6.3배가 되어 선이 7.9px 로 그려지고 있었다
+    # (브라우저 실측). vector-effect="non-scaling-stroke" 는 "선은 늘리지 말고
+    # 화면 굵기 그대로 그려라"는 뜻이라, 어느 크기에서나 적어 준 만큼만 굵다.
+    # 실제 굵기는 CSS에서 정한다 — 접힌 카드와 크게 연 카드가 다르다.
+    return (f'<svg class="j3b-chart" viewBox="0 0 100 45" preserveAspectRatio="none">'
+            f'<polyline points="{points}" fill="none" stroke="{stroke}" '
+            f'stroke-width="2.1" vector-effect="non-scaling-stroke"/></svg>')
+
+
+def _briefing_items(kind: str, ticker: str | None = None) -> dict:
+    result = briefing_news.get_or_schedule(
+        kind, ticker, finnhub_key=_briefing_secret("FINNHUB_API_KEY"),
+        groq_key=_briefing_secret("GROQ_API_KEY"),
+        deepl_key=_briefing_secret("DEEPL_API_KEY"),
+        naver_client_id=_briefing_secret("NAVER_CLIENT_ID"),
+        naver_client_secret=_briefing_secret("NAVER_CLIENT_SECRET"),
+    )
+    if result.get("pending"):
+        st.session_state["j3b_news_pending"] = True
+    return result
+
+
+# 이번 판에 「받는 중」으로 그린 기사 주소들. 판이 끝날 때 _ARTICLE_WAIT 로 옮긴다.
+_ARTICLE_WAIT_RUN = "j3b_article_wait_run"
+_ARTICLE_WAIT = "j3b_article_wait"
+_ARTICLE_WAIT_SINCE = "j3b_article_wait_since"
+_ARTICLE_RERUN_AT = "j3b_article_rerun_at"
+# 본문이 도착해 다시 그리는 것은 **4초에 한 번까지**, 기다리는 것은 90초까지다.
+# 한 기사에 2~3초가 걸리고(실측) 첫 화면 기사가 20여 개라, 도착할 때마다 그리면
+# 판을 스무 번 그린다(2026-09-10 「판 32번」과 같은 일).
+_ARTICLE_RERUN_GAP = 4.0
+_ARTICLE_WAIT_LIMIT = 90.0
+
+
+def _article_wait_carry() -> None:
+    """판 끝에서 — 이번 판에 받는 중이던 기사를 지켜볼 목록으로 옮긴다."""
+    waiting = st.session_state.pop(_ARTICLE_WAIT_RUN, {}) or {}
+    if waiting and not st.session_state.get(_ARTICLE_WAIT):
+        st.session_state[_ARTICLE_WAIT_SINCE] = time.monotonic()
+    st.session_state[_ARTICLE_WAIT] = dict(waiting)
+    if not waiting:
+        st.session_state.pop(_ARTICLE_WAIT_SINCE, None)
+
+
+def _article_arrived() -> bool:
+    """지켜보던 기사 중 **도착한 것이 있고** 다시 그릴 때가 됐으면 참.
+
+    **화면을 다시 그려도 열어 둔 카드는 안 닫힌다** — 2026-09-17 브라우저에서 확인했다
+    (<details> 가 같은 자리 그대로 남고 열린 상태도 그대로다). 그래서 카드를 보시는
+    중에 본문이 들어와도 카드가 닫히지 않는다.
+    """
+    waiting = st.session_state.get(_ARTICLE_WAIT) or {}
+    if not waiting:
+        return False
+    now = time.monotonic()
+    since = float(st.session_state.get(_ARTICLE_WAIT_SINCE) or now)
+    if now - since > _ARTICLE_WAIT_LIMIT:
+        st.session_state.pop(_ARTICLE_WAIT, None)
+        st.session_state.pop(_ARTICLE_WAIT_SINCE, None)
+        return False
+    if now - float(st.session_state.get(_ARTICLE_RERUN_AT) or 0) < _ARTICLE_RERUN_GAP:
+        return False
+    try:
+        arrived = any(not news_reader.pending(url) for url in waiting)
+    except Exception:
+        return False
+    if arrived:
+        st.session_state[_ARTICLE_RERUN_AT] = now
+    return arrived
+
+
+def _news_article_html(url: str) -> str:
+    """기사 본문 — **앱이 대신 받아 광고 없이 한글로** 옮긴 것 (2026-09-17 상하님 지시 '가').
+
+    상하님 — "관심종목에서 종목 뉴스 클릭하면 광고가 너무 많아 내용을 덮어 버려
+    내용을 볼 수가 없다." 원문 링크는 그대로 두고, 그 위에 본문을 먼저 보인다.
+    받는 일은 뉴스를 받을 때 뒤에서 이미 했다(jarvis3_briefing_news._load).
+    여기서는 **받아 둔 것만 읽는다** — 화면을 기다리게 하지 않는다.
+    """
+    if not url:
+        return ""
+    try:
+        row = news_reader.get(url)
+        if row is None or row.get("status") in ("english", "failed"):
+            news_reader.schedule([url])      # 아직 없거나 다시 받을 때 — 뒤에서 받는다
+        if news_reader.pending(url):
+            # 받는 중인 기사를 적어 둔다 — 도착하면 지켜보는 조각이 다시 그린다.
+            st.session_state.setdefault(_ARTICLE_WAIT_RUN, {})[url] = True
+    except Exception:
+        return ""
+    status = (row or {}).get("status")
+    paragraphs = "".join(f"<p>{html.escape(str(text))}</p>"
+                         for text in (row or {}).get("paragraphs") or [])
+    notes = {
+        "ok": "앱이 광고를 빼고 옮긴 기사 앞부분입니다 · 기계 번역이라 원문과 조금 다를 수 있습니다",
+        "english": "번역기가 잠시 막혀 영어 원문 그대로입니다 · 광고는 뺐습니다",
+        "summary": "이 사이트는 본문을 앱에 주지 않아, 사이트가 적어 둔 요약만 옮겼습니다",
+    }
+    if status in notes and paragraphs:
+        return (f'<div class="j3b-article">{paragraphs}'
+                f'<div class="j3b-article-note">{notes[status]}</div></div>')
+    if status == "blocked":
+        return ('<div class="j3b-article-note j3b-article-miss">유료 기사이거나 사이트가 앱의 접속을 '
+                '막아 본문을 못 가져옵니다 · 아래 원문 기사로 보셔야 합니다</div>')
+    return ('<div class="j3b-article-note j3b-article-miss">본문을 받는 중입니다 · '
+            '조금 뒤 화면을 다시 열면 여기에 나옵니다</div>')
+
+
+def _news_original_html(item: dict) -> str:
+    """번역 밑에 펼쳐 보일 **기사 본문**·원문·출처·기사 링크."""
+    brief = str(item.get("brief") or "")
+    headline = str(item.get("headline") or "")
+    url = str(item.get("url") or "")
+    source = str(item.get("source") or "")
+    published = str(item.get("published_at") or "")[:16].replace("T", " ")
+    parts = []
+    article = _news_article_html(url)
+    if article:
+        parts.append(article)
+    if headline and headline != brief:
+        parts.append('<div class="j3b-open-label">원문</div>'
+                     f'<div class="j3b-open-orig">{html.escape(headline)}</div>')
+    if source or published:
+        parts.append(f'<div class="j3b-open-src">{html.escape(source)}'
+                     f'{" · " + html.escape(published) if published else ""}</div>')
+    if url:
+        parts.append(f'<a class="j3b-open-link" href="{html.escape(url, quote=True)}" '
+                     'target="_blank" rel="noopener noreferrer">원문 기사 열기 ↗</a>')
+    if not parts:
+        parts.append('<div class="j3b-open-src">원문 주소를 받지 못했습니다.</div>')
+    return f'<div class="j3b-open-body">{"".join(parts)}</div>'
+
+
+def _news_accordion_html(items: list[dict]) -> str:
+    """크게 연 화면에서 한 줄을 누르면 원문이 펼쳐지는 목록."""
+    rows = []
+    for item in items[:3]:
+        brief = html.escape(str(item.get("brief") or item.get("headline") or ""))
+        rows.append(f'<details class="j3b-open-news"><summary>{brief}</summary>'
+                    f'{_news_original_html(item)}</details>')
+    return "".join(rows)
+
+
+def _render_briefing_news(kind: str, ticker: str | None = None) -> list[dict]:
+    result = _briefing_items(kind, ticker)
+    items = result.get("items") or []
+    if not items:
+        message = ("뉴스를 불러오는 중입니다" if result.get("pending")
+                   else "뉴스를 못 받았습니다 · 맨 위 ↻ 를 누르십시오")
+        items = [{"sentiment": "neutral", "brief": message}]
+    marks = {"positive": "↗", "negative": "▥", "neutral": "○"}
+    collapsed_rows = []
+    for item in items[:3]:
+        sentiment = item.get("sentiment") if item.get("sentiment") in {"positive", "negative", "neutral"} else "neutral"
+        brief = html.escape(str(item.get("brief") or item.get("headline") or ""))
+        # 접힌 줄은 **링크가 아니다**. 누르면 기사로 튀지 않고 화면만 커진다
+        # (2026-08-26 상하님 지시). 원문은 커진 화면에서 한 줄을 눌러 본다.
+        collapsed_rows.append(
+            f'<div class="j3b-news"><span class="j3b-news-link"><span class="j3b-news-icon">{marks[sentiment]}</span>'
+            f'<span>{brief}</span><span class="j3b-news-dot {sentiment}"></span></span></div>'
+        )
+    st.markdown(
+        '<details class="j3b-market-news-shell">'
+        # **세 줄을 한 상자에 담는다** (2026-09-11 상하님 지시 — "한 박스 안에
+        # 넣어라. 세 박스를 만들 필요가 없다. 한 칸 안에 세 줄을 넣어라").
+        # 줄마다 테두리를 두르던 것을 상자 하나가 두르고, 줄 사이는 가는 선으로만
+        # 가른다. 글자 크기·아이콘·색 점은 그대로다.
+        f'<summary class="j3b-market-news-summary">'
+        f'<div class="j3b-news-box">{"".join(collapsed_rows)}</div></summary>'
+        '<div class="j3b-card-open"><div class="j3b-open-card">'
+        '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
+        '<div class="j3b-market-news-title">미국시장 한줄 브리핑</div>'
+        f'<div class="j3b-open-list">{_news_accordion_html(items)}</div>'
+        '<span class="j3b-open-close j3b-open-close-b">✕ 닫기</span>'
+        '</div></div></details>',
+        unsafe_allow_html=True,
+    )
+    return items
+
+
+# (이름표, 파일, 가로:세로) — 이름표는 CSS 갈래 이름으로 쓴다.
+_DECOR_IMAGES = (
+    ("soot", "soot_lamp_cut.webp", "75/72"),
+    ("catlamp", "small_cat_lamp_cut.webp", "102/75"),
+    ("totoro", "small_totoro_cut.webp", "99/73"),
+    ("bunny", "bunny_bench_cut.webp", "133/101"),
+)
+_DECOR_BY_TICKER = {
+    "NVDA": "soot", "TSLA": "totoro", "PLTR": "catlamp", "AMD": "totoro",
+    "AAPL": "catlamp", "META": "soot", "AVGO": "catlamp", "RGTI": "bunny",
+}
+
+
+@st.cache_data(show_spinner=False)
+def _decor_css() -> str:
+    """캐릭터 그림 네 장을 CSS에 **한 번씩만** 싣는다.
+
+    예전에는 카드마다 그림을 통째로 넣어서, 카드 열두 장이면 같은 그림이 스물네 번
+    실려 나갔다. 화면이 무거워진 원인이다(2026-08-26 상하님 지적).
+    """
+    rules = []
+    for name, filename, ratio in _DECOR_IMAGES:
+        uri = _briefing_asset_uri(filename)
+        if uri:
+            rules.append(f".j3b-decor-img.{name}{{background-image:url('{uri}');aspect-ratio:{ratio}}}")
+    if not rules:
+        return ""
+    return ("<style>.j3b-decor-img{background-size:contain;background-repeat:no-repeat;"
+            "background-position:bottom right;height:auto!important}" + "".join(rules) + "</style>")
+
+# 로고 그림이 없는 종목의 글자표 — (보일 글자, 바탕색 시작, 바탕색 끝, 글자색).
+# 그 회사가 실제로 쓰는 글자와 브랜드 색을 따랐다.
+_BRAND_MARKS = {
+    "GOOGL": ("G", "#ffffff", "#e6ebf5", "#1a73e8"),
+    "GOOG": ("G", "#ffffff", "#e6ebf5", "#1a73e8"),
+    "TSM": ("tsmc", "#ee2b39", "#8f0f1a", "#ffffff"),
+    "QCOM": ("Q", "#3653dc", "#132a86", "#ffffff"),
+    "IONQ": ("IonQ", "#e0348a", "#75104a", "#ffffff"),
+    "MSFT": ("MS", "#00a4ef", "#0b4d78", "#ffffff"),
+    "AMZN": ("a", "#ff9900", "#8a4b00", "#111827"),
+    "INTC": ("intel", "#0068b5", "#023a68", "#ffffff"),
+    "MU": ("MU", "#0a2896", "#04123f", "#ffffff"),
+    "ARM": ("arm", "#0091bd", "#014a61", "#ffffff"),
+    "NFLX": ("N", "#e50914", "#7a0207", "#ffffff"),
+    "ORCL": ("O", "#c74634", "#6d1d13", "#ffffff"),
+    "SMCI": ("SMCI", "#00843d", "#024420", "#ffffff"),
+    "COIN": ("C", "#0052ff", "#012a85", "#ffffff"),
+    "MSTR": ("MS", "#f7931a", "#8a4c04", "#111827"),
+    "CRWD": ("CS", "#e01f3d", "#73071a", "#ffffff"),
+    "PANW": ("PA", "#fa582d", "#822309", "#ffffff"),
+    "ADBE": ("A", "#ed2224", "#7c070a", "#ffffff"),
+    "UBER": ("Uber", "#111827", "#000000", "#ffffff"),
+}
+
+
+def _briefing_logo_face(ticker: str) -> tuple[str, str]:
+    """카드와 궤도가 **함께 쓰는** 회사 로고 한 장.
+
+    회사 로고 **그림**은 앱 안에 넣어 둔 여덟 종목만 있다. 나머지는 그 회사가
+    실제로 쓰는 글자표(워드마크)와 브랜드 색으로 보여 준다 — 티커 두 글자만
+    잘라 쓰면 무슨 회사인지 알 수 없다(2026-08-26 상하님 지적 — "왜 로고가
+    이상하지, 그 회사 로고 맞냐?"). 여기에 없는 종목만 티커 두 글자로 간다.
+
+    앱에 그림이 없는 종목은 companiesmarketcap에서 한 번 받아 두고 그다음부터
+    그 그림을 쓴다(2026-08-26 상하님이 알려 주신 곳). 아직 안 왔으면 이번 판은
+    글자표로 보여 주고, 다음 판에 그림이 나온다.
+
+    돌려주는 것은 (안에 넣을 HTML, 틀에 붙일 갈래 이름) 둘이다. 2026-08-28에
+    고양이버스 궤도가 같은 로고를 쓰게 되면서 카드에서 떼어 냈다 — 두 군데에
+    따로 적어 두면 한쪽만 고쳐진다.
+    """
+    logo_uri = _briefing_logo_uri(ticker)
+    logo_kind = ""
+    if not logo_uri:
+        fetched = us_company_logos.get_or_schedule(ticker)
+        if fetched:
+            logo_uri = (_briefing_logo_static(ticker.upper(), fetched, ".webp")
+                        or "data:image/webp;base64," + base64.b64encode(fetched).decode("ascii"))
+            logo_kind = " photo"
+    if logo_uri:
+        return f'<img src="{logo_uri}" alt="{html.escape(ticker)} logo">', logo_kind
+    mark = _BRAND_MARKS.get(ticker.upper())
+    if mark:
+        text, start, end, ink = mark
+    else:
+        text, ink = ticker[:2].upper(), "#f4faff"
+        hue = sum(ord(letter) for letter in ticker.upper()) * 37 % 360
+        start, end = f"hsl({hue} 52% 42%)", f"hsl({hue} 60% 20%)"
+    size = ".62em" if len(text) <= 2 else (".40em" if len(text) <= 4 else ".33em")
+    return (
+        f'<span class="j3b-logo-text" style="background:linear-gradient(145deg,{start},{end});'
+        f'color:{ink};font-size:{size}">{html.escape(text)}</span>'
+    ), logo_kind
+
+
+# 궤도를 한 바퀴 도는 데 걸리는 시간. 느긋해야 화면이 안 어지럽다.
+_ORBIT_SECONDS = 26.0
+
+
+def _briefing_orbit_html(stocks: list[dict]) -> str:
+    """고양이버스 둘레를 도는 회사 로고들 (2026-08-28 상하님 지시).
+
+    상하님 — "고양이버스에 사용자 선정 종목의 회사 로고들이 조그맣게 해서
+    고양이버스 앞에서 움직이면서 고양이 버스에 타는 것을 넣어 줘" · 보내 주신
+    영상(catbus_logo_orbit_preview.mp4)처럼 하되 "좀 더 멋있게".
+
+    **어떻게 도나** — 로고마다 팔이 하나씩 있고, 팔이 돌면서 로고를 끌고 다닌다.
+    팔을 세로로 눌러 두면(scaleY) 동그라미가 타원이 된다. 로고가 같이 눌리지
+    않게 로고 쪽에서 **거꾸로 돌고 거꾸로 늘린다** — 그래서 로고는 늘 똑바로
+    선 채로 타원을 돈다.
+
+    **앞뒤가 있다.** 아래쪽 반 바퀴는 버스 **앞**이라 크고 또렷하게, 위쪽 반
+    바퀴는 버스 **뒤**라 작고 흐릿하게 지나간다. 버스 그림이 z-index 1이므로
+    앞은 5, 뒤는 0을 준다 — 로고가 버스 뒤로 사라졌다 앞으로 나온다.
+
+    **자바스크립트를 안 쓴다.** 스트림릿은 st.markdown 안의 <script>를 지운다.
+    움직이는 것은 전부 CSS이고, 브라우저가 그리는 일이라 서버를 다시 안 부른다.
+    """
+    riders = [stock for stock in (stocks or []) if str(stock.get("ticker") or "").strip()][:5]
+    if not riders:
+        return ""
+    pods = []
+    for index, stock in enumerate(riders):
+        ticker = str(stock["ticker"]).upper()
+        face, kind = _briefing_logo_face(ticker)
+        # 다 같은 자리에서 출발하면 한 덩어리로 몰려 다닌다. 시작 시각을 한 바퀴
+        # 나눠 주면 서로 같은 간격으로 벌어진다.
+        delay = -_ORBIT_SECONDS * index / len(riders)
+        pods.append(
+            f'<span class="j3b-orbit-arm" style="animation-delay:{delay:.2f}s">'
+            f'<span class="j3b-orbit-pod" style="animation-delay:{delay:.2f}s">'
+            f'<span class="j3b-orbit-logo" style="animation-delay:{delay:.2f}s">'
+            f'<span class="j3b-logo{kind} {html.escape(ticker.lower())}">{face}</span>'
+            f'<span class="j3b-orbit-tag">{html.escape(ticker)}</span>'
+            "</span></span></span>"
+        )
+    return f'<div class="j3b-orbit" aria-hidden="true">{"".join(pods)}</div>'
+
+
+def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
+                          compact: bool = False, group: str = "extra") -> None:
+    ticker = stock["ticker"]
+    price, change = card.get("price"), card.get("change_pct")
+    tone = "j3b-up" if (change or 0) > 0 else "j3b-down" if (change or 0) < 0 else "j3b-neutral"
+    price_text = f"{price:,.2f}" if isinstance(price, (float, int)) else "시세 준비 중"
+    change_text = f"{change:+.2f}%" if isinstance(change, (float, int)) else "—"
+    news_result = _briefing_items("company", ticker)
+    items = news_result.get("items") or []
+    if items:
+        notes = items[:3]
+    elif news_result.get("pending"):
+        notes = [{"brief": "뉴스를 불러오는 중입니다"}]
+    else:
+        # 2026-08-26 상하님 지적 — 「불러오는 중」에서 굳어 있으면 손쓸 데가 없었다.
+        # 무엇을 누르면 되는지 적는다. 맨 위 ↻ 가 다시 받아 온다.
+        notes = [{"brief": "뉴스를 못 받았습니다 · 맨 위 ↻ 를 누르십시오"}]
+    # 접힌 카드의 뉴스 줄은 **링크가 아니다**(2026-08-26 상하님 지시 — "기본 작은
+    # 화면에서 종목 밑에 뉴스 클릭하면 바로 뉴스로 들어가지 않게 화면만 크게 하고").
+    # 원문은 커진 화면에서 그 줄을 다시 눌러 본다.
+    note_html = "".join(
+        f'<div class="j3b-note">{html.escape(str(item.get("brief") or item.get("headline") or "뉴스 브리핑 준비 중"))}</div>'
+        for item in notes
+    )
+    logo_html, logo_kind = _briefing_logo_face(ticker)
+    direction = "decline" if (change or 0) < 0 else ""
+    # 캐릭터는 **모든 카드**에 붙인다(2026-08-26 상하님 — "각 종목에 캐릭터랑
+    # 똑같게 다 넣어줘"). 익숙한 여덟 종목은 쓰던 캐릭터를 그대로 두고, 새로
+    # 넣으신 종목은 티커에서 뽑아 늘 같은 캐릭터가 나오게 한다.
+    decor_name = _DECOR_BY_TICKER.get(ticker.upper()) or _DECOR_IMAGES[
+        sum(ord(letter) for letter in ticker.upper()) % len(_DECOR_IMAGES)
+    ][0]
+    decor_side = " left" if ticker == "AAPL" else ""
+    decor_html = f'<span class="j3b-decor-img {decor_name}{decor_side}"></span>'
+    # 삭제는 저장된 추가 종목의 실제 Streamlit 버튼만 보여 준다.
+    delete_visual = ""
+    card_body = (
+        f'<div class="j3b-card {direction}{" compact" if compact else ""}"><div class="j3b-card-top">'
+        f'<span class="j3b-logo{logo_kind} {html.escape(ticker.lower())}">{logo_html}</span><div>'
+        f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
+        f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
+        f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'
+        # **접힌 카드 그림은 당일이다**(2026-08-28 상하님 지적 — "각 종목들 차트가
+        # 종가 기준 일봉 차트 맞냐? 뭐가 뭔지 모르겠다. 당일 종가가 되면 당일
+        # 차트를 해 줘야지"). 바로 왼쪽에 적히는 값·등락률이 오늘 것인데 그림만
+        # 최근 30일이라 둘이 다른 이야기를 하고 있었다. 기준선은 전일 종가다 —
+        # 등락률을 재는 자리와 같다. 당일 자료가 없는 날(주말·휴장)에는 예전처럼
+        # 최근 30일을 그린다.
+        f'{_briefing_chart(card.get("chart_today") or card.get("chart"), change, baseline=bool(card.get("chart_today")), base=card.get("prev_close"))}'
+        f'<div class="j3b-card-notes">{note_html}</div>'
+        f'{delete_visual}{decor_html}</div>'
+    )
+    six_month = [float(v) for v in (card.get("chart6m") or []) if v is not None]
+    open_card = (
+        f'<div class="j3b-open-card {direction}">'
+        '<span class="j3b-open-close">× 다시 누르면 닫힘</span>'
+        f'<div class="j3b-card-top"><span class="j3b-logo{logo_kind} {html.escape(ticker.lower())}">{logo_html}</span><div>'
+        f'<span class="j3b-symbol">{html.escape(ticker)}</span>'
+        f'<span class="j3b-name">{html.escape(stock.get("name") or card.get("name") or ticker)}</span></div></div>'
+        f'<div class="j3b-price">{price_text} <span class="{tone}">{change_text}</span></div>'
+        # 크게 열면 **일봉 6개월**이다(2026-08-26 상하님 지시 — "관심종목에 종목
+        # 클릭하면 일봉 6개월 차트 나오고 밑에 종목 뉴스 나오게 해 줘").
+        # 접힌 카드의 작은 그림은 예전 그대로 최근 30일이다. 6개월치가 아직 안
+        # 왔으면 그 30일 그림을 그대로 쓰고 이름표도 안 붙인다 — 없는 것을 있는
+        # 것처럼 적으면 안 된다.
+        # **관심종목은 봉차트가 아니라 이 선 그림 그대로다** (2026-09-24 상하님 — "관심종목만 원래대로
+        # 해라 · 6개월 중간 기준선도 없어져 버렸잖아"). 봉차트는 시장분석 쪽 일봉에만 쓴다.
+        f'{_briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))}'
+        f'{_six_month_caption(six_month)}'
+        f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
+        '<span class="j3b-open-close j3b-open-close-b">✕ 닫기</span>'
+        f'{decor_html}</div>'
+    )
+    card_html = (
+        '<details class="j3b-card-shell"><summary class="j3b-card-summary" '
+        'title="누르면 크게 보기">'
+        f'{card_body}</summary>'
+        f'<div class="j3b-card-open">{open_card}</div></details>'
+    )
+    if removable:
+        position = int(stock["position"])
+        # 어느 무리의 몇 번 자리인지로 열쇠를 만든다(2026-09-10). 무리 이름을 빼면
+        # 선정 1번과 검색 1번이 **같은 열쇠**를 써서, 하나를 지우려는데 다른
+        # 하나가 지워진다.
+        slot = f"{group}_{position}"
+        remove = (briefing_store.remove_selected if group == "selected"
+                  else briefing_store.remove_extra)
+        with st.container(key=f"j3b_{group}_{position}"):
+            st.markdown(card_html, unsafe_allow_html=True)
+            confirm = st.session_state.get("j3b_delete_confirm") == slot
+            if confirm:
+                left, right = st.columns(2)
+                if left.button("삭제 확인", key=f"j3b_del_yes_{slot}"):
+                    try:
+                        remove(position)
+                    except ValueError as exc:
+                        st.session_state["j3b_search_message"] = str(exc)
+                    st.session_state.pop("j3b_delete_confirm", None)
+                    st.rerun()
+                if right.button("취소", key=f"j3b_del_no_{slot}"):
+                    st.session_state.pop("j3b_delete_confirm", None)
+                    st.rerun()
+            elif st.button("×", key=f"j3b_del_{slot}"):
+                st.session_state["j3b_delete_confirm"] = slot
+                st.rerun()
+        return
+    st.markdown(card_html, unsafe_allow_html=True)
+
+
+def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, key: str,
+                          compact: bool = False, group: str = "extra") -> None:
+    """카드를 **한 통에 죽 넣고 자리는 CSS가 잡는다** (2026-08-27 상하님 지시).
+
+    상하님 — "태블릿 화면에는 종목선정 2줄씩 되어 있는데 3칸씩 넣으면 안 되나?"
+
+    예전에는 파이썬이 **두 개씩 묶어** st.columns(2)로 그렸다. 그러면 몇 칸으로
+    놓을지가 파이썬에 박혀 버려서, 화면 폭에 따라 바꿀 수가 없다 — 파이썬은
+    상하님 화면이 얼마나 넓은지 모른다.
+    이제 카드를 한 줄로 죽 넣고, 몇 칸으로 놓을지는 CSS가 정한다.
+    폰 2칸 · 태블릿 3칸이다. 줄마다 만들던 껍데기도 같이 없어진다.
+    """
+    with st.container(key=f"j3b_grid_{key}"):
+        for stock in stocks:
+            can_remove = removable and int(stock.get("position", 0)) > 0
+            _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=can_remove,
+                                  compact=compact, group=group)
+
+
+_BRIEFING_FIRST_VIEW_EXTRAS = (
+    {"position": -1, "ticker": "AAPL", "name": "애플"},
+    {"position": -2, "ticker": "META", "name": "메타 플랫폼스"},
+    {"position": -3, "ticker": "AVGO", "name": "브로드컴"},
+    {"position": -4, "ticker": "RGTI", "name": "리게티 컴퓨팅"},
+)
+
+
+def _briefing_home_extras(extras: list[dict]) -> list[dict]:
+    """기본 4종목을 유지하고 저장된 추가 종목은 중복 없이 뒤에 붙인다."""
+    merged = [dict(item) for item in _BRIEFING_FIRST_VIEW_EXTRAS]
+    positions = {item["ticker"]: index for index, item in enumerate(merged)}
+    for extra in extras:
+        ticker = str(extra.get("ticker") or "").upper()
+        if ticker in positions:
+            merged[positions[ticker]] = dict(extra)
+        else:
+            positions[ticker] = len(merged)
+            merged.append(dict(extra))
+    return merged
+
+
+def _briefing_local_search(query: str) -> list[dict]:
+    """이미 보유한 미국 종목 명부에서 즉시 찾는다.
+
+    브리핑 화면의 ``+`` 버튼 때문에 미국 거래소 명부를 인터넷에서 다시 받으면
+    첫 클릭이 오래 걸린다. 기존 약 200종목 명부와 한글 별칭만 재사용한다.
+    """
+    text = str(query or "").strip()
+    if not text:
+        return []
+    aliases = getattr(j3data, "KOREAN_TICKER_ALIASES", {})
+    names = getattr(j3data, "STOCK_NAMES", {})
+    universe = tuple(getattr(j3data, "US_LARGE_CAP_UNIVERSE", ()))
+    normalized = text.replace(" ", "")
+    alias_ticker = aliases.get(normalized)
+    upper = normalized.upper()
+    lowered = normalized.lower()
+    ordered = []
+    if alias_ticker:
+        ordered.append(alias_ticker)
+    ordered.extend(ticker for ticker in universe if ticker == upper)
+    ordered.extend(ticker for ticker in universe if ticker.startswith(upper))
+    ordered.extend(
+        ticker for ticker in universe
+        if str(names.get(ticker, ticker)).lower().replace(" ", "").startswith(lowered)
+    )
+    ordered.extend(
+        ticker for ticker in universe
+        if lowered in str(names.get(ticker, ticker)).lower().replace(" ", "")
+    )
+    rows, seen = [], set()
+    for ticker in ordered:
+        if ticker in seen:
+            continue
+        seen.add(ticker)
+        rows.append({"ticker": ticker, "name": names.get(ticker, ticker), "market": "US"})
+        if len(rows) >= 12:
+            break
+    if rows:
+        return rows
+    # 앱이 들고 있는 200종목 명부에 없으면 **미국 거래소 전체 명부**에서 찾는다.
+    # 2026-08-26 상하님 지적 — SPCX(스페이스X)가 안 들어갔다. 200종목에 없어서였다.
+    # 처음 한 번은 명부를 받느라 몇 초 걸리고, 그다음부터는 바로 나온다.
+    try:
+        found = j3data.search_stocks(query, limit=12)
+    except Exception:
+        return []
+    return list(found.get("rows") or []) if found.get("ok") else []
+
+
+def _render_briefing_manage(selected: list[dict], extras: list[dict], *,
+                            group: str = "extra") -> None:
+    """종목을 찾아 보여 주고, **맞는지 확인한 뒤에** 넣는다.
+
+    ``group`` 이 "selected" 면 사용자 선정 종목에, "extra" 면 추가 검색 종목에
+    넣는다 (2026-09-10 상하님 지시 — "사용자 선정종목이 삭제 추가가 안 된다.
+    추가 검색종목처럼 되게 해줘"). 열쇠에 무리 이름을 붙여 두 줄이 서로의
+    검색 결과를 덮어쓰지 않게 한다.
+
+    2026-08-26 상하님 지시 — "종목 검색은 조회 후 종목 나타나고 이 종목이 맞는지
+    확인 버튼을 누르고 등록되도록 해야지."
+    예전에는 ＋를 누르면 찾은 첫 종목이 곧바로 들어갔다. 이름이 비슷한 다른 회사가
+    들어가도 알 수가 없었다.
+    """
+    found_key = f"j3b_search_found_{group}"
+    # 통 이름을 **둘 다 j3b_search_row 로 시작**하게 둔다. 화면 규칙이
+    # class*="st-key-j3b_search_row" 부분일치라, 이름이 다르면 칸 배치·라벨
+    # 숨김·입력칸 크기가 하나도 안 걸려 검색줄이 깨진다(2026-09-10 상하님 —
+    # "추가검색종목과 디자인 똑같이 해라").
+    with st.container(key="j3b_search_row" if group == "extra" else "j3b_search_row_sel"):
+        query_col, plus_col = st.columns([7, 1])
+        with query_col:
+            query = st.text_input("종목 검색", placeholder="종목 검색 후 추가",
+                                  key=f"j3b_search_{group}", label_visibility="collapsed")
+        with plus_col:
+            add_clicked = st.button("+", key=f"j3b_manage_toggle_{group}")
+    if add_clicked:
+        st.session_state.pop(found_key, None)
+        if not query.strip():
+            st.session_state["j3b_search_message"] = "추가할 종목명이나 티커를 먼저 넣으십시오."
+        else:
+            with st.spinner("미국 종목 명부에서 찾는 중입니다…"):
+                rows = _briefing_local_search(query)
+            if rows:
+                st.session_state[found_key] = rows[:5]
+            else:
+                st.session_state["j3b_search_message"] = "그 이름으로는 미국 종목을 찾지 못했습니다."
+
+    found = st.session_state.get(found_key) or []
+    if found:
+        with st.container(key=f"j3b_search_confirm_{group}"):
+            labels = {f'{row["ticker"]} · {row["name"]}': row for row in found}
+            names = list(labels)
+            picked = names[0]
+            if len(names) > 1:
+                picked = st.radio("찾은 종목 가운데 고르십시오", names,
+                                  key=f"j3b_search_pick_{group}")
+            else:
+                st.markdown(f"<div class='j3b-found'>{html.escape(picked)}</div>",
+                            unsafe_allow_html=True)
+            yes_col, no_col = st.columns(2)
+            if yes_col.button("이 종목이 맞습니다 · 추가", key=f"j3b_search_ok_{group}",
+                              type="primary"):
+                chosen = labels[picked]
+                add = (briefing_store.add_selected if group == "selected"
+                       else briefing_store.add_extra)
+                try:
+                    add(chosen["ticker"], chosen["name"])
+                    st.session_state["j3b_search_message"] = f'{chosen["ticker"]} 종목을 넣었습니다.'
+                    st.session_state.pop(found_key, None)
+                    st.rerun()
+                except ValueError as exc:
+                    st.session_state["j3b_search_message"] = str(exc)
+            if no_col.button("아닙니다 · 취소", key=f"j3b_search_cancel_{group}"):
+                st.session_state.pop(found_key, None)
+                st.rerun()
+
+    message = st.session_state.pop("j3b_search_message", "")
+    if message:
+        st.caption(message)
+
+
+def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
+    """뉴스가 어디까지 왔는지 **세기만 한다** (2026-09-10부터).
+
+    예전에는 2.5초마다 `window.parent.location.reload()`로 브라우저를 통째로
+    새로고침했다. 통째 새로고침이라 자비스3 계산이 처음부터 다시 돌고, 화면이 튀고,
+    스크롤이 맨 위로 돌아갔다(2026-08-26 상하님 — "화면이 계속 버벅거리더라").
+    그래서 이 자리가 대신 '다 왔나'를 살펴 다시 그리게 했다.
+
+    **이제 다시 그리는 일은 여기 것이 아니다.** 2026-09-02에 만든 지켜보는 조각
+    (`_briefing_news_watcher`)이 2초마다 살펴 다시 그린다. 둘 다 다시 그리면
+    한 자리가 도착할 때마다 판을 두 번 그린다 — 아래 자세히 적어 두었다.
+
+    여기 남은 일은 **세는 것과 멈추는 것**이다. 다 왔거나 너무 오래 걸리면
+    `j3b_news_pending` 을 꺼서 지켜보는 조각도 같이 멈추게 한다.
+    """
+    if not st.session_state.get("j3b_news_pending"):
+        st.session_state.pop("j3b_news_wait", None)
+        st.session_state.pop("j3b_news_ready", None)
+        return
+    waited = int(st.session_state.get("j3b_news_wait", 0)) + 1
+    st.session_state["j3b_news_wait"] = waited
+    try:
+        ready = briefing_news.ready_count(keys)
+    except Exception:
+        ready = len(keys)
+    # 다 오기를 기다리지 않는다. 새로 도착한 자리가 생길 때마다 그만큼 채워 그려서
+    # 위쪽 시장 브리핑과 사용자 선정 종목이 먼저 차고 추가 검색 종목이 뒤따르게 한다.
+    # 2분이 넘으면 더 기다리지 않는다. 못 온 자리는 ↻ 를 눌러 다시 받으면 된다.
+    if ready <= int(st.session_state.get("j3b_news_ready", 0)) and waited < 60:
+        return
+    st.session_state["j3b_news_ready"] = ready
+    if ready >= len(keys) or waited >= 60:
+        st.session_state["j3b_news_pending"] = False
+        st.session_state.pop("j3b_news_wait", None)
+        st.session_state.pop("j3b_news_ready", None)
+    # **여기서 다시 그리라고 하지 않는다** (2026-09-10 상하님 지적 — "시장분석에서
+    # 관심종목으로 4초, 너무 늦다").
+    #
+    # **판을 두 번씩 그리고 있었다.** 뉴스 한 자리가 도착하면
+    #   1판 — 지켜보는 조각(_briefing_news_watcher)이 알아채고 다시 그리라고 한다.
+    #   2판 — 그 판 끝에서 여기가 **또** 다시 그리라고 한다. 화면은 하나도 안 바뀐다.
+    # 뉴스 자리가 11곳이라(시장 1 + 종목 10) 이 헛판이 열한 번 붙었다.
+    # 실측 — 뉴스가 다 올 때까지 판을 **32번** 그렸고 그리는 데만 4.52초를 썼다.
+    #
+    # 2026-09-02에 지켜보는 조각을 만들면서 이 자리가 겹쳤다. 그때는 여기가
+    # 유일한 길이라 필요했는데, 이제는 조각이 2초마다 스스로 살펴 다시 그린다
+    # (그 함수 설명 참고). 둘 다 두면 같은 일을 두 번 한다.
+    #
+    # **세는 일은 그대로 남긴다** — 위의 j3b_news_pending 을 꺼 주는 것이 여기다.
+    # 그것이 꺼져야 지켜보는 조각도 멈춘다.
+
+
+@st.fragment(run_every=2)
+def _briefing_news_watcher(keys: tuple = ()) -> None:
+    """뉴스가 **도착하는지 지켜보다가** 왔을 때 화면을 다시 그린다 (2026-09-02).
+
+    상하님 — *"관심종목에 「뉴스 불러오는 중이다」라고 계속 떠 있다. 위에
+    다시 실행하기 하면 그제서야 뉴스가 나온다."*
+
+    **왜 굳어 있었나.** 뉴스는 뒤 일꾼이 받아 온다. 화면은 그걸 기다리며
+    「불러오는 중」이라고 적어 두는데, **기다리는 동안 화면을 다시 그려 보는
+    것이 아무것도 없었다.** `_schedule_briefing_news_refresh` 는 아직 안 왔으면
+    그냥 되돌아가고 끝난다 — 다음 판이 없으니 영영 그 자리다. 그래서 ↻ 를 눌러
+    사람이 손으로 다음 판을 만들어 주어야만 뉴스가 나왔다.
+
+    예전에는 2.5초마다 브라우저를 통째로 새로고침해서 이 문제가 없었다. 그런데
+    통째 새로고침은 화면이 튀고 스크롤이 맨 위로 돌아가 2026-08-26에 걷어냈고,
+    그 자리를 채울 것을 안 두었다.
+
+    **이 조각이 그 자리를 채운다.** 2초마다 도는데, 도는 것은 **이 조각뿐**이다
+    (프래그먼트라 판 전체를 안 그린다). 하는 일도 이미 받아 둔 것을 세는 것뿐이라
+    시세를 새로 부르지 않는다. **새로 도착한 것이 있을 때만** 판 전체를 한 번
+    다시 그린다 — 그때가 화면에 뉴스가 채워지는 순간이다.
+
+    2분이 지나도 안 오면 기다리기를 그만둔다. 그러면 카드에 「못 받았습니다 ·
+    맨 위 ↻ 를 누르십시오」가 뜬다 — 지금까지와 같다.
+
+    **실패해도 아무 일도 일어나지 않아야 한다.** 세다가 터지면 조용히 넘어가고,
+    화면은 지금 그대로 있는다(CLAUDE.md 13번과 같은 원칙).
+    """
+    if not st.session_state.get("j3b_news_pending"):
+        # 뉴스는 다 왔다. **기사 본문**이 뒤에서 도착했으면 한 번 다시 그린다
+        # (2026-09-17 상하님 지시 '가' — 광고 없이 본문을 앱 안에서).
+        if _article_arrived():
+            try:
+                st.rerun(scope="app")
+            except Exception:
+                st.rerun()
+        return
+    try:
+        ready = int(briefing_news.ready_count(keys))
+    except Exception:
+        return                      # 못 세면 다음 2초에 다시 본다
+    seen = st.session_state.get("j3b_news_watch_seen")
+    if seen is None:
+        # 처음 한 바퀴는 기준만 잡는다. 여기서 바로 다시 그리면 화면이 헛돈다.
+        st.session_state["j3b_news_watch_seen"] = ready
+        st.session_state["j3b_news_watch_since"] = time.monotonic()
+        return
+    since = float(st.session_state.get("j3b_news_watch_since") or time.monotonic())
+    over = (time.monotonic() - since) > 120
+    if ready <= int(seen) and not over:
+        return                      # 아직 새로 온 것이 없다 — 화면을 안 건드린다
+    st.session_state["j3b_news_watch_seen"] = ready
+    if over or ready >= len(keys):
+        st.session_state["j3b_news_pending"] = False
+        st.session_state.pop("j3b_news_watch_seen", None)
+        st.session_state.pop("j3b_news_watch_since", None)
+    # 판 전체를 다시 그린다 — 카드가 프래그먼트 밖에 있어서 여기만 그리면
+    # 뉴스가 화면에 안 나타난다. scope 를 못 받는 판이면 그냥 전체다.
+    try:
+        st.rerun(scope="app")
+    except Exception:
+        st.rerun()
+
+
+_FUTURES_FETCH_LOCK = threading.Lock()
+_FUTURES_FETCH = {"thread": None}
+
+
+def _start_us_futures_fetch() -> None:
+    """시장분석 맨 위 선물 칸(NQ=F·ES=F)을 **먼저 시켜 둔다** (2026-09-10).
+
+    상하님 지적 — *"관심종목에서 시장분석으로 2초, 너무 늦다."*
+
+    **실측 — 그 화면이 세워 놓고 기다리는 조회가 넷인데, 넷이 한 줄로 선다.**
+        ① 9종목 1년치 일봉 ② 5종목 1분봉  → 「미국 전체시장 판단」 (0.90초)
+        ③ NQ=F ④ ES=F 5분봉               → 선물 칸             (0.79초)
+    ①②는 `j3data.get_market_overview()` 가, ③④는 이 선물 칸이 받는다. **둘은
+    서로 아무 상관이 없는데** 화면이 ①②를 다 받은 뒤에야 ③④를 시작했다.
+
+    그래서 ③④를 **화면 그리기 맨 앞에서** 뒤 일꾼에게 먼저 맡긴다. 일꾼이
+    선물을 받는 동안 화면은 ①②를 받는다. 둘이 겹쳐 도니 0.79초가 통째로 없어진다.
+
+    **새로 나가는 요청이 하나도 없다.** 어차피 그 화면이 받던 것을, 받는 **때**만
+    옮겼다. 값도 계산도 한 글자도 안 바뀐다.
+
+    **한국테마 파일은 안 고친다 — 읽기만 한다.** 화면이 부르는 것과 똑같은
+    함수를 똑같은 인자로 부를 뿐이라(`ttl_seconds=300, interval="5m"`), 받아 둔
+    것이 그 칸에 그대로 쓰이고 한국테마(1분봉·60초)는 키가 달라 영향이 없다.
+
+    **두 번 받지 않게 한다.** 아래 `_await_us_futures_fetch` 가 이 일꾼을 기다린
+    뒤에 값을 읽으므로, 화면과 일꾼이 같은 것을 각자 받는 일이 없다.
+    실패해도 아무 일이 없다 — 그때는 예전처럼 선물 칸이 그 자리에서 받는다.
+    """
+    with _FUTURES_FETCH_LOCK:
+        running = _FUTURES_FETCH.get("thread")
+        if running is not None and running.is_alive():
+            return                      # 이미 받는 중이다
+
+    def _run() -> None:
+        try:
+            import jarvis4_data as j4data
+
+            fetcher = getattr(j4data, "get_us_futures_live", None)
+            if callable(fetcher):
+                fetcher(ttl_seconds=300, interval="5m")
+        except Exception:
+            pass                        # 못 받아도 화면은 그대로 돈다
+
+    try:
+        thread = threading.Thread(target=_run, name="j3-futures-fetch", daemon=True)
+        thread.start()
+    except Exception:
+        return                          # 일꾼을 못 띄우면 예전처럼 화면이 받는다
+    with _FUTURES_FETCH_LOCK:
+        _FUTURES_FETCH["thread"] = thread
+
+
+# 선물 값을 기다리는 시간. **2초에서 끊는다** (2026-09-16 상하님 지시 '가').
+# 예전에는 12초였는데, 야후가 막힌 판에서는 그 12초를 꽉 채우고 화면이 멈췄다.
+# 온라인 실측 — 그 시간에 무슨 단추를 눌러도 12.3초 · 10.0초 · 3.0초씩 걸렸고,
+# 상승장과 급락이 **똑같이** 늦었다(그 단추들 탓이 아니라는 뜻이다).
+# 야후가 멀쩡하면 이 기다림은 0.8초라 2초로도 넉넉하다.
+_FUTURES_WAIT_SECONDS = 2.0
+# 마지막으로 제대로 받은 선물 값. 늦는 판에서는 이것을 그대로 보여 준다.
+_FUTURES_LAST_KEY = "j3_futures_last"
+
+
+def _await_us_futures_fetch(timeout: float | None = None) -> bool:
+    """먼저 시켜 둔 선물 조회가 끝나기를 기다린다. 끝났으면 True.
+
+    기다리지 않고 바로 읽으면, 일꾼이 아직 받는 중일 때 화면이 **같은 것을 또**
+    받는다(jarvis4_data 의 공책은 다 받은 뒤에야 찬다). 그러면 야후에 요청이
+    두 배로 나가고 빨라지지도 않는다.
+
+    **2초에서 끊는다**(_FUTURES_WAIT_SECONDS). 못 받고 끊은 판에서는 부르는 쪽이
+    **직접 받지 않는다** — 마지막으로 받아 둔 값을 그대로 보여 주고 넘어간다.
+    그래야 화면이 멈추지 않는다. 값은 다음 판에서 채워진다(선물 칸은 5분마다
+    저절로 다시 그린다).
+    """
+    with _FUTURES_FETCH_LOCK:
+        thread = _FUTURES_FETCH.get("thread")
+    if thread is None:
+        return True
+    try:
+        thread.join(_FUTURES_WAIT_SECONDS if timeout is None else timeout)
+        return not thread.is_alive()
+    except Exception:
+        return False
+
+
+def _warm_after_news(keys: tuple) -> None:
+    """뉴스가 다 온 **뒤에** 순위 9와 나스닥 25년치를 미리 챙긴다.
+
+    **뉴스보다 먼저 시작하면 안 된다** (2026-08-26 상하님 지적 — "노트북 메인화면
+    관심종목 로딩이 오래 걸린다", "관심종목에 뉴스 전부 다 안 나온다").
+
+    오늘 제가 이 미리 계산을 화면 그리기 **맨 앞**에 두었다. 파이썬은 한 번에 한
+    가지만 계산한다. 그래서 뒤 일꾼이 테마 20개와 순위 9를 계산하는 동안(17초)
+    첫 화면 그리기와 뉴스 받기가 그만큼 밀렸다. 시장분석 화면은 이 도우미를
+    안 불러서 멀쩡했고, 그것이 "시장분석은 잘 열리는데 관심종목만 느리다"의
+    까닭이다.
+
+    이제 뉴스가 **다 온 뒤에만** 시작한다. 그때는 상하님이 화면을 보고 계실
+    때라 뒤에서 무엇을 하든 기다리실 것이 없다.
+    """
+    try:
+        if not briefing_news.all_ready(keys):
+            return
+    except Exception:
+        return
+    # 시장분석 화면이 그 판에서 처음 열릴 때 받는 신호 시세 13개도 같이 미리
+    # 받아 둔다(2026-08-26 상하님 지적 — "관심종목에서 시장분석 클릭하면 로딩 3초").
+    signal_warm = getattr(market_signal_ui, "warm_us_signal_quotes", None)
+    if callable(signal_warm):
+        try:
+            signal_warm()
+        except Exception:
+            pass
+    # 시장분석 화면의 업종 지도도 여기서 미리 받아 둔다(2026-08-28). 2초쯤
+    # 걸리는 조회라 그 화면에서 받으면 화면이 그만큼 밀린다.
+    sector_warm = getattr(j3data, "warm_sector_map", None)
+    if callable(sector_warm):
+        try:
+            sector_warm()
+        except Exception:
+            pass
+    # ── 시장분석 화면이 **세워 놓고 기다리는 조회 넷**도 여기서 미리 받는다 ──
+    # (2026-09-10 상하님 지적 — "관심종목에서 시장분석으로 2초, 너무 늦다.")
+    #
+    # 실측 — 그 2.05초 중 1.70초가 맨 위 「미국 전체시장 판단」 칸이 시세를
+    # 기다리는 시간이었다. 넷이 연달아 나간다(한 번에 하나씩 나가게 되어 있다):
+    #   ① 9종목 1년치 일봉 · ② 5종목 1분봉   → get_market_overview (0.90초)
+    #   ③ NQ=F · ④ ES=F 5분봉                → 선물 칸        (0.79초)
+    #
+    # 위 신호 시세·업종 지도와 **같은 자리, 같은 방식**이다 — 뉴스가 다 온 뒤에
+    # 뒤 일꾼을 띄우고 바로 돌아간다. 값도 계산도 하나도 안 바뀐다.
+    overview_warm = getattr(j3data, "warm_market_overview", None)
+    if callable(overview_warm):
+        try:
+            overview_warm()
+        except Exception:
+            pass
+    _start_us_futures_fetch()
+    warm = getattr(j3data, "warm_top_picks", None)
+    if not callable(warm):
+        return
+    try:
+        warm()
+    except Exception:
+        pass
+
+
+# 지금 보고 있는 화면(관심종목 home · 시장분석 market)을 **주소에도 적어 둔다**
+# (2026-08-29 상하님 지시).
+#
+# 상하님 — *"스마트폰에서 멀티스크린, 즉 다른 화면 예를 들면 네이버 화면 잠깐
+# 보고 돌아오면 또 리셋되며 로딩시간이 걸린다. 그리고 시장분석 보고 있다가
+# 다른 화면 갔다가 다시 오면 관심종목으로 가버린다."*
+#
+# **왜 그랬나.** 폰은 다른 앱으로 넘어가면 뒷화면을 메모리에서 버린다. 돌아오면
+# 브라우저가 그 주소를 **처음부터 다시** 연다. 스트림릿의 세션 기억
+# (`st.session_state`)은 그때 통째로 비므로, 어느 화면을 보고 있었는지도 같이
+# 사라져 기본값인 관심종목으로 돌아갔다.
+#
+# **주소는 안 사라진다.** 다시 열 때 브라우저가 같은 주소를 그대로 쓰기 때문이다.
+# 그래서 화면 이름을 주소 끝에 적어 둔다(`?s=market`). 세션이 비어도 주소가
+# 남아 있으면 보시던 화면으로 돌아간다.
+#
+# 로딩 시간 자체는 이걸로 줄지 않는다 — 다시 여는 것은 브라우저가 하는 일이다.
+# 다만 **엉뚱한 화면을 다시 그리느라 두 번 기다리는 일**은 없어진다.
+#
+# 뒤로가기와도 어긋나지 않는다. 주소가 바뀌면 방문기록이 한 칸 쌓이므로,
+# 시장분석에서 뒤로가기를 누르면 앞 메뉴가 아니라 **관심종목**으로 온다.
+# (`back_nav`의 표식은 그대로 두어 관심종목에서 또 눌러도 안 빠져나간다.)
+_BRIEFING_PAGE_PARAM = "s"
+_BRIEFING_PAGES = ("home", "market")
+
+
+def _briefing_page() -> str:
+    """지금 볼 화면. **세션 기억이 먼저**, 없을 때만 주소를 본다.
+
+    **차례가 중요하다** (2026-08-29 상하님 지시 — "뒤로가기 버튼 누르더라도
+    안 되게 하라니깐"). 주소를 먼저 보면, 뒤로가기가 주소에서 `s=market` 을
+    지웠을 때 그것을 '관심종목으로 가라'로 읽어 화면이 바뀐다. 상하님은
+    **아무 일도 안 일어나기를** 바라신다.
+    세션 기억을 먼저 보면 뒤로가기로 주소가 바뀌어도 보시던 화면 그대로다.
+    바로 아래 `_set_briefing_page` 가 주소를 도로 적으므로, 몇 번을 눌러도
+    앱 밖으로 나가지 않는다.
+
+    **주소는 그래도 필요하다** — 폰이 화면을 버렸다 다시 열면 세션 기억이
+    통째로 비는데, 그때 주소에 적힌 것이 보시던 화면을 되살린다.
+
+    주소를 못 읽으면 조용히 세션 기억만으로 돈다 — 이 장치 때문에 화면이
+    막히면 안 된다(CLAUDE.md 13번 쿠키 규칙과 같은 뜻).
+    """
+    page = str(st.session_state.get("j3_briefing_page") or "")
+    if page in _BRIEFING_PAGES:
+        return page
+    try:
+        marked = str(st.query_params.get(_BRIEFING_PAGE_PARAM) or "").strip()
+    except Exception:
+        marked = ""
+    if marked in _BRIEFING_PAGES:
+        st.session_state["j3_briefing_page"] = marked
+        return marked
+    return "home"
+
+
+def _request_briefing_home() -> None:
+    """하단 막대 「홈」 — 누르는 순간 표시만 해 둔다(2026-09-23 저녁).
+
+    넘어가는 일은 화면 맨 앞(_briefing_swipe_buttons)에서 한다. 누른 판에서 화면을
+    다시 그리기 **전에** 돌므로, 그 판은 맨 앞에서 곧바로 홈으로 넘어간다.
+    """
+    st.session_state["j3b_go_home"] = True
+
+
+def _set_briefing_page(page: str) -> None:
+    """볼 화면을 정하고 **주소에도 적는다.** 이미 같으면 안 적는다.
+
+    같은 값을 또 적으면 방문기록만 한 칸 더 쌓여 뒤로가기가 헛돈다.
+    """
+    page = page if page in _BRIEFING_PAGES else "home"
+    st.session_state["j3_briefing_page"] = page
+    try:
+        if str(st.query_params.get(_BRIEFING_PAGE_PARAM) or "") != page:
+            st.query_params[_BRIEFING_PAGE_PARAM] = page
+    except Exception:
+        pass
+
+
+# 바깥 화면(스트림릿 판)에서 도는 손가락 신호. **여기 글자는 iframe이 아니라
+# 바깥 화면의 것**이라 판이 다시 그려져도 살아 있다. 아래 _briefing_swipe_nav 가
+# json.dumps 로 안전하게 감싸 심는다 — 따옴표를 손으로 이스케이프하지 않는다
+# (2026-09-10에 손으로 하다 틀려서 폰에서 아무 일도 안 일어났다).
+# ── 화면을 옮기는 그 순간에도 **숨은 것은 숨어 있게** (2026-09-23 상하님 지적) ──
+#
+# 상하님 — *"페이지 넘기다 보면 자꾸 이 테마 설명 저 부분이 나온다."*
+#
+# 까닭 — 자비스3의 꾸밈 규칙은 그 화면의 <style> 안에 있다. 홈이나 다른 화면으로
+# 옮기면 그 <style> 이 먼저 사라지고 카드·숨은 단추의 **자리는 잠깐 남는다.**
+# 그 사이에 「이 테마 설명」 카드가 꾸밈 없이 펼쳐져 그림이 화면에 쏟아졌다
+# (상하님 캡처 — 홈 화면 밑에 상승장 설명 그림이 그대로 나왔다).
+#
+# 그래서 **넘기기 코드와 같은 자리(바깥 문서)에** 이 규칙을 심는다. 화면을 옮겨도
+# 살아 있으므로 그 틈에도 숨어 있다. 여는 규칙(body:has(#j3-help-tap:checked) …)이
+# 더 세서, 상하님이 설명을 여실 때는 예전 그대로 열린다.
+# **닫혀 있을 때만 건다**(2026-09-23 상하님 지적 — "자꾸 넘기다 보면 이거 또 나온다").
+# 처음에는 조건 없이 걸었더니 `.j3-help-scrim` 의 pointer-events:none 이 **열렸을 때도**
+# 남아, 바깥을 눌러도 카드가 안 닫혔다. 한 번 열리면 넘겨도 계속 따라다녔다.
+# **열려 있든 닫혀 있든 건다** (2026-09-23 상하님 캡처 — 설명을 열어 둔 채 넘기면
+# 그대로 새어 나왔다). 자비스3 화면의 여는 규칙(body:has(#j3-help-tap:checked) …)이
+# 이것보다 세므로, 그 화면에서는 예전 그대로 열린다. 화면을 옮겨 그 규칙이 사라진
+# 뒤에만 이것이 듣는다. **pointer-events 는 안 건다** — 걸었더니 열렸을 때 바깥을
+# 눌러도 안 닫혔다(같은 날 낮에 그렇게 만들었다가 상하님이 잡아 주셨다).
+_LEFTOVER_CSS = (
+    "div.st-key-j3_help_card{position:fixed;left:50%;top:50%;"
+    "opacity:0;visibility:hidden}"
+    ".j3-help-scrim{position:fixed;inset:0;opacity:0;visibility:hidden}"
+    # **앞 화면에서 흐리게 남은 설명 그림은 아예 안 보인다** (2026-09-23 상하님 캡처 12:45 —
+    # 홈 화면 판 번호 밑에 설명 그림이 흐리게 나왔다). 스트림릿은 화면을 옮기는 동안 앞
+    # 화면 조각을 data-stale="true" 로 흐리게 남겨 둔다. 로그인하신 홈은 그리는 데 오래
+    # 걸려 그 사이 설명 그림이 꾸밈 없이 드러났다. 설명 그림·설명 카드 안의 조각만 막는다.
+    "div[class*='st-key-jarvis_method_pic'] [data-stale='true'],"
+    "div[class*='st-key-jarvis_method_pic'][data-stale='true'],"
+    "div.st-key-j3_help_card [data-stale='true']{display:none!important}"
+    "div[class*='st-key-j3b_swipe_']{position:fixed;left:-9999px;top:-9999px;"
+    "width:1px;height:1px;overflow:hidden}"
+    "div.st-key-j3b_nav_controls button{color:transparent;background:transparent;"
+    "border:0}"
+)
+
+
+_SWIPE_OUTER_JS = """(function () {
+  var d = document, x0 = 0, y0 = 0, live = false, fired = false;
+  function sideways(node) {
+    while (node && node !== d.documentElement) {
+      try {
+        if (node.scrollWidth > node.clientWidth + 4) {
+          var how = getComputedStyle(node).overflowX;
+          if (how === 'auto' || how === 'scroll') { return true; }
+        }
+      } catch (e) { return false; }
+      node = node.parentElement;
+    }
+    return false;
+  }
+  function findButton(key) {
+    var all = d.querySelectorAll('div[class*="st-key-' + key + '"] button');
+    for (var i = 0; i < all.length; i++) {
+      if (!all[i].closest('[data-stale="true"]')) { return all[i]; }
+    }
+    return all.length ? all[0] : null;
+  }
+  var drag = null;
+  var still = false;
+  try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  var MARKS = [['.j11b-home', 'watch'], ['.j11-market-top', 'market'], ['.jarvis-entry-title', 'home']];
+  function screenNow() {
+    var s = screenNow0();
+    if (s === 'home' && d.getElementById('j3b-swipe-script')) { return ''; }
+    return s;
+  }
+  function screenNow0() {
+    var i, j, all;
+    for (i = 0; i < MARKS.length; i++) {
+      all = d.querySelectorAll(MARKS[i][0]);
+      for (j = 0; j < all.length; j++) {
+        if (!all[j].closest('[data-stale="true"]')) { return MARKS[i][1]; }
+      }
+    }
+    for (i = 0; i < MARKS.length; i++) {
+      if (d.querySelector(MARKS[i][0])) { return MARKS[i][1]; }
+    }
+    return '';
+  }
+  function destination(dx) {
+    var now = (fired && pending && !pending.cancelled) ? pending.go.to : screenNow();
+    if (dx < 0 && now === 'watch') { return { key: 'j3b_swipe_market', from: 'watch', to: 'market' }; }
+    if (dx > 0 && now === 'watch') { return { key: 'j3b_swipe_home', from: 'watch', to: 'home' }; }
+    if (dx > 0 && now === 'market') { return { key: 'j3b_swipe_watch', from: 'market', to: 'watch' }; }
+    if (dx < 0 && now === 'market') { return { key: 'j3b_swipe_home', from: 'market', to: 'home' }; }
+    if (now === 'home') { return { link: '자비스11', from: 'home', to: 'watch' }; }
+    return null;
+  }
+  function findTarget(go) {
+    if (go.key) { return findButton(go.key); }
+    var links = d.querySelectorAll('a[data-testid="stPageLink-NavLink"]');
+    for (var i = 0; i < links.length; i++) {
+      var href = '';
+      try { href = decodeURIComponent(links[i].getAttribute('href') || ''); } catch (e) {}
+      if (href.split('?')[0].split('/').pop() === go.link) { return links[i]; }
+    }
+    return null;
+  }
+  var SNAP = {}, lastCap = {}, lastSave = {};
+  var snapHost = null, snapRoot = null, snapMounted = '', snapMountedV = 0, cssMemo = {};
+  var snapV = 0;
+  var STORE = 'j11snap:v1:';
+  var POPUPS = '.j3sm-scrim,.j3sm-pop,.j3cz-scrim,.j3cz-pop';
+  function buildStamp() {
+    var el = d.querySelector('.jarvis-build');
+    return el ? String(el.textContent || '').trim() : '';
+  }
+  function cssFix(sel) {
+    return String(sel).replace(/(^|[\\s,>+~(])(html|body)(?=$|[\\s:.\\[#,>+~)])/g, function (m, pre, tag) {
+      return pre + (tag === 'body' ? '.j3snap-body' : '.j3snap-html');
+    });
+  }
+  function buildCss() {
+    var sheets = d.styleSheets, total = 0, i;
+    for (i = 0; i < sheets.length; i++) { try { total += sheets[i].cssRules.length; } catch (e) {} }
+    var key = sheets.length + ':' + total;
+    if (cssMemo[key]) { return cssMemo[key]; }
+    var out = [];
+    function walk(rules) {
+      for (var j = 0; j < rules.length; j++) {
+        var r = rules[j];
+        try {
+          if (r.type === 1) { out.push(cssFix(r.selectorText) + '{' + r.style.cssText + '}'); }
+          else if (r.type === 4) { out.push('@media ' + r.media.mediaText + '{'); walk(r.cssRules); out.push('}'); }
+          else if (r.type === 12) { out.push('@supports ' + r.conditionText + '{'); walk(r.cssRules); out.push('}'); }
+          else if (r.type === 7) { out.push(r.cssText); }
+        } catch (e) {}
+      }
+    }
+    for (i = 0; i < sheets.length; i++) { try { walk(sheets[i].cssRules); } catch (e) {} }
+    out.push('.j3snap-html,.j3snap-body{position:absolute;inset:0;margin:0;overflow:hidden}');
+    out.push('.j3snap-html *,.j3snap-html *::before,.j3snap-html *::after{animation-duration:0s!important;'
+      + 'animation-delay:0s!important;animation-iteration-count:1!important;transition:none!important}');
+    out.push('.j3snap-html svg text,.j3snap-html svg tspan{text-rendering:geometricPrecision!important}');
+    var keys = Object.keys(cssMemo);
+    if (keys.length >= 3) { delete cssMemo[keys[0]]; }
+    cssMemo[key] = out.join(' ');
+    return cssMemo[key];
+  }
+  var lastSig = {};
+  function sigOf(main) {
+    return main.scrollHeight + ':' + main.querySelectorAll('[data-testid="stElementContainer"]').length;
+  }
+  function capture(force) {
+    var sname = screenNow();
+    if (!sname) { return; }
+    var now = Date.now();
+    var main = d.querySelector('[data-testid="stMainBlockContainer"]');
+    if (!main) { return; }
+    var sig = sigOf(main);
+    if (!force && sig === lastSig[sname] && now - (lastCap[sname] || 0) < 60000) { return; }
+    try {
+      var css = buildCss();
+      var chain = [], n = main.parentElement;
+      while (n && n !== d.body && n.id !== 'root') { chain.unshift(n); n = n.parentElement; }
+      var clone = main.cloneNode(true);
+      var k;
+      var liveBoxes = main.querySelectorAll('[data-testid="stElementContainer"]');
+      var copyBoxes = clone.querySelectorAll('[data-testid="stElementContainer"]');
+      var farBelow = (window.innerHeight || 800) * 3, drop = [];
+      var headLim = (window.innerHeight || 800) * 1.3, mainTop = main.getBoundingClientRect().top;
+      if (liveBoxes.length === copyBoxes.length) {
+        for (k = 0; k < liveBoxes.length; k++) {
+          var boxTop = liveBoxes[k].getBoundingClientRect().top;
+          if (boxTop - mainTop > headLim) { copyBoxes[k].setAttribute('data-j3-below', '1'); }
+          if (boxTop > farBelow) { drop.push(copyBoxes[k]); continue; }
+          if (getComputedStyle(liveBoxes[k]).display === 'none') {
+            copyBoxes[k].style.setProperty('display', 'none', 'important');
+          }
+        }
+      }
+      for (k = 0; k < drop.length; k++) { drop[k].remove(); }
+      var liveFrames = main.querySelectorAll('iframe'), copyFrames = clone.querySelectorAll('iframe');
+      for (k = 0; k < copyFrames.length && k < liveFrames.length; k++) {
+        var fr = liveFrames[k].getBoundingClientRect();
+        var hole = d.createElement('div');
+        hole.style.cssText = 'display:block;width:' + Math.round(fr.width) + 'px;height:' + Math.round(fr.height) + 'px';
+        copyFrames[k].replaceWith(hole);
+      }
+      var liveVids = main.querySelectorAll('video'), copyVids = clone.querySelectorAll('video');
+      for (k = 0; k < copyVids.length && k < liveVids.length; k++) {
+        var v = liveVids[k], vc = getComputedStyle(v), pic = d.createElement('img'), src = '';
+        try {
+          if (v.readyState >= 2 && v.videoWidth) {
+            var cw = Math.min(640, v.videoWidth), cv = d.createElement('canvas');
+            cv.width = cw; cv.height = Math.round(cw * v.videoHeight / v.videoWidth);
+            cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+            src = cv.toDataURL('image/jpeg', 0.72);
+          }
+        } catch (e) { src = ''; }
+        pic.src = src || v.poster || '';
+        pic.className = v.className;
+        pic.style.cssText = ['position', 'top', 'right', 'bottom', 'left', 'width', 'height', 'object-fit',
+          'object-position', 'z-index', 'opacity', 'filter', 'border-radius', 'transform'].map(function (p) {
+          return p + ':' + vc.getPropertyValue(p);
+        }).join(';');
+        copyVids[k].replaceWith(pic);
+      }
+      var inner = clone.querySelectorAll('style');
+      for (k = 0; k < inner.length; k++) { inner[k].textContent = ''; }
+      var marks = clone.querySelectorAll('.j3b-in-left,.j3b-in-right');
+      for (k = 0; k < marks.length; k++) { marks[k].className = ''; }
+      var junk = clone.querySelectorAll('script,audio,object,embed,noscript,'
+        + '.j3-help-scrim,div.st-key-j3_help_card,[class*="st-key-j3b_swipe_"],'
+        + '[data-testid="stStatusWidget"],' + POPUPS);
+      for (k = 0; k < junk.length; k++) { junk[k].remove(); }
+      var ids = clone.querySelectorAll('[id]');
+      for (k = 0; k < ids.length; k++) { ids[k].removeAttribute('id'); }
+      var named = clone.querySelectorAll('input[name],textarea[name],select[name]');
+      for (k = 0; k < named.length; k++) { named[k].removeAttribute('name'); named[k].tabIndex = -1; }
+      clone.removeAttribute('id');
+      var top = null, cur = null;
+      for (var c = 0; c < chain.length; c++) {
+        var shell = chain[c].cloneNode(false);
+        shell.removeAttribute('style');
+        shell.removeAttribute('id');
+        if (!top) { top = shell; } else { cur.appendChild(shell); }
+        cur = shell;
+      }
+      if (cur) { cur.appendChild(clone); } else { top = clone; }
+      var head = top.cloneNode(true), below = head.querySelectorAll('[data-j3-below]');
+      for (k = 0; k < below.length; k++) { below[k].remove(); }
+      snapV += 1;
+      SNAP[sname] = { node: top, head: head, v: snapV, css: css, sig: sig };
+      lastCap[sname] = now; lastSig[sname] = sig;
+      save(sname, SNAP[sname]);
+    } catch (e) {}
+  }
+  function save(sname, snap) {
+    var now = Date.now();
+    if (now - (lastSave[sname] || 0) < 60000) { return; }
+    lastSave[sname] = now;
+    setTimeout(function () {
+      try {
+        var html = (snap.head || snap.node).outerHTML;
+        if (html.length + snap.css.length > 2000000) { return; }
+        window.localStorage.setItem(STORE + sname,
+          JSON.stringify({ st: buildStamp(), html: html, css: snap.css }));
+      } catch (e) {
+        try { window.localStorage.removeItem(STORE + sname); } catch (e2) {}
+      }
+    }, 0);
+  }
+  function load(sname) {
+    try {
+      var raw = window.localStorage.getItem(STORE + sname);
+      if (!raw) { return null; }
+      var saved = JSON.parse(raw);
+      if (!saved || !saved.html || !saved.css) { return null; }
+      var tpl = d.createElement('template');
+      tpl.innerHTML = saved.html;
+      var node = tpl.content.firstElementChild;
+      if (!node) { return null; }
+      var pops = node.querySelectorAll(POPUPS);
+      for (var p = 0; p < pops.length; p++) { pops[p].remove(); }
+      snapV += 1;
+      SNAP[sname] = { node: node, head: node, v: snapV, css: saved.css };
+      return SNAP[sname];
+    } catch (e) { return null; }
+  }
+  function attachLayer(el) {
+    (d.documentElement || d.body).appendChild(el);
+  }
+  function ensureHost() {
+    if (snapHost && snapHost.isConnected) { return; }
+    snapHost = d.createElement('div');
+    snapHost.id = 'j11snap-host';
+    snapHost.setAttribute('aria-hidden', 'true');
+    try { snapHost.inert = true; } catch (e) {}
+    snapHost.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0;'
+      + 'overflow:hidden;contain:strict;will-change:transform,opacity';
+    snapRoot = snapHost.attachShadow({ mode: 'open' });
+    snapMounted = ''; snapMountedV = 0;
+    attachLayer(snapHost);
+  }
+  function snapTree(snap, useHead) {
+    var style = d.createElement('style');
+    style.textContent = snap.css;
+    var htmlBox = d.createElement('div'); htmlBox.className = 'j3snap-html';
+    var bodyBox = d.createElement('div'); bodyBox.className = 'j3snap-body';
+    htmlBox.appendChild(bodyBox);
+    bodyBox.appendChild(((useHead && snap.head) || snap.node).cloneNode(true));
+    return [style, htmlBox];
+  }
+  function mount(sname) {
+    var snap = SNAP[sname] || load(sname);
+    if (!snap) { return false; }
+    try {
+      ensureHost();
+      if (snapMounted === sname && snapMountedV === snap.v && snapRoot.childNodes.length) { return true; }
+      var tree = snapTree(snap, true);
+      snapRoot.replaceChildren(tree[0], tree[1]);
+      snapMounted = sname; snapMountedV = snap.v;
+      return true;
+    } catch (e) { return false; }
+  }
+  var TOP = '2147483647', UNDER_Z = '2147483646';
+  var blankEl = null, under = null;
+  function blankLayer() {
+    if (blankEl && blankEl.isConnected) { return blankEl; }
+    blankEl = d.createElement('div');
+    blankEl.setAttribute('aria-hidden', 'true');
+    blankEl.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0;'
+      + 'will-change:transform,opacity';
+    attachLayer(blankEl);
+    return blankEl;
+  }
+  function showUnder(sname) {
+    var snapped = mount(sname);
+    if (!snapped) { hideSnap(); return false; }
+    var el = snapHost;
+    el.style.transition = 'none'; el.style.transform = ''; el.style.transformOrigin = '';
+    el.style.clipPath = '';
+    el.style.zIndex = UNDER_Z;
+    el.style.opacity = '1';
+    under = el;
+    return true;
+  }
+  function hideSnap() {
+    var list = [snapHost, blankEl];
+    for (var i = 0; i < list.length; i++) {
+      if (!list[i]) { continue; }
+      var st = list[i].style;
+      st.transition = ''; st.opacity = '0'; st.zIndex = '-1';
+      st.transform = ''; st.transformOrigin = ''; st.clipPath = '';
+    }
+    under = null;
+  }
+  function copyHolder(id) { return { id: id, host: null, root: null, name: '', v: 0, sig: '' }; }
+  var FACE = copyHolder('j11page-host'), EDGE = copyHolder('j11curl-host');
+  function ensureCopy(h) {
+    if (h.host && h.host.isConnected) { return; }
+    h.host = d.createElement('div');
+    h.host.id = h.id;
+    h.host.setAttribute('aria-hidden', 'true');
+    try { h.host.inert = true; } catch (e) {}
+    h.host.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0;'
+      + 'overflow:hidden;contain:strict;will-change:transform,opacity';
+    h.root = h.host.attachShadow({ mode: 'open' });
+    h.name = ''; h.v = 0;
+    attachLayer(h.host);
+  }
+  function mountCopy(h, sname, force) {
+    var snap = SNAP[sname] || load(sname);
+    if (!snap) { return false; }
+    try {
+      ensureCopy(h);
+      if (h.name === sname && h.root.childNodes.length
+          && (h.v === snap.v || (!force && h.sig && h.sig === snap.sig))) { return true; }
+      var tree = snapTree(snap);
+      h.root.replaceChildren(tree[0], tree[1]);
+      h.name = sname; h.v = snap.v; h.sig = snap.sig || '';
+      return true;
+    } catch (e) { return false; }
+  }
+  function copyReady(h, sname) {
+    return !!(h.host && h.host.isConnected && h.name === sname && h.root.childNodes.length);
+  }
+  function hideCopy(h) {
+    if (!h.host) { return; }
+    var st = h.host.style;
+    st.transition = ''; st.transform = ''; st.clipPath = '';
+    st.opacity = '0'; st.zIndex = '-1';
+  }
+  var fx = null;
+  function fxPart(z, extra) {
+    var el = d.createElement('div');
+    el.setAttribute('aria-hidden', 'true');
+    el.style.cssText = 'position:fixed;inset:0;pointer-events:none;display:none;'
+      + 'background-repeat:no-repeat;will-change:transform,opacity;z-index:' + z + ';'
+      + (extra || '');
+    attachLayer(el);
+    return el;
+  }
+  function ensureLayers() {
+    if (fx && fx.shield.isConnected && FACE.host && FACE.host.isConnected
+        && EDGE.host && EDGE.host.isConnected) { return; }
+    blankLayer(); ensureHost();
+    fx = {};
+    fx.cast = fxPart(UNDER_Z, 'right:auto;width:' + CAST + 'px');
+    ensureCopy(FACE); fx.page = fxPart(TOP);
+    ensureCopy(EDGE); fx.edge = fxPart(TOP);
+    fx.shield = fxPart(TOP, 'pointer-events:auto;background:transparent');
+  }
+  var appEl = null;
+  function liveRest(on) {
+    if (!appEl || !appEl.isConnected) { appEl = d.querySelector('[data-testid="stApp"]'); }
+    if (!appEl) { return; }
+    try { appEl.style.contentVisibility = on ? 'hidden' : ''; } catch (e) {}
+  }
+  function hideAll() {
+    liveRest(false);
+    hideCopy(FACE); hideCopy(EDGE); hideSnap();
+    if (!fx) { return; }
+    var list = [fx.page, fx.edge, fx.cast, fx.shield];
+    for (var i = 0; i < list.length; i++) {
+      var st = list[i].style;
+      st.display = 'none'; st.transition = ''; st.transform = ''; st.clipPath = ''; st.opacity = '';
+    }
+  }
+  var idleTimer = null;
+  var firstReady = false;
+  var busyUntil = 0, fingerDown = false;
+  function markBusy() { busyUntil = Date.now() + 1200; }
+  function userBusy() { return fingerDown || Date.now() < busyUntil; }
+  function busyWait() { return Math.max(200, busyUntil - Date.now() + 100); }
+  d.addEventListener('touchstart', function () { fingerDown = true; markBusy(); }, { passive: true, capture: true });
+  d.addEventListener('touchend', function (ev) {
+    if (!ev.touches || !ev.touches.length) { fingerDown = false; }
+    markBusy();
+  }, { passive: true, capture: true });
+  d.addEventListener('touchcancel', function () { fingerDown = false; markBusy(); }, { passive: true, capture: true });
+  function idle() {
+    idleTimer = null;
+    if (drag || fired) { return; }
+    if (userBusy()) { idleTimer = setTimeout(idle, busyWait()); return; }
+    if (d.querySelector('[data-testid="stStatusWidget"]')) { idleTimer = setTimeout(idle, firstReady ? 800 : 300); return; }
+    var sname = screenNow();
+    if (!sname) { if (!firstReady) { idleTimer = setTimeout(idle, 300); } return; }
+    firstReady = true;
+    capture(false);
+    ensureLayers();
+    var next = sname === 'watch' ? 'market' : 'watch';
+    var jobs = [];
+    jobs.push(function () { mount(next); });
+    jobs.push(function () { mountCopy(FACE, sname); });
+    jobs.push(function () { mountCopy(EDGE, sname); });
+    (function run() {
+      if (drag || fired) { return; }
+      if (userBusy()) { setTimeout(run, busyWait()); return; }
+      var job = jobs.shift();
+      if (!job || drag || fired) { return; }
+      try { job(); } catch (e) {}
+      setTimeout(run, 60);
+    })();
+  }
+  try {
+    new MutationObserver(function () {
+      if (!firstReady && idleTimer) { return; }
+      if (idleTimer) { clearTimeout(idleTimer); }
+      idleTimer = setTimeout(idle, 1200);
+    }).observe(d.body, { childList: true, subtree: true });
+  } catch (e) {}
+  idleTimer = setTimeout(idle, 300);
+  var scrollTimer = null, capScroll = 0;
+  function scroller() {
+    var main = d.querySelector('[data-testid="stMainBlockContainer"]');
+    for (var n = main && main.parentElement; n && n !== d.body; n = n.parentElement) {
+      if (n.scrollHeight > n.clientHeight + 4) {
+        var how = getComputedStyle(n).overflowY;
+        if (how === 'auto' || how === 'scroll') { return n; }
+      }
+    }
+    return null;
+  }
+  d.addEventListener('scroll', function () {
+    markBusy();
+    if (drag || fired) { return; }
+    if (scrollTimer) { clearTimeout(scrollTimer); }
+    scrollTimer = setTimeout(function afterScroll() {
+      scrollTimer = null;
+      if (userBusy()) { scrollTimer = setTimeout(afterScroll, busyWait()); return; }
+      var sc = scroller(), top = sc ? sc.scrollTop : 0;
+      if (Math.abs(top - capScroll) < (window.innerHeight || 800) * 1.5) { return; }
+      capScroll = top;
+      var sname = screenNow();
+      if (!sname) { return; }
+      capture(true);
+      setTimeout(function () { if (!drag && !fired) { mountCopy(FACE, sname, true); } }, 60);
+      setTimeout(function () { if (!drag && !fired && !userBusy()) { mountCopy(EDGE, sname, true); } }, 140);
+    }, 700);
+  }, { capture: true, passive: true });
+  var DEPTH = 1500;
+  var CURL = 0.3;
+  var BEND = 1.25;
+  var CAST = 56;
+  function outerX(W, c, th) {
+    var xb = W - c, dl = th * BEND;
+    function proj(x, z) { return W + (x - W) * DEPTH / (DEPTH - z); }
+    var bend = proj(xb * Math.cos(th), xb * Math.sin(th));
+    if (c <= 0) { return bend; }
+    var ex = xb * Math.cos(th) + c * Math.cos(th + dl);
+    var ez = xb * Math.sin(th) + c * Math.sin(th + dl);
+    return Math.max(bend, proj(ex, ez));
+  }
+  function angleFor(W, c, dist) {
+    var target = W - dist, lo = 0, hi = Math.PI / 2;
+    for (var i = 0; i < 16; i++) {
+      var mid = (lo + hi) / 2;
+      if (outerX(W, c, mid) > target) { lo = mid; } else { hi = mid; }
+    }
+    return (lo + hi) / 2;
+  }
+  function pageTf(s, W, th) {
+    return 'translateX(' + (-s * W) + 'px) perspective(' + DEPTH + 'px) translateX(' + (s * W) + 'px) '
+      + 'rotateY(' + (s * th).toFixed(4) + 'rad)';
+  }
+  function edgeTf(s, W, c, th) {
+    var xb = W - c;
+    return pageTf(s, W, th) + ' translateX(' + (-s * xb) + 'px) rotateY(' + (s * th * BEND).toFixed(4)
+      + 'rad) translateX(' + (s * xb) + 'px)';
+  }
+  function alignCopy(h) {
+    try {
+      var sc = scroller();
+      if (!sc) { return; }
+      var id = sc.getAttribute('data-testid');
+      var twin = id && h.root.querySelector('[data-testid="' + id + '"]');
+      if (twin) { twin.scrollTop = sc.scrollTop; }
+    } catch (e) {}
+  }
+  function lift(g) {
+    var s = g.sign, W = g.width, c = g.c;
+    var origin = s < 0 ? '0% 50%' : '100% 50%';
+    var faceClip = c ? (s < 0 ? 'inset(0 ' + c + 'px 0 0)' : 'inset(0 0 0 ' + c + 'px)') : '';
+    var edgeClip = s < 0 ? 'inset(0 0 0 ' + (W - c) + 'px)' : 'inset(0 ' + (W - c) + 'px 0 0)';
+    var fs = g.face.host.style;
+    fs.transition = 'none'; fs.transformOrigin = origin; fs.clipPath = faceClip;
+    fs.willChange = 'transform'; fs.zIndex = TOP; fs.opacity = '1';
+    alignCopy(g.face);
+    if (c) {
+      var es = EDGE.host.style;
+      es.transition = 'none'; es.transformOrigin = origin; es.clipPath = edgeClip;
+      es.willChange = 'transform'; es.zIndex = TOP; es.opacity = '1';
+      alignCopy(EDGE);
+    }
+    if (g.snap) { liveRest(true); }
+    var dark = 'rgba(0,0,0,', lite = 'rgba(255,255,255,';
+    var toEdge = s < 0 ? 'to right' : 'to left';
+    var p = fx.page.style, e = fx.edge.style, k = fx.cast.style;
+    p.backgroundImage = 'linear-gradient(' + toEdge + ',' + dark + '0) 0%,' + dark + '.30) 100%)';
+    p.backgroundSize = (W - c) + 'px 100%';
+    p.backgroundPosition = s < 0 ? '0 0' : c + 'px 0';
+    p.transformOrigin = origin; p.clipPath = faceClip;
+    e.backgroundImage = 'linear-gradient(' + toEdge + ',' + dark + '.32) 0%,' + lite + '.26) 12%,'
+      + lite + '.08) 32%,' + dark + '.14) 64%,' + dark + '.46) 100%)';
+    e.backgroundSize = c + 'px 100%';
+    e.backgroundPosition = s < 0 ? (W - c) + 'px 0' : '0 0';
+    e.transformOrigin = origin; e.clipPath = c ? edgeClip : '';
+    k.backgroundImage = 'linear-gradient(' + toEdge + ',' + dark + '.5),' + dark + '0))';
+    p.opacity = '0'; e.opacity = '0'; k.opacity = '0';
+    p.display = 'block'; e.display = c ? 'block' : 'none'; k.display = 'block';
+    fx.shield.style.display = 'block';
+  }
+  function place(g, th, ms) {
+    var s = g.sign, W = g.width, c = g.c;
+    var tr = ms ? 'transform ' + ms + 'ms cubic-bezier(.3,.55,.3,1),opacity ' + ms + 'ms ease' : 'none';
+    var p = Math.min(1, th / (Math.PI / 2));
+    var tf = pageTf(s, W, th);
+    g.face.host.style.transition = tr; g.face.host.style.transform = tf;
+    fx.page.style.transition = tr; fx.page.style.transform = tf; fx.page.style.opacity = String(p);
+    if (c) {
+      var etf = edgeTf(s, W, c, th);
+      EDGE.host.style.transition = tr; EDGE.host.style.transform = etf;
+      fx.edge.style.transition = tr; fx.edge.style.transform = etf;
+      fx.edge.style.opacity = String(Math.min(1, p * 1.8));
+    }
+    var out = outerX(W, c, th);
+    var x = s < 0 ? out : W - out - CAST;
+    fx.cast.style.transition = ms ? 'opacity ' + ms + 'ms ease' : 'none';
+    if (!ms) { fx.cast.style.transform = 'translate3d(' + x.toFixed(1) + 'px,0,0)'; }
+    fx.cast.style.opacity = ms ? '0' : String(Math.min(1, p * 2.5));
+  }
+  function settle(g) {
+    if (!g || still) { hideAll(); return; }
+    place(g, 0, 260);
+    setTimeout(hideAll, 290);
+  }
+  var pending = null;
+  function whenArrived(go, withSnap, tDone) {
+    var t0 = Date.now(), tFlip = 0;
+    var me = pending = { go: go, cover: under, tDone: tDone, cancelled: false };
+    (function check() {
+      if (me.cancelled) { return; }
+      var now = screenNow();
+      var arrived = now === go.to;
+      if (arrived && !tFlip) {
+        tFlip = Date.now();
+        try { mountCopy(FACE, go.to); } catch (e) {}
+        try { mountCopy(EDGE, go.to); } catch (e) {}
+      }
+      var running = !!d.querySelector('[data-testid="stStatusWidget"]');
+      var ready = arrived && Date.now() >= tDone
+        && (!withSnap || !running || Date.now() - tFlip > 1600);
+      var gaveUp = Date.now() - t0 > 9000 || (now !== go.from && !arrived && Date.now() - t0 > 3000);
+      if (!ready && !gaveUp) { setTimeout(check, 40); return; }
+      var cover = me.cover;
+      hideCopy(FACE); hideCopy(EDGE);
+      if (arrived) {
+        try { mountCopy(FACE, go.to); } catch (e) {}
+        try { mountCopy(EDGE, go.to); } catch (e) {}
+      }
+      if (fx) { fx.page.style.display = 'none'; fx.edge.style.display = 'none'; fx.cast.style.display = 'none'; }
+      if (arrived && cover && !still) {
+        liveRest(false);
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            if (me.cancelled) { return; }
+            cover.style.transition = 'opacity .2s ease';
+            cover.style.opacity = '0';
+            setTimeout(function () {
+              if (me.cancelled) { return; }
+              if (pending === me) { pending = null; }
+              hideAll(); fired = false; soon();
+            }, 240);
+          });
+        });
+      } else {
+        if (pending === me) { pending = null; }
+        hideAll(); fired = false; soon();
+      }
+    })();
+  }
+  function soon() {
+    if (idleTimer) { clearTimeout(idleTimer); }
+    idleTimer = setTimeout(idle, 400);
+  }
+  var held = null;
+  function firstTime(ev) {
+    if (ev.__j11seen) { return false; }
+    try { ev.__j11seen = true; } catch (e) {}
+    return true;
+  }
+  function unhook() {
+    if (!held) { return; }
+    try {
+      held.removeEventListener('touchmove', onMove);
+      held.removeEventListener('touchend', onEnd);
+      held.removeEventListener('touchcancel', onCancel);
+    } catch (e) {}
+    held = null;
+  }
+  function hook(node) {
+    unhook();
+    if (!node || node === d || !node.addEventListener) { return; }
+    held = node;
+    node.addEventListener('touchmove', onMove, { passive: true });
+    node.addEventListener('touchend', onEnd, { passive: true });
+    node.addEventListener('touchcancel', onCancel, { passive: true });
+  }
+  function canTake() {
+    return !!(fired && pending && !pending.cancelled && Date.now() >= pending.tDone);
+  }
+  d.addEventListener('touchstart', function (ev) {
+    if (fired && !canTake()) { return; }
+    if (fired) { }
+    else if (drag) { drag = null; hideAll(); }
+    else if (fx && fx.shield.style.display === 'block') { hideAll(); }
+    var helpTap = d.getElementById('j3-help-tap');
+    if (helpTap && helpTap.checked) { live = false; return; }
+    if (d.querySelector('input.j3cz-tap:checked')) { live = false; return; }
+    if (!ev.touches || ev.touches.length !== 1) { live = false; return; }
+    x0 = ev.touches[0].clientX;
+    y0 = ev.touches[0].clientY;
+    if (sideways(ev.target)) { live = false; return; }
+    live = true;
+    hook(ev.target);
+  }, { passive: true });
+  function onMove(ev) {
+    if (!firstTime(ev)) { return; }
+    if (!live || (fired && !drag && !canTake()) || !ev.touches || ev.touches.length !== 1) { return; }
+    var t = ev.touches[0];
+    var dx = t.clientX - x0, dy = t.clientY - y0;
+    if (!drag) {
+      if (Math.abs(dx) < 12) { return; }
+      if (Math.abs(dx) < Math.abs(dy) * 1.5) { live = false; return; }
+      var go = destination(dx);
+      if (!go || !findTarget(go)) { live = false; return; }
+      var take = null;
+      if (fired) {
+        take = pending; take.cancelled = true; pending = null; fired = false;
+        hideCopy(FACE); hideCopy(EDGE);
+        if (fx) { fx.page.style.display = 'none'; fx.edge.style.display = 'none'; fx.cast.style.display = 'none'; }
+      }
+      var W = Math.max(200, d.documentElement.clientWidth || window.innerWidth || 0);
+      drag = { go: go, sign: dx < 0 ? -1 : 1, t0: Date.now(), width: W, c: 0, snap: false, face: null };
+      if (copyReady(FACE, go.from)) {
+        drag.face = FACE;
+      } else if (snapHost && snapRoot && snapMounted === go.from && snapRoot.childNodes.length) {
+        drag.face = { host: snapHost, root: snapRoot };
+      }
+      if (still || !fx || !drag.face) { drag.plain = true; if (take) { hideAll(); } return; }
+      drag.c = copyReady(EDGE, go.from) ? Math.round(W * CURL) : 0;
+      if (drag.face !== FACE) {
+        if (copyReady(FACE, go.to)) {
+          var us = FACE.host.style;
+          us.transition = 'none'; us.transform = ''; us.clipPath = '';
+          us.zIndex = UNDER_Z; us.opacity = '1';
+          under = FACE.host; drag.snap = true;
+        } else {
+          hideSnap();
+          drag.snap = false;
+        }
+      } else {
+        drag.snap = showUnder(go.to);
+      }
+      if (!drag.snap) {
+        drag.plain = true;
+        hideSnap();
+        hideCopy(FACE); hideCopy(EDGE);
+        if (fx) { fx.page.style.display = 'none'; fx.edge.style.display = 'none';
+                  fx.cast.style.display = 'none'; }
+        if (take) { hideAll(); }
+        return;
+      }
+      lift(drag);
+    }
+    if (drag.plain) { return; }
+    var dist = Math.max(0, drag.sign * dx);
+    place(drag, angleFor(drag.width, drag.c, dist), 0);
+  }
+  function release(ev, cancelled) {
+    if (!live) { return; }
+    live = false;
+    unhook();
+    if (!drag) { return; }
+    var g = drag, go = drag.go, width = drag.width, withSnap = drag.snap;
+    var t = ((ev && ev.changedTouches) || [])[0];
+    var dist = t ? Math.max(0, g.sign * (t.clientX - x0)) : 0;
+    var flick = (Date.now() - g.t0) < 260 && dist > 50;
+    drag = null;
+    if (cancelled || !(dist >= width / 3 || flick)) { if (!g.plain) { settle(g); } return; }
+    var hit = findTarget(go);
+    if (!hit) { if (!g.plain) { settle(g); } return; }
+    fired = true;
+    if (!lastCap[go.from] && !d.querySelector('[data-testid="stStatusWidget"]')) { capture(true); }
+    var tDone = Date.now();
+    if (!g.plain) {
+      place(g, Math.PI / 2 * 1.02, 340);
+      tDone += 360;
+      setTimeout(function () {
+        if (!fired || !pending || pending.go !== go || pending.cancelled) { return; }
+        try { mountCopy(FACE, go.to); } catch (e) {}
+        try { mountCopy(EDGE, go.to); } catch (e) {}
+      }, 380);
+    }
+    var delay = (g.plain || !withSnap) ? 0 : 360;
+    function press() {
+      var t = findTarget(go) || hit;
+      try { t.click(); } catch (e) {}
+    }
+    if (delay) { setTimeout(press, delay); } else { press(); }
+    whenArrived(go, withSnap, tDone);
+  }
+  function onEnd(ev) { if (firstTime(ev)) { release(ev, false); } }
+  function onCancel(ev) { if (firstTime(ev)) { release(ev, true); } }
+  d.addEventListener('touchmove', onMove, { passive: true });
+  d.addEventListener('touchend', onEnd, { passive: true });
+  d.addEventListener('touchcancel', onCancel, { passive: true });
+  (function () {
+    var fromY = 0, fromX = 0, hold = false;
+    function boxAt(node) {
+      for (var n = node; n && n !== d.body && n.nodeType === 1; n = n.parentElement) {
+        if (n.scrollHeight > n.clientHeight + 4) {
+          var how = getComputedStyle(n).overflowY;
+          if (how === 'auto' || how === 'scroll') { return n; }
+        }
+      }
+      return scroller();
+    }
+    d.addEventListener('touchstart', function (ev) {
+      if (!ev.touches || ev.touches.length !== 1) { hold = false; return; }
+      fromY = ev.touches[0].clientY;
+      fromX = ev.touches[0].clientX;
+      var box = boxAt(ev.target);
+      hold = !box || box.scrollTop <= 0;
+    }, { passive: true, capture: true });
+    d.addEventListener('touchmove', function (ev) {
+      if (!hold || !ev.cancelable || !ev.touches || ev.touches.length !== 1) { return; }
+      var dy = ev.touches[0].clientY - fromY;
+      var dx = ev.touches[0].clientX - fromX;
+      if (dy > 0 && Math.abs(dy) > Math.abs(dx)) { ev.preventDefault(); }
+    }, { passive: false, capture: true });
+  })();
+  d.addEventListener('change', function (ev) {
+    try {
+      var t = ev.target;
+      if (!t || t.id !== 'j3-help-tap' || !t.checked) { return; }
+      var card = d.querySelector('div.st-key-j3_help_card');
+      if (card) { card.scrollTop = 0; }
+    } catch (e) {}
+  }, true);
+  d.addEventListener('pointerdown', function (ev) {
+    try {
+      var t = ev.target;
+      var hit = t && t.closest && t.closest('div[class*="st-key-jarvis_method_help_close"] button');
+      if (!hit) { return; }
+      var body = d.querySelector('[data-testid="stPopoverBody"]');
+      if (!body) { return; }
+      body.classList.add('j3-help-closing');
+      setTimeout(function () {
+        try { if (body.isConnected) { body.classList.remove('j3-help-closing'); } } catch (e) {}
+      }, 5000);
+    } catch (e) {}
+  }, true);
+})();"""
+
+
+_ZOOM_CLONE_JS = """(function () {
+  var d = document;
+  d.addEventListener('change', function (ev) {
+    var tap = ev.target;
+    if (!tap || !tap.classList || !tap.classList.contains('j3cz-tap') || !tap.checked) { return; }
+    var m = /(?:^|\\s)j3cz-t(\\d+)(?:\\s|$)/.exec(tap.className);
+    var root = tap.closest('.j3cz');
+    if (!m || !root) { return; }
+    var pop = root.querySelector('.j3cz-p' + m[1]);
+    var slot = pop && pop.querySelector('.j3cz-draw');
+    if (!slot || pop.querySelector('svg')) { return; }
+    var cell = root.querySelectorAll('.j3cz-cell')[+m[1]];
+    var svg = cell && cell.querySelector('svg');
+    if (svg) { pop.insertBefore(svg.cloneNode(true), slot); }
+  }, true);
+})();"""
+
+
+def _briefing_swipe_nav() -> None:
+    """손가락으로 밀어 관심종목 ↔ 시장분석을 오간다.
+
+    2026-09-10 상하님 지시 — "오른쪽에서 왼쪽으로 당기면 시장분석으로.
+    넘어갔으면 다시 왼쪽에서 오른쪽으로 당기면 되돌아가게."
+
+    **iframe 안에 손잡이를 붙이면 안 된다 (CLAUDE.md · 첫 판에서 이걸 틀렸다).**
+    `components.html` 이 만드는 작은 iframe은 화면을 다시 그릴 때마다 사라진다.
+    그 안에서 `addEventListener` 를 부르면 손잡이 함수가 **죽은 iframe의 것**이라
+    크롬이 조용히 무시한다. 그래서 첫 판은 폰에서 아무 일도 하지 않았다.
+
+    그래서 iframe은 **심부름만** 한다 — 바깥 화면에 `<script>` 조각을 붙이고
+    끝낸다. 그 안의 코드(`_SWIPE_OUTER_JS`)는 바깥 화면의 것이라 계속 산다.
+    이미 심어 두었으면 다시 심지 않는다.
+
+    **어느 쪽으로 갈지는 화면이 정한다** — 관심종목에는 `.j11b-home`,
+    시장분석에는 `.j11-market-top` 표식이 있다. 손잡이는 밀 때마다 지금 화면을
+    다시 보므로 판이 바뀌어도 스스로 맞춰 간다.
+
+    **단추는 여기서 만들지 않는다** — `_briefing_swipe_buttons` 가 화면 **맨
+    앞에서** 만든다. 까닭은 그 함수 설명에 적어 두었다(판을 두 번 그리지 않기
+    위해서다).
+
+    실패해도 아무 일이 없어야 한다 — 안 되면 예전처럼 하단 막대를 누르시면 된다.
+    """
+    try:
+        import json as _json
+        import streamlit.components.v1 as components
+
+        components.html(
+            "<script>(function(){var d;"
+            "try{d=window.parent&&window.parent.document;}catch(e){return;}"
+            "if(!d||!d.body){return;}"
+            "var c=d.getElementById('j3b-leftover-css');"
+            "if(!c){c=d.createElement('style');c.id='j3b-leftover-css';d.head.appendChild(c);}"
+            "var css=" + _json.dumps(_LEFTOVER_CSS) + ";"
+            "if(c.textContent!==css){c.textContent=css;}"
+            # 차트 큰 창에 그림을 베껴 넣는 손잡이 — 넘기기와 **따로** 심는다. 이미 열려 있는
+            # 폰에 옛 넘기기 코드가 남아 있어도 이것은 새로 들어간다(이름이 다르다).
+            "if(!d.getElementById('j3cz-clone-script')){var z=d.createElement('script');"
+            "z.id='j3cz-clone-script';z.textContent=" + _json.dumps(_ZOOM_CLONE_JS) + ";"
+            "d.body.appendChild(z);}"
+            "if(d.getElementById('j11b-swipe-script')){return;}"
+            "var t=d.createElement('script');t.id='j11b-swipe-script';"
+            "t.textContent=" + _json.dumps(_SWIPE_OUTER_JS) + ";"
+            "d.body.appendChild(t);})();</script>",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
+def _briefing_swipe_buttons() -> None:
+    """미는 손가락이 누를 **숨은 단추 둘**을 화면 **맨 앞에서** 만든다.
+
+    2026-09-10 상하님 지적 — "화면 옆으로 넘기는 게 왜 실시간으로 바로 안 되냐?"
+
+    **판을 두 번 그리고 있었다.** 단추가 화면 **맨 뒤**에 있어서, 한 번 밀면
+      1판 — 관심종목을 처음부터 끝까지 다 그린다(뉴스·카드·그림).
+            그 끝에서야 단추가 눌린 것을 알고 `st.rerun()` 을 부른다.
+      2판 — 그제서야 시장분석을 그린다.
+    1판을 통째로 버리는 셈이라, 손가락은 곧바로 반응해도 화면이 늦게 바뀌었다.
+
+    이제 단추를 **맨 앞**에 둔다. 눌린 것을 화면을 그리기 **전에** 알므로
+    `page` 를 읽을 때 이미 바뀐 값이 나오고, **그 한 판에** 시장분석을 그린다.
+    `st.rerun()` 도 필요 없다 — 부르면 그것이 곧 두 판이다.
+
+    **둘 다 만든다.** 여기서는 아직 어느 화면인지 정하기 전이다. 어느 쪽으로
+    갈지는 손가락 쪽(`_SWIPE_OUTER_JS`)이 화면 표식을 보고 정한다.
+    """
+    st.markdown(
+        "<style>"
+        "div[class*='st-key-j3b_swipe_']{position:absolute!important;"
+        "width:1px!important;height:1px!important;margin:0!important;padding:0!important;"
+        "overflow:hidden!important;opacity:0!important;pointer-events:none!important}"
+        # 들어오는 화면을 따로 펴는 움직임(돌리기)은 2026-09-19 에 뺐다 — 넘기는 동안
+        # 다음 쪽(사진 · 사진이 없으면 빈 종이)이 먼저 화면을 덮고, 진짜 화면이 다 그려지면
+        # 그것을 걷어 낸다(손가락 쪽 _SWIPE_OUTER_JS). 또 펴면 두 번 넘어가 보인다.
+        # 「넘겨서 들어왔다」 표시 칸은 **자리를 차지하지 않게** 한다. 높이는 0 이지만
+        # 칸과 칸 사이 틈(12px)이 하나 더 붙어, 넘겨서 온 화면만 12px 내려앉았다
+        # (2026-09-19 실측 — 처음 열 때 198px, 넘겨서 올 때 210px). 그러면 밑에 깔아
+        # 둔 사진과 진짜 화면이 바뀌는 순간 12px 튄다. 표시는 그대로 남아 있어서
+        # 위의 body:has(...) 는 계속 잡힌다.
+        "div[data-testid='stElementContainer']:has(.j3b-in-left),"
+        "div[data-testid='stElementContainer']:has(.j3b-in-right){display:none!important}"
+        "</style>",
+        unsafe_allow_html=True,
+    )
+    if st.button("시장분석으로", key="j3b_swipe_market"):
+        st.session_state["j3b_slide_in"] = "right"
+        _set_briefing_page("market")
+    if st.button("관심종목으로", key="j3b_swipe_watch"):
+        st.session_state["j3b_slide_in"] = "left"
+        _set_briefing_page("home")
+    # **홈으로 넘기는 숨은 단추도 맨 앞에 둔다** (2026-09-23 저녁 상하님 — "로딩이
+    # 걸리는데 그 안에 손가락으로 페이지 넘기면 오류가 나던지 …").
+    # 손가락은 여태 하단 막대 「홈」(j3b_nav_home)을 눌렀다. 그 단추는 화면 **맨 끝**에
+    # 있어서, 홈으로 가기 전에 지금 화면(시장분석이면 게이지·테마·표 전부)을 처음부터
+    # 끝까지 한 번 더 그렸고, 그 판에서 넘어가면 누른 단추가 든 통이나 그리다 만 조각
+    # (신호 카드 통)이 홈 밑에 남았다 — 흐린 표시도 없이 홈의 일부처럼(온라인 실측 ·
+    # 그리는 중에 넘기면 다섯 번 중 두 번, 판이 끝나길 기다렸다 눌러도 여섯 번 중 네 번).
+    # 여기서는 그리기 전에 넘어가니 남을 조각이 없다. 하는 일은 예전과 똑같다 —
+    # 볼 화면을 적고 홈으로 간다.
+    # 하단 막대 「홈」(_request_briefing_home)도 여기서 넘어간다 — 같은 까닭이다.
+    swipe_home = st.button("홈으로", key="j3b_swipe_home")
+    bar_home = st.session_state.pop("j3b_go_home", False)
+    if swipe_home or bar_home:
+        _set_briefing_page("home")
+        st.switch_page("app.py")
+
+
+def _briefing_slide_in_marker() -> None:
+    """밀어서 넘어오신 판에만 미끄러져 들어오는 표식을 남긴다 (2026-09-10).
+
+    하단 막대로 누르신 판이나 판이 다시 그려질 때는 표식이 없어 그냥 그려진다.
+    """
+    side = st.session_state.pop("j3b_slide_in", "")
+    if side in ("left", "right"):
+        st.markdown(f'<div class="j3b-in-{side}"></div>', unsafe_allow_html=True)
+
+
+def _render_briefing_bottom_nav(active: str) -> None:
+    """종목 브리핑과 시장분석에서 같이 보이는 하단 이동표."""
+    # 시장분석 그림만 글자가 아니라 **직접 그린 그림**이다(2026-08-26 상하님 지시 —
+    # "하단 시장분석 크기 봐라... 노트북처럼 크게 좀 하고, 전체 하단 크기는 맞다,
+    # 그 크기 안에 피자 동그라미 모양을 크게 좀 하라고").
+    # 이유 — ◕ 라는 글자는 기기마다 다른 글꼴이 그린다. 갤럭시는 이 글자를 작게
+    # 그리고 노트북은 크게 그려서, 같은 27px 을 줘도 폰에서만 작아 보였다.
+    # 직접 그리면 어느 기기에서나 같은 크기다.
+    pie = ('<svg class="j3b-pie" viewBox="0 0 32 32" aria-hidden="true">'
+           '<circle cx="16" cy="16" r="13.2" fill="none" stroke="currentColor" stroke-width="2.6"/>'
+           '<path d="M16 16 L16 4.2 A11.8 11.8 0 1 1 4.2 16 Z" fill="currentColor"/></svg>')
+    labels = (("home", "⌂", "홈"), ("watch", "★", "관심종목"),
+              ("market", pie, "시장분석"))
+    items = "".join(
+        f'<span class="j3b-nav-item{" active" if key == active else ""}"><b>{icon}</b>{label}</span>'
+        for key, icon, label in labels
+    )
+    st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>', unsafe_allow_html=True)
+    with st.container(key="j3b_nav_controls"):
+        home_col, watch_col, market_col = st.columns(3, gap="small")
+        # 「홈」은 누르는 순간 표시만 해 두고, 홈으로 넘어가는 일은 화면 **맨 앞**
+        # (_briefing_swipe_buttons)에서 한다 (2026-09-23 저녁). 여기(화면 맨 끝)서 넘어가면
+        # 홈으로 가기 전에 지금 화면을 끝까지 다시 그리고, 이 막대 통이 홈 밑에 남았다
+        # (온라인 실측 · 그리는 중에 누른 여섯 번 중 네 번 — 128px 짜리 빈 통).
+        home_col.button("홈", key="j3b_nav_home", on_click=_request_briefing_home)
+        # **화면을 바꾸면 맨 위로 올라간다** (2026-08-27 상하님 지적 — "맨 위에
+        # 화면이 다 사라졌다"). 브라우저는 화면을 바꿔도 굴려 둔 자리를 그대로
+        # 들고 간다. 관심종목에서 아래로 내려보시다 시장분석을 누르면 그 자리에
+        # 그대로 서서, 맨 위의 「한국테마 →」·「이 테마 설명」 두 단추를 지나친
+        # 자리가 보였다. 예전에는 위에 224px 빈자리가 있어 그것이 가려 줬는데,
+        # 그 빈자리를 없애니 드러났다.
+        # 맨 위로 올리는 일은 **여기서 적어 두지 않는다** (2026-08-29).
+        # _render_stock_briefing 이 화면이 바뀐 것을 보고 그 판 **맨 앞에서**
+        # 바로 올린다. 여기서 적어 두면 그 표시가 판 끝(20개 테마를 다 받은 뒤)
+        # 에서 쓰여, 그동안 내려 보고 계시던 화면을 뿌리치고 끌어올린다.
+        # **판을 두 번 그리지 않는다** (2026-09-13 상하님 — "관심종목·시장분석 둘 다
+        # 왔다 갔다 로딩 2초씩 걸린다").
+        # 이 단추는 화면 **맨 끝**에 있다. 예전에는 `if 단추: … st.rerun()` 이라
+        #   1판 — 지금 화면(시장분석이면 지수·게이지·테마 순위·표 전부)을 끝까지
+        #          다시 그리고, 그 끝에서야 단추가 눌린 것을 알아 st.rerun()
+        #   2판 — 그제서야 가려는 화면을 그렸다.
+        # 1판을 통째로 버리는 셈이었다. 손가락으로 미는 쪽은 2026-09-10에 같은 까닭으로
+        # 단추를 맨 앞에 옮겨 고쳤는데(_briefing_swipe_buttons), 이 막대 단추는 남아 있었다.
+        # 이제 **누르는 순간(on_click)** 볼 화면을 바꿔 둔다 — on_click 은 판을 그리기
+        # **전에** 돌므로 곧바로 가려는 화면 **한 판**만 그린다. st.rerun() 은 안 부른다.
+        # 화면을 맨 위로 올리는 일은 예전처럼 _render_stock_briefing 이 챙긴다.
+        watch_col.button("관심종목", key="j3b_nav_watch",
+                         on_click=_set_briefing_page, args=("home",))
+        market_col.button("시장분석", key="j3b_nav_market",
+                          on_click=_set_briefing_page, args=("market",))
+
+
+def _render_stock_briefing() -> None:
+    # 미리 계산은 이 화면 **맨 끝**에서, 그것도 뉴스가 다 온 뒤에 시작한다
+    # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
+    _briefing_css()
+    # **미는 단추가 먼저다.** page 를 읽기 전에 눌린 것을 알아야 그 한 판에
+    # 바뀐 화면을 그린다. 뒤에 두면 판을 두 번 그린다(위 설명 참고).
+    _briefing_swipe_buttons()
+    # 보시던 화면은 **주소에서** 읽는다 — 폰이 화면을 버렸다 다시 열어도
+    # 관심종목으로 돌아가지 않게 한다(2026-08-29, _briefing_page 참고).
+    page = _briefing_page()
+    _set_briefing_page(page)
+    # **화면이 바뀌면 어느 길로 왔든 맨 위로 올린다** (2026-08-27 상하님 지적 —
+    # "시장분석 맨 위 화면 아직도 그거 해결 안 하고 있다").
+    #
+    # 앞서 단추마다 하나씩 넣었는데, 하나를 빠뜨리면(「더보기 ›」가 그랬다) 그
+    # 길로 들어오실 때 맨 위 두 단추를 지나친 자리에 서게 된다. 브라우저는
+    # 화면을 바꿔도 굴려 둔 자리를 그대로 들고 오기 때문이다.
+    # 이제 단추마다 챙기지 않고 **여기 한 곳에서** 챙긴다 — 직전 화면과 다르면
+    # 무조건 맨 위다. 새 길이 생겨도 빠뜨릴 수가 없다.
+    #
+    # **적어 두지 않고 바로 올린다**(2026-08-29 상하님 지적 — "20개 테마 실시간
+    # 순위 이 부분을 로딩하면서 또다시 맨 위 화면으로 올라가버린다").
+    # 적어 두면 그 표시가 판 **끝**에서 쓰이는데, 시장분석은 20개 테마 자료를
+    # 받느라 끝까지 그리는 데 몇 초가 걸린다. 그동안 상하님은 이미 내려 보고
+    # 계셨고, 마지막에 표시가 쓰이면서 그 손을 뿌리쳤다. 지금 올리면 아직
+    # 그릴 것이 없을 때라 뿌리칠 일이 없다.
+    if st.session_state.get("j3b_last_page") != page:
+        st.session_state["j3b_last_page"] = page
+        scroll_to.now(st, "top")
+    if page == "market":
+        # **시장분석에서도 뒤로가기가 앱 밖으로 나가지 않게 한다**
+        # (2026-08-29 상하님 지시 — "관심종목에서 뒤로 가기 버튼을 시장분석
+        # 에서도 적용시켜라. 모르고 습관적으로 자꾸 누르게 되는데 캡처 화면으로
+        # 자꾸 돌아간다").
+        # 여태 이 표식은 관심종목 화면에만 있었다. 그래서 시장분석에서 처음
+        # 뒤로가기를 누르면 곧장 「어디로 갈까요」 화면으로 빠져나갔다.
+        # 관심종목과 **같은 표식**을 쓴다 — 열쇠가 같으므로 방문기록은
+        # 여전히 한 칸만 쌓인다.
+        back_nav.opened(st, "j3b_backstop")
+        # 밀어서 넘어오신 판에만 표식을 남긴다 — 이 표식이 있는 판만 오른쪽에서
+        # 미끄러져 들어온다. 하단 막대로 누르신 판이나 판이 다시 그려질 때는
+        # 표식이 없어 예전처럼 그냥 그려진다(2026-09-10).
+        _briefing_slide_in_marker()
+        _render_existing_theme_content()
+        _render_briefing_bottom_nav("market")
+        # 왼쪽에서 오른쪽으로 밀면 관심종목으로 되돌아간다(2026-09-10 상하님 지시).
+        _briefing_swipe_nav()
+        return
+    st.session_state["j3b_news_pending"] = False
+    try:
+        briefing_store.ensure_tables()
+        # 기본 4종목을 실제 줄로 옮겨 적어 ×로 지울 수 있게 한다(2026-08-26).
+        briefing_store.ensure_default_extras()
+        setup = briefing_store.all_stocks()
+    except Exception:
+        st.error("종목 브리핑 설정을 불러오지 못했습니다. 기존 미국테마 기능은 계속 사용할 수 있습니다.")
+        _render_existing_theme_content()
+        return
+    selected, extras = setup["selected"], setup["extra"]
+    home_extras = _briefing_home_extras(extras)
+    visible_stocks = selected + home_extras
+    # **시세는 여기서 받지 않는다** (2026-09-10 상하님 지시 — "관심종목 화면
+    # 가볍게 하는 것도 해라").
+    # 여기서 받으면 종목 10개의 시세·그림이 다 올 때까지 **화면에 아무것도
+    # 안 뜬다.** 맨 위 고양이버스도, 뉴스도, 제목도 그 뒤에 있었다.
+    # 히어로와 뉴스는 시세가 필요 없다 — `selected` (저장고 읽기, 빠르다)만
+    # 있으면 그려진다. 그래서 시세는 **카드를 그리기 바로 앞**으로 내렸다.
+    # 스트림릿은 위에서부터 차례로 내보내므로, 그만큼 첫 화면이 먼저 뜬다.
+    try:
+        visual_debug = str(st.query_params.get("visual_debug", "")).strip() == "1"
+    except Exception:
+        visual_debug = False
+    with st.container():
+        if visual_debug:
+            reference_uri = _briefing_asset_uri("visual_reference.png")
+            if reference_uri:
+                st.markdown(
+                    f'<div class="j3b-debug-overlay"><img src="{reference_uri}" alt=""></div>',
+                    unsafe_allow_html=True,
+                )
+        catbus_uri = _briefing_asset_uri("hero_scene.webp")
+        catbus_html = f'<img class="j3b-hero-scene" src="{catbus_uri}" alt="">' if catbus_uri else ""
+        # 틀 밖으로 삐져나오는 버스(2026-09-15 상하님 지시 — 위 CSS 설명 참고).
+        pop_uri = _briefing_asset_uri("hero_catbus_pop.webp") if catbus_uri else ""
+        pop_html = (
+            '<div class="j3b-hero j3b-hero-pop" aria-hidden="true"><div class="j3b-hero-scene">'
+            f'<img class="j3b-hero-pop-bus" src="{pop_uri}" alt=""></div></div>'
+        ) if pop_uri else ""
+        # ↻ 는 그림이 아니라 **진짜 단추**다(2026-08-26 상하님 지시 — "맨 위 상단
+        # 실시간 옆 되돌리기 버튼 저것만 작동하게"). 보이는 것은 아래 span 그대로 두고,
+        # 그 위에 속이 비치는 스트림릿 단추를 겹쳐 둔다. 하단 이동표와 같은 장치다.
+        # 뒤로가기를 한 번 눌러도 이 화면에 머문다(2026-08-26 상하님 지시 —
+        # "뒤로가기 버튼을 누르면 로그인 화면으로 갔다가 다시 메인으로 돌아온다").
+        # 방문기록에 표식을 하나 쌓아 두면 첫 뒤로가기가 그 표식을 지우고 제자리에
+        # 선다. 앞 화면(로그인·메뉴)으로 나가려면 두 번 누르면 된다.
+        back_nav.opened(st, "j3b_backstop")
+        _briefing_slide_in_marker()
+        # 시장분석에서 관심종목으로 돌아올 때 데려올 '맨 위' 자리.
+        # 시장분석 쪽에는 이미 같은 이름의 자리가 있다(_render_existing_theme_content).
+        scroll_to.anchor(st, "top")
+        with st.container(key="j3b_hero_box"):
+            st.markdown(
+                '<div class="j3b-app j11b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'
+                '<div class="j3b-title">JARVIS <b>11</b></div><div class="j3b-sub">미국테마</div></div>'
+                '<div class="j3b-head-actions"><span class="j3b-round">↻</span><span class="j3b-live"><i></i>실시간</span></div>'
+                # 사용자 선정 종목의 로고가 버스 둘레를 돈다(2026-08-28 상하님 지시).
+                f'{catbus_html}{_briefing_orbit_html(selected)}</div>{pop_html}'
+                # 이 화면 표식(.j11b-home)과 같은 덩어리에 둘 규칙(2026-09-23 저녁 · _J3B_HOME_CSS 위).
+                + _J3B_HOME_CSS,
+                unsafe_allow_html=True,
+            )
+            if st.button("↻", key="j3b_hero_refresh"):
+                # 서버가 담아 둔 것을 비우고, **화면도 통째로 새로 연다.**
+                #
+                # 2026-08-27 상하님 지적 — "맨 위 두 단추가 안 나타난다."
+                # 온라인에는 이미 고쳐져 올라가 있었는데 폰만 옛 화면을 붙잡고
+                # 있었다. 어제 상하님 지시로 **손가락으로 당겨 새로고침하는 것을
+                # 막았고**("맨 위 ↻ 저것만 작동하게 할 수 없냐"), 그런데 이 단추는
+                # 서버 기억만 비우고 화면은 안 열었다. 그래서 폰이 새 판을 받을
+                # 길이 없어졌다.
+                #
+                # 이제 이 단추가 진짜 새로고침이다. **누를 때만** 연다 —
+                # 2026-08-26에 이것을 2.5초마다 부르다 화면이 버벅였다.
+                st.session_state["j3b_hard_reload"] = True
+                try:
+                    j3data.clear_runtime_cache()
+                except Exception:
+                    pass
+                try:
+                    briefing_news.clear_cache()
+                except Exception:
+                    pass
+                st.rerun()
+        st.markdown('<div class="j3b-section"><span class="j3b-flag">🇺🇸</span> 미국시장 한줄 브리핑</div>', unsafe_allow_html=True)
+        _render_briefing_news("market")
+        # **추가 검색 종목과 똑같은 짜임이다** (2026-09-10 상하님 지시 —
+        # "사용자선정종목 바로 옆에 종목검색후추가로 하고 디자인 똑같이 해라").
+        # 통 이름을 j3b_extra_header 로 시작하게 두어 그쪽 화면 규칙을 그대로
+        # 탄다 — 규칙이 class*= 부분일치라 이름만 맞추면 자리·글자 크기가 같아진다.
+        # 「더보기 ›」는 뺐다. 그 자리에 검색줄이 앉는다. 시장분석은 하단
+        # 이동막대와 손가락으로 미는 것으로 간다.
+        with st.container(key="j3b_extra_header_sel"):
+            heading_col, search_col = st.columns([4, 6], gap="small")
+            with heading_col:
+                st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목</div>', unsafe_allow_html=True)
+            with search_col:
+                _render_briefing_manage(selected, extras, group="selected")
+        # 여기서부터 시세가 필요하다. 위(히어로·뉴스)는 이미 그려져 있다.
+        cards = j3data.get_briefing_cards(visible_stocks)
+        _render_briefing_grid(selected, cards, removable=True, key="selected",
+                              group="selected")
+        with st.container(key="j3b_extra_header"):
+            heading_col, search_col = st.columns([4, 6], gap="small")
+            with heading_col:
+                st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
+            with search_col:
+                _render_briefing_manage(selected, extras, group="extra")
+        _render_briefing_grid(home_extras, cards, removable=True, key="extra1",
+                              compact=True, group="extra")
+        _render_briefing_bottom_nav("watch")
+        # 오른쪽→왼쪽으로 밀면 시장분석으로 넘어간다(2026-09-10 상하님 지시).
+        _briefing_swipe_nav()
+        news_keys = tuple([("market", None)] + [("company", stock["ticker"]) for stock in visible_stocks])
+        _schedule_briefing_news_refresh(news_keys)
+        # 아직 오는 중이면 **2초마다 지켜본다** (2026-09-02 상하님 —
+        # "「뉴스 불러오는 중」이라고 계속 떠 있다"). 다 왔으면 안 그린다 —
+        # 그러면 이 조각도 더 안 돈다.
+        # 기사 본문을 받는 중이어도 지켜본다(2026-09-17) — 도착하면 다시 그린다.
+        _article_wait_carry()
+        if st.session_state.get("j3b_news_pending") or st.session_state.get(_ARTICLE_WAIT):
+            _briefing_news_watcher(news_keys)
+        # 뉴스가 다 온 뒤에야 순위 9·나스닥 25년치를 미리 챙긴다. 위 줄이 화면을
+        # 다시 그리라고 하면 이 줄까지 오지 않는다 — 그것이 맞다. 아직 뉴스가
+        # 오는 중이라는 뜻이기 때문이다.
+        _warm_after_news(news_keys)
+
+
+def _run_hard_reload_if_requested() -> None:
+    """맨 위 ↻ 를 누르셨으면 브라우저 화면을 통째로 새로 연다 (2026-08-27).
+
+    스트림릿은 `st.markdown`의 `<script>`를 지우므로, 정식으로 내주는
+    `components.html`(작은 iframe)에 한 줄을 담아 바깥 화면을 새로 연다.
+    실패해도 조용히 넘어간다 — 그때는 예전처럼 서버 기억만 비운 셈이다.
+    """
+    if not st.session_state.pop("j3b_hard_reload", False):
+        return
+    try:
+        import streamlit.components.v1 as components
+
+        components.html(
+            "<script>try{window.parent.location.reload();}catch(e){}</script>",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
+def main() -> None:
+    _render_stock_briefing()
+    _run_hard_reload_if_requested()
+
+
+main()
+# 이번 판에 '거기로 내려가라'가 적혀 있으면 한 번 내려가고 지운다(2026-08-09).
+scroll_to.run(st)
+# **이 화면이 언제 판인지** 맨 밑에 작게 적는다 (2026-09-02 상하님 지시).
+# 노트북과 폰을 나란히 놓고 견주시는 자리다 — 같은 숫자면 같은 판이다.
+try:
+    import build_stamp
+
+    build_stamp.render(st)
+except Exception:
+    pass
+
+# ── 「강한 테마 TOP 5」 막대 — 화면에 들어오면 **한 번** 차오르게 (2026-09-17) ─────
+# 상하님 — "마우스나 화면이 그곳으로 스크롤되면 그래프가 왼쪽에서 오른쪽으로 한 번만
+# 움직이게". 「화면에 들어왔다」는 CSS 만으로 알 수 없어 작은 스크립트를 **페이지에
+# 한 번** 심는다(스트림릿은 st.markdown 의 <script> 를 지우므로 iframe 으로 심는다).
+# 카드 옆이 아니라 **맨 끝**에 두는 까닭 — 카드와 「22개 테마」 단추 사이 틈은 px 로
+# 맞춰 둔 자리라, 높이 0 짜리 칸 하나만 끼어도 틈이 벌어진다(2026-09-11 실측).
+# 심은 스크립트는 카드를 0.8초마다 찾아, 처음 보이는 순간 j3-st5-play 를 붙이고
+# 다 차오르면 뗀다. 화면이 다시 그려져도 같은 카드는 다시 안 돈다. 실패해도 막대는
+# 그냥 서 있다 — 지금까지와 같다.
+_ST5_WATCH = """(function(){
+  if (window.__j3St5Watch) { return; }
+  window.__j3St5Watch = true;
+  function arm() {
+    document.querySelectorAll('.j3-st5:not([data-j3-armed])').forEach(function (card) {
+      card.setAttribute('data-j3-armed', '1');
+      if (!('IntersectionObserver' in window)) { return; }
+      var watcher = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) { return; }
+          watcher.disconnect();
+          card.classList.add('j3-st5-play');
+          window.setTimeout(function () { card.classList.remove('j3-st5-play'); }, 1600);
+        });
+      }, { threshold: 0.4 });
+      watcher.observe(card);
+    });
+  }
+  arm();
+  window.setInterval(arm, 800);
+})();"""
+# ── 관심종목 큰 판을 **닫는 움직임** (2026-09-23 밤 상하님 지시) ─────────────────────
+# 카드·한줄 브리핑을 누르면 뜨는 큰 판은 <details> 라, 어두운 바탕을 누르는 순간 브라우저가
+# 닫아 버려 줄어드는 움직임을 보일 틈이 없다. 그 누름을 한 번 붙들어 j3b-closing 을 붙이고
+# (CSS 가 .56초 동안 줄이고 옅게 한다) 그 뒤에 닫는다. 판 안의 뉴스 줄은 제 <details> 라
+# 여기 걸리지 않는다. 움직임을 줄이라는 기기 설정이면 붙들지 않는다.
+_J3B_POP_CLOSE = """(function(){
+  if (window.__j3bPopClose) { return; }
+  window.__j3bPopClose = true;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.addEventListener('click', function (e) {
+    var sum = e.target && e.target.closest
+      ? e.target.closest('summary.j3b-card-summary, summary.j3b-market-news-summary') : null;
+    if (!sum || still) { return; }
+    var box = sum.parentElement;
+    if (!box || !box.open) { return; }
+    e.preventDefault();
+    if (box.classList.contains('j3b-closing')) { return; }
+    box.classList.add('j3b-closing');
+    window.setTimeout(function () {
+      box.open = false;
+      box.classList.remove('j3b-closing');
+    }, 560);
+  }, true);
+})();"""
+try:
+    import json as _json
+    import streamlit.components.v1 as _components
+
+    _components.html(
+        "<script>(function(){try{var d=window.parent.document;"
+        "if(d.getElementById('j3-st5-watch')){return;}"
+        "var s=d.createElement('script');s.id='j3-st5-watch';"
+        f"s.textContent={_json.dumps(_ST5_WATCH)};d.head.appendChild(s);}}catch(e){{}}}})();"
+        # 관심종목 큰 판 닫는 움직임(위 _J3B_POP_CLOSE 설명) — 같은 칸에 싣는다(칸을 더 안 만든다).
+        "(function(){try{var d=window.parent.document;"
+        "if(d.getElementById('j3b-pop-close')){return;}"
+        "var s=d.createElement('script');s.id='j3b-pop-close';"
+        f"s.textContent={_json.dumps(_J3B_POP_CLOSE)};d.head.appendChild(s);}}catch(e){{}}}})();</script>",
+        height=0,
+    )
+except Exception:
+    pass
