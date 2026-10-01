@@ -84,7 +84,7 @@ import jarvis10_ui as j10ui  # noqa: E402
 
 # 계산·화면 조각을 바꾸면 그 모듈의 MODULE_REVISION 과 여기 숫자를 같이 올린다(CLAUDE.md 11).
 _REQUIRED_J10_DATA_REVISION = 2026100101
-_REQUIRED_J10_UI_REVISION = 2026100103
+_REQUIRED_J10_UI_REVISION = 2026100104
 if int(getattr(j10data, "MODULE_REVISION", 0)) < _REQUIRED_J10_DATA_REVISION:
     j10data = importlib.reload(j10data)
 if int(getattr(j10ui, "MODULE_REVISION", 0)) < _REQUIRED_J10_UI_REVISION:

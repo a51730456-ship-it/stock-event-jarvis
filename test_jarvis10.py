@@ -218,6 +218,23 @@ class HtmlTests(unittest.TestCase):
         data["card"]["intraday"] = {"points": [1, 2, 3], "base": 2}
         self.assertIn("for='j10t-n1-hero'", u.kospi_panel_html(data, "n1", "정규장"))
 
+    def test_new_class_names_do_not_restyle_old_parts(self):
+        """새로 넣은 꾸밈 이름이 원래 있던 이름과 겹치면 안 된다 — 그림 글자(.j10-ccap)를 설명 줄(.j10-cap)과 같은 이름으로
+        썼더니 설명 줄이 카드 한가운데로 떠올라 표를 덮었다(2026-10-01 상하님 폰 캡처)."""
+        css = u.page_css("n1")
+        self.assertNotIn(".j10-cap{position:absolute", css)
+        self.assertIn(".j10-ccap{position:absolute", css)
+        # 설명 줄 꾸밈은 하나뿐이다(위치를 바꾸는 규칙이 섞이지 않는다).
+        import re as _re
+        rules = _re.findall(r"\.j10-cap\{[^}]*\}", css)
+        self.assertEqual(1, len(rules), rules)
+        self.assertNotIn("position", rules[0])
+        card = d.index_card(_rising(300))
+        card["intraday"] = {"points": [1, 2, 3], "base": 2}
+        html = u._idx_card("코스닥 지수", card, kr=True, sub="", nonce="n1", key="k")
+        self.assertIn("class='j10-ccap'>당일<", html)
+        self.assertNotIn("class='j10-cap'", html)
+
     def test_line_colors_follow_the_base_line(self):
         """기준선 위는 오른 색, 아래는 내린 색 — 자비스3 선 그림과 같다."""
         svg = u.line_svg([1, 3, 3, 1, 1], 2, "#up", "#dn")

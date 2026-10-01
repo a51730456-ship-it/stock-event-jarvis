@@ -15,7 +15,7 @@ import html as _html
 import json
 import math
 
-MODULE_REVISION = 2026100103
+MODULE_REVISION = 2026100104
 
 # ── 색 ───────────────────────────────────────────────────────────────────────
 KR_UP, KR_DOWN = "#ff5b5b", "#4da6ff"
@@ -106,11 +106,11 @@ def _chart_swap(c: dict, *, kr: bool, w: int, h: int) -> tuple[str, bool]:
     intra = c.get("intraday") or {}
     today = line_svg(intra.get("points"), intra.get("base"), up, down, w=w, h=h)
     if not today:
-        return (f"<div class='j10-swap'><div class='j10-now'>{six}<div class='j10-cap'>6개월</div></div></div>"
+        return (f"<div class='j10-swap'><div class='j10-now'>{six}<div class='j10-ccap'>6개월</div></div></div>"
                 if six else ""), False
     return ("<div class='j10-swap'>"
-            f"<div class='j10-now'>{today}<div class='j10-cap'>당일</div></div>"
-            f"<div class='j10-more'>{six}<div class='j10-cap'>6개월</div></div></div>"), bool(six)
+            f"<div class='j10-now'>{today}<div class='j10-ccap'>당일</div></div>"
+            f"<div class='j10-more'>{six}<div class='j10-ccap'>6개월</div></div></div>"), bool(six)
 
 
 def _tap(nonce: str, key: str) -> str:
@@ -188,7 +188,9 @@ box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006}
 @media (hover:hover) and (pointer:fine){.j10-tapcard:hover{filter:brightness(1.1)}
 .j10-tapcard:hover .j10-now{opacity:0;transform:translateX(-26px);transition:opacity .24s ease-out,transform .24s ease-out}
 .j10-tapcard:hover .j10-more{opacity:1;transform:translateX(0);transition:opacity .24s ease-out,transform .24s ease-out}}
-.j10-cap{position:absolute;left:0;right:0;top:50%;transform:translateY(-54%);color:#ffd1668c;font-size:.7rem;font-weight:800;
+/* 그림 속 「당일·6개월」 글자 — 이름을 카드 설명 줄(.j10-cap)과 **따로** 쓴다. 같은 이름을 썼더니 설명 줄이
+   카드 한가운데로 떠올라 표 위에 겹쳤다(2026-10-01 상하님 폰 캡처). */
+.j10-ccap{position:absolute;left:0;right:0;top:50%;transform:translateY(-54%);color:#ffd1668c;font-size:.7rem;font-weight:800;
 letter-spacing:-.02em;text-align:center;pointer-events:none;z-index:0;text-shadow:0 1px 3px #000b}
 .j10-swap svg{position:relative;z-index:1}
 .j10-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
