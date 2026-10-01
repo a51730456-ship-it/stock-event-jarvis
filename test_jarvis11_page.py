@@ -7,7 +7,10 @@
 자비스3 과 한 탭에서 섞이지 않게 바꾼 이름을 따로 본다.
 """
 
+import contextlib
 import re
+import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -34,11 +37,49 @@ def _visible(app):
     return texts, buttons
 
 
-def _run_market(page: Path):
+def _slow_rankings(seconds: float):
+    """뒤에서 받는 데 시간이 걸리는 테마 순위 — 다 받으면 jarvis3_data 공책에 남긴다(진짜와 같게)."""
+    import jarvis3_data
+
+    def produce():
+        time.sleep(seconds)
+        value = j3t._ranking()
+        with jarvis3_data._CACHE_LOCK:
+            jarvis3_data._CACHE["us_theme_rankings"] = {"at": time.time(), "value": value}
+        return value
+    return produce
+
+
+def _run_market(page: Path, *, cold: bool = False, clicks: bool = True):
+    """시장분석을 그린다. cold — 259종목 자료가 앱 기억에도 파일에도 없는 판(자비스11 은 테마를 뒤로 미룬다)."""
+    if cold:
+        tmp = tempfile.TemporaryDirectory(prefix="j11-empty-")
+        theme_patches = (patch.dict("jarvis3_data._CACHE", {}, clear=True),
+                         patch("jarvis3_data._DISK_DIR", Path(tmp.name)),
+                         patch("jarvis3_data.get_theme_rankings", side_effect=_slow_rankings(1.0)))
+    else:
+        tmp = None
+        theme_patches = (patch.dict("jarvis3_data._CACHE", {"us_theme_rankings": {
+                             "at": time.time(), "value": j3t._ranking()}}),
+                         patch("jarvis3_data.get_theme_rankings", return_value=j3t._ranking()))
+    with contextlib.ExitStack() as stack:
+        for item in theme_patches:
+            stack.enter_context(item)
+        app = _run_market_inner(page, clicks=clicks)
+        if cold:
+            app.j11_after_wait = None
+            time.sleep(1.6)                       # 뒤 일꾼이 다 받기를 기다린 뒤 다시 그린다(지켜보는 조각이 하는 일)
+            app.j11_after_wait = _visible(app.run(timeout=60))
+            app.j11_after_raw = [str(node.value) for node in app.markdown]
+    if tmp is not None:
+        tmp.cleanup()
+    return app
+
+
+def _run_market_inner(page: Path, *, clicks: bool):
     with patch("jarvis3_data.get_market_overview", return_value=j3t._market()), \
          patch("jarvis3_data.get_fear_greed", return_value=j3t._fear_greed()), \
          patch("market_signal_ui._fetch_quotes", return_value={}), \
-         patch("jarvis3_data.get_theme_rankings", return_value=j3t._ranking()), \
          patch("jarvis3_data.get_theme_leaders", return_value=j3t._leaders()), \
          patch("jarvis3_data.get_live_quote", return_value={
              "ok": True, "current": 179.0, "change_pct": 1.0, "from_high_pct": -1.0,
@@ -57,8 +98,11 @@ def _run_market(page: Path):
         app.session_state["authenticated"] = True
         j3t._open_all_details(app)
         app.run(timeout=60)
-        next(node for node in app.button if str(node.key or "") == "j3_pullback_breakout").click().run(timeout=60)
-        next(node for node in app.button if str(node.key or "") == "j3rbf_00").click().run(timeout=60)
+        app.j11_first = _visible(app)
+        app.j11_first_raw = [str(node.value) for node in app.markdown]
+        if clicks:
+            next(node for node in app.button if str(node.key or "") == "j3_pullback_breakout").click().run(timeout=60)
+            next(node for node in app.button if str(node.key or "") == "j3rbf_00").click().run(timeout=60)
     return app
 
 
@@ -109,6 +153,46 @@ class SameScreenTests(unittest.TestCase):
         a, b = _visible(j3), _visible(j11)
         self.assertTrue(any("NVDA" in text for text in b[0]))
         self.assertEqual(a, b)
+
+
+class ThemeLaterTests(unittest.TestCase):
+    """259종목 자료를 새로 받아야 하는 판 — 테마 칸만 「받는 중」, 나머지는 먼저 (2026-10-01 상하님 「1」)."""
+
+    def test_rest_of_the_screen_comes_first_and_themes_fill_in(self):
+        app = _run_market(J11, cold=True, clicks=False)
+        self.assertEqual(len(app.exception), 0, [str(e.value) for e in app.exception])
+        texts, buttons = app.j11_first
+        keys = {key for key, _label in buttons}
+        raw = app.j11_first_raw          # 「받는 중」 칸은 제 꾸밈과 한 덩어리라 꾸밈 든 조각까지 본다
+        self.assertTrue(any("class='j11-theme-wait'" in text for text in raw), "「받는 중」 자리가 없다")
+        self.assertFalse(any("class='j3-st5" in text or 'class="j3-st5' in text for text in raw),
+                         "아직 안 온 테마 카드가 그려졌다")
+        # 테마 자료 없이 먼저 그려야 하는 것들
+        self.assertIn("j3_pullback_breakout", keys, "상승장 단추가 테마를 기다렸다")
+        self.assertIn("j3b_nav_market", keys, "아래 이동막대가 테마를 기다렸다")
+        # 다 받은 뒤 다시 그린 판 — 테마 칸이 채워지고 「받는 중」은 사라진다
+        after_texts, after_buttons = app.j11_after_wait
+        self.assertTrue(any("j3-st5" in text for text in after_texts), "다 받은 뒤에도 테마 카드가 없다")
+        self.assertFalse(any("class='j11-theme-wait'" in text for text in app.j11_after_raw))
+        self.assertIn("btn_j3_theme_rank_open", {key for key, _label in after_buttons})
+
+    def test_opening_a_stock_while_themes_come_waits_for_them(self):
+        """받는 중에 종목 상세를 열면 그 상세는 다 올 때까지 기다린다 — 테마 점수가 빈 채로 나오면 안 된다."""
+        app = _run_market(J11, cold=True, clicks=True)
+        self.assertEqual(len(app.exception), 0, [str(e.value) for e in app.exception])
+        ranking = app.session_state["j3_theme_rankings"]
+        self.assertTrue(ranking.get("ok"), ranking)
+        self.assertFalse(ranking.get("pending"))
+        markdowns = [str(node.value) for node in app.markdown]
+        self.assertTrue(any("종목 선정 근거" in value and "j3-section-title" in value and "<style" not in value
+                            for value in markdowns), "상세가 안 그려졌다")
+
+    def test_ready_data_draws_exactly_like_jarvis3(self):
+        """자료가 이미 있으면 기다리지 않는다 — 「받는 중」 자리가 한 번도 안 생긴다."""
+        app = _run_market(J11, clicks=False)
+        texts, _buttons = app.j11_first
+        self.assertFalse(any("class='j11-theme-wait'" in text for text in app.j11_first_raw))
+        self.assertTrue(any("j3-st5" in text for text in texts))
 
 
 class SourceTests(unittest.TestCase):

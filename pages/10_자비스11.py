@@ -3605,6 +3605,172 @@ def _load_theme_rankings() -> dict:
         return j3data.get_theme_rankings()
 
 
+# ── 22개 테마 자료를 **새로 받아야 할 때만** 화면 뒤로 미룬다 (2026-10-01 상하님 「1」 — 자비스11 만) ──
+# 22개 테마는 259종목 2년치 일봉 한 묶음을 쓴다. 앱 기억(30분)이나 파일(장이 닫혀 있으면 다음 정규장까지 ·
+# 정규장 중 3분)에 있으면 곧바로 세므로 자비스3 과 똑같이 그린다. **둘 다 없을 때만**(미국 정규장 중 30분 넘게
+# 안 열었을 때 · 앱이 막 켜져 파일도 없을 때) 그 묶음을 뒤에서 받고, 이 화면의 나머지(상승장·급락 단추·종목검색·
+# 날짜별 목록·아래 이동막대·손가락 넘기기)를 먼저 그린다. 자비스3 은 그 묶음을 다 받을 때까지 아래가 통째로 비었다
+# (노트북 빈 파일 실측 10.7초). 다 받으면 화면을 한 번 다시 그려 테마 칸을 채운다.
+# 받는 동안 종목 상세를 여시면 그 상세는 다 받을 때까지 기다린다 — 테마 점수가 빈 채로 보이면 안 된다.
+_THEME_WAIT_POLL_SECONDS = 1.0
+_THEME_WAIT_LIMIT_SECONDS = 180.0
+
+
+def _theme_batch_ready() -> bool:
+    """22개 테마가 쓰는 259종목 2년치를 **새로 받지 않고** 쓸 수 있나(앱 기억 · 파일 · 방금 센 순위).
+
+    jarvis3_data 의 공책 규칙을 **읽기만** 한다(값·창은 그쪽 그대로). 모르면 True — 자비스3 처럼 그 자리에서 받는다.
+    """
+    try:
+        now = time.time()
+        with j3data._CACHE_LOCK:
+            ranked = j3data._CACHE.get("us_theme_rankings")
+            if ranked and now - ranked["at"] < j3data.THEME_RANKING_TTL:
+                return True
+            unique = tuple(dict.fromkeys(
+                str(t).strip().upper() for t in j3data._us_batch_tickers() if str(t).strip()))
+            cached = j3data._CACHE.get((unique, "2y", "1d", False))
+            if cached and now - cached["at"] < j3data.US_BATCH_TTL:
+                return True
+        path = j3data._DISK_DIR / f"{j3data._disk_name(unique, '2y', '1d', False)}.pkl"
+        return path.is_file() and now - path.stat().st_mtime <= j3data._disk_fresh_seconds("1d")
+    except Exception:
+        return True
+
+
+@st.cache_resource(show_spinner=False)
+def _theme_fetch_box() -> dict:
+    """뒤에서 받는 일꾼 하나를 서버 전체가 같이 쓴다 — 두 사람이 동시에 열어도 한 번만 받는다."""
+    return {"lock": threading.Lock(), "thread": None}
+
+
+_THEME_FETCH_HOLD_SECONDS = 8.0
+
+
+def _theme_fetch_job() -> None:
+    # 자비스3 이 화면에서 부르던 것을 그대로 뒤에서 부른다 — 받는 차례(자물쇠)도 그대로다.
+    # (다른 받기가 끝나기를 먼저 지켜보게 했더니 다른 일꾼들이 번갈아 자물쇠를 잡는 동안 계속 밀려
+    #  테마가 9초 늦게 찼다 — 2026-10-01 노트북 실측. 그래서 뺐다.)
+    #
+    # **다만 이 받기를 시작한 화면 판이 아래 칸을 다 그릴 때까지는 기다린다.** 259종목을 읽는 계산이
+    # 화면 그리기와 같이 돌면 코어를 나눠 써서 상승장 단추·이동막대가 3초 늦게 나왔다(노트북 실측
+    # 8.1 → 10.9초). 화면 판은 보통 1초 안에 끝난다. 화면이 이 결과를 기다리면(종목 상세를 여셨을 때)
+    # 곧바로 받는다(_ranking_ready 가 urgent 를 켠다).
+    # 화면 판이 끝난 뒤에도 **0.8초 더** 둔다 — 판이 끝나도 그린 조각이 브라우저로 다 나가기 전이면, 259종목
+    # 읽기가 코어를 잡아 그 조각들이 6초 늦게 도착한 판이 있었다(노트북 실측 · 5.8초 → 11.3초).
+    box = _theme_fetch_box()
+    deadline = time.time() + _THEME_FETCH_HOLD_SECONDS
+    try:
+        while time.time() < deadline and not box.get("urgent"):
+            drawing = any(t.is_alive() and t.name == "ScriptRunner.scriptThread" for t in threading.enumerate())
+            if not drawing:
+                settle = time.time() + 0.8
+                while time.time() < settle and not box.get("urgent"):
+                    time.sleep(0.1)
+                break
+            time.sleep(0.1)
+    except Exception:
+        pass
+    try:
+        j3data.get_theme_rankings()       # 결과는 jarvis3_data 공책에 남는다(실패도 3분 동안)
+    except Exception:
+        pass
+    finally:
+        box["urgent"] = False
+
+
+def _theme_fetch_running() -> bool:
+    thread = _theme_fetch_box().get("thread")
+    return bool(thread is not None and thread.is_alive())
+
+
+def _start_theme_fetch() -> None:
+    box = _theme_fetch_box()
+    with box["lock"]:
+        thread = box.get("thread")
+        if thread is not None and thread.is_alive():
+            return
+        # **이름이 「ScriptRunner」로 시작해야 한다.** jarvis3_data 는 이 이름으로 「화면 일」을 알아보고, 다른
+        # 뒤 일꾼(시장 현황 지도 따위)은 화면 일이 도는 동안 비켜선다. 자비스3 에서는 이 받기가 화면 안에서
+        # 돌아 그 대접을 받았다. 이름을 따로 붙였더니 지도 일꾼과 번갈아 받느라 테마가 5초 늦게 찼다
+        # (2026-10-01 노트북 실측 — 1분봉 받기가 지도 받기 뒤에 줄 섰다).
+        thread = threading.Thread(target=_theme_fetch_job, name="ScriptRunner.j11ThemeFetch", daemon=True)
+        box["thread"] = thread
+        thread.start()
+
+
+def _theme_pending_ranking() -> dict:
+    return {"ok": False, "pending": True, "rows": [], "error": None}
+
+
+def _ranking_ready(ranking: dict) -> dict:
+    """테마 자료가 아직 오는 중이면 **다 올 때까지 기다려** 진짜 순위를 준다. 이미 있으면 그대로 준다.
+
+    종목 상세·순위 9·저장 목록 상세처럼 테마 점수를 쓰는 자리 맨 앞에서 부른다.
+    """
+    if not isinstance(ranking, dict) or not ranking.get("pending"):
+        return ranking
+    fresh = st.session_state.get("j3_theme_rankings")
+    if isinstance(fresh, dict) and not fresh.get("pending"):
+        return fresh
+    if not _theme_batch_ready():
+        _start_theme_fetch()
+    box = _theme_fetch_box()
+    thread = box.get("thread")
+    if thread is not None and thread.is_alive():
+        # 일꾼은 화면 일로 대접받으므로(_start_theme_fetch) 화면이 기다리는 동안에도 비켜서지 않는다.
+        # 화면이 끝나기를 기다리며 아직 안 받았으면 곧바로 받게 한다 — 서로 기다리지 않게.
+        box["urgent"] = True
+        with st.spinner(f"미국 {_THEME_COUNT}개 테마와 구성종목을 조회하는 중입니다…"):
+            thread.join(timeout=_THEME_WAIT_LIMIT_SECONDS)
+    fresh = _load_theme_rankings()
+    st.session_state["j3_theme_rankings"] = fresh
+    return fresh
+
+
+def _theme_wait_watch() -> None:
+    """뒤에서 받는 테마 자료가 다 왔는지 1초마다 본다. 다 왔으면 화면을 한 번 다시 그린다.
+
+    이 조각만 돈다 — 시세를 새로 부르지 않는다. 3분이 지나도 안 끝나면 그만 본다(그때도 한 번 다시 그려
+    자비스3 처럼 그 자리에서 받는다).
+    """
+    since = float(st.session_state.get("j11_theme_wait_since") or time.monotonic())
+    st.session_state.setdefault("j11_theme_wait_since", since)
+    if _theme_fetch_running() and time.monotonic() - since < _THEME_WAIT_LIMIT_SECONDS:
+        return
+    st.session_state.pop("j11_theme_wait_since", None)
+    try:
+        st.rerun(scope="app")
+    except Exception:
+        st.rerun()
+
+
+# 높이 274px — 다 받으면 그 자리에 오는 「강한 테마 TOP 5」 카드와 「22개 테마」 단추가 차지하는 높이와 같다.
+# 폭 360·384·412·800·1138·1400·1920px 모두 그 둘의 위끝에서 상승장 단추 위끝까지 306px(실측)이고,
+# 이 칸은 그보다 20px 아래에서 시작하며 칸 사이 틈이 12px 이라 306 − 20 − 12 = 274. 같은 높이라야 테마가
+# 채워질 때 밑의 상승장·급락 목록이 밀려 내려가지 않는다(높이를 안 맞췄을 때 폰 169px · 태블릿 217px 밀렸다).
+_THEME_WAIT_CSS = (
+    "<style>"
+    ".j11-theme-wait{margin:0;padding:15px 16px;border:1px solid #bf925266;border-radius:15px;"
+    "background:linear-gradient(145deg,#06304f26,#001d3c40);color:#cfe3f5;font-size:.98rem;"
+    "font-weight:700;line-height:1.55;min-height:274px;box-sizing:border-box;display:flex;"
+    "align-items:center;justify-content:center;text-align:center}"
+    ".j11-theme-wait b{color:#ffcf6b}"
+    "</style>"
+)
+
+
+def _render_theme_pending() -> None:
+    """테마 칸 자리에 「받는 중」을 두고, 다 오면 다시 그리게 지켜보는 조각을 심는다."""
+    st.markdown(
+        _THEME_WAIT_CSS
+        + f"<div class='j11-theme-wait'><div>⚡ <b>강한 테마 TOP 5 · {_THEME_COUNT}개 테마</b><br>"
+        "259종목 자료를 받는 중입니다.<br>다 받으면 이 자리에 저절로 나타납니다.</div></div>",
+        unsafe_allow_html=True,
+    )
+    st.fragment(_theme_wait_watch, run_every=_THEME_WAIT_POLL_SECONDS)()
+
+
 def _render_leader_comparison(leaders: list[dict]) -> None:
     # 눌러야 열린다(2026-07-30 사용자 지시, 한국테마와 같다). 세 종목 × 차트 세 벌이라
     # 늘 그리면 화면도 길고 받아 오는 것도 많다. 제목은 그대로 두고 안내만 뒤에 붙인다.
@@ -6041,6 +6207,7 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
     오늘 그물에 안 걸릴 수 있다. 그때 엉뚱한 자로 재서 숫자를 만들어 내지 않는다
     (CLAUDE.md 0-1 바 — 빈 자리를 딴 것으로 채우지 않는다).
     """
+    ranking = _ranking_ready(ranking)   # 테마 자료가 오는 중이면 다 올 때까지 기다린다(자비스11)
     part = _picklist_part(kind, row)
     # 고른 종목이 바뀌면 상세·차트가 저절로 열리고 화면이 그 자리로 내려간다.
     if st.session_state.get("j3_picklist_shown") != code:
@@ -6420,6 +6587,16 @@ def _render_theme_section(market: dict) -> None:
 def _render_radar_tab(market: dict) -> None:
     # 네 개의 긴 목록을 닫으면 이 미국테마 메인 시작점으로 돌아온다.
     scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
+    # 259종목 자료를 새로 받아야 하면 뒤에서 받고 테마 칸에는 「받는 중」만 둔다(자비스11 · 위 설명).
+    # 아래 구역은 그 자료 없이 먼저 그린다 — 테마 점수를 쓰는 상세는 _ranking_ready 가 기다린다.
+    if not _theme_batch_ready():
+        _start_theme_fetch()
+        _render_theme_pending()
+        ranking = _theme_pending_ranking()
+        st.session_state["j3_theme_rankings"] = ranking
+        _warm_finders()
+        _render_radar_tail(market, ranking)
+        return
     # 테마 구역은 따로 도는 덩이다. 테마 자료도 그 안에서 싣는다.
     _render_theme_section(market)
     ranking = st.session_state.get("j3_theme_rankings") or {}
@@ -6511,6 +6688,7 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
     이 함수가 하는 일은 이제 **화면에서만 아는 것을 넘겨 주는 것**뿐이다 —
     상하님이 이미 열어 두신 갈래 결과를 넘겨 같은 조회를 두 번 하지 않게 한다.
     """
+    ranking = _ranking_ready(ranking)   # 테마 자료가 오는 중이면 다 올 때까지 기다린다(자비스11)
     market_score = float(market.get("score") or 0)
     opened = st.session_state.get("j3_pullback_result") or {}
     opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
@@ -6753,6 +6931,7 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
     picked = st.session_state.get("j3_top7_pick_row")
     if not picked:
         return
+    ranking = _ranking_ready(ranking)   # 테마 자료가 오는 중이면 다 올 때까지 기다린다(자비스11)
     # 순위 7은 제 이름의 자리를 따로 갖는다 — 안에서 눌림목 상세를 다시 그릴 때
     # 같은 이름이 두 번 생겨 위쪽(갈래 표 밑) 자리로 잘못 내려가는 것을 막는다.
     scroll_to.anchor(st, "detail_top7")
@@ -6833,6 +7012,7 @@ def _render_search_by_part(ruler: str, code: str, found_row: dict,
     목록 안에서 매겨지기 때문이다. 그래서 오늘 그 그물에 안 걸린 종목은
     **없다고 적는다.** 딴 자로 재서 숫자를 만들어 내지 않는다(CLAUDE.md 0-1 바).
     """
+    ranking = _ranking_ready(ranking)   # 테마 자료가 오는 중이면 다 올 때까지 기다린다(자비스11)
     name = str(found_row.get("name") or code)
     if ruler == "상승장":
         with st.spinner(f"{name} — 상승장 배점으로 심사 중입니다…"):
@@ -7036,6 +7216,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     쓴다. 순위 7에서 부를 때는 **줄에 적힌 갈래**를 넘겨야 한다(2026-08-06) —
     안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
     """
+    ranking = _ranking_ready(ranking)   # 테마 자료가 오는 중이면 다 올 때까지 기다린다(자비스11)
     ticker = str(row.get("ticker") or "")
     # **열쇠에 이름표를 붙인다** (2026-09-02 상하님 화면 —
     # "There are multiple elements with the same key='btn_j3_detail_open_pullback'").
@@ -8871,6 +9052,10 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                 _kept_recently(f"j3_pullback_at_{pressed}")
                 and isinstance(st.session_state.get(f"j3_pullback_kept_{pressed}"), dict)
             )
+            # 테마 자료(같은 259종목 2년치)를 뒤에서 받는 중이면 **그것이 끝나기를 기다렸다가** 찾는다(자비스11).
+            # 안 기다리면 찾기가 같은 묶음을 한 번 더 받는다 — 받는 자물쇠는 받은 뒤 공책을 다시 안 본다.
+            if not kept:
+                ranking = _ranking_ready(ranking)
             if kept:
                 st.session_state["j3_pullback_result"] = (
                     st.session_state[f"j3_pullback_kept_{pressed}"]
@@ -9744,8 +9929,11 @@ def _render_existing_theme_content() -> None:
     _render_radar_tab(market)
     # 저장해 둔 목록의 「상위 테마 5개」를 아직 안 남겼으면 여기서 남긴다.
     # **화면을 다 그린 뒤**다 — 앞에 두면 보실 것이 그만큼 밀린다.
-    _autosave_theme15()
-    _autosave_other_parts()
+    # 테마 자료가 아직 오는 중이면 이번 판에는 안 남긴다 — 빈 순위로 남기면 순위 9 가 빠진 채 한 시간 동안
+    # 다시 안 해 본다. 자료가 오면 화면을 한 번 다시 그리므로 그 판에서 남긴다(자비스11).
+    if not (st.session_state.get("j3_theme_rankings") or {}).get("pending"):
+        _autosave_theme15()
+        _autosave_other_parts()
     # 상승장 한 벌을 **뒤 일꾼이** 미리 만들어 둔다 (2026-08-29).
     #
     # 상하님 — "상승장 신고가 눌림매수 첫 클릭하면 로딩 너무 오래 걸린다."
