@@ -106,11 +106,6 @@ if _fresh:
     st.session_state["j10_nonce"] = secrets.token_hex(4)
 _nonce = st.session_state["j10_nonce"]
 
-# 시장분석 판의 칸들(코스닥·환율·미국 지수·외국인·기관)은 **코스피 판을 만드는 동안** 받는다 — 받기만 하는
-# 일이라(계산이 거의 없다) 코스피 판을 늦추지 않는다. 계산이 무거운 시장 국면(한국테마 계산)은 코스피 판과
-# 이동막대를 다 보낸 **뒤에** 시작한다(CLAUDE.md 0-0-1 · 2026-10-01 느린 폰 실측).
-_card_jobs = j10data.market_cards_start()
-
 _kospi = j10data.kospi_panel()
 _phase = j10data.market_phase()
 
@@ -153,6 +148,10 @@ with st.container(key="j10_home_link"):
 with st.container(key="j10_hidden"):
     st.button("다시 받기", key="j10_refresh", on_click=_keep_state)
 
+# 시장분석 판 자료(코스닥·환율·미국 지수·외국인·기관 · 시장 국면)는 코스피 판과 이동막대를 다 보낸 **뒤에** 받기
+# 시작한다(CLAUDE.md 0-0-1). 2026-10-01 에 코스피 판을 만드는 동안 받게 했더니 온라인(계산 일꾼 1~2개)에서 받는
+# 일꾼 일곱이 계산을 나눠 써, 서버가 맨 위 꾸밈을 보내고 코스피 판을 보내기까지 1초가 걸렸다(노트북 0.02초).
+_card_jobs = j10data.market_cards_start()
 _overview_job = j10data.overview_start()
 _cards = j10data.market_cards_collect(_card_jobs)
 _ov = _overview_job.result()

@@ -285,8 +285,11 @@ class PageSourceTests(unittest.TestCase):
         wait = PAGE_SOURCE.index("market_cards_collect(_card_jobs)")
         self.assertLess(PAGE_SOURCE.index("j10ui.nav_html()"), wait)
         self.assertLess(PAGE_SOURCE.index('st.page_link("app.py", label="홈")'), wait)
-        # 무거운 시장 국면 계산은 코스피 판·이동막대를 다 보낸 뒤에 시작한다(CLAUDE.md 0-0-1).
+        # 시장분석 자료 받기·시장 국면 계산은 코스피 판·이동막대를 다 보낸 뒤에 시작한다(CLAUDE.md 0-0-1) —
+        # 먼저 시작하면 온라인 서버(계산 일꾼 1~2개)에서 코스피 판이 1초 늦게 나갔다(2026-10-01 실측).
         self.assertLess(PAGE_SOURCE.index("j10ui.nav_html()"), PAGE_SOURCE.index("j10data.overview_start()"))
+        self.assertLess(PAGE_SOURCE.index("j10ui.kospi_panel_html("), PAGE_SOURCE.index("j10data.market_cards_start()"))
+        self.assertLess(PAGE_SOURCE.index("j10ui.nav_html()"), PAGE_SOURCE.index("j10data.market_cards_start()"))
 
     def test_required_revisions_match_the_modules(self):
         data_req = int(re.search(r"_REQUIRED_J10_DATA_REVISION = (\d+)", PAGE_SOURCE).group(1))
