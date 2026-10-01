@@ -10,11 +10,12 @@ HTML 은 **줄바꿈 없이** 이어 붙인다 — 스트림릿 글 칸(markdown
 """
 from __future__ import annotations
 
+import hashlib
 import html as _html
 import json
 import math
 
-MODULE_REVISION = 2026100101
+MODULE_REVISION = 2026100103
 
 # ── 색 ───────────────────────────────────────────────────────────────────────
 KR_UP, KR_DOWN = "#ff5b5b", "#4da6ff"
@@ -313,6 +314,7 @@ font-size:11px;font-weight:900;vertical-align:1px}
 .j10-papers small{display:block;color:#7f8a99;font-size:10.5px}
 .j10-dont{border-color:#c1975b99;font-size:13px;line-height:1.6;color:#dfe7f0}
 .j10-page{touch-action:pan-y pinch-zoom}
+.j10-defer{display:none!important}
 @media (max-width:420px){.j10-rb{grid-template-columns:132px 1fr 50px}.j10-big{font-size:31px}}
 @media (prefers-reduced-motion:reduce){.j10 *{transition:none!important;animation:none!important}}
 """
@@ -552,6 +554,23 @@ def market_panel_html(cards: dict, overview: dict | None, kospi_card: dict | Non
     return "".join(parts).replace(chr(10), " ")
 
 
+def deferred_html(inner: str) -> str:
+    """시장분석 판을 **글자 꾸러미로** 보낸다 — 폰이 첫 화면을 그린 뒤 넘기기 코드가 펼친다 (2026-10-01).
+
+    서버가 빨라져 시장분석 판이 코스피 판과 같이 도착하자, 폰이 안 보이는 시장분석 판의 글 칸까지 다 읽은 뒤에야
+    첫 화면을 보여 줬다(노트북 느린 폰 — 첫 화면까지 화면 그리는 계산 0.9~1.3초 → 1.5~1.85초). 꾸러미는 빈 칸 하나의
+    속성(data-html)이라 글 칸이 거의 일을 안 하고, 펼치기는 폰의 기본 HTML 읽기라 0.01~0.03초다(실험 — 칸 수 같음).
+    **글상자(textarea)에 담지 않는다** — 화면 부품(React)이 처음 만든 뒤로는 글상자 안을 안 바꿔 ↻ 뒤에도 옛 값이
+    펼쳐졌다(2026-10-01 노트북). 속성은 새 값이 오면 바로 바뀐다. data-key 가 바뀌면 다시 펼친다.
+    넘기기 코드가 없으면 판이 안 펼쳐진다 — 넘기기·이동막대도 그 코드다.
+    """
+    key = hashlib.sha1(inner.encode("utf-8")).hexdigest()[:12]
+    # 따옴표 안이라 & 와 " 만 바꿔 적으면 된다 — ' 까지 바꾸면 글자가 37K → 67K 로 부풀었다(2026-10-01).
+    packed = inner.replace("&", "&amp;").replace('"', "&quot;")
+    return (f"<div hidden class='j10-defer' data-key='{key}' data-html=\"{packed}\"></div>"
+            "<div class='j10-defer-out'></div>")
+
+
 def market_loading_html(nonce: str) -> str:
     """시장분석 판 자리 — 자료를 받는 동안 넘겨도 빈 화면이 아니게 한다(받으면 이 자리에 진짜 판이 들어간다)."""
     return (f"<div class='j10 j10-page' data-page='market' data-run='{_esc(nonce)}'>"
@@ -683,7 +702,7 @@ def nav_html() -> str:
 # 말리는 끝만 한 벌 베껴 얹는다. 서버에는 한 번도 안 묻는다(홈으로 갈 때만 링크를 누른다).
 SWIPE_JS = r"""
 (function () {
-  var VER = 'j10-2';
+  var VER = 'j10-4';
   var w = window, d = document;
   if (w.__j10 && w.__j10.ver === VER) { return; }
   if (w.__j10 && w.__j10.off) { try { w.__j10.off(); } catch (e) {} }
@@ -706,6 +725,36 @@ SWIPE_JS = r"""
     return pg ? pg.getAttribute('data-run') : '';
   }
   function onPage() { return !!box('kospi'); }
+  // 시장분석 판 펼치기 — 서버는 이 판을 숨긴 칸의 속성(.j10-defer data-html)에 담아 보낸다(jarvis10_ui.deferred_html).
+  // 같은 꾸러미(data-key)는 한 번만 펼친다.
+  function inflate() {
+    var all = d.querySelectorAll('.j10-defer');
+    for (var i = 0; i < all.length; i++) {
+      var ta = all[i], out = ta.nextElementSibling;
+      if (ta.closest('[data-stale="true"]') || !out || !out.classList.contains('j10-defer-out')) { continue; }
+      var key = ta.getAttribute('data-key') || '';
+      if (out.getAttribute('data-key') === key) { continue; }
+      out.innerHTML = ta.getAttribute('data-html') || '';
+      out.setAttribute('data-key', key);
+    }
+  }
+  // ↻ 로 새 꾸러미가 오면 바로 다시 펼친다.
+  var mo = null, moTarget = null;
+  function watch(mk) {
+    if (!mk || moTarget === mk) { return; }
+    if (mo) { try { mo.disconnect(); } catch (e) {} }
+    moTarget = mk;
+    try {
+      mo = new MutationObserver(function () {
+        if (!api.alive || !mk.isConnected) { return; }
+        var ta = mk.querySelector('.j10-defer'), out = mk.querySelector('.j10-defer-out');
+        if (ta && out && out.getAttribute('data-key') !== (ta.getAttribute('data-key') || '')) {
+          requestAnimationFrame(inflate);
+        }
+      });
+      mo.observe(mk, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-key'] });
+    } catch (e) {}
+  }
   function current() {
     return d.documentElement.getAttribute('data-j10p') === 'market-' + nonce() ? 'market' : 'kospi';
   }
@@ -813,6 +862,7 @@ SWIPE_JS = r"""
       face.parentElement.insertBefore(under, face);
       st.parts.push(under);
     } else {
+      if (to === 'market') { inflate(); }
       var inner = box(to);
       if (!inner || !inner.querySelector('.j10-page')) { return null; }
       // 다음 판은 자리를 잡아 둔 채 숨어 있다(겉싸개째) — 넘기는 동안만 같은 폭으로 화면 위에 띄운다.
@@ -927,6 +977,7 @@ SWIPE_JS = r"""
     var now = current();
     if (to === now) { toTopOf(box(now)); return; }
     // 서버를 막 켠 직후에는 시장분석 판이 아직 안 왔을 수 있다 — 그때는 아무것도 안 한다(빈 화면 방지).
+    if (to === 'market') { inflate(); }
     if (!box(to) || !box(to).querySelector('.j10-page')) { return; }
     var sign = (to === 'market') ? -1 : 1;
     if (still) { show(to); toTopOf(box(to)); return; }
@@ -1001,6 +1052,8 @@ SWIPE_JS = r"""
   function onClick(ev) {
     // 손이 한 누름만 막는다 — 넘기기 코드가 스스로 누르는 홈·↻ 는 그대로 간다.
     if (ev.isTrusted && Date.now() < quietUntil) { ev.preventDefault(); ev.stopPropagation(); return; }
+    // 설명 창이 아직 꾸러미면 그 자리에서 펼친다 — 단추(label)는 누른 뒤에 열 칸을 찾으므로 바로 열린다.
+    if (ev.target && ev.target.closest && ev.target.closest('.j10-help-btn') && onPage()) { inflate(); }
     var el = ev.target && ev.target.closest ? ev.target.closest('[data-go],[data-j10="refresh"]') : null;
     if (!el || !onPage()) { return; }
     if (el.getAttribute('data-j10') === 'refresh') {
@@ -1018,6 +1071,7 @@ SWIPE_JS = r"""
   d.addEventListener('click', onClick, true);
   api.off = function () {
     api.alive = false;
+    if (mo) { try { mo.disconnect(); } catch (e) {} }
     d.removeEventListener('touchstart', onStart, { capture: true });
     d.removeEventListener('touchmove', onMove, { capture: true });
     d.removeEventListener('touchend', onEnd, { capture: true });
@@ -1035,13 +1089,19 @@ SWIPE_JS = r"""
     var n = onPage() ? nonce() : '';
     if (n && d.documentElement.getAttribute('data-j10warm') === n) { return; }
     var mk = n ? box('market') : null;
-    if (!mk || !mk.querySelector('.j10-grid') || t || g) {
+    if (mk) { watch(mk); }
+    if (!mk || !(mk.querySelector('.j10-defer') || mk.querySelector('.j10-grid')) || t || g) {
       if (warmTries++ < 80) { warmTimer = setTimeout(warm, 300); }
       return;
     }
+    // 첫 화면을 그린 뒤(두 장 뒤) 펼치고, 그다음 장에 자리를 재 둔다 — 한 장에 몰지 않는다.
     requestAnimationFrame(function () { requestAnimationFrame(function () {
       if (t || g) { warmTimer = setTimeout(warm, 300); return; }
-      d.documentElement.setAttribute('data-j10warm', n);
+      inflate();
+      requestAnimationFrame(function () { requestAnimationFrame(function () {
+        if (t || g) { warmTimer = setTimeout(warm, 300); return; }
+        d.documentElement.setAttribute('data-j10warm', n);
+      }); });
     }); });
   }
   api.warm = function () { warmTries = 0; warm(); };
@@ -1068,7 +1128,7 @@ def _inject_frame(components) -> None:
     components.html(
         "<script>(function(){var d;try{d=window.parent&&window.parent.document;}catch(e){return;}"
         "if(!d||!d.body){return;}"
-        "var j=window.parent.__j10;if(j&&j.ver==='j10-2'){try{j.warm();}catch(e){}return;}"
+        "var j=window.parent.__j10;if(j&&j.ver==='j10-4'){try{j.warm();}catch(e){}return;}"
         "var t=d.createElement('script');t.id='j10-swipe-script';"
         "t.textContent=" + json.dumps(SWIPE_JS) + ";d.body.appendChild(t);})();</script>",
         height=0,

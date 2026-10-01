@@ -228,8 +228,36 @@ class HtmlTests(unittest.TestCase):
     def test_turn_does_not_count_as_a_tap(self):
         """넘기다 손을 뗀 직후의 누름은 지수 칸 누름으로 치지 않는다 — 넘기기 코드가 누르는 홈은 간다."""
         self.assertIn("if (ev.isTrusted && Date.now() < quietUntil)", u.SWIPE_JS)
-        self.assertIn("var VER = 'j10-2';", u.SWIPE_JS)
-        self.assertIn("j.ver==='j10-2'", u._inject_frame.__code__.co_consts.__repr__())
+        self.assertIn("var VER = 'j10-4';", u.SWIPE_JS)
+        self.assertIn("j.ver==='j10-4'", u._inject_frame.__code__.co_consts.__repr__())
+
+    def test_market_panel_is_sent_as_a_bundle_and_unpacked_later(self):
+        """시장분석 판은 글자 꾸러미로 보내고 첫 화면 뒤에 펼친다 — 첫 화면을 늦추지 않게(2026-10-01)."""
+        inner = u.market_panel_html({}, None, None, "n1")
+        wrapped = u.deferred_html(inner)
+        self.assertTrue(wrapped.startswith("<div hidden class='j10-defer' data-key='"))
+        # 글 칸이 읽으면 칸은 딱 둘(꾸러미 · 펼칠 자리)이다 — 판 HTML 은 속성 안의 글자일 뿐이다.
+        from html.parser import HTMLParser
+
+        class _Count(HTMLParser):
+            tags: list = []
+
+            def handle_starttag(self, tag, attrs):
+                self.tags.append(tag)
+        counter = _Count()
+        counter.tags = []
+        counter.feed(wrapped)
+        self.assertEqual(["div", "div"], counter.tags)
+        import html as _h
+        body = wrapped[wrapped.index('data-html="') + len('data-html="'):wrapped.index('"></div>')]
+        self.assertNotIn('"', body)
+        self.assertNotIn("&#x27;", body)                                  # ' 는 그대로 — 글자가 부풀지 않게
+        self.assertEqual(inner, _h.unescape(body))                        # 펼치면 그대로 돌아온다
+        self.assertLess(len(wrapped), len(inner) * 1.05 + 200)
+        self.assertIn("j10ui.deferred_html(j10ui.help_sheet_html())", PAGE_SOURCE)
+        self.assertNotEqual(u.deferred_html(inner)[:60], u.deferred_html(inner + " ")[:60])   # 바뀌면 다시 펼친다
+        self.assertIn("j10ui.deferred_html(", PAGE_SOURCE)
+        self.assertIn("if (to === 'market') { inflate(); }", u.SWIPE_JS)
 
     def test_page_turn_matches_jarvis3_shape(self):
         """넘기는 모양은 자비스3 과 같은 숫자(원근 1500 · 끝 0.3 · 더 말림 1.25 · 그늘 56)."""
@@ -287,7 +315,7 @@ class PageRunTests(unittest.TestCase):
         self.assertIn("한국증시 설명", text)
         self.assertIn("j10_refresh", [b.key for b in app.button])
         self.assertIn("j10-nav", text)
-        self.assertIn("data-page='market'", text)
+        self.assertIn("j10-defer", text)       # 시장분석 판은 꾸러미로 간다(첫 화면 뒤에 펼침)
 
 
 if __name__ == "__main__":

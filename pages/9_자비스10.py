@@ -84,7 +84,7 @@ import jarvis10_ui as j10ui  # noqa: E402
 
 # 계산·화면 조각을 바꾸면 그 모듈의 MODULE_REVISION 과 여기 숫자를 같이 올린다(CLAUDE.md 11).
 _REQUIRED_J10_DATA_REVISION = 2026100101
-_REQUIRED_J10_UI_REVISION = 2026100101
+_REQUIRED_J10_UI_REVISION = 2026100103
 if int(getattr(j10data, "MODULE_REVISION", 0)) < _REQUIRED_J10_DATA_REVISION:
     j10data = importlib.reload(j10data)
 if int(getattr(j10ui, "MODULE_REVISION", 0)) < _REQUIRED_J10_UI_REVISION:
@@ -141,7 +141,9 @@ if _fresh:
         _market_slot = st.empty()
     _market_slot.markdown(j10ui.market_loading_html(_nonce), unsafe_allow_html=True)
 
-st.markdown(j10ui.help_sheet_html(), unsafe_allow_html=True)
+# 설명 창도 꾸러미로 보낸다 — 첫 묶음이 커지면 그만큼 코스피 판이 늦게 뜬다(2026-10-01 노트북 느린 폰 실측).
+# 「📘 한국증시 설명」을 먼저 누르면 넘기기 코드가 그 자리에서 펼쳐 바로 열린다.
+st.markdown(j10ui.deferred_html(j10ui.help_sheet_html()), unsafe_allow_html=True)
 st.markdown(j10ui.nav_html(), unsafe_allow_html=True)
 with st.container(key="j10_home_link"):
     try:
@@ -155,8 +157,9 @@ _overview_job = j10data.overview_start()
 _cards = j10data.market_cards_collect(_card_jobs)
 _ov = _overview_job.result()
 # 게이지 꾸밈은 게이지가 있는 이 판에 싣는다 — 첫 화면(코스피 판)이 읽을 꾸밈 글자가 그만큼 준다.
-_market_html = ("<style>" + j10ui.gauge_css().replace("\n", " ") + "</style>"
-                + j10ui.market_panel_html(_cards, _ov, _kospi.get("card"), _nonce))
+# 판은 **글자 꾸러미로** 보낸다 — 폰이 첫 화면을 그린 뒤 넘기기 코드가 펼친다(jarvis10_ui.deferred_html).
+_market_html = j10ui.deferred_html("<style>" + j10ui.gauge_css().replace("\n", " ") + "</style>"
+                                   + j10ui.market_panel_html(_cards, _ov, _kospi.get("card"), _nonce))
 if _market_slot is not None:
     _market_slot.markdown(_market_html, unsafe_allow_html=True)
 else:
