@@ -10751,6 +10751,11 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
     )
     if result.get("pending"):
         st.session_state["j3b_news_pending"] = True
+        if not result.get("items"):
+            # 「불러오는 중」 빈칸으로 그린 자리(자비스11) — 이 자리가 채워질 때만 지켜보는 조각이 다시 그린다.
+            blank = st.session_state.setdefault("j11_news_blank", [])
+            if (kind, ticker) not in blank:
+                blank.append((kind, ticker))
     return result
 
 
@@ -10758,12 +10763,13 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
 _ARTICLE_WAIT_RUN = "j3b_article_wait_run"
 _ARTICLE_WAIT = "j3b_article_wait"
 _ARTICLE_WAIT_SINCE = "j3b_article_wait_since"
-_ARTICLE_RERUN_AT = "j3b_article_rerun_at"
-# 본문이 도착해 다시 그리는 것은 **4초에 한 번까지**, 기다리는 것은 90초까지다.
-# 한 기사에 2~3초가 걸리고(실측) 첫 화면 기사가 20여 개라, 도착할 때마다 그리면
-# 판을 스무 번 그린다(2026-09-10 「판 32번」과 같은 일).
-_ARTICLE_RERUN_GAP = 4.0
-_ARTICLE_WAIT_LIMIT = 90.0
+# **본문은 다 오면 한 번에 채운다** (자비스11 · 2026-10-01 상하님 「다 오면 한 번에」).
+# 자비스3 은 본문이 하나 올 때마다(4초에 한 번까지) 관심종목 판 전체를 다시 그렸다 — 새 기사 본문을 받는
+# 때(앱이 켜진 직후 · 30분마다 뉴스가 바뀔 때) 노트북 실측 12초 동안 4번. 본문은 카드·뉴스를 펼쳐야 보이는
+# 자리라 대부분 헛그리기였다. 이제 기다리던 본문이 다 오면 한 번 그린다. 끝내 안 오는 본문이 있으면
+# 45초에서 끊고 그때까지 온 것을 한 번에 채운다(남은 것은 다음 판에 또 45초까지 기다린다).
+# 펼쳐 둔 기사는 그동안 「본문을 받는 중입니다」로 남는다 — 상하님이 알고 고르신 것이다.
+_ARTICLE_BATCH_SECONDS = 45.0
 
 
 def _article_wait_carry() -> None:
@@ -10776,8 +10782,15 @@ def _article_wait_carry() -> None:
         st.session_state.pop(_ARTICLE_WAIT_SINCE, None)
 
 
+def _article_batch_decision(total: int, left: int, waited: float) -> str:
+    """기다리던 본문 total 개 중 left 개가 아직 안 왔고 waited 초 기다렸다 — 「wait」·「redraw」·「stop」."""
+    if left and waited < _ARTICLE_BATCH_SECONDS:
+        return "wait"                   # 아직 다 안 왔다 — 다 오면(또는 45초가 되면) 한 번에
+    return "redraw" if left < total else "stop"
+
+
 def _article_arrived() -> bool:
-    """지켜보던 기사 중 **도착한 것이 있고** 다시 그릴 때가 됐으면 참.
+    """지켜보던 본문이 **다 왔으면**(또는 45초가 지나 하나라도 왔으면) 한 번 다시 그린다 — 참이면 그린다.
 
     **화면을 다시 그려도 열어 둔 카드는 안 닫힌다** — 2026-09-17 브라우저에서 확인했다
     (<details> 가 같은 자리 그대로 남고 열린 상태도 그대로다). 그래서 카드를 보시는
@@ -10788,19 +10801,17 @@ def _article_arrived() -> bool:
         return False
     now = time.monotonic()
     since = float(st.session_state.get(_ARTICLE_WAIT_SINCE) or now)
-    if now - since > _ARTICLE_WAIT_LIMIT:
-        st.session_state.pop(_ARTICLE_WAIT, None)
-        st.session_state.pop(_ARTICLE_WAIT_SINCE, None)
-        return False
-    if now - float(st.session_state.get(_ARTICLE_RERUN_AT) or 0) < _ARTICLE_RERUN_GAP:
-        return False
     try:
-        arrived = any(not news_reader.pending(url) for url in waiting)
+        left = sum(1 for url in waiting if news_reader.pending(url))
     except Exception:
         return False
-    if arrived:
-        st.session_state[_ARTICLE_RERUN_AT] = now
-    return arrived
+    decision = _article_batch_decision(len(waiting), left, now - since)
+    if decision == "wait":
+        return False
+    # 이번 기다림은 끝 — 다시 그린 판이 아직 안 온 것을 새로 모아 다시 45초까지 지켜본다.
+    st.session_state.pop(_ARTICLE_WAIT, None)
+    st.session_state.pop(_ARTICLE_WAIT_SINCE, None)
+    return decision == "redraw"
 
 
 def _news_article_html(url: str) -> str:
@@ -11374,6 +11385,27 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
     # 그것이 꺼져야 지켜보는 조각도 멈춘다.
 
 
+# 종목 뉴스 빈칸을 채우려고 판 전체를 다시 그리는 간격의 최소값(자비스11 · _briefing_news_watcher 안 설명).
+_NEWS_REDRAW_GAP_SECONDS = 8.0
+
+
+def _news_redraw_now(ready: int, total: int, over: bool, filled_blanks: list,
+                     last_redraw: float, now: float) -> bool:
+    """뉴스가 새로 왔을 때 판 전체를 **지금** 다시 그릴까 (자비스11).
+
+    다 왔거나 너무 오래 기다렸으면 그린다. 아니면 「불러오는 중」 빈칸이던 자리가 채워졌을 때만 —
+    맨 위 시장 브리핑은 곧바로, 종목 뉴스는 지난번 다시 그린 뒤 8초가 지났을 때. 옛 뉴스를 새것으로
+    바꾸는 중인 자리는 다 오면 한 번에 바꾼다.
+    """
+    if over or ready >= total:
+        return True
+    if not filled_blanks:
+        return False
+    if any(key[0] == "market" for key in filled_blanks):
+        return True
+    return now - last_redraw >= _NEWS_REDRAW_GAP_SECONDS
+
+
 @st.fragment(run_every=2)
 def _briefing_news_watcher(keys: tuple = ()) -> None:
     """뉴스가 **도착하는지 지켜보다가** 왔을 때 화면을 다시 그린다 (2026-09-02).
@@ -11425,6 +11457,22 @@ def _briefing_news_watcher(keys: tuple = ()) -> None:
     over = (time.monotonic() - since) > 120
     if ready <= int(seen) and not over:
         return                      # 아직 새로 온 것이 없다 — 화면을 안 건드린다
+    # ── 자비스11: 한 자리 올 때마다 판 전체를 다시 그리지 않는다 (2026-10-01 상하님 「2」) ──────────
+    # 자비스3 은 뉴스 열한 자리(시장 + 종목 열)가 하나 올 때마다 판 전체를 다시 그렸다 — 막 켜진 앱에서
+    # 30초 동안 열 번(노트북 실측). 그런데 대부분은 **옛 뉴스를 새것으로 바꾸는 중**이다(뉴스는 30분마다
+    # 새로 받고, 그동안 옛 뉴스를 그대로 보여 준다). 그런 자리는 다 오면 한 번에 바꾼다.
+    # **「불러오는 중」 빈칸이던 자리**는 계속 그때그때 채운다(2026-08-26 상하님 — 시장 브리핑과 사용자
+    # 선정 종목을 빈칸으로 두면 안 된다). 다만 종목 뉴스는 8초에 한 번까지 모아서 채우고, 맨 위 시장
+    # 브리핑은 오는 즉시 채운다.
+    blank = list(st.session_state.get("j11_news_blank") or [])
+    try:
+        filled = [key for key in blank if briefing_news.peek(*key) != "pending"]
+    except Exception:
+        filled = blank
+    if not _news_redraw_now(ready, len(keys), over, filled,
+                            float(st.session_state.get("j11_news_redraw_at") or 0.0), time.monotonic()):
+        return
+    st.session_state["j11_news_redraw_at"] = time.monotonic()
     st.session_state["j3b_news_watch_seen"] = ready
     if over or ready >= len(keys):
         st.session_state["j3b_news_pending"] = False
@@ -12709,6 +12757,7 @@ def _render_stock_briefing() -> None:
         _briefing_swipe_nav()
         return
     st.session_state["j3b_news_pending"] = False
+    st.session_state["j11_news_blank"] = []          # 이번 판에 빈칸으로 그린 뉴스 자리(_briefing_items 가 채운다)
     try:
         briefing_store.ensure_tables()
         # 기본 4종목을 실제 줄로 옮겨 적어 ×로 지울 수 있게 한다(2026-08-26).

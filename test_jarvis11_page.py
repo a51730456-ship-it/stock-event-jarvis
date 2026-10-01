@@ -106,7 +106,7 @@ def _run_market_inner(page: Path, *, clicks: bool):
     return app
 
 
-def _run_home(page: Path):
+def _run_home(page: Path, news: dict | None = None):
     stocks = {
         "selected": [
             {"position": 1, "ticker": "NVDA", "name": "NVIDIA"},
@@ -122,7 +122,8 @@ def _run_home(page: Path):
          patch("jarvis3_briefing_store.ensure_default_extras"), \
          patch("jarvis3_briefing_store.all_stocks", return_value=stocks), \
          patch("jarvis3_data.get_briefing_cards", return_value=cards), \
-         patch("jarvis3_briefing_news.get_or_schedule", return_value={"ok": True, "items": []}):
+         patch("jarvis3_briefing_news.get_or_schedule",
+               return_value=news if news is not None else {"ok": True, "items": []}):
         app = AppTest.from_file(str(page), default_timeout=30)
         app.secrets["APP_PASSWORD"] = "test"
         app.session_state["authenticated"] = True
@@ -230,6 +231,66 @@ class SourceTests(unittest.TestCase):
         self.assertGreater(len(style_blocks), 5)
         for block in style_blocks:
             self.assertNotIn("/*", block)
+
+
+def _page_function(name: str, **namespace):
+    """자비스11 화면 파일에서 함수 하나만 꺼내 돌려 본다(화면 전체를 띄우지 않고)."""
+    import ast
+
+    tree = ast.parse(J11.read_text(encoding="utf-8"))
+    node = next(item for item in tree.body if isinstance(item, ast.FunctionDef) and item.name == name)
+    module = ast.Module(body=[node], type_ignores=[])
+    exec(compile(module, str(J11), "exec"), namespace)
+    return namespace[name]
+
+
+class NewsRedrawTests(unittest.TestCase):
+    """관심종목 뉴스 — 한 자리 올 때마다 판 전체를 다시 그리지 않는다 (2026-10-01 상하님 「2」).
+
+    옛 뉴스를 새것으로 바꾸는 자리는 다 오면 한 번에. 「불러오는 중」 빈칸은 그때그때 채운다
+    (2026-08-26 상하님 — 시장 브리핑·사용자 선정 종목을 빈칸으로 두면 안 된다) — 시장 브리핑은 곧바로,
+    종목 뉴스는 8초에 한 번까지 모아서.
+    """
+
+    def setUp(self):
+        self.redraw = _page_function("_news_redraw_now", _NEWS_REDRAW_GAP_SECONDS=8.0)
+
+    def test_old_news_being_refreshed_waits_for_all(self):
+        self.assertFalse(self.redraw(5, 11, False, [], 0.0, 100.0))
+        self.assertTrue(self.redraw(11, 11, False, [], 0.0, 100.0))
+
+    def test_blank_market_briefing_fills_at_once(self):
+        self.assertTrue(self.redraw(1, 11, False, [("market", None)], 99.0, 100.0))
+
+    def test_blank_stock_news_is_gathered_every_eight_seconds(self):
+        filled = [("company", "NVDA")]
+        self.assertFalse(self.redraw(3, 11, False, filled, 95.0, 100.0))
+        self.assertTrue(self.redraw(3, 11, False, filled, 91.0, 100.0))
+        self.assertTrue(self.redraw(3, 11, False, filled, 0.0, 100.0), "처음 채우는 것은 기다리지 않는다")
+
+    def test_too_long_wait_draws_anyway(self):
+        self.assertTrue(self.redraw(3, 11, True, [], 99.0, 100.0))
+
+    def test_article_bodies_are_drawn_once_when_all_arrive(self):
+        """기사 본문은 다 오면 한 번에(2026-10-01 상하님 「다 오면 한 번에」) — 끝내 안 오는 것은 45초에서 끊는다."""
+        decide = _page_function("_article_batch_decision", _ARTICLE_BATCH_SECONDS=45.0)
+        self.assertEqual("wait", decide(20, 5, 10.0), "아직 다섯 개가 안 왔으면 안 그린다")
+        self.assertEqual("redraw", decide(20, 0, 10.0), "다 오면 곧바로 한 번")
+        self.assertEqual("redraw", decide(20, 3, 45.0), "45초가 되면 온 만큼 한 번에")
+        self.assertEqual("stop", decide(20, 20, 45.0), "하나도 안 왔으면 헛그리지 않고 그만 본다")
+
+    def test_blank_spots_are_remembered_only_when_nothing_to_show(self):
+        blank_run = _run_home(J11, {"ok": True, "items": [], "pending": True})
+        self.assertEqual(len(blank_run.exception), 0)
+        blank = blank_run.session_state["j11_news_blank"]
+        self.assertIn(("market", None), blank)
+        self.assertIn(("company", "NVDA"), blank)
+        old_news = {"ok": True, "pending": True, "items": [
+            {"sentiment": "neutral", "brief": "옛 뉴스", "headline": "old", "url": "https://example.test/a"}]}
+        refresh_run = _run_home(J11, old_news)
+        self.assertEqual(len(refresh_run.exception), 0)
+        self.assertEqual([], refresh_run.session_state["j11_news_blank"],
+                         "옛 뉴스를 보여 주는 자리는 빈칸이 아니다")
 
 
 if __name__ == "__main__":

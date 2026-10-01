@@ -6,7 +6,8 @@ python tools/build_jarvis11.py <원본> <만들 파일> [--no-rename]
 **자비스11 만 따로 고친 것이 생기면 이 스크립트로 다시 만들지 않는다** — 다시 만들면 그 고친 것이
 사라진다. 그때는 자비스11 파일을 손으로 고친다.
 **2026-10-01 오후부터 자비스11 만의 고침이 있다** — 22개 테마 자료를 새로 받아야 할 때 뒤로 미루기
-(_theme_batch_ready · _start_theme_fetch · _ranking_ready · _render_theme_pending). 이 도구로 다시 만들면 사라진다.
+(_theme_batch_ready · _start_theme_fetch · _ranking_ready · _render_theme_pending) · 관심종목 뉴스·기사 본문을
+모아서 다시 그리기(_news_redraw_now · _article_batch_decision). 이 도구로 다시 만들면 사라진다.
 화면에 보이는 것은 바꾸지 않는다 — 뺀 것은 ① 아무 데서도 부르지 않는 위층 이름 ② 어디에도
 걸리지 않는 꾸밈 규칙 ③ 폰으로 보내는 꾸밈·움직임 코드 안의 설명 글뿐이다.
 """
