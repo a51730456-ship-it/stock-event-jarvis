@@ -14,7 +14,7 @@ import html as _html
 import json
 import math
 
-MODULE_REVISION = 2026093001
+MODULE_REVISION = 2026100101
 
 # ── 색 ───────────────────────────────────────────────────────────────────────
 KR_UP, KR_DOWN = "#ff5b5b", "#4da6ff"
@@ -56,21 +56,67 @@ def _esc(s) -> str:
 
 
 # ── 작은 그림 ────────────────────────────────────────────────────────────────
-def spark(values, *, w: int = 150, h: int = 46, kr: bool = True) -> str:
-    vals = [v for v in (values or []) if v is not None]
-    if len(vals) < 2:
+def line_svg(points, base, up: str, down: str, *, w: int = 150, h: int = 46) -> str:
+    """자비스3 지수 칸과 같은 선 그림 — 점선(기준선) 위는 오른 색, 아래는 내린 색으로 긋는다.
+
+    「당일」은 전날 종가가, 「6개월」은 여섯 달 전 첫 종가가 기준선이다(자비스3 과 같다).
+    좌표는 10배로 잡아 정수로 적는다 — 소수점이 없어 칸마다 글자가 줄어든다(폰은 이 글자를 다 읽는다).
+    """
+    vals = [float(v) for v in (points or []) if v is not None]
+    if len(vals) < 2 or not base:
         return ""
-    lo, hi = min(vals), max(vals)
+    base = float(base)
+    lo, hi = min(vals + [base]), max(vals + [base])
     span = (hi - lo) or 1.0
-    pts = [(i * w / (len(vals) - 1), h - 4 - (v - lo) / span * (h - 8)) for i, v in enumerate(vals)]
-    up = vals[-1] >= vals[0]
-    col = (KR_UP if up else KR_DOWN) if kr else (US_UP if up else US_DOWN)
-    line = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
-    return (f"<svg viewBox='0 0 {w} {h}' preserveAspectRatio='none' class='j10-spark' aria-hidden='true'>"
-            f"<line x1='0' x2='{w}' y1='{pts[0][1]:.1f}' y2='{pts[0][1]:.1f}' class='j10-spark-base'/>"
-            f"<polygon points='0,{h} {line} {w},{h}' fill='{col}' fill-opacity='.13'/>"
-            f"<polyline points='{line}' fill='none' stroke='{col}' stroke-width='1.6' "
-            f"stroke-linejoin='round' vector-effect='non-scaling-stroke'/></svg>")
+    width, height, pad = w * 10, h * 10, 60
+    inner = height - pad * 2
+    step = width / (len(vals) - 1)
+
+    def y(v: float) -> int:
+        return round(pad + inner - (v - lo) / span * inner)
+
+    runs: list = []
+    for i in range(len(vals) - 1):
+        col = up if (vals[i] + vals[i + 1]) / 2 >= base else down
+        if runs and runs[-1][0] == col:
+            runs[-1][1].append(i + 1)
+        else:
+            runs.append((col, [i, i + 1]))
+    by = y(base)
+    area = f"0,{by} " + " ".join(f"{round(i * step)},{y(v)}" for i, v in enumerate(vals)) + f" {width},{by}"
+    lines = "".join("<polyline points='" + " ".join(f"{round(i * step)},{y(vals[i])}" for i in idx)
+                    + f"' stroke='{col}'/>" for col, idx in runs)
+    return (f"<svg viewBox='0 0 {width} {height}' preserveAspectRatio='none' class='j10-spark' aria-hidden='true'>"
+            f"<polygon points='{area}' fill='{up if vals[-1] >= base else down}' fill-opacity='.14'/>"
+            f"<line x1='0' x2='{width}' y1='{by}' y2='{by}'/><g>{lines}</g></svg>")
+
+
+def _chart_swap(c: dict, *, kr: bool, w: int, h: int) -> tuple[str, bool]:
+    """「당일」 그림과 「6개월」 그림을 같은 자리에 겹쳐 둔다(자비스3 지수 칸과 같은 장치).
+
+    누르면 같은 자리에서 바뀐다 — 자리를 새로 만들지 않아 아래 화면이 밀리지 않는다.
+    당일 자료를 못 받았으면 6개월 그림 하나만 두고, 누를 것도 두지 않는다(누르면 빈칸이 되지 않게).
+    """
+    up, down = (KR_UP, KR_DOWN) if kr else (US_UP, US_DOWN)
+    daily = [v for v in (c.get("spark") or []) if v is not None]
+    if len(daily) > 70:                     # 여섯 달 125일 → 이틀에 한 점(끝 값은 남긴다) — 폭 150px 이라 모양은 같다
+        daily = daily[::2] + ([daily[-1]] if (len(daily) - 1) % 2 else [])
+    six = line_svg(daily, daily[0] if daily else None, up, down, w=w, h=h)
+    intra = c.get("intraday") or {}
+    today = line_svg(intra.get("points"), intra.get("base"), up, down, w=w, h=h)
+    if not today:
+        return (f"<div class='j10-swap'><div class='j10-now'>{six}<div class='j10-cap'>6개월</div></div></div>"
+                if six else ""), False
+    return ("<div class='j10-swap'>"
+            f"<div class='j10-now'>{today}<div class='j10-cap'>당일</div></div>"
+            f"<div class='j10-more'>{six}<div class='j10-cap'>6개월</div></div></div>"), bool(six)
+
+
+def _tap(nonce: str, key: str) -> str:
+    """칸 전체를 덮는 누르는 자리 — 숨긴 체크칸을 켰다 껐다 한다(서버에 안 묻는다 · 자바스크립트 없이 된다)."""
+    tap_id = f"j10t-{_esc(nonce)}-{key}"
+    return (f"<input type='checkbox' id='{tap_id}' class='j10-tap'>"
+            f"<label for='{tap_id}' class='j10-tapzone' aria-label='당일·6개월 그림 바꾸기'></label>")
 
 
 def _banner_line(monthly) -> str:
@@ -125,8 +171,25 @@ box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006}
 .j10-hero-row{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:4px}
 .j10-big{font-size:34px;font-weight:900;letter-spacing:-1px;line-height:1.05}
 .j10-chg{font-size:19px;font-weight:850;margin-top:2px}
-.j10-hero-spark{width:150px;text-align:right}.j10-hero-spark small{font-size:10px;color:var(--j10-muted)}
-.j10-spark{width:100%;height:46px;display:block}.j10-spark-base{stroke:#ffffff40;stroke-dasharray:3 3;stroke-width:1}
+.j10-hero-spark{width:150px;flex:0 0 150px}
+.j10-spark{width:100%;height:46px;display:block}
+.j10-spark line{stroke:#ffffff61;stroke-width:1;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
+.j10-spark g{fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.j10-spark polyline{vector-effect:non-scaling-stroke}
+.j10-tapcard{position:relative;cursor:pointer;transition:filter .12s ease-out}.j10-tapcard:active{filter:brightness(1.12)}
+.j10-tap{position:absolute;opacity:0;width:0;height:0;margin:0;pointer-events:none}
+.j10-tapzone{position:absolute;inset:0;z-index:3;border-radius:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.j10-swap{position:relative;overflow:hidden;border-radius:7px}
+.j10-swap>div{position:relative;opacity:1;transform:translateX(0);transition:opacity .5s ease,transform .5s ease}
+.j10-swap .j10-more{position:absolute;inset:0;opacity:0;transform:translateX(26px);pointer-events:none}
+.j10-tap:checked~* .j10-now{opacity:0;transform:translateX(-26px);transition:opacity .24s ease-out,transform .24s ease-out}
+.j10-tap:checked~* .j10-more{opacity:1;transform:translateX(0);transition:opacity .24s ease-out,transform .24s ease-out}
+@media (hover:hover) and (pointer:fine){.j10-tapcard:hover{filter:brightness(1.1)}
+.j10-tapcard:hover .j10-now{opacity:0;transform:translateX(-26px);transition:opacity .24s ease-out,transform .24s ease-out}
+.j10-tapcard:hover .j10-more{opacity:1;transform:translateX(0);transition:opacity .24s ease-out,transform .24s ease-out}}
+.j10-cap{position:absolute;left:0;right:0;top:50%;transform:translateY(-54%);color:#ffd1668c;font-size:.7rem;font-weight:800;
+letter-spacing:-.02em;text-align:center;pointer-events:none;z-index:0;text-shadow:0 1px 3px #000b}
+.j10-swap svg{position:relative;z-index:1}
 .j10-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
 .j10-chip{background:#ffffff0d;border:1px solid #ffffff1c;border-radius:11px;padding:6px 7px;display:flex;flex-direction:column;gap:2px}
 .j10-chip small{color:var(--j10-muted);font-size:11px;font-weight:700}.j10-chip b{font-size:14.5px;font-weight:900}
@@ -170,7 +233,7 @@ color:#fff;text-shadow:0 1px 2px #000a;white-space:nowrap}
 .j10-pos{display:flex;justify-content:space-between;font-size:11px;color:var(--j10-muted);margin-top:6px}.j10-pos b{font-size:12px}
 .j10-flow-amt{font-size:21px;font-weight:900;margin-top:3px}
 .j10-flow-sub{font-size:11.5px;color:var(--j10-note);line-height:1.5;margin-top:4px}
-.j10-fail{color:#ffb4a8;font-size:13px;line-height:1.5}
+.j10-fail{color:#ffb4a8;font-size:13px;line-height:1.5}.j10-cap-plain{color:var(--j10-note);font-size:13px;padding:6px 2px}
 .j10-gauge-cell{grid-column:span 2;min-width:0;overflow:hidden}
 /* 게이지는 한국테마·미국테마의 상자를 그대로 쓴다. 한국증시는 "사라·쉬어라"를 적지 않으므로 상자 맨 밑 행동 문구
    (「신규 매수 보류」·「조건 충족 종목만 매수 심사」)만 감춘다 — 점수·구간은 그대로 보인다(2026-09-30). */
@@ -180,15 +243,26 @@ color:#fff;text-shadow:0 1px 2px #000a;white-space:nowrap}
 .j10-gauge-cell .fg-box-hist{flex:1 1 auto!important;min-width:0!important;width:auto!important}
 .j10-gauge-cell .fg-hist-label{white-space:nowrap!important}
 .j10-gauge-cell .fg-box,.j10-gauge-cell .gauge-box{width:100%!important;max-width:none!important;min-width:0!important;margin:0!important}
-.j10-nav{position:fixed;z-index:1000;bottom:12px;left:50%;transform:translateX(-50%);width:min(430px,calc(100vw - 24px));height:64px;
+/* 아래 이동막대 자리 — **미국테마와 같다** (2026-10-01 상하님 — "맨밑에 홈화면과 시장분석이 겹쳐진다 미국테마 확인해봐라").
+   온라인 앱은 화면 오른쪽 아래에 스트림릿 표시(얼굴 그림 · 붉은 왕관, 오른쪽 끝에서 약 137px · 높이 46px)를 띄운다.
+   그것은 바깥 문서에 있어 이 화면이 덮을 수 없다 — 피해서 놓아야 한다. 미국테마가 그렇게 했다(온라인 실측):
+   폰(600px 이하) = 왼쪽 8px 에서 시작 · 폭 화면의 3분의 2(최대 286.667px) · 높이 50 · 바닥에서 4px
+   태블릿(601~1200px) = 폭 min(430px, 62vw) · 가운데에서 60px 왼쪽 · 높이 48 · 바닥에서 12px
+   PC 는 막대가 가운데 430px 라 표시와 멀다 — 그대로 둔다. 홈을 누르는 자리(.st-key-j10_home_link a)도 같은 숫자를 쓴다. */
+:root{--j10-nw:min(430px,calc(100vw - 24px));--j10-nl:calc(50% - var(--j10-nw) / 2);--j10-nb:12px;--j10-nh:64px}
+@media (max-width:600px){:root{--j10-nw:min(286.667px,66.667vw);--j10-nl:8px;--j10-nb:4px;--j10-nh:50px}}
+@media (min-width:601px) and (max-width:1200px){:root{--j10-nw:min(430px,62vw);--j10-nl:calc(50% - var(--j10-nw) / 2 - 60px);--j10-nb:12px;--j10-nh:48px}}
+.j10-nav{position:fixed;z-index:1000;bottom:var(--j10-nb);left:var(--j10-nl);width:var(--j10-nw);height:var(--j10-nh);
 display:flex;justify-content:space-around;align-items:center;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);
 border:1.6px solid #e2b25ecc;border-radius:20px;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44;backdrop-filter:blur(10px)}
 .j10-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12.5px;font-weight:800;width:33.3%;height:100%;
 cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
 .j10-nav-item svg{width:26px;height:26px}
+@media (max-width:600px){.j10-nav{border-radius:17px}.j10-nav-item{font-size:12px;gap:1px}.j10-nav-item svg{width:23px;height:23px}}
+@media (min-width:601px) and (max-width:1200px){.j10-nav{border-radius:19px}.j10-nav-item{font-size:11px;gap:1px}.j10-nav-item svg{width:21px;height:21px}}
 .st-key-j10_home_link{position:absolute!important;width:1px!important;height:1px!important;margin:0!important;padding:0!important;gap:0!important}
-.st-key-j10_home_link a{position:fixed!important;z-index:1001!important;bottom:12px!important;left:calc(50% - min(215px, calc(50vw - 12px)))!important;
-width:calc(min(430px, calc(100vw - 24px)) / 3)!important;height:64px!important;opacity:0!important;min-height:0!important;margin:0!important}
+.st-key-j10_home_link a{position:fixed!important;z-index:1001!important;bottom:var(--j10-nb)!important;left:var(--j10-nl)!important;
+width:calc(var(--j10-nw) / 3)!important;height:var(--j10-nh)!important;opacity:0!important;min-height:0!important;margin:0!important}
 .st-key-j10_hidden{position:fixed!important;left:-9999px!important;top:-9999px!important;width:1px!important;height:1px!important;overflow:hidden!important}
 .st-key-j10_js,[data-testid="stLayoutWrapper"]:has(> .st-key-j10_js){position:absolute!important;width:0!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important}
 .st-key-j10_row_links{margin-top:-2px}
@@ -247,14 +321,29 @@ font-size:11px;font-weight:900;vertical-align:1px}
 def page_css(nonce: str, extra: str = "") -> str:
     """꾸밈 전부. 어느 판이 보이는지는 html 의 data-j10p 가 이번 판 표시와 같을 때만 따른다."""
     m = f'html[data-j10p="market-{nonce}"]'
-    # 스트림릿 1.59 는 이름 붙인 상자를 겉싸개(stLayoutWrapper)로 한 겹 더 싼다 — 겉싸개도 같이 감춰야
-    # 틈(16px)이 하나 더 생기지 않는다. 넘기는 동안에는 넘기기 코드가 겉싸개까지 잠깐 보이게 한다.
+    nm = f'html:not([data-j10p="market-{nonce}"])'
+    warm, cold = f'[data-j10warm="{nonce}"]', f':not([data-j10warm="{nonce}"])'
+    # 안 보이는 판은 **자리를 잡아 둔 채 숨긴다** (2026-10-01). 아예 빼 두면(display:none) 처음 넘길 때 그 판
+    # 전체의 자리를 그제야 재느라 느린 폰이 0.24~0.37초 멈췄다(온라인 실측 · 칸 637개). 숨긴 판은 흐름 밖
+    # (맨 위 0px · 높이 0 · 넘친 것 잘라 냄)에 같은 폭으로 놓여 자리만 재 둔다.
+    # 다만 **첫 화면이 그려지기 전에는 빼 둔다** — 두 판이 한꺼번에 오면 숨긴 판의 자리 재기가 첫 화면
+    # 그리기에 얹혔다(노트북 느린 폰 1.7초). 첫 화면을 그린 뒤 넘기기 코드가 html 에 data-j10warm 을 단다.
+    # 스트림릿 1.59 는 이름 붙인 상자를 겉싸개(stLayoutWrapper)로 한 겹 더 싼다 — 겉싸개를 숨겨야 판 사이
+    # 틈(16px)이 하나 더 생기지 않는다. 겉싸개가 없는 판(옛 스트림릿)은 상자를 숨긴다.
     wk = '[data-testid="stLayoutWrapper"]:has(> .st-key-j10_page_kospi)'
     wm = '[data-testid="stLayoutWrapper"]:has(> .st-key-j10_page_market)'
+    bk = ':not([data-testid="stLayoutWrapper"]) > .st-key-j10_page_kospi'
+    bm = ':not([data-testid="stLayoutWrapper"]) > .st-key-j10_page_market'
+    parked = ("position:absolute!important;left:0!important;right:0!important;top:0!important;height:0!important;"
+              "min-height:0!important;overflow:hidden!important;visibility:hidden!important;pointer-events:none!important;"
+              "margin:0!important;padding:0!important")
+    nmc, nmw = f'html{cold}:not([data-j10p="market-{nonce}"])', f'html{warm}:not([data-j10p="market-{nonce}"])'
+    mc, mw = f'html{cold}[data-j10p="market-{nonce}"]', f'html{warm}[data-j10p="market-{nonce}"]'
     state = (
-        f'html:not([data-j10p="market-{nonce}"]) .st-key-j10_page_market,'
-        f'html:not([data-j10p="market-{nonce}"]) {wm}{{display:none!important}}'
-        f'{m} .st-key-j10_page_kospi,{m} {wk}{{display:none!important}}'
+        f'{nmc} {wm},{nmc} {bm},{mc} {wk},{mc} {bk}{{display:none!important}}'
+        f'{nmw} {wm},{nmw} {bm},{mw} {wk},{mw} {bk}{{{parked}}}'
+        '[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > .st-key-j10_page_kospi),'
+        '[data-testid="stVerticalBlock"]:has(> .st-key-j10_page_kospi){position:relative}'
         f'html:not([data-j10p="market-{nonce}"]) .j10-nav-item[data-go="kospi"],'
         f'{m} .j10-nav-item[data-go="market"]{{color:#b6ff3b;text-shadow:0 0 8px #b6ff3b88}}'
         f'html:not([data-j10p="market-{nonce}"]) .j10-nav-item[data-go="kospi"] svg,'
@@ -304,13 +393,14 @@ def kospi_panel_html(data: dict, nonce: str, phase: str) -> str:
     card = (data or {}).get("card") or {}
     if card.get("ok"):
         when = f"{_md(card['date'])} · {_esc(phase)}"
+        chart, swaps = _chart_swap(card, kr=True, w=150, h=46)
         parts.append(
-            "<div class='j10-card'>"
-            f"<div class='j10-lbl'>코스피 지수 <small>{when}</small></div>"
+            f"<div class='j10-card{' j10-tapcard' if swaps else ''}'>" + (_tap(nonce, "hero") if swaps else "")
+            + f"<div class='j10-lbl'>코스피 지수 <small>{when}</small></div>"
             "<div class='j10-hero-row'><div>"
             f"<div class='j10-big'>{_num(card['close'])}</div>"
             f"<div class='j10-chg' style='color:{_kr(card['change_pct'])}'>{_pct(card['change_pct'], 2)}</div></div>"
-            f"<div class='j10-hero-spark'>{spark(card.get('spark'))}<small>6개월</small></div></div>"
+            f"<div class='j10-hero-spark'>{chart}</div></div>"
             "<div class='j10-chips'>"
             f"<span class='j10-chip'><small>고점 대비</small><b style='color:{_kr(card.get('dd_pct'))}'>{_pct(card.get('dd_pct'))}</b></span>"
             f"<span class='j10-chip'><small>200일선보다</small><b style='color:{_kr(card.get('ma_pct'))}'>"
@@ -388,19 +478,22 @@ def kospi_panel_html(data: dict, nonce: str, phase: str) -> str:
 
 
 # ── ② 시장분석 판 ────────────────────────────────────────────────────────────
-def _idx_card(label: str, c: dict, *, kr: bool, sub: str, show_dd: bool = True) -> str:
+def _idx_card(label: str, c: dict, *, kr: bool, sub: str, show_dd: bool = True, nonce: str = "", key: str = "") -> str:
+    """지수 한 칸 — **누르면 「당일」↔「6개월」 그림이 같은 자리에서 바뀐다** (2026-10-01 상하님 — "각 지수들 클릭해도
+    미국테마처럼 클릭이 안된다"). 미국테마 지수 칸과 같은 장치다(pages/2_자비스3.py _index_chart_swap)."""
     if not c or not c.get("ok"):
         return f"<div class='j10-card j10-idx'><div class='j10-lbl'>{label}</div><div class='j10-fail'>자료를 못 받았습니다</div></div>"
     col = _kr if kr else _us
+    chart, swaps = _chart_swap(c, kr=kr, w=140, h=40)
     pos = []
     if show_dd and c.get("dd_pct") is not None:
         pos.append(f"<span>고점 대비 <b style='color:{col(c['dd_pct'])}'>{_pct(c['dd_pct'])}</b></span>")
     if c.get("ma_pct") is not None:
         pos.append(f"<span>200일선 <b style='color:{col(c['ma_pct'])}'>{_pct(c['ma_pct'])}</b></span>")
-    return ("<div class='j10-card j10-idx'>"
-            f"<div class='j10-lbl'>{label}</div><div class='j10-val'>{_num(c['close'])}</div>"
+    return (f"<div class='j10-card j10-idx{' j10-tapcard' if swaps else ''}'>" + (_tap(nonce, key) if swaps else "")
+            + f"<div class='j10-lbl'>{label}</div><div class='j10-val'>{_num(c['close'])}</div>"
             f"<div class='j10-sub'><b style='color:{col(c['change_pct'])}'>{_pct(c['change_pct'], 2)}</b> · {sub}</div>"
-            f"<div class='j10-mini'>{spark(c.get('spark'), w=140, h=40, kr=kr)}</div>"
+            f"<div class='j10-mini'>{chart}</div>"
             + (f"<div class='j10-pos'>{''.join(pos)}</div>" if pos else "")
             + "</div>")
 
@@ -432,10 +525,11 @@ def market_panel_html(cards: dict, overview: dict | None, kospi_card: dict | Non
     us_prev = (overview or {}).get("us_prev") or {}
     parts = [f"<div class='j10 j10-page' data-page='market' data-run='{_esc(nonce)}'>",
              "<div class='j10-sec'>한국 <small>코스피 지수 · 코스닥 지수 · 환율 · 수급</small></div><div class='j10-grid'>",
-             _idx_card("코스피 지수", k, kr=True, sub=_md(k.get("date", "")) if k else ""),
-             _idx_card("코스닥 지수", cards.get("KOSDAQ") or {}, kr=True, sub=_md((cards.get("KOSDAQ") or {}).get("date", ""))),
+             _idx_card("코스피 지수", k, kr=True, sub=_md(k.get("date", "")) if k else "", nonce=nonce, key="kospi"),
+             _idx_card("코스닥 지수", cards.get("KOSDAQ") or {}, kr=True, sub=_md((cards.get("KOSDAQ") or {}).get("date", "")),
+                       nonce=nonce, key="kosdaq"),
              _idx_card("원/달러 환율", cards.get("USDKRW") or {}, kr=True, sub=_md((cards.get("USDKRW") or {}).get("date", "")),
-                       show_dd=False),
+                       show_dd=False, nonce=nonce, key="usdkrw"),
              _flow_card(cards.get("FLOW"))]
     if overview and overview.get("ok"):
         parts.append("<div class='j10-gauge-cell j10-regime'>"
@@ -447,7 +541,7 @@ def market_panel_html(cards: dict, overview: dict | None, kospi_card: dict | Non
     for symbol, label in (("NQ=F", "나스닥100 선물"), ("^IXIC", "나스닥 종합"), ("^GSPC", "S&amp;P 500"), ("^DJI", "다우존스")):
         c = cards.get(symbol) or {}
         sub = ("선물 · " if symbol == "NQ=F" else "") + _md(c.get("date", "")) + (" 장 마감" if symbol != "NQ=F" else "")
-        parts.append(_idx_card(label, c, kr=False, sub=sub))
+        parts.append(_idx_card(label, c, kr=False, sub=sub, nonce=nonce, key="".join(ch for ch in symbol if ch.isalnum()).lower()))
     parts.append("<div class='j10-gauge-cell j10-regime'>"
                  + regime_gauge_ui.regime_box_html(us_prev.get("market_overview"), title="(미국) 시장 국면", note_prefix=" : ")
                  + "</div>")
@@ -456,6 +550,13 @@ def market_panel_html(cards: dict, overview: dict | None, kospi_card: dict | Non
     parts.append("</div><div class='j10-foot center'>미국 두 게이지와 한국 시장 국면은 미국테마·한국테마와 같은 계산입니다</div></div>")
     # 게이지 조각에 줄바꿈이 섞여 오면 글 칸(markdown)이 빈 줄에서 HTML 을 끊는다 — 한 줄로 만든다.
     return "".join(parts).replace(chr(10), " ")
+
+
+def market_loading_html(nonce: str) -> str:
+    """시장분석 판 자리 — 자료를 받는 동안 넘겨도 빈 화면이 아니게 한다(받으면 이 자리에 진짜 판이 들어간다)."""
+    return (f"<div class='j10 j10-page' data-page='market' data-run='{_esc(nonce)}'>"
+            "<div class='j10-sec'>한국 <small>코스피 지수 · 코스닥 지수 · 환율 · 수급</small></div>"
+            "<div class='j10-card'><div class='j10-cap-plain'>시장분석 자료를 받는 중입니다…</div></div></div>")
 
 
 def gauge_css() -> str:
@@ -582,7 +683,7 @@ def nav_html() -> str:
 # 말리는 끝만 한 벌 베껴 얹는다. 서버에는 한 번도 안 묻는다(홈으로 갈 때만 링크를 누른다).
 SWIPE_JS = r"""
 (function () {
-  var VER = 'j10-1';
+  var VER = 'j10-2';
   var w = window, d = document;
   if (w.__j10 && w.__j10.ver === VER) { return; }
   if (w.__j10 && w.__j10.off) { try { w.__j10.off(); } catch (e) {} }
@@ -663,6 +764,29 @@ SWIPE_JS = r"""
 
   // ── 한 번의 넘김 ──
   var g = null;          // 지금 넘기는 중인 것
+  var UNDER_KEYS = ['display', 'position', 'left', 'right', 'top', 'width', 'height', 'overflow', 'visibility', 'z-index',
+    'background', 'pointer-events'];
+  function imp(el, props) {
+    for (var k in props) { if (props.hasOwnProperty(k)) { el.style.setProperty(k, props[k], 'important'); } }
+  }
+  function edgeCopy(face, rect, vh) {
+    var page = face.querySelector('.j10-page');
+    if (!page) { return null; }
+    var shell = page.cloneNode(false);           // .j10 .j10-page — 꾸밈 이름은 그대로 두고 속은 비운다
+    var cs = getComputedStyle(page);
+    shell.style.cssText = 'font-size:' + cs.fontSize + ';line-height:' + cs.lineHeight + ';font-family:'
+      + cs.fontFamily + ';color:' + cs.color + ';';
+    var kids = page.children;
+    for (var i = 0; i < kids.length; i++) {
+      var r = kids[i].getBoundingClientRect();
+      if (!r.height || r.bottom < -40 || r.top > vh + 40) { continue; }
+      var c = kids[i].cloneNode(true);
+      c.style.position = 'absolute'; c.style.left = (r.left - rect.left) + 'px'; c.style.top = (r.top - rect.top) + 'px';
+      c.style.width = r.width + 'px'; c.style.margin = '0'; c.style.boxSizing = 'border-box';
+      shell.appendChild(c);
+    }
+    return shell;
+  }
   function fixedBox(rect, z) {
     var el = d.createElement('div');
     el.setAttribute('aria-hidden', 'true');
@@ -689,21 +813,14 @@ SWIPE_JS = r"""
       face.parentElement.insertBefore(under, face);
       st.parts.push(under);
     } else {
-      under = box(to);
-      if (!under || !under.querySelector('.j10-page')) { return null; }
-      // 겉싸개(stLayoutWrapper)도 감춰져 있다 — 넘기는 동안만 보이게 한다(끝나면 걷는다).
-      var uw = under.parentElement;
-      if (uw && uw.getAttribute('data-testid') === 'stLayoutWrapper') {
-        uw.style.setProperty('display', 'flex', 'important');
-        st.underWrap = uw;
-      }
-      under.style.setProperty('display', 'flex', 'important');
-      under.style.position = 'fixed';
-      under.style.left = rect.left + 'px'; under.style.top = top + 'px';
-      under.style.width = W + 'px'; under.style.height = (vh - top) + 'px';
-      under.style.overflow = 'hidden'; under.style.zIndex = '3';
-      under.style.background = '#031023';
-      under.style.pointerEvents = 'none';
+      var inner = box(to);
+      if (!inner || !inner.querySelector('.j10-page')) { return null; }
+      // 다음 판은 자리를 잡아 둔 채 숨어 있다(겉싸개째) — 넘기는 동안만 같은 폭으로 화면 위에 띄운다.
+      var pw = inner.parentElement;
+      under = (pw && pw.getAttribute('data-testid') === 'stLayoutWrapper') ? pw : inner;
+      imp(under, { display: 'flex', position: 'fixed', left: rect.left + 'px', right: 'auto', top: top + 'px', width: W + 'px',
+        height: (vh - top) + 'px', overflow: 'hidden', visibility: 'visible', 'z-index': '3',
+        background: '#031023', 'pointer-events': 'none' });
     }
     st.under = under;
     // 지금 판(진짜 화면)을 들어 올린다 — 말리는 끝(폭의 3할)은 잘라 내고 따로 얹는다.
@@ -713,10 +830,14 @@ SWIPE_JS = r"""
     // 넘어오는 종이는 **비치지 않는다** — 카드 사이 빈 곳이 투명하면 밑의 다음 판 글자가 겹쳐 보였다(2026-09-30 실측).
     fs.background = '#031023';
     fs.clipPath = sign < 0 ? 'inset(0 ' + c + 'px 0 0)' : 'inset(0 0 0 ' + c + 'px)';
-    // 말리는 끝 — 지금 판을 한 벌 베껴 같은 자리에 얹는다.
-    var edge = face.cloneNode(true);
+    // 말리는 끝 — 지금 판에서 **화면에 보이는 칸만** 베껴 같은 자리에 얹는다(판 전체를 베끼면 느린 폰이
+    // 그 칸들의 자리를 다 새로 쟀다). 못 베끼면 예전처럼 통째로 베낀다.
+    var edge = edgeCopy(face, rect, vh);
+    if (!edge) {
+      edge = face.cloneNode(true);
+      edge.className = edge.className.replace(/st-key-\S+/g, '');
+    }
     edge.classList.add('j10-clone');
-    edge.className = edge.className.replace(/st-key-\S+/g, '');
     edge.setAttribute('aria-hidden', 'true');
     var es = edge.style;
     es.position = 'fixed'; es.left = rect.left + 'px'; es.top = rect.top + 'px'; es.width = W + 'px';
@@ -780,10 +901,8 @@ SWIPE_JS = r"""
     }
     if (st.under && st.to !== 'home') {
       var us = st.under.style;
-      ['display', 'position', 'left', 'top', 'width', 'height', 'overflow', 'z-index', 'background', 'pointer-events']
-        .forEach(function (k) { us.removeProperty(k); });
+      UNDER_KEYS.forEach(function (k) { us.removeProperty(k); });
     }
-    if (st.underWrap) { st.underWrap.style.removeProperty('display'); }
   }
   function finish(st) {
     var MS = still ? 0 : 300;
@@ -843,6 +962,7 @@ SWIPE_JS = r"""
 
   // ── 손가락 ──
   var t = null;          // 닿은 손가락
+  var quietUntil = 0;    // 넘기다 손을 뗀 직후의 누름은 지수 칸 누름으로 치지 않는다
   function onStart(ev) {
     if (!api.alive || g || !ev.touches || ev.touches.length !== 1 || !onPage()) { t = null; return; }
     var el = ev.target;
@@ -872,12 +992,15 @@ SWIPE_JS = r"""
   function onEnd() {
     if (!t) { return; }
     var tt = t; t = null;
+    if (tt.mode === 'turn') { quietUntil = Date.now() + 450; }
     if (tt.mode !== 'turn' || !tt.st) { return; }
     var dist = Math.max(0, tt.st.sign < 0 ? tt.x0 - tt.lastX : tt.lastX - tt.x0);
     var fling = (tt.st.sign < 0 ? -tt.v : tt.v) > 0.45;
     if (dist > tt.st.W * 0.3 || (fling && dist > 30)) { finish(tt.st); } else { settle(tt.st); }
   }
   function onClick(ev) {
+    // 손이 한 누름만 막는다 — 넘기기 코드가 스스로 누르는 홈·↻ 는 그대로 간다.
+    if (ev.isTrusted && Date.now() < quietUntil) { ev.preventDefault(); ev.stopPropagation(); return; }
     var el = ev.target && ev.target.closest ? ev.target.closest('[data-go],[data-j10="refresh"]') : null;
     if (!el || !onPage()) { return; }
     if (el.getAttribute('data-j10') === 'refresh') {
@@ -901,7 +1024,29 @@ SWIPE_JS = r"""
     d.removeEventListener('touchcancel', onEnd, { capture: true });
     d.removeEventListener('click', onClick, true);
   };
+  // 숨긴 판의 자리 재기는 **첫 화면을 그린 뒤**에 켠다 — 시장분석 판이 다 온 것을 보고, 두 장을 그린 다음,
+  // 손가락이 닿아 있지 않을 때. 화면을 새로 열 때마다(이번 판 표시가 바뀔 때마다) 한 번씩 한다.
+  var warmTimer = 0, warmTries = 0;
+  function warm() {
+    clearTimeout(warmTimer);
+    if (!api.alive) { return; }
+    // 화면을 여는 도중 스트림릿이 한 번 다시 그리면 그 순간 판이 「옛것」으로 표시된다 — 그때도 그만두지 않고
+    // 기다린다(그만두면 이번 판은 끝까지 자리를 안 재 두었다 · 2026-10-01 노트북). 24초 뒤에는 그만둔다.
+    var n = onPage() ? nonce() : '';
+    if (n && d.documentElement.getAttribute('data-j10warm') === n) { return; }
+    var mk = n ? box('market') : null;
+    if (!mk || !mk.querySelector('.j10-grid') || t || g) {
+      if (warmTries++ < 80) { warmTimer = setTimeout(warm, 300); }
+      return;
+    }
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      if (t || g) { warmTimer = setTimeout(warm, 300); return; }
+      d.documentElement.setAttribute('data-j10warm', n);
+    }); });
+  }
+  api.warm = function () { warmTries = 0; warm(); };
   api.go = go; api.current = current;
+  warm();
 })();
 """
 
@@ -923,7 +1068,7 @@ def _inject_frame(components) -> None:
     components.html(
         "<script>(function(){var d;try{d=window.parent&&window.parent.document;}catch(e){return;}"
         "if(!d||!d.body){return;}"
-        "if(window.parent.__j10&&window.parent.__j10.ver==='j10-1'){return;}"
+        "var j=window.parent.__j10;if(j&&j.ver==='j10-2'){try{j.warm();}catch(e){}return;}"
         "var t=d.createElement('script');t.id='j10-swipe-script';"
         "t.textContent=" + json.dumps(SWIPE_JS) + ";d.body.appendChild(t);})();</script>",
         height=0,

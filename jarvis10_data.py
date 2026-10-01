@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -22,7 +23,7 @@ import pandas as pd
 import requests
 
 # 계산 결과나 돌려주는 키를 바꾸면 올리고, pages/9_자비스10.py 의 요구 숫자도 같이 올린다(CLAUDE.md 11).
-MODULE_REVISION = 2026093001
+MODULE_REVISION = 2026100101
 
 SEOUL = ZoneInfo("Asia/Seoul")
 _HEADERS = {
@@ -32,6 +33,9 @@ _HEADERS = {
 }
 _NAVER_DAY = "https://fchart.stock.naver.com/sise.nhn?timeframe=day&count={count}&requestType=0&symbol={symbol}"
 _YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+# 코스피·코스닥 지수 그날 1분 값(09:00~15:30 · 마지막 값이 종가) — 한국테마가 쓰던 네이버 시간별 시세 페이지는
+# 2026-10-01 에 없어졌다(410). 한국테마 파일은 안 건드린다.
+_NAVER_MINUTE = "https://api.stock.naver.com/chart/domestic/index/{symbol}/minute"
 
 # 1996-12-11 — 야후 ^KS11 이 시작하는 날보다 조금 앞. 30년 셈이 여기서 시작한다.
 KOSPI_HISTORY_START = 849_000_000
@@ -42,6 +46,10 @@ KOSPI200_FUND_START = 1_167_609_600       # 2007-01-01
 _CACHE: dict = {}
 _LOCK = threading.Lock()
 _SESSION_LOCAL = threading.local()
+# 받는 일꾼은 **한 번 만들어 계속 쓴다** (2026-10-01). 화면을 열 때마다 일꾼을 새로 만들면 일꾼마다 연결을
+# 새로 맺어 받을 때마다 그만큼 늦었다. 이 일꾼은 받기만 한다 — 여기서 또 이 일꾼에게 일을 맡기고
+# 기다리면 서로 막히므로 그렇게 쓰지 않는다.
+_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="j10-fetch")
 
 
 def _session() -> requests.Session:
@@ -117,6 +125,62 @@ def yahoo_daily(symbol: str, period1: int, *, ttl: float = 300) -> pd.DataFrame:
             raise RuntimeError(f"야후 일봉이 너무 적습니다: {symbol}")
         return df
     return _cached(("yahoo", symbol, period1), ttl, fetch)
+
+
+# ── 「당일」 그림 (지수 칸을 누르면 「6개월」과 바뀐다 · 자비스3 과 같은 장치) ───────────────────────────
+INTRADAY_POINTS = 78       # 그림 폭이 150px 안팎이라 이보다 많으면 글자만 무거워진다(5분마다 한 점과 같다)
+
+
+def _thin(points: list, limit: int = INTRADAY_POINTS) -> list:
+    """점이 너무 많으면 고르게 솎는다. 마지막 값(지금 값·종가)은 늘 남긴다."""
+    if len(points) <= limit:
+        return list(points)
+    step = -(-len(points) // limit)
+    out = list(points[::step])
+    if (len(points) - 1) % step:
+        out.append(points[-1])
+    return out
+
+
+def yahoo_intraday(symbol: str, *, ttl: float = 300) -> dict:
+    """야후 5분 값 — 마지막으로 열린 장 하루치와 그 전날 종가(그림의 기준선)."""
+    def fetch():
+        r = _session().get(_YAHOO_CHART.format(symbol=requests.utils.quote(symbol, safe="")),
+                           params={"interval": "5m", "range": "1d"}, timeout=15)
+        r.raise_for_status()
+        res = r.json()["chart"]["result"][0]
+        meta = res.get("meta") or {}
+        base = meta.get("chartPreviousClose") or meta.get("previousClose")
+        points = [float(v) for v in (res["indicators"]["quote"][0].get("close") or []) if v is not None]
+        if len(points) < 2 or not base:
+            raise RuntimeError(f"야후 5분 값이 모자랍니다: {symbol}")
+        return {"points": _thin(points), "base": float(base)}
+    return _cached(("yahoo_min", symbol), ttl, fetch)
+
+
+def kr_intraday(symbol: str, day: str, base: float) -> dict:
+    """코스피·코스닥 지수 그날(day='2026-09-30') 1분 값. 기준선은 부르는 쪽이 준 전날 종가(카드 숫자와 같은 네이버 값)."""
+    def fetch():
+        ymd = day.replace("-", "")
+        r = _session().get(_NAVER_MINUTE.format(symbol=symbol), timeout=10,
+                           params={"startDateTime": ymd + "0000", "endDateTime": ymd + "2359"},
+                           headers={"Referer": "https://m.stock.naver.com/"})
+        r.raise_for_status()
+        points = [float(x["currentPrice"]) for x in r.json() if x.get("currentPrice") is not None]
+        if len(points) < 2:
+            raise RuntimeError(f"네이버 1분 값이 모자랍니다: {symbol} {day}")
+        return _thin(points)
+    return {"points": _cached(("naver_min", symbol, day), 60, fetch), "base": float(base)}
+
+
+def _with_intraday(card: dict, get) -> dict:
+    """카드에 「당일」 그림 자료를 붙인다. 못 받으면 안 붙인다 — 그 칸은 6개월 그림 하나로 남는다."""
+    if card.get("ok"):
+        try:
+            card["intraday"] = get()
+        except Exception:
+            pass
+    return card
 
 
 # ── 코스피 지수 ─────────────────────────────────────────────────────────────
@@ -261,7 +325,10 @@ def kospi_panel() -> dict:
     out = {"ok": False}
     try:
         hist, source = kospi_close_history()
-        out.update(ok=True, card=index_card(hist), hold=long_hold_stats(hist), source=source,
+        card = index_card(hist)
+        if len(hist) >= 2:
+            _with_intraday(card, lambda: kr_intraday("KOSPI", card["date"], float(hist.iloc[-2])))
+        out.update(ok=True, card=card, hold=long_hold_stats(hist), source=source,
                    history_monthly=[float(v) for v in hist.resample("ME").last().dropna()])
     except Exception as exc:          # 코스피 지수부터 못 받으면 칸마다 알린다
         out["error"] = str(exc)[:200]
@@ -274,28 +341,75 @@ def kospi_panel() -> dict:
 
 
 US_INDEXES = (("NQ=F", "나스닥100 선물"), ("^IXIC", "나스닥 종합"), ("^GSPC", "S&P 500"), ("^DJI", "다우존스"))
-_TEN_YEARS_AGO = lambda: int(time.time()) - 10 * 365 * 86400   # noqa: E731 — 고점을 재는 기간(지금 고점은 다 이 안이다)
+
+
+def _days_ago(days: int) -> int:
+    """오늘 0시(세계 표준시)에서 days 날 전 — **하루 동안 같은 값**이다.
+
+    2026-10-01 까지는 '지금 − 10년'을 초 단위로 셌다. 그 값이 받아 둔 자료의 이름표에 들어가 1초마다
+    이름표가 바뀌었고, 그래서 미국 지수 넷과 환율을 **화면을 열 때마다** 새로 받았다(노트북 0.9초).
+    """
+    return int(time.time() // 86400 - days) * 86400
+
+
+def _kr_index_card(symbol: str) -> dict:
+    df = naver_daily(symbol, 3000)
+    card = index_card(df["close"])
+    if len(df) >= 2:
+        _with_intraday(card, lambda: kr_intraday(symbol, card["date"], float(df["close"].iloc[-2])))
+    return card
+
+
+def _yahoo_index_card(symbol: str, days: int, with_high: bool = True) -> dict:
+    card = index_card(yahoo_daily(symbol, _days_ago(days))["close"], with_high=with_high)
+    return _with_intraday(card, lambda: yahoo_intraday(symbol))
+
+
+def market_cards_start() -> dict:
+    """② 시장분석 칸들을 **한꺼번에** 받기 시작한다(칸마다 따로 실패한다). market_cards_collect 로 거둔다."""
+    jobs = {"KOSDAQ": lambda: _kr_index_card("KOSDAQ"),
+            "USDKRW": lambda: _yahoo_index_card("KRW=X", 730, with_high=False),
+            "FLOW": flow_5d}
+    for symbol, _label in US_INDEXES:     # 10년 — 고점을 재는 기간(지금 고점은 다 이 안이다)
+        jobs[symbol] = (lambda s=symbol: _yahoo_index_card(s, 3650))
+    return {key: _POOL.submit(job) for key, job in jobs.items()}
+
+
+def market_cards_collect(futures: dict) -> dict:
+    cards: dict = {}
+    for key, future in futures.items():
+        try:
+            cards[key] = future.result()
+        except Exception:
+            cards[key] = {"ok": False}
+    return cards
 
 
 def market_cards() -> dict:
-    """② 시장분석 — 코스닥 지수 · 원/달러 · 미국 지수 넷 (각 칸 따로 실패한다)."""
-    cards: dict = {}
-    try:
-        cards["KOSDAQ"] = index_card(naver_daily("KOSDAQ", 3000)["close"])
-    except Exception:
-        cards["KOSDAQ"] = {"ok": False}
-    try:
-        cards["USDKRW"] = index_card(yahoo_daily("KRW=X", int(time.time()) - 2 * 365 * 86400)["close"],
-                                     with_high=False)
-    except Exception:
-        cards["USDKRW"] = {"ok": False}
-    for symbol, _label in US_INDEXES:
+    """② 시장분석 — 코스닥 지수 · 원/달러 · 미국 지수 넷 · 외국인·기관 (각 칸 따로 실패한다)."""
+    return market_cards_collect(market_cards_start())
+
+
+def overview_start():
+    """한국 시장 국면 · 미국 게이지 — 한국테마와 **같은 계산을 그대로 부른다**(jarvis4_data · 고치지 않는다).
+
+    그 계산은 못 받은 조각을 부를 때마다 다시 받으러 가서 한 번에 0.7초(처음은 6.5초)가 걸렸다(2026-10-01 노트북).
+    한국증시는 잘 받은 결과를 1분 동안 다시 쓰고, 못 받으면 마지막으로 잘 받은 것을 쓴다.
+    """
+    def fetch():
+        import jarvis4_data
+
+        result = jarvis4_data.get_market_overview()
+        if not (result or {}).get("ok"):
+            raise RuntimeError("시장 국면을 못 받았습니다")
+        return result
+
+    def job():
         try:
-            cards[symbol] = index_card(yahoo_daily(symbol, _TEN_YEARS_AGO())["close"])
+            return _cached(("j4overview",), 60, fetch)
         except Exception:
-            cards[symbol] = {"ok": False}
-    cards["FLOW"] = flow_5d()
-    return cards
+            return None
+    return _POOL.submit(job)
 
 
 FLOW_STOCKS = (("005930", "삼성전자"), ("000660", "SK하이닉스"))
@@ -341,7 +455,7 @@ def forget_live() -> None:
     short = {"KRW=X", *(s for s, _ in US_INDEXES)}
     with _LOCK:
         for key in list(_CACHE):
-            if key[0] == "naver" or (key[0] == "yahoo" and key[1] in short):
+            if key[0] in ("naver", "naver_min", "yahoo_min", "j4overview", "flow5") or (key[0] == "yahoo" and key[1] in short):
                 _CACHE.pop(key, None)
 
 

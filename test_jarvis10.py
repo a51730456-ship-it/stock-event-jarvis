@@ -88,6 +88,47 @@ class DataTests(unittest.TestCase):
     def test_flow_is_two_named_stocks_not_the_whole_market(self):
         self.assertEqual(("005930", "000660"), tuple(c for c, _ in d.FLOW_STOCKS))
 
+    def test_fetch_start_is_the_same_all_day(self):
+        """받아 둔 자료의 이름표가 하루 동안 같아야 다시 쓴다(2026-10-01 — 1초마다 바뀌어 화면마다 새로 받았다)."""
+        morning, night = 1_790_000_000 - 1_790_000_000 % 86400 + 60, 1_790_000_000 - 1_790_000_000 % 86400 + 86000
+        with patch.object(d.time, "time", return_value=morning):
+            a = d._days_ago(3650)
+        with patch.object(d.time, "time", return_value=night):
+            b = d._days_ago(3650)
+        self.assertEqual(a, b)
+        self.assertEqual(0, a % 86400)
+
+    def test_thin_keeps_the_last_value_and_the_limit(self):
+        pts = list(range(391))
+        out = d._thin(pts)
+        self.assertLessEqual(len(out), d.INTRADAY_POINTS + 1)
+        self.assertEqual(390, out[-1])
+        self.assertEqual(0, out[0])
+        self.assertEqual([1, 2, 3], d._thin([1, 2, 3]))
+
+    def test_kr_intraday_uses_the_given_previous_close_as_base(self):
+        class _Resp:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return [{"currentPrice": 100.0 + i} for i in range(391)]
+
+        class _Sess:
+            def get(self, *a, **k):
+                return _Resp()
+        d._CACHE.pop(("naver_min", "KOSPI", "2026-09-30"), None)
+        with patch.object(d, "_session", return_value=_Sess()):
+            out = d.kr_intraday("KOSPI", "2026-09-30", 99.5)
+        d._CACHE.pop(("naver_min", "KOSPI", "2026-09-30"), None)
+        self.assertEqual(99.5, out["base"])
+        self.assertEqual(490.0, out["points"][-1])       # 마지막 값(종가)은 솎아도 남는다
+
+    def test_failed_intraday_leaves_the_card_with_six_months_only(self):
+        card = d._with_intraday(d.index_card(_rising(300)), lambda: (_ for _ in ()).throw(RuntimeError("down")))
+        self.assertTrue(card["ok"])
+        self.assertNotIn("intraday", card)
+
 
 def _panel_data():
     c = _rising()
@@ -126,8 +167,69 @@ class HtmlTests(unittest.TestCase):
 
     def test_state_rules_follow_this_run_mark_and_hide_the_wrapper_too(self):
         css = u.page_css("abc123")
-        self.assertIn('html[data-j10p="market-abc123"] .st-key-j10_page_kospi', css)
-        self.assertIn('[data-testid="stLayoutWrapper"]:has(> .st-key-j10_page_market)', css)
+        self.assertIn('[data-j10p="market-abc123"] [data-testid="stLayoutWrapper"]:has(> .st-key-j10_page_kospi)', css)
+        self.assertIn(':not([data-j10p="market-abc123"]) [data-testid="stLayoutWrapper"]:has(> .st-key-j10_page_market)', css)
+        self.assertIn(':not([data-testid="stLayoutWrapper"]) > .st-key-j10_page_market', css)
+
+    def test_hidden_panel_is_parked_not_removed(self):
+        """안 보이는 판은 자리를 재 둔 채 숨긴다 — 없애 두면 처음 넘길 때 느린 폰이 멈췄다(2026-10-01)."""
+        css = u.page_css("abc123")
+        warm = 'html[data-j10warm="abc123"]:not([data-j10p="market-abc123"]) [data-testid="stLayoutWrapper"]:has(> .st-key-j10_page_market)'
+        self.assertIn(warm, css)
+        rule = css[css.index(warm):]
+        rule = rule[:rule.index("}")]
+        self.assertIn("visibility:hidden!important", rule)
+        self.assertIn("height:0!important", rule)
+        self.assertNotIn("display:none", rule)
+        # 첫 화면을 그리기 전에는 빼 둔다 — 숨긴 판의 자리 재기가 첫 화면에 얹히지 않게.
+        self.assertIn('html:not([data-j10warm="abc123"]):not([data-j10p="market-abc123"]) '
+                      '[data-testid="stLayoutWrapper"]:has(> .st-key-j10_page_market)', css)
+        self.assertIn("d.documentElement.setAttribute('data-j10warm', n);", u.SWIPE_JS)
+        self.assertIn("function edgeCopy(face, rect, vh)", u.SWIPE_JS)
+
+    def test_bottom_bar_sits_where_us_theme_puts_it(self):
+        """아래 이동막대는 미국테마 자리 — 오른쪽 아래 스트림릿 표시(얼굴·왕관)를 피한다(2026-10-01 상하님)."""
+        css = u.page_css("n1")
+        self.assertIn("@media (max-width:600px){:root{--j10-nw:min(286.667px,66.667vw);--j10-nl:8px;--j10-nb:4px;--j10-nh:50px}}", css)
+        self.assertIn("--j10-nl:calc(50% - var(--j10-nw) / 2 - 60px)", css)
+        # 홈을 누르는 자리도 같은 숫자를 쓴다 — 막대만 옮기면 홈 자리가 엉뚱한 곳에 남는다.
+        self.assertIn(".st-key-j10_home_link a{position:fixed!important;z-index:1001!important;bottom:var(--j10-nb)!important;"
+                      "left:var(--j10-nl)!important;width:calc(var(--j10-nw) / 3)!important;height:var(--j10-nh)!important", css)
+        j3 = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
+        self.assertIn("width:min(286.667px,66.667vw)", j3)
+
+    def test_index_card_taps_between_today_and_six_months(self):
+        """지수 칸을 누르면 「당일」↔「6개월」 — 미국테마 지수 칸과 같은 장치(2026-10-01 상하님)."""
+        card = d.index_card(_rising(300))
+        card["intraday"] = {"points": [100, 103, 99, 101], "base": 100}
+        html = u._idx_card("코스닥 지수", card, kr=True, sub="9월 30일", nonce="n1", key="kosdaq")
+        self.assertIn("class='j10-tap'", html)
+        self.assertIn("for='j10t-n1-kosdaq'", html)
+        self.assertIn(">당일<", html)
+        self.assertIn(">6개월<", html)
+        self.assertEqual(html.count("<div"), html.count("</div>"))
+        # 당일 자료를 못 받았으면 누를 것이 없다 — 누르면 빈칸이 되지 않게.
+        del card["intraday"]
+        plain = u._idx_card("코스닥 지수", card, kr=True, sub="9월 30일", nonce="n1", key="kosdaq")
+        self.assertNotIn("j10-tap", plain)
+        self.assertIn(">6개월<", plain)
+        # 코스피 판 맨 위 칸도 같다.
+        data = _panel_data()
+        data["card"]["intraday"] = {"points": [1, 2, 3], "base": 2}
+        self.assertIn("for='j10t-n1-hero'", u.kospi_panel_html(data, "n1", "정규장"))
+
+    def test_line_colors_follow_the_base_line(self):
+        """기준선 위는 오른 색, 아래는 내린 색 — 자비스3 선 그림과 같다."""
+        svg = u.line_svg([1, 3, 3, 1, 1], 2, "#up", "#dn")
+        self.assertIn("stroke='#up'", svg)
+        self.assertIn("stroke='#dn'", svg)
+        self.assertEqual("", u.line_svg([1], 2, "#up", "#dn"))
+
+    def test_turn_does_not_count_as_a_tap(self):
+        """넘기다 손을 뗀 직후의 누름은 지수 칸 누름으로 치지 않는다 — 넘기기 코드가 누르는 홈은 간다."""
+        self.assertIn("if (ev.isTrusted && Date.now() < quietUntil)", u.SWIPE_JS)
+        self.assertIn("var VER = 'j10-2';", u.SWIPE_JS)
+        self.assertIn("j.ver==='j10-2'", u._inject_frame.__code__.co_consts.__repr__())
 
     def test_page_turn_matches_jarvis3_shape(self):
         """넘기는 모양은 자비스3 과 같은 숫자(원근 1500 · 끝 0.3 · 더 말림 1.25 · 그늘 56)."""
@@ -143,12 +245,20 @@ class PageSourceTests(unittest.TestCase):
     def test_guard_and_login_come_before_any_fetch(self):
         guard = PAGE_SOURCE.index('page_access.guard(st, "한국증시")')
         login = PAGE_SOURCE.index("_login_gate()\n")
-        first_fetch = PAGE_SOURCE.index("j10data.kospi_panel()")
+        first_fetch = min(PAGE_SOURCE.index("j10data.kospi_panel()"), PAGE_SOURCE.index("j10data.market_cards_start()"))
         self.assertLess(guard, login)
         self.assertLess(login, first_fetch)
 
     def test_swipe_code_is_planted_before_waiting_for_the_market_panel(self):
-        self.assertLess(PAGE_SOURCE.index("j10ui.inject_js(st)"), PAGE_SOURCE.index("_f_cards.result()"))
+        self.assertLess(PAGE_SOURCE.index("j10ui.inject_js(st)"), PAGE_SOURCE.index("market_cards_collect(_card_jobs)"))
+
+    def test_bottom_bar_is_drawn_before_waiting_for_the_market_panel(self):
+        """이동막대는 시장분석 자료를 기다리기 전에 그린다 — 예전엔 막대가 코스피 판보다 늦게 떴다(2026-10-01)."""
+        wait = PAGE_SOURCE.index("market_cards_collect(_card_jobs)")
+        self.assertLess(PAGE_SOURCE.index("j10ui.nav_html()"), wait)
+        self.assertLess(PAGE_SOURCE.index('st.page_link("app.py", label="홈")'), wait)
+        # 무거운 시장 국면 계산은 코스피 판·이동막대를 다 보낸 뒤에 시작한다(CLAUDE.md 0-0-1).
+        self.assertLess(PAGE_SOURCE.index("j10ui.nav_html()"), PAGE_SOURCE.index("j10data.overview_start()"))
 
     def test_required_revisions_match_the_modules(self):
         data_req = int(re.search(r"_REQUIRED_J10_DATA_REVISION = (\d+)", PAGE_SOURCE).group(1))
@@ -165,7 +275,8 @@ class PageRunTests(unittest.TestCase):
                  "FLOW": {"ok": False}}
         with patch.object(socket.socket, "connect", side_effect=AssertionError("external socket blocked")), \
              patch.object(d, "kospi_panel", return_value=_panel_data()), \
-             patch.object(d, "market_cards", return_value=cards), \
+             patch.object(d, "market_cards_start", return_value={}), \
+             patch.object(d, "market_cards_collect", return_value=cards), \
              patch("jarvis4_data.get_market_overview", return_value={"ok": False}):
             app = AppTest.from_file(str(PAGE), default_timeout=60)
             app.session_state["authenticated"] = True
@@ -175,6 +286,8 @@ class PageRunTests(unittest.TestCase):
         self.assertIn("코스피 지수를 오래 들고 있었다면", text)
         self.assertIn("한국증시 설명", text)
         self.assertIn("j10_refresh", [b.key for b in app.button])
+        self.assertIn("j10-nav", text)
+        self.assertIn("data-page='market'", text)
 
 
 if __name__ == "__main__":

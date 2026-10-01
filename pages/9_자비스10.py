@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import secrets
-from concurrent.futures import ThreadPoolExecutor
 
 import streamlit as st
 
@@ -84,8 +83,8 @@ import jarvis10_data as j10data  # noqa: E402
 import jarvis10_ui as j10ui  # noqa: E402
 
 # 계산·화면 조각을 바꾸면 그 모듈의 MODULE_REVISION 과 여기 숫자를 같이 올린다(CLAUDE.md 11).
-_REQUIRED_J10_DATA_REVISION = 2026093001
-_REQUIRED_J10_UI_REVISION = 2026093001
+_REQUIRED_J10_DATA_REVISION = 2026100101
+_REQUIRED_J10_UI_REVISION = 2026100101
 if int(getattr(j10data, "MODULE_REVISION", 0)) < _REQUIRED_J10_DATA_REVISION:
     j10data = importlib.reload(j10data)
 if int(getattr(j10ui, "MODULE_REVISION", 0)) < _REQUIRED_J10_UI_REVISION:
@@ -102,33 +101,21 @@ def _keep_state() -> None:
 
 
 # 이번 판 표시 — 다른 화면에 갔다 오면 새로 바뀌어 늘 코스피 판부터 보인다(jarvis10_ui.page_css).
-if not st.session_state.pop("j10_keep", False) or "j10_nonce" not in st.session_state:
+_fresh = not st.session_state.pop("j10_keep", False) or "j10_nonce" not in st.session_state
+if _fresh:
     st.session_state["j10_nonce"] = secrets.token_hex(4)
 _nonce = st.session_state["j10_nonce"]
 
-
-def _overview():
-    """한국 시장 국면 · 외국인+기관 · 미국 게이지 — 한국테마와 같은 계산을 그대로 부른다."""
-    try:
-        import jarvis4_data
-
-        return jarvis4_data.get_market_overview()
-    except Exception:
-        return None
-
-
-# 시장분석 판 자료는 **코스피 판을 그리는 동안** 뒤에서 받는다. 두 판 다 이 화면이 그리는 것이라
-# 화면이 기다리는 일을 밀어내지 않는다(CLAUDE.md 0-0-1).
-_pool = ThreadPoolExecutor(max_workers=2)
-_f_cards = _pool.submit(j10data.market_cards)
-_f_overview = _pool.submit(_overview)
+# 시장분석 판의 칸들(코스닥·환율·미국 지수·외국인·기관)은 **코스피 판을 만드는 동안** 받는다 — 받기만 하는
+# 일이라(계산이 거의 없다) 코스피 판을 늦추지 않는다. 계산이 무거운 시장 국면(한국테마 계산)은 코스피 판과
+# 이동막대를 다 보낸 **뒤에** 시작한다(CLAUDE.md 0-0-1 · 2026-10-01 느린 폰 실측).
+_card_jobs = j10data.market_cards_start()
 
 _kospi = j10data.kospi_panel()
 _phase = j10data.market_phase()
 
 st.markdown(
-    j10ui.page_css(_nonce, j10ui.gauge_css().replace("\n", " "))
-    + j10ui.banner_html(_kospi.get("history_monthly"), _phase),
+    j10ui.page_css(_nonce) + j10ui.banner_html(_kospi.get("history_monthly"), _phase),
     unsafe_allow_html=True,
 )
 with st.container(horizontal=True, key="j10_row_links"):
@@ -140,14 +127,19 @@ with st.container(horizontal=True, key="j10_row_links"):
 
 with st.container(key="j10_page_kospi"):
     st.markdown(j10ui.kospi_panel_html(_kospi, _nonce, _phase), unsafe_allow_html=True)
-# 넘기기 코드는 코스피 판 바로 뒤에 심는다 — 시장분석 판 자료를 기다리는 동안에도 홈 쪽 넘기기·↻ 는 된다.
+# 넘기기 코드는 코스피 판 바로 뒤에 심는다 — 시장분석 판 자료를 기다리는 동안에도 넘기기·↻ 는 된다.
 j10ui.inject_js(st)
 
-_cards = _f_cards.result()
-_ov = _f_overview.result()
-_pool.shutdown(wait=False)
-with st.container(key="j10_page_market"):
-    st.markdown(j10ui.market_panel_html(_cards, _ov, _kospi.get("card"), _nonce), unsafe_allow_html=True)
+# 시장분석 판 자리를 먼저 만들어 두고, 설명 창·아래 이동막대를 **자료를 기다리기 전에** 그린다 (2026-10-01).
+# 예전에는 시장분석 자료가 다 와야 이동막대가 그려져, 폰에서 막대가 코스피 판보다 늦게 떴다.
+# 자리에는 「받는 중」을 두어 그동안 넘겨도 빈 화면이 아니다. ↻ 로 다시 받을 때는 빈 자리(st.empty)를 만들지
+# 않는다 — 만드는 순간 보던 판이 비워진다. 그때는 보던 판이 새 판으로 덮일 때까지 그대로 남는다.
+_market_box = st.container(key="j10_page_market")
+_market_slot = None
+if _fresh:
+    with _market_box:
+        _market_slot = st.empty()
+    _market_slot.markdown(j10ui.market_loading_html(_nonce), unsafe_allow_html=True)
 
 st.markdown(j10ui.help_sheet_html(), unsafe_allow_html=True)
 st.markdown(j10ui.nav_html(), unsafe_allow_html=True)
@@ -158,6 +150,18 @@ with st.container(key="j10_home_link"):
         pass
 with st.container(key="j10_hidden"):
     st.button("다시 받기", key="j10_refresh", on_click=_keep_state)
+
+_overview_job = j10data.overview_start()
+_cards = j10data.market_cards_collect(_card_jobs)
+_ov = _overview_job.result()
+# 게이지 꾸밈은 게이지가 있는 이 판에 싣는다 — 첫 화면(코스피 판)이 읽을 꾸밈 글자가 그만큼 준다.
+_market_html = ("<style>" + j10ui.gauge_css().replace("\n", " ") + "</style>"
+                + j10ui.market_panel_html(_cards, _ov, _kospi.get("card"), _nonce))
+if _market_slot is not None:
+    _market_slot.markdown(_market_html, unsafe_allow_html=True)
+else:
+    with _market_box:
+        st.markdown(_market_html, unsafe_allow_html=True)
 
 try:
     import build_stamp
