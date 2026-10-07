@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026100701
+MODULE_REVISION = 2026100702
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -512,6 +512,9 @@ div[class*="st-key-j3vx_row"] button p { white-space: normal !important; line-he
 .j3vx-y { width: 38px !important; flex-basis: 38px !important; }
 .j3vx-cards { grid-template-columns: 1fr !important; gap: 6px !important; }
 .j3vx-tbl { font-size: .76rem !important; }
+/* 테마별 작은 그림(2026-10-07)은 폰에서 두 칸씩 — 칸 최소 폭(170px)으로는 한 줄에 하나만 섰다(실측 346px 한 칸). */
+.j3vx-tgrid { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+.j3vx-tc-svg { height: 60px !important; }
 .j3vx-tbl th, .j3vx-tbl td { padding: 4px 3px !important; }
 /* 「재무 한눈에」 창(2026-10-07) — 폰에서는 지표 여섯 칸을 두 칸씩, 실적 그림 둘을 위아래로. */
 .j3fn-grid { grid-template-columns: 1fr 1fr !important; }

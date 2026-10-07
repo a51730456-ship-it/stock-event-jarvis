@@ -78,6 +78,16 @@ class ComputeTests(unittest.TestCase):
         self.assertAlmostEqual(stocks[1][3], -10.0)
         self.assertEqual(data["parts"]["crash"]["rows"], 3)
 
+    def test_same_stock_same_day_in_two_themes_counts_as_one_day(self):
+        rows = [_row("2026-09-11", "theme15", "AAA", 100.0), _row("2026-09-11", "theme15", "AAA", 100.0),
+                _row("2026-09-15", "theme15", "AAA", 100.0)]
+        stock = vx.compute(rows, FRAMES, IXIC)["parts"]["theme15"]["stocks"][0]
+        self.assertEqual(stock[2], 2)                                  # 산 날 이틀
+        self.assertAlmostEqual(stock[3], 40.0)                         # 140/100 두 날 평균
+        html = vx.stocks_html(vx.compute(rows, FRAMES, IXIC), "theme")
+        self.assertIn("2일", html)
+        self.assertIn("산 날마다 수익을 내서 평균", html)
+
     def test_unmeasurable_rows_are_skipped_not_zero_filled(self):
         rows = [
             _row("2026-09-11", "breakout", "AAA", None),     # 매수금액 없음
@@ -166,6 +176,46 @@ class DrawTests(unittest.TestCase):
             self.assertNotIn(jargon, html)
 
 
+class ThemeLinesTests(unittest.TestCase):
+    """테마별로 — 상위 10개 테마 + 빅테크10 (2026-10-07 상하님 — "5개 테마가 아니라 10개 테마로")."""
+
+    def setUp(self):
+        days = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
+        self.lines = vx.theme_lines([("에이", ("AAA",)), ("비", ("BBB",)), ("둘", ("AAA", "BBB")),
+                                     ("없음", ("ZZZ",))], FRAMES, IXIC, days)
+
+    def test_from_the_close_before_the_first_day(self):
+        self.assertEqual(self.lines["base"], "2026-09-11")
+        names = [row["name"] for row in self.lines["themes"]]
+        self.assertEqual(names, ["에이", "둘", "비"])               # 많이 오른 차례 · 값 없는 테마는 뺀다
+        first = self.lines["themes"][0]
+        self.assertAlmostEqual(first["series"][0], 10.0)              # 110/100
+        self.assertAlmostEqual(first["final"], 40.0)                  # 140/100
+        both = self.lines["themes"][1]
+        self.assertAlmostEqual(both["final"], round(((140 / 100 + 45 / 50) / 2 - 1) * 100, 2))
+        self.assertAlmostEqual(self.lines["nasdaq"][-1], 5.0)          # 1050/1000
+
+    def test_keeps_ten_and_always_shows_bigtech(self):
+        picked = vx.pick_themes(self.lines, keep=1, always=("비",))
+        self.assertEqual([row["name"] for row in picked], ["에이", "비"])
+        self.assertEqual(vx.THEME_KEEP, 10)
+        self.assertIn("빅테크10", vx.ALWAYS_THEMES)
+
+    def test_grid_draws_a_card_per_theme_with_its_own_scale(self):
+        grid = vx.theme_grid_html(self.lines, "d", "line")
+        self.assertEqual(len(re.findall(r"class='j3vx-tc(?:'| j3vx-tc-always')", grid)), 3)
+        self.assertIn("눈금", grid)
+        self.assertIn("칸마다 눈금이 다릅니다", grid)
+        bars = vx.theme_grid_html(self.lines, "w", "bar")
+        self.assertIn("<rect", bars)
+
+    def test_bucket_returns_chain_from_the_previous_bucket(self):
+        days = ["2026-09-14", "2026-09-18", "2026-09-21", "2026-09-25"]
+        out = vx._bucket_returns(days, [5.0, 10.0, 15.0, 21.0], "w")
+        self.assertEqual(out[0], ("9/14 주", 10.0))
+        self.assertAlmostEqual(out[1][1], round((1.21 / 1.10 - 1) * 100, 2))
+
+
 class PageWiringTests(unittest.TestCase):
     def test_compare_sits_inside_the_scorecard_under_the_bars_above_the_close(self):
         panel = PAGE[PAGE.index("def _render_picklist_scorecard("):PAGE.index("def _render_picklist_section")]
@@ -188,6 +238,16 @@ class PageWiringTests(unittest.TestCase):
         self.assertIn("if span == _SCORECARD_RANGE and picked:", body)
         self.assertIn("vx.stocks_html(", body)
         self.assertIn("<div class='j3vx-body'>", body)
+
+    def test_theme_tab_shows_the_theme_grid(self):
+        body = PAGE[PAGE.index("def _render_scorecard_compare("):PAGE.index("# 성적표 머리 자리")]
+        self.assertIn('if tab == "theme":', body)
+        self.assertIn("vx.theme_grid_html(", body)
+        cached = PAGE[PAGE.index("def _scorecard_compare_cached("):PAGE.index("def _pick_scorecard_vx(")]
+        self.assertIn("scorecard_compare.theme_lines(", cached)
+        self.assertIn('getattr(j3data, "US_THEMES"', cached)
+        # 목록 종목과 테마 종목은 **따로** 부른다(섞으면 묶음 밖 종목 때문에 통째로 다시 받는다).
+        self.assertEqual(cached.count("j3data._download_cached("), 3)
 
     def test_module_revision_guard(self):
         match = re.search(r"_REQUIRED_SCORECARD_COMPARE_REVISION = (\d+)", PAGE)

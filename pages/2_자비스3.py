@@ -1798,7 +1798,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026100701
+_REQUIRED_MOBILE_REVISION = 2026100702
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1833,7 +1833,7 @@ import us_fundamentals
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100701
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100703
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100701
@@ -6807,8 +6807,22 @@ def _scorecard_compare_cached(stamp: str, span: str, start: str = "", end: str =
             ttl_seconds=getattr(j3data, "IXIC_HISTORY_TTL", 21600.0))
     except Exception:
         return {}
-    return scorecard_compare.compute(rows, frames or {}, (index_frames or {}).get("^IXIC"),
-                                     last_day=last)
+    ixic = (index_frames or {}).get("^IXIC")
+    data = scorecard_compare.compute(rows, frames or {}, ixic, last_day=last)
+    # **테마별로 — 상위 10개 테마 + 빅테크10** (2026-10-07 상하님 — "어느 테마가 어떤 시점에 오르고
+    # 내리는지 테마별로"). 22개 테마 명부 종목의 주가로 그린다 — 시장분석이 받아 둔 묶음의 일부라
+    # 새로 받지 않는다(목록 종목과 따로 부른다 — 섞으면 묶음 밖 종목 때문에 통째로 다시 받는다).
+    if data.get("days"):
+        themes = [(theme["name"], tuple(theme["stocks"])) for theme in getattr(j3data, "US_THEMES", ())]
+        theme_codes = tuple(dict.fromkeys(str(code).upper() for _name, codes in themes for code in codes))
+        try:
+            theme_frames, _info = j3data._download_cached(
+                theme_codes, period="2y", interval="1d",
+                ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+            data["theme_lines"] = scorecard_compare.theme_lines(themes, theme_frames or {}, ixic, data["days"])
+        except Exception:
+            data["theme_lines"] = {}
+    return data
 
 
 def _pick_scorecard_vx(key: str, value: str) -> None:
@@ -6871,6 +6885,8 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
     body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
             + vx.cards_html(data, tab) + vx.legend_html(tab, data) + chart
             + f"<div class='j3vx-note'>{note}</div>")
+    if tab == "theme":
+        body += vx.theme_grid_html(data.get("theme_lines") or {}, period, view)
     if span == _SCORECARD_RANGE and picked:
         body += vx.stocks_html(data, tab, names=dict(getattr(j3data, "STOCK_NAMES", {}) or {}),
                                first=first, last=last)

@@ -26,7 +26,7 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게(CLAUDE.md 11과 같은 까닭).
-MODULE_REVISION = 2026100701
+MODULE_REVISION = 2026100703
 
 PARTS = ("theme15", "breakout", "crash")
 PART_NAMES = {
@@ -189,9 +189,10 @@ def compute(rows, frames: dict, ixic, *, last_day: date | None = None) -> dict:
                 value = ratio[-1, place]
                 if np.isnan(value):
                     continue
-                slot = per_stock.setdefault(code, [name, [], []])
-                slot[1].append((value - 1.0) * 100.0)
-                slot[2].append(nq_last * 100.0)
+                # 종목 표는 **산 날**로 센다 — 같은 날 두 테마에 같이 든 종목(ILMN 바이오·유전체)을 두 번 세면
+                # 25일 동안 「40번」이 되어 알아볼 수 없었다(2026-10-07 상하님 — "이건 이해할 수 없다").
+                slot = per_stock.setdefault(code, [name, {}])
+                slot[1].setdefault(bought, ((value - 1.0) * 100.0, nq_last * 100.0))
             for key, tab_parts in TAB_PARTS.items():
                 if kind in tab_parts:
                     union[key].add(bought)
@@ -204,8 +205,9 @@ def compute(rows, frames: dict, ixic, *, last_day: date | None = None) -> dict:
         cum = [None if held[place] == 0 else round((total[place] / held[place] - 1.0) * 100.0, 2)
                for place in range(count)]
         stocks = sorted(
-            ([code, name, len(gains), round(sum(gains) / len(gains), 2), round(sum(nqs) / len(nqs), 2)]
-             for code, (name, gains, nqs) in per_stock.items()),
+            ([code, name, len(by_day), round(sum(g for g, _n in by_day.values()) / len(by_day), 2),
+              round(sum(n for _g, n in by_day.values()) / len(by_day), 2)]
+             for code, (name, by_day) in per_stock.items()),
             key=lambda item: (-item[3], item[0]))
         parts[kind] = {"cum": cum, "cohorts": bars, "rows": sum(item[2] for item in stocks),
                        "stocks": stocks}
@@ -477,11 +479,11 @@ def stocks_html(data: dict, tab: str, *, names: dict | None = None, first: str =
             code, name, times, gain, nq = item
             shown = names.get(code) or (name if name and name != code else code)
             label = html.escape(shown) + ("" if shown == code else f" <small>{html.escape(code)}</small>")
-            return (f"<tr><td>{label}</td><td>{times}번</td>"
+            return (f"<tr><td>{label}</td><td>{times}일</td>"
                     f"<td style='color:{_tone(gain)};font-weight:800'>{_fmt(gain)}</td>"
                     f"<td style='color:{_tone(nq)}'>{_fmt(nq)}</td></tr>")
 
-        head = ("<tr><th>종목</th><th>산 횟수</th><th>평균 수익</th><th>같은 날 나스닥</th></tr>")
+        head = ("<tr><th>종목</th><th>산 날</th><th>평균 수익</th><th>같은 날 나스닥</th></tr>")
         if len(stocks) <= 8:
             table = f"<table class='j3vx-tbl'>{head}{''.join(line(s) for s in stocks)}</table>"
             more = ""
@@ -493,12 +495,201 @@ def stocks_html(data: dict, tab: str, *, names: dict | None = None, first: str =
                     f"<table class='j3vx-tbl'>{head}{''.join(line(s) for s in stocks)}</table></details>")
         blocks.append(
             f"<div class='j3vx-part'><div class='j3vx-part-head' style='color:{PART_COLORS[kind]}'>"
-            f"{html.escape(PART_NAMES[kind])} · {part['rows']}번 샀음 · {len(stocks)}종목</div>{table}{more}</div>")
+            f"{html.escape(PART_NAMES[kind])} · {len(stocks)}종목</div>{table}{more}</div>")
     if not blocks:
         return ""
-    when = f"{first} ~ {last} · {last} 종가에 팔았다면" if first and last else ""
+    # 표 위 설명은 **보기 하나로** 푼다(2026-10-07 상하님 — "같은 종목을 9월 2일에 사고 9월 10일에 샀다면
+    # 평균을 이야기한 것인가?"). 그렇다 — 산 날마다 수익을 내서 평균한다.
+    when = f"{first} ~ {last}에 산 것을 모두 {last} 종가에 팔았다면" if first and last else ""
     return ("<div class='j3vx-list'><div class='j3vx-list-head'>이 기간에 산 종목"
-            f"<small>{html.escape(when)}</small></div>" + "".join(blocks) + "</div>")
+            f"<small>{html.escape(when)}</small></div>"
+            "<div class='j3vx-note' style='margin:0 0 8px'>여러 날 산 종목은 <b>산 날마다 수익을 내서 평균</b>했습니다. "
+            "보기 — 9/2에 100달러 · 9/10에 110달러에 사서 120달러에 팔면 +20%와 +9.1% → 평균 +14.5%. "
+            "같은 날 두 테마에 같이 든 종목은 하루로 셉니다.</div>"
+            + "".join(blocks) + "</div>")
+
+
+# ── 테마별로 — 상위 10개 테마 + 빅테크10 (2026-10-07 상하님 지시) ─────────────────────
+# 상하님 — "이 부분은 테마별로 구분해야 된다. 어느 테마가 어떤 시점에 오르고 내리는지 테마별로
+# 확인하기 위함이야. 평균 상위 10테마로 구분해 봐라, 빅테크10 포함" · "5개 테마가 아니라 10개 테마로".
+#
+# 저장해 둔 「상위 테마 5개」 목록에는 8/31 뒤로 테마가 **7개뿐**이다(2026-10-07 실측 — 사이버보안·바이오·
+# 클라우드 26일 내내 · 빅테크10 은 0일). 그래서 목록이 아니라 **테마의 평균**으로 고른다 — 22개 테마마다
+# 명부 종목을 같은 돈으로 나눠 들었다면 고른 기간에 얼마나 올랐나(테마 종목 평균)를 세어 위 10개.
+# 빅테크10 은 순위 밖이어도 늘 같이 보인다(비교 기준). 그림 하나에 선 11개를 겹치면 색을 못 가르므로
+# 테마마다 작은 그림 한 장 — 모두 같은 눈금 · 같은 나스닥 띠라 언제 오르고 내렸는지를 나란히 견준다.
+THEME_KEEP = 10
+ALWAYS_THEMES = ("빅테크10",)
+THEME_COLOR = "#ffd166"
+
+
+def theme_lines(themes, frames: dict, ixic, days: list) -> dict:
+    """테마마다 「기간 첫날 앞 종가부터 몇 % 인가」 — 명부 종목을 같은 돈으로 나눠 든 평균.
+
+    themes — [(테마 이름, (종목, ...))] · days — compute() 의 days(뉴욕 날짜 iso).
+    기간 첫날 **앞 거래일 종가**를 기준으로 삼는다 — 첫날 움직임도 보이게. 그날 값이 없는 종목(그 뒤
+    상장 등)은 그 테마 평균에서 뺀다 — 0으로 채우지 않는다. 나스닥 종합도 같은 기준이다.
+    """
+    import numpy as np
+
+    if not days:
+        return {}
+    wanted = [date.fromisoformat(day) for day in days]
+    since = wanted[0] - timedelta(days=12)
+    ix_close = _series_by_day(ixic, "Close", since)
+    before = [day for day in ix_close if day < wanted[0]]
+    base_day = before[-1] if before else wanted[0]
+    axis = [base_day] + [day for day in wanted if day != base_day]
+
+    def aligned(by_day):
+        out, last_seen = [], np.nan
+        earlier = [value for day, value in by_day.items() if day < axis[0]]
+        if earlier:
+            last_seen = earlier[-1]
+        for day in axis:
+            if day in by_day:
+                last_seen = by_day[day]
+            out.append(last_seen)
+        return np.array(out, dtype=float)
+
+    nasdaq = aligned(ix_close)
+    if not np.isfinite(nasdaq[0]):
+        return {}
+    cache: dict = {}
+    rows = []
+    for name, codes in themes or []:
+        stack = []
+        for code in codes:
+            code = str(code).upper()
+            if code not in cache:
+                cache[code] = aligned(_series_by_day((frames or {}).get(code), "Close", since))
+            series = cache[code]
+            if np.isfinite(series[0]) and series[0] > 0:
+                stack.append(series / series[0])
+        if not stack:
+            continue
+        mean = np.nanmean(np.vstack(stack), axis=0)
+        values = [None if not np.isfinite(v) else round((v - 1.0) * 100.0, 2) for v in mean[1:]]
+        final = next((v for v in reversed(values) if v is not None), None)
+        rows.append({"name": name, "series": values, "final": final, "count": len(stack)})
+    rows.sort(key=lambda row: -(row["final"] if row["final"] is not None else -1e9))
+    for place, row in enumerate(rows, start=1):
+        row["rank"] = place
+    return {"base": base_day.isoformat(), "days": [day.isoformat() for day in axis[1:]],
+            "nasdaq": [round((v / nasdaq[0] - 1.0) * 100.0, 2) for v in nasdaq[1:]],
+            "themes": rows}
+
+
+def pick_themes(lines: dict, keep: int = THEME_KEEP, always=ALWAYS_THEMES) -> list:
+    """위 keep 개 + 늘 보일 테마(순위 밖이면 맨 뒤에)."""
+    rows = list((lines or {}).get("themes") or [])
+    picked = rows[:keep]
+    names = {row["name"] for row in picked}
+    picked += [row for row in rows if row["name"] in always and row["name"] not in names]
+    return picked
+
+
+def _bucket_returns(days: list, series: list, period: str) -> list:
+    """[(라벨, 그 묶음 동안 몇 %)] — 묶음 끝 값 ÷ 앞 묶음 끝 값(첫 묶음은 기준 종가)."""
+    many = len({d[:4] for d in days}) > 1
+    ends: list = []
+    for day, value in zip(days, series):
+        key, label = bucket(day, period, many)
+        if ends and ends[-1][0] == key:
+            if value is not None:
+                ends[-1] = (key, label, value)
+        else:
+            ends.append((key, label, value))
+    out, previous = [], 0.0
+    for _key, label, value in ends:
+        if value is None:
+            out.append((label, None))
+            continue
+        out.append((label, round(((1 + value / 100.0) / (1 + previous / 100.0) - 1.0) * 100.0, 2)))
+        previous = value
+    return out
+
+
+def theme_grid_html(lines: dict, period: str, view: str) -> str:
+    """테마마다 작은 그림 한 장 — 같은 눈금 · 나스닥 회색 띠 · 순위대로."""
+    picked = pick_themes(lines)
+    days = (lines or {}).get("days") or []
+    if not picked or not days:
+        return ""
+    nasdaq = lines["nasdaq"]
+    if view == "bar":
+        nq_points = _bucket_returns(days, nasdaq, period)
+        theme_points = {row["name"]: _bucket_returns(days, row["series"], period) for row in picked}
+    else:
+        nq_points = line_points(days, nasdaq, period)
+        theme_points = {row["name"]: line_points(days, row["series"], period) for row in picked}
+    count = len(nq_points)
+
+    def x(i):
+        return 500.0 if count == 1 else i * 1000.0 / (count - 1)
+
+    cards = []
+    nq_final = next((v for v in reversed(nasdaq) if v is not None), None)
+    for row in picked:
+        points = theme_points[row["name"]]
+        # **칸마다 제 눈금** — 언제 오르고 내렸나가 목적이라(상하님). 한 눈금으로 묶으면 많이 오른 테마
+        # 하나 때문에 나머지가 납작해졌다(2026-10-07 화면 확인). 크기는 칸 오른쪽 위 숫자로 견준다.
+        # 눈금 폭은 6% 보다 좁히지 않는다 — 작은 흔들림이 큰 오르내림처럼 보이지 않게.
+        finite = [v for _l, v in nq_points + points if v is not None] + [0.0]
+        low, high = min(finite), max(finite)
+        if high - low < 6.0:
+            middle = (high + low) / 2.0
+            low, high = middle - 3.0, middle + 3.0
+        pad = (high - low) * 0.06
+        low, high = low - pad, high + pad
+
+        def y(value, low=low, high=high):
+            return (high - value) / ((high - low) or 1.0) * 300.0
+
+        def run(points, y=y):
+            return " ".join(f"{x(i):.1f},{y(v):.1f}" for i, (_l, v) in enumerate(points) if v is not None)
+
+        zero = (f"<line x1='0' x2='1000' y1='{y(0.0):.1f}' y2='{y(0.0):.1f}' stroke='rgba(255,255,255,.3)' "
+                "stroke-width='1' stroke-dasharray='6 6' vector-effect='non-scaling-stroke'/>")
+        if view == "bar":
+            slot = 1000.0 / max(count, 1)
+            width = slot * 0.36
+            body = [zero]
+            for i, ((_l, nq), (_l2, mine)) in enumerate(zip(nq_points, points)):
+                for lane, value, color in ((0, nq, NASDAQ_COLOR), (1, mine, THEME_COLOR)):
+                    if value is None:
+                        continue
+                    top, bottom = sorted((y(value), y(0.0)))
+                    body.append(f"<rect x='{i * slot + slot * 0.14 + lane * width:.1f}' y='{top:.1f}' "
+                                f"width='{width:.1f}' height='{max(bottom - top, 1.5):.1f}' fill='{color}'/>")
+        else:
+            body = [zero,
+                    f"<polyline points='{run(nq_points)}' fill='none' stroke='{NASDAQ_COLOR}' stroke-width='6' "
+                    "stroke-linecap='round' stroke-linejoin='round' vector-effect='non-scaling-stroke'/>",
+                    f"<polyline points='{run(points)}' fill='none' stroke='{THEME_COLOR}' stroke-width='2' "
+                    "stroke-linejoin='round' vector-effect='non-scaling-stroke'/>"]
+        final = row["final"]
+        always = row["name"] in ALWAYS_THEMES and row["rank"] > THEME_KEEP
+        rank = "늘 같이" if always else f"{row['rank']}위"
+        cards.append(
+            f"<div class='j3vx-tc{' j3vx-tc-always' if always else ''}'><div class='j3vx-tc-head'>"
+            f"<span class='j3vx-tc-rank'>{rank}</span><b>{html.escape(row['name'])}</b>"
+            f"<span class='j3vx-tc-val' style='color:{_tone(final)}'>{_fmt(final)}</span></div>"
+            f"<svg viewBox='0 0 1000 300' preserveAspectRatio='none' class='j3vx-tc-svg'>{''.join(body)}</svg>"
+            f"<div class='j3vx-tc-x'><span>{html.escape(nq_points[0][0])}</span>"
+            f"<span>눈금 {low:+.0f}~{high:+.0f}%</span>"
+            f"<span>{html.escape(nq_points[-1][0])}</span></div></div>")
+    scale = "칸마다 눈금이 다릅니다(점선이 0%) — 크기는 칸 위 숫자로 견주십시오"
+    what = ("막대 하나 = 그 날·주·달 동안 몇 % 움직였나" if view == "bar"
+            else f"{html.escape(lines['base'])} 종가부터 몇 % 인가")
+    return (
+        "<div class='j3vx-themes'><div class='j3vx-list-head'>테마별로 — 언제 오르고 내렸나"
+        f"<small>고른 기간에 테마 평균이 많이 오른 10개 + 빅테크10 · 나스닥 종합 {_fmt(nq_final)}</small></div>"
+        "<div class='j3vx-legend'><span><i class='j3vx-band'></i>나스닥 종합</span>"
+        f"<span><i style='border-top:3px solid {THEME_COLOR}'></i>그 테마(명부 종목을 같은 돈으로 나눠 들었다면)</span></div>"
+        f"<div class='j3vx-tgrid'>{''.join(cards)}</div>"
+        f"<div class='j3vx-note'>{what} · {scale}. 저장 목록이 아니라 테마 명부 종목의 주가로 그린 것이라, "
+        "위 「상위 테마 5개」 성적(산 날마다 산 값)과는 다른 그림입니다.</div></div>")
 
 
 CSS = """
@@ -556,6 +747,17 @@ div[class*="st-key-j3vx_v_"] button[kind="primary"] p{color:#fff!important}
 .j3vx-tbl th:first-child,.j3vx-tbl td:first-child{text-align:left}
 .j3vx-tbl td small{color:#6f93bd;font-size:.7rem}
 .j3vx-tbl td.j3vx-gap{text-align:center;color:#6f93bd}
+.j3vx-themes{margin-top:14px;border-top:1px solid #1d3a63;padding-top:10px}
+.j3vx-tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:4px}
+.j3vx-tc{border:1px solid #1d3a63;border-radius:10px;padding:7px 8px 4px;background:rgba(255,255,255,.02);min-width:0}
+.j3vx-tc-always{border-style:dashed;border-color:#4d7fd0}
+.j3vx-tc-head{display:flex;align-items:baseline;gap:6px;min-width:0}
+.j3vx-tc-rank{font-size:.66rem;color:#8fb4de;font-weight:700;flex:0 0 auto}
+.j3vx-tc-head b{font-size:.8rem;color:#fff;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  flex:1 1 auto;min-width:0}
+.j3vx-tc-val{font-size:.8rem;font-weight:900;flex:0 0 auto}
+.j3vx-tc-svg{display:block;width:100%;height:70px;margin-top:4px;overflow:visible}
+.j3vx-tc-x{display:flex;justify-content:space-between;font-size:.62rem;color:#6f93bd}
 .j3vx-more summary{cursor:pointer;font-size:.8rem;font-weight:700;color:#c084fc;padding:4px 0;list-style:none}
 .j3vx-more summary::-webkit-details-marker{display:none}
 .j3vx-more[open] summary{margin-bottom:4px}
