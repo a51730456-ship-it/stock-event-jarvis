@@ -203,6 +203,10 @@ class WiringTests(unittest.TestCase):
         leader = PAGE[PAGE.index("def _render_leader_table("):PAGE.index("def _leader_table_html(")]
         swing = PAGE[PAGE.index("def _render_us_swing_finder("):PAGE.index("def _render_rulebook_finder(")]
         crash = PAGE[PAGE.index("def _render_rulebook_finder("):PAGE.index("def _rerun_here(")]
+        top9 = PAGE[PAGE.index("def _render_top7_section("):PAGE.index("def _render_top7_close_above_search(")]
+        self.assertIn("us_fundamentals.results_cells(", top9)
+        self.assertIn('["연간 실적", "분기 실적"]', top9)
+        self.assertIn("cols[7].markdown(_stacked(fund_cells)", top9)
         for block in (leader, swing, crash):
             self.assertIn("us_fundamentals.results_cells(", block)
             self.assertIn('"연간 실적", "분기 실적"', block)

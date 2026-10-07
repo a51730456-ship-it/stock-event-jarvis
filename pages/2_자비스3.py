@@ -979,7 +979,7 @@ st.markdown(
         /* 순위 9 표는 2026-09-23 에 수익률 칸 셋이 늘었다 — 900px 로는 글자가
            짓눌린다. 폰·태블릿에서는 옆으로 밀어서 본다(다른 표와 같다). */
         .st-key-j3_top7_table [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important; min-width: 1150px;
+            flex-wrap: nowrap !important; min-width: 1500px;   /* 2026-10-07 실적 두 칸이 늘었다 */
         }
         /* 상승장·급락 표는 2026-08-06에 '점수' 칸이 하나 늘어 아홉 칸이 됐다.
            900px로는 글자가 짓눌려 1000px로 넓혔고, 2026-08-07에 급락 낙폭이
@@ -1004,6 +1004,7 @@ st.markdown(
         .st-key-j3_rulebook_rest [data-testid="stHorizontalBlock"] { min-width: 1700px; }
         .st-key-j3_swing_table [data-testid="stHorizontalBlock"],
         .st-key-j3_swing_rest [data-testid="stHorizontalBlock"] { min-width: 1100px; }
+        .st-key-j3_top7_table [data-testid="stHorizontalBlock"] { min-width: 1300px; }
     }
     .j3-td { white-space: nowrap; }
     /* 설명서 두 갈래 표의 칸은 제 폭 안에서 잘린다 — 테마 이름이 길어 옆 칸을
@@ -1847,7 +1848,7 @@ import us_fundamentals
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100709
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100710
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100702
@@ -2183,6 +2184,8 @@ def _list_price_change(metrics: dict) -> tuple:
 
 # 순위 9 표의 「20일 · 6개월 · 6개월 시장대비」 세 칸 폭 (2026-09-23).
 _TOP7_RET_WIDTHS = [1.0, 1.0, 1.2]
+# 순위 9 표의 「연간 실적 · 분기 실적」 두 칸 폭 (2026-10-07 상하님 지시 — 다른 세 표와 같은 칸).
+_TOP7_FUND_WIDTHS = [1.5, 1.9]
 
 
 def _stacked(cells: list[str]) -> str:
@@ -6830,7 +6833,23 @@ def _scorecard_compare_cached(stamp: str, span: str, start: str = "", end: str =
     except Exception:
         return {}
     # 테마 비교표도 이 값 하나로 그린다 — 「상위 테마 5개」 줄을 테마로 나눈 것(scorecard_compare.compute 의 themes).
-    return scorecard_compare.compute(rows, frames or {}, (index_frames or {}).get("^IXIC"), last_day=last)
+    ixic = (index_frames or {}).get("^IXIC")
+    data = scorecard_compare.compute(rows, frames or {}, ixic, last_day=last)
+    # **비교용 점선 두 줄 — 빅테크10 · 로봇·자동화** (2026-10-07 상하님 지시). 산 적이 없어 명부 종목 평균으로 그린다.
+    # 종목은 시장분석이 받아 둔 묶음의 일부라 새로 받지 않는다(목록 종목과 따로 부른다 — 섞으면 묶음 밖 종목 때문에
+    # 통째로 다시 받는다).
+    if data.get("days"):
+        refs = [(theme["name"], tuple(theme["stocks"])) for theme in getattr(j3data, "US_THEMES", ())
+                if theme["name"] in scorecard_compare.REFERENCE_THEMES]
+        codes = tuple(dict.fromkeys(str(code).upper() for _name, stocks in refs for code in stocks))
+        try:
+            ref_frames, _info = j3data._download_cached(
+                codes, period="2y", interval="1d",
+                ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0)) if codes else ({}, {})
+            data["reference"] = scorecard_compare.reference_lines(refs, ref_frames or {}, ixic, data["days"])
+        except Exception:
+            data["reference"] = []
+    return data
 
 
 def _pick_scorecard_vx(key: str, value: str) -> None:
@@ -6901,7 +6920,10 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
                 + (chart or "<div class='j3vx-note'>이 기간에는 「상위 테마 5개」에 든 테마가 없습니다.</div>")
                 + f"<div class='j3vx-note'>{what} "
                 + ("" if view == "rel" else "나스닥 종합은 같은 날 같은 돈으로 샀다고 친 것입니다. ")
-                + "테마 차례는 위 표와 같습니다(이익 난 확률 · 같으면 평균). " + extra + "</div></div>")
+                + "테마 차례는 위 표와 같습니다(이익 난 확률 · 같으면 평균). "
+                + ("" if view == "bar" else "점선 두 줄(빅테크10 흰색 · 로봇·자동화 진분홍)은 비교용입니다 — 상위 테마 5개에 든 "
+                   "적이 없어 산 적이 없으니, 테마 종목을 같은 돈으로 나눠 들었다면(기간 첫날 앞 종가부터)으로 그립니다. ")
+                + extra + "</div></div>")
         st.markdown(body, unsafe_allow_html=True)
         return
     if view == "bar":
@@ -7820,9 +7842,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 셋은 **한 칸 안에** 나란히 그린다 — 스트림릿 칸을 셋 더 만들면 줄마다 껍데기가
     # 그만큼 늘어 표가 느려진다(2026-08-26에 이 표를 한 덩이로 바꾼 까닭과 같다).
     # 값은 이미 잰 것에서 꺼낸다 — 새로 받아 오는 자료가 없다.
-    widths = [0.6, 2.0, 1.2, 1.2, 1.3, 2.4, 1.6]
+    # 맨 끝 칸 = 「연간 실적」·「분기 실적」(2026-10-07 상하님 지시 — 재무 파일만 읽는다).
+    widths = [0.6, 2.0, 1.2, 1.2, 1.3, 2.4, 1.6, sum(_TOP7_FUND_WIDTHS)]
     # '조건점수'는 갈래마다 다른 자로 잰 값이라 이름을 바꿨다(2026-08-06 사용자 물음).
-    titles = ["순위", "종목", "점수 (갈래 자)", "매수 상태", "현재가", None, "어느 분야"]
+    titles = ["순위", "종목", "점수 (갈래 자)", "매수 상태", "현재가", None, "어느 분야", "_fund"]
     ret_titles = ["20일 수익률", "6개월 수익률", "6개월 시장대비"]
     # **「6개월 시장대비」는 나스닥이 아니라 SPY 를 뺀 값이다** — 21개 테마 표의
     # 같은 이름 칸과 같은 자다(jarvis3_data 의 테마 강도도 SPY 로 뺀다).
@@ -7832,6 +7855,10 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     for column, title in zip(box.columns(widths), titles):
         if title is None:
             column.markdown(_flex_row(_TOP7_RET_WIDTHS, ret_titles, head=True),
+                            unsafe_allow_html=True)
+        elif title == "_fund":
+            column.markdown(us_fundamentals.RESULTS_CSS
+                            + _flex_row(_TOP7_FUND_WIDTHS, ["연간 실적", "분기 실적"], head=True),
                             unsafe_allow_html=True)
         else:
             column.markdown(f"<div class='j3-th-head'>{title}</div>", unsafe_allow_html=True)
@@ -7844,6 +7871,11 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     cols = box.columns(widths)
     rank_cells, score_cells, state_cells, price_cells, source_cells = [], [], [], [], []
     ret_cells = []
+    fund_cells = []
+    try:
+        results = us_fundamentals.results_cells([row.get("ticker") for row in rows])
+    except Exception:
+        results = {}
     labels = []
     for index, row in enumerate(rows):
         plan = row.get("plan") or {}
@@ -7910,6 +7942,8 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
             f"<div class='j3-td {origin_class} j3-top7-src'"
             f" title='{html.escape(source_text)}'>{html.escape(source_text)}</div>"
         )
+        fund_cells.append(_flex_row(_TOP7_FUND_WIDTHS, list(
+            results.get(str(row.get("ticker") or "").upper(), ("—", "—")))))
 
     cols[0].markdown(_stacked(rank_cells), unsafe_allow_html=True)
     for label, index, row in labels:
@@ -7931,6 +7965,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     cols[4].markdown(_stacked(price_cells), unsafe_allow_html=True)
     cols[5].markdown(_stacked(ret_cells), unsafe_allow_html=True)
     cols[6].markdown(_stacked(source_cells), unsafe_allow_html=True)
+    cols[7].markdown(_stacked(fund_cells), unsafe_allow_html=True)
     # 종목 이름 단추는 '테마 종목' 표와 같은 옷을 입힌다.
     st.markdown(
         "<style>"

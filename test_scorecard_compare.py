@@ -234,6 +234,26 @@ class ThemeCompareTests(unittest.TestCase):
         self.assertIn("나스닥보다 나음", chart)
         self.assertIn(("rel", "나스닥보다 더·덜"), vx.THEME_EXTRA_VIEWS)
 
+    def test_reference_dashed_lines_for_bigtech_and_robots(self):
+        days = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
+        refs = vx.reference_lines([("빅테크10", ("AAA",)), ("로봇·자동화", ("BBB",))], FRAMES, IXIC, days)
+        self.assertEqual([r["name"] for r in refs], ["빅테크10", "로봇·자동화"])
+        big = refs[0]
+        self.assertAlmostEqual(big["cum"][0], 10.0)                     # 9/11 종가 100 → 9/14 110
+        self.assertAlmostEqual(big["final"], 40.0)
+        self.assertAlmostEqual(big["rel_final"], 35.0)                  # 나스닥 1000 → 1050 (+5)
+        self.assertEqual(len(big["cum"]), len(days))
+        data = dict(self.data, reference=refs)
+        chart, _note = vx.theme_chart_html(data, "d", "line")
+        self.assertIn("stroke-dasharray='7 5'", chart)
+        self.assertIn("#ff3dbb", chart)
+        self.assertIn("비교용 · 산 적 없음", chart)
+        bars, note = vx.theme_chart_html(data, "w", "bar")
+        self.assertNotIn("stroke-dasharray", bars)
+        self.assertIn("선 보기에만", note)
+        rel, _n = vx.theme_chart_html(data, "d", "rel")
+        self.assertIn("+35.0%", rel)
+
     def test_no_theme_rows_no_chart(self):
         data = vx.compute([_row("2026-09-11", "breakout", "AAA", 100.0)], FRAMES, IXIC)
         self.assertEqual(data["themes"], [])
@@ -278,8 +298,9 @@ class PageWiringTests(unittest.TestCase):
         self.assertIn('vx.THEME_EXTRA_VIEWS) if tab == "themes" else []', body)
         self.assertIn('("j3vx_rowviews", view_buttons)', body)
         cached = PAGE[PAGE.index("def _scorecard_compare_cached("):PAGE.index("def _pick_scorecard_vx(")]
-        # 목록 종목 · 나스닥 둘만 — 테마 명부 종목은 더 받지 않는다(표와 같은 1~3위만 쓴다)
-        self.assertEqual(cached.count("j3data._download_cached("), 2)
+        # 목록 종목 · 나스닥 · 비교용 두 테마(빅테크10·로봇·자동화) 종목 — 셋을 따로 부른다
+        self.assertEqual(cached.count("j3data._download_cached("), 3)
+        self.assertIn("scorecard_compare.reference_lines(", cached)
 
     def test_module_revision_guard(self):
         match = re.search(r"_REQUIRED_SCORECARD_COMPARE_REVISION = (\d+)", PAGE)
