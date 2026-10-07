@@ -1383,11 +1383,14 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("테마 10 + 돌파 거래량 8 + 테마 확산도 5 + 반등 7", joined)
         # 표 머리글은 갈래 전용이다 — 옛 칸 이름이 남아 있으면 안 된다.
         header = next(value for value in markdowns
-                      if "티커" in value and "등급 / 상태" in value and "테마" in value)
+                      if "당일주가" in value and "등급 / 상태" in value and "테마" in value)
+        # 「티커」 칸은 뺐다(2026-10-07 상하님 지시) · 「연간 실적」·「분기 실적」이 끝에 붙었다.
         for gone in ("고점 후 며칠", "보유일수", "1년 성적", "눌림 점수",
-                     "3개월 등수", "6개월 등수", "중요 점수", "보조 점수"):
+                     "3개월 등수", "6개월 등수", "중요 점수", "보조 점수", ">티커<"):
             self.assertNotIn(gone, header, f"표에서 뺀 칸 {gone}이 남아 있다")
-        self.assertLess(header.index("티커"), header.index("등급 / 상태"))
+        self.assertLess(header.index("테마"), header.index("연간 실적"))
+        self.assertLess(header.index("연간 실적"), header.index("분기 실적"))
+        self.assertLess(header.index("당일주가"), header.index("등급 / 상태"))
         self.assertLess(header.index("등급 / 상태"), header.index("눌림 / 며칠째"))
         self.assertLess(header.index("눌림 / 며칠째"), header.index("테마"))
         self.assertIn("j3rbf_00", [str(node.key or "") for node in app.button])
@@ -1446,10 +1449,14 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn("위 테마 순위표 점수는 상승장 기준입니다", joined)
         header = next(
             str(node.value) for node in app.markdown
-            if "갈래" in str(node.value) and "티커" in str(node.value)
+            if "소속 테마" in str(node.value) and "연간 실적" in str(node.value)
         )
         self.assertLess(header.index("고점 대비"), header.index("소속 테마"))
         self.assertLess(header.index("소속 테마"), header.index("갈래"))
+        # 「티커」·「1년 성적」 칸은 뺐다(2026-10-07 상하님 지시).
+        self.assertNotIn(">티커<", header)
+        self.assertNotIn("1년 성적", header)
+        self.assertLess(header.index("연간 실적"), header.index("분기 실적"))
         # 승률이 광고로 읽히지 않게 하는 경고가 반드시 함께 있어야 한다.
         self.assertIn("앞으로의 승률이 아닙니다", joined)
         self.assertTrue(any(
@@ -1486,7 +1493,7 @@ class Jarvis3PageTests(unittest.TestCase):
         joined = " ".join(str(node.value) for node in app.markdown)
         header = next(
             str(node.value) for node in app.markdown
-            if "갈래" in str(node.value) and "티커" in str(node.value)
+            if "소속 테마" in str(node.value) and "연간 실적" in str(node.value)
         )
         # 칸 차례 — 기준일에서 잰 값 둘이 나란히 있어야 읽힌다.
         self.assertIn("테마 반등", header)
@@ -2100,17 +2107,18 @@ class Jarvis3PageTests(unittest.TestCase):
         source = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
         # 2026-09-05에 「6개월 수익률」 칸이, 2026-09-12에 「당일주가」 칸이 하나씩
         # 늘었다(상하님 지시 — "상승장 리스트에도 당일주가 등락률을 넣어라").
-        self.assertIn("widths = [0.42, 0.62, 1.55, 0.72, 1.05, 1.3, 1.2, 1.0, 1.05, 1.45]", source)
-        # 급락 표와 **같은 자리·같은 모양**이어야 한다 — 티커 바로 뒤, 가격 위·등락 아래.
-        self.assertIn('heads = ["티커", "당일주가", "등급 / 상태", "눌림 / 며칠째",', source)
+        # 2026-10-07 「티커」를 빼고 「연간 실적」·「분기 실적」을 끝에 더했다(상하님 지시).
+        self.assertIn("widths = [0.42, 0.62, 1.55, 1.05, 1.3, 1.2, 1.0, 1.05, 1.45, 1.5, 1.9]", source)
+        self.assertIn('heads = ["당일주가", "등급 / 상태", "눌림 / 며칠째",', source)
+        self.assertIn('"20일 수익률", "6개월 수익률", "테마", "연간 실적", "분기 실적"]', source)
         self.assertIn('rank = str(index + 1) if watch_mode', source)
         self.assertNotIn('rank = f"W{index + 1}"', source)
         self.assertIn('st.container(key="j3_swing_table")', source)
         self.assertIn('st.container(key="j3_swing_rest")', source)
         self.assertIn(".st-key-j3_swing_table [data-testid=\"stHorizontalBlock\"]", source)
-        # 칸이 하나 늘어 폭도 같이 넓혔다(2026-09-12).
-        self.assertIn("min-width: 850px", source)
-        self.assertIn("max-width: 1160px", source)
+        # 칸이 늘어 폭도 같이 넓혔다(2026-09-12 · 2026-10-07).
+        self.assertIn("min-width: 1100px", source)
+        self.assertIn("max-width: 1420px", source)
 
     def test_stock_metric_cells_use_the_jarvis7_card_shape(self):
         """종목 값 칸은 **자비스7 카드 모양**이다 (2026-09-12 상하님 지시).

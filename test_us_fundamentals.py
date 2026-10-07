@@ -118,6 +118,55 @@ class CollectTests(unittest.TestCase):
         self.assertEqual(rows[1][1:], [4.0, 1.0, 0.8])
 
 
+class ResultsCellTests(unittest.TestCase):
+    """표 칸 「연간 실적」·「분기 실적」 (2026-10-07 상하님 지시)."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.path = Path(self.temp.name) / "US.json"
+        stocks = {
+            "UP": _entry(annual=[["2024.12", 900.0, 100.0, 80.0], ["2025.12", 1000.0, 250.0, 200.0]],
+                         quarter=[["25.06", 200.0, 40.0, 30.0], ["25.09", 210.0, 40.0, 30.0],
+                                  ["25.12", 220.0, 40.0, 30.0], ["26.03", 230.0, 40.0, 30.0],
+                                  ["26.06", 250.0, 50.0, 40.0]]),
+            "LOSS": _entry(annual=[["2024.12", 500.0, -10.0, -5.0], ["2025.12", 300.0, -90.0, -80.0]],
+                           quarter=[["25.06", 80.0, -20.0, -10.0], ["26.06", 60.0, -30.0, -20.0]]),
+            "OLD": _entry(quarter=[["25.03", 100.0, 10.0, 5.0], ["26.03", 110.0, 12.0, 6.0]]),
+            "JUL": _entry(quarter=[["25.07", 100.0, 10.0, 5.0], ["26.07", 110.0, 12.0, 6.0]]),
+            "UP2": _entry(quarter=[["25.06", 100.0, 10.0, 5.0], ["26.06", 110.0, 12.0, 6.0]]),
+        }
+        self.path.write_text(json.dumps({"version": 1, "stocks": stocks}), encoding="utf-8")
+        self._patch = mock.patch.object(fn, "DATA_PATH", self.path)
+        self._patch.start()
+        fn._LOADED.update(mtime=None, data=None)
+
+    def tearDown(self):
+        self._patch.stop()
+        fn._LOADED.update(mtime=None, data=None)
+        self.temp.cleanup()
+
+    def test_growth_and_margin(self):
+        with mock.patch.object(fn, "load", lambda path=self.path: fn._read_file(self.path)["stocks"]):
+            cells = fn.results_cells(["UP", "LOSS", "OLD", "JUL", "UP2", "NONE"])
+        annual, quarter = cells["UP"]
+        self.assertIn("매출 +11.1%", annual)                       # 1000/900
+        self.assertIn("이익률 25%", annual)
+        self.assertIn("매출 +25.0%", quarter)                      # 26.06 250 ÷ 25.06 200
+        self.assertIn("이익률 20%", quarter)
+        self.assertIn("영업적자", cells["LOSS"][0])
+        self.assertIn("매출 -40.0%", cells["LOSS"][0])
+        # 다른 종목들(26.06)보다 오래된 분기만 달을 붙인다
+        self.assertIn("(26.03)", cells["OLD"][1])
+        self.assertNotIn("(26.06)", quarter)
+        self.assertNotIn("(26.07)", cells["JUL"][1])                # 결산 달이 다를 뿐 — 오래된 것이 아니다
+        self.assertEqual(cells["NONE"], ("<span class='j3-muted'>—</span>",) * 2)
+        self.assertIn("<svg", annual)
+
+    def test_same_quarter_only(self):
+        rows = [["25.09", 1.0, 1.0, 1.0], ["26.06", 2.0, 1.0, 1.0]]
+        self.assertIsNone(fn._same_quarter_last_year(rows))     # 1년 전 같은 분기가 없으면 견주지 않는다
+
+
 class WiringTests(unittest.TestCase):
     def test_every_detail_view_gets_the_box_right_under_daily_prices(self):
         calls = re.findall(r"_render_day_price_row\(metrics, ticker, panel=panel\)\n\s+"
@@ -149,6 +198,22 @@ class WiringTests(unittest.TestCase):
         data = json.loads((ROOT / "data" / "fundamentals" / "US.json").read_text(encoding="utf-8"))
         missing = set(jarvis3_data.US_LARGE_CAP_UNIVERSE) - set(data["stocks"])
         self.assertEqual(missing, set())
+
+    def test_three_tables_get_the_results_columns(self):
+        leader = PAGE[PAGE.index("def _render_leader_table("):PAGE.index("def _leader_table_html(")]
+        swing = PAGE[PAGE.index("def _render_us_swing_finder("):PAGE.index("def _render_rulebook_finder(")]
+        crash = PAGE[PAGE.index("def _render_rulebook_finder("):PAGE.index("def _rerun_here(")]
+        for block in (leader, swing, crash):
+            self.assertIn("us_fundamentals.results_cells(", block)
+            self.assertIn('"연간 실적", "분기 실적"', block)
+            self.assertIn("us_fundamentals.RESULTS_CSS", block)
+        # 상승장·급락은 「티커」 칸을 뺐다 · 급락은 「1년 성적」도
+        self.assertNotIn('heads = ["티커"', swing)
+        self.assertNotIn('["티커", "당일주가"]', crash)
+        self.assertNotIn('"1년 성적"', crash)
+        self.assertNotIn("hold_cell", crash)
+        # 테마 종목 표는 칸을 다 둔다
+        self.assertIn('"매수 상태", "연간 실적", "분기 실적"', leader)
 
     def test_module_revision_guard(self):
         match = re.search(r"_REQUIRED_US_FUNDAMENTALS_REVISION = (\d+)", PAGE)

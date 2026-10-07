@@ -965,12 +965,16 @@ st.markdown(
             flex-wrap: nowrap !important; min-width: 1150px;
         }
         .st-key-j3_rulebook_rest [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important; min-width: 1180px;
+            flex-wrap: nowrap !important; min-width: 1700px;
         }
         .st-key-j3_theme_rest [data-testid="stHorizontalBlock"],
-        .st-key-j3_leader_table [data-testid="stHorizontalBlock"],
         .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
+        }
+        /* 테마 종목 표는 2026-10-07 에 「연간 실적」·「분기 실적」 두 칸이 늘었다 — 옆으로 밀어서 본다.
+           (1200px 넘는 화면은 아래 따로 — 칸이 좁아 실적 글자가 잘리지 않게 같은 폭을 준다.) */
+        .st-key-j3_leader_table [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; min-width: 1180px;
         }
         /* 순위 9 표는 2026-09-23 에 수익률 칸 셋이 늘었다 — 900px 로는 글자가
            짓눌린다. 폰·태블릿에서는 옆으로 밀어서 본다(다른 표와 같다). */
@@ -981,8 +985,9 @@ st.markdown(
            900px로는 글자가 짓눌려 1000px로 넓혔고, 2026-08-07에 급락 낙폭이
            세 칸으로 갈리면서 열한 칸이 돼 1180px로 다시 넓힌다(상하님 지시
            "칸을 두 개 더"). 폰·태블릿에서는 어차피 옆으로 밀어서 본다. */
+        /* 2026-10-07 「연간 실적」·「분기 실적」 두 칸이 늘어(「티커」·「1년 성적」은 뺐다) 1700px. */
         .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important; min-width: 1180px;
+            flex-wrap: nowrap !important; min-width: 1700px;
         }
         .st-key-j3_pullback_table [data-testid="stColumn"],
         .st-key-j3_theme_rest [data-testid="stColumn"],
@@ -991,6 +996,14 @@ st.markdown(
         .st-key-j3_top7_table [data-testid="stColumn"],
         .st-key-j3_rulebook_table [data-testid="stColumn"],
         .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
+    }
+    /* 넓은 화면(1200px 넘음)에서도 실적 두 칸이 잘리지 않게 최소 폭을 준다(2026-10-07) — 모자라면 옆으로 민다. */
+    @media (min-width: 1201px) {
+        .st-key-j3_leader_table [data-testid="stHorizontalBlock"] { min-width: 1180px; }
+        .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_rulebook_rest [data-testid="stHorizontalBlock"] { min-width: 1700px; }
+        .st-key-j3_swing_table [data-testid="stHorizontalBlock"],
+        .st-key-j3_swing_rest [data-testid="stHorizontalBlock"] { min-width: 1100px; }
     }
     .j3-td { white-space: nowrap; }
     /* 설명서 두 갈래 표의 칸은 제 폭 안에서 잘린다 — 테마 이름이 길어 옆 칸을
@@ -1004,8 +1017,9 @@ st.markdown(
        노트북·태블릿·폰 모두 항목 사이가 불필요하게 벌어지므로 이 표만 별도 폭을 쓴다. */
     .st-key-j3_swing_table,
     .st-key-j3_swing_rest {
-        /* 「당일주가」 칸이 하나 늘어 1080px 로는 항목이 서로 붙는다(2026-09-12). */
-        max-width: 1160px;
+        /* 「당일주가」 칸이 하나 늘어 1080px 로는 항목이 서로 붙는다(2026-09-12).
+           2026-10-07 「연간 실적」·「분기 실적」 두 칸이 늘어 1420px. */
+        max-width: 1420px;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
@@ -1064,7 +1078,7 @@ st.markdown(
         .st-key-j3_swing_table [data-testid="stHorizontalBlock"],
         .st-key-j3_swing_rest [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important;
-            min-width: 850px;
+            min-width: 1100px;
         }
         .st-key-j3_swing_table [data-testid="stColumn"],
         .st-key-j3_swing_rest [data-testid="stColumn"] { min-width: 0 !important; }
@@ -1836,7 +1850,7 @@ import us_fundamentals
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026100709
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100701
+_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100702
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
 
@@ -2473,7 +2487,8 @@ def _leader_chart_payload(value):
 
 # 「6개월 수익률」 칸을 하나 더 넣었다(2026-09-07 상하님 지시). 칸 수와 폭이
 # 맞아야 머리글과 값이 어긋나지 않는다 — 넣거나 뺄 때 이 줄도 같이 고친다.
-_LEADER_COL_WIDTHS = [0.75, 1.9, 0.85, 1.6, 0.95, 1.25, 1.15, 1.2, 1.1]
+# 「연간 실적」·「분기 실적」 두 칸을 끝에 더했다(2026-10-07 상하님 지시 — 재무 파일만 읽는다).
+_LEADER_COL_WIDTHS = [0.75, 1.9, 0.85, 1.6, 0.95, 1.25, 1.15, 1.2, 1.1, 1.5, 1.9]
 # 테마표와 같은 이유로 세 칸만 쓴다 — 순위 · 종목(단추) · 나머지를 묶은 한 덩이.
 _LEADER_ROW_WIDTHS = [_LEADER_COL_WIDTHS[0], _LEADER_COL_WIDTHS[1], sum(_LEADER_COL_WIDTHS[2:])]
 _LEADER_REST_WIDTHS = _LEADER_COL_WIDTHS[2:]
@@ -2491,11 +2506,16 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[2].markdown(
-        _flex_row(_LEADER_REST_WIDTHS, ["티커", "최종점수", "당일주가", "52주 고가 대비",
-                                        "20일 수익률", "6개월 수익률",
-                                        "매수 상태"], head=True),
+        us_fundamentals.RESULTS_CSS
+        + _flex_row(_LEADER_REST_WIDTHS, ["티커", "최종점수", "당일주가", "52주 고가 대비",
+                                          "20일 수익률", "6개월 수익률",
+                                          "매수 상태", "연간 실적", "분기 실적"], head=True),
         unsafe_allow_html=True,
     )
+    try:
+        results = us_fundamentals.results_cells([leader["ticker"] for leader in leaders[:6]])
+    except Exception:
+        results = {}
     # 머리글 '종목'과 첫 행 MPC가 붙어 보이지 않도록 한 줄만 띄운다.
     box.markdown("<div class='j3-leader-head-gap'></div>", unsafe_allow_html=True)
 
@@ -2542,6 +2562,7 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
                                   leader_shown["ret20"], leader_shown["ret120"])
                 ),
                 str(plan.get("state", "")),
+                *results.get(str(ticker).upper(), ("—", "—")),
             ]),
             unsafe_allow_html=True,
         )
@@ -9137,13 +9158,14 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     # 후 반등 리스트에는 당일주가 등락률이 나오는데 상승장 리스트에는 있나 확인
     # 하고 없으면 넣어라"). 자리·차례·모양을 급락 표와 똑같이 맞춘다 — 두 표가
     # 같은 값을 다르게 보이면 어느 쪽이 맞는지 알 수 없다.
-    widths = [0.42, 0.62, 1.55, 0.72, 1.05, 1.3, 1.2, 1.0, 1.05, 1.45]
+    # 「티커」 칸을 빼고 「연간 실적」·「분기 실적」을 끝에 더했다(2026-10-07 상하님 지시).
+    widths = [0.42, 0.62, 1.55, 1.05, 1.3, 1.2, 1.0, 1.05, 1.45, 1.5, 1.9]
     row_widths = [widths[0], widths[1], widths[2], sum(widths[3:])]
     rest_widths = widths[3:]
     # **「핵심」·「보조」가 무슨 말인지 모르겠다**(2026-08-21 상하님). 둘 다 점수인데
     # 이름만 봐서는 알 수 없었다. 무엇을 재는 점수인지 이름이 직접 말하게 한다.
-    heads = ["티커", "당일주가", "등급 / 상태", "눌림 / 며칠째",
-             "20일 수익률", "6개월 수익률", "테마"]
+    heads = ["당일주가", "등급 / 상태", "눌림 / 며칠째",
+             "20일 수익률", "6개월 수익률", "테마", "연간 실적", "분기 실적"]
 
     def draw_rows(rows: list[dict], box, *, watch_mode: bool) -> None:
         """표 한 벌을 **칸 넷으로 한 번에** 그린다 (2026-08-26 상하님 지시).
@@ -9170,7 +9192,12 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         cols[0].markdown("<div class='j3-th-head'>번호</div>", unsafe_allow_html=True)
         cols[1].markdown("<div class='j3-th-head'>점수</div>", unsafe_allow_html=True)
         cols[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
-        cols[3].markdown(_flex_row(rest_widths, heads, head=True), unsafe_allow_html=True)
+        cols[3].markdown(us_fundamentals.RESULTS_CSS + _flex_row(rest_widths, heads, head=True),
+                         unsafe_allow_html=True)
+        try:
+            results = us_fundamentals.results_cells([row.get("ticker") for row in rows])
+        except Exception:
+            results = {}
 
         number_cells: list[str] = []
         score_cells: list[str] = []
@@ -9243,7 +9270,6 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 f"{_pct(swing_change)}</span></span>"
             )
             rest_cells.append(_flex_row(rest_widths, [
-                f"<span style='font-weight:800'>{html.escape(str(row.get('ticker') or '—'))}</span>",
                 price_cell,
                 label,
                 f"<span class='{pullback_tone}' style='font-weight:800'>"
@@ -9253,6 +9279,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
                 f"<span style='color:{_sign_color(ret120)}; font-weight:800'>{ret120_text}</span>",
                 f"<span class='j3-pull-theme j3-rb-clip' title='{html.escape(theme_text)}'>"
                 f"{html.escape(theme_text)}</span>",
+                *results.get(str(row.get("ticker") or "").upper(), ("—", "—")),
             ]))
 
         cols[0].markdown(_stacked(number_cells), unsafe_allow_html=True)
@@ -9606,9 +9633,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         # '테마 반등' 칸을 '종목저점후' 바로 뒤에 넣었다(2026-08-16 상하님 지시).
         # 둘 다 기준일에서 잰 값이라 나란히 둬야 읽힌다 — 앞은 이 종목 하나,
         # 뒤는 그 테마 전체다. **점수는 아니다.**
-        widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.35, 1.25, 1.25, 1.75, 1.2, 1.0, 1.15, 1.5]
+        # 「티커」·「1년 성적」 칸을 빼고 「연간 실적」·「분기 실적」을 끝에 더했다(2026-10-07 상하님 지시).
+        widths = [0.55, 1.75, 1.25, 1.15, 1.35, 1.25, 1.25, 1.75, 1.2, 1.15, 1.5, 1.5, 1.9]
     else:
-        widths = [0.55, 1.75, 0.75, 1.25, 1.15, 1.75, 1.2, 1.0, 1.15, 1.5]
+        widths = [0.55, 1.75, 1.25, 1.15, 1.75, 1.2, 1.15, 1.5, 1.5, 1.9]
     # ── **급락 목록에 수익률 칸 셋** (2026-09-23 상하님 지시 — "급락 후 반등장 순위
     # 리스트에 20일 수익률·6개월 수익률·6개월 시장대비 칸을 넣어라") ────────────
     # 「당일주가」 바로 뒤에 넣는다 — 순위 9 표와 같은 차례다. 상승장 쪽은 이미
@@ -9619,7 +9647,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 시장대비의 기준(SPY)도 종목과 **같은 규칙**으로 잰다(2026-09-24 · _shown_numbers).
     spy_ret120 = _shown_numbers((market.get("rows") or {}).get("SPY") or {})["ret120"]
     if show_returns:
-        widths = widths[:4] + [1.0, 1.0, 1.15] + widths[4:]
+        widths = widths[:3] + [1.0, 1.0, 1.15] + widths[3:]     # 「당일주가」 바로 뒤
     # 점수는 순위 **다음 칸**에 따로 둔다(2026-08-06 사용자 지시). 순위 칸에 같이
     # 넣었더니 '1'과 '58점'이 붙어 158점처럼 읽혔다(상하님 캡처).
     row_widths = [widths[0], 0.7, widths[1], sum(widths[2:])]
@@ -9640,10 +9668,14 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 갈라 재니 뒤 5년에서 져서 배점이 0점이 됐다. 점수에 안 쓰는 값을 표에 두면
     # 화면이 순위와 다른 것을 설명하게 된다.
     volume_head = "최근 11일"
-    head_cells = (["티커", "당일주가"]
+    head_cells = (["당일주가"]
                   + (["20일 수익률", "6개월 수익률", "6개월 시장대비"] if show_returns else [])
                   + drop_heads
-                  + ["소속 테마", third, "1년 성적", "같이 걸린 종목", volume_head])
+                  + ["소속 테마", third, "같이 걸린 종목", volume_head, "연간 실적", "분기 실적"])
+    try:
+        results = us_fundamentals.results_cells([row.get("ticker") for row in rows])
+    except Exception:
+        results = {}
     # **상승장은 '순위'라고 부르지 않는다**(2026-08-07). 그물을 144가지로 다 재도
     # 하나도 기준선을 못 넘었다 — 그 위에서 매긴 차례를 1위·2위로 보이면 화면이
     # 검증되지 않은 것을 검증된 것처럼 말하게 된다. 그냥 번호다.
@@ -9657,7 +9689,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         unsafe_allow_html=True)
     head[2].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
     head[3].markdown(
-        _flex_row(rest_widths, head_cells, head=True),
+        us_fundamentals.RESULTS_CSS + _flex_row(rest_widths, head_cells, head=True),
         unsafe_allow_html=True,
     )
 
@@ -9772,12 +9804,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             f" title='{html.escape(str(row.get('together_theme') or ''))}'>"
             f"{int(row.get('together_count') or 0)}개</span>"
         )
-        # 2026-08-12부터 파는 날을 규칙으로 정하지 않는다. 그래서 이 칸에는
-        # 며칠이 아니라 **이 자리를 1년 들었을 때의 과거 성적**을 적는다.
-        year = next((item for item in (row.get("hold_results") or ())
-                     if item.get("days") == 250), None)
-        hold_cell = (f"<span class='j3-hold-120'>1년 {year['median_return']:+.0f}%</span>"
-                     if year else "<span class='j3-muted'>—</span>")
+        # 「1년 성적」 칸은 뺐다(2026-10-07 상하님 지시 — 그 자리에 연간·분기 실적).
         # 달러 거래대금은 숨기고 이 화면에서 실제 순위에 쓰는 값만 남긴다.
         # 최근 11일에 빠진 쪽이 만점이므로, 빠진 것을 초록으로 둔다(값이 좋다는 뜻).
         gain11 = row.get("recent_gain_pct")
@@ -9853,16 +9880,15 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             ]
         cols[3].markdown(
             _flex_row(rest_widths, [
-                html.escape(str(row.get("ticker") or "—")),
                 price_cell,
                 *return_cells,
                 *drop_cells,
                 f"<span class='j3-rb-clip j3-pull-theme'"
                 f" title='{html.escape(' · '.join(themes_all))}'>{html.escape(theme_text)}</span>",
                 third_cell,
-                hold_cell,
                 together_cell,
                 volume_cell,
+                *results.get(str(row.get("ticker") or "").upper(), ("—", "—")),
             ]),
             unsafe_allow_html=True,
         )

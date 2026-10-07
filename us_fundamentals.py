@@ -31,6 +31,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import math
 import os
@@ -41,7 +42,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # 읽는 값이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게.
-MODULE_REVISION = 2026100701
+MODULE_REVISION = 2026100702
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 ROOT = Path(__file__).resolve().parent
@@ -494,6 +495,115 @@ label.j3fn-open{display:flex;align-items:center;justify-content:center;width:100
 .j3fn-t td{color:#e6e6e6;text-align:center;padding:2px 0;font-weight:700;white-space:nowrap}
 .j3fn-t th:first-child,.j3fn-t td:first-child{width:52px;text-align:left;color:#8fb4de}
 .j3fn-foot{font-size:.7rem;color:#6f93bd;line-height:1.5}
+</style>"""
+
+
+# ── 표 칸 「연간 실적」·「분기 실적」 (2026-10-07 상하님 지시) ─────────────────────────
+# 상하님 — "테마 종목 1~6위의 칸에 연간 실적(이익률 포함)과 분기 실적(이익률 포함)을 넣을 수 있나" ·
+# "상승장 리스트에도 · 급락 후 반등장 리스트에도" · "위아래 커져도 보기 싫지만 않으면".
+# 칸 하나 = 작은 막대(매출 파랑 · 영업이익 노랑, 적자는 빨강) + 「매출 ±○%」·「이익률 ○%」 두 줄.
+# 표 줄 높이(40px) 안에 들어가게 막대와 글자를 **옆으로** 나란히 둔다 — 결산한 달은 적지 않고,
+# 그 표에서 혼자 오래된 분기(야후에 최신 분기가 아직 없는 종목)만 「(26.03)」처럼 붙인다.
+
+def _same_quarter_last_year(rows):
+    """「26.06」의 1년 전 「25.06」 줄. 없으면 None — 다른 분기와 견주지 않는다."""
+    try:
+        year, month = str(rows[-1][0]).split(".")
+        target = f"{int(year) - 1:02d}.{month}"
+    except (ValueError, IndexError):
+        return None
+    return next((row for row in rows[:-1] if row[0] == target), None)
+
+
+def _mini_bars(rows) -> str:
+    values = [v for row in rows for v in (row[1], row[2]) if v is not None]
+    if not values:
+        return ""
+    high, low = max(values + [0.0]), min(values + [0.0])
+    reach = (high - low) or 1.0
+
+    def y(value):
+        return 1.0 + (high - value) / reach * 20.0
+
+    width = len(rows) * 9
+    body = [f"<line x1='0' x2='{width}' y1='{y(0.0):.1f}' y2='{y(0.0):.1f}' stroke='rgba(255,255,255,.3)' stroke-width='.6'/>"]
+    for place, (_label, revenue, operating, _net) in enumerate(rows):
+        for offset, value, color in ((0.5, revenue, "#4da6ff"),
+                                     (4.5, operating, "#ffb020" if (operating or 0) >= 0 else "#ff5b5b")):
+            if value is None:
+                continue
+            top, bottom = sorted((y(value), y(0.0)))
+            body.append(f"<rect x='{place * 9 + offset}' y='{top:.1f}' width='3.5' "
+                        f"height='{max(bottom - top, 1.0):.1f}' fill='{color}' rx='1'/>")
+    return f"<svg width='{width}' height='22' viewBox='0 0 {width} 22'>" + "".join(body) + "</svg>"
+
+
+def _result_cell(rows, previous, stale: str | None = None) -> str:
+    if not rows:
+        return "<span class='j3-muted'>—</span>"
+    _label, revenue, operating, _net = rows[-1]
+    growth = (None if not previous or not previous[1] or revenue is None
+              else (revenue / previous[1] - 1.0) * 100.0)
+    tone = "#9aa0aa" if growth is None else ("#4da6ff" if growth >= 0 else "#ff5b5b")
+    growth_text = "매출 —" if growth is None else f"매출 {growth:+.1f}%"
+    if operating is None or not revenue:
+        margin = "<i>이익률 —</i>"
+    elif operating < 0:
+        margin = "<i style='color:#ff5b5b'>영업적자</i>"
+    else:
+        margin = f"<i>이익률 {operating / revenue * 100:.0f}%</i>"
+    stale_html = f"<small>({html.escape(str(stale))})</small>" if stale else ""
+    return (f"<span class='j3rc'>{_mini_bars(rows)}<span class='j3rc-t'>"
+            f"<b style='color:{tone}'>{growth_text}</b><span>{margin}{stale_html}</span></span></span>")
+
+
+def results_cells(tickers) -> dict:
+    """{티커: (연간 칸 HTML, 분기 칸 HTML)} — 표 한 벌에 한 번 부른다(재무 파일만 읽는다).
+
+    연간 = 최근 결산 해 매출이 그 앞 해보다 몇 % · 그 해 이익률.
+    분기 = 최근 분기 매출이 1년 전 같은 분기보다 몇 % · 그 분기 이익률.
+    """
+    from collections import Counter
+
+    data = load()
+    entries = {str(t or "").strip().upper(): data.get(str(t or "").strip().upper()) for t in tickers or []}
+
+    def clean(rows):
+        return [row for row in rows or [] if isinstance(row, list) and len(row) == 4]
+
+    def months(label):
+        try:
+            year, month = str(label).split(".")
+            return int(year) * 12 + int(month)
+        except ValueError:
+            return None
+
+    latest = [clean(entry.get("quarter"))[-1][0] for entry in entries.values()
+              if isinstance(entry, dict) and clean(entry.get("quarter"))]
+    common = Counter(latest).most_common(1)[0][0] if latest else None
+    dash = "<span class='j3-muted'>—</span>"
+    out = {}
+    for code, entry in entries.items():
+        if not isinstance(entry, dict):
+            out[code] = (dash, dash)
+            continue
+        annual, quarter = clean(entry.get("annual")), clean(entry.get("quarter"))
+        # 그 표의 다른 종목들보다 **두 달 넘게 오래된** 분기만 달을 붙인다 — 결산하는 달이 한 달 다른 회사
+        # (26.05 · 26.07)는 오래된 것이 아니다(2026-10-07 화면 확인 — 26.07 에 붙었었다).
+        own, usual = (months(quarter[-1][0]) if quarter else None), months(common)
+        stale = quarter[-1][0] if (own is not None and usual is not None and usual - own >= 2) else None
+        out[code] = (_result_cell(annual, annual[-2] if len(annual) > 1 else None),
+                     _result_cell(quarter, _same_quarter_last_year(quarter) if quarter else None, stale))
+    return out
+
+
+RESULTS_CSS = """<style>
+.j3rc{display:inline-flex;align-items:center;gap:5px;line-height:1.12;white-space:nowrap}
+.j3rc svg{flex:0 0 auto;display:block}
+.j3rc-t{display:flex;flex-direction:column;align-items:flex-start;gap:1px;font-size:.7rem}
+.j3rc-t b{font-weight:800}
+.j3rc-t i{font-style:normal;font-weight:600;color:#cfe0f5}
+.j3rc-t small{color:#6f93bd;font-size:.66rem;margin-left:3px}
 </style>"""
 
 

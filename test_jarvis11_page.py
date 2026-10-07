@@ -133,6 +133,8 @@ def _run_home(page: Path, news: dict | None = None):
 
 
 class SameScreenTests(unittest.TestCase):
+    @unittest.skip("2026-10-07 — 자비스3 표(테마 종목·상승장·급락)에 연간·분기 실적 칸을 넣고 자비스11은 그대로 "
+                   "둔다(상하님 — 「자비스3 이다 · 자비스11은 지금 실패다」). 두 시장분석 화면이 같다는 시험은 쉰다.")
     def test_market_screen_shows_the_same_words_and_buttons(self):
         # **한 번씩 먼저 그려 둔다.** 업종 지도·저장 목록 시세는 뒤 일꾼이 채우는 공책을 읽어서,
         # 먼저 돈 쪽은 비어 있고 뒤에 돈 쪽만 차 있다(차례 탓이지 코드 탓이 아니다 — 2026-10-01 실측).
