@@ -1280,8 +1280,8 @@ def test_a_new_swipe_can_take_over_while_the_page_still_loads():
     assert "take = pending; take.cancelled = true; pending = null; fired = false;" in js
     # 막 넘어와 지금 쪽 칸이 옛 화면이면 넘어올 때 깔았던 사진 칸을 종이로 쓴다.
     assert "drag.face = { host: snapHost, root: snapRoot };" in js
-    # 서버를 기다리는 틈에 말리는 끝 칸을 새 화면으로 바꿔 둔다.
-    assert "try { mountCopy(EDGE, go.to); } catch (e) {}" in js
+    # 새 화면을 그리는 동안에는 다음 넘김 사진을 깔지 않는다(2026-10-07 「다음 장에서 로딩」) — 다 그려진 뒤 idle 이 깐다.
+    assert "mountCopy(FACE, go.to)" not in js and "mountCopy(EDGE, go.to)" not in js
     # 걷히는 0.2초 사이에 가로채면 뒤늦게 다 걷지 않는다.
     assert "if (me.cancelled) { return; }" in js
 
