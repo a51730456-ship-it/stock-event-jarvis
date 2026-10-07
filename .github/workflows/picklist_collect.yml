@@ -120,6 +120,23 @@ jobs:
           sleep 300
           python picklist_collector.py --market "$MARKET"
 
+      - name: 미국 재무 모으기
+        # 선택종목 세부사항의 「📑 재무 한눈에」가 읽는 파일(data/fundamentals/US.json · 2026-10-07
+        # 상하님 지시 — "로딩 안 걸리게"). 화면은 재무를 받으러 가지 않고 이 파일만 읽는다.
+        #
+        # **목록이 새로 저장된 판에서만** 모은다. 아래 「저장소에 올리기」가 목록과 **같은 글로**
+        # 싣기 때문이다 — 재무만 바뀌어 따로 올리면 앱이 그때마다 한 번 더 껐다 켜진다.
+        # 한 번에 가장 오래된 것부터 60종목(약 2분) · 5일 넘은 것만 · 실패해도 목록 저장은 그대로 간다.
+        if: steps.plan.outputs.market == 'US' || steps.plan.outputs.market == 'both'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          if [ -z "$(git status --porcelain data/picklist)" ]; then
+            echo "목록이 그대로라 재무도 모으지 않습니다"
+            exit 0
+          fi
+          python us_fundamentals.py --max 60 --older-than-days 5
+
       - name: 저장소에 올리기
         if: always()
         run: |
@@ -127,6 +144,8 @@ jobs:
           git config user.email "picklist-collector@users.noreply.github.com"
           git add data/picklist || true
           if ! git diff --cached --quiet; then
+            # 재무 파일은 목록이 바뀐 판에만 같이 싣는다(위 「미국 재무 모으기」).
+            git add data/fundamentals || true
             git commit -m "목록 저장 $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M') ${{ steps.plan.outputs.market }}"
             git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
             git push origin "HEAD:${GITHUB_REF_NAME}"

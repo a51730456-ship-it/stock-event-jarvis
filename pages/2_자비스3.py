@@ -1798,7 +1798,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026092420
+_REQUIRED_MOBILE_REVISION = 2026100701
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1827,6 +1827,18 @@ if (
     or int(getattr(picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_PICKLIST_REVISION
 ):
     picklist_ui = importlib.reload(picklist_ui)
+
+import scorecard_compare
+import us_fundamentals
+
+# 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
+# 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100701
+if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
+    scorecard_compare = importlib.reload(scorecard_compare)
+_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100701
+if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
+    us_fundamentals = importlib.reload(us_fundamentals)
 
 import scroll_to
 
@@ -2856,6 +2868,41 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False,
         .properties(height=volume_height or 80)
     )
     return alt.vconcat(line, bars, spacing=4).resolve_scale(x="shared")
+
+
+def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel: str = "") -> None:
+    """선택종목 세부사항의 **「📑 재무 한눈에」** (2026-10-07 상하님 지시).
+
+    상하님 — *"선택종목 세부사항에서 재무사항이나 메이저 회사들이 만든 주식 프로그램처럼 로딩 안
+    걸리게"* · *"재무구조는 중요한 것만 메이저 증권사들처럼 간단하게 도표 같은 걸로"*.
+
+    **받으러 가지 않는다** — 깃허브가 밤에 모아 둔 파일(us_fundamentals · data/fundamentals/US.json)만
+    읽는다. 단추를 누르면 3주간 일별 시세처럼 창이 튀어 오르는데, 창은 처음부터 숨은 채 같이
+    그려 두고 숨은 스위치로 여닫는다 — 눌러도 서버에 묻지 않아 곧바로 뜬다.
+    시가총액·PER·PBR 은 목록·세부사항과 같은 지금 값(_list_price_change)으로 다시 센다.
+    """
+    try:
+        price = _list_price_change(metrics or {})[0] if metrics else None
+        info = us_fundamentals.summary(ticker, price)
+    except Exception:
+        info = None
+    if not info:
+        st.markdown("<div style='font-size:.8rem;color:#6f93bd;padding:.3rem 0'>📑 재무 한눈에 — 이 종목은 아직 모아 둔 재무가 없습니다"
+                    "(미국테마 명부 종목만 모읍니다).</div>", unsafe_allow_html=True)
+        return
+    tap_id = "j3fn-" + re.sub(r"[^A-Za-z0-9]", "_", f"{panel or 'x'}_{ticker}")
+    st.markdown(
+        us_fundamentals.CARD_CSS
+        + f"<div class='j3fnz'><input type='checkbox' id='{tap_id}' class='j3cz-tap j3fn-tap'>"
+        f"<label for='{tap_id}' class='j3fn-open'>📑 재무 한눈에 보기</label>"
+        f"<label for='{tap_id}' class='j3cz-scrim j3fn-scrim' aria-hidden='true'></label>"
+        f"<label for='{tap_id}' class='j3cz-pop j3fn-pop'>"
+        f"<span class='j3cz-name'>{html.escape(str(info.get('name') or ticker))} · "
+        f"{html.escape(str(ticker))} · 재무 한눈에</span>"
+        + us_fundamentals.card_html(info)
+        + "<span class='j3cz-close'>다시 누르면 닫힘</span></label></div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_day_price_row(metrics: dict, ticker: str | None = None,
@@ -4593,6 +4640,7 @@ def _render_stock_detail(
     # (점수/선정 근거·매수 심사·추천 근거)만 만들지 않는다.
     if auth.is_guest():
         _render_day_price_row(metrics, ticker, panel=panel)
+        _render_fundamentals_box(ticker, metrics, panel=panel)
         _render_price_chart_bundle(ticker, panel=panel)
         _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기",
                        on_close=on_close)
@@ -4912,6 +4960,7 @@ def _render_stock_detail(
 
     # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 당일 가격·차트 섹션을 시작한다.
     _render_day_price_row(metrics, ticker, panel=panel)
+    _render_fundamentals_box(ticker, metrics, panel=panel)
     # 당일 차트가 이 상세에만 없었다(2026-08-06 상하님 지적) — 순위 7에서 테마
     # 대장주를 고르면 여기로 오는데 당일 차트가 안 나왔다.
     # panel을 넘겨야 같은 종목을 위·아래 두 상세에서 열어도 단추 키가 안 겹친다.
@@ -6690,6 +6739,147 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
     )
 
 
+# ── 나스닥 종합과 견줘 보기 (2026-10-07 상하님 지시) ─────────────────────────────
+# 상하님 — "클릭하면 나스닥 종합주가와 테마 5개·상승장·하락 후 반등장 비교 그래프 / 나스닥 대
+# 테마 5개 / 나스닥 대 상승장·하락 후 반등장 — 일별·주별·월별 차트", "나스닥 그래프는 두껍게
+# 투명도가 있게", "기간 고르기 하면 그때 종목들이 나오게". 디자인 2판 그대로(상하님 — "나머지는
+# 너가 권하는 대로"). 계산은 scorecard_compare 한 곳이고, 여기는 **어느 줄을 넣을지(기간)**만
+# 고른다 — 위 막대(_scorecard_counts_cached · _scorecard_range_counts)와 같은 줄을 고른다.
+_SCORECARD_VX_TAB = "j3vx_tab"          # all · theme · swing
+_SCORECARD_VX_PERIOD = "j3vx_period"    # d · w · m
+_SCORECARD_VX_VIEW = "j3vx_view"        # line · bar
+_SCORECARD_VX_HELP = {
+    "all": "나스닥 종합(회색 굵은 띠)과 세 파트를 한 그림에 겹쳐 봅니다.",
+    "theme": "나스닥 종합(회색 굵은 띠)과 상위 테마 5개(1~3위)만 견줍니다.",
+    "swing": "나스닥 종합(회색 굵은 띠)과 상승장 · 급락 후 반등장 두 파트를 견줍니다.",
+}
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _scorecard_compare_cached(stamp: str, span: str, start: str = "", end: str = "") -> dict:
+    """견주기 값. 위 막대와 **같은 줄**을 골라 scorecard_compare.compute 에 넘긴다.
+
+    값은 앱 전체에 10분 보관한다(막대와 같다). 종목 일봉은 막대가 이미 받아 둔 2년치 묶음을,
+    나스닥 종합은 시장 국면 게이지가 받아 둔 이력을 그대로 쓴다 — 새로 받는 것이 없다.
+    """
+    import picklist_store as store
+
+    dates = store.available_dates("US")
+    newest = dates[0] if dates else ""
+    ranged = span == _SCORECARD_RANGE
+    last = None
+    if ranged:
+        first = date.fromisoformat(start)
+        last = _us_last_trading_day(date.fromisoformat(end))
+    anchor = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
+    span_days = dict(_SCORECARD_SPANS).get(span)
+    rows = []
+    for day in dates:
+        if day < _SCORECARD_START:
+            continue
+        try:
+            when = date.fromisoformat(day)
+        except ValueError:
+            continue
+        if ranged:
+            if when < first or _us_next_trading_day(when) > last:
+                continue
+        else:
+            if newest and day >= newest:
+                continue            # 산 날 장이 아직 안 끝났다 — 막대처럼 다음 날 센다
+            if not _scorecard_in_span(when, anchor, span_days):
+                continue
+        try:
+            rows.extend(store.load_rows(day, "US") or [])
+        except Exception:
+            continue
+    codes = tuple(dict.fromkeys(
+        str(row.get("code") or "").strip().upper() for row in rows
+        if row.get("list_kind") in scorecard_compare.PARTS and str(row.get("code") or "").strip()))
+    if not codes:
+        return {}
+    try:
+        frames, _info = j3data._download_cached(
+            codes, period="2y", interval="1d",
+            ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+        index_frames, _info = j3data._download_cached(
+            ("^IXIC",), period=getattr(j3data, "IXIC_HISTORY_PERIOD", "25y"), interval="1d",
+            ttl_seconds=getattr(j3data, "IXIC_HISTORY_TTL", 21600.0))
+    except Exception:
+        return {}
+    return scorecard_compare.compute(rows, frames or {}, (index_frames or {}).get("^IXIC"),
+                                     last_day=last)
+
+
+def _pick_scorecard_vx(key: str, value: str) -> None:
+    """견주기 단추(탭 · 일별/주별/월별 · 선/막대). 화면은 제자리에 둔다."""
+    st.session_state[key] = value
+
+
+def _render_scorecard_compare(span: str, picked=None) -> None:
+    """파트별 성적표 밑 「📈 나스닥 종합과 견줘 보기」."""
+    import picklist_store as _pl_store
+
+    vx = scorecard_compare
+    tab = str(st.session_state.get(_SCORECARD_VX_TAB) or "all")
+    tab = tab if tab in vx.TAB_PARTS else "all"
+    period = str(st.session_state.get(_SCORECARD_VX_PERIOD) or "d")
+    period = period if period in dict(vx.PERIODS) else "d"
+    view = str(st.session_state.get(_SCORECARD_VX_VIEW) or "line")
+    view = view if view in dict(vx.VIEWS) else "line"
+    dates = _pl_store.available_dates("US")
+    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|vx{vx.MODULE_REVISION}"
+    start, end = (picked[0].isoformat(), picked[1].isoformat()) if picked else ("", "")
+    try:
+        data = _scorecard_compare_cached(stamp, span, start, end) or {}
+    except Exception:
+        data = {}
+    st.markdown(
+        vx.CSS + "<div class='j3vx'><div class='j3vx-head'><b>📈 나스닥 종합과 견줘 보기</b>"
+        "<span>위에서 고른 기간 그대로</span></div></div>", unsafe_allow_html=True)
+    with st.container(key="j3vx_rowtabs"):
+        for column, (key, label, _parts) in zip(st.columns(len(vx.TABS)), vx.TABS):
+            column.button(label, key=f"j3vx_t_{key}", width="stretch",
+                          type="primary" if key == tab else "secondary",
+                          on_click=_pick_scorecard_vx, args=(_SCORECARD_VX_TAB, key))
+    with st.container(key="j3vx_rowopts"):
+        options = ([(_SCORECARD_VX_PERIOD, key, label, f"j3vx_p_{key}", key == period)
+                    for key, label in vx.PERIODS]
+                   + [(_SCORECARD_VX_VIEW, key, label, f"j3vx_v_{key}", key == view)
+                      for key, label in vx.VIEWS])
+        for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
+            column.button(label, key=widget_key, width="stretch",
+                          type="primary" if chosen else "secondary",
+                          on_click=_pick_scorecard_vx, args=(state_key, key))
+    if not data.get("parts"):
+        st.markdown("<div class='j3vx-note'>이 기간에는 아직 나스닥과 견줄 것이 없습니다.</div>",
+                    unsafe_allow_html=True)
+        return
+    days = data.get("days") or []
+    first, last = (days[0], days[-1]) if days else ("", "")
+    if view == "bar":
+        chart, extra = vx.bar_chart_html(data, tab, period)
+        note = (f"막대 하나 = 그날(주별·월별은 그 안의 산 날 평균) 산 것이 <b>{html.escape(last)} 종가</b>까지 "
+                "몇 % 인가. 회색은 같은 날 나스닥 종합을 샀다면입니다. " + extra)
+    else:
+        chart = vx.line_chart_html(data, tab, period)
+        note = (f"{html.escape(first)} ~ {html.escape(last)} · 저장된 목록을 <b>날마다 같은 돈으로</b> 다음 거래일 "
+                f"시가에 샀다고 치고 {html.escape(last)} 종가까지 견준 것입니다. 나스닥 종합도 같은 날 같은 돈으로 "
+                "샀다고 친 것입니다.")
+    # 한 상자(j3vx-body)로 싼다 — 이 화면은 글 상자 바로 밑 칸의 위아래 여백을 지운다(10873 줄
+    # 규칙). 싸지 않으면 그림 밑 날짜 글자가 아래 설명 글을 덮었다(2026-10-07 노트북 실측).
+    body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
+            + vx.cards_html(data, tab) + vx.legend_html(tab, data) + chart
+            + f"<div class='j3vx-note'>{note}</div>")
+    if span == _SCORECARD_RANGE and picked:
+        body += vx.stocks_html(data, tab, names=dict(getattr(j3data, "STOCK_NAMES", {}) or {}),
+                               first=first, last=last)
+    else:
+        body += ("<div class='j3vx-note' style='margin-top:10px'>📅 <b>기간 고르기</b>를 누르면 그 기간에 산 "
+                 "종목도 여기 나옵니다.</div>")
+    st.markdown(body + "</div>", unsafe_allow_html=True)
+
+
 # 성적표 머리 자리 — 성적표를 열거나 기간 단추를 누르면 이 자리가 화면 맨 위에 선다
 # (2026-09-23 저녁 상하님 — "파트별 성적표 어디서 클릭하던 처음 화면이 저 위치에 되도록 해라").
 # 캡처처럼 성적표 상자 위 테두리가 화면 맨 위에서 12px 아래에 서게 띄운다(머리가 상자 위
@@ -6857,35 +7047,44 @@ def _render_picklist_scorecard(part: str):
         with st.spinner("저장해 둔 목록으로 성적을 세는 중입니다…"):
             data = _scorecard_counts()
     panel = st.container(key="j3sc_box")
+    picked = None
     with panel:
-        st.markdown(
-            # 자리 표시는 머리와 **같은 글 상자** 안에 둔다 — 따로 두면 칸 사이 틈이 하나 는다.
-            f"<div id='{scroll_to.anchor_id(_SCORECARD_ANCHOR)}' class='jarvis-anchor j3sc-anchor'></div>"
-            "<div class='j3sc-head'><b>📊 파트별 성적표</b>"
-            "<span>이익 난 확률</span></div>", unsafe_allow_html=True)
-        chip_list = list(_SCORECARD_SPANS) + [(_SCORECARD_RANGE, None)]
-        chips = st.columns(len(chip_list))
-        for index, (label, _days) in enumerate(chip_list):
-            chips[index].button(
-                "📅 기간 고르기" if label == _SCORECARD_RANGE
-                else _SCORECARD_CHIP_LABELS.get(label, label),
-                key=f"j3sc_span_{index}", width="stretch",
-                type="primary" if label == span else "secondary",
-                on_click=_pick_scorecard_span, args=(label,),
-            )
-        if span == _SCORECARD_RANGE:
-            picked = _render_range_picker()
-            if picked:
-                import picklist_store as _pl_store
+        # **머리·칩·막대를 한 칸(j3sc_top)에 싼다** (2026-10-07). 순위 9 창(.j3pop)은 둘레 칸의
+        # 가운데에 뜨는데, 밑에 「나스닥 종합과 견줘 보기」가 붙어 성적표 상자가 길어지면 창이
+        # 막대에서 멀리 떨어져 화면 밖에 뜬다. 그래서 창의 둘레를 막대까지로 묶는다.
+        with st.container(key="j3sc_top"):
+            st.markdown(
+                # 자리 표시는 머리와 **같은 글 상자** 안에 둔다 — 따로 두면 칸 사이 틈이 하나 는다.
+                f"<div id='{scroll_to.anchor_id(_SCORECARD_ANCHOR)}' class='jarvis-anchor j3sc-anchor'></div>"
+                "<div class='j3sc-head'><b>📊 파트별 성적표</b>"
+                "<span>이익 난 확률</span></div>", unsafe_allow_html=True)
+            chip_list = list(_SCORECARD_SPANS) + [(_SCORECARD_RANGE, None)]
+            chips = st.columns(len(chip_list))
+            for index, (label, _days) in enumerate(chip_list):
+                chips[index].button(
+                    "📅 기간 고르기" if label == _SCORECARD_RANGE
+                    else _SCORECARD_CHIP_LABELS.get(label, label),
+                    key=f"j3sc_span_{index}", width="stretch",
+                    type="primary" if label == span else "secondary",
+                    on_click=_pick_scorecard_span, args=(label,),
+                )
+            if span == _SCORECARD_RANGE:
+                picked = _render_range_picker()
+                if picked:
+                    import picklist_store as _pl_store
 
-                dates = _pl_store.available_dates("US")
-                stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|range"
-                with st.spinner("고른 기간의 성적을 세는 중입니다…"):
-                    data = _scorecard_range_counts(stamp, picked[0].isoformat(), picked[1].isoformat())
-                st.markdown(_scorecard_panel_html(data, span) + _scorecard_theme_html(data),
-                            unsafe_allow_html=True)
-        else:
-            st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
+                    dates = _pl_store.available_dates("US")
+                    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|range"
+                    with st.spinner("고른 기간의 성적을 세는 중입니다…"):
+                        data = _scorecard_range_counts(stamp, picked[0].isoformat(), picked[1].isoformat())
+                    st.markdown(_scorecard_panel_html(data, span) + _scorecard_theme_html(data),
+                                unsafe_allow_html=True)
+            else:
+                st.markdown(_scorecard_panel_html(data, span), unsafe_allow_html=True)
+        # **나스닥 종합과 견줘 보기** (2026-10-07 상하님 지시) — 막대 밑, 맨 밑 닫기 위.
+        # 기간 고르기는 두 날을 다 고른 뒤에만 그린다(그 전에는 달력만 있다).
+        if span != _SCORECARD_RANGE or picked:
+            _render_scorecard_compare(span, picked)
         # 「어느 때 어느 파트가 나았나」 표는 뺐다(2026-09-23 저녁 상하님 — "파트별 성적표 밑에
         # 다 지워라 의미없다 삭제해라"). 계산만 research/parts_when.py 에 남아 있다.
         # **맨 밑에 닫기 단추를 하나 더** (2026-09-25 상하님 — "파트별 성적표 보기를 열고 나면 맨 밑에
@@ -8097,6 +8296,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     )
     if auth.is_guest():
         _render_day_price_row(metrics, ticker, panel=panel)
+        _render_fundamentals_box(ticker, metrics, panel=panel)
         # 당일 그림은 이제 아래 네 그림 판에 함께 들어간다(2026-08-28).
         _render_price_chart_bundle(ticker, panel=panel)
         _section_close(detail_key, "선택종목 세부사항 닫기")
@@ -8457,6 +8657,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
     _render_day_price_row(metrics, ticker, panel=panel)
+    _render_fundamentals_box(ticker, metrics, panel=panel)
     _render_price_chart_bundle(ticker, panel=panel)
 
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
@@ -11203,6 +11404,8 @@ def _briefing_css() -> None:
            삼지 않게 풀어 주고, 상자가 내려올 때 쓴 잘라 내기(clip-path)가 끝난 뒤
            남아 창을 자르지 않게 한다. */
         div[class*="st-key-j3sc_box"]{position:relative;animation-fill-mode:backwards!important}
+        /* 창의 둘레는 머리·칩·막대를 싼 위쪽 칸이다(2026-10-07 — 밑에 견주기 그림이 붙었다). */
+        div[class*="st-key-j3sc_top"]{position:relative}
         div[class*="st-key-j3sc_box"] [data-testid="stElementContainer"]:has(.j3pop),
         div[class*="st-key-j3sc_box"] [data-testid="stMarkdown"]:has(.j3pop),
         div[class*="st-key-j3sc_box"] [data-testid="stMarkdownContainer"]:has(.j3pop){

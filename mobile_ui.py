@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026092420
+MODULE_REVISION = 2026100701
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -496,6 +496,26 @@ label.j3sc-top9 .j3sc-name { white-space: nowrap !important; font-size: .82rem !
 label.j3sc-top9 .j3sc-name::after { content: "›"; color: #c084fc; font-weight: 900; margin-left: 5px; }
 .j3sc-sub-row .j3sc-name { white-space: nowrap !important; font-size: .8rem !important; }
 .j3sc-count { display: none !important; }
+/* 「나스닥 종합과 견줘 보기」 단추 두 줄(2026-10-07) — 폰에서도 **탭 셋이 한 줄**, 일별·주별·월별·
+   선·막대 **다섯이 한 줄**이다. 스트림릿이 좁은 화면에서 칸을 위아래로 쌓으면 단추 여덟이 여덟
+   줄이 된다. 글자가 길면 단추 안에서 두 줄로 접는다. 그림 높이는 230 → 190px. 값은 그대로다. */
+div[class*="st-key-j3vx_row"] [data-testid="stHorizontalBlock"] {
+    flex-direction: row !important; flex-wrap: nowrap !important; gap: 5px !important;
+}
+div[class*="st-key-j3vx_row"] [data-testid="stColumn"] {
+    flex: 1 1 0 !important; width: auto !important; min-width: 0 !important;
+}
+/* 버튼 꾸밈(scorecard_compare.CSS)이 이 규칙보다 뒤에 심겨 같은 세기면 그쪽이 이긴다 — 칸 이름을 하나 더 붙여 세게. */
+div[class*="st-key-j3vx_row"] div[class*="st-key-j3vx_"] button { padding: .25rem .2rem !important; min-height: 44px !important; }
+div[class*="st-key-j3vx_row"] button p { white-space: normal !important; line-height: 1.2 !important; }
+.j3vx-plot { height: 190px !important; }
+.j3vx-y { width: 38px !important; flex-basis: 38px !important; }
+.j3vx-cards { grid-template-columns: 1fr !important; gap: 6px !important; }
+.j3vx-tbl { font-size: .76rem !important; }
+.j3vx-tbl th, .j3vx-tbl td { padding: 4px 3px !important; }
+/* 「재무 한눈에」 창(2026-10-07) — 폰에서는 지표 여섯 칸을 두 칸씩, 실적 그림 둘을 위아래로. */
+.j3fn-grid { grid-template-columns: 1fr 1fr !important; }
+.j3fn-charts { grid-template-columns: 1fr !important; }
 /* 줄 사이 틈을 12px → 8px 로 더 좁힌다(2026-09-16 상하님 — "여백 조금 더 좁게"). */
 div[class*="st-key-pldl_US"] { gap: 8px !important; }
 div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:has(div[class*="st-key-picklist_scorecard_US"]),
