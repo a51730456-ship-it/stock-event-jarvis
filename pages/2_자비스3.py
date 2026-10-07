@@ -1798,7 +1798,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026100703
+_REQUIRED_MOBILE_REVISION = 2026100704
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1833,7 +1833,7 @@ import us_fundamentals
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100705
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100706
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100701
@@ -13269,7 +13269,7 @@ _SWIPE_OUTER_JS = """
   // 닫혀 있어도 투명하게 숨었을 뿐 자리를 잡고 그려진다. 지도 창 하나가 시장분석 사진을 깔 때
   // 느린 폰 기준 0.8초를 더 먹었다(칸 27개가 제 크기에 맞춰 글자를 다시 잰다). 창이 열려 있으면
   // 넘기기가 꺼져 있으므로(touchstart) 사진에 창이 없어도 보일 일이 없다.
-  var POPUPS = '.j3sm-scrim,.j3sm-pop,.j3cz-scrim,.j3cz-pop';
+  var POPUPS = '.j3sm-scrim,.j3sm-pop,.j3cz-scrim,.j3cz-pop,.j3vx-zscrim,.j3vx-zpop';
   function buildStamp() {
     var el = d.querySelector('.jarvis-build');
     return el ? String(el.textContent || '').trim() : '';

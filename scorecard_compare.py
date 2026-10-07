@@ -26,7 +26,7 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게(CLAUDE.md 11과 같은 까닭).
-MODULE_REVISION = 2026100705
+MODULE_REVISION = 2026100706
 
 PARTS = ("theme15", "breakout", "crash")
 PART_NAMES = {
@@ -280,13 +280,13 @@ def _tone(value) -> str:
     return "#9aa0aa" if value is None else ("#4da6ff" if value >= 0 else "#ff5b5b")
 
 
-def _nice_range(values: list) -> tuple:
+def _nice_range(values: list, parts: int = 4) -> tuple:
     finite = [v for v in values if v is not None]
     low, high = (min(finite + [0.0]), max(finite + [0.0])) if finite else (-1.0, 1.0)
     if high - low < 2.0:
         middle = (high + low) / 2.0
         low, high = middle - 1.0, middle + 1.0
-    raw = (high - low) / 4.0
+    raw = (high - low) / float(parts)
     magnitude = 10 ** math.floor(math.log10(raw))
     step = next(m * magnitude for m in (1, 2, 2.5, 5, 10) if m * magnitude >= raw)
     low = math.floor(low / step) * step
@@ -298,14 +298,14 @@ def _nice_range(values: list) -> tuple:
     return low, high, ticks
 
 
-def _frame(svg_body: str, ticks: list, low: float, high: float, labels: list) -> str:
+def _frame(svg_body: str, ticks: list, low: float, high: float, labels: list, extra: str = "") -> str:
     """눈금(글자)은 그림 밖 HTML 로 — 그림은 가로로 늘려 그려도 글자는 안 찌그러진다."""
     span = (high - low) or 1.0
     y_labels = "".join(
         f"<span style='top:{(high - tick) / span * 100:.2f}%'>{tick:+g}%</span>" for tick in ticks)
     x_labels = "".join(
         f"<span style='left:{left:.2f}%'>{html.escape(text)}</span>" for left, text in labels)
-    return (f"<div class='j3vx-plot'><div class='j3vx-y'>{y_labels}</div>"
+    return (f"<div class='j3vx-plot{(' ' + extra) if extra else ''}'><div class='j3vx-y'>{y_labels}</div>"
             f"<div class='j3vx-area'><svg viewBox='0 0 1000 400' preserveAspectRatio='none' "
             f"class='j3vx-svg'>{svg_body}</svg><div class='j3vx-x'>{x_labels}</div></div></div>")
 
@@ -529,6 +529,9 @@ THEME_COLORS = ("#ff6b6b", "#ffd166", "#06d6a0", "#4cc9f0", "#c77dff", "#f78fb3"
 ALWAYS_COLOR = "#ffffff"
 THEME_VIEWS = (("line", "처음부터 (선)"), ("bar", "날·주·달마다 (막대)"))
 THEME_DAILY_BAR_KEEP = 10
+# 테마 비교표 눈금을 잘게 — 10칸 남짓으로 나눠 위아래를 꽉 쓰게(2026-10-07 상하님 — "너무 누워 있으니 구분이
+# 힘들다 · 좀 더 세울까"). 4칸이면 맨 위가 +40% 로 튀어 줄들이 아래에 눌렸다.
+THEME_TICK_PARTS = 8
 
 
 def theme_lines(themes, frames: dict, ixic, days: list) -> dict:
@@ -652,7 +655,7 @@ def theme_chart_html(lines: dict, period: str, view: str) -> tuple:
             note = f"일별 막대는 최근 {THEME_DAILY_BAR_KEEP}일만 그립니다(주별·월별은 전부)."
             keep = keep[-THEME_DAILY_BAR_KEEP:]
         values = [nq_points[i][1] for i in keep] + [points[r["name"]][i][1] for r in picked for i in keep]
-        low, high, ticks = _nice_range(values)
+        low, high, ticks = _nice_range(values, parts=THEME_TICK_PARTS)
         slot = 1000.0 / len(keep)
         lanes = 1 + len(picked)
         width = slot * 0.84 / lanes
@@ -674,13 +677,14 @@ def theme_chart_html(lines: dict, period: str, view: str) -> tuple:
                             f"height='{max(bottom - top, 1.5):.1f}' fill='{color}'>"
                             f"<title>{html.escape(nq_points[i][0])} · {html.escape(name)} {_fmt(value)}</title></rect>")
         chart = _frame("".join(body), ticks, low, high,
-                       _x_labels(len(keep), [nq_points[i][0] for i in keep], lambda c: (c + 0.5) * slot / 10.0))
-        return legend_html + chart, note
+                       _x_labels(len(keep), [nq_points[i][0] for i in keep], lambda c: (c + 0.5) * slot / 10.0),
+                       "j3vx-tplot")
+        return _theme_zoom(legend_html, chart, picked, colors, nq_final), note
     nq_points = line_points(days, lines["nasdaq"], period)
     points = {row["name"]: line_points(days, row["series"], period) for row in picked}
     count = len(nq_points)
     values = [v for _l, v in nq_points] + [v for pts in points.values() for _l, v in pts]
-    low, high, ticks = _nice_range(values)
+    low, high, ticks = _nice_range(values, parts=THEME_TICK_PARTS)
 
     def x(i):
         return 500.0 if count == 1 else i * 1000.0 / (count - 1)
@@ -706,8 +710,34 @@ def theme_chart_html(lines: dict, period: str, view: str) -> tuple:
                         f"stroke='{color}' stroke-width='{dot}' stroke-linecap='round' fill='none' "
                         "vector-effect='non-scaling-stroke'/>")
     chart = _frame("".join(body), ticks, low, high,
-                   _x_labels(count, [label for label, _v in nq_points], lambda i: x(i) / 10.0))
-    return legend_html + chart, note
+                   _x_labels(count, [label for label, _v in nq_points], lambda i: x(i) / 10.0), "j3vx-tplot")
+    return _theme_zoom(legend_html, chart, picked, colors, nq_final), note
+
+
+def _theme_zoom(legend_html: str, chart: str, picked: list, colors: dict, nq_final) -> str:
+    """그림을 누르면 **화면 가득** — 시장 현황 지도 창과 같은 장치(2026-10-07 상하님 지시 — "10개 테마 그래프
+    클릭하면 스마트폰이나 태블릿에서 화면 옆으로 꽉 차게 · 시장 현황 클릭하면 옆으로 꽉 차게 튀어나오잖아").
+
+    숨은 스위치(j3vx-zoom) 하나로 여닫아 서버에 묻지 않는다. 세로로 든 화면(폰·세운 태블릿)은 창을 눕혀 긴 쪽으로
+    채운다. 창 안 그림은 바깥 그림과 같은 것이라, 바깥에서 이름을 눌러 굵게 한 테마가 창에서도 굵다.
+    창 안 범례는 누르는 칸이 아니다 — 창을 누르면 닫혀야 하므로(누르는 칸 안에 누르는 칸을 둘 수 없다).
+    """
+    place = {row["name"]: index for index, row in enumerate(picked)}
+    names = [f"<span><i class='j3vx-band'></i>나스닥 종합 <b style='color:{_tone(nq_final)}'>{_fmt(nq_final)}</b></span>"]
+    names += [f"<span class='j3vx-zc{place[row['name']]}'><i style='border-top:3px solid {colors[row['name']]}'></i>"
+              f"{html.escape(row['name'])} <b style='color:{_tone(row['final'])}'>{_fmt(row['final'])}</b></span>"
+              for row in picked]
+    return (
+        "<input type='checkbox' id='j3vx-zoom' class='j3cz-tap j3vx-ztap'>" + legend_html
+        + f"<label for='j3vx-zoom' class='j3vx-zcell'>{chart}"
+        "<span class='j3vx-zhint'>🔍 그림을 누르면 화면 가득 크게 봅니다</span></label>"
+        "<label for='j3vx-zoom' class='j3vx-zscrim' aria-hidden='true'></label>"
+        "<label for='j3vx-zoom' class='j3vx-zpop'><div class='j3vx-zin'>"
+        "<span class='j3vx-ztitle'>테마 비교표 · 나스닥 종합과 테마 10개</span>"
+        # 이름은 **오른쪽 세로 줄**에 — 눕힌 창은 위아래가 폰의 짧은 쪽이라, 이름을 위에 세 줄로 두면 그림이
+        # 223px 로 납작해졌다(2026-10-07 노트북 실측). 옆으로 빼면 그림이 창 높이를 다 쓴다.
+        f"<div class='j3vx-zbody'>{chart}<div class='j3vx-legend j3vx-zlegend'>{''.join(names)}</div></div>"
+        "<span class='j3vx-zclose'>다시 누르면 닫힘</span></div></label>")
 
 CSS = """
 <style>
@@ -772,17 +802,51 @@ div[class*="st-key-j3vx_v_"] button[kind="primary"] p{color:#fff!important}
   border:1px solid transparent;border-radius:999px;transition:background-color .15s ease,border-color .15s ease}
 .j3vx-thint{font-size:.72rem;color:#6f93bd;margin:-2px 0 6px}
 .j3vx-tl{opacity:.85;transition:opacity .2s ease}
-.j3vx-tk:checked ~ .j3vx-plot .j3vx-tl{opacity:.12}
-#j3vx-tk-0:checked ~ .j3vx-plot .j3vx-tl0{opacity:1}#j3vx-tk-0:checked ~ .j3vx-plot polyline.j3vx-tl0{stroke-width:3.6px}#j3vx-tk-0:checked ~ .j3vx-tlegend .j3vx-tc0{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-1:checked ~ .j3vx-plot .j3vx-tl1{opacity:1}#j3vx-tk-1:checked ~ .j3vx-plot polyline.j3vx-tl1{stroke-width:3.6px}#j3vx-tk-1:checked ~ .j3vx-tlegend .j3vx-tc1{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-2:checked ~ .j3vx-plot .j3vx-tl2{opacity:1}#j3vx-tk-2:checked ~ .j3vx-plot polyline.j3vx-tl2{stroke-width:3.6px}#j3vx-tk-2:checked ~ .j3vx-tlegend .j3vx-tc2{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-3:checked ~ .j3vx-plot .j3vx-tl3{opacity:1}#j3vx-tk-3:checked ~ .j3vx-plot polyline.j3vx-tl3{stroke-width:3.6px}#j3vx-tk-3:checked ~ .j3vx-tlegend .j3vx-tc3{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-4:checked ~ .j3vx-plot .j3vx-tl4{opacity:1}#j3vx-tk-4:checked ~ .j3vx-plot polyline.j3vx-tl4{stroke-width:3.6px}#j3vx-tk-4:checked ~ .j3vx-tlegend .j3vx-tc4{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-5:checked ~ .j3vx-plot .j3vx-tl5{opacity:1}#j3vx-tk-5:checked ~ .j3vx-plot polyline.j3vx-tl5{stroke-width:3.6px}#j3vx-tk-5:checked ~ .j3vx-tlegend .j3vx-tc5{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-6:checked ~ .j3vx-plot .j3vx-tl6{opacity:1}#j3vx-tk-6:checked ~ .j3vx-plot polyline.j3vx-tl6{stroke-width:3.6px}#j3vx-tk-6:checked ~ .j3vx-tlegend .j3vx-tc6{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-7:checked ~ .j3vx-plot .j3vx-tl7{opacity:1}#j3vx-tk-7:checked ~ .j3vx-plot polyline.j3vx-tl7{stroke-width:3.6px}#j3vx-tk-7:checked ~ .j3vx-tlegend .j3vx-tc7{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-8:checked ~ .j3vx-plot .j3vx-tl8{opacity:1}#j3vx-tk-8:checked ~ .j3vx-plot polyline.j3vx-tl8{stroke-width:3.6px}#j3vx-tk-8:checked ~ .j3vx-tlegend .j3vx-tc8{border-color:#c084fc;background:rgba(192,132,252,.16)}
-#j3vx-tk-9:checked ~ .j3vx-plot .j3vx-tl9{opacity:1}#j3vx-tk-9:checked ~ .j3vx-plot polyline.j3vx-tl9{stroke-width:3.6px}#j3vx-tk-9:checked ~ .j3vx-tlegend .j3vx-tc9{border-color:#c084fc;background:rgba(192,132,252,.16)}
+.j3vx-tk:checked ~ * .j3vx-tl{opacity:.12}
+#j3vx-tk-0:checked ~ * .j3vx-tl0{opacity:1}#j3vx-tk-0:checked ~ * polyline.j3vx-tl0{stroke-width:3.6px}#j3vx-tk-0:checked ~ .j3vx-tlegend .j3vx-tc0{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-0:checked ~ .j3vx-zpop .j3vx-zc0{opacity:1}
+#j3vx-tk-1:checked ~ * .j3vx-tl1{opacity:1}#j3vx-tk-1:checked ~ * polyline.j3vx-tl1{stroke-width:3.6px}#j3vx-tk-1:checked ~ .j3vx-tlegend .j3vx-tc1{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-1:checked ~ .j3vx-zpop .j3vx-zc1{opacity:1}
+#j3vx-tk-2:checked ~ * .j3vx-tl2{opacity:1}#j3vx-tk-2:checked ~ * polyline.j3vx-tl2{stroke-width:3.6px}#j3vx-tk-2:checked ~ .j3vx-tlegend .j3vx-tc2{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-2:checked ~ .j3vx-zpop .j3vx-zc2{opacity:1}
+#j3vx-tk-3:checked ~ * .j3vx-tl3{opacity:1}#j3vx-tk-3:checked ~ * polyline.j3vx-tl3{stroke-width:3.6px}#j3vx-tk-3:checked ~ .j3vx-tlegend .j3vx-tc3{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-3:checked ~ .j3vx-zpop .j3vx-zc3{opacity:1}
+#j3vx-tk-4:checked ~ * .j3vx-tl4{opacity:1}#j3vx-tk-4:checked ~ * polyline.j3vx-tl4{stroke-width:3.6px}#j3vx-tk-4:checked ~ .j3vx-tlegend .j3vx-tc4{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-4:checked ~ .j3vx-zpop .j3vx-zc4{opacity:1}
+#j3vx-tk-5:checked ~ * .j3vx-tl5{opacity:1}#j3vx-tk-5:checked ~ * polyline.j3vx-tl5{stroke-width:3.6px}#j3vx-tk-5:checked ~ .j3vx-tlegend .j3vx-tc5{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-5:checked ~ .j3vx-zpop .j3vx-zc5{opacity:1}
+#j3vx-tk-6:checked ~ * .j3vx-tl6{opacity:1}#j3vx-tk-6:checked ~ * polyline.j3vx-tl6{stroke-width:3.6px}#j3vx-tk-6:checked ~ .j3vx-tlegend .j3vx-tc6{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-6:checked ~ .j3vx-zpop .j3vx-zc6{opacity:1}
+#j3vx-tk-7:checked ~ * .j3vx-tl7{opacity:1}#j3vx-tk-7:checked ~ * polyline.j3vx-tl7{stroke-width:3.6px}#j3vx-tk-7:checked ~ .j3vx-tlegend .j3vx-tc7{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-7:checked ~ .j3vx-zpop .j3vx-zc7{opacity:1}
+#j3vx-tk-8:checked ~ * .j3vx-tl8{opacity:1}#j3vx-tk-8:checked ~ * polyline.j3vx-tl8{stroke-width:3.6px}#j3vx-tk-8:checked ~ .j3vx-tlegend .j3vx-tc8{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-8:checked ~ .j3vx-zpop .j3vx-zc8{opacity:1}
+#j3vx-tk-9:checked ~ * .j3vx-tl9{opacity:1}#j3vx-tk-9:checked ~ * polyline.j3vx-tl9{stroke-width:3.6px}#j3vx-tk-9:checked ~ .j3vx-tlegend .j3vx-tc9{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-9:checked ~ .j3vx-zpop .j3vx-zc9{opacity:1}
+/* 테마 비교표는 **더 세운다** — 줄이 위아래로 벌어져 어느 테마가 오를 때 어느 테마가 빠지는지 갈리게. */
+.j3vx-tplot{height:380px}
+/* 그림을 누르면 화면 가득 — 시장 현황 지도 창(.j3sm-pop)과 같은 움직임·같은 눕히기. */
+label.j3vx-zcell{display:block;cursor:zoom-in}
+.j3vx-zhint{display:block;text-align:right;font-size:.72rem;color:#8fb4de;margin-top:0}
+.j3vx-zscrim{position:fixed;inset:0;z-index:2147483646;cursor:zoom-out;background:rgba(1,8,22,.84);
+  opacity:0;visibility:hidden;transition:opacity .3s ease,visibility 0s linear .56s}
+.j3vx-zpop{position:fixed;left:50%;top:50%;z-index:2147483647;cursor:zoom-out;
+  width:min(calc(100vw - 16px),1280px);height:min(calc(100dvh - 16px),860px);box-sizing:border-box;
+  padding:12px 14px 8px;border-radius:22px;background:#0d2344;border:1px solid rgba(157,204,255,.45);
+  box-shadow:0 18px 50px rgba(0,0,0,.6);display:flex;flex-direction:column;
+  opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,-50%) scale(.55);
+  transition:transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0),visibility 0s linear .56s}
+.j3vx-ztap:checked ~ .j3vx-zscrim{opacity:1;visibility:visible;transition:opacity .3s ease,visibility 0s}
+.j3vx-ztap:checked ~ .j3vx-zpop{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,-50%) scale(1);
+  transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,visibility 0s}
+/* 닫혀 있는 동안은 창 속을 그리지 않는다(재무 창과 같다) — 닫는 움직임 .56초 뒤에 거둔다. */
+.j3vx-zin{display:flex;flex-direction:column;gap:4px;flex:1 1 auto;min-height:0;
+  content-visibility:hidden;transition:content-visibility 0s linear .56s allow-discrete}
+.j3vx-ztap:checked ~ .j3vx-zpop .j3vx-zin{content-visibility:visible;transition-delay:0s}
+.j3vx-ztitle{color:#9dccff;font-size:1rem;font-weight:800}
+.j3vx-zbody{display:flex;align-items:stretch;gap:10px;flex:1 1 auto;min-height:0}
+.j3vx-zlegend{flex:0 0 auto;max-width:34%;display:flex;flex-direction:column;flex-wrap:nowrap;gap:3px;
+  margin:0;font-size:.74rem;overflow:hidden}
+.j3vx-zlegend span{white-space:nowrap}
+.j3vx-tk:checked ~ .j3vx-zpop .j3vx-zlegend span[class*="j3vx-zc"]{opacity:.35}
+.j3vx-zpop .j3vx-plot.j3vx-tplot{flex:1 1 auto;height:auto!important;min-height:0;min-width:0}
+.j3vx-zclose{align-self:center;font-size:.74rem;color:#8fb4de}
+@media (orientation: portrait){
+  .j3vx-zpop{width:calc(100dvh - 76px);height:calc(100vw - 16px);top:calc(50% - 30px);
+    transform:translate(-50%,-50%) rotate(90deg) scale(.55)}
+  .j3vx-ztap:checked ~ .j3vx-zpop{transform:translate(-50%,-50%) rotate(90deg) scale(1)}
+}
+@media (prefers-reduced-motion: reduce){.j3vx-zpop,.j3vx-zscrim{transition:none!important}}
 .j3vx-more summary{cursor:pointer;font-size:.8rem;font-weight:700;color:#c084fc;padding:4px 0;list-style:none}
 .j3vx-more summary::-webkit-details-marker{display:none}
 .j3vx-more[open] summary{margin-bottom:4px}

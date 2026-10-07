@@ -1053,7 +1053,7 @@ def test_the_next_page_lies_under_the_turning_page():
     # 사진에서 숨은 큰 창은 뺀다(지도 창 하나가 느린 폰 0.8초), 저장소에도 위쪽 판을 둔다.
     assert "var tree = snapTree(snap, true);" in js, "밑에 까는 다음 쪽은 맨 위 판이어야 한다"
     assert "'[data-testid=\"stStatusWidget\"],' + POPUPS" in js
-    assert "var POPUPS = '.j3sm-scrim,.j3sm-pop,.j3cz-scrim,.j3cz-pop';" in js
+    assert "var POPUPS = '.j3sm-scrim,.j3sm-pop,.j3cz-scrim,.j3cz-pop,.j3vx-zscrim,.j3vx-zpop';" in js
     assert "(snap.head || snap.node).outerHTML" in js
     assert "idleTimer = setTimeout(idle, 300);" in js
     # 조용하기 1.2초는 줄이지 않는다 — 줄였더니 들쭉날쭉하고 준비 뒤에 한 번 더 떠서 버벅였다(2026-09-25).

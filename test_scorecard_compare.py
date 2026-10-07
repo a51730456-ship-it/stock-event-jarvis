@@ -206,8 +206,9 @@ class ThemeLinesTests(unittest.TestCase):
 
     def test_one_chart_one_nasdaq(self):
         chart, note = vx.theme_chart_html(self.lines, "d", "line")
-        self.assertEqual(chart.count(f"stroke='{vx.NASDAQ_COLOR}'"), 1)     # 나스닥은 한 줄
-        self.assertEqual(chart.count("class='j3vx-svg'"), 1)                 # 그림은 한 장
+        # 그림 한 장에 나스닥은 한 줄 — 화면 그림과 「화면 가득」 창 안 그림, 둘 다 같다
+        self.assertEqual(chart.count("class='j3vx-svg'"), 2)
+        self.assertEqual(chart.count(f"stroke='{vx.NASDAQ_COLOR}'"), 2)
         self.assertIn("나스닥 종합", chart)
         self.assertIn("에이", chart)
         # 이름을 누르면 그 테마만 굵게 — 숨은 스위치가 범례·그림 **앞에** 있다
@@ -215,7 +216,13 @@ class ThemeLinesTests(unittest.TestCase):
         self.assertLess(chart.index("j3vx-tlegend"), chart.index("j3vx-plot"))
         self.assertIn("for='j3vx-tk-0'", chart)
         self.assertIn("j3vx-tl0", chart)
-        self.assertIn("#j3vx-tk-9:checked ~ .j3vx-plot .j3vx-tl9", vx.CSS)
+        self.assertIn("#j3vx-tk-9:checked ~ * .j3vx-tl9", vx.CSS)
+        # 그림을 누르면 화면 가득 — 스위치가 맨 앞 · 세로 화면은 눕힌다 · 테마 비교표는 더 세운다
+        self.assertTrue(chart.startswith("<input type='checkbox' id='j3vx-zoom' class='j3cz-tap j3vx-ztap'>"))
+        self.assertIn("class='j3vx-zpop'", chart)
+        self.assertIn("j3vx-tplot", chart)
+        self.assertIn("rotate(90deg)", vx.CSS)
+        self.assertEqual(chart.count("class='j3vx-plot j3vx-tplot'"), 2)       # 바깥 · 창 안
         bars, _note = vx.theme_chart_html(self.lines, "w", "bar")
         self.assertIn("<rect", bars)
         self.assertEqual(note, "")

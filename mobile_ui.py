@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026100703
+MODULE_REVISION = 2026100704
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -509,6 +509,8 @@ div[class*="st-key-j3vx_row"] [data-testid="stColumn"] {
 div[class*="st-key-j3vx_row"] div[class*="st-key-j3vx_"] button { padding: .25rem .2rem !important; min-height: 44px !important; }
 div[class*="st-key-j3vx_row"] button p { white-space: normal !important; line-height: 1.2 !important; }
 .j3vx-plot { height: 190px !important; }
+/* 테마 비교표는 폰에서도 더 세운다(2026-10-07 상하님 — "너무 누워 있으니 구분이 힘들다"). 190 → 330px. */
+.j3vx-plot.j3vx-tplot { height: 330px !important; }
 .j3vx-y { width: 38px !important; flex-basis: 38px !important; }
 .j3vx-cards { grid-template-columns: 1fr !important; gap: 6px !important; }
 .j3vx-tbl { font-size: .76rem !important; }
