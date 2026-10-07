@@ -176,62 +176,55 @@ class DrawTests(unittest.TestCase):
             self.assertNotIn(jargon, html)
 
 
-class ThemeLinesTests(unittest.TestCase):
-    """테마 비교표 — 나스닥 하나 + 테마 9개 + 빅테크10 (2026-10-07 상하님 — "나스닥은 1개만" · "난 10개가 좋은데")."""
+class ThemeCompareTests(unittest.TestCase):
+    """테마 비교표 — 「상위 테마 5개」 줄을 테마로 나눈 것 · 위 표와 같은 기준 (2026-10-07 상하님 — "표의 기준을 맞추는
+    게 맞는 듯" · 빅테크10 「빼기」)."""
 
     def setUp(self):
-        days = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
-        self.lines = vx.theme_lines([("에이", ("AAA",)), ("비", ("BBB",)), ("둘", ("AAA", "BBB")),
-                                     ("없음", ("ZZZ",))], FRAMES, IXIC, days)
+        rows = [
+            # 에이 테마 — 9/11 에 AAA·BBB(9/14 시가에 산다), 9/15 에 AAA(9/16 시가)
+            dict(_row("2026-09-11", "theme15", "AAA", 100.0), origin="에이"),
+            dict(_row("2026-09-11", "theme15", "BBB", 50.0), origin="에이"),
+            dict(_row("2026-09-15", "theme15", "AAA", 100.0), origin="에이"),
+            # 비 테마 — 9/15 에 BBB(9/16 시가 55 → 9/18 종가 45, 손해)
+            dict(_row("2026-09-15", "theme15", "BBB", 55.0), origin="비"),
+            # 상승장 줄은 테마 비교표에 안 든다
+            dict(_row("2026-09-11", "breakout", "AAA", 100.0), origin=""),
+        ]
+        self.data = vx.compute(rows, FRAMES, IXIC)
 
-    def test_from_the_close_before_the_first_day(self):
-        self.assertEqual(self.lines["base"], "2026-09-11")
-        names = [row["name"] for row in self.lines["themes"]]
-        self.assertEqual(names, ["에이", "둘", "비"])               # 많이 오른 차례 · 값 없는 테마는 뺀다
-        first = self.lines["themes"][0]
-        self.assertAlmostEqual(first["series"][0], 10.0)              # 110/100
-        self.assertAlmostEqual(first["final"], 40.0)                  # 140/100
-        both = self.lines["themes"][1]
-        self.assertAlmostEqual(both["final"], round(((140 / 100 + 45 / 50) / 2 - 1) * 100, 2))
-        self.assertAlmostEqual(self.lines["nasdaq"][-1], 5.0)          # 1050/1000
+    def test_same_basis_as_the_table(self):
+        names = [row["name"] for row in self.data["themes"]]
+        self.assertEqual(names, ["에이", "비"])                       # 이익 난 확률 차례
+        first = self.data["themes"][0]
+        gains = [40.0, -10.0, 40.0]                                  # 140/100 · 45/50 · 140/100
+        self.assertEqual((first["seen"], first["win"]), (3, 2))
+        self.assertAlmostEqual(first["final"], round(sum(gains) / 3, 2))
+        self.assertAlmostEqual(first["cum"][-1], first["final"])     # 선 끝 = 표의 평균
+        self.assertIsNone(self.data["themes"][1]["cum"][0])           # 비는 9/16 부터 선이 시작한다
+        self.assertEqual(first["top"], ["AAA", 40.0])
+        self.assertNotIn("빅테크10", names)
 
-    def test_nine_plus_bigtech_always(self):
-        self.assertEqual(vx.THEME_KEEP, 9)
-        self.assertIn("빅테크10", vx.ALWAYS_THEMES)
-        rows = [{"name": f"t{i}", "final": 20 - i, "rank": i + 1} for i in range(12)]
-        rows.insert(2, {"name": "빅테크10", "final": 9.5, "rank": 3})
-        picked = vx.pick_themes({"themes": rows})
-        # 빅테크10 이 위 9 안에 있어도 테마는 따로 9개 — 늘 10줄
-        self.assertEqual([r["name"] for r in picked], [f"t{i}" for i in range(9)] + ["빅테크10"])
-
-    def test_one_chart_one_nasdaq(self):
-        chart, note = vx.theme_chart_html(self.lines, "d", "line")
+    def test_one_chart_one_nasdaq_and_zoom(self):
+        chart, note = vx.theme_chart_html(self.data, "d", "line")
         # 그림 한 장에 나스닥은 한 줄 — 화면 그림과 「화면 가득」 창 안 그림, 둘 다 같다
         self.assertEqual(chart.count("class='j3vx-svg'"), 2)
         self.assertEqual(chart.count(f"stroke='{vx.NASDAQ_COLOR}'"), 2)
-        self.assertIn("나스닥 종합", chart)
-        self.assertIn("에이", chart)
-        # 이름을 누르면 그 테마만 굵게 — 숨은 스위치가 범례·그림 **앞에** 있다
+        self.assertIn("(AAA +40%)", chart)
+        self.assertIn("3번 중 2번", chart)
+        self.assertNotIn("빅테크", chart)
         self.assertLess(chart.index("class='j3vx-tk'"), chart.index("j3vx-tlegend"))
-        self.assertLess(chart.index("j3vx-tlegend"), chart.index("j3vx-plot"))
-        self.assertIn("for='j3vx-tk-0'", chart)
-        self.assertIn("j3vx-tl0", chart)
-        self.assertIn("#j3vx-tk-9:checked ~ * .j3vx-tl9", vx.CSS)
-        # 그림을 누르면 화면 가득 — 스위치가 맨 앞 · 세로 화면은 눕힌다 · 테마 비교표는 더 세운다
         self.assertTrue(chart.startswith("<input type='checkbox' id='j3vx-zoom' class='j3cz-tap j3vx-ztap'>"))
-        self.assertIn("class='j3vx-zpop'", chart)
-        self.assertIn("j3vx-tplot", chart)
+        self.assertIn("#j3vx-tk-9:checked ~ * .j3vx-tl9", vx.CSS)
         self.assertIn("rotate(90deg)", vx.CSS)
-        self.assertEqual(chart.count("class='j3vx-plot j3vx-tplot'"), 2)       # 바깥 · 창 안
-        bars, _note = vx.theme_chart_html(self.lines, "w", "bar")
-        self.assertIn("<rect", bars)
         self.assertEqual(note, "")
+        bars, _note = vx.theme_chart_html(self.data, "w", "bar")
+        self.assertIn("<rect", bars)
 
-    def test_bucket_returns_chain_from_the_previous_bucket(self):
-        days = ["2026-09-14", "2026-09-18", "2026-09-21", "2026-09-25"]
-        out = vx._bucket_returns(days, [5.0, 10.0, 15.0, 21.0], "w")
-        self.assertEqual(out[0], ("9/14 주", 10.0))
-        self.assertAlmostEqual(out[1][1], round((1.21 / 1.10 - 1) * 100, 2))
+    def test_no_theme_rows_no_chart(self):
+        data = vx.compute([_row("2026-09-11", "breakout", "AAA", 100.0)], FRAMES, IXIC)
+        self.assertEqual(data["themes"], [])
+        self.assertEqual(vx.theme_chart_html(data, "d", "line"), ("", ""))
 
     def test_theme_table_tab_sits_next_to_top5(self):
         keys = [key for key, _label, _parts in vx.TABS]
@@ -265,14 +258,12 @@ class PageWiringTests(unittest.TestCase):
     def test_theme_table_tab_draws_the_theme_chart_only(self):
         body = PAGE[PAGE.index("def _render_scorecard_compare("):PAGE.index("# 성적표 머리 자리")]
         self.assertIn('if tab == "themes":', body)
-        self.assertIn("vx.theme_chart_html(", body)
-        self.assertIn('vx.THEME_VIEWS if tab == "themes" else vx.VIEWS', body)
-        self.assertNotIn("theme_grid_html", PAGE)
+        self.assertIn("vx.theme_chart_html(data, period, view)", body)
+        for gone in ("theme_grid_html", "theme_lines", "THEME_VIEWS"):
+            self.assertNotIn(gone, PAGE)
         cached = PAGE[PAGE.index("def _scorecard_compare_cached("):PAGE.index("def _pick_scorecard_vx(")]
-        self.assertIn("scorecard_compare.theme_lines(", cached)
-        self.assertIn('getattr(j3data, "US_THEMES"', cached)
-        # 목록 종목과 테마 종목은 **따로** 부른다(섞으면 묶음 밖 종목 때문에 통째로 다시 받는다).
-        self.assertEqual(cached.count("j3data._download_cached("), 3)
+        # 목록 종목 · 나스닥 둘만 — 테마 명부 종목은 더 받지 않는다(표와 같은 1~3위만 쓴다)
+        self.assertEqual(cached.count("j3data._download_cached("), 2)
 
     def test_module_revision_guard(self):
         match = re.search(r"_REQUIRED_SCORECARD_COMPARE_REVISION = (\d+)", PAGE)

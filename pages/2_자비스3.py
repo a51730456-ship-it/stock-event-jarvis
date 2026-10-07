@@ -1833,7 +1833,7 @@ import us_fundamentals
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100706
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100708
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100701
@@ -6752,7 +6752,7 @@ _SCORECARD_VX_HELP = {
     "all": "나스닥 종합(회색 굵은 띠)과 세 파트를 한 그림에 겹쳐 봅니다.",
     "theme": "나스닥 종합(회색 굵은 띠)과 상위 테마 5개(1~3위)만 견줍니다.",
     "swing": "나스닥 종합(회색 굵은 띠)과 상승장 · 급락 후 반등장 두 파트를 견줍니다.",
-    "themes": "나스닥 종합(회색 굵은 띠) 하나와 테마 10개(빅테크10 포함)를 한 그림에 — 어느 테마가 언제 오르고 내렸나.",
+    "themes": "나스닥 종합(회색 굵은 띠) 하나와 이 기간 「상위 테마 5개」에 든 테마들 — 테마마다 1~3위를 샀다면.",
 }
 
 
@@ -6808,22 +6808,8 @@ def _scorecard_compare_cached(stamp: str, span: str, start: str = "", end: str =
             ttl_seconds=getattr(j3data, "IXIC_HISTORY_TTL", 21600.0))
     except Exception:
         return {}
-    ixic = (index_frames or {}).get("^IXIC")
-    data = scorecard_compare.compute(rows, frames or {}, ixic, last_day=last)
-    # **테마별로 — 상위 10개 테마 + 빅테크10** (2026-10-07 상하님 — "어느 테마가 어떤 시점에 오르고
-    # 내리는지 테마별로"). 22개 테마 명부 종목의 주가로 그린다 — 시장분석이 받아 둔 묶음의 일부라
-    # 새로 받지 않는다(목록 종목과 따로 부른다 — 섞으면 묶음 밖 종목 때문에 통째로 다시 받는다).
-    if data.get("days"):
-        themes = [(theme["name"], tuple(theme["stocks"])) for theme in getattr(j3data, "US_THEMES", ())]
-        theme_codes = tuple(dict.fromkeys(str(code).upper() for _name, codes in themes for code in codes))
-        try:
-            theme_frames, _info = j3data._download_cached(
-                theme_codes, period="2y", interval="1d",
-                ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
-            data["theme_lines"] = scorecard_compare.theme_lines(themes, theme_frames or {}, ixic, data["days"])
-        except Exception:
-            data["theme_lines"] = {}
-    return data
+    # 테마 비교표도 이 값 하나로 그린다 — 「상위 테마 5개」 줄을 테마로 나눈 것(scorecard_compare.compute 의 themes).
+    return scorecard_compare.compute(rows, frames or {}, (index_frames or {}).get("^IXIC"), last_day=last)
 
 
 def _pick_scorecard_vx(key: str, value: str) -> None:
@@ -6861,8 +6847,7 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
         options = ([(_SCORECARD_VX_PERIOD, key, label, f"j3vx_p_{key}", key == period)
                     for key, label in vx.PERIODS]
                    + [(_SCORECARD_VX_VIEW, key, label, f"j3vx_v_{key}", key == view)
-                      # 테마 비교표는 산 날이 없다 — 선은 「처음부터」, 막대는 「날·주·달마다」.
-                      for key, label in (vx.THEME_VIEWS if tab == "themes" else vx.VIEWS)])
+                      for key, label in vx.VIEWS])
         for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
             column.button(label, key=widget_key, width="stretch",
                           type="primary" if chosen else "secondary",
@@ -6874,16 +6859,17 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
     days = data.get("days") or []
     first, last = (days[0], days[-1]) if days else ("", "")
     if tab == "themes":
-        # **테마 비교표** — 나스닥 종합 하나 + 테마 9개 + 빅테크10, 한 그림 · 한 눈금(2026-10-07 상하님 지시).
-        lines = data.get("theme_lines") or {}
-        chart, extra = vx.theme_chart_html(lines, period, view)
-        what = ("막대 하나 = 그 날·주·달 동안 몇 % 움직였나." if view == "bar"
-                else f"{html.escape(str(lines.get('base') or ''))} 종가부터 몇 % 인가.")
+        # **테마 비교표** — 「상위 테마 5개」 줄을 테마로 나눈 그림. 위 「이 기간 테마별」 표와 같은 기준 · 같은
+        # 차례 · 선 끝 값 = 표의 평균(2026-10-07 상하님 — "표의 기준을 맞추는 게 맞는 듯" · 빅테크10 「빼기」).
+        chart, extra = vx.theme_chart_html(data, period, view)
+        what = (f"막대 하나 = 그날(주별·월별은 그 안의 산 날 평균) 산 1~3위가 <b>{html.escape(last)} 종가</b>까지 몇 % 인가."
+                if view == "bar" else
+                f"선 하나 = 그 테마가 「상위 테마 5개」에 든 날마다 1~3위를 다음 거래일 시가에 같은 돈으로 샀다면 "
+                f"<b>{html.escape(last)} 종가</b>까지 몇 % 인가(선 끝 = 위 표의 평균).")
         body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
-                + (chart or "<div class='j3vx-note'>테마 값을 아직 못 셌습니다.</div>")
-                + f"<div class='j3vx-note'>{what} 테마 = 명부 종목을 같은 돈으로 나눠 들었다면. 9개는 고른 기간에 이 "
-                "값이 많이 오른 차례이고, 빅테크10은 순위와 상관없이 늘 같이 봅니다. 저장 목록이 아니라 주가로 그린 "
-                "것이라 다른 탭의 성적과는 다른 그림입니다. " + extra + "</div></div>")
+                + (chart or "<div class='j3vx-note'>이 기간에는 「상위 테마 5개」에 든 테마가 없습니다.</div>")
+                + f"<div class='j3vx-note'>{what} 나스닥 종합은 같은 날 같은 돈으로 샀다고 친 것입니다. "
+                "테마 차례는 위 표와 같습니다(이익 난 확률 · 같으면 평균). " + extra + "</div></div>")
         st.markdown(body, unsafe_allow_html=True)
         return
     if view == "bar":
