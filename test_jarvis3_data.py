@@ -92,8 +92,9 @@ class RulebookScreenTests(unittest.TestCase):
         # 2026-09-17 에 **208개**가 되었다 — 휴머노이드·액추에이터 테마(상하님 "명단
         # 그대로 넣어라")의 열하나 중 아홉(PH RRX MOG-A TKR ALNT OUST HSAI SERV RR)이
         # 명부 밖이었다. 명부가 테마 종목을 전부 품게 짜여 있어 함께 들어왔다.
-        self.assertEqual(208, len(j3.US_LARGE_CAP_UNIVERSE))
-        self.assertEqual(208, len(set(j3.US_LARGE_CAP_UNIVERSE)))
+        # 2026-10-07 반도체에 SKHY(SK하이닉스) 를 넣어 209(상하님 지시 · 설명서 「명부 바꾼 기록」).
+        self.assertEqual(209, len(j3.US_LARGE_CAP_UNIVERSE))
+        self.assertEqual(209, len(set(j3.US_LARGE_CAP_UNIVERSE)))
         theme_stocks = {t for theme in j3.US_THEMES for t in theme["stocks"]}
         # 테마 종목을 다 품어야 야후를 한 번만 부르고 테마 검색이 잘라 쓴다.
         self.assertTrue(theme_stocks.issubset(set(j3.US_LARGE_CAP_UNIVERSE)))
@@ -1021,7 +1022,7 @@ class Jarvis3DataTests(unittest.TestCase):
         self.assertTrue(set(pharma["stocks"]).issubset(set(j3.US_LARGE_CAP_UNIVERSE)),
                         "테마 종목이 명부 밖에 있으면 시세를 안 받아 온다")
         # 제약·헬스케어로는 안 늘었다(199). 2026-09-17 휴머노이드·액추에이터로 아홉이 늘어 208.
-        self.assertEqual(208, len(j3.US_LARGE_CAP_UNIVERSE), "명부가 늘었다")
+        self.assertEqual(209, len(j3.US_LARGE_CAP_UNIVERSE), "명부가 늘었다")   # 10-07 SKHY 넣음
         # 이름을 적어 두지 않으면 화면에 티커가 그대로 나온다.
         self.assertEqual("Merck & Co", j3.STOCK_NAMES.get("MRK"))
 

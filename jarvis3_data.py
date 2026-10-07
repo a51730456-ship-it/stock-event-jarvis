@@ -38,7 +38,8 @@ _SEOUL = ZoneInfo("Asia/Seoul")
 
 
 US_THEMES = (
-    {"name": "반도체", "etf": "SMH", "alt_etf": "SOXX", "stocks": ("NVDA", "AVGO", "AMD", "TSM", "QCOM", "MU", "AMAT", "LRCX", "ASML", "KLAC")},
+    # SKHY(SK하이닉스 미국 상장)는 2026-10-07 상하님 지시로 넣었다 — 설명서 「명부 바꾼 기록」.
+    {"name": "반도체", "etf": "SMH", "alt_etf": "SOXX", "stocks": ("NVDA", "AVGO", "AMD", "TSM", "QCOM", "MU", "AMAT", "LRCX", "ASML", "KLAC", "SKHY")},
     {"name": "AI·데이터센터", "etf": "AIQ", "alt_etf": "DTCR", "stocks": ("NVDA", "MSFT", "AVGO", "ANET", "VRT", "ORCL", "PLTR", "DELL", "HPE")},
     {"name": "전력망·전력설비", "etf": "GRID", "alt_etf": "PAVE", "stocks": ("GEV", "ETN", "PWR", "HUBB", "VRT", "NEE", "CEG", "EMR")},
     {"name": "방산·드론", "etf": "ITA", "alt_etf": "XAR", "stocks": ("RTX", "LMT", "NOC", "GD", "LHX", "AVAV", "KTOS", "HII")},
@@ -104,7 +105,7 @@ STOCK_NAMES = {
     "RR": "Richtech Robotics",
     "NVDA": "NVIDIA", "AVGO": "Broadcom", "AMD": "AMD", "TSM": "TSMC",
     "QCOM": "Qualcomm", "MU": "Micron", "AMAT": "Applied Materials",
-    "LRCX": "Lam Research", "ASML": "ASML", "KLAC": "KLA",
+    "LRCX": "Lam Research", "ASML": "ASML", "KLAC": "KLA", "SKHY": "SK하이닉스",
     "MSFT": "Microsoft", "ANET": "Arista Networks", "VRT": "Vertiv",
     "ORCL": "Oracle", "PLTR": "Palantir", "DELL": "Dell", "HPE": "HPE",
     "GEV": "GE Vernova", "ETN": "Eaton", "PWR": "Quanta Services",
@@ -248,7 +249,7 @@ CRASH_REBOUND_RULES = (
 IXIC_HISTORY_YEARS = 25
 
 
-MODULE_REVISION = 2026092503
+MODULE_REVISION = 2026100701
 
 _DOWNLOAD_LOCK = threading.Lock()
 _CACHE_LOCK = threading.Lock()
