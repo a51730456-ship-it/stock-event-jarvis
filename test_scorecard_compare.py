@@ -177,7 +177,7 @@ class DrawTests(unittest.TestCase):
 
 
 class ThemeLinesTests(unittest.TestCase):
-    """테마별로 — 상위 10개 테마 + 빅테크10 (2026-10-07 상하님 — "5개 테마가 아니라 10개 테마로")."""
+    """테마 비교표 — 나스닥 하나 + 테마 9개 + 빅테크10 (2026-10-07 상하님 — "나스닥은 1개만" · "난 10개가 좋은데")."""
 
     def setUp(self):
         days = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
@@ -195,25 +195,41 @@ class ThemeLinesTests(unittest.TestCase):
         self.assertAlmostEqual(both["final"], round(((140 / 100 + 45 / 50) / 2 - 1) * 100, 2))
         self.assertAlmostEqual(self.lines["nasdaq"][-1], 5.0)          # 1050/1000
 
-    def test_keeps_ten_and_always_shows_bigtech(self):
-        picked = vx.pick_themes(self.lines, keep=1, always=("비",))
-        self.assertEqual([row["name"] for row in picked], ["에이", "비"])
-        self.assertEqual(vx.THEME_KEEP, 10)
+    def test_nine_plus_bigtech_always(self):
+        self.assertEqual(vx.THEME_KEEP, 9)
         self.assertIn("빅테크10", vx.ALWAYS_THEMES)
+        rows = [{"name": f"t{i}", "final": 20 - i, "rank": i + 1} for i in range(12)]
+        rows.insert(2, {"name": "빅테크10", "final": 9.5, "rank": 3})
+        picked = vx.pick_themes({"themes": rows})
+        # 빅테크10 이 위 9 안에 있어도 테마는 따로 9개 — 늘 10줄
+        self.assertEqual([r["name"] for r in picked], [f"t{i}" for i in range(9)] + ["빅테크10"])
 
-    def test_grid_draws_a_card_per_theme_with_its_own_scale(self):
-        grid = vx.theme_grid_html(self.lines, "d", "line")
-        self.assertEqual(len(re.findall(r"class='j3vx-tc(?:'| j3vx-tc-always')", grid)), 3)
-        self.assertIn("눈금", grid)
-        self.assertIn("칸마다 눈금이 다릅니다", grid)
-        bars = vx.theme_grid_html(self.lines, "w", "bar")
+    def test_one_chart_one_nasdaq(self):
+        chart, note = vx.theme_chart_html(self.lines, "d", "line")
+        self.assertEqual(chart.count(f"stroke='{vx.NASDAQ_COLOR}'"), 1)     # 나스닥은 한 줄
+        self.assertEqual(chart.count("class='j3vx-svg'"), 1)                 # 그림은 한 장
+        self.assertIn("나스닥 종합", chart)
+        self.assertIn("에이", chart)
+        # 이름을 누르면 그 테마만 굵게 — 숨은 스위치가 범례·그림 **앞에** 있다
+        self.assertLess(chart.index("class='j3vx-tk'"), chart.index("j3vx-tlegend"))
+        self.assertLess(chart.index("j3vx-tlegend"), chart.index("j3vx-plot"))
+        self.assertIn("for='j3vx-tk-0'", chart)
+        self.assertIn("j3vx-tl0", chart)
+        self.assertIn("#j3vx-tk-9:checked ~ .j3vx-plot .j3vx-tl9", vx.CSS)
+        bars, _note = vx.theme_chart_html(self.lines, "w", "bar")
         self.assertIn("<rect", bars)
+        self.assertEqual(note, "")
 
     def test_bucket_returns_chain_from_the_previous_bucket(self):
         days = ["2026-09-14", "2026-09-18", "2026-09-21", "2026-09-25"]
         out = vx._bucket_returns(days, [5.0, 10.0, 15.0, 21.0], "w")
         self.assertEqual(out[0], ("9/14 주", 10.0))
         self.assertAlmostEqual(out[1][1], round((1.21 / 1.10 - 1) * 100, 2))
+
+    def test_theme_table_tab_sits_next_to_top5(self):
+        keys = [key for key, _label, _parts in vx.TABS]
+        self.assertEqual(keys, ["all", "theme", "themes", "swing"])
+        self.assertEqual(dict((k, l) for k, l, _p in vx.TABS)["themes"], "테마 비교표")
 
 
 class PageWiringTests(unittest.TestCase):
@@ -239,10 +255,12 @@ class PageWiringTests(unittest.TestCase):
         self.assertIn("vx.stocks_html(", body)
         self.assertIn("<div class='j3vx-body'>", body)
 
-    def test_theme_tab_shows_the_theme_grid(self):
+    def test_theme_table_tab_draws_the_theme_chart_only(self):
         body = PAGE[PAGE.index("def _render_scorecard_compare("):PAGE.index("# 성적표 머리 자리")]
-        self.assertIn('if tab == "theme":', body)
-        self.assertIn("vx.theme_grid_html(", body)
+        self.assertIn('if tab == "themes":', body)
+        self.assertIn("vx.theme_chart_html(", body)
+        self.assertIn('vx.THEME_VIEWS if tab == "themes" else vx.VIEWS', body)
+        self.assertNotIn("theme_grid_html", PAGE)
         cached = PAGE[PAGE.index("def _scorecard_compare_cached("):PAGE.index("def _pick_scorecard_vx(")]
         self.assertIn("scorecard_compare.theme_lines(", cached)
         self.assertIn('getattr(j3data, "US_THEMES"', cached)

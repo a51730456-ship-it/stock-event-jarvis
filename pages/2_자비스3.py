@@ -1798,7 +1798,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026100702
+_REQUIRED_MOBILE_REVISION = 2026100703
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1833,7 +1833,7 @@ import us_fundamentals
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100703
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100705
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100701
@@ -6752,6 +6752,7 @@ _SCORECARD_VX_HELP = {
     "all": "나스닥 종합(회색 굵은 띠)과 세 파트를 한 그림에 겹쳐 봅니다.",
     "theme": "나스닥 종합(회색 굵은 띠)과 상위 테마 5개(1~3위)만 견줍니다.",
     "swing": "나스닥 종합(회색 굵은 띠)과 상승장 · 급락 후 반등장 두 파트를 견줍니다.",
+    "themes": "나스닥 종합(회색 굵은 띠) 하나와 테마 10개(빅테크10 포함)를 한 그림에 — 어느 테마가 언제 오르고 내렸나.",
 }
 
 
@@ -6860,7 +6861,8 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
         options = ([(_SCORECARD_VX_PERIOD, key, label, f"j3vx_p_{key}", key == period)
                     for key, label in vx.PERIODS]
                    + [(_SCORECARD_VX_VIEW, key, label, f"j3vx_v_{key}", key == view)
-                      for key, label in vx.VIEWS])
+                      # 테마 비교표는 산 날이 없다 — 선은 「처음부터」, 막대는 「날·주·달마다」.
+                      for key, label in (vx.THEME_VIEWS if tab == "themes" else vx.VIEWS)])
         for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
             column.button(label, key=widget_key, width="stretch",
                           type="primary" if chosen else "secondary",
@@ -6871,6 +6873,19 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
         return
     days = data.get("days") or []
     first, last = (days[0], days[-1]) if days else ("", "")
+    if tab == "themes":
+        # **테마 비교표** — 나스닥 종합 하나 + 테마 9개 + 빅테크10, 한 그림 · 한 눈금(2026-10-07 상하님 지시).
+        lines = data.get("theme_lines") or {}
+        chart, extra = vx.theme_chart_html(lines, period, view)
+        what = ("막대 하나 = 그 날·주·달 동안 몇 % 움직였나." if view == "bar"
+                else f"{html.escape(str(lines.get('base') or ''))} 종가부터 몇 % 인가.")
+        body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
+                + (chart or "<div class='j3vx-note'>테마 값을 아직 못 셌습니다.</div>")
+                + f"<div class='j3vx-note'>{what} 테마 = 명부 종목을 같은 돈으로 나눠 들었다면. 9개는 고른 기간에 이 "
+                "값이 많이 오른 차례이고, 빅테크10은 순위와 상관없이 늘 같이 봅니다. 저장 목록이 아니라 주가로 그린 "
+                "것이라 다른 탭의 성적과는 다른 그림입니다. " + extra + "</div></div>")
+        st.markdown(body, unsafe_allow_html=True)
+        return
     if view == "bar":
         chart, extra = vx.bar_chart_html(data, tab, period)
         note = (f"막대 하나 = 그날(주별·월별은 그 안의 산 날 평균) 산 것이 <b>{html.escape(last)} 종가</b>까지 "
@@ -6885,8 +6900,6 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
     body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
             + vx.cards_html(data, tab) + vx.legend_html(tab, data) + chart
             + f"<div class='j3vx-note'>{note}</div>")
-    if tab == "theme":
-        body += vx.theme_grid_html(data.get("theme_lines") or {}, period, view)
     if span == _SCORECARD_RANGE and picked:
         body += vx.stocks_html(data, tab, names=dict(getattr(j3data, "STOCK_NAMES", {}) or {}),
                                first=first, last=last)

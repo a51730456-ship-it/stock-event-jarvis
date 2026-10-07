@@ -26,7 +26,7 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게(CLAUDE.md 11과 같은 까닭).
-MODULE_REVISION = 2026100703
+MODULE_REVISION = 2026100705
 
 PARTS = ("theme15", "breakout", "crash")
 PART_NAMES = {
@@ -36,9 +36,12 @@ PART_NAMES = {
 }
 # 성적표 막대 색(_SCORECARD_PARTS)과 같은 빛 — 어두운 바탕에서 선이 보이게 한 치수 밝게.
 PART_COLORS = {"theme15": "#ef5b50", "breakout": "#22b884", "crash": "#f2a33a"}
+# 「테마 비교표」는 저장 목록 파트가 아니라 테마 명부 종목의 주가로 그린다 — 견주는 파트가 없다(2026-10-07 상하님
+# 지시 — "상위 테마 5개 옆에 테마 비교표 란을").
 TABS = (
     ("all", "세 파트 한눈에", PARTS),
     ("theme", "상위 테마 5개", ("theme15",)),
+    ("themes", "테마 비교표", ()),
     ("swing", "상승장 · 급락 후 반등장", ("breakout", "crash")),
 )
 TAB_PARTS = {key: parts for key, _label, parts in TABS}
@@ -509,18 +512,23 @@ def stocks_html(data: dict, tab: str, *, names: dict | None = None, first: str =
             + "".join(blocks) + "</div>")
 
 
-# ── 테마별로 — 상위 10개 테마 + 빅테크10 (2026-10-07 상하님 지시) ─────────────────────
-# 상하님 — "이 부분은 테마별로 구분해야 된다. 어느 테마가 어떤 시점에 오르고 내리는지 테마별로
-# 확인하기 위함이야. 평균 상위 10테마로 구분해 봐라, 빅테크10 포함" · "5개 테마가 아니라 10개 테마로".
+# ── 테마 비교표 — 나스닥 종합 하나 + 테마 6개 + 빅테크10 (2026-10-07 상하님 지시) ──────────────
+# 상하님 — "어느 테마가 어떤 시점에 오르고 내리는지 테마별로 확인하기 위함" · "그래프 안에 다 넣으라고 한 것인데
+# 그러면 너무 많으니 6개와 빅테크 넣어 7개로 · 나스닥은 1개만" · "상위 테마 5개 옆에 테마 비교표 란을" ·
+# "난 10개가 좋은데 복잡해져서 고민이다" → **10줄(위 9개 + 빅테크10) · 이름을 누르면 그 테마만 굵게**(여러 개 가능).
+# 처음에는 열 줄 모두 가늘게 — 비슷한 테마끼리 겹치는 것 자체가 「같이 움직인다」는 뜻이라 빼지 않는다.
 #
-# 저장해 둔 「상위 테마 5개」 목록에는 8/31 뒤로 테마가 **7개뿐**이다(2026-10-07 실측 — 사이버보안·바이오·
-# 클라우드 26일 내내 · 빅테크10 은 0일). 그래서 목록이 아니라 **테마의 평균**으로 고른다 — 22개 테마마다
-# 명부 종목을 같은 돈으로 나눠 들었다면 고른 기간에 얼마나 올랐나(테마 종목 평균)를 세어 위 10개.
-# 빅테크10 은 순위 밖이어도 늘 같이 보인다(비교 기준). 그림 하나에 선 11개를 겹치면 색을 못 가르므로
-# 테마마다 작은 그림 한 장 — 모두 같은 눈금 · 같은 나스닥 띠라 언제 오르고 내렸는지를 나란히 견준다.
-THEME_KEEP = 10
+# 저장해 둔 「상위 테마 5개」 목록에는 8/31 뒤로 테마가 **7개뿐**이다(2026-10-07 실측 — 빅테크10 은 0일). 그래서
+# 목록이 아니라 **테마의 평균**으로 고른다 — 22개 테마마다 명부 종목을 같은 돈으로 나눠 들었다면 고른 기간에
+# 얼마나 올랐나를 세어 위 9개(빅테크10 빼고) + 빅테크10. 한 그림 · 한 눈금 · 나스닥 하나.
+# (작은 그림 열 장으로 나눴던 판은 칸마다 눈금이 달라 같은 나스닥이 칸마다 달라 보였다 — 상하님 지적.)
+THEME_KEEP = 9
 ALWAYS_THEMES = ("빅테크10",)
-THEME_COLOR = "#ffd166"
+# 어두운 바탕에서 서로 갈리는 아홉 빛 + 빅테크10 은 흰색.
+THEME_COLORS = ("#ff6b6b", "#ffd166", "#06d6a0", "#4cc9f0", "#c77dff", "#f78fb3", "#ff9f43", "#a3e635", "#8ea2ff")
+ALWAYS_COLOR = "#ffffff"
+THEME_VIEWS = (("line", "처음부터 (선)"), ("bar", "날·주·달마다 (막대)"))
+THEME_DAILY_BAR_KEEP = 10
 
 
 def theme_lines(themes, frames: dict, ixic, days: list) -> dict:
@@ -581,11 +589,10 @@ def theme_lines(themes, frames: dict, ixic, days: list) -> dict:
 
 
 def pick_themes(lines: dict, keep: int = THEME_KEEP, always=ALWAYS_THEMES) -> list:
-    """위 keep 개 + 늘 보일 테마(순위 밖이면 맨 뒤에)."""
+    """늘 보일 테마(빅테크10)를 뺀 위 keep 개 + 늘 보일 테마 — 늘 keep + 1 개."""
     rows = list((lines or {}).get("themes") or [])
-    picked = rows[:keep]
-    names = {row["name"] for row in picked}
-    picked += [row for row in rows if row["name"] in always and row["name"] not in names]
+    picked = [row for row in rows if row["name"] not in always][:keep]
+    picked += [row for row in rows if row["name"] in always]
     return picked
 
 
@@ -610,87 +617,97 @@ def _bucket_returns(days: list, series: list, period: str) -> list:
     return out
 
 
-def theme_grid_html(lines: dict, period: str, view: str) -> str:
-    """테마마다 작은 그림 한 장 — 같은 눈금 · 나스닥 회색 띠 · 순위대로."""
+def theme_chart_html(lines: dict, period: str, view: str) -> tuple:
+    """(그림 한 장 — 범례·나스닥 띠·테마 7줄, 덧붙일 말)."""
     picked = pick_themes(lines)
     days = (lines or {}).get("days") or []
     if not picked or not days:
-        return ""
-    nasdaq = lines["nasdaq"]
+        return "", ""
+    colors = {}
+    for place, row in enumerate([r for r in picked if r["name"] not in ALWAYS_THEMES]):
+        colors[row["name"]] = THEME_COLORS[place % len(THEME_COLORS)]
+    for row in picked:
+        colors.setdefault(row["name"], ALWAYS_COLOR)
+    nq_final = next((v for v in reversed(lines["nasdaq"]) if v is not None), None)
+    place = {row["name"]: index for index, row in enumerate(picked)}
+    # **이름을 누르면 그 테마만 굵게** — 숨은 스위치(체크칸)로 여닫아 서버에 묻지 않는다. 스위치는 범례·그림보다
+    # **앞에** 같은 줄로 둔다(뒤의 범례·그림을 「~」로 집으려면 앞서야 한다). 꾸밈은 CSS 의 j3vx-tk-숫자 규칙.
+    taps = "".join(f"<input type='checkbox' id='j3vx-tk-{index}' class='j3vx-tk'>" for index in range(len(picked)))
+    legend = [f"<span><i class='j3vx-band'></i>나스닥 종합 <b style='color:{_tone(nq_final)}'>{_fmt(nq_final)}</b></span>"]
+    for row in picked:
+        rank = f"{row['rank']}위 " if row["name"] not in ALWAYS_THEMES else f"빅테크 · {row['rank']}위 "
+        legend.append(f"<label for='j3vx-tk-{place[row['name']]}' class='j3vx-tchip j3vx-tc{place[row['name']]}'>"
+                      f"<i style='border-top:3px solid {colors[row['name']]}'></i>"
+                      f"<small>{html.escape(rank)}</small>{html.escape(row['name'])} "
+                      f"<b style='color:{_tone(row['final'])}'>{_fmt(row['final'])}</b></label>")
+    legend_html = (taps + "<div class='j3vx-legend j3vx-tlegend'>" + "".join(legend) + "</div>"
+                   "<div class='j3vx-thint'>이름을 누르면 그 테마만 굵게 보입니다 · 여러 개 눌러 견줄 수 있고, "
+                   "다시 누르면 풀립니다.</div>")
+    note = ""
     if view == "bar":
-        nq_points = _bucket_returns(days, nasdaq, period)
-        theme_points = {row["name"]: _bucket_returns(days, row["series"], period) for row in picked}
-    else:
-        nq_points = line_points(days, nasdaq, period)
-        theme_points = {row["name"]: line_points(days, row["series"], period) for row in picked}
+        nq_points = _bucket_returns(days, lines["nasdaq"], period)
+        points = {row["name"]: _bucket_returns(days, row["series"], period) for row in picked}
+        keep = list(range(len(nq_points)))
+        if period == "d" and len(keep) > THEME_DAILY_BAR_KEEP:
+            note = f"일별 막대는 최근 {THEME_DAILY_BAR_KEEP}일만 그립니다(주별·월별은 전부)."
+            keep = keep[-THEME_DAILY_BAR_KEEP:]
+        values = [nq_points[i][1] for i in keep] + [points[r["name"]][i][1] for r in picked for i in keep]
+        low, high, ticks = _nice_range(values)
+        slot = 1000.0 / len(keep)
+        lanes = 1 + len(picked)
+        width = slot * 0.84 / lanes
+
+        def y(value):
+            return (high - value) / ((high - low) or 1.0) * 400.0
+
+        body = [_grid(ticks, y)]
+        for column, i in enumerate(keep):
+            left = column * slot + slot * 0.08
+            entries = [("나스닥 종합", NASDAQ_COLOR, nq_points[i][1])]
+            entries += [(row["name"], colors[row["name"]], points[row["name"]][i][1]) for row in picked]
+            for lane, (name, color, value) in enumerate(entries):
+                if value is None:
+                    continue
+                top, bottom = sorted((y(value), y(0.0)))
+                mark = "" if lane == 0 else f" class='j3vx-tl j3vx-tl{place[name]}'"
+                body.append(f"<rect{mark} x='{left + lane * width:.1f}' y='{top:.1f}' width='{width:.1f}' "
+                            f"height='{max(bottom - top, 1.5):.1f}' fill='{color}'>"
+                            f"<title>{html.escape(nq_points[i][0])} · {html.escape(name)} {_fmt(value)}</title></rect>")
+        chart = _frame("".join(body), ticks, low, high,
+                       _x_labels(len(keep), [nq_points[i][0] for i in keep], lambda c: (c + 0.5) * slot / 10.0))
+        return legend_html + chart, note
+    nq_points = line_points(days, lines["nasdaq"], period)
+    points = {row["name"]: line_points(days, row["series"], period) for row in picked}
     count = len(nq_points)
+    values = [v for _l, v in nq_points] + [v for pts in points.values() for _l, v in pts]
+    low, high, ticks = _nice_range(values)
 
     def x(i):
         return 500.0 if count == 1 else i * 1000.0 / (count - 1)
 
-    cards = []
-    nq_final = next((v for v in reversed(nasdaq) if v is not None), None)
-    for row in picked:
-        points = theme_points[row["name"]]
-        # **칸마다 제 눈금** — 언제 오르고 내렸나가 목적이라(상하님). 한 눈금으로 묶으면 많이 오른 테마
-        # 하나 때문에 나머지가 납작해졌다(2026-10-07 화면 확인). 크기는 칸 오른쪽 위 숫자로 견준다.
-        # 눈금 폭은 6% 보다 좁히지 않는다 — 작은 흔들림이 큰 오르내림처럼 보이지 않게.
-        finite = [v for _l, v in nq_points + points if v is not None] + [0.0]
-        low, high = min(finite), max(finite)
-        if high - low < 6.0:
-            middle = (high + low) / 2.0
-            low, high = middle - 3.0, middle + 3.0
-        pad = (high - low) * 0.06
-        low, high = low - pad, high + pad
+    def y(value):
+        return (high - value) / ((high - low) or 1.0) * 400.0
 
-        def y(value, low=low, high=high):
-            return (high - value) / ((high - low) or 1.0) * 300.0
+    def run(pts):
+        return " ".join(f"{x(i):.1f},{y(v):.1f}" for i, (_l, v) in enumerate(pts) if v is not None)
 
-        def run(points, y=y):
-            return " ".join(f"{x(i):.1f},{y(v):.1f}" for i, (_l, v) in enumerate(points) if v is not None)
-
-        zero = (f"<line x1='0' x2='1000' y1='{y(0.0):.1f}' y2='{y(0.0):.1f}' stroke='rgba(255,255,255,.3)' "
-                "stroke-width='1' stroke-dasharray='6 6' vector-effect='non-scaling-stroke'/>")
-        if view == "bar":
-            slot = 1000.0 / max(count, 1)
-            width = slot * 0.36
-            body = [zero]
-            for i, ((_l, nq), (_l2, mine)) in enumerate(zip(nq_points, points)):
-                for lane, value, color in ((0, nq, NASDAQ_COLOR), (1, mine, THEME_COLOR)):
-                    if value is None:
-                        continue
-                    top, bottom = sorted((y(value), y(0.0)))
-                    body.append(f"<rect x='{i * slot + slot * 0.14 + lane * width:.1f}' y='{top:.1f}' "
-                                f"width='{width:.1f}' height='{max(bottom - top, 1.5):.1f}' fill='{color}'/>")
-        else:
-            body = [zero,
-                    f"<polyline points='{run(nq_points)}' fill='none' stroke='{NASDAQ_COLOR}' stroke-width='6' "
-                    "stroke-linecap='round' stroke-linejoin='round' vector-effect='non-scaling-stroke'/>",
-                    f"<polyline points='{run(points)}' fill='none' stroke='{THEME_COLOR}' stroke-width='2' "
-                    "stroke-linejoin='round' vector-effect='non-scaling-stroke'/>"]
-        final = row["final"]
-        always = row["name"] in ALWAYS_THEMES and row["rank"] > THEME_KEEP
-        rank = "늘 같이" if always else f"{row['rank']}위"
-        cards.append(
-            f"<div class='j3vx-tc{' j3vx-tc-always' if always else ''}'><div class='j3vx-tc-head'>"
-            f"<span class='j3vx-tc-rank'>{rank}</span><b>{html.escape(row['name'])}</b>"
-            f"<span class='j3vx-tc-val' style='color:{_tone(final)}'>{_fmt(final)}</span></div>"
-            f"<svg viewBox='0 0 1000 300' preserveAspectRatio='none' class='j3vx-tc-svg'>{''.join(body)}</svg>"
-            f"<div class='j3vx-tc-x'><span>{html.escape(nq_points[0][0])}</span>"
-            f"<span>눈금 {low:+.0f}~{high:+.0f}%</span>"
-            f"<span>{html.escape(nq_points[-1][0])}</span></div></div>")
-    scale = "칸마다 눈금이 다릅니다(점선이 0%) — 크기는 칸 위 숫자로 견주십시오"
-    what = ("막대 하나 = 그 날·주·달 동안 몇 % 움직였나" if view == "bar"
-            else f"{html.escape(lines['base'])} 종가부터 몇 % 인가")
-    return (
-        "<div class='j3vx-themes'><div class='j3vx-list-head'>테마별로 — 언제 오르고 내렸나"
-        f"<small>고른 기간에 테마 평균이 많이 오른 10개 + 빅테크10 · 나스닥 종합 {_fmt(nq_final)}</small></div>"
-        "<div class='j3vx-legend'><span><i class='j3vx-band'></i>나스닥 종합</span>"
-        f"<span><i style='border-top:3px solid {THEME_COLOR}'></i>그 테마(명부 종목을 같은 돈으로 나눠 들었다면)</span></div>"
-        f"<div class='j3vx-tgrid'>{''.join(cards)}</div>"
-        f"<div class='j3vx-note'>{what} · {scale}. 저장 목록이 아니라 테마 명부 종목의 주가로 그린 것이라, "
-        "위 「상위 테마 5개」 성적(산 날마다 산 값)과는 다른 그림입니다.</div></div>")
-
+    body = [_grid(ticks, y),
+            f"<polyline points='{run(nq_points)}' fill='none' stroke='{NASDAQ_COLOR}' stroke-width='{NASDAQ_WIDTH}' "
+            "stroke-linecap='round' stroke-linejoin='round' vector-effect='non-scaling-stroke'/>"]
+    dot = 6 if period != "d" else 0
+    for row in reversed(picked):            # 1위가 맨 위에 그려지게 거꾸로 깐다
+        color = colors[row["name"]]
+        line = run(points[row["name"]])
+        mark = f"j3vx-tl j3vx-tl{place[row['name']]}"
+        body.append(f"<polyline class='{mark}' points='{line}' fill='none' stroke='{color}' stroke-width='1.8' "
+                    "stroke-linejoin='round' vector-effect='non-scaling-stroke'/>")
+        if dot and line:
+            body.append(f"<path class='{mark} j3vx-tdot' d='{''.join('M' + p + 'h0' for p in line.split())}' "
+                        f"stroke='{color}' stroke-width='{dot}' stroke-linecap='round' fill='none' "
+                        "vector-effect='non-scaling-stroke'/>")
+    chart = _frame("".join(body), ticks, low, high,
+                   _x_labels(count, [label for label, _v in nq_points], lambda i: x(i) / 10.0))
+    return legend_html + chart, note
 
 CSS = """
 <style>
@@ -747,17 +764,25 @@ div[class*="st-key-j3vx_v_"] button[kind="primary"] p{color:#fff!important}
 .j3vx-tbl th:first-child,.j3vx-tbl td:first-child{text-align:left}
 .j3vx-tbl td small{color:#6f93bd;font-size:.7rem}
 .j3vx-tbl td.j3vx-gap{text-align:center;color:#6f93bd}
-.j3vx-themes{margin-top:14px;border-top:1px solid #1d3a63;padding-top:10px}
-.j3vx-tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:4px}
-.j3vx-tc{border:1px solid #1d3a63;border-radius:10px;padding:7px 8px 4px;background:rgba(255,255,255,.02);min-width:0}
-.j3vx-tc-always{border-style:dashed;border-color:#4d7fd0}
-.j3vx-tc-head{display:flex;align-items:baseline;gap:6px;min-width:0}
-.j3vx-tc-rank{font-size:.66rem;color:#8fb4de;font-weight:700;flex:0 0 auto}
-.j3vx-tc-head b{font-size:.8rem;color:#fff;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  flex:1 1 auto;min-width:0}
-.j3vx-tc-val{font-size:.8rem;font-weight:900;flex:0 0 auto}
-.j3vx-tc-svg{display:block;width:100%;height:70px;margin-top:4px;overflow:visible}
-.j3vx-tc-x{display:flex;justify-content:space-between;font-size:.62rem;color:#6f93bd}
+.j3vx-tlegend small{color:#8fb4de;font-size:.7rem;margin-right:2px}
+.j3vx-tlegend b{font-weight:800;margin-left:2px}
+/* 테마 비교표 — 이름을 누르면 그 테마만 굵게(여러 개 가능). 숨은 스위치 · 서버에 안 묻는다. */
+.j3vx-tk{position:absolute;opacity:0;pointer-events:none;width:0;height:0;margin:0}
+.j3vx-tchip{display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 8px;margin:0 -8px;
+  border:1px solid transparent;border-radius:999px;transition:background-color .15s ease,border-color .15s ease}
+.j3vx-thint{font-size:.72rem;color:#6f93bd;margin:-2px 0 6px}
+.j3vx-tl{opacity:.85;transition:opacity .2s ease}
+.j3vx-tk:checked ~ .j3vx-plot .j3vx-tl{opacity:.12}
+#j3vx-tk-0:checked ~ .j3vx-plot .j3vx-tl0{opacity:1}#j3vx-tk-0:checked ~ .j3vx-plot polyline.j3vx-tl0{stroke-width:3.6px}#j3vx-tk-0:checked ~ .j3vx-tlegend .j3vx-tc0{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-1:checked ~ .j3vx-plot .j3vx-tl1{opacity:1}#j3vx-tk-1:checked ~ .j3vx-plot polyline.j3vx-tl1{stroke-width:3.6px}#j3vx-tk-1:checked ~ .j3vx-tlegend .j3vx-tc1{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-2:checked ~ .j3vx-plot .j3vx-tl2{opacity:1}#j3vx-tk-2:checked ~ .j3vx-plot polyline.j3vx-tl2{stroke-width:3.6px}#j3vx-tk-2:checked ~ .j3vx-tlegend .j3vx-tc2{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-3:checked ~ .j3vx-plot .j3vx-tl3{opacity:1}#j3vx-tk-3:checked ~ .j3vx-plot polyline.j3vx-tl3{stroke-width:3.6px}#j3vx-tk-3:checked ~ .j3vx-tlegend .j3vx-tc3{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-4:checked ~ .j3vx-plot .j3vx-tl4{opacity:1}#j3vx-tk-4:checked ~ .j3vx-plot polyline.j3vx-tl4{stroke-width:3.6px}#j3vx-tk-4:checked ~ .j3vx-tlegend .j3vx-tc4{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-5:checked ~ .j3vx-plot .j3vx-tl5{opacity:1}#j3vx-tk-5:checked ~ .j3vx-plot polyline.j3vx-tl5{stroke-width:3.6px}#j3vx-tk-5:checked ~ .j3vx-tlegend .j3vx-tc5{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-6:checked ~ .j3vx-plot .j3vx-tl6{opacity:1}#j3vx-tk-6:checked ~ .j3vx-plot polyline.j3vx-tl6{stroke-width:3.6px}#j3vx-tk-6:checked ~ .j3vx-tlegend .j3vx-tc6{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-7:checked ~ .j3vx-plot .j3vx-tl7{opacity:1}#j3vx-tk-7:checked ~ .j3vx-plot polyline.j3vx-tl7{stroke-width:3.6px}#j3vx-tk-7:checked ~ .j3vx-tlegend .j3vx-tc7{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-8:checked ~ .j3vx-plot .j3vx-tl8{opacity:1}#j3vx-tk-8:checked ~ .j3vx-plot polyline.j3vx-tl8{stroke-width:3.6px}#j3vx-tk-8:checked ~ .j3vx-tlegend .j3vx-tc8{border-color:#c084fc;background:rgba(192,132,252,.16)}
+#j3vx-tk-9:checked ~ .j3vx-plot .j3vx-tl9{opacity:1}#j3vx-tk-9:checked ~ .j3vx-plot polyline.j3vx-tl9{stroke-width:3.6px}#j3vx-tk-9:checked ~ .j3vx-tlegend .j3vx-tc9{border-color:#c084fc;background:rgba(192,132,252,.16)}
 .j3vx-more summary{cursor:pointer;font-size:.8rem;font-weight:700;color:#c084fc;padding:4px 0;list-style:none}
 .j3vx-more summary::-webkit-details-marker{display:none}
 .j3vx-more[open] summary{margin-bottom:4px}
