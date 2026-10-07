@@ -26,7 +26,7 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게(CLAUDE.md 11과 같은 까닭).
-MODULE_REVISION = 2026100708
+MODULE_REVISION = 2026100709
 
 PARTS = ("theme15", "breakout", "crash")
 PART_NAMES = {
@@ -47,6 +47,10 @@ TABS = (
 TAB_PARTS = {key: parts for key, _label, parts in TABS}
 PERIODS = (("d", "일별"), ("w", "주별"), ("m", "월별"))
 VIEWS = (("line", "쌓인 수익 (선)"), ("bar", "산 날마다 (막대)"))
+# 테마 비교표에만 하나 더 — **나스닥보다 몇 % 더·덜** (2026-10-07 상하님 지시). 산 것마다 같은 날 같은 돈으로
+# 나스닥 종합을 샀을 때와 견준다 — 나스닥이 0줄이 되고, 시장 전체가 같이 오르내린 몫이 빠져 테마끼리 갈라지는
+# 것(한 테마가 뜰 때 어느 테마가 빠지나)이 또렷해진다.
+THEME_EXTRA_VIEWS = (("rel", "나스닥보다 더·덜"),)
 # 나스닥 띠 — 굵고 옅게(상하님 지시). 선 굵기는 화면에서 늘려도 그대로다(vector-effect).
 NASDAQ_COLOR = "rgba(170,182,204,.42)"
 NASDAQ_WIDTH = 10
@@ -237,6 +241,7 @@ def compute(rows, frames: dict, ixic, *, last_day: date | None = None) -> dict:
             by_theme.setdefault(origin, []).append((bought, code, buy))
     for origin, items in by_theme.items():
         series_list, gains, per_stock, per_day = [], [], {}, {}
+        rel_list, rel_gains, beat = [], [], 0
         for bought, code, buy in items:
             ratio = closes[:, column[code]] / buy
             ratio[:index[bought]] = np.nan
@@ -246,8 +251,15 @@ def compute(rows, frames: dict, ixic, *, last_day: date | None = None) -> dict:
             gain = (ratio[-1] - 1.0) * 100.0
             gains.append(gain)
             per_stock.setdefault(code, []).append(gain)
-            slot = per_day.setdefault(bought, [[], (ix_c[-1] / ix_open[bought] - 1.0) * 100.0])
+            nq_gain = (ix_c[-1] / ix_open[bought] - 1.0) * 100.0
+            slot = per_day.setdefault(bought, [[], nq_gain])
             slot[0].append(gain)
+            # 같은 날 같은 돈으로 나스닥 종합을 샀다면 — 그 차이가 「나스닥보다 몇 % 더·덜」이다.
+            ix_ratio = ix_c / ix_open[bought]
+            ix_ratio[:index[bought]] = np.nan
+            rel_list.append(ratio - ix_ratio)
+            rel_gains.append(gain - nq_gain)
+            beat += 1 if gain > nq_gain else 0
         if not gains:
             continue
         matrix = np.vstack(series_list)
@@ -256,6 +268,10 @@ def compute(rows, frames: dict, ixic, *, last_day: date | None = None) -> dict:
         total = np.where(active, matrix, 0.0).sum(axis=0)
         cum = [None if held[place] == 0 else round((total[place] / held[place] - 1.0) * 100.0, 2)
                for place in range(count)]
+        rel_matrix = np.vstack(rel_list)
+        rel_total = np.where(active, rel_matrix, 0.0).sum(axis=0)
+        rel_cum = [None if held[place] == 0 else round(rel_total[place] / held[place] * 100.0, 2)
+                   for place in range(count)]
         best_code, best_gains = max(per_stock.items(), key=lambda kv: sum(kv[1]) / len(kv[1]))
         themes.append({
             "name": origin, "cum": cum,
@@ -264,6 +280,7 @@ def compute(rows, frames: dict, ixic, *, last_day: date | None = None) -> dict:
             "seen": len(gains), "win": sum(1 for g in gains if g > 0),
             "final": round(sum(gains) / len(gains), 2),
             "top": [best_code, round(sum(best_gains) / len(best_gains), 1)],
+            "rel": rel_cum, "rel_final": round(sum(rel_gains) / len(rel_gains), 2), "beat": beat,
         })
     themes.sort(key=lambda row: (-(row["win"] / row["seen"]), -row["final"]))
     return {"days": [day.isoformat() for day in days], "last": days[-1].isoformat(),
@@ -582,21 +599,31 @@ def theme_chart_html(data: dict, period: str, view: str) -> tuple:
     nasdaq = ((data or {}).get("nasdaq") or {}).get("theme") or []
     if not themes or not days or not nasdaq:
         return "", ""
+    rel = view == "rel"
+    if rel:
+        # 나스닥보다 몇 % 더·덜 — 테마 줄은 차이, 나스닥은 0(같은 날 같은 돈이면 나스닥과 똑같다는 뜻).
+        themes = [dict(row, cum=row["rel"], final=row["rel_final"]) for row in themes]
+        nasdaq = [0.0 if v is not None else None for v in nasdaq]
     colors = {row["name"]: THEME_COLORS[index % len(THEME_COLORS)] for index, row in enumerate(themes)}
     place = {row["name"]: index for index, row in enumerate(themes)}
     nq_final = next((v for v in reversed(nasdaq) if v is not None), None)
     # **이름을 누르면 그 테마만 굵게** — 숨은 스위치(체크칸)로 여닫아 서버에 묻지 않는다. 스위치는 범례·그림보다
     # **앞에** 같은 줄로 둔다(뒤의 범례·그림을 「~」로 집으려면 앞서야 한다). 꾸밈은 CSS 의 j3vx-tk-숫자 규칙.
     taps = "".join(f"<input type='checkbox' id='j3vx-tk-{index}' class='j3vx-tk'>" for index in range(len(themes)))
-    legend = [f"<span><i class='j3vx-band'></i>나스닥 종합 <b style='color:{_tone(nq_final)}'>{_fmt(nq_final)}</b></span>"]
+    legend = [("<span><i class='j3vx-band'></i>나스닥 종합 = 0</span>" if rel else
+               f"<span><i class='j3vx-band'></i>나스닥 종합 <b style='color:{_tone(nq_final)}'>{_fmt(nq_final)}</b></span>")]
     for row in themes:
+        count_text = (f"{row['seen']}번 중 {row['beat']}번 나스닥보다 나음" if rel
+                      else f"{row['seen']}번 중 {row['win']}번")
         legend.append(f"<label for='j3vx-tk-{place[row['name']]}' class='j3vx-tchip j3vx-tc{place[row['name']]}'>"
                       f"<i style='border-top:3px solid {colors[row['name']]}'></i>{html.escape(row['name'])} "
                       f"<b style='color:{_tone(row['final'])}'>{_fmt(row['final'])}</b>"
-                      f"<small>{row['seen']}번 중 {row['win']}번</small>{_top_html(row)}</label>")
+                      f"<small>{count_text}</small>{'' if rel else _top_html(row)}</label>")
     legend_html = (taps + "<div class='j3vx-legend j3vx-tlegend'>" + "".join(legend) + "</div>"
                    "<div class='j3vx-thint'>이름을 누르면 그 테마만 굵게 보입니다 · 여러 개 눌러 견줄 수 있고, "
-                   "다시 누르면 풀립니다 · 괄호 안은 그 테마에서 산 1~3위 중 가장 많이 번 종목(산 날 평균)입니다.</div>")
+                   "다시 누르면 풀립니다"
+                   + ("" if rel else " · 괄호 안은 그 테마에서 산 1~3위 중 가장 많이 번 종목(산 날 평균)입니다")
+                   + ".</div>")
     note = ""
     if view == "bar":
         many = len({d[:4] for d in days}) > 1
@@ -694,7 +721,8 @@ def _theme_zoom(legend_html: str, chart: str, picked: list, colors: dict, nq_fin
     창 안 범례는 누르는 칸이 아니다 — 창을 누르면 닫혀야 하므로(누르는 칸 안에 누르는 칸을 둘 수 없다).
     """
     place = {row["name"]: index for index, row in enumerate(picked)}
-    names = [f"<span><i class='j3vx-band'></i>나스닥 종합 <b style='color:{_tone(nq_final)}'>{_fmt(nq_final)}</b></span>"]
+    names = [f"<span><i class='j3vx-band'></i>나스닥 종합 <b style='color:{_tone(nq_final)}'>{_fmt(nq_final)}</b></span>"
+             if nq_final else "<span><i class='j3vx-band'></i>나스닥 종합 = 0</span>"]
     names += [f"<span class='j3vx-zc{place[row['name']]}'><i style='border-top:3px solid {colors[row['name']]}'></i>"
               f"{html.escape(row['name'])} <b style='color:{_tone(row['final'])}'>{_fmt(row['final'])}</b>"
               f"{_top_html(row)}</span>"

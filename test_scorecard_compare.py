@@ -221,6 +221,19 @@ class ThemeCompareTests(unittest.TestCase):
         bars, _note = vx.theme_chart_html(self.data, "w", "bar")
         self.assertIn("<rect", bars)
 
+    def test_more_or_less_than_nasdaq(self):
+        first = self.data["themes"][0]
+        # 에이: 9/14 에 AAA·BBB, 9/16 에 AAA — 나스닥은 9/14 시가 1000 · 9/16 시가 1020 → 9/18 종가 1050
+        nq = [(1050 / 1000 - 1) * 100, (1050 / 1000 - 1) * 100, (1050 / 1020 - 1) * 100]
+        gains = [40.0, -10.0, 40.0]
+        self.assertAlmostEqual(first["rel_final"], round(sum(g - n for g, n in zip(gains, nq)) / 3, 2))
+        self.assertAlmostEqual(first["rel"][-1], first["rel_final"], places=1)
+        self.assertEqual(first["beat"], 2)
+        chart, _note = vx.theme_chart_html(self.data, "d", "rel")
+        self.assertIn("나스닥 종합 = 0", chart)
+        self.assertIn("나스닥보다 나음", chart)
+        self.assertIn(("rel", "나스닥보다 더·덜"), vx.THEME_EXTRA_VIEWS)
+
     def test_no_theme_rows_no_chart(self):
         data = vx.compute([_row("2026-09-11", "breakout", "AAA", 100.0)], FRAMES, IXIC)
         self.assertEqual(data["themes"], [])
@@ -261,6 +274,9 @@ class PageWiringTests(unittest.TestCase):
         self.assertIn("vx.theme_chart_html(data, period, view)", body)
         for gone in ("theme_grid_html", "theme_lines", "THEME_VIEWS"):
             self.assertNotIn(gone, PAGE)
+        # 「나스닥보다 더·덜」은 테마 비교표에만 · 두 줄 단추
+        self.assertIn('vx.THEME_EXTRA_VIEWS) if tab == "themes" else []', body)
+        self.assertIn('("j3vx_rowviews", view_buttons)', body)
         cached = PAGE[PAGE.index("def _scorecard_compare_cached("):PAGE.index("def _pick_scorecard_vx(")]
         # 목록 종목 · 나스닥 둘만 — 테마 명부 종목은 더 받지 않는다(표와 같은 1~3위만 쓴다)
         self.assertEqual(cached.count("j3data._download_cached("), 2)

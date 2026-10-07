@@ -1833,7 +1833,7 @@ import us_fundamentals
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100708
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100709
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100701
@@ -6827,7 +6827,9 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
     period = str(st.session_state.get(_SCORECARD_VX_PERIOD) or "d")
     period = period if period in dict(vx.PERIODS) else "d"
     view = str(st.session_state.get(_SCORECARD_VX_VIEW) or "line")
-    view = view if view in dict(vx.VIEWS) else "line"
+    # 「나스닥보다 더·덜」은 테마 비교표에만 있다 — 다른 탭에서는 쌓인 수익(선)으로 그린다(고른 값은 그대로 둔다).
+    views = list(vx.VIEWS) + (list(vx.THEME_EXTRA_VIEWS) if tab == "themes" else [])
+    view = view if view in dict(views) else "line"
     dates = _pl_store.available_dates("US")
     stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|vx{vx.MODULE_REVISION}"
     start, end = (picked[0].isoformat(), picked[1].isoformat()) if picked else ("", "")
@@ -6843,15 +6845,19 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
             column.button(label, key=f"j3vx_t_{key}", width="stretch",
                           type="primary" if key == tab else "secondary",
                           on_click=_pick_scorecard_vx, args=(_SCORECARD_VX_TAB, key))
-    with st.container(key="j3vx_rowopts"):
-        options = ([(_SCORECARD_VX_PERIOD, key, label, f"j3vx_p_{key}", key == period)
-                    for key, label in vx.PERIODS]
-                   + [(_SCORECARD_VX_VIEW, key, label, f"j3vx_v_{key}", key == view)
-                      for key, label in vx.VIEWS])
-        for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
-            column.button(label, key=widget_key, width="stretch",
-                          type="primary" if chosen else "secondary",
-                          on_click=_pick_scorecard_vx, args=(state_key, key))
+    period_buttons = [(_SCORECARD_VX_PERIOD, key, label, f"j3vx_p_{key}", key == period)
+                      for key, label in vx.PERIODS]
+    view_buttons = [(_SCORECARD_VX_VIEW, key, label, f"j3vx_v_{key}", key == view) for key, label in views]
+    # 테마 비교표는 보기 단추가 셋이라 **두 줄**(일별·주별·월별 / 선·막대·나스닥보다 더·덜) — 한 줄 여섯이면 폰에서
+    # 단추 하나가 55px 로 좁아진다. 다른 탭은 예전처럼 한 줄 다섯.
+    rows = ([("j3vx_rowopts", period_buttons), ("j3vx_rowviews", view_buttons)] if tab == "themes"
+            else [("j3vx_rowopts", period_buttons + view_buttons)])
+    for row_key, options in rows:
+        with st.container(key=row_key):
+            for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
+                column.button(label, key=widget_key, width="stretch",
+                              type="primary" if chosen else "secondary",
+                              on_click=_pick_scorecard_vx, args=(state_key, key))
     if not data.get("parts"):
         st.markdown("<div class='j3vx-note'>이 기간에는 아직 나스닥과 견줄 것이 없습니다.</div>",
                     unsafe_allow_html=True)
@@ -6864,12 +6870,17 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
         chart, extra = vx.theme_chart_html(data, period, view)
         what = (f"막대 하나 = 그날(주별·월별은 그 안의 산 날 평균) 산 1~3위가 <b>{html.escape(last)} 종가</b>까지 몇 % 인가."
                 if view == "bar" else
+                f"선 하나 = 그 테마 1~3위를 산 날마다, 같은 날 같은 돈으로 나스닥 종합을 샀을 때보다 <b>{html.escape(last)} "
+                "종가</b>까지 몇 % 더(+)·덜(−) 벌었나. 0(회색 띠)이 나스닥과 똑같다는 뜻입니다. 시장 전체가 같이 오르내린 "
+                "몫이 빠져, 한 테마가 뜰 때 어느 테마가 빠지는지가 잘 보입니다."
+                if view == "rel" else
                 f"선 하나 = 그 테마가 「상위 테마 5개」에 든 날마다 1~3위를 다음 거래일 시가에 같은 돈으로 샀다면 "
                 f"<b>{html.escape(last)} 종가</b>까지 몇 % 인가(선 끝 = 위 표의 평균).")
         body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
                 + (chart or "<div class='j3vx-note'>이 기간에는 「상위 테마 5개」에 든 테마가 없습니다.</div>")
-                + f"<div class='j3vx-note'>{what} 나스닥 종합은 같은 날 같은 돈으로 샀다고 친 것입니다. "
-                "테마 차례는 위 표와 같습니다(이익 난 확률 · 같으면 평균). " + extra + "</div></div>")
+                + f"<div class='j3vx-note'>{what} "
+                + ("" if view == "rel" else "나스닥 종합은 같은 날 같은 돈으로 샀다고 친 것입니다. ")
+                + "테마 차례는 위 표와 같습니다(이익 난 확률 · 같으면 평균). " + extra + "</div></div>")
         st.markdown(body, unsafe_allow_html=True)
         return
     if view == "bar":
