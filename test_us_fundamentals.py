@@ -181,10 +181,17 @@ class ResultsCellTests(unittest.TestCase):
 
 
 class WiringTests(unittest.TestCase):
-    def test_every_detail_view_gets_the_box_right_under_daily_prices(self):
-        calls = re.findall(r"_render_day_price_row\(metrics, ticker, panel=panel\)\n\s+"
-                           r"_render_fundamentals_box\(ticker, metrics, panel=panel\)", PAGE)
-        self.assertEqual(len(calls), 4)
+    def test_every_detail_view_gets_the_box_right_under_the_street_boxes(self):
+        """「재무 한눈에」는 종목 개요 밑 상자 셋(실적·애널리스트·공매도/내부자/배당) 바로 밑, 현재가 칸 위.
+
+        예전 자리는 4주간 시세 밑이었다(테마·상승장 세부의 게스트/로그인 네 곳). 2026-10-09 상하님 지시로 자비스12 에서
+        옮겼고, 2026-10-10 「자비스3을 고쳐라」로 자비스3 도 같게 했다 — 게스트 갈림길 앞이라 두 세부에 한 번씩이면 된다."""
+        calls = re.findall(r"\+ _overview_html\(ticker, metrics\),\n\s+unsafe_allow_html=True,\n\s+\)\n"
+                           r"(?:\s+#[^\n]*\n)*\s+_render_fundamentals_box\(ticker, metrics, panel=(?:panel|_WATCH_PANEL)\)",
+                           PAGE)
+        self.assertEqual(len(calls), 3)                             # 테마·순위 9·종목검색 / 상승장·급락 / 관심종목 창
+        self.assertNotRegex(PAGE, r"_render_day_price_row\(metrics, ticker, panel=panel\)\n\s+_render_fundamentals_box")
+        self.assertEqual(PAGE.count("_day_price_box(metrics, ticker, panel)"), 4)   # 4주간 시세는 그 칸만 다시 그리는 덩이
 
     def test_box_reads_the_file_and_never_downloads(self):
         body = PAGE[PAGE.index("def _render_fundamentals_box("):PAGE.index("def _render_day_price_row(")]
@@ -297,7 +304,8 @@ class OverviewTests(unittest.TestCase):
             self.assertEqual(fn._person(raw), clean)
 
     def test_page_puts_the_card_under_the_green_line_and_fixes_two_words(self):
-        self.assertEqual(PAGE.count("+ _overview_html(ticker, metrics),"), 2)  # 테마·순위 9·종목검색 / 상승장·급락
+        # 테마·순위 9·종목검색 / 상승장·급락 / 관심종목 창(2026-10-10 — 현재가 줄을 재무 한눈에 밑으로 따로 그리며 쉼표가 붙었다)
+        self.assertEqual(PAGE.count("+ _overview_html(ticker, metrics),"), 3)
         body = PAGE[PAGE.index("def _render_stock_detail("):PAGE.index("if auth.is_guest():", PAGE.index("def _render_stock_detail("))]
         self.assertIn("_detail_sub_text(theme_row, leader, plan))}</div>\"\n        + _overview_html(ticker, metrics)", body)
         self.assertIn("종목검색으로 찾은 종목", PAGE)
@@ -507,7 +515,9 @@ class StreetTests(unittest.TestCase):
         self.assertIn("        _usd_krw_cell(),\n", PAGE)
         self.assertIn("    _start_us_futures_fetch()\n", PAGE)
         self.assertIn("    _start_us_fx_fetch()\n", PAGE)
-        self.assertEqual(PAGE.count("_render_stock_news_box(ticker, panel=panel)"), 4)
+        # 2026-10-10 — 세부사항 네 곳은 누르면 그 칸만 다시 그리는 작은 덩이(_stock_news_box)를 거친다.
+        self.assertEqual(PAGE.count("_render_stock_news_box(ticker, panel=panel)"), 1)
+        self.assertEqual(PAGE.count("_stock_news_box(ticker, panel)"), 4)
         self.assertEqual(PAGE.count("_krw_sub(shown_price)"), 3)
         self.assertIn("us_fundamentals.upcoming_html()", PAGE)
         self.assertIn('"j3_news_open_")', PAGE)

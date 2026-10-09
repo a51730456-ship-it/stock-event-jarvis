@@ -12,6 +12,12 @@ import jarvis3_briefing_news as news
 import jarvis3_briefing_store as store
 from streamlit.testing.v1 import AppTest
 
+import pytest
+
+# **2026-10-10 손가락 넘기기를 뺐다**(상하님 「자비스3을 고쳐라」 → 「자비스12와 똑같이 다」). 화면은 밑 막대로만
+# 옮긴다. 넘기기 코드를 보던 시험은 지우지 않고 건너뛴다 — 되살리면 그대로 다시 돈다.
+_NO_SWIPE = pytest.mark.skip(reason="2026-10-10 손가락 넘기기를 뺐다 (상하님 「자비스3을 고쳐라」)")
+
 
 def _isolated_store(monkeypatch):
     conn = sqlite3.connect(":memory:")
@@ -205,16 +211,17 @@ def test_first_page_renders_four_slots_and_next_page_button():
         app.run(timeout=30)
     assert not app.exception
     rendered = " ".join(str(node.value) for node in app.markdown)
-    assert "종목 브리핑" in rendered
+    # 2026-10-10 — 꾸밈 글 설명 메모(「종목 브리핑 첫 화면…」)를 빼고 보내면서 그 글자에 기대던 확인을 화면 표식으로 바꿨다.
+    assert "j3b-home" in rendered
     assert all(ticker in rendered for ticker in ("NVDA", "TSLA", "PLTR", "AMD"))
     # 「더보기 ›」는 2026-09-10에 뺐다 — 그 자리에 검색줄이 앉는다.
     # 시장분석은 하단 막대와 손가락으로 미는 것으로 간다.
     assert not any(node.key == "j3b_go_market" for node in app.button)
-    assert any(node.key == "j3b_swipe_market" for node in app.button), "미는 길이 없다"
+    # 손가락으로 미는 숨은 단추는 2026-10-10 넘기기와 같이 뺐다 — 시장분석은 하단 막대로 간다.
+    assert not any(str(node.key or "").startswith("j3b_swipe_") for node in app.button), "넘기기 단추가 남아 있다"
     market_button = next(node for node in app.button if node.key == "j3b_nav_market")
     assert market_button.label == "시장분석"
     assert any(node.key == "j3b_nav_home" for node in app.button)
-    assert any(node.key == "j3b_swipe_home" for node in app.button), "손가락으로 홈에 가는 길이 없다"
     assert any(node.key == "j3b_nav_watch" for node in app.button)
     assert "시장분석" in rendered
     assert "본 정보는 투자 참고용" not in rendered
@@ -948,6 +955,7 @@ def _j3_source() -> str:
     return _J3_PAGE.read_text(encoding="utf-8")
 
 
+@_NO_SWIPE
 def test_swiping_turns_the_page_with_the_finger():
     """만화책 넘기듯 — 종이가 **손가락을 따라** 넘어가고, 덜 넘기면 제자리로 온다.
 
@@ -1012,12 +1020,14 @@ def test_the_theme_help_opens_like_the_scorecard_card_without_the_server():
     assert callable(getattr(method_help, "render_us_body", None))
 
 
+@_NO_SWIPE
 def test_the_swipe_is_off_while_the_help_card_is_open():
     """카드 안의 그림을 옆으로 밀어도 화면이 넘어가면 안 된다."""
     js = _j3_source().split('_SWIPE_OUTER_JS = """', 1)[1].split('"""', 1)[0]
     assert "getElementById('j3-help-tap')" in js
 
 
+@_NO_SWIPE
 def test_a_page_reached_by_swiping_can_be_swiped_again():
     """넘겨서 들어온 화면도 **다시 넘어가 보여야** 한다 (2026-09-18 상하님 —
     "한 번 되고 안 된다. 그리고 계속 로딩을 하더라").
@@ -1036,6 +1046,7 @@ def _swipe_js() -> str:
     return _j3_source().split('_SWIPE_OUTER_JS = """', 1)[1].split('"""', 1)[0]
 
 
+@_NO_SWIPE
 def test_the_next_page_lies_under_the_turning_page():
     """넘기기 **시작하는 순간부터** 밑에 다음 쪽이 보인다 (2026-09-19 상하님 — "페이지
     넘기는 순간부터 미리 다음 페이지가 보여야지 자연스럽지").
@@ -1072,6 +1083,7 @@ def test_the_next_page_lies_under_the_turning_page():
     assert "setProperty('display', 'none', 'important')" in js
 
 
+@_NO_SWIPE
 def test_the_hidden_picture_can_never_cover_the_real_page():
     """숨겨 둔 사진이 진짜 화면 위로 새어 나오면 안 된다 (2026-09-18 실측 — 「안 보이게」
     로만 숨겼더니 사진 속 「보이게」 규칙이 이겨서 두 화면이 겹쳐 보였다).
@@ -1087,6 +1099,7 @@ def test_the_hidden_picture_can_never_cover_the_real_page():
     assert "snapHost.inert = true" in js
 
 
+@_NO_SWIPE
 def test_starting_a_swipe_does_not_mark_the_whole_page():
     """넘기기 시작하는 순간 body 에 표시를 붙이지 않는다 (2026-09-19 실측).
 
@@ -1103,6 +1116,7 @@ def test_starting_a_swipe_does_not_mark_the_whole_page():
     assert "j3-turning" not in _j3_source()
 
 
+@_NO_SWIPE
 def test_swipe_reads_the_live_screen_not_the_dimmed_leftover():
     """화면이 뜨는 중에도 **살아 있는 표식**으로 지금 화면을 가린다 (2026-09-23 저녁 상하님 —
     "로딩이 걸리는데 그 안에 손가락으로 페이지 넘기면 오류가 나던지 아니면 그냥 페이지가
@@ -1118,6 +1132,7 @@ def test_swipe_reads_the_live_screen_not_the_dimmed_leftover():
     assert now.index("closest(") < now.index("if (d.querySelector(MARKS[i][0]))"), "살아 있는 표식을 먼저 본다"
 
 
+@_NO_SWIPE
 def test_swipe_to_home_presses_the_front_button():
     """손가락으로 홈에 갈 때는 **맨 앞의** 숨은 「홈으로」 단추를 누른다 (2026-09-23 저녁).
 
@@ -1141,6 +1156,7 @@ def test_swipe_to_home_presses_the_front_button():
     assert "switch_page" not in nav.split('key="j3b_nav_home"', 1)[1].split("watch_col.button", 1)[0]
 
 
+@_NO_SWIPE
 def test_saved_page_pictures_survive_a_new_version():
     """판을 새로 올려도 저장해 둔 화면 사진을 버리지 않는다 (2026-09-23 저녁).
 
@@ -1152,6 +1168,7 @@ def test_saved_page_pictures_survive_a_new_version():
     assert "buildStamp()" not in load
 
 
+@_NO_SWIPE
 def test_turn_layers_live_outside_body():
     """넘기기용 칸(사진 세 장·빛·막)은 body 밖, html 바로 밑에 붙인다 (2026-09-23 실측).
 
@@ -1171,6 +1188,7 @@ def test_turn_layers_live_outside_body():
     assert order == sorted(order)
 
 
+@_NO_SWIPE
 def test_the_page_picture_curls_toward_the_viewer_under_the_finger():
     """**화면 그림이** 앞으로 넘어오며 끝이 말린다 (2026-09-19 상하님 — "뒤로 넘기는 것
     보기 안 좋다. 앞으로 종이 말리듯이" · "그냥 부옇게 처리해 버리면 어떡하냐? 말리더라도
@@ -1187,6 +1205,7 @@ def test_the_page_picture_curls_toward_the_viewer_under_the_finger():
     assert "'translateX(' + (-s * W) + 'px) perspective(' + DEPTH + 'px) translateX(' + (s * W) + 'px) '" in js
 
 
+@_NO_SWIPE
 def test_the_real_screen_never_turns():
     """**진짜 화면은 한 번도 안 움직인다** (2026-09-19 실측). 진짜 시장분석을 돌렸더니
     손가락이 움직일 때마다 칸 5,651개를 통째로 다시 배치해 한 번 넘기는 동안 18번
@@ -1197,6 +1216,7 @@ def test_the_real_screen_never_turns():
     assert "box.style" not in js
 
 
+@_NO_SWIPE
 def test_the_turning_copy_keeps_its_svg_letters_still():
     """사진 속 그림 글자는 모양을 고정한다 — 돌 때마다 다시 배치하면 한 번 넘기는 동안
     17번 멈칫했다 → 1번(느린 폰 · 2026-09-19 실측). 사진에만 건다(진짜 화면은 그대로)."""
@@ -1204,6 +1224,7 @@ def test_the_turning_copy_keeps_its_svg_letters_still():
     assert ".j3snap-html svg text,.j3snap-html svg tspan{text-rendering:geometricPrecision!important}" in js
 
 
+@_NO_SWIPE
 def test_the_copies_are_relaid_only_when_the_screen_shape_changes():
     """지금 쪽 사진은 모양(높이·칸 수)이 바뀔 때만 새로 깐다 — 시세 숫자만 바뀌는데 20초마다
     새로 깔았더니 가만히 있어도 느린 폰에서 0.7초씩 멈췄다(2026-09-19 실측)."""
@@ -1212,6 +1233,7 @@ def test_the_copies_are_relaid_only_when_the_screen_shape_changes():
     assert "(h.v === snap.v || (!force && h.sig && h.sig === snap.sig))" in js
 
 
+@_NO_SWIPE
 def test_the_shield_never_stays():
     """넘기는 동안만 맨 위에 까는 투명한 막 — 남으면 화면이 안 눌린다. 모든 끝에서 걷고,
     혹시 남으면 다음 손가락이 닿는 순간 걷는다."""
@@ -1221,6 +1243,7 @@ def test_the_shield_never_stays():
     assert "else if (fx && fx.shield.style.display === 'block') { hideAll(); }" in js
 
 
+@_NO_SWIPE
 def test_a_swipe_is_not_lost_when_the_touched_spot_is_redrawn():
     """넘기는 도중 손가락 밑 칸이 새것으로 바뀌어도 넘기기가 끝나야 한다 (2026-09-19
     온라인 실측 — 올린 직후 첫 넘김에서 화면이 한 번 다시 그려져 종이가 33도에서 멈췄다).
@@ -1235,6 +1258,7 @@ def test_a_swipe_is_not_lost_when_the_touched_spot_is_redrawn():
     assert "if (drag) { drag = null; hideAll(); }" in js
 
 
+@_NO_SWIPE
 def test_home_pulls_back_to_the_watchlist():
     """홈에서 어느 쪽으로 당겨도 관심종목으로 넘어간다 (2026-09-19 상하님 — "홈에서 다시
     관심종목으로 손가락으로 당기면 관심종목으로 안 된다"). 홈의 「미국테마 (자비스3)」
@@ -1264,13 +1288,20 @@ def test_theme_help_card_keeps_its_text_colours():
     assert "div.st-key-j3_help_card h3{color:var(--j-title)!important}" in card
 
 
+def _page_guard_js() -> str:
+    return _j3_source().split('_PAGE_GUARD_JS = """', 1)[1].split('"""', 1)[0]
+
+
 def test_theme_help_card_opens_at_the_top():
-    """맨 밑까지 읽고 닫았다 다시 열면 맨 위부터 (2026-09-19 상하님 지시)."""
-    js = _swipe_js()
+    """맨 밑까지 읽고 닫았다 다시 열면 맨 위부터 (2026-09-19 상하님 지시).
+
+    2026-10-10 넘기기를 빼면서 이 장치는 _PAGE_GUARD_JS 로 글자 그대로 옮겼다."""
+    js = _page_guard_js()
     assert "if (!t || t.id !== 'j3-help-tap' || !t.checked) { return; }" in js
     assert "if (card) { card.scrollTop = 0; }" in js
 
 
+@_NO_SWIPE
 def test_a_new_swipe_can_take_over_while_the_page_still_loads():
     """넘긴 화면이 도착했으면 아직 그리는 중이어도 다음 넘김을 받고, 종이 모양으로 넘긴다
     (2026-09-19 상하님 — "로딩이 늦어 바로 다음 장으로 넘길 때 안 먹힌다 · 그사이 로딩 끝나면
@@ -1286,6 +1317,7 @@ def test_a_new_swipe_can_take_over_while_the_page_still_loads():
     assert "if (me.cancelled) { return; }" in js
 
 
+@_NO_SWIPE
 def test_the_swipe_marker_takes_no_room():
     """「넘겨서 들어왔다」 표시 칸이 틈 12px 를 더 먹으면 사진과 진짜 화면이 어긋난다
     (2026-09-19 실측 — 처음 열 때 198px, 넘겨서 올 때 210px → 고친 뒤 둘 다 198px)."""
@@ -1364,3 +1396,15 @@ def test_a_dropped_fragment_run_takes_its_already_have_it_markers_along():
         assert frag._enqueue == queue.enqueue, "보내는 길을 되돌려 놓지 않았다"
     finally:
         patcher.stop()
+
+
+def test_the_finger_swipe_is_gone_but_the_three_helpers_stay():
+    """2026-10-10 상하님 「자비스3을 고쳐라」 — 손가락 넘기기를 빼고, 그 코드 안에 살던 셋은 남긴다(자비스12 와 같다)."""
+    source = _j3_source()
+    for gone in ("_SWIPE_OUTER_JS", "j3b-swipe-script", "j3snap", "j3b_swipe_", "_briefing_slide_in_marker"):
+        assert gone not in source, gone
+    js = _page_guard_js()
+    assert "if (dy > 0 && Math.abs(dy) > Math.abs(dx)) { ev.preventDefault(); }" in js      # 당겨도 안 불림
+    assert "if (card) { card.scrollTop = 0; }" in js                                       # 설명 맨 위부터
+    assert "body.classList.add('j3-help-closing');" in js                                   # 창닫기 줄어듦
+    assert "'j3b-page-guard'" in source

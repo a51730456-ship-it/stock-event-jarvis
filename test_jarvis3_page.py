@@ -742,8 +742,10 @@ class Jarvis3PageTests(unittest.TestCase):
         # 그래서 점수표 이름이 갈래 전용 배점 이름이 된다.
         # 2026-08-14 — 괄호 안 갈래 이름만 갈래 색으로 칠하느라 그 사이에 <span>이
         # 들어갔다(상하님 지시). 앞말과 갈래 이름이 **한 markdown 안에** 있는지 본다.
+        # 2026-10-10 — 꾸밈 글의 설명 메모를 빼고 보내면서, 예전에 꾸밈 메모 안 글자(「종목 선정 근거 …
+        # (신고가 눌림 전용 배점)」)에 우연히 걸리던 것이 사라졌다. 갈래 제목을 그 갈래 색 이름표로 찾는다.
         title = next((value for value in markdowns
-                      if "종목 선정 근거" in value and "j3-section-title" in value), "")
+                      if "종목 선정 근거" in value and "j3-title-breakout" in value), "")
         self.assertIn("종목 선정 근거", title)
         self.assertIn("(신고가 눌림 전용 배점)", title)
         self.assertIn("j3-title-breakout", title, "갈래 색이 빠졌다")
@@ -2786,7 +2788,7 @@ def test_switching_screens_goes_back_to_the_top():
     nav = nav[:nav.index(chr(10) + "def ", 10)]
     assert 'scroll_to.request(st, "top")' not in nav, "단추가 아직 표시를 적어 둔다"
     # 「관심종목」·「시장분석」은 누르는 순간(on_click) 정한다(2026-09-13 — 판 두 번 그리기 없앰).
-    # 「홈」은 누르는 순간 표시만 하고 화면 맨 앞(_briefing_swipe_buttons)에서 이름을 적고
+    # 「홈」은 누르는 순간 표시만 하고 화면 맨 앞(_briefing_home_request)에서 이름을 적고
     # 넘어간다(2026-09-23 저녁 — 맨 끝에서 넘어가면 막대 통이 홈 밑에 남았다).
     assert nav.count('_set_briefing_page(') + nav.count('on_click=_set_briefing_page') \
         + nav.count('on_click=_request_briefing_home') == 3, "세 단추가 화면 이름을 안 정한다"
@@ -2796,20 +2798,18 @@ def test_switching_screens_goes_back_to_the_top():
     # "사용자선정종목 바로 옆에 종목검색후추가로 하고 디자인 똑같이 해라").
     home = source[source.index("def _render_stock_briefing()"):source.index("def main()")]
     assert 'key="j3b_go_market"' not in home, "「더보기」를 뺐는데 아직 남아 있다"
-    # 미는 단추는 화면 **맨 앞**에 있다. 뒤에 두면 판을 두 번 그려 늦어진다
-    # (2026-09-10 상하님 지적 — "화면 옆으로 넘기는 게 왜 실시간으로 바로
-    # 안 되냐?"). 그래서 `st.rerun()` 도 없다 — 부르면 그것이 곧 두 판이다.
-    swipe = source[source.index("def _briefing_swipe_buttons("):]
-    swipe = swipe[:swipe.index(chr(10) + "def ", 10)]
-    assert '_set_briefing_page("market")' in swipe, "미는 길이 화면을 안 바꾼다"
-    assert '_set_briefing_page("home")' in swipe, "되돌아가는 길이 화면을 안 바꾼다"
-    # 설명 글에도 그 말이 나오므로 **코드 부분만** 본다(설명은 """ 로 닫힌다).
-    swipe_code = swipe[swipe.index('"""', swipe.index('"""') + 3) + 3:]
-    assert "st.rerun()" not in swipe_code, "여기서 다시 그리면 판을 두 번 그린다"
-    # 그리고 그 단추가 page 를 읽기 **전에** 불려야 한다.
+    # 막대 「홈」은 화면 **맨 앞**에서 넘어간다(뒤에서 넘어가면 판을 두 번 그리고 막대 통이 홈 밑에 남았다).
+    # 손가락으로 미는 단추 셋은 2026-10-10 넘기기를 빼면서 같이 뺐다(상하님 「자비스3을 고쳐라」).
+    front = source[source.index("def _briefing_home_request("):]
+    front = front[:front.index(chr(10) + "def ", 10)]
+    assert '_set_briefing_page("home")' in front, "홈으로 가는 길이 화면을 안 바꾼다"
+    front_code = front[front.index('"""', front.index('"""') + 3) + 3:]
+    assert "st.rerun()" not in front_code, "여기서 다시 그리면 판을 두 번 그린다"
+    assert 'key="j3b_swipe_' not in source, "손가락 넘기기 숨은 단추가 남아 있다"
+    # 그리고 그 일이 page 를 읽기 **전에** 돌아야 한다.
     render = source[source.index("def _render_stock_briefing()"):]
     render = render[:render.index("page = _briefing_page()")]
-    assert "_briefing_swipe_buttons()" in render, "미는 단추가 page 를 읽은 뒤에 있다"
+    assert "_briefing_home_request()" in render, "홈 넘김이 page 를 읽은 뒤에 있다"
     # 양쪽 화면에 '맨 위' 자리가 있어야 데려갈 곳이 있다.
     assert source.count('scroll_to.anchor(st, "top")') == 2, "'맨 위' 자리가 한쪽에만 있다"
     # ── 위 여백을 68px 에서 0 으로 되돌린 까닭 (2026-08-28) ──────────────────
@@ -2968,8 +2968,8 @@ def test_the_screen_you_were_on_is_written_into_the_address():
     assert "except Exception:" in writer
 
     # 화면을 바꾸는 길이 **다** 이 한 곳을 지나야 빠뜨릴 수가 없다
-    # (하단 막대 홈·관심종목·시장분석 + 손가락으로 미는 것 둘).
-    assert source.count("_set_briefing_page(") >= 5
+    # (하단 막대 홈·관심종목·시장분석 — 손가락으로 미는 것 둘은 2026-10-10 넘기기와 같이 뺐다).
+    assert source.count("_set_briefing_page(") >= 3
     assert 'st.session_state["j3_briefing_page"] = "market"' not in source, \
         "주소를 안 거치고 화면을 바꾸는 길이 남아 있다"
 
@@ -3509,8 +3509,9 @@ def test_leader_comparison_scrolls_its_button_to_the_top_when_opened():
     # 단추 자리는 「상세 종목 선택」 밑 · 「선택종목 세부사항」 위(2026-10-09 상하님 지시).
     panel = source[source.index("def _render_theme_panel("):]
     panel = panel[:panel.index("_section_close(\"j3_theme_panel_open\"")]
-    assert panel.count("_render_leader_comparison(leaders)") == 1
-    assert (panel.index("\"상세 종목 선택\",") < panel.index("_render_leader_comparison(leaders)")
+    # 2026-10-10 — 대장주 비교는 누르면 그 칸만 다시 그리는 작은 덩이(_leader_comparison_box)로 감쌌다.
+    assert panel.count("_leader_comparison_box(leaders)") == 1
+    assert (panel.index("\"상세 종목 선택\",") < panel.index("_leader_comparison_box(leaders)")
             < panel.index("_render_stock_detail(theme_row, selected_leader"))
     assert panel.index("_render_leader_table(") < panel.index("\"상세 종목 선택\",")
     whole = source[source.index("def _render_leader_comparison("):source.index("_MEDAL_BY_RANK = {")]

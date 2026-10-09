@@ -285,10 +285,8 @@ class HtmlTests(unittest.TestCase):
 
     def test_page_turn_matches_jarvis3_shape(self):
         """넘기는 모양은 자비스3 과 같은 숫자(원근 1500 · 끝 0.3 · 더 말림 1.25 · 그늘 56)."""
+        # 자비스3 은 2026-10-10 손가락 넘기기를 뺐다(상하님 「자비스3을 고쳐라」) — 숫자는 그때 자비스3 값 그대로다.
         self.assertIn("var DEPTH = 1500, CURL = 0.3, BEND = 1.25, CAST = 56;", u.SWIPE_JS)
-        j3 = (ROOT / "pages" / "2_자비스3.py").read_text(encoding="utf-8")
-        for line in ("var DEPTH = 1500;", "var CURL = 0.3;", "var BEND = 1.25;", "var CAST = 56;"):
-            self.assertIn(line, j3)
         # 한국증시 화면이 없으면 아무것도 안 한다 — 다른 화면(자비스3)에서 손가락을 가로채지 않는다.
         self.assertIn("if (!api.alive || g || !ev.touches || ev.touches.length !== 1 || !onPage())", u.SWIPE_JS)
 
