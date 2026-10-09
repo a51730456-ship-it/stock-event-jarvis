@@ -25,15 +25,18 @@ class SourceTests(unittest.TestCase):
         self.assertIn("JARVIS <b>12</b>", self.SOURCE)
         self.assertIn('mark="12"', self.SOURCE)
 
-    def test_finger_turning_does_not_mix_with_jarvis3(self):
-        """넘기기 코드는 바깥 문서에 한 번 심기면 화면을 옮겨도 남는다 — 이름표가 같으면 자비스3 코드가
-        자비스12 화면을 제 것으로 알고 손가락을 먼저 먹는다(2026-10-01 자비스11 때 실측)."""
-        for old in ("j3b-home", "j3-market-top", "'j3snap-host'", "'j3page-host'", "'j3curl-host'",
-                    "'j3snap:v1:'", "t.id='j3b-swipe-script'", "ev.__j3seen"):
-            self.assertNotIn(old, self.SOURCE, old)
-        for new in ("j12b-home", "j12-market-top", "'j12snap-host'", "'j12page-host'", "'j12curl-host'",
-                    "'j12snap:v1:'", "t.id='j12b-swipe-script'", "ev.__j12seen", "link: '자비스12'"):
-            self.assertIn(new, self.SOURCE, new)
+    def test_finger_turning_is_gone_but_the_pull_guard_stays(self):
+        """2026-10-09 상하님 — 손가락 넘기기를 아예 날려라 · 밑 막대로 옮긴다. 당겨도 안 불리는 장치는 남긴다."""
+        for gone in ("_SWIPE_OUTER_JS", "j12b-swipe-script", "j12snap", "j3b_swipe_", "_briefing_slide_in_marker"):
+            self.assertNotIn(gone, self.SOURCE, gone)
+        for kept in ("_PAGE_GUARD_JS", "'j12b-page-guard'", "if (dy > 0 && Math.abs(dy) > Math.abs(dx)) { ev.preventDefault(); }",
+                     "j3-help-closing", 'key="j3b_nav_home"', 'key="j3b_nav_watch"', 'key="j3b_nav_market"'):
+            self.assertIn(kept, self.SOURCE, kept)
+
+    def test_fundamentals_sit_right_under_the_street_boxes(self):
+        body = self.SOURCE[self.SOURCE.index("def _render_stock_detail("):]
+        self.assertLess(body.index("_render_fundamentals_box(ticker, metrics, panel=panel)"),
+                        body.index("_render_selected_live_quote("))
 
     def test_menu_lists_it_and_hides_jarvis10_and_11(self):
         import page_access
