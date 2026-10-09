@@ -1848,7 +1848,7 @@ import us_fundamentals
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100710
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100910
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100702
@@ -4602,7 +4602,7 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
                 st.markdown(_chart_zoom_html(boxes, zoom_id), unsafe_allow_html=True)
             else:
                 st.info("차트 자료 없음")
-    # **맨 밑(3위 밑 · 「상세 종목 선택」 위)에도 작은 닫기 단추** (2026-09-25 상하님 지시 — "색깔
+    # **맨 밑(3위 밑 · 「선택종목 세부사항」 위)에도 작은 닫기 단추** (2026-09-25 상하님 지시 — "색깔
     # 그라데이션 맞추고"). 세 종목 차트가 폰에서 화면 몇 장이라 위 단추까지 올라가지 않고 닫게 한다.
     # 닫으면 화면이 위 단추 자리로 올라간다(열 때와 같은 자리 표시).
     _section_close("j3_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉/월봉 비교 닫기",
@@ -6835,12 +6835,15 @@ def _scorecard_compare_cached(stamp: str, span: str, start: str = "", end: str =
     # 테마 비교표도 이 값 하나로 그린다 — 「상위 테마 5개」 줄을 테마로 나눈 것(scorecard_compare.compute 의 themes).
     ixic = (index_frames or {}).get("^IXIC")
     data = scorecard_compare.compute(rows, frames or {}, ixic, last_day=last)
-    # **비교용 점선 두 줄 — 빅테크10 · 로봇·자동화** (2026-10-07 상하님 지시). 산 적이 없어 명부 종목 평균으로 그린다.
+    # **비교용 점선 줄 — 빅테크10 · 로봇·자동화**(2026-10-07) · **반도체 · SK하이닉스**(2026-10-09 상하님 지시).
+    # 산 적이 없어 명부 종목 평균(SK하이닉스는 그 종목 하나)으로 그린다. 차례는 REFERENCE_THEMES 그대로 · 종목은 맨 뒤.
     # 종목은 시장분석이 받아 둔 묶음의 일부라 새로 받지 않는다(목록 종목과 따로 부른다 — 섞으면 묶음 밖 종목 때문에
     # 통째로 다시 받는다).
     if data.get("days"):
         refs = [(theme["name"], tuple(theme["stocks"])) for theme in getattr(j3data, "US_THEMES", ())
                 if theme["name"] in scorecard_compare.REFERENCE_THEMES]
+        refs.sort(key=lambda item: scorecard_compare.REFERENCE_THEMES.index(item[0]))
+        refs += list(scorecard_compare.REFERENCE_STOCKS)
         codes = tuple(dict.fromkeys(str(code).upper() for _name, stocks in refs for code in stocks))
         try:
             ref_frames, _info = j3data._download_cached(
@@ -6921,8 +6924,9 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
                 + f"<div class='j3vx-note'>{what} "
                 + ("" if view == "rel" else "나스닥 종합은 같은 날 같은 돈으로 샀다고 친 것입니다. ")
                 + "테마 차례는 위 표와 같습니다(이익 난 확률 · 같으면 평균). "
-                + ("" if view == "bar" else "점선 두 줄(빅테크10 흰색 · 로봇·자동화 진분홍)은 비교용입니다 — 상위 테마 5개에 든 "
-                   "적이 없어 산 적이 없으니, 테마 종목을 같은 돈으로 나눠 들었다면(기간 첫날 앞 종가부터)으로 그립니다. ")
+                + ("" if view == "bar" else "점선 셋(빅테크10 흰색 · 로봇·자동화 진분홍 · 반도체 초록)과 점 찍힌 선(SK하이닉스 "
+                   "주황)은 비교용입니다 — 앱이 산 적이 없어, 테마는 그 종목들을 같은 돈으로 나눠 들었다면, SK하이닉스는 "
+                   "그 종목만 들었다면(기간 첫날 앞 종가부터)으로 그립니다. ")
                 + extra + "</div></div>")
         st.markdown(body, unsafe_allow_html=True)
         return
@@ -7488,7 +7492,6 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
         # 방금 넣은 값을 그대로 집어 들고, 상세도 그 종목으로 그려진다.
         # 표의 주황 표시는 _render_leader_table이 이 판에서 스스로 옮긴다.
 
-    _render_leader_comparison(leaders)
     if leaders:
         # 재랭킹으로 이전에 고른 종목이 top3에서 빠지면 st.radio가 예외를 낸다 → 미리 정리한다.
         if stock_key in st.session_state and st.session_state[stock_key] not in ticker_options:
@@ -7516,6 +7519,9 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
             (item for item in top_candidates if item["ticker"] == selected_ticker),
             top_candidates[0],
         )
+        # 「🏅 대장주 1~3위 비교」는 **「상세 종목 선택」 밑 · 「선택종목 세부사항」 위**다 (2026-10-09 상하님 지시 —
+        # "상세 종목 선택 밑에, 즉 선택 종목 세부사항 닫기 위에 넣어라"). 예전 자리는 1~6위 표 바로 밑이었다.
+        _render_leader_comparison(leaders)
         _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     # 맨 아래 닫기도 위 단추와 **같은 일**을 한다 — 어디서 닫든 같은 화면으로
     # 돌아가야 한다(2026-08-28 상하님 지시).

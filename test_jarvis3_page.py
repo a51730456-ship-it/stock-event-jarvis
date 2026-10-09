@@ -3504,7 +3504,14 @@ def test_leader_comparison_scrolls_its_button_to_the_top_when_opened():
     assert '_LEADERCMP_ANCHOR = "leadercmp_top"' in source
     assert "#jarvis-anchor-leadercmp_top{scroll-margin-top:12px!important}" in source
     assert ".stElementContainer:has(#jarvis-anchor-leadercmp_top){" in source
-    # 맨 밑(3위 밑 · 「상세 종목 선택」 위)에도 작은 닫기 단추 — 위 단추와 같은 그라데이션(2026-09-25).
+    # 맨 밑(3위 밑 · 「선택종목 세부사항」 위)에도 작은 닫기 단추 — 위 단추와 같은 그라데이션(2026-09-25).
+    # 단추 자리는 「상세 종목 선택」 밑 · 「선택종목 세부사항」 위(2026-10-09 상하님 지시).
+    panel = source[source.index("def _render_theme_panel("):]
+    panel = panel[:panel.index("_section_close(\"j3_theme_panel_open\"")]
+    assert panel.count("_render_leader_comparison(leaders)") == 1
+    assert (panel.index("\"상세 종목 선택\",") < panel.index("_render_leader_comparison(leaders)")
+            < panel.index("_render_stock_detail(theme_row, selected_leader"))
+    assert panel.index("_render_leader_table(") < panel.index("\"상세 종목 선택\",")
     whole = source[source.index("def _render_leader_comparison("):source.index("_MEDAL_BY_RANK = {")]
     assert whole.rstrip().endswith('return_to=_LEADERCMP_ANCHOR)')
     assert '_section_close("j3_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉/월봉 비교 닫기",' in whole

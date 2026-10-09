@@ -254,6 +254,31 @@ class ThemeCompareTests(unittest.TestCase):
         rel, _n = vx.theme_chart_html(data, "d", "rel")
         self.assertIn("+35.0%", rel)
 
+    def test_semis_dashed_and_skhy_dotted(self):
+        # 2026-10-09 상하님 — "반도체 테마가 빠진 이유는? · 넣어라 · SK하이닉스는 순위에서 빠졌다면 추가로 넣어라".
+        self.assertEqual(vx.REFERENCE_THEMES, ("빅테크10", "로봇·자동화", "반도체"))
+        self.assertEqual(vx.REFERENCE_STOCKS, (("SK하이닉스", ("SKHY",)),))
+        days = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
+        refs = vx.reference_lines([("반도체", ("AAA", "BBB")), ("SK하이닉스", ("BBB",))], FRAMES, IXIC, days)
+        semis, skhy = refs
+        self.assertFalse(semis["single"])
+        self.assertEqual(semis["top"][0], "AAA")
+        self.assertTrue(skhy["single"])
+        self.assertIsNone(skhy["top"])                                 # 괄호에 자기 자신을 적지 않는다
+        self.assertAlmostEqual(skhy["final"], -10.0)                   # 9/11 종가 50 → 9/18 45
+        chart, _note = vx.theme_chart_html(dict(self.data, reference=refs), "d", "line")
+        self.assertIn("#00ff66", chart)
+        self.assertIn("#ff4d00", chart)
+        self.assertIn("stroke-dasharray='0.1 5'", chart)              # SK하이닉스 — 점
+        self.assertIn("border-top:3px dotted #ff4d00", chart)
+        self.assertIn("border-top:3px dashed #00ff66", chart)
+        self.assertIn("점 찍힌 선은 종목 하나(SK하이닉스)", chart)
+        self.assertNotIn("(BBB", chart.split("SK하이닉스")[1][:200])
+        _bars, note = vx.theme_chart_html(dict(self.data, reference=refs), "w", "bar")
+        self.assertIn("비교용 점선(반도체 · SK하이닉스)은 선 보기에만", note)
+        # 산 테마 10개 + 비교용 넷 = 14줄까지 누르면 굵게
+        self.assertIn("#j3vx-tk-13:checked ~ * .j3vx-tl13", vx.CSS)
+
     def test_no_theme_rows_no_chart(self):
         data = vx.compute([_row("2026-09-11", "breakout", "AAA", 100.0)], FRAMES, IXIC)
         self.assertEqual(data["themes"], [])
@@ -298,9 +323,11 @@ class PageWiringTests(unittest.TestCase):
         self.assertIn('vx.THEME_EXTRA_VIEWS) if tab == "themes" else []', body)
         self.assertIn('("j3vx_rowviews", view_buttons)', body)
         cached = PAGE[PAGE.index("def _scorecard_compare_cached("):PAGE.index("def _pick_scorecard_vx(")]
-        # 목록 종목 · 나스닥 · 비교용 두 테마(빅테크10·로봇·자동화) 종목 — 셋을 따로 부른다
+        # 목록 종목 · 나스닥 · 비교용 테마(빅테크10·로봇·자동화·반도체)와 SK하이닉스 — 셋을 따로 부른다
         self.assertEqual(cached.count("j3data._download_cached("), 3)
         self.assertIn("scorecard_compare.reference_lines(", cached)
+        self.assertIn("refs += list(scorecard_compare.REFERENCE_STOCKS)", cached)
+        self.assertIn("refs.sort(key=lambda item: scorecard_compare.REFERENCE_THEMES.index(item[0]))", cached)
 
     def test_module_revision_guard(self):
         match = re.search(r"_REQUIRED_SCORECARD_COMPARE_REVISION = (\d+)", PAGE)

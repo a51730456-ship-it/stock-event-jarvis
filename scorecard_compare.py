@@ -26,7 +26,7 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게(CLAUDE.md 11과 같은 까닭).
-MODULE_REVISION = 2026100710
+MODULE_REVISION = 2026100910
 
 PARTS = ("theme15", "breakout", "crash")
 PART_NAMES = {
@@ -592,13 +592,28 @@ THEME_DAILY_BAR_KEEP = 10
 THEME_TICK_PARTS = 8
 
 
-# **비교용 두 테마** (2026-10-07 상하님 — "테마 비교표 안에 빅테크10과 로봇·자동화 넣어라 · 색깔도 고민해서").
+# **비교용 테마** (2026-10-07 상하님 — "테마 비교표 안에 빅테크10과 로봇·자동화 넣어라 · 색깔도 고민해서").
 # 둘 다 이 기간 「상위 테마 5개」에 든 적이 없어 앱이 산 적이 없다 — 「1~3위를 샀다면」 선을 그릴 수 없다.
 # 그래서 **점선**으로, 테마 명부 종목을 같은 돈으로 나눠 들었다면(기간 첫날 앞 종가부터) 그린다. 색은 산 테마들의
 # 열 빛과 겹치지 않게 — 빅테크10 흰색(시장 대형주 · 나스닥과 견주는 잣대), 로봇·자동화 진분홍. 그 기간에 상위 5에
 # 들어 산 적이 있으면 실선(산 기준)으로 이미 나오므로 점선은 안 그린다.
-REFERENCE_THEMES = ("빅테크10", "로봇·자동화")
-REFERENCE_COLORS = {"빅테크10": "#ffffff", "로봇·자동화": "#ff3dbb"}
+#
+# **반도체 · SK하이닉스를 더한다** (2026-10-09 상하님 — "반도체 테마가 빠진 이유는? SK하이닉스도 안 보이는데
+# 순위에 밀렸나? · 넣어라 · 순위에서 빠졌다면 추가로 넣어라"). 반도체는 저장을 시작한 8/17 뒤로 상위 5에 든 날이
+# 하루도 없다(10/9 22개 중 8위). SK하이닉스는 반도체 11종목 중 10위 — 미국 상장이 7/10 이라 6개월 성적(40점)이
+# 아직 0점이다. 그래서 둘 다 산 적이 없어 점선이다. 반도체는 형광 초록(회로판), SK하이닉스는 SK 주황빨강 —
+# 이미 쓰는 열한 빛과 가장 먼 둘이다. SK하이닉스는 **종목 하나**라 테마 점선과 갈리게 점을 찍어 그린다.
+REFERENCE_THEMES = ("빅테크10", "로봇·자동화", "반도체")
+REFERENCE_STOCKS = (("SK하이닉스", ("SKHY",)),)
+REFERENCE_COLORS = {"빅테크10": "#ffffff", "로봇·자동화": "#ff3dbb", "반도체": "#00ff66", "SK하이닉스": "#ff4d00"}
+_REFERENCE_STOCK_NAMES = frozenset(name for name, _codes in REFERENCE_STOCKS)
+
+
+def _line_style(row: dict) -> str:
+    """범례 견본 줄 모양 — 산 테마 실선 · 비교용 테마 점선 · 비교용 종목 하나 점."""
+    if not row.get("reference"):
+        return "solid"
+    return "dotted" if row.get("single") else "dashed"
 
 
 def reference_lines(themes, frames: dict, ixic, days: list) -> list:
@@ -650,9 +665,12 @@ def reference_lines(themes, frames: dict, ixic, days: list) -> list:
                for v, q in zip(mean[skip:], nq[skip:])]
         rows.append({
             "name": name, "cum": cum, "rel": rel, "reference": True,
+            # 종목 하나짜리(SK하이닉스)는 괄호 「가장 많이 오른 종목」이 자기 자신이라 적지 않는다.
+            "single": name in _REFERENCE_STOCK_NAMES,
             "final": next((v for v in reversed(cum) if v is not None), None),
             "rel_final": next((v for v in reversed(rel) if v is not None), None),
-            "top": None if best is None else [best[0], round((best[1] - 1.0) * 100.0, 1)],
+            "top": (None if best is None or name in _REFERENCE_STOCK_NAMES
+                    else [best[0], round((best[1] - 1.0) * 100.0, 1)]),
         })
     return rows
 
@@ -666,7 +684,7 @@ def theme_chart_html(data: dict, period: str, view: str) -> tuple:
         return "", ""
     rel = view == "rel"
     bought = {row["name"] for row in themes}
-    # 비교용 점선 두 줄 — 막대 보기(산 날마다)에는 산 날이 없으므로 안 그린다.
+    # 비교용 점선 줄 — 막대 보기(산 날마다)에는 산 날이 없으므로 안 그린다.
     refs = [] if view == "bar" else [row for row in (data.get("reference") or []) if row["name"] not in bought]
     if rel:
         # 나스닥보다 몇 % 더·덜 — 테마 줄은 차이, 나스닥은 0(같은 날 같은 돈이면 나스닥과 똑같다는 뜻).
@@ -689,7 +707,7 @@ def theme_chart_html(data: dict, period: str, view: str) -> tuple:
         else:
             count_text = (f"{row['seen']}번 중 {row['beat']}번 나스닥보다 나음" if rel
                           else f"{row['seen']}번 중 {row['win']}번")
-        swatch = "dashed" if row.get("reference") else "solid"
+        swatch = _line_style(row)
         legend.append(f"<label for='j3vx-tk-{place[row['name']]}' class='j3vx-tchip j3vx-tc{place[row['name']]}'>"
                       f"<i style='border-top:3px {swatch} {colors[row['name']]}'></i>{html.escape(row['name'])} "
                       f"<b style='color:{_tone(row['final'])}'>{_fmt(row['final'])}</b>"
@@ -698,12 +716,15 @@ def theme_chart_html(data: dict, period: str, view: str) -> tuple:
                    "<div class='j3vx-thint'>이름을 누르면 그 테마만 굵게 보입니다 · 여러 개 눌러 견줄 수 있고, "
                    "다시 누르면 풀립니다"
                    + ("" if rel else " · 괄호 안은 그 테마에서 산 1~3위 중 가장 많이 번 종목(산 날 평균)입니다"
-                      + (" · 점선 두 테마는 그 명부에서 가장 많이 오른 종목입니다" if refs else ""))
+                      + (" · 점선 테마는 그 명부에서 가장 많이 오른 종목입니다" if refs else "")
+                      + (" · 점 찍힌 선은 종목 하나(SK하이닉스)입니다"
+                         if any(row.get("single") for row in refs) else ""))
                    + ".</div>")
     note = ""
     if view == "bar":
         if data.get("reference"):
-            note = "비교용 두 테마(빅테크10 · 로봇·자동화)는 선 보기에만 그립니다. "
+            names = " · ".join(row["name"] for row in data["reference"])
+            note = f"비교용 점선({names})은 선 보기에만 그립니다. "
         many = len({d[:4] for d in days}) > 1
         groups = {row["name"]: bar_groups(row["cohorts"], period, many) for row in themes}
         nq_days: dict = {}
@@ -767,8 +788,11 @@ def theme_chart_html(data: dict, period: str, view: str) -> tuple:
         if not line:
             continue
         mark = f"j3vx-tl j3vx-tl{place[row['name']]}"
-        dash = " stroke-dasharray='7 5'" if row.get("reference") else ""
-        body.append(f"<polyline class='{mark}' points='{line}' fill='none' stroke='{color}' stroke-width='1.8'{dash} "
+        style = _line_style(row)
+        dash = {"dashed": " stroke-dasharray='7 5'",
+                "dotted": " stroke-dasharray='0.1 5' stroke-linecap='round'"}.get(style, "")
+        width = "2.6" if style == "dotted" else "1.8"     # 점은 굵어야 점으로 보인다
+        body.append(f"<polyline class='{mark}' points='{line}' fill='none' stroke='{color}' stroke-width='{width}'{dash} "
                     "stroke-linejoin='round' vector-effect='non-scaling-stroke'/>")
         # 점 — 주별·월별, 그리고 점이 몇 개 안 되는 줄(며칠만 상위 5에 든 테마)은 일별에서도 찍는다.
         dots = line.split()
@@ -803,7 +827,7 @@ def _theme_zoom(legend_html: str, chart: str, picked: list, colors: dict, nq_fin
     names = [f"<span><i class='j3vx-band'></i>나스닥 종합 <b style='color:{_tone(nq_final)}'>{_fmt(nq_final)}</b></span>"
              if nq_final else "<span><i class='j3vx-band'></i>나스닥 종합 = 0</span>"]
     names += [f"<span class='j3vx-zc{place[row['name']]}'><i style='border-top:3px "
-              f"{'dashed' if row.get('reference') else 'solid'} {colors[row['name']]}'></i>"
+              f"{_line_style(row)} {colors[row['name']]}'></i>"
               f"{html.escape(row['name'])} <b style='color:{_tone(row['final'])}'>{_fmt(row['final'])}</b>"
               f"{_top_html(row)}</span>"
               for row in picked]
@@ -896,6 +920,8 @@ div[class*="st-key-j3vx_v_"] button[kind="primary"] p{color:#fff!important}
 #j3vx-tk-9:checked ~ * .j3vx-tl9{opacity:1}#j3vx-tk-9:checked ~ * polyline.j3vx-tl9{stroke-width:3.6px}#j3vx-tk-9:checked ~ .j3vx-tlegend .j3vx-tc9{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-9:checked ~ .j3vx-zpop .j3vx-zc9{opacity:1}
 #j3vx-tk-10:checked ~ * .j3vx-tl10{opacity:1}#j3vx-tk-10:checked ~ * polyline.j3vx-tl10{stroke-width:3.6px}#j3vx-tk-10:checked ~ .j3vx-tlegend .j3vx-tc10{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-10:checked ~ .j3vx-zpop .j3vx-zc10{opacity:1}
 #j3vx-tk-11:checked ~ * .j3vx-tl11{opacity:1}#j3vx-tk-11:checked ~ * polyline.j3vx-tl11{stroke-width:3.6px}#j3vx-tk-11:checked ~ .j3vx-tlegend .j3vx-tc11{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-11:checked ~ .j3vx-zpop .j3vx-zc11{opacity:1}
+#j3vx-tk-12:checked ~ * .j3vx-tl12{opacity:1}#j3vx-tk-12:checked ~ * polyline.j3vx-tl12{stroke-width:3.6px}#j3vx-tk-12:checked ~ .j3vx-tlegend .j3vx-tc12{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-12:checked ~ .j3vx-zpop .j3vx-zc12{opacity:1}
+#j3vx-tk-13:checked ~ * .j3vx-tl13{opacity:1}#j3vx-tk-13:checked ~ * polyline.j3vx-tl13{stroke-width:3.6px}#j3vx-tk-13:checked ~ .j3vx-tlegend .j3vx-tc13{border-color:#c084fc;background:rgba(192,132,252,.16)}#j3vx-tk-13:checked ~ .j3vx-zpop .j3vx-zc13{opacity:1}
 /* 테마 비교표는 **더 세운다** — 줄이 위아래로 벌어져 어느 테마가 오를 때 어느 테마가 빠지는지 갈리게. */
 .j3vx-tplot{height:380px}
 /* 그림을 누르면 화면 가득 — 시장 현황 지도 창(.j3sm-pop)과 같은 움직임·같은 눕히기. */
