@@ -43,7 +43,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # 읽는 값이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게.
-MODULE_REVISION = 2026100910
+MODULE_REVISION = 2026100911
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 ROOT = Path(__file__).resolve().parent
@@ -197,6 +197,8 @@ def fetch_one(ticker: str, fx_cache: dict) -> dict | None:
         "quarter": quarter,
         # 종목 개요의 본사·직원 수·최고경영자(2026-10-09) — 바뀔 수 있어 재무와 같이 모은다.
         "co": company_facts(info),
+        # 실적 발표 · 애널리스트 · 공매도·내부자 · 배당(2026-10-09) — 0.1초짜리 넷을 더 받는다.
+        **street_facts(handle, info),
     }
 
 
@@ -775,6 +777,456 @@ OVERVIEW_CSS = """<style>
 .j3ov-facts{font-size:.78rem;color:#9fb8d8;line-height:1.6}
 a.j3ov-more{display:inline-block;margin-top:5px;font-size:.78rem;font-weight:700;color:#c084fc!important;
   text-decoration:none!important}
+</style>"""
+
+
+# ── 증권사 화면에 있는 것 — 실적 발표 · 애널리스트 · 공매도·내부자 · 배당 · 다가오는 일정 (2026-10-09) ──
+# 상하님 — "메이저 증권회사에서 중요한 것 뭐 빠진 것 있나 · 화면으로 디자인해서 브리핑" → 시안을 보시고
+# "1~5번 다 넣어라 · 로딩 오래 걸리는 것 있으면 고민해야 된다".
+#   · **모을 때만 받는다**(street_facts — 깃허브가 재무와 같이). 화면은 이 파일만 읽어 종목을 누를 때
+#     기다리는 것이 없다. 더 받는 것은 하나에 0.1초짜리 넷(실적 일정 · 지난 실적 · 애널리스트 의견 ·
+#     내부자 매매)이다 — 2026-10-09 실측. 날짜마다 예상치를 주는 get_earnings_dates 는 1~2초라 안 쓴다.
+#   · **다음 실적일은 calendar 로 받는다.** info 의 earningsTimestamp 는 지난 발표일이 남아 있는 종목이
+#     많았다(같은 날 실측 — META 7/29 · AMZN 7/30 · CRWD 8/26 …).
+#   · 애널리스트 의견·목표주가는 **남의 의견이라 점수·판정에 안 쓴다.** 보여 드리기만 한다.
+#   · 못 받은 값은 빈칸. 0으로 채우지 않는다.
+
+_NY = ZoneInfo("America/New_York")
+MACRO_PATH = ROOT / "data" / "calendar" / "US_macro.json"
+EARNINGS_BADGE_DAYS = 7          # 표 이름 옆 「실적 D-○」 딱지 — 오늘부터 7일 뒤까지(D-0~D-7)
+UPCOMING_DAYS = 14               # 「다가오는 일정」 — 종목 실적은 2주 안
+MACRO_DAYS = 31                  # 금리 결정·물가·고용은 한 달 안(드물고 시장 전체가 흔들린다)
+_WEEKDAYS = "월화수목금토일"
+
+
+def _iso(value) -> str | None:
+    try:
+        return value.isoformat()[:10]
+    except Exception:
+        return None
+
+
+def street_facts(handle, info: dict) -> dict:
+    """모을 때만 부른다 — {"earn", "ana", "own", "divd"} 중 받은 것만. 하나가 실패해도 나머지는 받는다."""
+    out: dict = {}
+    try:
+        calendar = handle.calendar or {}
+    except Exception:
+        calendar = {}
+    if not isinstance(calendar, dict):
+        calendar = {}
+
+    # 실적 발표 — 다음 날짜(·장 전/장 마감 뒤) · 이번 예상 주당 이익 · 지난 4번 예상 대비
+    earn: dict = {}
+    # 시각까지 든 값(info)이 **앞날**이면 그것을 뉴욕 날짜로 쓴다. calendar 의 날짜는 받는 컴퓨터의 시계로
+    # 바뀌어 나온다 — 한국 노트북에서는 장 마감 뒤 발표가 하루 밀렸다(NVDA 11/17 → 11/18 · 2026-10-09 실측).
+    # info 값이 지난 날이면(지난 발표일이 남아 있는 종목) calendar 의 날짜를 쓴다 — 그것은 시각 없는 예정일이다.
+    stamp = _num(info.get("earningsTimestampStart")) or _num(info.get("earningsTimestamp"))
+    dates = calendar.get("Earnings Date") or []
+    if stamp and stamp >= time.time() - 6 * 3600:
+        when = datetime.fromtimestamp(stamp, _NY)
+        earn["next"] = when.date().isoformat()
+        if not info.get("isEarningsDateEstimate"):
+            # 야후는 장 마감 뒤 발표를 15:00 으로 적어 두기도 한다(NVDA 11/17 15:00 · 실제는 마감 뒤).
+            # 장중 발표는 드물어 적지 않는다 — 9:30 전이면 장 전, 15:00 부터는 장 마감 뒤.
+            minutes = when.hour * 60 + when.minute
+            if minutes < 9 * 60 + 30:
+                earn["when"] = "장 전"
+            elif minutes >= 15 * 60:
+                earn["when"] = "장 마감 뒤"
+    elif isinstance(dates, (list, tuple)) and dates and _iso(dates[0]):
+        earn["next"] = _iso(dates[0])
+    estimate = _num(calendar.get("Earnings Average"))
+    if estimate is not None:
+        earn["eps_est"] = round(estimate, 3)
+    try:
+        history = handle.earnings_history
+    except Exception:
+        history = None
+    rows = []
+    if history is not None and not getattr(history, "empty", True):
+        for stamp, row in history.iterrows():
+            actual, expected = _num(row.get("epsActual")), _num(row.get("epsEstimate"))
+            if actual is None or expected is None:
+                continue
+            surprise = _num(row.get("surprisePercent"))
+            try:
+                label = stamp.strftime("%y.%m")
+            except Exception:
+                label = str(stamp)[:7]
+            rows.append([label, round(actual, 3), round(expected, 3),
+                         None if surprise is None else round(surprise * 100.0, 1)])
+    if rows:
+        earn["hist"] = rows[-4:]
+    if earn:
+        out["earn"] = earn
+
+    # 애널리스트 — 몇 명 · 목표주가(평균·최고·최저) · 사라/들고 있어라/팔아라 명수(이번 달)
+    count = _num(info.get("numberOfAnalystOpinions"))
+    if count and count > 0:
+        ana = {"n": int(count), "mean": _num(info.get("targetMeanPrice")),
+               "hi": _num(info.get("targetHighPrice")), "lo": _num(info.get("targetLowPrice")),
+               "key": info.get("recommendationKey") or None}
+        try:
+            recs = handle.recommendations
+        except Exception:
+            recs = None
+        if recs is not None and not getattr(recs, "empty", True):
+            pick = recs[recs["period"] == "0m"] if "period" in recs.columns else recs
+            row = (pick if len(pick) else recs).iloc[0]
+            numbers = [_num(row.get(name)) or 0 for name in ("strongBuy", "buy", "hold", "sell", "strongSell")]
+            if sum(numbers) > 0:
+                ana.update(buy=int(numbers[0] + numbers[1]), hold=int(numbers[2]),
+                           sell=int(numbers[3] + numbers[4]))
+        out["ana"] = ana
+
+    # 공매도 · 기관 · 내부자 — 내부자는 **시장에서 사고판 것만** 센다(스톡옵션 행사·증여는 안 센다)
+    own: dict = {}
+    for key, name in (("short", "shortPercentOfFloat"), ("inst", "heldPercentInstitutions"),
+                      ("insider", "heldPercentInsiders")):
+        value = _num(info.get(name))
+        if value is not None:
+            own[key] = round(value * 100.0, 2)
+    try:
+        trades = handle.insider_transactions
+    except Exception:
+        trades = None
+    if trades is not None and not getattr(trades, "empty", True) and "Text" in trades.columns:
+        since = datetime.now(_NY).date().toordinal() - 183
+        buys = sells = 0
+        bought = sold = 0.0
+        for _index, row in trades.iterrows():
+            try:
+                day = row.get("Start Date")
+                day = day.date() if hasattr(day, "date") else datetime.fromisoformat(str(day)[:10]).date()
+            except Exception:
+                continue
+            if day.toordinal() < since:
+                continue
+            text = str(row.get("Text") or "")
+            value = _num(row.get("Value")) or 0.0
+            if text.startswith("Purchase at price"):
+                buys, bought = buys + 1, bought + value
+            elif text.startswith("Sale at price"):
+                sells, sold = sells + 1, sold + value
+        own["ins6m"] = [buys, round(bought / _MILLION, 2), sells, round(sold / _MILLION, 2)]
+    if own:
+        out["own"] = own
+
+    # 배당 — 배당락일 · 지급일(배당하는 회사만)
+    if (_num(info.get("dividendYield")) or 0) > 0:
+        # 열쇠는 "divd" — "div" 는 배당수익률(재무 한눈에)이 이미 쓴다.
+        dates_div = {key: _iso(calendar.get(name)) for key, name in (("ex", "Ex-Dividend Date"), ("pay", "Dividend Date"))
+                     if _iso(calendar.get(name))}
+        if dates_div:
+            out["divd"] = dates_div
+    return out
+
+
+def _ny_today():
+    return datetime.now(_NY).date()
+
+
+def _day(iso):
+    try:
+        return datetime.fromisoformat(str(iso)[:10]).date()
+    except Exception:
+        return None
+
+
+def _kday(day) -> str:
+    """2026-11-17 → 「11월 17일(화)」."""
+    return f"{day.month}월 {day.day}일({_WEEKDAYS[day.weekday()]})"
+
+
+def earnings_days(ticker: str, today=None):
+    """다음 실적 발표까지 남은 날(미국 날짜 · 오늘 = 0). 지났거나 모르면 None."""
+    entry = load().get(str(ticker or "").strip().upper()) or {}
+    day = _day((entry.get("earn") or {}).get("next"))
+    if day is None:
+        return None
+    left = (day - (today or _ny_today())).days
+    return left if left >= 0 else None
+
+
+def earnings_chip_css(keys, today=None) -> str:
+    """표 이름 단추 옆 「실적 D-○」 딱지 — [(단추 열쇠, 티커)] 중 7일 안에 발표하는 것만. 점수·순위는 그대로."""
+    rules = []
+    for key, ticker in keys or ():
+        left = earnings_days(ticker, today)
+        if left is None or left > EARNINGS_BADGE_DAYS:
+            continue
+        text = "실적 오늘" if left == 0 else "실적 내일" if left == 1 else f"실적 D-{left}"
+        rules.append(
+            f"div[class*='st-key-{key}'] button p::after{{content:'{text}';display:inline-block;margin-left:6px;"
+            "padding:0 7px;border-radius:999px;background:#ffd166;color:#2a1c00;font-size:.68rem;"
+            "font-weight:900;line-height:1.55;vertical-align:1px;white-space:nowrap}")
+    return "".join(rules)
+
+
+def _usd_money(million) -> str:
+    """백만 달러 → 「1,169만 달러」·「2.3억 달러」."""
+    if million is None:
+        return "—"
+    if abs(million) >= 100:
+        return f"{million / 100:.1f}억 달러"
+    return f"{million * 100:,.0f}만 달러"
+
+
+def _eps(value) -> str:
+    return "—" if value is None else (f"-${abs(value):.2f}" if value < 0 else f"${value:.2f}")
+
+
+def _earn_box(earn: dict, today) -> str:
+    esc = html.escape
+    lines = []
+    day = _day(earn.get("next"))
+    if day is not None and day >= today:
+        left = (day - today).days
+        tail = "오늘" if left == 0 else "내일" if left == 1 else f"{left}일 남음"
+        when = f" {earn['when']}" if earn.get("when") else ""
+        lines.append(("다음 발표", f"<span class='j3st-hl'>{_kday(day)}{esc(when)}</span> · {tail}"))
+    elif day is not None:
+        lines.append(("다음 발표", "<span class='j3st-dim'>지난 발표 뒤 새 날짜를 받는 중</span>"))
+    else:
+        lines.append(("다음 발표", "<span class='j3st-dim'>회사가 아직 날짜를 안 냈습니다</span>"))
+    history = [row for row in earn.get("hist") or [] if isinstance(row, list) and len(row) == 4]
+    if history:
+        better = sum(1 for _label, actual, expected, _s in history if actual > expected)
+        tone = "j3st-up" if better * 2 >= len(history) else "j3st-dn"
+        bars = []
+        top = max([abs(row[3]) for row in history if row[3] is not None] or [1.0]) or 1.0
+        for label, actual, expected, surprise in history:
+            height = 4 + 18 * min(1.0, abs(surprise or 0.0) / top)
+            color = "#4cc9f0" if actual > expected else "#ff6b6b"
+            word = "좋았음" if actual > expected else "못 미침" if actual < expected else "같음"
+            bars.append(f"<i style='height:{height:.0f}px;background:{color}' "
+                        f"title='{esc(label)} · 예상 {_eps(expected)} → 실제 {_eps(actual)} ({word})'></i>")
+        lines.append((f"지난 {len(history)}번",
+                      f"예상보다 <span class='{tone}'>좋았음 {len(history)}번 중 {better}번</span>"
+                      f"<span class='j3st-bars'>{''.join(bars)}</span>"))
+    if earn.get("eps_est") is not None:
+        estimate = float(earn["eps_est"])
+        lines.append(("이번 예상", f"주당 이익 {_eps(estimate)}"
+                      + (" (적자 예상)" if estimate < 0 else "") + " · 애널리스트 평균"))
+    rows = "".join(f"<div class='j3st-row'><b>{title}</b><span>{body}</span></div>" for title, body in lines)
+    return f"<div class='j3st-box'><div class='j3st-h'>📅 실적 발표</div>{rows}</div>"
+
+
+def _ana_box(ana: dict, price_now) -> str:
+    # 의견(사라·팔아라) 낸 사람과 목표주가 낸 사람은 수가 다르다(2026-10-09 실측 — ASML 42명 · 16명).
+    votes = [ana.get(name) for name in ("buy", "hold", "sell")]
+    has_votes = all(isinstance(v, int) for v in votes) and sum(votes) > 0
+    parts = [f"<div class='j3st-h'>👥 애널리스트 의견"
+             + (f" <span class='j3st-dim'>· {sum(votes)}명</span>" if has_votes else "") + "</div>"]
+    if has_votes:
+        parts.append(
+            "<div class='j3st-split'>"
+            + "".join(f"<i style='flex:{v};background:{c}'></i>"
+                      for v, c in zip(votes, ("#06d6a0", "#ffd166", "#ff6b6b")) if v)
+            + "</div><div class='j3st-legend'>"
+            f"<span style='color:#06d6a0'>사라 {votes[0]}명</span>"
+            f"<span style='color:#ffd166'>들고 있어라 {votes[1]}명</span>"
+            f"<span style='color:#ff6b6b'>팔아라 {votes[2]}명</span></div>")
+    low, mean, high = ana.get("lo"), ana.get("mean"), ana.get("hi")
+    if low and mean and high and high > low:
+        now = _num(price_now)
+        left_edge, right_edge = min(low, now or low), max(high, now or high)
+        span = (right_edge - left_edge) or 1.0
+
+        def place(value):
+            return max(0.0, min(100.0, (value - left_edge) / span * 100.0))
+
+        def mark(css, value, text):
+            # 끝에 붙은 표시는 글자를 안쪽으로 붙인다 — 가운데 맞추면 상자 밖으로 삐져나갔다
+            # (2026-10-09 폰 412px 실측 — MRNA 지금 $197 이 최고 $170 보다 높아 오른쪽 끝).
+            spot = place(value)
+            shift = ("left:auto;right:0;transform:none" if spot > 85 else
+                     "left:0;transform:none" if spot < 15 else "")
+            return (f"<i class='j3st-mk {css}' style='left:{spot:.1f}%'>"
+                    f"<em style='{shift}'>{text}</em></i>")
+
+        marks = mark("j3st-mean", mean, f"평균 ${mean:,.0f}")
+        if now:
+            marks = mark("j3st-now", now, f"지금 ${now:,.0f}") + marks
+        parts.append(
+            f"<div class='j3st-h2'>🎯 목표주가 <span class='j3st-dim'>· {int(ana['n'])}명 · 1년 뒤 예상</span></div>"
+            f"<div class='j3st-range'><div class='j3st-line'></div>{marks}"
+            f"<span class='j3st-lab' style='left:0'>최저 ${low:,.0f}</span>"
+            f"<span class='j3st-lab' style='right:0'>최고 ${high:,.0f}</span></div>")
+        if now:
+            gap = (mean / now - 1.0) * 100.0
+            parts.append(f"<div class='j3st-row'><b>평균까지</b><span class='{'j3st-up' if gap >= 0 else 'j3st-dn'}'>"
+                         f"지금보다 {gap:+.0f}%</span></div>")
+    parts.append("<div class='j3st-note'>※ 증권사 애널리스트 의견입니다. 자비스 점수·판정에는 들어가지 않습니다.</div>")
+    return f"<div class='j3st-box'>{''.join(parts)}</div>"
+
+
+def _own_box(own: dict, div: dict, today) -> str:
+    lines = []
+    if own.get("short") is not None:
+        lines.append(("공매도", f"유통 주식의 {own['short']:.1f}% <span class='j3st-dim'>· 주가가 내릴 쪽에 건 몫</span>"))
+    trades = own.get("ins6m")
+    if isinstance(trades, list) and len(trades) == 4:
+        buys, bought, sells, sold = trades
+        if buys or sells:
+            body = (f"시장에서 산 것 {buys}번" + (f"({_usd_money(bought)})" if buys else "")
+                    + f" · 판 것 {sells}번" + (f"({_usd_money(sold)})" if sells else ""))
+        else:
+            body = "시장에서 사고판 것 없음"
+        lines.append(("내부자", body + " <span class='j3st-dim'>· 최근 6개월 임원·대주주</span>"))
+    if own.get("inst") is not None:
+        lines.append(("기관", f"기관이 가진 몫 {own['inst']:.0f}%"))
+    ex, pay = _day((div or {}).get("ex")), _day((div or {}).get("pay"))
+    if ex is not None and (today - ex).days <= 100:
+        lines.append(("배당", f"배당락 {ex.month}월 {ex.day}일"
+                      + (f" · 지급 {pay.month}월 {pay.day}일" if pay is not None else "")
+                      + " <span class='j3st-dim'>· 배당락 전날까지 가진 사람이 받음</span>"))
+    if not lines:
+        return ""
+    rows = "".join(f"<div class='j3st-row'><b>{title}</b><span>{body}</span></div>" for title, body in lines)
+    return f"<div class='j3st-box'><div class='j3st-h'>🔍 공매도 · 내부자 · 배당</div>{rows}</div>"
+
+
+def street_html(ticker: str, price_now=None, today=None) -> str:
+    """세부사항 종목 개요 밑 상자 셋 — 실적 발표 · 애널리스트 · 공매도·내부자·배당. 없는 것은 안 그린다."""
+    entry = load().get(str(ticker or "").strip().upper()) or {}
+    today = today or _ny_today()
+    boxes = []
+    if entry.get("earn"):
+        boxes.append(_earn_box(entry["earn"], today))
+    if (entry.get("ana") or {}).get("n"):
+        boxes.append(_ana_box(entry["ana"], price_now))
+    boxes.append(_own_box(entry.get("own") or {}, entry.get("divd") or {}, today))
+    boxes = [box for box in boxes if box]
+    return f"<div class='j3st'>{''.join(boxes)}</div>" if boxes else ""
+
+
+_MACRO_LOADED = {"mtime": None, "data": None}
+
+
+def load_macro(path: Path | None = None) -> dict:
+    """data/calendar/US_macro.json — 금리 결정·물가·고용 발표 날짜(나라가 미리 낸 일정표)."""
+    path = path or MACRO_PATH
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+    if _MACRO_LOADED["mtime"] == mtime and _MACRO_LOADED["data"] is not None:
+        return _MACRO_LOADED["data"]
+    try:
+        with path.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        data = {}
+    _MACRO_LOADED.update(mtime=mtime, data=data)
+    return data
+
+
+def upcoming_events(today=None, days: int = UPCOMING_DAYS, macro_days: int = MACRO_DAYS) -> list:
+    """종목 실적은 days 일 · 큰 발표는 macro_days 일 안 — [{date, macro: [(이름, 갈래)…], stocks: [(한글 이름, 티커,
+    장 전/뒤)…]}] (날짜 차례)."""
+    today = today or _ny_today()
+    last = today.toordinal() + days - 1
+    macro_last = today.toordinal() + macro_days - 1
+    by_day: dict = {}
+    for event in (load_macro().get("events") or []):
+        day = _day(event.get("date"))
+        if day is not None and today.toordinal() <= day.toordinal() <= macro_last:
+            by_day.setdefault(day, {"macro": [], "stocks": []})["macro"].append(
+                (str(event.get("label") or ""), str(event.get("kind") or "")))
+    about = load_about()
+    for code, entry in load().items():
+        day = _day(((entry or {}).get("earn") or {}).get("next"))
+        if day is None or not (today.toordinal() <= day.toordinal() <= last):
+            continue
+        name = (about.get(code) or {}).get("ko") or code
+        by_day.setdefault(day, {"macro": [], "stocks": [], "_cap": {}})["stocks"].append(
+            (name, code, (entry.get("earn") or {}).get("when")))
+        by_day[day].setdefault("_cap", {})[code] = _num(entry.get("mcap")) or 0.0
+    out = []
+    for day in sorted(by_day):
+        row = by_day[day]
+        caps = row.pop("_cap", {})
+        # 한 날에 여럿이면 **큰 회사부터** 적는다(이름 몇 개만 보이고 나머지는 「외 ○종목」이다).
+        row["stocks"].sort(key=lambda item: -caps.get(item[1], 0.0))
+        out.append({"date": day, **row})
+    return out
+
+
+def upcoming_html(today=None, days: int = UPCOMING_DAYS, max_names: int = 3) -> str:
+    """시장분석 맨 위 「📆 다가오는 일정」 — 금리 결정·물가·고용 + 명부 종목 실적 날. 아무것도 없으면 빈 글."""
+    today = today or _ny_today()
+    events = upcoming_events(today, days)
+    if not events:
+        return ""
+    esc = html.escape
+    rows = []
+    for event in events:
+        day = event["date"]
+        left = (day - today).days
+        label = "오늘" if left == 0 else "내일" if left == 1 else f"{day.month}/{day.day}({_WEEKDAYS[day.weekday()]})"
+        first = True
+        for name, kind in event["macro"]:
+            rows.append(f"<div class='j3up-row'><b>{label if first else ''}</b>"
+                        f"<span class='{'j3up-fomc' if kind == 'fomc' else 'j3up-macro'}'>{esc(name)}</span></div>")
+            first = False
+        stocks = event["stocks"]
+        if stocks:
+            names = "·".join(esc(name) for name, _code, _when in stocks[:max_names])
+            more = f" 외 {len(stocks) - max_names}종목" if len(stocks) > max_names else ""
+            whens = {when for _n, _c, when in stocks if when}
+            when = f" <span class='j3up-when'>{esc(next(iter(whens)))}</span>" if len(whens) == 1 else ""
+            tickers = " ".join(code for _n, code, _w in stocks)
+            rows.append(f"<div class='j3up-row'><b>{label if first else ''}</b>"
+                        f"<span title='{esc(tickers)}'>{names}{more} 실적{when}</span></div>")
+    known = load_macro().get("known_until") or {}
+    gaps = [name for key, name in (("cpi", "물가"), ("jobs", "고용")) if _day(known.get(key)) and
+            _day(known.get(key)).toordinal() < today.toordinal() + MACRO_DAYS - 1]
+    note = ("명부 209종목 실적 날 + 미국 금리 결정·물가·고용 발표 · 미국 날짜 · 실적 날은 회사가 바꾸기도 합니다"
+            + (f" · {'·'.join(gaps)} 발표는 노동부가 다음 해 일정을 내면 채웁니다" if gaps else ""))
+    return (f"<div class='j3up'><div class='j3up-h'>📆 다가오는 일정 "
+            f"<span>· 종목 실적 앞으로 {days}일 · 금리·물가·고용 한 달</span></div>"
+            f"{''.join(rows)}<div class='j3up-note'>{note}</div></div>")
+
+
+STREET_CSS = """<style>
+.j3st{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px;margin:8px 0 4px}
+.j3st-box{border:1px solid #2b4f80;border-radius:13px;padding:10px 12px 9px;background:rgba(77,127,208,.10);min-width:0}
+.j3st-h{font-size:.95rem;font-weight:900;color:#fff;margin-bottom:5px}
+.j3st-h2{font-size:.88rem;font-weight:900;color:#fff;margin:10px 0 0}
+.j3st-row{display:flex;align-items:baseline;gap:8px;font-size:.82rem;line-height:1.75;color:#e6edf8}
+.j3st-row > b{flex:0 0 66px;color:#8fb4de;font-weight:700}
+.j3st-row > span{min-width:0}
+.j3st-hl{color:#ffd166;font-weight:900}
+.j3st-up{color:#4cc9f0;font-weight:800}
+.j3st-dn{color:#ff6b6b;font-weight:800}
+.j3st-dim{color:#7f9cc0;font-size:.74rem}
+.j3st-bars{display:inline-flex;align-items:flex-end;gap:3px;height:22px;margin-left:7px;vertical-align:-5px}
+.j3st-bars i{display:block;width:8px;border-radius:2px}
+.j3st-split{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:2px 0 3px}
+.j3st-split i{display:block}
+.j3st-legend{display:flex;justify-content:space-between;gap:6px;font-size:.76rem;font-weight:800}
+.j3st-range{position:relative;height:40px;margin:16px 4px 0}
+.j3st-line{position:absolute;left:0;right:0;top:12px;height:4px;border-radius:2px;
+  background:linear-gradient(90deg,#ff6b6b,#ffd166,#06d6a0)}
+.j3st-mk{position:absolute;top:5px;width:2px;height:18px;background:#fff;font-style:normal}
+.j3st-mk.j3st-mean{background:#ffd166}
+.j3st-mk em{position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-style:normal;font-size:.7rem;
+  font-weight:800;white-space:nowrap;color:#fff}
+.j3st-mk.j3st-mean em{top:auto;bottom:-15px;color:#ffd166}
+.j3st-lab{position:absolute;top:26px;font-size:.68rem;color:#8fb4de;white-space:nowrap}
+.j3st-note{font-size:.72rem;color:#6f93bd;margin-top:6px;line-height:1.5}
+.j3up{margin:10px 0 4px;border:1px solid #2b4f80;border-radius:13px;padding:10px 12px 9px;background:rgba(77,127,208,.08)}
+.j3up-h{font-size:.95rem;font-weight:900;color:#fff;margin-bottom:4px}
+.j3up-h span{font-size:.74rem;font-weight:600;color:#8fb4de}
+.j3up-row{display:flex;gap:8px;font-size:.84rem;line-height:1.75;color:#e6edf8}
+.j3up-row > b{flex:0 0 70px;color:#8fb4de;font-weight:800}
+.j3up-row > span{min-width:0}
+.j3up-fomc{color:#ffd166;font-weight:900}
+.j3up-macro{color:#f6c177;font-weight:800}
+.j3up-when{color:#8fb4de;font-size:.76rem}
+.j3up-note{font-size:.72rem;color:#6f93bd;margin-top:5px;line-height:1.5}
 </style>"""
 
 

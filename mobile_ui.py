@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026100704
+MODULE_REVISION = 2026100910
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -250,6 +250,8 @@ TOP_ROW_CSS = """
    지수 넷과 SPY·QQQ(차례 0)가 먼저 서고, 그다음이 이 둘이다. */
 .j3-idx-futures { order: 1; }
 .j3-idx-phase { order: 2; }
+/* 원/달러 칸(2026-10-09 상하님 지시)은 선물·시장 상황 짝 **뒤**다 — 그 짝을 깨지 않는다. */
+.j3-idx-fx { order: 3; }
 /* 시장 현황(업종 지도)은 숫자 칸들 뒤, 게이지 둘 앞이다 (2026-08-28 상하님 지시 —
    "시장국면·상승여건양호 사이에 넣어 줘"). 게이지가 order:10 이라 그 사이 값을 준다. */
 .j3-sector-map { order: 5; width: 100% !important; min-width: 100% !important;
@@ -306,6 +308,15 @@ TOP_ROW_PORTRAIT_CSS = """
    한 줄 높아졌을 때, 가운데 맞추기로 두면 이름표 높이가 서로 어긋난다. */
 .j3-top-row, .j4-top-row { align-items: flex-start; }
 .fg-box { width: 100%; min-width: 100%; max-width: 100%; }
+/* 원/달러 칸은 세운 화면에서 **한 줄을 다 쓴다** (2026-10-09). 칸이 일곱이 되어 반 칸만 서면 오른쪽이 빈다
+   (2026-08-28 상하님 지적과 같은 일). 글은 왼쪽, 당일 그림은 오른쪽에 나란히 — 키는 다른 칸과 비슷하다. */
+.j3-top-cell.j3-idx-fx {
+    width: 100% !important; min-width: 100% !important; max-width: 100% !important; flex: 1 1 100% !important;
+    display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: center;
+}
+.j3-idx-fx > .j3-top-label, .j3-idx-fx > .j3-top-val, .j3-idx-fx > .j3-top-sub { grid-column: 1; }
+.j3-idx-fx > svg, .j3-idx-fx > .j3-idx-swap { grid-column: 2; grid-row: 1 / span 3; width: 100% !important; }
+.j3-idx-fx > svg, .j3-idx-fx > .j3-idx-swap svg { width: 100% !important; }
 """
 
 # 가로로 들면 폭이 배로 넓어지므로 한 줄에 네 칸, 게이지는 두 개씩 담는다.

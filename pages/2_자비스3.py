@@ -394,6 +394,11 @@ st.markdown(
        상승장·급락 후 반등장 상세의 「현재가」 칸도 같은 크기다(같은 날 상하님 지시). */
     .j3-mc > .j3-mc-val.j3-mc-price { font-size: 19px; }
     .j3-mc > .j3-mc-sub.j3-mc-chg { font-size: 14px; font-weight: 800; }
+    /* 최근가 밑 원화 환산(2026-10-09) — 맨 위 원/달러 칸이 받아 둔 환율로 셈한다. */
+    .j3-mc > .j3-mc-sub.j3-mc-krw { font-size: 12px; font-weight: 800; color: #ffd166; }
+    /* 세부사항 「📰 종목 뉴스」(2026-10-09) — 줄 모양은 관심종목 뉴스(j3b-open-news) 그대로다. */
+    .j3-news-detail { margin: 2px 0 6px; }
+    .j3-news-note { font-size: .74rem; color: #6f93bd; margin-top: 4px; }
     .j3-mc-val { font-size: 1.5rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
     .j3-mc-sub { font-size: 0.95rem; font-weight: 800; }
     .j3-up { color: #4da6ff; }
@@ -1442,6 +1447,23 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 700 !important;
     }
+    /* 「📰 종목 뉴스 보기」(2026-10-09) — 관심종목 뉴스 상자와 같은 파랑. 옆 황금·무지개 단추와 갈린다.
+       여닫는 단추 둘 다에 건다 — 위 `st-key-close_` 공통 규칙보다 뒤에 있어야 닫기에도 걸린다. */
+    div[class*="st-key-btn_j3_news_open_"] button,
+    div[class*="st-key-close_j3_news_open_"] button {
+        background: linear-gradient(90deg, #12355f 0%, #1d5fa0 55%, #3aa3e0 100%) !important;
+        border: 1px solid rgba(143,196,234,.35) !important;
+        border-radius: .5rem !important;
+    }
+    div[class*="st-key-btn_j3_news_open_"] button:hover,
+    div[class*="st-key-close_j3_news_open_"] button:hover {
+        background: linear-gradient(90deg, #17427a 0%, #2471bd 55%, #55b6ef 100%) !important;
+    }
+    div[class*="st-key-btn_j3_news_open_"] button p,
+    div[class*="st-key-close_j3_news_open_"] button p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
     /* ── 「📘 이 테마 설명」 창(스트림릿 팝업)에 걸던 규칙은 걷어냈다 (2026-09-23 저녁) ──
        이 화면은 이제 그 팝업을 안 쓴다 — 주인은 카드 창(_render_help_card), 손님은 단추가
        없다. 가리킬 칸이 하나도 없는 규칙만 남아, 화면이 바뀔 때마다 폰이 문서 전체를 다시
@@ -1813,7 +1835,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026100704
+_REQUIRED_MOBILE_REVISION = 2026100910
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1851,7 +1873,7 @@ import us_fundamentals
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026100910
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100910
+_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100911
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
 
@@ -2583,7 +2605,9 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     # 고를 때만 그리면 종목을 처음 누른 판에 이 칸이 **새로 끼어들어**, 그 밑의 대장주 차트 넷
     # (약 100KB)이 한 칸씩 밀려 폰이 통째로 새로 그렸다(내용은 그대로인데). 늘 그 자리에 있으면
     # 밑은 안 밀리고 이 칸 글자만 바뀐다. 빈 꾸밈 칸은 화면에 자리를 안 차지한다.
-    st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)
+    # 7일 안에 실적 발표하는 종목은 이름 옆에 「실적 D-○」 딱지(2026-10-09).
+    st.markdown("<style>" + "".join(button_css) + _earnings_chips(button_keys) + "</style>",
+                unsafe_allow_html=True)
     return clicked
 
 
@@ -2894,7 +2918,7 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False,
     return alt.vconcat(line, bars, spacing=4).resolve_scale(x="shared")
 
 
-def _overview_html(ticker: str) -> str:
+def _overview_html(ticker: str, metrics: dict | None = None) -> str:
     """세부사항 이름 밑 **「🏢 종목 개요」** 카드 (2026-10-09 상하님 지시 — "가안 1로 하고 너가 쓴 두 줄로 해라").
 
     초록 줄 바로 밑에 늘 보인다(누를 것 없음). **받으러 가지 않는다** — us_fundamentals 가 두 파일
@@ -2906,9 +2930,28 @@ def _overview_html(ticker: str) -> str:
         themes = [theme["name"] for theme in getattr(j3data, "US_THEMES", ())
                   if code in {str(stock).upper() for stock in theme.get("stocks") or ()}]
         card = us_fundamentals.overview_html(code, themes)
+        # 종목 개요 밑 상자 셋 — 📅 실적 발표 · 👥 애널리스트 의견·목표주가 · 🔍 공매도·내부자·배당
+        # (2026-10-09 상하님 지시 — 증권사 화면에 있고 여기 없던 것). 같은 재무 파일만 읽는다.
+        # 목표주가 「지금보다 +○%」는 목록·세부사항과 같은 지금 값(_list_price_change)으로 잰다.
+        price = _list_price_change(metrics)[0] if metrics else None
+        street = us_fundamentals.street_html(code, price)
     except Exception:
         return ""
-    return us_fundamentals.OVERVIEW_CSS + card if card else ""
+    return ((us_fundamentals.OVERVIEW_CSS + card) if card else "") + (
+        (us_fundamentals.STREET_CSS + street) if street else "")
+
+
+def _earnings_chips(keys) -> str:
+    """표 이름 단추 옆 **「실적 D-○」 딱지** 꾸밈 (2026-10-09 상하님 지시 — 증권사 앱에 있는 실적 발표일).
+
+    앱은 다음 날 시가에 사는데, 그날이 실적 발표 바로 앞인지 표에서 알 수 없었다. 7일 안에 발표하는
+    종목만 이름 옆에 노란 딱지를 붙인다. **점수·순위·판정은 그대로다** — 보여 주기만 한다.
+    재무 파일만 읽고, 표마다 늘 그려 두는 꾸밈 칸에 덧붙여 화면 칸을 새로 만들지 않는다.
+    """
+    try:
+        return us_fundamentals.earnings_chip_css(keys)
+    except Exception:
+        return ""
 
 
 def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel: str = "") -> None:
@@ -3332,6 +3375,9 @@ def _render_market_overview() -> None:
         # 멈추는데 선물은 밤새 움직여, 장 열리기 전 방향을 먼저 알려 준다.
         _us_futures_cell(),
         *_us_index_cells(overview, phase),
+        # 원/달러 (2026-10-09 상하님 지시 — 국내 증권사는 미국 주식을 원화로도 보여 준다).
+        # 폰에서는 선물·시장 상황 짝 뒤에 한 줄을 다 쓴다(mobile_ui .j3-idx-fx).
+        _usd_krw_cell(),
         # ── 바늘은 **지금 값**에 세운다 (2026-09-12 상하님 지시) ──────────────
         # 상하님 — *"2번으로 해라 … 전일 것이 움직여서 거슬린다고 한 게 아닌가?"*
         #
@@ -3425,6 +3471,15 @@ def _render_market_overview() -> None:
         """,
         unsafe_allow_html=True,
     )
+    # **「📆 다가오는 일정」** (2026-10-09 상하님 지시 — 증권사 앱의 경제·실적 캘린더). 금리 결정·물가·
+    # 고용 발표 날(data/calendar/US_macro.json)과 명부 종목 실적 날(재무 파일)만 읽는다 — 받으러 가지 않는다.
+    # 일정이 하나도 없는 날에도 칸은 늘 그린다(꾸밈만 든 빈 칸은 화면에 자리를 안 차지한다) — 칸이 생겼다
+    # 없어졌다 하면 밑이 밀린다.
+    try:
+        upcoming = us_fundamentals.STREET_CSS + us_fundamentals.upcoming_html()
+    except Exception:
+        upcoming = "<style></style>"
+    st.markdown(upcoming, unsafe_allow_html=True)
     # **맨 아래 「최근 가용 시세…」 한 줄은 뺐다** (2026-08-28 상하님 지시 —
     # 캡처에 ×표, "여백 두지 말고 위로 올려라"). 줄을 지우면 그 자리가 차지하던
     # 여백도 같이 없어져 아래 「미국장 시장 상태」가 위로 붙는다.
@@ -4290,7 +4345,8 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *,
     # 가격·등락률·52주·20일·6개월·변동성 모두 목록과 **같은 규칙**(_shown_numbers)이다.
     shown = _shown_numbers(quote)
     shown_price, shown_change = shown["price"], shown["change"]
-    change_sub = f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>{_pct(shown_change)}</div>"
+    change_sub = (f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>{_pct(shown_change)}</div>"
+                  + _krw_sub(shown_price))
     cells = [
         f"<div class='j3-mc'><div class='j3-mc-label'>최근가</div>"
         f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>{change_sub}</div>",
@@ -4685,7 +4741,7 @@ def _render_stock_detail(
     st.markdown(
         f"<div class='j3-stock-name'>{detail_medal_html}{leader['name']} · {ticker}</div>"
         f"<div class='j3-stock-sub'>{html.escape(_detail_sub_text(theme_row, leader, plan))}</div>"
-        + _overview_html(ticker),
+        + _overview_html(ticker, metrics),
         unsafe_allow_html=True,
     )
 
@@ -4695,6 +4751,7 @@ def _render_stock_detail(
         _render_day_price_row(metrics, ticker, panel=panel)
         _render_fundamentals_box(ticker, metrics, panel=panel)
         _render_price_chart_bundle(ticker, panel=panel)
+        _render_stock_news_box(ticker, panel=panel)
         _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기",
                        on_close=on_close)
         return
@@ -5018,6 +5075,7 @@ def _render_stock_detail(
     # 대장주를 고르면 여기로 오는데 당일 차트가 안 나왔다.
     # panel을 넘겨야 같은 종목을 위·아래 두 상세에서 열어도 단추 키가 안 겹친다.
     _render_price_chart_bundle(ticker, panel=panel)
+    _render_stock_news_box(ticker, panel=panel)
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
     reason_cards = [
@@ -5087,7 +5145,7 @@ _THEME_CHART_OPEN_KEYS = (
 _FINDER_OPEN_KEYS = ("j3_pullback_open", "j3_top7_open")
 # 상세 한 벌 안에서 열리는 창들. 갈래마다 이름 뒤가 다르다.
 _DETAIL_OPEN_PREFIXES = ("j3_detail_open_", "j3_intraday_open_", "j3_bundle_open_",
-                         "j3_leadercmp_open_", "j3_buyform_open_")
+                         "j3_leadercmp_open_", "j3_buyform_open_", "j3_news_open_")
 _DETAIL_PANELS = ("theme", "top7", "pullback")
 
 
@@ -8014,7 +8072,9 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         " border-color: rgba(192,132,252,.55) !important; }"
         "div[class*='st-key-j3top7_'] button p { color: #e6e6e6 !important;"
         " font-weight: 700 !important; }"
-        "</style>",
+        # 「실적 D-○」 딱지(2026-10-09)
+        + _earnings_chips([(f"j3top7_{index:02d}", row.get("ticker")) for _label, index, row in labels])
+        + "</style>",
         unsafe_allow_html=True,
     )
     # 구역 맨 아래 닫기 단추는 **여기 두지 않는다** (2026-09-16 상하님 지적 —
@@ -8412,7 +8472,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         f"<div class='j3-stock-sub'>{html.escape(themes)} "
         f"{'급락 후 반등장 선택 종목' if mode == 'crash' else '눌림목 선택 종목'} · "
         f"{html.escape(str(plan.get('recommendation') or '판정 없음'))}</div>"
-        + _overview_html(ticker),
+        + _overview_html(ticker, metrics),
         unsafe_allow_html=True,
     )
     if auth.is_guest():
@@ -8420,6 +8480,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         _render_fundamentals_box(ticker, metrics, panel=panel)
         # 당일 그림은 이제 아래 네 그림 판에 함께 들어간다(2026-08-28).
         _render_price_chart_bundle(ticker, panel=panel)
+        _render_stock_news_box(ticker, panel=panel)
         _section_close(detail_key, "선택종목 세부사항 닫기")
         return
     # 현재가 칸 글씨 크기는 테마 대장주의 「최근가」 칸과 같게 둔다(j3-mc-price ·
@@ -8435,7 +8496,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
         f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>"
         f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>"
-        f"{_pct(shown_change)}</div></div>",
+        f"{_pct(shown_change)}</div>{_krw_sub(shown_price)}</div>",
         f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
         f"<div class='j3-mc-val {_sign_class(pb_shown['from_high_pct'])}'>"
         f"{_pct(pb_shown['from_high_pct'])}</div>"
@@ -8480,7 +8541,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             f"<div class='j3-mc'><div class='j3-mc-label'>현재가</div>"
             f"<div class='j3-mc-val j3-mc-price'>{_price(shown_price)}</div>"
             f"<div class='j3-mc-sub j3-mc-chg {_sign_class(shown_change)}'>"
-            f"{_pct(shown_change)}</div></div>",
+            f"{_pct(shown_change)}</div>{_krw_sub(shown_price)}</div>",
             f"<div class='j3-mc'><div class='j3-mc-label'>최근 3개월 등수</div>"
             f"<div class='j3-mc-val j3-green'>{_rank_text('rs60_rank')}</div>"
             "<div class='j3-mc-sub j3-muted'>나스닥보다 강한 차례</div></div>",
@@ -8780,6 +8841,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     _render_day_price_row(metrics, ticker, panel=panel)
     _render_fundamentals_box(ticker, metrics, panel=panel)
     _render_price_chart_bundle(ticker, panel=panel)
+    _render_stock_news_box(ticker, panel=panel)
 
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
     _section_close(detail_key, "선택종목 세부사항 닫기")
@@ -9409,6 +9471,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         "border-left: 3px solid #c084fc !important; }"
         for key, ticker in button_keys if ticker and ticker == selected_ticker
     ]
+    selected_css.append(_earnings_chips(button_keys))       # 「실적 D-○」 딱지(2026-10-09)
     # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
     # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
     st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
@@ -9968,6 +10031,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         )
     # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
     # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
+    selected_css.append(_earnings_chips(                   # 「실적 D-○」 딱지(2026-10-09)
+        [(f"j3rbf_{index:02d}", row.get("ticker")) for index, row in enumerate(rows)]))
     st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
     st.caption(
         "매수는 설명서대로 종가를 확인한 뒤 다음 거래일 시가에 합니다. 이 표는 "
@@ -10880,6 +10945,8 @@ def _render_existing_theme_content() -> None:
     # 여태 한 줄로 서서 기다리던 둘이 겹쳐 돈다(_start_us_futures_fetch 참고).
     # 새로 나가는 요청은 하나도 없다. 받는 **때**만 옮긴 것이다.
     _start_us_futures_fetch()
+    # 원/달러도 같은 때 따로 시켜 둔다(2026-10-09) — 선물 일꾼에 실으면 선물 칸이 그만큼 늦는다.
+    _start_us_fx_fetch()
     st.markdown(
         # 두 표 모두 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25 사용자 지시).
         # 머리글을 숨기던 규칙도 뺐다 — 숨기면 '종목·눌림 점수'가 안 보인다.
@@ -13012,6 +13079,163 @@ def _start_us_futures_fetch() -> None:
         return                          # 일꾼을 못 띄우면 예전처럼 화면이 받는다
     with _FUTURES_FETCH_LOCK:
         _FUTURES_FETCH["thread"] = thread
+
+
+# ── 원/달러 (2026-10-09 상하님 지시 — "1~5번 다 넣어라 · 로딩 오래 걸리는 것 있으면 고민") ──────
+# 한국테마가 이미 받는 원/달러 1분봉(jarvis4_data.get_fx_intraday)을 **읽기만** 한다 — 한국 파일은 안 고친다.
+# 선물처럼 화면 그리기 맨 앞에서 **따로** 일꾼에게 맡기고(_start_us_fx_fetch), 칸은 2초까지만 기다린다.
+# 늦는 판에는 마지막으로 받아 둔 칸을 그대로 쓴다. 세부사항의 「≈ 원화」는 이 칸이 받아 둔 환율만 쓴다 —
+# 종목을 누를 때 환율을 받으러 가지 않는다.
+_FX_CLASS = "j3-idx-fx"
+# 원/달러 칸은 **0.8초까지만** 기다린다 — 몇 분 늦어도 되는 값이라 맨 위 칸을 붙잡지 않는다(2026-10-09 실측 —
+# 2초까지 기다리게 두니 4배 느린 폰에서 맨 위 칸이 한 번 2.09초 걸렸다. 평소 0.62~0.68초).
+_FX_WAIT_SECONDS = 0.8
+
+
+@st.cache_resource(show_spinner=False)
+def _fx_state() -> dict:
+    """앱 전체가 함께 쓰는 원/달러 자리 — 일꾼 · 마지막 칸 · 환율. 판을 다시 그려도 남는다."""
+    return {"lock": threading.Lock(), "thread": None, "cell": None, "rate": None, "at": 0.0}
+
+
+def _start_us_fx_fetch() -> None:
+    state = _fx_state()
+    with state["lock"]:
+        running = state.get("thread")
+        if running is not None and running.is_alive():
+            return
+
+    def _run() -> None:
+        try:
+            import jarvis4_data as j4data
+
+            fetcher = getattr(j4data, "get_fx_intraday", None)
+            if callable(fetcher):
+                fetcher(ttl_seconds=300)
+        except Exception:
+            pass
+
+    try:
+        thread = threading.Thread(target=_run, name="j3-fx-fetch", daemon=True)
+        thread.start()
+    except Exception:
+        return
+    with state["lock"]:
+        state["thread"] = thread
+
+
+def _await_us_fx_fetch(timeout: float = _FX_WAIT_SECONDS) -> bool:
+    state = _fx_state()
+    with state["lock"]:
+        thread = state.get("thread")
+    if thread is None:
+        return True
+    try:
+        thread.join(timeout)
+        return not thread.is_alive()
+    except Exception:
+        return False
+
+
+def _usd_krw_cell() -> str:
+    """시장분석 맨 위 「원/달러 환율」 칸 — 지수 칸과 같은 모양(값 · 등락 · 당일 그림)."""
+    label = "원/달러 환율"
+    state = _fx_state()
+    if not _await_us_fx_fetch():
+        # 늦는 판 — 앱이 마지막으로 받아 둔 칸을 그대로(값은 일꾼이 다 받은 뒤 다음 판에 바뀐다).
+        return state.get("cell") or _top_metric(label, "—", "#9aa0aa", "받는 중", extra_class=_FX_CLASS)
+    try:
+        import jarvis4_data as j4data
+
+        fx = j4data.get_fx_intraday(ttl_seconds=300)
+    except Exception:
+        fx = {}
+    current = (fx or {}).get("current")
+    if not (fx or {}).get("ok") or not current:
+        return state.get("cell") or _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FX_CLASS)
+    change = fx.get("change_pct")
+    cell = (
+        f"<div class='j3-top-cell {_FX_CLASS}'>"
+        f"<div class='j3-top-label j3-idx-label'>{label}</div>"
+        f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>{float(current):,.1f}원</div>"
+        f"<div class='j3-top-sub j3-idx-sub {_sign_class(change)}'>{_pct(change)} "
+        "<span class='j3-muted j3-idx-note'>· 1달러에</span></div>"
+        + _index_chart_swap(fx.get("chart"), key="idxKRW")
+        + "</div>"
+    )
+    state.update(cell=cell, rate=float(current), at=time.time())
+    return cell
+
+
+def _krw_sub(price) -> str:
+    """최근가·현재가 칸 밑 「≈ 30만 9천원」 — 맨 위 칸이 받아 둔 환율(6시간 안)로만 센다. 없으면 빈 글."""
+    state = _fx_state()
+    rate, at = state.get("rate"), state.get("at") or 0.0
+    try:
+        price = float(price)
+    except (TypeError, ValueError):
+        return ""
+    if not rate or price <= 0 or time.time() - at > 6 * 3600:
+        return ""
+    won = price * float(rate)
+    if won < 10_000:
+        text = f"{won:,.0f}원"
+    else:
+        thousands = int(round(won / 1000.0))
+        man, cheon = divmod(thousands, 10)
+        text = f"{man:,}만" + (f" {cheon}천" if cheon else "") + "원"
+    return f"<div class='j3-mc-sub j3-mc-krw'>≈ {text}</div>"
+
+
+# ── 세부사항 「📰 종목 뉴스」 (2026-10-09 상하님 지시 — 관심종목에는 있고 세부사항에는 없었다) ──
+def _company_news(ticker: str) -> dict:
+    return briefing_news.get_or_schedule(
+        "company", ticker, finnhub_key=_briefing_secret("FINNHUB_API_KEY"),
+        groq_key=_briefing_secret("GROQ_API_KEY"),
+        deepl_key=_briefing_secret("DEEPL_API_KEY"),
+        naver_client_id=_briefing_secret("NAVER_CLIENT_ID"),
+        naver_client_secret=_briefing_secret("NAVER_CLIENT_SECRET"),
+    )
+
+
+def _render_stock_news_box(ticker: str, *, panel: str) -> None:
+    """**누를 때만 받는다** — 받는 데 1~3초가 걸려, 세부사항을 열 때마다 받으면 그만큼 늦어진다
+    (상하님 — "로딩 오래 걸리는 것 있으면 고민해야 된다"). 관심종목 카드와 같은 뉴스(같은 공책)라 거기서
+    받아 둔 종목은 곧바로 뜬다. 기사 본문 도착을 지켜보며 화면을 다시 그리는 장치(관심종목 화면 것)는 여기서
+    쓰지 않는다 — 시장분석 화면 전체를 다시 그리게 된다. 본문이 늦으면 닫았다 다시 열 때 나온다.
+    """
+    if not _section_toggle("📰 종목 뉴스 보기 — 누르면 받아 옵니다", f"j3_news_open_{panel}",
+                           close_label="종목 뉴스 닫기"):
+        return
+    try:
+        result = _company_news(ticker)
+        if result.get("pending") and not result.get("items"):
+            with st.spinner("종목 뉴스를 받는 중입니다…"):
+                deadline = time.monotonic() + 8.0
+                while time.monotonic() < deadline:
+                    time.sleep(0.4)
+                    result = _company_news(ticker)
+                    if not result.get("pending"):
+                        break
+    except Exception:
+        result = {}
+    items = [item for item in (result.get("items") or []) if item.get("brief") or item.get("headline")]
+    if not items:
+        st.caption("이 종목 뉴스를 아직 못 받았습니다 · 닫았다 다시 열면 다시 받습니다.")
+        return
+    waiting = st.session_state.get(_ARTICLE_WAIT_RUN)
+    before = dict(waiting) if isinstance(waiting, dict) else None
+    body = _news_accordion_html(items)
+    if before is None:
+        st.session_state.pop(_ARTICLE_WAIT_RUN, None)
+    else:
+        st.session_state[_ARTICLE_WAIT_RUN] = before
+    st.markdown(
+        f"<div class='j3-news-detail'><div class='j3b-open-list' style='margin-top:4px'>{body}</div>"
+        "<div class='j3-news-note'>한 줄을 누르면 기사 본문·원문이 펼쳐집니다 · 관심종목 화면과 같은 뉴스입니다</div></div>",
+        unsafe_allow_html=True,
+    )
+
 
 
 # 선물 값을 기다리는 시간. **2초에서 끊는다** (2026-09-16 상하님 지시 '가').

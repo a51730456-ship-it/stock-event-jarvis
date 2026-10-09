@@ -3486,7 +3486,8 @@ def test_selection_highlight_style_is_always_drawn_so_nothing_below_shifts():
     assert "if button_css:" not in source
     assert "if selected_css:" not in source
     table = source[source.index("def _render_leader_table("):source.index("def _leader_table_html(")]
-    assert 'st.markdown("<style>" + "".join(button_css) + "</style>", unsafe_allow_html=True)' in table
+    # 2026-10-09 — 같은 칸에 「실적 D-○」 딱지 꾸밈을 덧붙인다(늘 그리는 것은 그대로).
+    assert 'st.markdown("<style>" + "".join(button_css) + _earnings_chips(button_keys) + "</style>",' in table
 
 
 def test_leader_comparison_scrolls_its_button_to_the_top_when_opened():

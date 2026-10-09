@@ -284,14 +284,141 @@ class OverviewTests(unittest.TestCase):
             self.assertEqual(fn._person(raw), clean)
 
     def test_page_puts_the_card_under_the_green_line_and_fixes_two_words(self):
-        self.assertEqual(PAGE.count("+ _overview_html(ticker),"), 2)      # 테마·순위 9·종목검색 / 상승장·급락
+        self.assertEqual(PAGE.count("+ _overview_html(ticker, metrics),"), 2)  # 테마·순위 9·종목검색 / 상승장·급락
         body = PAGE[PAGE.index("def _render_stock_detail("):PAGE.index("if auth.is_guest():", PAGE.index("def _render_stock_detail("))]
-        self.assertIn("_detail_sub_text(theme_row, leader, plan))}</div>\"\n        + _overview_html(ticker)", body)
+        self.assertIn("_detail_sub_text(theme_row, leader, plan))}</div>\"\n        + _overview_html(ticker, metrics)", body)
         self.assertIn("종목검색으로 찾은 종목", PAGE)
         self.assertIn("'급락 후 반등장 선택 종목' if mode == 'crash' else '눌림목 선택 종목'", PAGE)
         # 옛 줄(「내 종목 대장주 1위」가 나오던 것)은 _detail_sub_text 한 곳으로 모였다.
         self.assertNotIn("{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>", PAGE)
         self.assertEqual(PAGE.count("_detail_sub_text(theme_row, leader, plan)"), 2)
+
+
+
+class _FakeHandle:
+    """야후 Ticker 흉내 — street_facts 가 읽는 넷만."""
+
+    def __init__(self):
+        import datetime as dt
+
+        self.calendar = {"Earnings Date": [dt.date(2026, 11, 18)], "Earnings Average": 2.47,
+                         "Ex-Dividend Date": dt.date(2026, 9, 10), "Dividend Date": dt.date(2026, 10, 1)}
+        self.earnings_history = pd.DataFrame(
+            {"epsActual": [1.30, 1.62, 1.87, 2.22, -0.5], "epsEstimate": [1.256, 1.538, 1.772, 2.091, -0.4],
+             "surprisePercent": [0.035, 0.053, 0.055, 0.062, -0.25]},
+            index=pd.to_datetime(["2025-07-31", "2025-10-31", "2026-01-31", "2026-04-30", "2026-07-31"]))
+        self.recommendations = pd.DataFrame({"period": ["0m", "-1m"], "strongBuy": [10, 9], "buy": [48, 47],
+                                             "hold": [2, 3], "sell": [1, 1], "strongSell": [0, 0]})
+        today = pd.Timestamp.now().normalize()
+        self.insider_transactions = pd.DataFrame({
+            "Text": ["Sale at price 144.13 - 146.07 per share.", "Conversion of Exercise of derivative security",
+                     "Purchase at price 10.00 per share.", "Sale at price 99 per share."],
+            "Value": [11_691_420.0, 1_866_970.0, 500_000.0, 9_000_000.0],
+            "Start Date": [today - pd.Timedelta(days=20), today - pd.Timedelta(days=20),
+                           today - pd.Timedelta(days=40), today - pd.Timedelta(days=400)]})
+
+
+class StreetTests(unittest.TestCase):
+    """증권사 화면에 있는 것 — 실적 발표·애널리스트·공매도/내부자/배당·다가오는 일정 (2026-10-09 상하님 지시)."""
+
+    INFO = {"earningsTimestampStart": 1794945600, "isEarningsDateEstimate": False,       # 2026-11-17 15:00 뉴욕
+            "numberOfAnalystOpinions": 59, "targetMeanPrice": 328.7, "targetHighPrice": 515.0,
+            "targetLowPrice": 180.0, "recommendationKey": "strong_buy", "shortPercentOfFloat": 0.0127,
+            "heldPercentInstitutions": 0.714, "heldPercentInsiders": 0.04, "dividendYield": 0.02}
+
+    def test_collect_reads_new_york_date_and_counts_only_market_trades(self):
+        with mock.patch.object(fn.time, "time", return_value=1794945600 - 86400 * 30):
+            facts = fn.street_facts(_FakeHandle(), dict(self.INFO))
+        earn = facts["earn"]
+        self.assertEqual(earn["next"], "2026-11-17")             # calendar 의 11/18(한국 시계)이 아니라 뉴욕 날짜
+        self.assertEqual(earn["when"], "장 마감 뒤")               # 15:00 으로 적힌 마감 뒤 발표
+        self.assertEqual(len(earn["hist"]), 4)
+        self.assertEqual(earn["hist"][-1][1:], [-0.5, -0.4, -25.0])
+        self.assertEqual(facts["ana"]["buy"], 58)
+        self.assertEqual((facts["ana"]["hold"], facts["ana"]["sell"]), (2, 1))
+        self.assertEqual(facts["own"]["short"], 1.27)
+        self.assertEqual(facts["own"]["ins6m"], [1, 0.5, 1, 11.69])      # 6개월 안 · 시장 매매만(옵션 행사 뺌)
+        self.assertEqual(facts["divd"], {"ex": "2026-09-10", "pay": "2026-10-01"})
+        self.assertNotIn("div", facts)                            # "div" 는 배당수익률 자리다
+
+    def test_old_earnings_timestamp_falls_back_to_calendar(self):
+        info = dict(self.INFO, earningsTimestampStart=1785355200)          # 지난 발표일(7/29)이 남은 종목
+        facts = fn.street_facts(_FakeHandle(), info)
+        self.assertEqual(facts["earn"]["next"], "2026-11-18")
+        self.assertNotIn("when", facts["earn"])
+
+    def test_screen_boxes_and_chips_read_the_file_only(self):
+        import datetime as dt
+
+        entry = _entry()
+        entry.update({"earn": {"next": "2026-11-17", "when": "장 마감 뒤", "eps_est": 2.47,
+                               "hist": [["25.10", 1.3, 1.256, 3.5], ["26.01", 1.62, 1.538, 5.3],
+                                        ["26.04", 1.87, 1.772, 5.5], ["26.07", 2.22, 2.091, 6.2]]},
+                      "ana": {"n": 59, "mean": 328.7, "hi": 515.0, "lo": 180.0, "buy": 58, "hold": 2, "sell": 1},
+                      "own": {"short": 1.27, "inst": 71.4, "ins6m": [0, 0.0, 9, 1370.53]},
+                      "divd": {"ex": "2026-09-10", "pay": "2026-10-01"}})
+        with mock.patch.object(fn, "load", return_value={"NVDA": entry}):
+            html_text = fn.street_html("NVDA", 230.48, today=dt.date(2026, 10, 9))
+            near = fn.earnings_chip_css([("j3lbtn_00", "NVDA")], today=dt.date(2026, 11, 12))
+            far = fn.earnings_chip_css([("j3lbtn_00", "NVDA")], today=dt.date(2026, 10, 9))
+            gone = fn.earnings_days("NVDA", today=dt.date(2026, 11, 20))
+        self.assertIn("11월 17일(화) 장 마감 뒤", html_text)
+        self.assertIn("39일 남음", html_text)
+        self.assertIn("좋았음 4번 중 4번", html_text)
+        self.assertIn("사라 58명", html_text)
+        self.assertIn("59명 · 1년 뒤 예상", html_text)
+        self.assertIn("지금보다 +43%", html_text)
+        self.assertIn("점수·판정에는 들어가지 않습니다", html_text)
+        self.assertIn("유통 주식의 1.3%", html_text)
+        self.assertIn("판 것 9번(13.7억 달러)", html_text)
+        self.assertIn("배당락 9월 10일 · 지급 10월 1일", html_text)
+        self.assertIn("content:'실적 D-5'", near)
+        self.assertEqual(far, "")                                  # 39일 남은 종목은 딱지 없음
+        self.assertIsNone(gone)                                    # 지난 날짜는 모른다로 친다
+
+    def test_upcoming_lists_macro_and_roster_earnings(self):
+        import datetime as dt
+
+        macro = {"known_until": {"cpi": "2026-12-10", "jobs": "2026-12-04"},
+                 "events": [{"date": "2026-10-14", "kind": "cpi", "label": "소비자물가(CPI) 발표"},
+                            {"date": "2026-10-28", "kind": "fomc", "label": "미국 금리 결정(FOMC)"},
+                            {"date": "2026-11-30", "kind": "fomc", "label": "먼 일정"}]}           # 52일 뒤
+        stocks = {code: dict(_entry(), earn={"next": day, "when": "장 전"}) for code, day in
+                  (("JPM", "2026-10-13"), ("GS", "2026-10-13"), ("MSFT", "2026-10-28"), ("NVDA", "2026-11-17"))}
+        about = {"JPM": {"ko": "JP모건"}, "GS": {"ko": "골드만삭스"}, "MSFT": {"ko": "마이크로소프트"}}
+        with mock.patch.object(fn, "load_macro", return_value=macro), \
+                mock.patch.object(fn, "load", return_value=stocks), \
+                mock.patch.object(fn, "load_about", return_value=about):
+            text = fn.upcoming_html(today=dt.date(2026, 10, 9))
+        self.assertIn("10/13(화)", text)
+        self.assertIn("JP모건·골드만삭스 실적", text)
+        self.assertIn("소비자물가(CPI) 발표", text)
+        self.assertIn("j3up-fomc", text)
+        self.assertIn("미국 금리 결정(FOMC)", text)                  # 19일 뒤 — 큰 발표는 한 달 안이면 보인다
+        self.assertNotIn("먼 일정", text)                           # 52일 뒤
+        self.assertNotIn("NVDA", text.split("title=")[0])           # 11/17 은 14일 밖
+
+    def test_macro_file_has_the_official_dates(self):
+        data = json.loads(fn.MACRO_PATH.read_text(encoding="utf-8"))
+        days = {(e["date"], e["kind"]) for e in data["events"]}
+        for item in (("2026-10-28", "fomc"), ("2026-12-09", "fomc"), ("2027-01-27", "fomc"),
+                     ("2026-10-14", "cpi"), ("2026-11-10", "cpi"), ("2026-11-06", "jobs"), ("2026-12-04", "jobs")):
+            self.assertIn(item, days)
+        self.assertEqual(data["known_until"]["cpi"], "2026-12-10")
+
+    def test_page_wires_all_five(self):
+        self.assertEqual(PAGE.count("_earnings_chips("), 5)          # 정의 1 + 네 표
+        self.assertIn("_earnings_chips(button_keys) + \"</style>\"", PAGE)
+        self.assertIn("[(f\"j3rbf_{index:02d}\", row.get(\"ticker\")) for index, row in enumerate(rows)]", PAGE)
+        self.assertIn("[(f\"j3top7_{index:02d}\", row.get(\"ticker\")) for _label, index, row in labels]", PAGE)
+        self.assertIn("*_us_index_cells(overview, phase),\n", PAGE)
+        self.assertIn("        _usd_krw_cell(),\n", PAGE)
+        self.assertIn("    _start_us_futures_fetch()\n", PAGE)
+        self.assertIn("    _start_us_fx_fetch()\n", PAGE)
+        self.assertEqual(PAGE.count("_render_stock_news_box(ticker, panel=panel)"), 4)
+        self.assertEqual(PAGE.count("_krw_sub(shown_price)"), 3)
+        self.assertIn("us_fundamentals.upcoming_html()", PAGE)
+        self.assertIn('"j3_news_open_")', PAGE)
 
 
 if __name__ == "__main__":
