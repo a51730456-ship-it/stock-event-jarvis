@@ -24,7 +24,7 @@ from __future__ import annotations
 # 이 표식이 없어서 2026-07-25 온라인에 폰 수정이 하나도 반영되지 않았다 —
 # 페이지 파일만 새로 읽히고 mobile_ui는 옛것이 프로세스에 남아 있었다.
 # 내보내는 CSS가 바뀌면 이 숫자를 올리고, 페이지의 _REQUIRED_MOBILE_REVISION도 올린다.
-MODULE_REVISION = 2026100910
+MODULE_REVISION = 2026100911
 
 # 이 폭 이하를 '폰'으로 본다. 갤럭시탭 S8+는 1138px라 걸리지 않는다.
 PHONE_MAX_WIDTH = 600
@@ -631,6 +631,28 @@ div[class*="st-key-pldl_US"] > [data-testid="stLayoutWrapper"]:first-child [data
 .sig-gauge-title { white-space: normal !important; line-height: 1.35; }
 .sig-story { padding: .35rem .55rem .45rem; }
 """
+
+
+# 관심종목 → 세부사항 창(2026-10-09)이 쓰는 폰 규칙만 — 창을 열 때 CONTENT_CSS 전체(1만 9천 자)를 깔면 느린 폰이
+# 화면 전체 꾸밈을 다시 따져 창이 늦었다. 아래 줄은 CONTENT_CSS 의 같은 줄을 그대로 옮긴 것이다(값이 같다).
+# CONTENT_CSS 의 그 줄을 고치면 여기도 같이 고친다(test_mobile_ui 가 짝을 본다).
+WATCH_DETAIL_PHONE_CSS = """
+.j3-stock-name, .j4-stock-name { font-size: 1.3rem; }
+.j3fn-grid { grid-template-columns: 1fr 1fr !important; }
+.j3fn-charts { grid-template-columns: 1fr !important; }
+.j3-metric-row:has(.j3-mc) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.j3-mc { padding: 7px 6px; border-radius: 12px; }
+.j3-mc > .j3-mc-val { font-size: 1rem; margin: 2px 0 1px; }
+.j3-mc-label { font-size: 10px; }
+.j3-mc > .j3-mc-sub { font-size: 10px; }
+.j3-metric-row .j3-mc > .j3-mc-val.j3-mc-price { font-size: 15px; }
+.j3-metric-row .j3-mc > .j3-mc-sub.j3-mc-chg { font-size: 13px; }
+"""
+
+
+def watch_detail_css() -> str:
+    """관심종목 세부사항 창의 폰 규칙(600px 안쪽만)."""
+    return f"<style>@media (max-width: {PHONE_MAX_WIDTH}px) {{{WATCH_DETAIL_PHONE_CSS}}}</style>"
 
 
 def page_css(*table_rules: str) -> str:

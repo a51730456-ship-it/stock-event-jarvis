@@ -1419,7 +1419,7 @@ st.markdown(
         color: #ffffff !important;
         font-weight: 700 !important;
     }
-    /* 「📅 3주간 일별 시세 보기」 — 연한 무지개 그라데이션 (2026-09-18 상하님 지시
+    /* 「📅 4주간 일별 시세 보기」(10/9 전에는 3주간) — 연한 무지개 그라데이션 (2026-09-18 상하님 지시
        "단추 색깔 무지개색으로 연하게 그라데이션 넣어줘").
        옆 단추들(황금·붉은색)과 싸우지 않게 **연하게**만 깐다 — 다섯 색을 36%
        투명도로 눕히고(20% 는 남색 바탕에 묻혀 무지개로 안 보였다 — 실물로 재 봤다) 글자는 흰색 그대로 둔다. 여닫는 단추 둘 다에 건다
@@ -1835,7 +1835,7 @@ import mobile_ui
 
 # 옛 mobile_ui가 프로세스에 남으면 폰 수정이 온라인에 하나도 반영되지 않는다
 # (2026-07-25 실발생). CLAUDE.md 11번 규칙에 따라 리비전이 낮으면 다시 읽는다.
-_REQUIRED_MOBILE_REVISION = 2026100910
+_REQUIRED_MOBILE_REVISION = 2026100911
 if int(getattr(mobile_ui, "MODULE_REVISION", 0)) < _REQUIRED_MOBILE_REVISION:
     mobile_ui = importlib.reload(mobile_ui)
 import guidance
@@ -1873,7 +1873,7 @@ import us_fundamentals
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026100910
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100911
+_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100913
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
 
@@ -2961,7 +2961,7 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
     걸리게"* · *"재무구조는 중요한 것만 메이저 증권사들처럼 간단하게 도표 같은 걸로"*.
 
     **받으러 가지 않는다** — 깃허브가 밤에 모아 둔 파일(us_fundamentals · data/fundamentals/US.json)만
-    읽는다. 단추를 누르면 3주간 일별 시세처럼 창이 튀어 오르는데, 창은 처음부터 숨은 채 같이
+    읽는다. 단추를 누르면 4주간 일별 시세처럼 창이 튀어 오르는데, 창은 처음부터 숨은 채 같이
     그려 두고 숨은 스위치로 여닫는다 — 눌러도 서버에 묻지 않아 곧바로 뜬다.
     시가총액·PER·PBR 은 목록·세부사항과 같은 지금 값(_list_price_change)으로 다시 센다.
     """
@@ -3009,6 +3009,8 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
     """
     # **3주(거래일 15일)로 늘렸다** (2026-09-19 상하님 지시 — "3주간으로 늘려라, 위아래
     # 라인 좀 더 좁게. 즉 거래 15일치"). 줄 위아래 여백도 줄였다(.34rem → .2rem).
+    # **4주(거래일 20일)로 늘렸다** (2026-10-09 상하님 지시 — "4주간으로 내용을 늘리고 제목도 바꿔라").
+    # 이미 받아 둔 6개월 일봉에서 다섯 줄을 더 꺼낼 뿐이라 새로 받는 것은 없다.
     key = f"j3_daily_prices_{panel or 'x'}_{str(ticker or 'x').lower()}"
     # **누르면 창으로 튀어 오른다** (2026-09-24 상하님 지시 — "3주간 일별 시세 이것도 클릭하면
     # 관심종목에서 종목 클릭하면 화면이 동일하게, 즉 파트별 성적표의 매수심사결과 높은 순위 9
@@ -3022,18 +3024,18 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
     if not st.session_state.get(key):
         st.session_state.pop(key + "_shown", None)     # 다시 누르면 곧바로 뜨게
         _section_toggle(
-            "📅 3주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
+            "📅 4주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
         )
         if not st.session_state.get(key):
             return
     rows = []
     try:
-        rows = j3data.daily_price_rows(ticker, days=15, fill_last_session=True) or []
+        rows = j3data.daily_price_rows(ticker, days=20, fill_last_session=True) or []
     except Exception:
         rows = []
     if not rows:
         st.caption("일별 시세를 불러오지 못했습니다.")
-        _section_close(key, "3주간 일별 시세 닫기")
+        _section_close(key, "4주간 일별 시세 닫기")
         return
     # **색은 앱 규칙을 그대로 쓴다** (2026-09-02 상하님 — "화면은 흰색으로
     # 하라는 게 아니다"). 칸 짜임만 네이버 「일별 시세」와 같게 하고, 흰 바탕·
@@ -3092,12 +3094,12 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
         "@media (prefers-reduced-motion: reduce){.j3dp-tap:checked ~ .j3dp-pop{animation:none}}"
         "</style>"
         f"<div class='j3dpz'><input type='checkbox' id='{tap_id}' class='j3cz-tap j3dp-tap'>"
-        f"<label for='{tap_id}' class='j3dp-open'>📅 3주간 일별 시세 보기</label>"
+        f"<label for='{tap_id}' class='j3dp-open'>📅 4주간 일별 시세 보기</label>"
         f"<label for='{tap_id}' class='j3cz-scrim j3dp-scrim' aria-hidden='true'></label>"
         f"<label for='{tap_id}' class='j3cz-pop j3dp-pop'>"
-        f"<span class='j3cz-name'>{html.escape(str(ticker or ''))} · 3주간 일별 시세</span>"
+        f"<span class='j3cz-name'>{html.escape(str(ticker or ''))} · 4주간 일별 시세</span>"
         f"{table}"
-        "<span class='j3cz-when'>거래일 15일치 · 최근 날이 맨 위</span>"
+        "<span class='j3cz-when'>거래일 20일치 · 최근 날이 맨 위</span>"
         "<span class='j3cz-close'>다시 누르면 닫힘</span></label></div>",
         unsafe_allow_html=True,
     )
@@ -12640,6 +12642,170 @@ def _briefing_orbit_html(stocks: list[dict]) -> str:
     return f'<div class="j3b-orbit" aria-hidden="true">{"".join(pods)}</div>'
 
 
+# ── 관심종목 → 선택종목 세부사항 창 (2026-10-09 상하님 지시) ──────────────────────────────
+# 상하님 — "관심종목에 종목을 클릭하면 그 종목이 일봉 6개월과 뉴스가 뜨는 화면에 버튼을 하나 만들어 선택종목
+# 세부사항으로 갈 수 있게 · 테마에서 간 건지 상승장에서 간 건지 모르니 배점을 빼고 넣는 게 맞는지 · 닫기 누르면
+# 다시 관심종목으로 · 아니면 아예 시장분석으로 가지 않고 세부사항이 바로 뜨게 · 로딩 걸리지 않게 하는 게 중요".
+#   · 시장분석으로 넘어가지 않는다 — 관심종목 판 위에 세부사항 창을 덮는다. 닫으면 보시던 목록 그대로다.
+#   · **배점·매수 심사는 뺀다.** 관심종목은 어느 파트가 고른 종목이 아니라 어느 자로 잴지 정할 수 없다. 대신
+#     오늘 저장된 자비스 목록에서 그 종목이 어디 몇 위인지 한 줄로 적는다(목록 파일만 읽는다).
+#   · 값은 종목검색과 같은 길(j3data.analyze_one_stock — 2년 일봉·1분봉)로 만든다. 받아 둔 묶음에 있으면 곧바로다.
+#   · 창을 여는 판에 크게 열려 있던 카드를 닫아 둔다 — 창을 닫으면 곧장 목록이 보이게. 폰 뒤로가기로도 닫힌다.
+_WATCH_DETAIL_KEY = "j3b_wdetail"
+_WATCH_DETAIL_OPEN = "j3b_wdetail_open"
+_WATCH_DETAIL_FRESH = "j3b_wdetail_fresh"
+_WATCH_PANEL = "watch"
+
+
+def _open_watch_detail(ticker: str, name: str) -> None:
+    st.session_state[_WATCH_DETAIL_KEY] = {"ticker": str(ticker).upper(), "name": str(name or ticker)}
+    st.session_state[_WATCH_DETAIL_OPEN] = True
+    st.session_state[_WATCH_DETAIL_FRESH] = True
+
+
+def _close_watch_detail() -> None:
+    st.session_state.pop(_WATCH_DETAIL_KEY, None)
+    st.session_state[_WATCH_DETAIL_OPEN] = False
+    st.session_state.pop(_WATCH_DETAIL_FRESH, None)
+    # 창 안에서 연 구역(4주간 시세 · 그림 묶음)은 닫아 둔다 — 다음에 열 때 처음처럼.
+    for name in [key for key in st.session_state.keys()
+                 if str(key).startswith(f"j3_daily_prices_{_WATCH_PANEL}_")
+                 or str(key) == f"j3_bundle_open_{_WATCH_PANEL}"]:
+        st.session_state.pop(name, None)
+
+
+def _watch_list_places(ticker: str) -> str:
+    """오늘 저장된 자비스 목록에서 이 종목이 어디 몇 위인지 — 「바이오 테마 2위 · 급락 후 반등장 5위」."""
+    try:
+        import picklist_store as store
+
+        dates = store.available_dates("US")
+        if not dates:
+            return ""
+        day = dates[0]
+        rows = store.load_rows(day, "US") or []
+    except Exception:
+        return ""
+    names = {"breakout": "상승장", "crash": "급락 후 반등장", "top7": "순위 9", "pullback": "눌림목 찾기"}
+    places = []
+    for row in rows:
+        if str(row.get("code") or "").strip().upper() != ticker:
+            continue
+        try:
+            rank = int(float(row.get("rank") or 0))
+        except (TypeError, ValueError):
+            rank = 0
+        kind = str(row.get("list_kind") or "")
+        if kind == "theme15":
+            label = f"{row.get('origin') or '테마'} 테마 {rank}위"
+        elif kind in names:
+            label = f"{names[kind]} {rank}위"
+        else:
+            continue
+        if label not in places:
+            places.append(label)
+    when = f"{int(day[5:7])}/{int(day[8:10])}" if len(day) >= 10 else day
+    return (f"자비스 목록({when} 저장): " + (" · ".join(places) if places else "어느 목록에도 없음"))
+
+
+def _watch_quote_html(metrics: dict) -> str:
+    """가격 칸 — 세부사항과 같은 값·같은 규칙(_shown_numbers). 점수 칸은 없다."""
+    shown = _shown_numbers(metrics)
+    price, change = shown["price"], shown["change"]
+    cells = [
+        f"<div class='j3-mc'><div class='j3-mc-label'>최근가</div>"
+        f"<div class='j3-mc-val j3-mc-price'>{_price(price)}</div>"
+        f"<div class='j3-mc-sub j3-mc-chg {_sign_class(change)}'>{_pct(change)}</div>{_krw_sub(price)}</div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>52주 신고가 대비</div>"
+        f"<div class='j3-mc-val {_sign_class(shown['from_high_pct'])}'>{_pct(shown['from_high_pct'])}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>20일 수익률</div>"
+        f"<div class='j3-mc-val {_sign_class(shown['ret20'])}'>{_pct(shown['ret20'])}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>6개월 수익률</div>"
+        f"<div class='j3-mc-val {_sign_class(shown['ret120'])}'>{_pct(shown['ret120'])}</div></div>",
+        f"<div class='j3-mc'><div class='j3-mc-label'>14일 변동성(ATR)</div>"
+        f"<div class='j3-mc-val {_sign_class(shown['atr_pct'])}'>{_pct(shown['atr_pct'])}</div></div>",
+    ]
+    return f"<div class='j3-metric-row'>{''.join(cells)}</div>"
+
+
+@st.fragment
+def _render_watch_detail_area(stocks: tuple) -> None:
+    """**이 덩이만 다시 그린다** — 관심종목 판 전체를 다시 그리면 4배 느린 폰에서 1초가 더 들었다(2026-10-09 실측 —
+    창 뜸 2.4초 중 판 다시 그리기 약 1초). 종목마다 숨은 단추를 두고, 카드의 그림 단추가 그것을 대신 누른다.
+    창 안의 단추(4주간 시세 · 그림 묶음 · 닫기)도 이 덩이 안이라 판 전체를 안 돈다."""
+    with st.container(key="j3b_wdgo_box"):
+        for ticker, name in stocks:
+            st.button(f"{ticker} 세부사항", key=f"j3b_wdgo_{ticker}", on_click=_open_watch_detail,
+                      args=(ticker, name))
+    _render_watch_detail()
+
+
+def _render_watch_detail() -> None:
+    picked = st.session_state.get(_WATCH_DETAIL_KEY) or {}
+    ticker = str(picked.get("ticker") or "").upper()
+    if not ticker or not st.session_state.get(_WATCH_DETAIL_OPEN):
+        if picked:
+            _close_watch_detail()        # 폰 뒤로가기로 닫힌 판 — 남은 것을 걷는다
+        return
+    fresh = st.session_state.pop(_WATCH_DETAIL_FRESH, False)
+    if fresh:
+        back_nav.opened(st, _WATCH_DETAIL_OPEN)
+    # 환율이 아직 없으면(시장분석을 안 연 판) 뒤에서 받아 둔다 — 기다리지 않는다. 다음 판부터 「≈ 원화」가 나온다.
+    if not _fx_state().get("rate"):
+        _start_us_fx_fetch()
+    with st.container(key="j3b_wdetail"):
+        # 폰 규칙(가격 칸 두 칸씩 등)은 시장분석에서만 깔린다 — 창이 쓰는 줄만 같이 깐다. 시장분석 규칙 전체
+        # (1만 9천 자)를 깔면 느린 폰이 판 전체 꾸밈을 다시 따져 창이 늦었다(2026-10-09 실측).
+        st.markdown(mobile_ui.watch_detail_css(), unsafe_allow_html=True)
+        st.button("✕ 닫기 — 관심종목으로", key="j3b_wd_close_top", on_click=_close_watch_detail)
+        with st.spinner(f"{ticker} 세부사항을 불러오는 중입니다…"):
+            try:
+                result = j3data.analyze_one_stock(ticker)
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc)}
+        metrics = (result.get("row") or {}).get("metrics") if result.get("ok") else None
+        try:
+            ko = (us_fundamentals.load_about().get(ticker) or {}).get("ko")
+        except Exception:
+            ko = None
+        name = ko or picked.get("name") or ticker
+        places = _watch_list_places(ticker)
+        st.markdown(
+            f"<div class='j3-stock-name'>{html.escape(str(name))} · {html.escape(ticker)}</div>"
+            f"<div class='j3-stock-sub'>관심종목{(' · ' + html.escape(places)) if places else ''}</div>"
+            "<div class='j3b-wd-note'>배점·매수 심사는 파트마다 자가 달라 여기서는 뺐습니다 — 시장분석의 그 목록에서 보십시오.</div>"
+            + _overview_html(ticker, metrics)
+            + (_watch_quote_html(metrics) if metrics else ""),
+            unsafe_allow_html=True,
+        )
+        if metrics:
+            _render_day_price_row(metrics, ticker, panel=_WATCH_PANEL)
+            _render_fundamentals_box(ticker, metrics, panel=_WATCH_PANEL)
+            _render_price_chart_bundle(ticker, panel=_WATCH_PANEL)
+        else:
+            st.caption(f"{ticker} 시세를 받지 못했습니다 · {_safe_error_text(result.get('error'))}")
+        st.button("✕ 닫기 — 관심종목으로", key="j3b_wd_close_bottom", on_click=_close_watch_detail)
+
+
+_WATCH_DETAIL_CSS = """<style>
+/* 종목마다 숨은 스트림릿 단추 — 카드 큰 판의 그림 단추(.j3b-wd-open)가 대신 누른다. 자리를 안 차지한다. */
+div.st-key-j3b_wdgo_box{display:none!important}
+/* 큰 판 안 「🔎 선택종목 세부사항 보기」 — 판은 손가락을 안 받게 해 두었으니(누르면 바탕이 닫는다) 이것만 받는다. */
+.j3b-wd-open{display:block;position:relative;z-index:7;pointer-events:auto;cursor:pointer;box-sizing:border-box;
+  width:min(320px,100%);margin:14px auto 0;padding:11px 14px;border-radius:14px;text-align:center;
+  border:1px solid #e3b52c;background:linear-gradient(90deg,#4a3206 0%,#b88a12 60%,#e3b52c 100%);
+  color:#fff;font-size:15px;font-weight:900;box-shadow:0 8px 22px #000a}
+/* 세부사항 창 — 관심종목 판 위에 한 장 덮는다. 하단 막대는 그대로 보인다(그 높이만큼 밑을 비운다). */
+div.st-key-j3b_wdetail{position:fixed!important;inset:0!important;z-index:2147483600!important;overflow-y:auto!important;
+  box-sizing:border-box!important;padding:14px 16px 112px!important;gap:10px!important;
+  background:linear-gradient(180deg,#0a2350 0%,#061636 60%,#05122d 100%)!important}
+div[class*="st-key-j3b_wd_close_"] button{border-radius:12px!important;border:1px solid #e3b52c!important;
+  background:linear-gradient(90deg,#4a3206 0%,#b88a12 60%,#e3b52c 100%)!important}
+div[class*="st-key-j3b_wd_close_"] button p{color:#fff!important;font-weight:800!important}
+.j3b-wd-note{font-size:.74rem;color:#6f93bd;margin:2px 0 4px}
+</style>"""
+
+
 def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
                           compact: bool = False, group: str = "extra") -> None:
     ticker = stock["ticker"]
@@ -12710,6 +12876,9 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
         f'{_briefing_chart(six_month or card.get("chart"), change, baseline=bool(six_month))}'
         f'{_six_month_caption(six_month)}'
         f'<div class="j3b-open-list">{_news_accordion_html(notes)}</div>'
+        # 「🔎 선택종목 세부사항 보기」(2026-10-09) — 그림 단추다. 누르면 이 판을 닫고 숨은 스트림릿 단추를
+        # 대신 눌러 관심종목 위에 세부사항 창을 띄운다(_J3B_WD_OPEN · _render_watch_detail_area).
+        f'<span class="j3b-wd-open" data-tk="{html.escape(ticker.upper())}">🔎 선택종목 세부사항 보기</span>'
         '<span class="j3b-open-close j3b-open-close-b">✕ 닫기</span>'
         f'{decor_html}</div>'
     )
@@ -13111,7 +13280,10 @@ def _start_us_fx_fetch() -> None:
 
             fetcher = getattr(j4data, "get_fx_intraday", None)
             if callable(fetcher):
-                fetcher(ttl_seconds=300)
+                fx = fetcher(ttl_seconds=300) or {}
+                # 받은 환율을 바로 적어 둔다 — 시장분석을 안 연 채 관심종목에서 세부사항 창을 열어도 「≈ 원화」가 나오게.
+                if fx.get("ok") and fx.get("current"):
+                    state.update(rate=float(fx["current"]), at=time.time())
         except Exception:
             pass
 
@@ -14772,6 +14944,7 @@ def _render_stock_briefing() -> None:
         # 미끄러져 들어온다. 하단 막대로 누르신 판이나 판이 다시 그려질 때는
         # 표식이 없어 예전처럼 그냥 그려진다(2026-09-10).
         _briefing_slide_in_marker()
+        _close_watch_detail()            # 관심종목에서 연 세부사항 창은 관심종목 것이다
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
         # 왼쪽에서 오른쪽으로 밀면 관심종목으로 되돌아간다(2026-09-10 상하님 지시).
@@ -14837,7 +15010,8 @@ def _render_stock_briefing() -> None:
                 # 사용자 선정 종목의 로고가 버스 둘레를 돈다(2026-08-28 상하님 지시).
                 f'{catbus_html}{_briefing_orbit_html(selected)}</div>{pop_html}'
                 # 이 화면 표식(.j3b-home)과 같은 덩어리에 둘 규칙(2026-09-23 저녁 · _J3B_HOME_CSS 위).
-                + _J3B_HOME_CSS,
+                # 관심종목 → 세부사항 창 단추·창 꾸밈(2026-10-09)도 같이.
+                + _J3B_HOME_CSS + _WATCH_DETAIL_CSS,
                 unsafe_allow_html=True,
             )
             if st.button("↻", key="j3b_hero_refresh"):
@@ -14888,6 +15062,10 @@ def _render_stock_briefing() -> None:
                 _render_briefing_manage(selected, extras, group="extra")
         _render_briefing_grid(home_extras, cards, removable=True, key="extra1",
                               compact=True, group="extra")
+        # 같은 종목이 「사용자 선정」과 「추가 검색」 두 곳에 있을 수 있다 — 숨은 단추는 종목마다 하나(열쇠가 겹치면
+        # 판 그리기가 멈춰 맨 끝의 작은 장치들까지 안 실렸다 · 2026-10-09 노트북 실측).
+        _render_watch_detail_area(tuple(dict(
+            (str(stock["ticker"]).upper(), str(stock.get("name") or stock["ticker"])) for stock in visible_stocks).items()))
         _render_briefing_bottom_nav("watch")
         # 오른쪽→왼쪽으로 밀면 시장분석으로 넘어간다(2026-09-10 상하님 지시).
         _briefing_swipe_nav()
@@ -15001,6 +15179,25 @@ _J3B_POP_CLOSE = """
   }, true);
 })();
 """
+# ── 관심종목 큰 판의 「🔎 선택종목 세부사항 보기」 (2026-10-09 상하님 지시) ─────────────────────────
+# 그림 단추를 누르면 그 큰 판을 곧바로 닫고(창을 닫으면 곧장 목록이 보이게), 그 종목의 숨은 스트림릿 단추를
+# 대신 누른다. 숨은 단추는 덩이(_render_watch_detail_area) 안이라 관심종목 판 전체를 다시 그리지 않는다.
+_J3B_WD_OPEN = """
+(function(){
+  if (window.__j3bWdOpen) { return; }
+  window.__j3bWdOpen = true;
+  document.addEventListener('click', function (e) {
+    var go = e.target && e.target.closest ? e.target.closest('.j3b-wd-open') : null;
+    if (!go) { return; }
+    e.preventDefault(); e.stopPropagation();
+    var box = go.closest('details');
+    if (box) { box.open = false; box.classList.remove('j3b-closing'); }
+    var tk = go.getAttribute('data-tk') || '';
+    var btn = document.querySelector('div.st-key-j3b_wdgo_' + tk + ' button');
+    if (btn) { btn.click(); }
+  }, true);
+})();
+"""
 try:
     import json as _json
     import streamlit.components.v1 as _components
@@ -15014,7 +15211,12 @@ try:
         "(function(){try{var d=window.parent.document;"
         "if(d.getElementById('j3b-pop-close')){return;}"
         "var s=d.createElement('script');s.id='j3b-pop-close';"
-        f"s.textContent={_json.dumps(_J3B_POP_CLOSE)};d.head.appendChild(s);}}catch(e){{}}}})();</script>",
+        f"s.textContent={_json.dumps(_J3B_POP_CLOSE)};d.head.appendChild(s);}}catch(e){{}}}})();"
+        # 큰 판의 「🔎 선택종목 세부사항 보기」(위 _J3B_WD_OPEN) — 같은 칸에 싣는다.
+        "(function(){try{var d=window.parent.document;"
+        "if(d.getElementById('j3b-wd-open')){return;}"
+        "var s=d.createElement('script');s.id='j3b-wd-open';"
+        f"s.textContent={_json.dumps(_J3B_WD_OPEN)};d.head.appendChild(s);}}catch(e){{}}}})();</script>",
         height=0,
     )
 except Exception:

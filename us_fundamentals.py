@@ -43,7 +43,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # 읽는 값이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게.
-MODULE_REVISION = 2026100911
+MODULE_REVISION = 2026100913
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 ROOT = Path(__file__).resolve().parent
@@ -987,30 +987,48 @@ def _earn_box(earn: dict, today) -> str:
         when = f" {earn['when']}" if earn.get("when") else ""
         lines.append(("다음 발표", f"<span class='j3st-hl'>{_kday(day)}{esc(when)}</span> · {tail}"))
     elif day is not None:
-        lines.append(("다음 발표", "<span class='j3st-dim'>지난 발표 뒤 새 날짜를 받는 중</span>"))
+        # 야후에 다음 날짜가 아직 없는 회사(지난 발표일만 남아 있다 — 2026-10-09 HPE·TOL·RIO 등 5종목).
+        lines.append(("다음 발표", f"<span class='j3st-dim'>다음 날짜 아직 안 나옴 · 지난 발표 {day.month}/{day.day}</span>"))
     else:
         lines.append(("다음 발표", "<span class='j3st-dim'>회사가 아직 날짜를 안 냈습니다</span>"))
-    history = [row for row in earn.get("hist") or [] if isinstance(row, list) and len(row) == 4]
-    if history:
-        better = sum(1 for _label, actual, expected, _s in history if actual > expected)
-        tone = "j3st-up" if better * 2 >= len(history) else "j3st-dn"
-        bars = []
-        top = max([abs(row[3]) for row in history if row[3] is not None] or [1.0]) or 1.0
-        for label, actual, expected, surprise in history:
-            height = 4 + 18 * min(1.0, abs(surprise or 0.0) / top)
-            color = "#4cc9f0" if actual > expected else "#ff6b6b"
-            word = "좋았음" if actual > expected else "못 미침" if actual < expected else "같음"
-            bars.append(f"<i style='height:{height:.0f}px;background:{color}' "
-                        f"title='{esc(label)} · 예상 {_eps(expected)} → 실제 {_eps(actual)} ({word})'></i>")
-        lines.append((f"지난 {len(history)}번",
-                      f"예상보다 <span class='{tone}'>좋았음 {len(history)}번 중 {better}번</span>"
-                      f"<span class='j3st-bars'>{''.join(bars)}</span>"))
     if earn.get("eps_est") is not None:
         estimate = float(earn["eps_est"])
         lines.append(("이번 예상", f"주당 이익 {_eps(estimate)}"
                       + (" (적자 예상)" if estimate < 0 else "") + " · 애널리스트 평균"))
+    # **지난 분기 — 막대 대신 표** (2026-10-09 상하님 테슬라 캡처 — "그래프는 뭘 의미하는지 모르겠다 · 분기 실적과도
+    # 그래프가 안 맞다"). 막대는 「예상과의 차이 %」였는데 설명이 없어, 매출·영업이익을 그린 「재무 한눈에」 분기
+    # 그림과 견주게 됐다. 이제 분기마다 예상·실제·차이를 숫자로 적고, 무엇을 견준 것인지 한 줄로 적는다.
+    history = [row for row in earn.get("hist") or [] if isinstance(row, list) and len(row) == 4]
+    table = ""
+    if history:
+        better = sum(1 for _label, actual, expected, _s in history if actual > expected)
+        tone = "j3st-up" if better * 2 >= len(history) else "j3st-dn"
+        lines.append((f"지난 {len(history)}번",
+                      f"예상보다 <span class='{tone}'>좋았음 {len(history)}번 중 {better}번</span>"))
+        heads, guesses, actuals, gaps = [], [], [], []
+        for label, actual, expected, surprise in history:
+            if surprise is None and expected:
+                surprise = (actual - expected) / abs(expected) * 100.0
+            color = "#4cc9f0" if actual > expected else "#ff6b6b" if actual < expected else "#cfe0ff"
+            heads.append(f"<th>{esc(str(label))}</th>")
+            guesses.append(f"<td>{_eps(expected)}</td>")
+            actuals.append(f"<td>{_eps(actual)}</td>")
+            # 예상이 0 에 가까우면 %가 터무니없이 커진다(COIN 26.03 예상 $0.04 → 실제 -$1.49 = -3459%) — 300% 넘으면 줄여 적는다.
+            if surprise is None:
+                gap_text = "—"
+            elif abs(surprise) >= 300:
+                gap_text = "+300%↑" if surprise > 0 else "-300%↓"
+            else:
+                gap_text = f"{surprise:+.0f}%"
+            gaps.append(f"<td style='color:{color}'>{gap_text}</td>")
+        table = ("<table class='j3st-eps'><thead><tr><th>분기</th>" + "".join(heads) + "</tr></thead><tbody>"
+                 "<tr><td>예상</td>" + "".join(guesses) + "</tr>"
+                 "<tr><td>실제</td>" + "".join(actuals) + "</tr>"
+                 "<tr><td>차이</td>" + "".join(gaps) + "</tr></tbody></table>"
+                 "<div class='j3st-note'>주당 이익(회사가 번 돈 ÷ 주식 수)이 증권사 예상보다 높았나 · 분기는 「재무 한눈에」 "
+                 "분기 실적과 같은 칸이고, 그쪽은 매출·영업이익의 크기입니다.</div>")
     rows = "".join(f"<div class='j3st-row'><b>{title}</b><span>{body}</span></div>" for title, body in lines)
-    return f"<div class='j3st-box'><div class='j3st-h'>📅 실적 발표</div>{rows}</div>"
+    return f"<div class='j3st-box'><div class='j3st-h'>📅 실적 발표</div>{rows}{table}</div>"
 
 
 def _ana_box(ana: dict, price_now) -> str:
@@ -1202,8 +1220,11 @@ STREET_CSS = """<style>
 .j3st-up{color:#4cc9f0;font-weight:800}
 .j3st-dn{color:#ff6b6b;font-weight:800}
 .j3st-dim{color:#7f9cc0;font-size:.74rem}
-.j3st-bars{display:inline-flex;align-items:flex-end;gap:3px;height:22px;margin-left:7px;vertical-align:-5px}
-.j3st-bars i{display:block;width:8px;border-radius:2px}
+.j3st-eps{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.76rem;margin:4px 0 0!important;border:none!important}
+.j3st-eps th,.j3st-eps td{border:none!important;text-align:right;padding:2px 4px;white-space:nowrap}
+.j3st-eps th{color:#8fb4de;font-weight:700;border-bottom:1px solid rgba(157,204,255,.18)!important}
+.j3st-eps td{color:#e6edf8;font-weight:700;border-bottom:1px solid rgba(157,204,255,.06)!important}
+.j3st-eps th:first-child,.j3st-eps td:first-child{text-align:left;color:#8fb4de;width:44px}
 .j3st-split{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:2px 0 3px}
 .j3st-split i{display:block}
 .j3st-legend{display:flex;justify-content:space-between;gap:6px;font-size:.76rem;font-weight:800}

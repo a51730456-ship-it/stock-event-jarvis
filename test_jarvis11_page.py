@@ -149,6 +149,8 @@ class SameScreenTests(unittest.TestCase):
         for left, right in zip(a[0], b[0]):
             self.assertEqual(left, right)
 
+    @unittest.skip("2026-10-09 — 자비스3 관심종목 카드에만 「🔎 선택종목 세부사항 보기」와 세부사항 창(숨은 단추)을 "
+                   "넣었다. 자비스11은 그대로 둔다(상하님 — 자비스11은 지우고 다시 베낄 예정).")
     def test_watch_screen_shows_the_same_words_and_buttons(self):
         j3, j11 = _run_home(J3), _run_home(J11)
         self.assertEqual(len(j3.exception), 0)

@@ -365,6 +365,19 @@ class StreetTests(unittest.TestCase):
         self.assertIn("11월 17일(화) 장 마감 뒤", html_text)
         self.assertIn("39일 남음", html_text)
         self.assertIn("좋았음 4번 중 4번", html_text)
+        # 막대 대신 분기 표 — 예상·실제·차이(2026-10-09 상하님 테슬라 캡처)
+        self.assertIn("j3st-eps", html_text)
+        self.assertIn("<th>26.07</th>", html_text)
+        self.assertIn("<td>$2.09</td>", html_text)
+        self.assertIn("<td>$2.22</td>", html_text)
+        self.assertIn(">+6%</td>", html_text)
+        self.assertNotIn("j3st-bars", html_text)
+        # 예상이 0 에 가까운 분기 · 다음 날짜가 아직 없는 회사(2026-10-09 자료 훑기)
+        odd = dict(entry, earn={"next": "2026-09-03", "hist": [["26.03", -1.49, 0.044, -3458.9]]})
+        with mock.patch.object(fn, "load", return_value={"COIN": odd}):
+            odd_html = fn.street_html("COIN", 300.0, today=dt.date(2026, 10, 9))
+        self.assertIn(">-300%↓</td>", odd_html)
+        self.assertIn("다음 날짜 아직 안 나옴 · 지난 발표 9/3", odd_html)
         self.assertIn("사라 58명", html_text)
         self.assertIn("59명 · 1년 뒤 예상", html_text)
         self.assertIn("지금보다 +43%", html_text)
@@ -419,6 +432,47 @@ class StreetTests(unittest.TestCase):
         self.assertEqual(PAGE.count("_krw_sub(shown_price)"), 3)
         self.assertIn("us_fundamentals.upcoming_html()", PAGE)
         self.assertIn('"j3_news_open_")', PAGE)
+
+
+
+class WatchDetailTests(unittest.TestCase):
+    """관심종목 카드 → 선택종목 세부사항 창 (2026-10-09 상하님 지시)."""
+
+    def test_card_has_relay_button_and_fragment_holds_hidden_buttons(self):
+        card = PAGE[PAGE.index("def _render_briefing_card("):PAGE.index("def _render_briefing_grid(")]
+        self.assertIn('class="j3b-wd-open" data-tk=', card)
+        self.assertNotIn("st.button(\"🔎", card)                     # 카드 안에는 스트림릿 단추를 두지 않는다
+        area = PAGE[PAGE.index("def _render_watch_detail_area("):PAGE.index("def _render_watch_detail()")]
+        self.assertIn("@st.fragment\ndef _render_watch_detail_area(", PAGE)   # 창 하나만 다시 그린다
+        self.assertIn('key=f"j3b_wdgo_{ticker}"', area)
+        self.assertIn("_render_watch_detail_area(tuple(dict(", PAGE)        # 같은 종목 두 번이면 하나만
+        self.assertIn("window.__j3bWdOpen", PAGE)
+        self.assertIn("'div.st-key-j3b_wdgo_' + tk + ' button'", PAGE)
+        self.assertIn("s.id='j3b-wd-open'", PAGE)
+
+    def test_detail_has_no_scores_and_closes_back_to_the_list(self):
+        body = PAGE[PAGE.index("def _render_watch_detail()"):PAGE.index("_WATCH_DETAIL_CSS = ")]
+        for word in ("_render_stock_detail(", "score", "_render_selected_live_quote("):
+            self.assertNotIn(word, body)                              # 배점·매수 심사는 뺀다
+        self.assertIn("j3data.analyze_one_stock(ticker)", body)          # 종목검색과 같은 길
+        self.assertIn("_overview_html(ticker, metrics)", body)
+        self.assertIn("_watch_list_places(ticker)", body)
+        self.assertEqual(body.count("on_click=_close_watch_detail"), 2)
+        self.assertIn("mobile_ui.watch_detail_css()", body)
+        self.assertNotIn("mobile_ui.page_css()", body)                # 시장분석 규칙 전체는 안 깐다
+        self.assertIn("_close_watch_detail()            # 관심종목에서 연 세부사항 창은 관심종목 것이다", PAGE)
+
+    def test_phone_lines_are_the_same_as_the_market_page(self):
+        import mobile_ui
+
+        for line in [row.strip() for row in mobile_ui.WATCH_DETAIL_PHONE_CSS.strip().splitlines()]:
+            self.assertIn(line, mobile_ui.CONTENT_CSS)
+        self.assertIn("@media (max-width: 600px)", mobile_ui.watch_detail_css())
+
+    def test_four_week_daily_prices(self):
+        self.assertIn("j3data.daily_price_rows(ticker, days=20, fill_last_session=True)", PAGE)
+        self.assertIn("📅 4주간 일별 시세 보기", PAGE)
+        self.assertNotIn("days=15", PAGE)
 
 
 if __name__ == "__main__":
