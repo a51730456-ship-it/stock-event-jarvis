@@ -33,6 +33,36 @@ class SourceTests(unittest.TestCase):
                      "j3-help-closing", 'key="j3b_nav_home"', 'key="j3b_nav_watch"', 'key="j3b_nav_market"'):
             self.assertIn(kept, self.SOURCE, kept)
 
+    def test_lighter_screens(self):
+        """2026-10-10 상하님 「1번 2번 3번 다 해라」 — 화면 무게 줄이기 · 세부 단추는 그 칸만 · 느린 단추 둘."""
+        import re as _re
+        src = self.SOURCE
+        # 꾸밈 글에서 설명 메모·줄바꿈만 뺀다 — 이 화면의 이름 st 만 바꾼다(스트림릿 자체는 그대로)
+        self.assertIn("st = _SlimStreamlit()", src)
+        part = src.split("import streamlit as _streamlit", 1)[1].split("class _SlimStreamlit", 1)[0]
+        ns = {"re": _re}
+        exec(part, ns)
+        sample = '<style>/* 메모 */\n.a{color:red}\n  /* 두 줄\n 메모 */ .b{content:"x  y"}</style><div>/* 글 */</div>'
+        self.assertEqual('<style>.a{color:red} .b{content:"x  y"}</style><div>/* 글 */</div>', ns["_slim_css_text"](sample))
+        self.assertEqual("글만", ns["_slim_css_text"]("글만"))
+        # 그림은 static/j12asset 주소로 — 파일이 있어야 한다(없으면 예전처럼 글자로 박는다)
+        self.assertIn('return f"app/static/j12asset/{served}"', src)
+        import hashlib
+        for name in ("hero_scene.webp", "hero_catbus_pop.webp", "soot_lamp_cut.webp", "NVDA.svg"):
+            data = (ROOT / "assets" / "briefing" / name).read_bytes()
+            stem, suffix = name.rsplit(".", 1)
+            self.assertTrue((ROOT / "static" / "j12asset" / f"{stem}-{hashlib.sha1(data).hexdigest()[:10]}.{suffix}").is_file(), name)
+        # 세부사항 안 단추 셋은 각자 작은 덩이
+        for box in ("_day_price_box", "_stock_news_box", "_leader_comparison_box"):
+            self.assertIn(f"@st.fragment\ndef {box}(", src)
+        self.assertEqual(4, src.count("_day_price_box(metrics, ticker, panel)"))
+        self.assertEqual(4, src.count("_stock_news_box(ticker, panel)"))
+        # 날짜별 목록 「전부 엑셀」은 누를 때 만든다 · 종목검색 목록은 미리(뒤 일꾼)
+        self.assertIn('lazy_slot = _picklist_lazy_all_excel("US")', src)
+        self.assertIn("st.session_state.pop(lazy_slot, None)", src)
+        self.assertIn("target=j3data._background(j3data._us_listing)", src)
+        self.assertIn("_warm_us_listing_later()", src)
+
     def test_fundamentals_sit_right_under_the_street_boxes(self):
         body = self.SOURCE[self.SOURCE.index("def _render_stock_detail("):]
         self.assertLess(body.index("_render_fundamentals_box(ticker, metrics, panel=panel)"),

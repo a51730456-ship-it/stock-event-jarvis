@@ -15,7 +15,50 @@ import html
 from pathlib import Path
 import re
 
-import streamlit as st
+import streamlit as _streamlit
+
+# ── 꾸밈 글을 가볍게 (2026-10-10 상하님 「2번 — 화면 무게 줄이기」) ──────────────────────
+# 폰은 화면을 바꿀 때마다 꾸밈 글(<style>)을 다시 읽는다. 이 화면이 보내는 꾸밈 글에는 그때그때 남긴 설명
+# 메모(/* … */)와 줄바꿈 빈칸이 섞여 있었다 — 노트북 실측 관심종목 18.7만 자 중 3.6만 자 · 시장분석 26.4만 자 중
+# 5.9만 자가 메모였다. 메모와 줄바꿈만 빼고 보낸다 — 꾸밈 규칙은 한 글자도 안 바뀌어 보이는 모양은 그대로다.
+# 메모는 이 파일(그리고 자비스3)에 그대로 남는다. **바꾸는 것은 이 화면 안에서 쓰는 이름 st 뿐이다** —
+# 스트림릿 자체나 자비스3 이 쓰는 모듈은 손대지 않는다(CLAUDE.md 0-2). st.markdown 말고는 그대로 넘긴다.
+_CSS_BLOCK = re.compile(r"(<style\b[^>]*>)(.*?)(</style>)", re.S | re.I)
+_CSS_NOTE = re.compile(r"/\*.*?\*/", re.S)
+_CSS_BREAK = re.compile(r"\s*\n\s*")
+_SLIM_MEMO: dict = {}
+
+
+def _slim_css_text(body):
+    """<style> 안의 설명 메모와 줄바꿈 빈칸만 뺀다. 꾸밈이 없는 글은 그대로 돌려준다."""
+    if not isinstance(body, str) or "<style" not in body:
+        return body
+    hit = _SLIM_MEMO.get(body)
+    if hit is not None:
+        return hit
+
+    def _tidy(match):
+        css = _CSS_BREAK.sub(" ", _CSS_NOTE.sub("", match.group(2)))
+        return match.group(1) + css.strip() + match.group(3)
+
+    slim = _CSS_BLOCK.sub(_tidy, body)
+    if len(_SLIM_MEMO) > 400:
+        _SLIM_MEMO.clear()
+    _SLIM_MEMO[body] = slim
+    return slim
+
+
+class _SlimStreamlit:
+    """이 화면의 st — markdown 만 꾸밈 글을 가볍게 해서 넘기고, 나머지는 스트림릿 그대로다."""
+
+    def __getattr__(self, name):
+        return getattr(_streamlit, name)
+
+    def markdown(self, body, *args, **kwargs):
+        return _streamlit.markdown(_slim_css_text(body), *args, **kwargs)
+
+
+st = _SlimStreamlit()
 
 # 스트림릿 1.59 버그 막기 — 덩이만 다시 그리는 판에서는 조각을 「이미 가진 것」 표시로 줄여 보내지
 # 않는다. 안 막으면 급락 목록 종목을 누를 때 화면이 하얗게 죽을 수 있다(2026-09-24 · 그 파일 설명).
@@ -4740,6 +4783,29 @@ def _stock_radio_label(item: dict) -> str:
     )
 
 
+# ── 세부사항 안 단추 셋은 **그 칸만** 다시 그린다 (2026-10-10 상하님 「1번·3번」) ─────────────────
+# 온라인 실측(느린 폰 4배) — 테마 세부의 「4주간 일별 시세」 2.4~3.3초 · 「종목 뉴스」 3.2초 · 「대장주 1~3위 비교」
+# 2.4~2.9초. 단추 하나에 테마 구역 덩이 전체(테마 표·종목 표·세부사항)를 다시 그렸기 때문이다. 이 셋을 각자 작은
+# 덩이로 싸서 누르면 그 칸만 다시 그린다(덩이 안의 덩이 — 「최근가」 칸 _render_selected_live_quote 가 이미 그렇다).
+# 받는 자료·보이는 것은 그대로다. 4주간 시세를 미리 그려 두지 않은 까닭 — 테마 종목은 2년치 묶음만 받아 두어
+# 4주간 표가 쓰는 6개월치가 없다. 미리 그리면 세부사항을 열 때마다 종목당 1~2초를 더 받는다(CLAUDE.md 0-0).
+@st.fragment
+def _day_price_box(metrics: dict, ticker: str, panel: str) -> None:
+    _render_day_price_row(metrics, ticker, panel=panel)
+
+
+@st.fragment
+def _stock_news_box(ticker: str, panel: str) -> None:
+    _render_stock_news_box(ticker, panel=panel)
+
+
+@st.fragment
+def _leader_comparison_box(leaders: list) -> None:
+    _render_leader_comparison(leaders)
+    # 열 때 그 자리로 올리는 표시(scroll_to.request)는 덩이 끝에서 돈다 — 이 작은 덩이만 다시 돌 때도 올린다.
+    scroll_to.run(st)
+
+
 def _render_stock_detail(
     theme_row: dict, leader: dict, market: dict, top_candidates: list[dict], stock_key: str,
     *, panel: str = "theme", on_close=None,
@@ -4780,9 +4846,9 @@ def _render_stock_detail(
     # 게스트도 종목명·가격·차트는 본다. 사용자가 지정한 세 캡처 영역
     # (점수/선정 근거·매수 심사·추천 근거)만 만들지 않는다.
     if auth.is_guest():
-        _render_day_price_row(metrics, ticker, panel=panel)
+        _day_price_box(metrics, ticker, panel)
         _render_price_chart_bundle(ticker, panel=panel)
-        _render_stock_news_box(ticker, panel=panel)
+        _stock_news_box(ticker, panel)
         _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기",
                        on_close=on_close)
         return
@@ -5100,12 +5166,12 @@ def _render_stock_detail(
             st.warning(plan.get("buy_reason"))
 
     # 위 '테마 내 종합' 박스와 한 줄 더 띄운 뒤 당일 가격·차트 섹션을 시작한다.
-    _render_day_price_row(metrics, ticker, panel=panel)
+    _day_price_box(metrics, ticker, panel)
     # 당일 차트가 이 상세에만 없었다(2026-08-06 상하님 지적) — 순위 7에서 테마
     # 대장주를 고르면 여기로 오는데 당일 차트가 안 나왔다.
     # panel을 넘겨야 같은 종목을 위·아래 두 상세에서 열어도 단추 키가 안 겹친다.
     _render_price_chart_bundle(ticker, panel=panel)
-    _render_stock_news_box(ticker, panel=panel)
+    _stock_news_box(ticker, panel)
 
     st.markdown("<div class='j3-section-title'>추천 근거 요약</div>", unsafe_allow_html=True)
     reason_cards = [
@@ -7284,6 +7350,40 @@ def _render_picklist_scorecard(part: str):
     return True
 
 
+def _picklist_lazy_all_excel(market: str):
+    """「⬇ 저장해 둔 n일치 전부 (.xlsx)」 를 **누를 때** 만들게 한다 (2026-10-10 상하님 「3번 — 느린 단추」).
+
+    측정(노트북 · 날짜별 목록 열기 서버 3.56초) — 그중 2.74초가 이 엑셀을 **미리** 만드는 일이었다. 단추를 안 눌러도
+    목록을 열 때마다(세션마다 처음 한 번) 만들었다. 스트림릿 1.59 받기 단추는 「누르면 그때 만드는 함수」를 받는다.
+    목록을 그리는 picklist_ui 는 자비스3 과 같이 쓰는 파일이라 고치지 않는다(CLAUDE.md 0-2) — 그 파일이 「이미 만든
+    파일」을 찾는 세션 칸(picklist_file_xlsx_all_*)에 같은 이름표로 그 함수를 **미리 끼워 두고**, 그린 뒤 거둔다.
+    이름표(마지막 날|날 수|줄 수)가 다르면 picklist_ui 가 예전처럼 직접 만든다 — 틀려도 느려질 뿐 망가지지 않는다.
+    """
+    slot = f"picklist_file_xlsx_all_{market}"
+    try:
+        import importlib.util
+
+        if not st.session_state.get(picklist_ui.open_key(market)):
+            return None
+        if importlib.util.find_spec("openpyxl") is None:
+            return None
+        store = picklist_ui.store
+        dates = store.available_dates(market)
+        every = []
+        for day in dates:
+            try:
+                every.extend(store.load_rows(day, market) or [])
+            except Exception:
+                continue
+        if len(dates) <= 1 or not every:
+            return None
+        rows = list(every)
+        st.session_state[slot] = (f"{dates[0]}|{len(dates)}|{len(every)}", lambda: store.to_excel_bytes(rows))
+        return slot
+    except Exception:
+        return None
+
+
 @st.fragment
 def _render_picklist_section(market: dict, ranking: dict) -> None:
     """날짜별로 저장해 둔 목록 — **제 덩이만** 다시 그린다 (2026-09-13 상하님 —
@@ -7294,6 +7394,7 @@ def _render_picklist_section(market: dict, ranking: dict) -> None:
     바깥이 이 구역의 상태를 보지 않으므로 덩이 하나로 묶는다. 안에서 누르는
     날짜 고르기·종목 누르기도 이 덩이만 다시 그린다.
     """
+    lazy_slot = _picklist_lazy_all_excel("US")
     picklist_ui.render(
         st, "US", toggle=_picklist_toggle, close=_section_close,
         # 그 줄이 어느 파트에서 나왔는지에 따라 **다른 배점표**로 보내야 한다.
@@ -7304,6 +7405,9 @@ def _render_picklist_section(market: dict, ranking: dict) -> None:
         # 자리는 비워 둔다 — None 을 넘기면 CSV 단추가 되살아난다.
         scorecard=_picklist_no_scorecard,
     )
+    if lazy_slot:
+        # 받기 단추는 그릴 때 이미 그 함수를 쥐었다 — 칸은 거둔다(같은 세션의 자비스3 은 예전 그대로 만든다).
+        st.session_state.pop(lazy_slot, None)
     # **파트별 성적표는 목록 밖, 「날짜별로 저장해 둔 목록 보기」 밑** (2026-09-25 상하님 — "날짜별로
     # 저장해 둔 목록 보기 안에 파트별 성적표 보기를 바깥으로 빼라. 날짜별로 저장해 둔 목록 보기 밑에
     # 넣어라"). 목록을 안 열어도 바로 볼 수 있다. 목록을 열면 목록 끝 뒤에 선다.
@@ -7638,7 +7742,7 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
         )
         # 「🏅 대장주 1~3위 비교」는 **「상세 종목 선택」 밑 · 「선택종목 세부사항」 위**다 (2026-10-09 상하님 지시 —
         # "상세 종목 선택 밑에, 즉 선택 종목 세부사항 닫기 위에 넣어라"). 예전 자리는 1~6위 표 바로 밑이었다.
-        _render_leader_comparison(leaders)
+        _leader_comparison_box(leaders)
         _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     # 맨 아래 닫기도 위 단추와 **같은 일**을 한다 — 어디서 닫든 같은 화면으로
     # 돌아가야 한다(2026-08-28 상하님 지시).
@@ -8509,10 +8613,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     # 현재가 칸 위에 둔다(2026-10-09 상하님 지시 — "공매도 내부자 배당 밑에, 현재가 최근 3개월 등수 위에").
     _render_fundamentals_box(ticker, metrics, panel=panel)
     if auth.is_guest():
-        _render_day_price_row(metrics, ticker, panel=panel)
+        _day_price_box(metrics, ticker, panel)
         # 당일 그림은 이제 아래 네 그림 판에 함께 들어간다(2026-08-28).
         _render_price_chart_bundle(ticker, panel=panel)
-        _render_stock_news_box(ticker, panel=panel)
+        _stock_news_box(ticker, panel)
         _section_close(detail_key, "선택종목 세부사항 닫기")
         return
     # 현재가 칸 글씨 크기는 테마 대장주의 「최근가」 칸과 같게 둔다(j3-mc-price ·
@@ -8870,9 +8974,9 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         "이 선택은 위의 테마·대장주 선택을 바꾸지 않습니다. 종목 이름을 다시 누르면 "
         "이 상세와 당일·일봉·주봉·월봉 차트만 즉시 교체됩니다."
     )
-    _render_day_price_row(metrics, ticker, panel=panel)
+    _day_price_box(metrics, ticker, panel)
     _render_price_chart_bundle(ticker, panel=panel)
-    _render_stock_news_box(ticker, panel=panel)
+    _stock_news_box(ticker, panel)
 
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
     _section_close(detail_key, "선택종목 세부사항 닫기")
@@ -11278,10 +11382,24 @@ def _briefing_asset_uri(filename: str) -> str:
     """첫 화면 전용 로컬 장식·로고를 HTML 안에서 안전하게 쓴다.
 
     외부 hotlink 없이 배포본에도 같은 자산을 보여 주기 위한 data URI다.
+
+    **같은 그림이 `static/j12asset/` 에 있으면 주소로 부른다** (2026-10-10 상하님 「2번 — 화면 무게 줄이기」).
+    배너·꾸밈 그림·로고가 글자로 박혀 관심종목 화면 글이 8.8만 자 늘었고, 폰은 화면을 바꿀 때마다 그 글을
+    다시 읽었다. 주소로 부르면 브라우저가 한 번 받아 기억한다(회사 로고 2026-09-24 와 같은 방법). 파일 이름에
+    내용 도장(sha1 앞 10자)을 붙여 그림이 바뀌면 주소도 바뀐다. **없으면 예전처럼 글자로 박는다**(그림이 사라지면 안 된다).
     """
     asset = Path(__file__).resolve().parents[1] / "assets" / "briefing" / filename
     if not asset.is_file():
         return ""
+    try:
+        import hashlib
+
+        stamp = hashlib.sha1(asset.read_bytes()).hexdigest()[:10]
+        served = f"{asset.stem}-{stamp}{asset.suffix}"
+        if (Path(__file__).resolve().parents[1] / "static" / "j12asset" / served).is_file():
+            return f"app/static/j12asset/{served}"
+    except Exception:
+        pass
     mime = {".svg": "image/svg+xml", ".webp": "image/webp"}.get(asset.suffix.lower(), "image/png")
     encoded = base64.b64encode(asset.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{encoded}"
@@ -13888,6 +14006,37 @@ def _render_briefing_bottom_nav(active: str) -> None:
                           on_click=_set_briefing_page, args=("market",))
 
 
+@st.cache_resource(show_spinner=False)
+def _us_listing_warm_state() -> dict:
+    return {"lock": threading.Lock(), "thread": None}
+
+
+def _warm_us_listing_later() -> None:
+    """종목검색 첫 검색의 13~14초를 없앤다 (2026-10-10 상하님 「3번 — 느린 단추」).
+
+    명부에 없는 종목(예: INTC)을 찾으면 미국 상장 종목 목록(약 7천 줄)이 있어야 한다. 그 목록은 하루 동안 파일
+    (cache/us_listing.json)로 남는데, 파일이 없거나 하루가 지나면 **누른 사람이** 13~14초를 기다렸다(노트북 실측 13.08초).
+    시장분석을 다 그린 **뒤에**, 파일이 없거나 23시간이 넘었을 때만 뒤 일꾼으로 받아 둔다 — jarvis3_data._background 가
+    화면이 그리는 동안은 비켜서고 다른 뒤 일과 차례를 지킨다(CLAUDE.md 0-0). 실패해도 화면은 그대로다 — 그때는 예전처럼
+    검색할 때 받는다. jarvis3_data 는 고치지 않고 부르기만 한다(CLAUDE.md 0-2).
+    """
+    try:
+        path = Path(__file__).resolve().parents[1] / "cache" / "us_listing.json"
+        if path.exists() and time.time() - path.stat().st_mtime < 23 * 3600:
+            return
+        state = _us_listing_warm_state()
+        with state["lock"]:
+            running = state.get("thread")
+            if running is not None and running.is_alive():
+                return
+            worker = threading.Thread(target=j3data._background(j3data._us_listing),
+                                      name="j12-us-listing-warm", daemon=True)
+            state["thread"] = worker
+            worker.start()
+    except Exception:
+        pass
+
+
 def _render_stock_briefing() -> None:
     # 미리 계산은 이 화면 **맨 끝**에서, 그것도 뉴스가 다 온 뒤에 시작한다
     # (_warm_after_news). 여기 맨 앞에 두면 첫 화면과 뉴스가 밀린다.
@@ -13931,6 +14080,8 @@ def _render_stock_briefing() -> None:
         _render_briefing_bottom_nav("market")
         # 바깥 화면 작은 장치들(손가락 넘기기는 2026-10-09 뺐다 — 밑 막대로 옮긴다).
         _briefing_outer_scripts()
+        # 종목검색이 처음 쓸 미국 상장 종목 목록을 미리(하루 한 번 · 화면이 다 그린 뒤 · 뒤 일꾼 차례로).
+        _warm_us_listing_later()
         return
     st.session_state["j3b_news_pending"] = False
     try:
