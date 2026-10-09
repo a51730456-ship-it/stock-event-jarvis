@@ -32,7 +32,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 화면 구성이나 문구를 바꾸면 이 숫자를 올린다(CLAUDE.md 11번 규칙).
-MODULE_REVISION = 2026093001
+MODULE_REVISION = 2026100901
 
 # 판을 누르면 이 표식을 달고 그 화면으로 간다. 받는 쪽(pages/*.py)이 이것을 보고
 # 비밀번호 없이 게스트로 들여보낸다. 게스트는 원래도 비밀번호 없이 들어갈 수 있으므로
@@ -48,8 +48,12 @@ PANELS = (
 # **폰·태블릿(1200px 이하)에서만** 오른쪽 판을 한국증시로 바꾼다 (2026-09-30 상하님 지시 —
 # "기존에 한국테마 스마트폰이나 테블릿에서 빼고 너가 한국증시 새로 만들어 올려라").
 # 노트북·PC 는 그대로 한국테마다. 두 판을 다 그려 두고 CSS 로 하나만 보인다(판 수는 늘 둘).
+#
+# **2026-10-09 오른쪽 판(폰·태블릿)을 자비스12 미국테마로 바꿨다** (상하님 — 한국증시를 숨기면서 「1번으로 해라」).
+# 넷째 값은 판의 국기·그림을 어느 나라 것으로 그릴지다(없으면 그 자리 나라 그대로).
+# 옛 값(한국증시로 되돌릴 때): ("pages/9_자비스10.py", "한국증시", "코스피 지수 30년 · 한국·미국 시장")
 PHONE_PANELS = {
-    "KR": ("pages/9_자비스10.py", "한국증시", "코스피 지수 30년 · 한국·미국 시장"),
+    "KR": ("pages/11_자비스12.py", "미국테마 (자비스12)", "자비스3 을 베낀 판 · 여기서 고친다", "US"),
 }
 PHONE_MAX_WIDTH = 1200
 
@@ -559,8 +563,8 @@ def render(st) -> None:
             with st.container(key=f"jp_desk_{market}"):
                 _board(market, page, name, note)
             with st.container(key=f"jp_phone_{market}"):
-                _board(f"{market}M", *swap)
-            styles.append(panel_style(index, market, key=f"{market}M"))
+                _board(f"{market}M", *swap[:3])
+            styles.append(panel_style(index, swap[3] if len(swap) > 3 else market, key=f"{market}M"))
             # 스트림릿 1.59 는 이름 붙인 상자를 겉싸개(stLayoutWrapper)로 한 겹 더 싼다. 안쪽만 감추면
             # 겉싸개가 틈(16px)을 하나 더 만들어 오른쪽 판이 16px 처졌다(2026-09-30 실측) — 겉싸개도 감춘다.
             wrap = '[data-testid="stLayoutWrapper"]:has(> .st-key-jp_{}_{})'

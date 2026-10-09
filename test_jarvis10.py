@@ -20,6 +20,13 @@ ROOT = Path(__file__).parent
 PAGE = ROOT / "pages" / "9_자비스10.py"
 PAGE_SOURCE = PAGE.read_text(encoding="utf-8")
 
+import page_access  # noqa: E402
+
+# **2026-10-09 한국증시(자비스10)를 숨겼다**(상하님 — "자비스10 자비스11 을 숨기기 한 상태에서").
+# 숨긴 화면은 안내만 그리고 멈추므로 화면을 띄우는 시험은 건너뛴다. 도로 열면 저절로 다시 돈다.
+_J10_OPEN = page_access.is_open("한국증시")
+_J10_WHY = "한국증시 화면을 숨겨 두어(page_access.OPEN_PAGES · 2026-10-09) 화면을 띄우는 시험은 막혀 있다"
+
 
 def _rising(n: int = 3200, start: float = 1000.0, step: float = 0.0004) -> pd.Series:
     idx = pd.bdate_range("2012-01-02", periods=n)
@@ -315,6 +322,7 @@ class PageSourceTests(unittest.TestCase):
         self.assertEqual(u.MODULE_REVISION, ui_req)
 
 
+@unittest.skipUnless(_J10_OPEN, _J10_WHY)
 class PageRunTests(unittest.TestCase):
     def test_page_runs_offline_without_exceptions(self):
         from streamlit.testing.v1 import AppTest

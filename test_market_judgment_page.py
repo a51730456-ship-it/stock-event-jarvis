@@ -187,7 +187,8 @@ class ClosedPageTest(unittest.TestCase):
         # 2026-09-11 상하님 지시로 자비스6미국테마를 도로 닫았다
         # ("자비스6 온라인 화면에서 안 보이게 해라"). 자비스7 은 열려 있다.
         # 2026-09-25 자비스8, 2026-09-30 한국증시(자비스10), 2026-10-01 자비스11 이 늘었다.
-        self.assertEqual(("미국테마", "한국증시", "한국테마", "자비스7", "자비스8", "자비스11"),
+        # 2026-10-09 한국증시·자비스11 을 숨기고 자비스12 를 열었다.
+        self.assertEqual(("미국테마", "한국테마", "자비스7", "자비스8", "자비스12"),
                          page_access.OPEN_PAGES)
         for closed in ("시장판단", "자비스1", "자비스2", "자비스5", "자비스6"):
             self.assertFalse(page_access.is_open(closed), closed)

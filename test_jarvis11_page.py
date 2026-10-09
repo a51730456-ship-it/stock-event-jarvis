@@ -23,6 +23,14 @@ ROOT = Path(__file__).parent
 J3 = ROOT / "pages" / "2_자비스3.py"
 J11 = ROOT / "pages" / "10_자비스11.py"
 
+import page_access  # noqa: E402
+
+# **2026-10-09 자비스11 을 숨겼다**(상하님 — "자비스10 자비스11 을 숨기기 한 상태에서 다시 자비스12 미국테마 우선").
+# 숨긴 화면은 안내만 그리고 멈추므로 **화면을 띄우는 시험은 건너뛴다** — 시험이 틀린 것이 아니라 길이 막힌 것이다.
+# page_access.OPEN_PAGES 에 이름을 도로 넣으면 저절로 다시 돈다(자비스5 와 같은 방식).
+_J11_OPEN = page_access.is_open("자비스11")
+_J11_WHY = "자비스11 화면을 숨겨 두어(page_access.OPEN_PAGES · 2026-10-09) 화면을 띄우는 시험은 막혀 있다"
+
 
 def _same_words(value: str) -> str:
     """자비스11 이 일부러 바꾼 글자(화면 표식·제목 숫자)와 시각을 맞춰 둔다."""
@@ -160,6 +168,7 @@ class SameScreenTests(unittest.TestCase):
         self.assertEqual(a, b)
 
 
+@unittest.skipUnless(_J11_OPEN, _J11_WHY)
 class ThemeLaterTests(unittest.TestCase):
     """259종목 자료를 새로 받아야 하는 판 — 테마 칸만 「받는 중」, 나머지는 먼저 (2026-10-01 상하님 「1」)."""
 
@@ -283,6 +292,7 @@ class NewsRedrawTests(unittest.TestCase):
         self.assertEqual("redraw", decide(20, 3, 45.0), "45초가 되면 온 만큼 한 번에")
         self.assertEqual("stop", decide(20, 20, 45.0), "하나도 안 왔으면 헛그리지 않고 그만 본다")
 
+    @unittest.skipUnless(_J11_OPEN, _J11_WHY)
     def test_blank_spots_are_remembered_only_when_nothing_to_show(self):
         blank_run = _run_home(J11, {"ok": True, "items": [], "pending": True})
         self.assertEqual(len(blank_run.exception), 0)
