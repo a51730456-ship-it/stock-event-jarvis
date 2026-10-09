@@ -462,6 +462,20 @@ class WatchDetailTests(unittest.TestCase):
         self.assertNotIn("mobile_ui.page_css()", body)                # 시장분석 규칙 전체는 안 깐다
         self.assertIn("_close_watch_detail()            # 관심종목에서 연 세부사항 창은 관심종목 것이다", PAGE)
 
+    def test_window_opens_without_flashing_list_quick_four_weeks_and_scrolls_to_charts(self):
+        # 2026-10-09 상하님 — "관심종목 메인으로 갔다가 들어간다 · 4주간 버벅 · 차트가 화면 중간으로"
+        self.assertIn("wait.id = 'j3b-wd-wait';", PAGE)                 # 누른 순간 「여는 중」을 덮는다
+        self.assertIn("if (ready() || Date.now() - started > 15000)", PAGE)  # 큰 판은 창이 온 뒤에 닫는다
+        body = PAGE[PAGE.index("def _render_watch_detail()"):PAGE.index("_WATCH_DETAIL_CSS = ")]
+        self.assertIn("_render_day_price_row(metrics, ticker, panel=_WATCH_PANEL, prebuilt=True)", body)
+        self.assertIn("scroll_to.anchor(st, _WATCH_CHART_ANCHOR)", body)
+        self.assertIn("on_open=lambda: scroll_to.request(st, _WATCH_CHART_ANCHOR)", body)
+        area = PAGE[PAGE.index("def _render_watch_detail_area("):PAGE.index("def _render_watch_detail()")]
+        self.assertIn("scroll_to.run(st)", area)                       # 덩이만 돈 판에도 올린다
+        row = PAGE[PAGE.index("def _render_day_price_row("):PAGE.index("THUMB_CHART_HEIGHT = ")]
+        self.assertIn("if not prebuilt and not st.session_state.get(key):", row)
+        self.assertIn("pop_now = not prebuilt and not st.session_state.get(shown_key)", row)
+
     def test_phone_lines_are_the_same_as_the_market_page(self):
         import mobile_ui
 

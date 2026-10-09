@@ -2990,7 +2990,7 @@ def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel:
 
 
 def _render_day_price_row(metrics: dict, ticker: str | None = None,
-                          *, panel: str = "") -> None:
+                          *, panel: str = "", prebuilt: bool = False) -> None:
     """**2주간 일별 시세 보기** — 눌러야 펴진다 (2026-09-02 상하님 지시).
 
     상하님 — *"선택종목 세부사항란의 「당일 가격 시가/고가/저가 한눈에 보기」를
@@ -3021,7 +3021,10 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
     # 종목이면 받는 데 2초 안팎이 든다(노트북 실측 1.9~2.3초). 늘 미리 만들면 종목을 누를
     # 때마다 그만큼 늦어진다. 그래서 첫 누름은 예전처럼 서버 단추 → 표를 만들어 **곧바로 창을
     # 띄우고**, 그 뒤로는 차트 큰 창·순위 9 창과 같은 숨은 스위치로 여닫는다(서버에 안 묻는다).
-    if not st.session_state.get(key):
+    # **prebuilt — 표를 처음부터 만들어 숨겨 둔다** (2026-10-09 상하님 — 관심종목 세부사항 창에서 "4주간 일별 시세
+    # 보기 클릭하면 버벅거리면서 뜬다"). 그 창은 관심종목 카드가 받아 둔 6개월 일봉·분봉을 이미 쥐고 있어 표를
+    # 만드는 데 거의 안 든다. 그래서 첫 누름도 서버를 안 거치고 숨은 스위치로 곧바로 뜬다(재무 한눈에와 같다).
+    if not prebuilt and not st.session_state.get(key):
         st.session_state.pop(key + "_shown", None)     # 다시 누르면 곧바로 뜨게
         _section_toggle(
             "📅 4주간 일별 시세 보기 — 클릭하면 볼 수 있습니다", key,
@@ -3035,7 +3038,8 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
         rows = []
     if not rows:
         st.caption("일별 시세를 불러오지 못했습니다.")
-        _section_close(key, "4주간 일별 시세 닫기")
+        if not prebuilt:
+            _section_close(key, "4주간 일별 시세 닫기")
         return
     # **색은 앱 규칙을 그대로 쓴다** (2026-09-02 상하님 — "화면은 흰색으로
     # 하라는 게 아니다"). 칸 짜임만 네이버 「일별 시세」와 같게 하고, 흰 바탕·
@@ -3057,8 +3061,9 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
     # 막 누른 판에서만 창을 **열린 채로** 보낸다 — 그 뒤 판은 닫힌 채로 보내 화면이 다시
     # 그려질 때 창이 저절로 떠오르지 않게 한다. 다시 여닫는 것은 숨은 스위치가 한다.
     shown_key = key + "_shown"
-    pop_now = not st.session_state.get(shown_key)
-    st.session_state[shown_key] = True
+    pop_now = not prebuilt and not st.session_state.get(shown_key)
+    if not prebuilt:
+        st.session_state[shown_key] = True
     tap_id = "j3dp-" + re.sub(r"[^A-Za-z0-9]", "_", key)
     table = (f"<table class='j3dp'><thead><tr><th>날짜</th><th>종가</th>"
              f"<th>전일대비</th><th>등락률</th></tr></thead><tbody>{''.join(body)}</tbody></table>")
@@ -3166,7 +3171,7 @@ def _chart_zoom_html(boxes: list, zoom: str) -> str:
     return f"<div class='j3cz'>{taps}<div class='j3-chart-grid'>{cells}</div>{pops}</div>"
 
 
-def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
+def _render_price_chart_bundle(ticker: str, *, panel: str = "theme", on_open=None) -> None:
     """선택 종목의 **당일·일봉·주봉·월봉 넷을 한 판에** 그린다 (2026-08-28).
 
     상하님 지시 두 가지를 한 번에 담았다.
@@ -3188,7 +3193,7 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme") -> None:
     """
     if not _section_toggle(
         "📊 당일 · 일봉 · 주봉 · 월봉 보기", f"j3_bundle_open_{panel}",
-        close_label="차트 닫기",
+        close_label="차트 닫기", on_open=on_open,
     ):
         return
     st.caption(
@@ -12655,6 +12660,7 @@ _WATCH_DETAIL_KEY = "j3b_wdetail"
 _WATCH_DETAIL_OPEN = "j3b_wdetail_open"
 _WATCH_DETAIL_FRESH = "j3b_wdetail_fresh"
 _WATCH_PANEL = "watch"
+_WATCH_CHART_ANCHOR = "watch_charts"
 
 
 def _open_watch_detail(ticker: str, name: str) -> None:
@@ -12738,6 +12744,8 @@ def _render_watch_detail_area(stocks: tuple) -> None:
             st.button(f"{ticker} 세부사항", key=f"j3b_wdgo_{ticker}", on_click=_open_watch_detail,
                       args=(ticker, name))
     _render_watch_detail()
+    # 덩이만 다시 돈 판에는 페이지 맨 끝의 scroll_to.run 이 안 돈다 — 여기서 한 번(차트 자리로 올리기).
+    scroll_to.run(st)
 
 
 def _render_watch_detail() -> None:
@@ -12779,9 +12787,13 @@ def _render_watch_detail() -> None:
             unsafe_allow_html=True,
         )
         if metrics:
-            _render_day_price_row(metrics, ticker, panel=_WATCH_PANEL)
+            _render_day_price_row(metrics, ticker, panel=_WATCH_PANEL, prebuilt=True)
             _render_fundamentals_box(ticker, metrics, panel=_WATCH_PANEL)
-            _render_price_chart_bundle(ticker, panel=_WATCH_PANEL)
+            # 「📊 당일·일봉·주봉·월봉 보기」를 누르면 창이 차트 자리로 올라간다(2026-10-09 상하님 — "차트가 화면
+            # 중간으로 올라가도록 해라 · 지금은 눌러 놓고 또 밑으로 내려야 보인다"). 자리 표시는 단추 바로 위.
+            scroll_to.anchor(st, _WATCH_CHART_ANCHOR)
+            _render_price_chart_bundle(ticker, panel=_WATCH_PANEL,
+                                       on_open=lambda: scroll_to.request(st, _WATCH_CHART_ANCHOR))
         else:
             st.caption(f"{ticker} 시세를 받지 못했습니다 · {_safe_error_text(result.get('error'))}")
         st.button("✕ 닫기 — 관심종목으로", key="j3b_wd_close_bottom", on_click=_close_watch_detail)
@@ -12803,6 +12815,12 @@ div[class*="st-key-j3b_wd_close_"] button{border-radius:12px!important;border:1p
   background:linear-gradient(90deg,#4a3206 0%,#b88a12 60%,#e3b52c 100%)!important}
 div[class*="st-key-j3b_wd_close_"] button p{color:#fff!important;font-weight:800!important}
 .j3b-wd-note{font-size:.74rem;color:#6f93bd;margin:2px 0 4px}
+div.st-key-j3b_wdetail #jarvis-anchor-watch_charts{scroll-margin-top:12px}
+/* 「○○ 세부사항을 여는 중…」 — 그림 단추를 누른 순간 덮는다. 진짜 창이 다 오면 작은 장치가 걷는다. */
+#j3b-wd-wait{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,#0a2350 0%,#061636 60%,#05122d 100%);color:#dfe9ff;font-size:16px;font-weight:800;
+  font-family:"Noto Sans KR","Malgun Gothic",sans-serif}
+#j3b-wd-wait span{padding:14px 18px;border:1px solid #2b4f80;border-radius:14px;background:rgba(77,127,208,.12)}
 </style>"""
 
 
@@ -15190,11 +15208,35 @@ _J3B_WD_OPEN = """
     var go = e.target && e.target.closest ? e.target.closest('.j3b-wd-open') : null;
     if (!go) { return; }
     e.preventDefault(); e.stopPropagation();
-    var box = go.closest('details');
-    if (box) { box.open = false; box.classList.remove('j3b-closing'); }
     var tk = go.getAttribute('data-tk') || '';
     var btn = document.querySelector('div.st-key-j3b_wdgo_' + tk + ' button');
-    if (btn) { btn.click(); }
+    if (!btn) { return; }
+    // 누른 순간 「여는 중」 화면을 덮는다 — 큰 판을 먼저 닫으면 창이 올 때까지(약 1초) 관심종목 목록이 비쳤다
+    // (2026-10-09 상하님 — "바로 안 뜨고 관심종목 메인으로 갔다가 들어간다").
+    var box = go.closest('details');
+    var old = document.getElementById('j3b-wd-wait');
+    if (old) { old.remove(); }
+    var wait = document.createElement('div');
+    wait.id = 'j3b-wd-wait';
+    var label = document.createElement('span');
+    label.textContent = '🔎 ' + tk + ' 세부사항을 여는 중…';
+    wait.appendChild(label);
+    document.body.appendChild(wait);
+    var started = Date.now();
+    function ready() {
+      var pane = document.querySelector('div.st-key-j3b_wdetail');
+      return pane && !pane.closest('[data-stale="true"]') && pane.querySelector('.j3-stock-name');
+    }
+    function watch() {
+      if (ready() || Date.now() - started > 15000) {
+        if (box) { box.open = false; box.classList.remove('j3b-closing'); }
+        wait.remove();
+        return;
+      }
+      window.setTimeout(watch, 60);
+    }
+    btn.click();
+    window.setTimeout(watch, 60);
   }, true);
 })();
 """
