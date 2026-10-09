@@ -1851,7 +1851,7 @@ import us_fundamentals
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026100910
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100702
+_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100910
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
 
@@ -2892,6 +2892,23 @@ def _price_chart(payload: dict, timeframe: str, include_volume: bool = False,
         .properties(height=volume_height or 80)
     )
     return alt.vconcat(line, bars, spacing=4).resolve_scale(x="shared")
+
+
+def _overview_html(ticker: str) -> str:
+    """세부사항 이름 밑 **「🏢 종목 개요」** 카드 (2026-10-09 상하님 지시 — "가안 1로 하고 너가 쓴 두 줄로 해라").
+
+    초록 줄 바로 밑에 늘 보인다(누를 것 없음). **받으러 가지 않는다** — us_fundamentals 가 두 파일
+    (US_about.json · US.json)만 읽는다. 이름·초록 줄과 **같은 글 한 덩이**로 붙여 그린다 — 화면 칸을
+    하나 더 만들지 않는다. 명부에 없는 종목(종목검색)은 빈 글이라 카드가 안 나온다.
+    """
+    try:
+        code = str(ticker or "").strip().upper()
+        themes = [theme["name"] for theme in getattr(j3data, "US_THEMES", ())
+                  if code in {str(stock).upper() for stock in theme.get("stocks") or ()}]
+        card = us_fundamentals.overview_html(code, themes)
+    except Exception:
+        return ""
+    return us_fundamentals.OVERVIEW_CSS + card if card else ""
 
 
 def _render_fundamentals_box(ticker: str, metrics: dict | None = None, *, panel: str = "") -> None:
@@ -4610,6 +4627,17 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
 
 
 _MEDAL_BY_RANK = {1: "🥇", 2: "🥈", 3: "🥉"}
+
+
+def _detail_sub_text(theme_row: dict, leader: dict, plan: dict) -> str:
+    """세부사항 이름 밑 초록 줄 — 어느 파트가 몇 등으로 골랐고 판정이 무엇인지.
+
+    종목검색에서 테마 없는 자로 볼 때는 매긴 순위가 없다. 예전에는 「내 종목 대장주 1위」로 나와 뜻이
+    없었다(2026-10-09 상하님 지시로 「종목검색으로 찾은 종목」).
+    """
+    if str(theme_row.get("name") or "") == "내 종목":
+        return f"종목검색으로 찾은 종목 · {plan.get('recommendation')}"
+    return f"{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}"
 # 상태 색은 20개 테마 순위표의 상태색과 같은 규칙(주도 초록·관찰 주황·약함 회색)을 쓴다.
 _STATE_COLOR_WORD = {"강함": "green", "보통": "orange", "약함": "gray",
                      "주도": "green", "관찰": "orange"}
@@ -4656,7 +4684,8 @@ def _render_stock_detail(
     detail_medal_html = f"<span class='j3-medal'>{detail_medal}</span> " if detail_medal else ""
     st.markdown(
         f"<div class='j3-stock-name'>{detail_medal_html}{leader['name']} · {ticker}</div>"
-        f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
+        f"<div class='j3-stock-sub'>{html.escape(_detail_sub_text(theme_row, leader, plan))}</div>"
+        + _overview_html(ticker),
         unsafe_allow_html=True,
     )
 
@@ -6186,7 +6215,7 @@ def _render_buy_form(
         form_medal_html = f"<span class='j3-medal'>{form_medal}</span> " if form_medal else ""
         st.markdown(
             f"<div class='j3-stock-name'>{form_medal_html}{leader['name']} · {ticker}</div>"
-            f"<div class='j3-stock-sub'>{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>",
+            f"<div class='j3-stock-sub'>{html.escape(_detail_sub_text(theme_row, leader, plan))}</div>",
             unsafe_allow_html=True,
         )
         _render_selected_live_quote(leader.get("score"), plan.get("state"),
@@ -8378,8 +8407,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     st.markdown(
         f"<div class='j3-stock-name'>{html.escape(str(row.get('name') or ticker))} · "
         f"{html.escape(ticker)}</div>"
-        f"<div class='j3-stock-sub'>{html.escape(themes)} 눌림목 선택 종목 · "
-        f"{html.escape(str(plan.get('recommendation') or '판정 없음'))}</div>",
+        # 급락 후 반등장 종목은 눌림목이 아니다 — 예전에는 그 갈래도 「눌림목 선택 종목」으로 나왔다
+        # (2026-10-09 상하님 지시로 고침). 상승장(신고가 눌림매수)은 그대로 눌림목이다.
+        f"<div class='j3-stock-sub'>{html.escape(themes)} "
+        f"{'급락 후 반등장 선택 종목' if mode == 'crash' else '눌림목 선택 종목'} · "
+        f"{html.escape(str(plan.get('recommendation') or '판정 없음'))}</div>"
+        + _overview_html(ticker),
         unsafe_allow_html=True,
     )
     if auth.is_guest():

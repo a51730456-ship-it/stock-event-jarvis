@@ -35,6 +35,7 @@ import html
 import json
 import math
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -42,7 +43,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # 읽는 값이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게.
-MODULE_REVISION = 2026100702
+MODULE_REVISION = 2026100910
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 ROOT = Path(__file__).resolve().parent
@@ -194,6 +195,8 @@ def fetch_one(ticker: str, fx_cache: dict) -> dict | None:
         else round(current_assets / current_liabilities, 2),
         "annual": annual,
         "quarter": quarter,
+        # 종목 개요의 본사·직원 수·최고경영자(2026-10-09) — 바뀔 수 있어 재무와 같이 모은다.
+        "co": company_facts(info),
     }
 
 
@@ -604,6 +607,174 @@ RESULTS_CSS = """<style>
 .j3rc-t b{font-weight:800}
 .j3rc-t i{font-style:normal;font-weight:600;color:#cfe0f5}
 .j3rc-t small{color:#6f93bd;font-size:.66rem;margin-left:3px}
+</style>"""
+
+
+# ── 종목 개요 (2026-10-09 상하님 지시) ──────────────────────────────────────────────
+# 상하님 — "선택종목 세부사항에 종목 개요 — 테마가 뭔지, 이 회사가 뭐 하는 회사인지 등등 · 메이저 증권사에 있는 것" ·
+# 가안 두 장을 보시고 "가안 1로 하고 너가 쓴 두 줄로 해라".
+#   · 가안 1 = 이름 밑 초록 줄 바로 밑에 **늘 보이는 짧은 소개 카드**(누를 것 없음).
+#   · 소개 두 줄은 **Claude 가 네이버 증권·야후의 회사 소개를 읽고 쉬운 말로 다시 쓴 것**이다
+#     (data/fundamentals/US_about.json). 남의 회사 소개 글을 그대로 옮기면 공개 저장소에 그 글 209개를 올리게
+#     되어 쓰지 않는다 — 원문은 카드 맨 밑 링크로 네이버 증권 「기업개요」 화면을 연다.
+#   · 회사 이름(한글)·업종·거래소·상장 연월도 그 파일에 적어 둔다(잘 안 바뀐다). 상장 연월은 **야후와 네이버
+#     날짜가 한 달 안으로 맞는 회사만** 적는다 — 오래된 회사는 두 곳 다 자료 시작일(1962-01-02 · 1980-03-17 등)을
+#     상장일처럼 적어 두어 IBM 이 1980년 상장으로 나왔다(2026-10-09 실측 — 16개 회사가 같은 1980-03-17).
+#   · 본사·직원 수·최고경영자는 바뀔 수 있어 재무와 같이 깃허브가 모은다(US.json 의 co · company_facts).
+#   · 명부에 종목이 늘면 US_about.json 에도 한 줄을 써 넣는다(test_us_fundamentals 가 빠진 종목을 잡는다).
+# 화면은 받으러 가지 않는다 — 두 파일만 읽는다.
+
+ABOUT_PATH = ROOT / "data" / "fundamentals" / "US_about.json"
+NAVER_OVERVIEW_URL = "https://m.stock.naver.com/worldstock/stock/{code}/overview"
+
+_CEO_TITLE = re.compile(r"\bCEO\b|Chief Executive", re.I)
+# 군 계급(Brig.Gen. 등)은 점이 붙은 것만 뗀다 — 「Gen」이 이름일 수도 있다.
+_NAME_HEAD = re.compile(r"^(?:(?:Mr|Ms|Mrs|Dr|Prof|Sir)\b\.?\s*|(?:Brig|Gen|Adm|Col|Lt)\.\s*)+", re.I)
+_NAME_TAIL = re.compile(r",?\s+(M\.?\s?B\.?\s?A|Ph\.?\s?D|M\.?\s?D|C\.?P\.?A|J\.?\s?D|C\.?F\.?A|Sc\.?\s?D|"
+                        r"B\.?\s?Sc|M\.?\s?Sc|Esq|M\.?\s?S|B\.?\s?S|LL\.?\s?B|LL\.?\s?M|DBA|P\.?\s?E|D\.?\s?V\.?\s?M|CBE|OBE)\.?$", re.I)
+
+
+def _person(name) -> str | None:
+    """「Mr. Stéphane  Bancel M.B.A.」 → 「Stéphane Bancel」. 호칭·학위만 떼고 이름은 그대로."""
+    text = " ".join(str(name or "").split())
+    text = _NAME_HEAD.sub("", text)
+    # 쉼표 뒤는 학위·자격이다(「Leigh Robert Curyer ACA, BA (Acc)」) — Jr. · II 같은 것만 남긴다.
+    head, comma, tail = text.partition(",")
+    if comma and not re.match(r"\s*(Jr|Sr|II|III|IV)\b", tail):
+        text = head
+    for _ in range(4):
+        cleaned = _NAME_TAIL.sub("", text).strip(" ,")
+        # 끝의 대문자 자격 줄임말(FASN · CEBS · ACA)과 「BSc(Hon)」 — II · III 은 이름이라 둔다.
+        cleaned = re.sub(r"\s+(?!(?:II|III|IV)$)[A-Z]{3,6}$|\s+\S*\([^)]*\)$", "", cleaned).strip(" ,")
+        if cleaned == text:
+            break
+        text = cleaned
+    return text or None
+
+
+def company_facts(info: dict) -> dict:
+    """회사 사실(야후 · 모을 때만) — 본사(주·나라) · 직원 수 · 최고경영자. 못 받은 칸은 빈칸."""
+    ceo = next((_person(officer.get("name")) for officer in info.get("companyOfficers") or []
+                if isinstance(officer, dict) and _CEO_TITLE.search(str(officer.get("title") or ""))), None)
+    employees = _num(info.get("fullTimeEmployees"))
+    return {
+        "state": info.get("state") or None,
+        "country": info.get("country") or None,
+        "emp": None if employees is None or employees <= 0 else int(employees),
+        "ceo": ceo,
+    }
+
+
+_ABOUT_LOADED = {"mtime": None, "data": None}
+
+
+def load_about(path: Path | None = None) -> dict:
+    """US_about.json — 파일이 바뀌지 않았으면 앱 안에 들고 있는 것을 그대로 준다."""
+    path = path or ABOUT_PATH
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+    if _ABOUT_LOADED["mtime"] == mtime and _ABOUT_LOADED["data"] is not None:
+        return _ABOUT_LOADED["data"]
+    try:
+        with path.open(encoding="utf-8") as handle:
+            data = json.load(handle).get("stocks") or {}
+    except Exception:
+        data = {}
+    _ABOUT_LOADED.update(mtime=mtime, data=data)
+    return data
+
+
+US_STATES = {
+    "AL": "앨라배마", "AK": "알래스카", "AZ": "애리조나", "AR": "아칸소", "CA": "캘리포니아", "CO": "콜로라도",
+    "CT": "코네티컷", "DE": "델라웨어", "FL": "플로리다", "GA": "조지아", "HI": "하와이", "ID": "아이다호",
+    "IL": "일리노이", "IN": "인디애나", "IA": "아이오와", "KS": "캔자스", "KY": "켄터키", "LA": "루이지애나",
+    "ME": "메인", "MD": "메릴랜드", "MA": "매사추세츠", "MI": "미시간", "MN": "미네소타", "MS": "미시시피",
+    "MO": "미주리", "MT": "몬태나", "NE": "네브래스카", "NV": "네바다", "NH": "뉴햄프셔", "NJ": "뉴저지",
+    "NM": "뉴멕시코", "NY": "뉴욕", "NC": "노스캐롤라이나", "ND": "노스다코타", "OH": "오하이오",
+    "OK": "오클라호마", "OR": "오리건", "PA": "펜실베이니아", "RI": "로드아일랜드", "SC": "사우스캐롤라이나",
+    "SD": "사우스다코타", "TN": "테네시", "TX": "텍사스", "UT": "유타", "VT": "버몬트", "VA": "버지니아",
+    "WA": "워싱턴주", "WV": "웨스트버지니아", "WI": "위스콘신", "WY": "와이오밍", "DC": "워싱턴 D.C.",
+}
+COUNTRY_NAMES = {
+    "United States": "미국", "Taiwan": "대만", "Netherlands": "네덜란드", "South Korea": "한국",
+    "Ireland": "아일랜드", "United Kingdom": "영국", "Canada": "캐나다", "Switzerland": "스위스",
+    "Israel": "이스라엘", "Chile": "칠레", "Australia": "호주", "Brazil": "브라질", "China": "중국",
+    "Bermuda": "버뮤다", "Germany": "독일", "France": "프랑스", "Japan": "일본", "Denmark": "덴마크",
+    "Uruguay": "우루과이", "Argentina": "아르헨티나", "Singapore": "싱가포르", "Luxembourg": "룩셈부르크",
+    "Cayman Islands": "케이맨 제도", "Sweden": "스웨덴", "Spain": "스페인", "Italy": "이탈리아",
+    "India": "인도", "Hong Kong": "홍콩", "Mexico": "멕시코", "Belgium": "벨기에", "Norway": "노르웨이",
+    "Finland": "핀란드", "Jersey": "저지섬",
+}
+
+
+def _place(co: dict) -> str | None:
+    country = co.get("country")
+    if not country:
+        return None
+    name = COUNTRY_NAMES.get(country, country)
+    if country == "United States" and co.get("state"):
+        return f"{name} {US_STATES.get(str(co['state']).upper(), co['state'])}"
+    return name
+
+
+def overview_html(ticker: str, themes=()) -> str:
+    """세부사항 이름 밑 「🏢 종목 개요」 카드 한 장. 두 파일에 그 종목이 없으면 빈 글(카드를 안 그린다).
+
+    themes — 앱 명부에서 이 종목이 든 테마 이름들(페이지가 jarvis3_data.US_THEMES 로 넘긴다).
+    """
+    code = str(ticker or "").strip().upper()
+    about = load_about().get(code) or {}
+    co = (load().get(code) or {}).get("co") or {}
+    if not about and not co:
+        return ""
+    esc = html.escape
+    title = about.get("ko") or (load().get(code) or {}).get("name") or code
+    head = [about.get("en"), about.get("exch")]
+    listed = str(about.get("listed") or "")
+    if len(listed) == 7 and listed[4] == ".":
+        head.append(f"{listed[:4]}년 {int(listed[5:])}월 상장")
+    chips = "".join(f"<span class='j3ov-chip j3ov-t'>앱 테마 · {esc(str(name))}</span>" for name in themes or ())
+    if about.get("ind"):
+        chips += f"<span class='j3ov-chip'>업종 · {esc(str(about['ind']))}</span>"
+    facts = []
+    place = _place(co)
+    if place:
+        facts.append(f"본사 {place}")
+    if co.get("emp"):
+        facts.append(f"직원 {int(co['emp']):,}명")
+    if co.get("ceo"):
+        facts.append(f"최고경영자 {co['ceo']}")
+    link = ""
+    if about.get("naver"):
+        url = NAVER_OVERVIEW_URL.format(code=about["naver"])
+        link = (f"<a class='j3ov-more' href='{esc(url)}' target='_blank' rel='noopener noreferrer'>"
+                "▸ 네이버 증권에서 회사 소개 원문 보기</a>")
+    return (
+        "<div class='j3ov'>"
+        f"<div class='j3ov-h'><b>🏢 {esc(str(title))}</b>"
+        f"<span>{esc(' · '.join(str(bit) for bit in head if bit))}</span></div>"
+        + (f"<div class='j3ov-p'>{esc(str(about['about']))}</div>" if about.get("about") else "")
+        + (f"<div class='j3ov-chips'>{chips}</div>" if chips else "")
+        + (f"<div class='j3ov-facts'>{esc(' · '.join(facts))}</div>" if facts else "")
+        + link + "</div>"
+    )
+
+
+OVERVIEW_CSS = """<style>
+.j3ov{margin:10px 0 4px;border:1px solid #2b4f80;border-radius:13px;padding:10px 12px 9px;
+  background:rgba(77,127,208,.10)}
+.j3ov-h{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap}
+.j3ov-h b{font-size:1rem;font-weight:900;color:#fff}
+.j3ov-h span{font-size:.78rem;color:#8fb4de}
+.j3ov-p{margin:6px 0 8px;font-size:.88rem;line-height:1.6;color:#dfe9ff}
+.j3ov-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+.j3ov-chip{font-size:.78rem;font-weight:700;padding:1px 9px;border-radius:999px;border:1px solid #2b4f80;color:#cfe0ff}
+.j3ov-chip.j3ov-t{border-color:#7c3aed;background:rgba(124,58,237,.18);color:#e9d5ff}
+.j3ov-facts{font-size:.78rem;color:#9fb8d8;line-height:1.6}
+a.j3ov-more{display:inline-block;margin-top:5px;font-size:.78rem;font-weight:700;color:#c084fc!important;
+  text-decoration:none!important}
 </style>"""
 
 

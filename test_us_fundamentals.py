@@ -229,5 +229,70 @@ class WiringTests(unittest.TestCase):
             self.assertNotIn(word, source)
 
 
+
+class OverviewTests(unittest.TestCase):
+    """세부사항 「🏢 종목 개요」 (2026-10-09 상하님 지시 — 가안 1 · 제가 쓴 두 줄)."""
+
+    def test_every_roster_stock_has_two_plain_lines(self):
+        import jarvis3_data
+
+        about = json.loads(fn.ABOUT_PATH.read_text(encoding="utf-8"))["stocks"]
+        roster = list(jarvis3_data.US_LARGE_CAP_UNIVERSE)
+        self.assertEqual(sorted(about), sorted(roster), "명부에 종목이 늘면 US_about.json 에 한 줄을 써 넣는다")
+        for code, row in about.items():
+            text = row["about"]
+            self.assertTrue(text.endswith("."), code)
+            self.assertLessEqual(text.count("."), 3, code)                # 두 줄 남짓
+            self.assertLessEqual(len(text), 120, code)
+            self.assertTrue(row["ko"], code)
+            if row.get("listed"):
+                self.assertRegex(row["listed"], r"^(19[89]\d|20\d\d)\.\d\d$", code)
+
+    def test_card_reads_files_only(self):
+        about = {"stocks": {"AAA": {"ko": "에이", "en": "Aaa", "exch": "나스닥", "ind": "반도체", "listed": "2018.12",
+                                    "naver": "AAA.O", "about": "칩을 만드는 회사입니다."}}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "US_about.json"
+            path.write_text(json.dumps(about, ensure_ascii=False), encoding="utf-8")
+            entry = _entry()
+            entry["co"] = {"state": "MA", "country": "United States", "emp": 4700, "ceo": "Stéphane Bancel"}
+            with mock.patch.object(fn, "ABOUT_PATH", path), \
+                    mock.patch.object(fn, "_ABOUT_LOADED", {"mtime": None, "data": None}), \
+                    mock.patch.object(fn, "load", return_value={"AAA": entry}):
+                card = fn.overview_html("aaa", ["반도체", "AI·데이터센터"])
+                empty = fn.overview_html("ZZZ", ["반도체"])
+        self.assertIn("🏢 에이", card)
+        self.assertIn("Aaa · 나스닥 · 2018년 12월 상장", card)
+        self.assertIn("앱 테마 · 반도체", card)
+        self.assertIn("앱 테마 · AI·데이터센터", card)
+        self.assertIn("업종 · 반도체", card)
+        self.assertIn("본사 미국 매사추세츠 · 직원 4,700명 · 최고경영자 Stéphane Bancel", card)
+        self.assertIn("https://m.stock.naver.com/worldstock/stock/AAA.O/overview", card)
+        self.assertEqual(empty, "")                                     # 명부 밖 종목은 카드 없음
+
+    def test_company_facts_and_names(self):
+        info = {"companyOfficers": [{"name": "Dr. Stephen  Hoge M.D.", "title": "President"},
+                                    {"name": "Mr. Stéphane  Bancel M.B.A.", "title": "CEO & Director"}],
+                "state": "MA", "country": "United States", "fullTimeEmployees": 4700}
+        self.assertEqual(fn.company_facts(info), {"state": "MA", "country": "United States", "emp": 4700,
+                                                  "ceo": "Stéphane Bancel"})
+        self.assertIsNone(fn.company_facts({})["ceo"])
+        for raw, clean in (("Mr. Leigh Robert Curyer ACA, BA (Acc)", "Leigh Robert Curyer"),
+                           ("Brig.Gen. Nadav Zafrir", "Nadav Zafrir"), ("Mr. John C. May II", "John C. May II"),
+                           ("Mr. Earl C. Austin Jr.", "Earl C. Austin Jr."), ("Mr. Gen Smith", "Gen Smith"),
+                           ("Dr. Albert  Bourla D.V.M., Ph.D.", "Albert Bourla")):
+            self.assertEqual(fn._person(raw), clean)
+
+    def test_page_puts_the_card_under_the_green_line_and_fixes_two_words(self):
+        self.assertEqual(PAGE.count("+ _overview_html(ticker),"), 2)      # 테마·순위 9·종목검색 / 상승장·급락
+        body = PAGE[PAGE.index("def _render_stock_detail("):PAGE.index("if auth.is_guest():", PAGE.index("def _render_stock_detail("))]
+        self.assertIn("_detail_sub_text(theme_row, leader, plan))}</div>\"\n        + _overview_html(ticker)", body)
+        self.assertIn("종목검색으로 찾은 종목", PAGE)
+        self.assertIn("'급락 후 반등장 선택 종목' if mode == 'crash' else '눌림목 선택 종목'", PAGE)
+        # 옛 줄(「내 종목 대장주 1위」가 나오던 것)은 _detail_sub_text 한 곳으로 모였다.
+        self.assertNotIn("{theme_row['name']} 대장주 {leader['rank']}위 · {plan.get('recommendation')}</div>", PAGE)
+        self.assertEqual(PAGE.count("_detail_sub_text(theme_row, leader, plan)"), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
