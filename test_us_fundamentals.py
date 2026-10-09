@@ -101,6 +101,19 @@ class CollectTests(unittest.TestCase):
         self.assertEqual(data["KEEP"]["at"], "2026-09-02")          # 손대지 않음
         self.assertEqual(data["NEW"]["at"], "2099-01-01")
 
+    def test_next_day_moves_that_failed_keep_old_values(self):
+        old = _entry(at="2026-09-01")
+        old["earn"] = {"hist": [["25.12", 0.5, 0.45, 11.0], ["26.03", 0.41, 0.35, 17.2]],
+                       "react": {"25.12": -3.5, "26.03": -3.6}}
+        self.path.write_text(json.dumps({"version": 1, "stocks": {"TSLA": old}}), encoding="utf-8")
+        fresh = _entry(at="2026-10-09")
+        fresh["earn"] = {"hist": [["26.03", 0.41, 0.35, 17.2], ["26.06", 0.33, 0.54, -39.2]],
+                         "react": {"26.06": -14.5}}                    # 26.03 은 이번에 못 받음
+        with mock.patch.object(fn, "fetch_one", return_value=fresh), mock.patch.object(fn.time, "sleep"):
+            fn.collect(["TSLA"], path=self.path)
+        react = json.loads(self.path.read_text(encoding="utf-8"))["stocks"]["TSLA"]["earn"]["react"]
+        self.assertEqual(react, {"26.06": -14.5, "26.03": -3.6})        # 표에서 빠진 25.12 는 안 남긴다
+
     def test_nothing_to_refresh_does_not_touch_the_file(self):
         before = self.path.read_text(encoding="utf-8")
         result = fn.collect(["NEW"], path=self.path, older_than_days=5)
@@ -318,6 +331,65 @@ class _FakeHandle:
                            today - pd.Timedelta(days=40), today - pd.Timedelta(days=400)]})
 
 
+class _ReactionHandle:
+    """발표일·일봉만 흉내 — earnings_reactions 가 읽는 둘."""
+
+    def __init__(self):
+        ny = "America/New_York"
+        self.dates = pd.DataFrame(
+            {"EPS Estimate": [0.54, 0.35, 0.45, 0.60, 0.70], "Reported EPS": [0.33, 0.41, 0.90, 0.72, 0.80],
+             "Surprise(%)": [-39.2, 17.2, 100.0, 20.5, 14.3]},
+            index=pd.DatetimeIndex(pd.to_datetime(
+                ["2026-07-22 07:00", "2026-04-22 16:00", "2026-01-28 16:00", "2025-10-23 16:00",
+                 "2099-04-20 07:00"])).tz_localize(ny))
+        days = ["2025-10-23", "2025-11-03", "2026-01-28", "2026-01-29", "2026-04-22", "2026-04-23",
+                "2026-07-21", "2026-07-22", "2099-04-17", "2099-04-20"]
+        closes = [100.0, 130.0, 50.0, 52.0, 200.0, 192.8, 300.0, 256.5, 10.0, 11.0]
+        self.prices = pd.DataFrame({"Close": closes}, index=pd.DatetimeIndex(pd.to_datetime(days)).tz_localize(ny))
+
+    def get_earnings_dates(self, limit=12):
+        return self.dates
+
+    def history(self, start=None, auto_adjust=False):
+        return self.prices[self.prices.index >= pd.Timestamp(start).tz_localize("America/New_York")]
+
+
+class ReactionTests(unittest.TestCase):
+    """실적 표 「다음 날 주가」 (2026-10-09 상하님 지시 — "다음 날 주가 줄 넣어라")."""
+
+    HIST = [["25.09", 0.72, 0.60, 20.5], ["25.12", 0.50, 0.45, 11.0], ["26.03", 0.41, 0.35, 17.2],
+            ["26.06", 0.33, 0.54, -39.2], ["99.03", 0.80, 0.70, 14.3]]
+
+    def test_after_close_uses_the_next_day_and_before_open_the_same_day(self):
+        react = fn.earnings_reactions(_ReactionHandle(), self.HIST)
+        self.assertEqual(react["26.03"], -3.6)          # 4/22 마감 뒤 → 4/23 종가 ÷ 4/22 종가
+        self.assertEqual(react["26.06"], -14.5)         # 7/22 장 전 → 7/22 종가 ÷ 7/21 종가
+        self.assertNotIn("25.12", react)                # 발표한 주당 이익(0.90)이 표의 실제(0.50)와 다르다
+        self.assertNotIn("25.09", react)                # 다음 봉이 열하루 뒤 — 빠진 봉을 하루로 재지 않는다
+        self.assertNotIn("99.03", react)                # 그날 장이 아직 안 끝났다
+        self.assertEqual(fn.earnings_reactions(_FakeHandle(), self.HIST), {})   # 발표일을 못 받으면 빈 것
+
+    def test_quarter_that_ends_mid_month_is_matched_inside_that_month(self):
+        # COST — 26.05 분기는 5/10쯤 끝나 5/28 마감 뒤 발표. 5/31 뒤 첫 발표(9/24)는 다음 분기라 이익이 다르다.
+        handle = _ReactionHandle()
+        handle.dates = pd.DataFrame(
+            {"EPS Estimate": [6.5, 4.9], "Reported EPS": [6.75, 4.93], "Surprise(%)": [3.4, 0.1]},
+            index=pd.DatetimeIndex(pd.to_datetime(["2026-09-24 16:00", "2026-05-28 16:00"])).tz_localize("America/New_York"))
+        handle.prices = pd.DataFrame(
+            {"Close": [1000.0, 1016.0, 900.0, 926.1]},
+            index=pd.DatetimeIndex(pd.to_datetime(["2026-05-28", "2026-05-29", "2026-09-24", "2026-09-25"]))
+            .tz_localize("America/New_York"))
+        react = fn.earnings_reactions(handle, [["26.05", 4.93, 4.923, 0.1], ["26.08", 6.75, 6.527, 3.4]])
+        self.assertEqual(react, {"26.05": 1.6, "26.08": 2.9})
+
+    def test_screen_and_collect_paths(self):
+        # 화면은 받으러 가지 않는다 — 발표일 받기는 모을 때(street_facts)만
+        self.assertNotIn("get_earnings_dates", PAGE)
+        body = fn.street_facts.__code__.co_names
+        self.assertIn("earnings_reactions", body)
+        self.assertNotIn("get_earnings_dates", fn._earn_box.__code__.co_names)
+
+
 class StreetTests(unittest.TestCase):
     """증권사 화면에 있는 것 — 실적 발표·애널리스트·공매도/내부자/배당·다가오는 일정 (2026-10-09 상하님 지시)."""
 
@@ -353,7 +425,8 @@ class StreetTests(unittest.TestCase):
         entry = _entry()
         entry.update({"earn": {"next": "2026-11-17", "when": "장 마감 뒤", "eps_est": 2.47,
                                "hist": [["25.10", 1.3, 1.256, 3.5], ["26.01", 1.62, 1.538, 5.3],
-                                        ["26.04", 1.87, 1.772, 5.5], ["26.07", 2.22, 2.091, 6.2]]},
+                                        ["26.04", 1.87, 1.772, 5.5], ["26.07", 2.22, 2.091, 6.2]],
+                               "react": {"26.04": -1.8, "26.07": 8.7}},
                       "ana": {"n": 59, "mean": 328.7, "hi": 515.0, "lo": 180.0, "buy": 58, "hold": 2, "sell": 1},
                       "own": {"short": 1.27, "inst": 71.4, "ins6m": [0, 0.0, 9, 1370.53]},
                       "divd": {"ex": "2026-09-10", "pay": "2026-10-01"}})
@@ -372,6 +445,12 @@ class StreetTests(unittest.TestCase):
         self.assertIn("<td>$2.22</td>", html_text)
         self.assertIn(">+6%</td>", html_text)
         self.assertNotIn("j3st-bars", html_text)
+        # 다음 날 주가 — 오르면 초록 · 내리면 빨강 · 못 잰 분기는 「—」(0 으로 안 채움)
+        self.assertIn("<tr class='j3st-move'><td>다음 날 주가</td>", html_text)
+        self.assertIn("color:#06d6a0'>+8.7%</td>", html_text)
+        self.assertIn("color:#ff6b6b'>-1.8%</td>", html_text)
+        self.assertEqual(html_text.count("<td class='j3st-dim'>—</td>"), 2)
+        self.assertIn("다음 날 주가는 발표 뒤 첫 장 종가가 그 전 종가보다 오르내린 폭", html_text)
         # 예상이 0 에 가까운 분기 · 다음 날짜가 아직 없는 회사(2026-10-09 자료 훑기)
         odd = dict(entry, earn={"next": "2026-09-03", "hist": [["26.03", -1.49, 0.044, -3458.9]]})
         with mock.patch.object(fn, "load", return_value={"COIN": odd}):

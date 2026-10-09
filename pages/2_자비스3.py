@@ -1873,7 +1873,7 @@ import us_fundamentals
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026100910
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100913
+_REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
 

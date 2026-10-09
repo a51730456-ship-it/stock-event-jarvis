@@ -38,12 +38,12 @@ import os
 import re
 import sys
 import time
-from datetime import datetime
+from datetime import date, datetime, time as dtime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # 읽는 값이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게.
-MODULE_REVISION = 2026100913
+MODULE_REVISION = 2026100914
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 ROOT = Path(__file__).resolve().parent
@@ -256,6 +256,7 @@ def collect(tickers, *, path: Path = DATA_PATH, older_than_days: float | None = 
                 _log(f"{code} 실패({attempt + 1}): {exc}")
                 time.sleep(3.0)
         if entry:
+            _keep_old_reactions(entry, stocks.get(code) or {})
             stocks[code] = entry
             done += 1
         else:
@@ -806,6 +807,113 @@ def _iso(value) -> str | None:
         return None
 
 
+def _quarter_end(label):
+    """「26.06」 → 2026-06-30 (그달 마지막 날). 못 읽으면 None."""
+    try:
+        year, month = (int(part) for part in str(label).split("."))
+        year += 2000
+        first_next = date(year + (month == 12), month % 12 + 1, 1)
+        return first_next - timedelta(days=1)
+    except Exception:
+        return None
+
+
+def earnings_reactions(handle, hist) -> dict:
+    """지난 분기마다 **발표 뒤 첫 장 종가가 그 전 장 종가보다 몇 % 움직였나** — {"26.06": -14.5, ...}.
+
+    2026-10-09 상하님 — "예상보다 좋고 나쁘고 보여주는 이유는 뭐냐 · 주가가 다음 날 반영되어 올랐다는 건지".
+    예상보다 잘 벌어도 다음 날 내린 적이 많다(NVDA 8번 연속 예상 넘김 · 다음 날 오름 3번). 그래서 같이 보여 준다.
+    **모을 때만 부른다** — 발표일 받기(get_earnings_dates)가 종목당 0.9~2.2초라 화면에서는 부르지 않는다.
+    장 마감 뒤 발표면 이튿날 종가 ÷ 발표한 날 종가, 장 전·장중이면 발표한 날 종가 ÷ 전날 종가.
+    **못 잰 분기는 넣지 않는다**(0 으로 안 채움) — 발표일이 안 맞거나, 그날 장이 아직 안 끝났거나, 봉이 빠졌을 때.
+    """
+    quarters = []
+    for row in hist or []:
+        end = _quarter_end(row[0]) if isinstance(row, list) and row else None
+        if end is not None:
+            quarters.append((str(row[0]), end, _num(row[1])))
+    if not quarters:
+        return {}
+    try:
+        dates = handle.get_earnings_dates(limit=12)
+    except Exception:
+        return {}
+    if dates is None or getattr(dates, "empty", True):
+        return {}
+    announced = []
+    for stamp, row in dates.iterrows():
+        reported = _num(row.get("Reported EPS"))
+        if reported is None:
+            continue
+        try:
+            when = stamp.tz_convert(_NY) if stamp.tzinfo is not None else stamp.tz_localize(_NY)
+        except Exception:
+            continue
+        announced.append((when, reported))
+    if not announced:
+        return {}
+    announced.sort(key=lambda item: item[0])
+    start = min(end for _label, end, _actual in quarters) - timedelta(days=10)
+    try:
+        closes = handle.history(start=start.isoformat(), auto_adjust=False)["Close"].dropna()
+    except Exception:
+        return {}
+    days = []
+    for stamp in closes.index:
+        try:
+            days.append((stamp.tz_convert(_NY) if stamp.tzinfo is not None else stamp).date())
+        except Exception:
+            days.append(None)
+    values = [float(value) for value in closes.values]
+    now = datetime.now(_NY)
+    out = {}
+    for label, end, actual in quarters:
+        # 그 분기가 끝난 뒤 120일 안의 첫 발표 — 발표한 주당 이익이 표의 「실제」와 같아야 같은 분기로 본다.
+        # 안 맞으면 그달 안(끝난 날 전 25일)의 발표를 본다 — 분기가 그달 초·중순에 끝나는 회사가 있다
+        # (COST 26.05 분기는 5/10쯤 끝나 5/28 발표 · 2026-10-09 실측). 그래도 안 맞으면 안 적는다.
+        def same(reported):
+            return actual is None or abs(reported - actual) <= 0.02 + abs(actual) * 0.05
+
+        after = next(((when, reported) for when, reported in announced
+                      if end < when.date() <= end + timedelta(days=120)), None)
+        found = after if after is not None and same(after[1]) else next(
+            ((when, reported) for when, reported in reversed(announced)
+             if end - timedelta(days=25) < when.date() <= end and same(reported)), None)
+        if found is None:
+            continue
+        when, reported = found
+        day = when.date()
+        after_close = when.hour * 60 + when.minute >= 15 * 60   # 야후는 마감 뒤 발표를 15:00 으로도 적는다
+        index = next((i for i, seen in enumerate(days)
+                      if seen is not None and (seen > day if after_close else seen >= day)), None)
+        if index is None or index == 0 or days[index - 1] is None:
+            continue
+        moved_day, base_day = days[index], days[index - 1]
+        # 봉이 빠졌으면(야후가 가운데 하루를 늦게 올리기도 한다) 이틀 치를 하루로 잴 수 있다 — 그러면 안 적는다.
+        if (moved_day - day).days > 4 or (moved_day - base_day).days > 4:
+            continue
+        if moved_day > now.date() or (moved_day == now.date() and now.time() < dtime(16, 15)):
+            continue                                            # 그날 장이 아직 안 끝났다
+        if values[index - 1] > 0:
+            out[label] = round((values[index] / values[index - 1] - 1.0) * 100.0, 1) + 0.0   # -0.0 → 0.0
+    return out
+
+
+def _keep_old_reactions(entry: dict, old: dict) -> None:
+    """새로 받다가 「다음 날 주가」를 못 받은 분기는 파일의 옛 값을 그대로 둔다(실패했다고 지우지 않는다)."""
+    new_earn = entry.get("earn")
+    old_react = ((old or {}).get("earn") or {}).get("react") or {}
+    if not isinstance(new_earn, dict) or not old_react:
+        return
+    labels = [str(row[0]) for row in new_earn.get("hist") or [] if isinstance(row, list) and row]
+    react = dict(new_earn.get("react") or {})
+    for label in labels:
+        if label not in react and label in old_react:
+            react[label] = old_react[label]
+    if react:
+        new_earn["react"] = react
+
+
 def street_facts(handle, info: dict) -> dict:
     """모을 때만 부른다 — {"earn", "ana", "own", "divd"} 중 받은 것만. 하나가 실패해도 나머지는 받는다."""
     out: dict = {}
@@ -858,6 +966,9 @@ def street_facts(handle, info: dict) -> dict:
                          None if surprise is None else round(surprise * 100.0, 1)])
     if rows:
         earn["hist"] = rows[-4:]
+        react = earnings_reactions(handle, earn["hist"])
+        if react:
+            earn["react"] = react
     if earn:
         out["earn"] = earn
 
@@ -999,13 +1110,14 @@ def _earn_box(earn: dict, today) -> str:
     # 그래프가 안 맞다"). 막대는 「예상과의 차이 %」였는데 설명이 없어, 매출·영업이익을 그린 「재무 한눈에」 분기
     # 그림과 견주게 됐다. 이제 분기마다 예상·실제·차이를 숫자로 적고, 무엇을 견준 것인지 한 줄로 적는다.
     history = [row for row in earn.get("hist") or [] if isinstance(row, list) and len(row) == 4]
+    react = earn.get("react") if isinstance(earn.get("react"), dict) else {}
     table = ""
     if history:
         better = sum(1 for _label, actual, expected, _s in history if actual > expected)
         tone = "j3st-up" if better * 2 >= len(history) else "j3st-dn"
         lines.append((f"지난 {len(history)}번",
                       f"예상보다 <span class='{tone}'>좋았음 {len(history)}번 중 {better}번</span>"))
-        heads, guesses, actuals, gaps = [], [], [], []
+        heads, guesses, actuals, gaps, moves = [], [], [], [], []
         for label, actual, expected, surprise in history:
             if surprise is None and expected:
                 surprise = (actual - expected) / abs(expected) * 100.0
@@ -1021,12 +1133,21 @@ def _earn_box(earn: dict, today) -> str:
             else:
                 gap_text = f"{surprise:+.0f}%"
             gaps.append(f"<td style='color:{color}'>{gap_text}</td>")
+            # 다음 날 주가 — 오르면 초록 · 내리면 빨강(차트와 같은 색). 못 잰 분기는 「—」.
+            move = _num(react.get(str(label)))
+            if move is None:
+                moves.append("<td class='j3st-dim'>—</td>")
+            else:
+                tint = "#06d6a0" if move > 0 else "#ff6b6b" if move < 0 else "#cfe0ff"
+                moves.append(f"<td style='color:{tint}'>{move:+.1f}%</td>" if move else "<td>0.0%</td>")
         table = ("<table class='j3st-eps'><thead><tr><th>분기</th>" + "".join(heads) + "</tr></thead><tbody>"
                  "<tr><td>예상</td>" + "".join(guesses) + "</tr>"
                  "<tr><td>실제</td>" + "".join(actuals) + "</tr>"
-                 "<tr><td>차이</td>" + "".join(gaps) + "</tr></tbody></table>"
-                 "<div class='j3st-note'>주당 이익(회사가 번 돈 ÷ 주식 수)이 증권사 예상보다 높았나 · 분기는 「재무 한눈에」 "
-                 "분기 실적과 같은 칸이고, 그쪽은 매출·영업이익의 크기입니다.</div>")
+                 "<tr><td>차이</td>" + "".join(gaps) + "</tr>"
+                 "<tr class='j3st-move'><td>다음 날 주가</td>" + "".join(moves) + "</tr></tbody></table>"
+                 "<div class='j3st-note'>주당 이익(회사가 번 돈 ÷ 주식 수)이 증권사 예상보다 높았나 · 다음 날 주가는 발표 뒤 "
+                 "첫 장 종가가 그 전 종가보다 오르내린 폭(마감 뒤 발표면 이튿날) · 분기는 「재무 한눈에」 분기 실적과 "
+                 "같은 칸(그쪽은 매출·영업이익).</div>")
     rows = "".join(f"<div class='j3st-row'><b>{title}</b><span>{body}</span></div>" for title, body in lines)
     return f"<div class='j3st-box'><div class='j3st-h'>📅 실적 발표</div>{rows}{table}</div>"
 
@@ -1225,6 +1346,8 @@ STREET_CSS = """<style>
 .j3st-eps th{color:#8fb4de;font-weight:700;border-bottom:1px solid rgba(157,204,255,.18)!important}
 .j3st-eps td{color:#e6edf8;font-weight:700;border-bottom:1px solid rgba(157,204,255,.06)!important}
 .j3st-eps th:first-child,.j3st-eps td:first-child{text-align:left;color:#8fb4de;width:44px}
+.j3st-eps tr.j3st-move td{border-top:1px solid rgba(157,204,255,.18)!important;font-weight:900}
+.j3st-eps tr.j3st-move td:first-child{white-space:normal;line-height:1.2;font-weight:700}
 .j3st-split{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:2px 0 3px}
 .j3st-split i{display:block}
 .j3st-legend{display:flex;justify-content:space-between;gap:6px;font-size:.76rem;font-weight:800}
