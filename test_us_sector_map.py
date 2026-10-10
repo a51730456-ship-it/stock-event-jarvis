@@ -248,12 +248,12 @@ def test_theme_tiles_stay_together_by_sector_and_keep_their_share():
 def test_the_map_pops_out_and_lies_down_on_a_portrait_screen():
     """누르면 창이 뜨고(서버에 안 묻는 숨은 스위치), 세로 화면은 창을 **눕혀** 꽉 채운다
     (2026-09-24 상하님 — "세로 말고 가로로"). 스위치는 j3cz-tap 이름표를 같이 달아,
-    창이 떠 있는 동안 하단 막대가 쉰다(손가락 넘기기는 2026-10-10 뺐다 — 상하님 「자비스3을 고쳐라」)."""
+    창이 떠 있는 동안 손가락 넘기기와 하단 막대가 쉰다."""
     source = PAGE.read_text(encoding="utf-8")
     cell = source[source.index("def _sector_map_cell("):source.index("def _market_phase_cell(")]
     assert "class='j3cz-tap j3sm-tap'" in cell
     assert "class='j3sm-pop'" in cell and "class='j3sm-scrim'" in cell
-    assert "body:has(.j3cz-tap:checked) .j3b-bottom-nav" in source, "창이 떠 있는 동안 하단 막대가 안 쉰다"
+    assert "input.j3cz-tap:checked" in source, "넘기기 코드가 창을 안 본다"
     portrait = source[source.index(".j3sm-tap:checked ~ .j3sm-pop {"):]
     portrait = portrait[portrait.index("@media (orientation: portrait)"):]
     portrait = portrait[:portrait.index("@media (prefers-reduced-motion")]

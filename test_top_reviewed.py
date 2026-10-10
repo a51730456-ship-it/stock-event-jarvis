@@ -868,11 +868,12 @@ class WarmTopPicksTests(unittest.TestCase):
         head = page[page.index("def _render_stock_briefing()"):]
         head = head[:head.index("_briefing_css()")]
         self.assertNotIn("warm_top_picks", head, "화면 맨 앞에서 미리 계산을 시작한다")
-        # 뉴스 예약 **뒤에** 불러야 한다.
+        # 뉴스 예약 **뒤에** 불러야 한다. 2026-10-10 부터는 「뉴스를 불러오는 중입니다」로 그린 자리만 기다린다
+        # (옛 뉴스가 떠 있는 자리는 화면이 기다릴 것이 없다 — 상하님 「뉴스 다시 그리기」 고침).
         home = page[page.index("def _render_stock_briefing()"):]
         home = home[:home.index("def main()")]
         self.assertLess(home.index("_schedule_briefing_news_refresh(news_keys)"),
-                        home.index("_warm_after_news(news_keys)"),
+                        home.index("_warm_after_news(tuple(st.session_state.get(_NEWS_WAIT_KEYS) or ()))"),
                         "뉴스 예약보다 먼저 미리 계산을 시작한다")
 
 class WarmUsSignalQuotesTests(unittest.TestCase):
