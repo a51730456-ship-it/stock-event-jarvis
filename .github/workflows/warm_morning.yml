@@ -21,6 +21,14 @@ on:
     # 09-22 09:13 · 09-23 08:42). 그 뒤에 한 번, 늦게 끝난 날을 위해 한 번 더 깨운다.
     - cron: "50 23 * * 0-4"   # 08:50 KST (월~금)
     - cron: "25 0 * * 1-5"    # 09:25 KST (월~금)
+  # **코드를 올린 뒤에도** 데운다 (2026-10-10 상하님 — "깨우기 자비스12도 열고 올린 뒤에도 돌게 해라").
+  # 코드를 올리면 앱이 껐다 켜지는데 그 뒤에는 데우는 것이 없어, 첫 사람이 첫 시장분석 24초·첫 테마
+  # 39~44초를 기다렸다. 화면 맨 밑 판 표시(build_stamp.py)가 보는 파일과 같은 것이 바뀐 올리기에만 돈다 —
+  # 설명서(.md)만 올린 것은 판 표시가 안 바뀌어 새 판을 15분 기다리다 헛돈다. 목록 저장(깃허브 일꾼)이
+  # 올린 것은 이 길로 안 온다(깃허브는 일꾼이 올린 것으로 다른 작업을 깨우지 않는다) — 위 workflow_run 이 맡는다.
+  push:
+    branches: [master]
+    paths: ["**.py", "**.bat", "**.toml"]
   workflow_dispatch:
 
 concurrency:
@@ -53,6 +61,14 @@ jobs:
         continue-on-error: true
         run: |
           # 저장이 막 올린 글(맨 끝 커밋)이 앱에 뜰 때까지 기다린 뒤 데운다(warm_morning.py).
-          git fetch --depth=1 origin master
-          export WAIT_FOR_SHA="$(git rev-parse --short=7 FETCH_HEAD)"
+          # 코드를 올린 뒤(push)에는 맨 끝 커밋이 설명서뿐일 수 있다 — 판 표시와 같은 규칙으로
+          # **코드 파일을 바꾼 마지막 커밋**을 기다린다(build_stamp._from_git 과 같은 파일들).
+          if [ "${{ github.event_name }}" = "push" ]; then
+            git fetch --depth=50 origin master
+            export WAIT_FOR_SHA="$(git log -1 --format=%h FETCH_HEAD -- '*.py' 'pages/*.py' '*.bat' '*.toml')"
+          else
+            git fetch --depth=1 origin master
+            export WAIT_FOR_SHA="$(git rev-parse --short=7 FETCH_HEAD)"
+          fi
+          echo "기다릴 판: ${WAIT_FOR_SHA}"
           python warm_morning.py

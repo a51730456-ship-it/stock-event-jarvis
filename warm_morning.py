@@ -25,13 +25,27 @@
 **아무것도 바꾸지 않는다.** 보기만 한다 — 게스트라 저장·매수 기록에 손댈 수
 없고, 값이나 점수도 건드리지 않는다. 실패해도 앱은 그대로다(그날 아침이
 예전처럼 느릴 뿐이다).
+
+**자비스12 도 연다 · 코드를 올린 뒤에도 돈다** (2026-10-10 상하님 — "깨우기 자비스12도 열고 올린 뒤에도 돌게
+해라"). 상하님이 지금 쓰시는 곳은 자비스12 다. 받아 둔 시세는 두 화면이 같이 쓰지만, 화면마다 따로 담아 두는
+것(그 화면 파일을 처음 읽는 일·그 화면만의 담아 두기)이 있어 자비스12 를 **먼저** 열고 자비스3 도 연다.
+시장분석으로는 두 화면 다 **밑 막대 「시장분석」** 으로 간다 — 예전에는 자비스3 넘기기의 숨은 단추
+「시장분석으로」를 눌렀는데, 2026-10-10 아침 넘기기를 잠깐 뺐던 동안 그 단추가 없어 관심종목만 데웠다.
+코드를 올리면 앱이 껐다 켜진다 — 그 뒤 첫 시장분석 24초·첫 테마 39~44초를 사람 대신 이것이 기다린다
+(.github/workflows/warm_morning.yml 의 push).
 """
 from __future__ import annotations
 
 import sys
 import time
 
-APP = "https://stock-event-jarvis.streamlit.app/~/+/자비스3?guest=1"
+BASE = "https://stock-event-jarvis.streamlit.app/~/+"
+# 여는 차례 — (이름, 주소, 관심종목 표식, 시장분석 표식). 자비스12 가 먼저다(위 설명).
+PAGES = (
+    ("자비스12", f"{BASE}/자비스12?guest=1", ".j12b-home", ".j12-market-top"),
+    ("자비스3", f"{BASE}/자비스3?guest=1", ".j3b-home", ".j3-market-top"),
+)
+APP = PAGES[0][1]           # 새 판이 떴는지 볼 때 여는 곳
 # 화면이 다 그려지기를 기다리는 한도. 껐다 켜진 직후에는 관심종목 화면이
 # 2분 넘게 일한다(위 실측).
 SETTLE_LIMIT = 300.0
@@ -62,6 +76,14 @@ def _click(page, text: str) -> bool:
         "(t) => { const b = [...document.querySelectorAll('button')]"
         ".find(x => (x.innerText || '').includes(t)); if (b) { b.click(); } return !!b; }",
         text))
+
+
+def _click_key(page, key: str) -> bool:
+    """스트림릿 단추를 그 열쇠(key)로 누른다 — 밑 막대 단추는 글자가 투명이라 글자로는 못 찾는다."""
+    return bool(page.evaluate(
+        "(k) => { const b = [...document.querySelectorAll(`div.st-key-${k} button`)]"
+        ".find(x => !x.closest('[data-stale=\"true\"]')); if (b) { b.click(); } return !!b; }",
+        key))
 
 
 def _wait_for(page, js: str, limit: float = CLICK_LIMIT) -> float | None:
@@ -99,6 +121,46 @@ def _wait_for_version(page, short_sha: str, limit: float = 900.0) -> bool:
     return False
 
 
+def _warm_page(page, name: str, url: str, home: str, market: str) -> None:
+    """한 화면을 데운다 — 관심종목 → 밑 막대 「시장분석」 → 상승장·급락을 한 번씩 열고 닫는다.
+
+    한 화면이 안 떠도 다음 화면은 데운다(그만두지 않고 넘어간다).
+    """
+    started = time.time()
+    _log(f"{name} 열기")
+    page.goto(url, wait_until="domcontentloaded", timeout=180_000)
+    if _wait_for(page, f"!!document.querySelector({home!r})") is None:
+        _log(f"{name} 관심종목 화면이 안 떴다 — 다음으로")
+        return
+    _settle(page)
+    _log(f"{name} 관심종목 준비됨 {time.time() - started:.0f}초")
+
+    _click_key(page, "j3b_nav_market")
+    if _wait_for(page, f"!!document.querySelector({market!r})") is None:
+        _log(f"{name} 시장분석이 안 떴다 — 다음으로")
+        return
+    _settle(page)
+    _log(f"{name} 시장분석 준비됨")
+
+    for open_label, close_label in (
+        ("상승장 (신고가 눌림매수)", "✕ 상승장 (신고가 눌림매수) 닫기"),
+        ("급락 후 반등장 (낙폭종목)", "✕ 급락 후 반등장 (낙폭종목) 닫기"),
+    ):
+        at = time.time()
+        if not _click(page, open_label):
+            _log(f"{name} {open_label} 단추를 못 찾았다")
+            continue
+        shown = _wait_for(
+            page,
+            "[...document.querySelectorAll('button')].some(b => (b.innerText||'')"
+            f".includes({close_label!r}))")
+        _settle(page)
+        _log(f"{name} {open_label} — 목록 {shown and round(shown, 1)}초 · "
+             f"다 그리기 {time.time() - at:.0f}초")
+        _click(page, close_label)
+        _settle(page)
+
+
 def main() -> int:
     import os
 
@@ -108,43 +170,12 @@ def main() -> int:
         browser = play.chromium.launch()
         page = browser.new_page(viewport={"width": 420, "height": 900})
         try:
-            # 목록 저장 뒤에 불렸으면(WAIT_FOR_SHA) 새 판이 뜰 때까지 먼저 기다린다.
+            # 목록 저장·코드 올리기 뒤에 불렸으면(WAIT_FOR_SHA) 새 판이 뜰 때까지 먼저 기다린다.
             short_sha = (os.environ.get("WAIT_FOR_SHA") or "").strip()[:7]
             if short_sha and not _wait_for_version(page, short_sha):
                 _log("새 판이 안 떴다 — 그래도 지금 판을 데운다")
-            started = time.time()
-            _log("앱 열기")
-            page.goto(APP, wait_until="domcontentloaded", timeout=180_000)
-            if _wait_for(page, "!!document.querySelector('.j3b-home')") is None:
-                _log("관심종목 화면이 안 떴다 — 그만둔다")
-                return 0
-            _settle(page)
-            _log(f"관심종목 준비됨 {time.time() - started:.0f}초")
-
-            _click(page, "시장분석으로")
-            if _wait_for(page, "!!document.querySelector('.j3-market-top')") is None:
-                _log("시장분석이 안 떴다 — 그만둔다")
-                return 0
-            _settle(page)
-            _log("시장분석 준비됨")
-
-            for open_label, close_label in (
-                ("상승장 (신고가 눌림매수)", "✕ 상승장 (신고가 눌림매수) 닫기"),
-                ("급락 후 반등장 (낙폭종목)", "✕ 급락 후 반등장 (낙폭종목) 닫기"),
-            ):
-                at = time.time()
-                if not _click(page, open_label):
-                    _log(f"{open_label} 단추를 못 찾았다")
-                    continue
-                shown = _wait_for(
-                    page,
-                    "[...document.querySelectorAll('button')].some(b => (b.innerText||'')"
-                    f".includes({close_label!r}))")
-                _settle(page)
-                _log(f"{open_label} — 목록 {shown and round(shown, 1)}초 · "
-                     f"다 그리기 {time.time() - at:.0f}초")
-                _click(page, close_label)
-                _settle(page)
+            for name, url, home, market in PAGES:
+                _warm_page(page, name, url, home, market)
             _log("아침 준비 끝")
         finally:
             browser.close()
