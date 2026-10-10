@@ -12478,7 +12478,24 @@ def _briefing_chart(values, change, *, stroke: str = "", baseline: bool = False,
             f'stroke-width="2.1" vector-effect="non-scaling-stroke"/></svg>')
 
 
+# 이번 판에 「뉴스를 불러오는 중입니다」로 그린 뉴스 자리 — 이 자리들이 다 와야 뉴스 뒤 미리 챙기기를 한다.
+_NEWS_WAIT_KEYS = "j3b_news_wait_keys"
+
+
 def _briefing_items(kind: str, ticker: str | None = None) -> dict:
+    """뉴스 한 자리. 화면이 기다릴 것이 있으면 표시해 둔다 — 지켜보는 조각(_briefing_news_watcher)이 본다.
+
+    **옛 뉴스가 떠 있는 채로 새로 받을 때는 기다리지 않는다** (2026-10-10 상하님 「자비스12 뉴스 다시 그리기 부분
+    고쳐라」). 뉴스는 30분마다 새로 받는다(jarvis3_briefing_news.CACHE_SECONDS). 그동안 옛 줄을 그대로 보여 주고
+    뒤에서 받는데, 예전에는 이때도 「기다림」으로 적어 다 오면 판 전체를 한 번 더 그렸다. 시장분석에서 구역을 여럿
+    연 뒤 관심종목으로 돌아가면 그 두 번째 판 때문에 느린 폰에서 13~14초가 걸렸다(온라인 실측 — 돌아가며
+    1.0→7.4초 · 2초 뒤 저절로 9.3→13.9초). 새 줄은 옛 줄보다 큰 소식일 때만 자리를 바꾸므로(_merge_by_importance)
+    그 판에서 화면이 안 바뀌는 일이 많다.
+    이제 「뉴스를 불러오는 중입니다」가 뜬 자리(줄이 하나도 없는 자리)만 기다린다 — 그 자리는 예전처럼 오면 다시
+    그린다(2026-09-02 그 일 그대로). 옛 줄이 떠 있으면 새 줄은 다음에 화면을 그릴 때 들어간다. 기다림으로 적지
+    않으니 2초마다 살피는 조각도 안 뜬다 — 띄우면 판 전체를 다시 그려야만 멈추는데(스트림릿 1.59), 다 온 뒤에도
+    2초마다 돌면 느린 폰이 30초에 2.2초씩 붙잡혔다(노트북 실측).
+    """
     result = briefing_news.get_or_schedule(
         kind, ticker, finnhub_key=_briefing_secret("FINNHUB_API_KEY"),
         groq_key=_briefing_secret("GROQ_API_KEY"),
@@ -12486,8 +12503,9 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
         naver_client_id=_briefing_secret("NAVER_CLIENT_ID"),
         naver_client_secret=_briefing_secret("NAVER_CLIENT_SECRET"),
     )
-    if result.get("pending"):
+    if result.get("pending") and not result.get("items"):
         st.session_state["j3b_news_pending"] = True
+        st.session_state.setdefault(_NEWS_WAIT_KEYS, []).append((kind, ticker))
     return result
 
 
@@ -12554,8 +12572,12 @@ def _news_article_html(url: str) -> str:
         row = news_reader.get(url)
         if row is None or row.get("status") in ("english", "failed"):
             news_reader.schedule([url])      # 아직 없거나 다시 받을 때 — 뒤에서 받는다
-        if news_reader.pending(url):
-            # 받는 중인 기사를 적어 둔다 — 도착하면 지켜보는 조각이 다시 그린다.
+        if row is None and news_reader.pending(url):
+            # **처음** 받는 기사만 적어 둔다 — 도착하면 지켜보는 조각이 다시 그린다.
+            # 못 받았던 기사(failed)·번역만 막혔던 기사(english)를 10분 만에 다시 받으러 갈 때는 적지 않는다
+            # (2026-10-10 상하님 「자비스12 뉴스 다시 그리기 부분 고쳐라」). 다시 못 받아 오는 일이 많은데 그때도 판
+            # 전체를 다시 그렸다 — 화면 글은 그 전과 같은 「본문을 받는 중입니다」다(노트북 실측: 관심종목으로 돌아간 뒤
+            # 3초에 한 번 더 그린 판이 바로 이것). 다시 받는 일은 그대로 뒤에서 하고, 받아 오면 다음에 그릴 때 보인다.
             st.session_state.setdefault(_ARTICLE_WAIT_RUN, {})[url] = True
     except Exception:
         return ""
@@ -14087,6 +14109,7 @@ def _render_stock_briefing() -> None:
         _warm_us_listing_later()
         return
     st.session_state["j3b_news_pending"] = False
+    st.session_state[_NEWS_WAIT_KEYS] = []
     try:
         briefing_store.ensure_tables()
         # 기본 4종목을 실제 줄로 옮겨 적어 ×로 지울 수 있게 한다(2026-08-26).
@@ -14216,7 +14239,8 @@ def _render_stock_briefing() -> None:
         # 뉴스가 다 온 뒤에야 순위 9·나스닥 25년치를 미리 챙긴다. 위 줄이 화면을
         # 다시 그리라고 하면 이 줄까지 오지 않는다 — 그것이 맞다. 아직 뉴스가
         # 오는 중이라는 뜻이기 때문이다.
-        _warm_after_news(news_keys)
+        # 「불러오는 중」으로 그린 자리만 기다린다(2026-10-10) — 옛 줄이 떠 있는 자리는 화면이 기다릴 것이 없다.
+        _warm_after_news(tuple(st.session_state.get(_NEWS_WAIT_KEYS) or ()))
 
 
 def _run_hard_reload_if_requested() -> None:

@@ -63,6 +63,50 @@ class SourceTests(unittest.TestCase):
         self.assertIn("target=j3data._background(j3data._us_listing)", src)
         self.assertIn("_warm_us_listing_later()", src)
 
+    def test_news_redraws_only_when_the_screen_changes(self):
+        """2026-10-10 상하님 「자비스12 뉴스 다시 그리기 부분 고쳐라」 — 옛 뉴스가 떠 있는 채로 새로 받을 때와 못 받은 기사
+        본문을 다시 받으러 갈 때는 기다리지 않는다(판 전체를 다시 그리지 않고 2초마다 살피는 조각도 안 뜬다)."""
+        import html as _html
+        import types
+
+        src = self.SOURCE
+        state = {}
+        fake_st = types.SimpleNamespace(session_state=state)
+        answer = {}
+        news = types.SimpleNamespace(get_or_schedule=lambda kind, ticker, **_: dict(answer))
+        ns = {"st": fake_st, "briefing_news": news, "_briefing_secret": lambda name: ""}
+        exec(src[src.index("_NEWS_WAIT_KEYS = "):src.index("# 이번 판에 「받는 중」으로 그린 기사 주소들")], ns)
+        # 옛 줄이 떠 있는 채로 새로 받는 중 — 기다리지 않는다
+        answer.update(items=[{"brief": "옛 뉴스"}], pending=True)
+        ns["_briefing_items"]("company", "AAA")
+        self.assertNotIn("j3b_news_pending", state)
+        self.assertEqual([], state.get("j3b_news_wait_keys", []))
+        # 「불러오는 중」이 뜬 자리 — 예전처럼 기다린다(오면 다시 그림)
+        answer.clear(); answer.update(items=[], pending=True)
+        ns["_briefing_items"]("company", "BBB")
+        self.assertTrue(state["j3b_news_pending"])
+        self.assertEqual([("company", "BBB")], state["j3b_news_wait_keys"])
+
+        # 기사 본문 — 처음 받는 것만 기다린다
+        rows, scheduled = {}, []
+        reader = types.SimpleNamespace(get=lambda url: rows.get(url), pending=lambda url: True,
+                                       schedule=lambda urls: scheduled.extend(urls))
+        ns2 = {"st": types.SimpleNamespace(session_state={}), "news_reader": reader, "html": _html,
+               "_ARTICLE_WAIT_RUN": "j3b_article_wait_run"}
+        exec(src[src.index("def _news_article_html("):src.index("def _news_original_html(")], ns2)
+        ns2["_news_article_html"]("https://a.example/new")
+        rows["https://a.example/failed"] = {"status": "failed", "paragraphs": []}
+        rows["https://a.example/english"] = {"status": "english", "paragraphs": ["hello"]}
+        ns2["_news_article_html"]("https://a.example/failed")
+        ns2["_news_article_html"]("https://a.example/english")
+        waited = ns2["st"].session_state.get("j3b_article_wait_run", {})
+        self.assertEqual(["https://a.example/new"], list(waited))
+        self.assertEqual(3, len(scheduled))                         # 다시 받으러 가는 일은 그대로 한다
+
+        # 판마다 비우고, 뉴스 뒤 미리 챙기기는 「불러오는 중」 자리만 기다린다
+        self.assertIn("    st.session_state[_NEWS_WAIT_KEYS] = []\n", src)
+        self.assertIn("_warm_after_news(tuple(st.session_state.get(_NEWS_WAIT_KEYS) or ()))", src)
+
     def test_fundamentals_sit_right_under_the_street_boxes(self):
         body = self.SOURCE[self.SOURCE.index("def _render_stock_detail("):]
         self.assertLess(body.index("_render_fundamentals_box(ticker, metrics, panel=panel)"),
