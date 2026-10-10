@@ -33,13 +33,22 @@
 「시장분석으로」를 눌렀는데, 2026-10-10 아침 넘기기를 잠깐 뺐던 동안 그 단추가 없어 관심종목만 데웠다.
 코드를 올리면 앱이 껐다 켜진다 — 그 뒤 첫 시장분석 24초·첫 테마 39~44초를 사람 대신 이것이 기다린다
 (.github/workflows/warm_morning.yml 의 push).
+
+**목록 저장 뒤 16~26분 → 「새로 켜진 앱」을 보고 바로** (2026-10-10 상하님 「고쳐라」). 예전에는 화면 맨 밑 판 표시가
+맨 끝 커밋으로 바뀌기를 기다렸는데, 판 표시는 코드를 바꾼 올리기에서만 바뀐다 — 자료만 올리는 저장 뒤에는 15분을
+다 채우고서야 데웠다(그동안 들어온 첫 사람은 식은 앱을 만났다). 이제 자비스12 밑 막대 글에 숨긴 「켜진 시각」
+(.j12-boot · pages/11 _app_booted_at)이 마지막 올리기(WAIT_FOR_BOOT_AFTER)보다 늦어지면 바로 데운다. 8분이 지나도
+새로 안 켜지면(올린 것이 앱을 안 껐다 켠 때) 그냥 데운다.
 """
 from __future__ import annotations
 
 import sys
 import time
 
-BASE = "https://stock-event-jarvis.streamlit.app/~/+"
+import os
+
+# 노트북에서 시험할 때만 WARM_BASE 로 바꾼다(예: http://localhost:8599). 깃허브는 그대로 온라인.
+BASE = os.environ.get("WARM_BASE") or "https://stock-event-jarvis.streamlit.app/~/+"
 # 여는 차례 — (이름, 주소, 관심종목 표식, 시장분석 표식). 자비스12 가 먼저다(위 설명).
 PAGES = (
     ("자비스12", f"{BASE}/자비스12?guest=1", ".j12b-home", ".j12-market-top"),
@@ -50,6 +59,8 @@ APP = PAGES[0][1]           # 새 판이 떴는지 볼 때 여는 곳
 # 2분 넘게 일한다(위 실측).
 SETTLE_LIMIT = 300.0
 CLICK_LIMIT = 600.0
+# 새로 켜진 앱을 기다리는 한도(초). 올리고 나서 앱이 다시 켜지기까지 보통 1~3분(2026-10-10 실측).
+RESTART_WAIT_LIMIT = float(os.environ.get("RESTART_WAIT_LIMIT") or 480)
 
 
 def _log(message: str) -> None:
@@ -121,6 +132,34 @@ def _wait_for_version(page, short_sha: str, limit: float = 900.0) -> bool:
     return False
 
 
+def _wait_for_restart(page, after: float, limit: float = RESTART_WAIT_LIMIT) -> bool:
+    """자비스12 의 「켜진 시각」이 after(마지막 올리기 시각)보다 늦어질 때까지 기다린다 (2026-10-10).
+
+    늦으면 올린 뒤에 새로 켜진 앱이다 — 데운 것이 곧 사라지지 않는다. 20초마다 다시 연다.
+    켜진 시각 표시가 없으면(이 장치가 아직 안 올라간 판) 기다리지 않는다.
+    """
+    start = time.time()
+    while time.time() - start < limit:
+        try:
+            page.goto(APP, wait_until="domcontentloaded", timeout=180_000)
+            if _wait_for(page, f"!!document.querySelector({PAGES[0][2]!r})", limit=240) is not None:
+                if _wait_for(page, "!!document.querySelector('.j12-boot')", limit=120) is None:
+                    _log("켜진 시각 표시가 없다 — 기다리지 않고 데운다")
+                    return False
+                booted = float(page.evaluate(
+                    "(document.querySelector('.j12-boot') || {}).textContent || '0'") or 0)
+                when = time.strftime("%H:%M:%S", time.localtime(booted)) if booted else "모름"
+                if booted >= after:
+                    _log(f"새로 켜진 앱 확인 — 켜진 때 {when}")
+                    return True
+                _log(f"아직 그 전 앱 — 켜진 때 {when} · 올린 때 "
+                     f"{time.strftime('%H:%M:%S', time.localtime(after))}")
+        except Exception as exc:
+            _log(f"켜진 때 확인 실패 — {exc}")
+        page.wait_for_timeout(20_000)
+    return False
+
+
 def _warm_page(page, name: str, url: str, home: str, market: str) -> None:
     """한 화면을 데운다 — 관심종목 → 밑 막대 「시장분석」 → 상승장·급락을 한 번씩 열고 닫는다.
 
@@ -162,8 +201,6 @@ def _warm_page(page, name: str, url: str, home: str, market: str) -> None:
 
 
 def main() -> int:
-    import os
-
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as play:
@@ -174,6 +211,10 @@ def main() -> int:
             short_sha = (os.environ.get("WAIT_FOR_SHA") or "").strip()[:7]
             if short_sha and not _wait_for_version(page, short_sha):
                 _log("새 판이 안 떴다 — 그래도 지금 판을 데운다")
+            # 마지막 올리기 뒤에 앱이 새로 켜졌는지(WAIT_FOR_BOOT_AFTER — 그 올리기의 시각, 초).
+            boot_after = float(os.environ.get("WAIT_FOR_BOOT_AFTER") or 0)
+            if boot_after and not _wait_for_restart(page, boot_after):
+                _log("새로 켜진 앱을 못 봤다 — 그래도 지금 앱을 데운다")
             for name, url, home, market in PAGES:
                 _warm_page(page, name, url, home, market)
             _log("아침 준비 끝")

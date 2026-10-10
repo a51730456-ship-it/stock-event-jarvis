@@ -13979,6 +13979,18 @@ def _briefing_home_request() -> None:
         st.switch_page("app.py")
 
 
+@st.cache_resource(show_spinner=False)
+def _app_booted_at() -> float:
+    """이 앱(서버 판)이 **켜진 시각** — 깨우기(warm_morning.py)가 「앱이 새로 켜졌나」를 본다 (2026-10-10 상하님 「고쳐라」).
+
+    깃허브 목록 저장이 자료를 올리면 앱이 껐다 켜진다. 깨우기는 그 뒤에 데워야 하는데, 예전에는 화면 맨 밑 판 표시가
+    바뀌기를 기다렸다 — 판 표시는 **코드**를 바꾼 올리기에서만 바뀌어, 자료만 올린 저장 뒤에는 15분을 다 채우고서야
+    데웠다(깃허브 기록 — 깨우기 한 번에 16~26분). 서버 기억(cache_resource)은 앱이 껐다 켜질 때만 비므로, 처음 부른
+    시각이 곧 켜진 시각이다. 화면에는 안 보인다(밑 막대 글 안에 숨긴 글자).
+    """
+    return time.time()
+
+
 def _render_briefing_bottom_nav(active: str) -> None:
     """종목 브리핑과 시장분석에서 같이 보이는 하단 이동표."""
     # 시장분석 그림만 글자가 아니라 **직접 그린 그림**이다(2026-08-26 상하님 지시 —
@@ -13996,7 +14008,12 @@ def _render_briefing_bottom_nav(active: str) -> None:
         f'<span class="j3b-nav-item{" active" if key == active else ""}"><b>{icon}</b>{label}</span>'
         for key, icon, label in labels
     )
-    st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>', unsafe_allow_html=True)
+    # 앱이 켜진 시각(깨우기가 본다 · 위 _app_booted_at) — 같은 글 안에 숨긴다. 새 칸을 만들면 칸 사이 틈이 붙는다.
+    try:
+        boot = f'<span class="j12-boot" hidden style="display:none">{_app_booted_at():.0f}</span>'
+    except Exception:
+        boot = ""
+    st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>{boot}', unsafe_allow_html=True)
     with st.container(key="j3b_nav_controls"):
         home_col, watch_col, market_col = st.columns(3, gap="small")
         # 「홈」은 누르는 순간 표시만 해 두고, 홈으로 넘어가는 일은 화면 **맨 앞**
