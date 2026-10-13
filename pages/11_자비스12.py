@@ -1930,12 +1930,14 @@ if (
 ):
     picklist_ui = importlib.reload(picklist_ui)
 
-import scorecard_compare
+# 「나스닥 종합과 견줘 보기」는 **자비스12 전용 사본**을 부른다 — 순위 9 를 넣었다(2026-10-14 상하님 지시).
+# scorecard_compare.py 는 자비스3 과 같이 쓰는 얼린 파일이라 그대로 둔다(CLAUDE.md 0-2).
+import jarvis12_scorecard_compare as scorecard_compare
 import us_fundamentals
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026100910
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026101410
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
@@ -6956,7 +6958,7 @@ _SCORECARD_VX_TAB = "j3vx_tab"          # all · theme · swing
 _SCORECARD_VX_PERIOD = "j3vx_period"    # d · w · m
 _SCORECARD_VX_VIEW = "j3vx_view"        # line · bar
 _SCORECARD_VX_HELP = {
-    "all": "나스닥 종합(회색 굵은 띠)과 세 파트를 한 그림에 겹쳐 봅니다.",
+    "all": "나스닥 종합(회색 굵은 띠)과 네 파트를 한 그림에 겹쳐 봅니다.",
     "theme": "나스닥 종합(회색 굵은 띠)과 상위 테마 5개(1~3위)만 견줍니다.",
     "swing": "나스닥 종합(회색 굵은 띠)과 상승장 · 급락 후 반등장 두 파트를 견줍니다.",
     "themes": "나스닥 종합(회색 굵은 띠) 하나와 이 기간 「상위 테마 5개」에 든 테마들 — 테마마다 1~3위를 샀다면.",
