@@ -1934,12 +1934,17 @@ if (
 # scorecard_compare.py 는 자비스3 과 같이 쓰는 얼린 파일이라 그대로 둔다(CLAUDE.md 0-2).
 import jarvis12_scorecard_compare as scorecard_compare
 import us_fundamentals
+# 급락 후 반등장 — **기준일 하루로 정한 10종목**(자비스12 전용 · 2026-10-14 상하님 지시 · 설명서 3-3).
+import jarvis12_crash
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026101410
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
+_REQUIRED_J12_CRASH_REVISION = 2026101410
+if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
+    jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
@@ -6629,6 +6634,21 @@ def _scorecard_prices(codes) -> dict:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
+def _crash12_cohort_rows() -> list:
+    """성적표·그래프의 급락 줄 — 급락마다 기준일 10종목을 「기준일에 나왔고 다음 날 시가에 한 번 샀다」로 (2026-10-14).
+
+    날짜별로 저장된 급락 줄(옛 20개 · 자비스3 과 같이 쓰는 기록)은 자비스12 성적표에서 세지 않는다.
+    성적표를 세기 시작한 날(_SCORECARD_START)에 **이미 끝난 급락은 뺀다** — 넣으면 그래프가 그 급락 날짜(예: 3월)부터
+    시작해 다른 파트가 오른쪽 끝에 몰렸다(노트북 화면 확인). 그날 보여 주던 급락(7/29)부터 센다.
+    """
+    try:
+        rows = jarvis12_crash.cohorts()
+    except Exception:
+        return []
+    return [row for row in rows
+            if not row.get("episode_recovered") or str(row["episode_recovered"]) >= _SCORECARD_START]
+
+
 def _scorecard_counts_cached(stamp: str) -> dict:
     """저장해 둔 날을 전부 읽어 파트마다 **이익 난 확률**을 센다.
 
@@ -6649,6 +6669,8 @@ def _scorecard_counts_cached(stamp: str) -> dict:
             rows.extend(store.load_rows(day, "US") or [])
         except Exception:
             continue
+    # 급락은 기준일 10종목(2026-10-14) — 저장된 급락 줄은 빼고 넣는다.
+    rows = [row for row in rows if row.get("list_kind") != "crash"] + _crash12_cohort_rows()
     prices = _scorecard_prices([row.get("code") for row in rows]) if rows else {}
     anchor = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
     parts = {kind for kind, _name, _color in _SCORECARD_PARTS}
@@ -6666,8 +6688,8 @@ def _scorecard_counts_cached(stamp: str) -> dict:
         day = str(row.get("trade_date") or "")
         if newest and day >= newest:
             continue            # 산 날 장이 아직 안 끝났다 — 다음 날 센다
-        if day < _SCORECARD_START:
-            continue            # 세기 시작한 날보다 앞이다
+        if day < _SCORECARD_START and not row.get("j12_fixed"):
+            continue            # 세기 시작한 날보다 앞이다(급락 기준일 줄은 그 급락 날짜 그대로 센다)
         gain = store.profit_pct(row.get("buy_open"),
                                 prices.get(str(row.get("code") or "").upper()))
         if gain is None:
@@ -6679,7 +6701,8 @@ def _scorecard_counts_cached(stamp: str) -> dict:
         for label, days in _SCORECARD_SPANS:
             if not _scorecard_in_span(when, anchor, days):
                 continue
-            seen_days[label].add(day)
+            if not row.get("j12_fixed"):
+                seen_days[label].add(day)        # 「저장해 둔 ○일치」는 저장된 날만 센다
             keys = [(kind, label), ("_all", label)]
             # **순위 9 는 그 속 세 파트로도 센다** (2026-09-17 상하님 지시 —
             # "매수심사결과 높은 순위 9 에 세 가지 항목이 3개씩 들어 있는데 이걸 알
@@ -6709,7 +6732,7 @@ def _scorecard_counts() -> dict:
 
     dates = store.available_dates("US")
     # 끝의 판 표시는 세는 모양이 바뀌면 올린다 — 앱에 남은 옛 모양을 안 쓰게.
-    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|top9-parts"
+    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|top9-parts|crash12"
     data = _scorecard_counts_cached(stamp)
     st.session_state[_SCORECARD_CACHE] = data
     return data
@@ -6770,6 +6793,12 @@ def _scorecard_range_counts(stamp: str, start: str, end: str) -> dict:
             rows.extend(store.load_rows(day, "US") or [])
         except Exception:
             continue
+    # 급락은 기준일 10종목(2026-10-14) — 산 날(기준일 다음 거래일)이 이 기간 안이면 센다.
+    rows = [row for row in rows if row.get("list_kind") != "crash"]
+    for row in _crash12_cohort_rows():
+        when = date.fromisoformat(row["trade_date"])
+        if when >= first and _us_next_trading_day(when) <= last:
+            rows.append(row)
     wanted = tuple(dict.fromkeys(str(row.get("code") or "").strip().upper()
                                  for row in rows if str(row.get("code") or "").strip()))
     closes_at_end = {}
@@ -6802,7 +6831,8 @@ def _scorecard_range_counts(stamp: str, start: str, end: str) -> dict:
                                 closes_at_end.get(str(row.get("code") or "").upper()))
         if gain is None:
             continue
-        used.add(str(row.get("trade_date") or ""))
+        if not row.get("j12_fixed"):
+            used.add(str(row.get("trade_date") or ""))
         keys = [(kind, _SCORECARD_RANGE), ("_all", _SCORECARD_RANGE)]
         origin = str(row.get("origin") or "").strip()
         if kind == "top7" and origin in _SCORECARD_TOP9_PARTS_NAMES:
@@ -6927,12 +6957,14 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
         note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
                 f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
                 f"<b>{html.escape(str(data.get('sold') or ''))} 종가</b>에 판 것으로 견줬습니다. "
-                "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다.")
+                "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다."
+                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다.")
     elif used.get("days"):
         note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
                 f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
                 "지금 값과 견준 것입니다. 매수금액이 아직 없는 줄과 값을 못 받은 "
-                "종목은 세지 않습니다.")
+                "종목은 세지 않습니다."
+                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다.")
     else:
         note = "이 기간에는 아직 잴 것이 없습니다."
     base = hit("_all", span)
@@ -7003,6 +7035,16 @@ def _scorecard_compare_cached(stamp: str, span: str, start: str = "", end: str =
             rows.extend(store.load_rows(day, "US") or [])
         except Exception:
             continue
+    # 급락은 기준일 10종목(2026-10-14 상하님 — "그날 나온 종목이 계속 그래프에 나와야겠지").
+    rows = [row for row in rows if row.get("list_kind") != "crash"]
+    for row in _crash12_cohort_rows():
+        when = date.fromisoformat(row["trade_date"])
+        if ranged:
+            if when < first or _us_next_trading_day(when) > last:
+                continue
+        elif not _scorecard_in_span(when, anchor, span_days):
+            continue
+        rows.append(row)
     codes = tuple(dict.fromkeys(
         str(row.get("code") or "").strip().upper() for row in rows
         if row.get("list_kind") in scorecard_compare.PARTS and str(row.get("code") or "").strip()))
@@ -7123,7 +7165,8 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
         chart = vx.line_chart_html(data, tab, period)
         note = (f"{html.escape(first)} ~ {html.escape(last)} · 저장된 목록을 <b>날마다 같은 돈으로</b> 다음 거래일 "
                 f"시가에 샀다고 치고 {html.escape(last)} 종가까지 견준 것입니다. 나스닥 종합도 같은 날 같은 돈으로 "
-                "샀다고 친 것입니다.")
+                "샀다고 친 것입니다."
+                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다.")
     # 한 상자(j3vx-body)로 싼다 — 이 화면은 글 상자 바로 밑 칸의 위아래 여백을 지운다(10873 줄
     # 규칙). 싸지 않으면 그림 밑 날짜 글자가 아래 설명 글을 덮었다(2026-10-07 노트북 실측).
     body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
@@ -7979,7 +8022,9 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
         ranking.get("rows") or [],
         market_score=market_score,
         breakout=opened if opened_mode == "breakout" else None,
-        crash=opened if opened_mode == "crash" else None,
+        # 급락 표가 기준일 10종목(2026-10-14)이면 넘기지 않는다 — 순위 9 의 급락 3개는 아직 옛 목록에서 뽑는다
+        # (저장 기록·자비스3 과 같게). 넘기면 급락 칸을 열었느냐에 따라 순위 9 가 달라진다.
+        crash=opened if opened_mode == "crash" and not opened.get("j12_fixed") else None,
     )
     # **저장은 화면이 보여 주는 그 목록이다**(CLAUDE.md 10-1). 예전에는 섞기 전
     # 재료(find_top_reviewed_stocks)를 저장해서 저장 목록과 화면이 갈라져 있었다.
@@ -9014,7 +9059,7 @@ def _pullback_backdrop_cards(
             # (2026-08-06 상하님 지적). 표는 7/29(-11.5%) 기준으로 찾아 놓고
             # 이 칸만 "오늘 -4.1%라 쓸 자리가 아닙니다"라고 말하고 있었다.
             # 표와 **같은 기준일**로 말한다.
-            reference = j3data.crash_reference_day()
+            reference = jarvis12_crash.reference()
             if reference.get("armed"):
                 ref_day = html.escape(str(reference.get("reference_date") or ""))
                 ref_drop = _red(f"{float(reference.get('reference_drop') or 0):.1f}%")
@@ -9651,6 +9696,37 @@ def _ixic_note(reference: dict) -> str:
     return f" (나스닥 종합지수(IXIC)는 {when} 종가 :red[**{float(drop):.2f}%**])"
 
 
+def _crash_red(text) -> str:
+    """하락폭 숫자를 붉게 — 급락 표 위 경고 두 칸이 쓴다(2026-10-14).
+
+    그 두 칸은 다른 함수 안에만 있는 _red 를 불러, 나스닥이 실제로 6% 넘게 빠진 날(경고가 켜지는 날)에는
+    「급락 후 반등장」 화면이 오류로 깨졌다 — 기준일 10종목을 노트북에서 시험하다 드러났다. 같은 모양으로 따로 둔다.
+    """
+    return f"<span style='color:#ff5b5b; font-weight:900'>{html.escape(str(text))}</span>"
+
+
+def _crash12_story(reference: dict, drop_now, count: int) -> str:
+    """급락 후 반등장 표 위 설명(자비스12 · 2026-10-14 상하님 — "이 상황에 대한 설명이 있어야겠다")."""
+    if not reference.get("armed"):
+        return (f"최근 1년 안에 QQQ(나스닥100)가 고점 대비 {abs(jarvis12_crash.THRESHOLD):.0f}% 넘게 빠진 날이 "
+                "없어 **오늘은 이 자리가 없습니다.**")
+    ref_day = str(reference.get("reference_date") or "")
+    ref_drop = float(reference.get("reference_drop") or 0)
+    text = (f"**{ref_day} 기준 {count}종목입니다.** 이번 급락에서 QQQ(나스닥100)가 가장 깊이 빠졌던 날이 "
+            f"{ref_day}(고점 대비 :red[**{ref_drop:.1f}%**])입니다" + _ixic_note(reference)
+            + ". 그날 장 마감 자료로 고점 대비 −20~−30%·−30~−50% 두 갈래에서 점수 위 5개씩 골랐고, "
+            "**다음 급락이 올 때까지 이 종목 그대로** 보여 드립니다(새 종목이 끼어들지 않습니다). "
+            "성적표·그래프도 이 종목들을 기준일 다음 날 시가에 한 번 산 것으로 셉니다.")
+    if reference.get("recovered_on"):
+        text += (f" 나스닥은 {reference['recovered_on']}에 전고점을 되찾아 이번 급락은 끝났습니다"
+                 + (f" — 지금은 고점 대비 :red[**{float(drop_now):.1f}%**]입니다." if drop_now is not None else "."))
+        text += f" 다시 {abs(jarvis12_crash.THRESHOLD):.0f}% 넘게 빠지면 그때 새로 고릅니다."
+    elif drop_now is not None:
+        text += (f" 지금은 고점 대비 :red[**{float(drop_now):.1f}%**]입니다 — 이보다 더 빠지는 날이 오면 "
+                 "그날을 기준일로 다시 고릅니다.")
+    return text
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -9692,7 +9768,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         drop_now = crash_market.get("drop_pct")
         ref_date = reference.get("reference_date")
         # 하락폭 숫자는 붉게(2026-08-06 사용자 지시). 스트림릿 글자색 표시를 쓴다.
-        if ref_date and drop_now is not None:
+        if result.get("j12_fixed"):
+            # **자비스12 — 기준일 하루로 정한 10종목** (2026-10-14 상하님 — "이 상황에 대한 설명이 있어야겠다").
+            st.info(_crash12_story(reference, drop_now, len(rows)))
+        elif ref_date and drop_now is not None:
             # 며칠 지났는지 함께 적는다(2026-08-16) — 표의 '테마 반등' 칸이
             # 기준일에서 잰 값이라, 며칠째인지 모르면 그 숫자를 읽을 수 없다.
             passed = result.get("days_since_reference")
@@ -9781,7 +9860,11 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                         for item in rule.get("results") or ())
                     + f" · 지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
                 )
-            if ref_date:
+            if ref_date and result.get("j12_fixed"):
+                st.caption(
+                    f"오늘이 아니라 {ref_date} 장 마감 자료로 갈래를 나누고 점수를 매겼습니다. "
+                    "표의 현재가·「종목저점후」는 오늘 값입니다.")
+            elif ref_date:
                 st.caption(
                     f"오늘이 아니라 {ref_date} 기준으로 갈래를 나눴습니다"
                     f"(최근 {reference.get('days_in_band', 0)}일이 그 자리였고 마지막은 "
@@ -9789,9 +9872,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                     "이미 오른 종목이 목록에서 사라집니다."
                 )
             st.markdown(
-                "<div class='j3-pull-guide'><b>찾는 그물</b> — 나스닥이 "
-                "<span class='j3-drop'>-6~-12%</span>였던 날을 기준으로, 고점에서 "
-                "<span class='j3-drop'>-20~-50%</span> 빠진 종목을 찾습니다.</div>",
+                "<div class='j3-pull-guide'><b>찾는 그물</b> — QQQ(나스닥100)가 고점 대비 "
+                "<span class='j3-drop'>-5%</span> 아래로 빠진 이번 급락에서 가장 깊었던 날(기준일)에, 고점에서 "
+                "<span class='j3-drop'>-20~-30%</span>·<span class='j3-drop'>-30~-50%</span> 빠진 종목을 두 갈래로 "
+                "나눠 갈래마다 점수 위 <b>5개</b>씩 고릅니다(10종목). 다음 급락이 올 때까지 이 10종목 그대로입니다.</div>",
                 unsafe_allow_html=True,
             )
             st.markdown(
@@ -9827,7 +9911,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             st.markdown(
                 "<div class='j3-pull-guide'><b class='j3-down'>⚠ 오늘은 점수로 "
                 "순위를 가를 수 없습니다.</b> 나스닥이 고점 대비 "
-                + (_red(f"{float(drop):.1f}%") if drop is not None else "크게")
+                + (_crash_red(f"{float(drop):.1f}%") if drop is not None else "크게")
                 + f"까지 빠져 있습니다. 이만큼(<b>{abs(limit):.0f}% 아래</b>) 깊은 "
                 "자리에서는 배점 세 항목이 <u>전부 무너집니다</u> — 10년치를 낙폭 칸별로 "
                 "갈라 재서 확인했습니다.<br><b>아래 목록은 순서 없이 보십시오.</b> "
@@ -9843,7 +9927,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             st.markdown(
                 "<div class='j3-pull-guide'><b class='j3-down'>⚠ 오늘은 순위가 "
                 "약합니다.</b> 나스닥이 고점 대비 "
-                + (_red(f"{float(drop):.1f}%") if drop is not None else "조금")
+                + (_crash_red(f"{float(drop):.1f}%") if drop is not None else "조금")
                 + f" 빠져 있습니다. 이 정도(<b>{abs(high):.0f}~{abs(low):.0f}%</b>) "
                 "얕은 자리는 <u>급락 목록이 뜨는 날의 41%</u>로 제일 자주 오는데, "
                 "10년치로 재 보면 배점 세 항목 중 <b>‘테마가 덜 빠졌나’만 1년 보유에서 "
@@ -10388,10 +10472,9 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                 with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
                     st.session_state["j3_pullback_result"] = j3data.breakout_scan()
             else:
-                with st.spinner("미국 대형주 200개에서 고점 대비 낙폭이 큰 종목을 찾는 중입니다…"):
-                    st.session_state["j3_pullback_result"] = (
-                        j3data.find_crash_rebound_stocks()
-                    )
+                # 자비스12 는 **급락 기준일 하루로 정한 10종목**이다(2026-10-14 상하님 지시 — jarvis12_crash).
+                with st.spinner("급락 기준일 자료로 두 갈래 위 5개씩 고르는 중입니다…"):
+                    st.session_state["j3_pullback_result"] = jarvis12_crash.crash_list()
             if not kept:
                 found = st.session_state.get("j3_pullback_result")
                 if isinstance(found, dict) and found.get("ok"):
@@ -10399,7 +10482,10 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                     st.session_state[f"j3_pullback_at_{pressed}"] = time.time()
                 # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
                 # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
-                picklist_ui.autosave("US", pressed, found)
+                # 급락은 남기지 않는다(2026-10-14) — 날짜별 목록은 자비스3 과 같이 쓰는 기록이라 옛 20개
+                # 그대로 쌓이고(깃허브·뒤 일꾼), 자비스12 화면은 기준일 10종목이라 모양이 다르다.
+                if pressed != "crash":
+                    picklist_ui.autosave("US", pressed, found)
     if not st.session_state.get("j3_pullback_open"):
         return
     result = st.session_state.get("j3_pullback_result")
