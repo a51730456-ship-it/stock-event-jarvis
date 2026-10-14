@@ -1942,7 +1942,7 @@ import jarvis12_crash
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026101410
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026101420
+_REQUIRED_J12_CRASH_REVISION = 2026101430
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
@@ -6669,12 +6669,30 @@ def _crash12_rows_for(start) -> list:
     rows = _crash12_cohort_rows()
     if start is None:
         return rows
-    inside = [row for row in rows if _us_next_trading_day(date.fromisoformat(row["trade_date"])) >= start]
-    before = [row for row in rows if _us_next_trading_day(date.fromisoformat(row["trade_date"])) < start]
+    # 다른 파트와 같은 자 — 목록이 나온 날(trade_date)이 기간 안이면 그 기간 줄이다(산 날은 그 다음 거래일).
+    inside = [row for row in rows if date.fromisoformat(row["trade_date"]) >= start]
+    before = [row for row in rows if date.fromisoformat(row["trade_date"]) < start]
     try:
         held = jarvis12_crash.held_from(before, start)
     except Exception:
         held = []
+    # 그날 저장된 목록(어느 파트든)에 같은 종목이 있으면 **저장된 매수금액**을 쓴다 — 날짜별 목록과 숫자가 같게.
+    # 야후가 나중에 그날 시가를 0.1~0.3% 고쳐 적는 일이 있어, 새로 받은 시가와 저장된 값이 조금 달랐다(2026-10-14 실측).
+    try:
+        import picklist_store as store
+
+        for day in {row["trade_date"] for row in held}:
+            saved = {}
+            for item in store.load_rows(day, "US") or []:
+                code = str(item.get("code") or "").strip().upper()
+                value = store.profit_pct(item.get("buy_open"), item.get("buy_open"))   # 숫자로 읽히는지만 본다
+                if code and value is not None and code not in saved:
+                    saved[code] = float(item.get("buy_open"))
+            for row in held:
+                if row["trade_date"] == day and row["code"] in saved:
+                    row["buy_open"] = saved[row["code"]]
+    except Exception:
+        pass
     return inside + held
 
 
@@ -6992,13 +7010,13 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
                 f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
                 f"<b>{html.escape(str(data.get('sold') or ''))} 종가</b>에 판 것으로 견줬습니다. "
                 "매수금액이 아직 없는 줄과 값을 못 받은 종목은 세지 않습니다."
-                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 그 기간 첫날 시가에 들고 있던 것으로 셉니다.")
+                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 다른 파트처럼 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.")
     elif used.get("days"):
         note = (f"{html.escape(str(used['first']))} ~ {html.escape(str(used['last']))} · "
                 f"저장해 둔 {used['days']}일치로 셌습니다. 다음 거래일 시가에 사서 "
                 "지금 값과 견준 것입니다. 매수금액이 아직 없는 줄과 값을 못 받은 "
                 "종목은 세지 않습니다."
-                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 그 기간 첫날 시가에 들고 있던 것으로 셉니다.")
+                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 다른 파트처럼 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.")
     else:
         note = "이 기간에는 아직 잴 것이 없습니다."
     base = hit("_all", span)
@@ -7196,7 +7214,7 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
         note = (f"{html.escape(first)} ~ {html.escape(last)} · 저장된 목록을 <b>날마다 같은 돈으로</b> 다음 거래일 "
                 f"시가에 샀다고 치고 {html.escape(last)} 종가까지 견준 것입니다. 나스닥 종합도 같은 날 같은 돈으로 "
                 "샀다고 친 것입니다."
-                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 그 기간 첫날 시가에 들고 있던 것으로 셉니다.")
+                "<br>급락 후 반등장은 날마다 저장된 줄이 아니라 <b>급락 기준일에 정한 10종목</b>을 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 다른 파트처럼 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.")
     # 한 상자(j3vx-body)로 싼다 — 이 화면은 글 상자 바로 밑 칸의 위아래 여백을 지운다(10873 줄
     # 규칙). 싸지 않으면 그림 밑 날짜 글자가 아래 설명 글을 덮었다(2026-10-07 노트북 실측).
     body = (f"<div class='j3vx-body'><div class='j3vx-help'>{html.escape(_SCORECARD_VX_HELP[tab])}</div>"
@@ -9746,7 +9764,7 @@ def _crash12_story(reference: dict, drop_now, count: int) -> str:
             f"{ref_day}(고점 대비 :red[**{ref_drop:.1f}%**])입니다" + _ixic_note(reference)
             + ". 그날 장 마감 자료로 고점 대비 −20~−30%·−30~−50% 두 갈래에서 점수 위 5개씩 골랐고, "
             "**다음 급락이 올 때까지 이 종목 그대로** 보여 드립니다(새 종목이 끼어들지 않습니다). "
-            "성적표·그래프도 이 종목들을 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 그 기간 첫날 시가에 들고 있던 것으로 셉니다.")
+            "성적표·그래프도 이 종목들을 기준일 다음 날 시가에 한 번 산 것으로 셉니다 — 그보다 뒤에 시작하는 기간은 다른 파트처럼 그 기간 첫날 목록으로 보고 다음 거래일 시가에 산 것으로 셉니다.")
     if reference.get("recovered_on"):
         text += (f" 나스닥은 {reference['recovered_on']}에 전고점을 되찾아 이번 급락은 끝났습니다"
                  + (f" — 지금은 고점 대비 :red[**{float(drop_now):.1f}%**]입니다." if drop_now is not None else "."))

@@ -93,9 +93,10 @@ class HeldTests(unittest.TestCase):
             out = c12.held_from(rows, date(2026, 9, 1))
         self.assertEqual(1, len(out))                                   # 다음 급락이 시작된 3월 줄은 안 들어간다
         first = list(days.date).index(date(2026, 9, 1))
-        self.assertEqual("2026-09-01", out[0]["held_from"])
-        self.assertEqual(days[first - 1].date().isoformat(), out[0]["trade_date"])   # 셈은 「다음 날 시가에 산다」
-        self.assertAlmostEqual(100.0 + first, out[0]["buy_open"])
+        # 다른 파트와 같은 날 — 9/1 목록으로 보고 다음 거래일(9/2) 시가에 산다(9/1 날짜별 목록과 같은 산 값)
+        self.assertEqual("2026-09-01", out[0]["trade_date"])
+        self.assertEqual("2026-09-02", out[0]["held_from"])
+        self.assertAlmostEqual(100.0 + first + 1, out[0]["buy_open"])
 
 
 class PageTests(unittest.TestCase):

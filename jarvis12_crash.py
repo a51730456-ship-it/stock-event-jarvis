@@ -29,7 +29,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026101420
+MODULE_REVISION = 2026101430
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -308,8 +308,9 @@ def held_from(rows: list, start: date) -> list:
     상하님 — *"9월 1일부터 지금까지 표를 보니 급락 후 반등장 종목들이 나오질 않는다 · 전고점을 뚫을 때 급락 후 종목들
     검색은 종료되지만 그 당시 종목들이 그래프에는 나오게 하는 게 맞지 않나"*. 기준일 다음 날(예: 7/30)에 산 줄은 그보다
     뒤에 시작하는 기간(예: 9/1~)에서 「산 날이 없다」로 빠졌다. 그 10종목은 다음 급락 전까지 들고 있는 종목이므로, 기간
-    첫날에 아직 보여 주던 급락이면 **기간 첫 거래일 시가에 들고 있던 것**으로 쳐서 넣는다 — 다른 파트·나스닥과 같은 날
-    같은 돈이다. trade_date 는 그 첫 거래일의 앞 거래일(성적표·그래프 셈은 「목록 다음 날 시가에 산다」라서).
+    첫날에 아직 보여 주던 급락이면 **기간 첫 거래일에 그 목록이 나왔다고 보고 다음 거래일 시가에 산 것**으로 넣는다.
+    다른 파트가 「그날 목록 → 다음 거래일 시가」로 사는 것과 **같은 날**이다 — 처음(084405a)에는 기간 첫 거래일 시가에
+    사서 하루 먼저 샀고, 9/1 날짜별 목록과 같은 종목인데 수익이 달랐다(MDB −1.40% · −15.8% · 상하님 캡처 2026-10-14).
     """
     late = [row for row in rows
             if row["trade_date"] < start.isoformat() and (not row.get("shown_until") or row["shown_until"] > start.isoformat())]
@@ -327,15 +328,15 @@ def held_from(rows: list, start: date) -> list:
             continue
         days = _dates(frame.index)
         after = [place for place, day in enumerate(days) if day >= start]
-        if not after or after[0] == 0:
-            continue
-        first = after[0]
+        if not after or after[0] + 1 >= len(days):
+            continue                    # 기간 첫날 다음 장이 아직 안 열렸다 — 산 날이 없다
+        listed = after[0]
         try:
-            buy = float(frame["Open"].iloc[first])
+            buy = float(frame["Open"].iloc[listed + 1])
         except Exception:
             continue
         if not buy or buy != buy:
             continue
-        out.append({**row, "trade_date": days[first - 1].isoformat(), "buy_open": buy,
-                    "held_from": days[first].isoformat()})
+        out.append({**row, "trade_date": days[listed].isoformat(), "buy_open": buy,
+                    "held_from": days[listed + 1].isoformat()})
     return out
