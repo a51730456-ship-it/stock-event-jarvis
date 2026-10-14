@@ -1939,7 +1939,7 @@ import jarvis12_crash
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
-_REQUIRED_SCORECARD_COMPARE_REVISION = 2026101410
+_REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
 _REQUIRED_J12_CRASH_REVISION = 2026101430
@@ -6482,6 +6482,56 @@ _PICKLIST_DATE_KEY = "picklist_date_US"
 _PICKLIST_SEEN_DATE_KEY = "j3_picklist_seen_date"
 
 
+def _picklist_prefill_closes() -> None:
+    """날짜별 목록의 「지금 값」 — 미국장이 닫혀 있으면 **마지막 장 종가**를 미리 넣어 둔다 (2026-10-14 상하님 —
+    "날짜별로 저장해 둔 목록 보기 왜 로딩이 오래 걸리냐?").
+
+    picklist_ui(한국테마·자비스3 과 같이 쓰는 모듈 · 얼림)는 종목마다 오늘 1분봉(장전·장후 포함)을 받는데, 밤에는
+    그 1분봉이 비어 종목을 하나씩 다시 받았다 — 온라인 느린 폰 첫 열기 64.6초 · 노트북 9/1 목록 30종목 10.5초.
+    장이 닫혀 있으면 그 값은 어차피 마지막 정규장 종가다(9/1 목록 30종목 대조 — 다른 것 0개). 그래서 시장분석이
+    이미 받아 둔 일봉 묶음의 마지막 종가를 **picklist_ui 가 값을 담는 같은 칸**에 넣는다 — 칸이 차 있으면 받지 않는다.
+    성적표 「지금 값」(_scorecard_prices)과도 같은 값이 된다.
+
+    일봉이 그 장(us_market_calendar 의 마지막으로 끝난 장)을 아직 안 실은 종목이 **하나라도** 있거나 못 받은 종목이
+    있으면(야후가 늦게 올릴 때) 넣지 않고 예전처럼 받게 둔다. 정규장 중에는 손대지 않는다. 「지금 값 다시 받기」도 그대로다.
+    """
+    if _regular_open():
+        return
+    try:
+        import picklist_store as store
+        import us_market_calendar
+
+        dates = store.available_dates("US")
+        picked = st.session_state.get(_PICKLIST_DATE_KEY) or (dates[0] if dates else None)
+        if not picked or picked not in dates:
+            return
+        key = f"picklist_prices_US_{picked}"
+        if key in st.session_state:
+            return
+        wanted = {}
+        for row in store.load_rows(picked, "US") or []:
+            code = str(row.get("code") or "").strip()
+            if code:
+                wanted.setdefault(code, code.upper())
+        if not wanted:
+            return
+        last = us_market_calendar.previous_session_date()
+        frames, _info = j3data._download_cached(
+            tuple(dict.fromkeys(wanted.values())), period="2y", interval="1d",
+            ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+        prices = {}
+        for code, ticker in wanted.items():
+            frame = (frames or {}).get(ticker)
+            closes = frame["Close"].dropna() if frame is not None else ()
+            if not len(closes) or pd.DatetimeIndex(closes.index).date[-1] != last:
+                return
+            prices[code] = float(closes.iloc[-1])
+    except Exception:
+        return
+    st.session_state[key] = prices
+    st.session_state[f"{key}_at"] = datetime.now(_PAGE_SEOUL).strftime("%H:%M")
+
+
 def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
     """날짜별 목록 여닫이 — 열면 「어느 날 목록을 볼까요」가 화면 맨 위로 온다.
 
@@ -6535,6 +6585,8 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
         # 열려 있으면 성적표 밑(= 날짜 칸 바로 위)이라 날짜를 바꿔도 목록 쪽으로 간다.
         # 파트별 성적표는 2026-09-25 부터 이 목록 **밖**이다(_render_scorecard_section).
         scroll_to.anchor(st, _PICKLIST_ANCHOR)
+        # 날짜 칸이 정해진 뒤 · picklist_ui 가 값을 받으러 가기 전 — 장이 닫혀 있으면 마지막 종가로 미리 채운다.
+        _picklist_prefill_closes()
     return is_open
 
 
@@ -6633,6 +6685,9 @@ def _scorecard_prices(codes) -> dict:
     return out
 
 
+# 10분 보관 — 급락 10종목은 기준일 하루 자료로 정해져 자주 안 바뀐다. 위 성적표 세기(_scorecard_counts_cached)도
+# 따로 10분 보관한다 — 이 함수를 끼워 넣다 그 보관 줄이 이리 밀려 와 성적표를 그릴 때마다 저장한 날을 전부 다시
+# 셌다(2026-10-14 바로잡음).
 @st.cache_data(ttl=600, show_spinner=False)
 def _crash12_cohort_rows() -> list:
     """성적표·그래프의 급락 줄 — 급락마다 기준일 10종목을 「기준일에 나왔고 다음 날 시가에 한 번 샀다」로 (2026-10-14).
@@ -6696,6 +6751,7 @@ def _crash12_rows_for(start) -> list:
     return inside + held
 
 
+@st.cache_data(ttl=600, show_spinner=False)
 def _scorecard_counts_cached(stamp: str) -> dict:
     """저장해 둔 날을 전부 읽어 파트마다 **이익 난 확률**을 센다.
 
@@ -7053,7 +7109,8 @@ _SCORECARD_VX_HELP = {
 def _scorecard_compare_cached(stamp: str, span: str, start: str = "", end: str = "") -> dict:
     """견주기 값. 위 막대와 **같은 줄**을 골라 scorecard_compare.compute 에 넘긴다.
 
-    값은 앱 전체에 10분 보관한다(막대와 같다). 종목 일봉은 막대가 이미 받아 둔 2년치 묶음을,
+    값은 앱 전체에 10분 보관한다(막대와 같다). 종목 줄 끝에 처음·마지막 산 날이 붙었다(2026-10-14 — 「산 날」 칸을 날짜로).
+    종목 일봉은 막대가 이미 받아 둔 2년치 묶음을,
     나스닥 종합은 시장 국면 게이지가 받아 둔 이력을 그대로 쓴다 — 새로 받는 것이 없다.
     """
     import picklist_store as store

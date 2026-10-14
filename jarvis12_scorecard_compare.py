@@ -33,7 +33,7 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 페이지가 옛 모듈을 다시 읽게(CLAUDE.md 11과 같은 까닭).
-MODULE_REVISION = 2026101410
+MODULE_REVISION = 2026101450
 
 PARTS = ("theme15", "breakout", "top7", "crash")
 PART_NAMES = {
@@ -220,9 +220,11 @@ def compute(rows, frames: dict, ixic, *, last_day: date | None = None) -> dict:
         total = np.where(active, matrix, 0.0).sum(axis=0)
         cum = [None if held[place] == 0 else round((total[place] / held[place] - 1.0) * 100.0, 2)
                for place in range(count)]
+        # 끝의 둘 = 처음 산 날 · 마지막 산 날 — 표의 「산 날」 칸에 날짜로 적는다(아래 stocks_html).
         stocks = sorted(
             ([code, name, len(by_day), round(sum(g for g, _n in by_day.values()) / len(by_day), 2),
-              round(sum(n for _g, n in by_day.values()) / len(by_day), 2)]
+              round(sum(n for _g, n in by_day.values()) / len(by_day), 2),
+              min(by_day).isoformat(), max(by_day).isoformat()]
              for code, (name, by_day) in per_stock.items()),
             key=lambda item: (-item[3], item[0]))
         parts[kind] = {"cum": cum, "cohorts": bars, "rows": sum(item[2] for item in stocks),
@@ -510,12 +512,17 @@ def cards_html(data: dict, tab: str) -> str:
         else:
             gap = mine - solo
             gap_text = f"나스닥보다 {abs(gap):.1f}% {'더 올랐습니다' if gap >= 0 else '덜 올랐습니다'} · "
+        # 「산 날 1일 중 1일」은 1일에 샀다는 말로 읽혔다(2026-10-14 상하님 — "왜 날짜가 산 날이 1일이냐?") — 횟수는 「번」으로.
+        if days == 1:
+            count_text = f"{_md(part['cohorts'][0][0])} 한 번 산 것입니다"
+        else:
+            count_text = f"{days}번 산 것 중 {beat}번은 나스닥보다 나았습니다"
         # 한 장을 낮게 — 폰에서 한 줄에 한 장씩 세 장이 쌓여도 길지 않게(2026-10-07 화면 확인).
         cards.append(
             f"<div class='j3vx-card'><b style='color:{PART_COLORS[kind]}'>{html.escape(PART_NAMES[kind])}</b>"
             f"<div class='j3vx-nums'><span class='j3vx-big' style='color:{_tone(mine)}'>{_fmt(mine)}</span>"
             f"<span class='j3vx-vs'>같은 날 나스닥 종합 <b style='color:{_tone(solo)}'>{_fmt(solo)}</b></span></div>"
-            f"<div class='j3vx-say'>{gap_text}산 날 {days}일 중 {beat}일은 나스닥보다 나았습니다</div></div>")
+            f"<div class='j3vx-say'>{gap_text}{count_text}</div></div>")
     return "<div class='j3vx-cards'>" + "".join(cards) + "</div>"
 
 
@@ -536,6 +543,14 @@ def legend_html(tab: str, data: dict) -> str:
     return "<div class='j3vx-legend'>" + "".join(items) + "</div>"
 
 
+def _md(iso: str) -> str:
+    """2026-07-30 → 7/30."""
+    try:
+        return f"{int(iso[5:7])}/{int(iso[8:10])}"
+    except (TypeError, ValueError):
+        return html.escape(str(iso or ""))
+
+
 def stocks_html(data: dict, tab: str, *, names: dict | None = None, first: str = "", last: str = "") -> str:
     """기간 고르기의 「이 기간에 산 종목」 — 종목별로 묶어 잘 된 5 · 안 된 3, 나머지는 「다 보기」."""
     names = names or {}
@@ -547,10 +562,19 @@ def stocks_html(data: dict, tab: str, *, names: dict | None = None, first: str =
         stocks = part["stocks"]
 
         def line(item):
-            code, name, times, gain, nq = item
+            code, name, times, gain, nq, *days = item      # 옛 판(날짜 없는 다섯 칸)이 보관에 남아 있어도 깨지지 않게
+            first_day, last_day = (days + ["", ""])[:2]
             shown = names.get(code) or (name if name and name != code else code)
             label = html.escape(shown) + ("" if shown == code else f" <small>{html.escape(code)}</small>")
-            return (f"<tr><td>{label}</td><td>{times}일</td>"
+            # **「산 날」 칸은 날짜다** (2026-10-14 상하님 — "왜 날짜가 산 날이 1일이냐?"). 예전에는 산 횟수를
+            # 「1일」로 적어 1일에 샀다는 말로 읽혔다. 한 번 산 종목은 그 날, 여러 번은 처음~마지막 날과 횟수.
+            if not first_day:
+                when = f"{times}번"
+            elif times <= 1:
+                when = _md(first_day)
+            else:
+                when = f"{_md(first_day)}~{_md(last_day)}<br><small>{times}번</small>"
+            return (f"<tr><td>{label}</td><td>{when}</td>"
                     f"<td style='color:{_tone(gain)};font-weight:800'>{_fmt(gain)}</td>"
                     f"<td style='color:{_tone(nq)}'>{_fmt(nq)}</td></tr>")
 

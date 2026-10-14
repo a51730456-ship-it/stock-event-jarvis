@@ -36,7 +36,10 @@ class Jarvis12CompareTests(unittest.TestCase):
         self.assertNotIn("top7", vx3.compute(rows, FRAMES, IXIC)["parts"])
         # 순위 9 만 뺀 줄은 원본과 값이 같다 — 계산 방법은 그대로
         same = [r for r in rows if r["list_kind"] != "top7"]
-        self.assertEqual(vx3.compute(same, FRAMES, IXIC)["parts"], vx12.compute(same, FRAMES, IXIC)["parts"])
+        mine = vx12.compute(same, FRAMES, IXIC)["parts"]
+        for part in mine.values():                                   # 사본은 종목 줄 끝에 산 날 둘을 더 붙인다
+            part["stocks"] = [item[:5] for item in part["stocks"]]
+        self.assertEqual(vx3.compute(same, FRAMES, IXIC)["parts"], mine)
 
     def test_cards_legend_and_lines_show_rank9(self):
         rows = [_row("2026-09-11", "theme15", "AAA", 100.0), _row("2026-09-11", "top7", "BBB", 50.0)]
@@ -62,10 +65,28 @@ class Jarvis12CompareTests(unittest.TestCase):
         _chart, note2 = vx12.bar_chart_html(data, "swing", "d")
         self.assertIn("최근 30일만", note2)                         # 둘 + 나스닥은 그대로
 
+    def test_buy_column_shows_dates_not_a_count_read_as_a_day(self):
+        """「왜 날짜가 산 날이 1일이냐?」 (2026-10-14 상하님) — 「산 날」 칸은 날짜. 여러 번이면 처음~마지막과 횟수."""
+        rows = [_row("2026-09-11", "theme15", "AAA", 100.0), _row("2026-09-15", "theme15", "AAA", 100.0),
+                _row("2026-09-11", "breakout", "BBB", 50.0)]
+        data = vx12.compute(rows, FRAMES, IXIC)
+        text = vx12.stocks_html(data, "all", first="2026-09-11", last="2026-09-15")
+        self.assertIn("<td>9/14~9/16<br><small>2번</small></td>", text)     # 9/11·9/15 목록 → 다음 거래일에 삼
+        self.assertIn("<td>9/14</td>", text)
+        self.assertNotIn("1일</td>", text)
+        cards = vx12.cards_html(data, "all")
+        self.assertIn("2번 산 것 중", cards)                                  # 상위 테마 — 9/14 · 9/16
+        self.assertIn("9/14 한 번 산 것입니다", cards)                        # 상승장 — 하루
+        self.assertNotIn("일 중", cards)
+        # 보관에 남은 옛 판(날짜 없는 다섯 칸)도 깨지지 않는다
+        for part in data["parts"].values():
+            part["stocks"] = [item[:5] for item in part["stocks"]]
+        self.assertIn("<td>2번</td>", vx12.stocks_html(data, "all"))
+
     def test_jarvis12_uses_the_copy_and_jarvis3_keeps_the_frozen_one(self):
         self.assertIn("import jarvis12_scorecard_compare as scorecard_compare", J12)
-        self.assertIn("_REQUIRED_SCORECARD_COMPARE_REVISION = 2026101410", J12)
-        self.assertEqual(2026101410, vx12.MODULE_REVISION)
+        self.assertIn("_REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450", J12)
+        self.assertEqual(2026101450, vx12.MODULE_REVISION)
         self.assertIn("네 파트를 한 그림에", J12)
         self.assertIn("\nimport scorecard_compare\n", J3)
         self.assertNotIn("jarvis12_scorecard_compare", J3)
