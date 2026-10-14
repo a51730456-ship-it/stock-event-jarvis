@@ -59,8 +59,11 @@ APP = PAGES[0][1]           # 새 판이 떴는지 볼 때 여는 곳
 # 2분 넘게 일한다(위 실측).
 SETTLE_LIMIT = 300.0
 CLICK_LIMIT = 600.0
-# 새로 켜진 앱을 기다리는 한도(초). 올리고 나서 앱이 다시 켜지기까지 보통 1~3분(2026-10-10 실측).
-RESTART_WAIT_LIMIT = float(os.environ.get("RESTART_WAIT_LIMIT") or 480)
+# 새로 켜진 앱을 기다리는 한도(초). **2분** (2026-10-14 — 처음 8분).
+# 깃허브 기록을 보니 깨우기가 매번 9~12분 걸렸다. 올려도 앱이 꺼졌다 켜지지 않고 새 파일만 받아 계속 돌아(앱 켜진 때
+# 11:41 그대로인데 13:42 에 올린 판이 떠 있었다) 「새로 켜진 앱」이 안 나타나고 8분 한도를 다 채웠다. 정말 새로 켜지는
+# 날은 바로 데우고, 아니면 2분 뒤 새 파일이 다 들어온 앱을 데운다.
+RESTART_WAIT_LIMIT = float(os.environ.get("RESTART_WAIT_LIMIT") or 120)
 
 
 def _log(message: str) -> None:

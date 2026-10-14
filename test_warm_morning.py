@@ -37,7 +37,7 @@ class WarmMorningTests(unittest.TestCase):
         wait = SCRIPT[SCRIPT.index("def _wait_for_restart("):SCRIPT.index("def _warm_page(")]
         self.assertIn("booted >= after", wait)
         self.assertIn("return False", wait)              # 표시가 없거나 한도가 차면 기다리지 않고 데운다
-        self.assertIn('os.environ.get("RESTART_WAIT_LIMIT") or 480', SCRIPT)
+        self.assertIn('os.environ.get("RESTART_WAIT_LIMIT") or 120', SCRIPT)
 
     def test_jarvis12_hides_its_start_time_inside_the_bottom_bar_text(self):
         """켜진 시각은 서버 기억(cache_resource)에 — 앱이 껐다 켜질 때만 바뀐다. 새 칸을 만들지 않게 밑 막대 글 안에 숨긴다."""
