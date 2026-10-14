@@ -82,6 +82,22 @@ class PickTests(unittest.TestCase):
         self.assertAlmostEqual(30.0, first["since_reference_pct"], places=6)
 
 
+class HeldTests(unittest.TestCase):
+    def test_rows_held_at_the_period_start_are_rebased_to_that_open(self):
+        """9/1~ 처럼 산 날(7/30)보다 뒤에 시작하는 기간에도 그 10종목이 나온다 — 첫 거래일 시가에 들고 있던 셈."""
+        days = pd.bdate_range("2026-07-27", "2026-09-10")
+        frame = pd.DataFrame({"Open": np.arange(len(days)) + 100.0, "Close": np.arange(len(days)) + 100.5}, index=days)
+        rows = [{"trade_date": "2026-07-29", "code": "AAA", "buy_open": 90.0, "shown_until": ""},
+                {"trade_date": "2026-03-30", "code": "AAA", "buy_open": 50.0, "shown_until": "2026-06-05"}]
+        with mock.patch.object(c12.j3, "_download_cached", return_value=({"AAA": frame}, {})):
+            out = c12.held_from(rows, date(2026, 9, 1))
+        self.assertEqual(1, len(out))                                   # 다음 급락이 시작된 3월 줄은 안 들어간다
+        first = list(days.date).index(date(2026, 9, 1))
+        self.assertEqual("2026-09-01", out[0]["held_from"])
+        self.assertEqual(days[first - 1].date().isoformat(), out[0]["trade_date"])   # 셈은 「다음 날 시가에 산다」
+        self.assertAlmostEqual(100.0 + first, out[0]["buy_open"])
+
+
 class PageTests(unittest.TestCase):
     def test_page_shows_the_fixed_list_and_scorecard_counts_one_buy(self):
         self.assertIn('st.session_state["j3_pullback_result"] = jarvis12_crash.crash_list()', J12)
@@ -98,6 +114,9 @@ class PageTests(unittest.TestCase):
         self.assertIn('str(row["episode_recovered"]) >= _SCORECARD_START', J12)
         # 경고 칸 붉은 숫자 — 다른 함수 안의 _red 를 부르다 깨지던 것
         self.assertEqual(2, J12.count('_crash_red(f"{float(drop):.1f}%")'))
+        # 기간 첫날에 들고 있던 급락 10종목도 그 기간에 센다(막대 · 기간 고르기 · 견주기)
+        self.assertEqual(4, J12.count("_crash12_rows_for("))  # 정의 · 막대 · 기간 고르기 · 견주기
+        self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
 
     def test_story_explains_the_situation(self):
         ns = {"jarvis12_crash": c12, "_ixic_note": lambda ref: ""}

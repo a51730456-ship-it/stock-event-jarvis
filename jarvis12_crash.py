@@ -29,7 +29,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026101410
+MODULE_REVISION = 2026101420
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -282,9 +282,12 @@ def cohorts(since: str = "") -> list:
     except Exception:
         return []
     out = []
-    for item in info["episodes"]:
+    found = info["episodes"]
+    for place, item in enumerate(found):
         if since and item["reference"] < since:
             continue
+        # 이 10종목을 보여 주는 마지막 — 다음 급락이 시작한 날(그 전날까지 보여 줌). 없으면 지금도 보여 준다.
+        shown_until = found[place + 1]["start"] if place + 1 < len(found) else ""
         picked, _counts = _pick(daily, memberships, date.fromisoformat(item["reference"]))
         for row in picked:
             if not row.get("buy_open"):
@@ -292,7 +295,47 @@ def cohorts(since: str = "") -> list:
             out.append({"trade_date": item["reference"], "list_kind": "crash", "code": row["ticker"],
                         "buy_open": row["buy_open"], "name": row.get("name") or row["ticker"],
                         "origin": row.get("bucket_label") or "", "rank": row.get("pullback_rank"),
-                        "episode_recovered": item.get("recovered_on") or "", "j12_fixed": True})
+                        "episode_recovered": item.get("recovered_on") or "", "shown_until": shown_until,
+                        "j12_fixed": True})
     with _LOCK:
         _MEMO[key] = (time.time(), out)
     return [dict(row) for row in out]
+
+
+def held_from(rows: list, start: date) -> list:
+    """고른 기간 **첫날에 이미 들고 있던** 급락 10종목 — 그 첫날 시가에 들고 있던 것으로 다시 친 줄 (2026-10-14 상하님 지시).
+
+    상하님 — *"9월 1일부터 지금까지 표를 보니 급락 후 반등장 종목들이 나오질 않는다 · 전고점을 뚫을 때 급락 후 종목들
+    검색은 종료되지만 그 당시 종목들이 그래프에는 나오게 하는 게 맞지 않나"*. 기준일 다음 날(예: 7/30)에 산 줄은 그보다
+    뒤에 시작하는 기간(예: 9/1~)에서 「산 날이 없다」로 빠졌다. 그 10종목은 다음 급락 전까지 들고 있는 종목이므로, 기간
+    첫날에 아직 보여 주던 급락이면 **기간 첫 거래일 시가에 들고 있던 것**으로 쳐서 넣는다 — 다른 파트·나스닥과 같은 날
+    같은 돈이다. trade_date 는 그 첫 거래일의 앞 거래일(성적표·그래프 셈은 「목록 다음 날 시가에 산다」라서).
+    """
+    late = [row for row in rows
+            if row["trade_date"] < start.isoformat() and (not row.get("shown_until") or row["shown_until"] > start.isoformat())]
+    if not late:
+        return []
+    codes = tuple(dict.fromkeys(row["code"] for row in late))
+    try:
+        frames, _meta = j3._download_cached(codes, period="2y", interval="1d", ttl_seconds=j3.US_BATCH_TTL)
+    except Exception:
+        return []
+    out = []
+    for row in late:
+        frame = (frames or {}).get(row["code"])
+        if frame is None or getattr(frame, "empty", True):
+            continue
+        days = _dates(frame.index)
+        after = [place for place, day in enumerate(days) if day >= start]
+        if not after or after[0] == 0:
+            continue
+        first = after[0]
+        try:
+            buy = float(frame["Open"].iloc[first])
+        except Exception:
+            continue
+        if not buy or buy != buy:
+            continue
+        out.append({**row, "trade_date": days[first - 1].isoformat(), "buy_open": buy,
+                    "held_from": days[first].isoformat()})
+    return out
