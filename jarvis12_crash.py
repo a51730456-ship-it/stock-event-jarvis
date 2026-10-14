@@ -29,7 +29,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026101430
+MODULE_REVISION = 2026101510
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -292,9 +292,13 @@ def cohorts(since: str = "") -> list:
         for row in picked:
             if not row.get("buy_open"):
                 continue
+            # 점수·테마·기준일 낙폭·갈래는 날짜별 목록 표가 쓴다(2026-10-15 · 자비스12 목록에 10종목으로 보여 주기).
             out.append({"trade_date": item["reference"], "list_kind": "crash", "code": row["ticker"],
                         "buy_open": row["buy_open"], "name": row.get("name") or row["ticker"],
                         "origin": row.get("bucket_label") or "", "rank": row.get("pullback_rank"),
+                        "score": row.get("score"), "themes": "·".join(row.get("themes") or ()),
+                        "judged_from_high_pct": row.get("judged_from_high_pct"),
+                        "bucket_label": row.get("bucket_label") or "",
                         "episode_recovered": item.get("recovered_on") or "", "shown_until": shown_until,
                         "j12_fixed": True})
     with _LOCK:
@@ -327,16 +331,18 @@ def held_from(rows: list, start: date) -> list:
         if frame is None or getattr(frame, "empty", True):
             continue
         days = _dates(frame.index)
-        after = [place for place, day in enumerate(days) if day >= start]
-        if not after or after[0] + 1 >= len(days):
+        # 기간 첫날을 목록 날로 보고 **그 뒤 첫 장** 시가에 산다 — 첫날이 장 날이면 다음 거래일, 주말·휴일이면 그 뒤 첫
+        # 거래일(2026-10-15). 예전에는 첫날 이후 첫 장을 목록 날로 쳐서 첫날이 토요일이면 화요일에 샀다 — 그 토요일
+        # 목록의 다른 파트(월요일 시가)보다 하루 늦었다.
+        after = [place for place, day in enumerate(days) if day > start]
+        if not after:
             continue                    # 기간 첫날 다음 장이 아직 안 열렸다 — 산 날이 없다
-        listed = after[0]
         try:
-            buy = float(frame["Open"].iloc[listed + 1])
+            buy = float(frame["Open"].iloc[after[0]])
         except Exception:
             continue
         if not buy or buy != buy:
             continue
-        out.append({**row, "trade_date": days[listed].isoformat(), "buy_open": buy,
-                    "held_from": days[listed + 1].isoformat()})
+        out.append({**row, "trade_date": start.isoformat(), "buy_open": buy,
+                    "held_from": days[after[0]].isoformat()})
     return out

@@ -1936,15 +1936,20 @@ import jarvis12_scorecard_compare as scorecard_compare
 import us_fundamentals
 # 급락 후 반등장 — **기준일 하루로 정한 10종목**(자비스12 전용 · 2026-10-14 상하님 지시 · 설명서 3-3).
 import jarvis12_crash
+# 날짜별 목록 — picklist_ui.render 를 베낀 자비스12 전용 사본(2026-10-15 · 급락 칸을 10종목으로 · 장 닫힘 종가 바로).
+import jarvis12_picklist_ui
 
 # 성적표의 「나스닥 종합과 견줘 보기」와 세부사항의 「재무 한눈에」(2026-10-07). 계산·읽는
 # 값을 바꾸면 그 모듈의 MODULE_REVISION 과 여기를 같이 올린다 — 옛 모듈이 판에 남지 않게.
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026101430
+_REQUIRED_J12_CRASH_REVISION = 2026101510
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
+_REQUIRED_J12_PICKLIST_REVISION = 2026101510
+if int(getattr(jarvis12_picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_J12_PICKLIST_REVISION:
+    jarvis12_picklist_ui = importlib.reload(jarvis12_picklist_ui)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
@@ -6482,39 +6487,30 @@ _PICKLIST_DATE_KEY = "picklist_date_US"
 _PICKLIST_SEEN_DATE_KEY = "j3_picklist_seen_date"
 
 
-def _picklist_prefill_closes() -> None:
-    """날짜별 목록의 「지금 값」 — 미국장이 닫혀 있으면 **마지막 장 종가**를 미리 넣어 둔다 (2026-10-14 상하님 —
+def _picklist_quick_closes(codes) -> dict | None:
+    """날짜별 목록의 「지금 값」 — 미국장이 닫혀 있으면 **마지막 장 종가**를 바로 준다 (2026-10-14 상하님 —
     "날짜별로 저장해 둔 목록 보기 왜 로딩이 오래 걸리냐?").
 
-    picklist_ui(한국테마·자비스3 과 같이 쓰는 모듈 · 얼림)는 종목마다 오늘 1분봉(장전·장후 포함)을 받는데, 밤에는
-    그 1분봉이 비어 종목을 하나씩 다시 받았다 — 온라인 느린 폰 첫 열기 64.6초 · 노트북 9/1 목록 30종목 10.5초.
-    장이 닫혀 있으면 그 값은 어차피 마지막 정규장 종가다(9/1 목록 30종목 대조 — 다른 것 0개). 그래서 시장분석이
-    이미 받아 둔 일봉 묶음의 마지막 종가를 **picklist_ui 가 값을 담는 같은 칸**에 넣는다 — 칸이 차 있으면 받지 않는다.
-    성적표 「지금 값」(_scorecard_prices)과도 같은 값이 된다.
+    picklist_ui.fetch_prices 는 종목마다 오늘 1분봉(장전·장후 포함)을 받는데, 밤에는 그 1분봉이 비어 종목을 하나씩 다시
+    받았다 — 온라인 느린 폰 첫 열기 64.6초 · 노트북 9/1 목록 30종목 10.5초. 장이 닫혀 있으면 그 값은 어차피 마지막
+    정규장 종가다(9/1 · 10/12 목록 62종목 대조 — 다른 것 0개). 그래서 시장분석이 이미 받아 둔 일봉 묶음의 마지막 종가를
+    준다. 성적표 「지금 값」(_scorecard_prices)과도 같은 값이다. jarvis12_picklist_ui.render 가 값을 받으러 가기 전에 부른다.
 
     일봉이 그 장(us_market_calendar 의 마지막으로 끝난 장)을 아직 안 실은 종목이 **하나라도** 있거나 못 받은 종목이
-    있으면(야후가 늦게 올릴 때) 넣지 않고 예전처럼 받게 둔다. 정규장 중에는 손대지 않는다. 「지금 값 다시 받기」도 그대로다.
+    있으면(야후가 늦게 올릴 때) None — 예전처럼 받는다. 정규장 중에도 None. 「지금 값 다시 받기」는 언제나 예전처럼 받는다.
     """
     if _regular_open():
-        return
+        return None
     try:
-        import picklist_store as store
         import us_market_calendar
 
-        dates = store.available_dates("US")
-        picked = st.session_state.get(_PICKLIST_DATE_KEY) or (dates[0] if dates else None)
-        if not picked or picked not in dates:
-            return
-        key = f"picklist_prices_US_{picked}"
-        if key in st.session_state:
-            return
         wanted = {}
-        for row in store.load_rows(picked, "US") or []:
-            code = str(row.get("code") or "").strip()
+        for code in codes or ():
+            code = str(code or "").strip()
             if code:
                 wanted.setdefault(code, code.upper())
         if not wanted:
-            return
+            return None
         last = us_market_calendar.previous_session_date()
         frames, _info = j3data._download_cached(
             tuple(dict.fromkeys(wanted.values())), period="2y", interval="1d",
@@ -6524,12 +6520,11 @@ def _picklist_prefill_closes() -> None:
             frame = (frames or {}).get(ticker)
             closes = frame["Close"].dropna() if frame is not None else ()
             if not len(closes) or pd.DatetimeIndex(closes.index).date[-1] != last:
-                return
+                return None
             prices[code] = float(closes.iloc[-1])
     except Exception:
-        return
-    st.session_state[key] = prices
-    st.session_state[f"{key}_at"] = datetime.now(_PAGE_SEOUL).strftime("%H:%M")
+        return None
+    return prices
 
 
 def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) -> bool:
@@ -6585,8 +6580,6 @@ def _picklist_toggle(label: str, key: str, *, close_label: str | None = None) ->
         # 열려 있으면 성적표 밑(= 날짜 칸 바로 위)이라 날짜를 바꿔도 목록 쪽으로 간다.
         # 파트별 성적표는 2026-09-25 부터 이 목록 **밖**이다(_render_scorecard_section).
         scroll_to.anchor(st, _PICKLIST_ANCHOR)
-        # 날짜 칸이 정해진 뒤 · picklist_ui 가 값을 받으러 가기 전 — 장이 닫혀 있으면 마지막 종가로 미리 채운다.
-        _picklist_prefill_closes()
     return is_open
 
 
@@ -6690,7 +6683,8 @@ def _scorecard_prices(codes) -> dict:
 # 셌다(2026-10-14 바로잡음).
 @st.cache_data(ttl=600, show_spinner=False)
 def _crash12_cohort_rows() -> list:
-    """성적표·그래프의 급락 줄 — 급락마다 기준일 10종목을 「기준일에 나왔고 다음 날 시가에 한 번 샀다」로 (2026-10-14).
+    """성적표·그래프·날짜별 목록의 급락 줄 — 급락마다 기준일 10종목을 「기준일에 나왔고 다음 날 시가에 한 번 샀다」로 (2026-10-14).
+    2026-10-15 — 줄에 점수·테마·기준일 낙폭·갈래가 붙었다(날짜별 목록 표가 쓴다).
 
     날짜별로 저장된 급락 줄(옛 20개 · 자비스3 과 같이 쓰는 기록)은 자비스12 성적표에서 세지 않는다.
     성적표를 세기 시작한 날(_SCORECARD_START)에 **이미 끝난 급락은 뺀다** — 넣으면 그래프가 그 급락 날짜(예: 3월)부터
@@ -6702,6 +6696,83 @@ def _crash12_cohort_rows() -> list:
         return []
     return [row for row in rows
             if not row.get("episode_recovered") or str(row["episode_recovered"]) >= _SCORECARD_START]
+
+
+def _crash12_day_rows(day_iso: str, saved_rows: list) -> list | None:
+    """날짜별 목록의 그날(day_iso) 「급락 후 반등장」 — 그날 보여 주던 급락의 기준일 10종목 (2026-10-15 상하님 —
+    「10종목으로 바꿔 보여 주기」).
+
+    성적표(_crash12_rows_for)와 같은 셈이다 — 그날 목록이 나왔다고 보고 **다음 거래일 시가**에 산다. 그날 저장된 목록
+    (어느 파트든)에 같은 종목이 있으면 **저장된 매수금액**을 쓴다. 다음 거래일이 아직 안 열렸으면 매수금액은 빈칸(다른
+    파트와 같다). 그날 보여 주던 급락이 없으면(기준일 전 · 다음 급락이 시작된 뒤) 빈 목록. 못 재면 None — 그러면 저장된
+    줄을 그대로 보여 준다(바꾸다 실패했다고 지우지 않는다 · CLAUDE.md 0-0).
+    점수·갈래·기준일 낙폭은 기준일 값, 신호일 종가·고점 대비는 그날 값이다.
+    """
+    cohort = _crash12_cohort_rows()
+    if not cohort:
+        return None
+    day = date.fromisoformat(day_iso)
+    held = [row for row in cohort
+            if row["trade_date"] <= day_iso and (not row.get("shown_until") or row["shown_until"] > day_iso)]
+    if not held:
+        return []
+    frames, _info = j3data._download_cached(
+        tuple(dict.fromkeys(row["code"] for row in held)), period="2y", interval="1d",
+        ttl_seconds=getattr(j3data, "US_BATCH_TTL", 1800.0))
+    saved_open = {}
+    for item in saved_rows or ():
+        code = str(item.get("code") or "").strip().upper()
+        try:
+            value = float(item.get("buy_open"))
+        except (TypeError, ValueError):
+            continue
+        if code and value == value and value > 0:
+            saved_open.setdefault(code, value)
+    out = []
+    for row in held:
+        price = buy = from_high = None
+        frame = (frames or {}).get(row["code"])
+        if frame is not None and not getattr(frame, "empty", True):
+            days = jarvis12_crash._dates(frame.index)
+            # 그날이 장 없는 날(토요일에 저장된 8/8 등)이면 그 앞 마지막 장을 신호일로, 그 뒤 첫 장 시가에 산다 —
+            # 저장 줄의 매수금액(다음 거래일 시가)과 같은 날이다.
+            before = [place for place, seen in enumerate(days) if seen <= day]
+            if before:
+                place = before[-1]
+                price = float(frame["Close"].iloc[place])
+                if place + 1 < len(days):
+                    buy = float(frame["Open"].iloc[place + 1])
+                metrics = j3data._series_metrics(frame.iloc[:place + 1])
+                from_high = metrics.get("from_high_pct") if metrics.get("ok") else None
+        buy = saved_open.get(row["code"].upper(), buy)
+        out.append({"trade_date": day_iso, "market": "US", "list_kind": "crash", "rank": row.get("rank"),
+                    "code": row["code"], "name": row.get("name") or row["code"], "themes": row.get("themes") or "",
+                    "score": row.get("score"), "price": price, "buy_open": buy, "from_high_pct": from_high,
+                    "judged_from_high_pct": row.get("judged_from_high_pct"),
+                    "bucket_label": row.get("bucket_label") or row.get("origin") or "", "hold_days": None,
+                    "origin": "", "reference_date": row["trade_date"], "j12_fixed": True})
+    return out
+
+
+def _crash12_view_rows(day_iso: str, rows: list) -> list:
+    """jarvis12_picklist_ui 의 rows_view — 저장된 급락 줄(옛 20개)을 그날 들고 있던 10종목으로 바꾼 줄. 못 재면 그대로."""
+    try:
+        fixed = _crash12_day_rows(day_iso, rows)
+    except Exception:
+        return rows
+    if fixed is None:
+        return rows
+    return [row for row in rows if str(row.get("list_kind")) != "crash"] + fixed
+
+
+def _crash12_list_note(kind: str, part: list) -> str | None:
+    """급락 표 밑 한 줄 — 그날 저장된 목록이 아니라 기준일 10종목이라는 것(세 줄 안)."""
+    if kind != "crash" or not part or not part[0].get("j12_fixed"):
+        return None
+    ref = str(part[0].get("reference_date") or "")
+    when = f"{int(ref[5:7])}/{int(ref[8:10])}" if len(ref) == 10 else "급락 기준일"
+    return (f"이 칸은 <b>{when} 급락 기준일에 점수 높은 차례로 정한 10종목</b>입니다(두 갈래 5개씩 · 다음 급락까지 그대로). "
+            "성적표와 같은 종목 · 같은 매수금액입니다. 그날 저장된 옛 목록(20개)은 「저장해 둔 n일치 전부」 엑셀에 그대로 있습니다.")
 
 
 def _scorecard_span_start(anchor, days):
@@ -7545,8 +7616,12 @@ def _render_picklist_section(market: dict, ranking: dict) -> None:
     날짜 고르기·종목 누르기도 이 덩이만 다시 그린다.
     """
     lazy_slot = _picklist_lazy_all_excel("US")
-    picklist_ui.render(
+    # **자비스12 전용 사본**(jarvis12_picklist_ui)으로 그린다 — 「급락 후 반등장」 칸만 그날 들고 있던 기준일 10종목으로
+    # 바꿔 보여 주고(2026-10-15 상하님 「10종목으로 바꿔 보여 주기」), 장이 닫혀 있으면 지금 값을 마지막 종가로 바로 쓴다.
+    # 저장 파일은 그대로다 — 사본도 파일에 적는 것은 저장된 줄뿐이다. picklist_ui(같이 쓰는 파일)는 손대지 않는다.
+    jarvis12_picklist_ui.render(
         st, "US", toggle=_picklist_toggle, close=_section_close,
+        rows_view=_crash12_view_rows, quick_prices=_picklist_quick_closes, kind_note=_crash12_list_note,
         # 그 줄이 어느 파트에서 나왔는지에 따라 **다른 배점표**로 보내야 한다.
         # market·ranking 이 있어야 그 파트의 상세를 그리므로 여기서 싸서 넘긴다.
         on_pick=lambda code, name, kind, row: _picklist_detail(

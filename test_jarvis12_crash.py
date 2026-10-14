@@ -97,6 +97,14 @@ class HeldTests(unittest.TestCase):
         self.assertEqual("2026-09-01", out[0]["trade_date"])
         self.assertEqual("2026-09-02", out[0]["held_from"])
         self.assertAlmostEqual(100.0 + first + 1, out[0]["buy_open"])
+        # 첫날이 토요일(9/5)이면 그 뒤 첫 장(월 9/7) 시가 — 그 토요일 목록의 다른 파트와 같은 날(화요일이 아니다)
+        with mock.patch.object(c12.j3, "_download_cached", return_value=({"AAA": frame}, {})):
+            weekend = c12.held_from(rows, date(2026, 9, 5))
+        self.assertEqual(("2026-09-05", "2026-09-07"), (weekend[0]["trade_date"], weekend[0]["held_from"]))
+        self.assertAlmostEqual(100.0 + list(days.date).index(date(2026, 9, 7)), weekend[0]["buy_open"])
+        # 마지막 날 뒤 장이 아직 없으면 넣지 않는다
+        with mock.patch.object(c12.j3, "_download_cached", return_value=({"AAA": frame}, {})):
+            self.assertEqual([], c12.held_from(rows, date(2026, 9, 10)))
 
 
 class PageTests(unittest.TestCase):
