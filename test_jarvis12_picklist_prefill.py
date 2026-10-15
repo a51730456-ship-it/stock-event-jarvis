@@ -125,6 +125,53 @@ class DayRowsTests(unittest.TestCase):
         self.assertIsNone(self.ns["_crash12_list_note"]("crash", saved))
 
 
+class Top7CrashTests(unittest.TestCase):
+    """순위 9 의 급락 3개 = 그날 10종목을 급락 배점 차례로 세운 위 3개 (2026-10-15 상하님 — "너가 자동으로 배점 높은 것 순으로"
+    · "배점은 급락 후 반등 종목 이야기다")."""
+
+    def setUp(self):
+        ten = [{"code": f"C{i}", "name": f"C{i}", "buy_open": 10.0 + i, "score_order": order, "j12_fixed": True,
+                "list_kind": "crash", "trade_date": "DAY"}
+               for i, order in enumerate([5, 0, 9, 1, 7, 2, 8, 3, 6, 4])]
+        self.calls = []
+
+        def day_rows(day, saved, light=False):
+            self.calls.append((day, light))
+            return [dict(row, trade_date=day) for row in ten]
+
+        self.ns = {"j3data": types.SimpleNamespace(TOP_PICK_QUOTA=(("테마 대장주", 3), ("상승장", 3), ("급락 후 반등장", 3))),
+                   "_crash12_day_rows": day_rows, "date": date}
+        source = DAY_ROWS[DAY_ROWS.index("# 순위 9 의 급락 몇 개"):DAY_ROWS.index("def _crash12_view_rows(")]
+        exec(source, self.ns)
+
+    def test_top_three_by_crash_score_order(self):
+        self.assertEqual(["C1", "C3", "C5"], [row["code"] for row in self.ns["_crash12_top3"](self.ns["_crash12_day_rows"]("D", []))])
+
+    def test_saved_rank9_crash_rows_are_swapped_only_where_parts_are_known(self):
+        rows = [
+            {"trade_date": "2026-09-01", "list_kind": "top7", "origin": "테마 대장주", "code": "LEAD"},
+            {"trade_date": "2026-09-01", "list_kind": "top7", "origin": "급락 후 반등장", "code": "CRSP"},
+            {"trade_date": "2026-09-01", "list_kind": "theme15", "origin": "반도체", "code": "THM"},
+            {"trade_date": "2026-08-12", "list_kind": "top7", "origin": "", "code": "OLD"},     # 파트 적기 전 — 그대로
+        ]
+        out = self.ns["_top7_crash12_swap"](rows, light=True)
+        top7 = [(row["trade_date"], row["origin"], row["code"], row.get("rank")) for row in out if row["list_kind"] == "top7"]
+        self.assertIn(("2026-09-01", "테마 대장주", "LEAD", None), top7)
+        self.assertNotIn("CRSP", [row["code"] for row in out])
+        self.assertEqual([("2026-09-01", "급락 후 반등장", "C1", 1), ("2026-09-01", "급락 후 반등장", "C3", 2),
+                          ("2026-09-01", "급락 후 반등장", "C5", 3)], [t for t in top7 if t[1] == "급락 후 반등장"])
+        self.assertIn(("2026-08-12", "", "OLD", None), top7)
+        self.assertEqual([("2026-09-01", True)], self.calls)                      # 성적표용 가벼운 판으로 그날만
+        self.assertIn("THM", [row["code"] for row in out])
+
+    def test_scorecard_three_places_and_today_use_it(self):
+        self.assertEqual(3, J12.count("    rows = _top7_crash12_swap(rows, light=True)\n"))
+        view = J12[J12.index("def _crash12_view_rows("):J12.index("def _crash12_list_note(")]
+        self.assertIn("_crash12_top3(fixed)", view)
+        note = J12[J12.index("def _crash12_list_note("):J12.index("def _scorecard_span_start(")]
+        self.assertIn("급락 배점 높은 차례로 위 3개", note)
+
+
 class _Box:
     def __init__(self, st):
         self.st = st

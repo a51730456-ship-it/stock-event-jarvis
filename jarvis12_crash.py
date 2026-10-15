@@ -29,7 +29,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026101510
+MODULE_REVISION = 2026101520
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -181,6 +181,9 @@ def _pick(daily: dict, memberships: dict, ref_day: date, per_band: int = PER_BAN
                                int(row.get("theme_above20") or 99),
                                j3._rank_key(row)[0], j3._rank_key(row)[1],
                                row.get("_order", 9), *j3._rank_key(row)[2:]))
+    # 두 갈래를 합친 **급락 배점 차례**(동점이면 위 규칙 그대로) — 순위 9 가 이 10종목에서 위 3개를 뽑을 때 쓴다(2026-10-15).
+    for order, row in enumerate(rows):
+        row["score_order"] = order
     counts = {rule["key"]: sum(1 for row in rows if row["bucket"] == rule["key"]) for rule in j3.CRASH_REBOUND_RULES}
     picked = []
     for rule in j3.CRASH_REBOUND_RULES:                     # −20~−30 위 5개 → −30~−50 위 5개
@@ -298,7 +301,7 @@ def cohorts(since: str = "") -> list:
                         "origin": row.get("bucket_label") or "", "rank": row.get("pullback_rank"),
                         "score": row.get("score"), "themes": "·".join(row.get("themes") or ()),
                         "judged_from_high_pct": row.get("judged_from_high_pct"),
-                        "bucket_label": row.get("bucket_label") or "",
+                        "bucket_label": row.get("bucket_label") or "", "score_order": row.get("score_order"),
                         "episode_recovered": item.get("recovered_on") or "", "shown_until": shown_until,
                         "j12_fixed": True})
     with _LOCK:

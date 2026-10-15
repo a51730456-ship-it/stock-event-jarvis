@@ -80,6 +80,8 @@ class PickTests(unittest.TestCase):
         self.assertAlmostEqual(75.0, first["buy_open"])
         self.assertAlmostEqual(97.5, first["metrics"]["current"])                     # 보이는 값은 오늘 것
         self.assertAlmostEqual(30.0, first["since_reference_pct"], places=6)
+        # 두 갈래를 합친 급락 배점 차례(순위 9 가 위 3개를 뽑을 때 쓴다) — 점수 100−번호라 번호 차례
+        self.assertEqual([0, 1, 2, 3, 4, 7, 8, 9, 10, 11], [row["score_order"] for row in picked])
 
 
 class HeldTests(unittest.TestCase):
@@ -115,7 +117,10 @@ class PageTests(unittest.TestCase):
         self.assertIn("reference = jarvis12_crash.reference()", J12)
         self.assertEqual(3, J12.count('rows = [row for row in rows if row.get("list_kind") != "crash"]'))
         self.assertIn('if day < _SCORECARD_START and not row.get("j12_fixed"):', J12)
-        self.assertIn('crash=opened if opened_mode == "crash" and not opened.get("j12_fixed") else None', J12)
+        # 순위 9 의 급락 3개 = 이 10종목의 급락 배점 위 3개(2026-10-15) · 그 순위 9 는 같이 쓰는 저장 기록에 안 적는다
+        self.assertIn('rows": _crash12_top3(list(crash12.get("rows") or []))', J12)
+        blend = J12[J12.index("def _blend_top7("):J12.index("def _render_top_reviewed(")]
+        self.assertNotIn("picklist_ui.autosave(", blend)
         # 종목 하나를 급락 배점으로 심사하는 두 곳(날짜별 목록 · 종목검색)은 옛 계산 그대로 — 10개 밖도 심사된다
         self.assertEqual(2, J12.count("_find_scan_row(j3data.find_crash_rebound_stocks(), code)"))
         self.assertIn("2026-10-14 자비스12 그물", SPEC)

@@ -1944,7 +1944,7 @@ import jarvis12_picklist_ui
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026101510
+_REQUIRED_J12_CRASH_REVISION = 2026101520
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_J12_PICKLIST_REVISION = 2026101510
@@ -6698,7 +6698,7 @@ def _crash12_cohort_rows() -> list:
             if not row.get("episode_recovered") or str(row["episode_recovered"]) >= _SCORECARD_START]
 
 
-def _crash12_day_rows(day_iso: str, saved_rows: list) -> list | None:
+def _crash12_day_rows(day_iso: str, saved_rows: list, *, light: bool = False) -> list | None:
     """날짜별 목록의 그날(day_iso) 「급락 후 반등장」 — 그날 보여 주던 급락의 기준일 10종목 (2026-10-15 상하님 —
     「10종목으로 바꿔 보여 주기」).
 
@@ -6707,6 +6707,7 @@ def _crash12_day_rows(day_iso: str, saved_rows: list) -> list | None:
     파트와 같다). 그날 보여 주던 급락이 없으면(기준일 전 · 다음 급락이 시작된 뒤) 빈 목록. 못 재면 None — 그러면 저장된
     줄을 그대로 보여 준다(바꾸다 실패했다고 지우지 않는다 · CLAUDE.md 0-0).
     점수·갈래·기준일 낙폭은 기준일 값, 신호일 종가·고점 대비는 그날 값이다.
+    light — 성적표용. 고점 대비(종목마다 일봉 지표 계산)를 건너뛴다 — 성적표는 산 값만 쓴다.
     """
     cohort = _crash12_cohort_rows()
     if not cohort:
@@ -6742,15 +6743,64 @@ def _crash12_day_rows(day_iso: str, saved_rows: list) -> list | None:
                 price = float(frame["Close"].iloc[place])
                 if place + 1 < len(days):
                     buy = float(frame["Open"].iloc[place + 1])
-                metrics = j3data._series_metrics(frame.iloc[:place + 1])
-                from_high = metrics.get("from_high_pct") if metrics.get("ok") else None
+                if not light:
+                    metrics = j3data._series_metrics(frame.iloc[:place + 1])
+                    from_high = metrics.get("from_high_pct") if metrics.get("ok") else None
         buy = saved_open.get(row["code"].upper(), buy)
         out.append({"trade_date": day_iso, "market": "US", "list_kind": "crash", "rank": row.get("rank"),
                     "code": row["code"], "name": row.get("name") or row["code"], "themes": row.get("themes") or "",
                     "score": row.get("score"), "price": price, "buy_open": buy, "from_high_pct": from_high,
                     "judged_from_high_pct": row.get("judged_from_high_pct"),
                     "bucket_label": row.get("bucket_label") or row.get("origin") or "", "hold_days": None,
-                    "origin": "", "reference_date": row["trade_date"], "j12_fixed": True})
+                    "origin": "", "reference_date": row["trade_date"], "score_order": row.get("score_order"),
+                    "j12_fixed": True})
+    return out
+
+
+# 순위 9 의 급락 몇 개 — blend_top_picks 의 몫(TOP_PICK_QUOTA)과 같은 수.
+_TOP7_CRASH_SLOTS = dict(getattr(j3data, "TOP_PICK_QUOTA", ())).get("급락 후 반등장", 3)
+_TOP7_PARTS = ("테마 대장주", "상승장", "급락 후 반등장")
+
+
+def _crash12_top3(fixed: list) -> list:
+    """기준일 10종목을 **급락 배점 높은 차례**(동점 규칙까지 · 기준일 값)로 세워 위 3개 (2026-10-15 상하님 —
+    "너가 자동으로 배점 높은 것 순으로" · "배점은 급락 후 반등 종목 이야기다")."""
+    return sorted(fixed, key=lambda row: (row.get("score_order") is None, row.get("score_order") or 0))[:_TOP7_CRASH_SLOTS]
+
+
+def _top7_crash12_swap(rows: list, *, light: bool = False) -> list:
+    """저장된 순위 9 줄 중 「급락 후 반등장」에서 온 3개를 그날 10종목의 위 3개로 바꾼 줄 (2026-10-15 상하님 지시).
+
+    저장 기록의 순위 9 급락 3개는 옛 방식(날마다 새로 고르던 20개)에서 뽑혀 10종목 밖 종목(CRSP·NOW 등)이 섞여 있었다.
+    파트가 적힌 날(2026-08-15 이후)만 바꾼다 — 그 전 줄은 어느 파트에서 왔는지 몰라 그대로 둔다. 그날 10종목을 못 재면
+    그날 줄은 그대로(지우지 않는다). 저장 파일은 그대로다 — 화면·성적표에서만 바꾼다.
+    """
+    by_day: dict = {}
+    for row in rows:
+        if row.get("list_kind") == "top7":
+            by_day.setdefault(str(row.get("trade_date") or ""), []).append(row)
+    if not by_day:
+        return rows
+    swapped: dict = {}
+    for day, items in by_day.items():
+        if not day or not any(str(item.get("origin") or "") in _TOP7_PARTS for item in items):
+            continue
+        try:
+            fixed = _crash12_day_rows(day, [row for row in rows if str(row.get("trade_date") or "") == day],
+                                      light=light)
+        except Exception:
+            fixed = None
+        if fixed is None:
+            continue
+        swapped[day] = [{**row, "list_kind": "top7", "origin": "급락 후 반등장", "rank": place, "state": ""}
+                        for place, row in enumerate(_crash12_top3(fixed), 1)]
+    if not swapped:
+        return rows
+    out = [row for row in rows
+           if not (row.get("list_kind") == "top7" and str(row.get("trade_date") or "") in swapped
+                   and str(row.get("origin") or "") == "급락 후 반등장")]
+    for day in swapped:
+        out += swapped[day]
     return out
 
 
@@ -6762,11 +6812,24 @@ def _crash12_view_rows(day_iso: str, rows: list) -> list:
         return rows
     if fixed is None:
         return rows
-    return [row for row in rows if str(row.get("list_kind")) != "crash"] + fixed
+    shown = [row for row in rows if str(row.get("list_kind")) != "crash"] + fixed
+    # 순위 9 칸의 급락 3개도 이 10종목의 위 3개로(2026-10-15) — 같은 날 같은 10종목이라 한 번 잰 것을 그대로 쓴다.
+    if any(row.get("list_kind") == "top7" and str(row.get("origin") or "") in _TOP7_PARTS for row in rows):
+        top3 = [{**row, "list_kind": "top7", "origin": "급락 후 반등장", "rank": place, "state": ""}
+                for place, row in enumerate(_crash12_top3(fixed), 1)]
+        shown = [row for row in shown
+                 if not (row.get("list_kind") == "top7" and str(row.get("origin") or "") == "급락 후 반등장")] + top3
+    return shown
 
 
 def _crash12_list_note(kind: str, part: list) -> str | None:
-    """급락 표 밑 한 줄 — 그날 저장된 목록이 아니라 기준일 10종목이라는 것(세 줄 안)."""
+    """급락 표 밑 한 줄 — 그날 저장된 목록이 아니라 기준일 10종목이라는 것(세 줄 안). 순위 9 표 밑에도 한 줄."""
+    if kind == "top7":
+        mine = [row for row in part or () if row.get("j12_fixed")]
+        if not mine:
+            return None
+        return ("「급락 후 반등장」 3개는 그날 급락 칸 10종목 중 <b>급락 배점 높은 차례로 위 3개</b>입니다"
+                "(그날 저장된 옛 3개 대신).")
     if kind != "crash" or not part or not part[0].get("j12_fixed"):
         return None
     ref = str(part[0].get("reference_date") or "")
@@ -6846,6 +6909,8 @@ def _scorecard_counts_cached(stamp: str) -> dict:
     # 급락은 기준일 10종목(2026-10-14) — 저장된 급락 줄은 빼고 넣는다.
     anchor = datetime.now(_PAGE_SEOUL).date() - timedelta(days=1)
     # 기간마다 그 첫날로 본 급락 10종목(_crash12_rows_for) — 그 기간 칸에서만 센다(_span).
+    # 순위 9 의 급락 3개도 그날 10종목의 위 3개로(2026-10-15 · _top7_crash12_swap).
+    rows = _top7_crash12_swap(rows, light=True)
     rows = [row for row in rows if row.get("list_kind") != "crash"]
     for label, days in _SCORECARD_SPANS:
         rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]
@@ -6912,7 +6977,7 @@ def _scorecard_counts() -> dict:
 
     dates = store.available_dates("US")
     # 끝의 판 표시는 세는 모양이 바뀌면 올린다 — 앱에 남은 옛 모양을 안 쓰게.
-    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|top9-parts|crash12"
+    stamp = f"{len(dates)}|{dates[0] if dates else ''}|{_SCORECARD_START}|top9-parts|crash12|top9-crash12"
     data = _scorecard_counts_cached(stamp)
     st.session_state[_SCORECARD_CACHE] = data
     return data
@@ -6974,6 +7039,8 @@ def _scorecard_range_counts(stamp: str, start: str, end: str) -> dict:
         except Exception:
             continue
     # 급락은 기준일 10종목(2026-10-14) — 산 날(기준일 다음 거래일)이 이 기간 안이면 센다.
+    # 순위 9 의 급락 3개도 그날 10종목의 위 3개로(2026-10-15 · _top7_crash12_swap).
+    rows = _top7_crash12_swap(rows, light=True)
     rows = [row for row in rows if row.get("list_kind") != "crash"]
     for row in _crash12_rows_for(first):
         if _us_next_trading_day(date.fromisoformat(row["trade_date"])) <= last:
@@ -7216,6 +7283,8 @@ def _scorecard_compare_cached(stamp: str, span: str, start: str = "", end: str =
         except Exception:
             continue
     # 급락은 기준일 10종목(2026-10-14 상하님 — "그날 나온 종목이 계속 그래프에 나와야겠지").
+    # 순위 9 의 급락 3개도 그날 10종목의 위 3개로(2026-10-15 · _top7_crash12_swap).
+    rows = _top7_crash12_swap(rows, light=True)
     rows = [row for row in rows if row.get("list_kind") != "crash"]
     for row in _crash12_rows_for(first if ranged else _scorecard_span_start(anchor, span_days)):
         if ranged and _us_next_trading_day(date.fromisoformat(row["trade_date"])) > last:
@@ -8198,17 +8267,27 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
     market_score = float(market.get("score") or 0)
     opened = st.session_state.get("j3_pullback_result") or {}
     opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
+    # **급락 3개는 기준일 10종목에서 급락 배점 높은 차례로 위 3개**(2026-10-15 상하님 — "너가 자동으로 배점 높은 것 순으로
+    # 10종목 하라고" · "배점은 급락 후 반등 종목 이야기다"). 급락 칸을 열어 둔 결과가 있으면 그것을 쓴다(같은 10종목).
+    # 못 재면 급락 자리는 비우고 까닭을 적는다 — 옛 20개로 채우지 않는다(같은 화면 두 규칙이 섞인다).
+    crash12 = opened if opened_mode == "crash" and opened.get("j12_fixed") else None
+    if crash12 is None:
+        try:
+            crash12 = jarvis12_crash.crash_list()
+        except Exception as exc:
+            crash12 = {"ok": False, "error": str(exc), "rows": []}
+    crash_part = {**crash12, "ok": True,
+                  "rows": _crash12_top3(list(crash12.get("rows") or []))} if crash12.get("ok") else {"ok": True, "rows": []}
     result = j3data.collect_top_picks(
         ranking.get("rows") or [],
         market_score=market_score,
         breakout=opened if opened_mode == "breakout" else None,
-        # 급락 표가 기준일 10종목(2026-10-14)이면 넘기지 않는다 — 순위 9 의 급락 3개는 아직 옛 목록에서 뽑는다
-        # (저장 기록·자비스3 과 같게). 넘기면 급락 칸을 열었느냐에 따라 순위 9 가 달라진다.
-        crash=opened if opened_mode == "crash" and not opened.get("j12_fixed") else None,
+        crash=crash_part,
     )
-    # **저장은 화면이 보여 주는 그 목록이다**(CLAUDE.md 10-1). 예전에는 섞기 전
-    # 재료(find_top_reviewed_stocks)를 저장해서 저장 목록과 화면이 갈라져 있었다.
-    picklist_ui.autosave("US", "top7", result)
+    if not crash12.get("ok"):
+        result["errors"] = list(result.get("errors") or []) + [f"급락 후 반등장: {crash12.get('error') or '못 읽음'}"]
+    # **같이 쓰는 저장 기록에는 적지 않는다**(2026-10-15) — 급락 3개가 자비스12 규칙이라 자비스3 이 읽는 기록과 다르다.
+    # 저장은 깃허브 수집기와 _autosave_other_parts(옛 규칙 · 자비스3 과 같음)가 그대로 한다.
     return result
 
 
