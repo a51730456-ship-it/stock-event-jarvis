@@ -1,5 +1,16 @@
 # 지금 상태 (CURRENT_STATUS)
 
+### 온라인 그림 전부 깨짐 — 서버 부품 starlette 새 판 탓 · 판 못 박음 (2026-10-21 · 상하님 「둘 다 앞으로 이런 문제 발생하지 않도록」)
+
+- 증상: 자비스3·자비스12 사진 그림(로고 png·webp, 배너, 「이 테마 설명」 그림) 전부 깨짐. 온라인 사진 파일 받기가 모두 500 —
+  스트림릿 자체 favicon.png 도 500, svg·json 은 200. 코드는 10/15 뒤로 안 바뀜 · 자비스3 얼린 40개 0 바뀜. 껐다 켜도 그대로(08:38).
+- 원인: requirements.txt 가 streamlit 만 박아 두어 온라인이 다시 깔 때 최신 starlette 1.9.0 을 받음 → 파일 응답에서
+  "Expected ASGI message 'http.response.start', but got 'http.response.body'" (노트북 새 폴더에 최신 판 깔아 똑같이 재현).
+  starlette 1.3.1 로 바꾸자 200.
+- 고침: requirements.txt 에 starlette 1.3.1 · uvicorn 0.51.0 · anyio 4.14.1 · httptools 0.8.0 · h11 0.16.0 · websockets 16.1
+  (노트북에서 잘 도는 판). 새 폴더에 목록 그대로 깔아 실제 앱 — favicon·배너·그림·영상 200 · 자비스12 그림 오류 0.
+  지킴이 시험 test_requirements_pins.py.
+
 ### 자비스12 순위 9 — 급락 3개를 기준일 10종목의 급락 배점 위 3개로 (2026-10-15 · 상하님 "너가 자동으로 배점 높은 것 순으로 10종목 하라고" · "배점은 급락 후 반등 종목 이야기다")
 
 - 까닭: 순위 9 의 급락 3개가 옛 방식(날마다 고르던 20개)에서 뽑혀 10종목 밖 종목이 섞였다(10/13 순위 9 — CRSP·NOW·MDB, CRSP·NOW 는 10종목에 없음).
