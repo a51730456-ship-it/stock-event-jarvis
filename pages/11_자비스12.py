@@ -13797,7 +13797,42 @@ _FX_WAIT_SECONDS = 0.8
 @st.cache_resource(show_spinner=False)
 def _fx_state() -> dict:
     """앱 전체가 함께 쓰는 원/달러 자리 — 일꾼 · 마지막 칸 · 환율. 판을 다시 그려도 남는다."""
-    return {"lock": threading.Lock(), "thread": None, "cell": None, "rate": None, "at": 0.0}
+    return {"lock": threading.Lock(), "thread": None, "cell": None, "rate": None, "at": 0.0,
+            "daily_thread": None, "daily": None, "daily_at": 0.0}
+
+
+def _start_us_fx_daily_fetch() -> None:
+    """원/달러 **6개월 일봉** — 칸에 손을 대면 나스닥 종합처럼 「6개월」 그림으로 바뀌게 (2026-10-21 상하님 지시).
+
+    당일 1분봉 일꾼(_start_us_fx_fetch)과 **따로** 돈다 — 같은 일꾼에 실으면 칸이 기다리는 0.8초 안에 못 끝나(노트북
+    6개월 받기 2.9초) 맨 위 칸이 「받는 중」으로 밀린다(CLAUDE.md 0-0). 지수 칸과 같은 받기(_download_cached · 6개월 ·
+    10분 보관)라 한 번 받으면 10분 동안 다시 안 받는다. 못 받으면 옛 값을 그대로 둔다 — 칸은 당일 그림만 보인다.
+    """
+    state = _fx_state()
+    with state["lock"]:
+        running = state.get("daily_thread")
+        if running is not None and running.is_alive():
+            return
+        if state.get("daily") and time.time() - float(state.get("daily_at") or 0.0) < 600:
+            return
+
+    def _run() -> None:
+        try:
+            frames, _info = j3data._download_cached(("KRW=X",), period="6mo", interval="1d", ttl_seconds=600)
+            frame = (frames or {}).get("KRW=X")
+            points = [float(v) for v in frame["Close"].dropna().tolist()] if frame is not None else []
+            if len(points) >= 2:
+                state.update(daily=points, daily_at=time.time())
+        except Exception:
+            pass
+
+    try:
+        thread = threading.Thread(target=_run, name="j12-fx-daily", daemon=True)
+        thread.start()
+    except Exception:
+        return
+    with state["lock"]:
+        state["daily_thread"] = thread
 
 
 def _start_us_fx_fetch() -> None:
@@ -13827,6 +13862,8 @@ def _start_us_fx_fetch() -> None:
         return
     with state["lock"]:
         state["thread"] = thread
+    # 6개월 일봉은 따로(위 설명) — 당일 칸을 기다리게 하지 않는다.
+    _start_us_fx_daily_fetch()
 
 
 def _await_us_fx_fetch(timeout: float = _FX_WAIT_SECONDS) -> bool:
@@ -13859,13 +13896,21 @@ def _usd_krw_cell() -> str:
     if not (fx or {}).get("ok") or not current:
         return state.get("cell") or _top_metric(label, "—", "#9aa0aa", "자료 부족", extra_class=_FX_CLASS)
     change = fx.get("change_pct")
+    # 손을 대면 「6개월」 — 지수 칸과 같은 자리 바꾸기(_index_chart_swap)에 6개월 일봉을 붙인다(2026-10-21 상하님 지시).
+    # 기준선은 6개월 전 첫 종가(지수 칸과 같다). 아직 못 받았으면 당일 그림만(다음 판에 붙는다).
+    chart = dict(fx.get("chart") or {})
+    daily = state.get("daily") or []
+    if len(daily) >= 2:
+        chart.update(daily_points=list(daily), daily_base=daily[0])
+    else:
+        _start_us_fx_daily_fetch()
     cell = (
         f"<div class='j3-top-cell {_FX_CLASS}'>"
         f"<div class='j3-top-label j3-idx-label'>{label}</div>"
         f"<div class='j3-top-val j3-idx-val' style='color:#e6e6e6'>{float(current):,.1f}원</div>"
         f"<div class='j3-top-sub j3-idx-sub {_sign_class(change)}'>{_pct(change)} "
         "<span class='j3-muted j3-idx-note'>· 1달러에</span></div>"
-        + _index_chart_swap(fx.get("chart"), key="idxKRW")
+        + _index_chart_swap(chart, key="idxKRW")
         + "</div>"
     )
     state.update(cell=cell, rate=float(current), at=time.time())
