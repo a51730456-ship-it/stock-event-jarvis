@@ -121,7 +121,8 @@ class DayRowsTests(unittest.TestCase):
         saved = [{"list_kind": "crash", "code": "OLD1"}]
         self.assertEqual(saved, self._ns([], {})["_crash12_view_rows"]("2026-09-01", saved))  # 못 재면 그대로
         note = self.ns["_crash12_list_note"]("crash", self.ns["_crash12_day_rows"]("2026-09-01", []))
-        self.assertIn("7/29 급락 기준일에 점수 높은 차례로 정한 10종목", note)
+        self.assertIn("7/29 급락 기준일에 점수 높은 차례로 정한 2종목", note)      # 2026-10-21 — 보이는 수 그대로
+        self.assertIn("성적표에는 그중 「수상하게 빠짐」이 아닌 점수 위 10개만", note)
         self.assertIsNone(self.ns["_crash12_list_note"]("crash", saved))
 
 
@@ -146,6 +147,11 @@ class Top7CrashTests(unittest.TestCase):
 
     def test_top_three_by_crash_score_order(self):
         self.assertEqual(["C1", "C3", "C5"], [row["code"] for row in self.ns["_crash12_top3"](self.ns["_crash12_day_rows"]("D", []))])
+
+    def test_top_three_only_from_the_scorecard_ten(self):
+        # 2026-10-21 — 화면 20개 중 성적표에 안 세는 줄(scorecard=False · 「수상하게 빠짐」)은 순위 9 에 안 든다
+        rows = [dict(row, scorecard=row["code"] != "C1") for row in self.ns["_crash12_day_rows"]("D", [])]
+        self.assertEqual(["C3", "C5", "C7"], [row["code"] for row in self.ns["_crash12_top3"](rows)])
 
     def test_saved_rank9_crash_rows_are_swapped_only_where_parts_are_known(self):
         rows = [
