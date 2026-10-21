@@ -1951,7 +1951,7 @@ import jarvis12_picklist_ui
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026102102
+_REQUIRED_J12_CRASH_REVISION = 2026102103
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_J12_PICKLIST_REVISION = 2026101510

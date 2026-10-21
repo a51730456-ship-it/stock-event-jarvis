@@ -1,6 +1,7 @@
 """자비스12 급락 후 반등장 — 기준일 하루로 정한 10종목 (2026-10-14 상하님 지시 · 설명서 3-3)."""
 from __future__ import annotations
 
+import re
 import unittest
 from datetime import date
 from pathlib import Path
@@ -121,6 +122,9 @@ class PickTests(unittest.TestCase):
         _days, picked, _counts, _seen = self._pick([0.75], nasdaq_drop=-7.0)
         text = c12.buy_reason(picked[0])
         self.assertIn("→ 기준일(", text)
+        # 날짜를 「10/6」으로 쓰면 노란 상자가 점수(66/70 꼴)로 알고 초록으로 칠한다 — 「10월 6일」로 쓴다
+        self.assertIsNone(re.search(r"\d+/\d+", text))
+        self.assertIn("월 ", text)
         self.assertIn("-25.0%", text)
         self.assertIn("같은 때 나스닥 -7.0%", text)
         self.assertIn("⚠ 나스닥의 3배 넘게 빠짐", text)
@@ -189,8 +193,8 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102102", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026102102)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102103", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026102103)
         self.assertIn("reason12 = jarvis12_crash.buy_reason(row)", J12)
         self.assertIn('drop_heads[0] = "고점일 대비"', J12)
         self.assertIn("⚠ 수상하게 빠짐", J12)
