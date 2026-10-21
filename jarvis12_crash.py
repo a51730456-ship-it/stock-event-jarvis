@@ -37,7 +37,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026102101
+MODULE_REVISION = 2026102102
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -315,6 +315,44 @@ def drop_story(row: dict) -> str | None:
     if since is not None:
         text += f" 그 뒤 {float(since):+.1f}% {'올랐습니다' if float(since) >= 0 else '더 빠졌습니다'}."
     return text + " 칸과 점수는 오늘이 아니라 그날 낙폭으로 정합니다."
+
+
+def _md(iso) -> str:
+    """'2026-10-06' → '10/6'. 못 읽으면 그대로."""
+    try:
+        _year, month, day = str(iso).split("-")
+        return f"{int(month)}/{int(day)}"
+    except Exception:
+        return str(iso or "")
+
+
+def buy_reason(row: dict) -> str | None:
+    """세부사항 노란 상자 글 전체 — 짧게 핵심만 (2026-10-21 상하님 「장황하다 · 일반인이 보기에 직관적으로」).
+
+    자비스12 줄(나스닥 고점일이 실린 줄)이 아니면 None — 그러면 화면은 예전 글을 그대로 쓴다.
+    「다음 거래일 시가」·「파는 시점은 규칙에 없습니다」·「손절가가 없습니다」는 화면이 굵게 칠하는 말이라 그대로 둔다.
+    """
+    peak, judged, ref = row.get("peak_date"), row.get("judged_from_high_pct"), row.get("reference_date")
+    if not peak or judged is None or not ref:
+        return None
+    text = f"나스닥 고점일({_md(peak)}) → 기준일({_md(ref)}): {float(judged):.1f}%"
+    nasdaq = row.get("nasdaq_drop_pct")
+    if nasdaq is not None:
+        text += f" (같은 때 나스닥 {float(nasdaq):.1f}%)"
+    text += "."
+    since = row.get("since_reference_pct")
+    if since is not None:
+        text += f" 그 뒤 {float(since):+.1f}%."
+    if row.get("suspicious"):
+        text += f" ⚠ 나스닥의 {SUSPICIOUS_TIMES:.0f}배 넘게 빠짐 — 회사 자체 문제일 수 있습니다."
+    text += " 다음 거래일 시가에 삽니다. 파는 시점은 규칙에 없습니다. 이 규칙에는 손절가가 없습니다."
+    results = row.get("hold_results") or ()
+    if results:
+        band = str(row.get("bucket_label") or "").replace("고점일 대비 ", "").replace("-", "")
+        text += (f" 이 칸({band}) 과거 성적: "
+                 + " · ".join(f"{item['label']} {item['median_return']:+.1f}%(100번 중 {item['win_rate']:.0f}번)"
+                              for item in results) + ".")
+    return text
 
 
 def _universe():

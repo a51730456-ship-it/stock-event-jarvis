@@ -116,6 +116,20 @@ class PickTests(unittest.TestCase):
         self.assertIn("수상하게 빠짐", text)
         self.assertIsNone(c12.drop_story({"judged_from_high_pct": -20.0, "reference_date": "2026-07-29"}))
 
+    def test_buy_reason_is_short_and_keeps_the_key_words(self):
+        """세부 노란 상자 — 짧게 핵심만(2026-10-21 상하님 「장황하다」). 굵게 칠하는 말·새 칸 성적은 남는다."""
+        _days, picked, _counts, _seen = self._pick([0.75], nasdaq_drop=-7.0)
+        text = c12.buy_reason(picked[0])
+        self.assertIn("→ 기준일(", text)
+        self.assertIn("-25.0%", text)
+        self.assertIn("같은 때 나스닥 -7.0%", text)
+        self.assertIn("⚠ 나스닥의 3배 넘게 빠짐", text)
+        for key in ("다음 거래일 시가", "파는 시점은 규칙에 없습니다", "손절가가 없습니다"):
+            self.assertIn(key, text)
+        self.assertIn("이 칸(20~30%) 과거 성적: 3개월 +25.0%(100번 중 87번)", text)
+        self.assertLess(len(text), 330)
+        self.assertIsNone(c12.buy_reason({"judged_from_high_pct": -20.0, "reference_date": "2026-07-29"}))
+
     def test_peak_day_is_the_52_week_intraday_high(self):
         closes = list(np.linspace(100, 130, 300)) + [120, 118, 125, 117]
         frame = _qqq(closes)
@@ -175,9 +189,9 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102101", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026102101)
-        self.assertIn("story12 = jarvis12_crash.drop_story(row)", J12)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102102", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026102102)
+        self.assertIn("reason12 = jarvis12_crash.buy_reason(row)", J12)
         self.assertIn('drop_heads[0] = "고점일 대비"', J12)
         self.assertIn("⚠ 수상하게 빠짐", J12)
         self.assertIn("2026-10-21 밤 고침", SPEC)
@@ -201,8 +215,15 @@ class PageTests(unittest.TestCase):
         exec(J12[J12.index("def _crash12_story("):J12.index("def _render_rulebook_finder(")], ns)
         text = ns["_crash12_story"]({"armed": True, "reference_date": "2026-07-29", "reference_drop": -11.5,
                                      "recovered_on": "2026-09-22"}, -2.5, 10)
-        for piece in ("2026-07-29 기준 10종목", "다음 급락이 올 때까지 이 종목 그대로", "한 번 산 것", "2026-09-22에 전고점"):
+        # 2026-10-21 밤 — 긴 한 덩어리 글을 제목 + 요점 줄로(상하님 「장황하다 · 직관적으로」)
+        for piece in ("7/29 급락 때 고른 10종목", "이 종목 그대로", "한 번 샀다고 셈", "9/22에 전고점 회복"):
             self.assertIn(piece, text)
+        self.assertGreaterEqual(text.count("\n- "), 5)                   # 요점 줄
+        self.assertIn(":violet[**10\\~20%**]", text)                    # 칸 색 = 표 갈래 색
+        now = ns["_crash12_story"]({"armed": True, "reference_date": "2026-10-16", "reference_drop": -7.0,
+                                    "peak_date": "2026-10-06", "nasdaq_drop": -6.6}, -4.7, 20)
+        self.assertIn("나스닥 고점일(10/6) 종가 → 10/16 종가", now)
+        self.assertIn("3배(:red[**-19.8%**])", now)                     # 경고 문턱을 숫자로
         self.assertIn("오늘은 이 자리가 없습니다", ns["_crash12_story"]({"armed": False}, None, 0))
 
 
