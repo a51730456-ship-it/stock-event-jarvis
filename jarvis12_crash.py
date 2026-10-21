@@ -37,7 +37,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026102102
+MODULE_REVISION = 2026102103
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -318,10 +318,13 @@ def drop_story(row: dict) -> str | None:
 
 
 def _md(iso) -> str:
-    """'2026-10-06' → '10/6'. 못 읽으면 그대로."""
+    """'2026-10-06' → '10월 6일'. 못 읽으면 그대로.
+
+    「10/6」으로 적으면 노란 상자가 점수(66/70 꼴)로 알고 초록으로 칠했다(2026-10-21 미리보기에서 발견).
+    """
     try:
         _year, month, day = str(iso).split("-")
-        return f"{int(month)}/{int(day)}"
+        return f"{int(month)}월 {int(day)}일"
     except Exception:
         return str(iso or "")
 
