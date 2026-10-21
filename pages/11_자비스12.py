@@ -14319,6 +14319,77 @@ _ZOOM_CLONE_JS = """
 """
 
 
+# ── 설명 그림 크게 보기 — 새 창 대신 **이 화면 위에** 띄운다 (2026-10-21 상하님 — "노트북에서 이거 클릭했는데 되돌아가는
+# 방법이 없다" · "이 테마… 다른 화면도 그렇고"). 「📘 이 테마 설명」의 표 그림은 눌러서 키우게 되어 있는데(2026-08-27),
+# 같이 쓰는 image_zoom 은 그림을 **새 탭**으로 열어 그 탭에는 되돌아가기가 없었다. image_zoom·method_help 는 자비스3 과
+# 같이 쓰는 얼린 파일이라(CLAUDE.md 0-2) 손대지 않고, 자비스12 가 누르는 순간을 먼저 받아 새 탭으로 가는 것을 막고
+# 이 화면 위에 띄운다(맨 위 — 설명 창·밑 막대와 같은 높이라 문서 끝에 붙여 그 위에 선다). 「✕ 닫기」·바깥 누르기·Esc·뒤로가기로 닫힌다. 그림을 누르면 원래 크기(옆으로 밀어 보기).
+# 바깥 문서에 남는 장치라 **지금 화면이 자비스12 일 때만** 움직인다 — 같은 탭에서 자비스3 으로 가면 예전처럼 새 탭이다
+# (CLAUDE.md 0-2 · 5 — 이름표도 j12).
+_PICTURE_ZOOM_JS = """
+(function () {
+  var d = document;
+  if (window.__j12PictureZoom) { return; }
+  window.__j12PictureZoom = 1;
+  var css = d.createElement('style');
+  css.id = 'j12-pz-css';
+  css.textContent =
+    '#j12-pz-layer{position:fixed;inset:0;z-index:2147483647!important;background:rgba(3,7,16,.93);' +
+    'display:flex;flex-direction:column;align-items:stretch}' +
+    '#j12-pz-layer .j12-pz-bar{display:flex;justify-content:flex-end;padding:12px 14px 6px}' +
+    '#j12-pz-layer .j12-pz-close{font-weight:800;font-size:17px;line-height:1;font-family:inherit;padding:11px 16px;border-radius:12px;cursor:pointer;' +
+    'background:#d6ecff;color:#c0532f;border:1px solid #9cc8f0}' +
+    '#j12-pz-layer .j12-pz-box{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;' +
+    'padding:0 10px;overflow:auto;-webkit-overflow-scrolling:touch}' +
+    '#j12-pz-layer .j12-pz-img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in;' +
+    'border-radius:6px;background:#fff}' +
+    '#j12-pz-layer.j12-pz-full .j12-pz-box{display:block;text-align:left}' +
+    '#j12-pz-layer.j12-pz-full .j12-pz-img{max-width:none;max-height:none;cursor:zoom-out}' +
+    '#j12-pz-layer .j12-pz-hint{color:#9fb3cc;font-size:13px;text-align:center;padding:8px 12px 14px}';
+  d.head.appendChild(css);
+  var layer = null;
+  function onJarvis12() {
+    try { if (decodeURIComponent(location.pathname).indexOf('\\uc790\\ube44\\uc2a412') >= 0) { return true; } } catch (e) {}
+    return !!d.querySelector('.j12-boot');
+  }
+  function close() {
+    if (layer) { try { layer.remove(); } catch (e) {} layer = null; }
+  }
+  function open(src) {
+    close();
+    layer = d.createElement('div');
+    layer.id = 'j12-pz-layer';
+    layer.innerHTML = '<div class="j12-pz-bar"><button type="button" class="j12-pz-close">\\u2715 \\ub2eb\\uae30</button></div>' +
+      '<div class="j12-pz-box"><img class="j12-pz-img" alt=""></div>' +
+      '<div class="j12-pz-hint">\\uadf8\\ub9bc\\uc744 \\ub204\\ub974\\uba74 \\uc6d0\\ub798 \\ud06c\\uae30 \\u00b7 ' +
+      '\\ubc14\\uae65\\uc774\\ub098 \\u2715 \\ub97c \\ub204\\ub974\\uba74 \\ub2eb\\ud799\\ub2c8\\ub2e4</div>';
+    layer.querySelector('img').src = src;
+    d.body.appendChild(layer);
+  }
+  d.addEventListener('click', function (ev) {
+    try {
+      var t = ev.target;
+      if (layer && layer.contains(t)) {
+        ev.preventDefault(); ev.stopPropagation();
+        if (t.classList && t.classList.contains('j12-pz-img')) { layer.classList.toggle('j12-pz-full'); return; }
+        close();
+        return;
+      }
+      if (!onJarvis12()) { return; }
+      var pic = t && t.closest && t.closest('div[class*="st-key-jarvis_method_pic"]');
+      var img = pic && pic.querySelector('img');
+      var src = img && (img.currentSrc || img.src);
+      if (!src) { return; }
+      ev.preventDefault(); ev.stopPropagation();
+      open(src);
+    } catch (e) {}
+  }, true);
+  d.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && layer) { close(); } }, true);
+  window.addEventListener('popstate', close);
+})();
+"""
+
+
 def _briefing_outer_scripts() -> None:
     """바깥 화면에 작은 장치들을 심는다 — 남은 설명 그림 감추기 · 차트 큰 창 그림 베끼기 · 위 _PAGE_GUARD_JS.
 
@@ -14346,6 +14417,10 @@ def _briefing_outer_scripts() -> None:
             "if(!d.getElementById('j3cz-clone-script')){var z=d.createElement('script');"
             "z.id='j3cz-clone-script';z.textContent=" + _json.dumps(_ZOOM_CLONE_JS) + ";"
             "d.body.appendChild(z);}"
+            # 설명 그림 크게 보기(2026-10-21) — 새 탭 대신 이 화면 위에. 자비스12 화면일 때만 움직인다(위 설명).
+            "if(!d.getElementById('j12-picture-zoom')){var q=d.createElement('script');"
+            "q.id='j12-picture-zoom';q.textContent=" + _json.dumps(_PICTURE_ZOOM_JS) + ";"
+            "d.body.appendChild(q);}"
             "if(d.getElementById('j12b-page-guard')){return;}"
             "var t=d.createElement('script');t.id='j12b-page-guard';"
             "t.textContent=" + _json.dumps(_PAGE_GUARD_JS) + ";"
