@@ -15,6 +15,14 @@
   · 고르는 수 — 고점 대비 −20~−30% 위 5개 · −30~−50% 위 5개 = 10개.
   · 현재가·「고점 대비 지금」·「기준일 뒤」 칸은 **오늘 값**이다(고른 뒤에 오늘 값으로 바꿔 끼운다).
 
+**2026-10-21 밤 고침 (상하님 지시 · 설명서 3-3 「2026-10-21 밤 고침」)**
+  · 종목 낙폭 — 기준일 종가 ÷ **「나스닥 고점일」(그 기준일까지 QQQ 52주 장중 최고가가 난 날)의 그 종목 종가** − 1.
+    1년 최고가 기준은 쓰지 않는다(상하님이 분명히 거부하심).
+  · 칸 — 10~20% · 20~30% · 30~50% (J12_RULES).
+  · 종목 낙폭이 나스닥 낙폭(같은 두 날 QQQ 종가)의 3배를 넘으면 「수상하게 빠짐」(suspicious). 점수는 그대로.
+  · 급락 배점(기준일 자료 · 같은 동점 규칙)으로 줄 세워 **20개**를 보이고, 경고 없는 종목 중 점수 위 **10개**를
+    성적표에 쓴다(모자라면 경고 종목으로 채움 · scorecard=True). 순위 9 의 급락 3개 = 그 10개의 위 3개.
+
 **얼린 jarvis3_data 는 고치지 않는다(CLAUDE.md 0-2)** — 그 안의 계산 도움 함수를 같은 인자로 부르기만 한다.
 **실패해도 화면이 죽지 않는다** — 못 구하면 ok=False 와 까닭을 돌려준다.
 """
@@ -29,11 +37,31 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026101520
+MODULE_REVISION = 2026102101
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
-PER_BAND = 5                              # 두 갈래에서 5개씩
+PER_BAND = 5                              # (2026-10-14 판) 두 갈래에서 5개씩 — 지금은 안 쓴다
+SHOW_COUNT = 20                           # 2026-10-21 — 화면·날짜별 목록에 보이는 수
+SCORECARD_COUNT = 10                      # 2026-10-21 — 성적표에 쓰는 수(경고 없는 종목 먼저)
+SUSPICIOUS_TIMES = 3.0                    # 종목 낙폭이 나스닥 낙폭의 이 배를 넘으면 「수상하게 빠짐」
+
+
+def _results(rows):
+    return tuple({"days": days, "label": label, "win_rate": win, "median_return": gain}
+                 for (days, label), (win, gain) in zip(((60, "3개월"), (120, "6개월"), (250, "1년")), rows))
+
+
+# 칸마다 과거 성적 — 지난 급락 22번 가장 깊은 날 기준 · 나스닥100 96종목 · 10년 · 다음 날 시가 매수(2026-10-21 상하님께
+# 보고한 측정 · 참고). 큰 급락 몇 번이 자리 수를 많이 차지한다. 「median_return」 이름은 그리는 쪽(jarvis3 모양)에 맞춘 것이다.
+J12_RULES = (
+    {"key": "d10", "band": (-20.0, -10.0), "label": "고점일 대비 -10~-20%",
+     "results": _results(((81, 16.8), (82, 24.9), (74, 29.2))), "sample": None},
+    {"key": "d20", "band": (-30.0, -20.0), "label": "고점일 대비 -20~-30%",
+     "results": _results(((87, 25.0), (89, 38.7), (83, 52.1))), "sample": None},
+    {"key": "d30", "band": (-50.0, -30.0), "label": "고점일 대비 -30~-50%",
+     "results": _results(((91, 36.6), (92, 47.0), (92, 77.6))), "sample": None},
+)
 _MEMO_SECONDS = 1800.0
 _MEMO: dict = {}
 _LOCK = threading.Lock()
@@ -93,10 +121,42 @@ def episodes() -> dict:
                 current["last_below"] = day.isoformat()
     if current is not None:
         found.append(current)
+    for item in found:
+        item.update(_peak_of(frame, item["reference"]))
     last_value = drop.dropna()
     return {"ok": True, "episodes": found,
             "today_drop": float(last_value.iloc[-1]) if len(last_value) else None,
             "as_of": days[-1].isoformat() if days else "", "frame": frame}
+
+
+def _close_on(frame, day: date):
+    """그날(장이 없으면 그 앞 마지막 장) 종가 — 없으면 None."""
+    if frame is None or getattr(frame, "empty", True):
+        return None
+    places = [place for place, seen in enumerate(_dates(frame.index)) if seen <= day]
+    if not places:
+        return None
+    try:
+        value = float(frame["Close"].iloc[places[-1]])
+    except Exception:
+        return None
+    return value if value == value and value > 0 else None
+
+
+def _peak_of(frame, ref_iso: str) -> dict:
+    """나스닥 고점일 — 그 기준일까지 52주(252장) 안에서 QQQ 장중 최고가가 난 날 · 그날 종가 → 기준일 종가 낙폭(%)."""
+    days = _dates(frame.index)
+    upto = [place for place, day in enumerate(days) if day.isoformat() <= ref_iso]
+    if not upto:
+        return {"peak_date": None, "nasdaq_drop": None}
+    end = upto[-1]
+    start = max(0, end - 251)
+    highs = frame["High"].astype(float).iloc[start:end + 1].reset_index(drop=True)
+    place = start + int(highs.idxmax())
+    peak_close = float(frame["Close"].iloc[place])
+    ref_close = float(frame["Close"].iloc[end])
+    return {"peak_date": days[place].isoformat(),
+            "nasdaq_drop": (ref_close / peak_close - 1.0) * 100.0 if peak_close else None}
 
 
 def reference() -> dict:
@@ -115,6 +175,7 @@ def reference() -> dict:
            "reference_date": latest["reference"], "reference_drop": latest["reference_drop"],
            "episode_start": latest["start"], "last_below": latest["last_below"],
            "recovered_on": latest["recovered_on"], "threshold": THRESHOLD, "as_of": info.get("as_of"),
+           "peak_date": latest.get("peak_date"), "nasdaq_drop": latest.get("nasdaq_drop"),
            "reason": ""}
     try:
         frame = info["frame"]
@@ -127,8 +188,15 @@ def reference() -> dict:
     return out
 
 
-def _pick(daily: dict, memberships: dict, ref_day: date, per_band: int = PER_BAND) -> list:
-    """기준일 장 마감까지의 주가로 점수를 매기고 두 갈래에서 per_band 개씩 고른다(점수 차례 그대로)."""
+def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_drop=None,
+          show: int = SHOW_COUNT) -> tuple:
+    """기준일 장 마감까지의 주가로 점수를 매기고 급락 배점 차례로 show 개를 고른다(2026-10-21 상하님 지시).
+
+    종목 낙폭 = 기준일 종가 ÷ 나스닥 고점일(peak_day)의 그 종목 종가 − 1 → 10~20 · 20~30 · 30~50% 칸.
+    경고 없는 종목 중 점수 위 SCORECARD_COUNT 개에 scorecard=True(모자라면 경고 종목으로 채움).
+    """
+    if isinstance(peak_day, str):
+        peak_day = date.fromisoformat(peak_day)
     cut = {ticker: _upto(frame, ref_day) for ticker, frame in daily.items()}
     rows, all_metrics, since_reference = [], {}, {}
     for ticker in j3.US_LARGE_CAP_UNIVERSE:
@@ -141,14 +209,20 @@ def _pick(daily: dict, memberships: dict, ref_day: date, per_band: int = PER_BAN
         now_close = j3._finite(now.get("current")) if now.get("ok") else None
         if then_close and now_close:
             since_reference[ticker] = (now_close / then_close - 1.0) * 100
-        from_high = metrics.get("from_high_pct")
-        if from_high is None:
-            continue
-        for order, rule in enumerate(j3.CRASH_REBOUND_RULES):
+        peak_close = _close_on(cut.get(ticker), peak_day) if peak_day else None
+        if not peak_close or not then_close:
+            continue                    # 나스닥 고점일 값이 없다(그 뒤 상장 등) — 못 잰다
+        from_peak = (then_close / peak_close - 1.0) * 100
+        for order, rule in enumerate(J12_RULES):
             low, high = rule["band"]
-            if low <= from_high < high:
+            if low <= from_peak < high:
                 row = j3._universe_row(ticker, metrics, memberships)
-                row["judged_from_high_pct"] = from_high
+                row["judged_from_high_pct"] = from_peak
+                row["peak_date"] = peak_day.isoformat()
+                row["peak_close"] = peak_close
+                row["nasdaq_drop_pct"] = nasdaq_drop
+                row["suspicious"] = bool(nasdaq_drop is not None and nasdaq_drop < 0
+                                         and abs(from_peak) > SUSPICIOUS_TIMES * abs(nasdaq_drop))
                 row["reference_date"] = ref_day.isoformat()
                 row["bucket"] = rule["key"]
                 row["bucket_label"] = rule["label"]
@@ -181,14 +255,19 @@ def _pick(daily: dict, memberships: dict, ref_day: date, per_band: int = PER_BAN
                                int(row.get("theme_above20") or 99),
                                j3._rank_key(row)[0], j3._rank_key(row)[1],
                                row.get("_order", 9), *j3._rank_key(row)[2:]))
-    # 두 갈래를 합친 **급락 배점 차례**(동점이면 위 규칙 그대로) — 순위 9 가 이 10종목에서 위 3개를 뽑을 때 쓴다(2026-10-15).
+    # 급락 배점 차례(동점이면 위 규칙 그대로) — 순위 9 가 성적표 10종목에서 위 3개를 뽑을 때 쓴다.
     for order, row in enumerate(rows):
         row["score_order"] = order
-    counts = {rule["key"]: sum(1 for row in rows if row["bucket"] == rule["key"]) for rule in j3.CRASH_REBOUND_RULES}
-    picked = []
-    for rule in j3.CRASH_REBOUND_RULES:                     # −20~−30 위 5개 → −30~−50 위 5개
-        picked += [row for row in rows if row["bucket"] == rule["key"]][:per_band]
-    # 고른 뒤 **보이는 값만 오늘 것으로** — 점수·갈래는 기준일 값 그대로다.
+    counts = {rule["key"]: sum(1 for row in rows if row["bucket"] == rule["key"]) for rule in J12_RULES}
+    picked = rows[:show]
+    # 성적표 10개 — 경고 없는 종목 중 점수 위부터, 모자라면 경고 종목으로 채운다(점수 차례).
+    chosen = [row for row in picked if not row["suspicious"]][:SCORECARD_COUNT]
+    if len(chosen) < SCORECARD_COUNT:
+        chosen += [row for row in picked if row["suspicious"]][:SCORECARD_COUNT - len(chosen)]
+    chosen_ids = {id(row) for row in chosen}
+    for row in picked:
+        row["scorecard"] = id(row) in chosen_ids
+    # 고른 뒤 **보이는 값만 오늘 것으로** — 점수·칸은 기준일 값 그대로다.
     for index, row in enumerate(picked, 1):
         ticker = row["ticker"]
         full = daily.get(ticker)
@@ -220,6 +299,24 @@ def _pick(daily: dict, memberships: dict, ref_day: date, per_band: int = PER_BAN
     return picked, counts
 
 
+def drop_story(row: dict) -> str | None:
+    """세부사항 노란 글의 첫 문장 — 나스닥 고점일부터 몇 % 빠졌나(2026-10-21). 자비스12 줄이 아니면 None."""
+    peak, judged, ref = row.get("peak_date"), row.get("judged_from_high_pct"), row.get("reference_date")
+    if not peak or judged is None or not ref:
+        return None
+    text = (f"나스닥 고점일({peak}) 종가에서 기준일({ref}) 종가까지 {float(judged):.1f}% 빠졌던 종목입니다.")
+    nasdaq = row.get("nasdaq_drop_pct")
+    if nasdaq is not None:
+        text += f" 같은 두 날 나스닥(QQQ)은 {float(nasdaq):.1f}%였습니다."
+    if row.get("suspicious"):
+        text += (f" 나스닥의 {SUSPICIOUS_TIMES:.0f}배 넘게 빠져 「수상하게 빠짐」으로 표시합니다 — 시장 말고 이 회사만의"
+                 " 까닭(실적·사건)이 있었는지 보십시오. 점수는 그대로입니다.")
+    since = row.get("since_reference_pct")
+    if since is not None:
+        text += f" 그 뒤 {float(since):+.1f}% {'올랐습니다' if float(since) >= 0 else '더 빠졌습니다'}."
+    return text + " 칸과 점수는 오늘이 아니라 그날 낙폭으로 정합니다."
+
+
 def _universe():
     daily, meta, memberships = j3._universe_daily(False)
     return daily, meta, memberships
@@ -235,24 +332,24 @@ def crash_list(*, reuse_only: bool = False) -> dict:
     if not daily:
         return {"ok": False, "error": meta.get("error") or "미국 종목 일봉 조회 실패", "rows": []}
     market = j3.crash_market_state()
-    base = {"ok": True, "mode": "crash", "rules": j3.CRASH_REBOUND_RULES, "score_weights": j3.CRASH_SCORE_WEIGHTS,
+    base = {"ok": True, "mode": "crash", "rules": J12_RULES, "score_weights": j3.CRASH_SCORE_WEIGHTS,
             "market": market, "reference": ref, "j12_fixed": True,
             "score_blind": False, "score_weak": False,
             "universe_count": len(j3.US_LARGE_CAP_UNIVERSE),
             "data_count": sum(1 for t in j3.US_LARGE_CAP_UNIVERSE if t in daily),
-            "result_limit": PER_BAND * len(j3.CRASH_REBOUND_RULES),
+            "result_limit": SHOW_COUNT,
             "checked_at": meta.get("fetched_at"), "stale": bool(meta.get("stale")),
             "reused_batch": bool(meta.get("reused_superset"))}
     if not ref.get("armed"):
         return {**base, "rows": [], "bucket_counts": {}, "days_since_reference": None}
     ref_day = date.fromisoformat(ref["reference_date"])
-    key = ("list", ref["reference_date"], str(ref.get("as_of")))
+    key = ("list", ref["reference_date"], str(ref.get("as_of")), MODULE_REVISION)
     with _LOCK:
         memo = _MEMO.get(key)
     if memo and time.time() - memo[0] < _MEMO_SECONDS:
         picked, counts = memo[1]
     else:
-        picked, counts = _pick(daily, memberships, ref_day)
+        picked, counts = _pick(daily, memberships, ref_day, ref.get("peak_date"), ref.get("nasdaq_drop"))
         with _LOCK:
             _MEMO[key] = (time.time(), (picked, counts))
     # 「점수가 순위를 못 가른다」 경고는 자비스3 과 같이 **오늘 나스닥 낙폭**으로 판단한다 — 그 경고 글이
@@ -264,7 +361,8 @@ def crash_list(*, reuse_only: bool = False) -> dict:
 
 
 def cohorts(since: str = "") -> list:
-    """성적표·그래프용 — 급락마다 그 10종목을 「기준일에 목록이 나왔고 다음 날 시가에 한 번 샀다」는 줄로.
+    """성적표·그래프·날짜별 목록용 — 급락마다 그 20종목을 「기준일에 목록이 나왔고 다음 날 시가에 한 번 샀다」는 줄로.
+    성적표는 scorecard=True 인 10개만 센다(2026-10-21).
 
     picklist 저장 줄과 같은 모양(trade_date · list_kind · code · buy_open · name · origin)이라 성적표 셈을 그대로 쓴다.
     since — 이 날 이후 기준일만(빈 글자면 1년 안 전부).
@@ -275,7 +373,7 @@ def cohorts(since: str = "") -> list:
         return []
     if not info.get("ok") or not info["episodes"]:
         return []
-    key = ("cohorts", str(info.get("as_of")), since)
+    key = ("cohorts", str(info.get("as_of")), since, MODULE_REVISION)
     with _LOCK:
         memo = _MEMO.get(key)
     if memo and time.time() - memo[0] < _MEMO_SECONDS:
@@ -291,7 +389,8 @@ def cohorts(since: str = "") -> list:
             continue
         # 이 10종목을 보여 주는 마지막 — 다음 급락이 시작한 날(그 전날까지 보여 줌). 없으면 지금도 보여 준다.
         shown_until = found[place + 1]["start"] if place + 1 < len(found) else ""
-        picked, _counts = _pick(daily, memberships, date.fromisoformat(item["reference"]))
+        picked, _counts = _pick(daily, memberships, date.fromisoformat(item["reference"]),
+                                item.get("peak_date"), item.get("nasdaq_drop"))
         for row in picked:
             if not row.get("buy_open"):
                 continue
@@ -303,7 +402,8 @@ def cohorts(since: str = "") -> list:
                         "judged_from_high_pct": row.get("judged_from_high_pct"),
                         "bucket_label": row.get("bucket_label") or "", "score_order": row.get("score_order"),
                         "episode_recovered": item.get("recovered_on") or "", "shown_until": shown_until,
-                        "j12_fixed": True})
+                        "peak_date": row.get("peak_date"), "suspicious": bool(row.get("suspicious")),
+                        "scorecard": bool(row.get("scorecard")), "j12_fixed": True})
     with _LOCK:
         _MEMO[key] = (time.time(), out)
     return [dict(row) for row in out]

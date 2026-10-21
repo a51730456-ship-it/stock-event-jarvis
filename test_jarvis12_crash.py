@@ -50,38 +50,80 @@ class EpisodeTests(unittest.TestCase):
 
 
 class PickTests(unittest.TestCase):
-    def test_five_from_each_group_scored_on_the_reference_day_only(self):
-        tickers = [f"S{i:02d}" for i in range(14)]
+    """2026-10-21 밤 상하님 규칙 — 나스닥 고점일 종가부터 잰 낙폭 · 세 칸 · 20개 · 경고 없는 위 10개가 성적표."""
+
+    def _frames(self, depths, high_first=None):
         days = pd.bdate_range("2025-01-01", periods=320)
         frames, members = {}, {}
-        for i, ticker in enumerate(tickers):
-            depth = 0.75 if i < 7 else 0.6                            # 앞 일곱 −25% · 뒤 일곱 −40%
-            closes = np.r_[np.linspace(50, 100, 300), np.full(10, 100 * depth), np.full(10, 100 * depth * 1.3)]
-            frames[ticker] = pd.DataFrame({"Open": closes, "High": closes, "Low": closes, "Close": closes,
-                                           "Volume": 1e6 + i}, index=days)
-            members[ticker] = ["테마"]
-        ref = days[305].date()
+        for i, depth in enumerate(depths):
+            # 고점일(300번째 날) 종가 100 → 기준일(305번째 날) 100×depth → 오늘 ×1.3
+            closes = np.r_[np.linspace(50, 100, 301), np.full(9, 100 * depth), np.full(10, 100 * depth * 1.3)]
+            if high_first and i in high_first:
+                closes[100] = 400.0       # 1년 최고가는 훨씬 앞 — 이 값은 쓰지 않는다(고점일 종가가 기준)
+            frames[f"S{i:02d}"] = pd.DataFrame({"Open": closes, "High": closes, "Low": closes, "Close": closes,
+                                                "Volume": 1e6 + i}, index=days)
+            members[f"S{i:02d}"] = ["테마"]
+        return days, frames, members
+
+    def _pick(self, depths, nasdaq_drop=-7.0, high_first=None):
+        days, frames, members = self._frames(depths, high_first)
+        tickers = sorted(frames)
         seen = []
 
         def fake_score(row):
-            seen.append(row["metrics"]["current"])                     # 점수는 기준일 값으로 매긴다
+            seen.append(row["metrics"]["current"])
             return {"score": 100 - int(row["ticker"][1:])}
 
         with mock.patch.object(c12.j3, "US_LARGE_CAP_UNIVERSE", tickers), \
                 mock.patch.object(c12.j3, "crash_rebound_score", side_effect=fake_score):
-            picked, counts = c12._pick(frames, members, ref)
-        self.assertEqual({"shallow": 7, "deep": 7}, counts)
-        self.assertEqual(10, len(picked))
-        self.assertEqual(["shallow"] * 5 + ["deep"] * 5, [row["bucket"] for row in picked])
-        self.assertEqual(tickers[:5] + tickers[7:12], [row["ticker"] for row in picked])
-        self.assertTrue(all(abs(v - 75) < 1e-6 or abs(v - 60) < 1e-6 for v in seen))   # 오늘(×1.3) 값 아님
-        first = picked[0]
-        self.assertEqual(days[306].date().isoformat(), first["buy_date"])            # 기준일 다음 거래일
-        self.assertAlmostEqual(75.0, first["buy_open"])
-        self.assertAlmostEqual(97.5, first["metrics"]["current"])                     # 보이는 값은 오늘 것
-        self.assertAlmostEqual(30.0, first["since_reference_pct"], places=6)
-        # 두 갈래를 합친 급락 배점 차례(순위 9 가 위 3개를 뽑을 때 쓴다) — 점수 100−번호라 번호 차례
-        self.assertEqual([0, 1, 2, 3, 4, 7, 8, 9, 10, 11], [row["score_order"] for row in picked])
+            picked, counts = c12._pick(frames, members, days[305].date(), days[300].date(), nasdaq_drop)
+        return days, picked, counts, seen
+
+    def test_drop_from_nasdaq_peak_day_three_bands_and_twenty(self):
+        # 0~7 −15%(10~20칸) · 8~15 −25% · 16~23 −40% · 24 −5%(칸 밖) · 25 −60%(칸 밖)
+        depths = [0.85] * 8 + [0.75] * 8 + [0.60] * 8 + [0.95, 0.40]
+        days, picked, counts, seen = self._pick(depths, high_first={0})
+        self.assertEqual({"d10": 8, "d20": 8, "d30": 8}, counts)
+        self.assertEqual(20, len(picked))                                   # 점수 차례로 20개
+        self.assertEqual([f"S{i:02d}" for i in range(20)], [row["ticker"] for row in picked])
+        self.assertAlmostEqual(-15.0, picked[0]["judged_from_high_pct"])     # 1년 최고가(400) 아닌 고점일 종가(100)부터
+        self.assertEqual(days[300].date().isoformat(), picked[0]["peak_date"])
+        self.assertEqual("고점일 대비 -10~-20%", picked[0]["bucket_label"])
+        self.assertEqual(81, picked[0]["hold_results"][0]["win_rate"])        # 새 칸 성적
+        self.assertTrue(all(abs(v - 85) < 1e-6 or abs(v - 75) < 1e-6 or abs(v - 60) < 1e-6 for v in seen))
+        self.assertEqual(days[306].date().isoformat(), picked[0]["buy_date"])
+        self.assertAlmostEqual(85.0, picked[0]["buy_open"])
+        self.assertAlmostEqual(30.0, picked[0]["since_reference_pct"], places=6)
+
+    def test_three_times_nasdaq_is_flagged_and_scorecard_skips_it(self):
+        # 나스닥 −7% → 21% 넘게 빠진 종목(−25 · −40)은 경고. 경고 없는 −15% 종목은 8개뿐 → 2개는 경고 종목으로 채움
+        depths = [0.75] * 4 + [0.85] * 8 + [0.60] * 4
+        _days, picked, _counts, _seen = self._pick(depths, nasdaq_drop=-7.0)
+        flags = {row["ticker"]: row["suspicious"] for row in picked}
+        self.assertTrue(flags["S00"])
+        self.assertFalse(flags["S04"])
+        chosen = [row["ticker"] for row in picked if row["scorecard"]]
+        self.assertEqual(10, len(chosen))
+        self.assertEqual({f"S{i:02d}" for i in range(4, 12)} | {"S00", "S01"}, set(chosen))   # S02·S03 은 빠짐
+        # 점수는 경고와 상관없이 그대로 — 화면 차례도 점수 차례
+        self.assertEqual([f"S{i:02d}" for i in range(16)], [row["ticker"] for row in picked])
+
+    def test_drop_story_says_peak_day(self):
+        _days, picked, _counts, _seen = self._pick([0.75], nasdaq_drop=-7.0)
+        text = c12.drop_story(picked[0])
+        self.assertIn("나스닥 고점일(", text)
+        self.assertIn("-25.0% 빠졌던", text)
+        self.assertIn("수상하게 빠짐", text)
+        self.assertIsNone(c12.drop_story({"judged_from_high_pct": -20.0, "reference_date": "2026-07-29"}))
+
+    def test_peak_day_is_the_52_week_intraday_high(self):
+        closes = list(np.linspace(100, 130, 300)) + [120, 118, 125, 117]
+        frame = _qqq(closes)
+        frame.loc[frame.index[290], "High"] = 140.0                         # 장중 최고는 290번째 날
+        days = [d.date().isoformat() for d in frame.index]
+        peak = c12._peak_of(frame, days[303])
+        self.assertEqual(days[290], peak["peak_date"])
+        self.assertAlmostEqual((117 / float(frame["Close"].iloc[290]) - 1) * 100, peak["nasdaq_drop"])
 
 
 class HeldTests(unittest.TestCase):
@@ -131,6 +173,14 @@ class PageTests(unittest.TestCase):
         # 기간 첫날에 들고 있던 급락 10종목도 그 기간에 센다(막대 · 기간 고르기 · 견주기)
         self.assertEqual(4, J12.count("_crash12_rows_for("))  # 정의 · 막대 · 기간 고르기 · 견주기
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
+        # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
+        self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102101", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026102101)
+        self.assertIn("story12 = jarvis12_crash.drop_story(row)", J12)
+        self.assertIn('drop_heads[0] = "고점일 대비"', J12)
+        self.assertIn("⚠ 수상하게 빠짐", J12)
+        self.assertIn("2026-10-21 밤 고침", SPEC)
 
     def test_story_explains_the_situation(self):
         ns = {"jarvis12_crash": c12, "_ixic_note": lambda ref: ""}
