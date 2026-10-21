@@ -6844,7 +6844,7 @@ def _crash12_list_note(kind: str, part: list) -> str | None:
     when = f"{int(ref[5:7])}/{int(ref[8:10])}" if len(ref) == 10 else "급락 기준일"
     peak = str(part[0].get("peak_date") or "")
     peak_text = f"나스닥 고점일({int(peak[5:7])}/{int(peak[8:10])})부터 " if len(peak) == 10 else "나스닥 고점일부터 "
-    return (f"이 칸은 <b>{when} 급락 기준일에 점수 높은 차례로 정한 {len(part)}종목</b>입니다({peak_text}10~50% 빠진 종목 · "
+    return (f"이 칸은 <b>{when} 급락 기준일에 점수 높은 차례로 정한 {len(part)}종목</b>입니다({peak_text}10&#126;50% 빠진 종목 · "
             "다음 급락까지 그대로). 성적표에는 그중 「수상하게 빠짐」이 아닌 점수 위 10개만 셉니다. "
             "그날 저장된 옛 목록은 「저장해 둔 n일치 전부」 엑셀에 그대로 있습니다.")
 
@@ -9482,9 +9482,9 @@ _SCORE_TABLE = {
          "<b>주의</b> — 바닥이 <u>여덟 번뿐</u>입니다. 확실한 숫자가 아닙니다"),
         ("고점 대비 낙폭", "bucket",
          "<u>점수를 주지 않습니다.</u> 이 목록에 올릴 때 <b>이미 쓴 값</b>입니다 — "
-         "나스닥 고점일 종가보다 10~50% 내려온 종목만 올리고 있습니다(2026-10-21). 그 안에서 더 많이 "
+         "나스닥 고점일 종가보다 10&#126;50% 내려온 종목만 올리고 있습니다(2026-10-21). 그 안에서 더 많이 "
          "떨어진 쪽에 또 점수를 주면 한 가지를 두 번 세는 셈입니다.<br>"
-         "<b>게다가 겹칩니다</b> — (옛 그물 · 1년 최고가 20~50%에서 잰 값) 많이 떨어진 종목의 <b>71%</b>가 위 "
+         "<b>게다가 겹칩니다</b> — (옛 그물 · 1년 최고가 20&#126;50%에서 잰 값) 많이 떨어진 종목의 <b>71%</b>가 위 "
          "<b>주가 변동성</b> 항목에도 걸립니다. 거의 같은 종목입니다.<br>"
          "대신 낙폭 칸마다 과거 성적을 따로 보여 드립니다"),
         ("테마가 20일선 위에 있나", "above20",
@@ -10001,7 +10001,8 @@ def _crash12_story(reference: dict, drop_now, count: int) -> str:
             + (f". 나스닥 고점일은 {peak_day}입니다(그날 종가에서 기준일 종가까지 QQQ "
                + (f":red[**{float(nasdaq_drop):.1f}%**]" if nasdaq_drop is not None else "—") + ")"
                if peak_day else "")
-            + ". 종목마다 **나스닥 고점일 종가에서 기준일 종가까지** 얼마나 빠졌나로 10~20%·20~30%·30~50% 세 칸에 넣고, "
+            # 물결(~)을 그냥 쓰면 둘이 짝을 지어 취소선이 된다(2026-10-21 상하님 캡처) — \~ 로 적는다.
+            + ". 종목마다 **나스닥 고점일 종가에서 기준일 종가까지** 얼마나 빠졌나로 10\\~20%·20\\~30%·30\\~50% 세 칸에 넣고, "
             "그날 장 마감 자료로 매긴 급락 점수 차례로 20개를 보여 드립니다. "
             f"나스닥보다 {jarvis12_crash.SUSPICIOUS_TIMES:.0f}배 넘게 빠진 종목은 **⚠ 수상하게 빠짐**으로 표시합니다(점수는 그대로). "
             "**다음 급락이 올 때까지 이 종목 그대로** 보여 드립니다(새 종목이 끼어들지 않습니다). "
@@ -10165,8 +10166,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "<div class='j3-pull-guide'><b>찾는 그물</b> — QQQ(나스닥100)가 고점 대비 "
                 "<span class='j3-drop'>-5%</span> 아래로 빠진 이번 급락에서 가장 깊었던 날(기준일)에, "
                 "<b>나스닥 고점일</b>(그 기준일까지 QQQ 1년 장중 최고가가 난 날) 종가에서 기준일 종가까지 "
-                "<span class='j3-drop'>-10~-20%</span>·<span class='j3-drop'>-20~-30%</span>·"
-                "<span class='j3-drop'>-30~-50%</span> 빠진 종목을 급락 점수 차례로 <b>20개</b> 보여 드립니다. "
+                "<span class='j3-drop'>-10\\~-20%</span>·<span class='j3-drop'>-20\\~-30%</span>·"
+                "<span class='j3-drop'>-30\\~-50%</span> 빠진 종목을 급락 점수 차례로 <b>20개</b> 보여 드립니다. "
                 "그 종목의 1년 최고가는 쓰지 않습니다. 나스닥보다 3배 넘게 빠진 종목은 "
                 "<b>⚠ 수상하게 빠짐</b>으로 표시합니다(점수는 그대로). 성적표에는 경고 없는 점수 위 <b>10개</b>를 셉니다. "
                 "다음 급락이 올 때까지 이 종목 그대로입니다.<br>아래 칸별 성적은 지난 급락 22번의 가장 깊은 날 기준"
@@ -10462,9 +10463,12 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             third_cell = f"<span class='{band_class}'>{html.escape(band)}</span>"
             if row.get("suspicious"):
                 # 2026-10-21 — 나스닥 낙폭의 3배 넘게 빠짐. 점수는 그대로, 보이기만 한다.
-                third_cell += ("<br><span class='j3-pull-amber' style='font-size:.78rem; font-weight:850'"
-                               " title='나스닥보다 3배 넘게 빠졌습니다 — 이 회사만의 까닭이 있었는지 보십시오."
-                               " 점수는 그대로 · 성적표에는 경고 없는 종목을 먼저 셉니다.'>⚠ 수상하게 빠짐</span>")
+                # 칸(j3-td)이 가로 줄이라 <br> 로는 안 내려간다 — 당일주가 칸처럼 세로 묶음으로 쌓는다(상하님 캡처).
+                third_cell = ("<span style='display:inline-flex; flex-direction:column; align-items:center;"
+                              " line-height:1.15; gap:.1rem'>" + third_cell
+                              + "<span class='j3-pull-amber' style='font-size:.72rem; font-weight:850'"
+                              " title='나스닥보다 3배 넘게 빠졌습니다 — 이 회사만의 까닭이 있었는지 보십시오."
+                              " 점수는 그대로 · 성적표에는 경고 없는 종목을 먼저 셉니다.'>⚠ 수상하게 빠짐</span></span>")
         # 순위를 정한 값(테마 동반)과 참고값(거래대금)을 표에 그대로 보여 준다.
         tier = int(row.get("together_tier") or 0)
         tier_class = ("j3-muted", "j3-pull-theme", "j3-pull-amber", "j3-green-strong")[tier]

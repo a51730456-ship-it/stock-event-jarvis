@@ -182,6 +182,20 @@ class PageTests(unittest.TestCase):
         self.assertIn("⚠ 수상하게 빠짐", J12)
         self.assertIn("2026-10-21 밤 고침", SPEC)
 
+    def test_tildes_do_not_turn_into_strikethrough_and_the_warning_stacks(self):
+        """2026-10-21 상하님 캡처 — 「10~20%·20~30%」 물결 둘이 짝을 지어 취소선이 됐고, 갈래 칸의 경고가 옆으로 붙어 잘렸다."""
+        import re
+        ns = {"jarvis12_crash": c12, "_ixic_note": lambda ref: ""}
+        exec(J12[J12.index("def _crash12_story("):J12.index("def _render_rulebook_finder(")], ns)
+        text = ns["_crash12_story"]({"armed": True, "reference_date": "2026-10-16", "reference_drop": -7.0,
+                                     "peak_date": "2026-10-06", "nasdaq_drop": -6.6}, -4.7, 20)
+        self.assertIn("10\\~20%", text)
+        self.assertIsNone(re.search(r"(?<!\\)~[0-9]", text))       # 숫자 앞 물결은 모두 \~
+        band = J12[J12.index("if row.get(\"suspicious\"):"):J12.index("# 순위를 정한 값(테마 동반)")]
+        self.assertIn("flex-direction:column", band)
+        self.assertNotIn('"<br>', band)                                  # 그리는 글에 줄바꿈 태그 없음
+
+
     def test_story_explains_the_situation(self):
         ns = {"jarvis12_crash": c12, "_ixic_note": lambda ref: ""}
         exec(J12[J12.index("def _crash12_story("):J12.index("def _render_rulebook_finder(")], ns)
