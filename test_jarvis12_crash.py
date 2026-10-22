@@ -147,6 +147,9 @@ class PickTests(unittest.TestCase):
         self.assertIn(f"<b style='color:#fff1b8'>${row['reference_close']:,.2f}</b>", shown)
         self.assertNotIn("fff1b8", ns["_mustard_html"](text))
         self.assertIn("prices=(mode == 'crash')", J12)
+        # 세부 네 칸의 「이 자리 과거 성적」도 자비스12 급락 줄에서는 뺀다(2026-10-22 상하님 「빼라」) — 칸 셋이면 빈칸을 안 붙인다
+        self.assertIn('plan_cells = [cell for cell in plan_cells if cell[0] != "이 자리 과거 성적"]', J12)
+        self.assertIn("(\"<div class='j3-holo-cell'></div>\" if len(plan_boxes) == 4 else \"\")", J12)
 
     def test_peak_day_is_the_52_week_high_and_drop_is_high_to_close(self):
         """2026-10-22 「엑셀대로 · 통일」 — 고점일은 1년 최고가(장중 고가)가 난 날 · QQQ 낙폭 = 그날 고가 → 기준일 종가."""
