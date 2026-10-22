@@ -83,7 +83,8 @@ def show(title: str, result: dict) -> None:
         for _days, label in HOLDS:
             values = np.array(result["returns"][rule["key"]][label])
             if len(values):
-                parts.append(f"{label} {np.median(values):+.1f}%(100번 중 {np.mean(values > 0) * 100:.0f}번 · {len(values)}자리)")
+                parts.append(f"{label} 가운데 {np.median(values):+.1f}% · 평균 {np.mean(values):+.1f}%"
+                             f"(100번 중 {np.mean(values > 0) * 100:.0f}번 · {len(values)}자리)")
             else:
                 parts.append(f"{label} 없음")
         print(f"  {rule['label']:<16} 자리 {result['seats'][rule['key']]:>4} · " + " · ".join(parts))
