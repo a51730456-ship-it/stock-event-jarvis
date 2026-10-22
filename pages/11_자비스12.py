@@ -1951,7 +1951,7 @@ import jarvis12_picklist_ui
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026102204
+_REQUIRED_J12_CRASH_REVISION = 2026102205
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_J12_PICKLIST_REVISION = 2026101510
@@ -2093,6 +2093,7 @@ _MUSTARD_HOLD = re.compile(r"\d+거래일 뒤 종가")
 # **점수도 뽑아 준다**(2026-08-21 상하님 지시 "점수와 프로테이지 색깔 구분").
 # 66.0/70 · 17.0/30 · 83.0/100 꼴을 초록으로 굵게 칠한다.
 _MUSTARD_SCORE = re.compile(r"\d+(?:\.\d+)?/\d+")
+_MUSTARD_PRICE = re.compile(r"\$\d[\d,]*(?:\.\d+)?")
 _MUSTARD_KEYS = (
     "그날 낙폭으로 정합니다",
     "다음 거래일 시가",
@@ -2106,7 +2107,7 @@ _MUSTARD_KEYS = (
 )
 
 
-def _mustard_html(text) -> str:
+def _mustard_html(text, prices: bool = False) -> str:
     """겨자색 상자의 글 — 숫자와 중요한 말만 굵게·색으로 뽑는다.
 
     오른 값(+)은 스카이블루, 빠진 값(−)은 붉은색이다. 화면 다른 곳과 같은 약속이다.
@@ -2129,6 +2130,9 @@ def _mustard_html(text) -> str:
         lambda match: f"<span class='j3-mn-score'>{match.group()}</span>", safe)
     for phrase in _MUSTARD_KEYS:
         safe = safe.replace(phrase, f"<span class='j3-mn-key'>{phrase}</span>")
+    if prices:
+        # 2026-10-22 자비스12 급락 — 「고점일 고가 $432.32 → 기준일 종가 $354.92」의 두 값을 굵게(맨 끝에 — 앞 규칙과 안 섞이게).
+        safe = _MUSTARD_PRICE.sub(lambda match: f"<b style='color:#fff1b8'>{match.group()}</b>", safe)
     return safe
 
 
@@ -9156,7 +9160,9 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         st.markdown(factor_html, unsafe_allow_html=True)
         st.markdown(
             # 줄바꿈(\n)은 줄로 그린다 — 급락 노란 글이 줄을 나눠 쓴다(2026-10-22 「눈에 보이게」). 다른 글엔 \n 이 없다.
-            f"<div class='j3-reason-mustard'>{_mustard_html(review.get('stock_reason')).replace(chr(10), '<br>')}</div>",
+            # 급락 글의 $값(고점일 고가 · 기준일 종가 — 같은 날 상하님)은 굵게. 다른 갈래 글은 그대로 둔다.
+            f"<div class='j3-reason-mustard'>"
+            f"{_mustard_html(review.get('stock_reason'), prices=(mode == 'crash')).replace(chr(10), '<br>')}</div>",
             unsafe_allow_html=True,
         )
         # 갈래 화면에는 여기에 아무 말도 붙이지 않는다(2026-08-07 상하님 지시
@@ -10055,6 +10061,69 @@ def _crash12_story(reference: dict, drop_now, count: int) -> str:
     return "\n".join(lines)
 
 
+# 자비스12 급락 설명 창 — 배점 한 줄 풀이(2026-10-22 상하님 「설명 너무 길다」). 긴 풀이(과거에 어땠나 · 주의)는
+# 「자세히 보기」 안의 _SCORE_TABLE 그대로다. 점수는 여기 적지 않고 모듈(CRASH_SCORE_WEIGHTS)에서 읽는다.
+_CRASH12_SCORE_SHORT = {
+    "이 종목이 평소 크게 움직이나": "최근 3개월 하루 움직임이 이 목록 안에서 위쪽 절반",
+    "이 테마가 이미 오름세로 돌아섰나": "그 분야 회사 중 30주선(약 150일 평균) 위 비율이 20개 분야 중 3등 안",
+    "이 테마가 통째로 떨어졌나": "같은 분야 회사 4개 이상이 이 목록에 같이 올라옴",
+    "이 테마가 지난 반년에 많이 올랐나": "그 분야 6개월 상승이 20개 분야 중 3등 안",
+}
+
+
+def _crash12_guide_html(ref_date, cards: list) -> str:
+    """자비스12 급락 설명 창 윗부분 — 규칙 넷과 칸 카드만(2026-10-22 「설명 너무 길다 · 기준·이름 통일」).
+
+    이름은 화면 어디서나 같다 — 고점일 · 기준일 · 낙폭(고점일 고가 → 그날 종가) · QQQ 낙폭 · 종목 낙폭.
+    물결은 &#126; 로 적는다 — HTML 덩이 안에서는 \\~ 가 글자 그대로 보였다(같은 날 캡처).
+    """
+    ref_text = f"({html.escape(str(ref_date))})" if ref_date else ""
+    return (
+        "<div class='j3-pull-guide'>"
+        "📏 <b>재는 법</b> — <b>낙폭</b> = 고점일(QQQ 가 1년 최고가를 찍은 날) <b>고가</b> → 그날 <b>종가</b> · "
+        "QQQ·종목 똑같이<br>"
+        f"① <b>기준일</b> — QQQ 낙폭이 <span class='j3-drop'>-5%</span> 아래로 빠진 이번 급락에서 가장 깊은 날{ref_text}<br>"
+        "② <b>고르기</b> — 그날 <b>종목 낙폭</b> 10&#126;20 · 20&#126;30 · 30&#126;50%인 종목을 점수 차례로 <b>20개</b> · "
+        "다음 급락까지 그대로<br>"
+        "③ <b>경고</b> — 종목 낙폭이 QQQ 낙폭의 3배를 넘으면 <b>⚠ 수상하게 빠짐</b> · 성적표는 경고 없는 위 <b>10개</b>"
+        "</div>"
+        "<div class='j3-pull-guide' style='padding-bottom:.1rem'><b>칸별 과거 성적</b> — 지난 급락 22번 가장 깊은 날 · "
+        "다음 날 시가에 사서 · <b style='color:#ff5b5b'>지금 재는 법으로 다시 재야 함</b></div>"
+        f"<div class='j3-metric-row'>{''.join(cards)}</div>"
+    )
+
+
+def _crash12_score_html(result: dict, base_rate) -> str:
+    """자비스12 급락 설명 창 아랫부분 — 경고 한 줄 + 배점 넷 + 「자세히 보기」(긴 풀이는 접어 둔다 · 2026-10-22)."""
+    drop = (result.get("market") or {}).get("drop_pct")
+    drop_text = _crash_red(f"{float(drop):.1f}%") if drop is not None else ""
+    warn = ""
+    if result.get("score_blind"):
+        warn = (f"<b style='color:#ffb020'>⚠ QQQ 낙폭 {drop_text} — 이만큼 깊은 날은 점수로 순위를 못 가릅니다.</b> "
+                "순서 없이 보십시오.<br>")
+    elif result.get("score_weak"):
+        warn = (f"<b style='color:#ffb020'>⚠ QQQ 낙폭 {drop_text} — 이만큼 얕은 급락(6&#126;12%)에서는 점수 순위가 약했습니다.</b> "
+                "1등과 5등을 크게 다르게 보지 마십시오.<br>")
+    rows = "".join(
+        f"<div class='j3-weight'><b>{name}</b><span class='j3-w-pt'>{text}점</span>"
+        f"<span class='j3-w-why'>{_CRASH12_SCORE_SHORT.get(name, '')}</span></div>"
+        for name, points, text, _why in _score_table_rows("crash") if points
+    )
+    more = (_score_table_html("crash", base_rate)
+            + "<div class='j3-pull-guide'><b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 "
+            "여섯 가지를 재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>")
+    return (
+        f"<div class='j3-pull-guide'>{warn}"
+        "🧮 <b>점수 (100점)</b> — 평소 크게 출렁이던 종목(40) + 그 분야가 먼저 일어선 종목(60). "
+        "점수는 <b>먼저 볼 차례</b>일 뿐 — 0점도 조건에 걸린 종목입니다."
+        f"<div style='margin-top:.35rem'>{rows}</div></div>"
+        "<details style='margin:.2rem 0 .4rem'>"
+        "<summary style='cursor:pointer; color:#9dccff; font-weight:800; padding:.35rem .2rem'>"
+        "📖 배점 자세히 보기 (과거에 어땠나 · 주의)</summary>"
+        f"{more}</details>"
+    )
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -10188,57 +10257,36 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                         for item in rule.get("results") or ())
                     + f" · 지금 해당 종목 {counts.get(rule['key'], 0)}개</div></div>"
                 )
-            if ref_date and result.get("j12_fixed"):
-                st.caption(
-                    f"오늘이 아니라 {ref_date} 장 마감 자료로 갈래를 나누고 점수를 매겼습니다. "
-                    "표의 현재가·「종목저점후」는 오늘 값입니다.")
-            elif ref_date:
-                st.caption(
-                    f"오늘이 아니라 {ref_date} 기준으로 갈래를 나눴습니다"
-                    f"(최근 {reference.get('days_in_band', 0)}일이 그 자리였고 마지막은 "
-                    f"{reference.get('last_in_band', '—')}). 오늘 기준으로 다시 재면 "
-                    "이미 오른 종목이 목록에서 사라집니다."
+            if result.get("j12_fixed"):
+                # 2026-10-22 상하님 「이거 설명 너 같음 읽겠냐 · 기준도 바뀌지 않았냐」 — 자비스12 설명 창은 규칙 넷 ·
+                # 칸 카드만 펴 둔다(_crash12_guide_html). 배점은 아래에서 넷만, 긴 설명은 「자세히 보기」 안으로.
+                st.markdown(_crash12_guide_html(ref_date, cards), unsafe_allow_html=True)
+            else:
+                if ref_date:
+                    st.caption(
+                        f"오늘이 아니라 {ref_date} 기준으로 갈래를 나눴습니다"
+                        f"(최근 {reference.get('days_in_band', 0)}일이 그 자리였고 마지막은 "
+                        f"{reference.get('last_in_band', '—')}). 오늘 기준으로 다시 재면 "
+                        "이미 오른 종목이 목록에서 사라집니다."
+                    )
+                st.markdown(
+                    "<div class='j3-pull-guide'>"
+                    "<b>찾는 그물</b> — 신고가가 언제였는지는 <u>보지 않고</u> "
+                    "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
+                    "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
+                    "아래 갈래별 성적은 <u>갈래끼리 견준 것</u>이고, 순위는 배점표가 정합니다.<br>"
+                    + (f"<b>낙폭 칸 셋</b> — <b>고점 대비</b>는 기준일({ref_date})에 "
+                       "고점에서 얼마나 빠져 있었나, <b>고점대비현재</b>는 오늘 얼마나 "
+                       "빠져 있나, <b>종목저점후</b>는 그 기준일 종가에서 지금까지 얼마나 "
+                       "움직였나입니다(그 종목 스스로의 저점이 아니라 <u>기준일</u>이 "
+                       "출발점입니다). <u>갈래와 점수는 ‘고점 대비’로 정합니다</u> — 오늘 "
+                       "값으로 정하면 이미 반등한 종목이 목록에서 사라집니다.<br>"
+                       if ref_date else "")
+                    + "<b>아래 성적은 10년치(2016.8~2026.8)를 잰 것</b>이며 앞으로의 승률이 아닙니다."
+                    + "</div>"
+                    f"<div class='j3-metric-row'>{''.join(cards)}</div>",
+                    unsafe_allow_html=True,
                 )
-            st.markdown(
-                # 2026-10-22 「엑셀대로 · 통일」 — 이름은 화면 어디서나 같다: 고점일 · 기준일 · 낙폭(고점일 고가 → 그날 종가).
-                "<div class='j3-pull-guide'><b>찾는 그물</b> — <b>낙폭</b> = 고점일(QQQ 가 1년 최고가를 찍은 날) "
-                "<b>고가</b> → 그날 <b>종가</b>. QQQ 와 종목을 똑같이 잽니다.<br>"
-                "① <b>QQQ 낙폭</b>이 <span class='j3-drop'>-5%</span> 아래로 빠진 이번 급락에서 가장 깊은 날이 "
-                "<b>기준일</b>입니다.<br>"
-                "② 그날 <b>종목 낙폭</b>이 <span class='j3-drop'>-10\\~-20%</span>·<span class='j3-drop'>-20\\~-30%</span>·"
-                "<span class='j3-drop'>-30\\~-50%</span>인 종목을 급락 점수 차례로 <b>20개</b> 보여 드립니다.<br>"
-                "③ 종목 낙폭이 QQQ 낙폭의 3배를 넘으면 <b>⚠ 수상하게 빠짐</b>(점수는 그대로). "
-                "성적표에는 경고 없는 점수 위 <b>10개</b>를 셉니다. 다음 급락이 올 때까지 이 종목 그대로입니다.<br>"
-                "아래 칸별 성적은 지난 급락 22번의 가장 깊은 날 기준(나스닥100 96종목 · 10년 · 다음 날 시가 매수)입니다. "
-                "<b>지금 재는 방법과 같은 방법으로 잰 것인지 확인하지 못해 다시 재야 합니다.</b></div>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                "<div class='j3-pull-guide'>"
-                "<b>찾는 그물</b> — 신고가가 언제였는지는 <u>보지 않고</u> "
-                "<b>고점 대비 얼마나 내려왔는지만</b> 봅니다. 이동평균도 보지 않습니다.<br>"
-                "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
-                "아래 갈래별 성적은 <u>갈래끼리 견준 것</u>이고, 순위는 배점표가 정합니다.<br>"
-                # 2026-10-21 — 자비스12 첫 낙폭 칸은 나스닥 고점일부터 잰 값이다(1년 최고가 아님).
-                + (f"<b>낙폭 칸 셋</b>(모두 그 종목 값) — <b>기준일 낙폭</b> = 고점일 고가 → 기준일({ref_date}) 종가, "
-                   "<b>지금 낙폭</b> = 고점일 고가 → 오늘, <b>기준일 뒤</b> = 기준일 종가 → 오늘. "
-                   "<u>칸과 점수는 ‘기준일 낙폭’으로 정합니다</u> — 오늘 값으로 정하면 이미 반등한 종목이 "
-                   "목록에서 사라집니다.<br>"
-                   if ref_date and result.get("j12_fixed") else
-                   f"<b>낙폭 칸 셋</b> — <b>고점 대비</b>는 기준일({ref_date})에 "
-                   "고점에서 얼마나 빠져 있었나, <b>고점대비현재</b>는 오늘 얼마나 "
-                   "빠져 있나, <b>종목저점후</b>는 그 기준일 종가에서 지금까지 얼마나 "
-                   "움직였나입니다(그 종목 스스로의 저점이 아니라 <u>기준일</u>이 "
-                   "출발점입니다). <u>갈래와 점수는 ‘고점 대비’로 정합니다</u> — 오늘 "
-                   "값으로 정하면 이미 반등한 종목이 목록에서 사라집니다.<br>"
-                   if ref_date else "")
-                + ("<b>아래 칸별 성적은 지난 급락 22번을 잰 것</b>이며 앞으로의 승률이 아닙니다."
-                   if result.get("j12_fixed") else
-                   "<b>아래 성적은 10년치(2016.8~2026.8)를 잰 것</b>이며 앞으로의 승률이 아닙니다.")
-                + "</div>"
-                f"<div class='j3-metric-row'>{''.join(cards)}</div>",
-                unsafe_allow_html=True,
-            )
         # 배점표를 화면에 그대로 뿌린다(2026-08-06 사용자 지시). 0점 항목도 왜 뺐는지
         # 같이 보여야 나중에 같은 실수를 되풀이하지 않는다.
         base_rate = result.get("base_win_rate") if breakout else (
@@ -10247,7 +10295,11 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         # **깊은 급락에서는 점수가 순위를 못 가른다**(2026-08-12 상하님 지적으로
         # 갈라서 재 봤다 — research/us_crash_depth_check.py). 나스닥 -24% 아래에서는
         # 세 항목이 전부 무너진다. 그럴 때는 감추지 말고 그렇다고 적는다.
-        if result.get("score_blind"):
+        # 자비스12(2026-10-22 「설명 너무 길다 · 기준 바뀌었다」) — 경고 한 줄 + 배점 넷 + 「자세히 보기」(_crash12_score_html).
+        j12_compact = (not breakout) and bool(result.get("j12_fixed"))
+        if j12_compact:
+            st.markdown(_crash12_score_html(result, base_rate), unsafe_allow_html=True)
+        elif result.get("score_blind"):
             drop = (result.get("market") or {}).get("drop_pct")
             limit = getattr(j3data, "CRASH_SCORE_BLIND_BELOW", -24.0)
             st.markdown(
@@ -10276,13 +10328,14 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "걸립니다.</b><br><b>1등과 5등을 크게 다르게 보지 마십시오.</b> "
                 "짧게 들고 나오실 생각이면 특히 그렇습니다.</div>",
                 unsafe_allow_html=True)
-        st.markdown(
-            _score_table_html("breakout" if breakout else "crash", base_rate)
-            + "<div class='j3-pull-guide'>"
-            "<b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 여섯 가지를 "
-            "재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>",
-            unsafe_allow_html=True,
-        )
+        if not j12_compact:
+            st.markdown(
+                _score_table_html("breakout" if breakout else "crash", base_rate)
+                + "<div class='j3-pull-guide'>"
+                "<b class='j3-down'>미국에는 외국인·기관 수급 자료가 없습니다.</b> 대신 쓸 값 여섯 가지를 "
+                "재 봤지만 하나도 갈리지 않아 넣지 않았습니다(docs/US_RANK_BACKTEST.md).</div>",
+                unsafe_allow_html=True,
+            )
     reuse_text = "기존 일봉 배치 재사용" if result.get("reused_batch") else "일봉 1회 배치 조회"
     funnel = (
         f"신고가 {wait_min}~{wait_max}일 전 <b>{result.get('window_count', 0):,}개</b> → "
@@ -10496,7 +10549,8 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         else:
             # 칸이 좁아 '고점 대비 -40~-50%'는 옆 칸을 덮었다(2026-08-01 폰 캡처).
             # '고점 대비'는 바로 왼쪽 칸 이름이 이미 말하므로 숫자만 남긴다.
-            band = str(row.get("bucket_label") or "—").replace("고점일 대비 ", "").replace("고점 대비 ", "")
+            band = (str(row.get("bucket_label") or "—").replace("종목 낙폭 ", "").replace("고점일 대비 ", "")
+                    .replace("고점 대비 ", ""))
             band_class = _BAND_CELL_CLASS.get(str(row.get("bucket")), "j3-pull-amber")
             third_cell = f"<span class='{band_class}'>{html.escape(band)}</span>"
             if row.get("suspicious"):

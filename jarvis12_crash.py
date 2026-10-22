@@ -42,7 +42,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026102204
+MODULE_REVISION = 2026102205
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -60,11 +60,11 @@ def _results(rows):
 # 칸마다 과거 성적 — 지난 급락 22번 가장 깊은 날 기준 · 나스닥100 96종목 · 10년 · 다음 날 시가 매수(2026-10-21 상하님께
 # 보고한 측정 · 참고). 큰 급락 몇 번이 자리 수를 많이 차지한다. 「median_return」 이름은 그리는 쪽(jarvis3 모양)에 맞춘 것이다.
 J12_RULES = (
-    {"key": "d10", "band": (-20.0, -10.0), "label": "고점일 대비 -10~-20%",
+    {"key": "d10", "band": (-20.0, -10.0), "label": "종목 낙폭 -10~-20%",
      "results": _results(((81, 16.8), (82, 24.9), (74, 29.2))), "sample": None},
-    {"key": "d20", "band": (-30.0, -20.0), "label": "고점일 대비 -20~-30%",
+    {"key": "d20", "band": (-30.0, -20.0), "label": "종목 낙폭 -20~-30%",
      "results": _results(((87, 25.0), (89, 38.7), (83, 52.1))), "sample": None},
-    {"key": "d30", "band": (-50.0, -30.0), "label": "고점일 대비 -30~-50%",
+    {"key": "d30", "band": (-50.0, -30.0), "label": "종목 낙폭 -30~-50%",
      "results": _results(((91, 36.6), (92, 47.0), (92, 77.6))), "sample": None},
 )
 _MEMO_SECONDS = 1800.0
@@ -230,6 +230,7 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
                 row["judged_from_high_pct"] = from_peak
                 row["peak_date"] = peak_day.isoformat()
                 row["peak_high"] = peak_high
+                row["reference_close"] = then_close     # 노란 상자 「기준일 종가 $」(2026-10-22 상하님)
                 row["nasdaq_drop_pct"] = nasdaq_drop
                 row["suspicious"] = bool(nasdaq_drop is not None and nasdaq_drop < 0
                                          and abs(from_peak) > SUSPICIOUS_TIMES * abs(nasdaq_drop))
@@ -334,10 +335,17 @@ def buy_reason(row: dict) -> str | None:
     if not peak or judged is None or not ref:
         return None
     # 2026-10-22 상하님 — 「QQQ로 표시 · 누구의 숫자인지 명확하게 · 쓸데없는 내용 지우고 눈에 보이게 · 엑셀대로 통일」.
-    # 줄을 나눠(화면이 \n 을 줄바꿈으로 그린다) **종목 낙폭 → QQQ 낙폭 → 기준일 뒤 → 사는 때 → 이 칸 성적** 차례로 적는다.
+    # 줄을 나눠(화면이 \n 을 줄바꿈으로 그린다) **종목 낙폭 → QQQ 낙폭 → 기준일 뒤 → 사는 때** 차례로 적는다.
     # 낙폭은 종목·QQQ 모두 같은 방법 — 고점일 **고가** → 기준일 **종가**(화면 다른 곳과 같은 이름을 쓴다).
+    # 2026-10-22 상하님 「종목의 고점일 고가 · 기준일 종가를 표시해줘야지」 — 두 값($)을 날짜 옆에 적는다.
+    # 같은 날 「이 칸 과거 성적 필요하냐?」 — 뺐다. 이 종목이 아니라 칸 전체 평균이고, 옛 재는 법으로 잰 숫자이며,
+    # 설명 창 카드에 이미 있다.
     who = str(row.get("ticker") or "").strip() or "이 종목"
-    lines = [f"{who} 종목 낙폭 {float(judged):.1f}% (고점일 {_md(peak)} 고가 → 기준일 {_md(ref)} 종가)"]
+    peak_high, ref_close = row.get("peak_high"), row.get("reference_close")
+    peak_text = f" ${float(peak_high):,.2f}" if peak_high else ""
+    ref_text = f" ${float(ref_close):,.2f}" if ref_close else ""
+    lines = [f"{who} 종목 낙폭 {float(judged):.1f}% "
+             f"(고점일 {_md(peak)} 고가{peak_text} → 기준일 {_md(ref)} 종가{ref_text})"]
     nasdaq = row.get("nasdaq_drop_pct")
     if nasdaq is not None:
         line = f"QQQ 낙폭 {float(nasdaq):.1f}% (같은 두 날)"
@@ -349,12 +357,6 @@ def buy_reason(row: dict) -> str | None:
     if since is not None and row.get("buy_date", "있음") is not None:
         lines.append(f"기준일 뒤 {float(since):+.1f}%")
     lines.append("다음 거래일 시가에 삽니다 · 파는 시점은 규칙에 없습니다 · 손절가가 없습니다")
-    results = row.get("hold_results") or ()
-    if results:
-        band = str(row.get("bucket_label") or "").replace("고점일 대비 ", "").replace("-", "")
-        lines.append(f"이 칸({band}) 과거 성적: "
-                     + " · ".join(f"{item['label']} {item['median_return']:+.1f}%(100번 중 {item['win_rate']:.0f}번)"
-                                  for item in results))
     return "\n".join(lines)
 
 
