@@ -109,30 +109,22 @@ class PickTests(unittest.TestCase):
         # 점수는 경고와 상관없이 그대로 — 화면 차례도 점수 차례
         self.assertEqual([f"S{i:02d}" for i in range(16)], [row["ticker"] for row in picked])
 
-    def test_drop_story_says_peak_day(self):
-        _days, picked, _counts, _seen = self._pick([0.75], nasdaq_drop=-7.0)
-        text = c12.drop_story(picked[0])
-        self.assertIn("나스닥 고점일(", text)
-        self.assertIn("-25.0% 빠졌던", text)
-        self.assertIn("수상하게 빠짐", text)
-        self.assertIsNone(c12.drop_story({"judged_from_high_pct": -20.0, "reference_date": "2026-07-29"}))
-
     def test_buy_reason_is_short_and_keeps_the_key_words(self):
         """세부 노란 상자 — 짧게 핵심만(2026-10-21 상하님 「장황하다」). 굵게 칠하는 말·새 칸 성적은 남는다."""
         _days, picked, _counts, _seen = self._pick([0.75], nasdaq_drop=-7.0)
         text = c12.buy_reason(picked[0])
-        self.assertIn("→ 기준일(", text)
+        self.assertIn("고가 → 기준일 ", text)
         # 날짜를 「10/6」으로 쓰면 노란 상자가 점수(66/70 꼴)로 알고 초록으로 칠한다 — 「10월 6일」로 쓴다
         self.assertIsNone(re.search(r"\d+/\d+", text))
         self.assertIn("월 ", text)
         self.assertIn("-25.0%", text)
-        # 이 파트는 QQQ 로 잰다 — 이름도 QQQ(2026-10-22 상하님)
-        self.assertIn("QQQ 고점일(", text)
-        # 누구의 숫자인지 앞에 적는다 — 줄을 나눠 그 종목 → QQQ → 기준일 뒤 → 사는 때 → 이 칸 성적(2026-10-22 「눈에 보이게」)
+        # 누구의 숫자인지 앞에 적는다 — 줄을 나눠 종목 낙폭 → QQQ 낙폭 → 기준일 뒤 → 사는 때 → 이 칸 성적
+        # 이름은 화면 어디서나 같다(2026-10-22 「통일」): 고점일 고가 → 기준일 종가
         lines = text.split("\n")
-        self.assertTrue(lines[0].startswith("S00 낙폭 -25.0% — QQQ 고점일("))
-        self.assertIn("종가 → 기준일(", lines[0])
-        self.assertTrue(lines[1].startswith("같은 때 QQQ -7.0%"))
+        self.assertTrue(lines[0].startswith("S00 종목 낙폭 -25.0% (고점일 "))
+        self.assertIn("고가 → 기준일 ", lines[0])
+        self.assertTrue(lines[0].endswith("종가)"))
+        self.assertTrue(lines[1].startswith("QQQ 낙폭 -7.0% (같은 두 날)"))
         self.assertIn("⚠ 그 3배 넘게 빠짐(수상하게 빠짐)", lines[1])
         self.assertNotIn("나스닥", text)
         self.assertEqual("기준일 뒤 +30.0%", lines[2])
@@ -144,25 +136,38 @@ class PickTests(unittest.TestCase):
         self.assertLess(len(text), 330)
         self.assertIsNone(c12.buy_reason({"judged_from_high_pct": -20.0, "reference_date": "2026-07-29"}))
 
-    def test_peak_day_is_the_52_week_highest_close(self):
-        """2026-10-22 상하님 「종가로 해라」 — 고점일은 1년 최고 **종가**가 난 날(장중 최고가가 아니다)."""
+    def test_peak_day_is_the_52_week_high_and_drop_is_high_to_close(self):
+        """2026-10-22 「엑셀대로 · 통일」 — 고점일은 1년 최고가(장중 고가)가 난 날 · QQQ 낙폭 = 그날 고가 → 기준일 종가."""
         closes = list(np.linspace(100, 130, 300)) + [120, 118, 125, 117]
         frame = _qqq(closes)
-        frame.loc[frame.index[290], "High"] = 140.0                         # 장중 최고는 290번째 날 — 이제 안 쓴다
+        frame.loc[frame.index[290], "High"] = 140.0                         # 장중 최고는 290번째 날
         days = [d.date().isoformat() for d in frame.index]
         peak = c12._peak_of(frame, days[303])
-        self.assertEqual(days[299], peak["peak_date"])                      # 최고 종가 130 은 299번째 날
-        self.assertAlmostEqual((117 / 130 - 1) * 100, peak["nasdaq_drop"])
+        self.assertEqual(days[290], peak["peak_date"])
+        self.assertAlmostEqual((117 / 140 - 1) * 100, peak["nasdaq_drop"])  # 고가 140 → 종가 117
 
-    def test_crash_drop_is_measured_from_the_highest_close(self):
-        """급락 −5% 도 1년 최고 종가 대비 — 장중으로만 고점을 찍고 종가는 낮은 날은 문턱을 넘기지 않는다."""
+    def test_crash_drop_is_close_over_the_52_week_high_like_the_excel(self):
+        """상하님 엑셀(research/ndx_win.py) — QQQ 낙폭 = 종가 ÷ 1년 고가 − 1. 장중 고점만 높아도 문턱을 넘는다."""
         rise = list(np.linspace(100, 130, 300))
-        frame = _qqq(rise + [130 * 0.96])                                   # 종가로는 −4%
-        frame.loc[frame.index[299], "High"] = 136.0                         # 장중 최고 대비로는 −8.2%
+        frame = _qqq(rise + [130 * 0.96])                                   # 종가 대비로는 −4%
+        frame.loc[frame.index[299], "High"] = 136.0                         # 1년 고가 136 대비로는 −8.2%
         with mock.patch.object(c12.j3, "_download_cached", return_value=({c12.SYMBOL: frame}, {})):
             info = c12.episodes()
-        self.assertEqual([], info["episodes"])
-        self.assertAlmostEqual(-4.0, info["today_drop"], places=6)
+        self.assertEqual(1, len(info["episodes"]))
+        self.assertAlmostEqual((130 * 0.96 / 136 - 1) * 100, info["today_drop"], places=6)
+        self.assertAlmostEqual(info["episodes"][0]["reference_drop"], info["episodes"][0]["nasdaq_drop"], places=6)
+
+    def test_stock_drop_is_from_its_high_on_the_qqq_peak_day(self):
+        """종목 낙폭도 같은 방법 — QQQ 고점일의 그 종목 **고가** → 기준일 종가(그 종목 1년 최고가가 아니다)."""
+        days, frames, members = self._frames([0.80])
+        frames["S00"].loc[days[300], "High"] = 110.0                         # 고점일 고가 110 (종가 100)
+        tickers = sorted(frames)
+        with mock.patch.object(c12.j3, "US_LARGE_CAP_UNIVERSE", tickers), \
+                mock.patch.object(c12.j3, "crash_rebound_score", return_value={"score": 50.0}):
+            picked, _counts = c12._pick(frames, members, days[305].date(), days[300].date(), -7.0)
+        self.assertAlmostEqual((80 / 110 - 1) * 100, picked[0]["judged_from_high_pct"])   # −27.3% → 20~30% 칸
+        self.assertEqual("d20", picked[0]["bucket"])
+        self.assertAlmostEqual((80 * 1.3 / 110 - 1) * 100, picked[0]["now_from_peak_pct"])
 
 
 class HeldTests(unittest.TestCase):
@@ -214,8 +219,8 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102203", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026102203)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102204", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026102204)
         # 맨 위 낙폭 막대는 나스닥 종합지수(IXIC) — 이름을 밝힌다(급락 목록은 QQQ)
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]
         self.assertIn('"나스닥 종합지수(IXIC) 고점 대비"', gauge)
@@ -223,13 +228,15 @@ class PageTests(unittest.TestCase):
         self.assertIn("IXIC가 1년 최고 종가에서 <span class='j3-ndd-key'>12% 넘게 빠졌을 때</span>", gauge)
         self.assertNotIn("다이버전스는", gauge)                           # 쓸데없는 내용은 뺐다(화면 글)
         # QQQ 숫자도 같이 — 급락과 같은 자(1년 최고 종가) · 받아 둔 시세를 기억에서만 꺼낸다(새로 받으러 가지 않는다)
-        self.assertIn("QQQ(나스닥100) 고점(1년 최고 종가) 대비", gauge)
-        self.assertIn("← 급락 후 반등장 기준", gauge)
+        self.assertIn("<b class='j3-ndd-title'>QQQ 낙폭</b>", gauge)
+        self.assertIn("1년 최고가 → 오늘 종가 · 급락 후 반등장 기준", gauge)
+        self.assertIn('/ float(frame["High"].dropna().max())', gauge)       # 엑셀과 같은 자(종가 ÷ 1년 고가)
+        self.assertIn("나스닥 지수 자체를 2년 들 때 이야기", gauge)          # 12% 글은 종목 고르기와 별개
         self.assertIn("j3data._download_cache_only((\"QQQ\",)", gauge)
         self.assertNotIn("_download_cached", gauge)
         self.assertIn("_render_nasdaq_drawdown(overview)", J12)
         # 상세 「시장 상황」 — QQQ 고점(○/○ 종가) 대비 · 기준일 · 지금
-        self.assertIn("<b>QQQ(나스닥100)</b> 고점({peak_text}) 대비 — ", J12)
+        self.assertIn('f"<b>QQQ 낙폭</b>({peak_text}) — 기준일 {ref_day} {ref_drop} · 지금 {now_drop}"', J12)
         self.assertIn("reason12 = jarvis12_crash.buy_reason(row)", J12)
         self.assertIn('drop_heads[:3] = ["기준일 낙폭", "지금 낙폭", "기준일 뒤"]', J12)
         self.assertIn('now_drop = row.get("now_from_peak_pct")', J12)
@@ -263,9 +270,11 @@ class PageTests(unittest.TestCase):
         now = ns["_crash12_story"]({"armed": True, "reference_date": "2026-10-16", "reference_drop": -7.0,
                                     "peak_date": "2026-10-06", "nasdaq_drop": -7.0}, -4.7, 20)
         # 2026-10-22 「종가로 · 기준과 명칭 맞춰라」 — QQQ 숫자는 하나(고점 ○/○ 종가 대비)
-        self.assertIn("**QQQ(나스닥100)** 고점(10/6 종가) 대비: 10/16 :red[**-7.0%**] → 지금 :red[**-4.7%**]", now)
-        self.assertIn("**종목 낙폭**도 같은 두 날 종가로 잼", now)
-        self.assertIn("QQQ의 3배(:red[**-21.0%**])", now)                # 경고 문턱을 숫자로
+        # 2026-10-22 「엑셀대로 · 통일」 — 같은 이름: 낙폭 = 고점일 고가 → 그날 종가 · QQQ 낙폭 · 종목 낙폭
+        self.assertIn("**낙폭** = 고점일(10/6) **고가** → 그날 **종가** (QQQ·종목 똑같이)", now)
+        self.assertIn("**QQQ 낙폭**: 기준일(10/16) :red[**-7.0%**] · 지금 :red[**-4.7%**]", now)
+        self.assertIn("**종목 낙폭** 칸:", now)
+        self.assertIn("QQQ 낙폭의 3배(:red[**-21.0%**])", now)            # 경고 문턱을 숫자로
         self.assertNotIn("장중", now)
         self.assertNotIn("IXIC", now)                                    # 맨 위 막대에 따로 있다
         self.assertIn("오늘은 이 자리가 없습니다", ns["_crash12_story"]({"armed": False}, None, 0))
