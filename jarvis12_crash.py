@@ -23,6 +23,11 @@
   · 급락 배점(기준일 자료 · 같은 동점 규칙)으로 줄 세워 **20개**를 보이고, 경고 없는 종목 중 점수 위 **10개**를
     성적표에 쓴다(모자라면 경고 종목으로 채움 · scorecard=True). 순위 9 의 급락 3개 = 그 10개의 위 3개.
 
+**2026-10-22 「엑셀대로 · 통일」 (상하님 결정 · docs/JARVIS12.md 6. 내력)** — 위 글보다 이것이 지금 규칙이다.
+  · 고점일 = QQQ 가 1년 최고가(장중 고가)를 찍은 날 · 기준일 = 이번 급락에서 QQQ 낙폭이 가장 깊었던 날.
+  · **낙폭 = 고점일 고가 → 그날 종가** — QQQ 낙폭·종목 낙폭 똑같이(상하님 엑셀 = 종가 ÷ 1년 고가 와 같은 모양).
+    그래서 3배 경고도 같은 QQQ 낙폭으로 견주고, 화면의 QQQ 숫자는 하나다.
+
 **얼린 jarvis3_data 는 고치지 않는다(CLAUDE.md 0-2)** — 그 안의 계산 도움 함수를 같은 인자로 부르기만 한다.
 **실패해도 화면이 죽지 않는다** — 못 구하면 ok=False 와 까닭을 돌려준다.
 """
@@ -37,7 +42,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026102203
+MODULE_REVISION = 2026102204
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -89,17 +94,18 @@ def _upto(frame, day: date):
 def episodes() -> dict:
     """QQQ 급락을 모두 찾는다 — [{start, reference, reference_drop, last_below, recovered_on}] (오래된 것부터).
 
-    낙폭 = 종가 ÷ 52주 최고 **종가** − 1 (2026-10-22 상하님 「종가로 해라」 — 그 전에는 52주 장중 최고가였다. 종목 낙폭이
-    종가로 재므로 QQQ 숫자도 하나로 맞췄다). 한 급락 안에서는 더 깊은 날이 오면 기준일을 그날로 옮긴다. 종가가 52주 최고
-    종가에 닿으면(전고점 회복) 그 급락은 끝난다.
+    **QQQ 낙폭 = 그날 종가 ÷ 52주 최고가(장중 고가) − 1** — 상하님 엑셀(research/ndx_win.py · ndx_verify.py)과 같은 자다.
+    2026-10-22 낮에 「종가 ÷ 최고 종가」로 바꿨다가(제 추천 — 엑셀을 확인하지 않았다) 같은 날 「엑셀대로 고가로 · 통일」로 되돌렸다.
+    한 급락 안에서는 더 깊은 날이 오면 기준일을 그날로 옮긴다. 종가가 52주 최고 종가에 닿으면(전고점 회복) 그 급락은 끝난다.
     """
     daily, _meta = j3._download_cached((SYMBOL,), period="2y", interval="1d", ttl_seconds=j3.US_BATCH_TTL)
     frame = daily.get(SYMBOL)
     if frame is None or frame.empty:
         return {"ok": False, "reason": "QQQ(나스닥100) 일봉을 못 받았습니다", "episodes": []}
     close = frame["Close"].astype(float)
+    high52 = frame["High"].astype(float).rolling(252, min_periods=252).max()
     close52 = close.rolling(252, min_periods=252).max()
-    drop = (close / close52 - 1.0) * 100.0
+    drop = (close / high52 - 1.0) * 100.0
     days = _dates(frame.index)
     found, current = [], None
     for place, day in enumerate(days):
@@ -129,24 +135,24 @@ def episodes() -> dict:
             "as_of": days[-1].isoformat() if days else "", "frame": frame}
 
 
-def _close_on(frame, day: date):
-    """그날(장이 없으면 그 앞 마지막 장) 종가 — 없으면 None."""
+def _high_on(frame, day: date):
+    """그날(장이 없으면 그 앞 마지막 장) 고가(장중 최고가) — 없으면 None."""
     if frame is None or getattr(frame, "empty", True):
         return None
     places = [place for place, seen in enumerate(_dates(frame.index)) if seen <= day]
     if not places:
         return None
     try:
-        value = float(frame["Close"].iloc[places[-1]])
+        value = float(frame["High"].iloc[places[-1]])
     except Exception:
         return None
     return value if value == value and value > 0 else None
 
 
 def _peak_of(frame, ref_iso: str) -> dict:
-    """QQQ 고점일 — 그 기준일까지 52주(252장) 안에서 QQQ **최고 종가**가 난 날 · 그날 종가 → 기준일 종가 낙폭(%).
+    """QQQ 고점일 — 그 기준일까지 52주(252장) 안에서 QQQ **최고가(장중 고가)**가 난 날 · 그날 고가 → 기준일 종가 낙폭(%).
 
-    2026-10-22 「종가로 해라」 — 그 전에는 장중 최고가가 난 날이었다. 이제 기준일 낙폭(reference_drop)과 이 값이 같다.
+    2026-10-22 「엑셀대로 · 통일」 — 고점일 **고가** → 기준일 **종가**. 그래서 이 값은 기준일 QQQ 낙폭(reference_drop)과 같다.
     """
     days = _dates(frame.index)
     upto = [place for place, day in enumerate(days) if day.isoformat() <= ref_iso]
@@ -154,12 +160,12 @@ def _peak_of(frame, ref_iso: str) -> dict:
         return {"peak_date": None, "nasdaq_drop": None}
     end = upto[-1]
     start = max(0, end - 251)
-    highs = frame["Close"].astype(float).iloc[start:end + 1].reset_index(drop=True)
+    highs = frame["High"].astype(float).iloc[start:end + 1].reset_index(drop=True)
     place = start + int(highs.idxmax())
-    peak_close = float(frame["Close"].iloc[place])
+    peak_high = float(frame["High"].iloc[place])
     ref_close = float(frame["Close"].iloc[end])
     return {"peak_date": days[place].isoformat(),
-            "nasdaq_drop": (ref_close / peak_close - 1.0) * 100.0 if peak_close else None}
+            "nasdaq_drop": (ref_close / peak_high - 1.0) * 100.0 if peak_high else None}
 
 
 def reference() -> dict:
@@ -195,7 +201,8 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
           show: int = SHOW_COUNT) -> tuple:
     """기준일 장 마감까지의 주가로 점수를 매기고 급락 배점 차례로 show 개를 고른다(2026-10-21 상하님 지시).
 
-    종목 낙폭 = 기준일 종가 ÷ 나스닥 고점일(peak_day)의 그 종목 종가 − 1 → 10~20 · 20~30 · 30~50% 칸.
+    **종목 낙폭 = 기준일 종가 ÷ QQQ 고점일(peak_day)의 그 종목 고가 − 1** → 10~20 · 20~30 · 30~50% 칸.
+    QQQ 낙폭과 같은 방법(고점일 고가 → 기준일 종가 · 2026-10-22 「엑셀대로 · 통일」)이라 3배 경고도 같은 QQQ 숫자로 견준다.
     경고 없는 종목 중 점수 위 SCORECARD_COUNT 개에 scorecard=True(모자라면 경고 종목으로 채움).
     """
     if isinstance(peak_day, str):
@@ -212,17 +219,17 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
         now_close = j3._finite(now.get("current")) if now.get("ok") else None
         if then_close and now_close:
             since_reference[ticker] = (now_close / then_close - 1.0) * 100
-        peak_close = _close_on(cut.get(ticker), peak_day) if peak_day else None
-        if not peak_close or not then_close:
-            continue                    # 나스닥 고점일 값이 없다(그 뒤 상장 등) — 못 잰다
-        from_peak = (then_close / peak_close - 1.0) * 100
+        peak_high = _high_on(cut.get(ticker), peak_day) if peak_day else None
+        if not peak_high or not then_close:
+            continue                    # QQQ 고점일 값이 없다(그 뒤 상장 등) — 못 잰다
+        from_peak = (then_close / peak_high - 1.0) * 100
         for order, rule in enumerate(J12_RULES):
             low, high = rule["band"]
             if low <= from_peak < high:
                 row = j3._universe_row(ticker, metrics, memberships)
                 row["judged_from_high_pct"] = from_peak
                 row["peak_date"] = peak_day.isoformat()
-                row["peak_close"] = peak_close
+                row["peak_high"] = peak_high
                 row["nasdaq_drop_pct"] = nasdaq_drop
                 row["suspicious"] = bool(nasdaq_drop is not None and nasdaq_drop < 0
                                          and abs(from_peak) > SUSPICIOUS_TIMES * abs(nasdaq_drop))
@@ -283,9 +290,9 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
             row["now_from_high_pct"] = now.get("from_high_pct")
             current = j3._finite(now.get("current"))
             row["since_reference_pct"] = ((current / then_close - 1.0) * 100) if current and then_close else None
-            # 표의 「지금 낙폭」 — 기준일 낙폭과 **같은 자**(QQQ 고점일의 그 종목 종가)로 잰 오늘 값(2026-10-22 「기준·명칭 맞춰라」).
-            peak_close = j3._finite(row.get("peak_close"))
-            row["now_from_peak_pct"] = ((current / peak_close - 1.0) * 100) if current and peak_close else None
+            # 표의 「지금 낙폭」 — 기준일 낙폭과 **같은 방법**(QQQ 고점일의 그 종목 고가 → 오늘)으로 잰 값(2026-10-22 「통일」).
+            peak_high = j3._finite(row.get("peak_high"))
+            row["now_from_peak_pct"] = ((current / peak_high - 1.0) * 100) if current and peak_high else None
         high_then = j3._finite((row["reference_metrics"] or {}).get("high52"))
         high_now = j3._finite(now.get("high52")) if now.get("ok") else None
         row["high52_then"], row["high52_now"] = high_then, high_now
@@ -303,24 +310,6 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
         row["pullback_rank"] = index
         row.pop("_order", None)
     return picked, counts
-
-
-def drop_story(row: dict) -> str | None:
-    """세부사항 노란 글의 첫 문장 — 나스닥 고점일부터 몇 % 빠졌나(2026-10-21). 자비스12 줄이 아니면 None."""
-    peak, judged, ref = row.get("peak_date"), row.get("judged_from_high_pct"), row.get("reference_date")
-    if not peak or judged is None or not ref:
-        return None
-    text = (f"나스닥 고점일({peak}) 종가에서 기준일({ref}) 종가까지 {float(judged):.1f}% 빠졌던 종목입니다.")
-    nasdaq = row.get("nasdaq_drop_pct")
-    if nasdaq is not None:
-        text += f" 같은 두 날 나스닥(QQQ)은 {float(nasdaq):.1f}%였습니다."
-    if row.get("suspicious"):
-        text += (f" 나스닥의 {SUSPICIOUS_TIMES:.0f}배 넘게 빠져 「수상하게 빠짐」으로 표시합니다 — 시장 말고 이 회사만의"
-                 " 까닭(실적·사건)이 있었는지 보십시오. 점수는 그대로입니다.")
-    since = row.get("since_reference_pct")
-    if since is not None:
-        text += f" 그 뒤 {float(since):+.1f}% {'올랐습니다' if float(since) >= 0 else '더 빠졌습니다'}."
-    return text + " 칸과 점수는 오늘이 아니라 그날 낙폭으로 정합니다."
 
 
 def _md(iso) -> str:
@@ -344,14 +333,14 @@ def buy_reason(row: dict) -> str | None:
     peak, judged, ref = row.get("peak_date"), row.get("judged_from_high_pct"), row.get("reference_date")
     if not peak or judged is None or not ref:
         return None
-    # 2026-10-22 상하님 — 「QQQ로 표시 · 누구의 숫자인지 명확하게 · 종가로 · 쓸데없는 내용 지우고 눈에 보이게」.
-    # 줄을 나눠(화면이 \n 을 줄바꿈으로 그린다) **그 종목 숫자 → QQQ 숫자 → 사는 때 → 이 칸 성적** 차례로 적는다.
-    # 모든 낙폭은 같은 자 — QQQ 고점일(1년 최고 종가 난 날) **종가** → 기준일 **종가**.
+    # 2026-10-22 상하님 — 「QQQ로 표시 · 누구의 숫자인지 명확하게 · 쓸데없는 내용 지우고 눈에 보이게 · 엑셀대로 통일」.
+    # 줄을 나눠(화면이 \n 을 줄바꿈으로 그린다) **종목 낙폭 → QQQ 낙폭 → 기준일 뒤 → 사는 때 → 이 칸 성적** 차례로 적는다.
+    # 낙폭은 종목·QQQ 모두 같은 방법 — 고점일 **고가** → 기준일 **종가**(화면 다른 곳과 같은 이름을 쓴다).
     who = str(row.get("ticker") or "").strip() or "이 종목"
-    lines = [f"{who} 낙폭 {float(judged):.1f}% — QQQ 고점일({_md(peak)}) 종가 → 기준일({_md(ref)}) 종가"]
+    lines = [f"{who} 종목 낙폭 {float(judged):.1f}% (고점일 {_md(peak)} 고가 → 기준일 {_md(ref)} 종가)"]
     nasdaq = row.get("nasdaq_drop_pct")
     if nasdaq is not None:
-        line = f"같은 때 QQQ {float(nasdaq):.1f}%"
+        line = f"QQQ 낙폭 {float(nasdaq):.1f}% (같은 두 날)"
         if row.get("suspicious"):
             line += f" · ⚠ 그 {SUSPICIOUS_TIMES:.0f}배 넘게 빠짐(수상하게 빠짐) — 회사 자체 문제일 수 있음"
         lines.append(line)
