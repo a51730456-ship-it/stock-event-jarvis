@@ -1951,7 +1951,7 @@ import jarvis12_picklist_ui
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026102103
+_REQUIRED_J12_CRASH_REVISION = 2026102201
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_J12_PICKLIST_REVISION = 2026101510
@@ -3970,7 +3970,9 @@ def _render_nasdaq_drawdown() -> None:
     mark = max(0.0, min(100.0, center + (entry / span) * center))
     # 한가운데를 넘었으면 '얼마나 넘었나'로 말이 바뀐다.
     above = pct > 0
-    headline = "전고점 위" if above else "나스닥 고점 대비"
+    # 이 막대는 **나스닥 종합지수(IXIC)** 다 — 55년치를 재려면 1999년에 생긴 QQQ 로는 모자라다. 급락 후 반등장(QQQ)과
+    # 숫자가 달라 헷갈려 이름을 밝힌다(2026-10-22 상하님 「QQQ로 표시해야 되지 않나」 → IXIC 그대로·이름만).
+    headline = "나스닥 종합지수(IXIC) 전고점 위" if above else "나스닥 종합지수(IXIC) 고점 대비"
     st.markdown(
         "<div class='j3-ndd'>"
         f"<div class='j3-ndd-head'><b class='j3-ndd-title'>{headline}</b> "
@@ -3993,7 +3995,8 @@ def _render_nasdaq_drawdown() -> None:
         "(아무 날이나 샀으면 81번 이익). "
         "<span class='j3-ndd-key'>8% 정도로는 기준선보다 못했습니다.</span> "
         "12%냐 15%냐는 자료로 가릴 수 없어 <span class='j3-ndd-key'>‘12% 넘게’</span>까지만 봅니다. "
-        "다이버전스는 6개 설정 중 0개에서 져서 쓰지 않습니다."
+        "다이버전스는 6개 설정 중 0개에서 져서 쓰지 않습니다. "
+        "<span class='j3-ndd-key'>급락 후 반등장 목록은 QQQ(나스닥100)로 잽니다</span> — 그래서 숫자가 다릅니다."
         "</div></div>",
         unsafe_allow_html=True,
     )
@@ -6845,7 +6848,7 @@ def _crash12_list_note(kind: str, part: list) -> str | None:
     ref = str(part[0].get("reference_date") or "")
     when = f"{int(ref[5:7])}/{int(ref[8:10])}" if len(ref) == 10 else "급락 기준일"
     peak = str(part[0].get("peak_date") or "")
-    peak_text = f"나스닥 고점일({int(peak[5:7])}/{int(peak[8:10])})부터 " if len(peak) == 10 else "나스닥 고점일부터 "
+    peak_text = f"QQQ 고점일({int(peak[5:7])}/{int(peak[8:10])})부터 " if len(peak) == 10 else "QQQ 고점일부터 "
     return (f"이 칸은 <b>{when} 급락 기준일에 점수 높은 차례로 정한 {len(part)}종목</b>입니다({peak_text}10&#126;50% 빠진 종목 · "
             "다음 급락까지 그대로). 성적표에는 그중 「수상하게 빠짐」이 아닌 점수 위 10개만 셉니다. "
             "그날 저장된 옛 목록은 「저장해 둔 n일치 전부」 엑셀에 그대로 있습니다.")
@@ -9482,7 +9485,7 @@ _SCORE_TABLE = {
          "<b>주의</b> — 바닥이 <u>여덟 번뿐</u>입니다. 확실한 숫자가 아닙니다"),
         ("고점 대비 낙폭", "bucket",
          "<u>점수를 주지 않습니다.</u> 이 목록에 올릴 때 <b>이미 쓴 값</b>입니다 — "
-         "나스닥 고점일 종가보다 10&#126;50% 내려온 종목만 올리고 있습니다(2026-10-21). 그 안에서 더 많이 "
+         "QQQ 고점일 종가보다 10&#126;50% 내려온 종목만 올리고 있습니다(2026-10-21). 그 안에서 더 많이 "
          "떨어진 쪽에 또 점수를 주면 한 가지를 두 번 세는 셈입니다.<br>"
          "<b>게다가 겹칩니다</b> — (옛 그물 · 1년 최고가 20&#126;50%에서 잰 값) 많이 떨어진 종목의 <b>71%</b>가 위 "
          "<b>주가 변동성</b> 항목에도 걸립니다. 거의 같은 종목입니다.<br>"
@@ -10004,26 +10007,27 @@ def _crash12_story(reference: dict, drop_now, count: int) -> str:
 
     ref_day = _md(reference.get("reference_date"))
     ref_drop = float(reference.get("reference_drop") or 0)
-    peak_text = f"나스닥 고점일({_md(reference['peak_date'])})" if reference.get("peak_date") else "나스닥 고점일"
+    # 지수 이름은 QQQ 로 적는다 — 이 파트는 처음부터 QQQ 로 잰다(2026-10-22 상하님 「QQQ로 표시해야 되지 않나」).
+    peak_text = f"QQQ 고점일({_md(reference['peak_date'])})" if reference.get("peak_date") else "QQQ 고점일"
     nasdaq_drop = reference.get("nasdaq_drop")
     times = jarvis12_crash.SUSPICIOUS_TIMES
     ixic = reference.get("ixic_drop")
     lines = [
         f"**📌 {ref_day} 급락 때 고른 {count}종목** — 다음 급락이 올 때까지 **이 종목 그대로**",
         "",
-        f"- 📉 **나스닥(QQQ)** 고점 대비: {ref_day} :red[**{ref_drop:.1f}%**](가장 깊은 날)"
+        f"- 📉 **QQQ(나스닥100)** 고점 대비: {ref_day} :red[**{ref_drop:.1f}%**](가장 깊은 날)"
         + (f" → 지금 :red[**{float(drop_now):.1f}%**]" if drop_now is not None else "")
         + (f" · 참고 종합지수(IXIC) :red[**{float(ixic):.2f}%**]" if ixic is not None else ""),
         f"- 📏 **종목 낙폭** = {peak_text} 종가 → {ref_day} 종가"
-        + (f" (같은 자로 나스닥 :red[**{float(nasdaq_drop):.1f}%**])" if nasdaq_drop is not None else "")
+        + (f" (같은 자로 QQQ :red[**{float(nasdaq_drop):.1f}%**])" if nasdaq_drop is not None else "")
         + " · 칸 :violet[**10\\~20%**] · :blue[**20\\~30%**] · :orange[**30\\~50%**]",
-        f"- ⚠️ :orange[**수상하게 빠짐**] = 나스닥의 {times:.0f}배"
+        f"- ⚠️ :orange[**수상하게 빠짐**] = QQQ의 {times:.0f}배"
         + (f"(:red[**{-abs(float(nasdaq_drop)) * times:.1f}%**])" if nasdaq_drop is not None else "")
         + "보다 더 빠진 종목 — 회사 자체 문제일 수 있음 (점수는 그대로)",
         "- 📊 **성적표** = 경고 없는 점수 위 :green[**10개**]만, 다음 거래일 시가에 한 번 샀다고 셈",
     ]
     if reference.get("recovered_on"):
-        lines.append(f"- ✅ 나스닥이 {_md(reference['recovered_on'])}에 전고점 회복 → 이번 급락 끝. "
+        lines.append(f"- ✅ QQQ가 {_md(reference['recovered_on'])}에 전고점 회복 → 이번 급락 끝. "
                      f"다시 :red[**−{abs(jarvis12_crash.THRESHOLD):.0f}%**] 넘게 빠지면 새로 고름")
     else:
         lines.append(f"- ⏳ {ref_day}보다 더 빠지는 날이 오면 그날로 다시 고름")
@@ -10177,10 +10181,10 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             st.markdown(
                 "<div class='j3-pull-guide'><b>찾는 그물</b> — QQQ(나스닥100)가 고점 대비 "
                 "<span class='j3-drop'>-5%</span> 아래로 빠진 이번 급락에서 가장 깊었던 날(기준일)에, "
-                "<b>나스닥 고점일</b>(그 기준일까지 QQQ 1년 장중 최고가가 난 날) 종가에서 기준일 종가까지 "
+                "<b>QQQ 고점일</b>(그 기준일까지 QQQ 1년 장중 최고가가 난 날) 종가에서 기준일 종가까지 "
                 "<span class='j3-drop'>-10\\~-20%</span>·<span class='j3-drop'>-20\\~-30%</span>·"
                 "<span class='j3-drop'>-30\\~-50%</span> 빠진 종목을 급락 점수 차례로 <b>20개</b> 보여 드립니다. "
-                "그 종목의 1년 최고가는 쓰지 않습니다. 나스닥보다 3배 넘게 빠진 종목은 "
+                "그 종목의 1년 최고가는 쓰지 않습니다. QQQ보다 3배 넘게 빠진 종목은 "
                 "<b>⚠ 수상하게 빠짐</b>으로 표시합니다(점수는 그대로). 성적표에는 경고 없는 점수 위 <b>10개</b>를 셉니다. "
                 "다음 급락이 올 때까지 이 종목 그대로입니다.<br>아래 칸별 성적은 지난 급락 22번의 가장 깊은 날 기준"
                 "(나스닥100 96종목 · 10년 · 다음 날 시가 매수)이고, 큰 급락 몇 번(2020·2022)이 자리 수를 많이 차지해 "
@@ -10194,7 +10198,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 "<b>점수가 곧 순위입니다</b> — 그물에 걸린 뒤 100점 배점으로 차례를 매깁니다. "
                 "아래 갈래별 성적은 <u>갈래끼리 견준 것</u>이고, 순위는 배점표가 정합니다.<br>"
                 # 2026-10-21 — 자비스12 첫 낙폭 칸은 나스닥 고점일부터 잰 값이다(1년 최고가 아님).
-                + (f"<b>낙폭 칸 셋</b> — <b>고점일 대비</b>는 나스닥 고점일 종가에서 기준일({ref_date}) 종가까지 "
+                + (f"<b>낙폭 칸 셋</b> — <b>고점일 대비</b>는 QQQ 고점일 종가에서 기준일({ref_date}) 종가까지 "
                    "얼마나 빠졌나, <b>고점대비현재</b>는 오늘 그 종목 1년 최고가에서 얼마나 빠져 있나, "
                    "<b>종목저점후</b>는 그 기준일 종가에서 지금까지 얼마나 움직였나입니다. "
                    "<u>칸과 점수는 ‘고점일 대비’로 정합니다</u> — 오늘 값으로 정하면 이미 반등한 종목이 "
@@ -10479,7 +10483,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
                 third_cell = ("<span style='display:inline-flex; flex-direction:column; align-items:center;"
                               " line-height:1.15; gap:.1rem'>" + third_cell
                               + "<span class='j3-pull-amber' style='font-size:.72rem; font-weight:850'"
-                              " title='나스닥보다 3배 넘게 빠졌습니다 — 이 회사만의 까닭이 있었는지 보십시오."
+                              " title='QQQ보다 3배 넘게 빠졌습니다 — 이 회사만의 까닭이 있었는지 보십시오."
                               " 점수는 그대로 · 성적표에는 경고 없는 종목을 먼저 셉니다.'>⚠ 수상하게 빠짐</span></span>")
         # 순위를 정한 값(테마 동반)과 참고값(거래대금)을 표에 그대로 보여 준다.
         tier = int(row.get("together_tier") or 0)
@@ -10591,7 +10595,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
            "몇 종목이 올라 있는지 보여드릴 뿐이고, 순위를 바꾸지 않습니다. "
            # 2026-08-19 상하님 지적 — 세 숫자가 빼기로 안 맞는다는 물음.
            # 셋 다 맞는데 재는 자리가 다르다. 그 말을 표 밑에 한 번 적어 둔다.
-           + ("**「고점일 대비」는 나스닥 고점일 종가에서 기준일 종가까지**, "
+           + ("**「고점일 대비」는 QQQ 고점일 종가에서 기준일 종가까지**, "
               "**「고점대비현재」는 오늘 그 종목 1년 최고가에서** 잰 값이고, "
               if result.get("j12_fixed") else
               "**「고점 대비」와 「고점대비현재」는 1년 최고가에서 잰 값**이고, ")

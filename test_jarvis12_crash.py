@@ -126,8 +126,14 @@ class PickTests(unittest.TestCase):
         self.assertIsNone(re.search(r"\d+/\d+", text))
         self.assertIn("월 ", text)
         self.assertIn("-25.0%", text)
-        self.assertIn("같은 때 나스닥 -7.0%", text)
-        self.assertIn("⚠ 나스닥의 3배 넘게 빠짐", text)
+        # 이 파트는 QQQ 로 잰다 — 이름도 QQQ(2026-10-22 상하님)
+        self.assertIn("QQQ 고점일(", text)
+        self.assertIn("같은 때 QQQ -7.0%", text)
+        self.assertIn("⚠ QQQ의 3배 넘게 빠짐", text)
+        self.assertNotIn("나스닥", text)
+        self.assertIn("그 뒤 +30.0%", text)
+        # 기준일이 마지막 장이면(산 날이 아직 없음) 「그 뒤 +0.0%」를 적지 않는다
+        self.assertNotIn("그 뒤", c12.buy_reason({**picked[0], "buy_date": None, "since_reference_pct": 0.0}))
         for key in ("다음 거래일 시가", "파는 시점은 규칙에 없습니다", "손절가가 없습니다"):
             self.assertIn(key, text)
         self.assertIn("이 칸(20~30%) 과거 성적: 3개월 +25.0%(100번 중 87번)", text)
@@ -193,8 +199,12 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102103", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026102103)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102201", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026102201)
+        # 맨 위 낙폭 막대는 나스닥 종합지수(IXIC) — 이름을 밝힌다(급락 목록은 QQQ)
+        gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]
+        self.assertIn('"나스닥 종합지수(IXIC) 고점 대비"', gauge)
+        self.assertIn("급락 후 반등장 목록은 QQQ(나스닥100)로 잽니다", gauge)
         self.assertIn("reason12 = jarvis12_crash.buy_reason(row)", J12)
         self.assertIn('drop_heads[0] = "고점일 대비"', J12)
         self.assertIn("⚠ 수상하게 빠짐", J12)
@@ -226,7 +236,10 @@ class PageTests(unittest.TestCase):
         self.assertIn(":violet[**10\\~20%**]", text)                    # 칸 색 = 표 갈래 색
         now = ns["_crash12_story"]({"armed": True, "reference_date": "2026-10-16", "reference_drop": -7.0,
                                     "peak_date": "2026-10-06", "nasdaq_drop": -6.6}, -4.7, 20)
-        self.assertIn("나스닥 고점일(10/6) 종가 → 10/16 종가", now)
+        self.assertIn("QQQ 고점일(10/6) 종가 → 10/16 종가", now)
+        self.assertIn("같은 자로 QQQ", now)
+        self.assertIn("QQQ의 3배", now)
+        self.assertNotIn("나스닥 고점일", now)
         self.assertIn("3배(:red[**-19.8%**])", now)                     # 경고 문턱을 숫자로
         self.assertIn("오늘은 이 자리가 없습니다", ns["_crash12_story"]({"armed": False}, None, 0))
 
