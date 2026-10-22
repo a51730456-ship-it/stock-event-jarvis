@@ -90,7 +90,7 @@ class PickTests(unittest.TestCase):
         self.assertAlmostEqual(-15.0, picked[0]["judged_from_high_pct"])     # 1년 최고가(400) 아닌 고점일 종가(100)부터
         self.assertEqual(days[300].date().isoformat(), picked[0]["peak_date"])
         self.assertEqual("종목 낙폭 -10~-20%", picked[0]["bucket_label"])
-        self.assertEqual(81, picked[0]["hold_results"][0]["win_rate"])        # 새 칸 성적
+        self.assertEqual(79, picked[0]["hold_results"][0]["win_rate"])        # 새 칸 성적(2026-10-22 다시 잰 값)
         self.assertTrue(all(abs(v - 85) < 1e-6 or abs(v - 75) < 1e-6 or abs(v - 60) < 1e-6 for v in seen))
         self.assertEqual(days[306].date().isoformat(), picked[0]["buy_date"])
         self.assertAlmostEqual(85.0, picked[0]["buy_open"])
@@ -234,8 +234,8 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102205", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026102205)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102206", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026102206)
         # 맨 위 낙폭 막대는 나스닥 종합지수(IXIC) — 이름을 밝힌다(급락 목록은 QQQ)
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]
         self.assertIn('"나스닥 종합지수(IXIC) 고점 대비"', gauge)
@@ -272,6 +272,14 @@ class PageTests(unittest.TestCase):
         self.assertNotIn('"<br>', band)                                  # 그리는 글에 줄바꿈 태그 없음
 
 
+    def test_band_results_are_the_remeasured_averages(self):
+        """2026-10-22 상하님 「바꿔라」 — 지금 규칙(고점일 고가)으로 깃허브에서 다시 잰 값(research/j12_band_remeasure.py)."""
+        got = {rule["key"]: [(item["label"], item["win_rate"], item["median_return"]) for item in rule["results"]]
+               for rule in c12.J12_RULES}
+        self.assertEqual([("3개월", 79, 14.5), ("6개월", 81, 22.0), ("1년", 74, 27.6)], got["d10"])
+        self.assertEqual([("3개월", 89, 25.8), ("6개월", 87, 39.8), ("1년", 80, 48.1)], got["d20"])
+        self.assertEqual([("3개월", 86, 34.3), ("6개월", 91, 45.6), ("1년", 89, 74.9)], got["d30"])
+
     def test_expander_guide_is_short_and_uses_the_same_names(self):
         """2026-10-22 상하님 「이 설명 너 같으면 읽겠냐 · 기준도 바뀌지 않았냐 · 밑에 더 있네」 — 규칙 넷 + 카드 · 배점 넷 + 접은 자세히."""
         import html as html_mod
@@ -284,8 +292,9 @@ class PageTests(unittest.TestCase):
         guide = ns["_crash12_guide_html"]("2026-10-22", ["<div>카드</div>"])
         for piece in ("고점일(QQQ 가 1년 최고가를 찍은 날) <b>고가</b> → 그날 <b>종가</b>", "<b>기준일</b>", "<b>종목 낙폭</b>",
                       "10&#126;20 · 20&#126;30 · 30&#126;50%", "<b>⚠ 수상하게 빠짐</b>", "<b>10개</b>", "<div>카드</div>",
-                      "지금 재는 법으로 다시 재야 함"):
+                      "다음 날 시가에 사서 · 평균"):
             self.assertIn(piece, guide)
+        self.assertNotIn("다시 재야 함", guide)            # 2026-10-22 지금 규칙으로 다시 재서 바꿨다
         self.assertNotIn("\\~", guide)                    # HTML 덩이 안에서는 \~ 가 글자 그대로 보였다
         self.assertNotIn("1년 고점", guide)               # 옛 자(종목 자기 1년 고점) 말이 남지 않게
         self.assertLess(len(re.sub(r"<[^>]+>", "", guide)), 420)

@@ -1951,7 +1951,7 @@ import jarvis12_picklist_ui
 _REQUIRED_SCORECARD_COMPARE_REVISION = 2026101450
 if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_COMPARE_REVISION:
     scorecard_compare = importlib.reload(scorecard_compare)
-_REQUIRED_J12_CRASH_REVISION = 2026102205
+_REQUIRED_J12_CRASH_REVISION = 2026102206
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
 _REQUIRED_J12_PICKLIST_REVISION = 2026101510
@@ -10092,8 +10092,9 @@ def _crash12_guide_html(ref_date, cards: list) -> str:
         "다음 급락까지 그대로<br>"
         "③ <b>경고</b> — 종목 낙폭이 QQQ 낙폭의 3배를 넘으면 <b>⚠ 수상하게 빠짐</b> · 성적표는 경고 없는 위 <b>10개</b>"
         "</div>"
+        # 2026-10-22 상하님 「바꿔라」 — 카드 숫자를 지금 재는 법으로 다시 잰 값으로 바꿔 「다시 재야 함」을 지웠다(평균 수익률).
         "<div class='j3-pull-guide' style='padding-bottom:.1rem'><b>칸별 과거 성적</b> — 지난 급락 22번 가장 깊은 날 · "
-        "다음 날 시가에 사서 · <b style='color:#ff5b5b'>지금 재는 법으로 다시 재야 함</b></div>"
+        "다음 날 시가에 사서 · 평균</div>"
         f"<div class='j3-metric-row'>{''.join(cards)}</div>"
     )
 
