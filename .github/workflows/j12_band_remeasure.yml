@@ -1,0 +1,29 @@
+# 자비스12 급락 칸별 과거 성적을 지금 규칙으로 다시 잰다 (2026-10-22 상하님 「깃허브로 해라」).
+# 클라우드 작업 칸은 야후가 막혀 못 잰다 — 깃허브 컴퓨터에서 한 번 돌려 결과를 실행 기록(로그)에 남긴다.
+# 저장소에는 아무것도 쓰지 않는다(읽기 권한만).
+name: 자비스12 급락 칸 다시 재기
+
+on:
+  push:
+    branches: [master-a283cq]
+    paths:
+      - research/j12_band_remeasure.py
+      - .github/workflows/j12_band_remeasure.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+      - name: 다시 재기
+        run: python research/j12_band_remeasure.py
