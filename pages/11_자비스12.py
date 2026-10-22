@@ -4005,8 +4005,9 @@ def _render_nasdaq_drawdown(overview: dict | None = None) -> None:
         # 위 % 숫자가 같은 말을 하고 있어 줄만 길었다.
         # 예전에는 '100번 중 86번이었습니다'로 끝나 **무엇이 86번인지**가 빠져
         # 있었다(2026-08-06 상하님 지적). '86번 이익'으로 채운다.
-        "<div class='j3-ndd-note'><span class='j3-ndd-key'>55년치</span>로 재 보니 "
-        "<span class='j3-ndd-key'>12% 넘게 빠졌을 때</span> 사서 2년 뒤에 팔면 "
+        # 「12%」가 어느 지수인지 밝힌다(2026-10-22 상하님 「그 12프로가 뭐냐 · 나스닥 종합지수냐 QQQ냐」) — IXIC 다.
+        "<div class='j3-ndd-note'><span class='j3-ndd-key'>나스닥 종합지수(IXIC) 55년치</span>(1971~)로 재 보니 "
+        "<span class='j3-ndd-key'>IXIC가 1년 최고 종가에서 12% 넘게 빠졌을 때</span> 사서 2년 뒤에 팔면 "
         "<span class='j3-ndd-key'>100번 중 86번 이익</span>이었습니다"
         "(아무 날이나 샀으면 81번 이익). "
         "<span class='j3-ndd-key'>8% 정도로는 기준선보다 못했습니다.</span> "
