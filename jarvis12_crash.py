@@ -37,7 +37,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026102202
+MODULE_REVISION = 2026102203
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -89,17 +89,17 @@ def _upto(frame, day: date):
 def episodes() -> dict:
     """QQQ 급락을 모두 찾는다 — [{start, reference, reference_drop, last_below, recovered_on}] (오래된 것부터).
 
-    낙폭 = 종가 ÷ 52주 최고가(장중) − 1 — 자비스3 기준일과 같은 자. 한 급락 안에서는 더 깊은 날이 오면 기준일을
-    그날로 옮긴다. 종가가 52주 최고 종가에 닿으면(전고점 회복) 그 급락은 끝난다.
+    낙폭 = 종가 ÷ 52주 최고 **종가** − 1 (2026-10-22 상하님 「종가로 해라」 — 그 전에는 52주 장중 최고가였다. 종목 낙폭이
+    종가로 재므로 QQQ 숫자도 하나로 맞췄다). 한 급락 안에서는 더 깊은 날이 오면 기준일을 그날로 옮긴다. 종가가 52주 최고
+    종가에 닿으면(전고점 회복) 그 급락은 끝난다.
     """
     daily, _meta = j3._download_cached((SYMBOL,), period="2y", interval="1d", ttl_seconds=j3.US_BATCH_TTL)
     frame = daily.get(SYMBOL)
     if frame is None or frame.empty:
         return {"ok": False, "reason": "QQQ(나스닥100) 일봉을 못 받았습니다", "episodes": []}
     close = frame["Close"].astype(float)
-    high52 = frame["High"].astype(float).rolling(252, min_periods=252).max()
     close52 = close.rolling(252, min_periods=252).max()
-    drop = (close / high52 - 1.0) * 100.0
+    drop = (close / close52 - 1.0) * 100.0
     days = _dates(frame.index)
     found, current = [], None
     for place, day in enumerate(days):
@@ -144,14 +144,17 @@ def _close_on(frame, day: date):
 
 
 def _peak_of(frame, ref_iso: str) -> dict:
-    """나스닥 고점일 — 그 기준일까지 52주(252장) 안에서 QQQ 장중 최고가가 난 날 · 그날 종가 → 기준일 종가 낙폭(%)."""
+    """QQQ 고점일 — 그 기준일까지 52주(252장) 안에서 QQQ **최고 종가**가 난 날 · 그날 종가 → 기준일 종가 낙폭(%).
+
+    2026-10-22 「종가로 해라」 — 그 전에는 장중 최고가가 난 날이었다. 이제 기준일 낙폭(reference_drop)과 이 값이 같다.
+    """
     days = _dates(frame.index)
     upto = [place for place, day in enumerate(days) if day.isoformat() <= ref_iso]
     if not upto:
         return {"peak_date": None, "nasdaq_drop": None}
     end = upto[-1]
     start = max(0, end - 251)
-    highs = frame["High"].astype(float).iloc[start:end + 1].reset_index(drop=True)
+    highs = frame["Close"].astype(float).iloc[start:end + 1].reset_index(drop=True)
     place = start + int(highs.idxmax())
     peak_close = float(frame["Close"].iloc[place])
     ref_close = float(frame["Close"].iloc[end])
@@ -280,6 +283,9 @@ def _pick(daily: dict, memberships: dict, ref_day: date, peak_day=None, nasdaq_d
             row["now_from_high_pct"] = now.get("from_high_pct")
             current = j3._finite(now.get("current"))
             row["since_reference_pct"] = ((current / then_close - 1.0) * 100) if current and then_close else None
+            # 표의 「지금 낙폭」 — 기준일 낙폭과 **같은 자**(QQQ 고점일의 그 종목 종가)로 잰 오늘 값(2026-10-22 「기준·명칭 맞춰라」).
+            peak_close = j3._finite(row.get("peak_close"))
+            row["now_from_peak_pct"] = ((current / peak_close - 1.0) * 100) if current and peak_close else None
         high_then = j3._finite((row["reference_metrics"] or {}).get("high52"))
         high_now = j3._finite(now.get("high52")) if now.get("ok") else None
         row["high52_then"], row["high52_now"] = high_then, high_now
@@ -338,29 +344,29 @@ def buy_reason(row: dict) -> str | None:
     peak, judged, ref = row.get("peak_date"), row.get("judged_from_high_pct"), row.get("reference_date")
     if not peak or judged is None or not ref:
         return None
-    # 지수 이름은 QQQ 로 적는다 — 이 파트는 처음부터 QQQ 로 잰다(2026-10-22 상하님 「QQQ로 표시해야 되지 않나」).
-    # 숫자마다 **누구의 숫자인지** 앞에 적는다(같은 날 「나스닥종합인지 QQQ인지 개별종목인지 명확하게」).
-    # 둘 다 **종가 → 종가**다 — 「시장 상황」의 QQQ 숫자(1년 장중 최고가 대비)와 출발점이 달라 조금 다르다.
+    # 2026-10-22 상하님 — 「QQQ로 표시 · 누구의 숫자인지 명확하게 · 종가로 · 쓸데없는 내용 지우고 눈에 보이게」.
+    # 줄을 나눠(화면이 \n 을 줄바꿈으로 그린다) **그 종목 숫자 → QQQ 숫자 → 사는 때 → 이 칸 성적** 차례로 적는다.
+    # 모든 낙폭은 같은 자 — QQQ 고점일(1년 최고 종가 난 날) **종가** → 기준일 **종가**.
     who = str(row.get("ticker") or "").strip() or "이 종목"
-    text = f"{who} 종가: QQQ 고점일({_md(peak)}) → 기준일({_md(ref)}) {float(judged):.1f}%"
+    lines = [f"{who} 낙폭 {float(judged):.1f}% — QQQ 고점일({_md(peak)}) 종가 → 기준일({_md(ref)}) 종가"]
     nasdaq = row.get("nasdaq_drop_pct")
     if nasdaq is not None:
-        text += f" · 같은 두 날 QQQ 종가 {float(nasdaq):.1f}%"
-    text += "."
+        line = f"같은 때 QQQ {float(nasdaq):.1f}%"
+        if row.get("suspicious"):
+            line += f" · ⚠ 그 {SUSPICIOUS_TIMES:.0f}배 넘게 빠짐(수상하게 빠짐) — 회사 자체 문제일 수 있음"
+        lines.append(line)
     since = row.get("since_reference_pct")
-    # 기준일이 마지막 장이면(산 날이 아직 없음) 「그 뒤 +0.0%」는 뜻이 없어 뺀다(2026-10-22 캡처).
+    # 기준일이 마지막 장이면(산 날이 아직 없음) 「기준일 뒤 +0.0%」는 뜻이 없어 뺀다(2026-10-22 캡처).
     if since is not None and row.get("buy_date", "있음") is not None:
-        text += f" 그 뒤 {float(since):+.1f}%."
-    if row.get("suspicious"):
-        text += f" ⚠ QQQ 종가 낙폭의 {SUSPICIOUS_TIMES:.0f}배 넘게 빠짐 — 회사 자체 문제일 수 있습니다."
-    text += " 다음 거래일 시가에 삽니다. 파는 시점은 규칙에 없습니다. 이 규칙에는 손절가가 없습니다."
+        lines.append(f"기준일 뒤 {float(since):+.1f}%")
+    lines.append("다음 거래일 시가에 삽니다 · 파는 시점은 규칙에 없습니다 · 손절가가 없습니다")
     results = row.get("hold_results") or ()
     if results:
         band = str(row.get("bucket_label") or "").replace("고점일 대비 ", "").replace("-", "")
-        text += (f" 이 칸({band}) 과거 성적: "
-                 + " · ".join(f"{item['label']} {item['median_return']:+.1f}%(100번 중 {item['win_rate']:.0f}번)"
-                              for item in results) + ".")
-    return text
+        lines.append(f"이 칸({band}) 과거 성적: "
+                     + " · ".join(f"{item['label']} {item['median_return']:+.1f}%(100번 중 {item['win_rate']:.0f}번)"
+                                  for item in results))
+    return "\n".join(lines)
 
 
 def _universe():
@@ -400,8 +406,12 @@ def crash_list(*, reuse_only: bool = False) -> dict:
             _MEMO[key] = (time.time(), (picked, counts))
     # 「점수가 순위를 못 가른다」 경고는 자비스3 과 같이 **오늘 나스닥 낙폭**으로 판단한다 — 그 경고 글이
     # "나스닥이 지금 ○% 빠져 있습니다"라는 오늘 문장이다.
-    drop_now = (market or {}).get("drop_pct")
+    # 2026-10-22 — 오늘 QQQ 낙폭도 같은 자(1년 최고 종가 대비)로. 못 구하면 예전 값(장중 최고가 대비)을 쓴다.
+    drop_now = ref.get("today_drop")
+    if drop_now is None:
+        drop_now = (market or {}).get("drop_pct")
     return {**base, "rows": [dict(row) for row in picked], "bucket_counts": counts,
+            "market": {**(market or {}), "drop_pct": drop_now},
             "score_blind": j3.crash_score_is_blind(drop_now), "score_weak": j3.crash_score_is_weak(drop_now),
             "days_since_reference": j3._trading_days_since(daily, ref["reference_date"])}
 

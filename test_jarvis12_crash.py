@@ -128,28 +128,41 @@ class PickTests(unittest.TestCase):
         self.assertIn("-25.0%", text)
         # 이 파트는 QQQ 로 잰다 — 이름도 QQQ(2026-10-22 상하님)
         self.assertIn("QQQ 고점일(", text)
-        # 누구의 숫자인지 앞에 적는다 — 종목 이름 · 같은 두 날 QQQ 종가
-        self.assertTrue(text.startswith("S00 종가: QQQ 고점일("))
-        self.assertIn("같은 두 날 QQQ 종가 -7.0%", text)
-        self.assertIn("⚠ QQQ 종가 낙폭의 3배 넘게 빠짐", text)
+        # 누구의 숫자인지 앞에 적는다 — 줄을 나눠 그 종목 → QQQ → 기준일 뒤 → 사는 때 → 이 칸 성적(2026-10-22 「눈에 보이게」)
+        lines = text.split("\n")
+        self.assertTrue(lines[0].startswith("S00 낙폭 -25.0% — QQQ 고점일("))
+        self.assertIn("종가 → 기준일(", lines[0])
+        self.assertTrue(lines[1].startswith("같은 때 QQQ -7.0%"))
+        self.assertIn("⚠ 그 3배 넘게 빠짐(수상하게 빠짐)", lines[1])
         self.assertNotIn("나스닥", text)
-        self.assertIn("그 뒤 +30.0%", text)
-        # 기준일이 마지막 장이면(산 날이 아직 없음) 「그 뒤 +0.0%」를 적지 않는다
-        self.assertNotIn("그 뒤", c12.buy_reason({**picked[0], "buy_date": None, "since_reference_pct": 0.0}))
+        self.assertEqual("기준일 뒤 +30.0%", lines[2])
+        # 기준일이 마지막 장이면(산 날이 아직 없음) 「기준일 뒤 +0.0%」를 적지 않는다
+        self.assertNotIn("기준일 뒤", c12.buy_reason({**picked[0], "buy_date": None, "since_reference_pct": 0.0}))
         for key in ("다음 거래일 시가", "파는 시점은 규칙에 없습니다", "손절가가 없습니다"):
-            self.assertIn(key, text)
-        self.assertIn("이 칸(20~30%) 과거 성적: 3개월 +25.0%(100번 중 87번)", text)
+            self.assertIn(key, lines[3])
+        self.assertTrue(lines[4].startswith("이 칸(20~30%) 과거 성적: 3개월 +25.0%(100번 중 87번)"))
         self.assertLess(len(text), 330)
         self.assertIsNone(c12.buy_reason({"judged_from_high_pct": -20.0, "reference_date": "2026-07-29"}))
 
-    def test_peak_day_is_the_52_week_intraday_high(self):
+    def test_peak_day_is_the_52_week_highest_close(self):
+        """2026-10-22 상하님 「종가로 해라」 — 고점일은 1년 최고 **종가**가 난 날(장중 최고가가 아니다)."""
         closes = list(np.linspace(100, 130, 300)) + [120, 118, 125, 117]
         frame = _qqq(closes)
-        frame.loc[frame.index[290], "High"] = 140.0                         # 장중 최고는 290번째 날
+        frame.loc[frame.index[290], "High"] = 140.0                         # 장중 최고는 290번째 날 — 이제 안 쓴다
         days = [d.date().isoformat() for d in frame.index]
         peak = c12._peak_of(frame, days[303])
-        self.assertEqual(days[290], peak["peak_date"])
-        self.assertAlmostEqual((117 / float(frame["Close"].iloc[290]) - 1) * 100, peak["nasdaq_drop"])
+        self.assertEqual(days[299], peak["peak_date"])                      # 최고 종가 130 은 299번째 날
+        self.assertAlmostEqual((117 / 130 - 1) * 100, peak["nasdaq_drop"])
+
+    def test_crash_drop_is_measured_from_the_highest_close(self):
+        """급락 −5% 도 1년 최고 종가 대비 — 장중으로만 고점을 찍고 종가는 낮은 날은 문턱을 넘기지 않는다."""
+        rise = list(np.linspace(100, 130, 300))
+        frame = _qqq(rise + [130 * 0.96])                                   # 종가로는 −4%
+        frame.loc[frame.index[299], "High"] = 136.0                         # 장중 최고 대비로는 −8.2%
+        with mock.patch.object(c12.j3, "_download_cached", return_value=({c12.SYMBOL: frame}, {})):
+            info = c12.episodes()
+        self.assertEqual([], info["episodes"])
+        self.assertAlmostEqual(-4.0, info["today_drop"], places=6)
 
 
 class HeldTests(unittest.TestCase):
@@ -201,23 +214,25 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102202", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026102202)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102203", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026102203)
         # 맨 위 낙폭 막대는 나스닥 종합지수(IXIC) — 이름을 밝힌다(급락 목록은 QQQ)
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]
         self.assertIn('"나스닥 종합지수(IXIC) 고점 대비"', gauge)
-        self.assertIn("급락 후 반등장 목록은 QQQ(나스닥100)로 잽니다", gauge)
         # 「12%」는 IXIC 다 — 글에 밝힌다(2026-10-22 상하님)
-        self.assertIn("IXIC가 1년 최고 종가에서 12% 넘게 빠졌을 때", gauge)
-        # QQQ 숫자도 같이 — 첫 화면이 받아 둔 시세에서 꺼낸다(새로 받으러 가지 않는다)
-        self.assertIn("QQQ(나스닥100) 1년 장중 최고가 대비", gauge)
-        self.assertIn('.get("QQQ", {}).get("from_high_pct")', gauge)
-        self.assertNotIn("_download", gauge)
+        self.assertIn("IXIC가 1년 최고 종가에서 <span class='j3-ndd-key'>12% 넘게 빠졌을 때</span>", gauge)
+        self.assertNotIn("다이버전스는", gauge)                           # 쓸데없는 내용은 뺐다(화면 글)
+        # QQQ 숫자도 같이 — 급락과 같은 자(1년 최고 종가) · 받아 둔 시세를 기억에서만 꺼낸다(새로 받으러 가지 않는다)
+        self.assertIn("QQQ(나스닥100) 고점(1년 최고 종가) 대비", gauge)
+        self.assertIn("← 급락 후 반등장 기준", gauge)
+        self.assertIn("j3data._download_cache_only((\"QQQ\",)", gauge)
+        self.assertNotIn("_download_cached", gauge)
         self.assertIn("_render_nasdaq_drawdown(overview)", J12)
-        # 상세 「시장 상황」도 무엇을 잰 숫자인지
-        self.assertIn("<b>1년 장중 최고가</b>{peak_text} 대비", J12)
+        # 상세 「시장 상황」 — QQQ 고점(○/○ 종가) 대비 · 기준일 · 지금
+        self.assertIn("<b>QQQ(나스닥100)</b> 고점({peak_text}) 대비 — ", J12)
         self.assertIn("reason12 = jarvis12_crash.buy_reason(row)", J12)
-        self.assertIn('drop_heads[0] = "고점일 대비"', J12)
+        self.assertIn('drop_heads[:3] = ["기준일 낙폭", "지금 낙폭", "기준일 뒤"]', J12)
+        self.assertIn('now_drop = row.get("now_from_peak_pct")', J12)
         self.assertIn("⚠ 수상하게 빠짐", J12)
         self.assertIn("2026-10-21 밤 고침", SPEC)
 
@@ -241,18 +256,18 @@ class PageTests(unittest.TestCase):
         text = ns["_crash12_story"]({"armed": True, "reference_date": "2026-07-29", "reference_drop": -11.5,
                                      "recovered_on": "2026-09-22"}, -2.5, 10)
         # 2026-10-21 밤 — 긴 한 덩어리 글을 제목 + 요점 줄로(상하님 「장황하다 · 직관적으로」)
-        for piece in ("7/29 급락 때 고른 10종목", "이 종목 그대로", "한 번 샀다고 셈", "9/22에 전고점 회복"):
+        for piece in ("7/29 급락 때 고른 10종목", "다음 급락까지 **그대로**", "9/22에 전고점 회복"):
             self.assertIn(piece, text)
         self.assertGreaterEqual(text.count("\n- "), 5)                   # 요점 줄
         self.assertIn(":violet[**10\\~20%**]", text)                    # 칸 색 = 표 갈래 색
         now = ns["_crash12_story"]({"armed": True, "reference_date": "2026-10-16", "reference_drop": -7.0,
-                                    "peak_date": "2026-10-06", "nasdaq_drop": -6.6}, -4.7, 20)
-        self.assertIn("QQQ 고점일(10/6) 종가 → 10/16 종가", now)
-        self.assertIn("같은 두 날 QQQ 종가로는", now)
-        self.assertIn("QQQ 종가 낙폭의 3배", now)
-        self.assertIn("QQQ(나스닥100)** 1년 장중 최고가 대비", now)
-        self.assertNotIn("나스닥 고점일", now)
-        self.assertIn("3배(:red[**-19.8%**])", now)                     # 경고 문턱을 숫자로
+                                    "peak_date": "2026-10-06", "nasdaq_drop": -7.0}, -4.7, 20)
+        # 2026-10-22 「종가로 · 기준과 명칭 맞춰라」 — QQQ 숫자는 하나(고점 ○/○ 종가 대비)
+        self.assertIn("**QQQ(나스닥100)** 고점(10/6 종가) 대비: 10/16 :red[**-7.0%**] → 지금 :red[**-4.7%**]", now)
+        self.assertIn("**종목 낙폭**도 같은 두 날 종가로 잼", now)
+        self.assertIn("QQQ의 3배(:red[**-21.0%**])", now)                # 경고 문턱을 숫자로
+        self.assertNotIn("장중", now)
+        self.assertNotIn("IXIC", now)                                    # 맨 위 막대에 따로 있다
         self.assertIn("오늘은 이 자리가 없습니다", ns["_crash12_story"]({"armed": False}, None, 0))
 
 
