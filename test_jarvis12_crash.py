@@ -207,6 +207,8 @@ class PageTests(unittest.TestCase):
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]
         self.assertIn('"나스닥 종합지수(IXIC) 고점 대비"', gauge)
         self.assertIn("급락 후 반등장 목록은 QQQ(나스닥100)로 잽니다", gauge)
+        # 「12%」는 IXIC 다 — 글에 밝힌다(2026-10-22 상하님)
+        self.assertIn("IXIC가 1년 최고 종가에서 12% 넘게 빠졌을 때", gauge)
         # QQQ 숫자도 같이 — 첫 화면이 받아 둔 시세에서 꺼낸다(새로 받으러 가지 않는다)
         self.assertIn("QQQ(나스닥100) 1년 장중 최고가 대비", gauge)
         self.assertIn('.get("QQQ", {}).get("from_high_pct")', gauge)
