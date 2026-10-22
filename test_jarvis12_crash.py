@@ -89,7 +89,7 @@ class PickTests(unittest.TestCase):
         self.assertEqual([f"S{i:02d}" for i in range(20)], [row["ticker"] for row in picked])
         self.assertAlmostEqual(-15.0, picked[0]["judged_from_high_pct"])     # 1년 최고가(400) 아닌 고점일 종가(100)부터
         self.assertEqual(days[300].date().isoformat(), picked[0]["peak_date"])
-        self.assertEqual("고점일 대비 -10~-20%", picked[0]["bucket_label"])
+        self.assertEqual("종목 낙폭 -10~-20%", picked[0]["bucket_label"])
         self.assertEqual(81, picked[0]["hold_results"][0]["win_rate"])        # 새 칸 성적
         self.assertTrue(all(abs(v - 85) < 1e-6 or abs(v - 75) < 1e-6 or abs(v - 60) < 1e-6 for v in seen))
         self.assertEqual(days[306].date().isoformat(), picked[0]["buy_date"])
@@ -113,17 +113,19 @@ class PickTests(unittest.TestCase):
         """세부 노란 상자 — 짧게 핵심만(2026-10-21 상하님 「장황하다」). 굵게 칠하는 말·새 칸 성적은 남는다."""
         _days, picked, _counts, _seen = self._pick([0.75], nasdaq_drop=-7.0)
         text = c12.buy_reason(picked[0])
-        self.assertIn("고가 → 기준일 ", text)
+        self.assertIn(" → 기준일 ", text)
         # 날짜를 「10/6」으로 쓰면 노란 상자가 점수(66/70 꼴)로 알고 초록으로 칠한다 — 「10월 6일」로 쓴다
         self.assertIsNone(re.search(r"\d+/\d+", text))
         self.assertIn("월 ", text)
         self.assertIn("-25.0%", text)
-        # 누구의 숫자인지 앞에 적는다 — 줄을 나눠 종목 낙폭 → QQQ 낙폭 → 기준일 뒤 → 사는 때 → 이 칸 성적
-        # 이름은 화면 어디서나 같다(2026-10-22 「통일」): 고점일 고가 → 기준일 종가
+        # 누구의 숫자인지 앞에 적는다 — 줄을 나눠 종목 낙폭 → QQQ 낙폭 → 기준일 뒤 → 사는 때
+        # 이름은 화면 어디서나 같다(2026-10-22 「통일」): 고점일 고가 → 기준일 종가 · 두 값($)도 적는다(같은 날 상하님)
         lines = text.split("\n")
+        row = picked[0]
         self.assertTrue(lines[0].startswith("S00 종목 낙폭 -25.0% (고점일 "))
-        self.assertIn("고가 → 기준일 ", lines[0])
-        self.assertTrue(lines[0].endswith("종가)"))
+        self.assertIn(f"고가 ${row['peak_high']:,.2f} → 기준일 ", lines[0])
+        self.assertTrue(lines[0].endswith(f"종가 ${row['reference_close']:,.2f})"))
+        self.assertAlmostEqual(-25.0, (row["reference_close"] / row["peak_high"] - 1) * 100, places=6)
         self.assertTrue(lines[1].startswith("QQQ 낙폭 -7.0% (같은 두 날)"))
         self.assertIn("⚠ 그 3배 넘게 빠짐(수상하게 빠짐)", lines[1])
         self.assertNotIn("나스닥", text)
@@ -132,9 +134,19 @@ class PickTests(unittest.TestCase):
         self.assertNotIn("기준일 뒤", c12.buy_reason({**picked[0], "buy_date": None, "since_reference_pct": 0.0}))
         for key in ("다음 거래일 시가", "파는 시점은 규칙에 없습니다", "손절가가 없습니다"):
             self.assertIn(key, lines[3])
-        self.assertTrue(lines[4].startswith("이 칸(20~30%) 과거 성적: 3개월 +25.0%(100번 중 87번)"))
-        self.assertLess(len(text), 330)
+        # 「이 칸 과거 성적」은 뺐다(2026-10-22 상하님 「필요하냐?」) — 칸 평균이지 이 종목 값이 아니다
+        self.assertEqual(4, len(lines))
+        self.assertNotIn("과거 성적", text)
+        self.assertLess(len(text), 260)
         self.assertIsNone(c12.buy_reason({"judged_from_high_pct": -20.0, "reference_date": "2026-07-29"}))
+        # 화면은 급락 글의 $값만 굵게 칠한다(다른 갈래 글은 그대로)
+        ns = {"re": re, "html": __import__("html")}
+        exec(J12[J12.index("_MUSTARD_NUMBER = "):J12.index("def _pct(")], ns)
+        shown = ns["_mustard_html"](text, prices=True)
+        self.assertIn(f"<b style='color:#fff1b8'>${row['peak_high']:,.2f}</b>", shown)
+        self.assertIn(f"<b style='color:#fff1b8'>${row['reference_close']:,.2f}</b>", shown)
+        self.assertNotIn("fff1b8", ns["_mustard_html"](text))
+        self.assertIn("prices=(mode == 'crash')", J12)
 
     def test_peak_day_is_the_52_week_high_and_drop_is_high_to_close(self):
         """2026-10-22 「엑셀대로 · 통일」 — 고점일은 1년 최고가(장중 고가)가 난 날 · QQQ 낙폭 = 그날 고가 → 기준일 종가."""
@@ -213,14 +225,14 @@ class PageTests(unittest.TestCase):
         # 성적표를 세기 시작한 날에 이미 끝난 급락(3월)은 빼고 그때 보여 주던 급락부터
         self.assertIn('str(row["episode_recovered"]) >= _SCORECARD_START', J12)
         # 경고 칸 붉은 숫자 — 다른 함수 안의 _red 를 부르다 깨지던 것
-        self.assertEqual(2, J12.count('_crash_red(f"{float(drop):.1f}%")'))
+        self.assertEqual(3, J12.count('_crash_red(f"{float(drop):.1f}%")'))   # 경고 둘 + 설명 창 경고 한 줄
         # 기간 첫날에 들고 있던 급락 10종목도 그 기간에 센다(막대 · 기간 고르기 · 견주기)
         self.assertEqual(4, J12.count("_crash12_rows_for("))  # 정의 · 막대 · 기간 고르기 · 견주기
         self.assertIn('rows += [{**row, "_span": label} for row in _crash12_rows_for(_scorecard_span_start(anchor, days))]', J12)
         # 2026-10-21 — 화면 20개 · 성적표는 그중 scorecard 10개 · 세부 글은 나스닥 고점일부터
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
-        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102204", J12)
-        self.assertEqual(c12.MODULE_REVISION, 2026102204)
+        self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102205", J12)
+        self.assertEqual(c12.MODULE_REVISION, 2026102205)
         # 맨 위 낙폭 막대는 나스닥 종합지수(IXIC) — 이름을 밝힌다(급락 목록은 QQQ)
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]
         self.assertIn('"나스닥 종합지수(IXIC) 고점 대비"', gauge)
@@ -256,6 +268,36 @@ class PageTests(unittest.TestCase):
         self.assertIn("flex-direction:column", band)
         self.assertNotIn('"<br>', band)                                  # 그리는 글에 줄바꿈 태그 없음
 
+
+    def test_expander_guide_is_short_and_uses_the_same_names(self):
+        """2026-10-22 상하님 「이 설명 너 같으면 읽겠냐 · 기준도 바뀌지 않았냐 · 밑에 더 있네」 — 규칙 넷 + 카드 · 배점 넷 + 접은 자세히."""
+        import html as html_mod
+        ns = {"html": html_mod, "jarvis12_crash": c12, "_ixic_note": lambda ref: "",
+              "_crash_red": lambda text: f"<b>{text}</b>",
+              "_score_table_rows": lambda mode: [("이 종목이 평소 크게 움직이나", 40, "40", "긴 풀이"),
+                                                 ("이 테마가 통째로 떨어졌나", 0, "0", "0점 까닭")],
+              "_score_table_html": lambda mode, base: "<table>배점표 긴 풀이</table>"}
+        exec(J12[J12.index("def _crash12_story("):J12.index("def _render_rulebook_finder(")], ns)
+        guide = ns["_crash12_guide_html"]("2026-10-22", ["<div>카드</div>"])
+        for piece in ("고점일(QQQ 가 1년 최고가를 찍은 날) <b>고가</b> → 그날 <b>종가</b>", "<b>기준일</b>", "<b>종목 낙폭</b>",
+                      "10&#126;20 · 20&#126;30 · 30&#126;50%", "<b>⚠ 수상하게 빠짐</b>", "<b>10개</b>", "<div>카드</div>",
+                      "지금 재는 법으로 다시 재야 함"):
+            self.assertIn(piece, guide)
+        self.assertNotIn("\\~", guide)                    # HTML 덩이 안에서는 \~ 가 글자 그대로 보였다
+        self.assertNotIn("1년 고점", guide)               # 옛 자(종목 자기 1년 고점) 말이 남지 않게
+        self.assertLess(len(re.sub(r"<[^>]+>", "", guide)), 420)
+        score = ns["_crash12_score_html"]({"market": {"drop_pct": -7.7}, "score_weak": True}, None)
+        self.assertIn("QQQ 낙폭 <b>-7.7%</b>", score)
+        self.assertNotIn("테마가 덜 빠졌나", score)
+        self.assertIn("최근 3개월 하루 움직임", score)      # 점수 주는 항목만 한 줄씩
+        self.assertNotIn("0점 까닭", score)                 # 0점 항목은 줄로 적지 않는다(배점표와 같음 · 2026-08-21)
+        # 긴 풀이(과거에 어땠나 · 주의)는 지우지 않고 「자세히 보기」 안에 접어 둔다
+        self.assertIn("<details", score)
+        self.assertIn("배점표 긴 풀이", score.split("<details")[1])
+        self.assertIn("수급 자료가 없습니다", score.split("<details")[1])
+        # 화면은 자비스12 급락 줄에서만 짧은 판을 쓴다
+        self.assertIn("st.markdown(_crash12_guide_html(ref_date, cards), unsafe_allow_html=True)", J12)
+        self.assertIn("st.markdown(_crash12_score_html(result, base_rate), unsafe_allow_html=True)", J12)
 
     def test_story_explains_the_situation(self):
         ns = {"jarvis12_crash": c12, "_ixic_note": lambda ref: ""}
