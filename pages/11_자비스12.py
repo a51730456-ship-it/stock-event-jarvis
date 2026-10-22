@@ -9243,6 +9243,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
                 ("이 자리 과거 성적", _words(spans or "—"), "#e6e6e6"),
                 ("손절가", _words("이 규칙에는 없음"), "#ff5b5b"),
             ]
+            # 2026-10-22 상하님 「빼라」 — 자비스12 급락 줄(고점일이 실린 줄 · buy_reason 과 같은 표시)은 「이 자리 과거 성적」을 뺀다.
+            # 그 종목 값이 아니라 칸 평균이고, 지금 재는 법으로 다시 재야 하는 숫자이며, 설명 창 카드에 이미 있다.
+            if row.get("peak_date"):
+                plan_cells = [cell for cell in plan_cells if cell[0] != "이 자리 과거 성적"]
         elif plan.get("trigger") is not None:
             plan_cells = [
                 ("조건 기준가", _price(plan.get("trigger")), "#e6e6e6"),
@@ -9273,9 +9277,10 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
             f"<div class='val'>{float(review.get('score') or 0):.1f}/{score_max:g}</div>"
             f"<div class='state'>{plan.get('state', '')}</div></div>"
         )
+        # 칸이 셋이면(자비스12 급락 — 과거 성적 뺌) 둘째 줄은 손절가 하나. 넷이면 예전 그대로 빈칸 하나를 붙인다.
         plan_grid = (
             plan_boxes[0] + plan_boxes[1] + score_box
-            + plan_boxes[2] + plan_boxes[3] + "<div class='j3-holo-cell'></div>"
+            + "".join(plan_boxes[2:]) + ("<div class='j3-holo-cell'></div>" if len(plan_boxes) == 4 else "")
         )
         st.markdown(
             "<div class='j3-holo-card'>"
