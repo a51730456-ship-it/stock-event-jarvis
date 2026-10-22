@@ -37,7 +37,7 @@ import pandas as pd
 import jarvis3_data as j3
 
 # 계산이나 돌려주는 값을 바꾸면 올린다 — 화면이 옛 모듈을 다시 읽게(CLAUDE.md 11 과 같은 까닭).
-MODULE_REVISION = 2026102103
+MODULE_REVISION = 2026102201
 
 SYMBOL = j3.CRASH_MARKET_SYMBOL          # QQQ — 자비스3 과 같은 자
 THRESHOLD = -5.0                          # 상하님 2026-10-14 「−5%」
@@ -338,16 +338,18 @@ def buy_reason(row: dict) -> str | None:
     peak, judged, ref = row.get("peak_date"), row.get("judged_from_high_pct"), row.get("reference_date")
     if not peak or judged is None or not ref:
         return None
-    text = f"나스닥 고점일({_md(peak)}) → 기준일({_md(ref)}): {float(judged):.1f}%"
+    # 지수 이름은 QQQ 로 적는다 — 이 파트는 처음부터 QQQ 로 잰다(2026-10-22 상하님 「QQQ로 표시해야 되지 않나」).
+    text = f"QQQ 고점일({_md(peak)}) → 기준일({_md(ref)}): {float(judged):.1f}%"
     nasdaq = row.get("nasdaq_drop_pct")
     if nasdaq is not None:
-        text += f" (같은 때 나스닥 {float(nasdaq):.1f}%)"
+        text += f" (같은 때 QQQ {float(nasdaq):.1f}%)"
     text += "."
     since = row.get("since_reference_pct")
-    if since is not None:
+    # 기준일이 마지막 장이면(산 날이 아직 없음) 「그 뒤 +0.0%」는 뜻이 없어 뺀다(2026-10-22 캡처).
+    if since is not None and row.get("buy_date", "있음") is not None:
         text += f" 그 뒤 {float(since):+.1f}%."
     if row.get("suspicious"):
-        text += f" ⚠ 나스닥의 {SUSPICIOUS_TIMES:.0f}배 넘게 빠짐 — 회사 자체 문제일 수 있습니다."
+        text += f" ⚠ QQQ의 {SUSPICIOUS_TIMES:.0f}배 넘게 빠짐 — 회사 자체 문제일 수 있습니다."
     text += " 다음 거래일 시가에 삽니다. 파는 시점은 규칙에 없습니다. 이 규칙에는 손절가가 없습니다."
     results = row.get("hold_results") or ()
     if results:
