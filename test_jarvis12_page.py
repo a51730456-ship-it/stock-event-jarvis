@@ -25,12 +25,25 @@ class SourceTests(unittest.TestCase):
         self.assertIn("JARVIS <b>12</b>", self.SOURCE)
         self.assertIn('mark="12"', self.SOURCE)
 
+    def test_no_shared_boxes_with_other_jarvis(self):
+        """2026-10-23 상하님 「자비스12 는 자비스3 과 연결하지 말고 별도로 · 다른 자비스도 연결하지 말라」.
+
+        같은 보관함 이름(st.session_state)을 쓰면 자비스12 에서 누른 급락 후 반등장(새 기준) 결과가 5분 안에 연 자비스3 에
+        그대로 나왔다. 자비스12 의 j3 이름은 모두 j12 로 — 깨우기 도구(warm_morning.py)가 밖에서 누르는 단추 하나만 옛 이름.
+        """
+        import re
+        left = set(re.findall(r"(?<![A-Za-z0-9])(j3(?:_|b_|add_|rb|vx_|sc_)[A-Za-z0-9_]*)", self.SOURCE))
+        self.assertEqual({"j3b_nav_market"}, left)
+        for key in ("j12_pullback_result", "j12_pullback_open", "j12_pullback_mode", "j12_top7_result", "j12_scorecard_counts"):
+            self.assertIn(key, self.SOURCE)
+        self.assertIn('st.session_state[f"j12_pullback_kept_{pressed}"] = found', self.SOURCE)
+
     def test_finger_turning_is_gone_but_the_pull_guard_stays(self):
         """2026-10-09 상하님 — 손가락 넘기기를 아예 날려라 · 밑 막대로 옮긴다. 당겨도 안 불리는 장치는 남긴다."""
         for gone in ("_SWIPE_OUTER_JS", "j12b-swipe-script", "j12snap", "j3b_swipe_", "_briefing_slide_in_marker"):
             self.assertNotIn(gone, self.SOURCE, gone)
         for kept in ("_PAGE_GUARD_JS", "'j12b-page-guard'", "if (dy > 0 && Math.abs(dy) > Math.abs(dx)) { ev.preventDefault(); }",
-                     "j3-help-closing", 'key="j3b_nav_home"', 'key="j3b_nav_watch"', 'key="j3b_nav_market"'):
+                     "j3-help-closing", 'key="j12b_nav_home"', 'key="j12b_nav_watch"', 'key="j3b_nav_market"'):
             self.assertIn(kept, self.SOURCE, kept)
 
     def test_lighter_screens(self):
@@ -79,27 +92,27 @@ class SourceTests(unittest.TestCase):
         # 옛 줄이 떠 있는 채로 새로 받는 중 — 기다리지 않는다
         answer.update(items=[{"brief": "옛 뉴스"}], pending=True)
         ns["_briefing_items"]("company", "AAA")
-        self.assertNotIn("j3b_news_pending", state)
-        self.assertEqual([], state.get("j3b_news_wait_keys", []))
+        self.assertNotIn("j12b_news_pending", state)
+        self.assertEqual([], state.get("j12b_news_wait_keys", []))
         # 「불러오는 중」이 뜬 자리 — 예전처럼 기다린다(오면 다시 그림)
         answer.clear(); answer.update(items=[], pending=True)
         ns["_briefing_items"]("company", "BBB")
-        self.assertTrue(state["j3b_news_pending"])
-        self.assertEqual([("company", "BBB")], state["j3b_news_wait_keys"])
+        self.assertTrue(state["j12b_news_pending"])
+        self.assertEqual([("company", "BBB")], state["j12b_news_wait_keys"])
 
         # 기사 본문 — 처음 받는 것만 기다린다
         rows, scheduled = {}, []
         reader = types.SimpleNamespace(get=lambda url: rows.get(url), pending=lambda url: True,
                                        schedule=lambda urls: scheduled.extend(urls))
         ns2 = {"st": types.SimpleNamespace(session_state={}), "news_reader": reader, "html": _html,
-               "_ARTICLE_WAIT_RUN": "j3b_article_wait_run"}
+               "_ARTICLE_WAIT_RUN": "j12b_article_wait_run"}
         exec(src[src.index("def _news_article_html("):src.index("def _news_original_html(")], ns2)
         ns2["_news_article_html"]("https://a.example/new")
         rows["https://a.example/failed"] = {"status": "failed", "paragraphs": []}
         rows["https://a.example/english"] = {"status": "english", "paragraphs": ["hello"]}
         ns2["_news_article_html"]("https://a.example/failed")
         ns2["_news_article_html"]("https://a.example/english")
-        waited = ns2["st"].session_state.get("j3b_article_wait_run", {})
+        waited = ns2["st"].session_state.get("j12b_article_wait_run", {})
         self.assertEqual(["https://a.example/new"], list(waited))
         self.assertEqual(3, len(scheduled))                         # 다시 받으러 가는 일은 그대로 한다
 

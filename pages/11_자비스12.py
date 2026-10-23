@@ -178,7 +178,7 @@ st.markdown(
     [data-testid="stSidebarNav"] li:nth-child(6) a p::before {
         content: "한국테마\\A(선행감지)"; white-space: pre; line-height: 1.2; font-size: 1.15rem; font-weight: 800; color: #ffb020;
     }
-    div[class*="st-key-j3_theme_choice"] [data-baseweb="button-group"] {
+    div[class*="st-key-j12_theme_choice"] [data-baseweb="button-group"] {
         gap: 0.35rem;
     }
     .j3-market-flow {
@@ -240,8 +240,8 @@ st.markdown(
     }
     /* 표 안의 종목 단추만 **옆으로** 민다 — 줄이 촘촘해 위아래로 뜨면 어지럽다.
        위 규칙보다 뒤에 둬야 이 규칙이 이긴다. */
-    div[class*="st-key-j3rbf_"] button:hover,
-    div[class*="st-key-j3rbw_"] button:hover,
+    div[class*="st-key-j12rbf_"] button:hover,
+    div[class*="st-key-j12rbw_"] button:hover,
     div[class*="st-key-j3top7_"] button:hover,
     div[class*="st-key-j3tbtn_"] button:hover,
     div[class*="st-key-j3pbf_"] button:hover,
@@ -306,11 +306,11 @@ st.markdown(
        스트림릿은 폰처럼 좁은 화면에서 칸을 위아래로 쌓는다. 이 줄만 쌓지
        말라고 못박는다. 제목이 길면 두 줄로 접혀 칸이 두 배가 되므로 글자도
        한 치수 줄이고 넘치면 …으로 자른다. */
-    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"] {
+    div[class*="st-key-j12_guide_row"] [data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
         gap: .4rem !important;
     }
-    div[class*="st-key-j3_guide_row"] [data-testid="stColumn"] {
+    div[class*="st-key-j12_guide_row"] [data-testid="stColumn"] {
         min-width: 0 !important;
         flex: 1 1 0 !important;
     }
@@ -401,10 +401,10 @@ st.markdown(
     /* 펼치면 글이 166px 칸에 갇혀 세로로 길게 늘어진다. **펼친 동안만**
        두 칸을 위아래로 되돌려 글이 화면 폭을 다 쓰게 한다. 접으면 다시
        나란히 선다(2026-09-12 실측 — 폰 375px 에서 칸 폭 166px → 343px). */
-    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked) {
+    div[class*="st-key-j12_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked) {
         flex-wrap: wrap !important;
     }
-    div[class*="st-key-j3_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked)
+    div[class*="st-key-j12_guide_row"] [data-testid="stHorizontalBlock"]:has(.j3-guide-tap:checked)
         .stColumn {
         flex: 1 1 100% !important;
     }
@@ -515,16 +515,16 @@ st.markdown(
     .j3-chart-big-title { color: #7cc7ff; font-size: 1.14rem; margin: .1rem 0 .25rem; }
     /* '일봉 크게 · 주봉 크게 · 월봉 크게' 고르는 단추. 지금 크게 보고 있는 것은
        ● 를 앞에 붙이고 밝게 칠한다 — 어느 것을 보고 있는지 단추만 봐도 알게. */
-    div[class*="st-key-j3_bundle_pick_"] button {
+    div[class*="st-key-j12_bundle_pick_"] button {
         background: rgba(255,255,255,.04) !important;
         border: 1px solid rgba(255,255,255,.18) !important;
         border-radius: .45rem !important;
         min-height: 0 !important; padding: .2rem .6rem !important;
     }
-    div[class*="st-key-j3_bundle_pick_"] button p {
+    div[class*="st-key-j12_bundle_pick_"] button p {
         font-size: .86rem !important; font-weight: 700 !important; color: #b9c0c8 !important;
     }
-    div[class*="st-key-j3_bundle_pick_"] button:hover {
+    div[class*="st-key-j12_bundle_pick_"] button:hover {
         border-color: #7cc7ff !important; background: rgba(124,199,255,.10) !important;
     }
     .j3-leader-name { font-size: 1.2rem; font-weight: 800; color: #e6e6e6; line-height: 1.25; }
@@ -697,7 +697,7 @@ st.markdown(
     .j3cz-pop svg.j3-pretty-chart { flex: 1 1 auto !important; height: auto !important; min-height: 0 !important; }
     .j3cz-when { color: #7d8798; font-size: .78rem; font-weight: 700; }
     .j3cz-close { align-self: center; font-size: .78rem; color: #8fb4de; }
-    body:has(.j3cz-tap:checked) div.st-key-j3b_nav_controls,
+    body:has(.j3cz-tap:checked) div.st-key-j12b_nav_controls,
     body:has(.j3cz-tap:checked) .j3b-bottom-nav { visibility: hidden !important; }
     /* 세로로 든 화면(폰·세운 태블릿)은 높이를 **절반**으로 줄인다 — 가로 화면은 위 크기 그대로 꽉 채운다
        (2026-09-23 밤 상하님 — "가로 화면은 지금처럼 꽉 채우고 세로 화면은 절반으로 줄여라"). */
@@ -937,24 +937,24 @@ st.markdown(
     .j3-td > .j3-barwrap { width: 100%; }
     /* 좁은 화면에서는 칸을 쥐어짜 글자를 자르는 대신 표를 원래 폭으로 두고
        손가락으로 옆으로 민다(2026-07-25 사용자 지시). 화면 전체는 안 밀린다. */
-    /* 종목표(j3_leader_table)도 이름을 누를 수 있게 칸 방식으로 바꾸면서
+    /* 종목표(j12_leader_table)도 이름을 누를 수 있게 칸 방식으로 바꾸면서
        이미 폰·태블릿에서 잘 도는 위 두 표와 똑같은 규칙에 얹었다(2026-07-29). */
     /* 순위 7 표도 같은 규칙에 얹는다(2026-08-01 사용자 지시) — 폰에서 한 종목이
        여섯 줄로 쌓이던 것을, 나머지 세 표처럼 옆으로 밀어서 보게 한다.
-       설명서 두 갈래 표(j3_rulebook_table)도 같은 규칙에 얹는다 — 빠뜨렸더니
+       설명서 두 갈래 표(j12_rulebook_table)도 같은 규칙에 얹는다 — 빠뜨렸더니
        폰에서 순위·종목이 따로 쌓이고 값이 서로 겹쳐 찍혔다(2026-08-01 캡처).
        **새 표를 만들면 반드시 이 세 목록에 다 넣는다.** */
-    /* '11위~20위 더 보기'로 접은 자리(j3_theme_rest·j3_rulebook_rest)도 같은 규칙을
+    /* '11위~20위 더 보기'로 접은 자리(j12_theme_rest·j12_rulebook_rest)도 같은 규칙을
        받는다. 접이(st.expander) 자체는 이 상자들 밖에 있어서, 빠뜨리면 접힌 쪽만
        칸이 세로로 쌓여 위 표와 딴판이 된다(2026-08-09 상하님 캡처).
        한국테마는 테마표만 이미 이렇게 감싸 두었다 — 급락 표는 거기도 빠져 있었다. */
-    .st-key-j3_pullback_table,
-    .st-key-j3_theme_rest,
-    .st-key-j3_rulebook_rest,
-    .st-key-j3_leader_table,
-    .st-key-j3_top7_table,
-    .st-key-j3_rulebook_table,
-    .st-key-j3_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .st-key-j12_pullback_table,
+    .st-key-j12_theme_rest,
+    .st-key-j12_rulebook_rest,
+    .st-key-j12_leader_table,
+    .st-key-j12_top7_table,
+    .st-key-j12_rulebook_table,
+    .st-key-j12_theme_table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     /* ── 접은 자리(11위~20위)가 옆으로 안 밀리던 것 (2026-08-19 상하님 지적) ──
        상하님 — "첫 번째 캡처에서 옆으로 옮기면 두 번째 캡처처럼 오류난다."
 
@@ -969,10 +969,10 @@ st.markdown(
        클래스 이름(st-emotion-cache-…)은 스트림릿 판이 바뀌면 달라지므로 쓰지 않는다
        (2026-07-18에 판 차이로 한 번 데었다). 지금 판은 <details>인데 판이 바뀌면
        <div>일 수 있어 **둘 다** 짚어 둔다. */
-    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details,
-    .st-key-j3_rulebook_rest [data-testid="stExpander"] > div,
-    .st-key-j3_theme_rest [data-testid="stExpander"] > details,
-    .st-key-j3_theme_rest [data-testid="stExpander"] > div {
+    .st-key-j12_rulebook_rest [data-testid="stExpander"] > details,
+    .st-key-j12_rulebook_rest [data-testid="stExpander"] > div,
+    .st-key-j12_theme_rest [data-testid="stExpander"] > details,
+    .st-key-j12_theme_rest [data-testid="stExpander"] > div {
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch;
     }
@@ -986,15 +986,15 @@ st.markdown(
 
        옛 사파리를 위해 웹킷 쪽도 남겨 둔다 — 표준을 아는 브라우저는 이쪽을
        거들떠보지 않으므로 같이 있어도 탈이 없다. */
-    .st-key-j3_pullback_table,
-    .st-key-j3_theme_rest,
-    .st-key-j3_rulebook_rest,
-    .st-key-j3_leader_table,
-    .st-key-j3_top7_table,
-    .st-key-j3_rulebook_table,
-    .st-key-j3_theme_table,
-    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details,
-    .st-key-j3_theme_rest [data-testid="stExpander"] > details,
+    .st-key-j12_pullback_table,
+    .st-key-j12_theme_rest,
+    .st-key-j12_rulebook_rest,
+    .st-key-j12_leader_table,
+    .st-key-j12_top7_table,
+    .st-key-j12_rulebook_table,
+    .st-key-j12_theme_table,
+    .st-key-j12_rulebook_rest [data-testid="stExpander"] > details,
+    .st-key-j12_theme_rest [data-testid="stExpander"] > details,
     /* 날짜별로 저장해 둔 목록의 표(상위 테마 5개·상승장·급락·순위 9)도 **같은 두께** —
        2026-09-17 상하님 지시 "맨 밑 바 높이가 너무 작아 마우스로 찍기 힘들다, 22개 테마
        순위 맨 밑 바 크기로 맞춰라". 이 CSS 는 미국테마 화면에서만 나오므로 한국테마
@@ -1003,52 +1003,52 @@ st.markdown(
         scrollbar-width: auto;
         scrollbar-color: rgba(124, 200, 255, .70) rgba(255, 255, 255, .08);
     }
-    .st-key-j3_pullback_table::-webkit-scrollbar,
-    .st-key-j3_theme_rest::-webkit-scrollbar,
-    .st-key-j3_rulebook_rest::-webkit-scrollbar,
-    .st-key-j3_leader_table::-webkit-scrollbar,
-    .st-key-j3_top7_table::-webkit-scrollbar,
-    .st-key-j3_rulebook_table::-webkit-scrollbar,
-    .st-key-j3_theme_table::-webkit-scrollbar,
-    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
-    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
+    .st-key-j12_pullback_table::-webkit-scrollbar,
+    .st-key-j12_theme_rest::-webkit-scrollbar,
+    .st-key-j12_rulebook_rest::-webkit-scrollbar,
+    .st-key-j12_leader_table::-webkit-scrollbar,
+    .st-key-j12_top7_table::-webkit-scrollbar,
+    .st-key-j12_rulebook_table::-webkit-scrollbar,
+    .st-key-j12_theme_table::-webkit-scrollbar,
+    .st-key-j12_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
+    .st-key-j12_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar,
     .pl-wrap::-webkit-scrollbar {
         height: 15px;
         background: rgba(255, 255, 255, .08);
     }
-    .st-key-j3_pullback_table::-webkit-scrollbar-thumb,
-    .st-key-j3_theme_rest::-webkit-scrollbar-thumb,
-    .st-key-j3_rulebook_rest::-webkit-scrollbar-thumb,
-    .st-key-j3_leader_table::-webkit-scrollbar-thumb,
-    .st-key-j3_top7_table::-webkit-scrollbar-thumb,
-    .st-key-j3_rulebook_table::-webkit-scrollbar-thumb,
-    .st-key-j3_theme_table::-webkit-scrollbar-thumb,
-    .st-key-j3_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
-    .st-key-j3_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
+    .st-key-j12_pullback_table::-webkit-scrollbar-thumb,
+    .st-key-j12_theme_rest::-webkit-scrollbar-thumb,
+    .st-key-j12_rulebook_rest::-webkit-scrollbar-thumb,
+    .st-key-j12_leader_table::-webkit-scrollbar-thumb,
+    .st-key-j12_top7_table::-webkit-scrollbar-thumb,
+    .st-key-j12_rulebook_table::-webkit-scrollbar-thumb,
+    .st-key-j12_theme_table::-webkit-scrollbar-thumb,
+    .st-key-j12_rulebook_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
+    .st-key-j12_theme_rest [data-testid="stExpander"] > details::-webkit-scrollbar-thumb,
     .pl-wrap::-webkit-scrollbar-thumb {
         background: rgba(124, 200, 255, .70);
         border-radius: 8px;
         min-width: 60px;
     }
     @media (max-width: 1200px) {
-        .st-key-j3_pullback_table [data-testid="stHorizontalBlock"] {
+        .st-key-j12_pullback_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1150px;
         }
-        .st-key-j3_rulebook_rest [data-testid="stHorizontalBlock"] {
+        .st-key-j12_rulebook_rest [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1700px;
         }
-        .st-key-j3_theme_rest [data-testid="stHorizontalBlock"],
-        .st-key-j3_theme_table [data-testid="stHorizontalBlock"] {
+        .st-key-j12_theme_rest [data-testid="stHorizontalBlock"],
+        .st-key-j12_theme_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 900px;
         }
         /* 테마 종목 표는 2026-10-07 에 「연간 실적」·「분기 실적」 두 칸이 늘었다 — 옆으로 밀어서 본다.
            (1200px 넘는 화면은 아래 따로 — 칸이 좁아 실적 글자가 잘리지 않게 같은 폭을 준다.) */
-        .st-key-j3_leader_table [data-testid="stHorizontalBlock"] {
+        .st-key-j12_leader_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1180px;
         }
         /* 순위 9 표는 2026-09-23 에 수익률 칸 셋이 늘었다 — 900px 로는 글자가
            짓눌린다. 폰·태블릿에서는 옆으로 밀어서 본다(다른 표와 같다). */
-        .st-key-j3_top7_table [data-testid="stHorizontalBlock"] {
+        .st-key-j12_top7_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1500px;   /* 2026-10-07 실적 두 칸이 늘었다 */
         }
         /* 상승장·급락 표는 2026-08-06에 '점수' 칸이 하나 늘어 아홉 칸이 됐다.
@@ -1056,53 +1056,53 @@ st.markdown(
            세 칸으로 갈리면서 열한 칸이 돼 1180px로 다시 넓힌다(상하님 지시
            "칸을 두 개 더"). 폰·태블릿에서는 어차피 옆으로 밀어서 본다. */
         /* 2026-10-07 「연간 실적」·「분기 실적」 두 칸이 늘어(「티커」·「1년 성적」은 뺐다) 1700px. */
-        .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"] {
+        .st-key-j12_rulebook_table [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important; min-width: 1700px;
         }
-        .st-key-j3_pullback_table [data-testid="stColumn"],
-        .st-key-j3_theme_rest [data-testid="stColumn"],
-        .st-key-j3_rulebook_rest [data-testid="stColumn"],
-        .st-key-j3_leader_table [data-testid="stColumn"],
-        .st-key-j3_top7_table [data-testid="stColumn"],
-        .st-key-j3_rulebook_table [data-testid="stColumn"],
-        .st-key-j3_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
+        .st-key-j12_pullback_table [data-testid="stColumn"],
+        .st-key-j12_theme_rest [data-testid="stColumn"],
+        .st-key-j12_rulebook_rest [data-testid="stColumn"],
+        .st-key-j12_leader_table [data-testid="stColumn"],
+        .st-key-j12_top7_table [data-testid="stColumn"],
+        .st-key-j12_rulebook_table [data-testid="stColumn"],
+        .st-key-j12_theme_table [data-testid="stColumn"] { min-width: 0 !important; }
     }
     /* 넓은 화면(1200px 넘음)에서도 실적 두 칸이 잘리지 않게 최소 폭을 준다(2026-10-07) — 모자라면 옆으로 민다. */
     @media (min-width: 1201px) {
-        .st-key-j3_leader_table [data-testid="stHorizontalBlock"] { min-width: 1180px; }
-        .st-key-j3_rulebook_table [data-testid="stHorizontalBlock"],
-        .st-key-j3_rulebook_rest [data-testid="stHorizontalBlock"] { min-width: 1700px; }
-        .st-key-j3_swing_table [data-testid="stHorizontalBlock"],
-        .st-key-j3_swing_rest [data-testid="stHorizontalBlock"] { min-width: 1100px; }
-        .st-key-j3_top7_table [data-testid="stHorizontalBlock"] { min-width: 1300px; }
+        .st-key-j12_leader_table [data-testid="stHorizontalBlock"] { min-width: 1180px; }
+        .st-key-j12_rulebook_table [data-testid="stHorizontalBlock"],
+        .st-key-j12_rulebook_rest [data-testid="stHorizontalBlock"] { min-width: 1700px; }
+        .st-key-j12_swing_table [data-testid="stHorizontalBlock"],
+        .st-key-j12_swing_rest [data-testid="stHorizontalBlock"] { min-width: 1100px; }
+        .st-key-j12_top7_table [data-testid="stHorizontalBlock"] { min-width: 1300px; }
     }
     .j3-td { white-space: nowrap; }
     /* 설명서 두 갈래 표의 칸은 제 폭 안에서 잘린다 — 테마 이름이 길어 옆 칸을
        덮던 것을 막는다(2026-08-01, 한국테마와 같은 처리). */
-    .st-key-j3_rulebook_table .j3-td { overflow: hidden; }
+    .st-key-j12_rulebook_table .j3-td { overflow: hidden; }
     /* 머리글이 「6개월 수익/률」「6개월 시장대/비」처럼 낱말 가운데서 끊겼다(2026-10-21 상하님 캡처) — 낱말 단위로만 줄바꿈. */
-    .st-key-j3_rulebook_table .j3-th-head, .st-key-j3_rulebook_rest .j3-th-head { word-break: keep-all; }
+    .st-key-j12_rulebook_table .j3-th-head, .st-key-j12_rulebook_rest .j3-th-head { word-break: keep-all; }
     .j3-rb-clip {
         display: block; max-width: 100%;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     /* 상승장 후보표는 급락표보다 칸이 적다. 공통 1180px 폭을 그대로 쓰면
        노트북·태블릿·폰 모두 항목 사이가 불필요하게 벌어지므로 이 표만 별도 폭을 쓴다. */
-    .st-key-j3_swing_table,
-    .st-key-j3_swing_rest {
+    .st-key-j12_swing_table,
+    .st-key-j12_swing_rest {
         /* 「당일주가」 칸이 하나 늘어 1080px 로는 항목이 서로 붙는다(2026-09-12).
            2026-10-07 「연간 실적」·「분기 실적」 두 칸이 늘어 1420px. */
         max-width: 1420px;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
-    .st-key-j3_swing_rest [data-testid="stExpander"] > details,
-    .st-key-j3_swing_rest [data-testid="stExpander"] > div {
+    .st-key-j12_swing_rest [data-testid="stExpander"] > details,
+    .st-key-j12_swing_rest [data-testid="stExpander"] > div {
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch;
     }
-    .st-key-j3_swing_table .j3-td,
-    .st-key-j3_swing_rest .j3-td { overflow: hidden; }
+    .st-key-j12_swing_table .j3-td,
+    .st-key-j12_swing_rest .j3-td { overflow: hidden; }
     /* ── 표를 한 덩이로 그릴 때 줄이 어긋나지 않게 (2026-08-26) ─────────────────
        표 한 벌에 칸을 한 번만 만들고 값들을 세로로 쌓으면, **옆 칸의 단추와
        높이가 정확히 같아야** 줄이 맞는다. 실측으로 어긋남을 잡았다 —
@@ -1111,12 +1111,12 @@ st.markdown(
        그래서 단추와 값 칸을 **같은 높이로 못박는다.** 43.2px 은 테마 표 단추의
        지금 높이 그대로다 — 보이는 모양은 안 바뀐다. 폰 375 · 태블릿 800 ·
        노트북 1400 모두 같은 값이었다. */
-    .st-key-j3_theme_table .j3-td,
-    .st-key-j3_theme_rest .j3-td,
-    .st-key-j3_top7_table .j3-td { min-height: 2.7rem; }
-    .st-key-j3_theme_table div[class*="st-key-j3tbtn_"] button,
-    .st-key-j3_theme_rest div[class*="st-key-j3tbtn_"] button,
-    .st-key-j3_top7_table div[class*="st-key-j3top7_"] button {
+    .st-key-j12_theme_table .j3-td,
+    .st-key-j12_theme_rest .j3-td,
+    .st-key-j12_top7_table .j3-td { min-height: 2.7rem; }
+    .st-key-j12_theme_table div[class*="st-key-j3tbtn_"] button,
+    .st-key-j12_theme_rest div[class*="st-key-j3tbtn_"] button,
+    .st-key-j12_top7_table div[class*="st-key-j3top7_"] button {
         height: 2.7rem !important;
         min-height: 2.7rem !important;
     }
@@ -1137,26 +1137,26 @@ st.markdown(
        줄까지 하나씩 나타나 그것이 눈에 띈다. 머리글 + 일곱 줄은 한꺼번에 그리고,
        화면 밖에 있는 아홉 번째부터만 미룬다. 줄들은 모두 형제라 차례로 셀 수 있다
        (실측 — 관찰만 표는 머리글 1 + 줄 15 = 형제 16개). */
-    .st-key-j3_swing_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"],
-    .st-key-j3_theme_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"],
-    .st-key-j3_rulebook_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"] {
+    .st-key-j12_swing_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"],
+    .st-key-j12_theme_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"],
+    .st-key-j12_rulebook_rest [data-testid="stExpander"] [data-testid="stLayoutWrapper"]:nth-child(n+9) > [data-testid="stHorizontalBlock"] {
         content-visibility: auto;
         contain-intrinsic-size: auto 46px;
     }
     /* 20개 테마 순위표도 화면 전체를 억지로 채우지 않는다. 가장 긴 테마명인
        「유전체·정밀의료」가 한 칸에 들어가는 폭을 기준으로 간격을 줄인다. */
-    .st-key-j3_theme_table,
-    .st-key-j3_theme_rest { max-width: 1200px; }
+    .st-key-j12_theme_table,
+    .st-key-j12_theme_rest { max-width: 1200px; }
     @media (max-width: 1200px) {
-        .st-key-j3_swing_table [data-testid="stHorizontalBlock"],
-        .st-key-j3_swing_rest [data-testid="stHorizontalBlock"] {
+        .st-key-j12_swing_table [data-testid="stHorizontalBlock"],
+        .st-key-j12_swing_rest [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important;
             min-width: 1100px;
         }
-        .st-key-j3_swing_table [data-testid="stColumn"],
-        .st-key-j3_swing_rest [data-testid="stColumn"] { min-width: 0 !important; }
-        .st-key-j3_theme_table [data-testid="stHorizontalBlock"],
-        .st-key-j3_theme_rest [data-testid="stHorizontalBlock"] {
+        .st-key-j12_swing_table [data-testid="stColumn"],
+        .st-key-j12_swing_rest [data-testid="stColumn"] { min-width: 0 !important; }
+        .st-key-j12_theme_table [data-testid="stHorizontalBlock"],
+        .st-key-j12_theme_rest [data-testid="stHorizontalBlock"] {
             min-width: 800px;
         }
     }
@@ -1191,41 +1191,41 @@ st.markdown(
     }
     div[class*="st-key-close_"] { margin: .1rem 0 .8rem; }
     /* 테마 종목 화면 닫기 — 기존 작은 크기는 유지하고 경고형 붉은 옷만 입힌다. */
-    div[class*="st-key-close_j3_theme_panel_open"] button {
+    div[class*="st-key-close_j12_theme_panel_open"] button {
         background: linear-gradient(90deg, #7f1d1d 0%, #b4232c 52%, #ef4b55 100%) !important;
         border-color: transparent !important;
         box-shadow: 0 0 0 1px rgba(239,75,85,.12) !important;
     }
-    div[class*="st-key-close_j3_theme_panel_open"] button:hover {
+    div[class*="st-key-close_j12_theme_panel_open"] button:hover {
         background: linear-gradient(90deg, #991b1b 0%, #c72d36 52%, #ff5964 100%) !important;
         border-color: transparent !important;
     }
-    div[class*="st-key-close_j3_theme_panel_open"] button p {
+    div[class*="st-key-close_j12_theme_panel_open"] button p {
         color: #ffffff !important;
         font-size: .82rem !important;
         font-weight: 850 !important;
     }
     /* 눌림목 찾기 버튼 — 순위 7 단추와 같은 모양(글자만큼만)에 진한 푸른색
        그라데이션(2026-07-30 사용자 지시). 한국테마와 같은 모양이다. */
-    div[class*="st-key-j3_pullback_find"] button {
+    div[class*="st-key-j12_pullback_find"] button {
         background: linear-gradient(90deg, #0b2a4a 0%, #123a63 38%, #1d6fc4 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
         min-height: 3rem !important;
         box-shadow: 0 2px 10px rgba(29,111,196,.25) !important;
     }
-    div[class*="st-key-j3_pullback_find"] button:hover {
+    div[class*="st-key-j12_pullback_find"] button:hover {
         background: linear-gradient(90deg, #0e3559 0%, #164876 38%, #2a86e0 100%) !important;
     }
     /* 설명서 두 갈래 단추(2026-08-01) — 눌림목 찾기와 같은 모양에 색만 다르게.
        상승장은 초록, 급락 반등장은 주황. 어느 갈래를 보고 있는지 색으로 안다. */
-    div[class*="st-key-j3_pullback_breakout"] button {
+    div[class*="st-key-j12_pullback_breakout"] button {
         background: linear-gradient(90deg, #063b2c 0%, #0b5137 38%, #12a06a 100%) !important;
         border: none !important; border-radius: .5rem !important;
         min-height: 3rem !important;
         box-shadow: 0 2px 10px rgba(18,160,106,.25) !important;
     }
-    div[class*="st-key-j3_pullback_crash"] button {
+    div[class*="st-key-j12_pullback_crash"] button {
         background: linear-gradient(90deg, #4a2408 0%, #7a3c0d 38%, #e07f1f 100%) !important;
         border: none !important; border-radius: .5rem !important;
         min-height: 3rem !important;
@@ -1234,30 +1234,30 @@ st.markdown(
     /* 「20개 테마 실시간 순위 보기」 — 위 두 단추와 **같은 크기**에 붉은색
        그라데이션(2026-08-14 상하님 지시). 순위표를 닫아 두면 '종목 찾기' 바로
        위에 이 단추가 나온다. 붉은색은 대장주 1~3위 비교와 같은 결이다. */
-    div[class*="st-key-btn_j3_theme_rank_open"] button,
-    div[class*="st-key-close_j3_theme_rank_open"] button {
+    div[class*="st-key-btn_j12_theme_rank_open"] button,
+    div[class*="st-key-close_j12_theme_rank_open"] button {
         background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
         border: none !important; border-radius: .5rem !important;
         box-shadow: 0 2px 10px rgba(224,71,79,.25) !important;
     }
     /* 크게 세우는 것은 **맨 위 단추만**이다(2026-08-14 상하님 지시 "크기는 예전
        크기로 하고"). 아래 닫기 단추는 색만 같고 크기는 다른 닫기 단추들과 같다. */
-    div[class*="st-key-btn_j3_theme_rank_open"] button {
+    div[class*="st-key-btn_j12_theme_rank_open"] button {
         min-height: 3rem !important;
     }
     /* 아래 닫기 단추가 22개 테마 덩이 끝으로 옮겨 와(2026-09-25) 단추가 12px 위로 붙고 그 밑 틈이
        12px 늘었다(폰·PC 실측 둘 다 — 상승장 단추 자리는 그대로). 단추만 예전 자리로 12px 내린다 —
        위로 12px 더 띄우고 밑을 12px 당기면 상승장 단추는 제자리, 둘 사이는 예전 25px 이다. */
-    div[class*="st-key-close_j3_theme_rank_open"] {
+    div[class*="st-key-close_j12_theme_rank_open"] {
         margin-top: 12px !important; margin-bottom: 0 !important;
     }
-    div[class*="st-key-btn_j3_theme_rank_open"] button:hover,
-    div[class*="st-key-close_j3_theme_rank_open"] button:hover {
+    div[class*="st-key-btn_j12_theme_rank_open"] button:hover,
+    div[class*="st-key-close_j12_theme_rank_open"] button:hover {
         background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
     }
-    div[class*="st-key-j3_pullback_breakout"] button p,
-    div[class*="st-key-j3_pullback_crash"] button p,
-    div[class*="st-key-btn_j3_theme_rank_open"] button p {
+    div[class*="st-key-j12_pullback_breakout"] button p,
+    div[class*="st-key-j12_pullback_crash"] button p,
+    div[class*="st-key-btn_j12_theme_rank_open"] button p {
         color: #ffffff !important;
         font-size: 1.14rem !important;
         font-weight: 800 !important;
@@ -1265,7 +1265,7 @@ st.markdown(
         margin: 0 !important;
     }
     /* 아래 닫기 단추 글자는 **예전 크기 그대로**다 — 위 '테마 종목 화면 닫기'와 같다. */
-    div[class*="st-key-close_j3_theme_rank_open"] button p {
+    div[class*="st-key-close_j12_theme_rank_open"] button p {
         color: #ffffff !important;
         font-size: .82rem !important;
         font-weight: 850 !important;
@@ -1274,17 +1274,17 @@ st.markdown(
        "20개 테마 실시간 순위 닫기처럼 만들라고"). */
     /* 색은 **여는 단추와 같은 파랑 그라데이션**이다 (2026-09-16 상하님 지시 —
        "색깔은 원래 매수심사결과 높은 순위 9 단추 색깔과 같은 색 그라데이션으로
-       해라, 크기는 지금 크기가 맞다"). 위 st-key-j3_top7_find 와 같은 값이다.
+       해라, 크기는 지금 크기가 맞다"). 위 st-key-j12_top7_find 와 같은 값이다.
        크기는 안 건드린다 — 글자 .82rem 그대로다. */
-    div[class*="st-key-close_j3_top7_open_above_search"] button {
+    div[class*="st-key-close_j12_top7_open_above_search"] button {
         background: linear-gradient(90deg, #0a2740 0%, #12507f 38%, #4da6ff 100%) !important;
         border: none !important; border-radius: .5rem !important;
         box-shadow: 0 2px 10px rgba(77,166,255,.25) !important;
     }
-    div[class*="st-key-close_j3_top7_open_above_search"] button:hover {
+    div[class*="st-key-close_j12_top7_open_above_search"] button:hover {
         background: linear-gradient(90deg, #0e3455 0%, #17629b 38%, #7cc8ff 100%) !important;
     }
-    div[class*="st-key-close_j3_top7_open_above_search"] button p {
+    div[class*="st-key-close_j12_top7_open_above_search"] button p {
         color: #ffffff !important;
         font-size: .82rem !important;
         font-weight: 850 !important;
@@ -1339,22 +1339,22 @@ st.markdown(
        2026-08-09 상하님 지시로 **테마 단추(j3tbtn_)와 같은 네모 테두리**를 준다 —
        "테마 테두리에 손을 올리면 보라색이 되는 게 좋다, 표마다 다 그렇게 해라".
        테두리가 없으면 손을 올려도 보라색이 될 자리가 없다. */
-    div[class*="st-key-j3rbf_"] button {
+    div[class*="st-key-j12rbf_"] button {
         background: rgba(255,255,255,.025) !important;
         border: 1px solid rgba(255,255,255,.24) !important; box-shadow: none !important;
         padding: .2rem .7rem !important; min-height: 2.5rem !important; width: 100% !important;
         justify-content: flex-start !important;
         border-radius: .55rem !important;
     }
-    div[class*="st-key-j3rbf_"] button:hover {
+    div[class*="st-key-j12rbf_"] button:hover {
         background: rgba(192,132,252,.09) !important;
         border-color: rgba(192,132,252,.55) !important;
     }
-    div[class*="st-key-j3rbf_"] button p {
+    div[class*="st-key-j12rbf_"] button p {
         color: #c084fc !important; font-weight: 800 !important; font-size: .94rem !important;
         margin: 0 !important; text-align: left !important;
     }
-    div[class*="st-key-j3_pullback_find"] button p {
+    div[class*="st-key-j12_pullback_find"] button p {
         color: #ffffff !important;
         font-size: 1.02rem !important;
         font-weight: 800 !important;
@@ -1388,8 +1388,8 @@ st.markdown(
     div[class*="st-key-j3tbtn_"] button,
     div[class*="st-key-j3lbtn_"] button,
     div[class*="st-key-j3top7_"] button,
-    div[class*="st-key-j3rbf_"] button,
-    div[class*="st-key-j3rbw_"] button,
+    div[class*="st-key-j12rbf_"] button,
+    div[class*="st-key-j12rbw_"] button,
     div[class*="st-key-j3pbf_"] button,
     div[class*="st-key-j3sw_"] button {
         height: 40px !important; min-height: 40px !important;
@@ -1398,8 +1398,8 @@ st.markdown(
     div[class*="st-key-j3tbtn_"] button p,
     div[class*="st-key-j3lbtn_"] button p,
     div[class*="st-key-j3top7_"] button p,
-    div[class*="st-key-j3rbf_"] button p,
-    div[class*="st-key-j3rbw_"] button p,
+    div[class*="st-key-j12rbf_"] button p,
+    div[class*="st-key-j12rbw_"] button p,
     div[class*="st-key-j3pbf_"] button p,
     div[class*="st-key-j3sw_"] button p {
         white-space: nowrap !important; overflow: hidden !important;
@@ -1411,30 +1411,30 @@ st.markdown(
         text-align: center !important;
     }
     /* 상세 종목 선택: 라벨은 스카이블루·두 치수 크게, 보기 글자는 한 치수 크게 */
-    div[class*="st-key-j3_stock_choice"] [data-testid="stWidgetLabel"] p {
+    div[class*="st-key-j12_stock_choice"] [data-testid="stWidgetLabel"] p {
         color: #7cc8ff !important;
         font-size: 1.55rem !important;
         font-weight: 800 !important;
     }
-    div[class*="st-key-j3_stock_choice"] label p,
-    div[class*="st-key-j3_stock_choice"] label div,
-    div[class*="st-key-j3_stock_choice"] label span {
+    div[class*="st-key-j12_stock_choice"] label p,
+    div[class*="st-key-j12_stock_choice"] label div,
+    div[class*="st-key-j12_stock_choice"] label span {
         font-size: 1.12rem !important;
     }
     /* '매수심사결과 높은 순위 7' 단추 — 2026-08-06 사용자 지시로 초록에서
        스카이블루 그라데이션으로 바꿨다. 옆 두 단추(상승장 초록 · 급락 주황)와
        색이 갈려야 세 갈래가 눈으로 구분된다. */
-    div[class*="st-key-j3_top7_find"] button {
+    div[class*="st-key-j12_top7_find"] button {
         background: linear-gradient(90deg, #0a2740 0%, #12507f 38%, #4da6ff 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
         min-height: 3rem !important;
         box-shadow: 0 2px 10px rgba(77,166,255,.25) !important;
     }
-    div[class*="st-key-j3_top7_find"] button:hover {
+    div[class*="st-key-j12_top7_find"] button:hover {
         background: linear-gradient(90deg, #0e3455 0%, #17629b 38%, #7cc8ff 100%) !important;
     }
-    div[class*="st-key-j3_top7_find"] button p {
+    div[class*="st-key-j12_top7_find"] button p {
         color: #ffffff !important;
         font-size: 1.14rem !important;
         font-weight: 800 !important;
@@ -1453,17 +1453,17 @@ st.markdown(
     .j3-top7-crash { color: #e67813; font-weight: 800; }
     /* '선택종목 세부사항 보기' — 눌림목 단추와 같은 모양에 진한 황금색
        (2026-07-30 사용자 지시, 한국테마와 같은 모양). */
-    div[class*="st-key-btn_j3_detail_open_"] button {
+    div[class*="st-key-btn_j12_detail_open_"] button {
         background: linear-gradient(90deg, #3a2705 0%, #6b4a0e 38%, #d9a521 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
         min-height: 3rem !important;
         box-shadow: 0 2px 10px rgba(217,165,33,.28) !important;
     }
-    div[class*="st-key-btn_j3_detail_open_"] button:hover {
+    div[class*="st-key-btn_j12_detail_open_"] button:hover {
         background: linear-gradient(90deg, #4a3208 0%, #855c14 38%, #efc04a 100%) !important;
     }
-    div[class*="st-key-btn_j3_detail_open_"] button p {
+    div[class*="st-key-btn_j12_detail_open_"] button p {
         color: #ffffff !important;
         font-size: 1.02rem !important;
         font-weight: 800 !important;
@@ -1473,21 +1473,21 @@ st.markdown(
     /* 안쪽 구역 단추(당일 차트 · 일봉/주봉/월봉 · 매수기록)도 같은 황금색으로.
        다만 위 단추보다 한 단계 연하게 하고 크기는 원래대로 둔다
        (2026-07-30 사용자 지시, 한국테마와 같은 모양). */
-    div[class*="st-key-btn_j3_intraday_open_"] button,
-    div[class*="st-key-btn_j3_bundle_open_"] button,
-    div[class*="st-key-btn_j3_buyform_open_"] button {
+    div[class*="st-key-btn_j12_intraday_open_"] button,
+    div[class*="st-key-btn_j12_bundle_open_"] button,
+    div[class*="st-key-btn_j12_buyform_open_"] button {
         background: linear-gradient(90deg, #6b4d16 0%, #9a7420 38%, #e8c264 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
     }
-    div[class*="st-key-btn_j3_intraday_open_"] button:hover,
-    div[class*="st-key-btn_j3_bundle_open_"] button:hover,
-    div[class*="st-key-btn_j3_buyform_open_"] button:hover {
+    div[class*="st-key-btn_j12_intraday_open_"] button:hover,
+    div[class*="st-key-btn_j12_bundle_open_"] button:hover,
+    div[class*="st-key-btn_j12_buyform_open_"] button:hover {
         background: linear-gradient(90deg, #7d5b1c 0%, #b28829 38%, #f3d489 100%) !important;
     }
-    div[class*="st-key-btn_j3_intraday_open_"] button p,
-    div[class*="st-key-btn_j3_bundle_open_"] button p,
-    div[class*="st-key-btn_j3_buyform_open_"] button p {
+    div[class*="st-key-btn_j12_intraday_open_"] button p,
+    div[class*="st-key-btn_j12_bundle_open_"] button p,
+    div[class*="st-key-btn_j12_buyform_open_"] button p {
         color: #ffffff !important;
         font-weight: 700 !important;
     }
@@ -1495,10 +1495,10 @@ st.markdown(
        "단추 색깔 무지개색으로 연하게 그라데이션 넣어줘").
        옆 단추들(황금·붉은색)과 싸우지 않게 **연하게**만 깐다 — 다섯 색을 36%
        투명도로 눕히고(20% 는 남색 바탕에 묻혀 무지개로 안 보였다 — 실물로 재 봤다) 글자는 흰색 그대로 둔다. 여닫는 단추 둘 다에 건다
-       (여는 쪽 `btn_j3_daily_prices_` · 닫는 쪽 `close_j3_daily_prices_`).
+       (여는 쪽 `btn_j12_daily_prices_` · 닫는 쪽 `close_j12_daily_prices_`).
        위 `st-key-close_` 공통 규칙보다 **뒤에 있어야** 닫기 단추에도 걸린다. */
-    div[class*="st-key-btn_j3_daily_prices_"] button,
-    div[class*="st-key-close_j3_daily_prices_"] button {
+    div[class*="st-key-btn_j12_daily_prices_"] button,
+    div[class*="st-key-close_j12_daily_prices_"] button {
         background: linear-gradient(90deg,
             rgba(255,107,107,.36) 0%, rgba(255,183,77,.36) 25%,
             rgba(129,199,132,.36) 50%, rgba(79,172,254,.36) 75%,
@@ -1506,33 +1506,33 @@ st.markdown(
         border: 1px solid rgba(255,255,255,.22) !important;
         border-radius: .5rem !important;
     }
-    div[class*="st-key-btn_j3_daily_prices_"] button:hover,
-    div[class*="st-key-close_j3_daily_prices_"] button:hover {
+    div[class*="st-key-btn_j12_daily_prices_"] button:hover,
+    div[class*="st-key-close_j12_daily_prices_"] button:hover {
         background: linear-gradient(90deg,
             rgba(255,107,107,.52) 0%, rgba(255,183,77,.52) 25%,
             rgba(129,199,132,.52) 50%, rgba(79,172,254,.52) 75%,
             rgba(186,148,250,.52) 100%) !important;
         border-color: rgba(255,255,255,.38) !important;
     }
-    div[class*="st-key-btn_j3_daily_prices_"] button p,
-    div[class*="st-key-close_j3_daily_prices_"] button p {
+    div[class*="st-key-btn_j12_daily_prices_"] button p,
+    div[class*="st-key-close_j12_daily_prices_"] button p {
         color: #ffffff !important;
         font-weight: 700 !important;
     }
     /* 「📰 종목 뉴스 보기」(2026-10-09) — 관심종목 뉴스 상자와 같은 파랑. 옆 황금·무지개 단추와 갈린다.
        여닫는 단추 둘 다에 건다 — 위 `st-key-close_` 공통 규칙보다 뒤에 있어야 닫기에도 걸린다. */
-    div[class*="st-key-btn_j3_news_open_"] button,
-    div[class*="st-key-close_j3_news_open_"] button {
+    div[class*="st-key-btn_j12_news_open_"] button,
+    div[class*="st-key-close_j12_news_open_"] button {
         background: linear-gradient(90deg, #12355f 0%, #1d5fa0 55%, #3aa3e0 100%) !important;
         border: 1px solid rgba(143,196,234,.35) !important;
         border-radius: .5rem !important;
     }
-    div[class*="st-key-btn_j3_news_open_"] button:hover,
-    div[class*="st-key-close_j3_news_open_"] button:hover {
+    div[class*="st-key-btn_j12_news_open_"] button:hover,
+    div[class*="st-key-close_j12_news_open_"] button:hover {
         background: linear-gradient(90deg, #17427a 0%, #2471bd 55%, #55b6ef 100%) !important;
     }
-    div[class*="st-key-btn_j3_news_open_"] button p,
-    div[class*="st-key-close_j3_news_open_"] button p {
+    div[class*="st-key-btn_j12_news_open_"] button p,
+    div[class*="st-key-close_j12_news_open_"] button p {
         color: #ffffff !important;
         font-weight: 700 !important;
     }
@@ -1545,28 +1545,28 @@ st.markdown(
         transition: filter .24s ease, opacity .24s ease;
     }
     /* 대장주 1~3위 비교 — 붉은색 그라데이션(2026-07-30 사용자 지시, 한국테마와 같다). */
-    div[class*="st-key-btn_j3_leadercmp_open"] button {
+    div[class*="st-key-btn_j12_leadercmp_open"] button {
         background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
         border: none !important;
         border-radius: .5rem !important;
     }
-    div[class*="st-key-btn_j3_leadercmp_open"] button:hover {
+    div[class*="st-key-btn_j12_leadercmp_open"] button:hover {
         background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
     }
-    div[class*="st-key-btn_j3_leadercmp_open"] button p {
+    div[class*="st-key-btn_j12_leadercmp_open"] button p {
         color: #ffffff !important;
         font-weight: 700 !important;
     }
     /* 맨 밑 작은 닫기 단추(2026-09-25) — 크기는 다른 닫기 단추처럼 작게, 색은 위 단추와 같은 그라데이션. */
-    div[class*="st-key-close_j3_leadercmp_open"] button {
+    div[class*="st-key-close_j12_leadercmp_open"] button {
         background: linear-gradient(90deg, #4a0f12 0%, #8a1c22 38%, #e0474f 100%) !important;
         border-color: transparent !important;
     }
-    div[class*="st-key-close_j3_leadercmp_open"] button:hover {
+    div[class*="st-key-close_j12_leadercmp_open"] button:hover {
         background: linear-gradient(90deg, #5c1418 0%, #a8232b 38%, #f06a71 100%) !important;
         border-color: transparent !important;
     }
-    div[class*="st-key-close_j3_leadercmp_open"] button p {
+    div[class*="st-key-close_j12_leadercmp_open"] button p {
         color: #ffffff !important;
     }
     /* 제목 띠 — 단추가 아니라 제목이다(누를 곳이 아니다). 순위 7 단추(초록)·
@@ -1655,14 +1655,14 @@ st.markdown(
        한 번만 움직이게"). 시간·곡선은 나스닥 고점 대비 막대(j3-ndd-grow)와 같다.
        ① 화면에 들어오면 한 번 — 페이지 맨 끝의 _ST5_WATCH 가 j3-st5-play 를 붙였다 뗀다.
        ② 마우스를 올리면 다시 — 나스닥 막대와 같다. 카드 위에는 속이 비치는 단추가
-          겹쳐 있어 카드가 아니라 **통**(j3_st5_wrap)에 손이 닿은 것으로 본다.
+          겹쳐 있어 카드가 아니라 **통**(j12_st5_wrap)에 손이 닿은 것으로 본다.
        이름이 둘인 까닭 — 같은 이름이면 ①이 끝난 뒤 손을 올려도 다시 안 돈다. */
     @keyframes j3-st5-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
     @keyframes j3-st5-regrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
     .j3-st5.j3-st5-play .j3-st5-bar i {
         animation: j3-st5-grow 1.4s cubic-bezier(.33,0,.2,1) both;
     }
-    div.st-key-j3_st5_wrap:hover .j3-st5:not(.j3-st5-play) .j3-st5-bar i {
+    div.st-key-j12_st5_wrap:hover .j3-st5:not(.j3-st5-play) .j3-st5-bar i {
         animation: j3-st5-regrow 1.4s cubic-bezier(.33,0,.2,1);
     }
     @media (prefers-reduced-motion: reduce) {
@@ -1674,8 +1674,8 @@ st.markdown(
     }
     /* ── 카드 **전체**가 누르는 자리다 (2026-09-11 상하님 지시) ──────────────
        속이 비치는 스트림릿 단추를 카드 위에 통째로 겹쳐 둔다. 하단 이동막대
-       (j3b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치와 같다. */
-    div.st-key-j3_st5_wrap {
+       (j12b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치와 같다. */
+    div.st-key-j12_st5_wrap {
         position: relative !important;
         /* **위로 당기는 것은 통이 한다.** 카드에 음수 여백을 주면 카드가 통 밖으로
            삐져나가, 겹쳐 둔 단추가 그 윗부분을 못 덮는다(2026-09-11 실측 —
@@ -1692,25 +1692,25 @@ st.markdown(
        펼친 판은 카드 내용 + 접이칸 둘 + 「닫기」가 온다. 그래서 당길 양이
        34px 다르다(실측 — 접힌 판 16px 일 때 펼친 판은 -18px 이었다).
        편 판에서는 당기지 않고 도로 밀어 둔다. */
-    body:has(.sig-fold-tap:checked) div.st-key-j3_st5_wrap {
+    body:has(.sig-fold-tap:checked) div.st-key-j12_st5_wrap {
         /* 2026-09-12 상하님 — 「닫기」와 카드 사이가 아직 넓다. 38px → 16px. */
         margin-top: -8px !important;
         /* 통이 카드보다 12px 더 길어서 카드와 「21개 테마」 사이가 24px 이었다
            (2026-09-11 실측 · 폰·태블릿 둘 다). 그 12px 을 도로 당긴다. */
         margin-bottom: -12px !important;
     }
-    div.st-key-j3_st5_wrap div.st-key-j3_st5_open {
+    div.st-key-j12_st5_wrap div.st-key-j12_st5_open {
         position: absolute !important; inset: 0 !important;
         margin: 0 !important; padding: 0 !important; z-index: 6 !important;
     }
-    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stVerticalBlock"],
-    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stElementContainer"],
-    div.st-key-j3_st5_wrap div.st-key-j3_st5_open [data-testid="stButton"] {
+    div.st-key-j12_st5_wrap div.st-key-j12_st5_open [data-testid="stVerticalBlock"],
+    div.st-key-j12_st5_wrap div.st-key-j12_st5_open [data-testid="stElementContainer"],
+    div.st-key-j12_st5_wrap div.st-key-j12_st5_open [data-testid="stButton"] {
         width: 100% !important; height: 100% !important;
         margin: 0 !important; padding: 0 !important; gap: 0 !important;
         max-width: none !important;
     }
-    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button {
+    div.st-key-j12_st5_wrap div.st-key-j12_st5_open button {
         width: 100% !important; height: 100% !important; min-height: 0 !important;
         margin: 0 !important; padding: 0 !important;
         border: 0 !important; border-radius: 16px !important;
@@ -1718,13 +1718,13 @@ st.markdown(
         color: transparent !important;
         pointer-events: auto !important; touch-action: manipulation !important;
     }
-    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button p { color: transparent !important; }
-    div.st-key-j3_st5_wrap div.st-key-j3_st5_open button:hover {
+    div.st-key-j12_st5_wrap div.st-key-j12_st5_open button p { color: transparent !important; }
+    div.st-key-j12_st5_wrap div.st-key-j12_st5_open button:hover {
         background: rgba(66,202,255,.07) !important;
     }
     /* 종목검색 칸 이름 — 바로 위 보라색 띠와 같은 계열로 진하게(2026-08-01 지시).
        어두운 화면에서도 읽히도록 띠의 밝은 쪽 보라를 쓴다. */
-    div[class*="st-key-j3_my_stock_query"] [data-testid="stWidgetLabel"] p {
+    div[class*="st-key-j12_my_stock_query"] [data-testid="stWidgetLabel"] p {
         color: #a855f7 !important;
         font-size: 1.08rem !important;
         font-weight: 900 !important;
@@ -1866,8 +1866,8 @@ def _login_gate() -> None:
     if not password:
         st.warning(".streamlit/secrets.toml에 APP_PASSWORD 설정이 필요합니다.")
         st.stop()
-    entered = st.text_input("비밀번호", type="password", key="j3_login_password")
-    if st.button("자비스12 로그인", key="j3_login_submit", width="stretch"):
+    entered = st.text_input("비밀번호", type="password", key="j12_login_password")
+    if st.button("자비스12 로그인", key="j12_login_submit", width="stretch"):
         if entered == password:
             auth.login_as_owner()
             st.rerun()
@@ -2342,7 +2342,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
     나머지 칸은 HTML이라 가운데 정렬·색·막대를 그대로 쓸 수 있다.
     """
     # 폰·태블릿에서 세로로 쌓지 않고 옆으로 밀어 본다(2026-07-25, 한국테마와 같은 방식).
-    theme_box = st.container(key="j3_theme_table")
+    theme_box = st.container(key="j12_theme_table")
     head = theme_box.columns(_THEME_ROW_WIDTHS)
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>테마</div>", unsafe_allow_html=True)
@@ -2370,7 +2370,7 @@ def _render_theme_table(ranking: dict, selected: str | None) -> str | None:
         # 키를 가진 칸으로 한 번 감싼다 — 그래야 위 표와 같은 '옆으로 밀기' CSS가
         # 이 안에도 걸린다(한국테마 j4_theme_rest와 같은 방식). 감싸지 않았더니
         # 폰에서 접힌 쪽만 순위·테마·값이 세로로 쌓였다(2026-08-09 상하님 캡처).
-        rest_box = st.container(key="j3_theme_rest").expander(
+        rest_box = st.container(key="j12_theme_rest").expander(
             f"{_THEME_VISIBLE_COUNT + 1}위~{len(all_rows)}위 테마 더 보기", expanded=False
         )
     # **표 한 벌에 칸을 한 번만 만든다** (2026-08-26 상하님 지시로 관찰만 표와
@@ -2614,7 +2614,7 @@ def _render_leader_table(leaders: list[dict], selected_ticker: str | None) -> st
     이름을 눌러도 아무 일이 없었다. 아래 '상세 종목 선택'은 그대로 둔다.
     폰·태블릿 규칙은 이미 도는 테마표·눌림목표와 같은 CSS 묶음에 얹었다.
     """
-    box = st.container(key="j3_leader_table")
+    box = st.container(key="j12_leader_table")
     head = box.columns(_LEADER_ROW_WIDTHS)
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
@@ -3099,7 +3099,7 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
     # 라인 좀 더 좁게. 즉 거래 15일치"). 줄 위아래 여백도 줄였다(.34rem → .2rem).
     # **4주(거래일 20일)로 늘렸다** (2026-10-09 상하님 지시 — "4주간으로 내용을 늘리고 제목도 바꿔라").
     # 이미 받아 둔 6개월 일봉에서 다섯 줄을 더 꺼낼 뿐이라 새로 받는 것은 없다.
-    key = f"j3_daily_prices_{panel or 'x'}_{str(ticker or 'x').lower()}"
+    key = f"j12_daily_prices_{panel or 'x'}_{str(ticker or 'x').lower()}"
     # **누르면 창으로 튀어 오른다** (2026-09-24 상하님 지시 — "3주간 일별 시세 이것도 클릭하면
     # 관심종목에서 종목 클릭하면 화면이 동일하게, 즉 파트별 성적표의 매수심사결과 높은 순위 9
     # 클릭하면 튀어나오게 하는 화면처럼 움직이게"). 예전에는 누르면 서버를 돌아 그 자리 밑에
@@ -3166,7 +3166,7 @@ def _render_day_price_row(metrics: dict, ticker: str | None = None,
         "border-bottom:1px solid rgba(255,255,255,.06)}"
         ".j3dp .j3dp-d{text-align:left;color:#9aa0aa;font-weight:700}"
         ".j3dp .j3dp-c{font-weight:800;color:#e6e6e6}"
-        # 여는 칸 — 서버 단추(btn_j3_daily_prices_)와 같은 연한 무지개 · 같은 크기
+        # 여는 칸 — 서버 단추(btn_j12_daily_prices_)와 같은 연한 무지개 · 같은 크기
         "label.j3dp-open{display:flex;align-items:center;justify-content:center;width:100%;"
         "box-sizing:border-box;min-height:2.5rem;padding:.35rem .75rem;border-radius:.5rem;"
         "border:1px solid rgba(255,255,255,.22);cursor:pointer;color:#fff;font-weight:700;"
@@ -3280,7 +3280,7 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme", on_open=Non
     때마다 20년치를 받아 와 느려진다. 당일 그림도 이 안에서 함께 받는다.
     """
     if not _section_toggle(
-        "📊 당일 · 일봉 · 주봉 · 월봉 보기", f"j3_bundle_open_{panel}",
+        "📊 당일 · 일봉 · 주봉 · 월봉 보기", f"j12_bundle_open_{panel}",
         close_label="차트 닫기", on_open=on_open,
     ):
         return
@@ -3303,7 +3303,7 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme", on_open=Non
     if not chart_bundle.get("ok"):
         if not boxes:
             st.warning(f"차트 조회 실패: {_safe_error_text(chart_bundle.get('error'))}")
-            _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
+            _section_close(f"j12_bundle_open_{panel}", "차트 닫기")
             return
     else:
         for timeframe in ("일봉", "주봉", "월봉"):
@@ -3321,7 +3321,7 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme", on_open=Non
                 boxes.append((timeframe, drawing, ""))
     if not boxes:
         st.warning("차트 자료가 없습니다.")
-        _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
+        _section_close(f"j12_bundle_open_{panel}", "차트 닫기")
         return
     # **누르면 크게 뜬다** (2026-09-23 저녁 상하님 지시 — "종목별 차트 일봉·주봉·월봉 클릭하면
     # 파트별 성적표 밑에 매수심사결과 높은 순위 9 처럼 창이 열리고 닫히고를 스마트폰 세로 화면
@@ -3333,7 +3333,7 @@ def _render_price_chart_bundle(ticker: str, *, panel: str = "theme", on_open=Non
                 unsafe_allow_html=True)
     if chart_bundle.get("stale"):
         st.warning("온라인 재조회가 실패해 마지막 정상 차트 자료를 표시하고 있습니다.")
-    _section_close(f"j3_bundle_open_{panel}", "차트 닫기")
+    _section_close(f"j12_bundle_open_{panel}", "차트 닫기")
 
 
 def _intraday_chart(payload: dict, height: int = 200, *, small: bool = False):
@@ -3392,7 +3392,7 @@ def _intraday_chart(payload: dict, height: int = 200, *, small: bool = False):
 def _render_market_overview() -> None:
     """시장판단은 페이지 최상단에서 5분마다 독립 갱신한다."""
     overview = j3data.get_market_overview()
-    st.session_state["j3_market_overview"] = overview
+    st.session_state["j12_market_overview"] = overview
     # 제목은 **절반 크기**다(2026-08-21 상하님 지시). st.subheader는 28px인데
     # 그만한 글씨가 필요한 자리가 아니다 — 아래 칸들이 주인공이다.
     st.markdown(
@@ -3516,12 +3516,12 @@ def _render_market_overview() -> None:
     # 만들지 말고 옆으로 만들어라"). 위아래로 두면 자리를 두 줄 먹는다.
     # 스트림릿은 폰에서 칸을 쌓으므로 이 줄만 쌓지 말라고 못박는다(아래 CSS).
     # 이름도 짧게 줄였다 — "조건점수 설명보기" · "시장전체흐름 기준보기".
-    _guide_row = st.container(key="j3_guide_row")
+    _guide_row = st.container(key="j12_guide_row")
     _guide_left, _guide_right = _guide_row.columns(2)
     _guide_left.markdown(
         f"""
-        <input type="checkbox" id="j3_guide_score" class="j3-guide-tap">
-        <label for="j3_guide_score" class="j3-guide-btn">조건점수 설명보기</label>
+        <input type="checkbox" id="j12_guide_score" class="j3-guide-tap">
+        <label for="j12_guide_score" class="j3-guide-btn">조건점수 설명보기</label>
         <div class="j3-guide-body">
             <div class="j3-score-guide">
                 <b>조건점수 {overview['score']}/100</b>은 상승장 확인 조건에서 얻은 점수이며
@@ -3542,15 +3542,15 @@ def _render_market_overview() -> None:
                 참고용이며 점수·판정에는 반영하지 않습니다.
             </div>
         </div>
-        <label for="j3_guide_score" class="j3-guide-btn bottom">닫기</label>
+        <label for="j12_guide_score" class="j3-guide-btn bottom">닫기</label>
         """,
         unsafe_allow_html=True,
     )
     # 시장 전체 흐름·행동 기준도 접는다(2026-07-25 사용자 지시: "다 숨겨라").
     _guide_right.markdown(
         f"""
-        <input type="checkbox" id="j3_guide_flow" class="j3-guide-tap">
-        <label for="j3_guide_flow" class="j3-guide-btn">시장전체흐름 기준보기</label>
+        <input type="checkbox" id="j12_guide_flow" class="j3-guide-tap">
+        <label for="j12_guide_flow" class="j3-guide-btn">시장전체흐름 기준보기</label>
         <div class="j3-guide-body">
             <div class="j3-market-flow">
                 <div class="j3-flow-label">시장 전체 흐름</div>
@@ -3562,7 +3562,7 @@ def _render_market_overview() -> None:
                 <div class="j3-action-detail">{_market_action_detail(overview)}</div>
             </div>
         </div>
-        <label for="j3_guide_flow" class="j3-guide-btn bottom">닫기</label>
+        <label for="j12_guide_flow" class="j3-guide-btn bottom">닫기</label>
         """,
         unsafe_allow_html=True,
     )
@@ -4248,7 +4248,7 @@ def _sector_theme_strip(live: bool, when: str) -> str:
         peek = getattr(j3data, "peek_theme_rankings", None)
         ranking = peek() if peek else None
         if not ranking:
-            ranking = st.session_state.get("j3_theme_rankings")
+            ranking = st.session_state.get("j12_theme_rankings")
     except Exception:
         ranking = None
     rows = [row for row in ((ranking or {}).get("rows") or []) if row.get("ok")][:5]
@@ -4434,9 +4434,9 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *,
                                 metrics=None) -> None:
     # **그리는 종목을 받아서 쓴다** (2026-09-24 상하님 캡처 — 순위 9 에서 CrowdStrike 를 눌렀는데
     # 세부사항 칸에 NET 의 가격·수익률이 나왔다). 예전에는 「22개 테마 안에서 마지막으로 고른
-    # 종목」(j3_selected_ticker)을 읽었는데, 그 값은 테마 상세에서만 적혀서 순위 9·검색·날짜별
+    # 종목」(j12_selected_ticker)을 읽었는데, 그 값은 테마 상세에서만 적혀서 순위 9·검색·날짜별
     # 목록 상세에서는 **전에 테마에서 본 종목**이 그대로 나왔다. 아래 관심종목 넣기 단추도 같았다.
-    ticker = ticker or st.session_state.get("j3_selected_ticker")
+    ticker = ticker or st.session_state.get("j12_selected_ticker")
     if not ticker:
         return
     # **장이 닫혀 있으면 목록 줄과 같은 값(metrics)을 그대로 쓴다** (2026-09-24 상하님 — 목록
@@ -4446,7 +4446,7 @@ def _render_selected_live_quote(stock_score=None, entry_state=None, *,
         quote = {"ok": True, **metrics}
     else:
         quote = j3data.get_live_quote(ticker)
-    st.session_state["j3_selected_live_quote"] = quote
+    st.session_state["j12_selected_live_quote"] = quote
     if not quote.get("ok"):
         st.warning(f"{ticker} 실시간 시세 갱신 실패: {_safe_error_text(quote.get('error'))}")
         return
@@ -4524,8 +4524,8 @@ div[class*="st-key-j3addrow_"] [data-testid="stColumn"] {
     min-width: 0 !important;
     flex: 1 1 0 !important;
 }
-div[class*="st-key-j3add_sel_"] button,
-div[class*="st-key-j3add_ext_"] button {
+div[class*="st-key-j12add_sel_"] button,
+div[class*="st-key-j12add_ext_"] button {
     border-radius: 10px !important;
     font-weight: 800 !important;
     letter-spacing: -.03em !important;
@@ -4534,39 +4534,39 @@ div[class*="st-key-j3add_ext_"] button {
     min-height: 0 !important;
     transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
 }
-div[class*="st-key-j3add_sel_"] button {
+div[class*="st-key-j12add_sel_"] button {
     background: linear-gradient(135deg, #147dd4, #0e3f75) !important;
     border: 1px solid #46b9fc !important;
     box-shadow: 0 3px 12px rgba(7, 118, 233, .28) !important;
 }
-div[class*="st-key-j3add_ext_"] button {
+div[class*="st-key-j12add_ext_"] button {
     background: linear-gradient(135deg, #b8860b, #6d4f0c) !important;
     border: 1px solid #f8cc70 !important;
     box-shadow: 0 3px 12px rgba(248, 204, 112, .22) !important;
 }
-div[class*="st-key-j3add_sel_"] button p,
-div[class*="st-key-j3add_ext_"] button p {
+div[class*="st-key-j12add_sel_"] button p,
+div[class*="st-key-j12add_ext_"] button p {
     color: #fff !important; font-weight: 800 !important;
     white-space: nowrap;            /* 두 줄로 접히면 단추가 두 배가 된다 */
     font-size: .8rem !important;
     line-height: 1.25 !important;
 }
 @media (max-width: 420px) {
-    div[class*="st-key-j3add_sel_"] button p,
-    div[class*="st-key-j3add_ext_"] button p { font-size: .72rem !important; }
+    div[class*="st-key-j12add_sel_"] button p,
+    div[class*="st-key-j12add_ext_"] button p { font-size: .72rem !important; }
 }
-div[class*="st-key-j3add_sel_"] button:hover,
-div[class*="st-key-j3add_ext_"] button:hover {
+div[class*="st-key-j12add_sel_"] button:hover,
+div[class*="st-key-j12add_ext_"] button:hover {
     transform: translateY(-1px); filter: brightness(1.12);
 }
 /* 자리 고르기 단추는 작고 수수하게 — 주인공은 위 단추 둘이다. */
-div[class*="st-key-j3add_slot_"] button {
+div[class*="st-key-j12add_slot_"] button {
     background: rgba(11, 40, 71, .55) !important;
     border: 1px solid #2b4e70 !important;
     border-radius: 10px !important;
     padding: .35rem .4rem !important;
 }
-div[class*="st-key-j3add_slot_"] button p { font-size: .82rem !important; color: #cfe4ff !important; }
+div[class*="st-key-j12add_slot_"] button p { font-size: .82rem !important; color: #cfe4ff !important; }
 .j3-add-msg {
     margin: .35rem 0 .1rem; font-size: .84rem; font-weight: 700;
     padding: .4rem .7rem; border-radius: 10px;
@@ -4597,22 +4597,22 @@ def _render_watchlist_add_buttons(ticker: str, *, panel: str = "") -> None:
     # **티커는 단추에 안 적는다** — 바로 위 카드에 크게 있고, 폰에서 글자가
     # 두 줄로 접혀 단추가 두 배로 커진다(2026-09-12 실측 375px).
     if left.button("⭐ 사용자 선정에 넣기",
-                   key=f"j3add_sel_{slot_key}", width="stretch"):
+                   key=f"j12add_sel_{slot_key}", width="stretch"):
         _watchlist_add(ticker, name, group="selected")
         _rerun_here()
     if right.button("🔍 추가 검색에 넣기",
-                    key=f"j3add_ext_{slot_key}", width="stretch"):
+                    key=f"j12add_ext_{slot_key}", width="stretch"):
         _watchlist_add(ticker, name, group="extra")
         _rerun_here()
 
-    message, tone = st.session_state.get("j3add_msg") or ("", "ok")
+    message, tone = st.session_state.get("j12add_msg") or ("", "ok")
     if message:
         st.markdown(f"<div class='j3-add-msg {tone}'>{html.escape(message)}</div>",
                     unsafe_allow_html=True)
 
     # 여섯 자리가 꽉 찼을 때만 자리를 고르게 한다.
-    slots = st.session_state.get("j3add_slots") or []
-    if slots and st.session_state.get("j3add_slots_for") == ticker:
+    slots = st.session_state.get("j12add_slots") or []
+    if slots and st.session_state.get("j12add_slots_for") == ticker:
         st.markdown(
             "<div class='j3-add-ask'>여섯 자리가 다 찼습니다. "
             f"<b>{html.escape(ticker)}</b> 을(를) 넣을 자리를 고르십시오 — "
@@ -4623,7 +4623,7 @@ def _render_watchlist_add_buttons(ticker: str, *, panel: str = "") -> None:
         for index, row in enumerate(slots):
             position = int(row.get("position") or index + 1)
             label = f"{position}. {row.get('ticker') or '—'} 바꾸기"
-            if columns[index % 3].button(label, key=f"j3add_slot_{position}_{slot_key}",
+            if columns[index % 3].button(label, key=f"j12add_slot_{position}_{slot_key}",
                                          width="stretch"):
                 _watchlist_replace(position, ticker, name)
                 _rerun_here()
@@ -4631,15 +4631,15 @@ def _render_watchlist_add_buttons(ticker: str, *, panel: str = "") -> None:
 
 def _watchlist_add(ticker: str, name: str, *, group: str) -> None:
     """저장고에 넣는다. 자리가 없으면 넣지 않고 그 사실을 적어 둔다."""
-    st.session_state.pop("j3add_slots", None)
-    st.session_state.pop("j3add_slots_for", None)
+    st.session_state.pop("j12add_slots", None)
+    st.session_state.pop("j12add_slots_for", None)
     try:
         briefing_store.ensure_tables()
         if group == "extra":
             briefing_store.add_extra(ticker, name)
             limit = getattr(briefing_store, "EXTRA_LIMIT", 20)
             used = len(briefing_store.extra_stocks())
-            st.session_state["j3add_msg"] = (
+            st.session_state["j12add_msg"] = (
                 f"{ticker} 을(를) 관심종목 화면의 「추가 검색 종목」에 "
                 f"넣었습니다 ({used}/{limit}).", "ok")
             return
@@ -4655,28 +4655,28 @@ def _watchlist_add(ticker: str, name: str, *, group: str) -> None:
                 adder(ticker, name)
             except ValueError as exc:
                 if "이미" in str(exc):
-                    st.session_state["j3add_msg"] = (str(exc), "no")
+                    st.session_state["j12add_msg"] = (str(exc), "no")
                     return
-                st.session_state["j3add_msg"] = ("", "ok")
-                st.session_state["j3add_slots"] = rows
-                st.session_state["j3add_slots_for"] = ticker
+                st.session_state["j12add_msg"] = ("", "ok")
+                st.session_state["j12add_slots"] = rows
+                st.session_state["j12add_slots_for"] = ticker
                 return
-            st.session_state["j3add_msg"] = (
+            st.session_state["j12add_msg"] = (
                 f"{ticker} 을(를) 관심종목 화면의 「사용자 선정 종목」에 "
                 f"넣었습니다 ({len(rows) + 1}/{slots}).", "ok")
             return
         # 옛 모듈이 프로세스에 남아 add_selected 가 없을 때는 예전처럼 자리를 묻는다.
         if any(str(row.get("ticker") or "").upper() == ticker for row in rows):
-            st.session_state["j3add_msg"] = (
+            st.session_state["j12add_msg"] = (
                 f"{ticker} 은(는) 이미 「사용자 선정 종목」에 있습니다.", "no")
             return
-        st.session_state["j3add_msg"] = ("", "ok")
-        st.session_state["j3add_slots"] = rows
-        st.session_state["j3add_slots_for"] = ticker
+        st.session_state["j12add_msg"] = ("", "ok")
+        st.session_state["j12add_slots"] = rows
+        st.session_state["j12add_slots_for"] = ticker
     except ValueError as exc:                 # 자리가 찼거나 이미 있는 종목이다
-        st.session_state["j3add_msg"] = (str(exc), "no")
+        st.session_state["j12add_msg"] = (str(exc), "no")
     except Exception as exc:                  # 저장고가 막혀도 화면은 살아 있어야 한다
-        st.session_state["j3add_msg"] = (
+        st.session_state["j12add_msg"] = (
             f"넣지 못했습니다: {_safe_error_text(exc)}", "no")
 
 
@@ -4684,19 +4684,19 @@ def _watchlist_replace(position: int, ticker: str, name: str) -> None:
     """고른 자리의 종목을 이 종목으로 바꾼다."""
     try:
         before = ""
-        for row in st.session_state.get("j3add_slots") or []:
+        for row in st.session_state.get("j12add_slots") or []:
             if int(row.get("position") or 0) == int(position):
                 before = str(row.get("ticker") or "")
         briefing_store.replace_selected(int(position), ticker, name)
-        st.session_state["j3add_msg"] = (
+        st.session_state["j12add_msg"] = (
             f"{position}번 자리의 {before} 을(를) {ticker} 으(로) 바꿨습니다.", "ok")
     except ValueError as exc:
-        st.session_state["j3add_msg"] = (str(exc), "no")
+        st.session_state["j12add_msg"] = (str(exc), "no")
     except Exception as exc:
-        st.session_state["j3add_msg"] = (
+        st.session_state["j12add_msg"] = (
             f"바꾸지 못했습니다: {_safe_error_text(exc)}", "no")
-    st.session_state.pop("j3add_slots", None)
-    st.session_state.pop("j3add_slots_for", None)
+    st.session_state.pop("j12add_slots", None)
+    st.session_state.pop("j12add_slots_for", None)
 
 
 def _load_theme_rankings() -> dict:
@@ -4713,7 +4713,7 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
     scroll_to.anchor(st, _LEADERCMP_ANCHOR)
     if not _section_toggle(
         "🏅 대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 클릭하면 볼 수 있습니다",
-        "j3_leadercmp_open",
+        "j12_leadercmp_open",
         close_label="대장주 1~3위 · 당일/일봉/주봉/월봉 비교 — 다시 클릭하면 닫힙니다",
         on_open=lambda: scroll_to.request(st, _LEADERCMP_ANCHOR),
     ):
@@ -4801,7 +4801,7 @@ def _render_leader_comparison(leaders: list[dict]) -> None:
     # **맨 밑(3위 밑 · 「선택종목 세부사항」 위)에도 작은 닫기 단추** (2026-09-25 상하님 지시 — "색깔
     # 그라데이션 맞추고"). 세 종목 차트가 폰에서 화면 몇 장이라 위 단추까지 올라가지 않고 닫게 한다.
     # 닫으면 화면이 위 단추 자리로 올라간다(열 때와 같은 자리 표시).
-    _section_close("j3_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉/월봉 비교 닫기",
+    _section_close("j12_leadercmp_open", "대장주 1~3위 · 당일/일봉/주봉/월봉 비교 닫기",
                    return_to=_LEADERCMP_ANCHOR)
 
 
@@ -4868,7 +4868,7 @@ def _render_stock_detail(
     """
     ticker = leader["ticker"]
     if panel == "theme":
-        st.session_state["j3_selected_ticker"] = ticker
+        st.session_state["j12_selected_ticker"] = ticker
     metrics, plan = leader["metrics"], leader["plan"]
 
     st.divider()
@@ -4876,7 +4876,7 @@ def _render_stock_detail(
     scroll_to.anchor(st, f"detail_{panel}")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시, 한국테마와 같다).
     if not _section_toggle(
-        "🔎 선택종목 세부사항 보기", f"j3_detail_open_{panel}",
+        "🔎 선택종목 세부사항 보기", f"j12_detail_open_{panel}",
         close_label="선택종목 세부사항 닫기", on_close=on_close,
     ):
         return
@@ -4900,7 +4900,7 @@ def _render_stock_detail(
         _day_price_box(metrics, ticker, panel)
         _render_price_chart_bundle(ticker, panel=panel)
         _stock_news_box(ticker, panel)
-        _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기",
+        _section_close(f"j12_detail_open_{panel}", "선택종목 세부사항 닫기",
                        on_close=on_close)
         return
 
@@ -4999,7 +4999,7 @@ def _render_stock_detail(
             st.markdown("<div class='j3-section-title'>일반 테마매매 점수</div>", unsafe_allow_html=True)
             st.markdown(
                 _general_theme_score_help_html(
-                    factor_rows, total_row, f"j3_general_theme_help_{panel}",
+                    factor_rows, total_row, f"j12_general_theme_help_{panel}",
                 ),
                 unsafe_allow_html=True,
             )
@@ -5040,7 +5040,7 @@ def _render_stock_detail(
                 _factor_table_html(
                     factor_rows, total_row,
                     [name for name, _maximum in factor_spec],
-                    f"j3_factor_help_{panel}",
+                    f"j12_factor_help_{panel}",
                 ),
                 unsafe_allow_html=True,
             )
@@ -5240,14 +5240,14 @@ def _render_stock_detail(
 
     _render_buy_form(theme_row, leader, market, top_candidates, stock_key, panel=panel)
     # 이 상세 한 벌의 맨 끝 — 여기서 바로 접을 수 있게 한다(2026-08-01 사용자 지시).
-    _section_close(f"j3_detail_open_{panel}", "선택종목 세부사항 닫기", on_close=on_close)
+    _section_close(f"j12_detail_open_{panel}", "선택종목 세부사항 닫기", on_close=on_close)
     if panel == "top7":
         # 「매수심사결과 높은 순위 9 닫기」는 **✕ 선택종목 세부사항 닫기 바로 밑**이다.
         # 2026-08-26 상하님이 자리를 바로잡아 주셨다 — "너가 지금 매수심사결과 높은
         # 순위 9 닫기를 위에 두니 내가 안 보이지. 선택종목 세부사항 닫기 밑에 넣어야
         # 된다." 앞서 '실제 매수기록 저장' 위에 뒀더니 금빛 저장 단추에 눈이 가려
         # 회색 닫기 단추가 묻혔다. 누르면 열린 화면을 다 닫고 맨 위로 올라간다.
-        _section_close("j3_top7_open", "매수심사결과 높은 순위 9 닫기",
+        _section_close("j12_top7_open", "매수심사결과 높은 순위 9 닫기",
                        slot="_detail", on_close=_close_top7_from_fragment)
 
 
@@ -5258,7 +5258,7 @@ def _render_stock_detail(
 # _THEME_CHART_OPEN_KEYS).
 # 「20개 테마 실시간 순위」 표를 열어 둘까(2026-08-14 상하님 지시). **기본은 열림.**
 # 여닫는 단추는 '종목 찾기' 바로 위에 있다(_render_pullback_finder 맨 앞).
-_THEME_RANK_OPEN = "j3_theme_rank_open"
+_THEME_RANK_OPEN = "j12_theme_rank_open"
 # 21개 테마를 열 때 화면이 올라갈 자리 (2026-09-11 상하님 지시 — "캡처 화면처럼
 # 위치를 맞춰라"). 표가 맨 위에 오도록 21개 테마 단추 **바로 위**에 찍는다.
 _THEME_RANK_ANCHOR = "theme_rank_top"
@@ -5272,27 +5272,27 @@ _TOP7_ANCHOR = "top7_top"
 _LEADERCMP_ANCHOR = "leadercmp_top"
 
 _THEME_PANEL_OPEN_KEYS = (
-    "j3_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
-    "j3_detail_open_theme",     # 🔎 선택종목 세부사항 보기
-    "j3_intraday_open_theme",   # 📈 당일 · 실시간 차트 보기
-    "j3_bundle_open_theme",     # 📊 일봉 · 주봉 · 월봉 보기
+    "j12_leadercmp_open",        # 🏅 대장주 1~3위 · 당일/일봉/주봉 비교
+    "j12_detail_open_theme",     # 🔎 선택종목 세부사항 보기
+    "j12_intraday_open_theme",   # 📈 당일 · 실시간 차트 보기
+    "j12_bundle_open_theme",     # 📊 일봉 · 주봉 · 월봉 보기
 )
 # 위 넷 가운데 **차트** 구역. 테마 이름을 누를 때는 이것들을 **펴지 않는다**
 # (2026-09-25 상하님 — "바꿔라"). 느린 폰에서 테마를 처음 열 때 2.5~5.4초의 대부분이
 # 대장주 차트 12장과 세부 차트였다. 차트는 그 단추를 누를 때만 열린다.
 # 표에서 **종목**을 누를 때와 '상세 종목 선택'으로 고를 때는 예전처럼 넷을 다 편다.
 _THEME_CHART_OPEN_KEYS = (
-    "j3_leadercmp_open",
-    "j3_intraday_open_theme",
-    "j3_bundle_open_theme",
+    "j12_leadercmp_open",
+    "j12_intraday_open_theme",
+    "j12_bundle_open_theme",
 )
 
 
 # 「종목 찾기」의 세 갈래 단추. 20개 테마 순위를 닫을 때 이것들도 같이 닫는다.
-_FINDER_OPEN_KEYS = ("j3_pullback_open", "j3_top7_open")
+_FINDER_OPEN_KEYS = ("j12_pullback_open", "j12_top7_open")
 # 상세 한 벌 안에서 열리는 창들. 갈래마다 이름 뒤가 다르다.
-_DETAIL_OPEN_PREFIXES = ("j3_detail_open_", "j3_intraday_open_", "j3_bundle_open_",
-                         "j3_leadercmp_open_", "j3_buyform_open_", "j3_news_open_")
+_DETAIL_OPEN_PREFIXES = ("j12_detail_open_", "j12_intraday_open_", "j12_bundle_open_",
+                         "j12_leadercmp_open_", "j12_buyform_open_", "j12_news_open_")
 _DETAIL_PANELS = ("theme", "top7", "pullback")
 
 
@@ -5307,7 +5307,7 @@ def _close_full_theme_rank() -> None:
     ILMN'이 그대로 있었다). 이제 세 갈래와 그 안에서 연 창, 골라 둔 값까지 비운다.
     """
     st.session_state[_THEME_RANK_OPEN] = False
-    st.session_state["j3_theme_panel_open"] = False
+    st.session_state["j12_theme_panel_open"] = False
     for opened in _THEME_PANEL_OPEN_KEYS:
         st.session_state[opened] = False
     for opened in _FINDER_OPEN_KEYS:
@@ -5317,10 +5317,10 @@ def _close_full_theme_rank() -> None:
             st.session_state[f"{prefix}{panel}"] = False
     # 선택값까지 남아 있으면 다음에 열었을 때 직전 상세가 되살아난 것처럼 보인다.
     for state_key in list(st.session_state):
-        if str(state_key).startswith("j3_stock_choice_"):
+        if str(state_key).startswith("j12_stock_choice_"):
             st.session_state.pop(state_key, None)
-    for state_key in ("j3_theme_choice", "j3_theme_choice_widget",
-                      "j3_top7_pick_row", "j3_top7_detail_choice"):
+    for state_key in ("j12_theme_choice", "j12_theme_choice_widget",
+                      "j12_top7_pick_row", "j12_top7_detail_choice"):
         st.session_state.pop(state_key, None)
     scroll_to.request(st, _RADAR_MAIN_ANCHOR)
 
@@ -5334,7 +5334,7 @@ def _close_all_from_fragment() -> None:
     "아직 안 되어 있다"). 판 전체를 다시 그리라고 적어 두고 조각 끝에서 실행한다.
     """
     _close_full_theme_rank()
-    st.session_state["j3_close_all_pending"] = True
+    st.session_state["j12_close_all_pending"] = True
 
 
 def _close_top7_from_fragment() -> None:
@@ -5358,9 +5358,9 @@ def _close_top7_from_fragment() -> None:
     """
     others_open = (
         st.session_state.get(_THEME_RANK_OPEN)
-        or st.session_state.get("j3_theme_panel_open")
+        or st.session_state.get("j12_theme_panel_open")
         or any(st.session_state.get(key) for key in _THEME_PANEL_OPEN_KEYS)
-        or st.session_state.get("j3_pullback_open")
+        or st.session_state.get("j12_pullback_open")
     )
     if others_open:
         _close_all_from_fragment()
@@ -5392,7 +5392,7 @@ def _close_theme_rank_from_fragment() -> None:
     outside_open = any(st.session_state.get(key) for key in _FINDER_OPEN_KEYS)
     _close_full_theme_rank()
     if outside_open:
-        st.session_state["j3_close_all_pending"] = True
+        st.session_state["j12_close_all_pending"] = True
 
 
 def _open_theme_rank_from_fragment() -> None:
@@ -5412,7 +5412,7 @@ def _open_theme_rank_from_fragment() -> None:
 
 def _run_close_all_if_requested() -> None:
     """적어 둔 '판 전체 다시 그리기'를 한 번 실행한다. 프래그먼트 끝에서 부른다."""
-    if not st.session_state.pop("j3_close_all_pending", False):
+    if not st.session_state.pop("j12_close_all_pending", False):
         return
     try:
         st.rerun(scope="app")
@@ -5495,13 +5495,13 @@ def _render_strong_theme_top5(ranking: dict) -> None:
     #  전체보기 삭제하고").
     #
     # 카드 그림과 **속이 비치는 단추**를 한 통에 담고, 단추를 통 위에 통째로
-    # 겹쳐 둔다. 하단 이동막대(j3b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치다 —
+    # 겹쳐 둔다. 하단 이동막대(j12b_nav_controls)와 맨 위 ↻ 가 쓰는 그 장치다 —
     # 스트림릿 단추 안에는 막대·점수 같은 HTML을 넣을 수 없어서, 보이는 것과
     # 누르는 것을 따로 두고 겹치는 수밖에 없다.
     #
     # 겹치기가 안 먹어도 **화면은 그대로 돌아간다** — 카드가 안 눌릴 뿐이고,
     # 바로 밑 「21개 테마」 단추로 여시면 된다.
-    with st.container(key="j3_st5_wrap"):
+    with st.container(key="j12_st5_wrap"):
         st.markdown(
             '<div class="j3-st5"><div class="j3-st5-head">'
             '<span class="j3-st5-flash">⚡</span><b>강한 테마 TOP 5</b>'
@@ -5522,8 +5522,8 @@ def _render_strong_theme_top5(ranking: dict) -> None:
         # 여는 방식은 `_section_toggle` 의 _flip 과 **똑같다**(상태를 켜고
         # 방문기록을 쌓는다). 달리 쓰면 뒤로가기가 그 단추와 다르게 움직인다.
         # 글자는 남겨 둔다 — 눈에는 안 보여도 화면을 읽어 주는 기기가 이것을 읽는다.
-        with st.container(key="j3_st5_open"):
-            if st.button(f"강한 테마 TOP 5 — {_THEME_COUNT}개 테마 열기", key="j3_st5_open_btn"):
+        with st.container(key="j12_st5_open"):
+            if st.button(f"강한 테마 TOP 5 — {_THEME_COUNT}개 테마 열기", key="j12_st5_open_btn"):
                 st.session_state[_THEME_RANK_OPEN] = True
                 back_nav.opened(st, _THEME_RANK_OPEN)
                 # 맨 위 단추로 열 때와 **똑같은 자리**로 화면을 올린다
@@ -5595,7 +5595,7 @@ def _section_close(
     slot은 **같은 값을 끄는 단추를 한 화면에 둘 이상** 둘 때 쓴다(2026-08-15
     상하님 지시 — 상승장·급락 갈래는 목록 위와 상세 아래 두 곳에 닫기가 있다).
     스트림릿은 열쇠가 같은 단추를 두 번 그리면 오류를 낸다. 색을 입히는 CSS는
-    `class*='st-key-close_j3_pullback_open'`처럼 **앞부분만** 맞추므로 slot이
+    `class*='st-key-close_j12_pullback_open'`처럼 **앞부분만** 맞추므로 slot이
     붙어도 같은 색이 그대로 간다.
     """
     def _close():
@@ -6042,7 +6042,7 @@ def _factor_table_html(factor_rows: str, total_row: str, names, key: str,
               for name, note in zip(names, note_list)]
     picked = [item for item in picked if item[1] or item[2]]
     # 닫기 단추 색은 **그 파트의 갈래 색**이다(2026-08-14 상하님 지시). 갈래는 열쇠
-    # 이름으로 안다 — j3_factor_help_pullback_breakout / …_crash. 테마 실시간·순위 7은
+    # 이름으로 안다 — j12_factor_help_pullback_breakout / …_crash. 테마 실시간·순위 7은
     # 갈래가 아니라 회색 그대로다(초록=상승장, 주황=급락이라는 약속이 흐려진다).
     close_tone = ("j3fh-x-breakout" if str(key).endswith("_breakout")
                   else "j3fh-x-crash" if str(key).endswith("_crash") else "")
@@ -6339,7 +6339,7 @@ def _render_buy_form(
     # 매수 기록은 눌러야 열린다 — 늘 펴 두면 화면이 길고 기록 조회도 매번 돈다
     # (2026-07-30 사용자 지시, 한국테마와 같은 처리).
     if not _section_toggle(
-        "💾 실제 매수기록 저장하시겠습니까?", f"j3_buyform_open_{panel}",
+        "💾 실제 매수기록 저장하시겠습니까?", f"j12_buyform_open_{panel}",
         close_label="매수기록 닫기",
     ):
         return
@@ -6347,7 +6347,7 @@ def _render_buy_form(
     # **한 번 눌러 바로 저장**(2026-08-14 상하님 지시). 매수가는 지금 값, 매수일은
     # 오늘이다. 아래 자세한 폼은 그대로 뒀다 — 실제 체결가가 화면 값과 다를 때
     # 고쳐 적으실 자리다. **주문은 내지 않는다**(_save_trade_now 설명 참고).
-    quick_msg_key = f"j3_quick_buy_msg_{panel}"
+    quick_msg_key = f"j12_quick_buy_msg_{panel}"
 
     def _quick_save():
         st.session_state[quick_msg_key] = _save_trade_now(theme_row, leader, market)
@@ -6357,7 +6357,7 @@ def _render_buy_form(
         f"🧾 지금 값으로 바로 저장 — {leader.get('name') or ticker}"
         + (f" ${float(price_now):,.2f}" if price_now else "")
         + f" · {date.today().isoformat()}",
-        key=f"j3_quick_buy_{panel}", on_click=_quick_save,
+        key=f"j12_quick_buy_{panel}", on_click=_quick_save,
     )
     quick_msg = st.session_state.pop(quick_msg_key, None)
     if quick_msg:
@@ -6433,24 +6433,24 @@ def _render_buy_form_fields(theme_row: dict, leader: dict, market: dict,
                             *, panel: str = "theme") -> None:
     ticker = leader["ticker"]
     metrics, plan = leader["metrics"], leader["plan"]
-    with st.form(f"j3_buy_form_{panel}_{ticker}", clear_on_submit=False, border=False):
+    with st.form(f"j12_buy_form_{panel}_{ticker}", clear_on_submit=False, border=False):
         c1, c2, c3, c4 = st.columns(4)
-        buy_date = c1.date_input("매수일", value=date.today(), key=f"j3_buy_date_{panel}_{ticker}")
+        buy_date = c1.date_input("매수일", value=date.today(), key=f"j12_buy_date_{panel}_{ticker}")
         default_price = float(metrics.get("current") or 0.01)
         buy_price = c2.number_input(
             "실제 매수가(USD)", min_value=0.01, value=round(default_price, 2), step=0.01,
-            key=f"j3_buy_price_{panel}_{ticker}",
+            key=f"j12_buy_price_{panel}_{ticker}",
         )
         quantity = c3.number_input(
-            "수량(선택)", min_value=0.0, value=0.0, step=1.0, key=f"j3_buy_qty_{panel}_{ticker}",
+            "수량(선택)", min_value=0.0, value=0.0, step=1.0, key=f"j12_buy_qty_{panel}_{ticker}",
         )
         trade_style = c4.selectbox(
-            "매매유형", ["스윙", "단타", "중장기"], key=f"j3_trade_style_{panel}_{ticker}",
+            "매매유형", ["스윙", "단타", "중장기"], key=f"j12_trade_style_{panel}_{ticker}",
         )
-        memo = st.text_area("매수 이유·메모", key=f"j3_buy_memo_{panel}_{ticker}", height=80)
+        memo = st.text_area("매수 이유·메모", key=f"j12_buy_memo_{panel}_{ticker}", height=80)
         confirmed = st.checkbox(
             "실제 체결된 매수임을 확인합니다",
-            key=f"j3_buy_confirm_{panel}_{ticker}",
+            key=f"j12_buy_confirm_{panel}_{ticker}",
         )
         submitted = st.form_submit_button("매수 기록 저장", width="stretch")
 
@@ -6523,7 +6523,7 @@ _PICKLIST_ANCHOR = "picklist_top"
 # 날짜 칸의 열쇠 — picklist_ui 가 `picklist_date_{시장}` 으로 만든다(그 모듈은 안 건드린다).
 _PICKLIST_DATE_KEY = "picklist_date_US"
 # 지난 판에 본 날짜. 이것과 달라졌으면 날짜를 바꿔 고르신 판이다.
-_PICKLIST_SEEN_DATE_KEY = "j3_picklist_seen_date"
+_PICKLIST_SEEN_DATE_KEY = "j12_picklist_seen_date"
 
 
 def _picklist_quick_closes(codes) -> dict | None:
@@ -6635,9 +6635,9 @@ def _picklist_no_scorecard(_part: str) -> bool:
 # **화면 단추 이름 그대로** 넷이다 (2026-09-16 상하님 지적 — 「순위 9」를 그 안의
 # 매수 파트로 쪼개 「순위 9 · 테마 대장주」라고 부른 것은 제가 만든 이름이었다).
 # 막대 색도 그 단추 색 그대로라, 어느 단추 이야기인지 색만 보고 알 수 있다.
-_SCORECARD_KEY = "j3_scorecard_open"
-_SCORECARD_CACHE = "j3_scorecard_counts"
-_SCORECARD_SPAN_KEY = "j3_scorecard_span"
+_SCORECARD_KEY = "j12_scorecard_open"
+_SCORECARD_CACHE = "j12_scorecard_counts"
+_SCORECARD_SPAN_KEY = "j12_scorecard_span"
 # 칩에 적는 말. 속으로 쓰는 이름(누계)과 화면에 적는 말을 따로 둔다.
 _SCORECARD_CHIP_LABELS = {"누계": "기록 시작 후 누계"}
 _SCORECARD_PARTS = (
@@ -7278,9 +7278,9 @@ def _scorecard_panel_html(data: dict, span: str) -> str:
 # 투명도가 있게", "기간 고르기 하면 그때 종목들이 나오게". 디자인 2판 그대로(상하님 — "나머지는
 # 너가 권하는 대로"). 계산은 scorecard_compare 한 곳이고, 여기는 **어느 줄을 넣을지(기간)**만
 # 고른다 — 위 막대(_scorecard_counts_cached · _scorecard_range_counts)와 같은 줄을 고른다.
-_SCORECARD_VX_TAB = "j3vx_tab"          # all · theme · swing
-_SCORECARD_VX_PERIOD = "j3vx_period"    # d · w · m
-_SCORECARD_VX_VIEW = "j3vx_view"        # line · bar
+_SCORECARD_VX_TAB = "j12vx_tab"          # all · theme · swing
+_SCORECARD_VX_PERIOD = "j12vx_period"    # d · w · m
+_SCORECARD_VX_VIEW = "j12vx_view"        # line · bar
 _SCORECARD_VX_HELP = {
     "all": "나스닥 종합(회색 굵은 띠)과 네 파트를 한 그림에 겹쳐 봅니다.",
     "theme": "나스닥 종합(회색 굵은 띠)과 상위 테마 5개(1~3위)만 견줍니다.",
@@ -7401,18 +7401,18 @@ def _render_scorecard_compare(span: str, picked=None) -> None:
     st.markdown(
         vx.CSS + "<div class='j3vx'><div class='j3vx-head'><b>📈 나스닥 종합과 견줘 보기</b>"
         "<span>위에서 고른 기간 그대로</span></div></div>", unsafe_allow_html=True)
-    with st.container(key="j3vx_rowtabs"):
+    with st.container(key="j12vx_rowtabs"):
         for column, (key, label, _parts) in zip(st.columns(len(vx.TABS)), vx.TABS):
-            column.button(label, key=f"j3vx_t_{key}", width="stretch",
+            column.button(label, key=f"j12vx_t_{key}", width="stretch",
                           type="primary" if key == tab else "secondary",
                           on_click=_pick_scorecard_vx, args=(_SCORECARD_VX_TAB, key))
-    period_buttons = [(_SCORECARD_VX_PERIOD, key, label, f"j3vx_p_{key}", key == period)
+    period_buttons = [(_SCORECARD_VX_PERIOD, key, label, f"j12vx_p_{key}", key == period)
                       for key, label in vx.PERIODS]
-    view_buttons = [(_SCORECARD_VX_VIEW, key, label, f"j3vx_v_{key}", key == view) for key, label in views]
+    view_buttons = [(_SCORECARD_VX_VIEW, key, label, f"j12vx_v_{key}", key == view) for key, label in views]
     # 테마 비교표는 보기 단추가 셋이라 **두 줄**(일별·주별·월별 / 선·막대·나스닥보다 더·덜) — 한 줄 여섯이면 폰에서
     # 단추 하나가 55px 로 좁아진다. 다른 탭은 예전처럼 한 줄 다섯.
-    rows = ([("j3vx_rowopts", period_buttons), ("j3vx_rowviews", view_buttons)] if tab == "themes"
-            else [("j3vx_rowopts", period_buttons + view_buttons)])
+    rows = ([("j12vx_rowopts", period_buttons), ("j12vx_rowviews", view_buttons)] if tab == "themes"
+            else [("j12vx_rowopts", period_buttons + view_buttons)])
     for row_key, options in rows:
         with st.container(key=row_key):
             for column, (state_key, key, label, widget_key, chosen) in zip(st.columns(len(options)), options):
@@ -7499,10 +7499,10 @@ def _pick_scorecard_span(value: str) -> None:
 # 끝날을 고르려면 다시 열어야 했다. 그래서 숫자 단추 달력을 직접 그린다 — 항공편 예약처럼
 # 「시작일」 칸을 누르면 그 달력이, 날을 누르면 곧바로 「종료일」 달력이 뜨고, 날을 누르면 닫히며
 # 성적이 나온다. 미국장이 쉬는 날(주말·휴일)은 칸만 있고 누를 수 없다. 주말 줄은 뺐다.
-_SCORECARD_RANGE_START = "j3sc_rng_start"
-_SCORECARD_RANGE_END = "j3sc_rng_end"
-_SCORECARD_RANGE_STEP = "j3sc_rng_step"      # "start" · "end" · "" (두 날을 다 고름)
-_SCORECARD_RANGE_MONTH = "j3sc_rng_month"    # 달력에 띄운 (연, 월)
+_SCORECARD_RANGE_START = "j12sc_rng_start"
+_SCORECARD_RANGE_END = "j12sc_rng_end"
+_SCORECARD_RANGE_STEP = "j12sc_rng_step"      # "start" · "end" · "" (두 날을 다 고름)
+_SCORECARD_RANGE_MONTH = "j12sc_rng_month"    # 달력에 띄운 (연, 월)
 
 
 def _range_open_field(which: str) -> None:
@@ -7550,27 +7550,27 @@ def _render_range_picker():
     step = state.get(_SCORECARD_RANGE_STEP) or ""
     if _SCORECARD_RANGE_MONTH not in state:
         state[_SCORECARD_RANGE_MONTH] = (last_day.year, last_day.month)
-    with st.container(key="j3sc_calf"):
+    with st.container(key="j12sc_calf"):
         fields = st.columns(2)
         fields[0].button(f"시작일 · {start:%Y.%m.%d}" if start else "시작일 · 누르세요",
-                         key="j3sc_calf_start", width="stretch",
+                         key="j12sc_calf_start", width="stretch",
                          type="primary" if step == "start" else "secondary",
                          on_click=_range_open_field, args=("start",))
         fields[1].button(f"종료일 · {end:%Y.%m.%d}" if end else "종료일 · 누르세요",
-                         key="j3sc_calf_end", width="stretch", disabled=start is None,
+                         key="j12sc_calf_end", width="stretch", disabled=start is None,
                          type="primary" if step == "end" else "secondary",
                          on_click=_range_open_field, args=("end",))
     if step:
         year, month = state[_SCORECARD_RANGE_MONTH]
-        with st.container(key="j3sc_cal"):
+        with st.container(key="j12sc_cal"):
             head = st.columns([1, 4, 1])
-            head[0].button("◀", key="j3sc_cal_prev", width="stretch",
+            head[0].button("◀", key="j12sc_cal_prev", width="stretch",
                            disabled=(year, month) <= (first_day.year, first_day.month),
                            on_click=_range_move_month, args=(-1,))
             head[1].markdown(
                 f"<div class='j3sc-cal-title'>{'① 시작일' if step == 'start' else '② 종료일'}을 누르세요"
                 f"<b>{year}년 {month}월</b></div>", unsafe_allow_html=True)
-            head[2].button("▶", key="j3sc_cal_next", width="stretch",
+            head[2].button("▶", key="j12sc_cal_next", width="stretch",
                            disabled=(year, month) >= (last_day.year, last_day.month),
                            on_click=_range_move_month, args=(1,))
             st.markdown("<div class='j3sc-cal-week'><span>월</span><span>화</span><span>수</span>"
@@ -7591,7 +7591,7 @@ def _render_range_picker():
                         continue
                     chosen = day in (start, end)
                     inside = bool(start and end and start < day < end)
-                    cell.button(str(day.day), key=f"j3sc_cal_{'in' if inside else 'd'}_{day.isoformat()}",
+                    cell.button(str(day.day), key=f"j12sc_cal_{'in' if inside else 'd'}_{day.isoformat()}",
                                 width="stretch", type="primary" if chosen else "secondary",
                                 on_click=_range_pick_day, args=(day.isoformat(),))
         return None
@@ -7638,13 +7638,13 @@ def _render_picklist_scorecard(part: str):
     if span != _SCORECARD_RANGE:
         with st.spinner("저장해 둔 목록으로 성적을 세는 중입니다…"):
             data = _scorecard_counts()
-    panel = st.container(key="j3sc_box")
+    panel = st.container(key="j12sc_box")
     picked = None
     with panel:
-        # **머리·칩·막대를 한 칸(j3sc_top)에 싼다** (2026-10-07). 순위 9 창(.j3pop)은 둘레 칸의
+        # **머리·칩·막대를 한 칸(j12sc_top)에 싼다** (2026-10-07). 순위 9 창(.j3pop)은 둘레 칸의
         # 가운데에 뜨는데, 밑에 「나스닥 종합과 견줘 보기」가 붙어 성적표 상자가 길어지면 창이
         # 막대에서 멀리 떨어져 화면 밖에 뜬다. 그래서 창의 둘레를 막대까지로 묶는다.
-        with st.container(key="j3sc_top"):
+        with st.container(key="j12sc_top"):
             st.markdown(
                 # 자리 표시는 머리와 **같은 글 상자** 안에 둔다 — 따로 두면 칸 사이 틈이 하나 는다.
                 f"<div id='{scroll_to.anchor_id(_SCORECARD_ANCHOR)}' class='jarvis-anchor j3sc-anchor'></div>"
@@ -7656,7 +7656,7 @@ def _render_picklist_scorecard(part: str):
                 chips[index].button(
                     "📅 기간 고르기" if label == _SCORECARD_RANGE
                     else _SCORECARD_CHIP_LABELS.get(label, label),
-                    key=f"j3sc_span_{index}", width="stretch",
+                    key=f"j12sc_span_{index}", width="stretch",
                     type="primary" if label == span else "secondary",
                     on_click=_pick_scorecard_span, args=(label,),
                 )
@@ -7840,17 +7840,17 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
     """
     part = _picklist_part(kind, row)
     # 고른 종목이 바뀌면 상세·차트가 저절로 열리고 화면이 그 자리로 내려간다.
-    if st.session_state.get("j3_picklist_shown") != code:
-        st.session_state["j3_picklist_shown"] = code
+    if st.session_state.get("j12_picklist_shown") != code:
+        st.session_state["j12_picklist_shown"] = code
         # **제 이름표(picklist)만 켠다.** 예전에는 눌림목 쪽 열쇠까지 같이 켰는데,
         # 그러면 위쪽 급락 구역의 상세까지 열려 같은 열쇠가 한 판에 두 번 생겼다
         # (2026-09-02 상하님 화면 — "multiple elements with the same key").
         # 이제 상세가 제 이름표로 그려지므로 남의 열쇠를 건드릴 까닭이 없다.
-        for opened in ("j3_detail_open_picklist", "j3_intraday_open_picklist",
-                       "j3_bundle_open_picklist"):
+        for opened in ("j12_detail_open_picklist", "j12_intraday_open_picklist",
+                       "j12_bundle_open_picklist"):
             st.session_state[opened] = True
-        back_nav.opened(st, "j3_detail_open_picklist",
-                        "j3_intraday_open_picklist", "j3_bundle_open_picklist")
+        back_nav.opened(st, "j12_detail_open_picklist",
+                        "j12_intraday_open_picklist", "j12_bundle_open_picklist")
         scroll_to.request(st, "detail_picklist")
     # 여기가 그 자리다 — 위쪽 눌림목 상세와 이름이 겹치면 엉뚱한 데로 내려간다.
     # 안쪽 상세도 같은 이름으로 한 번 더 그리지만, **먼저 그린 이곳**으로 간다
@@ -7904,7 +7904,7 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
             if found:
                 _render_stock_detail(
                     theme_row or {"name": theme_name}, found, market, [found],
-                    "j3_picklist_detail_choice", panel="picklist",
+                    "j12_picklist_detail_choice", panel="picklist",
                     on_close=_forget_picklist_pick,
                 )
                 return
@@ -7917,14 +7917,14 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
         f"어느 배점으로 재야 할지 알 수 없어 배점표를 그리지 않습니다. "
         f"표에 적힌 그날 점수는 그대로 보실 수 있습니다."
     )
-    _section_close("j3_detail_open_picklist", "선택종목 세부사항 닫기",
+    _section_close("j12_detail_open_picklist", "선택종목 세부사항 닫기",
                    on_close=_forget_picklist_pick)
 
 
 def _forget_picklist_pick() -> None:
     """상세를 닫으면 고른 표시도 같이 걷는다 (종목검색과 같은 방식)."""
     st.session_state.pop(picklist_ui.pick_key("US"), None)
-    st.session_state.pop("j3_picklist_shown", None)
+    st.session_state.pop("j12_picklist_shown", None)
 
 
 def _picklist_not_today(part: str, name: str) -> None:
@@ -7936,7 +7936,7 @@ def _picklist_not_today(part: str, name: str) -> None:
         f"그리지 않습니다. 다른 자로 재면 표에 적힌 그날 점수와 어긋난 숫자가 "
         f"나옵니다."
     )
-    _section_close("j3_detail_open_picklist", "선택종목 세부사항 닫기",
+    _section_close("j12_detail_open_picklist", "선택종목 세부사항 닫기",
                    on_close=_forget_picklist_pick)
 
 
@@ -7962,7 +7962,7 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
     # 돌아간다(세 번째 캡처). 두 단추가 같은 일을 하므로 한 함수를 같이 쓴다.
     st.button(
         "✕ 테마 종목 화면 닫기",
-        key="close_j3_theme_panel_open_top",
+        key="close_j12_theme_panel_open_top",
         on_click=_close_theme_rank_from_fragment,
     )
     # st.pills는 이 환경에서 클릭이 먹지 않아 검증된 radio로 교체한다(선택 동작만 교체).
@@ -7970,9 +7970,9 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
         "테마 선택",
         names,
         horizontal=True,
-        key="j3_theme_choice_widget",
+        key="j12_theme_choice_widget",
     )
-    st.session_state["j3_theme_choice"] = selected_theme
+    st.session_state["j12_theme_choice"] = selected_theme
     theme_row = next((row for row in ranking["rows"] if row["name"] == selected_theme), None)
     if theme_row is None:
         st.warning("선택한 테마 자료를 찾지 못했습니다. 다른 테마를 선택하세요.")
@@ -8035,7 +8035,7 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
     # 한국테마와 같은 문제). 표에 나온 여섯 개를 그대로 고를 수 있게 한다.
     top_candidates = leaders[:6]
     ticker_options = [leader["ticker"] for leader in top_candidates]
-    stock_key = f"j3_stock_choice_{selected_theme}"
+    stock_key = f"j12_stock_choice_{selected_theme}"
     clicked_ticker = _render_leader_table(leaders, st.session_state.get(stock_key))
     if clicked_ticker:
         st.session_state[stock_key] = clicked_ticker
@@ -8086,7 +8086,7 @@ def _render_theme_panel(market: dict, ranking: dict, names: list) -> None:
         _render_stock_detail(theme_row, selected_leader, market, top_candidates, stock_key)
     # 맨 아래 닫기도 위 단추와 **같은 일**을 한다 — 어디서 닫든 같은 화면으로
     # 돌아가야 한다(2026-08-28 상하님 지시).
-    _section_close("j3_theme_panel_open", "테마 종목 화면 닫기",
+    _section_close("j12_theme_panel_open", "테마 종목 화면 닫기",
                    on_close=_close_theme_rank_from_fragment)
 
 
@@ -8107,10 +8107,10 @@ def _render_theme_section(market: dict) -> None:
 
     **자료를 이 안에서 싣는다.** 밖에서 실어 넘기면 덩이만 다시 돌 때 밖이 안
     돌아, 마지막 판의 옛 순위가 언제까지고 그대로 나온다. 실은 것은
-    `j3_theme_rankings`에 적어 둬서 뒤쪽 화면이 같은 것을 쓰게 한다.
+    `j12_theme_rankings`에 적어 둬서 뒤쪽 화면이 같은 것을 쓰게 한다.
     """
     ranking = _load_theme_rankings()
-    st.session_state["j3_theme_rankings"] = ranking
+    st.session_state["j12_theme_rankings"] = ranking
     if not ranking.get("ok"):
         st.error(f"테마 자료 조회 실패: {_safe_error_text(ranking.get('error'))}")
         return
@@ -8145,11 +8145,11 @@ def _render_theme_section(market: dict) -> None:
         clicked_theme = None
         # 20개 순위를 닫을 때는 순위표만 숨기지 않고, 그 순위표에서 열었던
         # 테마 종목과 종목 세부 판도 같이 닫아 미국테마 기본화면으로 돌아간다.
-        st.session_state["j3_theme_panel_open"] = False
+        st.session_state["j12_theme_panel_open"] = False
         for opened in _THEME_PANEL_OPEN_KEYS:
             st.session_state[opened] = False
     else:
-        clicked_theme = _render_theme_table(ranking, st.session_state.get("j3_theme_choice"))
+        clicked_theme = _render_theme_table(ranking, st.session_state.get("j12_theme_choice"))
         # **이 점수가 무엇인지 정직하게 적는다**(2026-08-14). 재 보니 점수가 높은
         # 테마가 그 뒤에 더 오르지 않았다 — 평상시 1,708일에서 5일부터 1년까지
         # 여섯 기간 모두 오차가 0을 걸쳤다(research/us_theme_rank_check.py).
@@ -8170,9 +8170,9 @@ def _render_theme_section(market: dict) -> None:
             unsafe_allow_html=True,
         )
     if clicked_theme in names:
-        st.session_state["j3_theme_choice"] = clicked_theme
-        st.session_state["j3_theme_choice_widget"] = clicked_theme
-        st.session_state["j3_theme_panel_open"] = True
+        st.session_state["j12_theme_choice"] = clicked_theme
+        st.session_state["j12_theme_choice_widget"] = clicked_theme
+        st.session_state["j12_theme_panel_open"] = True
         # 테마 하나를 누르면 **아래 네 구역까지 한 번에 편다**(2026-08-14 상하님 지시 —
         # "대장주 1~3위까지 자동 클릭되게, 선택종목 세부사항 보기까지, 당일 실시간
         # 차트 보기·일봉·주봉·월봉 보기까지"). 그전에는 단추를 네 번 더 눌러야 했다.
@@ -8187,14 +8187,14 @@ def _render_theme_section(market: dict) -> None:
         # 연 자리가 표 아래 두 화면 밑이라 직접 굴려 내려가야 했다. 열면서 같이
         # 내려간다(2026-08-21 상하님 지시).
         scroll_to.request(st, "theme_stocks")
-    if (st.session_state.get("j3_theme_panel_open")
-            and st.session_state.get("j3_theme_choice_widget") not in names):
-        preferred_theme = st.session_state.get("j3_theme_choice")
-        st.session_state["j3_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
+    if (st.session_state.get("j12_theme_panel_open")
+            and st.session_state.get("j12_theme_choice_widget") not in names):
+        preferred_theme = st.session_state.get("j12_theme_choice")
+        st.session_state["j12_theme_choice_widget"] = preferred_theme if preferred_theme in names else names[0]
 
     # 선택 테마 설명·종목 1~6위·상세 종목 선택은 평소에는 닫아 둔다. 20개 순위표의
     # 테마 이름을 눌렀을 때만 한 화면으로 열고, 아래 독립 영역들은 그대로 보여준다.
-    if st.session_state.get("j3_theme_panel_open"):
+    if st.session_state.get("j12_theme_panel_open"):
         _render_theme_panel(market, ranking, names)
 
     # 덩이 안에서 「다 닫기」를 눌렀으면 여기서 판 전체를 다시 그린다.
@@ -8221,7 +8221,7 @@ def _render_radar_tab(market: dict) -> None:
     scroll_to.anchor(st, _RADAR_MAIN_ANCHOR)
     # 테마 구역은 따로 도는 덩이다. 테마 자료도 그 안에서 싣는다.
     _render_theme_section(market)
-    ranking = st.session_state.get("j3_theme_rankings") or {}
+    ranking = st.session_state.get("j12_theme_rankings") or {}
     if not ranking.get("ok"):
         # 오류 문구는 덩이 안에서 이미 보여줬다. 뒤쪽 화면은 이 자료를 쓰므로 건너뛴다.
         return
@@ -8311,8 +8311,8 @@ def _blend_top7(market: dict, ranking: dict) -> dict:
     상하님이 이미 열어 두신 갈래 결과를 넘겨 같은 조회를 두 번 하지 않게 한다.
     """
     market_score = float(market.get("score") or 0)
-    opened = st.session_state.get("j3_pullback_result") or {}
-    opened_mode = str(st.session_state.get("j3_pullback_mode") or "")
+    opened = st.session_state.get("j12_pullback_result") or {}
+    opened_mode = str(st.session_state.get("j12_pullback_mode") or "")
     # **급락 3개는 기준일 10종목에서 급락 배점 높은 차례로 위 3개**(2026-10-15 상하님 — "너가 자동으로 배점 높은 것 순으로
     # 10종목 하라고" · "배점은 급락 후 반등 종목 이야기다"). 급락 칸을 열어 둔 결과가 있으면 그것을 쓴다(같은 10종목).
     # 못 재면 급락 자리는 비우고 까닭을 적는다 — 옛 20개로 채우지 않는다(같은 화면 두 규칙이 섞인다).
@@ -8353,12 +8353,12 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 자동으로 모은다. 두 갈래는 같은 일봉 묶음을 쓰므로 한 번만 받아 온다.
     # 단추는 하나다 — 열려 있으면 접고, 닫혀 있으면 새로 뽑아 편다
     # (2026-07-30 사용자 지시: '새로 뽑기'를 따로 두지 말고 예전처럼 하나로).
-    is_open = bool(st.session_state.get("j3_top7_open"))
+    is_open = bool(st.session_state.get("j12_top7_open"))
     # **단추 바로 위**가 화면이 올라올 자리다 (2026-09-11 상하님 지시 — 캡처처럼
     # 이 단추가 맨 위에 서고 그 밑에 표가 보이게). 높이 0짜리라 칸 하나를 더
     # 차지하는데, 그 12px 은 아래 CSS 가 **이 자리 하나만** 골라 도로 당긴다.
     scroll_to.anchor(st, _TOP7_ANCHOR)
-    run_requested = st.button("매수심사결과 높은 순위 9", key="j3_top7_find")
+    run_requested = st.button("매수심사결과 높은 순위 9", key="j12_top7_find")
     if run_requested and is_open:
         # 닫기 — 조회는 하지 않는다. 열린 것을 모두 닫고 메인 시작점으로 올라간다
         # (2026-08-26 상하님 지시). 이 단추도 프래그먼트 안이라 판 전체를 다시
@@ -8368,30 +8368,30 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
         run_requested = False
     if (
         run_requested
-        and _kept_recently("j3_top7_at")
-        and st.session_state.get("j3_top7_result") is not None
+        and _kept_recently("j12_top7_at")
+        and st.session_state.get("j12_top7_result") is not None
     ):
         # 방금 뽑아 둔 것이 있으면 그대로 편다 — 다시 여는 데 몇 초를 또 내지 않는다.
-        st.session_state["j3_top7_open"] = True
+        st.session_state["j12_top7_open"] = True
         scroll_to.request(st, _TOP7_ANCHOR)
         run_requested = False
     if run_requested:
         with st.spinner("테마 대장주와 두 갈래 종목을 각각 줄 세우는 중입니다…"):
             found = _blend_top7(market, ranking)
-        st.session_state["j3_top7_result"] = found
-        st.session_state["j3_top7_at"] = time.time()
-        st.session_state["j3_top7_open"] = True
+        st.session_state["j12_top7_result"] = found
+        st.session_state["j12_top7_at"] = time.time()
+        st.session_state["j12_top7_open"] = True
         scroll_to.request(st, _TOP7_ANCHOR)
         # 1위 종목 상세를 미리 펴 두지 않는다 — 상세 한 벌이 분봉·일봉·주봉·월봉을
         # 다 받아 오느라 여는 시간이 그만큼 늘어난다(2026-07-30).
-        st.session_state.pop("j3_top7_pick_row", None)
+        st.session_state.pop("j12_top7_pick_row", None)
         # 여기서 st.rerun()을 부르지 않는다. 단추를 누르면 스트림릿이 이미 화면을
         # 한 번 다시 그리는 중이고, 상세는 이 아래에서 그려지므로 지금 넣은 값이
         # 그대로 쓰인다. rerun을 부르면 통째로 한 번 더 그려 시간이 두 배가 된다.
 
-    if not st.session_state.get("j3_top7_open"):
+    if not st.session_state.get("j12_top7_open"):
         return
-    result = st.session_state.get("j3_top7_result")
+    result = st.session_state.get("j12_top7_result")
     if result is None:
         return
     rows = result.get("rows") or []
@@ -8430,7 +8430,7 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     # 같은 이름 칸과 같은 자다(jarvis3_data 의 테마 강도도 SPY 로 뺀다).
     # 시장대비의 기준(SPY)도 종목과 **같은 규칙**으로 잰다(2026-09-24 · _shown_numbers).
     spy_ret120 = _shown_numbers((market.get("rows") or {}).get("SPY") or {})["ret120"]
-    box = st.container(key="j3_top7_table")
+    box = st.container(key="j12_top7_table")
     for column, title in zip(box.columns(widths), titles):
         if title is None:
             column.markdown(_flex_row(_TOP7_RET_WIDTHS, ret_titles, head=True),
@@ -8528,15 +8528,15 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
     for label, index, row in labels:
         if cols[1].button(label, key=f"j3top7_{index:02d}", width="stretch"):
             # rerun 없이 값만 바꾼다 — 상세는 이 아래에서 그려지므로 곧바로 반영된다.
-            st.session_state["j3_top7_pick_row"] = row
+            st.session_state["j12_top7_pick_row"] = row
             # 종목을 누르면 세부사항과 차트까지 한 번에 열린다(2026-08-06 사용자 지시,
             # 상승장·급락 표와 같은 동작). 누르고 또 눌러야 보이던 것을 없앤다.
             # 갈래에서 온 줄은 눌림목 상세(panel="pullback")가 그리고 대장주 줄은
             # 종목 상세(panel="top7")가 그리므로 양쪽 열쇠를 다 켠다.
-            for opened in ("j3_detail_open_top7", "j3_bundle_open_top7",
-                           "j3_intraday_open_top7",
-                           "j3_detail_open_pullback", "j3_bundle_open_pullback",
-                           "j3_intraday_open_pullback"):
+            for opened in ("j12_detail_open_top7", "j12_bundle_open_top7",
+                           "j12_intraday_open_top7",
+                           "j12_detail_open_pullback", "j12_bundle_open_pullback",
+                           "j12_intraday_open_pullback"):
                 st.session_state[opened] = True
             scroll_to.request(st, "detail_top7")
     cols[2].markdown(_stacked(score_cells), unsafe_allow_html=True)
@@ -8572,11 +8572,11 @@ def _render_top_reviewed(market: dict, ranking: dict) -> None:
 
 def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
     """순위 7에서 고른 종목의 상세. 위 테마 상세·눌림목 상세와 완전히 별개다."""
-    # 구역이 닫혔으면 상세도 그리지 않는다. 예전에는 골라 둔 줄(j3_top7_pick_row)만
+    # 구역이 닫혔으면 상세도 그리지 않는다. 예전에는 골라 둔 줄(j12_top7_pick_row)만
     # 보고 그려서, 순위 9를 닫아도 상세가 화면에 그대로 남았다(2026-08-26 상하님 캡처).
-    if not st.session_state.get("j3_top7_open"):
+    if not st.session_state.get("j12_top7_open"):
         return
-    picked = st.session_state.get("j3_top7_pick_row")
+    picked = st.session_state.get("j12_top7_pick_row")
     if not picked:
         return
     # 순위 7은 제 이름의 자리를 따로 갖는다 — 안에서 눌림목 상세를 다시 그릴 때
@@ -8589,7 +8589,7 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
     )
     # 갈래에서 온 줄은 눌림목 상세가 그리고, 테마 대장주 줄은 종목 상세가 그린다.
     # 어느 갈래에서 왔는지는 top7_origin에 적혀 있다 — 위 표에서 지금 무엇을 보고
-    # 있느냐(j3_pullback_mode)와 다를 수 있으므로 **줄에 적힌 갈래로** 잰다
+    # 있느냐(j12_pullback_mode)와 다를 수 있으므로 **줄에 적힌 갈래로** 잰다
     # (2026-08-06). 안 그러면 급락 종목을 상승장 자로 재는 일이 생긴다.
     origin_mode = {"상승장": "breakout", "급락 후 반등장": "crash"}.get(
         str(picked.get("top7_origin") or "")
@@ -8618,7 +8618,7 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
     )
     _render_stock_detail(
         theme_row, picked, market, [picked],
-        "j3_top7_detail_choice", panel="top7",
+        "j12_top7_detail_choice", panel="top7",
     )
 
 
@@ -8632,11 +8632,11 @@ def _render_top7_close_above_search() -> None:
     자리는 그대로다. 누르면 다른 닫기 단추와 같은 길로 닫는다
     (`_close_top7_from_fragment` — 순위 9만 열렸으면 덩이만 다시 그린다).
     """
-    if not st.session_state.get("j3_top7_open"):
+    if not st.session_state.get("j12_top7_open"):
         return
     st.button(
         "✕ 매수심사결과 높은 순위 9 닫기",
-        key="close_j3_top7_open_above_search",
+        key="close_j12_top7_open_above_search",
         on_click=_close_top7_from_fragment,
     )
 
@@ -8700,7 +8700,7 @@ def _render_search_by_part(ruler: str, code: str, found_row: dict,
             if hit:
                 _render_stock_detail(
                     theme_row or {"name": theme_name}, hit, market, [hit],
-                    "j3_search_part_choice", panel="mystock",
+                    "j12_search_part_choice", panel="mystock",
                 )
                 return
         else:
@@ -8738,21 +8738,21 @@ def _render_my_stock_panel(market: dict, ranking: dict) -> None:
     # 입력칸과 글자를 키운다(2026-08-21 상하님 지시).
     st.markdown(
         "<style>"
-        "div[class*='st-key-j3_my_stock_query'] input{font-size:1.15rem !important;"
+        "div[class*='st-key-j12_my_stock_query'] input{font-size:1.15rem !important;"
         " padding:.85rem .9rem !important; font-weight:700 !important;}"
-        "div[class*='st-key-j3_my_stock_query'] label p{font-size:1.02rem !important;}"
+        "div[class*='st-key-j12_my_stock_query'] label p{font-size:1.02rem !important;}"
         "</style>", unsafe_allow_html=True,
     )
-    with st.form("j3_my_stock_form", clear_on_submit=False, border=False):
+    with st.form("j12_my_stock_form", clear_on_submit=False, border=False):
         typed = st.text_input(
             # 무엇을 어디에 넣어야 하는지 칸 이름이 직접 말하게 한다(2026-08-01 지시).
-            "종목이름 또는 티커 (아래에 종목이름을 넣어보세요)", key="j3_my_stock_query",
+            "종목이름 또는 티커 (아래에 종목이름을 넣어보세요)", key="j12_my_stock_query",
             placeholder="예: 엔비디아, NVDA, apple, 팔란티어",
         )
         searched = st.form_submit_button("🔎 검색", type="primary")
     if searched:
-        st.session_state["j3_my_stock_asked"] = str(typed or "").strip()
-    query = str(st.session_state.get("j3_my_stock_asked") or "")
+        st.session_state["j12_my_stock_asked"] = str(typed or "").strip()
+    query = str(st.session_state.get("j12_my_stock_asked") or "")
     if not query.strip():
         st.caption("종목 이름을 넣고 **🔎 검색**을 누르십시오.")
         return
@@ -8773,18 +8773,18 @@ def _render_my_stock_panel(market: dict, ranking: dict) -> None:
         options,
         format_func=lambda t: f"{by_ticker[t]['name']} ({t})",
         horizontal=True,
-        key="j3_my_stock_pick",
+        key="j12_my_stock_pick",
     )
     # **고른 종목이 바뀌면 차트가 저절로 열린다**(2026-08-21 상하님 지시).
     # 눌림목 표에서 종목을 누를 때와 같은 동작이다 — 거기서는 이미 그렇게 한다.
     # 열어 둔 뒤 상하님이 닫으시면 그대로 닫혀 있고, 다른 종목을 고르면 다시 열린다.
-    if st.session_state.get("j3_my_stock_shown") != chosen:
-        st.session_state["j3_my_stock_shown"] = chosen
-        for opened in ("j3_detail_open_mystock", "j3_intraday_open_mystock",
-                       "j3_bundle_open_mystock"):
+    if st.session_state.get("j12_my_stock_shown") != chosen:
+        st.session_state["j12_my_stock_shown"] = chosen
+        for opened in ("j12_detail_open_mystock", "j12_intraday_open_mystock",
+                       "j12_bundle_open_mystock"):
             st.session_state[opened] = True
-        back_nav.opened(st, "j3_detail_open_mystock",
-                        "j3_intraday_open_mystock", "j3_bundle_open_mystock")
+        back_nav.opened(st, "j12_detail_open_mystock",
+                        "j12_intraday_open_mystock", "j12_bundle_open_mystock")
     # ── **어느 배점으로 볼지 고르신다** (2026-09-02 상하님 지시) ────────────────
     # 상하님 — "종목 검색에서 나오면 어디 배점을 기준으로 할 거냐고 물어보든지
     # 해야지."
@@ -8800,7 +8800,7 @@ def _render_my_stock_panel(market: dict, ranking: dict) -> None:
         "어느 배점으로 볼까요",
         _SEARCH_RULERS,
         horizontal=True,
-        key="j3_my_stock_ruler",
+        key="j12_my_stock_ruler",
         help="같은 종목이라도 파트가 다르면 점수가 다릅니다 — 견주시라고 나눠 둔 것입니다.",
     )
     if ruler != _SEARCH_RULER_DEFAULT:
@@ -8826,12 +8826,12 @@ def _render_my_stock_panel(market: dict, ranking: dict) -> None:
         찾은 목록은 상세를 보려고 고르는 자리라, 상세를 닫으면 남아 있을 까닭이
         없다. 검색어는 그대로 둔다 — 다시 찾아보실 때 또 치지 않으시게.
         """
-        st.session_state.pop("j3_my_stock_asked", None)
-        st.session_state.pop("j3_my_stock_shown", None)
+        st.session_state.pop("j12_my_stock_asked", None)
+        st.session_state.pop("j12_my_stock_shown", None)
 
     _render_stock_detail(
         {"name": "내 종목"}, leader, market, [leader],
-        "j3_my_stock_detail_choice", panel="mystock", on_close=_forget_search,
+        "j12_my_stock_detail_choice", panel="mystock", on_close=_forget_search,
     )
 
 
@@ -8864,12 +8864,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     """
     ticker = str(row.get("ticker") or "")
     # **열쇠에 이름표를 붙인다** (2026-09-02 상하님 화면 —
-    # "There are multiple elements with the same key='btn_j3_detail_open_pullback'").
+    # "There are multiple elements with the same key='btn_j12_detail_open_pullback'").
     # 저장해 둔 목록에서도 이 상세를 부르게 되면서, 위쪽 급락 구역이 열려 있으면
     # 같은 열쇠가 한 판에 두 번 생겨 터졌다. 이름표가 다르면 겹치지 않는다.
     # **기본값은 여태 쓰던 그 이름이라 다른 곳은 한 글자도 안 바뀐다.**
-    detail_key = f"j3_detail_open_{panel}"
-    danta_key = f"j3_danta_open_{panel}"
+    detail_key = f"j12_detail_open_{panel}"
+    danta_key = f"j12_danta_open_{panel}"
     # 종목을 누르면 화면이 여기로 내려온다(2026-08-09 상하님 지시).
     scroll_to.anchor(st, f"detail_{panel}")
     # 상세 한 벌을 통째로 눌러야 열리게 한다(2026-07-30 사용자 지시).
@@ -8898,7 +8898,7 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
     # 기존 조건점수는 '신고가에 가까운가·이동평균 위인가'로 절반을 주는데, 낙폭 종목은
     # 그 조건을 정의상 하나도 못 맞춰 전부 14~26점 '제외'로 나왔다(실측). 찾아 놓고
     # 사지 말라는 화면이 되므로 갈래마다 전용 배점·전용 심사를 쓴다.
-    mode = mode or st.session_state.get("j3_pullback_mode") or "기본"
+    mode = mode or st.session_state.get("j12_pullback_mode") or "기본"
     if mode == "crash":
         scored = j3data.crash_rebound_score(row)
         plan = j3data.crash_rebound_plan(row)
@@ -9155,12 +9155,12 @@ def _render_pullback_detail(row: dict, market: dict, ranking: dict,
         factor_html = (
             _swing_factor_table_html(
                 factor_rows, total_row, row.get("explanations") or {},
-                f"j3_factor_help_{panel}_breakout",
+                f"j12_factor_help_{panel}_breakout",
             )
             if mode == "breakout" else
             _factor_table_html(
                 factor_rows, total_row, factor_names,
-                f"j3_factor_help_pullback_{mode}",
+                f"j12_factor_help_pullback_{mode}",
                 notes=notes_padded[:len(factor_names)],
             )
         )
@@ -9757,21 +9757,21 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     # 단추를 내용 뒤로 보낸다(아래 CSS — 2026-09-17 상하님 지적 "상승장 신고가
     # 눌렀는데 왜 급락 후 반등장 밑에 열리냐?"). 보이는 것은 하나도 안 바꾼다.
     st.markdown(
-        "<style data-j3-open='breakout'>div[class*='st-key-close_j3_pullback_open'] button {"
+        "<style data-j3-open='breakout'>div[class*='st-key-close_j12_pullback_open'] button {"
         "background:linear-gradient(90deg,#075d46,#18bf87) !important;color:#fff !important;"
         "border:1px solid rgba(255,255,255,.28) !important;}"
-        "div[class*='st-key-close_j3_pullback_open'] button p {color:#fff !important;font-weight:800 !important;}"
+        "div[class*='st-key-close_j12_pullback_open'] button p {color:#fff !important;font-weight:800 !important;}"
         # 두 단추 줄을 풀어 급락 단추를 내용 뒤로 — 예전에는 이 표식을 찾는 :has 로 걸었다
         # (2026-09-23 저녁 · 까닭은 _J3B_HOME_CSS 위). 이 <style> 이 있을 때만 걸리는 것은 같다.
-        "[data-testid='stLayoutWrapper']:has(> .stHorizontalBlock .st-key-j3_pullback_crash),"
-        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock:has(.st-key-j3_pullback_crash){display:contents!important}"
-        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock:has(.st-key-j3_pullback_crash) > .stColumn{"
+        "[data-testid='stLayoutWrapper']:has(> .stHorizontalBlock .st-key-j12_pullback_crash),"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock:has(.st-key-j12_pullback_crash){display:contents!important}"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock:has(.st-key-j12_pullback_crash) > .stColumn{"
         "width:100%!important;flex:0 0 auto!important;min-width:0!important}"
-        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock > .stColumn:has(.st-key-j3_pullback_crash){order:1!important}"
+        "[data-testid='stLayoutWrapper'] > .stHorizontalBlock > .stColumn:has(.st-key-j12_pullback_crash){order:1!important}"
         "</style>", unsafe_allow_html=True,
     )
     _section_close(
-        "j3_pullback_open", "상승장 (신고가 눌림매수) 닫기",
+        "j12_pullback_open", "상승장 (신고가 눌림매수) 닫기",
         return_to=_RADAR_MAIN_ANCHOR,
     )
 
@@ -9785,7 +9785,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
     # 20개 테마 순위표가 빠른 까닭도 같다 — 거기는 목록만 그린다.
     #
     # 목록은 목록만 그리고, 상세와 차트는 **종목을 누를 때** 열린다.
-    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    selected_ticker = st.session_state.get("j12_pullback_selected_ticker")
     tickers = [str(row.get("ticker") or "") for row in all_selectable]
     if selected_ticker not in tickers:
         selected_ticker = None
@@ -9827,7 +9827,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         # 줄을 누르면 바깥의 selected_ticker를 그 자리에서 바꾼다 — 그래야
         # 아래 상세가 **같은 판에서** 그 종목으로 그려진다(다시 그리기 없이).
         nonlocal selected_ticker
-        prefix = "j3rbw" if watch_mode else "j3rbf"
+        prefix = "j12rbw" if watch_mode else "j12rbf"
         cols = box.columns(row_widths)
         # **「번호 · 점수」다. 「순위 · 총점」이 아니다**(2026-08-07 상하님 지시,
         # 2026-08-20에 다시 확인하심). 검증되지 않은 차례를 1위·2위처럼 보이면
@@ -9934,8 +9934,8 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
             button_keys.append((key, row.get("ticker")))
             if cols[2].button(str(row.get("name") or row.get("ticker") or "—"), key=key, width="stretch"):
                 selected_ticker = row.get("ticker")
-                st.session_state["j3_pullback_selected_ticker"] = selected_ticker
-                for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback", "j3_bundle_open_pullback"):
+                st.session_state["j12_pullback_selected_ticker"] = selected_ticker
+                for opened in ("j12_detail_open_pullback", "j12_intraday_open_pullback", "j12_bundle_open_pullback"):
                     st.session_state[opened] = True
                 scroll_to.request(st, "detail_pullback")
                 # **다시 그리지 않는다**(2026-08-22 상하님 지적 — "종목 클릭하면
@@ -9947,7 +9947,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
 
     if primary:
         st.markdown("<div class='j3-section-title'>정식 후보</div>", unsafe_allow_html=True)
-        draw_rows(primary, st.container(key="j3_swing_table"), watch_mode=False)
+        draw_rows(primary, st.container(key="j12_swing_table"), watch_mode=False)
     else:
         st.info("오늘은 여섯 가지를 다 넘은 정식 후보가 없습니다. "
                 "자리를 채우려고 기준을 느슨하게 바꾸지 않습니다.")
@@ -9967,7 +9967,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         # 그 자동 선택을 뺀 지금은 펴는 값이 표 열다섯 줄뿐이라 싸다.
         #
         # 그러니 접이칸은 그대로 두는 것이 맞다 — 안 누르면 안 열린다.
-        watch_box = st.container(key="j3_swing_rest").expander(
+        watch_box = st.container(key="j12_swing_rest").expander(
             f"관찰만 · 조건을 다 못 넘은 {len(watch)}개 보기"
         )
         draw_rows(watch, watch_box, watch_mode=True)
@@ -9998,7 +9998,7 @@ def _render_us_swing_finder(result: dict, market: dict, ranking: dict) -> None:
         )
         _render_pullback_detail(selected, market, ranking, mode="breakout")
     _section_close(
-        "j3_pullback_open", "상승장 (신고가 눌림매수) 닫기", slot="_bottom",
+        "j12_pullback_open", "상승장 (신고가 눌림매수) 닫기", slot="_bottom",
         return_to=_RADAR_MAIN_ANCHOR,
     )
 
@@ -10373,16 +10373,16 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         if breakout else "linear-gradient(90deg,#6b2d05,#e67813)"
     )
     st.markdown(
-        "<style>div[class*='st-key-close_j3_pullback_open'] button {"
+        "<style>div[class*='st-key-close_j12_pullback_open'] button {"
         f"background:{close_background} !important; color:#fff !important;"
         "border:1px solid rgba(255,255,255,.28) !important;"
         "box-shadow:0 0 12px rgba(230,120,19,.20) !important;}"
-        "div[class*='st-key-close_j3_pullback_open'] button p {"
+        "div[class*='st-key-close_j12_pullback_open'] button p {"
         "color:#fff !important; font-weight:800 !important;}</style>",
         unsafe_allow_html=True,
     )
     _section_close(
-        "j3_pullback_open", mode_close_label,
+        "j12_pullback_open", mode_close_label,
         return_to=_RADAR_MAIN_ANCHOR,
     )
     if not rows:
@@ -10450,7 +10450,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 검증되지 않은 것을 검증된 것처럼 말하게 된다. 그냥 번호다.
     # 급락 후 반등장은 그물이 통과했으므로 '순위' 그대로 쓴다.
     rank_head = "번호" if breakout else "순위"
-    table_box = st.container(key="j3_rulebook_table")
+    table_box = st.container(key="j12_rulebook_table")
     head = table_box.columns(row_widths)
     head[0].markdown(f"<div class='j3-th-head'>{rank_head}</div>", unsafe_allow_html=True)
     head[1].markdown(
@@ -10463,7 +10463,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     )
 
     tickers_now = [row.get("ticker") for row in rows]
-    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    selected_ticker = st.session_state.get("j12_pullback_selected_ticker")
     if selected_ticker not in tickers_now:
         selected_ticker = rows[0].get("ticker")
     selected_css = []
@@ -10474,7 +10474,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         if index == _RULEBOOK_OPEN_ROWS and len(rows) > _RULEBOOK_OPEN_ROWS:
             # 테마표와 같은 이유로 키를 가진 칸으로 감싼다 — 접힌 쪽도 옆으로
             # 밀어서 보게 한다(2026-08-09 상하님 지적, 폰·태블릿 둘 다 쌓였다).
-            overflow_box = st.container(key="j3_rulebook_rest").expander(
+            overflow_box = st.container(key="j12_rulebook_rest").expander(
                 f"{_RULEBOOK_OPEN_ROWS + 1}위~{len(rows)}위 더 보기"
             )
             # 접힌 쪽에도 머리글을 한 번 붙인다 — 없으면 어느 칸이 무엇인지 모른다.
@@ -10511,23 +10511,23 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
         )
         if cols[2].button(
             str(row.get("name") or row.get("ticker") or "—"),
-            key=f"j3rbf_{index:02d}",
+            key=f"j12rbf_{index:02d}",
             width="stretch",
         ):
-            st.session_state["j3_pullback_selected_ticker"] = row["ticker"]
+            st.session_state["j12_pullback_selected_ticker"] = row["ticker"]
             # 종목을 누르면 상세와 차트까지 한 번에 열린다(2026-08-01 사용자 지시).
-            for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
-                           "j3_bundle_open_pullback"):
+            for opened in ("j12_detail_open_pullback", "j12_intraday_open_pullback",
+                           "j12_bundle_open_pullback"):
                 st.session_state[opened] = True
-            back_nav.opened(st, "j3_detail_open_pullback",
-                            "j3_intraday_open_pullback", "j3_bundle_open_pullback")
+            back_nav.opened(st, "j12_detail_open_pullback",
+                            "j12_intraday_open_pullback", "j12_bundle_open_pullback")
             # 열기만 하면 그 자리가 화면 한참 아래라 직접 굴려야 했다(2026-08-09).
             scroll_to.request(st, "detail_pullback")
             # **이 덩이만 다시 그린다.** scope를 안 주면 판 전체가 돈다.
             _rerun_here()
         if row.get("ticker") == selected_ticker:
             selected_css.append(
-                f"div[class*='st-key-j3rbf_{index:02d}'] button "
+                f"div[class*='st-key-j12rbf_{index:02d}'] button "
                 "{ background: rgba(192,132,252,.16) !important; "
                 "border-left: 3px solid #c084fc !important; }"
             )
@@ -10678,7 +10678,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 고른 것이 없어도 빈 꾸밈 칸을 늘 그린다 — 처음 고를 때 새로 끼어들면 밑이 한 칸씩 밀려
     # 폰이 통째로 새로 그린다(2026-09-24 · 테마 종목 표 _render_leader_table 과 같은 까닭).
     selected_css.append(_earnings_chips(                   # 「실적 D-○」 딱지(2026-10-09)
-        [(f"j3rbf_{index:02d}", row.get("ticker")) for index, row in enumerate(rows)]))
+        [(f"j12rbf_{index:02d}", row.get("ticker")) for index, row in enumerate(rows)]))
     st.markdown(f"<style>{''.join(selected_css)}</style>", unsafe_allow_html=True)
     # 자비스12 표 밑 글 — 칸 이름 셋이 무엇을 잰 것인지만 짧게(2026-10-22 「기준·명칭 맞춰라 · 쓸데없는 내용 지우고」).
     st.caption((
@@ -10713,7 +10713,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
     # 위쪽 닫기는 목록 머리글 바로 위에 있어서, 상세까지 다 내려보고 나면 화면
     # 몇 장을 도로 올라가야 접을 수 있었다.
     _section_close(
-        "j3_pullback_open", mode_close_label, slot="_bottom",
+        "j12_pullback_open", mode_close_label, slot="_bottom",
         return_to=_RADAR_MAIN_ANCHOR,
     )
 
@@ -10828,11 +10828,11 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     # 지금 어느 갈래를 보고 있는지 단추만 봐서는 알 수 없었다(2026-08-01 사용자 지적).
     # 열려 있는 갈래의 단추에는 앞에 ●를 붙이고, 아래 CSS가 그 단추를 밝게 칠한다.
     guest_mode = auth.is_guest()
-    if guest_mode and st.session_state.get("j3_pullback_mode") not in ("breakout", "crash"):
-        st.session_state["j3_pullback_open"] = False
+    if guest_mode and st.session_state.get("j12_pullback_mode") not in ("breakout", "crash"):
+        st.session_state["j12_pullback_open"] = False
     open_mode = (
-        (st.session_state.get("j3_pullback_mode") or "기본")
-        if st.session_state.get("j3_pullback_open") else None
+        (st.session_state.get("j12_pullback_mode") or "기본")
+        if st.session_state.get("j12_pullback_open") else None
     )
     # '눌림목 찾기'(옛 A 규칙)는 2026-08-06에 뺐다(사용자 지시).
     # 목적이 '상승장(신고가 눌림매수)'과 같은데 10년치로 재 보니 기준선을 못 이겼다 —
@@ -10840,8 +10840,8 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     # 상위 8개만 추려도 55번이라 순위가 거꾸로 매겨졌다(docs/US_THREE_RULES_COMPARE.md).
     # 함수(find_pullback_stocks)는 지우지 않는다 — 한국테마(자비스4)가 아직 쓴다.
     mode_options = (
-        ("breakout", "상승장 (신고가 눌림매수)", "j3_pullback_breakout"),
-        ("crash", "급락 후 반등장 (낙폭종목)", "j3_pullback_crash"),
+        ("breakout", "상승장 (신고가 눌림매수)", "j12_pullback_breakout"),
+        ("crash", "급락 후 반등장 (낙폭종목)", "j12_pullback_crash"),
     )
     finder_cols = st.columns(len(mode_options))
     pressed = None
@@ -10859,17 +10859,17 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             )
     if pressed:
         already_open = (
-            st.session_state.get("j3_pullback_open")
-            and st.session_state.get("j3_pullback_mode") == pressed
+            st.session_state.get("j12_pullback_open")
+            and st.session_state.get("j12_pullback_mode") == pressed
         )
         if already_open:
             # 닫기 — 조회도 rerun도 하지 않는다(2026-07-30 사용자 실측: 닫는 데 1.5초).
-            st.session_state["j3_pullback_open"] = False
-            st.session_state.pop("j3_pullback_selected_ticker", None)
+            st.session_state["j12_pullback_open"] = False
+            st.session_state.pop("j12_pullback_selected_ticker", None)
         else:
-            st.session_state["j3_pullback_open"] = True
-            st.session_state["j3_pullback_mode"] = pressed
-            st.session_state.pop("j3_pullback_selected_ticker", None)
+            st.session_state["j12_pullback_open"] = True
+            st.session_state["j12_pullback_mode"] = pressed
+            st.session_state.pop("j12_pullback_selected_ticker", None)
             # **화면을 결과 자리로 살짝 내린다** (2026-08-28 상하님 지시 —
             # "상승장 신고가 눌림매수 클릭하면 두 번째 화면처럼 되는데 살짝
             # 내려라, 그러면 첫 번째 캡처 화면처럼 되게").
@@ -10878,7 +10878,7 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             scroll_to.request(st, "finder_top")
             # 폰·태블릿 뒤로가기 — 이 목록이 열린 것을 방문기록에 한 칸 쌓는다.
             # 이 단추는 _section_toggle을 안 거치므로 여기서 따로 알려야 한다.
-            back_nav.opened(st, "j3_pullback_open")
+            back_nav.opened(st, "j12_pullback_open")
             # **방금 찾아 둔 것이 있으면 다시 안 찾는다** (2026-08-22 상하님 지적
             # — "상승장 클릭도 조금 줄었지만 여전히 느리다").
             #
@@ -10887,12 +10887,12 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             # 이미 그렇게 돌고 있다(_kept_recently). 같은 장치를 여기에도 둔다.
             # 5분이 지나면 알아서 새로 찾는다.
             kept = (
-                _kept_recently(f"j3_pullback_at_{pressed}")
-                and isinstance(st.session_state.get(f"j3_pullback_kept_{pressed}"), dict)
+                _kept_recently(f"j12_pullback_at_{pressed}")
+                and isinstance(st.session_state.get(f"j12_pullback_kept_{pressed}"), dict)
             )
             if kept:
-                st.session_state["j3_pullback_result"] = (
-                    st.session_state[f"j3_pullback_kept_{pressed}"]
+                st.session_state["j12_pullback_result"] = (
+                    st.session_state[f"j12_pullback_kept_{pressed}"]
                 )
             elif pressed == "breakout":
                 # **순위 9가 만들어 둔 것을 그대로 쓴다** (2026-08-29 상하님 —
@@ -10903,26 +10903,26 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
                 # 같은 판에서 같은 계산을 두 번 한 셈이다. breakout_scan 이
                 # 그 기억을 본다. 없으면 예전처럼 그때 찾으므로 늦어지지 않는다.
                 with st.spinner("미국 대형주 200개에서 신고가 뒤 눌린 종목을 찾는 중입니다…"):
-                    st.session_state["j3_pullback_result"] = j3data.breakout_scan()
+                    st.session_state["j12_pullback_result"] = j3data.breakout_scan()
             else:
                 # 자비스12 는 **급락 기준일 하루로 정한 10종목**이다(2026-10-14 상하님 지시 — jarvis12_crash).
                 with st.spinner("급락 기준일 자료로 두 갈래 위 5개씩 고르는 중입니다…"):
-                    st.session_state["j3_pullback_result"] = jarvis12_crash.crash_list()
+                    st.session_state["j12_pullback_result"] = jarvis12_crash.crash_list()
             if not kept:
-                found = st.session_state.get("j3_pullback_result")
+                found = st.session_state.get("j12_pullback_result")
                 if isinstance(found, dict) and found.get("ok"):
-                    st.session_state[f"j3_pullback_kept_{pressed}"] = found
-                    st.session_state[f"j3_pullback_at_{pressed}"] = time.time()
+                    st.session_state[f"j12_pullback_kept_{pressed}"] = found
+                    st.session_state[f"j12_pullback_at_{pressed}"] = time.time()
                 # 그날 것이 아직 없으면 여기서 한 판 남긴다(2026-08-09). 자동 저장의
                 # 본체는 클라우드 작업이고, 이건 그것이 실패한 날을 메우는 보조다.
                 # 급락은 남기지 않는다(2026-10-14) — 날짜별 목록은 자비스3 과 같이 쓰는 기록이라 옛 20개
                 # 그대로 쌓이고(깃허브·뒤 일꾼), 자비스12 화면은 기준일 10종목이라 모양이 다르다.
                 if pressed != "crash":
                     picklist_ui.autosave("US", pressed, found)
-    if not st.session_state.get("j3_pullback_open"):
+    if not st.session_state.get("j12_pullback_open"):
         return
-    result = st.session_state.get("j3_pullback_result")
-    mode = st.session_state.get("j3_pullback_mode") or "기본"
+    result = st.session_state.get("j12_pullback_result")
+    mode = st.session_state.get("j12_pullback_mode") or "기본"
     if mode in ("breakout", "crash") and isinstance(result, dict):
         _render_rulebook_finder(result, market, ranking, mode)
         return
@@ -10955,7 +10955,7 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     row_widths = [widths[0], widths[1], sum(widths[2:])]
     rest_widths = widths[2:]
     # 머리글과 줄이 같이 밀려야 하므로 한 상자에 담는다(2026-07-25).
-    table_box = st.container(key="j3_pullback_table")
+    table_box = st.container(key="j12_pullback_table")
     head = table_box.columns(row_widths)
     head[0].markdown("<div class='j3-th-head'>순위</div>", unsafe_allow_html=True)
     head[1].markdown("<div class='j3-th-head'>종목</div>", unsafe_allow_html=True)
@@ -10972,7 +10972,7 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
     # 아무것도 누르지 않았거나 고른 종목이 이번 결과에서 빠졌으면 1순위를 자동으로 연다
     # (2026-07-24 사용자 지시: 클릭하지 않아도 맨 위 종목 상세가 바로 보여야 한다).
     tickers_now = [row.get("ticker") for row in rows]
-    selected_ticker = st.session_state.get("j3_pullback_selected_ticker")
+    selected_ticker = st.session_state.get("j12_pullback_selected_ticker")
     if selected_ticker not in tickers_now:
         selected_ticker = rows[0].get("ticker")
     selected_css = []
@@ -10994,14 +10994,14 @@ def _render_pullback_finder_body(market: dict, ranking: dict) -> None:
             key=f"j3pbf_{index:02d}",
             width="stretch",
         ):
-            st.session_state["j3_pullback_selected_ticker"] = row["ticker"]
+            st.session_state["j12_pullback_selected_ticker"] = row["ticker"]
             # 종목을 누르면 상세와 차트까지 한 번에 열린다(2026-08-09 상하님 지시
             # "모든 곳에 적용" — 상승장·급락 표는 이미 이렇게 돌고 있었다).
-            for opened in ("j3_detail_open_pullback", "j3_intraday_open_pullback",
-                           "j3_bundle_open_pullback"):
+            for opened in ("j12_detail_open_pullback", "j12_intraday_open_pullback",
+                           "j12_bundle_open_pullback"):
                 st.session_state[opened] = True
-            back_nav.opened(st, "j3_detail_open_pullback",
-                            "j3_intraday_open_pullback", "j3_bundle_open_pullback")
+            back_nav.opened(st, "j12_detail_open_pullback",
+                            "j12_intraday_open_pullback", "j12_bundle_open_pullback")
             scroll_to.request(st, "detail_pullback")
             # **이 덩이만 다시 그린다.** scope를 안 주면 판 전체가 돈다.
             _rerun_here()
@@ -11092,7 +11092,7 @@ def _records_live_prices(records: list[dict]) -> dict:
     """보유 종목 최근가를 조회한다. 표 편집 중 값이 바뀌면 입력이 초기화될 수 있어
     같은 기록 구성에서는 5분 동안 세션에 고정해 둔다."""
     fingerprint = tuple(sorted((int(r["id"]), str(r.get("status"))) for r in records))
-    cache = st.session_state.get("j3_records_pl_cache") or {}
+    cache = st.session_state.get("j12_records_pl_cache") or {}
     if cache.get("fp") == fingerprint and time.time() - cache.get("at", 0) < 300:
         return cache["prices"]
     open_tickers = sorted({
@@ -11104,7 +11104,7 @@ def _records_live_prices(records: list[dict]) -> dict:
         quote = j3data.get_live_quote(ticker)
         if quote.get("ok") and quote.get("current"):
             prices[ticker] = float(quote["current"])
-    st.session_state["j3_records_pl_cache"] = {"fp": fingerprint, "at": time.time(), "prices": prices}
+    st.session_state["j12_records_pl_cache"] = {"fp": fingerprint, "at": time.time(), "prices": prices}
     return prices
 
 
@@ -11116,7 +11116,7 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
     매도가는 매수가 ±50% 범위만 허용한다. 제목·내용은 가운데 정렬한다.
     key_prefix로 탭·매수 폼 두 곳에서 각각 독립 위젯으로 쓴다.
     """
-    saved_message = st.session_state.pop("j3_close_saved_msg", None)
+    saved_message = st.session_state.pop("j12_close_saved_msg", None)
     if saved_message:
         st.success(saved_message)
     st.caption(
@@ -11195,7 +11195,7 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
         "종목점수": st.column_config.NumberColumn(format="%.0f", **center),
         "메모": st.column_config.TextColumn(**center),
     }
-    editor_key = f"j3_records_editor_{key_prefix}"
+    editor_key = f"j12_records_editor_{key_prefix}"
     edited = st.data_editor(
         frame,
         column_config=column_config,
@@ -11234,7 +11234,7 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
     if touched_closed:
         st.warning("이미 청산된 기록은 수정되지 않습니다: " + ", ".join(sorted(set(touched_closed))))
 
-    if st.button("청산 저장 (매도일·매도가 입력된 종목만)", key=f"j3_close_editor_save_{key_prefix}", width="stretch"):
+    if st.button("청산 저장 (매도일·매도가 입력된 종목만)", key=f"j12_close_editor_save_{key_prefix}", width="stretch"):
         saved_count = 0
         errors = []
         for index, record in enumerate(records):
@@ -11269,9 +11269,9 @@ def _render_records_editor(records: list[dict], key_prefix: str = "tab") -> None
         for error in errors:
             st.error(error)
         if saved_count and not errors:
-            st.session_state["j3_close_saved_msg"] = f"{saved_count}건 청산을 저장했습니다."
+            st.session_state["j12_close_saved_msg"] = f"{saved_count}건 청산을 저장했습니다."
             st.session_state.pop(editor_key, None)
-            st.session_state.pop("j3_records_pl_cache", None)
+            st.session_state.pop("j12_records_pl_cache", None)
             st.rerun()
         elif saved_count:
             st.success(f"{saved_count}건 청산을 저장했습니다. 위 오류 항목은 저장되지 않았습니다.")
@@ -11363,8 +11363,8 @@ def _autosave_other_parts() -> None:
                   if picklist_ui.needs_autosave("US", kind)]
         if not wanted:
             return
-        rows = list((st.session_state.get("j3_theme_rankings") or {}).get("rows") or [])
-        overview = st.session_state.get("j3_market_overview") or {}
+        rows = list((st.session_state.get("j12_theme_rankings") or {}).get("rows") or [])
+        overview = st.session_state.get("j12_market_overview") or {}
         score = float(overview.get("score") or 0)
         # **하루에 한 번, 못 했으면 한 시간 뒤에 한 번 더**만 해 본다 (2026-09-17 상하님
         # 지적 — "상승장 신고가 눌림매수 처음 클릭 시 로딩이 왜 이리 오래 걸리냐, 왜 이것만").
@@ -11443,10 +11443,10 @@ def _autosave_theme15() -> None:
     try:
         if not picklist_ui.needs_autosave("US", "theme15"):
             return
-        rows = list((st.session_state.get("j3_theme_rankings") or {}).get("rows") or [])
+        rows = list((st.session_state.get("j12_theme_rankings") or {}).get("rows") or [])
         if not rows:
             return           # 테마 자료를 못 받은 판이다. 다음 판에 다시 본다.
-        overview = st.session_state.get("j3_market_overview") or {}
+        overview = st.session_state.get("j12_market_overview") or {}
         score = float(overview.get("score") or 0)
     except Exception:
         return
@@ -11517,7 +11517,7 @@ body:has(#j3-help-tap:checked) .j3-help-scrim{opacity:1;visibility:visible;
    **닫을 때는 여는 것을 거꾸로 돌린다** (같은 날 상하님 — "닫힐 때는 반대로 화면이
    축소되도록 디자인적으로 멋지게"). 열 때 살짝 넘쳤다(104%) 자리 잡듯, 닫을 때는 살짝
    부풀었다가(103%) 가운데로 빨려 들듯 줄어들고(.56초), 끝 무렵에야 옅어져 사라진다. */
-div.st-key-j3_help_card{position:fixed!important;left:50%;top:50%;z-index:2147483647;
+div.st-key-j12_help_card{position:fixed!important;left:50%;top:50%;z-index:2147483647;
   width:min(1180px,calc(100vw - 28px))!important;max-height:86vh;overflow-y:auto;
   overscroll-behavior:contain;box-sizing:border-box;padding:14px 14px 16px!important;
   border-radius:22px;background:#132a4d;border:1px solid rgba(192,132,252,.55);
@@ -11526,7 +11526,7 @@ div.st-key-j3_help_card{position:fixed!important;left:50%;top:50%;z-index:214748
   transform:translate(-50%,-50%) scale(.55);
   transition:transform .56s cubic-bezier(.5,-.18,.72,.18),opacity .56s cubic-bezier(.7,0,.84,0),
     visibility 0s linear .56s}
-body:has(#j3-help-tap:checked) div.st-key-j3_help_card{opacity:1;visibility:visible;
+body:has(#j3-help-tap:checked) div.st-key-j12_help_card{opacity:1;visibility:visible;
   pointer-events:auto;transform:translate(-50%,-50%) scale(1);
   transition:transform .9s cubic-bezier(.34,1.56,.64,1),opacity .36s ease,visibility 0s}
 /* **글자 색** (2026-09-19 상하님 — "그림 밑에 텍스트 글자들이 색깔이 왜 다 없어졌냐?").
@@ -11534,17 +11534,17 @@ body:has(#j3-help-tap:checked) div.st-key-j3_help_card{opacity:1;visibility:visi
    method_help 의 규칙이 **예전 창(stPopoverBody) 안에서만** 값을 정해 두었다. 2026-09-18 에
    이 카드로 옮기면서 그 값이 안 따라와 글이 한 색이 됐다. 카드에도 같은 값을 둔다 —
    카드 바탕이 어두우므로 예전 창의 어두운 화면 값 그대로다. 한국테마 창은 그대로다. */
-div.st-key-j3_help_card{--j-title:#44f0a1;--j-step:#4da6ff;--j-mark:#ff6b6b;
+div.st-key-j12_help_card{--j-title:#44f0a1;--j-step:#4da6ff;--j-mark:#ff6b6b;
   --mh-line:rgba(255,255,255,.18);--mh-buy:#44f0a1;--mh-sell:#ff9d3b;--mh-data:#4da6ff;
   --mh-key:#c084fc;--mh-dim:#9aa0aa;--mh-pos:#44f0a1;--mh-neg:#ff6b6b}
-div.st-key-j3_help_card h3{color:var(--j-title)!important}
-div.st-key-j3_help_card h5{color:var(--j-step)!important;font-size:1.02rem!important}
-div.st-key-j3_help_card p > strong,
-div.st-key-j3_help_card blockquote strong{color:var(--j-mark)!important}
-div.st-key-j3_help_card td strong,
-div.st-key-j3_help_card th strong,
-div.st-key-j3_help_card li strong{color:inherit!important}
-div.st-key-j3_help_card .mh-doc{max-width:760px;margin-left:auto;margin-right:auto}
+div.st-key-j12_help_card h3{color:var(--j-title)!important}
+div.st-key-j12_help_card h5{color:var(--j-step)!important;font-size:1.02rem!important}
+div.st-key-j12_help_card p > strong,
+div.st-key-j12_help_card blockquote strong{color:var(--j-mark)!important}
+div.st-key-j12_help_card td strong,
+div.st-key-j12_help_card th strong,
+div.st-key-j12_help_card li strong{color:inherit!important}
+div.st-key-j12_help_card .mh-doc{max-width:760px;margin-left:auto;margin-right:auto}
 /* 창닫기 — 위는 오른쪽, 아래는 왼쪽(오른쪽 아래 구석은 온라인 표시와 겹친다). */
 .j3-help-row{display:flex;align-items:center;gap:10px;margin:2px 0 4px}
 .j3-help-row.top{justify-content:flex-end;margin-bottom:22px}
@@ -11559,14 +11559,14 @@ label.j3-help-close:active{transform:scale(.97)}
 /* 그림은 **카드 폭을 꽉 채운다**. 스트림릿은 그림 폭을 카드가 55% 로 줄어 숨어
    있을 때 재서(326px × .55 = 179px) 그대로 박아 두고, 카드가 펴져도 다시 안 잰다
    (돌림 크기는 자리 크기가 아니라서). 그래서 폭을 여기서 정한다(2026-09-18 실측). */
-div.st-key-j3_help_card [data-testid="stFullScreenFrame"]>div,
-div.st-key-j3_help_card [data-testid="stImage"],
-div.st-key-j3_help_card [data-testid="stImageContainer"],
-div.st-key-j3_help_card [data-testid="stImageContainer"] a,
-div.st-key-j3_help_card [data-testid="stImage"] img{width:100%!important;max-width:100%!important}
-div.st-key-j3_help_card [data-testid="stImage"] img{height:auto!important}
+div.st-key-j12_help_card [data-testid="stFullScreenFrame"]>div,
+div.st-key-j12_help_card [data-testid="stImage"],
+div.st-key-j12_help_card [data-testid="stImageContainer"],
+div.st-key-j12_help_card [data-testid="stImageContainer"] a,
+div.st-key-j12_help_card [data-testid="stImage"] img{width:100%!important;max-width:100%!important}
+div.st-key-j12_help_card [data-testid="stImage"] img{height:auto!important}
 @media (prefers-reduced-motion:reduce){
-  div.st-key-j3_help_card,body:has(#j3-help-tap:checked) div.st-key-j3_help_card,
+  div.st-key-j12_help_card,body:has(#j3-help-tap:checked) div.st-key-j12_help_card,
   .j3-help-scrim,body:has(#j3-help-tap:checked) .j3-help-scrim{transition:none}}
 </style>
 """
@@ -11580,7 +11580,7 @@ def _render_help_card() -> None:
         + f"<label for='{_HELP_TAP}' class='j3-help-scrim' aria-hidden='true'></label>",
         unsafe_allow_html=True,
     )
-    with st.container(key="j3_help_card"):
+    with st.container(key="j12_help_card"):
         st.markdown(
             "<div class='j3-help-row top'>"
             f"<label for='{_HELP_TAP}' class='j3-help-close'>✕ 창닫기</label></div>",
@@ -11609,7 +11609,7 @@ def _render_existing_theme_content() -> None:
         # 순위 7 표를 세로로 쌓던 규칙(table_css·hide_own_header)은 2026-08-01에 뺐다.
         # 사용자 지시 — 나머지 세 표(오늘의 강한테마·테마 종목 1~6위·눌림목 찾기)처럼
         # 표를 원래 폭으로 두고 손가락으로 옆으로 밀어서 보게 한다. 그 규칙은
-        # 페이지 위 <style>의 .st-key-j3_top7_table 줄에 있다.
+        # 페이지 위 <style>의 .st-key-j12_top7_table 줄에 있다.
         mobile_ui.page_css(),
         unsafe_allow_html=True,
     )
@@ -11820,7 +11820,7 @@ def _render_existing_theme_content() -> None:
         # ↻ 를 누르셨다. 관심종목 배너의 ↻ 와 **똑같이** 움직인다 —
         # 서버가 담아 둔 것을 비우고 화면을 통째로 새로 연다
         # (2026-08-28 상하님 — "그거 누르면 리셋 되던데?").
-        st.session_state["j3b_hard_reload"] = True
+        st.session_state["j12b_hard_reload"] = True
         for _forget in (getattr(j3data, "clear_runtime_cache", None),
                         getattr(briefing_news, "clear_cache", None)):
             try:
@@ -11853,7 +11853,7 @@ def _render_existing_theme_content() -> None:
     if _backnav_closed:
         scroll_to.request(st, "top")
     _render_market_overview()
-    market = st.session_state.get("j3_market_overview") or {"ok": False, "score": 0, "regime": "자료부족"}
+    market = st.session_state.get("j12_market_overview") or {"ok": False, "score": 0, "regime": "자료부족"}
     st.divider()
     # 미국장 선행신호 카드만 자비스3에 둔다(2026-07-22 사용자 정정: 한국장 수급 카드는
     # 미국 페이지에 어울리지 않으므로 자비스4(국내)에 넣는다). 같은 렌더러·세션 상태를
@@ -11996,7 +11996,7 @@ _J3B_HOME_CSS = (
     'body:not(.j3-never) [data-testid="stMarkdownContainer"]{margin-bottom:0!important}'
     'body:not(.j3-never) [data-testid="stMarkdownContainer"]>div{margin-top:0!important;margin-bottom:0!important}'
     'body:not(.j3-never) [data-testid="stMarkdownContainer"]>p:has(>input[type="checkbox"]:only-child){margin:0!important}'
-    'body:not(.j3-never) div[class*="st-key-j3b_grid_"]{row-gap:12px!important}'
+    'body:not(.j3-never) div[class*="st-key-j12b_grid_"]{row-gap:12px!important}'
     "</style>"
 )
 
@@ -12054,7 +12054,7 @@ def _briefing_css() -> None:
         
         .j3b-news{min-height:53px;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#062947ed,#042243f3);border:1px solid #bd905266;border-radius:17px;margin:7px 0;padding:8px 13px;color:#f7f4ed;font-size:14px;line-height:1.27;box-shadow:inset 0 1px #6aaee52b}.j3b-news-icon{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#0b3a48;color:#7ee86a;font-size:17px;flex:0 0 auto}.j3b-news-dot{width:14px;height:14px;margin-left:auto;border-radius:50%;flex:0 0 auto}.j3b-news-dot.positive{background:#79d955}.j3b-news-dot.negative{background:#f34b3f}.j3b-news-dot.neutral{background:#ffc144}.j3b-news small{display:none}
         .j3b-card{height:246px;background:linear-gradient(145deg,#06345f 0%,#03264a 58%,#001d3c 100%);border:1px solid #bf9254a8;border-radius:17px;padding:12px 11px 10px;margin:0 0 10px;box-shadow:inset 0 1px #7bc9ff35,0 6px 16px #0006;position:relative;overflow:hidden}.j3b-card:after{content:"";position:absolute;right:-28px;bottom:-55px;width:130px;height:96px;border-radius:50%;background:radial-gradient(ellipse at 32% 24%,#0e5a843d,transparent 70%);pointer-events:none}.j3b-card-top{display:flex;align-items:flex-start;gap:8px;min-height:49px}.j3b-logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#216eab,#052b55);box-shadow:inset 0 1px #b4efff77,0 2px 5px #0008;overflow:hidden;flex:0 0 auto}.j3b-logo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(1)}.j3b-logo-text{display:grid;place-items:center;width:100%;height:100%;color:#f4faff;font-weight:900;font-size:.62em;letter-spacing:-.03em}.j3b-logo.photo{background:linear-gradient(145deg,#ffffff,#dde6f3)!important}.j3b-logo.photo img{width:80%;height:80%;object-fit:contain;filter:none!important}.j3b-logo.nvda{background:linear-gradient(145deg,#7bbf35,#0c5b2e)}.j3b-logo.tsla{background:linear-gradient(145deg,#ed4b42,#a40d13)}.j3b-logo.pltr{background:linear-gradient(145deg,#f2ede2,#aca69d)}.j3b-logo.pltr img{filter:none}.j3b-logo.amd,.j3b-logo.aapl{background:linear-gradient(145deg,#5f6870,#151a20)}.j3b-logo.meta{background:linear-gradient(145deg,#1768d6,#06347f)}.j3b-logo.avgo{background:linear-gradient(145deg,#df4943,#8f1014)}.j3b-logo.rgti{background:linear-gradient(145deg,#117d70,#053c42)}.j3b-logo.rgti img{width:86%}.j3b-symbol{display:block;font-size:25px;line-height:1;font-weight:900;letter-spacing:-1px}.j3b-name{display:block;color:#d6e4ed;margin-top:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.j3b-price{font-size:21px;font-weight:850;letter-spacing:-1px;margin:9px 0 4px}.j3b-up{color:#7de143;margin-left:5px}.j3b-down{color:#ff5c55;margin-left:5px}.j3b-neutral{color:#ffc94f;margin-left:5px}.j3b-chart{position:absolute;top:63px;right:10px;width:46%;height:48px;opacity:.96}/* 접힌 카드의 당일 그림은 선을 얇게 (2026-08-28 상하님 지적 — "선이 너무 굵다, 원래 선 크기로"). 분봉이라 점이 촘촘해서 2.1px 로는 선이 굵은 띠처럼 보인다. 크게 연 카드의 6개월 그림은 .j3b-open-card 쪽 규칙이 따로 있어 안 건드린다(상하님 — "선택하면 나오는 건 건드리지 말고"). */.j3b-card .j3b-chart polyline{stroke-width:1.4px}.j3b-card .j3b-chart polygon{fill-opacity:.11}.j3b-card-notes{margin-top:17px;padding-top:5px;border-top:1px solid #94b5c52a}.j3b-note{font-size:11.5px;color:#e7edf2;line-height:1.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}.j3b-note:before{content:"•";color:#7ee24b;margin-right:5px}.j3b-card.decline .j3b-note:before{color:#ff5b4e}.j3b-lamp{position:absolute;right:5px;bottom:2px;width:31px;height:auto;z-index:2;opacity:.9;filter:drop-shadow(0 2px 3px #0009)}.j3b-lamp.left{right:auto;left:4px}.j3b-delete-visual{position:absolute;right:9px;top:9px;z-index:3;width:27px;height:27px;display:grid;place-items:center;border:1px solid #a9c7df;border-radius:50%;background:#062448;color:#fff;font-size:19px;line-height:1}.j3b-delete{position:absolute;right:10px;top:10px;z-index:3}.j3b-delete button{min-height:30px!important;width:30px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:18px!important}
-        div[class*="st-key-j3b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}/* 카드 제 아래 여백은 격자 안에서 끈다 — 격자 틈과 겹쳐 위아래가 붙어 보였다(2026-08-27 상하님 지적 — "종목이 위아래 너무 붙어 있지"). 실측 -1px. */div[class*="st-key-j3b_grid_"] .j3b-card{margin-bottom:0!important}/* 칸이 카드보다 작으면 카드가 삐져나와 아래 줄과 붙는다(실측 칸 132 · 카드 148).   칸에 박힌 높이를 풀어 카드 크기를 그대로 따라가게 한다. */div[class*="st-key-j3b_grid_"]>*,div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j3b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j3b_search_row"] [data-testid="column"],div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j3b_search_row"]{margin:0 0 10px}div[class*="st-key-j3b_search_row"] label{display:none}div[class*="st-key-j3b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j3b_extra_"],div[class*="st-key-j3b_selected_"]{position:relative}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]),div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j3b_extra_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button,div[class*="st-key-j3b_selected_"] div[class*="st-key-j3b_del_"]:not([class*="st-key-j3b_del_yes_"]):not([class*="st-key-j3b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
+        div[class*="st-key-j12b_grid_"]{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))!important;column-gap:9px!important;row-gap:34px!important;align-items:start!important}/* 카드 제 아래 여백은 격자 안에서 끈다 — 격자 틈과 겹쳐 위아래가 붙어 보였다(2026-08-27 상하님 지적 — "종목이 위아래 너무 붙어 있지"). 실측 -1px. */div[class*="st-key-j12b_grid_"] .j3b-card{margin-bottom:0!important}/* 칸이 카드보다 작으면 카드가 삐져나와 아래 줄과 붙는다(실측 칸 132 · 카드 148).   칸에 박힌 높이를 풀어 카드 크기를 그대로 따라가게 한다. */div[class*="st-key-j12b_grid_"]>*,div[class*="st-key-j12b_grid_"]>*>[data-testid="stMarkdown"],div[class*="st-key-j12b_grid_"]>*>[data-testid="stMarkdown"]>div{height:auto!important;min-height:0!important;max-height:none!important}div[class*="st-key-j12b_search_row"] [data-testid="stHorizontalBlock"]{display:flex!important;flex-wrap:nowrap!important;gap:9px!important}div[class*="st-key-j12b_search_row"] [data-testid="column"],div[class*="st-key-j12b_search_row"] [data-testid="stColumn"]{min-width:0!important;flex:1 1 auto!important}div[class*="st-key-j12b_search_row"] [data-testid="stColumn"]:last-child{flex:0 0 40px!important}div[class*="st-key-j12b_search_row"]{margin:0 0 10px}div[class*="st-key-j12b_search_row"] label{display:none}div[class*="st-key-j12b_search_row"] input{height:39px!important;border:1px solid #b9965c!important;border-radius:21px!important;background:#062448!important;color:#eaf5ff!important;font-size:13px!important}div[class*="st-key-j12b_search_row"] .stButton button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;border:1px solid #b9965c;background:#062448;color:#fff;font-size:27px}div[class*="st-key-j12b_extra_"],div[class*="st-key-j12b_selected_"]{position:relative}div[class*="st-key-j12b_extra_"] div[class*="st-key-j12b_del_"]:not([class*="st-key-j12b_del_yes_"]):not([class*="st-key-j12b_del_no_"]),div[class*="st-key-j12b_selected_"] div[class*="st-key-j12b_del_"]:not([class*="st-key-j12b_del_yes_"]):not([class*="st-key-j12b_del_no_"]){position:absolute!important;right:7px!important;top:7px!important;z-index:8!important;width:25px!important;height:25px!important;margin:0!important}div[class*="st-key-j12b_extra_"] div[class*="st-key-j12b_del_"]:not([class*="st-key-j12b_del_yes_"]):not([class*="st-key-j12b_del_no_"]) button,div[class*="st-key-j12b_selected_"] div[class*="st-key-j12b_del_"]:not([class*="st-key-j12b_del_yes_"]):not([class*="st-key-j12b_del_no_"]) button{min-height:25px!important;width:25px!important;padding:0!important;border-radius:50%!important;border:1px solid #a9c7df!important;background:#062448!important;color:#fff!important;font-size:16px!important;line-height:1!important}.j3b-empty{border:1px dashed #7091af99;border-radius:14px;padding:14px;color:#c3d7e7;font-size:13px;text-align:center;margin-bottom:10px}
         /* ── 두 구역의 위아래 여백을 **같게** 맞춘다 (2026-09-11 상하님 지시) ────
            상하님 — "빈자리 만들지 말고 위아래 여백을 밸런스 있게 잘 붙여 넣으라고.
            여백을 너무 촘촘하게 너무 크게 말고 측정해서 맞춰라는 말이다."
@@ -12067,16 +12067,16 @@ def _briefing_css() -> None:
            자리**가 달라(선정 14px · 추가 6px) 눈에 보이는 여백이 8px 어긋났다.
            셋 다 16px 로 맞춘다. 겉껍데기(stLayoutWrapper)를 움직여야 아래 것들이
            같이 따라온다 — 안쪽 통만 밀면 껍데기가 제자리를 지켜 헛돈다(실측). */
-        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_extra_header_sel"]) {
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j12b_extra_header_sel"]) {
           margin-top:0px!important;
         }
-        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_selected"]) {
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j12b_grid_selected"]) {
           margin-top:-14px!important;
         }
-        [data-testid="stLayoutWrapper"]:has(> div[class~="st-key-j3b_extra_header"]) {
+        [data-testid="stLayoutWrapper"]:has(> div[class~="st-key-j12b_extra_header"]) {
           margin-top:-14px!important;
         }
-        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j3b_grid_extra1"]) {
+        [data-testid="stLayoutWrapper"]:has(> div[class*="st-key-j12b_grid_extra1"]) {
           margin-top:-6px!important;
         }
         .j3b-disclaimer{margin:14px 0 10px;padding:11px 10px;border:1px solid #c1975b99;border-radius:13px;background:#06264ad9;text-align:center;color:#e7e6df;font-size:12px}.j3b-bottom-nav{position:fixed;z-index:2147483646;bottom:8px;left:50%;transform:translateX(-50%);width:min(430px,100vw);height:64px;padding:5px 6px;display:flex;justify-content:space-around;background:linear-gradient(180deg,#0a2f5cf2,#03162eee);border:1.6px solid #e2b25ecc;border-radius:20px;backdrop-filter:blur(10px);box-sizing:border-box;box-shadow:0 6px 18px #000a,inset 0 1px #ffd88a44}.j3b-nav-item{display:grid;place-items:center;gap:2px;color:#d6e2f0;font-size:12px;font-weight:700;line-height:1.1;min-width:0;width:25%;min-height:54px}.j3b-nav-item b{font-size:27px;font-weight:500}.j3b-nav-item b .j3b-pie{display:block;width:1.18em;height:1.18em}
@@ -12090,14 +12090,14 @@ def _briefing_css() -> None:
            겹치지 않아, 값이나 판정을 말하는 색으로 잘못 읽힐 일이 없다.
            **색과 빛무리만 바꾼다** — 크기·자리·글자는 그대로다. */
         .j3b-nav-item.active{color:#c9ff3d;text-shadow:0 0 9px #aaff1fcc,0 0 19px #aaff1f66}.j3b-nav-item.active b{filter:drop-shadow(0 0 6px #c9ff3d) drop-shadow(0 0 14px #aaff1f99)}
-        div.st-key-j3b_nav_controls{position:fixed!important;z-index:2147483647!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:68px!important;pointer-events:none!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:68px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;height:68px!important;flex:0 0 25%!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]>[data-testid="stVerticalBlock"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stElementContainer"],div.st-key-j3b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%!important;max-width:none!important}div.st-key-j3b_nav_controls button{width:100%!important;height:68px!important;min-height:68px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important;touch-action:manipulation!important}
+        div.st-key-j12b_nav_controls{position:fixed!important;z-index:2147483647!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:min(430px,100vw)!important;height:68px!important;pointer-events:none!important}div.st-key-j12b_nav_controls [data-testid="stHorizontalBlock"]{gap:0!important;width:100%!important;height:68px!important}div.st-key-j12b_nav_controls [data-testid="stColumn"]{width:25%!important;min-width:0!important;height:68px!important;flex:0 0 25%!important}div.st-key-j12b_nav_controls [data-testid="stColumn"]>[data-testid="stVerticalBlock"],div.st-key-j12b_nav_controls [data-testid="stColumn"] [data-testid="stElementContainer"],div.st-key-j12b_nav_controls [data-testid="stColumn"] [data-testid="stButton"]{width:100%!important;max-width:none!important}div.st-key-j12b_nav_controls button{width:100%!important;height:68px!important;min-height:68px!important;padding:0!important;border:0!important;background:transparent!important;color:transparent!important;box-shadow:none!important;pointer-events:auto!important;touch-action:manipulation!important}
         div.stElementContainer:has(.j3b-debug-overlay){position:absolute!important;height:0!important;min-height:0!important;margin:0!important}.j3b-debug-overlay{position:fixed;z-index:10000;inset:0;pointer-events:none;display:flex;justify-content:center;background:rgba(0,0,0,.1)}.j3b-debug-overlay img{width:min(430px,100vw);height:auto;align-self:flex-start;opacity:.33;object-fit:contain;object-position:top center}
         @media (max-width:600px){body:has(.j12b-home) .stMainBlockContainer,body:has(.j12b-home) .block-container{padding-left:8px!important;padding-right:8px!important}.j3b-hero{height:230px}.j3b-title{font-size:37px}.j3b-sub{font-size:19px}.j3b-hero-catbus{width:155px}.j3b-hero-scene{width:114%}.j3b-section{font-size:20px}.j3b-card{height:238px;padding:10px 9px}.j3b-logo{width:43px;height:43px}.j3b-symbol{font-size:23px}.j3b-price{font-size:20px}.j3b-note{font-size:11px}}
         /* 941×1680 기준 캡처를 430×764 CSS viewport에 맞춘 실제 모바일 밀도. */
         .j3b-hero{height:150px!important;margin-bottom:-5px!important;padding:16px 19px!important;border-radius:0 0 20px 20px!important}.j3b-hero:before{width:580px;height:168px;bottom:-110px}.j3b-hero:after{left:104px;bottom:26px;width:140px;height:25px}.j3b-head-copy{left:20px!important;top:18px!important}.j3b-title{font-size:29px!important;letter-spacing:-1.7px!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:6px!important;font-size:15px!important}.j3b-head-actions{right:15px!important;top:12px!important;gap:6px!important}.j3b-round,.j3b-live{height:31px!important;border-radius:18px!important}.j3b-round{width:31px!important;font-size:19px!important}.j3b-live{padding:0 9px!important;gap:5px!important;font-size:11px!important}.j3b-live i{width:8px!important;height:8px!important}.j3b-hero-catbus{right:-3px!important;bottom:2px!important;width:162px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:118%!important;max-width:none!important}
         .j3b-section{margin:8px 4px 4px!important;font-size:17px!important;gap:6px!important;line-height:22px!important}.j3b-section .j3b-section-icon{width:24px!important;height:24px!important}.j3b-section .j3b-section-icon:after{width:10px!important;height:10px!important}.j3b-section .j3b-more{font-size:11px!important}.j3b-news{min-height:18px!important;margin:3px 0!important;padding:3px 8px!important;border-radius:12px!important;gap:7px!important;font-size:9px!important;line-height:1.1!important}.j3b-news-icon{width:18px!important;height:18px!important;font-size:10px!important}.j3b-news-dot{width:9px!important;height:9px!important}
         .j3b-card{height:108px!important;border-radius:12px!important;padding:6px 7px!important;margin-bottom:6px!important}.j3b-card-top{min-height:32px!important;gap:6px!important}.j3b-logo{width:32px!important;height:32px!important;border-radius:8px!important}.j3b-logo img{width:72%!important;height:72%!important}.j3b-symbol{font-size:17px!important;color:#fff9eb!important;letter-spacing:-.7px!important}.j3b-name{margin-top:2px!important;font-size:9px!important;color:#e6eef5!important}.j3b-price{margin:5px 0 1px!important;font-size:14px!important;color:#fff9eb!important}.j3b-up,.j3b-down,.j3b-neutral{margin-left:3px!important}.j3b-chart{top:34px!important;right:7px!important;width:45%!important;height:31px!important}.j3b-card-notes{margin-top:5px!important;padding-top:3px!important}.j3b-note{font-size:8.1px!important;line-height:1.48!important;color:#f1f5f7!important}.j3b-note:before{margin-right:3px!important}.j3b-lamp{width:17px!important;bottom:0!important;right:3px!important}.j3b-lamp.left{left:3px!important}.j3b-delete-visual{width:18px!important;height:18px!important;right:5px!important;top:5px!important;font-size:13px!important}.j3b-card.compact{height:79px!important}.j3b-card.compact .j3b-card-top{min-height:27px!important}.j3b-card.compact .j3b-logo{width:28px!important;height:28px!important}.j3b-card.compact .j3b-symbol{font-size:15px!important}.j3b-card.compact .j3b-name{font-size:8.5px!important}.j3b-card.compact .j3b-price{font-size:11.5px!important;margin:3px 0 0!important}.j3b-card.compact .j3b-card-notes{margin-top:3px!important;padding-top:1px!important}.j3b-card.compact .j3b-note{font-size:7.5px!important;line-height:1.35!important}.j3b-card.compact .j3b-lamp{width:15px!important}
-        div[class*="st-key-j3b_grid_"]{column-gap:7px!important}div[class*="st-key-j3b_search_row"]{height:30px!important;margin:-28px 0 -27px 202px!important}div[class*="st-key-j3b_search_row"] input{height:29px!important;font-size:9px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:30px!important;height:30px!important;min-height:30px!important;font-size:20px!important}.j3b-disclaimer{margin:5px 0 5px!important;padding:6px!important;border-radius:9px!important;font-size:8px!important}.j3b-bottom-nav{height:56px!important;padding:4px 7px!important}.j3b-nav-item{font-size:11px!important;min-width:44px!important}.j3b-nav-item b{font-size:25px!important}
+        div[class*="st-key-j12b_grid_"]{column-gap:7px!important}div[class*="st-key-j12b_search_row"]{height:30px!important;margin:-28px 0 -27px 202px!important}div[class*="st-key-j12b_search_row"] input{height:29px!important;font-size:9px!important}div[class*="st-key-j12b_search_row"] .stButton button{width:30px!important;height:30px!important;min-height:30px!important;font-size:20px!important}.j3b-disclaimer{margin:5px 0 5px!important;padding:6px!important;border-radius:9px!important;font-size:8px!important}.j3b-bottom-nav{height:56px!important;padding:4px 7px!important}.j3b-nav-item{font-size:11px!important;min-width:44px!important}.j3b-nav-item b{font-size:25px!important}
         </style>
         """,
         unsafe_allow_html=True,
@@ -12107,24 +12107,24 @@ def _briefing_css() -> None:
         """
         <style>
         html:has(.j12b-home),body:has(.j12b-home){overflow-x:hidden!important;max-width:100vw!important}
-        body:has(.j12b-home) .stMainBlockContainer,body:has(.j12b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j12b-home) .stMainBlockContainer,body:has(.j12b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j3b_grid_selected>*:nth-child(n+11){display:none!important}}@media (min-width:1200px){div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
+        body:has(.j12b-home) .stMainBlockContainer,body:has(.j12b-home) .block-container{width:100%!important;max-width:min(1500px,100vw)!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important;padding-bottom:96px!important}@media (max-width:600px){body:has(.j12b-home) .stMainBlockContainer,body:has(.j12b-home) .block-container{max-width:min(430px,100vw)!important}div[class*="st-key-j12b_grid_"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}div.st-key-j12b_grid_selected>*:nth-child(n+11){display:none!important}}@media (min-width:1200px){div[class*="st-key-j12b_grid_"]{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;column-gap:12px!important}}
         body:has(.j12b-home) .stHorizontalBlock,body:has(.j12b-home) .stColumn{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
         .j3b-hero{height:174px!important;margin:0!important;padding:18px 18px!important;border-radius:0 0 24px 24px!important}.j3b-hero:before{width:620px!important;height:190px!important;bottom:-124px!important}.j3b-hero:after{left:96px!important;bottom:28px!important;width:150px!important;height:27px!important}.j3b-head-copy{left:20px!important;top:20px!important}.j3b-title{font-size:31px!important;line-height:1!important}.j3b-title b{font-size:inherit!important;line-height:inherit!important}.j3b-sub{margin-top:7px!important;font-size:16px!important;line-height:1.1!important}.j3b-head-actions{right:14px!important;top:15px!important}.j3b-round,.j3b-live{height:33px!important}.j3b-round{width:33px!important;font-size:20px!important}.j3b-live{padding:0 9px!important;font-size:12px!important}.j3b-hero-catbus{width:172px!important;right:-4px!important;bottom:4px!important}.j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:116%!important;max-width:none!important}
         .j3b-section{margin:12px 4px 7px!important;font-size:18px!important;line-height:25px!important}.j3b-section .j3b-section-icon{width:25px!important;height:25px!important}.j3b-section .j3b-more{font-size:12px!important}.j3b-news{display:block!important;min-height:0!important;margin:5px 0!important;padding:0!important;border-radius:14px!important;font-size:10.5px!important;line-height:1.25!important}.j3b-news-link{min-height:33px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:5px 10px!important;text-decoration:none!important;color:#f7f4ed!important}.j3b-news-link>span:nth-child(2){flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.j3b-news-icon{width:21px!important;height:21px!important;font-size:12px!important}.j3b-news-dot{width:10px!important;height:10px!important}
         .j3b-card{height:auto!important;min-height:142px!important;min-width:0!important;box-sizing:border-box!important;border-radius:14px!important;padding:9px 7px 10px!important;margin:0 0 7px!important}.j3b-card-top{min-height:34px!important;gap:6px!important}.j3b-logo{width:34px!important;height:34px!important;border-radius:9px!important}.j3b-symbol{font-size:18px!important;line-height:1!important;color:#fff9eb!important}.j3b-name{margin-top:3px!important;font-size:10px!important;line-height:1.1!important}.j3b-price{position:absolute!important;left:7px!important;top:49px!important;max-width:55%!important;margin:0!important;color:#fff9eb!important;font-size:14px!important;line-height:1.15!important;white-space:nowrap!important}.j3b-chart{top:44px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card-notes{position:absolute!important;left:7px!important;right:7px!important;bottom:10px!important;margin:0!important;padding-top:3px!important}.j3b-card:has(.j3b-decor-img) .j3b-card-notes{right:58px!important}.j3b-card.compact:has(.j3b-decor-img) .j3b-card-notes{right:62px!important}.j3b-card:has(.j3b-decor-img.left) .j3b-card-notes{left:62px!important;right:7px!important}.j3b-note{display:block;color:#f1f5f7!important;text-decoration:none!important;font-size:9px!important;line-height:1.48!important;padding-right:0!important}.j3b-lamp{display:none!important}.j3b-decor-img{position:absolute;right:-2px;bottom:-1px;width:56px;height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 2px 3px #0007)}.j3b-decor-img.left{left:-2px;right:auto}.j3b-delete-visual{width:21px!important;height:21px!important;right:6px!important;top:6px!important;font-size:15px!important}
         .j3b-card.compact{height:auto!important;min-height:174px!important;box-sizing:border-box!important;padding-bottom:14px!important}.j3b-card.compact .j3b-card-top{min-height:32px!important}.j3b-card.compact .j3b-logo{width:31px!important;height:31px!important}.j3b-card.compact .j3b-symbol{font-size:16px!important}.j3b-card.compact .j3b-name{font-size:9px!important}.j3b-card.compact .j3b-price{top:42px!important;font-size:12px!important}.j3b-card.compact .j3b-chart{display:block!important;top:42px!important;right:7px!important;width:42%!important;height:34px!important}.j3b-card.compact .j3b-card-notes{bottom:14px!important;max-height:none!important;overflow:visible!important}.j3b-card.compact .j3b-note{font-size:8.5px!important;line-height:1.36!important}.j3b-card.compact .j3b-decor-img{width:58px!important;bottom:4px!important}
-        div[class*="st-key-j3b_grid_"]{overflow:visible!important;padding-top:6px!important;padding-bottom:6px!important}div[class*="st-key-j3b_grid_"] [data-testid="stVerticalBlock"],div[class*="st-key-j3b_grid_"] [data-testid="stElementContainer"]{overflow:visible!important}
-        div[class*="st-key-j3b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j3b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j3b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j3b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j3b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j3b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j3b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
+        div[class*="st-key-j12b_grid_"]{overflow:visible!important;padding-top:6px!important;padding-bottom:6px!important}div[class*="st-key-j12b_grid_"] [data-testid="stVerticalBlock"],div[class*="st-key-j12b_grid_"] [data-testid="stElementContainer"]{overflow:visible!important}
+        div[class*="st-key-j12b_extra_header"] .j3b-section{margin:0!important;gap:4px!important;white-space:nowrap!important;font-size:15px!important;letter-spacing:-1px!important}div[class*="st-key-j12b_extra_header"] .j3b-section .j3b-section-icon{width:22px!important;height:22px!important}div[class*="st-key-j12b_extra_header"] .j3b-section.search .j3b-section-icon:before{transform:translate(9px,10px) rotate(48deg)!important}div[class*="st-key-j12b_search_row"]{height:auto!important;margin:0!important;width:100%!important;max-width:100%!important}div[class*="st-key-j12b_search_row"] [data-testid="stHorizontalBlock"]{gap:6px!important;overflow:hidden!important}div[class*="st-key-j12b_search_row"] input{width:100%!important;min-width:0!important;height:35px!important;font-size:11px!important}div[class*="st-key-j12b_search_row"] .stButton button{width:35px!important;height:35px!important;min-height:35px!important;font-size:22px!important}
         .j3b-bottom-nav{width:100vw!important;max-width:430px!important;height:64px!important;padding:5px 6px!important;box-sizing:border-box!important}.j3b-nav-item{min-width:0!important;min-height:54px!important;font-size:12px!important}.j3b-nav-item b{font-size:27px!important}
         /* 선택 4종목의 뉴스·하단 테두리와 하단 3메뉴의 실제 터치 영역을 확보한다. */
         .j3b-card:not(.compact){min-height:148px!important;padding-bottom:12px!important;margin-bottom:8px!important}.j3b-card:not(.compact) .j3b-card-notes{bottom:13px!important}
-        div.st-key-j3b_grid_selected{padding-top:14px!important;padding-bottom:14px!important}
+        div.st-key-j12b_grid_selected{padding-top:14px!important;padding-bottom:14px!important}
         .j3b-card.compact{min-height:164px!important}
         .j3b-bottom-nav{height:50px!important;padding:1px 6px!important}.j3b-nav-item{width:33.333%!important;min-height:46px!important;font-size:12px!important;gap:1px!important}.j3b-nav-item b{font-size:27px!important}
-        div.st-key-j3b_nav_controls{height:50px!important;bottom:4px!important}div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j3b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:50px!important;flex:0 0 33.333%!important}div.st-key-j3b_nav_controls button{height:50px!important;min-height:50px!important}
+        div.st-key-j12b_nav_controls{height:50px!important;bottom:4px!important}div.st-key-j12b_nav_controls [data-testid="stHorizontalBlock"]{height:50px!important}div.st-key-j12b_nav_controls [data-testid="stColumn"]{width:33.333%!important;height:50px!important;flex:0 0 33.333%!important}div.st-key-j12b_nav_controls button{height:50px!important;min-height:50px!important}
         @media (max-width:1200px){
         body:has(.j12b-home) .stMainBlockContainer,body:has(.j12b-home) .block-container{padding-bottom:72px!important}
-        .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:4px!important;left:50%!important;transform:translateX(-75%)!important;margin-left:8px!important;width:min(286.667px,66.667vw)!important}
+        .j3b-bottom-nav,div.st-key-j12b_nav_controls{bottom:4px!important;left:50%!important;transform:translateX(-75%)!important;margin-left:8px!important;width:min(286.667px,66.667vw)!important}
         [data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.stAppDeployButton{display:none!important;visibility:hidden!important;pointer-events:none!important}
         }
         @media (max-width:380px){.j3b-title{font-size:31px!important}.j3b-sub{font-size:16px!important}.j3b-hero-catbus{width:158px!important}.j3b-hero-scene{width:120%!important}.j3b-section{font-size:18px!important}.j3b-card:not(.compact){height:auto!important;min-height:148px!important}.j3b-card.compact{height:auto!important;min-height:160px!important}.j3b-note{font-size:9px!important}.j3b-card.compact .j3b-note{font-size:8.5px!important}}
@@ -12228,35 +12228,35 @@ def _briefing_css() -> None:
         div[class*="st-key-picklist_scorecard_US"] button:hover{filter:brightness(1.15)}
         /* 기간 고르기 달력 (2026-09-24 상하님 — "날짜도 영어 말고 숫자로"). 시작일·종료일 칸과
            달력 날짜 단추. 고른 날은 노랑(기간 칩과 같은 빛), 그 사이 날은 옅은 노랑 띠. */
-        div[class*="st-key-j3sc_cal"]{gap:4px!important}
-        div[class*="st-key-j3sc_cal"] [data-testid="stHorizontalBlock"]{gap:4px!important}
-        div[class*="st-key-j3sc_cal"] button{min-height:0!important;padding:.3rem 0!important;
+        div[class*="st-key-j12sc_cal"]{gap:4px!important}
+        div[class*="st-key-j12sc_cal"] [data-testid="stHorizontalBlock"]{gap:4px!important}
+        div[class*="st-key-j12sc_cal"] button{min-height:0!important;padding:.3rem 0!important;
           border-radius:8px!important;background:transparent!important;border:1px solid #1d3a63!important}
-        div[class*="st-key-j3sc_cal"] button p{font-size:.9rem!important;font-weight:600!important;color:#cfe0f5!important}
-        div[class*="st-key-j3sc_cal"] button[kind="primary"]{background:#ffb020!important;border-color:#ffb020!important}
-        div[class*="st-key-j3sc_cal"] button[kind="primary"] p{color:#0a1a33!important}
-        div[class*="st-key-j3sc_cal_in_"] button{background:rgba(255,176,32,.18)!important;
+        div[class*="st-key-j12sc_cal"] button p{font-size:.9rem!important;font-weight:600!important;color:#cfe0f5!important}
+        div[class*="st-key-j12sc_cal"] button[kind="primary"]{background:#ffb020!important;border-color:#ffb020!important}
+        div[class*="st-key-j12sc_cal"] button[kind="primary"] p{color:#0a1a33!important}
+        div[class*="st-key-j12sc_cal_in_"] button{background:rgba(255,176,32,.18)!important;
           border-color:rgba(255,176,32,.45)!important}
-        div[class*="st-key-j3sc_cal"] button:disabled{opacity:.35}
-        div[class*="st-key-j3sc_calf_"] button p{font-size:.84rem!important}
+        div[class*="st-key-j12sc_cal"] button:disabled{opacity:.35}
+        div[class*="st-key-j12sc_calf_"] button p{font-size:.84rem!important}
         .j3sc-cal-title{text-align:center;color:#8fb4de;font-size:.78rem;font-weight:600;line-height:1.25}
         .j3sc-cal-title b{display:block;color:#e6eefb;font-size:1rem;font-weight:700}
         .j3sc-cal-week{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;
           color:#6f93bd;font-size:.76rem;font-weight:600}
         .j3sc-cal-off{text-align:center;color:#3d5a80;font-size:.9rem;padding:.32rem 0;
           border:1px solid transparent}
-        div[class*="st-key-j3sc_box"]{animation:j3sc-drop .55s cubic-bezier(.2,.8,.2,1) both;
+        div[class*="st-key-j12sc_box"]{animation:j3sc-drop .55s cubic-bezier(.2,.8,.2,1) both;
           transform-origin:top;border:1px solid #1d3a63;border-radius:12px;
           padding:14px 16px;margin-top:10px}
         /* 기간 칩 넷 — 고른 것만 노랑이다(스트림릿의 primary 단추). */
-        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button{
+        div[class*="st-key-j12sc_box"] div[class*="st-key-j12sc_span_"] button{
           min-height:0!important;padding:.2rem .5rem!important;border-radius:8px!important;
           background:transparent!important;border:1px solid #1d3a63!important}
-        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button p{
+        div[class*="st-key-j12sc_box"] div[class*="st-key-j12sc_span_"] button p{
           font-size:.78rem!important;font-weight:700!important;color:#8fb4de!important}
-        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button[kind="primary"]{
+        div[class*="st-key-j12sc_box"] div[class*="st-key-j12sc_span_"] button[kind="primary"]{
           background:#ffb020!important;border-color:#ffb020!important}
-        div[class*="st-key-j3sc_box"] div[class*="st-key-j3sc_span_"] button[kind="primary"] p{
+        div[class*="st-key-j12sc_box"] div[class*="st-key-j12sc_span_"] button[kind="primary"] p{
           color:#0a1a33!important}
         .j3sc-no{font-size:.76rem;color:#6f93bd;text-align:right}
         /* 순위 9 줄 — **누르는 곳은 보라색**이다(테마·종목 단추와 같은 결).
@@ -12266,12 +12266,12 @@ def _briefing_css() -> None:
         /* 창은 **성적표 상자 전체**의 가운데에 뜬다. 스트림릿 칸이 제 자리를 기준으로
            삼지 않게 풀어 주고, 상자가 내려올 때 쓴 잘라 내기(clip-path)가 끝난 뒤
            남아 창을 자르지 않게 한다. */
-        div[class*="st-key-j3sc_box"]{position:relative;animation-fill-mode:backwards!important}
+        div[class*="st-key-j12sc_box"]{position:relative;animation-fill-mode:backwards!important}
         /* 창의 둘레는 머리·칩·막대를 싼 위쪽 칸이다(2026-10-07 — 밑에 견주기 그림이 붙었다). */
-        div[class*="st-key-j3sc_top"]{position:relative}
-        div[class*="st-key-j3sc_box"] [data-testid="stElementContainer"]:has(.j3pop),
-        div[class*="st-key-j3sc_box"] [data-testid="stMarkdown"]:has(.j3pop),
-        div[class*="st-key-j3sc_box"] [data-testid="stMarkdownContainer"]:has(.j3pop){
+        div[class*="st-key-j12sc_top"]{position:relative}
+        div[class*="st-key-j12sc_box"] [data-testid="stElementContainer"]:has(.j3pop),
+        div[class*="st-key-j12sc_box"] [data-testid="stMarkdown"]:has(.j3pop),
+        div[class*="st-key-j12sc_box"] [data-testid="stMarkdownContainer"]:has(.j3pop){
           position:static!important}
         .j3sc-body{position:static}
         label.j3sc-top9{cursor:pointer;margin:0 -8px;padding:6px 8px;border-radius:10px;
@@ -12282,7 +12282,7 @@ def _briefing_css() -> None:
         .j3sc-chip{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;
           font-size:.68rem;font-weight:800;color:#1a0b2e;background:#c084fc;vertical-align:1px}
         .j3sc-body > *,
-        div[class*="st-key-j3sc_box"] [data-testid="stElementContainer"]{
+        div[class*="st-key-j12sc_box"] [data-testid="stElementContainer"]{
           transition:opacity .25s ease,filter .25s ease}
         /* 창이 뜨면 **나머지는 흐리게** — 제목·칩·다른 줄·안내 글 모두.
            .j3sc-body 의 자식은 줄(.j3sc-row)·안내 글(.j3sc-note)과 스위치·바탕·창뿐이다
@@ -12290,7 +12290,7 @@ def _briefing_css() -> None:
            「전부」가 화면 바뀔 때마다 문서 전체를 다시 따지게 했다(2026-09-23 저녁 · 설명은
            _J3B_HOME_CSS 위). 뒤의 :not 둘은 세기(우선순위)를 예전과 같게 맞춘다. */
         .j3sc-body:has(> .j3sc-tap:checked) > :is(.j3sc-row, .j3sc-note):not(.j3pop):not(.j3pop-scrim),
-        div.st-key-j3sc_box:has(.j3sc-tap:checked)
+        div.st-key-j12sc_box:has(.j3sc-tap:checked)
           .stElementContainer:not(:has(.j3pop)){
           opacity:.18;filter:blur(2px)}
         .j3pop-scrim{position:absolute;inset:0;z-index:4;cursor:pointer;
@@ -12397,10 +12397,10 @@ def _briefing_css() -> None:
           body:has(.j12-market-top) .sig-gauge>svg{
             display:block!important;margin-left:auto!important;margin-right:auto!important;
           }
-          body:has(.j12-market-top) .stHorizontalBlock:has([class*="st-key-j3_pullback_breakout"]){
+          body:has(.j12-market-top) .stHorizontalBlock:has([class*="st-key-j12_pullback_breakout"]){
             flex-direction:column!important;
           }
-          body:has(.j12-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j3_pullback_breakout"]) .stColumn{
+          body:has(.j12-market-top) [data-testid="stHorizontalBlock"]:has([class*="st-key-j12_pullback_breakout"]) .stColumn{
             width:100%!important;flex:0 0 auto!important;min-width:0!important;
           }
         }
@@ -12577,7 +12577,7 @@ _BRIEFING_TABLET_CSS = """
     종목선정 2줄씩 되어 있는데 3칸씩 넣으면 안 되나?"). 갤럭시탭 S8+ 에만
     걸리는 규칙이다 — 폰과 노트북은 예전 그대로 두 칸이다.
     사용자 선정 종목 3칸 x 2줄 = 6종목 · 추가 검색 종목 3칸 x 4줄 = 12종목. */
- div[class*="st-key-j3b_grid_"]{grid-template-columns:repeat(3,minmax(0,1fr))!important;
+ div[class*="st-key-j12b_grid_"]{grid-template-columns:repeat(3,minmax(0,1fr))!important;
   column-gap:10px!important}
  /* **칸이 좁아진 만큼 카드 속도 다시 놓는다** (2026-08-27 상하님 캡처).
     두 칸일 때는 카드가 370px 이라 차트를 오른쪽 위에 겹쳐 놓아도 글자를 안
@@ -12613,12 +12613,12 @@ _BRIEFING_TABLET_CSS = """
  /* **종목 검색칸을 왼쪽으로 한 칸 옮기고 + 를 줄인다** (2026-08-27 상하님 지시 —
     "종목 검색 후 추가 옆에 동그라미는 왜 짤리지? 검색란은 왼쪽으로 한 칸 옮기고
     동그라미 크기 줄이면 되겠네"). 오른쪽 끝에 자리를 넉넉히 남긴다. */
- div[class*="st-key-j3b_extra_header"]{padding-right:10px!important}
- div[class*="st-key-j3b_search_row"]{margin-right:6px!important}
- div[class*="st-key-j3b_search_row"] [data-testid="stColumn"]:last-child{
+ div[class*="st-key-j12b_extra_header"]{padding-right:10px!important}
+ div[class*="st-key-j12b_search_row"]{margin-right:6px!important}
+ div[class*="st-key-j12b_search_row"] [data-testid="stColumn"]:last-child{
   flex:0 0 36px!important;min-width:36px!important}
- body:has(.j12b-home) div[class*="st-key-j3b_search_row"] .stButton button,
- body:has(.j12b-home) div[class*="st-key-j3b_search_row"] button{width:34px!important;
+ body:has(.j12b-home) div[class*="st-key-j12b_search_row"] .stButton button,
+ body:has(.j12b-home) div[class*="st-key-j12b_search_row"] button{width:34px!important;
   height:34px!important;min-height:34px!important;max-width:34px!important;
   padding:0!important;font-size:21px!important;border-radius:50%!important}
  body:has(.j12b-home) .j3b-card .j3b-card-notes,
@@ -12641,14 +12641,14 @@ _BRIEFING_TABLET_CSS = """
  body:has(.j12-market-top) nav.j3b-bottom-nav .j3b-nav-item b .j3b-pie{width:1.05em!important;height:1.05em!important}
  /* 눈에 안 보이는 '누르는 자리'도 막대 키에 맞춘다 — 막대보다 크면 그 밑의
     글을 못 누른다. 막대가 바닥에서 12px 위에 48px 이므로 60px 이다. */
- body:has(.j12b-home) div.st-key-j3b_nav_controls,
- body:has(.j12-market-top) div.st-key-j3b_nav_controls{height:60px!important}
- body:has(.j12b-home) div.st-key-j3b_nav_controls .stHorizontalBlock,
- body:has(.j12-market-top) div.st-key-j3b_nav_controls .stHorizontalBlock{height:60px!important}
- body:has(.j12b-home) div.st-key-j3b_nav_controls .stColumn,
- body:has(.j12-market-top) div.st-key-j3b_nav_controls .stColumn{height:60px!important}
- body:has(.j12b-home) div.st-key-j3b_nav_controls button,
- body:has(.j12-market-top) div.st-key-j3b_nav_controls button{height:60px!important;min-height:60px!important}
+ body:has(.j12b-home) div.st-key-j12b_nav_controls,
+ body:has(.j12-market-top) div.st-key-j12b_nav_controls{height:60px!important}
+ body:has(.j12b-home) div.st-key-j12b_nav_controls .stHorizontalBlock,
+ body:has(.j12-market-top) div.st-key-j12b_nav_controls .stHorizontalBlock{height:60px!important}
+ body:has(.j12b-home) div.st-key-j12b_nav_controls .stColumn,
+ body:has(.j12-market-top) div.st-key-j12b_nav_controls .stColumn{height:60px!important}
+ body:has(.j12b-home) div.st-key-j12b_nav_controls button,
+ body:has(.j12-market-top) div.st-key-j12b_nav_controls button{height:60px!important;min-height:60px!important}
  .j3b-hero{height:250px!important;padding:26px 28px!important;border-radius:0 0 30px 30px!important}
  .j3b-hero-scene{right:-4%!important;bottom:-1px!important;width:112%!important}
  .j3b-title{font-size:46px!important;letter-spacing:-2.6px!important}
@@ -12678,19 +12678,19 @@ _BRIEFING_TABLET_CSS = """
  .j3b-note{font-size:15px!important;line-height:1.6!important}
  .j3b-card-notes{bottom:16px!important;left:15px!important;right:15px!important}
  .j3b-decor-img{width:86px!important}
- .j3b-bottom-nav,div.st-key-j3b_nav_controls{bottom:12px!important;left:50%!important;
+ .j3b-bottom-nav,div.st-key-j12b_nav_controls{bottom:12px!important;left:50%!important;
   transform:translateX(-50%)!important;margin-left:-60px!important;
   width:min(520px,62vw)!important}
  .j3b-bottom-nav{height:76px!important;padding:7px 12px!important;border-radius:26px!important}
  .j3b-nav-item{min-height:62px!important;font-size:16px!important;gap:4px!important}
  .j3b-nav-item b{font-size:27px!important}
- div.st-key-j3b_nav_controls{height:76px!important}
- div.st-key-j3b_nav_controls [data-testid="stHorizontalBlock"]{height:76px!important}
- div.st-key-j3b_nav_controls [data-testid="stColumn"]{height:76px!important}
- div.st-key-j3b_nav_controls button{height:76px!important;min-height:76px!important}
- div[class*="st-key-j3b_extra_header"] .j3b-section{font-size:21px!important}
- div[class*="st-key-j3b_search_row"] input{height:50px!important;font-size:16px!important}
- div[class*="st-key-j3b_search_row"] .stButton button{width:50px!important;height:50px!important;
+ div.st-key-j12b_nav_controls{height:76px!important}
+ div.st-key-j12b_nav_controls [data-testid="stHorizontalBlock"]{height:76px!important}
+ div.st-key-j12b_nav_controls [data-testid="stColumn"]{height:76px!important}
+ div.st-key-j12b_nav_controls button{height:76px!important;min-height:76px!important}
+ div[class*="st-key-j12b_extra_header"] .j3b-section{font-size:21px!important}
+ div[class*="st-key-j12b_search_row"] input{height:50px!important;font-size:16px!important}
+ div[class*="st-key-j12b_search_row"] .stButton button{width:50px!important;height:50px!important;
   min-height:50px!important;font-size:28px!important}
  .j3b-open-card{width:min(680px,calc(100vw - 40px))!important;padding:22px 22px 112px!important}
  .j3b-open-news>summary{font-size:17px!important;line-height:1.6!important}
@@ -12714,30 +12714,30 @@ body section[data-testid="stMain"],
 body [data-testid="stAppViewContainer"] { overscroll-behavior-y: contain !important; }
 
 /* 찾은 종목을 보여 주는 줄 */
-div[class*="st-key-j3b_search_confirm"]{margin:6px 0 2px!important;
+div[class*="st-key-j12b_search_confirm"]{margin:6px 0 2px!important;
   padding:10px 12px!important;border:1px solid rgba(240,177,67,.45)!important;
   border-radius:14px!important;background:rgba(6,33,75,.72)!important}
 .j3b-found{color:#ffe0a3;font-size:15px;font-weight:800;margin-bottom:6px}
-div[class*="st-key-j3b_search_confirm"] button{min-height:38px!important;font-size:13px!important}
+div[class*="st-key-j12b_search_confirm"] button{min-height:38px!important;font-size:13px!important}
 
 /* ↻ 되돌리기 — 보이는 것은 머리띠 안의 동그라미이고, 그 위에 속이 비치는
    진짜 단추를 겹쳐 둔다. 눌리는 것은 이 단추다. */
-div[class*="st-key-j3b_hero_box"] { position: relative !important; }
-div[class*="st-key-j3b_hero_box"] [data-testid="stElementContainer"]:has(button) {
+div[class*="st-key-j12b_hero_box"] { position: relative !important; }
+div[class*="st-key-j12b_hero_box"] [data-testid="stElementContainer"]:has(button) {
   position: absolute !important; right: 87px; top: 16px; z-index: 6;
   width: auto !important; margin: 0 !important; }
-div[class*="st-key-j3b_hero_box"] .stButton,
-div[class*="st-key-j3b_hero_box"] button {
+div[class*="st-key-j12b_hero_box"] .stButton,
+div[class*="st-key-j12b_hero_box"] button {
   width: 33px !important; height: 33px !important; min-height: 33px !important;
   padding: 0 !important; border: 0 !important; border-radius: 50% !important;
   background: transparent !important; color: transparent !important;
   box-shadow: none !important; }
-div[class*="st-key-j3b_hero_box"] button:hover,
-div[class*="st-key-j3b_hero_box"] button:focus { background: #ffffff1f !important; }
+div[class*="st-key-j12b_hero_box"] button:hover,
+div[class*="st-key-j12b_hero_box"] button:focus { background: #ffffff1f !important; }
 @media (min-width:601px) and (max-width:1199px){
-  div[class*="st-key-j3b_hero_box"] [data-testid="stElementContainer"]:has(button){right:128px;top:23px}
-  div[class*="st-key-j3b_hero_box"] .stButton,
-  div[class*="st-key-j3b_hero_box"] button{width:46px!important;height:46px!important;min-height:46px!important}
+  div[class*="st-key-j12b_hero_box"] [data-testid="stElementContainer"]:has(button){right:128px;top:23px}
+  div[class*="st-key-j12b_hero_box"] .stButton,
+  div[class*="st-key-j12b_hero_box"] button{width:46px!important;height:46px!important;min-height:46px!important}
 }
 </style>
 """
@@ -12838,7 +12838,7 @@ _BRIEFING_TOUCH_CSS = """
     transform: scale(.97) !important; filter: brightness(1.22) !important;
     border-color: rgba(255,214,129,.9) !important;
   }
-  div[class*="st-key-j3b_nav_controls"] button:active { background: #ffffff22 !important; }
+  div[class*="st-key-j12b_nav_controls"] button:active { background: #ffffff22 !important; }
 }
 .j3b-card-summary, .j3b-market-news-summary, .j3b-news, .j3b-nav-item {
   -webkit-tap-highlight-color: rgba(120,205,255,.22);
@@ -13000,7 +13000,7 @@ def _briefing_chart(values, change, *, stroke: str = "", baseline: bool = False,
 
 
 # 이번 판에 「뉴스를 불러오는 중입니다」로 그린 뉴스 자리 — 이 자리들이 다 와야 뉴스 뒤 미리 챙기기를 한다.
-_NEWS_WAIT_KEYS = "j3b_news_wait_keys"
+_NEWS_WAIT_KEYS = "j12b_news_wait_keys"
 
 
 def _briefing_items(kind: str, ticker: str | None = None) -> dict:
@@ -13025,16 +13025,16 @@ def _briefing_items(kind: str, ticker: str | None = None) -> dict:
         naver_client_secret=_briefing_secret("NAVER_CLIENT_SECRET"),
     )
     if result.get("pending") and not result.get("items"):
-        st.session_state["j3b_news_pending"] = True
+        st.session_state["j12b_news_pending"] = True
         st.session_state.setdefault(_NEWS_WAIT_KEYS, []).append((kind, ticker))
     return result
 
 
 # 이번 판에 「받는 중」으로 그린 기사 주소들. 판이 끝날 때 _ARTICLE_WAIT 로 옮긴다.
-_ARTICLE_WAIT_RUN = "j3b_article_wait_run"
-_ARTICLE_WAIT = "j3b_article_wait"
-_ARTICLE_WAIT_SINCE = "j3b_article_wait_since"
-_ARTICLE_RERUN_AT = "j3b_article_rerun_at"
+_ARTICLE_WAIT_RUN = "j12b_article_wait_run"
+_ARTICLE_WAIT = "j12b_article_wait"
+_ARTICLE_WAIT_SINCE = "j12b_article_wait_since"
+_ARTICLE_RERUN_AT = "j12b_article_rerun_at"
 # 본문이 도착해 다시 그리는 것은 **4초에 한 번까지**, 기다리는 것은 90초까지다.
 # 한 기사에 2~3초가 걸리고(실측) 첫 화면 기사가 20여 개라, 도착할 때마다 그리면
 # 판을 스무 번 그린다(2026-09-10 「판 32번」과 같은 일).
@@ -13344,9 +13344,9 @@ def _briefing_orbit_html(stocks: list[dict]) -> str:
 #     오늘 저장된 자비스 목록에서 그 종목이 어디 몇 위인지 한 줄로 적는다(목록 파일만 읽는다).
 #   · 값은 종목검색과 같은 길(j3data.analyze_one_stock — 2년 일봉·1분봉)로 만든다. 받아 둔 묶음에 있으면 곧바로다.
 #   · 창을 여는 판에 크게 열려 있던 카드를 닫아 둔다 — 창을 닫으면 곧장 목록이 보이게. 폰 뒤로가기로도 닫힌다.
-_WATCH_DETAIL_KEY = "j3b_wdetail"
-_WATCH_DETAIL_OPEN = "j3b_wdetail_open"
-_WATCH_DETAIL_FRESH = "j3b_wdetail_fresh"
+_WATCH_DETAIL_KEY = "j12b_wdetail"
+_WATCH_DETAIL_OPEN = "j12b_wdetail_open"
+_WATCH_DETAIL_FRESH = "j12b_wdetail_fresh"
 _WATCH_PANEL = "watch"
 _WATCH_CHART_ANCHOR = "watch_charts"
 
@@ -13363,8 +13363,8 @@ def _close_watch_detail() -> None:
     st.session_state.pop(_WATCH_DETAIL_FRESH, None)
     # 창 안에서 연 구역(4주간 시세 · 그림 묶음)은 닫아 둔다 — 다음에 열 때 처음처럼.
     for name in [key for key in st.session_state.keys()
-                 if str(key).startswith(f"j3_daily_prices_{_WATCH_PANEL}_")
-                 or str(key) == f"j3_bundle_open_{_WATCH_PANEL}"]:
+                 if str(key).startswith(f"j12_daily_prices_{_WATCH_PANEL}_")
+                 or str(key) == f"j12_bundle_open_{_WATCH_PANEL}"]:
         st.session_state.pop(name, None)
 
 
@@ -13427,9 +13427,9 @@ def _render_watch_detail_area(stocks: tuple) -> None:
     """**이 덩이만 다시 그린다** — 관심종목 판 전체를 다시 그리면 4배 느린 폰에서 1초가 더 들었다(2026-10-09 실측 —
     창 뜸 2.4초 중 판 다시 그리기 약 1초). 종목마다 숨은 단추를 두고, 카드의 그림 단추가 그것을 대신 누른다.
     창 안의 단추(4주간 시세 · 그림 묶음 · 닫기)도 이 덩이 안이라 판 전체를 안 돈다."""
-    with st.container(key="j3b_wdgo_box"):
+    with st.container(key="j12b_wdgo_box"):
         for ticker, name in stocks:
-            st.button(f"{ticker} 세부사항", key=f"j3b_wdgo_{ticker}", on_click=_open_watch_detail,
+            st.button(f"{ticker} 세부사항", key=f"j12b_wdgo_{ticker}", on_click=_open_watch_detail,
                       args=(ticker, name))
     _render_watch_detail()
     # 덩이만 다시 돈 판에는 페이지 맨 끝의 scroll_to.run 이 안 돈다 — 여기서 한 번(차트 자리로 올리기).
@@ -13449,11 +13449,11 @@ def _render_watch_detail() -> None:
     # 환율이 아직 없으면(시장분석을 안 연 판) 뒤에서 받아 둔다 — 기다리지 않는다. 다음 판부터 「≈ 원화」가 나온다.
     if not _fx_state().get("rate"):
         _start_us_fx_fetch()
-    with st.container(key="j3b_wdetail"):
+    with st.container(key="j12b_wdetail"):
         # 폰 규칙(가격 칸 두 칸씩 등)은 시장분석에서만 깔린다 — 창이 쓰는 줄만 같이 깐다. 시장분석 규칙 전체
         # (1만 9천 자)를 깔면 느린 폰이 판 전체 꾸밈을 다시 따져 창이 늦었다(2026-10-09 실측).
         st.markdown(mobile_ui.watch_detail_css(), unsafe_allow_html=True)
-        st.button("✕ 닫기 — 관심종목으로", key="j3b_wd_close_top", on_click=_close_watch_detail)
+        st.button("✕ 닫기 — 관심종목으로", key="j12b_wd_close_top", on_click=_close_watch_detail)
         with st.spinner(f"{ticker} 세부사항을 불러오는 중입니다…"):
             try:
                 result = j3data.analyze_one_stock(ticker)
@@ -13485,26 +13485,26 @@ def _render_watch_detail() -> None:
                                        on_open=lambda: scroll_to.request(st, _WATCH_CHART_ANCHOR))
         else:
             st.caption(f"{ticker} 시세를 받지 못했습니다 · {_safe_error_text(result.get('error'))}")
-        st.button("✕ 닫기 — 관심종목으로", key="j3b_wd_close_bottom", on_click=_close_watch_detail)
+        st.button("✕ 닫기 — 관심종목으로", key="j12b_wd_close_bottom", on_click=_close_watch_detail)
 
 
 _WATCH_DETAIL_CSS = """<style>
 /* 종목마다 숨은 스트림릿 단추 — 카드 큰 판의 그림 단추(.j3b-wd-open)가 대신 누른다. 자리를 안 차지한다. */
-div.st-key-j3b_wdgo_box{display:none!important}
+div.st-key-j12b_wdgo_box{display:none!important}
 /* 큰 판 안 「🔎 선택종목 세부사항 보기」 — 판은 손가락을 안 받게 해 두었으니(누르면 바탕이 닫는다) 이것만 받는다. */
 .j3b-wd-open{display:block;position:relative;z-index:7;pointer-events:auto;cursor:pointer;box-sizing:border-box;
   width:min(320px,100%);margin:14px auto 0;padding:11px 14px;border-radius:14px;text-align:center;
   border:1px solid #e3b52c;background:linear-gradient(90deg,#4a3206 0%,#b88a12 60%,#e3b52c 100%);
   color:#fff;font-size:15px;font-weight:900;box-shadow:0 8px 22px #000a}
 /* 세부사항 창 — 관심종목 판 위에 한 장 덮는다. 하단 막대는 그대로 보인다(그 높이만큼 밑을 비운다). */
-div.st-key-j3b_wdetail{position:fixed!important;inset:0!important;z-index:2147483600!important;overflow-y:auto!important;
+div.st-key-j12b_wdetail{position:fixed!important;inset:0!important;z-index:2147483600!important;overflow-y:auto!important;
   box-sizing:border-box!important;padding:14px 16px 112px!important;gap:10px!important;
   background:linear-gradient(180deg,#0a2350 0%,#061636 60%,#05122d 100%)!important}
-div[class*="st-key-j3b_wd_close_"] button{border-radius:12px!important;border:1px solid #e3b52c!important;
+div[class*="st-key-j12b_wd_close_"] button{border-radius:12px!important;border:1px solid #e3b52c!important;
   background:linear-gradient(90deg,#4a3206 0%,#b88a12 60%,#e3b52c 100%)!important}
-div[class*="st-key-j3b_wd_close_"] button p{color:#fff!important;font-weight:800!important}
+div[class*="st-key-j12b_wd_close_"] button p{color:#fff!important;font-weight:800!important}
 .j3b-wd-note{font-size:.74rem;color:#6f93bd;margin:2px 0 4px}
-div.st-key-j3b_wdetail #jarvis-anchor-watch_charts{scroll-margin-top:12px}
+div.st-key-j12b_wdetail #jarvis-anchor-watch_charts{scroll-margin-top:12px}
 /* 「○○ 세부사항을 여는 중…」 — 그림 단추를 누른 순간 덮는다. 진짜 창이 다 오면 작은 장치가 걷는다. */
 #j3b-wd-wait{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(180deg,#0a2350 0%,#061636 60%,#05122d 100%);color:#dfe9ff;font-size:16px;font-weight:800;
@@ -13603,23 +13603,23 @@ def _render_briefing_card(stock: dict, card: dict, *, removable: bool = False,
         slot = f"{group}_{position}"
         remove = (briefing_store.remove_selected if group == "selected"
                   else briefing_store.remove_extra)
-        with st.container(key=f"j3b_{group}_{position}"):
+        with st.container(key=f"j12b_{group}_{position}"):
             st.markdown(card_html, unsafe_allow_html=True)
-            confirm = st.session_state.get("j3b_delete_confirm") == slot
+            confirm = st.session_state.get("j12b_delete_confirm") == slot
             if confirm:
                 left, right = st.columns(2)
-                if left.button("삭제 확인", key=f"j3b_del_yes_{slot}"):
+                if left.button("삭제 확인", key=f"j12b_del_yes_{slot}"):
                     try:
                         remove(position)
                     except ValueError as exc:
-                        st.session_state["j3b_search_message"] = str(exc)
-                    st.session_state.pop("j3b_delete_confirm", None)
+                        st.session_state["j12b_search_message"] = str(exc)
+                    st.session_state.pop("j12b_delete_confirm", None)
                     st.rerun()
-                if right.button("취소", key=f"j3b_del_no_{slot}"):
-                    st.session_state.pop("j3b_delete_confirm", None)
+                if right.button("취소", key=f"j12b_del_no_{slot}"):
+                    st.session_state.pop("j12b_delete_confirm", None)
                     st.rerun()
-            elif st.button("×", key=f"j3b_del_{slot}"):
-                st.session_state["j3b_delete_confirm"] = slot
+            elif st.button("×", key=f"j12b_del_{slot}"):
+                st.session_state["j12b_delete_confirm"] = slot
                 st.rerun()
         return
     st.markdown(card_html, unsafe_allow_html=True)
@@ -13637,7 +13637,7 @@ def _render_briefing_grid(stocks: list[dict], cards: dict, *, removable: bool, k
     이제 카드를 한 줄로 죽 넣고, 몇 칸으로 놓을지는 CSS가 정한다.
     폰 2칸 · 태블릿 3칸이다. 줄마다 만들던 껍데기도 같이 없어진다.
     """
-    with st.container(key=f"j3b_grid_{key}"):
+    with st.container(key=f"j12b_grid_{key}"):
         for stock in stocks:
             can_remove = removable and int(stock.get("position", 0)) > 0
             _render_briefing_card(stock, cards.get(stock["ticker"], {}), removable=can_remove,
@@ -13729,60 +13729,60 @@ def _render_briefing_manage(selected: list[dict], extras: list[dict], *,
     예전에는 ＋를 누르면 찾은 첫 종목이 곧바로 들어갔다. 이름이 비슷한 다른 회사가
     들어가도 알 수가 없었다.
     """
-    found_key = f"j3b_search_found_{group}"
-    # 통 이름을 **둘 다 j3b_search_row 로 시작**하게 둔다. 화면 규칙이
-    # class*="st-key-j3b_search_row" 부분일치라, 이름이 다르면 칸 배치·라벨
+    found_key = f"j12b_search_found_{group}"
+    # 통 이름을 **둘 다 j12b_search_row 로 시작**하게 둔다. 화면 규칙이
+    # class*="st-key-j12b_search_row" 부분일치라, 이름이 다르면 칸 배치·라벨
     # 숨김·입력칸 크기가 하나도 안 걸려 검색줄이 깨진다(2026-09-10 상하님 —
     # "추가검색종목과 디자인 똑같이 해라").
-    with st.container(key="j3b_search_row" if group == "extra" else "j3b_search_row_sel"):
+    with st.container(key="j12b_search_row" if group == "extra" else "j12b_search_row_sel"):
         query_col, plus_col = st.columns([7, 1])
         with query_col:
             query = st.text_input("종목 검색", placeholder="종목 검색 후 추가",
-                                  key=f"j3b_search_{group}", label_visibility="collapsed")
+                                  key=f"j12b_search_{group}", label_visibility="collapsed")
         with plus_col:
-            add_clicked = st.button("+", key=f"j3b_manage_toggle_{group}")
+            add_clicked = st.button("+", key=f"j12b_manage_toggle_{group}")
     if add_clicked:
         st.session_state.pop(found_key, None)
         if not query.strip():
-            st.session_state["j3b_search_message"] = "추가할 종목명이나 티커를 먼저 넣으십시오."
+            st.session_state["j12b_search_message"] = "추가할 종목명이나 티커를 먼저 넣으십시오."
         else:
             with st.spinner("미국 종목 명부에서 찾는 중입니다…"):
                 rows = _briefing_local_search(query)
             if rows:
                 st.session_state[found_key] = rows[:5]
             else:
-                st.session_state["j3b_search_message"] = "그 이름으로는 미국 종목을 찾지 못했습니다."
+                st.session_state["j12b_search_message"] = "그 이름으로는 미국 종목을 찾지 못했습니다."
 
     found = st.session_state.get(found_key) or []
     if found:
-        with st.container(key=f"j3b_search_confirm_{group}"):
+        with st.container(key=f"j12b_search_confirm_{group}"):
             labels = {f'{row["ticker"]} · {row["name"]}': row for row in found}
             names = list(labels)
             picked = names[0]
             if len(names) > 1:
                 picked = st.radio("찾은 종목 가운데 고르십시오", names,
-                                  key=f"j3b_search_pick_{group}")
+                                  key=f"j12b_search_pick_{group}")
             else:
                 st.markdown(f"<div class='j3b-found'>{html.escape(picked)}</div>",
                             unsafe_allow_html=True)
             yes_col, no_col = st.columns(2)
-            if yes_col.button("이 종목이 맞습니다 · 추가", key=f"j3b_search_ok_{group}",
+            if yes_col.button("이 종목이 맞습니다 · 추가", key=f"j12b_search_ok_{group}",
                               type="primary"):
                 chosen = labels[picked]
                 add = (briefing_store.add_selected if group == "selected"
                        else briefing_store.add_extra)
                 try:
                     add(chosen["ticker"], chosen["name"])
-                    st.session_state["j3b_search_message"] = f'{chosen["ticker"]} 종목을 넣었습니다.'
+                    st.session_state["j12b_search_message"] = f'{chosen["ticker"]} 종목을 넣었습니다.'
                     st.session_state.pop(found_key, None)
                     st.rerun()
                 except ValueError as exc:
-                    st.session_state["j3b_search_message"] = str(exc)
-            if no_col.button("아닙니다 · 취소", key=f"j3b_search_cancel_{group}"):
+                    st.session_state["j12b_search_message"] = str(exc)
+            if no_col.button("아닙니다 · 취소", key=f"j12b_search_cancel_{group}"):
                 st.session_state.pop(found_key, None)
                 st.rerun()
 
-    message = st.session_state.pop("j3b_search_message", "")
+    message = st.session_state.pop("j12b_search_message", "")
     if message:
         st.caption(message)
 
@@ -13801,14 +13801,14 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
     한 자리가 도착할 때마다 판을 두 번 그린다 — 아래 자세히 적어 두었다.
 
     여기 남은 일은 **세는 것과 멈추는 것**이다. 다 왔거나 너무 오래 걸리면
-    `j3b_news_pending` 을 꺼서 지켜보는 조각도 같이 멈추게 한다.
+    `j12b_news_pending` 을 꺼서 지켜보는 조각도 같이 멈추게 한다.
     """
-    if not st.session_state.get("j3b_news_pending"):
-        st.session_state.pop("j3b_news_wait", None)
-        st.session_state.pop("j3b_news_ready", None)
+    if not st.session_state.get("j12b_news_pending"):
+        st.session_state.pop("j12b_news_wait", None)
+        st.session_state.pop("j12b_news_ready", None)
         return
-    waited = int(st.session_state.get("j3b_news_wait", 0)) + 1
-    st.session_state["j3b_news_wait"] = waited
+    waited = int(st.session_state.get("j12b_news_wait", 0)) + 1
+    st.session_state["j12b_news_wait"] = waited
     try:
         ready = briefing_news.ready_count(keys)
     except Exception:
@@ -13816,13 +13816,13 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
     # 다 오기를 기다리지 않는다. 새로 도착한 자리가 생길 때마다 그만큼 채워 그려서
     # 위쪽 시장 브리핑과 사용자 선정 종목이 먼저 차고 추가 검색 종목이 뒤따르게 한다.
     # 2분이 넘으면 더 기다리지 않는다. 못 온 자리는 ↻ 를 눌러 다시 받으면 된다.
-    if ready <= int(st.session_state.get("j3b_news_ready", 0)) and waited < 60:
+    if ready <= int(st.session_state.get("j12b_news_ready", 0)) and waited < 60:
         return
-    st.session_state["j3b_news_ready"] = ready
+    st.session_state["j12b_news_ready"] = ready
     if ready >= len(keys) or waited >= 60:
-        st.session_state["j3b_news_pending"] = False
-        st.session_state.pop("j3b_news_wait", None)
-        st.session_state.pop("j3b_news_ready", None)
+        st.session_state["j12b_news_pending"] = False
+        st.session_state.pop("j12b_news_wait", None)
+        st.session_state.pop("j12b_news_ready", None)
     # **여기서 다시 그리라고 하지 않는다** (2026-09-10 상하님 지적 — "시장분석에서
     # 관심종목으로 4초, 너무 늦다").
     #
@@ -13836,7 +13836,7 @@ def _schedule_briefing_news_refresh(keys: tuple = ()) -> None:
     # 유일한 길이라 필요했는데, 이제는 조각이 2초마다 스스로 살펴 다시 그린다
     # (그 함수 설명 참고). 둘 다 두면 같은 일을 두 번 한다.
     #
-    # **세는 일은 그대로 남긴다** — 위의 j3b_news_pending 을 꺼 주는 것이 여기다.
+    # **세는 일은 그대로 남긴다** — 위의 j12b_news_pending 을 꺼 주는 것이 여기다.
     # 그것이 꺼져야 지켜보는 조각도 멈춘다.
 
 
@@ -13868,7 +13868,7 @@ def _briefing_news_watcher(keys: tuple = ()) -> None:
     **실패해도 아무 일도 일어나지 않아야 한다.** 세다가 터지면 조용히 넘어가고,
     화면은 지금 그대로 있는다(CLAUDE.md 13번과 같은 원칙).
     """
-    if not st.session_state.get("j3b_news_pending"):
+    if not st.session_state.get("j12b_news_pending"):
         # 뉴스는 다 왔다. **기사 본문**이 뒤에서 도착했으면 한 번 다시 그린다
         # (2026-09-17 상하님 지시 '가' — 광고 없이 본문을 앱 안에서).
         if _article_arrived():
@@ -13881,21 +13881,21 @@ def _briefing_news_watcher(keys: tuple = ()) -> None:
         ready = int(briefing_news.ready_count(keys))
     except Exception:
         return                      # 못 세면 다음 2초에 다시 본다
-    seen = st.session_state.get("j3b_news_watch_seen")
+    seen = st.session_state.get("j12b_news_watch_seen")
     if seen is None:
         # 처음 한 바퀴는 기준만 잡는다. 여기서 바로 다시 그리면 화면이 헛돈다.
-        st.session_state["j3b_news_watch_seen"] = ready
-        st.session_state["j3b_news_watch_since"] = time.monotonic()
+        st.session_state["j12b_news_watch_seen"] = ready
+        st.session_state["j12b_news_watch_since"] = time.monotonic()
         return
-    since = float(st.session_state.get("j3b_news_watch_since") or time.monotonic())
+    since = float(st.session_state.get("j12b_news_watch_since") or time.monotonic())
     over = (time.monotonic() - since) > 120
     if ready <= int(seen) and not over:
         return                      # 아직 새로 온 것이 없다 — 화면을 안 건드린다
-    st.session_state["j3b_news_watch_seen"] = ready
+    st.session_state["j12b_news_watch_seen"] = ready
     if over or ready >= len(keys):
-        st.session_state["j3b_news_pending"] = False
-        st.session_state.pop("j3b_news_watch_seen", None)
-        st.session_state.pop("j3b_news_watch_since", None)
+        st.session_state["j12b_news_pending"] = False
+        st.session_state.pop("j12b_news_watch_seen", None)
+        st.session_state.pop("j12b_news_watch_since", None)
     # 판 전체를 다시 그린다 — 카드가 프래그먼트 밖에 있어서 여기만 그리면
     # 뉴스가 화면에 안 나타난다. scope 를 못 받는 판이면 그냥 전체다.
     try:
@@ -14128,7 +14128,7 @@ def _render_stock_news_box(ticker: str, *, panel: str) -> None:
     받아 둔 종목은 곧바로 뜬다. 기사 본문 도착을 지켜보며 화면을 다시 그리는 장치(관심종목 화면 것)는 여기서
     쓰지 않는다 — 시장분석 화면 전체를 다시 그리게 된다. 본문이 늦으면 닫았다 다시 열 때 나온다.
     """
-    if not _section_toggle("📰 종목 뉴스 보기 — 누르면 받아 옵니다", f"j3_news_open_{panel}",
+    if not _section_toggle("📰 종목 뉴스 보기 — 누르면 받아 옵니다", f"j12_news_open_{panel}",
                            close_label="종목 뉴스 닫기"):
         return
     try:
@@ -14169,7 +14169,7 @@ def _render_stock_news_box(ticker: str, *, panel: str) -> None:
 # 야후가 멀쩡하면 이 기다림은 0.8초라 2초로도 넉넉하다.
 _FUTURES_WAIT_SECONDS = 2.0
 # 마지막으로 제대로 받은 선물 값. 늦는 판에서는 이것을 그대로 보여 준다.
-_FUTURES_LAST_KEY = "j3_futures_last"
+_FUTURES_LAST_KEY = "j12_futures_last"
 
 
 def _await_us_futures_fetch(timeout: float | None = None) -> bool:
@@ -14300,7 +14300,7 @@ def _briefing_page() -> str:
     주소를 못 읽으면 조용히 세션 기억만으로 돈다 — 이 장치 때문에 화면이
     막히면 안 된다(CLAUDE.md 13번 쿠키 규칙과 같은 뜻).
     """
-    page = str(st.session_state.get("j3_briefing_page") or "")
+    page = str(st.session_state.get("j12_briefing_page") or "")
     if page in _BRIEFING_PAGES:
         return page
     try:
@@ -14308,7 +14308,7 @@ def _briefing_page() -> str:
     except Exception:
         marked = ""
     if marked in _BRIEFING_PAGES:
-        st.session_state["j3_briefing_page"] = marked
+        st.session_state["j12_briefing_page"] = marked
         return marked
     return "home"
 
@@ -14319,7 +14319,7 @@ def _request_briefing_home() -> None:
     넘어가는 일은 화면 맨 앞(_briefing_home_request)에서 한다. 누른 판에서 화면을
     다시 그리기 **전에** 돌므로, 그 판은 맨 앞에서 곧바로 홈으로 넘어간다.
     """
-    st.session_state["j3b_go_home"] = True
+    st.session_state["j12b_go_home"] = True
 
 
 def _set_briefing_page(page: str) -> None:
@@ -14328,7 +14328,7 @@ def _set_briefing_page(page: str) -> None:
     같은 값을 또 적으면 방문기록만 한 칸 더 쌓여 뒤로가기가 헛돈다.
     """
     page = page if page in _BRIEFING_PAGES else "home"
-    st.session_state["j3_briefing_page"] = page
+    st.session_state["j12_briefing_page"] = page
     try:
         if str(st.query_params.get(_BRIEFING_PAGE_PARAM) or "") != page:
             st.query_params[_BRIEFING_PAGE_PARAM] = page
@@ -14360,7 +14360,7 @@ def _set_briefing_page(page: str) -> None:
 # 뒤에만 이것이 듣는다. **pointer-events 는 안 건다** — 걸었더니 열렸을 때 바깥을
 # 눌러도 안 닫혔다(같은 날 낮에 그렇게 만들었다가 상하님이 잡아 주셨다).
 _LEFTOVER_CSS = (
-    "div.st-key-j3_help_card{position:fixed;left:50%;top:50%;"
+    "div.st-key-j12_help_card{position:fixed;left:50%;top:50%;"
     "opacity:0;visibility:hidden}"
     ".j3-help-scrim{position:fixed;inset:0;opacity:0;visibility:hidden}"
     # **앞 화면에서 흐리게 남은 설명 그림은 아예 안 보인다** (2026-09-23 상하님 캡처 12:45 —
@@ -14369,8 +14369,8 @@ _LEFTOVER_CSS = (
     # 걸려 그 사이 설명 그림이 꾸밈 없이 드러났다. 설명 그림·설명 카드 안의 조각만 막는다.
     "div[class*='st-key-jarvis_method_pic'] [data-stale='true'],"
     "div[class*='st-key-jarvis_method_pic'][data-stale='true'],"
-    "div.st-key-j3_help_card [data-stale='true']{display:none!important}"
-    "div.st-key-j3b_nav_controls button{color:transparent;background:transparent;"
+    "div.st-key-j12_help_card [data-stale='true']{display:none!important}"
+    "div.st-key-j12b_nav_controls button{color:transparent;background:transparent;"
     "border:0}"
 )
 
@@ -14443,7 +14443,7 @@ _PAGE_GUARD_JS = """
     try {
       var t = ev.target;
       if (!t || t.id !== 'j3-help-tap' || !t.checked) { return; }
-      var card = d.querySelector('div.st-key-j3_help_card');
+      var card = d.querySelector('div.st-key-j12_help_card');
       if (card) { card.scrollTop = 0; }
     } catch (e) {}
   }, true);
@@ -14615,7 +14615,7 @@ def _briefing_home_request() -> None:
     손가락 넘기기가 누르던 숨은 단추 셋(시장분석으로·관심종목으로·홈으로)과 「밀어서 들어왔다」 표식은
     2026-10-09 넘기기를 빼면서 같이 뺐다(상하님 — "아예 날려라").
     """
-    if st.session_state.pop("j3b_go_home", False):
+    if st.session_state.pop("j12b_go_home", False):
         _set_briefing_page("home")
         st.switch_page("app.py")
 
@@ -14655,13 +14655,13 @@ def _render_briefing_bottom_nav(active: str) -> None:
     except Exception:
         boot = ""
     st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>{boot}', unsafe_allow_html=True)
-    with st.container(key="j3b_nav_controls"):
+    with st.container(key="j12b_nav_controls"):
         home_col, watch_col, market_col = st.columns(3, gap="small")
         # 「홈」은 누르는 순간 표시만 해 두고, 홈으로 넘어가는 일은 화면 **맨 앞**
         # (_briefing_home_request)에서 한다 (2026-09-23 저녁). 여기(화면 맨 끝)서 넘어가면
         # 홈으로 가기 전에 지금 화면을 끝까지 다시 그리고, 이 막대 통이 홈 밑에 남았다
         # (온라인 실측 · 그리는 중에 누른 여섯 번 중 네 번 — 128px 짜리 빈 통).
-        home_col.button("홈", key="j3b_nav_home", on_click=_request_briefing_home)
+        home_col.button("홈", key="j12b_nav_home", on_click=_request_briefing_home)
         # **화면을 바꾸면 맨 위로 올라간다** (2026-08-27 상하님 지적 — "맨 위에
         # 화면이 다 사라졌다"). 브라우저는 화면을 바꿔도 굴려 둔 자리를 그대로
         # 들고 간다. 관심종목에서 아래로 내려보시다 시장분석을 누르면 그 자리에
@@ -14683,7 +14683,7 @@ def _render_briefing_bottom_nav(active: str) -> None:
         # 이제 **누르는 순간(on_click)** 볼 화면을 바꿔 둔다 — on_click 은 판을 그리기
         # **전에** 돌므로 곧바로 가려는 화면 **한 판**만 그린다. st.rerun() 은 안 부른다.
         # 화면을 맨 위로 올리는 일은 예전처럼 _render_stock_briefing 이 챙긴다.
-        watch_col.button("관심종목", key="j3b_nav_watch",
+        watch_col.button("관심종목", key="j12b_nav_watch",
                          on_click=_set_briefing_page, args=("home",))
         market_col.button("시장분석", key="j3b_nav_market",
                           on_click=_set_briefing_page, args=("market",))
@@ -14745,8 +14745,8 @@ def _render_stock_briefing() -> None:
     # 받느라 끝까지 그리는 데 몇 초가 걸린다. 그동안 상하님은 이미 내려 보고
     # 계셨고, 마지막에 표시가 쓰이면서 그 손을 뿌리쳤다. 지금 올리면 아직
     # 그릴 것이 없을 때라 뿌리칠 일이 없다.
-    if st.session_state.get("j3b_last_page") != page:
-        st.session_state["j3b_last_page"] = page
+    if st.session_state.get("j12b_last_page") != page:
+        st.session_state["j12b_last_page"] = page
         scroll_to.now(st, "top")
     if page == "market":
         # **시장분석에서도 뒤로가기가 앱 밖으로 나가지 않게 한다**
@@ -14757,7 +14757,7 @@ def _render_stock_briefing() -> None:
         # 뒤로가기를 누르면 곧장 「어디로 갈까요」 화면으로 빠져나갔다.
         # 관심종목과 **같은 표식**을 쓴다 — 열쇠가 같으므로 방문기록은
         # 여전히 한 칸만 쌓인다.
-        back_nav.opened(st, "j3b_backstop")
+        back_nav.opened(st, "j12b_backstop")
         _close_watch_detail()            # 관심종목에서 연 세부사항 창은 관심종목 것이다
         _render_existing_theme_content()
         _render_briefing_bottom_nav("market")
@@ -14766,7 +14766,7 @@ def _render_stock_briefing() -> None:
         # 종목검색이 처음 쓸 미국 상장 종목 목록을 미리(하루 한 번 · 화면이 다 그린 뒤 · 뒤 일꾼 차례로).
         _warm_us_listing_later()
         return
-    st.session_state["j3b_news_pending"] = False
+    st.session_state["j12b_news_pending"] = False
     st.session_state[_NEWS_WAIT_KEYS] = []
     try:
         briefing_store.ensure_tables()
@@ -14814,11 +14814,11 @@ def _render_stock_briefing() -> None:
         # "뒤로가기 버튼을 누르면 로그인 화면으로 갔다가 다시 메인으로 돌아온다").
         # 방문기록에 표식을 하나 쌓아 두면 첫 뒤로가기가 그 표식을 지우고 제자리에
         # 선다. 앞 화면(로그인·메뉴)으로 나가려면 두 번 누르면 된다.
-        back_nav.opened(st, "j3b_backstop")
+        back_nav.opened(st, "j12b_backstop")
         # 시장분석에서 관심종목으로 돌아올 때 데려올 '맨 위' 자리.
         # 시장분석 쪽에는 이미 같은 이름의 자리가 있다(_render_existing_theme_content).
         scroll_to.anchor(st, "top")
-        with st.container(key="j3b_hero_box"):
+        with st.container(key="j12b_hero_box"):
             st.markdown(
                 '<div class="j3b-app j12b-home"></div><div class="j3b-hero"><div class="j3b-head-copy">'
                 '<div class="j3b-title">JARVIS <b>12</b></div><div class="j3b-sub">미국테마</div></div>'
@@ -14830,7 +14830,7 @@ def _render_stock_briefing() -> None:
                 + _J3B_HOME_CSS + _WATCH_DETAIL_CSS,
                 unsafe_allow_html=True,
             )
-            if st.button("↻", key="j3b_hero_refresh"):
+            if st.button("↻", key="j12b_hero_refresh"):
                 # 서버가 담아 둔 것을 비우고, **화면도 통째로 새로 연다.**
                 #
                 # 2026-08-27 상하님 지적 — "맨 위 두 단추가 안 나타난다."
@@ -14842,7 +14842,7 @@ def _render_stock_briefing() -> None:
                 #
                 # 이제 이 단추가 진짜 새로고침이다. **누를 때만** 연다 —
                 # 2026-08-26에 이것을 2.5초마다 부르다 화면이 버벅였다.
-                st.session_state["j3b_hard_reload"] = True
+                st.session_state["j12b_hard_reload"] = True
                 try:
                     j3data.clear_runtime_cache()
                 except Exception:
@@ -14856,11 +14856,11 @@ def _render_stock_briefing() -> None:
         _render_briefing_news("market")
         # **추가 검색 종목과 똑같은 짜임이다** (2026-09-10 상하님 지시 —
         # "사용자선정종목 바로 옆에 종목검색후추가로 하고 디자인 똑같이 해라").
-        # 통 이름을 j3b_extra_header 로 시작하게 두어 그쪽 화면 규칙을 그대로
+        # 통 이름을 j12b_extra_header 로 시작하게 두어 그쪽 화면 규칙을 그대로
         # 탄다 — 규칙이 class*= 부분일치라 이름만 맞추면 자리·글자 크기가 같아진다.
         # 「더보기 ›」는 뺐다. 그 자리에 검색줄이 앉는다. 시장분석은 하단
         # 이동막대와 손가락으로 미는 것으로 간다.
-        with st.container(key="j3b_extra_header_sel"):
+        with st.container(key="j12b_extra_header_sel"):
             heading_col, search_col = st.columns([4, 6], gap="small")
             with heading_col:
                 st.markdown('<div class="j3b-section"><span class="j3b-section-icon"></span> 사용자 선정 종목</div>', unsafe_allow_html=True)
@@ -14870,7 +14870,7 @@ def _render_stock_briefing() -> None:
         cards = j3data.get_briefing_cards(visible_stocks)
         _render_briefing_grid(selected, cards, removable=True, key="selected",
                               group="selected")
-        with st.container(key="j3b_extra_header"):
+        with st.container(key="j12b_extra_header"):
             heading_col, search_col = st.columns([4, 6], gap="small")
             with heading_col:
                 st.markdown('<div class="j3b-section search"><span class="j3b-section-icon"></span> 추가 검색 종목</div>', unsafe_allow_html=True)
@@ -14892,7 +14892,7 @@ def _render_stock_briefing() -> None:
         # 그러면 이 조각도 더 안 돈다.
         # 기사 본문을 받는 중이어도 지켜본다(2026-09-17) — 도착하면 다시 그린다.
         _article_wait_carry()
-        if st.session_state.get("j3b_news_pending") or st.session_state.get(_ARTICLE_WAIT):
+        if st.session_state.get("j12b_news_pending") or st.session_state.get(_ARTICLE_WAIT):
             _briefing_news_watcher(news_keys)
         # 뉴스가 다 온 뒤에야 순위 9·나스닥 25년치를 미리 챙긴다. 위 줄이 화면을
         # 다시 그리라고 하면 이 줄까지 오지 않는다 — 그것이 맞다. 아직 뉴스가
@@ -14908,7 +14908,7 @@ def _run_hard_reload_if_requested() -> None:
     `components.html`(작은 iframe)에 한 줄을 담아 바깥 화면을 새로 연다.
     실패해도 조용히 넘어간다 — 그때는 예전처럼 서버 기억만 비운 셈이다.
     """
-    if not st.session_state.pop("j3b_hard_reload", False):
+    if not st.session_state.pop("j12b_hard_reload", False):
         return
     try:
         import streamlit.components.v1 as components
@@ -15008,7 +15008,7 @@ _J3B_WD_OPEN = """
     if (!go) { return; }
     e.preventDefault(); e.stopPropagation();
     var tk = go.getAttribute('data-tk') || '';
-    var btn = document.querySelector('div.st-key-j3b_wdgo_' + tk + ' button');
+    var btn = document.querySelector('div.st-key-j12b_wdgo_' + tk + ' button');
     if (!btn) { return; }
     // 누른 순간 「여는 중」 화면을 덮는다 — 큰 판을 먼저 닫으면 창이 올 때까지(약 1초) 관심종목 목록이 비쳤다
     // (2026-10-09 상하님 — "바로 안 뜨고 관심종목 메인으로 갔다가 들어간다").
@@ -15023,7 +15023,7 @@ _J3B_WD_OPEN = """
     document.body.appendChild(wait);
     var started = Date.now();
     function ready() {
-      var pane = document.querySelector('div.st-key-j3b_wdetail');
+      var pane = document.querySelector('div.st-key-j12b_wdetail');
       return pane && !pane.closest('[data-stale="true"]') && pane.querySelector('.j3-stock-name');
     }
     function watch() {

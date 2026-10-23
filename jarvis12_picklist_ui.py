@@ -130,7 +130,7 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
     #   ② 한 판에 **딱 한 번만** 시도한다. 다음 거래일이 아직 안 열린 날은 받아도
     #      빈칸이라, 안 그러면 화면을 그릴 때마다 헛되이 받아 온다.
     #
-    auto_key = f"picklist_open_tried_{market}_{picked}"
+    auto_key = f"j12_picklist_open_tried_{market}_{picked}"   # 자비스3 과 따로(2026-10-23)
     if not st.session_state.get(auto_key) and any(
             store._num(row.get("buy_open")) is None for row in rows):
         st.session_state[auto_key] = True
