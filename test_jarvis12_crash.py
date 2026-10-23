@@ -240,13 +240,16 @@ class PageTests(unittest.TestCase):
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]
         self.assertIn('"나스닥 종합지수(IXIC) 고점 대비"', gauge)
         # 「12%」는 IXIC 다 — 글에 밝힌다(2026-10-22 상하님)
-        self.assertIn("IXIC가 1년 최고 종가에서 <span class='j3-ndd-key'>12% 넘게 빠졌을 때</span>", gauge)
+        # 2026-10-23 「여기서 12% 는 QQQ 여야」 — QQQ 로 다시 잰 숫자로(research/qqq_drawdown_2y.py)
+        self.assertIn("QQQ가 1년 최고가에서 <span class='j3-ndd-key'>12% 넘게 빠졌을 때</span>", gauge)
+        self.assertIn("<span class='j3-ndd-key'>100번 중 87번 이익</span>(아무 날이나 샀으면 83번 · 15번뿐)", gauge)
+        self.assertNotIn("IXIC 55년치", gauge)
         self.assertNotIn("다이버전스는", gauge)                           # 쓸데없는 내용은 뺐다(화면 글)
         # QQQ 숫자도 같이 — 급락과 같은 자(1년 최고 종가) · 받아 둔 시세를 기억에서만 꺼낸다(새로 받으러 가지 않는다)
         self.assertIn("<b class='j3-ndd-title'>QQQ 낙폭</b>", gauge)
         self.assertIn("1년 최고가 → 오늘 종가 · 급락 후 반등장 기준", gauge)
         self.assertIn('/ float(frame["High"].dropna().max())', gauge)       # 엑셀과 같은 자(종가 ÷ 1년 고가)
-        self.assertIn("나스닥 지수 자체를 2년 들 때 이야기", gauge)          # 12% 글은 종목 고르기와 별개
+        self.assertIn("QQQ 자체를 2년 들 때 이야기", gauge)                # 12% 글은 종목 고르기와 별개
         self.assertIn("j3data._download_cache_only((\"QQQ\",)", gauge)
         self.assertNotIn("_download_cached", gauge)
         self.assertIn("_render_nasdaq_drawdown(overview)", J12)

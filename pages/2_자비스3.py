@@ -9633,6 +9633,15 @@ def _ixic_note(reference: dict) -> str:
     return f" (나스닥 종합지수(IXIC)는 {when} 종가 :red[**{float(drop):.2f}%**])"
 
 
+def _crash_red(text) -> str:
+    """하락폭 숫자를 붉게 — 급락 설명 창 경고 두 칸이 쓴다(2026-10-22 상하님 「자비스3 고쳐라」 · 자비스12 와 같은 고침).
+
+    그 두 칸은 다른 함수 안에만 있는 _red 를 불러, QQQ 가 고점 대비 6% 넘게 빠진 날(경고가 켜지는 날)에는
+    「급락 후 반등장」 화면이 NameError 로 깨졌다. 같은 모양으로 따로 둔다.
+    """
+    return f"<span style='color:#ff5b5b; font-weight:900'>{html.escape(str(text))}</span>"
+
+
 def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str) -> None:
     """설명서 두 갈래의 결과 표 (2026-08-01 사용자 지시).
 
@@ -9809,7 +9818,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             st.markdown(
                 "<div class='j3-pull-guide'><b class='j3-down'>⚠ 오늘은 점수로 "
                 "순위를 가를 수 없습니다.</b> 나스닥이 고점 대비 "
-                + (_red(f"{float(drop):.1f}%") if drop is not None else "크게")
+                + (_crash_red(f"{float(drop):.1f}%") if drop is not None else "크게")
                 + f"까지 빠져 있습니다. 이만큼(<b>{abs(limit):.0f}% 아래</b>) 깊은 "
                 "자리에서는 배점 세 항목이 <u>전부 무너집니다</u> — 10년치를 낙폭 칸별로 "
                 "갈라 재서 확인했습니다.<br><b>아래 목록은 순서 없이 보십시오.</b> "
@@ -9825,7 +9834,7 @@ def _render_rulebook_finder(result: dict, market: dict, ranking: dict, mode: str
             st.markdown(
                 "<div class='j3-pull-guide'><b class='j3-down'>⚠ 오늘은 순위가 "
                 "약합니다.</b> 나스닥이 고점 대비 "
-                + (_red(f"{float(drop):.1f}%") if drop is not None else "조금")
+                + (_crash_red(f"{float(drop):.1f}%") if drop is not None else "조금")
                 + f" 빠져 있습니다. 이 정도(<b>{abs(high):.0f}~{abs(low):.0f}%</b>) "
                 "얕은 자리는 <u>급락 목록이 뜨는 날의 41%</u>로 제일 자주 오는데, "
                 "10년치로 재 보면 배점 세 항목 중 <b>‘테마가 덜 빠졌나’만 1년 보유에서 "

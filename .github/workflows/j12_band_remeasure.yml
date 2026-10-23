@@ -1,6 +1,7 @@
 # 자비스12 급락 칸별 과거 성적을 지금 규칙으로 다시 잰다 (2026-10-22 상하님 「깃허브로 해라」).
 # 클라우드 작업 칸은 야후가 막혀 못 잰다 — 깃허브 컴퓨터에서 한 번 돌려 결과를 실행 기록(로그)에 남긴다.
 # 저장소에는 아무것도 쓰지 않는다(읽기 권한만).
+# 2026-10-23 — 막대 밑 「12%」 글을 QQQ 로 다시 재는 것(research/qqq_drawdown_2y.py)도 같이 돌린다.
 name: 자비스12 급락 칸 다시 재기
 
 on:
@@ -8,6 +9,7 @@ on:
     branches: [master-a283cq]
     paths:
       - research/j12_band_remeasure.py
+      - research/qqq_drawdown_2y.py
       - .github/workflows/j12_band_remeasure.yml
   workflow_dispatch:
 
@@ -27,3 +29,5 @@ jobs:
         run: pip install -r requirements.txt
       - name: 다시 재기
         run: python research/j12_band_remeasure.py
+      - name: QQQ 몇 % 빠지면 (2년 보유)
+        run: python research/qqq_drawdown_2y.py
