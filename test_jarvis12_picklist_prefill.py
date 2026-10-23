@@ -294,14 +294,54 @@ class RenderTests(unittest.TestCase):
 
 
 class WiringTests(unittest.TestCase):
+    def test_boxes_are_apart_from_jarvis3(self):
+        """2026-10-23 상하님 「자비스12 는 자비스3 과 연결하지 말고 별도로」 — 날짜별 목록 · 뒤로가기 · 스크롤 보관함도 j12.
+
+        원본 이름을 쓰면 자비스12 에서 편 목록 · 고른 종목 · 고른 날짜 · 뒤로가기 목록이 자비스3 에도 남았다.
+        하는 일은 원본과 같고 이름만 다르다(꾸밈 · 자판 막기 글도 이름만 바꾼 사본).
+        """
+        import picklist_ui
+        import back_nav
+        import scroll_to
+        import jarvis12_back_nav
+        import jarvis12_scroll_to
+        self.assertEqual("j12_picklist_archive_open_US", j12ui.open_key("us"))
+        self.assertEqual("j12_picklist_picked_US", j12ui.pick_key("US"))
+        self.assertNotEqual(picklist_ui.open_key("US"), j12ui.open_key("US"))
+        self.assertNotEqual(picklist_ui.pick_key("US"), j12ui.pick_key("US"))
+        self.assertEqual(picklist_ui.CSS, j12ui.CSS.replace("j12_picklist_archive_open", "picklist_archive_open"))
+        self.assertEqual(picklist_ui._KEYBOARD_SCRIPT,
+                         j12ui._KEYBOARD_SCRIPT.replace("st-key-j12_picklist_date_", "st-key-picklist_date_")
+                         .replace("__jarvis12NoKeyboard", "__jarvisNoKeyboard"))
+        body = Path(j12ui.__file__).read_text(encoding="utf-8")
+        self.assertIn('key=f"{DATE_KEY_PREFIX}{market}",', body)
+        self.assertIn('_PICKLIST_DATE_KEY = "j12_picklist_date_US"', J12)
+        self.assertNotIn("picklist_ui.open_key(", J12.replace("jarvis12_picklist_ui.open_key(", ""))
+        self.assertNotIn("picklist_ui.pick_key(", J12.replace("jarvis12_picklist_ui.pick_key(", ""))
+        self.assertIn("import jarvis12_back_nav as back_nav", J12)
+        self.assertIn("import jarvis12_scroll_to as scroll_to", J12)
+        self.assertNotEqual(back_nav._STACK, jarvis12_back_nav._STACK)
+        self.assertNotEqual(scroll_to.REQUEST_KEY, jarvis12_scroll_to.REQUEST_KEY)
+        self.assertNotEqual(scroll_to.COUNTER_KEY, jarvis12_scroll_to.COUNTER_KEY)
+        # 사본은 보관함 이름 말고는 원본과 같다(머리 설명 빼고)
+        for orig, copy, names in ((back_nav, jarvis12_back_nav, (("_j12_backnav_open", "_backnav_open"),)),
+                                  (scroll_to, jarvis12_scroll_to, (("j12_scroll_target", "jarvis_scroll_target"),
+                                                                   ("j12_scroll_seq", "jarvis_scroll_seq")))):
+            text = Path(copy.__file__).read_text(encoding="utf-8")
+            for new, old in names:
+                text = text.replace(new, old)
+            original = Path(orig.__file__).read_text(encoding="utf-8")
+            self.assertEqual(original.split("_STACK = " if orig is back_nav else "MODULE_REVISION = ")[1],
+                             text.split("_STACK = " if orig is back_nav else "MODULE_REVISION = ")[1])
+
     def test_jarvis12_uses_the_copy_and_jarvis3_keeps_picklist_ui(self):
         section = J12[J12.index("def _render_picklist_section("):]
         section = section[:section.index("_render_scorecard_section()")]
         self.assertIn("jarvis12_picklist_ui.render(", section)
         self.assertIn("rows_view=_crash12_view_rows, quick_prices=_picklist_quick_closes, kind_note=_crash12_list_note,",
                       section)
-        self.assertIn("_REQUIRED_J12_PICKLIST_REVISION = 2026101510", J12)
-        self.assertEqual(2026101510, j12ui.MODULE_REVISION)
+        self.assertIn("_REQUIRED_J12_PICKLIST_REVISION = 2026102301", J12)
+        self.assertEqual(2026102301, j12ui.MODULE_REVISION)
         self.assertNotIn("jarvis12_picklist_ui", J3)
         self.assertIn("picklist_ui.render(", J3)
         # 베낀 render 의 파일 적기는 원본과 같은 두 곳뿐이고 언제나 저장된 줄(rows)이다

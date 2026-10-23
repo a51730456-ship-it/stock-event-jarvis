@@ -16,23 +16,80 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from picklist_ui import (  # noqa: F401  — 원본의 이름을 그대로 쓴다
-    CSS,
+import picklist_ui as _shared
+from picklist_ui import (  # noqa: F401  — 원본의 이름을 그대로 쓴다(보관함을 안 쓰는 것만)
     _SEOUL,
-    _keep_keyboard_down,
-    _kept_file,
-    _remember_pick,
     fetch_buy_opens,
     fetch_prices,
-    open_key,
     pick_bridge,
-    pick_key,
     store,
     table_html,
 )
 
 # 표시·계산을 바꾸면 올리고 자비스12 의 _REQUIRED_J12_PICKLIST_REVISION 도 같이 올린다(규칙 11).
-MODULE_REVISION = 2026101510
+MODULE_REVISION = 2026102301
+
+# ── 자비스3 과 보관함 따로 (2026-10-23 상하님 「자비스12 는 자비스3 과 연결하지 말고 별도로」) ─────────────────
+# 원본(picklist_ui)의 이름을 그대로 쓰면 자비스12 에서 편 목록·고른 종목·고른 날짜가 자비스3 에도 남았다.
+# 보관함을 쓰는 다섯(열림 · 고른 종목 · 파일 · 자판 막기 · 날짜 칸)만 여기 두고 이름에 j12 를 붙인다. 하는 일은 원본과 같다.
+# 꾸밈(CSS)은 원본이 열림 단추를 이름(picklist_archive_open)으로 고르므로 같은 이름으로 바꾼 사본을 쓴다.
+CSS = _shared.CSS.replace("picklist_archive_open", "j12_picklist_archive_open")
+DATE_KEY_PREFIX = "j12_picklist_date_"
+
+
+def open_key(market: str) -> str:
+    """여닫힘 자리 — 원본 picklist_ui.open_key 와 같고 이름만 j12."""
+    return f"j12_picklist_archive_open_{str(market).upper()}"
+
+
+def pick_key(market: str) -> str:
+    """고른 종목 자리 — 원본 picklist_ui.pick_key 와 같고 이름만 j12."""
+    return f"j12_picklist_picked_{str(market).upper()}"
+
+
+def _remember_pick(st, market: str, code: str, name: str, kind: str,
+                   row: dict | None = None) -> None:
+    """원본 picklist_ui._remember_pick 과 같다(줄 전체를 담는다) — 담는 자리만 j12."""
+    st.session_state[pick_key(market)] = {
+        "code": str(code), "name": str(name), "kind": str(kind),
+        "row": dict(row or {}),
+    }
+
+
+def _kept_file(st, slot: str, key: str, build):
+    """원본 picklist_ui._kept_file 과 같다(자료가 그대로면 파일을 다시 안 만든다) — 담는 자리만 j12."""
+    slot_key = f"j12_picklist_file_{slot}"
+    kept = st.session_state.get(slot_key)
+    if isinstance(kept, tuple) and len(kept) == 2 and kept[0] == key:
+        return kept[1]
+    made = build()
+    st.session_state[slot_key] = (key, made)
+    return made
+
+
+# 날짜 칸을 눌러도 폰 자판이 안 올라오게(원본 _keep_keyboard_down) — 날짜 칸 이름이 j12 라 고르는 글자와
+# 바깥 화면의 한 번 표시(window.__jarvis12NoKeyboard)도 j12 로 바꾼 사본을 심는다(CLAUDE.md 0-2 ⑤ 바깥 문서 장치 이름).
+_KEYBOARD_SEQ_KEY = "j12_picklist_keyboard_seq"
+_KEYBOARD_SCRIPT = (_shared._KEYBOARD_SCRIPT
+                    .replace("st-key-picklist_date_", "st-key-" + DATE_KEY_PREFIX)
+                    .replace("__jarvisNoKeyboard", "__jarvis12NoKeyboard"))
+
+
+def _keep_keyboard_down(st, market: str) -> None:
+    """원본 picklist_ui._keep_keyboard_down 과 같다 — 판마다 다른 번호를 붙여 다시 심는다. 실패해도 조용히."""
+    try:
+        import streamlit.components.v1 as components
+    except Exception:
+        return
+    try:
+        seq = int(st.session_state.get(_KEYBOARD_SEQ_KEY) or 0) + 1
+        st.session_state[_KEYBOARD_SEQ_KEY] = seq
+    except Exception:
+        seq = 0
+    try:
+        components.html(_KEYBOARD_SCRIPT + f"<!-- {market} {seq} -->", height=0)
+    except Exception:
+        pass
 
 
 def _view(rows_view, picked: str, rows: list) -> list:
@@ -112,7 +169,7 @@ def render(st, market: str, *, toggle, header=None, close=None, on_pick=None,
     #  자판이 없게만 하라니깐." 맞다. 지금 16일치라 열여섯 조각이지만 쌓이면
     # 화면이 조각으로 뒤덮인다. 선택칸은 몇 개가 쌓여도 한 줄이다.
     picked = st.selectbox(
-        "어느 날 목록을 볼까요", dates, index=0, key=f"picklist_date_{market}",
+        "어느 날 목록을 볼까요", dates, index=0, key=f"{DATE_KEY_PREFIX}{market}",
     )
     _keep_keyboard_down(st, market)
     rows = store.load_rows(picked, market)

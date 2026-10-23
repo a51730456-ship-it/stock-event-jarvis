@@ -1954,14 +1954,14 @@ if int(getattr(scorecard_compare, "MODULE_REVISION", 0)) < _REQUIRED_SCORECARD_C
 _REQUIRED_J12_CRASH_REVISION = 2026102206
 if int(getattr(jarvis12_crash, "MODULE_REVISION", 0)) < _REQUIRED_J12_CRASH_REVISION:
     jarvis12_crash = importlib.reload(jarvis12_crash)
-_REQUIRED_J12_PICKLIST_REVISION = 2026101510
+_REQUIRED_J12_PICKLIST_REVISION = 2026102301
 if int(getattr(jarvis12_picklist_ui, "MODULE_REVISION", 0)) < _REQUIRED_J12_PICKLIST_REVISION:
     jarvis12_picklist_ui = importlib.reload(jarvis12_picklist_ui)
 _REQUIRED_US_FUNDAMENTALS_REVISION = 2026100914
 if int(getattr(us_fundamentals, "MODULE_REVISION", 0)) < _REQUIRED_US_FUNDAMENTALS_REVISION:
     us_fundamentals = importlib.reload(us_fundamentals)
 
-import scroll_to
+import jarvis12_scroll_to as scroll_to   # 자비스12 전용 사본(2026-10-23 · 자비스3 과 보관함 따로)
 
 # 종목을 누르면 상세 자리로 화면을 내려 주는 장치(2026-08-09).
 _REQUIRED_SCROLL_REVISION = 2026082920
@@ -1981,7 +1981,7 @@ _REQUIRED_HERO_REVISION = 2026090310
 if int(getattr(hero_banner, "MODULE_REVISION", 0)) < _REQUIRED_HERO_REVISION:
     hero_banner = importlib.reload(hero_banner)
 import regime_gauge_ui
-import back_nav  # 폰·태블릿 뒤로가기 (2026-08-21). 실패하면 조용히 예전처럼 돈다.
+import jarvis12_back_nav as back_nav  # 폰·태블릿 뒤로가기 (2026-08-21) · 자비스12 전용 사본(2026-10-23 · 보관함 따로).
 import jarvis3_data as j3data
 import jarvis3_briefing_news as briefing_news
 import jarvis3_briefing_store as briefing_store
@@ -6521,7 +6521,7 @@ def _render_radar_tail(market: dict, ranking: dict) -> None:
 # 화면 맨 위다. 그 칸 **바로 위**에 찍는다.
 _PICKLIST_ANCHOR = "picklist_top"
 # 날짜 칸의 열쇠 — picklist_ui 가 `picklist_date_{시장}` 으로 만든다(그 모듈은 안 건드린다).
-_PICKLIST_DATE_KEY = "picklist_date_US"
+_PICKLIST_DATE_KEY = "j12_picklist_date_US"   # 2026-10-23 자비스3 과 따로(jarvis12_picklist_ui)
 # 지난 판에 본 날짜. 이것과 달라졌으면 날짜를 바꿔 고르신 판이다.
 _PICKLIST_SEEN_DATE_KEY = "j12_picklist_seen_date"
 
@@ -7699,7 +7699,7 @@ def _picklist_lazy_all_excel(market: str):
     try:
         import importlib.util
 
-        if not st.session_state.get(picklist_ui.open_key(market)):
+        if not st.session_state.get(jarvis12_picklist_ui.open_key(market)):
             return None
         if importlib.util.find_spec("openpyxl") is None:
             return None
@@ -7923,7 +7923,7 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
 
 def _forget_picklist_pick() -> None:
     """상세를 닫으면 고른 표시도 같이 걷는다 (종목검색과 같은 방식)."""
-    st.session_state.pop(picklist_ui.pick_key("US"), None)
+    st.session_state.pop(jarvis12_picklist_ui.pick_key("US"), None)
     st.session_state.pop("j12_picklist_shown", None)
 
 

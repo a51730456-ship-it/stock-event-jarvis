@@ -182,3 +182,12 @@
     공용 도움 파일 안의 화면 움직임 칸(날짜별 목록의 고른 날짜·종목·열림 picklist_* · 뒤로가기 목록 _backnav_open · 스크롤). 점수·기준·목록 값은 아니다.
     갈라 놓으려면 그 도움 파일을 자비스12 전용으로 베껴야 한다 — 여쭐 것.
   · 지킴이 시험 test_jarvis12_page.test_no_shared_boxes_with_other_jarvis — 자비스12 에 j3 이름이 다시 생기면 실패한다.
+- 2026-10-23 같은 날 — **화면 움직임 보관함까지 갈라 놓음**(상하님 「갈라놓으면 안 되냐 · 묻지 말고 판단해서 해결해라」).
+  · 날짜별 목록(jarvis12_picklist_ui) — 열림 · 고른 종목 · 날짜 칸 · 파일 · 자판 막기 이름을 j12 로(open_key · pick_key · _remember_pick ·
+    _kept_file · _keep_keyboard_down 을 사본에 두고 이름만 바꿈 · 꾸밈 CSS 와 자판 막기 글도 이름만 바꾼 사본 · 바깥 표시 window.__jarvis12NoKeyboard).
+    원본과 견줘 값·파일 만들기·꾸밈·자판 글이 이름 말고 같음을 확인. 판 2026102301(화면 _REQUIRED_J12_PICKLIST_REVISION 같이).
+  · 뒤로가기 jarvis12_back_nav.py(_j12_backnav_open) · 스크롤 jarvis12_scroll_to.py(j12_scroll_target · j12_scroll_seq) — 원본을 그대로 베끼고
+    보관함 이름만 바꿈(둘 다 바깥 화면에 심는 장치가 없어 두 벌이 겹치지 않는다). 화면은 import … as back_nav / as scroll_to 로 이름 그대로 부른다.
+  · 도움말 창(method_help)은 자비스12 가 카드로 열어(help_slot) 원래 같이 쓰는 보관함이 없다.
+  · 이제 자비스12 쪽과 자비스3 쪽(화면 + 도움 파일)이 같이 쓰는 이름은 authenticated(로그인) · us_signal_result(시장 신호 · 읽기만 · 같은 값) 둘뿐.
+  · 지킴이 시험 test_jarvis12_picklist_prefill.test_boxes_are_apart_from_jarvis3.
