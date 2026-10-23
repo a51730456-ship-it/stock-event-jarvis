@@ -4019,7 +4019,10 @@ def _render_nasdaq_drawdown(overview: dict | None = None) -> None:
         # (research/qqq_drawdown_2y.py · 깃허브 실행 39876151305 · QQQ 1999~ · 1년 최고가(고가) 기준 · 한 하락에 한 번 · 2년 보유).
         # QQQ 는 5% 88번 · 12% 87번(15번) · 15% 90번(10번)으로 몇 % 가 낫다고 가를 수 없다 — 그렇게 적는다.
         "<div class='j3-ndd-note'>📊 <span class='j3-ndd-key'>QQQ 27년치</span>: "
-        "QQQ가 1년 최고가에서 <span class='j3-ndd-key'>12% 넘게 빠졌을 때</span> 사서 2년 뒤 팔면 "
+        # 2026-10-23 상하님 「12% 넘게 빠졌을 때 — 눈에 띄게 색깔」 — 빠진 값은 앱 어디서나 빨강이라 빨강 굵게 + 옅은 빨강 바탕
+        # (옆의 「100번 중 87번 이익」 파랑과 갈린다).
+        "QQQ가 1년 최고가에서 <span style='color:#ff5b5b; font-weight:900; white-space:nowrap; background:rgba(255,91,91,.16); "
+        "border-radius:.3rem; padding:0 .3rem'>12% 넘게 빠졌을 때</span> 사서 2년 뒤 팔면 "
         "<span class='j3-ndd-key'>100번 중 87번 이익</span>(아무 날이나 샀으면 83번 · 15번뿐). "
         "5%만 빠져도 88번이라 몇 %가 더 낫다고 가를 수는 없습니다. "
         "<b>QQQ 자체를 2년 들 때 이야기</b> — 종목을 고르는 급락 후 반등장과는 별개입니다."
