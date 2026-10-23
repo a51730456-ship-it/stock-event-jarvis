@@ -212,7 +212,7 @@ class HeldTests(unittest.TestCase):
 
 class PageTests(unittest.TestCase):
     def test_page_shows_the_fixed_list_and_scorecard_counts_one_buy(self):
-        self.assertIn('st.session_state["j3_pullback_result"] = jarvis12_crash.crash_list()', J12)
+        self.assertIn('st.session_state["j12_pullback_result"] = jarvis12_crash.crash_list()', J12)
         self.assertIn("if pressed != \"crash\":\n                    picklist_ui.autosave(\"US\", pressed, found)", J12)
         self.assertIn("st.info(_crash12_story(reference, drop_now, len(rows)))", J12)
         self.assertIn("reference = jarvis12_crash.reference()", J12)
