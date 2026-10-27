@@ -13339,11 +13339,11 @@ def _briefing_orbit_html(stocks: list[dict]) -> str:
 # 상하님 — "관심종목에 종목을 클릭하면 그 종목이 일봉 6개월과 뉴스가 뜨는 화면에 버튼을 하나 만들어 선택종목
 # 세부사항으로 갈 수 있게 · 테마에서 간 건지 상승장에서 간 건지 모르니 배점을 빼고 넣는 게 맞는지 · 닫기 누르면
 # 다시 관심종목으로 · 아니면 아예 시장분석으로 가지 않고 세부사항이 바로 뜨게 · 로딩 걸리지 않게 하는 게 중요".
-#   · 시장분석으로 넘어가지 않는다 — 관심종목 판 위에 세부사항 창을 덮는다. 닫으면 보시던 목록 그대로다.
+#   · 시장분석으로 넘어가지 않는다 — 관심종목 판 위에 세부사항 창을 덮는다. 닫으면 보시던 그 종목 판 그대로다(2026-10-27).
 #   · **배점·매수 심사는 뺀다.** 관심종목은 어느 파트가 고른 종목이 아니라 어느 자로 잴지 정할 수 없다. 대신
 #     오늘 저장된 자비스 목록에서 그 종목이 어디 몇 위인지 한 줄로 적는다(목록 파일만 읽는다).
 #   · 값은 종목검색과 같은 길(j3data.analyze_one_stock — 2년 일봉·1분봉)로 만든다. 받아 둔 묶음에 있으면 곧바로다.
-#   · 창을 여는 판에 크게 열려 있던 카드를 닫아 둔다 — 창을 닫으면 곧장 목록이 보이게. 폰 뒤로가기로도 닫힌다.
+#   · 크게 열려 있던 종목 판은 그대로 둔다(2026-10-27 상하님 「닫으면 종목으로」 — 예전엔 닫아 두어 목록으로 빠졌다). 폰 뒤로가기로도 닫힌다.
 _WATCH_DETAIL_KEY = "j12b_wdetail"
 _WATCH_DETAIL_OPEN = "j12b_wdetail_open"
 _WATCH_DETAIL_FRESH = "j12b_wdetail_fresh"
@@ -13453,7 +13453,7 @@ def _render_watch_detail() -> None:
         # 폰 규칙(가격 칸 두 칸씩 등)은 시장분석에서만 깔린다 — 창이 쓰는 줄만 같이 깐다. 시장분석 규칙 전체
         # (1만 9천 자)를 깔면 느린 폰이 판 전체 꾸밈을 다시 따져 창이 늦었다(2026-10-09 실측).
         st.markdown(mobile_ui.watch_detail_css(), unsafe_allow_html=True)
-        st.button("✕ 닫기 — 관심종목으로", key="j12b_wd_close_top", on_click=_close_watch_detail)
+        st.button(f"✕ 닫기 — {ticker} 화면으로", key="j12b_wd_close_top", on_click=_close_watch_detail)
         with st.spinner(f"{ticker} 세부사항을 불러오는 중입니다…"):
             try:
                 result = j3data.analyze_one_stock(ticker)
@@ -13485,7 +13485,7 @@ def _render_watch_detail() -> None:
                                        on_open=lambda: scroll_to.request(st, _WATCH_CHART_ANCHOR))
         else:
             st.caption(f"{ticker} 시세를 받지 못했습니다 · {_safe_error_text(result.get('error'))}")
-        st.button("✕ 닫기 — 관심종목으로", key="j12b_wd_close_bottom", on_click=_close_watch_detail)
+        st.button(f"✕ 닫기 — {ticker} 화면으로", key="j12b_wd_close_bottom", on_click=_close_watch_detail)
 
 
 _WATCH_DETAIL_CSS = """<style>
@@ -13506,10 +13506,15 @@ div[class*="st-key-j12b_wd_close_"] button p{color:#fff!important;font-weight:80
 .j3b-wd-note{font-size:.74rem;color:#6f93bd;margin:2px 0 4px}
 div.st-key-j12b_wdetail #jarvis-anchor-watch_charts{scroll-margin-top:12px}
 /* 「○○ 세부사항을 여는 중…」 — 그림 단추를 누른 순간 덮는다. 진짜 창이 다 오면 작은 장치가 걷는다. */
-#j3b-wd-wait{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;
+#j12b-wd-wait{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(180deg,#0a2350 0%,#061636 60%,#05122d 100%);color:#dfe9ff;font-size:16px;font-weight:800;
   font-family:"Noto Sans KR","Malgun Gothic",sans-serif}
-#j3b-wd-wait span{padding:14px 18px;border:1px solid #2b4f80;border-radius:14px;background:rgba(77,127,208,.12)}
+#j12b-wd-wait span{padding:14px 18px;border:1px solid #2b4f80;border-radius:14px;background:rgba(77,127,208,.12)}
+/* 2026-10-27 — 세부사항을 열어도 종목 큰 판을 닫지 않는다(닫기를 누르면 그 종목 판으로). 큰 판은 맨 위 층
+   (2147483646 · 2147483647)이라 창(2147483600)을 덮으므로, **창이 떠 있는 동안만** 판을 창 밑 층으로 내린다.
+   창이 사라지면 이 규칙도 안 맞아 판이 제자리(맨 위)로 돌아온다. */
+body:has(div.st-key-j12b_wdetail) .j3b-card-shell[open]>.j3b-card-summary{z-index:2147483400!important}
+body:has(div.st-key-j12b_wdetail) .j3b-card-shell[open]>.j3b-card-open{z-index:2147483500!important}
 </style>"""
 
 
@@ -14997,12 +15002,14 @@ _J3B_POP_CLOSE = """
 })();
 """
 # ── 관심종목 큰 판의 「🔎 선택종목 세부사항 보기」 (2026-10-09 상하님 지시) ─────────────────────────
-# 그림 단추를 누르면 그 큰 판을 곧바로 닫고(창을 닫으면 곧장 목록이 보이게), 그 종목의 숨은 스트림릿 단추를
-# 대신 누른다. 숨은 단추는 덩이(_render_watch_detail_area) 안이라 관심종목 판 전체를 다시 그리지 않는다.
+# 그림 단추를 누르면 그 종목의 숨은 스트림릿 단추를 대신 누른다. **큰 판은 닫지 않는다**(2026-10-27 상하님 — "세부사항
+# 보고 닫기 하면 종목으로 가야 되는데 관심종목으로 빠져나감") — 창이 판 위를 덮고, 닫으면 그 종목 판이 그대로 있다.
+# 장치 이름(window.__j12bWdOpen · j12b-wd-open · j12b-wd-wait)은 자비스12 것 — 자비스3 과 같은 이름이면 먼저 연 화면의
+# 장치만 심겨, 2026-10-23 단추 이름을 j12 로 바꾼 뒤로는 다른 화면의 이 단추가 안 먹었다(CLAUDE.md 0-2 ⑤). 숨은 단추는 덩이(_render_watch_detail_area) 안이라 관심종목 판 전체를 다시 그리지 않는다.
 _J3B_WD_OPEN = """
 (function(){
-  if (window.__j3bWdOpen) { return; }
-  window.__j3bWdOpen = true;
+  if (window.__j12bWdOpen) { return; }
+  window.__j12bWdOpen = true;
   document.addEventListener('click', function (e) {
     var go = e.target && e.target.closest ? e.target.closest('.j3b-wd-open') : null;
     if (!go) { return; }
@@ -15012,11 +15019,10 @@ _J3B_WD_OPEN = """
     if (!btn) { return; }
     // 누른 순간 「여는 중」 화면을 덮는다 — 큰 판을 먼저 닫으면 창이 올 때까지(약 1초) 관심종목 목록이 비쳤다
     // (2026-10-09 상하님 — "바로 안 뜨고 관심종목 메인으로 갔다가 들어간다").
-    var box = go.closest('details');
-    var old = document.getElementById('j3b-wd-wait');
+    var old = document.getElementById('j12b-wd-wait');
     if (old) { old.remove(); }
     var wait = document.createElement('div');
-    wait.id = 'j3b-wd-wait';
+    wait.id = 'j12b-wd-wait';
     var label = document.createElement('span');
     label.textContent = '🔎 ' + tk + ' 세부사항을 여는 중…';
     wait.appendChild(label);
@@ -15028,7 +15034,6 @@ _J3B_WD_OPEN = """
     }
     function watch() {
       if (ready() || Date.now() - started > 15000) {
-        if (box) { box.open = false; box.classList.remove('j3b-closing'); }
         wait.remove();
         return;
       }
@@ -15055,8 +15060,8 @@ try:
         f"s.textContent={_json.dumps(_J3B_POP_CLOSE)};d.head.appendChild(s);}}catch(e){{}}}})();"
         # 큰 판의 「🔎 선택종목 세부사항 보기」(위 _J3B_WD_OPEN) — 같은 칸에 싣는다.
         "(function(){try{var d=window.parent.document;"
-        "if(d.getElementById('j3b-wd-open')){return;}"
-        "var s=d.createElement('script');s.id='j3b-wd-open';"
+        "if(d.getElementById('j12b-wd-open')){return;}"
+        "var s=d.createElement('script');s.id='j12b-wd-open';"
         f"s.textContent={_json.dumps(_J3B_WD_OPEN)};d.head.appendChild(s);}}catch(e){{}}}})();</script>",
         height=0,
     )

@@ -25,6 +25,24 @@ class SourceTests(unittest.TestCase):
         self.assertIn("JARVIS <b>12</b>", self.SOURCE)
         self.assertIn('mark="12"', self.SOURCE)
 
+    def test_detail_close_returns_to_the_stock_card(self):
+        """2026-10-27 상하님 — 「선택종목 세부사항 보고 닫기 하면 종목으로 가야 되는데 관심종목으로 빠져나감」.
+
+        세부사항을 열 때 종목 큰 판을 닫지 않는다. 큰 판은 맨 위 층이라 창이 떠 있는 동안만 판을 창 밑으로 내린다.
+        장치 이름은 자비스12 것(자비스3 과 같은 이름이면 먼저 연 화면의 장치만 심긴다 — CLAUDE.md 0-2 ⑤).
+        """
+        src = self.SOURCE
+        block = src[src.index("_J3B_WD_OPEN = "):src.index('"""', src.index("_J3B_WD_OPEN = ") + 20)]
+        self.assertNotIn("box.open = false", block)
+        self.assertIn("window.__j12bWdOpen", block)
+        self.assertNotIn("__j3bWdOpen", src)
+        self.assertIn("s.id='j12b-wd-open'", src)
+        self.assertNotIn("j3b-wd-wait", src)
+        self.assertIn("body:has(div.st-key-j12b_wdetail) .j3b-card-shell[open]>.j3b-card-summary{z-index:2147483400!important}", src)
+        self.assertIn("body:has(div.st-key-j12b_wdetail) .j3b-card-shell[open]>.j3b-card-open{z-index:2147483500!important}", src)
+        self.assertIn("div.st-key-j12b_wdetail{position:fixed!important;inset:0!important;z-index:2147483600!important", src)
+        self.assertIn('st.button(f"✕ 닫기 — {ticker} 화면으로", key="j12b_wd_close_top"', src)
+
     def test_no_shared_boxes_with_other_jarvis(self):
         """2026-10-23 상하님 「자비스12 는 자비스3 과 연결하지 말고 별도로 · 다른 자비스도 연결하지 말라」.
 
