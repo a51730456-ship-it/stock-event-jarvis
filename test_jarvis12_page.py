@@ -51,10 +51,28 @@ class SourceTests(unittest.TestCase):
         """
         import re
         left = set(re.findall(r"(?<![A-Za-z0-9])(j3(?:_|b_|add_|rb|vx_|sc_)[A-Za-z0-9_]*)", self.SOURCE))
-        self.assertEqual({"j3b_nav_market"}, left)
+        # j3sc_·j3vx_ 는 칸 이름이 아니라 얼린 mobile_ui 폰 규칙을 j12 로 바꿔 끼우는 자리의 옛 이름(2026-10-27)
+        self.assertEqual({"j3b_nav_market", "j3sc_", "j3vx_"}, left)
         for key in ("j12_pullback_result", "j12_pullback_open", "j12_pullback_mode", "j12_top7_result", "j12_scorecard_counts"):
             self.assertIn(key, self.SOURCE)
         self.assertIn('st.session_state[f"j12_pullback_kept_{pressed}"] = found', self.SOURCE)
+
+    def test_phone_rules_follow_the_j12_button_names(self):
+        """2026-10-27 상하님 「이거 디자인 왜 바꿨냐?」 — 10-23 에 단추 이름만 j12 로 바꿔 폰 규칙(mobile_ui · 얼린 공용)과
+        단추 꾸밈(jarvis12_scorecard_compare)이 빠졌다. 성적표 기간 단추·견줘 보기 탭이 폰에서 한 줄씩 세로로 쌓였다."""
+        import mobile_ui
+        import jarvis12_scorecard_compare as cmp
+        call = self.SOURCE.split("mobile_ui.page_css()", 1)[1].split("unsafe_allow_html", 1)[0]
+        self.assertIn('.replace("st-key-j3sc_", "st-key-j12sc_")', call)
+        self.assertIn('.replace("st-key-j3vx_", "st-key-j12vx_")', call)
+        css = mobile_ui.page_css().replace("st-key-j3sc_", "st-key-j12sc_").replace("st-key-j3vx_", "st-key-j12vx_")
+        for name in ("j12sc_box", "j12sc_span_", "j12sc_cal", "j12vx_row", "j12vx_rowtabs"):
+            self.assertIn(f'div[class*="st-key-{name}"]', css, name)
+        for key in ('key="j12sc_box"', 'key=f"j12sc_span_', 'key="j12vx_rowtabs"', 'key=f"j12vx_t_', 'f"j12vx_p_{key}"', 'f"j12vx_v_{key}"'):
+            self.assertIn(key, self.SOURCE, key)
+        self.assertNotIn("j3vx_", cmp.CSS)
+        for name in ("j12vx_t_", "j12vx_p_", "j12vx_v_"):
+            self.assertIn(f'div[class*="st-key-{name}"] button', cmp.CSS, name)
 
     def test_finger_turning_is_gone_but_the_pull_guard_stays(self):
         """2026-10-09 상하님 — 손가락 넘기기를 아예 날려라 · 밑 막대로 옮긴다. 당겨도 안 불리는 장치는 남긴다."""
