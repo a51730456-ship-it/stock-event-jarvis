@@ -11625,7 +11625,12 @@ def _render_existing_theme_content() -> None:
         # 사용자 지시 — 나머지 세 표(오늘의 강한테마·테마 종목 1~6위·눌림목 찾기)처럼
         # 표를 원래 폭으로 두고 손가락으로 옆으로 밀어서 보게 한다. 그 규칙은
         # 페이지 위 <style>의 .st-key-j12_top7_table 줄에 있다.
-        mobile_ui.page_css(),
+        # mobile_ui 는 자비스3 과 같이 쓰는 얼린 파일이라 폰 규칙의 칸 이름이 옛 j3sc_·j3vx_ 그대로다.
+        # 자비스12 단추 이름은 2026-10-23 에 j12sc_·j12vx_ 로 바꿨으므로 **이름만** 바꿔 넣는다 —
+        # 안 바꾸면 성적표 기간 단추·견줘 보기 탭이 폰에서 한 줄씩 세로로 쌓인다(2026-10-27 상하님 캡처).
+        mobile_ui.page_css()
+        .replace("st-key-j3sc_", "st-key-j12sc_")
+        .replace("st-key-j3vx_", "st-key-j12vx_"),
         unsafe_allow_html=True,
     )
     # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).

@@ -881,20 +881,21 @@ CSS = """
 <style>
 .j3vx{padding-top:12px;border-top:1px solid #1d3a63}
 .j3vx-body{display:block}
-/* 단추 — 성적표 기간 칩과 같은 결. 고른 탭은 보라 그라데이션, 고른 일별·선 등은 파랑. */
-div[class*="st-key-j3vx_t_"] button,div[class*="st-key-j3vx_p_"] button,div[class*="st-key-j3vx_v_"] button{
+/* 단추 — 성적표 기간 칩과 같은 결. 고른 탭은 보라 그라데이션, 고른 일별·선 등은 파랑.
+   칸 이름은 자비스12 단추 이름(j12vx_)과 같아야 한다 — 10-23 에 단추만 j12 로 바뀌어 꾸밈이 빠졌었다(2026-10-27). */
+div[class*="st-key-j12vx_t_"] button,div[class*="st-key-j12vx_p_"] button,div[class*="st-key-j12vx_v_"] button{
   min-height:0!important;padding:.3rem .45rem!important;background:transparent!important;border:1px solid #1d3a63!important}
-div[class*="st-key-j3vx_t_"] button{border-radius:10px!important}
-div[class*="st-key-j3vx_p_"] button,div[class*="st-key-j3vx_v_"] button{border-radius:999px!important}
-div[class*="st-key-j3vx_t_"] button p{font-size:.82rem!important;font-weight:700!important;color:#cfe0ff!important}
-div[class*="st-key-j3vx_p_"] button p,div[class*="st-key-j3vx_v_"] button p{
+div[class*="st-key-j12vx_t_"] button{border-radius:10px!important}
+div[class*="st-key-j12vx_p_"] button,div[class*="st-key-j12vx_v_"] button{border-radius:999px!important}
+div[class*="st-key-j12vx_t_"] button p{font-size:.82rem!important;font-weight:700!important;color:#cfe0ff!important}
+div[class*="st-key-j12vx_p_"] button p,div[class*="st-key-j12vx_v_"] button p{
   font-size:.76rem!important;font-weight:700!important;color:#8fb4de!important}
-div[class*="st-key-j3vx_t_"] button[kind="primary"]{
+div[class*="st-key-j12vx_t_"] button[kind="primary"]{
   background:linear-gradient(90deg,#3b1a6b 0%,#7c3aed 100%)!important;border-color:#7c3aed!important}
-div[class*="st-key-j3vx_p_"] button[kind="primary"],div[class*="st-key-j3vx_v_"] button[kind="primary"]{
+div[class*="st-key-j12vx_p_"] button[kind="primary"],div[class*="st-key-j12vx_v_"] button[kind="primary"]{
   background:#2a4f8f!important;border-color:#4d7fd0!important}
-div[class*="st-key-j3vx_t_"] button[kind="primary"] p,div[class*="st-key-j3vx_p_"] button[kind="primary"] p,
-div[class*="st-key-j3vx_v_"] button[kind="primary"] p{color:#fff!important}
+div[class*="st-key-j12vx_t_"] button[kind="primary"] p,div[class*="st-key-j12vx_p_"] button[kind="primary"] p,
+div[class*="st-key-j12vx_v_"] button[kind="primary"] p{color:#fff!important}
 .j3vx-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px}
 .j3vx-head b{font-size:1rem;color:#fff;font-weight:800}
 .j3vx-head span{margin-left:auto;font-size:.76rem;color:#8fb4de}
