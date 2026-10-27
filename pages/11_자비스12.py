@@ -3950,64 +3950,79 @@ def _as_of_line(overview: dict, phase: str) -> str:
 
 
 def _render_nasdaq_drawdown(overview: dict | None = None) -> None:
-    """나스닥이 고점에서 얼마나 내려와 있나 — 한 줄 (2026-08-01 사용자 지시).
+    """QQQ(나스닥100)가 고점에서 얼마나 내려와 있나 — 막대 한 줄 (2026-08-01 사용자 지시 · 2026-10-27 QQQ 로).
 
-    55년치로 재 보니 '고점 대비 낙폭' 하나가 다른 어떤 신호보다 잘 들었다.
-    12% 넘게 빠지면 2년 뒤 100번 중 86번(아무 날이나 샀으면 81번)이었고,
-    8% 정도로는 오히려 기준선보다 못했다. 그래서 문턱을 12%로 둔다.
-    숫자와 문턱은 `jarvis3_data`가 정한다 — 화면은 받아 적기만 한다.
+    숫자는 급락 후 반등장과 같은 함수(jarvis12_crash.reference)의 같은 값이다 — QQQ 1년 최고가(고가) → 오늘 종가.
+    문턱 말은 jarvis3_data 가 정한다(12% 넘게 = 사는 자리). 나스닥 종합(IXIC)은 참고 한 줄. 못 구하면 예전 IXIC 막대.
     """
-    state = j3data.get_nasdaq_drawdown()
-    if not state.get("ok"):
+    # 2026-10-27 상하님 — 「지금 고점 대비 몇 %다와 급락 후 반등장 설명에 나오는 것이 다른 이유는? 어느 게 맞냐? 둘 다
+    # 정확한 답을 맞춰라」. 막대 큰 숫자는 나스닥 종합(IXIC · 1년 최고 종가)이고 급락 후 반등장 설명은 QQQ(1년 최고가)라
+    # 재는 대상이 달랐다(10/27 깃허브 실측 research/j12_gauge_today.py — IXIC −4.9% · QQQ −6.3%). 막대 밑 QQQ 줄은
+    # 받아 둔 1년치만 읽어(_download_cache_only) 늦은 값일 수 있었다.
+    # 그래서 막대·큰 숫자를 급락 후 반등장과 **같은 함수의 같은 값**(jarvis12_crash.reference 의 today_drop — QQQ 1년
+    # 최고가(고가) → 오늘 종가 · 상하님 엑셀과 같은 자)으로 바꾸고, IXIC 는 참고 한 줄로 둔다. 막대 밑에 「이번 하락」
+    # (고점일 → 가장 깊은 날 → 지금)을 적는다(같은 날 「이번 고점 대비 얼마 빠졌다가 이번에 몇 % 근처다 이 내용이 없고」).
+    # 문턱 말(고점 근처·얕음·사는 자리·아주 깊음)은 j3data.nasdaq_drawdown_state 그대로 — QQQ 27년치에서도 12% 87번
+    # (아무 날 83번) · 8% 82번이라 같은 문턱이 맞는다(research/qqq_drawdown_2y.py).
+    # QQQ 를 못 구하면 예전처럼 IXIC 막대를 그린다 — 빈칸으로 두지 않는다(CLAUDE.md 0-0).
+    try:
+        ref = jarvis12_crash.reference()
+    except Exception:
+        ref = {}
+    qqq_now = ref.get("today_drop") if ref.get("ok") else None
+    ixic = j3data.get_nasdaq_drawdown()
+    if qqq_now is None and not ixic.get("ok"):
         return
-    pct = float(state.get("drawdown_pct") or 0)
-    entry = float(state.get("entry_pct") or -12)
+    if qqq_now is not None:
+        pct = float(qqq_now)
+        state_text, state_color = j3data.nasdaq_drawdown_state(pct)
+        headline = "QQQ(나스닥100) 고점 대비"
+        basis = "<div class='j3-ndd-note' style='margin-top:.1rem'>1년 최고가 → 오늘 종가 · 급락 후 반등장과 같은 값</div>"
+    else:
+        pct = float(ixic.get("drawdown_pct") or 0)
+        state_text, state_color = ixic.get("state"), ixic.get("color")
+        headline = "나스닥 종합지수(IXIC) 전고점 위" if pct > 0 else "나스닥 종합지수(IXIC) 고점 대비"
+        basis = ""
+    entry = float(getattr(j3data, "NASDAQ_DRAWDOWN_ENTRY", -12.0))
     reached = pct <= entry
     # **막대 한가운데가 전고점이다**(2026-08-09 상하님 지시).
     #   왼쪽 끝 = 고점에서 25% 아래 · 한가운데 = 고점 그 자리 · 오른쪽 끝 = 고점 위 25%
-    # 그래서 지금 -1.5%면 막대가 한가운데에 조금 못 미치고, 전고점을 넘으면
-    # 한가운데를 지나 오른쪽으로 간다. 예전에는 왼쪽 0 ~ 오른쪽 25%(낙폭)이라
-    # 막대가 길수록 나쁜 뜻이어서 거꾸로 읽혔다.
     span = 25.0
     center = 50.0
     fill = max(0.0, min(100.0, center + (pct / span) * center))
     mark = max(0.0, min(100.0, center + (entry / span) * center))
-    # 한가운데를 넘었으면 '얼마나 넘었나'로 말이 바뀐다.
-    above = pct > 0
-    # 이 막대는 **나스닥 종합지수(IXIC)** 다 — 55년치를 재려면 1999년에 생긴 QQQ 로는 모자라다. 급락 후 반등장(QQQ)과
-    # 숫자가 달라 헷갈려 이름을 밝힌다(2026-10-22 상하님 「QQQ로 표시해야 되지 않나」 → IXIC 그대로·이름만).
-    headline = "나스닥 종합지수(IXIC) 전고점 위" if above else "나스닥 종합지수(IXIC) 고점 대비"
-    # QQQ 숫자도 같이 낸다(2026-10-22 상하님 「QQQ가 얼마 빠진 것은 수치로 안 내보내냐」). 첫 화면이 이미 받아 둔
-    # QQQ 시세(get_market_overview 의 rows)에서 꺼낸다 — 새로 받으러 가지 않아 로딩이 늘지 않는다. 없으면 이 줄만 빠진다.
-    # 급락 후 반등장과 같은 방법 — **QQQ 낙폭 = 1년 최고가(장중 고가) → 오늘 종가**(상하님 엑셀과 같은 자 · 2026-10-22 「통일」).
-    # 첫 화면(get_market_overview)이 이미 받아 둔 QQQ 1년 일봉을 **기억에서만** 꺼낸다(_download_cache_only · 새로 받으러
-    # 가지 않음). 없으면 이 줄만 빠진다.
-    qqq_line = ""
-    try:
-        frames, _meta = j3data._download_cache_only(("QQQ",), period="1y", interval="1d", ttl_seconds=6 * 3600)
-        frame = frames["QQQ"]
-        qqq_drop = (float(frame["Close"].dropna().iloc[-1]) / float(frame["High"].dropna().max()) - 1.0) * 100.0
-        qqq_line = (
-            "<div class='j3-ndd-head' style='margin-top:.15rem'>"
-            "<b class='j3-ndd-title'>QQQ 낙폭</b> "
-            f"<span class='j3-ndd-val' style='color:{_sign_color(qqq_drop)}'>{qqq_drop:+.1f}%</span> "
-            "<span class='j3-ndd-state' style='color:#9aa0aa'>1년 최고가 → 오늘 종가 · 급락 후 반등장 기준</span></div>")
-    except Exception:
-        qqq_line = ""
+    episode_line = ""
+    if qqq_now is not None and ref.get("peak_date") and ref.get("reference_date") and ref.get("reference_drop") is not None:
+        md = jarvis12_crash._md
+        recovered = ref.get("recovered_on")
+        episode_line = (
+            "<div class='j3-ndd-note' style='margin-top:.3rem'>📉 "
+            f"<b>{'지난 하락' if recovered else '이번 하락'}</b>(QQQ): 고점 {md(ref['peak_date'])} → 가장 깊은 날 "
+            f"{md(ref['reference_date'])} <span style='color:#ff5b5b; font-weight:900'>"
+            f"{float(ref['reference_drop']):.1f}%</span>"
+            + (f" → {md(recovered)} 전고점 회복" if recovered else "")
+            + f" → 지금 <b style='color:{_sign_color(pct)}'>{pct:.1f}%</b></div>")
+    ixic_line = ""
+    if qqq_now is not None and ixic.get("ok"):
+        ixic_pct = float(ixic.get("drawdown_pct") or 0)
+        ixic_line = (
+            "<div class='j3-ndd-note' style='margin-top:.15rem'>참고 · 나스닥 종합지수(IXIC) "
+            f"<b style='color:{_sign_color(ixic_pct)}'>{ixic_pct:+.1f}%</b> — 나스닥 전체(3천여 종목)라 "
+            "큰 100종목인 QQQ 와 숫자가 다릅니다.</div>")
     st.markdown(
         "<div class='j3-ndd'>"
         f"<div class='j3-ndd-head'><b class='j3-ndd-title'>{headline}</b> "
         f"<span class='j3-ndd-val' style='color:{_sign_color(pct)}'>{pct:+.1f}%</span> "
-        f"<span class='j3-ndd-state' style='color:{state.get('color')}'>"
-        f"{html.escape(str(state.get('state') or ''))}</span></div>"
+        f"<span class='j3-ndd-state' style='color:{state_color}'>"
+        f"{html.escape(str(state_text or ''))}</span></div>"
+        + basis +
         # 막대 안에 한가운데 선(전고점)과 문턱 선(사는 자리)을 같이 세운다.
         f"<div class='j3-ndd-bar'><span class='j3-ndd-fill' style='width:{fill:.1f}%'></span>"
         f"<span class='j3-ndd-mark' style='left:{mark:.1f}%'></span>"
         "<span class='j3-ndd-center'></span></div>"
         "<div class='j3-ndd-scale'><span>고점 −25%</span>"
         "<span class='j3-ndd-scale-mid'>전고점</span><span>고점 +25%</span></div>"
-        # QQQ 줄은 막대 **밑**에 둔다 — 위에 두니 막대가 QQQ 것처럼 보였다(막대는 IXIC · 2026-10-22 미리보기).
-        + qqq_line +
+        + episode_line + ixic_line +
         # '지금 · 1년 최고 · 문턱 …' 줄은 2026-08-06에 뺐다(사용자 지시). 막대와
         # 위 % 숫자가 같은 말을 하고 있어 줄만 길었다.
         # 예전에는 '100번 중 86번이었습니다'로 끝나 **무엇이 86번인지**가 빠져
