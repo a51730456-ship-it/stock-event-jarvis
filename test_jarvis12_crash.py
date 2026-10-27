@@ -236,23 +236,23 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows = [row for row in _crash12_cohort_rows() if row.get("scorecard", True)]', J12)
         self.assertIn("_REQUIRED_J12_CRASH_REVISION = 2026102206", J12)
         self.assertEqual(c12.MODULE_REVISION, 2026102206)
-        # 맨 위 낙폭 막대는 나스닥 종합지수(IXIC) — 이름을 밝힌다(급락 목록은 QQQ)
+        # 맨 위 낙폭 막대 — 2026-10-27 상하님 「지금 고점 대비와 급락 후 반등장 설명이 다른 이유 · 둘 다 정확한 답을 맞춰라」:
+        # 큰 숫자를 급락 후 반등장과 같은 함수의 같은 값(QQQ · reference 의 today_drop)으로 · IXIC 는 참고 한 줄 · 이번 하락 한 줄
         gauge = J12[J12.index("def _render_nasdaq_drawdown("):J12.index("def _us_etf_cells(")]
-        self.assertIn('"나스닥 종합지수(IXIC) 고점 대비"', gauge)
-        # 「12%」는 IXIC 다 — 글에 밝힌다(2026-10-22 상하님)
-        # 2026-10-23 「여기서 12% 는 QQQ 여야」 — QQQ 로 다시 잰 숫자로(research/qqq_drawdown_2y.py)
-        self.assertIn("border-radius:.3rem; padding:0 .3rem'>12% 넘게 빠졌을 때</span> 사서 2년 뒤 팔면", gauge)
-        self.assertIn("QQQ가 1년 최고가에서 <span style='color:#ff5b5b; font-weight:900;", gauge)   # 빨강 굵게(2026-10-23)
+        self.assertIn("ref = jarvis12_crash.reference()", gauge)
+        self.assertIn('qqq_now = ref.get("today_drop") if ref.get("ok") else None', gauge)
+        self.assertIn('headline = "QQQ(나스닥100) 고점 대비"', gauge)
+        self.assertIn("1년 최고가 → 오늘 종가 · 급락 후 반등장과 같은 값", gauge)
+        self.assertIn("state_text, state_color = j3data.nasdaq_drawdown_state(pct)", gauge)
+        self.assertIn("'지난 하락' if recovered else '이번 하락'", gauge)
+        self.assertIn("참고 · 나스닥 종합지수(IXIC) ", gauge)
+        self.assertIn('headline = "나스닥 종합지수(IXIC) 전고점 위" if pct > 0 else "나스닥 종합지수(IXIC) 고점 대비"', gauge)  # 못 구하면 옛 막대
+        self.assertNotIn("j3data._download_cache_only(", gauge)           # 따로 받아 둔 1년치(늦을 수 있음)는 안 읽는다
+        # 「12%」 글은 QQQ 27년치(2026-10-23)
+        self.assertIn("QQQ가 1년 최고가에서 <span style='color:#ff5b5b; font-weight:900;", gauge)
         self.assertIn("<span class='j3-ndd-key'>100번 중 87번 이익</span>(아무 날이나 샀으면 83번 · 15번뿐)", gauge)
-        self.assertNotIn("IXIC 55년치", gauge)
-        self.assertNotIn("다이버전스는", gauge)                           # 쓸데없는 내용은 뺐다(화면 글)
-        # QQQ 숫자도 같이 — 급락과 같은 자(1년 최고 종가) · 받아 둔 시세를 기억에서만 꺼낸다(새로 받으러 가지 않는다)
-        self.assertIn("<b class='j3-ndd-title'>QQQ 낙폭</b>", gauge)
-        self.assertIn("1년 최고가 → 오늘 종가 · 급락 후 반등장 기준", gauge)
-        self.assertIn('/ float(frame["High"].dropna().max())', gauge)       # 엑셀과 같은 자(종가 ÷ 1년 고가)
-        self.assertIn("QQQ 자체를 2년 들 때 이야기", gauge)                # 12% 글은 종목 고르기와 별개
-        self.assertIn("j3data._download_cache_only((\"QQQ\",)", gauge)
-        self.assertNotIn("_download_cached", gauge)
+        self.assertIn("QQQ 자체를 2년 들 때 이야기", gauge)
+        self.assertNotIn("다이버전스는", gauge)
         self.assertIn("_render_nasdaq_drawdown(overview)", J12)
         # 상세 「시장 상황」 — QQQ 고점(○/○ 종가) 대비 · 기준일 · 지금
         self.assertIn('f"<b>QQQ 낙폭</b>({peak_text}) — 기준일 {ref_day} {ref_drop} · 지금 {now_drop}"', J12)

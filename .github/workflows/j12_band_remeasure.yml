@@ -12,6 +12,7 @@ on:
       - research/qqq_drawdown_2y.py
       - research/j12_crash_today.py
       - research/j3_crash_today.py
+      - research/j12_gauge_today.py
       - .github/workflows/j12_band_remeasure.yml
   workflow_dispatch:
 
@@ -29,7 +30,5 @@ jobs:
           python-version: "3.12"
       - name: 패키지 설치
         run: pip install -r requirements.txt
-      - name: 오늘 자비스12 급락 목록
-        run: python research/j12_crash_today.py
-      - name: 오늘 자비스3 급락 목록
-        run: python research/j3_crash_today.py
+      - name: 오늘 고점 대비 숫자들
+        run: python research/j12_gauge_today.py
