@@ -11630,7 +11630,11 @@ def _render_existing_theme_content() -> None:
         # 안 바꾸면 성적표 기간 단추·견줘 보기 탭이 폰에서 한 줄씩 세로로 쌓인다(2026-10-27 상하님 캡처).
         mobile_ui.page_css()
         .replace("st-key-j3sc_", "st-key-j12sc_")
-        .replace("st-key-j3vx_", "st-key-j12vx_"),
+        .replace("st-key-j3vx_", "st-key-j12vx_")
+        # 폰·태블릿 왼쪽 메뉴에서 미국테마(자비스3)를 감춘다(2026-10-28 상하님 「태블릿 스마트폰에서 자비스3 을
+        # 화면에서 숨겨라」). mobile_ui 는 얼린 파일이라 여기서 덧붙인다. 주소로 고른다 — 노트북·PC 는 그대로.
+        + '<style>@media (max-width: 1200px) {[data-testid="stSidebarNav"] a[href*="자비스3"],'
+        '[data-testid="stSidebarNav"] a[href*="%EC%9E%90%EB%B9%84%EC%8A%A43"] { display: none !important; }}</style>',
         unsafe_allow_html=True,
     )
     # 종목을 누르면 상세 자리로 내려가는 장치의 자리 표시 규칙(2026-08-09).

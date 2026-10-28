@@ -289,7 +289,8 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertNotIn("login_dest_choice", SOURCE.replace("login_dest_choice 목록", ""))
         # '어디로 갈까요'는 2026-08-09부터 링크 목록이라 감추는 자리가 바뀌었다.
         # 링크는 목록 상자(entry_dest_links)의 자식이므로 그 자식 번호로 감춘다.
-        for rule in ("nth-child(-n+3)", "nth-child(n+8):not(:nth-child(11)):not(:nth-child(12))"):
+        # 2026-10-28 넷째(미국테마 자비스3)도 폰·태블릿에서 감춘다(상하님 지시) — -n+3 → -n+4.
+        for rule in ("nth-child(-n+4)", "nth-child(n+8):not(:nth-child(11)):not(:nth-child(12))"):
             self.assertIn(
                 f".st-key-entry_dest_links > div:{rule}",
                 SOURCE, f"entry_dest_links에 {rule} 규칙이 없다",
@@ -298,10 +299,10 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 2026-09-30 부터 그 둘은 미국테마·한국증시다(한국테마는 노트북·PC 에만).
         # 나머지는 entry_pc_only_ 상자에 담아 1200px 이하에서 숨긴다.
         # 2026-10-01 자비스11 이 셋째로 더해졌다 · 2026-10-09 자비스12 가 둘째로(한국증시·자비스11 은 숨김).
-        self.assertIn('_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "미국테마 (자비스12)", "한국증시 (자비스10)", '
-                      '"미국테마 (자비스11)")', SOURCE)
+        # 2026-10-28 자비스3 을 폰·태블릿에서 뺐다(상하님 「태블릿 스마트폰에서 자비스3 을 화면에서 숨겨라」).
+        self.assertIn('_PHONE_DEST_OPTIONS = ("미국테마 (자비스12)", "한국증시 (자비스10)", "미국테마 (자비스11)")', SOURCE)
         self.assertIn('with st.container(key=f"entry_pc_only_', SOURCE)
-        wide = SOURCE[SOURCE.index(".st-key-entry_dest_links > div:nth-child(-n+3)"):]
+        wide = SOURCE[SOURCE.index(".st-key-entry_dest_links > div:nth-child(-n+4)"):]
         wide = wide[:wide.index("</style>")]
         self.assertIn('div[class*="st-key-entry_pc_only_"] { display: none !important; }', wide)
 
