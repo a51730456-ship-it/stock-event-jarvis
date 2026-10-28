@@ -436,6 +436,9 @@ st.markdown(
         [data-testid="stSidebarNav"] li:nth-child(3),
         [data-testid="stSidebarNav"] li:nth-child(6),
         [data-testid="stSidebarNav"] li:nth-child(7) { display: none !important; }
+        /* 미국테마(자비스3)도 감춘다(2026-10-28 상하님 지시). 줄 번호가 아니라 주소로 고른다. */
+        [data-testid="stSidebarNav"] a[href*="자비스3"],
+        [data-testid="stSidebarNav"] a[href*="%EC%9E%90%EB%B9%84%EC%8A%A43"] { display: none !important; }
     }
     </style>
     """,
@@ -537,7 +540,9 @@ _GUEST_DEST_OPTIONS = [
 # 2026-10-01 자비스11 을 셋째로 더했다(상하님 — 자비스3 과 나란히 견주실 화면).
 # 2026-10-09 자비스12 를 더했다. 한국증시·자비스11 은 숨겼지만(page_access) 여기 이름은 남긴다 —
 # 도로 열면 폰·태블릿에서도 예전처럼 보인다.
-_PHONE_DEST_OPTIONS = ("미국테마 (자비스3)", "미국테마 (자비스12)", "한국증시 (자비스10)", "미국테마 (자비스11)")
+# 2026-10-28 상하님 「지금 온라인 태블릿 스마트폰에서 미국테마 자비스3 을 화면에서 숨겨라」 — 자비스3 을 뺐다.
+# 노트북·PC 목록에는 그대로 있다. 이 줄에 도로 넣으면 폰·태블릿에서도 되살아난다.
+_PHONE_DEST_OPTIONS = ("미국테마 (자비스12)", "한국증시 (자비스10)", "미국테마 (자비스11)")
 # 기본 이동 — 폰·태블릿에서 숨기는 항목에 들어가면 '선택된 항목이 안 보이는' 상태가 되므로
 # 그 밖이어야 한다. 2026-09-30 부터 넷째(0부터 셈) = 한국증시 · 2026-10-09 부터 자비스12.
 _DEST_DEFAULT_INDEX = 4
@@ -760,6 +765,15 @@ if not st.session_state.get("authenticated"):
            두 번 지나던 까닭) 규칙도 같이 뺐다. 같은 일을 하는 규칙은 바로 다음
            화면인 '어디로 갈까요'에 st-key-entry_dest_links 이름으로 살아 있다
            (CLAUDE.md 12번). */
+        /* 첫 화면 큰 판 — 폰·태블릿(≤1200px)에서는 왼쪽 미국테마(자비스3) 판을 감추고 자비스12 판 하나만 둔다
+           (2026-10-28 상하님 「태블릿 스마트폰에서 미국테마 자비스3 을 화면에서 숨겨라」). 판을 그리는
+           login_prism.py 는 자비스3 이 쓰는 얼린 파일이라 여기서 감춘다. 노트북·PC 는 그대로 두 판. */
+        @media (max-width: 1200px) {
+            .st-key-jp_panels [data-testid="stColumn"]:has(.st-key-jp_panel_US) { display: none !important; }
+            .st-key-jp_panels [data-testid="stColumn"]:has(.st-key-jp_panel_KRM) {
+                flex: 1 1 100% !important; width: 100% !important; max-width: 100% !important;
+            }
+        }
         @media (prefers-reduced-motion: reduce) {
             [data-testid="stAppViewContainer"]::before,
             [data-testid="stAppViewContainer"]::after { animation: none !important; }
@@ -920,7 +934,7 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
            폰에서 옛 화면과 새 화면을 견주시려면 둘 다 보여야 한다.
            게스트는 목록이 둘뿐이라 이 규칙이 안 걸리게 상자 이름을 따로 쓴다. */
         @media (max-width: 1200px) {
-            .st-key-entry_dest_links > div:nth-child(-n+3),
+            .st-key-entry_dest_links > div:nth-child(-n+4),
             .st-key-entry_dest_links > div:nth-child(n+8):not(:nth-child(11)):not(:nth-child(12)) {
                 display: none !important;
             }

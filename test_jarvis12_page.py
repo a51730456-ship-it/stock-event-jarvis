@@ -57,6 +57,15 @@ class SourceTests(unittest.TestCase):
             self.assertIn(key, self.SOURCE)
         self.assertIn('st.session_state[f"j12_pullback_kept_{pressed}"] = found', self.SOURCE)
 
+    def test_phone_menu_hides_jarvis3(self):
+        """2026-10-28 상하님 「태블릿 스마트폰에서 미국테마 자비스3 을 화면에서 숨겨라」 — 왼쪽 메뉴(≤1200px)."""
+        call = self.SOURCE.split("mobile_ui.page_css()", 1)[1].split("unsafe_allow_html", 1)[0]
+        self.assertIn('@media (max-width: 1200px) {[data-testid="stSidebarNav"] a[href*="자비스3"],', call)
+        self.assertIn('a[href*="%EC%9E%90%EB%B9%84%EC%8A%A43"] { display: none !important; }}', call)
+        app = (ROOT / "app.py").read_text(encoding="utf-8")
+        self.assertIn('_PHONE_DEST_OPTIONS = ("미국테마 (자비스12)", "한국증시 (자비스10)", "미국테마 (자비스11)")', app)
+        self.assertIn('.st-key-jp_panels [data-testid="stColumn"]:has(.st-key-jp_panel_US) { display: none !important; }', app)
+
     def test_phone_rules_follow_the_j12_button_names(self):
         """2026-10-27 상하님 「이거 디자인 왜 바꿨냐?」 — 10-23 에 단추 이름만 j12 로 바꿔 폰 규칙(mobile_ui · 얼린 공용)과
         단추 꾸밈(jarvis12_scorecard_compare)이 빠졌다. 성적표 기간 단추·견줘 보기 탭이 폰에서 한 줄씩 세로로 쌓였다."""
