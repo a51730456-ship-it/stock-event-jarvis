@@ -222,9 +222,10 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows": _crash12_top3(list(crash12.get("rows") or []))', J12)
         blend = J12[J12.index("def _blend_top7("):J12.index("def _render_top_reviewed(")]
         self.assertNotIn("picklist_ui.autosave(", blend)
-        # 종목검색의 급락 배점 심사는 옛 계산 그대로 — 10개 밖도 심사된다. 날짜별 목록은 2026-10-29 부터 자비스12 목록에서
-        # 찾는다(그 칸이 10/15 부터 자비스12 종목을 보여 주는데 옛 목록에서 찾아 「오늘 목록에 없다」가 떴다).
-        self.assertEqual(1, J12.count("_find_scan_row(j3data.find_crash_rebound_stocks(), code)"))
+        # 종목 하나를 급락 배점으로 심사하는 두 곳(날짜별 목록 · 종목검색)은 2026-10-29 부터 자비스12 목록에서 찾는다
+        # (자비스3 목록에서 찾아 위 급락 칸 1등 CRWD 도 「오늘 목록에 없다」가 떴다). 옛 목록에서 찾는 곳은 이제 없다.
+        self.assertEqual(0, J12.count("_find_scan_row(j3data.find_crash_rebound_stocks(), code)"))
+        self.assertEqual(2, J12.count("_find_scan_row(jarvis12_crash.crash_list(), code)"))
         self.assertIn("2026-10-14 자비스12 그물", SPEC)
         # 성적표를 세기 시작한 날에 이미 끝난 급락(3월)은 빼고 그때 보여 주던 급락부터
         self.assertIn('str(row["episode_recovered"]) >= _SCORECARD_START', J12)
@@ -346,6 +347,17 @@ class PageTests(unittest.TestCase):
         self.assertIn("_find_scan_row(jarvis12_crash.crash_list(), code)", body)
         self.assertNotIn("_find_scan_row(j3data.find_crash_rebound_stocks(), code)", body)
         self.assertIn("jarvis12_crash.crash_list()", J12[J12.index("급락 기준일 자료로 두 갈래"):][:200])
+
+    def test_top9_detail_has_its_own_name_tag(self):
+        # 2026-10-29 — 위 급락·상승장 표에서 종목을 연 채로 순위 9 의 급락·상승장 종목을 누르면 같은 단추 이름
+        # (btn_j12_detail_open_pullback)이 두 번 생겨 오류 화면이 떴다. 순위 9 상세는 제 이름표(top7)로 그린다.
+        body = J12[J12.index("def _render_top_reviewed_detail("):]
+        body = body[:body.index("\ndef ", 1)]
+        self.assertIn('_render_pullback_detail(picked, market, ranking, mode=origin_mode, panel="top7")', body)
+        self.assertNotIn("_render_pullback_detail(picked, market, ranking, mode=origin_mode)\n", body)
+        # 누를 때 켜는 열쇠도 같은 이름이다 — 그래야 누르자마자 세부사항·차트가 열린다.
+        for opened in ('"j12_detail_open_top7"', '"j12_bundle_open_top7"', '"j12_intraday_open_top7"'):
+            self.assertIn(opened, J12[J12.index('key=f"j3top7_{index:02d}"'):][:900])
 
 
 if __name__ == "__main__":

@@ -210,3 +210,7 @@
   주는데(jarvis12_picklist_ui), 누르면 자비스3 목록(j3data.find_crash_rebound_stocks)에서 찾아 위 급락 칸 1등 CRWD 도 「오늘 목록에 없다」가
   떴다(20개 중 15개). _picklist_detail 의 그 한 줄만 jarvis12_crash.crash_list() 로 · 시험 test_jarvis12_crash.test_saved_list_click_looks_in_the_jarvis12_crash_list.
   같은 날 자비스12·한국테마만 열고 나머지를 닫았다(page_access) — 자비스12 화면은 이 한 줄 말고 안 건드렸다.
+- 2026-10-29 같은 날 — **종목검색 급락 자 · 순위 9 오류**(상하님 「둘 다 고쳐라」). ① _render_search_by_part 의 「급락 후 반등장」 도
+  jarvis12_crash.crash_list() 에서 찾는다(급락 칸 20종목 검색 — 「없다」 15 → 0). ② _render_top_reviewed_detail 의 눌림목 상세를
+  panel="top7" 로 — 위 급락·상승장 표에서 종목을 연 채 순위 9 의 급락 종목을 누르면 btn_j12_detail_open_pullback 이 두 번 생겨 오류 화면이
+  떴다(고치기 전 판에도 있던 것). 누를 때 켜는 열쇠는 원래 j12_*_open_top7 이었다. 시험 test_jarvis12_crash.test_top9_detail_has_its_own_name_tag.

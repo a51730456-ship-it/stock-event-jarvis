@@ -8614,7 +8614,10 @@ def _render_top_reviewed_detail(market: dict, ranking: dict) -> None:
         str(picked.get("top7_origin") or "")
     )
     if origin_mode or "pullback" in picked:
-        _render_pullback_detail(picked, market, ranking, mode=origin_mode)
+        # **이름표는 top7** (2026-10-29 상하님 「둘 다 고쳐라」). 예전에는 기본값(pullback)이라 위 「급락 후 반등장」·
+        # 「상승장」 표에서 종목을 연 채로 여기서 급락·상승장 종목을 누르면 같은 단추 이름(btn_j12_detail_open_pullback)이
+        # 한 판에 두 번 생겨 빨간 오류 화면이 떴다. 누를 때 켜는 열쇠(j12_*_open_top7 · 위 j3top7_ 단추)와 같은 이름이다.
+        _render_pullback_detail(picked, market, ranking, mode=origin_mode, panel="top7")
         return
     theme_name = (picked.get("sources") or ["—"])[0]
     # **테마 줄을 그대로 찾아서 넘긴다** (2026-08-26 상하님 지적 — "매수심사결과
@@ -8687,8 +8690,10 @@ def _render_search_by_part(ruler: str, code: str, found_row: dict,
                                     panel="mystock")
             return
     elif ruler == "급락 후 반등장":
+        # 자비스12 급락 칸과 같은 목록(jarvis12_crash)에서 찾는다 (2026-10-29 상하님 「둘 다 고쳐라」 — 날짜별 목록과 같은 까닭.
+        # 자비스3 목록에서 찾아 위 급락 칸 1등 CRWD 도 「오늘 그물에 없다」로 나왔다).
         with st.spinner(f"{name} — 급락 후 반등장 배점으로 심사 중입니다…"):
-            hit = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
+            hit = _find_scan_row(jarvis12_crash.crash_list(), code)
         if hit:
             _render_pullback_detail(hit, market, ranking, mode="crash",
                                     panel="mystock")
