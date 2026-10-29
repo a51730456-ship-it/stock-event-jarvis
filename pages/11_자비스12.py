@@ -7892,8 +7892,12 @@ def _picklist_detail(market: dict, ranking: dict, code: str, name: str,
         return
 
     if part == "급락 후 반등장":
+        # **자비스12 급락 목록(jarvis12_crash)에서 찾는다** (2026-10-29 상하님 「고쳐라」). 이 표의 급락 칸은
+        # 자비스12 기준일 종목으로 바꿔 보여 주는데(jarvis12_picklist_ui), 누르면 자비스3 목록
+        # (j3data.find_crash_rebound_stocks — 오늘 낙폭으로 날마다 새로 찾는 20개)에서 찾았다. 그래서 위
+        # 「급락 후 반등장」 1등 CrowdStrike 를 눌러도 「오늘 목록에 없다」가 떴다(20개 중 15개). 위 급락 칸과 같은 함수다.
         with st.spinner(f"{name or code} — 급락 후 반등장 배점으로 심사 중입니다…"):
-            found = _find_scan_row(j3data.find_crash_rebound_stocks(), code)
+            found = _find_scan_row(jarvis12_crash.crash_list(), code)
         if found:
             _render_pullback_detail(found, market, ranking, mode="crash",
                                     panel="picklist")

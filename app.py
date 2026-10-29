@@ -16,9 +16,8 @@ import streamlit as st
 
 import page_access  # 지금 열어 둔 화면만 목록에 올린다(2026-08-28).
 
-# 로그인 화면 지구(WebGL). streamlit 외에 무거운 것을 끌어오지 않으므로
-# 인증 게이트 앞에서 불러도 첫 화면이 늦어지지 않는다.
-import login_globe
+# 로그인 화면 지구(login_globe · WebGL)는 2026-08-09 프리즘으로 바뀐 뒤 그리지 않는데 불러오기만 하고 있었다 —
+# 2026-10-29 로그인 지구를 빼며 같이 뺐다(상하님 「지구본 뜨는것도 삭제해라」). 파일은 남겨 두었다.
 # 첫 화면의 프리즘과 두 판 (2026-08-09). 가벼운 모듈이라 인증 게이트 앞에서 불러도 된다.
 import login_prism
 
@@ -445,19 +444,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-try:
-    _jarvis_earth_bytes = (Path(__file__).parent / "assets" / "jarvis_earth.webp").read_bytes()
-    _jarvis_earth_src = "data:image/webp;base64," + base64.b64encode(_jarvis_earth_bytes).decode("ascii")
-    _jarvis_earth_markup = (
-        '<div class="jarvis-earth-visual">'
-        '<div class="jarvis-earth-disc">'
-        f'<div class="jarvis-earth-surface" role="img" aria-label="한국과 동아시아가 보이는 회전 지구" '
-        f'style="--jarvis-earth-texture:url({_jarvis_earth_src})"></div>'
-        "</div></div>"
-    )
-except OSError:
-    _jarvis_earth_src = ""
-    _jarvis_earth_markup = '<div class="jarvis-earth-fallback" aria-hidden="true"></div>'
+# **로그인하면 뜨던 지구(ACCESS GRANTED 연출)를 뺐다** (2026-10-29 상하님 — "지구본 뜨는것도 삭제해라 쓸데없이
+# 로딩시간만 잡아먹는다" · "로그인하면 지구가 뜨는 것 이야기하는 것이야"). 로그인 버튼이 연출 표식을 더는 달지 않는다
+# (아래 login_submit). 예전에는 지구 그림(assets/jarvis_earth.webp · 444KB)을 화면을 그릴 때마다 읽어 base64 로
+# 바꿔 두었는데 이제 읽지 않는다. 그림 파일과 login_visual.py 는 지우지 않았다 — 되살리려면 git 기록의 이 자리를 본다.
+_jarvis_earth_src = ""
+_jarvis_earth_markup = ""
 
 # 로그인 화면 지구는 login_globe.py가 WebGL로 그린다(2026-07-23 사용자 지시).
 # 전환 연출과 같은 NASA 텍스처를 그대로 넘기므로 파일을 두 번 읽지 않는다.
@@ -810,7 +802,7 @@ if not st.session_state.get("authenticated"):
         if _login_password_input == _app_password:
             st.session_state["authenticated"] = True
             st.session_state[_ACCESS_ROLE_KEY] = "owner"
-            st.session_state["login_transition_pending"] = True
+            # 로그인 지구 연출 표식은 더 달지 않는다(2026-10-29 상하님 「지구본 뜨는것도 삭제해라」 — 위 설명).
             # 로그인할 때마다 한국장 3단계 자동 조회를 새로 시작한다. 이전 인증
             # 세션의 완료 플래그가 남아 버튼을 직접 눌러야 했던 회귀를 막는다.
             for _kr_auto_key in (

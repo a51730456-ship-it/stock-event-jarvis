@@ -15,6 +15,20 @@ import jarvis8_data as data
 import jarvis8_engine as engine
 
 
+# 2026-10-29 상하님 「자비스12 만 쓰고 나머지 자비스1~11까지 다 멈춰라」 — 이 화면을 닫았다. 닫힌 화면은 안내만
+# 그리고 멈추므로 **화면을 띄우는 시험은 건너뛴다** — 시험이 틀린 것이 아니라 길이 막힌 것이다(자비스5·10·11 과 같은 방식).
+# page_access.OPEN_PAGES 에 이름을 도로 넣으면 저절로 다시 돈다.
+def _j8_page_app(*args, **kwargs):
+    from streamlit.testing.v1 import AppTest
+
+    import page_access
+    import unittest as _unittest
+
+    if not page_access.is_open('자비스8'):
+        raise _unittest.SkipTest('자비스8 화면을 닫아 두어(page_access.OPEN_PAGES · 2026-10-29) 화면을 띄우는 시험은 막혀 있다')
+    return AppTest.from_file(*args, **kwargs)
+
+
 def price_frame(index, close):
     c = np.asarray(close)
     return pd.DataFrame({"Open":c*.999,"High":c*1.015,"Low":c*.985,"Close":c,
@@ -194,7 +208,7 @@ def test_optional_quotes_are_lazy_and_failure_safe(bundle):
     state={"value":bundle,"pending":False,"error":"","stale":False,"age_seconds":0}
     with patch("auth.sync_auth"), patch.object(data.CACHE,"request",return_value=state), \
          patch.object(data.QUOTE_CACHE,"request",return_value={"value":None,"pending":False,"error":"offline"}) as quote:
-        page=AppTest.from_file("pages/8_자비스8.py",default_timeout=20)
+        page=_j8_page_app("pages/8_자비스8.py",default_timeout=20)
         page.session_state["authenticated"]=True
         page.run()
         page.radio[0].set_value("21개 테마").run()
@@ -208,7 +222,7 @@ def test_risk_form_and_alternative_views_work(bundle):
     from streamlit.testing.v1 import AppTest
     state={"value":bundle,"pending":False,"error":"","stale":False,"age_seconds":0}
     with patch("auth.sync_auth"),patch.object(data.CACHE,"request",return_value=state):
-        page=AppTest.from_file("pages/8_자비스8.py",default_timeout=20)
+        page=_j8_page_app("pages/8_자비스8.py",default_timeout=20)
         page.session_state["authenticated"]=True
         page.run();page.radio[0].set_value("위험·비용").run()
         page.multiselect[0].set_value(["NVDA","MSFT"]).run()
@@ -223,7 +237,7 @@ def test_all_page_routes_run_without_network(bundle,view):
     from streamlit.testing.v1 import AppTest
     state={"value":bundle,"pending":False,"error":"","stale":False,"age_seconds":0}
     with patch("auth.sync_auth"),patch.object(data.CACHE,"request",return_value=state):
-        page=AppTest.from_file("pages/8_자비스8.py",default_timeout=20)
+        page=_j8_page_app("pages/8_자비스8.py",default_timeout=20)
         page.session_state["authenticated"]=True
         page.session_state["jarvis_access_role"]="guest"
         page.run()
@@ -235,7 +249,7 @@ def test_all_page_routes_run_without_network(bundle,view):
 def test_pending_page_and_evidence_do_not_wait_for_data():
     from streamlit.testing.v1 import AppTest
     with patch("auth.sync_auth"),patch.object(data.CACHE,"request",return_value={"value":None,"pending":True,"error":""}) as request:
-        page=AppTest.from_file("pages/8_자비스8.py",default_timeout=10)
+        page=_j8_page_app("pages/8_자비스8.py",default_timeout=10)
         page.session_state["authenticated"]=True
         page.run();assert not page.exception and page.title
         before=request.call_count
@@ -268,7 +282,7 @@ def test_candidate_to_risk_navigation_keeps_selected_stock(bundle):
     from streamlit.testing.v1 import AppTest
     state={"value":bundle,"pending":False,"error":"","stale":False,"age_seconds":0}
     with patch("auth.sync_auth"),patch.object(data.CACHE,"request",return_value=state):
-        page=AppTest.from_file("pages/8_자비스8.py",default_timeout=20)
+        page=_j8_page_app("pages/8_자비스8.py",default_timeout=20)
         page.session_state["authenticated"]=True
         page.run()
         next(x for x in page.button if "회복 근거 보기" in x.label).click().run()

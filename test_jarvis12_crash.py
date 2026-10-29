@@ -222,8 +222,9 @@ class PageTests(unittest.TestCase):
         self.assertIn('rows": _crash12_top3(list(crash12.get("rows") or []))', J12)
         blend = J12[J12.index("def _blend_top7("):J12.index("def _render_top_reviewed(")]
         self.assertNotIn("picklist_ui.autosave(", blend)
-        # 종목 하나를 급락 배점으로 심사하는 두 곳(날짜별 목록 · 종목검색)은 옛 계산 그대로 — 10개 밖도 심사된다
-        self.assertEqual(2, J12.count("_find_scan_row(j3data.find_crash_rebound_stocks(), code)"))
+        # 종목검색의 급락 배점 심사는 옛 계산 그대로 — 10개 밖도 심사된다. 날짜별 목록은 2026-10-29 부터 자비스12 목록에서
+        # 찾는다(그 칸이 10/15 부터 자비스12 종목을 보여 주는데 옛 목록에서 찾아 「오늘 목록에 없다」가 떴다).
+        self.assertEqual(1, J12.count("_find_scan_row(j3data.find_crash_rebound_stocks(), code)"))
         self.assertIn("2026-10-14 자비스12 그물", SPEC)
         # 성적표를 세기 시작한 날에 이미 끝난 급락(3월)은 빼고 그때 보여 주던 급락부터
         self.assertIn('str(row["episode_recovered"]) >= _SCORECARD_START', J12)
@@ -336,6 +337,15 @@ class PageTests(unittest.TestCase):
         self.assertNotIn("장중", now)
         self.assertNotIn("IXIC", now)                                    # 맨 위 막대에 따로 있다
         self.assertIn("오늘은 이 자리가 없습니다", ns["_crash12_story"]({"armed": False}, None, 0))
+
+    def test_saved_list_click_looks_in_the_jarvis12_crash_list(self):
+        # 2026-10-29 — 날짜별 목록의 급락 칸은 자비스12 종목인데, 누르면 자비스3 목록에서 찾아
+        # 위 급락 칸 1등(CRWD)도 「오늘 목록에 없다」가 떴다. 위 급락 칸과 같은 함수에서 찾아야 한다.
+        body = J12[J12.index("def _picklist_detail("):]
+        body = body[:body.index("\ndef ", 1)]
+        self.assertIn("_find_scan_row(jarvis12_crash.crash_list(), code)", body)
+        self.assertNotIn("_find_scan_row(j3data.find_crash_rebound_stocks(), code)", body)
+        self.assertIn("jarvis12_crash.crash_list()", J12[J12.index("급락 기준일 자료로 두 갈래"):][:200])
 
 
 if __name__ == "__main__":

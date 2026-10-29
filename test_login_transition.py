@@ -67,23 +67,19 @@ class LoginVisualContractTests(unittest.TestCase):
         self.assertNotIn("viewBox='0 0 1200 132'", PRISM_SOURCE)
         self.assertNotIn("dur='20s'", PRISM_SOURCE)
 
-    def test_earth_is_1400px_local_webp_under_500kb(self):
-        # 2026-07-23: 로그인 화면도 실사 지구(jarvis_earth.webp)를 쓰기로 해
-        # 점 지구는 더 이상 앱에서 읽지 않는다. 텍스처는 한 장만 검사한다.
-        self.assertLessEqual(EARTH_PATH.stat().st_size, 500_000)
-        with Image.open(EARTH_PATH) as earth:
-            self.assertEqual(earth.format, "WEBP")
-            self.assertEqual(earth.size, (1400, 1400))
-        for marker in (
-            'Path(__file__).parent / "assets" / "jarvis_earth.webp"',
-            "data:image/webp;base64,",
-            # 첫 화면의 도는 지구는 2026-08-09에 **프리즘으로 바꿨다**(상하님 지시).
-            # 지구 그림은 그대로 남는다 — 로그인 성공 연출(ACCESS GRANTED)에서 쓴다.
-            # 그래서 그림 파일 조건은 그대로 두고, 첫 화면에 그리는 자리만 바꿔 본다.
-            "login_visual.render_login_transition(st, _jarvis_earth_markup)",
-            "login_prism.render(st)",
-        ):
-            self.assertIn(marker, SOURCE)
+    def test_login_earth_is_gone(self):
+        # 2026-10-29 상하님 「지구본 뜨는것도 삭제해라 쓸데없이 로딩시간만 잡아먹는다」 — 로그인하면 뜨던 지구(ACCESS
+        # GRANTED 연출)를 뺐다. 지구 그림(444KB)을 화면마다 읽지 않고, 로그인 버튼이 연출 표식을 달지 않는다.
+        self.assertNotIn('Path(__file__).parent / "assets" / "jarvis_earth.webp"', SOURCE)
+        self.assertNotIn("import login_globe", SOURCE)
+        login_block = SOURCE[SOURCE.index('if st.button("로그인", key="login_submit"'):]
+        login_block = login_block[:login_block.index("st.rerun()")]
+        self.assertNotIn('st.session_state["login_transition_pending"] = True', login_block)
+        self.assertIn('_jarvis_earth_markup = ""', SOURCE)
+        # 그림 파일은 지우지 않았다 — 되살릴 수 있게.
+        self.assertTrue(EARTH_PATH.exists())
+        # 첫 화면의 프리즘·두 판은 그대로다.
+        self.assertIn("login_prism.render(st)", SOURCE)
         self.assertNotIn("login_globe.render_login_globe(st, _jarvis_earth_src)", SOURCE)
         self.assertNotIn("jarvis_earth.svg", SOURCE)
         # 평면 지도를 옆으로 밀던 옛 방식은 완전히 걷어냈다.
@@ -116,8 +112,7 @@ class LoginVisualContractTests(unittest.TestCase):
         self.assertIn("login_visual.render_login_transition(st, _jarvis_earth_markup)", SOURCE)
         self.assertIn("background-position: 120% 50%", TRANSITION_SOURCE)
         self.assertIn("background-position: -80% 50%", TRANSITION_SOURCE)
-        markup_source = SOURCE.split("_jarvis_earth_markup = (", 1)[1].split("except OSError", 1)[0]
-        self.assertNotIn("jarvis-orbit", markup_source)
+        # 지구 그림 조각(_jarvis_earth_markup)은 2026-10-29 빈 글자가 되었다 — 위 test_login_earth_is_gone.
         self.assertNotIn("time.sleep(", SOURCE)
         self.assertNotIn("setTimeout(", SOURCE)
 
@@ -171,13 +166,10 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertEqual([error.value for error in app.error], ["비밀번호가 올바르지 않습니다."])
         self.assertIsNone(app.session_state.filtered_state.get("authenticated"))
 
-    def test_success_transition_plays_once_and_normal_rerun_does_not_replay(self):
-        """로그인 연출은 **'어디로 갈까요' 화면에서** 한 번만 돈다(2026-08-09).
+    def test_success_login_shows_the_chooser_without_the_earth(self):
+        """로그인하면 지구 연출 없이 곧바로 '어디로 갈까요'가 나온다(2026-10-29 상하님 「지구본 뜨는것도 삭제해라」).
 
-        예전에는 로그인이 곧바로 자비스1로 옮겨 가(st.switch_page) 그 본문에서
-        연출을 틀었다. 그 이동이 브라우저 기록에 같은 주소를 하나 더 쌓아
-        뒤로가기가 맨홈을 두 번 지나게 만들어서, 로그인은 로그인만 하고 갈 곳은
-        다음 화면에서 링크로 고르게 바꿨다. 연출도 그 화면으로 따라왔다.
+        예전(2026-08-09~10-28)에는 이 화면에서 지구가 2초 동안 떴다(ACCESS GRANTED 연출 · 작은 알림음).
         """
         app = _new_app()
         with self._socket_block(), _offline_market_stubs():
@@ -187,9 +179,9 @@ class LoginAppLifecycleTests(unittest.TestCase):
         self.assertEqual(len(app.exception), 0)
         self.assertTrue(app.session_state.filtered_state.get("authenticated"))
         self.assertNotIn("login_transition_pending", app.session_state.filtered_state)
-        self.assertEqual(_overlay_count(app), 1)
-        self.assertTrue(any("ACCESS GRANTED" in str(node.value) for node in app.markdown))
-        self.assertTrue(any("<audio autoplay" in str(node.value) for node in app.markdown))
+        self.assertEqual(_overlay_count(app), 0)
+        self.assertFalse(any("ACCESS GRANTED" in str(node.value) for node in app.markdown))
+        self.assertFalse(any("<audio autoplay" in str(node.value) for node in app.markdown))
         # 로그인 뒤에는 '어디로 갈까요'가 나온다 — 무거운 자비스1을 바로 그리지 않는다.
         self.assertTrue(any("어디로 갈까요" in str(node.value) for node in app.markdown))
 
@@ -238,13 +230,10 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 2026-09-08에 나머지 둘을 도로 열어 셋이 되었다가,
         # **2026-09-11 상하님 지시로 자비스6 미국테마를 도로 닫았다**
         # ("자비스6 온라인 화면에서 안 보이게 해라").
-        self.assertIn("자비스3", targets)
-        self.assertIn("자비스4", targets)
-        self.assertIn("자비스12", targets)   # 2026-10-09 자비스12
-        self.assertNotIn("자비스10", targets)   # 2026-10-09 한국증시를 숨겼다
-        self.assertNotIn("자비스11", targets)   # 2026-10-09 자비스11 을 숨겼다
-        self.assertIn("자비스7", targets)
-        self.assertNotIn("자비스6_미국테마", targets)
+        # 2026-10-29 자비스12 와 한국테마(자비스4)만 남겼다(상하님 「자비스12와 한국테마만 연결하고 다른 것은 다 막아라」).
+        self.assertEqual(["자비스12", "자비스4"], targets)
+        for closed in ("자비스3", "자비스7", "자비스8", "자비스10", "자비스11", "자비스6_미국테마"):
+            self.assertNotIn(closed, targets)
         # 자비스1은 2026-08-28부터 닫아 두었다 — 그 단추도 없다(상하님 지시).
         self.assertNotIn("entry_go", [node.key for node in app.button])
         # 자비스1은 그려지지 않아야 한다 — 이게 그려지면 옛 동작으로 돌아간 것이다.
@@ -329,11 +318,11 @@ class LoginAppLifecycleTests(unittest.TestCase):
         # 2026-09-25 기준 열린 곳은 넷(자비스8 미국주식 연구실이 늘었다).
         # 2026-09-30 한국증시(자비스10)가 늘어 다섯 · 2026-10-01 자비스11 이 늘어 여섯.
         # 2026-10-09 한국증시·자비스11 을 숨기고 자비스12 를 더해 다섯.
-        self.assertEqual(5, len(links), labels)
-        for name in ("미국테마 (자비스3)", "미국테마 (자비스12)",
-                     "한국테마 (자비스4)", "자비스7 미국테마", "자비스8 미국주식 연구실"):
-            self.assertIn(name, labels)
-        for hidden in ("한국증시 (자비스10)", "미국테마 (자비스11)"):
+        # 2026-10-29 자비스12 와 한국테마만 남겨 둘(상하님 「자비스12와 한국테마만 연결하고 다른 것은 다 막아라」).
+        self.assertEqual(2, len(links), labels)
+        self.assertEqual(["미국테마 (자비스12)", "한국테마 (자비스4)"], labels)
+        for hidden in ("미국테마 (자비스3)", "자비스7 미국테마", "자비스8 미국주식 연구실",
+                       "한국증시 (자비스10)", "미국테마 (자비스11)"):
             self.assertNotIn(hidden, labels)
         # 자비스12 고리는 자비스12 화면으로 가야 한다(「미국테마」 앞부분에 먼저 걸려 자비스3 으로 가면 안 된다).
         j12 = next(node for node in links if node.label == "미국테마 (자비스12)")

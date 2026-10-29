@@ -13,6 +13,18 @@ import jarvis3_briefing_store as store
 from streamlit.testing.v1 import AppTest
 
 
+# 2026-10-29 상하님 「자비스12 만 쓰고 나머지 자비스1~11까지 다 멈춰라」 — 이 화면을 닫았다. 닫힌 화면은 안내만
+# 그리고 멈추므로 **화면을 띄우는 시험은 건너뛴다** — 시험이 틀린 것이 아니라 길이 막힌 것이다(자비스5·10·11 과 같은 방식).
+# page_access.OPEN_PAGES 에 이름을 도로 넣으면 저절로 다시 돈다.
+def _j3_page_app(*args, **kwargs):
+    import page_access
+    import unittest as _unittest
+
+    if not page_access.is_open('미국테마'):
+        raise _unittest.SkipTest('미국테마 화면을 닫아 두어(page_access.OPEN_PAGES · 2026-10-29) 화면을 띄우는 시험은 막혀 있다')
+    return AppTest.from_file(*args, **kwargs)
+
+
 def _isolated_store(monkeypatch):
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -198,7 +210,7 @@ def test_first_page_renders_four_slots_and_next_page_button():
          patch("jarvis3_briefing_store.all_stocks", return_value=stocks), \
          patch("jarvis3_data.get_briefing_cards", return_value=cards), \
          patch("jarvis3_briefing_news.get_or_schedule", return_value={"ok": True, "items": []}):
-        app = AppTest.from_file(str(page), default_timeout=30)
+        app = _j3_page_app(str(page), default_timeout=30)
         app.secrets["APP_PASSWORD"] = "test"
         app.session_state["authenticated"] = True
         app.session_state["jarvis_access_role"] = "owner"
@@ -285,7 +297,7 @@ def test_search_shows_the_match_and_adds_only_after_confirming():
          patch("jarvis3_briefing_store.add_extra") as add_extra, \
          patch("jarvis3_data.get_briefing_cards", return_value=cards), \
          patch("jarvis3_briefing_news.get_or_schedule", return_value={"ok": True, "items": []}):
-        app = AppTest.from_file(str(page), default_timeout=30)
+        app = _j3_page_app(str(page), default_timeout=30)
         app.secrets["APP_PASSWORD"] = "test"
         app.session_state["authenticated"] = True
         app.session_state["jarvis_access_role"] = "owner"
@@ -332,7 +344,7 @@ def test_search_confirms_ionq_from_existing_theme_universe():
          patch("jarvis3_briefing_store.add_extra") as add_extra, \
          patch("jarvis3_data.get_briefing_cards", return_value=cards), \
          patch("jarvis3_briefing_news.get_or_schedule", return_value={"ok": True, "items": []}):
-        app = AppTest.from_file(str(page), default_timeout=30)
+        app = _j3_page_app(str(page), default_timeout=30)
         app.secrets["APP_PASSWORD"] = "test"
         app.session_state["authenticated"] = True
         app.session_state["jarvis_access_role"] = "owner"

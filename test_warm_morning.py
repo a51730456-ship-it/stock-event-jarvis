@@ -15,7 +15,8 @@ class WarmMorningTests(unittest.TestCase):
     def test_jarvis12_first_then_jarvis3_through_the_bottom_bar(self):
         """「깨우기 자비스12도 열고」 — 자비스12 먼저. 시장분석은 밑 막대 단추로(자비스3 넘기기 단추에 기대지 않는다)."""
         names = re.findall(r'\("(자비스\d+)", f"\{BASE\}/', SCRIPT)
-        self.assertEqual(["자비스12", "자비스3"], names)
+        # 2026-10-29 자비스3 을 닫아 깨우기에서도 뺐다(상하님 「혼자 로딩이나 자비스12와 연결을 다 막아라」).
+        self.assertEqual(["자비스12"], names)
         body = SCRIPT[SCRIPT.index("def _warm_page("):SCRIPT.index("def main()")]
         self.assertIn('_click_key(page, "j3b_nav_market")', body)
         self.assertNotIn("시장분석으로", body)

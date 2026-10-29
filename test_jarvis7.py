@@ -11,6 +11,20 @@ import jarvis7_app as app
 import jarvis7_data as data
 import jarvis7_store as store
 import jarvis7_ui as ui
+
+
+# 2026-10-29 상하님 「자비스12 만 쓰고 나머지 자비스1~11까지 다 멈춰라」 — 이 화면을 닫았다. 닫힌 화면은 안내만
+# 그리고 멈추므로 **화면을 띄우는 시험은 건너뛴다** — 시험이 틀린 것이 아니라 길이 막힌 것이다(자비스5·10·11 과 같은 방식).
+# page_access.OPEN_PAGES 에 이름을 도로 넣으면 저절로 다시 돈다.
+def _j7_page_app(*args, **kwargs):
+    from streamlit.testing.v1 import AppTest
+
+    import page_access
+    import unittest as _unittest
+
+    if not page_access.is_open('자비스7'):
+        raise _unittest.SkipTest('자비스7 화면을 닫아 두어(page_access.OPEN_PAGES · 2026-10-29) 화면을 띄우는 시험은 막혀 있다')
+    return AppTest.from_file(*args, **kwargs)
 from test_jarvis3_page import _market, _ranking, _leaders, _fear_greed, _chart_bundle, _intraday_chart_payload
 
 
@@ -256,7 +270,7 @@ def test_streamlit_entrypoint_renders_with_login_state(guest):
     def request(key,loader,ttl=120):
         return data.Snapshot(source(key[0],*key[1:]))
     with patch('auth.sync_auth'),patch.object(data.CACHE,'request',request):
-        page=AppTest.from_file('pages/7_자비스7.py',default_timeout=15)
+        page=_j7_page_app('pages/7_자비스7.py',default_timeout=15)
         page.session_state['authenticated']=True
         page.session_state['jarvis_access_role']='guest' if guest else 'owner'
         page.run()

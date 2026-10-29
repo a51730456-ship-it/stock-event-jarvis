@@ -18,6 +18,25 @@ ROOT = Path(__file__).parent
 PAGE = ROOT / "pages" / "2_자비스3.py"
 
 
+# 2026-10-29 상하님 「자비스12 만 쓰고 나머지 자비스1~11까지 다 멈춰라」 — 이 화면을 닫았다. 닫힌 화면은 안내만
+# 그리고 멈추므로 **화면을 띄우는 시험은 건너뛴다** — 시험이 틀린 것이 아니라 길이 막힌 것이다(자비스5·10·11 과 같은 방식).
+# page_access.OPEN_PAGES 에 이름을 도로 넣으면 저절로 다시 돈다.
+def _j3_page_app(*args, **kwargs):
+    import page_access
+    import unittest as _unittest
+
+    if not page_access.is_open('미국테마'):
+        raise _unittest.SkipTest('미국테마 화면을 닫아 두어(page_access.OPEN_PAGES · 2026-10-29) 화면을 띄우는 시험은 막혀 있다')
+    return AppTest.from_file(*args, **kwargs)
+
+
+import page_access as _page_access  # noqa: E402
+
+# 로그인 화면에서 자비스3 으로 바로 넘어가는 시험도 같은 까닭으로 닫혀 있으면 건너뛴다(2026-10-29).
+_J3_OPEN = _page_access.is_open("미국테마")
+_J3_WHY = "미국테마(자비스3) 화면을 닫아 두어(page_access.OPEN_PAGES · 2026-10-29) 그리로 넘어가는 시험은 막혀 있다"
+
+
 def _chart(start=100):
     index = pd.bdate_range("2026-01-01", periods=60)
     return pd.DataFrame({"Close": [start + i * .5 for i in range(60)]}, index=index)
@@ -253,7 +272,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.session_state["jarvis_access_role"] = "guest"
@@ -549,7 +568,7 @@ class Jarvis3PageTests(unittest.TestCase):
              patch("jarvis3_data.get_theme_leaders", return_value=_leaders()), \
              patch("jarvis3_store.ensure_tables"), \
              patch("jarvis3_store.list_trades", return_value=[]):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.session_state["j3_briefing_page"] = "market"
@@ -586,7 +605,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             app.session_state["j3_briefing_page"] = "market"
@@ -680,7 +699,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -847,7 +866,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=[]):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -890,7 +909,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -933,7 +952,7 @@ class Jarvis3PageTests(unittest.TestCase):
              }),              patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()),              patch("jarvis3_data.find_pullback_stocks", return_value=_pullbacks()),              patch("jarvis3_store.ensure_tables"),              patch("jarvis3_store.trade_progress", return_value={
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }),              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -981,7 +1000,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1014,7 +1033,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1052,7 +1071,7 @@ class Jarvis3PageTests(unittest.TestCase):
              }),              patch("jarvis3_data.get_chart_bundle", return_value=_chart_bundle()),              patch("jarvis3_store.ensure_tables"),              patch("jarvis3_store.trade_progress", return_value={
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }),              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1116,7 +1135,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1177,7 +1196,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1207,7 +1226,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -1294,7 +1313,7 @@ class Jarvis3PageTests(unittest.TestCase):
                  "total_count": 0, "open_count": 0, "closed_count": 0, "minimum_sample": 30,
              }), \
              patch("jarvis3_store.list_trades", return_value=_sample_trades()):
-            app = AppTest.from_file(str(PAGE), default_timeout=60)
+            app = _j3_page_app(str(PAGE), default_timeout=60)
             app.secrets["APP_PASSWORD"] = "test"
             app.session_state["authenticated"] = True
             _open_all_details(app)
@@ -2172,6 +2191,7 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertIn('"미국테마": "pages/2_자비스3.py"', source)
         self.assertIn("st.switch_page(page)", source)
 
+    @unittest.skipUnless(_J3_OPEN, _J3_WHY)
     def test_login_can_switch_directly_to_jarvis3(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \
@@ -2207,6 +2227,7 @@ class Jarvis3PageTests(unittest.TestCase):
         self.assertTrue(any("미국 전체시장 판단" in str(node.value)
                             for node in app.markdown), "화면 맨 위 제목이 없다")
 
+    @unittest.skipUnless(_J3_OPEN, _J3_WHY)
     def test_guest_button_switches_without_password_and_keeps_restrictions(self):
         with patch("jarvis3_data.get_market_overview", return_value=_market()), \
              patch("jarvis3_data.get_fear_greed", return_value=_fear_greed()), \

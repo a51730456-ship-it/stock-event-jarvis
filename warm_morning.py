@@ -50,9 +50,10 @@ import os
 # 노트북에서 시험할 때만 WARM_BASE 로 바꾼다(예: http://localhost:8599). 깃허브는 그대로 온라인.
 BASE = os.environ.get("WARM_BASE") or "https://stock-event-jarvis.streamlit.app/~/+"
 # 여는 차례 — (이름, 주소, 관심종목 표식, 시장분석 표식). 자비스12 가 먼저다(위 설명).
+# 2026-10-29 자비스3 을 뺐다 — 자비스3 을 닫았다(page_access · 상하님 「자비스12 만 쓰고 나머지 다 멈춰라 · 혼자 로딩이나
+# 자비스12와 연결을 다 막아라」). 닫힌 화면을 깨우면 막힌 판만 뜨고 그 표식을 끝까지 기다리며 시간만 쓴다.
 PAGES = (
     ("자비스12", f"{BASE}/자비스12?guest=1", ".j12b-home", ".j12-market-top"),
-    ("자비스3", f"{BASE}/자비스3?guest=1", ".j3b-home", ".j3-market-top"),
 )
 APP = PAGES[0][1]           # 새 판이 떴는지 볼 때 여는 곳
 # 화면이 다 그려지기를 기다리는 한도. 껐다 켜진 직후에는 관심종목 화면이

@@ -2,7 +2,7 @@ import copy
 from unittest.mock import patch
 import pandas as pd
 import pytest
-from test_jarvis8 import inputs
+from test_jarvis8 import inputs, _j8_page_app
 import jarvis8_lab as lab
 
 
@@ -85,7 +85,7 @@ def test_comparison_page_selects_experiments_without_changing_default(snapshot):
     comparison={'value':lab.compare(snapshot),'pending':False,'error':''}
     with patch('auth.sync_auth'),patch.object(data.CACHE,'request',return_value=cache), \
          patch.object(lab,'request',return_value=comparison):
-        page=AppTest.from_file('pages/8_자비스8.py',default_timeout=20)
+        page=_j8_page_app('pages/8_자비스8.py',default_timeout=20)
         page.session_state['authenticated']=True
         page.session_state['j8_view']='기존·실험2'
         page.run();assert not page.exception

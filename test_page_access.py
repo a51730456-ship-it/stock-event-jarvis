@@ -23,6 +23,8 @@ CLOSED_PAGES = {
     "pages/5_자비스6.py": "자비스6",
     # 2026-09-11 상하님 지시로 닫았다 — "자비스6 온라인 화면에서 안 보이게 해라".
     "pages/6_자비스6_미국테마.py": "자비스6미국테마",
+    # 2026-10-29 상하님 「자비스12 만 쓰고 나머지 자비스1~11까지 다 멈춰라」 — 미국테마(자비스3)도 맨 앞에서 막는다.
+    "pages/2_자비스3.py": "미국테마",
 }
 
 
@@ -38,9 +40,12 @@ class OpenPagesTests(unittest.TestCase):
         # 2026-09-30 한국증시(자비스10)를 열었다 — 상하님 "한국증시 새로 만들어 올려라".
         # 2026-10-01 자비스11(자비스3 을 베끼고 안 쓰는 코드만 뺀 미국테마)을 열었다.
         # 2026-10-09 한국증시·자비스11 을 숨기고 자비스12(자비스3 을 그대로 베낀 미국테마)를 열었다.
-        self.assertEqual(("미국테마", "한국테마", "자비스7", "자비스8", "자비스12"),
-                         page_access.OPEN_PAGES)
-        self.assertFalse(page_access.is_open("자비스6미국테마"))
+        # 2026-10-29 자비스12 와 한국테마만 남기고 다 닫았다(상하님 「자비스12와 한국테마만 연결하고 다른 것은 다 막아라」).
+        self.assertEqual(("한국테마", "자비스12"), page_access.OPEN_PAGES)
+        for closed in ("미국테마", "자비스7", "자비스8", "자비스6미국테마", "자비스1", "자비스2"):
+            self.assertFalse(page_access.is_open(closed), closed)
+        # 막힌 화면에서 안내하는 곳도 열린 곳이어야 한다 — 닫힌 자비스3 으로 보내면 갇힌다.
+        self.assertEqual("pages/11_자비스12.py", page_access.HOME_PAGE)
 
     def test_every_name_is_a_real_page(self):
         """열어 둔 이름이 오타면 그 화면이 조용히 막힌다."""
@@ -79,7 +84,9 @@ class GuardPlacementTests(unittest.TestCase):
         자비스6미국테마는 2026-09-11에 도로 닫으면서 장치를 다시 붙였으므로
         여기서 빠지고 위 CLOSED_PAGES 로 옮겼다.
         """
-        for path in ("pages/2_자비스3.py", "pages/3_자비스4.py"):
+        # 2026-10-29 자비스3 은 닫혀 위 CLOSED_PAGES 로 옮겼다. 열린 곳은 한국테마 · 자비스12 둘이다(자비스12 의 막는 줄은
+        # 2026-10-09 부터 있었고 열린 동안 아무것도 안 한다).
+        for path in ("pages/3_자비스4.py",):
             source = (ROOT / path).read_text(encoding="utf-8")
             self.assertNotIn("page_access.guard(", source, path)
 

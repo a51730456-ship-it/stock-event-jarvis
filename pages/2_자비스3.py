@@ -84,6 +84,13 @@ if int(getattr(auth, "MODULE_REVISION", 0)) < _REQUIRED_AUTH_REVISION:
 
 st.set_page_config(page_title="자비스3 — 종목 브리핑", layout="wide")
 
+# 2026-10-29 자비스3 을 닫았다 — 맨 앞에서 막는다(상하님 「자비스12 만 쓰고 나머지 자비스1~11까지 다 멈춰라 · 다른 것은 다
+# 막아라」). 그때까지 늘 열려 있던 화면이라 막는 줄이 없어, 목록에서 빼도 주소·왼쪽 메뉴로 들어오면 그대로 다 받았다.
+# 도로 열려면 page_access.OPEN_PAGES 에 "미국테마"를 넣는다(이 줄은 열린 화면에서는 아무것도 안 한다).
+import page_access  # noqa: E402
+
+page_access.guard(st, "미국테마")
+
 st.markdown(
     """
     <style>

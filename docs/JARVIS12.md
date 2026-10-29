@@ -206,3 +206,7 @@
     받아 **이름만** j12 로 바꿔 넣는다 · jarvis12_scorecard_compare 꾸밈 이름 j12vx_. 같은 원인으로 어긋난 이름은 이 두 곳뿐(자비스12 가
     부르는 29개 파일 대조). 폰 폭 412px 실제 스트림릿 — 줄 수 기간 5→3 · 탭 4→2 · 일별~막대 5→1 · 상자 높이 810→365px, 고친 뒤 그림이
     10/23 전 모습과 한 점도 안 다름. 지킴이 시험 test_jarvis12_page.test_phone_rules_follow_the_j12_button_names.
+- 2026-10-29 — **날짜별 목록 급락 칸을 누르면 자비스12 급락 목록에서 찾는다**(상하님 「고쳐라」). 그 칸은 10/15 부터 자비스12 종목을 보여
+  주는데(jarvis12_picklist_ui), 누르면 자비스3 목록(j3data.find_crash_rebound_stocks)에서 찾아 위 급락 칸 1등 CRWD 도 「오늘 목록에 없다」가
+  떴다(20개 중 15개). _picklist_detail 의 그 한 줄만 jarvis12_crash.crash_list() 로 · 시험 test_jarvis12_crash.test_saved_list_click_looks_in_the_jarvis12_crash_list.
+  같은 날 자비스12·한국테마만 열고 나머지를 닫았다(page_access) — 자비스12 화면은 이 한 줄 말고 안 건드렸다.
