@@ -70,6 +70,18 @@ class SourceTests(unittest.TestCase):
         self.assertIn('market_col.button("시장분석", key="j3b_nav_market"', nav)
         self.assertIn('watch_col.button("관심종목", key="j12b_nav_watch"', nav)
 
+    def test_phone_goes_straight_in_and_warmup_keeps_its_order(self):
+        """2026-10-29 상하님 「바로 자비스12 로 들어가게」 → 「둘 다 고쳐서 올려라」(app.py · warm_morning.py)."""
+        app = (ROOT / "app.py").read_text(encoding="utf-8")
+        entry = app[app.index('_entry_box = st.container(key="entry_dest_guest"'):]
+        entry = entry[:entry.index("build_stamp.render(st)")]
+        self.assertIn("matchMedia('(max-width: 1200px)')", entry)
+        self.assertIn("if(links.length===1){links[0].click();}", entry)
+        self.assertIn("import streamlit.components.v1 as _entry_components", entry)
+        warm = (ROOT / "warm_morning.py").read_text(encoding="utf-8")
+        self.assertIn('f"{BASE}/자비스12?guest=1&s=home", ".j12b-home", ".j12-market-top"', warm)
+        self.assertIn('_BRIEFING_PAGE_PARAM = "s"', self.SOURCE)
+
     def test_phone_menu_hides_jarvis3(self):
         """2026-10-28 상하님 「태블릿 스마트폰에서 미국테마 자비스3 을 화면에서 숨겨라」 — 왼쪽 메뉴(≤1200px)."""
         call = self.SOURCE.split("mobile_ui.page_css()", 1)[1].split("unsafe_allow_html", 1)[0]

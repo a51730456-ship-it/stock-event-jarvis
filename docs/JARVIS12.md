@@ -218,5 +218,9 @@
   홈, 그리고 시장분석 관심종목 순으로」). `_briefing_page` 의 기본값 home → market · 「홈」을 누르면 다음에 들어올 화면을 market 으로 ·
   밑 막대 글자와 누르는 칸을 같은 차례로. 폰 412px 실제 화면 — 첫 화면에 시장분석 표식(.j12-market-top)이 뜨고 관심종목 표식은 없음 ·
   글자 칸 가운데 58·145·232px 와 누르는 칸 54·145·237px 가 짝(시장분석이 켜짐). 시험 test_jarvis12_page.test_market_first_and_bottom_bar_order.
-  **온라인에는 아직 안 올렸다** — 아침 깨우기(warm_morning.py)가 첫 화면에서 관심종목 표식을 기다리므로, 그 파일 주소에 `&s=home` 을
-  붙여야 깨우기가 안 끊긴다. 그 파일과 「어디로 갈까요」 바로 넘기기(app.py)는 자비스12 전용 파일이 아니라 상하님께 여쭘.
+  같은 날 상하님 「둘 다 고쳐서 올려라」로 자비스12 전용이 아닌 두 파일도 고쳐 같이 올림(지킴이가 편집 도구를 막아 명령으로 고침 ·
+  app.py 백업 backups/app_20261029_2324.py):
+  · app.py — 「어디로 갈까요」에서 1200px 이하이고 **보이는 링크가 꼭 하나**면 그 링크를 브라우저가 누른다(폰·태블릿은 자비스12 하나뿐).
+    PC 는 둘 이상 보여 그대로 고른다. 시간 지연(setTimeout)은 그 화면 시험이 막아 두어 화면 그리기 차례(requestAnimationFrame)로 다시 본다.
+  · warm_morning.py — 깨우기 주소에 `&s=home` 을 붙여 예전처럼 관심종목 → 시장분석 차례로 둘 다 데운다.
+  · 시험 test_jarvis12_page.test_phone_goes_straight_in_and_warmup_keeps_its_order.

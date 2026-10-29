@@ -1006,6 +1006,27 @@ if (st.query_params.get("page") != _JARVIS1_URL_MARK
             if st.button(_entry_name, key="entry_go", use_container_width=True):
                 _go_to(_entry_name)
                 st.rerun()
+    # **폰·태블릿은 갈 곳이 하나뿐이면 곧바로 그리로 간다** (2026-10-29 상하님 — 「자비스12 들어가면 또 다시
+    # 미국테마 자비스12 클릭해야 된다 · 바로 자비스12 로 들어가게」 → 「둘 다 고쳐서 올려라」).
+    # 1200px 이하에서는 위 CSS 가 자비스12 말고 다 감춰 이 목록에 링크가 하나만 보인다. 서버는 화면 폭을 모르므로
+    # 브라우저에서 **보이는 링크가 꼭 하나일 때만** 그것을 누른다 — 노트북·PC(둘 이상 보임)는 지금처럼 고른다.
+    # 진짜 링크를 누르는 것이라 세션·로그인이 그대로 간다. 실패해도 아무 일 없다 — 예전처럼 목록이 보인다.
+    try:
+        import streamlit.components.v1 as _entry_components
+
+        _entry_components.html(
+            "<script>(function(){var w;try{w=window.parent;}catch(e){return;}"
+            "if(!w||!w.matchMedia||!w.matchMedia('(max-width: 1200px)').matches){return;}"
+            "var d=w.document,n=0;(function go(){"
+            "var box=d.querySelector('.st-key-entry_dest_guest,.st-key-entry_dest_links');"
+            "var links=box?Array.prototype.filter.call(box.querySelectorAll('a[href]'),"
+            "function(a){return a.getClientRects().length>0;}):[];"
+            "if(!links.length){if(++n<120){w.requestAnimationFrame(go);}return;}"
+            "if(links.length===1){links[0].click();}})();})();</script>",
+            height=0,
+        )
+    except Exception:
+        pass
     # **이 화면이 언제 판인지** 맨 밑에 작게 적는다 (2026-09-02 상하님 지시).
     # 폰(온라인)은 저절로 새로 뜨는데 노트북은 받아 오셔야 바뀐다. 두 화면이
     # 다를 때 제가 안 한 것인지 노트북이 안 받아 온 것인지 여기서 가르신다.
