@@ -14348,7 +14348,8 @@ def _briefing_page() -> str:
     if marked in _BRIEFING_PAGES:
         st.session_state["j12_briefing_page"] = marked
         return marked
-    return "home"
+    # 처음 들어오면 **시장분석이 먼저** (2026-10-29 상하님 「시장분석 화면이 먼저 나오게 해라」). 예전에는 관심종목.
+    return "market"
 
 
 def _request_briefing_home() -> None:
@@ -14654,7 +14655,8 @@ def _briefing_home_request() -> None:
     2026-10-09 넘기기를 빼면서 같이 뺐다(상하님 — "아예 날려라").
     """
     if st.session_state.pop("j12b_go_home", False):
-        _set_briefing_page("home")
+        # 홈에서 다시 들어오면 첫 화면(시장분석)부터 — 2026-10-29 상하님 「시장분석 화면이 먼저 나오게」.
+        _set_briefing_page("market")
         st.switch_page("app.py")
 
 
@@ -14681,8 +14683,10 @@ def _render_briefing_bottom_nav(active: str) -> None:
     pie = ('<svg class="j3b-pie" viewBox="0 0 32 32" aria-hidden="true">'
            '<circle cx="16" cy="16" r="13.2" fill="none" stroke="currentColor" stroke-width="2.6"/>'
            '<path d="M16 16 L16 4.2 A11.8 11.8 0 1 1 4.2 16 Z" fill="currentColor"/></svg>')
-    labels = (("home", "⌂", "홈"), ("watch", "★", "관심종목"),
-              ("market", pie, "시장분석"))
+    # 차례 — 홈 · 시장분석 · 관심종목 (2026-10-29 상하님 「맨 밑 하단에 홈, 그리고 시장분석 관심종목 순으로」).
+    # 밑 단추 칸(j12b_nav_controls)도 같은 차례다 — 글자와 누르는 칸이 자리로 겹치므로 둘을 같이 바꾼다.
+    labels = (("home", "⌂", "홈"), ("market", pie, "시장분석"),
+              ("watch", "★", "관심종목"))
     items = "".join(
         f'<span class="j3b-nav-item{" active" if key == active else ""}"><b>{icon}</b>{label}</span>'
         for key, icon, label in labels
@@ -14694,7 +14698,7 @@ def _render_briefing_bottom_nav(active: str) -> None:
         boot = ""
     st.markdown(f'<nav class="j3b-bottom-nav">{items}</nav>{boot}', unsafe_allow_html=True)
     with st.container(key="j12b_nav_controls"):
-        home_col, watch_col, market_col = st.columns(3, gap="small")
+        home_col, market_col, watch_col = st.columns(3, gap="small")
         # 「홈」은 누르는 순간 표시만 해 두고, 홈으로 넘어가는 일은 화면 **맨 앞**
         # (_briefing_home_request)에서 한다 (2026-09-23 저녁). 여기(화면 맨 끝)서 넘어가면
         # 홈으로 가기 전에 지금 화면을 끝까지 다시 그리고, 이 막대 통이 홈 밑에 남았다

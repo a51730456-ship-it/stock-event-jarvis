@@ -57,6 +57,19 @@ class SourceTests(unittest.TestCase):
             self.assertIn(key, self.SOURCE)
         self.assertIn('st.session_state[f"j12_pullback_kept_{pressed}"] = found', self.SOURCE)
 
+    def test_market_first_and_bottom_bar_order(self):
+        """2026-10-29 상하님 「시장분석 화면이 먼저 나오게 · 맨 밑 하단에 홈, 그리고 시장분석 관심종목 순으로」."""
+        src = self.SOURCE
+        body = src[src.index("def _briefing_page()"):src.index("def _request_briefing_home()")]
+        self.assertTrue(body.rstrip().endswith('return "market"'))
+        home = src[src.index("def _briefing_home_request()"):src.index("def _app_booted_at()")]
+        self.assertIn('_set_briefing_page("market")', home)
+        nav = src[src.index("def _render_briefing_bottom_nav("):src.index("def _us_listing_warm_state()")]
+        self.assertIn('labels = (("home", "⌂", "홈"), ("market", pie, "시장분석"),\n              ("watch", "★", "관심종목"))', nav)
+        self.assertIn("home_col, market_col, watch_col = st.columns(3", nav)
+        self.assertIn('market_col.button("시장분석", key="j3b_nav_market"', nav)
+        self.assertIn('watch_col.button("관심종목", key="j12b_nav_watch"', nav)
+
     def test_phone_menu_hides_jarvis3(self):
         """2026-10-28 상하님 「태블릿 스마트폰에서 미국테마 자비스3 을 화면에서 숨겨라」 — 왼쪽 메뉴(≤1200px)."""
         call = self.SOURCE.split("mobile_ui.page_css()", 1)[1].split("unsafe_allow_html", 1)[0]
