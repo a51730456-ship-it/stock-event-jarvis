@@ -214,3 +214,9 @@
   jarvis12_crash.crash_list() 에서 찾는다(급락 칸 20종목 검색 — 「없다」 15 → 0). ② _render_top_reviewed_detail 의 눌림목 상세를
   panel="top7" 로 — 위 급락·상승장 표에서 종목을 연 채 순위 9 의 급락 종목을 누르면 btn_j12_detail_open_pullback 이 두 번 생겨 오류 화면이
   떴다(고치기 전 판에도 있던 것). 누를 때 켜는 열쇠는 원래 j12_*_open_top7 이었다. 시험 test_jarvis12_crash.test_top9_detail_has_its_own_name_tag.
+- 2026-10-29 밤 — **시장분석을 첫 화면으로 · 밑 막대 차례 홈·시장분석·관심종목**(상하님 「시장분석 화면이 먼저 나오게 해라 · 맨 밑 하단에
+  홈, 그리고 시장분석 관심종목 순으로」). `_briefing_page` 의 기본값 home → market · 「홈」을 누르면 다음에 들어올 화면을 market 으로 ·
+  밑 막대 글자와 누르는 칸을 같은 차례로. 폰 412px 실제 화면 — 첫 화면에 시장분석 표식(.j12-market-top)이 뜨고 관심종목 표식은 없음 ·
+  글자 칸 가운데 58·145·232px 와 누르는 칸 54·145·237px 가 짝(시장분석이 켜짐). 시험 test_jarvis12_page.test_market_first_and_bottom_bar_order.
+  **온라인에는 아직 안 올렸다** — 아침 깨우기(warm_morning.py)가 첫 화면에서 관심종목 표식을 기다리므로, 그 파일 주소에 `&s=home` 을
+  붙여야 깨우기가 안 끊긴다. 그 파일과 「어디로 갈까요」 바로 넘기기(app.py)는 자비스12 전용 파일이 아니라 상하님께 여쭘.
