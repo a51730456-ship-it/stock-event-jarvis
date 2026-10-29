@@ -214,3 +214,13 @@
   jarvis12_crash.crash_list() 에서 찾는다(급락 칸 20종목 검색 — 「없다」 15 → 0). ② _render_top_reviewed_detail 의 눌림목 상세를
   panel="top7" 로 — 위 급락·상승장 표에서 종목을 연 채 순위 9 의 급락 종목을 누르면 btn_j12_detail_open_pullback 이 두 번 생겨 오류 화면이
   떴다(고치기 전 판에도 있던 것). 누를 때 켜는 열쇠는 원래 j12_*_open_top7 이었다. 시험 test_jarvis12_crash.test_top9_detail_has_its_own_name_tag.
+- 2026-10-29 밤 — **시장분석을 첫 화면으로 · 밑 막대 차례 홈·시장분석·관심종목**(상하님 「시장분석 화면이 먼저 나오게 해라 · 맨 밑 하단에
+  홈, 그리고 시장분석 관심종목 순으로」). `_briefing_page` 의 기본값 home → market · 「홈」을 누르면 다음에 들어올 화면을 market 으로 ·
+  밑 막대 글자와 누르는 칸을 같은 차례로. 폰 412px 실제 화면 — 첫 화면에 시장분석 표식(.j12-market-top)이 뜨고 관심종목 표식은 없음 ·
+  글자 칸 가운데 58·145·232px 와 누르는 칸 54·145·237px 가 짝(시장분석이 켜짐). 시험 test_jarvis12_page.test_market_first_and_bottom_bar_order.
+  같은 날 상하님 「둘 다 고쳐서 올려라」로 자비스12 전용이 아닌 두 파일도 고쳐 같이 올림(지킴이가 편집 도구를 막아 명령으로 고침 ·
+  app.py 백업 backups/app_20261029_2324.py):
+  · app.py — 「어디로 갈까요」에서 1200px 이하이고 **보이는 링크가 꼭 하나**면 그 링크를 브라우저가 누른다(폰·태블릿은 자비스12 하나뿐).
+    PC 는 둘 이상 보여 그대로 고른다. 시간 지연(setTimeout)은 그 화면 시험이 막아 두어 화면 그리기 차례(requestAnimationFrame)로 다시 본다.
+  · warm_morning.py — 깨우기 주소에 `&s=home` 을 붙여 예전처럼 관심종목 → 시장분석 차례로 둘 다 데운다.
+  · 시험 test_jarvis12_page.test_phone_goes_straight_in_and_warmup_keeps_its_order.
